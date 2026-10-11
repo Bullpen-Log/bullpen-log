@@ -405,6 +405,12 @@ export function buildStage({
 }): StageHandle {
   const s = 1 / heightM;
   const V = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
+  let bakedMats: Three.MeshBasicMaterial[] = [];
+  let current0: StageMode = mode;
+  /** 구운 빛 재질의 밝기 — 낮 1, 밤은 조명탑 빛을 따로 굽기 전까지 어둡게 */
+  const applyBaked = () => {
+    for (const b of bakedMats) b.color.copy(b.userData.base as Three.Color).multiplyScalar(current0 === 'night' ? 0.28 : 1.0);
+  };
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -660,6 +666,8 @@ export function buildStage({
     skyUniforms.uSkyOn.value = m === 'day' && skyUniforms.uSky.value ? 1 : 0;
     skyUniforms.uClouds.value = P.clouds;
     stadium?.setNight(m === 'night');
+    current0 = m;
+    applyBaked();
     fieldNight.value = m === 'night' ? 1 : 0;
     envRT?.dispose();
     envRT = pmrem.fromScene(envScene, 0.04);
@@ -709,39 +717,68 @@ export function buildStage({
       concrete.colorSpace = THREE.SRGBColorSpace;
       concrete.wrapS = concrete.wrapT = THREE.RepeatWrapping;
       const detailed = new Set(['BO_concrete', 'BO_concrete_deck', 'BO_roof', 'BO_wall']);
+      /*
+       * 구운 빛 — Blender 에서 해 · 하늘 · 반사광을 구조물 꼭짓점 색(COLOR_0)과 의자마다(instanceColor)에 구워 왔다.
+       * 그래서 구장은 실시간 조명 없이 '재질 색 × 구운 빛'(MeshBasicMaterial)으로 그린다 — 그림자 · 반사광이 들어가고 휴대폰에서 싸다.
+       * 밤에는 setMode 가 bakedNight 로 어둡게 누른다(조명탑 빛은 다음에 따로 굽는다).
+       */
+      const basics = new Map<string, Three.MeshBasicMaterial>();
+      const toBasic = (m: Three.MeshStandardMaterial, vc: boolean) => {
+        const key = m.uuid + (vc ? 'v' : 'i');
+        let b = basics.get(key);
+        if (!b) {
+          b = new THREE.MeshBasicMaterial({ color: m.color.clone(), vertexColors: vc, name: m.name, side: m.side });
+          b.userData.base = m.color.clone();
+          const detail = detailed.has(m.name);
+          {
+            b.onBeforeCompile = (sh) => {
+              /* 구운 빛은 밝기만(반사광에 묻은 의자 색은 버림) · 1.05 를 넘지 않게 */
+              sh.fragmentShader = sh.fragmentShader.replace(
+                '#include <color_fragment>',
+                `#if defined( USE_COLOR )
+                  diffuseColor.rgb *= vec3(min(1.05, dot(vColor.rgb, vec3(0.2126, 0.7152, 0.0722))));
+                #elif defined( USE_INSTANCING_COLOR )
+                  diffuseColor.rgb *= vColor.rgb;
+                #endif`
+              );
+              if (!detail) return;
+              sh.uniforms.uDetail = { value: concrete };
+              sh.uniforms.uDetailScale = { value: 1 / (4 * s) };
+              sh.vertexShader = sh.vertexShader
+                .replace('#include <common>', '#include <common>\nvarying vec3 vWorldD;\nvarying vec3 vNormD;')
+                .replace(
+                  '#include <begin_vertex>',
+                  '#include <begin_vertex>\nvWorldD = (modelMatrix * vec4(transformed, 1.0)).xyz;\nvNormD = normalize(mat3(modelMatrix) * normal);'
+                );
+              sh.fragmentShader = sh.fragmentShader
+                .replace('#include <common>', '#include <common>\nuniform sampler2D uDetail;\nuniform float uDetailScale;\nvarying vec3 vWorldD;\nvarying vec3 vNormD;')
+                .replace(
+                  '#include <map_fragment>',
+                  `#include <map_fragment>
+                  {
+                    vec3 wn = abs(normalize(vNormD));
+                    wn /= (wn.x + wn.y + wn.z);
+                    vec3 p = vWorldD * uDetailScale;
+                    vec3 t = texture2D(uDetail, p.zy).rgb * wn.x + texture2D(uDetail, p.xz).rgb * wn.y + texture2D(uDetail, p.xy).rgb * wn.z;
+                    diffuseColor.rgb *= mix(1.0, dot(t, vec3(0.2126, 0.7152, 0.0722)) / 0.242, 0.7);
+                  }`
+                );
+            };
+          }
+          basics.set(key, b);
+        }
+        return b;
+      };
       root.traverse((o) => {
-        const m = (o as Three.Mesh).material as Three.MeshStandardMaterial | undefined;
-        if (!m || !detailed.has(m.name) || m.userData.detail) return;
-        m.userData.detail = true;
-        m.onBeforeCompile = (sh) => {
-          sh.uniforms.uDetail = { value: concrete };
-          sh.uniforms.uDetailScale = { value: 1 / (4 * s) };
-          sh.vertexShader = sh.vertexShader
-            .replace('#include <common>', '#include <common>\nvarying vec3 vWorldD;\nvarying vec3 vNormD;')
-            .replace(
-              '#include <begin_vertex>',
-              '#include <begin_vertex>\nvWorldD = (modelMatrix * vec4(transformed, 1.0)).xyz;\nvNormD = normalize(mat3(modelMatrix) * objectNormal);'
-            );
-          sh.fragmentShader = sh.fragmentShader
-            .replace(
-              '#include <common>',
-              '#include <common>\nuniform sampler2D uDetail;\nuniform float uDetailScale;\nvarying vec3 vWorldD;\nvarying vec3 vNormD;'
-            )
-            .replace(
-              '#include <map_fragment>',
-              `#include <map_fragment>
-              {
-                vec3 wn = abs(normalize(vNormD));
-                wn /= (wn.x + wn.y + wn.z);
-                vec3 p = vWorldD * uDetailScale;
-                vec3 t = texture2D(uDetail, p.zy).rgb * wn.x + texture2D(uDetail, p.xz).rgb * wn.y + texture2D(uDetail, p.xy).rgb * wn.z;
-                /* 사진 평균 밝기(선형 0.242)로 나눈 잔결 밝기만 — 사진의 누런 색은 안 옮긴다 */
-                diffuseColor.rgb *= mix(1.0, dot(t, vec3(0.2126, 0.7152, 0.0722)) / 0.242, 0.7);
-              }`
-            );
-        };
-        m.needsUpdate = true;
+        const mesh = o as Three.Mesh;
+        if (!mesh.isMesh) return;
+        const m = mesh.material as Three.MeshStandardMaterial;
+        const vc = !!mesh.geometry.attributes.color;
+        const inst = !!(mesh as Three.InstancedMesh).instanceColor;
+        if (vc || inst) mesh.material = toBasic(m, vc);
       });
+      bakedMats = [...basics.values()];
+      applyBaked();
       /* 해 그림자는 투수 둘레 5m 만 덮는다 — 구장은 그림자를 그리지도 받지도 않는다(의자 5만여 개를 그림자 판에 또 그리면 휴대폰이 버겁다) */
       root.traverse((o) => {
         o.castShadow = false;

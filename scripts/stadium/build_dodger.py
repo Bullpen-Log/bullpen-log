@@ -177,7 +177,7 @@ def front_line():
     pts = pts[::-1][:-1][::-1]  # 135° 쪽 끝은 아래 선 첫 점과 같다
     d = (math.cos(Q), math.sin(Q))
     n = (-math.sin(Q), math.cos(Q))
-    for r in [x * 2.0 for x in range(0, 50)] + [99.0]:
+    for r in [x * 1.0 for x in range(0, 99)] + [99.0]:
         f = foul_w(r)
         pts.append((r * d[0] + f * n[0], r * d[1] + f * n[1], math.radians(135), r))
     for k in range(1, 9):
@@ -725,6 +725,111 @@ def bake_ao(samples=96):
         print('AO 의자', key, round(sum(out) / len(out), 3))
 
 
+# 해 — 앱(stage.ts)과 같은 방향: 무대 세계 (0.55, 0, 0.42) 수평 · 높이 49°. 경기장 좌표로 a = −0.55, b = −0.42 → Blender (a, −b)
+SUN_EL = math.radians(49)
+_h = Vector((-0.55, 0.42, 0)).normalized()
+SUN_DIR = Vector((_h.x * math.cos(SUN_EL), _h.y * math.cos(SUN_EL), math.sin(SUN_EL))).normalized()
+SUN_W = 3.0  # 해 세기(W/m², Cycles)
+SKY_W = 0.9  # 하늘 세기(배경 세기 — 아래에서 하늘빛 몫을 잰다)
+
+
+def bake_light(samples=128):
+    """낮 빛 굽기 — 해(그림자) + 물리 하늘(니시타) + 반사광을 구조물 꼭짓점 색 LIGHT 에(빛만, 색 없이). 의자는 의자마다 해 가림 + 하늘 열림.
+    앱은 이 빛에 재질 색을 곱해 그린다(실시간 조명 대신 — 휴대폰에서 싸고 그림자 · 반사광이 들어간다)."""
+    sc = bpy.context.scene
+    sc.render.engine = 'CYCLES'
+    sc.cycles.device = 'CPU'
+    sc.cycles.samples = samples
+    w = sc.world or bpy.data.worlds.new('World')
+    sc.world = w
+    w.use_nodes = True
+    nt = w.node_tree
+    nt.nodes.clear()
+    sky = nt.nodes.new('ShaderNodeTexSky')
+    sky.sky_type = 'NISHITA'
+    sky.sun_disc = False
+    sky.sun_elevation = SUN_EL
+    sky.sun_rotation = math.atan2(SUN_DIR.x, SUN_DIR.y)
+    bg = nt.nodes.new('ShaderNodeBackground')
+    bg.inputs['Strength'].default_value = SKY_W * 0.1
+    out = nt.nodes.new('ShaderNodeOutputWorld')
+    nt.links.new(sky.outputs['Color'], bg.inputs['Color'])
+    nt.links.new(bg.outputs['Background'], out.inputs['Surface'])
+    ld = bpy.data.lights.new('BakeSun', 'SUN')
+    ld.energy = SUN_W
+    ld.angle = math.radians(0.8)
+    sun = bpy.data.objects.new('BakeSun', ld)
+    bpy.data.collections['Cameras'].objects.link(sun)
+    sun.rotation_euler = (-SUN_DIR).to_track_quat('-Z', 'Y').to_euler()
+    bpy.data.collections['Reference'].hide_render = True
+    for c in ('Field', 'Infield', 'Outfield'):
+        bpy.data.collections[c].hide_render = False
+    targets = [o for name in EXPORT for o in bpy.data.collections[name].all_objects if o.type == 'MESH' and not o.hide_render and not o.name.startswith('Seats_')]
+    for o in targets:
+        if 'LIGHT' not in o.data.color_attributes:
+            o.data.color_attributes.new('LIGHT', 'FLOAT_COLOR', 'POINT')
+        o.data.color_attributes.active_color = o.data.color_attributes['LIGHT']
+    bpy.ops.object.select_all(action='DESELECT')
+    for o in targets:
+        o.select_set(True)
+    bpy.context.view_layer.objects.active = targets[0]
+    sc.render.bake.use_pass_direct = True
+    sc.render.bake.use_pass_indirect = True
+    sc.render.bake.use_pass_color = False
+    bpy.ops.object.bake(type='DIFFUSE', pass_filter={'DIRECT', 'INDIRECT'}, target='VERTEX_COLORS')
+    # 기준: 가리지 않은 수평면의 빛 = 해(sin 49° × 세기) + 하늘 — 이 값을 1 로 맞춘다
+    allv = []
+    for o in targets:
+        ca = o.data.color_attributes['LIGHT']
+        buf = [0.0] * (len(o.data.vertices) * 4)
+        ca.data.foreach_get('color', buf)
+        allv += [sum(buf[i : i + 3]) / 3 for i in range(0, len(buf), 4)]
+    allv.sort()
+    ref = allv[int(len(allv) * 0.97)] or 1.0
+    print('빛 기준(97%)', round(ref, 3))
+    for o in targets:
+        ca = o.data.color_attributes['LIGHT']
+        n = len(o.data.vertices)
+        buf = [0.0] * (n * 4)
+        ca.data.foreach_get('color', buf)
+        vals = [[buf[i * 4 + c] / ref for c in range(3)] for i in range(n)]
+        nb = [[] for _ in range(n)]
+        for e in o.data.edges:
+            a, b = e.vertices
+            nb[a].append(b)
+            nb[b].append(a)
+        for _ in range(2):
+            vals = [[0.6 * vals[i][c] + 0.4 * (sum(vals[j][c] for j in nb[i]) / len(nb[i]) if nb[i] else vals[i][c]) for c in range(3)] for i in range(n)]
+        outb = []
+        for v in vals:
+            outb += [min(1.5, v[0]), min(1.5, v[1]), min(1.5, v[2]), 1.0]
+        ca.data.foreach_set('color', outb)
+        if 'AO' in o.data.color_attributes:
+            o.data.color_attributes.remove(o.data.color_attributes['AO'])
+    print('빛 구움(구조물)', len(targets))
+    # 의자 — 해: 의자 앞(등받이 · 앉는 판 평균 법선)과 해의 각 × 해 가림, 하늘: 반구 열림(SEAT_AO)
+    dg = bpy.context.evaluated_depsgraph_get()
+    verts, polys = [], []
+    for o in targets:
+        me = o.evaluated_get(dg).to_mesh()
+        off = len(verts)
+        verts += [o.matrix_world @ v.co for v in me.vertices]
+        polys += [[off + i for i in p.vertices] for p in me.polygons]
+        o.evaluated_get(dg).to_mesh_clear()
+    bvh = BVHTree.FromPolygons(verts, polys)
+    flat = SUN_W * math.sin(SUN_EL) + SKY_W
+    for key, pts in SEAT_PTS.items():
+        out = []
+        for (x, y, z, yaw), ao in zip(pts, SEAT_AO[key]):
+            nrm = Vector((0.75 * math.cos(yaw), 0.75 * math.sin(yaw), 0.66)).normalized()
+            o = Vector((x, y, z + 0.75))
+            lit = 0.0 if bvh.ray_cast(o, SUN_DIR, 200.0)[0] is not None else 1.0
+            sunv = max(0.0, nrm.dot(SUN_DIR)) * lit * SUN_W
+            out.append(min(1.4, (sunv + SKY_W * ao + 0.25 * ao) / flat))
+        SEAT_AO[key] = out
+        print('빛 의자', key, round(sum(out) / len(out), 3))
+
+
 def add_seat_colors(path):
     """내보낸 GLB 의 의자 인스턴싱에 _COLOR_0(의자마다 밝기)을 붙인다 — three 의 GLTFLoader 가 instanceColor 로 읽는다.
     내보내기는 점 차례를 지키지 않을 수 있어 자리(TRANSLATION)로 짝을 짓는다."""
@@ -810,6 +915,8 @@ if __name__ == '__main__':
         render(os.path.abspath(out))
     if '--ao' in ARGV:
         bake_ao()
+        if '--light' in ARGV:
+            bake_light()
     glb = arg('--glb')
     if glb:
         export_glb(os.path.abspath(glb))
