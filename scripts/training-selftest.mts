@@ -97,6 +97,7 @@ import {
   pickForTheme,
   plannedOuting,
   workoutConflict,
+  type SlotKey,
   type ThemeKey,
 } from '../lib/report/theme.ts';
 import {
@@ -226,7 +227,12 @@ import {
   estimateTrainingDailyLoad,
   validateBaseline,
 } from '../lib/baseline.ts';
-import { buildDailyPlan, isHalted, readDailyPlan } from '../lib/report/daily-plan.ts';
+import {
+  buildDailyPlan,
+  isHalted,
+  readDailyPlan,
+  strengthDatesFrom,
+} from '../lib/report/daily-plan.ts';
 import {
   DEFAULT_GOAL,
   decideAutoFence,
@@ -8533,6 +8539,154 @@ console.log(
       'P1 ① 같은 id · 같은 날 · 같은 입력 → 같은 목록 7/7',
       same === 7,
       `${same}/7`
+    );
+  }
+
+  /* ─────────────── (f) P1 ② 번갈아 가기의 예비 규칙을 '계획 기록'으로 — strengthDatesFrom(daily-plan.ts) ─────────────── */
+  /*
+   * gather.ts 의 lastStrengthDates 가 완료 기록만 보던 것을, 완료가 없는 날은 저장된 일정으로 세게 했다(가정: 계획을 세우고
+   * 안 한 날도 '한 날'). 규칙은 순수 함수 strengthDatesFrom 한 곳이라 여기서 그대로 돌린다 — 완료 > 계획(같은 날) · 오늘 제외 ·
+   * 본운동 없는 날(컨디셔닝) 제외 · 옛 모양 제외, 그리고 마침을 안 누르는 사람의 7일이 실제로 번갈아 가는지.
+   */
+  {
+    const todayKey = toDateKey(TODAY);
+    const ago = (n: number) => shiftDateKey(todayKey, -n);
+    const planOf = (
+      key: ThemeKey,
+      slots: SlotKey[] = ['main', 'core'],
+      version: number = 1
+    ): unknown => ({
+      version,
+      theme: { key, label: '', reason: '' },
+      goal: '근력 향상',
+      requestedMinutes: 60,
+      minutes: 60,
+      estimatedMinutes: 60,
+      picks: slots.map((slot, n) => ({ exerciseId: `x${n}`, slot })),
+      basis: [],
+      notes: [],
+      excluded: [],
+      equipment: {
+        available: [],
+        excludedCount: 0,
+        narrowed: false,
+        bestAddition: null,
+      },
+      levelExcludedCount: 0,
+    });
+    const lower = (date: string) => ({ date, category: '하체 스트렝스' });
+    const upper = (date: string) => ({ date, category: '상체 스트렝스' });
+
+    const doneOnly = strengthDatesFrom({
+      done: [lower(ago(3)), upper(ago(1)), { date: ago(2), category: '코어' }],
+      planned: [],
+      todayKey,
+    });
+    check(
+      'P1 ② 완료 기록만 — 예전과 같다: 하체 3일 전 · 상체 어제, 출처 done',
+      doneOnly.lower === ago(3) &&
+        doneOnly.upper === ago(1) &&
+        doneOnly.source.lower === 'done' &&
+        doneOnly.source.upper === 'done',
+      JSON.stringify(doneOnly)
+    );
+    const plannedOnly = strengthDatesFrom({
+      done: [],
+      planned: [
+        { date: ago(2), plan: planOf('lower') },
+        { date: ago(1), plan: planOf('assist') },
+      ],
+      todayKey,
+    });
+    check(
+      'P1 ② 완료 기록 없음 · 그제 하체 일정 · 어제 보조 일정 → 하체 그제(출처 planned) · 상체 없음 → 오늘은 상체 차례',
+      plannedOnly.lower === ago(2) &&
+        plannedOnly.source.lower === 'planned' &&
+        plannedOnly.upper == null &&
+        decideTheme({
+          facts: p0Facts({ today: { condition: 8 } }),
+          plan: buildPitchPlan(p0Facts({ today: { condition: 8 } })),
+          lastLowerKey: plannedOnly.lower,
+          lastUpperKey: plannedOnly.upper,
+        }).key === 'upper',
+      JSON.stringify(plannedOnly)
+    );
+    const conflict = strengthDatesFrom({
+      done: [upper(ago(1))],
+      planned: [{ date: ago(1), plan: planOf('lower') }],
+      todayKey,
+    });
+    check(
+      'P1 ② 같은 날 계획 하체 · 완료 상체 → 완료가 이긴다(상체 어제 · 하체 없음)',
+      conflict.upper === ago(1) &&
+        conflict.lower == null &&
+        conflict.source.upper === 'done',
+      JSON.stringify(conflict)
+    );
+    const partial = strengthDatesFrom({
+      done: [{ date: ago(1), category: '모빌리티' }],
+      planned: [{ date: ago(1), plan: planOf('lower') }],
+      todayKey,
+    });
+    check(
+      'P1 ② 같은 날 근력이 아닌 완료(모빌리티)만 있으면 계획으로 센다(하체 어제 · planned)',
+      partial.lower === ago(1) && partial.source.lower === 'planned',
+      JSON.stringify(partial)
+    );
+    const skipped = strengthDatesFrom({
+      done: [],
+      planned: [
+        /* 컨디셔닝 목표 — key 는 lower 인데 본운동이 없다(theme.ts conditioningDay) */
+        { date: ago(3), plan: planOf('lower', ['core', 'prehab']) },
+        /* 옛 모양(version 0) */
+        { date: ago(2), plan: planOf('upper', ['main'], 0) },
+        /* 오늘 것 */
+        { date: todayKey, plan: planOf('upper') },
+        /* 일정 없음 */
+        { date: ago(1), plan: null },
+      ],
+      todayKey,
+    });
+    check(
+      'P1 ② 본운동 없는 날(컨디셔닝) · 옛 모양 · 오늘 것 · 빈 일정은 세지 않는다 → 둘 다 없음',
+      skipped.lower == null && skipped.upper == null,
+      JSON.stringify(skipped)
+    );
+    const future = strengthDatesFrom({
+      done: [lower(todayKey)],
+      planned: [],
+      todayKey,
+    });
+    check(
+      'P1 ② 오늘 완료한 것도 세지 않는다',
+      future.lower == null,
+      JSON.stringify(future)
+    );
+
+    /* 마침을 안 누르는 사람 7일 — 저장된 일정만으로 하체 · 상체가 엄격히 번갈아 간다(홀짝에 안 떨어진다) */
+    const history: { date: string; plan: unknown }[] = [];
+    const seq: ThemeKey[] = [];
+    for (let d = 0; d < 7; d++) {
+      const asOf = new Date(TODAY.getTime() + d * 86400000);
+      const key = toDateKey(asOf);
+      const facts = p0Facts({ today: { condition: 8 }, asOf });
+      const dates = strengthDatesFrom({ done: [], planned: history, todayKey: key });
+      const theme = decideTheme({
+        facts,
+        plan: buildPitchPlan(facts),
+        lastLowerKey: dates.lower,
+        lastUpperKey: dates.upper,
+      });
+      seq.push(theme.key);
+      history.push({ date: key, plan: planOf(theme.key) });
+    }
+    const flips = seq.slice(1).filter((k, n) => k !== seq[n]).length;
+    check(
+      `P1 ② 마침을 안 누르는 사람 7일 — 저장된 일정만으로 하체 · 상체가 날마다 바뀐다(바뀜 ${flips}/6, 상체 ${seq.filter((k) => k === 'upper').length}일)`,
+      flips === 6 &&
+        seq.every((k) => k === 'lower' || k === 'upper') &&
+        seq.filter((k) => k === 'upper').length >= 3,
+      seq.join(' → ')
     );
   }
 }

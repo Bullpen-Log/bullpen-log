@@ -33,7 +33,12 @@ import {
   type CheckinLike,
 } from '../lib/report/facts.ts';
 import { buildPitchPlan, YOUTH_AGE_THRESHOLD } from '../lib/report/plan.ts';
-import { buildDailyPlan, isHalted, type DailyPlan } from '../lib/report/daily-plan.ts';
+import {
+  buildDailyPlan,
+  isHalted,
+  strengthDatesFrom,
+  type DailyPlan,
+} from '../lib/report/daily-plan.ts';
 import {
   CONDITIONING_GOAL,
   HARD_OUTING_MIN_PITCHES,
@@ -512,6 +517,8 @@ type State = {
   checkins: DayCheckin[];
   /** 날짜 키 → 그날 마친 운동 */
   done: Map<string, DoneEntry[]>;
+  /** 날짜 키 → 그날 저장된 일정(앱의 DailyTrainingSetup.plan — 하루의 첫 만들기, 변형은 저장 안 함) */
+  planned: Map<string, DailyPlan>;
 };
 
 /**
@@ -546,16 +553,23 @@ function historyOf(st: State, i: number) {
     }
   }
 
-  let lastLowerKey: string | null = null;
-  let lastUpperKey: string | null = null;
+  /* 하체 · 상체 마지막 날 — gather.ts 의 lastStrengthDates 와 같은 규칙(daily-plan.ts 의 strengthDatesFrom): 완료 기록이 먼저, 없는 날은 저장된 일정 */
+  const done: { date: string; category: string }[] = [];
+  const planned: { date: string; plan: unknown }[] = [];
   for (let d = i - ROTATION_LOOKBACK_DAYS; d < i; d++) {
     const key = keyOf(d);
-    for (const e of st.done.get(key) ?? []) {
-      if (e.category === '하체 스트렝스') lastLowerKey = key;
-      if (e.category === '상체 스트렝스') lastUpperKey = key;
-    }
+    for (const e of st.done.get(key) ?? [])
+      done.push({ date: key, category: e.category });
+    const plan = st.planned.get(key);
+    if (plan) planned.push({ date: key, plan });
   }
-  return { recentIds, sessionsAgo, lastLowerKey, lastUpperKey };
+  const dates = strengthDatesFrom({ done, planned, todayKey });
+  return {
+    recentIds,
+    sessionsAgo,
+    lastLowerKey: dates.lower,
+    lastUpperKey: dates.upper,
+  };
 }
 
 /** 한 가지만 바꿔 다시 만들 때 쓰는 손잡이 */
@@ -725,7 +739,12 @@ type PlayerResult = {
 const results: PlayerResult[] = [];
 
 for (const p of PLAYERS) {
-  const st: State = { logs: logsFor(p), checkins: checkinsFor(p), done: new Map() };
+  const st: State = {
+    logs: logsFor(p),
+    checkins: checkinsFor(p),
+    done: new Map(),
+    planned: new Map(),
+  };
   const days: DayRecord[] = [];
   let halted = 0;
 
@@ -797,6 +816,8 @@ for (const p of PLAYERS) {
       today: throwOn(p.role, i),
     });
 
+    /* 저장 — 앱은 만든 일정을 그날 DailyTrainingSetup.plan 에 둔다(번갈아 가기의 계획 기록, P1) */
+    st.planned.set(keyOf(i), base);
     /* 마침 — 그날 목록을 통째로 마친 것으로 적는다(앱은 운동마다 UserExerciseLog 가 남는다) */
     if (marksDoneOn(p.done, i)) {
       st.done.set(
@@ -859,14 +880,20 @@ for (const [n, s] of PAIR_SETTINGS.entries()) {
     logs: logsFor(p),
     checkins: checkinsFor(p),
     done: new Map(),
+    planned: new Map(),
   });
   const [sa, sb, stw] = [stateOf(a), stateOf(b), stateOf(twin)];
   let same = 0;
   let twinSame = 0;
   for (let i = 0; i < DAYS; i++) {
-    const pa = buildDay(a, i, sa);
-    if (sameList(pa, buildDay(b, i, sb))) same++;
-    if (sameList(pa, buildDay(twin, i, stw))) twinSame++;
+    /* 마침을 안 누르는 새 사용자라 번갈아 가기는 저장된 일정(계획 기록)으로만 돈다 — 그날 만든 것을 저장해 둔다 */
+    const keep = (st: State, built: DailyPlan | null) => {
+      if (built) st.planned.set(keyOf(i), built);
+      return built;
+    };
+    const pa = keep(sa, buildDay(a, i, sa));
+    if (sameList(pa, keep(sb, buildDay(b, i, sb)))) same++;
+    if (sameList(pa, keep(stw, buildDay(twin, i, stw)))) twinSame++;
   }
   pairRows.push({
     setting: `${s.level} · ${KIT_LABEL[s.kit]} · ${s.goal} · ${s.minutes}분`,
@@ -961,14 +988,21 @@ function gameMornings(answering: boolean) {
 const gameMorningAnswering = gameMornings(true);
 const gameMorningSilent = gameMornings(false);
 
-/* ⑥ 하체 · 상체 한쪽 연속 최대 일수 — 근력 날(lower/upper)만 차례로 보고 같은 쪽이 이어진 가장 긴 줄. 본운동 0 인 근력 날도 센다 */
-function sideRun(days: DayRecord[]) {
+/*
+ * ⑥ 하체 · 상체 한쪽 연속 최대 일수 — 근력 날(lower/upper)만 차례로 보고 같은 쪽이 이어진 가장 긴 줄.
+ *
+ * liftingOnly 면 본운동이 실제로 있는 날만 센다(P1 ②부터 이 값이 주 지표). 컨디셔닝 목표의 날은 이름이 '컨디셔닝 데이'고 무게
+ * 드는 구간이 없는데 key 는 lower/upper 로 남아(theme.ts conditioningDay — 그 쪽 근력은 다음 근력 날로 넘긴다는 화면 글 그대로),
+ * key 만 보면 몸에 아무 부하도 안 준 날이 '한쪽 연속'으로 잡힌다. 옛 값(key 기준, 본운동 0 인 날 포함)도 같이 남긴다.
+ */
+function sideRun(days: DayRecord[], liftingOnly = false) {
   let best = 0;
   let bestSide: ThemeKey | null = null;
   let run = 0;
   let side: ThemeKey | null = null;
   for (const d of days) {
     if (d.theme !== 'lower' && d.theme !== 'upper') continue;
+    if (liftingOnly && d.mainCount === 0) continue;
     run = d.theme === side ? run + 1 : 1;
     side = d.theme;
     if (run > best) {
@@ -982,7 +1016,10 @@ function sideRun(days: DayRecord[]) {
 type PlayerSummary = {
   name: string;
   themes: Record<ThemeKey, number>;
+  /** 본운동이 있는 근력 날만(주 지표) */
   sideRun: ReturnType<typeof sideRun>;
+  /** key 기준(본운동 0 인 날 포함 — P0 와 같은 셈) */
+  sideRunKey: ReturnType<typeof sideRun>;
   emptyMainStrengthDays: number | null;
   veryHighDays: number;
   noCheckinDays: number;
@@ -1002,7 +1039,8 @@ const summaries: PlayerSummary[] = results.map((r) => ({
   },
   appDays: r.days.filter((d) => d.hasCheckin).length,
   recoveryAppDays: r.days.filter((d) => d.hasCheckin && d.theme === 'recovery').length,
-  sideRun: sideRun(r.days),
+  sideRun: sideRun(r.days, true),
+  sideRunKey: sideRun(r.days),
   /* 컨디셔닝 목표는 본운동 구간이 애초에 없다(GOAL_SHAPES) — 그 선수는 세지 않는다(null) */
   emptyMainStrengthDays:
     r.player.goal === CONDITIONING_GOAL
@@ -1333,7 +1371,10 @@ out.push(
         s.themes.assist,
         s.themes.lower,
         s.themes.upper,
-        sideText(s.sideRun),
+        /* 본운동 있는 날 기준. key 기준이 다르면(컨디셔닝 — 무게 없는 날의 숨은 키) 괄호로 곁들인다 */
+        s.sideRunKey.best === s.sideRun.best
+          ? sideText(s.sideRun)
+          : `${sideText(s.sideRun)} (키 기준 ${sideText(s.sideRunKey)})`,
         s.emptyMainStrengthDays ?? '(컨디셔닝)',
         s.veryHighDays,
         s.distinctExercises,
@@ -1403,8 +1444,13 @@ out.push(
       ],
       [
         '⑥',
-        '하체 · 상체 한쪽 연속 최대 일수(근력 날만 차례로, 본운동 0 인 날 포함) — 선수별은 위 표',
+        '하체 · 상체 한쪽 연속 최대 일수(본운동이 있는 근력 날만 차례로) — 선수별은 위 표',
         `최대 ${Math.max(...summaries.map((s) => s.sideRun.best))}일`,
+      ],
+      [
+        '⑥',
+        '  key 기준(본운동 0 인 날 포함 — P0 와 같은 셈, 컨디셔닝 목표의 숨은 키가 섞인다)',
+        `최대 ${Math.max(...summaries.map((s) => s.sideRunKey.best))}일`,
       ],
       [
         '⑥',
@@ -1716,6 +1762,7 @@ const json = {
     },
     gameMorning: { answering: gameMorningAnswering, silent: gameMorningSilent },
     sideRunMax: Math.max(...summaries.map((s) => s.sideRun.best)),
+    sideRunKeyMax: Math.max(...summaries.map((s) => s.sideRunKey.best)),
     exposure: {
       ...ratioPair(exposed.size, library.length, exposedApp.size, library.length),
       schedulable: schedulable.length,

@@ -1,6 +1,8 @@
 import 'server-only';
 import { cache } from 'react';
+import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
+import { strengthDatesFrom, type StrengthDates } from '@/lib/report/daily-plan';
 import { ageFromBirthDate } from '@/lib/profile';
 import { estimateDailyLoad } from '@/lib/baseline';
 import { buildFacts, type CheckinLike, type MemoNote } from '@/lib/report/facts';
@@ -238,45 +240,45 @@ export async function exerciseSessionsAgo(
 const ROTATION_LOOKBACK_DAYS = 14;
 
 /**
- * 최근 2주 안에 하체/상체 스트렝스를 완료한 마지막 날짜.
+ * 최근 2주 안에 하체/상체 스트렝스를 마지막으로 한 날짜 — 완료 기록이 먼저, 없는 날은 저장된 일정으로.
  *
  * 오늘의 테마(하체 데이·상체 데이)를 번갈아 정하는 데 쓴다.
  * 오늘 것은 넣지 않는다 — 오늘 완료한 운동이 오늘의 테마를 도중에
  * 뒤집으면, 체크할 때마다 목록이 바뀌는 이상한 화면이 된다.
+ *
+ * 2026-10-11 (P1) 부터 저장된 일정(DailyTrainingSetup.plan)도 본다 — 마침을 안 누르는 사람이 날짜 홀짝 예비 규칙에
+ * 떨어져 한쪽에 갇히던 것(기준선 구원B 하체 5 · 상체 0). 규칙은 lib/report/daily-plan.ts 의 strengthDatesFrom 한 곳.
  */
 export async function lastStrengthDates(
   userId: string,
   today: Date
-): Promise<{ lower: string | null; upper: string | null }> {
+): Promise<StrengthDates> {
   const todayKey = toDateKey(today);
   const sinceKey = shiftDateKey(todayKey, -ROTATION_LOOKBACK_DAYS);
-  const [logs, rehab] = await Promise.all([
+  const range = {
+    gte: new Date(`${sinceKey}T00:00:00.000Z`),
+    lt: new Date(`${todayKey}T00:00:00.000Z`),
+  };
+  const [logs, rehab, setups] = await Promise.all([
     prisma.userExerciseLog.findMany({
-      where: {
-        userId,
-        completed: true,
-        date: {
-          gte: new Date(`${sinceKey}T00:00:00.000Z`),
-          lt: new Date(`${todayKey}T00:00:00.000Z`),
-        },
-      },
+      where: { userId, completed: true, date: range },
       select: { date: true, exercise: { select: { category: true, title: true } } },
     }),
     loadRehabPeriods(userId, sinceKey),
+    /* 그날 저장돼 있던 마지막 일정 — '다시 만들기'를 했으면 마지막 것만 남아 있다(userId_date 하나) */
+    prisma.dailyTrainingSetup.findMany({
+      where: { userId, date: range, plan: { not: Prisma.DbNull } },
+      select: { date: true, plan: true },
+    }),
   ]);
 
-  let lower: string | null = null;
-  let upper: string | null = null;
-  for (const log of logs) {
-    const key = log.date.toISOString().slice(0, 10);
-    /* 재활에서 한 컬(조트만 컬 — 상체 스트렝스)이 '상체 날을 했다'로 테마를 뒤집지 않게 */
-    if (isRehabCheck(log.exercise.title, key, rehab)) continue;
-    if (log.exercise.category === '하체 스트렝스' && (!lower || key > lower)) {
-      lower = key;
-    }
-    if (log.exercise.category === '상체 스트렝스' && (!upper || key > upper)) {
-      upper = key;
-    }
-  }
-  return { lower, upper };
+  return strengthDatesFrom({
+    done: logs
+      .map((log) => ({ date: toDateKey(log.date), log }))
+      /* 재활에서 한 컬(조트만 컬 — 상체 스트렝스)이 '상체 날을 했다'로 테마를 뒤집지 않게 */
+      .filter(({ date, log }) => !isRehabCheck(log.exercise.title, date, rehab))
+      .map(({ date, log }) => ({ date, category: log.exercise.category })),
+    planned: setups.map((s) => ({ date: toDateKey(s.date), plan: s.plan })),
+    todayKey,
+  });
 }
