@@ -100,18 +100,18 @@ function torso(J,pf,cf,k){const hm=J.rh.clone().add(J.lh).multiplyScalar(.5),shm
  /* 가운데 선은 매끈한 곡선, 단면은 늘 그 곡선에 수직 — 허리를 숙여도 단면끼리 겹쳐 접히지 않게. 비틀림(골반 → 가슴)은 그대로 섞는다 */
  const sp=new T.CatmullRomCurve3(C.map(x=>x[1]),false,'centripetal'),tk=C.map(x=>x[0]);
  const ring=t=>{let i=1;while(i<tk.length-1&&t>tk[i])i++;const u=Math.min(1,Math.max(0,(i-1+(t-tk[i-1])/(tk[i]-tk[i-1]))/(tk.length-1)));
-  const c=sp.getPoint(u),Y=sp.getTangent(u).normalize(),q=new T.Quaternion().copy(pf.q).slerp(cf.q,sm((t-0.2)/0.5));
+  const c=sp.getPoint(u),Y=sp.getTangent(u).normalize(),q=new T.Quaternion().copy(pf.q).slerp(cf.q,HY()?sm((t-0.36)/0.07):sm((t-0.2)/0.5));
   const X=new T.Vector3(1,0,0).applyQuaternion(q);X.sub(Y.clone().multiplyScalar(X.dot(Y))).normalize();const Fw=new T.Vector3().crossVectors(Y,X);return {c,X,Y,Fw,q:basis(X,Y,Fw.clone().negate())};};
- const RN=48,K=64,split=16,pos=[[],[]],idx=[[],[]],uvs=[[],[]];
- for(let r=0;r<=RN;r++){const t=r/RN,{c,X,Fw}=ring(t);const w=prof(W,t),df=prof(DF,t),db=prof(DB,t),n=t<0.2?2.4:2.8;
+ const RN=48,K=64,split=HY()?18:16,pos=[[],[]],idx=[[],[]],uvs=[[],[]];
+ for(let r=0;r<=RN;r++){const t=r/RN,{c,X,Fw}=ring(t);const pinch=HY()?1-0.1*Math.exp(-(((t-0.39)/0.028)**2)):1,w=prof(W,t)*pinch,df=prof(DF,t)*pinch,db=prof(DB,t)*pinch,n=t<0.2?2.4:2.8;
   for(const part of [0,1]){if((part===0&&r>split)||(part===1&&r<split))continue;
    for(let i=0;i<K;i++){const a=i/K*Math.PI*2,ca=Math.cos(a),sa=Math.sin(a);const x=w*Math.sign(ca)*Math.abs(ca)**(2/n),z=(sa>0?df:db)*Math.sign(sa)*Math.abs(sa)**(2/n);
     const p=c.clone().add(X.clone().multiplyScalar(x)).add(Fw.clone().multiplyScalar(z));pos[part].push(p.x,p.y,p.z);uvs[part].push(i/K*5,t*9);}}}
  for(const part of [0,1]){const rings=part===0?split+1:RN-split+1;for(let r=0;r<rings-1;r++)for(let i=0;i<K;i++){const a=r*K+i,b=r*K+(i+1)%K;idx[part].push(a,a+K,b,b,a+K,b+K);}
-  const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(pos[part],3));g.setAttribute('uv',new T.Float32BufferAttribute(uvs[part],2));g.setIndex(idx[part]);g.computeVertexNormals();put(new T.Mesh(g,part===0?MAT.pants:MAT.shirt));}
+  const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(pos[part],3));g.setAttribute('uv',new T.Float32BufferAttribute(uvs[part],2));g.setIndex(idx[part]);g.computeVertexNormals();put(new T.Mesh(g,part===0?(HY()?HM.pelvis:MAT.pants):(HY()?HM.chest:MAT.shirt)));}
  /* 사타구니 아래 막기 · 벨트(고리 넷) · 앞판 줄과 단추 · 깃 */
- ell(crotch.clone().add(pf.ya.clone().multiplyScalar(0.04*k)),hw+0.02*k,0.05*k,0.08*k,MAT.pants,pf.q);
- const bt=0.325,BR=ring(bt),beltC=BR.c,bw=prof(W,bt),bdf=prof(DF,bt),bdb=prof(DB,bt);band(beltC,BR.q,bw*1.01,(bdf+bdb)/2*1.02,0.09*k,MAT.belt,0.16);
+ ell(crotch.clone().add(pf.ya.clone().multiplyScalar(0.04*k)),hw+0.02*k,0.05*k,0.08*k,HY()?HM.pelvis:MAT.pants,pf.q);
+ const bt=0.325,BR=ring(bt),beltC=BR.c,bw=prof(W,bt),bdf=prof(DF,bt),bdb=prof(DB,bt);band(beltC,BR.q,bw*1.01,(bdf+bdb)/2*1.02,0.09*k,HY()?HB.belt:MAT.belt,0.16);
  const buckle=new T.Mesh(new T.BoxGeometry(0.05*k,0.036*k,0.01*k),MAT.buckle);buckle.quaternion.copy(BR.q);buckle.position.copy(beltC.clone().add(BR.Fw.clone().multiplyScalar(bdf+0.006)));put(buckle);
  for(const sx of [-0.62,0.62]){const lp=beltC.clone().add(BR.X.clone().multiplyScalar(sx*bw)).add(BR.Fw.clone().multiplyScalar(bdf*0.82+0.006));const o=new T.Mesh(new T.BoxGeometry(0.012*k,0.05*k,0.008*k),MAT.pants);o.quaternion.copy(BR.q);o.position.copy(lp);put(o);}
  /* 앞판 줄 · 단추 — 몸통 곡면을 따라 조각조각 */
@@ -120,6 +120,7 @@ function torso(J,pf,cf,k){const hm=J.rh.clone().add(J.lh).multiplyScalar(.5),shm
   const o=new T.Mesh(new T.BoxGeometry(0.02*k,l*1.04,0.006*k),MAT.stripe);o.quaternion.copy(basis(x,d,new T.Vector3().crossVectors(x,d)));o.position.copy(a.p.clone().add(b.p).multiplyScalar(.5).add(fw.clone().multiplyScalar(0.001)));put(o);}
  for(const t of [0.46,0.56,0.66,0.76]){const a=at(t);ell(a.p.clone().add(a.Fw.clone().multiplyScalar(0.004*k)),0.008*k,0.008*k,0.003*k,MAT.button,basis(a.X,new T.Vector3().crossVectors(a.Fw.clone().negate(),a.X),a.Fw.clone().negate()));}
  band(neck.clone().add(cf.ya.clone().multiplyScalar(-0.006*k)),cf.q,0.064*k,0.06*k,0.06*k,MAT.stripe,0.14);
+ if(HY()){const yt=0.84,YR=ring(yt);band(YR.c,YR.q,prof(W,yt)*1.015,(prof(DF,yt)+prof(DB,yt))/2*1.03,0.07*k,HB.yoke,0.15);}
  return {neck,shm,hm,hw,C,W,DF,DB};}
 function limb(a,b,r0,r1,m,bulge=0,peak=0.35){const P=[];for(let i=0;i<=20;i++){const t=i/20;let r=r0+(r1-r0)*t;r*=1+bulge*Math.exp(-((t-peak)**2)/0.045);P.push([t,r]);}return lathe(a,b,P,m);}
 function ball(p,r,m){return ell(p,r,r,r,m);}
@@ -146,7 +147,16 @@ let ana=0,anaTarget=0,showAna=true;
    2026-10-11 김민: 한 장의 피부 인형(B안)은 "완전 별로" → 다른 모델 넷을 견줘 본다(영상 겹치기는 따로 페이지).
    데생 인형 밖의 셋은 같은 뼈 24개로 움직인다. 기본 자세는 앱의 해부학 모델(public/models/body-full.glb, Z-Anatomy · CC BY-SA,
    ATTRIBUTION.txt)의 관절 자리(skeleton-parts.json anchors) — 그 모델의 뼈대 · 근육을 그대로 쓰려고. */
-let MODE='doll';
+let MODE='hybrid';
+/* 데생 인형 꼴로 그리는 모드(데생 인형 · 합친 인형) — 합친 인형은 데생 인형에 색 구분의 장점(몸통 두 덩어리 · 부위 색)을 넣은 것 */
+const DOLLISH=()=>MODE==='doll'||MODE==='hybrid',HY=()=>MODE==='hybrid';
+/* 합친 인형의 부위 재료 — 평소엔 유니폼 색, 멈추면(ana) 색 구분 색으로 */
+const HM={},HM_COL={};
+for(const [n,base,seg] of [['pelvis',0xe9e4da,0xff9a4a],['chest',0x3a7fc4,0x4aa3e8],['legR',0xe9e4da,0xffd166],['legL',0xe9e4da,0xf2c14e],
+ ['sleeveR',0x3a7fc4,0xf27bd1],['sleeveL',0x3a7fc4,0xb58cf0],['armR',0xdcb08f,0xf27bd1],['armL',0xdcb08f,0xb58cf0]]){HM[n]=mat(base,n.startsWith('arm')?0.6:0.8);HM_COL[n]=[lin(base),lin(seg)];}
+HM.chest.bumpMap=HM.pelvis.bumpMap=HM.legR.bumpMap=HM.legL.bumpMap=WEAVE;HM.chest.bumpScale=HM.pelvis.bumpScale=HM.legR.bumpScale=HM.legL.bumpScale=0.01;
+/* 늘 보이는 색 띠: 벨트(골반 방향) 주황 · 어깨 요크(흉곽 방향) 하늘 · 소매 끝(팔) · 바지 옆줄(다리) */
+const HB={belt:mat(0xff9a4a,0.5),yoke:mat(0x5cb4ff,0.6),cuffR:mat(0xf27bd1,0.55),cuffL:mat(0xb58cf0,0.55),legStripe:mat(0xffd166,0.6)};
 const trash=new T.Group();
 const V=(x,y,z)=>new T.Vector3(x,y,z);
 const BN=['pelvis','spine1','spine2','chest','neck','head','clavR','clavL','deltR','deltL','upperR','upperL','foreR','foreL','handR','handL','hipR','hipL','thighR','thighL','shinR','shinL','footR','footL'];
@@ -301,37 +311,41 @@ function showMode(set){const R=set.rig;if(!R)return;R.seg.visible=MODE==='seg';f
 MAT.rigBoneDim=rigMat(0x8a7f6c,0.7);
 function poseRig(set,f){const R=set.rig;if(!R)return;R.pose[f].forEach((m,i)=>{R.bones[i].matrix.copy(m);R.bones[i].matrixWorldNeedsUpdate=true;});}
 function setModelButtons(){[...document.getElementById('model').children].forEach(b=>{const need=b.dataset.m==='bone'||b.dataset.m==='muscle';b.disabled=need&&!MODEL;b.setAttribute('aria-pressed',b.dataset.m===MODE);});}
-function draw(set,f){if(MODE!=='doll')poseRig(set,f);clear(body);clear(bones);clear(lines);labels=[];
+function draw(set,f){if(!DOLLISH())poseRig(set,f);clear(body);clear(bones);clear(lines);labels=[];
  const J=set.frames[f],k=set.height/1.8;G=body;
  /* 골반 위 방향 — 몸통 축만 따르면 몸을 숙일 때 바지까지 같이 숙여져 엉덩이가 튀어나온다. 허리를 숙이는 몫의 절반쯤은 엉덩관절이 맡으니 몸통 축과 '허벅지 반대쪽'을 섞는다 */
  const hm0=J.rh.clone().add(J.lh).multiplyScalar(.5),tUp=J.td.clone().sub(hm0).normalize(),thUp=J.rh.clone().sub(J.rk).normalize().add(J.lh.clone().sub(J.lk).normalize()).normalize();
  const pf=frame(J.rh.clone().sub(J.lh),tUp.clone().multiplyScalar(0.6).add(thUp.multiplyScalar(0.4)));
  const cf=frame(J.sh.clone().sub(J.gs),J.tp.clone().sub(J.td));
- G=MODE==='doll'?body:trash;const TS=torso(J,pf,cf,k),{neck,shm,hm}=TS;
+ G=DOLLISH()?body:trash;const TS=torso(J,pf,cf,k),{neck,shm,hm}=TS;
  /* 다리: 허벅지(바지) · 정강이 위(바지, 밑단) · 종아리(양말) · 신발 */
  const feet=[];
  for(const [hp,kn,rear] of [[J.rh,J.rk,true],[J.lh,J.lk,false]]){
   const hsc=Math.min(1,0.1*k/(J.rh.distanceTo(J.lh)/2));const hipUp=hm.clone().add(hp.clone().sub(hm).multiplyScalar(hsc*0.88)).add(pf.ya.clone().multiplyScalar(0.03*k));
-  const tdir=kn.clone().sub(hipUp).normalize();lathe(hipUp.clone().sub(tdir.clone().multiplyScalar(0.05*k)),kn,[[0,0.05*k],[0.1,0.085*k],[0.24,0.094*k],[0.45,0.088*k],[0.75,0.071*k],[1,0.059*k]],MAT.pants);ball(kn,0.059*k,MAT.pants);
+  const tdir=kn.clone().sub(hipUp).normalize();lathe(hipUp.clone().sub(tdir.clone().multiplyScalar(0.05*k)),kn,[[0,0.05*k],[0.1,0.085*k],[0.24,0.094*k],[0.45,0.088*k],[0.75,0.071*k],[1,0.059*k]],HY()?(rear?HM.legR:HM.legL):MAT.pants);ball(kn,0.059*k,HY()?(rear?HM.legR:HM.legL):MAT.pants);
   const {heel,toe,n,an}=footOf(set,f,J,pf,rear,k);
-  const mid=kn.clone().lerp(an,0.42);limb(kn,mid,0.06*k,0.057*k,MAT.pants,0.07,0.55);ring(mid,an.clone().sub(kn),0.056*k,0.0055*k,MAT.pants);limb(mid,an,0.054*k,0.035*k,MAT.sock,0.1,0.12);ball(an,0.036*k,MAT.sock);
-  if(MODE==='doll'){G=body;shoe(heel,toe,n,k);}G=MODE==='doll'?body:trash;
+  const mid=kn.clone().lerp(an,0.42),LP=HY()?(rear?HM.legR:HM.legL):MAT.pants;limb(kn,mid,0.06*k,0.057*k,LP,0.07,0.55);ring(mid,an.clone().sub(kn),0.056*k,0.0055*k,LP);
+  if(HY()){/* 바지 옆줄 — 다리 바깥쪽을 따라 허리부터 밑단까지 */const out=pf.xa.clone().multiplyScalar(rear?1:-1);
+   for(const [a,b,r0,r1] of [[hipUp,kn,0.09*k,0.06*k],[kn,mid,0.06*k,0.057*k]]){const ax=b.clone().sub(a),L=ax.length();ax.normalize();const o=out.clone().addScaledVector(ax,-out.dot(ax)).normalize();
+    const s=new T.Mesh(new T.BoxGeometry(0.014*k,L,0.006*k),HB.legStripe);s.quaternion.copy(basis(new T.Vector3().crossVectors(ax,o),ax,o));s.position.copy(a.clone().add(b).multiplyScalar(.5).addScaledVector(o,(r0+r1)/2+0.002));put(s);}}limb(mid,an,0.054*k,0.035*k,MAT.sock,0.1,0.12);ball(an,0.036*k,MAT.sock);
+  if(DOLLISH()){G=body;shoe(heel,toe,n,k);}G=DOLLISH()?body:trash;
   const fx=toe.clone().sub(heel).normalize();feet.push([heel.clone().add(n.clone().multiplyScalar(0.03*k)),heel.clone().add(fx.clone().multiplyScalar(0.23*k)).add(n.clone().multiplyScalar(0.02*k))]);}
  /* 팔: 어깨(소매, 끝단 줄) · 위팔 · 아래팔 · 손 */
  for(const [s,e,w,h,throwing] of [[J.sh,J.el,J.wr,J.ha,true],[J.gs,J.ge,J.gw,J.gh,false]]){
-  G=MODE==='doll'?body:trash;ell(s,0.053*k,0.056*k,0.053*k,MAT.shirt);const sleeve=s.clone().lerp(e,0.42);limb(s,sleeve,0.053*k,0.049*k,MAT.shirt,0.02,0.3);ring(sleeve,e.clone().sub(s),0.049*k,0.0065*k,MAT.stripe);
-  limb(sleeve,e,0.045*k,0.038*k,MAT.skin,0.1,0.25);ball(e,0.038*k,MAT.skin);
-  limb(e,w,0.04*k,0.026*k,MAT.skin,0.13,0.22);ball(w,0.026*k,MAT.skin);
+  G=DOLLISH()?body:trash;const SL=HY()?(throwing?HM.sleeveR:HM.sleeveL):MAT.shirt,SK=HY()?(throwing?HM.armR:HM.armL):MAT.skin;
+  ell(s,0.053*k,0.056*k,0.053*k,SL);const sleeve=s.clone().lerp(e,0.42);limb(s,sleeve,0.053*k,0.049*k,SL,0.02,0.3);ring(sleeve,e.clone().sub(s),0.049*k,HY()?0.009*k:0.0065*k,HY()?(throwing?HB.cuffR:HB.cuffL):MAT.stripe);
+  limb(sleeve,e,0.045*k,0.038*k,SK,0.1,0.25);ball(e,0.038*k,SK);
+  limb(e,w,0.04*k,0.026*k,SK,0.13,0.22);ball(w,0.026*k,SK);
   G=body;const hd=h.clone().sub(w).normalize();const side=new T.Vector3().crossVectors(hd,e.clone().sub(s)).normalize();const nrm=new T.Vector3().crossVectors(side,hd).normalize();const hq=basis(side,hd,nrm);
   const hc=w.clone().add(hd.clone().multiplyScalar(0.045*k));
-  if(throwing){if(MODE==='doll')ell(hc,0.031*k,0.048*k,0.019*k,MAT.skin,hq);const bp=hc.clone().add(hd.clone().multiplyScalar(0.04*k)).add(nrm.clone().multiplyScalar(0.012*k));
-   const thb=hc.clone().add(side.clone().multiplyScalar(0.03*k)).add(hd.clone().multiplyScalar(0.005*k));if(MODE==='doll')limb(thb,thb.clone().add(hd.clone().multiplyScalar(0.03*k)).add(side.clone().multiplyScalar(0.008*k)),0.011*k,0.009*k,MAT.skin);
+  if(throwing){if(DOLLISH())ell(hc,0.031*k,0.048*k,0.019*k,MAT.skin,hq);const bp=hc.clone().add(hd.clone().multiplyScalar(0.04*k)).add(nrm.clone().multiplyScalar(0.012*k));
+   const thb=hc.clone().add(side.clone().multiplyScalar(0.03*k)).add(hd.clone().multiplyScalar(0.005*k));if(DOLLISH())limb(thb,thb.clone().add(hd.clone().multiplyScalar(0.03*k)).add(side.clone().multiplyScalar(0.008*k)),0.011*k,0.009*k,MAT.skin);
    ball(bp,0.037*k,MAT.ball);const sq=basis(side,hd,nrm);const sr=new T.Mesh(new T.TorusGeometry(0.0372*k,0.0018*k,6,48),MAT.seam);sr.quaternion.copy(sq);sr.scale.set(1,0.55,1);sr.position.copy(bp);put(sr);}
   else{const gc=hc.clone().add(hd.clone().multiplyScalar(0.02*k));ell(gc,0.06*k,0.112*k,0.04*k,MAT.glove,hq);
    ell(gc.clone().add(side.clone().multiplyScalar(0.05*k)).add(hd.clone().multiplyScalar(-0.012*k)),0.024*k,0.07*k,0.032*k,MAT.glove,hq);
    ell(gc.clone().add(nrm.clone().multiplyScalar(0.022*k)).add(hd.clone().multiplyScalar(0.01*k)),0.048*k,0.09*k,0.02*k,MAT.lace,hq);
    ring(w.clone().add(hd.clone().multiplyScalar(0.008*k)),hd,0.032*k,0.007*k,MAT.glove);}}
- G=MODE==='doll'?body:trash;
+ G=DOLLISH()?body:trash;
  /* 목 · 머리(귀 · 코) */
  const nk=neck.clone().add(cf.ya.clone().multiplyScalar(0.07*k));limb(neck.clone().add(cf.ya.clone().multiplyScalar(-0.03*k)),nk,0.06*k,0.05*k,MAT.skin,-0.06,0.6);
  /* 머리는 목 끝에 붙인다 — 귀 · 코 자료는 방향만 쓰고(앞뒤 장면과 고르게, 목에서 35° 안), 자리는 목에서 정한 거리 */
@@ -353,7 +367,7 @@ function draw(set,f){if(MODE!=='doll')poseRig(set,f);clear(body);clear(bones);cl
  document.getElementById('sep').textContent='골반 · 가슴 방향 차이 '+Math.abs(Math.round(sp))+'°';
  /* 멈췄을 때: 속 뼈와 잰 선 */
  if(ana>0.001||anaTarget>0){
-  G=bones;const jr=0.024*k,br=0.013*k;
+  G=HY()?trash:bones;const jr=0.024*k,br=0.013*k;
   for(const p of [J.rh,J.lh,J.rk,J.lk,J.ra,J.la,J.sh,J.gs,J.el,J.ge,J.wr,J.gw])ball(p,jr,BM.joint);
   bone(J.rh,J.rk,br,jr);bone(J.rk,J.ra,br*0.9,jr);bone(J.lh,J.lk,br,jr);bone(J.lk,J.la,br*0.9,jr);
   for(const [a,b] of feet)bone(a,b,br*0.7,jr*0.5);
@@ -390,12 +404,13 @@ function draw(set,f){if(MODE!=='doll')poseRig(set,f);clear(body);clear(bones);cl
  document.getElementById('time').textContent=(f*set.dt).toFixed(3)+'s';document.getElementById('scrub').value=f;}
 /* 인형은 비치게(맨 앞 겉면만), 뼈 · 선은 짙게 */
 function applyAna(){const a=ana;
- for(const m of Object.values(MAT)){const tr=a>0.004;if(m.transparent!==tr){m.transparent=tr;m.needsUpdate=true;}m.opacity=1-0.78*a;m.depthWrite=!tr;}
+ for(const [n,[b,s]] of Object.entries(HM_COL))HM[n].color.copy(b).lerp(s,HY()?a:0);
+ for(const m of Object.values(MAT)){const tr=a>0.004&&!HY();if(m.transparent!==tr){m.transparent=tr;m.needsUpdate=true;}m.opacity=1-0.78*a;m.depthWrite=!tr;}
  for(const m of Object.values(BM)){const tr=a<0.996;if(m.transparent!==tr){m.transparent=tr;m.needsUpdate=true;}m.opacity=a;}
  for(const m of Object.values(LM))m.opacity=a;for(const m of Object.values(FM))m.opacity=0.2*a;
  document.getElementById('legend').style.opacity=a;}
 /* 비칠 때는 네 번 그린다: 바닥 · 뼈(인형은 그림자만) → 인형 깊이만 → 인형 맨 앞 겉면 → 잰 선 */
-function render(){if(ana<=0.004){R.shadowMap.autoUpdate=true;R.autoClear=true;R.render(S,C);return;}
+function render(){if(ana<=0.004||HY()){R.shadowMap.autoUpdate=true;R.autoClear=true;R.render(S,C);return;}
  const M=Object.values(MAT);R.shadowMap.autoUpdate=true;R.autoClear=true;lines.visible=false;M.forEach(m=>m.colorWrite=false);R.render(S,C);
  /* 하늘(배경 그림)은 그릴 때마다 다시 칠해져 앞 장면을 덮으므로 첫 번째에만 */
  const bg=S.background;S.background=null;
@@ -559,7 +574,7 @@ SETS.forEach((s,i)=>{const b=document.createElement('button');b.type='button';b.
 [['옆(3루 쪽)',0,0.12],['비스듬히',-0.6,0.2],['뒤(2루 쪽)',-Math.PI/2,0.18],['앞(포수 쪽)',Math.PI/2,0.15],['위',0,1.35]].forEach(([l,y,p])=>{const b=document.createElement('button');b.type='button';b.textContent=l;b.onclick=()=>{yaw=y;pitch=p;cam();};document.getElementById('views').appendChild(b);});
 document.getElementById('legend').innerHTML=[['pelvis','골반'],['chest','어깨'],['trunk','몸통'],['knee','무릎'],['arm','어깨 벌림'],['elbow','팔꿈치']].map(([k,t])=>`<span style="--c:#${LC[k].toString(16).padStart(6,'0')}"><i></i>${t}</span>`).join('');
 [['야구장',true],['단색',false]].forEach(([l,v])=>{const b=document.createElement('button');b.type='button';b.textContent=l;b.setAttribute('aria-pressed',v===park);b.onclick=()=>{park=v;[...document.getElementById('bg').children].forEach(x=>x.setAttribute('aria-pressed',x===b));stage(SETS[cur]);draw(SETS[cur],F);cam();};document.getElementById('bg').appendChild(b);});
-[['doll','데생 인형'],['seg','색 구분'],['bone','해부학 뼈대'],['muscle','근육 몸']].forEach(([m,l])=>{const b=document.createElement('button');b.type='button';b.textContent=l;b.dataset.m=m;b.onclick=()=>{MODE=m;SETS.forEach(showMode);setModelButtons();draw(SETS[cur],F);cam();};document.getElementById('model').appendChild(b);});
+[['hybrid','합친 인형'],['doll','데생 인형'],['seg','색 구분'],['bone','해부학 뼈대'],['muscle','근육 몸']].forEach(([m,l])=>{const b=document.createElement('button');b.type='button';b.textContent=l;b.dataset.m=m;b.onclick=()=>{MODE=m;SETS.forEach(showMode);setModelButtons();draw(SETS[cur],F);cam();};document.getElementById('model').appendChild(b);});
 setModelButtons();
 const anaBtn=document.getElementById('ana');anaBtn.onclick=()=>{showAna=!showAna;anaBtn.setAttribute('aria-pressed',showAna);};
 play.onclick=()=>setPlaying(!playing);
