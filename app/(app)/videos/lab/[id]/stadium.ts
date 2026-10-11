@@ -51,14 +51,17 @@ type P2 = { a: number; b: number };
 /** 둘레 선의 한 점 — 자리 · 바깥(경기장에서 먼 쪽) 법선 · 처음부터의 길이(m) · 파울선을 따라 간 거리(층 끝 자르기) */
 type PathPt = P2 & { na: number; nb: number; len: number; reach: number };
 
+/* 층 색 — 구장 안 층 안내판(필드 겨자 · 로지 살구 · 클럽 남색 · 리저브 청록 · 톱 덱 파랑)과 사진의 의자 색. 외야석은 바랜 나무색 벤치 */
 const SEAT = {
-  field: '#f1c33f',
-  loge: '#f08b3b',
-  club: '#d65a4a',
-  reserve: '#2e6fc4',
-  top: '#7cc0ea',
-  pavilion: '#2e6fc4',
+  field: '#d9ac43',
+  loge: '#ee9864',
+  club: '#26407e',
+  reserve: '#3f9485',
+  top: '#5e9fd0',
+  pavilion: '#c8b58e',
 };
+/** 펜스 · 관중석 앞 벽 — 연한 하늘빛 회색 쿠션(사진) */
+export const WALL_BLUE = '#8fa8c0';
 const CONCRETE = '#cdc7bb';
 const FASCIA = '#ece9e2';
 
@@ -147,8 +150,9 @@ function deckProfile(
     segs.push({ w0: w, z0: z, w1: w + d * 0.62, z1: z, kind: 'seat', shade });
     /* 등판 — 줄 뒤쪽에 0.8m 서 있는 의자 등(투수 쪽을 본다) */
     segs.push({ w0: w + d * 0.62, z0: z, w1: w + d * 0.66, z1: z + 0.8, kind: 'back', shade });
-    segs.push({ w0: w + d * 0.66, z0: z + 0.8, w1: w + d, z1: z + 0.8, kind: 'riser', shade });
-    segs.push({ w0: w + d, z0: z + 0.8, w1: w + d, z1: z + rise, kind: 'riser', shade: shade * 0.8 });
+    segs.push({ w0: w + d * 0.66, z0: z + 0.8, w1: w + d, z1: z + 0.8, kind: 'riser', shade: shade * 0.8 });
+    /* 다음 줄 의자 밑 그늘 — 줄 사이가 어둡게 갈라져 보여야 실제 관중석 같다 */
+    segs.push({ w0: w + d, z0: z + 0.8, w1: w + d, z1: z + rise, kind: 'riser', shade: shade * 0.45 });
     w += d;
     z += rise;
   }
@@ -231,7 +235,7 @@ function canvasTex(THREE: typeof import('three'), w: number, h: number, paint: (
  * 등판 면(줄 앞에서 본 0.8m): 위 둥근 등받이 → 접힌 앉는 판(조금 어둡게) → 다리 그늘. 의자 사이 틈은 그늘진 콘크리트(검게 칠하면 벽돌처럼 보였다).
  * 의자마다 밝기를 조금씩 달리한다(햇빛에 바랜 정도).
  */
-function seatTextures(THREE: typeof import('three'), color: string) {
+function seatTextures(THREE: typeof import('three'), color: string, bench = false) {
   const W = 1536;
   const per = W / 12;
   const aisle = per * 1.2;
@@ -275,6 +279,30 @@ function seatTextures(THREE: typeof import('three'), color: string) {
       c.fillRect(x + 4, 9, 56, 3);
     }
   });
+  if (bench) {
+    /* 외야석 벤치 — 이어진 나무색 판(0.5m 마다 가는 금), 등받이 없이 판 두 장 */
+    const plank = (h: number, y0: number, y1: number) =>
+      canvasTex(THREE, W, h, (c) => {
+        c.fillStyle = '#9f998e';
+        c.fillRect(0, 0, W, h);
+        c.fillStyle = '#c9c3b8';
+        c.fillRect(0, 0, aisle, h);
+        const g = c.createLinearGradient(0, y0, 0, y1);
+        g.addColorStop(0, tint(1.1));
+        g.addColorStop(1, tint(0.85));
+        c.fillStyle = g;
+        c.fillRect(aisle + 2, y0, W - aisle - 4, y1 - y0);
+        c.fillStyle = 'rgba(0,0,0,0.22)';
+        for (let x = aisle + 64; x < W; x += 64) c.fillRect(x, y0, 2, y1 - y0);
+        /* 판 이음 — 가로 금 */
+        c.fillStyle = 'rgba(0,0,0,0.25)';
+        for (let y = y0 + 9; y < y1; y += 10) c.fillRect(aisle + 2, y, W - aisle - 4, 2);
+      });
+    const b = plank(64, 4, 60);
+    const sb = plank(32, 0, 30);
+    for (const t of [b, sb]) t.repeat.set(1 / 12, 1);
+    return { back: b, seat: sb };
+  }
   for (const t of [back, seat]) t.repeat.set(1 / 12, 1);
   return { back, seat };
 }
@@ -289,6 +317,21 @@ function withShade(m: Three.Material): Three.Material {
     shaded.set(m, c);
   }
   return c;
+}
+
+/** 쿠션 벽 — 연한 하늘빛 회색, 2m 마다 이음매 · 위아래 테두리 */
+function padMat(THREE: typeof import('three')) {
+  const t = canvasTex(THREE, 256, 64, (c) => {
+    c.fillStyle = WALL_BLUE;
+    c.fillRect(0, 0, 256, 64);
+    c.fillStyle = 'rgba(0,0,0,0.18)';
+    c.fillRect(0, 0, 2, 64);
+    c.fillRect(0, 0, 256, 3);
+    c.fillStyle = 'rgba(255,255,255,0.12)';
+    c.fillRect(2, 3, 2, 61);
+  });
+  t.repeat.set(1 / 2, 1);
+  return new THREE.MeshStandardMaterial({ map: t, roughness: 0.85, side: THREE.DoubleSide });
 }
 
 /** 층 밑면 — 7.5m 마다 들보(어두운 줄), 들보 사이는 조금 밝게 */
@@ -503,91 +546,109 @@ function dugoutsAndNet(F: FieldFrame, mats: Record<string, Three.Material>) {
 
 /* ───────────── 외야석(파빌리온) ───────────── */
 
+/**
+ * 외야석 — 펜스 바로 뒤에서 오르는 나무색 벤치(사진: 바랜 황토빛). 뒤 절반을 덮는 낮은 지그재그 지붕(위는 밝은 쇠판, 밑은 짙은 갈색),
+ * 앞쪽 기둥이 골마다 받친다. 폴 옆에서 가운데 쪽 θ 0.21 까지.
+ */
 function pavilion(F: FieldFrame, side: 1 | -1, mats: Record<string, Three.Material>, seatMat: { back: Three.Material; seat: Three.Material }) {
   const pts: (P2 & { reach: number })[] = [];
   for (let i = 0; i <= 60; i++) {
-    const th = side * (0.21 + ((0.775 - 0.21) * i) / 60);
+    const th = side * (0.21 + ((0.765 - 0.21) * i) / 60);
     const r = F.fenceR(th);
     pts.push({ a: r * Math.cos(th), b: r * Math.sin(th), reach: 0 });
   }
   const path = resample(toPath(pts, { a: 0, b: 0 }), 1.5);
-  const prof = deckProfile(3.2, 3.4, 21, 11.5, { under: false, cover: 11, wallH: 3.5 });
+  const prof = deckProfile(1.2, 3.0, 16, 10, { under: false, cover: 7, wallH: 2.6 });
   addSweep(F, sweep(F, path, prof), {
     seat: seatMat.seat,
     back: seatMat.back,
     riser: mats.concrete,
     fascia: mats.fascia,
-    pad: mats.ribbon,
+    pad: mats.pad,
     wall: mats.concrete,
   });
-  /* 지그재그로 접힌 쇠 지붕 — 3m 마다 꼭짓점이 오르내린다 */
-  const roofPath = resample(path, 3);
-  const zig = (i: number) => (i % 2 ? 1.9 : 0);
+  /* 지그재그 지붕 — 3.5m 마다 꼭짓점이 1.3m 오르내린다 */
+  const roofPath = resample(path, 3.5);
+  const zig = (i: number) => (i % 2 ? 1.3 : 0);
   addSweep(
     F,
-    sweep(F, roofPath, [
-      { w0: 11, z0: 16.2, w1: 24, z1: 15.2, kind: 'roof' },
-      { w0: 24, z0: 15.05, w1: 11, z1: 16.05, kind: 'roofUnder' },
-    ], zig),
-    { roof: mats.metal, roofUnder: mats.metalUnder }
+    sweep(
+      F,
+      roofPath,
+      [
+        { w0: 5.5, z0: 11.6, w1: 17.5, z1: 12.4, kind: 'roof' },
+        { w0: 17.5, z0: 12.2, w1: 5.5, z1: 11.4, kind: 'roofUnder', shade: 0.9 },
+        { w0: 5.5, z0: 11.4, w1: 5.5, z1: 11.6, kind: 'fascia' },
+      ],
+      zig
+    ),
+    { roof: mats.metal, roofUnder: mats.pavUnder, fascia: mats.fascia }
   );
-  /* 지붕 기둥 */
-  const colGeo = new F.THREE.CylinderGeometry(0.22 * F.s, 0.22 * F.s, 15.2 * F.s, 8);
-  for (let i = 0; i < roofPath.length; i += 4) {
+  /* 기둥 — 앞은 골마다(한 칸 걸러), 뒤는 벽 위 */
+  const colGeo = new F.THREE.CylinderGeometry(0.16 * F.s, 0.16 * F.s, 1, 8);
+  for (let i = 0; i < roofPath.length; i += 2) {
     const p = roofPath[i];
-    const c = new F.THREE.Mesh(colGeo, mats.steel);
-    c.position.copy(F.fg(p.a + p.na * 22.5, p.b + p.nb * 22.5, 7.6 * F.s));
-    c.castShadow = true;
-    F.scene.add(c);
+    for (const [w, top] of [
+      [6, 11.5],
+      [17.2, 12.3],
+    ]) {
+      const c = new F.THREE.Mesh(colGeo, mats.pavUnder);
+      const z0 = w < 10 ? 3.0 + ((w - 1.2) / 14.8) * 7 : 10;
+      c.scale.set(1, (top - z0) * F.s, 1);
+      c.position.copy(F.fg(p.a + p.na * w, p.b + p.nb * w, ((top + z0) / 2) * F.s));
+      F.scene.add(c);
+    }
   }
-  /* 끝 벽 */
   for (const end of [path[0], path[path.length - 1]])
-    endCap(F, end, [[3.2, 0], [21, 0], [21, 15], [3.2, 4.4]], mats.concrete);
+    endCap(F, end, [[1.2, 0], [16, 0], [16, 12.6], [15.7, 11.1], [1.5, 4.1], [1.2, 4.0]], mats.endCap);
   return path;
 }
 
-/** 육각형 전광판(로고 없이 이닝 점수판 무늬) — 가운데 a, b 에서 홈을 본다 */
+/**
+ * 육각 전광판 — 흰 테두리(사진), 화면은 이닝 점수판(숫자만, 로고 없음). 밑에 긴 줄 전광판, 굵은 흰 기둥 둘.
+ * 가운데 (a, b), 화면 가운데 높이 21m, 홈 쪽을 본다.
+ */
 function hexBoard(F: FieldFrame, a: number, b: number, mats: Record<string, Three.Material>) {
   const { THREE, s } = F;
   const w = 26;
   const h = 12;
-  const hex = new THREE.Shape();
-  const pts: [number, number][] = [
-    [-w / 2, 0],
-    [-w / 2 + h * 0.45, h / 2],
-    [w / 2 - h * 0.45, h / 2],
-    [w / 2, 0],
-    [w / 2 - h * 0.45, -h / 2],
-    [-w / 2 + h * 0.45, -h / 2],
-  ];
-  hex.moveTo(pts[0][0] * s, pts[0][1] * s);
-  for (const [x, y] of pts.slice(1)) hex.lineTo(x * s, y * s);
-  hex.closePath();
-  const frame = new THREE.Mesh(new THREE.ExtrudeGeometry(hex, { depth: 1.2 * s, bevelEnabled: false }), mats.steel);
-  /* 화면 — 이닝 점수판(글자 없는 숫자만, 로고 없음). 짙은 남색 바탕 + 칸 + 노란 숫자 */
+  const hexShape = (k: number) => {
+    const sh = new THREE.Shape();
+    const pts: [number, number][] = [
+      [-w / 2, 0],
+      [-w / 2 + h * 0.42, h / 2],
+      [w / 2 - h * 0.42, h / 2],
+      [w / 2, 0],
+      [w / 2 - h * 0.42, -h / 2],
+      [-w / 2 + h * 0.42, -h / 2],
+    ];
+    sh.moveTo(pts[0][0] * s * k, pts[0][1] * s * k);
+    for (const [x, y] of pts.slice(1)) sh.lineTo(x * s * k, y * s * k);
+    sh.closePath();
+    return sh;
+  };
+  const frame = new THREE.Mesh(new THREE.ExtrudeGeometry(hexShape(1), { depth: 1.4 * s, bevelEnabled: false }), mats.boardFrame);
+  /* 화면 — 이닝 점수판(숫자만, 로고 없음). 짙은 남색 바탕 + 큰 노란 이닝 숫자 + 흰 점수 */
   const screenTex = canvasTex(
     THREE,
     1024,
     472,
     (c) => {
-      c.fillStyle = '#0a1f3f';
+      c.fillStyle = '#071631';
       c.fillRect(0, 0, 1024, 472);
-      c.fillStyle = '#12305e';
-      for (let i = 0; i < 12; i++) for (let j = 0; j < 3; j++) c.fillRect(214 + i * 62, 100 + j * 82, 56, 74);
-      c.fillStyle = '#183c74';
-      c.fillRect(70, 182, 130, 74);
-      c.fillRect(70, 264, 130, 74);
+      c.fillStyle = '#0f2a55';
+      for (let i = 0; i < 12; i++) for (let j = 0; j < 2; j++) c.fillRect(150 + i * 64, 170 + j * 104, 58, 96);
       c.textAlign = 'center';
       c.textBaseline = 'middle';
-      c.fillStyle = '#ffd25a';
-      c.font = 'bold 46px system-ui, sans-serif';
-      ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'R', 'H', 'E'].forEach((t, i) => c.fillText(t, 242 + i * 62, 138));
-      c.fillStyle = '#f4f7fb';
-      c.font = 'bold 50px system-ui, sans-serif';
+      c.fillStyle = '#ffcf4a';
+      c.font = 'bold 64px system-ui, sans-serif';
+      ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'R', 'H', 'E'].forEach((t, i) => c.fillText(t, 179 + i * 64, 120));
+      c.fillStyle = '#f5f8fc';
+      c.font = 'bold 76px system-ui, sans-serif';
       const away = ['0', '0', '1', '0', '0', '0', '', '', '', '1', '4', '0'];
       const home = ['0', '2', '0', '0', '1', '', '', '', '', '3', '6', '1'];
-      away.forEach((t, i) => c.fillText(t, 242 + i * 62, 220));
-      home.forEach((t, i) => c.fillText(t, 242 + i * 62, 302));
+      away.forEach((t, i) => c.fillText(t, 179 + i * 64, 220));
+      home.forEach((t, i) => c.fillText(t, 179 + i * 64, 324));
       /* 볼 · 스트라이크 · 아웃 불 */
       const dots: [number, string][] = [
         [2, '#4ade80'],
@@ -598,86 +659,174 @@ function hexBoard(F: FieldFrame, a: number, b: number, mats: Record<string, Thre
         for (let k = 0; k < 3; k++) {
           c.fillStyle = k < n ? col : '#1d3560';
           c.beginPath();
-          c.arc(320 + j * 190 + k * 40, 405, 15, 0, Math.PI * 2);
+          c.arc(330 + j * 180 + k * 44, 418, 17, 0, Math.PI * 2);
           c.fill();
         }
       });
     },
     false
   );
+  /* 모양 판의 uv 는 모양 좌표 그대로라 0~1 로 편다(안 펴면 점수판 한가운데 한 점만 보였다) */
+  const screenGeo = new THREE.ShapeGeometry(hexShape(0.93));
+  {
+    const pos = screenGeo.attributes.position;
+    const uv = screenGeo.attributes.uv;
+    screenGeo.computeBoundingBox();
+    const bb = screenGeo.boundingBox!;
+    for (let i = 0; i < pos.count; i++)
+      uv.setXY(i, (pos.getX(i) - bb.min.x) / (bb.max.x - bb.min.x), (pos.getY(i) - bb.min.y) / (bb.max.y - bb.min.y));
+  }
   const screen = new THREE.Mesh(
-    new THREE.ShapeGeometry(hex),
-    new THREE.MeshStandardMaterial({ color: '#000000', emissive: '#ffffff', emissiveMap: screenTex, emissiveIntensity: 1.2, roughness: 0.4 })
+    screenGeo,
+    new THREE.MeshStandardMaterial({ color: '#05070a', emissive: '#ffffff', emissiveMap: screenTex, emissiveIntensity: 1.1, roughness: 0.25 })
   );
-  screen.scale.setScalar(0.9);
-  screen.position.z = 1.25 * s;
+  screen.position.z = 1.45 * s;
+  /* 밑 줄 전광판 — 검은 판 */
+  const strip = new THREE.Mesh(new THREE.BoxGeometry(22 * s, 2.4 * s, 0.8 * s), mats.boardDark);
+  strip.position.set(0, -8.2 * s, 0.6 * s);
   const g = new THREE.Group();
-  g.add(frame, screen);
-  const center = F.fg(a, b, 24 * s);
+  g.add(frame, screen, strip);
+  const center = F.fg(a, b, 21 * s);
   g.position.copy(center);
-  g.lookAt(F.fg(0, 0, 8 * s));
-  frame.castShadow = true;
+  g.lookAt(F.fg(0, 0, 10 * s));
+  g.traverse((o) => (o.castShadow = true));
   F.scene.add(g);
-  /* 받침 기둥 둘 */
-  const leg = new THREE.Mesh(new THREE.BoxGeometry(0.8 * s, 18 * s, 0.8 * s), mats.steel);
+  /* 기둥 둘 — 땅에서 화면 밑까지 */
+  const leg = new THREE.BoxGeometry(1.1 * s, 15 * s, 1.1 * s);
   for (const k of [-1, 1]) {
-    const l = leg.clone();
-    const off = new THREE.Vector3(k * 7 * s, 0, 0).applyQuaternion(g.quaternion);
-    l.position.set(center.x + off.x, 9 * s, center.z + off.z);
+    const l = new THREE.Mesh(leg, mats.boardFrame);
+    const off = new THREE.Vector3(k * 6.5 * s, 0, 0.4 * s).applyQuaternion(g.quaternion);
+    l.position.set(center.x + off.x, 7.5 * s, center.z + off.z);
     l.castShadow = true;
     F.scene.add(l);
   }
+}
+
+/**
+ * 조명탑 — 기둥 넷이 받치는 넓은 등판(사진: 외야석 뒤 좌우에 하나씩). 등판 앞면은 등 격자(밤에 빛남, glow 표시).
+ */
+function lightTower(F: FieldFrame, a: number, b: number, mats: Record<string, Three.Material>, bankMat: Three.Material) {
+  const { THREE, s } = F;
+  const H = 46;
+  const W = 24;
+  const g = new THREE.Group();
+  const pole = new THREE.CylinderGeometry(0.35 * s, 0.5 * s, H * s, 10);
+  for (const x of [-9, -3, 3, 9]) {
+    const m = new THREE.Mesh(pole, mats.lightPole);
+    m.position.set(x * s, (H / 2) * s, -0.8 * s);
+    g.add(m);
+  }
+  const bank = new THREE.Mesh(new THREE.BoxGeometry(W * s, 7 * s, 0.6 * s), [
+    mats.lightPole,
+    mats.lightPole,
+    mats.lightPole,
+    mats.lightPole,
+    bankMat,
+    mats.lightPole,
+  ]);
+  bank.position.set(0, (H + 1) * s, 0);
+  bank.rotation.x = 0.18;
+  bank.userData.glow = 38;
+  g.add(bank);
+  g.position.copy(F.fg(a, b, 0));
+  g.lookAt(F.fg(25, 0, 0));
+  g.traverse((o) => (o.castShadow = true));
+  F.scene.add(g);
 }
 
 /* ───────────── 야자수(여럿을 한 번에 그림) ───────────── */
 
 function palms(F: FieldFrame, spots: { a: number; b: number; h: number }[]) {
   const { THREE, s } = F;
-  /* 잎 무늬 — 깃털 모양 잎(투명 테두리) */
+  /* 잎 무늬 — 깃털 모양 잎(투명 테두리), 잎줄기 양쪽에 촘촘한 작은 잎 */
   const leafTex = canvasTex(
     THREE,
     256,
     64,
     (c) => {
       c.clearRect(0, 0, 256, 64);
-      c.strokeStyle = '#3f5a2a';
+      c.strokeStyle = '#4b5a33';
       c.lineWidth = 3;
       c.beginPath();
       c.moveTo(0, 32);
       c.lineTo(256, 32);
       c.stroke();
-      for (let x = 4; x < 250; x += 5) {
-        const len = 30 * Math.sin((x / 256) * Math.PI) + 4;
-        c.strokeStyle = x % 10 ? '#4f7034' : '#5d8040';
-        c.lineWidth = 2.2;
+      for (let x = 2; x < 252; x += 3) {
+        const len = 29 * Math.sin((x / 256) * Math.PI * 0.95 + 0.1) + 3;
+        const g = 70 + ((x * 37) % 30);
+        c.strokeStyle = `rgb(${g - 28},${g + 8},${g - 40})`;
+        c.lineWidth = 1.8;
         c.beginPath();
         c.moveTo(x, 32);
-        c.lineTo(x + 10, 32 - len);
+        c.lineTo(x + 9, 32 - len);
         c.moveTo(x, 32);
-        c.lineTo(x + 10, 32 + len);
+        c.lineTo(x + 9, 32 + len);
         c.stroke();
       }
     },
     false
   );
-  const leafMat = new THREE.MeshStandardMaterial({ map: leafTex, alphaTest: 0.45, side: THREE.DoubleSide, roughness: 0.8 });
-  /* 잎 하나 — 아래로 휜 띠(길이 5m) */
-  const frond = new THREE.PlaneGeometry(5, 1.4, 12, 1);
-  const pos = frond.attributes.position;
-  for (let i = 0; i < pos.count; i++) {
-    const x = pos.getX(i) + 2.5;
-    pos.setXYZ(i, x, -0.09 * x * x + 0.35 * x, pos.getY(i));
+  const leafMat = new THREE.MeshStandardMaterial({ map: leafTex, alphaTest: 0.45, side: THREE.DoubleSide, roughness: 0.8, vertexColors: true });
+  /*
+   * 머리 — 잎 22장을 세 층으로(위는 하늘로, 가운데는 옆으로 휘고, 아래는 늘어짐) + 마른 잎 5장(갈색, 거의 수직으로 늘어진 치마).
+   * 사진의 야자수 머리는 둥글고 빽빽하다.
+   */
+  const crownParts: { g: Three.BufferGeometry; col: [number, number, number] }[] = [];
+  const frondGeo = (len: number, droop: number) => {
+    const f = new THREE.PlaneGeometry(len, 1.3, 12, 1);
+    const pos = f.attributes.position;
+    for (let i = 0; i < pos.count; i++) {
+      const x = pos.getX(i) + len / 2;
+      pos.setXYZ(i, x, -droop * x * x + 0.3 * x, pos.getY(i));
+    }
+    f.computeVertexNormals();
+    return f;
+  };
+  for (let k = 0; k < 22; k++) {
+    const tier = k < 7 ? 0 : k < 15 ? 1 : 2;
+    const g = frondGeo(4.2 + (k % 3) * 0.4, [0.06, 0.11, 0.17][tier]);
+    g.rotateX(((k % 2) - 0.5) * 0.5);
+    g.rotateZ([0.75, 0.25, -0.25][tier]);
+    g.rotateY((k / 22) * Math.PI * 2 * 3.1 + tier * 0.4);
+    const v = 0.85 + (k % 4) * 0.06;
+    crownParts.push({ g, col: [v, v, v] });
   }
-  frond.computeVertexNormals();
-  /* 잎 14 장을 한 덩어리로 */
-  const crownParts: Three.BufferGeometry[] = [];
-  for (let k = 0; k < 14; k++) {
-    const g = frond.clone();
-    g.rotateX(((k % 3) - 1) * 0.25);
-    g.rotateY((k / 14) * Math.PI * 2);
-    crownParts.push(g);
+  for (let k = 0; k < 5; k++) {
+    const g = frondGeo(3.4, 0.05);
+    g.rotateZ(-1.25);
+    g.rotateY((k / 5) * Math.PI * 2 + 0.3);
+    g.translate(0, -0.3, 0);
+    crownParts.push({ g, col: [1.25, 0.82, 0.5] });
   }
-  const crown = mergeGeometries(THREE, crownParts);
+  const crown = (() => {
+    const pos: number[] = [];
+    const nor: number[] = [];
+    const uv: number[] = [];
+    const col: number[] = [];
+    const idx: number[] = [];
+    let off = 0;
+    for (const { g, col: cc } of crownParts) {
+      const P = g.attributes.position;
+      const N = g.attributes.normal;
+      const U = g.attributes.uv;
+      for (let i = 0; i < P.count; i++) {
+        pos.push(P.getX(i), P.getY(i), P.getZ(i));
+        nor.push(N.getX(i), N.getY(i), N.getZ(i));
+        uv.push(U.getX(i), U.getY(i));
+        col.push(...cc);
+      }
+      const ix = g.index!;
+      for (let i = 0; i < ix.count; i++) idx.push(ix.getX(i) + off);
+      off += P.count;
+    }
+    const out = new THREE.BufferGeometry();
+    out.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    out.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
+    out.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+    out.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+    out.setIndex(idx);
+    return out;
+  })();
   const trunk = new THREE.CylinderGeometry(0.22, 0.32, 1, 10, 1);
   trunk.translate(0, 0.5, 0);
   const trunkTex = canvasTex(THREE, 64, 256, (c) => {
@@ -710,37 +859,10 @@ function palms(F: FieldFrame, spots: { a: number; b: number; h: number }[]) {
   return [trunkMesh.material, leafMat] as Three.MeshStandardMaterial[];
 }
 
-/** BufferGeometry 여럿을 하나로(위치 · 법선 · uv · index) — addons 를 안 부르려고 */
-function mergeGeometries(THREE: typeof import('three'), gs: Three.BufferGeometry[]) {
-  const pos: number[] = [];
-  const nor: number[] = [];
-  const uv: number[] = [];
-  const idx: number[] = [];
-  let off = 0;
-  for (const g of gs) {
-    const p = g.attributes.position;
-    const n = g.attributes.normal;
-    const u = g.attributes.uv;
-    for (let i = 0; i < p.count; i++) {
-      pos.push(p.getX(i), p.getY(i), p.getZ(i));
-      nor.push(n.getX(i), n.getY(i), n.getZ(i));
-      uv.push(u.getX(i), u.getY(i));
-    }
-    const ix = g.index!;
-    for (let i = 0; i < ix.count; i++) idx.push(ix.getX(i) + off);
-    off += p.count;
-  }
-  const out = new THREE.BufferGeometry();
-  out.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-  out.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
-  out.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
-  out.setIndex(idx);
-  return out;
-}
-
 /* ───────────── 언덕(엘리시안 파크) ───────────── */
 
 function hills(F: FieldFrame) {
+  const fenceDistOf = F.fenceR;
   const { THREE, fg, s } = F;
   const R0 = 180;
   const R1 = 560;
@@ -778,7 +900,7 @@ function hills(F: FieldFrame) {
   const col: number[] = [];
   const uvs: number[] = [];
   const idx: number[] = [];
-  const dry = new THREE.Color('#b29d6b');
+  const dry = new THREE.Color('#9a8a62');
   const brush = new THREE.Color('#7d7a4c');
   const tree = new THREE.Color('#37462a');
   const c = new THREE.Color();
@@ -827,46 +949,193 @@ function hills(F: FieldFrame) {
   m.receiveShadow = true;
   F.scene.add(m);
 
-  /* 나무 — 울퉁불퉁한 둥근 덩어리(매끈한 법선 · 아래쪽 어둡게). 나무 덮인 곳에만, 가까운 언덕(300m 안)에 촘촘히 */
-  const blob = new THREE.SphereGeometry(1, 10, 7);
-  {
-    const p = blob.attributes.position;
-    const colors: number[] = [];
-    for (let i = 0; i < p.count; i++) {
-      const x = p.getX(i);
-      const y = p.getY(i);
-      const z = p.getZ(i);
-      const k = 1 + 0.16 * Math.sin(x * 4.1 + z * 3.3 + y * 2.2) + 0.1 * Math.sin(x * 9.7 - y * 7.1 + z * 5.3);
-      p.setXYZ(i, x * k, Math.max(-0.35, y) * k * 0.8, z * k);
-      const g = 0.55 + 0.45 * Math.min(1, Math.max(0, (y + 0.4) / 1.3));
-      colors.push(g, g, g);
-    }
-    blob.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
-    blob.computeVertexNormals();
-  }
-  const spots: { a: number; b: number; h: number; r: number }[] = [];
-  for (let k = 0; k < 9000 && spots.length < 1300; k++) {
+  /* 나무 — 언덕의 나무 덮인 곳에 촘촘히(넓은잎 둥근 나무 · 유칼립투스), 가까운 언덕(300m 안) */
+  const spots: TreeSpot[] = [];
+  for (let k = 0; k < 12000 && spots.length < 1700; k++) {
     const th = hash(k, 1.3) * Math.PI * 2;
-    const r = R0 + 6 + Math.pow(hash(k, 7.1), 1.6) * 260;
+    const r = R0 + 4 + Math.pow(hash(k, 7.1), 1.5) * 280;
     const a = 30 + r * Math.cos(th);
     const b = r * Math.sin(th);
-    if (woods(a, b) < 0.46 + hash(k, 3.3) * 0.12) continue;
-    spots.push({ a, b, h: shape(a, b).h, r: 2.5 + hash(k, 5.5) * 3.5 });
+    if (woods(a, b) < 0.42 + hash(k, 3.3) * 0.12) continue;
+    const big = 7 + hash(k, 5.5) * 9;
+    spots.push({ a, b, y: shape(a, b).h - 0.5, w: big * (0.9 + hash(k, 6.6) * 0.4), h: big, kind: hash(k, 8.1) < 0.7 ? 0 : 2 });
   }
-  const treeMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1 });
-  const trees = new THREE.InstancedMesh(blob, treeMat, spots.length);
-  const M = new THREE.Matrix4();
-  const q = new THREE.Quaternion();
-  spots.forEach((t, i) => {
-    q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), hash(i, 2.2) * 6.28);
-    M.compose(fg(t.a, t.b, (t.h + t.r * 0.55) * s), q, new THREE.Vector3(t.r * s, t.r * s * (1 + hash(i, 4.4) * 0.6), t.r * s));
-    trees.setMatrixAt(i, M);
-    c.copy(tree).multiplyScalar(0.8 + hash(i, 8.8) * 0.45).lerp(brush, hash(i, 9.9) * 0.3);
-    trees.setColorAt(i, c);
+  /* 주차장의 키 큰 침엽수 줄(사진: 외야석 뒤 주차장에 줄지어 선 짙은 나무) */
+  for (const side of [-1, 1]) {
+    for (let i = 0; i < 26; i++) {
+      const th = side * (0.08 + i * 0.026);
+      const r = fenceDistOf(th) + 38 + (i % 2) * 22 + hash(i, side) * 6;
+      spots.push({ a: r * Math.cos(th), b: r * Math.sin(th), y: 0, w: 4 + hash(i, 2) * 1.5, h: 14 + hash(i, 3) * 6, kind: 1 });
+    }
+  }
+  const treeMat = billboardTrees(F, spots);
+  return { hillMat, treeMat };
+}
+
+/* ───────────── 나무 그림판(카메라를 보는 판, 여럿을 한 번에) ───────────── */
+
+type TreeSpot = { a: number; b: number; y: number; w: number; h: number; kind: 0 | 1 | 2 };
+
+/**
+ * 나무 셋을 그린 판(256 × 256 세 칸) — 0 넓은잎 둥근 나무 · 1 키 큰 침엽수 · 2 유칼립투스(성긴 잎, 회녹색).
+ * 잎 덩이를 수백 개 겹쳐 그리고 위 · 왼쪽을 밝게(해), 아래 · 안쪽을 어둡게 — 멀리서(10~40px) 진짜 나무처럼 들쭉날쭉한 윤곽 · 명암이 보이게.
+ */
+function treeAtlas(THREE: typeof import('three')) {
+  let seed = 11;
+  const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+  return canvasTex(
+    THREE,
+    768,
+    256,
+    (c) => {
+      c.clearRect(0, 0, 768, 256);
+      const blob = (x: number, y: number, r: number, light: number, base: [number, number, number]) => {
+        const k = 0.55 + light * 0.75;
+        c.fillStyle = `rgb(${Math.round(base[0] * k)},${Math.round(base[1] * k)},${Math.round(base[2] * k)})`;
+        c.beginPath();
+        c.arc(x, y, r, 0, Math.PI * 2);
+        c.fill();
+      };
+      /* 0 넓은잎 — 줄기 + 둥근 덩이 여럿을 합친 윤곽 */
+      {
+        const ox = 0;
+        c.fillStyle = '#4a3b2c';
+        c.fillRect(ox + 122, 170, 12, 86);
+        const lobes: [number, number, number][] = [
+          [128, 120, 78],
+          [80, 140, 52],
+          [176, 138, 56],
+          [128, 70, 52],
+          [96, 92, 46],
+          [162, 92, 46],
+        ];
+        for (let i = 0; i < 1400; i++) {
+          const [lx, ly, lr] = lobes[Math.floor(rnd() * lobes.length)];
+          const ang = rnd() * Math.PI * 2;
+          const rr = Math.sqrt(rnd()) * lr;
+          const x = lx + Math.cos(ang) * rr;
+          const y = ly + Math.sin(ang) * rr * 0.9;
+          if (y > 196) continue;
+          const light = Math.max(0, Math.min(1, 0.85 - (y - 40) / 190 - (x - 128) / 420 + (rnd() - 0.5) * 0.35));
+          blob(ox + x, y, 4 + rnd() * 6, light, [58, 76, 42]);
+        }
+      }
+      /* 1 침엽수 — 좁고 긴 불꽃 모양, 짙은 녹색 */
+      {
+        const ox = 256;
+        c.fillStyle = '#3b2f24';
+        c.fillRect(ox + 124, 220, 8, 36);
+        for (let i = 0; i < 1500; i++) {
+          const y = 8 + rnd() * 214;
+          const half = 8 + 42 * Math.sin(((y - 8) / 214) * Math.PI * 0.92) * (0.75 + 0.25 * ((y - 8) / 214));
+          const x = 128 + (rnd() * 2 - 1) * half;
+          const light = Math.max(0, Math.min(1, 0.75 - (y - 20) / 320 - (x - 128) / 160 + (rnd() - 0.5) * 0.4));
+          blob(ox + x, y, 3 + rnd() * 4, light, [36, 52, 34]);
+        }
+      }
+      /* 2 유칼립투스 — 키 크고 성긴 회녹색, 가는 흰 줄기 */
+      {
+        const ox = 512;
+        c.strokeStyle = '#cfc6b4';
+        c.lineWidth = 7;
+        c.beginPath();
+        c.moveTo(ox + 128, 256);
+        c.lineTo(ox + 124, 150);
+        c.lineTo(ox + 104, 90);
+        c.moveTo(ox + 124, 150);
+        c.lineTo(ox + 150, 80);
+        c.stroke();
+        const lobes: [number, number, number][] = [
+          [100, 70, 44],
+          [154, 64, 46],
+          [128, 34, 34],
+          [86, 118, 30],
+          [170, 112, 30],
+        ];
+        for (let i = 0; i < 900; i++) {
+          const [lx, ly, lr] = lobes[Math.floor(rnd() * lobes.length)];
+          const ang = rnd() * Math.PI * 2;
+          const rr = Math.sqrt(rnd()) * lr;
+          const x = lx + Math.cos(ang) * rr;
+          const y = ly + Math.sin(ang) * rr * 0.85;
+          const light = Math.max(0, Math.min(1, 0.85 - (y - 20) / 200 - (x - 128) / 400 + (rnd() - 0.5) * 0.4));
+          blob(ox + x, y, 3 + rnd() * 5, light, [84, 98, 70]);
+        }
+      }
+    },
+    false
+  );
+}
+
+/** 나무 그림판을 한 번에 — 판은 늘 카메라를 보되 세로는 곧게(원통형 빌보드). 안개 · 밤 어둡게(uLight) */
+function billboardTrees(F: FieldFrame, spots: TreeSpot[]) {
+  const { THREE, s } = F;
+  const geo = new THREE.InstancedBufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute([-0.5, 0, 0, 0.5, 0, 0, 0.5, 1, 0, -0.5, 1, 0], 3));
+  geo.setAttribute('uv', new THREE.Float32BufferAttribute([0, 0, 1, 0, 1, 1, 0, 1], 2));
+  geo.setIndex([0, 1, 2, 0, 2, 3]);
+  const off: number[] = [];
+  const size: number[] = [];
+  const tint: number[] = [];
+  const kind: number[] = [];
+  let k = 0;
+  for (const t of spots) {
+    const p = F.fg(t.a, t.b, t.y * s);
+    off.push(p.x, p.y, p.z);
+    size.push(t.w * s, t.h * s);
+    const v = 0.82 + ((Math.sin(k * 12.9898) * 43758.5453) % 1 + 1) % 1 * 0.36;
+    tint.push(v, v * (0.97 + (k % 3) * 0.02), v * 0.95);
+    kind.push(t.kind);
+    k++;
+  }
+  geo.setAttribute('aOff', new THREE.InstancedBufferAttribute(new Float32Array(off), 3));
+  geo.setAttribute('aSize', new THREE.InstancedBufferAttribute(new Float32Array(size), 2));
+  geo.setAttribute('aTint', new THREE.InstancedBufferAttribute(new Float32Array(tint), 3));
+  geo.setAttribute('aKind', new THREE.InstancedBufferAttribute(new Float32Array(kind), 1));
+  geo.instanceCount = spots.length;
+  const mat = new THREE.ShaderMaterial({
+    uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, { uAtlas: { value: null }, uLight: { value: 1 } }]),
+    fog: true,
+    vertexShader: /* glsl */ `
+      attribute vec3 aOff;
+      attribute vec2 aSize;
+      attribute vec3 aTint;
+      attribute float aKind;
+      varying vec2 vUv;
+      varying vec3 vTint;
+      #include <fog_pars_vertex>
+      void main() {
+        vec3 toCam = cameraPosition - aOff;
+        vec3 side = normalize(vec3(toCam.z, 0.0, -toCam.x));
+        vec3 wp = aOff + side * position.x * aSize.x + vec3(0.0, 1.0, 0.0) * position.y * aSize.y;
+        vUv = vec2((uv.x + aKind) / 3.0, uv.y);
+        vTint = aTint;
+        vec4 mvPosition = viewMatrix * vec4(wp, 1.0);
+        gl_Position = projectionMatrix * mvPosition;
+        #include <fog_vertex>
+      }
+    `,
+    fragmentShader: /* glsl */ `
+      uniform sampler2D uAtlas;
+      uniform float uLight;
+      varying vec2 vUv;
+      varying vec3 vTint;
+      #include <fog_pars_fragment>
+      void main() {
+        vec4 t = texture2D(uAtlas, vUv);
+        if (t.a < 0.5) discard;
+        gl_FragColor = vec4(t.rgb * vTint * uLight, 1.0);
+        #include <tonemapping_fragment>
+        #include <colorspace_fragment>
+        #include <fog_fragment>
+      }
+    `,
   });
-  trees.receiveShadow = true;
-  F.scene.add(trees);
-  return [hillMat, treeMat];
+  mat.uniforms.uAtlas.value = treeAtlas(THREE);
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.frustumCulled = false;
+  F.scene.add(mesh);
+  return mat;
 }
 
 /* ───────────── 전체 ───────────── */
@@ -889,13 +1158,17 @@ export function buildStadium(F: FieldFrame): StadiumHandle {
     metal: std('#eef0f1', 0.55, 0.1),
     metalUnder: std('#c3c8cc', 0.7, 0.05),
     steel: std('#3b4048', 0.55, 0.4),
-    pad: std('#1f4d8c', 0.8),
+    pad: padMat(THREE),
     endCap: std('#b9b3a8', 0.95),
+    pavUnder: std('#5b5242', 0.8),
+    boardFrame: std('#e8e3d6', 0.6),
+    boardDark: std('#111418', 0.4),
+    lightPole: std('#8b9097', 0.6, 0.3),
     ribbon: ribbonMat(THREE),
   };
   const seatMats: Record<string, { back: Three.Material; seat: Three.Material }> = {};
   for (const [k, color] of Object.entries(SEAT)) {
-    const t = seatTextures(THREE, color);
+    const t = seatTextures(THREE, color, k === 'pavilion');
     seatMats[k] = {
       back: new THREE.MeshStandardMaterial({ map: t.back, roughness: 0.55, side: THREE.DoubleSide }),
       seat: new THREE.MeshStandardMaterial({ map: t.seat, roughness: 0.75, side: THREE.DoubleSide }),
@@ -904,14 +1177,38 @@ export function buildStadium(F: FieldFrame): StadiumHandle {
 
   const { roofPath, roofEdge, roofZ } = grandstand(F, mats, seatMats);
   dugoutsAndNet(F, mats);
-  const pavL = pavilion(F, -1, mats, seatMats.pavilion);
-  const pavR = pavilion(F, 1, mats, seatMats.pavilion);
+  pavilion(F, -1, mats, seatMats.pavilion);
+  pavilion(F, 1, mats, seatMats.pavilion);
 
-  /* 전광판 — 좌우 외야석 뒤 위 */
+  /* 등 격자(조명탑 등판 앞면) — 낮엔 회색 등 · 밤엔 빛남 */
+  const lampGrid = canvasTex(
+    THREE,
+    256,
+    80,
+    (c) => {
+      c.fillStyle = '#4a4f56';
+      c.fillRect(0, 0, 256, 80);
+      c.fillStyle = '#2c3036';
+      for (let y = 0; y < 80; y += 10) c.fillRect(0, y, 256, 2);
+      for (let y = 0; y < 8; y++)
+        for (let x = 0; x < 32; x++) {
+          c.fillStyle = '#b9bec4';
+          c.beginPath();
+          c.arc(4 + x * 8, 5 + y * 10, 3, 0, Math.PI * 2);
+          c.fill();
+        }
+    },
+    false
+  );
+  const bankMat = new THREE.MeshStandardMaterial({ map: lampGrid, emissive: '#ffffff', emissiveMap: lampGrid, emissiveIntensity: 0, roughness: 0.4 });
+  /* 전광판 · 조명탑 — 외야석 뒤, 전광판은 가운데 쪽, 조명탑은 폴 쪽 */
   for (const side of [-1, 1] as const) {
-    const th = side * 0.5;
-    const r = F.fenceR(th) + 30;
+    const th = side * 0.44;
+    const r = F.fenceR(th) + 27;
     hexBoard(F, r * Math.cos(th), r * Math.sin(th), mats);
+    const tt = side * 0.62;
+    const rt = F.fenceR(tt) + 30;
+    lightTower(F, rt * Math.cos(tt), rt * Math.sin(tt), mats, bankMat);
   }
   /* 가운데 — 타자 눈(짙은 벽) · 생울타리 */
   {
@@ -948,21 +1245,6 @@ export function buildStadium(F: FieldFrame): StadiumHandle {
     m.lookAt(F.fg(30, 0, 0));
     F.scene.add(m);
   }
-  for (const path of [pavL, pavR]) {
-    for (const k of [0.25, 0.75]) {
-      const p = path[Math.floor(path.length * k)];
-      const base = F.fg(p.a + p.na * 26, p.b + p.nb * 26, 0);
-      const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.5 * F.s, 0.7 * F.s, 38 * F.s, 10), mats.steel);
-      pole.position.set(base.x, 19 * F.s, base.z);
-      pole.castShadow = true;
-      F.scene.add(pole);
-      const bank = new THREE.Mesh(new THREE.BoxGeometry(11 * F.s, 6 * F.s, 0.8 * F.s), lampMat);
-      bank.position.set(base.x, 39 * F.s, base.z);
-      bank.lookAt(F.fg(40, 0, 0));
-      F.scene.add(bank);
-    }
-  }
-
   /* 야자수 — 외야석 뒤 언덕 · 좌우 끝, 관중석 뒤 */
   const spots: { a: number; b: number; h: number }[] = [];
   for (let i = 0; i < 46; i++) {
@@ -973,7 +1255,7 @@ export function buildStadium(F: FieldFrame): StadiumHandle {
   }
   /* 경기장 밖 — 밤에는 조명이 닿지 않아 어둡다(조명이 방향광이라 거리로 줄지 않으니 재질 색으로 낮춘다) */
   const palmMats = palms(F, spots);
-  const hillMats = hills(F);
+  const { hillMat, treeMat } = hills(F);
   /* 조명 빛 번짐(밤에만) — 등 둘레에 더해 그리는 둥근 빛 */
   const glowTex = canvasTex(
     THREE,
@@ -993,11 +1275,11 @@ export function buildStadium(F: FieldFrame): StadiumHandle {
   const glowMat = new THREE.SpriteMaterial({ map: glowTex, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, fog: false });
   const glows: Three.Sprite[] = [];
   F.scene.traverse((o) => {
-    if ((o as Three.Mesh).isMesh && (o as Three.Mesh).material === lampMat) {
+    const tagged = o.userData.glow as number | undefined;
+    if (tagged || ((o as Three.Mesh).isMesh && (o as Three.Mesh).material === lampMat)) {
       const sp = new THREE.Sprite(glowMat);
-      const big = (o as Three.Mesh).geometry !== lamp;
-      sp.scale.setScalar((big ? 34 : 14) * F.s);
-      sp.position.copy(o.position);
+      sp.scale.setScalar((tagged ?? 14) * F.s);
+      o.getWorldPosition(sp.position);
       sp.visible = false;
       glows.push(sp);
     }
@@ -1009,8 +1291,10 @@ export function buildStadium(F: FieldFrame): StadiumHandle {
   return {
     setNight: (on) => {
       lampMat.emissiveIntensity = on ? 4 : 0;
+      bankMat.emissiveIntensity = on ? 3 : 0;
       for (const g of glows) g.visible = on;
-      for (const m of hillMats) m.color.setScalar(on ? 0.06 : 1);
+      hillMat.color.setScalar(on ? 0.06 : 1);
+      treeMat.uniforms.uLight.value = on ? 0.07 : 1;
       for (const m of palmMats) m.color.setScalar(on ? 0.2 : 1);
       ribbon.emissiveIntensity = on ? 1.4 : 1.6;
     },

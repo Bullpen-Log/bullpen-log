@@ -301,6 +301,10 @@ export const Body3D = forwardRef<
       const target = new THREE.Vector3(center[0], center[1], center[2]);
       controls.target.copy(target);
       let dirty = true;
+      /* 무대가 늦게 받은 것(하늘 사진)을 붙이면 한 번 더 그린다 — 김민 2026-10-11 */
+      stage.onChange = () => {
+        dirty = true;
+      };
       controls.addEventListener('change', () => {
         dirty = true;
       });
