@@ -3,7 +3,7 @@
  * 화면(body-3d.tsx, 마운드 면)이 같은 함수를 쓴다. 김민의 예시 page.js moundFn 과 같은 꼴 · 같은 자리 · 같은 높이 배율.
  *
  * 2026-10-11 까지는 해부학 뼈대 15조각의 자세(rigPose · public/models/skeleton-parts.json)도 여기 있었다 — 화면이 데생 인형
- * (lib/pitch-3d/v2/mannequin-*.ts · app/(app)/videos/lab/[id]/mannequin/)으로 바뀌며 뺐다(git 이력 79cef59 이전).
+ * (lib/pitch-3d/v2/mannequin-*.ts · app/(app)/videos/lab/[id]/mannequin/)으로 바뀌며 뺐다(git 이력 79cef59 까지).
  * 순수 함수 — three.js 를 모른다. 시험: scripts/pitch-3d-v2-selftest.mts '마운드'.
  */
 
