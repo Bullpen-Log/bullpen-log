@@ -1083,6 +1083,35 @@ export function buildStage({
           }
           return;
         }
+        /* 의자 줄 판 — 그림(밝기 + 의자 자리) × 층 색 × 구운 빛. 의자 자리 밖은 콘크리트 */
+        if (m.name.startsWith('BO_seatrow_')) {
+          const rgb = (m.userData.seat_rgb as number[] | undefined) ?? [0.5, 0.5, 0.5];
+          const b = new THREE.MeshBasicMaterial({ map: m.map, vertexColors: true, name: m.name, side: THREE.DoubleSide });
+          b.userData.base = new THREE.Color(1, 1, 1);
+          const seatCol = new THREE.Color().setRGB(rgb[0], rgb[1], rgb[2]);
+          b.onBeforeCompile = (sh) => {
+            sh.uniforms.uSeat = { value: seatCol };
+            sh.fragmentShader = sh.fragmentShader
+              .replace('#include <common>', '#include <common>\nuniform vec3 uSeat;')
+              .replace(
+                '#include <map_fragment>',
+                `#ifdef USE_MAP
+                  vec4 st = texture2D(map, vMapUv);
+                  diffuseColor.rgb *= mix(vec3(0.74, 0.72, 0.68), uSeat, st.a) * st.rgb;
+                #endif`
+              )
+              .replace(
+                '#include <color_fragment>',
+                `#if defined( USE_COLOR )
+                  diffuseColor.rgb *= vec3(min(1.05, dot(vColor.rgb, vec3(0.2126, 0.7152, 0.0722))));
+                #endif`
+              );
+          };
+          if (b.map) b.map.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
+          basics.set(m.uuid + 'seat', b);
+          mesh.material = b;
+          return;
+        }
         const vc = !!mesh.geometry.attributes.color;
         const inst = !!(mesh as Three.InstancedMesh).instanceColor;
         if (vc || inst) mesh.material = toBasic(m, vc);

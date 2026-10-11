@@ -199,6 +199,7 @@ def full_front():
 
 SLAB = 1.0
 SEAT_COUNT = {}
+ATLAS = [None]
 SEAT_PTS = {}
 SEAT_AO = {}
 # 꼭대기 49.4m(LA 카운티 건물 높이) 에 맞춘 높이 — 층 높이 · 튀어나온 길이는 사진 어림(EST)
@@ -257,10 +258,9 @@ def section(i, reach):
     top = max(wall_top(i, reach), z1 + 1.0)
     pts = [(w0, 0.0) if d['key'] == 'field' else (w0, z0 - SLAB), (w0, z0 + 1.0), (w0 + 0.3, z0 + 1.0)]
     rows = rows_of(d)
-    for k, (wr, zr, dep) in enumerate(rows):
-        pts += [(wr, zr), (wr + dep, zr)]
-        if k + 1 < len(rows):
-            pts.append((wr + dep, rows[k + 1][1]))
+    for wr, zr, dep in rows:
+        pts.append((wr, zr))
+    pts.append((w1, z1))
     # 뒤 벽은 여러 점으로 나눈다 — 위아래 두 점뿐이면 구운 빛이 삼각형 대각선을 따라 지그재그로 번졌다
     n_up = 8  # 둘레를 따라 점 수가 같아야 쓸 수 있어 고정(벽 높이 2~7m)
     pts += [(w1, z1 + (top - z1) * k / n_up) for k in range(1, n_up + 1)]
@@ -296,6 +296,106 @@ def sweep_closed(name, coll, path, sec_fn, shift_fn, material, sec_q=None):
     ob = mesh_obj(name, coll, verts, faces, material)
     fix_normals(ob)
     ob['ring'] = m  # 둘레 한 칸의 점 수 — 빛 굽기 뒤 둘레 방향으로만 고르게 펼 때 쓴다
+    return ob
+
+
+SEAT_TILE = 8.0  # 의자 줄 그림 한 장의 길이(m) — 의자 0.5m × 16. 통로는 그림이 아니라 앞 선 길이에 맞춘 판(줄마다 그림 자리가 달라 통로가 어긋났다)
+
+
+def seat_atlas():
+    """의자 줄 그림(1024 × 128, 앞 → 뒤 = 아래 → 위). RGB = 밝기, A = 의자 자리(앱이 층 색을 칠한다).
+    줄 앞 디딤판(밝은 콘크리트) → 앉는 판(그늘) → 등받이(위로 밝게, 둥근 어깨) → 등 뒤 그늘. 왼쪽 1.1m 는 통로 계단 둘."""
+    import numpy as np
+    W, H = 1024, 128
+    u = (np.arange(W) + 0.5) / W
+    v = (np.arange(H) + 0.5) / H
+    U, V = np.meshgrid(u, v)
+    shade = np.full((H, W), 0.82)
+    mask = np.zeros((H, W))
+    um = U * SEAT_TILE
+    aisle = um < -1.0
+    seat_u = um / 0.5
+    fu = seat_u - np.floor(seat_u)
+    inseat = (~aisle) & (fu > 0.05) & (fu < 0.95)
+    # 디딤판
+    tread = V < 0.12
+    shade = np.where(tread, 0.86 + 0.1 * (V < 0.025), shade)
+    # 앉는 판 · 등받이
+    pan = (V >= 0.12) & (V < 0.34) & inseat
+    back_v = (V - 0.34) / 0.52
+    corner = np.minimum(fu - 0.05, 0.95 - fu) / 0.12
+    back = (V >= 0.34) & (back_v < 1.0 - np.clip(0.35 - corner, 0, 1) ** 2 * 1.2) & inseat
+    shade = np.where(pan, 0.62 + 0.1 * (V - 0.12) / 0.22, shade)
+    shade = np.where(back, 0.82 + 0.2 * back_v, shade)
+    mask = np.where(pan | back, 1.0, mask)
+    # 의자 사이 · 등 뒤 그늘
+    gap = (~aisle) & (V >= 0.12) & ~(pan | back)
+    shade = np.where(gap, np.where(V > 0.8, 0.3, 0.45), shade)
+    # 통로 — 계단 둘(반 줄마다 턱)
+    av = (V * 2) % 1.0
+    shade = np.where(aisle, np.where(av < 0.08, 0.55, 0.84 + 0.06 * (av > 0.9)), shade)
+    shade = np.where(aisle & ((um < 0.06) | (um > 1.04)), 0.6, shade)
+    img = bpy.data.images.get('BO_seat_atlas') or bpy.data.images.new('BO_seat_atlas', W, H, alpha=True)
+    px = np.zeros((H, W, 4), dtype=np.float32)
+    srgb_shade = np.where(shade <= 0.0031308, shade * 12.92, 1.055 * np.power(shade, 1 / 2.4) - 0.055)
+    px[..., 0] = px[..., 1] = px[..., 2] = srgb_shade
+    px[..., 3] = mask
+    img.pixels.foreach_set(px.ravel())
+    img.file_format = 'PNG'
+    img.pack()
+    return img
+
+
+def seat_row_material(name, rgb, atlas):
+    m = bpy.data.materials.get('BO_seatrow_' + name) or bpy.data.materials.new('BO_seatrow_' + name)
+    m.use_nodes = True
+    nt = m.node_tree
+    bsdf = nt.nodes.get('Principled BSDF')
+    tex = nt.nodes.get('SeatAtlas') or nt.nodes.new('ShaderNodeTexImage')
+    tex.name = 'SeatAtlas'
+    tex.image = atlas
+    nt.links.new(tex.outputs['Color'], bsdf.inputs['Base Color'])
+    bsdf.inputs['Roughness'].default_value = 0.7
+    m['seat_rgb'] = list(rgb)
+    m.diffuse_color = (*rgb, 1)
+    return m
+
+
+def seat_rows(name, coll, path, d, shift_fn, material):
+    """층의 의자 줄 판 — 줄마다 떨어진 띠(점을 나누지 않아 줄마다 제 길이로 u 를 잰다 — 바깥 줄은 둘레가 길어 의자가 더 많다)"""
+    verts, faces, uvs = [], [], []
+    rows = rows_of(d)
+    for k, (wr, zr, dep) in enumerate(rows):
+        z_back = rows[k + 1][1] if k + 1 < len(rows) else d['z1']
+        wb = wr + dep
+        L = 0.0
+        prev = None
+        base = len(verts)
+        for q in path:
+            a, b, g, r = q
+            sh = shift_fn(r)
+            wm = (wr + wb) / 2 - sh
+            mid = (a + math.cos(g) * wm, b + math.sin(g) * wm)
+            if prev is not None:
+                L += math.hypot(mid[0] - prev[0], mid[1] - prev[1])
+            prev = mid
+            for w, z, vv in ((wr - sh, zr + 0.03, 0.0), (wb - sh, z_back + 0.03, 1.0)):
+                verts.append(P(a + math.cos(g) * w, b + math.sin(g) * w, z))
+                uvs.append((L / SEAT_TILE, vv))
+        n = len(path)
+        for i in range(n - 1):
+            a0 = base + i * 2
+            faces.append([a0, a0 + 2, a0 + 3, a0 + 1])
+    ob = mesh_obj(name, coll, verts, faces, material)
+    # 열린 띠라 fix_normals 가 아래를 볼 수 있다 — 하늘을 보게 뒤집는다(빛 굽기가 노멀 쪽으로 광선을 쏜다)
+    ob.data.update()
+    if sum(pl.normal.z for pl in ob.data.polygons) < 0:
+        for pl in ob.data.polygons:
+            pl.flip()
+        ob.data.update()
+    uvl = ob.data.uv_layers.new(name='UVMap')
+    for li, loop in enumerate(ob.data.loops):
+        uvl.data[li].uv = uvs[loop.vertex_index]
     return ob
 
 
@@ -471,6 +571,7 @@ def details(M, path):
     beams = Boxes()
     vom_dark = Boxes()
     vom_wall = Boxes()
+    aisles = Boxes()
     for d in DECKS:
         sub = [q for q in path if q[3] <= d['reach']]
         sh = lambda r, k=d['key']: shift_of(k, r)
@@ -493,6 +594,17 @@ def details(M, path):
         if d['key'] in ('loge', 'club', 'reserve'):
             sec = [(w0 - 0.06, z0 - 0.75), (w0 - 0.01, z0 - 0.75), (w0 - 0.01, z0 + 0.85), (w0 - 0.06, z0 + 0.85)]
             sweep_closed(f'LED_Ribbon_{d["key"]}', 'Details', sub, lambda r, sec=sec: sec, sh, M['led'])
+        # 통로 계단 — 앞 선 길이 AISLE 마다 1.1m 판(경사를 따라, 의자 위 6cm)
+        rows = rows_of(d)
+        total = sum(math.hypot(b[0] - a[0], b[1] - a[1]) for a, b in zip(sub, sub[1:]))
+        sf = 0.0
+        while sf < total:
+            a, b, g, r = path_at(sub, sf)
+            for (wr, zr, dep), nxt in zip(rows, rows[1:] + [None]):
+                z2 = nxt[1] if nxt else d['z1']
+                wa, wb2 = wr - sh(r), wr + dep - sh(r)
+                aisles.add(P(a + math.cos(g) * wa, b + math.sin(g) * wa, zr + 0.07), P(a + math.cos(g) * wb2, b + math.sin(g) * wb2, z2 + 0.07), (1.1, 0.08))
+            sf += AISLE
         # 위층 밑 들보 — 7.5m 마다 앞에서 뒤까지
         if d['key'] != 'field':
             sf = 3.0
@@ -517,13 +629,14 @@ def details(M, path):
             pt = lambda w, o, z: P(a + math.cos(g) * w + tx * o, b + math.sin(g) * w + ty * o, z)
             vom_dark.add(pt(wa, 0, z_lo + 0.3), pt(wb, 0, z_hi + 0.3), (2.3, 0.6))
             for o in (-1.25, 1.25):
-                vom_wall.add(pt(wa, o, z_lo + 0.5), pt(wb, o, z_hi + 0.5), (0.2, 1.0))
-            vom_wall.add(pt(wa, -1.35, z_lo + 0.5), pt(wa, 1.35, z_lo + 0.5), (0.2, 1.0))
+                vom_wall.add(pt(wa, o, z_lo + 0.35), pt(wb, o, z_hi + 0.35), (0.15, 0.7))
+            vom_wall.add(pt(wa, -1.3, z_lo + 0.35), pt(wa, 1.3, z_lo + 0.35), (0.15, 0.7))
     rails.build('Deck_Rails', 'Details', M['steel'])
     posts.build('Deck_Rail_Posts', 'Details', M['steel'])
     beams.build('Deck_Beams', 'Stadium_Architecture', M['concrete'])
     vom_dark.build('Vomitory_Openings', 'Lower_Seating', M['dark'])
     vom_wall.build('Vomitory_Walls', 'Lower_Seating', M['concrete'])
+    aisles.build('Aisle_Stairs', 'Lower_Seating', M['concrete'])
 
     # 쿠션 벽 — 필드 층 앞(땅에서 1.4m), 펜스와 같은 하늘빛 회색
     fsub = [q for q in path]
@@ -654,18 +767,18 @@ def build():
 
     # Lower_Seating · Upper_Seating — 앞 선을 따라 층 단면을 쓸기
     path = full_front()
+    ATLAS[0] = seat_atlas()
     for i, d in enumerate(DECKS):
         sub = [p for p in path if p[3] <= d['reach']]
         coll = 'Lower_Seating' if d['key'] in ('field', 'loge') else 'Upper_Seating'
         sweep_closed('Deck_' + d['key'], coll, sub, lambda r, i=i: section(i, r), lambda r, k=d['key']: shift_of(k, r), M[d['key'] + '_deck'])
-        seat = seat_mesh('Seat_' + d['key'], M[d['key']])
-        bpy.data.collections['Details'].objects.link(seat)
-        seat.hide_render = True
-        seat.hide_viewport = True
-        pts = seat_points(sub, d, lambda r, k=d['key']: shift_of(k, r), vom_spots(sub, d))
-        instance_seats('Seats_' + d['key'], coll, pts, seat)
-        SEAT_COUNT[d['key']] = len(pts)
-        SEAT_PTS[d['key']] = pts
+        rows_n = len(rows_of(d))
+        mat_rows = seat_row_material(d['key'], tuple(M[d['key']].diffuse_color)[:3], ATLAS[0])
+        seat_rows('SeatRows_' + d['key'], coll, sub, d, lambda r, k=d['key']: shift_of(k, r), mat_rows)
+        seats_est = sum(
+            math.hypot(b2[0] - b1[0], b2[1] - b1[1]) for b1, b2 in zip(sub, sub[1:])
+        ) * rows_n / 0.5 * (1 - 1.1 / AISLE)
+        SEAT_COUNT[d['key']] = int(seats_est)
 
     # Stadium_Architecture — 톱 덱 지붕(앞이 조금 낮은 얇은 판)
     roof_path_len = [0.0]
@@ -1205,6 +1318,7 @@ def export_glb(path):
         export_normals=True,
         export_materials='EXPORT',
         export_vertex_color='ACTIVE',
+        export_extras=True,
     )
     if SEAT_AO:
         add_seat_colors(path)
