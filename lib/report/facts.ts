@@ -25,6 +25,7 @@ import {
 } from '@/lib/checkin';
 /* 타입만 — 재활 규칙(운동 목록 등)은 리포트 쪽에 실리지 않게 값은 부르는 쪽(gather.ts)이 만들어 넘긴다 */
 import type { RehabFacts } from '@/lib/armcare/rehab';
+import { parseThrowMemo } from '@/lib/armcare/rehab-progress';
 
 /**
  * 리포트에 쓰이는 모든 수치를 한곳에 모은다.
@@ -80,10 +81,25 @@ export const PAIN_KEYWORDS = [
   'damage',
 ] as const;
 
-/** 메모에서 걸린 통증 표현들 (중복 없이) */
+/**
+ * 재활 투구 복귀표가 남긴 꼬리표 메모('재활 투구 복귀표 2칸 · 18m · 통증 없음')가 '안 아팠다'는 뜻이면 true.
+ *
+ * 2026-10-11 (트레이닝 추천 2판 P1 '재활 메모 오탐'). 꼬리표의 '통증 없음'이 부분 일치로 '통증'에 걸려 투구 계획이 멈추고
+ * 운동이 회복 수준으로 묶였다 — 재활은 그 메모를 구조로 읽으니(parseThrowMemo) 잃는 정보가 없다. 꼬리표가 통째로 맞을
+ * 때만 뺀다(같은 함수 parseThrowMemo — 뒤에 사람이 덧붙인 글이 있으면 꼬리표가 아니라서 통증 단어를 그대로 잡는다).
+ * 꼬리표가 통증을 적은 것('몸 풀 때 통증' · '통증 계속' · '던진 뒤 통증')은 실제 통증이라 그대로 잡는다 — 미탐이 오탐보다
+ * 위험하다는 이 파일의 원칙. 일반 메모의 '통증 없음'도 지금처럼 잡는다(부정어 처리는 안 한다).
+ */
+function isPainFreeRehabTag(text: string): boolean {
+  const parsed = parseThrowMemo(text);
+  return parsed != null && parsed.pain === 'none' && !parsed.laterPain;
+}
+
+/** 메모에서 걸린 통증 표현들 (중복 없이) — 재활 복귀표의 '통증 없음' 꼬리표는 뺀다(isPainFreeRehabTag) */
 export function findPainKeywords(memos: MemoNote[]): string[] {
   const hits = new Set<string>();
   for (const memo of memos) {
+    if (isPainFreeRehabTag(memo.text)) continue;
     const text = memo.text.toLowerCase();
     for (const word of PAIN_KEYWORDS) {
       if (text.includes(word)) hits.add(word);

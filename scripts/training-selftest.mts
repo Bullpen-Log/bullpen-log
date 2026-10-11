@@ -16,7 +16,8 @@
  */
 import { PrismaClient } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
-import { buildFacts, type CheckinLike } from '../lib/report/facts.ts';
+import { buildFacts, findPainKeywords, type CheckinLike } from '../lib/report/facts.ts';
+import { throwMemo } from '../lib/armcare/rehab-progress.ts';
 import {
   CHECKIN_PARTS,
   HIGH_SORENESS,
@@ -8726,6 +8727,69 @@ console.log(
         seq.every((k) => k === 'lower' || k === 'upper') &&
         seq.filter((k) => k === 'upper').length >= 3,
       seq.join(' → ')
+    );
+  }
+
+  /* ─────────────── (f) P1 ④ 재활 메모 오탐 — 복귀표 꼬리표의 '통증 없음'은 통증이 아니다 ─────────────── */
+  /*
+   * 재활 투구 복귀표(rehab-progress.ts)는 던진 날을 투구 기록 메모에 꼬리표로 남긴다('재활 투구 복귀표 2칸 · 18m · 통증 없음').
+   * facts.ts 의 findPainKeywords 가 부분 일치라 '통증 없음'이 '통증'으로 걸려, 오늘 체크인이 없는 날 투구 계획이 멈추고
+   * (plan.needsPainCheck) 운동이 회복 수준으로 묶였다. P1 ④: 꼬리표가 통째로 맞고(같은 함수 parseThrowMemo) '안 아팠다'일 때만
+   * 뺀다. 통증을 적은 꼬리표 · 꼬리표 뒤에 덧붙인 글 · 일반 메모의 '통증 없음'은 그대로 잡는다(미탐이 오탐보다 위험).
+   */
+  {
+    const memoRead = (memos: string[]) => {
+      /* 오늘 체크인 없음 — needsPainCheck 가 걸리는 조건(메모에 통증 말 + 오늘 상태 모름) */
+      const facts = p0Facts({ today: null, memos });
+      const plan = buildPitchPlan(facts);
+      return {
+        words: findPainKeywords(memos.map((text) => ({ date: facts.asOf, text }))),
+        inFacts: facts.condition.painWordsInMemo,
+        needsPainCheck: plan.needsPainCheck,
+        theme: decideTheme({ facts, plan, lastLowerKey: null, lastUpperKey: null }).key,
+      };
+    };
+    const tagNone = throwMemo(2, 'none');
+    const clean = memoRead([tagNone]);
+    check(
+      `P1 ④ 꼬리표만('${tagNone}') → 통증 말 없음 · 투구 계획 안 멈춤 · 날은 근력`,
+      clean.words.length === 0 &&
+        clean.inFacts.length === 0 &&
+        !clean.needsPainCheck &&
+        (clean.theme === 'lower' || clean.theme === 'upper'),
+      JSON.stringify(clean)
+    );
+    const appended = memoRead([`${tagNone} 어깨가 아팠다`]);
+    check(
+      "P1 ④ 꼬리표 뒤에 덧붙인 글('… 통증 없음 어깨가 아팠다') → 잡힌다(꼬리표가 통째로 맞지 않는다)",
+      appended.words.includes('아팠') &&
+        appended.needsPainCheck &&
+        appended.theme === 'recovery',
+      JSON.stringify(appended)
+    );
+    const plain = memoRead(['통증 없음']);
+    check(
+      "P1 ④ 일반 메모의 '통증 없음'은 지금처럼 잡는다(부정어 처리 안 함)",
+      plain.words.includes('통증') && plain.needsPainCheck,
+      JSON.stringify(plain)
+    );
+    for (const [label, memo] of [
+      ['몸 풀 때 통증', throwMemo(3, 'faded')],
+      ['통증 계속', throwMemo(3, 'stayed')],
+      ['던진 뒤 통증', throwMemo(3, 'none', true)],
+    ] as const) {
+      const r = memoRead([memo]);
+      check(
+        `P1 ④ 통증을 적은 꼬리표('${label}')는 실제 통증이라 그대로 잡는다`,
+        r.words.includes('통증') && r.needsPainCheck,
+        JSON.stringify(r)
+      );
+    }
+    const mixed = memoRead([tagNone, '팔꿈치가 찌릿함']);
+    check(
+      'P1 ④ 꼬리표와 다른 메모가 같이 있으면 다른 메모의 통증 말은 잡는다',
+      mixed.words.length === 1 && mixed.words[0] === '찌릿' && mixed.needsPainCheck,
+      JSON.stringify(mixed)
     );
   }
 }
