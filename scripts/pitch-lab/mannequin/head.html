@@ -34,6 +34,7 @@ input[type=range]{width:100%;accent-color:var(--accent)}
   <h1>투구 인형 비교</h1>
   <p class="sub">재생할 때는 인형으로 움직임을 보고, 멈추면 인형 겉면만 옅게 남고 속의 뼈와 잰 선이 나와요. 아래 순간 단추를 누르면 그 장면에 멈춰요. 끌어서 돌려 보세요.</p>
   <div class="row" role="group" aria-label="예시 고르기" id="pick"></div>
+  <div class="row"><span class="sub">모델</span><div class="row" id="model" role="group" aria-label="모델 고르기"></div></div>
   <div class="stage">
     <canvas id="c" aria-label="3D 투구 인형"></canvas>
     <div class="hud" id="hud"></div>
@@ -47,3 +48,4 @@ input[type=range]{width:100%;accent-color:var(--accent)}
   <p class="note">왼쪽 예시: Driveline OpenBiomechanics Project(CC BY-NC-SA 4.0, 비공개 확인용) 모션 캡처 좌표, 머리와 발끝은 자료에 없어 어림. 오른쪽 예시: 불펜로그 3D 투구 분석 샘플 4(옆 · 뒤 폰 영상). 마운드는 3D 화면과 같은 공식 규격이고, 이 예시에서만 글러브 팔 떨림과 착지 순간 앞발이 옆으로 튀던 것을 따로 다듬었어요. 영상 속도는 실제 투구 시간에 맞춰 보여요.</p>
 </div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
