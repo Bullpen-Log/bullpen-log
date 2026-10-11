@@ -96,6 +96,11 @@ model User {
   tutorialsDone       String[]  @default([])
   /// 약관 · 개인정보 처리방침에 동의한 시각(가입 때). 이 칸이 생기기 전 계정은 비어 있다.
   agreedAt            DateTime?
+  /// 평소 투구량(종류별 주당 횟수) — {"catch":n,"bullpen":n,"game":n}, 0~7. 투구 기록 첫 설정이 받고, 부하 지수의 시작 기준선을 셈한다(lib/baseline.ts).
+  /// 있으면 이것이 원본이고 옛 세 칸(baselineFreq · Volume · Intensity)은 비슷한 값으로 같이 적어 둔다(2026-10-11 김민: 한 주가 섞인 걸 한 칸에 못 담아서)
+  baselineMix         Json?
+  /// 시뮬레이션 날짜 — 시험 계정을 '그날'로 써 보려고(2026-10-11 김민). 있으면 이 계정만 서버 · 화면의 '오늘'이 이 날짜(시각은 실제), 없으면 실제 날짜. lib/clock.ts
+  simDate             DateTime? @db.Date
   createdAt           DateTime  @default(now())
 
   exerciseFavorites UserExerciseFavorite[]

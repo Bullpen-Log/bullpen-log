@@ -2,6 +2,7 @@ import 'server-only';
 import { createHash } from 'node:crypto';
 import { cookies } from 'next/headers';
 import { encrypt, decrypt, type SessionInfo, type SessionPayload } from '@/lib/jwt';
+import { ensureSim } from '@/lib/clock-server';
 
 const SESSION_COOKIE = 'session';
 
@@ -54,6 +55,8 @@ export function passwordFingerprint(passwordHash: string) {
 }
 
 export async function getSession(): Promise<SessionInfo | null> {
+  /* 시험 계정의 시뮬레이션 날짜를 '지금'(lib/clock.ts)보다 먼저 읽어 둔다 */
+  await ensureSim();
   const cookieStore = await cookies();
   return decrypt(cookieStore.get(SESSION_COOKIE)?.value);
 }

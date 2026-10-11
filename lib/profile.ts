@@ -1,3 +1,4 @@
+import { appNow } from '@/lib/clock';
 import { toDateKey } from '@/lib/pitch-stats';
 
 /**
@@ -90,7 +91,7 @@ export function toDateInputValue(date: Date) {
 }
 
 /** 만 나이 */
-export function ageFromBirthDate(birthDate: Date, today = new Date()) {
+export function ageFromBirthDate(birthDate: Date, today = appNow()) {
   const [by, bm, bd] = toDateInputValue(birthDate).split('-').map(Number);
   const [ty, tm, td] = toDateKey(today).split('-').map(Number);
 

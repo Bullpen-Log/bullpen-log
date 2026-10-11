@@ -1,9 +1,10 @@
 'use server';
 
+import { appNow } from '@/lib/clock';
 import { revalidatePath } from 'next/cache';
 import { prisma } from '@/lib/prisma';
 import { getCurrentUser } from '@/lib/dal';
-import { validatePitchBaseline } from '@/lib/baseline';
+import { validatePitchSetup } from '@/lib/baseline';
 import { formOfFields, readPitchAnswers } from '@/lib/pitching/setup-answers';
 
 /**
@@ -31,11 +32,11 @@ export async function finishPitchSetup(
   }
   const answers = readPitchAnswers(form);
 
-  const baseline = validatePitchBaseline({
+  const baseline = validatePitchSetup({
     throwingHand: answers.throwingHand ?? '',
-    baselineFreq: answers.baselineFreq ?? '',
-    baselineVolume: answers.baselineVolume ?? '',
-    baselineIntensity: answers.baselineIntensity ?? '',
+    mixCatch: answers.mixCatch ?? '',
+    mixBullpen: answers.mixBullpen ?? '',
+    mixGame: answers.mixGame ?? '',
   });
   if ('error' in baseline) {
     return { ok: false, error: baseline.error, field: baseline.field };
@@ -45,7 +46,7 @@ export async function finishPitchSetup(
     where: { id: user.id },
     data: {
       ...baseline.value,
-      pitchSetupAt: user.pitchSetupAt ?? new Date(),
+      pitchSetupAt: user.pitchSetupAt ?? appNow(),
     },
   });
 

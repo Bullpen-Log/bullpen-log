@@ -1,3 +1,4 @@
+import { appNow } from '@/lib/clock';
 import { prisma } from '@/lib/prisma';
 import { toDateKey } from '@/lib/pitch-stats';
 import { exerciseMinutes, type LoggedExercise } from '@/lib/training-load';
@@ -82,7 +83,7 @@ function weekLabel(ago: number) {
 
 export async function trainingReview(
   userId: string,
-  today = new Date()
+  today = appNow()
 ): Promise<TrainingReview> {
   const since = new Date(today);
   since.setDate(since.getDate() - REVIEW_DAYS);

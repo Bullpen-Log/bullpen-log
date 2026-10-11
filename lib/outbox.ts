@@ -1,3 +1,4 @@
+import { appNowMs } from '@/lib/clock';
 /**
  * 아직 서버에 못 보낸 것을 폰에 맡겨 두는 곳 — 틀.
  *
@@ -49,7 +50,7 @@ export function createOutbox<T extends Stamped & K, K>({
     try {
       const raw = window.localStorage.getItem(key);
       const parsed: unknown = raw ? JSON.parse(raw) : [];
-      const cutoff = Date.now() - MAX_AGE_MS;
+      const cutoff = appNowMs() - MAX_AGE_MS;
       cache = Array.isArray(parsed)
         ? parsed.filter(isItem).filter((p) => Date.parse(p.recordedAt) > cutoff)
         : [];

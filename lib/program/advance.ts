@@ -1,4 +1,5 @@
 import 'server-only';
+import { appNow } from '@/lib/clock';
 import { prisma } from '@/lib/prisma';
 import { readFrozenPlan } from '@/lib/workout/session-plan';
 import { parseProgram, shouldAdvance } from '@/lib/program/program';
@@ -45,7 +46,7 @@ export async function advanceProgramDay(sessionId: string): Promise<boolean> {
   if (total != null && program.day >= total) {
     await prisma.userTrainingProgram.updateMany({
       where: { id: row.id, status: 'active', nextDay: { gt: total } },
-      data: { status: 'done', endedAt: new Date(), endReason: 'done' },
+      data: { status: 'done', endedAt: appNow(), endReason: 'done' },
     });
   }
   return true;

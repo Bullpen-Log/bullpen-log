@@ -1,3 +1,4 @@
+import { appNow } from '@/lib/clock';
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
@@ -114,7 +115,7 @@ export default async function VideosPage({
 
 /** 렌더 중에 현재 시각을 직접 읽지 않도록 함수로 감싼다. */
 function now() {
-  return new Date();
+  return appNow();
 }
 
 /** ?date=2026-08-30 처럼 넘어온 값만 받는다 */

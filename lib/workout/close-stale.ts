@@ -1,4 +1,5 @@
 import 'server-only';
+import { appNow } from '@/lib/clock';
 import { prisma } from '@/lib/prisma';
 import { summarizeSets } from '@/lib/workout/summarize';
 import { dayStart, isAbandoned, sessionEnd } from '@/lib/workout/stale';
@@ -105,7 +106,7 @@ export async function closeAbandoned(
  * (loadTodayCore, 두 운동 화면). 지난 날짜의 열린 판이 없으면 조회 한 번으로 끝난다
  * — 거의 언제나 그렇다.
  */
-export async function closeAbandonedSessions(userId: string, now = new Date()) {
+export async function closeAbandonedSessions(userId: string, now = appNow()) {
   const open = await prisma.trainingSession.findMany({
     where: { userId, status: 'ACTIVE', date: { lt: dayStart(now) } },
     select: { id: true, date: true, startedAt: true, mainStartedAt: true },

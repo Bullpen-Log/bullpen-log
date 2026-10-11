@@ -1,3 +1,4 @@
+import { appNow } from '@/lib/clock';
 /**
  * 화면이 보낸 '누른 시각'을 믿을 만한 범위로 자른다.
  *
@@ -11,7 +12,7 @@
 export function clampRecordedAt(
   value: unknown,
   startedAt: Date,
-  now = new Date()
+  now = appNow()
 ): Date {
   const t = typeof value === 'string' ? new Date(value) : null;
   if (!t || Number.isNaN(t.getTime())) return now;

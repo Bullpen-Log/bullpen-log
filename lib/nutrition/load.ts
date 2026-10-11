@@ -1,4 +1,5 @@
 import 'server-only';
+import { appNow } from '@/lib/clock';
 import { prisma } from '@/lib/prisma';
 import { shiftDateKey, toDateKey } from '@/lib/pitch-stats';
 import { NUTRITION_BACK_DAYS, dbDate, keyOfDbDate } from '@/lib/nutrition/days';
@@ -253,7 +254,7 @@ export async function loadNutritionDay(
   const burnStart = intakeStart < rangeStart ? intakeStart : rangeStart;
   const userId = user.id;
   /* 던지는 날 가이드는 오늘에만 뜬다 — 지난 날을 볼 때는 그 몫의 체크인을 읽지 않는다 */
-  const isToday = date === toDateKey(new Date());
+  const isToday = date === toDateKey(appNow());
 
   const [
     profileRow,

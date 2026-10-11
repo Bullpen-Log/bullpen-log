@@ -1,5 +1,6 @@
 'use server';
 
+import { appNow } from '@/lib/clock';
 import { revalidatePath } from 'next/cache';
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
@@ -68,7 +69,7 @@ export async function recordMechanicsFilm(
   if (!program) return { error: '프로그램을 먼저 시작해 주세요.' };
   if (program.sessionsDone <= 0) return { error: '세션을 먼저 마쳐 주세요.' };
   const state = readProgramState(program.progress);
-  const note: FilmNote = { session: program.sessionsDone, on: toDateKey(new Date()), verdict };
+  const note: FilmNote = { session: program.sessionsDone, on: toDateKey(appNow()), verdict };
   await prisma.mechanicsProgram.update({
     where: { userId: user.id },
     data: { progress: asJson(programStateJson({ ...state, films: withFilm(state.films, note) })) },
@@ -106,7 +107,7 @@ export async function recordMechanicsDrill(input: {
   const program = await prisma.mechanicsProgram.findUnique({ where: { userId: user.id } });
   if (!program) return { error: '프로그램을 먼저 시작해 주세요.' };
 
-  const today = toDateKey(new Date());
+  const today = toDateKey(appNow());
   const state = readProgramState(program.progress);
   const next = { ...state, feels: countFeel(state.feels, element, feel, today) };
   const date = dbDate(today);
@@ -141,7 +142,7 @@ export async function finishMechanicsSession(): Promise<
     data: {
       progress: asJson(programStateJson(next)),
       sessionsDone: { increment: 1 },
-      lastSessionOn: dbDate(toDateKey(new Date())),
+      lastSessionOn: dbDate(toDateKey(appNow())),
     },
   });
   revalidatePath(PROGRAM_PATH);

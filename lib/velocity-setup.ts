@@ -161,14 +161,28 @@ export function fitZone(
     : { x, y, w, h };
 }
 
-/** 카메라 위치별 처음 존 — 가운데, 조금 아래(공이 떨어진다) */
+/**
+ * 존 가운데 자리(장면 비율) — 늘 여기, 사용자는 크기만 바꾼다(2026-10-11 김민: "릴리스 포인트와 일치하게 고정, 릴리스 포인트 중앙에서
+ * 살짝 밑"). 릴리스 표적은 화면 가운데다. 폰을 릴리스 높이(약 1.75m)에 두면 20m 앞 존 가운데(약 0.76m)는 2.8° 아래이고,
+ * 2배 줌 세로 반화각(약 31°)에 대면 화면 높이의 4% 쯤 아래다.
+ */
+export const ZONE_CENTER = { x: 0.5, y: 0.54 } as const;
+
+/** 크기는 두고 가운데를 ZONE_CENTER 로 */
+export function centerZone(rect: ZoneRect): ZoneRect {
+  const x = ZONE_CENTER.x - rect.w / 2;
+  const y = ZONE_CENTER.y - rect.h / 2;
+  return Math.abs(x - rect.x) < 1e-6 && Math.abs(y - rect.y) < 1e-6 ? rect : { ...rect, x, y };
+}
+
+/** 카메라 위치별 처음 존 — 가운데(ZONE_CENTER) */
 export function defaultZone(
   cameraPos: CameraPos,
   frame: FrameSize = PORTRAIT
 ): ZoneRect {
   const w = ZONE_DEFAULT_W[cameraPos];
   const h = w * zoneAspectIn(frame);
-  return { x: 0.5 - w / 2, y: 0.54 - h / 2, w, h };
+  return centerZone({ x: 0, y: 0, w, h });
 }
 
 /** 처음 놓이는 스트라이크 존(투수 뒤 기준) — 카메라 위치를 알면 defaultZone(cameraPos) */
@@ -238,7 +252,7 @@ export function loadSetup(): VelocitySetup | null {
       cameraPos: p.cameraPos,
       net: p.net !== false,
       /* 예전(모양 · 크기가 자유롭던 때)에 놓은 존도 규격에 맞춘다 */
-      zone: fitZone(isRect(p.zone) ? p.zone : defaultZone(p.cameraPos), p.cameraPos),
+      zone: fitZone(isRect(p.zone) ? centerZone(p.zone) : defaultZone(p.cameraPos), p.cameraPos),
       voice: p.voice === true,
       useCal: p.useCal !== false,
       releaseDistM:

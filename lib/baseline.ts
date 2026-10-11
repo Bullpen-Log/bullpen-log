@@ -240,9 +240,12 @@ export function validateBaseline(raw: {
   baselineWorkoutFreq: string;
   throwingHand: string;
   competitionLevel: string;
-}): { error: string; field: keyof BaselineAnswers } | { value: BaselineAnswers } {
-  const pitch = validatePitchBaseline(raw);
-  if ('error' in pitch) return pitch;
+}): { error: string; field: keyof BaselineAnswers } | { value: Omit<BaselineAnswers, 'baselineFreq' | 'baselineVolume' | 'baselineIntensity'> } {
+  /* 평소 투구량은 투구 기록 첫 설정(종류별 횟수)에서만 고친다(2026-10-11) — 여기서는 던지는 손만 */
+  const throwingHand = raw.throwingHand.trim();
+  if (!(THROWING_HANDS as readonly string[]).includes(throwingHand)) {
+    return { error: '던지는 손을 선택해주세요.', field: 'throwingHand' };
+  }
   const workout = validateWorkoutBaseline(raw);
   if ('error' in workout) return workout;
   const competitionLevel = raw.competitionLevel.trim();
@@ -258,7 +261,7 @@ export function validateBaseline(raw: {
 
   return {
     value: {
-      ...pitch.value,
+      throwingHand,
       ...workout.value,
       competitionLevel: competitionLevel || null,
     },
@@ -272,35 +275,79 @@ export type PitchBaselineAnswers = Pick<
 >;
 
 /**
- * 투구 문진만 검사한다(2026-10-09 — 가입에서 빠져 투구 기록 탭의 첫 설정이 됐다).
- * 넷 다 목록 안의 값이어야 한다 — 이 값들로 부하 기준선이 만들어진다.
+ * 평소 투구량 — 종류별 주당 횟수(2026-10-11 김민: '캐치볼 위주 · 절반 전력 · 전력 투구 위주' 한 칸으로는 섞인 한 주를 못 담는다).
+ * 종류마다 보통 구수 · 강도(투구 기록과 같은 1~10 눈금)를 정해 두고 한 주 부하를 더한다. 종류 이름은 투구 기록의 종류와 같다.
  */
-export function validatePitchBaseline(raw: {
-  baselineFreq: string;
-  baselineVolume: string;
-  baselineIntensity: string;
-  throwingHand: string;
-}):
-  | { error: string; field: keyof PitchBaselineAnswers }
-  | { value: PitchBaselineAnswers } {
-  const baselineFreq = raw.baselineFreq.trim();
-  const baselineVolume = raw.baselineVolume.trim();
-  const baselineIntensity = raw.baselineIntensity.trim();
-  const throwingHand = raw.throwingHand.trim();
+export const BASELINE_MIX = [
+  { key: 'catch', label: '캐치볼 · 롱토스', pitches: 40, intensity: 3 },
+  { key: 'bullpen', label: '불펜', pitches: 35, intensity: 7 },
+  { key: 'game', label: '라이브 · 경기', pitches: 60, intensity: 9 },
+] as const;
+export type BaselineMixKey = (typeof BASELINE_MIX)[number]['key'];
+export type BaselineMix = Record<BaselineMixKey, number>;
+/** 한 종류의 주당 횟수로 고를 수 있는 값 */
+export const MIX_COUNTS = [0, 1, 2, 3, 4, 5, 6, 7] as const;
 
-  if (!BASELINE_FREQ_NAMES.includes(baselineFreq)) {
-    return { error: '평소 던지는 횟수를 선택해주세요.', field: 'baselineFreq' };
+/** 저장된 값(Json) → 횟수. 모양이 다르면 null */
+export function readMix(v: unknown): BaselineMix | null {
+  if (!v || typeof v !== 'object') return null;
+  const o = v as Record<string, unknown>;
+  const out = {} as BaselineMix;
+  for (const { key } of BASELINE_MIX) {
+    const n = o[key];
+    if (typeof n !== 'number' || !Number.isInteger(n) || n < 0 || n > 7) return null;
+    out[key] = n;
   }
-  if (!BASELINE_VOLUME_NAMES.includes(baselineVolume)) {
-    return { error: '한 번에 던지는 양을 선택해주세요.', field: 'baselineVolume' };
-  }
-  if (!BASELINE_INTENSITY_NAMES.includes(baselineIntensity)) {
-    return { error: '평소 던지는 강도를 선택해주세요.', field: 'baselineIntensity' };
-  }
+  return out;
+}
+
+/** 하루 평균 투구 부하 — 주당 Σ(횟수 × 구수 × 강도) ÷ 7 */
+export function mixDailyLoad(m: BaselineMix): number {
+  return BASELINE_MIX.reduce((s, t) => s + m[t.key] * t.pitches * t.intensity, 0) / 7;
+}
+
+/** 옛 세 칸(횟수 · 양 · 강도)에 가장 가까운 값 — 그 칸을 읽는 화면(내 정보 · 암케어 등)이 그대로 돌게 같이 적는다 */
+export function mixToLegacy(m: BaselineMix): Pick<BaselineAnswers, 'baselineFreq' | 'baselineVolume' | 'baselineIntensity'> {
+  const sessions = BASELINE_MIX.reduce((s, t) => s + m[t.key], 0);
+  const pitches = BASELINE_MIX.reduce((s, t) => s + m[t.key] * t.pitches, 0);
+  const work = BASELINE_MIX.reduce((s, t) => s + m[t.key] * t.pitches * t.intensity, 0);
+  const avgPitches = sessions ? pitches / sessions : 0;
+  const avgIntensity = pitches ? work / pitches : 3;
+  const near = [...BASELINE_INTENSITY].sort((a, b) => Math.abs(a.intensity - avgIntensity) - Math.abs(b.intensity - avgIntensity))[0];
+  return {
+    baselineFreq: sessions <= 1 ? '주 0~1회' : sessions <= 3 ? '주 2~3회' : '주 4회 이상',
+    baselineVolume: avgPitches <= 30 ? '30구 이하' : avgPitches <= 60 ? '30~60구' : '60구 이상',
+    baselineIntensity: near.name,
+  };
+}
+
+/**
+ * 투구 기록 첫 설정의 답 검사 — 던지는 손 · 종류별 주당 횟수 셋. 횟수는 0~7 의 정수 글자.
+ * 저장할 값은 종류별 횟수(baselineMix)와, 옛 세 칸에 맞춘 값(mixToLegacy)이다.
+ */
+export function validatePitchSetup(raw: {
+  throwingHand: string;
+  mixCatch: string;
+  mixBullpen: string;
+  mixGame: string;
+}):
+  | { error: string; field: 'throwingHand' | 'mixCatch' | 'mixBullpen' | 'mixGame' }
+  | { value: PitchBaselineAnswers & { baselineMix: BaselineMix } } {
+  const throwingHand = raw.throwingHand.trim();
   if (!(THROWING_HANDS as readonly string[]).includes(throwingHand)) {
     return { error: '던지는 손을 선택해주세요.', field: 'throwingHand' };
   }
-  return { value: { baselineFreq, baselineVolume, baselineIntensity, throwingHand } };
+  const num = (s: string) => (/^[0-7]$/.test(s.trim()) ? Number(s.trim()) : null);
+  const mix = { catch: num(raw.mixCatch), bullpen: num(raw.mixBullpen), game: num(raw.mixGame) };
+  for (const [k, field, label] of [
+    ['catch', 'mixCatch', '캐치볼 · 롱토스'],
+    ['bullpen', 'mixBullpen', '불펜'],
+    ['game', 'mixGame', '라이브 · 경기'],
+  ] as const) {
+    if (mix[k] === null) return { error: `${label} 횟수를 골라 주세요.`, field };
+  }
+  const baselineMix = mix as BaselineMix;
+  return { value: { throwingHand, baselineMix, ...mixToLegacy(baselineMix) } };
 }
 
 /** 웨이트 쪽 문진 — 평소 웨이트 횟수. 트레이닝 첫 설정(app/actions/training-setup.ts)이 받는다 */
@@ -325,7 +372,11 @@ export function estimateDailyLoad(answers: {
   baselineFreq: string | null;
   baselineVolume: string | null;
   baselineIntensity: string | null;
+  /** 종류별 주당 횟수(있으면 이것이 원본) */
+  baselineMix?: unknown;
 }): number | null {
+  const mix = readMix(answers.baselineMix);
+  if (mix) return mixDailyLoad(mix);
   const freq = BASELINE_FREQ.find((o) => o.name === answers.baselineFreq);
   const volume = BASELINE_VOLUME.find((o) => o.name === answers.baselineVolume);
   const intensity = BASELINE_INTENSITY.find(

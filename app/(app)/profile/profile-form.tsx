@@ -35,9 +35,6 @@ import {
   SEX_OPTIONS,
 } from '@/lib/profile';
 import {
-  BASELINE_FREQ_NAMES,
-  BASELINE_INTENSITY_NAMES,
-  BASELINE_VOLUME_NAMES,
   BASELINE_WORKOUT_FREQ_NAMES,
   THROWING_HANDS,
 } from '@/lib/baseline';
@@ -362,29 +359,15 @@ export function ProfileForm({
         />
       </ListGroup>
 
-      {/* 평소 투구량 · 웨이트 문진 — 부하 지수의 추정 기준선. 투구 셋은 모두 답해야 저장된다(서버 validateBaseline) */}
+      {/* 평소 웨이트 문진 — 운동 부하 지수의 추정 기준선. 평소 투구량(종류별 주당 횟수)은 투구 기록 첫 설정에서만 고친다(2026-10-11) */}
       <ListGroup
         title="평소 투구 · 웨이트"
         footer="이 답으로 투구 · 운동 부하 지수를 기록 첫날부터 계산해요. 상황이 바뀌면 언제든 고칠 수 있어요."
       >
-        <SelectRow
-          label="던지는 횟수"
-          name="baselineFreq"
-          options={names(BASELINE_FREQ_NAMES)}
-          defaultValue={pick('baselineFreq', baseline.baselineFreq)}
-        />
-        <SelectRow
-          label="한 번에 던지는 양"
-          name="baselineVolume"
-          options={names(BASELINE_VOLUME_NAMES)}
-          defaultValue={pick('baselineVolume', baseline.baselineVolume)}
-        />
-        <SelectRow
-          label="평소 강도"
-          name="baselineIntensity"
-          options={names(BASELINE_INTENSITY_NAMES)}
-          defaultValue={pick('baselineIntensity', baseline.baselineIntensity)}
-        />
+        <a href="/videos/setup" className="flex min-h-12 items-center gap-3 px-4 text-sm text-ink">
+          <span className="shrink-0">평소 투구량</span>
+          <span className="flex-1 text-right text-muted">투구 기록 설정에서 고치기 ›</span>
+        </a>
         <SelectRow
           label="웨이트 횟수"
           name="baselineWorkoutFreq"

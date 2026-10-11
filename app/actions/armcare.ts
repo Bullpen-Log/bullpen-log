@@ -1,5 +1,6 @@
 'use server';
 
+import { appNow } from '@/lib/clock';
 import { revalidatePath } from 'next/cache';
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
@@ -28,7 +29,7 @@ import {
  */
 export async function makeArmcareRoutine(): Promise<{ ok: true } | { error: string }> {
   const user = await requireUser();
-  const today = await loadArmcareToday(user, new Date());
+  const today = await loadArmcareToday(user, appNow());
 
   if (!today.hasCheckinToday) {
     return { error: '오늘 체크인을 먼저 남겨 주세요. 몸 상태를 보고 루틴을 짜요.' };
@@ -212,7 +213,7 @@ export async function addToMyArmcareRoutine(
       where: { id: routineId, userId: user.id, updatedAt: row.updatedAt },
       data: {
         items: next.items as unknown as Prisma.InputJsonValue,
-        updatedAt: new Date(),
+        updatedAt: appNow(),
       },
     });
     if (res.count === 1) {

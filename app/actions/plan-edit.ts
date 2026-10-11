@@ -1,5 +1,6 @@
 'use server';
 
+import { appNow } from '@/lib/clock';
 import { revalidatePath } from 'next/cache';
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
@@ -26,7 +27,7 @@ type Result = { ok: true } | { error: string };
 
 /** 오늘 일정을 읽어 온다. 없으면 고칠 것도 없다. */
 async function loadToday(userId: string) {
-  const date = new Date(`${toDateKey(new Date())}T00:00:00.000Z`);
+  const date = new Date(`${toDateKey(appNow())}T00:00:00.000Z`);
   const setup = await prisma.dailyTrainingSetup.findUnique({
     where: { userId_date: { userId, date } },
     select: { plan: true },

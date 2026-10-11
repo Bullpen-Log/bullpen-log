@@ -251,6 +251,8 @@ export type ScheduleOptions = {
   stationPenalty: number;
   /** 부하 고르기의 무게 — 클수록 회마다 부하가 고르다 */
   loadWeight: number;
+  /** 실제 촬영 속도 배율 — 찍어 본 회의 실제 시간 ÷ 계획 시간(없으면 1). 운동마다 걸리는 시간에 곱한다 */
+  pace?: number;
 };
 
 export const DEFAULT_OPTIONS: ScheduleOptions = {
@@ -342,7 +344,7 @@ export function buildPlan(
       ...x,
       station: stationOf(x),
       bucket: bucketOf(x),
-      minutes: shotMinutes(x),
+      minutes: Math.round(shotMinutes(x) * (options.pace ?? 1) * 10) / 10,
       load: loadOf(x),
       eqKey: [...x.equipment].sort().join('+') || '맨몸',
       posture: postureOf(x.title),

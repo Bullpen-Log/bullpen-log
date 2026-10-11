@@ -1,3 +1,4 @@
+import { appNow } from '@/lib/clock';
 import { SESSION_TYPE_NAMES, isRestSession } from '@/lib/session-type';
 
 /** 연속한 이틀의 체감 강도 합이 이 값을 넘으면 과부하로 본다. */
@@ -65,7 +66,7 @@ export function dateKeyLabel(dateKey: string) {
   const [y, m, d] = dateKey.split('-').map(Number);
   if (!y || !m || !d) return dateKey;
   const md = `${m}월 ${d}일`;
-  return String(y) === toDateKey(new Date()).slice(0, 4) ? md : `${y}년 ${md}`;
+  return String(y) === toDateKey(appNow()).slice(0, 4) ? md : `${y}년 ${md}`;
 }
 
 export function shiftDateKey(dateKey: string, offset: number) {
@@ -82,7 +83,7 @@ export function shiftDateKey(dateKey: string, offset: number) {
  * '오늘'은 서비스 기준(한국) 날짜로 센다. 기기 시계가 하루 앞서 있어도
  * 내일 칸이 열리지 않게 하려면 서버가 정해야 한다.
  */
-export function isFutureDateKey(dateKey: string, now = new Date()): boolean {
+export function isFutureDateKey(dateKey: string, now = appNow()): boolean {
   return dateKey > toDateKey(now);
 }
 
@@ -211,14 +212,14 @@ export function groupByDay(logs: PitchLogLike[]): Map<string, DayTotals> {
 export function buildDateRangeOffset(
   days: number,
   offsetDays = 0,
-  today = new Date()
+  today = appNow()
 ): string[] {
   const end = shiftDateKey(toDateKey(today), -offsetDays);
   return Array.from({ length: days }, (_, i) => shiftDateKey(end, i - days + 1));
 }
 
 /** 오늘부터 거슬러 올라가 days일치 날짜 키를 오래된 순으로 만든다. */
-export function buildDateRange(days: number, today = new Date()): string[] {
+export function buildDateRange(days: number, today = appNow()): string[] {
   return buildDateRangeOffset(days, 0, today);
 }
 
@@ -868,7 +869,7 @@ export type AcwrTrendPoint = {
  */
 export function acwrTrend(
   dailyLoads: Map<string, number>,
-  today = new Date(),
+  today = appNow(),
   days = 14,
   opts?: { seedDailyLoad?: number | null }
 ): AcwrTrendPoint[] {
@@ -887,7 +888,7 @@ export function acwrTrend(
 
 export function computeAcwr(
   dailyLoads: Map<string, number>,
-  today = new Date(),
+  today = appNow(),
   opts?: { seedDailyLoad?: number | null }
 ): AcwrResult {
   const todayKey = toDateKey(today);

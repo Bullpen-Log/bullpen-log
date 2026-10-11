@@ -1,3 +1,4 @@
+import { appNow, appNowMs } from '@/lib/clock';
 import { headers } from 'next/headers';
 import { requireUser } from '@/lib/dal';
 import { isNativeUserAgent } from '@/lib/app-env';
@@ -34,7 +35,7 @@ import { AppSplash } from '@/components/app-splash';
 
 /** 렌더 중에 현재 시각을 직접 읽지 않도록 함수로 감싼다. */
 function todayKey() {
-  return toDateKey(new Date());
+  return toDateKey(appNow());
 }
 
 /**
@@ -44,12 +45,12 @@ function todayKey() {
  * 가져온다. 어느 날이 '오늘'인지는 화면이 사용자 시계로 정한다.
  */
 function checkinWindowStart() {
-  return new Date(Date.now() - 3 * 86_400_000);
+  return new Date(appNowMs() - 3 * 86_400_000);
 }
 
 /** '며칠 연속 체크인'을 셀 만큼 — 두 달. 날짜만 읽는다(체크인 관문의 완료 화면) */
 function streakWindowStart() {
-  return new Date(Date.now() - 62 * 86_400_000);
+  return new Date(appNowMs() - 62 * 86_400_000);
 }
 
 export default async function AppLayout({

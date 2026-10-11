@@ -1,3 +1,4 @@
+import { appNow } from '@/lib/clock';
 import {
   computeAcwr,
   toDateKey,
@@ -341,7 +342,7 @@ export type TrainingNoteRow = { date: Date; intensity: number };
 export function buildTrainingLoad(
   logs: ExerciseLogRow[],
   notes: TrainingNoteRow[],
-  today = new Date(),
+  today = appNow(),
   /** 가입 문진으로 추정한 하루 평균 운동 부하. 없으면 28일이 쌓여야 지수가 나온다. */
   seedDailyLoad: number | null = null
 ): TrainingLoad {

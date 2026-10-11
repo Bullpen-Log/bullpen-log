@@ -1070,10 +1070,13 @@ export function ZoneOverlay({
   maxW = 1,
   highlight = null,
   topInset,
+  centerLocked = false,
 }: {
   rect: ZoneRect;
   onChange?: (next: ZoneRect) => void;
   editable: boolean;
+  /** 자리는 붙박고 크기만 — 한 손가락 끌기는 안 옮기고, 크기는 가운데를 두고 바꾼다(구속 측정: 존은 릴리스 표적 바로 밑에 고정) */
+  centerLocked?: boolean;
   /** 세로 ÷ 가로 — 이 좌표(0~1) 기준. 없으면 rect 의 비율을 지킨다 */
   aspect?: number;
   /** 가로의 범위 — 이 좌표 기준 */
@@ -1214,6 +1217,7 @@ export function ZoneOverlay({
     const cx = d.rect.x + d.rect.w / 2;
     const cy = d.rect.y + d.rect.h / 2;
     if (d.kind === 'move') {
+      if (centerLocked) return;
       place(
         cx + (e.clientX - d.startX) / d.w,
         cy + (e.clientY - d.startY) / d.h,
@@ -1268,6 +1272,13 @@ export function ZoneOverlay({
       d.rect.w,
       Math.min(maxW, 1 - d.rect.x - p.r, (1 - d.rect.y - p.b) / k)
     );
+    if (centerLocked) {
+      /* 가운데를 두고 — 끈 거리만큼 양쪽으로 */
+      const cx = d.rect.x + d.rect.w / 2,
+        cy = d.rect.y + d.rect.h / 2;
+      place(cx, cy, d.rect.w + (2 * grow) / d.w, d.rect, d.w, d.h);
+      return;
+    }
     const w = clamp(d.rect.w + grow / d.w, Math.min(minW, hi), hi);
     emit({ ...d.rect, w, h: w * k });
   };
@@ -1290,7 +1301,7 @@ export function ZoneOverlay({
           onPointerUp={onLayerUp}
           onPointerCancel={onLayerUp}
           onLostPointerCapture={onLayerUp}
-          className="absolute inset-0 cursor-move touch-none"
+          className={`absolute inset-0 touch-none ${centerLocked ? '' : 'cursor-move'}`}
         />
       )}
       <div

@@ -1,5 +1,6 @@
 'use server';
 
+import { appNow } from '@/lib/clock';
 import { revalidatePath } from 'next/cache';
 import { redirect, RedirectType } from 'next/navigation';
 import { Prisma } from '@prisma/client';
@@ -67,7 +68,7 @@ export async function startWorkout() {
   const user = await requireUser();
   /* 처음 가입한 사람은 첫 설정(2026-10-09, lib/feature-locks.ts)을 마쳐야 연다 — 시작만 막고 진행 중인 판은 건드리지 않는다 */
   if (featureLocks(user).training) redirect(SETUP_PATH.training);
-  const today = new Date();
+  const today = appNow();
   const core = await loadTodayCore(user, today);
 
   /* 통증이 있는 날은 목록이 비어 있다. 쉬는 화면으로 보낸다. */
@@ -138,7 +139,7 @@ export async function finishWarmup(input: {
   await prisma.trainingSession.update({
     where: { id: session.id },
     data: {
-      mainStartedAt: new Date(),
+      mainStartedAt: appNow(),
       warmupOutcome: input.skipped ? 'SKIPPED' : 'DONE',
       warmupDoneIds: doneIds,
     },
@@ -340,10 +341,10 @@ export async function logSet(input: SetInput): Promise<SetResult> {
    * 신호가 없어 폰에 담아 두었다가 늦게 보내는 세트는 남긴 시각(at)이 그 판의
    * 시간 안이라 그대로 받는다. 자정을 넘겨 이어 하는 판도 마찬가지다.
    */
-  if (!late && session.date.getTime() < dayStart(new Date()).getTime()) {
+  if (!late && session.date.getTime() < dayStart(appNow()).getTime()) {
     const last = await lastSetAt(session.id);
     if (isAbandoned(session, last, at)) {
-      await closeAbandoned(user.id, session, last, new Date());
+      await closeAbandoned(user.id, session, last, appNow());
       return {
         error:
           '지난번 운동은 종료를 누르지 않은 채 남아 있어서 닫아 두었어요. 오늘 운동은 트레이닝에서 새로 시작해 주세요.',
@@ -462,7 +463,7 @@ export async function finishWorkout(input: {
   const { endedAt, segmentSeconds } = sessionEnd(
     session,
     await lastSetAt(session.id),
-    new Date()
+    appNow()
   );
 
   await prisma.$transaction([
@@ -629,7 +630,7 @@ export async function swapChoices(input: {
   const target = plan?.exercises.find((e) => e.id === input.exerciseId);
   if (!plan || !target) return { error: '오늘 목록에 없는 운동이에요.' };
 
-  const now = new Date();
+  const now = appNow();
   const [core, favorites, recentIds] = await Promise.all([
     loadTodayCore(user, now),
     favoriteExerciseIds(user.id),
@@ -708,7 +709,7 @@ export async function changeSessionExercise(input: {
     return { error: '이미 오늘 목록에 있는 운동이에요.' };
   }
 
-  const core = await loadTodayCore(user, new Date());
+  const core = await loadTodayCore(user, appNow());
   /* 숨긴 운동은 새로 넣지 않는다 — 라이브러리에서 안 보이는 운동이다 */
   const to = core.library.find((ex) => ex.id === input.toId);
   if (!to) return { error: '운동을 찾을 수 없어요.' };

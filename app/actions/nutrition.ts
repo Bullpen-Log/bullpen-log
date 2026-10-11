@@ -1,5 +1,6 @@
 'use server';
 
+import { appNow } from '@/lib/clock';
 import { revalidatePath } from 'next/cache';
 import { prisma } from '@/lib/prisma';
 import { getCurrentUser } from '@/lib/dal';
@@ -394,7 +395,7 @@ export async function makeMealPlan(
 ): Promise<NutritionResult> {
   const user = await getCurrentUser();
   if (!user) return NEED_LOGIN;
-  if (date !== toDateKey(new Date())) {
+  if (date !== toDateKey(appNow())) {
     return { ok: false, error: '식단은 오늘 것만 짤 수 있어요.' };
   }
   if (!isPlace(options?.place))
@@ -635,7 +636,7 @@ export async function clearMealPlan(date: string): Promise<NutritionResult> {
 export async function saveDietPrefs(raw: unknown): Promise<NutritionResult> {
   const user = await getCurrentUser();
   if (!user) return NEED_LOGIN;
-  const prefs = cleanDietPrefs(raw, toDateKey(new Date()));
+  const prefs = cleanDietPrefs(raw, toDateKey(appNow()));
   if (typeof prefs === 'string') return { ok: false, error: prefs };
   const data = {
     goalEndDate: prefs.goalEndDate ? dbDate(prefs.goalEndDate) : null,
@@ -654,7 +655,7 @@ export async function saveDietPrefs(raw: unknown): Promise<NutritionResult> {
    * 오늘 짠 식단에 이제 못 먹는 것(· 끈 보충식품)이 남았으면 뺀다 — 계획 줄은 '먹었어요'로 그대로 기록되는 길이다. 까닭 맨 앞에
    * 무엇을 뺐는지 적는다(새로 짜려면 '다른 식단으로').
    */
-  const today = toDateKey(new Date());
+  const today = toDateKey(appNow());
   const plan = await prisma.mealPlan.findUnique({
     where: { userId_date: { userId: user.id, date: dbDate(today) } },
   });
@@ -767,7 +768,7 @@ export async function markComboUsed(id: string): Promise<NutritionResult> {
   if (!user) return NEED_LOGIN;
   await prisma.mealCombo.updateMany({
     where: { id: String(id), userId: user.id },
-    data: { useCount: { increment: 1 }, lastUsedAt: new Date() },
+    data: { useCount: { increment: 1 }, lastUsedAt: appNow() },
   });
   return { ok: true };
 }
@@ -792,7 +793,7 @@ export async function saveNutritionProfile(
   if (!user) return NEED_LOGIN;
 
   const prev = await prisma.nutritionProfile.findUnique({ where: { userId: user.id } });
-  const today = toDateKey(new Date());
+  const today = toDateKey(appNow());
   const refKg = (await recentWeightKg(user.id, today)) ?? user.weightKg;
   const built = buildProfileData(input, user, prev, refKg, today);
   if (!built.ok) return built;
@@ -826,7 +827,7 @@ export async function applyWeightStep(step: number): Promise<NutritionResult> {
   if (step !== STEP_KCAL && step !== -STEP_KCAL) {
     return { ok: false, error: '잘못된 요청이에요.' };
   }
-  const today = toDateKey(new Date());
+  const today = toDateKey(appNow());
   const day = await loadNutritionDay(user, today);
   const suggestion = day.plan.suggestion;
   if (!suggestion || suggestion.step !== step) {
@@ -906,7 +907,7 @@ export async function finishNutritionSetup(raw: {
   if (typeof answers === 'string')
     return { ok: false, error: answers, field: 'kcalTarget' };
 
-  const today = toDateKey(new Date());
+  const today = toDateKey(appNow());
   const body: OnboardingBody = {
     age: ageOn(user.birthDate, today),
     sex: isSex(user.sex) ? user.sex : null,

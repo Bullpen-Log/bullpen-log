@@ -1,5 +1,6 @@
 'use server';
 
+import { appNow } from '@/lib/clock';
 import { revalidatePath } from 'next/cache';
 import { prisma } from '@/lib/prisma';
 import { getCurrentUser } from '@/lib/dal';
@@ -68,7 +69,7 @@ async function tryUpdateProfile(formData: FormData): Promise<ProfileState> {
     const levelProblem = levelAgeProblem(
       baseline.value.competitionLevel,
       String(formData.get('birthDate') ?? '').trim() || null,
-      toDateKey(new Date())
+      toDateKey(appNow())
     );
     if (levelProblem) return { error: levelProblem };
     baselineValue = baseline.value;

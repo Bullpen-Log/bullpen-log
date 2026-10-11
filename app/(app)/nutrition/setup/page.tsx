@@ -1,3 +1,4 @@
+import { appNow } from '@/lib/clock';
 import { requireUser } from '@/lib/dal';
 import { prisma } from '@/lib/prisma';
 import { toDateKey } from '@/lib/pitch-stats';
@@ -22,7 +23,7 @@ import { SetupWizard } from './setup-wizard';
  */
 export default async function NutritionSetupPage() {
   const user = await requireUser();
-  const today = toDateKey(new Date());
+  const today = toDateKey(appNow());
   const [row, recent] = await Promise.all([
     prisma.nutritionProfile.findUnique({ where: { userId: user.id } }),
     recentWeightKg(user.id, today),
