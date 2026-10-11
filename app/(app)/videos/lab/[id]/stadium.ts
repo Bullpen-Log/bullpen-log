@@ -61,7 +61,7 @@ const SEAT = {
   pavilion: '#c8b58e',
 };
 /** 펜스 · 관중석 앞 벽 — 연한 하늘빛 회색 쿠션(사진) */
-export const WALL_BLUE = '#8fa8c0';
+export const WALL_BLUE = '#3a6496';
 const CONCRETE = '#cdc7bb';
 const FASCIA = '#ece9e2';
 

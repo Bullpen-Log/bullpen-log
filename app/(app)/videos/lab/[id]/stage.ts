@@ -49,11 +49,17 @@ uniform float uNight;
 uniform sampler2D uGrassTex;
 uniform sampler2D uDirtTex;
 uniform float uTexOn;
+uniform sampler2D uGrassN;
+uniform sampler2D uDirtN;
 varying vec3 vFieldPos;
 vec3 fieldCol;
 float fieldRough;
 /* 땅 높이 굴곡(m) — 잔디결 · 흙 알갱이 · 갈퀴 자국 · 잔디 턱. 노멀을 이것의 화면 미분으로 기울여 해를 받으면 오돌토돌하게 보인다 */
 float fieldH;
+/* 표면 굴곡 노멀(접선 공간, 경기장 좌표 p 방향) — 잔디결 · 흙 알갱이 사진 노멀 맵(Grass005 · baseball_playground, CC0) */
+vec3 fieldN;
+/* 잔디 자리(1) — 흙 · 트랙 · 선 · 주차장은 0. 3D 잔디 잎(셸)이 이 자리에만 돋는다 */
+float fieldGrassW;
 
 float fHash(vec2 p) { vec3 q = fract(vec3(p.xyx) * 0.1031); q += dot(q, q.yzx + 33.33); return fract((q.x + q.y) * q.z); }
 float fNoise(vec2 p) {
@@ -86,6 +92,20 @@ vec3 fGrassTex(vec2 p) {
   vec3 b = texture2D(uGrassTex, mat2(0.8, -0.6, 0.6, 0.8) * p * 0.31 + 0.37).rgb;
   vec3 t = mix(a, b, 0.45);
   return mix(vec3(dot(t, vec3(0.2126, 0.7152, 0.0722)) / 0.194), t / vec3(0.127, 0.231, 0.022), 0.25);
+}
+/* 두 크기로 겹친 노멀 — 돌린 쪽은 기울기를 p 좌표로 되돌린다(q = M p → n_p = Mᵀ n_q) */
+vec3 fGrassN(vec2 p) {
+  vec3 a = texture2D(uGrassN, p * 0.8).rgb * 2.0 - 1.0;
+  vec3 b = texture2D(uGrassN, mat2(0.8, -0.6, 0.6, 0.8) * p * 0.31 + 0.37).rgb * 2.0 - 1.0;
+  b.xy = vec2(0.8 * b.x - 0.6 * b.y, 0.6 * b.x + 0.8 * b.y);
+  return normalize(mix(a, b, 0.45));
+}
+vec3 fDirtN(vec2 p) {
+  vec3 a = texture2D(uDirtN, p / 3.0).rgb * 2.0 - 1.0;
+  vec3 b = texture2D(uDirtN, mat2(0.6, 0.8, -0.8, 0.6) * p / 7.1 + 0.21).rgb * 2.0 - 1.0;
+  b.xy = vec2(0.6 * b.x + 0.8 * b.y, -0.8 * b.x + 0.6 * b.y);
+  float k = smoothstep(0.3, 0.7, fNoise(p * 0.07));
+  return normalize(mix(a, b, k));
 }
 vec3 fDirtTex(vec2 p) {
   vec3 a = texture2D(uDirtTex, p / 3.0).rgb;
@@ -128,7 +148,7 @@ void field(vec3 w, vec3 cam) {
   /* 잎결 — 깎은 방향으로 늘인 잔 무늬(가까이서만 보인다) */
   vec2 bd = mix(vec2(p.x, p.y), mix(vec2(u, v), vec2(v, u), su), inSq);
   float blade = fFbm(vec2(bd.x * 38.0, bd.y * 5.0), fp * 38.0);
-  vec3 grass = fLin(vec3(0.22, 0.43, 0.165)) * (1.0 + sheen) * (1.0 + gp);
+  vec3 grass = fLin(vec3(0.27, 0.49, 0.16)) * (1.0 + sheen) * (1.0 + gp);
   vec3 gTex = fGrassTex(p);
   grass *= mix(vec3(1.0 + blade * 0.5), mix(vec3(1.0), gTex, 0.85), uTexOn);
   /* 닳은 잔디 — 수비 자리(좌 · 중 · 우익수, 1 · 2루수)와 잔디 가장자리에 옅게 누렇다 */
@@ -252,7 +272,38 @@ void field(vec3 w, vec3 cam) {
   fieldCol = col;
   /* 잔디는 흙보다 2.5cm 높다(턱) — 경계에서 그늘 · 밝은 테가 생긴다 */
   fieldH = mix(hGrass + 0.025, hDirt, max(dirtM, trackM)) * (1.0 - lineM * 0.5) * (1.0 - lotM);
+  /* 사진 노멀 — 잔디는 세게(잎결), 흙 · 트랙은 알갱이, 선 · 홈플레이트 · 주차장은 평평. 멀리서는 화소보다 잘아 반짝이니 줄인다 */
+  float far = 1.0 - smoothstep(0.03, 0.12, fp);
+  vec3 nG = fGrassN(p);
+  vec3 nD = fDirtN(p * (trackM > 0.5 ? 1.3 : 1.0));
+  float dW = max(dirtM, trackM);
+  vec3 tn = mix(nG * vec3(1.25, 1.25, 1.0), nD * vec3(0.9, 0.9, 1.0), dW);
+  float k = uTexOn * far * (1.0 - lineM) * (1.0 - plateM) * (1.0 - lotM);
+  fieldN = normalize(mix(vec3(0.0, 0.0, 1.0), tn, k));
+  fieldGrassW = (1.0 - max(dW, lotM)) * (1.0 - lineM) * (1.0 - plateM) * (1.0 - odcM);
 }
+`;
+
+/* 3D 잔디 잎(셸) — 1.4cm 칸마다 잎 하나, 키 · 자리 · 굵기는 칸마다 다르고 위로 갈수록 가늘고 밝다(뿌리는 그늘) */
+const SHELL_GLSL = /* glsl */ `
+#ifdef SHELL
+{
+  vec2 sp = vec2(uHome.x - vFieldPos.x, uHome.y - vFieldPos.z) / uS;
+  float spx = length(fwidth(sp));
+  if (fieldGrassW < 0.6 || spx > 0.012) discard;
+  vec2 q = sp * 70.0;
+  vec2 c = floor(q);
+  float lean = (fHash(c + 5.3) - 0.5) * 0.6 * uShellH;
+  vec2 f = fract(q) - 0.5 - vec2(lean, lean * 0.5);
+  float r = fHash(c);
+  vec2 off = (vec2(fHash(c + 3.7), fHash(c + 9.1)) - 0.5) * 0.5;
+  float hgt = 0.5 + 0.5 * r;
+  if (uShellH > hgt) discard;
+  float wdt = 0.45 * (1.0 - uShellH / hgt) + 0.04;
+  if (length(f - off) > wdt) discard;
+  diffuseColor.rgb *= 0.72 + 0.45 * uShellH * (0.8 + 0.4 * fHash(c + 1.1));
+}
+#endif
 `;
 
 /* ───────────── 하늘 — 큰 공 안쪽, 지평 → 하늘 꼭대기 · 해 둘레 빛 · 밤엔 별 ───────────── */
@@ -572,6 +623,8 @@ export function buildStage({
       );
   };
   const lampSpots: { at: Three.Vector3; size: number }[] = [];
+  /** 톱 덱 지붕 밑 조명 띠 — 낮엔 그늘진 크림색, 밤엔 따뜻하게 빛남(사진) */
+  const roofGlowMat = new THREE.MeshBasicMaterial({ color: '#8f8a80' });
   const glows: Three.Sprite[] = [];
   const applyBaked = () => {
     const night = current0 === 'night';
@@ -581,6 +634,7 @@ export function buildStage({
       if (night) b.color.multiply(new THREE.Color(0.55, 0.52, 0.47));
     }
     lampMat.color.set(night ? '#ffffff' : '#c9cdd2');
+    roofGlowMat.color.set(night ? '#ffe2a8' : '#8f8a80');
     for (const g of glows) g.visible = night;
   };
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -604,21 +658,26 @@ export function buildStage({
   const fieldTex = {
     grass: { value: null as Three.Texture | null },
     dirt: { value: null as Three.Texture | null },
+    grassN: { value: null as Three.Texture | null },
+    dirtN: { value: null as Three.Texture | null },
     on: { value: 0 },
   };
-  fieldMat.onBeforeCompile = (sh) => {
+  const fieldCompile = (shellH?: { value: number }) => (sh: Three.WebGLProgramParametersWithUniforms) => {
     sh.uniforms.uHome = { value: new THREE.Vector2(H.x, H.z) };
     sh.uniforms.uS = { value: s };
     sh.uniforms.uNight = fieldNight;
     sh.uniforms.uGrassTex = fieldTex.grass;
     sh.uniforms.uDirtTex = fieldTex.dirt;
     sh.uniforms.uTexOn = fieldTex.on;
+    sh.uniforms.uGrassN = fieldTex.grassN;
+    sh.uniforms.uDirtN = fieldTex.dirtN;
+    if (shellH) sh.uniforms.uShellH = shellH;
     sh.vertexShader = sh.vertexShader
       .replace('#include <common>', '#include <common>\nvarying vec3 vFieldPos;')
       .replace('#include <begin_vertex>', '#include <begin_vertex>\nvFieldPos = (modelMatrix * vec4(transformed, 1.0)).xyz;');
     sh.fragmentShader = sh.fragmentShader
-      .replace('#include <common>', `#include <common>\n${FIELD_GLSL}`)
-      .replace('#include <map_fragment>', '#include <map_fragment>\nfield(vFieldPos, cameraPosition);\ndiffuseColor.rgb = fieldCol;')
+      .replace('#include <common>', `#include <common>\n${shellH ? '#define SHELL\nuniform float uShellH;' : ''}\n${FIELD_GLSL}`)
+      .replace('#include <map_fragment>', `#include <map_fragment>\nfield(vFieldPos, cameraPosition);\ndiffuseColor.rgb = fieldCol;\n${SHELL_GLSL}`)
       .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nroughnessFactor = fieldRough;')
       /* 굴곡 노멀 — 높이(m, 무대 단위로 바꿔)의 화면 미분으로 노멀을 기울인다(three 범프 맵과 같은 식) */
       .replace(
@@ -635,9 +694,34 @@ export function buildStage({
           float det = dot(dpx, r1);
           vec3 grad = sign(det) * (dhx * r1 + dhy * r2);
           normal = normalize(abs(det) * normal - grad);
+          /* 사진 노멀 — 접선은 경기장 p.x(세계 −x), 쌍접선은 p.y(세계 −z) */
+          vec3 T = (viewMatrix * vec4(-1.0, 0.0, 0.0, 0.0)).xyz;
+          T = normalize(T - normal * dot(normal, T));
+          vec3 B = normalize(cross(T, normal));
+          normal = normalize(T * fieldN.x + B * fieldN.y + normal * fieldN.z);
         }`
       );
   };
+  fieldMat.onBeforeCompile = fieldCompile();
+  /*
+   * 3D 잔디 잎 — 땅 위 3cm 를 8 층으로 쌓은 판(셸). 층마다 잎 자리만 남기고 버려 위로 갈수록 가늘어지는 잎이 된다.
+   * 화소 하나가 1.2cm 보다 커지는(먼) 곳은 그리지 않아 반짝이지 않고, 마운드 둘레 25m 만 덮는다.
+   */
+  const SHELLS = 8;
+  for (let i = 0; i < SHELLS; i++) {
+    const h = (i + 1) / SHELLS;
+    const mat = new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.9, metalness: 0 });
+    mat.onBeforeCompile = fieldCompile({ value: h });
+    mat.customProgramCacheKey = () => 'field-shell';
+    const g = new THREE.CircleGeometry(25 * s, 96);
+    g.rotateX(-Math.PI / 2);
+    const m = new THREE.Mesh(g, mat);
+    m.position.set((mound ? mound.x0 + MOUND.centerAhead * s : center[0]), h * 0.03 * s, mound ? mound.z0 : center[2]);
+    m.receiveShadow = true;
+    m.renderOrder = 1;
+    scene.add(m);
+  }
+
   const groundGeo = new THREE.CircleGeometry(GROUND_R * s, 160);
   groundGeo.rotateX(-Math.PI / 2);
   const ground = new THREE.Mesh(groundGeo, fieldMat);
@@ -969,6 +1053,7 @@ export function buildStage({
       };
       lampMat.color.set('#c9cdd2');
       special.BO_lamp = lampMat;
+      special.BO_roof_glow = roofGlowMat;
       root.traverse((o) => {
         const mesh = o as Three.Mesh;
         if (!mesh.isMesh) return;
@@ -1024,13 +1109,16 @@ export function buildStage({
   }
   /* 땅 질감 둘이 다 오면 켠다 */
   const loader = new THREE.TextureLoader();
-  let texLeft = 2;
+  let texLeft = 4;
   for (const [key, url] of [
     ['grass', '/stage/grass.jpg'],
     ['dirt', '/stage/dirt.jpg'],
+    ['grassN', '/stage/grass_n.jpg'],
+    ['dirtN', '/stage/dirt_n.jpg'],
   ] as const) {
     loader.load(url, (t) => {
-      t.colorSpace = THREE.SRGBColorSpace;
+      /* 노멀 맵은 색이 아니라 방향 — sRGB 로 풀면 기울기가 틀어진다 */
+      t.colorSpace = key.endsWith('N') ? THREE.NoColorSpace : THREE.SRGBColorSpace;
       t.wrapS = t.wrapT = THREE.RepeatWrapping;
       t.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
       fieldTex[key].value = t;
