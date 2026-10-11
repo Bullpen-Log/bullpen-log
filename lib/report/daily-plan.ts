@@ -156,7 +156,12 @@ export function buildDailyPlan<T extends ExerciseLike>({
   recentIds: Set<string>;
   /** 운동별로 몇 세션 전에 했는가. 오래 안 한 것부터 내보내는 데 쓴다. */
   sessionsAgo?: Map<string, number>;
-  /** 아직 안 해본 운동들의 순서를 섞는 씨앗. 보통은 오늘 날짜. */
+  /**
+   * 아직 안 해본 운동들의 순서를 섞는 씨앗.
+   *
+   * 앱은 늘 '사용자 id|날짜|지금 목록…'을 넣는다(app/actions/training-setup.ts). 안 주면 날짜(facts.asOf)만 —
+   * 그러면 설정이 같은 두 사람이 같은 날 같은 목록을 받으니, 시험 · 도구 밖에서는 꼭 넣는다.
+   */
   rotationSeed?: string;
   lastLowerKey: string | null;
   lastUpperKey: string | null;

@@ -8484,6 +8484,57 @@ console.log(
       noUpper.length < library.length,
     `부분집합 ${noUpper.length}/${library.length}개`
   );
+
+  /* ─────────────── (f) P1 ① 씨앗 맨 앞의 사용자 id — 설정이 같아도 사람이 다르면 다른 목록, 같은 사람은 같은 목록 ─────────────── */
+  /*
+   * training-setup.ts 는 씨앗을 '사용자 id|날짜|지금 목록…'으로 만든다(2026-10-11 P1). 여기서는 그 꼴을 그대로 넣어 본다 —
+   * 같은 설정 · 같은 날 · id 만 다른 두 사람의 7일 목록이 거의 다 다르고(기준선 ④ 168/168 → 8/168), id 까지 같으면 같은 목록(⑩).
+   */
+  {
+    const uuidA = '0f3b1c2d-4e5f-4a6b-8c7d-9e0f1a2b3c4d';
+    const uuidB = '7a8b9c0d-1e2f-4a3b-9c4d-5e6f7a8b9c0d';
+    const listWith = (id: string, d: number) => {
+      const asOf = new Date(TODAY.getTime() + d * 86400000);
+      const facts = p0Facts({ today: { condition: 8 }, asOf, trainingLevel: '중급' });
+      const plan = buildPitchPlan(facts);
+      const built = buildDailyPlan({
+        user: { ownedEquipment: [], trainingLevel: '중급' },
+        facts,
+        plan,
+        library,
+        availableToday: null,
+        requestedMinutes: 60,
+        trainingGoal: '근력 향상',
+        recentIds: new Set<string>(),
+        rotationSeed: `${id}|${facts.asOf}`,
+        lastLowerKey: null,
+        lastUpperKey: null,
+      });
+      return isHalted(built)
+        ? null
+        : built.picks
+            .map((p) => p.exerciseId)
+            .sort()
+            .join(',');
+    };
+    let differ = 0;
+    let same = 0;
+    for (let d = 0; d < 7; d++) {
+      const a = listWith(uuidA, d);
+      if (a != null && a !== listWith(uuidB, d)) differ++;
+      if (a != null && a === listWith(uuidA, d)) same++;
+    }
+    check(
+      'P1 ① 씨앗 맨 앞의 사용자 id — 설정이 같고 id 만 다른 두 사람의 7일 목록이 다른 날 ≥ 6',
+      differ >= 6,
+      `${differ}/7`
+    );
+    check(
+      'P1 ① 같은 id · 같은 날 · 같은 입력 → 같은 목록 7/7',
+      same === 7,
+      `${same}/7`
+    );
+  }
 }
 
 console.log(`\n${passed}개 통과, ${failed}개 실패`);

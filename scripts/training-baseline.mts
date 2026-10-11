@@ -143,6 +143,24 @@ const keyOf = (i: number) => shiftDateKey(START_KEY, i);
 const dateOf = (i: number) => new Date(`${keyOf(i)}T09:00:00+09:00`);
 const mod = (n: number, m: number) => ((n % m) + m) % m;
 
+/**
+ * 이름 → uuid 꼴 글자(8-4-4-4-12). 앱의 User.id 는 uuid 라 씨앗에 들어가는 글자 모양을 맞춘다 — 섞기(theme.ts 의 mix,
+ * FNV-1a)가 긴 16진수 id 를 받았을 때 실제로 흩어지는지 재는 것이 ④ 의 뜻이다. FNV-1a 를 네 번 돌려 128비트를 만든다.
+ */
+function uuidOf(name: string): string {
+  const hex: string[] = [];
+  for (let round = 0; round < 4; round++) {
+    let h = (0x811c9dc5 ^ round) >>> 0;
+    for (let i = 0; i < name.length; i++) {
+      h ^= name.charCodeAt(i);
+      h = Math.imul(h, 0x01000193) >>> 0;
+    }
+    hex.push(h.toString(16).padStart(8, '0'));
+  }
+  const s = hex.join('');
+  return `${s.slice(0, 8)}-${s.slice(8, 12)}-${s.slice(12, 16)}-${s.slice(16, 20)}-${s.slice(20, 32)}`;
+}
+
 /* --------------------------------- 선수 --------------------------------- */
 
 type Role = 'starter-weekly' | 'starter-biweekly' | 'reliever' | 'offseason';
@@ -154,6 +172,12 @@ type Kit = 'bodyweight' | 'dumbbell' | 'gym';
 
 type Player = {
   name: string;
+  /**
+   * 앱의 User.id 자리 — 섞기 씨앗 맨 앞에 들어간다(training-setup.ts, P1). 이름에서 결정적으로 만든 uuid 꼴이라 언제 돌려도
+   * 같다. 같은 설정 쌍(④)의 두 사람은 id 가 다르고, 쌍둥이는 같은 id 를 받는다 — 그래야 '설정이 같아도 사람이 다르면 다른
+   * 목록'과 '입력이 같으면 같은 목록'을 따로 잰다.
+   */
+  id: string;
   age: number;
   level: string;
   kit: Kit;
@@ -212,7 +236,7 @@ function ownedOf(kit: Kit): string[] {
  * 가상 선수 12명. 나이 14/15/16/17/22/28 · 경력 입문~상급 · 장비 셋 · 목표 셋 · 역할 넷 · 체크인 습관 셋 · 컨디션 셋 · 마침 습관
  * 셋을 섞었다. 한 축을 재는 선수가 둘 이상 있게 짰다 — 등판 답 하는 선발 셋 · 안 하는 선발 셋, 늘 낮은 컨디션 셋, 맨몸 셋.
  */
-const PLAYERS: Player[] = [
+const PLAYER_SPECS: Omit<Player, 'id'>[] = [
   {
     name: '선발A',
     age: 17,
@@ -358,6 +382,7 @@ const PLAYERS: Player[] = [
     done: 'never',
   },
 ];
+const PLAYERS: Player[] = PLAYER_SPECS.map((p) => ({ ...p, id: uuidOf(p.name) }));
 
 for (const p of PLAYERS) {
   if (!minutesChoicesFor(p.goal).includes(p.minutes)) {
@@ -589,8 +614,8 @@ function buildDay(p: Player, i: number, st: State, v: Variant = {}): DailyPlan |
     trainingFocus: null,
     recentIds: history.recentIds,
     sessionsAgo: history.sessionsAgo,
-    /* 하루의 첫 '만들기'는 저장된 일정이 없어 씨앗이 날짜뿐이다(training-setup.ts) */
-    rotationSeed: todayKey + (v.seedSuffix ?? ''),
+    /* 하루의 첫 '만들기'는 저장된 일정이 없어 씨앗이 '사용자 id|날짜'다(training-setup.ts, P1 부터 id 가 맨 앞) */
+    rotationSeed: [p.id, todayKey].join('|') + (v.seedSuffix ?? ''),
     lastLowerKey: history.lastLowerKey,
     lastUpperKey: history.lastUpperKey,
     override: false,
@@ -713,7 +738,7 @@ for (const p of PLAYERS) {
     const hasCheckin = st.checkins.some((c) => c.day === i);
     const yesterday = throwOn(p.role, i - 1);
 
-    /* ① 씨앗에 글자 하나 · ①' 다시 만들기(날짜|지금 목록 — training-setup.ts 가 하는 것) */
+    /* ① 씨앗에 글자 하나 · ①' 다시 만들기(사용자 id|날짜|지금 목록 — training-setup.ts 가 하는 것) */
     const seedChanged = differs(base, buildDay(p, i, st, { seedSuffix: 'x' }));
     const remakeChanged = differs(
       base,
@@ -802,10 +827,13 @@ const PAIR_SETTINGS: { level: string; kit: Kit; goal: string; minutes: number }[
 function newUser(
   name: string,
   s: (typeof PAIR_SETTINGS)[number],
-  who: { age: number; condition: number; sleep: string }
+  who: { age: number; condition: number; sleep: string },
+  /** id 를 만들 이름 — 쌍둥이는 원본의 이름을 넘겨 같은 id 를 받는다 */
+  idName = name
 ): Player {
   return {
     name,
+    id: uuidOf(idName),
     ...s,
     role: 'offseason',
     checkin: 'simple-daily',
@@ -821,7 +849,12 @@ const pairRows: { setting: string; same: number; twinSame: number; days: number 
 for (const [n, s] of PAIR_SETTINGS.entries()) {
   const a = newUser(`쌍${n + 1}A`, s, { age: 22, condition: 7, sleep: '보통' });
   const b = newUser(`쌍${n + 1}B`, s, { age: 24, condition: 8, sleep: '충분' });
-  const twin = newUser(`쌍${n + 1}A'`, s, { age: 22, condition: 7, sleep: '보통' });
+  const twin = newUser(
+    `쌍${n + 1}A'`,
+    s,
+    { age: 22, condition: 7, sleep: '보통' },
+    `쌍${n + 1}A`
+  );
   const stateOf = (p: Player): State => ({
     logs: logsFor(p),
     checkins: checkinsFor(p),

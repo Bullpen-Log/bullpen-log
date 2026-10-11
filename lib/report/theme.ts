@@ -1392,7 +1392,8 @@ export function pickForTheme<T extends ThemedExercise>({
    * 하는 사람은 매일 똑같은 일곱 개를 받는다.
    *
    * 날짜가 아니어도 된다. '다시 만들기'는 여기에 지금 일정을 섞어 넣어, 같은
-   * 날에도 다른 목록이 나오게 한다.
+   * 날에도 다른 목록이 나오게 한다. 앱은 맨 앞에 사용자 id 를 붙인다(training-setup.ts) —
+   * 설정이 같은 두 사람이 같은 날 같은 목록을 받지 않게(2026-10-11 P1).
    */
   rotationSeed?: string;
   /**
