@@ -182,6 +182,8 @@ export const Body3D = forwardRef<
       renderer.domElement.style.touchAction = 'pan-y';
       host.prepend(renderer.domElement);
       /* 이름표 다섯(HTML, 캔버스 위에 겹침) — 글은 장면이 바뀔 때만, 자리는 그릴 때마다(placeLabelsDom) */
+      /* 이름표를 누르면 다시 그리기 — dirty 는 아래에서 생기므로 나중에 잇는다 */
+      let dirtyLabels = () => {};
       const labelEls = Array.from({ length: 5 }, () => {
         const el = document.createElement('div');
         el.className =
@@ -189,6 +191,10 @@ export const Body3D = forwardRef<
         el.style.background = 'rgba(12,16,22,.8)';
         el.style.borderLeft = '3px solid #fff';
         el.style.display = 'none';
+        el.addEventListener('click', () => {
+          el.dataset.open = el.dataset.open === '1' ? '' : '1';
+          dirtyLabels();
+        });
         labelsRef.current?.appendChild(el);
         return el;
       });
@@ -233,6 +239,9 @@ export const Body3D = forwardRef<
       const target = new THREE.Vector3(center[0], center[1], center[2]);
       controls.target.copy(target);
       let dirty = true;
+      dirtyLabels = () => {
+        dirty = true;
+      };
       controls.addEventListener('change', () => {
         dirty = true;
       });
@@ -371,7 +380,7 @@ export const Body3D = forwardRef<
         const J = mann.joints[cur];
         labels = ov.update(J, mann.frames[cur], labelValues(measureAngles(J), momentOf(cur, result.events), result.metrics));
         labelsVersion++;
-        if (!isPlaying && showAnaOn) setSaid(labels.map((l) => `${l.name} ${Math.round(l.value)}°${l.live ? ' 참고' : ''}`));
+        if (!isPlaying && showAnaOn) setSaid(labels.map((l) => `${l.name} ${Math.round(l.value)}°${l.off && l.table != null ? ` (결과 표 ${Math.round(l.table)}°)` : ''}`));
       };
       /* 효과가 다시 돌 때(새 결과) 범례 · 읽어 주는 글 · 재질을 처음 값으로 */
       applyAna(0);
@@ -467,15 +476,24 @@ export const Body3D = forwardRef<
             el.style.display = 'none';
             return;
           }
-          if (el.dataset.v !== String(labelsVersion)) {
-            el.dataset.v = String(labelsVersion);
+          /*
+           * 값은 늘 그림(보기용 관절)의 각도. 순간에 결과 표 값과 8° 넘게 벌어지면 흐리게 하고, 누르면 표 값 한 줄을 펼친다
+           * (2026-10-12 김민 — 숫자 칸이 공식 값, 이름표는 보이는 각도).
+           */
+          const key = `${labelsVersion}:${el.dataset.open ?? ''}`;
+          if (el.dataset.v !== key) {
+            el.dataset.v = key;
             el.style.borderLeftColor = measureHex(L.key);
+            const open = L.off && el.dataset.open === '1';
             el.innerHTML = `${L.name}<b class="ml-1 font-semibold">${Math.round(L.value)}°</b>${
-              L.live ? '<span class="ml-1 text-[#9aa5b4]">참고</span>' : ''
+              open && L.table != null ? `<span class="ml-1 text-[#9aa5b4]">· 표 ${Math.round(L.table)}°</span>` : ''
             }`;
+            el.style.pointerEvents = L.off ? 'auto' : 'none';
+            el.style.cursor = L.off ? 'pointer' : '';
+            el.title = L.off && L.table != null ? `결과 표 값 ${Math.round(L.table)}° — 화면 자세와 ${Math.round(Math.abs(L.value - L.table))}° 달라요` : '';
           }
           el.style.display = '';
-          el.style.opacity = String(ana);
+          el.style.opacity = String(ana * (L.off ? 0.55 : 1));
           const s = projectToScreen([v.x, v.y, v.z], w, h);
           boxes.push({ i, x: s.x, y: s.y, w: el.offsetWidth + 6, h: el.offsetHeight + 4 });
         });

@@ -1848,8 +1848,13 @@ console.log('■ 데생 인형 틀(mannequin-frames) · 잰 선(mannequin-measur
     const atPlant = labelValues(live, momentOf(fp, result.events), result.metrics);
     const tableKnee = result.metrics.find((m) => m.key === 'leadKneeAtPlant');
     check(
-      '잰 값: 착지 순간의 앞무릎 이름표는 표의 값 · 팔꿈치는 라이브',
-      tableKnee != null && !atPlant.knee.live && Math.abs(atPlant.knee.value - Math.abs(tableKnee.value)) < 1e-9 && atPlant.elbow.live
+      '잰 값: 착지 이름표는 늘 그림 값 · 앞무릎엔 표 값이 곁에 · 8° 넘으면 off',
+      tableKnee != null &&
+        atPlant.knee.value === live.knee &&
+        atPlant.knee.table === Math.abs(tableKnee.value) &&
+        atPlant.knee.off === Math.abs(live.knee - Math.abs(tableKnee.value)) > 8 &&
+        atPlant.elbow.table === undefined &&
+        !atPlant.elbow.off
     );
     if (tableKnee) {
       const diff = Math.abs(live.knee - Math.abs(tableKnee.value));
@@ -1857,7 +1862,7 @@ console.log('■ 데생 인형 틀(mannequin-frames) · 잰 선(mannequin-measur
     }
     const midF = Math.floor((fp + result.events.release) / 2);
     const between = labelValues(measureAngles(fr[midF]), momentOf(midF, result.events), result.metrics);
-    check('잰 값: 순간이 아닌 장면은 모두 라이브(참고)', Object.values(between).every((v) => v.live));
+    check('잰 값: 순간이 아닌 장면은 표 값 없음 · 흐림 없음', Object.values(between).every((v) => v.table === undefined && !v.off));
     /* 선 명세 — 호의 점은 반지름 위, 가운데 점은 반각, 이름표 다섯 */
     const spec = measureSpec(fr[fp], F[fp].pelvis, F[fp].chest, k, atPlant);
     const arcOk = spec.arcs.every((a) => {
@@ -2170,17 +2175,18 @@ console.log('■ 데생 인형 멈춤(mannequin-pause) — 뼈 · 호 관 · 부
     const vP = labelValues(measureAngles(fr[fp]), momentOf(fp, result.events), result.metrics);
     const vR = labelValues(measureAngles(fr[rl]), momentOf(rl, result.events), result.metrics);
     const vN = labelValues(measureAngles(fr[mid2]), momentOf(mid2, result.events), result.metrics);
+    const t = (v: { table?: number }) => v.table !== undefined;
     const plantOk =
-      vP.separation.live === !has('separationAtPlant') && vP.knee.live === !has('leadKneeAtPlant') && vP.elbow.live && vP.arm.live && vP.trunk.live;
+      t(vP.separation) === has('separationAtPlant') && t(vP.knee) === has('leadKneeAtPlant') && !t(vP.elbow) && !t(vP.arm) && !t(vP.trunk);
     const relOk =
-      vR.knee.live === !has('leadKneeAtRelease') &&
-      vR.arm.live === !has('shoulderAbduction') &&
-      vR.trunk.live === !has('trunkForwardTilt') &&
-      vR.elbow.live &&
-      vR.separation.live;
+      t(vR.knee) === has('leadKneeAtRelease') &&
+      t(vR.arm) === has('shoulderAbduction') &&
+      t(vR.trunk) === has('trunkForwardTilt') &&
+      !t(vR.elbow) &&
+      !t(vR.separation);
     check(
-      '이름표 값: 착지 · 릴리스는 표에 있는 지표만 표의 값, 팔꿈치 · 그 밖의 장면은 참고',
-      plantOk && relOk && Object.values(vN).every((v) => v.live),
+      '이름표 값: 착지 · 릴리스는 표에 있는 지표만 표 값을 곁에, 팔꿈치 · 그 밖의 장면은 없음',
+      plantOk && relOk && Object.values(vN).every((v) => !t(v)),
       `표: ${result.metrics.map((m) => m.key).join(' ')}`
     );
   }

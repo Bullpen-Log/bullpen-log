@@ -7,9 +7,9 @@ import type { Frame } from '@/lib/pitch-3d/v2/mannequin-frames';
  * 데생 인형 — 멈췄을 때 보이는 잰 값 다섯과 선 · 호 · 이름표 명세(설계 docs/designs/pitch-3d-mannequin.md §1). 순수 — 화면(lines.ts)과
  * 시험이 같은 코드. 예시 page.js 의 draw '잰 값' · '멈췄을 때' 부분을 그대로 옮겼다(좌표: 미터 · x 홈 쪽 · y 왼쪽 · z 위, 우투 꼴).
  *
- * 숫자의 출처(2026-10-11 검토): 순간 세 장면(니업 · 착지 · 릴리스)의 이름표는 결과 표(`result.metrics`)의 값을 그대로 붙여 표와 같게
- * 하고, 그 밖의 장면은 보기용 관절로 잰 '라이브' 값에 '참고' 꼬리표를 단다 — 보기용 관절은 떨림 고르기 · 착지 잇기를 거쳐 엔진 원 관절과
- * 몇 도 다를 수 있다. 선과 호는 늘 보기용 관절에 그린다(그림과 맞게).
+ * 숫자의 출처(2026-10-12 김민 결정): 이름표는 늘 보기용 관절로 잰 값 — 그림에 보이는 각도와 같고, 순간에서 숫자가 튀지 않는다.
+ * 결과 표(`result.metrics`)는 숫자 칸의 공식 값으로 따로 둔다. 순간(착지 · 릴리스)에 표 값이 있고 둘이 OFF_DEG 넘게 벌어지면 이름표를
+ * 흐리게 하고, 누르면 표 값을 보인다(보기용 관절은 떨림 고르기 · 착지 잇기를 거쳐 엔진 원 관절과 몇 도 다를 수 있다).
  */
 
 export type MeasureKey = 'separation' | 'trunk' | 'knee' | 'arm' | 'elbow';
@@ -40,7 +40,13 @@ export type Segment = { a: Vec3; b: Vec3; color: keyof typeof MEASURE_COLOR };
 export type Dot = { p: Vec3; color: keyof typeof MEASURE_COLOR };
 /** 부채꼴 — 가운데 c 에서 u 쪽부터 v 쪽까지 반지름 r(점들은 호 위, 가운데 점 mid) */
 export type Arc = { c: Vec3; points: Vec3[]; mid: Vec3; key: MeasureKey };
-export type Label = { p: Vec3; key: MeasureKey; name: string; value: number; live: boolean };
+/** 이름표와 결과 표가 이만큼(도) 넘게 벌어지면 이름표를 흐리게 */
+export const OFF_DEG = 8;
+
+/** 이름표 값 — value 는 보기용(그림) 값, table 은 순간의 표 값(있을 때), off 는 둘이 OFF_DEG 넘게 벌어짐 */
+export type LabelValue = { value: number; table?: number; off: boolean };
+
+export type Label = { p: Vec3; key: MeasureKey; name: string } & LabelValue;
 
 export type MeasureSpec = {
   measures: Measures;
@@ -97,18 +103,19 @@ export function momentOf(
   return null;
 }
 
-/** 이름표에 붙일 값 — 순간이면 표의 값(있을 때), 아니면 라이브 값 */
+/** 이름표에 붙일 값 — 늘 보기용 값, 순간이면 표 값을 곁에(벌어짐 판정용) */
 export function labelValues(
   live: Measures,
   moment: 'kneeUp' | 'footPlant' | 'release' | null,
   metrics: readonly Metric[]
-): Record<MeasureKey, { value: number; live: boolean }> {
-  const out = {} as Record<MeasureKey, { value: number; live: boolean }>;
+): Record<MeasureKey, LabelValue> {
+  const out = {} as Record<MeasureKey, LabelValue>;
   const map = moment === 'footPlant' || moment === 'release' ? MOMENT_METRIC[moment] : {};
   for (const key of Object.keys(live) as MeasureKey[]) {
     const mk = map[key];
     const m = mk ? metrics.find((x) => x.key === mk) : undefined;
-    out[key] = m ? { value: Math.abs(m.value), live: false } : { value: live[key], live: true };
+    const table = m ? Math.abs(m.value) : undefined;
+    out[key] = { value: live[key], table, off: table != null && Math.abs(live[key] - table) > OFF_DEG };
   }
   return out;
 }
@@ -131,14 +138,14 @@ function arcOf(c: Vec3, u0: Vec3, v0: Vec3, r: number, key: MeasureKey): Arc {
 
 /**
  * 멈춤 화면의 선 · 호 · 이름표 — 예시 page.js draw 의 '멈췄을 때' 그대로. k = 키 / 1.8.
- * 값은 labelValues 로 정한 것(순간이면 표 값)을 쓴다.
+ * 값은 labelValues 로 정한 것(보기용 값 · 순간의 표 값)을 쓴다.
  */
 export function measureSpec(
   J: MannequinJoints,
   pelvis: Frame,
   chest: Frame,
   k: number,
-  values: Record<MeasureKey, { value: number; live: boolean }>
+  values: Record<MeasureKey, LabelValue>
 ): MeasureSpec {
   const hm = mid3(J.rh, J.lh);
   const shm = mid3(J.sh, J.gs);
@@ -149,7 +156,7 @@ export function measureSpec(
   const arcs: Arc[] = [];
   const labels: Label[] = [];
   const label = (p: Vec3, key: MeasureKey, off: Vec3) =>
-    labels.push({ p: add(p, off), key, name: MEASURE_LABEL[key], value: values[key].value, live: values[key].live });
+    labels.push({ p: add(p, off), key, name: MEASURE_LABEL[key], ...values[key] });
 
   /* 골반 · 어깨 선(실제 자리) */
   const pd = scale(sub(J.rh, J.lh), 0.5);

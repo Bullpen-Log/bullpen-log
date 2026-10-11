@@ -2,6 +2,12 @@ import type * as Three from 'three';
 import type { Vec3 } from '@/lib/pitch-3d/linalg';
 import { V2J } from '@/lib/pitch-3d/v2/contract';
 import type { DisplayTrack } from '@/lib/pitch-3d/v2/display';
+import {
+  LIGHT_RIG,
+  STAGE,
+  toDisplay,
+  type DirLightSpec,
+} from '@/lib/pitch-3d/v2/mannequin-profiles';
 import { MOUND } from '@/lib/pitch-3d/v2/pose-rig';
 
 /**
@@ -41,7 +47,11 @@ function moundGeometry(
   const nz = 8;
   const pos: number[] = [];
   const idx: number[] = [];
-  const grid = (pt: (i: number, j: number) => [number, number, number], ni: number, nj: number) => {
+  const grid = (
+    pt: (i: number, j: number) => [number, number, number],
+    ni: number,
+    nj: number
+  ) => {
     const base = pos.length / 3;
     for (let i = 0; i <= ni; i++) for (let j = 0; j <= nj; j++) pos.push(...pt(i, j));
     for (let i = 0; i < ni; i++)
@@ -65,7 +75,8 @@ function moundGeometry(
   const cx = x0 + MOUND.centerAhead * s;
   const R = MOUND.radius * s;
   const uv: number[] = [];
-  for (let i = 0; i < pos.length; i += 3) uv.push((pos[i] - cx) / (2 * R) + 0.5, (pos[i + 2] - z0) / (2 * R) + 0.5);
+  for (let i = 0; i < pos.length; i += 3)
+    uv.push((pos[i] - cx) / (2 * R) + 0.5, (pos[i + 2] - z0) / (2 * R) + 0.5);
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
   g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
@@ -91,9 +102,15 @@ function moundMaterial(THREE: typeof import('three')) {
     sh.uniforms.uOn = on;
     sh.vertexShader = sh.vertexShader
       .replace('#include <common>', '#include <common>\nvarying vec2 vMp;')
-      .replace('#include <begin_vertex>', `#include <begin_vertex>\nvMp = (uv - 0.5) * ${(2 * R).toFixed(4)};`);
+      .replace(
+        '#include <begin_vertex>',
+        `#include <begin_vertex>\nvMp = (uv - 0.5) * ${(2 * R).toFixed(4)};`
+      );
     sh.fragmentShader = sh.fragmentShader
-      .replace('#include <common>', '#include <common>\nvarying vec2 vMp;\nuniform sampler2D uDirt;\nuniform float uOn;')
+      .replace(
+        '#include <common>',
+        '#include <common>\nvarying vec2 vMp;\nuniform sampler2D uDirt;\nuniform float uOn;'
+      )
       .replace(
         '#include <map_fragment>',
         `#include <map_fragment>
@@ -133,12 +150,19 @@ function moundMaterial(THREE: typeof import('three')) {
 }
 
 /** 평지 — 축발(먼저 땅에 닿은 발)이 처음 닿은 장면에서 발 뒤 가장자리 = 투수판 앞 모서리. 닿은 구간이 없으면 첫 장면의 뒤쪽 발 */
-function flatSpot(track: Pick<DisplayTrack, 'frames' | 'contacts'>): { x0: number; z0: number } | null {
+function flatSpot(
+  track: Pick<DisplayTrack, 'frames' | 'contacts'>
+): { x0: number; z0: number } | null {
   const first = [...track.contacts].sort((a, b) => a.from - b.from)[0];
   const f = track.frames[first ? first.from : 0];
   if (!f) return null;
-  const foot = (side: 'L' | 'R') => (side === 'L' ? [f[V2J.lHe], f[V2J.lTo]] : [f[V2J.rHe], f[V2J.rTo]]);
-  const side = first ? first.side : Math.min(f[V2J.lHe][0], f[V2J.lTo][0]) < Math.min(f[V2J.rHe][0], f[V2J.rTo][0]) ? 'L' : 'R';
+  const foot = (side: 'L' | 'R') =>
+    side === 'L' ? [f[V2J.lHe], f[V2J.lTo]] : [f[V2J.rHe], f[V2J.rTo]];
+  const side = first
+    ? first.side
+    : Math.min(f[V2J.lHe][0], f[V2J.lTo][0]) < Math.min(f[V2J.rHe][0], f[V2J.rTo][0])
+      ? 'L'
+      : 'R';
   const [he, to] = foot(side);
   return { x0: Math.min(he[0], to[0]), z0: (he[2] + to[2]) / 2 };
 }
@@ -164,16 +188,56 @@ export function buildStage({
 }): void {
   renderer.setClearColor(BG);
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.05;
+  renderer.toneMappingExposure = STAGE.exposure;
   scene.background = new THREE.Color(BG);
 
-  scene.add(new THREE.HemisphereLight('#ffffff', '#3b4252', 0.9));
-  const key = new THREE.DirectionalLight('#ffffff', 1.7);
-  key.position.set(1.2, 2.2, 1.6);
-  scene.add(key);
-  const rim = new THREE.DirectionalLight('#dbeafe', 0.6);
-  rim.position.set(-1.6, 1.0, -1.2);
-  scene.add(rim);
+  /*
+   * 빛 — 데생 인형 예시와 같은 넷(LIGHT_RIG, mannequin-profiles.ts): 반구 · 주 빛(그림자) · 보조 · 뒤. 반구는 예시처럼 옆(1루 쪽)에서 —
+   * 그래야 마운드 밝기가 예시와 맞는다. 그림자는 three r186 에서 PCFSoftShadowMap 이 빠져 기본 PCF + radius 로 부드럽게.
+   * (2026-10-12 김민: 금윤호가 물은 2 · 6번을 추천대로)
+   */
+  const base: Vec3 = [center[0], 0, center[2]];
+  const at = (p: Vec3) => new THREE.Vector3(...toDisplay(p, base, heightM));
+  const { hemi: hs, key: ks } = LIGHT_RIG;
+  const hemi = new THREE.HemisphereLight(hs.sky, hs.ground, hs.intensity);
+  if (hs.axis === 'side') hemi.position.copy(at([0, 1, 0]).sub(at([0, 0, 0])));
+  scene.add(hemi);
+  const dir = (d: DirLightSpec) => {
+    const L = new THREE.DirectionalLight(d.color, d.intensity);
+    L.position.copy(at(d.position));
+    L.target.position.copy(at(d.target));
+    scene.add(L, L.target);
+    return L;
+  };
+  const key = dir(ks);
+  dir(LIGHT_RIG.fill);
+  dir(LIGHT_RIG.back);
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFShadowMap;
+  key.castShadow = true;
+  key.shadow.mapSize.set(ks.shadow.size, ks.shadow.size);
+  const half = ks.shadow.half / heightM;
+  Object.assign(key.shadow.camera, {
+    left: -half,
+    right: half,
+    top: half,
+    bottom: -half,
+    near: ks.shadow.near / heightM,
+    far: ks.shadow.far / heightM,
+  });
+  key.shadow.camera.updateProjectionMatrix();
+  key.shadow.bias = ks.shadow.bias;
+  key.shadow.normalBias = ks.shadow.normalBias / heightM;
+  key.shadow.radius = ks.shadow.radius;
+  /* 바닥 그림자 받이 — 그림자만 옅게(바탕은 그대로) */
+  const catcher = new THREE.Mesh(
+    new THREE.PlaneGeometry(8 / heightM, 8 / heightM),
+    new THREE.ShadowMaterial({ opacity: STAGE.shadowOpacity })
+  );
+  catcher.rotation.x = -Math.PI / 2;
+  catcher.position.set(center[0], 0.0005, center[2]);
+  catcher.receiveShadow = true;
+  scene.add(catcher);
 
   const grid = new THREE.GridHelper(4, 16, GRID_A, GRID_B);
   grid.position.set(center[0], 0, center[2]);
@@ -188,28 +252,42 @@ export function buildStage({
   const mound = track.mound ?? flatSpot(track);
   if (mound) {
     const s = 1 / heightM;
-    scene.add(
-      new THREE.Mesh(
-        moundGeometry(THREE, track.mound ? groundAt : () => 0, mound.x0, mound.z0, s),
-        /* 옆 · 뒤 벽 — 이동식 마운드 틀(짙은 갈색) */
-        [moundMaterial(THREE), new THREE.MeshStandardMaterial({ color: '#5a3b28', roughness: 0.95, metalness: 0 })]
-      )
+    const moundMesh = new THREE.Mesh(
+      moundGeometry(THREE, track.mound ? groundAt : () => 0, mound.x0, mound.z0, s),
+      /* 옆 · 뒤 벽 — 이동식 마운드 틀(짙은 갈색) */
+      [
+        moundMaterial(THREE),
+        new THREE.MeshStandardMaterial({
+          color: '#5a3b28',
+          roughness: 0.95,
+          metalness: 0,
+        }),
+      ]
     );
+    moundMesh.receiveShadow = true;
+    scene.add(moundMesh);
     const rubber = new THREE.Mesh(
       new THREE.BoxGeometry(MOUND.rubber.depth * s, 0.02 * s, MOUND.rubber.width * s),
-      new THREE.MeshStandardMaterial({ color: RUBBER_COLOR, roughness: 0.8, metalness: 0 })
+      new THREE.MeshStandardMaterial({
+        color: RUBBER_COLOR,
+        roughness: 0.8,
+        metalness: 0,
+      })
     );
     rubber.position.set(
       mound.x0 - (MOUND.rubber.depth * s) / 2,
       groundAt(mound.x0, mound.z0) + 0.01 * s,
       mound.z0
     );
+    rubber.receiveShadow = true;
     scene.add(rubber);
   }
 
   const corner = new THREE.Vector3(center[0] - 1.7, 0.002, center[2] - 1.7);
   const arrow = (dir: [number, number, number], color: string) =>
-    scene.add(new THREE.ArrowHelper(new THREE.Vector3(...dir), corner, 0.35, color, 0.08, 0.04));
+    scene.add(
+      new THREE.ArrowHelper(new THREE.Vector3(...dir), corner, 0.35, color, 0.08, 0.04)
+    );
   arrow([1, 0, 0], AXIS.home);
   arrow([0, 1, 0], AXIS.up);
   arrow([0, 0, 1], AXIS.side);
