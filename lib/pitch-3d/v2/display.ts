@@ -310,7 +310,7 @@ export function displayTrack(
     result.t[Math.min(n - 1, result.events.release)] - result.t[Math.min(n - 1, result.events.footPlant)];
   const dt = dtMedia * (spanMedia > PLANT_TO_RELEASE_MAX_S ? PLANT_TO_RELEASE_MAX_S / spanMedia : 1);
   /*
-   * 걸름은 관절 각도 모델 앞(엔진 원본)에 — 뒤에 두면 팔꿈치만 옮겨 위팔 · 아래팔 길이가 한 장면에 5~10% 바뀌었다(2026-10-10 김창주 글러브 팔).
+   * 걸름은 관절 각도 모델 앞(엔진 원본)에 — 뒤에 두면 팔꿈치만 옮겨 위팔 · 아래팔 길이가 한 장면에 5~10% 바뀌었다(2026-10-10 샘플 1 글러브 팔).
    * 앞에 두면 엔진이 한 장면 옮긴 관절(팔꿈치 79mm)을 먼저 걷고, 뼈 길이는 각도 모델이 고정한다.
    */
   const kin = kinematicTrack(despike(raw, result.hand, result.events.release), conf, contacts, {

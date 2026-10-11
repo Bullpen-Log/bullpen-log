@@ -17,7 +17,7 @@
 ## 2. 지금 상태
 
 - 예시 페이지(비공개 아티팩트, 10번째 판): https://claude.ai/artifact/3oxoSCmfY6dVS9CGQNoCNC
-  - 예시 둘: 드라이브라인 OpenBiomechanics 샘플(모션 캡처)과 우리 샘플 4(기아타이거즈 김정엽, 오른손, 183cm, 마운드).
+  - 예시 둘: 드라이브라인 OpenBiomechanics 샘플(모션 캡처)과 우리 샘플 4(오른손, 183cm, 마운드).
   - 페이지 하나에 three.js r128(cdnjs)과 두 자료가 다 들어 있다(약 220KB).
 - **잇는 법:** 데스크톱 Claude 에게 이 주소를 주고 `Artifact` 도구의 `read` 로 읽게 한다. 같은 계정이면 원본 HTML 이 파일로 저장된다.
   그 파일을 고친 뒤 `publish` 에 `url` 로 이 주소를 넘기면 같은 주소에 새 판이 올라간다.
