@@ -21,6 +21,7 @@ import {
   type DailyPlan,
 } from '@/lib/report/daily-plan';
 import { carrySwaps } from '@/lib/report/plan-swaps';
+import { fingerprintOf } from '@/lib/report/plan-fingerprint';
 import { visibleExercises } from '@/lib/library-cache';
 import {
   gatherFactsAndPlan,
@@ -346,9 +347,14 @@ export async function generateTodayPlan(formData: FormData) {
       made ? { ...built, auto: made } : built,
       before?.plan
     );
+    /*
+     * 만들 때 본 오늘 상태의 지문(P2, lib/report/plan-fingerprint.ts) — 위에서 일정을 만든 바로 그 facts 로 찍는다. 읽을 때
+     * (today-data.ts)가 지금 facts 로 다시 찍어 견준다. buildDailyPlan 안이 아니라 여기서 넣는 까닭은 daily-plan.ts 주석.
+     */
+    const toSave: DailyPlan = { ...withAuto, fingerprint: fingerprintOf(facts) };
     const saved = {
       availableEquipment,
-      plan: withAuto as unknown as Prisma.InputJsonValue,
+      plan: toSave as unknown as Prisma.InputJsonValue,
       generatedAt: appNow(),
     };
     await prisma.dailyTrainingSetup.upsert({

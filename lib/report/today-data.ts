@@ -6,6 +6,7 @@ import { selectCandidates } from '@/lib/report/prescription';
 import { equipmentForToday, filterByEquipment } from '@/lib/report/equipment';
 import { filterByLevel } from '@/lib/report/personalize';
 import { readDailyPlan } from '@/lib/report/daily-plan';
+import { stateChangesOf } from '@/lib/report/plan-fingerprint';
 import { readArmcareRoutine } from '@/lib/armcare/routine';
 import { readRoutineItems } from '@/lib/armcare/my-routines';
 import { loadRehabExerciseIds } from '@/lib/armcare/rehab-store';
@@ -157,6 +158,19 @@ export async function loadTodayCore(user: UserForToday, today: Date) {
    */
   const leveled = filterByLevel(usable.pool, user.trainingLevel);
   const picked = selectCandidates({ facts, plan, library: leveled.pool });
+
+  /*
+   * 일정을 만든 뒤 '판단 입력'이 바뀌었는가(P2 일정 지문, lib/report/plan-fingerprint.ts).
+   *
+   * 저장된 일정에 찍힌 지문(만들 때 본 컨디션 · 아픈 부위 · 등판 답 · 마지막 투구 · 부하 구간 · 재활)을 지금 facts 로 다시
+   * 찍은 것과 견준다. 다른 것이 있으면 항목마다 한 줄(해요체)이 돌아간다 — 화면에 띄우는 것은 P6 몫이고 여기서는 값만 준다.
+   *
+   * 아래의 안전 재검사와는 독립이다. 그쪽은 저장된 '목록'을 지금 몸 상태로 다시 걸러 운동을 빼는 것이고, 이것은 아무것도
+   * 빼지 않고 '다시 만들면 달라질 수 있다'를 알리는 것이다. 둘이 겹칠 때(아픈 부위만 바뀌어 운동이 빠진 날) 한 줄로 합치는
+   * 규칙은 P6 화면이 정한다(onlyPainPartChanges 가 가름을 돕는다). 멈춘 날(picked.halted)은 멈춤 카드가 다 말하니 비운다.
+   * 지문 없는 옛 일정 · 일정 없음 · 모양 깨진 지문은 '견줄 것 없음'으로 빈 목록이다. facts 만 쓰니 DB 조회는 늘지 않는다.
+   */
+  const stateChanges = picked.halted ? [] : stateChangesOf(savedPlan, facts);
 
   /*
    * 오늘 고른 운동 종류가 몸 상태와 부딪히는가.
@@ -318,6 +332,13 @@ export async function loadTodayCore(user: UserForToday, today: Date) {
     preferredWorkout,
     /** 고른 종류가 몸 상태와 부딪히는가. 안 부딪히면 null */
     workoutClash,
+    /**
+     * 일정을 만든 뒤 바뀐 상태 항목 — 사용자에게 보일 한 줄씩(P2 지문, 위 주석). 비어 있으면 바뀐 것이 없거나 견줄 것이 없다.
+     * 화면은 아직 안 띄운다(P6). key 까지 필요하면 stateChanges.
+     */
+    stateChanged: stateChanges.map((c) => c.text),
+    /** 위와 같은 것의 구조 — key(항목)와 text. P6 가 onlyPainPartChanges 로 안전 재검사 알림과 겹침을 가른다 */
+    stateChanges,
     /*
      * 장비와 경력 때문에 몇 개가 빠졌는지는 여기서 돌려주지 않는다.
      * 화면에 쓰는 값은 일정을 만들 때 찍어 둔 것(savedPlan.equipment)이라야

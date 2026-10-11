@@ -24,6 +24,7 @@ import type { ReportFacts } from '@/lib/report/facts';
 import type { PitchPlan } from '@/lib/report/plan';
 import type { AutoCaution, AutoRecord } from '@/lib/report/auto-setup';
 import type { PlanSwap } from '@/lib/report/plan-swaps';
+import type { PlanFingerprint } from '@/lib/report/plan-fingerprint';
 
 /**
  * 오늘의 운동 일정을 만든다.
@@ -105,6 +106,12 @@ export type DailyPlan = {
    * 없으면 빈 것으로 읽으니 version 은 그대로(focus 와 같은 까닭). 새로 만든 일정(buildDailyPlan)에는 넣지 않는다.
    */
   swaps?: PlanSwap[];
+  /**
+   * 만들 때 본 오늘 상태의 요약(lib/report/plan-fingerprint.ts, 2026-10-12 트레이닝 추천 2판 P2). 읽을 때(today-data.ts)
+   * 지금 facts 로 다시 찍어 다르면 '상태가 바뀌었어요'(화면은 P6). generateTodayPlan 이 저장할 때 넣는다 — buildDailyPlan 은
+   * 안 넣는다(기준선 도구 · 시험의 결과 모양을 안 흔들려고). 옛 줄에는 없고 없으면 견주지 않으니 version 은 그대로.
+   */
+  fingerprint?: PlanFingerprint;
 };
 
 /** 통증 등으로 일정을 만들지 않은 경우 */

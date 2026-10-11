@@ -24,6 +24,7 @@ import {
   LOW_CONDITION_THRESHOLD,
   SEVERE_SORENESS,
   THROW_PLANS,
+  WORKOUT_KINDS,
   isShortSleep,
   parseArmPain,
   parseCheckinBody,
@@ -279,6 +280,17 @@ import { REST_CLOCK_LIMIT_SECONDS, restSeconds } from '../lib/workout/rest.ts';
 /* 2판 안전망(P0) — 다섯 독자 중 매일 일정 · 투구 계획 · 암케어 밖의 둘(영양 · 근력 프로그램) */
 import { throwDayKind } from '../lib/nutrition/guide.ts';
 import { decideToday, parseProgram } from '../lib/program/program.ts';
+/* 2판 되먹임(P2) — 일정 지문 */
+import {
+  FINGERPRINT_KEYS,
+  diffFingerprint,
+  diffFingerprintChanges,
+  fingerprintOf,
+  onlyPainPartChanges,
+  readPlanFingerprint,
+  stateChangesOf,
+  type FingerprintChange,
+} from '../lib/report/plan-fingerprint.ts';
 
 let passed = 0;
 let failed = 0;
@@ -9289,6 +9301,549 @@ console.log('\n[2판 되먹임(P2)] 운동 바꾸기 기록 — 읽기 · 붙이
   check(
     'P2 (g) 순서만 바꾼 판은 swaps 키 없이 예전 모양',
     !('swaps' in { ...withSwaps(base, []), exercises: [list[2], list[0], list[1]] })
+  );
+}
+
+/* ═══════════════════ [2판 되먹임(P2)] 일정 지문 — lib/report/plan-fingerprint.ts (2026-10-12) ═══════════════════ */
+console.log(
+  '\n[2판 되먹임(P2)] 일정 지문 · 상태 바뀜 견주기 — 결정성 · 왕복 · 옛 모양 · 칸별 · 글(2026-10-12)'
+);
+{
+  type FpCheckin = Partial<Omit<CheckinLike, 'date'>>;
+  type FpPerson = {
+    /** 오늘 체크인 — null 이면 없는 날, 안 주면 기본(컨디션 7 · 부위 정상 · 잠 보통) */
+    today?: FpCheckin | null;
+    /** 어제 체크인 — 안 주면 없다 */
+    yesterday?: FpCheckin | null;
+    /** 최근 7일 투구수(0번째가 어제). 안 주면 factsFor 와 같은 [40, 0, 35, 0, 40, 0, 30] */
+    pitches?: number[];
+    /** 오늘 투구 기록 하나 */
+    todayLog?: { pitches: number; intensity: number; sessionType?: string };
+    memos?: { date: string; text: string }[];
+    rehab?: RehabFacts | null;
+  };
+  const baseCheckin = (date: string): CheckinLike => ({
+    date,
+    condition: 7,
+    sleep: '보통',
+    shoulder: '정상',
+    elbow: '정상',
+    wrist: '정상',
+    lowerBack: '정상',
+    lowerBody: '정상',
+    preferredParts: [],
+    preferredWorkout: null,
+  });
+  const todayKey = dayBefore(0).slice(0, 10);
+  const yesterdayKey = dayBefore(1).slice(0, 10);
+  /* factsFor 와 같은 모양의 사람을 지문에 필요한 칸(어제 체크인 · 메모 · 던지는 일정)까지 넣어 만든다 */
+  const fpFacts = (p: FpPerson = {}) => {
+    const pitches = p.pitches ?? [40, 0, 35, 0, 40, 0, 30];
+    return buildFacts({
+      nickname: '지문',
+      age: 22,
+      heightCm: 180,
+      trainingLevel: null,
+      baselineDailyLoad: 100,
+      rehab: p.rehab ?? null,
+      today: TODAY,
+      logs: [
+        ...pitches.map<PitchLogLike>((count, i) => ({
+          date: dayBefore(i + 1),
+          pitchCount: count,
+          intensity: 7,
+          maxVelocity: 130,
+          avgVelocity: 120,
+        })),
+        ...(p.todayLog
+          ? [
+              {
+                date: dayBefore(0),
+                pitchCount: p.todayLog.pitches,
+                intensity: p.todayLog.intensity,
+                ...(p.todayLog.sessionType
+                  ? { sessionType: p.todayLog.sessionType }
+                  : {}),
+                maxVelocity: 130,
+                avgVelocity: 120,
+              } satisfies PitchLogLike,
+            ]
+          : []),
+      ],
+      checkins: [
+        ...(p.today === null ? [] : [{ ...baseCheckin(todayKey), ...p.today }]),
+        ...(p.yesterday ? [{ ...baseCheckin(yesterdayKey), ...p.yesterday }] : []),
+      ],
+      memos: p.memos ?? [],
+    });
+  };
+  const base = fpFacts();
+  const fpBase = fingerprintOf(base);
+  const changesVs = (p: FpPerson) =>
+    diffFingerprintChanges(fpBase, fingerprintOf(fpFacts(p)));
+  const keysOf = (cs: readonly FingerprintChange[]) => cs.map((c) => c.key).join(',');
+  const textsOf = (cs: readonly FingerprintChange[]) =>
+    cs.map((c) => c.text).join(' / ');
+
+  /* ─── (a) 칸 목록 · 결정성 · 왕복 ─── */
+  check(
+    'P2 (지문) 칸 목록이 고정 목록(FINGERPRINT_KEYS)과 순서까지 같다 — 판단이 facts 의 새 칸을 읽으면 둘 다 고친다',
+    JSON.stringify(Object.keys(fpBase)) === JSON.stringify(FINGERPRINT_KEYS),
+    Object.keys(fpBase).join(',')
+  );
+  check(
+    'P2 (지문) 같은 facts 두 번 → JSON 글자까지 같고 바뀐 것 0 · 1KB 안',
+    JSON.stringify(fingerprintOf(fpFacts())) === JSON.stringify(fpBase) &&
+      diffFingerprint(fpBase, fingerprintOf(fpFacts())).length === 0 &&
+      JSON.stringify(fpBase).length <= 1024,
+    `${JSON.stringify(fpBase).length}자`
+  );
+  check(
+    'P2 (지문) 저장했다 읽어도(JSON 왕복 · readPlanFingerprint) 글자까지 같다',
+    JSON.stringify(readPlanFingerprint(JSON.parse(JSON.stringify(fpBase)))) ===
+      JSON.stringify(fpBase)
+  );
+  check(
+    'P2 (지문) 기본 사람: 체크인 있음 · 컨디션 7 · 부위 없음 · 근육통 null · 마지막 투구 어제 40구 · 세게 던진 날 없음 · 재활 없음',
+    fpBase.asOf === todayKey &&
+      fpBase.checkin?.condition === 7 &&
+      fpBase.checkin.parts.length === 0 &&
+      fpBase.checkin.soreness === null &&
+      fpBase.checkin.sleepShort === false &&
+      fpBase.lastThrow?.date === yesterdayKey &&
+      fpBase.lastThrow.pitches === 40 &&
+      fpBase.hardOuting === null &&
+      fpBase.rehab === null &&
+      fpBase.painRecentParts.length === 0 &&
+      fpBase.painWords.length === 0,
+    JSON.stringify(fpBase)
+  );
+
+  /* ─── (b) 옛 모양 · 깨진 지문 ─── */
+  const broken: unknown[] = [
+    undefined,
+    null,
+    'x',
+    7,
+    [],
+    { v: 0 },
+    { v: 1 },
+    { v: 1, asOf: 1 },
+    { ...fpBase, checkin: { ...fpBase.checkin, condition: '8' } },
+    { ...fpBase, checkin: { ...fpBase.checkin, parts: 'shoulder:통증' } },
+    { ...fpBase, checkin: { ...fpBase.checkin, sleepShort: 'no' } },
+    { ...fpBase, throwPlanYesterday: 3 },
+    { ...fpBase, painRecentParts: null },
+    { ...fpBase, painWords: 'x' },
+    { ...fpBase, rehab: { area: 'elbow-inner', stage: 2, throwing: 'hard' } },
+    { ...fpBase, rehab: { area: 'elbow-inner', stage: '2', throwing: 'none' } },
+    { ...fpBase, zone: 'weird' },
+    { ...fpBase, lastThrow: { date: 1, pitches: 40, adjusted: 40 } },
+    { ...fpBase, lastThrow: { date: todayKey, pitches: 40 } },
+    { ...fpBase, hardOuting: { daysAgo: 0 } },
+  ];
+  check(
+    'P2 (지문) 없거나 모양이 다른 지문(안쪽 칸 포함 20가지)은 null — 견줄 것 없음',
+    broken.every((b) => readPlanFingerprint(b) === null),
+    broken
+      .map((b, i) => (readPlanFingerprint(b) === null ? '' : String(i)))
+      .filter(Boolean)
+      .join(',')
+  );
+  const withExtra = readPlanFingerprint({ ...fpBase, extra: 1 });
+  check(
+    'P2 (지문) 모르는 칸은 버리고 새 객체를 돌려준다',
+    withExtra != null && !('extra' in withExtra) && (withExtra as unknown) !== fpBase
+  );
+
+  /* ─── (c) 칸별 — 하나만 바꾸면 그 한 줄 ─── */
+  const cond = changesVs({ today: { condition: 3 } });
+  check(
+    'P2 (견주기) 컨디션 7 → 3 만 바꾸면 한 줄',
+    cond.length === 1 &&
+      cond[0].key === 'condition' &&
+      cond[0].text === '컨디션이 7에서 3으로 바뀌었어요',
+    textsOf(cond)
+  );
+  const shoulder = changesVs({ today: { shoulder: '통증' } });
+  check(
+    "P2 (견주기) 어깨 '정상' → '통증': parts 한 줄 · 아픈 부위만 바뀜(onlyPainPartChanges)",
+    shoulder.length === 1 &&
+      shoulder[0].key === 'parts' &&
+      shoulder[0].text === '어깨에 통증이 있다고 적었어요' &&
+      onlyPainPartChanges(shoulder),
+    textsOf(shoulder)
+  );
+  check(
+    'P2 (견주기) 컨디션까지 바뀌면 onlyPainPartChanges 는 false · 바뀐 것 없으면 false',
+    !onlyPainPartChanges(changesVs({ today: { shoulder: '통증', condition: 3 } })) &&
+      !onlyPainPartChanges([])
+  );
+  const relaxed = diffFingerprintChanges(
+    fingerprintOf(fpFacts({ today: { lowerBack: '뻐근' } })),
+    fpBase
+  );
+  check(
+    "P2 (견주기) 허리 '뻐근' → '정상' 도 잡힌다(풀렸어요)",
+    relaxed.length === 1 &&
+      relaxed[0].key === 'parts' &&
+      relaxed[0].text === '허리 뻐근 표시가 풀렸어요',
+    textsOf(relaxed)
+  );
+  const worse = diffFingerprintChanges(
+    fingerprintOf(fpFacts({ today: { shoulder: '뻐근' } })),
+    fingerprintOf(fpFacts({ today: { shoulder: '통증' } }))
+  );
+  check(
+    "P2 (견주기) 어깨 '뻐근' → '통증' 한 줄",
+    worse.length === 1 && worse[0].text === '어깨가 뻐근에서 통증으로 바뀌었어요',
+    textsOf(worse)
+  );
+  const twoParts = changesVs({ today: { shoulder: '통증', lowerBody: '뻐근' } });
+  check(
+    'P2 (견주기) 부위 둘이 바뀌면 부위마다 한 줄(CHECKIN_PARTS 순서)',
+    twoParts.length === 2 &&
+      twoParts[0].text.startsWith('어깨') &&
+      twoParts[1].text === '하체가 뻐근하다고 적었어요',
+    textsOf(twoParts)
+  );
+  check(
+    "P2 (견주기) 옛 기록의 '괜찮음'은 '정상'과 같다 — 판단이 안 읽는 값은 지문에 안 든다",
+    changesVs({ today: { shoulder: '괜찮음', elbow: '괜찮음' } }).length === 0
+  );
+  const sore = changesVs({ today: { soreness: 4 } });
+  check(
+    "P2 (견주기) 근육통 없음 → 4('많이')",
+    sore.length === 1 &&
+      sore[0].key === 'soreness' &&
+      sore[0].text === "근육통 '많이'를 새로 적었어요",
+    textsOf(sore)
+  );
+  const soreUp = diffFingerprintChanges(
+    fingerprintOf(fpFacts({ today: { soreness: 2 } })),
+    fingerprintOf(fpFacts({ today: { soreness: 5 } }))
+  );
+  check(
+    'P2 (견주기) 근육통 2 → 5 는 말로(조금 → 심함)',
+    soreUp.length === 1 &&
+      soreUp[0].text === "근육통이 '조금'에서 '심함'으로 바뀌었어요",
+    textsOf(soreUp)
+  );
+  check(
+    'P2 (견주기) 근육통 범위 밖(9) · null 은 안 적은 것과 같다',
+    changesVs({ today: { soreness: 9 } }).length === 0 &&
+      changesVs({ today: { soreness: null } }).length === 0
+  );
+  const sleep = changesVs({ today: { sleep: '부족' } });
+  check(
+    "P2 (견주기) 잠 '보통' → '부족'",
+    sleep.length === 1 &&
+      sleep[0].key === 'sleep' &&
+      sleep[0].text === '잠이 부족했다고 적었어요',
+    textsOf(sleep)
+  );
+  check(
+    'P2 (견주기) 잔 시간 5시간(느낌은 보통)도 짧은 밤(isShortSleep) · 8시간은 바뀜 없음',
+    keysOf(changesVs({ today: { sleepHours: 5 } })) === 'sleep' &&
+      changesVs({ today: { sleepHours: 8 } }).length === 0
+  );
+  const kind = changesVs({ today: { preferredWorkout: '웨이트' } });
+  check(
+    "P2 (견주기) 운동 종류 없음 → '웨이트'",
+    kind.length === 1 &&
+      kind[0].key === 'preferredWorkout' &&
+      kind[0].text === "하고 싶은 운동을 '웨이트'로 골랐어요",
+    textsOf(kind)
+  );
+  const kindSwap = diffFingerprintChanges(
+    fingerprintOf(fpFacts({ today: { preferredWorkout: '파워' } })),
+    fingerprintOf(fpFacts({ today: { preferredWorkout: '회복' } }))
+  );
+  check(
+    "P2 (견주기) 운동 종류 '파워' → '회복'(받침 조사 '으로')",
+    kindSwap.length === 1 &&
+      kindSwap[0].text === "하고 싶은 운동을 '파워'에서 '회복'으로 바꿨어요",
+    textsOf(kindSwap)
+  );
+  const tp = changesVs({ today: { throwPlan: '오늘 등판' } });
+  check(
+    "P2 (견주기) 던지는 일정 없음 → '오늘 등판'",
+    tp.length === 1 &&
+      tp[0].key === 'throwPlan' &&
+      tp[0].text === "던지는 일정을 '오늘 등판'으로 적었어요",
+    textsOf(tp)
+  );
+  const tpy = changesVs({ yesterday: { throwPlan: '내일 등판' } });
+  check(
+    "P2 (견주기) 어제 체크인에 '내일 등판'을 더하면 throwPlanYesterday 한 줄(plannedOuting 이 읽는 값)",
+    tpy.length === 1 &&
+      tpy[0].key === 'throwPlanYesterday' &&
+      tpy[0].text.includes("'내일 등판'"),
+    textsOf(tpy)
+  );
+  const recent = changesVs({ yesterday: { shoulder: '통증' } });
+  check(
+    'P2 (견주기) 어제 체크인에 어깨 통증 → painRecent 한 줄 · 아픈 부위만 바뀜',
+    recent.length === 1 &&
+      recent[0].key === 'painRecent' &&
+      recent[0].text === '최근 통증 부위에 어깨가 더해졌어요' &&
+      onlyPainPartChanges(recent),
+    textsOf(recent)
+  );
+  check(
+    'P2 (견주기) 하고 싶은 부위(preferredParts)만 바꾸면 바뀜 없음 — 순서만 바꾸는 입력은 지문에 없다',
+    changesVs({ today: { preferredParts: ['하체', '코어'] } }).length === 0
+  );
+
+  /* ─── (d) 투구 기록 · 세게 던진 날 · 부하 구간 ─── */
+  const threw = changesVs({ todayLog: { pitches: 55, intensity: 7 } });
+  check(
+    "P2 (견주기) 오늘 55구(강도 7)를 더하면 lastThrow '오늘 55구를 던졌어요' · 세게 던진 날은 아님",
+    threw.some((c) => c.key === 'lastThrow' && c.text === '오늘 55구를 던졌어요') &&
+      !threw.some((c) => c.key === 'hardOuting') &&
+      threw.filter((c) => c.key !== 'zone').length === 1,
+    textsOf(threw)
+  );
+  const game = changesVs({
+    todayLog: { pitches: 85, intensity: 7, sessionType: '경기' },
+  });
+  check(
+    'P2 (견주기) 오늘 경기 85구 → lastThrow 와 hardOuting(theme.ts 의 hardOuting 과 같은 판단)',
+    game.some((c) => c.key === 'lastThrow') &&
+      game.some(
+        (c) =>
+          c.key === 'hardOuting' &&
+          c.text === '오늘 거의 전력으로 85구를 던진 기록이 들어왔어요'
+      ),
+    textsOf(game)
+  );
+  const hardAt9 = changesVs({ todayLog: { pitches: 40, intensity: 9 } });
+  const lightAt9 = changesVs({ todayLog: { pitches: 20, intensity: 9 } });
+  check(
+    'P2 (견주기) 강도 9 · 40구는 세게 던진 날, 20구는 아님(HARD_OUTING_MIN_PITCHES)',
+    hardAt9.some((c) => c.key === 'hardOuting') &&
+      !lightAt9.some((c) => c.key === 'hardOuting')
+  );
+  const sameDayMore = diffFingerprintChanges(
+    fingerprintOf(fpFacts({ todayLog: { pitches: 30, intensity: 7 } })),
+    fingerprintOf(fpFacts({ todayLog: { pitches: 55, intensity: 7 } }))
+  );
+  check(
+    "P2 (견주기) 오늘 30구 → 55구(같은 날 기록이 늘어남) '오늘 투구 기록이 55구로 바뀌었어요'",
+    sameDayMore.some(
+      (c) => c.key === 'lastThrow' && c.text === '오늘 투구 기록이 55구로 바뀌었어요'
+    ),
+    textsOf(sameDayMore)
+  );
+  const quiet = fingerprintOf(fpFacts({ pitches: [0, 0, 0, 0, 0, 0, 0] }));
+  const surge = fingerprintOf(
+    fpFacts({
+      pitches: [0, 0, 0, 0, 0, 0, 0],
+      todayLog: { pitches: 150, intensity: 10 },
+    })
+  );
+  const zoneChanges = diffFingerprintChanges(quiet, surge);
+  check(
+    'P2 (견주기) 안 던지다 오늘 150구(강도 10) → 부하 구간이 바뀌고 zone 한 줄(구간 이름 · 구간으로)',
+    quiet.zone !== surge.zone &&
+      zoneChanges.some(
+        (c) => c.key === 'zone' && /^투구 부하가 .+ 구간으로 .+어요$/.test(c.text)
+      ),
+    `${quiet.zone} → ${surge.zone} / ${textsOf(zoneChanges)}`
+  );
+  check(
+    'P2 (견주기) 안 던진 사람은 lastThrow 가 null · 던지면 생긴다',
+    quiet.lastThrow === null && surge.lastThrow?.date === todayKey
+  );
+
+  /* ─── (e) 메모 · 재활 · 체크인 통째로 · 다른 날 ─── */
+  const noCheckin = fingerprintOf(fpFacts({ today: null }));
+  const memo = diffFingerprintChanges(
+    noCheckin,
+    fingerprintOf(
+      fpFacts({ today: null, memos: [{ date: yesterdayKey, text: '팔꿈치가 찌릿함' }] })
+    )
+  );
+  check(
+    "P2 (견주기) 체크인 없는 날 어제 메모 '찌릿' → memo 한 줄(plan.needsPainCheck 가 읽는 값)",
+    memo.length === 1 &&
+      memo[0].key === 'memo' &&
+      memo[0].text === '메모에 통증으로 보이는 말이 생겼어요',
+    textsOf(memo)
+  );
+  check(
+    "P2 (견주기) 재활 복귀표 꼬리표('통증 없음')만이면 바뀜 없음(P1 ④ 와 맞물림)",
+    diffFingerprintChanges(
+      noCheckin,
+      fingerprintOf(
+        fpFacts({
+          today: null,
+          memos: [{ date: yesterdayKey, text: throwMemo(2, 'none') }],
+        })
+      )
+    ).length === 0
+  );
+  const r2: RehabFacts = {
+    area: 'elbow-inner',
+    label: '팔꿈치 안쪽',
+    stage: 2,
+    severity: 'mild',
+    joint: 'elbow',
+    throwing: 'light',
+    firstWeekNoThrow: false,
+  };
+  const rehabStart = changesVs({ rehab: r2 });
+  check(
+    "P2 (견주기) 재활 없음 → 2단계 '재활 2단계를 시작했어요' 한 줄",
+    rehabStart.length === 1 &&
+      rehabStart[0].key === 'rehab' &&
+      rehabStart[0].text === '재활 2단계를 시작했어요',
+    textsOf(rehabStart)
+  );
+  const rehabUp = diffFingerprintChanges(
+    fingerprintOf(fpFacts({ rehab: r2 })),
+    fingerprintOf(fpFacts({ rehab: { ...r2, stage: 3 } }))
+  );
+  check(
+    'P2 (견주기) 재활 2단계 → 3단계',
+    rehabUp.length === 1 && rehabUp[0].text === '재활이 2단계에서 3단계로 바뀌었어요',
+    textsOf(rehabUp)
+  );
+  const rehabThrow = diffFingerprintChanges(
+    fingerprintOf(fpFacts({ rehab: r2 })),
+    fingerprintOf(
+      fpFacts({ rehab: { ...r2, throwing: 'none', firstWeekNoThrow: true } })
+    )
+  );
+  check(
+    "P2 (견주기) 재활 던지기 light → none '재활 중 던지지 않기로 바뀌었어요'",
+    rehabThrow.length === 1 &&
+      rehabThrow[0].text === '재활 중 던지지 않기로 바뀌었어요',
+    textsOf(rehabThrow)
+  );
+  const rehabEnd = diffFingerprintChanges(
+    fingerprintOf(fpFacts({ rehab: r2 })),
+    fpBase
+  );
+  check(
+    "P2 (견주기) 재활이 끝나면 '재활이 끝났어요'",
+    rehabEnd.length === 1 && rehabEnd[0].text === '재활이 끝났어요',
+    textsOf(rehabEnd)
+  );
+  const gone = diffFingerprintChanges(fpBase, noCheckin);
+  const gone2 = diffFingerprintChanges(
+    fingerprintOf(fpFacts({ today: { condition: 3, shoulder: '통증', soreness: 5 } })),
+    noCheckin
+  );
+  check(
+    "P2 (견주기) 오늘 체크인이 없어지면 '오늘 체크인이 지워졌어요' 한 줄뿐 — 안의 칸은 따로 세지 않는다",
+    gone.length === 1 &&
+      gone[0].key === 'checkin' &&
+      gone[0].text === '오늘 체크인이 지워졌어요' &&
+      gone2.length === 1 &&
+      gone2[0].key === 'checkin',
+    `${textsOf(gone)} / ${textsOf(gone2)}`
+  );
+  const born = diffFingerprintChanges(noCheckin, fpBase);
+  check(
+    "P2 (견주기) 체크인이 새로 생기면 '오늘 체크인을 새로 남겼어요' 한 줄",
+    born.length === 1 && born[0].text === '오늘 체크인을 새로 남겼어요',
+    textsOf(born)
+  );
+  check(
+    'P2 (견주기) 다른 날의 지문(asOf 다름)은 견주지 않는다 — []',
+    diffFingerprint(
+      { ...fpBase, asOf: '2026-06-14' },
+      fingerprintOf(fpFacts({ today: { condition: 3 } }))
+    ).length === 0
+  );
+
+  /* ─── (f) stateChangesOf — today-data.ts 가 부르는 길 ─── */
+  const nowFacts = fpFacts({ today: { condition: 3 } });
+  check(
+    'P2 (읽기) 지문 없는 옛 일정 · 일정 없음 · 모양 깨진 지문은 바뀜 없음([])',
+    stateChangesOf({ version: 1, picks: [] }, nowFacts).length === 0 &&
+      stateChangesOf(null, nowFacts).length === 0 &&
+      stateChangesOf(undefined, nowFacts).length === 0 &&
+      stateChangesOf({ fingerprint: { v: 0 } }, nowFacts).length === 0 &&
+      stateChangesOf({ fingerprint: 'x' }, nowFacts).length === 0
+  );
+  const savedPlan = {
+    version: 1,
+    picks: [],
+    fingerprint: JSON.parse(JSON.stringify(fpBase)),
+  };
+  check(
+    'P2 (읽기) 저장된 일정(지문 있음) vs 컨디션만 바뀐 지금 facts → 한 줄 · 같은 facts → []',
+    stateChangesOf(savedPlan, nowFacts).length === 1 &&
+      stateChangesOf(savedPlan, nowFacts)[0].key === 'condition' &&
+      stateChangesOf(savedPlan, base).length === 0
+  );
+
+  /* ─── (g) 글 규칙 — 격자로 모든 글을 모아 해요체 · 줄표 없음 · 60자 안 ─── */
+  const variants: FpPerson[] = [];
+  for (const c of [1, 3, 5, 8, 10]) variants.push({ today: { condition: c } });
+  for (const p of CHECKIN_PARTS)
+    for (const f of ['뻐근', '통증']) variants.push({ today: { [p.key]: f } });
+  for (const s of [1, 2, 3, 4, 5]) variants.push({ today: { soreness: s } });
+  variants.push(
+    { today: { sleep: '부족' } },
+    { today: { sleep: '충분', sleepHours: 8 } }
+  );
+  for (const k of WORKOUT_KINDS) variants.push({ today: { preferredWorkout: k.name } });
+  for (const t of THROW_PLANS)
+    variants.push({ today: { throwPlan: t } }, { yesterday: { throwPlan: t } });
+  for (const p of CHECKIN_PARTS) variants.push({ yesterday: { [p.key]: '통증' } });
+  variants.push(
+    { today: null },
+    { today: null, memos: [{ date: yesterdayKey, text: '어깨가 아프다' }] },
+    { today: null, memos: [{ date: yesterdayKey, text: '팔꿈치 저림 · 시큰' }] }
+  );
+  for (const stage of [1, 2, 3, 4] as const)
+    for (const throwing of ['light', 'none'] as const)
+      variants.push({ rehab: { ...r2, stage, throwing } });
+  variants.push(
+    { todayLog: { pitches: 20, intensity: 5 } },
+    { todayLog: { pitches: 85, intensity: 9 } },
+    { todayLog: { pitches: 100, intensity: 7, sessionType: '경기' } },
+    { pitches: [0, 0, 0, 0, 0, 0, 0] },
+    { pitches: [0, 0, 0, 0, 0, 0, 0], todayLog: { pitches: 150, intensity: 10 } },
+    { pitches: [120, 0, 110, 0, 100, 0, 90] },
+    { pitches: [0, 95, 0, 0, 0, 0, 0] },
+    { pitches: [0, 0, 60, 0, 0, 0, 0], todayLog: { pitches: 10, intensity: 4 } }
+  );
+  const prints = variants.map((v) => fingerprintOf(fpFacts(v)));
+  const texts = new Set<string>();
+  for (const p of prints) {
+    for (const c of diffFingerprintChanges(fpBase, p)) texts.add(c.text);
+    for (const c of diffFingerprintChanges(p, fpBase)) texts.add(c.text);
+  }
+  /* 이웃끼리도 견줘 'A 에서 B 로' 꼴을 모은다 */
+  for (let i = 1; i < prints.length; i++) {
+    for (const c of diffFingerprintChanges(prints[i - 1], prints[i])) texts.add(c.text);
+  }
+  const badTexts = [...texts].filter(
+    (t) => t.length > 60 || t.includes('—') || !/(어요|에요)$/.test(t)
+  );
+  check(
+    `P2 (글) 격자 ${variants.length}가지에서 모은 글 ${texts.size}개가 모두 60자 안 · 줄표 없음 · 해요체(어요/에요)로 끝남`,
+    texts.size >= 60 && badTexts.length === 0,
+    badTexts.slice(0, 5).join(' / ')
+  );
+  check(
+    'P2 (글) 조사가 앞말에 맞는다 — 3으로 · 8로 · 웨이트로 · 회복으로 · 오늘 등판으로 · 하체가',
+    texts.has('컨디션이 7에서 3으로 바뀌었어요') &&
+      texts.has('컨디션이 7에서 8로 바뀌었어요') &&
+      texts.has("하고 싶은 운동을 '웨이트'로 골랐어요") &&
+      texts.has("하고 싶은 운동을 '회복'으로 골랐어요") &&
+      texts.has("던지는 일정을 '오늘 등판'으로 적었어요") &&
+      texts.has('하체가 뻐근하다고 적었어요') &&
+      texts.has('손목·전완에 통증이 있다고 적었어요')
+  );
+  check(
+    'P2 (글) 같은 입력이면 격자 전체가 두 번 돌려도 글자까지 같다(결정성)',
+    JSON.stringify(variants.map((v) => fingerprintOf(fpFacts(v)))) ===
+      JSON.stringify(prints)
   );
 }
 
