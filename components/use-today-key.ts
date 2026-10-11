@@ -10,11 +10,17 @@ import { toDateKey } from '@/lib/pitch-stats';
  * 같은 때에 날짜를 넘기도록 여기 한 곳에 둔다(한쪽만 넘기면 관문은 새날의 체크인을
  * 묻는데 알림은 '할 일 없음'이라고 하는 식으로 어긋난다).
  */
+/** 시험 계정의 화면 시계가 옮겨졌다는 신호 */
+export const SIM_DAY_EVENT = 'bullpen:sim-day';
+
 export function subscribeDay(onChange: () => void) {
   document.addEventListener('visibilitychange', onChange);
+  /* 시험 계정의 날짜가 바뀌었다(components/sim-clock-sync.tsx) — 곧바로 다시 본다 */
+  window.addEventListener(SIM_DAY_EVENT, onChange);
   const timer = window.setInterval(onChange, 60_000);
   return () => {
     document.removeEventListener('visibilitychange', onChange);
+    window.removeEventListener(SIM_DAY_EVENT, onChange);
     window.clearInterval(timer);
   };
 }

@@ -54,6 +54,7 @@ import { toDateKey } from '@/lib/pitch-stats';
 import { formatWeight, fromWeight, round1, toWeight } from '@/lib/units';
 import { useWeightUnit } from '@/components/use-units';
 import { BodySpotPicker } from '@/components/body-spot-picker';
+import { subscribeDay } from '@/components/use-today-key';
 import {
   partsFromSpots,
   spotLabel,
@@ -433,8 +434,9 @@ function SubmitButton() {
 
 /** 서버에서는 null, 화면에 뜬 뒤에는 사용자 시간대 기준의 오늘 날짜. */
 function useClientTodayKey() {
+  /* 날짜가 넘어가면(밤새 켜 둔 앱 · 시험 계정의 '다음날로') 다시 본다 — use-today-key.ts 와 같은 신호 */
   return useSyncExternalStore(
-    () => () => {},
+    subscribeDay,
     () => toDateKey(new Date()),
     () => null
   );
