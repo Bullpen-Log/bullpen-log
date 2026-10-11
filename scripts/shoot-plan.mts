@@ -20,6 +20,9 @@ const write = process.argv.includes('--write');
  */
 const fromArg = process.argv.find((a) => a.startsWith('--from='));
 const from = fromArg ? Number(fromArg.slice(7)) : 1;
+/* --pace=1.07 — 찍어 본 회의 실제 속도(실제 시간 ÷ 계획 시간)로 다시 셈하고, 3시간에 드는 가장 적은 회 수로 채운다(2026-10-11 김민: 1주차 2시간 → 2주차부터 3시간씩) */
+const paceArg = process.argv.find((a) => a.startsWith('--pace='));
+const pace = paceArg ? Number(paceArg.slice(7)) : undefined;
 const old = JSON.parse(readFileSync(new URL('../lib/shoot/plan-data.json', import.meta.url), 'utf8')) as ShootPlan;
 const kept = old.weeks.filter((w) => !w.outdoor && w.week < from);
 const outdoor = old.weeks.filter((w) => w.outdoor);
@@ -56,10 +59,10 @@ const today = new Date().toISOString().slice(0, 10);
 const fits = (p: ReturnType<typeof buildPlan>) => p.weeks.every((w) => w.end <= SESSION_MINUTES - WRAP_MINUTES);
 let plan = buildPlan(rows, today);
 /* 7회 아래로는 줄이지 않는다 — 2026-10-10 408개는 6회에 들긴 했지만 여유 5분 · 하체 차이 11점이었고 야외 주차 번호가 당겨졌다 */
-const minSessions = from > 1 ? indoorWeeks - kept.length : Math.max(DEFAULT_OPTIONS.sessions, 7);
+const minSessions = pace ? 1 : from > 1 ? indoorWeeks - kept.length : Math.max(DEFAULT_OPTIONS.sessions, 7);
 for (let n = minSessions; n <= 20; n++) {
   /* --from=2(2026-10-10, 360개 · 6회): 1.75 는 하체 차이 9.7점이라 2(3.0점 · 가장 늦은 끝 2:40) — 1.5~3 · 자리 벌점 0.8~1.6 을 견줘 고름 */
-  plan = { ...buildPlan(rows, today, { ...DEFAULT_OPTIONS, sessions: n, loadWeight: from > 1 ? 2 : 1.75 }), version: 3 };
+  plan = { ...buildPlan(rows, today, { ...DEFAULT_OPTIONS, sessions: n, loadWeight: from > 1 ? 2 : 1.75, pace }), version: 3 };
   if (fits(plan)) break;
 }
 if (from > 1) {

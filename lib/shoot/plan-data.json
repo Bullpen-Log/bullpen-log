@@ -1,10 +1,11 @@
 {
  "version": 3,
- "createdOn": "2026-10-10",
+ "createdOn": "2026-10-11",
  "options": {
   "sessions": 6,
   "stationPenalty": 1.2,
-  "loadWeight": 2
+  "loadWeight": 2,
+  "pace": 1.07
  },
  "weeks": [
   {
@@ -755,13 +756,13 @@
   },
   {
    "week": 2,
-   "end": 145.1,
+   "end": 151.3,
    "stations": [
     {
      "station": "매트",
      "warmup": true,
      "start": 15,
-     "end": 31.8,
+     "end": 32.8,
      "items": [
       {
        "exerciseId": "c6b20eba-5caa-46b8-b134-3e7ce568ad5d",
@@ -773,7 +774,7 @@
         "맨몸"
        ],
        "at": 15,
-       "minutes": 2,
+       "minutes": 2.1,
        "load": 0.5,
        "cue": "2~3회 · 끝 자세 2초 · 한쪽",
        "perSide": true,
@@ -788,8 +789,8 @@
        "equipment": [
         "맨몸"
        ],
-       "at": 17,
-       "minutes": 1.6,
+       "at": 17.1,
+       "minutes": 1.7,
        "load": 0.2,
        "cue": "2~3회 · 끝 자세 2초",
        "perSide": false,
@@ -804,8 +805,8 @@
        "equipment": [
         "맨몸"
        ],
-       "at": 18.6,
-       "minutes": 1.6,
+       "at": 18.8,
+       "minutes": 1.7,
        "load": 0.5,
        "cue": "2~3회 · 끝 자세 2초",
        "perSide": false,
@@ -820,8 +821,8 @@
        "equipment": [
         "맨몸"
        ],
-       "at": 20.2,
-       "minutes": 1.6,
+       "at": 20.5,
+       "minutes": 1.7,
        "load": 0.2,
        "cue": "2~3회 · 끝 자세 2초 · 한쪽",
        "perSide": true,
@@ -836,8 +837,8 @@
        "equipment": [
         "맨몸"
        ],
-       "at": 21.8,
-       "minutes": 1.6,
+       "at": 22.2,
+       "minutes": 1.7,
        "load": 0.5,
        "cue": "2~3회 · 끝 자세 2초 · 한쪽",
        "perSide": true,
@@ -852,8 +853,8 @@
        "equipment": [
         "맨몸"
        ],
-       "at": 23.4,
-       "minutes": 1.6,
+       "at": 23.9,
+       "minutes": 1.7,
        "load": 0.2,
        "cue": "2~3회 · 끝 자세 2초 · 한쪽",
        "perSide": true,
@@ -868,8 +869,8 @@
        "equipment": [
         "맨몸"
        ],
-       "at": 25,
-       "minutes": 1.6,
+       "at": 25.6,
+       "minutes": 1.7,
        "load": 0.2,
        "cue": "2~3회 · 끝 자세 2초",
        "perSide": false,
@@ -884,8 +885,8 @@
        "equipment": [
         "맨몸"
        ],
-       "at": 26.6,
-       "minutes": 1.6,
+       "at": 27.3,
+       "minutes": 1.7,
        "load": 0.5,
        "cue": "2~3회 · 끝 자세 2초 · 한쪽",
        "perSide": true,
@@ -900,8 +901,8 @@
        "equipment": [
         "맨몸"
        ],
-       "at": 28.2,
-       "minutes": 2,
+       "at": 29,
+       "minutes": 2.1,
        "load": 0.5,
        "cue": "2~3회 · 끝 자세 2초 · 한쪽",
        "perSide": true,
@@ -916,8 +917,8 @@
        "equipment": [
         "맨몸"
        ],
-       "at": 30.2,
-       "minutes": 1.6,
+       "at": 31.1,
+       "minutes": 1.7,
        "load": 0.5,
        "cue": "2~3회 · 끝 자세 2초",
        "perSide": false,
@@ -927,8 +928,8 @@
     },
     {
      "station": "넓은 바닥(이동)",
-     "start": 34.8,
-     "end": 43.5,
+     "start": 35.8,
+     "end": 45,
      "items": [
       {
        "exerciseId": "71922c97-658b-4182-9b5c-b85d87b87008",
@@ -939,8 +940,8 @@
        "equipment": [
         "맨몸"
        ],
-       "at": 34.8,
-       "minutes": 1.9,
+       "at": 35.8,
+       "minutes": 2,
        "load": 2,
        "cue": "2~3회",
        "perSide": false,
@@ -956,8 +957,8 @@
        "equipment": [
         "맨몸"
        ],
-       "at": 36.7,
-       "minutes": 1.9,
+       "at": 37.8,
+       "minutes": 2,
        "load": 1,
        "cue": "2~3회 · 한쪽",
        "perSide": true,
@@ -973,8 +974,8 @@
        "equipment": [
         "맨몸"
        ],
-       "at": 38.6,
-       "minutes": 2.3,
+       "at": 39.8,
+       "minutes": 2.5,
        "load": 2,
        "cue": "2~3회",
        "perSide": false,
@@ -990,8 +991,8 @@
        "equipment": [
         "워터볼"
        ],
-       "at": 41.9,
-       "minutes": 1.6,
+       "at": 43.3,
+       "minutes": 1.7,
        "load": 2,
        "cue": "3회 · 한쪽",
        "perSide": true,
@@ -1001,8 +1002,8 @@
     },
     {
      "station": "박스",
-     "start": 46.5,
-     "end": 50.3,
+     "start": 48,
+     "end": 52,
      "items": [
       {
        "exerciseId": "c7fca9a6-2995-4f17-9a0a-695c474bcba6",
@@ -1013,8 +1014,8 @@
        "equipment": [
         "박스"
        ],
-       "at": 46.5,
-       "minutes": 1.9,
+       "at": 48,
+       "minutes": 2,
        "load": 2,
        "cue": "2~3회 · 한쪽",
        "perSide": true,
@@ -1030,8 +1031,8 @@
        "equipment": [
         "박스"
        ],
-       "at": 48.4,
-       "minutes": 1.9,
+       "at": 50,
+       "minutes": 2,
        "load": 2,
        "cue": "2~3회",
        "perSide": false,
@@ -1042,8 +1043,8 @@
     },
     {
      "station": "덤벨 · 케틀벨",
-     "start": 53.3,
-     "end": 108,
+     "start": 55,
+     "end": 112.7,
      "items": [
       {
        "exerciseId": "3d7e1569-7ff4-4869-8da4-cf61a1566ed4",
@@ -1054,8 +1055,8 @@
        "equipment": [
         "덤벨"
        ],
-       "at": 53.3,
-       "minutes": 1.6,
+       "at": 55,
+       "minutes": 1.7,
        "load": 1,
        "cue": "3회 · 한쪽",
        "perSide": true,
@@ -1071,8 +1072,8 @@
        "equipment": [
         "덤벨"
        ],
-       "at": 54.9,
-       "minutes": 1.6,
+       "at": 56.7,
+       "minutes": 1.7,
        "load": 1,
        "cue": "3회 · 한쪽",
        "perSide": true,
@@ -1087,8 +1088,8 @@
        "equipment": [
         "덤벨"
        ],
-       "at": 56.5,
-       "minutes": 1.6,
+       "at": 58.4,
+       "minutes": 1.7,
        "load": 2,
        "cue": "3회 · 한쪽",
        "perSide": true,
@@ -1103,8 +1104,8 @@
        "equipment": [
         "덤벨"
        ],
-       "at": 58.1,
-       "minutes": 1.6,
+       "at": 60.1,
+       "minutes": 1.7,
        "load": 1,
        "cue": "3회",
        "perSide": false,
@@ -1120,8 +1121,8 @@
        "equipment": [
         "덤벨"
        ],
-       "at": 59.7,
-       "minutes": 1.6,
+       "at": 61.8,
+       "minutes": 1.7,
        "load": 2,
        "cue": "3회",
        "perSide": false,
@@ -1136,12 +1137,12 @@
        "equipment": [
         "덤벨"
        ],
-       "at": 61.3,
-       "minutes": 1.6,
+       "at": 63.5,
+       "minutes": 1.7,
        "load": 1,
        "cue": "3회",
        "perSide": false,
-       "breakAfter": false,
+       "breakAfter": true,
        "oldVideo": "library/9747581b-cd5a-4b45-b376-b6961388de90.mov"
       },
       {
@@ -1153,8 +1154,8 @@
        "equipment": [
         "덤벨"
        ],
-       "at": 62.9,
-       "minutes": 1.6,
+       "at": 70.2,
+       "minutes": 1.7,
        "load": 1,
        "cue": "3회",
        "perSide": false,
@@ -1170,12 +1171,12 @@
        "equipment": [
         "덤벨"
        ],
-       "at": 64.5,
-       "minutes": 1.6,
+       "at": 71.9,
+       "minutes": 1.7,
        "load": 1,
        "cue": "3회 · 한쪽",
        "perSide": true,
-       "breakAfter": true
+       "breakAfter": false
       },
       {
        "exerciseId": "cdae1cd2-448b-4b00-8bd6-e0ff2f64d46c",
@@ -1186,8 +1187,8 @@
        "equipment": [
         "덤벨"
        ],
-       "at": 71.1,
-       "minutes": 1.6,
+       "at": 73.6,
+       "minutes": 1.7,
        "load": 1,
        "cue": "3회 · 한쪽",
        "perSide": true,
@@ -1202,8 +1203,8 @@
        "equipment": [
         "덤벨"
        ],
-       "at": 72.7,
-       "minutes": 1.6,
+       "at": 75.3,
+       "minutes": 1.7,
        "load": 1,
        "cue": "3회 · 한쪽",
        "perSide": true,
@@ -1219,8 +1220,8 @@
        "equipment": [
         "덤벨"
        ],
-       "at": 74.3,
-       "minutes": 1.6,
+       "at": 77,
+       "minutes": 1.7,
        "load": 0.5,
        "cue": "3회 · 한쪽",
        "perSide": true,
@@ -1235,8 +1236,8 @@
        "equipment": [
         "덤벨"
        ],
-       "at": 75.9,
-       "minutes": 2,
+       "at": 78.7,
+       "minutes": 2.1,
        "load": 3,
        "cue": "1~2회 천천히 내리기 · 한쪽",
        "perSide": true,
@@ -1251,8 +1252,8 @@
        "equipment": [
         "덤벨"
        ],
-       "at": 77.9,
-       "minutes": 2,
+       "at": 80.8,
+       "minutes": 2.1,
        "load": 1,
        "cue": "3회",
        "perSide": false,
@@ -1267,8 +1268,8 @@
        "equipment": [
         "덤벨"
        ],
-       "at": 79.9,
-       "minutes": 1.6,
+       "at": 82.9,
+       "minutes": 1.7,
        "load": 0.5,
        "cue": "3회",
        "perSide": false,
@@ -1283,8 +1284,8 @@
        "equipment": [
         "덤벨"
        ],
-       "at": 81.5,
-       "minutes": 1.6,
+       "at": 84.6,
+       "minutes": 1.7,
        "load": 0.5,
        "cue": "3회 · 한쪽",
        "perSide": true,
@@ -1300,8 +1301,8 @@
        "equipment": [
         "덤벨"
        ],
-       "at": 83.1,
-       "minutes": 2,
+       "at": 86.3,
+       "minutes": 2.1,
        "load": 3,
        "cue": "1~2회 천천히 내리기 · 한쪽",
        "perSide": true,
@@ -1316,8 +1317,8 @@
        "equipment": [
         "덤벨"
        ],
-       "at": 85.1,
-       "minutes": 1.6,
+       "at": 88.4,
+       "minutes": 1.7,
        "load": 1,
        "cue": "3회",
        "perSide": false,
@@ -1333,8 +1334,8 @@
        "equipment": [
         "덤벨"
        ],
-       "at": 86.7,
-       "minutes": 1.6,
+       "at": 90.1,
+       "minutes": 1.7,
        "load": 1,
        "cue": "3회 · 한쪽",
        "perSide": true,
@@ -1350,8 +1351,8 @@
        "equipment": [
         "덤벨"
        ],
-       "at": 88.3,
-       "minutes": 2,
+       "at": 91.8,
+       "minutes": 2.1,
        "load": 3,
        "cue": "1~2회 천천히 내리기 · 한쪽",
        "perSide": true,
@@ -1366,8 +1367,8 @@
        "equipment": [
         "덤벨"
        ],
-       "at": 90.3,
-       "minutes": 1.6,
+       "at": 93.9,
+       "minutes": 1.7,
        "load": 0.5,
        "cue": "3회 · 한쪽",
        "perSide": true,
@@ -1383,8 +1384,8 @@
        "equipment": [
         "덤벨"
        ],
-       "at": 91.9,
-       "minutes": 1.6,
+       "at": 95.6,
+       "minutes": 1.7,
        "load": 0.5,
        "cue": "3회 · 한쪽",
        "perSide": true,
@@ -1400,8 +1401,8 @@
        "equipment": [
         "덤벨"
        ],
-       "at": 93.5,
-       "minutes": 2.3,
+       "at": 97.3,
+       "minutes": 2.5,
        "load": 1.5,
        "cue": "2~3회 · 한쪽",
        "perSide": true,
@@ -1416,8 +1417,8 @@
        "equipment": [
         "덤벨"
        ],
-       "at": 95.8,
-       "minutes": 1.6,
+       "at": 99.8,
+       "minutes": 1.7,
        "load": 0.5,
        "cue": "3회",
        "perSide": false,
@@ -1432,8 +1433,8 @@
        "equipment": [
         "덤벨"
        ],
-       "at": 97.4,
-       "minutes": 1.6,
+       "at": 101.5,
+       "minutes": 1.7,
        "load": 0.5,
        "cue": "3회 · 한쪽",
        "perSide": true,
@@ -1448,8 +1449,8 @@
        "equipment": [
         "덤벨"
        ],
-       "at": 99,
-       "minutes": 1.6,
+       "at": 103.2,
+       "minutes": 1.7,
        "load": 0.5,
        "cue": "3회",
        "perSide": false,
@@ -1464,8 +1465,8 @@
        "equipment": [
         "덤벨"
        ],
-       "at": 100.6,
-       "minutes": 1.6,
+       "at": 104.9,
+       "minutes": 1.7,
        "load": 1,
        "cue": "3회",
        "perSide": false,
@@ -1480,8 +1481,8 @@
        "equipment": [
         "덤벨"
        ],
-       "at": 102.2,
-       "minutes": 1.6,
+       "at": 106.6,
+       "minutes": 1.7,
        "load": 2,
        "cue": "3회",
        "perSide": false,
@@ -1496,8 +1497,8 @@
        "equipment": [
         "케틀벨"
        ],
-       "at": 104.8,
-       "minutes": 1.6,
+       "at": 109.3,
+       "minutes": 1.7,
        "load": 1,
        "cue": "3회",
        "perSide": false,
@@ -1513,8 +1514,8 @@
        "equipment": [
         "케틀벨"
        ],
-       "at": 106.4,
-       "minutes": 1.6,
+       "at": 111,
+       "minutes": 1.7,
        "load": 1,
        "cue": "3회 · 한쪽",
        "perSide": true,
@@ -1525,8 +1526,8 @@
     },
     {
      "station": "케이블",
-     "start": 111,
-     "end": 132.8,
+     "start": 115.7,
+     "end": 138.5,
      "items": [
       {
        "exerciseId": "3f47b9af-bb84-4135-ab61-12e92845da8e",
@@ -1537,8 +1538,8 @@
        "equipment": [
         "케이블"
        ],
-       "at": 111,
-       "minutes": 2,
+       "at": 115.7,
+       "minutes": 2.1,
        "load": 1,
        "cue": "3회 · 한쪽",
        "perSide": true,
@@ -1553,8 +1554,8 @@
        "equipment": [
         "케이블"
        ],
-       "at": 113,
-       "minutes": 2,
+       "at": 117.8,
+       "minutes": 2.1,
        "load": 1,
        "cue": "3회 · 한쪽",
        "perSide": true,
@@ -1569,12 +1570,12 @@
        "equipment": [
         "케이블"
        ],
-       "at": 115,
-       "minutes": 1.6,
+       "at": 119.9,
+       "minutes": 1.7,
        "load": 0.5,
        "cue": "3회 · 한쪽",
        "perSide": true,
-       "breakAfter": false
+       "breakAfter": true
       },
       {
        "exerciseId": "f1cf62e6-7815-44aa-a708-da1f2d8aa2c5",
@@ -1585,8 +1586,8 @@
        "equipment": [
         "케이블"
        ],
-       "at": 116.6,
-       "minutes": 1.6,
+       "at": 126.6,
+       "minutes": 1.7,
        "load": 1,
        "cue": "10초 버티기",
        "perSide": false,
@@ -1602,8 +1603,8 @@
        "equipment": [
         "케이블"
        ],
-       "at": 118.2,
-       "minutes": 1.6,
+       "at": 128.3,
+       "minutes": 1.7,
        "load": 1,
        "cue": "3회",
        "perSide": false,
@@ -1619,12 +1620,12 @@
        "equipment": [
         "케이블"
        ],
-       "at": 119.8,
-       "minutes": 1.6,
+       "at": 130,
+       "minutes": 1.7,
        "load": 1,
        "cue": "3회 · 한쪽",
        "perSide": true,
-       "breakAfter": true,
+       "breakAfter": false,
        "oldVideo": "library/4355fba1-34f4-4330-8a5a-943718851258.mov"
       },
       {
@@ -1636,8 +1637,8 @@
        "equipment": [
         "케이블"
        ],
-       "at": 126.4,
-       "minutes": 1.6,
+       "at": 131.7,
+       "minutes": 1.7,
        "load": 0.5,
        "cue": "3회 · 한쪽",
        "perSide": true,
@@ -1653,8 +1654,8 @@
        "equipment": [
         "케이블"
        ],
-       "at": 128,
-       "minutes": 1.6,
+       "at": 133.4,
+       "minutes": 1.7,
        "load": 0.5,
        "cue": "3회 · 한쪽",
        "perSide": true,
@@ -1670,8 +1671,8 @@
        "equipment": [
         "케이블"
        ],
-       "at": 129.6,
-       "minutes": 1.6,
+       "at": 135.1,
+       "minutes": 1.7,
        "load": 1,
        "cue": "3회 · 한쪽",
        "perSide": true,
@@ -1687,8 +1688,8 @@
        "equipment": [
         "케이블"
        ],
-       "at": 131.2,
-       "minutes": 1.6,
+       "at": 136.8,
+       "minutes": 1.7,
        "load": 0.5,
        "cue": "3회 · 한쪽",
        "perSide": true,
@@ -1698,8 +1699,8 @@
     },
     {
      "station": "철봉 · TRX",
-     "start": 135.8,
-     "end": 145.1,
+     "start": 141.5,
+     "end": 151.3,
      "items": [
       {
        "exerciseId": "dc822a45-81a6-4ae0-9edf-fc23f9869a9d",
@@ -1711,8 +1712,8 @@
         "밴드",
         "철봉"
        ],
-       "at": 135.8,
-       "minutes": 1.9,
+       "at": 141.5,
+       "minutes": 2,
        "load": 3,
        "cue": "2~3회 · 한쪽",
        "perSide": true,
@@ -1728,8 +1729,8 @@
        "equipment": [
         "철봉"
        ],
-       "at": 137.7,
-       "minutes": 1.6,
+       "at": 143.5,
+       "minutes": 1.7,
        "load": 3,
        "cue": "3회",
        "perSide": false,
@@ -1744,8 +1745,8 @@
        "equipment": [
         "철봉"
        ],
-       "at": 139.3,
-       "minutes": 1.6,
+       "at": 145.2,
+       "minutes": 1.7,
        "load": 0.2,
        "cue": "10초 버티기",
        "perSide": false,
@@ -1761,8 +1762,8 @@
        "equipment": [
         "철봉"
        ],
-       "at": 140.9,
-       "minutes": 1.6,
+       "at": 146.9,
+       "minutes": 1.7,
        "load": 2,
        "cue": "3회",
        "perSide": false,
@@ -1778,8 +1779,8 @@
        "equipment": [
         "TRX"
        ],
-       "at": 143.5,
-       "minutes": 1.6,
+       "at": 149.6,
+       "minutes": 1.7,
        "load": 1,
        "cue": "3회",
        "perSide": false,
@@ -1804,13 +1805,13 @@
   },
   {
    "week": 3,
-   "end": 135.1,
+   "end": 140.6,
    "stations": [
     {
      "station": "매트",
      "warmup": true,
      "start": 15,
-     "end": 29.8,
+     "end": 30.7,
      "items": [
       {
        "exerciseId": "0dba32fc-2935-4b6a-9c2e-3cc426c09256",
@@ -1822,7 +1823,7 @@
         "맨몸"
        ],
        "at": 15,
-       "minutes": 1.6,
+       "minutes": 1.7,
        "load": 0.2,
        "cue": "2~3회 · 끝 자세 2초 · 한쪽",
        "perSide": true,
@@ -1837,8 +1838,8 @@
        "equipment": [
         "맨몸"
        ],
-       "at": 16.6,
-       "minutes": 2,
+       "at": 16.7,
+       "minutes": 2.1,
        "load": 0.2,
        "cue": "2~3회 · 끝 자세 2초",
        "perSide": false,
@@ -1853,8 +1854,8 @@
        "equipment": [
         "맨몸"
        ],
-       "at": 18.6,
-       "minutes": 1.6,
+       "at": 18.8,
+       "minutes": 1.7,
        "load": 0.2,
        "cue": "2~3회 · 끝 자세 2초 · 한쪽",
        "perSide": true,
@@ -1869,8 +1870,8 @@
        "equipment": [
         "맨몸"
        ],
-       "at": 20.2,
-       "minutes": 1.6,
+       "at": 20.5,
+       "minutes": 1.7,
        "load": 0.2,
        "cue": "10초 버티기 · 한쪽",
        "perSide": true,
@@ -1885,8 +1886,8 @@
        "equipment": [
         "맨몸"
        ],
-       "at": 21.8,
-       "minutes": 1.6,
+       "at": 22.2,
+       "minutes": 1.7,
        "load": 0.2,
        "cue": "10초 버티기",
        "perSide": false,
@@ -1901,8 +1902,8 @@
        "equipment": [
         "맨몸"
        ],
-       "at": 23.4,
-       "minutes": 1.6,
+       "at": 23.9,
+       "minutes": 1.7,
        "load": 0.2,
        "cue": "10초 버티기 · 한쪽",
        "perSide": true,
@@ -1917,8 +1918,8 @@
        "equipment": [
         "맨몸"
        ],
-       "at": 25,
-       "minutes": 1.6,
+       "at": 25.6,
+       "minutes": 1.7,
        "load": 0.2,
        "cue": "10초 버티기 · 한쪽",
        "perSide": true,
@@ -1933,8 +1934,8 @@
        "equipment": [
         "맨몸"
        ],
-       "at": 26.6,
-       "minutes": 1.6,
+       "at": 27.3,
+       "minutes": 1.7,
        "load": 0.5,
        "cue": "2~3회 · 끝 자세 2초 · 한쪽",
        "perSide": true,
@@ -1949,8 +1950,8 @@
        "equipment": [
         "맨몸"
        ],
-       "at": 28.2,
-       "minutes": 1.6,
+       "at": 29,
+       "minutes": 1.7,
        "load": 0.2,
        "cue": "10초 버티기 · 한쪽",
        "perSide": true,
@@ -1960,8 +1961,8 @@
     },
     {
      "station": "넓은 바닥(이동)",
-     "start": 32.8,
-     "end": 49.4,
+     "start": 33.7,
+     "end": 51.2,
      "items": [
       {
        "exerciseId": "986c5b6a-02ef-4c1b-bda2-cf2336930db3",
@@ -1972,8 +1973,8 @@
        "equipment": [
         "맨몸"
        ],
-       "at": 32.8,
-       "minutes": 1.6,
+       "at": 33.7,
+       "minutes": 1.7,
        "load": 1,
        "cue": "10초 버티기 · 한쪽",
        "perSide": true,
@@ -1988,8 +1989,8 @@
        "equipment": [
         "맨몸"
        ],
-       "at": 34.4,
-       "minutes": 1.6,
+       "at": 35.4,
+       "minutes": 1.7,
        "load": 1,
        "cue": "3회",
        "perSide": false,
@@ -2005,8 +2006,8 @@
        "equipment": [
         "맨몸"
        ],
-       "at": 36,
-       "minutes": 1.6,
+       "at": 37.1,
+       "minutes": 1.7,
        "load": 1,
        "cue": "3회",
        "perSide": false,
@@ -2022,8 +2023,8 @@
        "equipment": [
         "맨몸"
        ],
-       "at": 37.6,
-       "minutes": 1.6,
+       "at": 38.8,
+       "minutes": 1.7,
        "load": 1,
        "cue": "10초 버티기 · 한쪽",
        "perSide": true,
@@ -2038,8 +2039,8 @@
        "equipment": [
         "맨몸"
        ],
-       "at": 39.2,
-       "minutes": 1.6,
+       "at": 40.5,
+       "minutes": 1.7,
        "load": 1,
        "cue": "3회 · 한쪽",
        "perSide": true,
@@ -2055,8 +2056,8 @@
        "equipment": [
         "맨몸"
        ],
-       "at": 40.8,
-       "minutes": 1.9,
+       "at": 42.2,
+       "minutes": 2,
        "load": 2,
        "cue": "2~3회",
        "perSide": false,
@@ -2071,8 +2072,8 @@
        "equipment": [
         "맨몸"
        ],
-       "at": 42.7,
-       "minutes": 1.9,
+       "at": 44.2,
+       "minutes": 2,
        "load": 2,
        "cue": "2~3회",
        "perSide": false,
@@ -2087,8 +2088,8 @@
        "equipment": [
         "덤벨"
        ],
-       "at": 45.6,
-       "minutes": 1.9,
+       "at": 47.2,
+       "minutes": 2,
        "load": 1,
        "cue": "2~3회",
        "perSide": false,
@@ -2103,8 +2104,8 @@
        "equipment": [
         "덤벨"
        ],
-       "at": 47.5,
-       "minutes": 1.9,
+       "at": 49.2,
+       "minutes": 2,
        "load": 1,
        "cue": "2~3회",
        "perSide": false,
@@ -2114,8 +2115,8 @@
     },
     {
      "station": "벤치",
-     "start": 52.4,
-     "end": 80.2,
+     "start": 54.2,
+     "end": 83.3,
      "items": [
       {
        "exerciseId": "9cad367e-53c7-48e9-9612-5d2e0c078686",
@@ -2126,8 +2127,8 @@
        "equipment": [
         "벤치"
        ],
-       "at": 52.4,
-       "minutes": 1.6,
+       "at": 54.2,
+       "minutes": 1.7,
        "load": 1,
        "cue": "10초 버티기 · 한쪽",
        "perSide": true,
@@ -2142,8 +2143,8 @@
        "equipment": [
         "벤치"
        ],
-       "at": 54,
-       "minutes": 2,
+       "at": 55.9,
+       "minutes": 2.1,
        "load": 1,
        "cue": "3회 · 한쪽",
        "perSide": true,
@@ -2158,8 +2159,8 @@
        "equipment": [
         "벤치"
        ],
-       "at": 56,
-       "minutes": 2,
+       "at": 58,
+       "minutes": 2.1,
        "load": 1.5,
        "cue": "1~2회 천천히 내리기 · 한쪽",
        "perSide": true,
@@ -2175,8 +2176,8 @@
         "덤벨",
         "벤치"
        ],
-       "at": 58,
-       "minutes": 1.6,
+       "at": 60.1,
+       "minutes": 1.7,
        "load": 1,
        "cue": "3회",
        "perSide": false,
@@ -2193,8 +2194,8 @@
         "덤벨",
         "벤치"
        ],
-       "at": 59.6,
-       "minutes": 1.6,
+       "at": 61.8,
+       "minutes": 1.7,
        "load": 1,
        "cue": "10초 버티기",
        "perSide": false,
@@ -2211,12 +2212,12 @@
         "덤벨",
         "벤치"
        ],
-       "at": 61.2,
-       "minutes": 1.6,
+       "at": 63.5,
+       "minutes": 1.7,
        "load": 2,
        "cue": "3회",
        "perSide": false,
-       "breakAfter": false,
+       "breakAfter": true,
        "oldVideo": "library/afc5f312-931b-4173-8307-6b2decabf4e2.mov"
       },
       {
@@ -2229,8 +2230,8 @@
         "덤벨",
         "벤치"
        ],
-       "at": 62.8,
-       "minutes": 1.6,
+       "at": 70.2,
+       "minutes": 1.7,
        "load": 1,
        "cue": "3회",
        "perSide": false,
@@ -2246,12 +2247,12 @@
         "덤벨",
         "벤치"
        ],
-       "at": 64.4,
-       "minutes": 1.6,
+       "at": 71.9,
+       "minutes": 1.7,
        "load": 0.5,
        "cue": "3회 · 한쪽",
        "perSide": true,
-       "breakAfter": true
+       "breakAfter": false
       },
       {
        "exerciseId": "51cef6b8-8712-4127-bfb5-0a2876f3a32c",
@@ -2263,8 +2264,8 @@
         "덤벨",
         "벤치"
        ],
-       "at": 71,
-       "minutes": 2,
+       "at": 73.6,
+       "minutes": 2.1,
        "load": 3,
        "cue": "1~2회 천천히 내리기 · 한쪽",
        "perSide": true,
@@ -2281,8 +2282,8 @@
         "덤벨",
         "벤치"
        ],
-       "at": 73,
-       "minutes": 2,
+       "at": 75.7,
+       "minutes": 2.1,
        "load": 0.5,
        "cue": "3회 · 한쪽",
        "perSide": true,
@@ -2298,8 +2299,8 @@
         "덤벨",
         "벤치"
        ],
-       "at": 75,
-       "minutes": 1.6,
+       "at": 77.8,
+       "minutes": 1.7,
        "load": 0.5,
        "cue": "3회",
        "perSide": false,
@@ -2314,8 +2315,8 @@
        "equipment": [
         "벤치"
        ],
-       "at": 76.6,
-       "minutes": 1.6,
+       "at": 79.5,
+       "minutes": 1.7,
        "load": 2,
        "cue": "3회 · 한쪽",
        "perSide": true,
@@ -2331,8 +2332,8 @@
         "덤벨",
         "벤치"
        ],
-       "at": 78.2,
-       "minutes": 2,
+       "at": 81.2,
+       "minutes": 2.1,
        "load": 3,
        "cue": "1~2회 천천히 내리기 · 한쪽",
        "perSide": true,
@@ -2342,8 +2343,8 @@
     },
     {
      "station": "덤벨 · 케틀벨",
-     "start": 83.2,
-     "end": 107.7,
+     "start": 86.3,
+     "end": 112.2,
      "items": [
       {
        "exerciseId": "91d762a0-bfd1-4013-85d1-f605065c2aa2",
@@ -2354,8 +2355,8 @@
        "equipment": [
         "덤벨"
        ],
-       "at": 83.2,
-       "minutes": 1.6,
+       "at": 86.3,
+       "minutes": 1.7,
        "load": 1,
        "cue": "3회",
        "perSide": false,
@@ -2371,8 +2372,8 @@
        "equipment": [
         "덤벨"
        ],
-       "at": 84.8,
-       "minutes": 1.6,
+       "at": 88,
+       "minutes": 1.7,
        "load": 1,
        "cue": "3회",
        "perSide": false,
@@ -2387,8 +2388,8 @@
        "equipment": [
         "덤벨"
        ],
-       "at": 86.4,
-       "minutes": 1.6,
+       "at": 89.7,
+       "minutes": 1.7,
        "load": 1,
        "cue": "3회",
        "perSide": false,
@@ -2404,8 +2405,8 @@
        "equipment": [
         "덤벨"
        ],
-       "at": 88,
-       "minutes": 1.6,
+       "at": 91.4,
+       "minutes": 1.7,
        "load": 1,
        "cue": "3회 · 한쪽",
        "perSide": true,
@@ -2421,8 +2422,8 @@
        "equipment": [
         "덤벨"
        ],
-       "at": 89.6,
-       "minutes": 1.6,
+       "at": 93.1,
+       "minutes": 1.7,
        "load": 1,
        "cue": "3회",
        "perSide": false,
@@ -2437,8 +2438,8 @@
        "equipment": [
         "덤벨"
        ],
-       "at": 91.2,
-       "minutes": 2,
+       "at": 94.8,
+       "minutes": 2.1,
        "load": 3,
        "cue": "1~2회 천천히 내리기 · 한쪽",
        "perSide": true,
@@ -2453,8 +2454,8 @@
        "equipment": [
         "덤벨"
        ],
-       "at": 93.2,
-       "minutes": 1.6,
+       "at": 96.9,
+       "minutes": 1.7,
        "load": 0.2,
        "cue": "10초 버티기 · 한쪽",
        "perSide": true,
@@ -2470,8 +2471,8 @@
        "equipment": [
         "덤벨"
        ],
-       "at": 94.8,
-       "minutes": 2,
+       "at": 98.6,
+       "minutes": 2.1,
        "load": 3,
        "cue": "1~2회 천천히 내리기",
        "perSide": false,
@@ -2486,8 +2487,8 @@
        "equipment": [
         "덤벨"
        ],
-       "at": 96.8,
-       "minutes": 1.6,
+       "at": 100.7,
+       "minutes": 1.7,
        "load": 0.5,
        "cue": "3회 · 한쪽",
        "perSide": true,
@@ -2502,8 +2503,8 @@
        "equipment": [
         "덤벨"
        ],
-       "at": 98.4,
-       "minutes": 1.6,
+       "at": 102.4,
+       "minutes": 1.7,
        "load": 0.5,
        "cue": "10초 버티기 · 한쪽",
        "perSide": true,
@@ -2519,8 +2520,8 @@
        "equipment": [
         "덤벨"
        ],
-       "at": 100,
-       "minutes": 1.6,
+       "at": 104.1,
+       "minutes": 1.7,
        "load": 0.5,
        "cue": "3회 · 한쪽",
        "perSide": true,
@@ -2535,8 +2536,8 @@
        "equipment": [
         "덤벨"
        ],
-       "at": 101.6,
-       "minutes": 1.6,
+       "at": 105.8,
+       "minutes": 1.7,
        "load": 0.5,
        "cue": "3회 · 한쪽",
        "perSide": true,
@@ -2552,8 +2553,8 @@
        "equipment": [
         "케틀벨"
        ],
-       "at": 104.2,
-       "minutes": 1.6,
+       "at": 108.5,
+       "minutes": 1.7,
        "load": 2,
        "cue": "3회 · 한쪽",
        "perSide": true,
@@ -2568,8 +2569,8 @@
        "equipment": [
         "케틀벨"
        ],
-       "at": 105.8,
-       "minutes": 1.9,
+       "at": 110.2,
+       "minutes": 2,
        "load": 1,
        "cue": "2~3회 · 한쪽",
        "perSide": true,
@@ -2579,8 +2580,8 @@
     },
     {
      "station": "케이블",
-     "start": 110.7,
-     "end": 118.7,
+     "start": 115.2,
+     "end": 128.7,
      "items": [
       {
        "exerciseId": "cd0cf6df-e3b5-4b6c-876e-5b56fabe21b0",
@@ -2591,8 +2592,8 @@
        "equipment": [
         "케이블"
        ],
-       "at": 110.7,
-       "minutes": 1.6,
+       "at": 115.2,
+       "minutes": 1.7,
        "load": 1,
        "cue": "3회",
        "perSide": false,
@@ -2608,8 +2609,8 @@
        "equipment": [
         "케이블"
        ],
-       "at": 112.3,
-       "minutes": 1.6,
+       "at": 116.9,
+       "minutes": 1.7,
        "load": 1,
        "cue": "3회 · 한쪽",
        "perSide": true,
@@ -2625,12 +2626,12 @@
        "equipment": [
         "케이블"
        ],
-       "at": 113.9,
-       "minutes": 1.6,
+       "at": 118.6,
+       "minutes": 1.7,
        "load": 1,
        "cue": "3회 · 한쪽",
        "perSide": true,
-       "breakAfter": false,
+       "breakAfter": true,
        "oldVideo": "library/7a40219d-ee13-44c8-abf9-430b57c71ed8.mov"
       },
       {
@@ -2642,8 +2643,8 @@
        "equipment": [
         "케이블"
        ],
-       "at": 115.5,
-       "minutes": 1.6,
+       "at": 125.3,
+       "minutes": 1.7,
        "load": 1,
        "cue": "3회 · 한쪽",
        "perSide": true,
@@ -2659,8 +2660,8 @@
        "equipment": [
         "케이블"
        ],
-       "at": 117.1,
-       "minutes": 1.6,
+       "at": 127,
+       "minutes": 1.7,
        "load": 1,
        "cue": "3회 · 한쪽",
        "perSide": true,
@@ -2671,8 +2672,8 @@
     },
     {
      "station": "매트",
-     "start": 121.7,
-     "end": 135.1,
+     "start": 131.7,
+     "end": 140.6,
      "items": [
       {
        "exerciseId": "0d858e85-d8aa-4fb3-9172-647ab281795c",
@@ -2683,12 +2684,12 @@
        "equipment": [
         "맨몸"
        ],
-       "at": 121.7,
-       "minutes": 1.6,
+       "at": 131.7,
+       "minutes": 1.7,
        "load": 0.5,
        "cue": "3회 · 한쪽",
        "perSide": true,
-       "breakAfter": true
+       "breakAfter": false
       },
       {
        "exerciseId": "a3dac15f-bcdf-4d9c-855b-978698783d17",
@@ -2699,8 +2700,8 @@
        "equipment": [
         "맨몸"
        ],
-       "at": 128.3,
-       "minutes": 2,
+       "at": 133.4,
+       "minutes": 2.1,
        "load": 4.5,
        "cue": "1~2회 천천히 내리기",
        "perSide": false,
@@ -2715,8 +2716,8 @@
        "equipment": [
         "맨몸"
        ],
-       "at": 130.3,
-       "minutes": 1.6,
+       "at": 135.5,
+       "minutes": 1.7,
        "load": 1,
        "cue": "3회",
        "perSide": false,
@@ -2731,8 +2732,8 @@
        "equipment": [
         "맨몸"
        ],
-       "at": 131.9,
-       "minutes": 1.6,
+       "at": 137.2,
+       "minutes": 1.7,
        "load": 1,
        "cue": "3회",
        "perSide": false,
@@ -2747,8 +2748,8 @@
        "equipment": [
         "맨몸"
        ],
-       "at": 133.5,
-       "minutes": 1.6,
+       "at": 138.9,
+       "minutes": 1.7,
        "load": 1,
        "cue": "3회",
        "perSide": false,
@@ -2773,13 +2774,13 @@
   },
   {
    "week": 4,
-   "end": 140.5,
+   "end": 146.7,
    "stations": [
     {
      "station": "매트",
      "warmup": true,
      "start": 15,
-     "end": 28.6,
+     "end": 29.4,
      "items": [
       {
        "exerciseId": "76288fb9-3b43-4e01-962d-d2e84a4b7bc6",
@@ -2791,7 +2792,7 @@
         "맨몸"
        ],
        "at": 15,
-       "minutes": 1.6,
+       "minutes": 1.7,
        "load": 0.2,
        "cue": "10초 버티기 · 한쪽",
        "perSide": true,
@@ -2806,8 +2807,8 @@
        "equipment": [
         "맨몸"
        ],
-       "at": 16.6,
-       "minutes": 1.6,
+       "at": 16.7,
+       "minutes": 1.7,
        "load": 0.2,
        "cue": "2~3회 · 끝 자세 2초",
        "perSide": false,
@@ -2822,8 +2823,8 @@
        "equipment": [
         "맨몸"
        ],
-       "at": 18.2,
-       "minutes": 2,
+       "at": 18.4,
+       "minutes": 2.1,
        "load": 0.2,
        "cue": "10초 버티기 · 한쪽",
        "perSide": true,
@@ -2838,8 +2839,8 @@
        "equipment": [
         "맨몸"
        ],
-       "at": 20.2,
-       "minutes": 2,
+       "at": 20.5,
+       "minutes": 2.1,
        "load": 0.2,
        "cue": "2~3회 · 끝 자세 2초 · 한쪽",
        "perSide": true,
@@ -2854,8 +2855,8 @@
        "equipment": [
         "맨몸"
        ],
-       "at": 22.2,
-       "minutes": 1.6,
+       "at": 22.6,
+       "minutes": 1.7,
        "load": 0.2,
        "cue": "10초 버티기 · 한쪽",
        "perSide": true,
@@ -2870,8 +2871,8 @@
        "equipment": [
         "맨몸"
        ],
-       "at": 23.8,
-       "minutes": 1.6,
+       "at": 24.3,
+       "minutes": 1.7,
        "load": 0.2,
        "cue": "2~3회 · 끝 자세 2초 · 한쪽",
        "perSide": true,
@@ -2886,8 +2887,8 @@
        "equipment": [
         "맨몸"
        ],
-       "at": 25.4,
-       "minutes": 1.6,
+       "at": 26,
+       "minutes": 1.7,
        "load": 0.2,
        "cue": "2~3회 · 끝 자세 2초",
        "perSide": false,
@@ -2902,8 +2903,8 @@
        "equipment": [
         "맨몸"
        ],
-       "at": 27,
-       "minutes": 1.6,
+       "at": 27.7,
+       "minutes": 1.7,
        "load": 0.2,
        "cue": "10초 버티기 · 한쪽",
        "perSide": true,
@@ -2913,8 +2914,8 @@
     },
     {
      "station": "박스",
-     "start": 31.6,
-     "end": 41.9,
+     "start": 32.4,
+     "end": 43.3,
      "items": [
       {
        "exerciseId": "854ee1d0-f529-4ddf-b502-20afa9a9ce8b",
@@ -2925,8 +2926,8 @@
        "equipment": [
         "박스"
        ],
-       "at": 31.6,
-       "minutes": 1.9,
+       "at": 32.4,
+       "minutes": 2,
        "load": 2,
        "cue": "2~3회 · 한쪽",
        "perSide": true,
@@ -2942,8 +2943,8 @@
        "equipment": [
         "박스"
        ],
-       "at": 33.5,
-       "minutes": 1.6,
+       "at": 34.4,
+       "minutes": 1.7,
        "load": 2,
        "cue": "3회 · 한쪽",
        "perSide": true,
@@ -2960,8 +2961,8 @@
         "덤벨",
         "박스"
        ],
-       "at": 35.1,
-       "minutes": 1.6,
+       "at": 36.1,
+       "minutes": 1.7,
        "load": 1,
        "cue": "3회 · 한쪽",
        "perSide": true,
@@ -2977,8 +2978,8 @@
         "덤벨",
         "박스"
        ],
-       "at": 36.7,
-       "minutes": 1.6,
+       "at": 37.8,
+       "minutes": 1.7,
        "load": 2,
        "cue": "3회 · 한쪽",
        "perSide": true,
@@ -2993,8 +2994,8 @@
        "equipment": [
         "박스"
        ],
-       "at": 38.3,
-       "minutes": 2,
+       "at": 39.5,
+       "minutes": 2.1,
        "load": 1,
        "cue": "3회",
        "perSide": false,
@@ -3010,8 +3011,8 @@
        "equipment": [
         "박스"
        ],
-       "at": 40.3,
-       "minutes": 1.6,
+       "at": 41.6,
+       "minutes": 1.7,
        "load": 1,
        "cue": "3회",
        "perSide": false,
@@ -3022,8 +3023,8 @@
     },
     {
      "station": "랙 · 바벨 · 원판",
-     "start": 44.9,
-     "end": 59.9,
+     "start": 46.3,
+     "end": 62.1,
      "items": [
       {
        "exerciseId": "50298d2b-fd1f-4265-8b67-e95c7815335e",
@@ -3035,8 +3036,8 @@
         "바벨",
         "밴드"
        ],
-       "at": 44.9,
-       "minutes": 1.9,
+       "at": 46.3,
+       "minutes": 2,
        "load": 2,
        "cue": "3회",
        "perSide": false,
@@ -3052,8 +3053,8 @@
        "equipment": [
         "바벨"
        ],
-       "at": 46.8,
-       "minutes": 1.9,
+       "at": 48.3,
+       "minutes": 2,
        "load": 2,
        "cue": "3회",
        "perSide": false,
@@ -3070,8 +3071,8 @@
         "바벨",
         "벤치"
        ],
-       "at": 48.7,
-       "minutes": 1.9,
+       "at": 50.3,
+       "minutes": 2,
        "load": 2,
        "cue": "3회",
        "perSide": false,
@@ -3088,8 +3089,8 @@
         "바벨",
         "벤치"
        ],
-       "at": 50.6,
-       "minutes": 1.9,
+       "at": 52.3,
+       "minutes": 2,
        "load": 2,
        "cue": "3회",
        "perSide": false,
@@ -3105,8 +3106,8 @@
        "equipment": [
         "원판"
        ],
-       "at": 53.5,
-       "minutes": 1.6,
+       "at": 55.3,
+       "minutes": 1.7,
        "load": 0.5,
        "cue": "2~3회 · 끝 자세 2초 · 한쪽",
        "perSide": true,
@@ -3121,8 +3122,8 @@
        "equipment": [
         "원판"
        ],
-       "at": 55.1,
-       "minutes": 1.6,
+       "at": 57,
+       "minutes": 1.7,
        "load": 1,
        "cue": "10초 버티기 · 한쪽",
        "perSide": true,
@@ -3137,8 +3138,8 @@
        "equipment": [
         "원판"
        ],
-       "at": 56.7,
-       "minutes": 1.6,
+       "at": 58.7,
+       "minutes": 1.7,
        "load": 2,
        "cue": "3회",
        "perSide": false,
@@ -3154,8 +3155,8 @@
        "equipment": [
         "원판"
        ],
-       "at": 58.3,
-       "minutes": 1.6,
+       "at": 60.4,
+       "minutes": 1.7,
        "load": 1,
        "cue": "3회",
        "perSide": false,
@@ -3166,8 +3167,8 @@
     },
     {
      "station": "밴드(고정 기둥)",
-     "start": 62.9,
-     "end": 118.1,
+     "start": 65.1,
+     "end": 128.4,
      "items": [
       {
        "exerciseId": "b7907962-a474-4e33-9206-5de92e5486ea",
@@ -3178,8 +3179,8 @@
        "equipment": [
         "밴드"
        ],
-       "at": 62.9,
-       "minutes": 2.3,
+       "at": 65.1,
+       "minutes": 2.5,
        "load": 2,
        "cue": "2~3회",
        "perSide": false,
@@ -3194,8 +3195,8 @@
        "equipment": [
         "밴드"
        ],
-       "at": 70.2,
-       "minutes": 1.6,
+       "at": 72.6,
+       "minutes": 1.7,
        "load": 2,
        "cue": "3회 · 한쪽",
        "perSide": true,
@@ -3211,8 +3212,8 @@
        "equipment": [
         "밴드"
        ],
-       "at": 71.8,
-       "minutes": 1.6,
+       "at": 74.3,
+       "minutes": 1.7,
        "load": 1,
        "cue": "3회 · 한쪽",
        "perSide": true,
@@ -3227,8 +3228,8 @@
        "equipment": [
         "밴드"
        ],
-       "at": 73.4,
-       "minutes": 2,
+       "at": 76,
+       "minutes": 2.1,
        "load": 0.5,
        "cue": "3회",
        "perSide": false,
@@ -3243,8 +3244,8 @@
        "equipment": [
         "밴드"
        ],
-       "at": 75.4,
-       "minutes": 1.6,
+       "at": 78.1,
+       "minutes": 1.7,
        "load": 0.5,
        "cue": "3회",
        "perSide": false,
@@ -3259,8 +3260,8 @@
        "equipment": [
         "밴드"
        ],
-       "at": 77,
-       "minutes": 1.6,
+       "at": 79.8,
+       "minutes": 1.7,
        "load": 0.5,
        "cue": "3회 · 한쪽",
        "perSide": true,
@@ -3275,8 +3276,8 @@
        "equipment": [
         "밴드"
        ],
-       "at": 78.6,
-       "minutes": 1.6,
+       "at": 81.5,
+       "minutes": 1.7,
        "load": 0.5,
        "cue": "3회 · 한쪽",
        "perSide": true,
@@ -3291,8 +3292,8 @@
        "equipment": [
         "밴드"
        ],
-       "at": 80.2,
-       "minutes": 1.6,
+       "at": 83.2,
+       "minutes": 1.7,
        "load": 0.5,
        "cue": "3회 · 한쪽",
        "perSide": true,
@@ -3307,8 +3308,8 @@
        "equipment": [
         "밴드"
        ],
-       "at": 81.8,
-       "minutes": 1.6,
+       "at": 84.9,
+       "minutes": 1.7,
        "load": 0.5,
        "cue": "3회 · 한쪽",
        "perSide": true,
@@ -3323,8 +3324,8 @@
        "equipment": [
         "밴드"
        ],
-       "at": 83.4,
-       "minutes": 1.9,
+       "at": 86.6,
+       "minutes": 2,
        "load": 1,
        "cue": "2~3회 · 한쪽",
        "perSide": true,
@@ -3339,8 +3340,8 @@
        "equipment": [
         "밴드"
        ],
-       "at": 85.3,
-       "minutes": 1.6,
+       "at": 88.6,
+       "minutes": 1.7,
        "load": 0.5,
        "cue": "3회",
        "perSide": false,
@@ -3355,8 +3356,8 @@
        "equipment": [
         "밴드"
        ],
-       "at": 86.9,
-       "minutes": 1.6,
+       "at": 90.3,
+       "minutes": 1.7,
        "load": 0.5,
        "cue": "3회",
        "perSide": false,
@@ -3371,8 +3372,8 @@
        "equipment": [
         "밴드"
        ],
-       "at": 88.5,
-       "minutes": 1.6,
+       "at": 92,
+       "minutes": 1.7,
        "load": 0.5,
        "cue": "3회 · 한쪽",
        "perSide": true,
@@ -3387,8 +3388,8 @@
        "equipment": [
         "밴드"
        ],
-       "at": 90.1,
-       "minutes": 1.6,
+       "at": 93.7,
+       "minutes": 1.7,
        "load": 0.5,
        "cue": "3회 · 한쪽",
        "perSide": true,
@@ -3403,8 +3404,8 @@
        "equipment": [
         "밴드"
        ],
-       "at": 91.7,
-       "minutes": 1.6,
+       "at": 95.4,
+       "minutes": 1.7,
        "load": 0.5,
        "cue": "3회 · 한쪽",
        "perSide": true,
@@ -3420,8 +3421,8 @@
        "equipment": [
         "밴드"
        ],
-       "at": 93.3,
-       "minutes": 1.6,
+       "at": 97.1,
+       "minutes": 1.7,
        "load": 0.5,
        "cue": "3회",
        "perSide": false,
@@ -3436,8 +3437,8 @@
        "equipment": [
         "밴드"
        ],
-       "at": 94.9,
-       "minutes": 2,
+       "at": 98.8,
+       "minutes": 2.1,
        "load": 0.5,
        "cue": "3회 · 한쪽",
        "perSide": true,
@@ -3452,8 +3453,8 @@
        "equipment": [
         "밴드"
        ],
-       "at": 96.9,
-       "minutes": 1.6,
+       "at": 100.9,
+       "minutes": 1.7,
        "load": 0.5,
        "cue": "3회",
        "perSide": false,
@@ -3468,8 +3469,8 @@
        "equipment": [
         "밴드"
        ],
-       "at": 98.5,
-       "minutes": 1.6,
+       "at": 102.6,
+       "minutes": 1.7,
        "load": 0.5,
        "cue": "3회 · 한쪽",
        "perSide": true,
@@ -3484,8 +3485,8 @@
        "equipment": [
         "밴드"
        ],
-       "at": 100.1,
-       "minutes": 1.6,
+       "at": 104.3,
+       "minutes": 1.7,
        "load": 1,
        "cue": "3회",
        "perSide": false,
@@ -3501,8 +3502,8 @@
        "equipment": [
         "밴드"
        ],
-       "at": 101.7,
-       "minutes": 1.6,
+       "at": 106,
+       "minutes": 1.7,
        "load": 0.5,
        "cue": "10초 버티기 · 한쪽",
        "perSide": true,
@@ -3518,8 +3519,8 @@
        "equipment": [
         "밴드"
        ],
-       "at": 103.3,
-       "minutes": 1.6,
+       "at": 107.7,
+       "minutes": 1.7,
        "load": 0.5,
        "cue": "3회",
        "perSide": false,
@@ -3535,8 +3536,8 @@
        "equipment": [
         "밴드"
        ],
-       "at": 104.9,
-       "minutes": 1.6,
+       "at": 109.4,
+       "minutes": 1.7,
        "load": 0.5,
        "cue": "3회 · 한쪽",
        "perSide": true,
@@ -3551,8 +3552,8 @@
        "equipment": [
         "밴드"
        ],
-       "at": 106.5,
-       "minutes": 2,
+       "at": 111.1,
+       "minutes": 2.1,
        "load": 1.5,
        "cue": "1~2회 천천히 내리기",
        "perSide": false,
@@ -3567,8 +3568,8 @@
        "equipment": [
         "밴드"
        ],
-       "at": 108.5,
-       "minutes": 1.6,
+       "at": 113.2,
+       "minutes": 1.7,
        "load": 0.5,
        "cue": "3회 · 한쪽",
        "perSide": true,
@@ -3584,8 +3585,8 @@
        "equipment": [
         "밴드"
        ],
-       "at": 110.1,
-       "minutes": 1.6,
+       "at": 114.9,
+       "minutes": 1.7,
        "load": 0.5,
        "cue": "3회 · 한쪽",
        "perSide": true,
@@ -3601,8 +3602,8 @@
        "equipment": [
         "밴드"
        ],
-       "at": 111.7,
-       "minutes": 1.6,
+       "at": 116.6,
+       "minutes": 1.7,
        "load": 0.5,
        "cue": "3회 · 한쪽",
        "perSide": true,
@@ -3618,8 +3619,8 @@
        "equipment": [
         "밴드"
        ],
-       "at": 113.3,
-       "minutes": 1.6,
+       "at": 118.3,
+       "minutes": 1.7,
        "load": 0.5,
        "cue": "3회 · 한쪽",
        "perSide": true,
@@ -3636,8 +3637,8 @@
         "밴드",
         "맨몸"
        ],
-       "at": 114.9,
-       "minutes": 1.6,
+       "at": 120,
+       "minutes": 1.7,
        "load": 0.5,
        "cue": "3회",
        "perSide": false,
@@ -3654,20 +3655,20 @@
         "밴드",
         "맨몸"
        ],
-       "at": 116.5,
-       "minutes": 1.6,
+       "at": 121.7,
+       "minutes": 1.7,
        "load": 2,
        "cue": "3회",
        "perSide": false,
-       "breakAfter": false,
+       "breakAfter": true,
        "oldVideo": "library/c1073984-9708-4ce3-b8e4-df309fec1795.mov"
       }
      ]
     },
     {
      "station": "매트",
-     "start": 121.1,
-     "end": 140.5,
+     "start": 131.4,
+     "end": 146.7,
      "items": [
       {
        "exerciseId": "2a1fee60-3a88-42b4-8dd1-c0a62d691d9f",
@@ -3678,12 +3679,12 @@
        "equipment": [
         "맨몸"
        ],
-       "at": 121.1,
-       "minutes": 1.6,
+       "at": 131.4,
+       "minutes": 1.7,
        "load": 0.5,
        "cue": "3회 · 한쪽",
        "perSide": true,
-       "breakAfter": true,
+       "breakAfter": false,
        "oldVideo": "library/ea4f8435-3822-4a34-b980-ee75cb730cdf.mov"
       },
       {
@@ -3695,8 +3696,8 @@
        "equipment": [
         "맨몸"
        ],
-       "at": 127.7,
-       "minutes": 1.6,
+       "at": 133.1,
+       "minutes": 1.7,
        "load": 1,
        "cue": "3회 · 한쪽",
        "perSide": true,
@@ -3711,8 +3712,8 @@
        "equipment": [
         "맨몸"
        ],
-       "at": 129.3,
-       "minutes": 1.6,
+       "at": 134.8,
+       "minutes": 1.7,
        "load": 0.5,
        "cue": "3회",
        "perSide": false,
@@ -3727,8 +3728,8 @@
        "equipment": [
         "맨몸"
        ],
-       "at": 130.9,
-       "minutes": 1.6,
+       "at": 136.5,
+       "minutes": 1.7,
        "load": 1,
        "cue": "3회 · 한쪽",
        "perSide": true,
@@ -3743,8 +3744,8 @@
        "equipment": [
         "맨몸"
        ],
-       "at": 132.5,
-       "minutes": 1.6,
+       "at": 138.2,
+       "minutes": 1.7,
        "load": 0.5,
        "cue": "10초 버티기",
        "perSide": false,
@@ -3760,8 +3761,8 @@
        "equipment": [
         "맨몸"
        ],
-       "at": 134.1,
-       "minutes": 1.6,
+       "at": 139.9,
+       "minutes": 1.7,
        "load": 1,
        "cue": "3회",
        "perSide": false,
@@ -3776,8 +3777,8 @@
        "equipment": [
         "맨몸"
        ],
-       "at": 135.7,
-       "minutes": 1.6,
+       "at": 141.6,
+       "minutes": 1.7,
        "load": 1,
        "cue": "3회",
        "perSide": false,
@@ -3793,8 +3794,8 @@
        "equipment": [
         "맨몸"
        ],
-       "at": 137.3,
-       "minutes": 1.6,
+       "at": 143.3,
+       "minutes": 1.7,
        "load": 0.5,
        "cue": "10초 버티기",
        "perSide": false,
@@ -3810,8 +3811,8 @@
        "equipment": [
         "맨몸"
        ],
-       "at": 138.9,
-       "minutes": 1.6,
+       "at": 145,
+       "minutes": 1.7,
        "load": 1,
        "cue": "10초 버티기",
        "perSide": false,
@@ -3835,12 +3836,12 @@
   },
   {
    "week": 5,
-   "end": 160.3,
+   "end": 167.3,
    "stations": [
     {
      "station": "넓은 바닥(이동)",
      "start": 15,
-     "end": 32.4,
+     "end": 33.2,
      "items": [
       {
        "exerciseId": "258c0eee-85fe-46dd-b6a1-d2639bb58345",
@@ -3852,7 +3853,7 @@
         "맨몸"
        ],
        "at": 15,
-       "minutes": 1.9,
+       "minutes": 2,
        "load": 1,
        "cue": "2~3회",
        "perSide": false,
@@ -3868,8 +3869,8 @@
        "equipment": [
         "맨몸"
        ],
-       "at": 16.9,
-       "minutes": 1.9,
+       "at": 17,
+       "minutes": 2,
        "load": 2,
        "cue": "2~3회",
        "perSide": false,
@@ -3884,8 +3885,8 @@
        "equipment": [
         "맨몸"
        ],
-       "at": 18.8,
-       "minutes": 1.9,
+       "at": 19,
+       "minutes": 2,
        "load": 2,
        "cue": "2~3회",
        "perSide": false,
@@ -3900,8 +3901,8 @@
        "equipment": [
         "덤벨"
        ],
-       "at": 21.7,
-       "minutes": 1.9,
+       "at": 22,
+       "minutes": 2,
        "load": 1,
        "cue": "2~3회 · 한쪽",
        "perSide": true,
@@ -3916,8 +3917,8 @@
        "equipment": [
         "메디신볼"
        ],
-       "at": 24.6,
-       "minutes": 2.3,
+       "at": 25,
+       "minutes": 2.5,
        "load": 2,
        "cue": "2~3회",
        "perSide": false,
@@ -3933,8 +3934,8 @@
        "equipment": [
         "밴드"
        ],
-       "at": 27.9,
-       "minutes": 1.9,
+       "at": 28.5,
+       "minutes": 2,
        "load": 1,
        "cue": "2~3회 · 한쪽",
        "perSide": true,
@@ -3949,8 +3950,8 @@
        "equipment": [
         "워터볼"
        ],
-       "at": 30.8,
-       "minutes": 1.6,
+       "at": 31.5,
+       "minutes": 1.7,
        "load": 1,
        "cue": "3회 · 한쪽",
        "perSide": true,
@@ -3960,8 +3961,8 @@
     },
     {
      "station": "랙 · 바벨 · 원판",
-     "start": 35.4,
-     "end": 44,
+     "start": 36.2,
+     "end": 45.2,
      "items": [
       {
        "exerciseId": "68f72e35-f8ca-4f99-ba5e-5ae06f4147cd",
@@ -3972,8 +3973,8 @@
        "equipment": [
         "바벨"
        ],
-       "at": 35.4,
-       "minutes": 1.9,
+       "at": 36.2,
+       "minutes": 2,
        "load": 2,
        "cue": "3회 · 한쪽",
        "perSide": true,
@@ -3988,8 +3989,8 @@
        "equipment": [
         "바벨"
        ],
-       "at": 38.3,
-       "minutes": 1.9,
+       "at": 39.2,
+       "minutes": 2,
        "load": 3,
        "cue": "3회",
        "perSide": false,
@@ -4004,8 +4005,8 @@
        "equipment": [
         "바벨"
        ],
-       "at": 40.2,
-       "minutes": 1.9,
+       "at": 41.2,
+       "minutes": 2,
        "load": 2,
        "cue": "3회",
        "perSide": false,
@@ -4020,8 +4021,8 @@
        "equipment": [
         "바벨"
        ],
-       "at": 42.1,
-       "minutes": 1.9,
+       "at": 43.2,
+       "minutes": 2,
        "load": 3,
        "cue": "3회",
        "perSide": false,
@@ -4031,8 +4032,8 @@
     },
     {
      "station": "벤치",
-     "start": 47,
-     "end": 56.6,
+     "start": 48.2,
+     "end": 58.4,
      "items": [
       {
        "exerciseId": "9c3e9e11-ac5c-4fd5-803e-36c6aed65f83",
@@ -4044,8 +4045,8 @@
         "덤벨",
         "벤치"
        ],
-       "at": 47,
-       "minutes": 1.6,
+       "at": 48.2,
+       "minutes": 1.7,
        "load": 1,
        "cue": "3회",
        "perSide": false,
@@ -4061,8 +4062,8 @@
         "덤벨",
         "벤치"
        ],
-       "at": 48.6,
-       "minutes": 1.6,
+       "at": 49.9,
+       "minutes": 1.7,
        "load": 0.5,
        "cue": "3회 · 한쪽",
        "perSide": true,
@@ -4078,8 +4079,8 @@
         "덤벨",
         "벤치"
        ],
-       "at": 50.2,
-       "minutes": 1.6,
+       "at": 51.6,
+       "minutes": 1.7,
        "load": 1,
        "cue": "3회 · 한쪽",
        "perSide": true,
@@ -4096,8 +4097,8 @@
         "덤벨",
         "벤치"
        ],
-       "at": 51.8,
-       "minutes": 1.6,
+       "at": 53.3,
+       "minutes": 1.7,
        "load": 2,
        "cue": "3회 · 한쪽",
        "perSide": true,
@@ -4113,8 +4114,8 @@
        "equipment": [
         "벤치"
        ],
-       "at": 53.4,
-       "minutes": 1.6,
+       "at": 55,
+       "minutes": 1.7,
        "load": 1,
        "cue": "3회 · 한쪽",
        "perSide": true,
@@ -4130,8 +4131,8 @@
         "덤벨",
         "벤치"
        ],
-       "at": 55,
-       "minutes": 1.6,
+       "at": 56.7,
+       "minutes": 1.7,
        "load": 1,
        "cue": "3회",
        "perSide": false,
@@ -4141,8 +4142,8 @@
     },
     {
      "station": "덤벨 · 케틀벨",
-     "start": 59.6,
-     "end": 80.7,
+     "start": 61.4,
+     "end": 83.5,
      "items": [
       {
        "exerciseId": "6cbff91c-05f7-4dbb-92cc-ee9aae8d8f62",
@@ -4153,8 +4154,8 @@
        "equipment": [
         "케틀벨"
        ],
-       "at": 59.6,
-       "minutes": 1.6,
+       "at": 61.4,
+       "minutes": 1.7,
        "load": 2,
        "cue": "2~3회",
        "perSide": false,
@@ -4169,12 +4170,12 @@
        "equipment": [
         "덤벨"
        ],
-       "at": 62.2,
-       "minutes": 1.6,
+       "at": 64.1,
+       "minutes": 1.7,
        "load": 0.5,
        "cue": "3회 · 한쪽",
        "perSide": true,
-       "breakAfter": false
+       "breakAfter": true
       },
       {
        "exerciseId": "84b2db84-b873-4005-86a3-77294b59f077",
@@ -4185,12 +4186,12 @@
        "equipment": [
         "덤벨"
        ],
-       "at": 63.8,
-       "minutes": 1.6,
+       "at": 70.8,
+       "minutes": 1.7,
        "load": 0.5,
        "cue": "3회 · 한쪽",
        "perSide": true,
-       "breakAfter": true
+       "breakAfter": false
       },
       {
        "exerciseId": "7c125173-4fd4-4040-8f8a-f6ced2918ac6",
@@ -4201,8 +4202,8 @@
        "equipment": [
         "덤벨"
        ],
-       "at": 70.4,
-       "minutes": 1.6,
+       "at": 72.5,
+       "minutes": 1.7,
        "load": 0.5,
        "cue": "3회 · 한쪽",
        "perSide": true,
@@ -4217,8 +4218,8 @@
        "equipment": [
         "덤벨"
        ],
-       "at": 72,
-       "minutes": 1.6,
+       "at": 74.2,
+       "minutes": 1.7,
        "load": 2,
        "cue": "3회",
        "perSide": false,
@@ -4234,8 +4235,8 @@
        "equipment": [
         "덤벨"
        ],
-       "at": 73.6,
-       "minutes": 1.6,
+       "at": 75.9,
+       "minutes": 1.7,
        "load": 0.5,
        "cue": "3회 · 한쪽",
        "perSide": true,
@@ -4250,8 +4251,8 @@
        "equipment": [
         "덤벨"
        ],
-       "at": 75.2,
-       "minutes": 1.6,
+       "at": 77.6,
+       "minutes": 1.7,
        "load": 0.5,
        "cue": "3회 · 한쪽",
        "perSide": true,
@@ -4266,8 +4267,8 @@
        "equipment": [
         "덤벨"
        ],
-       "at": 76.8,
-       "minutes": 2.3,
+       "at": 79.3,
+       "minutes": 2.5,
        "load": 1.5,
        "cue": "2~3회",
        "perSide": false,
@@ -4283,8 +4284,8 @@
         "덤벨",
         "맨몸"
        ],
-       "at": 79.1,
-       "minutes": 1.6,
+       "at": 81.8,
+       "minutes": 1.7,
        "load": 1,
        "cue": "3회",
        "perSide": false,
@@ -4294,8 +4295,8 @@
     },
     {
      "station": "철봉 · TRX",
-     "start": 83.7,
-     "end": 101,
+     "start": 86.5,
+     "end": 104.8,
      "items": [
       {
        "exerciseId": "412e7916-4db6-48c6-9f07-62849ae65e2d",
@@ -4307,8 +4308,8 @@
         "밴드",
         "철봉"
        ],
-       "at": 83.7,
-       "minutes": 1.9,
+       "at": 86.5,
+       "minutes": 2,
        "load": 1,
        "cue": "2~3회",
        "perSide": false,
@@ -4325,8 +4326,8 @@
         "철봉",
         "밴드"
        ],
-       "at": 85.6,
-       "minutes": 1.6,
+       "at": 88.5,
+       "minutes": 1.7,
        "load": 1,
        "cue": "3회",
        "perSide": false,
@@ -4342,8 +4343,8 @@
         "철봉",
         "밴드"
        ],
-       "at": 87.2,
-       "minutes": 1.6,
+       "at": 90.2,
+       "minutes": 1.7,
        "load": 1,
        "cue": "3회",
        "perSide": false,
@@ -4358,8 +4359,8 @@
        "equipment": [
         "철봉"
        ],
-       "at": 88.8,
-       "minutes": 1.6,
+       "at": 91.9,
+       "minutes": 1.7,
        "load": 2,
        "cue": "3회",
        "perSide": false,
@@ -4375,8 +4376,8 @@
        "equipment": [
         "철봉"
        ],
-       "at": 90.4,
-       "minutes": 1.6,
+       "at": 93.6,
+       "minutes": 1.7,
        "load": 2,
        "cue": "10초 버티기",
        "perSide": false,
@@ -4391,8 +4392,8 @@
        "equipment": [
         "TRX"
        ],
-       "at": 93,
-       "minutes": 1.6,
+       "at": 96.3,
+       "minutes": 1.7,
        "load": 1,
        "cue": "3회",
        "perSide": false,
@@ -4407,8 +4408,8 @@
        "equipment": [
         "TRX"
        ],
-       "at": 94.6,
-       "minutes": 1.6,
+       "at": 98,
+       "minutes": 1.7,
        "load": 1,
        "cue": "3회",
        "perSide": false,
@@ -4423,8 +4424,8 @@
        "equipment": [
         "TRX"
        ],
-       "at": 96.2,
-       "minutes": 1.6,
+       "at": 99.7,
+       "minutes": 1.7,
        "load": 1,
        "cue": "3회",
        "perSide": false,
@@ -4439,8 +4440,8 @@
        "equipment": [
         "TRX"
        ],
-       "at": 97.8,
-       "minutes": 1.6,
+       "at": 101.4,
+       "minutes": 1.7,
        "load": 0.2,
        "cue": "2~3회 · 끝 자세 2초 · 한쪽",
        "perSide": true,
@@ -4455,8 +4456,8 @@
        "equipment": [
         "TRX"
        ],
-       "at": 99.4,
-       "minutes": 1.6,
+       "at": 103.1,
+       "minutes": 1.7,
        "load": 0.2,
        "cue": "2~3회 · 끝 자세 2초",
        "perSide": false,
@@ -4466,8 +4467,8 @@
     },
     {
      "station": "밴드(고정 기둥)",
-     "start": 104,
-     "end": 160.3,
+     "start": 107.8,
+     "end": 167.3,
      "items": [
       {
        "exerciseId": "c9c39b44-d7fc-4092-9c8c-6963c9d549db",
@@ -4478,8 +4479,8 @@
        "equipment": [
         "밴드"
        ],
-       "at": 104,
-       "minutes": 2.3,
+       "at": 107.8,
+       "minutes": 2.5,
        "load": 3,
        "cue": "1~2회 천천히 내리기",
        "perSide": false,
@@ -4495,8 +4496,8 @@
        "equipment": [
         "밴드"
        ],
-       "at": 106.3,
-       "minutes": 1.6,
+       "at": 110.3,
+       "minutes": 1.7,
        "load": 0.5,
        "cue": "10초 버티기 · 한쪽",
        "perSide": true,
@@ -4511,8 +4512,8 @@
        "equipment": [
         "밴드"
        ],
-       "at": 107.9,
-       "minutes": 1.6,
+       "at": 112,
+       "minutes": 1.7,
        "load": 0.2,
        "cue": "3회",
        "perSide": false,
@@ -4527,8 +4528,8 @@
        "equipment": [
         "밴드"
        ],
-       "at": 109.5,
-       "minutes": 1.6,
+       "at": 113.7,
+       "minutes": 1.7,
        "load": 0.5,
        "cue": "3회 · 한쪽",
        "perSide": true,
@@ -4544,8 +4545,8 @@
        "equipment": [
         "밴드"
        ],
-       "at": 111.1,
-       "minutes": 1.6,
+       "at": 115.4,
+       "minutes": 1.7,
        "load": 0.2,
        "cue": "10초 버티기 · 한쪽",
        "perSide": true,
@@ -4560,8 +4561,8 @@
        "equipment": [
         "밴드"
        ],
-       "at": 112.7,
-       "minutes": 1.6,
+       "at": 117.1,
+       "minutes": 1.7,
        "load": 0.2,
        "cue": "10초 버티기 · 한쪽",
        "perSide": true,
@@ -4576,8 +4577,8 @@
        "equipment": [
         "밴드"
        ],
-       "at": 114.3,
-       "minutes": 1.6,
+       "at": 118.8,
+       "minutes": 1.7,
        "load": 0.2,
        "cue": "10초 버티기 · 한쪽",
        "perSide": true,
@@ -4592,12 +4593,12 @@
        "equipment": [
         "밴드"
        ],
-       "at": 115.9,
-       "minutes": 1.6,
+       "at": 120.5,
+       "minutes": 1.7,
        "load": 0.2,
        "cue": "10초 버티기 · 한쪽",
        "perSide": true,
-       "breakAfter": false
+       "breakAfter": true
       },
       {
        "exerciseId": "f79cdd74-e19c-40b4-9475-6a4c9dbcfad7",
@@ -4608,8 +4609,8 @@
        "equipment": [
         "밴드"
        ],
-       "at": 117.5,
-       "minutes": 1.6,
+       "at": 127.2,
+       "minutes": 1.7,
        "load": 0.2,
        "cue": "10초 버티기 · 한쪽",
        "perSide": true,
@@ -4624,12 +4625,12 @@
        "equipment": [
         "밴드"
        ],
-       "at": 119.1,
-       "minutes": 2,
+       "at": 128.9,
+       "minutes": 2.1,
        "load": 0.2,
        "cue": "10초 버티기 · 한쪽",
        "perSide": true,
-       "breakAfter": true
+       "breakAfter": false
       },
       {
        "exerciseId": "52471c45-886b-43c8-810a-53f86880754b",
@@ -4640,8 +4641,8 @@
        "equipment": [
         "밴드"
        ],
-       "at": 126.1,
-       "minutes": 1.6,
+       "at": 131,
+       "minutes": 1.7,
        "load": 0.5,
        "cue": "3회 · 한쪽",
        "perSide": true,
@@ -4657,8 +4658,8 @@
        "equipment": [
         "밴드"
        ],
-       "at": 127.7,
-       "minutes": 1.6,
+       "at": 132.7,
+       "minutes": 1.7,
        "load": 0.5,
        "cue": "3회 · 한쪽",
        "perSide": true,
@@ -4674,8 +4675,8 @@
        "equipment": [
         "밴드"
        ],
-       "at": 129.3,
-       "minutes": 1.6,
+       "at": 134.4,
+       "minutes": 1.7,
        "load": 0.5,
        "cue": "3회 · 한쪽",
        "perSide": true,
@@ -4691,8 +4692,8 @@
        "equipment": [
         "밴드"
        ],
-       "at": 130.9,
-       "minutes": 1.6,
+       "at": 136.1,
+       "minutes": 1.7,
        "load": 0.5,
        "cue": "3회 · 한쪽",
        "perSide": true,
@@ -4707,8 +4708,8 @@
        "equipment": [
         "밴드"
        ],
-       "at": 132.5,
-       "minutes": 1.6,
+       "at": 137.8,
+       "minutes": 1.7,
        "load": 0.5,
        "cue": "3회 · 한쪽",
        "perSide": true,
@@ -4723,8 +4724,8 @@
        "equipment": [
         "밴드"
        ],
-       "at": 134.1,
-       "minutes": 1.6,
+       "at": 139.5,
+       "minutes": 1.7,
        "load": 0.5,
        "cue": "3회 · 한쪽",
        "perSide": true,
@@ -4739,8 +4740,8 @@
        "equipment": [
         "밴드"
        ],
-       "at": 135.7,
-       "minutes": 1.9,
+       "at": 141.2,
+       "minutes": 2,
        "load": 1,
        "cue": "2~3회 · 한쪽",
        "perSide": true,
@@ -4756,8 +4757,8 @@
        "equipment": [
         "밴드"
        ],
-       "at": 137.6,
-       "minutes": 1.6,
+       "at": 143.2,
+       "minutes": 1.7,
        "load": 0.5,
        "cue": "3회 · 한쪽",
        "perSide": true,
@@ -4772,8 +4773,8 @@
        "equipment": [
         "밴드"
        ],
-       "at": 139.2,
-       "minutes": 1.9,
+       "at": 144.9,
+       "minutes": 2,
        "load": 1,
        "cue": "2~3회",
        "perSide": false,
@@ -4789,8 +4790,8 @@
        "equipment": [
         "밴드"
        ],
-       "at": 141.1,
-       "minutes": 1.6,
+       "at": 146.9,
+       "minutes": 1.7,
        "load": 0.5,
        "cue": "3회 · 한쪽",
        "perSide": true,
@@ -4806,8 +4807,8 @@
        "equipment": [
         "밴드"
        ],
-       "at": 142.7,
-       "minutes": 1.6,
+       "at": 148.6,
+       "minutes": 1.7,
        "load": 0.5,
        "cue": "3회 · 한쪽",
        "perSide": true,
@@ -4822,8 +4823,8 @@
        "equipment": [
         "밴드"
        ],
-       "at": 144.3,
-       "minutes": 1.6,
+       "at": 150.3,
+       "minutes": 1.7,
        "load": 1,
        "cue": "3회 · 한쪽",
        "perSide": true,
@@ -4838,8 +4839,8 @@
        "equipment": [
         "밴드"
        ],
-       "at": 145.9,
-       "minutes": 1.6,
+       "at": 152,
+       "minutes": 1.7,
        "load": 0.5,
        "cue": "3회 · 한쪽",
        "perSide": true,
@@ -4855,8 +4856,8 @@
        "equipment": [
         "밴드"
        ],
-       "at": 147.5,
-       "minutes": 1.6,
+       "at": 153.7,
+       "minutes": 1.7,
        "load": 0.5,
        "cue": "3회 · 한쪽",
        "perSide": true,
@@ -4871,8 +4872,8 @@
        "equipment": [
         "밴드"
        ],
-       "at": 149.1,
-       "minutes": 1.6,
+       "at": 155.4,
+       "minutes": 1.7,
        "load": 0.2,
        "cue": "2~3회 · 끝 자세 2초 · 한쪽",
        "perSide": true,
@@ -4887,8 +4888,8 @@
        "equipment": [
         "밴드"
        ],
-       "at": 150.7,
-       "minutes": 1.6,
+       "at": 157.1,
+       "minutes": 1.7,
        "load": 1,
        "cue": "10초 버티기 · 한쪽",
        "perSide": true,
@@ -4904,8 +4905,8 @@
        "equipment": [
         "밴드"
        ],
-       "at": 152.3,
-       "minutes": 1.6,
+       "at": 158.8,
+       "minutes": 1.7,
        "load": 0.2,
        "cue": "2~3회 · 끝 자세 2초 · 한쪽",
        "perSide": true,
@@ -4920,8 +4921,8 @@
        "equipment": [
         "밴드"
        ],
-       "at": 153.9,
-       "minutes": 1.6,
+       "at": 160.5,
+       "minutes": 1.7,
        "load": 0.2,
        "cue": "2~3회 · 끝 자세 2초 · 한쪽",
        "perSide": true,
@@ -4936,8 +4937,8 @@
        "equipment": [
         "밴드"
        ],
-       "at": 155.5,
-       "minutes": 1.6,
+       "at": 162.2,
+       "minutes": 1.7,
        "load": 1,
        "cue": "3회",
        "perSide": false,
@@ -4953,8 +4954,8 @@
        "equipment": [
         "밴드"
        ],
-       "at": 157.1,
-       "minutes": 1.6,
+       "at": 163.9,
+       "minutes": 1.7,
        "load": 0.5,
        "cue": "3회 · 한쪽",
        "perSide": true,
@@ -4969,8 +4970,8 @@
        "equipment": [
         "밴드"
        ],
-       "at": 158.7,
-       "minutes": 1.6,
+       "at": 165.6,
+       "minutes": 1.7,
        "load": 0.5,
        "cue": "10초 버티기 · 한쪽",
        "perSide": true,
@@ -4994,13 +4995,13 @@
   },
   {
    "week": 6,
-   "end": 132.4,
+   "end": 137.8,
    "stations": [
     {
      "station": "매트",
      "warmup": true,
      "start": 15,
-     "end": 29.8,
+     "end": 30.7,
      "items": [
       {
        "exerciseId": "c6e68a49-e226-42f9-9b54-ea2fbbe32ba0",
@@ -5012,7 +5013,7 @@
         "맨몸"
        ],
        "at": 15,
-       "minutes": 1.6,
+       "minutes": 1.7,
        "load": 0.2,
        "cue": "2~3회 · 끝 자세 2초 · 한쪽",
        "perSide": true,
@@ -5027,8 +5028,8 @@
        "equipment": [
         "맨몸"
        ],
-       "at": 16.6,
-       "minutes": 1.6,
+       "at": 16.7,
+       "minutes": 1.7,
        "load": 0.2,
        "cue": "10초 버티기",
        "perSide": false,
@@ -5043,8 +5044,8 @@
        "equipment": [
         "맨몸"
        ],
-       "at": 18.2,
-       "minutes": 1.6,
+       "at": 18.4,
+       "minutes": 1.7,
        "load": 0.2,
        "cue": "2~3회 · 끝 자세 2초",
        "perSide": false,
@@ -5059,8 +5060,8 @@
        "equipment": [
         "맨몸"
        ],
-       "at": 19.8,
-       "minutes": 1.6,
+       "at": 20.1,
+       "minutes": 1.7,
        "load": 0.2,
        "cue": "10초 버티기 · 한쪽",
        "perSide": true,
@@ -5076,8 +5077,8 @@
        "equipment": [
         "맨몸"
        ],
-       "at": 21.4,
-       "minutes": 1.6,
+       "at": 21.8,
+       "minutes": 1.7,
        "load": 0.2,
        "cue": "10초 버티기",
        "perSide": false,
@@ -5092,8 +5093,8 @@
        "equipment": [
         "맨몸"
        ],
-       "at": 23,
-       "minutes": 1.6,
+       "at": 23.5,
+       "minutes": 1.7,
        "load": 0.2,
        "cue": "2~3회 · 끝 자세 2초",
        "perSide": false,
@@ -5108,8 +5109,8 @@
        "equipment": [
         "맨몸"
        ],
-       "at": 24.6,
-       "minutes": 1.6,
+       "at": 25.2,
+       "minutes": 1.7,
        "load": 0.2,
        "cue": "10초 버티기 · 한쪽",
        "perSide": true,
@@ -5124,8 +5125,8 @@
        "equipment": [
         "맨몸"
        ],
-       "at": 26.2,
-       "minutes": 2,
+       "at": 26.9,
+       "minutes": 2.1,
        "load": 0.2,
        "cue": "2~3회 · 끝 자세 2초 · 한쪽",
        "perSide": true,
@@ -5140,8 +5141,8 @@
        "equipment": [
         "맨몸"
        ],
-       "at": 28.2,
-       "minutes": 1.6,
+       "at": 29,
+       "minutes": 1.7,
        "load": 0.2,
        "cue": "2~3회 · 끝 자세 2초 · 한쪽",
        "perSide": true,
@@ -5151,8 +5152,8 @@
     },
     {
      "station": "랙 · 바벨 · 원판",
-     "start": 32.8,
-     "end": 41.8,
+     "start": 33.7,
+     "end": 43.2,
      "items": [
       {
        "exerciseId": "40e17e02-1dc7-43fc-9e60-382ce31236fd",
@@ -5163,8 +5164,8 @@
        "equipment": [
         "바벨"
        ],
-       "at": 32.8,
-       "minutes": 1.9,
+       "at": 33.7,
+       "minutes": 2,
        "load": 2,
        "cue": "3회 · 한쪽",
        "perSide": true,
@@ -5179,8 +5180,8 @@
        "equipment": [
         "바벨"
        ],
-       "at": 35.7,
-       "minutes": 1.9,
+       "at": 36.7,
+       "minutes": 2,
        "load": 3,
        "cue": "3회",
        "perSide": false,
@@ -5196,8 +5197,8 @@
        "equipment": [
         "바벨"
        ],
-       "at": 37.6,
-       "minutes": 1.9,
+       "at": 38.7,
+       "minutes": 2,
        "load": 2,
        "cue": "3회 · 한쪽",
        "perSide": true,
@@ -5212,8 +5213,8 @@
        "equipment": [
         "바벨"
        ],
-       "at": 39.5,
-       "minutes": 2.3,
+       "at": 40.7,
+       "minutes": 2.5,
        "load": 3,
        "cue": "1~2회 천천히 내리기",
        "perSide": false,
@@ -5223,8 +5224,8 @@
     },
     {
      "station": "벤치",
-     "start": 44.8,
-     "end": 59.9,
+     "start": 46.2,
+     "end": 62.2,
      "items": [
       {
        "exerciseId": "afc0ac93-9853-4017-8a22-b652a0fbea6b",
@@ -5236,8 +5237,8 @@
         "덤벨",
         "벤치"
        ],
-       "at": 44.8,
-       "minutes": 1.6,
+       "at": 46.2,
+       "minutes": 1.7,
        "load": 1,
        "cue": "3회",
        "perSide": false,
@@ -5253,8 +5254,8 @@
         "덤벨",
         "벤치"
        ],
-       "at": 46.4,
-       "minutes": 1.6,
+       "at": 47.9,
+       "minutes": 1.7,
        "load": 1,
        "cue": "3회",
        "perSide": false,
@@ -5271,8 +5272,8 @@
         "덤벨",
         "벤치"
        ],
-       "at": 48,
-       "minutes": 1.6,
+       "at": 49.6,
+       "minutes": 1.7,
        "load": 1,
        "cue": "3회 · 한쪽",
        "perSide": true,
@@ -5289,8 +5290,8 @@
         "덤벨",
         "벤치"
        ],
-       "at": 49.6,
-       "minutes": 1.6,
+       "at": 51.3,
+       "minutes": 1.7,
        "load": 2,
        "cue": "3회",
        "perSide": false,
@@ -5306,8 +5307,8 @@
        "equipment": [
         "벤치"
        ],
-       "at": 51.2,
-       "minutes": 1.6,
+       "at": 53,
+       "minutes": 1.7,
        "load": 0.2,
        "cue": "10초 버티기",
        "perSide": false,
@@ -5323,8 +5324,8 @@
         "덤벨",
         "벤치"
        ],
-       "at": 52.8,
-       "minutes": 2,
+       "at": 54.7,
+       "minutes": 2.1,
        "load": 3,
        "cue": "1~2회 천천히 내리기",
        "perSide": false,
@@ -5340,8 +5341,8 @@
        "equipment": [
         "벤치"
        ],
-       "at": 54.8,
-       "minutes": 1.6,
+       "at": 56.8,
+       "minutes": 1.7,
        "load": 1,
        "cue": "10초 버티기 · 한쪽",
        "perSide": true,
@@ -5357,8 +5358,8 @@
         "플라이오볼",
         "벤치"
        ],
-       "at": 56.4,
-       "minutes": 1.9,
+       "at": 58.5,
+       "minutes": 2,
        "load": 1,
        "cue": "10초 버티기 · 한쪽",
        "perSide": true,
@@ -5374,8 +5375,8 @@
         "덤벨",
         "벤치"
        ],
-       "at": 58.3,
-       "minutes": 1.6,
+       "at": 60.5,
+       "minutes": 1.7,
        "load": 1,
        "cue": "3회 · 한쪽",
        "perSide": true,
@@ -5386,8 +5387,8 @@
     },
     {
      "station": "덤벨 · 케틀벨",
-     "start": 62.9,
-     "end": 98,
+     "start": 65.2,
+     "end": 102,
      "items": [
       {
        "exerciseId": "a80fa8a6-8854-43d9-96ad-0c5ec4152481",
@@ -5398,12 +5399,12 @@
        "equipment": [
         "덤벨"
        ],
-       "at": 62.9,
-       "minutes": 1.9,
+       "at": 65.2,
+       "minutes": 2,
        "load": 2,
        "cue": "2~3회",
        "perSide": false,
-       "breakAfter": false,
+       "breakAfter": true,
        "oldVideo": "library/f8b5ba05-711c-4ef6-a88c-864b63086648.mov"
       },
       {
@@ -5415,12 +5416,12 @@
        "equipment": [
         "덤벨"
        ],
-       "at": 64.8,
-       "minutes": 1.6,
+       "at": 72.2,
+       "minutes": 1.7,
        "load": 1,
        "cue": "3회 · 한쪽",
        "perSide": true,
-       "breakAfter": true
+       "breakAfter": false
       },
       {
        "exerciseId": "4035bf7e-8687-4273-a816-7498fe41485b",
@@ -5431,8 +5432,8 @@
        "equipment": [
         "덤벨"
        ],
-       "at": 71.4,
-       "minutes": 1.6,
+       "at": 73.9,
+       "minutes": 1.7,
        "load": 1,
        "cue": "3회 · 한쪽",
        "perSide": true,
@@ -5447,8 +5448,8 @@
        "equipment": [
         "덤벨"
        ],
-       "at": 73,
-       "minutes": 1.6,
+       "at": 75.6,
+       "minutes": 1.7,
        "load": 1,
        "cue": "3회 · 한쪽",
        "perSide": true,
@@ -5464,8 +5465,8 @@
        "equipment": [
         "덤벨"
        ],
-       "at": 74.6,
-       "minutes": 2,
+       "at": 77.3,
+       "minutes": 2.1,
        "load": 3,
        "cue": "1~2회 천천히 내리기 · 한쪽",
        "perSide": true,
@@ -5480,8 +5481,8 @@
        "equipment": [
         "덤벨"
        ],
-       "at": 76.6,
-       "minutes": 1.6,
+       "at": 79.4,
+       "minutes": 1.7,
        "load": 1,
        "cue": "3회 · 한쪽",
        "perSide": true,
@@ -5497,8 +5498,8 @@
        "equipment": [
         "덤벨"
        ],
-       "at": 78.2,
-       "minutes": 2,
+       "at": 81.1,
+       "minutes": 2.1,
        "load": 3,
        "cue": "1~2회 천천히 내리기 · 한쪽",
        "perSide": true,
@@ -5513,8 +5514,8 @@
        "equipment": [
         "덤벨"
        ],
-       "at": 80.2,
-       "minutes": 1.6,
+       "at": 83.2,
+       "minutes": 1.7,
        "load": 1,
        "cue": "3회 · 한쪽",
        "perSide": true,
@@ -5529,8 +5530,8 @@
        "equipment": [
         "덤벨"
        ],
-       "at": 81.8,
-       "minutes": 1.6,
+       "at": 84.9,
+       "minutes": 1.7,
        "load": 1,
        "cue": "3회 · 한쪽",
        "perSide": true,
@@ -5546,8 +5547,8 @@
        "equipment": [
         "덤벨"
        ],
-       "at": 83.4,
-       "minutes": 2,
+       "at": 86.6,
+       "minutes": 2.1,
        "load": 3,
        "cue": "1~2회 천천히 내리기 · 한쪽",
        "perSide": true,
@@ -5562,8 +5563,8 @@
        "equipment": [
         "덤벨"
        ],
-       "at": 85.4,
-       "minutes": 1.6,
+       "at": 88.7,
+       "minutes": 1.7,
        "load": 0.5,
        "cue": "3회 · 한쪽",
        "perSide": true,
@@ -5578,8 +5579,8 @@
        "equipment": [
         "덤벨"
        ],
-       "at": 87,
-       "minutes": 1.6,
+       "at": 90.4,
+       "minutes": 1.7,
        "load": 0.5,
        "cue": "3회 · 한쪽",
        "perSide": true,
@@ -5594,8 +5595,8 @@
        "equipment": [
         "덤벨"
        ],
-       "at": 88.6,
-       "minutes": 1.6,
+       "at": 92.1,
+       "minutes": 1.7,
        "load": 0.5,
        "cue": "3회 · 한쪽",
        "perSide": true,
@@ -5610,8 +5611,8 @@
        "equipment": [
         "덤벨"
        ],
-       "at": 90.2,
-       "minutes": 2,
+       "at": 93.8,
+       "minutes": 2.1,
        "load": 3,
        "cue": "1~2회 천천히 내리기 · 한쪽",
        "perSide": true,
@@ -5626,8 +5627,8 @@
        "equipment": [
         "케틀벨"
        ],
-       "at": 93.2,
-       "minutes": 1.6,
+       "at": 96.9,
+       "minutes": 1.7,
        "load": 1,
        "cue": "3회 · 한쪽",
        "perSide": true,
@@ -5643,8 +5644,8 @@
        "equipment": [
         "케틀벨"
        ],
-       "at": 94.8,
-       "minutes": 1.6,
+       "at": 98.6,
+       "minutes": 1.7,
        "load": 1,
        "cue": "3회 · 한쪽",
        "perSide": true,
@@ -5660,8 +5661,8 @@
        "equipment": [
         "케틀벨"
        ],
-       "at": 96.4,
-       "minutes": 1.6,
+       "at": 100.3,
+       "minutes": 1.7,
        "load": 2,
        "cue": "3회",
        "perSide": false,
@@ -5671,8 +5672,8 @@
     },
     {
      "station": "공 · 워터백(벽 앞)",
-     "start": 101,
-     "end": 132.4,
+     "start": 105,
+     "end": 137.8,
      "items": [
       {
        "exerciseId": "d8f969a0-0b0c-4e76-ba28-44575f2f0146",
@@ -5683,8 +5684,8 @@
        "equipment": [
         "워터백"
        ],
-       "at": 101,
-       "minutes": 2.3,
+       "at": 105,
+       "minutes": 2.5,
        "load": 2,
        "cue": "2~3회",
        "perSide": false,
@@ -5699,8 +5700,8 @@
        "equipment": [
         "워터백"
        ],
-       "at": 103.3,
-       "minutes": 1.9,
+       "at": 107.5,
+       "minutes": 2,
        "load": 2,
        "cue": "2~3회",
        "perSide": false,
@@ -5715,8 +5716,8 @@
        "equipment": [
         "워터볼"
        ],
-       "at": 106.2,
-       "minutes": 1.6,
+       "at": 110.5,
+       "minutes": 1.7,
        "load": 1,
        "cue": "3회 · 한쪽",
        "perSide": true,
@@ -5731,8 +5732,8 @@
        "equipment": [
         "워터볼"
        ],
-       "at": 107.8,
-       "minutes": 1.6,
+       "at": 112.2,
+       "minutes": 1.7,
        "load": 1,
        "cue": "3회 · 한쪽",
        "perSide": true,
@@ -5747,8 +5748,8 @@
        "equipment": [
         "워터볼"
        ],
-       "at": 109.4,
-       "minutes": 1.6,
+       "at": 113.9,
+       "minutes": 1.7,
        "load": 2,
        "cue": "3회",
        "perSide": false,
@@ -5763,8 +5764,8 @@
        "equipment": [
         "워터볼"
        ],
-       "at": 111,
-       "minutes": 2,
+       "at": 115.6,
+       "minutes": 2.1,
        "load": 1,
        "cue": "3회 · 한쪽",
        "perSide": true,
@@ -5779,8 +5780,8 @@
        "equipment": [
         "워터볼"
        ],
-       "at": 113,
-       "minutes": 1.6,
+       "at": 117.7,
+       "minutes": 1.7,
        "load": 2,
        "cue": "3회",
        "perSide": false,
@@ -5795,8 +5796,8 @@
        "equipment": [
         "워터볼"
        ],
-       "at": 114.6,
-       "minutes": 1.6,
+       "at": 119.4,
+       "minutes": 1.7,
        "load": 1,
        "cue": "3회",
        "perSide": false,
@@ -5811,12 +5812,12 @@
        "equipment": [
         "워터볼"
        ],
-       "at": 116.2,
-       "minutes": 1.6,
+       "at": 121.1,
+       "minutes": 1.7,
        "load": 1,
        "cue": "3회 · 한쪽",
        "perSide": true,
-       "breakAfter": false
+       "breakAfter": true
       },
       {
        "exerciseId": "4c4ce3b0-e3e3-4707-9b61-bacc95402bf7",
@@ -5827,8 +5828,8 @@
        "equipment": [
         "플라이오볼"
        ],
-       "at": 118.8,
-       "minutes": 1.9,
+       "at": 128.8,
+       "minutes": 2,
        "load": 1,
        "cue": "10초 버티기 · 한쪽",
        "perSide": true,
@@ -5843,12 +5844,12 @@
        "equipment": [
         "플라이오볼"
        ],
-       "at": 120.7,
-       "minutes": 1.9,
+       "at": 130.8,
+       "minutes": 2,
        "load": 1,
        "cue": "2~3회 · 한쪽",
        "perSide": true,
-       "breakAfter": true
+       "breakAfter": false
       },
       {
        "exerciseId": "89b14e01-8ca7-4b08-a79b-bc043d6ff140",
@@ -5859,8 +5860,8 @@
        "equipment": [
         "메디신볼"
        ],
-       "at": 128.6,
-       "minutes": 1.9,
+       "at": 133.8,
+       "minutes": 2,
        "load": 1,
        "cue": "2~3회",
        "perSide": false,
@@ -5875,8 +5876,8 @@
        "equipment": [
         "메디신볼"
        ],
-       "at": 130.5,
-       "minutes": 1.9,
+       "at": 135.8,
+       "minutes": 2,
        "load": 1,
        "cue": "2~3회",
        "perSide": false,
@@ -5900,13 +5901,13 @@
   },
   {
    "week": 7,
-   "end": 150.2,
+   "end": 156.8,
    "stations": [
     {
      "station": "매트",
      "warmup": true,
      "start": 15,
-     "end": 31.8,
+     "end": 32.8,
      "items": [
       {
        "exerciseId": "2d2948d6-99d6-4389-83c8-a36ddeb220da",
@@ -5918,7 +5919,7 @@
         "맨몸"
        ],
        "at": 15,
-       "minutes": 1.6,
+       "minutes": 1.7,
        "load": 0.2,
        "cue": "2~3회 · 끝 자세 2초",
        "perSide": false,
@@ -5933,8 +5934,8 @@
        "equipment": [
         "맨몸"
        ],
-       "at": 16.6,
-       "minutes": 1.6,
+       "at": 16.7,
+       "minutes": 1.7,
        "load": 0.2,
        "cue": "10초 버티기",
        "perSide": false,
@@ -5949,8 +5950,8 @@
        "equipment": [
         "맨몸"
        ],
-       "at": 18.2,
-       "minutes": 1.6,
+       "at": 18.4,
+       "minutes": 1.7,
        "load": 0.2,
        "cue": "10초 버티기 · 한쪽",
        "perSide": true,
@@ -5965,8 +5966,8 @@
        "equipment": [
         "맨몸"
        ],
-       "at": 19.8,
-       "minutes": 1.6,
+       "at": 20.1,
+       "minutes": 1.7,
        "load": 0.2,
        "cue": "2~3회 · 끝 자세 2초",
        "perSide": false,
@@ -5981,8 +5982,8 @@
        "equipment": [
         "맨몸"
        ],
-       "at": 21.4,
-       "minutes": 1.6,
+       "at": 21.8,
+       "minutes": 1.7,
        "load": 0.2,
        "cue": "10초 버티기 · 한쪽",
        "perSide": true,
@@ -5997,8 +5998,8 @@
        "equipment": [
         "맨몸"
        ],
-       "at": 23,
-       "minutes": 2,
+       "at": 23.5,
+       "minutes": 2.1,
        "load": 0.2,
        "cue": "10초 버티기 · 한쪽",
        "perSide": true,
@@ -6013,8 +6014,8 @@
        "equipment": [
         "맨몸"
        ],
-       "at": 25,
-       "minutes": 1.6,
+       "at": 25.6,
+       "minutes": 1.7,
        "load": 0.2,
        "cue": "2~3회 · 끝 자세 2초 · 한쪽",
        "perSide": true,
@@ -6029,8 +6030,8 @@
        "equipment": [
         "맨몸"
        ],
-       "at": 26.6,
-       "minutes": 1.6,
+       "at": 27.3,
+       "minutes": 1.7,
        "load": 0.2,
        "cue": "10초 버티기 · 한쪽",
        "perSide": true,
@@ -6045,8 +6046,8 @@
        "equipment": [
         "맨몸"
        ],
-       "at": 28.2,
-       "minutes": 1.6,
+       "at": 29,
+       "minutes": 1.7,
        "load": 0.2,
        "cue": "2~3회 · 끝 자세 2초",
        "perSide": false,
@@ -6062,8 +6063,8 @@
        "equipment": [
         "맨몸"
        ],
-       "at": 29.8,
-       "minutes": 2,
+       "at": 30.7,
+       "minutes": 2.1,
        "load": 0.2,
        "cue": "2~3회 · 끝 자세 2초 · 한쪽",
        "perSide": true,
@@ -6073,8 +6074,8 @@
     },
     {
      "station": "랙 · 바벨 · 원판",
-     "start": 34.8,
-     "end": 36.7,
+     "start": 35.8,
+     "end": 37.8,
      "items": [
       {
        "exerciseId": "6e4874d3-5e72-4d6e-a51b-9c14b1482aaa",
@@ -6085,8 +6086,8 @@
        "equipment": [
         "바벨"
        ],
-       "at": 34.8,
-       "minutes": 1.9,
+       "at": 35.8,
+       "minutes": 2,
        "load": 2,
        "cue": "3회 · 한쪽",
        "perSide": true,
@@ -6097,8 +6098,8 @@
     },
     {
      "station": "케이블",
-     "start": 39.7,
-     "end": 50.9,
+     "start": 40.8,
+     "end": 52.7,
      "items": [
       {
        "exerciseId": "57ac315c-fa82-455e-b3ac-617c4cfb64da",
@@ -6109,8 +6110,8 @@
        "equipment": [
         "케이블"
        ],
-       "at": 39.7,
-       "minutes": 1.6,
+       "at": 40.8,
+       "minutes": 1.7,
        "load": 1,
        "cue": "3회 · 한쪽",
        "perSide": true,
@@ -6126,8 +6127,8 @@
        "equipment": [
         "케이블"
        ],
-       "at": 41.3,
-       "minutes": 1.6,
+       "at": 42.5,
+       "minutes": 1.7,
        "load": 1,
        "cue": "3회 · 한쪽",
        "perSide": true,
@@ -6143,8 +6144,8 @@
        "equipment": [
         "케이블"
        ],
-       "at": 42.9,
-       "minutes": 1.6,
+       "at": 44.2,
+       "minutes": 1.7,
        "load": 1,
        "cue": "3회 · 한쪽",
        "perSide": true,
@@ -6160,8 +6161,8 @@
        "equipment": [
         "케이블"
        ],
-       "at": 44.5,
-       "minutes": 1.6,
+       "at": 45.9,
+       "minutes": 1.7,
        "load": 1,
        "cue": "3회 · 한쪽",
        "perSide": true,
@@ -6177,8 +6178,8 @@
        "equipment": [
         "케이블"
        ],
-       "at": 46.1,
-       "minutes": 1.6,
+       "at": 47.6,
+       "minutes": 1.7,
        "load": 1,
        "cue": "3회 · 한쪽",
        "perSide": true,
@@ -6194,8 +6195,8 @@
        "equipment": [
         "케이블"
        ],
-       "at": 47.7,
-       "minutes": 1.6,
+       "at": 49.3,
+       "minutes": 1.7,
        "load": 1,
        "cue": "3회 · 한쪽",
        "perSide": true,
@@ -6211,8 +6212,8 @@
        "equipment": [
         "케이블"
        ],
-       "at": 49.3,
-       "minutes": 1.6,
+       "at": 51,
+       "minutes": 1.7,
        "load": 1,
        "cue": "3회",
        "perSide": false,
@@ -6223,8 +6224,8 @@
     },
     {
      "station": "공 · 워터백(벽 앞)",
-     "start": 53.9,
-     "end": 81.4,
+     "start": 55.7,
+     "end": 84.5,
      "items": [
       {
        "exerciseId": "9965e618-5500-431b-b100-2e31ab16a55a",
@@ -6235,8 +6236,8 @@
        "equipment": [
         "워터볼"
        ],
-       "at": 53.9,
-       "minutes": 1.6,
+       "at": 55.7,
+       "minutes": 1.7,
        "load": 2,
        "cue": "3회 · 한쪽",
        "perSide": true,
@@ -6251,8 +6252,8 @@
        "equipment": [
         "워터볼"
        ],
-       "at": 55.5,
-       "minutes": 2.3,
+       "at": 57.4,
+       "minutes": 2.5,
        "load": 2,
        "cue": "2~3회",
        "perSide": false,
@@ -6267,8 +6268,8 @@
        "equipment": [
         "메디신볼"
        ],
-       "at": 58.8,
-       "minutes": 1.6,
+       "at": 60.9,
+       "minutes": 1.7,
        "load": 0.5,
        "cue": "3회",
        "perSide": false,
@@ -6284,8 +6285,8 @@
        "equipment": [
         "메디신볼"
        ],
-       "at": 60.4,
-       "minutes": 1.9,
+       "at": 62.6,
+       "minutes": 2,
        "load": 2,
        "cue": "2~3회",
        "perSide": false,
@@ -6300,12 +6301,12 @@
        "equipment": [
         "메디신볼"
        ],
-       "at": 62.3,
-       "minutes": 1.9,
+       "at": 64.6,
+       "minutes": 2,
        "load": 2,
        "cue": "2~3회",
        "perSide": false,
-       "breakAfter": false
+       "breakAfter": true
       },
       {
        "exerciseId": "618b535c-df6a-404b-9c63-5e93497d5464",
@@ -6316,12 +6317,12 @@
        "equipment": [
         "메디신볼"
        ],
-       "at": 64.2,
-       "minutes": 1.6,
+       "at": 71.6,
+       "minutes": 1.7,
        "load": 1,
        "cue": "3회 · 한쪽",
        "perSide": true,
-       "breakAfter": true
+       "breakAfter": false
       },
       {
        "exerciseId": "5b62348b-29cc-4ce7-99e9-c34b581b1bba",
@@ -6332,8 +6333,8 @@
        "equipment": [
         "메디신볼"
        ],
-       "at": 70.8,
-       "minutes": 1.6,
+       "at": 73.3,
+       "minutes": 1.7,
        "load": 0.5,
        "cue": "3회 · 한쪽",
        "perSide": true,
@@ -6348,8 +6349,8 @@
        "equipment": [
         "짐볼"
        ],
-       "at": 73.4,
-       "minutes": 1.6,
+       "at": 76,
+       "minutes": 1.7,
        "load": 1,
        "cue": "3회",
        "perSide": false,
@@ -6365,8 +6366,8 @@
        "equipment": [
         "짐볼"
        ],
-       "at": 75,
-       "minutes": 1.6,
+       "at": 77.7,
+       "minutes": 1.7,
        "load": 0.5,
        "cue": "10초 버티기 · 한쪽",
        "perSide": true,
@@ -6381,8 +6382,8 @@
        "equipment": [
         "짐볼"
        ],
-       "at": 76.6,
-       "minutes": 1.6,
+       "at": 79.4,
+       "minutes": 1.7,
        "load": 1,
        "cue": "10초 버티기",
        "perSide": false,
@@ -6398,8 +6399,8 @@
        "equipment": [
         "짐볼"
        ],
-       "at": 78.2,
-       "minutes": 1.6,
+       "at": 81.1,
+       "minutes": 1.7,
        "load": 0.5,
        "cue": "10초 버티기",
        "perSide": false,
@@ -6415,8 +6416,8 @@
        "equipment": [
         "짐볼"
        ],
-       "at": 79.8,
-       "minutes": 1.6,
+       "at": 82.8,
+       "minutes": 1.7,
        "load": 0.5,
        "cue": "3회",
        "perSide": false,
@@ -6427,8 +6428,8 @@
     },
     {
      "station": "밴드(고정 기둥)",
-     "start": 84.4,
-     "end": 138.4,
+     "start": 87.5,
+     "end": 144.5,
      "items": [
       {
        "exerciseId": "c0e39a5a-b78d-48ed-b1ba-f2fd7b265009",
@@ -6439,8 +6440,8 @@
        "equipment": [
         "밴드"
        ],
-       "at": 84.4,
-       "minutes": 1.6,
+       "at": 87.5,
+       "minutes": 1.7,
        "load": 1,
        "cue": "3회",
        "perSide": false,
@@ -6455,8 +6456,8 @@
        "equipment": [
         "밴드"
        ],
-       "at": 86,
-       "minutes": 2,
+       "at": 89.2,
+       "minutes": 2.1,
        "load": 2,
        "cue": "2~3회",
        "perSide": false,
@@ -6471,8 +6472,8 @@
        "equipment": [
         "밴드"
        ],
-       "at": 88,
-       "minutes": 1.6,
+       "at": 91.3,
+       "minutes": 1.7,
        "load": 1,
        "cue": "3회",
        "perSide": false,
@@ -6487,8 +6488,8 @@
        "equipment": [
         "밴드"
        ],
-       "at": 89.6,
-       "minutes": 1.6,
+       "at": 93,
+       "minutes": 1.7,
        "load": 0.5,
        "cue": "3회 · 한쪽",
        "perSide": true,
@@ -6503,8 +6504,8 @@
        "equipment": [
         "밴드"
        ],
-       "at": 91.2,
-       "minutes": 1.6,
+       "at": 94.7,
+       "minutes": 1.7,
        "load": 0.5,
        "cue": "3회 · 한쪽",
        "perSide": true,
@@ -6519,8 +6520,8 @@
        "equipment": [
         "밴드"
        ],
-       "at": 92.8,
-       "minutes": 1.6,
+       "at": 96.4,
+       "minutes": 1.7,
        "load": 0.5,
        "cue": "3회 · 한쪽",
        "perSide": true,
@@ -6535,8 +6536,8 @@
        "equipment": [
         "밴드"
        ],
-       "at": 94.4,
-       "minutes": 1.9,
+       "at": 98.1,
+       "minutes": 2,
        "load": 1,
        "cue": "2~3회 · 한쪽",
        "perSide": true,
@@ -6552,8 +6553,8 @@
        "equipment": [
         "밴드"
        ],
-       "at": 96.3,
-       "minutes": 1.6,
+       "at": 100.1,
+       "minutes": 1.7,
        "load": 0.5,
        "cue": "3회 · 한쪽",
        "perSide": true,
@@ -6569,8 +6570,8 @@
        "equipment": [
         "밴드"
        ],
-       "at": 97.9,
-       "minutes": 1.6,
+       "at": 101.8,
+       "minutes": 1.7,
        "load": 0.5,
        "cue": "3회 · 한쪽",
        "perSide": true,
@@ -6586,8 +6587,8 @@
        "equipment": [
         "밴드"
        ],
-       "at": 99.5,
-       "minutes": 1.6,
+       "at": 103.5,
+       "minutes": 1.7,
        "load": 0.5,
        "cue": "3회 · 한쪽",
        "perSide": true,
@@ -6602,8 +6603,8 @@
        "equipment": [
         "밴드"
        ],
-       "at": 101.1,
-       "minutes": 1.6,
+       "at": 105.2,
+       "minutes": 1.7,
        "load": 0.5,
        "cue": "3회 · 한쪽",
        "perSide": true,
@@ -6618,8 +6619,8 @@
        "equipment": [
         "밴드"
        ],
-       "at": 102.7,
-       "minutes": 1.6,
+       "at": 106.9,
+       "minutes": 1.7,
        "load": 0.5,
        "cue": "3회 · 한쪽",
        "perSide": true,
@@ -6634,8 +6635,8 @@
        "equipment": [
         "밴드"
        ],
-       "at": 104.3,
-       "minutes": 1.6,
+       "at": 108.6,
+       "minutes": 1.7,
        "load": 0.5,
        "cue": "3회 · 한쪽",
        "perSide": true,
@@ -6651,8 +6652,8 @@
        "equipment": [
         "밴드"
        ],
-       "at": 105.9,
-       "minutes": 1.6,
+       "at": 110.3,
+       "minutes": 1.7,
        "load": 0.5,
        "cue": "3회 · 한쪽",
        "perSide": true,
@@ -6667,8 +6668,8 @@
        "equipment": [
         "밴드"
        ],
-       "at": 107.5,
-       "minutes": 1.9,
+       "at": 112,
+       "minutes": 2,
        "load": 1,
        "cue": "2~3회 · 한쪽",
        "perSide": true,
@@ -6683,8 +6684,8 @@
        "equipment": [
         "밴드"
        ],
-       "at": 109.4,
-       "minutes": 1.6,
+       "at": 114,
+       "minutes": 1.7,
        "load": 0.5,
        "cue": "3회 · 한쪽",
        "perSide": true,
@@ -6699,8 +6700,8 @@
        "equipment": [
         "밴드"
        ],
-       "at": 111,
-       "minutes": 1.6,
+       "at": 115.7,
+       "minutes": 1.7,
        "load": 0.5,
        "cue": "3회 · 한쪽",
        "perSide": true,
@@ -6715,8 +6716,8 @@
        "equipment": [
         "밴드"
        ],
-       "at": 112.6,
-       "minutes": 1.6,
+       "at": 117.4,
+       "minutes": 1.7,
        "load": 0.5,
        "cue": "3회 · 한쪽",
        "perSide": true,
@@ -6731,8 +6732,8 @@
        "equipment": [
         "밴드"
        ],
-       "at": 114.2,
-       "minutes": 1.6,
+       "at": 119.1,
+       "minutes": 1.7,
        "load": 0.5,
        "cue": "3회 · 한쪽",
        "perSide": true,
@@ -6747,12 +6748,12 @@
        "equipment": [
         "밴드"
        ],
-       "at": 115.8,
-       "minutes": 1.6,
+       "at": 120.8,
+       "minutes": 1.7,
        "load": 1,
        "cue": "3회 · 한쪽",
        "perSide": true,
-       "breakAfter": false
+       "breakAfter": true
       },
       {
        "exerciseId": "7f615a0a-118b-4a12-bcce-bc1f7a2dc78d",
@@ -6763,8 +6764,8 @@
        "equipment": [
         "밴드"
        ],
-       "at": 117.4,
-       "minutes": 1.6,
+       "at": 127.5,
+       "minutes": 1.7,
        "load": 2,
        "cue": "3회",
        "perSide": false,
@@ -6779,8 +6780,8 @@
        "equipment": [
         "밴드"
        ],
-       "at": 119,
-       "minutes": 1.6,
+       "at": 129.2,
+       "minutes": 1.7,
        "load": 0.5,
        "cue": "3회 · 한쪽",
        "perSide": true,
@@ -6795,12 +6796,12 @@
        "equipment": [
         "밴드"
        ],
-       "at": 120.6,
-       "minutes": 1.6,
+       "at": 130.9,
+       "minutes": 1.7,
        "load": 0.5,
        "cue": "3회",
        "perSide": false,
-       "breakAfter": true
+       "breakAfter": false
       },
       {
        "exerciseId": "541919ae-c924-4374-bb7e-53c10d0ba3de",
@@ -6811,8 +6812,8 @@
        "equipment": [
         "밴드"
        ],
-       "at": 127.2,
-       "minutes": 1.6,
+       "at": 132.6,
+       "minutes": 1.7,
        "load": 0.5,
        "cue": "3회",
        "perSide": false,
@@ -6827,8 +6828,8 @@
        "equipment": [
         "밴드"
        ],
-       "at": 128.8,
-       "minutes": 1.6,
+       "at": 134.3,
+       "minutes": 1.7,
        "load": 0.5,
        "cue": "3회",
        "perSide": false,
@@ -6843,8 +6844,8 @@
        "equipment": [
         "밴드"
        ],
-       "at": 130.4,
-       "minutes": 1.6,
+       "at": 136,
+       "minutes": 1.7,
        "load": 0.5,
        "cue": "3회",
        "perSide": false,
@@ -6859,8 +6860,8 @@
        "equipment": [
         "밴드"
        ],
-       "at": 132,
-       "minutes": 1.6,
+       "at": 137.7,
+       "minutes": 1.7,
        "load": 0.2,
        "cue": "10초 버티기 · 한쪽",
        "perSide": true,
@@ -6875,8 +6876,8 @@
        "equipment": [
         "밴드"
        ],
-       "at": 133.6,
-       "minutes": 1.6,
+       "at": 139.4,
+       "minutes": 1.7,
        "load": 3,
        "cue": "3회",
        "perSide": false,
@@ -6892,8 +6893,8 @@
        "equipment": [
         "밴드"
        ],
-       "at": 135.2,
-       "minutes": 1.6,
+       "at": 141.1,
+       "minutes": 1.7,
        "load": 0.5,
        "cue": "3회",
        "perSide": false,
@@ -6908,8 +6909,8 @@
        "equipment": [
         "밴드"
        ],
-       "at": 136.8,
-       "minutes": 1.6,
+       "at": 142.8,
+       "minutes": 1.7,
        "load": 0.2,
        "cue": "3회 · 한쪽",
        "perSide": true,
@@ -6919,8 +6920,8 @@
     },
     {
      "station": "매트",
-     "start": 141.4,
-     "end": 150.2,
+     "start": 147.5,
+     "end": 156.8,
      "items": [
       {
        "exerciseId": "e4329d32-7532-4708-914b-6e2182fe8107",
@@ -6931,8 +6932,8 @@
        "equipment": [
         "맨몸"
        ],
-       "at": 141.4,
-       "minutes": 1.6,
+       "at": 147.5,
+       "minutes": 1.7,
        "load": 1,
        "cue": "3회 · 한쪽",
        "perSide": true,
@@ -6947,8 +6948,8 @@
        "equipment": [
         "맨몸"
        ],
-       "at": 143,
-       "minutes": 2,
+       "at": 149.2,
+       "minutes": 2.1,
        "load": 1,
        "cue": "3회 · 한쪽",
        "perSide": true,
@@ -6963,8 +6964,8 @@
        "equipment": [
         "맨몸"
        ],
-       "at": 145,
-       "minutes": 2,
+       "at": 151.3,
+       "minutes": 2.1,
        "load": 1.5,
        "cue": "1~2회 천천히 내리기",
        "perSide": false,
@@ -6979,8 +6980,8 @@
        "equipment": [
         "맨몸"
        ],
-       "at": 147,
-       "minutes": 1.6,
+       "at": 153.4,
+       "minutes": 1.7,
        "load": 1,
        "cue": "3회",
        "perSide": false,
@@ -6996,8 +6997,8 @@
        "equipment": [
         "맨몸"
        ],
-       "at": 148.6,
-       "minutes": 1.6,
+       "at": 155.1,
+       "minutes": 1.7,
        "load": 0.5,
        "cue": "3회",
        "perSide": false,
