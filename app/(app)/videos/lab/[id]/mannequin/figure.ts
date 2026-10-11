@@ -77,6 +77,16 @@ export function createFigure(THREE: ThreeNS, opts: { heightM: number; hand: 'R' 
       forceSinglePass: true,
     });
   }
+  /* 신발은 예시처럼 클리어코트(MeshPhysicalMaterial 은 MeshStandardMaterial 의 자식이라 applyAna 가 그대로 쓴다) */
+  materials.shoe.dispose();
+  materials.shoe = new THREE.MeshPhysicalMaterial({
+    color: MANNEQUIN_COLOR.shoe,
+    roughness: MANNEQUIN_ROUGHNESS.shoe,
+    clearcoat: 0.7,
+    clearcoatRoughness: 0.3,
+    side: THREE.DoubleSide,
+    forceSinglePass: true,
+  });
   const M = materials;
 
   const keep = <G extends Three.BufferGeometry>(g: G): G => {
@@ -85,6 +95,7 @@ export function createFigure(THREE: ThreeNS, opts: { heightM: number; hand: 'R' 
   };
   const mesh = (g: Three.BufferGeometry, m: Three.Material) => {
     const o = new THREE.Mesh(g, m);
+    o.castShadow = true;
     group.add(o);
     return o;
   };

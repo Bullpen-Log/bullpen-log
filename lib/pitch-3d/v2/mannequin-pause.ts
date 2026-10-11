@@ -1,7 +1,7 @@
 import { add, cross, dot, norm, normalize, scale, sub, type Vec3 } from '@/lib/pitch-3d/linalg';
 import type { MannequinJoints } from '@/lib/pitch-3d/v2/mannequin-prep';
 import { lerp, rotate, slerp, type FootPose, type MannequinFrame, type Quat } from '@/lib/pitch-3d/v2/mannequin-frames';
-import type { TorsoModel } from '@/lib/pitch-3d/v2/mannequin-loft';
+import { catmullRom, type TorsoModel } from '@/lib/pitch-3d/v2/mannequin-loft';
 import type { Arc, MEASURE_COLOR } from '@/lib/pitch-3d/v2/mannequin-measure';
 import { curve } from '@/lib/pitch-3d/v2/mannequin-profiles';
 
@@ -205,4 +205,18 @@ export function placeLabels(boxes: readonly LabelBox[], w: number, h: number): {
 /** 정규 좌표(−1~1) → 화면 px(왼쪽 위 원점). z > 1 이면 카메라 뒤 */
 export function projectToScreen(ndc: readonly [number, number, number], w: number, h: number) {
   return { x: ((ndc[0] + 1) / 2) * w, y: ((1 - ndc[1]) / 2) * h, visible: ndc[2] <= 1 };
+}
+
+/** 호의 점열을 캣멀롬으로 다시 고르게 뽑기(count 점, 양 끝 그대로) — 관 · 부채꼴이 매끈해진다(예시 TubeGeometry(CatmullRomCurve3)) */
+export function arcPolyline(points: readonly Vec3[], count: number): Vec3[] {
+  const copy = (p: Vec3): Vec3 => [p[0], p[1], p[2]];
+  if (points.length < 3) return points.map(copy);
+  const c = catmullRom(points);
+  const out: Vec3[] = [];
+  for (let i = 0; i < count; i++) {
+    if (i === 0) out.push(copy(points[0]));
+    else if (i === count - 1) out.push(copy(points[points.length - 1]));
+    else out.push(c.point(i / (count - 1)));
+  }
+  return out;
 }

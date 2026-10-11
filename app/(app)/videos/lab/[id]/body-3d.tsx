@@ -15,21 +15,30 @@ import { Segmented } from '@/components/segmented';
 import { hasWebGL } from '@/components/three-stage';
 import { CHIP_BASE, CHIP_ON } from '@/components/velocity/kit';
 import type { Vec3 } from '@/lib/pitch-3d/linalg';
-import type { Pitch3dV2Ok } from '@/lib/pitch-3d/v2/contract';
+import { V2J, type Pitch3dV2Ok } from '@/lib/pitch-3d/v2/contract';
 import { displayTrack } from '@/lib/pitch-3d/v2/display';
 import type { LabGround } from '@/lib/pitch-lab-meta';
 import { canonicalFrames, mannequinFrames } from '@/lib/pitch-3d/v2/mannequin-frames';
 import { labelValues, measureAngles, momentOf, type Label } from '@/lib/pitch-3d/v2/mannequin-measure';
 import { anaMaterials, anaStep, LEGEND, placeLabels, projectToScreen } from '@/lib/pitch-3d/v2/mannequin-pause';
 import { mannequinTrack } from '@/lib/pitch-3d/v2/mannequin-prep';
-import { MOUND_COLOR } from '@/lib/pitch-3d/v2/mannequin-profiles';
+import {
+  LIGHT_RIG,
+  MOUND_COLOR,
+  STAGE,
+  moundShade,
+  toDisplay,
+  valueNoise2,
+  type DirLightSpec,
+} from '@/lib/pitch-3d/v2/mannequin-profiles';
 import { MOUND } from '@/lib/pitch-3d/v2/pose-rig';
 import { createFigure } from './mannequin/figure';
 import { createOverlay, measureHex } from './mannequin/overlay';
 
 /**
  * 투구 3D 보기(설계 pitch-3d-quality.md 0절 · 화면 결정 9~16 · 데생 인형 pitch-3d-mannequin.md §6) — 데생 인형(몸통 · 팔다리 · 신발 · 글러브 · 공)을
- * 맞춘 관절에 맞춰 움직인다. 어두운 바탕 · 모래색 마운드 · 격자 · 축 화살표(빨강 = 홈, 파랑 = 위, 하늘 = 옆).
+ * 맞춘 관절에 맞춰 움직인다. 예시(page.js)와 같은 무대 — 그라데이션 바탕(투명 캔버스 뒤 CSS) · 빛 넷과 그림자(mannequin-profiles LIGHT_RIG · STAGE) ·
+ * 모래색 마운드(착지 자리 · 투수판 앞은 흙, 결) · 격자 · 축 화살표(빨강 = 홈, 파랑 = 위, 하늘 = 옆 — 앱만의 것).
  *
  *   - 인형은 한 번 만들고(mannequin/figure.ts) 장면마다 자리 · 회전 · 배율만 바꾼다. 관절(미터 · z 위 · 우투 꼴)은 mannequin-prep →
  *     mannequin-frames 가 만들고, 묶음을 x 로 −90° 돌려 y 위로 · 1/키 배율로 보기 좌표에 놓는다. 좌투는 y 배율 −1(거울).
@@ -56,9 +65,6 @@ export type Transport = {
 };
 export type Body3DHandle = { seek: (frame: number) => void };
 
-const BG = '#151722';
-const GRID_A = '#2b3141';
-const GRID_B = '#1e2230';
 const AXIS = { home: '#ef4444', up: '#3b82f6', side: '#38bdf8' } as const;
 const VIEWS: { value: ViewName; label: string }[] = [
   { value: 'side', label: '옆' },
@@ -88,8 +94,9 @@ const loadThree = () => {
 };
 
 /**
- * 마운드 면 — 가운데에서 둘레까지 고리 40 · 둘레 120 칸, 높이는 f(규격 높이 함수). 정점 색: 모래(김민 §1), 투수판 앞 착지 띠는
- * 짙은 흙, 둘레 18% 는 어둡게 가라앉혀 바탕과 잇는다. clay 는 투수판 앞 모서리(x0, z0)와 미터 → 보기 배율 s.
+ * 마운드 면 — 가운데에서 둘레까지 고리 40 · 둘레 120 칸, 높이는 f(규격 높이 함수). 정점 색은 예시 buildMound 와 같다(mannequin-profiles
+ * moundShade): 모래(김민 §1) · 착지 발목(landing)과 투수판 앞(rubberFront) 둘레는 짙은 흙 · 둘레는 어둡게 · 값 잡음 얼룩. 거리는 미터로
+ * 재려고 키 H 를 받는다(보기 좌표는 키 = 1).
  */
 function moundGeometry(
   THREE: typeof import('three'),
@@ -97,7 +104,9 @@ function moundGeometry(
   cx: number,
   cz: number,
   R: number,
-  clay: { x0: number; z0: number; s: number }
+  H: number,
+  rubberFront: [number, number],
+  landing: [number, number]
 ): Three.BufferGeometry {
   const rings = 40;
   const segs = 120;
@@ -105,19 +114,18 @@ function moundGeometry(
   const sand = new THREE.Color(MOUND_COLOR.sand);
   const dirt = new THREE.Color(MOUND_COLOR.clay);
   const rim = new THREE.Color(MOUND_COLOR.rim);
-  const tmp = new THREE.Color();
   const pos: number[] = [];
   const col: number[] = [];
-  const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
   const push = (x: number, z: number, r: number) => {
     pos.push(x, f(x, z) + lift, z);
-    const ahead = (x - clay.x0) / clay.s;
-    const side = Math.abs(z - clay.z0) / clay.s;
-    const gap = Math.max(-0.15 - ahead, ahead - 1.4, side - 0.35, 0);
-    const dirtW = 1 - clamp01(gap / 0.18);
-    const rimW = clamp01((r / R - 0.82) / 0.18);
-    tmp.copy(sand).lerp(dirt, dirtW * 0.85).lerp(rim, rimW);
-    col.push(tmp.r, tmp.g, tmp.b);
+    const dL = Math.hypot(x - landing[0], z - landing[1]) * H;
+    const dR = Math.hypot(x - rubberFront[0], z - rubberFront[1]) * H;
+    const [ws, wc, wr, bright] = moundShade(dL, dR, r * H, R * H, valueNoise2(x * H, z * H));
+    col.push(
+      (sand.r * ws + dirt.r * wc + rim.r * wr) * bright,
+      (sand.g * ws + dirt.g * wc + rim.g * wr) * bright,
+      (sand.b * ws + dirt.b * wc + rim.b * wr) * bright
+    );
   };
   push(cx, cz, 0);
   for (let i = 1; i <= rings; i++) {
@@ -237,11 +245,13 @@ export const Body3D = forwardRef<
       const [THREE, { OrbitControls }] = await loadThree();
       if (disposed) return;
 
-      const renderer = new THREE.WebGLRenderer({ antialias: true });
+      /* 투명 캔버스 — 바탕 그라데이션은 호스트 CSS(예시 .stage). 그림자 지도는 기본 PCF(0.186 은 radius 가 부드러움 조절) */
+      const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
       renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-      renderer.setClearColor(BG);
+      renderer.setClearColor(0x000000, 0);
       renderer.toneMapping = THREE.ACESFilmicToneMapping;
-      renderer.toneMappingExposure = 1.05;
+      renderer.toneMappingExposure = STAGE.exposure;
+      renderer.shadowMap.enabled = true;
       renderer.domElement.style.display = 'block';
       renderer.domElement.style.width = '100%';
       renderer.domElement.style.height = '100%';
@@ -264,42 +274,93 @@ export const Body3D = forwardRef<
       /* 바닥 · 마운드 · 투수판 · 화살표 — 인형과 따로 묶어 둔다(뒤 단계에서 따로 그린다) */
       const world = new THREE.Group();
       scene.add(world);
-      scene.add(new THREE.HemisphereLight('#ffffff', '#3b4252', 0.9));
-      const key = new THREE.DirectionalLight('#ffffff', 1.7);
-      key.position.set(1.2, 2.2, 1.6);
-      scene.add(key);
-      const rim = new THREE.DirectionalLight('#dbeafe', 0.6);
-      rim.position.set(-1.6, 1.0, -1.2);
-      scene.add(rim);
+      const H = mann.H;
+      /*
+       * 빛 — 예시 page.js 의 반구 · 주(그림자) · 보조 · 뒤 넷을 보기 좌표로(LIGHT_RIG · toDisplay). 기준점은 엉덩이 가운데의 바닥점(x · z 평균, y = 0),
+       * 예시의 z 는 바닥에서의 높이라 그대로 1/키. 그림자는 주 빛만 — 좁은 칸(휴대폰)은 1024, 그 밖은 2048, 카메라 ±2.4m 는 보폭을 덮는다.
+       */
+      const figCenter: Vec3 = [0, 0, 0];
+      for (const fr of track.frames) {
+        figCenter[0] += (fr[V2J.lHip][0] + fr[V2J.rHip][0]) / 2;
+        figCenter[2] += (fr[V2J.lHip][2] + fr[V2J.rHip][2]) / 2;
+      }
+      figCenter[0] /= track.frames.length;
+      figCenter[2] /= track.frames.length;
+      const hemi = new THREE.HemisphereLight(LIGHT_RIG.hemi.sky, LIGHT_RIG.hemi.ground, LIGHT_RIG.hemi.intensity);
+      if (LIGHT_RIG.hemi.axis === 'side') hemi.position.set(0, 0, -1);
+      scene.add(hemi);
+      const dirLight = (L: DirLightSpec) => {
+        const l = new THREE.DirectionalLight(L.color, L.intensity);
+        l.position.set(...toDisplay(L.position, figCenter, H));
+        l.target.position.set(...toDisplay(L.target, figCenter, H));
+        scene.add(l, l.target);
+        return l;
+      };
+      const key = dirLight(LIGHT_RIG.key);
+      dirLight(LIGHT_RIG.fill);
+      dirLight(LIGHT_RIG.back);
+      const sh = LIGHT_RIG.key.shadow;
+      const shadowPx = host.clientWidth < 500 ? 1024 : sh.size;
+      key.castShadow = true;
+      key.shadow.mapSize.set(shadowPx, shadowPx);
+      key.shadow.camera.left = -sh.half / H;
+      key.shadow.camera.right = sh.half / H;
+      key.shadow.camera.top = sh.half / H;
+      key.shadow.camera.bottom = -sh.half / H;
+      key.shadow.camera.near = sh.near / H;
+      key.shadow.camera.far = sh.far / H;
+      key.shadow.camera.updateProjectionMatrix();
+      key.shadow.bias = sh.bias;
+      key.shadow.normalBias = sh.normalBias / H;
+      key.shadow.radius = sh.radius;
 
       const { center, half } = bounds;
-      const grid = new THREE.GridHelper(4, 16, GRID_A, GRID_B);
+      const grid = new THREE.GridHelper(STAGE.grid.sizeM / H, STAGE.grid.divisions, STAGE.grid.a, STAGE.grid.b);
+      grid.material.transparent = true;
+      grid.material.opacity = STAGE.grid.opacity;
       grid.position.set(center[0], 0, center[2]);
       world.add(grid);
-      /* 마운드 — 투수판 앞 모서리 = 축발이 처음 닿은 자리, 높이는 두 발 자리에 맞춘 배율(display.ts) */
+      /* 바닥 그림자판 — 예시처럼 마운드가 있어도 늘(마운드 둘레 밖과 평지의 그림자) */
+      const shadowPlane = new THREE.Mesh(
+        new THREE.PlaneGeometry(12 / H, 12 / H),
+        new THREE.ShadowMaterial({ opacity: STAGE.shadowOpacity })
+      );
+      shadowPlane.rotation.x = -Math.PI / 2;
+      shadowPlane.position.set(center[0], 0.002 / H, center[2]);
+      shadowPlane.receiveShadow = true;
+      world.add(shadowPlane);
+      /* 마운드 — 투수판 앞 모서리 = 축발이 처음 닿은 자리, 높이는 두 발 자리에 맞춘 배율(display.ts). 흙 자리는 착지 발목(다듬은 관절) */
       const { groundAt, mound } = track;
-      const H = mann.H;
       if (mound) {
         const s = 1 / H;
-        world.add(
-          new THREE.Mesh(
-            moundGeometry(THREE, groundAt, mound.x0 + MOUND.centerAhead * s, mound.z0, MOUND.radius * s, {
-              x0: mound.x0,
-              z0: mound.z0,
-              s,
-            }),
-            new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, metalness: 0 })
-          )
+        const la = mann.joints[result.events.footPlant].la;
+        const landing: [number, number] = [la[0] * s, (result.hand === 'L' ? la[1] : -la[1]) * s];
+        const moundMesh = new THREE.Mesh(
+          moundGeometry(
+            THREE,
+            groundAt,
+            mound.x0 + MOUND.centerAhead * s,
+            mound.z0,
+            MOUND.radius * s,
+            H,
+            [mound.x0 - 0.08 * s, mound.z0],
+            landing
+          ),
+          new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.96, metalness: 0 })
         );
+        moundMesh.receiveShadow = true;
+        world.add(moundMesh);
         const rubber = new THREE.Mesh(
           new THREE.BoxGeometry(MOUND.rubber.depth * s, 0.02 * s, MOUND.rubber.width * s),
-          new THREE.MeshStandardMaterial({ color: MOUND_COLOR.rubber, roughness: 0.8, metalness: 0 })
+          new THREE.MeshStandardMaterial({ color: MOUND_COLOR.rubber, roughness: 0.55, metalness: 0 })
         );
         rubber.position.set(
           mound.x0 - (MOUND.rubber.depth * s) / 2,
           groundAt(mound.x0, mound.z0) + 0.01 * s,
           mound.z0
         );
+        rubber.castShadow = true;
+        rubber.receiveShadow = true;
         world.add(rubber);
       }
       const corner = new THREE.Vector3(center[0] - 1.7, 0.002, center[2] - 1.7);
@@ -333,7 +394,7 @@ export const Body3D = forwardRef<
       const depthMat = new THREE.MeshBasicMaterial({ colorWrite: false, side: THREE.DoubleSide });
       const sV = new THREE.Vector3();
 
-      const camera = new THREE.PerspectiveCamera(32, 1, 0.01, 60);
+      const camera = new THREE.PerspectiveCamera(STAGE.fov, 1, 0.01, 60);
       const controls = new OrbitControls(camera, renderer.domElement);
       controls.enablePan = false;
       controls.enableDamping = true;
@@ -596,9 +657,11 @@ export const Body3D = forwardRef<
         });
       };
       /*
-       * 비칠 때는 네 번 그린다(예시 render): 바닥 · 뼈 → 인형 깊이만(overrideMaterial) → 인형 맨 앞 겉면(깊이가 같은 면만 통과) → 잰 선.
-       * scene.background 가 null 이라 autoClear 를 끄면 앞 패스가 남는다. 재생 중(ana ≤ 0.004)엔 뼈 · 선을 숨기고 한 번만.
+       * 비칠 때는 네 번 그린다(예시 render): 바닥 · 뼈(인형은 그림자만 — 색 · 깊이를 안 쓴다) → 인형 깊이만(overrideMaterial) → 인형 맨 앞 겉면
+       * (깊이가 같은 면만 통과) → 잰 선. scene.background 가 null 이라 autoClear 를 끄면 앞 패스가 남는다. 그림자 지도는 첫 패스에서만 만든다.
+       * 재생 중(ana ≤ 0.004)엔 뼈 · 선을 숨기고 한 번만.
        */
+      const figMats = Object.values(fig.materials);
       const render = () => {
         try {
           if (ana <= 0.004) {
@@ -607,17 +670,18 @@ export const Body3D = forwardRef<
             renderer.autoClear = true;
             renderer.render(scene, camera);
           } else {
-            fig.group.visible = false;
             ov.lines.visible = false;
+            for (const m of figMats) m.colorWrite = false;
             renderer.autoClear = true;
             renderer.render(scene, camera);
+            renderer.shadowMap.autoUpdate = false;
             renderer.autoClear = false;
             world.visible = false;
             ov.bones.visible = false;
-            fig.group.visible = true;
             scene.overrideMaterial = depthMat;
             renderer.render(scene, camera);
             scene.overrideMaterial = null;
+            for (const m of figMats) m.colorWrite = true;
             renderer.render(scene, camera);
             fig.group.visible = false;
             ov.lines.visible = true;
@@ -626,6 +690,8 @@ export const Body3D = forwardRef<
         } finally {
           scene.overrideMaterial = null;
           renderer.autoClear = true;
+          renderer.shadowMap.autoUpdate = true;
+          for (const m of figMats) m.colorWrite = true;
           world.visible = fig.group.visible = ov.bones.visible = ov.lines.visible = true;
         }
         placeLabelsDom();
@@ -732,7 +798,7 @@ export const Body3D = forwardRef<
         tabIndex={0}
         aria-label={label}
         onKeyDown={onKey}
-        className="relative aspect-[4/5] max-h-[60vh] w-full overflow-hidden rounded-2xl bg-[#151722] outline-none focus-visible:ring-2 focus-visible:ring-sky"
+        className="relative aspect-[4/5] max-h-[60vh] w-full overflow-hidden rounded-2xl bg-[radial-gradient(120%_90%_at_50%_18%,#2c3746_0%,#1b222c_55%,#12171e_100%)] outline-none focus-visible:ring-2 focus-visible:ring-sky"
       >
         {status !== 'ready' && (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 px-6 text-center text-sm text-[#c7cfdd]">

@@ -23,6 +23,7 @@ import {
   LINE_W,
   anaMaterials,
   arcFrame,
+  arcPolyline,
   boneEnds,
   boneSpec,
 } from '@/lib/pitch-3d/v2/mannequin-pause';
@@ -196,10 +197,11 @@ export function createOverlay(THREE: ThreeNS, opts: { heightM: number }): Overla
       if (!af) return;
       A.tube.material = lm[arc.key];
       A.fan.material = fm[arc.key];
-      writeTube(A.pos, arc.points, af.normal, LW * 0.8, ARC_CAP, TUBE_K);
+      const pts = arcPolyline(arc.points, ARC_CAP);
+      writeTube(A.pos, pts, af.normal, LW * 0.8, ARC_CAP, TUBE_K);
       computeNormals(A.pos, tubeIndex, A.nor);
       flush(A.tube.geometry, true);
-      writeFan(A.fpos, arc.c, arc.points, ARC_CAP);
+      writeFan(A.fpos, arc.c, pts, ARC_CAP);
       flush(A.fan.geometry, false);
     });
     return spec.labels;

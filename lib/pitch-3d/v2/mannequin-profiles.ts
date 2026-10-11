@@ -228,3 +228,85 @@ export const TRIM = {
   beltTube: 0.16,
   laceBox: [0.05, 0.006, 0.005] as const,
 } as const;
+
+/* ───────────────────────────── 무대 · 빛(4단계 — 예시 page.js 의 값) ───────────────────────────── */
+
+/** 무대 — 노출 · 화각 · 바탕 그라데이션(예시 .stage) · 격자(미터) · 바닥 그림자 농도 */
+export const STAGE = {
+  exposure: 1.15,
+  fov: 28,
+  gradient: ['#2c3746', '#1b222c', '#12171e'],
+  grid: { sizeM: 8, divisions: 16, a: 0x3c4858, b: 0x2a3442, opacity: 0.55 },
+  shadowOpacity: 0.32,
+} as const;
+
+export type DirLightSpec = { color: number; intensity: number; position: Vec3; target: Vec3 };
+
+/**
+ * 빛 — 예시 page.js 의 반구 · L1(주, 그림자) · L2(보조) · L3(뒤). x · y 는 엉덩이 가운데 바닥점 기준, z 는 바닥에서의 높이(미터 · z 위 —
+ * 예시의 z 는 절대 높이). 세기는 예시(r128 옛 조명)의 ×π 에서 시작해 나란히 견주며 맞춘 값. 반구 축: 예시는 자리를 안 정해 축이
+ * 옆(+y, 1루 쪽)이었다 — 'side' 가 그 재현, 'up' 이 제대로 위.
+ */
+export const LIGHT_RIG: {
+  hemi: { sky: number; ground: number; intensity: number; axis: 'up' | 'side' };
+  key: DirLightSpec & {
+    shadow: { size: number; half: number; near: number; far: number; bias: number; normalBias: number; radius: number };
+  };
+  fill: DirLightSpec;
+  back: DirLightSpec;
+} = {
+  hemi: { sky: 0xf4f7ff, ground: 0x3a3f48, intensity: 2.3, axis: 'side' },
+  key: {
+    color: 0xfff6ea,
+    intensity: 4.2,
+    position: [1.6, -2.4, 4.6],
+    target: [0, 0, 0.6],
+    shadow: { size: 2048, half: 2.4, near: 0.5, far: 16, bias: -0.0005, normalBias: 0.015, radius: 4 },
+  },
+  fill: { color: 0xa9c2e2, intensity: 1.6, position: [-3, 3, 2], target: [0, 0, 0] },
+  back: { color: 0xffffff, intensity: 1.1, position: [-2.5, 2.5, 3.2], target: [0, 0, 1] },
+};
+
+/** 예시 좌표(z 위 · 미터, x · y 는 엉덩이 바닥점 기준) → 보기 좌표(y 위 · 키 = 1). center 는 [cx, 0, cz] */
+export const toDisplay = (p: Vec3, center: Vec3, H: number): Vec3 => [center[0] + p[0] / H, p[2] / H, center[2] - p[1] / H];
+
+/** 마운드 결(미터) — 착지 자리 · 투수판 앞은 짙은 흙, 둘레는 어둡게, 값 잡음으로 얼룩 */
+export const MOUND_GRAIN = { noiseAmp: 0.2, landingR: 0.55, rubberR: 0.6, rimW: 0.4, clayMix: 0.85, rimMix: 0.8 } as const;
+
+/** 두 겹 값 잡음 0~1(예시 noise 그대로 — 미터 단위 x, y) */
+export function valueNoise2(x: number, y: number): number {
+  const h = (i: number, j: number) => {
+    const s = Math.sin(i * 127.1 + j * 311.7) * 43758.5453;
+    return s - Math.floor(s);
+  };
+  const f = (px: number, py: number) => {
+    const i = Math.floor(px);
+    const j = Math.floor(py);
+    const u = px - i;
+    const v = py - j;
+    const a = h(i, j);
+    const b = h(i + 1, j);
+    const c = h(i, j + 1);
+    const d = h(i + 1, j + 1);
+    const su = u * u * (3 - 2 * u);
+    const sv = v * v * (3 - 2 * v);
+    return a + (b - a) * su + (c - a) * sv + (a - b - c + d) * su * sv;
+  };
+  return 0.6 * f(x * 9, y * 9) + 0.4 * f(x * 31, y * 31);
+}
+
+const smoothStep = (x: number) => {
+  const t = Math.min(1, Math.max(0, x));
+  return t * t * (3 - 2 * t);
+};
+
+/**
+ * 마운드 색 섞임(미터) — [모래, 흙, 둘레] 무게(합 1)와 밝기. 예시 base.lerp(clay, w1).lerp(rim, w2)·(0.9 + 0.2·n) 과 같다.
+ * dLanding 착지 발목까지, dRubber 투수판 앞(x0 − 0.08)까지, r 가운데에서의 거리, R 반지름.
+ */
+export function moundShade(dLanding: number, dRubber: number, r: number, R: number, noise: number): [number, number, number, number] {
+  const g = MOUND_GRAIN;
+  const w1 = g.clayMix * Math.max(smoothStep(1 - dLanding / g.landingR), smoothStep(1 - dRubber / g.rubberR));
+  const w2 = g.rimMix * smoothStep((r - (R - g.rimW)) / g.rimW);
+  return [(1 - w1) * (1 - w2), w1 * (1 - w2), w2, 0.9 + g.noiseAmp * noise];
+}

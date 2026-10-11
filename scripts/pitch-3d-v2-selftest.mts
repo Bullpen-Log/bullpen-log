@@ -73,12 +73,13 @@ import {
   writeTorso,
   writeTube,
 } from '../lib/pitch-3d/v2/mannequin-loft.ts';
-import { TORSO, curve } from '../lib/pitch-3d/v2/mannequin-profiles.ts';
+import { LIGHT_RIG, TORSO, curve, moundShade, toDisplay, valueNoise2 } from '../lib/pitch-3d/v2/mannequin-profiles.ts';
 import {
   BONE_SIZES,
   anaMaterials,
   anaStep,
   arcFrame,
+  arcPolyline,
   boneEnds,
   boneSpec,
   placeLabels,
@@ -2442,6 +2443,91 @@ console.log('■ 데생 인형 멈춤(mannequin-pause) — 뼈 · 호 관 · 부
   const tl = projectToScreen([-1, 1, 0.5], 400, 300);
   const behind = projectToScreen([0, 0, 1.5], 400, 300);
   check('화면 투영: 가운데 · 왼쪽 위 · 카메라 뒤는 숨김', c0.x === 200 && c0.y === 150 && c0.visible && tl.x === 0 && tl.y === 0 && !behind.visible);
+}
+
+console.log('■ 데생 인형 보기(mannequin stage) — 빛 자리 · 마운드 결 · 호 다듬기');
+{
+  const near3 = (a: Vec3, b: Vec3) => Math.abs(a[0] - b[0]) < 1e-12 && Math.abs(a[1] - b[1]) < 1e-12 && Math.abs(a[2] - b[2]) < 1e-12;
+  const d1 = toDisplay([1.6, -2.4, 4.6], [0, 0, 0], 2);
+  const d2 = toDisplay([1.6, -2.4, 4.6], [1, 0, 3], 2);
+  const off = (H: number) => {
+    const a = toDisplay([0, 0, 0], [0, 0, 0], H);
+    const b = toDisplay([3, 4, 0], [0, 0, 0], H);
+    return norm(sub(b, a));
+  };
+  check(
+    '빛 자리: 예시 좌표(z 위 · 미터) → 보기 좌표(y 위 · 1/키), 기준점 더하기, 거리는 1/키',
+    near3(d1, [0.8, 2.3, 1.2]) && near3(d2, [1.8, 2.3, 4.2]) && Math.abs(off(2) - 2.5) < 1e-12 && Math.abs(off(1) - 5) < 1e-12
+  );
+  const R0 = LIGHT_RIG;
+  check(
+    '빛 틀: 주 빛은 위 · 앞오른쪽(3루 쪽), 세기 양수, 그림자 카메라 ±2m 넘게 · near < far, 셋 다 target 있음',
+    R0.key.position[2] > 0 &&
+      R0.key.position[1] < 0 &&
+      R0.hemi.intensity > 0 &&
+      R0.key.intensity > 0 &&
+      R0.fill.intensity > 0 &&
+      R0.back.intensity > 0 &&
+      R0.key.shadow.half >= 2 &&
+      R0.key.shadow.near < R0.key.shadow.far &&
+      [R0.key, R0.fill, R0.back].every((l) => l.target.length === 3)
+  );
+  let nMin = 1;
+  let nMax = 0;
+  let sum = 0;
+  let sum2 = 0;
+  let jump = 0;
+  for (let i = 0; i < 20; i++)
+    for (let j = 0; j < 20; j++) {
+      const v = valueNoise2(i * 0.137, j * 0.219);
+      nMin = Math.min(nMin, v);
+      nMax = Math.max(nMax, v);
+      sum += v;
+      sum2 += v * v;
+      jump = Math.max(jump, Math.abs(valueNoise2(i * 0.137 + 1e-3, j * 0.219) - v));
+    }
+  const variance = sum2 / 400 - (sum / 400) ** 2;
+  check(
+    '마운드 잡음: 같은 입력엔 같은 값 · 0~1 · 이어짐 · 한 값이 아님',
+    valueNoise2(0.3, 0.7) === valueNoise2(0.3, 0.7) && nMin >= 0 && nMax <= 1 && jump < 0.05 && variance > 1e-3,
+    `범위 ${nMin.toFixed(3)}~${nMax.toFixed(3)} · 분산 ${variance.toFixed(4)} · 최대 튐 ${jump.toFixed(4)}`
+  );
+  const atLanding = moundShade(0, 5, 1, 2.743, 0.5);
+  const atRim = moundShade(5, 5, 2.743, 2.743, 0.5);
+  const far = moundShade(5, 5, 1, 2.743, 0.5);
+  const sumW = (w: number[]) => w[0] + w[1] + w[2];
+  check(
+    '마운드 색: 착지 자리 흙 0.85 · 둘레 0.8 · 밝기 0.9~1.1 · 무게 합 1 · 먼 곳은 모래',
+    Math.abs(atLanding[1] - 0.85) < 1e-9 &&
+      Math.abs(atRim[2] - 0.8) < 1e-9 &&
+      moundShade(5, 5, 1, 2.743, 0)[3] >= 0.9 &&
+      moundShade(5, 5, 1, 2.743, 1)[3] <= 1.1 + 1e-12 &&
+      Math.abs(sumW(atLanding) - 1) < 1e-12 &&
+      Math.abs(sumW(atRim) - 1) < 1e-12 &&
+      Math.abs(far[0] - 1) < 1e-9
+  );
+  const quarter: Vec3[] = [];
+  for (let s = 0; s <= 32; s++) {
+    const a = (Math.PI / 2) * (s / 32);
+    quarter.push([Math.cos(a), Math.sin(a), 0]);
+  }
+  const poly = arcPolyline(quarter, 64);
+  let rDev = 0;
+  let mono = true;
+  let prevA = -1;
+  for (const p of poly) {
+    rDev = Math.max(rDev, Math.abs(Math.hypot(p[0], p[1]) - 1));
+    const a = Math.atan2(p[1], p[0]);
+    if (a < prevA - 1e-12) mono = false;
+    prevA = a;
+  }
+  const two = arcPolyline([[1, 0, 0], [0, 1, 0]], 64);
+  const one = arcPolyline([[1, 0, 0]], 64);
+  check(
+    '호 다듬기: 사분원 33점 → 64점, 양 끝 그대로 · 반지름 ±0.2% · 각도 단조, 점 둘 · 하나는 그대로',
+    poly.length === 64 && near3(poly[0], quarter[0]) && near3(poly[63], quarter[32]) && rDev < 2e-3 && mono && two.length === 2 && one.length === 1,
+    `반지름 벗어남 ${rDev.toExponential(2)}`
+  );
 }
 
 console.log(`\n통과 ${passed} · 실패 ${failed}`);
