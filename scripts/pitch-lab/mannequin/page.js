@@ -42,6 +42,13 @@ const mat=(c,r,o={})=>new T.MeshStandardMaterial({color:lin(c),roughness:r??0.65
 const MAT={skin:mat(0xdcb08f,0.6),shirt:mat(0x3a7fc4,0.8),pants:mat(0xe9e4da,0.88),belt:mat(0x2b2b2b,0.5),sock:mat(0x2a3446,0.9),
  shoe:new T.MeshPhysicalMaterial({color:lin(0x1c1c1c),roughness:0.42,clearcoat:0.7,clearcoatRoughness:0.3,side:T.DoubleSide}),sole:mat(0xf2f2f2,0.6),
  glove:mat(0x8b5a2b,0.55),lace:mat(0x5e3a1a,0.6),ball:mat(0xffffff,0.45),seam:mat(0xc8312c,0.6),stripe:mat(0x1f4f84,0.7),button:mat(0xf2efe6,0.4),buckle:mat(0xc9a227,0.35,{metalness:0.6})};
+/* 그림으로 만든 텍스처 — 천 결(상의 · 바지의 요철), 땅 결(잔디 · 흙) */
+function canvasTex(w,h,draw,srgb){const c=document.createElement('canvas');c.width=w;c.height=h;draw(c.getContext('2d'),w,h);const t=new T.CanvasTexture(c);t.wrapS=t.wrapT=T.RepeatWrapping;t.anisotropy=8;if(srgb)t.encoding=T.sRGBEncoding;return t;}
+let seed=11;const rnd=()=>(seed=(seed*16807)%2147483647)/2147483647;
+/* 천 요철: 잔줄은 화면에서 물결무늬(모아레)가 생겨, 부드러운 얼룩(주름 느낌)만 */
+const WEAVE=canvasTex(256,256,(g,w,h)=>{const im=g.createImageData(w,h);for(let i=0;i<w*h;i++){const x=i%w,y=(i/w)|0,v=Math.round(128+40*(noise(x/360,y/360)-0.5)+20*(noise(x/117+9,y/117+3)-0.5));im.data[i*4]=im.data[i*4+1]=im.data[i*4+2]=v;im.data[i*4+3]=255;}g.putImageData(im,0,0);});
+const DETAIL=canvasTex(256,256,(g,w,h)=>{const im=g.createImageData(w,h);for(let i=0;i<w*h;i++){const x=i%w,y=(i/w)|0,v=Math.round(255*(0.86+0.1*rnd()+0.04*Math.sin(x*0.9+y*0.3)));im.data[i*4]=im.data[i*4+1]=im.data[i*4+2]=v;im.data[i*4+3]=255;}g.putImageData(im,0,0);},true);
+MAT.shirt.bumpMap=WEAVE;MAT.shirt.bumpScale=0.012;MAT.pants.bumpMap=WEAVE;MAT.pants.bumpScale=0.01;
 /* 분석 보기: 뼈(상아색, 골반 주황 · 가슴 파랑)와 잰 선 */
 const BM={bone:mat(0xefe7d6,0.5),joint:mat(0x8e9aa8,0.35),pelvis:mat(0xf08a3c,0.5),chest:mat(0x4aa3e8,0.5)};
 const LC={pelvis:0xff9a4a,chest:0x5cb4ff,trunk:0x7be0a8,knee:0xffd166,arm:0xf27bd1,elbow:0xc49bff,ref:0xdfe6ee};
@@ -95,13 +102,13 @@ function torso(J,pf,cf,k){const hm=J.rh.clone().add(J.lh).multiplyScalar(.5),shm
  const ring=t=>{let i=1;while(i<tk.length-1&&t>tk[i])i++;const u=Math.min(1,Math.max(0,(i-1+(t-tk[i-1])/(tk[i]-tk[i-1]))/(tk.length-1)));
   const c=sp.getPoint(u),Y=sp.getTangent(u).normalize(),q=new T.Quaternion().copy(pf.q).slerp(cf.q,sm((t-0.2)/0.5));
   const X=new T.Vector3(1,0,0).applyQuaternion(q);X.sub(Y.clone().multiplyScalar(X.dot(Y))).normalize();const Fw=new T.Vector3().crossVectors(Y,X);return {c,X,Y,Fw,q:basis(X,Y,Fw.clone().negate())};};
- const RN=48,K=64,split=16,pos=[[],[]],idx=[[],[]];
+ const RN=48,K=64,split=16,pos=[[],[]],idx=[[],[]],uvs=[[],[]];
  for(let r=0;r<=RN;r++){const t=r/RN,{c,X,Fw}=ring(t);const w=prof(W,t),df=prof(DF,t),db=prof(DB,t),n=t<0.2?2.4:2.8;
   for(const part of [0,1]){if((part===0&&r>split)||(part===1&&r<split))continue;
    for(let i=0;i<K;i++){const a=i/K*Math.PI*2,ca=Math.cos(a),sa=Math.sin(a);const x=w*Math.sign(ca)*Math.abs(ca)**(2/n),z=(sa>0?df:db)*Math.sign(sa)*Math.abs(sa)**(2/n);
-    const p=c.clone().add(X.clone().multiplyScalar(x)).add(Fw.clone().multiplyScalar(z));pos[part].push(p.x,p.y,p.z);}}}
+    const p=c.clone().add(X.clone().multiplyScalar(x)).add(Fw.clone().multiplyScalar(z));pos[part].push(p.x,p.y,p.z);uvs[part].push(i/K*5,t*9);}}}
  for(const part of [0,1]){const rings=part===0?split+1:RN-split+1;for(let r=0;r<rings-1;r++)for(let i=0;i<K;i++){const a=r*K+i,b=r*K+(i+1)%K;idx[part].push(a,a+K,b,b,a+K,b+K);}
-  const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(pos[part],3));g.setIndex(idx[part]);g.computeVertexNormals();put(new T.Mesh(g,part===0?MAT.pants:MAT.shirt));}
+  const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(pos[part],3));g.setAttribute('uv',new T.Float32BufferAttribute(uvs[part],2));g.setIndex(idx[part]);g.computeVertexNormals();put(new T.Mesh(g,part===0?MAT.pants:MAT.shirt));}
  /* 사타구니 아래 막기 · 벨트(고리 넷) · 앞판 줄과 단추 · 깃 */
  ell(crotch.clone().add(pf.ya.clone().multiplyScalar(0.04*k)),hw+0.02*k,0.05*k,0.08*k,MAT.pants,pf.q);
  const bt=0.325,BR=ring(bt),beltC=BR.c,bw=prof(W,bt),bdf=prof(DF,bt),bdb=prof(DB,bt);band(beltC,BR.q,bw*1.01,(bdf+bdb)/2*1.02,0.09*k,MAT.belt,0.16);
@@ -284,7 +291,7 @@ let park=true;
 const SKY=(()=>{const c=document.createElement('canvas');c.width=4;c.height=256;const g=c.getContext('2d'),gr=g.createLinearGradient(0,0,0,256);
  gr.addColorStop(0,'#060a14');gr.addColorStop(0.55,'#13203a');gr.addColorStop(1,'#2b3c58');g.fillStyle=gr;g.fillRect(0,0,4,256);const t=new T.CanvasTexture(c);t.encoding=T.sRGBEncoding;return t;})();
 const FOG=new T.Fog(lin(0x223150).getHex(),45,230);
-const PARK_MAT=new T.MeshStandardMaterial({vertexColors:true,roughness:0.95});
+const PARK_MAT=new T.MeshStandardMaterial({vertexColors:true,map:DETAIL,roughness:0.95});
 /* 관중: 어두운 좌석 위 작은 점(옷 색) — 아래 띠는 흰색(벽 · 난간은 꼭짓점 색만 보이게) */
 const CROWD=(()=>{const c=document.createElement('canvas');c.width=1024;c.height=512;const g=c.getContext('2d');g.fillStyle='#1c2738';g.fillRect(0,0,1024,512);
  const pal=['#c9c4b8','#8a2f2f','#2f4f8a','#d0b07a','#3d3d45','#7a6a5a','#e6e2da','#4a6a4a','#9a8a6a','#2a2a30'];let s=7;const rnd=()=>(s=(s*16807)%2147483647)/2147483647;
@@ -310,10 +317,10 @@ function buildPark(set){const {x0,y0}=parkSpot(set),xh=x0+18.44,B=27.43,s2=Math.
   else{/* 잔디 깎은 줄무늬 — 외야는 가운데 쪽 띠, 내야는 바둑판 */const band=Math.floor(r/4.5)%2,chk=(Math.floor(u/3)+Math.floor(v/3))%2;col.copy(fair&&u>0&&v>0&&u<B&&v<B?(chk?grass:grass2):(band?grass:grass2));}
   col.multiplyScalar(0.92+0.16*n);return col;};
  /* 땅: 내야는 촘촘하게(20cm), 바깥은 성기게(1m) */
- const plane=(xa,xb,ya,yb,step,z)=>{const nx=Math.ceil((xb-xa)/step),ny=Math.ceil((yb-ya)/step),pos=[],cols=[],idx=[];
-  for(let j=0;j<=ny;j++)for(let i=0;i<=nx;i++){const x=xa+(xb-xa)*i/nx,y=ya+(yb-ya)*j/ny;pos.push(x,y,z);const c=paint(x,y);cols.push(c.r,c.g,c.b);}
+ const plane=(xa,xb,ya,yb,step,z)=>{const nx=Math.ceil((xb-xa)/step),ny=Math.ceil((yb-ya)/step),pos=[],cols=[],uvs=[],idx=[];
+  for(let j=0;j<=ny;j++)for(let i=0;i<=nx;i++){const x=xa+(xb-xa)*i/nx,y=ya+(yb-ya)*j/ny;pos.push(x,y,z);uvs.push(x/1.6,y/1.6);const c=paint(x,y);cols.push(c.r,c.g,c.b);}
   for(let j=0;j<ny;j++)for(let i=0;i<nx;i++){const p=j*(nx+1)+i;idx.push(p,p+1,p+nx+1,p+1,p+nx+2,p+nx+1);}
-  const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(pos,3));g.setAttribute('color',new T.Float32BufferAttribute(cols,3));g.setIndex(idx);g.computeVertexNormals();
+  const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(pos,3));g.setAttribute('color',new T.Float32BufferAttribute(cols,3));g.setAttribute('uv',new T.Float32BufferAttribute(uvs,2));g.setIndex(idx);g.computeVertexNormals();
   const m=new T.Mesh(g,PARK_MAT);m.receiveShadow=true;world.add(m);};
  plane(xh-140,xh+30,y0-110,y0+110,1.2,-0.004);plane(xh-42,xh+6,y0-24,y0+24,0.2,0);
  /* 흰 선 · 베이스 · 홈플레이트 · 타석 */
@@ -325,20 +332,58 @@ function buildPark(set){const {x0,y0}=parkSpot(set),xh=x0+18.44,B=27.43,s2=Math.
  for(const [bu,bv] of [[B,0],[B,B],[0,B]]){const x=xh+e1.x*bu+e3.x*bv,y=y0+e1.y*bu+e3.y*bv;box(x,y,0.381,0.381,Math.PI/4,0.04,0.08);}
  const hp=new T.Shape();hp.moveTo(0,0);hp.lineTo(-0.216,0.216);hp.lineTo(-0.432,0.216);hp.lineTo(-0.432,-0.216);hp.lineTo(-0.216,-0.216);hp.closePath();
  const hm=new T.Mesh(new T.ShapeGeometry(hp),CHALK);hm.position.set(xh,y0,0.006);hm.receiveShadow=true;world.add(hm);
- /* 펜스 · 관중석: 홈을 가운데 둔 둘레를 따라 벽 → 계단식 관중석 */
- const NA=360,ROWS=14,pos=[],cols=[],uvs=[],idx=[],wall=lin(0x1d3a2d),back=lin(0x1a2436),pad=lin(0xd8b43a);
- for(let i=0;i<=NA;i++){const a=-Math.PI+2*Math.PI*i/NA,r0=wallAt(a),dx=-Math.cos(a),dy=Math.sin(a),fair=Math.abs(a)<=Math.PI/4,wh=fair?3:1.2;
-  const prof=[[r0,0],[r0,wh-0.12],[r0,wh],[r0+0.4,wh]];for(let k=1;k<=ROWS;k++)prof.push([r0+0.4+k*2.3,wh+k*1.45]);prof.push([r0+0.4+ROWS*2.3+0.5,wh+ROWS*1.45+6]);
-  prof.forEach(([r,z],k)=>{pos.push(xh+dx*r,y0+dy*r,z);const crowd=k>=4&&k<prof.length-1;
-   if(crowd)col.setRGB(0.7,0.7,0.7);else col.copy(k<2?(fair?wall:back):k===2?pad:back);cols.push(col.r,col.g,col.b);
-   uvs.push(i/NA*70,crowd?0.06+0.92*(k-4)/(prof.length-5):0.02);});}
- const P=ROWS+5;for(let i=0;i<NA;i++)for(let k=0;k<P-1;k++){const a=i*P+k,b=(i+1)*P+k;idx.push(a,b,a+1,b,b+1,a+1);}
- const sg=new T.BufferGeometry();sg.setAttribute('position',new T.Float32BufferAttribute(pos,3));sg.setAttribute('color',new T.Float32BufferAttribute(cols,3));sg.setAttribute('uv',new T.Float32BufferAttribute(uvs,2));sg.setIndex(idx);sg.computeVertexNormals();
- world.add(new T.Mesh(sg,new T.MeshStandardMaterial({vertexColors:true,map:CROWD,roughness:0.9,side:T.DoubleSide})));
- /* 조명탑 — 관중석 뒤 높이 */
- const LIT=new T.MeshBasicMaterial({color:0xfff6e0}),POLE=new T.MeshStandardMaterial({color:lin(0x3a4250),roughness:0.6});
- for(const a of [-2.5,-1.6,-0.75,0.75,1.6,2.5]){const r=wallAt(a)+36,x=xh-Math.cos(a)*r,y=y0+Math.sin(a)*r;const p=new T.Mesh(new T.CylinderGeometry(0.5,0.8,48,10),POLE);p.rotation.x=Math.PI/2;p.position.set(x,y,24);world.add(p);
-  const panel=new T.Mesh(new T.BoxGeometry(1,9,5),LIT);panel.position.set(x,y,50);panel.rotation.z=Math.atan2(y0-y,xh-x);world.add(panel);}
+ /* 관중석: 홈을 가운데 둔 둘레(wallAt)를 따라 고리 모양 면. 아래층(펜스 · 노란 패드 · 계단 좌석)은 한 바퀴, 위층(앞면 · LED 띠 · 좌석 · 지붕)은 외야를 뺀 둘레 */
+ const KC={wall:lin(0x1d3a2d),back:lin(0x1a2436),pad:lin(0xd8b43a),face:lin(0x141c28),roof:lin(0x0e131b),crowd:new T.Color(0.74,0.74,0.74)};
+ const ring2=(a0,a1,n,profOf,mat,uSpan=70)=>{const pos=[],cols=[],uvs=[],idx=[];let P=0;
+  for(let i=0;i<=n;i++){const a=a0+(a1-a0)*i/n,r0=wallAt(a),dx=-Math.cos(a),dy=Math.sin(a),pr=profOf(r0,Math.abs(a)<=Math.PI/4,a);P=pr.length;
+   for(const [r,z,kd,v] of pr){pos.push(xh+dx*r,y0+dy*r,z);const q=KC[kd]||KC.back;cols.push(q.r,q.g,q.b);uvs.push((a-a0)/(2*Math.PI)*uSpan,kd==='crowd'?v:v??0.02);}}
+  for(let i=0;i<n;i++)for(let k=0;k<P-1;k++){const a=i*P+k,b=(i+1)*P+k;idx.push(a,b,a+1,b,b+1,a+1);}
+  const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(pos,3));g.setAttribute('color',new T.Float32BufferAttribute(cols,3));g.setAttribute('uv',new T.Float32BufferAttribute(uvs,2));g.setIndex(idx);g.computeVertexNormals();
+  const m=new T.Mesh(g,mat);world.add(m);return m;};
+ const STAND=new T.MeshStandardMaterial({vertexColors:true,map:CROWD,roughness:0.9,side:T.DoubleSide});
+ const ROWS=14;
+ ring2(-Math.PI,Math.PI,360,(r0,fair)=>{const wh=fair?3:1.2,w=fair?'wall':'back',p=[[r0,0,w],[r0,wh-0.14,w],[r0,wh,'pad'],[r0+0.4,wh,'back']];
+  for(let k=1;k<=ROWS;k++)p.push([r0+0.4+k*2.3,wh+k*1.45,'crowd',0.06+0.92*k/ROWS]);p.push([r0+0.4+ROWS*2.3+0.4,wh+ROWS*1.45+3,'back']);return p;},STAND);
+ const UROWS=10,upper=(r0)=>{const b=1.2,p=[[r0+20,b+15.5,'face'],[r0+20,b+19.5,'face'],[r0+20.5,b+19.5,'back']];
+  for(let k=1;k<=UROWS;k++)p.push([r0+20.5+k*2.4,b+19.5+k*1.6,'crowd',0.06+0.92*k/UROWS]);const rt=r0+20.5+UROWS*2.4;
+  p.push([rt+0.4,b+19.5+UROWS*1.6+5,'back'],[rt+0.4,b+19.5+UROWS*1.6+7,'roof'],[rt-11,b+19.5+UROWS*1.6+8.5,'roof']);return p;};
+ for(const [a0,a1] of [[0.62,Math.PI],[-Math.PI,-0.62]])ring2(a0,a1,200,upper,STAND);
+ /* 위층 앞면의 LED 띠 */
+ const LED=canvasTex(512,16,(g,w,h)=>{g.fillStyle='#1d5f9e';g.fillRect(0,0,w,h);for(let x=0;x<w;x+=64){const gr=g.createLinearGradient(x,0,x+64,0);gr.addColorStop(0,'rgba(140,200,255,0)');gr.addColorStop(0.5,'rgba(170,220,255,0.9)');gr.addColorStop(1,'rgba(140,200,255,0)');g.fillStyle=gr;g.fillRect(x,4,64,8);}},true);
+ const LEDM=new T.MeshBasicMaterial({map:LED,fog:false,side:T.DoubleSide});
+ for(const [a0,a1] of [[0.62,Math.PI],[-Math.PI,-0.62]])ring2(a0,a1,200,r0=>[[r0+19.97,1.2+16.9,'back',0],[r0+19.97,1.2+18.1,'back',1]],LEDM,40);
+ /* 홈 뒤 그물(옅게) */
+ const NET=canvasTex(64,64,(g,w,h)=>{g.clearRect(0,0,w,h);g.strokeStyle='rgba(235,235,235,0.9)';g.lineWidth=1;for(let i=0;i<=w;i+=8){g.beginPath();g.moveTo(i,0);g.lineTo(i,h);g.stroke();g.beginPath();g.moveTo(0,i);g.lineTo(w,i);g.stroke();}});
+ const NETM=new T.MeshBasicMaterial({map:NET,transparent:true,opacity:0.28,depthWrite:false,side:T.DoubleSide});
+ for(const [a0,a1] of [[2.45,Math.PI],[-Math.PI,-2.45]]){const m=ring2(a0,a1,60,r0=>[[r0-0.05,1.2,'back',0],[r0-0.05,9,'back',30]],NETM,300);m.material=NETM;}
+ /* 타자 시야 가림막(가운데 외야 관중석을 덮는 짙은 판) · 거리 숫자 · 전광판 */
+ const eye=new T.Mesh(new T.BoxGeometry(14,24,13),new T.MeshStandardMaterial({color:lin(0x0f2219),roughness:0.95}));eye.position.set(xh-(wallAt(0)+8),y0,6.5);world.add(eye);
+ const label=(txt,a,z,s)=>{const t=canvasTex(256,128,(g,w,h)=>{g.clearRect(0,0,w,h);g.font='bold 92px "IBM Plex Sans KR",sans-serif';g.textAlign='center';g.textBaseline='middle';g.fillStyle='#f2e9c9';g.fillText(txt,w/2,h/2+4);},true);
+  const m=new T.Mesh(new T.PlaneGeometry(s*2,s),new T.MeshBasicMaterial({map:t,transparent:true,depthWrite:false}));const r=wallAt(a)-0.05;m.position.set(xh-Math.cos(a)*r,y0+Math.sin(a)*r,z);m.up.set(0,0,1);m.lookAt(xh,y0,z);world.add(m);};
+ for(const [txt,a] of [['330',0.7],['330',-0.7],['375',0.38],['375',-0.38],['400',0.0001]])label(txt,a,1.9,1.4);
+ const SB=canvasTex(1024,420,(g,w,h)=>{g.fillStyle='#07090d';g.fillRect(0,0,w,h);g.fillStyle='#10161f';for(let y=8;y<h;y+=6)for(let x=8;x<w;x+=6)g.fillRect(x,y,4,4);
+  g.font='bold 74px "IBM Plex Sans KR",sans-serif';g.textAlign='center';g.fillStyle='#e9eef5';g.fillText('BULLPEN LOG',w/2,96);g.fillStyle='#5cb4ff';g.fillRect(w/2-170,118,340,6);
+  g.font='bold 34px "IBM Plex Mono",monospace';const cols=['','1','2','3','4','5','6','7','8','9','R','H','E'];cols.forEach((t,i)=>{const x=120+i*66;g.fillStyle='#8fa1b8';g.fillText(t,x,190);});
+  for(const [row,yy] of [['AWAY',250],['HOME',320]]){g.fillStyle='#e9eef5';g.textAlign='left';g.fillText(row,30,yy);g.textAlign='center';for(let i=1;i<=12;i++){g.fillStyle=i>9?'#ffd166':'#f2e9c9';g.fillText(i<=9?(i<6?'0':''):'0',120+i*66,yy);}}},true);
+ const sbr=wallAt(0)+52,sb=new T.Mesh(new T.PlaneGeometry(40,16.4),new T.MeshBasicMaterial({map:SB,fog:false}));sb.position.set(xh-sbr,y0,38);sb.up.set(0,0,1);sb.lookAt(xh,y0,38);world.add(sb);
+ const sbBack=new T.Mesh(new T.BoxGeometry(2,42,18.5),new T.MeshStandardMaterial({color:lin(0x0c1018),roughness:0.8}));sbBack.position.set(xh-sbr-1.05,y0,38);world.add(sbBack);
+ for(const o of [-12,12]){const leg=new T.Mesh(new T.BoxGeometry(1.5,1.5,30),sbBack.material);leg.position.set(xh-sbr-1,y0+o,15);world.add(leg);}
+ /* 더그아웃(1 · 3루 쪽, 파울 지역에 낮게) */
+ const DUG=new T.MeshStandardMaterial({color:lin(0x121a24),roughness:0.8}),RAIL=new T.MeshStandardMaterial({color:lin(0x2a6fb0),roughness:0.5});
+ for(const [e,n] of [[e1,new T.Vector2(s2,s2)],[e3,new T.Vector2(s2,-s2)]]){const cx_=xh+e.x*24+n.x*15.5,cy_=y0+e.y*24+n.y*15.5,rot=Math.atan2(e.y,e.x);
+  const d=new T.Mesh(new T.BoxGeometry(16,3,1.1),DUG);d.position.set(cx_+n.x*1.5,cy_+n.y*1.5,0.55);d.rotation.z=rot;world.add(d);
+  const rl=new T.Mesh(new T.BoxGeometry(16,0.08,0.08),RAIL);rl.position.set(cx_,cy_,1.15);rl.rotation.z=rot;world.add(rl);}
+ /* 조명탑 · 빛 번짐 */
+ const LIT=new T.MeshBasicMaterial({color:0xfff6e0,fog:false}),POLE=new T.MeshStandardMaterial({color:lin(0x3a4250),roughness:0.6});
+ const GLOW=canvasTex(128,128,(g,w,h)=>{const gr=g.createRadialGradient(64,64,0,64,64,64);gr.addColorStop(0,'rgba(255,248,230,1)');gr.addColorStop(0.18,'rgba(255,240,210,0.55)');gr.addColorStop(1,'rgba(255,230,200,0)');g.fillStyle=gr;g.fillRect(0,0,w,h);},true);
+ const GLM=new T.SpriteMaterial({map:GLOW,color:0xffffff,blending:T.AdditiveBlending,depthWrite:false,fog:false,transparent:true,opacity:0.85});
+ for(const a of [-2.55,-1.65,-0.95,0.95,1.65,2.55]){const r=wallAt(a)+(Math.abs(a)>0.62?50:38),x=xh-Math.cos(a)*r,y=y0+Math.sin(a)*r,top=Math.abs(a)>0.62?62:50;
+  const p=new T.Mesh(new T.CylinderGeometry(0.5,0.8,top,10),POLE);p.rotation.x=Math.PI/2;p.position.set(x,y,top/2);world.add(p);
+  const panel=new T.Mesh(new T.BoxGeometry(1,10,5),LIT);panel.position.set(x,y,top+2);panel.rotation.z=Math.atan2(y0-y,xh-x);world.add(panel);
+  const gl=new T.Sprite(GLM);gl.position.set(x,y,top+2);gl.scale.set(30,30,1);world.add(gl);}
+ /* 별(옅게) */
+ const sp=[];for(let i=0;i<500;i++){const u=rnd()*Math.PI*2,v=0.15+rnd()*1.2;sp.push(xh-60+Math.cos(u)*Math.cos(v)*420,y0+Math.sin(u)*Math.cos(v)*420,Math.sin(v)*420);}
+ const sg2=new T.BufferGeometry();sg2.setAttribute('position',new T.Float32BufferAttribute(sp,3));world.add(new T.Points(sg2,new T.PointsMaterial({color:0xaab6cc,size:1.4,sizeAttenuation:false,fog:false,transparent:true,opacity:0.55})));
  /* 발 디딘 땅이 마운드가 아니면(모션 캡처 · 평지) 흙 원과 투수판만 */
  if(!set.mound){const dd=new T.Mesh(new T.CircleGeometry(MOUND.radius,72),new T.MeshStandardMaterial({color:lin(0x8d6a4c),roughness:0.95}));dd.position.set(x0+MOUND.centerAhead,y0,0.003);dd.receiveShadow=true;world.add(dd);
   const rub=new T.Mesh(new T.BoxGeometry(0.152,0.61,0.02),mat(0xf4f2ec,0.55));rub.position.set(x0-0.076,y0,0.01);rub.receiveShadow=true;world.add(rub);}}
