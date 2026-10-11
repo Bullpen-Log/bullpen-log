@@ -23,6 +23,7 @@ import {
 import type { ReportFacts } from '@/lib/report/facts';
 import type { PitchPlan } from '@/lib/report/plan';
 import type { AutoCaution, AutoRecord } from '@/lib/report/auto-setup';
+import type { PlanSwap } from '@/lib/report/plan-swaps';
 
 /**
  * 오늘의 운동 일정을 만든다.
@@ -98,6 +99,12 @@ export type DailyPlan = {
    * 그대로 둔다. (2026-10-07 전 줄에는 AI 호출 수 aiCalls 도 남아 있다 — 읽지 않는다.)
    */
   auto?: AutoRecord;
+  /**
+   * 그날 뺀 · 바꾼 운동의 기록(lib/report/plan-swaps.ts, 2026-10-12 트레이닝 추천 2판 P2). 일정 화면에서 뺀 것과
+   * 운동 중에 뺀 · 바꾼 것(세션 판에도 같이 적힌다)이 쌓이고, '다시 만들기'가 이어 준다(carrySwaps). 옛 줄에는 없고
+   * 없으면 빈 것으로 읽으니 version 은 그대로(focus 와 같은 까닭). 새로 만든 일정(buildDailyPlan)에는 넣지 않는다.
+   */
+  swaps?: PlanSwap[];
 };
 
 /** 통증 등으로 일정을 만들지 않은 경우 */

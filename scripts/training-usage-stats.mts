@@ -234,10 +234,15 @@ async function sectionCheckin() {
 
 /* ───────────────────── ② 완료율 — 만든 일정 · 연 세션 · 마친 날 ───────────────────── */
 
-type PlanPicks = { picks?: { exerciseId: string; manual?: boolean }[] } | null;
+/* swaps 는 뺀 · 바꾼 기록(lib/report/plan-swaps.ts, P2) — ⑥ 되먹임 표가 readPlanSwaps 로 읽을 칸(P2 마무리 커밋에서) */
+type PlanPicks = {
+  picks?: { exerciseId: string; manual?: boolean }[];
+  swaps?: unknown;
+} | null;
 type FrozenLike = {
   exercises?: { id: string }[];
   program?: unknown;
+  swaps?: unknown;
 } | null;
 
 /** 일정 · 세션 판은 이 수를 넘으면 메모리에 올리지 않는다(1분 안에 끝내려고). */

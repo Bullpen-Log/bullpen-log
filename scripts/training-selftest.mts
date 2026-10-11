@@ -65,7 +65,21 @@ import {
   selectCandidates,
 } from '../lib/report/prescription.ts';
 import { orderSession, orderWithinSlot } from '../lib/report/exercise-order.ts';
-import { freezePlan } from '../lib/workout/session-plan.ts';
+import {
+  freezePlan,
+  mergeReopened,
+  readFrozenPlan,
+  type FrozenExercise,
+  type FrozenPlan,
+} from '../lib/workout/session-plan.ts';
+import {
+  MAX_SWAPS_PER_DAY,
+  carrySwaps,
+  readPlanSwaps,
+  swappedOutCounts,
+  withSwaps,
+  type PlanSwap,
+} from '../lib/report/plan-swaps.ts';
 import { goalPrescription } from '../lib/report/goal-prescription.ts';
 import {
   ALWAYS_OWNED,
@@ -232,8 +246,10 @@ import {
 import {
   buildDailyPlan,
   isHalted,
+  plannedStrengthSide,
   readDailyPlan,
   strengthDatesFrom,
+  type DailyPlan,
 } from '../lib/report/daily-plan.ts';
 import {
   DEFAULT_GOAL,
@@ -8882,6 +8898,398 @@ console.log(
       JSON.stringify(mixed)
     );
   }
+}
+
+/* ═══════════════════ [2판 되먹임(P2)] 운동 바꾸기 기록 — lib/report/plan-swaps.ts (2026-10-12) ═══════════════════ */
+console.log('\n[2판 되먹임(P2)] 운동 바꾸기 기록 — 읽기 · 붙이기 · 잇기 · 세기');
+{
+  const at = (n: number) =>
+    `2026-06-${String(10 + Math.floor(n / 24)).padStart(2, '0')}T${String(n % 24).padStart(2, '0')}:00:00.000Z`;
+  /* 서버가 쓰는 칸 차례(from · to · kind · where · slot · at)로 만든다 — readPlanSwaps 가 돌려주는 줄과 JSON 글자가 같게 */
+  const swap = (o: Partial<PlanSwap> & { from: string }): PlanSwap => {
+    const m = {
+      to: null,
+      kind: 'remove' as const,
+      where: 'session' as const,
+      at: at(0),
+      ...o,
+    };
+    return {
+      from: m.from,
+      to: m.to,
+      kind: m.kind,
+      where: m.where,
+      ...(m.slot ? { slot: m.slot } : {}),
+      at: m.at,
+    };
+  };
+  const idsOf = (p: { exercises: { id: string }[] }) =>
+    p.exercises.map((e) => e.id).join(',');
+
+  /* ─── (a) readPlanSwaps — 옛 모양 · 모양이 틀린 줄 ─── */
+  check(
+    'P2 (a) 없는 값 · 숫자 · swaps 없는 일정 · 배열 아닌 swaps 는 []',
+    readPlanSwaps(null).length === 0 &&
+      readPlanSwaps(3).length === 0 &&
+      readPlanSwaps({ version: 1, picks: [] }).length === 0 &&
+      readPlanSwaps({ swaps: 'x' }).length === 0
+  );
+  const mixed = readPlanSwaps({
+    swaps: [
+      swap({ from: 'a', kind: 'replace', to: 'b', slot: 'main' }),
+      { from: 'x', to: null, kind: 'x', where: 'session', at: at(0) },
+      { to: null, kind: 'remove', where: 'session', at: at(0) },
+      { from: 'y', to: null, kind: 'remove', where: 'session', at: 5 },
+      { from: 'z', to: null, kind: 'remove', where: 'app', at: at(0) },
+      { from: 'w', to: 7, kind: 'remove', where: 'plan', at: at(0) },
+      null,
+      'str',
+      swap({ from: 'q', kind: 'add', to: 'r', where: 'plan' }),
+    ],
+  });
+  check(
+    "P2 (a) 모양이 틀린 줄(kind 'x' · from 없음 · at 숫자 · where 'app' · to 숫자)은 거르고 맞는 줄만",
+    mixed.length === 2 &&
+      mixed[0].from === 'a' &&
+      mixed[0].slot === 'main' &&
+      mixed[1].from === 'q' &&
+      mixed[1].kind === 'add' &&
+      !('slot' in mixed[1]),
+    JSON.stringify(mixed)
+  );
+
+  /* ─── (b) withSwaps · (c) 왕복 · (d) 다시 만들기 · (h) 불변식 — 실제 일정으로 ─── */
+  const make = (person: Person = { condition: 8 }) => {
+    const facts = factsFor(person);
+    return buildDailyPlan({
+      user: { ownedEquipment: [], trainingLevel: null },
+      facts,
+      plan: buildPitchPlan(facts),
+      library,
+      availableToday: null,
+      requestedMinutes: 45,
+      recentIds: new Set<string>(),
+      lastLowerKey: null,
+      lastUpperKey: null,
+    });
+  };
+  const built = make();
+  const again = make();
+  check(
+    'P2 (b) 일정이 만들어지고 새 일정에는 swaps 가 없다',
+    !isHalted(built) && !('swaps' in built)
+  );
+  if (!isHalted(built) && !isHalted(again)) {
+    const one = swap({
+      from: built.picks[0].exerciseId,
+      where: 'plan',
+      slot: built.picks[0].slot,
+      at: at(1),
+    });
+    const added = withSwaps(built, [one]);
+    check(
+      'P2 (b) 옛 모양(swaps 없음)에 한 줄 더하면 swaps 1 · 다른 칸(picks · theme · version) 그대로 · 원본은 안 바뀜',
+      added !== built &&
+        !('swaps' in built) &&
+        added.swaps?.length === 1 &&
+        added.swaps[0] === one &&
+        added.picks === built.picks &&
+        added.theme === built.theme &&
+        added.version === 1
+    );
+    check(
+      'P2 (b) 붙일 것이 없으면 같은 객체 · swaps 키를 더하지 않는다',
+      withSwaps(built, []) === built && !('swaps' in withSwaps(built, []))
+    );
+    const many = Array.from({ length: MAX_SWAPS_PER_DAY + 1 }, (_, i) =>
+      swap({ from: `e${i}`, at: at(i) })
+    );
+    const capped = withSwaps(built, many);
+    check(
+      `P2 (b) ${MAX_SWAPS_PER_DAY + 1}번째를 더하면 가장 오래된 것이 빠져 ${MAX_SWAPS_PER_DAY}(MAX_SWAPS_PER_DAY)`,
+      capped.swaps?.length === MAX_SWAPS_PER_DAY &&
+        capped.swaps[0].from === 'e1' &&
+        capped.swaps[MAX_SWAPS_PER_DAY - 1].from === `e${MAX_SWAPS_PER_DAY}`
+    );
+    const twice = withSwaps(withSwaps(built, many.slice(0, 30)), many.slice(30));
+    check(
+      'P2 (b) 나눠 붙여도 상한은 같고 차례는 오래된 것부터',
+      twice.swaps?.length === MAX_SWAPS_PER_DAY &&
+        twice.swaps[0].from === 'e1' &&
+        twice.swaps.map((s) => s.from).join() ===
+          capped.swaps?.map((s) => s.from).join()
+    );
+
+    const stored = JSON.parse(JSON.stringify(added));
+    const rt = readDailyPlan(stored);
+    check(
+      'P2 (c) 저장했다 읽어도 swaps 가 같고 version 은 1',
+      rt != null &&
+        rt.version === 1 &&
+        JSON.stringify(rt.swaps) === JSON.stringify(added.swaps) &&
+        JSON.stringify(readPlanSwaps(rt)) === JSON.stringify(added.swaps) &&
+        rt.picks.map((p) => p.exerciseId).join() ===
+          built.picks.map((p) => p.exerciseId).join()
+    );
+    check(
+      'P2 (c) 옛 기록({ version: 1, picks: [] })은 여전히 읽힌다',
+      readDailyPlan({ version: 1, picks: [] }) != null
+    );
+
+    const carried = carrySwaps(again, stored);
+    check(
+      "P2 (d) '다시 만들기'가 지금 저장된 일정의 swaps 를 새 일정에 잇는다(순수 부분 carrySwaps)",
+      JSON.stringify(carried.swaps) === JSON.stringify(added.swaps) &&
+        carried.picks === again.picks &&
+        carried !== again
+    );
+    check(
+      'P2 (d) 저장된 것이 없거나 옛 모양이면 새 일정 그대로(swaps 키 없음)',
+      carrySwaps(again, null) === again &&
+        carrySwaps(again, undefined) === again &&
+        carrySwaps(again, { version: 1, picks: [] }) === again &&
+        !('swaps' in carrySwaps(again, { version: 0 }))
+    );
+    const auto: DailyPlan = { ...again, auto: undefined };
+    check(
+      'P2 (d) 상한을 넘긴 옛 기록을 이어도 상한 안',
+      carrySwaps(auto, { swaps: many }).swaps?.length === MAX_SWAPS_PER_DAY
+    );
+
+    const planned = (plan: unknown) =>
+      strengthDatesFrom({
+        done: [],
+        planned: [{ date: '2026-06-14', plan }],
+        todayKey: '2026-06-15',
+      });
+    check(
+      'P2 (h) 불변식 — swaps 를 붙인 일정으로 plannedStrengthSide · strengthDatesFrom(P1 ②)의 답이 붙이기 전과 같다',
+      plannedStrengthSide(built) === plannedStrengthSide(stored) &&
+        JSON.stringify(planned(built)) === JSON.stringify(planned(stored)),
+      `${plannedStrengthSide(built)} · ${JSON.stringify(planned(stored))}`
+    );
+  }
+
+  /* ─── (e) readFrozenPlan · mergeReopened ─── */
+  const fx = (id: string, slot: SlotKey = 'main'): FrozenExercise => ({
+    id,
+    title: id,
+    category: '하체 스트렝스',
+    slot,
+    prescription: null,
+    plannedSets: 3,
+    plannedReps: 10,
+    plannedHoldSeconds: null,
+    perSide: false,
+    needsWeight: true,
+    isHold: false,
+    equipment: [],
+    bodyParts: [],
+    intensity: '높음',
+    thumbPath: null,
+  });
+  const frozenJson = {
+    themeKey: 'lower',
+    themeLabel: '하체',
+    goal: '근력 향상',
+    exercises: [fx('a'), fx('b'), fx('c', 'core')],
+  };
+  const plain = readFrozenPlan(frozenJson);
+  check(
+    'P2 (e) 기록 없고 프로그램 아닌 판은 돌려준 객체에 swaps 키가 없다(Object.keys 가 예전 넷과 같음 — 회귀)',
+    plain != null &&
+      JSON.stringify(Object.keys(plain)) === JSON.stringify(Object.keys(frozenJson)) &&
+      !('swaps' in plain)
+  );
+  check(
+    'P2 (e) 빈 swaps 배열 · 틀린 모양만 든 판도 키를 안 붙인다',
+    !('swaps' in (readFrozenPlan({ ...frozenJson, swaps: [] }) ?? {})) &&
+      !('swaps' in (readFrozenPlan({ ...frozenJson, swaps: [{ kind: 'x' }] }) ?? {}))
+  );
+  const replaceAX = swap({
+    from: 'a',
+    to: 'x',
+    kind: 'replace',
+    slot: 'main',
+    at: at(2),
+  });
+  const keptJson = {
+    ...frozenJson,
+    exercises: [fx('x'), fx('b'), fx('c', 'core')],
+    swaps: [replaceAX],
+  };
+  const kept = readFrozenPlan(keptJson);
+  check(
+    'P2 (e) swaps 가 든 판은 살아남는다',
+    kept?.swaps?.length === 1 &&
+      kept.swaps[0].to === 'x' &&
+      kept.swaps[0].slot === 'main'
+  );
+  const rewritten = readFrozenPlan(
+    JSON.parse(JSON.stringify({ ...kept, exercises: kept!.exercises.slice(0, 1) }))
+  );
+  check(
+    'P2 (e) `{ ...plan, exercises: next }` 로 다시 써도 남는다',
+    rewritten?.swaps?.length === 1 && rewritten.exercises.length === 1
+  );
+  const merged = mergeReopened(
+    kept as FrozenPlan,
+    {
+      ...frozenJson,
+      exercises: [fx('a'), fx('b'), fx('c', 'core'), fx('d')],
+    } as FrozenPlan
+  );
+  check(
+    'P2 (e) mergeReopened 결과에 kept 의 swaps 가 있고, 바꿔서 뺀 a 는 안 돌아오고 새 d 는 뒤에 붙는다',
+    merged.swaps === kept!.swaps && idsOf(merged) === 'x,b,c,d',
+    idsOf(merged)
+  );
+
+  /* ─── (f) swappedOutCounts ─── */
+  const d = (n: number) => `2026-06-${String(n).padStart(2, '0')}`;
+  const sess = (date: string, swaps: PlanSwap[]) => ({
+    date,
+    plan: { ...frozenJson, swaps },
+  });
+  const dplan = (date: string, swaps: PlanSwap[]) => ({
+    date,
+    plan: { version: 1, picks: [], swaps },
+  });
+  const countInput = {
+    plans: [
+      dplan(d(10), [
+        swap({ from: 'a', kind: 'replace', to: 'x', at: at(1) }),
+        swap({ from: 'b', kind: 'add', to: 'y', at: at(2) }),
+      ]),
+      dplan(d(12), [swap({ from: 'a', where: 'plan', at: at(3) })]),
+      /* 기간 밖 — 앞 · 뒤 */
+      dplan(d(1), [swap({ from: 'c', at: at(4) })]),
+      dplan(d(16), [swap({ from: 'c', at: at(5) })]),
+      /* 모양 안 맞는 줄 */
+      { date: d(11), plan: { version: 0 } },
+      { date: d(13), plan: null },
+    ],
+    sessions: [
+      /* 같은 날 일정에도 같은 줄(같은 at) — 한 번만 */
+      sess(d(10), [swap({ from: 'a', kind: 'replace', to: 'x', at: at(1) })]),
+      /* 일정 없는 날(프로그램 날 흉내) — 세션 것을 센다 */
+      sess(d(11), [swap({ from: 'd', at: at(6) })]),
+      /* 경계 날짜(sinceKey · untilKey)는 든다 */
+      sess(d(5), [swap({ from: 'e', at: at(7) })]),
+      sess(d(15), [swap({ from: 'e', at: at(8) })]),
+      /* add 만 있는 날 */
+      sess(d(14), [swap({ from: 'f', kind: 'add', to: 'g', at: at(9) })]),
+    ],
+    sinceKey: d(5),
+    untilKey: d(15),
+  };
+  const counts = swappedOutCounts(countInput);
+  const rows = JSON.stringify([...counts].sort());
+  check(
+    'P2 (f) replace · remove 는 from 별로 세고(a 2) add 는 안 셈(b · f 없음) · 기간 밖은 안 셈(c 없음) · 같은 날 두 출처의 같은 줄은 1 · 일정 없는 날은 세션(d 1) · 경계 날짜는 든다(e 2)',
+    counts.get('a') === 2 &&
+      !counts.has('b') &&
+      !counts.has('c') &&
+      counts.get('d') === 1 &&
+      counts.get('e') === 2 &&
+      !counts.has('f') &&
+      counts.size === 3,
+    rows
+  );
+  check(
+    'P2 (f) 같은 입력 두 번 → 같은 Map(순서까지)',
+    JSON.stringify([...swappedOutCounts(countInput)]) === JSON.stringify([...counts])
+  );
+  const both = swappedOutCounts({
+    plans: [dplan(d(10), [swap({ from: 'a', kind: 'replace', to: 'x', at: at(1) })])],
+    sessions: [
+      sess(d(10), [
+        swap({ from: 'a', kind: 'replace', to: 'x', at: at(1) }),
+        swap({ from: 'a', kind: 'remove', at: at(8) }),
+      ]),
+    ],
+    sinceKey: d(5),
+    untilKey: d(15),
+  });
+  check(
+    'P2 (f) 같은 날 세션 판에만 더 있는 줄(다른 at)은 더 센다 — 일정이 나중에 생긴 날',
+    both.get('a') === 2 && both.size === 1
+  );
+  check(
+    'P2 (f) 빈 입력 · 모양 안 맞는 줄만 있으면 빈 Map',
+    swappedOutCounts({ plans: [], sessions: [], sinceKey: d(5), untilKey: d(15) })
+      .size === 0 &&
+      swappedOutCounts({
+        plans: [{ date: d(10), plan: { version: 0 } }],
+        sessions: [{ date: d(10), plan: null }],
+        sinceKey: d(5),
+        untilKey: d(15),
+      }).size === 0
+  );
+
+  /* ─── (g) 기록 흐름 모사 — placeExercise · reorder + withSwaps(순수 조합, 서버와 같은 순서) ─── */
+  const list = [fx('a'), fx('b'), fx('c', 'core')];
+  const base = { ...frozenJson, exercises: list } as FrozenPlan;
+  const replaced = placeExercise(list, 'b', fx('n'), 'replace');
+  const sPlan = replaced && {
+    ...withSwaps(base, [
+      swap({ from: 'b', to: 'n', kind: 'replace', slot: 'main', at: at(1) }),
+    ]),
+    exercises: replaced,
+  };
+  check(
+    'P2 (g) 교체(replace): 목록에 from 이 없고 to 가 그 자리 · swaps 에 { from, to, replace, session } 1건',
+    sPlan != null &&
+      idsOf(sPlan) === 'a,n,c' &&
+      sPlan.swaps?.length === 1 &&
+      sPlan.swaps[0].from === 'b' &&
+      sPlan.swaps[0].to === 'n' &&
+      sPlan.swaps[0].kind === 'replace' &&
+      sPlan.swaps[0].where === 'session' &&
+      !('swaps' in base)
+  );
+  const addedList = placeExercise(list, 'b', fx('n'), 'add');
+  const aPlan = addedList && {
+    ...withSwaps(base, [
+      swap({ from: 'b', to: 'n', kind: 'add', slot: 'main', at: at(1) }),
+    ]),
+    exercises: addedList,
+  };
+  check(
+    "P2 (g) 더하기(add): from 이 남고 kind 'add'",
+    aPlan != null && idsOf(aPlan) === 'a,b,n,c' && aPlan.swaps?.[0].kind === 'add'
+  );
+  const want = ['c'];
+  const dropped = list.filter((e) => !want.includes(e.id));
+  const next = want.flatMap((id) => list.filter((e) => e.id === id));
+  const rPlan = {
+    ...withSwaps(
+      base,
+      dropped.map((e) => swap({ from: e.id, slot: e.slot, at: at(9) }))
+    ),
+    exercises: next,
+  };
+  check(
+    'P2 (g) 빼기(reorder): 둘을 빼면 remove 2건 · slot 이 FrozenExercise 의 slot 과 같다',
+    idsOf(rPlan) === 'c' &&
+      rPlan.swaps?.length === 2 &&
+      rPlan.swaps.every(
+        (s) =>
+          s.kind === 'remove' &&
+          s.where === 'session' &&
+          s.to === null &&
+          s.slot === 'main'
+      ) &&
+      rPlan.swaps.map((s) => s.from).join() === 'a,b'
+  );
+  check(
+    'P2 (g) 그 판을 저장했다 readFrozenPlan 으로 읽어도 기록 2건 그대로',
+    readFrozenPlan(JSON.parse(JSON.stringify(rPlan)))?.swaps?.length === 2
+  );
+  check(
+    'P2 (g) 순서만 바꾼 판은 swaps 키 없이 예전 모양',
+    !('swaps' in { ...withSwaps(base, []), exercises: [list[2], list[0], list[1]] })
+  );
 }
 
 console.log(`\n${passed}개 통과, ${failed}개 실패`);

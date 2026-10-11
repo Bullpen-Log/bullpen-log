@@ -20,6 +20,7 @@ import {
   isHalted,
   type DailyPlan,
 } from '@/lib/report/daily-plan';
+import { carrySwaps } from '@/lib/report/plan-swaps';
 import { visibleExercises } from '@/lib/library-cache';
 import {
   gatherFactsAndPlan,
@@ -336,7 +337,15 @@ export async function generateTodayPlan(formData: FormData) {
       create: { userId: user.id, date, availableEquipment },
     });
   } else {
-    const withAuto: DailyPlan = made ? { ...built, auto: made } : built;
+    /*
+     * 그날 뺀 · 바꾼 기록은 '다시 만들기'가 지우지 않는다(P2, carrySwaps) — 지금 저장돼 있던 일정의 swaps 를 새 일정에
+     * 잇는다. 뺀 운동이 새 일정에 다시 나오는지는 P5 의 점수가 정한다(지금은 씨앗만 바뀐다). 통증으로 멈춘 날(위 DbNull)은
+     * 그날 기록이 사라진다 — 드물고 그날은 어차피 처방을 안 한다.
+     */
+    const withAuto: DailyPlan = carrySwaps(
+      made ? { ...built, auto: made } : built,
+      before?.plan
+    );
     const saved = {
       availableEquipment,
       plan: withAuto as unknown as Prisma.InputJsonValue,

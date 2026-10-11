@@ -1278,6 +1278,30 @@ const oldJson = {
       eq(merged.program, progJson.program) &&
       merged.themeKey === 'lower'
   );
+  /* P2 — 그 판에서 뺀 · 바꾼 운동은 다시 열어도 안 돌아온다, 더하기(add)의 from 은 거르지 않는다, 기록은 판에 남는다 */
+  const at = '2026-10-12T01:00:00.000Z';
+  const swapped = readFrozenPlan({
+    ...oldJson,
+    exercises: [{ ...oldEx, id: 'c' }],
+    swaps: [
+      { from: 'a', to: 'c', kind: 'replace', where: 'session', slot: 'main', at },
+      { from: 'b', to: null, kind: 'remove', where: 'session', slot: 'main', at },
+      { from: 'd', to: 'e', kind: 'add', where: 'session', slot: 'main', at },
+    ],
+  }) as FrozenPlan;
+  const reopened = mergeReopened(swapped, {
+    ...fresh,
+    exercises: [oldEx, { ...oldEx, id: 'b' }, { ...oldEx, id: 'd' }],
+  });
+  check(
+    '다시 열어도 그 판에서 뺀 · 바꾼 운동은 안 돌아오고(P2), 기록은 남는다',
+    eq(
+      reopened.exercises.map((e) => e.id),
+      ['c', 'd']
+    ) &&
+      reopened.swaps?.length === 3 &&
+      !('swaps' in (readFrozenPlan(oldJson) ?? {}))
+  );
   check(
     '프로그램 아닌 판의 교체 = null(지금 그대로)',
     programSwapEntry(read as FrozenPlan, oldEx, src(), 0, () => ({ suggestedKg: null })) ===

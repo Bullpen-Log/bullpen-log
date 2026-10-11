@@ -4,6 +4,7 @@ import { formatPrescription } from '@/lib/exercise-meta';
 import { goalPrescription } from '@/lib/report/goal-prescription';
 import { SLOT_ORDER, type SlotKey, type ThemeKey } from '@/lib/report/theme';
 import { orderSession } from '@/lib/report/exercise-order';
+import { readPlanSwaps, type PlanSwap } from '@/lib/report/plan-swaps';
 import {
   itemRx,
   lighterRx,
@@ -114,6 +115,11 @@ export type FrozenPlan = {
    */
   program?: SessionProgramTag | null;
   exercises: FrozenExercise[];
+  /**
+   * 운동 중에 뺀 · 바꾼 기록(lib/report/plan-swaps.ts, 2026-10-12 P2). 그날 일정에도 같이 적히지만, 일정 줄이 없는
+   * 프로그램 날은 이것이 유일한 기록이다. 기록이 없는 판에는 없다(undefined) — 옛 판과 똑같은 모양(RG).
+   */
+  swaps?: PlanSwap[];
 };
 
 type SourceExercise = {
@@ -194,13 +200,16 @@ export function readFrozenPlan(value: unknown): FrozenPlan | null {
   const v = value as Partial<FrozenPlan>;
   if (typeof v.themeKey !== 'string' || !Array.isArray(v.exercises)) return null;
   const program = readSessionProgram(v.program);
+  /* 아는 칸만 새 객체로 옮기므로, 뺀 · 바꾼 기록도 여기서 지켜야 다음 `{ ...plan, exercises }` 쓰기에서 안 사라진다 */
+  const swaps = readPlanSwaps(v);
   return {
     themeKey: v.themeKey as ThemeKey,
     themeLabel: typeof v.themeLabel === 'string' ? v.themeLabel : '오늘의 운동',
     goal: typeof v.goal === 'string' ? v.goal : null,
     exercises: v.exercises as FrozenExercise[],
-    /* 프로그램 날만 붙인다 — 프로그램이 아닌 판은 예전과 똑같은 모양으로 읽는다(회귀 시험 RG) */
+    /* 프로그램 날 · 기록이 있는 판만 붙인다 — 그 밖의 판은 예전과 똑같은 모양으로 읽는다(회귀 시험 RG) */
     ...(program ? { program } : {}),
+    ...(swaps.length > 0 ? { swaps } : {}),
   };
 }
 
@@ -268,11 +277,21 @@ export function freezeProgramExercise(
  */
 export function mergeReopened(kept: FrozenPlan | null, plan: FrozenPlan): FrozenPlan {
   if (!kept || kept.exercises.length === 0) return plan;
+  /*
+   * 그 판에서 뺀 · 바꾼 운동(kept.swaps 의 remove · replace)은 다시 붙이지 않는다(P2). 운동 목록 시트가 '뺀 운동은
+   * 오늘만 빠져요'라고 약속하는데, 일정 picks 에는 남아 있어 다시 열면 뒤에 되살아났다. 더하기(add)는 from 을 그대로
+   * 둔 것이라 거를 것이 없다. 되살리고 싶으면 교체 창에서 넣으면 된다.
+   */
+  const out = new Set(
+    (kept.swaps ?? []).filter((s) => s.kind !== 'add').map((s) => s.from)
+  );
   return {
     ...kept,
     exercises: [
       ...kept.exercises,
-      ...plan.exercises.filter((e) => !kept.exercises.some((k) => k.id === e.id)),
+      ...plan.exercises.filter(
+        (e) => !out.has(e.id) && !kept.exercises.some((k) => k.id === e.id)
+      ),
     ],
   };
 }

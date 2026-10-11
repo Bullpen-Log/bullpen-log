@@ -9,6 +9,8 @@ import { requireUser } from '@/lib/dal';
 import { featureLocks, SETUP_PATH } from '@/lib/feature-locks';
 import { exercisesByIds, type CachedExercise } from '@/lib/library-cache';
 import { loadTodayCore } from '@/lib/report/today-data';
+import { readDailyPlan } from '@/lib/report/daily-plan';
+import { withSwaps, type PlanSwap } from '@/lib/report/plan-swaps';
 import { selectCandidates } from '@/lib/report/prescription';
 import { goalPrescription } from '@/lib/report/goal-prescription';
 import { slotForTheme } from '@/lib/report/theme';
@@ -23,6 +25,7 @@ import {
   programSwapRx,
   readFrozenPlan,
   type FrozenExercise,
+  type FrozenPlan,
 } from '@/lib/workout/session-plan';
 import { activeProgram, programHistory, trainingMaxes } from '@/lib/program/load';
 import { weighItem } from '@/lib/program/next-weight';
@@ -503,6 +506,53 @@ export async function finishWorkout(input: {
 /* ---------------------------- 목록 고치기 ---------------------------- */
 
 /**
+ * 세션 판을 새 목록으로 쓰고, 뺀 · 바꾼 기록(entries)을 세션 판과 그날 일정에 같이 남긴다(P2, lib/report/plan-swaps.ts).
+ *
+ * 일정(DailyTrainingSetup.plan)의 목록(picks)은 그대로다 — 세션은 '오늘 실제로 하는 순서'이고 일정은 '처방받은 것'이라
+ * 성격이 다르다. 적는 것은 기록(swaps)뿐이고, 일정 줄이 있을 때만 적는다(프로그램 날은 줄이 없어 세션 판이 유일한 기록).
+ * 둘 다 되거나 둘 다 안 되게 한 트랜잭션으로. 일정은 오늘이 아니라 세션 날짜(session.date)의 줄 — 자정을 넘긴 판은
+ * 세트와 같은 규칙으로 그 판의 날에 적는다. 기록이 없으면(순서만 바꿈) 세션 판만 쓰고 swaps 키도 더하지 않는다.
+ */
+async function writeSessionList(
+  session: { id: string; userId: string; date: Date },
+  plan: FrozenPlan,
+  next: FrozenExercise[],
+  entries: PlanSwap[]
+) {
+  const sessionWrite = () =>
+    prisma.trainingSession.update({
+      where: { id: session.id },
+      data: {
+        plan: {
+          ...withSwaps(plan, entries),
+          exercises: next,
+        } as unknown as Prisma.InputJsonValue,
+      },
+    });
+  if (entries.length === 0) {
+    await sessionWrite();
+    return;
+  }
+  const where = { userId_date: { userId: session.userId, date: session.date } };
+  const setup = await prisma.dailyTrainingSetup.findUnique({
+    where,
+    select: { plan: true },
+  });
+  const daily = readDailyPlan(setup?.plan);
+  if (!daily) {
+    await sessionWrite();
+    return;
+  }
+  await prisma.$transaction([
+    sessionWrite(),
+    prisma.dailyTrainingSetup.update({
+      where,
+      data: { plan: withSwaps(daily, entries) as unknown as Prisma.InputJsonValue },
+    }),
+  ]);
+}
+
+/**
  * 운동하는 도중에 오늘 순서를 바꾸거나 뺀다.
  *
  * 받은 순서 그대로 다시 쓰고, 목록에 없는 것은 오늘 안 하는 것으로 본다.
@@ -511,7 +561,8 @@ export async function finishWorkout(input: {
  *
  * 고치는 것은 세션뿐이다. 트레이닝 화면의 일정은 그대로 둔다 — 세션은
  * '오늘 실제로 하는 순서'이고 일정은 '처방받은 것'이라 성격이 다르다.
- * 뺀 운동은 기록이 안 남으므로 저절로 '안 함'이 된다.
+ * 뺀 운동은 기록이 안 남으므로 저절로 '안 함'이 된다. 다만 뺐다는 사실은
+ * 세션 판과 그날 일정의 swaps 에 남긴다(P2) — 다음 추천이 읽는다.
  */
 export async function reorderSession(
   exerciseIds: string[],
@@ -541,19 +592,29 @@ export async function reorderSession(
    * 빼면 기록이 붕 뜬다 — 목록에는 없는데 세트는 남아 있고, 종료할 때
    * 그것까지 요약으로 접힌다. 지우려면 세트를 먼저 지우게 한다.
    */
-  const dropped = plan.exercises.filter((e) => !want.includes(e.id)).map((e) => e.id);
+  const dropped = plan.exercises.filter((e) => !want.includes(e.id));
   if (dropped.length > 0) {
     const has = await prisma.userExerciseSet.findFirst({
-      where: { sessionId: session.id, exerciseId: { in: dropped } },
+      where: { sessionId: session.id, exerciseId: { in: dropped.map((e) => e.id) } },
       select: { exerciseId: true },
     });
     if (has) return { error: '이미 기록을 남긴 운동은 뺄 수 없어요.' };
   }
 
-  await prisma.trainingSession.update({
-    where: { id: session.id },
-    data: { plan: { ...plan, exercises: next } as unknown as Prisma.InputJsonValue },
-  });
+  const at = appNow().toISOString();
+  await writeSessionList(
+    session,
+    plan,
+    next,
+    dropped.map((e) => ({
+      from: e.id,
+      to: null,
+      kind: 'remove' as const,
+      where: 'session' as const,
+      slot: e.slot,
+      at,
+    }))
+  );
 
   /* 화면은 이미 운동 정보를 들고 있다. 순서만 돌려주면 된다. */
   return { ids: next.map((e) => e.id) };
@@ -787,10 +848,17 @@ export async function changeSessionExercise(input: {
   const next = placeExercise(list, from.id, entry, mode);
   if (!next) return { error: '운동을 넣지 못했어요. 목록을 다시 열어 주세요.' };
 
-  await prisma.trainingSession.update({
-    where: { id: session.id },
-    data: { plan: { ...plan, exercises: next } as unknown as Prisma.InputJsonValue },
-  });
+  /* 무엇을 무엇으로 바꿨는지(또는 더했는지)를 세션 판 · 그날 일정에 남긴다(P2) — kind 는 실제로 한 mode */
+  await writeSessionList(session, plan, next, [
+    {
+      from: from.id,
+      to: entry.id,
+      kind: mode,
+      where: 'session',
+      slot: from.slot,
+      at: appNow().toISOString(),
+    },
+  ]);
 
   /* 화면이 바로 그릴 수 있게 — 설명·영상·지난번 기록·메모·별까지 붙여 준다 */
   const [exercise] = await runExercises(user.id, [entry], session.date);
