@@ -6,7 +6,7 @@ import type { CameraDiag, DualCapture } from '@/lib/velocity-engine/dual-capture
 
 /**
  * 카메라 상태 — 앱 카메라가 실제로 어떻게 켜졌나(형식 · 묶어 읽기 · 2배가 진짜인가 · 손떨림 보정 · 초점 · 노출)를 보이고, 그 자리에서
- * 손떨림 보정 · 줌 · 초점을 바꿔 본다. 화면이 흐린 까닭을 폰에서 바로 가르려고 만들었다(2026-10-08 사용자: "초점이 안 맞고
+ * 초점만 바꿔 본다(손떨림 보정 · 줌은 기준 조건이라 고정). 화면이 흐린 까닭을 폰에서 바로 가르려고 만들었다(2026-10-08 사용자: "초점이 안 맞고
  * 흐리다" — 재초점으로도 그대로). 바꾼 값은 카메라를 다시 켜면 기본으로 돌아간다.
  */
 export function CameraTuner({
@@ -115,29 +115,8 @@ export function CameraTuner({
         </dd>
       </dl>
 
+      {/* 손떨림 보정 · 줌은 바꾸지 못한다 — 늘 켬 · 2배(기준 조건, 2026-10-11 김민: "고정, 사용자가 바꾸지 못하게"). 위에 보이기만 한다 */}
       <div className="mt-3 space-y-2.5">
-        <Row label="손떨림 보정">
-          <Chip
-            on={d.stabilization !== 'off'}
-            onClick={() => void tune({ stabilization: true })}
-          >
-            켬
-          </Chip>
-          <Chip
-            on={d.stabilization === 'off'}
-            onClick={() => void tune({ stabilization: false })}
-          >
-            끔
-          </Chip>
-        </Row>
-        <Row label="줌">
-          <Chip on={d.zoom < 1.5} onClick={() => void tune({ zoom: 1 })}>
-            1배
-          </Chip>
-          <Chip on={d.zoom >= 1.5} onClick={() => void tune({ zoom: 2 })}>
-            2배
-          </Chip>
-        </Row>
         <Row label="초점">
           <Chip
             on={!d.manualFocus}
