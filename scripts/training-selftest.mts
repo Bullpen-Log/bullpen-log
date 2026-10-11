@@ -100,6 +100,7 @@ import {
 } from '../lib/training-load.ts';
 import { computeAcwr, zoneOf } from '../lib/pitch-stats.ts';
 import { buildTrainingLoad } from '../lib/training-load.ts';
+import { cleanBodySpots, parseBodySpots, partsFromSpots } from '../lib/body-spots.ts';
 import {
   ARM_CARE_CATEGORY,
   buildPartVolume,
@@ -7485,6 +7486,15 @@ console.log(
     powerDays > 0 && powerBroken === '',
     powerBroken || `파워 2개 이상인 날 ${powerDays}일`
   );
+}
+
+{
+  /* 몸 그림의 근육 → 부위 칸(2026-10-12) — 통증 관문이 근육을 고른 날 놓치지 않게 */
+  const p = partsFromSpots({ 'R:deltBack': '뻐근', 'L:chest': '통증', 'C:lowBack': '뻐근' });
+  check('근육 → 부위: 같은 부위는 가장 센 값', p.shoulder === '통증' && p.lowerBack === '뻐근' && p.elbow === '정상', JSON.stringify(p));
+  const c = cleanBodySpots({ 'R:knee': '통증', 'C:knee': '통증', 'X:abs': '뻐근', 'R:nope': '통증', 'L:calf': '아픔' });
+  check('근육 값 거르기: 모르는 근육 · 좌우 · 값은 버림', JSON.stringify(c) === '{"R:knee":"통증"}', JSON.stringify(c));
+  check('깨진 JSON 은 빈 것', Object.keys(parseBodySpots('{oops')).length === 0);
 }
 
 console.log(`\n${passed}개 통과, ${failed}개 실패`);

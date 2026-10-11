@@ -315,10 +315,13 @@ const EMPTY: SignupAnswers = {
   agreePrivacy: false,
 };
 
-type StepKey = 'name' | 'birth' | 'body' | 'password' | 'terms';
+type StepKey = 'name' | 'birth' | 'body' | 'terms';
 
-/** 화면 차례 — 답에 따라 생기고 빠지는 화면이 없어 늘 다섯이다(소속은 2026-10-10 에 뺐다 — 계산에 안 쓴다) */
-const STEPS: StepKey[] = ['name', 'birth', 'body', 'password', 'terms'];
+/**
+ * 화면 차례 — 답에 따라 생기고 빠지는 화면이 없어 늘 넷이다(소속은 2026-10-10 에 뺐다 — 계산에 안 쓴다).
+ * 비밀번호는 2026-10-12 에 첫 화면으로 옮겼다(사용자: "이름, 이메일, 비밀번호까지 한 번에").
+ */
+const STEPS: StepKey[] = ['name', 'birth', 'body', 'terms'];
 
 /** 칸이 있는 화면 — 서버가 어느 칸을 막았는지(AuthState.field) 알려 주면 그 화면으로 돌아간다 */
 const FIELD_STEP: Record<string, StepKey> = {
@@ -328,8 +331,8 @@ const FIELD_STEP: Record<string, StepKey> = {
   sex: 'birth',
   heightCm: 'body',
   weightKg: 'body',
-  password: 'password',
-  passwordConfirm: 'password',
+  password: 'name',
+  passwordConfirm: 'name',
   agreeTerms: 'terms',
   agreePrivacy: 'terms',
 };
@@ -373,6 +376,12 @@ function checkStep(
       if (!email) return { error: '이메일을 적어 주세요.', field: 'email' };
       if (!EMAIL_RE.test(email))
         return { error: '올바른 이메일 형식이 아니에요.', field: 'email' };
+      if (a.password.length < 8)
+        return { error: '비밀번호는 8자 이상이어야 해요.', field: 'password' };
+      if (!a.passwordConfirm)
+        return { error: '비밀번호를 한 번 더 적어 주세요.', field: 'passwordConfirm' };
+      if (a.password !== a.passwordConfirm)
+        return { error: '비밀번호가 일치하지 않아요.', field: 'passwordConfirm' };
       return null;
     }
     case 'birth': {
@@ -403,14 +412,6 @@ function checkStep(
           field: 'weightKg',
         };
       }
-      return null;
-    case 'password':
-      if (a.password.length < 8)
-        return { error: '비밀번호는 8자 이상이어야 해요.', field: 'password' };
-      if (!a.passwordConfirm)
-        return { error: '비밀번호를 한 번 더 적어 주세요.', field: 'passwordConfirm' };
-      if (a.password !== a.passwordConfirm)
-        return { error: '비밀번호가 일치하지 않아요.', field: 'passwordConfirm' };
       return null;
     case 'terms':
       if (!a.agreeTerms)
@@ -765,8 +766,8 @@ function SignupWizard({
     switch (key) {
       case 'name':
         return {
-          title: '이름과 이메일을 알려 주세요',
-          desc: '앱에서 부를 이름이에요. 이메일은 로그인에 써요.',
+          title: '계정을 만들어요',
+          desc: '앱에서 부를 이름, 로그인에 쓸 이메일과 비밀번호를 정해 주세요.',
         };
       case 'birth':
         return {
@@ -777,11 +778,6 @@ function SignupWizard({
         return {
           title: '키와 몸무게를 알려 주세요',
           desc: '몸무게는 오늘 첫 체중 기록이 돼요. 둘 다 내 정보에서 바꿀 수 있어요.',
-        };
-      case 'password':
-        return {
-          title: '비밀번호를 정해 주세요',
-          desc: '8자 이상이면 돼요. 다른 곳에서 쓰지 않는 것으로 정해 주세요.',
         };
       case 'terms':
         return {
@@ -864,7 +860,7 @@ function SignupWizard({
         */}
         <input type="hidden" name="sex" value={answers.sex ?? ''} />
 
-        {/* ── 1 이름 · 이메일 — 이름이 2자가 되면 이메일 칸이 펴진다 ── */}
+        {/* ── 1 이름 · 이메일 · 비밀번호 — 위 칸이 맞으면 아래 칸이 펴진다 ── */}
         {panel(
           'name',
           <div>
@@ -905,6 +901,56 @@ function SignupWizard({
                     {...invalidProps(invalid('email'))}
                   />
                 </Field>
+              </div>
+            </RevealField>
+            {/* 이메일이 맞는 꼴이면 비밀번호가 펴진다 · 8자가 되면 확인 칸이 펴진다 */}
+            <RevealField open={EMAIL_RE.test(answers.email.trim())}>
+              <div className="pt-5">
+                <Field label="비밀번호" hint="8자 이상">
+                  <Input
+                    name="password"
+                    type={showPassword ? 'text' : 'password'}
+                    autoComplete="new-password"
+                    {...noAutoFix}
+                    required
+                    minLength={8}
+                    value={answers.password}
+                    onChange={(e) => w.patch({ password: e.target.value })}
+                    placeholder="••••••••"
+                    className={inputLarge}
+                    {...invalidProps(invalid('password'))}
+                  />
+                </Field>
+                <RevealField open={answers.password.length >= 8}>
+                  <div className="pt-4 md:pt-5">
+                    <Field label="비밀번호 확인">
+                      <Input
+                        name="passwordConfirm"
+                        type={showPassword ? 'text' : 'password'}
+                        autoComplete="new-password"
+                        {...noAutoFix}
+                        required
+                        value={answers.passwordConfirm}
+                        onChange={(e) => w.patch({ passwordConfirm: e.target.value })}
+                        placeholder="••••••••"
+                        className={inputLarge}
+                        {...invalidProps(invalid('passwordConfirm'))}
+                      />
+                    </Field>
+                  </div>
+                </RevealField>
+                <div className="mt-4 md:mt-5">
+                  <label className="inline-flex min-h-11 cursor-pointer items-center gap-2 pt-1 desk:min-h-0">
+                    <input
+                      type="checkbox"
+                      checked={showPassword}
+                      data-sync={showPassword ? 'on' : 'off'}
+                      onChange={(e) => setShowPassword(e.target.checked)}
+                      className="h-4 w-4 cursor-pointer accent-sky"
+                    />
+                    <span className="text-sm text-muted select-none">비밀번호 표시</span>
+                  </label>
+                </div>
               </div>
             </RevealField>
           </div>
@@ -987,57 +1033,6 @@ function SignupWizard({
           </div>
         )}
 
-        {/* ── 4 비밀번호 — 8자가 되면 확인 칸이 펴진다 ── */}
-        {panel(
-          'password',
-          <div>
-            <Field label="비밀번호" hint="8자 이상">
-              <Input
-                name="password"
-                type={showPassword ? 'text' : 'password'}
-                autoComplete="new-password"
-                {...noAutoFix}
-                required
-                minLength={8}
-                value={answers.password}
-                onChange={(e) => w.patch({ password: e.target.value })}
-                placeholder="••••••••"
-                className={inputLarge}
-                {...invalidProps(invalid('password'))}
-              />
-            </Field>
-            <RevealField open={answers.password.length >= 8}>
-              <div className="pt-4 md:pt-5">
-                <Field label="비밀번호 확인">
-                  <Input
-                    name="passwordConfirm"
-                    type={showPassword ? 'text' : 'password'}
-                    autoComplete="new-password"
-                    {...noAutoFix}
-                    required
-                    value={answers.passwordConfirm}
-                    onChange={(e) => w.patch({ passwordConfirm: e.target.value })}
-                    placeholder="••••••••"
-                    className={inputLarge}
-                    {...invalidProps(invalid('passwordConfirm'))}
-                  />
-                </Field>
-              </div>
-            </RevealField>
-            <div className="mt-4 md:mt-5">
-              <label className="inline-flex min-h-11 cursor-pointer items-center gap-2 pt-1 desk:min-h-0">
-                <input
-                  type="checkbox"
-                  checked={showPassword}
-                  data-sync={showPassword ? 'on' : 'off'}
-                  onChange={(e) => setShowPassword(e.target.checked)}
-                  className="h-4 w-4 cursor-pointer accent-sky"
-                />
-                <span className="text-sm text-muted select-none">비밀번호 표시</span>
-              </label>
-            </div>
-          </div>
-        )}
 
         {/*
           5 동의 두 가지. 받는 정보를 보면 그냥 넘어갈 수준이 아니다 — 생년월일, 키, 몸무게, 통증 부위, 투구 기록, 영상.

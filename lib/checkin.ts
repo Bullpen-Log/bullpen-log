@@ -165,7 +165,12 @@ export function validateCheckin(
     };
   }
 
-  const sleep = raw.sleep.trim();
+  /*
+   * 수면은 2026-10-12 부터 묻지 않는다(사용자: "수면시간을 삭제하고 전신 컨디션으로 통합") — 화면이 안 보내면 '보통'.
+   * 칸이 비울 수 없는 열이라 채워 두고, '보통'은 짧은 밤 규칙(isShortSleep)을 켜지 않는다. 옛 화면이 보낸 값은 그대로 받는다.
+   */
+  const sleepRaw = raw.sleep.trim();
+  const sleep = sleepRaw === '' ? '보통' : sleepRaw;
   if (!(SLEEP_LEVELS as readonly string[]).includes(sleep)) {
     return { error: '수면 상태를 선택해주세요.' };
   }

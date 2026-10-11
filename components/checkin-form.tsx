@@ -13,33 +13,24 @@ import {
   CheckCircle2,
   ChevronDown,
   ChevronRight,
-  Minus,
   Pencil,
-  Plus,
 } from 'lucide-react';
 import { saveCheckin, type CheckinState } from '@/app/actions/checkin';
 import { ArmPainGuideButton } from '@/app/(app)/training/arm-pain-guide';
 import {
   ARM_PAIN_LEVELS,
   ARM_PAIN_SPOTS,
-  BODY_FEELINGS,
   CHECKIN_NOTE_MAX,
   CHECKIN_PARTS,
   CHECKIN_WEIGHT_MAX_KG,
   CHECKIN_WEIGHT_MIN_KG,
   DETAIL_SCALES,
   APPETITE_LEVELS,
-  HIGH_SORENESS,
   MAX_CONDITION,
   MAX_PREFERRED_PARTS,
   MIN_CONDITION,
   NO_WORKOUT_KIND,
   THROW_PLANS,
-  SLEEP_HOURS_MAX,
-  SLEEP_HOURS_MIN,
-  SLEEP_HOURS_STEP,
-  SLEEP_LEVELS,
-  SORENESS_LEVELS,
   WORKOUT_KINDS,
   type ArmPain,
   type ArmPainJoint,
@@ -49,12 +40,9 @@ import {
   armPainLevelLabel,
   armPainSpotLabel,
   armPainSpotsFor,
-  clampSleepHours,
   formatSleepHours,
   hasDetail,
   hasPain,
-  parseSleepHours,
-  sleepLevelFromHours,
   sorenessWord,
   MEAL_AMOUNTS,
   SKIPPABLE_MEALS,
@@ -65,6 +53,13 @@ import { OFFLINE_MESSAGE, orOffline } from '@/lib/action-offline';
 import { toDateKey } from '@/lib/pitch-stats';
 import { formatWeight, fromWeight, round1, toWeight } from '@/lib/units';
 import { useWeightUnit } from '@/components/use-units';
+import { BodySpotPicker } from '@/components/body-spot-picker';
+import {
+  partsFromSpots,
+  spotLabel,
+  spotOf,
+  type BodySpots,
+} from '@/lib/body-spots';
 
 export type CheckinData = CheckinParts &
   CheckinBody &
@@ -79,6 +74,8 @@ export type CheckinData = CheckinParts &
     preferredParts: string[];
     /** 오늘 하고 싶다고 고른 운동 종류. 안 골랐으면 null */
     preferredWorkout: string | null;
+    /** 몸 그림에서 고른 불편한 근육(lib/body-spots.ts) */
+    bodySpots: BodySpots;
   };
 
 /** 값에 따라 칩 색이 달라진다. '통증'은 항상 빨간색으로 도드라지게. */
@@ -420,216 +417,6 @@ function WeightRow({ defaultKg }: { defaultKg?: string }) {
   );
 }
 
-/** 잔 시간을 한 번에 고르는 빠른 칩 — 대부분의 밤이 이 안에 든다. 그 밖은 −/+ 로 맞춘다 */
-const SLEEP_QUICK_HOURS = [5, 6, 7, 8, 9] as const;
-
-/** 지난 기록이 없을 때 −/+ 가 시작하는 자리(시간) */
-const SLEEP_SEED_HOURS = 7;
-
-/*
- * 잔 시간 줄의 누르는 것들 — 손가락으로 누르는 자리라 높이 44px 을 채운다.
- * 빠른 칩은 폭만 40px 이다 — 다섯 칩과 '지우기'가 360px 휴대폰의 한 줄(안쪽 약 294px)에 들어가야
- * 가로로 넘치지도, '지우기'만 다음 줄로 떨어지지도 않는다.
- */
-const sleepStepButton =
-  'inline-flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-full border border-transparent bg-ink/6 text-ink outline-none transition-colors focus-visible:ring-1 focus-visible:ring-sky active:bg-sky/10 disabled:cursor-not-allowed disabled:opacity-40 desk:rounded-lg desk:border-line desk:bg-surface-2 desk:text-muted desk:hover:border-sky-soft desk:hover:text-ink desk:disabled:hover:border-line desk:disabled:hover:text-muted';
-const sleepQuickChip =
-  'inline-flex min-h-11 min-w-11 cursor-pointer select-none items-center justify-center rounded-full border px-3 py-2 text-[13px] tabular-nums outline-none transition-colors focus-visible:ring-1 focus-visible:ring-sky desk:min-w-10 desk:rounded-lg desk:text-xs';
-
-/**
- * 수면 — 어젯밤 잔 시간(선택)과 잔 느낌(충분 · 보통 · 부족, 필수)을 한 칸에서 받는다.
- *
- * 시간은 글자로 치지 않고 고른다(−/+ 30분씩, 빠른 칩). 시간을 고르면 잔 느낌이 따라 골라져서
- * 숫자 하나만 눌러도 수면이 끝난다. 둘을 따로 두면 같은 것을 두 번 묻게 된다.
- *
- * 느낌을 직접 누른 뒤에는 시간이 느낌을 덮지 않는다(pinned) — 6시간을 자도 개운한 날이 있고,
- * 8시간을 자도 못 잔 것 같은 날이 있다. 본인이 고친 것이 이긴다. 시간을 지워도 느낌은 그대로 둔다.
- *
- * 따라 골라진 느낌은 추천을 바꾸지 않는다 — 6시간 미만은 느낌과 상관없이 이미 짧은 밤이다
- * (lib/checkin.ts 의 isShortSleep). 그래서 저절로 골라져도 안전하다.
- *
- * 상태는 누를 때(이벤트 처리기) 같이 바꾼다. 효과(useEffect)로 맞추지 않는다 — 한 번 더 그리고,
- * 직접 고친 느낌까지 덮게 된다.
- */
-function SleepRow({
-  defaultLevel,
-  defaultHours,
-  seedHours,
-}: {
-  /** 저장된(또는 오류로 돌아온) 잔 느낌 */
-  defaultLevel?: string;
-  /** 저장된(또는 오류로 돌아온) 잔 시간 — 폼 값이라 글자다 */
-  defaultHours?: string;
-  /** 비어 있을 때 −/+ 가 시작하는 시간 — 지난번에 적은 잔 시간 */
-  seedHours: number;
-}) {
-  /* 예전에 0~16 으로 적은 기록은 고르는 범위(3~12 · 30분 단위)로 맞춰서 시작한다 */
-  const [hours, setHours] = useState<number | null>(() =>
-    parseSleepHours(defaultHours ?? '')
-  );
-  const [level, setLevel] = useState(defaultLevel ?? '');
-  /*
-   * 저장된(또는 오류로 돌아온) 느낌이 본인이 고른 것인가.
-   *
-   * 시간이 없는데 느낌이 있으면 그 느낌은 반드시 본인이 누른 것이다 — 시간이 골라 줄 수 없었다.
-   * 시간이 있는데 거기서 나올 값과 다르면 본인이 고친 것이다. 둘 다 그대로 둔다.
-   *
-   * 앞의 것을 빼먹으면, 아침에 '부족'만 적어 둔 사람이 나중에 8시간을 더하는 순간 느낌이 말없이
-   * '충분'으로 바뀌고 짧은 밤 제한이 풀린다 — 시간은 '부족'을 더할 수만 있고 뺄 수는 없다
-   * (lib/checkin.ts 의 isShortSleep)는 원칙이 화면에서 깨진다.
-   */
-  const [pinned, setPinned] = useState(
-    () =>
-      Boolean(defaultLevel) &&
-      (hours == null || sleepLevelFromHours(hours) !== defaultLevel)
-  );
-  /* 시간을 지우면 누르던 단추('지우기')가 사라진다 — 초점을 옮겨 둘 자리 */
-  const firstQuickRef = useRef<HTMLButtonElement>(null);
-
-  const change = (next: number | null) => {
-    setHours(next);
-    if (next != null && !pinned) setLevel(sleepLevelFromHours(next));
-  };
-  /* 비어 있을 때는 지난번 값에서 시작한다(한 칸 움직이지 않는다) — 대개 어제와 비슷하게 잔다 */
-  const step = (dir: 1 | -1) =>
-    change(clampSleepHours(hours == null ? seedHours : hours + dir * SLEEP_HOURS_STEP));
-
-  return (
-    <Row label="수면" top>
-      <div className="flex w-full min-w-0 flex-col gap-3">
-        <div className="space-y-1.5">
-          {/* 좁은 화면에서는 '증감 단추 / 빠른 칩' 두 줄로 접힌다 */}
-          <div
-            role="group"
-            aria-label="어젯밤 잔 시간"
-            className="flex flex-wrap items-center gap-x-3 gap-y-2"
-          >
-            <div className="flex items-center gap-1.5">
-              <button
-                type="button"
-                onClick={() => step(-1)}
-                disabled={hours != null && hours <= SLEEP_HOURS_MIN}
-                aria-label="30분 줄이기"
-                className={sleepStepButton}
-              >
-                <Minus aria-hidden className="h-4 w-4" />
-              </button>
-              {/* 읽어 주는 자리(output)는 그대로 두고 안쪽 글만 새로 그린다 — 값이 바뀔 때마다 조용히 나타난다 */}
-              <output
-                aria-live="polite"
-                className="min-w-[4.5rem] text-center text-sm tabular-nums"
-              >
-                <span
-                  key={hours ?? 'none'}
-                  className={`inline-block motion-safe:animate-fade-in ${
-                    hours == null ? 'text-muted' : 'font-semibold text-ink'
-                  }`}
-                >
-                  {hours == null ? '—' : formatSleepHours(hours)}
-                </span>
-              </output>
-              <button
-                type="button"
-                onClick={() => step(1)}
-                disabled={hours != null && hours >= SLEEP_HOURS_MAX}
-                aria-label="30분 늘리기"
-                className={sleepStepButton}
-              >
-                <Plus aria-hidden className="h-4 w-4" />
-              </button>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-1.5">
-              {SLEEP_QUICK_HOURS.map((n) => {
-                const on = hours === n;
-                return (
-                  <button
-                    key={n}
-                    ref={n === SLEEP_QUICK_HOURS[0] ? firstQuickRef : undefined}
-                    type="button"
-                    aria-pressed={on}
-                    aria-label={formatSleepHours(n)}
-                    /* 고른 숫자를 다시 누르면 지워진다 */
-                    onClick={() => change(on ? null : n)}
-                    className={`${sleepQuickChip} ${
-                      on
-                        ? 'border-sky bg-sky/10 font-medium text-sky'
-                        : 'border-transparent bg-ink/6 text-ink/80 desk:border-line desk:bg-surface-2 desk:text-muted desk:hover:border-sky-soft desk:hover:text-ink'
-                    }`}
-                  >
-                    {n}
-                  </button>
-                );
-              })}
-              {/*
-               * 값이 있을 때만 보인다. 자리는 늘 잡아 둔다 — 시간을 고르는 순간 단추가 생기면서
-               * 칩 줄이 다음 줄로 밀리면(창 폭에 따라 그렇게 된다) 누르던 칩이 손가락 밑에서 달아난다.
-               */}
-              <button
-                type="button"
-                /*
-                 * 지우면 이 단추가 꺼지고 숨는다. 초점이 여기 있었으면(키보드) 갈 곳을 잃으므로
-                 * 첫 빠른 칩으로 옮겨 둔다 — 거기서 바로 다시 고를 수 있다.
-                 */
-                onClick={(e) => {
-                  const focused = document.activeElement === e.currentTarget;
-                  change(null);
-                  if (focused) firstQuickRef.current?.focus();
-                }}
-                disabled={hours == null}
-                className={`inline-flex min-h-11 cursor-pointer items-center rounded-lg px-1.5 text-xs text-muted underline-offset-4 outline-none transition-[opacity,color] duration-200 hover:text-ink hover:underline focus-visible:ring-1 focus-visible:ring-sky ${
-                  hours == null ? 'invisible opacity-0' : 'opacity-100'
-                }`}
-              >
-                지우기
-              </button>
-            </div>
-          </div>
-          <p className="text-[10px] text-muted/60">
-            어젯밤 잔 시간 · 30분 단위 · 몰라도 돼요
-          </p>
-          {/* 서버로 가는 값 — 비어 있으면 안 적은 것(null)으로 저장된다 */}
-          <input type="hidden" name="sleepHours" value={hours ?? ''} />
-        </div>
-
-        {/*
-         * 이미 골라진 칩을 다시 눌러도 직접 고른 것으로 친다(pinned). 골라진 라디오를 또 누르면
-         * change 가 오지 않아 onPick 이 안 불린다 — 시간이 골라 준 느낌을 '맞다'고 눌러 확인한 것을
-         * 놓치고, 그 뒤 시간을 고치면 느낌이 따라 바뀐다. 칩(라벨)을 누르면 라디오에 click 이 가고
-         * 그것이 여기로 올라오므로 그때 잡는다.
-         */}
-        <div
-          role="radiogroup"
-          aria-label="잔 느낌"
-          onClick={(e) => {
-            if (e.target instanceof HTMLInputElement) setPinned(true);
-          }}
-          className="flex flex-wrap items-center gap-1.5"
-        >
-          {SLEEP_LEVELS.map((v) => (
-            <ChipRadio
-              key={v}
-              name="sleep"
-              value={v}
-              required
-              checked={level === v}
-              onPick={(picked) => {
-                setLevel(picked);
-                setPinned(true);
-              }}
-            >
-              {v}
-            </ChipRadio>
-          ))}
-          <span className="ml-1 self-center text-[10px] text-muted/60">
-            잔 느낌 · 시간을 고르면 따라 골라져요
-          </span>
-        </div>
-      </div>
-    </Row>
-  );
-}
-
 function SubmitButton() {
   const { pending } = useFormStatus();
   return (
@@ -787,7 +574,10 @@ export function CheckinForm({
    * 한다. 아무것도 안 건드렸으면 null 이고, 그때는 서버가 준 값을 그대로 쓴다.
    */
   const [partsOpen, setPartsOpen] = useState(false);
-  const [partEdits, setPartEdits] = useState<Record<string, string> | null>(null);
+  /* 몸 그림에서 고른 근육 — 손댄 것이 없으면 null(저장된 값 · 오류로 돌아온 값을 쓴다) */
+  const [spotEdits, setSpotEdits] = useState<BodySpots | null>(null);
+  /* 몸 그림이 생기기 전에 저장한 오늘 부위 값(근육 없음) — ✕ 로 지울 수 있게 따로 쥔다 */
+  const [legacyEdits, setLegacyEdits] = useState<Record<string, string> | null>(null);
   /*
    * 팔 통증 정도를 고를 때마다 적어 둔다 — 정도 줄이 어깨 밑에서 팔꿈치 밑으로 옮겨 가며 새로 그려져도
    * 방금 고른 것이 남게(ArmPainLevelRow). 저장하거나 고치기를 새로 열면 비운다(저장된 값으로 시작).
@@ -818,7 +608,8 @@ export function CheckinForm({
     setFormKey((k) => k + 1);
     if (state?.success) setEditing(false);
     // 저장에 실패해 돌아오면 서버가 준 값으로 다시 시작한다
-    setPartEdits(null);
+    setSpotEdits(null);
+    setLegacyEdits(null);
     setPainLevelDraft(null);
   }
 
@@ -900,21 +691,48 @@ export function CheckinForm({
    * 지금 몸 상태. 손댄 것이 있으면 그것을, 없으면 서버가 준 값을 본다.
    * 하나라도 정상이 아니면 접지 않는다 — 불편한 곳을 숨기면 안 된다.
    */
-  const partNow = (key: string, fallback: string) =>
-    partEdits?.[key] ?? pick(key, fallback) ?? fallback;
+  const savedSpots: BodySpots = before
+    ? (() => {
+        try {
+          return JSON.parse(kept(before, 'bodySpots') ?? '{}') as BodySpots;
+        } catch {
+          return {};
+        }
+      })()
+    : (today?.bodySpots ?? {});
+  const spots = spotEdits ?? savedSpots;
+  /* 근육이 하나도 없는 부위의 옛 값(뻐근 · 통증) — 몸 그림 전의 기록 */
+  const legacy =
+    legacyEdits ??
+    Object.fromEntries(
+      CHECKIN_PARTS.filter(
+        (p) =>
+          !before &&
+          today != null &&
+          today[p.key] !== '정상' &&
+          !Object.keys(savedSpots).some((id) => spotOf(id)?.def.part === p.key)
+      ).map((p) => [p.key, today![p.key]])
+    );
+  const fromSpots = partsFromSpots(spots);
+  const RANK: Record<string, number> = { 정상: 0, 뻐근: 1, 통증: 2 };
+  const partNow = (key: string, fallback: string) => {
+    const a = fromSpots[key as keyof typeof fromSpots] ?? fallback;
+    const b = legacy[key] ?? '정상';
+    return (RANK[b] ?? 0) > (RANK[a] ?? 0) ? b : a;
+  };
   const hurting = CHECKIN_PARTS.filter(
-    (p) => partNow(p.key, today?.[p.key] ?? '정상') !== '정상'
+    (p) => partNow(p.key, '정상') !== '정상'
   );
   const partsExpanded = partsOpen || hurting.length > 0;
-  /* 지금 '통증'인 팔 관절 — 그 줄 밑에 아픈 자리 · 정도 줄이 열린다(ArmPainSpotsRow · ArmPainLevelRow) */
+  /* 지금 '통증'인 팔 관절 — 몸 그림 밑에 아픈 자리 · 정도 줄이 열린다(ArmPainSpotsRow · ArmPainLevelRow) */
   const painJoints = (['shoulder', 'elbow'] as const).filter(
-    (joint) => partNow(joint, today?.[joint] ?? '정상') === '통증'
+    (joint) => partNow(joint, '정상') === '통증'
   );
   const partsSummary =
     hurting.length === 0
       ? null
       : hurting
-          .map((p) => `${p.label} ${partNow(p.key, today?.[p.key] ?? '정상')}`)
+          .map((p) => `${p.label} ${partNow(p.key, '정상')}`)
           .join(' · ');
 
   const detailed = mode === 'detail';
@@ -929,12 +747,20 @@ export function CheckinForm({
     ? [
         ...CHECKIN_PARTS.map((p): [string, string] => [p.label, today[p.key]]),
         ['컨디션', `${today.condition}/10`],
-        [
-          '수면',
-          today.sleepHours != null
-            ? `${today.sleep} · ${formatSleepHours(today.sleepHours)}`
-            : today.sleep,
-        ],
+        /* 수면은 2026-10-12 부터 묻지 않는다(컨디션에 합침) — 예전에 잔 시간을 적은 날만 */
+        ...(today.sleepHours != null
+          ? [['수면', `${today.sleep} · ${formatSleepHours(today.sleepHours)}`] as [string, string]]
+          : []),
+        ...(Object.keys(today.bodySpots).length > 0
+          ? [
+              [
+                '불편한 곳',
+                Object.entries(today.bodySpots)
+                  .map(([id, v]) => `${spotLabel(id)} ${v}`)
+                  .join(' · '),
+              ] as [string, string],
+            ]
+          : []),
         ...(todaySoreness ? [['근육통', todaySoreness] as [string, string]] : []),
         ...(todayMeals ? [['식사', todayMeals] as [string, string]] : []),
       ]
@@ -1092,7 +918,7 @@ export function CheckinForm({
                 <span className="text-[11px] leading-relaxed text-muted">
                   {detailed
                     ? '더 적을수록 추천이 오늘에 맞춰져요. 비워 둔 칸은 저장하지 않아요.'
-                    : '몸 상태 · 근육통 · 컨디션 · 수면. 몇 초면 끝나요.'}
+                    : '몸 상태 · 컨디션 · 팔 피로. 몇 초면 끝나요.'}
                 </span>
               </div>
 
@@ -1145,82 +971,44 @@ export function CheckinForm({
                   )}
                 </div>
 
+                {/*
+                  부위 칸은 몸 그림에서 고른 근육으로 정한다(lib/body-spots.ts partsFromSpots) — 접혀 있어도 늘 보낸다.
+                  서버는 bodySpots 를 다시 읽어 부위를 그 이상으로만 맞춘다(app/actions/checkin.ts).
+                */}
+                {CHECKIN_PARTS.map((part) => (
+                  <input key={part.key} type="hidden" name={part.key} value={partNow(part.key, '정상')} />
+                ))}
+                <input type="hidden" name="bodySpots" value={JSON.stringify(spots)} />
                 <div className={partsExpanded ? 'mt-3 space-y-3' : 'hidden'}>
-                  {CHECKIN_PARTS.map((part) => (
-                    <Fragment key={part.key}>
-                      <Row label={part.label} radios>
-                        {BODY_FEELINGS.map((v) => (
-                          <ChipRadio
-                            key={v}
-                            name={part.key}
-                            value={v}
-                            required
-                            defaultChecked={
-                              pick(part.key, today?.[part.key] ?? '정상') === v
-                            }
-                            className={feelingChipClass(v)}
-                            onPick={(v) =>
-                              setPartEdits((prev) => ({
-                                ...(prev ??
-                                  Object.fromEntries(
-                                    CHECKIN_PARTS.map((q) => [
-                                      q.key,
-                                      partNow(q.key, today?.[q.key] ?? '정상'),
-                                    ])
-                                  )),
-                                [part.key]: v,
-                              }))
-                            }
-                          >
-                            {v}
-                          </ChipRadio>
-                        ))}
-                      </Row>
-                      {/* 팔 통증 — 어깨 · 팔꿈치가 '통증'이면 그 줄 바로 밑에(관절마다 자리, 정도는 한 번) */}
-                      {(part.key === 'shoulder' || part.key === 'elbow') &&
-                        painJoints.includes(part.key) && (
-                          <ArmPainSpotsRow joint={part.key} picked={pickedPainSpots} />
-                        )}
-                      {part.key === painJoints.at(-1) && (
-                        <ArmPainLevelRow
-                          picked={pickedPainLevel}
-                          onChange={setPainLevelDraft}
-                        />
-                      )}
-                    </Fragment>
+                  <BodySpotPicker spots={spots} onChange={setSpotEdits} />
+                  {Object.keys(legacy).length > 0 && (
+                    <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted">
+                      예전에 적은 것
+                      {Object.entries(legacy).map(([key, v]) => (
+                        <button
+                          key={key}
+                          type="button"
+                          onClick={() =>
+                            setLegacyEdits(
+                              Object.fromEntries(Object.entries(legacy).filter(([k]) => k !== key))
+                            )
+                          }
+                          className="inline-flex min-h-9 items-center gap-1 rounded-full bg-ink/6 px-3 font-medium text-ink"
+                        >
+                          {CHECKIN_PARTS.find((p) => p.key === key)?.label} {v} ✕
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  {/* 팔 통증 — 어깨 · 팔꿈치가 '통증'이면 아픈 자리(관절마다) · 정도(한 번) */}
+                  {painJoints.map((joint) => (
+                    <ArmPainSpotsRow key={joint} joint={joint} picked={pickedPainSpots} />
                   ))}
+                  {painJoints.length > 0 && (
+                    <ArmPainLevelRow picked={pickedPainLevel} onChange={setPainLevelDraft} />
+                  )}
                 </div>
               </div>
-
-              {/*
-               * 전신 근육통(선택). 몸 상태 상자 바로 밑에 둔다 — 부위의 '뻐근 · 통증'과 헷갈리는
-               * 칸이라 나란히 놓고 글로 가른다. 근육통 '심함'은 통증 관문을 열지 않는다
-               * (운동 추천을 멈추는 것은 부위 통증뿐이다).
-               *
-               * 색은 '많이' · '심함'만 주황 — 추천이 가벼워지는 눈금(HIGH_SORENESS)부터다.
-               * 빨강은 통증만 쓴다.
-               */}
-              <Row label="근육통" radios>
-                {SORENESS_LEVELS.map((label, i) => (
-                  <ChipRadio
-                    key={label}
-                    name="soreness"
-                    value={String(i + 1)}
-                    toggleable
-                    defaultChecked={pick('soreness', today?.soreness) === String(i + 1)}
-                    className={
-                      i + 1 >= HIGH_SORENESS ? feelingChipClass('뻐근') : undefined
-                    }
-                  >
-                    {label}
-                  </ChipRadio>
-                ))}
-                <span className="ml-1 self-center text-[10px] leading-relaxed break-keep text-muted/60">
-                  {
-                    "온몸 알배김 · 다시 누르면 풀려요 · 한곳이 콕 집어 아프면 위 '몸 상태'에서 통증으로"
-                  }
-                </span>
-              </Row>
 
               <Row label="전신 컨디션" radios>
                 {Array.from(
@@ -1237,20 +1025,27 @@ export function CheckinForm({
                     {n}
                   </ChipRadio>
                 ))}
-                <span className="ml-1 self-center text-[10px] text-muted/60">
-                  1 안 좋음 · 10 최상
+                <span className="ml-1 self-center text-[10px] leading-relaxed break-keep text-muted/60">
+                  1 안 좋음 · 10 최상 · 수면 · 피로 · 기분까지 합친 오늘 전체 컨디션
                 </span>
               </Row>
 
-              <SleepRow
-                defaultLevel={pick('sleep', today?.sleep)}
-                defaultHours={pick('sleepHours', today?.sleepHours)}
-                /* 오늘이 아닌 가장 최근 기록의 잔 시간(recent 는 최근 날부터) — 없으면 7시간 */
-                seedHours={
-                  recent.find((c) => c.date !== todayKey && c.sleepHours != null)
-                    ?.sleepHours ?? SLEEP_SEED_HOURS
-                }
-              />
+              {/* 팔 피로 — 2026-10-12 상세에서 간편으로 옮겼다(암케어 루틴이 읽는다). 서버는 body=1 로 받는다 */}
+              {DETAIL_SCALES.map((s) => (
+                <Row key={s.key} label={s.label} radios>
+                  {s.options.map((label, i) => (
+                    <ChipRadio
+                      key={label}
+                      name={s.key}
+                      value={String(i + 1)}
+                      toggleable
+                      defaultChecked={pick(s.key, today?.[s.key]) === String(i + 1)}
+                    >
+                      {label}
+                    </ChipRadio>
+                  ))}
+                </Row>
+              ))}
 
               {/*
                * 식사(선택) 두 줄 — 영양 조언(lib/nutrition/advice.ts)이 읽는다. 음식을 적지 않아도 홈 카드가 오늘 몇 g 더
@@ -1371,24 +1166,7 @@ export function CheckinForm({
                     </Section>
                   </div>
 
-                  <Section title="몸 · 고른 것을 다시 누르면 풀려요">
-                    {DETAIL_SCALES.map((s) => (
-                      <Row key={s.key} label={s.label} radios>
-                        {s.options.map((label, i) => (
-                          <ChipRadio
-                            key={label}
-                            name={s.key}
-                            value={String(i + 1)}
-                            toggleable
-                            defaultChecked={
-                              pick(s.key, today?.[s.key]) === String(i + 1)
-                            }
-                          >
-                            {label}
-                          </ChipRadio>
-                        ))}
-                      </Row>
-                    ))}
+                  <Section title="몸">
                     <WeightRow defaultKg={pick('bodyWeightKg', today?.bodyWeightKg)} />
                   </Section>
 

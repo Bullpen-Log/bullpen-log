@@ -15,6 +15,7 @@ import {
   validateCheckin,
   validateCheckinDate,
 } from '@/lib/checkin';
+import { parseBodySpots, partsFromSpots } from '@/lib/body-spots';
 import { availableParts } from '@/lib/report/today-pick';
 import { withInput, type FormValues } from '@/lib/form-values';
 import { visibleExercises } from '@/lib/library-cache';
@@ -49,8 +50,20 @@ async function trySaveCheckin(formData: FormData): Promise<CheckinState> {
     return { error: '체크인 날짜가 올바르지 않아요. 새로고침한 뒤 다시 해 주세요.' };
   }
 
+  /*
+   * 몸 그림에서 고른 근육(2026-10-12). 부위 칸은 화면이 계산해 보내지만, 근육이 말하는 것보다 낮으면 근육 쪽으로
+   * 올린다 — 통증 관문(hasPain)이 근육을 고른 날 놓치지 않게. 옛 화면은 이 칸이 없어 예전처럼 부위 칸만 쓴다.
+   */
+  const spotsRaw = formData.get('bodySpots');
+  const bodySpots = spotsRaw == null ? null : parseBodySpots(String(spotsRaw));
+  const fromSpots = bodySpots ? partsFromSpots(bodySpots) : null;
+  const RANK: Record<string, number> = { 정상: 0, 뻐근: 1, 통증: 2 };
   const parts = Object.fromEntries(
-    CHECKIN_PARTS.map((p) => [p.key, String(formData.get(p.key) ?? '')])
+    CHECKIN_PARTS.map((p) => {
+      const sent = String(formData.get(p.key) ?? '');
+      const spot = fromSpots?.[p.key];
+      return [p.key, spot && (RANK[spot] ?? 0) > (RANK[sent] ?? -1) ? spot : sent];
+    })
   );
   /*
    * 고를 수 있는 부위는 라이브러리에서 그때그때 뽑는다.
@@ -93,12 +106,15 @@ async function trySaveCheckin(formData: FormData): Promise<CheckinState> {
    * 검사해서 막지 않는다 — 고르는 칸이라 잘못 칠 수 없고, 범위 밖 값은 맞추거나 안 적은 것으로
    * 본다(lib/checkin.ts 의 parseCheckinBody).
    */
+  /* 팔 피로는 2026-10-12 에 간편으로 옮겼다 — 상세 칸과 같은 검사(parseCheckinDetail)로 읽는다 */
+  const bodyGet = (name: string) => String(formData.get(name) ?? '');
+  const armFatigueParsed = parseCheckinDetail(bodyGet);
   const body =
     formData.get('body') === '1'
-      ? parseCheckinBody(
-          (name) => String(formData.get(name) ?? ''),
-          (name) => formData.getAll(name).map(String)
-        )
+      ? {
+          ...parseCheckinBody(bodyGet, (name) => formData.getAll(name).map(String)),
+          armFatigue: 'error' in armFatigueParsed ? null : armFatigueParsed.value.armFatigue,
+        }
       : {};
 
   /*
@@ -145,7 +161,13 @@ async function trySaveCheckin(formData: FormData): Promise<CheckinState> {
   await prisma.$transaction([
     prisma.dailyCheckin.upsert({
       where: { userId_date: { userId: user.id, date } },
-      update: { ...quick, ...body, ...armPain, ...detail },
+      update: {
+        ...quick,
+        ...body,
+        ...armPain,
+        ...detail,
+        ...(bodySpots ? { bodySpots } : {}),
+      },
       create: {
         userId: user.id,
         date,
@@ -154,6 +176,7 @@ async function trySaveCheckin(formData: FormData): Promise<CheckinState> {
         ...body,
         ...armPain,
         ...detail,
+        ...(bodySpots ? { bodySpots } : {}),
       },
     }),
     ...(updateUserWeight
