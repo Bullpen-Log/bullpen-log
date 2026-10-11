@@ -1,3 +1,4 @@
+import { ensureSim, simOffsetMs } from '@/lib/clock-server';
 import type { Metadata, Viewport } from 'next';
 import { Bebas_Neue } from 'next/font/google';
 import { THEME_INIT_SCRIPT } from '@/lib/theme';
@@ -63,11 +64,17 @@ export const viewport: Viewport = {
   ],
 };
 
-export default function RootLayout({
+/* 시험 계정(User.simDate)이면 브라우저의 Date 를 그 날짜로 통째로 옮긴다(시각 차이만큼, lib/clock.ts) — 다른 계정은 0 이라 아무것도 안 한다 */
+const simClockScript = (offsetMs: number) =>
+  `(function(o){var R=Date;function D(){var a=arguments;if(!(this instanceof D))return new R(R.now()+o).toString();return a.length?new (Function.prototype.bind.apply(R,[null].concat([].slice.call(a))))():new R(R.now()+o);}D.prototype=R.prototype;D.now=function(){return R.now()+o};D.UTC=R.UTC;D.parse=R.parse;window.Date=D;})(${offsetMs})`;
+
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  await ensureSim();
+  const simOffset = simOffsetMs();
   return (
     // data-theme 은 아래 스크립트가 브라우저에서 붙인다. 서버가 그린 것과
     // 달라지는 게 정상이므로 그 경고만 끈다.
@@ -86,6 +93,7 @@ export default function RootLayout({
          * 컴포넌트이고 화면에서 다시 만들어지지 않으므로(붙기만 한다) 리액트가 스크립트를
          * 새로 그릴 때 내는 경고도 나지 않는다.
          */}
+        {simOffset !== 0 && <script dangerouslySetInnerHTML={{ __html: simClockScript(simOffset) }} />}
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
         {/*
          * 아이폰 앱 안에서만 — 앱 표시(data-app) · 상태바 글자색 · 로딩 화면 걷기(lib/native-app.ts).

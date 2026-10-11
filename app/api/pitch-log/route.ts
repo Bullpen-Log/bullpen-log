@@ -1,3 +1,4 @@
+import { appNowMs } from '@/lib/clock';
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getCurrentUser } from '@/lib/dal';
@@ -288,7 +289,7 @@ export async function POST(req: Request) {
       where: {
         userId: user.id,
         date: parsedDate,
-        createdAt: { gte: new Date(Date.now() - DUPLICATE_WINDOW_MS) },
+        createdAt: { gte: new Date(appNowMs() - DUPLICATE_WINDOW_MS) },
         ...checked,
         videoPaths: { equals: paths },
       },

@@ -1,3 +1,4 @@
+import { appNow } from '@/lib/clock';
 import { notFound, redirect } from 'next/navigation';
 import { requireUser } from '@/lib/dal';
 import { featureLocks, SETUP_PATH } from '@/lib/feature-locks';
@@ -70,7 +71,7 @@ export default async function ArmcarePlayPage({
   if (focusPlay && focusAreas.length === 0) redirect(FOCUS_BACK);
   const mine = id !== 'today' && !rehabPlay && !focusPlay;
 
-  const now = new Date();
+  const now = appNow();
   const todayKey = toDateKey(now);
   const dateKey = playDay(d, todayKey);
   /* 어제 것을 이어 하면 그날(한국 시간 한낮)의 루틴·체크·몸 상태로 읽는다 */

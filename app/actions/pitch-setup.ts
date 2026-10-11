@@ -1,5 +1,6 @@
 'use server';
 
+import { appNow } from '@/lib/clock';
 import { revalidatePath } from 'next/cache';
 import { prisma } from '@/lib/prisma';
 import { getCurrentUser } from '@/lib/dal';
@@ -45,7 +46,7 @@ export async function finishPitchSetup(
     where: { id: user.id },
     data: {
       ...baseline.value,
-      pitchSetupAt: user.pitchSetupAt ?? new Date(),
+      pitchSetupAt: user.pitchSetupAt ?? appNow(),
     },
   });
 

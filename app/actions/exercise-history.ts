@@ -1,5 +1,6 @@
 'use server';
 
+import { appNow } from '@/lib/clock';
 import { prisma } from '@/lib/prisma';
 import { requireUser } from '@/lib/dal';
 import { toDateKey } from '@/lib/pitch-stats';
@@ -31,7 +32,7 @@ export async function exerciseHistory(input: {
   const exerciseId = typeof input?.exerciseId === 'string' ? input.exerciseId : '';
   if (!exerciseId) return { error: '운동을 찾을 수 없어요.' };
 
-  const todayKey = toDateKey(new Date());
+  const todayKey = toDateKey(appNow());
   const from = new Date(`${todayKey}T00:00:00.000Z`);
   from.setUTCDate(from.getUTCDate() - WINDOW_DAYS);
 

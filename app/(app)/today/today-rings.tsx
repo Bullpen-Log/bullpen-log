@@ -1,3 +1,4 @@
+import { appNow } from '@/lib/clock';
 import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { Check, HeartPulse, type LucideIcon } from 'lucide-react';
@@ -116,7 +117,7 @@ export async function TodayRings({
 
 /** 렌더 중에 현재 시각을 직접 읽지 않도록 함수로 감싼다(홈 page.tsx 와 같다) */
 function now() {
-  return new Date();
+  return appNow();
 }
 
 /** 링 하나의 내용 */

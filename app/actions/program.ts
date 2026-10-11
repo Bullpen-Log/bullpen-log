@@ -1,5 +1,6 @@
 'use server';
 
+import { appNow } from '@/lib/clock';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
@@ -67,7 +68,7 @@ export async function startProgram(input: {
   const user = await requireUser();
   /* 처음 가입한 사람은 첫 설정(2026-10-09, lib/feature-locks.ts)을 마쳐야 연다 */
   if (featureLocks(user).training) redirect(SETUP_PATH.training);
-  const now = new Date();
+  const now = appNow();
 
   const birthDate =
     user.birthDate ?? (input.birthDate ? parseBirthDate(input.birthDate) : null);
@@ -118,7 +119,7 @@ export async function startProgram(input: {
     if (existing && parseProgram(existing.programKey) == null) {
       await tx.userTrainingProgram.update({
         where: { id: existing.id },
-        data: { status: 'stopped', endedAt: new Date(), endReason: 'switched' },
+        data: { status: 'stopped', endedAt: appNow(), endReason: 'switched' },
       });
     } else if (existing) return 'exists' as const;
     await tx.userTrainingProgram.create({
@@ -226,7 +227,7 @@ export async function startProgramWorkout() {
   const user = await requireUser();
   /* 처음 가입한 사람은 첫 설정(2026-10-09, lib/feature-locks.ts)을 마쳐야 연다 */
   if (featureLocks(user).training) redirect(SETUP_PATH.training);
-  const now = new Date();
+  const now = appNow();
   const core = await loadTodayCore(user, now);
   if (core.picked.halted) redirect('/workout/rest');
 
@@ -284,7 +285,7 @@ export async function startProgramWorkout() {
 /** 경기 앞뒤로 쉬는 날을 넘긴다(D24) — 오늘 하루만 */
 export async function overrideProgramRest(): Promise<Result> {
   const user = await requireUser();
-  const today = new Date(`${toDateKey(new Date())}T00:00:00.000Z`);
+  const today = new Date(`${toDateKey(appNow())}T00:00:00.000Z`);
   const moved = await prisma.userTrainingProgram.updateMany({
     where: { userId: user.id, status: 'active' },
     data: { overrideDate: today },
@@ -311,7 +312,7 @@ export async function skipProgramDay(input: { day: number }): Promise<Result> {
   if (input.day >= total) {
     await prisma.userTrainingProgram.update({
       where: { id: row.id },
-      data: { status: 'done', endedAt: new Date(), endReason: 'done' },
+      data: { status: 'done', endedAt: appNow(), endReason: 'done' },
     });
   }
   revalidatePath('/training');
@@ -323,7 +324,7 @@ export async function stopProgram(): Promise<Result> {
   const user = await requireUser();
   const moved = await prisma.userTrainingProgram.updateMany({
     where: { userId: user.id, status: 'active' },
-    data: { status: 'stopped', endedAt: new Date(), endReason: 'stopped' },
+    data: { status: 'stopped', endedAt: appNow(), endReason: 'stopped' },
   });
   if (moved.count === 0) return { error: '진행 중인 프로그램이 없어요.' };
   revalidatePath('/training');

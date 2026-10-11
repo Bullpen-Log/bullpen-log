@@ -1,4 +1,5 @@
 import 'server-only';
+import { appNow } from '@/lib/clock';
 import { prisma } from '@/lib/prisma';
 import { buildTrainingLoad, type TrainingLoad } from '@/lib/training-load';
 import { estimateTrainingDailyLoad } from '@/lib/baseline';
@@ -42,7 +43,7 @@ type UserForTrainingLoad = {
 /** 화면·리포트가 부르는 입구. 읽어서 buildTrainingLoad 에 넘긴다. */
 export async function trainingLoad(
   user: UserForTrainingLoad,
-  today = new Date()
+  today = appNow()
 ): Promise<TrainingLoad> {
   const userId = user.id;
   const since = new Date(today);

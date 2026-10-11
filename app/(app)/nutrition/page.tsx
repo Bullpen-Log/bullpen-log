@@ -1,3 +1,4 @@
+import { appNow } from '@/lib/clock';
 import { redirect } from 'next/navigation';
 import { requireUser } from '@/lib/dal';
 import { featureLocks, hasSeenTutorial, SETUP_PATH } from '@/lib/feature-locks';
@@ -18,7 +19,7 @@ import { NutritionView } from './nutrition-view';
 
 /** 렌더 중에 현재 시각을 직접 읽지 않도록 함수로 감싼다. */
 function now() {
-  return new Date();
+  return appNow();
 }
 
 export default async function NutritionPage({

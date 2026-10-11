@@ -1,4 +1,5 @@
 import 'server-only';
+import { appNow } from '@/lib/clock';
 import { dbDate } from '@/lib/nutrition/days';
 import {
   effectiveGoal,
@@ -114,8 +115,8 @@ export function buildProfileData(
   user: ProfileUser,
   prev: ProfilePrev | null,
   refKg: number | null,
-  today: string = toDateKey(new Date()),
-  now: Date = new Date()
+  today: string = toDateKey(appNow()),
+  now: Date = appNow()
 ): { ok: true; data: ProfileData } | { ok: false; error: string } {
   /* ── 목표 카드 → 계산이 읽는 목표 ── */
   const age = ageOn(user.birthDate, today);
