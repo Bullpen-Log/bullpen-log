@@ -1733,7 +1733,7 @@ export function VelocityScreen({
           let failed = 0;
           for (let i = 0; i < targets.length; i++) {
             const { id, clip, kind } = targets[i];
-            /* 회원 클립은 폰 사진 앱에, 관리자 보정용 저장만 서버에 */
+            /* 회원 클립은 폰의 앱 안에, 관리자 보정용 저장만 서버에 */
             const phone = !calibOn;
             const r = await uploadClip(
               id,

@@ -39,7 +39,7 @@ const r = JSON.parse(await text(`${root}/${pick.id}/analysis-v2-${job.shownJobId
 const h = (pick.meta.heightCm ?? 180) / 100;
 const ground = pick.meta.ground ?? 'mound';
 const tr = displayTrack(r, { ground, heightM: h });
-const names = V2_JOINTS.map((j) => j.name);
+const names: string[] = V2_JOINTS.map((j) => j.name);
 /* 미터 · [앞, 위, 오른쪽] — 페이지가 셋째 축을 뒤집는다(fromLab) */
 const F: number[][][] = tr.frames.map((f) => f.map((p) => [p[0] * h, p[1] * h, p[2] * h]));
 const n = F.length;
