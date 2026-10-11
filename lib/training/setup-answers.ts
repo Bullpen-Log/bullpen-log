@@ -61,17 +61,14 @@ export type TrainingSetupOptions = {
 };
 
 /** 화면 차례 — 답에 따라 바뀌는 화면은 없고, 계정 상태(askHand · hasWeight)로만 생기고 빠진다 */
-export function visibleTrainingSteps({
-  askHand,
-  hasWeight,
-}: TrainingSetupOptions): TrainingStepKey[] {
+export function visibleTrainingSteps({ askHand }: TrainingSetupOptions): TrainingStepKey[] {
   return [
     'level',
     'workoutFreq',
     'equipment',
     'minutes',
     ...(askHand ? (['hand'] as const) : []),
-    ...(hasWeight ? (['burnCard'] as const) : []),
+    /* '운동을 적으면 영양이 따라와요'(burnCard)는 2026-10-12 사용자 요청으로 뺐다 — hasWeight 는 옛 호출 때문에 받기만 한다 */
     'summary',
   ];
 }

@@ -81,8 +81,14 @@ export function ProgramStart({ props }: { props: ProgramStartProps }) {
   };
   const basicsChoice = props.programs.find((p) => p.audience === 'basics') ?? null;
   const adultCount = props.programs.filter((p) => p.audience === 'adult').length;
-  /* 만 12세 이하는 기본기도 못 한다 — 카드를 안 그린다(시트 목록에는 남아 누르면 까닭을 본다) */
-  const showBasics = basicsChoice != null && props.basicsBlocked == null;
+  /*
+   * 만 12세 이하는 기본기도 못 한다 — 카드를 안 그린다(시트 목록에는 남아 누르면 까닭을 본다).
+   * 웨이트 경력이 입문 · 초급인 사람에게만 카드를 보인다(2026-10-12 사용자) — 그 위는 시트 목록에서만 고른다.
+   */
+  const showBasics =
+    basicsChoice != null &&
+    props.basicsBlocked == null &&
+    (props.level === '입문' || props.level === '초급');
   /* 성인 프로그램이 막힌 사람에게는 기본기가 먼저다 */
   const recommend = showBasics && props.blocked != null;
 

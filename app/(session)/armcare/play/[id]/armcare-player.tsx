@@ -10,7 +10,8 @@ import {
   type ReactNode,
 } from 'react';
 import Link from 'next/link';
-import { unstable_rethrow } from 'next/navigation';
+import { unstable_rethrow, useRouter } from 'next/navigation';
+import { goBack } from '@/components/back-link';
 import {
   AlertTriangle,
   Check,
@@ -445,12 +446,16 @@ export function ArmcarePlayer({
                 initial={rehabCheck.initial}
               />
             )}
-            <Link
+            {/*
+              앞으로 가는 링크(push)면 기록이 트레이닝 → 암케어 → 따라하기(완료) → 암케어로 쌓여, 암케어의 '‹ 트레이닝'이 뒤로
+              가며 이 완료 화면을 다시 띄웠다(2026-10-12 사용자). 뒤로 가거나(앞이 암케어면) 갈아 끼운다(goBack).
+            */}
+            <BackTo
               href={backHref}
               className="inline-flex rounded-xl bg-sky px-5 py-3 text-sm font-semibold text-white hover:bg-sky-strong"
             >
               암케어로 돌아가기
-            </Link>
+            </BackTo>
           </div>
         </div>
       </Shell>
@@ -639,13 +644,13 @@ function Shell({
     <div className="flex h-full flex-col" onPointerDown={onTouch} onClickCapture={onPress}>
       <header className="border-b border-line bg-surface px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-3">
         <div className="mx-auto flex max-w-xl items-center gap-3">
-          <Link
+          <BackTo
             href={backHref}
             aria-label="따라하기 닫기"
             className="grid h-9 w-9 shrink-0 place-items-center rounded-full text-muted hover:bg-surface-2 hover:text-ink"
           >
             <X className="h-5 w-5" />
-          </Link>
+          </BackTo>
           <p className="min-w-0 flex-1 truncate text-[15px] font-bold text-ink">
             {title}
           </p>
@@ -761,5 +766,34 @@ function HowTo({ exercise }: { exercise: ArmcareExerciseView }) {
         <MethodNote method={exercise.method} />
       </div>
     </details>
+  );
+}
+
+/** 암케어로 돌아가는 링크 — 앞으로 쌓지 않고 뒤로 가거나 갈아 끼운다(goBack). 새 탭 · 가운데 누름은 그대로 링크 */
+function BackTo({
+  href,
+  className,
+  children,
+  'aria-label': ariaLabel,
+}: {
+  href: string;
+  className?: string;
+  children: ReactNode;
+  'aria-label'?: string;
+}) {
+  const router = useRouter();
+  return (
+    <Link
+      href={href}
+      aria-label={ariaLabel}
+      className={className}
+      onClick={(e) => {
+        if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
+        e.preventDefault();
+        goBack(router, href);
+      }}
+    >
+      {children}
+    </Link>
   );
 }
