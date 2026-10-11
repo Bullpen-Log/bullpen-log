@@ -1,0 +1,124 @@
+import type { Vec3 } from '@/lib/pitch-3d/linalg';
+import { V2_JOINTS, type Pitch3dV2Ok } from '@/lib/pitch-3d/v2/contract';
+import type { DisplayTrack } from '@/lib/pitch-3d/v2/display';
+
+/**
+ * 데생 인형 보기용 관절(설계 docs/designs/pitch-3d-mannequin.md) — displayTrack 의 관절을 인형이 쓰는 꼴로 바꾸고, 보기만을 위해 두 가지를 다듬는다.
+ * 순수 — 화면(mannequin.ts)과 시험이 같은 코드.
+ *
+ * 좌표: 미터, x 홈 쪽 · y 투수 왼쪽(1루) · z 위. displayTrack 은 [앞, 위, 오른쪽](키 = 1)이라 셋째 축을 뒤집는다 — 그대로 옮기면 거울상이 되어
+ * 몸 앞판이 등에 붙고 발끝이 몸과 반대를 봤다(2026-10-11 김민 맥북 예시).
+ * 이름은 투구 기준: r* = 던지는 쪽(축발 쪽), l* = 글러브 쪽(앞발 쪽). 좌투는 해부학 좌우를 바꿔 넣는다.
+ *
+ *  1 앞발 착지 잇기 — 처음 땅에 닿은 장면부터 엔진이 발을 고정한 장면까지 앞발을 매끈하게 잇는다(샘플 4는 그 사이 옆으로 29cm 튀었다).
+ *  2 관절마다 가우스로 고르게 — 글러브 손은 세게(떨림이 던지는 손의 1.2~1.5배), 던지는 팔은 빠른 움직임이 무뎌지지 않게 약하게.
+ *    글러브 손목 장면 사이 가속 p95 17.8 → 4.5mm, 앞발목 최대 77 → 2.9mm(샘플 4).
+ */
+
+export type MannequinJoints = {
+  rh: Vec3; lh: Vec3; rk: Vec3; lk: Vec3; ra: Vec3; la: Vec3;
+  rhe: Vec3; rto: Vec3; lhe: Vec3; lto: Vec3;
+  sh: Vec3; gs: Vec3; el: Vec3; ge: Vec3; wr: Vec3; gw: Vec3; ha: Vec3; gh: Vec3;
+  /** 몸통 축 위 두 점(엉덩이 가운데 → 어깨 가운데의 55% · 105%) */
+  td: Vec3; tp: Vec3;
+  nose: Vec3; ear: Vec3;
+};
+
+export type MannequinTrack = {
+  frames: MannequinJoints[];
+  heightM: number;
+  /** 장면 사이 실제 초(착지 → 릴리스를 0.15초로 본다 — 슬로모 배수를 몰라도 실제 빠르기로 재생) */
+  dt: number;
+  events: { kneeUp: number | null; footPlant: number; release: number };
+  hand: 'R' | 'L';
+};
+
+const NAMES: string[] = V2_JOINTS.map((j) => j.name);
+const IX = (nm: string) => NAMES.indexOf(nm);
+const HAND_PARTS = ['Wr', 'HandMid', 'HandIdx', 'HandPinky'];
+
+/** 관절별 가우스 폭(장면) */
+function sigmaOf(nm: string, glove: string, throwing: string, lead: string): number {
+  if (nm === `${glove}El`) return 2.5;
+  if (HAND_PARTS.some((x) => nm === `${glove}${x}`)) return 3.5;
+  if (nm === `${throwing}El` || HAND_PARTS.some((x) => nm === `${throwing}${x}`)) return 0.7;
+  if (['Kn', 'An', 'He', 'To'].some((x) => nm === `${lead}${x}`) || ['nose', 'lEar', 'rEar'].includes(nm)) return 1.5;
+  return 1;
+}
+
+/** displayTrack 장면(키 = 1, [앞, 위, 오른쪽]) → 다듬은 장면(미터, 같은 축) */
+export function smoothForMannequin(frames: Vec3[][], result: Pick<Pitch3dV2Ok, 'hand' | 'events'>, heightM: number): Vec3[][] {
+  const F: Vec3[][] = frames.map((f) => f.map((p) => [p[0] * heightM, p[1] * heightM, p[2] * heightM] as Vec3));
+  const n = F.length;
+  const lead = result.hand === 'L' ? 'r' : 'l';
+  const throwing = lead === 'l' ? 'r' : 'l';
+  /* 1 앞발 착지 잇기 */
+  const an = IX(`${lead}An`);
+  const fp = result.events.footPlant;
+  const dist = (a: Vec3, b: Vec3) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
+  let lockAt = -1;
+  for (let i = Math.max(0, fp); i < n - 5 && lockAt < 0; i++) {
+    let still = true;
+    for (let j = i; j < Math.min(n, i + 20); j++) if (dist(F[i][an], F[j][an]) >= 0.001) still = false;
+    if (still) lockAt = i;
+  }
+  if (lockAt > 0) {
+    const zLock = F[lockAt][an][1];
+    let from = Math.max(0, fp - 15);
+    while (from < lockAt && F[from][an][1] > zLock + 0.05) from++;
+    const ease = (u: number) => u * u * (3 - 2 * u);
+    for (const nm of ['An', 'He', 'To', 'Kn']) {
+      const j = IX(`${lead}${nm}`);
+      const a = F[from][j];
+      const b = F[lockAt][j];
+      for (let i = from + 1; i < lockAt; i++) {
+        const u = ease((i - from) / (lockAt - from));
+        F[i][j] = [a[0] + (b[0] - a[0]) * u, a[1] + (b[1] - a[1]) * u, a[2] + (b[2] - a[2]) * u];
+      }
+    }
+  }
+  /* 2 관절마다 가우스 */
+  const S: Vec3[][] = F.map((fr) => fr.map((p) => [...p] as Vec3));
+  NAMES.forEach((nm, j) => {
+    const s = sigmaOf(nm, lead, throwing, lead);
+    const R = Math.ceil(3 * s);
+    for (let i = 0; i < n; i++) {
+      const acc = [0, 0, 0];
+      let ws = 0;
+      for (let d = -R; d <= R; d++) {
+        const k = i + d;
+        if (k < 0 || k >= n) continue;
+        const w = Math.exp(-(d * d) / (2 * s * s));
+        ws += w;
+        for (let c = 0; c < 3; c++) acc[c] += F[k][j][c] * w;
+      }
+      S[i][j] = [acc[0] / ws, acc[1] / ws, acc[2] / ws];
+    }
+  });
+  return S;
+}
+
+/** 다듬은 장면 → 인형 관절(x 앞 · y 왼쪽 · z 위) */
+export function mannequinTrack(track: DisplayTrack, result: Pick<Pitch3dV2Ok, 'hand' | 'events'>, heightM: number): MannequinTrack {
+  const S = smoothForMannequin(track.frames, result, heightM);
+  const R = result.hand !== 'L';
+  const pick = (a: string, b: string) => IX(R ? a : b);
+  const at = (f: Vec3[], j: number): Vec3 => [f[j][0], -f[j][2], f[j][1]];
+  const mid = (a: Vec3, b: Vec3): Vec3 => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2];
+  const lerp = (a: Vec3, b: Vec3, t: number): Vec3 => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
+  const ev = result.events;
+  const frames = S.map((f) => {
+    const g = (a: string, b: string) => at(f, pick(a, b));
+    const hip = mid(at(f, IX('lHip')), at(f, IX('rHip')));
+    const shm = mid(at(f, IX('lSh')), at(f, IX('rSh')));
+    return {
+      rh: g('rHip', 'lHip'), lh: g('lHip', 'rHip'), rk: g('rKn', 'lKn'), lk: g('lKn', 'rKn'), ra: g('rAn', 'lAn'), la: g('lAn', 'rAn'),
+      rhe: g('rHe', 'lHe'), rto: g('rTo', 'lTo'), lhe: g('lHe', 'rHe'), lto: g('lTo', 'rTo'),
+      sh: g('rSh', 'lSh'), gs: g('lSh', 'rSh'), el: g('rEl', 'lEl'), ge: g('lEl', 'rEl'), wr: g('rWr', 'lWr'), gw: g('lWr', 'rWr'),
+      ha: g('rHandMid', 'lHandMid'), gh: g('lHandMid', 'rHandMid'),
+      td: lerp(hip, shm, 0.55), tp: lerp(hip, shm, 1.05),
+      nose: at(f, IX('nose')), ear: mid(at(f, IX('lEar')), at(f, IX('rEar'))),
+    };
+  });
+  return { frames, heightM, dt: 0.15 / Math.max(1, ev.release - ev.footPlant), events: ev, hand: result.hand };
+}

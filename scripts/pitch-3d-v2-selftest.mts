@@ -48,6 +48,7 @@ import { makeV2Track } from './pitch-lab/synth-v2.mts';
 import { footJump, footSway, gapWristError, hipSnap, junkGloveError, leadGapJump } from './pitch-lab/gap-check.mts';
 import { readFileSync } from 'node:fs';
 import { blendAi, despike, displayTrack, readAiGate, readAiJoints, readAiMiss } from '../lib/pitch-3d/v2/display.ts';
+import { mannequinTrack, smoothForMannequin } from '../lib/pitch-3d/v2/mannequin-prep.ts';
 import { KIN_LIMITS, KIN_SPEED, kinematicTrack, twoBoneIk } from '../lib/pitch-3d/v2/kinematics.ts';
 import {
   moundHeightAt,
@@ -1782,6 +1783,41 @@ console.log('■ 몸통 흔들림 — 골반선이 한 장면에 크게 돌지 �
       calm != null && spiked != null && calm < 8 && spiked < 11,
       `${calm?.toFixed(1)}° · ${spiked?.toFixed(1)}°`
     );
+  }
+}
+
+console.log('■ 데생 인형 관절(mannequin-prep) — 좌우 · 거울 · 떨림 고르기');
+{
+  for (const hand of ['R', 'L'] as const) {
+    const { result } = runV2({ ...base, ...realistic, hand, name: `인형 ${hand}` }, 3);
+    if (!result.ok) {
+      check(`인형 ${hand} — 맞추기 성공`, false);
+      continue;
+    }
+    const tr = displayTrack(result, { ground: 'flat', heightM: 1.8 });
+    const m = mannequinTrack(tr, result, 1.8);
+    const S = smoothForMannequin(tr.frames, result, 1.8);
+    const k = result.events.footPlant;
+    /* 앞발(글러브 쪽) 엉덩이 = 우투 해부학 왼쪽 · 좌투 오른쪽, 셋째 축은 뒤집어 y = 왼쪽 */
+    const lead = S[k][V2J[hand === 'R' ? 'lHip' : 'rHip']];
+    const lh = m.frames[k].lh;
+    check(
+      `인형 ${hand}: 앞발 쪽 엉덩이 · 축 바꿈(x 앞 · y 왼쪽 · z 위)이 맞다`,
+      m.frames.length === tr.frames.length &&
+        Math.hypot(lh[0] - lead[0], lh[1] + lead[2], lh[2] - lead[1]) < 1e-9
+    );
+    /* 글러브 손목 가속(장면 사이) p95 — 다듬기 전보다 작다 */
+    const acc = (F: Vec3[][], j: number) => {
+      const a: number[] = [];
+      for (let i = 1; i < F.length - 1; i++)
+        a.push(Math.hypot(...([0, 1, 2].map((c) => F[i - 1][j][c] - 2 * F[i][j][c] + F[i + 1][j][c]) as Vec3)));
+      a.sort((x, y) => x - y);
+      return a[Math.floor(a.length * 0.95)];
+    };
+    const gw = V2J[hand === 'R' ? 'lWr' : 'rWr'];
+    const raw = acc(tr.frames.map((f) => f.map((p) => [p[0] * 1.8, p[1] * 1.8, p[2] * 1.8] as Vec3)), gw);
+    const smo = acc(S, gw);
+    check(`인형 ${hand}: 글러브 손목 떨림(가속 p95)이 줄어든다`, smo < raw * 0.7, `${(raw * 1000).toFixed(1)} → ${(smo * 1000).toFixed(1)}mm`);
   }
 }
 

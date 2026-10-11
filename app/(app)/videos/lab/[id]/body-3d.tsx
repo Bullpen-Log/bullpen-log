@@ -19,7 +19,6 @@ import type { Pitch3dV2Ok } from '@/lib/pitch-3d/v2/contract';
 import { displayTrack } from '@/lib/pitch-3d/v2/display';
 import type { LabGround } from '@/lib/pitch-lab-meta';
 import {
-  MOUND,
   PART_NAMES,
   partMatrix,
   placePoint,
@@ -30,10 +29,11 @@ import {
   type RigPose,
   type SkeletonParts,
 } from '@/lib/pitch-3d/v2/pose-rig';
+import { buildStage, STAGE_MODES, type StageHandle, type StageMode } from './stage';
 
 /**
  * 투구 3D 보기(설계 pitch-3d-quality.md 0절 · 화면 결정 9~16) — 해부학 뼈 15조각(body-full.glb 를 skeleton-parts.json 으로 가름)을
- * 맞춘 관절에 붙여 움직인다. 어두운 바탕 · 흰 뼈 · 던지는 팔만 옅은 sky · 격자 · 축 화살표(빨강 = 홈, 파랑 = 위, 하늘 = 옆).
+ * 맞춘 관절에 붙여 움직인다. 흰 뼈 · 던지는 팔만 옅은 sky. 무대(바탕 · 조명 · 바닥 · 마운드 · 축 화살표)는 stage.ts.
  *
  *   - 3D 가 기준 시계(결정 12): 1× · ½× · ¼×. 처음 열면 ½× 로 한 번 틀고 릴리스에서 멈춤(결정 9), 그 뒤 재생은 되풀이. 움직임 줄이기면 자동 재생 없음.
  *   - 고정 카메라 4각도(결정 10): 옆(3루 쪽) · 뒤(2루 쪽) · 포수(홈 쪽 가슴 높이) · 위(70°). 끌기 = 좌우 돌리기(위아래 5~80°), Ctrl + 휠 · 두 손가락 = 확대, 시점을 누르면 되돌림.
@@ -54,15 +54,8 @@ export type Transport = {
 };
 export type Body3DHandle = { seek: (frame: number) => void };
 
-const BG = '#151722';
 const BONE = '#eef2f7';
 const ARM = '#63b6ee';
-const GRID_A = '#2b3141';
-const GRID_B = '#1e2230';
-/** 마운드 · 투수판 — 바탕보다 조금 밝은 무채색(뼈대 · 던지는 팔이 먼저 보이게) */
-const MOUND_COLOR = '#2c303d';
-const RUBBER_COLOR = '#d6dbe3';
-const AXIS = { home: '#ef4444', up: '#3b82f6', side: '#38bdf8' } as const;
 const VIEWS: { value: ViewName; label: string }[] = [
   { value: 'side', label: '옆' },
   { value: 'back', label: '뒤' },
@@ -97,44 +90,6 @@ const loadThree = () => {
   }
   return mods;
 };
-
-/** 마운드 면 — 가운데에서 둘레까지 고리 40 · 둘레 120 칸, 높이는 f(규격 높이 함수) */
-function moundGeometry(
-  THREE: typeof import('three'),
-  f: (x: number, z: number) => number,
-  cx: number,
-  cz: number,
-  R: number
-): Three.BufferGeometry {
-  const rings = 40;
-  const segs = 120;
-  const lift = 0.002;
-  const pos: number[] = [cx, f(cx, cz) + lift, cz];
-  for (let i = 1; i <= rings; i++) {
-    const r = (R * i) / rings;
-    for (let j = 0; j < segs; j++) {
-      const a = (j / segs) * Math.PI * 2;
-      const x = cx + r * Math.cos(a);
-      const z = cz + r * Math.sin(a);
-      pos.push(x, f(x, z) + lift, z);
-    }
-  }
-  const idx: number[] = [];
-  for (let j = 0; j < segs; j++) idx.push(0, 1 + ((j + 1) % segs), 1 + j);
-  for (let i = 1; i < rings; i++) {
-    const a0 = 1 + (i - 1) * segs;
-    const a1 = 1 + i * segs;
-    for (let j = 0; j < segs; j++) {
-      const j1 = (j + 1) % segs;
-      idx.push(a0 + j, a0 + j1, a1 + j, a0 + j1, a1 + j1, a1 + j);
-    }
-  }
-  const g = new THREE.BufferGeometry();
-  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-  g.setIndex(idx);
-  g.computeVertexNormals();
-  return g;
-}
 
 type Skeleton = {
   parts: SkeletonParts;
@@ -234,6 +189,9 @@ export const Body3D = forwardRef<
   const [playing, setPlaying] = useState(false);
   const [speed, setSpeed] = useState<Speed>(0.5);
   const [view, setView] = useState<ViewName>('side');
+  /* 무대 낮 · 밤(stage.ts) — 다시 만들 때도 고른 것을 잇는다 */
+  const [stageMode, setStageMode] = useState<StageMode>('day');
+  const stageModeRef = useRef<StageMode>('day');
   const [retry, setRetry] = useState(0);
   const n = result.t.length;
 
@@ -243,6 +201,7 @@ export const Body3D = forwardRef<
     play: (on: boolean) => void;
     speed: (s: Speed) => void;
     view: (v: ViewName, animate: boolean) => void;
+    stage: (m: StageMode) => void;
   } | null>(null);
   const transport = useRef(onTransport);
   useEffect(() => {
@@ -290,9 +249,6 @@ export const Body3D = forwardRef<
 
       const renderer = new THREE.WebGLRenderer({ antialias: true });
       renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-      renderer.setClearColor(BG);
-      renderer.toneMapping = THREE.ACESFilmicToneMapping;
-      renderer.toneMappingExposure = 1.05;
       renderer.domElement.style.display = 'block';
       renderer.domElement.style.width = '100%';
       renderer.domElement.style.height = '100%';
@@ -300,55 +256,18 @@ export const Body3D = forwardRef<
       host.prepend(renderer.domElement);
 
       const scene = new THREE.Scene();
-      scene.background = new THREE.Color(BG);
-      scene.add(new THREE.HemisphereLight('#ffffff', '#3b4252', 0.9));
-      const key = new THREE.DirectionalLight('#ffffff', 1.7);
-      key.position.set(1.2, 2.2, 1.6);
-      scene.add(key);
-      const rim = new THREE.DirectionalLight('#dbeafe', 0.6);
-      rim.position.set(-1.6, 1.0, -1.2);
-      scene.add(rim);
-
       const { center, half } = bounds;
-      const grid = new THREE.GridHelper(4, 16, GRID_A, GRID_B);
-      grid.position.set(center[0], 0, center[2]);
-      scene.add(grid);
-      /* 마운드 — 투수판 앞 모서리 = 축발이 처음 닿은 자리, 높이는 두 발 자리에 맞춘 배율(display.ts) */
-      const { groundAt, mound } = track;
-      if (mound) {
-        const s = 1 / ((heightCm ?? 180) / 100);
-        scene.add(
-          new THREE.Mesh(
-            moundGeometry(THREE, groundAt, mound.x0 + MOUND.centerAhead * s, mound.z0, MOUND.radius * s),
-            new THREE.MeshStandardMaterial({ color: MOUND_COLOR, roughness: 1, metalness: 0 })
-          )
-        );
-        const rubber = new THREE.Mesh(
-          new THREE.BoxGeometry(MOUND.rubber.depth * s, 0.02 * s, MOUND.rubber.width * s),
-          new THREE.MeshStandardMaterial({ color: RUBBER_COLOR, roughness: 0.8, metalness: 0 })
-        );
-        rubber.position.set(
-          mound.x0 - (MOUND.rubber.depth * s) / 2,
-          groundAt(mound.x0, mound.z0) + 0.01 * s,
-          mound.z0
-        );
-        scene.add(rubber);
-      }
-      const corner = new THREE.Vector3(center[0] - 1.7, 0.002, center[2] - 1.7);
-      const arrow = (dir: [number, number, number], color: string) =>
-        scene.add(
-          new THREE.ArrowHelper(
-            new THREE.Vector3(...dir),
-            corner,
-            0.35,
-            color,
-            0.08,
-            0.04
-          )
-        );
-      arrow([1, 0, 0], AXIS.home);
-      arrow([0, 1, 0], AXIS.up);
-      arrow([0, 0, 1], AXIS.side);
+      /* 무대(바탕 · 조명 · 바닥 · 마운드 · 축) — stage.ts(김민 몫, 사람 그리기와 따로 고친다) */
+      const { groundAt } = track;
+      const stage: StageHandle = buildStage({
+        THREE,
+        scene,
+        renderer,
+        track,
+        center,
+        heightM: (heightCm ?? 180) / 100,
+        mode: stageModeRef.current,
+      });
 
       const boneMat = new THREE.MeshStandardMaterial({
         color: BONE,
@@ -371,7 +290,7 @@ export const Body3D = forwardRef<
         meshes[name] = m;
       }
 
-      const camera = new THREE.PerspectiveCamera(32, 1, 0.01, 60);
+      const camera = new THREE.PerspectiveCamera(32, 1, stage.cameraNear, stage.cameraFar);
       const controls = new OrbitControls(camera, renderer.domElement);
       controls.enablePan = false;
       controls.enableDamping = true;
@@ -594,6 +513,10 @@ export const Body3D = forwardRef<
           emit('speed');
         },
         view: moveTo,
+        stage: (m) => {
+          stage.setMode(m);
+          dirty = true;
+        },
       };
       show(cur);
       setPlaying(isPlaying);
@@ -793,6 +716,17 @@ export const Body3D = forwardRef<
           ctrl.current?.view(v, true);
         }}
         options={VIEWS}
+      />
+
+      <Segmented
+        label="무대"
+        value={stageMode}
+        onChange={(m) => {
+          setStageMode(m);
+          stageModeRef.current = m;
+          ctrl.current?.stage(m);
+        }}
+        options={STAGE_MODES}
       />
     </div>
   );
