@@ -18,22 +18,19 @@ import type { Vec3 } from '@/lib/pitch-3d/linalg';
 import type { Pitch3dV2Ok } from '@/lib/pitch-3d/v2/contract';
 import { displayTrack } from '@/lib/pitch-3d/v2/display';
 import type { LabGround } from '@/lib/pitch-lab-meta';
-import {
-  MOUND,
-  PART_NAMES,
-  partMatrix,
-  placePoint,
-  readSkeletonParts,
-  rigPose,
-  throwingArmParts,
-  type PartName,
-  type RigPose,
-  type SkeletonParts,
-} from '@/lib/pitch-3d/v2/pose-rig';
+import { canonicalFrames, mannequinFrames } from '@/lib/pitch-3d/v2/mannequin-frames';
+import { mannequinTrack } from '@/lib/pitch-3d/v2/mannequin-prep';
+import { MOUND_COLOR } from '@/lib/pitch-3d/v2/mannequin-profiles';
+import { MOUND } from '@/lib/pitch-3d/v2/pose-rig';
+import { createFigure } from './mannequin/figure';
 
 /**
- * 투구 3D 보기(설계 pitch-3d-quality.md 0절 · 화면 결정 9~16) — 해부학 뼈 15조각(body-full.glb 를 skeleton-parts.json 으로 가름)을
- * 맞춘 관절에 붙여 움직인다. 어두운 바탕 · 흰 뼈 · 던지는 팔만 옅은 sky · 격자 · 축 화살표(빨강 = 홈, 파랑 = 위, 하늘 = 옆).
+ * 투구 3D 보기(설계 pitch-3d-quality.md 0절 · 화면 결정 9~16 · 데생 인형 pitch-3d-mannequin.md §6) — 데생 인형(몸통 · 팔다리 · 신발 · 글러브 · 공)을
+ * 맞춘 관절에 맞춰 움직인다. 어두운 바탕 · 모래색 마운드 · 격자 · 축 화살표(빨강 = 홈, 파랑 = 위, 하늘 = 옆).
+ *
+ *   - 인형은 한 번 만들고(mannequin/figure.ts) 장면마다 자리 · 회전 · 배율만 바꾼다. 관절(미터 · z 위 · 우투 꼴)은 mannequin-prep →
+ *     mannequin-frames 가 만들고, 묶음을 x 로 −90° 돌려 y 위로 · 1/키 배율로 보기 좌표에 놓는다. 좌투는 y 배율 −1(거울).
+ *   - scene.background 는 비워 둔다(renderer 의 지우기 색만) — 뒤 단계의 여러 번 그리기가 바탕에 가려지지 않게. 바닥 · 마운드 · 화살표는 world 묶음.
  *
  *   - 3D 가 기준 시계(결정 12): 1× · ½× · ¼×. 처음 열면 ½× 로 한 번 틀고 릴리스에서 멈춤(결정 9), 그 뒤 재생은 되풀이. 움직임 줄이기면 자동 재생 없음.
  *   - 고정 카메라 4각도(결정 10): 옆(3루 쪽) · 뒤(2루 쪽) · 포수(홈 쪽 가슴 높이) · 위(70°). 끌기 = 좌우 돌리기(위아래 5~80°), Ctrl + 휠 · 두 손가락 = 확대, 시점을 누르면 되돌림.
@@ -41,7 +38,7 @@ import {
  *   - 키보드(결정 16): 칸에 초점이 있을 때만 스페이스 재생/멈춤 · ←/→ 한 장면 · Shift 10장면.
  *   - 원본 영상 두 칸은 부모(lab-detail.tsx)가 onTransport 로 따라간다.
  *
- * three 는 import() 로 — 결과를 안 여는 화면에 실리지 않는다. 모델 · 조각 표는 모듈에 한 번만 받아 둔다.
+ * three 는 import() 로 — 결과를 안 여는 화면에 실리지 않는다.
  */
 
 export type Speed = 1 | 0.5 | 0.25;
@@ -55,13 +52,8 @@ export type Transport = {
 export type Body3DHandle = { seek: (frame: number) => void };
 
 const BG = '#151722';
-const BONE = '#eef2f7';
-const ARM = '#63b6ee';
 const GRID_A = '#2b3141';
 const GRID_B = '#1e2230';
-/** 마운드 · 투수판 — 바탕보다 조금 밝은 무채색(뼈대 · 던지는 팔이 먼저 보이게) */
-const MOUND_COLOR = '#2c303d';
-const RUBBER_COLOR = '#d6dbe3';
 const AXIS = { home: '#ef4444', up: '#3b82f6', side: '#38bdf8' } as const;
 const VIEWS: { value: ViewName; label: string }[] = [
   { value: 'side', label: '옆' },
@@ -76,21 +68,13 @@ const SPEEDS: { value: Speed; label: string }[] = [
 ];
 const EVENT_LABELS = { kneeUp: '니업', footPlant: '착지', release: '릴리스' } as const;
 
-/* ───────────────────────────── 모델(한 번만) ───────────────────────────── */
+/* ───────────────────────────── three(한 번만) ───────────────────────────── */
 
-type ThreeMods = [
-  typeof import('three'),
-  typeof import('three/addons/loaders/GLTFLoader.js'),
-  typeof import('three/addons/controls/OrbitControls.js'),
-];
+type ThreeMods = [typeof import('three'), typeof import('three/addons/controls/OrbitControls.js')];
 let mods: Promise<ThreeMods> | null = null;
 const loadThree = () => {
   if (!mods) {
-    mods = Promise.all([
-      import('three'),
-      import('three/addons/loaders/GLTFLoader.js'),
-      import('three/addons/controls/OrbitControls.js'),
-    ]);
+    mods = Promise.all([import('three'), import('three/addons/controls/OrbitControls.js')]);
     mods.catch(() => {
       mods = null;
     });
@@ -98,25 +82,44 @@ const loadThree = () => {
   return mods;
 };
 
-/** 마운드 면 — 가운데에서 둘레까지 고리 40 · 둘레 120 칸, 높이는 f(규격 높이 함수) */
+/**
+ * 마운드 면 — 가운데에서 둘레까지 고리 40 · 둘레 120 칸, 높이는 f(규격 높이 함수). 정점 색: 모래(김민 §1), 투수판 앞 착지 띠는
+ * 짙은 흙, 둘레 18% 는 어둡게 가라앉혀 바탕과 잇는다. clay 는 투수판 앞 모서리(x0, z0)와 미터 → 보기 배율 s.
+ */
 function moundGeometry(
   THREE: typeof import('three'),
   f: (x: number, z: number) => number,
   cx: number,
   cz: number,
-  R: number
+  R: number,
+  clay: { x0: number; z0: number; s: number }
 ): Three.BufferGeometry {
   const rings = 40;
   const segs = 120;
   const lift = 0.002;
-  const pos: number[] = [cx, f(cx, cz) + lift, cz];
+  const sand = new THREE.Color(MOUND_COLOR.sand);
+  const dirt = new THREE.Color(MOUND_COLOR.clay);
+  const rim = new THREE.Color(MOUND_COLOR.rim);
+  const tmp = new THREE.Color();
+  const pos: number[] = [];
+  const col: number[] = [];
+  const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
+  const push = (x: number, z: number, r: number) => {
+    pos.push(x, f(x, z) + lift, z);
+    const ahead = (x - clay.x0) / clay.s;
+    const side = Math.abs(z - clay.z0) / clay.s;
+    const gap = Math.max(-0.15 - ahead, ahead - 1.4, side - 0.35, 0);
+    const dirtW = 1 - clamp01(gap / 0.18);
+    const rimW = clamp01((r / R - 0.82) / 0.18);
+    tmp.copy(sand).lerp(dirt, dirtW * 0.85).lerp(rim, rimW);
+    col.push(tmp.r, tmp.g, tmp.b);
+  };
+  push(cx, cz, 0);
   for (let i = 1; i <= rings; i++) {
     const r = (R * i) / rings;
     for (let j = 0; j < segs; j++) {
       const a = (j / segs) * Math.PI * 2;
-      const x = cx + r * Math.cos(a);
-      const z = cz + r * Math.sin(a);
-      pos.push(x, f(x, z) + lift, z);
+      push(cx + r * Math.cos(a), cz + r * Math.sin(a), r);
     }
   }
   const idx: number[] = [];
@@ -131,82 +134,10 @@ function moundGeometry(
   }
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
   g.setIndex(idx);
   g.computeVertexNormals();
   return g;
-}
-
-type Skeleton = {
-  parts: SkeletonParts;
-  geometries: Record<PartName, Three.BufferGeometry>;
-};
-let skeleton: Promise<Skeleton> | null = null;
-
-/** 뼈대 메시를 조각 표로 부위별로 가른다 — 삼각형은 세 정점 중 다수 부위로 */
-function loadSkeleton(
-  THREE: typeof import('three'),
-  GLTFLoader: ThreeMods[1]['GLTFLoader']
-) {
-  if (!skeleton) {
-    skeleton = (async () => {
-      const [gltf, raw] = await Promise.all([
-        new GLTFLoader().loadAsync('/models/body-full.glb'),
-        fetch('/models/skeleton-parts.json').then((r) => r.json()),
-      ]);
-      const parts = readSkeletonParts(raw);
-      if (!parts) throw new Error('조각 표');
-      let mesh: Three.Mesh | null = null;
-      /* GLTFLoader 는 이름의 점을 지운다(skeleton__mobile.001 → skeleton__mobile001) — 이름이 안 맞으면 정점 수로 찾는다 */
-      const wanted = parts.mesh.replace(/[.\s]/g, '');
-      gltf.scene.traverse((o) => {
-        const m = o as Three.Mesh;
-        if (!m.isMesh) return;
-        if (o.name === parts.mesh || o.name.replace(/[.\s]/g, '') === wanted) mesh = m;
-        else if (!mesh && m.geometry.attributes.position?.count === parts.vertexCount)
-          mesh = m;
-      });
-      if (!mesh) throw new Error('뼈대 메시');
-      const geo = (mesh as Three.Mesh).geometry;
-      const pos = geo.attributes.position;
-      const nor = geo.attributes.normal;
-      const index = geo.index;
-      if (!index || !nor || pos.count !== parts.vertexCount) throw new Error('정점 수');
-      const vp = Uint8Array.from(atob(parts.vertexPart), (c) => c.charCodeAt(0));
-      const tris: number[][] = PART_NAMES.map(() => []);
-      for (let t = 0; t < index.count; t += 3) {
-        const a = index.getX(t);
-        const b = index.getX(t + 1);
-        const c = index.getX(t + 2);
-        const pa = vp[a];
-        const pb = vp[b];
-        const pc = vp[c];
-        tris[pa === pb || pa === pc ? pa : pb === pc ? pb : pa].push(a, b, c);
-      }
-      const geometries = {} as Record<PartName, Three.BufferGeometry>;
-      PART_NAMES.forEach((name, i) => {
-        const ids = tris[i];
-        const p = new Float32Array(ids.length * 3);
-        const n = new Float32Array(ids.length * 3);
-        ids.forEach((v, k) => {
-          p[k * 3] = pos.getX(v);
-          p[k * 3 + 1] = pos.getY(v);
-          p[k * 3 + 2] = pos.getZ(v);
-          n[k * 3] = nor.getX(v);
-          n[k * 3 + 1] = nor.getY(v);
-          n[k * 3 + 2] = nor.getZ(v);
-        });
-        const g = new THREE.BufferGeometry();
-        g.setAttribute('position', new THREE.BufferAttribute(p, 3));
-        g.setAttribute('normal', new THREE.BufferAttribute(n, 3));
-        geometries[name] = g;
-      });
-      return { parts, geometries };
-    })();
-    skeleton.catch(() => {
-      skeleton = null;
-    });
-  }
-  return skeleton;
 }
 
 /* ───────────────────────────── 보기 ───────────────────────────── */
@@ -255,6 +186,12 @@ export const Body3D = forwardRef<
     [result, ground, heightCm, ai]
   );
   const frames = track.frames;
+  /* 인형 관절(미터 · z 위 · 우투 꼴)과 장면 틀 — 순수 계산이라 한 번만 */
+  const mann = useMemo(() => {
+    const H = (heightCm ?? 180) / 100;
+    const joints = canonicalFrames(mannequinTrack(track, result, H));
+    return { H, joints, frames: mannequinFrames(joints, H) };
+  }, [track, result, heightCm]);
   /*
    * 움직임 상자 — 카메라 거리 · 격자 자리. 관절 자리의 2~98% 로 잡는다(튄 장면 하나가 상자를 키의 절반만큼 부풀려 처음 화면이
    * 멀었다 — 2026-10-08 샘플 1 첫 장면 손목 503mm). 높이는 바닥(0) ~ 위 끝.
@@ -284,8 +221,7 @@ export const Body3D = forwardRef<
     let disposed = false;
     let cleanup: (() => void) | null = null;
     (async () => {
-      const [THREE, { GLTFLoader }, { OrbitControls }] = await loadThree();
-      const { parts, geometries } = await loadSkeleton(THREE, GLTFLoader);
+      const [THREE, { OrbitControls }] = await loadThree();
       if (disposed) return;
 
       const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -300,7 +236,10 @@ export const Body3D = forwardRef<
       host.prepend(renderer.domElement);
 
       const scene = new THREE.Scene();
-      scene.background = new THREE.Color(BG);
+      scene.background = null;
+      /* 바닥 · 마운드 · 투수판 · 화살표 — 인형과 따로 묶어 둔다(뒤 단계에서 따로 그린다) */
+      const world = new THREE.Group();
+      scene.add(world);
       scene.add(new THREE.HemisphereLight('#ffffff', '#3b4252', 0.9));
       const key = new THREE.DirectionalLight('#ffffff', 1.7);
       key.position.set(1.2, 2.2, 1.6);
@@ -312,31 +251,36 @@ export const Body3D = forwardRef<
       const { center, half } = bounds;
       const grid = new THREE.GridHelper(4, 16, GRID_A, GRID_B);
       grid.position.set(center[0], 0, center[2]);
-      scene.add(grid);
+      world.add(grid);
       /* 마운드 — 투수판 앞 모서리 = 축발이 처음 닿은 자리, 높이는 두 발 자리에 맞춘 배율(display.ts) */
       const { groundAt, mound } = track;
+      const H = mann.H;
       if (mound) {
-        const s = 1 / ((heightCm ?? 180) / 100);
-        scene.add(
+        const s = 1 / H;
+        world.add(
           new THREE.Mesh(
-            moundGeometry(THREE, groundAt, mound.x0 + MOUND.centerAhead * s, mound.z0, MOUND.radius * s),
-            new THREE.MeshStandardMaterial({ color: MOUND_COLOR, roughness: 1, metalness: 0 })
+            moundGeometry(THREE, groundAt, mound.x0 + MOUND.centerAhead * s, mound.z0, MOUND.radius * s, {
+              x0: mound.x0,
+              z0: mound.z0,
+              s,
+            }),
+            new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, metalness: 0 })
           )
         );
         const rubber = new THREE.Mesh(
           new THREE.BoxGeometry(MOUND.rubber.depth * s, 0.02 * s, MOUND.rubber.width * s),
-          new THREE.MeshStandardMaterial({ color: RUBBER_COLOR, roughness: 0.8, metalness: 0 })
+          new THREE.MeshStandardMaterial({ color: MOUND_COLOR.rubber, roughness: 0.8, metalness: 0 })
         );
         rubber.position.set(
           mound.x0 - (MOUND.rubber.depth * s) / 2,
           groundAt(mound.x0, mound.z0) + 0.01 * s,
           mound.z0
         );
-        scene.add(rubber);
+        world.add(rubber);
       }
       const corner = new THREE.Vector3(center[0] - 1.7, 0.002, center[2] - 1.7);
       const arrow = (dir: [number, number, number], color: string) =>
-        scene.add(
+        world.add(
           new THREE.ArrowHelper(
             new THREE.Vector3(...dir),
             corner,
@@ -350,26 +294,14 @@ export const Body3D = forwardRef<
       arrow([0, 1, 0], AXIS.up);
       arrow([0, 0, 1], AXIS.side);
 
-      const boneMat = new THREE.MeshStandardMaterial({
-        color: BONE,
-        roughness: 0.62,
-        metalness: 0,
-      });
-      const armMat = new THREE.MeshStandardMaterial({
-        color: ARM,
-        roughness: 0.55,
-        metalness: 0,
-        emissive: new THREE.Color(ARM),
-        emissiveIntensity: 0.22,
-      });
-      const arm = new Set(throwingArmParts(result.hand));
-      const meshes = {} as Record<PartName, Three.Mesh>;
-      for (const name of PART_NAMES) {
-        const m = new THREE.Mesh(geometries[name], arm.has(name) ? armMat : boneMat);
-        m.matrixAutoUpdate = false;
-        scene.add(m);
-        meshes[name] = m;
-      }
+      /*
+       * 데생 인형 — 관절은 미터 · z 위 · 우투 꼴(mannequin-frames). 묶음을 x 로 −90° 돌리면 z 위 → y 위 · y 왼쪽 → −z(보기 좌표의 옆),
+       * 1/키 배율로 키 = 1 보기 단위에 맞춘다. 좌투는 y 배율 −1 로 거울(three 가 음수 행렬식이면 면 감김을 뒤집어 준다).
+       */
+      const fig = createFigure(THREE, { heightM: H, hand: result.hand });
+      fig.group.rotation.x = -Math.PI / 2;
+      fig.group.scale.set(1 / H, result.hand === 'L' ? -1 / H : 1 / H, 1 / H);
+      scene.add(fig.group);
 
       const camera = new THREE.PerspectiveCamera(32, 1, 0.01, 60);
       const controls = new OrbitControls(camera, renderer.domElement);
@@ -481,64 +413,9 @@ export const Body3D = forwardRef<
         tween = { t: 0, from: camera.position.clone(), to };
       };
 
-      /*
-       * 발 닿은 자리 — 발이 바닥(경사면)에 닿아 있을 때만(발밑 가장 가까운 점이 키의 1.2% 안) 뼈 색을 옅게 깐다. 앞발 자리가 생기는
-       * 장면이 착지. 검은 그림자는 어두운 바닥에 묻혀 안 보였다.
-       */
-      const shadowMat = new THREE.MeshBasicMaterial({
-        color: BONE,
-        transparent: true,
-        opacity: 0.35,
-        depthWrite: false,
-      });
-      const shadows = (['L', 'R'] as const).map(() => {
-        const m = new THREE.Mesh(new THREE.CircleGeometry(1, 32), shadowMat);
-        m.rotation.x = -Math.PI / 2;
-        m.visible = false;
-        scene.add(m);
-        return m;
-      });
-      const placeShadows = (pose: RigPose) => {
-        (['L', 'R'] as const).forEach((side, i) => {
-          const f = `foot${side}` as PartName;
-          const A = parts.anchors[f];
-          const pts = [A.proximal, A.distal, A.heel].map((q) => placePoint(pose[f], q, A.proximal));
-          const gap = Math.min(...pts.map((w) => w[1] - groundAt(w[0], w[2])));
-          const sh = shadows[i];
-          sh.visible = gap < 0.012;
-          if (!sh.visible) return;
-          const cx = (pts[0][0] + pts[1][0] + pts[2][0]) / 3;
-          const cz = (pts[0][2] + pts[1][2] + pts[2][2]) / 3;
-          const len = Math.hypot(pts[1][0] - pts[2][0], pts[1][2] - pts[2][2]);
-          sh.position.set(cx, groundAt(cx, cz) + 0.004, cz);
-          /* 발 뼈보다 넉넉히(뼈에 가려 안 보였다) */
-          sh.scale.set(Math.max(0.08, len * 0.95), Math.max(0.05, len * 0.5), 1);
-          sh.rotation.z = -Math.atan2(pts[1][2] - pts[2][2], pts[1][0] - pts[2][0]);
-        });
-      };
-
-      /*
-       * 자세 — 처음부터 차례로 한 번에 만든다(굽힘 축은 앞 장면을 잇는다). 예전엔 보여 줄 때마다 바로 앞에 '보여 준' 장면을 이어
-       * 끌거나 건너뛰면 같은 장면이 다르게 보였다.
-       */
-      const poses: RigPose[] = [];
-      for (let k = 0; k < n; k++)
-        poses.push(
-          rigPose(frames[k], result.hand, parts, poses[k - 1] ?? null, track.refs[k])
-        );
-      const mat = new THREE.Matrix4();
+      /* 장면 — 인형은 자리 · 회전 · 배율만 바꾼다(도형은 안 만든다). 장면 틀은 useMemo 로 한 번 계산해 둔 것 */
       const applyFrame = (k: number) => {
-        const pose = poses[k];
-        placeShadows(pose);
-        for (const name of PART_NAMES) {
-          const [a, b, c, tx, d, e, f, ty, g, h, i, tz] = partMatrix(
-            pose[name],
-            parts.anchors[name].proximal
-          );
-          mat.set(a, b, c, tx, d, e, f, ty, g, h, i, tz, 0, 0, 0, 1);
-          meshes[name].matrix.copy(mat);
-          meshes[name].matrixWorldNeedsUpdate = true;
-        }
+        fig.update(mann.joints[k], mann.frames[k]);
         dirty = true;
       };
 
@@ -653,8 +530,7 @@ export const Body3D = forwardRef<
         cancelAnimationFrame(raf);
         sizer.disconnect();
         controls.dispose();
-        boneMat.dispose();
-        armMat.dispose();
+        fig.dispose();
         renderer.dispose();
         renderer.forceContextLoss();
         renderer.domElement.remove();
@@ -668,7 +544,7 @@ export const Body3D = forwardRef<
       disposed = true;
       cleanup?.();
     };
-  }, [bounds, frames, track, n, result.events.release, result.hand, result.t, result.cameras, result.joints, retry, heightCm]);
+  }, [bounds, track, mann, n, result.events.release, result.hand, result.t, result.cameras, result.joints, retry]);
 
   useImperativeHandle(ref, () => ({ seek: (k) => ctrl.current?.seek(k) }), []);
 
@@ -704,7 +580,7 @@ export const Body3D = forwardRef<
       >
         {status !== 'ready' && (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 px-6 text-center text-sm text-[#c7cfdd]">
-            {status === 'loading' && <p>뼈대를 불러오는 중이에요</p>}
+            {status === 'loading' && <p>인형을 만드는 중이에요</p>}
             {status === 'unavailable' && (
               <p>이 브라우저는 3D 를 그릴 수 없어요. 숫자는 아래에 그대로 있어요.</p>
             )}

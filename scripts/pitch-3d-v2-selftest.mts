@@ -48,7 +48,7 @@ import { makeV2Track } from './pitch-lab/synth-v2.mts';
 import { footJump, footSway, gapWristError, hipSnap, junkGloveError, leadGapJump } from './pitch-lab/gap-check.mts';
 import { readFileSync } from 'node:fs';
 import { blendAi, despike, displayTrack, readAiGate, readAiJoints, readAiMiss } from '../lib/pitch-3d/v2/display.ts';
-import { mannequinTrack, smoothForMannequin, type MannequinTrack } from '../lib/pitch-3d/v2/mannequin-prep.ts';
+import { mannequinTrack, smoothForMannequin, type MannequinJoints, type MannequinTrack } from '../lib/pitch-3d/v2/mannequin-prep.ts';
 import {
   basis,
   canonicalFrames,
@@ -58,6 +58,19 @@ import {
   slerp,
 } from '../lib/pitch-3d/v2/mannequin-frames.ts';
 import { labelValues, measureAngles, measureSpec, momentOf } from '../lib/pitch-3d/v2/mannequin-measure.ts';
+import {
+  computeNormals,
+  loftIndices,
+  loftVertexCount,
+  shoeAxes,
+  torsoIndices,
+  torsoModel,
+  TORSO_PANTS_VERTS,
+  TORSO_SHIRT_VERTS,
+  writeLoft,
+  writeTorso,
+} from '../lib/pitch-3d/v2/mannequin-loft.ts';
+import { TORSO } from '../lib/pitch-3d/v2/mannequin-profiles.ts';
 import { KIN_LIMITS, KIN_SPEED, kinematicTrack, twoBoneIk } from '../lib/pitch-3d/v2/kinematics.ts';
 import {
   moundHeightAt,
@@ -2009,6 +2022,147 @@ console.log('■ 흔들림 · 꺾임 — 첫 장면 빈 관절 · 경첩 관절(
     const off = sub(fr[V2J.rKn], scale(add(hip, an), 0.5));
     check('뒤로 꺾인 무릎을 앞으로 되돌린다', n1 === 1 && dot(off, fwd) > 0, `되돌림 ${n1}`);
   }
+}
+
+console.log('■ 데생 인형 겉면(mannequin-loft) — 색인 · 정점 · 법선 · 신발 틀 · 몸통');
+{
+  const nearV = (a: Vec3, b: Vec3, eps = 1e-9) => norm(sub(a, b)) < eps;
+  const edgeCounts = (idx: number[]) => {
+    const m = new Map<string, number>();
+    for (let i = 0; i < idx.length; i += 3)
+      for (let e = 0; e < 3; e++) {
+        const a = idx[i + e];
+        const b = idx[i + ((e + 1) % 3)];
+        const key = a < b ? `${a}-${b}` : `${b}-${a}`;
+        m.set(key, (m.get(key) ?? 0) + 1);
+      }
+    return [...m.values()];
+  };
+  const RN = 6;
+  const K = 8;
+  const idx = loftIndices(RN, K, true);
+  const nV = loftVertexCount(RN, K, true);
+  check('겉면 색인: 삼각형 수 = 옆 2·RN·K + 뚜껑 2·K', idx.length === 3 * (2 * RN * K + 2 * K));
+  check('겉면 색인: 닫힌 면 — 모든 모서리가 삼각형 둘에 쓰인다', edgeCounts(idx).every((c) => c === 2));
+  const used = new Set(idx);
+  check('겉면 색인: 정점을 빠짐없이 쓰고 넘지 않는다', used.size === nV && Math.max(...used) === nV - 1);
+  check(
+    '겉면 색인: 열린 띠는 양 끝 고리(2·K 모서리)만 한 번 쓰인다',
+    edgeCounts(loftIndices(RN, K, false)).filter((c) => c === 1).length === 2 * K
+  );
+
+  /* 곧은 관: (X, U, 진행) 오른손 꼴 → 옆 법선은 바깥쪽 */
+  const pos = new Float32Array(nV * 3);
+  const nor = new Float32Array(nV * 3);
+  writeLoft(pos, (t) => [t, 0, 0], [0, 1, 0], [0, 0, 1], () => 0.1, () => 0.1, () => 0.1, { RN, K, n: 2 });
+  let rErr = 0;
+  for (let r = 0; r <= RN; r++)
+    for (let i = 0; i < K; i++) {
+      const o = (r * K + i) * 3;
+      rErr = Math.max(rErr, Math.abs(Math.hypot(pos[o + 1], pos[o + 2]) - 0.1), Math.abs(pos[o] - r / RN));
+    }
+  check('겉면 정점: 원 단면(n = 2)은 반지름 · 길이 자리 그대로', rErr < 1e-6, `오차 ${rErr}`);
+  check(
+    '겉면 정점: 뚜껑 점 둘은 양 끝 가운데',
+    pos[(nV - 2) * 3] === 0 && pos[(nV - 1) * 3] === 1 && pos[(nV - 1) * 3 + 1] === 0 && pos[(nV - 1) * 3 + 2] === 0
+  );
+  computeNormals(pos, idx, nor);
+  let nErr = 0;
+  let inward = 0;
+  for (let r = 1; r < RN; r++)
+    for (let i = 0; i < K; i++) {
+      const o = (r * K + i) * 3;
+      nErr = Math.max(nErr, Math.abs(Math.hypot(nor[o], nor[o + 1], nor[o + 2]) - 1));
+      if (nor[o + 1] * pos[o + 1] + nor[o + 2] * pos[o + 2] <= 0) inward++;
+    }
+  check('겉면 법선: 단위 길이 · 옆면은 모두 바깥쪽', nErr < 1e-6 && inward === 0, `길이 오차 ${nErr} · 안쪽 ${inward}`);
+
+  /* 신발 틀: 축이 정규직교 · 오른손 꼴, 위아래 두께가 달라도 법선은 바깥 */
+  const S = shoeAxes([0, 0, 0], [0.2, 0, 0.02], [0, 0, 1], 1);
+  const ortho = Math.abs(dot(S.fx, S.U)) < 1e-9 && Math.abs(dot(S.fx, S.X)) < 1e-9 && Math.abs(dot(S.X, S.U)) < 1e-9;
+  check('신발 틀: fx · U · X 서로 수직, 길이 ≥ 25% 키', ortho && S.l >= 0.25 - 1e-9, `길이 ${S.l}`);
+  check('신발 틀: (X, U, fx) 오른손 꼴', nearV(cross(S.X, S.U), S.fx));
+  const RS = 10;
+  const KS = 12;
+  const sp = new Float32Array(loftVertexCount(RS, KS, true) * 3);
+  const sn = new Float32Array(sp.length);
+  const si = loftIndices(RS, KS, true);
+  writeLoft(sp, S.P, S.X, S.U, () => 0.04, () => 0.06, () => 0.004, { RN: RS, K: KS, n: 2.6 });
+  computeNormals(sp, si, sn);
+  let shoeIn = 0;
+  for (let r = 1; r < RS; r++) {
+    const c = S.P(r / RS);
+    for (let i = 0; i < KS; i++) {
+      const o = (r * KS + i) * 3;
+      if ((sp[o] - c[0]) * sn[o] + (sp[o + 1] - c[1]) * sn[o + 1] + (sp[o + 2] - c[2]) * sn[o + 2] <= 0) shoeIn++;
+    }
+  }
+  check('신발 겉면: 법선이 모두 바깥쪽', shoeIn === 0, `안쪽 ${shoeIn}`);
+
+  /* 몸통: 곧게 선 우투 꼴 — 정점 수 · 이음 · 끝 자리 · 법선, 숙여도 접히지 않음 */
+  const z = (h: number, y = 0, x = 0): Vec3 => [x, y, h];
+  const J: MannequinJoints = {
+    rh: z(0.95, -0.15), lh: z(0.95, 0.15), rk: z(0.5, -0.15), lk: z(0.5, 0.15), ra: z(0.08, -0.15), la: z(0.08, 0.15),
+    rhe: z(0.02, -0.15, -0.05), rto: z(0.02, -0.15, 0.2), lhe: z(0.02, 0.15, -0.05), lto: z(0.02, 0.15, 0.2),
+    sh: z(1.45, -0.2), gs: z(1.45, 0.2), el: z(1.15, -0.25), ge: z(1.15, 0.25), wr: z(0.9, -0.25), gw: z(0.9, 0.25),
+    ha: z(0.85, -0.25), gh: z(0.85, 0.25), td: z(1.2), tp: z(1.48), nose: z(1.68, 0, 0.1), ear: z(1.68),
+  };
+  const pf = mannequinFrame(sub(J.rh, J.lh), [0, 0, 1]);
+  const cf = mannequinFrame(sub(J.sh, J.gs), [0, 0, 1]);
+  const T = torsoModel(J, pf, cf, 1);
+  const pants = new Float32Array(TORSO_PANTS_VERTS * 3);
+  const shirt = new Float32Array(TORSO_SHIRT_VERTS * 3);
+  writeTorso(T, pants, shirt);
+  check(
+    '몸통 정점: 모두 유한, 바지 (split+1)·K · 상의 (RN−split+1)·K',
+    pants.every(Number.isFinite) && shirt.every(Number.isFinite) &&
+      pants.length === (TORSO.split + 1) * TORSO.K * 3 && shirt.length === (TORSO.RN - TORSO.split + 1) * TORSO.K * 3
+  );
+  let seam = 0;
+  for (let i = 0; i < TORSO.K * 3; i++) seam = Math.max(seam, Math.abs(pants[TORSO.split * TORSO.K * 3 + i] - shirt[i]));
+  check('몸통 정점: 바지 끝 고리 = 상의 첫 고리(이음새 없음)', seam === 0, `차 ${seam}`);
+  const ringMean = (buf: Float32Array, r: number): Vec3 => {
+    const m: Vec3 = [0, 0, 0];
+    for (let i = 0; i < TORSO.K; i++) for (let d = 0; d < 3; d++) m[d] += buf[(r * TORSO.K + i) * 3 + d] / TORSO.K;
+    return m;
+  };
+  const rows = TORSO.RN - TORSO.split;
+  const c0 = ringMean(pants, 0);
+  const c1 = ringMean(shirt, rows);
+  check(
+    '몸통 정점: 첫 고리 가운데 ≈ 사타구니 · 끝 고리 ≈ 목(앞뒤 두께 차 만큼만)',
+    norm(sub(c0, T.crotch)) < 0.02 && norm(sub(c1, T.neck)) < 0.02,
+    `${norm(sub(c0, T.crotch)).toFixed(4)} · ${norm(sub(c1, T.neck)).toFixed(4)}`
+  );
+  const { shirt: shirtIdx } = torsoIndices();
+  const sNor = new Float32Array(shirt.length);
+  const inwardCount = (buf: Float32Array) => {
+    computeNormals(buf, shirtIdx, sNor);
+    let bad = 0;
+    for (let r = 1; r < rows; r++) {
+      const c = ringMean(buf, r);
+      for (let i = 0; i < TORSO.K; i++) {
+        const o = (r * TORSO.K + i) * 3;
+        if ((buf[o] - c[0]) * sNor[o] + (buf[o + 1] - c[1]) * sNor[o + 1] + (buf[o + 2] - c[2]) * sNor[o + 2] <= 0) bad++;
+      }
+    }
+    return bad;
+  };
+  check('몸통 법선: 상의 옆면이 모두 바깥쪽', inwardCount(shirt) === 0, `안쪽 ${inwardCount(shirt)}`);
+  const bent: MannequinJoints = { ...J, sh: [0.4, -0.2, 1.3], gs: [0.4, 0.2, 1.3], td: [0.15, 0, 1.15] };
+  const cfb = mannequinFrame(sub(bent.sh, bent.gs), normalize([0.6, 0, 1]));
+  const Tb = torsoModel(bent, pf, cfb, 1);
+  const pb = new Float32Array(TORSO_PANTS_VERTS * 3);
+  const sb = new Float32Array(TORSO_SHIRT_VERTS * 3);
+  writeTorso(Tb, pb, sb);
+  let step = Infinity;
+  for (let r = 1; r <= rows; r++)
+    step = Math.min(step, dot(sub(ringMean(sb, r), ringMean(sb, r - 1)), Tb.ring((r + TORSO.split) / TORSO.RN).Y));
+  check(
+    '몸통: 허리를 60° 숙여도 고리가 앞으로 나아가고 법선은 바깥쪽(접히지 않음)',
+    step > 0 && inwardCount(sb) === 0,
+    `최소 간격 ${step.toFixed(4)} · 안쪽 ${inwardCount(sb)}`
+  );
 }
 
 console.log(`\n통과 ${passed} · 실패 ${failed}`);

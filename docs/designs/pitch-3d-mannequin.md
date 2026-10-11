@@ -76,19 +76,26 @@
 
 ## 6. 진행 — 앱 실험실 화면에 넣기(2026-10-11 데스크톱 김민 → 금윤호에게 넘김)
 
-계획 4단계(Claude 기준 4~5시간). 1단계만 끝냈다.
+계획 5단계(Claude 기준 4~5시간). 1 · 2단계 끝.
 
 1. **끝남** 자료 다듬기를 앱 코드로 — `lib/pitch-3d/v2/mannequin-prep.ts`(순수): `smoothForMannequin`(앞발 착지 잇기 · 관절별 가우스, `build.mts` 와 같은 값)
    · `mannequinTrack`(displayTrack → 미터 · x 앞 · y 왼쪽 · z 위, 이름은 투구 기준 r = 던지는 쪽 · l = 글러브 쪽, 좌투는 좌우를 바꿔 넣음 · td/tp 몸통 축 ·
    nose · ear · dt = 착지 → 릴리스 0.15초). 시험 `npm run pitch3d:v2-test` 의 '데생 인형 관절' 4개(축 바꿈 · 좌투 · 글러브 손목 가속 5.7 → 2.3mm), 전체 192.
-2. **남음** 인형 그리기 옮기기(약 2시간) — `scripts/pitch-lab/mannequin/page.js` 의 `torso` · `limb` · `shoe` · `loft` · `footPose` · 장갑 · 공 · 머리 · `draw` 의
-   뼈(`bones`) · 잰 선(`lines` · `arc` · `label`) · `applyAna` · 네 번 그리기 `render` 를 TS 모듈(예: `app/(app)/videos/lab/[id]/mannequin.ts`)로.
-   - 앱은 three **0.186**, 예시는 r128 이다. 바뀐 것: `outputEncoding/sRGBEncoding` → `outputColorSpace`(기본 sRGB), `Color` 는 색 관리가 켜져 있어
-     `convertSRGBToLinear` 를 빼고 그냥 hex 로, 빛 세기는 물리 단위라 예시 값 그대로면 어둡다(대략 ×π 에서 맞춰 볼 것).
-   - 예시는 z 위 · 미터, 앱 무대는 y 위 · 키 = 1 이다. 인형을 한 Group 에 넣고 `rotation.x = -π/2` · `scale = 1/키(m)` 하면 앱 좌표에 그대로 얹힌다.
-   - 예시는 장면마다 도형을 새로 만든다(`clear` → 다시 만들기). 먼저 그대로 옮기고, 느리면 그때 고친다.
-3. **남음** 실험실 화면에 넣기(약 1시간) — `body-3d.tsx` 의 해부학 뼈대(`loadSkeleton` · `rigPose` · `meshes` · `placeShadows`) 자리에 인형.
-   재생 중 = 인형, 멈추면 `ana` 가 0 → 1 로 옅어지며 뼈 · 잰 선 · 이름표(HTML 겹침). 시계 · 재생 막대 · 보는 방향 · 순간 단추는 그대로 쓴다.
-   마운드는 모래색 #8d6a4c(김민). 인형 색은 1절 그대로. 잰 값은 아직 '참고용' — v1 지표와 맞추는 건 그다음.
-4. **남음** 화면 확인(약 1시간) — 로그인 없이: 샘플 결과 JSON 을 임시 경로(`app/dev-preview-*`, 커밋 금지)에 띄워 휴대폰 375 · PC 에서 보기,
-   재생 · 멈춤 · 순간 단추 · 돌려 보기 · 다크/라이트. 끝나면 임시 경로를 지우고 개발 서버를 다시 켠다.
+2. **끝남** 인형 그리기 + 실험실 화면에 넣기(2026-10-11) — 검토 B안: **한 번 만들고 장면마다 자리 · 회전 · 배율만** 바꾼다(예시는 장면마다 74개를 새로 만들었다).
+   - 순수(three 없음, 시험이 같이 돈다): `lib/pitch-3d/v2/mannequin-frames.ts`(1단계 틀) · `mannequin-profiles.ts`(치수 · 색 · 마운드 색 — 예시 값 그대로) ·
+     `mannequin-loft.ts`(로프트 색인 고정 + 정점만 다시 쓰기 `writeLoft` · `writeTorso` · `computeNormals`, three 와 같은 구심 캣멀롬 `catmullRom`, `torsoModel`, `shoeAxes`).
+   - three 쪽: `app/(app)/videos/lab/[id]/mannequin/figure.ts` — `createFigure(THREE, {heightM, hand})` → `{group, update(J, F), dispose, materials}`.
+     래스는 높이 1 로 한 번 만들고 scale.y = 길이, 구 · 상자 · 토러스는 단위 도형. 메시 74 · 삼각형 71,580. 좌투는 관절을 우투 꼴로 뒤집고(`canonicalFrames`)
+     묶음의 y 배율 −1 로 되돌린다(three 가 음수 행렬식이면 감김을 뒤집어 준다 — 시험 '거울' 통과).
+   - `body-3d.tsx`: 해부학 뼈대(`loadSkeleton` · `rigPose` · `placeShadows` · GLTFLoader) 뺌 → 인형. `scene.background = null`(뒤 단계 여러 번 그리기용),
+     바닥 · 마운드 · 투수판 · 화살표는 `world` 묶음, 마운드는 정점 색(모래 #8d6a4c · 투수판 앞 착지 띠는 짙은 흙 · 둘레는 어둡게), 시계 · 막대 · 시점 · 순간 단추는 그대로.
+   - 잰 것(노드, 합성 결과 372장면): 틀 계산 24~31ms(한 번) · 인형 만들기 13~27ms(한 번) · **update 1.6~2.1ms/장면**(CPU). 브라우저 rAF 는 3초에 504장면(165Hz 화면).
+   - 시험 `npm run pitch3d:v2-test` '데생 인형 겉면' 14개(닫힌 면 · 열린 띠 · 법선 바깥쪽 · 신발 틀 오른손 꼴 · 몸통 이음새 0 · 60° 숙여도 안 접힘). 전체 220.
+   - 예시와 아직 다른 것(4단계에서): 빛은 앱 것 그대로(반구 0.9 + 주 1.7 + 테 0.6, 예시는 더 밝고 그림자 있음) · 그림자 없음 · 몸통 · 신발 비율은 예시 값이지만
+     같은 화면에서 나란히 견주지 않았다 · 모든 재질 양면(예시와 같음). 마운드 둘레 어두운 띠는 가까이서 봐야 보인다.
+   - 미리보기는 로그인 없이 임시 경로(`app/dev-preview-man`, 삭제함)에 합성 결과(우투 · 좌투)를 띄워 375×812 · PC 에서 봤다 — 콘솔 오류 0.
+3. **남음** 멈춤 화면(약 1.5시간) — 멈추면 `ana` 0 → 1 로 인형이 옅어지며 뼈(척추 구슬 · 팔다리 선) · 잰 선(`mannequin-measure.ts`, 1단계) · 이름표(HTML 겹침).
+   예시 `render` 의 네 번 그리기(인형 → 뼈 → 선 → 이름표)를 `world` · 인형 · 뼈 묶음을 따로 그려 옮긴다. 순간(착지 · 릴리스) 값은 표의 `metrics`, 나머지는 '참고'.
+4. **남음** 보기 다듬기(약 1시간) — 빛 · 그림자 · 비율을 김민 예시와 같은 장면에서 나란히 견주기, 다크/라이트, 돌려 보기.
+5. **남음** 정리(약 30분) — `pose-rig.ts` 의 안 쓰는 뼈대 코드 · `public/models/skeleton-parts.json` 정리(`body-full.glb` 는 몸 지도가 쓴다, 지우지 말 것), HANDOFF 에 김민 질문
+   (숫자 출처 · 그림자 · 시계 · 좌투 부호 · 파일 자리).
