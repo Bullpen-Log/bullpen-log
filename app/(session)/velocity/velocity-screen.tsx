@@ -111,6 +111,7 @@ import {
   distanceAutoOf,
   distanceOf,
   DEFAULT_SETUP,
+  centerZone,
   defaultZone,
   fitZone,
   frameRectToView,
@@ -648,8 +649,9 @@ export function VelocityScreen({
     frameSize && finderSize
       ? visibleFrameRect(frameSize, finderSize)
       : { x: 0, y: 0, w: 1, h: 1 };
+  /* 가운데는 늘 릴리스 표적 바로 밑(ZONE_CENTER) — 사용자는 크기만 바꾼다 */
   const activeZone = fitZone(
-    zone,
+    centerZone(zone),
     choices.cameraPos,
     frameSize ?? undefined,
     step === 'zone' ? visible : undefined
@@ -1970,6 +1972,7 @@ export function VelocityScreen({
             )
           }
           editable={step === 'zone'}
+          centerLocked
           aspect={zoneAspectView}
           minW={zoneLo / visible.w}
           maxW={zoneHi / visible.w}
@@ -2555,11 +2558,8 @@ export function VelocityScreen({
                       )}
                       {step === 'zone' && (
                         <p className="rounded-xl bg-black/55 px-4 py-2.5 text-sm leading-snug text-white backdrop-blur motion-safe:animate-fade-in">
-                          {choices.cameraPos === 'behind-pitcher'
-                            ? '멀리 포수 미트 쪽에 두세요. '
-                            : '홈플레이트 위에 두세요. '}
-                          화면 어디든 끌면 옮겨지고, 두 손가락으로 벌리거나 모서리
-                          손잡이로 크기를 맞춰요.
+                          존 자리는 릴리스 표적 바로 밑에 고정돼요. 두 손가락으로
+                          벌리거나 모서리 손잡이로 크기만 맞춰요.
                         </p>
                       )}
                       {/* 초당 장면 · 잘림 — 측정 화면에서만(수평 · 존은 오른쪽 위 주황 표시로 충분), 결과가 떠 있으면 결과의 알림이 말한다 */}
