@@ -124,7 +124,8 @@ export default async function AppLayout({
 
   return (
     /* 세로로 쌓는 틀 — 본문이 짧은 화면에서도 맨 밑 정보(SiteFooter)가 화면 바닥에 붙는다 */
-    <div className="flex min-h-dvh flex-col">
+    /* 패드는 왼쪽 탭 막대(--rail, components/app-shell.tsx 의 MobileTabs)만큼 통째로 비킨다 — 위 막대와 본문이 같이 */
+    <div className="flex min-h-dvh flex-col pad:pl-(--rail)">
       {/*
         시작 연출 — 로그인한 채 사이트를 열면(처음 · 다시) 테마 바탕 위 B → 이름(components/app-splash.tsx). 문서를 처음
         그릴 때 한 번. 아이폰 앱 안은 제 시작 연출(MainViewController.swift)이 같은 장면을 하므로 뺀다.

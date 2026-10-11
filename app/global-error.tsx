@@ -43,7 +43,7 @@ const DARK = {
  */
 const THEME_STYLE = `
   .digest { display: none; }
-  @media (min-width: 64rem), (min-width: 36rem) and (hover: hover) and (pointer: fine) { .digest { display: block; } }
+  @media (min-width: 36rem) and (hover: hover) and (pointer: fine) { .digest { display: block; } }
   :root { color-scheme: light; --bg:${LIGHT.bg}; --surface:${LIGHT.surface}; --ink:${LIGHT.ink}; --muted:${LIGHT.muted}; --line:${LIGHT.line}; }
   :root[data-theme='dark'] { color-scheme: dark; --bg:${DARK.bg}; --surface:${DARK.surface}; --ink:${DARK.ink}; --muted:${DARK.muted}; --line:${DARK.line}; }
   body { margin:0; background:var(--bg); color:var(--ink);

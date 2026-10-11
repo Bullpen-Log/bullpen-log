@@ -24,6 +24,18 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
   마지막 운동의 처방 세트를 다 남기면 큰 단추가 [운동 종료].
 - 암케어 따라하기의 '암케어로 돌아가기' · 닫기가 뒤로 가기(goBack)로 — 예전엔 앞으로 쌓여 '‹ 트레이닝'이 완료 화면으로 돌아갔다.
 
+## 금윤호에게 — 2026-10-12 · 김민(Claude) — 아이패드 틀(왼쪽 탭 막대) · PC 틀 조건이 바뀌었다
+
+받은 뒤 할 일 없음. **네 영역(앱 틀)을 고쳤다.** 사용자 "아이패드 전용 인터페이스" — 고른 것: 패드 전용 두 칸 · 앱도 아이패드 정식 지원.
+- **`desk` 조건이 좁아졌다**: `(min-width: 36rem) and (hover: hover) and (pointer: fine)` 하나. 예전의 `(min-width: 64rem)` 갈래(손가락 화면도 넓으면 PC 틀)를
+  뺐다 — 가로 아이패드가 32px PC 단추를 쓰고 있었다. globals.css 의 desk · desk-low · 날 media 블록, `lib/nav.ts` DESK_MEDIA, `app/global-error.tsx` 를
+  같이 고쳤다. 'desk 의 반대' 블록 넷은 `@media not all and (…desk 조건…)` 으로 적었다. **새로 media 를 적을 때 64rem 갈래를 다시 넣지 말 것.**
+- **새 변형 `pad:`** = `(min-width: 46.5rem) and (min-height: 37.5rem) and (pointer: coarse)` — 휴대폰 틀 위에 두 가지만 바뀐다: `MobileTabs` 가 왼쪽 세로
+  막대(폭 `--rail` 96px, 칸 64px)가 되고, 레이아웃 바깥 div 가 `pad:pl-(--rail)` 로 비킨다. 아래 시트 셋(data-sheet · data-gate · data-drawer)은 가운데 640px.
+  `--tab-bar-top` 은 패드에서 홈 막대 자리만 — 탭 위에 띄우던 것이 바닥으로 내려온다.
+- 앱: `TARGETED_DEVICE_FAMILY = "1,2"`, Info.plist 에 `UISupportedInterfaceOrientations~ipad` 네 방향(아이폰은 세로 그대로).
+- 남은 것: 구속 측정 카메라(`DualCameraPlugin.swift` 의 `portrait()`)는 늘 세로로 찍는다 — 가로로 둔 아이패드에서는 화면이 옆으로 누울 수 있다. 네 영역이라 안 건드렸다.
+
 ## 금윤호에게 — 2026-10-12 · 김민(Claude) — 성인은 나이 투구 한도 없음 · 첫 설정 화면 빈칸 · 투구 기록 튜토리얼 뺌
 
 받은 뒤 할 일 없음(DB · 패키지 그대로). 사용자 결정. **네 영역 파일을 고쳤다.**

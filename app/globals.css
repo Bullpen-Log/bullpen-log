@@ -4,16 +4,30 @@
  * desk — PC 의 틀(왼쪽 위 로고 · 오른쪽 위 아이콘 줄 · 도크 · 판의 연출)을 쓰는 화면.
  *
  * 예전에는 lg(1024px)에서 갈랐다. PC 창을 화면 반으로 줄이면(700~1000px) 오른쪽 위
- * 아이콘이 사라지고 휴대폰의 위 막대·아래 탭이 나왔다. 이제 넓거나(1024px~), 마우스로
- * 쓰는 576px 이상 화면이면 PC 틀이다(까닭은 lib/nav.ts 의 DESK_MEDIA). 손가락으로 쓰는
- * 휴대폰·태블릿은 1024px 밑에서 그대로 휴대폰 틀이다.
+ * 아이콘이 사라지고 휴대폰의 위 막대·아래 탭이 나왔다. 이제 마우스로 쓰는 576px 이상
+ * 화면이면 PC 틀이다(까닭은 lib/nav.ts 의 DESK_MEDIA). 손가락으로 쓰는 화면은 폭과
+ * 상관없이 PC 틀이 아니다 — 휴대폰은 휴대폰 틀, 큰 태블릿은 밑의 pad 틀(2026-10-12).
  *
  * 한 줄로 줄여 쓰는 꼴 `(@media a, b)` 로 적으면 안 된다. Tailwind 가 괄호 안을 쉼표로
  * 갈라 둘째 조건을 선택자로 읽어서 1024px 쪽만 걸린다. 블록 꼴로 적는다.
  * JS 에서 같은 조건은 lib/nav.ts 의 DESK_MEDIA — 둘을 늘 같이 고친다.
  */
 @custom-variant desk {
-  @media (min-width: 64rem), (min-width: 36rem) and (hover: hover) and (pointer: fine) {
+  @media (min-width: 36rem) and (hover: hover) and (pointer: fine) {
+    @slot;
+  }
+}
+
+/*
+ * pad — 손가락으로 쓰는 큰 화면(아이패드 · 안드로이드 태블릿). 휴대폰 틀 위에 두 가지만 바꾼다:
+ * 아래 탭 알약 대신 왼쪽 탭 막대(components/app-shell.tsx 의 MobileTabs), 본문은 그 막대만큼 오른쪽으로.
+ *
+ * 2026-10-12 사용자 "아이패드 전용 인터페이스" — 예전에는 가로 아이패드(1024px~)가 PC 틀의 32px 단추를,
+ * 세로 아이패드는 휴대폰 틀을 넓게 늘려 썼다. 폭 744px 는 아이패드 미니 세로. 세로 600px 이상은 가로로
+ * 돌린 큰 휴대폰(932×430)을 빼려는 것이다. desk 와 겹치지 않는다(desk 는 가는 포인터, 이것은 굵은 포인터).
+ */
+@custom-variant pad {
+  @media (min-width: 46.5rem) and (min-height: 37.5rem) and (pointer: coarse) {
     @slot;
   }
 }
@@ -39,8 +53,7 @@
  * 세로가 넉넉한 PC 는 그대로다. 조건은 desk 와 같게 적는다(위 설명 — 블록 꼴로).
  */
 @custom-variant desk-low {
-  @media (min-width: 64rem) and (max-height: 56.25rem),
-    (min-width: 36rem) and (hover: hover) and (pointer: fine) and (max-height: 56.25rem) {
+  @media (min-width: 36rem) and (hover: hover) and (pointer: fine) and (max-height: 56.25rem) {
     @slot;
   }
 }
@@ -215,7 +228,19 @@
     --tab-bar-top: calc(var(--tab-bar-gap) + 3.875rem);
   }
 
-  @media (min-width: 64rem), (min-width: 36rem) and (hover: hover) and (pointer: fine) {
+  /*
+   * 패드 — 아래 탭이 왼쪽 막대가 되어 바닥에 떠 있는 것이 없다. 탭 위에 띄우던 것들(--tab-bar-top 을 쓰는 곳)은
+   * 홈 막대 자리만 비우고 바닥으로 내려온다. --rail 은 왼쪽 탭 막대의 폭 — 본문 · 위 막대가 그만큼 비킨다.
+   */
+  @media (min-width: 46.5rem) and (min-height: 37.5rem) and (pointer: coarse) {
+    :root {
+      --tab-bar-gap: max(env(safe-area-inset-bottom), 0.75rem);
+      --tab-bar-top: var(--tab-bar-gap);
+      --rail: calc(6rem + env(safe-area-inset-left));
+    }
+  }
+
+  @media (min-width: 36rem) and (hover: hover) and (pointer: fine) {
     :root {
       --spacing: 0.2rem;
       --text-sm: 0.875rem;
@@ -1094,7 +1119,7 @@ html:not([data-nav])::view-transition-new(.page) {
 @utility page-title {
   font-size: 2.125rem;
   line-height: 1.15;
-  @media (min-width: 64rem), (min-width: 36rem) and (hover: hover) and (pointer: fine) {
+  @media (min-width: 36rem) and (hover: hover) and (pointer: fine) {
     font-size: 1.5rem;
     line-height: 1.25;
   }
@@ -1106,7 +1131,7 @@ html:not([data-nav])::view-transition-new(.page) {
  */
 @utility empty-well {
   background-color: color-mix(in oklab, var(--color-ink) 4%, transparent);
-  @media (min-width: 64rem), (min-width: 36rem) and (hover: hover) and (pointer: fine) {
+  @media (min-width: 36rem) and (hover: hover) and (pointer: fine) {
     background-color: transparent;
     border: 1px dashed var(--color-line);
   }
@@ -1589,9 +1614,7 @@ dialog[data-drawer]::backdrop {
  * 같은 모양 · 움직임. PC 는 오른쪽 판과 막대 · 도크 연출 그대로(연출은 PC 에서만 돈다 — app-shell 의 canChoreo).
  * 위 규칙과 무게가 같아 뒤에 둔다. 조건은 desk 의 반대.
  */
-@media (max-width: 63.999rem) and (max-width: 35.999rem),
-  (max-width: 63.999rem) and (hover: none),
-  (max-width: 63.999rem) and (pointer: coarse) {
+@media not all and (min-width: 36rem) and (hover: hover) and (pointer: fine) {
   dialog[data-drawer] {
     /* 팝업(위 기본 규칙)의 자리 잡기를 되돌린다 — 시트는 바닥에 붙는다 */
     inset: 0;
@@ -2139,9 +2162,7 @@ dialog[open]::backdrop {
  * 바닥에 붙어 아래에서 미끄러져 올라오고, 닫으면(끌어내려 닫기 포함) 아래로 내려간다. 누른 자리에서 날아오는
  * 움직임(data-pop)은 PC 에만 남는다 — 여기 규칙이 더 무거워(속성 셋) 휴대폰에서는 그쪽을 이긴다. 조건은 desk 의 반대.
  */
-@media (max-width: 63.999rem) and (max-width: 35.999rem),
-  (max-width: 63.999rem) and (hover: none),
-  (max-width: 63.999rem) and (pointer: coarse) {
+@media not all and (min-width: 36rem) and (hover: hover) and (pointer: fine) {
   dialog[data-sheet],
   dialog[data-sheet][data-pop] {
     opacity: 1;
@@ -2161,6 +2182,20 @@ dialog[open]::backdrop {
 @keyframes sheet-in {
   from {
     transform: translateY(100%);
+  }
+}
+
+/*
+ * 패드(@custom-variant pad)의 아래 시트 셋 — 휴대폰과 같은 시트지만 화면 폭 끝까지 늘리지 않고 가운데 640px.
+ * 1180px 아이패드에서 끝에서 끝까지 덮는 시트는 글줄이 너무 길고 엄지가 닿지 않는다(아이패드의 시트도 가운데에 뜬다).
+ * 화면 코드의 w-full · mx-0 보다 세도록 @layer 밖에 둔다.
+ */
+@media (min-width: 46.5rem) and (min-height: 37.5rem) and (pointer: coarse) {
+  dialog[data-sheet],
+  dialog[data-gate],
+  dialog[data-drawer] {
+    width: min(40rem, 100%);
+    margin-inline: auto;
   }
 }
 
@@ -2205,9 +2240,7 @@ dialog[data-gate][open]::backdrop {
  * (2026-10-01 '애플처럼'). 인사하듯 조금 천천히(0.46초) 올라오고, 닫히면(완료 · 건너뛰기) 아래로 내려간다
  * (0.3초 — checkin-gate.tsx 의 CLOSE_MS 와 같다). 위 규칙과 무게가 같아 뒤에 둔다. 조건은 desk 의 반대.
  */
-@media (max-width: 63.999rem) and (max-width: 35.999rem),
-  (max-width: 63.999rem) and (hover: none),
-  (max-width: 63.999rem) and (pointer: coarse) {
+@media not all and (min-width: 36rem) and (hover: hover) and (pointer: fine) {
   dialog[data-gate] {
     opacity: 1;
     transform: translateY(100%);
@@ -2226,9 +2259,7 @@ dialog[data-gate][open]::backdrop {
 /*
  * 휴대폰의 아래 시트 셋(Modal 의 data-sheet · 체크인 관문 · 더보기) 공통 — 2026-10-03 아이폰 점검.
  */
-@media (max-width: 63.999rem) and (max-width: 35.999rem),
-  (max-width: 63.999rem) and (hover: none),
-  (max-width: 63.999rem) and (pointer: coarse) {
+@media not all and (min-width: 36rem) and (hover: hover) and (pointer: fine) {
   /*
    * 가로로 돌린 사파리에서 시트의 글 · 단추가 노치 밑에 들어가지 않게 양옆을 그만큼 비운다. 시트 바탕은 화면 끝까지
    * 그대로다. 세로 화면은 그 값이 0 이라 예전과 같다(앱은 세로로만 돈다).
@@ -2694,7 +2725,7 @@ html[data-app='native'] body:not(:has([data-safe-area]))::before {
 .rounded-2xl.border-line.bg-surface {
   border-color: transparent;
 }
-@media (min-width: 64rem), (min-width: 36rem) and (hover: hover) and (pointer: fine) {
+@media (min-width: 36rem) and (hover: hover) and (pointer: fine) {
   .rounded-2xl.border-line.bg-surface {
     border-color: var(--color-line);
   }
@@ -2708,7 +2739,7 @@ html[data-app='native'] body:not(:has([data-safe-area]))::before {
 .border-danger-line.bg-danger-bg {
   border-color: transparent;
 }
-@media (min-width: 64rem), (min-width: 36rem) and (hover: hover) and (pointer: fine) {
+@media (min-width: 36rem) and (hover: hover) and (pointer: fine) {
   .border-warn-line.bg-warn-bg {
     border-color: var(--color-warn-line);
   }
