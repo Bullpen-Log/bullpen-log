@@ -1,3 +1,4 @@
+import { appNow } from '@/lib/clock';
 import { requireUser } from '@/lib/dal';
 import { toDateKey } from '@/lib/pitch-stats';
 import { ageOn } from '@/lib/nutrition/targets';
@@ -14,7 +15,7 @@ import { PitchSetupWizard } from './pitch-setup-wizard';
  */
 export default async function PitchSetupPage() {
   const user = await requireUser();
-  const age = ageOn(user.birthDate, toDateKey(new Date()));
+  const age = ageOn(user.birthDate, toDateKey(appNow()));
   return (
     <PitchSetupWizard
       name={user.nickname}

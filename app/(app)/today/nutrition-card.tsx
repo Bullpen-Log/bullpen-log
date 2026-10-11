@@ -1,3 +1,4 @@
+import { appNow } from '@/lib/clock';
 import type { CSSProperties } from 'react';
 import Link from 'next/link';
 import { ChevronRight } from 'lucide-react';
@@ -32,7 +33,7 @@ export async function NutritionCard({
 
 /** 렌더 중에 현재 시각을 직접 읽지 않도록 함수로 감싼다(홈 page.tsx 와 같다) */
 function now() {
-  return new Date();
+  return appNow();
 }
 
 type Column =

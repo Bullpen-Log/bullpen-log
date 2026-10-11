@@ -96,6 +96,8 @@ model User {
   tutorialsDone       String[]  @default([])
   /// 약관 · 개인정보 처리방침에 동의한 시각(가입 때). 이 칸이 생기기 전 계정은 비어 있다.
   agreedAt            DateTime?
+  /// 시뮬레이션 날짜 — 시험 계정을 '그날'로 써 보려고(2026-10-11 김민). 있으면 이 계정만 서버 · 화면의 '오늘'이 이 날짜(시각은 실제), 없으면 실제 날짜. lib/clock.ts
+  simDate             DateTime? @db.Date
   createdAt           DateTime  @default(now())
 
   exerciseFavorites UserExerciseFavorite[]

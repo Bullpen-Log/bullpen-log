@@ -1,3 +1,4 @@
+import { appNow } from '@/lib/clock';
 import { redirect } from 'next/navigation';
 import { toDateKey } from '@/lib/pitch-stats';
 import { SETUP_PATH } from '@/lib/feature-locks';
@@ -33,7 +34,7 @@ export default async function VelocityMeasurePage({
     <VelocityScreen
       isAdmin={isAdmin}
       native={native}
-      today={toDateKey(new Date())}
+      today={toDateKey(appNow())}
       calibration={fit}
       throwingHand={user.throwingHand}
       resume={resume === '1'}

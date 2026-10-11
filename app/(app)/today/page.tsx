@@ -1,3 +1,4 @@
+import { appNow } from '@/lib/clock';
 import { Suspense, cache } from 'react';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
@@ -47,7 +48,7 @@ import { loadPitchHistory, readDateParam } from './history';
 
 /** 렌더 중에 현재 시각을 직접 읽지 않도록 함수로 감싼다. */
 function now() {
-  return new Date();
+  return appNow();
 }
 
 type User = Awaited<ReturnType<typeof requireUser>>;

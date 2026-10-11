@@ -119,5 +119,16 @@ const S4 = {
 const head = readFileSync(join(here, 'head.html'), 'utf8').replace(/샘플 4/g, `샘플 ${sampleNo}`);
 const obp = readFileSync(join(here, 'obp-pitch.json'), 'utf8');
 const page = readFileSync(join(here, 'page.js'), 'utf8');
-writeFileSync(out, `${head}<script>\nconst OBP=${obp}, S4=${JSON.stringify(S4)};\n${page}</script>\n`);
+/* 해부학 모델(public/models/body-full.glb)의 부위 표 · 관절 자리 — '해부학 뼈대 · 근육 몸' 모델이 쓴다. glb 는 페이지 옆 파일로 올린다 */
+const skp = readFileSync(join(here, '../../../public/models/skeleton-parts.json'), 'utf8');
+/* 아티팩트는 .glb 를 못 올려서, 같은 모델을 버퍼를 품은 glTF(json)로 페이지 옆에 둔다 — 페이지가 body-full.json 을 먼저 찾는다 */
+{
+  const glb = readFileSync(join(here, '../../../public/models/body-full.glb'));
+  const jl = glb.readUInt32LE(12);
+  const gltf = JSON.parse(glb.subarray(20, 20 + jl).toString('utf8'));
+  const bl = glb.readUInt32LE(20 + jl);
+  gltf.buffers[0].uri = 'data:application/octet-stream;base64,' + glb.subarray(28 + jl, 28 + jl + bl).toString('base64');
+  writeFileSync(join(dirname(out), 'body-full.json'), JSON.stringify(gltf));
+}
+writeFileSync(out, `${head}<script>\nconst OBP=${obp}, S4=${JSON.stringify(S4)}, SKP=${skp};\n${page}</script>\n`);
 console.log(`${out} — 샘플 ${sampleNo}(${pick.id.slice(0, 8)}, ${n}장면, ${r.hand})`);

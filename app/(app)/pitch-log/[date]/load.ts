@@ -1,3 +1,4 @@
+import { appNow } from '@/lib/clock';
 import { redirect } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
 import { requireUser } from '@/lib/dal';
@@ -34,7 +35,7 @@ export async function loadPitchDay(date: string): Promise<PitchDayData | null> {
   const user = await requireUser();
   /* 처음 가입한 사람은 첫 설정(2026-10-09, lib/feature-locks.ts)을 마쳐야 연다 — 페이지와 팝업이 다 이 길을 지난다 */
   if (featureLocks(user).pitch) redirect(SETUP_PATH.pitch);
-  const now = new Date();
+  const now = appNow();
   const todayKey = toDateKey(now);
 
   const [logs, { plan }, velocity] = await Promise.all([

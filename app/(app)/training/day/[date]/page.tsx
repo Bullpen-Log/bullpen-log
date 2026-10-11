@@ -1,3 +1,4 @@
+import { appNow } from '@/lib/clock';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { BackLink } from '@/components/ui';
@@ -45,7 +46,7 @@ export default async function TrainingDayPage({
 
   const user = await requireUser();
   const detail = await trainingDay(user.id, date);
-  const todayKey = toDateKey(new Date());
+  const todayKey = toDateKey(appNow());
 
   const count = detail.exercises.length;
   const empty = count === 0 && detail.intensity == null;

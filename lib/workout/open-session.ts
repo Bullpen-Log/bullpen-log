@@ -1,4 +1,5 @@
 import 'server-only';
+import { appNow } from '@/lib/clock';
 import type { TrainingSession } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import {
@@ -37,7 +38,7 @@ export async function openSession(
    * (app/(session)/workout/run/page.tsx). 아침 값을 그대로 두면 저녁에 들어와
    * '9시간째 쉬는 중'이 뜬다.
    */
-  const mainStartedAt = noWarmup ? new Date() : null;
+  const mainStartedAt = noWarmup ? appNow() : null;
 
   /* 다시 여는 판은 그 판이 쓰던 목록을 지킨다(mergeReopened) */
   const sessionPlan = mergeReopened(open ? readFrozenPlan(open.plan) : null, plan);

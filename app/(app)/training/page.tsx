@@ -1,3 +1,4 @@
+import { appNow } from '@/lib/clock';
 import type { ReactNode } from 'react';
 import { favoriteExerciseIds } from '@/lib/favorites';
 import { cookies } from 'next/headers';
@@ -84,7 +85,7 @@ import {
 
 /** 렌더 중에 현재 시각을 직접 읽지 않도록 함수로 감싼다. */
 function now() {
-  return new Date();
+  return appNow();
 }
 
 /**

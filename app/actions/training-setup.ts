@@ -1,5 +1,6 @@
 'use server';
 
+import { appNow } from '@/lib/clock';
 import { revalidatePath } from 'next/cache';
 import { redirect, RedirectType } from 'next/navigation';
 import { Prisma } from '@prisma/client';
@@ -220,7 +221,7 @@ export async function generateTodayPlan(formData: FormData) {
         trainingGoal
       );
 
-  const today = new Date();
+  const today = appNow();
   const { facts, plan } = await gatherFactsAndPlan(user, today);
 
   /*
@@ -335,7 +336,7 @@ export async function generateTodayPlan(formData: FormData) {
     const saved = {
       availableEquipment,
       plan: withAuto as unknown as Prisma.InputJsonValue,
-      generatedAt: new Date(),
+      generatedAt: appNow(),
     };
     await prisma.dailyTrainingSetup.upsert({
       where: { userId_date: { userId: user.id, date } },
@@ -459,7 +460,7 @@ export async function finishTrainingSetup(
       ownedEquipment: ownedEquipmentToSave(answers),
       dailyWorkoutMinutes: Number(answers.dailyWorkoutMinutes),
       ...(askHand && answers.throwingHand ? { throwingHand: answers.throwingHand } : {}),
-      trainingSetupAt: user.trainingSetupAt ?? new Date(),
+      trainingSetupAt: user.trainingSetupAt ?? appNow(),
     },
   });
 

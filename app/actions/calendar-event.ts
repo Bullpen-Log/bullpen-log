@@ -1,5 +1,6 @@
 'use server';
 
+import { appNow } from '@/lib/clock';
 import { getCurrentUser } from '@/lib/dal';
 import { prisma } from '@/lib/prisma';
 import { toDateKey } from '@/lib/pitch-stats';
@@ -48,7 +49,7 @@ export async function saveCalendarEvent(
 ): Promise<EventResult> {
   const user = await getCurrentUser();
   if (!user) return NEED_LOGIN;
-  const clean = cleanEvent(input, toDateKey(new Date()));
+  const clean = cleanEvent(input, toDateKey(appNow()));
   if (!clean.ok) return clean;
   const data = { ...clean.value, date: dbDate(clean.value.date) };
 

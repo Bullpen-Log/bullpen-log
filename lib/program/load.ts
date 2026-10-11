@@ -1,4 +1,5 @@
 import 'server-only';
+import { appNow } from '@/lib/clock';
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { HIGH_SORENESS, SEVERE_SORENESS, isShortSleep } from '@/lib/checkin';
@@ -695,7 +696,7 @@ export async function programResult(
   if (audienceOf(plan.def) === 'basics') {
     const { completed, skipped } = progressOf(row, plan);
     const startKey = toDateKey(row.startedAt);
-    const endKey = toDateKey(row.endedAt ?? new Date());
+    const endKey = toDateKey(row.endedAt ?? appNow());
     return {
       name: plan.def.name,
       basics: true,
@@ -713,7 +714,7 @@ export async function programResult(
   );
   const ids = lifts.map((v) => pinned[v]).filter((id): id is string => !!id);
   /* 한국 날짜로 — 기록 · 기준 무게(trainingMaxes)와 같은 하루 */
-  const endKey = toDateKey(row.endedAt ?? new Date());
+  const endKey = toDateKey(row.endedAt ?? appNow());
   const history = await programHistory(row.userId, ids, endKey);
   const startKey = toDateKey(row.startedAt);
   const { completed, skipped } = progressOf(row, plan);

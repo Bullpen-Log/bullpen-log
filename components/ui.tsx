@@ -1,3 +1,4 @@
+import { appNow } from '@/lib/clock';
 import Link from 'next/link';
 import { NavTitle } from './nav-title';
 import type { ComponentProps, ReactNode } from 'react';
@@ -37,7 +38,7 @@ export function Eyebrow({ children }: { children: ReactNode }) {
 export { BackLink } from './back-link';
 
 /** 휴대폰 큰 제목 위에 다는 오늘 날짜 — '10월 1일 수요일'(서울 시각) */
-export function todayKicker(now: Date = new Date()): string {
+export function todayKicker(now: Date = appNow()): string {
   return new Intl.DateTimeFormat('ko-KR', {
     month: 'long',
     day: 'numeric',

@@ -1,5 +1,6 @@
 'use server';
 
+import { appNow, appNowMs } from '@/lib/clock';
 import { revalidatePath } from 'next/cache';
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
@@ -121,7 +122,7 @@ export async function startRehab(input: {
   if (!activities)
     return { error: '내 활동을 두 개 골라 주세요(직접 적기는 20자까지).' };
 
-  const today = new Date();
+  const today = appNow();
   const age = user.birthDate ? ageFromBirthDate(user.birthDate, today) : null;
   const block = rehabStartBlock({ age, area: input.area, condition });
   if (block) return { error: block.text };
@@ -196,7 +197,7 @@ export async function saveRehabSession(input: {
   const feel = FEELS.find((v) => v === input.feel);
   if (!feel) return { error: '어떤 느낌이었는지 골라 주세요.' };
 
-  const todayKey = toDateKey(new Date());
+  const todayKey = toDateKey(appNow());
   const dateKey =
     input.dateKey === shiftDateKey(todayKey, -1) ? input.dateKey : todayKey;
 
@@ -278,7 +279,7 @@ export async function changeRehabStage(input: {
   if (![1, 2, 3, 4].includes(to) || to === program.stage) {
     return { error: '바꿀 단계를 다시 골라 주세요.' };
   }
-  const todayKey = toDateKey(new Date());
+  const todayKey = toDateKey(appNow());
 
   if (input.via === 'test') {
     if (to !== program.stage + 1) return { error: '단계 시험은 한 칸씩 올려요.' };
@@ -397,7 +398,7 @@ export async function saveRehabWeekly(input: {
   }
   const activities = scores as number[];
 
-  const todayKey = toDateKey(new Date());
+  const todayKey = toDateKey(appNow());
   const { sessions, checkins, weeklies } = await loadRehabRecords(
     user.id,
     active.id,
@@ -599,7 +600,7 @@ export async function openThrowingProgram(input: {
   if (!push || pain == null || (plyo && (!drop || !wall)))
     return { error: '시험 기록을 모두 적어 주세요.' };
 
-  const todayKey = toDateKey(new Date());
+  const todayKey = toDateKey(appNow());
   const { sessions, weeklies } = await loadRehabRecords(user.id, active.id, todayKey);
   if (throwingOpenedOn(program, weeklies)) return { ok: true };
   const recent = weeklies.at(-1);
@@ -673,14 +674,14 @@ export async function logRehabThrow(input: {
   const pitches = Math.round(Number(input.pitches ?? DISTANCE_PITCHES));
   if (!Number.isFinite(pitches) || pitches < 1 || pitches > 150) return { error: '공 수를 1~150 사이로 적어 주세요.' };
 
-  const todayKey = toDateKey(new Date());
+  const todayKey = toDateKey(appNow());
   const { weeklies } = await loadRehabRecords(user.id, active.id, todayKey);
   if (!throwingOpenedOn(active.program, weeklies)) return { error: '먼저 투구 복귀표를 열어 주세요.' };
 
   const memo = throwMemo(step, input.pain);
   const date = dayStart(todayKey);
   const duplicate = await prisma.pitchLog.findFirst({
-    where: { userId: user.id, date, memo, createdAt: { gte: new Date(Date.now() - THROW_DUPLICATE_MS) } },
+    where: { userId: user.id, date, memo, createdAt: { gte: new Date(appNowMs() - THROW_DUPLICATE_MS) } },
     select: { id: true },
   });
   if (!duplicate) {
@@ -774,7 +775,7 @@ export async function endRehab(reason: 'done' | 'stopped'): Promise<Result> {
   }
   await prisma.userRehabProgram.update({
     where: { id: active.id },
-    data: { endedAt: new Date(), endReason: reason },
+    data: { endedAt: appNow(), endReason: reason },
   });
   refresh();
   return { ok: true };

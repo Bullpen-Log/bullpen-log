@@ -1,3 +1,4 @@
+import { appNow } from '@/lib/clock';
 import {
   ACUTE_WINDOW_DAYS,
   CHRONIC_WINDOW_DAYS,
@@ -229,7 +230,7 @@ export function buildFacts({
   memos,
   baselineDailyLoad = null,
   rehab = null,
-  today = new Date(),
+  today = appNow(),
 }: {
   nickname: string;
   age: number | null;

@@ -1,5 +1,6 @@
 'use server';
 
+import { appNow } from '@/lib/clock';
 import { revalidatePath } from 'next/cache';
 import { prisma } from '@/lib/prisma';
 import { getCurrentUser } from '@/lib/dal';
@@ -139,7 +140,7 @@ async function trySaveCheckin(formData: FormData): Promise<CheckinState> {
    * (User.weightKg — 내 정보 · 영양 기준 체중 · 운동 소모)도 같이 바꾼다. 지난 날을 고친 것은 계정을 안 건드린다.
    */
   const weightKg = (detail as { bodyWeightKg?: number | null }).bodyWeightKg ?? null;
-  const updateUserWeight = weightKg !== null && dateKey === toDateKey(new Date());
+  const updateUserWeight = weightKg !== null && dateKey === toDateKey(appNow());
 
   await prisma.$transaction([
     prisma.dailyCheckin.upsert({

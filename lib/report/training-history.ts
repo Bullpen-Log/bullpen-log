@@ -1,4 +1,5 @@
 import 'server-only';
+import { appNow } from '@/lib/clock';
 import { prisma } from '@/lib/prisma';
 import { shiftDateKey, toDateKey } from '@/lib/pitch-stats';
 import { formatPrescription } from '@/lib/exercise-meta';
@@ -39,7 +40,7 @@ const SUMMARY_MONTHS = 13;
 
 /** 요약을 읽기 시작하는 날 — 열세 달 전 그달 1일(UTC) */
 function summarySince() {
-  const now = new Date();
+  const now = appNow();
   return new Date(
     Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - SUMMARY_MONTHS, 1)
   );
@@ -242,7 +243,7 @@ export async function trainingDay(
   /* '계획'은 그날 목표에 맞춘 세트 · 횟수로 적는다 — 그날 트레이닝 화면에 보였던 값(goal-prescription.ts) */
   const dayGoal = readDailyPlan(setup?.plan)?.goal;
 
-  const todayKey = toDateKey(new Date());
+  const todayKey = toDateKey(appNow());
 
   return {
     date: dateKey,

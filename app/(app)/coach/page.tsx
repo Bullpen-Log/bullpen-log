@@ -1,3 +1,4 @@
+import { appNow } from '@/lib/clock';
 import { requireUser } from '@/lib/dal';
 import { toDateKey } from '@/lib/pitch-stats';
 import { PageHeading } from '@/components/ui';
@@ -29,7 +30,7 @@ export default async function CoachPage({
   const params = await searchParams;
   const view = readCoachView(params.view);
   const user = await requireUser();
-  const today = toDateKey(new Date());
+  const today = toDateKey(appNow());
   const date = readDateParam(params.date) ?? today;
   const h = await loadPitchHistory(user);
 

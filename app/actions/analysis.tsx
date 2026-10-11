@@ -1,5 +1,6 @@
 'use server';
 
+import { appNow } from '@/lib/clock';
 import type { ReactNode } from 'react';
 import { getCurrentUser } from '@/lib/dal';
 import { toDateKey } from '@/lib/pitch-stats';
@@ -22,7 +23,7 @@ export async function analysisFor(date: string, tab: string): Promise<ReactNode>
   if (!user) {
     return <Notice>로그인이 풀렸어요. 다시 로그인하면 분석을 볼 수 있어요.</Notice>;
   }
-  const today = toDateKey(new Date());
+  const today = toDateKey(appNow());
   if (!DATE_RE.test(date) || date > today || !isAnalysisTab(tab)) {
     return <Notice>이 날의 분석은 볼 수 없어요.</Notice>;
   }

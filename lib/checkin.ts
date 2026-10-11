@@ -1,3 +1,4 @@
+import { appNow } from '@/lib/clock';
 /**
  * 몸상태 체크인의 선택지와 검사.
  *
@@ -187,7 +188,7 @@ export function validateCheckin(
  * 서버가 UTC로 돌아도 기준은 한국 날짜다. 예전에는 서버 UTC 날짜로 쟀는데,
  * 한국 시간 새벽에 체크인하면 '내일'로 판정돼 거절되는 일이 있었다.
  */
-export function validateCheckinDate(dateKey: string, now = new Date()): boolean {
+export function validateCheckinDate(dateKey: string, now = appNow()): boolean {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) return false;
   const [y, m, d] = dateKey.split('-').map(Number);
   const candidate = Date.UTC(y, m - 1, d);

@@ -1,3 +1,4 @@
+import { appNow } from '@/lib/clock';
 import { redirect } from 'next/navigation';
 import { toDateKey } from '@/lib/pitch-stats';
 import { SETUP_PATH } from '@/lib/feature-locks';
@@ -29,6 +30,6 @@ export default async function VelocityPage() {
   ]);
 
   return (
-    <VelocityHome history={history} calibration={fit} today={toDateKey(new Date())} />
+    <VelocityHome history={history} calibration={fit} today={toDateKey(appNow())} />
   );
 }

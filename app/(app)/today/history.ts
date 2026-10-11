@@ -1,4 +1,5 @@
 import 'server-only';
+import { appNow } from '@/lib/clock';
 import { prisma } from '@/lib/prisma';
 import { hasPain, pickCheckinParts } from '@/lib/checkin';
 import { toDateKey } from '@/lib/pitch-stats';
@@ -19,7 +20,7 @@ import { loadVelocityByDate } from '@/lib/velocity-load';
  * 날짜를 누를 때마다 받아 오면 칸을 옮길 때마다 기다린다.
  */
 export async function loadPitchHistory(user: { id: string }) {
-  const now = new Date();
+  const now = appNow();
   /*
    * 달의 1일로 맞춘다. 그냥 13개월을 빼면 시작점이 달 중간이 되어 그 달은 절반만 읽히는데, 화면은 '읽은 달'로
    * 세므로 그 달 앞쪽 기록이 조용히 빠진다(7월 26일 기록이 달력에서 사라진 적이 있다).

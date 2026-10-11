@@ -1,5 +1,6 @@
 import 'server-only';
 
+import { appNow } from '@/lib/clock';
 import { prisma } from '@/lib/prisma';
 import { favoriteDrillIds } from '@/lib/favorites';
 import { visibleGuides } from '@/lib/library-cache';
@@ -63,7 +64,7 @@ export async function loadMechanicsProgram(userId: string): Promise<{
   /** 오늘 '했다'로 남은 드릴 id — 따라 하기를 이어서 할 때 건너뛴다 */
   doneToday: string[];
 }> {
-  const todayKey = toDateKey(new Date());
+  const todayKey = toDateKey(appNow());
   const [row, guides, favorites, logs, user, setup] = await Promise.all([
     prisma.mechanicsProgram.findUnique({ where: { userId } }),
     visibleGuides(),

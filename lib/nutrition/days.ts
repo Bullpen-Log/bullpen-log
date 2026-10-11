@@ -1,3 +1,4 @@
+import { appNow } from '@/lib/clock';
 import { dateKeyOf, isFutureDateKey, shiftDateKey, toDateKey } from '@/lib/pitch-stats';
 
 /**
@@ -9,7 +10,7 @@ import { dateKeyOf, isFutureDateKey, shiftDateKey, toDateKey } from '@/lib/pitch
  */
 export const NUTRITION_BACK_DAYS = 366;
 
-export function isNutritionDate(dateKey: string, now = new Date()) {
+export function isNutritionDate(dateKey: string, now = appNow()) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) return false;
   const [y, m, d] = dateKey.split('-').map(Number);
   /* 2월 31일 같은 날짜는 Date 가 3월로 넘겨 버리므로, 되돌려서 같은지 본다 */

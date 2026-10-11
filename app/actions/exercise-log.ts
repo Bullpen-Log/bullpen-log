@@ -1,5 +1,6 @@
 'use server';
 
+import { appNow } from '@/lib/clock';
 import { revalidatePath } from 'next/cache';
 import { prisma } from '@/lib/prisma';
 import { requireUser } from '@/lib/dal';
@@ -102,7 +103,7 @@ async function saveDone(
   });
   if (!exercise) return { error: '운동을 찾을 수 없어요.' };
 
-  const todayKey = toDateKey(new Date());
+  const todayKey = toDateKey(appNow());
   const target = dateKey ?? todayKey;
   if (!/^\d{4}-\d{2}-\d{2}$/.test(target)) {
     return { error: '날짜가 올바르지 않아요.' };
@@ -190,7 +191,7 @@ export async function saveTrainingNote(
 
   const text = typeof memo === 'string' ? memo.trim().slice(0, 1000) : '';
   /* 화면이 준 날(자정을 넘겨 저장해도 그 목록의 날) — 체크(saveDone)와 같은 선으로 본다: 앞날 · 7일 넘은 날은 안 받는다 */
-  const todayKey = toDateKey(new Date());
+  const todayKey = toDateKey(appNow());
   const key = dateKey ?? todayKey;
   if (!/^\d{4}-\d{2}-\d{2}$/.test(key) || key > todayKey) {
     return { error: '날짜가 올바르지 않아요.' };

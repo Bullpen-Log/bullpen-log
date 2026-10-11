@@ -1,3 +1,4 @@
+import { appNow } from '@/lib/clock';
 import { requireUser } from '@/lib/dal';
 import { featureLocks } from '@/lib/feature-locks';
 import { recentWeightKg } from '@/lib/nutrition/load';
@@ -23,7 +24,7 @@ import { TrainingSetupWizard } from './training-setup-wizard';
  */
 export default async function TrainingSetupPage() {
   const user = await requireUser();
-  const today = toDateKey(new Date());
+  const today = toDateKey(appNow());
   const hasSetup = !featureLocks(user).training;
   const [recent, basicsDone] = await Promise.all([
     recentWeightKg(user.id, today),
