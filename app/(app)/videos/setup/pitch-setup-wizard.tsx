@@ -6,6 +6,7 @@ import { Button } from '@/components/ui';
 import { Chips } from '@/components/onboarding/choices';
 import { CountUp } from '@/components/onboarding/count-up';
 import { PitchCapInsert } from '@/components/onboarding/insert-cards';
+import { ADULT_AGE } from '@/lib/report/plan';
 import { ProblemLine, StepCard, TextButton } from '@/components/onboarding/step-card';
 import { useStepWizard } from '@/components/onboarding/use-step-wizard';
 import { finishPitchSetup } from '@/app/actions/pitch-setup';
@@ -27,7 +28,7 @@ import {
  * 가입 마법사에 있던 것을 그대로 옮겼다(2026-10-09, lib/feature-locks.ts).
  *
  * 답은 상태로 쥐고 한 번에 보낸다(finishPitchSetup). 서버가 막으면 그 칸의 화면으로 돌아간다.
- * 저장이 끝나면 투구 기록 탭으로 — 잠금이 걷히고 탭 페이지가 사용법 튜토리얼을 한 번 띄운다(app/(app)/videos/page.tsx).
+ * 저장이 끝나면 투구 기록 탭으로 — 잠금이 걷힌다(사용법 튜토리얼은 2026-10-12 에 뺐다).
  *
  * done — 이미 한 번 마친 사람(다시 들어와 고치는 중)인가. 요약의 말과 단추 글자, 첫 화면의 탈출이 다르다 — 처음 온
  * 사람은 투구 기록 탭이 잠겨 있어 '그만두기'로 /videos 에 가면 다시 여기로 돌아오니, 대신 '홈으로'(/today)를 보인다.
@@ -126,6 +127,12 @@ export function PitchSetupWizard({
   function titleOf(key: PitchStepKey): { title: string; desc?: string } {
     switch (key) {
       case 'capCard':
+        /* 성인(만 19세 이상)은 나이 한도가 없다 — lib/report/plan.ts ADULT_AGE */
+        if (age !== null && age >= ADULT_AGE)
+          return {
+            title: `${who}오늘 던질 양을 알려 드려요`,
+            desc: '투구를 적기 시작하면 홈이 오늘 던질 수 있는 양과 쉬어야 할 날을 알려 드려요. 그러려면 세 가지만 물을게요.',
+          };
         return {
           title: `${who}먼저 하루 투구 한도예요`,
           desc:
@@ -180,7 +187,7 @@ export function PitchSetupWizard({
   ];
 
   return (
-    <div ref={rootRef} className="flex min-h-[calc(100dvh-9rem)] flex-col scroll-mt-4">
+    <div ref={rootRef} className="flex flex-col scroll-mt-4">
       <StepCard
         titleKey={step}
         title={heading.title}

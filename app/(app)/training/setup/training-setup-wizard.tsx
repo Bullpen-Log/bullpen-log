@@ -184,7 +184,7 @@ export function TrainingSetupWizard({
   );
 
   return (
-    <div ref={rootRef} className="flex min-h-[calc(100dvh-9rem)] flex-col scroll-mt-4">
+    <div ref={rootRef} className="flex flex-col scroll-mt-4">
       <StepCard
         titleKey={step}
         title={heading.title}

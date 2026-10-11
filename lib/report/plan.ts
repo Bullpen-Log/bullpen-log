@@ -28,6 +28,14 @@ export const AGE_PITCH_LIMITS = [
 export const UNKNOWN_AGE_DAILY_MAX = 95;
 
 /**
+ * 이 나이부터는 나이로 정한 하루 한도를 두지 않는다(2026-10-12 사용자: "미성년자일 경우에만 투구수 제한을 두고 성인에게는
+ * 다른 문구로"). 만 19세 = 고등학교를 마친 나이. 성인은 평소 던지던 양 · 부하 지수 · 등판 뒤 휴식일로만 오늘 양을 정한다.
+ */
+export const ADULT_AGE = 19;
+/** 성인이 평소 투구량 기록이 없을 때 시작점을 잡는 기준(그 절반에서 시작) — 한도가 아니다 */
+const ADULT_REFERENCE_PITCHES = 120;
+
+/**
  * 던진 투구수에 따라 필요한 휴식일.
  * 고교 연령(15~18) 기준표를 따르며, 그보다 어리면 더 보수적으로 봐야 한다.
  */
@@ -53,8 +61,10 @@ export const HIGH_VOLUME_MIN_REST = 1;
 /** 성장기로 보아 추가 주의를 안내할 나이 */
 export const YOUTH_AGE_THRESHOLD = 15;
 
-export function dailyPitchCap(age: number | null) {
+/** 나이로 정한 하루 한도. 성인(만 19세 이상)은 null — 한도를 두지 않는다 */
+export function dailyPitchCap(age: number | null): number | null {
   if (age == null) return UNKNOWN_AGE_DAILY_MAX;
+  if (age >= ADULT_AGE) return null;
   return (
     AGE_PITCH_LIMITS.find((r) => age <= r.throughAge)?.dailyMax ?? UNKNOWN_AGE_DAILY_MAX
   );
@@ -508,9 +518,14 @@ export function buildPitchPlan(facts: ReportFacts): PitchPlan {
   if (recovering) basis.push(recoveryLabel);
 
   // 4) 기준 투구수 — 평소 던지던 양이 없으면 상한의 절반에서 시작한다.
-  const baseline = patterns.baselinePitches ?? Math.round(cap * 0.5);
+  const baseline =
+    patterns.baselinePitches ?? Math.round((cap ?? ADULT_REFERENCE_PITCHES) * 0.5);
   if (patterns.baselinePitches == null) {
-    basis.push(`평소 투구량 기록이 없어 상한의 절반(${baseline}구)에서 시작`);
+    basis.push(
+      cap == null
+        ? `평소 투구량 기록이 없어 ${baseline}구에서 시작`
+        : `평소 투구량 기록이 없어 상한의 절반(${baseline}구)에서 시작`
+    );
   } else {
     basis.push(`평소 던진 날 평균 ${baseline}구를 기준으로 계산`);
   }
@@ -518,7 +533,7 @@ export function buildPitchPlan(facts: ReportFacts): PitchPlan {
   let target = Math.round(baseline * adj.volume);
 
   // 5) 나이별 상한을 넘지 않게 자른다.
-  if (target > cap) {
+  if (cap != null && target > cap) {
     basis.push(
       `나이별 하루 상한 ${cap}구 적용 (${profile.age != null ? `만 ${profile.age}세` : '나이 미입력이라 보수적 기준'})`
     );
