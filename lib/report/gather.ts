@@ -46,6 +46,15 @@ const recentRecords = cache(async (userId: string, sinceIso: string) => {
       where: { userId, date: { gte: since } },
       orderBy: { date: 'desc' },
     }),
+    /*
+     * 운동 끝 힘듦(2판 P2) — facts.condition.trainingEffort 의 재료. 하루 한 줄 · 45일이라 가볍다. 부하 계산
+     * (lib/report/training-acwr.ts)도 같은 표를 읽지만 cache 범위가 달라 합치지 않는다.
+     */
+    prisma.dailyTrainingNote.findMany({
+      where: { userId, date: { gte: since } },
+      select: { date: true, intensity: true },
+      orderBy: { date: 'asc' },
+    }),
   ]);
 });
 
@@ -88,7 +97,7 @@ export async function gatherFactsAndPlan(
    * 진행 중인 재활(재활 2편) — 투구 계획이 멈추고 웨이트가 그 관절의 무거운 운동을 뺀다(facts.condition.rehab).
    * 스위치(REHAB_ENABLED)를 끄면 읽지 않아 null 이다.
    */
-  const [[logs, checkins], rehab] = await Promise.all([
+  const [[logs, checkins, notes], rehab] = await Promise.all([
     recentRecords(user.id, since.toISOString()),
     loadRehabFacts(user.id, today),
   ]);
@@ -97,6 +106,10 @@ export async function gatherFactsAndPlan(
   const usedLogs = options?.excludeToday
     ? logs.filter((l) => toDateKey(l.date) !== todayKey)
     : logs;
+  /* 오늘 힘듦도 오늘 로그와 같은 규칙으로 뺀다 — 아침 계획을 견줄 때 마친 뒤 남긴 힘듦이 섞이지 않게 */
+  const usedNotes = options?.excludeToday
+    ? notes.filter((n) => n.date.toISOString().slice(0, 10) !== todayKey)
+    : notes;
 
   const facts = buildFacts({
     nickname: user.nickname,
@@ -133,6 +146,11 @@ export async function gatherFactsAndPlan(
         date: l.date.toISOString().slice(0, 10),
         text: l.memo!.trim(),
       })),
+    /* 운동 끝 힘듦(2판 P2) — 날짜는 체크인과 같은 방식(앞 10자리) */
+    trainingNotes: usedNotes.map((n) => ({
+      date: n.date.toISOString().slice(0, 10),
+      intensity: n.intensity,
+    })),
     today,
   });
 

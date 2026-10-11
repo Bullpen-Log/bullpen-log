@@ -43,6 +43,7 @@ import {
 import { clampRecordedAt } from '@/lib/workout/set-time';
 import { dayStart, isAbandoned, sessionEnd, STALE_AFTER_MS } from '@/lib/workout/stale';
 import { closeAbandoned, lastSetAt, summaryWrites } from '@/lib/workout/close-stale';
+import { intensityOfEffort } from '@/lib/workout/effort';
 import { saveTrainingNote } from '@/app/actions/exercise-log';
 
 /**
@@ -488,7 +489,11 @@ export async function finishWorkout(input: {
   /* 프로그램 날이면 일차를 넘긴다(처방 세트 절반 이상일 때만, 한 번만 — lib/program/advance.ts) */
   await advanceProgramDay(session.id);
 
-  /* 체감 강도는 세션 날짜로 남긴다 — 자정을 넘겨도 세트와 짝이 맞게 */
+  /*
+   * 체감 강도는 세션 날짜로 남긴다 — 자정을 넘겨도 세트와 짝이 맞게.
+   * 강도 없이 온 메모는 버린다(2판 P2 — 마치기 창이 강도를 선택으로 풀면서, 메모만 적고 강도가 없으면 창이 막는다).
+   * 강도를 안 고른 날은 축하 화면의 힘듦 칩(rateWorkoutEffort)이 한 번 더 묻는다.
+   */
   if (typeof input.intensity === 'number') {
     await saveTrainingNote(input.intensity, input.memo ?? '', toDateKey(session.date));
   }
@@ -501,6 +506,49 @@ export async function finishWorkout(input: {
    * 바꿔 넣는다(replace) — 뒤로 가기로 닫힌 운동 화면에 돌아가지 않게.
    */
   redirect(`/workout/done?id=${encodeURIComponent(session.id)}`, RedirectType.replace);
+}
+
+/* ---------------------------- 힘듦 한 번 ---------------------------- */
+
+/**
+ * 축하 화면의 힘듦 칩 — 마치기 창에서 강도를 안 고른 날, 마친 뒤 칩 하나를 누르면 그날 DailyTrainingNote 로 남긴다
+ * (트레이닝 추천 2판 P2, lib/workout/effort.ts 의 눈금 3 · 5 · 7 · 9).
+ *
+ * - 본인 판이면 된다(FINISHED 조건 없음). 마친 뒤 같은 날 '운동 더 하기'로 다시 열면 판이 ACTIVE 로 돌아가는데, 뒤로 가기로
+ *   남은 축하 화면에서 눌렀다고 거절할 까닭이 없다 — 힘듦은 날짜마다 한 줄이라 판 상태와 무관하다.
+ * - 그새 적은 줄이 있으면(트레이닝 탭 · 다른 기기) 덮지 않고 그 값을 돌려준다. saveTrainingNote 는 메모까지 비우므로
+ *   여기서 먼저 본다. 화면은 돌려받은 값의 칩을 고정한다.
+ * - 저장은 saveTrainingNote 를 세션 날짜로 부른다 — finishWorkout 과 같은 날짜 규칙(자정을 넘겨도 세트와 짝). 7일 넘은 판은
+ *   그쪽 검사가 거절하고 화면이 한 줄로 알린다.
+ */
+export async function rateWorkoutEffort(input: {
+  sessionId: string;
+  effort: string;
+}): Promise<{ ok: true; intensity: number } | { error: string }> {
+  const user = await requireUser();
+  const intensity = intensityOfEffort(input?.effort);
+  if (intensity == null) return { error: '얼마나 힘들었는지 골라 주세요.' };
+  if (typeof input.sessionId !== 'string' || !input.sessionId) {
+    return { error: '운동을 찾지 못했어요.' };
+  }
+  const session = await prisma.trainingSession.findFirst({
+    where: { id: input.sessionId, userId: user.id },
+    select: { date: true },
+  });
+  if (!session) return { error: '운동을 찾지 못했어요.' };
+
+  const dateKey = toDateKey(session.date);
+  const existing = await prisma.dailyTrainingNote.findUnique({
+    where: {
+      userId_date: { userId: user.id, date: new Date(`${dateKey}T00:00:00.000Z`) },
+    },
+    select: { intensity: true },
+  });
+  if (existing) return { ok: true, intensity: existing.intensity };
+
+  const res = await saveTrainingNote(intensity, '', dateKey);
+  if ('error' in res) return res;
+  return { ok: true, intensity };
 }
 
 /* ---------------------------- 목록 고치기 ---------------------------- */

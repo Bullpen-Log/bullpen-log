@@ -26,6 +26,12 @@ import {
 /* 타입만 — 재활 규칙(운동 목록 등)은 리포트 쪽에 실리지 않게 값은 부르는 쪽(gather.ts)이 만들어 넘긴다 */
 import type { RehabFacts } from '@/lib/armcare/rehab';
 import { parseThrowMemo } from '@/lib/armcare/rehab-progress';
+/* 운동 끝 힘듦(2판 P2) — 순수 파일. 칩 눈금 · 급증 셈은 거기에 두고 여기서는 잇기만 한다 */
+import {
+  trainingEffortOf,
+  type TrainingEffort,
+  type TrainingNoteLike,
+} from '@/lib/workout/effort';
 
 /**
  * 리포트에 쓰이는 모든 수치를 한곳에 모은다.
@@ -200,6 +206,13 @@ export type ReportFacts = {
     throwPlanYesterday?: string | null;
     /** 최근 메모에서 통증으로 보이는 표현이 걸렸는가 */
     painWordsInMemo: string[];
+    /**
+     * 최근 운동 힘듦(DailyTrainingNote.intensity, 2판 P2 — lib/workout/effort.ts 의 trainingEffortOf): 7일 · 28일 안의 값과
+     * 급증 깃발(7일 안 3개 이상 · 7일 평균이 28일 평균보다 2 이상 높음). buildFacts 에 trainingNotes 를 안 넘기면 칸이 없다
+     * (옛 저장 facts · 기준선 도구 · 자체 시험의 옛 입력과 같은 모양). 아직 아무 규칙도 읽지 않는다 — P5 에서 '경고와 그래도
+     * 하기'. 읽게 되면 같은 커밋에서 일정 지문(lib/report/plan-fingerprint.ts)에도 칸을 더한다.
+     */
+    trainingEffort?: TrainingEffort;
     /** 최근 7일 평균 컨디션 (1~10, 높을수록 좋음) */
     avgCondition: number | null;
     /**
@@ -246,6 +259,7 @@ export function buildFacts({
   memos,
   baselineDailyLoad = null,
   rehab = null,
+  trainingNotes,
   today = appNow(),
 }: {
   nickname: string;
@@ -259,6 +273,11 @@ export function buildFacts({
   baselineDailyLoad?: number | null;
   /** 진행 중인 재활 — 없으면 null(lib/armcare/rehab.ts 의 rehabFacts 로 만든다) */
   rehab?: RehabFacts | null;
+  /**
+   * 최근 운동 힘듦(DailyTrainingNote — gather.ts 가 45일치를 넘긴다). 안 넘기면 condition.trainingEffort 칸을 만들지 않는다 —
+   * 옛 입력(기준선 도구 · 자체 시험)의 결과가 글자 하나 안 바뀌게.
+   */
+  trainingNotes?: TrainingNoteLike[];
   today?: Date;
 }): ReportFacts {
   const asOf = toDateKey(today);
@@ -367,6 +386,10 @@ export function buildFacts({
       throwPlanToday: todayCheckin?.throwPlan ?? null,
       throwPlanYesterday: yesterdayCheckin?.throwPlan ?? null,
       painWordsInMemo: findPainKeywords(memos),
+      /* 칸은 넘겨받았을 때만 — 조건부 펼침이라 안 넘기면 키 자체가 없다 */
+      ...(trainingNotes
+        ? { trainingEffort: trainingEffortOf(trainingNotes, asOf) }
+        : {}),
       avgCondition: conditions.length
         ? conditions.reduce((a, b) => a + b, 0) / conditions.length
         : null,

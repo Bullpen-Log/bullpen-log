@@ -280,6 +280,16 @@ import { REST_CLOCK_LIMIT_SECONDS, restSeconds } from '../lib/workout/rest.ts';
 /* 2판 안전망(P0) — 다섯 독자 중 매일 일정 · 투구 계획 · 암케어 밖의 둘(영양 · 근력 프로그램) */
 import { throwDayKind } from '../lib/nutrition/guide.ts';
 import { decideToday, parseProgram } from '../lib/program/program.ts';
+/* 2판 되먹임(P2) — 운동 끝 힘듦 한 번 */
+import {
+  EFFORT_LEVELS,
+  EFFORT_SPIKE_DIFF,
+  EFFORT_SPIKE_MIN_NOTES,
+  effortOf,
+  intensityOfEffort,
+  trainingEffortOf,
+  type TrainingNoteLike,
+} from '../lib/workout/effort.ts';
 /* 2판 되먹임(P2) — 일정 지문 */
 import {
   FINGERPRINT_KEYS,
@@ -9844,6 +9854,235 @@ console.log(
     'P2 (글) 같은 입력이면 격자 전체가 두 번 돌려도 글자까지 같다(결정성)',
     JSON.stringify(variants.map((v) => fingerprintOf(fpFacts(v)))) ===
       JSON.stringify(prints)
+  );
+}
+
+/* ═══════════════════ [2판 되먹임(P2)] 운동 끝 힘듦 한 번 — lib/workout/effort.ts · facts.condition.trainingEffort (2026-10-12) ═══════════════════ */
+console.log(
+  '\n[2판 되먹임(P2)] 운동 끝 힘듦 한 번 — 칩 눈금 · 급증 깃발 · facts 잇기 · 아무 규칙도 안 읽음(2026-10-12)'
+);
+{
+  /* ── 칩 눈금 ── */
+  check(
+    'P2 (눈금) 칩 넷 — 가벼움 3 · 보통 5 · 힘듦 7 · 아주 힘듦 9, 오름차순 · 1~10 안 · 글에 줄표 없음',
+    EFFORT_LEVELS.length === 4 &&
+      EFFORT_LEVELS.map((l) => `${l.label}:${l.intensity}`).join(' ') ===
+        '가벼움:3 보통:5 힘듦:7 아주 힘듦:9' &&
+      EFFORT_LEVELS.every(
+        (l, i, a) =>
+          l.intensity >= 1 &&
+          l.intensity <= 10 &&
+          (i === 0 || a[i - 1].intensity < l.intensity) &&
+          !l.hint.includes('—') &&
+          /(어요|에요)$/.test(l.hint)
+      )
+  );
+  check(
+    'P2 (눈금) 칩 → 눈금 → 칩 왕복이 넷 다 맞는다',
+    EFFORT_LEVELS.every(
+      (l) => intensityOfEffort(l.key) === l.intensity && effortOf(l.intensity) === l.key
+    )
+  );
+  check(
+    'P2 (눈금) 1~10 이 모두 한 칩으로 간다 — 1~4 가벼움 · 5~6 보통 · 7~8 힘듦 · 9~10 아주 힘듦',
+    Array.from({ length: 10 }, (_, i) => effortOf(i + 1)).join(',') ===
+      'light,light,light,light,normal,normal,hard,hard,max,max'
+  );
+  check(
+    'P2 (눈금) 범위 밖은 가장 가까운 끝(0 → 가벼움 · 11 → 아주 힘듦), 소수는 반올림(6.4 → 보통 · 6.6 → 힘듦)',
+    effortOf(0) === 'light' &&
+      effortOf(11) === 'max' &&
+      effortOf(6.4) === 'normal' &&
+      effortOf(6.6) === 'hard'
+  );
+  check(
+    'P2 (눈금) 모르는 값은 null — 글자 아님 · 없는 열쇠 · 빈 글',
+    intensityOfEffort(7) === null &&
+      intensityOfEffort('x') === null &&
+      intensityOfEffort('') === null &&
+      intensityOfEffort(undefined) === null &&
+      intensityOfEffort(null) === null
+  );
+  check(
+    'P2 (눈금) 부하 배수가 칩 차례대로 커진다(가벼움 0.7 < 보통 0.9 < 힘듦 1.1 < 아주 힘듦 1.3, lib/training-load.ts)',
+    EFFORT_LEVELS.every(
+      (l, i, a) =>
+        i === 0 || intensityFactor(a[i - 1].intensity) < intensityFactor(l.intensity)
+    ) &&
+      Math.abs(intensityFactor(5) - 0.9) < 0.001 &&
+      Math.abs(intensityFactor(9) - 1.3) < 0.001
+  );
+
+  /* ── 급증 깃발(trainingEffortOf) ── */
+  const asOf = dayBefore(0).slice(0, 10);
+  const note = (daysAgo: number, intensity: number): TrainingNoteLike => ({
+    date: dayBefore(daysAgo).slice(0, 10),
+    intensity,
+  });
+  const fives = (from: number, to: number) =>
+    Array.from({ length: to - from + 1 }, (_, i) => note(from + i, 5));
+  check(
+    'P2 (급증) 입력 없음 → last7 [] · last28 [] · spikeFlag false',
+    JSON.stringify(trainingEffortOf([], asOf)) ===
+      JSON.stringify({ last7: [], last28: [], spikeFlag: false })
+  );
+  check(
+    `P2 (급증) 상수 — 7일 안 ${EFFORT_SPIKE_MIN_NOTES}개 이상 · 차이 ${EFFORT_SPIKE_DIFF} 이상(검토안 '7일 중 3개')`,
+    EFFORT_SPIKE_MIN_NOTES === 3 && EFFORT_SPIKE_DIFF === 2
+  );
+  const two = trainingEffortOf([note(0, 9), note(2, 9), ...fives(8, 12)], asOf);
+  check(
+    'P2 (급증) 7일 안 둘(9 · 9)은 3개 미만이라 false — 28일 평균이 아무리 낮아도',
+    two.last7.length === 2 && two.last28.length === 7 && two.spikeFlag === false
+  );
+  const three = trainingEffortOf(
+    [note(0, 9), note(2, 9), note(5, 9), ...fives(8, 11)],
+    asOf
+  );
+  check(
+    'P2 (급증) 7일 안 셋 9 · 그 밖 5 넷 → 7일 평균 9 · 28일 평균 6.71 · 차이 2.29 → true',
+    three.last7.length === 3 && three.last28.length === 7 && three.spikeFlag === true
+  );
+  const mild = trainingEffortOf(
+    [note(0, 7), note(2, 7), note(5, 7), ...fives(8, 11)],
+    asOf
+  );
+  check(
+    'P2 (급증) 7일 안 셋 7 · 그 밖 5 넷 → 차이 1.14 → false',
+    mild.last7.length === 3 && mild.spikeFlag === false
+  );
+  const edge = trainingEffortOf(
+    [note(0, 9), note(2, 9), note(5, 9), ...fives(8, 10)],
+    asOf
+  );
+  check(
+    'P2 (급증) 경계 — 7일 평균 9 · 28일 평균 7(42/6) · 차이 정확히 2 → true(부동소수 오차에 안 빠짐)',
+    edge.last28.length === 6 && edge.spikeFlag === true
+  );
+  const flat = trainingEffortOf([note(0, 9), note(1, 9), note(2, 9)], asOf);
+  check(
+    'P2 (급증) 7일 안 셋뿐이면 28일 평균도 같아 차이 0 → false(꾸준히 힘든 것은 급증이 아니다)',
+    flat.last7.length === 3 && flat.last28.length === 3 && flat.spikeFlag === false
+  );
+  const windows = trainingEffortOf(
+    [note(-1, 10), note(0, 3), note(6, 4), note(7, 6), note(27, 8), note(28, 9)],
+    asOf
+  );
+  check(
+    'P2 (급증) 창 — 오늘 · 6일 전은 last7, 7일 전 · 27일 전은 last28 만, 28일 전 · 앞날은 둘 다 아님; 날짜 오름차순',
+    JSON.stringify(windows.last7) === '[4,3]' &&
+      JSON.stringify(windows.last28) === '[8,6,4,3]'
+  );
+  const dirty = trainingEffortOf(
+    [
+      { date: 'x', intensity: 9 },
+      { date: asOf, intensity: Number.NaN },
+      { date: asOf, intensity: 5 },
+      { date: asOf, intensity: 7 },
+    ],
+    asOf
+  );
+  check(
+    'P2 (급증) 깨진 날짜 · NaN 은 빼고, 같은 날 두 줄이면 뒤 것이 이긴다',
+    JSON.stringify(dirty.last7) === '[7]' && JSON.stringify(dirty.last28) === '[7]'
+  );
+  check(
+    'P2 (급증) 같은 입력 두 번 → 글자까지 같다(결정성)',
+    JSON.stringify(
+      trainingEffortOf([note(0, 9), note(2, 9), note(5, 9), ...fives(8, 11)], asOf)
+    ) === JSON.stringify(three)
+  );
+
+  /* ── facts 잇기 ── */
+  const factsWith = (trainingNotes?: TrainingNoteLike[], condition = 7) =>
+    buildFacts({
+      nickname: '힘듦',
+      age: 22,
+      heightCm: 180,
+      trainingLevel: '중급',
+      baselineDailyLoad: 100,
+      rehab: null,
+      today: TODAY,
+      logs: [40, 0, 35, 0, 40, 0, 30].map<PitchLogLike>((count, i) => ({
+        date: dayBefore(i + 1),
+        pitchCount: count,
+        intensity: 7,
+        maxVelocity: 130,
+        avgVelocity: 120,
+      })),
+      checkins: [
+        {
+          date: asOf,
+          condition,
+          sleep: '보통',
+          shoulder: '정상',
+          elbow: '정상',
+          wrist: '정상',
+          lowerBack: '정상',
+          lowerBody: '정상',
+          preferredParts: [],
+          preferredWorkout: null,
+        } satisfies CheckinLike,
+      ],
+      memos: [],
+      ...(trainingNotes ? { trainingNotes } : {}),
+    });
+  const none = factsWith();
+  check(
+    'P2 (facts) trainingNotes 를 안 넘기면 condition 에 trainingEffort 칸 자체가 없다(옛 입력과 같은 모양)',
+    !('trainingEffort' in none.condition) && none.condition.trainingEffort === undefined
+  );
+  const empty = factsWith([]);
+  check(
+    'P2 (facts) 빈 목록을 넘기면 { last7: [], last28: [], spikeFlag: false }',
+    JSON.stringify(empty.condition.trainingEffort) ===
+      JSON.stringify({ last7: [], last28: [], spikeFlag: false })
+  );
+  const spiked = factsWith([note(0, 9), note(2, 9), note(5, 9), ...fives(8, 11)]);
+  check(
+    'P2 (facts) 7일 안 셋 9 · 28일 안 5 넷 → facts.condition.trainingEffort.spikeFlag true · last7 셋 · last28 일곱',
+    spiked.condition.trainingEffort?.spikeFlag === true &&
+      spiked.condition.trainingEffort.last7.length === 3 &&
+      spiked.condition.trainingEffort.last28.length === 7
+  );
+  const excluded = factsWith([note(2, 9), note(5, 9), ...fives(8, 11)]);
+  check(
+    'P2 (facts) excludeToday 흉내 — 오늘 줄을 뺀 입력이면 last7 이 둘이라 false(gather.ts 가 오늘 로그와 같은 규칙으로 뺀다)',
+    excluded.condition.trainingEffort?.spikeFlag === false &&
+      excluded.condition.trainingEffort.last7.length === 2
+  );
+  check(
+    'P2 (facts) 힘듦 칸 말고는 facts 가 글자 하나 안 다르다(있을 때 · 없을 때)',
+    JSON.stringify({
+      ...spiked,
+      condition: { ...spiked.condition, trainingEffort: undefined },
+    }) === JSON.stringify(none)
+  );
+
+  /* ── 아직 아무 규칙도 안 읽는다(P5 몫) — 지문 · 투구 계획 · 후보 거르기가 같다 ── */
+  check(
+    'P2 (안 읽음) 급증 깃발이 켜져도 일정 지문(fingerprintOf)은 글자까지 같다',
+    JSON.stringify(fingerprintOf(spiked)) === JSON.stringify(fingerprintOf(none))
+  );
+  check(
+    'P2 (안 읽음) 급증 깃발이 켜져도 투구 계획(buildPitchPlan)이 같다',
+    JSON.stringify(buildPitchPlan(spiked)) === JSON.stringify(buildPitchPlan(none))
+  );
+  const pickedWith = selectCandidates({
+    facts: spiked,
+    plan: buildPitchPlan(spiked),
+    library,
+  });
+  const pickedWithout = selectCandidates({
+    facts: none,
+    plan: buildPitchPlan(none),
+    library,
+  });
+  check(
+    'P2 (안 읽음) 급증 깃발이 켜져도 운동 후보(selectCandidates)가 같다',
+    pickedWith.candidates.map((e) => e.id).join() ===
+      pickedWithout.candidates.map((e) => e.id).join() &&
+      pickedWith.halted === pickedWithout.halted
   );
 }
 
