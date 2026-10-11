@@ -196,6 +196,79 @@ if np is not None:
     )
     check("gate: miss 장면은 0", np.array(sam3d.gate(resg, np.rint(truth * 1000).astype(int).tolist(), trk, list(range(ng))))[12].max() == 0)
 
+    # 몸통 마디(trunk_points) — 위로 갈수록 40° 꼬이고 앞으로 휜 타원 기둥 겉면 + 몸통 옆에 붙은 팔 점(빼야 함)
+    def torso_mesh(twist_deg: float, bend: float):
+        hipc, shc = np.array([0.0, 0.0, 0.0]), np.array([0.0, 0.5, 0.0])  # 축 = +y, 앞 = +z, 오른쪽 = +x
+        pts = []
+        for hy in np.linspace(-0.05, 0.55, 121):
+            f = hy / 0.5
+            th = np.radians(twist_deg) * f
+            off = np.array([0.0, 0.0, bend * np.sin(np.pi * min(max(f, 0), 1))])
+            for a in np.linspace(0, 2 * np.pi, 72, endpoint=False):
+                x, z = 0.16 * np.cos(a), 0.10 * np.sin(a)
+                pts.append([x * np.cos(th) - z * np.sin(th), hy, x * np.sin(th) + z * np.cos(th)] + off)
+        k70m = np.zeros((70, 3))
+        k70m[sam3d.MHR["lHip"]], k70m[sam3d.MHR["rHip"]] = hipc + [-0.09, 0, 0], hipc + [0.09, 0, 0]
+        th = np.radians(twist_deg)
+        sx = np.array([np.cos(th), 0.0, np.sin(th)]) * 0.19
+        shc = shc + [0.0, 0.0, bend * np.sin(np.pi * 0.9)]  # 어깨 · 팔도 휜 몸통을 따라 앞으로
+        k70m[sam3d.MHR["lSh"]], k70m[sam3d.MHR["rSh"]] = shc - sx, shc + sx
+        for side, sg in (("l", -1), ("r", 1)):  # 팔이 몸통 옆으로 내려옴 — 단면 판을 지나간다
+            s0 = k70m[sam3d.MHR[side + "Sh"]]
+            el, wr = s0 + [0.04 * sg, -0.28, 0.0], s0 + [0.06 * sg, -0.52, 0.05]
+            k70m[sam3d.MHR[side + "El"]], k70m[sam3d.MHR[side + "Wr"]] = el, wr
+            for u in np.linspace(0, 1, 40):
+                for a in np.linspace(0, 2 * np.pi, 12, endpoint=False):
+                    c = s0 + (el - s0) * u if u < 0.5 else el + (wr - el) * (u - 0.5) * 2
+                    pts.append(c + 0.045 * np.array([np.cos(a), 0, np.sin(a)]))
+        return np.array(pts), k70m
+
+    mesh, k70m = torso_mesh(40.0, 0.04)
+    tp = sam3d.trunk_points(mesh, k70m)
+    ok_tw, ok_c, detail = True, True, []
+    for i, f in enumerate(sam3d.TRUNK_LEVELS):
+        side = tp[2 * i + 1] - tp[2 * i]
+        ang = np.degrees(np.arctan2(side[2], side[0]))
+        want = 40.0 * f
+        cz = tp[2 * i][2]
+        want_z = 0.04 * np.sin(np.pi * f)
+        ok_tw &= abs(ang - want) < 4.0
+        ok_c &= abs(cz - want_z) < 0.012 and abs(np.linalg.norm(side) - sam3d.TRUNK_SIDE_M) < 1e-9
+        detail.append(f"{ang:.1f}/{want:.1f}° z {cz * 1000:.0f}/{want_z * 1000:.0f}mm")
+    check("몸통 마디: 높이마다 꼬인 각(±4°) · 앞으로 휜 가운데(±12mm)를 잰다 — 몸통 옆 팔 점은 뺀다", ok_tw and ok_c, " · ".join(detail))
+    # 숙인 몸통을 비스듬히 자른 단면 — 앞뒤가 좌우보다 길다(0.10 × 0.18). 좌우 축은 넓은 방향이 아니라 엉덩이 · 어깨선 쪽 주축
+    obl = []
+    for hy in np.linspace(-0.05, 0.55, 121):
+        th = np.radians(20.0) * hy / 0.5
+        for a in np.linspace(0, 2 * np.pi, 72, endpoint=False):
+            x, z = 0.10 * np.cos(a), 0.18 * np.sin(a)
+            obl.append([x * np.cos(th) - z * np.sin(th), hy, x * np.sin(th) + z * np.cos(th)])
+    k70o = np.zeros((70, 3))
+    k70o[sam3d.MHR["lHip"]], k70o[sam3d.MHR["rHip"]] = [-0.09, 0, 0], [0.09, 0, 0]
+    so = np.array([np.cos(np.radians(20.0)), 0.0, np.sin(np.radians(20.0))]) * 0.19
+    k70o[sam3d.MHR["lSh"]], k70o[sam3d.MHR["rSh"]] = np.array([0, 0.5, 0]) - so, np.array([0, 0.5, 0]) + so
+    tpo = sam3d.trunk_points(np.array(obl), k70o)
+    ango = [np.degrees(np.arctan2(*(tpo[2 * i + 1] - tpo[2 * i])[[2, 0]])) for i in range(len(sam3d.TRUNK_LEVELS))]
+    check(
+        "몸통 마디: 앞뒤가 더 긴 단면(숙인 몸통)도 좌우 축을 앞뒤로 착각하지 않는다(±4°)",
+        all(abs(a - 20.0 * f) < 4.0 for a, f in zip(ango, sam3d.TRUNK_LEVELS)),
+        " · ".join(f"{a:.1f}/{20.0 * f:.1f}°" for a, f in zip(ango, sam3d.TRUNK_LEVELS)),
+    )
+    tp0 = sam3d.trunk_points(mesh[:50], k70m)  # 겉면 점이 모자람 — 못 잼(두 점이 같다)
+    check("몸통 마디: 점이 모자란 높이는 두 점이 같다(못 잼)", all(np.allclose(tp0[2 * i], tp0[2 * i + 1]) for i in range(len(sam3d.TRUNK_LEVELS))))
+    # assemble 이 몸통 마디를 관절과 똑같이 옮긴다 — 70점 뒤 TRUNK_ROWS 줄
+    trunk_ours = np.array([[(ours[k][ix["lHip"]] + ours[k][ix["rHip"]]) / 2 + [0.01 * r, 0.1 * (r // 2), 0.02 * (r % 2)] for r in range(sam3d.TRUNK_ROWS)] for k in range(n)])
+    raw_t = {}
+    for k, v in inv.items():
+        t_cam = (Rz @ (trunk_ours[k] / 1.3).T).T + [0.5, -0.2, 3.0]
+        raw_t[k] = np.concatenate([np.array(v), t_cam], 0).tolist()
+    ai_t = sam3d.assemble(res, {k: v for k, v in raw_t.items() if k != 5 and not 10 <= k <= 15}, _NAMES, ts)
+    tr_out = np.array(ai_t.get("trunk", [])) / 1000
+    good = [k for k in range(n) if not 10 <= k <= 15]
+    err_t = np.abs(tr_out[good] - trunk_ours[good]).max() if len(tr_out) else 1.0
+    check("assemble: 몸통 마디도 우리 좌표로(1.5mm 안) · 관절은 그대로", err_t < 0.0015 and np.abs(np.array(ai_t["joints"]) / 1000 - ours).max() < 0.0015, f"{err_t * 1000:.2f}mm")
+    check("assemble: 몸통 마디가 없는 그림(70점)이면 trunk 를 안 싣는다", "trunk" not in ai)
+
     # 나눠 맡기(ai_parallel) — 가짜 줄 · 스레드 도우미
     import queue as _q
     import threading

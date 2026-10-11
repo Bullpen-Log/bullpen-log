@@ -223,8 +223,10 @@ export type Pitch3dV2Ok = {
   /**
    * miss — AI 가 못 본 장면(긴 틈). 그 장면의 joints 는 우리 것 그대로이고 화면은 섞지 않는다.
    * w — 장면 × 관절마다 AI 를 섞는 비율(0~100): 두 영상에서 AI 관절이 우리 것보다 2D 관절에 가까운 만큼만(GPU sam3d.gate). 없으면 옛 결과
+   * trunk — 장면 × 6 점(정수 mm, joints 와 같은 좌표): 몸통 세 높이(엉덩이 → 어깨의 0.41 · 0.60 · 0.83)마다 [단면 가운데, 가운데 + 오른쪽 10cm].
+   *   AI 가 맞춘 몸 겉면을 잘라 잰 허리 · 등 마디(GPU sam3d.trunk_points, 2026-10-12) — 못 잰 높이는 두 점이 같다. 화면은 lib/pitch-3d/v2/trunk.ts
    */
-  experimental?: { sam3d?: { model: string; joints: number[][][]; miss?: number[]; w?: number[][] } };
+  experimental?: { sam3d?: { model: string; joints: number[][][]; miss?: number[]; w?: number[][]; trunk?: number[][][] } };
 };
 
 export type Pitch3dV2Fail = {

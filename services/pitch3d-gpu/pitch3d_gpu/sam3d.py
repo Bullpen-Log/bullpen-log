@@ -8,7 +8,8 @@ SAM 3D Body 는 사람 몸(MHR)을 맞추지만 여기서는 관절 점(MHR 70�
   2 infer_items — 한 장씩 추론(L4 장면당 0.8~0.95초). 여러 GPU 가 나눠 맡는다(app.py AiHelper — 같은 영상을 같은 방법으로 풀어 같은 그림)
   3 assemble — 70점 → 엔진 관절 25개, 우리 좌표로(클립 전체에 회전 · 크기 하나 — 잘 보인 몸통 · 다리로 Umeyama), 시간으로 살짝 고르기(앞뒤 두 그림에
     2차식 — AI 는 그림마다 따로 봐서 떨린다), 결과 장면 시각으로 잇기, 장면마다 골반 가운데를 우리 골반에. 실패한 그림이 둘 넘게 이어진 틈은 miss
-  4 결과 experimental.sam3d = { model, joints(장면 × 25 × 3 정수 mm), miss? } — 화면이 우리 관절과 섞는다(lib/pitch-3d/v2/display.ts)
+  4 결과 experimental.sam3d = { model, joints(장면 × 25 × 3 정수 mm), trunk?(장면 × 6 × 3 정수 mm), miss? } — 화면이 우리 관절과 섞는다
+    (lib/pitch-3d/v2/display.ts), trunk 는 인형 몸통의 허리 · 등 마디(lib/pitch-3d/v2/trunk.ts)
   video_agreement — 우리 · AI 관절을 두 영상에 비춰 2D 관절과의 차이(부위별) — 어느 쪽이 실제 영상에 가까운지 로그로 본다
 
 잰 것(2026-10-09, 같은 사진 8장): 손 단계를 빼면(body) 4배 빠르지만 손이 최대 84mm 틀어짐 · JPEG 로 넘기면 손 16mm · bf16 실패 · TF32 · CPU 늘리기 ·
@@ -25,6 +26,9 @@ import sys
 from typing import Any, Callable
 
 HF_REPO = "facebook/sam-3d-body-vith"
+# 추론 방식 — 'body' 는 손 단계를 뺀다(4배 빠름, 손 관절이 최대 84mm 틀어짐 — 2026-10-09 시험). 화면은 AI 관절을 섞지 않고 몸통 마디만 쓰므로
+# 'body' 가 기본(2026-10-12). 손까지 보려면 Modal 환경변수 PITCH3D_AI_MODE=full
+INFER_MODE = os.environ.get("PITCH3D_AI_MODE", "body")
 MODEL_NAME = "sam-3d-body-vith"
 REPO_DIR = "/opt/sam-3d-body"
 # 같은 그림 — 사람 상자 안(세로 96px 로 줄여)에서 밝기가 12 넘게 바뀐 점이 이 비율 밑이면 앞 장면과 같은 그림
@@ -70,6 +74,22 @@ MHR = {
     "lHandPinky": 61,
     "lWr": 62,
 }
+# 몸통 마디(2026-10-12 김민: "몸통이 꽈배기처럼 꼬이고 숙여지는 게 전혀 안 된다") — 엔진 관절은 엉덩이 · 어깨 넷뿐이라 그 사이(허리 · 등)를 모른다.
+# AI 가 맞춘 몸 겉면(MHR 메시)을 엉덩이 가운데 → 어깨 가운데 축의 세 높이에서 얇게 잘라, 단면의 가운데와 좌우 축(가장 넓은 방향)을 잰다.
+# 높이 비율은 인형 몸통의 가운데 선 점(mannequin-loft torsoModel — 엉덩이 → 어깨의 0.41 · 0.60 · 0.83)과 같다.
+# 결과에는 높이마다 두 점(단면 가운데, 가운데 + 오른쪽 10cm)을 70점 뒤에 붙여 관절과 똑같이 옮기고 고른다 — 못 잰 높이는 두 점이 같다.
+TRUNK_LEVELS = (0.41, 0.60, 0.83)
+TRUNK_SIDE_M = 0.1
+TRUNK_SLAB_M = 0.015  # 단면 두께의 반
+TRUNK_RADIUS_M = 0.3  # 축에서 이보다 먼 점은 처음부터 뺀다
+# 단면은 타원으로 보고, 타원 밖으로 튀어나온 점(몸통에 붙은 팔 · 앞을 가로지른 글러브 팔)을 몇 번 걸러 낸다. 팔 선에서 가까운 점을 빼던
+# 첫 방법은 팔이 옆구리에 붙으면 옆구리까지 빼서 꼬임을 최대 24° 틀렸다(합성 몸통 36가지: 거르기 최대 3° · 평균 0.5°).
+TRUNK_TRIM_ITERS = 4
+TRUNK_TRIM_PCT = 97
+TRUNK_TRIM_RHO = 1.08
+TRUNK_MIN_PTS = 30
+TRUNK_ROWS = 2 * len(TRUNK_LEVELS)
+
 # 맞추기의 잘 보인 관절로 회전 · 크기를 정할 때 쓰는 관절(몸통 · 다리 — 팔은 흐려서 뺀다)
 ALIGN = ["lSh", "rSh", "lHip", "rHip", "lKn", "rKn", "lAn", "rAn"]
 
@@ -81,6 +101,77 @@ def to_v2(k70, names: list[str]):
     import numpy as np
 
     return np.array([k70[MHR[n]] for n in names], dtype=float)
+
+
+def trunk_points(verts, k70):
+    """몸 겉면(V,3) · 70점(70,3), 같은 좌표 · 미터 → 몸통 높이마다 [가운데, 가운데 + 오른쪽 TRUNK_SIDE_M] (TRUNK_ROWS,3).
+
+    축 = 엉덩이 가운데 → 어깨 가운데. 높이 f 에서 축에 수직인 얇은 판(±TRUNK_SLAB_M)의 겉면 점 중 축 가까이 · 팔에서 먼 것만 모아
+    단면 상자 가운데와 넓은 방향(2×2 공분산의 큰 고유 벡터)을 잰다 — 타원 밖으로 튀어나온 점(팔)은 걸러 가며 다시 잰다.
+    좌우 부호는 엉덩이선 → 어깨선을 높이대로 섞은 방향에 맞춘다.
+    점이 모자란 높이는 두 점을 같게 둔다(못 잼).
+    """
+    import numpy as np
+
+    V = np.asarray(verts, dtype=float)
+    K = np.asarray(k70, dtype=float)
+    hip = (K[MHR["lHip"]] + K[MHR["rHip"]]) / 2
+    sh = (K[MHR["lSh"]] + K[MHR["rSh"]]) / 2
+    ax = sh - hip
+    L = float(np.linalg.norm(ax))
+    out = np.zeros((TRUNK_ROWS, 3))
+    if L < 0.1 or not np.all(np.isfinite(V)):
+        return out
+    u = ax / L
+    hipLine = K[MHR["rHip"]] - K[MHR["lHip"]]
+    shLine = K[MHR["rSh"]] - K[MHR["lSh"]]
+    seed = hipLine - u * (hipLine @ u)
+    if np.linalg.norm(seed) < 1e-6:
+        seed = np.cross(u, [0.0, 0.0, 1.0])
+    e1 = seed / np.linalg.norm(seed)
+    e2 = np.cross(u, e1)
+    rel = V - hip
+    h = rel @ u
+    radial = rel - h[:, None] * u
+    far = np.linalg.norm(radial, axis=1)
+    for i, f in enumerate(TRUNK_LEVELS):
+        m = (np.abs(h - f * L) < TRUNK_SLAB_M) & (far < TRUNK_RADIUS_M)
+        c = hip + u * (f * L)
+        out[2 * i] = c
+        out[2 * i + 1] = c
+        if int(m.sum()) < TRUNK_MIN_PTS:
+            continue
+        q = np.stack([radial[m] @ e1, radial[m] @ e2], 1)
+        keep = np.ones(len(q), dtype=bool)
+        mid, d2 = q.mean(0), np.array([1.0, 0.0])
+        for _ in range(TRUNK_TRIM_ITERS):
+            Q = q[keep]
+            if len(Q) < TRUNK_MIN_PTS:
+                break
+            mid = (Q.min(0) + Q.max(0)) / 2
+            w, vec = np.linalg.eigh(np.cov((Q - Q.mean(0)).T))
+            d2 = vec[:, int(np.argmax(w))]
+            n2 = np.array([-d2[1], d2[0]])
+            x, y = (q - mid) @ d2, (q - mid) @ n2
+            ax_a = max(float(np.percentile(np.abs(x[keep]), TRUNK_TRIM_PCT)), 1e-4)
+            ax_b = max(float(np.percentile(np.abs(y[keep]), TRUNK_TRIM_PCT)), 1e-4)
+            keep = np.sqrt((x / ax_a) ** 2 + (y / ax_b) ** 2) < TRUNK_TRIM_RHO
+        if int(keep.sum()) < TRUNK_MIN_PTS:
+            continue
+        # 좌우 축 = 단면의 두 주축 중 엉덩이선 → 어깨선(높이대로 섞음)에 가까운 쪽. 숙인 몸통을 축에 수직으로 자르면 단면이 앞뒤로 더 길어져
+        # '넓은 방향'이 앞뒤가 되곤 했다(2026-10-12 좌투 샘플 3: 허리가 양 끝보다 38° 더 꼬임). 몸은 좌우 대칭이라 주축 둘은 늘 좌우 · 앞뒤다.
+        ref = hipLine * (1 - f) + shLine * f
+        r2 = np.array([ref @ e1, ref @ e2])
+        n2 = np.array([-d2[1], d2[0]])
+        if abs(n2 @ r2) > abs(d2 @ r2):
+            d2 = n2
+        side = e1 * d2[0] + e2 * d2[1]
+        if side @ ref < 0:
+            side = -side
+        c = c + e1 * mid[0] + e2 * mid[1]
+        out[2 * i] = c
+        out[2 * i + 1] = c + side / np.linalg.norm(side) * TRUNK_SIDE_M
+    return out
 
 
 def umeyama(src, dst):
@@ -207,6 +298,7 @@ def infer_items(est, frames: list, items: list[dict]) -> dict[int, list]:
                     img[:, :, ::-1].copy(),
                     bboxes=np.array([it["box"]], dtype=np.float32),
                     cam_int=torch.from_numpy(np.array(it["K"], dtype=np.float32))[None],
+                    inference_type=INFER_MODE,
                 )
         except Exception as e:  # noqa: BLE001
             print(f"[pitch3d ai] 장면 {it['k']} 실패 — {type(e).__name__}: {str(e)[:200]}")
@@ -214,9 +306,18 @@ def infer_items(est, frames: list, items: list[dict]) -> dict[int, list]:
         if not outs:
             continue
         o = outs[0]
-        k70 = np.asarray(o["pred_keypoints_3d"], dtype=float) + np.asarray(o["pred_cam_t"], dtype=float)[None]
-        if np.all(np.isfinite(k70)):
-            out[int(it["k"])] = k70.tolist()
+        cam_t = np.asarray(o["pred_cam_t"], dtype=float)[None]
+        k70 = np.asarray(o["pred_keypoints_3d"], dtype=float) + cam_t
+        if not np.all(np.isfinite(k70)):
+            continue
+        rows = k70
+        verts = o.get("pred_vertices")
+        if verts is not None:  # 몸통 마디(70점 뒤에 TRUNK_ROWS 줄) — 못 재면 70점만
+            try:
+                rows = np.concatenate([k70, trunk_points(np.asarray(verts, dtype=float) + cam_t, k70)], 0)
+            except Exception as e:  # noqa: BLE001
+                print(f"[pitch3d ai] 장면 {it['k']} 몸통 마디 실패 — {type(e).__name__}: {str(e)[:200]}")
+        out[int(it["k"])] = rows.tolist()
     return out
 
 
@@ -255,7 +356,18 @@ def assemble(result: dict, raw70: dict[int, Any], names: list[str], times: list[
     conf = np.array(result["conf"], dtype=float) / 100.0
     rt = np.array(result["t"], dtype=float)
     n = len(our)
-    raw = {int(k): to_v2(np.asarray(v, dtype=float), names) for k, v in raw70.items() if 0 <= int(k) < len(times)}
+    nj = len(names)
+
+    def rows_of(v):
+        """70점(+ 몸통 마디) → 엔진 관절 25 + 몸통 마디 TRUNK_ROWS(없으면 두 점을 같게 — 못 잼)."""
+        a = np.asarray(v, dtype=float)
+        j = to_v2(a, names)
+        tr = a[70 : 70 + TRUNK_ROWS] if len(a) >= 70 + TRUNK_ROWS else np.repeat(((j[idx0["lHip"]] + j[idx0["rHip"]]) / 2)[None], TRUNK_ROWS, 0)
+        return np.concatenate([j, tr], 0)
+
+    idx0 = {nm: i for i, nm in enumerate(names)}
+    has_trunk = any(len(v) >= 70 + TRUNK_ROWS for v in raw70.values())
+    raw = {int(k): rows_of(v) for k, v in raw70.items() if 0 <= int(k) < len(times)}
     if len(raw) < max(10, len(times) // 3):
         print(f"[pitch3d ai] 그림이 모자람 {len(raw)}/{len(times)} — 싣지 않음")
         return None
@@ -281,7 +393,7 @@ def assemble(result: dict, raw70: dict[int, Any], names: list[str], times: list[
     kt = np.array([times[k] for k in keys])
     half = 0.5 * float(np.median(np.diff(times))) if len(times) > 1 else 0.0  # 그림 하나가 보이는 시간의 반
     tor = [idx[nm] for nm in TORSO]
-    out = np.zeros_like(our)
+    out = np.zeros((n, nj + TRUNK_ROWS, 3))
     miss: list[int] = []
     for k in range(n):
         j = int(np.searchsorted(kt, rt[k], side="right"))  # kt[j-1] <= t < kt[j]
@@ -299,7 +411,8 @@ def assemble(result: dict, raw70: dict[int, Any], names: list[str], times: list[
                 rel = shape[keys[q]]
         if rel is None:
             miss.append(k)
-            rel = our[k] - pelvis(our[k])  # 화면이 miss 장면은 섞지 않는다 — 우리 것 그대로
+            # 화면이 miss 장면은 섞지 않는다 — 우리 것 그대로, 몸통 마디는 못 잼(두 점이 같게)
+            rel = np.concatenate([our[k] - pelvis(our[k]), np.zeros((TRUNK_ROWS, 3))], 0)
         else:
             # 몸통 방향은 우리 것(두 영상으로 잰 것)으로 — 한 영상만 본 AI 는 몸 전체가 돌아간 채로 나오곤 한다
             ta = rel[tor] - rel[tor].mean(0)
@@ -311,7 +424,12 @@ def assemble(result: dict, raw70: dict[int, Any], names: list[str], times: list[
     ok = [k for k in range(n) if k not in set(miss)]
     res = float(np.mean([np.linalg.norm(our[k][al] - out[k][al], axis=1).mean() for k in ok])) if ok else 0.0
     print(f"[pitch3d ai] 그림 {len(raw)}/{len(times)} · 빈 장면 {len(miss)}/{n} · 크기 {s:.3f} · 몸통 · 다리 평균 차이 키의 {res * 100:.1f}%")
-    ai: dict = {"model": MODEL_NAME, "joints": np.rint(out * 1000).astype(int).tolist()}
+    ai: dict = {"model": MODEL_NAME, "joints": np.rint(out[:, :nj] * 1000).astype(int).tolist()}
+    if has_trunk:
+        tr = out[:, nj:]
+        seen = int(sum(np.linalg.norm(tr[k, 1::2] - tr[k, 0::2], axis=1).min() > TRUNK_SIDE_M * 0.3 for k in range(n)))
+        print(f"[pitch3d ai] 몸통 마디 잰 장면 {seen}/{n}")
+        ai["trunk"] = np.rint(tr * 1000).astype(int).tolist()
     if miss:
         ai["miss"] = miss
     return ai

@@ -1,6 +1,7 @@
 import type { Vec3 } from '@/lib/pitch-3d/linalg';
 import { V2_JOINTS, type Pitch3dV2Ok } from '@/lib/pitch-3d/v2/contract';
 import type { DisplayTrack } from '@/lib/pitch-3d/v2/display';
+import { aiTrunkInputs, trunkTrack } from '@/lib/pitch-3d/v2/trunk';
 
 /**
  * 데생 인형 보기용 관절(설계 docs/designs/pitch-3d-mannequin.md) — displayTrack 의 관절을 인형이 쓰는 꼴로 바꾸고, 보기만을 위해 두 가지를 다듬는다.
@@ -22,6 +23,11 @@ export type MannequinJoints = {
   /** 몸통 축 위 두 점(엉덩이 가운데 → 어깨 가운데의 55% · 105%) */
   td: Vec3; tp: Vec3;
   nose: Vec3; ear: Vec3;
+  /**
+   * 몸통 마디(trunk.ts) — 엉덩이 → 어깨의 0.41 · 0.60 · 0.83 높이의 단면 가운데(t1 · t2 · t3)와 가운데 + 좌우 축 10cm(t1s · t2s · t3s).
+   * 점으로 두어 좌투 거울 뜨기(canonicalFrames)가 다른 관절과 똑같이 뒤집는다. 없으면 몸통이 예전처럼 곧은 한 덩어리.
+   */
+  t1?: Vec3; t1s?: Vec3; t2?: Vec3; t2s?: Vec3; t3?: Vec3; t3s?: Vec3;
 };
 
 export type MannequinTrack = {
@@ -99,15 +105,22 @@ export function smoothForMannequin(frames: Vec3[][], result: Pick<Pitch3dV2Ok, '
 }
 
 /** 다듬은 장면 → 인형 관절(x 앞 · y 왼쪽 · z 위) */
-export function mannequinTrack(track: DisplayTrack, result: Pick<Pitch3dV2Ok, 'hand' | 'events'>, heightM: number): MannequinTrack {
+export function mannequinTrack(
+  track: DisplayTrack,
+  result: Pick<Pitch3dV2Ok, 'hand' | 'events'> & Partial<Pick<Pitch3dV2Ok, 'joints' | 'experimental'>>,
+  heightM: number
+): MannequinTrack {
   const S = smoothForMannequin(track.frames, result, heightM);
+  /* 몸통 마디 — 다듬은 장면(보기 축 · 미터)에 AI 허리 · 등 마디를 상대 값으로 붙이고 못 믿는 만큼 규칙으로(trunk.ts) */
+  const ai = aiTrunkInputs(result);
+  const TR = trunkTrack(S, ai.joints, ai.trunk, ai.miss).levels;
   const R = result.hand !== 'L';
   const pick = (a: string, b: string) => IX(R ? a : b);
   const at = (f: Vec3[], j: number): Vec3 => [f[j][0], -f[j][2], f[j][1]];
   const mid = (a: Vec3, b: Vec3): Vec3 => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2];
   const lerp = (a: Vec3, b: Vec3, t: number): Vec3 => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
   const ev = result.events;
-  const frames = S.map((f) => {
+  const frames = S.map((f, k) => {
     const g = (a: string, b: string) => at(f, pick(a, b));
     const hip = mid(at(f, IX('lHip')), at(f, IX('rHip')));
     const shm = mid(at(f, IX('lSh')), at(f, IX('rSh')));
@@ -118,7 +131,17 @@ export function mannequinTrack(track: DisplayTrack, result: Pick<Pitch3dV2Ok, 'h
       ha: g('rHandMid', 'lHandMid'), gh: g('lHandMid', 'rHandMid'),
       td: lerp(hip, shm, 0.55), tp: lerp(hip, shm, 1.05),
       nose: at(f, IX('nose')), ear: mid(at(f, IX('lEar')), at(f, IX('rEar'))),
+      ...trunkFields(TR[k]),
     };
   });
   return { frames, heightM, dt: 0.15 / Math.max(1, ev.release - ev.footPlant), events: ev, hand: result.hand };
+}
+
+/** 몸통 마디(보기 축) → 인형 관절의 점 여섯(인형 축: x 앞 · y 왼쪽 · z 위) */
+function trunkFields(levels: { c: Vec3; x: Vec3 }[] | undefined): Partial<MannequinJoints> {
+  if (!levels || levels.length !== 3) return {};
+  const P = (p: Vec3): Vec3 => [p[0], -p[2], p[1]];
+  const side = (l: { c: Vec3; x: Vec3 }) => P([l.c[0] + l.x[0] * 0.1, l.c[1] + l.x[1] * 0.1, l.c[2] + l.x[2] * 0.1]);
+  const [a, b, c] = levels;
+  return { t1: P(a.c), t1s: side(a), t2: P(b.c), t2s: side(b), t3: P(c.c), t3s: side(c) };
 }

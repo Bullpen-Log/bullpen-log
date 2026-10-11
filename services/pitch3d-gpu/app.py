@@ -85,11 +85,14 @@ def _pose_factory():
     return _pose_cache["pose"]
 
 
-# AI 스켈레톤 보정(SAM 3D Body) 켜기 — 2026-10-09 김민 "일단 꺼줘": 샘플 3 · 4 를 두 영상에 비춰 보니 화면 뼈대를 영상에 더 가깝게 만들지 못했고
-# (좌투 던지는 팔 착지~릴리스 2.3 → 3.7%) 한 번에 33~35초 · GPU 비용의 절반을 썼다. 다시 켜려면 Modal 환경변수 PITCH3D_AI=1(코드 · 시험은 그대로 둔다)
+# AI(SAM 3D Body) 켜기 — 2026-10-09 김민 "일단 꺼줘": 관절 보정은 화면 뼈대를 영상에 더 가깝게 만들지 못했고(좌투 던지는 팔 착지~릴리스
+# 2.3 → 3.7%) 한 번에 33~35초 · GPU 비용의 절반을 썼다.
+# 2026-10-12 몸통 마디(허리 · 등 — sam3d.trunk_points, 화면 lib/pitch-3d/v2/trunk.ts)를 AI 로 재는 길을 만들고 샘플 넷(좌투 3 · 우투 4 · 6 · 10)을
+# 켜고 돌려 보니, '몸만' 모드(sam3d.INFER_MODE, 장면당 0.22초 · 도우미 둘)로도 분석이 25~40초 늘었는데 화면이 AI 마디를 믿은 몫은 착지~릴리스
+# 꼬임 0~2% · 휨 0~8%(높이마다 꼬임이 사람 척추로 못 낼 만큼 흔들림) — 그래서 그대로 꺼 둔다(화면은 규칙 마디). 다시 켜려면 PITCH3D_AI=1
 AI_ON = os.environ.get("PITCH3D_AI", "0") == "1"
-# AI 보정을 같이 맡는 도우미 GPU 수(분석 GPU 와 합쳐 5대) — 장면 300장이면 AI 단계 약 50초. 두 작업이 같이 돌아도 GPU 10대
-AI_HELPERS = int(os.environ.get("PITCH3D_AI_HELPERS", "4"))
+# AI 를 같이 맡는 도우미 GPU 수(분석 GPU 와 합쳐 3대) — 몸만 모드면 장면 300장이 약 25초
+AI_HELPERS = int(os.environ.get("PITCH3D_AI_HELPERS", "2"))
 
 
 @app.cls(gpu=GPU, timeout=TIMEOUT_SEC, memory=16384, volumes={"/cache/hf": hf_cache}, secrets=hf_secret, scaledown_window=20)

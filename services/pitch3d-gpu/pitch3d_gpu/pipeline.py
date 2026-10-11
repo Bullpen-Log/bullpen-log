@@ -212,6 +212,9 @@ def run_job(
                         out_ai["w"] = sam3d.gate(result, out_ai["joints"], fine, out_ai.get("miss", []))
                         if out_ai["w"]:
                             result["experimental"] = {"sam3d": out_ai}
+                        elif out_ai.get("trunk"):
+                            # 맞추기를 못 따졌어도 몸통 마디는 싣는다(화면은 AI 관절을 섞지 않고, 마디는 AI 자신의 엉덩이 · 어깨에 대한 상대 값만 쓴다)
+                            result["experimental"] = {"sam3d": {k: v for k, v in out_ai.items() if k != "w"}}
                         import numpy as np
 
                         w = np.array(out_ai["w"] or 0, dtype=float)[..., None] / 100

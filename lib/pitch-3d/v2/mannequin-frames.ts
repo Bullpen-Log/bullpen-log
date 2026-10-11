@@ -152,7 +152,7 @@ export function canonicalFrames(track: MannequinTrack): MannequinJoints[] {
     const out = {} as MannequinJoints;
     for (const key of Object.keys(J) as (keyof MannequinJoints)[]) {
       const p = J[key];
-      out[key] = [p[0], -p[1], p[2]];
+      if (p) out[key] = [p[0], -p[1], p[2]];
     }
     return out;
   });

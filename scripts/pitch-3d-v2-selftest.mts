@@ -86,6 +86,7 @@ import {
 } from '../lib/pitch-3d/v2/mannequin-pause.ts';
 import { KIN_LIMITS, KIN_SPEED, kinematicTrack, twoBoneIk } from '../lib/pitch-3d/v2/kinematics.ts';
 import { moundHeightAt } from '../lib/pitch-3d/v2/pose-rig.ts';
+import { AI_SPINE_DEV_DEG, RULE_TWIST, TRUNK_LEVELS, readAiTrunk, trunkTrack } from '../lib/pitch-3d/v2/trunk.ts';
 
 let passed = 0;
 let failed = 0;
@@ -2439,6 +2440,156 @@ console.log('■ 데생 인형 보기(mannequin stage) — 빛 자리 · 마운�
     '호 다듬기: 사분원 33점 → 64점, 양 끝 그대로 · 반지름 ±0.2% · 각도 단조, 점 둘 · 하나는 그대로',
     poly.length === 64 && near3(poly[0], quarter[0]) && near3(poly[63], quarter[32]) && rDev < 2e-3 && mono && two.length === 2 && one.length === 1,
     `반지름 벗어남 ${rDev.toExponential(2)}`
+  );
+}
+
+console.log('■ 몸통 마디(trunk) — 규칙 · AI 상대 값 · 못 믿는 AI · 인형 몸통이 마디를 따름');
+{
+  /* 보기 좌표 [앞, 위, 오른쪽] — 엉덩이 높이 1, 어깨 1.5, 엉덩이선 = 오른쪽(+z), 어깨선은 위 축 둘레로 tw° */
+  const rotY = (v: Vec3, deg: number): Vec3 => {
+    const a = (deg * Math.PI) / 180;
+    return [v[0] * Math.cos(a) + v[2] * Math.sin(a), v[1], -v[0] * Math.sin(a) + v[2] * Math.cos(a)];
+  };
+  const body = (tw: number): Vec3[] => {
+    const f: Vec3[] = Array.from({ length: 25 }, () => [0, 1.2, 0] as Vec3);
+    f[V2J.lHip] = [0, 1, -0.1];
+    f[V2J.rHip] = [0, 1, 0.1];
+    f[V2J.lKn] = [0, 0.5, -0.1];
+    f[V2J.rKn] = [0, 0.5, 0.1];
+    f[V2J.lSh] = add([0, 1.5, 0], rotY([0, 0, -0.2], tw));
+    f[V2J.rSh] = add([0, 1.5, 0], rotY([0, 0, 0.2], tw));
+    return f;
+  };
+  /* 엉덩이선(+z)에서 위 축 둘레로 잰 좌우 축의 각(어깨선과 같은 돌림 방향이 +) */
+  const ang = (x: Vec3) => (Math.atan2(x[0], x[2]) * 180) / Math.PI;
+  const n = 30;
+  const ours = Array.from({ length: n }, () => body(40));
+  const shAng = ang(sub(ours[0][V2J.rSh], ours[0][V2J.lSh]));
+  const rule = trunkTrack(ours, null, null);
+  const rAng = rule.levels[10].map((l) => ang(l.x));
+  check(
+    '규칙: 꼬임 40° 를 허리 · 가슴 밑 · 가슴에 RULE_TWIST 몫대로(±0.5°) · 가운데는 곧은 축 위(허벅지가 곧으면)',
+    Math.abs(shAng - 40) < 1e-6 &&
+      rAng.every((a, i) => Math.abs(a - 40 * RULE_TWIST[i]) < 0.5) &&
+      rule.levels[10].every((l, i) => Math.abs(l.c[1] - (1 + 0.5 * TRUNK_LEVELS[i])) < 1e-6 && Math.hypot(l.c[0], l.c[2]) < 1e-6) &&
+      rule.ai.every((v) => v === 0),
+    rAng.map((a) => a.toFixed(1)).join(' · ')
+  );
+  /* AI — 다른 자리 · 크기 · 방향(몸 전체가 30° 돌아간 채)이지만 자기 엉덩이 · 어깨에 대한 마디는 꼬임 몫 fr, 가슴 밑이 앞으로 휨 */
+  const aiFrame = (tw: number, fr: number[], bend: number, spoil: number): { j: Vec3[]; t: Vec3[] } => {
+    const tf = (p: Vec3): Vec3 => add(scale(rotY(p, 30), 0.8), [2, 0.3, -1]);
+    const j = body(tw).map(tf);
+    const t: Vec3[] = [];
+    TRUNK_LEVELS.forEach((f, i) => {
+      const c: Vec3 = [i === 1 ? bend : 0, 1 + 0.5 * f, 0];
+      const x = rotY([0, 0, 1], tw * fr[i]);
+      const cc = tf(c);
+      t.push(cc, spoil === i ? cc : add(cc, scale(rotY(x, 30), 0.08)));
+    });
+    return { j, t };
+  };
+  /* 앞 2/3 장면은 규칙과 같은 마디(클립 고정 치우침 0), 끝 1/3 장면만 fr · bend — 화면은 '규칙보다 더 · 덜' 움직인 만큼을 따른다 */
+  const mk = (tw: number, fr: number[], bend = 0.02, spoil = -1) => {
+    const fs = Array.from({ length: n }, (_, k) =>
+      k < (2 * n) / 3 ? aiFrame(tw, [...RULE_TWIST], 0, -1) : aiFrame(tw, fr, bend, spoil)
+    );
+    return { j: fs.map((f) => f.j), t: fs.map((f) => f.t) };
+  };
+  const late = n - 3;
+  const A = mk(40, [0.3, 0.6, 0.9]);
+  const tA = trunkTrack(ours, A.j, A.t);
+  const aAng = tA.levels[late].map((l) => ang(l.x));
+  const bendF = tA.levels[late][1].c[0];
+  check(
+    'AI: 자기 엉덩이 · 어깨에 대한 꼬임 몫(0.3 · 0.6 · 0.9)과 휨(앞 2cm)을 우리 끝에 붙인다 — 몸 전체 방향 · 크기 · 자리는 안 따름',
+    tA.ai[late] > 0.99 && aAng.every((a, i) => Math.abs(a - 40 * [0.3, 0.6, 0.9][i]) < 0.5) && Math.abs(bendF - 0.02) < 0.002,
+    `${aAng.map((a) => a.toFixed(1)).join(' · ')} · 앞 ${(bendF * 100).toFixed(1)}cm · 비율 ${tA.ai[late].toFixed(2)}`
+  );
+  /* 클립 내내 같은 쪽으로 치우친 AI 마디(겉면 단면의 고정 치우침)는 빼고 본다 — 규칙 그대로 */
+  const fixedBias = (() => {
+    const fs = Array.from({ length: n }, () => aiFrame(40, [0.4, 0.7, 1.1], 0.03, -1));
+    return trunkTrack(ours, fs.map((f) => f.j), fs.map((f) => f.t));
+  })();
+  const fAng = fixedBias.levels[15].map((l) => ang(l.x));
+  check(
+    'AI: 클립 내내 같은 고정 치우침(꼬임 몫 +0.25 · 앞 3cm)은 빼고 규칙대로',
+    fAng.every((a, i) => Math.abs(a - 40 * RULE_TWIST[i]) < 0.5) && Math.abs(fixedBias.levels[15][1].c[0]) < 0.002,
+    fAng.map((a) => a.toFixed(1)).join(' · ')
+  );
+  /* AI 끝 꼬임이 우리와 60° 다르면 안 믿는다(규칙) */
+  const B = mk(-20, [0.3, 0.6, 0.9]);
+  const tB = trunkTrack(ours, B.j, B.t);
+  const bAng = tB.levels[late].map((l) => ang(l.x));
+  check('AI: 끝 꼬임이 우리와 60° 다르면 규칙만', tB.ai[late] === 0 && bAng.every((a, i) => Math.abs(a - 40 * RULE_TWIST[i]) < 0.5), bAng.map((a) => a.toFixed(1)).join(' · '));
+  /* 사람 척추로 못 내는 나눔(허리가 이미 어깨보다 2배 꼬임 — 규칙에서 80° 벗어남) — 안 믿는다 */
+  const C = mk(40, [2.2, 0.6, 0.9]);
+  const tC = trunkTrack(ours, C.j, C.t);
+  const cAng = tC.levels[late].map((l) => ang(l.x));
+  check(
+    `AI: 규칙에서 ${AI_SPINE_DEV_DEG[1]}° 넘게 벗어난 높이가 있으면 안 믿는다(규칙)`,
+    tC.ai[late] < 0.05 && cAng.every((a, i) => Math.abs(a - 40 * RULE_TWIST[i]) < 1.5),
+    cAng.map((a) => a.toFixed(1)).join(' · ')
+  );
+  /* 못 잰 높이(두 점이 같음) · miss 장면은 규칙 */
+  const D2 = mk(40, [0.3, 0.6, 0.9], 0.02, 1);
+  const tD = trunkTrack(ours, D2.j, D2.t);
+  const tM = trunkTrack(ours, A.j, A.t, new Set(Array.from({ length: n }, (_, k) => k)));
+  check('AI: 못 잰 높이가 있는 장면 · miss 장면은 규칙', tD.ai[late] === 0 && tM.ai.every((v) => v === 0));
+  /* 결과 읽기 — 모양이 틀리면 null */
+  const okR = {
+    joints: Array.from({ length: 2 }, () => Array.from({ length: 25 }, () => [0, 0, 0])),
+    experimental: { sam3d: { model: 'x', joints: [], trunk: Array.from({ length: 2 }, () => Array.from({ length: 6 }, () => [1, 2, 3])) } },
+  };
+  const badR = { ...okR, experimental: { sam3d: { model: 'x', joints: [], trunk: [[[1, 2, 3]], [[1, 2, 3]]] } } };
+  check('읽기: 장면 수 · 6 점 · 유한일 때만', readAiTrunk(okR as unknown as Pitch3dV2Ok)?.length === 2 && readAiTrunk(badR as unknown as Pitch3dV2Ok) === null);
+
+  /* 인형 몸통 — 마디가 있으면 그 높이의 고리 좌우 축이 마디를 따른다(꼬임 · 휨), 좌투 거울 뒤에도 던지는 쪽 */
+  const z = (h: number, y = 0, x = 0): Vec3 => [x, y, h];
+  const Jm: MannequinJoints = {
+    rh: z(0.95, -0.15), lh: z(0.95, 0.15), rk: z(0.5, -0.15), lk: z(0.5, 0.15), ra: z(0.08, -0.15), la: z(0.08, 0.15),
+    rhe: z(0.02, -0.15, -0.05), rto: z(0.02, -0.15, 0.2), lhe: z(0.02, 0.15, -0.05), lto: z(0.02, 0.15, 0.2),
+    sh: z(1.45, -0.2), gs: z(1.45, 0.2), el: z(1.15, -0.25), ge: z(1.15, 0.25), wr: z(0.9, -0.25), gw: z(0.9, 0.25),
+    ha: z(0.85, -0.25), gh: z(0.85, 0.25), td: z(1.225), tp: z(1.475), nose: z(1.68, 0, 0.1), ear: z(1.68),
+  };
+  const rotZ = (v: Vec3, deg: number): Vec3 => {
+    const a = (deg * Math.PI) / 180;
+    return [v[0] * Math.cos(a) - v[1] * Math.sin(a), v[0] * Math.sin(a) + v[1] * Math.cos(a), v[2]];
+  };
+  const lvAng = [10, 25, 45];
+  const Jt: MannequinJoints = { ...Jm };
+  const keys = [
+    ['t1', 't1s'],
+    ['t2', 't2s'],
+    ['t3', 't3s'],
+  ] as const;
+  TRUNK_LEVELS.forEach((f, i) => {
+    const c: Vec3 = [i === 1 ? 0.03 : 0, 0, 0.95 + 0.5 * f];
+    Jt[keys[i][0]] = c;
+    Jt[keys[i][1]] = add(c, scale(rotZ([0, -1, 0], lvAng[i]), 0.1));
+  });
+  const pfm = mannequinFrame(sub(Jt.rh, Jt.lh), [0, 0, 1]);
+  const cfm = mannequinFrame(sub(Jt.sh, Jt.gs), [0, 0, 1]);
+  const Tt = torsoModel(Jt, pfm, cfm, 1);
+  const T0 = torsoModel(Jm, pfm, cfm, 1);
+  const ringAng = (T: ReturnType<typeof torsoModel>, t: number) => {
+    const X = T.ring(t).X;
+    return (Math.atan2(X[0], -X[1]) * 180) / Math.PI;
+  };
+  const tAt = [0.36, 0.55, 0.76];
+  const got = tAt.map((t) => ringAng(Tt, t));
+  check(
+    '인형 몸통: 마디 높이의 고리 좌우 축이 마디 각(10 · 25 · 45°)을 따르고(±1°) 가운데 선이 가슴 밑 휨(앞 3cm)을 지난다',
+    got.every((a, i) => Math.abs(a - lvAng[i]) < 1) && Math.abs(Tt.ring(0.55).c[0] - 0.03) < 0.002,
+    `${got.map((a) => a.toFixed(1)).join(' · ')} · 앞 ${(Tt.ring(0.55).c[0] * 100).toFixed(1)}cm`
+  );
+  check('인형 몸통: 마디가 없으면 예전 그대로(곧은 축 · 골반 → 가슴 고르게)', Math.abs(T0.ring(0.55).c[0]) < 1e-9 && Math.abs(ringAng(T0, 0.55)) < 1e-6);
+  const mirrored = canonicalFrames({ frames: [Jt], heightM: 1.8, dt: 1 / 60, events: { kneeUp: null, footPlant: 0, release: 0 }, hand: 'L' })[0];
+  const pfL = mannequinFrame(sub(mirrored.rh, mirrored.lh), [0, 0, 1]);
+  const cfL = mannequinFrame(sub(mirrored.sh, mirrored.gs), [0, 0, 1]);
+  const TL = torsoModel(mirrored, pfL, cfL, 1);
+  check(
+    '인형 몸통: 좌투 거울 뒤에도 마디 좌우 축이 던지는 쪽(골반 · 가슴 틀과 같은 쪽) · 마디 점도 거울',
+    tAt.every((t) => dot(TL.ring(t).X, pfL.xa) > 0) && mirrored.t2s !== undefined && Math.abs(mirrored.t2s[1] + Jt.t2s![1]) < 1e-12
   );
 }
 

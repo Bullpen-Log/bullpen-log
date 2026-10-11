@@ -23,7 +23,6 @@ import {
   SHOE,
   SHOE_LACE_T,
   THIGH,
-  TORSO,
   TRIM,
   laceHeight,
   limbProfile,
@@ -173,9 +172,10 @@ export function createFigure(THREE: ThreeNS, opts: { heightM: number; hand: 'R' 
   const pants = loftFrom(new Float32Array(TORSO_PANTS_VERTS * 3), pantsIdx, M.pants);
   const shirt = loftFrom(new Float32Array(TORSO_SHIRT_VERTS * 3), shirtIdx, M.shirt);
   const crotch = ell(M.pants);
-  const belt = torus(1, TRIM.beltTube, 10, 48, M.belt);
-  const buckle = box(TRIM.buckle[0] * k, TRIM.buckle[1] * k, TRIM.buckle[2] * k, M.buckle);
-  const loops = [0, 1].map(() => box(TRIM.loop[0] * k, TRIM.loop[1] * k, TRIM.loop[2] * k, M.pants));
+  /*
+   * 벨트(둥근 고리 · 버클 · 고리)는 뺐다(2026-10-12 김민: "허리에 있는 저 검정색 링은 왜 있는거야") — 딱딱한 고리가 골반 → 가슴 꼬임 구간
+   * 한가운데라 몸이 꼬일 때 고리만 떠 보였다. 바지 · 상의 경계가 허리선을 보인다.
+   */
   const stripes = Array.from({ length: TRIM.stripe.count }, () => box(TRIM.stripe.w * k, 1, TRIM.stripe.d * k, M.stripe));
   const buttons = TRIM.buttonT.map(() => ell(M.button));
   const collar = torus(1, TRIM.collar.tube, 10, 48, M.stripe);
@@ -240,15 +240,6 @@ export function createFigure(THREE: ThreeNS, opts: { heightM: number; hand: 'R' 
     flush(pants);
     flush(shirt);
     placeEll(crotch, add(T.crotch, scale(pf.ya, 0.04 * k)), T.hw + 0.02 * k, 0.05 * k, 0.08 * k, pf.q);
-    const BR = T.ring(TORSO.beltT);
-    const bw = T.width(TORSO.beltT);
-    const bdf = T.front(TORSO.beltT);
-    const bdb = T.back(TORSO.beltT);
-    placeBand(belt, BR.c, BR.q, bw * 1.01, ((bdf + bdb) / 2) * 1.02, 0.09 * k);
-    placeBox(buckle, add(BR.c, scale(BR.Fw, bdf + 0.006)), BR.q);
-    [-0.62, 0.62].forEach((sx, i) =>
-      placeBox(loops[i], add(add(BR.c, scale(BR.X, sx * bw)), scale(BR.Fw, bdf * 0.82 + 0.006)), BR.q)
-    );
     const at = (t: number) => {
       const R = T.ring(t);
       return { p: add(R.c, scale(R.Fw, T.front(t))), X: R.X, Fw: R.Fw };

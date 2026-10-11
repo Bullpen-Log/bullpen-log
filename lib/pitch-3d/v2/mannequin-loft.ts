@@ -200,34 +200,74 @@ export type TorsoModel = {
 };
 
 const mid3 = (a: Vec3, b: Vec3): Vec3 => scale(add(a, b), 0.5);
+
+/**
+ * 몸통 마디 셋(가운데 · 좌우 축 단위) — 좌우 축의 부호는 골반 틀 → 가슴 틀을 높이대로 섞은 방향과 같은 쪽(던지는 쪽, 좌투 거울 뒤에도).
+ * 마디가 없거나 좌우 점이 가운데에 붙어 있으면(못 잰 높이) null.
+ */
+function trunkLevelsOf(J: MannequinJoints, pf: Frame, cf: Frame): { c: Vec3; x: Vec3 }[] | null {
+  const pairs: [Vec3 | undefined, Vec3 | undefined][] = [
+    [J.t1, J.t1s],
+    [J.t2, J.t2s],
+    [J.t3, J.t3s],
+  ];
+  const fr = [0.41, 0.6, 0.83];
+  const out: { c: Vec3; x: Vec3 }[] = [];
+  for (let i = 0; i < 3; i++) {
+    const [c, s] = pairs[i];
+    if (!c || !s) return null;
+    const d = sub(s, c);
+    if (Math.hypot(...d) < 1e-6) return null;
+    let x = normalize(d);
+    const ref = add(scale(pf.xa, 1 - fr[i]), scale(cf.xa, fr[i]));
+    if (dot(x, ref) < 0) x = scale(x, -1);
+    out.push({ c, x });
+  }
+  return out;
+}
 const lerp3 = (a: Vec3, b: Vec3, t: number): Vec3 => add(a, scale(sub(b, a), t));
 
 /**
  * 몸통 모델 — 사타구니부터 목 밑까지 한 겹. 아래는 골반 틀, 위는 가슴 틀을 따르고 그 사이에서 돌아간다.
  * 가운데 선은 매끈한 곡선, 단면은 늘 그 곡선에 수직(허리를 숙여도 단면끼리 접히지 않게).
+ *
+ * 몸통 마디(J.t1 · t2 · t3 와 좌우 점 — trunk.ts, 2026-10-12)가 있으면 가운데 선의 허리 · 가슴 밑 · 가슴 세 점과 그 높이의 좌우 축을 그것으로 —
+ * 골반 → 허리 → 등이 따로 꼬이고 휜다(꽈배기처럼). 없으면 예전처럼 곧은 축 위 세 점 · 골반 틀 → 가슴 틀 사이를 고르게 돌림.
+ * 세 높이(엉덩이 → 어깨의 0.41 · 0.60 · 0.83)는 예전 세 점(축 위 0.4125 · 0.604 · 0.829)과 같은 자리라 마디가 없을 때와 이어진다.
  */
 export function torsoModel(J: MannequinJoints, pf: Frame, cf: Frame, k: number): TorsoModel {
   const hm = mid3(J.rh, J.lh);
   const shm = mid3(J.sh, J.gs);
-  const hw = Math.min(Math.hypot(...sub(J.rh, J.lh)) / 2, 0.09 * k);
+  const hw = Math.min(Math.hypot(...sub(J.rh, J.lh)) / 2, 0.1 * k);
   const sw = Math.hypot(...sub(J.sh, J.gs)) / 2;
   const crotch = add(add(hm, scale(pf.ya, -0.075 * k)), scale(pf.fw, -0.01 * k));
   const neck = add(shm, scale(cf.ya, 0.075 * k));
-  const pts: Vec3[] = [crotch, hm, lerp3(hm, J.td, 0.75), lerp3(J.td, shm, 0.12), lerp3(J.td, shm, 0.62), shm, neck];
+  const lv = trunkLevelsOf(J, pf, cf);
+  const pts: Vec3[] = lv
+    ? [crotch, hm, lv[0].c, lv[1].c, lv[2].c, shm, neck]
+    : [crotch, hm, lerp3(hm, J.td, 0.75), lerp3(J.td, shm, 0.12), lerp3(J.td, shm, 0.62), shm, neck];
   const C = TORSO_KEYS.map((t, i) => [t, pts[i]] as const);
   const W = torsoWidth(hw, sw, k);
   const DF = torsoFront(k);
   const DB = torsoBack(k);
   const sp = catmullRom(pts);
   const tk = TORSO_KEYS;
+  /* 높이마다 좌우 축 — 골반 틀(사타구니 · 엉덩이) · 마디 셋 · 가슴 틀(어깨 · 목) */
+  const sides: Vec3[] | null = lv ? [pf.xa, pf.xa, lv[0].x, lv[1].x, lv[2].x, cf.xa, cf.xa] : null;
   const ring = (t: number): TorsoRing => {
     let i = 1;
     while (i < tk.length - 1 && t > tk[i]) i++;
-    const u = Math.min(1, Math.max(0, (i - 1 + (t - tk[i - 1]) / (tk[i] - tk[i - 1])) / (tk.length - 1)));
+    const f = Math.min(1, Math.max(0, (t - tk[i - 1]) / (tk[i] - tk[i - 1])));
+    const u = Math.min(1, Math.max(0, (i - 1 + f) / (tk.length - 1)));
     const c = sp.point(u);
     const Y = sp.tangent(u);
-    const q = slerp(pf.q, cf.q, smooth01((t - 0.2) / 0.5));
-    let X = rotate(q, [1, 0, 0]);
+    let X: Vec3;
+    if (sides) {
+      const s = smooth01(f);
+      X = add(scale(sides[i - 1], 1 - s), scale(sides[i], s));
+    } else {
+      X = rotate(slerp(pf.q, cf.q, smooth01((t - 0.2) / 0.5)), [1, 0, 0]);
+    }
     X = normalize(sub(X, scale(Y, dot(X, Y))));
     const Fw = cross(Y, X);
     return { c, X, Y, Fw, q: basis(X, Y, scale(Fw, -1)) };
