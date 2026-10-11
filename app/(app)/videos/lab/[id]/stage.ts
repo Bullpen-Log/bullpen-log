@@ -15,47 +15,120 @@ import { MOUND } from '@/lib/pitch-3d/v2/pose-rig';
 const BG = '#151722';
 const GRID_A = '#2b3141';
 const GRID_B = '#1e2230';
-/** 마운드 · 투수판 — 바탕보다 조금 밝은 무채색(뼈대 · 던지는 팔이 먼저 보이게) */
-const MOUND_COLOR = '#2c303d';
-const RUBBER_COLOR = '#d6dbe3';
+const RUBBER_COLOR = '#e9e6df';
 const AXIS = { home: '#ef4444', up: '#3b82f6', side: '#38bdf8' } as const;
 
-/** 마운드 면 — 가운데에서 둘레까지 고리 40 · 둘레 120 칸, 높이는 f(규격 높이 함수) */
+/**
+ * 간이 마운드(불펜 · 실내용 이동식) — 폭 1.22m(4ft) 직사각형, 투수판 뒤 0.6m 에서 수직으로 끊기고 앞으로 규격 경사(1ft 에 1in)로
+ * 땅까지 내려간다(투수판 앞 약 3.2m). 윗면 높이는 규격 높이 함수 f 그대로라 발이 닿는 높이(display.ts)와 맞는다. 옆 · 뒤는 수직 벽.
+ * 2026-10-11 김민: 규격 마운드(지름 5.49m)는 "너무 커서 간이마운드로".
+ */
+const PORTABLE = { width: 1.22, back: 0.6 } as const;
+
 function moundGeometry(
   THREE: typeof import('three'),
   f: (x: number, z: number) => number,
-  cx: number,
-  cz: number,
-  R: number
+  x0: number,
+  z0: number,
+  s: number
 ): Three.BufferGeometry {
-  const rings = 40;
-  const segs = 120;
   const lift = 0.002;
-  const pos: number[] = [cx, f(cx, cz) + lift, cz];
-  for (let i = 1; i <= rings; i++) {
-    const r = (R * i) / rings;
-    for (let j = 0; j < segs; j++) {
-      const a = (j / segs) * Math.PI * 2;
-      const x = cx + r * Math.cos(a);
-      const z = cz + r * Math.sin(a);
-      pos.push(x, f(x, z) + lift, z);
-    }
-  }
+  const xb = x0 - PORTABLE.back * s;
+  const xf = x0 + (MOUND.flatFront + MOUND.top * 12) * s;
+  const hw = (PORTABLE.width / 2) * s;
+  const nx = 64;
+  const nz = 8;
+  const pos: number[] = [];
   const idx: number[] = [];
-  for (let j = 0; j < segs; j++) idx.push(0, 1 + ((j + 1) % segs), 1 + j);
-  for (let i = 1; i < rings; i++) {
-    const a0 = 1 + (i - 1) * segs;
-    const a1 = 1 + i * segs;
-    for (let j = 0; j < segs; j++) {
-      const j1 = (j + 1) % segs;
-      idx.push(a0 + j, a0 + j1, a1 + j, a0 + j1, a1 + j1, a1 + j);
-    }
-  }
+  const grid = (pt: (i: number, j: number) => [number, number, number], ni: number, nj: number) => {
+    const base = pos.length / 3;
+    for (let i = 0; i <= ni; i++) for (let j = 0; j <= nj; j++) pos.push(...pt(i, j));
+    for (let i = 0; i < ni; i++)
+      for (let j = 0; j < nj; j++) {
+        const a = base + i * (nj + 1) + j;
+        const b = a + nj + 1;
+        idx.push(a, a + 1, b, a + 1, b + 1, b);
+      }
+  };
+  const X = (i: number) => xb + ((xf - xb) * i) / nx;
+  const Z = (j: number) => z0 - hw + (2 * hw * j) / nz;
+  /* 윗면(재질 0) · 옆과 뒤 벽(재질 1) */
+  grid((i, j) => [X(i), f(X(i), Z(j)) + lift, Z(j)], nx, nz);
+  const topCount = idx.length;
+  /* 옆 벽 둘(바닥 → 윗면) — 감는 방향은 바깥이 앞면 */
+  grid((i, k) => [X(i), k * (f(X(i), z0 - hw) + lift), z0 - hw], nx, 1);
+  grid((i, k) => [X(i), (1 - k) * (f(X(i), z0 + hw) + lift), z0 + hw], nx, 1);
+  /* 뒤 벽 */
+  grid((k, j) => [xb, k * (f(xb, Z(j)) + lift), Z(j)], 1, nz);
+  /* 흙 그림 좌표 — 미터(가운데 기준)를 uv 에 담는다(moundMaterial 이 되읽음) */
+  const cx = x0 + MOUND.centerAhead * s;
+  const R = MOUND.radius * s;
+  const uv: number[] = [];
+  for (let i = 0; i < pos.length; i += 3) uv.push((pos[i] - cx) / (2 * R) + 0.5, (pos[i + 2] - z0) / (2 * R) + 0.5);
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
   g.setIndex(idx);
+  g.addGroup(0, topCount, 0);
+  g.addGroup(topCount, idx.length - topCount, 1);
   g.computeVertexNormals();
   return g;
+}
+
+/**
+ * 마운드 흙 — 다저스타디움 무대(2026-10-11, 28f8ab7)에서 쓰던 흙 그대로: 흙 사진(Poly Haven 'baseball_playground', CC0)을 두 크기로 겹쳐
+ * 사진 평균색으로 나눈 결만 남기고, 가운데는 붉은 점토 · 가장자리는 주황 황토로 섞는다. 디딤발 자리(투수판 앞 1.54m)는 움푹 짙게.
+ * 흙 굴곡은 같은 사진의 노멀 맵. 사진이 오기 전엔 색만.
+ */
+function moundMaterial(THREE: typeof import('three')) {
+  const R = MOUND.radius;
+  const dirt = { value: null as Three.Texture | null };
+  const on = { value: 0 };
+  const mat = new THREE.MeshStandardMaterial({ roughness: 1, metalness: 0 });
+  mat.onBeforeCompile = (sh) => {
+    sh.uniforms.uDirt = dirt;
+    sh.uniforms.uOn = on;
+    sh.vertexShader = sh.vertexShader
+      .replace('#include <common>', '#include <common>\nvarying vec2 vMp;')
+      .replace('#include <begin_vertex>', `#include <begin_vertex>\nvMp = (uv - 0.5) * ${(2 * R).toFixed(4)};`);
+    sh.fragmentShader = sh.fragmentShader
+      .replace('#include <common>', '#include <common>\nvarying vec2 vMp;\nuniform sampler2D uDirt;\nuniform float uOn;')
+      .replace(
+        '#include <map_fragment>',
+        `#include <map_fragment>
+        {
+          vec2 p = vMp;
+          vec3 a = texture2D(uDirt, p / 3.0).rgb;
+          vec3 b = texture2D(uDirt, mat2(0.6, 0.8, -0.8, 0.6) * p / 7.1 + 0.21).rgb;
+          vec3 t = mix(a, b, 0.5);
+          vec3 dTex = mix(vec3(dot(t, vec3(0.2126, 0.7152, 0.0722)) / 0.187), t / vec3(0.250, 0.176, 0.114), 0.4);
+          /* 가장자리 0.25m 는 황토, 안쪽은 붉은 점토 */
+          float clay = 0.85 * smoothstep(0.03, 0.25, min(${(PORTABLE.width / 2).toFixed(3)} - abs(p.y), min(p.x + ${(PORTABLE.back + MOUND.centerAhead).toFixed(3)}, ${(MOUND.flatFront + MOUND.top * 12 - MOUND.centerAhead).toFixed(3)} - p.x)));
+          vec3 col = pow(mix(vec3(0.80, 0.53, 0.35), vec3(0.70, 0.40, 0.27), clay * 0.95), vec3(2.2));
+          float dig = 1.0 - smoothstep(-0.15, 0.15, length(p - vec2(${(1.54 - MOUND.centerAhead).toFixed(3)}, 0.0)) - 0.55);
+          diffuseColor.rgb *= col * mix(vec3(1.0), dTex, uOn) * (1.0 - 0.12 * dig);
+        }`
+      );
+  };
+  const loader = new THREE.TextureLoader();
+  loader.load('/stage/dirt.jpg', (t) => {
+    t.colorSpace = THREE.SRGBColorSpace;
+    t.wrapS = t.wrapT = THREE.RepeatWrapping;
+    t.anisotropy = 8;
+    dirt.value = t;
+    on.value = 1;
+  });
+  loader.load('/stage/dirt_n.jpg', (t) => {
+    /* 노멀 맵은 색이 아니라 방향 — sRGB 로 풀면 기울기가 틀어진다. uv 한 장 = 지름 5.49m, 사진 한 장 = 3m */
+    t.colorSpace = THREE.NoColorSpace;
+    t.wrapS = t.wrapT = THREE.RepeatWrapping;
+    t.repeat.setScalar((2 * R) / 3);
+    t.anisotropy = 8;
+    mat.normalMap = t;
+    mat.normalScale.setScalar(0.8);
+    mat.needsUpdate = true;
+  });
+  return mat;
 }
 
 /**
@@ -100,8 +173,9 @@ export function buildStage({
     const s = 1 / heightM;
     scene.add(
       new THREE.Mesh(
-        moundGeometry(THREE, groundAt, mound.x0 + MOUND.centerAhead * s, mound.z0, MOUND.radius * s),
-        new THREE.MeshStandardMaterial({ color: MOUND_COLOR, roughness: 1, metalness: 0 })
+        moundGeometry(THREE, groundAt, mound.x0, mound.z0, s),
+        /* 옆 · 뒤 벽 — 이동식 마운드 틀(짙은 갈색) */
+        [moundMaterial(THREE), new THREE.MeshStandardMaterial({ color: '#5a3b28', roughness: 0.95, metalness: 0 })]
       )
     );
     const rubber = new THREE.Mesh(
