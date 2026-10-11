@@ -696,6 +696,33 @@ console.log('\n■ 던지는 날 가이드');
     '비로 밀려 오늘도 내일 등판이면 전날',
     throwDayKind(sig({ planYesterday: '내일 등판', planToday: '내일 등판' })) === 'eve'
   );
+  /* 2판 D1(2026-10-12) 새 답 둘 — 탄수화물을 미리 늘릴 날이 아직 아니라 '없음'과 같다 */
+  check(
+    "'2~3일 뒤' · '4일 이상 뒤'(D1 새 답)는 카드 없음",
+    throwDayKind(sig({ planToday: '2~3일 뒤' })) === null &&
+      throwDayKind(sig({ planToday: '4일 이상 뒤' })) === null
+  );
+  check(
+    "어제 '내일 등판'이어도 오늘 '2~3일 뒤'(비로 밀림)면 오늘 적은 쪽을 따라 카드 없음",
+    throwDayKind(sig({ planYesterday: '내일 등판', planToday: '2~3일 뒤' })) === null
+  );
+  check(
+    "어제 '2~3일 뒤' · '4일 이상 뒤'는 오늘로 이월하지 않는다",
+    throwDayKind(sig({ planYesterday: '2~3일 뒤' })) === null &&
+      throwDayKind(sig({ planYesterday: '4일 이상 뒤' })) === null
+  );
+  check(
+    "던진 뒤 카드의 안내 글은 '상세 체크인에'라고 하지 않는다(D1 로 간편 체크인에서도 받는다)",
+    (() => {
+      const g = throwDayGuide(sig({ pitches: game() }), adult);
+      return (
+        g != null &&
+        typeof g.hint === 'string' &&
+        g.hint.startsWith('체크인에') &&
+        !g.hint.includes('상세')
+      );
+    })()
+  );
   check(
     '투구 기록이 있으면 일정과 상관없이 던진 뒤',
     throwDayKind(sig({ planToday: '오늘 등판', pitches: game() })) === 'after'

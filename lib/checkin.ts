@@ -566,13 +566,11 @@ export const DETAIL_SCALES = [
 export type DetailScaleKey = (typeof DETAIL_SCALES)[number]['key'];
 
 /*
- * 영양 가이드에 쓰는 두 칸(2026-09-30 사용자: "영양 가이드에 필요한 정보가 있다면 체크인에도").
+ * 식욕(2026-09-30 사용자: "영양 가이드에 필요한 정보가 있다면 체크인에도").
  *
- * 식욕은 1~5, 클수록 입맛이 돈다(다른 척도처럼 '클수록 그 느낌이 강하다'). 입맛이 없는
+ * 1~5, 클수록 입맛이 돈다(다른 척도처럼 '클수록 그 느낌이 강하다'). 입맛이 없는
  * 날은 한 번에 많이보다 적게 자주 — 증량 중인 선수에게 특히 중요하다.
- *
- * 던지는 일정은 탄수화물을 언제 늘릴지 정한다. 투구 기록은 던진 뒤에야 생겨서, 등판
- * 전날 저녁 · 당일 아침에 챙길 것을 미리 알려면 여기서 받아야 한다.
+ * 같이 들어온 '던지는 일정'은 아래 THROW_PLANS.
  */
 export const APPETITE_LEVELS = ['거의 없음', '적음', '보통', '좋음', '왕성'] as const;
 
@@ -582,7 +580,69 @@ export const APPETITE_LEVELS = ['거의 없음', '적음', '보통', '좋음', '
  * 2026-10-09 전에는 세 파일에 4 가 따로 적혀 있었다 — 한 곳만 바꾸면 셋이 어긋난다.
  */
 export const LOW_CONDITION_THRESHOLD = 4;
-export const THROW_PLANS = ['오늘 등판', '오늘 불펜', '내일 등판', '없음'] as const;
+
+/*
+ * 던지는 일정(등판 답) — 칩 글이 곧 저장 글이다(DailyCheckin.throwPlan, 글자 칸).
+ *
+ * 처음(2026-09-30)에는 영양 가이드가 탄수화물을 언제 늘릴지 정하려고 넣었다 — 투구 기록은 던진 뒤에야 생겨서,
+ * 등판 전날 저녁 · 당일 아침에 챙길 것을 미리 알려면 여기서 받아야 한다. 지금은 매일 운동 계획(lib/report/theme.ts
+ * 의 plannedOuting — 등판 날 · 전날에 무거운 하체를 안 내려고)과 근력 프로그램(lib/program/load.ts 의 throwSignals —
+ * 경기 날 · 전날 · 다음 날 쉬기)도 읽는다.
+ *
+ * 2026-10-12 트레이닝 추천 2판 D1 로 넷에서 여섯으로. 옛 넷은 글자 그대로(DB 옛 줄 · 얼린 facts 가 그 글자다), 새 둘
+ * '2~3일 뒤' · '4일 이상 뒤'는 "며칠 뒤 등판인지 앱이 모른다"(theme.ts hardOuting 주석)를 메우려는 답이다 — 지금은
+ * 어느 독자도 날을 바꾸지 않고(모두 '없음'과 같이 읽는다) 값만 받아 둔다. 등판까지 남은 날로 셈하는 규칙은 아래
+ * nextOutingDays 한 곳에만 둔다 — 2판 P3 의 '오늘 상태 한 장'(lib/engine/day-state.ts)이 거기서 읽고, 부하 기준(P4) ·
+ * 마지막 무거운 날(P5)이 그것을 쓴다. 답 → 날짜 규칙을 다른 파일에 베끼지 않는다.
+ *
+ * 어제 답의 이월은 '내일 등판' 하나뿐(plannedOuting · nutrition/guide.ts throwDayKind · program/load.ts 가 같은 규칙):
+ * 어제 '2~3일 뒤'는 오늘 1~2일 뒤라 날을 못 박지 못하고, 어제 '오늘 등판'은 던진 기록이 맡는다 — 모르는 것을 짐작하지 않는다.
+ */
+export const THROW_PLANS = [
+  '오늘 등판',
+  '오늘 불펜',
+  '내일 등판',
+  '2~3일 뒤',
+  '4일 이상 뒤',
+  '없음',
+] as const;
+export type ThrowPlan = (typeof THROW_PLANS)[number];
+
+/**
+ * 폼 · DB 에서 온 던지는 일정 글자를 목록의 값으로. 목록에 없는 글자 · 빈 값 · 글자가 아닌 것은 null(안 적은 것) —
+ * 화면에서는 나올 수 없는 값이고, 그것 때문에 체크인 전체를 막을 일이 아니다.
+ */
+export function parseThrowPlan(raw: unknown): ThrowPlan | null {
+  if (typeof raw !== 'string') return null;
+  const v = raw.trim();
+  return (THROW_PLANS as readonly string[]).includes(v) ? (v as ThrowPlan) : null;
+}
+
+/**
+ * 답이 말하는 '다음 등판까지 남은 날' 범위 — 등판 답을 날짜로 읽는 규칙은 이 한 곳.
+ *
+ *   '오늘 등판' 0~0 · '내일 등판' 1~1 · '2~3일 뒤' 2~3 · '4일 이상 뒤' 4~(끝 없음: max null)
+ *   '오늘 불펜' · '없음' · 안 적음 · 모르는 글자 → null(등판이 아니다 — 불펜은 가볍게 던지는 날이라 날을 바꾸지 않고,
+ *   던진 뒤의 일은 기록으로 세게 던진 날 규칙(theme.ts hardOuting)이 따로 본다)
+ *
+ * null 이 '등판 없음'인지 '안 적음'인지는 여기서 가르지 않는다 — 그 차이가 필요하면 parseThrowPlan 으로 답 자체를 본다.
+ */
+export function nextOutingDays(
+  plan: string | null | undefined
+): { min: number; max: number | null } | null {
+  switch (parseThrowPlan(plan)) {
+    case '오늘 등판':
+      return { min: 0, max: 0 };
+    case '내일 등판':
+      return { min: 1, max: 1 };
+    case '2~3일 뒤':
+      return { min: 2, max: 3 };
+    case '4일 이상 뒤':
+      return { min: 4, max: null };
+    default:
+      return null;
+  }
+}
 
 export const CHECKIN_NOTE_MAX = 500;
 /* 몸무게 범위는 내 정보의 몸무게와 같다 */
@@ -641,9 +701,6 @@ export function parseCheckinDetail(
     return { error: '몸무게를 다시 확인해주세요.' };
   }
 
-  const pickFrom = (list: readonly string[], raw: string) =>
-    list.includes(raw.trim()) ? raw.trim() : null;
-
   const appetiteNum = Number(get('appetite'));
   const appetite =
     Number.isInteger(appetiteNum) &&
@@ -662,7 +719,7 @@ export function parseCheckinDetail(
       ...scales,
       bodyWeightKg: bodyWeightKg === null ? null : Math.round(bodyWeightKg * 10) / 10,
       appetite,
-      throwPlan: pickFrom(THROW_PLANS, get('throwPlan')),
+      throwPlan: parseThrowPlan(get('throwPlan')),
       note: note || null,
     },
   };

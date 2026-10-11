@@ -2,6 +2,7 @@ import { orderWithinSlot } from '@/lib/report/exercise-order';
 import {
   LOW_CONDITION_THRESHOLD,
   SEVERE_SORENESS,
+  nextOutingDays,
   sorenessWord,
   type CheckinPartKey,
 } from '@/lib/checkin';
@@ -227,8 +228,9 @@ export const HARD_OUTING_MIN_PITCHES = 30;
  * 2026-10-03 사용자분과 다시 정했다. 예전에는 투구 계획의 남은 휴식일(Pitch Smart 표, plan.ts 의
  * pendingOuting)을 그대로 따라 90구 다음 날부터 이틀은 회복, 사흘째는 보조, 나흘째에야 무게가 나왔다.
  * 그 표는 '공을 언제 다시 던져도 되나'의 기준이라 웨이트까지 그만큼 막을 까닭이 없었고, 5일
- * 로테이션이면 첫 무거운 날이 다음 등판 전날이 됐다. 며칠 뒤 등판인지는 앱이 모르고, 체크인에 적은
- * '오늘 등판 · 내일 등판'만 읽는다(plannedOuting, 2026-10-09 — 그 전에는 묻기만 하고 안 읽었다).
+ * 로테이션이면 첫 무거운 날이 다음 등판 전날이 됐다. 여기서는 체크인에 적은 '오늘 등판 · 내일 등판'만 읽는다
+ * (plannedOuting, 2026-10-09 — 그 전에는 묻기만 하고 안 읽었다). 며칠 뒤 등판인지는 2026-10-12 부터 체크인이
+ * '2~3일 뒤 · 4일 이상 뒤'로 받지만(lib/checkin.ts nextOutingDays) 이 테마 규칙은 아직 안 쓴다 — 2판 P4 · P5 몫.
  *
  * '세게 던진 날' = 경기, 또는 강도 9~10으로 그날 합쳐 30구 이상(facts.patterns.hardOutings).
  * 그보다 가볍게 던진 날은 다음 날을 막지 않는다. 공을 쉬어야 하는 날은 투구 계획이 따로 말하고,
@@ -248,23 +250,30 @@ export function hardOuting(
  * 체크인에 적은 등판 — 아직 던지기 전이라 투구 기록에는 없는 것.
  *
  * 세게 던진 날 규칙(hardOuting)은 던지고 난 뒤의 기록을 본다. 등판 날 아침과 그 전날에는 기록이 없어
- * 무거운 하체가 나왔다 — 체크인의 '던지는 일정'은 2025-10 부터 묻고 있었는데(lib/checkin.ts 의 THROW_PLANS)
+ * 무거운 하체가 나왔다 — 체크인의 '던지는 일정'은 2026-09-30 부터 묻고 있었는데(lib/checkin.ts 의 THROW_PLANS)
  * 영양과 프로그램만 읽고 매일 운동 계획은 안 읽었다(2026-10-09 트레이닝 검토 1-①).
  *
  * 오늘 적은 답이 먼저다. 어제 '내일 등판'이라고 했어도 오늘 '없음'이라고 고쳤으면(비 · 순서 바뀜) 오늘 것을
  * 따른다 — 오늘 안 적었을 때만 어제 답을 본다. '오늘 불펜'은 날을 바꾸지 않는다 — 가볍게 던지는 날이라
  * 세게 던진 날 규칙이 던진 뒤에 따로 본다. 프로그램의 읽기(lib/program/load.ts 의 throwSignals)는 경기 기록까지
  * 합쳐 보는데, 여기서는 기록은 hardOuting 이 맡으니 체크인만 본다.
+ *
+ * 답을 날로 읽는 규칙은 lib/checkin.ts 의 nextOutingDays 한 곳(2026-10-12, 2판 D1). 여기서는 그 범위가 꼭 오늘(0~0)
+ * 이면 today, 꼭 내일(1~1)이면 tomorrow 만 가른다 — '2~3일 뒤' · '4일 이상 뒤'는 날을 못 박지 못하니 '없음'처럼
+ * null(테마 그대로). 어제 답의 이월도 '내일 등판'(어제 기준 1~1) 하나뿐 — 어제 '2~3일 뒤'는 오늘 1~2일 뒤라 null.
+ * 반환은 둘뿐이라 독자(decideTheme · workoutConflict)는 그대로다. 며칠 뒤 등판을 쓰는 규칙은 P4 · P5 에서 day-state 로.
  */
 export function plannedOuting(facts: ReportFacts): 'today' | 'tomorrow' | null {
   const today = facts.condition.throwPlanToday ?? null;
   const yesterday = facts.condition.throwPlanYesterday ?? null;
   if (today != null) {
-    if (today === '오늘 등판') return 'today';
-    if (today === '내일 등판') return 'tomorrow';
+    const days = nextOutingDays(today);
+    if (days?.max === 0) return 'today';
+    if (days?.min === 1 && days.max === 1) return 'tomorrow';
     return null;
   }
-  return yesterday === '내일 등판' ? 'today' : null;
+  const days = nextOutingDays(yesterday);
+  return days?.min === 1 && days.max === 1 ? 'today' : null;
 }
 
 /** 등판 날 · 등판 전날의 이유 — 언제부터 다시 무게를 드는지까지 말한다(hardOutingReason 과 같은 틀) */

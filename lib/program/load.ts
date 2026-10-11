@@ -128,6 +128,11 @@ async function throwSignals(userId: string, todayKey: string) {
     pitches.filter((p) => keyOf(p.date) === keyOf(d)).map((p) => p.sessionType);
   const planToday = planOn(today);
   const planYesterday = planOn(yesterday);
+  /*
+   * 답 여섯(lib/checkin.ts THROW_PLANS) 가운데 '2~3일 뒤' · '4일 이상 뒤'(2026-10-12 부터)는 경기 신호가 아니다 — 네 불리언
+   * 모두 false 로 '없음'과 같다. 며칠 뒤 등판인지 셈하는 규칙은 lib/checkin.ts nextOutingDays 한 곳이고, 프로그램이 그것을
+   * 읽는 것(gameInDays)은 2판 P3 의 오늘 상태 한 장(day-state)으로 신호를 옮길 때.
+   */
   return {
     /* 오늘 등판 · 어제 '내일 등판' · 오늘 경기 기록 */
     gameToday:

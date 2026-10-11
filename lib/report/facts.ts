@@ -58,8 +58,10 @@ export type CheckinLike = CheckinParts & {
   sleepHours?: number | null;
   soreness?: number | null;
   /**
-   * 체크인에 적은 던지는 일정(lib/checkin.ts 의 THROW_PLANS — '오늘 등판' · '오늘 불펜' · '내일 등판' · '없음').
-   * 매일 운동 계획이 '오늘 등판 · 내일 등판'을 읽는다(theme.ts 의 plannedOuting, 2026-10-09). 칸이 없거나 null 이면 안 적은 것.
+   * 체크인에 적은 던지는 일정(lib/checkin.ts 의 THROW_PLANS — '오늘 등판' · '오늘 불펜' · '내일 등판' · '2~3일 뒤' ·
+   * '4일 이상 뒤' · '없음', 2026-10-12 부터 여섯). 매일 운동 계획이 '오늘 등판 · 내일 등판'을 읽는다(theme.ts 의
+   * plannedOuting, 2026-10-09). 느슨한 string 인 까닭: 얼린 facts JSON 에 글자로 남고, 답을 날로 읽는 규칙은 nextOutingDays 가
+   * 맡는다. 칸이 없거나 null 이면 안 적은 것.
    */
   throwPlan?: string | null;
 };

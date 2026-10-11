@@ -26,13 +26,17 @@ import {
   THROW_PLANS,
   WORKOUT_KINDS,
   isShortSleep,
+  nextOutingDays,
   parseArmPain,
   parseCheckinBody,
+  parseCheckinDetail,
+  parseThrowPlan,
   mealSummary,
   pickArmPain,
   pickCheckinBody,
   sleepLevelFromHours,
   type CheckinPartKey,
+  type ThrowPlan,
 } from '../lib/checkin.ts';
 import {
   countMissingDays,
@@ -7786,6 +7790,44 @@ console.log(
       planned: 'tomorrow',
       theme: 'strength',
     },
+    /*
+     * 2판 D1(2026-10-12) 새 답 둘 — '2~3일 뒤' · '4일 이상 뒤'. 날을 못 박지 못하니 plannedOuting 은 '없음'처럼 null, 테마는
+     * 평소(근력). 며칠 뒤 등판을 쓰는 규칙(무거운 하체 허용 · 마지막 무거운 날)은 P4 · P5 에서 day-state 로 — 그때 이 기대값을
+     * 뒤집는다. 어제 '2~3일 뒤'는 오늘 1~2일 뒤라 이월하지 않는다(짐작하지 않는다).
+     */
+    {
+      name: "오늘 '2~3일 뒤' (D1 새 답 — 아직 날을 안 바꾼다)",
+      today: { throwPlan: '2~3일 뒤' },
+      planned: null,
+      theme: 'strength',
+    },
+    {
+      name: "오늘 '4일 이상 뒤' (D1 새 답 — 아직 날을 안 바꾼다)",
+      today: { throwPlan: '4일 이상 뒤' },
+      planned: null,
+      theme: 'strength',
+    },
+    {
+      name: "오늘 답 없음 + 어제 '2~3일 뒤' (이월하지 않는다 — 오늘 1~2일 뒤라 날을 못 박는다)",
+      today: { throwPlan: null },
+      yesterday: { throwPlan: '2~3일 뒤' },
+      planned: null,
+      theme: 'strength',
+    },
+    {
+      name: "오늘 체크인 없음 + 어제 '4일 이상 뒤'",
+      today: null,
+      yesterday: { throwPlan: '4일 이상 뒤' },
+      planned: null,
+      theme: 'strength',
+    },
+    {
+      name: "오늘 '2~3일 뒤' + 어제 '내일 등판' (비로 밀림 — 오늘 답이 이긴다)",
+      today: { throwPlan: '2~3일 뒤' },
+      yesterday: { throwPlan: '내일 등판' },
+      planned: null,
+      theme: 'strength',
+    },
   ];
   for (const c of outingCases) {
     const facts = p0Facts({ today: c.today, yesterday: c.yesterday });
@@ -10083,6 +10125,167 @@ console.log(
     pickedWith.candidates.map((e) => e.id).join() ===
       pickedWithout.candidates.map((e) => e.id).join() &&
       pickedWith.halted === pickedWithout.halted
+  );
+}
+
+/* ═══════════════════ [2판 오늘 상태(P3)] D1 등판 답 규칙 — lib/checkin.ts THROW_PLANS · parseThrowPlan · nextOutingDays (2026-10-12) ═══════════════════ */
+console.log(
+  '\n[2판 오늘 상태(P3)] D1 등판 답 여섯 — 글자 · 파서 · 남은 날 범위 한 곳 · plannedOuting 위임(2026-10-12)'
+);
+{
+  /*
+   * D1(사용자 결정): 답 넷 → 여섯('오늘 등판' · '오늘 불펜' · '내일 등판' · '2~3일 뒤' · '4일 이상 뒤' · '없음'), 옛 넷 글자 그대로.
+   * 답을 날로 읽는 규칙은 nextOutingDays 한 곳 — plannedOuting(theme.ts)은 그 결과로 today · tomorrow 만 가른다.
+   * 새 답 둘은 아직 어느 독자도 날을 안 바꾼다(위 (a) 절) — 범위만 받아 두고 P4 · P5 가 쓴다.
+   */
+  const OLD_FOUR = ['오늘 등판', '오늘 불펜', '내일 등판', '없음'] as const;
+  check(
+    'D1 (글자) THROW_PLANS 는 여섯이고 옛 넷은 글자 그대로 남아 있다(DB 옛 줄 · 얼린 facts 호환)',
+    THROW_PLANS.length === 6 &&
+      OLD_FOUR.every((a) => (THROW_PLANS as readonly string[]).includes(a)),
+    THROW_PLANS.join(' · ')
+  );
+  check(
+    'D1 (글자) 차례는 가까운 날부터 — 오늘 등판 · 오늘 불펜 · 내일 등판 · 2~3일 뒤 · 4일 이상 뒤 · 없음',
+    THROW_PLANS.join('|') === '오늘 등판|오늘 불펜|내일 등판|2~3일 뒤|4일 이상 뒤|없음'
+  );
+  check(
+    'D1 (글자) 화면 글 규칙 — 줄표(—) 없음 · 12자 안(휴대폰 칩 한 줄)',
+    THROW_PLANS.every((a) => !a.includes('—') && a.length <= 12)
+  );
+
+  /* ── parseThrowPlan — 목록의 글자만, 앞뒤 공백은 떼고, 그 밖은 null ── */
+  check(
+    'D1 (파서) 여섯 답은 그대로 돌아온다',
+    THROW_PLANS.every((a) => parseThrowPlan(a) === a)
+  );
+  check(
+    'D1 (파서) 앞뒤 공백은 뗀다(폼 글자)',
+    parseThrowPlan(' 오늘 등판 ') === '오늘 등판' &&
+      parseThrowPlan('\t4일 이상 뒤\n') === '4일 이상 뒤'
+  );
+  check(
+    'D1 (파서) 빈 글자 · null · undefined · 숫자 · 목록 밖 글자 → null(안 적은 것, 오류 아님)',
+    [
+      parseThrowPlan(''),
+      parseThrowPlan('   '),
+      parseThrowPlan(null),
+      parseThrowPlan(undefined),
+      parseThrowPlan(3),
+      parseThrowPlan({}),
+      parseThrowPlan('모레'),
+      parseThrowPlan('내일'),
+      parseThrowPlan('2-3일 뒤'),
+      parseThrowPlan('4일 뒤'),
+      parseThrowPlan('오늘등판'),
+    ].every((v) => v === null)
+  );
+  check(
+    'D1 (파서) parseCheckinDetail 이 같은 파서를 쓴다 — 새 답은 살고, 목록 밖 글자는 null',
+    (() => {
+      const detail = (throwPlan: string) =>
+        parseCheckinDetail((name) => (name === 'throwPlan' ? throwPlan : ''));
+      const got = (throwPlan: string) => {
+        const r = detail(throwPlan);
+        return 'value' in r ? r.value.throwPlan : `error:${r.error}`;
+      };
+      return (
+        got('2~3일 뒤') === '2~3일 뒤' &&
+        got(' 4일 이상 뒤 ') === '4일 이상 뒤' &&
+        got('없음') === '없음' &&
+        got('모레') === null &&
+        got('') === null
+      );
+    })()
+  );
+
+  /* ── nextOutingDays — 답 → 다음 등판까지 남은 날 범위(규칙은 이 한 곳) ── */
+  const expected: Record<ThrowPlan, { min: number; max: number | null } | null> = {
+    '오늘 등판': { min: 0, max: 0 },
+    '오늘 불펜': null,
+    '내일 등판': { min: 1, max: 1 },
+    '2~3일 뒤': { min: 2, max: 3 },
+    '4일 이상 뒤': { min: 4, max: null },
+    없음: null,
+  };
+  for (const a of THROW_PLANS) {
+    check(
+      `D1 (남은 날) '${a}' → ${JSON.stringify(expected[a])}`,
+      JSON.stringify(nextOutingDays(a)) === JSON.stringify(expected[a]),
+      JSON.stringify(nextOutingDays(a))
+    );
+  }
+  check(
+    'D1 (남은 날) 안 적음 · 빈 글자 · 목록 밖 글자 → null(파서와 같은 규칙)',
+    nextOutingDays(null) === null &&
+      nextOutingDays(undefined) === null &&
+      nextOutingDays('') === null &&
+      nextOutingDays('모레') === null &&
+      nextOutingDays(' 내일 등판 ')?.min === 1
+  );
+  check(
+    'D1 (남은 날) 불변식 — 범위는 min 정수 ≥ 0, max 는 null 이거나 min 이상, 등판 답끼리는 min 이 차례대로 커진다',
+    (() => {
+      const ranges = THROW_PLANS.map((a) => nextOutingDays(a)).filter((r) => r != null);
+      const wellFormed = ranges.every(
+        (r) =>
+          Number.isInteger(r.min) && r.min >= 0 && (r.max === null || r.max >= r.min)
+      );
+      const ascending = ranges.every((r, i) => i === 0 || r.min > ranges[i - 1].min);
+      return wellFormed && ascending && ranges.length === 4;
+    })()
+  );
+  check(
+    'D1 (남은 날) 끝이 없는 답은 4일 이상 뒤 하나뿐(max null)',
+    THROW_PLANS.filter((a) => nextOutingDays(a)?.max === null).join() === '4일 이상 뒤'
+  );
+
+  /* ── plannedOuting 이 nextOutingDays 를 따른다 — 꼭 오늘(0~0) · 꼭 내일(1~1)만, 어제 답 이월은 내일 등판 하나 ── */
+  const d1Checkin = (daysAgo: number, throwPlan: string | null): CheckinLike => ({
+    date: new Date(TODAY.getTime() - daysAgo * 86400000).toISOString().slice(0, 10),
+    condition: 7,
+    sleep: '보통',
+    shoulder: '정상',
+    elbow: '정상',
+    wrist: '정상',
+    lowerBack: '정상',
+    lowerBody: '정상',
+    preferredParts: [],
+    preferredWorkout: null,
+    throwPlan,
+  });
+  const d1Facts = (today: string | null, yesterday: string | null) =>
+    buildFacts({
+      nickname: '시험',
+      age: 22,
+      heightCm: 180,
+      trainingLevel: null,
+      baselineDailyLoad: 100,
+      rehab: null,
+      today: TODAY,
+      logs: [],
+      checkins: [d1Checkin(0, today), d1Checkin(1, yesterday)],
+      memos: [],
+    });
+  const fromRange = (r: { min: number; max: number | null } | null) =>
+    r?.max === 0 ? 'today' : r?.min === 1 && r.max === 1 ? 'tomorrow' : null;
+  check(
+    'D1 (위임) 오늘 답 여섯 모두 — plannedOuting 이 nextOutingDays 의 범위에서 나온 값과 같다(어제 답은 무시)',
+    THROW_PLANS.every(
+      (a) => plannedOuting(d1Facts(a, '내일 등판')) === fromRange(nextOutingDays(a))
+    ),
+    THROW_PLANS.map((a) => `${a}:${plannedOuting(d1Facts(a, '내일 등판'))}`).join(' · ')
+  );
+  check(
+    "D1 (위임) 오늘 안 적음 + 어제 답 여섯 — '내일 등판'만 오늘로 이월, 나머지는 null",
+    THROW_PLANS.every(
+      (a) => plannedOuting(d1Facts(null, a)) === (a === '내일 등판' ? 'today' : null)
+    ),
+    THROW_PLANS.map((a) => `${a}:${plannedOuting(d1Facts(null, a))}`).join(' · ')
+  );
+  check(
+    'D1 (위임) 모르는 글자가 오늘 답으로 들어와도 null(어제 이월도 막는다 — 오늘 적은 것이 있으니)',
+    plannedOuting(d1Facts('모레', '내일 등판')) === null
   );
 }
 

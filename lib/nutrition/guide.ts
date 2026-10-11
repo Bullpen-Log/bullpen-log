@@ -10,14 +10,15 @@ import {
  *
  * 영양 탭 맨 위에 뜬다(오늘만). 저장하지 않고 볼 때마다 셈한다 — 읽는 것은 이미 있는 기록뿐이다.
  *
- *   체크인의 '던지는 일정'(오늘 등판 · 오늘 불펜 · 내일 등판 · 없음)과 '식욕' — 이 가이드 때문에 넣은 칸이다
+ *   체크인의 '던지는 일정'(lib/checkin.ts THROW_PLANS — 오늘 등판 · 오늘 불펜 · 내일 등판 · 2~3일 뒤 · 4일 이상 뒤 ·
+ *   없음)과 '식욕' — 이 가이드 때문에 넣은 칸이다(2026-10-12 부터 뒤의 둘이 늘었다 — 아래 '그 밖')
  *   오늘의 투구 기록(경기 · 라이브 · 불펜) — 체크인을 안 한 날에도 던진 뒤에는 안내가 나온다
  *
  * 날의 종류(위가 이긴다):
  *   던진 뒤   오늘 투구 기록이 있다 → 회복식(단백질 + 탄수화물)
  *   던지는 날  체크인에 오늘 등판 · 불펜, 또는 어제 '내일 등판'이라 적었다 → 던지기 전 식사
  *   전날      체크인에 내일 등판 → 저녁 탄수화물을 넉넉히
- *   그 밖     아무것도 띄우지 않는다
+ *   그 밖     아무것도 띄우지 않는다 — '없음'도, '2~3일 뒤' · '4일 이상 뒤'도(탄수화물을 미리 늘릴 날이 아직 아니다)
  *
  * ■ 목표 숫자(탄수화물 g)는 바꾸지 않는다
  *
@@ -152,6 +153,9 @@ const isGameDay = (s: GuideSignals) =>
  *
  * 어제 '내일 등판'이라 적었으면 오늘 체크인을 안 했어도 등판일로 본다. 오늘 '없음'이나 다시 '내일 등판'
  * (비로 밀린 날)이라 적었으면 오늘 적은 쪽을 따른다 — 가까운 말이 맞다.
+ *
+ * '2~3일 뒤' · '4일 이상 뒤'(2026-10-12 부터)는 '없음'과 같이 null — 오늘 답이라 어제 '내일 등판'도 덮는다(가까운 말이
+ * 맞다). 며칠 뒤인지 셈하는 규칙은 lib/checkin.ts nextOutingDays 한 곳이고, 영양이 그것을 읽는 것은 2판 P6(영양 추세)에서.
  */
 export function throwDayKind(s: GuideSignals): ThrowGuideKind | null {
   if (thrownToday(s.pitches)) return 'after';
@@ -159,6 +163,7 @@ export function throwDayKind(s: GuideSignals): ThrowGuideKind | null {
   if (s.planToday === PLAN_TOMORROW) return 'eve';
   if (s.planToday === PLAN_NONE) return null;
   if (s.planToday == null && s.planYesterday === PLAN_TOMORROW) return 'today';
+  /* 오늘 '2~3일 뒤' · '4일 이상 뒤', 모르는 글자, 어제 답이 '내일 등판'이 아닌 날 */
   return null;
 }
 
@@ -263,10 +268,13 @@ export function throwDayGuide(s: GuideSignals, body: GuideBody): ThrowGuide | nu
     badge: `${thrown.label} 뒤`,
     title: '회복식 챙길 시간',
     lines,
-    /* 일정을 안 적어 던진 뒤에야 알게 된 날 — 다음에는 전날부터 안내할 수 있다고 한 번 알린다 */
+    /*
+     * 일정을 안 적어 던진 뒤에야 알게 된 날 — 다음에는 전날부터 안내할 수 있다고 한 번 알린다.
+     * '상세 체크인에'라고 하지 않는다 — 2판 D1 로 간편 체크인에서도 받는다.
+     */
     hint:
       s.planToday == null && s.planYesterday !== PLAN_TOMORROW
-        ? '상세 체크인에 ‘던지는 일정’을 적어 두면 전날 · 당일에도 안내해 드려요.'
+        ? '체크인에 ‘던지는 일정’을 적어 두면 전날 · 당일에도 안내해 드려요.'
         : null,
     recoveryProtein: protein,
     thrownAt: thrown.at,
