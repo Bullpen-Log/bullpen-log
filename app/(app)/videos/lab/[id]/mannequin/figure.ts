@@ -73,6 +73,8 @@ export function createFigure(THREE: ThreeNS, opts: { heightM: number; hand: 'R' 
       roughness: MANNEQUIN_ROUGHNESS[key],
       metalness: key === 'buckle' ? 0.6 : 0,
       side: THREE.DoubleSide,
+      /* 멈춤 화면에서 비칠 때 양면을 두 번 그리지 않게 — 깊이 선행 패스가 맨 앞 겉면만 남긴다(overlay · body-3d) */
+      forceSinglePass: true,
     });
   }
   const M = materials;

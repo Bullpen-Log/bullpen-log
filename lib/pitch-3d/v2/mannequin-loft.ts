@@ -285,4 +285,48 @@ export function shoeAxes(heel: Vec3, toe: Vec3, up0: Vec3, k: number) {
   return { fx, U, X, P, Ps, l };
 }
 
+/* ───────────────────────────── 호 관 · 부채꼴(멈춤 화면의 잰 선) ───────────────────────────── */
+
+/**
+ * 점열을 따라가는 관(잰 호) — 고리 i 는 points[min(i, 끝)] 에, 접선은 이웃 점으로(끝은 한쪽만). 점이 cap 보다 적으면 남은 고리는
+ * 마지막 점에 겹쳐 둔다(넓이 0 → 안 보임). 색인은 loftIndices(cap − 1, K, true), 정점 수 loftVertexCount(cap − 1, K, true).
+ * (X, U, 접선) 이 오른손 꼴이라 법선은 바깥쪽.
+ */
+export function writeTube(out: Float32Array, points: readonly Vec3[], normal: Vec3, r: number, cap: number, K: number) {
+  const last = points.length - 1;
+  const n = normalize(normal);
+  const seed: Vec3 = Math.abs(n[0]) < 0.9 ? [1, 0, 0] : [0, 1, 0];
+  const fallback = normalize(cross(n, seed));
+  for (let i = 0; i < cap; i++) {
+    const j = Math.min(i, last);
+    let t: Vec3 = fallback;
+    if (last > 0) {
+      const d = sub(points[Math.min(last, j + 1)], points[Math.max(0, j - 1)]);
+      if (dot(d, d) > 1e-18) t = normalize(d);
+    }
+    let X = cross(n, t);
+    if (dot(X, X) < 1e-18) X = fallback;
+    X = normalize(X);
+    const U = cross(t, X);
+    writeRing(out, i * K, points[j], X, U, r, r, r, 2, K);
+  }
+  const c0 = cap * K;
+  out.set(points[0], c0 * 3);
+  out.set(points[last], (c0 + 1) * 3);
+}
+
+/** 부채꼴 면 — out[0] 가운데, 그 뒤 점열(모자라면 마지막 점 반복). 정점 cap + 1 */
+export function writeFan(out: Float32Array, c: Vec3, points: readonly Vec3[], cap: number) {
+  const last = points.length - 1;
+  out.set(c, 0);
+  for (let i = 1; i <= cap; i++) out.set(points[Math.min(i - 1, last)], i * 3);
+}
+
+/** 부채꼴 색인 — (0, i, i+1), 삼각형 cap − 1 개 */
+export function fanIndices(cap: number): number[] {
+  const idx: number[] = [];
+  for (let i = 1; i < cap; i++) idx.push(0, i, i + 1);
+  return idx;
+}
+
 export type { Profile };

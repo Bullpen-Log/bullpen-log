@@ -19,10 +19,13 @@ import type { Pitch3dV2Ok } from '@/lib/pitch-3d/v2/contract';
 import { displayTrack } from '@/lib/pitch-3d/v2/display';
 import type { LabGround } from '@/lib/pitch-lab-meta';
 import { canonicalFrames, mannequinFrames } from '@/lib/pitch-3d/v2/mannequin-frames';
+import { labelValues, measureAngles, momentOf, type Label } from '@/lib/pitch-3d/v2/mannequin-measure';
+import { anaMaterials, anaStep, LEGEND, placeLabels, projectToScreen } from '@/lib/pitch-3d/v2/mannequin-pause';
 import { mannequinTrack } from '@/lib/pitch-3d/v2/mannequin-prep';
 import { MOUND_COLOR } from '@/lib/pitch-3d/v2/mannequin-profiles';
 import { MOUND } from '@/lib/pitch-3d/v2/pose-rig';
 import { createFigure } from './mannequin/figure';
+import { createOverlay, measureHex } from './mannequin/overlay';
 
 /**
  * 투구 3D 보기(설계 pitch-3d-quality.md 0절 · 화면 결정 9~16 · 데생 인형 pitch-3d-mannequin.md §6) — 데생 인형(몸통 · 팔다리 · 신발 · 글러브 · 공)을
@@ -30,7 +33,9 @@ import { createFigure } from './mannequin/figure';
  *
  *   - 인형은 한 번 만들고(mannequin/figure.ts) 장면마다 자리 · 회전 · 배율만 바꾼다. 관절(미터 · z 위 · 우투 꼴)은 mannequin-prep →
  *     mannequin-frames 가 만들고, 묶음을 x 로 −90° 돌려 y 위로 · 1/키 배율로 보기 좌표에 놓는다. 좌투는 y 배율 −1(거울).
- *   - scene.background 는 비워 둔다(renderer 의 지우기 색만) — 뒤 단계의 여러 번 그리기가 바탕에 가려지지 않게. 바닥 · 마운드 · 화살표는 world 묶음.
+ *   - scene.background 는 비워 둔다(renderer 의 지우기 색만) — 여러 번 그리기가 바탕에 가려지지 않게. 바닥 · 마운드 · 화살표는 world 묶음.
+ *   - 멈추면(§6 3단계) ana 가 0 → 1 로 오르며 인형은 비치고(맨 앞 겉면만) 속 뼈 · 잰 선 다섯 · 이름표(HTML 겹침)가 짙어진다. 비칠 때는 네 번 그린다:
+ *     바닥 · 뼈 → 인형 깊이만 → 인형 맨 앞 겉면 → 잰 선(예시 render). '각도' 칩으로 끌 수 있다. 순간(착지 · 릴리스) 이름표는 결과 표의 값, 나머지는 '참고'.
  *
  *   - 3D 가 기준 시계(결정 12): 1× · ½× · ¼×. 처음 열면 ½× 로 한 번 틀고 릴리스에서 멈춤(결정 9), 그 뒤 재생은 되풀이. 움직임 줄이기면 자동 재생 없음.
  *   - 고정 카메라 4각도(결정 10): 옆(3루 쪽) · 뒤(2루 쪽) · 포수(홈 쪽 가슴 높이) · 위(70°). 끌기 = 좌우 돌리기(위아래 5~80°), Ctrl + 휠 · 두 손가락 = 확대, 시점을 누르면 되돌림.
@@ -166,6 +171,13 @@ export const Body3D = forwardRef<
   const [speed, setSpeed] = useState<Speed>(0.5);
   const [view, setView] = useState<ViewName>('side');
   const [retry, setRetry] = useState(0);
+  /* 멈춤 화면 — 뼈 · 각도 보기 켜짐('각도' 칩), 읽어 주는 글(스크린 리더용 잰 값 다섯) */
+  const [showAna, setShowAna] = useState(true);
+  const [said, setSaid] = useState<string[]>([]);
+  /* 효과가 다시 돌아도(새 결과) 끈 상태를 지키려고 ref 에도 비춰 둔다 */
+  const showAnaRef = useRef(true);
+  const labelsRef = useRef<HTMLDivElement>(null);
+  const legendRef = useRef<HTMLUListElement>(null);
   const n = result.t.length;
 
   /* 무대에 내리는 명령(렌더 루프가 읽는다) */
@@ -174,6 +186,7 @@ export const Body3D = forwardRef<
     play: (on: boolean) => void;
     speed: (s: Speed) => void;
     view: (v: ViewName, animate: boolean) => void;
+    ana: (on: boolean) => void;
   } | null>(null);
   const transport = useRef(onTransport);
   useEffect(() => {
@@ -234,6 +247,17 @@ export const Body3D = forwardRef<
       renderer.domElement.style.height = '100%';
       renderer.domElement.style.touchAction = 'pan-y';
       host.prepend(renderer.domElement);
+      /* 이름표 다섯(HTML, 캔버스 위에 겹침) — 글은 장면이 바뀔 때만, 자리는 그릴 때마다(placeLabelsDom) */
+      const labelEls = Array.from({ length: 5 }, () => {
+        const el = document.createElement('div');
+        el.className =
+          'absolute left-0 top-0 whitespace-nowrap rounded-md py-[5px] pl-[7px] pr-2 text-[12px] leading-none text-white tabular-nums will-change-transform';
+        el.style.background = 'rgba(12,16,22,.8)';
+        el.style.borderLeft = '3px solid #fff';
+        el.style.display = 'none';
+        labelsRef.current?.appendChild(el);
+        return el;
+      });
 
       const scene = new THREE.Scene();
       scene.background = null;
@@ -299,9 +323,15 @@ export const Body3D = forwardRef<
        * 1/키 배율로 키 = 1 보기 단위에 맞춘다. 좌투는 y 배율 −1 로 거울(three 가 음수 행렬식이면 면 감김을 뒤집어 준다).
        */
       const fig = createFigure(THREE, { heightM: H, hand: result.hand });
-      fig.group.rotation.x = -Math.PI / 2;
-      fig.group.scale.set(1 / H, result.hand === 'L' ? -1 / H : 1 / H, 1 / H);
-      scene.add(fig.group);
+      const ov = createOverlay(THREE, { heightM: H });
+      const rig = new THREE.Group();
+      rig.rotation.x = -Math.PI / 2;
+      rig.scale.set(1 / H, result.hand === 'L' ? -1 / H : 1 / H, 1 / H);
+      rig.add(fig.group, ov.bones, ov.lines);
+      scene.add(rig);
+      /* 인형 깊이만 쓰는 재질(네 번 그리기 둘째 패스) */
+      const depthMat = new THREE.MeshBasicMaterial({ colorWrite: false, side: THREE.DoubleSide });
+      const sV = new THREE.Vector3();
 
       const camera = new THREE.PerspectiveCamera(32, 1, 0.01, 60);
       const controls = new OrbitControls(camera, renderer.domElement);
@@ -413,12 +443,6 @@ export const Body3D = forwardRef<
         tween = { t: 0, from: camera.position.clone(), to };
       };
 
-      /* 장면 — 인형은 자리 · 회전 · 배율만 바꾼다(도형은 안 만든다). 장면 틀은 useMemo 로 한 번 계산해 둔 것 */
-      const applyFrame = (k: number) => {
-        fig.update(mann.joints[k], mann.frames[k]);
-        dirty = true;
-      };
-
       /* 시계 */
       const t0 = result.t[0];
       const tEnd = result.t[n - 1];
@@ -429,6 +453,46 @@ export const Body3D = forwardRef<
       let spd: Speed = 0.5;
       let stopAtRelease = !reduced;
       let lastTick = 0;
+
+      /*
+       * 멈춤 화면 — ana 0(재생) ~ 1(멈춤). 재질은 ana 가 바뀔 때마다, 뼈 · 선 자리는 장면이 바뀌거나 멈출 때만 다시 잡는다(rAF 마다가 아니다).
+       * 문턱 넷은 예시 그대로: 자리 잡기 0.001 · 재질 · 네 번 그리기 0.004 · 뼈 불투명 0.996 · 이름표 0.02.
+       */
+      let ana = 0;
+      let showAnaOn = showAnaRef.current;
+      let lastTarget = 0;
+      let labels: Label[] = [];
+      let labelsVersion = 0;
+      const anaTarget = () => (!isPlaying && showAnaOn ? 1 : 0);
+      const applyAna = (a: number) => {
+        const m = anaMaterials(a);
+        for (const mat of Object.values(fig.materials)) {
+          if (mat.transparent !== m.figTransparent) {
+            mat.transparent = m.figTransparent;
+            mat.needsUpdate = true;
+          }
+          mat.opacity = m.figOpacity;
+          mat.depthWrite = m.figDepthWrite;
+        }
+        ov.setAna(a);
+        if (legendRef.current) legendRef.current.style.opacity = String(a);
+      };
+      const refreshOverlay = () => {
+        lastTarget = anaTarget();
+        const J = mann.joints[cur];
+        labels = ov.update(J, mann.frames[cur], labelValues(measureAngles(J), momentOf(cur, result.events), result.metrics));
+        labelsVersion++;
+        if (!isPlaying && showAnaOn) setSaid(labels.map((l) => `${l.name} ${Math.round(l.value)}°${l.live ? ' 참고' : ''}`));
+      };
+      /* 효과가 다시 돌 때(새 결과) 범례 · 읽어 주는 글 · 재질을 처음 값으로 */
+      applyAna(0);
+      setSaid([]);
+      /* 장면 — 인형은 자리 · 회전 · 배율만 바꾼다(도형은 안 만든다). 장면 틀은 useMemo 로 한 번 계산해 둔 것 */
+      const applyFrame = (k: number) => {
+        fig.update(mann.joints[k], mann.frames[k]);
+        if (ana > 0.001 || anaTarget() > 0) refreshOverlay();
+        dirty = true;
+      };
       const emit = (reason: Transport['reason']) =>
         transport.current?.({ frame: cur, playing: isPlaying, speed: spd, reason });
       const frameAt = (time: number) => {
@@ -471,6 +535,14 @@ export const Body3D = forwardRef<
           emit('speed');
         },
         view: moveTo,
+        ana: (on) => {
+          showAnaOn = on;
+          showAnaRef.current = on;
+          setShowAna(on);
+          if (on && !isPlaying) refreshOverlay();
+          else if (!on) setSaid([]);
+          dirty = true;
+        },
       };
       show(cur);
       setPlaying(isPlaying);
@@ -489,6 +561,75 @@ export const Body3D = forwardRef<
       sizer.observe(host);
       resize();
       moveTo('side', false);
+
+      /* 이름표 자리 — rig 좌표(미터 · 우투 꼴) → 세계 → 화면. 겹치면 위아래로 비키고 칸 안으로 가둔다(mannequin-pause) */
+      const placeLabelsDom = () => {
+        const w = host.clientWidth;
+        const h = host.clientHeight;
+        const boxes: { i: number; x: number; y: number; w: number; h: number }[] = [];
+        labelEls.forEach((el, i) => {
+          const L = labels[i];
+          if (!L || ana < 0.02) {
+            el.style.display = 'none';
+            return;
+          }
+          const v = rig.localToWorld(sV.set(L.p[0], L.p[1], L.p[2])).project(camera);
+          if (v.z > 1) {
+            el.style.display = 'none';
+            return;
+          }
+          if (el.dataset.v !== String(labelsVersion)) {
+            el.dataset.v = String(labelsVersion);
+            el.style.borderLeftColor = measureHex(L.key);
+            el.innerHTML = `${L.name}<b class="ml-1 font-semibold">${Math.round(L.value)}°</b>${
+              L.live ? '<span class="ml-1 text-[#9aa5b4]">참고</span>' : ''
+            }`;
+          }
+          el.style.display = '';
+          el.style.opacity = String(ana);
+          const s = projectToScreen([v.x, v.y, v.z], w, h);
+          boxes.push({ i, x: s.x, y: s.y, w: el.offsetWidth + 6, h: el.offsetHeight + 4 });
+        });
+        const at = placeLabels(boxes, w, h);
+        boxes.forEach((b, j) => {
+          labelEls[b.i].style.transform = `translate(${at[j].x}px, ${at[j].y}px) translate(-50%, -50%)`;
+        });
+      };
+      /*
+       * 비칠 때는 네 번 그린다(예시 render): 바닥 · 뼈 → 인형 깊이만(overrideMaterial) → 인형 맨 앞 겉면(깊이가 같은 면만 통과) → 잰 선.
+       * scene.background 가 null 이라 autoClear 를 끄면 앞 패스가 남는다. 재생 중(ana ≤ 0.004)엔 뼈 · 선을 숨기고 한 번만.
+       */
+      const render = () => {
+        try {
+          if (ana <= 0.004) {
+            ov.bones.visible = false;
+            ov.lines.visible = false;
+            renderer.autoClear = true;
+            renderer.render(scene, camera);
+          } else {
+            fig.group.visible = false;
+            ov.lines.visible = false;
+            renderer.autoClear = true;
+            renderer.render(scene, camera);
+            renderer.autoClear = false;
+            world.visible = false;
+            ov.bones.visible = false;
+            fig.group.visible = true;
+            scene.overrideMaterial = depthMat;
+            renderer.render(scene, camera);
+            scene.overrideMaterial = null;
+            renderer.render(scene, camera);
+            fig.group.visible = false;
+            ov.lines.visible = true;
+            renderer.render(scene, camera);
+          }
+        } finally {
+          scene.overrideMaterial = null;
+          renderer.autoClear = true;
+          world.visible = fig.group.visible = ov.bones.visible = ov.lines.visible = true;
+        }
+        placeLabelsDom();
+      };
 
       let last = performance.now();
       let raf = 0;
@@ -511,6 +652,15 @@ export const Body3D = forwardRef<
             emit('tick');
           }
         }
+        const tg = anaTarget();
+        if (tg === 1 && lastTarget === 0) refreshOverlay();
+        lastTarget = tg;
+        const next = anaStep(ana, tg, dt, reduced);
+        if (next !== ana) {
+          ana = next;
+          applyAna(ana);
+          dirty = true;
+        }
         if (tween) {
           tween.t = Math.min(1, tween.t + dt / 0.35);
           const e = 1 - Math.pow(1 - tween.t, 3);
@@ -521,7 +671,7 @@ export const Body3D = forwardRef<
         if (controls.update()) dirty = true;
         if (!dirty) return;
         dirty = false;
-        renderer.render(scene, camera);
+        render();
       };
       raf = requestAnimationFrame(loop);
       setStatus('ready');
@@ -531,6 +681,9 @@ export const Body3D = forwardRef<
         sizer.disconnect();
         controls.dispose();
         fig.dispose();
+        ov.dispose();
+        depthMat.dispose();
+        for (const el of labelEls) el.remove();
         renderer.dispose();
         renderer.forceContextLoss();
         renderer.domElement.remove();
@@ -544,7 +697,7 @@ export const Body3D = forwardRef<
       disposed = true;
       cleanup?.();
     };
-  }, [bounds, track, mann, n, result.events.release, result.hand, result.t, result.cameras, result.joints, retry]);
+  }, [bounds, track, mann, n, result.events.release, result.hand, result.t, result.cameras, result.joints, result.events, result.metrics, retry]);
 
   useImperativeHandle(ref, () => ({ seek: (k) => ctrl.current?.seek(k) }), []);
 
@@ -565,7 +718,10 @@ export const Body3D = forwardRef<
   const eventAt = (Object.keys(EVENT_LABELS) as (keyof typeof EVENT_LABELS)[]).find(
     (k) => result.events[k] === frame
   );
-  const label = `투구 3D 모션, ${playing ? '재생 중' : '멈춤'}${eventAt ? ` · ${EVENT_LABELS[eventAt]}` : ''}`;
+  const analysisOn = !playing && showAna && status === 'ready';
+  const label = `투구 3D 모션, ${playing ? '재생 중' : '멈춤'}${eventAt ? ` · ${EVENT_LABELS[eventAt]}` : ''}${
+    analysisOn ? ' · 뼈와 각도 표시' : ''
+  }`;
   const sec = (result.t[frame] - result.t[0]).toFixed(3);
 
   return (
@@ -606,7 +762,27 @@ export const Body3D = forwardRef<
             이 구간은 영상에서 잘 안 보였어요.
           </p>
         )}
+        {/* 멈춤 화면 범례 · 이름표 — 둘 다 그림이라 보조 기술에는 숨기고(아래 sr-only 목록이 읽어 준다), 불투명도는 렌더 루프가 ana 로 */}
+        <ul
+          ref={legendRef}
+          aria-hidden
+          className="pointer-events-none absolute left-3 top-3 flex flex-wrap gap-x-3 gap-y-1 text-[12px] text-[#d6dee8]"
+          style={{ opacity: 0 }}
+        >
+          {LEGEND.map((l) => (
+            <li key={l.key} className="flex items-center gap-[5px]">
+              <i className="inline-block h-[3px] w-[10px] rounded-[2px]" style={{ background: measureHex(l.key) }} />
+              {l.text}
+            </li>
+          ))}
+        </ul>
+        <div ref={labelsRef} aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden" />
       </div>
+      <ul className="sr-only" aria-live="polite">
+        {said.map((s) => (
+          <li key={s}>{s}</li>
+        ))}
+      </ul>
 
       <div className="flex items-center gap-3">
         <button
@@ -643,6 +819,15 @@ export const Body3D = forwardRef<
             </button>
           ))}
         </div>
+        <button
+          type="button"
+          aria-pressed={showAna}
+          disabled={status !== 'ready'}
+          onClick={() => ctrl.current?.ana(!showAna)}
+          className={showAna ? `${CHIP_BASE} ${CHIP_ON}` : CHIP_BASE}
+        >
+          각도
+        </button>
         <div className="ml-auto flex gap-1.5">
           {(['kneeUp', 'footPlant', 'release'] as const)
             .filter((k) => result.events[k] != null)
