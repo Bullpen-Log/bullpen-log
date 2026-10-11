@@ -46,18 +46,46 @@ import {
 } from './pitch-lab/synth.mts';
 import { makeV2Track } from './pitch-lab/synth-v2.mts';
 import { footJump, footSway, gapWristError, hipSnap, junkGloveError, leadGapJump } from './pitch-lab/gap-check.mts';
-import { readFileSync } from 'node:fs';
 import { blendAi, despike, displayTrack, readAiGate, readAiJoints, readAiMiss } from '../lib/pitch-3d/v2/display.ts';
-import { mannequinTrack, smoothForMannequin } from '../lib/pitch-3d/v2/mannequin-prep.ts';
-import { KIN_LIMITS, KIN_SPEED, kinematicTrack, twoBoneIk } from '../lib/pitch-3d/v2/kinematics.ts';
+import { mannequinTrack, smoothForMannequin, type MannequinJoints, type MannequinTrack } from '../lib/pitch-3d/v2/mannequin-prep.ts';
 import {
-  moundHeightAt,
-  PART_NAMES,
-  placePoint,
-  readSkeletonParts,
-  rigPose,
-  type RigPose,
-} from '../lib/pitch-3d/v2/pose-rig.ts';
+  basis,
+  canonicalFrames,
+  frame as mannequinFrame,
+  mannequinFrames,
+  rotate,
+  slerp,
+} from '../lib/pitch-3d/v2/mannequin-frames.ts';
+import { labelValues, measureAngles, measureSpec, momentOf, type Arc } from '../lib/pitch-3d/v2/mannequin-measure.ts';
+import {
+  computeNormals,
+  loftIndices,
+  loftVertexCount,
+  shoeAxes,
+  torsoIndices,
+  torsoModel,
+  TORSO_PANTS_VERTS,
+  TORSO_SHIRT_VERTS,
+  fanIndices,
+  writeFan,
+  writeLoft,
+  writeTorso,
+  writeTube,
+} from '../lib/pitch-3d/v2/mannequin-loft.ts';
+import { LIGHT_RIG, TORSO, curve, moundShade, toDisplay, valueNoise2 } from '../lib/pitch-3d/v2/mannequin-profiles.ts';
+import {
+  BONE_SIZES,
+  anaMaterials,
+  anaStep,
+  arcFrame,
+  arcPolyline,
+  boneEnds,
+  boneSpec,
+  placeLabels,
+  projectToScreen,
+} from '../lib/pitch-3d/v2/mannequin-pause.ts';
+import { KIN_LIMITS, KIN_SPEED, kinematicTrack, twoBoneIk } from '../lib/pitch-3d/v2/kinematics.ts';
+import { moundHeightAt } from '../lib/pitch-3d/v2/pose-rig.ts';
 
 let passed = 0;
 let failed = 0;
@@ -893,103 +921,17 @@ console.log('■ node 실행기(segment · fit)');
   );
 }
 
-console.log('■ 뼈대 자세(pose-rig) — public/models/skeleton-parts.json + 합성 결과');
+console.log('■ 마운드 · 보기용 다듬기 · 관절 각도 틀(kinematics) — 합성 결과');
 {
-  const parts = readSkeletonParts(
-    JSON.parse(readFileSync('public/models/skeleton-parts.json', 'utf8'))
-  );
-  check(
-    '조각 표를 읽는다(부위 15 · 기준 방향 · 정점 수)',
-    parts !== null && parts!.parts.length === 15 && parts!.vertexCount === 21526
-  );
-  check(
-    '조각 표 모양이 틀리면 null',
-    readSkeletonParts({ height: 1.7, parts: ['pelvis'] }) === null
-  );
-  if (parts) {
+  {
     const { result } = runV2({ ...base, ...realistic, name: 'rig' }, 5);
-    if (!result.ok) check('rig — 결과', false, result.code);
+    if (!result.ok) check('합성 결과(마운드 · 보기 · 각도 모델)', false, result.code);
     else {
       const frames = result.joints.map((fr) =>
         fr.map(
           (p) => [p[0] / 1000, p[1] / 1000, p[2] / 1000] as [number, number, number]
         )
       );
-      let prev: RigPose | null = null;
-      let nan = 0;
-      let kneeErr = 0;
-      let wristErr = 0;
-      let flips = 0;
-      const A = parts.anchors;
-      for (let k = 0; k < frames.length; k++) {
-        const pose = rigPose(frames[k], result.hand, parts, prev);
-        for (const name of PART_NAMES) {
-          const p = pose[name];
-          if ([...p.position, ...p.R].some((v) => !Number.isFinite(v))) nan++;
-          /* 회전이 회전인가(직교 · det 1) */
-          const R = p.R;
-          const det =
-            R[0] * (R[4] * R[8] - R[5] * R[7]) -
-            R[1] * (R[3] * R[8] - R[5] * R[6]) +
-            R[2] * (R[3] * R[7] - R[4] * R[6]);
-          if (Math.abs(det - 1) > 1e-6) flips++;
-        }
-        /* 모델 무릎(넙다리 끝) · 손목(아래팔 끝)이 맞춘 관절에 — 마디를 축 방향으로 늘여 닿게 한다 */
-        const kneeW = placePoint(pose.thighL, A.thighL.distal, A.thighL.proximal);
-        const wristW = placePoint(
-          pose.forearmR,
-          A.forearmR.distal,
-          A.forearmR.proximal
-        );
-        const d = (a: number[], b: number[]) =>
-          Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
-        kneeErr = Math.max(kneeErr, d(kneeW, frames[k][V2J.lKn]));
-        wristErr = Math.max(wristErr, d(wristW, frames[k][V2J.rWr]));
-        prev = pose;
-      }
-      check('모든 장면 · 부위의 자세가 숫자', nan === 0, `NaN ${nan}`);
-      check('회전 행렬 det = 1(거울 아님)', flips === 0, `${flips}`);
-      /* 고치기 전(모델 뼈 길이 그대로): 무릎 최대 키의 5~8% · 손목 8~12% 어긋나 땅에 묶인 발도 화면에선 미끄러졌다 */
-      check(
-        '모델 무릎이 맞춘 무릎에 닿는다(키의 0.5% 안)',
-        kneeErr < 0.005,
-        `최대 ${(kneeErr * 100).toFixed(2)}%`
-      );
-      check(
-        '모델 손목이 맞춘 손목에 닿는다(키의 0.5% 안)',
-        wristErr < 0.005,
-        `최대 ${(wristErr * 100).toFixed(2)}%`
-      );
-      /*
-       * 거의 편 팔꿈치(굽힘 12~20°)가 장면마다 반대쪽으로 꺾여도 팔 조각이 180° 돌지 않는다 — 2026-10-08 실제 샘플 1 에서
-       * 굽힘 축(위팔 × 아래팔)이 4번 뒤집혀 던지는 팔이 홱 돌았다(run-node.ts armDiag).
-       */
-      {
-        const f0 = frames[Math.floor(frames.length / 2)];
-        const sh = f0[V2J.rSh];
-        const wr = f0[V2J.rWr];
-        const axis = [wr[0] - sh[0], wr[1] - sh[1], wr[2] - sh[2]];
-        const perp = [-axis[1], axis[0], 0];
-        const pn = Math.hypot(...perp) || 1;
-        let prevRig: RigPose | null = null;
-        let prevRef: number[] | null = null;
-        let spins = 0;
-        for (let k = 0; k < 12; k++) {
-          const off = (k % 2 === 0 ? 1 : -1) * (0.03 + 0.01 * (k % 3));
-          const fr = f0.map((p) => [...p] as [number, number, number]);
-          fr[V2J.rEl] = [0, 1, 2].map(
-            (d) => (sh[d] + wr[d]) / 2 + (perp[d] / pn) * off
-          ) as [number, number, number];
-          const pose = rigPose(fr, 'R', parts, prevRig);
-          const R = pose.upperArmR.R;
-          const r = A.upperArmR.ref;
-          const ref = [0, 1, 2].map((i) => R[i * 3] * r[0] + R[i * 3 + 1] * r[1] + R[i * 3 + 2] * r[2]);
-          if (prevRef && ref[0] * prevRef[0] + ref[1] * prevRef[1] + ref[2] * prevRef[2] < 0) spins++;
-          prevRef = ref;
-          prevRig = pose;
-        }
-        check('거의 편 팔꿈치가 반대로 꺾여도 위팔 조각이 홱 돌지 않는다', spins === 0, `${spins}번 돎`);
-      }
       /* 마운드(규격 · 키 1.8m) — 투수판 위 25.4cm · 앞 15cm 뒤로 1/12 내리막 · 둘레 밖 0, 발이 경사면 위에 선다 */
       {
         const Hm = 1.8;
@@ -1821,6 +1763,114 @@ console.log('■ 데생 인형 관절(mannequin-prep) — 좌우 · 거울 · �
   }
 }
 
+console.log('■ 데생 인형 틀(mannequin-frames) · 잰 선(mannequin-measure) — 우투 꼴 · 거울 · 머리 · 발 · 손 · 숫자 출처');
+{
+  const near = (a: Vec3, b: Vec3, eps = 1e-9) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]) < eps;
+  const near4 = (a: number[], b: number[], eps = 1e-9) => a.length === b.length && a.every((v, i) => Math.abs(v - b[i]) < eps);
+  /* 쿼터니언 — 틀의 세 축이 그대로 돌아 나온다 · 보간은 단위 길이 */
+  {
+    const x = normalize([0.3, -0.9, 0.1] as Vec3);
+    const yRaw: Vec3 = [0, 0.2, 1];
+    const y = normalize(sub(yRaw, scale(x, dot(yRaw, x))));
+    const z = cross(x, y);
+    const q = basis(x, y, z);
+    check('쿼터니언: 틀 축 셋이 그대로 돌아 나온다', near(rotate(q, [1, 0, 0]), x) && near(rotate(q, [0, 1, 0]), y) && near(rotate(q, [0, 0, 1]), z));
+    const q2 = basis([0, 1, 0], [-1, 0, 0], [0, 0, 1]);
+    const h = slerp(q, q2, 0.5);
+    check('쿼터니언: 반쯤 보간해도 단위 길이 · 끝점은 그대로', Math.abs(Math.hypot(...h) - 1) < 1e-9 && near4(slerp(q, q2, 0), q, 1e-12) && near4(slerp(q, q2, 1), q2, 1e-12));
+  }
+  /* 우투 꼴에서 x = 던지는 쪽 − 글러브 쪽(몸 오른쪽 = −y)이면 앞이 +x(홈 쪽) */
+  {
+    const f = mannequinFrame([0, -0.3, 0], [0, 0, 1]);
+    check('틀: 우투 꼴 골반 틀의 앞이 홈 쪽(+x)', near(f.fw, [1, 0, 0]) && near(f.ya, [0, 0, 1]));
+  }
+  const { result } = runV2({ ...base, ...realistic, name: '인형 틀' }, 3);
+  if (!result.ok) check('인형 틀 — 맞추기 성공', false);
+  else {
+    const H = 1.8;
+    const tr = displayTrack(result, { ground: 'flat', heightM: H });
+    const mR = mannequinTrack(tr, result, H);
+    const fr = canonicalFrames(mR);
+    const F = mannequinFrames(fr, H);
+    const k = H / 1.8;
+    check('틀: 우투는 우투 꼴 그대로', fr === mR.frames && F.length === mR.frames.length);
+    /* 같은 몸을 y 로 뒤집고 좌투라고 하면 — 우투 꼴로 돌아와 모든 틀이 같다(거울 규칙의 핵심) */
+    const mL: MannequinTrack = {
+      ...mR,
+      hand: 'L',
+      frames: mR.frames.map(
+        (J) => Object.fromEntries(Object.entries(J).map(([key, p]) => [key, [p[0], -p[1], p[2]]])) as typeof J
+      ),
+    };
+    const FL = mannequinFrames(canonicalFrames(mL), H);
+    let same = true;
+    for (let i = 0; i < F.length && same; i++) {
+      const a = F[i];
+      const b = FL[i];
+      same =
+        near(a.pelvis.fw, b.pelvis.fw) && near4(a.chest.q, b.chest.q) && near(a.head.hc, b.head.hc) &&
+        near(a.lead.heel, b.lead.heel) && near(a.throwing.side, b.throwing.side) && near(a.glove.nrm, b.glove.nrm);
+    }
+    check('틀: 거울로 뜬 좌투 = 우투 틀과 똑같다(앞 방향 · 엄지 쪽 · 손바닥 쪽까지)', same);
+    /* 틀은 정규직교 · 오른손 좌표계, 릴리스에선 가슴이 홈 쪽을 본다 */
+    const ortho = (f: ReturnType<typeof mannequinFrame>) =>
+      Math.abs(dot(f.xa, f.ya)) < 1e-9 && near(cross(f.xa, f.ya), scale(f.fw, -1)) && Math.abs(Math.hypot(...f.fw) - 1) < 1e-9;
+    check('틀: 골반 · 가슴 틀이 모두 정규직교', F.every((f) => ortho(f.pelvis) && ortho(f.chest)));
+    const rel = F[result.events.release];
+    check('틀: 릴리스에서 가슴 앞이 홈 쪽', rel.chest.fw[0] > 0.3, rel.chest.fw.map((v) => v.toFixed(2)).join(','));
+    /* 머리 — 목에서 35° 안, 목 끝 위 */
+    const headOk = F.every((f) => {
+      const a = Math.acos(Math.max(-1, Math.min(1, dot(f.head.up, f.chest.ya))));
+      return a <= 0.6 + 1e-6 && f.head.hc[2] > f.head.nk[2] - 0.02 && Math.abs(dot(f.head.up, f.head.fw)) < 1e-6;
+    });
+    check('머리: 목에서 35° 안 · 위와 앞이 직각', headOk);
+    /* 발 — 올림은 0~5cm, 신발 등은 발 축에 직각, 발 길이 25% 키 배율 */
+    const feetOk = F.every((f) =>
+      [f.rear, f.lead].every((p) => {
+        const d = sub(p.toe, p.heel);
+        return p.lift >= 0 && p.lift <= 0.05 + 1e-9 && Math.abs(dot(normalize(d), p.n)) < 1e-6 && Math.abs(Math.hypot(...d) - 0.25 * k) < 1e-6;
+      })
+    );
+    check('발: 올림 0~5cm · 신발 등이 발 축에 직각 · 발 길이가 키 배율', feetOk);
+    /* 손 — 엄지 쪽 · 손바닥 쪽 · 손 방향이 서로 직각 */
+    const handOk = F.every((f) =>
+      [f.throwing, f.glove].every((h) => Math.abs(dot(h.hd, h.side)) < 1e-6 && Math.abs(dot(h.hd, h.nrm)) < 1e-6 && Math.abs(dot(h.side, h.nrm)) < 1e-6)
+    );
+    check('손: 손 방향 · 엄지 쪽 · 손바닥 쪽이 서로 직각', handOk);
+    /* 잰 값 — 범위 안, 순간에는 표의 값이 붙는다 */
+    const fp = result.events.footPlant;
+    const live = measureAngles(fr[fp]);
+    check(
+      '잰 값: 착지 장면 다섯 값이 몸으로 나올 범위',
+      live.separation >= 0 && live.separation <= 180 && live.trunk <= 90 && live.knee >= -5 && live.knee <= 160 && live.arm <= 180 && live.elbow >= -5 && live.elbow <= 180,
+      JSON.stringify(Object.fromEntries(Object.entries(live).map(([a, b]) => [a, Math.round(b)])))
+    );
+    const atPlant = labelValues(live, momentOf(fp, result.events), result.metrics);
+    const tableKnee = result.metrics.find((m) => m.key === 'leadKneeAtPlant');
+    check(
+      '잰 값: 착지 순간의 앞무릎 이름표는 표의 값 · 팔꿈치는 라이브',
+      tableKnee != null && !atPlant.knee.live && Math.abs(atPlant.knee.value - Math.abs(tableKnee.value)) < 1e-9 && atPlant.elbow.live
+    );
+    if (tableKnee) {
+      const diff = Math.abs(live.knee - Math.abs(tableKnee.value));
+      console.log(`      참고 — 착지 앞무릎: 보기용 ${live.knee.toFixed(1)}° vs 표 ${tableKnee.value.toFixed(1)}° (차이 ${diff.toFixed(1)}°${diff > 8 ? ' ← 8° 넘음' : ''})`);
+    }
+    const midF = Math.floor((fp + result.events.release) / 2);
+    const between = labelValues(measureAngles(fr[midF]), momentOf(midF, result.events), result.metrics);
+    check('잰 값: 순간이 아닌 장면은 모두 라이브(참고)', Object.values(between).every((v) => v.live));
+    /* 선 명세 — 호의 점은 반지름 위, 가운데 점은 반각, 이름표 다섯 */
+    const spec = measureSpec(fr[fp], F[fp].pelvis, F[fp].chest, k, atPlant);
+    const arcOk = spec.arcs.every((a) => {
+      const r = Math.hypot(...sub(a.points[0], a.c));
+      return a.points.every((p) => Math.abs(Math.hypot(...sub(p, a.c)) - r) < 1e-9) && Math.abs(Math.hypot(...sub(a.mid, a.c)) - r) < 1e-9;
+    });
+    check(
+      '선 명세: 호 다섯 · 이름표 다섯 · 선 아홉 · 점 넷 · 호의 점이 반지름 위',
+      spec.arcs.length === 5 && spec.labels.length === 5 && arcOk && spec.segments.length === 9 && spec.dots.length === 4
+    );
+  }
+}
+
 console.log('■ 글러브 팔 — 착지 ~ 릴리스 뒤 영상이 지어낸 점(확신 0.4, 장면마다 튐)을 믿지 않는다');
 {
   /* 고치기 전(흐린 뒤 영상 점과 교차) 씨앗 33 · 44: 4.5 · 8.2%, 고친 뒤 4.0 · 5.2% */
@@ -1892,6 +1942,498 @@ console.log('■ 흔들림 · 꺾임 — 첫 장면 빈 관절 · 경첩 관절(
     const off = sub(fr[V2J.rKn], scale(add(hip, an), 0.5));
     check('뒤로 꺾인 무릎을 앞으로 되돌린다', n1 === 1 && dot(off, fwd) > 0, `되돌림 ${n1}`);
   }
+}
+
+console.log('■ 데생 인형 겉면(mannequin-loft) — 색인 · 정점 · 법선 · 신발 틀 · 몸통');
+{
+  const nearV = (a: Vec3, b: Vec3, eps = 1e-9) => norm(sub(a, b)) < eps;
+  const edgeCounts = (idx: number[]) => {
+    const m = new Map<string, number>();
+    for (let i = 0; i < idx.length; i += 3)
+      for (let e = 0; e < 3; e++) {
+        const a = idx[i + e];
+        const b = idx[i + ((e + 1) % 3)];
+        const key = a < b ? `${a}-${b}` : `${b}-${a}`;
+        m.set(key, (m.get(key) ?? 0) + 1);
+      }
+    return [...m.values()];
+  };
+  const RN = 6;
+  const K = 8;
+  const idx = loftIndices(RN, K, true);
+  const nV = loftVertexCount(RN, K, true);
+  check('겉면 색인: 삼각형 수 = 옆 2·RN·K + 뚜껑 2·K', idx.length === 3 * (2 * RN * K + 2 * K));
+  check('겉면 색인: 닫힌 면 — 모든 모서리가 삼각형 둘에 쓰인다', edgeCounts(idx).every((c) => c === 2));
+  const used = new Set(idx);
+  check('겉면 색인: 정점을 빠짐없이 쓰고 넘지 않는다', used.size === nV && Math.max(...used) === nV - 1);
+  check(
+    '겉면 색인: 열린 띠는 양 끝 고리(2·K 모서리)만 한 번 쓰인다',
+    edgeCounts(loftIndices(RN, K, false)).filter((c) => c === 1).length === 2 * K
+  );
+
+  /* 곧은 관: (X, U, 진행) 오른손 꼴 → 옆 법선은 바깥쪽 */
+  const pos = new Float32Array(nV * 3);
+  const nor = new Float32Array(nV * 3);
+  writeLoft(pos, (t) => [t, 0, 0], [0, 1, 0], [0, 0, 1], () => 0.1, () => 0.1, () => 0.1, { RN, K, n: 2 });
+  let rErr = 0;
+  for (let r = 0; r <= RN; r++)
+    for (let i = 0; i < K; i++) {
+      const o = (r * K + i) * 3;
+      rErr = Math.max(rErr, Math.abs(Math.hypot(pos[o + 1], pos[o + 2]) - 0.1), Math.abs(pos[o] - r / RN));
+    }
+  check('겉면 정점: 원 단면(n = 2)은 반지름 · 길이 자리 그대로', rErr < 1e-6, `오차 ${rErr}`);
+  check(
+    '겉면 정점: 뚜껑 점 둘은 양 끝 가운데',
+    pos[(nV - 2) * 3] === 0 && pos[(nV - 1) * 3] === 1 && pos[(nV - 1) * 3 + 1] === 0 && pos[(nV - 1) * 3 + 2] === 0
+  );
+  computeNormals(pos, idx, nor);
+  let nErr = 0;
+  let inward = 0;
+  for (let r = 1; r < RN; r++)
+    for (let i = 0; i < K; i++) {
+      const o = (r * K + i) * 3;
+      nErr = Math.max(nErr, Math.abs(Math.hypot(nor[o], nor[o + 1], nor[o + 2]) - 1));
+      if (nor[o + 1] * pos[o + 1] + nor[o + 2] * pos[o + 2] <= 0) inward++;
+    }
+  check('겉면 법선: 단위 길이 · 옆면은 모두 바깥쪽', nErr < 1e-6 && inward === 0, `길이 오차 ${nErr} · 안쪽 ${inward}`);
+
+  /* 신발 틀: 축이 정규직교 · 오른손 꼴, 위아래 두께가 달라도 법선은 바깥 */
+  const S = shoeAxes([0, 0, 0], [0.2, 0, 0.02], [0, 0, 1], 1);
+  const ortho = Math.abs(dot(S.fx, S.U)) < 1e-9 && Math.abs(dot(S.fx, S.X)) < 1e-9 && Math.abs(dot(S.X, S.U)) < 1e-9;
+  check('신발 틀: fx · U · X 서로 수직, 길이 ≥ 25% 키', ortho && S.l >= 0.25 - 1e-9, `길이 ${S.l}`);
+  check('신발 틀: (X, U, fx) 오른손 꼴', nearV(cross(S.X, S.U), S.fx));
+  const RS = 10;
+  const KS = 12;
+  const sp = new Float32Array(loftVertexCount(RS, KS, true) * 3);
+  const sn = new Float32Array(sp.length);
+  const si = loftIndices(RS, KS, true);
+  writeLoft(sp, S.P, S.X, S.U, () => 0.04, () => 0.06, () => 0.004, { RN: RS, K: KS, n: 2.6 });
+  computeNormals(sp, si, sn);
+  let shoeIn = 0;
+  for (let r = 1; r < RS; r++) {
+    const c = S.P(r / RS);
+    for (let i = 0; i < KS; i++) {
+      const o = (r * KS + i) * 3;
+      if ((sp[o] - c[0]) * sn[o] + (sp[o + 1] - c[1]) * sn[o + 1] + (sp[o + 2] - c[2]) * sn[o + 2] <= 0) shoeIn++;
+    }
+  }
+  check('신발 겉면: 법선이 모두 바깥쪽', shoeIn === 0, `안쪽 ${shoeIn}`);
+
+  /* 몸통: 곧게 선 우투 꼴 — 정점 수 · 이음 · 끝 자리 · 법선, 숙여도 접히지 않음 */
+  const z = (h: number, y = 0, x = 0): Vec3 => [x, y, h];
+  const J: MannequinJoints = {
+    rh: z(0.95, -0.15), lh: z(0.95, 0.15), rk: z(0.5, -0.15), lk: z(0.5, 0.15), ra: z(0.08, -0.15), la: z(0.08, 0.15),
+    rhe: z(0.02, -0.15, -0.05), rto: z(0.02, -0.15, 0.2), lhe: z(0.02, 0.15, -0.05), lto: z(0.02, 0.15, 0.2),
+    sh: z(1.45, -0.2), gs: z(1.45, 0.2), el: z(1.15, -0.25), ge: z(1.15, 0.25), wr: z(0.9, -0.25), gw: z(0.9, 0.25),
+    ha: z(0.85, -0.25), gh: z(0.85, 0.25), td: z(1.2), tp: z(1.48), nose: z(1.68, 0, 0.1), ear: z(1.68),
+  };
+  const pf = mannequinFrame(sub(J.rh, J.lh), [0, 0, 1]);
+  const cf = mannequinFrame(sub(J.sh, J.gs), [0, 0, 1]);
+  const T = torsoModel(J, pf, cf, 1);
+  const pants = new Float32Array(TORSO_PANTS_VERTS * 3);
+  const shirt = new Float32Array(TORSO_SHIRT_VERTS * 3);
+  writeTorso(T, pants, shirt);
+  check(
+    '몸통 정점: 모두 유한, 바지 (split+1)·K · 상의 (RN−split+1)·K',
+    pants.every(Number.isFinite) && shirt.every(Number.isFinite) &&
+      pants.length === (TORSO.split + 1) * TORSO.K * 3 && shirt.length === (TORSO.RN - TORSO.split + 1) * TORSO.K * 3
+  );
+  let seam = 0;
+  for (let i = 0; i < TORSO.K * 3; i++) seam = Math.max(seam, Math.abs(pants[TORSO.split * TORSO.K * 3 + i] - shirt[i]));
+  check('몸통 정점: 바지 끝 고리 = 상의 첫 고리(이음새 없음)', seam === 0, `차 ${seam}`);
+  const ringMean = (buf: Float32Array, r: number): Vec3 => {
+    const m: Vec3 = [0, 0, 0];
+    for (let i = 0; i < TORSO.K; i++) for (let d = 0; d < 3; d++) m[d] += buf[(r * TORSO.K + i) * 3 + d] / TORSO.K;
+    return m;
+  };
+  const rows = TORSO.RN - TORSO.split;
+  const c0 = ringMean(pants, 0);
+  const c1 = ringMean(shirt, rows);
+  check(
+    '몸통 정점: 첫 고리 가운데 ≈ 사타구니 · 끝 고리 ≈ 목(앞뒤 두께 차 만큼만)',
+    norm(sub(c0, T.crotch)) < 0.02 && norm(sub(c1, T.neck)) < 0.02,
+    `${norm(sub(c0, T.crotch)).toFixed(4)} · ${norm(sub(c1, T.neck)).toFixed(4)}`
+  );
+  const { shirt: shirtIdx } = torsoIndices();
+  const sNor = new Float32Array(shirt.length);
+  const inwardCount = (buf: Float32Array) => {
+    computeNormals(buf, shirtIdx, sNor);
+    let bad = 0;
+    for (let r = 1; r < rows; r++) {
+      const c = ringMean(buf, r);
+      for (let i = 0; i < TORSO.K; i++) {
+        const o = (r * TORSO.K + i) * 3;
+        if ((buf[o] - c[0]) * sNor[o] + (buf[o + 1] - c[1]) * sNor[o + 1] + (buf[o + 2] - c[2]) * sNor[o + 2] <= 0) bad++;
+      }
+    }
+    return bad;
+  };
+  check('몸통 법선: 상의 옆면이 모두 바깥쪽', inwardCount(shirt) === 0, `안쪽 ${inwardCount(shirt)}`);
+  const bent: MannequinJoints = { ...J, sh: [0.4, -0.2, 1.3], gs: [0.4, 0.2, 1.3], td: [0.15, 0, 1.15] };
+  const cfb = mannequinFrame(sub(bent.sh, bent.gs), normalize([0.6, 0, 1]));
+  const Tb = torsoModel(bent, pf, cfb, 1);
+  const pb = new Float32Array(TORSO_PANTS_VERTS * 3);
+  const sb = new Float32Array(TORSO_SHIRT_VERTS * 3);
+  writeTorso(Tb, pb, sb);
+  let step = Infinity;
+  for (let r = 1; r <= rows; r++)
+    step = Math.min(step, dot(sub(ringMean(sb, r), ringMean(sb, r - 1)), Tb.ring((r + TORSO.split) / TORSO.RN).Y));
+  check(
+    '몸통: 허리를 60° 숙여도 고리가 앞으로 나아가고 법선은 바깥쪽(접히지 않음)',
+    step > 0 && inwardCount(sb) === 0,
+    `최소 간격 ${step.toFixed(4)} · 안쪽 ${inwardCount(sb)}`
+  );
+}
+
+console.log('■ 데생 인형 멈춤(mannequin-pause) — 뼈 · 호 관 · 부채꼴 · 옅어짐 · 이름표 자리');
+{
+  const H = 1.8;
+  const k = 1;
+  const { result } = runV2({ ...base, ...realistic, name: '인형 멈춤' }, 3);
+  if (!result.ok) check('인형 멈춤 — 맞추기 성공', false);
+  else {
+    const tr = displayTrack(result, { ground: 'flat', heightM: H });
+    const fr = canonicalFrames(mannequinTrack(tr, result, H));
+    const F = mannequinFrames(fr, H);
+    const i = result.events.release;
+    const J = fr[i];
+    const T = torsoModel(J, F[i].pelvis, F[i].chest, k);
+    const bs = boneSpec(J, F[i], T, k);
+    const flatSpec = (s: typeof bs) => [
+      ...s.joints.flat(),
+      ...s.bones.flatMap((b) => [...b.a, ...b.b, b.r, b.jr]),
+      ...s.rings.flatMap((r) => [...r.c, ...r.q, r.sx, r.sy, r.tz]),
+      ...s.beads.flatMap((b) => [...b.p, ...b.q]),
+      ...s.skull.p,
+      ...s.skull.q,
+    ];
+    const nums = flatSpec(bs);
+    check(
+      '뼈 명세: 관절 12 · 뼈 14 · 고리 2 · 척추 구슬 12 · 머리, 모두 유한',
+      bs.joints.length === 12 && bs.bones.length === 14 && bs.rings.length === 2 && bs.beads.length === 12 && nums.every(Number.isFinite)
+    );
+    let back = 0;
+    let offErr = 0;
+    for (let b = 0; b < 9; b++) {
+      const t = 0.18 + (0.72 * b) / 8;
+      const d = sub(bs.beads[b].p, curve(T.C, t));
+      offErr = Math.max(offErr, Math.abs(dot(d, rotate(bs.beads[b].q, [0, 0, 1])) - 0.06 * k));
+      if (b === 0 ? dot(d, F[i].pelvis.fw) < 0 : b >= 6 ? dot(d, F[i].chest.fw) < 0 : dot(d, F[i].pelvis.fw) < 0 && dot(d, F[i].chest.fw) < 0) back++;
+    }
+    check('척추 구슬: 아홉 개가 가운데 선에서 틀의 뒤(등 쪽)로 6%', offErr < 1e-9 && back === 9, `오차 ${offErr} · 뒤 ${back}/9`);
+    let neckErr = 0;
+    for (let b = 9; b < 12; b++) {
+      const p = bs.beads[b].p;
+      const a0 = T.neck;
+      const ab = sub(F[i].head.nk, a0);
+      const t = Math.min(1, Math.max(0, dot(sub(p, a0), ab) / dot(ab, ab)));
+      neckErr = Math.max(neckErr, Math.abs(norm(sub(p, add(a0, scale(ab, t)))) - 0.01 * k));
+    }
+    check('척추 구슬: 목 셋은 목 → 목 끝 선에서 1% 뒤', neckErr < 1e-6, `오차 ${neckErr}`);
+    const br = BONE_SIZES.br * k;
+    const jr = BONE_SIZES.jr * k;
+    const rOk =
+      Math.abs(bs.bones[0].r - br) < 1e-12 &&
+      Math.abs(bs.bones[1].r - 0.9 * br) < 1e-12 &&
+      Math.abs(bs.bones[10].r - 0.55 * br) < 1e-12 &&
+      Math.abs(bs.bones[10].jr - 0.6 * jr) < 1e-12 &&
+      Math.abs(bs.bones[4].jr - 0.5 * jr) < 1e-12 &&
+      Math.abs(bs.bones[13].r - 0.75 * br) < 1e-12;
+    const e = boneEnds([0, 0, 0], [0, 0, 1], 0.1);
+    check(
+      '뼈 굵기 표(허벅지 br · 정강이 0.9 · 손 0.55/jr 0.6 · 발 jr 0.5 · 빗장뼈 0.75) · 양 끝 들이기 jr·0.55',
+      rOk && Math.abs(e.len - 0.89) < 1e-12 && Math.abs(e.a2[2] - 0.055) < 1e-12 && Math.abs(e.b2[2] - 0.945) < 1e-12
+    );
+    const L = runV2({ ...base, ...realistic, hand: 'L', name: '인형 멈춤 L' }, 3).result;
+    if (!L.ok) check('인형 멈춤 좌투 — 맞추기 성공', false);
+    else {
+      const frL = canonicalFrames(mannequinTrack(displayTrack(L, { ground: 'flat', heightM: H }), L, H));
+      const FL = mannequinFrames(frL, H);
+      const j = L.events.release;
+      const TL = torsoModel(frL[j], FL[j].pelvis, FL[j].chest, k);
+      const b1 = boneSpec(frL[j], FL[j], TL, k);
+      const b2 = boneSpec(frL[j], FL[j], TL, k);
+      check(
+        '좌투 뼈 명세: 우투 꼴(던지는 쪽이 −y) · 개수 같음 · 같은 입력엔 같은 답',
+        b1.bones.length === 14 &&
+          b1.joints.length === 12 &&
+          b1.rings.length === 2 &&
+          b1.beads.length === 12 &&
+          flatSpec(b1).every(Number.isFinite) &&
+          frL[j].rh[1] < frL[j].lh[1] && frL[j].sh[1] < frL[j].gs[1] && JSON.stringify(b1) === JSON.stringify(b2)
+      );
+    }
+    const fp = result.events.footPlant;
+    const rl = result.events.release;
+    const mid2 = Math.floor((fp + rl) / 2);
+    const has = (key: string) => result.metrics.some((m) => m.key === key);
+    const vP = labelValues(measureAngles(fr[fp]), momentOf(fp, result.events), result.metrics);
+    const vR = labelValues(measureAngles(fr[rl]), momentOf(rl, result.events), result.metrics);
+    const vN = labelValues(measureAngles(fr[mid2]), momentOf(mid2, result.events), result.metrics);
+    const plantOk =
+      vP.separation.live === !has('separationAtPlant') && vP.knee.live === !has('leadKneeAtPlant') && vP.elbow.live && vP.arm.live && vP.trunk.live;
+    const relOk =
+      vR.knee.live === !has('leadKneeAtRelease') &&
+      vR.arm.live === !has('shoulderAbduction') &&
+      vR.trunk.live === !has('trunkForwardTilt') &&
+      vR.elbow.live &&
+      vR.separation.live;
+    check(
+      '이름표 값: 착지 · 릴리스는 표에 있는 지표만 표의 값, 팔꿈치 · 그 밖의 장면은 참고',
+      plantOk && relOk && Object.values(vN).every((v) => v.live),
+      `표: ${result.metrics.map((m) => m.key).join(' ')}`
+    );
+  }
+
+  /* 호 관 — 사분원 점 9개를 상한 16 고리 · 8각으로 */
+  const cap = 16;
+  const K = 8;
+  const pts: Vec3[] = [];
+  for (let s = 0; s <= 8; s++) {
+    const a = (Math.PI / 2) * (s / 8);
+    pts.push([0.5 * Math.cos(a), 0.5 * Math.sin(a), 0.2]);
+  }
+  const tv = loftVertexCount(cap - 1, K, true);
+  const tp = new Float32Array(tv * 3);
+  const tn = new Float32Array(tv * 3);
+  const ti = loftIndices(cap - 1, K, true);
+  writeTube(tp, pts, [0, 0, 1], 0.02, cap, K);
+  computeNormals(tp, ti, tn);
+  let rErr = 0;
+  let inward = 0;
+  let tail = 0;
+  for (let r = 0; r < cap; r++) {
+    const c = pts[Math.min(r, pts.length - 1)];
+    for (let q = 0; q < K; q++) {
+      const o = (r * K + q) * 3;
+      const d: Vec3 = [tp[o] - c[0], tp[o + 1] - c[1], tp[o + 2] - c[2]];
+      rErr = Math.max(rErr, Math.abs(norm(d) - 0.02));
+      if (r <= pts.length - 1 && dot(d, [tn[o], tn[o + 1], tn[o + 2]]) <= 0) inward++;
+      if (r >= pts.length) {
+        const o0 = ((pts.length - 1) * K + q) * 3;
+        tail = Math.max(tail, Math.abs(tp[o] - tp[o0]) + Math.abs(tp[o + 1] - tp[o0 + 1]) + Math.abs(tp[o + 2] - tp[o0 + 2]));
+      }
+    }
+  }
+  const c0i = cap * K * 3;
+  const c1i = (cap * K + 1) * 3;
+  const capOk =
+    Math.hypot(tp[c0i] - pts[0][0], tp[c0i + 1] - pts[0][1], tp[c0i + 2] - pts[0][2]) < 1e-6 &&
+    Math.hypot(tp[c1i] - pts[8][0], tp[c1i + 1] - pts[8][1], tp[c1i + 2] - pts[8][2]) < 1e-6;
+  check(
+    '호 관: 고리가 반지름 위 · 법선 바깥쪽(끝 고리 포함) · 남는 고리는 마지막 점에 겹침 · 두 뚜껑',
+    rErr < 1e-6 && inward === 0 && tail === 0 && capOk,
+    `반지름 ${rErr} · 안쪽 ${inward} · 꼬리 ${tail}`
+  );
+  const sp = new Float32Array(tv * 3);
+  writeTube(sp, [[1, 2, 3]], [0, 0, 1], 0.02, cap, K);
+  let sErr = 0;
+  for (let v = 0; v < tv; v++) sErr = Math.max(sErr, Math.hypot(sp[v * 3] - 1, sp[v * 3 + 1] - 2, sp[v * 3 + 2] - 3));
+  check('호 관: 점 하나면 모든 정점이 그 점의 반지름 안(NaN 없음)', sp.every(Number.isFinite) && sErr <= 0.02 + 1e-6, `최대 ${sErr}`);
+
+  /* 부채꼴 — 사분원 33점, 상한 64 */
+  const qc: Vec3 = [0, 0, 0];
+  const qp: Vec3[] = [];
+  for (let s = 0; s <= 32; s++) {
+    const a = (Math.PI / 2) * (s / 32);
+    qp.push([Math.cos(a), Math.sin(a), 0]);
+  }
+  const fcap = 64;
+  const fpos = new Float32Array((fcap + 1) * 3);
+  const fidx = fanIndices(fcap);
+  writeFan(fpos, qc, qp, fcap);
+  const area = (P: Float32Array, I: number[]) => {
+    let s = 0;
+    for (let t = 0; t < I.length; t += 3) {
+      const a = I[t] * 3;
+      const b = I[t + 1] * 3;
+      const c = I[t + 2] * 3;
+      const ab: Vec3 = [P[b] - P[a], P[b + 1] - P[a + 1], P[b + 2] - P[a + 2]];
+      const ac: Vec3 = [P[c] - P[a], P[c + 1] - P[a + 1], P[c + 2] - P[a + 2]];
+      s += norm(cross(ab, ac)) / 2;
+    }
+    return s;
+  };
+  const A = area(fpos, fidx);
+  const fone = new Float32Array((fcap + 1) * 3);
+  writeFan(fone, qc, [[1, 0, 0]], fcap);
+  check(
+    '부채꼴: 삼각형 cap−1 · 사분원 넓이 π/4 의 0.5% 안 · 점 하나면 넓이 0',
+    fidx.length === (fcap - 1) * 3 && Math.abs(A - Math.PI / 4) / (Math.PI / 4) < 0.005 && area(fone, fidx) === 0,
+    `넓이 ${A}`
+  );
+  const arc: Arc = { c: qc, points: qp, mid: [Math.SQRT1_2, Math.SQRT1_2, 0], key: 'knee' };
+  const af = arcFrame(arc);
+  const perp = af ? qp.every((p) => Math.abs(dot(sub(p, qc), af.normal)) < 1e-9) : false;
+  check(
+    '호 틀: 반지름 = |첫 점 − 가운데| · 법선이 호에 수직 · 점 하나면 null',
+    af !== null && Math.abs(af.r - 1) < 1e-12 && perp && arcFrame({ c: qc, points: [[1, 0, 0]], mid: [1, 0, 0], key: 'knee' }) === null
+  );
+
+  /* 옅어짐 */
+  let a1 = 0;
+  let n1 = 0;
+  let mono1 = true;
+  let prev = 0;
+  while (a1 < 1 && n1 < 120) {
+    a1 = anaStep(a1, 1, 1 / 60, false);
+    if (a1 < prev) mono1 = false;
+    prev = a1;
+    n1++;
+  }
+  let a0 = 1;
+  let n0 = 0;
+  let mono0 = true;
+  prev = 1;
+  while (a0 > 0 && n0 < 120) {
+    a0 = anaStep(a0, 0, 1 / 60, false);
+    if (a0 > prev) mono0 = false;
+    prev = a0;
+    n0++;
+  }
+  check(
+    '옅어짐 시계: 단조 · 1초 안에 정확히 끝(60Hz) · 움직임 줄이기면 한 번에',
+    a1 === 1 && a0 === 0 && mono1 && mono0 && n1 <= 60 && n0 <= 60 && anaStep(0, 1, 1 / 60, true) === 1 && anaStep(0.5, 1, 1 / 60, false) < 1,
+    `0→1 ${n1}장면 · 1→0 ${n0}장면`
+  );
+  const m0 = anaMaterials(0);
+  const m1 = anaMaterials(1);
+  const mh = anaMaterials(0.5);
+  const nr = (x: number, y: number) => Math.abs(x - y) < 1e-9;
+  check(
+    '재질 값: 0 → 인형 불투명 · 뼈 투명 0 / 1 → 인형 0.22 · 뼈 불투명 1 · 부채꼴 0.2 / 0.5 → 인형 0.61',
+    !m0.figTransparent &&
+      m0.figDepthWrite &&
+      m0.boneTransparent &&
+      nr(m0.boneOpacity, 0) &&
+      m1.figTransparent &&
+      !m1.figDepthWrite &&
+      nr(m1.figOpacity, 0.22) &&
+      !m1.boneTransparent &&
+      nr(m1.boneOpacity, 1) &&
+      nr(m1.fanOpacity, 0.2) &&
+      nr(mh.figOpacity, 0.61) &&
+      nr(mh.lineOpacity, 0.5)
+  );
+
+  /* 이름표 자리 */
+  const same3 = () => [
+    { x: 100, y: 100, w: 40, h: 20 },
+    { x: 100, y: 100, w: 40, h: 20 },
+    { x: 100, y: 100, w: 40, h: 20 },
+  ];
+  const three = placeLabels(same3(), 400, 300);
+  const again = placeLabels(same3(), 400, 300);
+  const apart = (p: { x: number; y: number }, q2: { x: number; y: number }) => Math.abs(p.x - q2.x) >= 40 || Math.abs(p.y - q2.y) >= 20;
+  const lone = placeLabels(
+    [
+      { x: 100, y: 100, w: 40, h: 20 },
+      { x: 300, y: 200, w: 40, h: 20 },
+    ],
+    400,
+    300
+  );
+  const edge = placeLabels([{ x: 0, y: 0, w: 40, h: 20 }], 400, 300);
+  check(
+    '이름표 자리: 겹친 셋이 떨어짐 · 결정적 · 안 겹치면 그대로 · 모서리는 안으로',
+    apart(three[0], three[1]) &&
+      apart(three[0], three[2]) &&
+      apart(three[1], three[2]) &&
+      JSON.stringify(three) === JSON.stringify(again) &&
+      lone[1].x === 300 &&
+      lone[1].y === 200 &&
+      edge[0].x === 20 &&
+      edge[0].y === 10
+  );
+  const c0 = projectToScreen([0, 0, 0], 400, 300);
+  const tl = projectToScreen([-1, 1, 0.5], 400, 300);
+  const behind = projectToScreen([0, 0, 1.5], 400, 300);
+  check('화면 투영: 가운데 · 왼쪽 위 · 카메라 뒤는 숨김', c0.x === 200 && c0.y === 150 && c0.visible && tl.x === 0 && tl.y === 0 && !behind.visible);
+}
+
+console.log('■ 데생 인형 보기(mannequin stage) — 빛 자리 · 마운드 결 · 호 다듬기');
+{
+  const near3 = (a: Vec3, b: Vec3) => Math.abs(a[0] - b[0]) < 1e-12 && Math.abs(a[1] - b[1]) < 1e-12 && Math.abs(a[2] - b[2]) < 1e-12;
+  const d1 = toDisplay([1.6, -2.4, 4.6], [0, 0, 0], 2);
+  const d2 = toDisplay([1.6, -2.4, 4.6], [1, 0, 3], 2);
+  const off = (H: number) => {
+    const a = toDisplay([0, 0, 0], [0, 0, 0], H);
+    const b = toDisplay([3, 4, 0], [0, 0, 0], H);
+    return norm(sub(b, a));
+  };
+  check(
+    '빛 자리: 예시 좌표(z 위 · 미터) → 보기 좌표(y 위 · 1/키), 기준점 더하기, 거리는 1/키',
+    near3(d1, [0.8, 2.3, 1.2]) && near3(d2, [1.8, 2.3, 4.2]) && Math.abs(off(2) - 2.5) < 1e-12 && Math.abs(off(1) - 5) < 1e-12
+  );
+  const R0 = LIGHT_RIG;
+  check(
+    '빛 틀: 주 빛은 위 · 앞오른쪽(3루 쪽), 세기 양수, 그림자 카메라 ±2m 넘게 · near < far, 셋 다 target 있음',
+    R0.key.position[2] > 0 &&
+      R0.key.position[1] < 0 &&
+      R0.hemi.intensity > 0 &&
+      R0.key.intensity > 0 &&
+      R0.fill.intensity > 0 &&
+      R0.back.intensity > 0 &&
+      R0.key.shadow.half >= 2 &&
+      R0.key.shadow.near < R0.key.shadow.far &&
+      [R0.key, R0.fill, R0.back].every((l) => l.target.length === 3)
+  );
+  let nMin = 1;
+  let nMax = 0;
+  let sum = 0;
+  let sum2 = 0;
+  let jump = 0;
+  for (let i = 0; i < 20; i++)
+    for (let j = 0; j < 20; j++) {
+      const v = valueNoise2(i * 0.137, j * 0.219);
+      nMin = Math.min(nMin, v);
+      nMax = Math.max(nMax, v);
+      sum += v;
+      sum2 += v * v;
+      jump = Math.max(jump, Math.abs(valueNoise2(i * 0.137 + 1e-3, j * 0.219) - v));
+    }
+  const variance = sum2 / 400 - (sum / 400) ** 2;
+  check(
+    '마운드 잡음: 같은 입력엔 같은 값 · 0~1 · 이어짐 · 한 값이 아님',
+    valueNoise2(0.3, 0.7) === valueNoise2(0.3, 0.7) && nMin >= 0 && nMax <= 1 && jump < 0.05 && variance > 1e-3,
+    `범위 ${nMin.toFixed(3)}~${nMax.toFixed(3)} · 분산 ${variance.toFixed(4)} · 최대 튐 ${jump.toFixed(4)}`
+  );
+  const atLanding = moundShade(0, 5, 1, 2.743, 0.5);
+  const atRim = moundShade(5, 5, 2.743, 2.743, 0.5);
+  const far = moundShade(5, 5, 1, 2.743, 0.5);
+  const sumW = (w: number[]) => w[0] + w[1] + w[2];
+  check(
+    '마운드 색: 착지 자리 흙 0.85 · 둘레 0.8 · 밝기 0.9~1.1 · 무게 합 1 · 먼 곳은 모래',
+    Math.abs(atLanding[1] - 0.85) < 1e-9 &&
+      Math.abs(atRim[2] - 0.8) < 1e-9 &&
+      moundShade(5, 5, 1, 2.743, 0)[3] >= 0.9 &&
+      moundShade(5, 5, 1, 2.743, 1)[3] <= 1.1 + 1e-12 &&
+      Math.abs(sumW(atLanding) - 1) < 1e-12 &&
+      Math.abs(sumW(atRim) - 1) < 1e-12 &&
+      Math.abs(far[0] - 1) < 1e-9
+  );
+  const quarter: Vec3[] = [];
+  for (let s = 0; s <= 32; s++) {
+    const a = (Math.PI / 2) * (s / 32);
+    quarter.push([Math.cos(a), Math.sin(a), 0]);
+  }
+  const poly = arcPolyline(quarter, 64);
+  let rDev = 0;
+  let mono = true;
+  let prevA = -1;
+  for (const p of poly) {
+    rDev = Math.max(rDev, Math.abs(Math.hypot(p[0], p[1]) - 1));
+    const a = Math.atan2(p[1], p[0]);
+    if (a < prevA - 1e-12) mono = false;
+    prevA = a;
+  }
+  const two = arcPolyline([[1, 0, 0], [0, 1, 0]], 64);
+  const one = arcPolyline([[1, 0, 0]], 64);
+  check(
+    '호 다듬기: 사분원 33점 → 64점, 양 끝 그대로 · 반지름 ±0.2% · 각도 단조, 점 둘 · 하나는 그대로',
+    poly.length === 64 && near3(poly[0], quarter[0]) && near3(poly[63], quarter[32]) && rDev < 2e-3 && mono && two.length === 2 && one.length === 1,
+    `반지름 벗어남 ${rDev.toExponential(2)}`
+  );
 }
 
 console.log(`\n통과 ${passed} · 실패 ${failed}`);

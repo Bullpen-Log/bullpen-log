@@ -33,7 +33,7 @@ const PLANT_TO_RELEASE_MAX_S = 0.25;
 export type DisplayTrack = {
   /** 장면 × 관절 25 × [앞, 위, 오른쪽](키 = 1) — 바닥에 맞춰 올린 자리 */
   frames: Vec3[][];
-  /** 장면마다 부위 기준 방향(pose-rig rigPose 의 refs) */
+  /** 장면마다 부위 기준 방향(관절 각도 틀 kinematics 가 만든 것 — 보기용 다듬기가 그대로 잇는다) */
   refs: KinematicTrack['refs'];
   /** 발밑 높이(평지면 늘 0) */
   groundAt: (x: number, z: number) => number;

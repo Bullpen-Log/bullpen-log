@@ -603,7 +603,7 @@ export type KinematicTrack = {
   frames: Vec3[][];
   /**
    * 부위의 기준 방향(세상) — 위팔 · 아래팔은 팔꿈치가 굽는 축, 넙다리 · 정강이는 무릎이 굽는 축, 손은 손바닥 폭(검지 → 새끼).
-   * 점에서 다시 셈하면 거의 편 마디에서 못 정해 이것을 그대로 쓴다(pose-rig rigPose 의 refs).
+   * 점에서 다시 셈하면 거의 편 마디에서 못 정해 이것을 그대로 쓴다(보기용 다듬기 display.ts 가 잇는다).
    */
   refs: Partial<
     Record<

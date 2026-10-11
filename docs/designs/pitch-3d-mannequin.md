@@ -27,9 +27,12 @@
   우리 샘플은 선수 이름이 들어 있어 저장소에 넣지 않고 만들 때 받아 온다. 만든 HTML 은 저장소 밖에 둔다.
   `node --env-file=.env --import ./scripts/alias-register.mjs scripts/pitch-lab/mannequin/build.mts --sample=4 --out=<저장소 밖 파일.html>`
   그 파일을 고쳤으면 `page.js` · `head.html` 에도 같이 옮긴다(아티팩트와 저장소가 어긋나지 않게).
-- 화면 확인은 페이지를 `public/dev-man.html` 로 잠깐 복사한다. 그다음 `preview_start bullpen-log-dev` → `localhost:3000/dev-man.html` 로 본다.
-  끝나면 파일을 지우고 서버를 끈다(커밋 금지).
-  - 내장 브라우저 창이 가려져 있으면 그림이 초당 2장이라 화면 갈무리가 한 박자 늦다. 장면을 바꾼 뒤 2초 기다리고 찍는다.
+- **앱에 들어갔다(2026-10-11, §6 1~5단계)**: 실험실 결과 화면 `app/(app)/videos/lab/[id]/body-3d.tsx` 가 이 예시 그대로 인형 · 멈춤 화면 · 빛 · 그림자를 그린다.
+  순수 모듈 `lib/pitch-3d/v2/mannequin-*.ts`, three 쪽 `app/(app)/videos/lab/[id]/mannequin/`. 예시 페이지를 고치면 앱도 같이 맞춘다(§7 질문 답 포함).
+- 화면 확인(2~4단계에서 쓴 방법): 로그인 없이 보려고 임시 경로 `app/dev-preview-man/`(page.tsx + `data/route.ts`)를 만들고, 합성 결과(`runV2` 꼴 스크립트) ·
+  샘플 결과(버킷 읽기만)는 `%TEMP%` 에 JSON 으로 둔다 — `public/` 에는 절대 넣지 않는다. 예시 페이지와 나란히 볼 땐 `build.mts` 로 만든 HTML 을 `%TEMP%` 에 두고
+  `ref/route.ts` 가 HUD · 고르개 · 설명(이름 · 기관 글)을 숨겨 띄운다. 끝나면 임시 경로 · 스크립트 · JSON 을 지우고 개발 서버를 다시 켠다(커밋 금지).
+  - 내장 브라우저 판이 가려져 있으면 rAF 가 멈춰 화면이 안 바뀐다 — 갈무리가 한 장면씩 밀어 준다. 단추는 `javascript_tool` 로 `button.click()` 이 가장 확실하다.
 
 ## 3. 페이지 구조(고칠 때 찾을 곳)
 
@@ -97,20 +100,67 @@
 
 ## 6. 진행 — 앱 실험실 화면에 넣기(2026-10-11 데스크톱 김민 → 금윤호에게 넘김)
 
-계획 4단계(Claude 기준 4~5시간). 1단계만 끝냈다.
+계획 5단계(Claude 기준 4~5시간). 1~5단계 끝(2026-10-11).
 
 1. **끝남** 자료 다듬기를 앱 코드로 — `lib/pitch-3d/v2/mannequin-prep.ts`(순수): `smoothForMannequin`(앞발 착지 잇기 · 관절별 가우스, `build.mts` 와 같은 값)
    · `mannequinTrack`(displayTrack → 미터 · x 앞 · y 왼쪽 · z 위, 이름은 투구 기준 r = 던지는 쪽 · l = 글러브 쪽, 좌투는 좌우를 바꿔 넣음 · td/tp 몸통 축 ·
    nose · ear · dt = 착지 → 릴리스 0.15초). 시험 `npm run pitch3d:v2-test` 의 '데생 인형 관절' 4개(축 바꿈 · 좌투 · 글러브 손목 가속 5.7 → 2.3mm), 전체 192.
-2. **남음** 인형 그리기 옮기기(약 2시간) — `scripts/pitch-lab/mannequin/page.js` 의 `torso` · `limb` · `shoe` · `loft` · `footPose` · 장갑 · 공 · 머리 · `draw` 의
-   뼈(`bones`) · 잰 선(`lines` · `arc` · `label`) · `applyAna` · 네 번 그리기 `render` 를 TS 모듈(예: `app/(app)/videos/lab/[id]/mannequin.ts`)로.
-   - 앱은 three **0.186**, 예시는 r128 이다. 바뀐 것: `outputEncoding/sRGBEncoding` → `outputColorSpace`(기본 sRGB), `Color` 는 색 관리가 켜져 있어
-     `convertSRGBToLinear` 를 빼고 그냥 hex 로, 빛 세기는 물리 단위라 예시 값 그대로면 어둡다(대략 ×π 에서 맞춰 볼 것).
-   - 예시는 z 위 · 미터, 앱 무대는 y 위 · 키 = 1 이다. 인형을 한 Group 에 넣고 `rotation.x = -π/2` · `scale = 1/키(m)` 하면 앱 좌표에 그대로 얹힌다.
-   - 예시는 장면마다 도형을 새로 만든다(`clear` → 다시 만들기). 먼저 그대로 옮기고, 느리면 그때 고친다.
-3. **남음** 실험실 화면에 넣기(약 1시간) — `body-3d.tsx` 의 해부학 뼈대(`loadSkeleton` · `rigPose` · `meshes` · `placeShadows`) 자리에 인형.
-   재생 중 = 인형, 멈추면 `ana` 가 0 → 1 로 옅어지며 뼈 · 잰 선 · 이름표(HTML 겹침). 시계 · 재생 막대 · 보는 방향 · 순간 단추는 그대로 쓴다.
-   인형 색은 1절 그대로. 무대(바탕 · 조명 · 바닥 · 마운드)는 `stage.ts` — 김민이 야구장으로 따로 만든다(마운드 모래색도 그쪽).
-   `body-3d.tsx` 에서 무대 코드를 다시 쓰지 말 것(같은 때 고치다 충돌). 잰 값은 아직 '참고용' — v1 지표와 맞추는 건 그다음.
-4. **남음** 화면 확인(약 1시간) — 로그인 없이: 샘플 결과 JSON 을 임시 경로(`app/dev-preview-*`, 커밋 금지)에 띄워 휴대폰 375 · PC 에서 보기,
-   재생 · 멈춤 · 순간 단추 · 돌려 보기 · 다크/라이트. 끝나면 임시 경로를 지우고 개발 서버를 다시 켠다.
+2. **끝남** 인형 그리기 + 실험실 화면에 넣기(2026-10-11) — 검토 B안: **한 번 만들고 장면마다 자리 · 회전 · 배율만** 바꾼다(예시는 장면마다 74개를 새로 만들었다).
+   - 순수(three 없음, 시험이 같이 돈다): `lib/pitch-3d/v2/mannequin-frames.ts`(1단계 틀) · `mannequin-profiles.ts`(치수 · 색 · 마운드 색 — 예시 값 그대로) ·
+     `mannequin-loft.ts`(로프트 색인 고정 + 정점만 다시 쓰기 `writeLoft` · `writeTorso` · `computeNormals`, three 와 같은 구심 캣멀롬 `catmullRom`, `torsoModel`, `shoeAxes`).
+   - three 쪽: `app/(app)/videos/lab/[id]/mannequin/figure.ts` — `createFigure(THREE, {heightM, hand})` → `{group, update(J, F), dispose, materials}`.
+     래스는 높이 1 로 한 번 만들고 scale.y = 길이, 구 · 상자 · 토러스는 단위 도형. 메시 74 · 삼각형 71,580. 좌투는 관절을 우투 꼴로 뒤집고(`canonicalFrames`)
+     묶음의 y 배율 −1 로 되돌린다(three 가 음수 행렬식이면 감김을 뒤집어 준다 — 시험 '거울' 통과).
+   - `body-3d.tsx`: 해부학 뼈대(`loadSkeleton` · `rigPose` · `placeShadows` · GLTFLoader) 뺌 → 인형. `scene.background = null`(뒤 단계 여러 번 그리기용),
+     바닥 · 마운드 · 투수판 · 화살표는 `world` 묶음, 마운드는 정점 색(모래 #8d6a4c · 투수판 앞 착지 띠는 짙은 흙 · 둘레는 어둡게), 시계 · 막대 · 시점 · 순간 단추는 그대로.
+   - 잰 것(노드, 합성 결과 372장면): 틀 계산 24~31ms(한 번) · 인형 만들기 13~27ms(한 번) · **update 1.6~2.1ms/장면**(CPU). 브라우저 rAF 는 3초에 504장면(165Hz 화면).
+   - 시험 `npm run pitch3d:v2-test` '데생 인형 겉면' 15개(닫힌 면 · 열린 띠 · 법선 바깥쪽 · 신발 틀 오른손 꼴 · 몸통 이음새 0 · 60° 숙여도 안 접힘). 전체 221.
+   - 예시와 아직 다른 것(4단계에서): 빛은 앱 것 그대로(반구 0.9 + 주 1.7 + 테 0.6, 예시는 더 밝고 그림자 있음) · 그림자 없음 · 몸통 · 신발 비율은 예시 값이지만
+     같은 화면에서 나란히 견주지 않았다 · 모든 재질 양면(예시와 같음). 마운드 둘레 어두운 띠는 가까이서 봐야 보인다.
+   - 미리보기는 로그인 없이 임시 경로(`app/dev-preview-man`, 삭제함)에 합성 결과(우투 · 좌투)를 띄워 375×812 · PC 에서 봤다 — 콘솔 오류 0.
+3. **끝남** 멈춤 화면(2026-10-11) — 멈추면(멈춤 단추 · 막대 · 순간 칩 · 릴리스 자동 멈춤 · 키보드) `ana` 가 0 → 1 로 오르며(초당 7 지수 수렴, 0.8초,
+   움직임 줄이기면 즉시) 인형은 비치고(불투명도 0.22, 맨 앞 겉면만) 속 뼈 · 잰 선 다섯 · 이름표가 짙어진다. '각도' 칩으로 끌 수 있다.
+   - 순수(시험이 같이 돈다): `lib/pitch-3d/v2/mannequin-pause.ts` — 뼈 명세 `boneSpec`(관절 구슬 12 · 뼈 14 · 골반 · 가슴 고리 · 척추 구슬 12 · 머리, 예시 값 그대로) ·
+     `boneEnds` · `anaStep` · `anaMaterials` · `arcFrame` · `placeLabels`(예시의 위아래 비키기 + 화면 안 가두기) · `projectToScreen`; `mannequin-loft.ts` 에 호 관 `writeTube` ·
+     부채꼴 `writeFan` · `fanIndices`(점 상한 64, 모자라면 마지막 점에 겹침).
+   - three 쪽: `mannequin/overlay.ts` — `createOverlay(THREE, {heightM})` → `{bones, lines, update(J, F, values) → labels, setAna, dispose}`. 메시 64, 한 번 만들고
+     장면이 바뀌거나 멈출 때만 자리를 다시 잡는다(rAF 마다가 아니다). `body-3d.tsx`: 인형 · 뼈 · 선을 한 `rig` 묶음(x −90° · 1/키 · 좌투 y −1)에, 비칠 때 네 번
+     그리기(바닥 · 뼈 → 인형 깊이만 `overrideMaterial` → 인형 맨 앞 겉면 → 잰 선), 재생 중엔 뼈 · 선을 숨기고 한 번. 이름표는 HTML 다섯(캔버스 위 겹침,
+     `rig.localToWorld` → `project`), 범례는 왼쪽 위(예시는 왼쪽 아래 — 아래 안내문을 피해 옮김), 스크린 리더용 sr-only 목록, aria 라벨에 '뼈와 각도 표시'.
+   - 잰 것(노드, 372장면): overlay 만들기 4~20ms(한 번) · **update 0.7~1.0ms/장면** · 50장면 다시 그려도 도형 수 0 증가. 미리보기(합성 우투 · 좌투, 375×812):
+     릴리스 · 착지 이름표가 표와 같음(몸통 32° · 앞무릎 52° · 어깨 벌림 95° / 착지 상하체 52° · 앞무릎 50°), 나머지 '참고', 좌투 거울, 돌려 봐도 이름표가 따라옴,
+     '각도' 끄면 불투명 인형만, 콘솔 오류 0. 브라우저 판이 숨겨진 상태라 rAF 수는 못 쟀다(2단계 때 3초 504장면).
+   - 시험 '데생 인형 멈춤' 14개(뼈 명세 · 척추 구슬 뒤쪽 · 목 구슬 · 굵기 표 · 좌투 · 호 관 · 부채꼴 · 호 틀 · 옅어짐 · 재질 값 · 이름표 자리 · 투영 · 이름표 값 출처). 전체 235.
+   - 예시와 다른 것(4단계에서): 호 관은 캣멀롬 대신 점마다 고리(조금 덜 매끈) · 범례 자리 · 이름표가 옆에서 보면 한 줄로 쌓임(예시도 같음) · 비친 인형이 어두운 바탕에서
+     꽤 희미함(불투명도 0.22 는 예시 값, 빛이 예시보다 어두워서) · 그림자 없음.
+4. **끝남** 보기 다듬기(2026-10-11) — 예시 page.js 의 무대 · 빛 · 그림자를 그대로 옮기고 **샘플 4**(버킷 읽기만, 임시 폴더)로 예시 페이지와 앱을 같은
+   장면(니업 · 착지 · 릴리스, 포수 · 옆)에서 나란히 봤다.
+   - 숫자는 한 곳(`mannequin-profiles.ts`): `STAGE`(노출 1.15 · 화각 28 · 바탕 그라데이션 · 격자 8m/16 · 바닥 그림자 0.32), `LIGHT_RIG`(반구 0xf4f7ff/0x3a3f48 **2.3, 축 'side'** ·
+     주 0xfff6ea **4.2** (1.6, −2.4, 4.6)→(0, 0, 0.6) 그림자 2048(좁은 칸 1024) ±2.4m bias −0.0005 normalBias 0.015 radius 4 · 보조 0xa9c2e2 **1.6** (−3, 3, 2) · 뒤 0xffffff **1.1**
+     (−2.5, 2.5, 3.2)→(0, 0, 1)), `MOUND_GRAIN`(흙 0.55m/0.6m · 둘레 0.4m · 잡음 0.2). 예시(r128 옛 조명) 값의 ×π 에서 시작, 반구만 2.7 → 2.3 으로 내렸다.
+   - 반구 빛 축: 예시는 자리를 안 정해 축이 옆(+y, 1루 쪽)이었다 — 'up' 으로 두면 마운드가 예시보다 훨씬 밝아 'side' 로 맞췄다(이 quirk 가 예시 분위기의 핵심).
+   - 좌표: 예시 빛의 x · y 는 엉덩이 가운데 바닥점 기준, z 는 바닥 높이 → `toDisplay` 로 (x/H, z/H, −y/H). 그림자 카메라 · normalBias 도 1/키.
+   - three 0.186 차이: `PCFSoftShadowMap` 은 r186 에서 빠짐 → 기본 PCF(radius 가 부드러움 조절) · 옛 조명이 없어 세기 ×π · 색은 hex 그대로(예시의 lin() 은 복사 금지).
+   - 캔버스는 투명(alpha) + 호스트 CSS 그라데이션(예시 방식) — 비칠 때 섞임 문제 없었다. 네 번 그리기 첫 패스에서 인형은 colorWrite 끄고 그림자만, 그림자 지도는
+     첫 패스에서만. 신발은 클리어코트(MeshPhysicalMaterial). 호 관 · 부채꼴은 캣멀롬으로 64점 다시 뽑아 매끈하게(`arcPolyline`).
+   - 마운드: 예시 buildMound 의 색(착지 발목 · 투수판 앞 흙, 둘레, 값 잡음 결)을 `moundShade` · `valueNoise2` 로, 거칠기 0.96. 바닥 그림자판은 마운드가 있어도 늘.
+   - 견준 결과: 같은 자세 · 같은 숫자(이름표) · 그림자 자리 같음 · 마운드 색은 앱이 아주 조금 더 밝음(허용). 콘솔 오류 · 경고 0.
+   - 시험 '데생 인형 보기' 5개(빛 자리 · 빛 틀 · 잡음 · 마운드 색 · 호 다듬기), 전체 240.
+   - 예시와 아직 다른 것: 축 화살표(앱만의 것) · 시점 각도(포수 2.9° vs 8.6°, 위 70° vs 77°, 옆 · 뒤는 앱이 찍은 카메라 방향) · PCF 그림자 가장자리(예시 PCFSoft 보다
+     조금 거칠 수 있음) · 예시는 거리 4.5m 고정, 앱은 상자에 맞춤 · 범례 왼쪽 위. 브라우저 판이 숨겨진 상태라 rAF 수는 못 쟀다.
+   - **합치며 바뀜(2026-10-11)**: 같은 때 김민이 무대를 `stage.ts`(`buildStage`, 간이 마운드 · 어두운 바탕)로 떼고 "body-3d.tsx 에서 무대 코드를 다시 쓰지 말 것"이라 해서,
+     `body-3d.tsx` 의 4단계 무대 코드(빛 넷 · 그림자 · 그라데이션 · 마운드 결)는 걷고 `buildStage` 한 줄로 되돌렸다. 무대가 넣은 것 중 빛이 아닌 것은 `world` 묶음으로 옮기고
+     `scene.background = null`(네 번 그리기용)만 더한다. 위 빛 숫자(`LIGHT_RIG` · `STAGE` · `MOUND_GRAIN`)는 `mannequin-profiles.ts` 에 남겨 김민이 stage.ts 에 쓸 수 있게 했다(§7 2번).
+5. **끝남** 정리(2026-10-11) — 해부학 뼈대 보기를 뺐다: `pose-rig.ts` 는 마운드 함수(`MOUND` · `moundHeightAt`)만 남기고 rig(`rigPose` · `partMatrix` · `readSkeletonParts` …)를
+   지움, `public/models/skeleton-parts.json` · `scripts/pitch-lab/skeleton-parts.mjs` 삭제, `ATTRIBUTION.txt` 의 그 문단 삭제(`body-full.glb` 는 몸 지도가 써서 그대로).
+   셀프테스트의 '뼈대 자세' 7개를 빼고 마운드 · 보기 · 관절 각도 틀 시험은 그대로(전체 233). 화면 글 '뼈대가 움직여요' → '인형이 움직여요'. 김민에게 묻는 것은 §7 과 HANDOFF,
+   메모는 `docs/claude/geum-yunho.md` 4절 16번.
+
+## 7. 김민에게 물은 것(2026-10-11, HANDOFF 와 같음 — 답이 오면 여기와 코드에 반영)
+
+1. 숫자 출처 — 순간(착지 · 릴리스) 이름표는 결과 표 `result.metrics`, 그 밖은 보기용 관절로 잰 '참고' 값(예시는 전부 라이브). 이대로 둘지, 표와 라이브가 8° 넘게 벌어지면 어떻게 보일지.
+2. 무대 빛 · 그림자 — 예시의 반구 빛 옆(1루 쪽) quirk · 주 빛 그림자를 stage.ts 에 옮길지(인형 메시는 이미 castShadow, 숫자는 LIGHT_RIG).
+3. 시계 — 앱은 영상 시각 `result.t`, 예시는 착지 → 릴리스 0.15초 가상 시계. 괜찮은지.
+4. 좌투 — 우투 꼴로 계산 + 묶음 y 배율 −1, 잰 값은 절댓값. 실제 좌투 샘플이 생기면 확인.
+5. 앱만의 것 — 축 화살표 · 시점 각도(옆 · 뒤는 찍은 카메라, 포수 2.9° · 위 70°) · 범례 왼쪽 위 · 상자에 맞춘 거리. 그대로 둘지.
+6. three 0.186 — `PCFSoftShadowMap` 이 r186 에서 빠짐(그림자를 켜면 기본 PCF + radius). 2번과 같이.
