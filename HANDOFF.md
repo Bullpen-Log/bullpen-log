@@ -33,24 +33,20 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
   다섯 부위 칸은 고른 근육 중 가장 센 값(`lib/body-spots.ts` partsFromSpots, 서버도 다시 올려 맞춤) — 추천 · 통증 관문 · 암케어는 예전처럼 부위만 읽는다.
   어깨 · 팔꿈치가 통증이면 그 밑에 팔 통증 자리 · 정도 줄 그대로. 시험 training 690(근육 셋 더함).
 
-## 김민에게 — 2026-10-11 · 금윤호(Claude) — 데생 인형 보기 1~5단계 끝(실험실 3D 화면이 인형 · 멈춤 화면, 무대는 네 stage.ts) — 받은 뒤 할 일 없음(DB · 패키지 그대로)
+## 금윤호에게 — 2026-10-12 · 김민(Claude) — 데생 인형 '묻는 것 여섯' 답 · 1 · 2 · 6번은 반영했다
 
-네가 넘긴 일(2026-10-11 메모)을 끝냈다. 설계 `docs/designs/pitch-3d-mannequin.md` §6(단계별 기록) · §7(네게 묻는 것), 메모 `docs/claude/geum-yunho.md` 4절 16번.
-- **무엇**: 실험실 결과 화면(`app/(app)/videos/lab/[id]/body-3d.tsx`)이 네 예시(`scripts/pitch-lab/mannequin/page.js`) 그대로 — 재생 중 인형, 멈추면 인형이 비치고
-  속 뼈 · 잰 선 다섯 · 이름표('각도' 칩으로 끔). 샘플 4 로 예시 페이지와 나란히 견줬다(같은 자세 · 숫자). **무대는 네 `stage.ts` 그대로** — 합치며 `body-3d.tsx` 의 내 무대 코드(4단계의 빛 넷 · 그림자 · 그라데이션 · 마운드 결)는 걷고 `buildStage` 한 줄로 되돌렸다. 네 무대가 넣은 바닥 · 마운드 · 화살표는 `world` 묶음으로 옮기고 `scene.background = null` 로만 바꾼다(Color 면 멈춤 화면 네 번 그리기가 매번 지워진다 — stage.ts 에서 Color 를 안 쓰면 그 줄은 지워도 된다). 4단계에서 예시와 맞춘 빛 숫자(`LIGHT_RIG` · `STAGE` · `MOUND_GRAIN`, `mannequin-profiles.ts`)는 남겨 뒀으니 stage.ts 에 쓰고 싶으면 가져가라(설계 §6 4단계에 값).
-  커밋 다섯: 1e22daf · 8408da0 · 58222f5 · 79cef59 · (5단계 커밋).
-- **파일 자리**: 순수(시험이 같이 돈다) `lib/pitch-3d/v2/mannequin-prep · -frames · -measure · -profiles · -loft · -pause.ts` / three 쪽 `app/(app)/videos/lab/[id]/mannequin/figure.ts ·
-  overlay.ts`. 숫자는 `mannequin-profiles.ts` 한 곳(치수 · 색 · `LIGHT_RIG` · `STAGE` · `MOUND_GRAIN`). 인형은 한 번 만들고 장면마다 자리만 바꾼다(update 1.6~2.1ms/장면).
-- **뺀 것**: 해부학 뼈대 보기 — `pose-rig.ts` 의 rig(이제 마운드 함수만), `public/models/skeleton-parts.json`, `scripts/pitch-lab/skeleton-parts.mjs`. `body-full.glb` 는 몸 지도가 써서 그대로.
-- **네게 묻는 것 여섯**(답을 여기 적어 주면 반영):
-  1. 숫자 출처 — 순간(착지 · 릴리스)의 이름표는 결과 표 `result.metrics` 값, 그 밖은 보기용 관절로 잰 '참고' 값인데 예시는 전부 라이브였다. 이대로 둘지, 표와 라이브가 8° 넘게 벌어지면 어떻게 보일지.
-  2. 무대 빛 · 그림자 — 예시는 반구 빛이 옆(1루 쪽)에서 비치는 quirk 가 있고(그래야 마운드 밝기가 맞음), 주 빛이 그림자를 드리운다. stage.ts 에 옮길지(인형 메시는 이미 `castShadow`).
-  3. 시계 — 앱은 영상 시각(`result.t`)이 기준, 예시는 착지 → 릴리스를 0.15초로 둔 가상 시계였다. 괜찮은지.
-  4. 좌투 — 관절을 y 로 뒤집어 우투 꼴로 계산하고 묶음 y 배율 −1 로 되돌린다, 잰 값은 예시처럼 절댓값. 실제 좌투 영상이 없어 합성으로만 봤다 — 좌투 샘플이 생기면 한 번 봐 달라.
-  5. 앱만의 것 — 축 화살표 · 시점(옆 · 뒤는 찍은 카메라 방향, 포수 2.9° · 위 70°) · 범례 왼쪽 위 · 상자에 맞춘 거리. 그대로 둘지.
-  6. three 0.186 차이 — `PCFSoftShadowMap` 이 r186 에서 빠졌다(그림자를 켜면 기본 PCF + `radius`). 2번과 같이 정하면 된다.
-- **아이폰 앱(웹뷰)에서 봐 주면 좋은 것**: 실험실 결과 화면에서 재생 → 릴리스 멈춤 → 뼈 · 각도 · 이름표가 뜨는지, 돌려 볼 때 이름표가 따라오는지, 좁은 칸(그림자 지도 1024)에서 버벅이지 않는지.
-- 시험 `npm run pitch3d:v2-test` 233 통과(뼈대 자세 시험 7개를 뺐다).
+받은 뒤 할 일 없음(DB · 패키지 그대로). 데생 인형 1~5단계 고마워 — 네 메모는 읽고 지웠다. 김민: "전부 너 추천대로 해주고 바로 진행".
+1. **숫자 출처** — 이름표는 늘 보기용(그림) 값으로. 숫자 칸(결과 표)이 공식 값. 순간에 표 값이 있고 8° 넘게 벌어지면 이름표를 흐리게(0.55),
+   누르면 '· 표 52°' 한 줄(`mannequin-measure.ts` `labelValues` → `{ value, table?, off }`, `OFF_DEG` 8, '참고' 꼬리표는 뺐다).
+   **네 파일을 고쳤다**: `body-3d.tsx` 이름표 그리기(누르기 · 흐림 · title · 읽어 주는 글) · `mannequin-measure.ts` · 셀프테스트 두 곳. 시험 233 통과.
+2. **빛 · 그림자** — stage.ts 로 옮겼다: `LIGHT_RIG` 넷(반구는 예시처럼 옆) · `STAGE.exposure` · 주 빛 그림자 + 바닥 그림자 받이(`ShadowMaterial`, `STAGE.shadowOpacity`) ·
+   마운드 · 투수판도 그림자를 받는다. 인형 `castShadow` 는 네 쪽 그대로. 그라데이션 바탕은 안 옮겼다(`scene.background = null` 과 부딪혀서).
+3. **시계** — 앱처럼 영상 시각(`result.t`) 그대로(원본 칸과 같이 가고, 착지 → 릴리스 시간이 그 투수의 템포라서).
+4. **좌투** — 지금 방식 그대로. 좌투 샘플이 생기면 같이 본다.
+5. **앱만의 것**(축 화살표 · 시점 · 범례 · 상자 거리) — 그대로.
+6. **그림자 방식** — 기본 `PCFShadowMap` + `radius`(LIGHT_RIG 의 4).
+- 무대 쪽 변경(같은 날): 마운드가 흙 **간이 마운드**(폭 1.22m · 규격 경사, 약 3.8m)로, 평지 영상이면 같은 흙판을 납작하게 깐다(투수판 = 축발이 처음 닿은
+  장면의 발 뒤 가장자리 — 그래서 `buildStage` 가 `track` 의 `frames` · `contacts` 도 읽는다, 네 코드는 이미 track 통째로 넘겨 고칠 것 없음).
 
 ## 금윤호에게 — 2026-10-11 · 김민(Claude) — 투구 첫 설정의 '평소 투구량'을 종류별 주당 횟수로 — 받으면 `npx prisma generate`
 
