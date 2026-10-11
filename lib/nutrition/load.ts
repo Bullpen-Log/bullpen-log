@@ -1,6 +1,7 @@
 import 'server-only';
 import { appNow } from '@/lib/clock';
 import { prisma } from '@/lib/prisma';
+import { sessionBurnMixes } from '@/lib/nutrition/burn-load';
 import { shiftDateKey, toDateKey } from '@/lib/pitch-stats';
 import { NUTRITION_BACK_DAYS, dbDate, keyOfDbDate } from '@/lib/nutrition/days';
 import {
@@ -290,7 +291,7 @@ export async function loadNutritionDay(
     }),
     prisma.trainingSession.findMany({
       where: { userId, date: { gte: dbDate(burnStart), lte: dbDate(rangeEnd) } },
-      select: { date: true, activeSeconds: true },
+      select: { id: true, date: true, activeSeconds: true },
     }),
     prisma.pitchLog.findMany({
       where: { userId, date: { gte: dbDate(burnStart), lte: dbDate(rangeEnd) } },
@@ -394,8 +395,10 @@ export async function loadNutritionDay(
     if (!item) return;
     burnByDay.set(day, [...(burnByDay.get(day) ?? []), item]);
   };
+  /* 운동마다의 강도 · 세트로 셈한다(lib/nutrition/burn.ts trainingBurn) */
+  const mixes = await sessionBurnMixes(sessions.map((s) => s.id));
   for (const s of sessions)
-    pushBurn(keyOfDbDate(s.date), trainingBurn(s.activeSeconds, burnKg));
+    pushBurn(keyOfDbDate(s.date), trainingBurn(s.activeSeconds, burnKg, mixes.get(s.id)));
   for (const p of pitches) {
     pushBurn(
       keyOfDbDate(p.date),
