@@ -2,6 +2,7 @@ import type * as Three from 'three';
 import type { Vec3 } from '@/lib/pitch-3d/linalg';
 import type { DisplayTrack } from '@/lib/pitch-3d/v2/display';
 import { MOUND } from '@/lib/pitch-3d/v2/pose-rig';
+import { buildStadium, fenceDist, wallHeight } from './stadium';
 
 /**
  * 투구 3D 보기의 무대 — 메이저리그 · KBO 같은 야구장(낮 · 밤). 사람(뼈대 · 데생 인형)은 body-3d.tsx 가 그린다.
@@ -35,11 +36,6 @@ export type StageHandle = {
 };
 
 const RUBBER_TO_PLATE = 18.44;
-const FENCE_LINE = 100;
-const FENCE_CENTER = 122;
-const FENCE_H = 3;
-const BACKSTOP = 18.3;
-const FOUL_WALL_H = 1.1;
 const GROUND_R = 420;
 const SKY_R = 600;
 
@@ -47,6 +43,7 @@ const SKY_R = 600;
 const FIELD_GLSL = /* glsl */ `
 uniform vec2 uHome;
 uniform float uS;
+uniform float uNight;
 varying vec3 vFieldPos;
 vec3 fieldCol;
 float fieldRough;
@@ -86,7 +83,7 @@ void field(vec3 w, vec3 cam) {
   float u = dot(p, e1);
   float v = dot(p, e3);
   float perp1 = dot(p, vec2(-0.7071067812, 0.7071067812)); /* 1루 선에서 파울 쪽 + */
-  float perp3 = dot(p, vec2(0.7071067812, 0.7071067812));  /* 3루 선에서 파울 쪽 + */
+  float perp3 = dot(p, vec2(0.7071067812, 0.7071067812));  /* 3루 선에서 페어 쪽 + (부호가 1루와 반대) */
 
   /* 잔디 — 4.57m 격자 깎기, 줄 밝기는 보는 방향에 따라(잎이 누운 쪽에서 보면 밝다) */
   float band = 4.572;
@@ -95,12 +92,13 @@ void field(vec3 w, vec3 cam) {
   float chk = su * sv + (1.0 - su) * (1.0 - sv);
   vec3 vw = cam - w;
   vec2 vf = normalize(vec2(-vw.x, -vw.z) + 1e-5);
-  float sheen = (2.0 * chk - 1.0) * (0.055 + 0.05 * dot(vf, e1) * (2.0 * su - 1.0));
+  /* 깎은 줄 — 격자 밝기 차 ±12% + 보는 방향에 따른 ±7%(잎이 누운 쪽에서 보면 밝다) */
+  float sheen = (2.0 * chk - 1.0) * 0.12 + 0.07 * dot(vf, e1) * (2.0 * su - 1.0) * (2.0 * sv - 1.0);
   float gp = fFbm(p * 0.22, fp * 0.22) * 0.22 + fFbm(p * 2.3, fp * 2.3) * 0.12 + fFbm(p * 21.0, fp * 21.0) * 0.16;
   /* 잎결 — 깎은 방향으로 늘인 잔 무늬(가까이서만 보인다, 줄마다 방향이 바뀜) */
   vec2 bd = mix(vec2(u, v), vec2(v, u), su);
   float blade = fFbm(vec2(bd.x * 38.0, bd.y * 5.0), fp * 38.0);
-  vec3 grass = fLin(vec3(0.29, 0.52, 0.21)) * (1.0 + sheen) * (1.0 + gp) * (1.0 + blade * 0.5);
+  vec3 grass = fLin(vec3(0.27, 0.49, 0.20)) * (1.0 + sheen) * (1.0 + gp) * (1.0 + blade * 0.5);
   vec3 rough = fLin(vec3(0.27, 0.43, 0.19)) * (1.0 + gp * 1.4);
 
   /* 내야 흙 — 투수판 앞에서 반지름 28.96m 호, 파울선 3° 밖까지 */
@@ -133,18 +131,31 @@ void field(vec3 w, vec3 cam) {
   float peb = step(0.982, fHash(pc)) * (1.0 - smoothstep(0.18, 0.3, length(pf))) * (1.0 - smoothstep(0.004, 0.02, fp)) * (fHash(pc + 3.1) - 0.45);
   vec3 dirt = mix(fLin(vec3(0.66, 0.40, 0.24)), fLin(vec3(0.52, 0.30, 0.18)), clamp(clay * 0.9 + lip * 0.35, 0.0, 1.0)) * (1.0 + dp * 1.4 + peb * 0.7);
 
-  /* 경고 트랙 · 펜스 밖 */
-  float fr = 100.0 + 22.0 * cos(2.0 * clamp(th, -Q, Q));
+  /* 경고 트랙 · 펜스 밖 — 펜스 거리는 stadium.ts fenceDist 와 같은 식 */
+  float ft = min(1.0, abs(th) / Q);
+  float fr = 122.0 - 40.2 * ft * ft + 18.8 * ft * ft * ft;
   float sd45 = max(dot(p, vec2(-sin(Q), cos(Q))), dot(p, vec2(-sin(Q), -cos(Q))));
   float trackM = fCover(max(max(d - fr, fr - 4.572 - d), sd45), aa);
   float outM = fCover(max(fr - d, sd45), aa);
   vec3 track = fLin(vec3(0.50, 0.34, 0.24)) * (1.0 + fFbm(p * 14.0, fp * 14.0) * 0.35);
+  /* 주차장(아스팔트) — 외야석 뒤, 파울 지역 밖(관중석 밑 · 뒤). 파울 지역 폭은 stadium.ts foulOff 와 같은 식 */
+  float alongF = p.y > 0.0 ? u : v;
+  float perpF = p.y > 0.0 ? perp1 : -perp3;
+  float foulW = 1.0 + 15.8 * (1.0 - smoothstep(42.0, 100.6, alongF));
+  float foulSd = alongF > 0.0 ? perpF - foulW : d - 16.8;
+  float lotM = max(fCover(max(fr + 27.0 - d, sd45), aa), fCover(max(-foulSd, -sd45), aa));
+  /* 주차 칸 — 2.7m 마다 흰 줄, 16m 마다 칸 두 줄 + 통로 */
+  vec2 lp = vec2(p.x, abs(p.y));
+  float sdl = (0.5 - abs(fract(lp.y / 2.7) - 0.5)) * 2.7 - 0.06;
+  float stripe = fCover(max(sdl, abs(fract(lp.x / 16.0) - 0.5) * 16.0 - 5.5), aa);
+  vec3 asphalt = fLin(vec3(0.33, 0.33, 0.34)) * (1.0 + fFbm(p * 3.0, fp * 3.0) * 0.25 + fFbm(p * 40.0, fp * 40.0) * 0.15);
+  asphalt = mix(asphalt, fLin(vec3(0.85, 0.85, 0.82)), stripe * (1.0 - smoothstep(0.02, 0.2, fp)) * 0.8);
 
   /* 분필선 — 파울선 10cm, 타석 · 포수석 · 1루 주로선 7.6cm */
   float hw = 0.0508;
   float tw = 0.0381;
-  float line = max(abs(perp1) - hw, max(-u, u - 100.0));
-  line = min(line, max(abs(perp3) - hw, max(-v, v - 100.0)));
+  float line = max(abs(perp1) - hw, max(-u, u - 100.6));
+  line = min(line, max(abs(perp3) - hw, max(-v, v - 100.6)));
   line = min(line, abs(fBox(vec2(p.x - 0.2157, p.y - 0.978), vec2(0.915, 0.61))) - tw);
   line = min(line, abs(fBox(vec2(p.x - 0.2157, p.y + 0.978), vec2(0.915, 0.61))) - tw);
   line = min(line, fBox(vec2(p.x + 1.92, abs(p.y) - 0.546), vec2(1.22, tw)));
@@ -164,9 +175,10 @@ void field(vec3 w, vec3 cam) {
   vec3 col = grass;
   fieldRough = 0.88;
   col = mix(col, rough, outM);
+  col = mix(col, asphalt * (1.0 - 0.85 * uNight), lotM);
   col = mix(col, track, trackM);
   col = mix(col, dirt, dirtM);
-  fieldRough = mix(fieldRough, 1.0, max(dirtM, trackM));
+  fieldRough = mix(fieldRough, 1.0, max(max(dirtM, trackM), lotM));
   col = mix(col, chalk, lineM);
   col = mix(col, fLin(vec3(0.18)), plateM);
   col = mix(col, fLin(vec3(0.95, 0.95, 0.93)), plateIn);
@@ -191,19 +203,58 @@ uniform vec3 uGround;
 uniform vec3 uSunDir;
 uniform vec3 uSunCol;
 uniform float uStars;
+uniform vec3 uMtn;
+uniform vec2 uCf;
+uniform float uClouds;
 varying vec3 vDir;
 float sHash(vec3 p) { p = fract(p * 0.3183099 + 0.1); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
+float cHash(vec2 p) { vec3 q = fract(vec3(p.xyx) * 0.1031); q += dot(q, q.yzx + 33.33); return fract((q.x + q.y) * q.z); }
+float cNoise(vec2 p) {
+  vec2 i = floor(p), f = fract(p);
+  vec2 u = f * f * (3.0 - 2.0 * f);
+  return mix(mix(cHash(i), cHash(i + vec2(1.0, 0.0)), u.x), mix(cHash(i + vec2(0.0, 1.0)), cHash(i + vec2(1.0, 1.0)), u.x), u.y);
+}
+float cFbm(vec2 p) {
+  float s = 0.0, a = 0.5;
+  for (int i = 0; i < 5; i++) { s += a * cNoise(p); p = p * 2.07 + vec2(5.3, 1.7); a *= 0.5; }
+  return s;
+}
 void main() {
   vec3 d = normalize(vDir);
   float h = d.y;
   vec3 col = mix(uHorizon, uZenith, pow(clamp(h, 0.0, 1.0), 0.42));
   col = mix(col, uGround, smoothstep(0.0, -0.06, h));
+  /* 먼 산(샌게이브리얼 산맥) — 가운데 쪽(외야 너머)에 높게, 나머지는 낮은 언덕 줄. 두 겹(먼 것은 옅게) */
+  vec2 dz = normalize(d.xz + 1e-5);
+  float az = atan(dz.x * uCf.y - dz.y * uCf.x, dot(dz, uCf));
+  float env = smoothstep(2.2, 0.5, abs(az));
+  float r1 = 0.5 * sin(az * 3.1 + 1.3) + 0.3 * sin(az * 7.7 + 0.4) + 0.15 * sin(az * 19.0 + 2.1) + 0.07 * sin(az * 47.0 + 0.7);
+  float r2 = 0.5 * sin(az * 5.3 + 4.1) + 0.3 * sin(az * 13.0 + 1.9) + 0.12 * sin(az * 31.0 + 3.3);
+  float far = 0.015 + env * (0.085 + 0.035 * r1);
+  float near = 0.008 + env * (0.045 + 0.02 * r2) + 0.01 * (0.5 + 0.5 * sin(az * 2.0));
+  float aaH = 0.0015;
+  float mFar = smoothstep(far + aaH, far - aaH, h) * step(-0.02, h);
+  float mNear = smoothstep(near + aaH, near - aaH, h) * step(-0.02, h);
+  vec3 farCol = mix(uHorizon, uMtn, 0.45 + 0.3 * clamp((far - h) / 0.05, 0.0, 1.0));
+  vec3 nearCol = mix(uHorizon, uMtn, 0.75);
+  col = mix(col, farCol, mFar);
+  col = mix(col, nearCol, mNear);
+  /* 옅은 구름 — 하늘 높은 판(높이에 반비례해 늘인 무늬), 지평 가까이는 엷게 */
+  if (uClouds > 0.0 && h > 0.0) {
+    vec2 cp = d.xz / (h + 0.12) * 1.6;
+    float n = cFbm(cp + vec2(3.1, 0.0)) * 0.7 + cFbm(cp * vec2(3.0, 0.8) + 11.0) * 0.3;
+    float cover = smoothstep(0.52, 0.78, n) * smoothstep(0.02, 0.25, h) * uClouds;
+    col = mix(col, mix(uHorizon, vec3(1.0, 0.99, 0.97), 0.75), cover * 0.85);
+  }
   float sd = max(dot(d, normalize(uSunDir)), 0.0);
   col += uSunCol * (pow(sd, 1600.0) * 18.0 + pow(sd, 90.0) * 0.6 + pow(sd, 8.0) * 0.12);
-  if (uStars > 0.0 && h > 0.05) {
-    vec3 c = floor(d * 380.0);
+  /* 별 — 칸마다 하나를 작은 점으로(도시 불빛에 많이는 안 보인다) */
+  if (uStars > 0.0 && h > 0.05 && mFar < 0.5) {
+    vec3 q = d * 420.0;
+    vec3 c = floor(q);
     float s = sHash(c);
-    col += vec3(step(0.9975, s) * uStars * (0.4 + 0.6 * fract(s * 91.0)) * smoothstep(0.05, 0.3, h));
+    float r = length(fract(q) - 0.5);
+    col += vec3(step(0.9982, s) * (1.0 - smoothstep(0.08, 0.22, r)) * uStars * (0.35 + 0.65 * fract(s * 91.0)) * smoothstep(0.08, 0.4, h));
   }
   gl_FragColor = vec4(col, 1.0);
   #include <tonemapping_fragment>
@@ -215,26 +266,30 @@ const PALETTE = {
   day: {
     zenith: '#2f6fc0',
     horizon: '#c9dcec',
-    ground: '#7d8a6a',
+    ground: '#8a8a7a',
+    mtn: '#5d6f86',
     sunCol: '#fff3d6',
     stars: 0,
+    clouds: 1,
     sun: 2.4,
-    hemi: 0.25,
-    env: 0.55,
+    hemi: 0.3,
+    env: 0.8,
     lamps: 0,
     exposure: 0.95,
   },
   night: {
-    zenith: '#020409',
-    horizon: '#141c30',
+    zenith: '#03050c',
+    horizon: '#262535',
     ground: '#0b0e14',
+    mtn: '#05070b',
     sunCol: '#000000',
     stars: 1,
+    clouds: 0,
     sun: 0.08,
     hemi: 0.12,
     env: 0.12,
-    lamps: 0.75,
-    exposure: 1.05,
+    lamps: 0.8,
+    exposure: 1.1,
   },
 };
 
@@ -314,9 +369,12 @@ export function buildStage({
 
   /* ── 땅: 판 하나 + 마운드, 같은 재질 ── */
   const fieldMat = new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.9, metalness: 0 });
+  /* 밤이면 주차장(경기장 밖)을 어둡게 — 조명이 방향광이라 거리로 줄지 않는다 */
+  const fieldNight = { value: 0 };
   fieldMat.onBeforeCompile = (sh) => {
     sh.uniforms.uHome = { value: new THREE.Vector2(H.x, H.z) };
     sh.uniforms.uS = { value: s };
+    sh.uniforms.uNight = fieldNight;
     sh.vertexShader = sh.vertexShader
       .replace('#include <common>', '#include <common>\nvarying vec3 vFieldPos;')
       .replace('#include <begin_vertex>', '#include <begin_vertex>\nvFieldPos = (modelMatrix * vec4(transformed, 1.0)).xyz;');
@@ -376,31 +434,18 @@ export function buildStage({
     scene.add(g);
   }
 
-  /* ── 담장: 3루 폴 → 3루 쪽 파울 담장 → 백스톱 호 → 1루 쪽 → 1루 폴 → 외야 펜스 ── */
-  const loop: { p: Three.Vector3; wall: number }[] = [];
-  const foulOff = (a: number) => 18 * Math.min(1, Math.max(0, (FENCE_LINE - a) / 25));
-  const along = (a: number, th: number, off: number) => {
-    const n = th > 0 ? Q * 3 : -Q * 3;
-    const p = at(a, th);
-    return V(p.x - off * s * Math.cos(n), 0, p.z - off * s * Math.sin(n));
-  };
-  for (let a = FENCE_LINE; a >= 0; a -= 4) loop.push({ p: along(a, -Q, foulOff(a)), wall: FOUL_WALL_H });
-  for (let i = 1; i < 32; i++) loop.push({ p: at(BACKSTOP, -3 * Q - (2 * Q * i) / 32), wall: FOUL_WALL_H * 2.2 });
-  for (let a = 0; a <= FENCE_LINE; a += 4) loop.push({ p: along(a, Q, foulOff(a)), wall: FOUL_WALL_H });
-  const fenceR = (th: number) => FENCE_LINE + (FENCE_CENTER - FENCE_LINE) * Math.cos(2 * th);
-  for (let i = 1; i < 90; i++) {
-    const th = Q - (2 * Q * i) / 90;
-    loop.push({ p: at(fenceR(th), th), wall: FENCE_H });
-  }
+  /* ── 외야 펜스: 3루 폴 → 가운데 → 1루 폴, 다저스 높이(폴 근처 1.2m · 나머지 2.4m) — 파울 지역 벽 · 관중석은 stadium.ts ── */
   {
-    const N = loop.length;
+    const N = 160;
     const pad: number[] = [];
     const cap: number[] = [];
     const idx: number[] = [];
     for (let i = 0; i <= N; i++) {
-      const e = loop[i % N];
-      pad.push(e.p.x, 0, e.p.z, e.p.x, e.wall * s, e.p.z);
-      cap.push(e.p.x, e.wall * s, e.p.z, e.p.x, (e.wall + 0.12) * s, e.p.z);
+      const th = -Q + (2 * Q * i) / N;
+      const p = at(fenceDist(th), th);
+      const h = wallHeight(th);
+      pad.push(p.x, 0, p.z, p.x, h * s, p.z);
+      cap.push(p.x, h * s, p.z, p.x, (h + 0.1) * s, p.z);
     }
     for (let i = 0; i < N; i++) {
       const a = i * 2;
@@ -415,17 +460,18 @@ export function buildStage({
       m.receiveShadow = true;
       scene.add(m);
     };
-    mk(pad, '#2d6342', 0.7);
+    mk(pad, '#1f4d8c', 0.8);
     mk(cap, '#f2c230', 0.6);
   }
   for (const th of [Q, -Q]) {
     const pole = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.1 * s, 0.12 * s, 24 * s, 12),
+      new THREE.CylinderGeometry(0.12 * s, 0.15 * s, 26 * s, 12),
       new THREE.MeshStandardMaterial({ color: '#f2c230', roughness: 0.45 })
     );
-    pole.position.copy(at(FENCE_LINE + 0.4, th, 12 * s));
+    pole.position.copy(at(fenceDist(th) + 0.3, th, 13 * s));
     scene.add(pole);
   }
+  const stadium = buildStadium({ THREE, scene, fg, s, fenceR: fenceDist });
 
   /* ── 하늘 · 빛 ── */
   const sunDir = V(0.55, 0.62, 0.42).normalize(); // 홈 · 3루 쪽 위 — 우투 옆 카메라(3루 쪽)에서 몸 앞이 밝다
@@ -436,6 +482,10 @@ export function buildStage({
     uSunDir: { value: sunDir.clone() },
     uSunCol: { value: new THREE.Color() },
     uStars: { value: 0 },
+    uMtn: { value: new THREE.Color() },
+    uClouds: { value: 0 },
+    /* 가운데(외야) 쪽 — 홈에서 −x */
+    uCf: { value: new THREE.Vector2(-1, 0) },
   };
   const skyMat = new THREE.ShaderMaterial({
     uniforms: skyUniforms,
@@ -455,7 +505,7 @@ export function buildStage({
   envScene.add(new THREE.Mesh(new THREE.SphereGeometry(10, 32, 16), skyMat));
   let envRT: Three.WebGLRenderTarget | null = null;
 
-  const hemi = new THREE.HemisphereLight('#dfeaf7', '#5b6b45', 1);
+  const hemi = new THREE.HemisphereLight('#dfeaf7', '#6f7060', 1);
   scene.add(hemi);
   const sun = new THREE.DirectionalLight('#fff4de', 1);
   sun.position.set(center[0] + sunDir.x * 6, center[1] + sunDir.y * 6, center[2] + sunDir.z * 6);
@@ -480,7 +530,7 @@ export function buildStage({
     scene.add(L, L.target);
     return L;
   });
-  scene.fog = new THREE.Fog('#ffffff', 140 * s, 520 * s);
+  scene.fog = new THREE.Fog('#ffffff', 220 * s, 1100 * s);
 
   /* 축 화살표(빨강 홈 · 파랑 위 · 하늘 옆) — 분석용 */
   const corner0 = new THREE.Vector3(center[0] - 1.7, 0.004, center[2] - 1.7);
@@ -498,6 +548,10 @@ export function buildStage({
     skyUniforms.uGround.value.set(P.ground);
     skyUniforms.uSunCol.value.set(P.sunCol);
     skyUniforms.uStars.value = P.stars;
+    skyUniforms.uMtn.value.set(P.mtn);
+    skyUniforms.uClouds.value = P.clouds;
+    stadium.setNight(m === 'night');
+    fieldNight.value = m === 'night' ? 1 : 0;
     envRT?.dispose();
     envRT = pmrem.fromScene(envScene, 0.04);
     scene.environment = envRT.texture;
