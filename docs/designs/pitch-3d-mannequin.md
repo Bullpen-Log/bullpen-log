@@ -73,3 +73,22 @@
 2. 엔진 쪽 손질: 위 4절 3 · 4 · 5번(발 고정 시점, 글러브 팔 떨림, 발목 ↔ 뒤꿈치 거리).
 3. 남은 모양 손질: 다리 올린 장면에서 가슴 앞이 아직 조금 볼록하다. 목이 조금 길어 보인다.
 4. 드라이브라인 자료는 비교 확인용으로만 쓴다. 앱 · 사이트(`public/`)에 넣지 않고, 화면 글에 그 이름을 쓰지 않는다.
+
+## 6. 진행 — 앱 실험실 화면에 넣기(2026-10-11 데스크톱 김민 → 금윤호에게 넘김)
+
+계획 4단계(Claude 기준 4~5시간). 1단계만 끝냈다.
+
+1. **끝남** 자료 다듬기를 앱 코드로 — `lib/pitch-3d/v2/mannequin-prep.ts`(순수): `smoothForMannequin`(앞발 착지 잇기 · 관절별 가우스, `build.mts` 와 같은 값)
+   · `mannequinTrack`(displayTrack → 미터 · x 앞 · y 왼쪽 · z 위, 이름은 투구 기준 r = 던지는 쪽 · l = 글러브 쪽, 좌투는 좌우를 바꿔 넣음 · td/tp 몸통 축 ·
+   nose · ear · dt = 착지 → 릴리스 0.15초). 시험 `npm run pitch3d:v2-test` 의 '데생 인형 관절' 4개(축 바꿈 · 좌투 · 글러브 손목 가속 5.7 → 2.3mm), 전체 192.
+2. **남음** 인형 그리기 옮기기(약 2시간) — `scripts/pitch-lab/mannequin/page.js` 의 `torso` · `limb` · `shoe` · `loft` · `footPose` · 장갑 · 공 · 머리 · `draw` 의
+   뼈(`bones`) · 잰 선(`lines` · `arc` · `label`) · `applyAna` · 네 번 그리기 `render` 를 TS 모듈(예: `app/(app)/videos/lab/[id]/mannequin.ts`)로.
+   - 앱은 three **0.186**, 예시는 r128 이다. 바뀐 것: `outputEncoding/sRGBEncoding` → `outputColorSpace`(기본 sRGB), `Color` 는 색 관리가 켜져 있어
+     `convertSRGBToLinear` 를 빼고 그냥 hex 로, 빛 세기는 물리 단위라 예시 값 그대로면 어둡다(대략 ×π 에서 맞춰 볼 것).
+   - 예시는 z 위 · 미터, 앱 무대는 y 위 · 키 = 1 이다. 인형을 한 Group 에 넣고 `rotation.x = -π/2` · `scale = 1/키(m)` 하면 앱 좌표에 그대로 얹힌다.
+   - 예시는 장면마다 도형을 새로 만든다(`clear` → 다시 만들기). 먼저 그대로 옮기고, 느리면 그때 고친다.
+3. **남음** 실험실 화면에 넣기(약 1시간) — `body-3d.tsx` 의 해부학 뼈대(`loadSkeleton` · `rigPose` · `meshes` · `placeShadows`) 자리에 인형.
+   재생 중 = 인형, 멈추면 `ana` 가 0 → 1 로 옅어지며 뼈 · 잰 선 · 이름표(HTML 겹침). 시계 · 재생 막대 · 보는 방향 · 순간 단추는 그대로 쓴다.
+   마운드는 모래색 #8d6a4c(김민). 인형 색은 1절 그대로. 잰 값은 아직 '참고용' — v1 지표와 맞추는 건 그다음.
+4. **남음** 화면 확인(약 1시간) — 로그인 없이: 샘플 결과 JSON 을 임시 경로(`app/dev-preview-*`, 커밋 금지)에 띄워 휴대폰 375 · PC 에서 보기,
+   재생 · 멈춤 · 순간 단추 · 돌려 보기 · 다크/라이트. 끝나면 임시 경로를 지우고 개발 서버를 다시 켠다.
