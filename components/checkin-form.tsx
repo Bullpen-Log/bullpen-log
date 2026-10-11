@@ -980,7 +980,8 @@ export function CheckinForm({
                 ))}
                 <input type="hidden" name="bodySpots" value={JSON.stringify(spots)} />
                 <div className={partsExpanded ? 'mt-3 space-y-3' : 'hidden'}>
-                  <BodySpotPicker spots={spots} onChange={setSpotEdits} />
+                  {/* 3D 모델(1.9MB)은 펼 때만 받는다 */}
+                  {partsExpanded && <BodySpotPicker spots={spots} onChange={setSpotEdits} />}
                   {Object.keys(legacy).length > 0 && (
                     <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted">
                       예전에 적은 것
