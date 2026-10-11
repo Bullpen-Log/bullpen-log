@@ -248,8 +248,12 @@ export const NAV_GROUPS: NavGroup[] = [
 export const MORE_HREF = '/more';
 
 /**
- * PC 틀(오른쪽 위 아이콘 줄 · 도크 · 판의 연출)을 쓰는 화면 — 1024px 이상이거나, 마우스로
- * 쓰는(hover · 가는 포인터) 576px 이상. PC 창을 화면 반으로 나눠도 PC 틀 그대로다.
+ * PC 틀(오른쪽 위 아이콘 줄 · 도크 · 판의 연출)을 쓰는 화면 — 마우스로 쓰는(hover · 가는 포인터)
+ * 576px 이상. PC 창을 화면 반으로 나눠도 PC 틀 그대로다.
+ *
+ * 예전에는 손가락으로 쓰는 화면도 1024px 이상이면 PC 틀이었다. 가로로 둔 아이패드가 거기 걸려
+ * 32px 단추를 손가락으로 눌러야 했다. 이제 손가락 화면은 넓어도 PC 틀이 아니다 — 큰 손가락
+ * 화면은 패드 틀(globals.css 의 @custom-variant pad, 왼쪽 탭 막대)이다(2026-10-12).
  *
  * 576px 인 까닭: 윈도우 배율 150% 노트북(1920 → 1280 CSS px)에서 창을 반으로 나누면
  * 640px 에 조금 못 미친다. 휴대폰은 세로 430px 안팎이라 한참 밑이다. 로고와 오른쪽
@@ -261,7 +265,7 @@ export const MORE_HREF = '/more';
  * px 가 아니라 rem 으로 적는 것도 CSS 와 같게 하려는 것이다.
  */
 export const DESK_MEDIA =
-  '(min-width: 64rem), (min-width: 36rem) and (hover: hover) and (pointer: fine)';
+  '(min-width: 36rem) and (hover: hover) and (pointer: fine)';
 
 /**
  * 메뉴 주소 말고도 그 탭에 속하는 주소 — 거기 있을 때도 그 탭에 불이 들어온다.

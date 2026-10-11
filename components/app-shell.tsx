@@ -2547,14 +2547,19 @@ function MobileTabs({
       /* 본문이 바뀌는 동안 탭바는 움직이지 않는다. */
       style={{ viewTransitionName: 'shell-tabbar' }}
       data-mobile-tabs
-      className="pointer-events-none fixed inset-x-0 bottom-0 z-50 pb-(--tab-bar-gap) pl-[max(1.25rem,env(safe-area-inset-left))] pr-[max(1.25rem,env(safe-area-inset-right))] desk:hidden"
+      /*
+       * 패드(아이패드 · 큰 태블릿 — globals.css 의 pad)에서는 같은 탭이 왼쪽 세로 막대가 된다(2026-10-12 사용자 "아이패드
+       * 전용 인터페이스"). 넓은 화면 바닥 한가운데의 알약은 엄지가 멀고, 아이패드 앱은 탭을 왼쪽 막대에 둔다. 폭(--rail)은
+       * 본문 · 위 막대가 같이 비킨다(app/(app)/layout.tsx). 칸은 64px — 손가락으로 넉넉하다.
+       */
+      className="pointer-events-none fixed inset-x-0 bottom-0 z-50 pb-(--tab-bar-gap) pl-[max(1.25rem,env(safe-area-inset-left))] pr-[max(1.25rem,env(safe-area-inset-right))] desk:hidden pad:top-0 pad:right-auto pad:w-(--rail) pad:p-0"
     >
       {/*
         알약만 누를 수 있다 — 양옆 빈 곳을 누르면 밑의 본문으로 간다. 뒤의 본문이 살짝만 비치는 유리 — 앱스토어를 재 보니
         바탕이 흰색 약 80%(뒤의 진한 것이 20% 남짓 비침)였고, 70% 일 때 사용자가 "너무 투명하다"고 해 88% 로 올렸다.
         양옆 여백(nav)은 노치 자리와 견줘 큰 쪽 — 가로로 돌린 사파리에서 알약 끝이 노치 밑에 들어갔다(2026-10-03).
       */}
-      <div className="pointer-events-auto mx-auto flex max-w-md rounded-full border border-line/60 bg-surface/88 p-1 shadow-[0_8px_32px_-12px_rgba(15,23,42,0.3)] backdrop-blur-2xl backdrop-saturate-150">
+      <div className="pointer-events-auto mx-auto flex max-w-md rounded-full border border-line/60 bg-surface/88 p-1 shadow-[0_8px_32px_-12px_rgba(15,23,42,0.3)] backdrop-blur-2xl backdrop-saturate-150 pad:h-full pad:max-w-none pad:flex-col pad:gap-1 pad:rounded-none pad:border-y-0 pad:border-l-0 pad:pt-[calc(env(safe-area-inset-top)+0.75rem)] pad:pr-2 pad:pl-[calc(env(safe-area-inset-left)+0.5rem)] pad:shadow-none">
         {tabs.map((tab) => {
           /*
            * '더보기'는 화면으로 넘어가지 않고 옆에서 사이드바를 연다.
@@ -2579,7 +2584,7 @@ function MobileTabs({
                 }}
                 aria-haspopup="dialog"
                 aria-expanded={menuOpen}
-                className={`relative flex h-[52px] flex-1 flex-col items-center justify-center gap-0.5 rounded-full text-[10px] font-medium transition-[color,transform] duration-75 motion-safe:active:scale-90 ${
+                className={`relative flex h-[52px] flex-1 flex-col items-center justify-center gap-0.5 rounded-full text-[10px] font-medium transition-[color,transform] duration-75 motion-safe:active:scale-90 pad:h-16 pad:flex-none pad:rounded-2xl pad:text-xs ${
                   menuOpen ? 'font-semibold text-sky' : 'text-ink active:text-sky'
                 }`}
               >
@@ -2615,7 +2620,7 @@ function MobileTabs({
                * 색이 바뀌게 해서, 화면이 바뀌기 전에 먼저 대답하게 한다.
                * 움직임을 줄여 쓰는 사람에게는 크기 변화 없이 색만 바뀐다.
                */
-              className={`relative flex h-[52px] flex-1 flex-col items-center justify-center gap-0.5 rounded-full text-[10px] font-medium transition-[color,transform] duration-75 motion-safe:active:scale-90 ${
+              className={`relative flex h-[52px] flex-1 flex-col items-center justify-center gap-0.5 rounded-full text-[10px] font-medium transition-[color,transform] duration-75 motion-safe:active:scale-90 pad:h-16 pad:flex-none pad:rounded-2xl pad:text-xs ${
                 tab.locked ? 'opacity-55' : ''
               } ${active ? 'font-semibold text-sky' : 'text-ink active:text-sky'}`}
             >
@@ -2634,7 +2639,7 @@ function MobileTabs({
                 <span
                   aria-hidden
                   style={{ viewTransitionName: 'tab-indicator' }}
-                  className="absolute inset-0 rounded-full bg-ink/8"
+                  className="absolute inset-0 rounded-full bg-ink/8 pad:rounded-2xl"
                 />
               )}
               <TabFace
