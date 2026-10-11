@@ -27,9 +27,12 @@
   우리 샘플은 선수 이름이 들어 있어 저장소에 넣지 않고 만들 때 받아 온다. 만든 HTML 은 저장소 밖에 둔다.
   `node --env-file=.env --import ./scripts/alias-register.mjs scripts/pitch-lab/mannequin/build.mts --sample=4 --out=<저장소 밖 파일.html>`
   그 파일을 고쳤으면 `page.js` · `head.html` 에도 같이 옮긴다(아티팩트와 저장소가 어긋나지 않게).
-- 화면 확인은 페이지를 `public/dev-man.html` 로 잠깐 복사한다. 그다음 `preview_start bullpen-log-dev` → `localhost:3000/dev-man.html` 로 본다.
-  끝나면 파일을 지우고 서버를 끈다(커밋 금지).
-  - 내장 브라우저 창이 가려져 있으면 그림이 초당 2장이라 화면 갈무리가 한 박자 늦다. 장면을 바꾼 뒤 2초 기다리고 찍는다.
+- **앱에 들어갔다(2026-10-11, §6 1~5단계)**: 실험실 결과 화면 `app/(app)/videos/lab/[id]/body-3d.tsx` 가 이 예시 그대로 인형 · 멈춤 화면 · 빛 · 그림자를 그린다.
+  순수 모듈 `lib/pitch-3d/v2/mannequin-*.ts`, three 쪽 `app/(app)/videos/lab/[id]/mannequin/`. 예시 페이지를 고치면 앱도 같이 맞춘다(§7 질문 답 포함).
+- 화면 확인(2~4단계에서 쓴 방법): 로그인 없이 보려고 임시 경로 `app/dev-preview-man/`(page.tsx + `data/route.ts`)를 만들고, 합성 결과(`runV2` 꼴 스크립트) ·
+  샘플 결과(버킷 읽기만)는 `%TEMP%` 에 JSON 으로 둔다 — `public/` 에는 절대 넣지 않는다. 예시 페이지와 나란히 볼 땐 `build.mts` 로 만든 HTML 을 `%TEMP%` 에 두고
+  `ref/route.ts` 가 HUD · 고르개 · 설명(이름 · 기관 글)을 숨겨 띄운다. 끝나면 임시 경로 · 스크립트 · JSON 을 지우고 개발 서버를 다시 켠다(커밋 금지).
+  - 내장 브라우저 판이 가려져 있으면 rAF 가 멈춰 화면이 안 바뀐다 — 갈무리가 한 장면씩 밀어 준다. 단추는 `javascript_tool` 로 `button.click()` 이 가장 확실하다.
 
 ## 3. 페이지 구조(고칠 때 찾을 곳)
 
@@ -124,5 +127,16 @@
    - 시험 '데생 인형 보기' 5개(빛 자리 · 빛 틀 · 잡음 · 마운드 색 · 호 다듬기), 전체 240.
    - 예시와 아직 다른 것: 축 화살표(앱만의 것) · 시점 각도(포수 2.9° vs 8.6°, 위 70° vs 77°, 옆 · 뒤는 앱이 찍은 카메라 방향) · PCF 그림자 가장자리(예시 PCFSoft 보다
      조금 거칠 수 있음) · 예시는 거리 4.5m 고정, 앱은 상자에 맞춤 · 범례 왼쪽 위. 브라우저 판이 숨겨진 상태라 rAF 수는 못 쟀다.
-5. **남음** 정리(약 30분) — `pose-rig.ts` 의 안 쓰는 뼈대 코드 · `public/models/skeleton-parts.json` 정리(`body-full.glb` 는 몸 지도가 쓴다, 지우지 말 것), HANDOFF 에 김민 질문
-   (숫자 출처 · 그림자 · 시계 · 좌투 부호 · 파일 자리).
+5. **끝남** 정리(2026-10-11) — 해부학 뼈대 보기를 뺐다: `pose-rig.ts` 는 마운드 함수(`MOUND` · `moundHeightAt`)만 남기고 rig(`rigPose` · `partMatrix` · `readSkeletonParts` …)를
+   지움, `public/models/skeleton-parts.json` · `scripts/pitch-lab/skeleton-parts.mjs` 삭제, `ATTRIBUTION.txt` 의 그 문단 삭제(`body-full.glb` 는 몸 지도가 써서 그대로).
+   셀프테스트의 '뼈대 자세' 7개를 빼고 마운드 · 보기 · 관절 각도 틀 시험은 그대로(전체 233). 화면 글 '뼈대가 움직여요' → '인형이 움직여요'. 김민에게 묻는 것은 §7 과 HANDOFF,
+   메모는 `docs/claude/geum-yunho.md` 4절 16번.
+
+## 7. 김민에게 물은 것(2026-10-11, HANDOFF 와 같음 — 답이 오면 여기와 코드에 반영)
+
+1. 숫자 출처 — 순간(착지 · 릴리스) 이름표는 결과 표 `result.metrics`, 그 밖은 보기용 관절로 잰 '참고' 값(예시는 전부 라이브). 이대로 둘지, 표와 라이브가 8° 넘게 벌어지면 어떻게 보일지.
+2. 반구 빛 축 — 예시의 옆(1루 쪽) quirk 를 그대로(`LIGHT_RIG.hemi.axis = 'side'`, 마운드 밝기 때문). 의도였는지, 위로 바꿔도 되는지.
+3. 시계 — 앱은 영상 시각 `result.t`, 예시는 착지 → 릴리스 0.15초 가상 시계. 괜찮은지.
+4. 좌투 — 우투 꼴로 계산 + 묶음 y 배율 −1, 잰 값은 절댓값. 실제 좌투 샘플이 생기면 확인.
+5. 앱만의 것 — 축 화살표 · 시점 각도(옆 · 뒤는 찍은 카메라, 포수 2.9° · 위 70°) · 범례 왼쪽 위 · 상자에 맞춘 거리. 그대로 둘지.
+6. three 0.186 — `PCFSoftShadowMap` 없음(기본 PCF, `radius` 로 부드러움). 그림자 가장자리를 더 다듬을지.

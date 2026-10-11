@@ -46,7 +46,6 @@ import {
 } from './pitch-lab/synth.mts';
 import { makeV2Track } from './pitch-lab/synth-v2.mts';
 import { footJump, footSway, gapWristError, hipSnap, junkGloveError, leadGapJump } from './pitch-lab/gap-check.mts';
-import { readFileSync } from 'node:fs';
 import { blendAi, despike, displayTrack, readAiGate, readAiJoints, readAiMiss } from '../lib/pitch-3d/v2/display.ts';
 import { mannequinTrack, smoothForMannequin, type MannequinJoints, type MannequinTrack } from '../lib/pitch-3d/v2/mannequin-prep.ts';
 import {
@@ -86,14 +85,7 @@ import {
   projectToScreen,
 } from '../lib/pitch-3d/v2/mannequin-pause.ts';
 import { KIN_LIMITS, KIN_SPEED, kinematicTrack, twoBoneIk } from '../lib/pitch-3d/v2/kinematics.ts';
-import {
-  moundHeightAt,
-  PART_NAMES,
-  placePoint,
-  readSkeletonParts,
-  rigPose,
-  type RigPose,
-} from '../lib/pitch-3d/v2/pose-rig.ts';
+import { moundHeightAt } from '../lib/pitch-3d/v2/pose-rig.ts';
 
 let passed = 0;
 let failed = 0;
@@ -929,103 +921,17 @@ console.log('■ node 실행기(segment · fit)');
   );
 }
 
-console.log('■ 뼈대 자세(pose-rig) — public/models/skeleton-parts.json + 합성 결과');
+console.log('■ 마운드 · 보기용 다듬기 · 관절 각도 틀(kinematics) — 합성 결과');
 {
-  const parts = readSkeletonParts(
-    JSON.parse(readFileSync('public/models/skeleton-parts.json', 'utf8'))
-  );
-  check(
-    '조각 표를 읽는다(부위 15 · 기준 방향 · 정점 수)',
-    parts !== null && parts!.parts.length === 15 && parts!.vertexCount === 21526
-  );
-  check(
-    '조각 표 모양이 틀리면 null',
-    readSkeletonParts({ height: 1.7, parts: ['pelvis'] }) === null
-  );
-  if (parts) {
+  {
     const { result } = runV2({ ...base, ...realistic, name: 'rig' }, 5);
-    if (!result.ok) check('rig — 결과', false, result.code);
+    if (!result.ok) check('합성 결과(마운드 · 보기 · 각도 모델)', false, result.code);
     else {
       const frames = result.joints.map((fr) =>
         fr.map(
           (p) => [p[0] / 1000, p[1] / 1000, p[2] / 1000] as [number, number, number]
         )
       );
-      let prev: RigPose | null = null;
-      let nan = 0;
-      let kneeErr = 0;
-      let wristErr = 0;
-      let flips = 0;
-      const A = parts.anchors;
-      for (let k = 0; k < frames.length; k++) {
-        const pose = rigPose(frames[k], result.hand, parts, prev);
-        for (const name of PART_NAMES) {
-          const p = pose[name];
-          if ([...p.position, ...p.R].some((v) => !Number.isFinite(v))) nan++;
-          /* 회전이 회전인가(직교 · det 1) */
-          const R = p.R;
-          const det =
-            R[0] * (R[4] * R[8] - R[5] * R[7]) -
-            R[1] * (R[3] * R[8] - R[5] * R[6]) +
-            R[2] * (R[3] * R[7] - R[4] * R[6]);
-          if (Math.abs(det - 1) > 1e-6) flips++;
-        }
-        /* 모델 무릎(넙다리 끝) · 손목(아래팔 끝)이 맞춘 관절에 — 마디를 축 방향으로 늘여 닿게 한다 */
-        const kneeW = placePoint(pose.thighL, A.thighL.distal, A.thighL.proximal);
-        const wristW = placePoint(
-          pose.forearmR,
-          A.forearmR.distal,
-          A.forearmR.proximal
-        );
-        const d = (a: number[], b: number[]) =>
-          Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
-        kneeErr = Math.max(kneeErr, d(kneeW, frames[k][V2J.lKn]));
-        wristErr = Math.max(wristErr, d(wristW, frames[k][V2J.rWr]));
-        prev = pose;
-      }
-      check('모든 장면 · 부위의 자세가 숫자', nan === 0, `NaN ${nan}`);
-      check('회전 행렬 det = 1(거울 아님)', flips === 0, `${flips}`);
-      /* 고치기 전(모델 뼈 길이 그대로): 무릎 최대 키의 5~8% · 손목 8~12% 어긋나 땅에 묶인 발도 화면에선 미끄러졌다 */
-      check(
-        '모델 무릎이 맞춘 무릎에 닿는다(키의 0.5% 안)',
-        kneeErr < 0.005,
-        `최대 ${(kneeErr * 100).toFixed(2)}%`
-      );
-      check(
-        '모델 손목이 맞춘 손목에 닿는다(키의 0.5% 안)',
-        wristErr < 0.005,
-        `최대 ${(wristErr * 100).toFixed(2)}%`
-      );
-      /*
-       * 거의 편 팔꿈치(굽힘 12~20°)가 장면마다 반대쪽으로 꺾여도 팔 조각이 180° 돌지 않는다 — 2026-10-08 실제 샘플 1 에서
-       * 굽힘 축(위팔 × 아래팔)이 4번 뒤집혀 던지는 팔이 홱 돌았다(run-node.ts armDiag).
-       */
-      {
-        const f0 = frames[Math.floor(frames.length / 2)];
-        const sh = f0[V2J.rSh];
-        const wr = f0[V2J.rWr];
-        const axis = [wr[0] - sh[0], wr[1] - sh[1], wr[2] - sh[2]];
-        const perp = [-axis[1], axis[0], 0];
-        const pn = Math.hypot(...perp) || 1;
-        let prevRig: RigPose | null = null;
-        let prevRef: number[] | null = null;
-        let spins = 0;
-        for (let k = 0; k < 12; k++) {
-          const off = (k % 2 === 0 ? 1 : -1) * (0.03 + 0.01 * (k % 3));
-          const fr = f0.map((p) => [...p] as [number, number, number]);
-          fr[V2J.rEl] = [0, 1, 2].map(
-            (d) => (sh[d] + wr[d]) / 2 + (perp[d] / pn) * off
-          ) as [number, number, number];
-          const pose = rigPose(fr, 'R', parts, prevRig);
-          const R = pose.upperArmR.R;
-          const r = A.upperArmR.ref;
-          const ref = [0, 1, 2].map((i) => R[i * 3] * r[0] + R[i * 3 + 1] * r[1] + R[i * 3 + 2] * r[2]);
-          if (prevRef && ref[0] * prevRef[0] + ref[1] * prevRef[1] + ref[2] * prevRef[2] < 0) spins++;
-          prevRef = ref;
-          prevRig = pose;
-        }
-        check('거의 편 팔꿈치가 반대로 꺾여도 위팔 조각이 홱 돌지 않는다', spins === 0, `${spins}번 돎`);
-      }
       /* 마운드(규격 · 키 1.8m) — 투수판 위 25.4cm · 앞 15cm 뒤로 1/12 내리막 · 둘레 밖 0, 발이 경사면 위에 선다 */
       {
         const Hm = 1.8;

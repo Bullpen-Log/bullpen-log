@@ -90,7 +90,7 @@ export function V2EmptyWell({
     title = '옆 · 뒤 영상이 다 있어야 해요';
   } else {
     title = '아직 3D 분석을 하지 않았어요';
-    line = '아래 동의를 확인하고 분석을 걸면 1~2분 뒤 여기에 뼈대가 움직여요.';
+    line = '아래 동의를 확인하고 분석을 걸면 1~2분 뒤 여기에 인형이 움직여요.';
   }
   return (
     <div
