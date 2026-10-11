@@ -391,6 +391,7 @@ export function buildStage({
   center,
   heightM,
   mode = 'day',
+  glb = '/stage/dodger.glb',
 }: {
   THREE: typeof import('three');
   scene: Three.Scene;
@@ -399,6 +400,8 @@ export function buildStage({
   center: Vec3;
   heightM: number;
   mode?: StageMode;
+  /** Blender 로 만든 구장(scripts/stadium/build_dodger.py) — 있으면 코드 구장(stadium.ts) · 펜스 대신 이것을 불러온다 */
+  glb?: string;
 }): StageHandle {
   const s = 1 / heightM;
   const V = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
@@ -491,6 +494,7 @@ export function buildStage({
     scene.add(g);
   }
 
+  if (!glb) {
   /*
    * ── 외야 펜스: 3루 폴 → 가운데 → 1루 폴, 다저스 높이(폴 근처 1.2m · 나머지 2.4m) — 파울 지역 벽 · 관중석은 stadium.ts ──
    * 사진: 연한 하늘빛 회색 쿠션에 짙은 판(광고 자리 — 글자 · 로고 없이 빈 판)이 띄엄띄엄.
@@ -568,7 +572,8 @@ export function buildStage({
     wing.lookAt(wing.position.clone().add(V(Math.cos(th), 0, Math.sin(th))));
     scene.add(wing);
   }
-  const stadium = buildStadium({ THREE, scene, fg, s, fenceR: fenceDist });
+  }
+  const stadium = glb ? null : buildStadium({ THREE, scene, fg, s, fenceR: fenceDist });
 
   /* ── 하늘 · 빛 ── */
   /* 홈 · 3루 쪽 위, 높이 49°(하늘 사진 속 해와 같다) — 우투 옆 카메라(3루 쪽)에서 몸 앞이 밝다 */
@@ -654,7 +659,7 @@ export function buildStage({
     skyUniforms.uMtn.value.set(P.mtn);
     skyUniforms.uSkyOn.value = m === 'day' && skyUniforms.uSky.value ? 1 : 0;
     skyUniforms.uClouds.value = P.clouds;
-    stadium.setNight(m === 'night');
+    stadium?.setNight(m === 'night');
     fieldNight.value = m === 'night' ? 1 : 0;
     envRT?.dispose();
     envRT = pmrem.fromScene(envScene, 0.04);
@@ -679,6 +684,73 @@ export function buildStage({
     },
   };
   setMode(mode);
+  /*
+   * Blender 구장 GLB — glTF 좌표 (a, 높이, b)(미터) → y 축 180° 돌리고 s 배, 홈 뒤 꼭짓점 H 로. 의자는 EXT_mesh_gpu_instancing(InstancedMesh),
+   * 정점은 meshopt 압축이라 디코더를 붙인다.
+   */
+  if (glb) {
+    void (async () => {
+      const [{ GLTFLoader }, { MeshoptDecoder }] = await Promise.all([
+        import('three/addons/loaders/GLTFLoader.js'),
+        import('three/addons/libs/meshopt_decoder.module.js'),
+      ]);
+      const loader = new GLTFLoader();
+      loader.setMeshoptDecoder(MeshoptDecoder);
+      const g = await loader.loadAsync(glb);
+      const root = g.scene;
+      root.rotation.y = Math.PI;
+      root.scale.setScalar(s);
+      root.position.set(H.x, 0, H.z);
+      /*
+       * 재질 손질 — 콘크리트 계열에는 사진 질감(Poly Haven 'concrete_wall_008', CC0)을 세계 좌표로 세 방향에서 비춰(트라이플래너) 잔결만 곱한다
+       * (GLB 에 uv · 질감을 넣지 않아 파일이 작다). 꼭짓점 색(COLOR_0)은 Blender 에서 구운 구석 어둠.
+       */
+      const concrete = await new THREE.TextureLoader().loadAsync('/stage/concrete.jpg');
+      concrete.colorSpace = THREE.SRGBColorSpace;
+      concrete.wrapS = concrete.wrapT = THREE.RepeatWrapping;
+      const detailed = new Set(['BO_concrete', 'BO_concrete_deck', 'BO_roof', 'BO_wall']);
+      root.traverse((o) => {
+        const m = (o as Three.Mesh).material as Three.MeshStandardMaterial | undefined;
+        if (!m || !detailed.has(m.name) || m.userData.detail) return;
+        m.userData.detail = true;
+        m.onBeforeCompile = (sh) => {
+          sh.uniforms.uDetail = { value: concrete };
+          sh.uniforms.uDetailScale = { value: 1 / (4 * s) };
+          sh.vertexShader = sh.vertexShader
+            .replace('#include <common>', '#include <common>\nvarying vec3 vWorldD;\nvarying vec3 vNormD;')
+            .replace(
+              '#include <begin_vertex>',
+              '#include <begin_vertex>\nvWorldD = (modelMatrix * vec4(transformed, 1.0)).xyz;\nvNormD = normalize(mat3(modelMatrix) * objectNormal);'
+            );
+          sh.fragmentShader = sh.fragmentShader
+            .replace(
+              '#include <common>',
+              '#include <common>\nuniform sampler2D uDetail;\nuniform float uDetailScale;\nvarying vec3 vWorldD;\nvarying vec3 vNormD;'
+            )
+            .replace(
+              '#include <map_fragment>',
+              `#include <map_fragment>
+              {
+                vec3 wn = abs(normalize(vNormD));
+                wn /= (wn.x + wn.y + wn.z);
+                vec3 p = vWorldD * uDetailScale;
+                vec3 t = texture2D(uDetail, p.zy).rgb * wn.x + texture2D(uDetail, p.xz).rgb * wn.y + texture2D(uDetail, p.xy).rgb * wn.z;
+                /* 사진 평균 밝기(선형 0.242)로 나눈 잔결 밝기만 — 사진의 누런 색은 안 옮긴다 */
+                diffuseColor.rgb *= mix(1.0, dot(t, vec3(0.2126, 0.7152, 0.0722)) / 0.242, 0.7);
+              }`
+            );
+        };
+        m.needsUpdate = true;
+      });
+      /* 해 그림자는 투수 둘레 5m 만 덮는다 — 구장은 그림자를 그리지도 받지도 않는다(의자 5만여 개를 그림자 판에 또 그리면 휴대폰이 버겁다) */
+      root.traverse((o) => {
+        o.castShadow = false;
+        o.receiveShadow = false;
+      });
+      scene.add(root);
+      handle.onChange?.();
+    })().catch((e) => console.error('[stage] glb', e));
+  }
   /* 땅 질감 둘이 다 오면 켠다 */
   const loader = new THREE.TextureLoader();
   let texLeft = 2;
