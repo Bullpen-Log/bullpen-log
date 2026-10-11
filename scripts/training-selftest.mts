@@ -5613,13 +5613,14 @@ console.log('\n[암케어] 부위·근육 · 오늘의 루틴 · 부하');
   );
   const noSpot = decidePain(elbowPain, { spots: [], level: 1 });
   check('팔 통증 — 자리를 안 골랐으면 쉬기', noSpot.kind === 'rest', noSpot.kind);
-  const ageKinds = [14, 15, null].map(
+  /* Y(2026-10-12, D4) 로 바뀜 — 성장기 선이 15 → 16 이라 15세도 쉬기. ARM_PAIN_ROUTINE_MIN_AGE 는 투구 계획의 YOUTH_AGE_THRESHOLD 와 같은 선 */
+  const ageKinds = [14, 15, 16, null].map(
     (age) =>
       decidePain({ ...elbowPain, age }, { spots: ['elbow-inner'], level: 1 }).kind
   );
   check(
-    '팔 통증 — 만 14세는 쉬기(성장판), 15세 · 나이 모름은 통증 루틴',
-    ageKinds.join(',') === 'rest,pain,pain',
+    '팔 통증 — 만 14 · 15세는 쉬기(성장판), 16세 · 나이 모름은 통증 루틴',
+    ageKinds.join(',') === 'rest,rest,pain,pain',
     ageKinds.join(',')
   );
   const backOnly = decidePain(
@@ -5958,10 +5959,12 @@ console.log(
     area: ArmcareAreaKey,
     condition: RehabConditionKey | null = null
   ) => rehabStartBlock({ age, area, condition })?.kind ?? null;
+  /* Y(2026-10-12, D4) 로 바뀜 — 15세도 막는다(성장기 선 16) */
   check(
-    '시작 — 만 14세는 막음(진료 먼저), 15세 · 나이 모름은 연다',
+    '시작 — 만 14 · 15세는 막음(진료 먼저), 16세 · 나이 모름은 연다',
     block(14, 'shoulder-back') === 'young' &&
-      block(15, 'shoulder-back') === null &&
+      block(15, 'shoulder-back') === 'young' &&
+      block(16, 'shoulder-back') === null &&
       block(null, 'elbow-outer') === null
   );
   check(
@@ -7522,10 +7525,27 @@ console.log(
 
 {
   /* 몸 그림의 근육 → 부위 칸(2026-10-12) — 통증 관문이 근육을 고른 날 놓치지 않게 */
-  const p = partsFromSpots({ 'R:deltoid_posterior': '뻐근', 'L:pectoralis_minor': '통증', 'L:quadratus_lumborum': '뻐근' });
-  check('근육 → 부위: 같은 부위는 가장 센 값', p.shoulder === '통증' && p.lowerBack === '뻐근' && p.elbow === '정상', JSON.stringify(p));
-  const c = cleanBodySpots({ 'R:soleus': '통증', 'C:soleus': '통증', 'R:nope': '통증', 'L:soleus': '아픔' });
-  check('근육 값 거르기: 모르는 근육 · 좌우 · 값은 버림', JSON.stringify(c) === '{"R:soleus":"통증"}', JSON.stringify(c));
+  const p = partsFromSpots({
+    'R:deltoid_posterior': '뻐근',
+    'L:pectoralis_minor': '통증',
+    'L:quadratus_lumborum': '뻐근',
+  });
+  check(
+    '근육 → 부위: 같은 부위는 가장 센 값',
+    p.shoulder === '통증' && p.lowerBack === '뻐근' && p.elbow === '정상',
+    JSON.stringify(p)
+  );
+  const c = cleanBodySpots({
+    'R:soleus': '통증',
+    'C:soleus': '통증',
+    'R:nope': '통증',
+    'L:soleus': '아픔',
+  });
+  check(
+    '근육 값 거르기: 모르는 근육 · 좌우 · 값은 버림',
+    JSON.stringify(c) === '{"R:soleus":"통증"}',
+    JSON.stringify(c)
+  );
   check('깨진 JSON 은 빈 것', Object.keys(parseBodySpots('{oops')).length === 0);
 }
 
@@ -8334,24 +8354,48 @@ console.log(
     ).length;
     return { veryHigh, youthNote: plan.youthNote != null };
   };
+  /* Y 로 바뀜(2026-10-12, D4) — P0 때는 15 를 고정해 두고 15세를 '알려진 빈틈'으로 적었다. 이제 16 미만 = 성장기. */
   check(
-    `성장기 나이 — YOUTH_AGE_THRESHOLD 는 지금 15 (D4 는 16 — Y 단계에서 바꾼다)`,
-    YOUTH_AGE_THRESHOLD === 15,
+    `성장기 나이 — YOUTH_AGE_THRESHOLD 는 16 (D4: 만 16세 이상 성인, 그 미만 성장기)`,
+    YOUTH_AGE_THRESHOLD === 16,
     String(YOUTH_AGE_THRESHOLD)
   );
   {
-    const y14 = youthRead(14);
+    for (const age of [14, 15]) {
+      const y = youthRead(age);
+      check(
+        `성장기 나이 — ${age}세: '매우 높음' 0 · 투구 계획에 성장기 안내 (Y 로 바뀜 — 15세도 성장기)`,
+        y.veryHigh === 0 && y.youthNote,
+        `매우 높음 ${y.veryHigh}개`
+      );
+    }
+    /* 13~14세 휴식표(Y) — 같은 전력 환산 60구에 15세는 2일, 14세는 3일. 나이를 모르면 15~18세 표 */
     check(
-      "성장기 나이 — 14세: '매우 높음' 0 · 투구 계획에 성장기 안내",
-      y14.veryHigh === 0 && y14.youthNote,
-      `매우 높음 ${y14.veryHigh}개`
+      '성장기 휴식표 — 전력 환산 60구: 14세 3일 · 15세 2일 · 나이 모름 2일, 20구: 14세 0일 · 21구: 14세 1일',
+      requiredRestDays(60, 14) === 3 &&
+        requiredRestDays(60, 15) === 2 &&
+        requiredRestDays(60) === 2 &&
+        requiredRestDays(20, 14) === 0 &&
+        requiredRestDays(21, 14) === 1,
+      `${requiredRestDays(60, 14)} · ${requiredRestDays(60, 15)} · ${requiredRestDays(60)}`
     );
-    const y15 = youthRead(15);
-    check(
-      "성장기 나이 — 15세: 지금은 성인 기준('매우 높음' 허용 · 안내 없음) — 알려진 빈틈 D4",
-      y15.veryHigh > 0 && !y15.youthNote,
-      `매우 높음 ${y15.veryHigh}개`
-    );
+    {
+      const young = p0Facts({
+        age: 14,
+        logs: [{ daysAgo: 1, pitches: 60, intensity: 10, sessionType: '경기' }],
+      });
+      const teen = p0Facts({
+        age: 16,
+        logs: [{ daysAgo: 1, pitches: 60, intensity: 10, sessionType: '경기' }],
+      });
+      const py = pendingOuting(young.patterns, 0, 14);
+      const pt = pendingOuting(teen.patterns, 0, 16);
+      check(
+        '성장기 휴식표 — 어제 경기 60구: 14세는 남은 휴식 2일(3일 표) · 16세는 1일(2일 표)',
+        py != null && pt != null && py.left === 2 && pt.left === 1,
+        `14세 ${py?.left ?? '없음'} · 16세 ${pt?.left ?? '없음'}`
+      );
+    }
     for (const age of [16, 17]) {
       const y = youthRead(age);
       check(

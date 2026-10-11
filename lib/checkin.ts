@@ -429,7 +429,7 @@ export type ArmPainJoint = keyof typeof ARM_PAIN_SPOTS;
  * 이 나이(만) 밑이면 통증 루틴을 주지 않고 진료만 권한다 — 성장판 부상이 섞여 있어 운동으로 다룰 일이
  * 아니다. 투구 계획이 성장기로 보는 선(lib/report/plan.ts 의 YOUTH_AGE_THRESHOLD)과 같다.
  */
-export const ARM_PAIN_ROUTINE_MIN_AGE = 15;
+export const ARM_PAIN_ROUTINE_MIN_AGE = 16;
 
 export type ArmPain = {
   /** 아픈 자리 — '통증'인 관절의 자리만, ARM_PAIN_SPOTS 차례로 */

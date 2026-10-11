@@ -37,7 +37,7 @@ const ADULT_REFERENCE_PITCHES = 120;
 
 /**
  * 던진 투구수에 따라 필요한 휴식일.
- * 고교 연령(15~18) 기준표를 따르며, 그보다 어리면 더 보수적으로 봐야 한다.
+ * 고교 연령(15~18) 기준표. 성인도 이 표를 쓴다(나이로 한도를 두지 않을 뿐 휴식은 같은 표).
  */
 export const REST_REQUIREMENTS = [
   { minPitches: 76, restDays: 4 },
@@ -46,6 +46,21 @@ export const REST_REQUIREMENTS = [
   { minPitches: 31, restDays: 1 },
   { minPitches: 0, restDays: 0 },
 ] as const;
+
+/**
+ * 만 14세 이하의 휴식일 표(2026-10-12, 트레이닝 추천 2판 Y — 사용자 결정 D4 와 함께).
+ * 11~14세 표는 15~18세보다 열 구 앞에서 같은 휴식일이 걸린다(66 · 51 · 36 · 21). 성장기엔 같은 공 수가 더 큰 부담이라서다.
+ * 투구수는 전력 환산값(adjusted)으로 센다 — 15~18세 표와 같은 방식.
+ */
+export const REST_REQUIREMENTS_YOUTH = [
+  { minPitches: 66, restDays: 4 },
+  { minPitches: 51, restDays: 3 },
+  { minPitches: 36, restDays: 2 },
+  { minPitches: 21, restDays: 1 },
+  { minPitches: 0, restDays: 0 },
+] as const;
+/** 이 나이까지는 어린 표(REST_REQUIREMENTS_YOUTH)로 휴식일을 센다 */
+export const YOUTH_REST_TABLE_THROUGH_AGE = 14;
 
 /**
  * 강도와 상관없이 이만큼 던졌으면 최소 이 정도는 쉰다.
@@ -58,8 +73,12 @@ export const REST_REQUIREMENTS = [
 export const HIGH_VOLUME_PITCHES = 100;
 export const HIGH_VOLUME_MIN_REST = 1;
 
-/** 성장기로 보아 추가 주의를 안내할 나이 */
-export const YOUTH_AGE_THRESHOLD = 15;
+/**
+ * 성장기로 보아 추가 주의를 안내하고 '매우 높음' 강도를 빼는 나이(이 나이 미만).
+ * 2026-10-11 사용자 결정 D4(트레이닝 추천 2판): 만 16세 이상은 성인 기준, 그 미만은 성장기. 예전엔 15 였다.
+ * 암케어의 통증 루틴 나이(lib/checkin.ts ARM_PAIN_ROUTINE_MIN_AGE)도 같은 선이다.
+ */
+export const YOUTH_AGE_THRESHOLD = 16;
 
 /** 나이로 정한 하루 한도. 성인(만 19세 이상)은 null — 한도를 두지 않는다 */
 export function dailyPitchCap(age: number | null): number | null {
@@ -70,8 +89,13 @@ export function dailyPitchCap(age: number | null): number | null {
   );
 }
 
-export function requiredRestDays(pitches: number) {
-  return REST_REQUIREMENTS.find((r) => pitches >= r.minPitches)?.restDays ?? 0;
+/** 필요한 휴식일 — 만 14세 이하는 어린 표, 나이를 모르거나 15세 이상이면 15~18세 표 */
+export function requiredRestDays(pitches: number, age: number | null = null) {
+  const table =
+    age != null && age <= YOUTH_REST_TABLE_THROUGH_AGE
+      ? REST_REQUIREMENTS_YOUTH
+      : REST_REQUIREMENTS;
+  return table.find((r) => pitches >= r.minPitches)?.restDays ?? 0;
 }
 
 /**
@@ -81,9 +105,9 @@ export function requiredRestDays(pitches: number) {
  * 계수의 근거가 있는 구간은 강도 5~10뿐이다. 그래서 양 자체로 거는 바닥선을
  * 하나 둔다 — 아무리 가볍게 던졌어도 하루에 이만큼을 던졌으면 하루는 쉰다.
  */
-function restFor(pitches: number, adjusted: number): number {
+function restFor(pitches: number, adjusted: number, age: number | null = null): number {
   return Math.max(
-    requiredRestDays(Math.round(adjusted)),
+    requiredRestDays(Math.round(adjusted), age),
     pitches >= HIGH_VOLUME_PITCHES ? HIGH_VOLUME_MIN_REST : 0
   );
 }
@@ -106,10 +130,12 @@ export type PendingOuting = {
  * 꺼지는 셈이었다.
  *
  * @param offset 오늘로부터 며칠 뒤를 볼 것인가 (0=오늘, 1=내일)
+ * @param age 만 나이 — 14세 이하는 어린 휴식표(Y). 모르면 15~18세 표
  */
 export function pendingOuting(
   patterns: ReportFacts['patterns'],
-  offset = 0
+  offset = 0,
+  age: number | null = null
 ): PendingOuting | null {
   /* 옛 기록에는 목록이 없다. 그때는 마지막 등판 하나로 본다. */
   const outings = patterns.recentOutings ?? [
@@ -123,7 +149,7 @@ export function pendingOuting(
   let worst: PendingOuting | null = null;
   for (const o of outings) {
     const elapsed = o.daysAgo + offset;
-    const left = restFor(o.pitches, o.adjusted) - elapsed;
+    const left = restFor(o.pitches, o.adjusted, age) - elapsed;
     if (left > 0 && (worst == null || left > worst.left)) {
       worst = { left, elapsed, pitches: o.pitches };
     }
@@ -477,7 +503,7 @@ export function buildPitchPlan(facts: ReportFacts): PitchPlan {
   const lastOuting = patterns.lastOutingPitches ?? 0;
   const lastAdjusted = Math.round(patterns.lastOutingAdjusted ?? lastOuting);
 
-  const needRest = restFor(lastOuting, lastAdjusted);
+  const needRest = restFor(lastOuting, lastAdjusted, profile.age);
   const restedSoFar = patterns.restDays ?? 99;
 
   if (needRest > 0 && patterns.lastThrowDate) {
@@ -588,7 +614,7 @@ export function buildPitchPlan(facts: ReportFacts): PitchPlan {
      * 무엇보다 선수가 지킬 수 있는 안내다. 안 지킬 안내를 내면 기록도 같이
      * 끊긴다.
      */
-    const pending = pendingOuting(patterns, offset);
+    const pending = pendingOuting(patterns, offset, profile.age);
     if (pending) {
       if (pending.elapsed <= RECOVERY_FULL_REST_DAYS) {
         return restDay(

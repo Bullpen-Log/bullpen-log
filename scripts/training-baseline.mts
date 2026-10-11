@@ -1110,7 +1110,7 @@ const age14vs22 = allDays.filter((d) => d.age14vs22Differs).length;
 const age15vs22App = appDays.filter((d) => d.age15vs22Differs).length;
 const age14vs22App = appDays.filter((d) => d.age14vs22Differs).length;
 
-/* ⑩ D4 — 16~18세 선수의 일정에 '매우 높음' 강도 운동이 든 날 수(지금 문턱 15 라 15세도 따로 센다) */
+/* ⑩ D4 — 16~18세 선수의 일정에 '매우 높음' 강도 운동이 든 날 수(15세는 Y 뒤 성장기가 됐으니 따로 센다 — 0 이어야) */
 const veryHighByAge = (pick: (age: number) => boolean) => {
   const rows = results.filter((r) => pick(r.player.age));
   const days = rows.flatMap((r) => r.days);
@@ -1123,7 +1123,7 @@ const veryHighByAge = (pick: (age: number) => boolean) => {
   };
 };
 const veryHigh16to18 = veryHighByAge((age) => age >= 16 && age <= 18);
-const veryHighAt15 = veryHighByAge((age) => age === YOUTH_AGE_THRESHOLD);
+const veryHighAt15 = veryHighByAge((age) => age === 15);
 const veryHighUnder15 = veryHighByAge((age) => age < YOUTH_AGE_THRESHOLD);
 
 /* ⑪ D3 — 세게 던진 다음 날(D+1)에 지금 코드가 회복을 낸 날 / 세게 던진 다음 날 */
@@ -1509,7 +1509,7 @@ out.push(
       ],
       [
         '⑩',
-        `  15세(${veryHighAt15.players.join(' · ')}) — 지금 문턱 ${YOUTH_AGE_THRESHOLD} 미만이 아니라 성인 취급`,
+        `  15세(${veryHighAt15.players.join(' · ')}) — Y(D4) 뒤 문턱 ${YOUTH_AGE_THRESHOLD} 미만이라 성장기 취급, 0 이어야 한다`,
         veryHighText(veryHighAt15),
       ],
       [
