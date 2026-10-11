@@ -8360,15 +8360,15 @@ console.log(
     }
   }
 
-  /* ─────────────── (e) 상체 후보 0 인 라이브러리 — 번갈기가 한쪽에 갇히는가(7일, 지금 값 고정) ─────────────── */
+  /* ─────────────── (e) 상체 후보 0 인 라이브러리 — 번갈기가 한쪽에 갇히는가(7일) ─────────────── */
   /*
    * 상체 날의 본운동은 '상체 스트렝스 + 파워(밀기 · 당기기 · 회전)'다(theme.ts 의 COMPOSITIONS). 그것을 모두 뺀 부분집합으로
-   * 7일을 돌린다. 완료 기록은 gather.ts 의 lastStrengthDates 와 같은 식으로 흉내 낸다 — 그날 목록(구간과 상관없이)에 든
-   * 하체 · 상체 스트렝스를 모두 완료했다고 보고 '한 날'로 센다. gather.ts 도 완료 로그의 카테고리만 보고 구간은 안 본다.
+   * 7일을 돌린다. 앱과 같은 길(buildDailyPlan — 장비 · 경력은 안 거르게 빈 값)로 만들고, 완료 기록은 gather.ts 의 lastStrengthDates
+   * 와 같은 규칙(strengthDatesFrom)으로 흉내 낸다 — 그날 목록(구간과 상관없이)에 든 하체 · 상체 스트렝스를 모두 완료했다고 본다.
    *
-   * 지금 동작(검토안의 '한쪽 갇힘'): 상체 날 본운동이 비면 대비책(pickForTheme — '운동이 부족해 본운동을 다른 운동으로
-   * 채웠어요')이 하체 스트렝스로 채운다. 그 하체를 완료하면 '하체를 한 날'이 되어 다음 날도 상체 차례, 상체는 영영 안 하니
-   * 상체 날에 갇힌 채 날마다 하체를 든다. P1 의 '대비책 상한 · 번갈아 예비 규칙을 계획 기록으로'가 이것을 고친다 — 그때 아래 값을 바꾼다.
+   * P0 때 고정해 둔 '한쪽 갇힘'(상체 날 7/7 · 대비책 7/7 · 하체 7일 연속)은 P1 ③ '대비책 상한'으로 바뀌었다(2026-10-11):
+   * 근력 날의 본운동 후보가 0 이면 daily-plan.ts 가 날을 바꾼다(steerFromEmptyMain — 반대쪽, 어제 했으면 보조 · 코어) 그래서
+   * 상체 후보가 없는 표에서는 하체 · 보조가 번갈아 나오고 대비책은 안 들어간다. 대비책은 부위를 좁힌 날에만 남고 두 개까지(아래 셋째 묶음).
    */
   const UPPER_POWER = ['밀기', '당기기', '회전'];
   const noUpper = library.filter(
@@ -8379,9 +8379,9 @@ console.log(
           (e.movementPattern == null || UPPER_POWER.includes(e.movementPattern)))
       )
   );
-  const runWeek = (pool: typeof library) => {
-    let lastLower: string | null = null;
-    let lastUpper: string | null = null;
+  const runWeek = (pool: typeof library, trainingFocus: string | null = null) => {
+    const byId = new Map(pool.map((e) => [e.id, e]));
+    const done: { date: string; category: string }[] = [];
     const seq: {
       key: ThemeKey;
       /** 그날 목록 전체의 하체 · 상체 스트렝스 수(gather.ts 가 세는 것) */
@@ -8390,43 +8390,51 @@ console.log(
       /** 본운동 구간에 든 하체 · 상체 스트렝스 수 */
       lowerMain: number;
       upperMain: number;
+      mainCount: number;
       fallback: boolean;
+      /** 이유 글에 날을 바꾼 까닭이 들었나(steerFromEmptyMain) */
+      switched: boolean;
+      /** 대비책 알림이 들었나 */
+      fallbackNote: boolean;
     }[] = [];
+    const goal = '근력 향상';
     for (let d = 0; d < 7; d++) {
       const asOf = new Date(TODAY.getTime() + d * 86400000);
       const facts = p0Facts({ today: { condition: 8 }, asOf });
       const plan = buildPitchPlan(facts);
-      const picked = selectCandidates({ facts, plan, library: pool });
-      const theme = decideTheme({
+      const dates = strengthDatesFrom({ done, planned: [], todayKey: facts.asOf });
+      const built = buildDailyPlan({
+        user: { ownedEquipment: [], trainingLevel: null },
         facts,
         plan,
-        lastLowerKey: lastLower,
-        lastUpperKey: lastUpper,
-        preferredWorkout: null,
-      });
-      const goal = '근력 향상';
-      const { picks } = pickForTheme({
-        candidates: picked.candidates,
-        theme: theme.key,
-        minutes: 60,
-        doneIds: new Set<string>(),
+        library: pool,
+        availableToday: null,
+        requestedMinutes: 60,
+        trainingGoal: goal,
+        trainingFocus,
+        recentIds: new Set<string>(),
         rotationSeed: facts.asOf,
-        goal,
+        lastLowerKey: dates.lower,
+        lastUpperKey: dates.upper,
       });
-      const all = picks.map((p) => p.exercise);
-      const main = picks.filter((p) => p.slot === 'main').map((p) => p.exercise);
+      if (isHalted(built)) throw new Error(`(e) ${facts.asOf} 멈춤: ${built.reason}`);
+      const all = built.picks.map((p) => byId.get(p.exerciseId)!);
+      const main = built.picks
+        .filter((p) => p.slot === 'main')
+        .map((p) => byId.get(p.exerciseId)!);
       const count = (list: typeof all, category: string) =>
         list.filter((e) => e.category === category).length;
       const lower = count(all, '하체 스트렝스');
       const upper = count(all, '상체 스트렝스');
-      if (lower > 0) lastLower = facts.asOf;
-      if (upper > 0) lastUpper = facts.asOf;
+      for (const e of all) done.push({ date: facts.asOf, category: e.category });
       /*
-       * 대비책이 들어갔는지는 글이 아니라 구조로 판정한다 — 알림 글('… 운동이 부족해 본운동을 다른 운동으로 채웠어요.',
-       * theme.ts pickForTheme 의 빈 본운동 채우기)은 해요체 손질 같은 것으로 바뀔 수 있다. 본운동 구간의 규격(카테고리와
-       * 파워 계열 — pickForTheme 의 후보 거르기와 같은 조건)에 안 맞는 운동이 본운동에 들어 있으면 대비책이 채운 것이다.
+       * 대비책이 들어갔는지는 구조로 판정한다 — 본운동 구간의 규격(카테고리와 파워 계열 — pickForTheme 의 후보 거르기와 같은
+       * 조건, mainCandidateCount 와 같은 fitsSlot)에 안 맞는 운동이 본운동에 들어 있으면 대비책이 채운 것이다. 날을 바꾼 것과
+       * 대비책 알림은 글로도 본다 — 사용자에게 보이는 것이 그 글이라서(글이 바뀌면 여기도 같이 고친다).
        */
-      const mainSpec = compositionFor(theme.key, goal).find((s) => s.slot === 'main');
+      const mainSpec = compositionFor(built.theme.key, goal).find(
+        (s) => s.slot === 'main'
+      );
       const fitsMain = (e: (typeof all)[number]) =>
         mainSpec != null &&
         mainSpec.categories.includes(e.category) &&
@@ -8437,12 +8445,15 @@ console.log(
           !mainSpec.powerPatterns.includes(e.movementPattern)
         );
       seq.push({
-        key: theme.key,
+        key: built.theme.key,
         lower,
         upper,
         lowerMain: count(main, '하체 스트렝스'),
         upperMain: count(main, '상체 스트렝스'),
+        mainCount: main.length,
         fallback: main.some((e) => !fitsMain(e)),
+        switched: /운동이 (모두 )?없/.test(built.theme.reason),
+        fallbackNote: built.notes.some((n) => n.includes('부족해')),
       });
     }
     const longest = (hit: (s: (typeof seq)[number]) => boolean) => {
@@ -8457,7 +8468,10 @@ console.log(
     return {
       seq,
       text: seq
-        .map((s) => `${s.key}(하${s.lower}·상${s.upper}${s.fallback ? '·대비책' : ''})`)
+        .map(
+          (s) =>
+            `${s.key}(하${s.lower}·상${s.upper}${s.fallback ? '·대비책' : ''}${s.switched ? '·바꿈' : ''})`
+        )
         .join(' → '),
       upperDays: seq.filter((s) => s.key === 'upper').length,
       fallbackDays: seq.filter((s) => s.fallback).length,
@@ -8468,27 +8482,52 @@ console.log(
   };
   const whole = runWeek(library);
   check(
-    '한쪽 갇힘 — 온전한 라이브러리: 7일 동안 하체 · 상체를 번갈아 든다(연속 1 · 대비책 0)',
-    whole.lowerRun === 1 && whole.upperRun === 1 && whole.fallbackDays === 0,
+    '한쪽 갇힘 — 온전한 라이브러리: 7일 동안 하체 · 상체를 번갈아 든다(연속 1 · 대비책 0 · 날 바꿈 0)',
+    whole.lowerRun === 1 &&
+      whole.upperRun === 1 &&
+      whole.fallbackDays === 0 &&
+      whole.seq.every((s) => !s.switched && !s.fallbackNote),
     whole.text
   );
   const stuck = runWeek(noUpper);
+  /* P1 ③ 로 바뀜 — P0 때는 '상체 날 7/7 · 대비책 7/7'을 알려진 빈틈으로 고정했다. 이제 상체 날 0 · 대비책 0 이어야 한다. */
   check(
-    `한쪽 갇힘 — 상체 후보 0: 7일 중 상체 날 ${stuck.upperDays}일 · 대비책으로 채운 날 ${stuck.fallbackDays}일 (알려진 빈틈 — P1 대비책 상한)`,
-    stuck.upperDays === 7 && stuck.fallbackDays === 7,
+    `한쪽 갇힘 — 상체 후보 0: 7일 중 상체 날 ${stuck.upperDays}일 · 대비책으로 채운 날 ${stuck.fallbackDays}일 (P1 ③ 뒤 둘 다 0)`,
+    stuck.upperDays === 0 && stuck.fallbackDays === 0,
+    stuck.text
+  );
+  /* P1 ③ 로 바뀜 — P0 때는 '하체 7일 연속 · 상체 0'을 고정했다. 이제 하체는 하루 걸러(연속 ≤ 2), 사이는 보조 · 코어 날. */
+  const twoLowersInARow = stuck.seq
+    .slice(1)
+    .some((s, n) => s.key === 'lower' && stuck.seq[n].key === 'lower');
+  check(
+    `한쪽 갇힘 — 상체 후보 0: 하체 ${stuck.lowerRun}일 연속(≤ 2) · 하체와 보조 · 코어 날이 번갈아, 하체 날에는 본운동이 비지 않는다`,
+    stuck.lowerRun <= 2 &&
+      !twoLowersInARow &&
+      stuck.seq.every((s) => s.key === 'lower' || s.key === 'assist') &&
+      stuck.seq.filter((s) => s.key === 'lower').length >= 3 &&
+      stuck.seq.every((s) => s.key !== 'lower' || s.lowerMain > 0),
     stuck.text
   );
   check(
-    `한쪽 갇힘 — 상체 후보 0: 실제로 든 것은 하체 ${stuck.lowerRun}일 연속 · 상체 ${stuck.upperRun}일 (지금 값 고정)`,
-    stuck.lowerRun === 7 && stuck.upperRun === 0,
-    stuck.text
-  );
-  check(
-    '한쪽 갇힘 — 상체 후보 0: 상체 날의 본운동에 상체 스트렝스는 0, 대비책이 들어간 날은 그 사실을 적는다',
-    stuck.seq.every((s) => s.upperMain === 0 && (s.lowerMain === 0 || s.fallback)) &&
+    "한쪽 갇힘 — 상체 후보 0: 상체 차례였던 날의 이유 글에 날을 바꾼 까닭('상체 운동이 없어 …')이 들어간다, 대비책 알림은 없다",
+    stuck.seq.some((s) => s.switched) &&
+      stuck.seq.every((s) => s.key === 'lower' || s.switched) &&
+      stuck.seq.every((s) => !s.fallbackNote) &&
       noUpper.length > 0 &&
       noUpper.length < library.length,
-    `부분집합 ${noUpper.length}/${library.length}개`
+    `바꾼 날 ${stuck.seq.filter((s) => s.switched).length}일 · 부분집합 ${noUpper.length}/${library.length}개`
+  );
+  /* 부위를 좁힌 날은 바꾸지 않는다 — 상체 밀기를 고른 채 상체 후보 0: 상체 날 그대로, 대비책 두 개까지 + 알림 */
+  const focused = runWeek(noUpper, 'upperPush');
+  check(
+    `한쪽 갇힘 — 상체 밀기를 고른 날은 날을 바꾸지 않고 대비책 두 개까지 + 알림(7일 중 상체 날 ${focused.upperDays}일 · 대비책 ${focused.fallbackDays}일)`,
+    focused.upperDays === 7 &&
+      focused.fallbackDays === 7 &&
+      focused.seq.every(
+        (s) => !s.switched && s.fallbackNote && s.mainCount >= 1 && s.mainCount <= 2
+      ),
+    focused.text
   );
 
   /* ─────────────── (f) P1 ① 씨앗 맨 앞의 사용자 id — 설정이 같아도 사람이 다르면 다른 목록, 같은 사람은 같은 목록 ─────────────── */

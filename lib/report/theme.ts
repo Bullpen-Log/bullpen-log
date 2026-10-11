@@ -12,6 +12,7 @@ import {
   type Prescription,
 } from '@/lib/exercise-meta';
 import { withJosa } from '@/lib/korean';
+import { shiftDateKey } from '@/lib/pitch-stats';
 import type { ReportFacts } from '@/lib/report/facts';
 import type { PitchPlan } from '@/lib/report/plan';
 import {
@@ -752,6 +753,14 @@ function decideThemeForBody({
  */
 export type SlotKey = 'cardio' | 'mobility' | 'main' | 'core' | 'prehab' | 'armcare';
 
+/**
+ * 본운동 후보가 하나도 없을 때 다른 운동으로 채우는 대비책의 개수 상한(P1, 2026-10-11).
+ *
+ * 둘이면 '본운동이 비었다'는 사실이 보이면서도 그날이 통째로 다른 부위의 날이 되지는 않는다. 날 자체를 바꾸는 것은
+ * steerFromEmptyMain 이 먼저 한다 — 여기까지 오는 날은 사용자가 부위를 좁힌 날뿐이다.
+ */
+const FALLBACK_MAX_COUNT = 2;
+
 export const SLOT_LABELS: Record<SlotKey, { label: string; hint: string }> = {
   /*
    * 회복날(맨 앞, 가볍게)과 컨디셔닝 날(심폐) 둘 다 쓰는 칸이라 '가벼운'을 뺐다.
@@ -1147,6 +1156,111 @@ export function compositionFor(
 }
 
 /**
+ * 이 운동이 이 구간의 규격에 맞는가 — 카테고리, 파워면 구간의 계열, 스트렝스면 좁힌 계열.
+ *
+ * pickForTheme 의 구간별 후보 거르기와 본운동 후보 세기(mainCandidateCount)가 같은 규칙을 쓰려고 뗐다. 회복날의
+ * '가벼운 것만'(isRecoveryLight)은 여기 없다 — 테마 전체에 걸리는 조건이라 pickForTheme 이 따로 본다.
+ */
+function fitsSlot(ex: ThemedExercise, spec: SlotSpec): boolean {
+  if (!spec.categories.includes(ex.category)) return false;
+  /* 파워는 이 구간에 맞는 계열만 — 상체날에 스쿼트 점프가 들어오지 않게 */
+  if (
+    ex.category === '파워' &&
+    spec.powerPatterns &&
+    ex.movementPattern != null &&
+    !spec.powerPatterns.includes(ex.movementPattern)
+  ) {
+    return false;
+  }
+  /* 목표에서 '상체 밀기'처럼 좁힌 날은 스트렝스도 그 계열만 */
+  if (
+    ex.category.endsWith('스트렝스') &&
+    spec.strengthPatterns &&
+    ex.movementPattern != null &&
+    !spec.strengthPatterns.includes(ex.movementPattern)
+  ) {
+    return false;
+  }
+  return true;
+}
+
+/**
+ * 이 테마 · 목표에서 본운동 구간에 들어갈 수 있는 후보 수. 본운동 구간이 없는 구성(컨디셔닝 목표 · 회복)이면 null.
+ */
+export function mainCandidateCount(
+  candidates: readonly ThemedExercise[],
+  theme: ThemeKey,
+  goalName: string | null,
+  focus?: GoalFocusKey | null
+): number | null {
+  const spec = compositionFor(theme, goalName, focus).find((sp) => sp.slot === 'main');
+  if (!spec) return null;
+  return candidates.filter((ex) => fitsSlot(ex, spec)).length;
+}
+
+/**
+ * 근력 날인데 그쪽 본운동 후보가 하나도 없으면 날을 바꾼다 — 반대쪽 근력 날로, 그것도 없거나 어제 했으면 보조 · 코어 날로.
+ *
+ * 2026-10-11 (트레이닝 추천 2판 P1 '대비책 상한'). 예전에는 본운동이 비면 pickForTheme 의 대비책이 모빌리티 · 암케어만 빼고
+ * 아무 운동으로 채웠다(최대 여덟). 상체 후보가 0 인 표(맨몸 · 입문은 상체 스트렝스가 1개)에서는 상체 날마다 하체 운동이
+ * 들어가고, 그것을 마치면 '하체를 한 날'이 되어 다음 날도 상체 차례 — 상체 날에 갇힌 채 하체를 7일 연속 들었다(자체 시험 (e)).
+ *
+ * 규칙
+ *   사용자가 오늘 부위를 좁혔으면(focus) 바꾸지 않는다 — 사용자 선택이 이긴다. 그날은 대비책이 두 개까지만 채우고 알린다.
+ *   본운동 구간이 없는 구성(컨디셔닝 목표)은 셀 것이 없으니 그대로.
+ *   반대쪽으로 가되, 반대쪽을 어제 했으면(완료든 계획이든 — lastLowerKey/lastUpperKey) 보조 · 코어 날 — 같은 쪽 무거운 날을
+ *   이틀 잇지 않는다(가정: 하체 · 상체 모두 하루는 쉰다. 2판 중재의 '하체 48시간 예산'과 같은 뜻).
+ *   이유 글은 원래 까닭 뒤에 한 줄 더한다 — 왜 차례와 다른 날이 됐는지 사용자가 읽을 수 있게.
+ */
+export function steerFromEmptyMain({
+  day,
+  candidates,
+  goalName,
+  focus = null,
+  lastLowerKey,
+  lastUpperKey,
+  asOf,
+}: {
+  day: SessionTheme;
+  /** 안전 거르기를 지난 후보(selectCandidates) — 그 안에서만 센다 */
+  candidates: readonly ThemedExercise[];
+  goalName: string | null;
+  focus?: GoalFocusKey | null;
+  lastLowerKey: string | null;
+  lastUpperKey: string | null;
+  /** 오늘(YYYY-MM-DD) */
+  asOf: string;
+}): SessionTheme {
+  if (day.key !== 'lower' && day.key !== 'upper') return day;
+  if (focus) return day;
+  const own = mainCandidateCount(candidates, day.key, goalName);
+  if (own == null || own > 0) return day;
+
+  const other: ThemeKey = day.key === 'lower' ? 'upper' : 'lower';
+  const otherCount = mainCandidateCount(candidates, other, goalName) ?? 0;
+  const part = day.key === 'lower' ? '하체' : '상체';
+  const otherPart = other === 'lower' ? '하체' : '상체';
+  const otherLast = other === 'lower' ? lastLowerKey : lastUpperKey;
+  const yesterday = shiftDateKey(asOf, -1);
+
+  if (otherCount > 0 && otherLast !== yesterday) {
+    return {
+      key: other,
+      label: other === 'lower' ? '하체 스트렝스 데이' : '상체 스트렝스 데이',
+      reason: `${day.reason} ${part} 운동이 없어 오늘은 ${otherPart}를 해요. 라이브러리나 장비를 더하면 ${part} 날이 생겨요.`,
+    };
+  }
+  return {
+    key: 'assist',
+    label: '보조·코어 데이',
+    reason:
+      otherCount > 0
+        ? `${day.reason} ${part} 운동이 없고 ${otherPart}는 어제 했어요. 오늘은 코어와 보강을 해요.`
+        : `${day.reason} 하체 · 상체 운동이 모두 없어 오늘은 코어와 보강을 해요. 라이브러리나 장비를 더하면 근력 날이 생겨요.`,
+  };
+}
+
+/**
  * 테마를 반영해 실제로 쓸 시간을 정한다. 회복 데이는 길게 잡아도 줄인다.
  *
  * 5분 단위로 내림한다. "31분으로 줄였습니다"는 계산기가 뱉은 값처럼 보이고,
@@ -1481,37 +1595,15 @@ export function pickForTheme<T extends ThemedExercise>({
     const chosen = bySlot.get(spec.slot)!;
     const budget = minutes * spec.share;
 
-    let pool = ordered.filter((ex) => {
-      /*
-       * 카테고리만 본다.
-       *
-       * 예전에는 여기서 '모빌리티이거나 매우 낮음'인 운동을 통째로 걸렀다.
-       * 워밍업 구간이 그것들을 따로 받아 갔기 때문이다. 워밍업을 안 뽑게 된
-       * 지금 그 거르개를 그대로 두면, '매우 낮음' 회복 운동이 어느 구간에도
-       * 못 들어가 영영 안 나온다.
-       */
-      if (!spec.categories.includes(ex.category)) return false;
-      if (!eligible(ex)) return false;
-      /* 파워는 이 구간에 맞는 계열만 — 상체날에 스쿼트 점프가 들어오지 않게 */
-      if (
-        ex.category === '파워' &&
-        spec.powerPatterns &&
-        ex.movementPattern != null &&
-        !spec.powerPatterns.includes(ex.movementPattern)
-      ) {
-        return false;
-      }
-      /* 목표에서 '상체 밀기'처럼 좁힌 날은 스트렝스도 그 계열만 */
-      if (
-        ex.category.endsWith('스트렝스') &&
-        spec.strengthPatterns &&
-        ex.movementPattern != null &&
-        !spec.strengthPatterns.includes(ex.movementPattern)
-      ) {
-        return false;
-      }
-      return true;
-    });
+    /*
+     * 구간 규격(카테고리 · 파워 계열 · 좁힌 스트렝스 계열 — fitsSlot)과 테마 조건(회복날은 가벼운 것만)으로 거른다.
+     *
+     * 예전에는 여기서 '모빌리티이거나 매우 낮음'인 운동을 통째로 걸렀다.
+     * 워밍업 구간이 그것들을 따로 받아 갔기 때문이다. 워밍업을 안 뽑게 된
+     * 지금 그 거르개를 그대로 두면, '매우 낮음' 회복 운동이 어느 구간에도
+     * 못 들어가 영영 안 나온다.
+     */
+    let pool = ordered.filter((ex) => fitsSlot(ex, spec) && eligible(ex));
 
     /*
      * 이 구간에서 이 운동이 걸리는 시간.
@@ -1735,9 +1827,14 @@ export function pickForTheme<T extends ThemedExercise>({
     /*
      * 본운동에 넣을 것이 하나도 없으면 다른 운동으로라도 채운다.
      * 그리고 그 사실을 적어둔다 — 조용히 빈약해지는 것이 최악이다.
+     *
+     * 2026-10-11 (P1 '대비책 상한') 부터 두 개까지만 채운다(FALLBACK_MAX_COUNT). 예전에는 구간 상한(여덟)까지 채워,
+     * 상체 후보가 없는 날이 사실상 하체 날이 됐다. 날 자체는 이제 daily-plan.ts 가 steerFromEmptyMain 으로 먼저
+     * 바꾸므로 여기까지 오는 날은 사용자가 부위를 좁힌 날뿐이다 — 그날은 고른 뜻을 지키고 알림만 남긴다.
      */
     if (chosen.length === 0 && spec.slot === 'main') {
       const label = SLOT_LABELS[spec.slot].label;
+      const cap = Math.min(spec.maxCount, FALLBACK_MAX_COUNT);
       for (const ex of ordered) {
         /* 가동성은 그 자체로 한 구간이라(회복·컨디셔닝·보조) 본운동 빈자리를 메우는 데 쓰지 않는다 */
         /*
@@ -1758,7 +1855,7 @@ export function pickForTheme<T extends ThemedExercise>({
         taken.add(ex.id);
         used += cost;
         totalUsed += cost;
-        if (chosen.length >= spec.maxCount) break;
+        if (chosen.length >= cap) break;
       }
       if (chosen.length > 0) {
         notes.push(

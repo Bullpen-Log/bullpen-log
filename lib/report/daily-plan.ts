@@ -15,6 +15,7 @@ import {
   effectiveMinutes,
   pickForTheme,
   conditioningDay,
+  steerFromEmptyMain,
   type SlotKey,
   type ThemeKey,
 } from '@/lib/report/theme';
@@ -202,7 +203,7 @@ export function buildDailyPlan<T extends ExerciseLike>({
   const goalName = trainingGoal ?? goalForUnchosen(preferredWorkout);
   /* 목표에 없는 부위는 여기서 걸러 둔다 — 아래로는 유효한 값만 흐른다 */
   const chosenFocus = validFocus(goalName, trainingFocus);
-  const theme = decideTheme({
+  const decided = decideTheme({
     facts,
     plan,
     lastLowerKey,
@@ -215,9 +216,22 @@ export function buildDailyPlan<T extends ExerciseLike>({
    * 고른 부위가 오늘의 날과 맞을 때만 쓴다. 통증 때문에 날이 바뀌면(theme.ts 의 steerAroundPain —
    * '상체 밀기'를 골랐는데 어깨가 아파 하체 날) 그 부위로 좁히면 본운동이 통째로 빈다.
    */
-  const focus = findFocus(chosenFocus)?.theme === theme.key ? chosenFocus : null;
-  const minutes = effectiveMinutes(theme.key, requestedMinutes);
+  const focus = findFocus(chosenFocus)?.theme === decided.key ? chosenFocus : null;
   const goal = findGoal(goalName);
+  /*
+   * 근력 날인데 그쪽 본운동 후보가 0 이면 날을 바꾼다(theme.ts 의 steerFromEmptyMain — 반대쪽, 그것도 없거나 어제
+   * 했으면 보조 · 코어). 후보는 안전 거르기를 지난 것만 센다. 부위를 좁힌 날은 바꾸지 않는다(focus 가 그대로 산다).
+   */
+  const theme = steerFromEmptyMain({
+    day: decided,
+    candidates: picked.candidates,
+    goalName: goal.name,
+    focus,
+    lastLowerKey,
+    lastUpperKey,
+    asOf: facts.asOf,
+  });
+  const minutes = effectiveMinutes(theme.key, requestedMinutes);
 
   const themed = pickForTheme({
     /* 목표에 맞춘 횟수로 시간을 센다 — 화면 · 운동 화면도 같은 값을 쓴다(goal-prescription.ts) */
