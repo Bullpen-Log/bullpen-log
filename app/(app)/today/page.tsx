@@ -419,9 +419,11 @@ async function TodayBody({
           note={
             plan.recovering
               ? null
-              : facts.profile.age != null
-                ? `만 ${facts.profile.age}세 하루 한도 ${dailyPitchCap(facts.profile.age)}구에서, 처음이라 절반쯤으로 잡았어요.`
-                : '처음이라 낮게 잡았어요. 생년월일을 넣으면 나이에 맞춰요.'
+              : facts.profile.age == null
+                ? '처음이라 낮게 잡았어요. 생년월일을 넣으면 나이에 맞춰요.'
+                : dailyPitchCap(facts.profile.age) == null
+                  ? '처음이라 낮게 잡았어요. 던진 기록이 쌓이면 내 양에 맞춰요.'
+                  : `만 ${facts.profile.age}세 하루 한도 ${dailyPitchCap(facts.profile.age)}구에서, 처음이라 절반쯤으로 잡았어요.`
           }
         />
       )}

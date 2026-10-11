@@ -296,7 +296,7 @@ export function SetupWizard({
   const goalLabel = GOAL_KINDS.find((g) => g.key === a.goalKind)?.label ?? null;
 
   return (
-    <div ref={rootRef} className="flex min-h-[calc(100dvh-9rem)] flex-col scroll-mt-4">
+    <div ref={rootRef} className="flex flex-col scroll-mt-4">
       <StepCard
         titleKey={current}
         title={heading.title}

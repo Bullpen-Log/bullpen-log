@@ -4,10 +4,9 @@ import { redirect } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
 import { requireUser } from '@/lib/dal';
 import { isNativeUserAgent } from '@/lib/app-env';
-import { featureLocks, hasSeenTutorial, SETUP_PATH } from '@/lib/feature-locks';
+import { featureLocks, SETUP_PATH } from '@/lib/feature-locks';
 import { loadVelocityByDate } from '@/lib/velocity-load';
 import { toDateKey } from '@/lib/pitch-stats';
-import { TabTutorial } from '@/components/tutorial/tab-tutorial';
 import { VideosClient } from './videos-client';
 
 /**
@@ -103,12 +102,7 @@ export default async function VideosPage({
         /* ?compare=1 — 메커닉 프로그램의 '찍어서 견줘 보세요'에서 곧장 둘을 고르는 자리로 */
         initialCompare={params.compare === '1'}
       />
-      {/*
-        첫 설정을 마치고 처음 열면 이 탭 사용법을 한 번 보인다(components/tutorial/tab-tutorial.tsx). 앱 기본 사용법 투어
-        (레이아웃의 TourGate)는 홈에서만 저절로 뜨므로 이 화면에서 둘이 겹치지 않는다 — 혹시 같이 대기해도 표시(holdTour)를
-        나눠 붙들어 체크인 관문은 둘 다 끝난 뒤에 연다.
-      */}
-      <TabTutorial tutorialKey="pitch" open={!hasSeenTutorial(user, 'pitch')} />
+      {/* 첫 설정 뒤의 탭 사용법(TabTutorial)은 2026-10-12 에 뺐다 — 사용자: "투구기록 설문 지나고 나오는 튜토리얼 제거" */}
     </>
   );
 }

@@ -61,7 +61,10 @@ export function InsertCard({
   );
 }
 
-/** 생년월일 뒤 — '{나이}세는 하루 {한도}구까지예요'(lib/report/plan.ts dailyPitchCap · REST_REQUIREMENTS) */
+/**
+ * 투구 첫 설정의 첫 화면 — 미성년자(만 19세 미만 · 나이 모름)는 '{나이}세는 하루 {한도}구까지예요', 성인은 한도 대신
+ * 오늘 양을 무엇으로 정하는지(2026-10-12 사용자: "만 21세 120구는 이상해 — 미성년자만 제한, 성인은 다른 문구로").
+ */
 export function PitchCapInsert({
   age,
   active,
@@ -73,6 +76,20 @@ export function PitchCapInsert({
   const rests = REST_REQUIREMENTS.filter((r) => r.restDays > 0)
     .slice()
     .sort((a, b) => a.minPitches - b.minPitches);
+  const restLine = `한 번에 ${rests[0].minPitches}구 넘게 던지면 ${rests[0].restDays}일, ${rests[rests.length - 1].minPitches}구 넘게 던지면 ${rests[rests.length - 1].restDays}일은 전력으로 던지지 않아요.`;
+  if (cap == null) {
+    return (
+      <InsertCard
+        icon={<ShieldCheck aria-hidden />}
+        headline={<>오늘 던질 양은 내 기록으로 정해요</>}
+        lines={[
+          '평소 던지던 양과 최근 몇 주의 부하를 견줘, 갑자기 늘지 않게 오늘 양을 알려 드려요.',
+          restLine,
+          '팀 · 지도자의 지침이 먼저예요.',
+        ]}
+      />
+    );
+  }
   return (
     <InsertCard
       icon={<ShieldCheck aria-hidden />}
@@ -86,7 +103,7 @@ export function PitchCapInsert({
         </>
       }
       lines={[
-        `한 번에 ${rests[0].minPitches}구 넘게 던지면 ${rests[0].restDays}일, ${rests[rests.length - 1].minPitches}구 넘게 던지면 ${rests[rests.length - 1].restDays}일은 전력으로 던지지 않아요.`,
+        restLine,
         '투구를 적으면 홈이 오늘 던질 수 있는 양과 쉬어야 할 날을 매일 알려 드려요.',
         '기준은 유소년 투구수 가이드(Pitch Smart)예요. 팀 · 지도자의 지침이 먼저예요.',
       ]}
