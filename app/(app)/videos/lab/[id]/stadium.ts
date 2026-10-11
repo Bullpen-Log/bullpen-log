@@ -175,7 +175,9 @@ function sweep(
   segs: Seg[],
   zig?: (i: number) => number,
   /** 선분 끝 높이를 둘레 자리마다 바꿀 때(층 뒤 벽 — 위층이 있는 자리만 높게) */
-  z1At?: (sg: Seg, p: PathPt) => number
+  z1At?: (sg: Seg, p: PathPt) => number,
+  /** 둘레 자리마다 단면 전체를 파울선 쪽으로 당기는 거리(m) — 모서리에서 위층이 다가온다 */
+  shiftAt?: (p: PathPt) => number
 ) {
   const { THREE, fg } = F;
   const by = new Map<Kind, { pos: number[]; uv: number[]; col: number[]; idx: number[] }>();
@@ -186,10 +188,12 @@ function sweep(
     const sh = sg.shade ?? 1;
     path.forEach((p, i) => {
       const lift = zig ? zig(i) : 0;
-      for (const [w, z, v] of [
+      const shift = shiftAt ? shiftAt(p) : 0;
+      for (const [w0, z, v] of [
         [sg.w0, sg.z0, 0],
         [sg.w1, z1At ? z1At(sg, p) : sg.z1, 1],
       ] as const) {
+        const w = w0 - shift;
         const q = fg(p.a + p.na * w, p.b + p.nb * w, (z + lift) * F.s);
         g.pos.push(q.x, q.y, q.z);
         g.uv.push(p.len, v);
@@ -379,7 +383,11 @@ function addSweep(F: FieldFrame, geos: Map<Kind, Three.BufferGeometry>, mats: Pa
 
 /* ───────────── 본 관중석 ───────────── */
 
-/** 본 관중석 앞 벽 선 — 3 · 1루 파울선에서 foulOff 밖(폴 앞 98m 까지), 홈 뒤는 반지름 BACKSTOP_R 호. reach = 파울선을 따라 간 거리 */
+/**
+ * 본 관중석 앞 벽 선 — 3 · 1루 파울선에서 foulOff 밖, 홈 뒤는 반지름 BACKSTOP_R 호. reach = 파울선을 따라 간 거리.
+ * 사진: 관중석은 폴에서 끝나지 않고 파울선 연장을 따라 외야 쪽으로 더 뻗는다(폴 뒤 · 외야석 옆까지) — 그래서 120m 까지.
+ */
+export const STAND_REACH = 132;
 export function grandstandBase(): (P2 & { reach: number })[] {
   const pts: (P2 & { reach: number })[] = [];
   const Q = Math.PI / 4;
@@ -388,12 +396,12 @@ export function grandstandBase(): (P2 & { reach: number })[] {
     const off = foulOff(a);
     return { a: a * Math.cos(th) + off * Math.cos(n), b: a * Math.sin(th) + off * Math.sin(n), reach: a };
   };
-  for (let a = 100; a > 0; a -= 2) pts.push(line(a, -Q));
+  for (let a = STAND_REACH; a > 0; a -= 2) pts.push(line(a, -Q));
   for (let i = 0; i <= 40; i++) {
     const t = -3 * Q - (2 * Q * i) / 40;
     pts.push({ a: BACKSTOP_R * Math.cos(t), b: BACKSTOP_R * Math.sin(t), reach: 0 });
   }
-  for (let a = 2; a <= 100; a += 2) pts.push(line(a, Q));
+  for (let a = 2; a <= STAND_REACH; a += 2) pts.push(line(a, Q));
   return pts;
 }
 
@@ -405,36 +413,73 @@ function grandstand(F: FieldFrame, mats: Record<string, Three.Material>, seatMat
    * 층(바깥 거리 w · 높이 z, m) — 사진으로 어림. 위층은 아래층 뒤쪽 위로 튀어나오고(기둥 없음), 아래층 뒤 줄 머리 위는 2.4m 넘게 비운다.
    * 클럽은 홈 뒤(베이스 사이)에만. 층 뒤 벽은 위층 밑면까지 올려 틈으로 바깥이 보이지 않게.
    */
+  /*
+   * 층마다 끝나는 자리(파울선을 따라) — 사진(홈 옆에서 본 폴): 관중석이 폴을 지나 외야 쪽으로 뻗고, 위층이 폴 바로 옆에 높은 벽처럼 선다.
+   * 그래서 모서리(파울선 60m → 105m)에서는 위층(로지 · 클럽 · 리저브 · 톱)을 통째로 파울선 쪽으로 12m 당긴다(층끼리 관계는 그대로).
+   */
   const CLUB_REACH = 30;
-  type Deck = { key: keyof typeof SEAT; path: PathPt[]; w0: number; z0: number; w1: number; z1: number; cover: number; ribbon?: boolean };
+  const LOGE_REACH = 128;
+  const RESERVE_REACH = 124;
+  const TOP_REACH = 116;
+  const SHIFT_MAX = 12;
+  const shiftOf = (key: string, reach: number) => {
+    if (key === 'field') return 0;
+    const u = Math.min(1, Math.max(0, (reach - 60) / 45));
+    return SHIFT_MAX * u * u * (3 - 2 * u);
+  };
+  type Deck = {
+    key: keyof typeof SEAT;
+    path: PathPt[];
+    reach: number;
+    w0: number;
+    z0: number;
+    w1: number;
+    z1: number;
+    cover: number;
+    ribbon?: boolean;
+  };
   const decks: Deck[] = [
-    { key: 'field', path: full, w0: 0, z0: 0.4, w1: 27, z1: 9, cover: 20 },
-    { key: 'loge', path: part(92), w0: 20, z0: 13, w1: 36, z1: 20, cover: 33, ribbon: true },
-    { key: 'club', path: part(CLUB_REACH), w0: 30, z0: 23, w1: 36, z1: 26, cover: 35 },
-    { key: 'reserve', path: part(80), w0: 35, z0: 30, w1: 53, z1: 40, cover: 49 },
-    { key: 'top', path: part(66), w0: 49, z0: 43, w1: 65, z1: 52, cover: 57 },
+    /* 사진(필드 높이에서 본 폴 쪽): 위층이 크게 튀어나와 관중석이 가파르고 높은 벽처럼 선다 — 층마다 앞으로 10m 남짓만 물러난다 */
+    { key: 'field', path: full, reach: STAND_REACH, w0: 0, z0: 0.4, w1: 27, z1: 9, cover: 14 },
+    { key: 'loge', path: part(LOGE_REACH), reach: LOGE_REACH, w0: 14, z0: 11, w1: 30, z1: 18, cover: 26, ribbon: true },
+    { key: 'club', path: part(CLUB_REACH), reach: CLUB_REACH, w0: 24, z0: 21, w1: 30, z1: 24, cover: 28 },
+    { key: 'reserve', path: part(RESERVE_REACH), reach: RESERVE_REACH, w0: 28, z0: 28, w1: 46, z1: 39, cover: 40 },
+    { key: 'top', path: part(TOP_REACH), reach: TOP_REACH, w0: 40, z0: 42, w1: 56, z1: 51, cover: 47 },
   ];
   /** 그 층 밑면의 높이(바깥 거리 w 에서) */
   const underAt = (d: Deck, w: number) => d.z0 - SLAB + ((w - d.w0) * (d.z1 - d.z0)) / (d.w1 - d.w0);
-  const [field, loge, club, reserve, top] = decks;
+  const [, , club, , top] = decks;
   /* 톱 덱 위 지붕 — 앞으로 튀어나온 곡선 콘크리트(두께 0.7m), 앞 가장자리에 조명 */
-  const R0 = 55;
-  const R1 = 68;
+  const R0 = 47;
+  const R1 = 60;
   const ROOF_T = 0.45;
   const curve = (w: number) => 57.5 + 1.6 * Math.sin(((w - R0) / (R1 - R0)) * Math.PI * 0.9);
-  /* 뒤 벽 꼭대기 — 위층이 있는 자리만(그 밖은 바깥 벽 높이 3m) */
-  const wallTop: Record<string, (p: PathPt) => number> = {
-    field: () => underAt(loge, field.w1),
-    /* 클럽은 로지 뒤 벽 앞에 앉는다(뒤 줄이 같은 벽에 닿음) — 클럽 자체 뒤 벽은 없다 */
-    loge: (p) => (p.reach <= 80 ? underAt(reserve, loge.w1) : loge.z1 + 3),
-    club: () => club.z1,
-    reserve: (p) => (p.reach <= 66 ? underAt(top, reserve.w1) : reserve.z1 + 3),
-    top: () => curve(top.w1) - ROOF_T,
+  /*
+   * 뒤 벽 꼭대기 — 그 자리(파울선에서 실제 거리)를 덮는 가장 낮은 위층의 밑면까지. 덮는 층이 없으면 바깥 벽 높이 3m.
+   * 클럽은 로지 뒤 벽 앞에 앉는다(뒤 줄이 같은 벽에 닿음) — 클럽 자체 뒤 벽은 없다. 톱 덱은 지붕 밑까지.
+   */
+  const wallTopAt = (d: Deck, p: PathPt): number => {
+    if (d.key === 'club') return club.z1;
+    if (d.key === 'top') return curve(top.w1) - ROOF_T;
+    const W = d.w1 - shiftOf(d.key, p.reach);
+    for (const n of decks.slice(decks.indexOf(d) + 1)) {
+      if (p.reach > n.reach) continue;
+      const sh = shiftOf(n.key, p.reach);
+      if (W >= n.w0 - sh - 0.01 && W <= n.w1 - sh + 0.01) return underAt(n, W + sh);
+    }
+    return d.z1 + 3;
   };
   for (const d of decks) {
     /* 클럽 뒤 끝은 로지 뒤 벽과 같은 자리라 바깥 벽을 또 세우면 겹쳐 깜빡인다 */
     const segs = deckProfile(d.w0, d.z0, d.w1, d.z1, { under: d.key !== 'field', cover: d.cover, ribbon: d.ribbon, outer: d.key !== 'club' });
-    const geos = sweep(F, d.path, segs, undefined, (sg, p) => (sg.kind === 'wall' ? wallTop[d.key](p) : sg.z1));
+    const geos = sweep(
+      F,
+      d.path,
+      segs,
+      undefined,
+      (sg, p) => (sg.kind === 'wall' ? wallTopAt(d, p) : sg.z1),
+      (p) => shiftOf(d.key, p.reach)
+    );
     addSweep(F, geos, {
       seat: seatMats[d.key].seat,
       back: seatMats[d.key].back,
@@ -449,18 +494,20 @@ function grandstand(F: FieldFrame, mats: Record<string, Three.Material>, seatMat
     /* 층 끝 — 계단 탑(끝을 막는 벽) */
     for (const end of [d.path[0], d.path[d.path.length - 1]]) {
       const ground = d.key === 'field';
+      const sh = shiftOf(d.key, end.reach);
       /* 단면 그대로 — 밑(땅 또는 밑면) → 뒤 벽 꼭대기 → 의자 줄을 따라 난간 높이(1.1m)로 앞까지 */
+      const poly: [number, number][] = [
+        [d.w0, ground ? 0 : d.z0 - SLAB],
+        [d.w1, ground ? 0 : underAt(d, d.w1)],
+        [d.w1, Math.max(wallTopAt(d, end), d.z1 + 1.1)],
+        [d.w1 - 0.3, d.z1 + 1.1],
+        [d.w0 + 0.3, d.z0 + 1.1],
+        [d.w0, d.z0 + 1],
+      ];
       endCap(
         F,
         end,
-        [
-          [d.w0, ground ? 0 : d.z0 - SLAB],
-          [d.w1, ground ? 0 : underAt(d, d.w1)],
-          [d.w1, Math.max(wallTop[d.key](end), d.z1 + 1.1)],
-          [d.w1 - 0.3, d.z1 + 1.1],
-          [d.w0 + 0.3, d.z0 + 1.1],
-          [d.w0, d.z0 + 1],
-        ],
+        poly.map(([w, z]) => [w - sh, z]),
         mats.endCap
       );
     }
@@ -473,8 +520,9 @@ function grandstand(F: FieldFrame, mats: Record<string, Three.Material>, seatMat
     roofSegs.push({ w0: w1, z0: curve(w1) - ROOF_T, w1: w0, z1: curve(w0) - ROOF_T, kind: 'roofUnder', shade: 0.6 });
   }
   roofSegs.push({ w0: R0, z0: curve(R0) - ROOF_T, w1: R0, z1: curve(R0), kind: 'fascia' });
-  addSweep(F, sweep(F, top.path, roofSegs), { roof: mats.roof, roofUnder: mats.roof, fascia: mats.fascia });
-  return { roofPath: resample(top.path, 7.5), roofEdge: R0, roofZ: curve(R0) };
+  const topShift = (p: PathPt) => shiftOf('top', p.reach);
+  addSweep(F, sweep(F, top.path, roofSegs, undefined, undefined, topShift), { roof: mats.roof, roofUnder: mats.roof, fascia: mats.fascia });
+  return { roofPath: resample(top.path, 7.5), roofEdge: R0, roofZ: curve(R0), roofShift: topShift };
 }
 
 /** 층 끝 벽 — 둘레 끝 점에서 단면 다각형(바깥 거리 w, 높이 z — 볼록, 차례대로)을 막는다 */
@@ -1175,7 +1223,7 @@ export function buildStadium(F: FieldFrame): StadiumHandle {
     };
   }
 
-  const { roofPath, roofEdge, roofZ } = grandstand(F, mats, seatMats);
+  const { roofPath, roofEdge, roofZ, roofShift } = grandstand(F, mats, seatMats);
   dugoutsAndNet(F, mats);
   pavilion(F, -1, mats, seatMats.pavilion);
   pavilion(F, 1, mats, seatMats.pavilion);
@@ -1241,7 +1289,8 @@ export function buildStadium(F: FieldFrame): StadiumHandle {
   for (let i = 1; i < roofPath.length - 1; i += 2) {
     const p = roofPath[i];
     const m = new THREE.Mesh(lamp, lampMat);
-    m.position.copy(F.fg(p.a + p.na * (roofEdge + 0.5), p.b + p.nb * (roofEdge + 0.5), (roofZ + 1.2) * F.s));
+    const w = roofEdge + 0.5 - roofShift(p);
+    m.position.copy(F.fg(p.a + p.na * w, p.b + p.nb * w, (roofZ + 1.2) * F.s));
     m.lookAt(F.fg(30, 0, 0));
     F.scene.add(m);
   }
