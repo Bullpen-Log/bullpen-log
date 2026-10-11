@@ -30,7 +30,7 @@ const cv=document.getElementById('c');
 const R=new T.WebGLRenderer({canvas:cv,antialias:true,alpha:true});R.setPixelRatio(Math.min(2,devicePixelRatio));
 R.outputEncoding=T.sRGBEncoding;R.toneMapping=T.ACESFilmicToneMapping;R.toneMappingExposure=1.15;
 R.shadowMap.enabled=true;R.shadowMap.type=T.PCFSoftShadowMap;
-const S=new T.Scene();const C=new T.PerspectiveCamera(28,1,0.05,60);C.up.set(0,0,1);
+const S=new T.Scene();const C=new T.PerspectiveCamera(28,1,0.08,600);C.up.set(0,0,1);
 const lin=c=>new T.Color(c).convertSRGBToLinear();
 S.add(new T.HemisphereLight(lin(0xf4f7ff),lin(0x3a3f48),0.85));
 const L1=new T.DirectionalLight(lin(0xfff6ea),1.35);L1.castShadow=true;L1.shadow.mapSize.set(2048,2048);
@@ -239,16 +239,20 @@ function applyAna(){const a=ana;
 /* 비칠 때는 네 번 그린다: 바닥 · 뼈(인형은 그림자만) → 인형 깊이만 → 인형 맨 앞 겉면 → 잰 선 */
 function render(){if(ana<=0.004){R.shadowMap.autoUpdate=true;R.autoClear=true;R.render(S,C);return;}
  const M=Object.values(MAT);R.shadowMap.autoUpdate=true;R.autoClear=true;lines.visible=false;M.forEach(m=>m.colorWrite=false);R.render(S,C);
+ /* 하늘(배경 그림)은 그릴 때마다 다시 칠해져 앞 장면을 덮으므로 첫 번째에만 */
+ const bg=S.background;S.background=null;
  R.shadowMap.autoUpdate=false;R.autoClear=false;world.visible=bones.visible=false;S.overrideMaterial=DEPTH;R.render(S,C);S.overrideMaterial=null;
  M.forEach(m=>m.colorWrite=true);R.render(S,C);
  body.visible=false;lines.visible=true;R.render(S,C);
- world.visible=bones.visible=body.visible=true;R.autoClear=true;}
+ world.visible=bones.visible=body.visible=true;R.autoClear=true;S.background=bg;}
 /* 바닥 · 마운드 · 그림자 */
 const shadowPlane=new T.Mesh(new T.PlaneGeometry(12,12),new T.ShadowMaterial({opacity:0.32}));shadowPlane.receiveShadow=true;
 function stage(set){clear(world);
  const fr=set.frames;let cx=0,cy=0,cz=0;for(const J of fr){cx+=(J.rh.x+J.lh.x)/2;cy+=(J.rh.y+J.lh.y)/2;cz+=(J.rh.z+J.lh.z)/2;}cx/=fr.length;cy/=fr.length;cz/=fr.length;
- const grid=new T.GridHelper(8,16,0x3c4858,0x2a3442);grid.material.transparent=true;grid.material.opacity=0.55;grid.rotation.x=Math.PI/2;grid.position.set(cx,cy,0.001);world.add(grid);
- shadowPlane.position.set(cx,cy,0.002);world.add(shadowPlane);
+ S.background=park?SKY:null;S.fog=park?FOG:null;
+ if(park)buildPark(set);
+ else{const grid=new T.GridHelper(8,16,0x3c4858,0x2a3442);grid.material.transparent=true;grid.material.opacity=0.55;grid.rotation.x=Math.PI/2;grid.position.set(cx,cy,0.001);world.add(grid);
+  shadowPlane.position.set(cx,cy,0.002);world.add(shadowPlane);}
  if(set.ground==='mound'&&set.mound)buildMound(set);
  center.set(cx,cy,cz+0.12);
  L1.position.set(cx+1.6,cy-2.4,4.6);L1.target.position.set(cx,cy,0.6);L3.position.set(cx-2.5,cy+2.5,3.2);L3.target.position.set(cx,cy,1);}
@@ -274,6 +278,70 @@ function buildMound(set){const h=set.height,m=set.mound,x0=m.x0*h,y0=-m.z0*h,H=m
  const mm=new T.Mesh(g,MOUND_MAT);mm.receiveShadow=true;world.add(mm);
  /* 투수판: 흰 고무판(61 × 15cm), 꼭대기에서 1cm 위 */
  const top=MOUND.top*m.scale,rub=new T.Mesh(new T.BoxGeometry(0.152,0.61,0.03),mat(0xf4f2ec,0.55));rub.position.set(x0-0.076,y0,top-0.005);rub.receiveShadow=true;rub.castShadow=true;world.add(rub);}
+/* 야구장(밤 경기) — 실제 규격: 투수판 앞 모서리에서 홈플레이트 뒤 꼭짓점까지 18.44m, 베이스 사이 27.43m, 내야 흙 반지름 28.96m(투수판에서),
+   좌우 펜스 100.6m · 가운데 121.9m. 특정 구장 · 구단 표시는 넣지 않는다. 분석이 묻히지 않게 멀수록 안개로 흐리게 */
+let park=true;
+const SKY=(()=>{const c=document.createElement('canvas');c.width=4;c.height=256;const g=c.getContext('2d'),gr=g.createLinearGradient(0,0,0,256);
+ gr.addColorStop(0,'#060a14');gr.addColorStop(0.55,'#13203a');gr.addColorStop(1,'#2b3c58');g.fillStyle=gr;g.fillRect(0,0,4,256);const t=new T.CanvasTexture(c);t.encoding=T.sRGBEncoding;return t;})();
+const FOG=new T.Fog(lin(0x223150).getHex(),45,230);
+const PARK_MAT=new T.MeshStandardMaterial({vertexColors:true,roughness:0.95});
+/* 관중: 어두운 좌석 위 작은 점(옷 색) — 아래 띠는 흰색(벽 · 난간은 꼭짓점 색만 보이게) */
+const CROWD=(()=>{const c=document.createElement('canvas');c.width=1024;c.height=512;const g=c.getContext('2d');g.fillStyle='#1c2738';g.fillRect(0,0,1024,512);
+ const pal=['#c9c4b8','#8a2f2f','#2f4f8a','#d0b07a','#3d3d45','#7a6a5a','#e6e2da','#4a6a4a','#9a8a6a','#2a2a30'];let s=7;const rnd=()=>(s=(s*16807)%2147483647)/2147483647;
+ for(let y=4;y<488;y+=7)for(let x=0;x<1024;x+=5){if((x%128)<6)continue;if(rnd()<0.22)continue;g.fillStyle=pal[Math.floor(rnd()*pal.length)];g.globalAlpha=0.55+0.4*rnd();g.fillRect(x+rnd()*1.5,y+rnd()*2,3,4);}
+ g.globalAlpha=1;g.fillStyle='#ffffff';g.fillRect(0,490,1024,22);const t=new T.CanvasTexture(c);t.encoding=T.sRGBEncoding;t.wrapS=T.RepeatWrapping;t.anisotropy=8;return t;})();
+const CHALK=new T.MeshStandardMaterial({color:lin(0xf3f1ea),roughness:0.7});
+function parkSpot(set){if(set.mound){const h=set.height;return {x0:set.mound.x0*h,y0:-set.mound.z0*h};}const f0=set.frames[0];return {x0:f0.ra.x-0.1,y0:f0.ra.y};}
+function buildPark(set){const {x0,y0}=parkSpot(set),xh=x0+18.44,B=27.43,s2=Math.SQRT1_2;
+ const e1=new T.Vector2(-s2,s2),e3=new T.Vector2(-s2,-s2);/* 홈에서 1루(투수 왼쪽 +y) · 3루 쪽 */
+ const uv=(x,y)=>{const dx=x-xh,dy=y-y0;return [dx*e1.x+dy*e1.y,dx*e3.x+dy*e3.y];};
+ const ang=(x,y)=>Math.atan2(y-y0,-(x-xh));/* 0 = 가운데 펜스 쪽, ±45° = 파울 기둥 */
+ const fence=a=>100.6+21.3*Math.max(0,Math.cos(2*a));
+ const wallAt=a=>{const b=Math.abs(a),q=Math.PI/4;return b<=q?fence(a):b>=3*q?18.3:Math.min(fence(q),18/Math.sin(b-q));};
+ const grass=lin(0x35602f),grass2=lin(0x2f5629),dirt=lin(0x8d6a4c),track=lin(0x6e5640),col=new T.Color();
+ const paint=(x,y)=>{const [u,v]=uv(x,y),a=ang(x,y),r=Math.hypot(x-xh,y-y0),rm=Math.hypot(x-(x0-0.076),y-y0),n=noise(x*0.25,y*0.25);
+  const fair=u>-0.9&&v>-0.9;
+  let d=false;
+  if(Math.hypot(x-(xh-0.4),y-y0)<3.96)d=true;/* 홈 둘레 */
+  else if(fair&&rm<28.96&&!(u>0.91&&v>0.91&&u<B-0.91&&v<B-0.91))d=true;/* 내야 흙(잔디 네모 밖) */
+  else if(fair&&(Math.abs(u)<0.91||Math.abs(v)<0.91)&&Math.max(u,v)<B+0.5)d=true;/* 베이스 길 */
+  for(const [bu,bv] of [[B,0],[B,B],[0,B]])if(Math.hypot(u-bu,v-bv)<2.7)d=true;/* 베이스 둘레 */
+  if(d){col.copy(dirt);}else if(Math.abs(a)<=Math.PI/4+0.01&&r>fence(a)-4.6)col.copy(track);
+  else{/* 잔디 깎은 줄무늬 — 외야는 가운데 쪽 띠, 내야는 바둑판 */const band=Math.floor(r/4.5)%2,chk=(Math.floor(u/3)+Math.floor(v/3))%2;col.copy(fair&&u>0&&v>0&&u<B&&v<B?(chk?grass:grass2):(band?grass:grass2));}
+  col.multiplyScalar(0.92+0.16*n);return col;};
+ /* 땅: 내야는 촘촘하게(20cm), 바깥은 성기게(1m) */
+ const plane=(xa,xb,ya,yb,step,z)=>{const nx=Math.ceil((xb-xa)/step),ny=Math.ceil((yb-ya)/step),pos=[],cols=[],idx=[];
+  for(let j=0;j<=ny;j++)for(let i=0;i<=nx;i++){const x=xa+(xb-xa)*i/nx,y=ya+(yb-ya)*j/ny;pos.push(x,y,z);const c=paint(x,y);cols.push(c.r,c.g,c.b);}
+  for(let j=0;j<ny;j++)for(let i=0;i<nx;i++){const p=j*(nx+1)+i;idx.push(p,p+1,p+nx+1,p+1,p+nx+2,p+nx+1);}
+  const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(pos,3));g.setAttribute('color',new T.Float32BufferAttribute(cols,3));g.setIndex(idx);g.computeVertexNormals();
+  const m=new T.Mesh(g,PARK_MAT);m.receiveShadow=true;world.add(m);};
+ plane(xh-140,xh+30,y0-110,y0+110,1.2,-0.004);plane(xh-42,xh+6,y0-24,y0+24,0.2,0);
+ /* 흰 선 · 베이스 · 홈플레이트 · 타석 */
+ const box=(x,y,w,l,rot,z=0.004,hh=0.008)=>{const o=new T.Mesh(new T.BoxGeometry(w,l,hh),CHALK);o.position.set(x,y,z);o.rotation.z=rot;o.receiveShadow=true;world.add(o);};
+ for(const sg of [1,-1]){const a=Math.PI/4*sg,L=fence(Math.PI/4);const dx=-Math.cos(a),dy=Math.sin(a);box(xh+dx*L/2,y0+dy*L/2,0.076,L,Math.atan2(dy,dx)-Math.PI/2);
+  /* 파울 기둥 */const pole=new T.Mesh(new T.CylinderGeometry(0.2,0.2,14,12),new T.MeshStandardMaterial({color:lin(0xe8c547),roughness:0.5}));pole.rotation.x=Math.PI/2;pole.position.set(xh+dx*(L+0.5),y0+dy*(L+0.5),7);world.add(pole);
+  /* 타석(가로 1.22 · 세로 1.83m, 홈플레이트 옆에서 15cm) */const yc=y0+sg*(0.216+0.152+0.61),xc=xh-0.216;
+  for(const o of [-0.61,0.61])box(xc,yc+o,1.83,0.076,0);for(const o of [-0.915,0.915])box(xc+o,yc,0.076,1.296,0);}
+ for(const [bu,bv] of [[B,0],[B,B],[0,B]]){const x=xh+e1.x*bu+e3.x*bv,y=y0+e1.y*bu+e3.y*bv;box(x,y,0.381,0.381,Math.PI/4,0.04,0.08);}
+ const hp=new T.Shape();hp.moveTo(0,0);hp.lineTo(-0.216,0.216);hp.lineTo(-0.432,0.216);hp.lineTo(-0.432,-0.216);hp.lineTo(-0.216,-0.216);hp.closePath();
+ const hm=new T.Mesh(new T.ShapeGeometry(hp),CHALK);hm.position.set(xh,y0,0.006);hm.receiveShadow=true;world.add(hm);
+ /* 펜스 · 관중석: 홈을 가운데 둔 둘레를 따라 벽 → 계단식 관중석 */
+ const NA=360,ROWS=14,pos=[],cols=[],uvs=[],idx=[],wall=lin(0x1d3a2d),back=lin(0x1a2436),pad=lin(0xd8b43a);
+ for(let i=0;i<=NA;i++){const a=-Math.PI+2*Math.PI*i/NA,r0=wallAt(a),dx=-Math.cos(a),dy=Math.sin(a),fair=Math.abs(a)<=Math.PI/4,wh=fair?3:1.2;
+  const prof=[[r0,0],[r0,wh-0.12],[r0,wh],[r0+0.4,wh]];for(let k=1;k<=ROWS;k++)prof.push([r0+0.4+k*2.3,wh+k*1.45]);prof.push([r0+0.4+ROWS*2.3+0.5,wh+ROWS*1.45+6]);
+  prof.forEach(([r,z],k)=>{pos.push(xh+dx*r,y0+dy*r,z);const crowd=k>=4&&k<prof.length-1;
+   if(crowd)col.setRGB(0.7,0.7,0.7);else col.copy(k<2?(fair?wall:back):k===2?pad:back);cols.push(col.r,col.g,col.b);
+   uvs.push(i/NA*70,crowd?0.06+0.92*(k-4)/(prof.length-5):0.02);});}
+ const P=ROWS+5;for(let i=0;i<NA;i++)for(let k=0;k<P-1;k++){const a=i*P+k,b=(i+1)*P+k;idx.push(a,b,a+1,b,b+1,a+1);}
+ const sg=new T.BufferGeometry();sg.setAttribute('position',new T.Float32BufferAttribute(pos,3));sg.setAttribute('color',new T.Float32BufferAttribute(cols,3));sg.setAttribute('uv',new T.Float32BufferAttribute(uvs,2));sg.setIndex(idx);sg.computeVertexNormals();
+ world.add(new T.Mesh(sg,new T.MeshStandardMaterial({vertexColors:true,map:CROWD,roughness:0.9,side:T.DoubleSide})));
+ /* 조명탑 — 관중석 뒤 높이 */
+ const LIT=new T.MeshBasicMaterial({color:0xfff6e0}),POLE=new T.MeshStandardMaterial({color:lin(0x3a4250),roughness:0.6});
+ for(const a of [-2.5,-1.6,-0.75,0.75,1.6,2.5]){const r=wallAt(a)+36,x=xh-Math.cos(a)*r,y=y0+Math.sin(a)*r;const p=new T.Mesh(new T.CylinderGeometry(0.5,0.8,48,10),POLE);p.rotation.x=Math.PI/2;p.position.set(x,y,24);world.add(p);
+  const panel=new T.Mesh(new T.BoxGeometry(1,9,5),LIT);panel.position.set(x,y,50);panel.rotation.z=Math.atan2(y0-y,xh-x);world.add(panel);}
+ /* 발 디딘 땅이 마운드가 아니면(모션 캡처 · 평지) 흙 원과 투수판만 */
+ if(!set.mound){const dd=new T.Mesh(new T.CircleGeometry(MOUND.radius,72),new T.MeshStandardMaterial({color:lin(0x8d6a4c),roughness:0.95}));dd.position.set(x0+MOUND.centerAhead,y0,0.003);dd.receiveShadow=true;world.add(dd);
+  const rub=new T.Mesh(new T.BoxGeometry(0.152,0.61,0.02),mat(0xf4f2ec,0.55));rub.position.set(x0-0.076,y0,0.01);rub.receiveShadow=true;world.add(rub);}}
 const center=new T.Vector3();let yaw=0,pitch=0.12,dist=4.5;
 const LBX=document.getElementById('labels');
 function cam(){const w=cv.clientWidth,h=cv.clientHeight;R.setSize(w,h,false);C.aspect=w/h;C.updateProjectionMatrix();C.position.set(center.x+dist*Math.cos(pitch)*Math.sin(yaw),center.y-dist*Math.cos(pitch)*Math.cos(yaw),center.z+dist*Math.sin(pitch));C.lookAt(center);render();
@@ -292,6 +360,7 @@ SETS.forEach((s,i)=>{const b=document.createElement('button');b.type='button';b.
 [[1,'1×'],[0.25,'¼×'],[0.1,'⅒×']].forEach(([v,l])=>{const b=document.createElement('button');b.type='button';b.textContent=l;b.setAttribute('aria-pressed',v===speed);b.onclick=()=>{speed=v;[...document.getElementById('speeds').children].forEach(c=>c.setAttribute('aria-pressed',c===b));};document.getElementById('speeds').appendChild(b);});
 [['옆(3루 쪽)',0,0.12],['비스듬히',-0.6,0.2],['뒤(2루 쪽)',-Math.PI/2,0.18],['앞(포수 쪽)',Math.PI/2,0.15],['위',0,1.35]].forEach(([l,y,p])=>{const b=document.createElement('button');b.type='button';b.textContent=l;b.onclick=()=>{yaw=y;pitch=p;cam();};document.getElementById('views').appendChild(b);});
 document.getElementById('legend').innerHTML=[['pelvis','골반'],['chest','어깨'],['trunk','몸통'],['knee','무릎'],['arm','어깨 벌림'],['elbow','팔꿈치']].map(([k,t])=>`<span style="--c:#${LC[k].toString(16).padStart(6,'0')}"><i></i>${t}</span>`).join('');
+[['야구장',true],['단색',false]].forEach(([l,v])=>{const b=document.createElement('button');b.type='button';b.textContent=l;b.setAttribute('aria-pressed',v===park);b.onclick=()=>{park=v;[...document.getElementById('bg').children].forEach(x=>x.setAttribute('aria-pressed',x===b));stage(SETS[cur]);draw(SETS[cur],F);cam();};document.getElementById('bg').appendChild(b);});
 const anaBtn=document.getElementById('ana');anaBtn.onclick=()=>{showAna=!showAna;anaBtn.setAttribute('aria-pressed',showAna);};
 play.onclick=()=>setPlaying(!playing);
 document.getElementById('scrub').oninput=e=>{F=+e.target.value;setPlaying(false);draw(SETS[cur],F);cam();};
