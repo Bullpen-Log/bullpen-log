@@ -1193,6 +1193,29 @@ export type StadiumHandle = {
   setNight: (on: boolean) => void;
 };
 
+/**
+ * 구장 밖만(야자수 · 언덕 · 나무) — Blender 구장(GLB)을 쓸 때 stage.ts 가 부른다.
+ * 야자수는 외야석(홈에서 112~147m) 뒤 · 주차장 둘레에, 관중석 뒤에도 몇 그루.
+ */
+export function buildSurroundings(F: FieldFrame): StadiumHandle {
+  const spots: { a: number; b: number; h: number }[] = [];
+  for (let i = 0; i < 64; i++) {
+    const side = i % 2 ? 1 : -1;
+    const th = side * (0.03 + ((i * 0.618) % 1) * 0.8);
+    const r = Math.max(F.fenceR(Math.min(0.78, Math.abs(th)) * side) + 44, 150) + ((i * 7.3) % 1) * 30;
+    spots.push({ a: r * Math.cos(th), b: r * Math.sin(th), h: 17 + ((i * 3.7) % 9) });
+  }
+  const palmMats = palms(F, spots);
+  const { hillMat, treeMat } = hills(F);
+  return {
+    setNight: (on) => {
+      hillMat.color.setScalar(on ? 0.06 : 1);
+      treeMat.uniforms.uLight.value = on ? 0.07 : 1;
+      for (const m of palmMats) m.color.setScalar(on ? 0.2 : 1);
+    },
+  };
+}
+
 export function buildStadium(F: FieldFrame): StadiumHandle {
   const { THREE } = F;
   const std = (color: string, rough = 0.85, metal = 0) =>

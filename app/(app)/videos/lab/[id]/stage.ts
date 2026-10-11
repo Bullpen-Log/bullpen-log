@@ -2,7 +2,7 @@ import type * as Three from 'three';
 import type { Vec3 } from '@/lib/pitch-3d/linalg';
 import type { DisplayTrack } from '@/lib/pitch-3d/v2/display';
 import { MOUND } from '@/lib/pitch-3d/v2/pose-rig';
-import { buildStadium, fenceDist, wallHeight, WALL_BLUE } from './stadium';
+import { buildStadium, buildSurroundings, fenceDist, wallHeight, WALL_BLUE } from './stadium';
 
 /**
  * 투구 3D 보기의 무대 — 메이저리그 · KBO 같은 야구장(낮 · 밤). 사람(뼈대 · 데생 인형)은 body-3d.tsx 가 그린다.
@@ -52,6 +52,8 @@ uniform float uTexOn;
 varying vec3 vFieldPos;
 vec3 fieldCol;
 float fieldRough;
+/* 땅 높이 굴곡(m) — 잔디결 · 흙 알갱이 · 갈퀴 자국 · 잔디 턱. 노멀을 이것의 화면 미분으로 기울여 해를 받으면 오돌토돌하게 보인다 */
+float fieldH;
 
 float fHash(vec2 p) { vec3 q = fract(vec3(p.xyx) * 0.1031); q += dot(q, q.yzx + 33.33); return fract((q.x + q.y) * q.z); }
 float fNoise(vec2 p) {
@@ -126,8 +128,19 @@ void field(vec3 w, vec3 cam) {
   /* 잎결 — 깎은 방향으로 늘인 잔 무늬(가까이서만 보인다) */
   vec2 bd = mix(vec2(p.x, p.y), mix(vec2(u, v), vec2(v, u), su), inSq);
   float blade = fFbm(vec2(bd.x * 38.0, bd.y * 5.0), fp * 38.0);
-  vec3 grass = fLin(vec3(0.24, 0.47, 0.18)) * (1.0 + sheen) * (1.0 + gp);
-  grass *= mix(vec3(1.0 + blade * 0.5), mix(vec3(1.0), fGrassTex(p), 0.85), uTexOn);
+  vec3 grass = fLin(vec3(0.22, 0.43, 0.165)) * (1.0 + sheen) * (1.0 + gp);
+  vec3 gTex = fGrassTex(p);
+  grass *= mix(vec3(1.0 + blade * 0.5), mix(vec3(1.0), gTex, 0.85), uTexOn);
+  /* 닳은 잔디 — 수비 자리(좌 · 중 · 우익수, 1 · 2루수)와 잔디 가장자리에 옅게 누렇다 */
+  float wear = 0.0;
+  wear = max(wear, 1.0 - smoothstep(1.5, 6.0, length(p - vec2(88.0, -32.0))));
+  wear = max(wear, 1.0 - smoothstep(1.5, 6.0, length(p - vec2(98.0, 0.0))));
+  wear = max(wear, 1.0 - smoothstep(1.5, 6.0, length(p - vec2(88.0, 32.0))));
+  wear = max(wear, 1.0 - smoothstep(1.0, 4.0, length(p - vec2(36.0, 16.0))));
+  wear = max(wear, 1.0 - smoothstep(1.0, 4.0, length(p - vec2(36.0, -16.0))));
+  wear *= 0.35 + 0.65 * smoothstep(0.35, 0.75, fNoise(p * 0.9) + fFbm(p * 4.0, fp * 4.0));
+  grass = mix(grass, grass * vec3(1.35, 1.12, 0.75), wear * 0.55);
+  float hGrass = (dot(gTex, vec3(0.333)) * 0.012 + blade * 0.006) * uTexOn + blade * 0.004;
   vec3 rough = fLin(vec3(0.26, 0.42, 0.18)) * (1.0 + gp * 1.4);
 
   /* 내야 흙 — 투수판 앞에서 반지름 28.96m 호, 파울선 3° 밖까지 */
@@ -163,7 +176,15 @@ void field(vec3 w, vec3 cam) {
   float peb = step(0.982, fHash(pc)) * (1.0 - smoothstep(0.18, 0.3, length(pf))) * (1.0 - smoothstep(0.004, 0.02, fp)) * (fHash(pc + 3.1) - 0.45);
   /* 내야는 밝은 황토(사진), 마운드 · 타석 · 홈 둘레는 붉은 점토 */
   vec3 dirt = mix(fLin(vec3(0.77, 0.61, 0.46)), fLin(vec3(0.66, 0.42, 0.30)), clamp(clay * 0.95 + lip * 0.3, 0.0, 1.0));
-  dirt *= mix(vec3(1.0 + dp * 1.2 + peb * 0.7), (1.0 + dp * 0.6) * fDirtTex(p), uTexOn);
+  vec3 dTex = fDirtTex(p);
+  dirt *= mix(vec3(1.0 + dp * 1.2 + peb * 0.7), (1.0 + dp * 0.6) * dTex, uTexOn);
+  /* 갈퀴 자국 — 내야 흙을 고르며 끈 판의 줄(투수판 앞 중심 동심원, 0.42m 간격), 점토 자리는 없다 */
+  float drag = sin(length(p - vec2(18.44, 0.0)) * 14.96) * (1.0 - smoothstep(0.02, 0.08, fp)) * (1.0 - clay);
+  dirt *= 1.0 + drag * 0.035;
+  /* 발 디딘 자리 — 투수판 앞 착지 자리 · 타석은 움푹하고 짙다 */
+  float dig = max(fCover(length(p - vec2(16.9, -0.15)) - 0.55, 0.3), fCover(boxes + 0.25, 0.25) * 0.6);
+  dirt *= 1.0 - 0.12 * dig;
+  float hDirt = (dot(dTex, vec3(0.333)) * 0.009 + peb * 0.004) * uTexOn + drag * 0.0025 - dig * 0.03 + dp * 0.01;
 
   /* 경고 트랙 · 펜스 밖 — 펜스 거리는 stadium.ts fenceDist 와 같은 식 */
   float ft = min(1.0, abs(th) / Q);
@@ -200,7 +221,13 @@ void field(vec3 w, vec3 cam) {
   line = min(line, fBox(p - vec2(-3.14, 0.0), vec2(tw, 0.546)));
   line = min(line, fBox(vec2(u - 20.57, perp1 - 0.914), vec2(6.86, tw)));
   line = min(line, fBox(vec2(u - 13.715, perp1 - 0.457), vec2(tw, 0.457)));
+  /* 코치 박스(1 · 3루 옆, 파울선에서 4.57m 밖 · 6.1 × 3.05m — 열린 쪽은 그라운드 쪽) */
+  line = min(line, abs(fBox(vec2(u - 24.4, perp1 - 6.1), vec2(3.05, 1.52))) - tw);
+  line = min(line, abs(fBox(vec2(v - 24.4, -perp3 - 6.1), vec2(3.05, 1.52))) - tw);
   float lineM = fCover(line, aa) * (0.82 + 0.18 * (1.0 - smoothstep(0.0, 0.05, fp)));
+  /* 대기 원(지름 1.52m) — 홈과 더그아웃 사이, 흙 위 짙은 원 */
+  float odc = min(length(vec2(u - 9.0, perp1 - 9.5)), length(vec2(v - 9.0, -perp3 - 9.5))) - 0.76;
+  float odcM = fCover(odc, aa);
   vec3 chalk = fLin(vec3(0.93, 0.93, 0.90)) * (1.0 + fFbm(p * 40.0, fp * 40.0) * 0.15);
 
   /* 홈플레이트 — 흰 고무, 둘레 1.2cm 는 짙게 */
@@ -217,11 +244,14 @@ void field(vec3 w, vec3 cam) {
   col = mix(col, track, trackM);
   col = mix(col, dirt, dirtM);
   fieldRough = mix(fieldRough, 1.0, max(max(dirtM, trackM), lotM));
+  col = mix(col, fLin(vec3(0.42, 0.26, 0.19)) * (1.0 + dp), odcM);
   col = mix(col, chalk, lineM);
   col = mix(col, fLin(vec3(0.18)), plateM);
   col = mix(col, fLin(vec3(0.95, 0.95, 0.93)), plateIn);
   fieldRough = mix(fieldRough, 0.6, plateIn);
   fieldCol = col;
+  /* 잔디는 흙보다 2.5cm 높다(턱) — 경계에서 그늘 · 밝은 테가 생긴다 */
+  fieldH = mix(hGrass + 0.025, hDirt, max(dirtM, trackM)) * (1.0 - lineM * 0.5) * (1.0 - lotM);
 }
 `;
 
@@ -379,6 +409,121 @@ function moundGeometry(
   return g;
 }
 
+/** 육각 전광판 화면 — 이닝 점수판(숫자만, 로고 · 글자 없음). 짙은 남색 + 노란 이닝 + 흰 점수 + 볼 · 스트 · 아웃 */
+function scoreboardTexture(THREE: typeof import('three')) {
+  const cv = document.createElement('canvas');
+  cv.width = 1024;
+  cv.height = 472;
+  const c = cv.getContext('2d')!;
+  c.fillStyle = '#061330';
+  c.fillRect(0, 0, 1024, 472);
+  const g = c.createLinearGradient(0, 0, 0, 472);
+  g.addColorStop(0, 'rgba(60,110,200,0.25)');
+  g.addColorStop(1, 'rgba(0,0,0,0)');
+  c.fillStyle = g;
+  c.fillRect(0, 0, 1024, 472);
+  c.fillStyle = '#0f2a58';
+  for (let i = 0; i < 12; i++) for (let j = 0; j < 2; j++) c.fillRect(150 + i * 64, 170 + j * 104, 58, 96);
+  c.textAlign = 'center';
+  c.textBaseline = 'middle';
+  c.fillStyle = '#ffcf4a';
+  c.font = 'bold 64px system-ui, sans-serif';
+  ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'R', 'H', 'E'].forEach((t, i) => c.fillText(t, 179 + i * 64, 120));
+  c.fillStyle = '#f5f8fc';
+  c.font = 'bold 76px system-ui, sans-serif';
+  ['0', '0', '1', '0', '0', '0', '', '', '', '1', '4', '0'].forEach((t, i) => c.fillText(t, 179 + i * 64, 220));
+  ['0', '2', '0', '0', '1', '', '', '', '', '3', '6', '1'].forEach((t, i) => c.fillText(t, 179 + i * 64, 324));
+  (
+    [
+      [2, '#4ade80'],
+      [1, '#f87171'],
+      [1, '#fbbf24'],
+    ] as [number, string][]
+  ).forEach(([n, col], j) => {
+    for (let k = 0; k < 3; k++) {
+      c.fillStyle = k < n ? col : '#1d3560';
+      c.beginPath();
+      c.arc(330 + j * 180 + k * 44, 418, 17, 0, Math.PI * 2);
+      c.fill();
+    }
+  });
+  /* LED 화소 결 */
+  c.fillStyle = 'rgba(0,0,0,0.28)';
+  for (let x = 0; x < 1024; x += 4) c.fillRect(x, 0, 1, 472);
+  for (let y = 0; y < 472; y += 4) c.fillRect(0, y, 1024, 1);
+  const t = new THREE.CanvasTexture(cv);
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.anisotropy = 8;
+  return t;
+}
+
+/**
+ * 전광판 화면 uv — 압축 도구가 질감 없는 uv 를 지우고 두 화면을 한 메시로 합쳐서, 점마다 노멀로 판을 가려(묶음별) 가로 · 세로를 0~1 로 편다.
+ */
+function screenUv(THREE: typeof import('three'), g: Three.BufferGeometry, home: Three.Vector3) {
+  const pos = g.attributes.position;
+  const nor = g.attributes.normal;
+  const n = new THREE.Vector3();
+  const p = new THREE.Vector3();
+  const up = new THREE.Vector3(0, 1, 0);
+  const keyOf = (i: number) => {
+    n.fromBufferAttribute(nor, i).normalize();
+    return `${Math.round(n.x * 4)},${Math.round(n.z * 4)}`;
+  };
+  const groups = new Map<string, { t: Three.Vector3; idx: number[] }>();
+  for (let i = 0; i < pos.count; i++) {
+    const k = keyOf(i);
+    if (!groups.has(k)) groups.set(k, { t: new THREE.Vector3(), idx: [] });
+    groups.get(k)!.idx.push(i);
+  }
+  /* 판마다 홈 쪽을 보는 노멀로 가로 방향을 정한다(내보낸 한 장짜리 면은 노멀이 어느 쪽일지 모른다) */
+  for (const gr of groups.values()) {
+    const c = new THREE.Vector3();
+    for (const i of gr.idx) c.add(p.fromBufferAttribute(pos, i));
+    c.divideScalar(gr.idx.length);
+    n.fromBufferAttribute(nor, gr.idx[0]).normalize();
+    n.y = 0;
+    const toHome = home.clone().sub(c);
+    toHome.y = 0;
+    if (n.dot(toHome) < 0) n.negate();
+    gr.t.crossVectors(up, n).normalize();
+  }
+  const uv = new Float32Array(pos.count * 2);
+  for (const { t, idx } of groups.values()) {
+    let u0 = Infinity, u1 = -Infinity, v0 = Infinity, v1 = -Infinity;
+    for (const i of idx) {
+      p.fromBufferAttribute(pos, i);
+      u0 = Math.min(u0, p.dot(t));
+      u1 = Math.max(u1, p.dot(t));
+      v0 = Math.min(v0, p.y);
+      v1 = Math.max(v1, p.y);
+    }
+    for (const i of idx) {
+      p.fromBufferAttribute(pos, i);
+      uv[i * 2] = (p.dot(t) - u0) / (u1 - u0 || 1);
+      uv[i * 2 + 1] = (p.y - v0) / (v1 - v0 || 1);
+    }
+  }
+  g.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+}
+
+/** 등 빛 번짐 */
+function glowTexture(THREE: typeof import('three')) {
+  const cv = document.createElement('canvas');
+  cv.width = cv.height = 128;
+  const c = cv.getContext('2d')!;
+  const g = c.createRadialGradient(64, 64, 0, 64, 64, 64);
+  g.addColorStop(0, 'rgba(255,255,255,1)');
+  g.addColorStop(0.15, 'rgba(255,250,235,0.55)');
+  g.addColorStop(0.5, 'rgba(255,245,225,0.12)');
+  g.addColorStop(1, 'rgba(255,245,225,0)');
+  c.fillStyle = g;
+  c.fillRect(0, 0, 128, 128);
+  const t = new THREE.CanvasTexture(cv);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+
 /**
  * 무대를 장면에 놓는다. center = 움직임 상자 가운데(카메라가 보는 곳), heightM = 투수 키(m).
  * 돌려준 setMode 로 낮 · 밤을 바꾼다(땅 · 담장은 그대로, 하늘 · 빛 · 환경광만).
@@ -408,8 +553,31 @@ export function buildStage({
   let bakedMats: Three.MeshBasicMaterial[] = [];
   let current0: StageMode = mode;
   /** 구운 빛 재질의 밝기 — 낮 1, 밤은 조명탑 빛을 따로 굽기 전까지 어둡게 */
+  const lampMat = new THREE.MeshBasicMaterial({ color: '#c9cdd2' });
+  /* 조명판 앞면 — 등이 촘촘히 박힌 격자(세계 좌표 0.9m 칸마다 둥근 등) */
+  lampMat.onBeforeCompile = (sh) => {
+    sh.vertexShader = sh.vertexShader
+      .replace('#include <common>', '#include <common>\nvarying vec3 vLampW;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvLampW = (modelMatrix * vec4(transformed, 1.0)).xyz;');
+    sh.fragmentShader = sh.fragmentShader
+      .replace('#include <common>', '#include <common>\nvarying vec3 vLampW;')
+      .replace(
+        '#include <color_fragment>',
+        `#include <color_fragment>
+        {
+          vec2 q = vec2(vLampW.x + vLampW.z, vLampW.y) / (0.9 * ${s.toFixed(5)});
+          float dotm = 1.0 - smoothstep(0.28, 0.38, length(fract(q) - 0.5));
+          diffuseColor.rgb *= mix(0.35, 1.0, dotm);
+        }`
+      );
+  };
+  const lampSpots: { at: Three.Vector3; size: number }[] = [];
+  const glows: Three.Sprite[] = [];
   const applyBaked = () => {
-    for (const b of bakedMats) b.color.copy(b.userData.base as Three.Color).multiplyScalar(current0 === 'night' ? 0.28 : 1.0);
+    const night = current0 === 'night';
+    for (const b of bakedMats) b.color.copy(b.userData.base as Three.Color).multiplyScalar(night ? 0.3 : 1.0);
+    lampMat.color.set(night ? '#ffffff' : '#c9cdd2');
+    for (const g of glows) g.visible = night;
   };
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.shadowMap.enabled = true;
@@ -447,7 +615,24 @@ export function buildStage({
     sh.fragmentShader = sh.fragmentShader
       .replace('#include <common>', `#include <common>\n${FIELD_GLSL}`)
       .replace('#include <map_fragment>', '#include <map_fragment>\nfield(vFieldPos, cameraPosition);\ndiffuseColor.rgb = fieldCol;')
-      .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nroughnessFactor = fieldRough;');
+      .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nroughnessFactor = fieldRough;')
+      /* 굴곡 노멀 — 높이(m, 무대 단위로 바꿔)의 화면 미분으로 노멀을 기울인다(three 범프 맵과 같은 식) */
+      .replace(
+        '#include <normal_fragment_maps>',
+        `#include <normal_fragment_maps>
+        {
+          float hh = fieldH * uS;
+          vec3 dpx = dFdx(-vViewPosition);
+          vec3 dpy = dFdy(-vViewPosition);
+          float dhx = dFdx(hh);
+          float dhy = dFdy(hh);
+          vec3 r1 = cross(dpy, normal);
+          vec3 r2 = cross(normal, dpx);
+          float det = dot(dpx, r1);
+          vec3 grad = sign(det) * (dhx * r1 + dhy * r2);
+          normal = normalize(abs(det) * normal - grad);
+        }`
+      );
   };
   const groundGeo = new THREE.CircleGeometry(GROUND_R * s, 160);
   groundGeo.rotateX(-Math.PI / 2);
@@ -579,7 +764,7 @@ export function buildStage({
     scene.add(wing);
   }
   }
-  const stadium = glb ? null : buildStadium({ THREE, scene, fg, s, fenceR: fenceDist });
+  const stadium = glb ? buildSurroundings({ THREE, scene, fg, s, fenceR: fenceDist }) : buildStadium({ THREE, scene, fg, s, fenceR: fenceDist });
 
   /* ── 하늘 · 빛 ── */
   /* 홈 · 3루 쪽 위, 높이 49°(하늘 사진 속 해와 같다) — 우투 옆 카메라(3루 쪽)에서 몸 앞이 밝다 */
@@ -665,7 +850,7 @@ export function buildStage({
     skyUniforms.uMtn.value.set(P.mtn);
     skyUniforms.uSkyOn.value = m === 'day' && skyUniforms.uSky.value ? 1 : 0;
     skyUniforms.uClouds.value = P.clouds;
-    stadium?.setNight(m === 'night');
+    stadium.setNight(m === 'night');
     current0 = m;
     applyBaked();
     fieldNight.value = m === 'night' ? 1 : 0;
@@ -769,15 +954,59 @@ export function buildStage({
         }
         return b;
       };
+      /* 빛나는 것 · 비치는 것은 구운 빛 대신 따로 — 전광판 화면(점수판 그림) · 띠 전광판 · 조명판 · 백스톱 그물 */
+      const special: Record<string, Three.Material> = {
+        BO_screen: new THREE.MeshBasicMaterial({ map: scoreboardTexture(THREE), side: THREE.DoubleSide }),
+        /* 펜스 · 쿠션 벽은 길고 가는 면이라 꼭짓점 빛이 세모 얼룩으로 보인다 — 실시간 해 · 하늘빛으로 */
+        BO_wall: new THREE.MeshStandardMaterial({ color: WALL_BLUE, roughness: 0.85 }),
+        BO_led: new THREE.MeshBasicMaterial({ color: '#2a66c4' }),
+        BO_net: new THREE.MeshBasicMaterial({ color: '#1e1e1e', transparent: true, opacity: 0.24, depthWrite: false, side: THREE.DoubleSide }),
+      };
+      lampMat.color.set('#c9cdd2');
+      special.BO_lamp = lampMat;
       root.traverse((o) => {
         const mesh = o as Three.Mesh;
         if (!mesh.isMesh) return;
         const m = mesh.material as Three.MeshStandardMaterial;
+        if (special[m.name]) {
+          mesh.material = special[m.name];
+          if (m.name === 'BO_screen') {
+            mesh.updateWorldMatrix(true, false);
+            screenUv(THREE, mesh.geometry, new THREE.Vector3(H.x, 0, H.z).applyMatrix4(mesh.matrixWorld.clone().invert()));
+          }
+          if (m.name === 'BO_lamp') {
+            /* 압축 때 조명판들이 한 메시로 합쳐져 있다 — 점들을 20m 칸으로 묶어 판마다 빛 번짐 하나 */
+            mesh.updateWorldMatrix(true, false);
+            const pos = mesh.geometry.attributes.position;
+            const cl = new Map<string, { sum: Three.Vector3; n: number; box: Three.Box3 }>();
+            const q = new THREE.Vector3();
+            for (let i = 0; i < pos.count; i++) {
+              q.fromBufferAttribute(pos, i).applyMatrix4(mesh.matrixWorld);
+              const k = `${Math.round(q.x / (40 * s))},${Math.round(q.y / (40 * s))},${Math.round(q.z / (40 * s))}`;
+              const c = cl.get(k) ?? { sum: new THREE.Vector3(), n: 0, box: new THREE.Box3() };
+              c.sum.add(q);
+              c.n++;
+              c.box.expandByPoint(q);
+              cl.set(k, c);
+            }
+            for (const c of cl.values()) lampSpots.push({ at: c.sum.divideScalar(c.n), size: c.box.getSize(q).length() * 2.6 });
+          }
+          return;
+        }
         const vc = !!mesh.geometry.attributes.color;
         const inst = !!(mesh as Three.InstancedMesh).instanceColor;
         if (vc || inst) mesh.material = toBasic(m, vc);
       });
       bakedMats = [...basics.values()];
+      /* 조명판 빛 번짐(밤에만) */
+      const glowMat = new THREE.SpriteMaterial({ map: glowTexture(THREE), blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, fog: false });
+      for (const l of lampSpots) {
+        const sp = new THREE.Sprite(glowMat);
+        sp.position.copy(l.at);
+        sp.scale.setScalar(l.size);
+        glows.push(sp);
+        scene.add(sp);
+      }
       applyBaked();
       /* 해 그림자는 투수 둘레 5m 만 덮는다 — 구장은 그림자를 그리지도 받지도 않는다(의자 5만여 개를 그림자 판에 또 그리면 휴대폰이 버겁다) */
       root.traverse((o) => {

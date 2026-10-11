@@ -320,7 +320,7 @@ FOCUS = (25.0, 0.0)  # 의자가 보는 곳(경기장 좌표)
 AISLE = 8.5  # 통로 간격(앞 선 길이, m) — 사진 어림(EST)
 
 
-def seat_points(path, d, shift_fn):
+def seat_points(path, d, shift_fn, voms=()):
     """층의 의자 자리 — 줄마다 0.5m 간격, 통로(앞 선 길이 AISLE 마다 1.1m) 건너뛰기. (x, y, z, 방향) Blender 좌표"""
     out = []
     s_front = [0.0]
@@ -342,7 +342,7 @@ def seat_points(path, d, shift_fn):
                 u = t / L
                 sf = s_front[k] + (s_front[k + 1] - s_front[k]) * u
                 m = sf % AISLE
-                if 0.55 < m < AISLE - 0.55:
+                if 0.55 < m < AISLE - 0.55 and not any(abs(sf - sv) < 1.7 and lo - 0.5 <= w <= hi + 0.3 for sv, lo, hi in voms):
                     pa = p0[0] + (p1[0] - p0[0]) * u
                     pb = p0[1] + (p1[1] - p0[1]) * u
                     g = g0 + (g1 - g0) * u
@@ -392,6 +392,171 @@ def instance_seats(name, coll, pts, seat_ob):
     return ob
 
 
+class Boxes:
+    """가는 상자(난간 · 기둥 · 들보 · 철골) 여럿을 한 메시로 — 두 점 사이, 굵기 t(정사각 단면) 또는 (가로, 세로)"""
+
+    def __init__(self):
+        self.v, self.f = [], []
+
+    def add(self, p0, p1, t, up=None):
+        p0, p1 = Vector(p0), Vector(p1)
+        d = p1 - p0
+        if d.length < 1e-6:
+            return
+        d.normalize()
+        tw, th = (t, t) if not isinstance(t, tuple) else t
+        u = (up or Vector((0, 0, 1)))
+        if abs(d.dot(u)) > 0.95:
+            u = Vector((1, 0, 0))
+        a = d.cross(u).normalized() * (tw / 2)
+        b = a.cross(d).normalized() * (th / 2)
+        i = len(self.v)
+        for q in (p0, p1):
+            self.v += [q - a - b, q + a - b, q + a + b, q - a + b]
+        self.f += [[i, i + 1, i + 2, i + 3][::-1], [i + 4, i + 5, i + 6, i + 7]]
+        for k in range(4):
+            k1 = (k + 1) % 4
+            self.f.append([i + k, i + k1, i + 4 + k1, i + 4 + k])
+
+    def build(self, name, coll, material):
+        if not self.v:
+            return None
+        ob = mesh_obj(name, coll, self.v, self.f, material)
+        fix_normals(ob)
+        return ob
+
+
+VOM_STEP = 26.0  # 출입 터널 간격(앞 선 길이, m — EST)
+
+
+def vom_spots(path, d):
+    """층의 출입 터널 — (앞 선 길이 위치, 바깥 거리 앞 · 뒤). 필드 · 로지 · 리저브만, 층 가운데 줄쯤"""
+    if d['key'] not in ('field', 'loge', 'reserve'):
+        return []
+    total = sum(math.hypot(b[0] - a[0], b[1] - a[1]) for a, b in zip(path, path[1:]))
+    rows = rows_of(d)
+    k = len(rows) // 2
+    lo = rows[k][0]
+    hi = rows[min(len(rows) - 1, k + 3)][0] + rows[0][2]
+    out = []
+    sv = VOM_STEP / 2
+    while sv < total - 6:
+        out.append((sv, lo, hi))
+        sv += VOM_STEP
+    return out
+
+
+def path_at(path, sf):
+    """앞 선 길이 sf 자리의 (a, b, 법선각, reach)"""
+    acc = 0.0
+    for p0, p1 in zip(path, path[1:]):
+        L = math.hypot(p1[0] - p0[0], p1[1] - p0[1])
+        if acc + L >= sf and L > 0:
+            u = (sf - acc) / L
+            return tuple(p0[i] + (p1[i] - p0[i]) * u for i in range(4))
+        acc += L
+    return path[-1]
+
+
+def details(M, path):
+    """세부 — 층 앞 난간 · 띠 전광판 · 위층 밑 들보 · 출입 터널 · 쿠션 벽 · 백스톱 그물 · 지붕 조명판"""
+    rails = Boxes()
+    posts = Boxes()
+    beams = Boxes()
+    vom_dark = Boxes()
+    vom_wall = Boxes()
+    for d in DECKS:
+        sub = [q for q in path if q[3] <= d['reach']]
+        sh = lambda r, k=d['key']: shift_of(k, r)
+        w0, z0 = d['w0'], d['z0']
+        top = z0 + 1.0
+        # 난간 — 앞 벽 위 0.75m 쇠 파이프, 2.4m 마다 기둥
+        acc = 0.0
+        prev = None
+        for a, b, g, r in sub:
+            w = w0 + 0.15 - sh(r)
+            q = P(a + math.cos(g) * w, b + math.sin(g) * w, top + 0.75)
+            if prev is not None:
+                rails.add(prev, q, 0.06)
+                acc += (q - prev).length
+                if acc >= 2.4:
+                    acc = 0.0
+                    posts.add(q - Vector((0, 0, 0.75)), q, 0.05)
+            prev = q
+        # 띠 전광판 — 로지 · 클럽 앞 벽(밑판 앞면)
+        if d['key'] in ('loge', 'club'):
+            sec = [(w0 - 0.06, z0 - 0.75), (w0 - 0.01, z0 - 0.75), (w0 - 0.01, z0 + 0.85), (w0 - 0.06, z0 + 0.85)]
+            sweep_closed(f'LED_Ribbon_{d["key"]}', 'Details', sub, lambda r, sec=sec: sec, sh, M['led'])
+        # 위층 밑 들보 — 7.5m 마다 앞에서 뒤까지
+        if d['key'] != 'field':
+            sf = 3.0
+            total = sum(math.hypot(b[0] - a[0], b[1] - a[1]) for a, b in zip(sub, sub[1:]))
+            while sf < total:
+                a, b, g, r = path_at(sub, sf)
+                ws = d['w0'] + 0.6 - sh(r)
+                we = d['w1'] - sh(r)
+                zs = under_at(d, d['w0'] + 0.6) - 0.35
+                ze = under_at(d, d['w1']) - 0.35
+                beams.add(P(a + math.cos(g) * ws, b + math.sin(g) * ws, zs), P(a + math.cos(g) * we, b + math.sin(g) * we, ze), (0.45, 0.7))
+                sf += 7.5
+        # 출입 터널 — 어두운 구멍 + 양옆 콘크리트 벽
+        for sv, lo, hi in vom_spots(sub, d):
+            a, b, g, r = path_at(sub, sv)
+            rows = rows_of(d)
+            z_lo = min(z for wr, z, dep in rows if wr + dep >= lo)
+            z_hi = max(z for wr, z, dep in rows if wr <= hi)
+            # 터널 입구 = 의자 사이 비운 자리에 어두운 경사 바닥 + 양옆 · 앞 콘크리트 난간벽(1m)
+            tx, ty = -math.sin(g), math.cos(g)
+            wa, wb = lo - sh(r), hi - sh(r)
+            pt = lambda w, o, z: P(a + math.cos(g) * w + tx * o, b + math.sin(g) * w + ty * o, z)
+            vom_dark.add(pt(wa, 0, z_lo + 0.3), pt(wb, 0, z_hi + 0.3), (2.3, 0.6))
+            for o in (-1.25, 1.25):
+                vom_wall.add(pt(wa, o, z_lo + 0.5), pt(wb, o, z_hi + 0.5), (0.2, 1.0))
+            vom_wall.add(pt(wa, -1.35, z_lo + 0.5), pt(wa, 1.35, z_lo + 0.5), (0.2, 1.0))
+    rails.build('Deck_Rails', 'Details', M['steel'])
+    posts.build('Deck_Rail_Posts', 'Details', M['steel'])
+    beams.build('Deck_Beams', 'Stadium_Architecture', M['concrete'])
+    vom_dark.build('Vomitory_Openings', 'Lower_Seating', M['dark'])
+    vom_wall.build('Vomitory_Walls', 'Lower_Seating', M['concrete'])
+
+    # 쿠션 벽 — 필드 층 앞(땅에서 1.4m), 펜스와 같은 하늘빛 회색
+    fsub = [q for q in path]
+    sweep_closed('Field_Pad_Wall', 'Fences', fsub, lambda r: [(-0.05, 0.0), (0.0, 0.0), (0.0, 1.42), (-0.05, 1.42)], lambda r: 0.0, M['wall'])
+
+    # 백스톱 그물 — 홈 뒤에서 더그아웃 끝(파울선 36m)까지, 앞 벽 위로 9m
+    nsub = [q for q in path if q[3] <= 36]
+    sweep_closed('Backstop_Net', 'Details', nsub, lambda r: [(0.02, 1.45), (0.04, 1.45), (0.04, 10.5), (0.02, 10.5)], lambda r: 0.0, M['net'])
+    top_cable = Boxes()
+    prev = None
+    for a, b, g, r in nsub:
+        q = P(a + math.cos(g) * 0.03, b + math.sin(g) * 0.03, 10.5)
+        if prev is not None:
+            top_cable.add(prev, q, 0.04)
+        prev = q
+    top_cable.build('Backstop_Cable', 'Details', M['steel'])
+
+    # 지붕 조명판 — 톱 덱 지붕 위 기둥 넷(파울선 55 · 90m, 양쪽) 위 큰 등판(참고 그림)
+    lights = Boxes()
+    for reach in (55.0, 90.0):
+        for sgn in (1, -1):
+            cand = [q for q in path if abs(q[3] - reach) < 1.1 and (q[1] > 0) == (sgn > 0)]
+            if not cand:
+                continue
+            a, b, g, r = cand[0]
+            w = (ROOF['w0'] + ROOF['w1']) / 2 - shift_of('top', r)
+            base = P(a + math.cos(g) * w, b + math.sin(g) * w, ROOF['z_back'])
+            tx, ty = -math.sin(g), math.cos(g)
+            for o in (-4.5, 4.5):
+                q = base + Vector((tx * o, -ty * o, 0))
+                lights.add(q, q + Vector((0, 0, 9.0)), 0.35)
+            c = base + Vector((0, 0, 11.5))
+            span = Vector((tx, -ty, 0)) * 8.0
+            panel = Boxes()
+            panel.add(c - span, c + span, (0.6, 5.0))
+            panel.build(f'Roof_Light_Bank_{int(reach)}_{sgn}', 'Lighting_Structures', M['lamp'])
+    lights.build('Roof_Light_Posts', 'Lighting_Structures', M['steel'])
+
+
 # ───────────── 짓기 ─────────────
 
 
@@ -421,7 +586,15 @@ def build():
         'yellow': mat('yellow', srgb('#f0c02c'), 0.5),
         'ref': mat('reference', (1.0, 0.0, 0.0)),
         'ref2': mat('reference_osm_pavilion', (0.0, 0.2, 1.0)),
+        'steel': mat('steel', srgb('#4a5058'), 0.45),
+        'led': mat('led', srgb('#1d4f9c'), 0.3),
+        'screen': mat('screen', srgb('#0a1630'), 0.3),
+        'lamp': mat('lamp', srgb('#c9cdd2'), 0.35),
+        'net': mat('net', srgb('#2a2a2a'), 0.9),
+        'bench': mat('bench', srgb('#b9a57c'), 0.7),
     }
+    M['net'].blend_method = 'BLEND'
+    M['net'].node_tree.nodes['Principled BSDF'].inputs['Alpha'].default_value = 0.22
     for k in ('loge_deck', 'club_deck', 'reserve_deck', 'top_deck'):
         M[k] = M['field_deck']
 
@@ -474,7 +647,7 @@ def build():
         bpy.data.collections['Details'].objects.link(seat)
         seat.hide_render = True
         seat.hide_viewport = True
-        pts = seat_points(sub, d, lambda r, k=d['key']: shift_of(k, r))
+        pts = seat_points(sub, d, lambda r, k=d['key']: shift_of(k, r), vom_spots(sub, d))
         instance_seats('Seats_' + d['key'], coll, pts, seat)
         SEAT_COUNT[d['key']] = len(pts)
         SEAT_PTS[d['key']] = pts
@@ -482,6 +655,7 @@ def build():
     # Stadium_Architecture — 톱 덱 지붕(앞이 조금 낮은 얇은 판)
     roof_sec = [(ROOF['w0'], ROOF['z_front'] - ROOF['t']), (ROOF['w0'], ROOF['z_front']), (ROOF['w1'], ROOF['z_back']), (ROOF['w1'], ROOF['z_back'] - ROOF['t'])]
     sweep_closed('Roof', 'Stadium_Architecture', path, lambda r: roof_sec, lambda r: shift_of('top', r), M['roof'])
+    details(M, path)
 
     # 외야석 — OSM 건물 부분 그대로(계단 = 좌석 경사, 철골 8~12m, 흰 지그재그 지붕 12~13m)
     def bearing_ab(deg):
@@ -504,7 +678,36 @@ def build():
         h = float(t['height'])
         mh = float(t.get('min_height', 0))
         if t.get('building:part') == 'steps':
-            prism(f'Pavilion_Seating_{k}', 'Stadium_Architecture', poly, 0.0, skillion(poly, h - float(t['roof:height']), h, float(t['roof:direction'])), M['pavseat'])
+            top_f = skillion(poly, h - float(t['roof:height']), h, float(t['roof:direction']))
+            prism(f'Pavilion_Seating_{k}', 'Stadium_Architecture', poly, 0.0, top_f, M['concrete'])
+            # 벤치 줄 — 경사 방향에 수직인 선으로 다각형을 잘라 줄마다 판 하나(앉는 판 + 등판)
+            da, db = bearing_ab(float(t['roof:direction']))
+            ta_, tb_ = -db, da
+            prj = [a * da + b * db for a, b in poly]
+            benches = Boxes()
+            dist = min(prj) + 0.5
+            while dist < max(prj) - 0.3:
+                hits = []
+                for i in range(len(poly)):
+                    (a0, b0), (a1, b1) = poly[i], poly[(i + 1) % len(poly)]
+                    p0, p1 = a0 * da + b0 * db, a1 * da + b1 * db
+                    if (p0 - dist) * (p1 - dist) < 0:
+                        u = (dist - p0) / (p1 - p0)
+                        hits.append((a0 + (a1 - a0) * u, b0 + (b1 - b0) * u))
+                if len(hits) >= 2:
+                    hits.sort(key=lambda q: q[0] * ta_ + q[1] * tb_)
+                    (a0, b0), (a1, b1) = hits[0], hits[-1]
+                    inset = 0.4
+                    L = math.hypot(a1 - a0, b1 - b0)
+                    if L > 2 * inset:
+                        ux_, uy_ = (a1 - a0) / L, (b1 - b0) / L
+                        a0, b0, a1, b1 = a0 + ux_ * inset, b0 + uy_ * inset, a1 - ux_ * inset, b1 - uy_ * inset
+                        z = top_f(a0, b0)
+                        benches.add(P(a0, b0, z + 0.43), P(a1, b1, z + 0.43), (0.42, 0.06))
+                        bo = 0.2
+                        benches.add(P(a0 - da * bo, b0 - db * bo, z + 0.68), P(a1 - da * bo, b1 - db * bo, z + 0.68), (0.05, 0.4))
+                dist += 0.85
+            benches.build(f'Pavilion_Benches_{k}', 'Stadium_Architecture', M['bench'])
         elif t.get('roof:shape') == 'skillion':
             top = skillion(poly, h - float(t['roof:height']), h, float(t['roof:direction']))
             prism(f'Pavilion_Roof_{k}', 'Stadium_Architecture', poly, mh, top, M['roof'])
@@ -530,10 +733,22 @@ def build():
         verts = [P(cx + ux * x + nx * dd, cy + uy * x + ny * dd, z) for dd in (0.0, 1.5) for x, z in prof]
         n = len(prof)
         faces = [list(range(n))[::-1], list(range(n, 2 * n))] + [[i, (i + 1) % n, n + (i + 1) % n, n + i] for i in range(n)]
-        mesh_obj(f'Hex_Board_{"1B" if side > 0 else "3B"}', 'Details', verts, faces, M['dark'])
+        mesh_obj(f'Hex_Board_{"1B" if side > 0 else "3B"}', 'Details', verts, faces, M['roof'])
+        # 화면 — 테두리 안 0.93 배, 앞으로 5cm, uv 0~1(앱이 점수판 그림을 붙인다)
+        cz = z0 + hc / 2
+        sp = [(x * 0.93, cz + (z - cz) * 0.9) for x, z in prof]
+        sv = [P(cx + ux * x - nx * 0.05, cy + uy * x - ny * 0.05, z) for x, z in sp]
+        so = mesh_obj(f'Hex_Screen_{"1B" if side > 0 else "3B"}', 'Details', sv, [list(range(len(sp)))], M['screen'])
+        uvl = so.data.uv_layers.new(name='UVMap')
+        xs = [x for x, _ in sp]
+        zs = [z for _, z in sp]
+        for li, loop in enumerate(so.data.loops):
+            x, z = sp[loop.vertex_index]
+            uvl.data[li].uv = ((x - min(xs)) / (max(xs) - min(xs)) if side > 0 else 1 - (x - min(xs)) / (max(xs) - min(xs)), (z - min(zs)) / (max(zs) - min(zs)))
+        fix_normals(so)
         strip = [(-10.5, z0 - 3.0), (10.5, z0 - 3.0), (10.5, z0 - 1.17), (-10.5, z0 - 1.17)]
         verts = [P(cx + ux * x + nx * dd, cy + uy * x + ny * dd, z) for dd in (0.0, 1.0) for x, z in strip]
-        mesh_obj(f'Ribbon_Board_{"1B" if side > 0 else "3B"}', 'Details', verts, [[0, 1, 2, 3][::-1], [4, 5, 6, 7], [0, 1, 5, 4], [1, 2, 6, 5], [2, 3, 7, 6], [3, 0, 4, 7]], M['dark'])
+        mesh_obj(f'Ribbon_Board_{"1B" if side > 0 else "3B"}', 'Details', verts, [[0, 1, 2, 3][::-1], [4, 5, 6, 7], [0, 1, 5, 4], [1, 2, 6, 5], [2, 3, 7, 6], [3, 0, 4, 7]], M['led'])
         for x in (-6.5, 6.5):
             bx, by = cx + ux * x + nx * 0.7, cy + uy * x + ny * 0.7
             prism(f'Hex_Leg_{side}_{x}', 'Details', [(bx - 0.6, by - 0.6), (bx + 0.6, by - 0.6), (bx + 0.6, by + 0.6), (bx - 0.6, by + 0.6)], 0.0, z0, M['roof'])
@@ -542,11 +757,21 @@ def build():
         tr = R + 6
         tx, ty = tr * math.cos(ta), tr * math.sin(ta)
         tux, tuy = -math.sin(ta), math.cos(ta)
-        for x in (-9, -3, 3, 9):
+        truss = Boxes()
+        xs4 = (-9, -3, 3, 9)
+        for x in xs4:
             px, py = tx + tux * x, ty + tuy * x
             prism(f'Light_Pole_{side}_{x}', 'Lighting_Structures', circ((px, py), 0.45, 10), 0.0, 46.0, M['metal'])
+        for h0 in range(4, 44, 8):
+            for x0, x1 in zip(xs4, xs4[1:]):
+                q0 = P(tx + tux * x0, ty + tuy * x0, h0)
+                q1 = P(tx + tux * x1, ty + tuy * x1, h0)
+                q2 = P(tx + tux * x1, ty + tuy * x1, h0 + 8)
+                truss.add(q0, q1, 0.18)
+                truss.add(q0, q2, 0.14)
+        truss.build(f'Light_Truss_{side}', 'Lighting_Structures', M['metal'])
         bank = [(tx + tux * x + math.cos(ta) * dd, ty + tuy * x + math.sin(ta) * dd) for x, dd in ((-13, 0), (13, 0), (13, 0.8), (-13, 0.8))]
-        prism(f'Light_Bank_{side}', 'Lighting_Structures', bank, 43.0, 50.0, M['dark'])
+        prism(f'Light_Bank_{side}', 'Lighting_Structures', bank, 43.0, 50.0, M['lamp'])
 
     # 지붕 위 조명(EST) — 지붕 앞 가장자리에 7.5m 마다
     roof_lamps = []
@@ -573,7 +798,15 @@ def build():
 
     # Details — 타자 눈(가운데, 120 × 30ft — 옛 자료 EST)
     be = [(fence_r(t) + 6) for t in (0,)]
-    prism('Batters_Eye', 'Details', [(be[0], -18.3), (be[0] + 1.0, -18.3), (be[0] + 1.0, 18.3), (be[0], 18.3)], 0.0, 9.1, M['dark'])
+    # 가운데 — 펜스 뒤 짙은 풀 비탈(타자 눈, 사진: 어두운 초록 조경) — 펜스 1m 뒤 2.4m 에서 13m 뒤 7m 까지
+    hedge = mat('hedge', srgb('#22392a'), 0.95)
+    eye = []
+    for k in range(25):
+        t = math.radians(-14 + 28 * k / 24)
+        eye.append((fence_r(t) + 1.0, t))
+    poly = [(r * math.cos(t), r * math.sin(t)) for r, t in eye] + [((r + 12) * math.cos(t), (r + 12) * math.sin(t)) for r, t in eye[::-1]]
+    r_mid = fence_r(0) + 1.0
+    prism('Batters_Eye', 'Details', poly, 0.0, lambda a, b: 2.4 + 4.6 * min(1.0, max(0.0, (math.hypot(a, b) - r_mid) / 12)), hedge)
 
     # Reference — OSM 윤곽(빨강 · 관중석 49.4m, 파랑 · 외야석) — 높이 60m 띠로(위에서 겹쳐 보기, 내보내지 않음)
     def ribbon(name, pts, material, z=60.0, wd=0.35):
@@ -733,7 +966,7 @@ SUN_W = 3.0  # 해 세기(W/m², Cycles)
 SKY_W = 0.9  # 하늘 세기(배경 세기 — 아래에서 하늘빛 몫을 잰다)
 
 
-def bake_light(samples=128):
+def bake_light(samples=256):
     """낮 빛 굽기 — 해(그림자) + 물리 하늘(니시타) + 반사광을 구조물 꼭짓점 색 LIGHT 에(빛만, 색 없이). 의자는 의자마다 해 가림 + 하늘 열림.
     앱은 이 빛에 재질 색을 곱해 그린다(실시간 조명 대신 — 휴대폰에서 싸고 그림자 · 반사광이 들어간다)."""
     sc = bpy.context.scene
@@ -798,8 +1031,9 @@ def bake_light(samples=128):
             a, b = e.vertices
             nb[a].append(b)
             nb[b].append(a)
-        for _ in range(2):
-            vals = [[0.6 * vals[i][c] + 0.4 * (sum(vals[j][c] for j in nb[i]) / len(nb[i]) if nb[i] else vals[i][c]) for c in range(3)] for i in range(n)]
+        # 굽기 잡음(줄무늬)을 걷는다 — 이웃과 6번 섞는다(밝기만 쓰니 색은 상관없다)
+        for _ in range(6):
+            vals = [[0.5 * vals[i][c] + 0.5 * (sum(vals[j][c] for j in nb[i]) / len(nb[i]) if nb[i] else vals[i][c]) for c in range(3)] for i in range(n)]
         outb = []
         for v in vals:
             outb += [min(1.5, v[0]), min(1.5, v[1]), min(1.5, v[2]), 1.0]
