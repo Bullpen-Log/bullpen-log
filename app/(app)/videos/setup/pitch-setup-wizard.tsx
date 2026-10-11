@@ -10,13 +10,7 @@ import { ProblemLine, StepCard, TextButton } from '@/components/onboarding/step-
 import { useStepWizard } from '@/components/onboarding/use-step-wizard';
 import { finishPitchSetup } from '@/app/actions/pitch-setup';
 import { OFFLINE_MESSAGE, orOffline } from '@/lib/action-offline';
-import {
-  BASELINE_FREQ_NAMES,
-  BASELINE_INTENSITY_NAMES,
-  BASELINE_VOLUME_NAMES,
-  THROWING_HANDS,
-  estimateDailyLoad,
-} from '@/lib/baseline';
+import { BASELINE_MIX, MIX_COUNTS, THROWING_HANDS, mixDailyLoad } from '@/lib/baseline';
 import {
   checkPitchStep,
   pitchStepOfField,
@@ -67,7 +61,11 @@ export function PitchSetupWizard({
   const moved = useRef(false);
   const rootRef = useRef<HTMLDivElement>(null);
 
-  const load = estimateDailyLoad(a);
+  /* 셋 다 고르면 평소 하루 부하 — 종류별 주당 횟수 × 보통 구수 × 강도 ÷ 7 */
+  const mix = [a.mixCatch, a.mixBullpen, a.mixGame].every((v) => v != null)
+    ? { catch: Number(a.mixCatch), bullpen: Number(a.mixBullpen), game: Number(a.mixGame) }
+    : null;
+  const load = mix ? mixDailyLoad(mix) : null;
   const invalid = (field: string) => w.problem?.field === field;
   const who = name ? `${name} 님, ` : '';
 
@@ -143,7 +141,7 @@ export function PitchSetupWizard({
       case 'pitching':
         return {
           title: '평소 얼마나 던져요?',
-          desc: '셋을 고르면 첫날부터 투구 부하 지수를 낼 수 있어요. 기록이 쌓이면 이 답은 자리를 비켜요.',
+          desc: '보통 한 주에 종류별로 몇 번 던지는지 골라 주세요. 첫날부터 투구 부하 지수를 낼 수 있어요. 기록이 쌓이면 이 답은 자리를 비켜요.',
         };
       case 'summary':
         return {
@@ -175,10 +173,9 @@ export function PitchSetupWizard({
     { label: '던지는 손', value: a.throwingHand ?? '아직 안 골랐어요' },
     {
       label: '평소 던지는 양',
-      value:
-        [a.baselineFreq, a.baselineVolume, a.baselineIntensity]
-          .filter(Boolean)
-          .join(' · ') || '아직 안 골랐어요',
+      value: mix
+        ? `주당 캐치볼 ${mix.catch} · 불펜 ${mix.bullpen} · 경기 ${mix.game}번`
+        : '아직 안 골랐어요',
     },
   ];
 
@@ -245,30 +242,21 @@ export function PitchSetupWizard({
         {panel(
           'pitching',
           <div className="space-y-5">
-            <Chips
-              name="baselineFreq"
-              legend="던지는 횟수"
-              options={BASELINE_FREQ_NAMES.map((n) => ({ value: n, label: n }))}
-              value={a.baselineFreq}
-              onChange={(baselineFreq) => w.patch({ baselineFreq })}
-              invalid={invalid('baselineFreq')}
-            />
-            <Chips
-              name="baselineVolume"
-              legend="한 번에 던지는 양"
-              options={BASELINE_VOLUME_NAMES.map((n) => ({ value: n, label: n }))}
-              value={a.baselineVolume}
-              onChange={(baselineVolume) => w.patch({ baselineVolume })}
-              invalid={invalid('baselineVolume')}
-            />
-            <Chips
-              name="baselineIntensity"
-              legend="평소 강도"
-              options={BASELINE_INTENSITY_NAMES.map((n) => ({ value: n, label: n }))}
-              value={a.baselineIntensity}
-              onChange={(baselineIntensity) => w.patch({ baselineIntensity })}
-              invalid={invalid('baselineIntensity')}
-            />
+            {BASELINE_MIX.map((t) => {
+              const field = t.key === 'catch' ? 'mixCatch' : t.key === 'bullpen' ? 'mixBullpen' : 'mixGame';
+              return (
+                <Chips
+                  key={t.key}
+                  name={field}
+                  legend={`${t.label} · 주에 몇 번`}
+                  options={MIX_COUNTS.map((n) => ({ value: String(n), label: n === 7 ? '매일' : `${n}` }))}
+                  value={a[field]}
+                  onChange={(v) => w.patch({ [field]: v })}
+                  invalid={invalid(field)}
+                  hint={`한 번에 보통 ${t.pitches}구, 강도 ${t.intensity} 정도로 셈해요.`}
+                />
+              );
+            })}
             {/*
              * 셋을 다 고르는 순간 칩 밑에 생기는 카드 — 옅어지기만 짧게(animate-fade-in 160ms). 누르던 칩 바로 밑이라
              * 밀려 올라오는 움직임(가입 화면에서 옮겨 온 rise-in)은 눈을 끈다. 화면 전체로 들어오는 끼움 카드(InsertCard)는
@@ -280,7 +268,7 @@ export function PitchSetupWizard({
                 <p className="text-heading mt-1 text-2xl text-ink">
                   <CountUp value={load} active={step === 'pitching'} />
                   <span className="ml-1.5 text-xs font-normal text-muted">
-                    횟수 × 구수 × 강도 ÷ 7
+                    종류별 횟수 × 구수 × 강도 ÷ 7
                   </span>
                 </p>
                 <p className="mt-1 text-xs leading-relaxed break-keep text-muted">
@@ -302,7 +290,7 @@ export function PitchSetupWizard({
                 <p className="text-heading mt-1 text-3xl text-ink">
                   <CountUp value={load} active={step === 'summary'} />
                   <span className="ml-1.5 text-xs font-normal text-muted">
-                    횟수 × 구수 × 강도 ÷ 7
+                    종류별 횟수 × 구수 × 강도 ÷ 7
                   </span>
                 </p>
                 <p className="mt-1 text-xs leading-relaxed break-keep text-muted">

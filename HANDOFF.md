@@ -30,6 +30,14 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 - 드라이브라인 자료(`obp-pitch.json`)는 비교 확인용으로만 — 앱 · `public/` 에 넣지 않고 화면 글에 그 이름을 쓰지 않는다. 샘플 결과에는 선수 이름이
   있으니 임시 화면 자료도 커밋하지 않는다.
 
+## 금윤호에게 — 2026-10-11 · 김민(Claude) — 투구 첫 설정의 '평소 투구량'을 종류별 주당 횟수로 — 받으면 `npx prisma generate`
+
+받은 뒤 할 일: **`npx prisma generate`** — `User.baselineMix`(Json, 비워 둘 수 있음, 마이그레이션 `20261011233000_user_baseline_mix`, 적용함, 백업 `db-2026-10-11-14-27.json`).
+사용자: '캐치볼 위주 · 절반 전력 · 전력 투구 위주' 한 칸으로는 섞인 한 주를 못 담는다 → A안. **네 영역(투구 기록 첫 설정 · 내 정보)을 고쳤다.**
+- `/videos/setup` 의 '평소 얼마나 던져요?' 가 캐치볼 · 롱토스 / 불펜 / 라이브 · 경기 각각 주당 0~7번(`lib/baseline.ts` BASELINE_MIX — 보통 40구·강도 3, 35구·7, 60구·9).
+  부하 시작 기준선(`estimateDailyLoad`)은 baselineMix 가 있으면 그것으로. 옛 세 칸(baselineFreq · Volume · Intensity)에는 가장 가까운 값을 같이 적는다(`mixToLegacy`) — 그 칸을 읽는 화면은 그대로 돈다.
+- 내 정보의 옛 세 질문은 걷고 '평소 투구량 › 투구 기록 설정에서 고치기' 연결로(`validateBaseline` 은 이제 던지는 손 · 웨이트 · 소속만). `validatePitchBaseline` 은 지웠다(`validatePitchSetup` 으로).
+
 ## 금윤호에게 — 2026-10-11 · 김민(Claude) — 시험 계정 '하루씩 넘기기'(시뮬레이션 날짜) — 받으면 `npx prisma generate`
 
 받은 뒤 할 일: **`npx prisma generate`** — `User.simDate`(DATE, 비워 둘 수 있음)를 더했다(마이그레이션 `20261011230000_user_sim_date`, DB 에 적용함,
