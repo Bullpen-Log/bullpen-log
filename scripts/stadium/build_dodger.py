@@ -204,13 +204,15 @@ SEAT_PTS = {}
 SEAT_AO = {}
 # 꼭대기 49.4m(LA 카운티 건물 높이) 에 맞춘 높이 — 층 높이 · 튀어나온 길이는 사진 어림(EST)
 DECKS = [
-    dict(key='field', w0=0.0, z0=0.6, w1=26.0, z1=7.5, reach=999),
-    dict(key='loge', w0=13.0, z0=9.5, w1=28.0, z1=15.0, reach=999),
-    dict(key='club', w0=22.0, z0=17.5, w1=28.0, z1=20.0, reach=30),
-    dict(key='reserve', w0=26.0, z0=23.5, w1=43.0, z1=32.5, reach=999),
-    dict(key='top', w0=37.0, z0=35.0, w1=52.0, z1=42.5, reach=999),
+    # 2026-10-11 사진(1루 쪽 필드에서 본 3루 관중석)에 맞춰 다시: 위층이 아래층 뒤쪽을 8~10m 덮어 층 뒤 벽이 안 보이고,
+    # 필드에서 보면 의자 · 앞 띠(난간 · 띠 전광판)만 층층이 보인다. 클럽은 홈 뒤 몇 줄뿐이라 뺐다(리저브가 그 자리까지 내려온다).
+    dict(key='field', w0=0.0, z0=0.6, w1=28.0, z1=9.0, reach=999),
+    dict(key='loge', w0=16.0, z0=10.6, w1=32.0, z1=16.0, reach=999),
+    dict(key='reserve', w0=22.0, z0=19.0, w1=42.0, z1=31.0, reach=999),
+    dict(key='top', w0=34.0, z0=34.5, w1=52.0, z1=45.0, reach=999),
 ]
-ROOF = dict(w0=43.0, w1=56.0, z_front=48.6, z_back=49.4, t=0.5)
+# 지붕 — 사진: 톱 덱 앞 가장자리 위까지 덮는 넓고 얇은 흰 차양(앞 39m → 뒤 56m)
+ROOF = dict(w0=36.0, w1=55.0, z_front=48.5, z_back=49.4, t=0.5)
 SHIFT_MAX = 10.0  # 모서리에서 위층을 파울선 쪽으로 당기는 거리(EST — 사진: 폴 옆에 위층이 높이 선다)
 
 
@@ -656,7 +658,7 @@ def details(M, path):
 
     # 지붕 조명판 — 톱 덱 지붕 위 기둥 넷(파울선 55 · 90m, 양쪽) 위 큰 등판(참고 그림)
     lights = Boxes()
-    for reach in (55.0, 90.0):
+    for reach in (22.0, 55.0, 88.0):
         for sgn in (1, -1):
             cand = [q for q in path if abs(q[3] - reach) < 1.1 and (q[1] > 0) == (sgn > 0)]
             if not cand:
@@ -665,11 +667,15 @@ def details(M, path):
             w = (ROOF['w0'] + ROOF['w1']) / 2 - shift_of('top', r)
             base = P(a + math.cos(g) * w, b + math.sin(g) * w, ROOF['z_back'])
             tx, ty = -math.sin(g), math.cos(g)
-            for o in (-4.5, 4.5):
+            # 사진: 지붕 위로 가는 기둥 넷이 18m 솟고 그 위 넓은 등판(외야 조명탑과 같은 꼴)
+            for o in (-6.0, -2.0, 2.0, 6.0):
                 q = base + Vector((tx * o, -ty * o, 0))
-                lights.add(q, q + Vector((0, 0, 9.0)), 0.35)
-            c = base + Vector((0, 0, 11.5))
-            span = Vector((tx, -ty, 0)) * 8.0
+                lights.add(q, q + Vector((0, 0, 18.0)), 0.3)
+            for hh in (6.0, 12.0):
+                q0 = base + Vector((tx * -6.0, -ty * -6.0, hh))
+                lights.add(q0, q0 + Vector((tx * 12.0, -ty * 12.0, 0)), 0.15)
+            c = base + Vector((0, 0, 20.5))
+            span = Vector((tx, -ty, 0)) * 9.0
             panel = Boxes()
             panel.add(c - span, c + span, (0.6, 5.0))
             panel.build(f'Roof_Light_Bank_{int(reach)}_{sgn}', 'Lighting_Structures', M['lamp'])
@@ -936,17 +942,6 @@ def build():
         bank = [(tx + tux * x + math.cos(ta) * dd, ty + tuy * x + math.sin(ta) * dd) for x, dd in ((-13, 0), (13, 0), (13, 0.8), (-13, 0.8))]
         prism(f'Light_Bank_{side}', 'Lighting_Structures', bank, 50.0, 56.0, M['lamp'])
 
-    # 지붕 위 조명(EST) — 지붕 앞 가장자리에 7.5m 마다
-    roof_lamps = []
-    acc = 0.0
-    for (a0, b0, ang0, r0), (a1, b1, ang1, r1) in zip(path, path[1:]):
-        acc += math.hypot(a1 - a0, b1 - b0)
-        if acc >= 7.5:
-            acc = 0.0
-            w = ROOF['w0'] - shift_of('top', r1) + 0.6
-            roof_lamps.append((a1 + math.cos(ang1) * w, b1 + math.sin(ang1) * w))
-    for k, (la, lb) in enumerate(roof_lamps):
-        prism(f'Roof_Lamp_{k}', 'Lighting_Structures', circ((la, lb), 1.0, 6), ROOF['z_front'], ROOF['z_front'] + 1.8, M['dark'])
 
     # Dugouts — 파울선 14~38m, 앞 벽 아래 어두운 입구 · 지붕(EST: 길이 · 깊이)
     for side in (1, -1):
@@ -1208,7 +1203,8 @@ def bake_light(samples=int(os.environ.get('BAKE_SAMPLES', 256))):
             sunv = max(0.0, nr.dot(SUN_DIR))
             if sunv > 0 and bvh.ray_cast(org, SUN_DIR, 250.0)[0] is not None:
                 sunv = 0.0
-            bounce = 0.32 * max(0.0, -nr.z) + 0.1 * (1 - abs(nr.z))
+            # 둘레에서 되비친 빛 — 사진 속 그늘진 관중석도 햇빛 받은 곳의 1/3 쯤은 밝다(잔디 · 해 받은 관중석이 비춘다)
+            bounce = 0.75 + 0.45 * max(0.0, -nr.z) + 0.2 * (1 - abs(nr.z))
             L = (SUN_W * sunv + SKY_W * (sky + bounce)) / flat
             vals.append([L, L, L])
         done += n

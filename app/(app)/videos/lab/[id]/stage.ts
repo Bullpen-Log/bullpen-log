@@ -195,7 +195,8 @@ void field(vec3 w, vec3 cam) {
   vec2 pf = fract(p * 45.0) - 0.5 - (vec2(fHash(pc + 7.3), fHash(pc + 1.9)) - 0.5) * 0.4;
   float peb = step(0.982, fHash(pc)) * (1.0 - smoothstep(0.18, 0.3, length(pf))) * (1.0 - smoothstep(0.004, 0.02, fp)) * (fHash(pc + 3.1) - 0.45);
   /* 내야는 밝은 황토(사진), 마운드 · 타석 · 홈 둘레는 붉은 점토 */
-  vec3 dirt = mix(fLin(vec3(0.77, 0.61, 0.46)), fLin(vec3(0.66, 0.42, 0.30)), clamp(clay * 0.95 + lip * 0.3, 0.0, 1.0));
+  /* 사진: 내야 흙은 주황빛 벽돌색, 마운드 · 홈 둘레 점토는 더 붉다 */
+  vec3 dirt = mix(fLin(vec3(0.80, 0.53, 0.35)), fLin(vec3(0.70, 0.40, 0.27)), clamp(clay * 0.95 + lip * 0.3, 0.0, 1.0));
   vec3 dTex = fDirtTex(p);
   dirt *= mix(vec3(1.0 + dp * 1.2 + peb * 0.7), (1.0 + dp * 0.6) * dTex, uTexOn);
   /* 갈퀴 자국 — 내야 흙을 고르며 끈 판의 줄(투수판 앞 중심 동심원, 0.42m 간격), 점토 자리는 없다 */
@@ -1017,7 +1018,7 @@ export function buildStage({
               );
               if (!detail) return;
               sh.uniforms.uDetail = { value: concrete };
-              sh.uniforms.uDetailScale = { value: 1 / (2 * s) };
+              sh.uniforms.uDetailScale = { value: 1 / (3.5 * s) };
               sh.vertexShader = sh.vertexShader
                 .replace('#include <common>', '#include <common>\nvarying vec3 vWorldD;\nvarying vec3 vNormD;')
                 .replace(
@@ -1034,7 +1035,7 @@ export function buildStage({
                     wn /= (wn.x + wn.y + wn.z);
                     vec3 p = vWorldD * uDetailScale;
                     vec3 t = texture2D(uDetail, p.zy).rgb * wn.x + texture2D(uDetail, p.xz).rgb * wn.y + texture2D(uDetail, p.xy).rgb * wn.z;
-                    diffuseColor.rgb *= mix(1.0, dot(t, vec3(0.2126, 0.7152, 0.0722)) / 0.242, 0.45);
+                    diffuseColor.rgb *= mix(1.0, dot(t, vec3(0.2126, 0.7152, 0.0722)) / 0.379, 0.8);
                   }`
                 );
             };
