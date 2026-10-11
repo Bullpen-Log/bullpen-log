@@ -575,7 +575,11 @@ export function buildStage({
   const glows: Three.Sprite[] = [];
   const applyBaked = () => {
     const night = current0 === 'night';
-    for (const b of bakedMats) b.color.copy(b.userData.base as Three.Color).multiplyScalar(night ? 0.3 : 1.0);
+    /* 밤 — 조명탑 · 지붕 조명이 관중석까지 비춘다(경기 중 관중석은 꽤 밝다), 조금 따뜻하게 */
+    for (const b of bakedMats) {
+      b.color.copy(b.userData.base as Three.Color);
+      if (night) b.color.multiply(new THREE.Color(0.55, 0.52, 0.47));
+    }
     lampMat.color.set(night ? '#ffffff' : '#c9cdd2');
     for (const g of glows) g.visible = night;
   };
@@ -912,7 +916,8 @@ export function buildStage({
         const key = m.uuid + (vc ? 'v' : 'i');
         let b = basics.get(key);
         if (!b) {
-          b = new THREE.MeshBasicMaterial({ color: m.color.clone(), vertexColors: vc, name: m.name, side: m.side });
+          /* 앞면만 — 닫힌 덩어리라 뒷면은 안 보이고, 양면이면 1mm 붙은 안팎 면이 서로 깜빡여 얼룩처럼 보였다 */
+          b = new THREE.MeshBasicMaterial({ color: m.color.clone(), vertexColors: vc, name: m.name, side: THREE.FrontSide });
           b.userData.base = m.color.clone();
           const detail = detailed.has(m.name);
           {
@@ -928,7 +933,7 @@ export function buildStage({
               );
               if (!detail) return;
               sh.uniforms.uDetail = { value: concrete };
-              sh.uniforms.uDetailScale = { value: 1 / (4 * s) };
+              sh.uniforms.uDetailScale = { value: 1 / (2 * s) };
               sh.vertexShader = sh.vertexShader
                 .replace('#include <common>', '#include <common>\nvarying vec3 vWorldD;\nvarying vec3 vNormD;')
                 .replace(
@@ -945,7 +950,7 @@ export function buildStage({
                     wn /= (wn.x + wn.y + wn.z);
                     vec3 p = vWorldD * uDetailScale;
                     vec3 t = texture2D(uDetail, p.zy).rgb * wn.x + texture2D(uDetail, p.xz).rgb * wn.y + texture2D(uDetail, p.xy).rgb * wn.z;
-                    diffuseColor.rgb *= mix(1.0, dot(t, vec3(0.2126, 0.7152, 0.0722)) / 0.242, 0.7);
+                    diffuseColor.rgb *= mix(1.0, dot(t, vec3(0.2126, 0.7152, 0.0722)) / 0.242, 0.45);
                   }`
                 );
             };

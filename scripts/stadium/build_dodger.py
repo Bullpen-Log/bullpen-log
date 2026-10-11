@@ -227,8 +227,6 @@ def under_at(d, w):
 def wall_top(i, reach):
     d = DECKS[i]
     W = d['w1'] - shift_of(d['key'], reach)
-    if d['key'] == 'club':
-        return d['z1']
     if d['key'] == 'top':
         return ROOF['z_back'] - ROOF['t'] - 0.6
     for n in DECKS[i + 1 :]:
@@ -263,7 +261,13 @@ def section(i, reach):
         pts += [(wr, zr), (wr + dep, zr)]
         if k + 1 < len(rows):
             pts.append((wr + dep, rows[k + 1][1]))
-    pts += [(w1, top), (w1, 0.0) if d['key'] == 'field' else (w1, z1 - SLAB)]
+    # 뒤 벽은 여러 점으로 나눈다 — 위아래 두 점뿐이면 구운 빛이 삼각형 대각선을 따라 지그재그로 번졌다
+    n_up = 8  # 둘레를 따라 점 수가 같아야 쓸 수 있어 고정(벽 높이 2~7m)
+    pts += [(w1, z1 + (top - z1) * k / n_up) for k in range(1, n_up + 1)]
+    bottom = 0.0 if d['key'] == 'field' else z1 - SLAB
+    n_dn = 10
+    pts += [(w1 + 0.001, top - (top - bottom) * k / n_dn) for k in range(1, n_dn)]
+    pts.append((w1, bottom))
     return pts
 
 
@@ -290,6 +294,7 @@ def sweep_closed(name, coll, path, sec_fn, shift_fn, material):
     faces.append(rings[-1])
     ob = mesh_obj(name, coll, verts, faces, material)
     fix_normals(ob)
+    ob['ring'] = m  # 둘레 한 칸의 점 수 — 빛 굽기 뒤 둘레 방향으로만 고르게 펼 때 쓴다
     return ob
 
 
@@ -966,7 +971,7 @@ SUN_W = 3.0  # 해 세기(W/m², Cycles)
 SKY_W = 0.9  # 하늘 세기(배경 세기 — 아래에서 하늘빛 몫을 잰다)
 
 
-def bake_light(samples=256):
+def bake_light(samples=int(os.environ.get('BAKE_SAMPLES', 256))):
     """낮 빛 굽기 — 해(그림자) + 물리 하늘(니시타) + 반사광을 구조물 꼭짓점 색 LIGHT 에(빛만, 색 없이). 의자는 의자마다 해 가림 + 하늘 열림.
     앱은 이 빛에 재질 색을 곱해 그린다(실시간 조명 대신 — 휴대폰에서 싸고 그림자 · 반사광이 들어간다)."""
     sc = bpy.context.scene
@@ -1002,44 +1007,63 @@ def bake_light(samples=256):
         if 'LIGHT' not in o.data.color_attributes:
             o.data.color_attributes.new('LIGHT', 'FLOAT_COLOR', 'POINT')
         o.data.color_attributes.active_color = o.data.color_attributes['LIGHT']
-    bpy.ops.object.select_all(action='DESELECT')
+    # 광선으로 직접 셈(Cycles 굽기는 그늘에서 얼룩 잡음이 컸다) — 점마다 같은 방향 묶음이라 잡음이 없다
+    dg = bpy.context.evaluated_depsgraph_get()
+    verts, polys = [], []
     for o in targets:
-        o.select_set(True)
-    bpy.context.view_layer.objects.active = targets[0]
-    sc.render.bake.use_pass_direct = True
-    sc.render.bake.use_pass_indirect = True
-    sc.render.bake.use_pass_color = False
-    bpy.ops.object.bake(type='DIFFUSE', pass_filter={'DIRECT', 'INDIRECT'}, target='VERTEX_COLORS')
-    # 기준: 가리지 않은 수평면의 빛 = 해(sin 49° × 세기) + 하늘 — 이 값을 1 로 맞춘다
-    allv = []
+        me = o.evaluated_get(dg).to_mesh()
+        off = len(verts)
+        verts += [o.matrix_world @ v.co for v in me.vertices]
+        polys += [[off + i for i in p.vertices] for p in me.polygons]
+        o.evaluated_get(dg).to_mesh_clear()
+    bvh = BVHTree.FromPolygons(verts, polys)
+    sky_dirs = []
+    golden = math.pi * (3 - math.sqrt(5))
+    NS = 40
+    for k in range(NS):
+        u = (k + 0.5) / NS
+        r = math.sqrt(u)
+        sky_dirs.append(Vector((r * math.cos(k * golden), r * math.sin(k * golden), math.sqrt(1 - u))))
+    zsum = sum(d.z for d in sky_dirs)
+    flat = SUN_W * math.sin(SUN_EL) + SKY_W
+    done = 0
     for o in targets:
-        ca = o.data.color_attributes['LIGHT']
-        buf = [0.0] * (len(o.data.vertices) * 4)
-        ca.data.foreach_get('color', buf)
-        allv += [sum(buf[i : i + 3]) / 3 for i in range(0, len(buf), 4)]
-    allv.sort()
-    ref = allv[int(len(allv) * 0.97)] or 1.0
-    print('빛 기준(97%)', round(ref, 3))
-    for o in targets:
-        ca = o.data.color_attributes['LIGHT']
-        n = len(o.data.vertices)
-        buf = [0.0] * (n * 4)
-        ca.data.foreach_get('color', buf)
-        vals = [[buf[i * 4 + c] / ref for c in range(3)] for i in range(n)]
+        me = o.data
+        R3 = o.matrix_world.to_3x3()
+        n = len(me.vertices)
+        vals = []
+        for v in me.vertices:
+            p = o.matrix_world @ v.co
+            nr = (R3 @ v.normal).normalized()
+            org = p + nr * 0.06 + Vector((0, 0, 0.02))
+            sky = 0.0
+            for d in sky_dirs:
+                c = nr.dot(d)
+                if c > 0 and bvh.ray_cast(org, d, 150.0)[0] is None:
+                    sky += c
+            sky /= zsum
+            sunv = max(0.0, nr.dot(SUN_DIR))
+            if sunv > 0 and bvh.ray_cast(org, SUN_DIR, 250.0)[0] is not None:
+                sunv = 0.0
+            bounce = 0.32 * max(0.0, -nr.z) + 0.1 * (1 - abs(nr.z))
+            L = (SUN_W * sunv + SKY_W * (sky + bounce)) / flat
+            vals.append([L, L, L])
+        done += n
         nb = [[] for _ in range(n)]
-        for e in o.data.edges:
+        for e in me.edges:
             a, b = e.vertices
             nb[a].append(b)
             nb[b].append(a)
-        # 굽기 잡음(줄무늬)을 걷는다 — 이웃과 6번 섞는다(밝기만 쓰니 색은 상관없다)
-        for _ in range(6):
-            vals = [[0.5 * vals[i][c] + 0.5 * (sum(vals[j][c] for j in nb[i]) / len(nb[i]) if nb[i] else vals[i][c]) for c in range(3)] for i in range(n)]
+        for _ in range(2):
+            vals = [[0.6 * vals[i][c] + 0.4 * (sum(vals[j][c] for j in nb[i]) / len(nb[i]) if nb[i] else vals[i][c]) for c in range(3)] for i in range(n)]
+        ca = me.color_attributes['LIGHT']
         outb = []
         for v in vals:
             outb += [min(1.5, v[0]), min(1.5, v[1]), min(1.5, v[2]), 1.0]
         ca.data.foreach_set('color', outb)
-        if 'AO' in o.data.color_attributes:
-            o.data.color_attributes.remove(o.data.color_attributes['AO'])
+        if 'AO' in me.color_attributes:
+            me.color_attributes.remove(me.color_attributes['AO'])
+    print('빛 점', done)
     print('빛 구움(구조물)', len(targets))
     # 의자 — 해: 의자 앞(등받이 · 앉는 판 평균 법선)과 해의 각 × 해 가림, 하늘: 반구 열림(SEAT_AO)
     dg = bpy.context.evaluated_depsgraph_get()
