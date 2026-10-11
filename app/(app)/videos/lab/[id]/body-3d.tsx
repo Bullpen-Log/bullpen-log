@@ -29,7 +29,7 @@ import {
   type RigPose,
   type SkeletonParts,
 } from '@/lib/pitch-3d/v2/pose-rig';
-import { buildStage } from './stage';
+import { buildStage, STAGE_MODES, type StageHandle, type StageMode } from './stage';
 
 /**
  * 투구 3D 보기(설계 pitch-3d-quality.md 0절 · 화면 결정 9~16) — 해부학 뼈 15조각(body-full.glb 를 skeleton-parts.json 으로 가름)을
@@ -189,6 +189,9 @@ export const Body3D = forwardRef<
   const [playing, setPlaying] = useState(false);
   const [speed, setSpeed] = useState<Speed>(0.5);
   const [view, setView] = useState<ViewName>('side');
+  /* 무대 낮 · 밤(stage.ts) — 다시 만들 때도 고른 것을 잇는다 */
+  const [stageMode, setStageMode] = useState<StageMode>('day');
+  const stageModeRef = useRef<StageMode>('day');
   const [retry, setRetry] = useState(0);
   const n = result.t.length;
 
@@ -198,6 +201,7 @@ export const Body3D = forwardRef<
     play: (on: boolean) => void;
     speed: (s: Speed) => void;
     view: (v: ViewName, animate: boolean) => void;
+    stage: (m: StageMode) => void;
   } | null>(null);
   const transport = useRef(onTransport);
   useEffect(() => {
@@ -255,7 +259,15 @@ export const Body3D = forwardRef<
       const { center, half } = bounds;
       /* 무대(바탕 · 조명 · 바닥 · 마운드 · 축) — stage.ts(김민 몫, 사람 그리기와 따로 고친다) */
       const { groundAt } = track;
-      buildStage({ THREE, scene, renderer, track, center, heightM: (heightCm ?? 180) / 100 });
+      const stage: StageHandle = buildStage({
+        THREE,
+        scene,
+        renderer,
+        track,
+        center,
+        heightM: (heightCm ?? 180) / 100,
+        mode: stageModeRef.current,
+      });
 
       const boneMat = new THREE.MeshStandardMaterial({
         color: BONE,
@@ -278,7 +290,7 @@ export const Body3D = forwardRef<
         meshes[name] = m;
       }
 
-      const camera = new THREE.PerspectiveCamera(32, 1, 0.01, 60);
+      const camera = new THREE.PerspectiveCamera(32, 1, stage.cameraNear, stage.cameraFar);
       const controls = new OrbitControls(camera, renderer.domElement);
       controls.enablePan = false;
       controls.enableDamping = true;
@@ -501,6 +513,10 @@ export const Body3D = forwardRef<
           emit('speed');
         },
         view: moveTo,
+        stage: (m) => {
+          stage.setMode(m);
+          dirty = true;
+        },
       };
       show(cur);
       setPlaying(isPlaying);
@@ -700,6 +716,17 @@ export const Body3D = forwardRef<
           ctrl.current?.view(v, true);
         }}
         options={VIEWS}
+      />
+
+      <Segmented
+        label="무대"
+        value={stageMode}
+        onChange={(m) => {
+          setStageMode(m);
+          stageModeRef.current = m;
+          ctrl.current?.stage(m);
+        }}
+        options={STAGE_MODES}
       />
     </div>
   );

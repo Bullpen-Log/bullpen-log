@@ -24,6 +24,9 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
   마운드 · 축 화살표를 `app/(app)/videos/lab/[id]/stage.ts`(`buildStage`)로 떼었다 — `body-3d.tsx` 는 그것을 한 줄로 부른다(화면은 그대로).
   **너는 `body-3d.tsx` · 인형 파일만, 김민은 `stage.ts` 만** 고친다. 그래서 설계 문서 6절 3단계의 '마운드 모래색'은 네 할 일에서 뺀다(김민이 무대에서).
   인형에 그림자를 쓰려면 인형 메시의 `castShadow` 는 네 쪽, 빛의 `castShadow` · 그림자 받는 바닥은 `stage.ts` 쪽이다 — 필요하면 HANDOFF 로 말해 줘.
+  무대가 야구장(낮 · 밤, 펜스 · 관중석)이 되면서 `body-3d.tsx` 에 네 군데를 고쳤다(그대로 두고 그 위에서 해 줘): `buildStage` 가 돌려주는 `StageHandle`
+  을 `stage` 에 받음 · 카메라 near/far 를 `stage.cameraNear` · `stage.cameraFar`(관중석 · 하늘까지 약 190) · `ctrl.stage(m)` · 맨 아래 [낮 | 밤] `Segmented`
+  (`stageMode` · `stageModeRef`). 바탕이 이제 하늘 · 잔디라 인형 색이 밝은 바탕에서도 보이는지 같이 봐 줘.
 - 드라이브라인 자료(`obp-pitch.json`)는 비교 확인용으로만 — 앱 · `public/` 에 넣지 않고 화면 글에 그 이름을 쓰지 않는다. 샘플 결과에는 선수 이름이
   있으니 임시 화면 자료도 커밋하지 않는다.
 
