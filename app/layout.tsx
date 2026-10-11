@@ -1,4 +1,5 @@
 import { ensureSim, simOffsetMs } from '@/lib/clock-server';
+import { SimClockSync } from '@/components/sim-clock-sync';
 import type { Metadata, Viewport } from 'next';
 import { Bebas_Neue } from 'next/font/google';
 import { THEME_INIT_SCRIPT } from '@/lib/theme';
@@ -64,9 +65,13 @@ export const viewport: Viewport = {
   ],
 };
 
-/* 시험 계정(User.simDate)이면 브라우저의 Date 를 그 날짜로 통째로 옮긴다(시각 차이만큼, lib/clock.ts) — 다른 계정은 0 이라 아무것도 안 한다 */
+/*
+ * 시험 계정(User.simDate)이면 브라우저의 Date 를 그 날짜로 통째로 옮긴다(시각 차이만큼, lib/clock.ts) — 다른 계정은 0 이라 아무것도 안 한다.
+ * 차이는 window.__bpSimOffset 에 두고 매번 읽는다 — '다음날로'를 한 뒤 페이지를 다시 열지 않아도(당겨서 새로고침 · 화면 이동)
+ * components/sim-clock-sync.tsx 가 새 차이로 바꾼다. 예전엔 처음 연 때의 차이를 박아 두어, 서버는 8/2 인데 체크인은 8/1 에 머물렀다.
+ */
 const simClockScript = (offsetMs: number) =>
-  `(function(o){var R=Date;function D(){var a=arguments;if(!(this instanceof D))return new R(R.now()+o).toString();return a.length?new (Function.prototype.bind.apply(R,[null].concat([].slice.call(a))))():new R(R.now()+o);}D.prototype=R.prototype;D.now=function(){return R.now()+o};D.UTC=R.UTC;D.parse=R.parse;window.Date=D;})(${offsetMs})`;
+  `(function(o){window.__bpSimOffset=o;var R=Date;var n=function(){return R.now()+window.__bpSimOffset};function D(){var a=arguments;if(!(this instanceof D))return new R(n()).toString();return a.length?new (Function.prototype.bind.apply(R,[null].concat([].slice.call(a))))():new R(n());}D.prototype=R.prototype;D.now=n;D.UTC=R.UTC;D.parse=R.parse;window.Date=D;})(${offsetMs})`;
 
 export default async function RootLayout({
   children,
@@ -127,6 +132,8 @@ export default async function RootLayout({
         <Suspense fallback={null}>
           <NavMotion />
         </Suspense>
+        {/* 시험 계정이면 '다음날로'를 페이지를 다시 열지 않아도 받는다(components/sim-clock-sync.tsx) */}
+        {simOffset !== 0 && <SimClockSync offset={simOffset} />}
       </body>
     </html>
   );

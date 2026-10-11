@@ -274,6 +274,16 @@ console.log('\n■ 운동으로 쓴 칼로리');
   const tr = trainingBurn(45 * 60, 80);
   check('트레이닝 45분·80kg = 252kcal', tr?.kcal === 252, `${tr?.kcal}`);
   check('1분이 안 되면 없음', trainingBurn(20, 80) === null);
+  /* 운동마다의 강도 · 세트로(2026-10-12) — 스트레칭만 한 45분은 힘든 웨이트 45분보다 훨씬 적다 */
+  const stretch = trainingBurn(45 * 60, 80, [{ category: '모빌리티', intensity: '매우 낮음', sets: 6 }]);
+  const heavy = trainingBurn(45 * 60, 80, [{ category: '하체 스트렝스', intensity: '매우 높음', sets: 6 }]);
+  check('스트레칭 45분 < 웨이트 45분', (stretch?.kcal ?? 0) < (heavy?.kcal ?? 0), `${stretch?.kcal} · ${heavy?.kcal}`);
+  const half = trainingBurn(45 * 60, 80, [
+    { category: '모빌리티', intensity: '매우 낮음', sets: 3 },
+    { category: '하체 스트렝스', intensity: '매우 높음', sets: 3 },
+  ]);
+  check('섞으면 그 사이(세트 몫)', Math.abs((half?.kcal ?? 0) - ((stretch?.kcal ?? 0) + (heavy?.kcal ?? 0)) / 2) <= 1, `${half?.kcal}`);
+  check('세트가 없으면 예전 값', trainingBurn(45 * 60, 80, [])?.kcal === 252);
   check('휴식은 0', pitchingBurn('휴식', 0, 0, 80) === null);
   const bp = pitchingBurn('불펜', 40, 7, 80);
   check(

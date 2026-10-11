@@ -501,15 +501,25 @@ export function NutritionView({
       <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-block lg:grid-cols-[minmax(0,1fr)_22rem]">
         <div className={`stack-block ${tab === 'stats' ? 'max-lg:hidden' : ''}`}>
           {/* 오늘 영양 — 홈 카드의 세부판(할 일 · 까닭 · 더 먹을 양과 권하는 범위 · 점수 조각). 오늘만 */}
-          {advice.headline && <AdviceCard advice={advice} />}
-          {/* 던지는 날 가이드 — 오늘이 등판 · 불펜 전날이나 당일, 던진 뒤일 때만(lib/nutrition/guide.ts) */}
-          {day.guide && (
-            <GuideCard
-              guide={day.guide}
-              entries={entries}
-              carbsEaten={eaten.carbs}
-              carbsTarget={t.carbs}
-              carbsGap={gaps.carbs > 0}
+          {/*
+            던지는 날 가이드(lib/nutrition/guide.ts)는 오늘 영양 카드 안에 넣는다 — 따로 두면 '던진 뒤 1시간 안에 단백질'과
+            '회복식 챙길 시간'이 같은 말로 두 장이 됐다(2026-10-12 사용자: "하나로 통일"). 그날은 조언 머리글 대신 가이드가 선다.
+          */}
+          {(advice.headline || day.guide) && (
+            <AdviceCard
+              advice={advice}
+              guide={
+                day.guide ? (
+                  <GuideCard
+                    bare
+                    guide={day.guide}
+                    entries={entries}
+                    carbsEaten={eaten.carbs}
+                    carbsTarget={t.carbs}
+                    carbsGap={gaps.carbs > 0}
+                  />
+                ) : null
+              }
             />
           )}
           <SummaryCard
@@ -1035,7 +1045,10 @@ function GuideCard({
   carbsEaten,
   carbsTarget,
   carbsGap,
+  bare = false,
 }: {
+  /** 오늘 영양 카드 안에 들어갈 때 — 제 테두리 · 바탕 없이 */
+  bare?: boolean;
   guide: ThrowGuide;
   entries: MealEntryView[];
   carbsEaten: number;
@@ -1053,7 +1066,7 @@ function GuideCard({
   return (
     <section
       aria-labelledby="throw-guide-title"
-      className={`${PANEL} motion-safe:animate-fade-in space-y-3 break-keep`}
+      className={`${bare ? 'border-t border-line pt-3' : PANEL} motion-safe:animate-fade-in space-y-3 break-keep`}
     >
       <div className="flex items-start gap-2">
         {/* 이름표와 제목은 좁으면 두 줄로 접히고, 펴기 단추는 늘 오른쪽 위에 있다 */}
@@ -1181,13 +1194,13 @@ function GuideCard({
  * 권하는 범위, 펴면 점수 조각(열량 · 단백질 · 탄수화물 · 끼니). 사용자(2026-10-07): 홈은 간단, 탭은 세부.
  * 던지는 날 가이드 카드(GuideCard)는 그대로 밑에 둔다 — 무엇을 언제 먹을지의 긴 안내는 거기 있다.
  */
-function AdviceCard({ advice }: { advice: Advice }) {
+function AdviceCard({ advice, guide = null }: { advice: Advice; guide?: React.ReactNode }) {
   const [open, setOpen] = useState(false);
   const more = advice.more;
   const canOpen = advice.parts.length > 0;
   return (
     <section
-      aria-labelledby="advice-title"
+      aria-labelledby={guide ? 'throw-guide-title' : 'advice-title'}
       className={`${PANEL} motion-safe:animate-fade-in space-y-3 break-keep`}
     >
       <div className="flex items-start gap-2">
@@ -1196,16 +1209,21 @@ function AdviceCard({ advice }: { advice: Advice }) {
             <Utensils aria-hidden className="h-4 w-4" strokeWidth={2.25} />
             오늘 영양
           </p>
-          <h2
-            id="advice-title"
-            className={`mt-1.5 text-[17px] leading-snug font-semibold ${
-              advice.highlight ? 'text-sky-strong' : 'text-ink'
-            }`}
-          >
-            {advice.headline}
-          </h2>
-          {advice.why && (
-            <p className="mt-1 text-xs leading-relaxed text-muted">{advice.why}</p>
+          {/* 던지는 날은 가이드가 머리 — 같은 말을 두 번 안 한다 */}
+          {!guide && (
+            <>
+              <h2
+                id="advice-title"
+                className={`mt-1.5 text-[17px] leading-snug font-semibold ${
+                  advice.highlight ? 'text-sky-strong' : 'text-ink'
+                }`}
+              >
+                {advice.headline}
+              </h2>
+              {advice.why && (
+                <p className="mt-1 text-xs leading-relaxed text-muted">{advice.why}</p>
+              )}
+            </>
           )}
         </div>
         {advice.score !== null && (
@@ -1232,6 +1250,8 @@ function AdviceCard({ advice }: { advice: Advice }) {
           </button>
         )}
       </div>
+
+      {guide}
 
       {/* 세 칸 — 위는 더 먹을 양(기록 · 어림 · 충분), 밑은 오늘 권하는 범위 */}
       <dl className="grid grid-cols-3 gap-3 border-t border-line pt-3">

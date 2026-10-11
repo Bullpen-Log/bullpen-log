@@ -17,11 +17,14 @@ async function load() {
   loaded = Date.now();
 }
 
-/** 처음 한 번은 읽기를 기다린다. 그 뒤로는 30초 지나면 뒤에서 다시 읽는다 */
+/**
+ * 30초 지났으면 다시 읽고 기다린다. 예전엔 처음 한 번만 기다리고 그 뒤로는 뒤에서 읽어, 30초 지난 첫 요청이 옛 날짜로 그려졌다
+ * (그 요청의 화면 시계까지 옛 날짜). 시뮬레이션 계정이 있을 때 30초에 한 번 짧은 읽기라 기다려도 된다.
+ */
 export async function ensureSim() {
   if (Date.now() - loaded < 30_000) return;
   if (!loading) loading = load().catch(() => {}).finally(() => (loading = null));
-  if (!loaded) await loading;
+  await loading;
 }
 
 function requestUserId(): string | null {

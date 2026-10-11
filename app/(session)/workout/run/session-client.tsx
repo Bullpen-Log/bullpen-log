@@ -33,7 +33,6 @@ import { ExerciseHistoryPanel } from '@/components/exercise-history';
 import { useWakeLock } from '@/components/use-wake-lock';
 import { useAlarm } from '@/components/use-alarm';
 import { buzz } from '@/lib/haptics';
-import { nativeCancelAlarm, nativeScheduleAlarm } from '@/lib/native-bridge';
 import { newRecord } from '@/lib/workout/bests';
 import {
   deleteSet,
@@ -155,27 +154,36 @@ function useRestClock(since: string | null) {
   return restSeconds(since, now);
 }
 
+/** 무게 · 횟수를 적지 않는 분류 — 세트 완료만 누른다(2026-10-12 사용자) */
+const NO_INPUT_CATEGORIES = new Set(['모빌리티', '워밍업']);
+
+/**
+ * 입력 없이 남기는 세트의 양 — 처방 글('2세트 × 30초', '10회 · 한쪽씩')의 마지막 회 · 초 숫자. 못 읽으면 1.
+ * 시간형은 초로, 회는 회로(서버가 isHold 로 가른다).
+ */
+function plannedAmount(ex: { prescription: string | null; isHold: boolean }): number {
+  const m = [...(ex.prescription ?? '').matchAll(/(\d+)\s*(회|초|분)/g)].pop();
+  if (!m) return 1;
+  const n = Number(m[1]);
+  return ex.isHold && m[2] === '분' ? n * 60 : n;
+}
+
 function clockText(seconds: number) {
   const m = Math.floor(seconds / 60);
   const s = seconds % 60;
   return `${m}:${String(s).padStart(2, '0')}`;
 }
 
-/** 쉬는 시간 끝 앱 알림의 이름 — 같은 이름으로 걸면 앞의 것을 바꾼다(lib/native-bridge.ts) */
-const REST_ALARM_ID = 'workout-rest';
-
 /** 지금 보던 운동을 이 판 번호로 적어 두는 곳(sessionStorage) — 아래 at 설명 */
 const atKey = (sessionId: string) => `bullpen-workout-at:${sessionId}`;
 
-/** 링 한 바퀴의 길이 — 반지름 9 */
-const RING = 2 * Math.PI * 9;
 const subscribeNothing = () => () => {};
 
 /**
- * 쉬는 시간 알약 — 링 · 쉰 시간 · 목표. 아이폰의 실시간 현황(라이브 액티비티) 알약처럼(2026-10-01 '감성').
+ * 쉬는 시간 알약 — 세트를 마친 뒤 0:00 부터 올라가는 시계 하나와 권장 쉬는 시간(참고).
  *
- * 처방에 쉬는 시간(target)이 있으면 링이 그만큼에서 다 차고, 다 차면 링이 파란 체크가 되며 넘은 만큼을
- * '+0:12'로 보인다 — 시계는 멈추지 않는다. 처방이 없으면 링 없이 시계만.
+ * 2026-10-12 사용자: "휴식 시간을 정해 두지 말고 0초부터 올라가게 — 권장 시간을 참고해 알아서 지키게". 그래서 예전의 링 ·
+ * 다 차면 체크 · '쉬기 끝 +0:12'를 걷었다. 권장 시간을 넘으면 그 글만 하늘색으로 바뀐다(소리 · 알림 없음).
  *
  * 화면을 다 그린 뒤에만 그린다. 시계라 서버가 그린 초와 폰이 처음 그린 초가 달라 맞추기(hydration)가
  * 어긋난다 — 그사이 자리만 비워 둔다.
@@ -189,56 +197,18 @@ function RestPill({ seconds, target }: { seconds: number; target: number | null 
   if (!client) return <div aria-hidden className="h-10" />;
 
   const over = target != null && seconds >= target;
-  const frac = target ? Math.min(1, seconds / target) : 0;
   return (
     <div
       role="timer"
-      aria-label={`쉰 시간 ${clockText(seconds)}${target != null ? `, 쉬는 시간 ${clockText(target)}` : ''}`}
-      className={`mx-auto flex h-10 w-fit items-center gap-2 rounded-full pr-4 pl-1.5 transition-colors duration-300 ${
-        over ? 'bg-sky/12' : 'bg-ink/6'
-      }`}
+      aria-label={`쉰 시간 ${clockText(seconds)}${target != null ? `, 권장 쉬는 시간 ${clockText(target)}` : ''}`}
+      className="mx-auto flex h-10 w-fit items-center gap-2 rounded-full bg-ink/6 pr-4 pl-3"
     >
-      {target == null ? (
-        <Timer aria-hidden className="ml-1 h-5 w-5 text-muted" />
-      ) : over ? (
-        <span
-          aria-hidden
-          className="finish-pop grid h-7 w-7 place-items-center rounded-full bg-sky text-white"
-        >
-          <Check className="h-4 w-4" strokeWidth={3} />
-        </span>
-      ) : (
-        <svg aria-hidden viewBox="0 0 24 24" className="h-7 w-7 -rotate-90">
-          <circle
-            cx="12"
-            cy="12"
-            r="9"
-            fill="none"
-            strokeWidth="3"
-            className="stroke-ink/12"
-          />
-          <circle
-            cx="12"
-            cy="12"
-            r="9"
-            fill="none"
-            strokeWidth="3"
-            strokeLinecap="round"
-            className="stroke-sky transition-[stroke-dashoffset] duration-1000 ease-linear"
-            strokeDasharray={RING}
-            strokeDashoffset={RING * (1 - frac)}
-          />
-        </svg>
-      )}
+      <Timer aria-hidden className="h-5 w-5 text-muted" />
       <span className="text-numeric text-lg leading-none text-ink">
         {clockText(seconds)}
       </span>
       <span className={`text-xs ${over ? 'font-semibold text-sky' : 'text-muted'}`}>
-        {target == null
-          ? '쉬는 중'
-          : over
-            ? `쉬기 끝 · +${clockText(seconds - target)}`
-            : `/ ${clockText(target)}`}
+        {target == null ? '쉬는 중' : `권장 ${clockText(target)}`}
       </span>
     </div>
   );
@@ -565,44 +535,13 @@ export function SessionClient({
   useWakeLock(idle != null);
 
   /*
-   * 쉬는 시간 목표 — 마지막 세트를 한 운동의 처방 휴식. 링이 이만큼에서 다 차고, 다 차는 순간 한 번
-   * 떨고 짧게 울린다(useAlarm — 소리는 [세트 완료]를 누를 때 깨워 둔다). 다 찬 뒤 한참 지나 알게 된 것
-   * (화면을 다시 켰을 때)은 울리지 않는다 — 늦은 알림은 소음이다.
+   * 권장 쉬는 시간 — 마지막 세트를 한 운동의 처방 휴식. 2026-10-12 사용자: "휴식 시간을 정해 두지 말고 세트 완료 뒤 0초부터
+   * 올라가게, 사용자가 권장 시간을 참고해 지키게" — 그래서 링 · 다 찼을 때 소리 · 앱 알림을 걷고 숫자 옆 참고 글로만 보인다.
    */
   const restTarget = lastSet
     ? (list.find((e) => e.id === lastSet.exerciseId)?.restSeconds ?? null)
     : null;
-  const { arm, ring } = useAlarm();
-  const alarmed = useRef<string | null>(null);
-  useEffect(() => {
-    if (restTarget == null || rest == null || lastAt == null) return;
-    if (rest < restTarget || alarmed.current === lastAt) return;
-    alarmed.current = lastAt;
-    if (rest - restTarget <= 3) ring('rest');
-  }, [rest, restTarget, lastAt, ring]);
-
-  /*
-   * 아이폰 앱이면 쉬는 시간이 끝날 시각에 알림도 걸어 둔다 — 폰을 잠그고 주머니에 넣거나 다른 앱에 가 있으면 위의
-   * 시계 · 소리가 멈춰, 쉬는 시간이 끝나도 조용했다(2026-10-03 점검). 다음 세트를 남기면(마지막 세트가 바뀌면) 새
-   * 시각으로 바꿔 걸고, 세트를 지워 이미 지난 시각이 되거나 화면을 나가면 거둔다. 앱이 앞에 떠 있는 동안에는 알림이
-   * 안 뜨고 위의 소리가 알린다. 사파리 · PC 에서는 아무 일도 안 한다(lib/native-bridge.ts).
-   */
-  const restEndsAt =
-    lastAt != null && restTarget != null
-      ? Date.parse(lastAt) + restTarget * 1000
-      : null;
-  useEffect(() => {
-    if (restEndsAt == null || restEndsAt <= Date.now()) return;
-    nativeScheduleAlarm(
-      REST_ALARM_ID,
-      restEndsAt,
-      '쉬는 시간 끝',
-      '다음 세트를 시작할 차례예요'
-    );
-    return () => {
-      nativeCancelAlarm(REST_ALARM_ID);
-    };
-  }, [restEndsAt]);
+  const { arm } = useAlarm();
 
   /* 운동마다 남긴 세트 수 — 위 막대의 칸이 이만큼 찬다 */
   const setCounts = useMemo(() => {
@@ -835,10 +774,14 @@ export function SessionClient({
      * 소수 둘째 자리까지 남긴다(storedKg). 첫째 자리로 자르면 135lb 가
      * 61.2kg 이 되고, 되돌리면 134.9lb 가 된다 — 적은 적 없는 숫자다.
      */
-    const w = weight === '' ? null : storedKg(fromWeight(Number(weight), wUnit));
-    const c = count === '' ? null : Number(count);
+    const w = noInput
+      ? null
+      : weight === ''
+        ? null
+        : storedKg(fromWeight(Number(weight), wUnit));
+    const c = noInput ? plannedAmount(ex) : count === '' ? null : Number(count);
 
-    if (ex.needsWeight && (w == null || w <= 0)) {
+    if (!noInput && ex.needsWeight && (w == null || w <= 0)) {
       setError('무게를 적어주세요.');
       setField('weight');
       return;
@@ -1053,6 +996,24 @@ export function SessionClient({
 
   const countLabel = ex.inMinutes ? '분' : ex.isHold ? '초' : '회';
 
+  /*
+   * 무게 · 횟수를 적지 않는 운동(모빌리티 · 워밍업 스트레칭) — 2026-10-12 사용자: "무게나 횟수를 적지 않는 운동은 입력 칸을
+   * 없애라". 세트 완료만 누르고, 기록에는 처방의 횟수 · 시간을 담는다(없으면 1).
+   */
+  const noInput = NO_INPUT_CATEGORIES.has(ex.category);
+  /* 마지막 운동의 처방 세트를 다 남겼으면 큰 단추가 [운동 종료]가 된다(2026-10-12 사용자) */
+  const allDone =
+    at === list.length - 1 &&
+    editIndex < 0 &&
+    (ex.plannedSets ?? 1) > 0 &&
+    mine.length >= (ex.plannedSets ?? 1);
+  const openFinish = () => {
+    setFinishError(null);
+    setFinish(true);
+    /* 못 보낸 세트가 있으면 지금 한 번 더 보내 본다 */
+    void flush();
+  };
+
   /** 숫자를 누르면 그 칸을 고르고 자판을 연다 */
   const openPad = (which: 'weight' | 'count') => {
     setField(which);
@@ -1083,8 +1044,20 @@ export function SessionClient({
           type="button"
           onClick={() => setSheet(true)}
           aria-label="오늘 운동 목록 열기"
-          className="min-w-0 flex-1 text-left"
+          className="flex min-w-0 flex-1 items-center gap-2.5 text-left"
         >
+          {/*
+            목록 단추 — 2026-10-12 사용자: "목록 버튼이 심각하게 작다". 예전엔 막대 옆 14px 아이콘뿐이었다. 44px 알약에 글자 ·
+            몇 번째인지까지 — 막대를 눌러도 같이 열린다(이 단추 전체가 목록 열기).
+          */}
+          <span className="flex h-11 shrink-0 items-center gap-1.5 rounded-full bg-sky/12 px-3.5 text-[13px] font-semibold text-sky-strong">
+            <ListOrdered aria-hidden className="h-4 w-4" />
+            목록
+            <span className="tabular-nums">
+              {at + 1}/{list.length}
+            </span>
+          </span>
+          <span className="min-w-0 flex-1">
           <p className="truncate text-xs text-muted">{themeLabel}</p>
           {/*
             운동마다 한 칸 — 세트를 남길수록 그 칸이 찬다(처방 세트 수만큼이면 가득). 지금 보는 운동의 칸은
@@ -1092,7 +1065,6 @@ export function SessionClient({
             뿌듯하다(2026-10-01 '감성', 암케어 따라하기의 칸 막대와 같은 모양).
           */}
           <div className="mt-1.5 flex items-center gap-2">
-            <ListOrdered className="h-3.5 w-3.5 shrink-0 text-muted" />
             <span aria-hidden className="flex flex-1 gap-[3px]">
               {list.map((item, i) => {
                 const n = setCounts.get(item.id) ?? 0;
@@ -1117,19 +1089,12 @@ export function SessionClient({
                 );
               })}
             </span>
-            <span className="shrink-0 text-[11px] tabular-nums text-muted">
-              {at + 1}/{list.length}
-            </span>
           </div>
+          </span>
         </button>
         <button
           type="button"
-          onClick={() => {
-            setFinishError(null);
-            setFinish(true);
-            /* 못 보낸 세트가 있으면 지금 한 번 더 보내 본다 */
-            void flush();
-          }}
+          onClick={openFinish}
           disabled={ending}
           /* 누르는 자리는 44px, 보이는 알약은 그보다 작게 */
           className="group -my-1 flex min-h-11 shrink-0 items-center disabled:opacity-50"
@@ -1461,7 +1426,12 @@ export function SessionClient({
           />
         ) : (
           <>
-            {[
+            {noInput && editIndex < 0 && (
+              <p className="text-center text-xs text-muted">
+                {ex.prescription ? `${ex.prescription} · ` : ''}숫자 없이 세트만 체크해요
+              </p>
+            )}
+            {!noInput && [
               {
                 key: 'weight' as const,
                 label: `무게${!ex.needsWeight ? ' (없으면 비워두세요)' : ''}`,
@@ -1524,7 +1494,7 @@ export function SessionClient({
             ))}
 
             {/* 자판은 숫자를 누를 때만. 접으면 그만큼 위쪽이 넓어진다. */}
-            {pad && (
+            {pad && !noInput && (
               <div className="space-y-1.5 rounded-2xl bg-ink/6 p-1.5">
                 <NumberPad
                   onChange={field === 'weight' ? setWeight : setCount}
@@ -1557,6 +1527,7 @@ export function SessionClient({
           '지난번 그대로 담기'는 새 세트를 넣을 때 쓰는 것이라 그동안 감춘다.
         */}
             {!pad &&
+              !noInput &&
               (editIndex >= 0 ? (
                 <div className="flex items-center gap-2 rounded-xl bg-sky/10 px-3.5 py-1 text-xs text-sky">
                   <Pencil aria-hidden className="h-3.5 w-3.5 shrink-0" />
@@ -1610,7 +1581,8 @@ export function SessionClient({
         */}
             <button
               type="button"
-              onClick={save}
+              onClick={allDone ? openFinish : save}
+              disabled={allDone && ending}
               /* 낮은 화면에서 숫자판을 연 동안만 64px — 판과 같이 한 화면에 들어오게 */
               className={`flex h-[72px] w-full shrink-0 items-center justify-center gap-2 rounded-full bg-sky text-lg font-bold text-white transition-transform motion-safe:active:scale-[0.98] ${
                 pad ? 'short:h-16' : ''
@@ -1620,6 +1592,11 @@ export function SessionClient({
                 <>
                   <Pencil className="h-5 w-5" />
                   {`${editIndex + 1}세트 고치기`}
+                </>
+              ) : allDone ? (
+                <>
+                  <Check className="h-6 w-6" strokeWidth={2.6} />
+                  운동 종료
                 </>
               ) : (
                 <>
@@ -1647,10 +1624,13 @@ export function SessionClient({
               type="button"
               onClick={() => goTo(at + 1)}
               disabled={at === list.length - 1}
-              className="flex min-h-11 flex-1 items-center justify-center gap-1 rounded-full bg-ink/6 text-[13px] font-semibold text-ink transition active:bg-ink/12 disabled:opacity-30 motion-safe:active:scale-[0.98]"
+              className="flex min-h-11 min-w-0 flex-1 items-center justify-center gap-1 rounded-full bg-ink/6 px-3 text-[13px] font-semibold text-ink transition active:bg-ink/12 disabled:opacity-30 motion-safe:active:scale-[0.98]"
             >
-              다음 운동
-              <ChevronRight className="h-4 w-4" />
+              {/* 다음이 무엇인지 이름까지 — 목록을 안 열어도 보이게(2026-10-12) */}
+              <span className="truncate">
+                {at < list.length - 1 ? `다음 · ${list[at + 1].title}` : '다음 운동'}
+              </span>
+              <ChevronRight className="h-4 w-4 shrink-0" />
             </button>
           </div>
         )}

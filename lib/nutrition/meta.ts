@@ -56,14 +56,15 @@ export function isGoalKey(v: unknown): v is GoalKey {
 /**
  * 운동을 뺀 평소 움직임 — 기초대사량에 곱하는 수.
  *
+ * (2026-10-12 사용자: 팀에 소속되지 않은 사람이 많아 '팀 훈련' 대신 '평소 운동'으로 적는다.)
  * 앱에 적은 운동과 투구는 그날 기록에서 따로 더한다(OUT). 그래서 여기서는 팀 훈련처럼
  * 앱에 안 적히는 움직임까지만 센다. 일반 계산기의 '운동 많이 함(1.725)'을 고르면
  * 적어 둔 운동을 두 번 세게 된다.
  */
 export const ACTIVITIES = [
-  { key: 'low', label: '적음', hint: '주로 앉아서 지내요 · 팀 훈련 없음', factor: 1.3 },
-  { key: 'mid', label: '보통', hint: '주 3~4일 팀 훈련', factor: 1.5 },
-  { key: 'high', label: '많음', hint: '거의 매일 팀 훈련', factor: 1.7 },
+  { key: 'low', label: '적음', hint: '주로 앉아서 지내요 · 평소 운동 거의 없음', factor: 1.3 },
+  { key: 'mid', label: '보통', hint: '평소 주 3~4일 운동해요', factor: 1.5 },
+  { key: 'high', label: '많음', hint: '평소 거의 매일 운동해요', factor: 1.7 },
 ] as const;
 
 export type ActivityKey = (typeof ACTIVITIES)[number]['key'];

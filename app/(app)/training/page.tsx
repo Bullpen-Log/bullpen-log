@@ -5,8 +5,8 @@ import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
 import { requireUser } from '@/lib/dal';
-import { featureLocks, hasSeenTutorial, SETUP_PATH } from '@/lib/feature-locks';
-import { TabTutorial } from '@/components/tutorial/tab-tutorial';
+import { featureLocks, SETUP_PATH } from '@/lib/feature-locks';
+import { ChevronDown } from 'lucide-react';
 import { createPlaybackUrls } from '@/lib/storage';
 import { referenceThumbUrl } from '@/lib/reference-video';
 import { formatPrescription } from '@/lib/exercise-meta';
@@ -26,7 +26,6 @@ import { PlanForm } from '@/components/training-forms';
 import { ExerciseChecklist, type TodayExercise } from './exercise-list';
 import { AddExercise, type PickableExercise } from './add-exercise';
 import { TrainingNote } from './training-note';
-import { josa } from '@/lib/korean';
 import { TrainingSettingsButton } from './settings-button';
 import { RememberTrainingApp } from './remember-app';
 import { TrainingHome } from './training-home';
@@ -141,17 +140,8 @@ export default async function TrainingPage({
   const user = await requireUser();
   /* 처음 가입한 사람은 첫 설정(2026-10-09, lib/feature-locks.ts)을 마쳐야 연다 — 홈 · 암케어 · 메커니즘 모든 분기 앞 */
   if (featureLocks(user).training) redirect(SETUP_PATH.training);
-  /*
-   * 첫 설정을 마치고 처음 열면 이 탭 사용법을 한 번 보인다(components/tutorial/tab-tutorial.tsx). 아래 return 이
-   * 넷(홈 · 암케어 · 메커니즘 · 운동)이라 어느 칸으로 들어오든 같은 창이 뜨게 한 자리에서 감싼다.
-   * 앱 기본 사용법 투어(레이아웃의 TourGate)는 홈에서만 저절로 뜨므로 겹치지 않는다(app/(app)/videos/page.tsx 와 같다).
-   */
-  const withTutorial = (node: ReactNode) => (
-    <>
-      {node}
-      <TabTutorial tutorialKey="training" open={!hasSeenTutorial(user, 'training')} />
-    </>
-  );
+  /* 첫 설정 뒤 탭 사용법(TabTutorial)은 2026-10-12 사용자 요청으로 뺐다 — 감싸기 자리만 남긴다 */
+  const withTutorial = (node: ReactNode) => node;
   const today = now();
   const savedMinutes = user.dailyWorkoutMinutes ?? DEFAULT_WORKOUT_MINUTES;
 
@@ -528,7 +518,8 @@ export default async function TrainingPage({
           programView?.todayState !== 'active' && <StartWorkout resume={resume} />
         )}
 
-        {programStart && <ProgramStart props={programStart} />}
+        {/* 오늘 일정을 만든 날에는 프로그램 고르기를 숨긴다(2026-10-12 사용자) — 만들기 전에만 */}
+        {programStart && savedPlan == null && <ProgramStart props={programStart} />}
 
         {picked.halted ? (
           <Card className="space-y-2 border-warn-line bg-warn-bg">
@@ -614,11 +605,17 @@ export default async function TrainingPage({
                   분
                 </p>
               </div>
+              {/*
+                오늘 목표와 까닭 — 2026-10-12 사용자: "필요한 오늘의 운동목표와 설정이유만, 보기 간편하게". 자동 맞춤이면 그
+                까닭(auto.reason)이 테마 까닭보다 구체적이라 그것 하나만, 아니면 테마 까닭.
+              */}
+              {savedPlan.goal && (
+                <p className="text-sm font-semibold text-ink">목표 · {savedPlan.goal}</p>
+              )}
               <p className="text-sm leading-relaxed break-keep text-muted">
-                {savedPlan.theme.reason}
+                {savedPlan.auto?.reason ?? savedPlan.theme.reason}
               </p>
-              {/* 자동 맞춤이 정한 목표·시간과 그 이유 */}
-              {savedPlan.auto && <AutoNote auto={savedPlan.auto} />}
+              {savedPlan.auto?.painSuspected && <AutoNote auto={savedPlan.auto} />}
               {savedPlan.minutes < savedPlan.requestedMinutes && (
                 <p className="text-xs text-warn">
                   회복 데이라 {savedPlan.requestedMinutes}분 → {savedPlan.minutes}분
@@ -635,10 +632,14 @@ export default async function TrainingPage({
                 </p>
               )}
 
-              {/* 조건을 바꿔 다시 만들 수 있게 — 시간과 오늘 장비를 함께 고른다 */}
-              <div className="border-t border-sky-soft/30 pt-3">
-                {planForm(true, savedPlan.requestedMinutes)}
-              </div>
+              {/* 조건을 바꿔 다시 만들기 — 접어 둔다(펴야 시간 · 장비 고르개가 보인다) */}
+              <details className="group border-t border-sky-soft/30 pt-3">
+                <summary className="flex cursor-pointer list-none items-center gap-1 text-sm font-semibold text-sky-strong">
+                  조건 바꿔 다시 만들기
+                  <ChevronDown aria-hidden className="h-4 w-4 transition-transform group-open:rotate-180" />
+                </summary>
+                <div className="pt-3">{planForm(true, savedPlan.requestedMinutes)}</div>
+              </details>
             </Card>
 
             {/*
@@ -696,88 +697,6 @@ export default async function TrainingPage({
               </p>
             )}
 
-            {/*
-            장비 때문에 많이 빠졌으면, 무엇 하나만 더 있으면 얼마나 늘어나는지
-            알려준다. 목록이 왜 빈약한지 모른 채로 두지 않기 위해서다.
-
-            "가진 것이 아니라서"와 "오늘 못 써서"는 다른 이야기다. 덤벨을 가진
-            사람에게 "덤벨이 있으면"이라고 하면 틀린 말이 된다.
-          */}
-            {savedPlan.equipment.bestAddition && (
-              <p className="rounded-lg border border-line bg-surface px-4 py-3 text-[13px] text-muted">
-                <span className="font-semibold text-ink">
-                  {savedPlan.equipment.bestAddition.name}
-                </span>
-                {/*
-                조사를 글자로 박아두면 반드시 틀린다. '벤치이 있으면'이 실제로
-                화면에 나왔다 — 받침이 없는 이름에는 '가'가 붙어야 한다.
-              */}
-                {savedPlan.equipment.narrowed
-                  ? `${josa(savedPlan.equipment.bestAddition.name, '을/를')} 쓸 수 있으면 운동 ${savedPlan.equipment.bestAddition.unlocks}개가 더 나와요.`
-                  : `${josa(savedPlan.equipment.bestAddition.name, '이/가')} 있으면 운동 ${savedPlan.equipment.bestAddition.unlocks}개가 더 나와요.`}
-              </p>
-            )}
-
-            {/*
-            왜 이 운동들인지 — 만들 때 쓴 근거를 그대로 보여준다.
-
-            여기서 다시 계산하지 않는다. 만든 뒤에 체크인을 하면 근거만 새로
-            바뀌어서, "컨디션 3/10이라 무게 드는 운동을 뺐습니다"라고 적혀 있는데
-            목록에는 데드리프트가 있는 상태가 된다.
-          */}
-            <details className="rounded-2xl border border-line bg-surface p-(--block-pad)">
-              <summary className="cursor-pointer text-sm font-medium text-ink">
-                왜 이 운동인가요?
-              </summary>
-              <ul className="mt-3 space-y-1.5">
-                {[
-                  savedPlan.theme.reason,
-                  /* 자동 맞춤 — 규칙이 정한 것 */
-                  ...(savedPlan.auto?.rules ?? []),
-                  ...(savedPlan.goal
-                    ? [
-                        savedPlan.auto
-                          ? `자동 맞춤이 정한 목표 '${savedPlan.goal}'에 맞춰 시간을 배분`
-                          : `목표 '${savedPlan.goal}'에 맞춰 시간을 배분`,
-                      ]
-                    : []),
-                  ...(savedPlan.levelExcludedCount > 0
-                    ? [
-                        `웨이트 경력 ${user.trainingLevel} → 아직 이른 운동 ${savedPlan.levelExcludedCount}개 제외`,
-                      ]
-                    : []),
-                  ...savedPlan.basis,
-                  ...savedPlan.notes,
-                ].map((line) => (
-                  <li
-                    key={line}
-                    className="flex gap-2 text-[13px] leading-relaxed text-muted"
-                  >
-                    <span aria-hidden className="text-sky">
-                      ·
-                    </span>
-                    {line}
-                  </li>
-                ))}
-              </ul>
-              {(savedPlan.excluded.length > 0 ||
-                savedPlan.equipment.excludedCount > 0) && (
-                <p className="mt-3 border-t border-line pt-3 text-xs leading-relaxed text-muted">
-                  제외:{' '}
-                  {[
-                    ...(savedPlan.equipment.excludedCount > 0
-                      ? [
-                          `${savedPlan.equipment.narrowed ? '오늘 쓸 수 있는' : '가진'} 장비로 할 수 없음 ${savedPlan.equipment.excludedCount}개`,
-                        ]
-                      : []),
-                    ...(savedPlan.levelExcludedCount > 0
-                      ? [`경력 대비 이른 난이도 ${savedPlan.levelExcludedCount}개`]
-                      : []),
-                    ...savedPlan.excluded.map((e) => `${e.rule} ${e.count}개`),
-                  ].join(' · ')}
-                </p>
-              )}
-            </details>
           </>
         )}
       </div>

@@ -100,7 +100,7 @@ export function nutritionStepTitle(
     case 'activity':
       return {
         title: '운동과 훈련을 뺀 하루는 어때요?',
-        desc: '앱에 적는 운동 · 투구는 그날 따로 더해요. 여기서는 팀 훈련처럼 앱에 안 적히는 움직임만 봐요.',
+        desc: '앱에 적는 운동 · 투구는 그날 따로 더해요. 여기서는 평소 운동 · 일상처럼 앱에 안 적히는 움직임만 봐요.',
       };
     case 'macroPreset':
       return {

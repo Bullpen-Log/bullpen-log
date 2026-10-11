@@ -1,6 +1,7 @@
 import 'server-only';
 import { cache } from 'react';
 import { prisma } from '@/lib/prisma';
+import { sessionBurnMixes } from '@/lib/nutrition/burn-load';
 import type { AgeBand } from '@/lib/nutrition/age';
 import { trainingDay, type TrainingDayDetail } from '@/lib/report/training-history';
 import {
@@ -114,7 +115,7 @@ export async function loadDayDetail(
       prisma.dailyCheckin.findUnique({
         where: { userId_date: { userId: user.id, date: day } },
       }),
-      prisma.trainingSession.findMany({ where, select: { activeSeconds: true } }),
+      prisma.trainingSession.findMany({ where, select: { id: true, activeSeconds: true } }),
       prisma.pitchLog.findMany({
         where,
         select: { sessionType: true, pitchCount: true, intensity: true },
@@ -127,9 +128,11 @@ export async function loadDayDetail(
   /* ── 영양: 합과 그날 목표 ── */
   const weightKg = recentKg ?? user.weightKg;
   const burnKg = weightKg ?? 75;
+  /* 운동마다의 강도 · 세트로 셈한다(lib/nutrition/burn.ts trainingBurn) */
+  const mixes = await sessionBurnMixes(sessions.map((s) => s.id));
   const burn = totalBurn(
     [
-      ...sessions.map((s) => trainingBurn(s.activeSeconds, burnKg)),
+      ...sessions.map((s) => trainingBurn(s.activeSeconds, burnKg, mixes.get(s.id))),
       ...pitches.map((p) =>
         pitchingBurn(p.sessionType, p.pitchCount, p.intensity, burnKg)
       ),

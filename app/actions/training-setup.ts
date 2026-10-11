@@ -258,10 +258,14 @@ export async function generateTodayPlan(formData: FormData) {
    *
    * 그래서 지금 저장돼 있는 일정을 씨앗에 섞는다. 같은 날이라도 지금 목록과는
    * 다른 것이 나오고, 만들고 나면 그것이 저장되므로 다음에 또 눌러도 계속
-   * 달라진다. 아직 아무것도 없으면 날짜만으로 간다.
+   * 달라진다. 아직 아무것도 없으면 사용자 id 와 날짜만으로 간다.
+   *
+   * 사용자 id 를 맨 앞에 둔다(2026-10-11, 트레이닝 추천 2판 P1). 씨앗이 날짜뿐이면 경력 · 장비 · 목표 ·
+   * 시간이 같은 두 사람은 같은 날 글자 하나 안 다른 목록을 받았다(가상 선수 기준선 ④ 168/168일). 맨 앞인
+   * 까닭은 theme.ts 의 mix 주석 — 씨앗은 앞에 붙어야 차이가 뒤따르는 계산 전체로 퍼진다.
    */
   const previousIds = readPlanExerciseIds(before?.plan);
-  const rotationSeed = [toDateKey(today), ...previousIds].join('|');
+  const rotationSeed = [user.id, toDateKey(today), ...previousIds].join('|');
 
   /*
    * 자동 맞춤이면 여기서 목표·시간을 규칙으로 정한다.

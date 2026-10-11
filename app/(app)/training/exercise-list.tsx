@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react';
 import { unstable_rethrow } from 'next/navigation';
-import { ChevronDown, History, Play, X } from 'lucide-react';
+import { ChevronDown, Play, X } from 'lucide-react';
 import { setExerciseDone } from '@/app/actions/exercise-log';
 import { CHECK_CONNECTION } from '@/lib/offline';
 import { removeFromTodayPlan } from '@/app/actions/plan-edit';
@@ -10,14 +10,12 @@ import { SLOT_LABELS, SLOT_ORDER, type SlotKey } from '@/lib/report/theme';
 import { formatAmount } from '@/lib/exercise-meta';
 import { useWeightUnit } from '@/components/use-units';
 import type { PastAmount } from '@/lib/report/exercise-recent';
-import { ExerciseBadges } from '@/components/meta-badges';
 import { CategoryBadge } from '@/components/category-badge';
 import { FavoriteButton } from '@/components/favorite-button';
 import { SWIPE_ACTION, SwipeRow } from '@/components/swipe-row';
 import { toggleExerciseFavorite } from '@/app/actions/favorite';
 import { LibraryVideo } from '@/components/library-video';
 import { CheckRow } from './check-row';
-import { DisclosureButton } from '@/components/disclosure';
 
 export type TodayExercise = {
   id: string;
@@ -233,109 +231,42 @@ function shortDate(key: string): string {
 }
 
 /**
- * 지난번에 얼마나 했는지 보여주는 줄.
- *
- * 무게를 올릴지 횟수를 늘릴지는 지난번 숫자를 봐야 정할 수 있다. 기록 화면까지
- * 넘어가서 찾아보게 하면 아무도 안 보므로, 오늘 할 운동에 그대로 붙여 둔다.
- *
- * 완료 단추 안에 넣을 수는 없다(단추 안의 단추). 같은 테두리 안에 아래 줄로
- * 붙여 한 덩어리로 보이게 한다.
+ * 운동 줄의 밑 한 줄 — 지난번 기록과 영상 단추를 한 줄에(2026-10-12 사용자: "운동 목록을 보기 간편하게").
+ * 예전에는 '영상 보기' 줄과 '지난번' 줄이 따로 있어 운동 하나가 세 층이었다. 영상은 누를 때만 받는다(LibraryVideo).
  */
-function PastRecord({ title, past }: { title: string; past: PastAmount[] }) {
+function RowFooter({ ex }: { ex: TodayExercise }) {
   const [open, setOpen] = useState(false);
   /* 무게는 고른 단위로(설정 → 단위). 기록은 kg 그대로다. */
   const unit = useWeightUnit();
-
-  const last = past[0];
+  const last = ex.past[0];
   const text = last ? formatAmount(last, unit) : null;
-  // 숫자가 하나도 안 적힌 기록은 서버에서 이미 걸러 오지만, 여기서도 막아 둔다.
-  if (!last || !text) return null;
-
-  const line = (
-    <span className="min-w-0 flex-1 truncate text-left">
-      <span className="font-medium text-muted">지난번 {shortDate(last.date)}</span>
-      <span className="mx-1.5 text-line-strong">·</span>
-      <span className="font-semibold text-ink/75">{text}</span>
-    </span>
-  );
-
-  /*
-   * 한 번밖에 안 했으면 펼칠 것이 없다. 눌러도 아무 일이 없는 단추를 두면
-   * 고장 난 줄 안다.
-   */
-  if (past.length === 1) {
-    return (
-      <div className="flex items-center gap-2 border-t border-line px-4 py-2.5 text-xs">
-        <History aria-hidden className="h-3.5 w-3.5 shrink-0 text-muted" />
-        {line}
+  const hasVideo = Boolean(ex.videoPath || ex.referenceVideoId);
+  if (!text && !hasVideo) return null;
+  return (
+    <div className="border-t border-line">
+      <div className="flex min-h-10 items-center gap-2 pr-1.5 pl-4 text-xs">
+        {text ? (
+          <span className="min-w-0 flex-1 truncate">
+            <span className="text-muted">지난번 {shortDate(last.date)}</span>
+            <span className="mx-1.5 text-line-strong">·</span>
+            <span className="font-semibold text-ink/75">{text}</span>
+          </span>
+        ) : (
+          <span className="flex-1" />
+        )}
+        {hasVideo && (
+          <button
+            type="button"
+            onClick={() => setOpen((v) => !v)}
+            aria-expanded={open}
+            aria-label={`${ex.title} 영상 ${open ? '접기' : '보기'}`}
+            className="inline-flex min-h-10 shrink-0 items-center gap-1 rounded-full px-3 font-semibold text-sky-strong transition-colors hover:bg-sky/10"
+          >
+            {open ? <ChevronDown aria-hidden className="h-3.5 w-3.5 rotate-180" /> : <Play aria-hidden className="h-3.5 w-3.5" />}
+            {open ? '접기' : '영상'}
+          </button>
+        )}
       </div>
-    );
-  }
-
-  return (
-    <div className="border-t border-line">
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        aria-expanded={open}
-        aria-label={`${title} 지난 기록 ${open ? '접기' : '펼치기'}`}
-        className="flex w-full items-center gap-2 px-4 py-2.5 text-xs transition-colors hover:bg-surface-2"
-      >
-        <History aria-hidden className="h-3.5 w-3.5 shrink-0 text-muted" />
-        {line}
-        <ChevronDown
-          aria-hidden
-          className={`h-3.5 w-3.5 shrink-0 text-muted transition-transform ${
-            open ? 'rotate-180' : ''
-          }`}
-        />
-      </button>
-
-      {open && (
-        <ul className="space-y-1 px-4 pb-2.5 pl-[2.1rem] text-xs">
-          {past.slice(1).map((p) => {
-            const t = formatAmount(p, unit);
-            if (!t) return null;
-            return (
-              <li key={p.date} className="flex gap-2">
-                <span className="w-10 shrink-0 tabular-nums text-muted">
-                  {shortDate(p.date)}
-                </span>
-                <span className="text-ink/70">{t}</span>
-              </li>
-            );
-          })}
-        </ul>
-      )}
-    </div>
-  );
-}
-
-/**
- * '영상 보기' — 누르면 그 운동의 영상(참고 영상이면 유튜브)과 설명이 펼쳐진다.
- *
- * 2026-10-04 사용자분: "생성된 운동 일정에서 참고 영상을 클릭해도 안 나오고, 버튼이 너무 작다". 예전에는 제목 옆에 10px
- * 글자 '참고 영상'만 있었는데, 줄 전체가 체크 단추(check-row.tsx)라 그 글자를 누르면 영상 대신 체크가 됐다 — 목록에는
- * 영상을 여는 길이 아예 없었다. 그래서 체크 줄 밖에 따로 누르는 줄(44px)을 둔다. 직접 찍었는지 참고 영상인지는 쓰는
- * 사람에게는 알릴 일이 아니라 이름은 늘 '영상 보기'(2026-10-04 '앱 안에 머물기' — 촬영 상황은 관리자의 라이브러리에만).
- *
- * 영상은 누르기 전에는 받지 않고(LibraryVideo), 펼친 동안에만 심는다 — 접은 뒤에도 재생기가 남아 있으면 소리 없이 계속
- * 돈다(암케어 '자세·영상 보기'와 같은 방식, armcare-media.tsx).
- */
-function ExerciseVideo({ ex }: { ex: TodayExercise }) {
-  const [open, setOpen] = useState(false);
-  if (!ex.videoPath && !ex.referenceVideoId) return null;
-  const label = '영상';
-  return (
-    <div className="border-t border-line">
-      <DisclosureButton
-        open={open}
-        onClick={() => setOpen((v) => !v)}
-        icon={Play}
-        label={`${label} 보기`}
-        openLabel={`${label} 접기`}
-        ariaLabel={`${ex.title} ${label} ${open ? '접기' : '보기'}`}
-      />
       {open && (
         <div className="space-y-3 px-4 pb-4">
           <LibraryVideo
@@ -434,17 +365,9 @@ function ExerciseList({
                   warning={ex.unsafe ? '오늘 몸 상태에는 권하지 않는 운동이에요' : null}
                   thumbUrl={ex.thumbUrl}
                   thumbClassName="h-14 w-20 sm:h-16 sm:w-24"
-                >
-                  <ExerciseBadges
-                    bodyParts={ex.bodyParts}
-                    intensity={ex.intensity}
-                    difficulty={ex.difficulty}
-                    equipment={ex.equipment}
-                  />
-                </CheckRow>
+                />
 
-                <ExerciseVideo ex={ex} />
-                <PastRecord title={ex.title} past={ex.past} />
+                <RowFooter ex={ex} />
               </div>
             </SwipeRow>
 

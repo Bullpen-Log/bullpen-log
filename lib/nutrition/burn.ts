@@ -1,4 +1,5 @@
 import { isRestSession } from '@/lib/session-type';
+import { intensityLevel } from '@/lib/exercise-meta';
 
 /**
  * 운동으로 쓴 칼로리(OUT) — 그날 적어 둔 기록에서 대략 셈한다.
@@ -35,15 +36,46 @@ export function kcalFor(met: number, weightKg: number, minutes: number) {
   return Math.max(0, ((met - 1) * 3.5 * weightKg * minutes) / 200);
 }
 
-/** 트레이닝 한 판. 본운동 시간만 센다(워밍업은 빠진다 — TrainingSession.activeSeconds). */
-export function trainingBurn(activeSeconds: number, weightKg: number): BurnItem | null {
+/** 한 판에서 한 운동 — 분류 · 강도(라이브러리 이름) · 남긴 세트 수 */
+export type BurnMixItem = { category: string; intensity: string; sets: number };
+
+/**
+ * 운동 하나의 MET — 라이브러리 강도(매우 낮음 ~ 매우 높음)와 분류로(Compendium of Physical Activities 어림).
+ *   스트레칭 · 가동성 2.3(02101) → 가벼운 맨몸 3.5 → 보통 웨이트 3.5~5(02054) → 힘든 웨이트 6(02050 위쪽)
+ *   유산소는 걷기 3 ~ 힘든 자전거 · 달리기 10. 파워(점프 · 메디신볼)는 같은 강도의 웨이트보다 1 높게.
+ */
+export function exerciseMet(category: string, intensity: string): number {
+  const level = Math.min(5, Math.max(1, intensityLevel(intensity)));
+  if (category === '유산소') return [3, 4.5, 6, 8, 10][level - 1];
+  if (category === '모빌리티' || category === '워밍업') return 2.3;
+  const base = [2.3, 3, 4, 5, 6][level - 1];
+  return category === '파워' ? base + 1 : base;
+}
+
+/**
+ * 트레이닝 한 판. 본운동 시간만 센다(워밍업은 빠진다 — TrainingSession.activeSeconds).
+ *
+ * 2026-10-12 사용자: "오늘 수행한 운동들의 강도와 수행시간으로". 남긴 세트가 있으면 본운동 시간을 세트 수 몫으로 운동마다
+ * 나눠 그 운동의 MET(exerciseMet)로 센다 — 세트 수 가중 평균 MET 와 같다. 세트가 없으면(옛 판 · 체크만 한 날) 예전처럼
+ * 힘든 웨이트 하나(5 MET)로 본다.
+ */
+export function trainingBurn(
+  activeSeconds: number,
+  weightKg: number,
+  mix: readonly BurnMixItem[] = []
+): BurnItem | null {
   const minutes = Math.round(activeSeconds / 60);
   if (minutes < 1) return null;
+  const sets = mix.reduce((n, m) => n + m.sets, 0);
+  const met =
+    sets > 0
+      ? mix.reduce((sum, m) => sum + exerciseMet(m.category, m.intensity) * m.sets, 0) / sets
+      : STRENGTH_MET;
   return {
     kind: 'training',
     label: `트레이닝 ${minutes}분`,
     minutes,
-    kcal: Math.round(kcalFor(STRENGTH_MET, weightKg, minutes)),
+    kcal: Math.round(kcalFor(met, weightKg, minutes)),
   };
 }
 
