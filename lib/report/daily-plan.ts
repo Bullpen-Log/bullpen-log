@@ -15,6 +15,8 @@ import {
   effectiveMinutes,
   pickForTheme,
   conditioningDay,
+  painAvoidedSide,
+  steerFromEmptyMain,
   type SlotKey,
   type ThemeKey,
 } from '@/lib/report/theme';
@@ -156,7 +158,12 @@ export function buildDailyPlan<T extends ExerciseLike>({
   recentIds: Set<string>;
   /** 운동별로 몇 세션 전에 했는가. 오래 안 한 것부터 내보내는 데 쓴다. */
   sessionsAgo?: Map<string, number>;
-  /** 아직 안 해본 운동들의 순서를 섞는 씨앗. 보통은 오늘 날짜. */
+  /**
+   * 아직 안 해본 운동들의 순서를 섞는 씨앗.
+   *
+   * 앱은 늘 '사용자 id|날짜|지금 목록…'을 넣는다(app/actions/training-setup.ts). 안 주면 날짜(facts.asOf)만 —
+   * 그러면 설정이 같은 두 사람이 같은 날 같은 목록을 받으니, 시험 · 도구 밖에서는 꼭 넣는다.
+   */
   rotationSeed?: string;
   lastLowerKey: string | null;
   lastUpperKey: string | null;
@@ -197,7 +204,7 @@ export function buildDailyPlan<T extends ExerciseLike>({
   const goalName = trainingGoal ?? goalForUnchosen(preferredWorkout);
   /* 목표에 없는 부위는 여기서 걸러 둔다 — 아래로는 유효한 값만 흐른다 */
   const chosenFocus = validFocus(goalName, trainingFocus);
-  const theme = decideTheme({
+  const decided = decideTheme({
     facts,
     plan,
     lastLowerKey,
@@ -210,9 +217,24 @@ export function buildDailyPlan<T extends ExerciseLike>({
    * 고른 부위가 오늘의 날과 맞을 때만 쓴다. 통증 때문에 날이 바뀌면(theme.ts 의 steerAroundPain —
    * '상체 밀기'를 골랐는데 어깨가 아파 하체 날) 그 부위로 좁히면 본운동이 통째로 빈다.
    */
-  const focus = findFocus(chosenFocus)?.theme === theme.key ? chosenFocus : null;
-  const minutes = effectiveMinutes(theme.key, requestedMinutes);
+  const focus = findFocus(chosenFocus)?.theme === decided.key ? chosenFocus : null;
   const goal = findGoal(goalName);
+  /*
+   * 근력 날인데 그쪽 본운동 후보가 0 이면 날을 바꾼다(theme.ts 의 steerFromEmptyMain — 반대쪽, 그것도 없거나 어제
+   * 했으면 보조 · 코어). 후보는 안전 거르기를 지난 것만 센다. 부위를 좁힌 날은 바꾸지 않는다(focus 가 그대로 산다).
+   * 통증 때문에 피한 쪽(steerAroundPain 이 비켜 간 쪽)으로는 되돌아가지 않는다 — 그때는 보조 · 코어.
+   */
+  const theme = steerFromEmptyMain({
+    day: decided,
+    candidates: picked.candidates,
+    goalName: goal.name,
+    focus,
+    lastLowerKey,
+    lastUpperKey,
+    asOf: facts.asOf,
+    avoid: painAvoidedSide(facts),
+  });
+  const minutes = effectiveMinutes(theme.key, requestedMinutes);
 
   const themed = pickForTheme({
     /* 목표에 맞춘 횟수로 시간을 센다 — 화면 · 운동 화면도 같은 값을 쓴다(goal-prescription.ts) */
@@ -280,4 +302,108 @@ export function readDailyPlan(value: unknown): DailyPlan | null {
   const plan = value as Partial<DailyPlan>;
   if (plan.version !== 1 || !Array.isArray(plan.picks)) return null;
   return plan as DailyPlan;
+}
+
+/* ------------------------- 하체 · 상체를 번갈아 돌릴 마지막 날 ------------------------- */
+
+export type StrengthSide = 'lower' | 'upper';
+
+/** 어디서 온 날인가 — 완료 기록(done) · 저장된 일정(planned) · 없음 */
+export type StrengthDateSource = 'done' | 'planned' | null;
+
+export type StrengthDates = {
+  lower: string | null;
+  upper: string | null;
+  source: { lower: StrengthDateSource; upper: StrengthDateSource };
+};
+
+/**
+ * 저장된 일정이 '그날 근력 날'로 세어지는 조건 — 하체 · 상체 날이고 본운동 구간이 실제로 있었던 날.
+ *
+ * 컨디셔닝 목표의 날은 이름이 '컨디셔닝 데이'여도 key 는 lower/upper 로 남는데(theme.ts 의 conditioningDay — 번갈아 가는
+ * 차례를 다음 근력 날로 넘기려고), 본운동(무게)이 없는 날이라 세지 않는다. 그래서 key 가 아니라 본운동 구간이 있었는지로 본다.
+ * 모양이 안 맞는 옛 줄(readDailyPlan 이 null)은 건너뛴다.
+ */
+export function plannedStrengthSide(value: unknown): StrengthSide | null {
+  const plan = readDailyPlan(value);
+  if (!plan) return null;
+  if (plan.theme.key !== 'lower' && plan.theme.key !== 'upper') return null;
+  if (!plan.picks.some((p) => p.slot === 'main')) return null;
+  return plan.theme.key;
+}
+
+/**
+ * 최근 기간 안에 하체 · 상체 스트렝스를 마지막으로 '한' 날 — 완료 기록이 먼저, 없는 날은 저장된 일정으로.
+ *
+ * 2026-10-11 (트레이닝 추천 2판 P1) 전에는 완료 기록만 봤다. 마침을 안 누르는 사람은 기록이 늘 비어 있어 날짜 홀짝
+ * (theme.ts 의 예비 규칙 — (월+일)%2)으로 떨어졌고, 사흘 주기로 등판하는 구원 투수는 그 홀짝이 등판 주기와 맞물려
+ * 근력 날이 전부 하체가 됐다(기준선 구원B 하체 5 · 상체 0). 일정을 만들고 안 눌렀어도 몸은 그 계획을 받았다고 본다
+ * (가정 — 계획을 세우고 안 한 날도 '한 날'로 센다. 반대로 하면 홀짝으로 돌아간다).
+ *
+ * 규칙
+ *   같은 날에 완료 기록이 있으면 그날은 완료 기록만 본다 — 계획은 하체였는데 상체를 직접 더해 마쳤으면 상체를 한 날이다.
+ *   완료 기록이 없는 날은 저장된 일정(plannedStrengthSide)으로 센다.
+ *   오늘 것은 넣지 않는다 — 오늘 일정을 '다시 만들기'할 때마다 오늘의 차례가 뒤집히면 안 된다(gather.ts 의 원칙 그대로).
+ *   둘 다 없으면 null — theme.ts 가 날짜 홀짝으로 간다(처음 쓰는 사람만).
+ *
+ * 부르는 쪽(gather.ts · 기준선 도구 · 자체 시험)이 같은 기간(ROTATION_LOOKBACK_DAYS)으로 잘라 넘기고, 재활 체크 · 암케어는
+ * 그쪽에서 뺀다. DB 함수가 아니라 여기 두는 까닭은 도구 · 시험이 같은 규칙을 그대로 쓰게 하려는 것이다.
+ */
+export function strengthDatesFrom({
+  done,
+  planned,
+  todayKey,
+}: {
+  /** 완료한 운동 — 날짜 키(YYYY-MM-DD)와 카테고리 */
+  done: { date: string; category: string }[];
+  /** 저장된 일정 — 날짜 키와 DailyTrainingSetup.plan 그대로 */
+  planned: { date: string; plan: unknown }[];
+  /** 오늘(YYYY-MM-DD) — 이날부터는 안 본다 */
+  todayKey: string;
+}): StrengthDates {
+  const sideOf = (category: string): StrengthSide | null =>
+    category === '하체 스트렝스'
+      ? 'lower'
+      : category === '상체 스트렝스'
+        ? 'upper'
+        : null;
+
+  /* 날짜 → 그날 완료한 쪽(들). 근력이 아닌 완료만 있는 날은 여기 안 들어가 계획으로 센다. */
+  const doneByDay = new Map<string, Set<StrengthSide>>();
+  for (const d of done) {
+    if (d.date >= todayKey) continue;
+    const side = sideOf(d.category);
+    if (!side) continue;
+    const set = doneByDay.get(d.date) ?? new Set<StrengthSide>();
+    set.add(side);
+    doneByDay.set(d.date, set);
+  }
+
+  const latest: Record<
+    StrengthSide,
+    { key: string; source: StrengthDateSource } | null
+  > = {
+    lower: null,
+    upper: null,
+  };
+  const bump = (side: StrengthSide, key: string, source: StrengthDateSource) => {
+    const cur = latest[side];
+    if (!cur || key > cur.key) latest[side] = { key, source };
+  };
+  for (const [key, sides] of doneByDay) {
+    for (const side of sides) bump(side, key, 'done');
+  }
+  for (const p of planned) {
+    if (p.date >= todayKey || doneByDay.has(p.date)) continue;
+    const side = plannedStrengthSide(p.plan);
+    if (side) bump(side, p.date, 'planned');
+  }
+  return {
+    lower: latest.lower?.key ?? null,
+    upper: latest.upper?.key ?? null,
+    source: {
+      lower: latest.lower?.source ?? null,
+      upper: latest.upper?.source ?? null,
+    },
+  };
 }
