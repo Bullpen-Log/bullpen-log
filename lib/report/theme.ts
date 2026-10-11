@@ -511,6 +511,20 @@ function steerAroundPain(day: SessionTheme, facts: ReportFacts): SessionTheme {
   return { ...day, reason: note + day.reason };
 }
 
+/**
+ * 통증 때문에 피해야 할 근력 쪽 — steerAroundPain 과 같은 판정. 상체 쪽(어깨 · 팔꿈치 · 손목)만 아프면 'upper',
+ * 허리 · 하체 쪽만 아프면 'lower', 둘 다거나 없으면 null. 본운동 후보가 비어 날을 바꿀 때(steerFromEmptyMain) 아픈 쪽으로
+ * 되돌아가지 않게 쓴다(2026-10-12 검토에서 나온 구멍 — 허리가 아파 상체 날로 피했는데 상체 후보가 없다고 하체로 되돌렸다).
+ */
+export function painAvoidedSide(facts: ReportFacts): 'lower' | 'upper' | null {
+  const { parts } = painNote(facts);
+  const upper = parts.some((p) => UPPER_PAIN_PARTS.includes(p));
+  const lower = parts.some((p) => LOWER_PAIN_PARTS.includes(p));
+  if (upper && !lower) return 'upper';
+  if (lower && !upper) return 'lower';
+  return null;
+}
+
 type DecideThemeInput = {
   facts: ReportFacts;
   plan: PitchPlan;
@@ -757,7 +771,8 @@ export type SlotKey = 'cardio' | 'mobility' | 'main' | 'core' | 'prehab' | 'armc
  * 본운동 후보가 하나도 없을 때 다른 운동으로 채우는 대비책의 개수 상한(P1, 2026-10-11).
  *
  * 둘이면 '본운동이 비었다'는 사실이 보이면서도 그날이 통째로 다른 부위의 날이 되지는 않는다. 날 자체를 바꾸는 것은
- * steerFromEmptyMain 이 먼저 한다 — 여기까지 오는 날은 사용자가 부위를 좁힌 날뿐이다.
+ * steerFromEmptyMain 이 먼저 한다 — 여기까지 오는 날은 사용자가 부위를 좁힌 날, 그리고 보조 날에 코어 후보가 없는 날이다
+ * (보조 날의 코어 자리도 slot 이 'main' 이라 같은 상한이 걸린다 — 예전엔 여섯까지 채웠다).
  */
 const FALLBACK_MAX_COUNT = 2;
 
@@ -1220,6 +1235,7 @@ export function steerFromEmptyMain({
   lastLowerKey,
   lastUpperKey,
   asOf,
+  avoid = null,
 }: {
   day: SessionTheme;
   /** 안전 거르기를 지난 후보(selectCandidates) — 그 안에서만 센다 */
@@ -1230,6 +1246,8 @@ export function steerFromEmptyMain({
   lastUpperKey: string | null;
   /** 오늘(YYYY-MM-DD) */
   asOf: string;
+  /** 통증 때문에 피해야 할 쪽(painAvoidedSide) — 그쪽으로는 되돌아가지 않는다 */
+  avoid?: 'lower' | 'upper' | null;
 }): SessionTheme {
   if (day.key !== 'lower' && day.key !== 'upper') return day;
   if (focus) return day;
@@ -1243,21 +1261,20 @@ export function steerFromEmptyMain({
   const otherLast = other === 'lower' ? lastLowerKey : lastUpperKey;
   const yesterday = shiftDateKey(asOf, -1);
 
-  if (otherCount > 0 && otherLast !== yesterday) {
+  if (otherCount > 0 && otherLast !== yesterday && other !== avoid) {
     return {
       key: other,
       label: other === 'lower' ? '하체 스트렝스 데이' : '상체 스트렝스 데이',
-      reason: `${day.reason} ${part} 운동이 없어 오늘은 ${otherPart}를 해요. 라이브러리나 장비를 더하면 ${part} 날이 생겨요.`,
+      reason: `${day.reason} ${part} 운동이 없어 오늘은 ${otherPart}를 해요. 설정에서 장비를 더하면 ${part} 날이 생겨요.`,
     };
   }
-  return {
-    key: 'assist',
-    label: '보조·코어 데이',
-    reason:
-      otherCount > 0
-        ? `${day.reason} ${part} 운동이 없고 ${otherPart}는 어제 했어요. 오늘은 코어와 보강을 해요.`
-        : `${day.reason} 하체 · 상체 운동이 모두 없어 오늘은 코어와 보강을 해요. 라이브러리나 장비를 더하면 근력 날이 생겨요.`,
-  };
+  const why =
+    otherCount === 0
+      ? '하체 · 상체 운동이 모두 없어 오늘은 코어와 보강을 해요. 설정에서 장비를 더하면 근력 날이 생겨요.'
+      : other === avoid
+        ? `${part} 운동이 없고 ${otherPart}는 아픈 곳이라 쉬어요. 오늘은 코어와 보강을 해요.`
+        : `${part} 운동이 없고 ${otherPart}는 어제 했어요. 오늘은 코어와 보강을 해요.`;
+  return { key: 'assist', label: '보조·코어 데이', reason: `${day.reason} ${why}` };
 }
 
 /**
@@ -1830,7 +1847,8 @@ export function pickForTheme<T extends ThemedExercise>({
      *
      * 2026-10-11 (P1 '대비책 상한') 부터 두 개까지만 채운다(FALLBACK_MAX_COUNT). 예전에는 구간 상한(여덟)까지 채워,
      * 상체 후보가 없는 날이 사실상 하체 날이 됐다. 날 자체는 이제 daily-plan.ts 가 steerFromEmptyMain 으로 먼저
-     * 바꾸므로 여기까지 오는 날은 사용자가 부위를 좁힌 날뿐이다 — 그날은 고른 뜻을 지키고 알림만 남긴다.
+     * 바꾸므로 여기까지 오는 날은 사용자가 부위를 좁힌 날, 그리고 보조 날에 코어 후보가 없는 날이다 — 고른 뜻을
+     * 지키고(또는 보조 날을 보조 날로 두고) 알림만 남긴다.
      */
     if (chosen.length === 0 && spec.slot === 'main') {
       const label = SLOT_LABELS[spec.slot].label;
@@ -1846,6 +1864,16 @@ export function pickForTheme<T extends ThemedExercise>({
           taken.has(ex.id) ||
           ex.category === '모빌리티' ||
           ex.category === '암케어'
+        ) {
+          continue;
+        }
+        /*
+         * 보조 날(무게 대신 코어와 보강)의 코어 자리는 스트렝스 · 파워로 메우지 않는다 — 어제 한 쪽을 피하려고
+         * 보조로 온 날(steerFromEmptyMain)에 그쪽 무게가 뒷문으로 들어오면 안 된다(2026-10-12 검토).
+         */
+        if (
+          theme === 'assist' &&
+          (ex.category.endsWith('스트렝스') || ex.category === '파워')
         ) {
           continue;
         }

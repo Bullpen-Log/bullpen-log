@@ -94,6 +94,7 @@ import {
   effectiveMinutes,
   estimateMinutes,
   hardOuting,
+  painAvoidedSide,
   painRecoveryReason,
   pickForTheme,
   plannedOuting,
@@ -8530,6 +8531,51 @@ console.log(
       ),
     focused.text
   );
+  /*
+   * 통증 때문에 피한 쪽으로는 되돌아가지 않는다(2026-10-12 검토에서 나온 구멍). 어제 허리 통증 → steerAroundPain 이 하체 차례를
+   * 상체로 비켜 가는데, 상체 후보가 0 이면 steerFromEmptyMain 이 하체로 되돌렸다. 이제 그때는 보조 · 코어 날.
+   */
+  {
+    const painFacts = p0Facts({
+      today: { condition: 8 },
+      yesterday: { lowerBack: '통증' },
+    });
+    const painPlan = buildPitchPlan(painFacts);
+    const byId = new Map(noUpper.map((e) => [e.id, e]));
+    const buildWith = (pool: typeof library) =>
+      buildDailyPlan({
+        user: { ownedEquipment: [], trainingLevel: null },
+        facts: painFacts,
+        plan: painPlan,
+        library: pool,
+        availableToday: null,
+        requestedMinutes: 60,
+        trainingGoal: '근력 향상',
+        recentIds: new Set<string>(),
+        rotationSeed: painFacts.asOf,
+        /* 하체 차례인 날 — 허리 통증이라 상체로 비켜 간다 */
+        lastLowerKey: null,
+        lastUpperKey: shiftDateKey(painFacts.asOf, -1),
+      });
+    const whole = buildWith(library);
+    const stuckPain = buildWith(noUpper);
+    const stuckMain = isHalted(stuckPain)
+      ? []
+      : stuckPain.picks
+          .filter((p) => p.slot === 'main')
+          .map((p) => byId.get(p.exerciseId)?.category ?? '');
+    check(
+      '한쪽 갇힘 — 어제 허리 통증: 온전한 표는 하체 차례를 상체로 비켜 가고(steerAroundPain), 상체 후보 0 이면 하체로 되돌리지 않고 보조 · 코어',
+      painAvoidedSide(painFacts) === 'lower' &&
+        !isHalted(whole) &&
+        whole.theme.key === 'upper' &&
+        !isHalted(stuckPain) &&
+        stuckPain.theme.key === 'assist' &&
+        stuckPain.theme.reason.includes('아픈 곳이라 쉬어요') &&
+        stuckMain.every((c) => !c.endsWith('스트렝스') && c !== '파워'),
+      `온전 ${isHalted(whole) ? '멈춤' : whole.theme.key} · 상체 후보 0 ${isHalted(stuckPain) ? '멈춤' : stuckPain.theme.key} · 본운동 ${stuckMain.join(',') || '없음'}`
+    );
+  }
 
   /* ─────────────── (f) P1 ① 씨앗 맨 앞의 사용자 id — 설정이 같아도 사람이 다르면 다른 목록, 같은 사람은 같은 목록 ─────────────── */
   /*

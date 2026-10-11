@@ -15,6 +15,7 @@ import {
   effectiveMinutes,
   pickForTheme,
   conditioningDay,
+  painAvoidedSide,
   steerFromEmptyMain,
   type SlotKey,
   type ThemeKey,
@@ -221,6 +222,7 @@ export function buildDailyPlan<T extends ExerciseLike>({
   /*
    * 근력 날인데 그쪽 본운동 후보가 0 이면 날을 바꾼다(theme.ts 의 steerFromEmptyMain — 반대쪽, 그것도 없거나 어제
    * 했으면 보조 · 코어). 후보는 안전 거르기를 지난 것만 센다. 부위를 좁힌 날은 바꾸지 않는다(focus 가 그대로 산다).
+   * 통증 때문에 피한 쪽(steerAroundPain 이 비켜 간 쪽)으로는 되돌아가지 않는다 — 그때는 보조 · 코어.
    */
   const theme = steerFromEmptyMain({
     day: decided,
@@ -230,6 +232,7 @@ export function buildDailyPlan<T extends ExerciseLike>({
     lastLowerKey,
     lastUpperKey,
     asOf: facts.asOf,
+    avoid: painAvoidedSide(facts),
   });
   const minutes = effectiveMinutes(theme.key, requestedMinutes);
 
