@@ -169,6 +169,13 @@ import {
 } from '../lib/engine/arm-load.ts';
 import { orderSession, orderWithinSlot } from '../lib/report/exercise-order.ts';
 import {
+  YESTERDAY_OUTING_SESSION,
+  asksYesterdayPitches,
+  outingLineOf,
+  readYesterdayOuting,
+} from '../lib/outing-line.ts';
+import { validateSessionType } from '../lib/session-type.ts';
+import {
   freezePlan,
   mergeReopened,
   readFrozenPlan,
@@ -18399,6 +18406,431 @@ console.log(
       `P4 짐작 (아) 회복 · 쉬기를 내는 독자(${strict.join(' · ')})는 짐작(soft · guess · 출처 · 범위)을 안 읽는다`,
       leaks.length === 0,
       leaks.join(' · ')
+    );
+  }
+}
+
+/* ═══════════════════ [2판 P4] 화면 — 다음 등판 한 줄 · 어제 등판 몇 구(lib/outing-line.ts · components/outing-line.tsx · components/checkin-form.tsx) (2026-10-12) ═══════════════════ */
+console.log(
+  "\n[2판 P4] 화면 — 트레이닝 일정 카드 위 '다음 등판까지 N일' 한 줄 · 짐작이면 '바꾸기' · 체크인의 '어제 등판 · 몇 구' 줄(2026-10-12)"
+);
+{
+  /*
+   * 왜 보는가. 커밋 H 는 화면 둘을 더한다 — ① 트레이닝 일정 카드 위 '다음 등판까지 N일'(달력 · 같은 요일로 짐작한 날이면 '추정'과 '바꾸기')
+   * ② 어제 '오늘 등판'이라 답했는데 어제 투구 기록이 없으면 체크인 창에서 몇 구였는지 묻고, 그 답을 투구 기록 API 로 어제 날짜 경기 한 줄로
+   * 남긴다. 화면은 로그인이 필요해 브라우저로 못 보니, 글 · 판단(lib/outing-line.ts, 순수)을 표로 보고 엔진(outingOf · dayKindOf)과 같은 날을
+   * 말하는지, 남긴 기록이 정말 '기록 없는 등판'(R3')을 걷는지를 본다. (가) 한 줄 글 표 (나) 실제 facts 로 — 엔진과 같은 날 (다) 어제 줄을
+   * 물을지 (라) 칸 → 기록 몸 (마) 남긴 기록이 R3' 를 걷는다 (바) 화면 글 규칙 (사) 배선 · 소스.
+   */
+  const json = (v: unknown) => JSON.stringify(v);
+  const keyIn = (days: number) => dayBefore(-days).slice(0, 10);
+  type HLog = {
+    daysAgo: number;
+    pitches: number;
+    sessionType: string;
+    effortPct?: number;
+  };
+  type HP = {
+    today?: string | null;
+    yesterday?: string | null;
+    logs?: HLog[];
+    calendar?: CalendarEventLike[];
+  };
+  const hCheckin = (
+    daysAgo: number,
+    throwPlan: string | null | undefined
+  ): CheckinLike => ({
+    date: dayBefore(daysAgo).slice(0, 10),
+    condition: 8,
+    sleep: '보통',
+    shoulder: '정상',
+    elbow: '정상',
+    wrist: '정상',
+    lowerBack: '정상',
+    lowerBody: '정상',
+    preferredParts: [],
+    preferredWorkout: null,
+    ...(throwPlan !== undefined ? { throwPlan } : {}),
+  });
+  const hFacts = (p: HP) =>
+    buildFacts({
+      nickname: '화면',
+      age: 22,
+      heightCm: 180,
+      trainingLevel: null,
+      baselineDailyLoad: 100,
+      rehab: null,
+      today: TODAY,
+      logs: (p.logs ?? []).map<PitchLogLike>((l) => ({
+        date: dayBefore(l.daysAgo),
+        pitchCount: l.pitches,
+        intensity: 9,
+        ...(l.effortPct != null ? { effortPct: l.effortPct } : {}),
+        sessionType: l.sessionType,
+        maxVelocity: null,
+        avgVelocity: null,
+      })),
+      checkins: [
+        hCheckin(0, p.today),
+        ...(p.yesterday !== undefined ? [hCheckin(1, p.yesterday)] : []),
+      ],
+      memos: [],
+      ...(p.calendar ? { calendarEvents: p.calendar } : {}),
+    });
+
+  /* ── (가) 한 줄 글 표 ── */
+  {
+    type Row = [
+      Parameters<typeof outingLineOf>[0],
+      { main: string; guess: string | null } | null,
+    ];
+    const rows: Row[] = [
+      [{ daysUntilNext: null, nextSource: 'none' }, null],
+      [{ daysUntilNext: null, nextSource: 'checkin' }, null],
+      [
+        { daysUntilNext: { min: 0, max: 0 }, nextSource: 'checkin' },
+        { main: '오늘 등판', guess: null },
+      ],
+      [
+        { daysUntilNext: { min: 0, max: 0 }, nextSource: 'checkin-yesterday' },
+        { main: '오늘 등판', guess: null },
+      ],
+      [
+        { daysUntilNext: { min: 1, max: 1 }, nextSource: 'checkin' },
+        { main: '내일 등판', guess: null },
+      ],
+      [
+        { daysUntilNext: { min: 3, max: 3 }, nextSource: 'checkin' },
+        { main: '다음 등판까지 3일', guess: null },
+      ],
+      [
+        { daysUntilNext: { min: 2, max: 3 }, nextSource: 'checkin' },
+        { main: '다음 등판까지 2~3일', guess: null },
+      ],
+      [
+        { daysUntilNext: { min: 1, max: 2 }, nextSource: 'checkin-yesterday' },
+        { main: '다음 등판까지 1~2일', guess: null },
+      ],
+      [
+        { daysUntilNext: { min: 4, max: null }, nextSource: 'checkin' },
+        { main: '다음 등판까지 4일 이상', guess: null },
+      ],
+      [
+        { daysUntilNext: { min: 3, max: null }, nextSource: 'checkin-yesterday' },
+        { main: '다음 등판까지 3일 이상', guess: null },
+      ],
+      [
+        { daysUntilNext: { min: 2, max: 2 }, nextSource: 'calendar' },
+        { main: '다음 등판까지 2일', guess: '달력으로 추정' },
+      ],
+      [
+        { daysUntilNext: { min: 0, max: 0 }, nextSource: 'estimate' },
+        { main: '오늘 등판', guess: '요일로 추정' },
+      ],
+      [
+        { daysUntilNext: { min: 1, max: 1 }, nextSource: 'calendar' },
+        { main: '내일 등판', guess: '달력으로 추정' },
+      ],
+    ];
+    const wrong = rows.filter(([o, want]) => json(outingLineOf(o)) !== json(want));
+    check(
+      `P4 화면 (가) 다음 등판 한 줄 표 ${rows.length}건 — 0 오늘 · 1 내일 · N일 · N~M일 · N일 이상, 짐작(달력 · 같은 요일)만 '추정', 모르면 줄 없음`,
+      wrong.length === 0,
+      wrong.map(([o]) => json(o)).join(' | ')
+    );
+  }
+
+  /* ── (나) 실제 facts 로 — 엔진(outingOf)이 말하는 날을 그대로 ── */
+  {
+    const MON = [7, 14, 21].map((d) => ({
+      daysAgo: d,
+      pitches: 20,
+      sessionType: '경기',
+    }));
+    const cases: [string, HP, { main: string; guess: string | null } | null][] = [
+      ["오늘 '오늘 등판'", { today: '오늘 등판' }, { main: '오늘 등판', guess: null }],
+      ["오늘 '내일 등판'", { today: '내일 등판' }, { main: '내일 등판', guess: null }],
+      [
+        "오늘 답 없음 · 어제 '2~3일 뒤' → 하루 당김",
+        { today: null, yesterday: '2~3일 뒤' },
+        { main: '다음 등판까지 1~2일', guess: null },
+      ],
+      [
+        "오늘 '4일 이상 뒤'",
+        { today: '4일 이상 뒤' },
+        { main: '다음 등판까지 4일 이상', guess: null },
+      ],
+      [
+        "오늘 '없음' + 달력 2일 뒤 경기 → 답이 막아 줄 없음",
+        { today: '없음', calendar: [{ date: keyIn(2), title: '리그 경기' }] },
+        null,
+      ],
+      [
+        '답 없음 + 달력 2일 뒤 경기',
+        { today: null, calendar: [{ date: keyIn(2), title: '리그 경기' }] },
+        { main: '다음 등판까지 2일', guess: '달력으로 추정' },
+      ],
+      [
+        '답 없음 + 지난 세 주 월요일 경기(오늘 월요일)',
+        { today: null, logs: MON, calendar: [] },
+        { main: '오늘 등판', guess: '요일로 추정' },
+      ],
+      ["오늘 '오늘 불펜'만", { today: '오늘 불펜' }, null],
+      ['아무 답 없음', { today: null }, null],
+    ];
+    const wrong = cases.filter(
+      ([, p, want]) => json(outingLineOf(outingOf(hFacts(p)))) !== json(want)
+    );
+    check(
+      `P4 화면 (나) 실제 facts ${cases.length}건 — 답 · 어제 답 하루 당김 · '없음'이 짐작을 막음 · 달력 · 같은 요일을 엔진 그대로 말한다`,
+      wrong.length === 0,
+      wrong.map(([n]) => n).join(' | ')
+    );
+    /* 160조합(P3 '오늘 상태 한 장' 절의 사람들) — 줄이 있으면 엔진이 다음 등판을 안다, '추정'은 짐작한 출처일 때만 */
+    const bad = p3ComboFactsSeen.filter((f) => {
+      const o = outingOf(f);
+      const line = outingLineOf(o);
+      return (
+        (line == null) !== (o.daysUntilNext == null) ||
+        (line != null && (line.guess != null) !== o.soft) ||
+        (line != null && /—/.test(line.main))
+      );
+    });
+    check(
+      `P4 화면 (나) 160조합 ${p3ComboFactsSeen.length}명 — 줄 있음 ⇔ 다음 등판을 앎, '추정' ⇔ 짐작한 출처(soft)`,
+      p3ComboFactsSeen.length === 160 && bad.length === 0,
+      `어긋남 ${bad.length}`
+    );
+  }
+
+  /* ── (다) 어제 등판 줄을 물을까 ── */
+  {
+    const asked: string[] = [];
+    for (const plan of [...THROW_PLANS, null, undefined, '모르는 글자'])
+      for (const logged of [false, true])
+        if (asksYesterdayPitches(plan, logged)) asked.push(`${plan}:${logged}`);
+    check(
+      "P4 화면 (다) 물을지 표 — 어제 답 여섯 · 빈 답 · 모르는 글자 × 기록 있음/없음 중 '오늘 등판' + 기록 없음 하나만 묻는다",
+      json(asked) === json(['오늘 등판:false']),
+      asked.join(' · ')
+    );
+    /* 엔진과 같은 규칙 — 묻는 날은 지난 등판이 '어제 답(기록 없음)'인 날이다 */
+    const plans = [...THROW_PLANS, null];
+    const off = plans.filter((plan) => {
+      const o = outingOf(hFacts({ today: null, yesterday: plan }));
+      return (
+        asksYesterdayPitches(plan, false) !== (o.lastSource === 'checkin-yesterday')
+      );
+    });
+    check(
+      "P4 화면 (다) 기록 없는 어제 — 묻는 날 ⇔ 엔진의 지난 등판이 '어제 답'(outingOf lastSource 'checkin-yesterday')",
+      off.length === 0,
+      off.join(' · ')
+    );
+  }
+
+  /* ── (라) 칸 → 기록 몸 ── */
+  {
+    const y = keyIn(-1);
+    const ok = readYesterdayOuting({ date: y, pitches: ' 30 ', effort: '85' });
+    check(
+      'P4 화면 (라) 투구수 · 체감 강도를 적으면 어제 날짜 경기 한 줄(입력 폼과 같은 칸 — 영상 없음)',
+      json(ok) ===
+        json({
+          date: y,
+          sessionType: '경기',
+          pitchCount: 30,
+          effortPct: 85,
+          videoPaths: [],
+        }) && YESTERDAY_OUTING_SESSION === '경기'
+    );
+    const blank = [
+      readYesterdayOuting({ date: y, pitches: '', effort: '85' }),
+      readYesterdayOuting({ date: y, pitches: '   ', effort: '' }),
+      readYesterdayOuting({ date: y, pitches: null, effort: null }),
+    ];
+    check(
+      'P4 화면 (라) 투구수를 비우면 아무것도 안 남긴다(체감 강도만 골라도)',
+      blank.every((b) => b === null)
+    );
+    const errors: [string, ReturnType<typeof readYesterdayOuting>][] = [
+      ['0구', readYesterdayOuting({ date: y, pitches: '0', effort: '80' })],
+      ['소수', readYesterdayOuting({ date: y, pitches: '2.5', effort: '80' })],
+      ['글자', readYesterdayOuting({ date: y, pitches: 'abc', effort: '80' })],
+      ['음수', readYesterdayOuting({ date: y, pitches: '-3', effort: '80' })],
+      ['강도 없음', readYesterdayOuting({ date: y, pitches: '30', effort: '' })],
+      [
+        '날짜 꼴 아님',
+        readYesterdayOuting({ date: '어제', pitches: '30', effort: '80' }),
+      ],
+      ['날짜 없음', readYesterdayOuting({ date: null, pitches: '30', effort: '80' })],
+    ];
+    const notErr = errors.filter(([, r]) => r == null || !('error' in r));
+    check(
+      `P4 화면 (라) 막는 칸 ${errors.length}건 — 0구 · 소수 · 글자 · 음수 · 체감 강도 없음 · 날짜 꼴 아님 · 날짜 없음`,
+      notErr.length === 0 &&
+        (errors[4][1] as { error: string }).error === '어제 체감 강도를 골라 주세요.',
+      notErr.map(([n]) => n).join(' · ')
+    );
+    /* 투구 기록 API 가 이 몸을 받는다 — 같은 종류 검사 · 같은 체감 강도 규칙(lib/pitch-effort.ts) */
+    const sent = ok as { sessionType: string; effortPct: number };
+    const effort = readEffortInput(sent, false);
+    check(
+      'P4 화면 (라) 투구 기록 API 의 검사를 그대로 통과한다 — 종류 · 체감 강도(85% → 85 · 1~10 의 9)',
+      !('error' in validateSessionType(sent.sessionType)) &&
+        !('error' in effort) &&
+        effort.effortPct === 85 &&
+        effort.intensity === 9
+    );
+  }
+
+  /* ── (마) 남긴 기록이 '기록 없는 등판'(R3')을 걷는다 ── */
+  {
+    const before = hFacts({ today: null, yesterday: '오늘 등판' });
+    const body = readYesterdayOuting({
+      date: keyIn(-1),
+      pitches: '30',
+      effort: '85',
+    }) as {
+      pitchCount: number;
+      sessionType: string;
+      effortPct: number;
+    };
+    const after = hFacts({
+      today: null,
+      yesterday: '오늘 등판',
+      logs: [
+        {
+          daysAgo: 1,
+          pitches: body.pitchCount,
+          sessionType: body.sessionType,
+          effortPct: body.effortPct,
+        },
+      ],
+    });
+    const o1 = outingOf(before);
+    const o2 = outingOf(after);
+    check(
+      "P4 화면 (마) 어제 30구를 남기면 지난 등판이 기록으로 바뀌고 날 종류가 '기록 없는 등판'(R3')에서 벗어난다",
+      o1.lastSource === 'checkin-yesterday' &&
+        dayKindOf(before).rule === 'claimedNoLog' &&
+        o2.lastSource === 'log' &&
+        o2.daysSinceLast === 1 &&
+        o2.lastPitches === 30 &&
+        dayKindOf(after).rule !== 'claimedNoLog' &&
+        !asksYesterdayPitches('오늘 등판', true),
+      `${dayKindOf(before).rule} → ${dayKindOf(after).rule}`
+    );
+    /* 세게 던진 날이면 회복(R1) — 기록이 부하로 읽힌다 */
+    const big = hFacts({
+      today: null,
+      yesterday: '오늘 등판',
+      logs: [{ daysAgo: 1, pitches: 80, sessionType: '경기', effortPct: 100 }],
+    });
+    check(
+      'P4 화면 (마) 어제 경기 80구를 남기면 세게 던진 날(R1 hard)로 회복 — 부하 기준(D3)',
+      dayKindOf(big).rule === 'hard' && outingOf(big).lastSource === 'log'
+    );
+  }
+
+  /* ── (바) 화면 글 규칙 ── */
+  {
+    const texts = [
+      ...[
+        { min: 0, max: 0 },
+        { min: 1, max: 1 },
+        { min: 2, max: 3 },
+        { min: 5, max: 5 },
+        { min: 4, max: null },
+      ].flatMap((w) =>
+        (['checkin', 'calendar', 'estimate'] as const).flatMap((s) => {
+          const l = outingLineOf({ daysUntilNext: w, nextSource: s });
+          return l ? [l.main, ...(l.guess ? [l.guess] : [])] : [];
+        })
+      ),
+    ];
+    const errs = [
+      readYesterdayOuting({ date: 'x', pitches: '3', effort: '80' }),
+      readYesterdayOuting({ date: keyIn(-1), pitches: '0', effort: '80' }),
+      readYesterdayOuting({ date: keyIn(-1), pitches: '3', effort: '' }),
+    ].map((r) => (r && 'error' in r ? r.error : ''));
+    const badText = texts.filter((t) => /—|\*\*/.test(t) || t.length > 16);
+    const badErr = errs.filter((t) => !t || /—|\*\*/.test(t) || !/요\.$/.test(t));
+    check(
+      `P4 화면 (바) 글 ${texts.length + errs.length}개 — 줄표 · 굵게 없음, 한 줄 글은 16자 안, 막는 글은 해요체로 끝`,
+      badText.length === 0 && badErr.length === 0,
+      [...badText, ...badErr].join(' | ')
+    );
+  }
+
+  /* ── (사) 배선 · 소스 ── */
+  {
+    const strip = (rel: string) =>
+      readFileSync(new URL(`../${rel}`, import.meta.url), 'utf8')
+        .replace(/\/\*[\s\S]*?\*\//g, '')
+        .replace(/^\s*\/\/.*$/gm, '')
+        .replace(/\{\/\*[\s\S]*?\*\/\}/g, '');
+    const lineSrc = strip('lib/outing-line.ts');
+    const imports = [...lineSrc.matchAll(/^import .* from '([^']+)';$/gm)].map(
+      (m) => m[1]
+    );
+    check(
+      'P4 화면 (사) lib/outing-line.ts 는 순수 — import 는 checkin 규칙 · 등판 타입 · 투구 종류 타입뿐(server-only · prisma · 날짜 함수 없음), 답 글자를 직접 안 견줌',
+      json(imports) ===
+        json(['@/lib/checkin', '@/lib/engine/outing', '@/lib/session-type']) &&
+        /^import type \{ Outing \}/m.test(lineSrc) &&
+        !/server-only|prisma|appNow|new Date\(|Math\.random/.test(lineSrc) &&
+        /* 답 글자를 직접 견주지 않는다(내보내는 글 '오늘 등판'은 괜찮다) — 등판 답 규칙은 lib/checkin.ts 한 곳 */
+        !/=== '오늘 등판'|'오늘 등판' ===/.test(lineSrc),
+      imports.join(' · ')
+    );
+    const comp = strip('components/outing-line.tsx');
+    check(
+      "P4 화면 (사) 한 줄 부품은 서버 부품 — 글은 outingLineOf 에서, '바꾸기'는 체크인 여는 단추(OpenCheckinButton)",
+      !/'use client'/.test(comp) &&
+        /outingLineOf\(outing\)/.test(comp) &&
+        /<OpenCheckinButton[\s\S]*?바꾸기[\s\S]*?<\/OpenCheckinButton>/.test(comp)
+    );
+    const page = strip('app/(app)/training/page.tsx');
+    const at = page.indexOf('<OutingLine outing={core.state.outing} />');
+    check(
+      'P4 화면 (사) 트레이닝 화면 — 오늘 상태 한 장의 등판 칸으로 한 번만 그리고, 일정 카드 묶음(halted · 만들기 전 · 일정) 바로 위',
+      at > 0 &&
+        page.split('<OutingLine').length === 2 &&
+        /^\s*\{picked\.halted \? \(/.test(
+          page.slice(at + '<OutingLine outing={core.state.outing} />'.length)
+        ) &&
+        /import \{ OutingLine \} from '@\/components\/outing-line';/.test(page)
+    );
+    const form = strip('components/checkin-form.tsx');
+    check(
+      "P4 화면 (사) 체크인 폼 — 물을지는 asksYesterdayPitches, 칸은 readYesterdayOuting, 남기기는 투구 기록 API 한 번(POST), 글자 '오늘 등판'을 직접 안 견줌",
+      /asksYesterdayPitches\(yesterdayPlan, pitchDays\.includes\(yesterdayKey\)\)/.test(
+        form
+      ) &&
+        /readYesterdayOuting\(\{/.test(form) &&
+        form.split("fetch('/api/pitch-log'").length === 2 &&
+        /method: 'POST'/.test(form) &&
+        /name="yesterdayPitches"/.test(form) &&
+        /<EffortChips/.test(form) &&
+        !/=== '오늘 등판'/.test(form) &&
+        !/prisma/.test(form)
+    );
+    const gate = strip('components/checkin-gate.tsx');
+    const shell = strip('components/app-shell.tsx');
+    const layout = strip('app/(app)/layout.tsx');
+    check(
+      'P4 화면 (사) 관문 · 종 창이 레이아웃의 같은 투구 날 목록을 넘긴다(조회는 안 늚) — 트레이닝 탭 창은 안 넘김(묻지 않음)',
+      /<CheckinForm[\s\S]{0,200}pitchDays=\{pitchDays\}/.test(gate) &&
+        /<CheckinForm[\s\S]{0,300}pitchDays=\{todo\.pitchDays\}/.test(shell) &&
+        /<CheckinGate[\s\S]{0,300}pitchDays=\{pitchDays\}/.test(layout) &&
+        /pitchDays,\n/.test(layout) &&
+        layout.split('prisma.pitchLog.findMany(').length === 2 &&
+        !/pitchDays/.test(strip('app/(app)/training/training-checkin.tsx'))
+    );
+    check(
+      'P4 화면 (사) 체크인 저장 동작은 투구 기록을 안 만든다 — 만드는 길은 투구 기록 API 하나(셋째 복사본 없음)',
+      !/pitchLog\.create/.test(strip('app/actions/checkin.ts'))
     );
   }
 }

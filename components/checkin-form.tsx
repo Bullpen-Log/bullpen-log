@@ -4,6 +4,7 @@ import {
   Fragment,
   useActionState,
   useEffect,
+  useId,
   useRef,
   useState,
   useSyncExternalStore,
@@ -51,6 +52,8 @@ import {
 import { kept, keptAll, withInput } from '@/lib/form-values';
 import { OFFLINE_MESSAGE, orOffline } from '@/lib/action-offline';
 import { shiftDateKey, toDateKey } from '@/lib/pitch-stats';
+import { asksYesterdayPitches, readYesterdayOuting } from '@/lib/outing-line';
+import { EffortChips } from '@/components/effort-chips';
 import { formatWeight, fromWeight, round1, toWeight } from '@/lib/units';
 import { useWeightUnit } from '@/components/use-units';
 import { BodySpotPicker } from '@/components/body-spot-picker';
@@ -434,6 +437,75 @@ function WeightRow({ defaultKg }: { defaultKg?: string }) {
   );
 }
 
+/**
+ * 어제 등판 — 어제 '오늘 등판'이라 적었는데 어제 투구 기록이 없을 때만 뜨는 줄(트레이닝 추천 2판 P4 커밋 H, 2026-10-12).
+ *
+ * 왜 묻는가. 기록이 없으면 앱은 어제 몇 구를 얼마나 세게 던졌는지 몰라, 오늘을 늘 조이는 쪽(보조 날)으로만 읽는다(날 종류 R3').
+ * 몇 구였는지만 적으면 그 기록으로 부하를 읽는다(세게 던진 날이면 회복, 아니면 평소대로). 투구 기록 창을 따로 열게 하면 대개 안 연다 —
+ * 매일 여는 체크인에서 한 칸으로 받는다. 비워 두면 아무것도 안 남긴다(안 던졌으면 비워 둔다).
+ *
+ * 투구수를 적으면 체감 강도 칩이 펴진다(투구 기록 입력 폼과 같은 부품 · 같은 규칙 — 기본값 없음). 저장은 이 창이 체크인보다 먼저
+ * 투구 기록 API 로 어제 날짜 경기 한 줄을 남긴다(saveCheckinSafely). 값은 폼 칸으로 가고, 저장이 막혀 폼이 다시 그려지면 방금 적은 값으로
+ * 다시 채운다(defaultPitches · defaultEffort).
+ */
+function YesterdayOutingRow({
+  date,
+  defaultPitches,
+  defaultEffort,
+}: {
+  /** 어제(YYYY-MM-DD) — 화면 시계 기준 오늘의 하루 전 */
+  date: string;
+  defaultPitches?: string;
+  defaultEffort?: string;
+}) {
+  const [pitches, setPitches] = useState(defaultPitches ?? '');
+  const [effort, setEffort] = useState<number | null>(() => {
+    const n = defaultEffort ? Number(defaultEffort) : Number.NaN;
+    return Number.isFinite(n) ? n : null;
+  });
+  const effortId = useId();
+  const filled = pitches.trim() !== '';
+  return (
+    <div className="space-y-2">
+      <Row label="어제 등판" aside="기록 없음">
+        <input
+          type="number"
+          inputMode="numeric"
+          name="yesterdayPitches"
+          aria-label="어제 던진 공 수"
+          min={1}
+          step={1}
+          value={pitches}
+          onChange={(e) => setPitches(e.target.value)}
+          placeholder="몇 구"
+          className={numberInput}
+        />
+        <span className="text-xs text-muted">구</span>
+        <span className="ml-1 self-center text-xs leading-relaxed break-keep text-muted">
+          적으면 투구 기록에 남아요 · 안 던졌으면 비워 두세요
+        </span>
+      </Row>
+      {/* 투구수를 적어야 펴진다 — 간편 체크인을 한 줄도 늘리지 않게. 넓은 화면은 칸 이름(w-28 + 틈) 만큼 들여 칩이 입력 칸 밑에 선다 */}
+      {filled && (
+        <div className="motion-safe:animate-fade-in sm:pl-30">
+          <EffortChips
+            id={effortId}
+            value={effort}
+            onChange={setEffort}
+            label="어제 체감 강도"
+          />
+        </div>
+      )}
+      <input type="hidden" name="yesterdayDate" value={date} />
+      <input
+        type="hidden"
+        name="yesterdayEffort"
+        value={filled && effort != null ? String(effort) : ''}
+      />
+    </div>
+  );
+}
+
 function SubmitButton() {
   const { pending } = useFormStatus();
   return (
@@ -537,14 +609,73 @@ function quickScaleLines(d: CheckinData): [string, string][] {
  * 레이아웃(체크인 관문 · 알림 창)에 있어 그 자리가 로그인 밖 오류 화면(app/error.tsx, '로그인으로')이다 — 신호가 약한 곳에서
  * 저장을 누르면 앱 전체가 그 화면으로 바뀌고 고른 것도 사라졌다. 실패로 돌려주고 고른 것을 되살린다.
  */
-function saveCheckinSafely(
-  prev: CheckinState,
+async function saveCheckinSafely(
+  prev: FormState,
   formData: FormData
-): Promise<CheckinState> {
-  return orOffline(
+): Promise<FormState> {
+  const yesterday = await logYesterdayOuting(prev?.yesterdayLogged, formData);
+  if ('error' in yesterday)
+    return withInput(
+      { error: yesterday.error, yesterdayLogged: prev?.yesterdayLogged },
+      formData
+    );
+  const saved = await orOffline(
     saveCheckin(prev, formData),
     withInput({ error: OFFLINE_MESSAGE }, formData)
   );
+  return yesterday.logged ? { ...saved, yesterdayLogged: yesterday.logged } : saved;
+}
+
+/**
+ * 체크인 창의 상태 — 체크인 저장 결과에 '이 창에서 어제 등판 기록을 남긴 날'을 더한다. 체크인 저장이 막혀 다시 눌러도 어제 기록을 또
+ * 남기지 않고(투구 기록 API 는 2분 안 같은 값만 거른다 — 그 뒤에 다시 누르면 두 줄이 된다), 그 줄을 숨긴다.
+ */
+type FormState =
+  | (NonNullable<CheckinState> & {
+      /** 이 창에서 어제 투구 기록을 남긴 날(YYYY-MM-DD) */
+      yesterdayLogged?: string;
+    })
+  | undefined;
+
+/**
+ * 어제 등판 줄(YesterdayOutingRow)에 적은 투구를 투구 기록으로 남긴다 — 체크인보다 먼저.
+ *
+ * 투구 기록을 만드는 길은 투구 기록 API(app/api/pitch-log POST) 하나를 그대로 쓴다 — 종류 · 투구수 · 체감 강도 검사, 앞날 거절, 2분 안 같은
+ * 값이면 새로 안 만들기가 거기 있다. 서버 동작에 따로 만들면 셋째 복사본이 생겨 한쪽만 고쳐진다. 먼저 남기는 까닭: 투구수를 잘못 적었으면
+ * 체크인까지 막아 그 자리에서 고치게 하고, 체크인 저장이 레이아웃을 새로 그릴 때(revalidatePath) 어제 기록도 같이 읽혀 줄이 사라지게.
+ * 비웠으면 아무것도 안 하고, 이 창에서 이미 남긴 날이면 다시 안 보낸다.
+ */
+async function logYesterdayOuting(
+  alreadyLogged: string | undefined,
+  formData: FormData
+): Promise<{ error: string } | { logged: string | null }> {
+  const read = readYesterdayOuting({
+    date: formData.get('yesterdayDate'),
+    pitches: formData.get('yesterdayPitches'),
+    effort: formData.get('yesterdayEffort'),
+  });
+  if (read == null) return { logged: alreadyLogged ?? null };
+  if ('error' in read) return read;
+  if (read.date === alreadyLogged) return { logged: alreadyLogged };
+  try {
+    const res = await fetch('/api/pitch-log', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(read),
+    });
+    if (!res.ok) {
+      const data: { error?: unknown } = await res.json().catch(() => ({}));
+      return {
+        error:
+          typeof data.error === 'string'
+            ? `어제 기록을 남기지 못했어요. ${data.error}`
+            : '어제 기록을 남기지 못했어요. 다시 눌러 주세요.',
+      };
+    }
+    return { logged: read.date };
+  } catch {
+    return { error: OFFLINE_MESSAGE };
+  }
 }
 
 /**
@@ -576,6 +707,7 @@ export function CheckinForm({
   onSaved,
   age = null,
   onLeave,
+  pitchDays,
 }: {
   recent: CheckinData[];
   /** 고를 수 있는 운동 부위 — 라이브러리에서 뽑아 넘어온다 */
@@ -589,6 +721,11 @@ export function CheckinForm({
   age?: number | null;
   /** 팔 통증 안내의 [통증 루틴 하기]로 다른 화면에 갈 때 — 감싸는 창을 닫는 데 쓴다 */
   onLeave?: () => void;
+  /**
+   * 최근 며칠 투구 기록이 있는 날(YYYY-MM-DD, 쉰 날 줄 포함) — 어제 등판 줄을 물을지 가른다(관문 · 종 창이 레이아웃의 같은 목록을 넘긴다).
+   * 안 넘기면(트레이닝 탭 창) 어제 기록이 있는지 모르니 묻지 않는다.
+   */
+  pitchDays?: string[];
 }) {
   // 서버(UTC)와 한국 시간의 날짜가 다른 시간대가 있어,
   // '오늘'은 화면이 뜬 뒤 사용자 시간 기준으로 정한다.
@@ -619,7 +756,7 @@ export function CheckinForm({
    * (todayKey) 서버와 화면이 어긋나지 않는다.
    */
   const [mode, setMode] = useState<Mode>(readMode);
-  const [state, formAction] = useActionState<CheckinState, FormData>(
+  const [state, formAction] = useActionState<FormState, FormData>(
     saveCheckinSafely,
     undefined
   );
@@ -810,6 +947,15 @@ export function CheckinForm({
   const yesterdayPlan = yesterdayKey
     ? (recent.find((c) => c.date === yesterdayKey)?.throwPlan ?? null)
     : null;
+  /*
+   * 어제 등판 줄(YesterdayOutingRow) — 어제 '오늘 등판'이라 적었는데 어제 투구 기록이 없을 때만(lib/outing-line.ts). 이 창에서 방금 남겼으면
+   * 레이아웃이 새 목록을 주기 전에도 숨긴다.
+   */
+  const askYesterday =
+    yesterdayKey != null &&
+    pitchDays != null &&
+    state?.yesterdayLogged !== yesterdayKey &&
+    asksYesterdayPitches(yesterdayPlan, pitchDays.includes(yesterdayKey));
   /* 걸른 끼니(여러 개) — 오류로 돌아온 폼 값이 있으면 그것, 아니면 저장된 것 */
   const skippedPicked: readonly string[] =
     (before ? keptAll(before, 'skippedMeals') : undefined) ?? today?.skippedMeals ?? [];
@@ -1100,6 +1246,15 @@ export function CheckinForm({
                   </ChipRadio>
                 ))}
               </Row>
+
+              {/* 어제 등판 · 몇 구 — 어제 '오늘 등판'인데 기록이 없을 때만(위 askYesterday). 던지는 일정 줄의 '어제: 오늘 등판' 바로 밑 */}
+              {askYesterday && yesterdayKey && (
+                <YesterdayOutingRow
+                  date={yesterdayKey}
+                  defaultPitches={before ? kept(before, 'yesterdayPitches') : undefined}
+                  defaultEffort={before ? kept(before, 'yesterdayEffort') : undefined}
+                />
+              )}
 
               {/* 팔 피로 — 2026-10-12 상세에서 간편으로 옮겼다(암케어 루틴이 읽는다). 서버는 body=1 로 받는다 */}
               {DETAIL_SCALES.map((s) => (

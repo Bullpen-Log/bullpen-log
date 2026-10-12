@@ -36,6 +36,7 @@ import { MechanicsSection } from './mechanics-section';
 import { BodyPartsProvider } from '@/components/body-parts';
 import { TrainingCheckin } from './training-checkin';
 import { OpenCheckinButton } from '@/components/notice-bell';
+import { OutingLine } from '@/components/outing-line';
 import { availableParts } from '@/lib/report/today-pick';
 import { exercisesByIds } from '@/lib/library-cache';
 import {
@@ -520,6 +521,9 @@ export default async function TrainingPage({
 
         {/* 오늘 일정을 만든 날에는 프로그램 고르기를 숨긴다(2026-10-12 사용자) — 만들기 전에만 */}
         {programStart && savedPlan == null && <ProgramStart props={programStart} />}
+
+        {/* 다음 등판 한 줄(2판 P4) — 일정 카드 위. 짐작한 등판이면 '바꾸기'가 체크인을 연다(components/outing-line.tsx) */}
+        <OutingLine outing={core.state.outing} />
 
         {picked.halted ? (
           <Card className="space-y-2 border-warn-line bg-warn-bg">
