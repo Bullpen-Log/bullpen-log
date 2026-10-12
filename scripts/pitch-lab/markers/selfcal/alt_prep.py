@@ -15,6 +15,12 @@ NAMES = sorted(n[:-4] for n in os.listdir(os.path.join(WORK, "kp")) if n.endswit
 # 바꿀 133 번호 ← 모델 번호
 MAP = {"A": ("kp_rtmpose", {**{j: j for j in range(17)}, 17: 20, 18: 22, 19: 24, 20: 21, 21: 23, 22: 25}),
        "B": ("kp_vitpose", {j: j for j in range(17)})}
+# C = 메타 Sapiens-1B(308점, 비상업 라이선스 — 시험만): 몸 · 발 · 손목 · 손 MCP 를 바꿈(pose_alt.py SAP_PAIRS 차례)
+_SAP = [(0, 0), (1, 1), (2, 2), (3, 3), (4, 4), (5, 5), (6, 6), (7, 7), (8, 8), (62, 9), (41, 10), (9, 11), (10, 12), (11, 13), (12, 14),
+        (13, 15), (14, 16), (15, 17), (16, 18), (17, 19), (18, 20), (19, 21), (20, 22), (62, 91), (49, 96), (53, 100), (61, 108),
+        (41, 112), (28, 117), (32, 121), (40, 129)]
+_IDX = sorted({a for a, _ in _SAP})
+MAP["C"] = ("kp_sapiens", {w: _IDX.index(a) for a, w in _SAP})
 
 
 def build(tag):
@@ -64,7 +70,8 @@ def direct2d(cal):
     cams = {c: {k: (np.array(v) if isinstance(v, list) else v) for k, v in cal["cams"][c].items()} for c in "1234"}
     J = {n: RTMW[V2N.index(n)] for n in MARK_OF}
     res = {}
-    for tag, d in (("RTMW", "kp"), ("A", "kp_A"), ("B", "kp_B")):
+    tags = [("RTMW", "kp")] + [(t, f"kp_{t}") for t in "ABC" if os.path.isdir(os.path.join(WORK, f"kp_{t}"))]
+    for tag, d in tags:
         rows = []
         for p in range(2, 17):
             fl = np.load(os.path.join(WORK, "fill", f"p{p:02d}.npz"))
@@ -85,7 +92,7 @@ def direct2d(cal):
                     dd = np.linalg.norm(uv - z["kp"][i[ok], J[n]], axis=1)
                     rows.append((p, c, n, float(np.std(dd))))
         res[tag] = rows
-    keys = sorted({(r[0], r[1], r[2]) for r in res["RTMW"]} & {(r[0], r[1], r[2]) for r in res["A"]} & {(r[0], r[1], r[2]) for r in res["B"]})
+    keys = sorted(set.intersection(*({(r[0], r[1], r[2]) for r in rows} for rows in res.values())))
     for tag in res:
         v = {(r[0], r[1], r[2]): r[3] for r in res[tag]}
         allv = [v[k] for k in keys]

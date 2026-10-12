@@ -20,6 +20,8 @@ if modal.is_local():
         .run_commands("pip uninstall -y onnxruntime onnxruntime-gpu", "pip install onnxruntime-gpu==1.21.1")
         .pip_install("torch==2.5.1", "torchvision==0.20.1", extra_index_url="https://download.pytorch.org/whl/cu124")
         .pip_install("transformers==4.49.0", "scipy==1.14.1", "huggingface_hub>=0.26,<1", "opencv-python-headless==4.10.0.84")
+        # Sapiens 의 상자 자르기 · UDP 풀기(github.com/facebookresearch/sapiens lite/demo/pose_utils.py, 그대로)
+        .add_local_file(os.environ.get("SAPIENS_UTILS", os.path.join(os.path.dirname(os.path.abspath(__file__)), "sapiens_pose_utils.py")), "/root/sapiens_pose_utils.py")
     )
 else:
     image = None
@@ -27,6 +29,12 @@ else:
 vol = modal.Volume.from_name("marker-videos-scratch")
 app = modal.App("marker-pose-alt-scratch", image=image)
 WORK = os.path.join(os.getcwd(), "work")
+SAPIENS = ("facebook/sapiens-pose-1b-torchscript", "sapiens_1b_goliath_best_goliath_AP_639_torchscript.pt2")
+# Sapiens 308점 → COCO-WholeBody 133 번호(몸 · 발 · 손목 · 손 MCP 셋 — 엔진이 쓰는 것만)
+SAP_PAIRS = [(0, 0), (1, 1), (2, 2), (3, 3), (4, 4), (5, 5), (6, 6), (7, 7), (8, 8), (62, 9), (41, 10), (9, 11), (10, 12), (11, 13), (12, 14),
+             (13, 15), (14, 16), (15, 17), (16, 18), (17, 19), (18, 20), (19, 21), (20, 22), (62, 91), (49, 96), (53, 100), (61, 108),
+             (41, 112), (28, 117), (32, 121), (40, 129)]
+SAP_IDX = sorted({a for a, _ in SAP_PAIRS})  # 결과 npz 의 점 차례(Sapiens 번호 오름차순)
 HALPE = "https://download.openmmlab.com/mmpose/v1/projects/rtmposev1/onnx_sdk/rtmpose-x_simcc-body7_pt-body7-halpe26_700e-384x288-7fb6e239_20230606.zip"
 
 
@@ -45,7 +53,7 @@ def boxes_of(kp, sc, w, h):
     return out
 
 
-@app.function(gpu="L4", timeout=1800, max_containers=8, volumes={"/vid": vol})
+@app.function(gpu="L4", timeout=1800, max_containers=16, volumes={"/vid": vol})
 def run(name: str, model: str, rtmw: bytes) -> tuple[str, bytes, str]:
     import time
     import av
@@ -72,7 +80,7 @@ def run(name: str, model: str, rtmw: bytes) -> tuple[str, bytes, str]:
     if model == "rtmpose":
         from rtmlib import RTMPose
         m = RTMPose(onnx_model=HALPE, model_input_size=(288, 384), backend="onnxruntime", device="cuda")
-    else:
+    elif model == "vitpose":
         import torch
         from transformers import AutoProcessor, VitPoseForPoseEstimation
         proc = AutoProcessor.from_pretrained("usyd-community/vitpose-plus-huge")
@@ -95,7 +103,36 @@ def run(name: str, model: str, rtmw: bytes) -> tuple[str, bytes, str]:
             scs[k] = r[0]["scores"].cpu().numpy().astype(np.float32)
         batch.clear()
 
-    K = 26 if model == "rtmpose" else 17
+    if model == "sapiens":
+        import torch
+        from huggingface_hub import hf_hub_download
+        sys.path.insert(0, "/root")
+        from sapiens_pose_utils import top_down_affine_transform, udp_decode
+        ckpt = hf_hub_download(*SAPIENS, cache_dir="/vid/hf")
+        net = torch.jit.load(ckpt).eval().cuda()
+        mean = torch.tensor([123.5, 116.5, 103.5]).view(-1, 1, 1)
+        std = torch.tensor([58.5, 57.0, 57.5]).view(-1, 1, 1)
+
+        def flush():
+            if not batch:
+                return
+            xs, cs, ss = [], [], []
+            for _, img, bx in batch:
+                crop, c0, s0 = top_down_affine_transform(img.copy(), np.array(bx, np.float32))
+                crop = cv2.resize(crop, (768, 1024), interpolation=cv2.INTER_LINEAR).transpose(2, 0, 1)
+                t_ = torch.from_numpy(crop)[[2, 1, 0], ...].float()
+                xs.append((t_ - mean) / std)
+                cs.append(c0[0]); ss.append(s0[0])
+            with torch.no_grad(), torch.autocast(device_type="cuda", dtype=torch.bfloat16):
+                hm = net(torch.stack(xs).cuda())
+            hm = hm[:, SAP_IDX].float().cpu().numpy()
+            for (k, _, _), h, c0, s0 in zip(batch, hm, cs, ss):
+                kp_, sc_ = udp_decode(h, (768, 1024), (192, 256))  # (폭, 높이) — 데모 vis_pose.py 와 같다
+                kp_ = (kp_ / np.array([768, 1024])) * s0 + c0 - 0.5 * s0
+                kps[k], scs[k] = kp_[0].astype(np.float32), sc_[0].astype(np.float32)
+            batch.clear()
+
+    K = 26 if model == "rtmpose" else 17 if model == "vitpose" else len(SAP_IDX)
     with av.open(f"/vid/{name}.mov", options={"ignore_editlist": "1"}) as c:
         s = c.streams.video[0]
         s.thread_type = "AUTO"
@@ -115,14 +152,24 @@ def run(name: str, model: str, rtmw: bytes) -> tuple[str, bytes, str]:
                 kp, sc = m(img, bboxes=[boxes[j]])
                 kps[-1], scs[-1] = kp[0].astype(np.float32), sc[0].astype(np.float32)
             else:
-                batch.append((len(ts) - 1, img[:, :, ::-1].copy(), boxes[j]))
-                if len(batch) >= 32:
+                batch.append((len(ts) - 1, img if model == "sapiens" else img[:, :, ::-1].copy(), boxes[j]))
+                if len(batch) >= (8 if model == "sapiens" else 32):
                     flush()
     if model != "rtmpose":
         flush()
+    if model == "sapiens":
+        vol.commit()
     buf = io.BytesIO()
     np.savez_compressed(buf, t=np.array(ts), kp=np.array(kps), sc=np.array(scs), wh=np.array([W, H]))
     return name, buf.getvalue(), f"{len(ts)} 장면 · {time.time() - t0:.0f}초"
+
+
+@app.function(timeout=1800, volumes={"/vid": vol})
+def fetch() -> str:
+    from huggingface_hub import hf_hub_download
+    p = hf_hub_download(*SAPIENS, cache_dir="/vid/hf")
+    vol.commit()
+    return f"Sapiens 무게 {os.path.getsize(p) / 1e9:.1f}GB"
 
 
 @app.local_entrypoint()
@@ -133,6 +180,8 @@ def main(model: str, pattern: str = ""):
     todo = [n for n in names if pattern in n and not os.path.exists(os.path.join(out, n + ".npz"))]
     print(f"{len(todo)}개 보냄", flush=True)
     args = [(n, model, open(os.path.join(WORK, "kp", n + ".npz"), "rb").read()) for n in todo]
+    if model == "sapiens":  # 무게 4GB 를 볼륨에 한 번만 받아 둔다(컨테이너 여럿이 같이 받지 않게)
+        print(fetch.remote(), flush=True)
     for name, data, msg in run.starmap(args, order_outputs=False):
         open(os.path.join(out, name + ".npz"), "wb").write(data)
         print(name, msg, flush=True)
