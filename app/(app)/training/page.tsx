@@ -434,8 +434,13 @@ export default async function TrainingPage({
       past: pastAmounts.get(ex.id) ?? [],
     })
   );
-  /* 일정 카드의 '오늘 이렇게 짰어요'(2판 P5-k) — 저장한 까닭, 옛 줄은 양 조절 · 힘듦 넘김만 */
-  const planReasons = savedPlan ? planReasonLines(savedPlan) : [];
+  /*
+   * 일정 카드의 '오늘 이렇게 짰어요'(2판 P5-k) — 저장한 까닭, 옛 줄은 양 조절 · 힘듦 넘김만. 앞으로 당긴 줄은 지금 보이는 줄과 지금 별로
+   * 거른다(2판 P5 검토) — 그 운동을 빼거나 안전 재확인으로 빠지거나 별을 떼면 '앞에 뒀어요'가 거짓이 된다(운동 줄의 이유와 같은 원칙).
+   */
+  const planReasons = savedPlan
+    ? planReasonLines(savedPlan, { shown: shownPicks, favoriteIds: favExercises })
+    : [];
 
   /*
    * 목록에 더할 수 있는 운동.
@@ -637,8 +642,9 @@ export default async function TrainingPage({
               </p>
               {/*
                 '오늘 이렇게 짰어요' — 일정 까닭 최대 3줄(2판 P5-k, lib/report/daily-plan.ts planReasonLines). 하는 양이 바뀐 까닭(세트
-                줄임 · 힘듦 경고 넘김)이 먼저, 그다음 오늘 상태로 운동 차례를 바꾼 까닭(score.ts planReasonsOf). 만들 때 저장한 글이라
-                다시 셈하지 않는다. 목표 · 까닭이 먼저 읽히게 한 단 작은 글로 덧붙인다.
+                줄임 · 힘듦 경고 넘김)이 먼저, 그다음 오늘 상태로 운동 차례를 바꾼 까닭(score.ts planReasonItemsOf). 만들 때 저장한 글이라
+                다시 셈하지 않고, 앞으로 당긴 줄만 지금 보이는 줄 · 지금 별로 거른다(위 planReasons). 목표 · 까닭이 먼저 읽히게 한 단 작은
+                글로 덧붙인다.
               */}
               {planReasons.length > 0 && (
                 <div className="space-y-1">

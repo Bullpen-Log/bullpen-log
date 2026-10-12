@@ -1315,8 +1315,10 @@ type DayRecord = {
   age14vs22Differs: boolean;
   /** 그날 일정의 본운동 세트 합(setsOf — ⑱ 의 바닥값) */
   mainSets: number;
-  /** 양 조절(2판 P5-d)로 줄인 세트 합(volumeSetsCutOf) — 조절이 실린 날만 칸이 있다 */
+  /** 양 조절(2판 P5-d)로 줄인 세트 합(volumeSetsCutOf) — 세트를 줄인 조절이 실린 날만 칸이 있다 */
   volumeSetsCut?: number;
+  /** 세트는 그대로 두고 무게만 멈추는 조절(setDelta 0 · intensityStep −1, 2판 P5 검토)이 실린 날 — JSON 에는 안 싣고 metrics.volume.holdOnly 로 센다 */
+  volumeHoldOnly?: true;
   /**
    * ⑰ · ⑱ 오늘 상태만 바꾼 변형(2판 P5 도구 T0) — 체크인 있는 날만, 그 변형이 해당하는 날만 칸이 있다.
    *   sameTheme     테마가 그대로인가(멈춘 변형은 false)        listChanged   목록(운동 id 집합)이 바뀌었나
@@ -1398,7 +1400,10 @@ function stateVariantOf(
     sameExcluded:
       after != null && JSON.stringify(after.excluded) === JSON.stringify(base.excluded),
     ...(measure ? { before: measure(base), after: measure(after) } : {}),
-    ...(kind === 'bad' || kind === 'sore' ? { volumed: after?.volume != null } : {}),
+    /* 세트를 줄인 짝만 — 2판 P5 검토부터 세트는 그대로 두고 무게만 멈추는 조절(setDelta 0)도 실린다(volume.ts volumeForDay) */
+    ...(kind === 'bad' || kind === 'sore'
+      ? { volumed: after?.volume != null && after.volume.setDelta !== 0 }
+      : {}),
   };
 }
 
@@ -1635,7 +1640,10 @@ for (const p of PLAYERS) {
       age15vs22Differs: differs(at15, at22),
       age14vs22Differs: differs(at14, at22),
       mainSets: mainSetsOf(base),
-      ...(base.volume != null ? { volumeSetsCut: volumeSetsCutOf(base) ?? 0 } : {}),
+      ...(base.volume != null && base.volume.setDelta !== 0
+        ? { volumeSetsCut: volumeSetsCutOf(base) ?? 0 }
+        : {}),
+      ...(base.volume?.setDelta === 0 ? { volumeHoldOnly: true as const } : {}),
       ...(stateVariants ? { stateVariants } : {}),
       ...(stateAlert ? { stateAlert } : {}),
       unexplainedRecovery,
@@ -2792,6 +2800,8 @@ const volume = {
   offTheme: allDays.filter(
     (d) => d.volumeSetsCut != null && d.theme !== 'lower' && d.theme !== 'upper'
   ).length,
+  /* 무게만 멈춘 날(2판 P5 검토 — 몸 신호가 걸렸는데 줄일 세트가 없고 무게를 적는 운동이 있는 날) */
+  holdOnly: appDays.filter((d) => d.volumeHoldOnly).length,
   bad: volumedOf('bad'),
   sore: volumedOf('sore'),
 };
@@ -3375,8 +3385,8 @@ out.push(
       ]),
       [
         '⑱',
-        '  양 조절(P5-d) — 체크인 있는 날 중 세트를 줄인 날 · 줄인 세트 합 · 근력 날 밖에 실린 날(0 이어야 한다)',
-        `${pct(volume.days, volume.appDays)} · 줄인 세트 ${volume.setsCut} · 근력 날 밖 ${volume.offTheme}`,
+        '  양 조절(P5-d) — 체크인 있는 날 중 세트를 줄인 날 · 줄인 세트 합 · 근력 날 밖에 실린 날(0 이어야 한다) · 무게만 멈춘 날(P5 검토)',
+        `${pct(volume.days, volume.appDays)} · 줄인 세트 ${volume.setsCut} · 근력 날 밖 ${volume.offTheme} · 무게만 멈춘 날 ${volume.holdOnly}`,
       ],
       [
         '⑱',
@@ -3639,8 +3649,10 @@ const json = {
    *     지금 규칙엔 안 걸려 옛 칸은 meta · version · buildCalls 를 빼고 7 과 글자까지 같다(--compare 의 '옛 칸 같음').
    * 9 = 2판 P5-d 양 조절: 날마다 volumeSetsCut(조절이 실린 날만), stateVariants 의 bad · sore 에 volumed, metrics.volume 을 더했다.
    *     조절이 실린 날은 일정 · mainSets 가 바뀐다(동작 변화 — 8 과 견주면 그 날만 다르다).
+   * 10 = 2판 P5 검토: metrics.volume.holdOnly(무게만 멈춘 날)를 더했다. volumeSetsCut · volumed 는 세트를 줄인 조절만 센다(무게만 멈춘
+   *     조절 — setDelta 0 — 은 안 센다). 9 와 견줄 때는 이 칸을 뺀다.
    */
-  version: 9,
+  version: 10,
   /* 돌릴 때마다 바뀌는 것은 이 칸뿐 — 단계 전후를 diff 로 견줄 때는 meta 를 빼고 본다 */
   meta: { generatedAt: new Date().toISOString(), elapsedMs },
   startKey: START_KEY,

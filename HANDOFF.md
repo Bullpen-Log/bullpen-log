@@ -105,6 +105,17 @@ DB 에는 이미 적용했다(백업 `db-2026-10-11-18-23.json`). 비워 둘 수
   - facts 에 `patterns.loggedYesterday`(어제 투구 기록 줄 — 쉰 날 줄까지)가 생겼다. 엔진은 어제 '휴식' 줄을 '안 던졌다'는 답으로 본다.
   - 폰에서 봐 주면 좋은 것: 트레이닝 일정 카드 위 '다음 등판까지 N일'(짐작이면 밑에 '달력으로 추정' + 바꾸기) · 체크인 어제 등판 줄과 '안 던졌어요' 칩 ·
     프로그램 쉬는 날 글 · 팔 피로 '심함' 날 프로그램 대체 꼬리표.
+- **(10-13 더함) 트레이닝 추천 2판 P5 — 고르기 점수 · 세트 줄이기 · 무게 멈춤 · '오늘 이렇게 짰어요'.** 받은 뒤 할 일 없음(DB · 패키지 그대로 — 일정 · 세션 판 Json 의
+  선택 칸만). 설계 문서 'P5 결과'. **네 영역 파일을 고쳤다**(읽기만 더함, 프로그램 동작 그대로):
+  - `lib/program/program.ts` +50(d2cffc3): export 둘 — `VARIANT_MOVEMENT_KEY`(변형 → 동작 열쇠, `lib/engine/exercise-class.ts movementKeyOf` 와 같은 말) ·
+    `patternsOfProgramDay(plan, day, exerciseOf?)`(그날 일차가 쓰는 동작 열쇠 집합, 코어는 없음). 무엇을 할지(`dayPlan`)만 읽는다.
+  - 매일 일정 만들기(`app/actions/training-setup.ts generateTodayPlan`, 74ce54b)가 `lib/program/load.ts activeProgram` · `program.ts parseProgram` · `readPinned` ·
+    `patternsOfProgramDay` 로 진행 중인 프로그램의 다음 일차 동작을 읽어, 오늘 일정에서 같은 동작을 −3 으로 뒤로 민다(`lib/report/score.ts programNextOf` —
+    10일 넘게 안 한 프로그램은 안 본다, 빼지는 않고 차례만). 프로그램 줄 · 칸 이름을 바꾸면 이 읽기도 같이 봐 줘.
+  - 안전 거르기 새 규칙 4-2-1 '평소보다 낮은 컨디션'(`lib/report/prescription.ts`, ac269c1 — 평소 28일 중앙값보다 2점 이상 낮으면 '매우 높음' 제외)은 근력
+    프로그램(`partsOnly`)을 건너뛴다(D6 — 프로그램 날은 프로그램 그대로). 세트 −1(`lib/report/volume.ts`)도 매일 일정에만 닿고 프로그램 처방은 안 건드린다.
+  - 검토 반영(이 묶음 마지막 커밋): 상체 날 파워 칸이 계열 없는 하체 파워(발목 아이소메트릭 프레스 · 가속 포지션 아이소 홀드)를 받지 않는다(`lib/report/theme.ts
+    fitsPowerSide`) — 기준선의 '무거운 하체 이틀 이어짐'(프로그램 큰 하체와 매일 일정 사이 포함) 42 → 0.
 
 ## 김민에게 — 2026-10-12 · 금윤호(Claude) — 운동 마치기 창의 강도를 선택으로 · 축하 화면에 힘듦 칩 넷(rateWorkoutEffort) · 세션 판 JSON 에 `swaps` 칸
 

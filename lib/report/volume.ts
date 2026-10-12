@@ -1,6 +1,7 @@
 import { SHORT_SLEEP_HOURS, formatSleepHours, sorenessWord } from '@/lib/checkin';
 import type { DayState } from '@/lib/engine/day-state';
 import { HEAVY_CATEGORIES } from '@/lib/engine/exercise-class';
+import { needsWeight } from '@/lib/exercise-meta';
 import { goalPrescription } from '@/lib/report/goal-prescription';
 
 /**
@@ -167,6 +168,11 @@ export type VolumeDecision = {
   why: string[];
   /** 실제로 줄였을 때 화면에 보일 한 줄(PlanVolume.why) — '잠이 부족해 본운동을 한 세트씩 줄였어요.' */
   line: string;
+  /**
+   * 세트는 그대로인데 무게만 안 올리는 날의 한 줄(2판 P5 검토 — volumeForDay 의 강도만 담은 조절) — '잠이 부족해 오늘은 무게를 올리지
+   * 않아요.' 몸 신호(intensityStep −1)가 걸린 날만 있다.
+   */
+  holdLine: string | null;
 };
 
 /** 신호마다 화면 한 줄의 마디 — 앞 마디는 '…하고', 마지막은 '…해'로 잇는다 */
@@ -191,7 +197,7 @@ const outOfTen = (n: number) => `${n}/10`;
  *
  * 오늘 상태 한 장(DayState)의 body · load 만 읽는다 — 독자가 facts 를 저마다 읽지 않게(2판 P3 의 원칙). 장의 칸은 안전 거르기와 같은
  * 함수로 만든 값이라(belowUsualCondition · isShortSleep · HIGH_SORENESS) 세트를 줄이는 날과 가장 센 운동을 빼는 날이 어긋나지 않는다.
- * 바닥 4 이하 · 근육통 '심함' 날은 보통 회복날이라 일정에 대지 않는다(volumeForDay 가 근력 날에만 댄다).
+ * 바닥 4 이하 · 근육통 '심함' 날은 보통 회복날이라 일정에 대지 않는다(volumeForDay 가 세트는 근력 날에만, 무게 멈춤은 무게를 적는 운동이 있는 날에만 댄다).
  *
  * 힘듦 급증(load.effortSpike)은 reduceForEffort 가 참일 때만 신호가 된다(P5-e — 직접 고르기에서 '그래도 고른 대로'를 안 골랐을 때,
  * VolumeSignal 주석). 급증만 걸린 날은 세트만 줄이고 강도는 그대로(intensityStep 0) — 몸 신호가 하나라도 걸리면 −1.
@@ -234,12 +240,14 @@ export function decideVolume(
     ...clauses.slice(0, -1).map((c) => c.and),
     clauses[clauses.length - 1].so,
   ].join(' ');
+  const intensityStep = signals.some((s) => BODY_SIGNALS.includes(s)) ? -1 : 0;
   return {
     setDelta: -1,
-    intensityStep: signals.some((s) => BODY_SIGNALS.includes(s)) ? -1 : 0,
+    intensityStep,
     signals,
     why,
     line: `${head} 본운동을 한 세트씩 줄였어요.`,
+    holdLine: intensityStep === -1 ? `${head} 오늘은 무게를 올리지 않아요.` : null,
   };
 }
 
@@ -255,8 +263,18 @@ const VOLUME_THEMES: readonly string[] = ['lower', 'upper'];
  *
  * exercises 는 목표 처방을 거친 그날 운동이다(buildDailyPlan 이 고른 것) — 근력 향상의 4세트가 여기서 3세트가 된다.
  * 고르는 목록 자체는 줄이지 않는다 — 줄인 세트만큼 남는 시간을 다른 운동으로 메우면 양을 줄인 뜻이 사라진다(daily-plan.ts).
+ *
+ * 강도만 담은 조절(2판 P5 검토, 2026-10-13) — 세트를 줄일 운동이 없는 날(본운동이 모두 2세트인 근력 날 · 보조 날 · 컨디셔닝 목표)이어도
+ * 몸 신호(평소보다 낮은 컨디션 · 짧은 밤 · 근육통 '많이' — intensityStep −1)가 걸렸고 그날 무게를 적는 운동(needsWeight — 자유 운동
+ * 무게 추천이 붙는 운동)이 하나라도 있으면 { setDelta: 0, intensityStep: −1 } 을 싣는다. 처음에는 조절 전체를 버려(null) 안전 거르기가
+ * 가장 센 운동을 뺀 날인데도 자유 운동 무게가 '두 번 이어 채움'이면 올라갔다(holdsWeight 가 거짓 — 조이는 쪽 원칙과 반대). 세트는 안
+ * 바꾸므로(applyVolume 이 setDelta 0 이면 그대로) 처방 숫자 · 시간은 같고, 글은 '…오늘은 무게를 올리지 않아요.'(세트를 줄였다고 하지 않는다).
+ * 무게를 적는 운동이 없는 날(회복 날 — 무게 장비를 뺀다 · 맨몸 보조 날)은 올릴 무게가 없어 싣지 않는다(일정 까닭에 무게 말이 나오면 어색하다).
+ * 힘듦 급증만 걸린 날은 강도를 안 내리는 신호라(VolumeSignal 주석) 세트를 못 줄이면 예전처럼 없다.
  */
-export function volumeForDay<T extends Prescribed>({
+export function volumeForDay<
+  T extends Prescribed & { equipment?: readonly string[] | null },
+>({
   decision,
   themeKey,
   conditioning,
@@ -268,20 +286,30 @@ export function volumeForDay<T extends Prescribed>({
   conditioning: boolean;
   exercises: readonly T[];
 }): PlanVolume | null {
-  if (!decision || decision.setDelta === 0) return null;
-  if (!VOLUME_THEMES.includes(themeKey) || conditioning) return null;
-  const volume: PlanVolume = {
-    setDelta: decision.setDelta,
-    intensityStep: decision.intensityStep,
-    why: decision.line,
-  };
-  if (!exercises.some((ex) => applyVolume(ex, volume) !== ex)) return null;
-  return volume;
+  if (!decision || (decision.setDelta === 0 && decision.intensityStep === 0))
+    return null;
+  if (decision.setDelta !== 0 && VOLUME_THEMES.includes(themeKey) && !conditioning) {
+    const volume: PlanVolume = {
+      setDelta: decision.setDelta,
+      intensityStep: decision.intensityStep,
+      why: decision.line,
+    };
+    if (exercises.some((ex) => applyVolume(ex, volume) !== ex)) return volume;
+  }
+  if (
+    decision.intensityStep === -1 &&
+    decision.holdLine &&
+    exercises.some((ex) => needsWeight(ex.equipment ?? []))
+  ) {
+    return { setDelta: 0, intensityStep: -1, why: decision.holdLine };
+  }
+  return null;
 }
 
 /**
- * 무게를 올리지 않는 날인가 — 양을 줄인 판(일정 · 세션 판의 volume 칸이 있다). 자유 운동 무게 추천(lib/workout/free-weight.ts)이
- * '다 채웠으면 올림'을 그날은 멈춘다. 세트를 줄인 날 무게를 올리면 양을 줄인 뜻과 반대로 간다. 저장된 값이라 다시 읽는다.
+ * 무게를 올리지 않는 날인가 — 양 조절이 실린 판(일정 · 세션 판의 volume 칸이 있다 — 세트 −1 이거나, 2판 P5 검토부터 강도만 −1). 자유 운동
+ * 무게 추천(lib/workout/free-weight.ts)이 '다 채웠으면 올림'을 그날은 멈춘다. 세트를 줄인 날 · 몸 신호로 가장 센 운동을 뺀 날 무게를 올리면
+ * 조인 뜻과 반대로 간다. 저장된 값이라 다시 읽는다.
  */
 export function holdsWeight(plan: { volume?: unknown } | null | undefined): boolean {
   return readPlanVolume(plan?.volume) != null;

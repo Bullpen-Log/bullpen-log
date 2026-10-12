@@ -28,10 +28,15 @@ import { YOUTH_AGE_THRESHOLD } from '@/lib/report/plan';
  *      중 작은 쪽으로 잰다. 그날 5회를 시켜 5회를 했는데 오늘 8회가 되었다고 '못 채움'으로 치면, 목표가 날마다 바뀌는 사람은
  *      시킨 대로 했는데도 무게가 계단처럼 내려간다(근력 5회 ↔ 기본 10회를 오가는 날). 그날 처방을 모르면 오늘 처방으로 잰다.
  *   ⑤ 쉰 기간 — 8~14일 ×0.9, 15~28일 ×0.85(올리지 않는다), 29일+ 는 숫자 없이(처음처럼). 프로그램의 ④와 같은 값.
- *   ⑥ 장비 단위로 반올림(바벨 2.5 · 덤벨 2 · 머신 2.5). 맨몸 · 밴드 · 메디신볼은 추천이 없다.
+ *   ⑥ 바꾼 무게(올림 · 내림 · 쉰 기간)는 장비 단위의 배수로(바벨 2.5 · 덤벨 2 · 머신 2.5) — 올림은 지난 무게보다 무거운 가장 가까운
+ *      배수 이상(nextUnitAbove). '그대로'(한 번 채움 · 그 사이 · hold · 처방 횟수 모름 · 더 못 내림)는 지난 무게를 글자 그대로 — 세트
+ *      기록은 0.5kg 단위라 바벨 61kg 이 남을 수 있는데, 예전에는 '지난번 61kg 그대로예요'라 하면서 60kg 을 내 말없이 내렸다(2판 P5 검토).
+ *      맨몸 · 밴드 · 메디신볼은 추천이 없다.
  *   ⑦ hold — 양을 줄인 날(그날 일정 · 세션 판에 양 조절이 실린 날, lib/report/volume.ts holdsWeight)은 채움이어도 올리지 않고 지난번
  *      무게 그대로(2판 P5-d). 컨디션 · 잠 · 근육통 때문에 세트를 줄인 날 무게를 올리면 줄인 뜻과 반대로 간다. 내림 · 쉰 기간 낮춤은
  *      그대로 — 낮추는 쪽이라 막을 까닭이 없다. P6 의 '올림 멈춤'(영양 추세 holdProgress)도 이 자리 하나(채움 분기 맨 앞)에 얹는다.
+ *      2판 P5 검토부터 세트는 그대로 두고 무게만 멈추는 날(강도만 담은 조절 — 몸 신호가 걸렸는데 줄일 세트가 없는 날)도 hold 라, 글은
+ *      '오늘은 무게를 올리지 않는 날이라 …'(세트를 줄였다고 하지 않는다).
  *   ⑧ cautious — 성장기(만 16세 미만, YOUTH_AGE_THRESHOLD) · 경력 '입문'(BEGINNER_LEVEL_NAME)은 올려도 한 단위만, 운동 화면
  *      처방 줄에 '· 3개 남기고'(cautiousPrescription — free-weight-load.ts 가 붙인다). 프로그램의 '몇 개 남기고'와 같은 뜻 — 끝까지
  *      짜내지 않는다. 내림 · 그대로 · 쉰 기간은 다른 사람과 같다.
@@ -175,7 +180,7 @@ export function suggestFreeWeight(input: {
 
   const reps = input.plannedReps;
   const sets = input.plannedSets ?? 1;
-  if (reps == null) return { kg: roundToUnit(top, kind), note: `${prev} 그대로예요` };
+  if (reps == null) return { kg: top, note: `${prev} 그대로예요` };
 
   /* ④ 못 채움 — 바로 내린다. 아래 끝은 그날 처방과 오늘 처방 중 작은 쪽으로(머리 주석) */
   const floor = repFloorOf(Math.min(knownReps(input.last.plannedReps) ?? reps, reps));
@@ -189,7 +194,7 @@ export function suggestFreeWeight(input: {
     }
     /* 가장 가벼운 단위 — 더 내릴 무게가 없다 */
     return {
-      kg: roundToUnit(top, kind),
+      kg: top,
       note: `${prev}에서 ${floor}회가 안 된 세트가 있었어요. 더 낮출 무게가 없어 그대로예요`,
     };
   }
@@ -199,8 +204,8 @@ export function suggestFreeWeight(input: {
     if (input.hold) {
       /* ⑦ 양을 줄인 날 — 올릴 만큼 채웠어도 그대로. 다음 보통 날에 다시 본다(P6 의 올림 멈춤도 여기) */
       return {
-        kg: roundToUnit(top, kind),
-        note: `오늘은 양을 줄인 날이라 ${prev} 그대로예요`,
+        kg: top,
+        note: `오늘은 무게를 올리지 않는 날이라 ${prev} 그대로예요`,
       };
     }
     const earlier = input.prev ?? null;
@@ -214,29 +219,37 @@ export function suggestFreeWeight(input: {
       filled(before.working, sets, reps);
     if (!twice) {
       return {
-        kg: roundToUnit(top, kind),
+        kg: top,
         note: `${prev} × ${reps}회를 ${sets}세트 다 채웠어요. 한 번 더 채우면 올려요`,
       };
     }
     const done = `${top}kg × ${reps}회 ${sets}세트를 두 번 이어 채워서`;
     if (input.cautious) {
       /* ⑧ 성장기 · 입문 — 한 단위만 */
-      const raised = top + unit;
+      const raised = nextUnitAbove(top, unit);
       return {
         kg: raised,
         note: `${done} ${round1(raised - top)}kg만 올렸어요. ${CAUTIOUS_RESERVE}개는 남기고 멈춰요`,
       };
     }
     const ratio = input.bigLower ? RAISE_BIG_LOWER : RAISE_OTHER;
-    const raised = Math.max(roundToUnit(top * ratio, kind), top + unit);
+    const raised = Math.max(roundToUnit(top * ratio, kind), nextUnitAbove(top, unit));
     return { kg: raised, note: `${done} ${round1(raised - top)}kg 올렸어요` };
   }
 
   /* 그 사이 — 범위 안이거나 세트가 모자란 날. 그대로 */
   return {
-    kg: roundToUnit(top, kind),
+    kg: top,
     note: `${prev}에서 ${reps}회 × ${sets}세트를 두 번 이어 채우면 올려요`,
   };
 }
 
 const round1 = (n: number) => Math.round(n * 10) / 10;
+
+/**
+ * top 보다 무거운 가장 가까운 단위 배수(⑥) — 바벨 60 → 62.5, 61 → 62.5, 61.5 → 62.5, 덤벨 21 → 22. 세트 기록은 0.5kg 단위라 단위 밖 무게가
+ * 남는다(바벨 61kg). 예전 top + unit 은 63.5kg 처럼 장비로 못 만드는 무게를 냈다(2판 P5 검토). top 이 단위 배수면 top + unit 과 같다.
+ */
+function nextUnitAbove(top: number, unit: number): number {
+  return Math.round((Math.floor(top / unit + 1e-9) + 1) * unit * 100) / 100;
+}

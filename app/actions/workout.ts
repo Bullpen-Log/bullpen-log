@@ -111,7 +111,7 @@ export async function startWorkout() {
 
   /*
    * 프로그램이 아닌 무게 운동의 추천 — 지난번 세트로(lib/workout/free-weight.ts). 다시 여는 판은 제 목록을 지킨다.
-   * 양을 줄인 판(세트 −1 이 실린 판)이면 무게는 올리지 않는다(holdsWeight, 2판 P5-d). 성장기 · 입문은 올려도 한 단위 · 처방 줄에
+   * 양 조절이 실린 판(세트 −1, 또는 2판 P5 검토부터 몸 신호로 강도만 −1)이면 무게는 올리지 않는다(holdsWeight, 2판 P5-d). 성장기 · 입문은 올려도 한 단위 · 처방 줄에
    * '· 3개 남기고'(liftCautious, 2판 P5-g).
    */
   const weighed = {

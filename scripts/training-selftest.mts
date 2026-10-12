@@ -245,15 +245,20 @@ import {
   SCORE_KEYS,
   SCORE_POINTS,
   SWAPPED_MIN,
+  PROTECT_KEYS,
+  hasProtect,
   pickReasonLineOf,
+  planReasonItemsOf,
   planReasonsOf,
   programNextOf,
   reasonLineOf,
   scoreContextOf,
   scoreOf,
   type ExerciseScore,
+  type PlanReason,
   type ScorableExercise,
   type ScoreContext,
+  type ScoreKey,
   type ScoredCandidate,
 } from '../lib/report/score.ts';
 import {
@@ -317,6 +322,7 @@ import {
   formatAmount,
   formatPrescription,
   intensityLevel,
+  needsWeight,
   storedKg,
   usesWeight,
 } from '../lib/exercise-meta.ts';
@@ -20073,13 +20079,16 @@ console.log(
       programKeys.some((k) => parseProgram(k)?.perWeek === 2),
     programKeys.join(' · ')
   );
-  /* P5 로 바뀜 — 양 조절(P5-d)이 날마다 volumeSetsCut · 변형의 volumed · metrics.volume 을 더해 JSON 판이 8 → 9 */
+  /*
+   * P5 로 바뀜 — 양 조절(P5-d)이 날마다 volumeSetsCut · 변형의 volumed · metrics.volume 을 더해 JSON 판이 8 → 9.
+   * P5 검토로 바뀜(2026-10-13) — 무게만 멈춘 날(metrics.volume.holdOnly)을 더해 9 → 10.
+   */
   check(
-    'P5 도구 (나) 추가 묶음은 ①~⑯ 의 분모에 안 섞이고(allDays 는 기준 12명만), --gate 를 줬을 때만 exit 1, JSON 판은 9',
+    'P5 도구 (나) 추가 묶음은 ①~⑯ 의 분모에 안 섞이고(allDays 는 기준 12명만), --gate 를 줬을 때만 exit 1, JSON 판은 10',
     /const allDays = results\.flatMap\(\(r\) => r\.days\);/.test(tool) &&
       /const failed = GATE_STAGE \? failedGates\(gateRows\) : \[\];/.test(tool) &&
       /process\.exitCode = 1;/.test(tool) &&
-      /version: 9,/.test(tool) &&
+      /version: 10,/.test(tool) &&
       /if \(GATE_ARG != null && !isGateStage\(GATE_ARG\)\)/.test(tool)
   );
 }
@@ -21616,6 +21625,11 @@ console.log(
     signals: [signal as VolumeDecision['signals'][number]],
     why: [why],
     line: line + TAIL,
+    /*
+     * P5 검토로 바뀜(2026-10-13) — 몸 신호(강도 −1) 판정에 '세트를 못 줄이는 날 무게만 멈추는' 한 줄(holdLine)이 붙었다(volumeForDay 의
+     * 강도만 담은 조절이 쓴다). 같은 앞 마디에 '오늘은 무게를 올리지 않아요.'
+     */
+    holdLine: line + ' 오늘은 무게를 올리지 않아요.',
   });
   const below = decideVolume(
     bodyOf({ belowUsual: true, condition: 6, usualCondition: 8 })
@@ -21951,27 +21965,69 @@ console.log(
       readFileSync(new URL(`../${rel}`, import.meta.url), 'utf8')
         .replace(/\/\*[\s\S]*?\*\//g, '')
         .replace(/^\s*\/\/.*$/gm, '');
-    const SITES: [string, number][] = [
-      ['app/(app)/training/page.tsx', 2],
-      ['app/actions/workout.ts', 2],
-      ['lib/report/daily-plan.ts', 1],
-      ['lib/report/today-data.ts', 1],
-      ['lib/report/training-history.ts', 2],
-      ['lib/workout/session-plan.ts', 1],
+    /*
+     * P5 검토로 바뀜(2026-10-13) — 예전엔 'planPrescription(' 이 나온 횟수만 셌다. 그래서 둘째 인자를 { goal } 만 넘겨 양 조절을 버려도(화면
+     * 목록 · 홈 시간 · 기록 '계획' · 교체 목록 — 돌연변이 넷이 모두 살아남음) 통과했다. 자리마다 넘기는 인자까지 본다: 저장한 일정 · 세션 판을
+     * 통째로(savedPlan · dayPlan · rxBasis = sessionRxBasis(판, …)), 세션 판은 { goal, volume: vol }, 고르는 목록만 일부러 { goal }(daily-plan —
+     * 고른 뒤 조절을 댄다). 자리마다 패턴이 몇 번 맞아야 하는지 적고, 파일의 planPrescription( 수가 그 합과 같아야 한다(새 자리가 생기면 알린다).
+     */
+    const SITES: [string, [RegExp, number][]][] = [
+      [
+        'app/(app)/training/page.tsx',
+        [
+          [/planPrescription\(ex, savedPlan\)/g, 1],
+          [/planPrescription\(raw, savedPlan\)/g, 1],
+        ],
+      ],
+      [
+        'app/actions/workout.ts',
+        [
+          [/planPrescription\(ex, rxBasis\)/g, 1],
+          [
+            /planPrescription\(\s*to,\s*sessionRxBasis\(plan, core\.savedPlan\?\.goal\)\s*\)/g,
+            1,
+          ],
+          [/const rxBasis = sessionRxBasis\(plan, core\.savedPlan\?\.goal\);/g, 1],
+        ],
+      ],
+      [
+        'lib/report/daily-plan.ts',
+        [[/planPrescription\(ex, \{ goal: goal\.name \}\)/g, 1]],
+      ],
+      ['lib/report/today-data.ts', [[/planPrescription\(ex, savedPlan\)/g, 1]]],
+      [
+        'lib/report/training-history.ts',
+        [
+          [/planPrescription\(l\.exercise, dayPlan\)/g, 1],
+          [/planPrescription\(ex, dayPlan\)/g, 1],
+        ],
+      ],
+      [
+        'lib/workout/session-plan.ts',
+        [
+          [/planPrescription\(ex, \{ goal, volume: vol \}\)/g, 1],
+          [/const vol = readPlanVolume\(volume\);/g, 1],
+        ],
+      ],
     ];
-    const counts = SITES.map(([rel, want]) => {
+    const counts = SITES.map(([rel, pats]) => {
       const src = strip(rel);
+      const calls = pats.filter(([re]) => re.source.startsWith('planPrescription'));
       return {
         rel,
-        want,
+        want: calls.reduce((s, [, n]) => s + n, 0),
         got: src.split('planPrescription(').length - 1,
         goal: src.split('goalPrescription(').length - 1,
+        args: pats
+          .filter(([re, n]) => (src.match(re) ?? []).length !== n)
+          .map(([re]) => re.source),
       };
     });
+    const wantCalls = counts.reduce((s, c) => s + c.want, 0);
     check(
-      `P5 양 (라) 아홉 자리 소스 — 여섯 파일에서 planPrescription 이 ${SITES.reduce((s, [, n]) => s + n, 0)}번, goalPrescription 을 바로 부르는 곳 0`,
-      counts.every((c) => c.got === c.want && c.goal === 0),
-      json(counts.filter((c) => c.got !== c.want || c.goal !== 0))
+      `P5 양 (라) 아홉 자리 소스 — 여섯 파일에서 planPrescription 이 ${wantCalls}번, 자리마다 넘기는 인자까지(저장한 일정 · 세션 판 통째로, 고르는 목록만 목표뿐), goalPrescription 을 바로 부르는 곳 0`,
+      counts.every((c) => c.got === c.want && c.goal === 0 && c.args.length === 0),
+      json(counts.filter((c) => c.got !== c.want || c.goal !== 0 || c.args.length > 0))
     );
   }
 
@@ -22020,12 +22076,13 @@ console.log(
     const raised = ask(hitLast);
     const held = ask(hitLast, true);
     check(
-      "P5 양 (마) 두 번 이어 다 채운 운동 — 보통 날은 올리고(60 → 62.5kg), 양을 줄인 날은 60kg 그대로 · '오늘은 양을 줄인 날이라 지난번 60kg 그대로예요'",
+      /* P5 검토로 바뀜(2026-10-13) — hold 는 강도만 담은 조절(세트 그대로)에도 걸려 '양을 줄인 날이라'가 늘 참이 아니다. 글을 '무게를 올리지 않는 날이라'로 */
+      "P5 양 (마) 두 번 이어 다 채운 운동 — 보통 날은 올리고(60 → 62.5kg), 양을 줄인 날은 60kg 그대로 · '오늘은 무게를 올리지 않는 날이라 지난번 60kg 그대로예요'",
       raised != null &&
         raised.kg > 60 &&
         held != null &&
         held.kg === 60 &&
-        held.note === '오늘은 양을 줄인 날이라 지난번 60kg 그대로예요' &&
+        held.note === '오늘은 무게를 올리지 않는 날이라 지난번 60kg 그대로예요' &&
         !held.note.includes('—'),
       json([raised, held])
     );
@@ -22245,6 +22302,8 @@ console.log(
         signals: ['effortSpike'],
         why: [EFFORT_WHY],
         line: EFFORT_LINE,
+        /* P5 검토로 바뀜 — 판정에 holdLine 칸이 생겼다. 급증만이면 강도를 안 내리는 신호라 없음(null) */
+        holdLine: null,
       }),
     json(spikeAlone)
   );
@@ -23492,9 +23551,10 @@ console.log(
   /* ── (라) hold — 양을 줄인 날은 올림만 멈춘다 ── */
   {
     const twice = { last: full60(ago(3)), prev: full60(ago(5)) };
-    const holdNote = '오늘은 양을 줄인 날이라 지난번 60kg 그대로예요';
+    /* P5 검토로 바뀜 — hold 글을 '무게를 올리지 않는 날이라'로(강도만 담은 조절도 hold 다, P5 양 (마) 주석) */
+    const holdNote = '오늘은 무게를 올리지 않는 날이라 지난번 60kg 그대로예요';
     check(
-      "P5 무게 (라) 양을 줄인 날(hold) — 두 번 이어 채웠어도 · 한 번 채웠어도 60kg 그대로 · '오늘은 양을 줄인 날이라 지난번 60kg 그대로예요'",
+      "P5 무게 (라) 양을 줄인 날(hold) — 두 번 이어 채웠어도 · 한 번 채웠어도 60kg 그대로 · '오늘은 무게를 올리지 않는 날이라 지난번 60kg 그대로예요'",
       ask({ ...twice, hold: true })?.kg === 60 &&
         ask({ ...twice, hold: true })?.note === holdNote &&
         ask({ last: full60(ago(3)), hold: true })?.note === holdNote &&
@@ -23594,10 +23654,20 @@ console.log(
   /* ── (사) 격자 불변식 ── */
   {
     type Pattern = 'full' | 'short' | 'below' | 'fewer';
+    /*
+     * P5 검토로 바뀜(2026-10-13) — 단위 밖 무게(바벨 61 · 61.5, 덤벨 21, 케이블 46)를 더했다. 세트 기록은 0.5kg 단위라 남을 수 있는데, 예전엔
+     * '그대로'라 하면서 60kg 을 내고(말없이 내림) 조심 올림이 63.5kg(장비로 못 만듦)을 냈다. 단위 배수는 바꾼 무게에만 걸고, '그대로'는 지난
+     * 무게 글자 그대로인지 따로 본다.
+     */
     const kinds = [
-      { equipment: ['바벨'], bigLower: true, unit: 2.5, tops: [20, 60, 102.5] },
-      { equipment: ['덤벨'], bigLower: false, unit: 2, tops: [2, 10, 24] },
-      { equipment: ['케이블'], bigLower: false, unit: 2.5, tops: [5, 45] },
+      {
+        equipment: ['바벨'],
+        bigLower: true,
+        unit: 2.5,
+        tops: [20, 60, 61, 61.5, 102.5],
+      },
+      { equipment: ['덤벨'], bigLower: false, unit: 2, tops: [2, 10, 21, 24] },
+      { equipment: ['케이블'], bigLower: false, unit: 2.5, tops: [5, 45, 46] },
     ];
     const repsFor = (p: Pattern, r: number, s: number): number[] => {
       if (p === 'full') return Array.from({ length: s }, () => r);
@@ -23610,6 +23680,8 @@ console.log(
     let raises = 0;
     let lowers = 0;
     let holdsHit = 0;
+    let offUnitKept = 0;
+    let offUnitMoved = 0;
     const bad: string[] = [];
     const note = (why: string, c: unknown) => {
       if (bad.length < 8) bad.push(`${why} ${json(c)}`);
@@ -23687,12 +23759,20 @@ console.log(
                         ) {
                           note(`글 ${r.note}`, c);
                         }
+                        const sameKg = Math.abs(r.kg - top) < 1e-9;
                         if (
-                          Math.abs(r.kg / k.unit - Math.round(r.kg / k.unit)) > 1e-9 ||
-                          r.kg < k.unit
+                          !sameKg &&
+                          (Math.abs(r.kg / k.unit - Math.round(r.kg / k.unit)) > 1e-9 ||
+                            r.kg < k.unit)
                         ) {
                           note(`단위 ${r.kg}`, c);
                         }
+                        if (r.note.includes('그대로') && !sameKg) {
+                          offUnitKept++;
+                          note(`그대로라는데 ${top} → ${r.kg}`, c);
+                        }
+                        if (!sameKg && top / k.unit !== Math.round(top / k.unit))
+                          offUnitMoved++;
                         const streak =
                           pattern === 'full' &&
                           prevKind === 'sameHit' &&
@@ -23746,8 +23826,13 @@ console.log(
                         }
                       }
     check(
-      `P5 무게 (사) 격자 ${n}가지(장비 셋 · 무게 · 처방 5 · 8 · 15회 × 3 · 4세트 · 지난번 채움/모자람/아래 끝 밑/세트 덜함 · 앞 날 넷 · 쉰 날 · hold · cautious) — 결정성 · 29일부터만 null · 해요체 60자 · 단위 배수 · 올림은 두 번 이어 채운 보통 날만 · 내림은 못 채움 · 쉰 기간만 · 못 채우면 바로 내림 · 조심하면 한 단위 이하 · hold 는 올림만 멈춤(올림 ${raises} · 내림 ${lowers} · 채운 hold 날 ${holdsHit})`,
-      bad.length === 0 && raises > 0 && lowers > 0 && holdsHit > 0,
+      `P5 무게 (사) 격자 ${n}가지(장비 셋 · 무게 · 처방 5 · 8 · 15회 × 3 · 4세트 · 지난번 채움/모자람/아래 끝 밑/세트 덜함 · 앞 날 넷 · 쉰 날 · hold · cautious) — 결정성 · 29일부터만 null · 해요체 60자 · 단위 배수 · 올림은 두 번 이어 채운 보통 날만 · 내림은 못 채움 · 쉰 기간만 · 못 채우면 바로 내림 · 조심하면 한 단위 이하 · hold 는 올림만 멈춤 · 단위 밖 무게(61 · 61.5 · 21 · 46)도 바꾼 무게는 단위 배수, '그대로'는 지난 무게 글자 그대로(올림 ${raises} · 내림 ${lowers} · 채운 hold 날 ${holdsHit} · 단위 밖에서 바꾼 ${offUnitMoved} · 그대로라며 바꾼 ${offUnitKept})`,
+      bad.length === 0 &&
+        raises > 0 &&
+        lowers > 0 &&
+        holdsHit > 0 &&
+        offUnitMoved > 0 &&
+        offUnitKept === 0,
       bad.join(' | ')
     );
   }
@@ -24149,7 +24234,11 @@ console.log(
       ['다른 운동 즐겨찾기 → 없음', goblet, { favoriteIds: new Set(['bench']) }, {}],
       /* 여럿 */
       [
-        '모두 — 등판 · 프로그램 · 오늘 뺌 · 계열 · 즐겨찾기',
+        /*
+         * P5 검토로 바뀜(2026-10-13) — 지키는 항목(등판 · 프로그램 · 오늘 뺌)이 걸리면 고르는 쪽 항목(계열 +2 · 즐겨찾기 +1)은 안 싣는다.
+         * 처음에는 다 더해 상쇄됐다(score.ts 머리 주석 — 즐겨찾기한 노르딕 컬이 등판 모레에 0 으로 전혀 뒤로 안 갔다).
+         */
+        '모두 — 등판 · 프로그램 · 오늘 뺌이 걸리면 계열 · 즐겨찾기는 안 실림',
         boxJump,
         {
           outing: out(1, 1),
@@ -24158,7 +24247,33 @@ console.log(
           patternsDone14d: new Map(),
           favoriteIds: new Set(['box']),
         },
-        { outing: -3, program: -3, swapped: -3, pattern: 2, favorite: 1 },
+        { outing: -3, program: -3, swapped: -3 },
+      ],
+      [
+        '계열 · 즐겨찾기만(지키는 항목 없음) — 둘 다 실림',
+        boxJump,
+        { patternsDone14d: new Map(), favoriteIds: new Set(['box']) },
+        { pattern: 2, favorite: 1 },
+      ],
+      [
+        '어깨 뻐근 · 즐겨찾기 · 2주 안 한 밀기(벤치) — 뻐근 −2 만',
+        bench,
+        {
+          eased: shoulderStiff,
+          patternsDone14d: new Map(),
+          favoriteIds: new Set(['bench']),
+        },
+        { stiff: -2 },
+      ],
+      [
+        '회복 날 뻐근한 어깨 풀기 + 두 번 뺀 운동 — 뺌 −2 만(풀기 +2 도 고르는 쪽)',
+        shoulderMob,
+        {
+          theme: 'recovery',
+          eased: shoulderStiff,
+          swappedOut: new Map([['smob', 2]]),
+        },
+        { swapped: -2 },
       ],
     ];
     const wrong = rows
@@ -24279,7 +24394,15 @@ console.log(
       ]),
       swappedOut: new Map([[library[0].id, 2]]),
       swappedOutToday: new Set([library[1].id]),
-      favoriteIds: new Set([library[2].id, library[3].id]),
+      /*
+       * P5 검토로 바뀜(2026-10-13) — 지키는 항목이 걸린 운동엔 즐겨찾기가 안 실린다. 앞 둘은 이 ctx 에서 모두 걸려(어깨 · 허리 · 등판 ·
+       * 팔), 걸릴 일이 없는 가동성 하나를 더한다(푸는 카테고리 · 동작 열쇠 없음 · 뺀 기록 없음).
+       */
+      favoriteIds: new Set([
+        library[2].id,
+        library[3].id,
+        library.find((e, i) => i > 3 && e.category === '모빌리티')!.id,
+      ]),
     };
     const before = deep(busy);
     const first = library.map((e) => scoreOf(e, busy));
@@ -24299,6 +24422,21 @@ console.log(
     const loads = (e: (typeof library)[number]) =>
       !LOOSEN_CATEGORIES.includes(e.category) &&
       intensityLevel(e.intensity) >= INTENSITY_CAP.MODERATE;
+    /*
+     * 지키는 항목(등판 · 관절 · 팔 · 프로그램 · 뺌)이 걸리는가 — 아래 판정을 다시 적어 고르는 쪽(계열 · 즐겨찾기)이 빠지는 운동을 따로 센다(P5 검토).
+     * 이 ctx 는 회복 날이 아니라 관절 항목은 늘 '−'다.
+     */
+    const protects = (e: (typeof library)[number]): boolean =>
+      isLowerPower(e) ||
+      isLowerEccentric(e) ||
+      (loads(e) && e.bodyParts.some((p) => busy.eased.has(p))) ||
+      isHeavyUpperPush(e) ||
+      isArmPlyo(e) ||
+      (loads(e) &&
+        (e.bodyParts.includes('손목·전완') || e.movementPattern === '운반')) ||
+      (movementKeyOf(e) != null && busy.programNext!.patterns.has(movementKeyOf(e)!)) ||
+      (busy.swappedOut.get(e.id) ?? 0) >= SWAPPED_MIN ||
+      busy.swappedOutToday.has(e.id);
     const want: Record<string, (e: (typeof library)[number]) => boolean> = {
       outing: (e) => isLowerPower(e) || isLowerEccentric(e),
       arm: (e) =>
@@ -24314,8 +24452,10 @@ console.log(
         HEAVY_CATEGORIES.includes(e.category) &&
         e.movementPattern != null &&
         NEGLECT_PATTERNS.includes(e.movementPattern) &&
-        !busy.patternsDone14d!.has(e.movementPattern),
+        !busy.patternsDone14d!.has(e.movementPattern) &&
+        !protects(e),
       stiff: (e) => loads(e) && e.bodyParts.some((p) => busy.eased.has(p)),
+      favorite: (e) => busy.favoriteIds.has(e.id) && !protects(e),
     };
     const mism = Object.entries(want).flatMap(([key, fn]) => {
       const bad = library.filter(
@@ -24781,12 +24921,23 @@ console.log(
         ['내일 등판이라 하체 점프와 천천히 내리는 운동은 뒤로 뒀어요.'],
       ],
       [
+        /* P5 검토로 바뀜(2026-10-13) — 푸시업이 뽑혔으면 '그쪽 운동은 뒤로'가 거짓이라 줄이 빠진다. 출처 차례를 보려고 둘 다 안 뽑힌 것으로 */
         '어깨 뻐근 · 팔꿈치 재활이 같이 걸리면 오늘 말한 뻐근으로',
         r([
           sc(curl, { eased: stiffEased }, false),
-          sc(pushup, { eased: stiffEased }, true),
+          sc(pushup, { eased: stiffEased }, false),
         ]),
         ['어깨가 뻐근하다고 해서 그쪽 운동은 뒤로 뒀어요.'],
+      ],
+      [
+        /* P5 검토 — 뒤로 민 항목이 걸린 운동이 하나라도 뽑혔으면 그 항목 줄은 말하지 않는다(카드 밑 목록에 그 운동이 있다) */
+        '뒤로 민 운동이 하나라도 뽑힘 → 그 항목 줄 없음(다른 항목은 그대로)',
+        r([
+          sc(curl, { eased: stiffEased }, false),
+          sc(pushup, { eased: stiffEased }, true),
+          sc(boxJump, { outing: out(1, 1) }, false),
+        ]),
+        ['내일 등판이라 하체 점프는 뒤로 뒀어요.'],
       ],
       [
         '계열 +2 는 뽑힌 것만 — 안 뽑혔으면 말 안 함',
@@ -24868,7 +25019,8 @@ console.log(
           ),
         ]),
         [
-          '내일 근력 프로그램과 겹치는 스쿼트·밀기는 뒤로 뒀어요.',
+          /* P5 검토로 바뀜 — 프로그램 날은 짐작이라('이르면 내일' — programNextOf) 날을 말하지 않는다 */
+          '다음 근력 프로그램과 겹치는 스쿼트·밀기는 뒤로 뒀어요.',
           '여러 번 뺀 운동은 뒤로 뒀어요.',
         ],
       ],
@@ -24911,6 +25063,8 @@ console.log(
     ];
     const volumes = [null, { why: VOL }];
     const badLines: string[] = [];
+    const badItems: string[] = [];
+    let backLines = 0;
     let plans = 0;
     for (const patch of contexts)
       for (const volume of volumes)
@@ -24920,6 +25074,24 @@ console.log(
             const scored = library.map((e, i) => sc(e, patch, i % every === 0));
             const got = planReasonsOf({ scored, volume, overrodeEffort });
             const again = planReasonsOf({ scored, volume, overrodeEffort });
+            /*
+             * P5 검토 — 줄마다 실린 항목 · 쪽이 사실과 맞는가: 뒤로(−) 줄은 그 항목이 걸린 뽑힌 운동이 없고 안 뽑힌 운동은 있다, 앞으로(+)
+             * 줄은 그 항목이 걸린 뽑힌 운동이 있다. 글은 planReasonsOf 와 같다.
+             */
+            const items = planReasonItemsOf({ scored, volume, overrodeEffort });
+            const partOf = (x: ScoredCandidate, k: ScoreKey) => x.score.parts[k] ?? 0;
+            const itemsOk =
+              json(items.map((it) => it.text)) === json(got) &&
+              items.every((it) =>
+                it.key == null
+                  ? it.sign == null
+                  : it.sign === -1
+                    ? !scored.some((x) => x.picked && partOf(x, it.key!) < 0) &&
+                      scored.some((x) => !x.picked && partOf(x, it.key!) < 0)
+                    : scored.some((x) => x.picked && partOf(x, it.key!) > 0)
+              );
+            if (!itemsOk) badItems.push(json(items));
+            for (const it of items) if (it.sign === -1) backLines++;
             const ok =
               got.length <= PLAN_REASONS_MAX &&
               new Set(got).size === got.length &&
@@ -24939,6 +25111,11 @@ console.log(
       `P5 점수 (바) 일정 까닭 격자 — 실제 표 × ${plans}판: 3줄 안 · 같은 줄 없음 · 같은 입력 같은 답 · 양 조절 줄이 맨 앞 · 해요체 · 줄표 없음 · 60자 안`,
       badLines.length === 0,
       badLines.slice(0, 3).join(' · ')
+    );
+    check(
+      `P5 점수 (바) 일정 까닭 격자 — 줄의 항목 · 쪽(PlanReason)이 사실과 맞다: 뒤로 줄(${backLines}줄)은 그 항목이 걸린 뽑힌 운동이 없고 안 뽑힌 운동이 있다, 앞으로 줄은 걸린 뽑힌 운동이 있다(2판 P5 검토)`,
+      badItems.length === 0 && backLines > 0,
+      badItems.slice(0, 2).join(' · ')
     );
   }
 
@@ -25616,13 +25793,17 @@ console.log(
     const scored: ScoredCandidate[] = s.cands
       .filter((e) => !s.recentIds.has(e.id) && competes(e))
       .map((e) => ({ score: scoreOf(e, ctx), picked: pickedIds.has(e.id) }));
-    const reasons = planReasonsOf({
+    /* P5 검토로 바뀜(2026-10-13) — 저장하는 까닭이 줄마다 항목 · 쪽을 실은 PlanReason 이라 그 모양으로 다시 센다 */
+    const reasons = planReasonItemsOf({
       scored,
       volume: built.volume ?? null,
       overrodeEffort: built.overrodeEffort === true,
     });
     return { ctx, reasons };
   };
+  /** 저장한 까닭의 글만 — 줄은 PlanReason(2판 P5 검토) */
+  const textsOf = (rs: readonly PlanReason[] | undefined) =>
+    (rs ?? []).map((r) => r.text);
   const lineOk = (l: string) => !l.includes('—') && /요\.$/.test(l) && l.length <= 60;
 
   /* ── (가) · (나) P3 160조합 ── */
@@ -25637,6 +25818,7 @@ console.log(
     let recentPicks = 0;
     let worstOff = 0;
     let worstOn = 0;
+    let backLinesBuilt = 0;
     for (const [i, facts] of p3ComboFactsSeen.entries()) {
       const s = setupOf(i, facts);
       const off = buildDailyPlan(s.args);
@@ -25667,12 +25849,12 @@ console.log(
         if (json(bare(zero)) !== json(bare(off)))
           bad.push(`p0-${i} 모든 점수 0 인데 끔과 다름`);
         const head = [off.volume?.why, off.overrodeEffort ? OVERRODE_LINE : null];
-        if ((zero.reasons ?? []).some((l) => !head.includes(l)))
+        if (textsOf(zero.reasons).some((l) => !head.includes(l)))
           bad.push(`p0-${i} 모든 점수 0 인데 점수 까닭 ${json(zero.reasons)}`);
       }
       if (competing.length === 0 && zero.reasons?.length) {
         /* 겨룬 후보가 없으면 점수 까닭도 없다 */
-        if (zero.reasons.some((l) => l !== off.volume?.why))
+        if (textsOf(zero.reasons).some((l) => l !== off.volume?.why))
           bad.push(`p0-${i} 겨룬 후보 없이 까닭`);
       }
       /* (나) 테마 · 시간 · 근거 · 뺀 규칙 · 장비 · 경력은 점수와 상관없다 */
@@ -25724,9 +25906,24 @@ console.log(
         bad.push(`p0-${i} 까닭 ${json(reasons)} ≠ ${json(rc.reasons)}`);
       if (reasons.length > PLAN_REASONS_MAX)
         bad.push(`p0-${i} 까닭 ${reasons.length}줄`);
-      if (on.volume && reasons[0] !== on.volume.why)
+      if (on.volume && reasons[0]?.text !== on.volume.why)
         bad.push(`p0-${i} 양 조절 줄이 맨 앞이 아님`);
-      if (reasons.some((l) => !lineOk(l))) bad.push(`p0-${i} 글 ${json(reasons)}`);
+      if (reasons.some((l) => !lineOk(l.text))) bad.push(`p0-${i} 글 ${json(reasons)}`);
+      /*
+       * P5 검토 — 뒤로 줄(−)의 항목이 걸린 운동은 목록(picks)에 없고, 앞으로 줄(+)의 항목이 걸린 운동은 목록에 있다. 처음에는 뒤로 줄을 뽑힌
+       * 후보까지 세서 말해 '…은 뒤로 뒀어요' 밑에 그 운동이 있는 날이 있었다(173줄 중 9줄).
+       */
+      for (const it of reasons) {
+        if (it.key == null) continue;
+        const onList = on.picks.filter(
+          (p) => (p.score?.parts[it.key!] ?? 0) * it.sign! > 0
+        );
+        if (it.sign === -1 ? onList.length > 0 : onList.length === 0)
+          bad.push(
+            `p0-${i} ${it.sign === -1 ? '뒤로' : '앞으로'} 줄 '${it.text}' · 목록 ${onList.length}`
+          );
+        if (it.sign === -1) backLinesBuilt++;
+      }
       /* ⑨ 시간 — 넘친 것을 끔 · 켬 따로 잰다(구간이 비면 하나는 넣는 길이 있어 끔도 넘칠 수 있다 — P0 ⑨) */
       const overOf = (pl: DailyPlan) =>
         pl.estimatedMinutes - pl.minutes - Math.min(3, pl.minutes * 0.12);
@@ -25745,7 +25942,7 @@ console.log(
     );
     const rest = bad.filter((b) => !/끔인데|모든 점수 0|겨룬 후보 없이/.test(b));
     check(
-      `P5 일정 (나) P3 160조합(일정 ${built} · 멈춤 ${haltedCount}) — 점수는 테마 · 시간 · 근거 · 뺀 규칙을 안 바꾸고 후보 안에서 차례로만 닿는다(목록이 바뀐 ${listMoved}명) · 뽑힌 운동 점수 ${withScore}개 = 다시 셈한 점수(최근 사흘 ${recentPicks}개는 없음) · 까닭(있는 ${built ? withReasons : 0}명) = 다시 셈한 까닭 · 3줄 안 · 같은 입력 같은 답`,
+      `P5 일정 (나) P3 160조합(일정 ${built} · 멈춤 ${haltedCount}) — 점수는 테마 · 시간 · 근거 · 뺀 규칙을 안 바꾸고 후보 안에서 차례로만 닿는다(목록이 바뀐 ${listMoved}명) · 뽑힌 운동 점수 ${withScore}개 = 다시 셈한 점수(최근 사흘 ${recentPicks}개는 없음) · 까닭(있는 ${built ? withReasons : 0}명) = 다시 셈한 까닭 · 3줄 안 · 같은 입력 같은 답 · 뒤로 줄 ${backLinesBuilt}줄의 항목이 걸린 운동은 목록에 없고 앞으로 줄의 것은 있다(P5 검토)`,
       p3ComboFactsSeen.length === 160 &&
         built + haltedCount === 160 &&
         listMoved > 0 &&
@@ -25793,9 +25990,20 @@ console.log(
         if (back.score?.parts.swapped !== SCORE_POINTS.swappedToday)
           bad.push(`p0-${i} 다시 든 운동에 −3 이 없음`);
       }
-      const r = remade.reasons ?? [];
-      if (!r.includes('오늘 뺀 운동은 뒤로 뒀어요.') && r.length < PLAN_REASONS_MAX)
+      const r = textsOf(remade.reasons);
+      /*
+       * P5 검토로 바뀜(2026-10-13) — 뒤로 줄은 그 항목(뺀 운동)이 걸린 운동이 하나도 안 뽑혔을 때만 말한다. 그래서 오늘 뺀 운동이 다시 들었거나
+       * 여러 번 뺀 운동이 뽑혔으면 이 줄이 없는 것이 맞다.
+       */
+      const swappedOnList = remade.picks.some((p) => (p.score?.parts.swapped ?? 0) < 0);
+      if (
+        !r.includes('오늘 뺀 운동은 뒤로 뒀어요.') &&
+        r.length < PLAN_REASONS_MAX &&
+        !swappedOnList
+      )
         bad.push(`p0-${i} 까닭에 오늘 뺀 운동이 없음 ${json(r)}`);
+      if (r.includes('오늘 뺀 운동은 뒤로 뒀어요.') && swappedOnList)
+        bad.push(`p0-${i} 뺀 운동이 목록에 있는데 '뒤로 뒀어요'`);
     }
     check(
       `P5 일정 (다) 오늘 뺀 운동(본운동 첫 칸)을 넣고 다시 만들면 맨 뒤로 — ${tries}번 중 다시 든 것 ${again}번(10% 안 · 대신할 것이 없을 때만, 그때는 −3 이 실림), 까닭에 '오늘 뺀 운동은 뒤로 뒀어요.'(3줄이 찼으면 빠질 수 있음)`,
@@ -25888,7 +26096,7 @@ console.log(
         }
         staleHits += old.picks.filter((p) => p.score?.parts.program != null).length;
         looseHits += loose.picks.filter((p) => p.score?.parts.program != null).length;
-        if ((on.reasons ?? []).some((l) => l.includes('근력 프로그램'))) reasonHits++;
+        if (textsOf(on.reasons).some((l) => l.includes('근력 프로그램'))) reasonHits++;
       }
     }
     check(
@@ -26029,9 +26237,23 @@ console.log(
         '2주 동안 힌지를 안 해서 앞에 뒀어요.',
       ],
       [
-        '계열 +2 · 뻐근 −2 · 즐겨찾기 +1 → 계열(가장 큰 +)',
+        /*
+         * P5 검토로 바뀜(2026-10-13) — 지키는 항목(뻐근 −2)이 함께 저장된 줄(검토 전 일정)엔 이유를 안 단다. 지금 scoreOf 는 이런 줄을 안
+         * 만든다(뻐근이 걸리면 계열 · 즐겨찾기를 안 싣는다). 예전 기대값은 '2주 동안 힌지를 안 해서 앞에 뒀어요.'였다.
+         */
+        '계열 +2 · 뻐근 −2 · 즐겨찾기 +1 → 지키는 항목이 있어 없음',
         line(hinge, { total: 1, parts: { stiff: -2, pattern: 2, favorite: 1 } }),
-        '2주 동안 힌지를 안 해서 앞에 뒀어요.',
+        null,
+      ],
+      [
+        '계열 +2 · 등판 −3(합 −1) · 프로그램 −3 · 팔 −2 · 뺌 −2 → 모두 없음',
+        [
+          line(hinge, { total: -1, parts: { outing: -3, pattern: 2 } }),
+          line(hinge, { total: 3, parts: { program: -3, pattern: 2, favorite: 1 } }),
+          line(hinge, { total: 1, parts: { arm: -2, pattern: 2, favorite: 1 } }),
+          line(hinge, { total: 1, parts: { swapped: -2, pattern: 2, favorite: 1 } }),
+        ].find((x) => x != null) ?? null,
+        null,
       ],
       [
         '회복 날 풀기 +2',
@@ -26112,6 +26334,94 @@ console.log(
       ],
       ['옛 줄 · 깨진 양 조절', of({ volume: { setDelta: -2, why: '가.' } }), []],
       ['옛 줄 · 아무것도 없음', of({}), []],
+      /*
+       * P5 검토(2026-10-13) — 줄마다 항목 · 쪽을 싣고(PlanReason), 앞으로 당긴 줄은 지금 보이는 줄 · 지금 별로 다시 거른다. 그 운동을 빼거나
+       * (removeFromTodayPlan) 안전 재확인으로 빠지거나 별을 떼면 '앞에 뒀어요'가 거짓이 된다. 뒤로 줄 · 머리 줄은 그대로.
+       */
+      ...((): [string, string[], string[]][] => {
+        const P = '2주 동안 안 한 힌지를 앞에 뒀어요.';
+        const F = '즐겨찾기한 운동을 앞에 뒀어요.';
+        const B = '오늘 뺀 운동은 뒤로 뒀어요.';
+        const reasons = [
+          { text: V.why },
+          { text: B, key: 'swapped', sign: -1 },
+          { text: P, key: 'pattern', sign: 1 },
+          { text: F, key: 'favorite', sign: 1 },
+        ];
+        const picks = [
+          { exerciseId: 'a', slot: 'main', score: { total: 2, parts: { pattern: 2 } } },
+          {
+            exerciseId: 'b',
+            slot: 'main',
+            score: { total: 1, parts: { favorite: 1 } },
+          },
+          { exerciseId: 'c', slot: 'main' },
+        ];
+        const withPicks = (o: object) =>
+          planReasonLines({ reasons, picks, ...o } as Input);
+        const sees = (shown: object[], favoriteIds?: Set<string>) =>
+          planReasonLines({ reasons, picks } as Input, {
+            shown: shown as never,
+            ...(favoriteIds ? { favoriteIds } : {}),
+          });
+        return [
+          ['항목 줄 · 저장한 picks 그대로 → 넷 중 셋', withPicks({}), [V.why, B, P]],
+          [
+            '계열 운동을 뺌(보이는 줄에 없음) → 계열 줄 없음',
+            sees([picks[1], picks[2]]),
+            [V.why, B, F],
+          ],
+          [
+            '별을 뗌(지금 별 없음) → 즐겨찾기 줄 없음',
+            sees(picks, new Set<string>()),
+            [V.why, B, P],
+          ],
+          [
+            '별이 그대로 · 계열 운동도 그대로 → 저장한 차례 그대로',
+            planReasonLines({ reasons: [reasons[2], reasons[3]], picks } as Input, {
+              favoriteIds: new Set(['b']),
+            }),
+            [P, F],
+          ],
+          [
+            '지키는 항목이 함께 저장된 줄만 계열 +2(검토 전 일정) → 계열 줄 없음',
+            sees([
+              {
+                exerciseId: 'a',
+                score: { total: 0, parts: { stiff: -2, pattern: 2 } },
+              },
+            ]),
+            [V.why, B],
+          ],
+          [
+            '보이는 줄이 비면 앞으로 줄은 모두 없음 · 뒤로 · 머리 줄은 그대로',
+            sees([]),
+            [V.why, B],
+          ],
+          [
+            '글만 저장한 옛 줄은 거를 항목을 몰라 그대로',
+            planReasonLines({ reasons: [P, F], picks: [] } as unknown as Input, {
+              shown: [],
+              favoriteIds: new Set<string>(),
+            }),
+            [P, F],
+          ],
+          [
+            '모르는 항목 · 깨진 쪽은 거르지 않는다(글만 본다)',
+            planReasonLines(
+              {
+                reasons: [
+                  { text: '가.', key: 'nope', sign: 1 },
+                  { text: '나.', key: 'pattern', sign: '1' },
+                  { text: 5 },
+                ],
+              } as unknown as Input,
+              { shown: [] }
+            ),
+            ['가.', '나.'],
+          ],
+        ];
+      })(),
     ];
     const bad = cases.filter(([, got, want]) => json(got) !== json(want));
     check(
@@ -26135,6 +26445,8 @@ console.log(
     let rows = 0;
     let shown = 0;
     let quietBack = 0;
+    let backChecked = 0;
+    let aheadDropped = 0;
     const bad: string[] = [];
     for (const [i, facts] of p3ComboFactsSeen.entries()) {
       const plan = buildPitchPlan(facts);
@@ -26179,10 +26491,30 @@ console.log(
       }
       const lines = planReasonLines(read);
       if (lines.length > 0) withReasons++;
-      if (json(lines) !== json(built.reasons ?? []))
-        bad.push(
-          `p0-${i} 일정 까닭 ${json(lines)} ≠ 저장 ${json(built.reasons ?? [])}`
+      /* P5 검토로 바뀜 — 저장한 까닭은 PlanReason(글 + 항목 · 쪽). 만든 그대로 읽으면 화면 글 = 저장한 글 */
+      const savedTexts = (built.reasons ?? []).map((r) => r.text);
+      if (json(lines) !== json(savedTexts))
+        bad.push(`p0-${i} 일정 까닭 ${json(lines)} ≠ 저장 ${json(savedTexts)}`);
+      /*
+       * P5 검토 — 뒤로 줄의 항목이 걸린 운동은 목록에 없다(카드가 '…은 뒤로 뒀어요'라고 하는데 밑에 그 운동이 있던 날 9/173). 앞으로 줄의 항목이
+       * 걸린 운동을 목록에서 빼면 화면에서 그 줄이 사라진다(removeFromTodayPlan 을 흉내 — picks 에서 뺀 일정).
+       */
+      for (const it of built.reasons ?? []) {
+        if (it.key == null) continue;
+        const hit = read.picks.filter(
+          (p) => (p.score?.parts[it.key!] ?? 0) * it.sign! > 0
         );
+        if (it.sign === -1) {
+          backChecked++;
+          if (hit.length > 0)
+            bad.push(`p0-${i} 뒤로 줄 '${it.text}' 밑에 ${hit.length}개`);
+          continue;
+        }
+        const removed = { ...read, picks: read.picks.filter((p) => !hit.includes(p)) };
+        if (planReasonLines(removed).includes(it.text))
+          bad.push(`p0-${i} 뺀 뒤에도 '${it.text}'`);
+        else aheadDropped++;
+      }
       if (lines.length > 3 || !lines.every(textOk))
         bad.push(`p0-${i} 일정 까닭 글 ${json(lines)}`);
       for (const p of read.picks) {
@@ -26209,11 +26541,16 @@ console.log(
       }
     }
     console.log(
-      `    일정 ${plans}개 · 까닭 있는 일정 ${withReasons} · 운동 줄 ${rows} · 이유 줄 ${shown} · 뒤로 민 점수가 있어 조용한 줄 ${quietBack}`
+      `    일정 ${plans}개 · 까닭 있는 일정 ${withReasons} · 운동 줄 ${rows} · 이유 줄 ${shown} · 뒤로 민 점수가 있어 조용한 줄 ${quietBack} · 뒤로 줄 ${backChecked} · 운동을 빼 사라진 앞으로 줄 ${aheadDropped}`
     );
     check(
-      `P5 화면 (다) P3 160조합 일정 ${plans}개 — 저장 → 읽기 뒤 '오늘 이렇게 짰어요'가 저장한 까닭과 같고(3줄 · 해요체 · 줄표 없음), 운동 줄 이유 ${shown}개는 모두 '앞에 뒀어요'(합이 양수 · '+' 항목만), 뒤로 민 줄은 조용하다`,
-      plans > 0 && withReasons > 0 && shown > 0 && bad.length === 0,
+      `P5 화면 (다) P3 160조합 일정 ${plans}개 — 저장 → 읽기 뒤 '오늘 이렇게 짰어요'가 저장한 까닭과 같고(3줄 · 해요체 · 줄표 없음), 운동 줄 이유 ${shown}개는 모두 '앞에 뒀어요'(합이 양수 · '+' 항목만), 뒤로 민 줄은 조용하다, 뒤로 줄 ${backChecked}줄의 항목이 걸린 운동은 목록에 없고 앞으로 줄 ${aheadDropped}줄은 그 운동을 빼면 사라진다(P5 검토)`,
+      plans > 0 &&
+        withReasons > 0 &&
+        shown > 0 &&
+        backChecked > 0 &&
+        aheadDropped > 0 &&
+        bad.length === 0,
       bad.slice(0, 3).join(' · ')
     );
   }
@@ -26229,8 +26566,9 @@ console.log(
     const list = strip('app/(app)/training/exercise-list.tsx');
     const row = strip('app/(app)/training/check-row.tsx');
     check(
-      "P5 화면 (라) 트레이닝 화면 — 일정 카드는 planReasonLines(savedPlan) 로 '오늘 이렇게 짰어요'를, 운동 줄은 저장한 점수를 pickReasonLineOf 로(권하지 않는 줄은 null · 별은 지금 것), 체크 줄이 처방 밑에 그리고 화면 읽기 이름에도 담는다",
-      /const planReasons = savedPlan \? planReasonLines\(savedPlan\) : \[\];/.test(
+      /* P5 검토로 바뀜(2026-10-13) — 일정 카드도 지금 보이는 줄(shownPicks) · 지금 별(favExercises)로 앞으로 당긴 줄을 거른다 */
+      "P5 화면 (라) 트레이닝 화면 — 일정 카드는 planReasonLines(savedPlan, 보이는 줄 · 지금 별) 로 '오늘 이렇게 짰어요'를, 운동 줄은 저장한 점수를 pickReasonLineOf 로(권하지 않는 줄은 null · 별은 지금 것), 체크 줄이 처방 밑에 그리고 화면 읽기 이름에도 담는다",
+      /const planReasons = savedPlan\s*\?\s*planReasonLines\(savedPlan, \{ shown: shownPicks, favoriteIds: favExercises \}\)\s*:\s*\[\];/.test(
         page
       ) &&
         />\s*오늘 이렇게 짰어요\s*</.test(page) &&
@@ -26243,6 +26581,493 @@ console.log(
         ) &&
         /note=\{ex\.reason\}/.test(list) &&
         /\[title, prescription, note, warning\]/.test(row)
+    );
+  }
+}
+
+/* ═══════════════════ [2판 P5] 검토 반영 — 파워 칸의 쪽 · 지키는 항목이 이김 · 무게만 멈춤 · 메모 조심이 점수까지 · 단위 밖 무게 (2026-10-13) ═══════════════════ */
+console.log(
+  '\n[2판 P5] 검토 반영 — 계열 없는 파워도 분류 한 곳으로 칸을 가름 · 지키는 항목이 걸리면 고르는 쪽 항목 없음 · 세트를 못 줄이는 날도 무게는 안 올림 · 메모 조심이 점수에 닿음 · 단위 밖 무게(2026-10-13)'
+);
+{
+  /*
+   * 왜 보는가. P5 반박 검토가 낸 지적을 고친 것을 지킨다.
+   * (가) theme.ts fitsSlot — 계열 없는 하체 파워(발목 아이소메트릭 프레스 · 가속 포지션 아이소 홀드)가 상체 날 파워 칸에 들어 무거운 하체가 이틀
+   *      이어진 짝(기준선 ㉑)이 35 → 42 로 늘었다. 상체 날에 하체 파워 0 · 하체 날에 상체만인 파워 0(실제 표 · 손 입력 · 160조합).
+   * (나) score.ts — 지키는 항목(등판 · 관절 · 팔 · 프로그램 · 뺌)의 '−'가 걸린 운동은 합이 늘 0 보다 작고 고르는 쪽 항목이 없다, 안 걸린 운동은
+   *      0 이상 — 같은 무리에서 앞에 서지 않는다(orderCandidates 가 무리 안을 합의 내림차순으로 세운다 — '[2판 P5] 차례에 점수').
+   * (다) volume.ts volumeForDay — 몸 신호가 걸렸는데 세트를 줄일 운동이 없는 날(2세트 근력 날 · 보조 날)도 무게를 적는 운동이 있으면 강도만 담은
+   *      조절을 싣고 무게를 안 올린다(holdsWeight).
+   * (라) daily-plan.ts — 일정 만들기의 caution(직접 고르기 '조심할 부위' · 메모)이 안전 거르기와 점수에 같은 배열로 닿는다.
+   * (마) free-weight.ts — 단위 밖 무게(바벨 61kg)를 '그대로'라 하며 60kg 으로 내리거나 63.5kg 으로 올리지 않는다.
+   */
+  const json = (v: unknown) => JSON.stringify(v);
+  const goals = TRAINING_GOALS.map((g) => g.name);
+  const owned = [ALWAYS_OWNED, ...SELECTABLE_EQUIPMENT];
+  const byId = new Map(library.map((e) => [e.id, e]));
+  const upperOnlyPower = (e: Parameters<typeof isUpperPower>[0]) =>
+    isUpperPower(e) && !isLowerPower(e);
+  const buildFor = (
+    i: number,
+    facts: (typeof p3ComboFactsSeen)[number],
+    extra: Partial<Parameters<typeof buildDailyPlan>[0]> = {}
+  ) => {
+    const plan = buildPitchPlan(facts);
+    return buildDailyPlan({
+      user: { ownedEquipment: owned, trainingLevel: null },
+      facts,
+      plan,
+      library,
+      availableToday: null,
+      requestedMinutes: [45, 60, 75, 90][i % 4],
+      trainingGoal: goals[Math.floor(i / 4) % goals.length],
+      trainingFocus: null,
+      recentIds: new Set<string>(),
+      rotationSeed: `rv5-${i}`,
+      /* 번갈아 — 짝수는 어제 하체(오늘 상체 쪽), 홀수는 어제 상체 */
+      lastLowerKey: i % 2 === 0 ? '2026-06-14' : null,
+      lastUpperKey: i % 2 === 0 ? null : '2026-06-14',
+      state: buildDayState({ facts, plan }),
+      score: {
+        patternsDone14d: new Map(),
+        favoriteIds: new Set(library.filter((_, k) => k % 3 === 0).map((e) => e.id)),
+      },
+      ...extra,
+    });
+  };
+
+  /* ── (가) 파워 칸의 쪽 ── */
+  {
+    const pw = (o: {
+      movementPattern: string | null;
+      bodyParts: string[];
+      equipment: string[];
+    }) => ({
+      id: 'p',
+      category: '파워',
+      intensity: '중간',
+      ...o,
+    });
+    const lowerIso = pw({
+      movementPattern: null,
+      bodyParts: ['종아리·발목'],
+      equipment: ['맨몸'],
+    });
+    const upperNull = pw({
+      movementPattern: null,
+      bodyParts: ['어깨'],
+      equipment: ['메디신볼'],
+    });
+    const bothNull = pw({
+      movementPattern: null,
+      bodyParts: ['고관절', '어깨'],
+      equipment: ['메디신볼'],
+    });
+    const neutral = pw({
+      movementPattern: null,
+      bodyParts: ['코어'],
+      equipment: ['맨몸'],
+    });
+    const squatJump = pw({
+      movementPattern: '스쿼트',
+      bodyParts: ['고관절'],
+      equipment: ['맨몸'],
+    });
+    const rotThrow = pw({
+      movementPattern: '회전',
+      bodyParts: ['코어'],
+      equipment: ['메디신볼'],
+    });
+    const up = competesForDay('upper', '파워 향상');
+    const low = competesForDay('lower', '파워 향상');
+    const rows: [string, boolean, boolean, boolean, boolean][] = [
+      ['계열 없는 하체 아이소(발목)', up(lowerIso), false, low(lowerIso), true],
+      [
+        '계열 없는 상체 던지기(메디신볼 · 어깨)',
+        up(upperNull),
+        true,
+        low(upperNull),
+        false,
+      ],
+      [
+        '계열 없고 둘 다(고관절 · 메디신볼) → 하체 몫',
+        up(bothNull),
+        false,
+        low(bothNull),
+        true,
+      ],
+      [
+        '계열 없고 어느 쪽도 아님(코어) → 어느 칸에도 없음',
+        up(neutral),
+        false,
+        low(neutral),
+        false,
+      ],
+      ['계열 스쿼트 점프 — 예전과 같다', up(squatJump), false, low(squatJump), true],
+      ['계열 회전 던지기 — 예전과 같다', up(rotThrow), true, low(rotThrow), false],
+    ];
+    const wrong = rows.filter(([, u, wu, l, wl]) => u !== wu || l !== wl);
+    check(
+      `P5 검토 (가) 파워 칸의 쪽 — 손 입력 ${rows.length}가지: 계열 없는 파워도 분류 한 곳(isLowerPower · isUpperPower)으로 가르고, 계열 있는 파워는 예전과 같다`,
+      wrong.length === 0,
+      wrong.map(([n, u, , l]) => `${n}: 상체 ${u} · 하체 ${l}`).join(' · ')
+    );
+
+    /* 실제 표 — 목표마다 상체 날 후보에 하체 파워 0, 하체 날 후보에 상체만인 파워 0, 계열 있는 파워는 예전 규칙(목록)과 같은 칸 */
+    const bad: string[] = [];
+    let upperPowers = 0;
+    let lowerPowers = 0;
+    for (const g of goals) {
+      const u = competesForDay('upper', g);
+      const l = competesForDay('lower', g);
+      for (const e of library) {
+        if (e.category !== '파워') continue;
+        if (u(e) && isLowerPower(e)) bad.push(`${g} 상체 날 ${e.title}`);
+        if (l(e) && upperOnlyPower(e)) bad.push(`${g} 하체 날 ${e.title}`);
+        if (u(e)) upperPowers++;
+        if (l(e)) lowerPowers++;
+      }
+    }
+    const nullLower = library.filter(
+      (e) => e.category === '파워' && e.movementPattern == null && isLowerPower(e)
+    );
+    check(
+      `P5 검토 (가) 실제 표 ${library.length}개 × 목표 ${goals.length} — 상체 날 후보에 하체 파워 0 · 하체 날 후보에 상체만인 파워 0(상체 칸 파워 ${upperPowers} · 하체 칸 ${lowerPowers}, 계열 없는 하체 파워 ${nullLower.length}개: ${nullLower.map((e) => e.title).join(', ')})`,
+      bad.length === 0 && upperPowers > 0 && lowerPowers > 0,
+      bad.slice(0, 3).join(' · ')
+    );
+
+    /* P3 160조합 — 실제로 만든 상체 날 목록에 하체 파워 0, 하체 날 목록에 상체만인 파워 0 */
+    let upperDays = 0;
+    let lowerDays = 0;
+    const badDays: string[] = [];
+    for (const [i, facts] of p3ComboFactsSeen.entries()) {
+      const on = buildFor(i, facts);
+      if (isHalted(on)) continue;
+      const exs = on.picks.map((p) => byId.get(p.exerciseId)!);
+      if (on.theme.key === 'upper') {
+        upperDays++;
+        const hit = exs.filter((e) => isLowerPower(e));
+        if (hit.length)
+          badDays.push(`p0-${i} 상체 날 ${hit.map((e) => e.title).join(',')}`);
+      }
+      if (on.theme.key === 'lower') {
+        lowerDays++;
+        const hit = exs.filter((e) => upperOnlyPower(e));
+        if (hit.length)
+          badDays.push(`p0-${i} 하체 날 ${hit.map((e) => e.title).join(',')}`);
+      }
+    }
+    check(
+      `P5 검토 (가) P3 160조합 — 상체 날 ${upperDays}개 목록에 하체 파워 0, 하체 날 ${lowerDays}개 목록에 상체만인 파워 0`,
+      upperDays > 0 && lowerDays > 0 && badDays.length === 0,
+      badDays.slice(0, 3).join(' · ')
+    );
+  }
+
+  /* ── (나) 지키는 항목이 이긴다 ── */
+  {
+    let protectedN = 0;
+    let preferredN = 0;
+    const bad: string[] = [];
+    for (const [i, facts] of p3ComboFactsSeen.entries()) {
+      const plan = buildPitchPlan(facts);
+      const state = buildDayState({ facts, plan });
+      for (const theme of ['lower', 'upper', 'assist', 'recovery'] as const) {
+        const ctx = scoreContextOf({
+          theme,
+          facts,
+          state,
+          caution: i % 5 === 0 ? [{ part: 'shoulder' as const, why: '메모' }] : [],
+          programNext:
+            i % 3 === 0 ? { patterns: new Set(['스쿼트', '밀기']), inDays: 1 } : null,
+          patternsDone14d: new Map(),
+          swappedOut: new Map(
+            library.filter((_, k) => k % 13 === i % 13).map((e) => [e.id, 2])
+          ),
+          favoriteIds: new Set(
+            library.filter((_, k) => k % 4 === i % 4).map((e) => e.id)
+          ),
+        });
+        for (const e of library) {
+          const s = scoreOf(e, ctx);
+          if (hasProtect(s.parts)) {
+            protectedN++;
+            if (!(s.total < 0)) bad.push(`p0-${i} ${theme} ${e.title} 합 ${s.total}`);
+            if (
+              s.parts.pattern != null ||
+              s.parts.favorite != null ||
+              (s.parts.stiff ?? 0) > 0
+            )
+              bad.push(`p0-${i} ${theme} ${e.title} ${json(s.parts)}`);
+            if (pickReasonLineOf(e, s) != null) bad.push(`p0-${i} ${e.title} 이유 줄`);
+          } else {
+            if (s.total < 0)
+              bad.push(`p0-${i} ${theme} ${e.title} 지키는 항목 없이 ${s.total}`);
+            if (s.total > 0) preferredN++;
+          }
+        }
+      }
+    }
+    check(
+      `P5 검토 (나) P3 160조합 × 테마 넷 × 실제 표(계열 · 즐겨찾기 켬, 메모 · 프로그램 · 뺌 섞음) — 지키는 항목(${PROTECT_KEYS.join(' · ')})의 '−'가 걸린 ${protectedN}번은 합 < 0 · 계열 · 즐겨찾기 · 풀기 없음 · 이유 줄 없음, 안 걸린 것은 합 ≥ 0(고르는 쪽으로 앞선 ${preferredN}번) — 같은 무리에서 걸린 운동이 앞에 서지 않는다`,
+      protectedN > 0 && preferredN > 0 && bad.length === 0,
+      bad.slice(0, 3).join(' · ')
+    );
+  }
+
+  /* ── (다) 무게만 멈춤 ── */
+  {
+    const decision = decideVolume({
+      body: {
+        belowUsual: false,
+        condition: 8,
+        usualCondition: null,
+        sleepShort: true,
+        sleepHours: 5,
+        soreness: null,
+        soreMany: false,
+        soreSevere: false,
+      },
+    });
+    const effortOnly = decideVolume(
+      {
+        load: { effortSpike: true },
+        body: {
+          belowUsual: false,
+          condition: 8,
+          usualCondition: null,
+          sleepShort: false,
+          sleepHours: null,
+          soreness: null,
+          soreMany: false,
+          soreSevere: false,
+        },
+      },
+      { reduceForEffort: true }
+    );
+    const ex = (category: string, sets: number, equipment: string[]) => ({
+      category,
+      intensity: '높음',
+      sets,
+      reps: 8,
+      equipment,
+    });
+    const db2 = ex('상체 스트렝스', 2, ['덤벨']);
+    const dbCore = ex('코어', 3, ['덤벨']);
+    const bw2 = ex('상체 스트렝스', 2, ['맨몸']);
+    const heavy4 = ex('하체 스트렝스', 4, ['바벨']);
+    const at = (
+      themeKey: string,
+      exercises: ReturnType<typeof ex>[],
+      d = decision,
+      conditioning = false
+    ) => volumeForDay({ decision: d, themeKey, conditioning, exercises });
+    const HOLD = {
+      setDelta: 0,
+      intensityStep: -1,
+      why: '잠이 부족해 오늘은 무게를 올리지 않아요.',
+    };
+    const cases: [string, unknown, unknown][] = [
+      ['2세트뿐인 상체 날 · 덤벨', at('upper', [db2]), HOLD],
+      ['보조 날 · 덤벨 코어', at('assist', [dbCore]), HOLD],
+      ['컨디셔닝 목표 · 덤벨', at('lower', [db2], decision, true), HOLD],
+      [
+        '줄일 수 있으면 예전처럼 세트 −1',
+        at('lower', [heavy4, db2]),
+        {
+          setDelta: -1,
+          intensityStep: -1,
+          why: '잠이 부족해 본운동을 한 세트씩 줄였어요.',
+        },
+      ],
+      ['무게를 적는 운동이 없음(맨몸) → 없음', at('upper', [bw2]), null],
+      ['회복 날 · 맨몸 → 없음', at('recovery', [bw2]), null],
+      [
+        '힘듦 급증만(강도 그대로) · 줄일 세트 없음 → 없음',
+        at('assist', [dbCore], effortOnly),
+        null,
+      ],
+      ['판정 없음 → 없음', at('assist', [dbCore], null), null],
+    ];
+    const wrong = cases.filter(([, got, want]) => json(got) !== json(want));
+    const hold = at('upper', [db2])!;
+    check(
+      `P5 검토 (다) volumeForDay 강도만 담은 조절 — ${cases.length}가지: 몸 신호 날 세트를 못 줄여도 무게를 적는 운동이 있으면 { 0 · −1 · '…오늘은 무게를 올리지 않아요.' }, 저장했다 읽어도 같고 holdsWeight 참 · 처방은 그대로`,
+      wrong.length === 0 &&
+        json(readPlanVolume(JSON.parse(json(hold)))) === json(hold) &&
+        holdsWeight({ volume: hold }) &&
+        applyVolume(db2, hold) === db2 &&
+        json(planPrescription(heavy4, { goal: '근력 향상', volume: hold })) ===
+          json(goalPrescription(heavy4, '근력 향상')),
+      wrong.map(([n, got]) => `${n}: ${json(got)}`).join(' · ')
+    );
+
+    /* 실제 일정 — 160조합에 잠 부족(몸 신호)을 얹어 만든 일정 중 무게를 적는 운동이 있는 날은 모두 hold, 세트를 줄인 날 · 무게만 멈춘 날 */
+    let holdDays = 0;
+    let cutDays = 0;
+    let weightDays = 0;
+    const bad: string[] = [];
+    for (const [i, facts] of p3ComboFactsSeen.entries()) {
+      const plan = buildPitchPlan(facts);
+      const base = buildDayState({ facts, plan });
+      const sleepy = {
+        ...base,
+        body: { ...base.body, sleepShort: true, sleepHours: 5 },
+      };
+      const on = buildFor(i, facts, { state: sleepy });
+      if (isHalted(on)) continue;
+      const weighted = on.picks.some((p) =>
+        needsWeight(byId.get(p.exerciseId)!.equipment)
+      );
+      if (weighted) weightDays++;
+      if (weighted && !holdsWeight(on))
+        bad.push(`p0-${i} ${on.theme.key} 무게 운동이 있는데 hold 아님`);
+      if (on.volume?.setDelta === -1) cutDays++;
+      if (on.volume?.setDelta === 0) {
+        holdDays++;
+        if (on.volume.intensityStep !== -1) bad.push(`p0-${i} 강도 0`);
+        if (on.reasons?.[0]?.text !== on.volume.why)
+          bad.push(`p0-${i} 까닭 맨 앞이 아님`);
+        /* 세트는 안 바꾼다 — 조절을 뺀 같은 일정과 처방이 같다 */
+        const plain = { ...on, volume: undefined };
+        if (
+          on.picks.some(
+            (p) =>
+              json(planPrescription(byId.get(p.exerciseId)!, on)) !==
+              json(planPrescription(byId.get(p.exerciseId)!, plain))
+          )
+        )
+          bad.push(`p0-${i} 무게만 멈춘 날인데 처방이 바뀜`);
+        const frozen = freezePlan(
+          on.theme.key,
+          on.theme.label,
+          on.picks,
+          byId,
+          on.goal,
+          on.volume
+        );
+        if (!holdsWeight(frozen)) bad.push(`p0-${i} 세션 판 hold 아님`);
+      }
+    }
+    check(
+      `P5 검토 (다) P3 160조합 + 잠 부족 — 무게를 적는 운동이 있는 ${weightDays}일은 모두 hold(세트를 줄인 ${cutDays}일 · 무게만 멈춘 ${holdDays}일 — 처방 그대로 · 까닭 맨 앞 · 세션 판도 hold)`,
+      weightDays > 0 && cutDays > 0 && bad.length === 0,
+      bad.slice(0, 3).join(' · ')
+    );
+  }
+
+  /* ── (라) 메모 조심이 점수까지 ── */
+  {
+    const caution = [{ part: 'shoulder' as const, why: '메모' }];
+    let hits = 0;
+    let memoSource = 0;
+    let moved = 0;
+    const bad: string[] = [];
+    for (const [i, facts] of p3ComboFactsSeen.entries()) {
+      const on = buildFor(i, facts, { caution });
+      const off = buildFor(i, facts);
+      if (isHalted(on) || isHalted(off)) continue;
+      if (
+        json(on.picks.map((p) => p.exerciseId)) !==
+        json(off.picks.map((p) => p.exerciseId))
+      )
+        moved++;
+      const eased = easedBodyPartsOf(easedJointsOf(facts, caution));
+      const plain = easedBodyPartsOf(easedJointsOf(facts, []));
+      for (const p of on.picks) {
+        const e = byId.get(p.exerciseId)!;
+        const loads =
+          !LOOSEN_CATEGORIES.includes(e.category) &&
+          intensityLevel(e.intensity) >= INTENSITY_CAP.MODERATE;
+        if (!loads || !e.bodyParts.some((b) => eased.has(b))) continue;
+        hits++;
+        if (p.score?.parts.stiff !== -2)
+          bad.push(`p0-${i} ${e.title} 조심할 관절인데 ${json(p.score?.parts)}`);
+        /* 메모 말고는 그 관절을 조심할 까닭이 없는 운동 — 출처가 메모다 */
+        if (!e.bodyParts.some((b) => plain.has(b))) {
+          const ctx = scoreContextOf({
+            theme: on.theme.key,
+            facts,
+            state: buildDayState({ facts, plan: buildPitchPlan(facts) }),
+            caution,
+          });
+          if (scoreOf(e, ctx).detail.stiff?.source === 'memo') memoSource++;
+          else bad.push(`p0-${i} ${e.title} 출처가 메모가 아님`);
+        }
+      }
+    }
+    const planSrc = readFileSync(
+      new URL('../lib/report/daily-plan.ts', import.meta.url),
+      'utf8'
+    );
+    check(
+      `P5 검토 (라) 일정 만들기의 caution(메모 어깨) — 160조합에서 뽑힌 '중간' 이상 어깨 운동 ${hits}개 모두 점수 stiff −2(메모가 출처인 것 ${memoSource}개), 목록이 바뀐 ${moved}명, 안전 거르기와 점수가 같은 caution 을 받는다`,
+      hits > 0 &&
+        memoSource > 0 &&
+        bad.length === 0 &&
+        /selectCandidates\(\{ facts, plan, library: leveled\.pool, caution \}\)/.test(
+          planSrc
+        ) &&
+        /scoreCtx = scoreContextOf\(\{[\s\S]*?\n\s*caution,\n[\s\S]*?\}\);/.test(
+          planSrc
+        ),
+      bad.slice(0, 3).join(' · ')
+    );
+  }
+
+  /* ── (마) 단위 밖 무게 ── */
+  {
+    const sets = (kg: number, reps = 8, n = 3) =>
+      Array.from({ length: n }, () => ({ weightKg: kg, reps }));
+    const ask = (
+      equipment: string[],
+      kg: number,
+      o: { twice?: boolean; hold?: boolean; cautious?: boolean } = {}
+    ) =>
+      suggestFreeWeight({
+        equipment,
+        bigLower: false,
+        plannedSets: 3,
+        plannedReps: 8,
+        last: { date: '2026-06-12', sets: sets(kg) },
+        prev: o.twice ? { date: '2026-06-10', sets: sets(kg) } : null,
+        todayKey: '2026-06-15',
+        hold: o.hold,
+        cautious: o.cautious,
+      });
+    const rows: [string, number | undefined, number][] = [
+      ['바벨 61 · 한 번 채움 → 그대로 61', ask(['바벨'], 61)?.kg, 61],
+      [
+        '바벨 61 · hold → 그대로 61',
+        ask(['바벨'], 61, { twice: true, hold: true })?.kg,
+        61,
+      ],
+      [
+        '바벨 61 · 두 번 · 조심 → 62.5(63.5 아님)',
+        ask(['바벨'], 61, { twice: true, cautious: true })?.kg,
+        62.5,
+      ],
+      [
+        '바벨 61.5 · 두 번 · 조심 → 62.5',
+        ask(['바벨'], 61.5, { twice: true, cautious: true })?.kg,
+        62.5,
+      ],
+      ['바벨 61 · 두 번 → 62.5', ask(['바벨'], 61, { twice: true })?.kg, 62.5],
+      ['덤벨 21 · 두 번 → 22(23 아님)', ask(['덤벨'], 21, { twice: true })?.kg, 22],
+      [
+        '바벨 60 · 두 번 · 조심 → 62.5(예전과 같다)',
+        ask(['바벨'], 60, { twice: true, cautious: true })?.kg,
+        62.5,
+      ],
+    ];
+    const once = ask(['바벨'], 61);
+    const wrong = rows.filter(([, got, want]) => got !== want);
+    check(
+      `P5 검토 (마) 단위 밖 무게 — ${rows.length}가지: '그대로'는 지난 무게 글자 그대로, 올리면 지난 무게보다 무거운 가장 가까운 단위 배수 이상`,
+      wrong.length === 0 &&
+        once?.note === '지난번 61kg × 8회를 3세트 다 채웠어요. 한 번 더 채우면 올려요',
+      wrong.map(([n, got]) => `${n}: ${got}`).join(' · ') + ` · ${once?.note}`
     );
   }
 }

@@ -11,6 +11,8 @@ import {
   HEAVY_CATEGORIES,
   LOWER_POWER_PATTERNS,
   UPPER_POWER_PATTERNS,
+  isLowerPower,
+  isUpperPower,
 } from '@/lib/engine/exercise-class';
 import { dayKindOf, type DayKind } from '@/lib/engine/microcycle';
 import {
@@ -990,7 +992,9 @@ type SlotSpec = {
    * 그러면 상체 스트렝스가 하루에 하나밖에 안 들어가고, 밀기와 당기기를
    * 가를 수가 없다 — 상체날 50일 중 스트렝스가 둘 이상인 날이 10일뿐이었다.
    *
-   * 계열이 비어 있는 파워는 지나간다. 막아버리면 영영 안 나온다.
+   * 계열이 비어 있는 파워는 예전에 지나갔다(막아버리면 영영 안 나온다고 봤다). 2판 P5 검토(2026-10-13)부터는 부위로 가른다 —
+   * 하체 부위면 하체 칸에만, 메디신볼 · 어깨 · 팔꿈치면 상체 칸에만(fitsPowerSide, 분류 한 곳 exercise-class.ts). 하체 부위만 있는
+   * 아이소 둘이 상체 날 파워 칸에 들어 무거운 하체가 이틀 이어졌다.
    */
   powerPatterns?: readonly string[];
   /**
@@ -1145,7 +1149,8 @@ const COMPOSITIONS: Record<ThemeKey, SlotSpec[]> = {
       categories: ['상체 스트렝스', '파워'],
       /*
        * 상체날의 파워는 던지는 계열만 — 스쿼트·런지 점프는 하체날 몫이다. 목록은 상체 파워 판정(lib/engine/exercise-class.ts
-       * isUpperPower)과 한 벌이다(2판 P5 — 고르기 점수 · 프로그램 겹침이 같은 말로 본다).
+       * isUpperPower)과 한 벌이다(2판 P5 — 고르기 점수 · 프로그램 겹침이 같은 말로 본다). 계열이 없는 파워까지 그 판정으로 가르는
+       * 것은 fitsPowerSide(2판 P5 검토) — 그 전에는 목록만 같고 계열 없는 하체 파워가 이 칸에 들었다.
        */
       powerPatterns: UPPER_POWER_PATTERNS,
       maxCount: 8,
@@ -1316,7 +1321,26 @@ export function compositionFor(
 }
 
 /**
- * 이 운동이 이 구간의 규격에 맞는가 — 카테고리, 파워면 구간의 계열, 스트렝스면 좁힌 계열.
+ * 파워가 이 구간의 쪽(하체 · 상체)에 드는가 — 분류 한 곳(lib/engine/exercise-class.ts)의 판정 그대로.
+ *
+ *   하체 칸(LOWER_POWER_PATTERNS)  isLowerPower — 계열이 하체이거나, 계열이 없으면 하체 부위
+ *   상체 칸(UPPER_POWER_PATTERNS)  isUpperPower 이고 isLowerPower 가 아님 — 계열이 없는 파워는 하체 부위가 있으면 하체 몫이다
+ *
+ * 2판 P5 검토(2026-10-13)에서 고쳤다. 예전에는 계열이 없는 파워면 검사를 건너뛰어 어느 칸에나 들었다. 그래서 하체 부위 꼬리표만 있는
+ * 하체 파워(발목 아이소메트릭 프레스 · 가속 포지션 아이소 홀드)가 상체 날 파워 칸에 들었고, P5 점수가 내일 프로그램과 겹치는 상체 파워를
+ * 뒤로 밀자 그 자리를 채워 무거운 하체가 이틀 이어진 짝(기준선 ㉑)이 35 → 42 로 늘었다. 계열이 있는 파워는 예전과 같다(계열 하나는
+ * 두 목록 중 한쪽에만 있다). 계열이 없고 어느 쪽도 아닌 파워는 이제 어느 칸에도 안 든다 — 2026-10-12 표에는 없다(44개가 모두 한쪽).
+ * 칸은 목록의 정체(같은 배열)로 가른다 — COMPOSITIONS · shapeToSpecs 가 그 배열을 그대로 옮긴다. 다른 목록이면 예전처럼 계열만 본다.
+ */
+function fitsPowerSide(ex: ThemedExercise, patterns: readonly string[]): boolean {
+  const cls = { ...ex, equipment: ex.equipment ?? [] };
+  if (patterns === LOWER_POWER_PATTERNS) return isLowerPower(cls);
+  if (patterns === UPPER_POWER_PATTERNS) return isUpperPower(cls) && !isLowerPower(cls);
+  return ex.movementPattern == null || patterns.includes(ex.movementPattern);
+}
+
+/**
+ * 이 운동이 이 구간의 규격에 맞는가 — 카테고리, 파워면 구간의 쪽(fitsPowerSide), 스트렝스면 좁힌 계열.
  *
  * pickForTheme 의 구간별 후보 거르기와 본운동 후보 세기(mainCandidateCount)가 같은 규칙을 쓰려고 뗐다. 회복날의
  * '가벼운 것만'(isRecoveryLight)은 여기 없다 — 테마 전체에 걸리는 조건이라 pickForTheme 이 따로 본다.
@@ -1327,8 +1351,7 @@ function fitsSlot(ex: ThemedExercise, spec: SlotSpec): boolean {
   if (
     ex.category === '파워' &&
     spec.powerPatterns &&
-    ex.movementPattern != null &&
-    !spec.powerPatterns.includes(ex.movementPattern)
+    !fitsPowerSide(ex, spec.powerPatterns)
   ) {
     return false;
   }
@@ -1360,7 +1383,7 @@ export function mainCandidateCount(
 
 /**
  * 이 테마 · 목표 · 좁힌 부위의 어느 구간에든 들어갈 수 있는 운동인가 — pickForTheme 이 구간마다 거르는 규칙(fitsSlot)과 회복날의 '가벼운
- * 것만'(isRecoveryLight)을 같이 본다. 고르는 데는 안 쓴다. 일정 까닭(score.ts planReasonsOf, 2판 P5-j)이 '그날 구간을 두고 겨룬 후보'만
+ * 것만'(isRecoveryLight)을 같이 본다. 고르는 데는 안 쓴다. 일정 까닭(score.ts planReasonItemsOf, 2판 P5-j)이 '그날 구간을 두고 겨룬 후보'만
  * 세려고 쓴다 — 상체 날에 하체 점프까지 세면 그날과 상관없는 '하체 점프는 뒤로 뒀어요'를 말한다. 구성은 한 번만 만들고 판정 함수를
  * 돌려준다(후보 수백 개에 쓴다).
  */

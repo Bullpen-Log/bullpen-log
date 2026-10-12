@@ -36,12 +36,16 @@ import { dayKindOf, shortenPitchesOf, shortenedMinutes } from '@/lib/engine/micr
 import { buildDayState, type DayState } from '@/lib/engine/day-state';
 import {
   PLAN_REASONS_MAX,
-  planReasonsOf,
+  SCORE_KEYS,
+  hasProtect,
+  planReasonItemsOf,
   programNextOf,
   scoreContextOf,
   scoreOf,
   type ExerciseScore,
+  type PlanReason,
   type ScoreContext,
+  type ScoreKey,
   type ScoreParts,
   type ScoredCandidate,
 } from '@/lib/report/score';
@@ -160,6 +164,8 @@ export type DailyPlan = {
    * P5-d(2026-10-12)부터 buildDailyPlan 이 넣는다 — 평소보다 낮은 컨디션 · 짧은 밤 · 근육통 '많이' 이상인 근력 날(decideVolume ·
    * volumeForDay). 운동 시작 때 세션 판에 얼고(freezePlan), 그 판에서는 자유 운동 무게를 올리지 않는다(holdsWeight).
    * P5-e(2026-10-12)부터 직접 고르기의 최근 운동 힘듦 급증도 여기 실린다(세트만 −1, intensityStep 0 — buildDailyPlan 의 reduceForEffort).
+   * 2판 P5 검토(2026-10-13)부터 세트를 줄일 운동이 없는 날도 몸 신호가 걸렸고 무게를 적는 운동이 있으면 강도만 담은 조절(setDelta 0 ·
+   * intensityStep −1 — 무게만 안 올림)이 실린다(volume.ts volumeForDay).
    */
   volume?: PlanVolume;
   /**
@@ -169,13 +175,17 @@ export type DailyPlan = {
    */
   overrodeEffort?: true;
   /**
-   * '오늘 이렇게 짰어요' — 일정 전체의 까닭 최대 3줄(score.ts planReasonsOf, 2판 P5-j). 양 조절의 까닭(volume.why) · 힘듦 경고를 넘긴 한 줄이
+   * '오늘 이렇게 짰어요' — 일정 전체의 까닭 최대 3줄(score.ts planReasonItemsOf, 2판 P5-j). 양 조절의 까닭(volume.why) · 힘듦 경고를 넘긴 한 줄이
    * 먼저, 그다음 고르기 점수의 신호(뒤로 민 것은 겨룬 후보에 걸렸으면, 앞으로 당긴 것은 뽑힌 운동에 걸렸을 때만). 한 줄도 없으면 칸이 없다.
    * 점수 재료(buildDailyPlan 의 score)를 넘긴 길(앱 · 기준선)만 싣는다. 만들 때 정해 저장한다 — 지문 · 근거처럼 나중에 다시 셈하면 만든 뒤
-   * 체크인을 고친 날 목록과 까닭이 어긋난다(이 파일 머리 주석). 운동을 빼도 그대로 둔다(신호 단위 글이라 운동 하나를 가리키지 않는다).
-   * 옛 줄에는 없으니 version 은 그대로.
+   * 체크인을 고친 날 목록과 까닭이 어긋난다(이 파일 머리 주석). 옛 줄에는 없으니 version 은 그대로.
+   *
+   * 줄마다 항목 · 쪽을 같이 싣는다(score.ts PlanReason, 2판 P5 검토 2026-10-13). 저장은 그대로 두고, 보일 때(planReasonLines) 앞으로 당긴
+   * 줄(+)만 지금 목록으로 다시 거른다 — 그 운동을 목록에서 빼거나(removeFromTodayPlan) 체크인을 고쳐 빠지거나 별을 떼면 '앞에 뒀어요'가
+   * 거짓이 된다. 뒤로 민 줄(−)은 만들 때 이미 '걸린 운동이 하나도 안 뽑힌 날'만 실려 다시 거를 것이 없다. 2026-10-13 전(P5-j · P5-k)에
+   * 저장한 줄은 글(string)뿐이라 그대로 보인다(거를 항목을 모른다 — 타입은 지금 쓰는 모양이고, 읽는 planReasonLines 가 둘 다 받는다).
    */
-  reasons?: string[];
+  reasons?: PlanReason[];
 };
 
 /**
@@ -515,7 +525,7 @@ export function buildDailyPlan<T extends ExerciseLike>({
     : themed.estimatedMinutes;
 
   /*
-   * 일정 까닭(score.ts planReasonsOf) — 양 조절 · 힘듦 넘김 줄 먼저, 그다음 점수 신호. 그날 구간을 두고 겨룬 후보만 넘기고(competesForDay —
+   * 일정 까닭(score.ts planReasonItemsOf) — 양 조절 · 힘듦 넘김 줄 먼저, 그다음 점수 신호. 그날 구간을 두고 겨룬 후보만 넘기고(competesForDay —
    * 상체 날에 하체 점프의 '뒤로'를 말하지 않게), 그중 점수를 매긴 것만 센다(scores — 최근 사흘 무리는 빠진다).
    */
   const pickedIds = new Set(themed.picks.map((p) => p.exercise.id));
@@ -526,7 +536,7 @@ export function buildDailyPlan<T extends ExerciseLike>({
         return s && competes(ex) ? [{ score: s, picked: pickedIds.has(ex.id) }] : [];
       })
     : [];
-  const reasons = scoreCtx ? planReasonsOf({ scored, volume, overrodeEffort }) : [];
+  const reasons = scoreCtx ? planReasonItemsOf({ scored, volume, overrodeEffort }) : [];
   const pickScoreOf = (id: string) => {
     const s = scores.get(id);
     return s && Object.keys(s.parts).length > 0
@@ -588,23 +598,68 @@ export function readDailyPlan(value: unknown): DailyPlan | null {
  * 트레이닝 화면의 '오늘 이렇게 짰어요' 줄 — 저장한 일정 까닭(reasons, 2판 P5-j)을 읽는다(2판 P5-k, 2026-10-13).
  *
  * 저장된 JSON 이라 글이 아닌 것 · 빈 글은 버리고 PLAN_REASONS_MAX 줄까지만. reasons 칸이 없는 줄은 점수 재료 없이 만든 일정(P5-j 전)이다 —
- * 그래도 양 조절 · 힘듦 넘김(P5-d · P5-e 부터 저장)은 했을 수 있어, 같은 함수(planReasonsOf)에 점수 없이 넣어 그 머리 줄만 만든다(세트를
+ * 그래도 양 조절 · 힘듦 넘김(P5-d · P5-e 부터 저장)은 했을 수 있어, 같은 함수(planReasonItemsOf)에 점수 없이 넣어 그 머리 줄만 만든다(세트를
  * 줄여 놓고 말이 없으면 '왜 줄었지'가 된다). 점수 신호는 다시 셈하지 않는다 — 만든 뒤 체크인을 고친 날 목록과 까닭이 어긋난다(reasons 주석).
+ *
+ * 앞으로 당긴 줄(sign +1)만 지금 목록으로 거른다(2판 P5 검토, 2026-10-13) — 지금 보이는 줄(shown — 화면이 안전 재확인으로 뺀 것 · 목록에서
+ * 뺀 것은 없다, 안 주면 저장한 picks) 가운데 저장한 점수에 그 항목이 '+'로 걸린 운동이 하나라도 있을 때만 남긴다. 즐겨찾기 줄은 그 운동에
+ * 지금 별이 있을 때만(favoriteIds — 운동 줄의 pickReasonLineOf 와 같은 원칙, 안 주면 별을 안 본다). 지키는 항목의 '−'가 함께 저장된 운동
+ * (검토 전 일정)은 세지 않는다 — 운동 줄도 그런 운동엔 이유를 안 단다. 글만 저장한 옛 줄(string)은 거를 항목을 몰라 그대로 둔다.
  */
 export function planReasonLines(
-  plan: Pick<DailyPlan, 'reasons' | 'volume' | 'overrodeEffort'>
+  plan: Pick<DailyPlan, 'reasons' | 'volume' | 'overrodeEffort'> & {
+    picks?: readonly ReasonPick[];
+  },
+  {
+    shown,
+    favoriteIds,
+  }: { shown?: readonly ReasonPick[]; favoriteIds?: ReadonlySet<string> } = {}
 ): string[] {
   if (Array.isArray(plan.reasons)) {
-    return (plan.reasons as unknown[])
-      .filter((line): line is string => typeof line === 'string' && line.trim() !== '')
-      .slice(0, PLAN_REASONS_MAX);
+    const now = shown ?? plan.picks ?? [];
+    const stillAhead = (key: ScoreKey) =>
+      now.some((p) => {
+        const parts = p.score?.parts;
+        if (!parts || typeof parts !== 'object' || hasProtect(parts)) return false;
+        const v = parts[key];
+        return (
+          typeof v === 'number' &&
+          v > 0 &&
+          (key !== 'favorite' || !favoriteIds || favoriteIds.has(p.exerciseId))
+        );
+      });
+    const out: string[] = [];
+    for (const raw of plan.reasons as unknown[]) {
+      const line: Partial<PlanReason> | null =
+        typeof raw === 'string'
+          ? { text: raw }
+          : raw && typeof raw === 'object'
+            ? (raw as Partial<PlanReason>)
+            : null;
+      if (!line || typeof line.text !== 'string' || line.text.trim() === '') continue;
+      if (
+        line.sign === 1 &&
+        typeof line.key === 'string' &&
+        SCORE_KEYS.includes(line.key) &&
+        !stillAhead(line.key)
+      )
+        continue;
+      out.push(line.text);
+    }
+    return out.slice(0, PLAN_REASONS_MAX);
   }
-  return planReasonsOf({
+  return planReasonItemsOf({
     scored: [],
     volume: readPlanVolume(plan.volume),
     overrodeEffort: plan.overrodeEffort === true,
-  });
+  }).map((r) => r.text);
 }
+
+/** 일정 까닭을 거를 때 보는 줄 — 운동과 저장한 점수(DailyPlan.picks · 화면의 보이는 줄 모두 넘길 수 있게 좁게) */
+export type ReasonPick = {
+  exerciseId: string;
+  score?: { parts?: ScoreParts } | null;
+};
 
 /* ------------------------- 하체 · 상체를 번갈아 돌릴 마지막 날 ------------------------- */
 
