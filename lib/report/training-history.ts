@@ -5,7 +5,7 @@ import { shiftDateKey, toDateKey } from '@/lib/pitch-stats';
 import { formatPrescription } from '@/lib/exercise-meta';
 import { exercisesByIds } from '@/lib/library-cache';
 import { readDailyPlan } from '@/lib/report/daily-plan';
-import { goalPrescription } from '@/lib/report/goal-prescription';
+import { planPrescription } from '@/lib/report/volume';
 import { SLOT_LABELS, SLOT_ORDER } from '@/lib/report/theme';
 
 /**
@@ -240,8 +240,11 @@ export async function trainingDay(
   const plannedIds = readPlanExerciseIds(setup?.plan).filter((id) => !doneIds.has(id));
   /* 이미 들고 있는 목록에서 고른다 — 몇 개 찾자고 DB 를 한 번 더 묻지 않는다 */
   const missed = await exercisesByIds(plannedIds);
-  /* '계획'은 그날 목표에 맞춘 세트 · 횟수로 적는다 — 그날 트레이닝 화면에 보였던 값(goal-prescription.ts) */
-  const dayGoal = readDailyPlan(setup?.plan)?.goal;
+  /*
+   * '계획'은 그날 목표 · 양 조절에 맞춘 세트 · 횟수로 적는다 — 그날 트레이닝 화면에 보였던 값(처방 한 길, lib/report/volume.ts).
+   * 옛 줄 · 모양이 안 맞는 줄은 null 이라 라이브러리 처방 그대로다(예전과 같음).
+   */
+  const dayPlan = readDailyPlan(setup?.plan);
 
   const todayKey = toDateKey(appNow());
 
@@ -254,7 +257,7 @@ export async function trainingDay(
         id: l.exerciseId,
         title: l.exercise.title,
         category: l.exercise.category,
-        planned: formatPrescription(goalPrescription(l.exercise, dayGoal)),
+        planned: formatPrescription(planPrescription(l.exercise, dayPlan)),
         done: true,
         setsDone: l.setsDone,
         repsDone: l.repsDone,
@@ -265,7 +268,7 @@ export async function trainingDay(
         id: ex.id,
         title: ex.title,
         category: ex.category,
-        planned: formatPrescription(goalPrescription(ex, dayGoal)),
+        planned: formatPrescription(planPrescription(ex, dayPlan)),
         done: false,
         setsDone: null,
         repsDone: null,

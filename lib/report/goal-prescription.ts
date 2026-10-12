@@ -57,6 +57,9 @@ type Prescribed = {
  * 일정을 짤 때(daily-plan.ts — 시간 계산이 이 값으로 맞아야 한다), 화면에 보일 때(training/page.tsx),
  * 운동을 시작해 찍어 둘 때와 운동 중에 바꿔 넣을 때(app/actions/workout.ts) 모두 이것을 거친다.
  * 한 곳이라도 빠지면 목록에는 5회인데 운동 화면에는 10회가 나온다.
+ *
+ * 2026-10-12(트레이닝 추천 2판 P5)부터 그 자리들은 이것을 바로 부르지 않고 lib/report/volume.ts 의 planPrescription 을 부른다 —
+ * 이 결과 위에 그날 양 조절(본운동 세트 −1)을 댄 것이다. 이것을 바로 부르면 그 자리만 줄인 세트를 모른다.
  */
 export function goalPrescription<T extends Prescribed>(
   ex: T,

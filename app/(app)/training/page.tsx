@@ -10,7 +10,7 @@ import { ChevronDown } from 'lucide-react';
 import { createPlaybackUrls } from '@/lib/storage';
 import { referenceThumbUrl } from '@/lib/reference-video';
 import { formatPrescription } from '@/lib/exercise-meta';
-import { goalPrescription } from '@/lib/report/goal-prescription';
+import { planPrescription } from '@/lib/report/volume';
 import { loadTodayCore } from '@/lib/report/today-data';
 import { StartWorkout } from './start-workout';
 import { DoneCard, DoneFold, type DoneLine } from './done-card';
@@ -387,8 +387,9 @@ export default async function TrainingPage({
        * 자체라 몇 세트 몇 회인지가 필요하다.
        *
        * 횟수는 오늘 목표에 맞춘다(lib/report/goal-prescription.ts — 근력 향상이면 무거운 운동 4세트 × 5회).
+       * 그날 양을 줄였으면 세트도 줄인 값(처방 한 길 — lib/report/volume.ts planPrescription, 운동 시작 때 얼리는 값과 같다).
        */
-      prescription: formatPrescription(goalPrescription(ex, savedPlan?.goal)),
+      prescription: formatPrescription(planPrescription(ex, savedPlan)),
       /*
        * 아직 촬영하지 않은 운동은 유튜브 참고 영상의 미리보기를 그대로 쓴다.
        * 우리 저장소에 담아 둔 것이 없어 발급받을 주소도 없다.
@@ -431,8 +432,8 @@ export default async function TrainingPage({
    * 400개를 넘겨도 화면이 무겁지 않다.
    */
   const pickable: PickableExercise[] = core.library.map((raw) => {
-    /* 더하고 나서 목록에 보일 횟수와 같게 — 오늘 목표에 맞춘다(goal-prescription.ts) */
-    const ex = goalPrescription(raw, savedPlan?.goal);
+    /* 더하고 나서 목록에 보일 횟수와 같게 — 오늘 목표 · 양 조절에 맞춘다(처방 한 길, lib/report/volume.ts) */
+    const ex = planPrescription(raw, savedPlan);
     return {
       favorite: favExercises.has(ex.id),
       id: ex.id,

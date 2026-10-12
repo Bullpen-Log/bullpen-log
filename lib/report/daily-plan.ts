@@ -7,7 +7,7 @@ import {
   validFocus,
 } from '@/lib/report/personalize';
 import { selectCandidates, type ExerciseLike } from '@/lib/report/prescription';
-import { goalPrescription } from '@/lib/report/goal-prescription';
+import { planPrescription, type PlanVolume } from '@/lib/report/volume';
 import {
   CONDITIONING_GOAL,
   decideTheme,
@@ -119,6 +119,12 @@ export type DailyPlan = {
    * 안 넣는다(기준선 도구 · 시험의 결과 모양을 안 흔들려고). 옛 줄에는 없고 없으면 견주지 않으니 version 은 그대로.
    */
   fingerprint?: PlanFingerprint;
+  /**
+   * 그날 양 조절(lib/report/volume.ts — 본운동 세트 −1 등, 2026-10-12 트레이닝 추천 2판 P5). 세트 · 횟수를 세는 자리가 모두
+   * planPrescription 으로 이 칸을 읽는다(트레이닝 화면 · 홈 운동 시간 · 운동 시작 · 기록). 줄인 날에만 있고, 옛 줄에는 없고 없으면
+   * 안 줄인 것으로 읽으니 version 은 그대로(focus 와 같은 까닭). 저장된 값이라 읽는 쪽이 readPlanVolume 으로 다시 본다.
+   */
+  volume?: PlanVolume;
 };
 
 /** 통증 등으로 일정을 만들지 않은 경우 */
@@ -265,8 +271,14 @@ export function buildDailyPlan<T extends ExerciseLike>({
   const minutes = shortenPitches != null ? shortenedMinutes(baseMinutes) : baseMinutes;
 
   const themed = pickForTheme({
-    /* 목표에 맞춘 횟수로 시간을 센다 — 화면 · 운동 화면도 같은 값을 쓴다(goal-prescription.ts) */
-    candidates: picked.candidates.map((ex) => goalPrescription(ex, goal.name)),
+    /*
+     * 목표에 맞춘 횟수로 시간을 센다 — 화면 · 운동 화면도 같은 값을 쓴다(처방 한 길, lib/report/volume.ts planPrescription).
+     * 양 조절(volume)은 여기 일부러 안 넘긴다 — 고르는 목록은 줄이지 않은 날과 같아야 한다. 줄인 세트만큼 남는 시간을
+     * 시간 채우기가 다른 운동으로 메우면 양을 줄인 뜻이 사라진다(줄인 날의 시간은 고른 뒤에 다시 센다 — 2판 P5).
+     */
+    candidates: picked.candidates.map((ex) =>
+      planPrescription(ex, { goal: goal.name })
+    ),
     theme: theme.key,
     minutes,
     // 만드는 시점에는 아직 아무것도 안 했다.

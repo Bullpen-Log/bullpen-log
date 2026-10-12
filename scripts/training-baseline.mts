@@ -77,7 +77,7 @@ import {
   painRecoveryReason,
   type ThemeKey,
 } from '../lib/report/theme.ts';
-import { goalPrescription } from '../lib/report/goal-prescription.ts';
+import { planPrescription } from '../lib/report/volume.ts';
 import {
   droppedOnlyForArmFatigue,
   selectCandidates,
@@ -1004,14 +1004,14 @@ function buildDay(p: Player, i: number, st: State, v: Variant = {}): DailyPlan |
 }
 
 /**
- * 일정 한 칸의 세트(어댑터, 2판 P5 도구 T0) — 앱이 그 운동을 보이고 시작할 때 쓰는 처방(lib/report/goal-prescription.ts goalPrescription,
- * 일정 화면 · 운동 시작이 같은 함수). P5 가 일정에 세트 조절을 실으면(처방 한 길) 그 함수로 바꾸는 곳이 여기 하나다 — ⑱ 의 세트 방향
- * 검사가 이것을 읽는다.
+ * 일정 한 칸의 세트(어댑터, 2판 P5 도구 T0) — 앱이 그 운동을 보이고 시작할 때 쓰는 처방(lib/report/volume.ts planPrescription —
+ * 목표 처방 위에 그날 양 조절, 일정 화면 · 운동 시작 · 기록이 같은 함수, 2판 P5-b 처방 한 길). 일정에 세트 조절(plan.volume)이 실리면
+ * 여기도 저절로 따라간다 — ⑱ 의 세트 방향 검사가 이것을 읽는다.
  */
 function setsOf(plan: DailyPlan, pick: DailyPlan['picks'][number]): number {
   const ex = byId.get(pick.exerciseId);
   if (!ex) return 0;
-  return goalPrescription(ex, plan.goal).sets ?? 0;
+  return planPrescription(ex, plan).sets ?? 0;
 }
 /** 본운동 세트 합 — 멈춘 날(null)은 0 */
 const mainSetsOf = (plan: DailyPlan | null) =>

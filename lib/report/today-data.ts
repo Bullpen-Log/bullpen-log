@@ -12,7 +12,7 @@ import { readRoutineItems } from '@/lib/armcare/my-routines';
 import { loadRehabExerciseIds } from '@/lib/armcare/rehab-store';
 import { visibleExercises } from '@/lib/library-cache';
 import { closeAbandonedSessions } from '@/lib/workout/close-stale';
-import { goalPrescription } from '@/lib/report/goal-prescription';
+import { planPrescription } from '@/lib/report/volume';
 import {
   estimateMinutes,
   painRecoveryReason,
@@ -291,8 +291,8 @@ export async function loadTodayCore(user: UserForToday, today: Date) {
     shownPicks.reduce((sum, p) => {
       const ex = byId.get(p.exerciseId);
       if (!ex) return sum;
-      /* 일정을 짤 때와 같은 횟수로 센다(goal-prescription.ts) */
-      return sum + estimateMinutes(goalPrescription(ex, savedPlan?.goal));
+      /* 트레이닝 화면 목록 · 운동 시작과 같은 세트 · 횟수로 센다(처방 한 길 — lib/report/volume.ts planPrescription) */
+      return sum + estimateMinutes(planPrescription(ex, savedPlan));
     }, 0)
   );
 

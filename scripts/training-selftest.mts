@@ -192,9 +192,12 @@ import {
 } from '../lib/outing-line.ts';
 import { validateSessionType } from '../lib/session-type.ts';
 import {
+  freezeExercise,
   freezePlan,
   mergeReopened,
   readFrozenPlan,
+  sessionRxBasis,
+  volumeToFreeze,
   type FrozenExercise,
   type FrozenPlan,
 } from '../lib/workout/session-plan.ts';
@@ -207,6 +210,13 @@ import {
   type PlanSwap,
 } from '../lib/report/plan-swaps.ts';
 import { goalPrescription } from '../lib/report/goal-prescription.ts';
+import {
+  VOLUME_MIN_SETS,
+  applyVolume,
+  planPrescription,
+  readPlanVolume,
+  type PlanVolume,
+} from '../lib/report/volume.ts';
 import {
   ALWAYS_OWNED,
   SELECTABLE_EQUIPMENT,
@@ -251,6 +261,7 @@ import {
   INTENSITY_CAP,
   cleanExerciseNote,
   formatAmount,
+  formatPrescription,
   intensityLevel,
   storedKg,
   usesWeight,
@@ -19973,14 +19984,20 @@ console.log(
       !/(const|function)\s+(isHeavyLower|isArmPlyo|isHeavyUpperPush)\b/.test(tool) &&
       /if \(count === 0\)\s*throw new Error\(/.test(tool)
   );
+  /*
+   * P5 로 바뀜 — 처방 한 길(P5-b)에서 세트 어댑터가 goalPrescription(ex, plan.goal) 대신 planPrescription(ex, plan)(목표 처방 위에
+   * 그날 양 조절, lib/report/volume.ts)을 읽는다. 앱의 아홉 자리와 같은 함수라 일정에 세트 조절이 실리면 ⑱ 이 저절로 따라간다.
+   * 도구가 목표 처방을 바로 부르면 안 된다(goalPrescription( 0번).
+   */
   check(
-    'P5 도구 (나) 하루 만들기는 어댑터 한 곳 — buildDailyPlan 은 buildDay 에서만, 재료는 inputsOf, 세트는 setsOf 에서만 처방(goalPrescription)을 읽는다',
+    'P5 도구 (나) 하루 만들기는 어댑터 한 곳 — buildDailyPlan 은 buildDay 에서만, 재료는 inputsOf, 세트는 setsOf 에서만 처방(planPrescription)을 읽는다',
     tool.split('buildDailyPlan(').length === 2 &&
       /const \{ facts, plan, owned, history, seed \} = inputsOf\(p, i, st, v\);/.test(
         tool
       ) &&
-      tool.split('goalPrescription(').length === 2 &&
-      /return goalPrescription\(ex, plan\.goal\)\.sets \?\? 0;/.test(tool) &&
+      tool.split('planPrescription(').length === 2 &&
+      !tool.includes('goalPrescription(') &&
+      /return planPrescription\(ex, plan\)\.sets \?\? 0;/.test(tool) &&
       /buildDayState\(\{ facts, plan, extras: extrasOf\(st\) \}\)/.test(tool)
   );
   const programKeys = [...tool.matchAll(/program: '([^']+)',/g)].map((m) => m[1]);
@@ -20618,6 +20635,447 @@ console.log(
         readFileSync(new URL('../lib/favorites.ts', import.meta.url), 'utf8')
       )
   );
+}
+
+/* ═══════════════════ [2판 P5] 처방 한 길 — lib/report/volume.ts planPrescription · 세션 판의 양 조절(lib/workout/session-plan.ts) (2026-10-12) ═══════════════════ */
+console.log(
+  '\n[2판 P5] 처방 한 길 — 세트 · 횟수를 세는 자리가 planPrescription 하나로 · 일정 · 세션 판이 양 조절을 지킴 · 만드는 쪽이 아직 없어 동작 변화 0(2026-10-12)'
+);
+{
+  /*
+   * 세트 · 횟수를 다시 세는 아홉 자리(일정을 짤 때 · 트레이닝 화면 목록 · '운동 추가' 목록 · 홈의 운동 시간 · 운동 시작 · 운동 중 [교체]
+   * 목록 · 바꿔 넣기 · 기록의 '계획' 둘)가 모두 planPrescription(목표 처방 위에 그날 양 조절)을 부른다. 이 절은 그 함수와 판이
+   * 양 조절을 잃지 않는지, 조절이 없으면 예전(goalPrescription)과 글자까지 같은지를 본다. 자리마다 부르는지는 코드 읽기로 확인했다.
+   */
+  const json = (v: unknown) => JSON.stringify(v);
+  const V: PlanVolume = {
+    setDelta: -1,
+    intensityStep: -1,
+    why: '평소 컨디션보다 낮아 본운동을 한 세트씩 줄였어요.',
+  };
+  const goals: (string | null | undefined)[] = [
+    ...TRAINING_GOALS.map((g) => g.name),
+    null,
+    undefined,
+    '없는 목표',
+  ];
+
+  /* ── (가) readPlanVolume — 모양 검사 · 새 객체 · 모르는 칸 버림 ── */
+  const readBack = readPlanVolume({ ...V, extra: 1 });
+  check(
+    'P5 처방 (가) readPlanVolume — 맞는 모양은 새 객체로(모르는 칸은 버림), intensityStep 이 없으면 0, 강도만 내린 조절도 읽음',
+    readBack != null &&
+      readBack !== V &&
+      json(readBack) === json(V) &&
+      json(readPlanVolume({ setDelta: -1, why: '줄였어요.' })) ===
+        json({ setDelta: -1, intensityStep: 0, why: '줄였어요.' }) &&
+      json(readPlanVolume({ setDelta: 0, intensityStep: -1, why: '뺐어요.' })) ===
+        json({ setDelta: 0, intensityStep: -1, why: '뺐어요.' }),
+    json(readBack)
+  );
+  const broken: unknown[] = [
+    null,
+    undefined,
+    0,
+    -1,
+    'x',
+    [],
+    [V],
+    { ...V, setDelta: -2 },
+    { ...V, setDelta: '-1' },
+    { ...V, setDelta: 1 },
+    { ...V, intensityStep: 1 },
+    { ...V, intensityStep: null },
+    { ...V, why: '' },
+    { ...V, why: '   ' },
+    { ...V, why: 3 },
+    { setDelta: -1, intensityStep: -1 },
+    { setDelta: 0, intensityStep: 0, why: '아무것도 안 줄였어요.' },
+    { intensityStep: -1, why: '세트 칸이 없어요.' },
+  ];
+  const leaked = broken.filter((b) => readPlanVolume(b) !== null);
+  check(
+    `P5 처방 (가) 깨진 양 조절 ${broken.length}가지(숫자 · 글자 · 배열 · −2 · 글자 숫자 · +1 · 빈 까닭 · 까닭 없음 · 둘 다 0 · 세트 칸 없음)는 null — 안 줄인다`,
+    leaked.length === 0,
+    json(leaked)
+  );
+
+  /* ── (나) applyVolume — 무게 드는 카테고리 3세트 이상만 한 세트, 나머지는 같은 객체 ── */
+  const rxRow = (
+    category: string,
+    sets: number | null,
+    reps: number | null = 5,
+    holdSeconds: number | null = null
+  ) => ({ category, intensity: '높음', sets, reps, holdSeconds, restSeconds: 120 });
+  const squatRx = rxRow('하체 스트렝스', 4);
+  const benchRx = rxRow('상체 스트렝스', 3, 8);
+  const jumpRx = rxRow('파워', 3, 5);
+  check(
+    'P5 처방 (나) applyVolume — 하체 스트렝스 4×5 → 3×5 · 상체 스트렝스 3×8 → 2×8 · 파워 3×5 → 2×5, 횟수 · 시간 · 휴식은 그대로',
+    json(applyVolume(squatRx, V)) === json({ ...squatRx, sets: 3 }) &&
+      json(applyVolume(benchRx, V)) === json({ ...benchRx, sets: 2 }) &&
+      json(applyVolume(jumpRx, V)) === json({ ...jumpRx, sets: 2 }),
+    json([applyVolume(squatRx, V), applyVolume(benchRx, V), applyVolume(jumpRx, V)])
+  );
+  const keepRows = [
+    rxRow('하체 스트렝스', VOLUME_MIN_SETS),
+    rxRow('상체 스트렝스', 1),
+    rxRow('파워', null),
+    ...TRAINING_CATEGORY_NAMES.filter((c) => !HEAVY_CATEGORIES.includes(c)).map((c) =>
+      rxRow(c, 3, 12)
+    ),
+  ];
+  check(
+    `P5 처방 (나) 그대로 둘 것 ${keepRows.length}가지는 같은 객체(===) — ${VOLUME_MIN_SETS}세트 이하 · 세트 안 채움 · 무게 안 드는 카테고리 전부, 조절이 없거나(null · undefined) 세트를 안 줄이는 조절(강도만)이면 무엇이든`,
+    keepRows.length > 3 &&
+      keepRows.every((r) => applyVolume(r, V) === r) &&
+      [squatRx, benchRx, jumpRx].every(
+        (r) =>
+          applyVolume(r, null) === r &&
+          applyVolume(r, undefined) === r &&
+          applyVolume(r, { ...V, setDelta: 0 }) === r
+      )
+  );
+  {
+    let cut = 0;
+    let kept = 0;
+    const bad: string[] = [];
+    for (const ex of library) {
+      for (const g of goals) {
+        const base = goalPrescription(ex, g);
+        const out = applyVolume(base, V);
+        const shouldCut =
+          HEAVY_CATEGORIES.includes(base.category) &&
+          base.sets != null &&
+          base.sets > VOLUME_MIN_SETS;
+        if (shouldCut) {
+          cut++;
+          if (out === base || json(out) !== json({ ...base, sets: base.sets! - 1 })) {
+            bad.push(`${ex.title}/${g}`);
+          }
+        } else {
+          kept++;
+          if (out !== base) bad.push(`${ex.title}/${g}`);
+        }
+      }
+    }
+    check(
+      `P5 처방 (나) 실제 운동 ${library.length}개 × 목표 ${goals.length}가지 — 줄어든 ${cut} · 그대로 ${kept}, 줄어든 것은 세트 하나만 다르고 그대로인 것은 같은 객체`,
+      cut > 0 && kept > 0 && bad.length === 0,
+      bad.slice(0, 5).join(' · ')
+    );
+  }
+
+  /* ── (다) planPrescription — 조절이 없으면 goalPrescription 과 글자까지 같고(같은 객체면 같은 객체), 있으면 목표 다음에 댄다 ── */
+  {
+    const shapesOf = (g: string | null | undefined) => [
+      null,
+      undefined,
+      { goal: g },
+      { goal: g, volume: undefined },
+      { goal: g, volume: null },
+      { goal: g, volume: { ...V, setDelta: -2 } },
+      { goal: g, volume: '세트를 줄였어요' },
+      /* 옛 일정 줄 모양(DailyTrainingSetup.plan — volume 칸 없음) */
+      { version: 1, goal: g, picks: [] as unknown[] },
+    ];
+    let pairs = 0;
+    const diff: string[] = [];
+    for (const ex of library) {
+      for (const g of goals) {
+        for (const shape of shapesOf(g)) {
+          pairs++;
+          const want = goalPrescription(ex, shape?.goal);
+          const got = planPrescription(ex, shape);
+          if (json(got) !== json(want) || (want === ex) !== (got === ex)) {
+            diff.push(`${ex.title}/${g}/${json(shape)}`);
+          }
+        }
+      }
+    }
+    check(
+      `P5 처방 (다) 동작 변화 0 — 실제 운동 × 목표 × 일정 모양(없음 · 목표만 · 조절 null · 깨진 조절 · 옛 줄) ${pairs}쌍에서 planPrescription = goalPrescription(바꿀 것이 없으면 같은 객체)`,
+      pairs > 0 && diff.length === 0,
+      diff.slice(0, 3).join(' · ')
+    );
+    const withV: string[] = [];
+    for (const ex of library) {
+      for (const g of goals) {
+        const want = applyVolume(goalPrescription(ex, g), V);
+        if (json(planPrescription(ex, { goal: g, volume: V })) !== json(want)) {
+          withV.push(`${ex.title}/${g}`);
+        }
+      }
+    }
+    /* 근력 향상의 무거운 운동은 라이브러리 3×10 → 목표 4×5 → 조절 3×5. 조절을 먼저 대면 2×10 → 목표가 덮어 4×5 가 된다 */
+    const heavy = { ...rxRow('하체 스트렝스', 3, 10), intensity: '높음' };
+    const order = planPrescription(heavy, { goal: '근력 향상', volume: V });
+    check(
+      'P5 처방 (다) 조절이 있으면 목표 처방 다음에 댄다 — 실제 운동 × 목표 전부 applyVolume(goalPrescription) 와 같고, 근력 향상 3×10 → 4×5 → 3×5',
+      withV.length === 0 && order.sets === 3 && order.reps === 5,
+      `${withV.slice(0, 3).join(' · ')} ${order.sets}×${order.reps}`
+    );
+  }
+
+  /* ── (라) freezePlan · readFrozenPlan — 판이 조절을 싣고 지키며, 조절 없는 판은 옛 모양 그대로(RG) ── */
+  const srcRow = (
+    id: string,
+    category: string,
+    intensity: string,
+    sets: number,
+    reps: number | null,
+    movementPattern: string | null = null
+  ) => ({
+    id,
+    title: id,
+    category,
+    intensity,
+    movementPattern,
+    bodyParts: [] as string[],
+    equipment: [] as string[],
+    sets,
+    reps,
+    holdSeconds: null,
+    restSeconds: 90,
+    perSide: false,
+    thumbPath: null,
+  });
+  const srcRows = [
+    srcRow('스쿼트', '하체 스트렝스', '높음', 3, 10, '스쿼트'),
+    srcRow('박스 점프', '파워', '높음', 3, 5, '스쿼트'),
+    srcRow('플랭크', '코어', '낮음', 3, 12),
+    srcRow('밴드 외회전', '암케어', '낮음', 2, 15),
+  ];
+  const srcById = new Map(srcRows.map((r) => [r.id, r]));
+  const picksV: { exerciseId: string; slot: SlotKey }[] = [
+    { exerciseId: '스쿼트', slot: 'main' },
+    { exerciseId: '박스 점프', slot: 'main' },
+    { exerciseId: '플랭크', slot: 'core' },
+    { exerciseId: '밴드 외회전', slot: 'armcare' },
+  ];
+  const freezeV = (
+    picks: { exerciseId: string; slot: SlotKey }[],
+    volume?: PlanVolume | null
+  ) =>
+    volume === undefined
+      ? freezePlan('lower', '하체', picks, srcById, '근력 향상')
+      : freezePlan('lower', '하체', picks, srcById, '근력 향상', volume);
+  const plainV = freezeV(picksV);
+  const cutV = freezeV(picksV, V);
+  /* 운동 이름 차례로 — 판의 하는 차례(orderSession)와 상관없이 견준다 */
+  const setsById = (p: FrozenPlan) =>
+    Object.fromEntries(
+      p.exercises
+        .map((e) => [e.id, e.plannedSets] as const)
+        .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+    );
+  check(
+    'P5 처방 (라) RG — 조절 없이 찍은 판은 칸이 예전 넷(themeKey · themeLabel · goal · exercises)뿐이고, null 을 넘겨도 글자까지 같다',
+    json(Object.keys(plainV)) ===
+      json(['themeKey', 'themeLabel', 'goal', 'exercises']) &&
+      json(freezeV(picksV, null)) === json(plainV),
+    json(Object.keys(plainV))
+  );
+  check(
+    'P5 처방 (라) 조절을 넘기면 판에 실리고(새 객체) 본운동만 한 세트 — 스쿼트 4(근력 향상) → 3 · 박스 점프 3 → 2 · 플랭크 · 밴드 외회전 그대로',
+    cutV.volume != null &&
+      cutV.volume !== V &&
+      json(cutV.volume) === json(V) &&
+      json(setsById(plainV)) ===
+        json({ '박스 점프': 3, '밴드 외회전': 2, 스쿼트: 4, 플랭크: 3 }) &&
+      json(setsById(cutV)) ===
+        json({ '박스 점프': 2, '밴드 외회전': 2, 스쿼트: 3, 플랭크: 3 }),
+    `${json(setsById(plainV))} → ${json(setsById(cutV))}`
+  );
+  check(
+    'P5 처방 (라) 판의 처방 줄은 planPrescription 으로 쓴 글과 같고(트레이닝 화면 목록 = 운동 화면), 깨진 조절을 넘기면 조절 없는 판과 같다',
+    cutV.exercises.every(
+      (e) =>
+        e.prescription ===
+        formatPrescription(
+          planPrescription(srcById.get(e.id)!, { goal: '근력 향상', volume: V })
+        )
+    ) &&
+      json(freezeV(picksV, { ...V, setDelta: -2 } as unknown as PlanVolume)) ===
+        json(plainV)
+  );
+  const storedCut = JSON.parse(json(cutV)) as Record<string, unknown>;
+  const backCut = readFrozenPlan(storedCut);
+  const backPlain = readFrozenPlan(JSON.parse(json(plainV)));
+  check(
+    'P5 처방 (라) readFrozenPlan — 저장했다 읽어도 조절이 남고, 조절 없는 판은 칸이 안 생기고(Object.keys 예전 넷), 깨진 조절은 버린다',
+    json(backCut?.volume) === json(V) &&
+      backPlain != null &&
+      json(Object.keys(backPlain)) === json(Object.keys(plainV)) &&
+      !(
+        'volume' in (readFrozenPlan({ ...storedCut, volume: { setDelta: -2 } }) ?? {})
+      ) &&
+      !('volume' in (readFrozenPlan({ ...storedCut, volume: '줄였어요' }) ?? {}))
+  );
+  const swapEntry: PlanSwap = {
+    from: '플랭크',
+    to: null,
+    kind: 'remove',
+    where: 'session',
+    slot: 'core',
+    at: '2026-06-15T01:00:00.000Z',
+  };
+  const rewrittenV = readFrozenPlan(
+    JSON.parse(
+      json({
+        ...withSwaps(backCut!, [swapEntry]),
+        exercises: backCut!.exercises.slice(0, 2),
+      })
+    )
+  );
+  check(
+    'P5 처방 (라) 운동 중 빼기 · 바꾸기의 다시 쓰기(`{ ...withSwaps(plan), exercises }`) 뒤에도 조절과 기록이 같이 남는다',
+    json(rewrittenV?.volume) === json(V) &&
+      rewrittenV?.swaps?.length === 1 &&
+      rewrittenV.exercises.length === 2
+  );
+
+  /* ── (마) 다시 열기 — 지키는 판의 조절로 붙는 운동을 찍는다(volumeToFreeze · mergeReopened) ── */
+  const keptPlainV = readFrozenPlan(JSON.parse(json(freezeV(picksV.slice(0, 1)))))!;
+  const keptCutV = readFrozenPlan(JSON.parse(json(freezeV(picksV.slice(0, 1), V))))!;
+  check(
+    'P5 처방 (마) volumeToFreeze — 운동이 남은 판이면 그 판의 조절(없으면 없음), 판이 없거나 빈 판이면 오늘 일정의 조절(깨졌으면 없음)',
+    volumeToFreeze(keptPlainV, V) === null &&
+      json(volumeToFreeze(keptCutV, null)) === json(V) &&
+      json(volumeToFreeze(keptCutV, { ...V, why: '다른 까닭' })) === json(V) &&
+      json(volumeToFreeze(null, V)) === json(V) &&
+      json(volumeToFreeze({ ...keptPlainV, exercises: [] }, V)) === json(V) &&
+      volumeToFreeze(null, undefined) === null &&
+      volumeToFreeze(null, { setDelta: -2 }) === null
+  );
+  {
+    /* 아침에 조절 없이 스쿼트만 한 판 → 저녁 일정은 조절(세트 −1) · 넷 → 다시 열면 붙는 셋도 조절 없이(아침 판과 같은 세트) */
+    const morning = mergeReopened(
+      keptPlainV,
+      freezeV(picksV, volumeToFreeze(keptPlainV, V))
+    );
+    /* 거꾸로 — 아침 판이 조절을 했으면 붙는 운동도 그 조절로 */
+    const morningCut = mergeReopened(
+      keptCutV,
+      freezeV(picksV, volumeToFreeze(keptCutV, null))
+    );
+    check(
+      'P5 처방 (마) 다시 열기 — 붙는 운동은 지키는 판과 같은 조절(조절 없는 판엔 칸도 없고 박스 점프 3세트, 조절한 판엔 칸이 남고 박스 점프 2세트), 판의 첫 운동은 그대로',
+      !('volume' in morning) &&
+        morning.exercises[0].id === '스쿼트' &&
+        morning.exercises[0].plannedSets === 4 &&
+        setsById(morning)['박스 점프'] === 3 &&
+        json(morningCut.volume) === json(V) &&
+        morningCut.exercises[0].plannedSets === 3 &&
+        setsById(morningCut)['박스 점프'] === 2 &&
+        morning.exercises.length === 4 &&
+        morningCut.exercises.length === 4,
+      `${json(setsById(morning))} · ${json(setsById(morningCut))}`
+    );
+  }
+
+  /* ── (바) 운동 중 바꿔 넣기 — 목표는 판(옛 판은 오늘 일정), 조절은 판의 것만, 바꿔 넣은 운동 = 처음 찍었으면 나왔을 운동 ── */
+  check(
+    'P5 처방 (바) sessionRxBasis — 목표는 판의 것이 먼저 · 목표 없는 옛 판은 오늘 일정의 목표 · 조절은 판의 것만(조절 없는 판은 null)',
+    json(sessionRxBasis(keptCutV, '파워 향상')) ===
+      json({ goal: '근력 향상', volume: V }) &&
+      json(sessionRxBasis({ ...keptPlainV, goal: null }, '파워 향상')) ===
+        json({ goal: '파워 향상', volume: null }) &&
+      json(sessionRxBasis({ ...keptPlainV, goal: null }, undefined)) ===
+        json({ goal: null, volume: null }) &&
+      sessionRxBasis(keptPlainV, '근력 향상').volume === null
+  );
+  {
+    const swapped = backCut!.exercises.map((e) =>
+      freezeExercise(
+        planPrescription(srcById.get(e.id)!, sessionRxBasis(backCut!, '파워 향상')),
+        e.slot
+      )
+    );
+    check(
+      'P5 처방 (바) 운동 중에 같은 운동을 바꿔 넣으면 운동 시작 때 찍은 것과 글자까지 같다(세트 · 처방 줄 · 무게 필수 — 조절한 판)',
+      json(swapped) === json(backCut!.exercises),
+      json(swapped.map((e) => e.plannedSets))
+    );
+  }
+
+  /* ── (사) 아홉 자리 같은 값 — 같은 일정 · 같은 운동이면 화면 목록 · 기록의 '계획' · 운동 시작 · 바꿔 넣기 · 홈 시간이 같은 수를 낸다 ── */
+  {
+    const dayPlanV = readDailyPlan(
+      JSON.parse(json({ version: 1, goal: '근력 향상', volume: V, picks: picksV }))
+    );
+    const startV = freezePlan(
+      'lower',
+      '하체',
+      dayPlanV!.picks,
+      srcById,
+      dayPlanV!.goal,
+      volumeToFreeze(null, dayPlanV!.volume)
+    );
+    const rows = srcRows.map((r) => {
+      const shown = formatPrescription(planPrescription(r, dayPlanV));
+      const started = startV.exercises.find((e) => e.id === r.id)?.prescription;
+      const swappedIn = freezeExercise(
+        planPrescription(r, sessionRxBasis(startV, dayPlanV!.goal)),
+        'main'
+      ).prescription;
+      const minutes = estimateMinutes(planPrescription(r, dayPlanV));
+      const before = estimateMinutes(goalPrescription(r, dayPlanV!.goal));
+      return { id: r.id, shown, started, swappedIn, minutes, before };
+    });
+    check(
+      'P5 처방 (사) 아홉 자리 같은 값 — 저장된 일정(조절 있음)으로 화면 목록 · 기록 = 운동 시작 = 바꿔 넣기 처방 줄, 홈 시간은 줄인 운동만 줄어든다',
+      dayPlanV != null &&
+        rows.every(
+          (r) => r.shown != null && r.shown === r.started && r.shown === r.swappedIn
+        ) &&
+        rows.every((r) =>
+          ['스쿼트', '박스 점프'].includes(r.id)
+            ? r.minutes < r.before
+            : r.minutes === r.before
+        ),
+      json(rows.map((r) => `${r.id} ${r.shown} ${r.before}→${r.minutes}분`))
+    );
+  }
+
+  /* ── (아) 동작 변화 0 — 만드는 쪽이 아직 없다: P3 160조합으로 만든 일정에 조절 칸이 없고, 처방은 목표 처방과 같다 ── */
+  {
+    let built = 0;
+    const withVolume: string[] = [];
+    const rxDiff: string[] = [];
+    const libById = new Map(library.map((ex) => [ex.id, ex]));
+    for (const [i, facts] of p3ComboFactsSeen.entries()) {
+      const day = buildDailyPlan({
+        user: { ownedEquipment: [], trainingLevel: null },
+        facts,
+        plan: buildPitchPlan(facts),
+        library,
+        availableToday: null,
+        requestedMinutes: 45,
+        recentIds: new Set<string>(),
+        lastLowerKey: null,
+        lastUpperKey: null,
+      });
+      if (isHalted(day)) continue;
+      built++;
+      if ('volume' in day) withVolume.push(`p0-${i}`);
+      for (const pick of day.picks) {
+        const ex = libById.get(pick.exerciseId);
+        if (!ex) continue;
+        if (json(planPrescription(ex, day)) !== json(goalPrescription(ex, day.goal))) {
+          rxDiff.push(`p0-${i} ${ex.title}`);
+        }
+      }
+    }
+    check(
+      `P5 처방 (아) 동작 변화 0 — P3 160조합(${p3ComboFactsSeen.length}명) 중 일정이 나온 ${built}명: 조절 칸 없음 · 모든 칸의 처방이 목표 처방과 같다`,
+      p3ComboFactsSeen.length === 160 &&
+        built > 0 &&
+        withVolume.length === 0 &&
+        rxDiff.length === 0,
+      `${withVolume.slice(0, 3).join(' · ')} ${rxDiff.slice(0, 3).join(' · ')}`
+    );
+  }
 }
 
 console.log(`\n${passed}개 통과, ${failed}개 실패`);

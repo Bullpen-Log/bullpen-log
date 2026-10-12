@@ -12,7 +12,7 @@ import { loadTodayCore } from '@/lib/report/today-data';
 import { readDailyPlan } from '@/lib/report/daily-plan';
 import { withSwaps, type PlanSwap } from '@/lib/report/plan-swaps';
 import { selectCandidates } from '@/lib/report/prescription';
-import { goalPrescription } from '@/lib/report/goal-prescription';
+import { planPrescription } from '@/lib/report/volume';
 import { slotForTheme } from '@/lib/report/theme';
 import { recentExerciseIds } from '@/lib/report/exercise-recent';
 import { favoriteExerciseIds } from '@/lib/favorites';
@@ -24,6 +24,8 @@ import {
   programSwapEntry,
   programSwapRx,
   readFrozenPlan,
+  sessionRxBasis,
+  volumeToFreeze,
   type FrozenExercise,
   type FrozenPlan,
 } from '@/lib/workout/session-plan';
@@ -98,8 +100,10 @@ export async function startWorkout() {
     theme.label,
     core.shownPicks,
     new Map(details.map((ex) => [ex.id, ex])),
-    /* 세트 · 횟수는 오늘 목표에 맞춰 찍는다 — 트레이닝 화면 목록과 같은 값(goal-prescription.ts) */
-    core.savedPlan?.goal ?? null
+    /* 세트 · 횟수는 오늘 목표 · 양 조절에 맞춰 찍는다 — 트레이닝 화면 목록과 같은 값(처방 한 길, lib/report/volume.ts) */
+    core.savedPlan?.goal ?? null,
+    /* 다시 여는 판은 그 판의 양 조절로 — 붙는 운동이 그 판과 같은 세트로 찍힌다(openSession 의 mergeReopened) */
+    volumeToFreeze(open ? readFrozenPlan(open.plan) : null, core.savedPlan?.volume)
   );
 
   if (plan.exercises.length === 0) redirect('/training');
@@ -771,6 +775,8 @@ export async function swapChoices(input: {
         core.picked.candidates,
         new Set(plan.exercises.map((e) => e.id))
       );
+  /* 목록의 처방은 넣을 때 찍는 처방과 같은 기준으로(sessionRxBasis — 목표는 판, 옛 판은 오늘 일정 · 양 조절은 판의 것만) */
+  const rxBasis = sessionRxBasis(plan, core.savedPlan?.goal);
 
   return {
     halted: safety.halted ? (safety.haltReason ?? HALTED_MESSAGE) : null,
@@ -778,13 +784,13 @@ export async function swapChoices(input: {
     blockedIds: core.library.filter((ex) => !safeIds.has(ex.id)).map((ex) => ex.id),
     favoriteIds: [...favorites],
     recentIds,
-    /* 넣은 뒤 운동 화면에 보일 횟수와 같게 — 오늘 목표에 맞춘다 */
+    /* 넣은 뒤 운동 화면에 보일 횟수와 같게 — 오늘 목표 · 양 조절에 맞춘다(처방 한 길, lib/report/volume.ts) */
     library: input.withLibrary
       ? core.library.map((ex) =>
           /* 프로그램 날은 넣을 때 그 칸 · 그 주의 처방이 정해진다(U3) — 목록에 다른 횟수를 보이지 않는다 */
           plan.program
             ? { ...toSwapPick(ex), prescription: null }
-            : toSwapPick(goalPrescription(ex, plan.goal ?? core.savedPlan?.goal))
+            : toSwapPick(planPrescription(ex, rxBasis))
         )
       : null,
   };
@@ -879,8 +885,8 @@ export async function changeSessionExercise(input: {
         user.id,
         [
           freezeExercise(
-            /* 처음 찍은 목록과 같은 목표로 — 옛 판(목표 없음)은 오늘 일정의 목표 */
-            goalPrescription(to, plan.goal ?? core.savedPlan?.goal),
+            /* 처음 찍은 목록과 같은 목표 · 양 조절로 — 옛 판(목표 없음)은 오늘 일정의 목표, 양 조절은 판의 것만(sessionRxBasis) */
+            planPrescription(to, sessionRxBasis(plan, core.savedPlan?.goal)),
             mode === 'replace' ? from.slot : slotForTheme(to, plan.themeKey)
           ),
         ],
