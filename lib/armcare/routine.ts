@@ -1,6 +1,8 @@
 import {
   HIGH_ARM_FATIGUE,
+  SEVERE_ARM_FATIGUE,
   SEVERE_SORENESS,
+  armFatigueWord,
   armPainLevelLabel,
   armPainSpotLabel,
   armPainSpotsFor,
@@ -61,11 +63,10 @@ export type ArmcareDecision =
 /**
  * 팔 피로가 이 값 이상이면 회복으로 간다 — '많이'(4)·'심함'(5). 값과 까닭은 lib/checkin.ts 한 곳(2026-10-12, 2판 P3 에서 옮김 —
  * 오늘 상태 한 장 lib/engine/day-state.ts 가 같은 문턱을 쓴다). 여기서는 옛 import(자체 시험 · 화면)가 그대로 맞게 다시 내보낸다.
+ * '심함'(SEVERE_ARM_FATIGUE — 매일 일정이 팔 쓰는 운동을 뺄 문턱)과 말(armFatigueWord)도 같은 곳에 있다(2판 P4 — 예전에는
+ * 여기 보기 목록 복사본이 따로 있었다). 암케어는 '많이'와 '심함'을 가르지 않는다 — 둘 다 회복 루틴이다.
  */
-export { HIGH_ARM_FATIGUE };
-
-/** 팔 피로의 말 — lib/checkin.ts 의 DETAIL_SCALES 와 같은 보기 */
-const ARM_FATIGUE_WORDS = ['없음', '조금', '보통', '많이', '심함'];
+export { HIGH_ARM_FATIGUE, SEVERE_ARM_FATIGUE };
 
 /** 이 컨디션 이하면 회복 — 값은 lib/checkin.ts(매일 운동 계획 · 안전 거름과 같은 값) */
 const LOW_CONDITION = LOW_CONDITION_THRESHOLD;
@@ -151,7 +152,7 @@ export function decideArmcare({
     if (owed) signals.push(`${owed.elapsed}일 전 ${owed.pitches}구 · 아직 쉬는 기간`);
   }
   if (armFatigue != null && armFatigue >= HIGH_ARM_FATIGUE) {
-    signals.push(`팔 피로 '${ARM_FATIGUE_WORDS[armFatigue - 1] ?? armFatigue}'`);
+    signals.push(`팔 피로 '${armFatigueWord(armFatigue) ?? armFatigue}'`);
   }
   if (facts.load.zone === 'danger') signals.push('투구 부하 위험 구간');
   else if (facts.load.zone === 'caution') signals.push('투구 부하 주의 구간');

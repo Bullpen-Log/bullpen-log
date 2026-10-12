@@ -33,6 +33,12 @@ export type ExerciseLike = {
   intensity: string;
   difficulty: string | null;
   equipment: string[];
+  /**
+   * 동작 계열(힌지 · 스쿼트 · 밀기 …) — 무거운 하체 · 팔 플라이오 · 무거운 상체 밀기 판정(lib/engine/exercise-class.ts)이 읽는다.
+   * 선택 칸인 까닭: 라이브러리 줄(ExerciseVideo · 캐시)에는 늘 있지만 자체 시험의 가짜 운동에는 없다. 없으면 계열로 거는 판정은
+   * 안 걸리고 부위 · 장비로만 가른다(theme.ts ThemedExercise 와 같은 약속, 2판 P4).
+   */
+  movementPattern?: string | null;
 };
 
 /**

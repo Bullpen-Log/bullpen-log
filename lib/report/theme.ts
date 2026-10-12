@@ -7,6 +7,7 @@ import {
   type CheckinPartKey,
 } from '@/lib/checkin';
 import { nextOutingWindow, recentHardOuting } from '@/lib/engine/day-state';
+import { LOWER_POWER_PATTERNS } from '@/lib/engine/exercise-class';
 import {
   HEAVY_EQUIPMENT,
   intensityLevel,
@@ -1017,8 +1018,11 @@ const COMPOSITIONS: Record<ThemeKey, SlotSpec[]> = {
       slot: 'main',
       share: 0.7,
       categories: ['하체 스트렝스', '파워'],
-      /* 하체날의 파워는 뛰고 미는 계열만 */
-      powerPatterns: ['스쿼트', '런지', '힌지'],
+      /*
+       * 하체날의 파워는 뛰고 미는 계열만. 목록은 무거운 하체 판정(lib/engine/exercise-class.ts isHeavyLower)과 한 벌이다 —
+       * 하체날에 들어가는 점프와 등판 전에 빼는 점프가 어긋나지 않게(2판 P4).
+       */
+      powerPatterns: LOWER_POWER_PATTERNS,
       maxCount: 8,
     },
   ],

@@ -592,6 +592,23 @@ export type DetailScaleKey = (typeof DETAIL_SCALES)[number]['key'];
  */
 export const HIGH_ARM_FATIGUE = 4;
 
+/**
+ * 팔 피로 '심함'(5). 매일 일정의 안전 거르기가 무거운 상체 밀기 · 팔 플라이오를 뺄 문턱이다(2판 P4 — 판정은
+ * lib/engine/exercise-class.ts, 규칙은 다음 커밋에서 prescription.ts 에 들어간다). 눈금 셋의 몫을 나눈다: '심함'은 운동을 뺀다, '많이'(HIGH_ARM_FATIGUE)는 암케어를 회복으로만
+ * 돌린다, 그 아래는 운동 고르기가 점수로만 본다(P5). '많이'에서 운동까지 빼면 공을 많이 던지는 시기에 상체 날이 거의 빈다.
+ * 근육통의 SEVERE_SORENESS 와 같은 눈금 · 같은 뜻이다.
+ */
+export const SEVERE_ARM_FATIGUE = 5;
+
+/**
+ * 팔 피로 숫자 → 말('많이' 같은 DETAIL_SCALES 의 보기). 정수 1~5 밖이면 null — 안 적은 것으로 본다(sorenessWord 와 같은 꼴).
+ * 암케어 까닭 줄 · 오늘 상태 한 장이 이 함수 하나를 쓴다(예전에는 둘에 보기 복사본이 따로 있었다). 안전 거르기의 근거 글도 이것을 쓴다.
+ */
+export function armFatigueWord(n: number | null | undefined): string | null {
+  const options = DETAIL_SCALES.find((s) => s.key === 'armFatigue')?.options ?? [];
+  return n != null && Number.isInteger(n) ? (options[n - 1] ?? null) : null;
+}
+
 /*
  * 식욕(2026-09-30 사용자: "영양 가이드에 필요한 정보가 있다면 체크인에도").
  *

@@ -26,12 +26,12 @@
  */
 import {
   CHECKIN_PARTS,
-  DETAIL_SCALES,
   HIGH_ARM_FATIGUE,
   HIGH_SORENESS,
   LOW_CONDITION_THRESHOLD,
   SEVERE_SORENESS,
   SHORT_SLEEP_HOURS,
+  armFatigueWord,
   armPainSpotsFor,
   exactOutingDay,
   formatSleepHours,
@@ -257,12 +257,6 @@ function daysBetween(fromKey: string, toKey: string): number {
   const [fy, fm, fd] = fromKey.split('-').map(Number);
   const [ty, tm, td] = toKey.split('-').map(Number);
   return Math.round((Date.UTC(ty, tm - 1, td) - Date.UTC(fy, fm - 1, fd)) / 86_400_000);
-}
-
-/** 팔 피로 숫자 → 말(DETAIL_SCALES 의 보기). 범위 밖이면 null */
-function armFatigueWord(n: number | null): string | null {
-  const options = DETAIL_SCALES.find((s) => s.key === 'armFatigue')?.options ?? [];
-  return n != null && Number.isInteger(n) ? (options[n - 1] ?? null) : null;
 }
 
 const labelsOf = (parts: readonly CheckinPartKey[]) =>

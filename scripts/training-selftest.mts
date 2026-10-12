@@ -47,11 +47,14 @@ import {
 } from '../lib/pitch-effort.ts';
 import {
   CHECKIN_PARTS,
+  DETAIL_SCALES,
   HIGH_SORENESS,
   LOW_CONDITION_THRESHOLD,
+  SEVERE_ARM_FATIGUE,
   SEVERE_SORENESS,
   THROW_PLANS,
   WORKOUT_KINDS,
+  armFatigueWord,
   armPainSpotsFor,
   exactOutingDay,
   hasDetail,
@@ -122,6 +125,13 @@ import {
   type DayState,
   type DayStateExtras,
 } from '../lib/engine/day-state.ts';
+import {
+  LOWER_POWER_PATTERNS,
+  isArmPlyo,
+  isHeavyLower,
+  isHeavyUpperPush,
+  type ClassifiableExercise,
+} from '../lib/engine/exercise-class.ts';
 import { orderSession, orderWithinSlot } from '../lib/report/exercise-order.ts';
 import {
   freezePlan,
@@ -216,6 +226,7 @@ import {
 } from '../lib/armcare/anatomy.ts';
 import {
   HIGH_ARM_FATIGUE,
+  SEVERE_ARM_FATIGUE as routineSevereArmFatigue,
   armcareBlock,
   bodyStateBlock,
   buildArmcareRoutine,
@@ -13669,6 +13680,389 @@ console.log(
       !answerPatterns.some((re) =>
         re.test("const ARM_FATIGUE_WORDS = ['없음', '조금'];")
       )
+  );
+}
+
+/* ═══════════════════ [2판 P4] 운동 분류 · 팔 피로 상수 — lib/engine/exercise-class.ts · lib/checkin.ts SEVERE_ARM_FATIGUE · armFatigueWord (2026-10-12) ═══════════════════ */
+console.log(
+  '\n[2판 P4] 운동 분류 한 곳(무거운 하체 · 팔 플라이오 · 무거운 상체 밀기) · 팔 피로 상수 — 정의만, 동작 변화 0(2026-10-12)'
+);
+{
+  /*
+   * 왜 보는가. 등판 전 무거운 하체 빼기 · 팔 피로 '심함' 거르기(P4) · 중재의 팔 예산(P6) · 기준선 판정이 같은 정의를 써야 같은 날
+   * 다른 층이 다른 운동을 빼지 않는다. 이 절은 (가) 정의 표(가짜 운동 — 칸 하나씩 바꿔 경계를 본다), (나) 실제 표의 수(판정이 넓어지거나
+   * 좁아지면 알린다 — 라이브러리에 운동을 더하거나 고쳐서 바뀐 것이면 수를 고친다), (다) 하체날 구성과 같은 목록 · 순수 잎 파일,
+   * (라) 팔 피로 눈금 · 말 한 곳과 암케어 글이 그대로인지 본다.
+   */
+  const json = (v: unknown) => JSON.stringify(v);
+  const ex = (
+    o: Partial<ClassifiableExercise> & { category: string }
+  ): ClassifiableExercise => ({
+    intensity: '중간',
+    bodyParts: [],
+    equipment: ['맨몸'],
+    ...o,
+  });
+  type Row = [string, ClassifiableExercise, boolean];
+  const table = (
+    name: string,
+    fn: (e: ClassifiableExercise) => boolean,
+    rows: Row[]
+  ) => {
+    const wrong = rows.filter(([, e, want]) => fn(e) !== want).map(([label]) => label);
+    check(`${name} — ${rows.length}경우`, wrong.length === 0, wrong.join(' · '));
+  };
+
+  /* ── (가) 정의 표 ── */
+  table('P4 분류 (가) 무거운 하체 isHeavyLower', isHeavyLower, [
+    [
+      '하체 스트렝스 · 바벨 · 중간(강도를 안 고친 바벨) → 무거움',
+      ex({ category: '하체 스트렝스', equipment: ['바벨'], movementPattern: '스쿼트' }),
+      true,
+    ],
+    [
+      '하체 스트렝스 · 원판 · 낮음 → 무거움',
+      ex({ category: '하체 스트렝스', intensity: '낮음', equipment: ['원판', '박스'] }),
+      true,
+    ],
+    [
+      '하체 스트렝스 · 맨몸 · 높음 → 무거움(강도)',
+      ex({ category: '하체 스트렝스', intensity: '높음', movementPattern: '힌지' }),
+      true,
+    ],
+    [
+      '하체 스트렝스 · 모르는 강도 → 무거움(안전 쪽)',
+      ex({ category: '하체 스트렝스', intensity: '아주 셈' }),
+      true,
+    ],
+    [
+      '하체 스트렝스 · 덤벨 · 중간 런지 → 가벼움(한 다리)',
+      ex({ category: '하체 스트렝스', equipment: ['덤벨'], movementPattern: '런지' }),
+      false,
+    ],
+    [
+      '하체 스트렝스 · 케틀벨 · 중간 → 가벼움(HEAVY_EQUIPMENT 전부를 쓰지 않음)',
+      ex({ category: '하체 스트렝스', equipment: ['케틀벨'] }),
+      false,
+    ],
+    [
+      '파워 · 스쿼트 계열 · 맨몸 · 중간 → 무거움(점프)',
+      ex({ category: '파워', movementPattern: '스쿼트' }),
+      true,
+    ],
+    [
+      '파워 · 런지 계열 → 무거움',
+      ex({ category: '파워', movementPattern: '런지' }),
+      true,
+    ],
+    [
+      '파워 · 힌지 계열 → 무거움',
+      ex({ category: '파워', movementPattern: '힌지', equipment: ['케틀벨'] }),
+      true,
+    ],
+    [
+      '파워 · 회전 계열 + 하체 부위 → 아님(계열이 정한다)',
+      ex({ category: '파워', movementPattern: '회전', bodyParts: ['고관절', '전신'] }),
+      false,
+    ],
+    [
+      '파워 · 계열 없음 + 종아리·발목 → 무거움',
+      ex({ category: '파워', movementPattern: null, bodyParts: ['종아리·발목'] }),
+      true,
+    ],
+    [
+      '파워 · 계열 칸 자체가 없음 + 햄스트링·둔근 → 무거움',
+      ex({ category: '파워', bodyParts: ['햄스트링·둔근'] }),
+      true,
+    ],
+    [
+      '파워 · 계열 없음 + 전신만 → 아님(던지기에도 붙는 꼬리표)',
+      ex({ category: '파워', movementPattern: null, bodyParts: ['전신'] }),
+      false,
+    ],
+    [
+      '상체 스트렝스 · 바벨 · 높음 → 아님',
+      ex({ category: '상체 스트렝스', intensity: '높음', equipment: ['바벨'] }),
+      false,
+    ],
+    [
+      '코어 · 매우 높음 → 아님',
+      ex({ category: '코어', intensity: '매우 높음', bodyParts: ['고관절'] }),
+      false,
+    ],
+  ]);
+  table('P4 분류 (가) 팔 플라이오 isArmPlyo', isArmPlyo, [
+    [
+      '파워 · 회전 · 메디신볼 → 팔 플라이오',
+      ex({
+        category: '파워',
+        movementPattern: '회전',
+        equipment: ['메디신볼'],
+        bodyParts: ['코어'],
+      }),
+      true,
+    ],
+    [
+      '파워 · 당기기 · 플라이오볼 → 팔 플라이오',
+      ex({ category: '파워', movementPattern: '당기기', equipment: ['플라이오볼'] }),
+      true,
+    ],
+    [
+      '파워 · 밀기 · 밴드 → 팔 플라이오',
+      ex({
+        category: '파워',
+        movementPattern: '밀기',
+        equipment: ['밴드'],
+        bodyParts: ['가슴'],
+      }),
+      true,
+    ],
+    [
+      '파워 · 계열 없음 · 어깨 → 팔 플라이오',
+      ex({ category: '파워', bodyParts: ['어깨'] }),
+      true,
+    ],
+    [
+      '파워 · 계열 없음 · 팔꿈치 → 팔 플라이오',
+      ex({ category: '파워', bodyParts: ['팔꿈치'] }),
+      true,
+    ],
+    [
+      '파워 · 당기기 · 바벨 · 등(펜들레이 로우 꼴) → 아님',
+      ex({
+        category: '파워',
+        movementPattern: '당기기',
+        equipment: ['바벨'],
+        bodyParts: ['등', '견갑', '코어'],
+      }),
+      false,
+    ],
+    [
+      '파워 · 힌지 · 손목·전완(밴드 저항 데드리프트 꼴) → 아님',
+      ex({
+        category: '파워',
+        movementPattern: '힌지',
+        equipment: ['바벨', '밴드'],
+        bodyParts: ['고관절', '손목·전완'],
+      }),
+      false,
+    ],
+    [
+      '파워 · 회전 · 워터볼 · 하체(도는 점프) → 아님',
+      ex({
+        category: '파워',
+        movementPattern: '회전',
+        equipment: ['워터볼'],
+        bodyParts: ['고관절', '전신'],
+      }),
+      false,
+    ],
+    [
+      '상체 스트렝스 · 밀기 · 메디신볼 → 아님(파워만)',
+      ex({
+        category: '상체 스트렝스',
+        movementPattern: '밀기',
+        equipment: ['메디신볼'],
+        bodyParts: ['어깨'],
+      }),
+      false,
+    ],
+  ]);
+  table('P4 분류 (가) 무거운 상체 밀기 isHeavyUpperPush', isHeavyUpperPush, [
+    [
+      '상체 스트렝스 · 밀기 · 높음 → 무거움',
+      ex({
+        category: '상체 스트렝스',
+        movementPattern: '밀기',
+        intensity: '높음',
+        equipment: ['바벨', '벤치'],
+      }),
+      true,
+    ],
+    [
+      '상체 스트렝스 · 밀기 · 매우 높음 → 무거움',
+      ex({
+        category: '상체 스트렝스',
+        movementPattern: '밀기',
+        intensity: '매우 높음',
+      }),
+      true,
+    ],
+    [
+      '상체 스트렝스 · 밀기 · 모르는 강도 → 무거움(안전 쪽)',
+      ex({ category: '상체 스트렝스', movementPattern: '밀기', intensity: '?' }),
+      true,
+    ],
+    [
+      '상체 스트렝스 · 밀기 · 중간(푸시업 꼴) → 아님',
+      ex({ category: '상체 스트렝스', movementPattern: '밀기' }),
+      false,
+    ],
+    [
+      '상체 스트렝스 · 당기기 · 높음 → 아님',
+      ex({ category: '상체 스트렝스', movementPattern: '당기기', intensity: '높음' }),
+      false,
+    ],
+    [
+      '상체 스트렝스 · 계열 없음 · 높음 → 아님(계열로만 건다)',
+      ex({ category: '상체 스트렝스', intensity: '높음', bodyParts: ['가슴'] }),
+      false,
+    ],
+    [
+      '파워 · 밀기 · 높음 → 아님(그건 팔 플라이오)',
+      ex({ category: '파워', movementPattern: '밀기', intensity: '높음' }),
+      false,
+    ],
+  ]);
+
+  /* ── (나) 실제 표 — 보이는 운동(라이브러리)으로 센다 ── */
+  const inCat = (c: string) => library.filter((e) => e.category === c);
+  const armPlyo = library.filter(isArmPlyo);
+  const heavyPush = library.filter(isHeavyUpperPush);
+  const lowerStrength = inCat('하체 스트렝스');
+  const heavyLowerStrength = lowerStrength.filter(isHeavyLower);
+  const lowerPower = inCat('파워').filter(
+    (e) => e.movementPattern != null && LOWER_POWER_PATTERNS.includes(e.movementPattern)
+  );
+  const titles = (list: typeof library) => list.map((e) => e.title).join(' · ');
+  check(
+    'P4 분류 (나) 실제 표 팔 플라이오 7개(2026-10-12 실측 — 라이브러리 파워를 더하거나 고쳤으면 이 수를 고친다) · 모두 파워',
+    armPlyo.length === 7 && armPlyo.every((e) => e.category === '파워'),
+    `${armPlyo.length}개: ${titles(armPlyo)}`
+  );
+  check(
+    'P4 분류 (나) 실제 표 무거운 상체 밀기 10개(실측) · 모두 상체 스트렝스 · 상체 밀기의 전부는 아님(가벼운 밀기는 남는다)',
+    heavyPush.length === 10 &&
+      heavyPush.every((e) => e.category === '상체 스트렝스') &&
+      heavyPush.length <
+        inCat('상체 스트렝스').filter((e) => e.movementPattern === '밀기').length,
+    `${heavyPush.length}개: ${titles(heavyPush)}`
+  );
+  check(
+    `P4 분류 (나) 하체 스트렝스 중 무거운 하체 0 < n < ${lowerStrength.length} — '한 다리 · 가벼운 하체'가 남는다`,
+    heavyLowerStrength.length > 0 && heavyLowerStrength.length < lowerStrength.length,
+    `${heavyLowerStrength.length}/${lowerStrength.length}`
+  );
+  check(
+    'P4 분류 (나) 하체 계열 파워(하체날 본운동에 드는 점프 · 바운드)는 모두 무거운 하체 · 그런 파워가 있다',
+    lowerPower.length > 0 && lowerPower.every(isHeavyLower),
+    `${lowerPower.length}개`
+  );
+  check(
+    'P4 분류 (나) 세 판정 모두 0개가 아니고 표 전부도 아니다(판정이 아무것도 안 하거나 다 잡지 않음)',
+    [library.filter(isHeavyLower), armPlyo, heavyPush].every(
+      (l) => l.length > 0 && l.length < library.length
+    ),
+    `무거운 하체 ${library.filter(isHeavyLower).length} · 팔 플라이오 ${armPlyo.length} · 무거운 밀기 ${heavyPush.length} / ${library.length}`
+  );
+  /* 대표 운동 몇 개 — 이름은 바뀔 수 있어 몇 개만 둔다(없으면 그 이름이 바뀐 것) */
+  const SAMPLES: [string, [boolean, boolean, boolean]][] = [
+    ['바벨 백 스쿼트', [true, false, false]],
+    ['고블렛 스쿼트', [false, false, false]],
+    ['박스 점프', [true, false, false]],
+    ['벤치 프레스', [false, false, true]],
+    ['푸시업', [false, false, false]],
+    ['펜들레이 로우', [false, false, false]],
+    ['톨닐링 메디신볼 체스트 패스', [false, true, false]],
+  ];
+  const sampleWrong = SAMPLES.flatMap(([title, want]) => {
+    const e = library.find((x) => x.title === title);
+    if (!e) return [`${title}(라이브러리에 없음)`];
+    const got = [isHeavyLower(e), isArmPlyo(e), isHeavyUpperPush(e)];
+    return got.every((g, i) => g === want[i]) ? [] : [`${title} ${got.join('/')}`];
+  });
+  check(
+    'P4 분류 (나) 대표 운동 — 바벨 백 스쿼트 · 박스 점프 = 무거운 하체, 벤치 프레스 = 무거운 밀기, 톨닐링 체스트 패스 = 팔 플라이오, 고블렛 스쿼트 · 푸시업 · 펜들레이 로우 = 셋 다 아님',
+    sampleWrong.length === 0,
+    sampleWrong.join(' · ')
+  );
+
+  /* ── (다) 하체날 구성과 같은 목록 · 순수 잎 파일 ── */
+  const mainOf = (theme: ThemeKey, goal: string | null) =>
+    compositionFor(theme, goal).find((s) => s.slot === 'main');
+  const goals = [null, ...TRAINING_GOALS.map((g) => g.name)];
+  const lowerMains = goals.map((g) => mainOf('lower', g)).filter((s) => s != null);
+  check(
+    'P4 분류 (다) 하체날 본운동의 파워 계열 = LOWER_POWER_PATTERNS 그 목록(목표마다 같은 것 — 두 벌로 갈라지지 않음)',
+    lowerMains.length > 0 &&
+      lowerMains.every((s) => s.powerPatterns === LOWER_POWER_PATTERNS) &&
+      json(LOWER_POWER_PATTERNS) === json(['스쿼트', '런지', '힌지']),
+    json(lowerMains.map((s) => s.powerPatterns))
+  );
+  const upperPower = mainOf('upper', null)?.powerPatterns ?? [];
+  check(
+    'P4 분류 (다) 상체날 파워 계열은 하체 계열과 겹치지 않는다(같은 점프가 두 날에 들지 않음)',
+    upperPower.length > 0 && upperPower.every((p) => !LOWER_POWER_PATTERNS.includes(p)),
+    json(upperPower)
+  );
+  const classSrc = readFileSync(
+    new URL('../lib/engine/exercise-class.ts', import.meta.url),
+    'utf8'
+  );
+  const classImports = [...classSrc.matchAll(/from\s+'([^']+)'/g)].map((m) => m[1]);
+  check(
+    'P4 분류 (다) lib/engine/exercise-class.ts 는 lib/exercise-meta 만 import 한다(순수 잎 — prescription · theme · day-state 가 불러도 순환 없음)',
+    classImports.length > 0 && classImports.every((m) => m === '@/lib/exercise-meta'),
+    json(classImports)
+  );
+
+  /* ── (라) 팔 피로 눈금 · 말 한 곳 ── */
+  const options = DETAIL_SCALES.find((s) => s.key === 'armFatigue')?.options ?? [];
+  check(
+    "P4 팔 피로 (라) 문턱 — '많이' 4(암케어 회복) < '심함' 5(운동 빼기, 근육통과 같은 눈금) · 암케어가 같은 값을 다시 내보낸다",
+    HIGH_ARM_FATIGUE === 4 &&
+      SEVERE_ARM_FATIGUE === 5 &&
+      SEVERE_ARM_FATIGUE === SEVERE_SORENESS &&
+      routineSevereArmFatigue === SEVERE_ARM_FATIGUE &&
+      options.length === 5
+  );
+  check(
+    'P4 팔 피로 (라) armFatigueWord — 1~5 는 보기 그대로, 0 · 6 · 4.5 · NaN · null · undefined 는 null(안 적음)',
+    [1, 2, 3, 4, 5].every((n) => armFatigueWord(n) === options[n - 1]) &&
+      json([1, 2, 3, 4, 5].map((n) => armFatigueWord(n))) ===
+        json(['없음', '조금', '보통', '많이', '심함']) &&
+      [0, 6, 4.5, Number.NaN, null, undefined].every((n) => armFatigueWord(n) === null)
+  );
+  const srcNoComments = (p: string) =>
+    readFileSync(new URL(`../${p}`, import.meta.url), 'utf8')
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/^\s*\/\/.*$/gm, '');
+  const copies = ['lib/armcare/routine.ts', 'lib/engine/day-state.ts'].filter((p) => {
+    const src = srcNoComments(p);
+    return (
+      /'없음',\s*'조금',\s*'보통',\s*'많이',\s*'심함'/.test(src) ||
+      /function armFatigueWord/.test(src)
+    );
+  });
+  check(
+    'P4 팔 피로 (라) 보기 복사본 없음 — 암케어 · 오늘 상태 한 장이 lib/checkin.ts armFatigueWord 를 쓴다',
+    copies.length === 0 &&
+      /export function armFatigueWord/.test(srcNoComments('lib/checkin.ts')),
+    copies.join(' · ')
+  );
+  /* 암케어 까닭 줄은 글자 하나 안 바뀐다 — 복사본을 함수로 바꿨을 뿐(범위 밖 숫자는 숫자 그대로 적던 것까지) */
+  const armReason = (armFatigue: number) => {
+    const f = factsFor({ condition: 8, pitches: [0, 0, 0, 0, 0, 0, 0] });
+    return decideArmcare({ facts: f, plan: buildPitchPlan(f), armFatigue }).reason;
+  };
+  const reasons = [4, 5, 9].map(armReason);
+  check(
+    "P4 팔 피로 (라) 암케어 까닭 그대로 — 4 → '많이', 5 → '심함', 범위 밖 9 → 숫자 그대로",
+    reasons[0] === "팔 피로 '많이' → 회복 루틴" &&
+      reasons[1] === "팔 피로 '심함' → 회복 루틴" &&
+      reasons[2] === "팔 피로 '9' → 회복 루틴",
+    reasons.join(' | ')
+  );
+  const stateFacts = factsFor({ condition: 8, pitches: [0, 0, 0, 0, 0, 0, 0] });
+  const sevStateWord = buildDayState({
+    facts: stateFacts,
+    plan: buildPitchPlan(stateFacts),
+    extras: { armFatigue: SEVERE_ARM_FATIGUE },
+  }).arm.fatigueWord;
+  check(
+    "P4 팔 피로 (라) 오늘 상태 한 장의 팔 피로 말도 같은 함수 — 5 → '심함'",
+    sevStateWord === '심함',
+    String(sevStateWord)
   );
 }
 
