@@ -219,6 +219,8 @@ export type CalibInput = {
   /** 사람 크기(px) — 다시 비춤 오차를 사람 비율로 */
   personSide: number;
   personBack: number;
+  /** 초점 사전(선택) — 렌즈를 알 때만(FOCAL_PRIOR_1X) */
+  focalPrior?: FocalPrior;
 };
 
 export type Calibration = {
@@ -240,6 +242,19 @@ export type Calibration = {
  * 더 작음)보다 커서 맞는 초점을 밀어냈다(2026-10-08 진단). 정해지지 않으면 보정 믿음 · ± 로 알린다(R2).
  */
 const FOCAL_MIN = 0.35;
+/**
+ * 초점 사전(선택) — 렌즈를 알 때만(예: '1배로 찍음'). 긴 변의 k 배 둘레로 로그 폭 sigma. 없으면 예전처럼 범위 벌점만.
+ * 2026-10-12 마커 채점: 1배로 찍은 실제 투구 15개에서 뼈 길이만으로 고른 초점이 같은 카메라인데 투구마다 옆 1153~1876 · 뒤 1394~2122px
+ * (정답 1520 · 1336, 긴 변의 0.70~0.79)로 흔들렸다 — { k: 0.78, sigma: 0.25 } 를 주면 관절 오차 가운데 3.6 → 3.3cm.
+ * 늘 켜지 않는 까닭: 줌으로 찍은 영상(합성 시험의 '멀리 줌', 초점 2배 남짓)을 1배 쪽으로 끌어 망친다.
+ */
+export type FocalPrior = { k: number; sigma: number };
+export const FOCAL_PRIOR_1X: FocalPrior = { k: 0.78, sigma: 0.25 };
+function focalPriorCost(f: number, longSide: number, p?: FocalPrior) {
+  if (!p) return 0;
+  const z = Math.log(f / longSide / p.k) / p.sigma;
+  return z * z;
+}
 const FOCAL_MAX = 6;
 /** 격자: 긴 변의 0.45 ~ 4.3배(로그 간격 10칸) */
 const FOCAL_GRID = Array.from({ length: 10 }, (_, i) => 0.45 * 1.285 ** i);
@@ -424,7 +439,9 @@ function fastEval(fs: number, fb: number, R: Mat3, t: Vec3, P: Packed, X: Float6
   const rigidity = rw > 0 ? rs / rw : 1;
   const prior =
     rangeCost(fs, Math.max(P.input.sideSize.W, P.input.sideSize.H)) +
-    rangeCost(fb, Math.max(P.input.backSize.W, P.input.backSize.H));
+    rangeCost(fb, Math.max(P.input.backSize.W, P.input.backSize.H)) +
+    focalPriorCost(fs, Math.max(P.input.sideSize.W, P.input.sideSize.H), P.input.focalPrior) +
+    focalPriorCost(fb, Math.max(P.input.backSize.W, P.input.backSize.H), P.input.focalPrior);
   const robust = sw > 0 ? Math.sqrt(rs2 / sw) : 1;
   return { cost: (robust / REPROJ_UNIT) ** 2 + (rigidity / RIGID_UNIT) ** 2 + prior, reproj, rigidity };
 }

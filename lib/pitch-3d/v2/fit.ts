@@ -437,6 +437,7 @@ function fitOnce(raw: V2Input): {
     slowmoFps: input.slowmoFps ?? null,
     screenRecorded: input.screenRecorded ?? false,
     events: input.events,
+    focalPrior: input.focalPrior,
   });
   if ('ok' in core) return { result: v2Fail(jobId, core.code, 'fit', core.quality) };
 

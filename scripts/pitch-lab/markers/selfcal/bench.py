@@ -52,9 +52,48 @@ def cmd_tracks(ps):
     for p in ps:
         d = os.path.join(WORK, "bench", f"p{p:02d}")
         os.makedirs(d, exist_ok=True)
-        tr = {"side": track_of(p, "1"), "back": track_of(p, "2"), "meta": {"hand": "R", "height_m": float(os.environ.get("HEIGHT_M", "1.80"))}}
+        meta = {"hand": "R", "height_m": float(os.environ.get("HEIGHT_M", "1.80"))}
+        if os.environ.get("FOCAL_PRIOR", "1x") == "1x":  # 이 촬영은 네 대 모두 1배 — 엔진의 초점 사전(camera.ts FOCAL_PRIOR_1X)
+            meta["focal_prior"] = {"k": 0.78, "sigma": 0.25}
+        tr = {"side": track_of(p, "1"), "back": track_of(p, "2"), "meta": meta}
         json.dump(tr, open(os.path.join(d, "tracks.json"), "w"))
         print(p, "옆", len(tr["side"]["frames"]), "뒤", len(tr["back"]["frames"]), flush=True)
+
+
+def k4_robust(p, cal, tq, thr=0.5, tol=12.0):
+    """네 대 관절 교차(K4R) — recon.kp3d 와 같되, 다른 카메라와 안 맞는 시선(다시 비춤 tol px 넘음)을 하나씩 빼고 다시 교차한다.
+    빠른 팔에서 한 카메라의 2D 가 번져 틀리면 예전 K4 는 그쪽으로 끌려갔다(엔진은 옆 · 뒤 2D 에 8px 로 맞는데 K4 는 30~60px 벗어남)."""
+    sys.path.insert(0, HERE)
+    from kpba import proj, tri
+    from tracks import load_kp_full
+    cams = {c: {k: (np.array(v) if isinstance(v, list) else v) for k, v in cal["cams"][c].items()} for c in "1234"}
+    off = cal["offsets"][str(p)]
+    raw = {c: load_kp_full(p, c) for c in "1234"}
+    out = {}
+    for n, (kn, sd) in K4_OF.items():
+        j = {"ear": (3, 4), "sho": (5, 6), "elb": (7, 8), "wri": (9, 10), "hip": (11, 12), "kne": (13, 14), "ank": (15, 16),
+             "toe": (17, 20), "heel": (19, 22)}[kn][0 if sd == "L" else 1]
+        S = {}
+        for c in "1234":
+            t, kp, sc = raw[c]
+            tt = tq + off[c]
+            i = np.clip(np.searchsorted(t, tt) - 1, 0, len(t) - 2)
+            w = np.clip((tt - t[i]) / np.maximum(t[i + 1] - t[i], 1e-9), 0, 1)[:, None]
+            S[c] = (kp[i, j] * (1 - w) + kp[i + 1, j] * w, (sc[i, j] > thr * SCORE_SCALE) & (sc[i + 1, j] > thr * SCORE_SCALE) & (tt >= t[0]) & (tt <= t[-1]))
+        X = np.full((len(tq), 3), np.nan)
+        for k in range(len(tq)):
+            vis = [(c, S[c][0][k]) for c in "1234" if S[c][1][k]]
+            while len(vis) >= 2:
+                Y = tri(cams, vis)
+                err = [float(np.linalg.norm(proj(cams[c], Y[None])[0] - uv)) for c, uv in vis]
+                w_ = int(np.argmax(err))
+                if err[w_] <= tol:
+                    X[k] = Y; break
+                if len(vis) == 2:
+                    break
+                del vis[w_]
+        out[n] = X
+    return out
 
 
 def umeyama(A, B):
@@ -104,8 +143,18 @@ def cmd_score(ps, cal_path, world_path, name):
         J = np.array(r["joints"], float) / 1000.0  # 키 = 1 단위, [앞, 위, 오른쪽]
         te = np.array(r["t"]) - off1  # 옆 영상 시각 → 기준 시각
         truths = {"K4": {}}
-        for n, (kn, sd) in K4_OF.items():
-            X = toW(rec[f"K_{kn}_{sd}"])
+        cache = os.path.join(WORK, "bench", f"k4r-p{p:02d}.npz")
+        if os.environ.get("K4") != "robust":
+            # 기본은 recon 의 K4(네 대 모두 같은 무게). 튼튼한 K4R 은 스티커와 비교하면 더 나빴다(거리 흔들림 1.21 → 1.52cm, 위팔 방향
+            # 7.2 → 15°) — 시선을 빼면 둘만 남는 장면이 늘어 더 흔들린다. 진단용으로만 K4=robust.
+            KR = {n: rec[f"K_{kn}_{sd}"] for n, (kn, sd) in K4_OF.items()}
+        elif os.path.exists(cache):
+            KR = {k: v for k, v in np.load(cache).items()}
+        else:
+            KR = k4_robust(p, cal, tq)
+            np.savez_compressed(cache, **KR)
+        for n in K4_OF:
+            X = toW(KR[n])
             truths["K4"][n] = np.array([[np.interp(tt, tq, X[:, a], left=np.nan, right=np.nan) for a in range(3)] for tt in te])
         # 스티커(4단계 채운 것) — 엔진 장면 시각으로, 가장 가까운 장면(1/240초 안)만
         fl = np.load(os.path.join(WORK, "fill", f"p{p:02d}.npz"))
