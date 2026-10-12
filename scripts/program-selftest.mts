@@ -28,6 +28,7 @@ import {
   pickPinned,
   prescriptionLine,
   programChoiceList,
+  programSignalsOf,
   programKeyOf,
   readPinned,
   readSessionProgram,
@@ -67,6 +68,10 @@ import {
   type FrozenExercise,
   type FrozenPlan,
 } from '../lib/workout/session-plan.ts';
+/* 2판 P4 커밋 F — 경기 다음 날을 부하로(투구 기록 → facts → 어제 팔 부담, 앱과 같은 길) */
+import { parseThrowPlan } from '../lib/checkin.ts';
+import { yesterdayArmLoadOf } from '../lib/engine/arm-load.ts';
+import { buildFacts, type CheckinLike } from '../lib/report/facts.ts';
 
 let passed = 0;
 let failed = 0;
@@ -784,6 +789,104 @@ check(
     pickCaution(sig({ sleepShort: true }), true, 20) === 'lighter'
 );
 
+/*
+ * 4-1) 경기 다음 날은 부하로(트레이닝 추천 2판 D3 · P4 커밋 F, 2026-10-12) — gameYesterday 는 어제 '경기' 기록이 아니라 어제 팔 부담
+ * (lib/engine/arm-load.ts yesterdayArmLoadOf)이다. 앱(lib/program/load.ts)과 같은 길: 투구 기록 → facts → 어제 팔 부담 → programSignalsOf.
+ */
+console.log('\n4-1) 경기 다음 날은 부하로(D3)');
+{
+  const ASOF = new Date('2026-10-10T09:00:00+09:00');
+  const ago = (n: number) => new Date(ASOF.getTime() - n * 86_400_000).toISOString();
+  const checkinOn = (n: number, throwPlan: string | null): CheckinLike => ({
+    date: ago(n).slice(0, 10),
+    condition: 8,
+    sleep: '보통',
+    shoulder: '정상',
+    elbow: '정상',
+    wrist: '정상',
+    lowerBack: '정상',
+    lowerBody: '정상',
+    preferredParts: [],
+    preferredWorkout: null,
+    throwPlan,
+  });
+  const factsOf = (
+    logs: { daysAgo: number; pitches: number; pct: number; sessionType: string }[],
+    yesterdayPlan: string | null = null
+  ) =>
+    buildFacts({
+      nickname: '프로그램',
+      age: 22,
+      heightCm: 180,
+      baselineDailyLoad: 100,
+      today: ASOF,
+      logs: logs.map((l) => ({
+        date: ago(l.daysAgo),
+        pitchCount: l.pitches,
+        intensity: Math.round(l.pct / 10),
+        effortPct: l.pct,
+        sessionType: l.sessionType,
+        maxVelocity: null,
+        avgVelocity: null,
+      })),
+      checkins: [checkinOn(0, null), checkinOn(1, yesterdayPlan)],
+      memos: [],
+    });
+  /* 오늘 판정 — 던지는 신호만 facts 에서, 나머지는 보통 날(sig) */
+  const dayOf = (facts: ReturnType<typeof factsOf>) =>
+    decideToday(
+      LEGACY,
+      sig({
+        ...programSignalsOf({
+          outing: {
+            answerToday: parseThrowPlan(facts.condition.throwPlanToday),
+            answerYesterday: parseThrowPlan(facts.condition.throwPlanYesterday),
+          },
+          typesToday: [],
+          yesterdayArmLoad: yesterdayArmLoadOf(facts),
+        }),
+      })
+    );
+  /* 어제 기록 한 줄 */
+  const y1 = (pitches: number, pct: number, sessionType: string) => [
+    { daysAgo: 1, pitches, pct, sessionType },
+  ];
+  const light = dayOf(factsOf(y1(15, 100, '경기')));
+  check(
+    '어제 경기 15구 → 진행(예전 경기 다음 날 쉼 — 15 × 100% = 1,500 은 팔 부담이 작다)',
+    light.kind === 'go',
+    light.kind
+  );
+  const zero = dayOf(factsOf(y1(0, 100, '경기')));
+  check("어제 '경기' 0구 줄 → 진행(부하 0)", zero.kind === 'go', zero.kind);
+  const game = dayOf(factsOf(y1(85, 100, '경기')));
+  check(
+    "어제 경기 85구 → 쉼 · 까닭 '어제 팔 부담이 컸어요'(넘길 수 있음)",
+    game.kind === 'rest' &&
+      game.reason === 'gameYesterday' &&
+      REST_TEXT[game.reason] === '어제 팔 부담이 컸어요',
+    game.kind
+  );
+  const pen = dayOf(factsOf(y1(40, 90, '불펜')));
+  check(
+    '어제 불펜 40구 90% → 쉼(경기가 아니어도 세게 던진 날 — 예전에는 진행)',
+    pen.kind === 'rest' && pen.reason === 'gameYesterday',
+    pen.kind
+  );
+  const claimed = dayOf(factsOf([], '오늘 등판'));
+  check(
+    "어제 '오늘 등판' 답 · 기록 없음 → 쉼(부하를 모르니 조이는 쪽)",
+    claimed.kind === 'rest' && claimed.reason === 'gameYesterday',
+    claimed.kind
+  );
+  const claimedLight = dayOf(factsOf(y1(15, 100, '경기'), '오늘 등판'));
+  check(
+    "어제 '오늘 등판' 답 + 어제 경기 15구 → 진행(기록이 이김 — 예전에는 답만으로 쉼)",
+    claimedLight.kind === 'go',
+    claimedLight.kind
+  );
+}
+
 /* ── 5) 일차 넘기기 ─────────────────────────────── */
 console.log('\n5) 일차 넘기기');
 const prog = { key: 'offseason-strength-power', day: 5, week: 2 };
@@ -1187,6 +1290,14 @@ check(
   '줄표(—) 없음',
   texts.every((t) => !t.includes('—')),
   texts.find((t) => t.includes('—')) ?? ''
+);
+check(
+  "쉬는 까닭 · 넘긴 날 주의(2판 P4 커밋 F) — 어제는 '어제 팔 부담이 컸어요'(경기 다음 날이 아님), 넘긴 날은 까닭을 가리지 않는 글",
+  REST_TEXT.gameYesterday === '어제 팔 부담이 컸어요' &&
+    !Object.values(REST_TEXT).some((t) => t.includes('경기 다음 날')) &&
+    !CAUTION_TEXT.gameOverride.includes('경기') &&
+    CAUTION_TEXT.gameOverride.endsWith('멈춰요.'),
+  `${REST_TEXT.gameYesterday} / ${CAUTION_TEXT.gameOverride}`
 );
 check(
   '올림 까닭에 지난 기록',

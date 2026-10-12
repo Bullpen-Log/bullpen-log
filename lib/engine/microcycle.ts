@@ -40,18 +40,18 @@
  * 이 파일은 글을 만들지 않는다 — 코드(rule)와 재료(hard · yesterday · outing)만 돌려주고, 이유 글은 theme.ts 가 만든다(테마 글이 한
  * 곳에서 나오게 — 설계 검토 G12).
  *
+ * R2 · R3' 의 조건은 어제 팔 부담 한 곳(lib/engine/arm-load.ts yesterdayArmLoadOf, 커밋 F)에서 읽는다 — 근력 프로그램의 '경기 다음
+ * 날' 쉬기와 암케어의 '어제 N구' 회복이 같은 함수를 불러, 같은 어제를 세 독자가 같게 말한다.
+ *
  * 순수 파일이다 — 'server-only' · prisma · 날짜 함수 · 난수 없음. 같은 facts 면 늘 같은 값이다. import 는 등판 한 곳(outing.ts) · 세게
- * 던진 날 한 곳(day-state.ts recentHardOuting) · facts 의 문턱 · 안전 거르기의 창 문턱뿐 — theme.ts 가 이 파일을 부르므로 이 파일이
- * theme.ts 를 부르면 순환이 된다. day-state.ts 가 이 파일을 부르게 하려면 recentHardOuting 을 facts.ts 쪽으로 먼저 옮겨야 한다(지금은
- * 이 파일이 day-state 를 부른다).
+ * 던진 날 한 곳(day-state.ts recentHardOuting) · 어제 팔 부담 한 곳(arm-load.ts) · facts 의 타입 · 안전 거르기의 창 문턱뿐 — theme.ts 가
+ * 이 파일을 부르므로 이 파일이 theme.ts 를 부르면 순환이 된다. day-state.ts 가 이 파일을 부르게 하려면 recentHardOuting 을 facts.ts
+ * 쪽으로 먼저 옮겨야 한다(지금은 이 파일이 day-state 를 부른다).
  */
+import { yesterdayArmLoadOf } from '@/lib/engine/arm-load';
 import { recentHardOuting } from '@/lib/engine/day-state';
 import { outingOf, type Outing } from '@/lib/engine/outing';
-import {
-  HARD_OUTING_MIN_LOAD,
-  type HardOuting,
-  type ReportFacts,
-} from '@/lib/report/facts';
+import type { HardOuting, ReportFacts } from '@/lib/report/facts';
 import { HEAVY_LOWER_BLOCK_WITHIN_DAYS } from '@/lib/report/prescription';
 
 /** 날 종류의 규칙 이름 — 머리 주석의 R1 ~ R7 */
@@ -81,14 +81,10 @@ export const DAY_RULE_RANK: Record<DayRule, DayRank> = {
 };
 
 /**
- * R2 의 '어제 중간 부하' — 세게 던진 날 문턱(HARD_OUTING_MIN_LOAD 2,700 = 30구 × 90%)의 절반. 1,350 = 20구 × 70% 남짓 — 구원 20구
- * 경기(2,000) · 불펜 30구 70%(2,100)가 들고, 캐치볼 25구 50%(1,250)는 안 든다. 이것만으로는 날을 안 바꾼다(D3 — 투구 부하와
- * 운동 힘듦이 같이 높을 때만).
+ * R2 의 '어제 중간 부하'(1,350 — 세게 던진 날 문턱의 절반). 커밋 F 에서 어제 팔 부담 한 곳(lib/engine/arm-load.ts)으로 옮겼다 — 프로그램 ·
+ * 암케어도 같은 문턱으로 '경기 다음 날'을 읽어서다. 부르던 곳(자체 시험 · 기준선)이 그대로 맞게 여기서 다시 내보낸다.
  */
-export const MODERATE_OUTING_SHARE = 0.5;
-export const MODERATE_OUTING_MIN_LOAD = Math.round(
-  HARD_OUTING_MIN_LOAD * MODERATE_OUTING_SHARE
-);
+export { MODERATE_OUTING_MIN_LOAD, MODERATE_OUTING_SHARE } from '@/lib/engine/arm-load';
 
 /** R6 의 하체 쪽 — 다음 등판이 이 날수 이상 남았으면 등판에서 먼 날(검토안 4-2 '4일 이상: 무거운 하체') */
 export const FAR_OUTING_MIN_DAYS = 4;
@@ -129,7 +125,8 @@ export function dayKindOf(facts: ReportFacts): DayKind {
   const hard = recentHardOuting(facts);
   const yesterday =
     (facts.patterns.hardOutings ?? []).find((o) => o.daysAgo === 1) ?? null;
-  const spike = facts.condition.trainingEffort?.spikeFlag ?? false;
+  /* R2 · R3' 는 어제 팔 부담 한 곳에서 — 프로그램 · 암케어가 같은 함수로 '경기 다음 날'을 읽는다(커밋 F). 'hard' 는 R1 이 먼저 받는다 */
+  const yesterdayArm = yesterdayArmLoadOf(facts)?.kind ?? null;
   const w = outing.daysUntilNext;
   const soon = w != null && w.max != null && w.max <= HEAVY_LOWER_BLOCK_WITHIN_DAYS;
   const shorten =
@@ -140,9 +137,9 @@ export function dayKindOf(facts: ReportFacts): DayKind {
       ? 'hard'
       : outing.nextDay === 0
         ? 'outingToday'
-        : spike && yesterday?.load != null && yesterday.load >= MODERATE_OUTING_MIN_LOAD
+        : yesterdayArm === 'moderateSpike'
           ? 'moderateSpike'
-          : outing.lastSource === 'checkin-yesterday'
+          : yesterdayArm === 'claimedNoLog'
             ? 'claimedNoLog'
             : outing.nextDay === 1
               ? 'outingTomorrow'

@@ -150,6 +150,11 @@ import {
   shortenedMinutes,
   type DayRule,
 } from '../lib/engine/microcycle.ts';
+import {
+  MODERATE_OUTING_MIN_LOAD as ARM_MODERATE_MIN_LOAD,
+  yesterdayArmLoadOf,
+  type YesterdayArmLoad,
+} from '../lib/engine/arm-load.ts';
 import { orderSession, orderWithinSlot } from '../lib/report/exercise-order.ts';
 import {
   freezePlan,
@@ -372,10 +377,13 @@ import {
   type GuideSignals,
 } from '../lib/nutrition/guide.ts';
 import {
+  CAUTION_TEXT,
+  REST_TEXT,
   decideToday,
   parseProgram,
   programSignalsOf,
   type ProgramSignals,
+  type TodaySignals,
 } from '../lib/program/program.ts';
 /* 2판 되먹임(P2) — 운동 끝 힘듦 한 번 */
 import {
@@ -8071,6 +8079,9 @@ console.log(
    *   C6 어제 '오늘 등판' 답 + 기록 없음 — 프로그램만 경기 다음 날로 쉬고, 일정 · 암케어 · 투구 계획은 평소 날(D3 · P4).
    *      → P4 로 바뀜(2026-10-12 커밋 E, C6 결정): 매일 일정 'strength' → 'assist'(날 종류 R3' — 기록 없는 등판 다음 날은 무게 없이 보조 ·
    *        코어, 기록을 청함). 프로그램 · 암케어 · 투구 계획은 그대로(커밋 F 몫 — 프로그램 · 암케어도 부하 기준으로).
+   *      → P4 로 바뀜(2026-10-12 커밋 F, D3): 암케어 'strength' → 'recovery'(어제 팔 부담 claimedNoLog — 프로그램 쉬는 날과 같은 함수).
+   *        이제 투구 계획만 평소 날이다(투구 계획은 어제 답을 안 읽는다 — 이 단계 밖).
+   *   C2L 어제 경기 15구(새로, 커밋 F) — 예전에는 프로그램만 '경기 다음 날'로 쉬고 암케어는 회복이었다(달력). 이제 다섯 독자 모두 평소 날.
    */
   const program531 = parseProgram('531');
   check("엇갈림 표 — 프로그램 '531'(주 3번)을 읽을 수 있다", program531 != null);
@@ -8163,7 +8174,7 @@ console.log(
     const planYesterday = facts.condition.throwPlanYesterday ?? null;
     const asOf = p.asOf ?? TODAY;
     const logs = p.logs ?? [];
-    /* load.ts 의 typesOn 과 글자 그대로 같게 — 투구수는 보지 않는다(0구 '경기' 줄도 앱은 경기로 읽는다) */
+    /* load.ts 의 pitchTypesToday 와 글자 그대로 같게 — 투구수는 보지 않는다(오늘 0구 '경기' 줄도 앱은 경기로 읽는다) */
     const typesOn = (daysAgo: number) =>
       logs.filter((l) => l.daysAgo === daysAgo).map((l) => l.sessionType ?? '');
     const nutrition =
@@ -8212,11 +8223,13 @@ console.log(
             /*
              * P3 로 바뀜(2026-10-12 프로그램 · 영양 읽기 통일) — 왜: 여기 베껴 둔 throwSignals 식은 앱이 바뀌어도 옛 식을 쟀다.
              * 이제 앱(lib/program/load.ts)과 같은 함수 programSignalsOf 를 같은 오늘 상태 한 장으로 부른다. 기대값은 그대로.
+             * P4 로 바뀜(2026-10-12 커밋 F, D3) — 왜: '경기 다음 날'이 어제 기록의 세션 종류(typesYesterday)가 아니라 어제 팔 부담이 됐다.
+             * 앱과 같은 함수(lib/engine/arm-load.ts yesterdayArmLoadOf)를 같은 facts 로 부른다.
              */
             ...programSignalsOf({
               outing: armState.outing,
               typesToday: typesOn(0),
-              typesYesterday: typesOn(1),
+              yesterdayArmLoad: yesterdayArmLoadOf(facts),
             }),
             hardThrowRecent: armState.load.hardOutingRecent,
             override: false,
@@ -8303,6 +8316,26 @@ console.log(
       },
     },
     {
+      tag: 'C2L',
+      name: '②′ 어제 경기 15구 · 강도 10 (오늘 체크인은 답 없음 — 2판 P4 커밋 F 에서 더함)',
+      person: {
+        today: {},
+        logs: [{ daysAgo: 1, pitches: 15, intensity: 10, sessionType: '경기' }],
+      },
+      /*
+       * D3 — 경기 다음 날이어도 팔 부담(15 × 100% = 1,500 · 실전 강도 15구)이 작으면 평소 날. 커밋 F 전에는 프로그램이 'rest:gameYesterday'
+       * (어제 '경기' 기록이면 쉼), 암케어가 'recovery'('어제 15구')였다 — 매일 일정만 평소 날이라 셋이 갈렸다.
+       */
+      expect: {
+        theme: 'strength',
+        pitchPlan: 'throw',
+        nutrition: 'none',
+        armcare: 'strength',
+        program: 'go',
+        safety: 'heavyArm',
+      },
+    },
+    {
       tag: 'C3',
       name: "③ 오늘 '오늘 불펜'",
       person: { today: { throwPlan: '오늘 불펜' } },
@@ -8358,12 +8391,14 @@ console.log(
       /*
        * P4 로 바뀜(2026-10-12 커밋 E) — 왜: 기록 없는 등판 다음 날(C6 결정)은 부하를 몰라 무게를 빼고 보조 · 코어(날 종류 R3').
        * 매일 일정 'strength' → 'assist'. 나머지 칸은 그대로다.
+       * P4 로 바뀜(2026-10-12 커밋 F, D3) — 왜: 암케어도 어제 팔 부담 한 곳(yesterdayArmLoadOf)을 읽어, 기록 없는 등판 다음 날은 던진 다음
+       * 날로 본다('어제 등판' → 회복 루틴). 암케어 'strength' → 'recovery'. 프로그램은 같은 함수로 그대로 쉰다(까닭 글만 '어제 팔 부담이 컸어요').
        */
       expect: {
         theme: 'assist',
         pitchPlan: 'throw',
         nutrition: 'none',
-        armcare: 'strength',
+        armcare: 'recovery',
         program: 'rest:gameYesterday',
         safety: 'heavyArm',
       },
@@ -13042,6 +13077,8 @@ console.log(
   };
   let gridCount = 0;
   let gameDays = 0;
+  /* 기록 없는 등판 다음 날(어제 '오늘 등판' + 어제 기록 없음) — 암케어가 답을 읽는 칸(P4 커밋 F) */
+  let claimedArm = 0;
   /* 안전 규칙이 먼저인 등판 날 — 큰 등판 다음 날(쉬는 날) · 회복 중(가벼운 범위) */
   const gameGuarded = { rest: 0, light: 0 };
   for (const t of answers) {
@@ -13125,7 +13162,20 @@ console.log(
           });
           const armNoState = decideArmcare({ facts, plan, armFatigue: null });
           const armWithState = decideArmcare({ facts, plan, armFatigue: null, state });
-          if (json(armNoState) !== json(armOld)) miss.armOld.push(name);
+          /*
+           * P4 로 바뀜(2026-10-12 커밋 F, D3) — 왜: 암케어가 어제 팔 부담(lib/engine/arm-load.ts yesterdayArmLoadOf)을 facts 에서 읽는다.
+           * 그중 '기록 없는 등판 다음 날'(어제 '오늘 등판' 답 + 어제 기록 없음)은 답을 읽으므로, 오늘 상태를 안 줘도 답을 지운 옛 길과
+           * 다르다 — 그 칸은 회복 · 까닭 맨 앞 '어제 등판'인지 따로 보고(통증 멈춤이면 그 까닭 그대로), 나머지는 예전처럼 글자 그대로.
+           */
+          if (yesterdayArmLoadOf(facts)?.kind === 'claimedNoLog') {
+            claimedArm++;
+            const okClaimed = plan.halted
+              ? json(armNoState) === json(armOld)
+              : armNoState.kind === 'recovery' &&
+                armNoState.reason.startsWith('어제 등판') &&
+                !armOld.reason.includes('어제 등판');
+            if (!okClaimed) miss.armOld.push(`${name}(기록 없는 등판)`);
+          } else if (json(armNoState) !== json(armOld)) miss.armOld.push(name);
           if (role !== 'game' && json(armWithState) !== json(armNoState))
             miss.armSame.push(name);
           if (role === 'game') {
@@ -13175,8 +13225,8 @@ console.log(
     miss.game.slice(0, 2).join(' · ')
   );
   check(
-    `뒤집기 (격자 ${gridCount}) 암케어 — 오늘 상태를 안 주면 옛 길과 글자 그대로, 주어도 등판 날이 아니면 같다`,
-    miss.armOld.length === 0 && miss.armSame.length === 0,
+    `뒤집기 (격자 ${gridCount}) 암케어 — 오늘 상태를 안 주면 옛 길과 글자 그대로(기록 없는 등판 다음 날 ${claimedArm}가지는 P4 로 바뀜 — '어제 등판' 회복), 주어도 등판 날이 아니면 같다`,
+    claimedArm > 0 && miss.armOld.length === 0 && miss.armSame.length === 0,
     [...miss.armOld, ...miss.armSame].slice(0, 3).join(' · ')
   );
   check(
@@ -13328,14 +13378,25 @@ console.log(
     s.planToday === '오늘 등판' ||
     (s.planToday == null && s.planYesterday === '내일 등판');
 
-  /* ── 1) programSignalsOf = 옛 식(답 열 × 열 × 기록 일곱 × 일곱) ── */
+  /*
+   * ── 1) programSignalsOf = 옛 식(답 열 × 열 × 오늘 기록 일곱 × 어제 팔 부담 넷) ──
+   * P4 로 바뀜(2026-10-12 커밋 F, D3) — 왜: gameYesterday 가 어제 기록의 세션 종류 · 어제 '오늘 등판' 글자가 아니라 어제 팔 부담
+   * (lib/engine/arm-load.ts yesterdayArmLoadOf)이 됐다. 그래서 옛 식과는 나머지 세 칸(gameToday · gameTomorrow · bullpenToday)만 견주고,
+   * gameYesterday 는 '팔 부담이 있으면 참'인지 본다. 입력에서 어제 기록(typesYesterday)이 빠졌다.
+   */
+  const ARM_KINDS: (Pick<YesterdayArmLoad, 'kind'> | null)[] = [
+    null,
+    { kind: 'hard' },
+    { kind: 'moderateSpike' },
+    { kind: 'claimedNoLog' },
+  ];
   let programMiss = 0;
   let programN = 0;
   let firstMiss = '';
   for (const a of RAW)
     for (const b of RAW)
       for (const t0 of TYPES)
-        for (const t1 of TYPES) {
+        for (const arm of ARM_KINDS) {
           programN++;
           const got = programSignalsOf({
             outing: {
@@ -13343,17 +13404,17 @@ console.log(
               answerYesterday: parseThrowPlan(b),
             },
             typesToday: t0,
-            typesYesterday: t1,
+            yesterdayArmLoad: arm,
           });
-          if (json(got) !== json(oldProgram(a, b, t0, t1))) {
+          const want = { ...oldProgram(a, b, t0, []), gameYesterday: arm != null };
+          if (json(got) !== json(want)) {
             programMiss++;
-            if (!firstMiss)
-              firstMiss = `${a} / ${b} / ${t0.join(',')} / ${t1.join(',')}`;
+            if (!firstMiss) firstMiss = `${a} / ${b} / ${t0.join(',')} / ${arm?.kind}`;
           }
         }
   check(
-    `통일 (프로그램) programSignalsOf 가 옛 throwSignals 식과 ${programN}가지 모두 같다(답 ${RAW.length} × ${RAW.length} × 기록 ${TYPES.length} × ${TYPES.length})`,
-    programMiss === 0 && programN === RAW.length ** 2 * TYPES.length ** 2,
+    `통일 (프로그램) programSignalsOf 가 옛 throwSignals 식과 ${programN}가지 모두 같다(답 ${RAW.length} × ${RAW.length} × 오늘 기록 ${TYPES.length} × 어제 팔 부담 ${ARM_KINDS.length}, gameYesterday 는 P4 로 바뀜 — 팔 부담이 있으면 참)`,
+    programMiss === 0 && programN === RAW.length ** 2 * TYPES.length * ARM_KINDS.length,
     `${programMiss}가지 다름 — 처음: ${firstMiss}`
   );
 
@@ -13418,11 +13479,16 @@ console.log(
   for (const a of ROW)
     for (const b of ROW) {
       pathN++;
-      const state = stateOf(unFacts(a, b));
+      const pathFacts = unFacts(a, b);
+      const state = stateOf(pathFacts);
+      /*
+       * P4 로 바뀜(커밋 F) — 입력이 어제 기록 대신 어제 팔 부담이다. 기록이 없는 이 길에서는 그 값이 어제 '오늘 등판' 답(기록 없는
+       * 등판, claimedNoLog)일 때만 있어, 옛 식(어제 '오늘 등판' 글자)과 그대로 같다 — 목록 밖 글자('오늘등판')는 둘 다 아니다.
+       */
       const got = programSignalsOf({
         outing: state.outing,
         typesToday: [],
-        typesYesterday: [],
+        yesterdayArmLoad: yesterdayArmLoadOf(pathFacts),
       });
       if (json(got) !== json(oldProgram(a ?? null, b ?? null, [], []))) {
         pathMiss++;
@@ -13603,18 +13669,28 @@ console.log(
     'utf8'
   );
   check(
-    '통일 (소스) 프로그램이 등판 답을 DB 에서 따로 읽지 않고(dailyCheckin 조회 없음) 오늘 상태 한 장으로 신호를 만든다',
+    '통일 (소스) 프로그램이 등판 답을 DB 에서 따로 읽지 않고(dailyCheckin 조회 없음) 오늘 상태 한 장으로 신호를 만든다 · 어제는 팔 부담 한 곳에서',
+    /*
+     * P4 로 바뀜(커밋 F) — 왜: 신호 줄에 어제 팔 부담(yesterdayArmLoadOf(facts))이 더해져 한 줄에 안 들어가(서식이 줄을 나눈다) 괄호 뒤
+     * 빈칸 · 줄바꿈을 받게 했고, 어제 기록을 따로 읽지 않는지(어제 날짜 조회 없음)도 본다.
+     */
     !/dailyCheckin/.test(loadSrc) &&
-      /programSignalsOf\(\{ outing: core\.state\.outing/.test(loadSrc) &&
+      /programSignalsOf\(\{\s*outing: core\.state\.outing/.test(loadSrc) &&
+      /yesterdayArmLoad: yesterdayArmLoadOf\(facts\)/.test(loadSrc) &&
+      !/typesYesterday|in: \[today, yesterday\]/.test(loadSrc) &&
       /hardThrowRecent: core\.state\.load\.hardOutingRecent/.test(loadSrc)
   );
 
-  /* ── 5) 프로그램만 다른 두 곳 — 알려진 엇갈림(지금 값 고정, 맞출지는 P4 의 경기 앞뒤 규칙과 함께 사용자 확인 뒤) ── */
+  /*
+   * ── 5) 프로그램만 다른 곳 — 알려진 엇갈림(지금 값 고정, 맞출지는 사용자 확인 뒤) ──
+   * P4 로 바뀜(커밋 F) — sigOf 는 답 둘로 facts 를 만들어 어제 팔 부담까지 앱과 같은 함수로 넣는다(기록 없음). 어제 '오늘 등판'
+   * (기록 없음)은 더 이상 프로그램만의 엇갈림이 아니다 — 암케어 · 매일 일정도 같은 함수로 읽는다(아래 셋째 검사).
+   */
   const sigOf = (a: string | null, b: string | null) =>
     programSignalsOf({
       outing: { answerToday: parseThrowPlan(a), answerYesterday: parseThrowPlan(b) },
       typesToday: [],
-      typesYesterday: [],
+      yesterdayArmLoad: yesterdayArmLoadOf(unFacts(a, b)),
     });
   check(
     "알려진 엇갈림 (프로그램) 오늘 '없음' + 어제 '내일 등판' → 프로그램은 경기 날(gameToday), 다른 독자는 오늘 답이 이겨 등판 아님",
@@ -13658,12 +13734,28 @@ console.log(
       plannedOuting(unFacts('내일 등판', '내일 등판')) === 'tomorrow',
     json(rainedDecision)
   );
-  check(
-    "알려진 엇갈림 (프로그램) 어제 '오늘 등판' 답만(기록 없음) → 프로그램만 경기 다음 날(엇갈림 표 C6 그대로 — D3 · P4)",
-    /* P4 로 바뀜 — 칸 이름 source → lastSource, 'checkin' → 'checkin-yesterday'(2판 P4 커밋 B, 뜻은 같다) */
-    sigOf(null, '오늘 등판').gameYesterday === true &&
-      stateOf(unFacts(null, '오늘 등판')).outing.lastSource === 'checkin-yesterday'
-  );
+  {
+    const claimed = unFacts(null, '오늘 등판');
+    const claimedPlan = buildPitchPlan(claimed);
+    const claimedState = buildDayState({ facts: claimed, plan: claimedPlan });
+    check(
+      "엇갈림이 아님 (P4 로 바뀜 — 커밋 F) 어제 '오늘 등판' 답만(기록 없음) → 프로그램 쉼 · 매일 일정 날 종류 R3'(보조) · 암케어 회복이 모두 같은 함수(claimedNoLog)",
+      /*
+       * P4 로 바뀜 — 칸 이름 source → lastSource, 'checkin' → 'checkin-yesterday'(2판 P4 커밋 B, 뜻은 같다). 커밋 F(D3) 로 이 칸은 '프로그램만
+       * 다른 곳'에서 빠졌다: 예전에는 프로그램만 경기 다음 날로 쉬고 암케어는 강화였다(엇갈림 표 C6).
+       */
+      sigOf(null, '오늘 등판').gameYesterday === true &&
+        claimedState.outing.lastSource === 'checkin-yesterday' &&
+        yesterdayArmLoadOf(claimed)?.kind === 'claimedNoLog' &&
+        dayKindOf(claimed).rule === 'claimedNoLog' &&
+        decideArmcare({
+          facts: claimed,
+          plan: claimedPlan,
+          armFatigue: null,
+          state: claimedState,
+        }).kind === 'recovery'
+    );
+  }
 }
 
 /* ═══════════════════ [2판 오늘 상태(P3)] 검토 반영 — 낡은 % · 등판 날 안전 규칙 · 옛 규칙의 날 · 읽는 길 소스(2026-10-12) ═══════════════════ */
@@ -16727,9 +16819,11 @@ console.log(
     const mcSrc = strip('lib/engine/microcycle.ts');
     const specs = [...mcSrc.matchAll(/from '([^']+)'/g)].map((m) => m[1]);
     check(
-      'P4 날 종류 (사) lib/engine/microcycle.ts 는 순수 — import 는 day-state · outing · facts · prescription 넷뿐(theme 없음), 날짜 함수 · 난수 · server-only · 글 없음',
+      'P4 날 종류 (사) lib/engine/microcycle.ts 는 순수 — import 는 arm-load · day-state · outing · facts · prescription 다섯뿐(theme 없음), 날짜 함수 · 난수 · server-only · 글 없음',
+      /* P4 로 바뀜(커밋 F) — 왜: R2 · R3' 를 어제 팔 부담 한 곳(arm-load.ts)에서 읽는다(프로그램 · 암케어와 같은 함수). 중간 부하 문턱도 거기로 옮겨 다시 내보낸다 */
       json([...new Set(specs)].sort()) ===
         json([
+          '@/lib/engine/arm-load',
           '@/lib/engine/day-state',
           '@/lib/engine/outing',
           '@/lib/report/facts',
@@ -16747,6 +16841,608 @@ console.log(
         !/[^.\w]hardOuting\(facts\)|[^.\w]plannedOuting\(facts\)/.test(themeSrc) &&
         /const dk = dayKindOf\(facts\);/.test(planSrc) &&
         /finishDayTheme\(/.test(planSrc)
+    );
+  }
+}
+
+/* ═══════════════════ [2판 P4] D3 를 프로그램 · 암케어에도 — lib/engine/arm-load.ts yesterdayArmLoadOf (2026-10-12) ═══════════════════ */
+console.log(
+  '\n[2판 P4] 어제 팔 부담(yesterdayArmLoadOf) — 근력 프로그램의 경기 다음 날 · 암케어의 어제 N구 · 날 종류 R2 · R3′ 가 한 함수(2026-10-12)'
+);
+{
+  /*
+   * 커밋 F 가 바꾼 것(D3 — 경기 다음 날은 달력이 아니라 부하): 근력 프로그램은 어제 '경기' 기록이면 0구 · 15구라도 쉬었고, 암케어는 어제
+   * 던졌으면 캐치볼 10구라도 회복이었다. 이제 둘 다 어제 팔 부담 한 곳(세게 던진 날 · 중간 부하 + 운동 힘듦 급증 · 기록 없는 등판)을
+   * 읽고, 날 종류(R1 의 어제 쪽 · R2 · R3′)도 같은 함수를 부른다. 엇갈림 표 C2L · C6 와 P3 통일 절의 바뀐 기대값은 그 자리에 주석.
+   */
+  const json = (v: unknown) => JSON.stringify(v);
+  type AfLog = { daysAgo: number; pitches: number; pct: number; sessionType: string };
+  type AfPerson = {
+    /** 오늘 체크인의 등판 답 — 안 주면 답 칸 없는 체크인 */
+    today?: string | null;
+    /** 어제 체크인의 등판 답 — 안 주면 어제 체크인 줄이 없다 */
+    yesterday?: string | null;
+    logs?: AfLog[];
+    /** 운동 끝 힘듦 — 안 주면 facts 에 trainingEffort 칸이 없다 */
+    notes?: TrainingNoteLike[];
+  };
+  const afCheckin = (
+    daysAgo: number,
+    throwPlan: string | null | undefined
+  ): CheckinLike => ({
+    date: dayBefore(daysAgo).slice(0, 10),
+    condition: 8,
+    sleep: '보통',
+    shoulder: '정상',
+    elbow: '정상',
+    wrist: '정상',
+    lowerBack: '정상',
+    lowerBody: '정상',
+    preferredParts: [],
+    preferredWorkout: null,
+    ...(throwPlan !== undefined ? { throwPlan } : {}),
+  });
+  const afFacts = (p: AfPerson) =>
+    buildFacts({
+      nickname: '어제 팔 부담',
+      age: 22,
+      heightCm: 180,
+      trainingLevel: null,
+      baselineDailyLoad: 100,
+      rehab: null,
+      today: TODAY,
+      logs: (p.logs ?? []).map<PitchLogLike>((l) => ({
+        date: dayBefore(l.daysAgo),
+        pitchCount: l.pitches,
+        intensity: effortToIntensity(l.pct),
+        effortPct: l.pct,
+        sessionType: l.sessionType,
+        maxVelocity: null,
+        avgVelocity: null,
+      })),
+      checkins: [
+        afCheckin(0, p.today),
+        ...(p.yesterday !== undefined ? [afCheckin(1, p.yesterday)] : []),
+      ],
+      memos: [],
+      ...(p.notes ? { trainingNotes: p.notes } : {}),
+    });
+  /* 힘듦 줄 — 날 종류 절과 같은 모양(7일 안 9 셋 · 28일 안 5 넷이면 급증, 모두 5 면 평소) */
+  const afNote = (daysAgo: number, intensity: number): TrainingNoteLike => ({
+    date: dayBefore(daysAgo).slice(0, 10),
+    intensity,
+  });
+  const AF_SPIKE: TrainingNoteLike[] = [
+    afNote(1, 9),
+    afNote(2, 9),
+    afNote(4, 9),
+    ...[9, 12, 16, 20].map((d) => afNote(d, 5)),
+  ];
+  const AF_CALM: TrainingNoteLike[] = [1, 2, 4, 9, 12, 16, 20].map((d) => afNote(d, 5));
+  const y1 = (pitches: number, pct: number, sessionType: string): AfLog => ({
+    daysAgo: 1,
+    pitches,
+    pct,
+    sessionType,
+  });
+  const program531c = parseProgram('531');
+  check("P4 어제 팔 부담 준비 — 프로그램 '531'을 읽을 수 있다", program531c != null);
+  const afSig = (o: Partial<TodaySignals>): TodaySignals => ({
+    nextDay: 1,
+    today: toDateKey(TODAY),
+    lastProgramDate: null,
+    checkedIn: true,
+    otherWorkoutStarted: false,
+    halted: false,
+    gameToday: false,
+    gameTomorrow: false,
+    gameYesterday: false,
+    bullpenToday: false,
+    hardThrowRecent: false,
+    override: false,
+    recovery: null,
+    loadCaution: false,
+    soreMany: false,
+    sleepShort: false,
+    uncertain: false,
+    painSlots: [],
+    ...o,
+  });
+  /* 한 사람을 다섯 칸으로 — 앱과 같은 길(facts → 투구 계획 → 오늘 상태 한 장 → 독자). 'before' 는 커밋 F 전 식으로 낸 프로그램 */
+  const afRead = (p: AfPerson, override = false) => {
+    const facts = afFacts(p);
+    const plan = buildPitchPlan(facts);
+    const state = buildDayState({ facts, plan });
+    const arm = yesterdayArmLoadOf(facts);
+    const typesToday = (p.logs ?? [])
+      .filter((l) => l.daysAgo === 0)
+      .map((l) => l.sessionType);
+    const signals = programSignalsOf({
+      outing: state.outing,
+      typesToday,
+      yesterdayArmLoad: arm,
+    });
+    /* 커밋 F 전의 gameYesterday — 어제 '오늘 등판' 답(어제 기준 꼭 0일 뒤) 또는 어제 '경기' 기록(투구수 안 봄) */
+    const oldGameYesterday =
+      state.outing.answerYesterday === '오늘 등판' ||
+      (p.logs ?? []).some((l) => l.daysAgo === 1 && l.sessionType === '경기');
+    const decide = (s: ProgramSignals) => {
+      if (program531c == null) return '프로그램을 못 읽음';
+      const d = decideToday(
+        program531c,
+        afSig({ ...s, hardThrowRecent: state.load.hardOutingRecent, override })
+      );
+      return d.kind === 'rest'
+        ? `rest:${d.reason}`
+        : d.kind === 'go'
+          ? `go${d.caution ? `:${d.caution}` : ''}`
+          : d.kind;
+    };
+    const armcare = decideArmcare({
+      facts,
+      plan,
+      armFatigue: null,
+      state,
+    });
+    return {
+      facts,
+      plan,
+      state,
+      arm,
+      signals,
+      program: decide(signals),
+      programBefore: decide({ ...signals, gameYesterday: oldGameYesterday }),
+      oldGameYesterday,
+      armcare,
+      dk: dayKindOf(facts),
+    };
+  };
+
+  /* ── (가) 판정표 — 무엇이 어제 팔 부담인가 ── */
+  const armCases: {
+    name: string;
+    p: AfPerson;
+    kind: YesterdayArmLoad['kind'] | null;
+  }[] = [
+    { name: '기록 · 답 없음', p: {}, kind: null },
+    { name: '어제 경기 85구', p: { logs: [y1(85, 100, '경기')] }, kind: 'hard' },
+    {
+      name: '어제 경기 15구(1,500 · 실전 강도 15구)',
+      p: { logs: [y1(15, 100, '경기')] },
+      kind: null,
+    },
+    {
+      name: "어제 '경기' 0구 줄(부하 0)",
+      p: { logs: [y1(0, 100, '경기')] },
+      kind: null,
+    },
+    {
+      name: '어제 불펜 40구 90%(3,600 — 경기가 아니어도 세게)',
+      p: { logs: [y1(40, 90, '불펜')] },
+      kind: 'hard',
+    },
+    {
+      name: '어제 불펜 30구 85%(2,550 · 실전 강도 30구 — 옛 규칙의 날)',
+      p: { logs: [y1(30, 85, '불펜')] },
+      kind: 'hard',
+    },
+    {
+      name: '어제 불펜 30구 70%(2,100) + 힘듦 급증',
+      p: { logs: [y1(30, 70, '불펜')], notes: AF_SPIKE },
+      kind: 'moderateSpike',
+    },
+    {
+      name: '어제 불펜 30구 70% · 힘듦 줄 없음',
+      p: { logs: [y1(30, 70, '불펜')] },
+      kind: null,
+    },
+    {
+      name: '어제 불펜 30구 70% · 힘듦 평소',
+      p: { logs: [y1(30, 70, '불펜')], notes: AF_CALM },
+      kind: null,
+    },
+    {
+      name: '문턱 — 어제 불펜 30구 45%(1,350) + 급증',
+      p: { logs: [y1(30, 45, '불펜')], notes: AF_SPIKE },
+      kind: 'moderateSpike',
+    },
+    {
+      name: '문턱 밑 — 어제 불펜 29구 45%(1,305) + 급증',
+      p: { logs: [y1(29, 45, '불펜')], notes: AF_SPIKE },
+      kind: null,
+    },
+    {
+      name: '어제 캐치볼 20구 50% + 급증(1,000)',
+      p: { logs: [y1(20, 50, '캐치볼')], notes: AF_SPIKE },
+      kind: null,
+    },
+    {
+      name: "어제 '오늘 등판' 답 · 기록 없음",
+      p: { yesterday: '오늘 등판' },
+      kind: 'claimedNoLog',
+    },
+    {
+      name: "어제 '오늘 등판' 답 + 어제 경기 15구(기록이 이김)",
+      p: { yesterday: '오늘 등판', logs: [y1(15, 100, '경기')] },
+      kind: null,
+    },
+    {
+      name: "어제 '오늘 등판' 답 + 어제 경기 85구",
+      p: { yesterday: '오늘 등판', logs: [y1(85, 100, '경기')] },
+      kind: 'hard',
+    },
+    {
+      name: "어제 '오늘 등판' 답 + 사흘 전 기록만",
+      p: {
+        yesterday: '오늘 등판',
+        logs: [{ daysAgo: 3, pitches: 40, pct: 70, sessionType: '불펜' }],
+      },
+      kind: 'claimedNoLog',
+    },
+    {
+      name: "어제 '내일 등판' 답 · 기록 없음(지난 등판 아님)",
+      p: { yesterday: '내일 등판' },
+      kind: null,
+    },
+    {
+      name: '오늘 경기 85구(오늘은 안 본다 — 세게 던진 날 R1 이 본다)',
+      p: { logs: [{ daysAgo: 0, pitches: 85, pct: 100, sessionType: '경기' }] },
+      kind: null,
+    },
+    {
+      name: '그제 경기 85구(어제만 본다 — 그 전은 휴식표가 본다)',
+      p: { logs: [{ daysAgo: 2, pitches: 85, pct: 100, sessionType: '경기' }] },
+      kind: null,
+    },
+  ];
+  for (const c of armCases) {
+    const got = yesterdayArmLoadOf(afFacts(c.p));
+    check(
+      `P4 어제 팔 부담 (가) ${c.name} → ${c.kind ?? '없음'}`,
+      (got?.kind ?? null) === c.kind &&
+        (got == null || (got.kind === 'claimedNoLog') === (got.outing == null)),
+      json(got)
+    );
+  }
+  /* 옛 facts(load 칸 없음) — 옛 규칙(실전 강도 30구)으로 읽는다(facts.ts isHardOuting) */
+  {
+    const f = afFacts({ logs: [y1(35, 100, '경기')] });
+    const oldFacts = {
+      ...f,
+      patterns: {
+        ...f.patterns,
+        hardOutings: [{ daysAgo: 1, pitches: 35 }],
+      },
+    };
+    const oldLight = {
+      ...f,
+      patterns: { ...f.patterns, hardOutings: [{ daysAgo: 1, pitches: 20 }] },
+    };
+    check(
+      'P4 어제 팔 부담 (가) 옛 facts(load 없음) — 실전 강도 35구는 세게 던진 날, 20구는 아님(중간 부하는 load 가 있어야 본다)',
+      yesterdayArmLoadOf(oldFacts)?.kind === 'hard' &&
+        yesterdayArmLoadOf(oldLight) == null
+    );
+  }
+  check(
+    'P4 어제 팔 부담 (가) 중간 부하 문턱 — arm-load 의 1,350 이 날 종류가 내보내는 값과 같다(한 곳)',
+    ARM_MODERATE_MIN_LOAD === 1350 && ARM_MODERATE_MIN_LOAD === MODERATE_OUTING_MIN_LOAD
+  );
+  {
+    const f = afFacts({ logs: [y1(85, 100, '경기')] });
+    const before = json(f);
+    const a = yesterdayArmLoadOf(f);
+    const b = yesterdayArmLoadOf(f);
+    if (a?.outing) a.outing.pitches = 0;
+    check(
+      'P4 어제 팔 부담 (가) 결정성 — 같은 facts 면 같은 값, facts 를 바꾸지 않고, 돌려준 재료는 새 객체',
+      json(f) === before &&
+        b?.outing?.pitches === 85 &&
+        f.patterns.hardOutings?.[0].pitches === 85
+    );
+  }
+
+  /* ── (나) 세 독자가 한 함수 — 어제 기록 열둘 × 어제 답 다섯 × 오늘 답 셋 × 힘듦 셋 ── */
+  const gridLogs: { name: string; logs: AfLog[] }[] = [
+    { name: '기록 없음', logs: [] },
+    { name: '어제 경기 85', logs: [y1(85, 100, '경기')] },
+    { name: '어제 경기 15', logs: [y1(15, 100, '경기')] },
+    { name: '어제 경기 0', logs: [y1(0, 100, '경기')] },
+    { name: '어제 불펜 40 · 90%', logs: [y1(40, 90, '불펜')] },
+    { name: '어제 불펜 30 · 70%', logs: [y1(30, 70, '불펜')] },
+    { name: '어제 불펜 30 · 45%', logs: [y1(30, 45, '불펜')] },
+    { name: '어제 불펜 29 · 45%', logs: [y1(29, 45, '불펜')] },
+    { name: '어제 캐치볼 20 · 50%', logs: [y1(20, 50, '캐치볼')] },
+    { name: '어제 불펜 65 · 40%', logs: [y1(65, 40, '불펜')] },
+    {
+      name: '그제 경기 85',
+      logs: [{ daysAgo: 2, pitches: 85, pct: 100, sessionType: '경기' }],
+    },
+    {
+      name: '오늘 불펜 60 · 50%',
+      logs: [{ daysAgo: 0, pitches: 60, pct: 50, sessionType: '불펜' }],
+    },
+  ];
+  const gridYesterday: (string | null | undefined)[] = [
+    undefined,
+    null,
+    '오늘 등판',
+    '내일 등판',
+    '2~3일 뒤',
+  ];
+  const gridToday: (string | null)[] = [null, '오늘 등판', '없음'];
+  const gridNotes: (TrainingNoteLike[] | undefined)[] = [undefined, AF_SPIKE, AF_CALM];
+  const kinds: Record<string, number> = {};
+  const miss: Record<string, string[]> = {
+    program: [],
+    hardRule: [],
+    ruleArm: [],
+    armcare: [],
+    rank: [],
+    armSignal: [],
+  };
+  let gridN = 0;
+  /* 커밋 F 전후 — 프로그램의 경기 다음 날이 바뀐 칸(풀림 · 조임), 암케어의 '어제 N구'가 회복을 안 내게 된 칸 */
+  const flips = { programLoosen: 0, programTighten: 0, armLoosen: 0, armTighten: 0 };
+  for (const l of gridLogs)
+    for (const yAns of gridYesterday)
+      for (const tAns of gridToday)
+        for (const notes of gridNotes) {
+          gridN++;
+          const p: AfPerson = {
+            today: tAns,
+            ...(yAns !== undefined ? { yesterday: yAns } : {}),
+            logs: l.logs,
+            ...(notes ? { notes } : {}),
+          };
+          const name = `${l.name}/${yAns === undefined ? '어제 줄 없음' : (yAns ?? '답 없음')}/${tAns ?? '답 없음'}/${notes === AF_SPIKE ? '급증' : notes === AF_CALM ? '평소' : '힘듦 없음'}`;
+          const r = afRead(p);
+          const k = r.arm?.kind ?? null;
+          kinds[k ?? 'null'] = (kinds[k ?? 'null'] ?? 0) + 1;
+          if (r.signals.gameYesterday !== (k != null)) miss.program.push(name);
+          if (k === 'hard' && r.dk.rule !== 'hard')
+            miss.hardRule.push(`${name}: ${r.dk.rule}`);
+          if (
+            (r.dk.rule === 'moderateSpike' && k !== 'moderateSpike') ||
+            (r.dk.rule === 'claimedNoLog' && k !== 'claimedNoLog')
+          )
+            miss.ruleArm.push(`${name}: ${r.dk.rule} · ${k}`);
+          /* 그 둘이 걸렸는데 날 종류가 다른 규칙이면, 그 규칙은 앞 차례(R1 세게 · R3 오늘 등판 — 둘 다 회복)여야 한다 */
+          if (
+            (k === 'moderateSpike' || k === 'claimedNoLog') &&
+            r.dk.rule !== k &&
+            r.dk.rule !== 'hard' &&
+            r.dk.rule !== 'outingToday'
+          )
+            miss.ruleArm.push(`${name}: ${k} 인데 ${r.dk.rule}`);
+          if (k != null && !r.plan.halted && r.armcare.kind !== 'recovery')
+            miss.armcare.push(`${name}: ${r.armcare.kind} · ${r.armcare.reason}`);
+          if (k != null && r.dk.rank !== 'recovery' && r.dk.rank !== 'light')
+            miss.rank.push(`${name}: ${r.dk.rule}`);
+          /* 암케어 까닭의 '어제 N구'(휴식표 '· 아직 쉬는 기간'이 아닌 것)는 세게 · 중간 부하 + 급증일 때만 */
+          const pieces = r.armcare.reason.split(' → ')[0].split(' · ');
+          const yesterdayPitchSignal =
+            r.armcare.kind === 'recovery' &&
+            pieces.some(
+              (s, i) => /^어제 \d+구$/.test(s) && pieces[i + 1] !== '아직 쉬는 기간'
+            );
+          if (yesterdayPitchSignal && k !== 'hard' && k !== 'moderateSpike')
+            miss.armSignal.push(`${name}: ${r.armcare.reason}`);
+          if (r.oldGameYesterday && k == null) flips.programLoosen++;
+          if (!r.oldGameYesterday && k != null) flips.programTighten++;
+          const oldYesterdayPitches =
+            (r.facts.patterns.lastOutingPitches ?? 0) > 0 &&
+            r.facts.patterns.restDays === 1;
+          if (oldYesterdayPitches && k == null && r.armcare.kind === 'strength')
+            flips.armLoosen++;
+          if (k === 'claimedNoLog' && r.armcare.reason.startsWith('어제 등판'))
+            flips.armTighten++;
+        }
+  check(
+    `P4 어제 팔 부담 (나) 격자 ${gridN}가지 — 네 갈래가 모두 나온다(${json(kinds)})`,
+    gridN ===
+      gridLogs.length * gridYesterday.length * gridToday.length * gridNotes.length &&
+      ['null', 'hard', 'moderateSpike', 'claimedNoLog'].every(
+        (x) => (kinds[x] ?? 0) > 0
+      )
+  );
+  check(
+    `P4 어제 팔 부담 (나) 프로그램 — 경기 다음 날 = 어제 팔 부담이 있음(${gridN}가지 모두)`,
+    miss.program.length === 0,
+    miss.program.slice(0, 3).join(' · ')
+  );
+  check(
+    `P4 어제 팔 부담 (나) 날 종류 — 어제 세게 던진 날이면 R1, R2 · R3′ 는 이 함수가 그렇다고 할 때만, 이 함수가 R2 · R3′ 인데 다른 날이면 앞 차례(R1 · R3)`,
+    miss.hardRule.length === 0 && miss.ruleArm.length === 0,
+    [...miss.hardRule, ...miss.ruleArm].slice(0, 3).join(' · ')
+  );
+  check(
+    `P4 어제 팔 부담 (나) 암케어 — 어제 팔 부담이 있으면 회복 루틴(통증 멈춤이 아니면), 까닭의 '어제 N구'는 세게 · 중간 부하 + 급증일 때만`,
+    miss.armcare.length === 0 && miss.armSignal.length === 0,
+    [...miss.armcare, ...miss.armSignal].slice(0, 3).join(' · ')
+  );
+  check(
+    `P4 어제 팔 부담 (나) 프로그램이 쉬는 어제(팔 부담)면 매일 일정은 회복 · 보조 — 같은 어제를 근력 날로 말하지 않는다`,
+    miss.rank.length === 0,
+    miss.rank.slice(0, 3).join(' · ')
+  );
+  check(
+    `P4 어제 팔 부담 (나) 커밋 F 전후 — 프로그램 쉼 풀림 ${flips.programLoosen} · 조임 ${flips.programTighten}, 암케어 회복 → 강화 ${flips.armLoosen} · 강화 → 회복('어제 등판') ${flips.armTighten}(넷 다 실제로 일어난다)`,
+    flips.programLoosen > 0 &&
+      flips.programTighten > 0 &&
+      flips.armLoosen > 0 &&
+      flips.armTighten > 0
+  );
+
+  /* ── (다) 프로그램 사례 — 쉬는 까닭 · 전후 ── */
+  const progCases: {
+    name: string;
+    p: AfPerson;
+    override?: boolean;
+    now: string;
+    before: string;
+  }[] = [
+    {
+      name: '어제 경기 15구 → 진행(예전 경기 다음 날 쉼)',
+      p: { logs: [y1(15, 100, '경기')] },
+      now: 'go',
+      before: 'rest:gameYesterday',
+    },
+    {
+      name: "어제 '경기' 0구 줄 → 진행(예전 쉼)",
+      p: { logs: [y1(0, 100, '경기')] },
+      now: 'go',
+      before: 'rest:gameYesterday',
+    },
+    {
+      name: "어제 '오늘 등판' 답 + 어제 경기 15구 → 진행(예전 쉼)",
+      p: { yesterday: '오늘 등판', logs: [y1(15, 100, '경기')] },
+      now: 'go',
+      before: 'rest:gameYesterday',
+    },
+    {
+      name: '어제 경기 85구 → 쉼(그대로, 엇갈림 표 C2)',
+      p: { logs: [y1(85, 100, '경기')] },
+      now: 'rest:gameYesterday',
+      before: 'rest:gameYesterday',
+    },
+    {
+      name: '어제 불펜 40구 90% → 쉼(예전 주의 한 줄만 달고 진행)',
+      p: { logs: [y1(40, 90, '불펜')] },
+      now: 'rest:gameYesterday',
+      before: 'go:hardThrow',
+    },
+    {
+      name: '어제 불펜 30구 70% + 힘듦 급증 → 쉼(예전 진행)',
+      p: { logs: [y1(30, 70, '불펜')], notes: AF_SPIKE },
+      now: 'rest:gameYesterday',
+      before: 'go',
+    },
+    {
+      name: "어제 '오늘 등판' 답 · 기록 없음 → 쉼(그대로, 엇갈림 표 C6)",
+      p: { yesterday: '오늘 등판' },
+      now: 'rest:gameYesterday',
+      before: 'rest:gameYesterday',
+    },
+    {
+      name: "오늘 '경기' 0구 줄 → 경기 날 쉼(그대로 — 오늘은 세션 종류로 본다)",
+      p: { logs: [{ daysAgo: 0, pitches: 0, pct: 100, sessionType: '경기' }] },
+      now: 'rest:gameToday',
+      before: 'rest:gameToday',
+    },
+    {
+      name: '오늘 불펜 60구 50%(3,000) → 진행 + 많이 던짐 주의(그대로)',
+      p: { logs: [{ daysAgo: 0, pitches: 60, pct: 50, sessionType: '불펜' }] },
+      now: 'go:hardThrow',
+      before: 'go:hardThrow',
+    },
+    {
+      name: '어제 불펜 40구 90% + 그래도 할래요 → 진행 + 쉬는 게 좋은 날 주의',
+      p: { logs: [y1(40, 90, '불펜')] },
+      override: true,
+      now: 'go:gameOverride',
+      before: 'go:hardThrow',
+    },
+  ];
+  for (const c of progCases) {
+    const r = afRead(c.p, c.override ?? false);
+    check(
+      `P4 어제 팔 부담 (다) 프로그램 ${c.name}`,
+      r.program === c.now && r.programBefore === c.before,
+      `${r.program} (예전 ${r.programBefore})`
+    );
+  }
+  check(
+    "P4 어제 팔 부담 (다) 프로그램 글 — 쉬는 까닭 '어제 팔 부담이 컸어요', 넘긴 날 주의는 경기 날이라고 하지 않는다 · 해요체 · 줄표 없음",
+    REST_TEXT.gameYesterday === '어제 팔 부담이 컸어요' &&
+      !CAUTION_TEXT.gameOverride.includes('경기') &&
+      [REST_TEXT.gameYesterday, CAUTION_TEXT.gameOverride].every(
+        (t) => !t.includes('—') && /요\.?$/.test(t)
+      ),
+    `${REST_TEXT.gameYesterday} / ${CAUTION_TEXT.gameOverride}`
+  );
+
+  /* ── (라) 암케어 사례 — 까닭 한 줄 ── */
+  const armcareCases: { name: string; p: AfPerson; kind: string; reason: string }[] = [
+    {
+      name: '어제 경기 15구 → 강화(예전 회복)',
+      p: { logs: [y1(15, 100, '경기')] },
+      kind: 'strength',
+      reason: '어제 15구 · 팔 부담 적음 → 강화 루틴',
+    },
+    {
+      name: '어제 캐치볼 20구 50% → 강화(예전 회복)',
+      p: { logs: [y1(20, 50, '캐치볼')] },
+      kind: 'strength',
+      reason: '어제 20구 · 팔 부담 적음 → 강화 루틴',
+    },
+    {
+      name: '어제 경기 85구 → 회복(그대로 — 기록이 하루뿐이라 부하 지수도 위험 구간)',
+      p: { logs: [y1(85, 100, '경기')] },
+      kind: 'recovery',
+      reason: '어제 85구 · 투구 부하 위험 구간 → 회복 루틴',
+    },
+    {
+      name: '어제 불펜 30구 70% + 힘듦 급증 → 회복',
+      p: { logs: [y1(30, 70, '불펜')], notes: AF_SPIKE },
+      kind: 'recovery',
+      reason: '어제 30구 → 회복 루틴',
+    },
+    {
+      name: "어제 '오늘 등판' 답 · 기록 없음 → 회복(예전 강화)",
+      p: { yesterday: '오늘 등판' },
+      kind: 'recovery',
+      reason: '어제 등판 → 회복 루틴',
+    },
+    {
+      name: '어제 불펜 65구 40%(2,600 — 세게는 아님) → 휴식표가 아직 쉬라고 해 회복(어제)',
+      p: { logs: [y1(65, 40, '불펜')] },
+      kind: 'recovery',
+      reason: '어제 65구 · 아직 쉬는 기간 → 회복 루틴',
+    },
+  ];
+  for (const c of armcareCases) {
+    const r = afRead(c.p);
+    check(
+      `P4 어제 팔 부담 (라) 암케어 ${c.name}`,
+      r.armcare.kind === c.kind && r.armcare.reason === c.reason,
+      `${r.armcare.kind} · ${r.armcare.reason}`
+    );
+  }
+
+  /* ── (마) 소스 — 세 독자가 같은 함수를 부르고, 어제 팔 부담 파일은 가볍다 ── */
+  {
+    const strip = (p: string) =>
+      readFileSync(new URL(`../${p}`, import.meta.url), 'utf8')
+        .replace(/\/\*[\s\S]*?\*\//g, '')
+        .replace(/^\s*\/\/.*$/gm, '');
+    const armSrc = strip('lib/engine/arm-load.ts');
+    const specs = [...armSrc.matchAll(/from '([^']+)'/g)].map((m) => m[1]);
+    check(
+      'P4 어제 팔 부담 (마) lib/engine/arm-load.ts 는 순수 · 가볍다 — import 는 outing · facts 둘뿐(암케어 루틴 파일이 화면 부품에도 실려서), 날짜 함수 · 난수 · server-only · 글 없음',
+      json([...new Set(specs)].sort()) ===
+        json(['@/lib/engine/outing', '@/lib/report/facts']) &&
+        !/new Date\(|appNow|Math\.random|server-only/.test(armSrc) &&
+        !/요\.'|요'/.test(armSrc),
+      specs.join(' · ')
+    );
+    const readers = [
+      'lib/program/load.ts',
+      'lib/armcare/routine.ts',
+      'lib/engine/microcycle.ts',
+    ];
+    const missing = readers.filter(
+      (f) => !/yesterdayArmLoadOf\(facts\)/.test(strip(f))
+    );
+    const routineSrc = strip('lib/armcare/routine.ts');
+    const programSrc = strip('lib/program/program.ts');
+    check(
+      `P4 어제 팔 부담 (마) 세 독자(${readers.join(' · ')})가 yesterdayArmLoadOf(facts) 를 부르고, 프로그램 신호는 어제 기록의 세션 종류를 · 암케어는 '어제 N구'를 투구수만으로 안 낸다`,
+      missing.length === 0 &&
+        !/typesYesterday/.test(programSrc) &&
+        !/p\.restDays === 1\) signals\.push/.test(routineSrc) &&
+        /gameYesterday: x\.yesterdayArmLoad != null/.test(programSrc),
+      missing.join(' · ')
     );
   }
 }

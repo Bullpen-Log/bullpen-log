@@ -10,6 +10,7 @@ import {
   sorenessWord,
   LOW_CONDITION_THRESHOLD,
 } from '@/lib/checkin';
+import { yesterdayArmLoadOf } from '@/lib/engine/arm-load';
 import { HEAVY_EQUIPMENT, intensityLevel, minutesForSets } from '@/lib/exercise-meta';
 import type { ReportFacts } from '@/lib/report/facts';
 import { pendingOuting, type PitchPlan } from '@/lib/report/plan';
@@ -32,10 +33,15 @@ import {
  *
  *   쉬기   통증이 있는 날 — 루틴 대신 진료 안내
  *   통증   팔(어깨 · 팔꿈치)이 '던질 때만' 아프고 자리를 고른 날 — 아픈 자리는 버티기 · 가벼운 것, 견갑 · 주변 보강, 1세트
- *   회복   던진 날·다음 날, 등판 날(체크인 답), 팔 피로가 높은 날, 부하가 높은 날, 온몸 근육통이 심한 날 — 가볍게, 피가 돌 만큼
- *   강화   그 밖의 날(던진 지 이틀이 넘은 날) — 부위를 고르게, 제대로
+ *   회복   던진 날, 팔 부담이 컸던 다음 날, 큰 등판 뒤 아직 쉬는 기간, 등판 날(체크인 답), 팔 피로가 높은 날, 부하가 높은 날,
+ *          온몸 근육통이 심한 날 — 가볍게, 피가 돌 만큼
+ *   강화   그 밖의 날(던진 지 이틀이 넘었거나 어제 가볍게만 던진 날) — 부위를 고르게, 제대로
  *
  * 투수 표준 프로그램(Thrower's Ten)과 투구 뒤 48~72시간 회복 원칙을 따랐다.
+ * '팔 부담이 컸던 다음 날'은 2판 P4 커밋 F(2026-10-12, 사용자 결정 D3)부터 달력이 아니라 부하다 — 어제 세게 던진 날 · 어제 중간 부하 +
+ * 운동 힘듦 급증 · 어제 '오늘 등판'이라 답했는데 기록이 없는 날(lib/engine/arm-load.ts yesterdayArmLoadOf, 근력 프로그램의 쉬는 날 ·
+ * 매일 일정의 날 종류와 같은 함수). 그 전에는 어제 던졌으면 캐치볼 10구라도 회복이었다. 가볍게 던진 다음 날도 투구 계획의 휴식표가
+ * 아직 쉬라고 하면(pendingOuting) 그대로 회복이다 — 휴식표가 바닥을 지킨다.
  * 체크만 한다 — 실시간 기록과 AI 설명은 넣지 않는다(사용자분과 정함).
  *
  * 통증 루틴은 2026-10-03 팔 통증 안내(재활 1편)로 더했다 — 아픈 날 '오늘은 쉬어요'로 끝나지 않고, 가볍게
@@ -138,18 +144,33 @@ export function decideArmcare({
   if (state?.outing.role === 'game' && !(pitches > 0 && p.restDays === 0)) {
     signals.push('오늘 등판');
   }
+  /*
+   * 어제 팔 부담 — 근력 프로그램의 '경기 다음 날' · 매일 일정의 날 종류(R1 의 어제 쪽 · R2 · R3')와 같은 함수(2판 P4 커밋 F, D3).
+   * 어제 던졌어도 가볍게만 던졌으면(캐치볼 20구 · 경기 15구) 여기서는 회복으로 안 간다 — 아래 휴식표가 아직 쉬라고 할 때만.
+   */
+  const yesterdayArm = yesterdayArmLoadOf(facts);
   if (pitches > 0 && p.restDays === 0) signals.push(`오늘 ${pitches}구`);
-  else if (pitches > 0 && p.restDays === 1) signals.push(`어제 ${pitches}구`);
-  else {
+  else if (
+    pitches > 0 &&
+    p.restDays === 1 &&
+    (yesterdayArm?.kind === 'hard' || yesterdayArm?.kind === 'moderateSpike')
+  ) {
+    signals.push(`어제 ${pitches}구`);
+  } else {
+    /* 어제 '오늘 등판'이라 답했는데 기록이 없다 — 부하를 모르니 던진 다음 날로 본다(C6 결정, 매일 일정은 보조 · 코어) */
+    if (yesterdayArm?.kind === 'claimedNoLog') signals.push('어제 등판');
     /*
      * 큰 등판 뒤 아직 쉬어야 하는 날 — 투구 계획이 '쉬세요'라고 하는 그 값이다.
      *
      * 까닭에는 쉬게 만든 그 등판을 적는다. 마지막 투구를 적었더니, 나흘 전 95구
      * 뒤 이틀 전에 캐치볼 10개를 한 날 '2일 전 10구 · 아직 쉬는 기간'이 됐다 — 쉬는
-     * 까닭은 95구다.
+     * 까닭은 95구다. 어제 가볍게 던진 날도 휴식표가 하루 쉬라고 하면 여기서 걸린다(그때는 '어제').
      */
     const owed = pendingOuting(p);
-    if (owed) signals.push(`${owed.elapsed}일 전 ${owed.pitches}구 · 아직 쉬는 기간`);
+    if (owed) {
+      const when = owed.elapsed === 1 ? '어제' : `${owed.elapsed}일 전`;
+      signals.push(`${when} ${owed.pitches}구 · 아직 쉬는 기간`);
+    }
   }
   if (armFatigue != null && armFatigue >= HIGH_ARM_FATIGUE) {
     signals.push(`팔 피로 '${armFatigueWord(armFatigue) ?? armFatigue}'`);
@@ -188,7 +209,10 @@ export function decideArmcare({
     reason:
       p.restDays == null
         ? '최근 투구 기록이 없어요 → 강화 루틴'
-        : `마지막 투구 ${p.restDays}일 전 → 강화 루틴`,
+        : p.restDays === 1
+          ? /* 어제 던졌는데 팔 부담이 작은 날(2판 P4 커밋 F 전에는 회복이었다) — '1일 전'이 아니라 왜 강화인지 */
+            `어제 ${pitches}구 · 팔 부담 적음 → 강화 루틴`
+          : `마지막 투구 ${p.restDays}일 전 → 강화 루틴`,
   };
 }
 

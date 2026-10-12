@@ -3,6 +3,7 @@ import { appNow } from '@/lib/clock';
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { HIGH_SORENESS, SEVERE_SORENESS, isShortSleep } from '@/lib/checkin';
+import { yesterdayArmLoadOf } from '@/lib/engine/arm-load';
 import { selectCandidates } from '@/lib/report/prescription';
 import { LOW_CONDITION_THRESHOLD, painRecoveryReason } from '@/lib/report/theme';
 import type { loadTodayCore } from '@/lib/report/today-data';
@@ -107,23 +108,21 @@ export async function hasFinishedBasics(userId: string): Promise<boolean> {
 /* ─────────────────────────── 오늘 신호 ─────────────────────────── */
 
 /**
- * 오늘 · 어제 투구 기록의 세션 종류 — 프로그램의 던지는 신호(program.ts programSignalsOf)의 기록 쪽 재료.
+ * 오늘 투구 기록의 세션 종류 — 프로그램의 던지는 신호(program.ts programSignalsOf)의 기록 쪽 재료(오늘 '경기' · 불펜 · 라이브).
  *
- * 투구수 · 강도는 고르지 않는다 — 0구로 적은 '경기' 줄도 경기로 읽던 예전 그대로다(세게 던졌는지는 오늘 상태 한 장의
+ * 투구수 · 강도는 고르지 않는다 — 0구로 적은 '경기' 줄도 오늘은 경기로 읽던 예전 그대로다(세게 던졌는지는 오늘 상태 한 장의
  * load.hardOutingRecent 가 facts 로 본다).
- * 등판 답은 여기서 읽지 않는다 — 오늘 상태 한 장(core.state.outing)의 답을 쓴다. 2판 P3(2026-10-12) 전에는 체크인 두 줄을 여기서
+ * 어제 기록은 여기서 읽지 않는다 — 2판 P4 커밋 F(D3)부터 '경기 다음 날'은 어제 기록의 세션 종류가 아니라 어제 팔 부담
+ * (lib/engine/arm-load.ts yesterdayArmLoadOf, facts 에서)으로 정한다.
+ * 등판 답도 여기서 읽지 않는다 — 오늘 상태 한 장(core.state.outing)의 답을 쓴다. 2판 P3(2026-10-12) 전에는 체크인 두 줄을 여기서
  * 따로 읽었는데, 그 줄은 facts 를 만든 같은 45일치 읽기(lib/report/gather.ts)에 이미 들어 있어 같은 값을 두 번 읽었다.
  */
-async function pitchTypesNearToday(userId: string, todayKey: string) {
-  const today = new Date(`${todayKey}T00:00:00.000Z`);
-  const yesterday = new Date(today.getTime() - 86_400_000);
+async function pitchTypesToday(userId: string, todayKey: string) {
   const pitches = await prisma.pitchLog.findMany({
-    where: { userId, date: { in: [today, yesterday] } },
-    select: { date: true, sessionType: true },
+    where: { userId, date: new Date(`${todayKey}T00:00:00.000Z`) },
+    select: { sessionType: true },
   });
-  const typesOn = (d: Date) =>
-    pitches.filter((p) => keyOf(p.date) === keyOf(d)).map((p) => p.sessionType);
-  return { typesToday: typesOn(today), typesYesterday: typesOn(yesterday) };
+  return pitches.map((p) => p.sessionType);
 }
 
 /** 오늘 운동한 판 — 프로그램 날인지와 상태 */
@@ -326,16 +325,23 @@ export async function buildProgramDay(
   if (!plan) return null;
   const todayKey = core.todayKey;
   const facts = core.facts;
-  const [pitchTypes, session, lastProgramDate] = await Promise.all([
-    pitchTypesNearToday(user.id, todayKey),
+  const [typesToday, session, lastProgramDate] = await Promise.all([
+    pitchTypesToday(user.id, todayKey),
     todaySession(user.id, core.midnight),
     row.lastDoneDate
       ? Promise.resolve(keyOf(row.lastDoneDate))
       : lastProgramSessionKey(user.id, core.midnight),
   ]);
 
-  /* 등판 답은 오늘 상태 한 장에서 — 매일 일정 · 투구 계획 · 암케어가 읽는 것과 같은 답(자체 시험 엇갈림 표가 같은 함수를 부른다) */
-  const throwing = programSignalsOf({ outing: core.state.outing, ...pitchTypes });
+  /*
+   * 등판 답은 오늘 상태 한 장에서 — 매일 일정 · 투구 계획 · 암케어가 읽는 것과 같은 답(자체 시험 엇갈림 표가 같은 함수를 부른다).
+   * '경기 다음 날'은 어제 팔 부담에서 — 매일 일정의 날 종류 · 암케어 회복 루틴과 같은 함수(2판 P4 커밋 F, D3).
+   */
+  const throwing = programSignalsOf({
+    outing: core.state.outing,
+    typesToday,
+    yesterdayArmLoad: yesterdayArmLoadOf(facts),
+  });
 
   const today = facts.condition.today;
   const zone = facts.load.zone;
