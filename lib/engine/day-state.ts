@@ -9,6 +9,8 @@
  * 이 파일은 판단을 하지 않는다 — 신호를 모으기만 한다. 첫 단계(7ae15c7)에서는 아무 독자의 결론도 바뀌지 않았다:
  *   - 세게 던진 날(recentHardOuting)과 오늘 · 어제 등판 답 합치기(nextOutingWindow)는 theme.ts 의 hardOuting · plannedOuting 이
  *     그대로 여기에 맡긴다(규칙을 옮겼을 뿐 값은 같다 — 자체 시험이 옛 식과 160조합 · 등판 답 49쌍에서 견준다).
+ *     2판 P4 커밋 B(2026-10-12)부터 등판(다음 것 · 지난 것)은 lib/engine/outing.ts 의 outingOf 한 곳에서 읽고, 이 장의 outing 칸과
+ *     theme.ts plannedOuting 이 같은 함수를 부른다. 그때 출처 칸을 둘로 갈랐다(source → lastSource, nextFrom → nextSource — 값은 같다).
  *   - 그 밖의 칸은 기존 규칙 함수(prescription.ts 의 통증 함수 · plan.ts 의 pendingOuting · checkin.ts 의 문턱)를 그대로 부른다.
  *     문턱을 여기서 새로 정하지 않는다 — 새로 정하면 독자와 이 장이 어긋난다.
  * 독자를 이 장으로 옮기는 것은 단계마다 하나씩 — C1 · C4 뒤집기(2026-10-12): 투구 계획은 같은 등판 규칙(lib/checkin.ts
@@ -33,19 +35,16 @@ import {
   SHORT_SLEEP_HOURS,
   armFatigueWord,
   armPainSpotsFor,
-  exactOutingDay,
   formatSleepHours,
   isShortSleep,
-  nextOutingDays,
   nextOutingWindow,
-  parseThrowPlan,
   sorenessWord,
   todayOutingRole,
   type CheckinPartKey,
   type OutingWindow,
-  type ThrowPlan,
 } from '@/lib/checkin';
 import type { ArmcareAreaKey } from '@/lib/armcare/anatomy';
+import { outingOf, type Outing } from '@/lib/engine/outing';
 import {
   isHardOuting,
   isNearMaxOuting,
@@ -167,29 +166,14 @@ export type DayState = {
     /** 팔 피로가 HIGH_ARM_FATIGUE('많이') 이상 — 암케어가 회복으로 가는 문턱과 같다 */
     armFatigueHigh: boolean;
   };
-  /** 등판 — 지난 것과 다음 것 */
-  outing: {
+  /**
+   * 등판 — 지난 것과 다음 것. lib/engine/outing.ts 의 outingOf 그대로(칸 설명은 그 파일의 Outing) + 오늘 던진 기록이 있는가.
+   * 2판 P4 커밋 B 전에는 source(지난 등판 출처 'log' · 'checkin' · 'none') · nextFrom(다음 등판 출처 'today' · 'yesterday' · null)이었다.
+   * 지금은 lastSource('checkin' → 'checkin-yesterday') · nextSource('today' → 'checkin', 'yesterday' → 'checkin-yesterday', null → 'none').
+   */
+  outing: Outing & {
     /** 오늘 이미 던진 기록이 있는가(plan.threwToday) */
     threwToday: boolean;
-    /** 마지막 등판으로부터 지난 날 — 기록이 먼저, 기록이 없으면 어제 '오늘 등판' 답(1), 둘 다 없으면 null */
-    daysSinceLast: number | null;
-    /** 마지막으로 던진 날의 투구수(기록에서만) */
-    lastPitches: number | null;
-    /** 마지막으로 던진 날의 Σ 투구수 × 체감 강도(%)(facts.patterns.hardOutings 의 그날, 이레 안 · 옛 facts 는 null) */
-    lastLoad: number | null;
-    /** daysSinceLast 가 어디서 왔나 — 투구 기록 · 체크인 답 · 없음 */
-    source: 'log' | 'checkin' | 'none';
-    /** 다음 등판까지 남은 날(nextOutingWindow), 모르면 null */
-    daysUntilNext: OutingWindow | null;
-    /** daysUntilNext 를 만든 답 — 오늘 답 · 어제 답(하루 당김) · 없음 */
-    nextFrom: 'today' | 'yesterday' | null;
-    /** 오늘 · 어제 답(목록 밖 글자는 null) */
-    answerToday: ThrowPlan | null;
-    answerYesterday: ThrowPlan | null;
-    /** 오늘 답을 남겼는가 — '없음'도 답이다(그때 daysUntilNext 는 null) */
-    answeredToday: boolean;
-    /** 오늘 할 일 — 등판(오늘 0~0) · 불펜(오늘 '오늘 불펜') · 없음 */
-    role: 'game' | 'bullpen' | null;
   };
   /** 팔 — 피로 · 통증 자리 */
   arm: {
@@ -328,36 +312,11 @@ export function buildDayState({
     soreness != null && soreKnown && soreness >= HIGH_SORENESS && !soreSevere;
   const sleepShort = today != null && isShortSleep(today);
 
-  /* outing */
-  const answerToday = parseThrowPlan(facts.condition.throwPlanToday);
-  const answerYesterday = parseThrowPlan(facts.condition.throwPlanYesterday);
-  const next = nextOutingWindow(
-    facts.condition.throwPlanToday,
-    facts.condition.throwPlanYesterday
-  );
   /*
-   * 지난 등판 — 기록이 먼저다. 어제 '오늘 등판'이라 답했는데 어제 기록이 없으면(던지고 안 적었거나 취소) 기록보다 가까운
-   * 그 답을 1일 전 등판으로 둔다 — 투구수 · 부하는 모르니 null(D3 · P4 가 이 칸을 읽는다). 기록이 오늘 · 어제 것이면 기록이 이긴다.
+   * outing — 다음 등판 · 지난 등판은 lib/engine/outing.ts 한 곳(theme.ts plannedOuting 과 같은 함수, 2판 P4 커밋 B). 오늘 할 일(role)도
+   * 그 안에서 투구 계획(DayPlan.outing)과 같은 함수(lib/checkin.ts todayOutingRole)로 읽는다.
    */
-  const logDays = patterns.restDays;
-  /* 어제 답이 '그날 등판'이었나 — 답 글자를 직접 견주지 않고 lib/checkin.ts 규칙으로(어제 기준 꼭 0일 뒤) */
-  const yesterdayGame = exactOutingDay(nextOutingDays(answerYesterday)) === 0;
-  const fromLog = logDays != null && (logDays <= 1 || !yesterdayGame);
-  const source: DayState['outing']['source'] = fromLog
-    ? 'log'
-    : yesterdayGame
-      ? 'checkin'
-      : 'none';
-  const daysSinceLast = fromLog ? logDays : yesterdayGame ? 1 : null;
-  const lastPitches = fromLog ? patterns.lastOutingPitches : null;
-  const lastLoad = fromLog
-    ? ((patterns.hardOutings ?? []).find((o) => o.daysAgo === logDays)?.load ?? null)
-    : null;
-  /* 오늘 할 일 — 투구 계획(DayPlan.outing)과 같은 함수(lib/checkin.ts todayOutingRole) */
-  const role: DayState['outing']['role'] = todayOutingRole(
-    facts.condition.throwPlanToday,
-    facts.condition.throwPlanYesterday
-  );
+  const outing = outingOf(facts);
 
   /* load */
   const hardOuting = recentHardOuting(facts);
@@ -390,19 +349,7 @@ export function buildDayState({
       needsCheckin: today == null,
       armFatigueHigh: fatigueHigh,
     },
-    outing: {
-      threwToday: plan.threwToday,
-      daysSinceLast,
-      lastPitches,
-      lastLoad,
-      source,
-      daysUntilNext: next.days ? { ...next.days } : null,
-      nextFrom: next.from,
-      answerToday,
-      answerYesterday,
-      answeredToday: facts.condition.throwPlanToday != null,
-      role,
-    },
+    outing: { threwToday: plan.threwToday, ...outing },
     arm: {
       fatigue,
       fatigueWord: armFatigueWord(fatigue),
@@ -470,11 +417,13 @@ function whyLines(s: Omit<DayState, 'why'>): string[] {
         : `${when} ${load.hardOuting.pitches}구를 던져 팔 부담이 컸어요.`
     );
   }
-  if (outing.source === 'checkin')
+  if (outing.lastSource === 'checkin-yesterday')
     out.push('어제 등판했다고 적었는데 투구 기록은 없어요.');
   if (outing.daysUntilNext) {
     const text = windowText(outing.daysUntilNext);
-    out.push(outing.nextFrom === 'yesterday' ? `어제 적은 답으로 보면 ${text}` : text);
+    out.push(
+      outing.nextSource === 'checkin-yesterday' ? `어제 적은 답으로 보면 ${text}` : text
+    );
   } else if (outing.role === 'bullpen') {
     out.push('오늘 불펜 날이에요.');
   }

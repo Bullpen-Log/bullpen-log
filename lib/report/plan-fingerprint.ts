@@ -1,5 +1,6 @@
 import { isNearMaxOuting, type ReportFacts } from '@/lib/report/facts';
 import { hardOuting } from '@/lib/report/theme';
+import { outingAnswersOf } from '@/lib/engine/outing';
 import {
   CHECKIN_PARTS,
   isShortSleep,
@@ -55,7 +56,7 @@ export type PlanFingerprint = {
     /** 던지는 일정 답(lib/checkin.ts 의 THROW_PLANS — 답이 늘어도 글자 그대로) */
     throwPlan: string | null;
   };
-  /** 어제 체크인의 던지는 일정 답 — plannedOuting 이 오늘 답이 없을 때 읽는다 */
+  /** 어제 체크인의 던지는 일정 답 — 등판을 읽는 함수(lib/engine/outing.ts outingOf)가 오늘 답이 없을 때 읽는다 */
   throwPlanYesterday: string | null;
   /** 오늘을 뺀 최근 7일에 '통증'이라고 한 부위(CHECKIN_PARTS 순서) */
   painRecentParts: CheckinPartKey[];
@@ -106,6 +107,12 @@ export function fingerprintOf(facts: ReportFacts): PlanFingerprint {
   const today = facts.condition.today;
   const rehab = facts.condition.rehab ?? null;
   const outing = hardOuting(facts);
+  /*
+   * 등판 답 둘은 등판을 읽는 함수(lib/engine/outing.ts outingOf)가 읽는 바로 그 칸을 같은 함수(outingAnswersOf)로 담는다 — 판단이
+   * 읽는 칸과 지문 칸이 어긋나지 않게(2판 P4 커밋 B). buildFacts 가 만든 facts 에서는 예전에 담던 오늘 체크인의 throwPlan 과
+   * 글자까지 같다(throwPlanToday 가 그 값이다). 달력 · 같은 요일 짐작(커밋 G)처럼 outingOf 가 새 칸을 읽게 되면 그 칸도 여기 담는다.
+   */
+  const answers = outingAnswersOf(facts);
   const { lastThrowDate, lastOutingPitches, lastOutingAdjusted } = facts.patterns;
   return {
     v: 1,
@@ -120,10 +127,10 @@ export function fingerprintOf(facts: ReportFacts): PlanFingerprint {
             sorenessWord(today.soreness) != null ? (today.soreness ?? null) : null,
           sleepShort: isShortSleep(today),
           preferredWorkout: today.preferredWorkout ?? null,
-          throwPlan: today.throwPlan ?? null,
+          throwPlan: answers.today,
         }
       : null,
-    throwPlanYesterday: facts.condition.throwPlanYesterday ?? null,
+    throwPlanYesterday: answers.yesterday,
     painRecentParts: sortParts(facts.condition.painRecentParts ?? []),
     painWords: [...facts.condition.painWordsInMemo].sort(),
     rehab: rehab

@@ -132,6 +132,12 @@ import {
   isHeavyUpperPush,
   type ClassifiableExercise,
 } from '../lib/engine/exercise-class.ts';
+import {
+  isSoftOutingSource,
+  outingAnswersOf,
+  outingOf,
+  type Outing,
+} from '../lib/engine/outing.ts';
 import { orderSession, orderWithinSlot } from '../lib/report/exercise-order.ts';
 import {
   freezePlan,
@@ -7705,6 +7711,11 @@ console.log(
  * (그 절은 이 블록 밖이라 makeCombo 를 못 불러 베껴 쓴다). 적기만 하고 아래 검사는 아무것도 안 바뀐다.
  */
 const p0PeopleSeen: string[] = [];
+/*
+ * '[2판 오늘 상태(P3)]' 절의 160조합이 만든 facts 를 차례대로 적어 둔다 — 파일 끝 '[2판 P4] 등판 한 곳' 절이 같은 사람들로
+ * 등판 읽기(lib/engine/outing.ts)를 P3 의 식과 견준다(그 절은 블록 밖이라 사람 만들기를 못 부른다). 적기만 한다.
+ */
+const p3ComboFactsSeen: ReturnType<typeof buildFacts>[] = [];
 
 console.log(
   '\n[2판 안전망(P0)] 등판 답 · 기능 엇갈림 표 · 불변식 · 성장기 나이 · 한쪽 갇힘(2026-10-11)'
@@ -11762,10 +11773,13 @@ console.log(
       new URL('../lib/report/theme.ts', import.meta.url),
       'utf8'
     );
+    /*
+     * P4 로 바뀜 — plannedOuting 의 위임 대상이 day-state 의 nextOutingWindow 에서 lib/engine/outing.ts 의 outingOf 로 옮겼다(2판 P4
+     * 커밋 B: 오늘 상태 한 장과 매일 일정이 등판을 같은 함수로 읽게). 셈은 그대로라 아래 49쌍 · 160조합의 옛 식 견주기가 값을 지킨다.
+     */
     check(
-      '오늘 상태 (위임) theme.ts 의 hardOuting · plannedOuting 이 day-state 에 맡긴다(규칙 한 곳)',
-      /return recentHardOuting\(facts\);/.test(theme) &&
-        /nextOutingWindow\(/.test(theme)
+      '오늘 상태 (위임) theme.ts 의 hardOuting 은 day-state, plannedOuting 은 등판 한 곳(outingOf)에 맡긴다(규칙 한 곳)',
+      /return recentHardOuting\(facts\);/.test(theme) && /outingOf\(facts\)/.test(theme)
     );
     check(
       '오늘 상태 (문턱 한 곳) 팔 피로 문턱은 lib/checkin.ts 의 값을 암케어가 다시 내보낸다(4)',
@@ -11814,15 +11828,19 @@ console.log(
             yesterday: { throwPlan: y },
           });
           const w: W = t != null ? TODAY_W[t] : y != null ? YESTERDAY_W[y] : null;
-          const from = w == null ? null : t != null ? 'today' : 'yesterday';
+          /*
+           * P4 로 바뀜 — 칸 이름 nextFrom → nextSource(2판 P4 커밋 B, 지난 등판 출처 lastSource 와 가르려고). 값은 같은 뜻으로
+           * 옮겼을 뿐이다: 'today' → 'checkin' · 'yesterday' → 'checkin-yesterday' · null → 'none'.
+           */
+          const from = w == null ? 'none' : t != null ? 'checkin' : 'checkin-yesterday';
           const got = state.outing.daysUntilNext;
           const gotW: W = got ? [got.min, got.max] : null;
           const tag = `${noCheckinToday ? '체크인 없음' : (t ?? '안 적음')} / 어제 ${y ?? '안 적음'}`;
           if (
             JSON.stringify(gotW) !== JSON.stringify(w) ||
-            state.outing.nextFrom !== from
+            state.outing.nextSource !== from
           ) {
-            bad.push(`${tag}: ${JSON.stringify(gotW)} ${state.outing.nextFrom}`);
+            bad.push(`${tag}: ${JSON.stringify(gotW)} ${state.outing.nextSource}`);
           }
           const legacy = legacyPlanned(facts);
           if (plannedOuting(facts) !== legacy || plannedOf(got) !== legacy) {
@@ -11845,7 +11863,7 @@ console.log(
       }
     }
     check(
-      `오늘 상태 (등판 답) ${pairs}가지 — daysUntilNext · nextFrom 이 손으로 적은 표와 같다(오늘 답이 이김 · 어제 답은 하루 당김)`,
+      `오늘 상태 (등판 답) ${pairs}가지 — daysUntilNext · nextSource 가 손으로 적은 표와 같다(오늘 답이 이김 · 어제 답은 하루 당김)`,
       pairs === 56 && bad.length === 0,
       bad.slice(0, 3).join(' / ')
     );
@@ -11902,7 +11920,7 @@ console.log(
       {
         name: "기록 없음 + 어제 '오늘 등판' 답",
         p: { today: {}, yesterday: { throwPlan: '오늘 등판' } },
-        expect: { days: 1, source: 'checkin', pitches: null, load: null },
+        expect: { days: 1, source: 'checkin-yesterday', pitches: null, load: null },
       },
       {
         name: "어제 경기 60구 기록 + 어제 '오늘 등판' 답 (기록이 이긴다)",
@@ -11920,7 +11938,7 @@ console.log(
           yesterday: { throwPlan: '오늘 등판' },
           logs: [{ daysAgo: 3, pitches: 40, intensity: 7, sessionType: '불펜' }],
         },
-        expect: { days: 1, source: 'checkin', pitches: null, load: null },
+        expect: { days: 1, source: 'checkin-yesterday', pitches: null, load: null },
       },
       {
         name: '사흘 전 불펜 40구 70% (답 없음)',
@@ -11940,11 +11958,15 @@ console.log(
         expect: { days: 0, source: 'log', pitches: 20, load: 1000 },
       },
     ];
+    /*
+     * P4 로 바뀜 — 칸 이름 source → lastSource, 체크인 출처 값 'checkin' → 'checkin-yesterday'(2판 P4 커밋 B: 다음 등판 출처 nextSource 와
+     * 가르려고, 뜻은 같다 — 어제 '오늘 등판' 답). 날 · 투구수 · 부하 기대값은 그대로다.
+     */
     for (const c of cases) {
       const { state } = stateOf(c.p);
       const got = {
         days: state.outing.daysSinceLast,
-        source: state.outing.source,
+        source: state.outing.lastSource,
         pitches: state.outing.lastPitches,
         load: state.outing.lastLoad,
       };
@@ -12095,6 +12117,8 @@ console.log(
         armPain: { spots: saved.armPainSpots, level: saved.armPainLevel },
       };
       const facts = dsFacts(person);
+      /* 파일 끝 '[2판 P4] 등판 한 곳' 절이 같은 facts 로 다시 잰다(적기만 — 아래 검사는 그대로) */
+      p3ComboFactsSeen.push(facts);
       const plan = buildPitchPlan(facts);
       const factsBefore = JSON.stringify(facts);
       const state = buildDayState({ facts, plan, extras });
@@ -12189,15 +12213,15 @@ console.log(
           : []
       );
 
-      /* outing — 지난 등판의 출처 */
+      /* outing — 지난 등판의 출처(P4 로 바뀜 — 칸 이름 source → lastSource, 'checkin' → 'checkin-yesterday', 뜻 · 규칙은 그대로) */
       same('오늘 던짐', state.outing.threwToday, plan.threwToday);
       if (
-        state.outing.source === 'log' &&
+        state.outing.lastSource === 'log' &&
         state.outing.daysSinceLast !== facts.patterns.restDays
       )
         note('지난 등판', `${seed} 기록인데 날이 다름`);
       if (
-        state.outing.source === 'checkin' &&
+        state.outing.lastSource === 'checkin-yesterday' &&
         !(
           parseThrowPlan(facts.condition.throwPlanYesterday) === '오늘 등판' &&
           (facts.patterns.restDays == null || facts.patterns.restDays > 1) &&
@@ -13354,8 +13378,9 @@ console.log(
   );
   check(
     "알려진 엇갈림 (프로그램) 어제 '오늘 등판' 답만(기록 없음) → 프로그램만 경기 다음 날(엇갈림 표 C6 그대로 — D3 · P4)",
+    /* P4 로 바뀜 — 칸 이름 source → lastSource, 'checkin' → 'checkin-yesterday'(2판 P4 커밋 B, 뜻은 같다) */
     sigOf(null, '오늘 등판').gameYesterday === true &&
-      stateOf(unFacts(null, '오늘 등판')).outing.source === 'checkin'
+      stateOf(unFacts(null, '오늘 등판')).outing.lastSource === 'checkin-yesterday'
   );
 }
 
@@ -14064,6 +14089,491 @@ console.log(
     sevStateWord === '심함',
     String(sevStateWord)
   );
+}
+
+/* ═══════════════════ [2판 P4] 등판 한 곳 — lib/engine/outing.ts outingOf (2026-10-12) ═══════════════════ */
+console.log(
+  '\n[2판 P4] 등판 한 곳(outingOf) — 매일 일정 · 오늘 상태 한 장 · 일정 지문이 같은 함수, 출처 둘(nextSource · lastSource), 동작 변화 0(2026-10-12)'
+);
+{
+  /*
+   * 왜 보는가. 등판 전 무거운 하체 빼기 · 날 종류 · 달력(P4 뒤 커밋들)이 모두 outingOf 를 읽는다. 그 전에 이 커밋은 자리만 옮긴다 —
+   * theme.ts plannedOuting 과 오늘 상태 한 장의 outing 칸이 저마다 꺼내던 것을 한 함수로 모았으니 값은 하나도 안 바뀌어야 한다.
+   * (가) P3 의 식(글자 그대로 옮겨 둔 아래 legacy*)과 답 격자 · 160조합에서 견주고, (나) 오늘 상태 한 장이 그 결과를 그대로 싣는지,
+   * (다) 출처 둘이 손으로 적은 표대로 갈리는지, (라) 일정 지문이 같은 칸을 담는지(판단 입력이 바뀌면 지문도 바뀌는지),
+   * (마) 결정성 · 옛 facts, (바) 소스(순수 파일 · 위임 · 규칙 두 곳 없음)를 본다.
+   */
+  const json = (v: unknown) => JSON.stringify(v);
+  type F = ReturnType<typeof buildFacts>;
+  const key = (daysAgo: number) =>
+    new Date(TODAY.getTime() - daysAgo * 86400000).toISOString().slice(0, 10);
+  /* 체크인 한 줄 — 등판 답만 바꾼다(undefined 면 칸 자체가 없다) */
+  const ck = (daysAgo: number, throwPlan: string | null | undefined): CheckinLike => ({
+    date: key(daysAgo),
+    condition: 7,
+    sleep: '보통',
+    shoulder: '정상',
+    elbow: '정상',
+    wrist: '정상',
+    lowerBack: '정상',
+    lowerBody: '정상',
+    preferredParts: [],
+    preferredWorkout: null,
+    ...(throwPlan !== undefined ? { throwPlan } : {}),
+  });
+  type Lg = {
+    daysAgo: number;
+    pitches: number;
+    intensity: number;
+    sessionType: string;
+  };
+  /** 오늘 답 자리에 이 글자를 주면 오늘 체크인 자체가 없다 */
+  const NO_CHECKIN = 'no-checkin';
+  const factsOf = (
+    today: string | null,
+    yesterday: string | null,
+    logs: readonly Lg[]
+  ): F =>
+    buildFacts({
+      nickname: '등판',
+      age: 22,
+      heightCm: 180,
+      trainingLevel: null,
+      baselineDailyLoad: 100,
+      rehab: null,
+      today: TODAY,
+      logs: logs.map<PitchLogLike>((l) => ({
+        date: new Date(TODAY.getTime() - l.daysAgo * 86400000).toISOString(),
+        pitchCount: l.pitches,
+        intensity: l.intensity,
+        sessionType: l.sessionType,
+        maxVelocity: 130,
+        avgVelocity: 120,
+      })),
+      checkins: [...(today === NO_CHECKIN ? [] : [ck(0, today)]), ck(1, yesterday)],
+      memos: [],
+    });
+
+  /* P3(7ae15c7 ~ 0fbeb71)의 day-state 등판 칸 — 글자 그대로 옮겨 둔다(칸 이름 · 값도 그때 것). 동작 변화 0 을 이것과 견준다 */
+  const legacyP3Outing = (facts: F) => {
+    const patterns = facts.patterns;
+    const answerToday = parseThrowPlan(facts.condition.throwPlanToday);
+    const answerYesterday = parseThrowPlan(facts.condition.throwPlanYesterday);
+    const next = checkinNextOutingWindow(
+      facts.condition.throwPlanToday,
+      facts.condition.throwPlanYesterday
+    );
+    const logDays = patterns.restDays;
+    const yesterdayGame = exactOutingDay(nextOutingDays(answerYesterday)) === 0;
+    const fromLog = logDays != null && (logDays <= 1 || !yesterdayGame);
+    const source = fromLog ? 'log' : yesterdayGame ? 'checkin' : 'none';
+    return {
+      daysSinceLast: fromLog ? logDays : yesterdayGame ? 1 : null,
+      lastPitches: fromLog ? patterns.lastOutingPitches : null,
+      lastLoad: fromLog
+        ? ((patterns.hardOutings ?? []).find((o) => o.daysAgo === logDays)?.load ??
+          null)
+        : null,
+      source,
+      daysUntilNext: next.days ? { ...next.days } : null,
+      nextFrom: next.from,
+      answerToday,
+      answerYesterday,
+      answeredToday: facts.condition.throwPlanToday != null,
+      role: todayOutingRole(
+        facts.condition.throwPlanToday,
+        facts.condition.throwPlanYesterday
+      ),
+    };
+  };
+  /* 새 칸을 P3 이름 · 값으로 되돌려 읽기 — 위와 같은 차례 */
+  const P3_LAST = { log: 'log', 'checkin-yesterday': 'checkin', none: 'none' } as const;
+  const P3_NEXT = {
+    checkin: 'today',
+    'checkin-yesterday': 'yesterday',
+    none: null,
+    calendar: 'calendar(P3 에 없음)',
+    estimate: 'estimate(P3 에 없음)',
+  } as const;
+  const asP3 = (o: Outing) => ({
+    daysSinceLast: o.daysSinceLast,
+    lastPitches: o.lastPitches,
+    lastLoad: o.lastLoad,
+    source: P3_LAST[o.lastSource],
+    daysUntilNext: o.daysUntilNext,
+    nextFrom: P3_NEXT[o.nextSource],
+    answerToday: o.answerToday,
+    answerYesterday: o.answerYesterday,
+    answeredToday: o.answeredToday,
+    role: o.role,
+  });
+  /* P2 이전 plannedOuting 의 몸통(2026-10-12 ebcaea2 — '[2판 오늘 상태(P3)]' 절의 legacyPlanned 와 같은 글자) */
+  const legacyPlanned = (facts: F): 'today' | 'tomorrow' | null => {
+    const today = facts.condition.throwPlanToday ?? null;
+    const yesterday = facts.condition.throwPlanYesterday ?? null;
+    if (today != null) {
+      const days = nextOutingDays(today);
+      if (days?.max === 0) return 'today';
+      if (days?.min === 1 && days.max === 1) return 'tomorrow';
+      return null;
+    }
+    const days = nextOutingDays(yesterday);
+    return days?.min === 1 && days.max === 1 ? 'today' : null;
+  };
+  /* 키 차례와 상관없이 같은가 — 오늘 상태 한 장은 { threwToday, ...outingOf } 로 싣는다 */
+  const sorted = (o: object) =>
+    json(Object.fromEntries(Object.entries(o).sort(([a], [b]) => (a < b ? -1 : 1))));
+
+  /* 격자 — 오늘 답(여섯 · 안 적음 · 목록 밖 · 체크인 없음) × 어제 답(여섯 · 안 적음 · 목록 밖) × 기록 여섯 */
+  const ANSWERS: (string | null)[] = [...THROW_PLANS, null, '모레'];
+  const TODAYS: (string | null)[] = [...ANSWERS, NO_CHECKIN];
+  const LOGS: { name: string; logs: Lg[] }[] = [
+    { name: '기록 없음', logs: [] },
+    {
+      name: '어제 경기 60구',
+      logs: [{ daysAgo: 1, pitches: 60, intensity: 9, sessionType: '경기' }],
+    },
+    {
+      name: '오늘 경기 20구',
+      logs: [{ daysAgo: 0, pitches: 20, intensity: 9, sessionType: '경기' }],
+    },
+    {
+      name: '사흘 전 불펜 40구',
+      logs: [{ daysAgo: 3, pitches: 40, intensity: 7, sessionType: '불펜' }],
+    },
+    {
+      name: '이틀 전 경기 85구 + 오늘 캐치볼',
+      logs: [
+        { daysAgo: 2, pitches: 85, intensity: 10, sessionType: '경기' },
+        { daysAgo: 0, pitches: 20, intensity: 5, sessionType: '캐치볼' },
+      ],
+    },
+    {
+      name: '열흘 전 경기 90구',
+      logs: [{ daysAgo: 10, pitches: 90, intensity: 10, sessionType: '경기' }],
+    },
+  ];
+  const grid: { tag: string; logName: string; facts: F }[] = [];
+  for (const g of LOGS)
+    for (const t of TODAYS)
+      for (const y of ANSWERS)
+        grid.push({
+          tag: `${t ?? '안 적음'} / 어제 ${y ?? '안 적음'} / ${g.name}`,
+          logName: g.name,
+          facts: factsOf(t, y, g.logs),
+        });
+  const people = [
+    ...grid,
+    ...p3ComboFactsSeen.map((facts, i) => ({
+      tag: `160조합 p0-${i}`,
+      logName: `combo-${i}`,
+      facts,
+    })),
+  ];
+
+  /* ── (가) P3 의 식과 같다 ── */
+  const bad = {
+    p3: [] as string[],
+    planned: [] as string[],
+    nextDay: [] as string[],
+    soft: [] as string[],
+  };
+  for (const p of people) {
+    const o = outingOf(p.facts);
+    if (json(asP3(o)) !== json(legacyP3Outing(p.facts)))
+      bad.p3.push(`${p.tag}: ${json(asP3(o))} ≠ ${json(legacyP3Outing(p.facts))}`);
+    if (plannedOuting(p.facts) !== legacyPlanned(p.facts))
+      bad.planned.push(
+        `${p.tag}: ${plannedOuting(p.facts)} ≠ ${legacyPlanned(p.facts)}`
+      );
+    if (o.nextDay !== exactOutingDay(o.daysUntilNext))
+      bad.nextDay.push(`${p.tag}: ${o.nextDay}`);
+    if (o.soft || isSoftOutingSource(o.nextSource))
+      bad.soft.push(`${p.tag}: ${o.nextSource}`);
+  }
+  check(
+    `P4 등판 (가) 격자 ${grid.length} + 160조합 ${p3ComboFactsSeen.length} — outingOf 를 P3 이름으로 되읽으면 P3 의 day-state 식과 글자까지 같다`,
+    grid.length === 432 && p3ComboFactsSeen.length === 160 && bad.p3.length === 0,
+    bad.p3.slice(0, 2).join(' / ')
+  );
+  check(
+    `P4 등판 (가) 같은 ${people.length}명 — plannedOuting(이제 outingOf 의 nextDay) = 위임 전 옛 식`,
+    bad.planned.length === 0,
+    bad.planned.slice(0, 3).join(' / ')
+  );
+  check(
+    `P4 등판 (가) 같은 ${people.length}명 — nextDay = exactOutingDay(daysUntilNext), 짐작한 출처(soft)는 아직 없다`,
+    bad.nextDay.length === 0 && bad.soft.length === 0,
+    [...bad.nextDay, ...bad.soft].slice(0, 3).join(' / ')
+  );
+  /* 격자가 실제로 갈래를 덮는가 — 한쪽만 돌면 '같다'가 아무것도 안 지킨다 */
+  const outs = people.map((p) => outingOf(p.facts));
+  const coverOf = (f: (o: Outing) => boolean) => outs.filter(f).length;
+  const cover = {
+    nextCheckin: coverOf((o) => o.nextSource === 'checkin'),
+    nextYesterday: coverOf((o) => o.nextSource === 'checkin-yesterday'),
+    nextNone: coverOf((o) => o.nextSource === 'none'),
+    lastLog: coverOf((o) => o.lastSource === 'log'),
+    lastClaim: coverOf((o) => o.lastSource === 'checkin-yesterday'),
+    lastNone: coverOf((o) => o.lastSource === 'none'),
+    today: coverOf((o) => o.nextDay === 0),
+    tomorrow: coverOf((o) => o.nextDay === 1),
+    shifted: coverOf(
+      (o) =>
+        o.nextSource === 'checkin-yesterday' &&
+        o.nextDay == null &&
+        o.daysUntilNext != null
+    ),
+    load: coverOf((o) => o.lastLoad != null),
+  };
+  check(
+    'P4 등판 (가) 덮음 — 출처 여섯 갈래 · 오늘 · 내일 · 하루 당긴 범위 · 부하 있는 지난 등판이 모두 나온다',
+    Object.values(cover).every((n) => n > 0),
+    json(cover)
+  );
+
+  /* ── (나) 오늘 상태 한 장이 outingOf 를 그대로 싣는다 · 등판 이유 글 두 줄도 P3 와 같은 때 ── */
+  {
+    const miss: string[] = [];
+    for (const p of people) {
+      const plan = buildPitchPlan(p.facts);
+      const state = buildDayState({ facts: p.facts, plan });
+      const want = { threwToday: plan.threwToday, ...outingOf(p.facts) };
+      if (sorted(state.outing) !== sorted(want)) miss.push(`${p.tag}: 칸`);
+      const legacy = legacyP3Outing(p.facts);
+      const claim = state.why.includes('어제 등판했다고 적었는데 투구 기록은 없어요.');
+      if (claim !== (legacy.source === 'checkin'))
+        miss.push(`${p.tag}: 기록 없는 등판 줄`);
+      const viaYesterday = state.why.some((l) =>
+        l.startsWith('어제 적은 답으로 보면 ')
+      );
+      if (
+        viaYesterday !==
+        (legacy.nextFrom === 'yesterday' && legacy.daysUntilNext != null)
+      )
+        miss.push(`${p.tag}: 어제 답 줄`);
+    }
+    check(
+      `P4 등판 (나) ${people.length}명 — 오늘 상태 한 장의 outing = { threwToday, ...outingOf }, 등판 이유 글 두 줄은 P3 식과 같은 때 나온다`,
+      miss.length === 0,
+      miss.slice(0, 3).join(' / ')
+    );
+  }
+
+  /* ── (다) 출처 둘 — 손으로 적은 표 ── */
+  {
+    const NO: Lg[] = [];
+    const rows: {
+      name: string;
+      facts: F;
+      want: Partial<Record<keyof Outing, unknown>>;
+    }[] = [
+      {
+        name: "오늘 '내일 등판'",
+        facts: factsOf('내일 등판', null, NO),
+        want: {
+          nextSource: 'checkin',
+          nextDay: 1,
+          daysUntilNext: { min: 1, max: 1 },
+          lastSource: 'none',
+        },
+      },
+      {
+        name: "오늘 답 없음 + 어제 '내일 등판' → 오늘 등판(어제 답 이월)",
+        facts: factsOf(null, '내일 등판', NO),
+        want: { nextSource: 'checkin-yesterday', nextDay: 0, role: 'game' },
+      },
+      {
+        name: "오늘 답 없음 + 어제 '2~3일 뒤' → 1~2일 뒤(범위만, 날은 못 박음 없음)",
+        facts: factsOf(null, '2~3일 뒤', NO),
+        want: {
+          nextSource: 'checkin-yesterday',
+          nextDay: null,
+          daysUntilNext: { min: 1, max: 2 },
+        },
+      },
+      {
+        name: "오늘 '없음' + 어제 '내일 등판' → 오늘 답이 이긴다",
+        facts: factsOf('없음', '내일 등판', NO),
+        want: {
+          nextSource: 'none',
+          nextDay: null,
+          answeredToday: true,
+          role: null,
+        },
+      },
+      {
+        name: '오늘 경기 20구 기록 + 답 없음 → 지난 등판은 기록, 다음 등판은 모름(기록은 다음 등판이 아니다)',
+        facts: factsOf(null, null, [
+          { daysAgo: 0, pitches: 20, intensity: 9, sessionType: '경기' },
+        ]),
+        want: {
+          nextSource: 'none',
+          daysUntilNext: null,
+          lastSource: 'log',
+          daysSinceLast: 0,
+          lastPitches: 20,
+        },
+      },
+      {
+        name: "어제 '오늘 등판' + 기록 없음 → 지난 등판은 어제 답(1일 · 투구수 모름), 다음 등판 없음",
+        facts: factsOf(null, '오늘 등판', NO),
+        want: {
+          lastSource: 'checkin-yesterday',
+          daysSinceLast: 1,
+          lastPitches: null,
+          lastLoad: null,
+          nextSource: 'none',
+        },
+      },
+      {
+        name: "어제 '오늘 등판' + 어제 경기 60구 기록 → 기록이 이긴다(부하까지)",
+        facts: factsOf(null, '오늘 등판', [
+          { daysAgo: 1, pitches: 60, intensity: 9, sessionType: '경기' },
+        ]),
+        want: { lastSource: 'log', daysSinceLast: 1, lastPitches: 60, lastLoad: 6000 },
+      },
+    ];
+    for (const r of rows) {
+      const o = outingOf(r.facts);
+      const got = Object.fromEntries(
+        Object.keys(r.want).map((k) => [k, o[k as keyof Outing]])
+      );
+      check(
+        `P4 등판 (다) ${r.name}`,
+        json(got) === json(r.want) && o.soft === false,
+        json(got)
+      );
+    }
+    check(
+      'P4 등판 (다) 짐작한 출처 — 달력 · 같은 요일만 soft(커밋 G 몫), 체크인 · 없음은 아니다',
+      isSoftOutingSource('calendar') &&
+        isSoftOutingSource('estimate') &&
+        !isSoftOutingSource('checkin') &&
+        !isSoftOutingSource('checkin-yesterday') &&
+        !isSoftOutingSource('none')
+    );
+  }
+
+  /* ── (라) 일정 지문 — outingOf 가 읽는 칸을 같은 함수로 담는다 ── */
+  {
+    const miss: string[] = [];
+    for (const p of people) {
+      const fp = fingerprintOf(p.facts);
+      const answers = outingAnswersOf(p.facts);
+      const today = p.facts.condition.today;
+      /* 커밋 B 전 지문의 식 — 오늘 체크인의 throwPlan · facts 의 어제 답(동작 변화 0 을 이것과 견준다) */
+      const oldToday = today ? (today.throwPlan ?? null) : undefined;
+      const oldYesterday = p.facts.condition.throwPlanYesterday ?? null;
+      if (
+        fp.checkin?.throwPlan !== (today ? answers.today : undefined) ||
+        fp.throwPlanYesterday !== answers.yesterday ||
+        fp.checkin?.throwPlan !== oldToday ||
+        fp.throwPlanYesterday !== oldYesterday
+      )
+        miss.push(`${p.tag}: ${json([fp.checkin?.throwPlan, fp.throwPlanYesterday])}`);
+    }
+    check(
+      `P4 등판 (라) ${people.length}명 — 지문의 등판 답 둘 = outingAnswersOf = 커밋 B 전 지문의 값(글자까지)`,
+      miss.length === 0,
+      miss.slice(0, 3).join(' / ')
+    );
+    /*
+     * 판단 입력이 바뀌면 지문도 바뀐다 — 기록이 같은 격자 안에서 outingOf 가 다른 두 사람은 지문을 견주면 바뀐 줄이 하나 이상
+     * 나와야 한다(P2 규칙 '판단이 읽는 칸 = 지문 칸'). outingOf 가 지문에 없는 칸을 읽게 되면 여기서 깨진다.
+     */
+    let pairs = 0;
+    const silent: string[] = [];
+    for (const g of LOGS) {
+      const rows = grid.filter((p) => p.logName === g.name);
+      const outsOf = rows.map((p) => json(outingOf(p.facts)));
+      const fps = rows.map((p) => fingerprintOf(p.facts));
+      for (let i = 0; i < rows.length; i++)
+        for (let j = i + 1; j < rows.length; j++) {
+          if (outsOf[i] === outsOf[j]) continue;
+          pairs++;
+          if (diffFingerprintChanges(fps[i], fps[j]).length === 0)
+            silent.push(`${rows[i].tag} ↔ ${rows[j].tag}`);
+        }
+    }
+    check(
+      `P4 등판 (라) 기록이 같은 격자에서 등판이 다른 ${pairs}쌍 — 모두 지문 견주기에 바뀐 줄이 있다`,
+      pairs > 1000 && silent.length === 0,
+      silent.slice(0, 3).join(' / ')
+    );
+  }
+
+  /* ── (마) 결정성 · facts 를 안 바꿈 · 새 객체 · 옛 facts ── */
+  {
+    const f = factsOf(null, '2~3일 뒤', [
+      { daysAgo: 1, pitches: 60, intensity: 9, sessionType: '경기' },
+    ]);
+    const before = json(f);
+    const a = outingOf(f);
+    if (a.daysUntilNext) a.daysUntilNext.min = 99;
+    const b = outingOf(f);
+    check(
+      'P4 등판 (마) 같은 facts 두 번 → 같은 값, 돌려받은 범위를 고쳐도 다음 값 · facts 가 안 바뀐다',
+      json(b) === json(outingOf(f)) && b.daysUntilNext?.min === 1 && json(f) === before,
+      json(b)
+    );
+    const old = JSON.parse(json(f)) as F;
+    const cond = old.condition as Partial<F['condition']>;
+    delete cond.throwPlanToday;
+    delete cond.throwPlanYesterday;
+    delete (old.patterns as Partial<F['patterns']>).hardOutings;
+    let got: Outing | null = null;
+    let error = '';
+    try {
+      got = outingOf(old);
+    } catch (e) {
+      error = String(e);
+    }
+    check(
+      'P4 등판 (마) 옛 facts(답 · hardOutings 칸 없음) — 던지지 않고 답 없음 · 다음 등판 모름 · 지난 등판은 기록(부하 모름)',
+      got != null &&
+        got.answeredToday === false &&
+        got.nextSource === 'none' &&
+        got.daysUntilNext === null &&
+        got.lastSource === 'log' &&
+        got.daysSinceLast === 1 &&
+        got.lastLoad === null &&
+        json(outingAnswersOf(old)) === '{"today":null,"yesterday":null}',
+      error || json(got)
+    );
+  }
+
+  /* ── (바) 소스 — 순수 파일 · 위임 · 규칙 두 곳 없음 ── */
+  {
+    const strip = (p: string) =>
+      readFileSync(new URL(`../${p}`, import.meta.url), 'utf8')
+        .replace(/\/\*[\s\S]*?\*\//g, '')
+        .replace(/^\s*\/\/.*$/gm, '');
+    const outingSrc = strip('lib/engine/outing.ts');
+    const specs = [...outingSrc.matchAll(/from '([^']+)'/g)].map((m) => m[1]);
+    check(
+      'P4 등판 (바) lib/engine/outing.ts 는 순수 — import 는 lib/checkin.ts · facts 타입뿐, 날짜 함수 · 난수 · server-only 없음',
+      json([...new Set(specs)].sort()) ===
+        json(['@/lib/checkin', '@/lib/report/facts']) &&
+        /import type \{ ReportFacts \} from '@\/lib\/report\/facts';/.test(outingSrc) &&
+        !/new Date\(|appNow|Math\.random|server-only/.test(outingSrc),
+      specs.join(' · ')
+    );
+    const themeSrc = strip('lib/report/theme.ts');
+    const stateSrc = strip('lib/engine/day-state.ts');
+    const fpSrc = strip('lib/report/plan-fingerprint.ts');
+    check(
+      'P4 등판 (바) 위임 — theme.ts plannedOuting · day-state 의 outing 칸 · 일정 지문이 outing.ts 를 부르고, 셋 다 등판 답을 따로 합치지 않는다',
+      /const \{ nextDay \} = outingOf\(facts\);/.test(themeSrc) &&
+        /const outing = outingOf\(facts\);/.test(stateSrc) &&
+        /const answers = outingAnswersOf\(facts\);/.test(fpSrc) &&
+        ![themeSrc, stateSrc, fpSrc].some((s) =>
+          /nextOutingWindow\(|exactOutingDay\(|nextOutingDays\(|throwPlanToday|throwPlanYesterday \?\?|today\.throwPlan/.test(
+            s
+          )
+        )
+    );
+  }
 }
 
 console.log(`\n${passed}개 통과, ${failed}개 실패`);

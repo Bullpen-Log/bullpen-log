@@ -2,11 +2,11 @@ import { orderWithinSlot } from '@/lib/report/exercise-order';
 import {
   LOW_CONDITION_THRESHOLD,
   SEVERE_SORENESS,
-  exactOutingDay,
   sorenessWord,
   type CheckinPartKey,
 } from '@/lib/checkin';
-import { nextOutingWindow, recentHardOuting } from '@/lib/engine/day-state';
+import { recentHardOuting } from '@/lib/engine/day-state';
+import { outingOf } from '@/lib/engine/outing';
 import { LOWER_POWER_PATTERNS } from '@/lib/engine/exercise-class';
 import {
   HEAVY_EQUIPMENT,
@@ -269,20 +269,19 @@ export function hardOuting(facts: ReportFacts): HardOuting | null {
  * 답을 날로 읽는 규칙은 lib/checkin.ts 의 nextOutingDays 한 곳(2026-10-12, 2판 D1). 여기서는 그 범위가 꼭 오늘(0~0)
  * 이면 today, 꼭 내일(1~1)이면 tomorrow 만 가른다(lib/checkin.ts exactOutingDay — 영양 · 프로그램과 같은 물음) —
  * '2~3일 뒤' · '4일 이상 뒤'는 날을 못 박지 못하니 '없음'처럼 null(테마 그대로). 어제 답의 이월도 '내일 등판'(어제 기준 1~1) 하나뿐 — 어제 '2~3일 뒤'는 오늘 1~2일 뒤라 null.
- * 반환은 둘뿐이라 독자(decideTheme · workoutConflict)는 그대로다. 며칠 뒤 등판을 쓰는 규칙은 P4 · P5 에서 day-state 로.
+ * 반환은 둘뿐이라 독자(decideTheme · workoutConflict)는 그대로다. 며칠 뒤 등판을 쓰는 규칙(P4 · P5)은 이 함수를 넓히지 않고
+ * outingOf 의 daysUntilNext · nextSource 를 바로 읽는다.
  *
- * 오늘 · 어제 답을 합치는 규칙(오늘 답이 이김 · 어제 답은 하루 당겨 읽음)은 2026-10-12(2판 P3)부터 오늘 상태 한 장
- * (lib/engine/day-state.ts 의 nextOutingWindow) 한 곳 — 그 장의 outing.daysUntilNext 와 이 값이 늘 같은 셈에서 나온다.
- * 하루 당긴 어제 '2~3일 뒤'(1~2)는 꼭 내일이 아니니 여기서는 그대로 null 이다(옛 규칙과 같은 값 — 자체 시험이 답 49쌍 + 오늘 체크인 없음 7 · 160조합에서 견준다).
+ * 오늘 · 어제 답을 합치는 규칙(오늘 답이 이김 · 어제 답은 하루 당겨 읽음)은 2026-10-12(2판 P3)부터 lib/checkin.ts 의
+ * nextOutingWindow 한 곳이고, facts 에서 그 답을 꺼내 등판으로 읽는 일은 2판 P4 커밋 B(2026-10-12)부터 lib/engine/outing.ts 의
+ * outingOf 한 곳이다 — 오늘 상태 한 장(day-state)의 outing 칸과 이 값이 같은 함수에서 나온다(예전에는 둘이 저마다 꺼냈다).
+ * 여기서는 그 결과의 nextDay(꼭 오늘 0 · 꼭 내일 1)만 읽는다. 하루 당긴 어제 '2~3일 뒤'(1~2)는 꼭 내일이 아니니 그대로 null 이다
+ * (옛 규칙과 같은 값 — 자체 시험이 답 49쌍 + 오늘 체크인 없음 7 · 160조합에서 견준다).
  */
 export function plannedOuting(facts: ReportFacts): 'today' | 'tomorrow' | null {
-  const { days } = nextOutingWindow(
-    facts.condition.throwPlanToday,
-    facts.condition.throwPlanYesterday
-  );
-  const day = exactOutingDay(days);
-  if (day === 0) return 'today';
-  if (day === 1) return 'tomorrow';
+  const { nextDay } = outingOf(facts);
+  if (nextDay === 0) return 'today';
+  if (nextDay === 1) return 'tomorrow';
   return null;
 }
 
