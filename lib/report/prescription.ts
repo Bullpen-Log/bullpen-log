@@ -138,6 +138,90 @@ export function painStateUnknown(facts: ReportFacts): boolean {
   return facts.condition.painRecently && facts.condition.today == null;
 }
 
+/**
+ * 그 관절의 무거운 운동을 빼는 까닭 — 오늘 '뻐근'(5) · 최근 7일 통증(4-3) · 재활 1~3단계(4-3) · 메모에서 찾은 불편(5-1).
+ * 오늘 '통증'인 관절은 여기 없다 — 1-1) 이 가벼운 것까지 다 뺀다.
+ */
+export type EasedSource = 'stiff' | 'recentPain' | 'rehab' | 'memo';
+
+export type EasedJoint = {
+  key: CheckinPartKey;
+  source: EasedSource;
+  /** 그 관절과 함께 무거운 것을 빼는 부위(RELATED_PARTS) */
+  bodyParts: readonly string[];
+  /** 메모에서 찾은 까닭(source 'memo' 만) */
+  memo?: string;
+};
+
+/**
+ * 무거운 운동을 빼는 관절 — 안전 규칙 4-3 · 5 · 5-1 이 도는 차례 그대로(2판 P5 에서 뗌).
+ *
+ * 왜 두는가. 고르기 점수(2판 P5)가 '뻐근한 어깨를 쓰는 운동은 뒤로'를 매기고 그 까닭을 한 줄로 말하려면, 안전 규칙이 어느 관절을
+ * 왜 조심하는지를 같은 규칙으로 알아야 한다. 규칙을 점수 쪽에 베끼면 둘이 어긋나고(어떤 날은 빼고 점수는 모름), 출처 없이 부위만
+ * 합치면 재활 관절까지 '뻐근하다고 해서'로 말하게 된다(설계 검토). 그래서 '누가 · 어디를 · 왜'를 여기 한 곳에서 정하고 selectCandidates
+ * 의 세 규칙도 이것을 돈다 — 글(근거 · 규칙 이름)은 규칙 자리에 그대로 둔다.
+ *
+ * 차례와 건너뛰기(규칙과 같다):
+ *   4-3  최근 통증 · 재활 관절(합집합, 최근 통증 먼저 — 재활이기도 하면 출처 'rehab'). 오늘 '뻐근'인 관절은 건너뛴다(5 가 본다)
+ *   5    오늘 '뻐근' 관절(CHECKIN_PARTS 차례)
+ *   5-1  메모의 조심할 부위(넘겨받은 차례). 오늘 '뻐근'인 관절은 건너뛴다. 4-3 과 같은 관절이면 둘 다 남는다(규칙도 둘이 돈다)
+ * 같은 facts · caution 이면 늘 같은 목록이다. 처방을 멈춘 날(painStateUnknown)인지는 보지 않는다 — 그건 부르는 쪽이 먼저 본다.
+ */
+export function easedJointsOf(
+  facts: ReportFacts,
+  caution: readonly { part: CheckinPartKey; why: string }[] = []
+): EasedJoint[] {
+  const today = facts.condition.today;
+  const out: EasedJoint[] = [];
+  const rehabParts = rehabEasingParts(facts);
+  for (const key of new Set([...painEasingParts(facts), ...rehabParts])) {
+    if (today?.[key] === '뻐근') continue;
+    out.push({
+      key,
+      source: rehabParts.includes(key) ? 'rehab' : 'recentPain',
+      bodyParts: RELATED_PARTS[key],
+    });
+  }
+  for (const { key } of CHECKIN_PARTS) {
+    if (today?.[key] !== '뻐근') continue;
+    out.push({ key, source: 'stiff', bodyParts: RELATED_PARTS[key] });
+  }
+  for (const { part, why } of caution) {
+    if (today?.[part] === '뻐근') continue;
+    out.push({ key: part, source: 'memo', bodyParts: RELATED_PARTS[part], memo: why });
+  }
+  return out;
+}
+
+/**
+ * 한 부위를 두 까닭이 덮을 때(손목·전완은 팔꿈치 · 손목 둘에 든다 · 같은 관절이 최근 통증이면서 메모에도) 이유 글이 고를 차례 —
+ * 오늘 사용자가 직접 말한 것부터: 뻐근 → 최근 통증 → 재활 → 메모.
+ */
+const EASED_SOURCE_ORDER: readonly EasedSource[] = [
+  'stiff',
+  'recentPain',
+  'rehab',
+  'memo',
+];
+
+/**
+ * 부위(BodyPart 이름) → 그 부위를 조심하는 관절 하나(EASED_SOURCE_ORDER 가 앞선 것). 고르기 점수가 운동의 bodyParts 를 이 표에 대어
+ * '어깨가 뻐근하다고 해서' 같은 한 줄을 고른다. 안전 규칙은 이것을 쓰지 않는다(규칙은 관절마다 따로 돈다 — easedJointsOf).
+ */
+export function easedBodyPartsOf(
+  joints: readonly EasedJoint[]
+): Map<string, EasedJoint> {
+  const out = new Map<string, EasedJoint>();
+  const rank = (s: EasedSource) => EASED_SOURCE_ORDER.indexOf(s);
+  for (const joint of joints) {
+    for (const part of joint.bodyParts) {
+      const cur = out.get(part);
+      if (!cur || rank(joint.source) < rank(cur.source)) out.set(part, joint);
+    }
+  }
+  return out;
+}
+
 export type ExclusionReason = {
   rule: string;
   count: number;
@@ -431,40 +515,35 @@ export function selectCandidates<T extends ExerciseLike>({
    * 오늘 뻐근이라고 한 부위는 바로 아래 5) 가 같은 일을 하므로 건너뛴다.
    *
    * 재활 1~3단계의 관절도 같은 규칙이다(재활 2편) — 근거 줄만 '재활 중'. 둘 다면 재활 쪽 말을 쓴다.
+   *
+   * 4-3 · 5 · 5-1 의 '어느 관절 · 왜 · 무엇을 건너뛰나'는 easedJointsOf 한 곳이다(2판 P5 에서 뗌 — 고르기 점수가 같은 관절을 같은
+   * 출처로 읽는다). 세 규칙은 그 목록을 차례대로 돌며 저마다의 글로 근거 · 규칙 이름을 적는다(뗀 뒤에도 글 · 차례 · 뺀 수가 같다).
    */
-  const rehabParts = rehabEasingParts(facts);
-  for (const key of new Set([...painEasingParts(facts), ...rehabParts])) {
-    if (today?.[key] === '뻐근') continue;
-    const label = checkinPartLabel(key);
-    const parts: readonly string[] = RELATED_PARTS[key];
-    const why = rehabParts.includes(key) ? `재활 중(${label})` : `최근 ${label} 통증`;
-    basis.push(`${why} → ${parts.join('·')} 부위 고강도 제외`);
-    drop(
-      why,
-      (ex) =>
-        intensityLevel(ex.intensity) <= INTENSITY_CAP.MODERATE ||
-        !ex.bodyParts.some((p) => parts.includes(p))
-    );
+  const eased = easedJointsOf(facts, caution);
+  /*
+   * 적을 때는 BodyPart 로 검사받고(오타·없는 부위를 막는다 — RELATED_PARTS),
+   * 비교할 때는 문자열로 본다 — DB에서 온 bodyParts 는 string[] 이다.
+   */
+  const notHeavyOn = (parts: readonly string[]) => (ex: T) =>
+    intensityLevel(ex.intensity) <= INTENSITY_CAP.MODERATE ||
+    !ex.bodyParts.some((p) => parts.includes(p));
+  for (const joint of eased) {
+    if (joint.source !== 'recentPain' && joint.source !== 'rehab') continue;
+    const label = checkinPartLabel(joint.key);
+    const why = joint.source === 'rehab' ? `재활 중(${label})` : `최근 ${label} 통증`;
+    basis.push(`${why} → ${joint.bodyParts.join('·')} 부위 고강도 제외`);
+    drop(why, notHeavyOn(joint.bodyParts));
   }
 
   /*
    * 5) 뻐근한 부위는 그 부위를 쓰는 무거운 운동을 뺀다.
    *    가벼운 회복·가동성 운동은 오히려 도움이 되므로 남긴다.
    */
-  for (const { key, label } of CHECKIN_PARTS) {
-    if (today?.[key] !== '뻐근') continue;
-    /*
-     * 적을 때는 BodyPart 로 검사받고(오타·없는 부위를 막는다),
-     * 비교할 때는 문자열로 본다 — DB에서 온 bodyParts 는 string[] 이다.
-     */
-    const parts: readonly string[] = RELATED_PARTS[key];
-    basis.push(`${label} 뻐근함 → ${parts.join('·')} 부위 고강도 제외`);
-    drop(
-      `${label} 뻐근함`,
-      (ex) =>
-        intensityLevel(ex.intensity) <= INTENSITY_CAP.MODERATE ||
-        !ex.bodyParts.some((p) => parts.includes(p))
-    );
+  for (const joint of eased) {
+    if (joint.source !== 'stiff') continue;
+    const label = checkinPartLabel(joint.key);
+    basis.push(`${label} 뻐근함 → ${joint.bodyParts.join('·')} 부위 고강도 제외`);
+    drop(`${label} 뻐근함`, notHeavyOn(joint.bodyParts));
   }
 
   /*
@@ -472,19 +551,15 @@ export function selectCandidates<T extends ExerciseLike>({
    *
    * "스쿼트 때 무릎이 불편했다"고 적어 두고 체크인은 '정상'으로 넘기는 일이
    * 흔하다. 메모를 읽는 것은 자동 맞춤(지금은 규칙)이지만, 무엇을 빼는지는 여기 규칙이 정한다.
-   * 체크인에서 이미 뻐근이라고 한 부위는 위에서 걸렀으므로 건너뛴다.
+   * 체크인에서 이미 뻐근이라고 한 부위는 위에서 걸렀으므로 건너뛴다(easedJointsOf).
    */
-  for (const { part, why } of caution) {
-    if (today?.[part] === '뻐근') continue;
-    const label = CHECKIN_PARTS.find((p) => p.key === part)?.label ?? part;
-    const parts: readonly string[] = RELATED_PARTS[part];
-    basis.push(`메모에서 ${label} 불편(${why}) → ${parts.join('·')} 부위 고강도 제외`);
-    drop(
-      `메모 속 ${label} 불편`,
-      (ex) =>
-        intensityLevel(ex.intensity) <= INTENSITY_CAP.MODERATE ||
-        !ex.bodyParts.some((p) => parts.includes(p))
+  for (const joint of eased) {
+    if (joint.source !== 'memo') continue;
+    const label = checkinPartLabel(joint.key);
+    basis.push(
+      `메모에서 ${label} 불편(${joint.memo ?? ''}) → ${joint.bodyParts.join('·')} 부위 고강도 제외`
     );
+    drop(`메모 속 ${label} 불편`, notHeavyOn(joint.bodyParts));
   }
 
   /*

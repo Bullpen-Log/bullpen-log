@@ -1,6 +1,12 @@
 import { exactOutingDay, nextOutingDays, todayOutingRole } from '@/lib/checkin';
 import type { YesterdayArmLoad, YesterdayArmLoadKind } from '@/lib/engine/arm-load';
 import type { DayState } from '@/lib/engine/day-state';
+import {
+  LOWER_POWER_KEY,
+  UPPER_POWER_KEY,
+  movementKeyOf,
+  type ClassifiableExercise,
+} from '@/lib/engine/exercise-class';
 import { intensityLevel } from '@/lib/exercise-meta';
 import { canDo } from '@/lib/report/equipment';
 import { filterByLevel } from '@/lib/report/personalize';
@@ -752,6 +758,50 @@ export function dayPlan(
 /** 그날 그 변형의 처방(없으면 null) — 한 날에 같은 변형은 하나뿐이다(셀프테스트) */
 export function itemRx(plan: ProgramPlan, day: number, variant: VariantKey): ItemRx | null {
   return dayPlan(plan, day).items.find((x) => x.variant === variant) ?? null;
+}
+
+/**
+ * 변형이 쓰는 동작 열쇠(lib/engine/exercise-class.ts movementKeyOf 와 같은 말) — 고정 운동을 모를 때 쓰는 기본값.
+ *
+ * 변형 규칙(VARIANT_RULES)이 고르는 운동의 열쇠와 같다: 큰 하체 · 한 다리 · 밀기 · 당기기는 그 계열(하체 · 상체 스트렝스만 고르므로),
+ * 점프는 하체 파워(파워 · 스쿼트 · 런지), 메디신볼 · 회전 던지기는 상체 파워(먼저 고르는 것이 던지기 — 밀기 · 당기기 · 회전).
+ * 몸통 버티기는 코어라 열쇠가 없다(null). 기본기의 메디신볼 칸은 공이 없으면 맨몸 점프로 채운다 — 그런 칸 · 뛰며 던지는 것을 고정한
+ * 칸은 기본값이 틀리니, 고정 운동을 아는 쪽은 patternsOfProgramDay 의 exerciseOf 로 넘긴다.
+ */
+export const VARIANT_MOVEMENT_KEY: Record<VariantKey, string | null> = {
+  squat: '스쿼트',
+  hinge: '힌지',
+  push: '밀기',
+  pull: '당기기',
+  singleLeg: '런지',
+  jump: LOWER_POWER_KEY,
+  medball: UPPER_POWER_KEY,
+  antiRotation: null,
+  rotationalThrow: UPPER_POWER_KEY,
+};
+
+/**
+ * 그날(일차) 프로그램이 쓰는 동작 열쇠 — 매일 일정이 같은 동작을 겹쳐 내지 않게 고르기 점수(2판 P5)가 읽는다. 예: 내일 프로그램
+ * 일차에 스쿼트 · 밀기 칸이 있으면 오늘 일정의 바벨 스쿼트 · 벤치 프레스를 뒤로 민다.
+ *
+ * 순수 도우미다 — 무엇을 할지(dayPlan)만 읽고 몸 상태 · 그날 조정(decideToday)은 보지 않는다(그날 빠지는 칸이 있어도 '하기로 한 것'을
+ * 센다). plan 이 null(모르는 키 — parseProgram 실패)이면 빈 집합. exerciseOf 로 변형마다 고정한 운동을 넘기면 그 운동의 열쇠를 쓰고
+ * (movementKeyOf — 기본값보다 정확하다), 운동을 모르는 변형은 VARIANT_MOVEMENT_KEY 로. 열쇠가 없는 칸(코어)은 넣지 않는다.
+ * 같은 plan · day · 고정이면 늘 같은 집합이다.
+ */
+export function patternsOfProgramDay(
+  plan: ProgramPlan | null,
+  day: number,
+  exerciseOf?: (variant: VariantKey) => ClassifiableExercise | null | undefined
+): Set<string> {
+  const out = new Set<string>();
+  if (!plan) return out;
+  for (const x of dayPlan(plan, day).items) {
+    const ex = exerciseOf?.(x.variant);
+    const key = ex ? movementKeyOf(ex) : VARIANT_MOVEMENT_KEY[x.variant];
+    if (key != null) out.add(key);
+  }
+  return out;
 }
 
 /** 칸 이름 — 기본기의 첫 칸은 메디신볼이 없으면 점프로 채워 '던지기 · 점프'라 부른다 */

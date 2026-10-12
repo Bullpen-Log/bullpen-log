@@ -7,7 +7,11 @@ import {
 } from '@/lib/checkin';
 import { recentHardOuting } from '@/lib/engine/day-state';
 import { outingOf } from '@/lib/engine/outing';
-import { LOWER_POWER_PATTERNS } from '@/lib/engine/exercise-class';
+import {
+  HEAVY_CATEGORIES,
+  LOWER_POWER_PATTERNS,
+  UPPER_POWER_PATTERNS,
+} from '@/lib/engine/exercise-class';
 import { dayKindOf, type DayKind } from '@/lib/engine/microcycle';
 import {
   HEAVY_EQUIPMENT,
@@ -134,7 +138,7 @@ export const DEFAULT_WORKOUT_MINUTES = 60;
 export const RECOVERY_SHARE = 0.7;
 export const RECOVERY_MAX_MINUTES = 40;
 
-/**
+/*
  * 종목을 바꾸는 데 드는 시간(분).
  *
  * 세트 사이 휴식만 세고 있었다. 자리를 옮기고, 장비를 챙기고, 무게를 갈고,
@@ -144,8 +148,10 @@ export const RECOVERY_MAX_MINUTES = 40;
  * 무게를 드는 운동은 더 든다. 봉을 끼우고 원판을 갈고, 무엇보다 본세트 전에
  * 가벼운 무게로 두어 세트를 먼저 한다 — 앱이 그 준비 세트를 따로 세지 않으므로
  * 여기서 함께 먹는다.
+ *
+ * 무게를 드는 카테고리(HEAVY_CATEGORIES)는 lib/engine/exercise-class.ts 한 곳이다(2판 P5 에서 옮김 — 양 조절이
+ * 세트를 줄이는 대상도 같은 목록이라, 이 파일 안에 비공개로 두면 다른 층이 베끼게 된다).
  */
-const HEAVY_CATEGORIES = ['상체 스트렝스', '하체 스트렝스', '파워'];
 
 /**
  * 하루에 하나만 넣는 계열 — 고립(컬 · 레이즈 · 삼두 익스텐션, 2026-10-04 암케어에서 옮겨 옴).
@@ -1128,8 +1134,11 @@ const COMPOSITIONS: Record<ThemeKey, SlotSpec[]> = {
       slot: 'main',
       share: 0.7,
       categories: ['상체 스트렝스', '파워'],
-      /* 상체날의 파워는 던지는 계열만 — 스쿼트·런지 점프는 하체날 몫이다 */
-      powerPatterns: ['밀기', '당기기', '회전'],
+      /*
+       * 상체날의 파워는 던지는 계열만 — 스쿼트·런지 점프는 하체날 몫이다. 목록은 상체 파워 판정(lib/engine/exercise-class.ts
+       * isUpperPower)과 한 벌이다(2판 P5 — 고르기 점수 · 프로그램 겹침이 같은 말로 본다).
+       */
+      powerPatterns: UPPER_POWER_PATTERNS,
       maxCount: 8,
     },
   ],

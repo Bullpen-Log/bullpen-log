@@ -22,6 +22,7 @@ import {
   type ThemeKey,
 } from '@/lib/report/theme';
 import { dayKindOf, shortenPitchesOf, shortenedMinutes } from '@/lib/engine/microcycle';
+import { shiftDateKey } from '@/lib/pitch-stats';
 import type { ReportFacts } from '@/lib/report/facts';
 import type { PitchPlan } from '@/lib/report/plan';
 import type { AutoCaution, AutoRecord } from '@/lib/report/auto-setup';
@@ -452,4 +453,52 @@ export function strengthDatesFrom({
       upper: latest.upper?.source ?? null,
     },
   };
+}
+
+/* ------------------------- 최근 2주에 마친 동작 계열(2판 P5) ------------------------- */
+
+/** 동작 계열을 세는 기간(일) — 하체 · 상체를 번갈아 볼 때와 같은 2주(gather.ts 의 ROTATION_LOOKBACK_DAYS) */
+export const PATTERNS_LOOKBACK_DAYS = 14;
+
+/**
+ * 최근 2주(오늘 빼고) 안에 마친 동작 계열별 날 수 — 고르기 점수(2판 P5)가 '2주 동안 힌지를 안 해서 앞에 뒀어요'를 매길 때 읽는다.
+ * 계열은 라이브러리 칸 그대로(스쿼트 · 힌지 · 런지 · 밀기 · 당기기 · 회전 · 운반 · 카프 · 고립 — exercise-meta MOVEMENT_PATTERNS)다.
+ * 박스 점프(파워 · 스쿼트)도 스쿼트를 한 날로 센다 — 관절이 하는 일로 가르는 그 칸의 약속 그대로다.
+ *
+ * 규칙
+ *   완료 기록만 센다. 저장된 일정(계획)은 안 센다 — '안 해서'라고 말하려면 실제로 안 한 것이어야 한다(계획만 세우고 안 한 힌지를
+ *     했다고 치면 이유 글이 거짓이 된다). 그래서 strengthDatesFrom(하체 · 상체 차례 — 계획도 '한 날')과 규칙이 다르다.
+ *   마친 날이 하루도 없으면 null — 그때는 모든 계열이 0 이라 '안 한 계열'이 뜻이 없다(마침을 안 누르는 사람에게 점수가 다 붙는다).
+ *     부르는 쪽은 null 이면 이 항목을 끈다. 마친 날은 있는데 계열이 하나도 없으면(코어 · 모빌리티만) 빈 Map 이다.
+ *   하루에 같은 계열을 여럿 해도 그날 하나로 센다(날 수) — 한 세션에 스쿼트 둘을 한 것보다 며칠에 나눠 한 것이 '자주'다.
+ *   오늘 것은 안 센다 — 오늘 체크할 때마다 오늘 목록이 바뀌지 않게(strengthDatesFrom 과 같은 원칙). 기간 밖(14일보다 앞)도 안 센다.
+ *   암케어는 뺀다 — 일정과 따로 매일 하는 루틴이라(gather.ts exerciseSessionsAgo 와 같은 까닭) 밴드 당기기가 '당기기를 한 날'이 되면
+ *     안 된다. 재활 체크(재활 단계에서 한 운동)는 부르는 쪽이 뺀다 — 재활 기간을 알아야 가를 수 있다(gather.ts 의 isRehabCheck).
+ * 같은 입력이면 늘 같은 Map 이다(넣는 차례는 계열 이름순).
+ */
+export function patternsDoneFrom({
+  done,
+  todayKey,
+}: {
+  /** 완료한 운동 — 날짜 키(YYYY-MM-DD) · 카테고리 · 동작 계열(없으면 null) */
+  done: readonly { date: string; category: string; movementPattern: string | null }[];
+  /** 오늘(YYYY-MM-DD) — 이날부터는 안 본다 */
+  todayKey: string;
+}): Map<string, number> | null {
+  const sinceKey = shiftDateKey(todayKey, -PATTERNS_LOOKBACK_DAYS);
+  const sessionDays = new Set<string>();
+  const daysOf = new Map<string, Set<string>>();
+  for (const d of done) {
+    if (d.date >= todayKey || d.date < sinceKey) continue;
+    if (d.category === '암케어') continue;
+    sessionDays.add(d.date);
+    if (!d.movementPattern) continue;
+    const set = daysOf.get(d.movementPattern) ?? new Set<string>();
+    set.add(d.date);
+    daysOf.set(d.movementPattern, set);
+  }
+  if (sessionDays.size === 0) return null;
+  return new Map(
+    [...daysOf.keys()].sort().map((pattern) => [pattern, daysOf.get(pattern)!.size])
+  );
 }

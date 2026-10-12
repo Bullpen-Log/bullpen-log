@@ -117,7 +117,10 @@ import {
 } from '../lib/report/plan.ts';
 import {
   HEAVY_LOWER_BLOCK_WITHIN_DAYS,
+  checkinPartLabel,
   droppedOnlyForArmFatigue,
+  easedBodyPartsOf,
+  easedJointsOf,
   painEasingParts,
   painPartsToday,
   painStateUnknown,
@@ -132,12 +135,23 @@ import {
   type DayStateExtras,
 } from '../lib/engine/day-state.ts';
 import {
+  ECCENTRIC_OVERLOAD_MARKER,
+  HEAVY_CATEGORIES,
+  LOWER_POWER_KEY,
   LOWER_POWER_PATTERNS,
+  UPPER_POWER_KEY,
+  UPPER_POWER_PATTERNS,
   isArmPlyo,
+  isEccentricOverload,
   isHeavyLower,
   isHeavyUpperPush,
+  isLowerEccentric,
+  isLowerPower,
+  isUpperPower,
+  movementKeyOf,
   type ClassifiableExercise,
 } from '../lib/engine/exercise-class.ts';
+import { TRAINING_CATEGORY_NAMES } from '../lib/categories.ts';
 import {
   ESTIMATE_LOOKBACK_DAYS,
   ESTIMATE_MIN_GAMES,
@@ -232,6 +246,7 @@ import {
 } from '../lib/report/theme.ts';
 import {
   BODY_PARTS,
+  EXERCISE_EQUIPMENT,
   EXERCISE_NOTE_MAX,
   INTENSITY_CAP,
   cleanExerciseNote,
@@ -359,8 +374,10 @@ import {
   validateBaseline,
 } from '../lib/baseline.ts';
 import {
+  PATTERNS_LOOKBACK_DAYS,
   buildDailyPlan,
   isHalted,
+  patternsDoneFrom,
   plannedStrengthSide,
   readDailyPlan,
   strengthDatesFrom,
@@ -399,16 +416,22 @@ import {
 } from '../lib/nutrition/guide.ts';
 import {
   CAUTION_TEXT,
+  PROGRAMS,
   REST_TEXT,
   REST_YESTERDAY_TEXT,
   SUBSTITUTE_REASON,
+  VARIANT_KEYS,
+  VARIANT_MOVEMENT_KEY,
   dayPlan as programDayPlan,
   decideToday,
   painSlotsOf,
   parseProgram,
+  patternsOfProgramDay,
   pickPinned,
+  programKeyOf,
   programSignalsOf,
   restTextOf,
+  variantCandidates,
   type ProgramSignals,
   type TodaySignals,
 } from '../lib/program/program.ts';
@@ -19976,6 +19999,624 @@ console.log(
       /process\.exitCode = 1;/.test(tool) &&
       /version: 8,/.test(tool) &&
       /if \(GATE_ARG != null && !isGateStage\(GATE_ARG\)\)/.test(tool)
+  );
+}
+
+/* ═══════════════════ [2판 P5] 순수 도우미 — lib/engine/exercise-class.ts 분류 · prescription.ts easedJointsOf · program.ts patternsOfProgramDay · daily-plan.ts patternsDoneFrom (2026-10-12) ═══════════════════ */
+console.log(
+  '\n[2판 P5] 순수 도우미 — 분류 한 곳(무게 드는 카테고리 · 하체 · 상체 파워 · 천천히 내리기 · 동작 열쇠) · 조심할 관절 · 프로그램 동작 · 2주 계열, 동작 변화 0(2026-10-12)'
+);
+{
+  /*
+   * 왜 보는가. 고르기 점수 · 양 조절(2판 P5)이 '무엇이 하체 파워인가 · 어느 관절을 왜 조심하나 · 프로그램이 내일 무엇을 하나 · 2주 동안 안 한
+   * 계열은 무엇인가'를 같은 정의로 읽어야 한다. 이 커밋은 그 정의만 둔다 — 고르는 결과는 하나도 안 바뀐다(전체 시험 · 기준선 --compare).
+   * (가) 분류 표 · 실제 표 · theme 이 같은 목록을 쓰는지, (나) 조심할 관절이 안전 규칙 4-3 · 5 · 5-1 과 글자까지 같은지(옛 규칙을 이 절에
+   * 따로 적어 견준다 — 같은 함수끼리 견주면 아무것도 안 본다), (다) 프로그램 일차의 동작 열쇠가 변형 규칙이 고르는 운동과 맞는지,
+   * (라) 2주 계열 셈의 경계(오늘 · 14일 · 암케어 · 마친 날 없음)를 본다.
+   */
+  const json = (v: unknown) => JSON.stringify(v);
+  const ex = (
+    o: Partial<ClassifiableExercise> & { category: string }
+  ): ClassifiableExercise => ({
+    intensity: '중간',
+    bodyParts: [],
+    equipment: ['맨몸'],
+    ...o,
+  });
+  const table = <E,>(
+    name: string,
+    fn: (e: E) => unknown,
+    rows: [string, E, unknown][]
+  ) => {
+    const wrong = rows
+      .filter(([, e, want]) => json(fn(e)) !== json(want))
+      .map(([label, e]) => `${label}(${json(fn(e))})`);
+    check(`${name} — ${rows.length}경우`, wrong.length === 0, wrong.join(' · '));
+  };
+
+  /* ── (가) 분류 ── */
+  check(
+    'P5 도우미 (가) 무게 드는 카테고리 = 상체 스트렝스 · 하체 스트렝스 · 파워, 모두 실제 카테고리 이름',
+    json(HEAVY_CATEGORIES) === json(['상체 스트렝스', '하체 스트렝스', '파워']) &&
+      HEAVY_CATEGORIES.every((c) => TRAINING_CATEGORY_NAMES.includes(c)),
+    json(HEAVY_CATEGORIES)
+  );
+  const upperMains = [null, ...TRAINING_GOALS.map((g) => g.name)]
+    .map((g) => compositionFor('upper', g).find((s) => s.slot === 'main'))
+    .filter((s) => s != null);
+  check(
+    'P5 도우미 (가) 상체날 본운동의 파워 계열 = UPPER_POWER_PATTERNS 그 목록(목표마다) · 밀기 · 당기기 · 회전 · 하체 계열과 안 겹침',
+    upperMains.length > 0 &&
+      upperMains.every((s) => s.powerPatterns === UPPER_POWER_PATTERNS) &&
+      json(UPPER_POWER_PATTERNS) === json(['밀기', '당기기', '회전']) &&
+      UPPER_POWER_PATTERNS.every((p) => !LOWER_POWER_PATTERNS.includes(p)),
+    json(upperMains.map((s) => s.powerPatterns))
+  );
+  table('P5 도우미 (가) 하체 파워 isLowerPower', isLowerPower, [
+    [
+      '파워 · 스쿼트(박스 점프)',
+      ex({ category: '파워', movementPattern: '스쿼트' }),
+      true,
+    ],
+    ['파워 · 힌지(스윙)', ex({ category: '파워', movementPattern: '힌지' }), true],
+    [
+      '파워 · 밀기 · 고관절 꼬리표 → 계열이 이김',
+      ex({ category: '파워', movementPattern: '밀기', bodyParts: ['고관절'] }),
+      false,
+    ],
+    [
+      '파워 · 계열 없음 · 종아리·발목',
+      ex({ category: '파워', bodyParts: ['종아리·발목'] }),
+      true,
+    ],
+    [
+      '파워 · 계열 없음 · 전신(메디신볼 슬램 꼬리표)',
+      ex({ category: '파워', bodyParts: ['전신'] }),
+      false,
+    ],
+    [
+      '하체 스트렝스 · 스쿼트 → 파워가 아님',
+      ex({ category: '하체 스트렝스', movementPattern: '스쿼트' }),
+      false,
+    ],
+  ]);
+  table('P5 도우미 (가) 상체 파워 isUpperPower', isUpperPower, [
+    ['파워 · 회전', ex({ category: '파워', movementPattern: '회전' }), true],
+    ['파워 · 당기기', ex({ category: '파워', movementPattern: '당기기' }), true],
+    [
+      '파워 · 런지 · 메디신볼(뛰며 내리치기) → 계열이 이김',
+      ex({ category: '파워', movementPattern: '런지', equipment: ['메디신볼'] }),
+      false,
+    ],
+    [
+      '파워 · 계열 없음 · 메디신볼',
+      ex({ category: '파워', equipment: ['메디신볼'] }),
+      true,
+    ],
+    ['파워 · 계열 없음 · 어깨', ex({ category: '파워', bodyParts: ['어깨'] }), true],
+    [
+      '파워 · 계열 없음 · 고관절',
+      ex({ category: '파워', bodyParts: ['고관절'] }),
+      false,
+    ],
+    [
+      '상체 스트렝스 · 밀기 → 파워가 아님',
+      ex({ category: '상체 스트렝스', movementPattern: '밀기' }),
+      false,
+    ],
+  ]);
+  const titled = (
+    o: Partial<ClassifiableExercise> & { category: string; title: string }
+  ) => ({ ...ex(o), title: o.title });
+  table('P5 도우미 (가) 천천히 내리는 하체 isLowerEccentric', isLowerEccentric, [
+    [
+      '노르딕 햄스트링 컬 · 하체 스트렝스',
+      titled({
+        category: '하체 스트렝스',
+        title: '노르딕 햄스트링 컬',
+        movementPattern: '힌지',
+      }),
+      true,
+    ],
+    [
+      '에센트릭 포즈 RDL · 하체 스트렝스',
+      titled({
+        category: '하체 스트렝스',
+        title: '에센트릭 포즈 RDL',
+        movementPattern: '힌지',
+      }),
+      true,
+    ],
+    [
+      '스쿼트 점프 (에센트릭) · 파워 · 스쿼트',
+      titled({
+        category: '파워',
+        title: '밴드 저항 스쿼트 점프 (에센트릭)',
+        movementPattern: '스쿼트',
+      }),
+      true,
+    ],
+    [
+      '덤벨 컬 에센트릭 오버로드 · 암케어(팔)',
+      titled({
+        category: '암케어',
+        title: '덤벨 컬 에센트릭 오버로드',
+        bodyParts: ['이두', '팔꿈치'],
+      }),
+      false,
+    ],
+    [
+      '에센트릭 덤벨 벤치 프레스 · 상체',
+      titled({
+        category: '상체 스트렝스',
+        title: '에센트릭 덤벨 벤치 프레스',
+        movementPattern: '밀기',
+      }),
+      false,
+    ],
+    [
+      '바벨 백 스쿼트(이름 표시 없음)',
+      titled({
+        category: '하체 스트렝스',
+        title: '바벨 백 스쿼트',
+        movementPattern: '스쿼트',
+      }),
+      false,
+    ],
+  ]);
+  table('P5 도우미 (가) 동작 열쇠 movementKeyOf', movementKeyOf, [
+    [
+      '하체 스트렝스 · 스쿼트',
+      ex({ category: '하체 스트렝스', movementPattern: '스쿼트' }),
+      '스쿼트',
+    ],
+    [
+      '상체 스트렝스 · 당기기',
+      ex({ category: '상체 스트렝스', movementPattern: '당기기' }),
+      '당기기',
+    ],
+    ['상체 스트렝스 · 계열 없음', ex({ category: '상체 스트렝스' }), null],
+    [
+      '파워 · 스쿼트(점프) → 하체 파워(스쿼트 근력과 다른 열쇠)',
+      ex({ category: '파워', movementPattern: '스쿼트' }),
+      LOWER_POWER_KEY,
+    ],
+    [
+      '파워 · 밀기 → 상체 파워',
+      ex({ category: '파워', movementPattern: '밀기' }),
+      UPPER_POWER_KEY,
+    ],
+    [
+      '파워 · 계열 없음 · 고관절 + 메디신볼 → 하체를 먼저',
+      ex({ category: '파워', bodyParts: ['고관절'], equipment: ['메디신볼'] }),
+      LOWER_POWER_KEY,
+    ],
+    [
+      '파워 · 계열 없음 · 코어 → 없음',
+      ex({ category: '파워', bodyParts: ['코어'] }),
+      null,
+    ],
+    [
+      '코어 · 회전 → 없음(겹침을 셀 무게가 아님)',
+      ex({ category: '코어', movementPattern: '회전' }),
+      null,
+    ],
+  ]);
+
+  /* 실제 표 — 수는 detail 로만(라이브러리는 날마다 바뀐다 — P4 분류 절과 같은 원칙), 성질을 본다 */
+  const power = library.filter((e) => e.category === '파워');
+  const lowerPowerLib = library.filter(isLowerPower);
+  const upperPowerLib = library.filter(isUpperPower);
+  check(
+    'P5 도우미 (가) 실제 표 — 무거운 하체의 파워 몫 = 하체 파워(같은 판정) · 하체 · 상체 파워 둘 다인 것 없음 · 둘 다 0 이 아니고 파워 안',
+    power.every((e) => isHeavyLower(e) === isLowerPower(e)) &&
+      library.every((e) => !(isLowerPower(e) && isUpperPower(e))) &&
+      lowerPowerLib.length > 0 &&
+      upperPowerLib.length > 0 &&
+      [...lowerPowerLib, ...upperPowerLib].every((e) => e.category === '파워'),
+    `하체 파워 ${lowerPowerLib.length} · 상체 파워 ${upperPowerLib.length} / 파워 ${power.length}`
+  );
+  check(
+    'P5 도우미 (가) 실제 표 — 계열이 있는 파워는 상체날 칸에 들면(계열 ∈ UPPER_POWER_PATTERNS) 상체 파워, 하체날 칸에 들면 하체 파워',
+    power
+      .filter((e) => e.movementPattern != null)
+      .every(
+        (e) =>
+          UPPER_POWER_PATTERNS.includes(e.movementPattern!) === isUpperPower(e) &&
+          LOWER_POWER_PATTERNS.includes(e.movementPattern!) === isLowerPower(e)
+      )
+  );
+  const eccMethod = ARMCARE_METHODS.find((m) => m.key === 'eccentric');
+  const overload = library.filter(isEccentricOverload);
+  check(
+    "P5 도우미 (가) 에센트릭 오버로드 — 표시가 암케어 방식 표와 같고, 실제 표에서 isEccentricOverload ⟺ methodOf 가 'eccentric'",
+    eccMethod?.titleMarker === ECCENTRIC_OVERLOAD_MARKER &&
+      library.every(
+        (e) => isEccentricOverload(e) === (methodOf(e.title)?.key === 'eccentric')
+      ),
+    `${overload.length}개`
+  );
+  const lowerEcc = library.filter(isLowerEccentric);
+  check(
+    'P5 도우미 (가) 실제 표 천천히 내리는 하체 0 < n · 모두 하체 스트렝스이거나 하체 파워 · 암케어 에센트릭 오버로드는 하나도 안 듦',
+    lowerEcc.length > 0 &&
+      lowerEcc.every((e) => e.category === '하체 스트렝스' || isLowerPower(e)) &&
+      !lowerEcc.some(isEccentricOverload),
+    `${lowerEcc.length}개: ${lowerEcc.map((e) => e.title).join(' · ')}`
+  );
+  check(
+    'P5 도우미 (가) 실제 표 동작 열쇠 — 스트렝스는 계열 그대로, 파워는 하체 · 상체 파워 · 없음, 그 밖은 모두 없음',
+    library.every((e) => {
+      const key = movementKeyOf(e);
+      if (e.category === '하체 스트렝스' || e.category === '상체 스트렝스')
+        return key === (e.movementPattern ?? null);
+      if (e.category === '파워')
+        return key === LOWER_POWER_KEY || key === UPPER_POWER_KEY || key === null;
+      return key === null;
+    })
+  );
+
+  /* ── (나) 조심할 관절 — 안전 규칙 4-3 · 5 · 5-1 이 2판 P5 전에 하던 일을 여기 따로 적어 견준다 ── */
+  const RELATED_REF: Record<CheckinPartKey, string[]> = {
+    shoulder: ['어깨', '견갑', '가슴', '등'],
+    elbow: ['팔꿈치', '손목·전완', '이두', '삼두'],
+    wrist: ['손목·전완', '팔꿈치'],
+    lowerBack: ['코어', '등', '고관절'],
+    lowerBody: ['고관절', '햄스트링·둔근', '전신'],
+  };
+  type Caution = { part: CheckinPartKey; why: string };
+  /** 옛 세 고리(4-3 · 5 · 5-1)가 낸 [관절 · 출처 · 근거 줄 · 규칙 이름] — 2판 P5 전 prescription.ts 를 그대로 옮긴 것 */
+  const oldEased = (facts: ReturnType<typeof buildFacts>, caution: Caution[]) => {
+    const today = facts.condition.today;
+    const out: {
+      key: string;
+      source: string;
+      memo?: string;
+      line: string;
+      rule: string;
+    }[] = [];
+    const rehabParts = rehabEasingParts(facts);
+    for (const key of new Set([...painEasingParts(facts), ...rehabParts])) {
+      if (today?.[key] === '뻐근') continue;
+      const label = checkinPartLabel(key);
+      const parts = RELATED_REF[key];
+      const why = rehabParts.includes(key) ? `재활 중(${label})` : `최근 ${label} 통증`;
+      out.push({
+        key,
+        source: rehabParts.includes(key) ? 'rehab' : 'recentPain',
+        line: `${why} → ${parts.join('·')} 부위 고강도 제외`,
+        rule: why,
+      });
+    }
+    for (const { key, label } of CHECKIN_PARTS) {
+      if (today?.[key] !== '뻐근') continue;
+      out.push({
+        key,
+        source: 'stiff',
+        line: `${label} 뻐근함 → ${RELATED_REF[key].join('·')} 부위 고강도 제외`,
+        rule: `${label} 뻐근함`,
+      });
+    }
+    for (const { part, why } of caution) {
+      if (today?.[part] === '뻐근') continue;
+      const label = CHECKIN_PARTS.find((p) => p.key === part)?.label ?? part;
+      out.push({
+        key: part,
+        source: 'memo',
+        memo: why,
+        line: `메모에서 ${label} 불편(${why}) → ${RELATED_REF[part].join('·')} 부위 고강도 제외`,
+        rule: `메모 속 ${label} 불편`,
+      });
+    }
+    return out;
+  };
+  const craft = (o: {
+    stiff?: CheckinPartKey | null;
+    pain?: CheckinPartKey | null;
+    recent?: CheckinPartKey[];
+    rehab?: CheckinPartKey[];
+  }): ReturnType<typeof buildFacts> => {
+    const parts: Partial<Record<CheckinPartKey, string>> = {};
+    if (o.stiff) parts[o.stiff] = '뻐근';
+    if (o.pain) parts[o.pain] = '통증';
+    const base = factsFor({ condition: 7, parts });
+    return {
+      ...base,
+      condition: {
+        ...base.condition,
+        painRecently: (o.recent ?? []).length > 0 || base.condition.painRecently,
+        painRecentParts: o.recent ?? [],
+        rehabParts: o.rehab ?? [],
+      },
+    };
+  };
+
+  /* 표 하나 — 차례 · 건너뛰기 · 출처가 규칙과 같은가 */
+  const tableFacts = craft({
+    stiff: 'shoulder',
+    recent: ['elbow', 'shoulder'],
+    rehab: ['lowerBack', 'elbow'],
+  });
+  const tableCaution: Caution[] = [
+    { part: 'shoulder', why: '어깨가 무거움' },
+    { part: 'lowerBody', why: '무릎 불편' },
+    { part: 'elbow', why: '팔꿈치 찌릿' },
+  ];
+  const joints = easedJointsOf(tableFacts, tableCaution);
+  check(
+    'P5 도우미 (나) easedJointsOf 표 — 최근 통증 · 재활(합집합 · 둘 다면 재활) → 뻐근 → 메모 차례, 뻐근한 어깨는 4-3 · 5-1 에서 건너뜀, 같은 관절의 재활과 메모는 둘 다 남음',
+    json(joints.map((j) => [j.key, j.source, j.memo ?? null])) ===
+      json([
+        ['elbow', 'rehab', null],
+        ['lowerBack', 'rehab', null],
+        ['shoulder', 'stiff', null],
+        ['lowerBody', 'memo', '무릎 불편'],
+        ['elbow', 'memo', '팔꿈치 찌릿'],
+      ]) && joints.every((j) => json(j.bodyParts) === json(RELATED_REF[j.key])),
+    json(joints)
+  );
+  const byPart = easedBodyPartsOf(
+    easedJointsOf(craft({ stiff: 'wrist', recent: ['elbow'] }), [
+      { part: 'elbow', why: '메모' },
+    ])
+  );
+  check(
+    'P5 도우미 (나) easedBodyPartsOf — 두 까닭이 덮는 부위는 오늘 말한 것부터(뻐근한 손목이 팔꿈치 · 손목·전완을 가짐), 이두는 최근 팔꿈치 통증',
+    byPart.get('손목·전완')?.source === 'stiff' &&
+      byPart.get('팔꿈치')?.key === 'wrist' &&
+      byPart.get('이두')?.source === 'recentPain' &&
+      byPart.get('삼두')?.key === 'elbow' &&
+      !byPart.has('어깨'),
+    json([...byPart].map(([p, j]) => [p, j.key, j.source]))
+  );
+  check(
+    'P5 도우미 (나) 오늘 통증인 관절은 조심 목록에 없다(1-1 이 다 뺀다) · 아무것도 없는 날은 빈 목록',
+    easedJointsOf(craft({ pain: 'elbow', recent: ['elbow'], rehab: ['elbow'] }))
+      .length === 0 && easedJointsOf(craft({})).length === 0
+  );
+
+  /* 견주기 — P3 160조합 + 손으로 만든 격자 × 메모 셋: 관절 목록 · 근거 줄 · 규칙 이름이 옛 고리와 글자까지 같다 */
+  const cautions: Caution[][] = [
+    [],
+    [{ part: 'shoulder', why: '어깨 메모' }],
+    [
+      { part: 'lowerBody', why: '무릎 불편' },
+      { part: 'elbow', why: '팔꿈치' },
+    ],
+  ];
+  const keys: (CheckinPartKey | null)[] = [
+    null,
+    'shoulder',
+    'elbow',
+    'wrist',
+    'lowerBack',
+  ];
+  const grid: ReturnType<typeof buildFacts>[] = [];
+  for (const stiff of keys)
+    for (const recent of [
+      [],
+      ['shoulder'],
+      ['elbow', 'lowerBack'],
+    ] as CheckinPartKey[][])
+      for (const rehab of [[], ['shoulder'], ['elbow']] as CheckinPartKey[][])
+        grid.push(craft({ stiff, recent, rehab }));
+  let compared = 0;
+  let withJoints = 0;
+  const mismatch: string[] = [];
+  for (const [i, facts] of [...p3ComboFactsSeen, ...grid].entries()) {
+    for (const caution of cautions) {
+      const want = oldEased(facts, caution);
+      const got = easedJointsOf(facts, caution);
+      compared++;
+      if (want.length > 0) withJoints++;
+      const sameJoints =
+        json(got.map((j) => [j.key, j.source, j.memo ?? null])) ===
+          json(want.map((w) => [w.key, w.source, w.memo ?? null])) &&
+        got.every((j) => json(j.bodyParts) === json(RELATED_REF[j.key]));
+      const picked = selectCandidates({
+        facts,
+        plan: buildPitchPlan(facts),
+        library,
+        caution,
+      });
+      /*
+       * 근거 줄은 세 규칙만 '부위 고강도 제외'로 끝난다 — 차례까지 같아야 한다. 규칙 이름(excluded)은 뺀 것이 있을 때만 남으니 옛 차례의
+       * 부분열이면 된다(뺀 수는 같은 거름(무거운 것 · 그 부위)이라 이 견주기가 아니라 시험 전체 · 기준선 --compare 가 지킨다).
+       */
+      const lines = picked.basis.filter((b) => b.endsWith('부위 고강도 제외'));
+      const wantRules = want.map((w) => w.rule);
+      const gotRules = picked.excluded
+        .map((x) => x.rule)
+        .filter((r) => wantRules.includes(r));
+      let cursor = 0;
+      const inOrder = gotRules.every((r) => {
+        const idx = wantRules.indexOf(r, cursor);
+        if (idx < 0) return false;
+        cursor = idx + 1;
+        return true;
+      });
+      const sameText =
+        picked.halted || (json(lines) === json(want.map((w) => w.line)) && inOrder);
+      if (!sameJoints || !sameText)
+        mismatch.push(`#${i}/${json(caution.map((c) => c.part))}`);
+    }
+  }
+  check(
+    `P5 도우미 (나) 옛 규칙과 견주기 — ${compared}경우(관절이 하나 이상인 경우 ${withJoints}) 관절 · 출처 · 근거 줄 · 규칙 이름 차례가 2판 P5 전과 글자까지 같다`,
+    compared === (p3ComboFactsSeen.length + grid.length) * cautions.length &&
+      withJoints >= 100 &&
+      mismatch.length === 0,
+    mismatch.slice(0, 5).join(' · ')
+  );
+
+  /* ── (다) 프로그램 일차의 동작 열쇠 ── */
+  const programPlans = [
+    ...PROGRAMS.flatMap((def) =>
+      def.perWeek.map((pw) => parseProgram(programKeyOf(def.id, pw)))
+    ),
+    parseProgram('offseason-strength-power'),
+  ].filter((p) => p != null);
+  const dayMismatch: string[] = [];
+  let programDays = 0;
+  for (const plan of programPlans) {
+    for (let day = 1; day <= plan.totalDays; day++) {
+      programDays++;
+      const want = new Set(
+        programDayPlan(plan, day)
+          .items.map((x) => VARIANT_MOVEMENT_KEY[x.variant])
+          .filter((k) => k != null)
+      );
+      const got = patternsOfProgramDay(plan, day);
+      const again = patternsOfProgramDay(plan, day);
+      if (
+        json([...got].sort()) !== json([...want].sort()) ||
+        json([...got]) !== json([...again])
+      )
+        dayMismatch.push(`${plan.key}#${day}`);
+    }
+  }
+  check(
+    `P5 도우미 (다) patternsOfProgramDay — 프로그램 ${programPlans.length}판 ${programDays}일차 모두 그날 칸의 열쇠(VARIANT_MOVEMENT_KEY) 그대로 · 같은 입력 같은 답 · 키를 모르면 빈 집합`,
+    programPlans.length >= PROGRAMS.length + 1 &&
+      dayMismatch.length === 0 &&
+      patternsOfProgramDay(null, 1).size === 0,
+    dayMismatch.slice(0, 5).join(' · ')
+  );
+  const strong = parseProgram('stronglifts-5x5');
+  check(
+    'P5 도우미 (다) 스트롱리프트 A 날 = 스쿼트 · 밀기 · 당기기, B 날 = 스쿼트 · 힌지(몸통 버티기는 열쇠 없음)',
+    strong != null &&
+      json([...patternsOfProgramDay(strong, 1)].sort()) ===
+        json(['당기기', '밀기', '스쿼트']) &&
+      json([...patternsOfProgramDay(strong, 2)].sort()) === json(['스쿼트', '힌지']),
+    strong
+      ? `${json([...patternsOfProgramDay(strong, 1)])} | ${json([...patternsOfProgramDay(strong, 2)])}`
+      : '키 없음'
+  );
+  /* 변형 규칙이 고르는 운동(장비 다 있음 · 경력 모름) — 기본값 열쇠가 그 운동의 열쇠와 맞는가 */
+  const allEquipment = [...EXERCISE_EQUIPMENT];
+  const variantWrong: string[] = [];
+  const variantSeen: string[] = [];
+  for (const v of VARIANT_KEYS) {
+    const cands = variantCandidates(v, library, allEquipment, null);
+    if (cands.length === 0) continue;
+    const want = VARIANT_MOVEMENT_KEY[v];
+    /* 큰 하체 · 한 다리 · 밀기 · 당기기 · 점프는 후보 전부, 메디신볼 · 회전 던지기 · 몸통 버티기는 먼저 고르는 것(고정 기본값) */
+    const strict = ['squat', 'hinge', 'push', 'pull', 'singleLeg', 'jump'].includes(v);
+    const looked = strict ? cands : cands.slice(0, 1);
+    const wrong = looked.filter((e) => movementKeyOf(e) !== want);
+    variantSeen.push(`${v} ${looked.length}`);
+    if (wrong.length > 0)
+      variantWrong.push(`${v}: ${wrong.map((e) => e.title).join(', ')}`);
+  }
+  check(
+    'P5 도우미 (다) 변형 규칙이 고르는 운동의 동작 열쇠 = VARIANT_MOVEMENT_KEY(몸통 버티기 · 코어는 없음)',
+    variantWrong.length === 0 && variantSeen.length >= 7,
+    variantWrong.join(' · ') || variantSeen.join(' · ')
+  );
+  /* 고정 운동을 넘기면 그 운동의 열쇠 — 기본기 메디신볼 칸을 맨몸 점프로 채운 날 · 회전 던지기를 코어로 채운 날 */
+  const basics = parseProgram('basics-4w');
+  const medballDay =
+    basics == null
+      ? null
+      : Array.from({ length: basics.totalDays }, (_, k) => k + 1).find((d) =>
+          programDayPlan(basics, d).items.some((x) => x.variant === 'medball')
+        );
+  const jumpEx = ex({ category: '파워', movementPattern: '스쿼트' });
+  const coreEx = ex({ category: '코어' });
+  const pinnedKeys =
+    basics && medballDay != null
+      ? patternsOfProgramDay(basics, medballDay, (v) =>
+          v === 'medball' ? jumpEx : v === 'antiRotation' ? coreEx : undefined
+        )
+      : null;
+  const defaultKeys =
+    basics && medballDay != null ? patternsOfProgramDay(basics, medballDay) : null;
+  check(
+    'P5 도우미 (다) exerciseOf — 고정 운동을 넘기면 그 운동의 열쇠(맨몸 점프로 채운 메디신볼 칸 = 하체 파워), 안 넘긴 변형은 기본값',
+    pinnedKeys != null &&
+      defaultKeys != null &&
+      defaultKeys.has(UPPER_POWER_KEY) &&
+      pinnedKeys.has(LOWER_POWER_KEY) &&
+      [...defaultKeys]
+        .filter((k) => k !== UPPER_POWER_KEY)
+        .every((k) => pinnedKeys.has(k)),
+    `${json(defaultKeys ? [...defaultKeys] : null)} → ${json(pinnedKeys ? [...pinnedKeys] : null)}`
+  );
+
+  /* ── (라) 2주 계열 셈 ── */
+  const TK = '2026-06-15';
+  const at = (n: number) => shiftDateKey(TK, -n);
+  const row = (n: number, category: string, movementPattern: string | null) => ({
+    date: at(n),
+    category,
+    movementPattern,
+  });
+  const counted = patternsDoneFrom({
+    todayKey: TK,
+    done: [
+      row(1, '하체 스트렝스', '힌지'),
+      row(1, '하체 스트렝스', '힌지'),
+      row(3, '파워', '스쿼트'),
+      row(5, '하체 스트렝스', '힌지'),
+      row(PATTERNS_LOOKBACK_DAYS, '상체 스트렝스', '밀기'),
+      row(PATTERNS_LOOKBACK_DAYS + 1, '상체 스트렝스', '당기기'),
+      row(0, '상체 스트렝스', '당기기'),
+      row(2, '암케어', '당기기'),
+      row(4, '코어', null),
+    ],
+  });
+  check(
+    'P5 도우미 (라) patternsDoneFrom — 날 수로 셈(같은 날 둘은 하나) · 박스 점프는 스쿼트 · 14일 전까지 들고 15일 전 · 오늘 · 암케어는 안 셈 · 계열 이름순',
+    counted != null &&
+      json([...counted]) ===
+        json([
+          ['밀기', 1],
+          ['스쿼트', 1],
+          ['힌지', 2],
+        ]),
+    json(counted ? [...counted] : null)
+  );
+  const onlyCore = patternsDoneFrom({ todayKey: TK, done: [row(2, '코어', null)] });
+  check(
+    'P5 도우미 (라) 마친 날이 없으면 null(빈 기록 · 오늘만 · 암케어만 · 기간 밖만), 마친 날은 있는데 계열이 없으면 빈 Map',
+    patternsDoneFrom({ todayKey: TK, done: [] }) === null &&
+      patternsDoneFrom({ todayKey: TK, done: [row(0, '하체 스트렝스', '힌지')] }) ===
+        null &&
+      patternsDoneFrom({ todayKey: TK, done: [row(1, '암케어', '당기기')] }) === null &&
+      patternsDoneFrom({
+        todayKey: TK,
+        done: [row(PATTERNS_LOOKBACK_DAYS + 1, '하체 스트렝스', '힌지')],
+      }) === null &&
+      onlyCore != null &&
+      onlyCore.size === 0
+  );
+
+  /* ── (마) 배선 — 동작 변화 0 의 모양: theme 은 목록을 가져다 쓰고, 안전 규칙은 조심할 관절을 한 번 읽는다 ── */
+  const stripP5 = (p: string) =>
+    readFileSync(new URL(`../${p}`, import.meta.url), 'utf8')
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/^\s*\/\/.*$/gm, '');
+  const themeSrcP5 = stripP5('lib/report/theme.ts');
+  const rxSrcP5 = stripP5('lib/report/prescription.ts');
+  check(
+    'P5 도우미 (마) theme.ts 는 무게 드는 카테고리 · 상체 파워 계열을 exercise-class.ts 에서 가져온다(따로 적은 목록 없음) · prescription 은 조심할 관절을 easedJointsOf 한 번으로 읽는다',
+    /import \{[^}]*\bHEAVY_CATEGORIES\b[^}]*\bUPPER_POWER_PATTERNS\b[^}]*\} from '@\/lib\/engine\/exercise-class';/.test(
+      themeSrcP5
+    ) &&
+      !/const HEAVY_CATEGORIES\b/.test(themeSrcP5) &&
+      !/'밀기', '당기기', '회전'/.test(themeSrcP5) &&
+      (rxSrcP5.match(/easedJointsOf\(facts, caution\)/g) ?? []).length === 1 &&
+      !/RELATED_PARTS\[key\]\s*;\s*\n\s*basis\.push/.test(rxSrcP5)
+  );
+  check(
+    'P5 도우미 (마) 즐겨찾기 — 표(UserExerciseFavorite)와 읽기(lib/favorites.ts favoriteExerciseIds)가 있어 점수의 즐겨찾기 항목이 새 조회 없이 읽는다',
+    /model UserExerciseFavorite \{/.test(
+      readFileSync(new URL('../prisma/schema.prisma', import.meta.url), 'utf8')
+    ) &&
+      /export async function favoriteExerciseIds\(userId: string\): Promise<Set<string>>/.test(
+        readFileSync(new URL('../lib/favorites.ts', import.meta.url), 'utf8')
+      )
   );
 }
 
