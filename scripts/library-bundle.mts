@@ -13,7 +13,7 @@
  * 원본은 ~/bullpen-library-bundle/src 에 받아 두고 다시 받지 않는다. 숨긴 운동 · 드릴은 넣지 않는다(보이면 앱이 받는다).
  */
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { basename, extname, join } from 'node:path';
 import { createClient } from '@supabase/supabase-js';
@@ -51,7 +51,7 @@ for (const f of stale) rmSync(join(outDir, f));
 
 const url = process.env.SUPABASE_URL;
 const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-if (todo.length && (!url || !key)) throw new Error('.env 의 SUPABASE_URL · SUPABASE_SERVICE_ROLE_KEY 가 필요해요');
+if (!url || !key) throw new Error('.env 의 SUPABASE_URL · SUPABASE_SERVICE_ROLE_KEY 가 필요해요');
 const bucket = createClient(url!, key!, { auth: { persistSession: false } }).storage.from(BUCKET);
 
 const list: string[] = [];
@@ -81,6 +81,29 @@ if (list.length) {
 }
 
 const files = readdirSync(outDir).filter((f) => f.endsWith('.mp4'));
+
+/*
+ * 줄인 판을 저장소 library-720/ 에도 올린다(더하기만 — 원본 · 이미 있는 것은 그대로). GitHub 의 앱 굽기가 여기서 받아 앱에
+ * 넣고(/api/library/bundle), 앱이 새 영상을 받을 때 · 운동 영상 재생도 이것을 쓴다(/api/library/video-url small).
+ */
+if (url && key) {
+  const have = new Set<string>();
+  for (let offset = 0; ; offset += 1000) {
+    const { data } = await bucket.list('library-720', { limit: 1000, offset });
+    for (const f of data ?? []) have.add(f.name);
+    if (!data || data.length < 1000) break;
+  }
+  let up = 0;
+  for (const f of files.filter((f) => !have.has(f))) {
+    const { error } = await bucket.upload(`library-720/${f}`, readFileSync(join(outDir, f)), {
+      contentType: 'video/mp4',
+      upsert: false,
+    });
+    if (error) console.log(`올리기 실패 ${f}: ${error.message}`);
+    else up++;
+  }
+  console.log(`저장소 library-720/ 에 새로 올림 ${up}개`);
+}
 const before = files.reduce((s, f) => {
   const src = readdirSync(srcDir).find((x) => keyOf(x) === keyOf(f));
   return s + (src ? statSync(join(srcDir, src)).size : 0);

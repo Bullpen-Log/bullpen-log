@@ -39,7 +39,7 @@ export function LibrarySync() {
         const r = await fetch('/api/library/video-url', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ paths: batch }),
+          body: JSON.stringify({ paths: batch, small: true }),
         }).catch(() => null);
         const urls = ((await r?.json().catch(() => null)) as { urls?: Record<string, string> } | null)?.urls;
         if (!urls) return;

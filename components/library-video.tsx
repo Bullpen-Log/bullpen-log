@@ -158,7 +158,7 @@ export function LibraryVideo({
           const res = await fetch('/api/library/video-url', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ paths: [path] }),
+            body: JSON.stringify({ paths: [path], small: true }),
           });
           const data = await res.json().catch(() => ({}));
           const found = data.urls?.[path];
