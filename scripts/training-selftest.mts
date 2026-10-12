@@ -513,6 +513,32 @@ import {
   type ProgramSignals,
   type TodaySignals,
 } from '../lib/program/program.ts';
+/* 2판 중재(P6-1) — 프로그램 · 매일 일정 · 암케어 · 메커니즘이 하루를 나눠 쓰는 규칙 */
+import {
+  ARBITER_LAYERS,
+  ARM_BUDGET_TEXT,
+  ARM_THROW_VARIANTS,
+  ASSIST_MAX_MINUTES,
+  ASSIST_MIN_MINUTES,
+  LOWER_BUDGET_TEXT,
+  OVERRIDE_TEXT,
+  PROGRAM_DAY_DAILY,
+  PROGRAM_HEAVY_LOWER_SLOT,
+  PROGRAM_YIELD_TEXT,
+  TIME_BUDGET_COUNTS_ARMCARE,
+  arbitrate,
+  armBudget,
+  keepsArmBudget,
+  keepsLowerBudget,
+  lowerBudget,
+  programCommitment,
+  programDayText,
+  programDaySlotsOf,
+  programDeferVariants,
+  timeBudget,
+  type ArbiterInput,
+  type Arbitration,
+} from '../lib/engine/arbiter.ts';
 /* 2판 되먹임(P2) — 운동 끝 힘듦 한 번 */
 import {
   EFFORT_LEVELS,
@@ -27070,6 +27096,1162 @@ console.log(
       wrong.map(([n, got]) => `${n}: ${got}`).join(' · ') + ` · ${once?.note}`
     );
   }
+}
+
+/*
+ * 2판 P6-1 중재 순수 계약(2026-10-13, lib/engine/arbiter.ts) — 부르는 곳은 아직 없다(P6-2 부터 잇는다). 여기서는 계약만 고정한다:
+ * (가) 프로그램 역할 · 일차 칸 (나) 하체 예산 (다) 팔 예산 (라) 시간 예산 (마) 층 차례 (바) 글 (사) 격자 불변식 · 결정성.
+ */
+console.log(
+  '\n[2판 P6] 중재 순수 계약 — 프로그램 역할 · 하체 · 팔 · 시간 예산 · 층 차례 · 결정성'
+);
+{
+  type ArbCheckin = Partial<Record<CheckinPartKey, string>> & {
+    condition?: number;
+    preferredWorkout?: string | null;
+    throwPlan?: string | null;
+    armFatigue?: number | null;
+  };
+  type ArbLog = {
+    daysAgo: number;
+    pitches: number;
+    intensity: number;
+    sessionType?: string;
+  };
+  type ArbPerson = {
+    today?: ArbCheckin | null;
+    yesterday?: ArbCheckin | null;
+    logs?: ArbLog[];
+  };
+  type ProgIn = { key: string; nextDay: number; lastDoneDate: string | null };
+  type View = NonNullable<ReturnType<typeof programCommitment>>;
+  const arbKey = (daysAgo: number) =>
+    new Date(TODAY.getTime() - daysAgo * 86400000).toISOString().slice(0, 10);
+  const T = arbKey(0);
+  const Y = arbKey(1);
+  const arbCheckin = (daysAgo: number, c: ArbCheckin): CheckinLike => ({
+    date: arbKey(daysAgo),
+    condition: c.condition ?? 7,
+    sleep: '보통',
+    shoulder: c.shoulder ?? '정상',
+    elbow: c.elbow ?? '정상',
+    wrist: c.wrist ?? '정상',
+    lowerBack: c.lowerBack ?? '정상',
+    lowerBody: c.lowerBody ?? '정상',
+    preferredParts: [],
+    preferredWorkout: c.preferredWorkout ?? null,
+    ...(c.throwPlan !== undefined ? { throwPlan: c.throwPlan } : {}),
+    ...(c.armFatigue !== undefined ? { armFatigue: c.armFatigue } : {}),
+  });
+  const arbFacts = (p: ArbPerson) =>
+    buildFacts({
+      nickname: '시험',
+      age: 22,
+      heightCm: 180,
+      trainingLevel: null,
+      baselineDailyLoad: 100,
+      rehab: null,
+      today: TODAY,
+      logs: (p.logs ?? []).map<PitchLogLike>((l) => ({
+        date: new Date(TODAY.getTime() - l.daysAgo * 86400000).toISOString(),
+        pitchCount: l.pitches,
+        intensity: l.intensity,
+        ...(l.sessionType ? { sessionType: l.sessionType } : {}),
+        maxVelocity: 130,
+        avgVelocity: 120,
+      })),
+      checkins: [
+        ...(p.today ? [arbCheckin(0, p.today)] : []),
+        ...(p.yesterday ? [arbCheckin(1, p.yesterday)] : []),
+      ],
+      memos: [],
+    });
+  /** 사람 · 진행 중인 프로그램 → 오늘 상태 한 장(프로그램은 withProgramCommitment 로 얹는다 — 앱이 하는 대로) · 날 종류 */
+  const arbState = (p: ArbPerson, prog: ProgIn | null = null, mechanics = false) => {
+    const facts = arbFacts(p);
+    const plan = buildPitchPlan(facts);
+    const base = buildDayState({
+      facts,
+      plan,
+      extras: mechanics
+        ? { mechanics: { level: '기초', index: 0, finishedToday: false } }
+        : {},
+    });
+    const state = prog
+      ? withProgramCommitment(base, {
+          ...prog,
+          totalDays: parseProgram(prog.key)?.totalDays ?? null,
+        })
+      : base;
+    return { facts, plan, state, dk: dayKindOf(facts) };
+  };
+  const commit = (key: string, nextDay: number, lastDoneDate: string | null) =>
+    programCommitmentOf(
+      { key, nextDay, totalDays: parseProgram(key)!.totalDays, lastDoneDate },
+      T
+    );
+  const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
+
+  /* ── (가) 프로그램 일차 칸 · 역할 ── */
+  {
+    const bad: string[] = [];
+    let days = 0;
+    let heavyDays = 0;
+    let lightDays = 0;
+    let armDays = 0;
+    let programs = 0;
+    for (const def of PROGRAMS)
+      for (const pw of def.perWeek) {
+        programs++;
+        const key = programKeyOf(def.id, pw);
+        const plan = parseProgram(key)!;
+        for (let d = 1; d <= plan.totalDays; d++) {
+          days++;
+          const items = programDayPlan(plan, d).items;
+          const s = programDaySlotsOf(key, d);
+          const variants = items.map((x) => x.variant);
+          const wantHeavy = items.some((x) => x.slot === PROGRAM_HEAVY_LOWER_SLOT);
+          const wantArm = variants.filter((v) => ARM_THROW_VARIANTS.includes(v));
+          if (
+            !s ||
+            s.day !== d ||
+            !same(s.variants, variants) ||
+            s.heavyLower !== wantHeavy ||
+            !same(s.armThrows, wantArm) ||
+            new Set(s.slots).size !== s.slots.length
+          )
+            bad.push(`${key} ${d}일차`);
+          if (s?.heavyLower) heavyDays++;
+          else lightDays++;
+          if (s && s.armThrows.length > 0) armDays++;
+        }
+        if (
+          programDaySlotsOf(key, 0) !== null ||
+          programDaySlotsOf(key, plan.totalDays + 1) !== null
+        )
+          bad.push(`${key} 범위 밖`);
+      }
+    const slTotal = parseProgram('stronglifts-5x5')!.totalDays;
+    const slEvery = Array.from(
+      { length: slTotal },
+      (_, i) => programDaySlotsOf('stronglifts-5x5', i + 1)?.heavyLower === true
+    ).every(Boolean);
+    const press = programDaySlotsOf('531', 2);
+    check(
+      `P6-1 (가) 프로그램 일차 칸 — ${programs}개 프로그램 · ${days}일차가 dayPlan 과 같다(큰 하체 ${heavyDays} · 없음 ${lightDays} · 팔 던지기 든 날 ${armDays}), 스트롱리프트는 매일 큰 하체, 5/3/1 2일차(밀기)는 큰 하체 없이 메디신볼`,
+      bad.length === 0 &&
+        slEvery &&
+        press?.heavyLower === false &&
+        press.armThrows.join() === 'medball' &&
+        heavyDays > 0 &&
+        lightDays > 0 &&
+        armDays > 0 &&
+        programDaySlotsOf('없는-키', 1) === null,
+      bad.slice(0, 5).join(' · ')
+    );
+    check(
+      'P6-1 (가) 팔 던지기 변형 = 동작 열쇠가 상체 파워인 변형(메디신볼 · 회전 던지기) — 점프는 같은 파워 칸이어도 안 든다',
+      same(
+        [...ARM_THROW_VARIANTS].sort(),
+        VARIANT_KEYS.filter((v) => VARIANT_MOVEMENT_KEY[v] === UPPER_POWER_KEY).sort()
+      ) && !ARM_THROW_VARIANTS.includes('jump'),
+      ARM_THROW_VARIANTS.join(',')
+    );
+    const throwEx = library.find((e) => isArmPlyo(e));
+    const jumpEx = library.find((e) => e.category === '파워' && !isArmPlyo(e));
+    const asJump = programDaySlotsOf('531', 2, (v) =>
+      v === 'medball' ? jumpEx : null
+    );
+    const asThrow = programDaySlotsOf('531', 2, (v) =>
+      v === 'medball' ? throwEx : null
+    );
+    check(
+      'P6-1 (가) 고정 운동을 알면 팔 던지기는 isArmPlyo 로 — 메디신볼 칸을 점프로 채운 날(기본기)은 팔 던지기가 아니다',
+      throwEx != null &&
+        jumpEx != null &&
+        asJump?.armThrows.length === 0 &&
+        asThrow?.armThrows.join() === 'medball',
+      `${jumpEx?.title} · ${throwEx?.title}`
+    );
+
+    const ago = arbKey;
+    const rows: [
+      string,
+      ReturnType<typeof programCommitment>,
+      string,
+      string,
+      number | null,
+      number | null,
+      number | null,
+      boolean,
+    ][] = [
+      [
+        '판정 go(3일 전 마침)',
+        programCommitment(commit('531', 5, ago(3)), { decision: 'go' }),
+        'owns',
+        'go',
+        5,
+        null,
+        6,
+        false,
+      ],
+      [
+        '판정 spacing(어제 마침)',
+        programCommitment(commit('531', 5, ago(1)), { decision: 'spacing' }),
+        'after',
+        'spacing',
+        null,
+        4,
+        5,
+        true,
+      ],
+      [
+        '판정 없음 + 어제 마침 → after',
+        programCommitment(commit('531', 5, ago(1))),
+        'after',
+        'spacing',
+        null,
+        4,
+        5,
+        true,
+      ],
+      [
+        '판정 rest',
+        programCommitment(commit('531', 5, ago(3)), { decision: 'rest' }),
+        'none',
+        'rest',
+        null,
+        null,
+        5,
+        true,
+      ],
+      [
+        '판정 needCheckin',
+        programCommitment(commit('531', 5, ago(3)), { decision: 'needCheckin' }),
+        'none',
+        'waiting',
+        null,
+        null,
+        5,
+        true,
+      ],
+      [
+        '판정 painWait',
+        programCommitment(commit('531', 5, ago(3)), { decision: 'painWait' }),
+        'none',
+        'waiting',
+        null,
+        null,
+        5,
+        true,
+      ],
+      [
+        '판정 otherMode',
+        programCommitment(commit('531', 5, ago(3)), { decision: 'otherMode' }),
+        'none',
+        'otherMode',
+        null,
+        null,
+        5,
+        true,
+      ],
+      [
+        '다 마침(done)',
+        programCommitment(commit('531', 13, ago(3)), { decision: 'done' }),
+        'none',
+        'done',
+        null,
+        null,
+        null,
+        false,
+      ],
+      [
+        '마지막 일차를 어제 마침(판정 없음) → after · 어제 칸',
+        programCommitment(commit('531', 13, ago(1))),
+        'after',
+        'spacing',
+        null,
+        12,
+        null,
+        false,
+      ],
+      [
+        '판정 없음(모름) → 하는 날로 짐작하지 않는다',
+        programCommitment(commit('531', 5, ago(3))),
+        'none',
+        'unknown',
+        null,
+        null,
+        5,
+        true,
+      ],
+      [
+        '오늘 마침(판 없이) → owns · 오늘 = 마친 일차',
+        programCommitment(commit('531', 5, ago(0))),
+        'owns',
+        'session',
+        4,
+        null,
+        5,
+        false,
+      ],
+      [
+        '오늘 판 열림(5일차) → 판정과 상관없이 owns',
+        programCommitment(commit('531', 5, ago(3)), {
+          decision: 'otherMode',
+          session: { state: 'active', day: 5 },
+        }),
+        'owns',
+        'session',
+        5,
+        null,
+        6,
+        false,
+      ],
+      [
+        '오늘 판 마침 · 일차 넘김(5 → 6)',
+        programCommitment(commit('531', 6, ago(0)), {
+          session: { state: 'finished', day: 5 },
+        }),
+        'owns',
+        'session',
+        5,
+        null,
+        6,
+        false,
+      ],
+      [
+        '12일 전 마침(안 따름) · rest → 내일 프로그램 날로 안 본다',
+        programCommitment(commit('531', 5, ago(12)), { decision: 'rest' }),
+        'none',
+        'rest',
+        null,
+        null,
+        5,
+        false,
+      ],
+      [
+        '마친 날 없음(시작만) · rest → 안 따름',
+        programCommitment(commit('531', 1, null), { decision: 'rest' }),
+        'none',
+        'rest',
+        null,
+        null,
+        1,
+        false,
+      ],
+    ];
+    const wrong = rows.filter(
+      ([, v, role, why, today, yesterday, next, tomorrow]) =>
+        !v ||
+        v.role !== role ||
+        v.roleWhy !== why ||
+        (v.today?.day ?? null) !== today ||
+        (v.yesterday?.day ?? null) !== yesterday ||
+        (v.next?.day ?? null) !== next ||
+        v.tomorrowPossible !== tomorrow
+    );
+    check(
+      `P6-1 (가) 프로그램 역할 표 ${rows.length}가지 — 오늘 판 > 오늘 마침 > 판정(go owns · spacing after · 그 밖 none), 판정이 없으면 하는 날로 짐작 안 함, 10일 넘게 안 한 프로그램은 내일 날로 안 봄`,
+      wrong.length === 0 &&
+        programCommitment(null) === null &&
+        programCommitment({ ...commit('531', 5, ago(3)), key: '모르는-키' }) === null,
+      wrong
+        .map(
+          ([n, v]) =>
+            `${n}: ${v?.role}/${v?.roleWhy} 오늘 ${v?.today?.day} 어제 ${v?.yesterday?.day} 다음 ${v?.next?.day} 내일 ${v?.tomorrowPossible}`
+        )
+        .join(' · ')
+    );
+  }
+
+  /* ── (나) 하체 예산 ── */
+  {
+    const sl = (
+      nextDay: number,
+      last: string | null,
+      decision?: 'go' | 'rest' | 'done'
+    ) => programCommitment(commit('stronglifts-5x5', nextDay, last), { decision });
+    const w = (
+      nextDay: number,
+      last: string | null,
+      decision?: 'go' | 'rest' | 'done'
+    ) => programCommitment(commit('531', nextDay, last), { decision });
+    const lb = (lastLowerKey: string | null, program: View | null) =>
+      lowerBudget({ asOf: T, lastLowerKey, program });
+    const rows: [
+      string,
+      ReturnType<typeof lowerBudget>,
+      boolean,
+      string | null,
+      boolean,
+    ][] = [
+      ['프로그램 없음 · 어제 하체 날', lb(Y, null), false, 'yesterdayDaily', false],
+      ['프로그램 없음 · 그제 하체 날', lb(arbKey(2), null), true, null, false],
+      ['프로그램 없음 · 하체 기록 없음', lb(null, null), true, null, false],
+      [
+        '어제 스트롱리프트(큰 하체) → 오늘 무거운 하체 쉼',
+        lb(arbKey(2), sl(5, Y)),
+        false,
+        'yesterdayProgram',
+        false,
+      ],
+      [
+        '어제 5/3/1 밀기 날(큰 하체 없음) · 다음 일차 힌지 → 내일 프로그램 때문에 쉼',
+        lb(null, w(3, Y)),
+        false,
+        'tomorrowProgram',
+        false,
+      ],
+      [
+        '프로그램 쉬는 날 · 다음 일차 큰 하체',
+        lb(null, sl(5, arbKey(3), 'rest')),
+        false,
+        'tomorrowProgram',
+        false,
+      ],
+      [
+        '프로그램 쉬는 날 · 다음 일차 큰 하체 없음 → 허용',
+        lb(null, w(2, arbKey(3), 'rest')),
+        true,
+        null,
+        false,
+      ],
+      [
+        '다 마친 프로그램 → 허용',
+        lb(null, sl(13, arbKey(3), 'done')),
+        true,
+        null,
+        false,
+      ],
+      [
+        '12일 안 한 프로그램(안 따름) → 허용',
+        lb(null, sl(5, arbKey(12), 'rest')),
+        true,
+        null,
+        false,
+      ],
+      [
+        '오늘 프로그램 날(큰 하체)',
+        lb(null, sl(5, arbKey(3), 'go')),
+        false,
+        'todayProgram',
+        false,
+      ],
+      [
+        '어제 하체 날 · 오늘 프로그램 큰 하체 → 빼지 않고 가볍게',
+        lb(Y, sl(5, arbKey(3), 'go')),
+        false,
+        'todayProgram',
+        true,
+      ],
+      [
+        '어제 하체 날 · 판정 전(다음 일차 큰 하체) → 가볍게(프로그램 판정에 넣을 값)',
+        lb(Y, sl(5, arbKey(3))),
+        false,
+        'yesterdayDaily',
+        true,
+      ],
+      [
+        '어제 하체 날 · 오늘 프로그램 밀기 날 → 가볍게 할 것 없음',
+        lb(Y, w(2, arbKey(3), 'go')),
+        false,
+        'yesterdayDaily',
+        false,
+      ],
+      [
+        '어제 프로그램 날(오늘 쉬는 칸) → 가볍게 할 것 없음',
+        lb(Y, sl(5, Y)),
+        false,
+        'yesterdayProgram',
+        false,
+      ],
+    ];
+    const wrong = rows.filter(
+      ([, b, allowed, because, lighter]) =>
+        b.dailyHeavyLower !== allowed ||
+        b.because !== because ||
+        b.programLighter !== lighter ||
+        b.text !== (b.because ? LOWER_BUDGET_TEXT[b.because] : null) ||
+        b.programText !== (lighter ? LOWER_BUDGET_TEXT.programLighter : null)
+    );
+    check(
+      `P6-1 (나) 하체 예산 표 ${rows.length}가지 — 오늘 프로그램 > 어제 프로그램 > 어제 하체 날 > 내일 프로그램, 어제 하체 뒤 프로그램 큰 하체는 빼지 않고 가볍게`,
+      wrong.length === 0,
+      wrong
+        .map(([n, b]) => `${n}: ${b.dailyHeavyLower}/${b.because}/${b.programLighter}`)
+        .join(' · ')
+    );
+    const blocked = lb(Y, null);
+    const open = lb(null, null);
+    const keptBlocked = library.filter((e) => keepsLowerBudget(e, blocked));
+    const heavy = library.filter((e) => isHeavyLower(e));
+    check(
+      `P6-1 (나) 막힌 날 거르기 = 무거운 하체(isHeavyLower ${heavy.length}개)만 빠지고, 열린 날은 그대로`,
+      heavy.length > 0 &&
+        keptBlocked.length === library.length - heavy.length &&
+        keptBlocked.every((e) => !isHeavyLower(e)) &&
+        library.every((e) => keepsLowerBudget(e, open)),
+      `${library.length} → ${keptBlocked.length}`
+    );
+  }
+
+  /* ── (다) 팔 예산 ── */
+  {
+    const rows: [string, ArbPerson, string[], string | null][] = [
+      ['오늘 등판 답', { today: { throwPlan: '오늘 등판' } }, [], 'gameToday'],
+      [
+        '어제 내일 등판 · 오늘 답 없음',
+        { today: {}, yesterday: { throwPlan: '내일 등판' } },
+        [],
+        'gameToday',
+      ],
+      [
+        '오늘 경기 15구(세게 아님)',
+        {
+          today: {},
+          logs: [{ daysAgo: 0, pitches: 15, intensity: 5, sessionType: '경기' }],
+        },
+        ['경기'],
+        'gameLogged',
+      ],
+      [
+        '오늘 불펜 40구 90%(세게 던진 날)',
+        {
+          today: {},
+          logs: [{ daysAgo: 0, pitches: 40, intensity: 9, sessionType: '불펜' }],
+        },
+        ['불펜'],
+        'hardToday',
+      ],
+      ['오늘 불펜 답 → 다 쓴 날 아님', { today: { throwPlan: '오늘 불펜' } }, [], null],
+      [
+        '어제 세게 던짐(오늘 아님)',
+        {
+          today: {},
+          logs: [{ daysAgo: 1, pitches: 40, intensity: 9, sessionType: '불펜' }],
+        },
+        [],
+        null,
+      ],
+      [
+        '오늘 캐치볼 20구 50%',
+        {
+          today: {},
+          logs: [{ daysAgo: 0, pitches: 20, intensity: 5, sessionType: '캐치볼' }],
+        },
+        ['캐치볼'],
+        null,
+      ],
+      ['아무 일 없음', { today: {} }, [], null],
+    ];
+    const wrong: string[] = [];
+    let armcareChecked = 0;
+    for (const [name, p, types, because] of rows) {
+      const { state, facts, plan } = arbState(p);
+      const b = armBudget({ state, typesToday: types });
+      const spent = because != null;
+      if (
+        b.because !== because ||
+        b.spent !== spent ||
+        b.text !==
+          (because ? ARM_BUDGET_TEXT[because as keyof typeof ARM_BUDGET_TEXT] : null) ||
+        b.defer.dailyArmPlyo !== spent ||
+        b.defer.mechanicsThrows !== spent ||
+        b.defer.armcareStrength !== spent ||
+        !same(b.defer.programVariants, spent ? ARM_THROW_VARIANTS : [])
+      )
+        wrong.push(`${name}: ${b.because}`);
+      /* 암케어는 같은 날을 이미 회복으로 말한다 — 중재가 암케어를 안 고치는 까닭(비판 1 빈틈 9) */
+      if (spent) {
+        armcareChecked++;
+        const k = decideArmcare({ facts, plan, armFatigue: null, state }).kind;
+        if (k === 'strength') wrong.push(`${name}: 암케어 강화`);
+      }
+    }
+    check(
+      `P6-1 (다) 팔 예산 표 ${rows.length}가지 — 오늘 등판 답 > 오늘 경기 기록 > 오늘 세게 던진 날, 불펜 답 · 어제 · 가벼운 캐치볼은 아님 · 다 쓴 날 ${armcareChecked}가지 모두 암케어도 이미 회복`,
+      wrong.length === 0 && armcareChecked === 4,
+      wrong.join(' · ')
+    );
+    const spentB = armBudget({
+      state: arbState({ today: { throwPlan: '오늘 등판' } }).state,
+    });
+    const openB = armBudget({ state: arbState({ today: {} }).state });
+    const plyo = library.filter((e) => isArmPlyo(e));
+    const kept = library.filter((e) => keepsArmBudget(e, spentB));
+    check(
+      `P6-1 (다) 다 쓴 날 거르기 = 팔 플라이오(isArmPlyo ${plyo.length}개)만 빠지고, 아닌 날은 그대로`,
+      plyo.length > 0 &&
+        kept.length === library.length - plyo.length &&
+        kept.every((e) => !isArmPlyo(e)) &&
+        library.every((e) => keepsArmBudget(e, openB)),
+      `${library.length} → ${kept.length}`
+    );
+    /* 변형 단위 — 점프(같은 파워 칸)는 남는다(비판 1 빈틈 35) */
+    const mixed = programDaySlotsOf('ws4sb', 2)!;
+    const badDays: string[] = [];
+    for (const def of PROGRAMS)
+      for (const pw of def.perWeek) {
+        const key = programKeyOf(def.id, pw);
+        for (let d = 1; d <= parseProgram(key)!.totalDays; d++) {
+          const s = programDaySlotsOf(key, d)!;
+          const dv = programDeferVariants(s, spentB);
+          if (!same(dv, s.armThrows) || programDeferVariants(s, openB).length > 0)
+            badDays.push(`${key} ${d}`);
+        }
+      }
+    check(
+      'P6-1 (다) 프로그램 변형 미루기 — WS4SB 2일차(점프 · 메디신볼)는 메디신볼만, 모든 일차에서 다 쓴 날 = 그날 팔 던지기 · 아닌 날 = 없음',
+      mixed.variants.includes('jump') &&
+        same(programDeferVariants(mixed, spentB), ['medball']) &&
+        programDeferVariants(null, spentB).length === 0 &&
+        badDays.length === 0,
+      badDays.slice(0, 5).join(' · ')
+    );
+  }
+
+  /* ── (라) 시간 예산 ── */
+  {
+    const rows: [string, Parameters<typeof timeBudget>[0], number, string | null][] = [
+      [
+        '60분 · 프로그램 55분 → 보조 없음',
+        { requested: 60, programMinutes: 55 },
+        0,
+        '근력 프로그램이 55분이라 따로 더 짜지 않았어요.',
+      ],
+      [
+        '90분 · 프로그램 50분 → 보조 상한 20분',
+        { requested: 90, programMinutes: 50 },
+        ASSIST_MAX_MINUTES,
+        '근력 프로그램이 50분이라 남은 20분만 짰어요.',
+      ],
+      [
+        '70분 · 프로그램 55분 → 15분',
+        { requested: 70, programMinutes: 55 },
+        15,
+        '근력 프로그램이 55분이라 남은 15분만 짰어요.',
+      ],
+      [
+        '64분 · 프로그램 50분 → 10분(5분 단위 내림 · 하한)',
+        { requested: 64, programMinutes: 50 },
+        ASSIST_MIN_MINUTES,
+        '근력 프로그램이 50분이라 남은 10분만 짰어요.',
+      ],
+      [
+        '60분 · 프로그램 52분 → 5분은 하한 밑이라 0',
+        { requested: 60, programMinutes: 52 },
+        0,
+        '근력 프로그램이 52분이라 따로 더 짜지 않았어요.',
+      ],
+      ['60분 · 프로그램 없음 → 그대로', { requested: 60 }, 60, null],
+      ['47분 → 45분(5분 단위)', { requested: 47 }, 45, null],
+      [
+        '60분 · 암케어 20분을 넣기로 하면 → 40분',
+        { requested: 60, armcareMinutes: 20, includeArmcare: true },
+        40,
+        '암케어 20분을 빼고 40분으로 짰어요.',
+      ],
+      [
+        '60분 · 암케어 20분(기본은 안 넣음)',
+        { requested: 60, armcareMinutes: 20 },
+        60,
+        null,
+      ],
+      ['NaN 분 → 0', { requested: Number.NaN }, 0, null],
+      ['−30분 → 0', { requested: -30 }, 0, null],
+      [
+        '60분 · 프로그램 −10분 → 그대로',
+        { requested: 60, programMinutes: -10 },
+        60,
+        null,
+      ],
+    ];
+    const wrong = rows
+      .map(([n, input, daily, note]) => ({ n, b: timeBudget(input), daily, note }))
+      .filter(
+        ({ b, daily, note }) => b.daily !== daily || b.note !== note || b.daily < 0
+      );
+    check(
+      `P6-1 (라) 시간 예산 표 ${rows.length}가지 — 프로그램 + 매일 일정 ≤ 하루 시간, 보조는 ${ASSIST_MIN_MINUTES}~${ASSIST_MAX_MINUTES}분, 암케어는 기본으로 안 센다(2026-09-25 · 26 결정)`,
+      wrong.length === 0 &&
+        TIME_BUDGET_COUNTS_ARMCARE === false &&
+        timeBudget({ requested: 60, armcareMinutes: 20 }).armcareCounted === false,
+      wrong.map(({ n, b }) => `${n}: ${b.daily} ${b.note}`).join(' · ')
+    );
+  }
+
+  /* ── (마) 층 차례 ── */
+  const arb = (
+    p: ArbPerson,
+    o: Partial<Omit<ArbiterInput, 'state' | 'dayKind'>> & {
+      prog?: ProgIn | null;
+      mechanics?: boolean;
+    } = {}
+  ) => {
+    const { prog = null, mechanics = false, ...rest } = o;
+    const { state, dk } = arbState(p, prog, mechanics);
+    const input: ArbiterInput = { state, dayKind: dk, lastLowerKey: null, ...rest };
+    return { r: arbitrate(input), input, state, dk };
+  };
+  const keysOf = (r: Arbitration) =>
+    r.deferred.map((d) => d.key + (d.variant ? `:${d.variant}` : ''));
+  const sl3: ProgIn = { key: 'stronglifts-5x5', nextDay: 5, lastDoneDate: arbKey(3) };
+  const scenarios: { name: string; r: Arbitration; ok: boolean; got: string }[] = [];
+  const scene = (name: string, r: Arbitration, ok: boolean) =>
+    scenarios.push({
+      name,
+      r,
+      ok,
+      got: `${r.applied.join('>')} · 일정 ${r.daily.role} · 프로그램 ${r.program?.role ?? '-'}/${r.program?.yielded ?? '-'} · 밀린 ${keysOf(r).join(',')} · 왜 ${r.why.join(' / ')}`,
+    });
+  {
+    const a = arb({ today: {} }).r;
+    scene(
+      'A 평범한 날 · 프로그램 없음 → 걸린 층 없음',
+      a,
+      a.applied.length === 0 &&
+        a.top === null &&
+        a.program === null &&
+        a.daily.role === 'free' &&
+        a.daily.heavyLower &&
+        a.daily.armPlyo &&
+        a.daily.upperOk &&
+        a.deferred.length === 0 &&
+        a.why.length === 0 &&
+        !a.mechanics.foldThrows &&
+        a.armcare.strength
+    );
+    const b = arb(
+      { yesterday: { shoulder: '통증' } },
+      { prog: sl3, programDecision: 'painWait' }
+    ).r;
+    scene(
+      'B 통증 확인 전(멈춤) · 프로그램 painWait → 안전 층, 아무것도 더하지 않음',
+      b,
+      b.top === 'safety' &&
+        b.daily.role === 'off' &&
+        !b.daily.heavyLower &&
+        b.program?.role === 'none' &&
+        b.program.yielded === 'safety' &&
+        b.deferred.length === 0 &&
+        b.why.length === 0
+    );
+    const b2 = arb(
+      { yesterday: { shoulder: '통증', throwPlan: '내일 등판' } },
+      { prog: sl3, programDecision: 'go', mechanics: true }
+    ).r;
+    scene(
+      'B2 멈춤 + 오늘 등판(어제 답) + 판정이 go 로 와도 → 일정 멈춤 · 프로그램 쉼, 팔 예산은 메커니즘 · 암케어만',
+      b2,
+      b2.top === 'safety' &&
+        same(b2.applied, ['safety', 'outing']) &&
+        b2.daily.role === 'off' &&
+        b2.program?.role === 'none' &&
+        b2.program.yielded === 'safety' &&
+        same(keysOf(b2), ['mechanicsThrows', 'armcareStrength']) &&
+        b2.mechanics.foldThrows &&
+        !b2.mechanics.anyway
+    );
+    const ws2: ProgIn = { key: 'ws4sb', nextDay: 2, lastDoneDate: arbKey(3) };
+    const c = arb(
+      { today: { throwPlan: '오늘 등판' } },
+      { prog: ws2, programDecision: 'go', override: true, mechanics: true }
+    ).r;
+    scene(
+      "C 오늘 등판 + '그래도 오늘 할래요'(D24) → 프로그램은 하되 메디신볼은 오늘 뺌(점프는 남김) · 메커니즘 접고 못 펼침",
+      c,
+      c.top === 'outing' &&
+        same(c.applied, ['outing', 'choice', 'program']) &&
+        c.program?.role === 'owns' &&
+        same(c.programAdjust.deferVariants, ['medball']) &&
+        same(keysOf(c), [
+          'programVariant:medball',
+          'mechanicsThrows',
+          'armcareStrength',
+        ]) &&
+        c.daily.role === 'program' &&
+        !c.daily.armPlyo &&
+        c.mechanics.foldThrows &&
+        !c.mechanics.anyway &&
+        !c.armcare.strength &&
+        same(c.why, [ARM_BUDGET_TEXT.gameToday, OVERRIDE_TEXT.rest, programDayText(2)])
+    );
+    const c2 = arb(
+      { today: { throwPlan: '오늘 등판' } },
+      { prog: ws2, programDecision: 'go' }
+    ).r;
+    scene(
+      '— C2 같은 날 넘기지 않았으면 → 프로그램 쉼(rest), 팔 플라이오 뺌',
+      c2,
+      c2.program?.role === 'none' &&
+        c2.program.yielded === 'rest' &&
+        c2.program.next?.day === 2 &&
+        c2.daily.role === 'free' &&
+        same(keysOf(c2), ['dailyArmPlyo', 'armcareStrength', 'programDay']) &&
+        c2.why.includes(PROGRAM_YIELD_TEXT.outingToday!)
+    );
+    const hardLog: ArbPerson = {
+      today: {},
+      logs: [{ daysAgo: 0, pitches: 40, intensity: 9, sessionType: '불펜' }],
+    };
+    const d = arb(hardLog, {
+      prog: sl3,
+      programDecision: 'go',
+      typesToday: ['불펜'],
+    }).r;
+    scene(
+      '— D 오늘 세게 던진 불펜 + 판정 go(주의만) → 프로그램 쉼(비판 1 빈틈 29), 내일 프로그램 큰 하체라 무거운 하체도 쉼',
+      d,
+      same(d.applied, ['outing', 'rest', 'budget']) &&
+        d.program?.role === 'none' &&
+        d.program.yielded === 'rest' &&
+        d.program.tomorrowPossible &&
+        d.daily.role === 'free' &&
+        !d.daily.armPlyo &&
+        !d.daily.heavyLower &&
+        d.lower.because === 'tomorrowProgram' &&
+        same(keysOf(d), [
+          'dailyArmPlyo',
+          'armcareStrength',
+          'programDay',
+          'dailyHeavyLower',
+        ])
+    );
+    const d2 = arb(hardLog, {
+      prog: { key: 'stronglifts-5x5', nextDay: 6, lastDoneDate: T },
+      programSession: { state: 'finished', day: 5 },
+      typesToday: ['불펜'],
+    }).r;
+    scene(
+      '— D2 같은 날 프로그램을 이미 마쳤으면 → 그날은 프로그램 것(되돌리지 않음)',
+      d2,
+      d2.program?.role === 'owns' &&
+        d2.program.yielded === null &&
+        d2.daily.role === 'program' &&
+        !keysOf(d2).includes('programDay')
+    );
+    const e = arb(
+      { today: { preferredWorkout: '회복' } },
+      { prog: sl3, programDecision: 'go' }
+    ).r;
+    scene(
+      "E 오늘 '회복'을 고름 + 판정 go → 사용자 선택이 프로그램보다 앞",
+      e,
+      e.top === 'choice' &&
+        e.program?.role === 'none' &&
+        e.program.yielded === 'choice' &&
+        e.daily.role === 'free' &&
+        same(e.why, [
+          PROGRAM_YIELD_TEXT.chooseRecovery,
+          LOWER_BUDGET_TEXT.tomorrowProgram,
+        ])
+    );
+    const f = arb({ today: {} }, { prog: sl3, programDecision: 'otherMode' }).r;
+    scene(
+      'F 다른 운동을 먼저 시작함 → 프로그램 쉼(사용자 선택)',
+      f,
+      f.top === 'choice' &&
+        f.program?.role === 'none' &&
+        f.program.yielded === 'choice' &&
+        f.why[0] === PROGRAM_YIELD_TEXT.otherMode
+    );
+    const g = arb(
+      { today: {} },
+      { prog: sl3, programDecision: 'go', lastLowerKey: Y }
+    ).r;
+    const g2 = arb(
+      { today: {} },
+      { prog: sl3, programDecision: 'go', lastLowerKey: Y, override: true }
+    ).r;
+    scene(
+      'G 프로그램 날 + 어제 하체 날 → 매일 일정은 프로그램 그대로(D6), 큰 하체는 빼지 않고 가볍게 · 그래도 하기면 그대로',
+      g,
+      same(g.applied, ['program', 'budget']) &&
+        g.daily.role === 'program' &&
+        !g.daily.heavyLower &&
+        g.programAdjust.lighterBigLower &&
+        same(g.why, [programDayText(5), LOWER_BUDGET_TEXT.programLighter]) &&
+        g.deferred.length === 0 &&
+        !g2.programAdjust.lighterBigLower &&
+        g2.program?.role === 'owns'
+    );
+    const h = arb({ today: {} }, { prog: { ...sl3, lastDoneDate: Y } }).r;
+    const h2 = arb(
+      { today: {} },
+      { prog: { ...sl3, lastDoneDate: Y }, override: true }
+    ).r;
+    scene(
+      "H 어제 프로그램 스쿼트 → 오늘 일정 무거운 하체 쉼(예산) · '그래도 하기'면 경고 한 줄과 함께 넘음(사용자 선택 > 예산)",
+      h,
+      h.top === 'budget' &&
+        h.program?.role === 'after' &&
+        h.daily.role === 'free' &&
+        !h.daily.heavyLower &&
+        h.lower.because === 'yesterdayProgram' &&
+        same(keysOf(h), ['dailyHeavyLower']) &&
+        h2.daily.heavyLower &&
+        h2.daily.overrodeBudget &&
+        same(h2.applied, ['choice']) &&
+        same(h2.why, [OVERRIDE_TEXT.lower]) &&
+        h2.deferred.length === 0
+    );
+    const up = (p: ArbPerson) => arb(p).r.daily.upperBlockedBy;
+    const rehabbed = (() => {
+      const { state, dk } = arbState({ today: {} });
+      return arbitrate({
+        state: { ...state, hard: { ...state.hard, rehabParts: ['shoulder'] } },
+        dayKind: dk,
+        lastLowerKey: null,
+      }).daily.upperBlockedBy;
+    })();
+    const upRows: [string, string | null, string | null][] = [
+      ['오늘 등판', up({ today: { throwPlan: '오늘 등판' } }), 'armSpent'],
+      ["팔 피로 '많이'", up({ today: { armFatigue: 4 } }), 'armFatigue'],
+      ["팔 피로 '보통'", up({ today: { armFatigue: 3 } }), null],
+      ['어깨 통증', up({ today: { shoulder: '통증' } }), 'upperPain'],
+      ['팔꿈치 뻐근', up({ today: { elbow: '뻐근' } }), 'upperStiff'],
+      ['어깨 재활', rehabbed, 'upperRehab'],
+      ['하체 통증', up({ today: { lowerBody: '통증' } }), null],
+      ['평범', up({ today: {} }), null],
+    ];
+    const upWrong = upRows.filter(([, got, want]) => got !== want);
+    scene(
+      `I 하체가 막힌 날 상체로 가도 되나(비판 1 빈틈 28) — ${upRows.length}가지`,
+      a,
+      upWrong.length === 0
+    );
+    if (upWrong.length > 0)
+      scenarios[scenarios.length - 1].got = upWrong
+        .map(([n, g]) => `${n}: ${g}`)
+        .join(' · ');
+    const j = arb({ today: { shoulder: '통증' } }).r;
+    const j2 = arb({ today: { shoulder: '통증', throwPlan: '오늘 등판' } }).r;
+    scene(
+      "J 메커니즘 — 어깨 통증(D5)은 접고 '그래도 하기', 등판까지 겹치면 팔 예산이 이겨 못 펼침",
+      j,
+      j.mechanics.foldThrows &&
+        j.mechanics.anyway &&
+        j.mechanics.because === 'pain' &&
+        j2.mechanics.foldThrows &&
+        !j2.mechanics.anyway &&
+        j2.mechanics.because === 'armSpent'
+    );
+    const k = arb(
+      { today: {} },
+      { prog: sl3, programDecision: 'go', minutes: { requested: 90, program: 50 } }
+    ).r;
+    const k2 = arb(
+      { today: {} },
+      {
+        prog: sl3,
+        programDecision: 'go',
+        minutes: { requested: 90, program: 50 },
+        programDayDaily: 'assist',
+      }
+    ).r;
+    const k3 = arb(
+      { today: {} },
+      {
+        prog: sl3,
+        programDecision: 'go',
+        minutes: { requested: 60, program: 55 },
+        programDayDaily: 'assist',
+      }
+    ).r;
+    const k4 = arb({ today: {} }, { minutes: { requested: 60, armcare: 15 } }).r;
+    scene(
+      "K D6 — 기본('none')은 프로그램 날 매일 일정 0분, 'assist' 길이면 남은 시간(≤ 20분)에 보조만 · 짧으면 안 붙임, 프로그램 없는 날 암케어는 안 뺌",
+      k,
+      PROGRAM_DAY_DAILY === 'none' &&
+        k.daily.role === 'program' &&
+        k.daily.minutes === 0 &&
+        k2.daily.role === 'assist' &&
+        k2.daily.minutes === ASSIST_MAX_MINUTES &&
+        k2.why.includes('근력 프로그램이 50분이라 남은 20분만 짰어요.') &&
+        k3.daily.role === 'program' &&
+        k3.daily.minutes === 0 &&
+        k4.daily.minutes === 60 &&
+        k4.why.length === 0
+    );
+  }
+  const badScenes = scenarios.filter((s) => !s.ok);
+  check(
+    `P6-1 (마) 층 차례 — 장면 ${scenarios.length}가지: 안전 > 등판 보호(팔) > 사용자 선택 > 쉬라는 날 > 프로그램 > 예산, 위 층을 아래 층이 못 되살림`,
+    badScenes.length === 0 &&
+      same(ARBITER_LAYERS, ['safety', 'outing', 'choice', 'rest', 'program', 'budget']),
+    badScenes.map((s) => `${s.name} ⇒ ${s.got}`).join(' ‖ ')
+  );
+
+  /* ── (사) 격자 불변식 · 결정성 ── */
+  const people: [string, ArbPerson][] = [
+    ['평범', { today: {} }],
+    ['오늘 등판', { today: { throwPlan: '오늘 등판' } }],
+    [
+      '오늘 세게 던짐',
+      {
+        today: {},
+        logs: [{ daysAgo: 0, pitches: 40, intensity: 9, sessionType: '불펜' }],
+      },
+    ],
+    ['어깨 통증', { today: { shoulder: '통증' } }],
+    [
+      "팔 피로 '많이' · 회복 고름",
+      { today: { armFatigue: 4, preferredWorkout: '회복' } },
+    ],
+    ['통증 확인 전', { yesterday: { shoulder: '통증' } }],
+  ];
+  const progs: (ProgIn | null)[] = [
+    null,
+    sl3,
+    { key: 'stronglifts-5x5', nextDay: 5, lastDoneDate: Y },
+    { key: '531', nextDay: 2, lastDoneDate: arbKey(3) },
+  ];
+  const decisions: (ArbiterInput['programDecision'] | null)[] = [
+    null,
+    'go',
+    'rest',
+    'spacing',
+  ];
+  const gridBad: string[] = [];
+  let combos = 0;
+  let ownsN = 0;
+  let yieldedN = 0;
+  let spentN = 0;
+  let blockedN = 0;
+  let overrodeN = 0;
+  const allLines = new Set<string>();
+  for (const [pname, p] of people)
+    for (const prog of progs) {
+      const { state, dk } = arbState(p, prog, true);
+      for (const decision of decisions)
+        for (const override of [false, true])
+          for (const lastLowerKey of [null, Y]) {
+            combos++;
+            const input: ArbiterInput = {
+              state,
+              dayKind: dk,
+              programDecision: decision,
+              override,
+              lastLowerKey,
+              minutes: { requested: 60, program: 45, armcare: 15 },
+            };
+            const before = JSON.stringify(input);
+            const r = arbitrate(input);
+            const again = arbitrate(input);
+            const flipped = arbitrate({ ...input, override: !override });
+            const tag = `${pname} · ${prog?.key ?? '-'}:${prog?.lastDoneDate ?? ''} · ${decision} · ${override} · ${lastLowerKey}`;
+            const halted = state.hard.painUnknown || decision === 'painWait';
+            const owns = r.program?.role === 'owns';
+            if (owns) ownsN++;
+            if (r.program?.yielded) yieldedN++;
+            if (r.arm.spent) spentN++;
+            if (!r.lower.dailyHeavyLower && r.daily.role === 'free') {
+              if (override) overrodeN++;
+              else blockedN++;
+            }
+            for (const line of r.why) allLines.add(line);
+            for (const x of r.deferred) allLines.add(x.why);
+            const layerIdx = (l: string) => ARBITER_LAYERS.indexOf(l as never);
+            const problems = [
+              !same(r, again) && '결정성',
+              JSON.stringify(input) !== before && '입력이 바뀜',
+              r.applied.some(
+                (l, i) => i > 0 && layerIdx(r.applied[i - 1]) >= layerIdx(l)
+              ) && '층 차례',
+              r.top !== (r.applied[0] ?? null) && 'top',
+              (r.daily.role === 'off') !== halted && '멈춤',
+              r.arm.spent &&
+                (r.daily.armPlyo ||
+                  !r.mechanics.foldThrows ||
+                  r.mechanics.anyway ||
+                  r.armcare.strength) &&
+                '팔 예산',
+              (!same(r.arm, flipped.arm) ||
+                !same(r.mechanics, flipped.mechanics) ||
+                !same(r.armcare, flipped.armcare) ||
+                r.daily.armPlyo !== flipped.daily.armPlyo) &&
+                '그래도 하기가 팔 예산을 넘음',
+              owns &&
+                (!['program', 'assist'].includes(r.daily.role) || r.daily.heavyLower) &&
+                '프로그램 날 일정',
+              owns && dk.rank === 'recovery' && !override && '쉬라는 날에 프로그램',
+              owns &&
+                state.body.preferredWorkout === '회복' &&
+                !override &&
+                '회복 고른 날에 프로그램',
+              r.deferred.some((x) => x.until !== '내일') && 'until',
+              r.deferred.some(
+                (x, i) => i > 0 && layerIdx(r.deferred[i - 1].layer) > layerIdx(x.layer)
+              ) && '밀린 것 차례',
+              halted &&
+                r.deferred.some((x) =>
+                  [
+                    'programDay',
+                    'programVariant',
+                    'dailyArmPlyo',
+                    'dailyHeavyLower',
+                  ].includes(x.key)
+                ) &&
+                '멈춘 날에 더함',
+              r.programAdjust.deferVariants.some(
+                (v) => !ARM_THROW_VARIANTS.includes(v)
+              ) && '변형',
+              r.programAdjust.deferVariants.length > 0 &&
+                !(r.arm.spent && owns) &&
+                '변형 조건',
+              r.daily.role === 'free' &&
+                !r.lower.dailyHeavyLower &&
+                (override
+                  ? !r.daily.heavyLower || !r.daily.overrodeBudget
+                  : r.daily.heavyLower || !keysOf(r).includes('dailyHeavyLower')) &&
+                '하체 예산',
+              r.daily.role === 'free' && r.daily.minutes !== 60 && '시간(암케어 안 셈)',
+              (halted || owns) && r.daily.minutes !== 0 && '멈춘 날 · 프로그램 날 시간',
+            ].filter(Boolean);
+            if (problems.length > 0) gridBad.push(`${tag}: ${problems.join(',')}`);
+          }
+    }
+  check(
+    `P6-1 (사) 격자 ${combos}가지(사람 ${people.length} × 프로그램 ${progs.length} × 판정 ${decisions.length} × 그래도 하기 × 어제 하체) — 결정성 · 입력 그대로 · 층 차례 · 팔 예산은 그래도 하기로 안 풀림 · 쉬라는 날 · 회복 고른 날 프로그램 0 · 멈춘 날 더함 0 (프로그램 날 ${ownsN} · 쉬게 함 ${yieldedN} · 팔 다 씀 ${spentN} · 하체 막힘 ${blockedN} · 넘김 ${overrodeN})`,
+    gridBad.length === 0 &&
+      ownsN > 0 &&
+      yieldedN > 0 &&
+      spentN > 0 &&
+      blockedN > 0 &&
+      overrodeN > 0,
+    gridBad.slice(0, 5).join(' ‖ ')
+  );
+
+  /* ── (바) 글 — 해요체 · 줄표 없음 · 60자 안 · 약속하지 않음('미뤘어요' · '내일로' 없음, 비판 1 빈틈 32) ── */
+  for (const s of scenarios) {
+    for (const line of s.r.why) allLines.add(line);
+    for (const x of s.r.deferred) allLines.add(x.why);
+  }
+  for (const t of [
+    ...Object.values(LOWER_BUDGET_TEXT),
+    ...Object.values(ARM_BUDGET_TEXT),
+    ...Object.values(PROGRAM_YIELD_TEXT),
+    ...Object.values(OVERRIDE_TEXT),
+    ...Array.from({ length: 24 }, (_, i) => programDayText(i + 1)),
+    timeBudget({ requested: 90, programMinutes: 50 }).note,
+    timeBudget({ requested: 60, programMinutes: 55 }).note,
+    timeBudget({ requested: 60, armcareMinutes: 20, includeArmcare: true }).note,
+  ])
+    if (t) allLines.add(t);
+  const badLines = [...allLines].filter(
+    (t) =>
+      t.length > 60 ||
+      t.includes('—') ||
+      !t.endsWith('요.') ||
+      t.includes('미뤘') ||
+      t.includes('내일로')
+  );
+  check(
+    `P6-1 (바) 중재 글 ${allLines.size}줄 — 해요체 · 줄표 없음 · 60자 안 · 다음 날을 약속하지 않음`,
+    badLines.length === 0 && allLines.size > 20,
+    badLines.join(' · ')
+  );
 }
 
 console.log(`\n${passed}개 통과, ${failed}개 실패`);
