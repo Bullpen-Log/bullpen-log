@@ -26,6 +26,9 @@ import type { FrozenExercise } from '@/lib/workout/session-plan';
  *   ③ 상한 — 한 번에 +10% 또는 +10kg 중 작은 것, 단 최소 한 단위
  *   ④ 쉰 기간 — 8~14일 ×0.9, 15~28일 ×0.85, 29일+ 는 숫자 없이(첫 회처럼)
  *   ⑤ 가벼운 주 ×0.9   ⑥ 오늘 조정 ×0.9(D19)   ⑦ 장비 단위로 반올림(U1.3)
+ *   ⑧ 올림 멈춤(2판 P6-7) — holdProgress(영양 추세 깃발, lib/nutrition/fuel-check.ts)를 받으면 올림(raise · linearUp)만 W 그대로
+ *      (held). 횟수 옮기기(transfer)는 오늘 처방 횟수로 옮긴 같은 힘의 무게라 멈추지 않는다(무게가 W 보다 커도 올린 것이 아니다).
+ *      줄임 · 쉰 기간 · 가벼운 주 · 오늘 조정의 낮춤은 그대로. % 방식은 4주 동안 기준 무게가 그대로라 올림이 따로 없다.
  *
  * 오늘 화면에 보이는 값과 운동 시작 때 얼리는 값(FrozenExercise.suggestedKg)이 같은 함수에서 나온다.
  * 무게는 kg 로 셈하고, lb 로 보는 사람의 화면 반올림은 화면이 한다(roundForDisplay).
@@ -93,6 +96,11 @@ export type WeightInput = {
    * 없으면 reserve 방식(② 여유로 올림).
    */
   linearStep?: number;
+  /**
+   * 올림 멈춤의 까닭(⑧) — 영양 추세 깃발이 선 주에 넘긴다(FUEL_HOLD_TEXT). 올림만 멈추고 이 글을 까닭 문장에 싣는다. 안 주거나 빈 글이면
+   * 예전과 같다.
+   */
+  holdProgress?: string;
 };
 
 export type WeightReason =
@@ -101,6 +109,8 @@ export type WeightReason =
   | { code: 'longBreak'; days: number }
   | { code: 'raise'; prevKg: number; prevReps: number; rir: number; reserve: number }
   | { code: 'hold'; prevKg: number; prevReps: number }
+  /** 올릴 때였지만 멈춤(⑧) — why 는 넘겨받은 까닭 */
+  | { code: 'held'; prevKg: number; prevReps: number; why: string }
   | { code: 'holdUnanswered'; prevKg: number; prevReps: number }
   | { code: 'missOnce'; prevKg: number; prevReps: number }
   | { code: 'missTwice'; prevKg: number }
@@ -222,6 +232,12 @@ export function suggestWeight(input: WeightInput): WeightSuggestion {
       kg = W;
       reason = { code: 'hold', prevKg: W, prevReps };
     }
+  }
+
+  /* ⑧ 올림 멈춤 — 상한 앞에서(멈추면 올림이 없어 상한도 없다). 낮추는 곱(④ ⑤ ⑥)은 아래에서 그대로 */
+  if (input.holdProgress && (reason.code === 'raise' || reason.code === 'linearUp')) {
+    kg = W;
+    reason = { code: 'held', prevKg: W, prevReps, why: input.holdProgress };
   }
 
   /* ③ 상한 — 올릴 때만. 한 단위보다 작게 오르면 한 단위(U1.3). 스트롱리프트 한 칸은 정해진 폭이라 상한이 없다 */
@@ -423,6 +439,8 @@ export function weighItem(
     gapDays: number | null;
     history: readonly HistoryEntry[];
     tmKg: number | null;
+    /** 올림 멈춤의 까닭(⑧) — reserve · linear 만 읽는다(% 방식은 올림이 따로 없다) */
+    holdProgress?: string;
   }
 ): { suggestion: WeightSuggestion | null; kgs: (number | null)[] | null } {
   const kind = weightKindOf(ex.equipment);
@@ -449,6 +467,7 @@ export function weighItem(
       gapDays: ctx.gapDays,
       history: ctx.history,
       ...(linear ? { linearStep: linearStep(rx.variant, kind) } : {}),
+      ...(ctx.holdProgress ? { holdProgress: ctx.holdProgress } : {}),
     }),
     kgs: null,
   };
@@ -489,6 +508,9 @@ export function reasonText(s: WeightSuggestion): string {
     case 'hold':
       main = `지난번 ${kgText(r.prevKg)} × ${r.prevReps}, 목표만큼 남았어요. 그대로 해요.`;
       break;
+    case 'held':
+      main = `지난번 ${kgText(r.prevKg)} × ${r.prevReps}, 올릴 때지만 ${r.why}.`;
+      break;
     case 'holdUnanswered':
       main = `지난번 ${kgText(r.prevKg)} × ${r.prevReps}. 몇 개 더 할 수 있었는지 몰라서 그대로 해요.`;
       break;
@@ -521,11 +543,13 @@ export function reasonText(s: WeightSuggestion): string {
   return [main, ...extra].join(' ');
 }
 
-/** 오늘 카드 줄의 작은 표시(§13-10) — 내려간 숫자에만 */
+/** 오늘 카드 줄의 작은 표시(§13-10) — 내려간 숫자와 올림을 멈춘 숫자(⑧)에만 */
 export function weightTag(s: WeightSuggestion): string | null {
   if (s.notes.includes('adjusted')) return '−10% 오늘 컨디션';
   if (s.notes.includes('light')) return '가벼운 주';
   if (s.notes.includes('gap15') || s.notes.includes('gap10')) return '오래 쉼';
+  /* 내려간 숫자는 아니지만 올릴 때 멈춘 것이라 알린다(⑧) — 왜 안 올랐는지 줄에서 바로 보이게 */
+  if (s.reason.code === 'held') return '올림 멈춤';
   if (s.reason.code === 'missTwice') return '−5%';
   if (s.reason.code === 'linearDeload') return '−10%';
   return null;

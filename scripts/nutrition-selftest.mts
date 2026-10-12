@@ -188,6 +188,25 @@ import {
   type OnboardingBody,
 } from '../lib/nutrition/onboarding-answers.ts';
 import { kgText, paceText } from '../components/onboarding/format.ts';
+import {
+  FUEL_CONDITION_AVG,
+  FUEL_HOLD_TEXT,
+  FUEL_LOW_DAYS,
+  FUEL_LOW_RATIO,
+  FUEL_MIN_CHECKINS,
+  FUEL_MIN_LOGGED_DAYS,
+  FUEL_MIN_MEALS,
+  FUEL_MIN_WEIGHINS,
+  FUEL_MIN_WEIGH_SPAN_DAYS,
+  FUEL_WEIGHT_DROP_KG,
+  FUEL_WINDOW_DAYS,
+  NO_FUEL_CHECK,
+  fuelCardOf,
+  fuelCheckOf,
+  mergeDayWeights,
+  weeklyWeightChange,
+  type FuelDay,
+} from '../lib/nutrition/fuel-check.ts';
 
 let passed = 0;
 let failed = 0;
@@ -5529,6 +5548,297 @@ console.log('\n■ 인아웃식 온보딩 — 글 속 숫자(components/onboardi
       kgText(84, 'lb') === '185.2lb' &&
       kgText(76.5, 'kg') === '76.5kg'
   );
+}
+
+console.log(
+  '\n■ 영양 추세 깃발(lib/nutrition/fuel-check.ts, 트레이닝 추천 2판 P6-7) — 적게 먹음 · 몸무게 감소 · 컨디션 낮음이 겹칠 때만'
+);
+{
+  /*
+   * 왜 보는가. 무게 추천(free-weight.ts ⑨ · next-weight.ts ⑧)이 이 깃발로 올림을 멈추고, 영양 탭이 이 깃발로 카드를 띄운다. 셋 중 하나나
+   * 둘은 흔해(감량 중 · 바쁜 주) 겹칠 때만 서야 한다. 기록이 모자라면(7일 중 4일) 판단하지 않는다.
+   * (가) 상수, (나) 격자 — 기록한 날 · 섭취 · 몸무게 · 컨디션의 모든 조합에서 깃발 = 넷 다 참, (다) 경계, (라) 글, (마) 카드 글,
+   * (바) 결정성 · 입력 그대로 · 창 자르기, (사) 체중 합치기.
+   */
+  const json = (v: unknown) => JSON.stringify(v);
+  const END = '2026-10-12';
+  /** 어제까지 7일(D-7..D-1) 날짜 */
+  const dates = Array.from({ length: FUEL_WINDOW_DAYS }, (_, i) =>
+    shiftDateKey(END, -(FUEL_WINDOW_DAYS - 1 - i))
+  );
+  const TG = { kcal: 2800, protein: 140 };
+  type Shape = {
+    /** 기록한 날 수(뒤에서부터) */
+    logged: number;
+    /** 적게 먹은 날 수(기록한 날 가운데) */
+    low: number;
+    /** 몸무게: 'down' 주 −0.7kg · 'flat' 그대로 · 'few' 두 번만 잼 · 'none' 안 잼 */
+    weight: 'down' | 'flat' | 'few' | 'none';
+    /** 컨디션: 'low' 평균 4 · 'ok' 평균 7 · 'few' 두 번만 · 'none' 없음 */
+    cond: 'low' | 'ok' | 'few' | 'none';
+  };
+  const build = (sh: Shape): FuelDay[] =>
+    dates.map((date, i) => {
+      const fromEnd = FUEL_WINDOW_DAYS - 1 - i;
+      const logged = fromEnd < sh.logged;
+      /* 기록한 날 가운데 앞쪽부터 적게 먹은 날 */
+      const lowDay = logged && fromEnd >= sh.logged - sh.low;
+      const weightKg =
+        sh.weight === 'none'
+          ? null
+          : sh.weight === 'few'
+            ? i === 0 || i === 6
+              ? 72 - (i === 6 ? 0.7 : 0)
+              : null
+            : 72 - (sh.weight === 'down' ? (0.7 / 7) * i : 0);
+      const condition =
+        sh.cond === 'none'
+          ? null
+          : sh.cond === 'few'
+            ? i < 2
+              ? 3
+              : null
+            : sh.cond === 'low'
+              ? [4, 3, 5, 4, 4, 5, 3][i]
+              : [7, 8, 6, 7, 7, 8, 6][i];
+      return {
+        date,
+        kcal: logged ? (lowDay ? 2000 : 2700) : 0,
+        protein: logged ? (lowDay ? 120 : 135) : 0,
+        weightKg,
+        condition,
+        logged,
+      };
+    });
+  const flagOf = (sh: Shape) => fuelCheckOf({ days: build(sh), targets: TG });
+
+  /* ── (가) 상수 ── */
+  check(
+    '(가) 상수 — 어제까지 7일 · 5일 기록 · 끼니 둘 · 85%(체중 목표의 먼저 채우기와 같음) · 3일 · 주 0.5kg · 3번 · 4일 사이 · 평균 5 · 체크인 3번',
+    FUEL_WINDOW_DAYS === 7 &&
+      FUEL_MIN_LOGGED_DAYS === 5 &&
+      FUEL_MIN_MEALS === 2 &&
+      FUEL_LOW_RATIO === 0.85 &&
+      FUEL_LOW_DAYS === 3 &&
+      FUEL_WEIGHT_DROP_KG === 0.5 &&
+      FUEL_MIN_WEIGHINS === 3 &&
+      FUEL_MIN_WEIGH_SPAN_DAYS === 4 &&
+      FUEL_CONDITION_AVG === 5 &&
+      FUEL_MIN_CHECKINS === 3
+  );
+
+  /* ── (나) 격자 — 깃발은 넷이 다 참일 때만 ── */
+  {
+    let cells = 0;
+    let flags = 0;
+    const bad: string[] = [];
+    for (let logged = 0; logged <= 7; logged++)
+      for (let low = 0; low <= logged; low++)
+        for (const weight of ['down', 'flat', 'few', 'none'] as const)
+          for (const cond of ['low', 'ok', 'few', 'none'] as const) {
+            const sh = { logged, low, weight, cond };
+            const r = flagOf(sh);
+            const want = logged >= 5 && low >= 3 && weight === 'down' && cond === 'low';
+            cells++;
+            if (r.flag) flags++;
+            if (
+              r.flag !== want ||
+              (r.flag
+                ? r.why.length !== 3 || r.holdText !== FUEL_HOLD_TEXT
+                : r.why.length !== 0 || r.holdText !== null) ||
+              r.loggedDays !== logged ||
+              r.lowDays !== low
+            )
+              bad.push(json(sh));
+          }
+    check(
+      `(나) 격자 ${cells}가지 — 깃발 ${flags}가지는 모두 기록 5일 이상 · 적게 먹은 날 3일 이상 · 몸무게 감소 · 컨디션 낮음이 겹친 칸, 까닭 세 줄 · 멈춤 글은 깃발과 함께만`,
+      bad.length === 0 && flags > 0,
+      bad.slice(0, 4).join(' / ')
+    );
+  }
+  check(
+    '(나) 기록 4일이면 셋이 다 걸려도 없음 · 5일이면 섬',
+    !flagOf({ logged: 4, low: 4, weight: 'down', cond: 'low' }).flag &&
+      flagOf({ logged: 5, low: 3, weight: 'down', cond: 'low' }).flag &&
+      flagOf({ logged: 7, low: 7, weight: 'down', cond: 'low' }).flag
+  );
+  check(
+    '(나) 셋 중 둘만이면 없음 — 섭취만 괜찮음 · 몸무게만 그대로 · 컨디션만 괜찮음',
+    !flagOf({ logged: 7, low: 2, weight: 'down', cond: 'low' }).flag &&
+      !flagOf({ logged: 7, low: 5, weight: 'flat', cond: 'low' }).flag &&
+      !flagOf({ logged: 7, low: 5, weight: 'down', cond: 'ok' }).flag
+  );
+  check(
+    '(나) 몸무게를 두 번만 쟀거나 체크인이 두 번뿐이면 모름이라 없음(오탐보다 놓침)',
+    !flagOf({ logged: 7, low: 5, weight: 'few', cond: 'low' }).flag &&
+      !flagOf({ logged: 7, low: 5, weight: 'down', cond: 'few' }).flag &&
+      flagOf({ logged: 7, low: 5, weight: 'few', cond: 'low' }).kgPerWeek === null &&
+      flagOf({ logged: 7, low: 5, weight: 'down', cond: 'few' }).conditionAvg === null
+  );
+
+  /* ── (다) 경계 ── */
+  {
+    const base = build({ logged: 7, low: 3, weight: 'down', cond: 'low' });
+    const at = (patch: (d: FuelDay, i: number) => Partial<FuelDay>) =>
+      fuelCheckOf({
+        days: base.map((d, i) => ({ ...d, ...patch(d, i) })),
+        targets: TG,
+      });
+    check(
+      '(다) 섭취 — 목표의 85% 바로 밑은 낮음, 85% 는 낮음 아님(kcal 2379 · 2380, 단백질은 넉넉)',
+      at((d, i) => (i < 3 ? { kcal: 2379, protein: 140 } : {})).lowDays === 3 &&
+        at((d, i) => (i < 3 ? { kcal: 2380, protein: 140 } : {})).lowDays === 0
+    );
+    check(
+      '(다) 섭취 — kcal 은 넉넉해도 단백질이 85% 밑이면 적게 먹은 날, 단백질을 모르는 날(null)은 kcal 로만',
+      at((d, i) => (i < 3 ? { kcal: 2700, protein: 118 } : {})).lowDays === 3 &&
+        at((d, i) => (i < 3 ? { kcal: 2700, protein: null } : {})).lowDays === 0 &&
+        at((d, i) => (i < 3 ? { kcal: 2000, protein: null } : {})).lowDays === 3
+    );
+    check(
+      '(다) 섭취 — 기록하지 않은 날(끼니 하나만 · 0kcal)은 적게 먹은 날로 안 센다',
+      at((d, i) => (i < 3 ? { logged: false, kcal: 300 } : {})).lowDays === 0 &&
+        at((d, i) => (i < 3 ? { logged: false, kcal: 300 } : {})).loggedDays === 4
+    );
+    check(
+      '(다) 단백질 목표를 모르면(null) kcal 로만 판단',
+      fuelCheckOf({
+        days: base.map((d) => ({ ...d, kcal: 2700, protein: 50 })),
+        targets: { kcal: 2800, protein: null },
+      }).lowDays === 0
+    );
+    const line = (kgs: (number | null)[]) =>
+      weeklyWeightChange(
+        kgs.flatMap((kg, i) => (kg == null ? [] : [{ date: dates[i], kg }]))
+      );
+    check(
+      '(다) 몸무게 — 곧은 선 기울기 × 7: 7일 동안 0.6kg 빠지면 주 −0.7kg(감소), 0.4kg 이면 −0.47(아님) · 3번 · 4일 사이가 안 되면 모름',
+      Math.abs((line([72, null, null, 71.7, null, null, 71.4]) ?? 0) + 0.7) < 1e-9 &&
+        (line([72, null, null, 71.8, null, null, 71.6]) ?? -9) > -0.5 &&
+        line([72, null, null, null, null, null, 71]) === null &&
+        line([72, 71.8, 71.6, 71.4, null, null, null]) === null &&
+        line([null, 72, 71.8, 71.6, 71.4, 71.2, null]) !== null
+    );
+    check(
+      '(다) 컨디션 — 평균 5 는 낮음, 5.3 은 아님',
+      at((d, i) => ({ condition: [5, 5, 5, 5, 5, 5, 5][i] })).flag &&
+        !at((d, i) => ({ condition: [5, 6, 5, 5, 6, 5, 5][i] })).flag
+    );
+    check(
+      '(다) 깃발 결과의 숫자 — 주 −0.7kg · 컨디션 평균 4 · 기록 7일 · 적게 먹은 날 3일',
+      json(fuelCheckOf({ days: base, targets: TG })) ===
+        json({
+          flag: true,
+          why: fuelCheckOf({ days: base, targets: TG }).why,
+          holdText: FUEL_HOLD_TEXT,
+          loggedDays: 7,
+          lowDays: 3,
+          kgPerWeek: -0.7,
+          conditionAvg: 4,
+        })
+    );
+  }
+
+  /* ── (라) 글 ── */
+  {
+    const r = flagOf({ logged: 7, low: 4, weight: 'down', cond: 'low' });
+    const lines = [...r.why, FUEL_HOLD_TEXT];
+    const bad = lines.filter(
+      (l) => l.includes('—') || l.length > 60 || l.includes('**') || !/요\.?$/.test(l)
+    );
+    check(
+      '(라) 까닭 세 줄 · 멈춤 글 — 해요체 · 줄표 없음 · 60자 안, 차례는 섭취 → 몸무게 → 컨디션',
+      bad.length === 0 &&
+        r.why[0] === '지난 7일 중 4일은 목표의 85%보다 적게 먹었어요.' &&
+        r.why[1] === '몸무게가 일주일에 0.7kg씩 줄고 있어요.' &&
+        r.why[2] === '컨디션이 평균 4/10이에요.',
+      [...bad, ...r.why].join(' / ')
+    );
+  }
+
+  /* ── (마) 카드 글 ── */
+  {
+    const on = flagOf({ logged: 6, low: 3, weight: 'down', cond: 'low' });
+    const adult = fuelCardOf(on, false);
+    const youth = fuelCardOf(on, true);
+    const all = [adult, youth].flatMap((c) =>
+      c ? [c.title, ...c.lines, c.hold, c.care] : []
+    );
+    check(
+      '(마) 카드 — 깃발이 없으면 null, 성인은 진료 안내 · 성장기는 보호자 · 지도자부터, 글은 해요체 · 줄표 없음',
+      fuelCardOf(NO_FUEL_CHECK, false) === null &&
+        fuelCardOf(flagOf({ logged: 7, low: 5, weight: 'flat', cond: 'low' }), true) ===
+          null &&
+        adult != null &&
+        youth != null &&
+        adult.title === '먹는 양이 모자라 보여요' &&
+        adult.care.includes('진료') &&
+        !adult.care.includes('보호자') &&
+        youth.care.includes('보호자') &&
+        youth.care.includes('지도자') &&
+        youth.care.includes('진료') &&
+        adult.hold.includes('무게 올리기는 잠시 멈추') &&
+        json(adult.lines) === json(on.why) &&
+        all.every((l) => !l.includes('—') && /요[.]?$/.test(l)),
+      all.join(' / ')
+    );
+  }
+
+  /* ── (바) 결정성 · 입력 그대로 · 창 자르기 ── */
+  {
+    const days = build({ logged: 6, low: 4, weight: 'down', cond: 'low' });
+    const before = json(days);
+    const a = fuelCheckOf({ days, targets: TG });
+    const b = fuelCheckOf({ days: [...days].reverse(), targets: TG });
+    /* 앞에 열흘 전 날 둘을 더해도(창 밖) 결과가 같다 — 마지막 7일만 본다 */
+    const older: FuelDay[] = [-9, -8].map((n) => ({
+      date: shiftDateKey(END, n),
+      kcal: 0,
+      protein: 0,
+      weightKg: 90,
+      condition: 10,
+      logged: true,
+    }));
+    const c = fuelCheckOf({ days: [...older, ...days], targets: TG });
+    check(
+      '(바) 같은 입력 같은 결과 · 차례를 뒤집어도 같음 · 입력을 안 바꿈 · 창 밖 날은 안 봄',
+      json(a) === json(fuelCheckOf({ days, targets: TG })) &&
+        json(a) === json(b) &&
+        json(a) === json(c) &&
+        json(days) === before &&
+        a.flag
+    );
+    check(
+      '(바) 빈 입력 — 깃발 없음 · 숫자 모름',
+      json(fuelCheckOf({ days: [], targets: TG })) === json(NO_FUEL_CHECK)
+    );
+  }
+
+  /* ── (사) 체중 합치기 — 영양 탭(load.ts)과 영양 추세(fuel-load.ts)가 같이 쓴다 ── */
+  {
+    const m = mergeDayWeights(
+      [
+        { date: '2026-10-01', kg: 70 },
+        { date: '2026-10-02', kg: 71 },
+        { date: '2026-10-03', kg: null },
+      ],
+      [
+        { date: '2026-10-02', kg: 70.5 },
+        { date: '2026-10-04', kg: 69.8 },
+        { date: '2026-10-05', kg: null },
+      ]
+    );
+    check(
+      '(사) 같은 날은 영양 탭 값이 체크인보다 앞섬 · 빈 값은 건너뜀',
+      json([...m.entries()].sort()) ===
+        json([
+          ['2026-10-01', { kg: 70, from: 'checkin' }],
+          ['2026-10-02', { kg: 70.5, from: 'nutrition' }],
+          ['2026-10-04', { kg: 69.8, from: 'nutrition' }],
+        ])
+    );
+  }
 }
 
 console.log(`\n${passed}개 통과, ${failed}개 실패`);

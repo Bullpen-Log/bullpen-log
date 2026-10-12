@@ -273,6 +273,8 @@ import {
   type FreeLast,
 } from '../lib/workout/free-weight.ts';
 import { UNIT_KG } from '../lib/program/next-weight.ts';
+/* 2판 P6-7 — 영양 추세 깃발이 선 주에 무게 추천이 받는 '올림 멈춤' 글 */
+import { FUEL_HOLD_TEXT } from '../lib/nutrition/fuel-check.ts';
 import {
   ALWAYS_OWNED,
   SELECTABLE_EQUIPMENT,
@@ -30822,6 +30824,248 @@ console.log(
       `P6-6 (사) 소스 ${rows.length}가지 — 같은 알림 함수 · 띠 자리 · 한 번 누름 · 홈 카드 차례 · 기준선`,
       wrong.length === 0,
       wrong.join(' / ')
+    );
+  }
+}
+
+/* ═══════════════════ [2판 P6] 영양 추세 · 무게 올림 멈춤(P6-7) — lib/nutrition/fuel-check.ts · free-weight.ts ⑨ (2026-10-13) ═══════════════════ */
+console.log(
+  '\n[2판 P6] 영양 추세 · 무게 올림 멈춤(P6-7) — 적게 먹음 · 몸무게 감소 · 컨디션 낮음이 겹친 주는 자유 운동 · 프로그램 무게의 올림만 멈춘다'
+);
+{
+  /*
+   * 왜 보는가. 깃발 자체(셋이 겹칠 때만 · 기록 4일이면 없음)는 nutrition:test, 프로그램 무게의 held 는 program:test 가 본다. 여기는
+   * 자유 운동 무게(free-weight.ts ⑨)가 실제 올림만 멈추는지(한 번 채움 · 못 채움 · 쉰 기간 · 양을 줄인 날은 그대로)와, 깃발이 무게를
+   * 부르는 네 곳(운동 시작 · 운동 중 바꾸기 · 프로그램 카드 · 프로그램 칸 바꾸기)에 같은 읽기로 닿는지, 영양 카드가 오늘만 뜨고 홈 영양
+   * 카드는 안 건드렸는지를 본다.
+   * (가) 올림 멈춤, (나) 그대로인 길, (다) 격자 불변식, (라) 소스의 약속.
+   */
+  const json = (v: unknown) => JSON.stringify(v);
+  const TK = '2026-06-15';
+  const ago = (n: number) => shiftDateKey(TK, -n);
+  const day = (
+    date: string,
+    kg: number,
+    reps: readonly (number | null)[]
+  ): FreeLast => ({
+    date,
+    sets: reps.map((r) => ({ weightKg: kg, reps: r })),
+  });
+  type FwInput = Parameters<typeof suggestFreeWeight>[0];
+  const ask = (o: Partial<FwInput>) =>
+    suggestFreeWeight({
+      equipment: ['바벨'],
+      bigLower: true,
+      plannedSets: 3,
+      plannedReps: 8,
+      last: null,
+      todayKey: TK,
+      ...o,
+    });
+  const HOLD = FUEL_HOLD_TEXT;
+  const twice = { last: day(ago(2), 60, [8, 8, 8]), prev: day(ago(5), 60, [8, 8, 8]) };
+
+  /* ── (가) 올림 멈춤 ── */
+  {
+    const up = ask(twice);
+    const held = ask({ ...twice, holdProgress: HOLD });
+    const careful = ask({ ...twice, cautious: true, holdProgress: HOLD });
+    check(
+      '(가) 두 번 이어 채워 올릴 때 — 깃발이면 지난 무게 그대로 · 글은 채운 사실 + 멈춘 까닭(성장기 · 입문의 한 단위도 멈춤)',
+      up != null &&
+        up.kg > 60 &&
+        held != null &&
+        held.kg === 60 &&
+        held.note === `지난번 60kg × 8회를 3세트 두 번 이어 채웠어요. ${HOLD}` &&
+        !held.note.includes('—') &&
+        careful != null &&
+        careful.kg === 60 &&
+        careful.note === held.note,
+      json([up, held, careful])
+    );
+    const both = ask({ ...twice, hold: true, holdProgress: HOLD });
+    check(
+      '(가) 양을 줄인 날(⑦ hold)과 겹치면 ⑦ 의 글이 먼저 — 무게는 둘 다 그대로',
+      both != null &&
+        both.kg === 60 &&
+        both.note === '오늘은 무게를 올리지 않는 날이라 지난번 60kg 그대로예요'
+    );
+  }
+
+  /* ── (나) 그대로인 길 — 올림이 아닌 칸은 깃발과 상관없이 같다 ── */
+  {
+    const cases: [string, Partial<FwInput>][] = [
+      ['한 번만 채움', { last: day(ago(2), 60, [8, 8, 8]) }],
+      ['그 사이(범위 안)', { last: day(ago(2), 60, [8, 7, 7]) }],
+      ['못 채움(바로 내림)', { last: day(ago(2), 60, [8, 5, 5]) }],
+      [
+        '9일 쉼(10% 낮춤)',
+        { last: day(ago(9), 60, [8, 8, 8]), prev: day(ago(12), 60, [8, 8, 8]) },
+      ],
+      [
+        '16일 쉼(15% 낮춤)',
+        { last: day(ago(16), 60, [8, 8, 8]), prev: day(ago(19), 60, [8, 8, 8]) },
+      ],
+      ['29일 쉼(숫자 없음)', { last: day(ago(29), 60, [8, 8, 8]) }],
+      ['처방 횟수 모름', { ...twice, plannedReps: null }],
+      ['맨몸(추천 없음)', { ...twice, equipment: [] }],
+    ];
+    const bad = cases
+      .filter(([, o]) => json(ask({ ...o, holdProgress: HOLD })) !== json(ask(o)))
+      .map(([n]) => n);
+    check(
+      `(나) 올림이 아닌 ${cases.length}가지(한 번 채움 · 그 사이 · 못 채움 · 쉰 기간 · 처방 모름 · 맨몸)는 깃발이 있어도 글자까지 같다`,
+      bad.length === 0,
+      bad.join(' / ')
+    );
+  }
+
+  /* ── (다) 격자 — 올린 칸만 그대로 + 까닭, 빈 글은 예전과 같다 ── */
+  {
+    let cells = 0;
+    let raised = 0;
+    const bad: string[] = [];
+    const repsSets: (number | null)[][] = [
+      [8, 8, 8],
+      [8, 8],
+      [9, 9, 9],
+      [8, 7, 8],
+      [5, 8, 8],
+      [8, 8, null],
+    ];
+    for (const kg of [20, 60, 61])
+      for (const lastAgo of [1, 3, 8, 15, 29])
+        for (const lastReps of repsSets)
+          for (const prevReps of [null, ...repsSets])
+            for (const prevKg of [kg, kg - 2.5])
+              for (const equipment of [['바벨'], ['덤벨'], ['케이블'], []])
+                for (const cautious of [false, true])
+                  for (const hold of [false, true]) {
+                    const input: FwInput = {
+                      equipment,
+                      bigLower: equipment[0] === '바벨',
+                      plannedSets: 3,
+                      plannedReps: 8,
+                      last: day(ago(lastAgo), kg, lastReps),
+                      prev: prevReps ? day(ago(lastAgo + 3), prevKg, prevReps) : null,
+                      todayKey: TK,
+                      cautious,
+                      hold,
+                    };
+                    cells++;
+                    const off = suggestFreeWeight(input);
+                    const on = suggestFreeWeight({ ...input, holdProgress: HOLD });
+                    const empty = suggestFreeWeight({ ...input, holdProgress: '' });
+                    const up = off != null && off.kg > kg;
+                    if (up) raised++;
+                    const ok =
+                      json(empty) === json(off) &&
+                      (up
+                        ? on != null && on.kg === kg && on.note.endsWith(HOLD)
+                        : json(on) === json(off));
+                    if (!ok)
+                      bad.push(
+                        json({
+                          kg,
+                          lastAgo,
+                          lastReps,
+                          prevReps,
+                          prevKg,
+                          equipment,
+                          cautious,
+                          hold,
+                        })
+                      );
+                  }
+    check(
+      `(다) 격자 ${cells}가지(올림 ${raised}가지) — 올림 칸만 지난 무게 그대로 + 까닭, 나머지와 빈 글은 글자까지 같다`,
+      bad.length === 0 && raised > 0,
+      bad.slice(0, 3).join(' / ')
+    );
+  }
+
+  /* ── (라) 소스의 약속 ── */
+  {
+    const strip = (rel: string) =>
+      readFileSync(new URL(`../${rel}`, import.meta.url), 'utf8')
+        .replace(/\/\*[\s\S]*?\*\//g, '')
+        .replace(/^\s*\/\/.*$/gm, '');
+    const work = strip('app/actions/workout.ts');
+    const fwl = strip('lib/workout/free-weight-load.ts');
+    const prog = strip('lib/program/load.ts');
+    const nw = strip('lib/program/next-weight.ts');
+    const fuel = strip('lib/nutrition/fuel-load.ts');
+    const page = strip('app/(app)/nutrition/page.tsx');
+    const view = strip('app/(app)/nutrition/nutrition-view.tsx');
+    const nload = strip('lib/nutrition/load.ts');
+    const homeDir = new URL('../app/(app)/today/', import.meta.url);
+    const homeHits = readdirSync(homeDir).filter(
+      (f) =>
+        /\.tsx?$/.test(f) &&
+        /fuel-|loadFuelState|loadHoldProgress|FuelNotice/.test(
+          readFileSync(new URL(f, homeDir), 'utf8')
+        )
+    );
+    const rows: [string, boolean][] = [
+      [
+        '운동 시작 · 운동 중 바꾸기가 같은 읽기(loadHoldProgress)로 holdProgress 를 넘긴다(무게 추천을 부르는 곳은 둘 그대로)',
+        work.split('withFreeWeights(').length - 1 === 2 &&
+          work.includes(
+            'holdProgress: await loadHoldProgress(user.id, core.todayKey),'
+          ) &&
+          work.includes(
+            'holdProgress: await loadHoldProgress(user.id, toDateKey(session.date)),'
+          ),
+      ],
+      [
+        '프로그램 칸 바꾸기(swapWeigher)도 같은 읽기로 weighItem 에 넘긴다',
+        /loadHoldProgress\(userId, todayKey\)/.test(work) &&
+          /tmKg: tms\.get\(to\.id\) \?\? null,\s*holdProgress,/.test(work),
+      ],
+      [
+        '자유 무게 로드가 holdProgress 를 그대로 넘긴다',
+        fwl.includes('holdProgress: opts.holdProgress,'),
+      ],
+      [
+        '프로그램 카드(buildProgramDay)가 같은 읽기로 weighItem 에 넘기고, 등판 답을 DB 에서 따로 읽지 않는다는 약속은 그대로',
+        /loadHoldProgress\(user\.id, todayKey\)/.test(prog) &&
+          /tmKg: tms\.get\(c\.ex\.id\) \?\? null,\s*holdProgress,/.test(prog) &&
+          !/dailyCheckin/.test(prog),
+      ],
+      [
+        'next-weight 는 올림(raise · linearUp)만 held 로, % 방식은 holdProgress 를 안 읽는다',
+        /reason\.code === 'raise' \|\| reason\.code === 'linearUp'/.test(nw) &&
+          !/pctWeights\(\{[^}]*holdProgress/.test(nw),
+      ],
+      [
+        '읽기는 React cache · 문자열 인자 · 영양 목표 줄이 없으면 깃발 없음 · 기본 목표(base)로 잰다',
+        /export const loadFuelState = cache\(\s*async \(userId: string, todayKey: string\)/.test(
+          fuel
+        ) &&
+          /if \(!user \|\| !profileRow\) return \{ check: NO_FUEL_CHECK, card: null \};/.test(
+            fuel
+          ) &&
+          fuel.includes('targets: { kcal: targets.base, protein: targets.protein },'),
+      ],
+      [
+        '영양 탭은 오늘을 볼 때만 읽고 카드를 그리드 위에 한 장',
+        page.includes('date === today ? loadFuelState(user.id, today) : null,') &&
+          view.includes('{fuel && <FuelNotice card={fuel} />}'),
+      ],
+      [
+        '영양 탭 체중 합치기는 영양 추세와 같은 함수(mergeDayWeights) 한 곳',
+        nload.includes('mergeDayWeights(') && fuel.includes('mergeDayWeights('),
+      ],
+      [
+        `홈(app/(app)/today)은 영양 추세를 안 읽는다(홈 영양 카드 그대로)`,
+        homeHits.length === 0,
+      ],
+    ];
+    const wrong = rows.filter(([, okRow]) => !okRow).map(([n]) => n);
+    check(
+      `P6-7 (라) 소스 ${rows.length}가지 — 같은 읽기 · 네 곳 배선 · 오늘만 · 홈 그대로`,
+      wrong.length === 0,
+      [...wrong, ...homeHits].join(' / ')
     );
   }
 }

@@ -34,12 +34,15 @@ import { YOUTH_AGE_THRESHOLD } from '@/lib/report/plan';
  *      맨몸 · 밴드 · 메디신볼은 추천이 없다.
  *   ⑦ hold — 양을 줄인 날(그날 일정 · 세션 판에 양 조절이 실린 날, lib/report/volume.ts holdsWeight)은 채움이어도 올리지 않고 지난번
  *      무게 그대로(2판 P5-d). 컨디션 · 잠 · 근육통 때문에 세트를 줄인 날 무게를 올리면 줄인 뜻과 반대로 간다. 내림 · 쉰 기간 낮춤은
- *      그대로 — 낮추는 쪽이라 막을 까닭이 없다. P6 의 '올림 멈춤'(영양 추세 holdProgress)도 이 자리 하나(채움 분기 맨 앞)에 얹는다.
+ *      그대로 — 낮추는 쪽이라 막을 까닭이 없다. P6 의 '올림 멈춤'(⑨)은 올릴 때가 온 자리에 따로 건다.
  *      2판 P5 검토부터 세트는 그대로 두고 무게만 멈추는 날(강도만 담은 조절 — 몸 신호가 걸렸는데 줄일 세트가 없는 날)도 hold 라, 글은
  *      '오늘은 무게를 올리지 않는 날이라 …'(세트를 줄였다고 하지 않는다).
  *   ⑧ cautious — 성장기(만 16세 미만, YOUTH_AGE_THRESHOLD) · 경력 '입문'(BEGINNER_LEVEL_NAME)은 올려도 한 단위만, 운동 화면
  *      처방 줄에 '· 3개 남기고'(cautiousPrescription — free-weight-load.ts 가 붙인다). 프로그램의 '몇 개 남기고'와 같은 뜻 — 끝까지
  *      짜내지 않는다. 내림 · 그대로 · 쉰 기간은 다른 사람과 같다.
+ *   ⑨ holdProgress — 영양 추세 깃발(lib/nutrition/fuel-check.ts — 지난 7일 적게 먹음 · 몸무게 감소 · 컨디션 낮음이 겹침, 2판 P6-7)이
+ *      선 주에는 두 번 이어 채워 올릴 때가 와도 그대로 두고 그 까닭을 붙인다. ⑦ 과 달리 '한 번 더 채우면 올려요'(아직 올릴 때가 아님)는
+ *      그대로 말한다 — 멈추는 것은 실제 올림뿐이다. 내림 · 쉰 기간 낮춤은 그대로. ⑦ 이 같이 걸리면 ⑦ 의 글이 먼저.
  *
  * 운동 시작 때 판에 얼려(FrozenExercise.suggestedKg · suggestNote) 운동 화면의 '추천 N kg 담기'가 쓴다.
  */
@@ -156,6 +159,11 @@ export function suggestFreeWeight(input: {
   hold?: boolean;
   /** 조심해서 들 사람인가(⑧, liftCautious) — 올려도 한 단위만. 안 주면 보통 */
   cautious?: boolean;
+  /**
+   * 올림 멈춤의 까닭(⑨, 2판 P6-7) — 영양 추세 깃발(lib/nutrition/fuel-check.ts FUEL_HOLD_TEXT)이 선 주에 넘긴다. 두 번 이어 채워 올릴
+   * 때가 와도 그대로 두고 이 글을 붙인다. 안 주거나 빈 글이면 보통.
+   */
+  holdProgress?: string;
 }): FreeSuggestion | null {
   const kind = weightKindOf(input.equipment);
   if (kind === 'none' || !input.last) return null;
@@ -202,7 +210,7 @@ export function suggestFreeWeight(input: {
   /* ③ 채움 */
   if (filled(working, sets, reps)) {
     if (input.hold) {
-      /* ⑦ 양을 줄인 날 — 올릴 만큼 채웠어도 그대로. 다음 보통 날에 다시 본다(P6 의 올림 멈춤도 여기) */
+      /* ⑦ 양을 줄인 날 — 올릴 만큼 채웠어도 그대로. 다음 보통 날에 다시 본다(P6 의 올림 멈춤은 아래 ⑨) */
       return {
         kg: top,
         note: `오늘은 무게를 올리지 않는 날이라 ${prev} 그대로예요`,
@@ -221,6 +229,13 @@ export function suggestFreeWeight(input: {
       return {
         kg: top,
         note: `${prev} × ${reps}회를 ${sets}세트 다 채웠어요. 한 번 더 채우면 올려요`,
+      };
+    }
+    if (input.holdProgress) {
+      /* ⑨ 올림 멈춤 — 올릴 때가 왔지만 먹는 양 · 몸무게 · 컨디션이 함께 낮은 주라 그대로(성장기 · 입문의 한 단위도 멈춘다) */
+      return {
+        kg: top,
+        note: `${prev} × ${reps}회를 ${sets}세트 두 번 이어 채웠어요. ${input.holdProgress}`,
       };
     }
     const done = `${top}kg × ${reps}회 ${sets}세트를 두 번 이어 채워서`;

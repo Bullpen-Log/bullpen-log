@@ -14,6 +14,7 @@ import {
 import { dayKindOf } from '@/lib/engine/microcycle';
 import { withProgramCommitment } from '@/lib/engine/day-state';
 import { lastStrengthDates } from '@/lib/report/gather';
+import { loadHoldProgress } from '@/lib/nutrition/fuel-load';
 import { droppedOnlyForArmFatigue, selectCandidates } from '@/lib/report/prescription';
 import { LOW_CONDITION_THRESHOLD, painRecoveryReason } from '@/lib/report/theme';
 import type { loadTodayCore } from '@/lib/report/today-data';
@@ -628,7 +629,7 @@ export async function buildProgramDay(
   }
 
   const pctIds = chosen.filter((c) => c.rx.mode === 'pct').map((c) => c.ex.id);
-  const [history, tms] = await Promise.all([
+  const [history, tms, holdProgress] = await Promise.all([
     programHistory(
       user.id,
       chosen.map((c) => c.ex.id),
@@ -636,6 +637,11 @@ export async function buildProgramDay(
     ),
     /* 시작한 날 — 그 사람의 하루(한국 날짜)로 */
     trainingMaxes(user.id, pctIds, toDateKey(row.startedAt), todayKey),
+    /*
+     * 영양 추세 깃발(2판 P6-7) — 지난 7일 적게 먹음 · 몸무게 감소 · 컨디션 낮음이 겹친 주면 올림만 멈춘다(next-weight.ts ⑧). 자유 운동 무게
+     * (workout.ts)와 같은 읽기(React cache, 문자열 인자)라 카드와 운동 시작이 같은 값을 본다.
+     */
+    loadHoldProgress(user.id, todayKey),
   ]);
 
   for (const c of chosen) {
@@ -647,6 +653,7 @@ export async function buildProgramDay(
       gapDays,
       history: history.get(c.ex.id) ?? [],
       tmKg: tms.get(c.ex.id) ?? null,
+      holdProgress,
     });
     view.rows.push({
       slot: rx.slot,

@@ -78,6 +78,8 @@ import {
 import { parseThrowPlan } from '../lib/checkin.ts';
 import { yesterdayArmLoadOf } from '../lib/engine/arm-load.ts';
 import { buildFacts, type CheckinLike } from '../lib/report/facts.ts';
+/* 2판 P6-7 — 올림 멈춤 글(영양 추세 깃발이 선 주에 무게 추천이 받는 글) */
+import { FUEL_HOLD_TEXT } from '../lib/nutrition/fuel-check.ts';
 
 let passed = 0;
 let failed = 0;
@@ -1992,6 +1994,190 @@ const oldJson = {
     '준비 세트를 적어도 처방 세트(뒤쪽)로 채움 판정',
     warm.hitReps && warm.lastWeightKg === 100 && warm.mode === 'linear'
   );
+}
+
+/* ── 2판 P6-7) 올림 멈춤 — 영양 추세 깃발(lib/nutrition/fuel-check.ts)이 선 주 ─────────────────────────────── */
+console.log(
+  '\n2판 P6-7) 올림 멈춤(held) — 영양 추세 깃발이 선 주는 올림만 그대로, 낮춤 · 횟수 옮기기는 그대로'
+);
+{
+  /*
+   * 왜 보는가. 먹는 양 · 몸무게 · 컨디션이 함께 낮은 주에 '다 채웠으니 올림'은 몸이 따라온 증거가 못 된다(next-weight.ts ⑧). 멈추는
+   * 것은 올림(raise · linearUp)뿐이어야 하고, 낮추는 곱(쉰 기간 · 가벼운 주 · 오늘 조정)과 줄임은 그대로, 깃발이 없으면 글자까지 예전과 같아야 한다.
+   */
+  const json = (v: unknown) => JSON.stringify(v);
+  const HOLD = FUEL_HOLD_TEXT;
+  const raise = wi({ history: [h({ rir: 3 })] });
+  const r0 = suggestWeight(raise);
+  const r1 = suggestWeight({ ...raise, holdProgress: HOLD });
+  check(
+    '(가) 여유로 올릴 날(R = T+1) — 깃발이면 지난 무게 그대로 · 까닭 held · 줄 표시 올림 멈춤 · 상한 표시 없음',
+    r0.reason.code === 'raise' &&
+      r0.kg === 105 &&
+      r1.kg === 100 &&
+      r1.reason.code === 'held' &&
+      json(r1.reason) === json({ code: 'held', prevKg: 100, prevReps: 5, why: HOLD }) &&
+      r1.notes.length === 0 &&
+      weightTag(r1) === '올림 멈춤',
+    json(r1)
+  );
+  check(
+    "(가) 까닭 문장 — '지난번 100kg × 5, 올릴 때지만 …했어요.' 한 문장, 해요체 · 줄표 없음",
+    reasonText(r1) === `지난번 100kg × 5, 올릴 때지만 ${HOLD}.` &&
+      !reasonText(r1).includes('—') &&
+      HOLD.length <= 60,
+    reasonText(r1)
+  );
+  const lin = wi({
+    linearStep: 2.5,
+    history: [h({ lastWeightKg: 60, mode: 'linear' })],
+  });
+  check(
+    '(나) 스트롱리프트 한 칸(linearUp)도 멈춤 — 60kg 그대로 · held, weighItem 도 같은 길(데드리프트 +5 → 100 그대로)',
+    suggestWeight(lin).kg === 62.5 &&
+      suggestWeight({ ...lin, holdProgress: HOLD }).kg === 60 &&
+      suggestWeight({ ...lin, holdProgress: HOLD }).reason.code === 'held' &&
+      weighItem(
+        rxOf(sl, 2, 'hinge'),
+        { equipment: ['바벨'] },
+        {
+          adjusted: false,
+          gapDays: 2,
+          history: [h({ lastWeightKg: 100, mode: 'linear' })],
+          tmKg: null,
+          holdProgress: HOLD,
+        }
+      ).suggestion?.kg === 100
+  );
+  const withHold = (o: Partial<WeightInput>) => ({
+    off: suggestWeight(wi(o)),
+    on: suggestWeight(wi({ ...o, holdProgress: HOLD })),
+  });
+  const gap = withHold({ gapDays: 10, history: [h({ rir: 3 })] });
+  const light = withHold({ light: true, reserve: 2, history: [h({ rir: 3 })] });
+  const adj = withHold({ adjusted: true, history: [h({ rir: 3 })] });
+  check(
+    '(다) 낮추는 곱은 그대로 — 쉰 10일 · 가벼운 주 · 오늘 조정이면 지난 무게 × 0.9(90kg), 표시는 낮춤 쪽이 먼저',
+    gap.on.kg === 90 &&
+      gap.on.reason.code === 'held' &&
+      gap.on.notes.includes('gap10') &&
+      weightTag(gap.on) === '오래 쉼' &&
+      light.on.kg === 90 &&
+      light.on.notes.includes('light') &&
+      adj.on.kg === 90 &&
+      weightTag(adj.on) === '−10% 오늘 컨디션' &&
+      reasonText(adj.on).includes('오늘 몸 상태로 10% 낮췄어요.'),
+    json([gap.on, light.on, adj.on])
+  );
+  const miss2 = withHold({
+    history: [h({ rir: 1 }), h({ date: '2026-09-28', hitReps: false })],
+  });
+  const transfer = withHold({ reps: 3, history: [h({ rir: 3 })] });
+  check(
+    '(라) 줄임(두 번 못 채움 −5%)과 횟수 옮기기(5회 → 3회)는 깃발과 상관없이 같다 — 옮긴 무게는 같은 힘의 무게라 올림이 아니다',
+    json(miss2.on) === json(miss2.off) &&
+      miss2.on.kg === 95 &&
+      json(transfer.on) === json(transfer.off) &&
+      transfer.on.reason.code === 'transfer' &&
+      (transfer.on.kg ?? 0) > 100
+  );
+  check(
+    '(마) % 방식은 holdProgress 를 받아도 무게가 같다(4주 동안 기준 무게 그대로)',
+    json(
+      weighItem(
+        rxOf(p531, 1, 'squat'),
+        { equipment: ['바벨'] },
+        { adjusted: false, gapDays: 2, history: [], tmKg: 100, holdProgress: HOLD }
+      )
+    ) ===
+      json(
+        weighItem(
+          rxOf(p531, 1, 'squat'),
+          { equipment: ['바벨'] },
+          { adjusted: false, gapDays: 2, history: [], tmKg: 100 }
+        )
+      )
+  );
+
+  /* (바) 격자 — 올림이 아닌 칸은 깃발과 상관없이 같고, 올림 칸은 held 로 더 무겁지 않다. 빈 글 · 없음은 예전과 글자까지 같다 */
+  {
+    let cells = 0;
+    let raised = 0;
+    const bad: string[] = [];
+    for (const rir of [null, 0, 1, 2, 3, 4])
+      for (const reserve of [null, 1, 2, 3])
+        for (const hitReps of [true, false])
+          for (const light of [false, true])
+            for (const adjusted of [false, true])
+              for (const gapDays of [null, 2, 9, 16, 30])
+                for (const linear of [false, true])
+                  for (const reps of [5, 3])
+                    for (const prevMiss of [false, true]) {
+                      const input = wi({
+                        reps,
+                        reserve,
+                        light,
+                        adjusted,
+                        gapDays,
+                        ...(linear ? { linearStep: 2.5 } : {}),
+                        history: [
+                          h({
+                            rir,
+                            reserve,
+                            hitReps,
+                            lastWeightKg: 80,
+                            mode: linear ? 'linear' : null,
+                          }),
+                          ...(prevMiss
+                            ? [
+                                h({
+                                  date: '2026-09-28',
+                                  hitReps: false,
+                                  lastWeightKg: 80,
+                                }),
+                              ]
+                            : []),
+                        ],
+                      });
+                      cells++;
+                      const off = suggestWeight(input);
+                      const on = suggestWeight({ ...input, holdProgress: HOLD });
+                      const empty = suggestWeight({ ...input, holdProgress: '' });
+                      const up =
+                        off.reason.code === 'raise' || off.reason.code === 'linearUp';
+                      if (up) raised++;
+                      const ok =
+                        json(empty) === json(off) &&
+                        (up
+                          ? on.reason.code === 'held' &&
+                            on.kg != null &&
+                            off.kg != null &&
+                            on.kg <= off.kg &&
+                            on.kg <= 80 &&
+                            !on.notes.includes('cap') &&
+                            weightTag(on) != null
+                          : json(on) === json(off));
+                      if (!ok)
+                        bad.push(
+                          json({
+                            rir,
+                            reserve,
+                            hitReps,
+                            light,
+                            adjusted,
+                            gapDays,
+                            linear,
+                            reps,
+                            prevMiss,
+                          })
+                        );
+                    }
+    check(
+      `(바) 격자 ${cells}가지(올림 ${raised}가지) — 올림 칸만 held(지난 무게 이하 · 상한 표시 없음 · 줄 표시 있음), 나머지와 빈 글은 글자까지 같다`,
+      bad.length === 0 && raised > 0,
+      bad.slice(0, 3).join(' / ')
+    );
+  }
 }
 
 console.log(`\n통과 ${passed} · 실패 ${failed}`);

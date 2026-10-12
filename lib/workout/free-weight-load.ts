@@ -23,12 +23,15 @@ export const FREE_WEIGHT_DAYS = 2;
  *
  * opts.cautious — 조심해서 들 사람인가(free-weight.ts liftCautious — 성장기 · 입문, 2판 P5-g). 그러면 올려도 한 단위만이고, 이 운동들의
  * 처방 줄에 '· 3개 남기고'를 붙인다(추천이 없는 첫 운동도 — 운동 화면이 처방 줄을 그대로 보인다). 부르는 쪽이 facts.profile 로 정한다.
+ *
+ * opts.holdProgress — 영양 추세 깃발이 선 주의 '올림 멈춤' 글(lib/nutrition/fuel-load.ts loadHoldProgress, 2판 P6-7). 그러면 두 번 이어 채워
+ * 올릴 때가 와도 그대로 두고 그 글을 붙인다(free-weight.ts ⑨). 없으면 보통.
  */
 export async function withFreeWeights(
   userId: string,
   exercises: readonly FrozenExercise[],
   sessionDate: Date,
-  opts: { hold?: boolean; cautious?: boolean } = {}
+  opts: { hold?: boolean; cautious?: boolean; holdProgress?: string } = {}
 ): Promise<FrozenExercise[]> {
   const todayKey = toDateKey(sessionDate);
   const wanted = exercises.filter(
@@ -54,6 +57,7 @@ export async function withFreeWeights(
       todayKey,
       hold: opts.hold === true,
       cautious: opts.cautious === true,
+      holdProgress: opts.holdProgress,
     });
     const shown = opts.cautious
       ? { ...e, prescription: cautiousPrescription(e.prescription) }

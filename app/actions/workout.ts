@@ -34,6 +34,7 @@ import { weighItem } from '@/lib/program/next-weight';
 import type { ItemRx } from '@/lib/program/program';
 import { openSession } from '@/lib/workout/open-session';
 import { withFreeWeights } from '@/lib/workout/free-weight-load';
+import { loadHoldProgress } from '@/lib/nutrition/fuel-load';
 import { liftCautious } from '@/lib/workout/free-weight';
 import { advanceProgramDay } from '@/lib/program/advance';
 import { runExercises, type RunExercise } from '@/lib/workout/run-exercises';
@@ -120,13 +121,14 @@ export async function startWorkout() {
   /*
    * 프로그램이 아닌 무게 운동의 추천 — 지난번 세트로(lib/workout/free-weight.ts). 다시 여는 판은 제 목록을 지킨다.
    * 양 조절이 실린 판(세트 −1, 또는 2판 P5 검토부터 몸 신호로 강도만 −1)이면 무게는 올리지 않는다(holdsWeight, 2판 P5-d). 성장기 · 입문은 올려도 한 단위 · 처방 줄에
-   * '· 3개 남기고'(liftCautious, 2판 P5-g).
+   * '· 3개 남기고'(liftCautious, 2판 P5-g). 영양 추세 깃발이 선 주는 올림만 멈춘다(loadHoldProgress, 2판 P6-7 — 프로그램 날 무게와 같은 읽기).
    */
   const weighed = {
     ...plan,
     exercises: await withFreeWeights(user.id, plan.exercises, core.midnight, {
       hold: holdsWeight(plan),
       cautious: liftCautious(core.facts.profile),
+      holdProgress: await loadHoldProgress(user.id, core.todayKey),
     }),
   };
 
@@ -908,7 +910,12 @@ export async function changeSessionExercise(input: {
         ],
         session.date,
         /* 판이 양을 줄였으면 바꿔 넣는 운동도 무게를 올리지 않는다 — 처음 찍은 운동과 같은 규칙(holdsWeight, 2판 P5-d · liftCautious P5-g) */
-        { hold: holdsWeight(plan), cautious: liftCautious(core.facts.profile) }
+        {
+          hold: holdsWeight(plan),
+          cautious: liftCautious(core.facts.profile),
+          /* 영양 추세 깃발의 올림 멈춤도 처음 찍은 운동과 같이(2판 P6-7) */
+          holdProgress: await loadHoldProgress(user.id, toDateKey(session.date)),
+        }
       )
     )[0];
   const list =
@@ -951,9 +958,11 @@ async function swapWeigher(
 ): Promise<(rx: ItemRx) => { suggestedKg: number | null; kgs: (number | null)[] | null }> {
   if (!rx || rx.mode === 'none') return () => ({ suggestedKg: null, kgs: null });
   const todayKey = toDateKey(sessionDate);
-  const [row, history] = await Promise.all([
+  const [row, history, holdProgress] = await Promise.all([
     activeProgram(userId),
     programHistory(userId, [to.id], todayKey),
+    /* 영양 추세 깃발이 선 주면 올림만 멈춘다 — 카드(program/load.ts)와 같은 읽기(2판 P6-7) */
+    loadHoldProgress(userId, todayKey),
   ]);
   const tms =
     rx.mode === 'pct'
@@ -965,6 +974,7 @@ async function swapWeigher(
       gapDays,
       history: history.get(to.id) ?? [],
       tmKg: tms.get(to.id) ?? null,
+      holdProgress,
     });
     return { suggestedKg: suggestion?.kg ?? null, kgs };
   };
