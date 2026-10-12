@@ -112,6 +112,7 @@ import {
   type DayPlan,
 } from '../lib/report/plan.ts';
 import {
+  HEAVY_LOWER_BLOCK_WITHIN_DAYS,
   painEasingParts,
   painPartsToday,
   painStateUnknown,
@@ -182,6 +183,7 @@ import {
   effectiveMinutes,
   estimateMinutes,
   hardOuting,
+  mainCandidateCount,
   painAvoidedSide,
   painRecoveryReason,
   pickForTheme,
@@ -8043,6 +8045,38 @@ console.log(
   const narrowArmPlyo = (e: { category: string; equipment: readonly string[] }) =>
     e.category === '파워' &&
     e.equipment.some((q) => q === '메디신볼' || q === '플라이오볼');
+  /*
+   * 무거운 하체의 좁은 판정(2판 P4 커밋 D) — exercise-class.ts 의 isHeavyLower 를 베끼지 않는다. 누가 봐도 무거운 하체인 것만: 바벨을
+   * 지는 하체 근력 · '매우 높음' 하체 근력 · 스쿼트 · 런지 · 힌지 계열의 파워(점프 · 바운드). 판정(isHeavyLower)은 이것보다 넓다 —
+   * '높음' 덤벨 하체 · 계열 없는 하체 부위 파워까지 — 그래서 '좁은 판정 0'은 판정이 이것들을 놓치지 않는다는 뜻이다.
+   */
+  const narrowHeavyLower = (e: {
+    category: string;
+    intensity: string;
+    equipment: readonly string[];
+    movementPattern?: string | null;
+  }) =>
+    (e.category === '하체 스트렝스' &&
+      (e.equipment.includes('바벨') ||
+        intensityLevel(e.intensity) > INTENSITY_CAP.STRENGTH)) ||
+    (e.category === '파워' &&
+      (e.movementPattern === '스쿼트' ||
+        e.movementPattern === '런지' ||
+        e.movementPattern === '힌지'));
+  /*
+   * 등판 창 안인가 — 코드(outingOf · nextOutingWindow)가 아니라 사람에게 넣은 답 글자로 따로 정한다. 오늘 답이 있으면 오늘 답만
+   * ('오늘 등판' · '내일 등판' · '2~3일 뒤'), 없으면 어제 답을 하루 당겨('내일 등판' → 오늘 · '2~3일 뒤' → 1~2일 뒤). 어제 '4일 이상 뒤'
+   * (오늘 3일 이상 뒤)는 끝이 없는 답이라 창 밖이다(prescription.ts 2-2 주석).
+   */
+  const rawOutingWindow = (p: P0Person) => {
+    const todayAnswer = p.today?.throwPlan;
+    if (todayAnswer != null)
+      return ['오늘 등판', '내일 등판', '2~3일 뒤'].includes(todayAnswer);
+    const yesterdayAnswer = p.yesterday?.throwPlan;
+    return (
+      yesterdayAnswer != null && ['내일 등판', '2~3일 뒤'].includes(yesterdayAnswer)
+    );
+  };
   const readFive = (p: P0Person): FiveReaders => {
     const facts = p0Facts(p);
     const plan = buildPitchPlan(facts);
@@ -8498,6 +8532,8 @@ console.log(
   };
   /* 2판 P4 커밋 C 에서 더한 덮임 — 위 cover 는 그대로 두고(그 검사 이름 · 문턱을 안 흔들게) 따로 센다 */
   const armCover = { severe: 0, mild: 0, youthRest: 0 };
+  /* 2판 P4 커밋 D 의 덮임 — 등판 창 안 · 규칙이 실제로 뺀 날 · 창 안에서 하체 날이 선 날(가벼운 하체로) */
+  const windowCover = { window: 0, bites: 0, lower: 0 };
   let worstOver = 0;
   const P0_COMBOS = 160;
   for (let i = 0; i < P0_COMBOS; i++) {
@@ -8588,7 +8624,7 @@ console.log(
     }
     /*
      * ⑭ 팔 피로 '심함'(2판 P4 커밋 C) → 무거운 상체 밀기 · 팔 플라이오 0 — 고른 것과 안전 거르기 후보 둘 다, 좁은 판정(narrowHeavyPush ·
-     * narrowArmPlyo — exercise-class.ts 를 베끼지 않는다). 번호 ⑪~⑬ 은 등판 창 · 달력 규칙(P4 커밋 D · G) 몫으로 비워 둔다.
+     * narrowArmPlyo — exercise-class.ts 를 베끼지 않는다). ⑪ ⑫ 는 등판 창(P4 커밋 D, 아래), ⑬ 은 달력 규칙(커밋 G) 몫으로 비워 둔다.
      */
     const armNow = facts.condition.today?.armFatigue ?? null;
     const uniqTitles = (list: { title: string }[]) =>
@@ -8610,6 +8646,30 @@ console.log(
       const hit = [...exs, ...picked.candidates].filter(narrowArmPlyo);
       if (hit.length > 0)
         note('⑮', `${c.seed} 만 ${facts.profile.age}세 쉬는 날인데 ${uniqTitles(hit)}`);
+    }
+    /*
+     * ⑪ 등판 창(2판 P4 커밋 D) — 다음 등판이 오늘 · 내일 · 2~3일 뒤면 무거운 하체 0(고른 것 · 후보, '그래도 하기'로 테마를 민 날도).
+     * 창은 넣은 답 글자로(rawOutingWindow), 무거운 하체는 좁은 판정(narrowHeavyLower)으로 — 둘 다 코드를 베끼지 않는다.
+     */
+    if (rawOutingWindow(c.p)) {
+      windowCover.window++;
+      if (picked.excluded.some((x) => x.rule === '등판 전 무거운 하체'))
+        windowCover.bites++;
+      if (key === 'lower') windowCover.lower++;
+      const hit = [...exs, ...picked.candidates].filter(narrowHeavyLower);
+      if (hit.length > 0)
+        note(
+          '⑪',
+          `${c.seed} 등판 창인데 ${uniqTitles(hit)}${forcing ? '(그래도 하기)' : ''}`
+        );
+    }
+    /*
+     * ⑫ 근력 날(하체 · 상체)이면 그쪽 본운동 후보가 있다 — 비면 steerFromEmptyMain 이 날을 바꿨어야 한다(2판 P1 · P4 커밋 D). 등판 창이
+     * 무거운 하체를 빼 하체 본운동이 통째로 빈 날이 하체 날로 남지 않는가를 본다. 본운동 구간이 없는 구성(컨디셔닝 목표)은 null 이라 안 센다.
+     */
+    if (key === 'lower' || key === 'upper') {
+      const mainCount = mainCandidateCount(picked.candidates, key, built.goal);
+      if (mainCount === 0) note('⑫', `${c.seed} ${key} 날인데 본운동 후보 0`);
     }
     /*
      * ⑯ 팔 피로 '심함' 밑(1~4)은 일정을 안 바꾼다 — 팔 피로 칸이 없는 같은 사람(plainCombo)과 글자 그대로. '많이'는 암케어만 회복으로
@@ -8651,6 +8711,11 @@ console.log(
     ['⑦', '재활 관절의 무거운 운동 0'],
     ['⑧', '15세 미만 매우 높음 0'],
     ['⑩', '같은 입력 두 번 → 같은 목록'],
+    [
+      '⑪',
+      "등판 창(오늘 · 내일 · 2~3일 뒤) → 무거운 하체 0(고른 것 · 후보, '그래도 하기' 포함, 2판 P4)",
+    ],
+    ['⑫', '근력 날이면 그쪽 본운동 후보가 있다(비면 날이 바뀐다, 2판 P4)'],
     ['⑭', "팔 피로 '심함' → 무거운 상체 밀기 · 팔 플라이오 0(고른 것 · 후보, 2판 P4)"],
     ['⑮', '성장기 + 투구 계획이 쉬는 날 → 팔 플라이오 0(고른 것 · 후보, 2판 P4)'],
     ['⑯', "팔 피로 '심함' 밑(1~4) → 칸이 없는 같은 사람과 같은 일정(2판 P4)"],
@@ -8690,6 +8755,10 @@ console.log(
   check(
     `불변식 — 잰 것(2판 P4 팔 피로): 팔 피로 심함 ${armCover.severe} · 심함 밑 ${armCover.mild} · 성장기 쉬는 날 ${armCover.youthRest}`,
     armCover.severe >= 8 && armCover.mild >= 20 && armCover.youthRest >= 5
+  );
+  check(
+    `불변식 — 잰 것(2판 P4 등판 창): 창 안 ${windowCover.window} · 규칙이 실제로 뺀 날 ${windowCover.bites} · 창 안 하체 날 ${windowCover.lower}`,
+    windowCover.window >= 15 && windowCover.bites >= 8 && windowCover.lower >= 1
   );
 
   /* ─────────────── (d) 성장기 나이(D4 참고) — 지금 코드가 16 · 17세에게 '매우 높음'을 허용하는 것을 고정 ─────────────── */
@@ -15065,10 +15134,484 @@ console.log(
     'P4 팔 피로 규칙 (마) 배선 — day-state 는 extras 로 팔 피로를 안 받는다(칸 하나) · prescription 은 판정을 lib/engine/exercise-class.ts 에서 부른다(베낀 판정 없음)',
     /const fatigue = today\?\.armFatigue \?\? null;/.test(stateSrc) &&
       !/extras\.armFatigue|armFatigue\?: number/.test(stateSrc) &&
-      /import \{ isArmPlyo, isHeavyUpperPush \} from '@\/lib\/engine\/exercise-class';/.test(
+      /*
+       * P4 로 바뀜(커밋 D) — 왜: 같은 import 에 isHeavyLower(등판 창 2-2)가 더해져 여러 줄이 됐다. 뜻(판정은 exercise-class.ts 에서
+       * 부른다)은 그대로라, 두 이름이 그 파일의 import 에 있는지를 본다.
+       */
+      /import \{[^}]*\bisArmPlyo\b[^}]*\bisHeavyUpperPush\b[^}]*\} from '@\/lib\/engine\/exercise-class';/.test(
         rxSrc
       ) &&
       !/메디신볼|플라이오볼/.test(rxSrc)
+  );
+}
+
+/* ═══════════════════ [2판 P4] 등판 창 무거운 하체 — lib/report/prescription.ts 2-2 · lib/engine/outing.ts outingOf (2026-10-12) ═══════════════════ */
+console.log(
+  '\n[2판 P4] 등판 창 무거운 하체 — 다음 등판이 오늘 · 내일 · 2~3일 뒤면 무거운 하체 제외, 근력 프로그램은 건너뜀, 하체 본운동이 비면 날이 바뀜(2026-10-12)'
+);
+{
+  /*
+   * 커밋 D 가 바꾼 것: 안전 거르기(selectCandidates)에 조이는 규칙 2-2 를 더했다 — 등판 한 곳(outingOf)의 다음 등판 창 끝(max)이
+   * HEAVY_LOWER_BLOCK_WITHIN_DAYS(3) 이하면 무거운 하체(isHeavyLower)를 뺀다. 근력 프로그램(partsOnly)은 건너뛴다(날 규칙 · D6).
+   * 160조합 불변식은 '[2판 안전망(P0)]' (c) 의 ⑪ ⑫. 여기서는 사례 · 실제 표 · 그래도 하기 · 날 바꾸기 · 조이기만 · 재검사 · 지문 · 소스.
+   */
+  const json = (v: unknown) => JSON.stringify(v);
+  const ids = (list: { id: string }[]) => list.map((e) => e.id).join(',');
+  const RULE = '등판 전 무거운 하체';
+  const hasRule = (r: { excluded: { rule: string }[] }) =>
+    r.excluded.some((x) => x.rule === RULE);
+  /* 좁은 판정 — 앞 '[2판 안전망(P0)]' 절의 narrowHeavyLower 와 같은 글자(그 절은 블록 안이라 못 부른다) */
+  const narrowHeavyLower = (e: {
+    category: string;
+    intensity: string;
+    equipment: readonly string[];
+    movementPattern?: string | null;
+  }) =>
+    (e.category === '하체 스트렝스' &&
+      (e.equipment.includes('바벨') ||
+        intensityLevel(e.intensity) > INTENSITY_CAP.STRENGTH)) ||
+    (e.category === '파워' &&
+      (e.movementPattern === '스쿼트' ||
+        e.movementPattern === '런지' ||
+        e.movementPattern === '힌지'));
+  type OhDay = { throwPlan?: string | null; preferredWorkout?: string | null };
+  const ohCheckin = (daysAgo: number, d: OhDay): CheckinLike => ({
+    date: dayBefore(daysAgo).slice(0, 10),
+    condition: 8,
+    sleep: '보통',
+    shoulder: '정상',
+    elbow: '정상',
+    wrist: '정상',
+    lowerBack: '정상',
+    lowerBody: '정상',
+    preferredParts: [],
+    preferredWorkout: d.preferredWorkout ?? null,
+    ...(d.throwPlan !== undefined ? { throwPlan: d.throwPlan } : {}),
+  });
+  /** today 를 안 주면 답 칸 없는 오늘 체크인, null 이면 오늘 체크인이 없다. 투구 기록은 없다(부하 구간으로 안 거름) */
+  const ohFacts = (p: { today?: OhDay | null; yesterday?: OhDay | null }) =>
+    buildFacts({
+      nickname: '시험',
+      age: 22,
+      heightCm: 180,
+      trainingLevel: null,
+      baselineDailyLoad: 100,
+      rehab: null,
+      today: TODAY,
+      logs: [],
+      checkins: [
+        ...(p.today === null ? [] : [ohCheckin(0, p.today ?? {})]),
+        ...(p.yesterday ? [ohCheckin(1, p.yesterday)] : []),
+      ],
+      memos: [],
+    });
+  const pick = (facts: ReturnType<typeof ohFacts>, partsOnly = false) =>
+    selectCandidates({ facts, plan: buildPitchPlan(facts), library, partsOnly });
+  /* 답만 지운 같은 날 — 체크인이 있고 없음은 그대로 둔다 */
+  const stripAnswer = (d: OhDay | null | undefined) =>
+    d == null ? d : { ...d, throwPlan: undefined };
+
+  check(
+    'P4 등판 창 — 문턱 HEAVY_LOWER_BLOCK_WITHIN_DAYS 는 3(오늘 · 내일 · 2~3일 뒤 — 검토안 4-2)',
+    HEAVY_LOWER_BLOCK_WITHIN_DAYS === 3,
+    String(HEAVY_LOWER_BLOCK_WITHIN_DAYS)
+  );
+
+  /* ── (가) 사례 — 답마다 규칙이 걸리나, 걸리면 정확히 무거운 하체만 빠지나 ── */
+  const cases: {
+    name: string;
+    today?: OhDay | null;
+    yesterday?: OhDay | null;
+    /** 근거 줄의 '언제'(걸리지 않으면 null) */
+    when: string | null;
+  }[] = [
+    { name: "오늘 '오늘 등판'", today: { throwPlan: '오늘 등판' }, when: '오늘' },
+    { name: "오늘 '내일 등판'", today: { throwPlan: '내일 등판' }, when: '내일' },
+    { name: "오늘 '2~3일 뒤'", today: { throwPlan: '2~3일 뒤' }, when: '2~3일 뒤' },
+    {
+      name: "오늘 답 없음 + 어제 '내일 등판'(오늘이 등판)",
+      today: { throwPlan: null },
+      yesterday: { throwPlan: '내일 등판' },
+      when: '오늘',
+    },
+    {
+      name: "오늘 체크인 없음 + 어제 '내일 등판'",
+      today: null,
+      yesterday: { throwPlan: '내일 등판' },
+      when: '오늘',
+    },
+    {
+      name: "오늘 답 없음 + 어제 '2~3일 뒤'(오늘 1~2일 뒤)",
+      today: { throwPlan: null },
+      yesterday: { throwPlan: '2~3일 뒤' },
+      when: '1~2일 뒤',
+    },
+    {
+      name: "오늘 '2~3일 뒤' + 어제 '4일 이상 뒤'(오늘 답이 이긴다)",
+      today: { throwPlan: '2~3일 뒤' },
+      yesterday: { throwPlan: '4일 이상 뒤' },
+      when: '2~3일 뒤',
+    },
+    { name: "오늘 '4일 이상 뒤'", today: { throwPlan: '4일 이상 뒤' }, when: null },
+    {
+      name: "오늘 답 없음 + 어제 '4일 이상 뒤'(오늘 3일 이상 뒤 — 끝이 없는 답이라 안 건다)",
+      today: { throwPlan: null },
+      yesterday: { throwPlan: '4일 이상 뒤' },
+      when: null,
+    },
+    { name: "오늘 '오늘 불펜'", today: { throwPlan: '오늘 불펜' }, when: null },
+    { name: "오늘 '없음'", today: { throwPlan: '없음' }, when: null },
+    {
+      name: "오늘 '없음' + 어제 '내일 등판'(오늘 답이 이긴다)",
+      today: { throwPlan: '없음' },
+      yesterday: { throwPlan: '내일 등판' },
+      when: null,
+    },
+    {
+      name: "오늘 '4일 이상 뒤' + 어제 '내일 등판'(비로 밀림 — 오늘 답이 이긴다)",
+      today: { throwPlan: '4일 이상 뒤' },
+      yesterday: { throwPlan: '내일 등판' },
+      when: null,
+    },
+    {
+      name: "오늘 답 없음 + 어제 '오늘 등판'(지난 등판이지 다음 등판이 아니다)",
+      today: { throwPlan: null },
+      yesterday: { throwPlan: '오늘 등판' },
+      when: null,
+    },
+    { name: '오늘 · 어제 답 칸 없음', today: {}, yesterday: {}, when: null },
+    {
+      name: '오늘 체크인 없음 · 어제 답 칸 없음',
+      today: null,
+      yesterday: {},
+      when: null,
+    },
+  ];
+  for (const c of cases) {
+    const r = pick(ohFacts(c));
+    const plain = pick(
+      ohFacts({ today: stripAnswer(c.today), yesterday: stripAnswer(c.yesterday) })
+    );
+    if (c.when != null) {
+      const line = `${c.when} 등판 → 무거운 하체 제외`;
+      const expected = plain.candidates.filter((e) => !isHeavyLower(e));
+      const removed = plain.candidates.length - expected.length;
+      check(
+        `P4 등판 창 (가) ${c.name} → '${line}' · 답을 지운 날 후보에서 무거운 하체 ${removed}개만 빠진다`,
+        removed > 0 &&
+          hasRule(r) &&
+          ids(r.candidates) === ids(expected) &&
+          r.excluded.find((x) => x.rule === RULE)?.count === removed &&
+          r.basis.includes(line) &&
+          json(r.basis.filter((b) => b !== line)) === json(plain.basis),
+        `${plain.candidates.length} → ${r.candidates.length} · ${json(r.excluded)}`
+      );
+    } else {
+      check(
+        `P4 등판 창 (가) ${c.name} → 규칙 없음 · 후보 · 근거가 답을 지운 날과 글자 그대로`,
+        !hasRule(r) &&
+          ids(r.candidates) === ids(plain.candidates) &&
+          json(r.basis) === json(plain.basis) &&
+          !r.basis.some((b) => b.includes('무거운 하체')),
+        json(r.excluded)
+      );
+    }
+  }
+  /* 답이 늘면(THROW_PLANS) 여기도 늘려야 한다 — 새 답이 창 안인지 밖인지 적지 않은 채 지나가지 않게 */
+  const answersTested = new Set(
+    cases
+      .flatMap((c) => [c.today?.throwPlan, c.yesterday?.throwPlan])
+      .filter((a) => a != null)
+  );
+  check(
+    `P4 등판 창 (가) THROW_PLANS ${THROW_PLANS.length}개가 모두 사례에 들어 있다`,
+    THROW_PLANS.every((a) => answersTested.has(a)) &&
+      answersTested.size === THROW_PLANS.length,
+    [...answersTested].join(' · ')
+  );
+
+  /* 실제 표 — 칸 없는 날(아무 규칙도 안 걸리는 22세)의 후보에서 무엇이 빠지나 */
+  const plainAll = pick(ohFacts({}));
+  const win = pick(ohFacts({ today: { throwPlan: '2~3일 뒤' } }));
+  const heavyInLibrary = library.filter(isHeavyLower);
+  const keptLower = win.candidates.filter((e) => e.category === '하체 스트렝스');
+  check(
+    `P4 등판 창 (가) 실제 표 — 규칙 없는 날 후보 ${plainAll.candidates.length}(표 전체) → '2~3일 뒤' ${win.candidates.length}, 빠진 것은 표의 무거운 하체 ${heavyInLibrary.length}개(하체 스트렝스 ${heavyInLibrary.filter((e) => e.category === '하체 스트렝스').length} · 파워 ${heavyInLibrary.filter((e) => e.category === '파워').length}) 전부`,
+    plainAll.candidates.length === library.length &&
+      heavyInLibrary.length >= 20 &&
+      win.candidates.length === library.length - heavyInLibrary.length &&
+      !win.candidates.some((e) => isHeavyLower(e) || narrowHeavyLower(e))
+  );
+  check(
+    `P4 등판 창 (가) 실제 표 — 가벼운 하체 근력은 남는다(${keptLower.length}개, 모두 '중간' 이하 · 바벨 없음 — 고블렛 스쿼트 · 덤벨 스텝업 …)`,
+    keptLower.length >= 10 &&
+      keptLower.every(
+        (e) =>
+          intensityLevel(e.intensity) <= INTENSITY_CAP.MODERATE &&
+          !e.equipment.includes('바벨') &&
+          !e.equipment.includes('원판')
+      ),
+    keptLower
+      .slice(0, 4)
+      .map((e) => e.title)
+      .join(', ')
+  );
+  const winProgram = pick(ohFacts({ today: { throwPlan: '2~3일 뒤' } }), true);
+  const plainProgram = pick(ohFacts({}), true);
+  const todayProgram = pick(ohFacts({ today: { throwPlan: '오늘 등판' } }), true);
+  check(
+    'P4 등판 창 (가) 근력 프로그램(partsOnly)은 등판 창 규칙을 건너뛴다(사용자 결정 D6 · 날 규칙 — 프로그램은 경기 날 · 전날을 스스로 쉬고, 그 밖의 날은 처방대로)',
+    !hasRule(winProgram) &&
+      !hasRule(todayProgram) &&
+      ids(winProgram.candidates) === ids(plainProgram.candidates) &&
+      winProgram.candidates.some(isHeavyLower),
+    json(winProgram.excluded)
+  );
+
+  /* ── (나) 그래도 하기 · 하체 날 — 화면과 같은 길(buildDailyPlan) ── */
+  const allOwned = [ALWAYS_OWNED, ...SELECTABLE_EQUIPMENT];
+  const ohBuild = (
+    p: { today?: OhDay | null; yesterday?: OhDay | null },
+    opts: {
+      override?: boolean;
+      lastLowerKey?: string | null;
+      lastUpperKey?: string | null;
+      lib?: typeof library;
+    } = {}
+  ) => {
+    const facts = ohFacts(p);
+    const plan = buildPitchPlan(facts);
+    return buildDailyPlan({
+      user: { ownedEquipment: allOwned, trainingLevel: '상급' },
+      facts,
+      plan,
+      library: opts.lib ?? library,
+      availableToday: null,
+      requestedMinutes: 60,
+      trainingGoal: '근력 향상',
+      recentIds: new Set<string>(),
+      rotationSeed: 'p4-window',
+      /* 하체를 더 오래전에 했다 — 번갈아 규칙으로 오늘은 하체 날 */
+      lastLowerKey: opts.lastLowerKey === undefined ? '2026-06-10' : opts.lastLowerKey,
+      lastUpperKey: opts.lastUpperKey === undefined ? '2026-06-13' : opts.lastUpperKey,
+      override: opts.override ?? false,
+    });
+  };
+  const byIdLib = new Map(library.map((e) => [e.id, e]));
+  const picksOf = (b: ReturnType<typeof ohBuild>) =>
+    isHalted(b)
+      ? []
+      : b.picks.map((k) => byIdLib.get(k.exerciseId)).filter((e) => e != null);
+  const mainLowerOf = (b: ReturnType<typeof ohBuild>) =>
+    isHalted(b)
+      ? []
+      : b.picks
+          .filter((k) => k.slot === 'main')
+          .map((k) => byIdLib.get(k.exerciseId))
+          .filter((e) => e != null);
+  const far = ohBuild({ today: { throwPlan: '4일 이상 뒤' } });
+  const near = ohBuild({ today: { throwPlan: '2~3일 뒤' } });
+  check(
+    "P4 등판 창 (나) 준비 — 같은 사람 '4일 이상 뒤'는 하체 날이고 무거운 하체가 든다(멀면 다시 든다)",
+    !isHalted(far) && far.theme.key === 'lower' && picksOf(far).some(isHeavyLower),
+    isHalted(far)
+      ? '멈춤'
+      : `${far.theme.key} · ${picksOf(far).filter(isHeavyLower).length}`
+  );
+  check(
+    "P4 등판 창 (나) '2~3일 뒤' → 그대로 하체 날, 본운동은 가벼운 하체로 채우고 무거운 하체 0 · 근거에 '2~3일 뒤 등판 → 무거운 하체 제외'",
+    !isHalted(near) &&
+      near.theme.key === 'lower' &&
+      mainLowerOf(near).length > 0 &&
+      !picksOf(near).some((e) => isHeavyLower(e) || narrowHeavyLower(e)) &&
+      near.basis.includes('2~3일 뒤 등판 → 무거운 하체 제외'),
+    isHalted(near)
+      ? '멈춤'
+      : `${near.theme.key} · 본운동 ${mainLowerOf(near)
+          .map((e) => e.title)
+          .join(', ')}`
+  );
+  const forced = ohBuild(
+    { today: { throwPlan: '오늘 등판', preferredWorkout: '웨이트' } },
+    { override: true }
+  );
+  const notForced = ohBuild({
+    today: { throwPlan: '오늘 등판', preferredWorkout: '웨이트' },
+  });
+  check(
+    "P4 등판 창 (나) '오늘 등판' + 웨이트 + 그래도 하기 → 테마는 근력(하체)이 되지만 무거운 하체는 그래도 0(override 로 안 풀림)",
+    !isHalted(forced) &&
+      forced.overrode === true &&
+      forced.theme.key === 'lower' &&
+      !picksOf(forced).some((e) => isHeavyLower(e) || narrowHeavyLower(e)) &&
+      forced.basis.includes('오늘 등판 → 무거운 하체 제외') &&
+      !isHalted(notForced) &&
+      notForced.theme.key === 'recovery',
+    isHalted(forced) ? '멈춤' : `${forced.theme.key} · overrode ${forced.overrode}`
+  );
+
+  /* ── (다) 하체 본운동이 통째로 비면 날이 바뀐다(steerFromEmptyMain) — 가벼운 하체를 뺀 표로 ── */
+  /*
+   * 하체 날 본운동(하체 스트렝스 · 계열 맞는 파워)에서 무거운 하체만 남긴 표: 가벼운 하체 근력 · 계열 없는 파워를 뺀다. 그러면 '4일 이상
+   * 뒤'에는 하체 날이 서고, 등판 창에서는 하체 본운동 후보가 0 이 돼 날이 바뀌어야 한다 — 상체를 어제 안 했으면 상체 날, 했으면 보조 · 코어.
+   */
+  const heavyOnlyLower = library.filter(
+    (e) =>
+      !(e.category === '하체 스트렝스' && !isHeavyLower(e)) &&
+      !(e.category === '파워' && !isHeavyLower(e) && e.movementPattern == null)
+  );
+  const steerFar = ohBuild(
+    { today: { throwPlan: '4일 이상 뒤' } },
+    { lib: heavyOnlyLower }
+  );
+  const steerUpper = ohBuild(
+    { today: { throwPlan: '2~3일 뒤' } },
+    { lib: heavyOnlyLower }
+  );
+  const steerAssist = ohBuild(
+    { today: { throwPlan: '2~3일 뒤' } },
+    { lib: heavyOnlyLower, lastUpperKey: '2026-06-14' }
+  );
+  check(
+    `P4 등판 창 (다) 준비 — 무거운 하체만 남긴 표(${heavyOnlyLower.length}개)에서 '4일 이상 뒤'는 하체 날 · 무거운 하체 본운동`,
+    !isHalted(steerFar) &&
+      steerFar.theme.key === 'lower' &&
+      mainLowerOf(steerFar).length > 0 &&
+      mainLowerOf(steerFar).every(isHeavyLower),
+    isHalted(steerFar) ? '멈춤' : steerFar.theme.key
+  );
+  check(
+    "P4 등판 창 (다) 같은 표 '2~3일 뒤' → 하체 본운동 후보 0 이라 상체 날로 바뀐다(어제 상체 안 함) · 이유에 까닭 한 줄 · 무거운 하체 0",
+    !isHalted(steerUpper) &&
+      steerUpper.theme.key === 'upper' &&
+      steerUpper.theme.reason.includes('하체 운동이 없어 오늘은 상체를 해요') &&
+      !picksOf(steerUpper).some(isHeavyLower),
+    isHalted(steerUpper)
+      ? '멈춤'
+      : `${steerUpper.theme.key} · ${steerUpper.theme.reason}`
+  );
+  check(
+    "P4 등판 창 (다) 같은 표 '2~3일 뒤' + 어제 상체 → 보조 · 코어 날로 바뀐다(같은 쪽 무거운 날을 잇지 않음) · 무거운 하체 0",
+    !isHalted(steerAssist) &&
+      steerAssist.theme.key === 'assist' &&
+      steerAssist.theme.reason.includes('하체 운동이 없고 상체는 어제 했어요') &&
+      !picksOf(steerAssist).some(isHeavyLower),
+    isHalted(steerAssist)
+      ? '멈춤'
+      : `${steerAssist.theme.key} · ${steerAssist.theme.reason}`
+  );
+
+  /* ── (라) 조이기만 — P3 160조합의 facts 로: 등판 답을 지운 facts 의 후보에서 무거운 하체만 더 빠질 수 있다 ── */
+  {
+    let inWindow = 0;
+    let outside = 0;
+    let bit = 0;
+    const missLoose: string[] = [];
+    for (const [i, facts] of p3ComboFactsSeen.entries()) {
+      const stripped = {
+        ...facts,
+        condition: {
+          ...facts.condition,
+          throwPlanToday: null,
+          throwPlanYesterday: null,
+        },
+      };
+      const plan = buildPitchPlan(facts);
+      const a = selectCandidates({ facts, plan, library });
+      const b = selectCandidates({ facts: stripped, plan, library });
+      const w = outingOf(facts).daysUntilNext;
+      const windowed = w != null && w.max != null && w.max <= 3;
+      const extra = b.candidates.filter(
+        (e) => !a.candidates.some((x) => x.id === e.id)
+      );
+      const subset = a.candidates.every((e) => b.candidates.some((x) => x.id === e.id));
+      if (windowed) inWindow++;
+      else outside++;
+      if (extra.length > 0) bit++;
+      const ok =
+        a.halted === b.halted &&
+        subset &&
+        (windowed
+          ? extra.every(isHeavyLower)
+          : extra.length === 0 && ids(a.candidates) === ids(b.candidates));
+      if (!ok) missLoose.push(`p0-${i} ${extra.length}`);
+    }
+    check(
+      `P4 등판 창 (라) 조이기만 — P3 160조합(창 안 ${inWindow} · 밖 ${outside} · 실제로 뺀 날 ${bit}) — 후보는 답을 지운 날의 부분집합이고 더 빠진 것은 무거운 하체뿐, 창 밖은 같음`,
+      inWindow >= 15 && outside >= 60 && bit >= 5 && missLoose.length === 0,
+      missLoose.slice(0, 3).join(' / ')
+    );
+  }
+
+  /* ── (마) 안전 재검사 — 아침에 만든 하체 날의 무거운 하체는 낮에 '내일 등판'을 적으면 걸러진다(today-data 가 같은 함수로 다시 본다) ── */
+  const morning = ohBuild({ today: { throwPlan: '4일 이상 뒤' } });
+  const noonFacts = ohFacts({ today: { throwPlan: '내일 등판' } });
+  const noonSafe = new Set(
+    selectCandidates({
+      facts: noonFacts,
+      plan: buildPitchPlan(noonFacts),
+      library,
+    }).candidates.map((e) => e.id)
+  );
+  const morningPicks = picksOf(morning);
+  const unsafe = morningPicks.filter((e) => !noonSafe.has(e.id));
+  check(
+    "P4 등판 창 (마) 안전 재검사 — 아침 '4일 이상 뒤' 하체 날을 낮에 '내일 등판'으로 고치면 그 일정의 무거운 하체만 안전하지 않다(나머지는 그대로 안전)",
+    unsafe.length > 0 &&
+      json(unsafe.map((e) => e.id)) ===
+        json(morningPicks.filter(isHeavyLower).map((e) => e.id)),
+    `${unsafe.length} — ${unsafe.map((e) => e.title).join(', ')}`
+  );
+
+  /* ── (바) 일정 지문 — 등판 창이 바뀌면 지문이 알아챈다(오늘 · 어제 답이 이미 지문 칸이라 새 칸이 필요 없다) ── */
+  const fpOf = (p: { today?: OhDay | null; yesterday?: OhDay | null }) =>
+    fingerprintOf(ohFacts(p));
+  const fpPairs: [string, OhDay | null | undefined, OhDay | null | undefined][] = [
+    [
+      "'4일 이상 뒤' → '2~3일 뒤'",
+      { throwPlan: '4일 이상 뒤' },
+      { throwPlan: '2~3일 뒤' },
+    ],
+    ["답 없음 → '내일 등판'", { throwPlan: null }, { throwPlan: '내일 등판' }],
+    ["'2~3일 뒤' → '없음'", { throwPlan: '2~3일 뒤' }, { throwPlan: '없음' }],
+  ];
+  check(
+    'P4 등판 창 (바) 지문 — 창이 열리거나 닫히는 답 바뀜은 모두 바뀐 줄을 낸다(지문 칸 throwPlan 그대로 — FINGERPRINT_KEYS 10개)',
+    FINGERPRINT_KEYS.length === 10 &&
+      fpPairs.every(
+        ([, a, b]) =>
+          diffFingerprintChanges(fpOf({ today: a }), fpOf({ today: b })).length > 0
+      ),
+    fpPairs
+      .map(
+        ([name, a, b]) =>
+          `${name} ${diffFingerprintChanges(fpOf({ today: a }), fpOf({ today: b }))
+            .map((x) => x.text)
+            .join(' · ')}`
+      )
+      .join(' / ')
+  );
+
+  /* ── (사) 소스 — 등판은 outingOf 한 곳에서, 판정은 exercise-class.ts 에서, 프로그램은 건너뜀 ── */
+  const stripD = (p: string) =>
+    readFileSync(new URL(`../${p}`, import.meta.url), 'utf8')
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/^\s*\/\/.*$/gm, '');
+  const rxSrcD = stripD('lib/report/prescription.ts');
+  check(
+    'P4 등판 창 (사) 소스 — prescription 은 등판을 outingOf 로만 읽고(답 칸 · 답 규칙을 직접 안 읽음) 판정은 exercise-class.ts 의 isHeavyLower, 규칙은 partsOnly 에서 건너뜀',
+    /import \{ outingOf \} from '@\/lib\/engine\/outing';/.test(rxSrcD) &&
+      /import \{[^}]*\bisHeavyLower\b[^}]*\} from '@\/lib\/engine\/exercise-class';/.test(
+        rxSrcD
+      ) &&
+      /const outingWindow = outingOf\(facts\)\.daysUntilNext;/.test(rxSrcD) &&
+      /!partsOnly &&\s*outingWindow != null &&\s*outingWindow\.max != null &&\s*outingWindow\.max <= HEAVY_LOWER_BLOCK_WITHIN_DAYS/.test(
+        rxSrcD
+      ) &&
+      !/throwPlanToday|throwPlanYesterday|nextOutingDays|nextOutingWindow|parseThrowPlan/.test(
+        rxSrcD
+      ) &&
+      !/'스쿼트'|'런지'|'힌지'|'바벨'/.test(rxSrcD)
   );
 }
 

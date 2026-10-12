@@ -10,8 +10,10 @@ import {
   isShortSleep,
   sorenessWord,
   type CheckinPartKey,
+  type OutingWindow,
 } from '@/lib/checkin';
-import { isArmPlyo, isHeavyUpperPush } from '@/lib/engine/exercise-class';
+import { isArmPlyo, isHeavyLower, isHeavyUpperPush } from '@/lib/engine/exercise-class';
+import { outingOf } from '@/lib/engine/outing';
 import { INTENSITY_CAP, intensityLevel, type BodyPart } from '@/lib/exercise-meta';
 import { YOUTH_AGE_THRESHOLD } from '@/lib/report/plan';
 import { BEGINNER_LEVEL_NAME } from '@/lib/report/personalize';
@@ -28,8 +30,8 @@ import type { PitchPlan } from '@/lib/report/plan';
  * 완화하지 않는다. 부족하면 부족하다고 말하는 편이 맞다.
  *
  * 근력 프로그램(partsOnly)에서 어느 규칙이 걸리는가 — 부위 · 팔 상태 규칙(통증 · 뻐근 · 최근 통증 · 재활 · 메모 · 팔 피로)은
- * drop 이라 프로그램에도 걸린다(그 칸이 그날 대체된다). 날 · 나이 · 몸 전체 규칙(부하 구간 · 통증 확인 전 · 성장기 · 경력 ·
- * 컨디션 · 근육통 · 수면 · 성장기 쉬는 날)은 capTo 처럼 프로그램에서 건너뛴다 — 프로그램은 그런 날 스스로 쉬거나 칸을
+ * drop 이라 프로그램에도 걸린다(그 칸이 그날 대체된다). 날 · 나이 · 몸 전체 규칙(부하 구간 · 통증 확인 전 · 등판 창 · 성장기 ·
+ * 경력 · 컨디션 · 근육통 · 수면 · 성장기 쉬는 날)은 capTo 처럼 프로그램에서 건너뛴다 — 프로그램은 그런 날 스스로 쉬거나 칸을
  * 가볍게 한다(lib/program/program.ts decideToday). 새 규칙도 이 기준으로 넣는다(2판 P4).
  */
 
@@ -161,6 +163,23 @@ export type PrescriptionCandidates<T extends ExerciseLike = ExerciseLike> = {
 /** 이 개수보다 적으면 라이브러리가 부족하다고 본다. */
 export const MIN_CANDIDATES = 4;
 
+/**
+ * 다음 등판이 이 날수 안(창의 끝 max 기준)이면 무거운 하체를 뺀다 — 오늘(0) · 내일(1) · 2~3일 뒤(3). 검토안 4-2 의 '2~3일: 무거운
+ * 하체 금지'와 같은 선이다. 4일 이상 뒤면 다시 든다(무거운 하체는 등판에서 먼 날의 몫).
+ */
+export const HEAVY_LOWER_BLOCK_WITHIN_DAYS = 3;
+
+/**
+ * 근거 줄의 '언제' — 창 하나를 사람이 읽는 말로. 하루로 못 박히면 '오늘' · '내일' · 'N일 뒤', 아니면 '2~3일 뒤'처럼 범위
+ * (어제 '2~3일 뒤'를 오늘 하루 당긴 1~2 는 '1~2일 뒤'). 끝이 없는 창은 이 규칙에 안 오지만 'N일 이상 뒤'로 읽는다.
+ */
+function outingWhenText(w: OutingWindow): string {
+  const day = (n: number) => (n === 0 ? '오늘' : n === 1 ? '내일' : `${n}일 뒤`);
+  if (w.max == null) return `${w.min}일 이상 뒤`;
+  if (w.min === w.max) return day(w.min);
+  return `${w.min}~${w.max}일 뒤`;
+}
+
 export function selectCandidates<T extends ExerciseLike>({
   facts,
   plan,
@@ -177,8 +196,8 @@ export function selectCandidates<T extends ExerciseLike>({
    */
   caution?: { part: CheckinPartKey; why: string }[];
   /**
-   * 부위 규칙만 쓴다 — 몸 전체 강도 상한(부하 구간 · 통증 확인 전 · 성장기 · 경력 · 컨디션 · 근육통 · 수면)과 성장기 쉬는 날(5-3)은
-   * 건너뛴다. 팔 피로 '심함'(5-2)은 팔 상태 규칙이라 걸린다.
+   * 부위 규칙만 쓴다 — 몸 전체 강도 상한(부하 구간 · 통증 확인 전 · 성장기 · 경력 · 컨디션 · 근육통 · 수면)과 등판 창의 무거운 하체(2-2) ·
+   * 성장기 쉬는 날(5-3)은 건너뛴다. 팔 피로 '심함'(5-2)은 팔 상태 규칙이라 걸린다.
    * 근력 · 파워 프로그램이 쓴다(lib/program/load.ts). 프로그램은 그런 날에도 진행하고 주의 한 줄 · 칸 조정으로
    * 스스로 가볍게 하므로(설계 D22~D25), 여기서 무거운 운동을 통째로 빼면 고정 운동이 날마다 대체된다.
    */
@@ -269,6 +288,38 @@ export function selectCandidates<T extends ExerciseLike>({
   if (plan.needsPainCheck) {
     basis.push('메모의 통증 표현 확인 전 → 회복 수준 운동까지만');
     capTo('통증 확인 전', INTENSITY_CAP.RECOVERY);
+  }
+
+  /*
+   * 2-2) 등판 창 — 다음 등판이 3일 안(오늘 · 내일 · 2~3일 뒤)이면 무거운 하체를 뺀다(2판 P4 커밋 D).
+   *
+   * 무거운 하체(바벨 스쿼트 · 데드리프트 · 하체 점프 — lib/engine/exercise-class.ts isHeavyLower)는 다음 날 다리에 무게가 남는다.
+   * 투수는 다리로 던지니, 등판 2~3일 안에 그것을 들면 마운드에서 다리가 무겁다(검토안 4-2 '2~3일: 무거운 하체 금지'). 지금까지는
+   * '오늘 등판' · '내일 등판'만 테마(회복 · 보조)로 막았고, '2~3일 뒤'는 근력 날이라 바벨 스쿼트가 그대로 나왔다. '그래도 하기'로
+   * 테마를 밀어 근력 날이 된 등판 날에도 무거운 하체가 나왔다. 그래서 테마가 아니라 여기(후보)에서 뺀다 — 무엇으로 날을 정하든 이
+   * 줄이 남고, 아침에 만든 일정의 무거운 하체는 낮에 '내일 등판'이라 고쳐 적으면 안전 재검사(today-data)가 저절로 걸러 낸다.
+   * 가벼운 하체(고블렛 스쿼트 · 덤벨 스텝업 · 한 다리 운동)는 남아 하체 날의 재료가 되고, 하체 본운동이 통째로 비면 날은
+   * theme.ts 의 steerFromEmptyMain 이 바꾼다.
+   *
+   * 등판은 lib/engine/outing.ts 의 outingOf 한 곳에서 읽는다 — 매일 일정의 테마(plannedOuting) · 오늘 상태 한 장과 같은 창이다.
+   * 창의 끝(max)이 3일 이하일 때만 건다. 어제 '4일 이상 뒤'를 오늘 하루 당긴 '3일 이상 뒤'(max 없음)는 걸지 않는다 — 끝이 없는
+   * 답이라 '곧 등판'이 아니고, 걸면 '4일 이상 뒤'를 적고 다음 날 체크인을 건너뛴 사람마다 무거운 하체가 빠진다. 다음 등판을 짐작한
+   * 출처(달력 · 같은 요일, outing.soft)는 조이는 쪽이라 이 규칙에 그대로 써도 된다(커밋 G 가 더한다).
+   *
+   * 날 규칙이라 근력 프로그램(partsOnly)에서는 건너뛴다(파일 머리 주석의 기준, 사용자 결정 D6 — 프로그램 날은 프로그램 그대로).
+   * 프로그램은 경기 날 · 전날을 스스로 쉬고(lib/program/program.ts decideToday 의 gameToday · gameTomorrow), '2~3일 뒤'는 그날 칸을
+   * 처방대로 한다. 매일 일정과 프로그램이 같은 날 다른 하체를 낼 수 있는데, 둘을 나누는 일은 중재(P6, 하체 예산)의 몫이다.
+   * '그래도 하기'(override)로는 안 풀린다 — 테마만 넘기고 이 거르기는 남는다(컨디션 저하 상한과 같은 원칙).
+   */
+  const outingWindow = outingOf(facts).daysUntilNext;
+  if (
+    !partsOnly &&
+    outingWindow != null &&
+    outingWindow.max != null &&
+    outingWindow.max <= HEAVY_LOWER_BLOCK_WITHIN_DAYS
+  ) {
+    basis.push(`${outingWhenText(outingWindow)} 등판 → 무거운 하체 제외`);
+    drop('등판 전 무거운 하체', (ex) => !isHeavyLower(ex));
   }
 
   // 3) 성장기는 최대 강도를 뺀다.

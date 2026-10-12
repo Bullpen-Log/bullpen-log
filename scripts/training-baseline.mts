@@ -72,7 +72,11 @@ import {
   THROW_PLANS,
   type ThrowPlan,
 } from '../lib/checkin.ts';
-import { isArmPlyo, isHeavyUpperPush } from '../lib/engine/exercise-class.ts';
+import {
+  isArmPlyo,
+  isHeavyLower,
+  isHeavyUpperPush,
+} from '../lib/engine/exercise-class.ts';
 
 const startedAt = Date.now();
 
@@ -849,6 +853,12 @@ type DayRecord = {
     push: number | null;
     plyo: number | null;
   };
+  /**
+   * ⑭ 그날 일정의 무거운 하체 수(lib/engine/exercise-class.ts isHeavyLower — 2판 P4 커밋 D)와 대본상 다음 경기까지 남은 날(오늘 경기면 0,
+   * 앞 14일에 경기가 없으면 null). 등판 창(안전 거르기 2-2)이 실제로 무거운 하체를 빼는지 대본의 진짜 날짜로 잰다.
+   */
+  heavyLower: number;
+  nextGame: number | null;
   age15vs22Differs: boolean;
   age14vs22Differs: boolean;
   /** 어제 던진 것(대본) */
@@ -983,6 +993,11 @@ for (const p of PLAYERS) {
       ...(answerClearedTheme !== undefined ? { answerClearedTheme } : {}),
       ...(afterGame ? { afterGame } : {}),
       ...(armSevere ? { armSevere } : {}),
+      heavyLower: ids.filter((id) => {
+        const ex = byId.get(id);
+        return ex != null && isHeavyLower(ex);
+      }).length,
+      nextGame: daysToNextGame(p.role, i),
       age15vs22Differs: differs(at15, at22),
       age14vs22Differs: differs(at14, at22),
       yesterday,
@@ -1490,6 +1505,54 @@ const armSevere = {
   plyo: sumOf((a) => a.plyo),
 };
 
+/*
+ * ⑭ 등판 전 무거운 하체(2판 P4 커밋 D) — 대본의 진짜 다음 경기 날(nextGame)로 날을 가르고, 그날 일정에 무거운 하체가 든 날 · 운동 수를 센다.
+ * 안전 거르기 2-2 는 등판 창(오늘 · 내일 · 2~3일 뒤 — 오늘 답, 없으면 어제 답을 하루 당겨)에서 무거운 하체를 뺀다. 그래서 체크인 있는 날의
+ * D−1 · D−2~3 은 0 이어야 하고, 체크인 없는 날은 어제 답이 이월될 때만 걸린다. '오늘 불펜'으로 답한 날은 등판 창이 없다(답이 하나라 오늘
+ * 할 일을 먼저 적는다 — 알려진 빈틈, 답별 표로 따로 본다). D4 이상은 무거운 하체가 다시 들어와야 한다(굶지 않음 — 하체 날 중 든 날).
+ */
+type HeavyRow = {
+  days: number;
+  heavyDays: number;
+  heavy: number;
+  lower: number;
+  lowerHeavyDays: number;
+};
+const heavyRowOf = (list: DayRecord[]): HeavyRow => ({
+  days: list.length,
+  heavyDays: list.filter((d) => d.heavyLower > 0).length,
+  heavy: list.reduce((s, d) => s + d.heavyLower, 0),
+  lower: list.filter((d) => d.theme === 'lower').length,
+  lowerHeavyDays: list.filter((d) => d.theme === 'lower' && d.heavyLower > 0).length,
+});
+const HEAVY_WINDOWS: {
+  key: string;
+  label: string;
+  pick: (g: number | null) => boolean;
+}[] = [
+  { key: 'd0', label: '경기 날(D0)', pick: (g) => g === 0 },
+  { key: 'd1', label: '경기 전날(D−1)', pick: (g) => g === 1 },
+  { key: 'd2to3', label: '경기 2~3일 전(D−2 · D−3)', pick: (g) => g === 2 || g === 3 },
+  { key: 'd4plus', label: '경기 4일 이상 전(D−4~)', pick: (g) => g != null && g >= 4 },
+  { key: 'none', label: '앞 14일 경기 없음(비시즌)', pick: (g) => g == null },
+];
+const heavyLowerBeforeGame = {
+  byDay: HEAVY_WINDOWS.map((w) => {
+    const rows = allDays.filter((d) => w.pick(d.nextGame));
+    return {
+      window: w.key,
+      label: w.label,
+      checkin: heavyRowOf(rows.filter((d) => d.hasCheckin)),
+      noCheckin: heavyRowOf(rows.filter((d) => !d.hasCheckin)),
+    };
+  }),
+  /* 체크인 있는 날의 답별 — 등판 창 답 셋('오늘 등판' · '내일 등판' · '2~3일 뒤')은 0 이어야 한다 */
+  byAnswer: THROW_PLANS.map((plan) => ({
+    plan,
+    ...heavyRowOf(allDays.filter((d) => d.hasCheckin && d.throwPlan === plan)),
+  })),
+};
+
 /* 컨디션 늘 낮음 · 맨몸 늘 마침 — 검토안의 두 줄과 견줄 선수 */
 const lowConditionRows = summaries.filter(
   (s) => PLAYERS.find((p) => p.name === s.name)!.condition === 'low'
@@ -1823,6 +1886,11 @@ out.push(
         '  같은 변형 — 팔 플라이오(메디신볼 · 플라이오 푸시업 …)가 든 날: 원래 일정 → 변형',
         `${pct(armSevere.plyoDaysBase, armSevere.days)} → ${pct(armSevere.plyoDays, armSevere.days)} · 운동 수 ${armSevere.plyoBase} → ${armSevere.plyo}${armSevere.halted > 0 ? ` · 멈춘 변형 ${armSevere.halted}일` : ''}`,
       ],
+      ...heavyLowerBeforeGame.byDay.map((r): (string | number | null)[] => [
+        '⑭',
+        `등판 전 무거운 하체(2판 P4) — ${r.label}: 무거운 하체가 든 날(체크인 있는 날 · 없는 날)${r.window === 'd4plus' || r.window === 'none' ? ' · 하체 날 중 든 날(굶지 않음)' : ''}`,
+        `${pct(r.checkin.heavyDays, r.checkin.days)} 운동 ${r.checkin.heavy} · 없는 날 ${pct(r.noCheckin.heavyDays, r.noCheckin.days)} 운동 ${r.noCheckin.heavy}${r.window === 'd4plus' || r.window === 'none' ? ` · 하체 날 ${pct(r.checkin.lowerHeavyDays + r.noCheckin.lowerHeavyDays, r.checkin.lower + r.noCheckin.lower)}` : ''}`,
+      ]),
     ]
   )
 );
@@ -1832,6 +1900,23 @@ out.push(
   table(
     ['등판 답', '날', '테마'],
     planThemes.map((r) => [r.plan, r.days, r.days ? themeText(r.themes) : '·'])
+  )
+);
+
+out.push(
+  "\n## ⑭ 등판 답별 무거운 하체(체크인 있는 날) — '오늘 등판' · '내일 등판' · '2~3일 뒤'는 0 이어야 한다(2판 P4)"
+);
+out.push(
+  table(
+    ['등판 답', '날', '무거운 하체가 든 날', '운동 수', '하체 날', '하체 날 중 든 날'],
+    heavyLowerBeforeGame.byAnswer.map((r) => [
+      r.plan,
+      r.days,
+      r.heavyDays,
+      r.heavy,
+      r.lower,
+      r.lowerHeavyDays,
+    ])
   )
 );
 
@@ -1976,8 +2061,10 @@ const json = {
   /*
    * 3 = 대본 2판(2026-10-12): 체크인마다 등판 답 · 기록에 체감 강도(%) · ⑤ ⑫ 를 변형으로. 2 와 metrics.gameMorning · afterGame 모양이 다르다.
    * 4 = 2판 P4 커밋 C: 날마다 armSevere · metrics.armSevere(⑬ 팔 피로 '심함' 변형)를 더했다(buildCalls 도 그만큼 는다). 3 과 견줄 때는 이 칸을 뺀다.
+   * 5 = 2판 P4 커밋 D: 날마다 heavyLower · nextGame · metrics.heavyLowerBeforeGame(⑭ 등판 전 무거운 하체)을 더했다(buildCalls 그대로).
+   *     4 와 견줄 때는 이 칸을 뺀다.
    */
-  version: 4,
+  version: 5,
   /* 돌릴 때마다 바뀌는 것은 이 칸뿐 — 단계 전후를 diff 로 견줄 때는 meta 를 빼고 본다 */
   meta: { generatedAt: new Date().toISOString(), elapsedMs },
   startKey: START_KEY,
@@ -2005,6 +2092,8 @@ const json = {
       answerClearedTheme: d.answerClearedTheme,
       afterGame: d.afterGame,
       armSevere: d.armSevere,
+      heavyLower: d.heavyLower,
+      nextGame: d.nextGame,
       yesterday: d.yesterday,
       today: d.today,
       ids: d.ids,
@@ -2081,6 +2170,7 @@ const json = {
     afterLightGameThemes: countBy(afterLightGame, (d) => d.theme),
     afterGame,
     armSevere,
+    heavyLowerBeforeGame,
     loadDistribution: { scripted: scriptedDistribution, real: realDistribution },
   },
   comparison,
