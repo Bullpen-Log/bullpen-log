@@ -7,12 +7,20 @@ import {
   validFocus,
 } from '@/lib/report/personalize';
 import { selectCandidates, type ExerciseLike } from '@/lib/report/prescription';
-import { planPrescription, type PlanVolume } from '@/lib/report/volume';
+import {
+  applyVolume,
+  decideVolume,
+  planPrescription,
+  volumeForDay,
+  type PlanVolume,
+  type VolumeStateInput,
+} from '@/lib/report/volume';
 import {
   CONDITIONING_GOAL,
   decideTheme,
   workoutConflict,
   effectiveMinutes,
+  estimateMinutes,
   finishDayTheme,
   pickForTheme,
   conditioningDay,
@@ -22,6 +30,7 @@ import {
   type ThemeKey,
 } from '@/lib/report/theme';
 import { dayKindOf, shortenPitchesOf, shortenedMinutes } from '@/lib/engine/microcycle';
+import { buildDayState } from '@/lib/engine/day-state';
 import { shiftDateKey } from '@/lib/pitch-stats';
 import type { ReportFacts } from '@/lib/report/facts';
 import type { PitchPlan } from '@/lib/report/plan';
@@ -123,6 +132,8 @@ export type DailyPlan = {
    * 그날 양 조절(lib/report/volume.ts — 본운동 세트 −1 등, 2026-10-12 트레이닝 추천 2판 P5). 세트 · 횟수를 세는 자리가 모두
    * planPrescription 으로 이 칸을 읽는다(트레이닝 화면 · 홈 운동 시간 · 운동 시작 · 기록). 줄인 날에만 있고, 옛 줄에는 없고 없으면
    * 안 줄인 것으로 읽으니 version 은 그대로(focus 와 같은 까닭). 저장된 값이라 읽는 쪽이 readPlanVolume 으로 다시 본다.
+   * P5-d(2026-10-12)부터 buildDailyPlan 이 넣는다 — 평소보다 낮은 컨디션 · 짧은 밤 · 근육통 '많이' 이상인 근력 날(decideVolume ·
+   * volumeForDay). 운동 시작 때 세션 판에 얼고(freezePlan), 그 판에서는 자유 운동 무게를 올리지 않는다(holdsWeight).
    */
   volume?: PlanVolume;
 };
@@ -157,6 +168,7 @@ export function buildDailyPlan<T extends ExerciseLike>({
   lastUpperKey,
   override = false,
   caution = [],
+  state,
 }: {
   user: UserForPlan;
   facts: ReportFacts;
@@ -198,6 +210,12 @@ export function buildDailyPlan<T extends ExerciseLike>({
   override?: boolean;
   /** 조심할 부위. 그 부위의 무거운 운동을 뺀다(자동 맞춤의 규칙 초안은 늘 비어 있다) */
   caution?: AutoCaution[];
+  /**
+   * 오늘 상태 한 장(lib/engine/day-state.ts 의 DayState 를 그대로 넘기면 된다) — 앱은 gatherFactsAndPlan 이 같은 facts · plan 으로 만든
+   * 것을 넘긴다. 양 조절(decideVolume)이 body 를 읽는다. 안 주면 facts · plan 으로 여기서 만든다(body 는 facts 만으로 정해져 넘긴 것과
+   * 같은 값 — 자체 시험이 견준다). 고르기 · 안전 거르기는 이 칸을 안 읽는다(facts 를 읽는다).
+   */
+  state?: VolumeStateInput;
 }): BuildResult {
   /*
    * 오늘 쓸 수 있는 장비 → 경력 → 안전 순서로 거른다.
@@ -320,6 +338,26 @@ export function buildDailyPlan<T extends ExerciseLike>({
     }
   );
 
+  /*
+   * 양 조절(2판 P5-d, lib/report/volume.ts) — 평소보다 낮은 컨디션 · 짧은 밤 · 근육통 '많이' 이상인 근력 날, 본운동 세트를 한 개씩.
+   * 고른 뒤에 댄다: 고르는 목록은 줄이지 않은 날과 같다(위 pickForTheme 주석). 실제로 줄어든 운동이 있을 때만 싣고, 그날 시간은
+   * 줄인 세트로 다시 센다(처방 한 길 — 화면 · 홈 시간이 같은 값을 낸다). 걸린 날만 칸이 생겨 안 걸린 날의 일정은 글자 그대로다.
+   */
+  const volume = volumeForDay({
+    decision: decideVolume(state ?? buildDayState({ facts, plan })),
+    themeKey: shownTheme.key,
+    conditioning,
+    exercises: themed.picks.map((p) => p.exercise),
+  });
+  const estimatedMinutes = volume
+    ? Math.round(
+        themed.picks.reduce(
+          (sum, p) => sum + estimateMinutes(applyVolume(p.exercise, volume)),
+          0
+        )
+      )
+    : themed.estimatedMinutes;
+
   return {
     version: 1,
     theme: {
@@ -335,7 +373,7 @@ export function buildDailyPlan<T extends ExerciseLike>({
     overrode: override && workoutConflict({ facts, preferredWorkout }) != null,
     requestedMinutes,
     minutes,
-    estimatedMinutes: themed.estimatedMinutes,
+    estimatedMinutes,
     picks: themed.picks.map((p) => ({ exerciseId: p.exercise.id, slot: p.slot })),
     basis: picked.basis,
     notes: themed.notes,
@@ -347,6 +385,7 @@ export function buildDailyPlan<T extends ExerciseLike>({
       bestAddition: usable.bestAddition,
     },
     levelExcludedCount: leveled.excludedCount,
+    ...(volume ? { volume } : {}),
   };
 }
 

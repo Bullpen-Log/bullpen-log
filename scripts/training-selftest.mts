@@ -218,11 +218,18 @@ import {
 import { goalPrescription } from '../lib/report/goal-prescription.ts';
 import {
   VOLUME_MIN_SETS,
+  VOLUME_SIGNALS,
   applyVolume,
+  decideVolume,
+  holdsWeight,
   planPrescription,
   readPlanVolume,
+  volumeForDay,
   type PlanVolume,
+  type VolumeDecision,
+  type VolumeStateInput,
 } from '../lib/report/volume.ts';
+import { suggestFreeWeight, type FreeLast } from '../lib/workout/free-weight.ts';
 import {
   ALWAYS_OWNED,
   SELECTABLE_EQUIPMENT,
@@ -19994,11 +20001,13 @@ console.log(
    * P5 로 바뀜 — 처방 한 길(P5-b)에서 세트 어댑터가 goalPrescription(ex, plan.goal) 대신 planPrescription(ex, plan)(목표 처방 위에
    * 그날 양 조절, lib/report/volume.ts)을 읽는다. 앱의 아홉 자리와 같은 함수라 일정에 세트 조절이 실리면 ⑱ 이 저절로 따라간다.
    * 도구가 목표 처방을 바로 부르면 안 된다(goalPrescription( 0번).
+   * P5 로 바뀜 — 양 조절(P5-d)부터 buildDay 가 inputsOf 의 오늘 상태 한 장(state)도 꺼내 buildDailyPlan 에 넘긴다(앱의
+   * training-setup.ts 가 gatherFactsAndPlan 의 state 를 넘기는 것과 같은 짝 — 양 조절이 body 를 읽는다).
    */
   check(
-    'P5 도구 (나) 하루 만들기는 어댑터 한 곳 — buildDailyPlan 은 buildDay 에서만, 재료는 inputsOf, 세트는 setsOf 에서만 처방(planPrescription)을 읽는다',
+    'P5 도구 (나) 하루 만들기는 어댑터 한 곳 — buildDailyPlan 은 buildDay 에서만, 재료는 inputsOf(오늘 상태 한 장까지), 세트는 setsOf 에서만 처방(planPrescription)을 읽는다',
     tool.split('buildDailyPlan(').length === 2 &&
-      /const \{ facts, plan, owned, history, seed \} = inputsOf\(p, i, st, v\);/.test(
+      /const \{ facts, plan, state, owned, history, seed \} = inputsOf\(p, i, st, v\);/.test(
         tool
       ) &&
       tool.split('planPrescription(').length === 2 &&
@@ -20015,12 +20024,13 @@ console.log(
       programKeys.some((k) => parseProgram(k)?.perWeek === 2),
     programKeys.join(' · ')
   );
+  /* P5 로 바뀜 — 양 조절(P5-d)이 날마다 volumeSetsCut · 변형의 volumed · metrics.volume 을 더해 JSON 판이 8 → 9 */
   check(
-    'P5 도구 (나) 추가 묶음은 ①~⑯ 의 분모에 안 섞이고(allDays 는 기준 12명만), --gate 를 줬을 때만 exit 1, JSON 판은 8',
+    'P5 도구 (나) 추가 묶음은 ①~⑯ 의 분모에 안 섞이고(allDays 는 기준 12명만), --gate 를 줬을 때만 exit 1, JSON 판은 9',
     /const allDays = results\.flatMap\(\(r\) => r\.days\);/.test(tool) &&
       /const failed = GATE_STAGE \? failedGates\(gateRows\) : \[\];/.test(tool) &&
       /process\.exitCode = 1;/.test(tool) &&
-      /version: 8,/.test(tool) &&
+      /version: 9,/.test(tool) &&
       /if \(GATE_ARG != null && !isGateStage\(GATE_ARG\)\)/.test(tool)
   );
 }
@@ -21044,17 +21054,24 @@ console.log(
     );
   }
 
-  /* ── (아) 동작 변화 0 — 만드는 쪽이 아직 없다: P3 160조합으로 만든 일정에 조절 칸이 없고, 처방은 목표 처방과 같다 ── */
+  /*
+   * ── (아) P3 160조합 — 처방은 목표 처방에 그날 조절을 댄 것뿐 ──
+   * P5 로 바뀜 — 처음(P5-b)에는 만드는 쪽이 없어 '조절 칸 없음 · 모든 칸이 목표 처방과 같다'였다. P5-d 부터 평소보다 낮은 컨디션 ·
+   * 짧은 밤 · 근육통 '많이' 이상인 근력 날에 본운동 세트 −1 이 실린다(decideVolume · volumeForDay). 그래서 '칸이 있으면 신호가 걸린
+   * 근력 날이고, 없으면 목표 처방 그대로, 있으면 무게 드는 3세트 이상 운동만 한 세트 적다'로 바꿨다.
+   */
   {
     let built = 0;
     const withVolume: string[] = [];
+    const badVolume: string[] = [];
     const rxDiff: string[] = [];
     const libById = new Map(library.map((ex) => [ex.id, ex]));
     for (const [i, facts] of p3ComboFactsSeen.entries()) {
+      const pitchPlan = buildPitchPlan(facts);
       const day = buildDailyPlan({
         user: { ownedEquipment: [], trainingLevel: null },
         facts,
-        plan: buildPitchPlan(facts),
+        plan: pitchPlan,
         library,
         availableToday: null,
         requestedMinutes: 45,
@@ -21064,22 +21081,37 @@ console.log(
       });
       if (isHalted(day)) continue;
       built++;
-      if ('volume' in day) withVolume.push(`p0-${i}`);
+      if ('volume' in day) {
+        withVolume.push(`p0-${i}`);
+        const decided = decideVolume(buildDayState({ facts, plan: pitchPlan }));
+        if (
+          decided == null ||
+          day.volume?.why !== decided.line ||
+          (day.theme.key !== 'lower' && day.theme.key !== 'upper') ||
+          day.goal === CONDITIONING_GOAL
+        ) {
+          badVolume.push(`p0-${i}`);
+        }
+      }
       for (const pick of day.picks) {
         const ex = libById.get(pick.exerciseId);
         if (!ex) continue;
-        if (json(planPrescription(ex, day)) !== json(goalPrescription(ex, day.goal))) {
+        const goalRx = goalPrescription(ex, day.goal);
+        const want = day.volume ? applyVolume(goalRx, day.volume) : goalRx;
+        if (json(planPrescription(ex, day)) !== json(want)) {
           rxDiff.push(`p0-${i} ${ex.title}`);
         }
       }
     }
     check(
-      `P5 처방 (아) 동작 변화 0 — P3 160조합(${p3ComboFactsSeen.length}명) 중 일정이 나온 ${built}명: 조절 칸 없음 · 모든 칸의 처방이 목표 처방과 같다`,
+      `P5 처방 (아) P3 160조합(${p3ComboFactsSeen.length}명) 중 일정이 나온 ${built}명: 조절은 신호가 걸린 근력 날에만(${withVolume.length}명) · 처방은 목표 처방(+ 그날 조절)`,
       p3ComboFactsSeen.length === 160 &&
         built > 0 &&
-        withVolume.length === 0 &&
+        withVolume.length > 0 &&
+        withVolume.length < built &&
+        badVolume.length === 0 &&
         rxDiff.length === 0,
-      `${withVolume.slice(0, 3).join(' · ')} ${rxDiff.slice(0, 3).join(' · ')}`
+      `${badVolume.slice(0, 3).join(' · ')} ${rxDiff.slice(0, 3).join(' · ')}`
     );
   }
 }
@@ -21483,6 +21515,589 @@ console.log(
       !st13.body.belowUsual,
     `${json(st7.why)} ${json(st4.why)}`
   );
+}
+
+/* ═══════════════════ [2판 P5] 양 조절 — 세트 줄이기(lib/report/volume.ts decideVolume · volumeForDay · holdsWeight, daily-plan.ts buildDailyPlan, free-weight.ts hold) (2026-10-12) ═══════════════════ */
+console.log(
+  "\n[2판 P5] 양 조절 — 평소보다 낮은 컨디션 · 짧은 밤 · 근육통 '많이' 이상인 근력 날 본운동 세트 −1 · 고르는 목록은 그대로 · 시간은 줄인 세트로 · 그날은 무게를 안 올림(2026-10-12)"
+);
+{
+  /*
+   * 왜 보는가. 2판 P5-d 는 오늘 상태 한 장(body)의 세 신호 — 평소보다 2점 이상 낮은 컨디션 · 짧은 밤 · 근육통 '많이' 이상 — 가 걸린
+   * 근력(하체 · 상체) 날에 무게 드는 본운동을 한 세트씩 줄인다(사용자 결정 2026-10-12, 조이는 쪽). 셋 다 안전 거르기가 가장 센 운동을
+   * 이미 빼는 날이다. 줄이는 것은 세트뿐이다 — 고르는 목록 · 안전 거르기는 그대로이고, 그날 시간은 줄인 세트로 다시 센다. 그 판에서는
+   * 자유 운동 무게를 올리지 않는다(hold). (가) 판정, (나) 일정에 댈지, (다) buildDailyPlan, (라) 아홉 자리 같은 값, (마) 무게 멈춤,
+   * (바) P3 160조합 불변식, (사) 옛 일정 · 소스의 약속을 본다.
+   */
+  const json = (v: unknown) => JSON.stringify(v);
+  const bodyOf = (on: Partial<VolumeStateInput['body']> = {}): VolumeStateInput => ({
+    body: {
+      belowUsual: false,
+      condition: 8,
+      usualCondition: null,
+      sleepShort: false,
+      sleepHours: null,
+      soreness: null,
+      soreMany: false,
+      soreSevere: false,
+      ...on,
+    },
+  });
+  const TAIL = ' 본운동을 한 세트씩 줄였어요.';
+  const ALL_ON = bodyOf({
+    belowUsual: true,
+    condition: 6,
+    usualCondition: 8,
+    sleepShort: true,
+    sleepHours: 5,
+    soreness: 4,
+    soreMany: true,
+  });
+
+  /* ── (가) decideVolume — 신호 · 이유 · 한 줄 ── */
+  check(
+    "P5 양 (가) 신호가 없으면 null — 컨디션 · 잠 · 근육통이 평소대로(근육통 '보통' 3 은 줄이지 않는다)",
+    decideVolume(bodyOf()) === null &&
+      decideVolume(bodyOf({ soreness: 3 })) === null &&
+      decideVolume(bodyOf({ sleepHours: 6, condition: 5 })) === null
+  );
+  const one = (signal: string, why: string, line: string): VolumeDecision => ({
+    setDelta: -1,
+    intensityStep: -1,
+    signals: [signal as VolumeDecision['signals'][number]],
+    why: [why],
+    line: line + TAIL,
+  });
+  const below = decideVolume(
+    bodyOf({ belowUsual: true, condition: 6, usualCondition: 8 })
+  );
+  const sleepHours = decideVolume(bodyOf({ sleepShort: true, sleepHours: 5 }));
+  const sleepFeel = decideVolume(bodyOf({ sleepShort: true }));
+  const sore4 = decideVolume(bodyOf({ soreness: 4, soreMany: true }));
+  const sore5 = decideVolume(bodyOf({ soreness: 5, soreSevere: true }));
+  check(
+    "P5 양 (가) 신호 하나씩 — 세트 −1 · 강도 한 칸(−1) · 이유 한 줄(오늘 상태 한 장과 같은 말) · 화면 한 줄 '…해 본운동을 한 세트씩 줄였어요.'",
+    json(below) ===
+      json(
+        one(
+          'belowUsual',
+          '오늘 컨디션 6/10이 평소 8/10보다 낮아요.',
+          '컨디션이 평소보다 낮아'
+        )
+      ) &&
+      json(sleepHours) ===
+        json(one('sleepShort', '어젯밤 5시간만 잤어요.', '잠이 부족해')) &&
+      json(sleepFeel) ===
+        json(one('sleepShort', '잠이 부족했다고 적었어요.', '잠이 부족해')) &&
+      json(sore4) ===
+        json(one('soreHigh', "전신 근육통이 '많이'이에요.", '근육통이 많아')) &&
+      json(sore5) ===
+        json(one('soreHigh', "전신 근육통이 '심함'이에요.", '근육통이 심해')),
+    json([below?.line, sleepHours?.line, sore4?.line, sore5?.line])
+  );
+  const all3 = decideVolume(ALL_ON);
+  check(
+    'P5 양 (가) 셋 다 — 신호 차례(평소 → 잠 → 근육통)로 이유 셋, 한 줄은 앞 마디를 …하고로 잇는다',
+    all3 != null &&
+      json(all3.signals) === json(VOLUME_SIGNALS) &&
+      all3.why.length === 3 &&
+      all3.line === '컨디션이 평소보다 낮고 잠이 부족하고 근육통이 많아' + TAIL,
+    all3?.line
+  );
+  {
+    /* 격자 — 평소 낮음 2 × 잠 3(안 짧음 · 느낌만 · 5시간) × 근육통 4(안 적음 · 3 · 4 · 5) × 반 점 평소 2 */
+    const bad: string[] = [];
+    let hit = 0;
+    let none = 0;
+    for (const low of [false, true])
+      for (const sleep of [null, 'feel', 5] as const)
+        for (const sore of [null, 3, 4, 5])
+          for (const usual of [8, 6.5]) {
+            const input = bodyOf({
+              belowUsual: low,
+              condition: low ? 4.5 : 8,
+              usualCondition: usual,
+              sleepShort: sleep != null,
+              sleepHours: sleep === 5 ? 5 : null,
+              soreness: sore,
+              soreMany: sore === 4,
+              soreSevere: sore === 5,
+            });
+            const d = decideVolume(input);
+            const want = low || sleep != null || (sore ?? 0) >= 4;
+            if (!want) {
+              none++;
+              if (d !== null) bad.push(`없어야 ${json(input.body)}`);
+              continue;
+            }
+            hit++;
+            const again = decideVolume(input);
+            const order = VOLUME_SIGNALS.filter((s) => d?.signals.includes(s));
+            if (
+              d == null ||
+              json(again) !== json(d) ||
+              json(order) !== json(d.signals) ||
+              d.why.length !== d.signals.length ||
+              d.setDelta !== -1 ||
+              d.intensityStep !== -1 ||
+              !d.line.endsWith(TAIL) ||
+              d.line.length > 60 ||
+              [d.line, ...d.why].some(
+                (l) => l.includes('—') || l.includes('**') || !l.endsWith('요.')
+              )
+            ) {
+              bad.push(json(d));
+            }
+          }
+    check(
+      `P5 양 (가) 격자 ${hit + none}가지 — 걸린 ${hit} · 안 걸린 ${none}: 걸리면 늘 −1/−1 · 신호 차례 · 같은 입력 같은 값 · 한 줄 60자 안 · 해요체 · 줄표 없음`,
+      bad.length === 0 && hit > 0 && none > 0,
+      bad.slice(0, 2).join(' · ')
+    );
+  }
+  {
+    /* 이유 줄은 오늘 상태 한 장(day-state.ts whyLines)이 같은 날 하는 말과 같다 — 실제 facts 셋 */
+    const usual8 = (f: ReturnType<typeof factsFor>): ReturnType<typeof factsFor> => ({
+      ...f,
+      condition: { ...f.condition, usualCondition: { median: 8, days: 20 } },
+    });
+    const rows = [
+      usual8(factsFor({ condition: 6 })),
+      factsFor({ condition: 8, sleep: '부족' }),
+      factsFor({ condition: 8, sleepHours: 5 }),
+      factsFor({ condition: 8, soreness: 4 }),
+    ];
+    const miss = rows.flatMap((f, i) => {
+      const st = buildDayState({ facts: f, plan: buildPitchPlan(f) });
+      const d = decideVolume(st);
+      return d != null && d.why.every((l) => st.why.includes(l))
+        ? []
+        : [`${i} ${json(d?.why)} ${json(st.why)}`];
+    });
+    check(
+      "P5 양 (가) 실제 facts(평소 8 · 오늘 6 / 잠 '부족' / 5시간 / 근육통 '많이') — 판정이 걸리고 이유 줄이 오늘 상태 한 장의 이유 줄에 그대로 있다",
+      miss.length === 0,
+      miss.join(' · ')
+    );
+  }
+
+  /* ── (나) volumeForDay — 근력 날 · 컨디셔닝 아님 · 실제로 줄어드는 운동이 있을 때만 ── */
+  const rx = (category: string, sets: number | null, intensity = '높음') => ({
+    category,
+    intensity,
+    sets,
+    reps: 5,
+  });
+  const heavy4 = rx('하체 스트렝스', 4);
+  const core3 = rx('코어', 3, '낮음');
+  const upper2 = rx('상체 스트렝스', 2);
+  const at = (
+    themeKey: string,
+    exercises: ReturnType<typeof rx>[],
+    decision: VolumeDecision | null = sleepHours,
+    conditioning = false
+  ) => volumeForDay({ decision, themeKey, conditioning, exercises });
+  const lowerV = at('lower', [heavy4, core3]);
+  check(
+    'P5 양 (나) 하체 · 상체 날 + 줄어드는 운동 → { −1 · −1 · why = 판정의 한 줄 }, 저장했다 읽어도 같다',
+    json(lowerV) ===
+      json({ setDelta: -1, intensityStep: -1, why: '잠이 부족해' + TAIL }) &&
+      json(at('upper', [upper2, heavy4])) === json(lowerV) &&
+      json(readPlanVolume(JSON.parse(json(lowerV)))) === json(lowerV),
+    json(lowerV)
+  );
+  check(
+    'P5 양 (나) 안 대는 날 — 판정 없음 · 회복 · 보조 날 · 컨디셔닝 목표 · 줄어드는 운동이 없음(2세트 · 코어만 · 세트 안 채움)',
+    at('lower', [heavy4], null) === null &&
+      at('recovery', [heavy4]) === null &&
+      at('assist', [heavy4]) === null &&
+      at('lower', [heavy4], sleepHours, true) === null &&
+      at('lower', [core3, upper2, rx('파워', null)]) === null &&
+      at('upper', []) === null
+  );
+
+  /* ── (다) buildDailyPlan — 고르는 목록은 그대로, 세트와 시간만 ── */
+  const owned = [ALWAYS_OWNED, ...SELECTABLE_EQUIPMENT];
+  const libById = new Map(library.map((ex) => [ex.id, ex]));
+  const SIDES = [
+    { lastLowerKey: null, lastUpperKey: '2026-06-14' },
+    { lastLowerKey: '2026-06-14', lastUpperKey: null },
+  ] as const;
+  const dayFor = (
+    facts: ReturnType<typeof factsFor>,
+    opts: {
+      state?: VolumeStateInput;
+      goal?: string;
+      side?: (typeof SIDES)[number];
+    } = {}
+  ) =>
+    buildDailyPlan({
+      user: { ownedEquipment: owned, trainingLevel: null },
+      facts,
+      plan: buildPitchPlan(facts),
+      library,
+      availableToday: null,
+      requestedMinutes: 60,
+      trainingGoal: opts.goal ?? '근력 향상',
+      recentIds: new Set<string>(),
+      lastLowerKey: opts.side?.lastLowerKey ?? null,
+      lastUpperKey: opts.side?.lastUpperKey ?? null,
+      ...(opts.state ? { state: opts.state } : {}),
+    });
+  /* 그날 처방으로 다시 센 시간 — 트레이닝 화면 · 홈(today-data shownMinutes)이 하는 셈 */
+  const minutesOf = (d: DailyPlan) =>
+    Math.round(
+      d.picks.reduce(
+        (s, k) => s + estimateMinutes(planPrescription(libById.get(k.exerciseId)!, d)),
+        0
+      )
+    );
+  const calm = factsFor({ condition: 8 });
+  {
+    const bad: string[] = [];
+    let compared = 0;
+    for (const side of SIDES) {
+      for (const goal of ['근력 향상', '파워 향상']) {
+        const plain = dayFor(calm, { side, goal });
+        const cut = dayFor(calm, {
+          side,
+          goal,
+          state: bodyOf({ sleepShort: true, sleepHours: 5 }),
+        });
+        if (isHalted(plain) || isHalted(cut)) {
+          bad.push(`${goal} 멈춤`);
+          continue;
+        }
+        compared++;
+        const { volume, estimatedMinutes, ...rest } = cut;
+        const { estimatedMinutes: plainMinutes, ...plainRest } = plain;
+        if (
+          (plain.theme.key !== 'lower' && plain.theme.key !== 'upper') ||
+          'volume' in plain ||
+          json(rest) !== json(plainRest) ||
+          json(volume) !==
+            json({ setDelta: -1, intensityStep: -1, why: '잠이 부족해' + TAIL }) ||
+          !(estimatedMinutes < plainMinutes) ||
+          estimatedMinutes !== minutesOf(cut) ||
+          plainMinutes !== minutesOf(plain)
+        ) {
+          bad.push(
+            `${plain.theme.key}/${goal} ${plainMinutes}→${estimatedMinutes} ${json(volume)}`
+          );
+        }
+      }
+    }
+    check(
+      `P5 양 (다) 같은 facts 에 신호만 켬(${compared}쌍 — 하체 · 상체 × 근력 · 파워) → 목록 · 근거 · 뺀 것 · 테마는 글자까지 같고 조절 칸이 생기고 시간만 줄어든다(시간 = 줄인 처방으로 다시 센 값)`,
+      compared === 4 && bad.length === 0,
+      bad.join(' · ')
+    );
+  }
+  {
+    /* 앱처럼 state 를 넘기든 안 넘기든 같은 일정 — body 는 facts 만으로 정해진다 */
+    const cases = [
+      calm,
+      factsFor({ condition: 8, sleep: '부족' }),
+      factsFor({ condition: 8, soreness: 4 }),
+      factsFor({ condition: 7, sleepHours: 5, soreness: 5, wants: '웨이트' }),
+    ];
+    const diff: string[] = [];
+    let volumed = 0;
+    for (const [i, f] of cases.entries()) {
+      for (const side of SIDES) {
+        const own = dayFor(f, { side });
+        const given = dayFor(f, {
+          side,
+          state: buildDayState({ facts: f, plan: buildPitchPlan(f) }),
+        });
+        if (json(own) !== json(given)) diff.push(`${i}`);
+        if (!isHalted(own) && own.volume) volumed++;
+      }
+    }
+    check(
+      `P5 양 (다) state 를 넘긴 일정 = 안 넘긴 일정(facts 4 × 날 2) — 신호가 실제로 걸린 근력 날은 조절이 실린다(${volumed}개)`,
+      diff.length === 0 && volumed > 0,
+      diff.join(' · ')
+    );
+  }
+  {
+    const sleepyRecovery = dayFor(factsFor({ condition: 3, sleep: '부족' }));
+    const sleepyRest = dayFor(factsFor({ condition: 8, sleep: '부족', wants: '회복' }));
+    const condCut = dayFor(calm, { goal: CONDITIONING_GOAL, state: ALL_ON });
+    check(
+      "P5 양 (다) 회복 날(컨디션 3 · '회복' 고름)과 컨디셔닝 목표 날은 신호가 있어도 조절 칸이 없다",
+      !isHalted(sleepyRecovery) &&
+        sleepyRecovery.theme.key === 'recovery' &&
+        !('volume' in sleepyRecovery) &&
+        !isHalted(sleepyRest) &&
+        sleepyRest.theme.key === 'recovery' &&
+        !('volume' in sleepyRest) &&
+        !isHalted(condCut) &&
+        condCut.goal === CONDITIONING_GOAL &&
+        !('volume' in condCut),
+      `${isHalted(sleepyRecovery) ? '멈춤' : sleepyRecovery.theme.key} ${isHalted(sleepyRest) ? '멈춤' : sleepyRest.theme.key}`
+    );
+  }
+
+  /* ── (라) 아홉 자리 같은 값 — 실제로 만든 일정(조절 있음)을 저장했다 읽어 자리마다 센 세트가 같다 ── */
+  {
+    const built = dayFor(calm, {
+      side: SIDES[1],
+      state: bodyOf({ soreness: 4, soreMany: true }),
+    });
+    const saved = isHalted(built) ? null : readDailyPlan(JSON.parse(json(built)));
+    const bad: string[] = [];
+    let cutRows = 0;
+    if (saved) {
+      const frozen = freezePlan(
+        saved.theme.key,
+        saved.theme.label,
+        saved.picks,
+        libById,
+        saved.goal,
+        volumeToFreeze(null, saved.volume)
+      );
+      const frozenBack = readFrozenPlan(JSON.parse(json(frozen)))!;
+      for (const k of saved.picks) {
+        const ex = libById.get(k.exerciseId)!;
+        const goalRx = goalPrescription(ex, saved.goal);
+        const shown = planPrescription(ex, saved);
+        const started = frozenBack.exercises.find((e) => e.id === ex.id)!;
+        const swapped = freezeExercise(
+          planPrescription(ex, sessionRxBasis(frozenBack, saved.goal)),
+          k.slot
+        );
+        const cut =
+          HEAVY_CATEGORIES.includes(goalRx.category) &&
+          goalRx.sets != null &&
+          goalRx.sets > VOLUME_MIN_SETS;
+        if (cut) cutRows++;
+        const wantSets = cut ? goalRx.sets! - 1 : goalRx.sets;
+        if (
+          shown.sets !== wantSets ||
+          started.plannedSets !== wantSets ||
+          swapped.plannedSets !== wantSets ||
+          formatPrescription(shown) !== started.prescription ||
+          swapped.prescription !== started.prescription
+        ) {
+          bad.push(
+            `${ex.title} ${goalRx.sets}→${shown.sets}/${started.plannedSets}/${swapped.plannedSets}`
+          );
+        }
+      }
+      if (minutesOf(saved) !== saved.estimatedMinutes)
+        bad.push(`시간 ${minutesOf(saved)}≠${saved.estimatedMinutes}`);
+      if (json(frozenBack.volume) !== json(saved.volume)) bad.push('판의 조절');
+    }
+    check(
+      `P5 양 (라) 아홉 자리 — 근육통 '많이' 일정(줄인 칸 ${cutRows}개)을 저장했다 읽어 트레이닝 화면 · 기록 처방 = 운동 시작 판 = 바꿔 넣기, 세트는 목표 처방 −1(무게 드는 3세트 이상만), 시간도 같은 값`,
+      saved != null && saved.volume != null && cutRows > 0 && bad.length === 0,
+      bad.slice(0, 3).join(' · ')
+    );
+    const strip = (rel: string) =>
+      readFileSync(new URL(`../${rel}`, import.meta.url), 'utf8')
+        .replace(/\/\*[\s\S]*?\*\//g, '')
+        .replace(/^\s*\/\/.*$/gm, '');
+    const SITES: [string, number][] = [
+      ['app/(app)/training/page.tsx', 2],
+      ['app/actions/workout.ts', 2],
+      ['lib/report/daily-plan.ts', 1],
+      ['lib/report/today-data.ts', 1],
+      ['lib/report/training-history.ts', 2],
+      ['lib/workout/session-plan.ts', 1],
+    ];
+    const counts = SITES.map(([rel, want]) => {
+      const src = strip(rel);
+      return {
+        rel,
+        want,
+        got: src.split('planPrescription(').length - 1,
+        goal: src.split('goalPrescription(').length - 1,
+      };
+    });
+    check(
+      `P5 양 (라) 아홉 자리 소스 — 여섯 파일에서 planPrescription 이 ${SITES.reduce((s, [, n]) => s + n, 0)}번, goalPrescription 을 바로 부르는 곳 0`,
+      counts.every((c) => c.got === c.want && c.goal === 0),
+      json(counts.filter((c) => c.got !== c.want || c.goal !== 0))
+    );
+  }
+
+  /* ── (마) 그날은 무게를 안 올린다 — holdsWeight · suggestFreeWeight 의 hold ── */
+  {
+    const picks = [
+      {
+        exerciseId: library.find((e) => e.category === '하체 스트렝스')!.id,
+        slot: 'main' as SlotKey,
+      },
+    ];
+    const plainFrozen = freezePlan('lower', '하체', picks, libById, '근력 향상');
+    const cutFrozen = freezePlan('lower', '하체', picks, libById, '근력 향상', lowerV);
+    check(
+      'P5 양 (마) holdsWeight — 조절이 실린 판(저장했다 읽어도) · 일정이면 참, 조절 없는 판 · 깨진 조절 · 없음이면 거짓',
+      holdsWeight(cutFrozen) &&
+        holdsWeight(readFrozenPlan(JSON.parse(json(cutFrozen)))) &&
+        holdsWeight({ volume: lowerV }) &&
+        !holdsWeight(plainFrozen) &&
+        !holdsWeight({ volume: { setDelta: -2, why: '줄였어요.' } }) &&
+        !holdsWeight({ volume: '줄였어요' }) &&
+        !holdsWeight(null) &&
+        !holdsWeight(undefined)
+    );
+    const last = (date: string, reps: number): FreeLast => ({
+      date,
+      sets: Array.from({ length: 4 }, () => ({ weightKg: 60, reps })),
+    });
+    const ask = (l: FreeLast, hold?: boolean) =>
+      suggestFreeWeight({
+        equipment: ['바벨'],
+        bigLower: true,
+        plannedSets: 3,
+        plannedReps: 5,
+        last: l,
+        todayKey: '2026-06-15',
+        ...(hold === undefined ? {} : { hold }),
+      });
+    const hitLast = last('2026-06-12', 5);
+    const raised = ask(hitLast);
+    const held = ask(hitLast, true);
+    check(
+      "P5 양 (마) 다 채운 운동 — 보통 날은 올리고(60 → 62.5kg), 양을 줄인 날은 60kg 그대로 · '오늘은 양을 줄인 날이라 지난번 60kg 그대로예요'",
+      raised != null &&
+        raised.kg > 60 &&
+        held != null &&
+        held.kg === 60 &&
+        held.note === '오늘은 양을 줄인 날이라 지난번 60kg 그대로예요' &&
+        !held.note.includes('—'),
+      json([raised, held])
+    );
+    check(
+      'P5 양 (마) hold 는 올림만 멈춘다 — 못 채운 날 · 8일 · 15일 쉰 날(낮춤) · 29일(숫자 없음)은 hold 와 상관없이 같고, hold 를 안 주거나 거짓이면 예전과 같다',
+      json(ask(last('2026-06-12', 4), true)) === json(ask(last('2026-06-12', 4))) &&
+        json(ask(last('2026-06-05', 5), true)) === json(ask(last('2026-06-05', 5))) &&
+        json(ask(last('2026-05-29', 5), true)) === json(ask(last('2026-05-29', 5))) &&
+        ask(last('2026-05-15', 5), true) === null &&
+        json(ask(hitLast, false)) === json(raised) &&
+        (ask(last('2026-06-05', 5), true)?.kg ?? 99) < 60
+    );
+    const wsrc = readFileSync(
+      new URL('../app/actions/workout.ts', import.meta.url),
+      'utf8'
+    );
+    const lsrc = readFileSync(
+      new URL('../lib/workout/free-weight-load.ts', import.meta.url),
+      'utf8'
+    );
+    check(
+      'P5 양 (마) 소스 — 운동 시작 · 운동 중 바꾸기 둘 다 그 판의 holdsWeight 로 무게 추천을 부르고, 부르는 함수가 hold 를 넘긴다',
+      wsrc.split('withFreeWeights(').length - 1 === 2 &&
+        wsrc.split('hold: holdsWeight(plan)').length - 1 === 2 &&
+        lsrc.includes('hold: opts.hold === true,')
+    );
+  }
+
+  /* ── (바) P3 160조합 불변식 — 신호를 모두 켜도 목록 · 안전 거르기는 그대로, 조절은 근력 날에만 ── */
+  {
+    let built = 0;
+    let volumed = 0;
+    let lightWithSignal = 0;
+    const bad: string[] = [];
+    for (const [i, facts] of p3ComboFactsSeen.entries()) {
+      const run = (state: VolumeStateInput) =>
+        buildDailyPlan({
+          user: { ownedEquipment: owned, trainingLevel: null },
+          facts,
+          plan: buildPitchPlan(facts),
+          library,
+          availableToday: null,
+          requestedMinutes: 45,
+          recentIds: new Set<string>(),
+          lastLowerKey: null,
+          lastUpperKey: null,
+          state,
+        });
+      const off = run(bodyOf());
+      const on = run(ALL_ON);
+      if (isHalted(off) !== isHalted(on)) {
+        bad.push(`p0-${i} 멈춤 다름`);
+        continue;
+      }
+      if (isHalted(off) || isHalted(on)) continue;
+      built++;
+      if ('volume' in off) bad.push(`p0-${i} 신호 없이 조절`);
+      const { volume, estimatedMinutes, ...rest } = on;
+      const { estimatedMinutes: offMinutes, ...offRest } = off;
+      if (json(rest) !== json(offRest)) bad.push(`p0-${i} 목록 · 근거 다름`);
+      if (estimatedMinutes > offMinutes) bad.push(`p0-${i} 시간 늘어남`);
+      const strength =
+        (on.theme.key === 'lower' || on.theme.key === 'upper') &&
+        on.goal !== CONDITIONING_GOAL;
+      if (!strength) lightWithSignal++;
+      if (volume) {
+        volumed++;
+        if (!strength) bad.push(`p0-${i} ${on.theme.key} 에 조절`);
+        if (volume.setDelta !== -1) bad.push(`p0-${i} −1 아님`);
+        for (const k of on.picks) {
+          const sets = planPrescription(libById.get(k.exerciseId)!, on).sets;
+          const ex = libById.get(k.exerciseId)!;
+          if (
+            HEAVY_CATEGORIES.includes(ex.category) &&
+            sets != null &&
+            sets < VOLUME_MIN_SETS
+          ) {
+            bad.push(`p0-${i} ${ex.title} ${sets}세트`);
+          }
+        }
+      } else {
+        if (estimatedMinutes !== offMinutes) bad.push(`p0-${i} 조절 없이 시간 다름`);
+        /* 근력 날인데 줄일 수 있는 칸(무게 드는 3세트 이상)이 있으면 조절이 빠지면 안 된다 */
+        const reducible = on.picks.some((k) => {
+          const g = goalPrescription(libById.get(k.exerciseId)!, on.goal);
+          return (
+            HEAVY_CATEGORIES.includes(g.category) && (g.sets ?? 0) > VOLUME_MIN_SETS
+          );
+        });
+        if (strength && reducible) bad.push(`p0-${i} 근력 날인데 조절 빠짐`);
+      }
+    }
+    check(
+      `P5 양 (바) P3 160조합 중 일정이 나온 ${built}명 — 신호를 다 켜도 멈춤 · 목록 · 근거 · 뺀 것은 같고 시간은 안 늘며, 조절(${volumed}명)은 근력 날에만(줄일 칸이 있으면 빠짐없이) · 회복 · 보조 · 컨디셔닝 날(${lightWithSignal}명)엔 없다 · 줄인 세트는 ${VOLUME_MIN_SETS} 이상`,
+      built > 0 && volumed > 0 && lightWithSignal > 0 && bad.length === 0,
+      bad.slice(0, 4).join(' · ')
+    );
+  }
+
+  /* ── (사) 옛 일정 · 서버 동작의 약속 ── */
+  {
+    const plain = dayFor(calm, { side: SIDES[0] });
+    const old = isHalted(plain) ? null : readDailyPlan(JSON.parse(json(plain)));
+    check(
+      'P5 양 (사) 신호 없는 날의 일정은 칸 목록이 예전 그대로(조절 칸 없음) · 옛 줄로 읽어도 처방 = 목표 처방 · 무게를 멈추지 않는다',
+      old != null &&
+        !Object.keys(old).includes('volume') &&
+        old.picks.every((k) => {
+          const ex = libById.get(k.exerciseId)!;
+          return (
+            json(planPrescription(ex, old)) === json(goalPrescription(ex, old.goal))
+          );
+        }) &&
+        !holdsWeight(old)
+    );
+    const setup = readFileSync(
+      new URL('../app/actions/training-setup.ts', import.meta.url),
+      'utf8'
+    )
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/^\s*\/\/.*$/gm, '');
+    check(
+      'P5 양 (사) 일정 만들기 서버 동작은 gatherFactsAndPlan 의 오늘 상태 한 장(state)을 buildDailyPlan 에 넘긴다(기준선 buildDay 와 같은 짝)',
+      /const \{ facts, plan, state \} = await gatherFactsAndPlan\(user, today\);/.test(
+        setup
+      ) &&
+        /override: !auto && formData\.get\('overrideCondition'\) === 'on',\s*state,\s*\}\);/.test(
+          setup
+        )
+    );
+  }
 }
 
 console.log(`\n${passed}개 통과, ${failed}개 실패`);

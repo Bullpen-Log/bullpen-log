@@ -10,11 +10,15 @@ const WINDOW_DAYS = 180;
 /**
  * 프로그램이 아닌 운동의 무게 추천을 판에 얹는다(lib/workout/free-weight.ts) — 운동 시작 · 운동 중 바꾸기 · 더하기가
  * 같이 쓴다. 프로그램 칸의 운동과 무게 없는 운동은 건드리지 않는다. 이미 추천이 있는 운동(프로그램 칸)도 그대로.
+ *
+ * opts.hold — 양을 줄인 판인가(lib/report/volume.ts holdsWeight(판), 2판 P5-d). 그러면 다 채운 운동도 올리지 않는다(free-weight.ts ⑤).
+ * 부르는 쪽이 그 판(세션 판)의 칸으로 정한다 — 오늘 일정이 아니라 판을 보는 까닭은 세트도 판의 조절로 찍기 때문이다(sessionRxBasis).
  */
 export async function withFreeWeights(
   userId: string,
   exercises: readonly FrozenExercise[],
-  sessionDate: Date
+  sessionDate: Date,
+  opts: { hold?: boolean } = {}
 ): Promise<FrozenExercise[]> {
   const todayKey = toDateKey(sessionDate);
   const wanted = exercises.filter(
@@ -36,6 +40,7 @@ export async function withFreeWeights(
       plannedReps: e.plannedReps,
       last: last.get(e.id) ?? null,
       todayKey,
+      hold: opts.hold === true,
     });
     return s ? { ...e, suggestedKg: s.kg, suggestNote: s.note } : e;
   });

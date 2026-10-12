@@ -35,6 +35,7 @@
  *   ⑯ 다음 등판 짐작(커밋 G, metrics.calendarGuess).
  * P5 의 도구 커밋(T0 — 점수 · 양을 바꾸기 전에 전 값을 잰다)이 여섯을 더했다. 단계 목표(--gate)가 이 번호로 잰다:
  *   ⑰ 같은 테마 안에서 오늘 상태만 바꿈 → 목록 바뀜(metrics.sameThemeState)   ⑱ 방향 검사 넷(metrics.direction)
+ *      ⑱ 의 양 조절(2판 P5-d — 세트를 줄인 날 · 줄인 세트 · 나쁜 날 · 근육통 변형에서 줄인 짝, metrics.volume)
  *   ⑲ P5 울타리 — 노출 · 회복 날 비율 · 까닭 없는 회복 · 두 번 뺀 운동(metrics.fence)
  *   ⑳ 프로그램 하는 날의 매일 일정(metrics.programDay)   ㉑ 무거운 하체 48시간(metrics.lowerGap)   ㉒ 상태 바뀜(metrics.stateAlert).
  * 커밋 메시지 · 패치노트가 이 번호로 적혀 있어 다시 매기지 않는다. 다음 단계가 더하는 지표는 ㉓ 부터 잇는다. 자체 시험의 불변식
@@ -953,7 +954,8 @@ function extrasOf(st: State): DayStateExtras {
  *   history     gather.ts 의 recentExerciseIds · exerciseSessionsAgo · lastStrengthDates — historyOf
  *   seed        '사용자 id|날짜'(training-setup.ts, 하루의 첫 만들기)
  *   swappedOut  lib/report/plan-swaps.ts swappedOutCounts(저장된 일정, 60일) — 그날 뺀 기록을 남긴 선수(추가 묶음의 바꾸기 선수)만 값이 있다
- * state · swappedOut 은 아직 buildDailyPlan 이 안 받는다(P5 의 점수가 받을 자리) — 지금은 만들어만 둔다.
+ * state 는 P5-d 부터 buildDailyPlan 이 받는다(양 조절 — body 의 평소 대비 컨디션 · 짧은 밤 · 근육통, training-setup.ts 와 같은 짝).
+ * swappedOut 은 아직 안 받는다(P5 의 점수가 받을 자리) — 지금은 만들어만 둔다.
  */
 function inputsOf(p: Player, i: number, st: State, v: Variant = {}) {
   const todayKey = keyOf(i);
@@ -980,7 +982,7 @@ function inputsOf(p: Player, i: number, st: State, v: Variant = {}) {
 /** 앱(createDailySetup)이 buildDailyPlan 을 부르는 인자 그대로. 멈춘 날(통증 등)은 null */
 function buildDay(p: Player, i: number, st: State, v: Variant = {}): DailyPlan | null {
   buildCalls++;
-  const { facts, plan, owned, history, seed } = inputsOf(p, i, st, v);
+  const { facts, plan, state, owned, history, seed } = inputsOf(p, i, st, v);
   const built = buildDailyPlan({
     user: { ownedEquipment: owned, trainingLevel: p.level },
     facts,
@@ -999,6 +1001,8 @@ function buildDay(p: Player, i: number, st: State, v: Variant = {}): DailyPlan |
     lastUpperKey: history.lastUpperKey,
     override: false,
     caution: [],
+    /* 오늘 상태 한 장 — training-setup.ts 가 gatherFactsAndPlan 의 state 를 넘기는 것과 같은 짝(양 조절이 body 를 읽는다, P5-d) */
+    state,
   });
   return isHalted(built) ? null : built;
 }
@@ -1020,6 +1024,15 @@ const mainSetsOf = (plan: DailyPlan | null) =>
         .filter((k) => k.slot === 'main')
         .reduce((s, k) => s + setsOf(plan, k), 0)
     : 0;
+/**
+ * 양 조절(plan.volume, 2판 P5-d)로 줄인 세트 합 — 조절을 뺀 같은 일정의 세트 합에서 뺀 값(모든 칸). 조절이 없는 날은 null.
+ * 같은 setsOf(처방 한 길)를 두 번 읽는다 — 앱이 줄이지 않았으면 냈을 값과 줄인 값.
+ */
+const volumeSetsCutOf = (plan: DailyPlan | null): number | null => {
+  if (!plan || plan.volume == null) return null;
+  const plain: DailyPlan = { ...plan, volume: undefined };
+  return plan.picks.reduce((s, k) => s + setsOf(plain, k) - setsOf(plan, k), 0);
+};
 /** 그날 일정에서 판정에 드는 운동 수 — 멈춘 날(null)은 0 */
 const countPicks = (plan: DailyPlan | null, isIt: (ex: Exercise) => boolean) =>
   plan
@@ -1246,6 +1259,8 @@ type DayRecord = {
   age14vs22Differs: boolean;
   /** 그날 일정의 본운동 세트 합(setsOf — ⑱ 의 바닥값) */
   mainSets: number;
+  /** 양 조절(2판 P5-d)로 줄인 세트 합(volumeSetsCutOf) — 조절이 실린 날만 칸이 있다 */
+  volumeSetsCut?: number;
   /**
    * ⑰ · ⑱ 오늘 상태만 바꾼 변형(2판 P5 도구 T0) — 체크인 있는 날만, 그 변형이 해당하는 날만 칸이 있다.
    *   sameTheme     테마가 그대로인가(멈춘 변형은 false)        listChanged   목록(운동 id 집합)이 바뀌었나
@@ -1262,6 +1277,8 @@ type DayRecord = {
         sameExcluded: boolean;
         before?: number;
         after?: number;
+        /** bad · sore 만 — 바꾼 뒤 일정에 양 조절(세트 −1)이 실렸나(2판 P5-d) */
+        volumed?: boolean;
       }
     >
   >;
@@ -1325,6 +1342,7 @@ function stateVariantOf(
     sameExcluded:
       after != null && JSON.stringify(after.excluded) === JSON.stringify(base.excluded),
     ...(measure ? { before: measure(base), after: measure(after) } : {}),
+    ...(kind === 'bad' || kind === 'sore' ? { volumed: after?.volume != null } : {}),
   };
 }
 
@@ -1561,6 +1579,7 @@ for (const p of PLAYERS) {
       age15vs22Differs: differs(at15, at22),
       age14vs22Differs: differs(at14, at22),
       mainSets: mainSetsOf(base),
+      ...(base.volume != null ? { volumeSetsCut: volumeSetsCutOf(base) ?? 0 } : {}),
       ...(stateVariants ? { stateVariants } : {}),
       ...(stateAlert ? { stateAlert } : {}),
       unexplainedRecovery,
@@ -2684,6 +2703,42 @@ const direction = {
 };
 
 /*
+ * ⑱ 의 양 조절(2판 P5-d, lib/report/volume.ts) — 평소보다 낮은 컨디션 · 짧은 밤 · 근육통 '많이' 이상인 근력 날 본운동 세트 −1.
+ *   days      기준 12명 · 체크인 있는 날 중 일정에 조절이 실린 날 · 줄인 세트 합(모든 칸)
+ *   offTheme  하체 · 상체 날이 아닌데 실린 날(회복 · 보조 날은 안 줄인다 — 0 이어야 한다)
+ *   bad/sore  나쁜 날(컨디션 −3 + 잠 '부족') · 근육통 '많이' 변형에서 테마가 그대로인 근력 날 짝 중 조절이 실린 짝(⑱ 세트 검사의 까닭).
+ *             컨디셔닝 목표 선수는 뺀다(무게 드는 운동이 없는 날이라 줄일 세트가 없다 — volumeForDay 가 대지 않는다)
+ */
+function volumedOf(kind: 'bad' | 'sore') {
+  const rows = results
+    .filter((r) => r.player.goal !== CONDITIONING_GOAL)
+    .flatMap((r) => r.days)
+    .flatMap((d) => {
+      const v = d.stateVariants?.[kind];
+      return v && v.sameTheme && (d.theme === 'lower' || d.theme === 'upper')
+        ? [v]
+        : [];
+    });
+  return {
+    strengthPairs: rows.length,
+    volumed: rows.filter((v) => v.volumed).length,
+    ratio: ratio(rows.filter((v) => v.volumed).length, rows.length),
+  };
+}
+const volumeRows = appDays.filter((d) => d.volumeSetsCut != null);
+const volume = {
+  days: volumeRows.length,
+  appDays: appDays.length,
+  ratio: ratio(volumeRows.length, appDays.length),
+  setsCut: volumeRows.reduce((s, d) => s + (d.volumeSetsCut ?? 0), 0),
+  offTheme: allDays.filter(
+    (d) => d.volumeSetsCut != null && d.theme !== 'lower' && d.theme !== 'upper'
+  ).length,
+  bad: volumedOf('bad'),
+  sore: volumedOf('sore'),
+};
+
+/*
  * ⑲ P5 울타리 — 점수 · 양 조절이 라이브러리를 좁히거나(노출) 회복 날을 몰래 늘리지 않는가. 회복 날 비율은 체크인 있는 날(앱이 만드는
  * 날) 기준, 까닭 없는 회복은 DayRecord.unexplainedRecovery, 두 번 넘게 뺀 운동이 다시 뽑힌 날은 추가 묶음의 바꾸기 선수(지금은 차례가
  * 그것을 모른다 — P5 의 점수가 −2 로 내릴 몫).
@@ -3261,6 +3316,16 @@ out.push(
         `${pct(direction[k].pass, direction[k].d)} · 줄어든 짝 ${direction[k].reduced} / 앞에 있던 짝 ${direction[k].had}${direction[k].themeChanged ? ` · 테마 바뀐 짝(뺌) ${direction[k].themeChanged}` : ''}`,
       ]),
       [
+        '⑱',
+        '  양 조절(P5-d) — 체크인 있는 날 중 세트를 줄인 날 · 줄인 세트 합 · 근력 날 밖에 실린 날(0 이어야 한다)',
+        `${pct(volume.days, volume.appDays)} · 줄인 세트 ${volume.setsCut} · 근력 날 밖 ${volume.offTheme}`,
+      ],
+      [
+        '⑱',
+        '  양 조절 — 나쁜 날 · 근육통 변형에서 테마가 그대로인 근력 날 짝 중 세트를 줄인 짝',
+        `나쁜 날 ${pct(volume.bad.volumed, volume.bad.strengthPairs)} · 근육통 ${pct(volume.sore.volumed, volume.sore.strengthPairs)}`,
+      ],
+      [
         '⑲',
         'P5 울타리 — 라이브러리 노출(보이는 운동 전체 · 일정에 드는 카테고리만)',
         `${pct(fence.exposure.n, fence.exposure.d)} · ${n(fence.exposure.schedulableRatio)}`,
@@ -3514,8 +3579,10 @@ const json = {
    * 8 = 2판 P5 도구 T0: 날마다 mainSets · stateVariants · stateAlert · unexplainedRecovery, metrics 의 ⑰~㉒(sameThemeState · direction ·
    *     fence · programDay · lowerGap · stateAlert), cohorts.extra(추가 묶음), gates(단계 목표)를 더했다. 대본에 팔 피로 · 힘듦이 들어갔지만
    *     지금 규칙엔 안 걸려 옛 칸은 meta · version · buildCalls 를 빼고 7 과 글자까지 같다(--compare 의 '옛 칸 같음').
+   * 9 = 2판 P5-d 양 조절: 날마다 volumeSetsCut(조절이 실린 날만), stateVariants 의 bad · sore 에 volumed, metrics.volume 을 더했다.
+   *     조절이 실린 날은 일정 · mainSets 가 바뀐다(동작 변화 — 8 과 견주면 그 날만 다르다).
    */
-  version: 8,
+  version: 9,
   /* 돌릴 때마다 바뀌는 것은 이 칸뿐 — 단계 전후를 diff 로 견줄 때는 meta 를 빼고 본다 */
   meta: { generatedAt: new Date().toISOString(), elapsedMs },
   startKey: START_KEY,
@@ -3636,6 +3703,7 @@ const json = {
     /* 2판 P5 도구 T0 — ⑰~㉒(머리 주석의 번호 표) */
     sameThemeState,
     direction,
+    volume,
     fence,
     programDay,
     lowerGap,

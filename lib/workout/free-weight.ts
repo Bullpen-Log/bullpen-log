@@ -17,6 +17,9 @@ import {
  *      적어도 한 단위). 처방 횟수를 모르면 그대로. 못 채웠으면 그대로 — 내리지는 않는다(RIR 이 없어 '힘들어서'인지 모른다).
  *   ③ 쉰 기간 — 8~14일 ×0.9, 15~28일 ×0.85(올리지 않는다), 29일+ 는 숫자 없이(처음처럼). 프로그램의 ④와 같은 값.
  *   ④ 장비 단위로 반올림(바벨 2.5 · 덤벨 2 · 머신 2.5). 맨몸 · 밴드 · 메디신볼은 추천이 없다.
+ *   ⑤ 양을 줄인 날(hold — 그날 일정 · 세션 판에 양 조절이 실린 날, lib/report/volume.ts holdsWeight)은 ②의 올림을 멈추고 지난번
+ *      무게 그대로(2판 P5-d, 2026-10-12). 컨디션 · 잠 · 근육통 때문에 세트를 줄인 날 무게를 올리면 줄인 뜻과 반대로 간다.
+ *      쉰 기간의 낮춤(③)은 그대로 — 낮추는 쪽이라 막을 까닭이 없다.
  *
  * 운동 시작 때 판에 얼려(FrozenExercise.suggestedKg · suggestNote) 운동 화면의 '추천 N kg 담기'가 쓴다.
  */
@@ -53,6 +56,8 @@ export function suggestFreeWeight(input: {
   last: FreeLast | null;
   /** 오늘 'YYYY-MM-DD' */
   todayKey: string;
+  /** 양을 줄인 날인가(⑤) — 다 채웠어도 올리지 않는다. 안 주면 예전과 같다 */
+  hold?: boolean;
 }): FreeSuggestion | null {
   const kind = weightKindOf(input.equipment);
   if (kind === 'none' || !input.last) return null;
@@ -84,6 +89,13 @@ export function suggestFreeWeight(input: {
     reps != null &&
     working.length >= sets &&
     working.every((s) => s.reps != null && s.reps >= reps);
+  if (hit && input.hold) {
+    /* ⑤ 양을 줄인 날 — 올릴 만큼 채웠어도 그대로. 다음 보통 날에 다시 본다 */
+    return {
+      kg: roundToUnit(top, kind),
+      note: `오늘은 양을 줄인 날이라 ${prev} 그대로예요`,
+    };
+  }
   if (hit) {
     const ratio = input.bigLower ? RAISE_BIG_LOWER : RAISE_OTHER;
     const raised = Math.max(roundToUnit(top * ratio, kind), top + UNIT_KG[kind]);

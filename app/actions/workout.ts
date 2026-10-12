@@ -12,7 +12,7 @@ import { loadTodayCore } from '@/lib/report/today-data';
 import { readDailyPlan } from '@/lib/report/daily-plan';
 import { withSwaps, type PlanSwap } from '@/lib/report/plan-swaps';
 import { selectCandidates } from '@/lib/report/prescription';
-import { planPrescription } from '@/lib/report/volume';
+import { holdsWeight, planPrescription } from '@/lib/report/volume';
 import { slotForTheme } from '@/lib/report/theme';
 import { recentExerciseIds } from '@/lib/report/exercise-recent';
 import { favoriteExerciseIds } from '@/lib/favorites';
@@ -108,10 +108,15 @@ export async function startWorkout() {
 
   if (plan.exercises.length === 0) redirect('/training');
 
-  /* 프로그램이 아닌 무게 운동의 추천 — 지난번 세트로(lib/workout/free-weight.ts). 다시 여는 판은 제 목록을 지킨다 */
+  /*
+   * 프로그램이 아닌 무게 운동의 추천 — 지난번 세트로(lib/workout/free-weight.ts). 다시 여는 판은 제 목록을 지킨다.
+   * 양을 줄인 판(세트 −1 이 실린 판)이면 무게는 올리지 않는다(holdsWeight, 2판 P5-d).
+   */
   const weighed = {
     ...plan,
-    exercises: await withFreeWeights(user.id, plan.exercises, core.midnight),
+    exercises: await withFreeWeights(user.id, plan.exercises, core.midnight, {
+      hold: holdsWeight(plan),
+    }),
   };
 
   redirect(await openSession(user.id, core.midnight, weighed, open));
@@ -890,7 +895,9 @@ export async function changeSessionExercise(input: {
             mode === 'replace' ? from.slot : slotForTheme(to, plan.themeKey)
           ),
         ],
-        session.date
+        session.date,
+        /* 판이 양을 줄였으면 바꿔 넣는 운동도 무게를 올리지 않는다 — 처음 찍은 운동과 같은 규칙(holdsWeight, 2판 P5-d) */
+        { hold: holdsWeight(plan) }
       )
     )[0];
   const list =

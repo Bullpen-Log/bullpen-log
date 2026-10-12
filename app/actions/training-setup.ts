@@ -224,7 +224,7 @@ export async function generateTodayPlan(formData: FormData) {
       );
 
   const today = appNow();
-  const { facts, plan } = await gatherFactsAndPlan(user, today);
+  const { facts, plan, state } = await gatherFactsAndPlan(user, today);
 
   /*
    * 오늘 체크인을 남긴 날에만 만든다 (2026-09-23 사용자분과 정함).
@@ -326,6 +326,8 @@ export async function generateTodayPlan(formData: FormData) {
      * 원하는 대로 하고 싶으면 직접 고르기에서 넘기면 된다.
      */
     override: !auto && formData.get('overrideCondition') === 'on',
+    /* 오늘 상태 한 장 — 같은 facts · plan 으로 만든 것. 양 조절(본운동 세트 −1, 2판 P5-d)이 body 를 읽는다 */
+    state,
   });
 
   const date = dateOnly(today);
