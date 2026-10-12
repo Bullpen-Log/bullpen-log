@@ -18997,23 +18997,28 @@ console.log(
   const mapEnd = head.indexOf('커밋 메시지', mapStart);
   const mapText =
     mapStart >= 0 && mapEnd > mapStart ? head.slice(mapStart, mapEnd) : '';
-  const circled = (s: string) => [...s.matchAll(/[①-⑳]/g)].map((m) => m[0]);
+  /*
+   * P5 로 바뀜 — 왜: P5 도구 커밋(T0)이 ⑰~㉒ 를 더했다. ㉑ 부터는 원 숫자가 다른 유니코드 덩어리(U+3251~)라 옛 정규식 [①-⑳] 이 못 잡아
+   * (표 · 줄에 있어도 안 보여 거저 통과했다) 같이 넓혔다. 표의 번호는 P4 의 넷에서 열로 늘었다.
+   */
+  const circled = (s: string) => [...s.matchAll(/[①-⑳㉑-㉟]/g)].map((m) => m[0]);
   const P0_NUMBERS = circled('①②③④⑤⑥⑦⑧⑨⑩⑪⑫');
   const mapped = new Set(circled(mapText).filter((n) => !P0_NUMBERS.includes(n)));
   const baseline = strip('scripts/training-baseline.mts');
   const rowNumbers = new Set(
-    [...baseline.matchAll(/^\s*'([①-⑳])',$/gm)].map((m) => m[1])
+    [...baseline.matchAll(/^\s*'([①-⑳㉑-㉟])',$/gm)].map((m) => m[1])
   );
   const headingNumbers = new Set(
-    [...baseline.matchAll(/## ([①-⑳]) /g)].map((m) => m[1])
+    [...baseline.matchAll(/## ([①-⑳㉑-㉟]) /g)].map((m) => m[1])
   );
   const allowed = new Set([...P0_NUMBERS, ...mapped]);
   const stray = [...rowNumbers, ...headingNumbers].filter((n) => !allowed.has(n));
   const unused = [...mapped].filter((n) => !rowNumbers.has(n));
+  const MAPPED_NUMBERS = circled('⑬⑭⑮⑯⑰⑱⑲⑳㉑㉒');
   check(
-    "P4 도구 (라) 기준선 '재는 것' 줄 · 절 제목의 번호가 모두 머리 주석 번호 표(①~⑫ + P4 의 ⑬~⑯)에 있고, 표의 번호는 모두 줄로 나온다",
-    mapped.size === 4 &&
-      ['⑬', '⑭', '⑮', '⑯'].every((n) => mapped.has(n)) &&
+    "P4 도구 (라) 기준선 '재는 것' 줄 · 절 제목의 번호가 모두 머리 주석 번호 표(①~⑫ + P4 의 ⑬~⑯ + P5 도구의 ⑰~㉒)에 있고, 표의 번호는 모두 줄로 나온다",
+    mapped.size === MAPPED_NUMBERS.length &&
+      MAPPED_NUMBERS.every((n) => mapped.has(n)) &&
       stray.length === 0 &&
       unused.length === 0,
     `표 ${[...mapped].join(' ')} · 줄 ${[...rowNumbers].join(' ')} · 제목 ${[...headingNumbers].join(' ')}${stray.length ? ` · 표에 없음 ${stray.join(' ')}` : ''}${unused.length ? ` · 줄에 없음 ${unused.join(' ')}` : ''}`
@@ -19735,6 +19740,243 @@ console.log(
         !/비워 두세요/.test(form)
     );
   }
+}
+
+/* ═══════════════════ [2판 P5] 도구 — 기준선 판정자 · 어댑터 · 변형 · 추가 묶음 · ⑰~㉒ · 단계 목표 · 전후 비교(scripts/training-baseline.mts · scripts/training-baseline-gates.mts) (2026-10-12) ═══════════════════ */
+console.log(
+  '\n[2판 P5] 도구 — 기준선 T0: 단계 목표(--gate) · 전후 비교(--compare)가 맞게 재는가 · 판정자는 공용 판정 · 하루 만들기는 어댑터 한 곳 · 프로그램 키는 실제 키(2026-10-12)'
+);
+{
+  /*
+   * 왜 보는가. 기준선 도구는 운영 DB 를 읽어 시험으로 돌릴 수 없다. 그래서 (가) 숫자를 맞추는 규칙(단계 목표 · 옛 칸 비교)은 DB 없는
+   * 파일(training-baseline-gates.mts)로 떼어 가짜 JSON 으로 재고, (나) 도구가 지켜야 할 약속은 소스로 지킨다 — 판정자를 베끼면 앱의
+   * 판정과 지표가 갈라지고(규칙은 맞는데 지표가 실패), buildDailyPlan 을 여러 곳에서 부르면 P5 · P6 이 인자를 더할 때 한 곳을 빠뜨린다.
+   */
+  const json = (v: unknown) => JSON.stringify(v);
+  const gatesMod = await import('./training-baseline-gates.mts');
+  const {
+    failedGates,
+    gateResults,
+    gateValueText,
+    GATES,
+    HEADLINES,
+    isGateStage,
+    oldFieldsSame,
+    rosterChanges,
+    T0_RECOVERY_SHARE,
+  } = gatesMod;
+
+  /* 모든 목표가 맞는 가짜 JSON — 단계 목표 표가 읽는 칸만 */
+  const passing = () => ({
+    metrics: {
+      veryHigh: { under15: { days: 0 } },
+      afterHard: { n: 32, d: 32, ratio: 1 },
+      armSevere: { push: 0, plyo: 0 },
+      heavyLowerBeforeGame: {
+        byDay: [
+          { window: 'd0', checkin: { heavy: 3 } },
+          { window: 'd1', checkin: { heavy: 0 } },
+          { window: 'd2to3', checkin: { heavy: 0 } },
+        ],
+      },
+      dayKind: {
+        moderateSpike: { spikeRecovery: 32, moderateDays: 32, otherChanged: 0 },
+      },
+      calendarGuess: { newRecovery: { calendar: 0, estimate: 0 } },
+      sameThemeState: { pooled: { n: 30, d: 100, ratio: 0.3 } },
+      direction: { all: { pass: 10, d: 10, ratio: 1 } },
+      fence: {
+        exposure: { n: 202, d: 404, ratio: 0.5, schedulableRatio: 0.85 },
+        recoveryShare: { n: 136, d: 282, ratio: T0_RECOVERY_SHARE },
+      },
+      programDay: { dailyMainDays: 0, goDays: 34 },
+      lowerGap: { violations: 0 },
+      stateAlert: { evening: { miss: 0 }, edit: { miss: 0 } },
+    },
+  });
+  type Fake = ReturnType<typeof passing>;
+  const tweak = (edit: (j: Fake) => void) => {
+    const j = passing();
+    edit(j);
+    return j;
+  };
+  const failNos = (j: object, upTo: 'P4' | 'P5' | 'P6' | null) =>
+    failedGates(gateResults(j as Record<string, unknown>, upTo)).map((g) => g.no);
+
+  check(
+    'P5 도구 (가) 모든 목표가 맞는 JSON 은 어느 단계로도 막히지 않는다(못 잰 줄 없음)',
+    failNos(passing(), 'P6').length === 0 &&
+      gateResults(passing()).every((g) => g.pass === true),
+    json(gateResults(passing()).filter((g) => g.pass !== true))
+  );
+  const p5 = (j: object) => failNos(j, 'P5');
+  check(
+    'P5 도구 (가) ⑰ 같은 테마 안 변화 — 30% 는 맞고 29.9% 는 막는다',
+    p5(
+      tweak((j) => {
+        j.metrics.sameThemeState.pooled.ratio = 0.299;
+      })
+    ).join() === '⑰' && p5(passing()).length === 0
+  );
+  check(
+    'P5 도구 (가) ⑱ 방향 — 100% 만 맞고 하나라도 늘면(99%) 막는다',
+    p5(
+      tweak((j) => {
+        j.metrics.direction.all.ratio = 0.99;
+      })
+    ).join() === '⑱'
+  );
+  check(
+    'P5 도구 (가) ⑲ 노출 — 50% 는 맞고 49% 는 막는다, 참고 목표(일정 카테고리 · 회복 날 폭)는 어긋나도 막지 않는다',
+    p5(
+      tweak((j) => {
+        j.metrics.fence.exposure.ratio = 0.49;
+      })
+    ).join() === '⑲' &&
+      p5(
+        tweak((j) => {
+          j.metrics.fence.exposure.schedulableRatio = 0.5;
+          j.metrics.fence.recoveryShare.ratio = T0_RECOVERY_SHARE + 0.2;
+        })
+      ).length === 0 &&
+      gateResults(
+        tweak((j) => {
+          j.metrics.fence.recoveryShare.ratio = T0_RECOVERY_SHARE + 0.2;
+        }) as Record<string, unknown>
+      ).some((g) => g.no === '⑲' && !g.blocking && g.pass === false)
+  );
+  check(
+    'P5 도구 (가) 칸이 없으면 못 잼 — 막는 목표면 막힌다(없는 칸을 0 으로 읽어 거저 통과하지 않게)',
+    p5(
+      tweak((j) => {
+        delete (j.metrics as Partial<Fake['metrics']>).sameThemeState;
+        delete (j.metrics.armSevere as { plyo?: number }).plyo;
+      })
+    )
+      .sort()
+      .join() === ['⑬', '⑰'].sort().join()
+  );
+  const p6broken = tweak((j) => {
+    j.metrics.programDay.dailyMainDays = 34;
+    j.metrics.sameThemeState.pooled.ratio = 0.1;
+  });
+  check(
+    'P5 도구 (가) 단계로 거른다 — P4 는 P5 · P6 목표를 안 보고, P5 는 P6 을 안 보며(⑳ 이 깨져도 통과), P6 은 앞 단계까지 다 본다',
+    failNos(p6broken, 'P4').length === 0 &&
+      failNos(p6broken, 'P5').join() === '⑰' &&
+      failNos(p6broken, 'P6').sort().join() === ['⑰', '⑳'].sort().join() &&
+      gateResults(p6broken, 'P5').find((g) => g.no === '⑳')!.applies === false
+  );
+  check(
+    'P5 도구 (가) 단계 이름은 P4 · P5 · P6 만, 목표 표의 P5 막는 목표는 ⑰ ≥ 30% · ⑱ 100% · ⑲ 노출 ≥ 50% 셋',
+    isGateStage('P5') &&
+      !isGateStage('P7') &&
+      !isGateStage('p5') &&
+      GATES.filter((g) => g.stage === 'P5' && g.blocking)
+        .map((g) => `${g.no}${g.target}`)
+        .join() === '⑰≥ 30%,⑱100%,⑲≥ 50%' &&
+      gateValueText({ actual: 0.114, unit: 'ratio' }) === '11.4%' &&
+      gateValueText({ actual: null, unit: 'count' }) === '못 잼'
+  );
+
+  /* 옛 칸 비교 — 새 칸 · meta 는 같다고 보고, 옛 칸이 하나라도 바뀌면 경로를 짚는다 */
+  const before = {
+    version: 7,
+    meta: { generatedAt: 'a', elapsedMs: 1 },
+    buildCalls: 10,
+    gates: [{ no: '⑳', applies: true }],
+    players: [{ name: '선발A', days: [{ date: 'd1', theme: 'lower', ids: ['x'] }] }],
+    metrics: { seedChanged: { n: 1, d: 2 }, nested: { meta: 1 } },
+  };
+  const after = {
+    ...before,
+    version: 8,
+    meta: { generatedAt: 'b', elapsedMs: 2 },
+    buildCalls: 20,
+    /* --gate 로 고른 단계에 따라 applies 가 다르다 — 옛 칸 비교에서 뺀다 */
+    gates: [{ no: '⑳', applies: false }],
+    players: [
+      {
+        name: '선발A',
+        days: [{ date: 'd1', theme: 'lower', ids: ['x'], mainSets: 9 }],
+        extra: true,
+      },
+    ],
+    metrics: { ...before.metrics, sameThemeState: { pooled: { n: 1 } } },
+    cohorts: { extra: { players: [] } },
+  };
+  const changed = {
+    ...after,
+    metrics: { ...after.metrics, seedChanged: { n: 2, d: 2 }, nested: { meta: 2 } },
+    players: [
+      { ...after.players[0], days: [{ ...after.players[0].days[0], theme: 'upper' }] },
+    ],
+  };
+  const sameRes = oldFieldsSame(before, after);
+  const changedRes = oldFieldsSame(before, changed);
+  check(
+    'P5 도구 (가) 옛 칸 같음 — meta · version · buildCalls · gates 와 새 칸은 무시, 옛 값이 바뀌면 그 경로(속의 meta 이름 칸은 무시하지 않음)',
+    sameRes.same &&
+      sameRes.count === 0 &&
+      !changedRes.same &&
+      changedRes.count === 3 &&
+      changedRes.paths.includes('metrics.seedChanged.n') &&
+      changedRes.paths.includes('metrics.nested.meta') &&
+      changedRes.paths.includes('players[0].days[0].theme') &&
+      !oldFieldsSame({ list: [1, 2] }, { list: [1, 2, 3] }).same,
+    json(changedRes)
+  );
+  const roster = rosterChanges(before, changed);
+  check(
+    "P5 도구 (가) 선수별 28일 테마 · 목록이 그대로인지 이름으로 짝짓고, 전후 표는 칸이 없는 앞 JSON 에 '없음'을 쓴다",
+    roster.same.length === 0 &&
+      roster.changed.join() === '선발A' &&
+      rosterChanges(before, after).same.join() === '선발A' &&
+      HEADLINES.find((h) => h.no === '⑰')!.text(before) === '없음' &&
+      HEADLINES.find((h) => h.no === '①')!.text(before) === '50.0% (1/2)'
+  );
+
+  /* (나) 도구 소스의 약속 */
+  const strip5 = (rel: string) =>
+    readFileSync(new URL(`../${rel}`, import.meta.url), 'utf8')
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/^\s*\/\/.*$/gm, '');
+  const tool = strip5('scripts/training-baseline.mts');
+  check(
+    'P5 도구 (나) 판정자 — 무거운 하체 · 팔 플라이오 · 무거운 상체 밀기는 lib/engine/exercise-class.ts 에서 가져오고 다시 정의하지 않으며, 분류가 0 이면 던진다',
+    /import \{\s*isArmPlyo,\s*isHeavyLower,\s*isHeavyUpperPush,\s*\} from '\.\.\/lib\/engine\/exercise-class\.ts';/.test(
+      tool
+    ) &&
+      !/(const|function)\s+(isHeavyLower|isArmPlyo|isHeavyUpperPush)\b/.test(tool) &&
+      /if \(count === 0\)\s*throw new Error\(/.test(tool)
+  );
+  check(
+    'P5 도구 (나) 하루 만들기는 어댑터 한 곳 — buildDailyPlan 은 buildDay 에서만, 재료는 inputsOf, 세트는 setsOf 에서만 처방(goalPrescription)을 읽는다',
+    tool.split('buildDailyPlan(').length === 2 &&
+      /const \{ facts, plan, owned, history, seed \} = inputsOf\(p, i, st, v\);/.test(
+        tool
+      ) &&
+      tool.split('goalPrescription(').length === 2 &&
+      /return goalPrescription\(ex, plan\.goal\)\.sets \?\? 0;/.test(tool) &&
+      /buildDayState\(\{ facts, plan, extras: extrasOf\(st\) \}\)/.test(tool)
+  );
+  const programKeys = [...tool.matchAll(/program: '([^']+)',/g)].map((m) => m[1]);
+  check(
+    'P5 도구 (나) 추가 묶음의 프로그램 키는 lib/program 의 실제 키(넷 · 주 2 하나 포함)',
+    programKeys.length === 4 &&
+      new Set(programKeys).size === 4 &&
+      programKeys.every((k) => parseProgram(k) != null) &&
+      programKeys.some((k) => parseProgram(k)?.perWeek === 2),
+    programKeys.join(' · ')
+  );
+  check(
+    'P5 도구 (나) 추가 묶음은 ①~⑯ 의 분모에 안 섞이고(allDays 는 기준 12명만), --gate 를 줬을 때만 exit 1, JSON 판은 8',
+    /const allDays = results\.flatMap\(\(r\) => r\.days\);/.test(tool) &&
+      /const failed = GATE_STAGE \? failedGates\(gateRows\) : \[\];/.test(tool) &&
+      /process\.exitCode = 1;/.test(tool) &&
+      /version: 8,/.test(tool) &&
+      /if \(GATE_ARG != null && !isGateStage\(GATE_ARG\)\)/.test(tool)
+  );
 }
 
 console.log(`\n${passed}개 통과, ${failed}개 실패`);
