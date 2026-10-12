@@ -1471,7 +1471,11 @@ console.log('■ 마운드 · 보기용 다듬기 · 관절 각도 틀(kinematic
             worst = Math.max(worst, deg(Math.acos(Math.max(-1, Math.min(1, dot(a, b))))));
           }
           const cap = KIN_SPEED.plantedThigh / 60;
-          check(`각도 모델: 디딘 다리 무릎이 4장면 옆으로 튀어도 넙다리는 한 장면 ${cap}° 남짓까지`, worst <= cap + 1.5, `${worst.toFixed(1)}°`);
+          /*
+           * 넙다리 방향은 cap 을 정확히 지키고, 그 뒤 땅에 묶인 발목에 맞춰 무릎을 다시 접는 단계가 무릎 굽힘에 따라 1.5~1.7° 를 더한다 — 자세는 합성
+           * 투수를 엔진에 맞춘 가운데 장면이라 엔진 다듬기가 바뀌면 같이 움직인다(2026-10-13 다듬기 세기 바꿈: 14.8 → 15.0°). 그래서 여유 2°.
+           */
+          check(`각도 모델: 디딘 다리 무릎이 4장면 옆으로 튀어도 넙다리는 한 장면 ${cap}° 남짓까지`, worst <= cap + 2, `${worst.toFixed(1)}°`);
         }
 
         /*

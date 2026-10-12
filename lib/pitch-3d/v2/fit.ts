@@ -63,8 +63,18 @@ import { byTime, medianStepOf, obsAt, toPoseTrack } from '@/lib/pitch-3d/v2/trac
  */
 
 const ITERATIONS = 24;
-/** 끝에 관찰 당김 없이 다듬기 · 뼈 투영만 되풀이(길이를 굳힌다) */
-const POLISH = 8;
+/**
+ * 시간 다듬기 세기 = SMOOTH_BASE + SMOOTH_SLOPE × (1 − 당김 무게), 1 이 넘으면 1(앞뒤 장면 가운데로). 마커 정답지(2026-10-12 · 15구)로 설정을
+ * 하나씩 바꿔 가며 고르고(홀수 투구로 고르고 짝수 투구로 확인) 둘 다 나아진 것만 남겼다 — 예전 0.1 + 0.9 × (1 − w)² 와 끝 다듬기 8번을
+ * 두고 관절 오차 평균 4.00 → 3.95cm(아래 POLISH 1번 포함). 끝 다듬기의 시간 매끈은 관찰에서 멀어지게만 해서 빼고 뼈 투영만 남겼다.
+ */
+const SMOOTH_BASE = 0.35;
+const SMOOTH_SLOPE = 0.9;
+/**
+ * 끝에 뼈 투영만 한 번 더 — 사슬로 이어진 뼈가 서로 당겨 한 번에 다 안 맞는 몫을 줄인다. 합성 '실제처럼' 뼈 흔들림 1.2 → 0.7%(핵심 합격 1% 밑).
+ * 더 하면 마커 채점이 나빠졌다(8번: 짝수 투구 오차 평균 3.94 → 4.04cm, 스티커 흔들림은 같음) — 관절 모델의 점이 뼈에 꼭 붙어 있지 않아서.
+ */
+const POLISH = 1;
 /** 2D 확신 문턱 — 두 시선 교차 · 한 시선만 · 안 보임 */
 const SEEN = 0.3;
 const SURE = 0.7;
@@ -259,6 +269,8 @@ const BONES: Bone[] = [
   { a: V2J.rSh, b: V2J.rHip, key: 'trunkSide', def: 0.29, soft: 0.08 },
 ];
 const RIGID = BONES.filter((b) => !b.soft);
+/** 골반 폭 ÷ 어깨 폭 상한(관절 모델의 엉덩이 · 어깨 점 기준 — 사람 대부분 0.6~0.7, 마커 촬영 0.645) */
+const HIP_TO_SHOULDER_MAX = 0.72;
 
 /** 부모(채우기 차례 — 부모가 먼저 온다) */
 const FILL_ORDER: number[] = [
@@ -550,6 +562,14 @@ function fitOnce(raw: V2Input): {
       const arr = samples.get(b.key) ?? [];
       lengthOf.set(b.key, arr.length >= 5 ? median(arr) : b.def * H);
     }
+    /*
+     * 골반 폭 상한 — 어깨 폭의 HIP_TO_SHOULDER_MAX 배(2026-10-13 마커 채점). 옆 카메라에서 두 엉덩이가 앞뒤로 겹쳐 그 방향(= 골반 폭 방향)
+     * 깊이 잡음이 커서, 잡음 섞인 거리의 중앙값이 늘 길게 나왔다 — 실제 투구 15개에서 엔진 골반/어깨 0.82(네 대 교차 0.645 ± 0.015),
+     * 골반 폭이 22% 넓었다. 어깨는 두 영상에서 잘 갈려 거의 맞는다(0.99).
+     */
+    const sh = lengthOf.get('shoulders');
+    const hp = lengthOf.get('hips');
+    if (sh != null && hp != null) lengthOf.set('hips', Math.min(hp, HIP_TO_SHOULDER_MAX * sh));
   }
   const L = (b: Bone) => lengthOf.get(b.key)!;
   const boneLenByChild = new Map<number, number>();
@@ -1091,8 +1111,8 @@ function fitOnce(raw: V2Input): {
 
   /*
    * ── 자리 기반 맞추기 ──
-   * 되풀이마다 관찰로 당김 → 시간 매끈 → 뼈 길이 투영(앞 · 뒤 두 번 훑음) 차례 — 뼈 투영이 마지막이라 매 되풀이 끝에 길이가 맞고,
-   * 끝에 관찰 당김 없는 다듬기 몇 번으로 길이를 굳힌다(처음엔 당김이 마지막이어서 뼈 흔들림이 6% 남았다, 합성).
+   * 되풀이마다 관찰로 당김 → 시간 매끈 → 뼈 길이 투영(앞 · 뒤 두 번 훑음) 차례 — 뼈 투영이 마지막이라 매 되풀이 끝에 길이가 맞는다
+   * (처음엔 당김이 마지막이어서 뼈 흔들림이 6% 남았다, 합성).
    */
   const projectBones = (k: number) => {
     const fr = X[k];
@@ -1123,12 +1143,11 @@ function fitOnce(raw: V2Input): {
     for (const b of BONES) one(b);
     for (let i = BONES.length - 1; i >= 0; i--) one(BONES[i]);
   };
-  const smoothTime = (gain: number) => {
+  const smoothTime = () => {
     for (let j = 0; j < N_V2_JOINTS; j++) {
       for (let k = 1; k < n - 1; k++) {
         if (pinned[k][j]) continue;
-        const w = pullW[k][j];
-        const s = gain * (0.1 + 0.9 * (1 - w) * (1 - w));
+        const s = Math.min(1, SMOOTH_BASE + SMOOTH_SLOPE * (1 - pullW[k][j]));
         const mid = scale(add(X[k - 1][j], X[k + 1][j]), 0.5);
         X[k][j] = add(X[k][j], scale(sub(mid, X[k][j]), s));
       }
@@ -1142,13 +1161,10 @@ function fitOnce(raw: V2Input): {
         X[k][j] = add(X[k][j], scale(sub(target[k][j], X[k][j]), 0.5 * w));
       }
     }
-    smoothTime(1);
+    smoothTime();
     for (let k = 0; k < n; k++) projectBones(k);
   }
-  for (let it = 0; it < POLISH; it++) {
-    smoothTime(0.5);
-    for (let k = 0; k < n; k++) projectBones(k);
-  }
+  for (let it = 0; it < POLISH; it++) for (let k = 0; k < n; k++) projectBones(k);
   fixHingeFlips(X, U);
 
   /* ── 확신 · 다시 비춤 ── */

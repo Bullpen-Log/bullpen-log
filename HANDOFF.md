@@ -27,7 +27,13 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 받은 뒤 할 일 없음(DB · 패키지 그대로). **3D 엔진(금윤호 영역)을 고쳤다** — 기본 동작은 그대로, 시험 v1 63 · v2 243 통과.
 - `lib/pitch-3d/camera.ts` `FocalPrior` · `FOCAL_PRIOR_1X`, `CalibInput.focalPrior`, `Pitch3dInput.focalPrior`(analyze.ts) · `V2Input.focalPrior`(contract.ts) → fit.ts.
-  '1배로 찍음'을 알 때만 넘긴다. 마커 채점에서 관절 오차 가운데 3.6 → 3.3cm. **서버(GPU) · 실험실 화면은 아직 안 넘긴다**(사용자 결정 대기 — selfcal/README.md).
+  '1배로 찍음'을 알 때만 넘긴다. 마커 채점에서 관절 오차 가운데 3.6 → 3.3cm. 서버는 1배를 기본으로 넘긴다(a709a99, 사용자 결정).
+- **(같은 날 더) 엔진 개선 2차 — `lib/pitch-3d/v2/fit.ts`**: 골반 폭 상한(어깨 폭의 0.72배 — 골반이 22% 넓게 나왔다) · 시간 다듬기 세기
+  `min(1, 0.35 + 0.9(1−w))`(예전 `0.1 + 0.9(1−w)²`) · 끝 다듬기 8번 → 뼈 투영 1번. 마커 15구로 홀수에서 고르고 짝수로 확인: 관절 가운데
+  3.3 → 3.2 · 평균 4.1 → 3.95cm · 골반 폭 1.22 → 1.05. 해 보고 버린 것(240 장면 · 손 점으로 손목 보강 · 좌우 뒤집기 평균 · 정답 초점)은
+  selfcal/README.md '엔진 개선 2차' 표. 시험 v1 63 · v2 243 통과 — v2 의 '디딘 다리 넙다리 한 장면' 여유를 1.5 → 2° 로 넓혔다(넙다리 방향 제한은
+  정확하고, 그 뒤 묶인 발목에 무릎을 다시 접는 단계가 1.5~1.7° 를 더함 · 시험 투수 자세가 엔진 결과라 14.8 → 15.0°). **서버엔 아직 안 올렸다** —
+  올리려면 `npm run pitch3d:bundle` → `services/pitch3d-gpu` 에서 `modal deploy app.py`. 채점 기준(`score-baseline.json`)도 새로 저장했다.
 - 마커 정답지 4~7단계: `scripts/pitch-lab/markers/selfcal/` `fill.py` · `bench.py` · `score-all.mjs`, 명령 `npm run pitch3d:marker-score`(자료 없으면 건너뜀).
   결과 · 판단 근거는 selfcal/README.md '4~7단계 결과'. 맥북 세션 폴더 `~/bullpen-marker-lab/2026-10-12/`(영상은 맥북이 자른 64개에 연결).
 
