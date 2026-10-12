@@ -8,9 +8,10 @@ import { requireUser } from '@/lib/dal';
 import { visibleGuides } from '@/lib/library-cache';
 import { toDateKey } from '@/lib/pitch-stats';
 import { dbDate } from '@/lib/nutrition/days';
-import { isLevelKey, SESSIONS_PER_LEVEL } from '@/lib/mechanics/levels';
+import { isLevelKey } from '@/lib/mechanics/levels';
 import {
   countFeel,
+  finishState,
   freshState,
   isElementName,
   isFeel,
@@ -127,16 +128,24 @@ export async function recordMechanicsDrill(input: {
 
 /**
  * 세션을 마쳤다 — 이 수준의 다음 세션으로(12번째 다음은 '다 마침'). 권할 것이 있으면 돌려준다(끝 화면이 단추와 함께 보인다).
+ *
+ * partial(2판 P6-5, D5): 어깨 · 팔꿈치 통증으로 던지기 · 메디신볼 드릴을 접고 무브먼트만 하고 마쳤다 — 진행 · 세션 수 ·
+ * 마친 날을 그대로 둔다(finishState). 접은 드릴이 든 이 세션은 아프지 않은 날 이어서 한다(올리면 그 드릴을 영영 건너뛴다).
+ * 화면만 새로 그려 한 드릴의 체크가 보이게 한다. 자기 진도라 보내온 값을 그대로 믿는다.
  */
-export async function finishMechanicsSession(): Promise<
-  { ok: true; advice: ReturnType<typeof levelAdvice> } | { error: string }
-> {
+export async function finishMechanicsSession(opts?: {
+  partial?: boolean;
+}): Promise<{ ok: true; advice: ReturnType<typeof levelAdvice> } | { error: string }> {
   const user = await requireUser();
   const program = await prisma.mechanicsProgram.findUnique({ where: { userId: user.id } });
   if (!program) return { error: '프로그램을 먼저 시작해 주세요.' };
   const state = readProgramState(program.progress);
   if (!state.level) return { error: '수준을 먼저 골라 주세요.' };
-  const next = { ...state, index: Math.min(state.index + 1, SESSIONS_PER_LEVEL) };
+  if (opts?.partial === true) {
+    revalidatePath(PROGRAM_PATH);
+    return { ok: true, advice: null };
+  }
+  const next = finishState(state, false);
   await prisma.mechanicsProgram.update({
     where: { userId: user.id },
     data: {

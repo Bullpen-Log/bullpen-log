@@ -1,4 +1,10 @@
 import type { ReportFacts } from '@/lib/report/facts';
+/*
+ * 등판 답(체크인 '던지는 일정')을 읽는 규칙 — lib/engine/day-state.ts 가 아니라 lib/checkin.ts 에서 부른다. day-state 가 이 파일
+ * (pendingOuting)을 부르므로 거꾸로 부르면 순환이 된다. lib/checkin.ts 는 브라우저 부품도 부르는 파일이라 이 파일을 부르는
+ * 화면 부품(insert-cards · pitch-setup-wizard)에 서버 코드가 섞이지 않는다.
+ */
+import { nextOutingWindow, todayOutingRole } from '@/lib/checkin';
 
 /**
  * 향후 3일 투구 계획을 규칙만으로 만든다.
@@ -37,7 +43,7 @@ const ADULT_REFERENCE_PITCHES = 120;
 
 /**
  * 던진 투구수에 따라 필요한 휴식일.
- * 고교 연령(15~18) 기준표를 따르며, 그보다 어리면 더 보수적으로 봐야 한다.
+ * 고교 연령(15~18) 기준표. 성인도 이 표를 쓴다(나이로 한도를 두지 않을 뿐 휴식은 같은 표).
  */
 export const REST_REQUIREMENTS = [
   { minPitches: 76, restDays: 4 },
@@ -46,6 +52,21 @@ export const REST_REQUIREMENTS = [
   { minPitches: 31, restDays: 1 },
   { minPitches: 0, restDays: 0 },
 ] as const;
+
+/**
+ * 만 14세 이하의 휴식일 표(2026-10-12, 트레이닝 추천 2판 Y — 사용자 결정 D4 와 함께).
+ * 11~14세 표는 15~18세보다 열 구 앞에서 같은 휴식일이 걸린다(66 · 51 · 36 · 21). 성장기엔 같은 공 수가 더 큰 부담이라서다.
+ * 투구수는 전력 환산값(adjusted)으로 센다 — 15~18세 표와 같은 방식.
+ */
+export const REST_REQUIREMENTS_YOUTH = [
+  { minPitches: 66, restDays: 4 },
+  { minPitches: 51, restDays: 3 },
+  { minPitches: 36, restDays: 2 },
+  { minPitches: 21, restDays: 1 },
+  { minPitches: 0, restDays: 0 },
+] as const;
+/** 이 나이까지는 어린 표(REST_REQUIREMENTS_YOUTH)로 휴식일을 센다 */
+export const YOUTH_REST_TABLE_THROUGH_AGE = 14;
 
 /**
  * 강도와 상관없이 이만큼 던졌으면 최소 이 정도는 쉰다.
@@ -58,8 +79,12 @@ export const REST_REQUIREMENTS = [
 export const HIGH_VOLUME_PITCHES = 100;
 export const HIGH_VOLUME_MIN_REST = 1;
 
-/** 성장기로 보아 추가 주의를 안내할 나이 */
-export const YOUTH_AGE_THRESHOLD = 15;
+/**
+ * 성장기로 보아 추가 주의를 안내하고 '매우 높음' 강도를 빼는 나이(이 나이 미만).
+ * 2026-10-11 사용자 결정 D4(트레이닝 추천 2판): 만 16세 이상은 성인 기준, 그 미만은 성장기. 예전엔 15 였다.
+ * 암케어의 통증 루틴 나이(lib/checkin.ts ARM_PAIN_ROUTINE_MIN_AGE)도 같은 선이다.
+ */
+export const YOUTH_AGE_THRESHOLD = 16;
 
 /** 나이로 정한 하루 한도. 성인(만 19세 이상)은 null — 한도를 두지 않는다 */
 export function dailyPitchCap(age: number | null): number | null {
@@ -70,8 +95,13 @@ export function dailyPitchCap(age: number | null): number | null {
   );
 }
 
-export function requiredRestDays(pitches: number) {
-  return REST_REQUIREMENTS.find((r) => pitches >= r.minPitches)?.restDays ?? 0;
+/** 필요한 휴식일 — 만 14세 이하는 어린 표, 나이를 모르거나 15세 이상이면 15~18세 표 */
+export function requiredRestDays(pitches: number, age: number | null = null) {
+  const table =
+    age != null && age <= YOUTH_REST_TABLE_THROUGH_AGE
+      ? REST_REQUIREMENTS_YOUTH
+      : REST_REQUIREMENTS;
+  return table.find((r) => pitches >= r.minPitches)?.restDays ?? 0;
 }
 
 /**
@@ -81,9 +111,9 @@ export function requiredRestDays(pitches: number) {
  * 계수의 근거가 있는 구간은 강도 5~10뿐이다. 그래서 양 자체로 거는 바닥선을
  * 하나 둔다 — 아무리 가볍게 던졌어도 하루에 이만큼을 던졌으면 하루는 쉰다.
  */
-function restFor(pitches: number, adjusted: number): number {
+function restFor(pitches: number, adjusted: number, age: number | null = null): number {
   return Math.max(
-    requiredRestDays(Math.round(adjusted)),
+    requiredRestDays(Math.round(adjusted), age),
     pitches >= HIGH_VOLUME_PITCHES ? HIGH_VOLUME_MIN_REST : 0
   );
 }
@@ -106,10 +136,12 @@ export type PendingOuting = {
  * 꺼지는 셈이었다.
  *
  * @param offset 오늘로부터 며칠 뒤를 볼 것인가 (0=오늘, 1=내일)
+ * @param age 만 나이 — 14세 이하는 어린 휴식표(Y). 모르면 15~18세 표
  */
 export function pendingOuting(
   patterns: ReportFacts['patterns'],
-  offset = 0
+  offset = 0,
+  age: number | null = null
 ): PendingOuting | null {
   /* 옛 기록에는 목록이 없다. 그때는 마지막 등판 하나로 본다. */
   const outings = patterns.recentOutings ?? [
@@ -123,7 +155,7 @@ export function pendingOuting(
   let worst: PendingOuting | null = null;
   for (const o of outings) {
     const elapsed = o.daysAgo + offset;
-    const left = restFor(o.pitches, o.adjusted) - elapsed;
+    const left = restFor(o.pitches, o.adjusted, age) - elapsed;
     if (left > 0 && (worst == null || left > worst.left)) {
       worst = { left, elapsed, pitches: o.pitches };
     }
@@ -179,6 +211,19 @@ export type DayPlan = {
   minIntensity: number | null;
   maxIntensity: number | null;
   reason: string;
+  /**
+   * 오늘 할 일 — 체크인 '던지는 일정'(lib/checkin.ts todayOutingRole, 2판 P3 · 2026-10-12). 오늘 칸에만 있다.
+   *
+   *   'game'     등판 날 — 보통은 throwing true 에 아래끝 · 강도가 null 이고 위끝(maxPitches)은 나이별 하루 한도(성인 null)다.
+   *              던질 양은 경기가 정하고(강판이면 20구, 완투면 100구), 평소 범위를 내면 회복 테마 · 회복 암케어와 서로 다른 날을
+   *              말한다(자체 시험 엇갈림 표 C1 · C4). 큰 등판의 여파 · 최근 통증이 있으면 그 규칙이 먼저다 — 다음 날이면 쉬는 날
+   *              (throwing false), 회복 중이면 가벼운 범위 그대로에 이 이름표만 붙는다(2판 P3 검토).
+   *   'bullpen'  불펜 날 — 범위는 평소대로 낸다(2026-10-09 결정: 불펜은 날을 안 바꾼다). 이름표만 단다.
+   *
+   * 내일 칸 · 이 칸이 생기기 전의 계획에는 없다. 쉬는 날(통증 확인 · 등판 다음 날)에는 불펜 이름표를 달지 않는다.
+   * 통증 확인 전(needsPainCheck)의 쉬는 날에는 등판 이름표도 안 단다.
+   */
+  outing?: 'game' | 'bullpen';
 };
 
 /**
@@ -262,12 +307,16 @@ export function pitchRangeText(day: DayPlan): string {
     : `${day.maxPitches}구 이하`;
 }
 
-/** '강도 6~8' */
+/**
+ * '강도 60~80%'. 계획은 1~10 눈금(정수)으로 세우고 글만 체감 강도 % 로 보인다(2판 D2, 2026-10-12) — 사용자가 투구 강도를
+ * % 칩으로 고르게 되어 '강도 6~8' 을 보면 무엇을 골라야 할지 한 번 더 바꿔 셈해야 했다. × 10 은 lib/pitch-effort.ts
+ * scaleToEffortPct 와 같은 셈(이 파일은 import 없이 두려고 그대로 곱한다).
+ */
 export function intensityRangeText(day: DayPlan): string {
   if (day.maxIntensity == null) return '';
   return day.minIntensity != null && day.minIntensity < day.maxIntensity
-    ? `강도 ${day.minIntensity}~${day.maxIntensity}`
-    : `강도 ${day.maxIntensity} 이하`;
+    ? `강도 ${day.minIntensity * 10}~${day.maxIntensity * 10}%`
+    : `강도 ${day.maxIntensity * 10}% 이하`;
 }
 
 export type PitchPlan = {
@@ -477,7 +526,7 @@ export function buildPitchPlan(facts: ReportFacts): PitchPlan {
   const lastOuting = patterns.lastOutingPitches ?? 0;
   const lastAdjusted = Math.round(patterns.lastOutingAdjusted ?? lastOuting);
 
-  const needRest = restFor(lastOuting, lastAdjusted);
+  const needRest = restFor(lastOuting, lastAdjusted, profile.age);
   const restedSoFar = patterns.restDays ?? 99;
 
   if (needRest > 0 && patterns.lastThrowDate) {
@@ -559,6 +608,47 @@ export function buildPitchPlan(facts: ReportFacts): PitchPlan {
   }
 
   /*
+   * 7) 오늘 할 일 — 체크인 '던지는 일정'(2판 P3, 2026-10-12 C1 · C4 뒤집기).
+   *
+   * 등판 날에는 평소 범위('40~60구')를 내지 않는다. 몇 구를 던질지는 경기가 정하고, 같은 아침에 매일 일정은 회복 테마 ·
+   * 암케어는 회복 루틴인데 투구 계획만 '평소대로 던져요'라고 하면 앱이 한 날을 두 가지로 말한다. 그래서 '던지는 날'(throwing true)로
+   * 두되 아래끝 · 강도를 비우고 까닭에 그렇게 적는다. 위끝은 나이별 하루 한도(cap, 성인은 null) — 등판 날에도 성장기 한도는
+   * 그대로라 그날 화면의 '계획보다 N구 많아요'가 그것을 견준다.
+   *
+   * 다만 안전 규칙이 먼저다(2판 P3 검토, 2026-10-12 — 등판 답 하나로 여파 · 통증 · 한도가 다 풀리던 것을 되돌림):
+   *   통증 확인 전(needsPainCheck)      그래도 쉰다 — 아플 수도 있는 팔이 먼저다(이름표도 안 단다)
+   *   큰 등판 다음 날(pending 완전 휴식) 쉬는 날 그대로, 이름표 'game' 과 '오늘 등판은 권하지 않아요' 까닭만
+   *   큰 등판 회복 중 · 최근 통증        지금의 가벼운 범위를 그대로 두고 이름표 'game' 과 '등판해도 이 양 안에서' 까닭
+   * 쉬라고 막지는 않는다(경기는 앱이 정하지 않는다) — 계획이 말해 줄 뿐이고, 기록은 그대로 받는다.
+   *
+   * 불펜 날은 범위를 그대로 둔다(2026-10-09 결정: 불펜은 날을 안 바꾼다). 이름표(outing)만 단다.
+   * 오늘 칸에만 쓴다 — 내일은 오늘 던진 양을 알아야 정해지고, 그 양은 기록이 들어오면 다시 짠다(threwToday).
+   */
+  const outing = todayOutingRole(
+    condition.throwPlanToday,
+    condition.throwPlanYesterday
+  );
+  if (outing === 'game') {
+    /* 근거 줄도 오늘 칸(dayFor)과 같은 말을 한다 — 안전 규칙이 먼저인 날에 '양은 경기가 정함'이라 적으면 서로 어긋난다 */
+    const owedToday = pendingOuting(patterns, 0, profile.age);
+    const what = needsPainCheck
+      ? '통증 확인 전이라 투구는 휴식'
+      : owedToday && owedToday.elapsed <= RECOVERY_FULL_REST_DAYS
+        ? '큰 등판 다음 날이라 등판은 권하지 않음'
+        : owedToday || recovering
+          ? '회복 중이라 가벼운 범위 안에서'
+          : '양은 경기가 정함';
+    basis.push(
+      nextOutingWindow(condition.throwPlanToday, condition.throwPlanYesterday).from ===
+        'yesterday'
+        ? `어제 체크인 '내일 등판'(오늘 답 없음) → 오늘 등판, ${what}`
+        : `체크인 '오늘 등판' → ${what}`
+    );
+  } else if (outing === 'bullpen') {
+    basis.push("체크인 '오늘 불펜' → 범위는 평소대로");
+  }
+
+  /*
    * 오늘 하루만 정한다.
    *
    * 사흘치를 그리던 때에는 '연투가 길면 첫 등판 다음 날을 쉬게 한다'는 규칙이
@@ -580,6 +670,13 @@ export function buildPitchPlan(facts: ReportFacts): PitchPlan {
       return restDay(dateKey, label, '메모의 통증 표현 확인 필요');
     }
 
+    /* 등판 날(7) — 오늘 칸에만. 여파 · 통증이 있으면 아래 규칙이 먼저고 이름표만 단다 */
+    const game = offset === 0 && outing === 'game';
+    /* 불펜 날 이름표 — 던지는 날에만(아래 쉬는 날은 그대로 쉰다) */
+    const bullpen =
+      offset === 0 && outing === 'bullpen' ? { outing: 'bullpen' as const } : {};
+    const gameTag = game ? { outing: 'game' as const } : {};
+
     /*
      * 아직 큰 등판의 여파 안이면 가볍게 던진다.
      *
@@ -588,9 +685,20 @@ export function buildPitchPlan(facts: ReportFacts): PitchPlan {
      * 무엇보다 선수가 지킬 수 있는 안내다. 안 지킬 안내를 내면 기록도 같이
      * 끊긴다.
      */
-    const pending = pendingOuting(patterns, offset);
+    const pending = pendingOuting(patterns, offset, profile.age);
     if (pending) {
       if (pending.elapsed <= RECOVERY_FULL_REST_DAYS) {
+        /* 등판 답이 있어도 쉬는 날 그대로 — 큰 등판 다음 날 다시 전력으로 던지는 것이 휴식표가 막으려는 바로 그 일이다 */
+        if (game) {
+          return {
+            ...restDay(
+              dateKey,
+              label,
+              `${pending.pitches}구 등판 다음 날이라 오늘 등판은 권하지 않아요.`
+            ),
+            outing: 'game',
+          };
+        }
         return restDay(
           dateKey,
           label,
@@ -612,7 +720,32 @@ export function buildPitchPlan(facts: ReportFacts): PitchPlan {
         maxPitches: light.max,
         minIntensity: Math.max(RECOVERY_MIN_INTENSITY, ceiling - INTENSITY_SPAN),
         maxIntensity: ceiling,
-        reason: `${pending.pitches}구 등판 회복 중(${pending.elapsed}일째)이라 가볍게 던지며 풀어요`,
+        reason: game
+          ? `${pending.pitches}구 등판 회복 중(${pending.elapsed}일째)이라 등판해도 이 양 안에서 가볍게 던져요.`
+          : `${pending.pitches}구 등판 회복 중(${pending.elapsed}일째)이라 가볍게 던지며 풀어요`,
+        ...bullpen,
+        ...gameTag,
+      };
+    }
+
+    /*
+     * 등판 날 — 여파도 최근 통증도 없으면 양은 경기가 정한다(아래끝 · 강도 없음). 위끝은 나이별 하루 한도(성인 null):
+     * 등판 날이라고 성장기 한도가 풀리지는 않는다.
+     */
+    if (game && !recovering) {
+      return {
+        dateKey,
+        label,
+        throwing: true,
+        minPitches: null,
+        maxPitches: cap,
+        minIntensity: null,
+        maxIntensity: null,
+        reason:
+          cap == null
+            ? '오늘 등판이라 던질 양은 경기가 정해요.'
+            : `오늘 등판이라 던질 양은 경기가 정해요. 하루 한도 ${cap}구는 넘기지 않아요.`,
+        outing: 'game',
       };
     }
 
@@ -628,7 +761,10 @@ export function buildPitchPlan(facts: ReportFacts): PitchPlan {
         adj.maxIntensity - INTENSITY_SPAN
       ),
       maxIntensity: adj.maxIntensity,
-      reason: adj.label,
+      /* 최근 통증이 있는 등판 날 — 낮춘 범위 그대로, 등판해도 그 안에서 */
+      reason: game ? '최근 통증 기록이 있어 등판해도 이 양 안에서 던져요.' : adj.label,
+      ...bullpen,
+      ...gameTag,
     };
   };
 

@@ -8,8 +8,10 @@ import {
   pitchLoadByDay,
   findFatigueWindows,
   groupByDay,
+  intensityOf,
   longestThrowStreak,
   countMissingDays,
+  outingLoadOf,
   summarize,
   toDateKey,
   type AcwrResult,
@@ -18,6 +20,7 @@ import {
 } from '@/lib/pitch-stats';
 import {
   CHECKIN_PARTS,
+  LOW_CONDITION_THRESHOLD,
   hasPain,
   isShortSleep,
   type CheckinPartKey,
@@ -26,6 +29,14 @@ import {
 /* 타입만 — 재활 규칙(운동 목록 등)은 리포트 쪽에 실리지 않게 값은 부르는 쪽(gather.ts)이 만들어 넘긴다 */
 import type { RehabFacts } from '@/lib/armcare/rehab';
 import { parseThrowMemo } from '@/lib/armcare/rehab-progress';
+/* 운동 끝 힘듦(2판 P2) — 순수 파일. 칩 눈금 · 급증 셈은 거기에 두고 여기서는 잇기만 한다 */
+import {
+  trainingEffortOf,
+  type TrainingEffort,
+  type TrainingNoteLike,
+} from '@/lib/workout/effort';
+/* 달력 일정 이름을 등판으로 읽는 규칙(2판 P4 커밋 G) — 순수 파일(import 없음). 낱말 표는 거기 한 곳 */
+import { isOutingTitle } from '@/lib/calendar-event';
 
 /**
  * 리포트에 쓰이는 모든 수치를 한곳에 모은다.
@@ -52,13 +63,44 @@ export type CheckinLike = CheckinParts & {
   sleepHours?: number | null;
   soreness?: number | null;
   /**
-   * 체크인에 적은 던지는 일정(lib/checkin.ts 의 THROW_PLANS — '오늘 등판' · '오늘 불펜' · '내일 등판' · '없음').
-   * 매일 운동 계획이 '오늘 등판 · 내일 등판'을 읽는다(theme.ts 의 plannedOuting, 2026-10-09). 칸이 없거나 null 이면 안 적은 것.
+   * 체크인에 적은 던지는 일정(lib/checkin.ts 의 THROW_PLANS — '오늘 등판' · '오늘 불펜' · '내일 등판' · '2~3일 뒤' ·
+   * '4일 이상 뒤' · '없음', 2026-10-12 부터 여섯). 매일 운동 계획이 '오늘 등판 · 내일 등판'을 읽는다(theme.ts 의
+   * plannedOuting, 2026-10-09). 느슨한 string 인 까닭: 얼린 facts JSON 에 글자로 남고, 답을 날로 읽는 규칙은 nextOutingDays 가
+   * 맡는다. 칸이 없거나 null 이면 안 적은 것.
    */
   throwPlan?: string | null;
+  /**
+   * 팔 피로 1~5(lib/checkin.ts 의 DETAIL_SCALES — 2026-10-12 부터 간편 체크인 칸). 2판 P4 커밋 C 에서 facts 에 넣었다 — 예전에는
+   * 오늘 상태 한 장(lib/engine/day-state.ts)이 extras 로 따로 받아 암케어만 읽었는데, 매일 일정의 안전 거르기(prescription.ts 5-2,
+   * '심함'이면 무거운 상체 밀기 · 팔 플라이오를 뺀다)와 일정 지문도 읽어야 해서 판단이 보는 facts 한 곳에 둔다.
+   * 근육통처럼 선택 칸이다 — 저장해 둔 옛 facts · 자가 시험이 손으로 만든 체크인에는 없고, 칸 없음 · null · 범위 밖은 '안 적음'.
+   */
+  armFatigue?: number | null;
 };
 
 export type MemoNote = { date: string; text: string };
+
+/** 홈 캘린더의 일정 한 줄(CalendarEvent) — 등판 짐작에 쓰는 칸만. date 는 'YYYY-MM-DD'(2판 P4 커밋 G) */
+export type CalendarEventLike = { date: string; title: string };
+
+/**
+ * 달력에서 읽는 앞날 — 오늘부터 이 날수 뒤까지(오늘 포함 15일). 등판 창은 3일 안만 쓰지만, 날 종류 · 일정 지문이 '다음 경기가 며칠
+ * 뒤인가'를 보려면 그보다 길어야 하고, 너무 멀면 아직 안 바뀐 일정(우천 · 순서 바뀜)을 오래 믿게 된다. 2주면 주 1회 선발의 다음 두 번이 든다.
+ */
+export const OUTING_CALENDAR_DAYS = 14;
+
+/** 같은 요일 짐작의 재료 — 어제부터 이 날수 전까지(4주)의 경기 날짜(facts.patterns.gameDates). 짐작 규칙은 lib/engine/outing.ts */
+export const GAME_DATES_DAYS = 28;
+
+/** 달력의 다음 등판(facts.condition.outingCalendar) — 등판으로 읽은 일정 중 가장 가까운 것 */
+export type CalendarOuting = {
+  /** 그 일정의 날짜(YYYY-MM-DD) */
+  date: string;
+  /** 오늘부터 며칠 뒤(오늘이면 0) */
+  daysUntil: number;
+  /** 일정 이름 그대로(이유 글은 이 이름을 안 쓴다 — 지문에도 안 담는다) */
+  title: string;
+};
 
 /**
  * 메모에서 통증으로 볼 만한 표현.
@@ -161,13 +203,30 @@ export type ReportFacts = {
      */
     recentOutings: { daysAgo: number; pitches: number; adjusted: number }[];
     /**
-     * 거의 최대 강도로 던진 공 — 날마다, 가까운 것부터(이레 안).
+     * 세게 던졌는지 가릴 재료 — 던진 날마다, 가까운 것부터(이레 안). 판정은 isHardOuting 한 곳(theme.ts 의 hardOuting 이 부른다).
      *
-     * 경기는 강도와 상관없이 전력으로 보고(lib/pitch-stats.ts 의 stressFactor 와 같은 판단), 그 밖은
-     * 강도 NEAR_MAX_INTENSITY 이상으로 던진 공만 센다. 몇 구부터 '세게 던진 날'인지는 theme.ts 가 정한다.
-     * 이 칸이 생기기 전에 저장된 facts 에는 없다 — 읽는 쪽은 없으면 빈 목록으로 본다.
+     * 2판 D2(2026-10-12)부터 load = 그날 Σ 투구수 × 체감 강도(%)(lib/pitch-stats.ts 의 outingLoadOf — 경기는 100%),
+     * pitches = 그날 던진 공의 합. 그 전에는 '경기이거나 강도 9~10 인 기록의 투구수'만 날마다 더해 pitches 에 담았고
+     * load 칸이 없었다 — 그때 저장된 facts 는 load 없이 오고, isHardOuting 이 옛 규칙(pitches ≥ 30)으로 읽는다.
+     * nearMaxPitches(경기 · 강도 9~10 인 공의 합)는 2판 P3 검토(2026-10-12)에 더했다 — 85% × 30 처럼 곱이 2,700 밑인 옛 규칙의 날을 지킨다.
+     * 이 칸이 아예 생기기 전에 저장된 facts 에는 없다 — 읽는 쪽은 없으면 빈 목록으로 본다.
      */
-    hardOutings?: { daysAgo: number; pitches: number }[];
+    hardOutings?: HardOuting[];
+    /**
+     * 최근 4주(어제부터 GAME_DATES_DAYS 일 전까지) 경기 기록이 있는 날(세션 종류 '경기' · 1구 이상), 중복 없이 오름차순 — 같은 요일
+     * 짐작(lib/engine/outing.ts — 같은 요일 3번 이상이면 다음 그 요일을 등판으로 짐작)의 재료(2판 P4 커밋 G). buildFacts 에 calendarEvents 를
+     * 넘겼을 때만 칸이 생긴다(달력 · 짐작 두 칸은 같이 켜진다 — 앱의 gather.ts 는 늘 넘긴다). 칸이 없으면 짐작하지 않는다 — 옛 저장 facts ·
+     * 자체 시험 · 기준선의 옛 입력이 글자 하나 안 바뀌게.
+     */
+    gameDates?: string[];
+    /**
+     * 어제 투구 기록 줄이 하나라도 있나 — 쉰 날 줄(0구 · 종류 '휴식')까지 센다(2판 P4 검토, 2026-10-12). lastThrowDate · restDays ·
+     * hardOutings 는 던진 날(투구수 · 부하 > 0)만 보아 '어제 안 던졌다고 적었다'를 모른다. 그래서 어제 '오늘 등판'이라 답하고 어제를
+     * 휴식으로 남긴 사람도 '기록 없는 등판'(lib/engine/outing.ts claimedYesterdayNoLog)으로 읽혔다 — 체크인 창의 어제 등판 줄은 쉰 날 줄까지
+     * 세어 안 묻는데(lib/outing-line.ts asksYesterdayPitches) 엔진만 계속 '기록이 없어요'라고 해 풀 길이 없었다. 날짜는 groupByDay 와 같은
+     * 방식(앞 10자리)으로 센다. 이 칸이 생기기 전에 저장된 facts 에는 없다 — 읽는 쪽은 던진 기록으로만 가린다(outing.ts).
+     */
+    loggedYesterday?: boolean;
   };
   condition: {
     today: CheckinLike | null;
@@ -198,8 +257,29 @@ export type ReportFacts = {
      */
     throwPlanToday?: string | null;
     throwPlanYesterday?: string | null;
+    /**
+     * 홈 캘린더의 다음 등판 — 오늘부터 OUTING_CALENDAR_DAYS 일 안의 내 일정 중 이름이 등판으로 읽히는 것(lib/calendar-event.ts
+     * isOutingTitle) 가운데 가장 가까운 것, 없으면 null(2판 P4 커밋 G). 등판을 읽는 함수(lib/engine/outing.ts outingOf)가 체크인 답이 없을
+     * 때 짐작한 출처(soft)로 읽는다 — 가볍게 하는 쪽에만 쓴다. buildFacts 에 calendarEvents 를 넘겼을 때만 칸이 생긴다(옛 facts 에는 없다).
+     */
+    outingCalendar?: CalendarOuting | null;
     /** 최근 메모에서 통증으로 보이는 표현이 걸렸는가 */
     painWordsInMemo: string[];
+    /**
+     * 최근 운동 힘듦(DailyTrainingNote.intensity, 2판 P2 — lib/workout/effort.ts 의 trainingEffortOf): 7일 · 28일 안의 값과
+     * 급증 깃발(7일 안 3개 이상 · 7일 평균이 28일 평균보다 2 이상 높음). buildFacts 에 trainingNotes 를 안 넘기면 칸이 없다
+     * (옛 저장 facts · 기준선 도구 · 자체 시험의 옛 입력과 같은 모양). 2판 P4 커밋 E 부터 날 종류(lib/engine/microcycle.ts)의 R2 가
+     * 급증 깃발을 읽는다(어제 중간 부하 + 급증 → 회복, D3) — 같은 커밋에서 일정 지문에 effortSpike 칸을 더했다. P5 의 '경고와 그래도
+     * 하기'도 이 칸을 읽는다.
+     */
+    trainingEffort?: TrainingEffort;
+    /**
+     * 평소 컨디션 — 오늘을 뺀 최근 USUAL_CONDITION_DAYS(28)일 체크인 컨디션의 중앙값(usualConditionOf, 2판 P5). 그 안에 체크인이
+     * USUAL_CONDITION_MIN_CHECKINS(14)개 이상일 때만 칸이 생긴다 — 적으면 '평소'라 부를 만큼 모이지 않았다. 늘 8 인 사람의 6 과 늘 6 인
+     * 사람의 6 은 다른 날이라, 안전 거르기(prescription.ts 4-2-1)가 '평소보다 2점 이상 낮은 날'을 이것으로 가린다(belowUsualCondition).
+     * 칸이 생기기 전에 저장된 facts · 체크인이 적은 사람 · 자체 시험의 손 입력에는 없다 — 없으면 평소를 모르는 것으로 본다(아무것도 안 바뀐다).
+     */
+    usualCondition?: UsualCondition;
     /** 최근 7일 평균 컨디션 (1~10, 높을수록 좋음) */
     avgCondition: number | null;
     /**
@@ -226,14 +306,229 @@ function changeRate(current: number, previous: number): number | null {
 const OUTING_MEMORY_DAYS = 7;
 
 /**
- * 거의 최대 강도로 본다 — 체감 강도(1~10) 이 값 이상(2026-10-03 사용자분과 정함: 경기, 또는 강도 9~10).
+ * 세게 던진 날 — 그날 던진 공의 투구수 × 체감 강도(%)를 더해 이 값 이상(2판 D2 · D3, 2026-10-12 사용자 결정).
+ *
+ * 2,700 %·구 = 30구 × 90%. 그 전 규칙('경기, 또는 강도 9~10 으로 그날 합쳐 30구 이상', 2026-10-03 사용자분과 정함)의 바닥을
+ * 그대로 옮긴 값이라, 옛 기록(1~10 → ×10)으로 세게 던진 날이던 날은 모두 그대로 세게 던진 날이다 — 경기 · 강도 9~10 의 공
+ * 하나가 90 이상을 보태고, 다른 기록은 0 이상을 보탠다.
+ * 새로 세게가 되는 날(곱 규칙의 본뜻 — 적게 세게든 많이 가볍게든 팔에 간 양을 본다): 불펜 40구 70%(2,800) · 60구 50%(3,000) ·
+ * 경기 25구 + 캐치볼 20구 50%(3,500) · 경기나 강도 10 으로 27~29구(예전엔 30구 미만이라 아니었다).
+ * 빠지는 날은 없다: % 로 새로 적은 85% 30구는 곱이 2,550 이지만 DB 에는 '강도 9 · 30구'로 남는다(effortToIntensity 가 올림) —
+ * 옛 규칙의 날이라 nearMaxPitches(아래)로 그대로 세게 던진 날이다(2판 P3 검토, 2026-10-12 — 사용자 결정 '강도 9~10 · 30구 와 같은
+ * 날이 세게 던진 날로 남게'). 휴식표(stressFactor)도 85% 를 9 쪽(0.95)으로 읽으니 두 독자가 같은 기록을 같게 본다.
+ * 경기는 체감과 상관없이 100%(lib/pitch-stats.ts outingLoadOf) — 경기 20구는 2,000 이라 지금처럼 아니다.
+ * 이 파일에 두는 까닭: theme.ts 를 부르지 않는 낮은 층이라 기준선 · 사용 통계 도구 · 오늘 상태(day-state)가 그대로 가져다 쓴다.
+ */
+export const HARD_OUTING_MIN_LOAD = 2700;
+
+/**
+ * load 칸이 없는 옛 facts(2026-10-12 전에 저장된 것)를 읽는 문턱 — 그때 pitches 는 '경기이거나 강도 9~10 인 공의 합'이었다.
+ * 짧게 몇 개만 세게 던진 날은 다음 날을 막지 않는다(2026-10-03 사용자분과 정함). theme.ts 가 다시 내보낸다.
+ */
+export const HARD_OUTING_MIN_PITCHES = 30;
+
+/** 거의 전력으로 본다 — 그날 체감 평균이 이 % 이상(옛 강도 9~10). 판정이 아니라 이유 글이 '거의 전력으로'라고 할지만 가른다 */
+export const NEAR_MAX_EFFORT_PCT = 90;
+
+/**
+ * 옛 규칙의 '거의 전력' 1~10 눈금 — 경기가 아니어도 이 강도 이상이면 nearMaxPitches 에 든다. % 기록은 1~10 으로 내려
+ * (effortToIntensity — 85% → 9) 견준다. 저장된 intensity 와 같은 값이라 옛 규칙과 글자 그대로 같은 날을 고른다.
  */
 export const NEAR_MAX_INTENSITY = 9;
+
+/** 세게 던졌는지 가릴 재료 한 날(facts.patterns.hardOutings) */
+export type HardOuting = {
+  daysAgo: number;
+  /** 그날 던진 공의 합(옛 facts 는 경기 · 강도 9~10 인 공의 합) */
+  pitches: number;
+  /** 그날 Σ 투구수 × 체감 강도(%), 경기는 100%(outingLoadOf). 옛 facts 에는 없다 */
+  load?: number;
+  /**
+   * 그날 경기이거나 강도 9~10(85% 이상)으로 던진 공의 합 — 옛 규칙의 재료. 이것이 30구를 넘으면 곱이 2,700 밑이어도 세게
+   * 던진 날이다(85% × 30). load 와 같이 실린다. 옛 facts · 옛 지문에는 없다.
+   */
+  nearMaxPitches?: number;
+};
+
+/**
+ * 세게 던진 날인가 — load 가 있으면 HARD_OUTING_MIN_LOAD 이상이거나 nearMaxPitches 가 HARD_OUTING_MIN_PITCHES 이상,
+ * 없으면(옛 facts) 옛 규칙 HARD_OUTING_MIN_PITCHES
+ */
+export function isHardOuting(o: HardOuting): boolean {
+  return o.load != null
+    ? o.load >= HARD_OUTING_MIN_LOAD ||
+        (o.nearMaxPitches ?? 0) >= HARD_OUTING_MIN_PITCHES
+    : o.pitches >= HARD_OUTING_MIN_PITCHES;
+}
+
+/** 거의 전력으로 던진 날인가(글만 가른다) — 옛 facts 는 pitches 가 곧 거의 전력 투구수라 늘 참 */
+export function isNearMaxOuting(o: HardOuting): boolean {
+  return o.load == null || o.load >= NEAR_MAX_EFFORT_PCT * o.pitches;
+}
+
+/** 하루 투구 합 — 세게 던졌는지 가릴 재료(HardOuting 의 pitches · load · nearMaxPitches) */
+export type OutingTotals = { pitches: number; load: number; nearMaxPitches: number };
+
+/**
+ * 투구 기록 한 줄을 그날 합에 더한다 — buildFacts 의 날마다 합(patterns.hardOutings)과 메커니즘 화면의 '오늘 세게 던졌나'
+ * (lib/mechanics/program.ts mechanicsFoldOf, 2판 P6 검토)가 같은 규칙을 쓰게 한 곳에 둔다. 세션마다 곱해서 더한다(경기는 늘 100% 라 세션
+ * 단위로 가린다). Σ 투구수 × 체감 강도(%)가 0 인 줄(쉰 날 · 0구)은 더하지 않는다 — prev 그대로(처음이면 null).
+ * 옛 규칙의 재료(nearMaxPitches) — 경기, 또는 1~10 으로 9 이상. % 기록은 반올림해 견준다(85% = 8.5 → 9, 저장된 intensity 와 같은 값 —
+ * effortToIntensity). intensityOf 로 읽어 옛 코드가 남긴 낡은 % 는 안 믿는다(lib/pitch-stats.ts trustedEffortPct).
+ */
+export function addOutingLog(
+  prev: OutingTotals | null,
+  log: {
+    sessionType?: string;
+    pitchCount: number;
+    intensity: number;
+    effortPct?: number | null;
+  }
+): OutingTotals | null {
+  const load = outingLoadOf(log);
+  if (load <= 0) return prev;
+  const nearMax =
+    log.sessionType === '경기' || Math.round(intensityOf(log)) >= NEAR_MAX_INTENSITY;
+  return {
+    pitches: (prev?.pitches ?? 0) + log.pitchCount,
+    load: (prev?.load ?? 0) + load,
+    nearMaxPitches: (prev?.nearMaxPitches ?? 0) + (nearMax ? log.pitchCount : 0),
+  };
+}
 
 function daysBetween(fromKey: string, toKey: string) {
   const [fy, fm, fd] = fromKey.split('-').map(Number);
   const [ty, tm, td] = toKey.split('-').map(Number);
   return Math.round((Date.UTC(ty, tm - 1, td) - Date.UTC(fy, fm - 1, fd)) / 86_400_000);
+}
+
+const DATE_KEY_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * 평소 컨디션을 셀 날 — 어제(1)부터 이 날수 전까지(오늘은 뺀다). 4주면 한 달의 들쭉날쭉(시즌 · 시험 기간 · 등판 주기)이 한 번은 들고,
+ * 그보다 길면 몇 달 전의 나를 '평소'로 삼는다. 앱은 45일치 체크인을 이미 읽는다(gather.ts LOOKBACK_DAYS) — 조회가 늘지 않는다.
+ */
+export const USUAL_CONDITION_DAYS = 28;
+
+/**
+ * 이만큼 체크인이 있어야 '평소'라고 부른다 — 28일의 절반. 그보다 적으면 칸을 안 만든다. 몇 번만 적은 사람의 '평소'는 우연히 좋았던 며칠일
+ * 수 있고, 그것보다 낮다고 운동을 빼면 근거 없이 가볍게 하는 셈이다.
+ */
+export const USUAL_CONDITION_MIN_CHECKINS = 14;
+
+/**
+ * 평소보다 이만큼 이상 낮으면 '평소보다 낮은 날'(2판 P5 — 검토안의 '평소 대비 컨디션'). 1점은 하루하루의 흔들림이라 안 본다(들쭉날쭉한
+ * 사람은 1점씩 늘 오르내린다). 2점이면 10점 눈금의 한 단계(좋음 → 보통)가 내려간 것이다.
+ */
+export const BELOW_USUAL_GAP = 2;
+
+/** 평소 컨디션(facts.condition.usualCondition) */
+export type UsualCondition = {
+  /** 오늘을 뺀 28일 체크인 컨디션의 중앙값 — 짝수 개면 가운데 둘의 평균(6.5 처럼 반 점이 나올 수 있다) */
+  median: number;
+  /** 센 체크인 수(날짜마다 하나, USUAL_CONDITION_MIN_CHECKINS 이상) */
+  days: number;
+};
+
+/**
+ * 평소 컨디션 — 오늘을 뺀 어제 ~ USUAL_CONDITION_DAYS 일 전 체크인의 컨디션 중앙값. 체크인이 USUAL_CONDITION_MIN_CHECKINS 개 밑이면 null.
+ *
+ * 평균이 아니라 중앙값인 까닭: 아픈 날 하루의 2 · 아주 좋은 날의 10 이 '평소'를 끌고 가지 않게. 같은 날짜가 둘이면 앞의 것만 센다
+ * (buildFacts 가 오늘 체크인을 찾는 법 — find — 과 같다). 날짜 꼴이 아니거나 컨디션이 숫자가 아닌 줄은 안 센다. 순수 함수 — 같은 입력이면
+ * 늘 같은 값.
+ */
+export function usualConditionOf(
+  checkins: readonly { date: string; condition: number }[],
+  asOf: string
+): UsualCondition | null {
+  const byDate = new Map<string, number>();
+  for (const c of checkins) {
+    if (typeof c.date !== 'string' || !DATE_KEY_RE.test(c.date)) continue;
+    if (typeof c.condition !== 'number' || !Number.isFinite(c.condition)) continue;
+    const ago = daysBetween(c.date, asOf);
+    if (!(ago >= 1 && ago <= USUAL_CONDITION_DAYS)) continue;
+    if (!byDate.has(c.date)) byDate.set(c.date, c.condition);
+  }
+  if (byDate.size < USUAL_CONDITION_MIN_CHECKINS) return null;
+  const sorted = [...byDate.values()].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  const median =
+    sorted.length % 2 === 1 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+  return { median, days: sorted.length };
+}
+
+/** 오늘 컨디션이 평소보다 낮은 날(belowUsualCondition) */
+export type BelowUsualCondition = {
+  /** 오늘 컨디션(1~10) */
+  today: number;
+  /** 평소 컨디션(중앙값) */
+  median: number;
+};
+
+/**
+ * 오늘 컨디션이 평소보다 BELOW_USUAL_GAP(2)점 이상 낮은 날이면 그 두 값, 아니면 null(2판 P5).
+ *
+ * 걸리는 것: 오늘 체크인이 있고 · 평소 컨디션 칸이 있고(체크인 14개 이상) · 오늘 컨디션 ≤ 평소 − 2 · 오늘 컨디션이 바닥
+ * (LOW_CONDITION_THRESHOLD, 4)보다 높을 때. 바닥 이하는 이미 회복날이라(theme.ts · prescription.ts 4) 여기서 다시 말하지 않는다 — 두 규칙이
+ * 한 날을 두 번 세지 않게. 늘 3 인 사람(평소 3)은 평소보다 낮지 않지만 바닥 규칙이 그대로 지킨다.
+ *
+ * 읽는 곳: 안전 거르기(prescription.ts 4-2-1 — 가장 센 운동을 뺀다) · 오늘 상태 한 장(day-state.ts body.belowUsual). 둘이 같은 함수를
+ * 불러 어긋나지 않는다. 옛 facts(칸 없음) · 모양이 깨진 칸은 null.
+ */
+export function belowUsualCondition(
+  facts: Pick<ReportFacts, 'condition'>
+): BelowUsualCondition | null {
+  const today = facts.condition.today;
+  const usual = facts.condition.usualCondition;
+  if (today == null || usual == null) return null;
+  if (typeof usual.median !== 'number' || !Number.isFinite(usual.median)) return null;
+  if (!(usual.days >= USUAL_CONDITION_MIN_CHECKINS)) return null;
+  const c = today.condition;
+  if (typeof c !== 'number' || !Number.isFinite(c)) return null;
+  if (c <= LOW_CONDITION_THRESHOLD) return null;
+  if (c > usual.median - BELOW_USUAL_GAP) return null;
+  return { today: c, median: usual.median };
+}
+
+/**
+ * 달력의 다음 등판 — 오늘(0) ~ OUTING_CALENDAR_DAYS 일 뒤 · 이름이 등판으로 읽히는 것 가운데 가장 가까운 것. 같은 날 둘이면 이름 차례로
+ * 앞의 것(넘겨받은 차례와 상관없이 늘 같은 값). 날짜 꼴이 아니거나 범위 밖이면 버린다. 없으면 null.
+ */
+function nearestCalendarOuting(
+  events: readonly CalendarEventLike[],
+  asOf: string
+): CalendarOuting | null {
+  let best: CalendarOuting | null = null;
+  for (const e of events) {
+    if (typeof e.date !== 'string' || !DATE_KEY_RE.test(e.date)) continue;
+    if (!isOutingTitle(e.title)) continue;
+    const daysUntil = daysBetween(asOf, e.date);
+    if (!(daysUntil >= 0 && daysUntil <= OUTING_CALENDAR_DAYS)) continue;
+    const title = e.title.trim();
+    if (
+      best == null ||
+      daysUntil < best.daysUntil ||
+      (daysUntil === best.daysUntil && title < best.title)
+    ) {
+      best = { date: e.date, daysUntil, title };
+    }
+  }
+  return best;
+}
+
+/**
+ * 같은 요일 짐작의 재료 — 어제(1) ~ GAME_DATES_DAYS 일 전, 세션 종류 '경기'로 1구 이상 던진 날(중복 없이 오름차순). 오늘 기록은 안 넣는다 —
+ * 오늘 던진 것은 세게 던진 날(부하)이 보고, 짐작은 '앞으로의 등판'을 지난 리듬으로 어림하는 것이라.
+ */
+function gameDatesOf(logs: readonly PitchLogLike[], asOf: string): string[] {
+  const days = new Set<string>();
+  for (const log of logs) {
+    if (log.sessionType !== '경기' || !(log.pitchCount > 0)) continue;
+    const key = log.date.slice(0, 10);
+    const ago = daysBetween(key, asOf);
+    if (ago >= 1 && ago <= GAME_DATES_DAYS) days.add(key);
+  }
+  return [...days].sort();
 }
 
 export function buildFacts({
@@ -246,6 +541,8 @@ export function buildFacts({
   memos,
   baselineDailyLoad = null,
   rehab = null,
+  trainingNotes,
+  calendarEvents,
   today = appNow(),
 }: {
   nickname: string;
@@ -259,6 +556,17 @@ export function buildFacts({
   baselineDailyLoad?: number | null;
   /** 진행 중인 재활 — 없으면 null(lib/armcare/rehab.ts 의 rehabFacts 로 만든다) */
   rehab?: RehabFacts | null;
+  /**
+   * 최근 운동 힘듦(DailyTrainingNote — gather.ts 가 45일치를 넘긴다). 안 넘기면 condition.trainingEffort 칸을 만들지 않는다 —
+   * 옛 입력(기준선 도구 · 자체 시험)의 결과가 글자 하나 안 바뀌게.
+   */
+  trainingNotes?: TrainingNoteLike[];
+  /**
+   * 홈 캘린더의 내 일정(gather.ts 가 오늘부터 OUTING_CALENDAR_DAYS 일을 넘긴다 — 날짜 · 이름만). 넘기면(빈 목록이어도) 다음 등판 짐작의
+   * 두 칸(condition.outingCalendar · patterns.gameDates)을 만든다. 안 넘기면 두 칸이 없다 — 옛 입력(기준선 도구 · 자체 시험)의 결과가
+   * 글자 하나 안 바뀌게(trainingNotes 와 같은 약속). 범위 밖 날짜 · 등판이 아닌 이름은 여기서 버린다.
+   */
+  calendarEvents?: CalendarEventLike[];
   today?: Date;
 }): ReportFacts {
   const asOf = toDateKey(today);
@@ -288,18 +596,16 @@ export function buildFacts({
       .at(-1) ?? null;
 
   /*
-   * 거의 최대 강도로 던진 공 — 날마다 더한다(theme.ts 의 '세게 던진 날' 규칙이 읽는다).
-   * 세션마다 가린다. 하루 평균 강도로 보면 경기 뒤 가벼운 캐치볼이 그날을 '세게 던진 날'에서 빼 버린다.
+   * 세게 던졌는지 가릴 재료 — 날마다 투구수와 투구수 × 체감 강도(%)를 더한다(isHardOuting 이 읽는다).
+   * 세션마다 곱해서 더한다. 하루 평균 강도로 곱하면 같은 값이지만, 경기(늘 100%)를 세션 단위로 가려야 해서 기록마다 곱한다.
+   * 더하기만 하므로 경기 뒤 가벼운 캐치볼은 그날을 세게 던진 날에서 빼지 않는다(늘 보탠다).
    * 날짜는 groupByDay 와 같은 방식(앞 10자리)으로 센다.
    */
-  const nearMaxByDay = new Map<string, number>();
+  const outingByDay = new Map<string, OutingTotals>();
   for (const log of logs) {
-    if (log.pitchCount <= 0) continue;
-    if (log.sessionType !== '경기' && Math.round(log.intensity) < NEAR_MAX_INTENSITY) {
-      continue;
-    }
     const key = log.date.slice(0, 10);
-    nearMaxByDay.set(key, (nearMaxByDay.get(key) ?? 0) + log.pitchCount);
+    const next = addOutingLog(outingByDay.get(key) ?? null, log);
+    if (next) outingByDay.set(key, next);
   }
 
   // 최근 7일 체크인만 컨디션 요약에 쓴다.
@@ -316,6 +622,21 @@ export function buildFacts({
   const todayCheckin = checkins.find((c) => c.date === asOf) ?? null;
   /* 어제 체크인 — '내일 등판'이라고 적었는지 보려고(plannedOuting) */
   const yesterdayCheckin = checkins.find((c) => daysBetween(c.date, asOf) === 1) ?? null;
+
+  /*
+   * 다음 등판 짐작의 재료 두 칸(2판 P4 커밋 G) — calendarEvents 를 넘겼을 때만 만든다(안 넘기면 키 자체가 없다). 짐작하는 규칙(차례 ·
+   * 같은 요일 3번 · 가볍게만)은 lib/engine/outing.ts 한 곳이고, 여기서는 재료만 고른다.
+   */
+  const outingCalendar = calendarEvents
+    ? nearestCalendarOuting(calendarEvents, asOf)
+    : undefined;
+  const gameDates = calendarEvents ? gameDatesOf(logs, asOf) : undefined;
+
+  /*
+   * 평소 컨디션(2판 P5) — 넘겨받은 체크인에서 센다(앱은 45일치를 넘긴다 — 조회가 늘지 않는다). 14개 밑이면 null 이고 칸을 안 만든다
+   * (조건부 펼침) — 체크인이 적은 사람 · 자체 시험 · 기준선의 옛 입력은 facts 가 글자 하나 안 바뀐다.
+   */
+  const usualCondition = usualConditionOf(checkins, asOf);
 
   return {
     asOf,
@@ -350,10 +671,19 @@ export function buildFacts({
         }))
         .filter((o) => o.daysAgo >= 0 && o.daysAgo <= OUTING_MEMORY_DAYS)
         .sort((a, b) => a.daysAgo - b.daysAgo),
-      hardOutings: [...nearMaxByDay]
-        .map(([key, pitches]) => ({ daysAgo: daysBetween(key, asOf), pitches }))
+      hardOutings: [...outingByDay]
+        .map(([key, o]) => ({
+          daysAgo: daysBetween(key, asOf),
+          pitches: o.pitches,
+          load: o.load,
+          nearMaxPitches: o.nearMaxPitches,
+        }))
         .filter((o) => o.daysAgo >= 0 && o.daysAgo <= OUTING_MEMORY_DAYS)
         .sort((a, b) => a.daysAgo - b.daysAgo),
+      /* 칸은 달력을 넘겼을 때만 — 조건부 펼침이라 안 넘기면 키 자체가 없다 */
+      ...(gameDates ? { gameDates } : {}),
+      /* 쉰 날 줄까지 — byDay 는 0구 줄도 그날로 묶는다(lastThrowDate 주석) */
+      loggedYesterday: [...byDay.keys()].some((key) => daysBetween(key, asOf) === 1),
     },
     condition: {
       today: todayCheckin,
@@ -366,7 +696,15 @@ export function buildFacts({
       rehabParts: rehab && rehab.stage <= 3 ? [rehab.joint] : [],
       throwPlanToday: todayCheckin?.throwPlan ?? null,
       throwPlanYesterday: yesterdayCheckin?.throwPlan ?? null,
+      /* 칸은 달력을 넘겼을 때만 — 없으면 키 자체가 없다(null 은 '달력에 등판이 없음') */
+      ...(outingCalendar !== undefined ? { outingCalendar } : {}),
       painWordsInMemo: findPainKeywords(memos),
+      /* 칸은 넘겨받았을 때만 — 조건부 펼침이라 안 넘기면 키 자체가 없다 */
+      ...(trainingNotes
+        ? { trainingEffort: trainingEffortOf(trainingNotes, asOf) }
+        : {}),
+      /* 칸은 체크인이 14개 이상일 때만 — 조건부 펼침이라 적으면 키 자체가 없다 */
+      ...(usualCondition ? { usualCondition } : {}),
       avgCondition: conditions.length
         ? conditions.reduce((a, b) => a + b, 0) / conditions.length
         : null,

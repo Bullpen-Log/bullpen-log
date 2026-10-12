@@ -6,6 +6,7 @@ import { dayLabel, isLightWeek, parseProgram, weekOfDay } from '@/lib/program/pr
 import { summarizeSets, totalVolumeKg } from '@/lib/workout/summarize';
 import { priorBests } from '@/lib/workout/prior-bests';
 import { newRecord } from '@/lib/workout/bests';
+import { toDateKey } from '@/lib/pitch-stats';
 import { DoneClient, type DoneRow } from './done-client';
 
 /**
@@ -20,6 +21,9 @@ import { DoneClient, type DoneRow } from './done-client';
  *
  * 마친 판만 연다. 주소를 직접 쳐서 남의 판이나 아직 하는 판을 열 수 없다. 세트가 하나도 없으면 축하할
  * 것이 없으니 트레이닝으로 보낸다.
+ *
+ * 힘듦 한 번 누르기(2판 P2): 그날 DailyTrainingNote 가 없으면 [완료] 위에 칩 넷을 둔다. 마치기 창에서 강도를 골랐으면
+ * (줄이 있음) 묻지 않는다 — 서버에서 줄 유무만 읽어 넘긴다.
  */
 export default async function WorkoutDonePage({
   searchParams,
@@ -36,18 +40,30 @@ export default async function WorkoutDonePage({
   });
   if (!session) redirect('/training');
 
-  const sets = await prisma.userExerciseSet.findMany({
-    where: { sessionId: session.id },
-    orderBy: [{ exerciseId: 'asc' }, { setNo: 'asc' }],
-    select: {
-      exerciseId: true,
-      setNo: true,
-      weightKg: true,
-      reps: true,
-      holdSeconds: true,
-      rir: true,
-    },
-  });
+  const [sets, note] = await Promise.all([
+    prisma.userExerciseSet.findMany({
+      where: { sessionId: session.id },
+      orderBy: [{ exerciseId: 'asc' }, { setNo: 'asc' }],
+      select: {
+        exerciseId: true,
+        setNo: true,
+        weightKg: true,
+        reps: true,
+        holdSeconds: true,
+        rir: true,
+      },
+    }),
+    /* 그날 힘듦 — 날짜는 saveTrainingNote 와 같은 꼴(세션 날짜의 UTC 자정) */
+    prisma.dailyTrainingNote.findUnique({
+      where: {
+        userId_date: {
+          userId: user.id,
+          date: new Date(`${toDateKey(session.date)}T00:00:00.000Z`),
+        },
+      },
+      select: { intensity: true },
+    }),
+  ]);
   if (sets.length === 0) redirect('/training');
 
   const plan = readFrozenPlan(session.plan);
@@ -165,6 +181,8 @@ export default async function WorkoutDonePage({
       setCount={sets.length}
       volumeKg={totalVolumeKg(sets)}
       rows={rows}
+      /* 강도를 이미 남긴 날(마치기 창 · 트레이닝 탭)은 안 묻는다 */
+      askEffort={note ? null : { sessionId: session.id }}
     />
   );
 }

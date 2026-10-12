@@ -6,22 +6,45 @@
  * 왜 있나. 추천 메커니즘 2판(docs/designs/training-recommendation-engine.md)의 결정 D2(체감 강도 0~100%) ·
  * D3(경기 다음 날을 달력이 아니라 부하로) · D4(성장기 16세 미만)와 P0 는 '지금 사용자가 실제로 무엇을 적고
  * 있나'를 숫자로 알아야 옮길 수 있다 — 등판 질문이 상세 체크인에만 있어 답이 거의 없다는 것, 운동 '마침'을
- * 누르는 날이 드물다는 것, 투구 강도 1~10 이 실제로 어떻게 쓰이는지, 16세 기준이 몇 명을 가르는지.
+ * 누르는 날이 드물다는 것, 투구 강도 1~10 이 실제로 어떻게 쓰이는지, 16세 기준이 몇 명을 가르는지. P4 부터는 다음 등판
+ * 짐작의 재료(⑦ — 달력 일정 이름의 낱말 · 같은 요일 경기)도 센다.
  * 단계(P1 ~ P6 · Y)마다 같은 도구로 다시 재서 전후를 견준다.
  *
  * 규칙. 운영 DB 를 그대로 읽는다(.env 의 DATABASE_URL — 개발 DB 가 곧 운영 DB 다). count · groupBy ·
  * findMany(select 최소)만 쓰고 아무것도 쓰지 않는다. 개인 정보(이메일 · 이름 · 메모 글)는 읽지도 찍지도
- * 않는다 — 집계 숫자만 stdout 에 마크다운 표로 낸다. 1분 안에 끝나야 한다.
+ * 않는다 — 집계 숫자만 stdout 에 마크다운 표로 낸다. 달력 일정 이름(⑦)만 낱말이 들었는지 보려고 메모리에 올리고,
+ * 원문은 찍지 않는다. 1분 안에 끝나야 한다.
  */
 import { PrismaClient } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
-import { toDateKey } from '../lib/pitch-stats.ts';
+import {
+  effortPctOf,
+  outingLoadOf,
+  shiftDateKey,
+  toDateKey,
+} from '../lib/pitch-stats.ts';
 import { ageFromBirthDate } from '../lib/profile.ts';
-import { NEAR_MAX_INTENSITY } from '../lib/report/facts.ts';
-import { HARD_OUTING_MIN_PITCHES } from '../lib/report/theme.ts';
+import {
+  HARD_OUTING_MIN_LOAD,
+  HARD_OUTING_MIN_PITCHES,
+  NEAR_MAX_INTENSITY,
+  OUTING_CALENDAR_DAYS,
+  type ReportFacts,
+} from '../lib/report/facts.ts';
 import { YOUTH_AGE_THRESHOLD } from '../lib/report/plan.ts';
 import { THROW_PLANS } from '../lib/checkin.ts';
 import { REST_SESSION_TYPE } from '../lib/session-type.ts';
+import { readPlanSwaps } from '../lib/report/plan-swaps.ts';
+import {
+  OUTING_TITLE_EXCLUDE_WORDS,
+  OUTING_TITLE_WORDS,
+  isOutingTitle,
+} from '../lib/calendar-event.ts';
+import {
+  ESTIMATE_LOOKBACK_DAYS,
+  ESTIMATE_MIN_GAMES,
+  outingGuessInputsOf,
+} from '../lib/engine/outing.ts';
 
 const startedAt = Date.now();
 
@@ -110,9 +133,9 @@ function heading(title: string) {
 /* ───────────────────── ① 체크인 — 등판 답이 얼마나 오나 ───────────────────── */
 
 /*
- * 상세 전용 칸(지금): app/actions/checkin.ts 가 폼의 detail=1 표시가 있을 때만 쓰는 것 — 팔 피로 · 몸무게 ·
- * 식욕 · 던지는 일정 · 메모 · 운동 종류 · 하고 싶은 부위. 간편 체크인은 몸 상태 · 컨디션 · 수면(늘)과
- * body=1 선택 칸(잔 시간 · 근육통 · 끼니 양 · 걸른 끼니), armpain=1(팔 통증 자리 · 정도)만 쓴다.
+ * 상세 전용 칸(지금): app/actions/checkin.ts 가 폼의 detail=1 표시가 있을 때만 쓰는 것 — 몸무게 · 식욕 · 메모 ·
+ * 운동 종류 · 하고 싶은 부위. 간편 체크인은 몸 상태 · 컨디션(늘)과 body=1 선택 칸(잔 시간 · 근육통 · 끼니 양 ·
+ * 걸른 끼니 · 팔 피로 · 던지는 일정), armpain=1(팔 통증 자리 · 정도)만 쓴다.
  *
  * '상세 줄' 은 **상세 칸이 하나라도 있는 줄**이다 — 하한이다. DB 에 폼 종류 칸이 없고, 상세 폼을 열고 아무것도
  * 안 적으면 detail=1 이라도 null 만 써서 간편 줄과 가를 수 없다. '등판 답 있음(상세 안)' 의 분모도 그래서
@@ -122,13 +145,20 @@ function heading(title: string) {
  * 2026-10-07 에 간편의 body=1 칸으로 되살아나 같은 칸에 들어오므로, 날짜가 2026-09-30 전인 줄의 끼니만 옛 상세로
  * 친다(그 사이 일주일은 아무도 못 적었다). 지난 날짜를 나중에 간편으로 고친 줄은 못 가른다 — 어림이다.
  * '간편 선택 칸 있음' 은 칸이 있는 줄을 센다(어느 폼이 적었는지는 안 본다 — 잔 시간 · 근육통도 09-30 전엔 상세 칸이었다).
+ *
+ * 팔 피로 · 던지는 일정은 2026-10-12 에 간편(body=1)으로 옮겼다(팔 피로는 김민, 던지는 일정은 2판 D1). 끼니와 같은
+ * 수법으로 그날 전 줄만 상세로, 그날부터는 간편 선택 칸으로 친다. 배포가 그날보다 늦어지면 QUICK_MOVE_KEY 를 고친다.
+ * 그래서 '등판 답 있음(상세 줄 대비)' 은 그날 전 줄의 답만 센다(그날부터의 답은 상세 줄 안에 있지 않다).
  */
+const QUICK_MOVE_KEY = '2026-10-12';
+const beforeMove = { date: { lt: dateOfKey(QUICK_MOVE_KEY) } };
+const sinceMove = { date: { gte: dateOfKey(QUICK_MOVE_KEY) } };
 const DETAIL_NOW = {
   OR: [
-    { armFatigue: { not: null } },
+    { AND: [{ armFatigue: { not: null } }, beforeMove] },
     { bodyWeightKg: { not: null } },
     { appetite: { not: null } },
-    { throwPlan: { not: null } },
+    { AND: [{ throwPlan: { not: null } }, beforeMove] },
     { NOT: [{ note: null }, { note: '' }] },
     { preferredWorkout: { not: null } },
     { preferredParts: { isEmpty: false } },
@@ -150,25 +180,45 @@ const QUICK_OPTIONAL = {
     { soreness: { not: null } },
     { nutrition: { not: null } },
     { skippedMeals: { isEmpty: false } },
+    { AND: [{ armFatigue: { not: null } }, sinceMove] },
+    { AND: [{ throwPlan: { not: null } }, sinceMove] },
   ],
 };
 
 async function checkinStats(sinceKey: string | null) {
   const range = sinceKey ? { date: { gte: dateOfKey(sinceKey) } } : {};
-  const [total, users, detailNow, detailAny, quickOpt, throwAny, byPlan] =
-    await Promise.all([
-      prisma.dailyCheckin.count({ where: range }),
-      prisma.dailyCheckin.groupBy({ by: ['userId'], where: range }),
-      prisma.dailyCheckin.count({ where: { ...range, ...DETAIL_NOW } }),
-      prisma.dailyCheckin.count({ where: { ...range, OR: [DETAIL_NOW, DETAIL_OLD] } }),
-      prisma.dailyCheckin.count({ where: { ...range, ...QUICK_OPTIONAL } }),
-      prisma.dailyCheckin.count({ where: { ...range, throwPlan: { not: null } } }),
-      prisma.dailyCheckin.groupBy({
-        by: ['throwPlan'],
-        where: { ...range, throwPlan: { not: null } },
-        _count: { _all: true },
-      }),
-    ]);
+  /* range 와 옮긴 날 조건을 같이 — 둘 다 date 칸이라 펼치면 한쪽이 지워져서 AND 로 묶는다 */
+  const [
+    total,
+    users,
+    detailNow,
+    detailAny,
+    quickOpt,
+    throwAny,
+    throwOld,
+    totalNew,
+    throwNew,
+    byPlan,
+  ] = await Promise.all([
+    prisma.dailyCheckin.count({ where: range }),
+    prisma.dailyCheckin.groupBy({ by: ['userId'], where: range }),
+    prisma.dailyCheckin.count({ where: { ...range, ...DETAIL_NOW } }),
+    prisma.dailyCheckin.count({ where: { ...range, OR: [DETAIL_NOW, DETAIL_OLD] } }),
+    prisma.dailyCheckin.count({ where: { ...range, ...QUICK_OPTIONAL } }),
+    prisma.dailyCheckin.count({ where: { ...range, throwPlan: { not: null } } }),
+    prisma.dailyCheckin.count({
+      where: { AND: [range, beforeMove, { throwPlan: { not: null } }] },
+    }),
+    prisma.dailyCheckin.count({ where: { AND: [range, sinceMove] } }),
+    prisma.dailyCheckin.count({
+      where: { AND: [range, sinceMove, { throwPlan: { not: null } }] },
+    }),
+    prisma.dailyCheckin.groupBy({
+      by: ['throwPlan'],
+      where: { ...range, throwPlan: { not: null } },
+      _count: { _all: true },
+    }),
+  ]);
   return {
     total,
     users: users.length,
@@ -176,6 +226,9 @@ async function checkinStats(sinceKey: string | null) {
     detailAny,
     quickOpt,
     throwAny,
+    throwOld,
+    totalNew,
+    throwNew,
     byPlan,
   };
 }
@@ -195,7 +248,8 @@ async function sectionCheckin() {
     withPct(s.detailAny, s.total),
     withPct(s.quickOpt, s.total),
     withPct(s.throwAny, s.total),
-    withPct(s.throwAny, s.detailNow),
+    withPct(s.throwOld, s.detailNow),
+    withPct(s.throwNew, s.totalNew),
   ];
   table(
     [
@@ -206,7 +260,8 @@ async function sectionCheckin() {
       '상세 줄(옛 상세 칸 포함, 하한)',
       '간편 선택 칸 있음(칸 기준)',
       '등판 답 있음(전체 대비)',
-      '등판 답 있음(상세 줄 대비)',
+      `등판 답 있음(상세 줄 대비, ${QUICK_MOVE_KEY} 전 줄)`,
+      `등판 답 있음(간편으로 옮긴 ${QUICK_MOVE_KEY} 부터 줄 대비)`,
     ],
     [row('전체', all), row(recentLabel(30), recent)]
   );
@@ -234,10 +289,15 @@ async function sectionCheckin() {
 
 /* ───────────────────── ② 완료율 — 만든 일정 · 연 세션 · 마친 날 ───────────────────── */
 
-type PlanPicks = { picks?: { exerciseId: string; manual?: boolean }[] } | null;
+/* swaps 는 뺀 · 바꾼 기록(lib/report/plan-swaps.ts, P2 ①) — ⑥ 되먹임 표가 readPlanSwaps 로 센다(countRecordedSwaps) */
+type PlanPicks = {
+  picks?: { exerciseId: string; manual?: boolean }[];
+  swaps?: unknown;
+} | null;
 type FrozenLike = {
   exercises?: { id: string }[];
   program?: unknown;
+  swaps?: unknown;
 } | null;
 
 /** 일정 · 세션 판은 이 수를 넘으면 메모리에 올리지 않는다(1분 안에 끝내려고). */
@@ -480,9 +540,16 @@ async function sectionCompletion(
 
 /* ───────────────────── ③ 투구 강도 — D2 · D3 의 바탕 ───────────────────── */
 
+/**
+ * 옛 '세게 던진 날' 규칙의 강도 문턱(1~10) — 2026-10-03 사용자분과 정한 '경기, 또는 강도 9~10'. 앱은 2판 D2(2026-10-12)부터
+ * 투구수 × 체감 강도(HARD_OUTING_MIN_LOAD)로 가르고, P3 검토(같은 날)부터 이 옛 규칙도 같이 본다 — 85% × 30 처럼 곱이 2,700 밑인
+ * 날이 빠지지 않게(facts.ts isHardOuting 의 nearMaxPitches · NEAR_MAX_INTENSITY). 그래서 '지금 정의'는 둘 중 하나다.
+ */
+const OLD_NEAR_MAX_INTENSITY = NEAR_MAX_INTENSITY;
+
 async function sectionIntensity() {
   heading(
-    `③ 투구 강도(PitchLog.intensity 1~10) — '세게 던진 날' 지금 정의: 경기 또는 강도 ${NEAR_MAX_INTENSITY}~10 으로 그날 합쳐 ${HARD_OUTING_MIN_PITCHES}구 이상`
+    `③ 투구 강도(PitchLog.intensity 1~10 · effortPct 5~100%) — '세게 던진 날' 지금 정의(2판 D2 · P3 검토): 그날 투구수 × 체감 강도 ≥ ${HARD_OUTING_MIN_LOAD.toLocaleString('en-US')}(경기 100%) 또는 옛 정의 · 옛 정의: 경기 또는 강도 ${OLD_NEAR_MAX_INTENSITY}~10 으로 그날 합쳐 ${HARD_OUTING_MIN_PITCHES}구 이상`
   );
   /* 휴식 기록은 투구수 · 강도가 0 이라 강도 분포에서 뺀다 — 넣으면 0 이 '약하게 던짐'처럼 보인다. */
   const thrownWhere = {
@@ -491,35 +558,50 @@ async function sectionIntensity() {
   };
   /** 던진 기록이 이 수를 넘으면 날 단위 표(기록을 메모리에 올림)는 건너뛴다 */
   const PITCH_LOAD_LIMIT = 50000;
-  const [total, rest, thrown, zeroNotRest, userGroups, byIntensity, byType, byCount] =
-    await Promise.all([
-      prisma.pitchLog.count(),
-      prisma.pitchLog.count({ where: { sessionType: REST_SESSION_TYPE } }),
-      prisma.pitchLog.count({ where: thrownWhere }),
-      /* 휴식이 아닌데 투구수 0 — API(app/api/pitch-log/route.ts)는 막지만 다른 길(재활 · 구속)이 생기면 여기 잡힌다 */
-      prisma.pitchLog.count({
-        where: { sessionType: { not: REST_SESSION_TYPE }, pitchCount: { lte: 0 } },
-      }),
-      prisma.pitchLog.groupBy({ by: ['userId'], where: thrownWhere }),
-      prisma.pitchLog.groupBy({
-        by: ['intensity'],
-        where: thrownWhere,
-        _count: { _all: true },
-        orderBy: { intensity: 'asc' },
-      }),
-      prisma.pitchLog.groupBy({
-        by: ['sessionType'],
-        where: thrownWhere,
-        _count: { _all: true },
-        _avg: { intensity: true, pitchCount: true },
-        _sum: { pitchCount: true },
-      }),
-      prisma.pitchLog.groupBy({
-        by: ['pitchCount'],
-        where: thrownWhere,
-        _count: { _all: true },
-      }),
-    ]);
+  const [
+    total,
+    rest,
+    thrown,
+    zeroNotRest,
+    userGroups,
+    byIntensity,
+    byEffort,
+    byType,
+    byCount,
+  ] = await Promise.all([
+    prisma.pitchLog.count(),
+    prisma.pitchLog.count({ where: { sessionType: REST_SESSION_TYPE } }),
+    prisma.pitchLog.count({ where: thrownWhere }),
+    /* 휴식이 아닌데 투구수 0 — API(app/api/pitch-log/route.ts)는 막지만 다른 길(재활 · 구속)이 생기면 여기 잡힌다 */
+    prisma.pitchLog.count({
+      where: { sessionType: { not: REST_SESSION_TYPE }, pitchCount: { lte: 0 } },
+    }),
+    prisma.pitchLog.groupBy({ by: ['userId'], where: thrownWhere }),
+    prisma.pitchLog.groupBy({
+      by: ['intensity'],
+      where: thrownWhere,
+      _count: { _all: true },
+      orderBy: { intensity: 'asc' },
+    }),
+    /* 체감 강도(%) 분포 — 두 칸을 같이 묶어야 옛 줄(effortPct null)을 intensity × 10 으로 읽을 수 있다 */
+    prisma.pitchLog.groupBy({
+      by: ['effortPct', 'intensity'],
+      where: thrownWhere,
+      _count: { _all: true },
+    }),
+    prisma.pitchLog.groupBy({
+      by: ['sessionType'],
+      where: thrownWhere,
+      _count: { _all: true },
+      _avg: { intensity: true, pitchCount: true },
+      _sum: { pitchCount: true },
+    }),
+    prisma.pitchLog.groupBy({
+      by: ['pitchCount'],
+      where: thrownWhere,
+      _count: { _all: true },
+    }),
+  ]);
 
   table(
     ['항목', '수'],
@@ -535,6 +617,44 @@ async function sectionIntensity() {
   table(
     ['강도', '기록 수', '비율'],
     byIntensity.map((g) => [g.intensity, g._count._all, pct(g._count._all, thrown)])
+  );
+
+  /*
+   * 체감 강도(%) 분포(2판 D2) — 계산이 읽는 값(effortPctOf: % 로 적었으면 그것, 옛 줄은 강도 × 10)으로 모은다. % 로 적은 줄과
+   * 옛 줄을 나란히 세서 이행이 얼마나 됐는지 본다(옛 줄 수는 2026-10-12 전 던진 기록 수에서 시작해 늘지 않아야 한다).
+   * 5% 단위 칩이라 15 · 85 같은 값은 % 로 적은 줄에서만 나온다.
+   */
+  const effortRows = new Map<number, { pct: number; old: number }>();
+  for (const g of byEffort) {
+    const value = effortPctOf(g);
+    const row = effortRows.get(value) ?? { pct: 0, old: 0 };
+    if (g.effortPct != null) row.pct += g._count._all;
+    else row.old += g._count._all;
+    effortRows.set(value, row);
+  }
+  const effortPctCount = byEffort
+    .filter((g) => g.effortPct != null)
+    .reduce((s, g) => s + g._count._all, 0);
+  table(
+    ['체감 강도(%)', '기록 수', '% 로 적음', '옛 줄(강도 × 10)', '비율'],
+    [
+      ...[...effortRows.entries()]
+        .sort((a, b) => a[0] - b[0])
+        .map(([value, r]) => [
+          `${value}%`,
+          r.pct + r.old,
+          r.pct,
+          r.old,
+          pct(r.pct + r.old, thrown),
+        ]),
+      [
+        '합계',
+        thrown,
+        effortPctCount,
+        thrown - effortPctCount,
+        `% 로 적음 ${pct(effortPctCount, thrown)}`,
+      ],
+    ]
   );
 
   table(
@@ -564,8 +684,10 @@ async function sectionIntensity() {
   );
 
   /*
-   * 기록 단위와 날 단위를 따로 센다. 지금 규칙(facts.ts nearMaxByDay → theme.ts hardOuting)은 날 단위다 —
-   * 경기이거나 강도 9~10 인 기록의 투구수를 그날 합쳐 30구 이상이면 '세게 던진 날'.
+   * 기록 단위와 날 단위를 따로 센다. 지금 규칙(2판 D2 — facts.ts outingByDay → isHardOuting)은 날 단위다 — 기록마다
+   * 투구수 × 체감 강도(%)(경기 100%, pitch-stats.ts outingLoadOf)를 그날 합쳐 2,700 이상이면 '세게 던진 날'. 옛 규칙(경기이거나
+   * 강도 9~10 인 기록의 투구수를 그날 합쳐 30구 이상)도 나란히 센다 — 지금 규칙은 옛 규칙의 날도 세게로 본다(P3 검토 — 곱만 보면
+   * 85% × 30 이 빠졌다). 새로 세게가 되는 날이 몇인지가 D2 로 달라지는 몫이다.
    *
    * 날 단위는 기록을 메모리에 올려 센다 — 기록이 상한을 넘으면 이 절만 건너뛴다(1분 안에 끝내려고).
    */
@@ -583,34 +705,49 @@ async function sectionIntensity() {
       date: true,
       sessionType: true,
       intensity: true,
+      effortPct: true,
       pitchCount: true,
     },
   });
+  /* 옛 규칙 — 1~10 칸으로 본다(% 로 적은 기록도 저장된 intensity 로) */
   const isNearMax = (l: { sessionType: string; intensity: number }) =>
-    l.sessionType === '경기' || Math.round(l.intensity) >= NEAR_MAX_INTENSITY;
+    l.sessionType === '경기' || Math.round(l.intensity) >= OLD_NEAR_MAX_INTENSITY;
   const nearMaxLogs = logs.filter(isNearMax);
   const nearMaxGame = logs.filter((l) => l.sessionType === '경기');
   const gameBelow = nearMaxGame.filter(
-    (l) => Math.round(l.intensity) < NEAR_MAX_INTENSITY
+    (l) => Math.round(l.intensity) < OLD_NEAR_MAX_INTENSITY
   );
   const nearMaxNotGame = logs.filter(
-    (l) => l.sessionType !== '경기' && Math.round(l.intensity) >= NEAR_MAX_INTENSITY
+    (l) => l.sessionType !== '경기' && Math.round(l.intensity) >= OLD_NEAR_MAX_INTENSITY
   );
+  const pctLogs = logs.filter((l) => l.effortPct != null);
 
-  type Day = { pitches: number; nearMax: number; load: number; maxIntensity: number };
+  type Day = {
+    pitches: number;
+    nearMax: number;
+    /** 투구수 × 체감 강도(%) — 경기 특례 없음(D3 미리보기) */
+    load: number;
+    /** 세게 던진 날을 가리는 몫 — 경기 100%(outingLoadOf) */
+    hardLoad: number;
+  };
   const days = new Map<string, Day>();
   for (const l of logs) {
     const key = `${l.userId}|${keyOf(l.date)}`;
-    const d = days.get(key) ?? { pitches: 0, nearMax: 0, load: 0, maxIntensity: 0 };
+    const d = days.get(key) ?? { pitches: 0, nearMax: 0, load: 0, hardLoad: 0 };
     d.pitches += l.pitchCount;
     if (isNearMax(l)) d.nearMax += l.pitchCount;
-    /* D2 의 미리보기 — 투구수 × 강도(지금 1~10 눈금을 ×10 해 0~100 체감 강도로 읽은 것) */
-    d.load += l.pitchCount * l.intensity * 10;
-    d.maxIntensity = Math.max(d.maxIntensity, l.intensity);
+    d.load += l.pitchCount * effortPctOf(l);
+    d.hardLoad += outingLoadOf(l);
     days.set(key, d);
   }
   const dayList = [...days.values()];
-  const hardDays = dayList.filter((d) => d.nearMax >= HARD_OUTING_MIN_PITCHES);
+  /* facts.ts isHardOuting 과 같은 판정 — 곱이 문턱 이상이거나 옛 규칙의 재료(nearMaxPitches)가 30구 이상 */
+  const hardDays = dayList.filter(
+    (d) => d.hardLoad >= HARD_OUTING_MIN_LOAD || d.nearMax >= HARD_OUTING_MIN_PITCHES
+  );
+  const oldHardDays = dayList.filter((d) => d.nearMax >= HARD_OUTING_MIN_PITCHES);
+  const newlyHard = hardDays.filter((d) => d.nearMax < HARD_OUTING_MIN_PITCHES);
+  const droppedHard = oldHardDays.filter((d) => d.hardLoad < HARD_OUTING_MIN_LOAD);
   const nearMaxDaysUnder = dayList.filter(
     (d) => d.nearMax > 0 && d.nearMax < HARD_OUTING_MIN_PITCHES
   );
@@ -618,6 +755,11 @@ async function sectionIntensity() {
   table(
     ['세게 던진 날 정의에 비춘 것', '수', '비율'],
     [
+      [
+        '던진 기록 중 % 로 적은 것(effortPct 있음)',
+        pctLogs.length,
+        pct(pctLogs.length, thrown),
+      ],
       [
         '던진 기록 중 경기 또는 강도 9~10',
         nearMaxLogs.length,
@@ -635,21 +777,33 @@ async function sectionIntensity() {
         pct(nearMaxNotGame.length, thrown),
       ],
       [
-        `던진 기록 중 지금 정의에 드는 것(경기 또는 9~10, 그 기록만 ${HARD_OUTING_MIN_PITCHES}구 이상)`,
-        nearMaxLogs.filter((l) => l.pitchCount >= HARD_OUTING_MIN_PITCHES).length,
-        pct(
-          nearMaxLogs.filter((l) => l.pitchCount >= HARD_OUTING_MIN_PITCHES).length,
-          thrown
-        ),
+        `던진 기록 중 그 기록만으로 지금 정의에 드는 것(투구수 × 체감 강도 ≥ ${HARD_OUTING_MIN_LOAD.toLocaleString('en-US')})`,
+        logs.filter((l) => outingLoadOf(l) >= HARD_OUTING_MIN_LOAD).length,
+        pct(logs.filter((l) => outingLoadOf(l) >= HARD_OUTING_MIN_LOAD).length, thrown),
       ],
       ['던진 날(사용자 · 날짜)', dayList.length, '·'],
       [
-        `  세게 던진 날(날 단위, 합쳐 ${HARD_OUTING_MIN_PITCHES}구 이상)`,
+        `  세게 던진 날(지금 정의 — 날 단위, 합쳐 ${HARD_OUTING_MIN_LOAD.toLocaleString('en-US')} 이상 또는 옛 정의)`,
         hardDays.length,
         pct(hardDays.length, dayList.length),
       ],
       [
-        `  세게 던졌지만 ${HARD_OUTING_MIN_PITCHES}구 미만(지금은 세게 아님)`,
+        `  옛 정의로 세게 던진 날(경기 또는 9~10 을 합쳐 ${HARD_OUTING_MIN_PITCHES}구 이상)`,
+        oldHardDays.length,
+        pct(oldHardDays.length, dayList.length),
+      ],
+      [
+        '  새로 세게가 된 날(옛 정의로는 아님 — 많이 가볍게 던진 날)',
+        newlyHard.length,
+        pct(newlyHard.length, dayList.length),
+      ],
+      [
+        '  옛 정의로만 세게 던진 날(곱은 문턱 밑 — % 로 85% 같은 값을 적은 날. 지금 정의가 옛 정의로 지킨다)',
+        droppedHard.length,
+        pct(droppedHard.length, dayList.length),
+      ],
+      [
+        `  경기 또는 9~10 으로 던졌지만 ${HARD_OUTING_MIN_PITCHES}구 미만(옛 정의로는 세게 아님)`,
         nearMaxDaysUnder.length,
         pct(nearMaxDaysUnder.length, dayList.length),
       ],
@@ -658,7 +812,7 @@ async function sectionIntensity() {
 
   const loads = dayList.map((d) => d.load);
   const pitches = dayList.map((d) => d.pitches);
-  const hardLoads = hardDays.map((d) => d.load);
+  const hardLoads = hardDays.map((d) => d.hardLoad);
   const spread = (label: string, values: number[]) => [
     label,
     fmt(quantile(values, 0.5)),
@@ -670,8 +824,8 @@ async function sectionIntensity() {
     ['하루 단위(D2 · D3 미리보기)', 'p50', 'p75', 'p90', '최대'],
     [
       spread('하루 투구수', pitches),
-      spread('하루 투구수 × 체감 강도(강도 ×10, 0~100)', loads),
-      spread('세게 던진 날의 투구수 × 체감 강도', hardLoads),
+      spread('하루 투구수 × 체감 강도(%, effortPctOf — 경기 특례 없음)', loads),
+      spread('세게 던진 날의 투구수 × 체감 강도(경기 100%)', hardLoads),
     ]
   );
 }
@@ -902,13 +1056,56 @@ async function sectionLibrary() {
 
 /* ───────────────────── ⑥ 되먹임 — 운동 바꾸기 · 힘듦이 어디에 남나 ───────────────────── */
 
+/**
+ * 기록된 바꾸기(P2 ①, lib/report/plan-swaps.ts)를 센다. 세션에서 바꾼 것은 세션 판과 그날 일정에 같은 at 으로
+ * 적히므로 gather.ts 의 swappedOutRecently 와 같은 열쇠(사용자 · 날짜 · from · kind · at)로 한 번만 센다 —
+ * 두 출처를 따로 더하면 세션에서 바꾼 것이 두 번 잡힌다. 판이 상한을 넘어 안 올렸으면 null.
+ */
+function countRecordedSwaps(
+  setups: Awaited<ReturnType<typeof loadSetups>>,
+  sessions: Awaited<ReturnType<typeof loadSessions>>
+) {
+  if (!setups.rows || !sessions.rows) return null;
+  const seen = new Set<string>();
+  const byKind = new Map<string, number>();
+  const byWhere = new Map<string, number>();
+  const users = new Set<string>();
+  const days = new Set<string>();
+  let setupsWith = 0;
+  let sessionsWith = 0;
+  const tally = (userId: string, date: Date, plan: unknown): boolean => {
+    const swaps = readPlanSwaps(plan);
+    for (const s of swaps) {
+      const key = `${userId}|${keyOf(date)}|${s.from}|${s.kind}|${s.at}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      byKind.set(s.kind, (byKind.get(s.kind) ?? 0) + 1);
+      byWhere.set(s.where, (byWhere.get(s.where) ?? 0) + 1);
+      users.add(userId);
+      days.add(`${userId}|${keyOf(date)}`);
+    }
+    return swaps.length > 0;
+  };
+  for (const s of setups.rows) if (tally(s.userId, s.date, s.plan)) setupsWith += 1;
+  for (const s of sessions.rows) if (tally(s.userId, s.date, s.plan)) sessionsWith += 1;
+  return {
+    entries: seen.size,
+    kind: (k: string) => byKind.get(k) ?? 0,
+    where: (w: string) => byWhere.get(w) ?? 0,
+    setupsWith,
+    sessionsWith,
+    users: users.size,
+    days: days.size,
+  };
+}
+
 async function sectionFeedback(
   setups: Awaited<ReturnType<typeof loadSetups>>,
   sessions: Awaited<ReturnType<typeof loadSessions>>,
   pairing: Pairing
 ) {
   heading('⑥ 되먹임 기록 — 운동 바꾸기 · 힘듦(sRPE) 이 지금 어디에 남나');
-  const [notes, noteUsers, noteByIntensity, sets, setsWithRir, setUsers] =
+  const [notes, noteUsers, noteByIntensity, noteDays, sets, setsWithRir, setUsers] =
     await Promise.all([
       prisma.dailyTrainingNote.count(),
       prisma.dailyTrainingNote.groupBy({ by: ['userId'] }),
@@ -917,26 +1114,52 @@ async function sectionFeedback(
         _count: { _all: true },
         orderBy: { intensity: 'asc' },
       }),
+      /* 힘듦 줄이 있는 날 — 세션 판과 짝지으려고 사용자 · 날짜만(메모 글은 읽지 않는다) */
+      prisma.dailyTrainingNote.findMany({ select: { userId: true, date: true } }),
       prisma.userExerciseSet.count(),
       prisma.userExerciseSet.count({ where: { rir: { not: null } } }),
       prisma.userExerciseSet.groupBy({ by: ['userId'] }),
     ]);
 
   /*
-   * 운동 바꾸기는 아무 데도 남지 않는다. app/actions/workout.ts 의 교체 · 더하기는 lib/workout/swap.ts
-   * placeExercise 로 세션 판(TrainingSession.plan.exercises)을 제자리에서 덮어쓰고, FrozenExercise 에 '무엇에서
-   * 바꿨나' 칸이 없다. 그래서 대신 '세션 판의 운동 목록이 그날 일정(DailyTrainingSetup.plan.picks)과 다른가'로
-   * 어림한다 — 더한 것 · 뺀 것 · 바꾼 것이 모두 여기 잡히지만 무엇이었는지는 모른다. 일정의 picks.manual 은
-   * 사용자가 트레이닝 화면에서 직접 더한 것(app/actions/plan-edit.ts)이라 따로 센다. 짝은 ② 와 같은
-   * pairSetupsAndSessions 한 곳에서 맞춘다.
+   * 운동 바꾸기는 2026-10-12(P2 ①)부터 기록이 남는다 — 운동 화면의 빼기 · 교체는 세션 판과 그날 일정의 swaps 에,
+   * 일정 화면의 빼기는 일정의 swaps 에(lib/report/plan-swaps.ts). 그 전 판에는 칸이 없어 '세션 판의 운동 목록이
+   * 그날 일정(DailyTrainingSetup.plan.picks)과 다른가'로 어림한 수를 곁들인다 — 더한 것 · 뺀 것 · 바꾼 것이 모두
+   * 잡히지만 무엇이었는지는 모른다. 일정의 picks.manual 은 사용자가 트레이닝 화면에서 직접 더한 것
+   * (app/actions/plan-edit.ts)이라 따로 센다. 짝은 ② 와 같은 pairSetupsAndSessions 한 곳에서 맞춘다.
    */
+  const recorded = countRecordedSwaps(setups, sessions);
+  const skipped = `판이 ${PLAN_LOAD_LIMIT}줄을 넘어 건너뜀`;
+  const swapRows: (string | number)[][] = recorded
+    ? [
+        [
+          '운동 바꾸기 기록(swaps, P2 ① 2026-10-12 부터 — 같은 줄은 한 번)',
+          recorded.entries,
+        ],
+        [
+          '  교체(replace) · 더하기(add) · 빼기(remove)',
+          `${recorded.kind('replace')} · ${recorded.kind('add')} · ${recorded.kind('remove')}`,
+        ],
+        [
+          '  운동 화면(session) · 일정 화면(plan)',
+          `${recorded.where('session')} · ${recorded.where('plan')}`,
+        ],
+        [
+          '  기록이 있는 일정 · 세션 판',
+          `${recorded.setupsWith} / ${setups.n} · ${recorded.sessionsWith} / ${sessions.n}`,
+        ],
+        ['  기록을 남긴 사용자 · 날', `${recorded.users} · ${recorded.days}`],
+      ]
+    : [['운동 바꾸기 기록(swaps, P2 ①)', skipped]];
   let diffRows: (string | number)[][];
   if (pairing) {
     const { matched, noSetup, changed, added, removed, manualPicks, setupsWithManual } =
       pairing;
     diffRows = [
-      ['운동 바꾸기 기록', '안 남음(세션 판을 제자리에서 덮어씀, 바꾼 흔적 칸 없음)'],
-      ['  어림: 그날 일정과 짝이 맞는 세션', `${matched} / ${sessions.n}`],
+      [
+        '  어림(기록 전 판까지): 그날 일정과 짝이 맞는 세션',
+        `${matched} / ${sessions.n}`,
+      ],
       ['  어림: 일정 없이 열린 세션(프로그램 · 옛 자료)', noSetup],
       ['  어림: 목록이 일정과 다른 세션', withPct(changed, matched)],
       ['  어림: 일정에 없던 운동(더함 · 바꿔 넣음)', added],
@@ -945,18 +1168,39 @@ async function sectionFeedback(
       ['  직접 더한 운동이 있는 일정', withPct(setupsWithManual, setups.n)],
     ];
   } else {
-    diffRows = [
-      ['운동 바꾸기 기록', '안 남음(세션 판을 제자리에서 덮어씀, 바꾼 흔적 칸 없음)'],
-      ['  어림', `판이 ${PLAN_LOAD_LIMIT}줄을 넘어 건너뜀`],
-    ];
+    diffRows = [['  어림', skipped]];
   }
+
+  /*
+   * 마친 판 중 힘듦을 남긴 비율(P2 ②) — 축하 화면의 칩 넷이 누름 수를 줄였으니 이 수가 올라야 한다. 힘듦은 날짜마다
+   * 한 줄이라 세션 날짜(keyOf)로 짝짓는다(rateWorkoutEffort · finishWorkout 이 같은 날짜 규칙). 판을 안 올렸으면 '·'.
+   */
+  const noteDayKeys = new Set(noteDays.map((n) => `${n.userId}|${keyOf(n.date)}`));
+  const finishedRows = sessions.rows?.filter((s) => s.status === 'FINISHED') ?? null;
+  const withNote = (rows: typeof finishedRows) =>
+    rows
+      ? rows.filter((s) => noteDayKeys.has(`${s.userId}|${keyOf(s.date)}`)).length
+      : null;
+  const finishedWithNote = withNote(finishedRows);
+  const allWithNote = withNote(sessions.rows);
 
   table(
     ['항목', '수'],
     [
+      ...swapRows,
       ...diffRows,
       ['운동 힘듦(sRPE 꼴): DailyTrainingNote.intensity 1~10, 하루 한 줄', notes],
       ['  적은 사용자', noteUsers.length],
+      [
+        '  마친 판(FINISHED) 중 그날 힘듦 줄이 있는 판',
+        finishedRows && finishedWithNote != null
+          ? withPct(finishedWithNote, finishedRows.length)
+          : '·',
+      ],
+      [
+        '  세션 판(전체) 중 그날 힘듦 줄이 있는 판',
+        sessions.rows && allWithNote != null ? withPct(allWithNote, sessions.n) : '·',
+      ],
       ['세트 줄(UserExerciseSet)', sets],
       ['  rir(몇 개 더?) 있는 세트', withPct(setsWithRir, sets)],
       ['  세트를 남긴 사용자', setUsers.length],
@@ -974,6 +1218,290 @@ async function sectionFeedback(
   }
 }
 
+/* ───────────────────── ⑦ 달력 · 같은 요일 — 다음 등판 짐작의 재료 ───────────────────── */
+
+/*
+ * 2판 P4 커밋 G(2026-10-12)부터 체크인 답이 다음 등판을 말하지 않는 날에는 홈 캘린더 일정 이름(lib/calendar-event.ts isOutingTitle) →
+ * 같은 요일 경기(lib/engine/outing.ts — 최근 ESTIMATE_LOOKBACK_DAYS 일에 같은 요일 경기 ESTIMATE_MIN_GAMES 번 이상) 차례로 다음 등판을
+ * 짐작해 일정을 가볍게만 한다. 낱말(경기 · 등판 · 선발) · 빼는 낱말(관람 · 응원)은 '실제 이름을 보고 고친다'고 미뤄 둔 결정이고('시합' ·
+ * '대회'는 사용자 결정 전, '경기도' 같은 땅이름은 알고 둔 오탐 — calendar-event.ts 주석), 같은 요일 문턱 3번도 '2번이면 우연이 너무
+ * 걸린다'는 어림이다(outing.ts 주석). 그래서 실제 일정 이름에 그 낱말이 얼마나 들고, 짐작이 실제로 몇 사람에게 서는지를 센다.
+ *
+ * 일정 이름(CalendarEvent.title)은 낱말이 들었는지 보려고 메모리에만 올리고 찍지 않는다 — 원문은 물론 사용자 · 날짜도 같이 내지 않고
+ * 낱말별 수만 낸다. 메모(memo)는 읽지 않는다.
+ */
+
+/** 아직 안 넣은 후보 낱말 — 넣으면 새로 등판으로 읽힐 이름이 몇인지 미리 센다(사용자 결정 전) */
+const CANDIDATE_TITLE_WORDS = ['시합', '대회'] as const;
+/** 알고 둔 오탐 — 땅이름의 '경기'. 걸려도 그날을 가볍게 할 뿐이지만 실제로 몇 줄인지 본다 */
+const KNOWN_FALSE_TITLE_WORDS = ['경기도'] as const;
+/** 일정 · 경기 기록이 이 수를 넘으면 메모리에 올리는 셈을 건너뛴다(1분 안에 끝내려고) */
+const CALENDAR_LOAD_LIMIT = 50000;
+/** 같은 요일 짐작을 날마다 다시 세 보는 기간 — ② 의 '최근 120일'과 같은 창 */
+const ESTIMATE_REPLAY_DAYS = 120;
+/** 문턱을 하나 낮추면 몇 사람에게 더 서나 — outing.ts 의 '2번이면 격주 경기도 잡지만 우연이 너무 걸린다'를 숫자로 본다 */
+const LOOSER_MIN_GAMES = ESTIMATE_MIN_GAMES - 1;
+/** 경기 기록의 거름 — facts.ts gameDatesOf 와 같다(종류 '경기' · 1구 이상) */
+const GAME_WHERE = { sessionType: '경기', pitchCount: { gt: 0 } };
+const WEEKDAY_NAMES = ['일', '월', '화', '수', '목', '금', '토'];
+
+/** 'YYYY-MM-DD' 의 요일 — 0 일요일 ~ 6 토요일. UTC 자정으로 읽어 시간대를 안 탄다(outing.ts 의 날 번호 셈과 같은 값) */
+function weekdayOfKey(key: string): number {
+  return new Date(`${key}T00:00:00.000Z`).getUTCDay();
+}
+
+/**
+ * asOf 기준 최근 ESTIMATE_LOOKBACK_DAYS 일(어제 ~ 그 날수 전)의 경기 날을 요일마다 센다 — outing.ts sameWeekdayGuesses 와 같은 창.
+ * 그 함수는 내보내지 않으니 여기서 다시 세되, 문턱이 ESTIMATE_MIN_GAMES 일 때는 앱 함수(outingGuessInputsOf)와 답이 같은지 늘 견준다
+ * (어긋나면 던진다 — 통계가 앱과 다른 규칙을 재지 않게). 문턱을 낮춘 셈은 앱에 없는 규칙이라 여기서만 센다.
+ */
+function weekdayCounts(dates: ReadonlySet<string>, asOf: string): number[] {
+  const counts = [0, 0, 0, 0, 0, 0, 0];
+  for (let ago = 1; ago <= ESTIMATE_LOOKBACK_DAYS; ago++) {
+    const key = shiftDateKey(asOf, -ago);
+    if (dates.has(key)) counts[weekdayOfKey(key)] += 1;
+  }
+  return counts;
+}
+
+/** 짐작이 서는 가장 가까운 날(asOf 0 ~ 6일 뒤), 없으면 null — outing.ts guessOf 의 같은 요일 갈래(달력 없음 · 오늘부터) */
+function nearestGuess(counts: number[], asOf: string, minGames: number): number | null {
+  for (let d = 0; d < 7; d++) {
+    if (counts[weekdayOfKey(shiftDateKey(asOf, d))] >= minGames) return d;
+  }
+  return null;
+}
+
+/**
+ * 앱 규칙으로 본 같은 요일 짐작의 가장 가까운 날 — outingGuessInputsOf 가 읽는 칸 셋(asOf · 달력 · 경기 날짜)만 채운 facts 를 넘긴다.
+ * 달력은 null 이라 같은 요일 갈래만 나온다.
+ */
+function appNearestGuess(dates: ReadonlySet<string>, asOf: string): number | null {
+  const facts = {
+    asOf,
+    condition: { outingCalendar: null },
+    patterns: { gameDates: [...dates] },
+  } as unknown as ReportFacts;
+  return outingGuessInputsOf(facts)?.estimate[0] ?? null;
+}
+
+/** 일정 줄을 이름 조건으로 센다 — 줄 · 사용자, 그리고 오늘부터 OUTING_CALENDAR_DAYS 일 안(gather.ts 가 읽는 창 — 오늘 짐작의 재료) */
+function tallyTitles(
+  events: { userId: string; date: Date; title: string }[],
+  match: (title: string) => boolean
+): number[] {
+  const windowEnd = shiftDateKey(TODAY_KEY, OUTING_CALENDAR_DAYS);
+  const users = new Set<string>();
+  const windowUsers = new Set<string>();
+  let rows = 0;
+  let windowRows = 0;
+  for (const e of events) {
+    if (!match(e.title)) continue;
+    rows += 1;
+    users.add(e.userId);
+    const key = keyOf(e.date);
+    if (key >= TODAY_KEY && key <= windowEnd) {
+      windowRows += 1;
+      windowUsers.add(e.userId);
+    }
+  }
+  return [rows, users.size, windowRows, windowUsers.size];
+}
+
+async function sectionCalendar() {
+  heading(
+    `⑦ 달력 · 같은 요일 — 다음 등판 짐작의 재료(2판 P4): 일정 이름에 ${OUTING_TITLE_WORDS.join(' · ')} 하나 이상이고 ${OUTING_TITLE_EXCLUDE_WORDS.join(' · ')} 없음, 또는 최근 ${ESTIMATE_LOOKBACK_DAYS}일 같은 요일 경기 ${ESTIMATE_MIN_GAMES}번 이상`
+  );
+  const [eventCount, gameCount] = await Promise.all([
+    prisma.calendarEvent.count(),
+    prisma.pitchLog.count({ where: GAME_WHERE }),
+  ]);
+
+  if (eventCount > CALENDAR_LOAD_LIMIT) {
+    table(
+      ['일정 이름', '수'],
+      [['(건너뜀)', `일정이 ${CALENDAR_LOAD_LIMIT}줄을 넘어 낱말 표를 안 만든다`]]
+    );
+  } else {
+    const events = await prisma.calendarEvent.findMany({
+      select: { userId: true, date: true, title: true },
+    });
+    const has = (w: string) => (t: string) => t.includes(w);
+    const excluded = (t: string) =>
+      OUTING_TITLE_EXCLUDE_WORDS.some((x) => t.includes(x));
+    const outingWord = (t: string) => OUTING_TITLE_WORDS.some((w) => t.includes(w));
+    table(
+      [
+        '일정 이름',
+        '일정 줄',
+        '사용자',
+        `오늘 ~ ${OUTING_CALENDAR_DAYS}일 뒤 줄`,
+        `오늘 ~ ${OUTING_CALENDAR_DAYS}일 뒤 사용자`,
+      ],
+      [
+        ['일정(CalendarEvent) 전체', ...tallyTitles(events, () => true)],
+        [
+          '등판으로 읽히는 이름(isOutingTitle — 등판 낱말 하나 이상 · 빼는 낱말 없음)',
+          ...tallyTitles(events, isOutingTitle),
+        ],
+        ...OUTING_TITLE_WORDS.map((w) => [
+          `  이름에 등판 낱말 '${w}' 있음`,
+          ...tallyTitles(events, has(w)),
+        ]),
+        ...OUTING_TITLE_EXCLUDE_WORDS.flatMap((w) => [
+          [`이름에 빼는 낱말 '${w}' 있음`, ...tallyTitles(events, has(w))],
+          [
+            '  그중 등판 낱말도 든 것(이 낱말이 막은 몫)',
+            ...tallyTitles(events, (t) => t.includes(w) && outingWord(t)),
+          ],
+        ]),
+        ...CANDIDATE_TITLE_WORDS.flatMap((w) => [
+          [
+            `이름에 후보 낱말 '${w}' 있음(아직 안 넣음)`,
+            ...tallyTitles(events, has(w)),
+          ],
+          [
+            '  그중 넣으면 새로 등판으로 읽힐 것(지금 안 읽힘 · 빼는 낱말 없음)',
+            ...tallyTitles(
+              events,
+              (t) => t.includes(w) && !isOutingTitle(t) && !excluded(t)
+            ),
+          ],
+        ]),
+        ...KNOWN_FALSE_TITLE_WORDS.map((w) => [
+          `이름에 '${w}' 있음(알고 둔 오탐) · 등판으로 읽힘`,
+          ...tallyTitles(events, (t) => t.includes(w) && isOutingTitle(t)),
+        ]),
+      ]
+    );
+  }
+
+  /*
+   * 같은 요일 짐작 — 경기 기록(facts.ts 와 같은 거름)을 사용자마다 날짜 집합으로 모아, 요일 집중 · 오늘 짐작이 서는 사람 · 최근 120일
+   * 날마다 다시 셌을 때 짐작이 선 날과 그 짐작이 맞았는지를 본다. 체크인 답과 상관없이 센다 — 답이 범위를 주면 앱은 짐작하지 않으니
+   * '짐작이 선 날'은 상한이다. 달력이 있으면 앱은 같은 요일을 안 보지만 여기서는 같은 요일 갈래만 따로 잰다.
+   */
+  if (gameCount > CALENDAR_LOAD_LIMIT) {
+    table(
+      ['같은 요일 짐작', '수'],
+      [['(건너뜀)', `경기 기록이 ${CALENDAR_LOAD_LIMIT}줄을 넘어 요일 표를 안 만든다`]]
+    );
+    return;
+  }
+  const games = await prisma.pitchLog.findMany({
+    where: GAME_WHERE,
+    select: { userId: true, date: true },
+  });
+  const datesByUser = new Map<string, Set<string>>();
+  for (const g of games) {
+    const set = datesByUser.get(g.userId) ?? new Set<string>();
+    set.add(keyOf(g.date));
+    datesByUser.set(g.userId, set);
+  }
+
+  /* 요일 집중(전체 기간) — 경기 날이 문턱만큼 있는 사람 중 한 요일에 절반 이상 몰린 사람 */
+  const weekdayDays = [0, 0, 0, 0, 0, 0, 0];
+  let gameDays = 0;
+  let manyGames = 0;
+  let concentrated = 0;
+  for (const dates of datesByUser.values()) {
+    const byWeekday = [0, 0, 0, 0, 0, 0, 0];
+    for (const key of dates) byWeekday[weekdayOfKey(key)] += 1;
+    for (let w = 0; w < 7; w++) weekdayDays[w] += byWeekday[w];
+    gameDays += dates.size;
+    if (dates.size >= ESTIMATE_MIN_GAMES) {
+      manyGames += 1;
+      if (maxOf(byWeekday) * 2 >= dates.size) concentrated += 1;
+    }
+  }
+
+  /*
+   * 오늘 기준(최근 ESTIMATE_LOOKBACK_DAYS 일 경기가 있는 사람 · 짐작이 서는 사람)과 최근 ESTIMATE_REPLAY_DAYS 일 날마다 다시 센 것(짐작이
+   * 선 사용자-날 · 짐작한 날이 지났으면 그날 실제 경기가 있었나). 문턱은 앱 그대로와 하나 낮춘 것 둘.
+   */
+  let recentGameUsers = 0;
+  let guessToday = 0;
+  let guessTodayLoose = 0;
+  const replayStart = recentSinceKey(ESTIMATE_REPLAY_DAYS);
+  const replayOf = (minGames: number) => ({
+    minGames,
+    users: 0,
+    days: 0,
+    judged: 0,
+    hit: 0,
+  });
+  const strict = replayOf(ESTIMATE_MIN_GAMES);
+  const loose = replayOf(LOOSER_MIN_GAMES);
+  for (const dates of datesByUser.values()) {
+    const countsToday = weekdayCounts(dates, TODAY_KEY);
+    if (countsToday.some((n) => n > 0)) recentGameUsers += 1;
+    if (nearestGuess(countsToday, TODAY_KEY, ESTIMATE_MIN_GAMES) != null)
+      guessToday += 1;
+    if (nearestGuess(countsToday, TODAY_KEY, LOOSER_MIN_GAMES) != null)
+      guessTodayLoose += 1;
+
+    const daysBefore = [strict.days, loose.days];
+    for (let day = replayStart; day <= TODAY_KEY; day = shiftDateKey(day, 1)) {
+      const counts = weekdayCounts(dates, day);
+      const app = appNearestGuess(dates, day);
+      for (const r of [strict, loose]) {
+        const d = nearestGuess(counts, day, r.minGames);
+        if (r === strict && d !== app)
+          throw new Error(
+            `⑦ 같은 요일 짐작이 앱 규칙(outingGuessInputsOf)과 다르다: ${day} 여기 ${d} · 앱 ${app}`
+          );
+        if (d == null) continue;
+        r.days += 1;
+        const target = shiftDateKey(day, d);
+        /* 오늘 이후는 아직 던졌는지 모른다 — 맞았나는 지난 날만 본다 */
+        if (target < TODAY_KEY) {
+          r.judged += 1;
+          if (dates.has(target)) r.hit += 1;
+        }
+      }
+    }
+    if (strict.days > daysBefore[0]) strict.users += 1;
+    if (loose.days > daysBefore[1]) loose.users += 1;
+  }
+  const userDays = datesByUser.size * ESTIMATE_REPLAY_DAYS;
+  const replayRows = (r: typeof strict, label: string): (string | number)[][] => [
+    [
+      `${label}: 짐작이 선 사용자 · 사용자-날 / 경기 기록이 있는 사용자 × ${ESTIMATE_REPLAY_DAYS}일`,
+      `${r.users} · ${withPct(r.days, userDays)}`,
+    ],
+    [
+      '  그중 짐작한 날이 지난 날인 것 · 그날 실제 경기가 있었던 것',
+      `${r.judged} · ${withPct(r.hit, r.judged)}`,
+    ],
+  ];
+  table(
+    ['같은 요일 짐작(경기 기록 — 종류 경기 · 1구 이상)', '수'],
+    [
+      [
+        '경기 기록 줄 · 경기 날(사람 · 날짜 한 번) · 사용자',
+        `${games.length} · ${gameDays} · ${datesByUser.size}`,
+      ],
+      [
+        '  요일별 경기 날(전체 기간)',
+        WEEKDAY_NAMES.map((name, w) => `${name} ${weekdayDays[w]}`).join(' · '),
+      ],
+      [
+        `경기 날 ${ESTIMATE_MIN_GAMES}일 이상인 사용자 · 그중 한 요일에 절반 이상 몰린 사람(요일 집중, 전체 기간)`,
+        `${manyGames} · ${concentrated}`,
+      ],
+      [
+        `오늘 기준 최근 ${ESTIMATE_LOOKBACK_DAYS}일 경기가 있는 사용자 · 같은 요일 ${ESTIMATE_MIN_GAMES}번 이상(오늘 짐작이 섬) · ${LOOSER_MIN_GAMES}번 이상으로 낮추면`,
+        `${recentGameUsers} · ${guessToday} · ${guessTodayLoose}`,
+      ],
+      ...replayRows(
+        strict,
+        `${recentLabel(ESTIMATE_REPLAY_DAYS)} 날마다, 문턱 ${ESTIMATE_MIN_GAMES}번`
+      ),
+      ...replayRows(loose, `  같은 기간, 문턱 ${LOOSER_MIN_GAMES}번으로 낮추면`),
+    ]
+  );
+}
+
 /* ─────────────────────────── 실행 ─────────────────────────── */
 
 console.log(`# 트레이닝 추천 — DB 사용 통계(읽기만) · ${TODAY_KEY}\n`);
@@ -986,6 +1514,7 @@ try {
   await sectionAge();
   await sectionLibrary();
   await sectionFeedback(setups, sessions, pairing);
+  await sectionCalendar();
 } finally {
   await prisma.$disconnect();
 }

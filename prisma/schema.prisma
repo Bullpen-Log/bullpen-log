@@ -409,8 +409,8 @@ model DailyCheckin {
   skippedMeals String[] @default([])
   /// 식욕 1(거의 없음)~5(왕성). 영양 가이드가 쓴다 — 입맛이 없는 날은 적게 자주 먹게 권한다.
   appetite     Int?
-  /// 던지는 일정: 오늘 등판 / 오늘 불펜 / 내일 등판 / 없음 (lib/checkin.ts THROW_PLANS).
-  /// 영양 가이드가 탄수화물을 언제 늘릴지 정한다 — 투구 기록은 던진 뒤에야 생긴다.
+  /// 던지는 일정: 오늘 등판 / 오늘 불펜 / 내일 등판 / 2~3일 뒤 / 4일 이상 뒤 / 없음 (lib/checkin.ts THROW_PLANS — 2026-10-12 여섯으로, 옛 넷 글자 그대로).
+  /// 매일 운동 계획(theme.ts plannedOuting) · 근력 프로그램(program/load.ts) · 영양 가이드가 읽는다 — 투구 기록은 던진 뒤에야 생긴다.
   throwPlan    String?
   /// 그날 남기고 싶은 말
   note         String? @db.Text
@@ -584,7 +584,10 @@ model PitchLog {
   /// 불펜 / 라이브 / 경기 / 캐치볼. 같은 투구수라도 성격이 달라 나눠 본다.
   sessionType String   @default("불펜")
   pitchCount  Int
+  /// 던진 강도 1(가볍게) ~ 10(전력). 2026-10-12 부터 입력은 effortPct(체감 %)로 받고 이 칸엔 max(1, round(pct/10)) 를 같이 쓴다 — 옛 읽는 곳이 그대로 돌게.
   intensity   Int
+  /// 체감 강도 0~100%(5 단위). 2026-10-12 트레이닝 추천 2판 D2 — '세게 던진 날' = 투구수 × 체감 강도. 옛 기록은 null(읽을 땐 intensity×10).
+  effortPct   Int?
   /// 최고·평균 구속(km/h). 둘 다 없어도 된다.
   ///
   /// 스피드건이 없는 선수가 훨씬 많다. 구속을 필수로 두면 그 선수들은 기록

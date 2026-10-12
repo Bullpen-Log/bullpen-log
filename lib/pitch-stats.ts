@@ -9,11 +9,79 @@ export type PitchLogLike = {
   /** 불펜 / 라이브 / 경기 / 캐치볼 / 휴식. 경기는 전력으로 본다(stressFactor) */
   sessionType?: string;
   pitchCount: number;
+  /** 체감 강도 1~10(쉰 날 0). effortPct 를 적은 기록은 저장할 때 effortToIntensity 로 같이 채운다 */
   intensity: number;
+  /**
+   * 체감 강도 5~100%(5% 단위, 2판 D2 — PitchLog.effortPct). 칸이 생기기 전 기록 · 쉰 날은 null 이고, 칸이 아예 없는 값
+   * (옛 호출자 · 자체 시험이 손으로 만든 기록)도 받는다(선택 칸). 계산은 effortPctOf · intensityOf 둘로만 읽는다 —
+   * log.effortPct 나 log.intensity 를 직접 읽으면 두 눈금이 섞인다.
+   */
+  effortPct?: number | null;
   /** 스피드건이 없어 안 적은 기록은 null */
   maxVelocity: number | null;
   avgVelocity: number | null;
 };
+
+/* ------------------------------------------------------------------ *
+ * 체감 강도 — 1~10 칸과 0~100% 칸(2판 D2, 2026-10-12)
+ *
+ * 투구 강도를 1~10 정수로 받다가 0~100%(5% 단위)로 받게 바꿨다. 1~10 은 칸 사이가 넓어 85% 같은 값을 못 적고,
+ * 운영 기록의 3분의 2가 기본값 5 에 머물렀다(설계 문서 docs/designs/training-recommendation-engine.md ②).
+ *
+ * 저장은 둘 다 한다(effortPct + intensity = effortToIntensity(effortPct)). 그래야 1~10 을 읽는 옛 코드(화면 표시 ·
+ * 가입 문진의 기준 부하 · 상대방 컴퓨터의 옛 클라이언트)가 그대로 돈다. 계산은 아래 두 함수로만 읽는다.
+ *   effortPctOf  % 눈금 — 세게 던진 날(투구수 × 체감 강도, outingLoadOf → lib/report/facts.ts HARD_OUTING_MIN_LOAD)
+ *   intensityOf  1~10 눈금(실수) — 부하 지수 · 휴식표의 전력 환산 · 이틀 피로 창. 옛 기록(effortPct 없음)은 intensity
+ *                그대로라 그 값들이 한 글자도 안 바뀐다. 새 기록만 8.5 같은 실수가 나온다.
+ * 옛 줄을 UPDATE 로 ×10 채우지 않는 까닭: null 이 '사용자가 % 로 고른 적 없음'이라는 뜻을 지킨다.
+ * ------------------------------------------------------------------ */
+
+/** 체감 강도 입력 눈금 — 5% 단위, 5~100%. 0~4 는 받지 않는다(0 은 '안 던진 날'과 헷갈리고 stressFactor 가 0 으로 읽는다) */
+export const EFFORT_STEP = 5;
+export const MIN_EFFORT_PCT = 5;
+export const MAX_EFFORT_PCT = 100;
+
+type EffortLike = { intensity: number; effortPct?: number | null };
+
+/**
+ * 체감 강도(%)를 옛 1~10 칸으로 — 저장할 때 effortPct 와 같이 쓴다. 반올림(JS Math.round 는 .5 를 올린다: 5 → 1 · 85 → 9 ·
+ * 95 → 10)하고 1~10 으로 묶는다. 쉰 날(0)은 이 함수를 거치지 않는다 — 부르는 쪽이 intensity 0 · effortPct null 로 둔다.
+ */
+export function effortToIntensity(pct: number): number {
+  return Math.min(10, Math.max(1, Math.round(pct / 10)));
+}
+
+/**
+ * 믿을 수 있는 effortPct — 같은 줄의 intensity 가 그 % 를 1~10 으로 내린 값(effortToIntensity)과 맞을 때만. 아니면 null.
+ *
+ * 왜 맞춰 보는가: 개발 DB 가 운영 DB 와 하나라, 이 칸을 모르는 옛 코드(상대방이 아직 받기 전의 개발 서버 · Vercel 되돌리기 ·
+ * 옛 가지의 미리보기 빌드)가 같은 줄을 고칠 수 있다. 옛 고치기는 intensity · 종류만 쓰고 effortPct 는 그대로 둔다. 그래서
+ * 85% 기록을 옛 코드가 휴식(intensity 0)이나 강도 6 으로 바꾸면 낡은 85 가 남는데, 그것을 믿으면 쉰 날이 85% 로, 6 으로 고친
+ * 날이 85% 로 읽힌다. 새 코드는 늘 두 칸을 같이 쓰니(lib/pitch-effort.ts effortFields · effortUpdate) 새 기록은 언제나 맞는다.
+ * 어긋난 줄은 옛 칸(intensity)이 더 최근 값이라 그쪽을 믿는다.
+ */
+export function trustedEffortPct(log: EffortLike): number | null {
+  const pct = log.effortPct;
+  if (pct == null || log.intensity < 1) return null;
+  return effortToIntensity(pct) === log.intensity ? pct : null;
+}
+
+/**
+ * 이 기록의 체감 강도(%) — 믿을 수 있는 effortPct(trustedEffortPct)가 있으면 그것, 아니면(옛 기록 · 옛 코드가 고친 줄)
+ * intensity × 10. 쉰 날은 0
+ */
+export function effortPctOf(log: EffortLike): number {
+  return trustedEffortPct(log) ?? log.intensity * 10;
+}
+
+/**
+ * 1~10 눈금의 강도(실수) — 부하 지수 · 전력 환산 · 이틀 피로 창이 쓰는 눈금. 옛 기록은 intensity 를 그대로 돌려준다
+ * (×10 ÷ 10 을 거치지 않아 소수 오차도 없다). 85% 는 8.5. effortPct 는 trustedEffortPct 로만 읽는다.
+ */
+export function intensityOf(log: EffortLike): number {
+  const pct = trustedEffortPct(log);
+  return pct != null ? pct / 10 : log.intensity;
+}
 
 /**
  * 이 서비스가 날짜를 세는 기준 시간대.
@@ -96,7 +164,7 @@ export type DayTotals = {
   dateKey: string;
   pitchCount: number;
   /**
-   * 그날의 체감 강도(1~10). 여러 번 던진 날은 투구수로 가중평균을 낸다.
+   * 그날의 체감 강도(1~10 실수 — intensityOf, 85% 로 적은 기록은 8.5). 여러 번 던진 날은 투구수로 가중평균을 낸다.
    *
    * 예전에는 그냥 더했다. 그래서 30구를 강도 7로 두 번 나눠 적으면 강도가
    * 14가 됐고, 부하(투구수 × 강도)가 420이 아니라 840으로 잡혔다. 같은 60구를
@@ -138,23 +206,20 @@ export function groupByDay(logs: PitchLogLike[]): Map<string, DayTotals> {
     const hasAvg = log.avgVelocity != null;
     const weightedSum = hasAvg ? log.avgVelocity! * log.pitchCount : 0;
     const weight = hasAvg ? log.pitchCount : 0;
-    // 강도의 가중평균을 내려면 (강도 × 투구수)의 합이 필요하다.
-    const intensitySum = log.intensity * log.pitchCount;
+    // 강도의 가중평균을 내려면 (강도 × 투구수)의 합이 필요하다. 강도는 intensityOf 하나로 읽는다(옛 기록은 intensity 그대로).
+    const intensity = intensityOf(log);
+    const intensitySum = intensity * log.pitchCount;
     /*
      * 전력 환산은 세션마다 따로 내서 더한다. 하루 평균 강도로 한 번에 내면
      * 불펜 40구(강도 8)와 캐치볼 40구(강도 2)를 강도 5짜리 80구로 뭉개게 된다.
      */
-    const adjusted = effortAdjustedPitches(
-      log.pitchCount,
-      log.intensity,
-      log.sessionType
-    );
+    const adjusted = effortAdjustedPitches(log.pitchCount, intensity, log.sessionType);
 
     if (!prev) {
       acc.set(key, {
         dateKey: key,
         pitchCount: log.pitchCount,
-        intensity: log.intensity,
+        intensity,
         intensitySum,
         adjustedPitches: adjusted,
         maxVelocity: log.maxVelocity,
@@ -174,7 +239,7 @@ export function groupByDay(logs: PitchLogLike[]): Map<string, DayTotals> {
       dateKey: key,
       pitchCount,
       // 투구수로 가중한 평균. 이렇게 두면 투구수 × 강도가 세션별 부하의 합과 같다.
-      intensity: pitchCount > 0 ? totalIntensity / pitchCount : log.intensity,
+      intensity: pitchCount > 0 ? totalIntensity / pitchCount : intensity,
       intensitySum: totalIntensity,
       adjustedPitches: prev.adjustedPitches + adjusted,
       // 둘 다 없을 수 있으므로 있는 것만 견준다. 없으면 그대로 null 로 둔다.
@@ -300,7 +365,8 @@ export type SessionTypeLoad = {
   share: number;
 };
 
-type LoadLog = SessionLog & { intensity: number };
+/* effortPct 는 선택 칸 — 옛 호출자(분석 화면이 넘기는 줄)가 그대로 맞는다. 강도는 intensityOf 로 읽는다 */
+type LoadLog = SessionLog & EffortLike;
 
 /**
  * 기간 안의 부하를 종류별로 나눈다.
@@ -321,7 +387,7 @@ export function loadBySessionType(
 
   for (const log of logs) {
     if (!within.has(log.date.slice(0, 10))) continue;
-    const load = log.pitchCount * log.intensity;
+    const load = log.pitchCount * intensityOf(log);
     if (load <= 0) continue;
     byType.set(log.sessionType, (byType.get(log.sessionType) ?? 0) + load);
     total += load;
@@ -510,19 +576,24 @@ export function buildReportFindings({
 }): ReportFinding[] {
   const findings: ReportFinding[] = [];
   const label = `최근 ${days}일`;
+  /*
+   * 글의 문턱은 입력과 같은 체감 강도 % 로(2판 D2) — 계산은 1~10 의 합(TWO_DAY_INTENSITY_LIMIT 10)이고 보일 때만 × 10.
+   * lib/pitch-effort.ts scaleToEffortPct 와 같은 셈인데, 그 파일이 이 파일을 읽어 여기서는 부르지 않는다(돌고 도는 import).
+   */
+  const twoDayPct = `${TWO_DAY_INTENSITY_LIMIT * 10}%`;
 
   // 1) 이틀 연속 부하
   if (fatigueCount > 0) {
     findings.push({
       tone: 'warn',
       title: '이틀 연속 부하가 높았던 구간이 있어요',
-      detail: `${label} 동안 ${fatigueCount}번 나왔어요. 이어진 이틀의 강도 합이 ${TWO_DAY_INTENSITY_LIMIT}을 넘으면 어깨 · 팔꿈치에 피로가 쌓여요. 다음 날은 강도를 낮추거나 쉬세요.`,
+      detail: `${label} 동안 ${fatigueCount}번 나왔어요. 이어진 이틀의 체감 강도 합이 ${twoDayPct}를 넘으면 어깨 · 팔꿈치에 피로가 쌓여요. 다음 날은 강도를 낮추거나 쉬세요.`,
     });
   } else if (current.activeDays > 0) {
     findings.push({
       tone: 'good',
       title: '이틀 연속 무리한 날이 없어요',
-      detail: `${label} 동안 이틀 강도 합이 ${TWO_DAY_INTENSITY_LIMIT}을 넘은 적이 없어요.`,
+      detail: `${label} 동안 이틀 체감 강도 합이 ${twoDayPct}를 넘은 적이 없어요.`,
     });
   }
 
@@ -783,6 +854,18 @@ export function stressFactor(intensity: number, sessionType?: string): number {
   const rounded = Math.round(intensity);
   if (rounded <= 0) return 0; // 안 던진 날
   return INTENSITY_STRESS_FACTOR[Math.min(10, rounded)] ?? MIN_STRESS_FACTOR;
+}
+
+/**
+ * 세게 던진 날을 가리는 몫 — 투구수 × 체감 강도(%). 경기는 체감과 상관없이 100%(stressFactor 와 같은 판단: 경기는 던질
+ * 양도 강도도 내가 못 정하고, 체감이 실제 부하보다 낮게 나온다). 단위는 '%·구' — 30구 × 90% = 2,700.
+ * 날마다 더해 lib/report/facts.ts 의 HARD_OUTING_MIN_LOAD 와 견준다. 쉰 날 · 0구는 0.
+ */
+export function outingLoadOf(
+  log: EffortLike & { pitchCount: number; sessionType?: string }
+): number {
+  if (log.pitchCount <= 0) return 0;
+  return log.pitchCount * (log.sessionType === '경기' ? 100 : effortPctOf(log));
 }
 
 /** 한 세션을 '전력으로 던졌다면 몇 구에 해당하는가'로 바꾼다. */

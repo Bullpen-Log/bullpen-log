@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { ArrowDownRight, ArrowUpRight, ChevronDown, Minus } from 'lucide-react';
 import { ACWR_ZONES, ACWR_ZONE_ORDER, type AcwrZone } from '@/lib/pitch-stats';
+import { scaleToEffortPct } from '@/lib/pitch-effort';
 
 /*
  * 상태 색과 칩은 components/tone.tsx 로 옮겼다. 홈에서도 부하 상태를 보여주게
@@ -343,7 +344,8 @@ export function MetricHelp({
     },
     {
       title: '마지막 투구',
-      body: `마지막 기록 뒤로 며칠 지났는지예요. "이틀 연속 과부하"는 이어진 이틀의 강도 합이 ${twoDayLimit}을 넘은 때, "연투"는 최근 4주에서 쉬지 않고 던진 가장 긴 날 수예요.`,
+      /* twoDayLimit 는 1~10 눈금(TWO_DAY_INTENSITY_LIMIT) — 입력과 같은 % 로 보인다(10 → 100%) */
+      body: `마지막 기록 뒤로 며칠 지났는지예요. "이틀 연속 과부하"는 이어진 이틀의 체감 강도 합이 ${scaleToEffortPct(twoDayLimit)}%를 넘은 때, "연투"는 최근 4주에서 쉬지 않고 던진 가장 긴 날 수예요.`,
     },
     {
       title: '개인 최고 구속',

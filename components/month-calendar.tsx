@@ -3,6 +3,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { ChartLine, ChevronDown, ChevronLeft, ChevronRight, Info } from 'lucide-react';
 import { dateKeyOf, toDateKey } from '@/lib/pitch-stats';
+import { STRONG_EFFORT_PCT, effortBand } from '@/lib/pitch-effort';
 
 /**
  * 한 달 달력.
@@ -20,12 +21,12 @@ const MONTHS = Array.from({ length: 12 }, (_, i) => `${i + 1}월`);
 
 export type DayMark = {
   /**
-   * 칸 색을 정하는 값 1~10.
+   * 칸 색을 정하는 체감 강도 %(5~100 — lib/pitch-effort.ts maxEffortPct, 옛 1~10 기록은 × 10).
    *
    * null 이면 색을 채우지 않고 점선 테두리만 준다 — "남겼는데 강도랄 것이
    * 없는 날"(쉬는 날, 강도를 안 적은 날)이다. 아무것도 안 남긴 날과는 다르다.
    */
-  intensity: number | null;
+  effortPct: number | null;
   /** 칸에 적는 짧은 말 — '20구', '6개', '휴식' */
   label: string;
   /** 오른쪽 위 작은 점 — 영상이나 메모가 있는 날 */
@@ -44,10 +45,17 @@ export type DayCell = {
   isFuture: boolean;
 };
 
-/** 강도에 따라 칸 배경 진하기를 다르게 준다. 투구 기록 캘린더(app/(app)/videos)도 같은 색을 쓴다. */
-export function intensityClass(intensity: number) {
-  if (intensity >= 8) return 'bg-sky/70 text-white';
-  if (intensity >= 5) return 'bg-sky/40 text-ink';
+/**
+ * 체감 강도(%)에 따라 칸 배경 진하기를 다르게 준다. 투구 기록 캘린더(app/(app)/videos)도 같은 색을 쓴다.
+ *
+ * 2026-10-12 이름과 인자를 intensityClass(1~10) 에서 바꿨다(2판 D2). 이름을 그대로 두면 1~10 을 넘기는 곳이
+ * 하나라도 남았을 때 컴파일이 못 잡고 칸이 조용히 옅게 칠해진다. 문턱(lib/pitch-effort.ts effortBand)은 × 10(8 → 80 ·
+ * 5 → 50)이라 옛 기록은 같은 색이다.
+ */
+export function effortClass(effortPct: number) {
+  const band = effortBand(effortPct);
+  if (band === 'strong') return 'bg-sky/70 text-white';
+  if (band === 'mid') return 'bg-sky/40 text-ink';
   return 'bg-sky/15 text-ink';
 }
 
@@ -497,14 +505,14 @@ function DayGrid({
                 ? 'cursor-default border-transparent bg-transparent text-muted/35'
                 : isSelected
                   ? 'border-sky ring-1 ring-sky'
-                  : mark && mark.intensity == null
+                  : mark && mark.effortPct == null
                     ? OUTLINE_CLASS
                     : 'border-transparent hover:border-line-strong'
             } ${
               isFuture
                 ? ''
-                : mark?.intensity != null
-                  ? intensityClass(mark.intensity)
+                : mark?.effortPct != null
+                  ? effortClass(mark.effortPct)
                   : mark
                     ? ''
                     : isAhead
@@ -520,7 +528,7 @@ function DayGrid({
               className={
                 isToday
                   ? `grid h-6 w-6 place-items-center rounded-full text-[13px] font-bold ${
-                      mark?.intensity != null && mark.intensity >= 8
+                      mark?.effortPct != null && mark.effortPct >= STRONG_EFFORT_PCT
                         ? 'bg-surface text-sky'
                         : 'bg-sky text-white'
                     }`

@@ -6,7 +6,8 @@ import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { getCurrentUser } from '@/lib/dal';
 import { toDateKey } from '@/lib/pitch-stats';
-import { readDailyPlan } from '@/lib/report/daily-plan';
+import { readDailyPlan, type DailyPlan } from '@/lib/report/daily-plan';
+import { withSwaps } from '@/lib/report/plan-swaps';
 import { slotForTheme } from '@/lib/report/theme';
 import { readArmcareRoutine } from '@/lib/armcare/routine';
 import { readRoutineItems } from '@/lib/armcare/my-routines';
@@ -35,15 +36,11 @@ async function loadToday(userId: string) {
   return { date, plan: readDailyPlan(setup?.plan) };
 }
 
-async function savePicks(
-  userId: string,
-  date: Date,
-  plan: NonNullable<ReturnType<typeof readDailyPlan>>,
-  picks: NonNullable<ReturnType<typeof readDailyPlan>>['picks']
-) {
+/** 고친 일정을 통째로 저장한다 — picks 와 함께 뺀 기록(swaps)도 같은 줄에 실리게(P2) */
+async function savePlan(userId: string, date: Date, next: DailyPlan) {
   await prisma.dailyTrainingSetup.update({
     where: { userId_date: { userId, date } },
-    data: { plan: { ...plan, picks } as unknown as Prisma.InputJsonValue },
+    data: { plan: next as unknown as Prisma.InputJsonValue },
   });
   revalidatePath('/training');
   revalidatePath('/today');
@@ -108,7 +105,25 @@ export async function removeFromTodayPlan(exerciseId: string): Promise<Result> {
       where: { userId: user.id, date, exerciseId },
     });
   }
-  await savePicks(user.id, date, plan, picks);
+  /*
+   * 뺐다는 사실은 일정의 swaps 에 남긴다(P2, lib/report/plan-swaps.ts) — 다음 추천이 '두 번 이상 뺀 운동'을 뒤로 민다.
+   * 같은 날 같은 운동을 다시 더해도(addToTodayPlan) 이 줄은 지우지 않는다 — 마음을 바꿨어도 한 번은 거절한 것이다.
+   */
+  const removed = plan.picks.find((p) => p.exerciseId === exerciseId);
+  await savePlan(
+    user.id,
+    date,
+    withSwaps({ ...plan, picks }, [
+      {
+        from: exerciseId,
+        to: null,
+        kind: 'remove',
+        where: 'plan',
+        ...(removed ? { slot: removed.slot } : {}),
+        at: appNow().toISOString(),
+      },
+    ])
+  );
   return { ok: true };
 }
 
@@ -140,9 +155,9 @@ export async function addToTodayPlan(exerciseId: string): Promise<Result> {
    * 되어, 위에서 아래로 따라 하는 순서가 뜻을 잃는다.
    */
   const slot = slotForTheme(exercise, plan.theme.key);
-  await savePicks(user.id, date, plan, [
-    ...plan.picks,
-    { exerciseId, slot, manual: true },
-  ]);
+  await savePlan(user.id, date, {
+    ...plan,
+    picks: [...plan.picks, { exerciseId, slot, manual: true }],
+  });
   return { ok: true };
 }

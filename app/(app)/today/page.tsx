@@ -27,9 +27,7 @@ import { NutritionCard } from './nutrition-card';
 import { FirstDayCard } from './first-day-card';
 import { RateCard } from './rate-card';
 import { GoodDayNote } from './good-day-note';
-
-/** 오늘 던지는 날이라고 고른 체크인 '던지는 일정'(lib/checkin.ts THROW_PLANS) */
-const PRE_THROW_PLANS: readonly string[] = ['오늘 등판', '오늘 불펜'];
+import { todayOutingRole } from '@/lib/checkin';
 import { Highlights } from './highlights';
 import { HomeTitleArt } from './home-title';
 import { loadPitchHistory, readDateParam } from './history';
@@ -234,16 +232,33 @@ async function PlanLine({ user }: { user: User }) {
   );
 }
 
-/** '오늘 35~45구까지' · '강도 5~7' / '오늘은 쉬어요' · 까닭 */
+/** '오늘 35~45구까지' · '강도 50~70%' / '오늘은 쉬어요' · 까닭 / '오늘 등판' · '양은 경기가 정해요 · 하루 95구까지' */
 function planLine(plan: PitchPlan): { main: string; sub: string } | null {
   const day = plan.threwToday ? plan.tomorrow : plan.today;
   if (!day) return null;
   const when = plan.threwToday ? '내일' : '오늘';
+  /* 쉬는 날은 까닭을 그대로 — 큰 등판 다음 날의 등판 날('오늘 등판은 권하지 않아요')도 여기다 */
   if (!day.throwing) return { main: `${when}은 쉬어요`, sub: day.reason };
   const range = pitchRangeText(day);
+  const upTo = range.endsWith('이하') ? range : `${range}까지`;
+  /*
+   * 등판 날(2판 P3, lib/report/plan.ts DayPlan.outing). 여파 · 최근 통증으로 가벼운 범위가 남은 날은 그 범위와 까닭(경고)을
+   * 그대로 보인다 — 고정 글로 덮으면 '등판해도 이 양 안에서'가 홈에서 사라진다. 그 밖에는 양은 경기가 정하고 나이 한도만 붙인다.
+   */
+  if (day.outing === 'game') {
+    if (day.minPitches != null)
+      return { main: `${when} 등판 ${upTo}`, sub: day.reason };
+    return {
+      main: `${when} 등판`,
+      sub:
+        day.maxPitches != null
+          ? `양은 경기가 정해요 · 하루 ${day.maxPitches}구까지`
+          : '양은 경기가 정해요',
+    };
+  }
   if (!range) return null;
   return {
-    main: `${when} ${range.endsWith('이하') ? range : `${range}까지`}${day.recovery ? ' 가볍게' : ''}`,
+    main: `${when} ${upTo}${day.recovery ? ' 가볍게' : ''}`,
     sub: intensityRangeText(day),
   };
 }
@@ -277,7 +292,7 @@ async function TodayBody({
       }),
       prisma.dailyCheckin.findMany({
         where: { userId: user.id, date: { gte: dbDate(shiftDateKey(today, -61)) } },
-        select: { date: true, condition: true, throwPlan: true },
+        select: { date: true, condition: true },
       }),
       prisma.userExerciseLog.findMany({
         where: {
@@ -336,12 +351,15 @@ async function TodayBody({
       velocityByDay[key] = Math.max(velocityByDay[key] ?? 0, l.maxVelocity);
   }
   /*
-   * 잘 던진 날 메모는 오늘 던지기 전에만 — 체크인 '던지는 일정'이 오늘 등판 · 오늘 불펜이고 오늘 투구 기록(쉬는 날 포함)이
-   * 아직 없을 때. 기록을 남기면 그날은 거둔다.
+   * 잘 던진 날 메모는 오늘 던지기 전에만 — 오늘 할 일이 등판 · 불펜이고 오늘 투구 기록(쉬는 날 포함)이 아직 없을 때.
+   * 기록을 남기면 그날은 거둔다. '오늘 등판 · 불펜인가'는 투구 계획 · 매일 일정 · 암케어와 같은 함수(lib/checkin.ts
+   * todayOutingRole)로 같은 facts 의 답을 읽는다 — 글자를 따로 견주면 어제 '내일 등판' + 오늘 답 없음(C4)만 홈에서 빠졌다.
    */
-  const throwsToday = checkins.some(
-    (c) => toDateKey(c.date) === today && PRE_THROW_PLANS.includes(c.throwPlan ?? '')
-  );
+  const throwsToday =
+    todayOutingRole(
+      facts.condition.throwPlanToday,
+      facts.condition.throwPlanYesterday
+    ) != null;
   const loggedToday = logs.some((l) => toDateKey(l.date) === today);
   const goodNote =
     goodDay?.memo && goodDay.satisfaction != null && throwsToday && !loggedToday
@@ -417,13 +435,20 @@ async function TodayBody({
           }
           intensity={plan.today ? intensityRangeText(plan.today) : ''}
           note={
-            plan.recovering
-              ? null
-              : facts.profile.age == null
-                ? '처음이라 낮게 잡았어요. 생년월일을 넣으면 나이에 맞춰요.'
-                : dailyPitchCap(facts.profile.age) == null
-                  ? '처음이라 낮게 잡았어요. 던진 기록이 쌓이면 내 양에 맞춰요.'
-                  : `만 ${facts.profile.age}세 하루 한도 ${dailyPitchCap(facts.profile.age)}구에서, 처음이라 절반쯤으로 잡았어요.`
+            /*
+             * 등판 날은 숫자가 '하루 한도'(성장기 · 나이 모름 — '95구 이하')거나 회복 중의 가벼운 범위다. '처음이라 절반쯤'은
+             * 맞지 않으니 계획의 까닭('하루 한도 95구는 넘기지 않아요' · '등판해도 이 양 안에서')을 그대로 쓴다(2판 P3 검토).
+             * 성인은 한도가 없어 숫자 자체가 없다(range null — 이 줄도 안 보인다).
+             */
+            plan.today?.outing === 'game' && plan.today.throwing
+              ? plan.today.reason
+              : plan.recovering
+                ? null
+                : facts.profile.age == null
+                  ? '처음이라 낮게 잡았어요. 생년월일을 넣으면 나이에 맞춰요.'
+                  : dailyPitchCap(facts.profile.age) == null
+                    ? '처음이라 낮게 잡았어요. 던진 기록이 쌓이면 내 양에 맞춰요.'
+                    : `만 ${facts.profile.age}세 하루 한도 ${dailyPitchCap(facts.profile.age)}구에서, 처음이라 절반쯤으로 잡았어요.`
           }
         />
       )}

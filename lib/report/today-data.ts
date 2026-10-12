@@ -6,12 +6,13 @@ import { selectCandidates } from '@/lib/report/prescription';
 import { equipmentForToday, filterByEquipment } from '@/lib/report/equipment';
 import { filterByLevel } from '@/lib/report/personalize';
 import { readDailyPlan } from '@/lib/report/daily-plan';
+import { stateChangesOf } from '@/lib/report/plan-fingerprint';
 import { readArmcareRoutine } from '@/lib/armcare/routine';
 import { readRoutineItems } from '@/lib/armcare/my-routines';
 import { loadRehabExerciseIds } from '@/lib/armcare/rehab-store';
 import { visibleExercises } from '@/lib/library-cache';
 import { closeAbandonedSessions } from '@/lib/workout/close-stale';
-import { goalPrescription } from '@/lib/report/goal-prescription';
+import { planPrescription } from '@/lib/report/volume';
 import {
   estimateMinutes,
   painRecoveryReason,
@@ -66,7 +67,7 @@ export async function loadTodayCore(user: UserForToday, today: Date) {
    */
   await closeAbandonedSessions(user.id, today);
 
-  const { facts, plan, hasLogs } = await gatherFactsAndPlan(user, today);
+  const { facts, plan, state, hasLogs } = await gatherFactsAndPlan(user, today);
   /*
    * 한 번이라도 투구를 남긴 적이 있나 — hasLogs 는 최근 45일 안만 봐서, 시즌을 쉬다 돌아온 사람에게도 홈의 '여기부터
    * 시작하세요'(처음 온 사람 안내)가 떴다. 최근 기록이 있으면 묻지 않는다.
@@ -157,6 +158,19 @@ export async function loadTodayCore(user: UserForToday, today: Date) {
    */
   const leveled = filterByLevel(usable.pool, user.trainingLevel);
   const picked = selectCandidates({ facts, plan, library: leveled.pool });
+
+  /*
+   * 일정을 만든 뒤 '판단 입력'이 바뀌었는가(P2 일정 지문, lib/report/plan-fingerprint.ts).
+   *
+   * 저장된 일정에 찍힌 지문(만들 때 본 컨디션 · 아픈 부위 · 등판 답 · 마지막 투구 · 부하 구간 · 재활)을 지금 facts 로 다시
+   * 찍은 것과 견준다. 다른 것이 있으면 항목마다 한 줄(해요체)이 돌아간다 — 여기서는 값만 주고, 띄울지는 lib/report/state-notice.ts(2판 P6-6)가 정한다.
+   *
+   * 아래의 안전 재검사와는 독립이다. 그쪽은 저장된 '목록'을 지금 몸 상태로 다시 걸러 운동을 빼는 것이고, 이것은 아무것도
+   * 빼지 않고 '다시 만들면 달라질 수 있다'를 알리는 것이다. 둘이 겹칠 때(아픈 부위만 바뀌어 운동이 빠진 날) 한 줄로 합치는
+   * 규칙은 state-notice.ts stateNoticeOf 가 정한다(onlyPainPartChanges 로 가른다). 멈춘 날(picked.halted)은 멈춤 카드가 다 말하니 비운다.
+   * 지문 없는 옛 일정 · 일정 없음 · 모양 깨진 지문은 '견줄 것 없음'으로 빈 목록이다. facts 만 쓰니 DB 조회는 늘지 않는다.
+   */
+  const stateChanges = picked.halted ? [] : stateChangesOf(savedPlan, facts);
 
   /*
    * 오늘 고른 운동 종류가 몸 상태와 부딪히는가.
@@ -277,8 +291,8 @@ export async function loadTodayCore(user: UserForToday, today: Date) {
     shownPicks.reduce((sum, p) => {
       const ex = byId.get(p.exerciseId);
       if (!ex) return sum;
-      /* 일정을 짤 때와 같은 횟수로 센다(goal-prescription.ts) */
-      return sum + estimateMinutes(goalPrescription(ex, savedPlan?.goal));
+      /* 트레이닝 화면 목록 · 운동 시작과 같은 세트 · 횟수로 센다(처방 한 길 — lib/report/volume.ts planPrescription) */
+      return sum + estimateMinutes(planPrescription(ex, savedPlan));
     }, 0)
   );
 
@@ -287,6 +301,13 @@ export async function loadTodayCore(user: UserForToday, today: Date) {
     midnight,
     facts,
     plan,
+    /**
+     * 오늘 상태 한 장(2판 P3, lib/engine/day-state.ts) — facts · plan 을 한 번 읽어 모은 신호. 2026-10-12 에는 넘기기만 하고 이
+     * 파일의 어떤 판단(안전 거름 · 부딪힘 · 지문)도 이 값을 읽지 않는다(폼에 보일 힘듦 급증 effortSpike 만 여기서 꺼낸다, P5-e).
+     * 프로그램(lib/program/load.ts 의 buildProgramDay)이 등판 답(outing.answerToday · answerYesterday)과 세게 던진 날
+     * (load.hardOutingRecent)을 이 값에서 읽는다(2판 P3 읽기 통일).
+     */
+    state,
     hasLogs,
     everLogged,
     library,
@@ -318,6 +339,19 @@ export async function loadTodayCore(user: UserForToday, today: Date) {
     preferredWorkout,
     /** 고른 종류가 몸 상태와 부딪히는가. 안 부딪히면 null */
     workoutClash,
+    /**
+     * 최근 운동 힘듦 급증인가(오늘 상태 한 장의 load.effortSpike — 2판 P5-e). 일정 만들기 폼의 '직접 고르기'가 경고 한 줄과 '그래도
+     * 고른 대로'를 그린다(components/training-forms.tsx) — 안 고르면 본운동 세트를 한 개씩 줄인다(lib/report/volume.ts). 멈춘 날
+     * (picked.halted)은 만들 일정이 없으니 거짓. 급증인지는 서버(buildDailyPlan)가 만들 때 다시 본다 — 이 값은 보이기만 한다.
+     */
+    effortSpike: !picked.halted && state.load.effortSpike,
+    /**
+     * 일정을 만든 뒤 바뀐 상태 항목 — 사용자에게 보일 한 줄씩(P2 지문, 위 주석). 비어 있으면 바뀐 것이 없거나 견줄 것이 없다.
+     * 화면(트레이닝 띠 · 홈 카드)은 stateChanges 를 stateNoticeOf 로 거쳐 띄운다(2판 P6-6).
+     */
+    stateChanged: stateChanges.map((c) => c.text),
+    /** 위와 같은 것의 구조 — key(항목)와 text. stateNoticeOf 가 onlyPainPartChanges 로 안전 재검사 알림과 겹침을 가른다 */
+    stateChanges,
     /*
      * 장비와 경력 때문에 몇 개가 빠졌는지는 여기서 돌려주지 않는다.
      * 화면에 쓰는 값은 일정을 만들 때 찍어 둔 것(savedPlan.equipment)이라야

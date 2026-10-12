@@ -43,6 +43,7 @@ import {
   type WeightGoal,
   type WeightPoint,
 } from '@/lib/nutrition/weight-goal';
+import { mergeDayWeights } from '@/lib/nutrition/fuel-check';
 import { popularFoods } from '@/lib/nutrition/popular';
 import { COMBO_MAX, comboView, type MealComboView } from '@/lib/nutrition/combos';
 import { toDietPrefs, type DietPrefs } from '@/lib/nutrition/diet-prefs';
@@ -365,18 +366,11 @@ export async function loadNutritionDay(
   const profile = toProfile(profileRow);
 
   /* ── 체중: 그날 적은 것 → 가장 최근 것 → 가입 때 적은 것 ── */
-  const weightByDay = new Map<string, { kg: number; from: 'nutrition' | 'checkin' }>();
-  for (const c of checkinWeights) {
-    if (c.bodyWeightKg !== null) {
-      weightByDay.set(keyOfDbDate(c.date), { kg: c.bodyWeightKg, from: 'checkin' });
-    }
-  }
-  /* 영양 탭에 적은 것이 체크인보다 앞선다 — 나중에 따로 고쳐 적은 값이다 */
-  for (const d of dailyRows) {
-    if (d.weightKg !== null) {
-      weightByDay.set(keyOfDbDate(d.date), { kg: d.weightKg, from: 'nutrition' });
-    }
-  }
+  /* 영양 탭에 적은 것이 체크인보다 앞선다 — 영양 추세 읽기(fuel-load.ts)와 같은 규칙 한 곳(fuel-check.ts mergeDayWeights) */
+  const weightByDay = mergeDayWeights(
+    checkinWeights.map((c) => ({ date: keyOfDbDate(c.date), kg: c.bodyWeightKg })),
+    dailyRows.map((d) => ({ date: keyOfDbDate(d.date), kg: d.weightKg }))
+  );
   const weights = [...weightByDay.entries()]
     .map(([day, w]) => ({ date: day, kg: w.kg }))
     .sort((a, b) => a.date.localeCompare(b.date));

@@ -6,7 +6,6 @@ import { filterByEquipment } from '@/lib/report/equipment';
 import { filterByLevel } from '@/lib/report/personalize';
 import { visibleExercises, type CachedExercise } from '@/lib/library-cache';
 import { ARMCARE_CATEGORY } from '@/lib/armcare/anatomy';
-import { armPainSpotsFor, pickArmPain } from '@/lib/checkin';
 import {
   armcareBlock,
   bodyStateBlock,
@@ -108,20 +107,16 @@ export async function loadArmcareToday(user: UserForArmcare, today: Date) {
   const todayKey = toDateKey(today);
   const midnight = new Date(`${todayKey}T00:00:00.000Z`);
 
-  const [{ facts, plan }, library, saved, checkin, logs, rehab] = await Promise.all([
+  /*
+   * 팔 피로 · 팔 통증 자리 · 정도는 리포트 자료(facts)에 없어 예전에는 오늘 체크인 줄을 여기서 한 번 더 읽었다. 2판 P3(2026-10-12)
+   * 부터 오늘 상태 한 장(gathered.state)이 같은 줄(gather 가 이미 읽은 것) · 같은 규칙(armPainSpotsFor)으로 실어 오므로 그것을 쓴다.
+   */
+  const [gathered, library, saved, logs, rehab] = await Promise.all([
     gatherFactsAndPlan(user, today),
     visibleExercises(),
     prisma.dailyArmcare.findUnique({
       where: { userId_date: { userId: user.id, date: midnight } },
       select: { plan: true },
-    }),
-    /*
-     * 팔 피로는 상세 체크인에만 있어 리포트 자료(facts)에 없다. 팔 통증 자리 · 정도도 같다(통증 루틴 ·
-     * 안내 시트만 읽는다). 오늘 줄만 읽는다.
-     */
-    prisma.dailyCheckin.findUnique({
-      where: { userId_date: { userId: user.id, date: midnight } },
-      select: { armFatigue: true, armPainSpots: true, armPainLevel: true },
     }),
     prisma.userExerciseLog.findMany({
       where: {
@@ -138,6 +133,8 @@ export async function loadArmcareToday(user: UserForArmcare, today: Date) {
     }),
     visibleExercises().then((all) => loadRehabToday(user, todayKey, all)),
   ]);
+  /* state = 오늘 상태 한 장(2판 P3) — 팔 피로 · 팔 통증 · 오늘 등판 신호를 여기서 읽는다 */
+  const { facts, plan, state } = gathered;
 
   /*
    * 캐시에 담긴 운동이 근육 칸을 더하기 전에 담긴 것이면 그 칸이 없을 수 있다
@@ -171,30 +168,25 @@ export async function loadArmcareToday(user: UserForArmcare, today: Date) {
 
   /*
    * 오늘 팔(어깨 · 팔꿈치) 통증 — 그 관절이 오늘 '통증'인 날만 있다. 자리는 오늘 '통증'인 관절의 것만 센다
-   * (옛 화면으로 고쳐 저장해 남은 자리를 버린다 — lib/checkin.ts 의 armPainSpotsFor).
+   * (옛 화면으로 고쳐 저장해 남은 자리를 버린다 — lib/checkin.ts 의 armPainSpotsFor). 셈은 오늘 상태 한 장이 한다.
    */
-  const todayParts = facts.condition.today;
-  const savedPain = pickArmPain(checkin ?? {});
-  const armPain =
-    todayParts?.shoulder === '통증' || todayParts?.elbow === '통증'
-      ? {
-          spots: armPainSpotsFor(todayParts, savedPain.armPainSpots),
-          level: savedPain.armPainLevel,
-        }
-      : null;
+  const armPain = state.arm.pain;
 
   return {
     todayKey,
     midnight,
     facts,
     plan,
+    /** 오늘 상태 한 장(2판 P3, lib/engine/day-state.ts) — 아래 결정이 팔 피로 · 팔 통증 · 오늘 등판을 여기서 읽는다 */
+    state,
     /** 오늘 체크인을 남겼는가. 없으면 만들지 않는다 — 운동 일정과 같은 규칙. */
     hasCheckinToday: facts.condition.today != null,
     decision: decideArmcare({
       facts,
       plan,
-      armFatigue: checkin?.armFatigue ?? null,
+      armFatigue: state.arm.fatigue,
       armPain,
+      state,
     }),
     /**
      * 오늘 팔 통증 자리 · 정도 — 어깨 · 팔꿈치가 '통증'인 날만, 아니면 null. 통증 루틴(만들기)과 안내 시트가

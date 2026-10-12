@@ -2,17 +2,23 @@ import {
   CHECKIN_PARTS,
   HIGH_SORENESS,
   LOW_CONDITION_THRESHOLD,
+  SEVERE_ARM_FATIGUE,
   SEVERE_SORENESS,
   SHORT_SLEEP_HOURS,
+  armFatigueWord,
   formatSleepHours,
   isShortSleep,
   sorenessWord,
   type CheckinPartKey,
+  type OutingWindow,
 } from '@/lib/checkin';
+import { isArmPlyo, isHeavyLower, isHeavyUpperPush } from '@/lib/engine/exercise-class';
+import { outingOf } from '@/lib/engine/outing';
+import type { OutingNextSource } from '@/lib/engine/outing';
 import { INTENSITY_CAP, intensityLevel, type BodyPart } from '@/lib/exercise-meta';
 import { YOUTH_AGE_THRESHOLD } from '@/lib/report/plan';
 import { BEGINNER_LEVEL_NAME } from '@/lib/report/personalize';
-import type { ReportFacts } from '@/lib/report/facts';
+import { belowUsualCondition, type ReportFacts } from '@/lib/report/facts';
 import type { PitchPlan } from '@/lib/report/plan';
 
 /**
@@ -23,6 +29,11 @@ import type { PitchPlan } from '@/lib/report/plan';
  *
  * 이 파일의 모든 규칙은 안전을 위한 것이며, 후보가 부족하다고 해서
  * 완화하지 않는다. 부족하면 부족하다고 말하는 편이 맞다.
+ *
+ * 근력 프로그램(partsOnly)에서 어느 규칙이 걸리는가 — 부위 · 팔 상태 규칙(통증 · 뻐근 · 최근 통증 · 재활 · 메모 · 팔 피로)은
+ * drop 이라 프로그램에도 걸린다(그 칸이 그날 대체된다). 날 · 나이 · 몸 전체 규칙(부하 구간 · 통증 확인 전 · 등판 창 · 성장기 ·
+ * 경력 · 컨디션 · 평소보다 낮은 컨디션 · 근육통 · 수면 · 성장기 쉬는 날)은 capTo 처럼 프로그램에서 건너뛴다 — 프로그램은 그런 날 스스로 쉬거나 칸을
+ * 가볍게 한다(lib/program/program.ts decideToday). 새 규칙도 이 기준으로 넣는다(2판 P4).
  */
 
 export type ExerciseLike = {
@@ -33,6 +44,12 @@ export type ExerciseLike = {
   intensity: string;
   difficulty: string | null;
   equipment: string[];
+  /**
+   * 동작 계열(힌지 · 스쿼트 · 밀기 …) — 무거운 하체 · 팔 플라이오 · 무거운 상체 밀기 판정(lib/engine/exercise-class.ts)이 읽는다.
+   * 선택 칸인 까닭: 라이브러리 줄(ExerciseVideo · 캐시)에는 늘 있지만 자체 시험의 가짜 운동에는 없다. 없으면 계열로 거는 판정은
+   * 안 걸리고 부위 · 장비로만 가른다(theme.ts ThemedExercise 와 같은 약속, 2판 P4).
+   */
+  movementPattern?: string | null;
 };
 
 /**
@@ -121,6 +138,90 @@ export function painStateUnknown(facts: ReportFacts): boolean {
   return facts.condition.painRecently && facts.condition.today == null;
 }
 
+/**
+ * 그 관절의 무거운 운동을 빼는 까닭 — 오늘 '뻐근'(5) · 최근 7일 통증(4-3) · 재활 1~3단계(4-3) · 메모에서 찾은 불편(5-1).
+ * 오늘 '통증'인 관절은 여기 없다 — 1-1) 이 가벼운 것까지 다 뺀다.
+ */
+export type EasedSource = 'stiff' | 'recentPain' | 'rehab' | 'memo';
+
+export type EasedJoint = {
+  key: CheckinPartKey;
+  source: EasedSource;
+  /** 그 관절과 함께 무거운 것을 빼는 부위(RELATED_PARTS) */
+  bodyParts: readonly string[];
+  /** 메모에서 찾은 까닭(source 'memo' 만) */
+  memo?: string;
+};
+
+/**
+ * 무거운 운동을 빼는 관절 — 안전 규칙 4-3 · 5 · 5-1 이 도는 차례 그대로(2판 P5 에서 뗌).
+ *
+ * 왜 두는가. 고르기 점수(2판 P5)가 '뻐근한 어깨를 쓰는 운동은 뒤로'를 매기고 그 까닭을 한 줄로 말하려면, 안전 규칙이 어느 관절을
+ * 왜 조심하는지를 같은 규칙으로 알아야 한다. 규칙을 점수 쪽에 베끼면 둘이 어긋나고(어떤 날은 빼고 점수는 모름), 출처 없이 부위만
+ * 합치면 재활 관절까지 '뻐근하다고 해서'로 말하게 된다(설계 검토). 그래서 '누가 · 어디를 · 왜'를 여기 한 곳에서 정하고 selectCandidates
+ * 의 세 규칙도 이것을 돈다 — 글(근거 · 규칙 이름)은 규칙 자리에 그대로 둔다.
+ *
+ * 차례와 건너뛰기(규칙과 같다):
+ *   4-3  최근 통증 · 재활 관절(합집합, 최근 통증 먼저 — 재활이기도 하면 출처 'rehab'). 오늘 '뻐근'인 관절은 건너뛴다(5 가 본다)
+ *   5    오늘 '뻐근' 관절(CHECKIN_PARTS 차례)
+ *   5-1  메모의 조심할 부위(넘겨받은 차례). 오늘 '뻐근'인 관절은 건너뛴다. 4-3 과 같은 관절이면 둘 다 남는다(규칙도 둘이 돈다)
+ * 같은 facts · caution 이면 늘 같은 목록이다. 처방을 멈춘 날(painStateUnknown)인지는 보지 않는다 — 그건 부르는 쪽이 먼저 본다.
+ */
+export function easedJointsOf(
+  facts: ReportFacts,
+  caution: readonly { part: CheckinPartKey; why: string }[] = []
+): EasedJoint[] {
+  const today = facts.condition.today;
+  const out: EasedJoint[] = [];
+  const rehabParts = rehabEasingParts(facts);
+  for (const key of new Set([...painEasingParts(facts), ...rehabParts])) {
+    if (today?.[key] === '뻐근') continue;
+    out.push({
+      key,
+      source: rehabParts.includes(key) ? 'rehab' : 'recentPain',
+      bodyParts: RELATED_PARTS[key],
+    });
+  }
+  for (const { key } of CHECKIN_PARTS) {
+    if (today?.[key] !== '뻐근') continue;
+    out.push({ key, source: 'stiff', bodyParts: RELATED_PARTS[key] });
+  }
+  for (const { part, why } of caution) {
+    if (today?.[part] === '뻐근') continue;
+    out.push({ key: part, source: 'memo', bodyParts: RELATED_PARTS[part], memo: why });
+  }
+  return out;
+}
+
+/**
+ * 한 부위를 두 까닭이 덮을 때(손목·전완은 팔꿈치 · 손목 둘에 든다 · 같은 관절이 최근 통증이면서 메모에도) 이유 글이 고를 차례 —
+ * 오늘 사용자가 직접 말한 것부터: 뻐근 → 최근 통증 → 재활 → 메모.
+ */
+const EASED_SOURCE_ORDER: readonly EasedSource[] = [
+  'stiff',
+  'recentPain',
+  'rehab',
+  'memo',
+];
+
+/**
+ * 부위(BodyPart 이름) → 그 부위를 조심하는 관절 하나(EASED_SOURCE_ORDER 가 앞선 것). 고르기 점수가 운동의 bodyParts 를 이 표에 대어
+ * '어깨가 뻐근하다고 해서' 같은 한 줄을 고른다. 안전 규칙은 이것을 쓰지 않는다(규칙은 관절마다 따로 돈다 — easedJointsOf).
+ */
+export function easedBodyPartsOf(
+  joints: readonly EasedJoint[]
+): Map<string, EasedJoint> {
+  const out = new Map<string, EasedJoint>();
+  const rank = (s: EasedSource) => EASED_SOURCE_ORDER.indexOf(s);
+  for (const joint of joints) {
+    for (const part of joint.bodyParts) {
+      const cur = out.get(part);
+      if (!cur || rank(joint.source) < rank(cur.source)) out.set(part, joint);
+    }
+  }
+  return out;
+}
+
 export type ExclusionReason = {
   rule: string;
   count: number;
@@ -147,6 +248,33 @@ export type PrescriptionCandidates<T extends ExerciseLike = ExerciseLike> = {
 /** 이 개수보다 적으면 라이브러리가 부족하다고 본다. */
 export const MIN_CANDIDATES = 4;
 
+/**
+ * 다음 등판이 이 날수 안(창의 끝 max 기준)이면 무거운 하체를 뺀다 — 오늘(0) · 내일(1) · 2~3일 뒤(3). 검토안 4-2 의 '2~3일: 무거운
+ * 하체 금지'와 같은 선이다. 4일 이상 뒤면 다시 든다(무거운 하체는 등판에서 먼 날의 몫).
+ */
+export const HEAVY_LOWER_BLOCK_WITHIN_DAYS = 3;
+
+/**
+ * 근거 줄의 '언제' — 창 하나를 사람이 읽는 말로. 하루로 못 박히면 '오늘' · '내일' · 'N일 뒤', 아니면 '2~3일 뒤'처럼 범위
+ * (어제 '2~3일 뒤'를 오늘 하루 당긴 1~2 는 '1~2일 뒤'). 끝이 없는 창은 이 규칙에 안 오지만 'N일 이상 뒤'로 읽는다.
+ */
+function outingWhenText(w: OutingWindow): string {
+  const day = (n: number) => (n === 0 ? '오늘' : n === 1 ? '내일' : `${n}일 뒤`);
+  if (w.max == null) return `${w.min}일 이상 뒤`;
+  if (w.min === w.max) return day(w.min);
+  return `${w.min}~${w.max}일 뒤`;
+}
+
+/**
+ * 근거 줄의 '어디서 알았나' — 짐작한 출처(2판 P4 커밋 G)면 앞에 붙인다('달력에 적은 내일 등판' · '같은 요일로 짐작한 오늘 등판').
+ * 체크인 답이면 빈 글자(커밋 D 의 글 그대로). 줄 끝('등판 → 무거운 하체 제외')은 출처와 상관없이 같다 — 그 끝으로 이 규칙을 찾는 곳이 있다.
+ */
+function outingSourceText(source: OutingNextSource): string {
+  if (source === 'calendar') return '달력에 적은 ';
+  if (source === 'estimate') return '같은 요일로 짐작한 ';
+  return '';
+}
+
 export function selectCandidates<T extends ExerciseLike>({
   facts,
   plan,
@@ -163,7 +291,8 @@ export function selectCandidates<T extends ExerciseLike>({
    */
   caution?: { part: CheckinPartKey; why: string }[];
   /**
-   * 부위 규칙만 쓴다 — 몸 전체 강도 상한(부하 구간 · 통증 확인 전 · 성장기 · 경력 · 컨디션 · 근육통 · 수면)은 건너뛴다.
+   * 부위 규칙만 쓴다 — 몸 전체 강도 상한(부하 구간 · 통증 확인 전 · 성장기 · 경력 · 컨디션 · 평소보다 낮은 컨디션 · 근육통 · 수면)과 등판 창의 무거운 하체(2-2) ·
+   * 성장기 쉬는 날(5-3)은 건너뛴다. 팔 피로 '심함'(5-2)은 팔 상태 규칙이라 걸린다.
    * 근력 · 파워 프로그램이 쓴다(lib/program/load.ts). 프로그램은 그런 날에도 진행하고 주의 한 줄 · 칸 조정으로
    * 스스로 가볍게 하므로(설계 D22~D25), 여기서 무거운 운동을 통째로 빼면 고정 운동이 날마다 대체된다.
    */
@@ -256,6 +385,41 @@ export function selectCandidates<T extends ExerciseLike>({
     capTo('통증 확인 전', INTENSITY_CAP.RECOVERY);
   }
 
+  /*
+   * 2-2) 등판 창 — 다음 등판이 3일 안(오늘 · 내일 · 2~3일 뒤)이면 무거운 하체를 뺀다(2판 P4 커밋 D).
+   *
+   * 무거운 하체(바벨 스쿼트 · 데드리프트 · 하체 점프 — lib/engine/exercise-class.ts isHeavyLower)는 다음 날 다리에 무게가 남는다.
+   * 투수는 다리로 던지니, 등판 2~3일 안에 그것을 들면 마운드에서 다리가 무겁다(검토안 4-2 '2~3일: 무거운 하체 금지'). 지금까지는
+   * '오늘 등판' · '내일 등판'만 테마(회복 · 보조)로 막았고, '2~3일 뒤'는 근력 날이라 바벨 스쿼트가 그대로 나왔다. '그래도 하기'로
+   * 테마를 밀어 근력 날이 된 등판 날에도 무거운 하체가 나왔다. 그래서 테마가 아니라 여기(후보)에서 뺀다 — 무엇으로 날을 정하든 이
+   * 줄이 남고, 아침에 만든 일정의 무거운 하체는 낮에 '내일 등판'이라 고쳐 적으면 안전 재검사(today-data)가 저절로 걸러 낸다.
+   * 가벼운 하체(고블렛 스쿼트 · 덤벨 스텝업 · 한 다리 운동)는 남아 하체 날의 재료가 되고, 하체 본운동이 통째로 비면 날은
+   * theme.ts 의 steerFromEmptyMain 이 바꾼다.
+   *
+   * 등판은 lib/engine/outing.ts 의 outingOf 한 곳에서 읽는다 — 매일 일정의 테마(plannedOuting) · 오늘 상태 한 장과 같은 창이다.
+   * 창의 끝(max)이 3일 이하일 때만 건다. 어제 '4일 이상 뒤'를 오늘 하루 당긴 '3일 이상 뒤'(max 없음)는 걸지 않는다 — 끝이 없는
+   * 답이라 '곧 등판'이 아니고, 걸면 '4일 이상 뒤'를 적고 다음 날 체크인을 건너뛴 사람마다 무거운 하체가 빠진다. 다음 등판을 짐작한
+   * 출처(달력 · 같은 요일, outing.soft — 커밋 G)는 조이는 쪽이라 이 규칙에 그대로 쓴다(창에 실려 온다). 근거 줄에만 출처를 붙인다.
+   *
+   * 날 규칙이라 근력 프로그램(partsOnly)에서는 건너뛴다(파일 머리 주석의 기준, 사용자 결정 D6 — 프로그램 날은 프로그램 그대로).
+   * 프로그램은 경기 날 · 전날을 스스로 쉬고(lib/program/program.ts decideToday 의 gameToday · gameTomorrow), '2~3일 뒤'는 그날 칸을
+   * 처방대로 한다. 매일 일정과 프로그램이 같은 날 다른 하체를 낼 수 있는데, 둘을 나누는 일은 중재(P6, 하체 예산)의 몫이다.
+   * '그래도 하기'(override)로는 안 풀린다 — 테마만 넘기고 이 거르기는 남는다(컨디션 저하 상한과 같은 원칙).
+   */
+  const outing = outingOf(facts);
+  const outingWindow = outing.daysUntilNext;
+  if (
+    !partsOnly &&
+    outingWindow != null &&
+    outingWindow.max != null &&
+    outingWindow.max <= HEAVY_LOWER_BLOCK_WITHIN_DAYS
+  ) {
+    basis.push(
+      `${outingSourceText(outing.nextSource)}${outingWhenText(outingWindow)} 등판 → 무거운 하체 제외`
+    );
+    drop('등판 전 무거운 하체', (ex) => !isHeavyLower(ex));
+  }
+
   // 3) 성장기는 최대 강도를 뺀다.
   if (facts.profile.age != null && facts.profile.age < YOUTH_AGE_THRESHOLD) {
     basis.push(`만 ${facts.profile.age}세(성장기) → 매우 높은 강도 제외`);
@@ -345,46 +509,62 @@ export function selectCandidates<T extends ExerciseLike>({
   }
 
   /*
+   * 4-2-1) 평소보다 낮은 컨디션 — 오늘 컨디션이 평소(오늘을 뺀 28일 체크인의 중앙값, 14개 이상일 때만)보다 2점 이상 낮은 날
+   *        (facts.ts belowUsualCondition, 2판 P5). 강도를 한 칸 내린다 — 가장 센 것('매우 높음')만 뺀다.
+   *
+   * 왜 두는가. 컨디션 6 은 늘 6 인 사람에게는 보통 날이고 늘 8 인 사람에게는 무언가 덜 된 날이다. 지금까지는 바닥(4) 하나로만 보아
+   * 늘 8 인 사람의 6 · 5 를 8 과 똑같이 짰다. 몸이 평소보다 덜 된 날에는 최대 무게 · 전력 동작부터 빼는 것이 짧은 밤(4-2)과 같은 판단이라
+   * 같은 상한(STRENGTH)을 쓴다. 바닥 이하(4 이하)는 이 규칙이 안 본다 — 4) 가 이미 무게 드는 것까지 빼고 그날은 회복날이다.
+   * 4-2 바로 뒤에 두는 까닭: 짧은 밤과 같은 상한이라 둘 다 걸린 날 이 줄은 하나도 더 빼지 않고(drop 은 뺀 것이 없으면 excluded 에 안 적는다),
+   * 짧은 밤만 걸린 날의 근거 · 뺀 수가 예전과 글자 그대로 남는다. 기존 4-3 번호는 그대로 두려고 새 번호를 붙였다.
+   * '그래도 하기'(override)로는 안 풀린다 — 테마만 넘기고 이 거르기는 남는다(4) · 4-2 와 같은 원칙). 몸 전체 규칙이라 근력
+   * 프로그램(partsOnly)은 capTo 가 건너뛴다(파일 머리 주석의 기준).
+   * 일정 지문에는 칸을 더하지 않는다 — 평소(어제까지의 28일)는 그날 안에 안 바뀌고, 오늘 컨디션은 지문(checkin.condition)에 이미 있다.
+   */
+  const belowUsual = belowUsualCondition(facts);
+  if (belowUsual) {
+    basis.push(
+      `평소 컨디션 ${belowUsual.median}/10 → 오늘 ${belowUsual.today}/10 → 매우 높은 강도 제외`
+    );
+    capTo('평소보다 낮은 컨디션', INTENSITY_CAP.STRENGTH);
+  }
+
+  /*
    * 4-3) 최근 7일에 아팠지만 오늘은 통증이라고 하지 않은 부위 — 그 부위의 무거운 운동만 뺀다(뻐근과 같은 방식).
    *
    * 예전에는 지난 통증 하나로 몸 전체를 회복 수준까지만 남겼다(2026-10-03 사용자 결정으로 그 부위만).
    * 오늘 뻐근이라고 한 부위는 바로 아래 5) 가 같은 일을 하므로 건너뛴다.
    *
    * 재활 1~3단계의 관절도 같은 규칙이다(재활 2편) — 근거 줄만 '재활 중'. 둘 다면 재활 쪽 말을 쓴다.
+   *
+   * 4-3 · 5 · 5-1 의 '어느 관절 · 왜 · 무엇을 건너뛰나'는 easedJointsOf 한 곳이다(2판 P5 에서 뗌 — 고르기 점수가 같은 관절을 같은
+   * 출처로 읽는다). 세 규칙은 그 목록을 차례대로 돌며 저마다의 글로 근거 · 규칙 이름을 적는다(뗀 뒤에도 글 · 차례 · 뺀 수가 같다).
    */
-  const rehabParts = rehabEasingParts(facts);
-  for (const key of new Set([...painEasingParts(facts), ...rehabParts])) {
-    if (today?.[key] === '뻐근') continue;
-    const label = checkinPartLabel(key);
-    const parts: readonly string[] = RELATED_PARTS[key];
-    const why = rehabParts.includes(key) ? `재활 중(${label})` : `최근 ${label} 통증`;
-    basis.push(`${why} → ${parts.join('·')} 부위 고강도 제외`);
-    drop(
-      why,
-      (ex) =>
-        intensityLevel(ex.intensity) <= INTENSITY_CAP.MODERATE ||
-        !ex.bodyParts.some((p) => parts.includes(p))
-    );
+  const eased = easedJointsOf(facts, caution);
+  /*
+   * 적을 때는 BodyPart 로 검사받고(오타·없는 부위를 막는다 — RELATED_PARTS),
+   * 비교할 때는 문자열로 본다 — DB에서 온 bodyParts 는 string[] 이다.
+   */
+  const notHeavyOn = (parts: readonly string[]) => (ex: T) =>
+    intensityLevel(ex.intensity) <= INTENSITY_CAP.MODERATE ||
+    !ex.bodyParts.some((p) => parts.includes(p));
+  for (const joint of eased) {
+    if (joint.source !== 'recentPain' && joint.source !== 'rehab') continue;
+    const label = checkinPartLabel(joint.key);
+    const why = joint.source === 'rehab' ? `재활 중(${label})` : `최근 ${label} 통증`;
+    basis.push(`${why} → ${joint.bodyParts.join('·')} 부위 고강도 제외`);
+    drop(why, notHeavyOn(joint.bodyParts));
   }
 
   /*
    * 5) 뻐근한 부위는 그 부위를 쓰는 무거운 운동을 뺀다.
    *    가벼운 회복·가동성 운동은 오히려 도움이 되므로 남긴다.
    */
-  for (const { key, label } of CHECKIN_PARTS) {
-    if (today?.[key] !== '뻐근') continue;
-    /*
-     * 적을 때는 BodyPart 로 검사받고(오타·없는 부위를 막는다),
-     * 비교할 때는 문자열로 본다 — DB에서 온 bodyParts 는 string[] 이다.
-     */
-    const parts: readonly string[] = RELATED_PARTS[key];
-    basis.push(`${label} 뻐근함 → ${parts.join('·')} 부위 고강도 제외`);
-    drop(
-      `${label} 뻐근함`,
-      (ex) =>
-        intensityLevel(ex.intensity) <= INTENSITY_CAP.MODERATE ||
-        !ex.bodyParts.some((p) => parts.includes(p))
-    );
+  for (const joint of eased) {
+    if (joint.source !== 'stiff') continue;
+    const label = checkinPartLabel(joint.key);
+    basis.push(`${label} 뻐근함 → ${joint.bodyParts.join('·')} 부위 고강도 제외`);
+    drop(`${label} 뻐근함`, notHeavyOn(joint.bodyParts));
   }
 
   /*
@@ -392,19 +572,51 @@ export function selectCandidates<T extends ExerciseLike>({
    *
    * "스쿼트 때 무릎이 불편했다"고 적어 두고 체크인은 '정상'으로 넘기는 일이
    * 흔하다. 메모를 읽는 것은 자동 맞춤(지금은 규칙)이지만, 무엇을 빼는지는 여기 규칙이 정한다.
-   * 체크인에서 이미 뻐근이라고 한 부위는 위에서 걸렀으므로 건너뛴다.
+   * 체크인에서 이미 뻐근이라고 한 부위는 위에서 걸렀으므로 건너뛴다(easedJointsOf).
    */
-  for (const { part, why } of caution) {
-    if (today?.[part] === '뻐근') continue;
-    const label = CHECKIN_PARTS.find((p) => p.key === part)?.label ?? part;
-    const parts: readonly string[] = RELATED_PARTS[part];
-    basis.push(`메모에서 ${label} 불편(${why}) → ${parts.join('·')} 부위 고강도 제외`);
-    drop(
-      `메모 속 ${label} 불편`,
-      (ex) =>
-        intensityLevel(ex.intensity) <= INTENSITY_CAP.MODERATE ||
-        !ex.bodyParts.some((p) => parts.includes(p))
+  for (const joint of eased) {
+    if (joint.source !== 'memo') continue;
+    const label = checkinPartLabel(joint.key);
+    basis.push(
+      `메모에서 ${label} 불편(${joint.memo ?? ''}) → ${joint.bodyParts.join('·')} 부위 고강도 제외`
     );
+    drop(`메모 속 ${label} 불편`, notHeavyOn(joint.bodyParts));
+  }
+
+  /*
+   * 5-2) 팔 피로 '심함'(SEVERE_ARM_FATIGUE) — 무거운 상체 밀기 · 팔 플라이오를 뺀다(2판 P4 커밋 C).
+   *
+   * 팔은 공을 던지는 곳이라, 팔이 '심하게' 지친 날 벤치 프레스 · 메디신볼 던지기까지 얹으면 같은 관절에 부담이 겹친다.
+   * 어디가 아픈지는 모르니 부위 꼬리표가 아니라 '팔로 밀고 던지는 것'(lib/engine/exercise-class.ts 판정)만 뺀다 — 가벼운 밀기 ·
+   * 당기기 · 하체 · 코어는 남는다. 눈금의 몫을 나눈다: '심함'은 여기서 운동을 뺀다, '많이'(HIGH_ARM_FATIGUE)는 암케어만 회복으로
+   * 돌린다, 그 아래는 고르기 점수(P5) 몫이다. 팔 상태 규칙이라 근력 프로그램에서도 걸린다(그 칸이 그날 대체된다).
+   * 1~5 밖의 값은 안 적은 것으로 넘긴다 — 근육통(4-1)과 같은 판단, 근거에 'null' 이 찍히지 않게.
+   */
+  const armFatigue = today?.armFatigue;
+  const armWord = armFatigueWord(armFatigue);
+  if (armFatigue != null && armWord && armFatigue >= SEVERE_ARM_FATIGUE) {
+    basis.push(`팔 피로 '${armWord}' → 무거운 상체 밀기 · 팔 플라이오 제외`);
+    drop(`팔 피로 '${armWord}'`, (ex) => !isHeavyUpperPush(ex) && !isArmPlyo(ex));
+  }
+
+  /*
+   * 5-3) 성장기(YOUTH_AGE_THRESHOLD 미만)가 투구 계획상 공을 쉬는 날 — 팔 플라이오를 뺀다(2판 D4).
+   *
+   * 쉬는 날(plan.today.throwing 이 false — 큰 등판 다음 날 · 통증 · 메모 확인 · 재활)은 팔을 쉬라는 날인데, 메디신볼 던지기 ·
+   * 플라이오 푸시업은 공 없이 팔을 빠르게 쓰는 운동이다. 성장기의 팔에는 그날 그 부담도 빼 둔다. 만 16세부터는 사용자 결정(D4)대로
+   * 성인 기준이라 그대로다. 나이 · 날 규칙이라 근력 프로그램에서는 건너뛴다 — 3) 성장기 강도 상한과 같은 기준(파일 머리 주석).
+   * 오늘 이미 던져 plan.today 가 없는 날은 쉬는 날이 아니다.
+   */
+  if (
+    !partsOnly &&
+    facts.profile.age != null &&
+    facts.profile.age < YOUTH_AGE_THRESHOLD &&
+    plan.today?.throwing === false
+  ) {
+    basis.push(
+      `만 ${facts.profile.age}세(성장기) · 오늘 공을 쉬는 날 → 팔 플라이오 제외`
+    );
+    drop('쉬는 날 팔 플라이오(성장기)', (ex) => !isArmPlyo(ex));
   }
 
   /*
@@ -431,4 +643,34 @@ export function selectCandidates<T extends ExerciseLike>({
     basis,
     tooFew: pool.length < MIN_CANDIDATES,
   };
+}
+
+/**
+ * 팔 피로 '심함'(5-2) 하나 때문에만 빠진 운동의 id — 같은 입력에서 오늘 체크인의 팔 피로만 지우고 한 번 더 걸렀을 때 남는 것(2판 P4 검토).
+ *
+ * 왜 두는가. 근력 프로그램(partsOnly)은 고정 운동이 이 거르기를 못 지나면 그 칸을 그날 대체하는데(lib/program/load.ts), 까닭을 늘
+ * '통증 부위'로 적었다 — 5-2 가 팔 상태 규칙이라 프로그램에도 걸리면서, 통증을 안 적고 팔 피로만 '심함'인 날에도 벤치 프레스 칸이
+ * '대체 · 통증 부위'로 보였다. 어느 규칙이 뺐는지는 excluded 의 수로는 운동마다 못 가리니, 팔 피로를 지운 입력과 견준다.
+ *
+ * 거르기는 바꾸지 않는다 — 이름표만 고른다(되살리는 규칙이 아니다). 팔 피로가 '심함'이 아닌 날 · 처방을 멈춘 날은 빈 집합.
+ * 다른 규칙(통증 · 뻐근 · 재활 · 메모)에도 걸린 운동은 지운 입력에서도 빠지므로 여기 안 든다 — 통증이 이긴다.
+ */
+export function droppedOnlyForArmFatigue<T extends ExerciseLike>(
+  args: Parameters<typeof selectCandidates<T>>[0]
+): Set<string> {
+  const today = args.facts.condition.today;
+  const armFatigue = today?.armFatigue;
+  if (today == null || armFatigue == null || armFatigue < SEVERE_ARM_FATIGUE)
+    return new Set();
+  const withArm = selectCandidates(args);
+  if (withArm.halted) return new Set();
+  const kept = new Set(withArm.candidates.map((e) => e.id));
+  const withoutArm = selectCandidates({
+    ...args,
+    facts: {
+      ...args.facts,
+      condition: { ...args.facts.condition, today: { ...today, armFatigue: null } },
+    },
+  });
+  return new Set(withoutArm.candidates.filter((e) => !kept.has(e.id)).map((e) => e.id));
 }

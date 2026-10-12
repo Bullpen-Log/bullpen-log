@@ -13,6 +13,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { REST_SESSION_TYPE } from '@/lib/session-type';
+import { maxEffortPct } from '@/lib/pitch-effort';
 import { Baseball } from '@/components/baseball-icon';
 import type { Log } from '@/app/(app)/pitch-log/types';
 import type { PlanDaySummary, TrainingDaySummary } from '@/lib/report/training-history';
@@ -146,7 +147,8 @@ export function DaySummary({
   const thrown = logs.filter((l) => l.sessionType !== REST_SESSION_TYPE);
   const rested = logs.length > 0 && thrown.length === 0;
   const pitches = thrown.reduce((sum, l) => sum + l.pitchCount, 0);
-  const intensity = thrown.reduce((max, l) => Math.max(max, l.intensity), 0);
+  /* 그날 가장 센 체감 강도(%) — 입력이 % 라 1~10 칸이 아니라 고른 값을 보인다(옛 기록은 × 10) */
+  const effortPct = maxEffortPct(thrown);
   const velocities = thrown
     .map((l) => l.maxVelocity)
     .filter((v): v is number => v != null);
@@ -173,7 +175,7 @@ export function DaySummary({
       sub: rested
         ? '쉬는 날로 남김'
         : [
-            intensity > 0 ? `강도 ${intensity}` : null,
+            effortPct > 0 ? `강도 ${effortPct}%` : null,
             topVelocity != null ? `최고 ${formatSpeed(topVelocity, speedUnit)}` : null,
             logs.length > 0 && velocity && velocity.n > 0
               ? `카메라 ${velocity.n}구`

@@ -16,17 +16,43 @@ import {
   readTrainingProfile,
 } from '@/lib/report/personalize';
 import {
+  armOnlyBudgetOf,
   buildDailyPlan,
   isHalted,
+  planBudgetOf,
   type DailyPlan,
+  type StrengthHistory,
 } from '@/lib/report/daily-plan';
-import { visibleExercises } from '@/lib/library-cache';
+import { armBudget } from '@/lib/engine/arbiter';
+import { painStateUnknown } from '@/lib/report/prescription';
+import { carrySwaps, swappedOutOf } from '@/lib/report/plan-swaps';
+import { fingerprintOf } from '@/lib/report/plan-fingerprint';
+import { visibleExercises, type CachedExercise } from '@/lib/library-cache';
 import {
   gatherFactsAndPlan,
   lastStrengthDates,
   exerciseSessionsAgo,
   recentExerciseIds,
+  swappedOutRecently,
 } from '@/lib/report/gather';
+import { favoriteExerciseIds } from '@/lib/favorites';
+import {
+  activeProgram,
+  buildProgramDay,
+  pitchTypesToday,
+  programTodayOf,
+  type ProgramRow,
+} from '@/lib/program/load';
+import {
+  PROGRAMS_ENABLED,
+  parseProgram,
+  patternsOfProgramDay,
+  readPinned,
+} from '@/lib/program/program';
+import {
+  withProgramCommitment,
+  type ProgramCommitmentInput,
+} from '@/lib/engine/day-state';
 import {
   DEFAULT_WORKOUT_MINUTES,
   minutesChoicesFor,
@@ -222,7 +248,7 @@ export async function generateTodayPlan(formData: FormData) {
       );
 
   const today = appNow();
-  const { facts, plan } = await gatherFactsAndPlan(user, today);
+  const { facts, plan, state: gathered } = await gatherFactsAndPlan(user, today);
 
   /*
    * 오늘 체크인을 남긴 날에만 만든다 (2026-09-23 사용자분과 정함).
@@ -233,7 +259,17 @@ export async function generateTodayPlan(formData: FormData) {
    */
   if (!facts.condition.today) redirect(returnPath(formData), RedirectType.replace);
 
-  const [library, recentIds, sessionsAgo, strengthDates, before] = await Promise.all([
+  const [
+    library,
+    recentIds,
+    sessionsAgo,
+    strengthDates,
+    before,
+    swappedOut,
+    favoriteIds,
+    programRow,
+    typesToday,
+  ] = await Promise.all([
     /* 누가 보든 같은 목록이라 캐시에서 꺼낸다 (lib/library-cache.ts) */
     visibleExercises(),
     recentExerciseIds(user.id, today),
@@ -243,12 +279,58 @@ export async function generateTodayPlan(formData: FormData) {
      */
     exerciseSessionsAgo(user.id, today),
     lastStrengthDates(user.id, today),
-    /* 지금 저장돼 있는 오늘 일정 — 순서 씨앗에 쓴다 */
+    /* 지금 저장돼 있는 오늘 일정 — 순서 씨앗 · 오늘 뺀 운동(고르기 점수)에 쓴다 */
     prisma.dailyTrainingSetup.findUnique({
       where: { userId_date: { userId: user.id, date: dateOnly(today) } },
       select: { plan: true },
     }),
+    /*
+     * 고르기 점수의 재료(2판 P5-j, lib/report/score.ts) — 같은 Promise.all 에 넣어 만들기 한 번에 왕복이 늘지 않게. 최근 60일 '바꿔서 뺀'
+     * 횟수(두 번부터 뒤로), 즐겨찾기(앞으로), 진행 중인 근력 프로그램(내일 프로그램과 같은 동작은 뒤로). 60일 셈은 세션 판을 통째로 읽어
+     * 무겁다(gather.ts 주석) — 만들기를 누를 때만 돈다.
+     */
+    swappedOutRecently(user.id, today),
+    favoriteExerciseIds(user.id),
+    activeProgram(user.id),
+    /*
+     * 오늘 투구 기록의 세션 종류 — 프로그램이 없는 사람의 팔 예산(오늘 경기 기록이면 팔 플라이오를 뺀다, 2판 P6 검토). 프로그램이 있으면
+     * buildProgramDay 가 같은 조회를 한 번 더 하지만, 프로그램 줄을 받기 전이라 갈라 묻지 않는다(같은 Promise.all 이라 왕복은 안 는다).
+     */
+    pitchTypesToday(user.id, toDateKey(today)),
   ]);
+
+  /*
+   * 진행 중인 프로그램을 오늘 상태 한 장에 얹는다 — 고르기 점수가 commitments.program 하나로 '최근에 따르는 프로그램인가 · 다음이 언제인가'를
+   * 읽는다(score.ts programNextOf). 장을 만드는 gather.ts 는 화면마다 불려 프로그램 줄을 안 읽는다.
+   */
+  const program = programScoreInputOf(programRow, library);
+  const state = withProgramCommitment(gathered, program.commitment);
+
+  /*
+   * 근력 프로그램이 있으면 오늘 프로그램 날을 카드와 같은 길로 정한다(2판 P6-3, lib/program/load.ts buildProgramDay — 판정 · 오늘 판 · 중재).
+   * 중재가 오늘을 프로그램 날로 두면(daily.role 'program') 매일 일정은 그날 프로그램 운동 그대로다(사용자 결정 D6 — 보조 운동은 더하지 않는다,
+   * programTodayOf). 그 밖의 날은 중재의 하체 · 팔 예산을 지키며 짠다(planBudgetOf — 어제 · 내일 프로그램 큰 하체와 48시간 안에 겹치지 않게).
+   * 오늘 자료는 위에서 읽은 facts · 장 · 라이브러리를 그대로 넘긴다(loadTodayCore 를 다시 부르면 같은 것을 두 번 읽는다). 프로그램이 없는
+   * 사람은 조회가 늘지 않고 일정도 P6 전과 같다.
+   */
+  const programDay =
+    PROGRAMS_ENABLED && programRow
+      ? await buildProgramDay(
+          {
+            todayKey: toDateKey(today),
+            midnight: dateOnly(today),
+            facts,
+            plan,
+            state: gathered,
+            library,
+            hasCheckinToday: facts.condition.today != null,
+            picked: { halted: painStateUnknown(facts) },
+          },
+          programRow,
+          user
+        )
+      : null;
+  const programToday = programDay ? programTodayOf(programDay) : null;
 
   /*
    * '다시 만들기'를 누르면 다른 목록이 나오게 한다.
@@ -276,8 +358,9 @@ export async function generateTodayPlan(formData: FormData) {
    * 재활 때문에 멈춘 날(plan.rehab — 오늘 통증은 아님)은 정한다. 투구 계획만 멈췄고, 재활 관절의 무거운
    * 운동은 규칙이 이미 뺀다(prescription.ts 의 rehabEasingParts).
    */
+  /* 프로그램 날은 목표 · 시간을 정할 것이 없다(그날 운동은 프로그램이 정했다) — 자동 맞춤의 까닭이 프로그램 날 글을 가리지 않게 안 부른다 */
   const made =
-    auto && (!plan.halted || plan.rehab)
+    auto && !programToday && (!plan.halted || plan.rehab)
       ? await decideAutoSetup({ user, facts, plan, today, strengthDates })
       : null;
   const choice: {
@@ -315,6 +398,24 @@ export async function generateTodayPlan(formData: FormData) {
     lastLowerKey: strengthDates.lower,
     lastUpperKey: strengthDates.upper,
     /*
+     * 고르기 점수의 재료(2판 P5-j) — 기준선 도구의 inputsOf 가 같은 칸을 같은 규칙으로 모은다. 오늘 뺀 운동은 '다시 만들기' 전 일정(before)에서
+     * — 60일 셈은 두 번부터라 방금 한 번 뺀 운동을 못 잡는다. 2주 계열은 하체 · 상체 차례와 같은 조회(lastStrengthDates)에서.
+     */
+    score: {
+      programPatterns: program.patterns,
+      patternsDone14d: strengthDates.patternsDone14d,
+      swappedOut,
+      swappedOutToday: swappedOutOf(before?.plan),
+      favoriteIds,
+    },
+    /*
+     * 최근 운동 힘듦 급증(2판 P5-e) — 직접 고르기는 본운동 세트를 한 개씩 줄이고, 폼의 '그래도 고른 대로'(overrideEffort)면 그 몫만
+     * 되돌린다. 급증인지는 buildDailyPlan 이 오늘 상태(state.load.effortSpike)로 다시 본다 — 폼이 보낸 체크는 급증인 날에만 뜻이 있다.
+     * 자동 맞춤은 세트 대신 시간을 한 단계 줄인다(decideAutoFence) — 두 번 줄이지 않게 여기는 끈다. override 처럼 저장하지 않는다.
+     */
+    reduceForEffort: !auto,
+    overrideEffort: !auto && formData.get('overrideEffort') === 'on',
+    /*
      * "몸 상태 경고를 봤고 그래도 하겠다."
      *
      * 오늘 하루만의 결정이라 저장하지 않는다. 내일 또 같은 상황이면 경고를
@@ -324,6 +425,18 @@ export async function generateTodayPlan(formData: FormData) {
      * 원하는 대로 하고 싶으면 직접 고르기에서 넘기면 된다.
      */
     override: !auto && formData.get('overrideCondition') === 'on',
+    /* 오늘 상태 한 장 — 같은 facts · plan 으로 만든 것. 양 조절(본운동 세트 −1, 2판 P5-d · e)이 body · 힘듦 급증을 읽는다 */
+    state,
+    /*
+     * 프로그램 날이면 그날 프로그램 운동 그대로(2판 P6-3 · D6). 프로그램이 있는 사람은 중재의 하체 · 팔 예산을 넘긴다 — 프로그램 날이 아닌 날,
+     * 그리고 프로그램 날인데 그날 운동이 모두 안전 거르기에 걸려 매일 일정 길로 갈 때 지킨다(프로그램 날 길에서는 안 읽는다). 프로그램이 없는
+     * 사람은 팔 예산만(armOnlyBudgetOf, 2판 P6 검토) — 등판 보호 층(오늘 등판 · 경기 기록 · 세게 던진 날의 팔 플라이오 빼기)은 '그래도 하기'로도
+     * 안 풀리는데, 예전에는 프로그램이 있는 사람에게만 걸렸다. 팔을 안 쓴 날은 예전과 글자까지 같은 일정이다.
+     */
+    programToday,
+    budget: programDay
+      ? planBudgetOf(programDay.arbitration)
+      : armOnlyBudgetOf(armBudget({ state, typesToday })),
   });
 
   const date = dateOnly(today);
@@ -336,10 +449,24 @@ export async function generateTodayPlan(formData: FormData) {
       create: { userId: user.id, date, availableEquipment },
     });
   } else {
-    const withAuto: DailyPlan = made ? { ...built, auto: made } : built;
+    /*
+     * 그날 뺀 · 바꾼 기록은 '다시 만들기'가 지우지 않는다(P2, carrySwaps) — 지금 저장돼 있던 일정의 swaps 를 새 일정에
+     * 잇는다. 뺀 운동은 새 일정에서 뒤로 간다(2판 P5-j — 오늘 뺀 것은 최근 사흘 무리처럼 맨 뒤 · 60일에 두 번 넘게 뺀 것은 점수 −2,
+     * daily-plan.ts). 빼지는 않아서 대신할 것이 없으면 다시 나올 수 있다. 통증으로 멈춘 날(위 DbNull)은
+     * 그날 기록이 사라진다 — 드물고 그날은 어차피 처방을 안 한다.
+     */
+    const withAuto: DailyPlan = carrySwaps(
+      made ? { ...built, auto: made } : built,
+      before?.plan
+    );
+    /*
+     * 만들 때 본 오늘 상태의 지문(P2, lib/report/plan-fingerprint.ts) — 위에서 일정을 만든 바로 그 facts 로 찍는다. 읽을 때
+     * (today-data.ts)가 지금 facts 로 다시 찍어 견준다. buildDailyPlan 안이 아니라 여기서 넣는 까닭은 daily-plan.ts 주석.
+     */
+    const toSave: DailyPlan = { ...withAuto, fingerprint: fingerprintOf(facts) };
     const saved = {
       availableEquipment,
-      plan: withAuto as unknown as Prisma.InputJsonValue,
+      plan: toSave as unknown as Prisma.InputJsonValue,
       generatedAt: appNow(),
     };
     await prisma.dailyTrainingSetup.upsert({
@@ -391,6 +518,9 @@ export async function generateTodayPlan(formData: FormData) {
 /**
  * 자동 맞춤 — 오늘 방향(목표·시간)을 규칙 초안으로 정한다(lib/report/auto-setup.ts).
  * 2026-10-07 AI 를 뺐다(사용자) — 예전에는 이 울타리 안에서 AI 가 골랐다.
+ *
+ * 2판 P5-f(2026-10-12)부터 2주 기록(lastStrengthDates 의 StrengthHistory)을 통째로 받는다 — 하체 · 상체 차례와 한 주에 15분씩
+ * 늘리는 시간의 위 끝(weeklyMinutesCap)이 같은 조회에서 온다. 위 끝은 자동 맞춤에만 건다 — 직접 고르기는 사람이 고른 시간 그대로다.
  */
 async function decideAutoSetup({
   user,
@@ -407,7 +537,7 @@ async function decideAutoSetup({
   facts: ReportFacts;
   plan: PitchPlan;
   today: Date;
-  strengthDates: { lower: string | null; upper: string | null };
+  strengthDates: StrengthHistory;
 }): Promise<AutoRecord> {
   const workout = await trainingLoad(user, today);
   const fence = decideAutoFence({
@@ -417,6 +547,7 @@ async function decideAutoSetup({
     defaultMinutes: user.dailyWorkoutMinutes ?? DEFAULT_WORKOUT_MINUTES,
     lastLowerKey: strengthDates.lower,
     lastUpperKey: strengthDates.upper,
+    weeklyCap: strengthDates.weeklyMinutesCap,
   });
   return { ...fence.draft, by: 'rules', rules: fence.rules };
 }
@@ -473,4 +604,33 @@ export async function finishTrainingSetup(
   /* 막대 · 탭의 트레이닝 잠금(흐림 · 자물쇠)이 걷혀야 한다 — 레이아웃이 내려보낸다 */
   revalidatePath('/', 'layout');
   return { ok: true };
+}
+
+/**
+ * 진행 중인 근력 프로그램 줄 → 오늘 상태 한 장에 얹을 약속(day-state.ts withProgramCommitment)과 다음 일차의 동작 열쇠(program.ts
+ * patternsOfProgramDay — 고정 운동을 알면 그 운동의 열쇠로). 고르기 점수(2판 P5-j)의 프로그램 항목이 읽는다. 줄이 없거나 모르는 키면
+ * 약속 없음 · 빈 집합. 'use server' 파일이라 내보내지 않는다(내보내면 브라우저가 부를 수 있는 동작이 된다).
+ */
+function programScoreInputOf(
+  row: ProgramRow | null,
+  library: readonly CachedExercise[]
+): { commitment: ProgramCommitmentInput | null; patterns: Set<string> } {
+  if (!row) return { commitment: null, patterns: new Set() };
+  const plan = parseProgram(row.programKey);
+  const pinned = readPinned(row.pinned);
+  const byId = new Map(library.map((e) => [e.id, e]));
+  return {
+    commitment: {
+      key: row.programKey,
+      nextDay: row.nextDay,
+      totalDays: plan?.totalDays ?? null,
+      lastDoneDate: row.lastDoneDate
+        ? row.lastDoneDate.toISOString().slice(0, 10)
+        : null,
+    },
+    patterns: patternsOfProgramDay(plan, row.nextDay, (v) => {
+      const id = pinned[v];
+      return id ? byId.get(id) : undefined;
+    }),
+  };
 }

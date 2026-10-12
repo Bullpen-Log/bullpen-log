@@ -14,7 +14,8 @@ import type { RunSet } from './session-client';
  * 이 창은 '마칠까요?'와 강도 하나에 집중한다 — 고를 것이 맨 위에 있다(2026-10-01 '감성').
  *
  * 체감 강도는 여기서 받는다. 트레이닝 화면에도 적는 자리가 있지만(training-note.tsx), 운동이 끝난 직후가
- * 가장 정확하게 답하는 순간이고 그 자리를 지나 화면을 옮기고 나면 아무도 다시 안 적는다.
+ * 가장 정확하게 답하는 순간이다. 여기서 안 골랐으면 축하 화면이 칩 하나로 한 번 더 묻는다(done/effort-card.tsx,
+ * 트레이닝 추천 2판 P2) — 그래서 이제 여기서는 막지 않는다.
  */
 export function FinishSheet({
   sets,
@@ -51,17 +52,18 @@ export function FinishSheet({
   error: string | null;
 }) {
   /*
-   * 강도는 미리 고르지 않되, 안 고르면 못 마친다.
+   * 강도는 미리 고르지 않는다 — 5 를 띄워 두면 그대로 두고 넘기는데 이 숫자가 운동 부하 지수에 곱해진다.
    *
-   * 두 가지가 같이 간다. 5 를 띄워 두면 그대로 두고 넘기는데 이 숫자가 운동
-   * 부하 지수에 곱해지므로, 아무것도 안 골라 둔 채로 연다.
-   * 그리고 비워 둔 채로 마치지는 못하게 한다 — 이 앱에서 가장 중요한 입력값
-   * 하나이고, 이 자리를 지나면 아무도 다시 안 적는다.
+   * 예전에는 안 고르면 못 마치게 막았다(2026-10-01 — 이 자리를 지나면 아무도 다시 안 적는다). 2026-10-12 부터는 선택이다:
+   * 안 고르고 마치면 축하 화면(done/effort-card.tsx)이 칩 하나(가벼움 · 보통 · 힘듦 · 아주 힘듦)로 한 번 더 묻는다 —
+   * 열 칸을 고르는 것보다 누르기 쉬워 실제로 더 남는다(트레이닝 추천 2판 P2). 정밀하게 적고 싶은 사람은 여기 열 칸을 그대로 쓴다.
    *
-   * 이 앱은 대체로 '권하되 강제하지 않는다'지만 여기는 막는 쪽으로 정했다.
+   * 단 느낀점만 적고 강도를 안 고르면 막는다 — 강도 없이 온 메모는 서버가 버린다(DailyTrainingNote.intensity 가 비면 안 되고,
+   * finishWorkout 은 강도가 숫자일 때만 저장한다). 적은 글이 말없이 사라지는 것이 가장 나쁘다.
    */
   const [intensity, setIntensity] = useState<number | null>(null);
   const [memo, setMemo] = useState('');
+  const memoNeedsIntensity = memo.trim() !== '' && intensity == null;
 
   /* 이 화면을 연 시각으로 못박는다 — 고르는 동안 숫자가 올라가면 산만하다 */
   const [openedAt] = useState(() => Date.now());
@@ -135,11 +137,11 @@ export function FinishSheet({
           {/* ── 체감 강도 ── */}
           <p className="text-base font-bold text-ink">
             오늘 얼마나 힘들었나요?
-            <span className="ml-1.5 text-xs font-semibold text-sky">필수</span>
+            <span className="ml-1.5 text-xs font-semibold text-muted">선택</span>
           </p>
           <p className="mt-0.5 text-xs leading-relaxed text-muted">
-            오늘 운동 전체가 얼마나 힘들었는지 골라 주세요. 이 숫자로 운동 부하를
-            계산해요.
+            운동 전체가 얼마나 힘들었는지 골라요. 이 숫자로 운동 부하를 계산해요. 안
+            골라도 마친 뒤 화면에서 한 번만 누르면 돼요.
           </p>
 
           {/*
@@ -201,10 +203,8 @@ export function FinishSheet({
             </p>
           )}
           {/*
-            강도를 안 골랐으면 단추를 끄고 이유를 적는다.
-
-            말없이 꺼 두면 고장 난 줄 안다. 무엇을 하면 켜지는지가 단추 바로
-            위에 있어야 한다.
+            단추를 꺼야 할 때는 이유를 적는다 — 말없이 꺼 두면 고장 난 줄 안다. 무엇을 하면 켜지는지가 단추 바로
+            위에 있어야 한다. 강도만 안 골랐으면 켜 둔다(마친 뒤 칩이 한 번 더 묻는다).
           */}
           {pendingCount > 0 ? (
             <p className="text-center text-xs leading-relaxed text-warn">
@@ -212,18 +212,18 @@ export function FinishSheet({
               마칠 수 있어요.
             </p>
           ) : (
-            intensity == null && (
+            memoNeedsIntensity && (
               <p className="text-center text-xs text-muted">
-                오늘 강도를 고르면 마칠 수 있어요.
+                느낀점을 남기려면 강도도 골라 주세요.
               </p>
             )
           )}
           <button
             type="button"
             onClick={() =>
-              intensity != null && pendingCount === 0 && onFinish(intensity, memo)
+              !memoNeedsIntensity && pendingCount === 0 && onFinish(intensity, memo)
             }
-            disabled={busy || intensity == null || pendingCount > 0}
+            disabled={busy || memoNeedsIntensity || pendingCount > 0}
             className="flex h-[72px] w-full items-center justify-center gap-2 rounded-full bg-sky text-lg font-bold text-white transition disabled:opacity-40 motion-safe:active:scale-[0.98]"
           >
             <Check className="h-6 w-6" strokeWidth={2.6} />

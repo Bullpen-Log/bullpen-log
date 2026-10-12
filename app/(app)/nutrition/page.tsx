@@ -7,6 +7,7 @@ import { isNutritionDate } from '@/lib/nutrition/days';
 import { loadNutritionDay } from '@/lib/nutrition/load';
 import { loadAdvice } from '@/lib/nutrition/advice-load';
 import { serviceHour } from '@/lib/nutrition/advice-input';
+import { loadFuelState } from '@/lib/nutrition/fuel-load';
 import { NutritionView } from './nutrition-view';
 
 /**
@@ -33,14 +34,23 @@ export default async function NutritionPage({
   const raw = (await searchParams).date;
   const date = typeof raw === 'string' && isNutritionDate(raw) ? raw : today;
 
-  /* 오늘 영양 조언(맨 위 카드)은 홈 카드와 같은 길(lib/nutrition/advice-load.ts) — 같이 기다린다 */
-  const [day, advice] = await Promise.all([
+  /*
+   * 오늘 영양 조언(맨 위 카드)은 홈 카드와 같은 길(lib/nutrition/advice-load.ts) — 같이 기다린다. 영양 추세 깃발(지난 7일 적게 먹음 ·
+   * 몸무게 감소 · 컨디션 낮음, 2판 P6-7)은 오늘을 볼 때만 — 지난 날에 '무게 올리기를 멈춰요'는 할 일이 아니다. 홈 영양 카드는 안 건드린다.
+   */
+  const [day, advice, fuel] = await Promise.all([
     loadNutritionDay(user, date),
     loadAdvice(user, date, today, serviceHour(now())),
+    date === today ? loadFuelState(user.id, today) : null,
   ]);
   return (
     <>
-      <NutritionView day={day} today={today} advice={advice} />
+      <NutritionView
+        day={day}
+        today={today}
+        advice={advice}
+        fuel={fuel?.card ?? null}
+      />
       {/* 첫 설정 뒤 탭 사용법(TabTutorial)은 2026-10-12 사용자 요청으로 뺐다 */}
     </>
   );

@@ -5,6 +5,16 @@ import {
   sorenessWord,
   type CheckinPartKey,
 } from '@/lib/checkin';
+import { recentHardOuting } from '@/lib/engine/day-state';
+import { outingOf } from '@/lib/engine/outing';
+import {
+  HEAVY_CATEGORIES,
+  LOWER_POWER_PATTERNS,
+  UPPER_POWER_PATTERNS,
+  isLowerPower,
+  isUpperPower,
+} from '@/lib/engine/exercise-class';
+import { dayKindOf, type DayKind } from '@/lib/engine/microcycle';
 import {
   HEAVY_EQUIPMENT,
   intensityLevel,
@@ -13,7 +23,13 @@ import {
 } from '@/lib/exercise-meta';
 import { withJosa } from '@/lib/korean';
 import { shiftDateKey } from '@/lib/pitch-stats';
-import type { ReportFacts } from '@/lib/report/facts';
+import {
+  HARD_OUTING_MIN_LOAD,
+  HARD_OUTING_MIN_PITCHES,
+  isNearMaxOuting,
+  type HardOuting,
+  type ReportFacts,
+} from '@/lib/report/facts';
 import type { PitchPlan } from '@/lib/report/plan';
 import {
   checkinPartLabel,
@@ -79,6 +95,15 @@ const CONDITIONING_MINUTES = [45, 60, 75] as const;
 /** 목표가 정해지지 않은 자리(내 정보의 기본 시간)에서 쓰는 목록 */
 export const WORKOUT_MINUTES_CHOICES = WEIGHT_MINUTES;
 
+/**
+ * 자동 맞춤이 한 주에 늘릴 수 있는 운동 시간(분) — 선택지 한 칸(트레이닝 추천 2판 P5-f, 2026-10-12).
+ *
+ * 검토안 2판 4-5 '시간 바꾸기는 한 주에 ±15분까지 — 줄이는 쪽은 바로, 늘리는 쪽은 천천히'. 기본 시간을 90분으로 저장해 둔
+ * 사람이 지난주 45분씩만 했으면 오늘 바로 90분이 아니라 60분까지 간다. 몸이 받는 양은 한 번에 두 배가 되지 않게 늘려야
+ * 한다(부하 지수의 급증 구간과 같은 생각). 지난주 시간을 세는 규칙은 lib/report/daily-plan.ts 의 weeklyMinutesCap 한 곳.
+ */
+export const WEEKLY_MINUTES_STEP = 15;
+
 /** 이 목표로 고를 수 있는 시간 */
 export function minutesChoicesFor(goalName: string | null): readonly number[] {
   return goalName === CONDITIONING_GOAL ? CONDITIONING_MINUTES : WEIGHT_MINUTES;
@@ -124,7 +149,7 @@ export const DEFAULT_WORKOUT_MINUTES = 60;
 export const RECOVERY_SHARE = 0.7;
 export const RECOVERY_MAX_MINUTES = 40;
 
-/**
+/*
  * 종목을 바꾸는 데 드는 시간(분).
  *
  * 세트 사이 휴식만 세고 있었다. 자리를 옮기고, 장비를 챙기고, 무게를 갈고,
@@ -134,8 +159,10 @@ export const RECOVERY_MAX_MINUTES = 40;
  * 무게를 드는 운동은 더 든다. 봉을 끼우고 원판을 갈고, 무엇보다 본세트 전에
  * 가벼운 무게로 두어 세트를 먼저 한다 — 앱이 그 준비 세트를 따로 세지 않으므로
  * 여기서 함께 먹는다.
+ *
+ * 무게를 드는 카테고리(HEAVY_CATEGORIES)는 lib/engine/exercise-class.ts 한 곳이다(2판 P5 에서 옮김 — 양 조절이
+ * 세트를 줄이는 대상도 같은 목록이라, 이 파일 안에 비공개로 두면 다른 층이 베끼게 된다).
  */
-const HEAVY_CATEGORIES = ['상체 스트렝스', '하체 스트렝스', '파워'];
 
 /**
  * 하루에 하나만 넣는 계열 — 고립(컬 · 레이즈 · 삼두 익스텐션, 2026-10-04 암케어에서 옮겨 옴).
@@ -210,16 +237,22 @@ export type SessionTheme = {
   label: string;
   /** 왜 오늘 이 테마인지 — 근거 패널과 AI 설명에 그대로 쓴다 */
   reason: string;
+  /**
+   * 무거운 하체를 들 수 있는 날인가(2판 P4 커밋 E) — 등판 창이 3일 안이면 false(안전 거르기 2-2 가 무거운 하체를 뺀 날). 없으면 든다.
+   * 날을 다 정한 뒤 finishDayTheme 이 붙인다 — 날을 바꾸는 함수(steerAroundPain · steerFromEmptyMain · conditioningDay)가 테마를 새로
+   * 만들 때 칸이 빠지지 않게(설계 검토 G18). 화면 · 일정 JSON 의 표시용이고, 실제로 빼는 일은 prescription.ts 가 한다.
+   */
+  heavyLowerAllowed?: boolean;
 };
 
 /** 컨디션이 이 값 이하면 회복 테마로 돌린다 — 값은 lib/checkin.ts(안전 거름 · 암케어 · 프로그램과 같은 값) */
 export { LOW_CONDITION_THRESHOLD };
 
 /**
- * 세게 던진 날로 치는 최소 투구수(그날 거의 최대 강도로 던진 공의 합).
- * 짧게 몇 개만 세게 던진 날은 다음 날을 막지 않는다(2026-10-03 사용자분과 정함).
+ * 세게 던진 날 문턱 — 값 · 판정은 lib/report/facts.ts 한 곳(HARD_OUTING_MIN_LOAD · isHardOuting, 2판 D2). 여기서는 옛 import
+ * (스크립트 · 자체 시험이 theme 에서 읽는다)가 그대로 맞게 다시 내보내기만 한다.
  */
-export const HARD_OUTING_MIN_PITCHES = 30;
+export { HARD_OUTING_MIN_LOAD, HARD_OUTING_MIN_PITCHES };
 
 /**
  * 세게 던진 날의 여파 — 그날과 다음 날은 가벼운 컨디셔닝(회복·재생 데이), 이틀 뒤부터 무거운 웨이트 · 파워.
@@ -227,44 +260,54 @@ export const HARD_OUTING_MIN_PITCHES = 30;
  * 2026-10-03 사용자분과 다시 정했다. 예전에는 투구 계획의 남은 휴식일(Pitch Smart 표, plan.ts 의
  * pendingOuting)을 그대로 따라 90구 다음 날부터 이틀은 회복, 사흘째는 보조, 나흘째에야 무게가 나왔다.
  * 그 표는 '공을 언제 다시 던져도 되나'의 기준이라 웨이트까지 그만큼 막을 까닭이 없었고, 5일
- * 로테이션이면 첫 무거운 날이 다음 등판 전날이 됐다. 며칠 뒤 등판인지는 앱이 모르고, 체크인에 적은
- * '오늘 등판 · 내일 등판'만 읽는다(plannedOuting, 2026-10-09 — 그 전에는 묻기만 하고 안 읽었다).
+ * 로테이션이면 첫 무거운 날이 다음 등판 전날이 됐다. 여기서는 체크인에 적은 '오늘 등판 · 내일 등판'만 읽는다
+ * (plannedOuting, 2026-10-09 — 그 전에는 묻기만 하고 안 읽었다). 며칠 뒤 등판인지('2~3일 뒤 · 4일 이상 뒤', 2026-10-12)는
+ * 2판 P4 커밋 E 부터 날 종류(lib/engine/microcycle.ts dayKindOf)가 읽는다 — 테마는 그 결과로 정한다(decideThemeForBody).
  *
- * '세게 던진 날' = 경기, 또는 강도 9~10으로 그날 합쳐 30구 이상(facts.patterns.hardOutings).
+ * '세게 던진 날' = 그날 투구수 × 체감 강도(%)의 합이 2,700(30구 × 90%) 이상, 경기는 체감과 상관없이 100%
+ * (2판 D2, 2026-10-12 — facts.ts 의 isHardOuting). 그 전 규칙(경기, 또는 강도 9~10 으로 그날 합쳐 30구 이상)으로 세게
+ * 던진 날은 모두 그대로 세게 던진 날이고, 많이 가볍게 던진 날(불펜 40구 70% 같은)이 새로 든다.
  * 그보다 가볍게 던진 날은 다음 날을 막지 않는다. 공을 쉬어야 하는 날은 투구 계획이 따로 말하고,
  * 쌓인 부하는 부하 지수(주의 · 위험 구간)가 따로 본다.
+ *
+ * '오늘 · 어제 세게 던진 날을 고르는' 몸통은 2026-10-12(2판 P3)부터 오늘 상태 한 장(lib/engine/day-state.ts 의 recentHardOuting)
+ * 에 있다 — 그 장의 load.hardOuting 과 이 값이 늘 같게 한 곳에서 셈한다. 서명 · 값은 그대로라 독자(프로그램 · 일정 지문 · 자체
+ * 시험 · 기준선)는 그대로다. 테마 · 부딪힘은 2판 P4 커밋 E 부터 날 종류(dayKindOf)의 R1 으로 같은 값을 읽는다.
  */
-export function hardOuting(
-  facts: ReportFacts
-): { daysAgo: number; pitches: number } | null {
-  return (
-    (facts.patterns.hardOutings ?? []).find(
-      (o) => o.daysAgo <= 1 && o.pitches >= HARD_OUTING_MIN_PITCHES
-    ) ?? null
-  );
+export function hardOuting(facts: ReportFacts): HardOuting | null {
+  return recentHardOuting(facts);
 }
 
 /**
  * 체크인에 적은 등판 — 아직 던지기 전이라 투구 기록에는 없는 것.
  *
  * 세게 던진 날 규칙(hardOuting)은 던지고 난 뒤의 기록을 본다. 등판 날 아침과 그 전날에는 기록이 없어
- * 무거운 하체가 나왔다 — 체크인의 '던지는 일정'은 2025-10 부터 묻고 있었는데(lib/checkin.ts 의 THROW_PLANS)
+ * 무거운 하체가 나왔다 — 체크인의 '던지는 일정'은 2026-09-30 부터 묻고 있었는데(lib/checkin.ts 의 THROW_PLANS)
  * 영양과 프로그램만 읽고 매일 운동 계획은 안 읽었다(2026-10-09 트레이닝 검토 1-①).
  *
  * 오늘 적은 답이 먼저다. 어제 '내일 등판'이라고 했어도 오늘 '없음'이라고 고쳤으면(비 · 순서 바뀜) 오늘 것을
  * 따른다 — 오늘 안 적었을 때만 어제 답을 본다. '오늘 불펜'은 날을 바꾸지 않는다 — 가볍게 던지는 날이라
- * 세게 던진 날 규칙이 던진 뒤에 따로 본다. 프로그램의 읽기(lib/program/load.ts 의 throwSignals)는 경기 기록까지
+ * 세게 던진 날 규칙이 던진 뒤에 따로 본다. 프로그램의 읽기(lib/program/program.ts 의 programSignalsOf)는 경기 기록까지
  * 합쳐 보는데, 여기서는 기록은 hardOuting 이 맡으니 체크인만 본다.
+ *
+ * 답을 날로 읽는 규칙은 lib/checkin.ts 의 nextOutingDays 한 곳(2026-10-12, 2판 D1). 여기서는 그 범위가 꼭 오늘(0~0)
+ * 이면 today, 꼭 내일(1~1)이면 tomorrow 만 가른다(lib/checkin.ts exactOutingDay — 영양 · 프로그램과 같은 물음) —
+ * '2~3일 뒤' · '4일 이상 뒤'는 날을 못 박지 못하니 '없음'처럼 null(테마 그대로). 어제 답의 이월도 '내일 등판'(어제 기준 1~1) 하나뿐 — 어제 '2~3일 뒤'는 오늘 1~2일 뒤라 null.
+ * 반환은 둘뿐이다. 며칠 뒤 등판을 쓰는 규칙(P4 · P5)은 이 함수를 넓히지 않고 outingOf 의 daysUntilNext · nextSource 를 바로
+ * 읽는다 — 2판 P4 커밋 E 부터 테마 · 부딪힘도 이 함수가 아니라 날 종류(dayKindOf)의 R3 · R4 로 같은 값(nextDay)을 읽는다. 이 함수는
+ * 얇은 겉옷으로 남는다(자체 시험 · 기준선이 부른다).
+ *
+ * 오늘 · 어제 답을 합치는 규칙(오늘 답이 이김 · 어제 답은 하루 당겨 읽음)은 2026-10-12(2판 P3)부터 lib/checkin.ts 의
+ * nextOutingWindow 한 곳이고, facts 에서 그 답을 꺼내 등판으로 읽는 일은 2판 P4 커밋 B(2026-10-12)부터 lib/engine/outing.ts 의
+ * outingOf 한 곳이다 — 오늘 상태 한 장(day-state)의 outing 칸과 이 값이 같은 함수에서 나온다(예전에는 둘이 저마다 꺼냈다).
+ * 여기서는 그 결과의 nextDay(꼭 오늘 0 · 꼭 내일 1)만 읽는다. 하루 당긴 어제 '2~3일 뒤'(1~2)는 꼭 내일이 아니니 그대로 null 이다
+ * (옛 규칙과 같은 값 — 자체 시험이 답 49쌍 + 오늘 체크인 없음 7 · 160조합에서 견준다).
  */
 export function plannedOuting(facts: ReportFacts): 'today' | 'tomorrow' | null {
-  const today = facts.condition.throwPlanToday ?? null;
-  const yesterday = facts.condition.throwPlanYesterday ?? null;
-  if (today != null) {
-    if (today === '오늘 등판') return 'today';
-    if (today === '내일 등판') return 'tomorrow';
-    return null;
-  }
-  return yesterday === '내일 등판' ? 'today' : null;
+  const { nextDay } = outingOf(facts);
+  if (nextDay === 0) return 'today';
+  if (nextDay === 1) return 'tomorrow';
+  return null;
 }
 
 /** 등판 날 · 등판 전날의 이유 — 언제부터 다시 무게를 드는지까지 말한다(hardOutingReason 과 같은 틀) */
@@ -274,17 +317,96 @@ function plannedOutingReason(when: 'today' | 'tomorrow'): string {
     : '내일 등판이라 무게 대신 코어와 보강을 해요. 등판 전날은 다리를 가볍게 둬요.';
 }
 
-/** '오늘 거의 전력으로 82구를 던지셨어요' / '어제 …' */
-function outingPhrase(outing: { pitches: number; daysAgo: number }): string {
+/**
+ * '오늘 거의 전력으로 82구를 던지셨어요' / '어제 60구를 던져 팔 부담이 컸어요'.
+ *
+ * 그날 체감 평균이 90% 이상(경기 · 옛 강도 9~10)이면 예전 글 그대로 '거의 전력으로'. 곱 규칙으로 새로 드는 날(불펜 60구
+ * 50% 같은)에 '거의 전력'이라고 하면 틀린 말이라, 그때는 왜 쉬는지(팔에 간 양)를 말한다. 평균 %는 안 적는다 — 경기는
+ * 적은 값과 상관없이 100% 로 셈해 숫자가 사용자가 고른 것과 달라 보인다.
+ */
+function outingPhrase(outing: HardOuting): string {
   const when = outing.daysAgo === 0 ? '오늘' : '어제';
-  return `${when} 거의 전력으로 ${outing.pitches}구를 던지셨어요`;
+  return isNearMaxOuting(outing)
+    ? `${when} 거의 전력으로 ${outing.pitches}구를 던지셨어요`
+    : `${when} ${outing.pitches}구를 던져 팔 부담이 컸어요`;
 }
 
 /** 세게 던진 날의 회복·재생 데이 이유 — 언제부터 다시 무게를 드는지까지 말한다 */
-function hardOutingReason(outing: { pitches: number; daysAgo: number }): string {
+function hardOutingReason(outing: HardOuting): string {
   return outing.daysAgo === 0
     ? `${outingPhrase(outing)}. 오늘과 내일은 가볍게 풀고, 모레부터 무게를 다시 올려요.`
     : `${outingPhrase(outing)}. 오늘은 가볍게 풀고, 내일부터 무게를 다시 올려요.`;
+}
+
+/** 기록 없는 등판 다음 날(R3', C6 결정)의 짧은 말 — 부딪힘 까닭과 이유 글 앞머리가 같은 말 */
+const CLAIMED_NO_LOG_PHRASE = '어제 등판이라고 적었는데 투구 기록이 없어요';
+
+/** 0 일요일 ~ 6 토요일(lib/engine/outing.ts OutingGuess.weekday) */
+const WEEKDAY_NAMES = ['일', '월', '화', '수', '목', '금', '토'] as const;
+
+/**
+ * 짐작한 오늘 · 내일 등판(R4' softOutingNear, 2판 P4 커밋 G)의 말 — 어디서 짐작했는지(달력 · 같은 요일)를 밝히고, 아니면 체크인 답으로
+ * 고칠 수 있다고 말한다(답을 적으면 짐작을 안 쓴다 — outing.ts 차례). 회복 날의 '무게는 모레부터'는 안 붙인다 — 짐작으로는 무게만 뺀다.
+ */
+function softOutingWords(dk: DayKind): { reason: string; clash: string } | null {
+  const g = dk.outing.guess;
+  if (!g || g.days > 1) return null;
+  const when = g.days === 0 ? '오늘' : '내일';
+  if (g.source === 'calendar') {
+    return {
+      reason:
+        g.days === 0
+          ? '달력에 오늘 경기가 있어 무게 대신 코어와 보강을 해요. 등판이 아니면 체크인에서 던지는 일정을 적어 주세요.'
+          : '달력에 내일 경기가 있어 무게 대신 코어와 보강을 해요. 등판 전날은 다리를 가볍게 둬요.',
+      clash: `달력에 ${when} 경기가 있어요`,
+    };
+  }
+  const day = `${WEEKDAY_NAMES[g.weekday] ?? ''}요일`;
+  return {
+    reason: `최근 4주 ${day}에 경기를 ${g.games}번 해서 ${when} 등판으로 봤어요. 무게 대신 코어와 보강을 해요. 아니면 체크인에서 던지는 일정을 적어 주세요.`,
+    clash: `최근 ${day}마다 경기가 있어 ${when} 등판으로 봤어요`,
+  };
+}
+
+/**
+ * 날 종류(lib/engine/microcycle.ts dayKindOf)가 회복 · 보조 날일 때의 말 — reason 은 테마 이유(마침표로 끝남), clash 는 부딪힘 까닭
+ * (마침표 없이 — workoutConflict 가 돌려주고, decideTheme 이 '그래도 하기' 글 앞에, 화면이 경고에 그대로 쓴다). 근력 · 모름 날은 null.
+ *
+ * 글을 여기 한 곳에서 만든다 — 날 종류는 코드(rule)와 재료만 돌려준다(설계 검토 G12). R1 · R3 · R4 의 글은 커밋 E 전과 글자까지 같다
+ * (hardOutingReason · plannedOutingReason · outingPhrase · '오늘 등판이에요' · '내일 등판이에요'). 새 글은 둘:
+ *   R2  '어제 25구를 던졌고 최근 운동도 힘들었어요. 오늘은 가볍게 풀고, 내일부터 무게를 다시 올려요.'
+ *   R3' '어제 등판이라고 적었는데 투구 기록이 없어요. 오늘은 무게 대신 코어와 보강을 해요. 기록을 남기면 던진 양으로 다시 짤 수 있어요.'
+ *       (기록을 남기면 일정 지문의 마지막 투구가 바뀌어 '상태가 바뀌었어요'가 뜬다 — 다시 짜는 것은 사용자가 고른다)
+ * 커밋 G 에서 하나 더: R4' 짐작한 오늘 · 내일 등판(softOutingWords — 달력 · 같은 요일).
+ */
+function dayKindWords(dk: DayKind): { reason: string; clash: string } | null {
+  switch (dk.rule) {
+    case 'hard':
+      return dk.hard
+        ? { reason: hardOutingReason(dk.hard), clash: outingPhrase(dk.hard) }
+        : null;
+    case 'outingToday':
+      return { reason: plannedOutingReason('today'), clash: '오늘 등판이에요' };
+    case 'moderateSpike': {
+      if (!dk.yesterday) return null;
+      const phrase = `어제 ${dk.yesterday.pitches}구를 던졌고 최근 운동도 힘들었어요`;
+      return {
+        reason: `${phrase}. 오늘은 가볍게 풀고, 내일부터 무게를 다시 올려요.`,
+        clash: phrase,
+      };
+    }
+    case 'claimedNoLog':
+      return {
+        reason: `${CLAIMED_NO_LOG_PHRASE}. 오늘은 무게 대신 코어와 보강을 해요. 기록을 남기면 던진 양으로 다시 짤 수 있어요.`,
+        clash: CLAIMED_NO_LOG_PHRASE,
+      };
+    case 'outingTomorrow':
+      return { reason: plannedOutingReason('tomorrow'), clash: '내일 등판이에요' };
+    case 'softOutingNear':
+      return softOutingWords(dk);
+    default:
+      return null;
+  }
 }
 
 /**
@@ -312,15 +434,15 @@ export function workoutConflict({
    * 부하 구간과 같은 결론(회복)에 이르더라도 이유가 다르다. 부하 지수는 4주
    * 평균에 견준 값이라 "위험 구간"이라고만 하면 왜 그런지 알 수 없다.
    * "어제 90구를 던지셨습니다"는 원인을 그대로 말한다.
+   *
+   * 2판 P4 커밋 E 부터 등판 쪽은 날 종류(dayKindOf) 하나로 읽는다 — 회복 날(세게 던진 날 · 오늘 등판 · 어제 중간 부하 + 운동 힘듦 급증)은
+   * 여기 맨 앞, 보조 날(기록 없는 등판 다음 날 · 내일 등판)은 아래 근육통 '심함' 뒤. decideThemeForBody 가 같은 dk 의 같은 rank 를 같은
+   * 두 자리에서 읽으니, 예전처럼 사슬을 두 번 적어 '같이 고칠 것'으로 묶지 않아도 된다.
    */
-  const outing = hardOuting(facts);
-  if (outing) {
-    return { reason: outingPhrase(outing), fallback: 'recovery' };
-  }
-  /* 체크인에 적은 오늘 등판 — 아직 안 던져 기록이 없어도 그날은 가볍게(plannedOuting) */
-  const planned = plannedOuting(facts);
-  if (planned === 'today') {
-    return { reason: '오늘 등판이에요', fallback: 'recovery' };
+  const dk = dayKindOf(facts);
+  const words = dayKindWords(dk);
+  if (dk.rank === 'recovery' && words) {
+    return { reason: words.clash, fallback: 'recovery' };
   }
   if (facts.load.zone === 'danger') {
     return { reason: '투구 부하가 위험 구간이에요', fallback: 'recovery' };
@@ -343,9 +465,9 @@ export function workoutConflict({
   if (soreness != null && soreWord && soreness >= SEVERE_SORENESS) {
     return { reason: `전신 근육통이 '${soreWord}'이에요`, fallback: 'recovery' };
   }
-  /* 등판 전날 — 회복까지는 아니고 무게만 뺀다(보조·코어). decideTheme 의 같은 자리에도 같은 줄이 있다 */
-  if (planned === 'tomorrow') {
-    return { reason: '내일 등판이에요', fallback: 'assist' };
+  /* 등판 전날 · 기록 없는 등판 다음 날 · 짐작한 오늘 · 내일 등판 — 회복까지는 아니고 무게만 뺀다(보조·코어, 날 종류의 보조 날) */
+  if (dk.rank === 'light' && words) {
+    return { reason: words.clash, fallback: 'assist' };
   }
   if (facts.load.zone === 'caution') {
     return { reason: '투구 부하가 주의 구간이에요', fallback: 'assist' };
@@ -589,33 +711,24 @@ function decideThemeForBody({
    */
   const conflict = workoutConflict({ facts, preferredWorkout });
   const forcing = conflict != null && override;
+  /* 날 종류 — 등판 주기의 어디쯤인가(lib/engine/microcycle.ts). 아래 두 자리와 번갈아 예비 규칙이 이것 하나를 읽는다 */
+  const dk = dayKindOf(facts);
+  const dkWords = dayKindWords(dk);
 
   if (!forcing) {
     /*
-     * 세게 던진 날의 여파를 맨 앞에 본다(그날 · 다음 날은 가볍게 — hardOuting).
+     * 날 종류의 회복 날을 맨 앞에 본다 — 세게 던진 날(그날 · 다음 날, hardOuting 과 같은 값) · 체크인에 적은 오늘 등판(아직 안 던져
+     * 기록이 없어도 그날은 가볍게 풀고 활성화만) · 어제 중간 부하 + 최근 운동 힘듦 급증(D3, 2판 P4 커밋 E).
      *
      * 부하 지수는 4주 평균에 견주는 값이라 어제 90구가 바로 반영되지 않고,
      * 반영되더라도 "위험 구간"이라고만 하면 왜 그런지 알 수 없다. 던진 것이
      * 원인이면 그것을 그대로 말하는 편이 낫다.
      */
-    const outing = hardOuting(facts);
-    if (outing) {
+    if (dk.rank === 'recovery' && dkWords) {
       return {
         key: 'recovery',
         label: '회복·재생 데이',
-        reason: hardOutingReason(outing),
-      };
-    }
-    /*
-     * 체크인에 적은 오늘 등판(plannedOuting) — 세게 던진 날 바로 뒤. 아직 안 던져 기록이 없어도 그날은
-     * 가볍게 풀고 활성화만 한다. 던지고 나면 hardOuting 이 같은 결론을 기록으로 낸다.
-     */
-    const planned = plannedOuting(facts);
-    if (planned === 'today') {
-      return {
-        key: 'recovery',
-        label: '회복·재생 데이',
-        reason: plannedOutingReason('today'),
+        reason: dkWords.reason,
       };
     }
     if (facts.load.zone === 'danger') {
@@ -650,14 +763,16 @@ function decideThemeForBody({
       };
     }
     /*
-     * 등판 전날 — 회복(위 넷)보다 뒤, 부하 주의와 같은 자리(보조·코어). 전날 무거운 하체를 하면 다음 날
-     * 다리가 무겁다. 통증이 아니라 고를 수 있다(override). workoutConflict 의 같은 자리에도 같은 줄이 있다.
+     * 날 종류의 보조 날 — 회복(위 넷)보다 뒤, 부하 주의와 같은 자리(보조·코어). 등판 전날(무거운 하체를 하면 다음 날 다리가 무겁다)과
+     * 기록 없는 등판 다음 날(C6 결정, 2판 P4 커밋 E — 어제 '오늘 등판'이라 적었는데 기록이 없으면 부하를 몰라 무게를 빼고 기록을 청한다),
+     * 달력 · 같은 요일로 짐작한 오늘 · 내일 등판(커밋 G — 짐작이라 회복까지는 안 가고 여기서 멈춘다).
+     * 통증이 아니라 고를 수 있다(override). workoutConflict 가 같은 dk 를 같은 자리에서 읽는다.
      */
-    if (planned === 'tomorrow') {
+    if (dk.rank === 'light' && dkWords) {
       return {
         key: 'assist',
         label: '보조·코어 데이',
-        reason: plannedOutingReason('tomorrow'),
+        reason: dkWords.reason,
       };
     }
     if (facts.load.zone === 'caution') {
@@ -700,14 +815,40 @@ function decideThemeForBody({
    * 날짜로 번갈아 도는 예비 규칙을 둔다.
    */
   if (lastLowerKey == null && lastUpperKey == null) {
-    const [, m, d] = facts.asOf.split('-').map(Number);
-    const lower = (m + d) % 2 === 0;
     /*
      * 최근에 던진 날이 없으면 부하 이야기를 하지 않는다 — 볼 투구 부하가 없다. 2026-10-03 부터 투구 기록이
      * 없어도 일정을 만들 수 있게 되어(training/page.tsx), '부하가 적정 범위예요'가 사실과 다른 말이 됐다.
      */
     const noThrows = facts.patterns.lastThrowDate == null;
     const loadNote = '최근 투구 기록이 없어 투구량은 따로 보지 않았어요. ';
+    /*
+     * 날 종류가 쪽을 말하면 그쪽(2판 P4 커밋 E) — 등판이 3일 안(R5)이면 다리를 아끼는 상체, 등판에서 먼 날(R6)이면 하체.
+     * 한쪽 기록이라도 있으면 여기 오지 않는다(아래 번갈아가 이긴다). 날짜 홀짝은 날 종류가 쪽을 말하지 않을 때만.
+     */
+    if (dk.side === 'upper') {
+      return {
+        key: 'upper',
+        label: '상체 스트렝스 데이',
+        reason:
+          todayNote +
+          (noThrows ? loadNote : '') +
+          '등판이 가까워 다리는 아끼고 상체 근력을 해요.' +
+          forcedNote,
+      };
+    }
+    if (dk.side === 'lower') {
+      return {
+        key: 'lower',
+        label: '하체 스트렝스 데이',
+        reason:
+          todayNote +
+          (noThrows ? loadNote : '') +
+          '등판이 아직 멀어 하체 근력을 하기 좋은 날이에요. 투구의 힘은 하체에서 나와요.' +
+          forcedNote,
+      };
+    }
+    const [, m, d] = facts.asOf.split('-').map(Number);
+    const lower = (m + d) % 2 === 0;
     return lower
       ? {
           key: 'lower',
@@ -851,7 +992,9 @@ type SlotSpec = {
    * 그러면 상체 스트렝스가 하루에 하나밖에 안 들어가고, 밀기와 당기기를
    * 가를 수가 없다 — 상체날 50일 중 스트렝스가 둘 이상인 날이 10일뿐이었다.
    *
-   * 계열이 비어 있는 파워는 지나간다. 막아버리면 영영 안 나온다.
+   * 계열이 비어 있는 파워는 예전에 지나갔다(막아버리면 영영 안 나온다고 봤다). 2판 P5 검토(2026-10-13)부터는 부위로 가른다 —
+   * 하체 부위면 하체 칸에만, 메디신볼 · 어깨 · 팔꿈치면 상체 칸에만(fitsPowerSide, 분류 한 곳 exercise-class.ts). 하체 부위만 있는
+   * 아이소 둘이 상체 날 파워 칸에 들어 무거운 하체가 이틀 이어졌다.
    */
   powerPatterns?: readonly string[];
   /**
@@ -991,8 +1134,11 @@ const COMPOSITIONS: Record<ThemeKey, SlotSpec[]> = {
       slot: 'main',
       share: 0.7,
       categories: ['하체 스트렝스', '파워'],
-      /* 하체날의 파워는 뛰고 미는 계열만 */
-      powerPatterns: ['스쿼트', '런지', '힌지'],
+      /*
+       * 하체날의 파워는 뛰고 미는 계열만. 목록은 무거운 하체 판정(lib/engine/exercise-class.ts isHeavyLower)과 한 벌이다 —
+       * 하체날에 들어가는 점프와 등판 전에 빼는 점프가 어긋나지 않게(2판 P4).
+       */
+      powerPatterns: LOWER_POWER_PATTERNS,
       maxCount: 8,
     },
   ],
@@ -1001,8 +1147,12 @@ const COMPOSITIONS: Record<ThemeKey, SlotSpec[]> = {
       slot: 'main',
       share: 0.7,
       categories: ['상체 스트렝스', '파워'],
-      /* 상체날의 파워는 던지는 계열만 — 스쿼트·런지 점프는 하체날 몫이다 */
-      powerPatterns: ['밀기', '당기기', '회전'],
+      /*
+       * 상체날의 파워는 던지는 계열만 — 스쿼트·런지 점프는 하체날 몫이다. 목록은 상체 파워 판정(lib/engine/exercise-class.ts
+       * isUpperPower)과 한 벌이다(2판 P5 — 고르기 점수 · 프로그램 겹침이 같은 말로 본다). 계열이 없는 파워까지 그 판정으로 가르는
+       * 것은 fitsPowerSide(2판 P5 검토) — 그 전에는 목록만 같고 계열 없는 하체 파워가 이 칸에 들었다.
+       */
+      powerPatterns: UPPER_POWER_PATTERNS,
       maxCount: 8,
     },
   ],
@@ -1171,7 +1321,26 @@ export function compositionFor(
 }
 
 /**
- * 이 운동이 이 구간의 규격에 맞는가 — 카테고리, 파워면 구간의 계열, 스트렝스면 좁힌 계열.
+ * 파워가 이 구간의 쪽(하체 · 상체)에 드는가 — 분류 한 곳(lib/engine/exercise-class.ts)의 판정 그대로.
+ *
+ *   하체 칸(LOWER_POWER_PATTERNS)  isLowerPower — 계열이 하체이거나, 계열이 없으면 하체 부위
+ *   상체 칸(UPPER_POWER_PATTERNS)  isUpperPower 이고 isLowerPower 가 아님 — 계열이 없는 파워는 하체 부위가 있으면 하체 몫이다
+ *
+ * 2판 P5 검토(2026-10-13)에서 고쳤다. 예전에는 계열이 없는 파워면 검사를 건너뛰어 어느 칸에나 들었다. 그래서 하체 부위 꼬리표만 있는
+ * 하체 파워(발목 아이소메트릭 프레스 · 가속 포지션 아이소 홀드)가 상체 날 파워 칸에 들었고, P5 점수가 내일 프로그램과 겹치는 상체 파워를
+ * 뒤로 밀자 그 자리를 채워 무거운 하체가 이틀 이어진 짝(기준선 ㉑)이 35 → 42 로 늘었다. 계열이 있는 파워는 예전과 같다(계열 하나는
+ * 두 목록 중 한쪽에만 있다). 계열이 없고 어느 쪽도 아닌 파워는 이제 어느 칸에도 안 든다 — 2026-10-12 표에는 없다(44개가 모두 한쪽).
+ * 칸은 목록의 정체(같은 배열)로 가른다 — COMPOSITIONS · shapeToSpecs 가 그 배열을 그대로 옮긴다. 다른 목록이면 예전처럼 계열만 본다.
+ */
+function fitsPowerSide(ex: ThemedExercise, patterns: readonly string[]): boolean {
+  const cls = { ...ex, equipment: ex.equipment ?? [] };
+  if (patterns === LOWER_POWER_PATTERNS) return isLowerPower(cls);
+  if (patterns === UPPER_POWER_PATTERNS) return isUpperPower(cls) && !isLowerPower(cls);
+  return ex.movementPattern == null || patterns.includes(ex.movementPattern);
+}
+
+/**
+ * 이 운동이 이 구간의 규격에 맞는가 — 카테고리, 파워면 구간의 쪽(fitsPowerSide), 스트렝스면 좁힌 계열.
  *
  * pickForTheme 의 구간별 후보 거르기와 본운동 후보 세기(mainCandidateCount)가 같은 규칙을 쓰려고 뗐다. 회복날의
  * '가벼운 것만'(isRecoveryLight)은 여기 없다 — 테마 전체에 걸리는 조건이라 pickForTheme 이 따로 본다.
@@ -1182,8 +1351,7 @@ function fitsSlot(ex: ThemedExercise, spec: SlotSpec): boolean {
   if (
     ex.category === '파워' &&
     spec.powerPatterns &&
-    ex.movementPattern != null &&
-    !spec.powerPatterns.includes(ex.movementPattern)
+    !fitsPowerSide(ex, spec.powerPatterns)
   ) {
     return false;
   }
@@ -1214,6 +1382,43 @@ export function mainCandidateCount(
 }
 
 /**
+ * 이 테마 · 목표 · 좁힌 부위의 어느 구간에든 들어갈 수 있는 운동인가 — pickForTheme 이 구간마다 거르는 규칙(fitsSlot)과 회복날의 '가벼운
+ * 것만'(isRecoveryLight)을 같이 본다. 고르는 데는 안 쓴다. 일정 까닭(score.ts planReasonItemsOf, 2판 P5-j)이 '그날 구간을 두고 겨룬 후보'만
+ * 세려고 쓴다 — 상체 날에 하체 점프까지 세면 그날과 상관없는 '하체 점프는 뒤로 뒀어요'를 말한다. 구성은 한 번만 만들고 판정 함수를
+ * 돌려준다(후보 수백 개에 쓴다).
+ */
+export function competesForDay(
+  theme: ThemeKey,
+  goalName: string | null,
+  focus?: GoalFocusKey | null
+): (ex: ThemedExercise) => boolean {
+  const specs = compositionFor(theme, goalName, focus);
+  return (ex) =>
+    (theme !== 'recovery' || isRecoveryLight(ex)) &&
+    specs.some((sp) => fitsSlot(ex, sp));
+}
+
+/**
+ * 날을 바꿀 때 가지 않을 쪽과 그 까닭(2판 P6-3, 2026-10-13) — steerFromEmptyMain · steerForLowerBudget 가 읽는다.
+ *   pain   통증 때문에 피한 쪽(painAvoidedSide — steerAroundPain 이 비켜 간 쪽)
+ *   arm    팔을 아끼는 날(중재의 팔 예산을 다 씀 · 팔 피로 '많이' 이상) — 상체로 가면 상체 무게가 새로 생긴다(비판 1 빈틈 28)
+ *   stiff  어깨 · 팔꿈치 · 손목이 오늘 '뻐근'
+ *   rehab  어깨 · 팔꿈치 재활 1~3단계
+ * 예전(2판 P6-2 까지)에는 통증 쪽 하나('lower' | 'upper' | null)였다. 중재(lib/engine/arbiter.ts)의 '상체로 가도 되는가'(upperBlockedBy)를
+ * 같이 받으려고 배열로 넓혔다 — 통증만 주면 예전과 글자까지 같다(같은 글 · 같은 차례).
+ */
+export type SteerAvoidReason = 'pain' | 'arm' | 'stiff' | 'rehab';
+export type SteerAvoid = { side: 'lower' | 'upper'; because: SteerAvoidReason };
+
+/** 그쪽으로 안 가는 까닭 — '{반대쪽}는 … 쉬어요'의 가운데 */
+const STEER_AVOID_WHY: Record<SteerAvoidReason, string> = {
+  pain: '아픈 곳이라',
+  arm: '팔을 아끼는 날이라',
+  stiff: '뻐근한 곳이라',
+  rehab: '재활 중이라',
+};
+
+/**
  * 근력 날인데 그쪽 본운동 후보가 하나도 없으면 날을 바꾼다 — 반대쪽 근력 날로, 그것도 없거나 어제 했으면 보조 · 코어 날로.
  *
  * 2026-10-11 (트레이닝 추천 2판 P1 '대비책 상한'). 예전에는 본운동이 비면 pickForTheme 의 대비책이 모빌리티 · 암케어만 빼고
@@ -1235,7 +1440,7 @@ export function steerFromEmptyMain({
   lastLowerKey,
   lastUpperKey,
   asOf,
-  avoid = null,
+  avoid = [],
 }: {
   day: SessionTheme;
   /** 안전 거르기를 지난 후보(selectCandidates) — 그 안에서만 센다 */
@@ -1246,8 +1451,11 @@ export function steerFromEmptyMain({
   lastUpperKey: string | null;
   /** 오늘(YYYY-MM-DD) */
   asOf: string;
-  /** 통증 때문에 피해야 할 쪽(painAvoidedSide) — 그쪽으로는 되돌아가지 않는다 */
-  avoid?: 'lower' | 'upper' | null;
+  /**
+   * 가지 않을 쪽(SteerAvoid — 통증 쪽 painAvoidedSide, 중재의 '상체로 가도 되는가'). 그쪽으로는 되돌아가지 않고 보조 · 코어 날로 간다.
+   * 앞의 것이 글을 정한다(부르는 쪽이 통증을 먼저 넣는다).
+   */
+  avoid?: readonly SteerAvoid[];
 }): SessionTheme {
   if (day.key !== 'lower' && day.key !== 'upper') return day;
   if (focus) return day;
@@ -1261,7 +1469,8 @@ export function steerFromEmptyMain({
   const otherLast = other === 'lower' ? lastLowerKey : lastUpperKey;
   const yesterday = shiftDateKey(asOf, -1);
 
-  if (otherCount > 0 && otherLast !== yesterday && other !== avoid) {
+  const blocked = avoid.find((a) => a.side === other);
+  if (otherCount > 0 && otherLast !== yesterday && !blocked) {
     return {
       key: other,
       label: other === 'lower' ? '하체 스트렝스 데이' : '상체 스트렝스 데이',
@@ -1271,10 +1480,77 @@ export function steerFromEmptyMain({
   const why =
     otherCount === 0
       ? '하체 · 상체 운동이 모두 없어 오늘은 코어와 보강을 해요. 설정에서 장비를 더하면 근력 날이 생겨요.'
-      : other === avoid
-        ? `${part} 운동이 없고 ${otherPart}는 아픈 곳이라 쉬어요. 오늘은 코어와 보강을 해요.`
+      : blocked
+        ? `${part} 운동이 없고 ${otherPart}는 ${STEER_AVOID_WHY[blocked.because]} 쉬어요. 오늘은 코어와 보강을 해요.`
         : `${part} 운동이 없고 ${otherPart}는 어제 했어요. 오늘은 코어와 보강을 해요.`;
   return { key: 'assist', label: '보조·코어 데이', reason: `${day.reason} ${why}` };
+}
+
+/** 하체 예산을 '그래도 하기'로 넘긴 날의 한 줄 — 까닭(어제 · 내일 · 프로그램)과 상관없이 같은 말 */
+export const LOWER_BUDGET_OVERRIDE_NOTE =
+  '무거운 하체를 쉬는 날이지만 고른 대로 해요. 아프면 바로 멈춰요.';
+
+/**
+ * 하체 예산(중재 lib/engine/arbiter.ts lowerBudget — 무거운 하체가 48시간 안에 두 번 없게)이 막은 날, 하체 날을 바꾼다(2판 P6-3, 2026-10-13).
+ *
+ * 왜. 매일 일정끼리는 번갈아 규칙이 어제 하체면 오늘 상체로 보낸다. 그런데 근력 프로그램과 일정 사이(어제 프로그램 스쿼트 → 오늘 일정 하체,
+ * 오늘 일정 하체 → 내일 프로그램 스쿼트)는 아무도 안 봤다(기준선 ㉑ 이 0 인 것은 대본이 우연히 그랬을 뿐 막는 규칙이 없었다). 부르는 쪽
+ * (daily-plan.ts)이 무거운 하체(exercise-class.ts isHeavyLower)를 후보에서 이미 뺐고, 여기서는 날만 정한다.
+ *
+ * 규칙(위가 이긴다)
+ *   하체 날이 아니면 그대로 — 상체 · 보조 · 회복 날에는 무거운 하체가 처음부터 안 든다.
+ *   사용자가 오늘 부위를 좁혔으면(focus) 하체 날 그대로, 무거운 것만 빠진다 — 사용자 선택이 이긴다(steerFromEmptyMain 과 같은 원칙). 한 줄을 단다.
+ *   본운동 구간이 없는 목표(컨디셔닝)도 그대로 — 바꿀 본운동이 없다. 한 줄을 단다.
+ *   상체로 갈 수 있으면 상체 날 — 상체 본운동 후보가 있고, 어제 상체가 아니고, 상체를 피할 까닭(avoid — 팔을 아끼는 날 · 통증 · 뻐근 · 재활)이 없을 때.
+ *   그 밖에는 보조 · 코어 날(비판 1 빈틈 28 — 상체로 가면 상체 무게가 새로 생긴다).
+ * 이유 글은 원래 까닭 뒤에 예산의 한 줄과 어디로 갔는지를 붙인다(steerFromEmptyMain 과 같은 꼴).
+ * 부르는 쪽은 무거운 하체를 실제로 뺀 날(하체 날에 들 무거운 하체가 있었던 날)에만 부른다 — 빼지도 않은 날 날을 바꾸지 않게.
+ */
+export function steerForLowerBudget({
+  day,
+  candidates,
+  goalName,
+  focus = null,
+  lastUpperKey,
+  asOf,
+  avoid = [],
+  text,
+}: {
+  day: SessionTheme;
+  /** 하체 예산으로 무거운 하체를 뺀 뒤의 후보(안전 거르기도 지난 것) */
+  candidates: readonly ThemedExercise[];
+  goalName: string | null;
+  focus?: GoalFocusKey | null;
+  lastUpperKey: string | null;
+  /** 오늘(YYYY-MM-DD) */
+  asOf: string;
+  /** 가지 않을 쪽(SteerAvoid) — 'upper' 가 있으면 상체로 안 간다 */
+  avoid?: readonly SteerAvoid[];
+  /** 하체 예산의 한 줄(arbiter LOWER_BUDGET_TEXT — 막힌 까닭) */
+  text: string;
+}): SessionTheme {
+  if (day.key !== 'lower') return day;
+  const noted = { ...day, reason: `${day.reason} ${text}` };
+  if (focus) return noted;
+  if (mainCandidateCount(candidates, 'lower', goalName) == null) return noted;
+  const upperCount = mainCandidateCount(candidates, 'upper', goalName) ?? 0;
+  const yesterday = shiftDateKey(asOf, -1);
+  if (
+    upperCount > 0 &&
+    lastUpperKey !== yesterday &&
+    !avoid.some((a) => a.side === 'upper')
+  ) {
+    return {
+      key: 'upper',
+      label: '상체 스트렝스 데이',
+      reason: `${day.reason} ${text} 대신 상체를 해요.`,
+    };
+  }
+  return {
+    key: 'assist',
+    label: '보조·코어 데이',
+    reason: `${day.reason} ${text} 대신 코어와 보강을 해요.`,
+  };
 }
 
 /**
@@ -1288,6 +1564,50 @@ export function effectiveMinutes(theme: ThemeKey, requested: number): number {
   if (theme !== 'recovery') return requested;
   const scaled = Math.floor((requested * RECOVERY_SHARE) / 5) * 5;
   return Math.min(scaled, RECOVERY_MAX_MINUTES);
+}
+
+/** 등판 창 안의 하체 날에 붙이는 한 줄 — 안전 거르기(prescription.ts 2-2)가 무거운 하체를 뺀 날 */
+export const OUTING_LIGHT_LOWER_NOTE =
+  '등판이 가까워 무거운 하체는 빼고 가벼운 하체 운동으로 해요.';
+
+/**
+ * 날을 다 정한 뒤 붙이는 표시(2판 P4 커밋 E) — buildDailyPlan 이 마지막에 한 번 부른다.
+ *
+ * 날을 바꾸는 함수(steerAroundPain · steerFromEmptyMain · conditioningDay)는 테마를 새 객체로 만들어 칸 · 이유 끝줄이 빠진다. 그래서
+ * 표시용은 날이 다 정해진 뒤 날 종류(dk)와 마지막 key 로 한 번에 붙인다(설계 검토 G18):
+ *   heavyLowerAllowed  등판 창이 무거운 하체를 뺀 날에만 false 를 싣는다(없으면 든다 — 옛 일정과 같은 뜻, JSON 이 흔들리지 않게)
+ *   하체 날 한 줄     그날 하체 날이고 본운동이 있는 목표(컨디셔닝 아님)면 OUTING_LIGHT_LOWER_NOTE
+ *   짧게 한 줄        shortened 가 오면(구원 '어제 실전 강도로 20구 넘게', 회복 날 아님) 몇 분으로 줄였는지
+ * 무거운 하체를 실제로 빼는 일은 prescription.ts 가 이미 했다 — 여기서는 글과 표시만 붙인다.
+ */
+export function finishDayTheme(
+  theme: SessionTheme,
+  dk: DayKind,
+  {
+    conditioning,
+    shortened,
+  }: {
+    /** 목표가 컨디셔닝이라 본운동(무게)이 없는 날 */
+    conditioning: boolean;
+    /** 짧게 잡았으면 { 어제 실전 강도로 던진 공 · 줄인 분 }, 아니면 null */
+    shortened: { pitches: number; minutes: number } | null;
+  }
+): SessionTheme {
+  const lines = [theme.reason];
+  if (!dk.heavyLowerAllowed && theme.key === 'lower' && !conditioning) {
+    lines.push(OUTING_LIGHT_LOWER_NOTE);
+  }
+  if (shortened) {
+    lines.push(
+      `어제 실전 강도로 ${shortened.pitches}구를 던져 오늘은 ${shortened.minutes}분으로 짧게 잡았어요.`
+    );
+  }
+  return {
+    key: theme.key,
+    label: theme.label,
+    reason: lines.join(' '),
+    ...(dk.heavyLowerAllowed ? {} : { heavyLowerAllowed: false }),
+  };
 }
 
 export type ThemedExercise = {
@@ -1386,7 +1706,7 @@ function totalSlack(minutes: number): number {
  * 주 2~3회 하는 사람에게 두어 주에 한 번꼴이라, 지난번 무게가 아직 기억나는
  * 간격이다. 더 짧게 하면 후보가 좁아져 같은 계열 동작이 몰린다.
  */
-const RETURN_SESSIONS = 6;
+export const RETURN_SESSIONS = 6;
 
 /**
  * 후보를 어떤 순서로 볼지 정한다.
@@ -1409,16 +1729,37 @@ const RETURN_SESSIONS = 6;
  * (첫 서른 세션에 7%). 번갈아 내면 둘이 따로 논다 — 같은 조건에서 55%.
  *
  * 빼지는 않는다. 후보가 적은 날에 빼버리면 줄 것이 없어진다.
+ *
+ * 고르기 점수(scoreOf, 2판 P5-i · 2026-10-12)는 ① ② ③ 무리 안에서만 첫째 키로 쓴다 — 클수록 앞. 예전에는 무리 안 차례가
+ * '오래된 것 · 씨앗'뿐이라, 어깨가 뻐근한 날 · 내일 등판인 날에도 같은 줄에서 같은 운동이 뽑혔다(기준선 ⑰ 11.4%). 무리 나누기 ·
+ * 번갈아 내기는 점수보다 위에 둔다 — 오래 안 한 것을 다시 꺼내는 규칙(위 '같은 조건에서 55%')을 점수가 뒤집으면 안 된다. 동점은
+ * 지금 키(① ③ 오래된 것 → 씨앗, ② 씨앗)가 가른다. 그래서 모든 점수가 0 이면 점수 없이 부른 것과 글자까지 같은 차례다(정렬이
+ * 안정적이라). ④ 최근 사흘은 점수를 안 매기고 후보 차례 그대로 맨 뒤 — 점수가 높아도 회복 규칙을 못 넘는다. 점수는 빼지 않는다.
+ * 빼는 것은 안전 거르기(prescription.ts selectCandidates)의 몫이라, 점수가 틀려도 위험한 운동이 들어오지 않는다.
+ *
+ * 자체 시험이 직접 부른다(scripts/training-selftest.mts '[2판 P5] 차례에 점수') — 앱은 pickForTheme 으로만 부른다.
  */
-function orderCandidates<T extends ThemedExercise>(
+export function orderCandidates<T extends ThemedExercise>(
   candidates: T[],
   {
     recentIds,
     sessionsAgo,
     rotationSeed,
-  }: { recentIds: Set<string>; sessionsAgo: Map<string, number>; rotationSeed?: string }
+    scoreOf,
+  }: {
+    recentIds: Set<string>;
+    sessionsAgo: Map<string, number>;
+    rotationSeed?: string;
+    /** 운동마다 고르기 점수(클수록 앞). 안 주면 예전 차례 그대로 */
+    scoreOf?: (ex: T) => number;
+  }
 ): T[] {
-  if (recentIds.size === 0 && sessionsAgo.size === 0 && rotationSeed == null) {
+  if (
+    recentIds.size === 0 &&
+    sessionsAgo.size === 0 &&
+    rotationSeed == null &&
+    scoreOf == null
+  ) {
     return candidates;
   }
 
@@ -1446,10 +1787,22 @@ function orderCandidates<T extends ThemedExercise>(
   const byAge = (a: T, b: T) =>
     (sessionsAgo.get(b.id) ?? 0) - (sessionsAgo.get(a.id) ?? 0) ||
     seedOf(a) - seedOf(b);
+  /*
+   * 점수는 운동마다 한 번만 센다(정렬이 비교마다 부르면 같은 운동을 여러 번 센다). 숫자가 아닌 값(NaN · 무한)은 0 으로 —
+   * 비교가 NaN 을 내면 정렬 차례가 엔진마다 달라진다. 최근 사흘 무리는 점수를 안 쓰니 세지 않는다.
+   */
+  const scores = new Map<T, number>();
+  if (scoreOf != null) {
+    for (const ex of [...due, ...fresh, ...early]) {
+      const v = scoreOf(ex);
+      scores.set(ex, Number.isFinite(v) ? v : 0);
+    }
+  }
+  const byScore = (a: T, b: T) => (scores.get(b) ?? 0) - (scores.get(a) ?? 0);
 
-  due.sort(byAge);
-  early.sort(byAge);
-  fresh.sort((a, b) => seedOf(a) - seedOf(b));
+  due.sort((a, b) => byScore(a, b) || byAge(a, b));
+  early.sort((a, b) => byScore(a, b) || byAge(a, b));
+  fresh.sort((a, b) => byScore(a, b) || seedOf(a) - seedOf(b));
 
   // 돌아올 것 하나, 처음 보는 것 하나 — 번갈아
   const mixed: T[] = [];
@@ -1499,6 +1852,7 @@ export function pickForTheme<T extends ThemedExercise>({
   preferredWorkout = null,
   goal = null,
   focus = null,
+  scoreOf,
 }: {
   candidates: T[];
   theme: ThemeKey;
@@ -1544,6 +1898,15 @@ export function pickForTheme<T extends ThemedExercise>({
   goal?: string | null;
   /** 목표 안에서 좁힌 부위 — 본운동의 스트렝스를 한 계열로 줄인다 */
   focus?: GoalFocusKey | null;
+  /**
+   * 운동마다 고르기 점수 — 오늘 상태(뻐근한 관절 · 다음 등판 · 팔 피로 · 프로그램 · 뺀 운동 · 빠진 계열 · 즐겨찾기)를 작은 정수로
+   * 매긴 것(score.ts 의 scoreOf 가 낸 total 을 넘긴다, 2판 P5). 클수록 먼저 본다.
+   *
+   * 차례만 바꾼다 — 무리(돌아올 것 · 처음 보는 것 · 이른 것) 안에서만 첫째 키라(orderCandidates), 최근 사흘은 그대로 맨 뒤,
+   * 오늘 고른 운동 종류 · 부위 · 목표가 먼저 고를 쪽(아래 안정 분할 셋)과 거름(구간 규격 · 시간 · 계열 겹침 · 파워 비중)은
+   * 점수보다 위다. 빼는 일은 없다. 안 주면 예전 차례 그대로 — 모든 점수가 0 이어도 같다.
+   */
+  scoreOf?: (ex: T) => number;
 }): { picks: ThemedPick<T>[]; estimatedMinutes: number; notes: string[] } {
   /*
    * 목표를 안 준 날은 오늘 고른 운동 종류를 따른다 — 일정 만들기와 같은 규칙이다
@@ -1586,6 +1949,7 @@ export function pickForTheme<T extends ThemedExercise>({
     recentIds: recentIds ?? new Set<string>(),
     sessionsAgo: sessionsAgo ?? new Map<string, number>(),
     rotationSeed,
+    scoreOf,
   });
 
   const taken = new Set<string>();

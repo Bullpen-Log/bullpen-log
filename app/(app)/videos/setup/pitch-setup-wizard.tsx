@@ -12,6 +12,7 @@ import { useStepWizard } from '@/components/onboarding/use-step-wizard';
 import { finishPitchSetup } from '@/app/actions/pitch-setup';
 import { OFFLINE_MESSAGE, orOffline } from '@/lib/action-offline';
 import { BASELINE_MIX, MIX_COUNTS, THROWING_HANDS, mixDailyLoad } from '@/lib/baseline';
+import { scaleToEffortPct } from '@/lib/pitch-effort';
 import {
   checkPitchStep,
   pitchStepOfField,
@@ -260,7 +261,8 @@ export function PitchSetupWizard({
                   value={a[field]}
                   onChange={(v) => w.patch({ [field]: v })}
                   invalid={invalid(field)}
-                  hint={`한 번에 보통 ${t.pitches}구, 강도 ${t.intensity} 정도로 셈해요.`}
+                  /* 강도는 1~10 표(BASELINE_MIX)를 입력과 같은 체감 강도 % 로 보인다(9 → 90%) */
+                  hint={`한 번에 보통 ${t.pitches}구, 강도 ${scaleToEffortPct(t.intensity)}% 정도로 셈해요.`}
                 />
               );
             })}

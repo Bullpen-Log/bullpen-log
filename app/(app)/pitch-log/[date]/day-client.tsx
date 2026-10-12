@@ -9,6 +9,7 @@ import { Baseball } from '@/components/baseball-icon';
 import { FormError } from '@/components/ui';
 import { usePlaybackUrls } from '@/components/use-playback-urls';
 import { isFutureDateKey } from '@/lib/pitch-stats';
+import { maxEffortPct, scaleToEffortPct } from '@/lib/pitch-effort';
 import { REST_SESSION_TYPE } from '@/lib/session-type';
 import { PlanNote, type PlanNoteData } from '@/components/plan-note';
 import { EntryForm } from '../entry-form';
@@ -124,14 +125,20 @@ export function DayClient({
     if (!todayLimits || thrown.length === 0) return null;
     if (!todayLimits.throwing) return '오늘은 쉬는 것이 계획이었어요.';
     const total = thrown.reduce((sum, l) => sum + l.pitchCount, 0);
-    const topIntensity = Math.max(...thrown.map((l) => l.intensity));
+    /*
+     * 체감 강도는 % 로 견준다(2판 D2) — 계획 상한은 1~10 이라 × 10. 입력이 5% 칸이라 1~10 으로 견주던 때와 넘었는지가
+     * 같다(75% 는 예전에도 8 로 남아 7 을 넘었다). 글도 고른 값과 같은 % 로 보인다.
+     */
+    const topEffort = maxEffortPct(thrown);
+    const capPct =
+      todayLimits.maxIntensity != null
+        ? scaleToEffortPct(todayLimits.maxIntensity)
+        : null;
     const parts = [
       todayLimits.maxPitches != null && total > todayLimits.maxPitches
         ? `계획보다 ${total - todayLimits.maxPitches}구 많아요`
         : null,
-      todayLimits.maxIntensity != null && topIntensity > todayLimits.maxIntensity
-        ? `계획 강도(${todayLimits.maxIntensity})를 넘었어요`
-        : null,
+      capPct != null && topEffort > capPct ? `계획 강도(${capPct}%)를 넘었어요` : null,
     ].filter(Boolean);
     return parts.length ? `${parts.join(' · ')}.` : null;
   })();

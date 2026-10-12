@@ -6,6 +6,10 @@ import { prisma } from '@/lib/prisma';
 import { PageHeading, todayKicker } from '@/components/ui';
 import { OpenCheckinButton } from '@/components/notice-bell';
 import { loadTodayCore, type UserForToday } from '@/lib/report/today-data';
+import { TRAINING_SCREEN_TEXT, trainingScreenOf } from '@/lib/report/training-screen';
+import { STATE_NOTICE_TEXT, stateNoticeOf } from '@/lib/report/state-notice';
+import { PROGRAMS_ENABLED } from '@/lib/program/program';
+import { activeProgram, buildProgramDay, programTodayOf } from '@/lib/program/load';
 import { loadArmcareToday, type UserForArmcare } from '@/lib/armcare/today';
 import { ARMCARE_KIND_TEXT } from '@/lib/armcare/routine';
 import { ARMCARE_AREAS, ARMCARE_CATEGORY } from '@/lib/armcare/anatomy';
@@ -13,6 +17,7 @@ import { loadArmcareCoverage } from '@/lib/armcare/coverage-load';
 import { visibleExercises } from '@/lib/library-cache';
 import { loadMechanicsProgram } from '@/lib/mechanics/load';
 import { mechanicsLevel } from '@/lib/mechanics/levels';
+import { MECHANICS_FOLD_TEXT, foldSession } from '@/lib/mechanics/program';
 import { shiftDateKey, toDateKey } from '@/lib/pitch-stats';
 import { dbDate, keyOfDbDate } from '@/lib/nutrition/days';
 import { TRAINING_PART_HREF, type TrainingPart } from '@/lib/training-part';
@@ -222,13 +227,22 @@ async function SafeCard({
 
 /* ─────────────────────────────── 카드 셋 ─────────────────────────────── */
 
-/** 트레이닝 — 오늘 일정 한 줄과 [시작](운동 판으로 곧장) */
+/**
+ * 트레이닝 — 오늘 일정 한 줄과 [시작](운동 판으로 곧장).
+ *
+ * 차례(2판 P6-4 · P6-6): 마침 > 멈춤 > 근력 프로그램 날 > 일정 없음 > 상태 바뀜 > 남은 운동 없음 > 보통. 프로그램이 오늘
+ * 주인이면(트레이닝 화면과 같은 판정 — lib/report/training-screen.ts) 그날 운동은 프로그램이라 프로그램 이름 · 일차와 프로그램 [시작]을 낸다
+ * (사용자 결정 D6). 마침 · 멈춤이 먼저인 까닭: 마친 날은 무엇이든 마친 것이고, 멈춘 날은 프로그램도 기다린다(painWait).
+ */
 async function WorkoutCard({ user, today }: { user: HomeUser; today: Date }) {
   const core = await loadTodayCore(user, today);
-  const session = await prisma.trainingSession.findUnique({
-    where: { userId_date: { userId: user.id, date: core.midnight } },
-    select: { status: true },
-  });
+  const [session, programRow] = await Promise.all([
+    prisma.trainingSession.findUnique({
+      where: { userId_date: { userId: user.id, date: core.midnight } },
+      select: { status: true },
+    }),
+    PROGRAMS_ENABLED ? activeProgram(user.id) : Promise.resolve(null),
+  ]);
   const count = core.shownPicks.length;
 
   if (session?.status === 'FINISHED') {
@@ -237,8 +251,65 @@ async function WorkoutCard({ user, today }: { user: HomeUser; today: Date }) {
   if (core.picked.halted) {
     return <AppCard app="today" tone="warn" status="오늘은 운동을 처방하지 않았어요" />;
   }
-  if (!core.savedPlan) {
-    return <AppCard app="today" status="오늘 일정을 아직 안 만들었어요" />;
+  /* 프로그램 날은 트레이닝 화면의 프로그램 카드와 같은 길(buildProgramDay — 판정 · 오늘 판 · 중재) */
+  const programView = programRow ? await buildProgramDay(core, programRow, user) : null;
+  const screen = trainingScreenOf({
+    halted: core.picked.halted,
+    daily: programView?.arbitration.daily,
+    savedPlan: core.savedPlan,
+    shownCount: count,
+    /* 할 프로그램 운동이 없는 날(다 빠짐)은 일정 만들기가 매일 일정을 짠다 — 프로그램 날로 보지 않는다(트레이닝 화면과 같은 값, 2판 P6 검토) */
+    programWork: programView ? programTodayOf(programView) != null : false,
+  });
+  if (programView && screen.programOwns) {
+    const active = programView.todayState === 'active';
+    /* 하는 날인데 그날 운동이 하나도 없으면(모두 빠짐) 프로그램 시작이 트레이닝으로 되돌려 보낸다 — 단추 대신 › 로 프로그램 카드에 가게 */
+    const canStart =
+      active || (programView.decision.kind === 'go' && programView.rows.length > 0);
+    const dayLabel =
+      programView.arbitration.program?.today?.label ?? programView.dayLabel;
+    return (
+      <AppCard
+        app="today"
+        status={`${programView.plan.def.name} · ${dayLabel}`}
+        action={
+          canStart ? <StartWorkout compact program resume={active} /> : undefined
+        }
+      />
+    );
+  }
+  if (!screen.usesPlan || !core.savedPlan) {
+    return (
+      <AppCard
+        app="today"
+        status={
+          screen.stalePlan
+            ? TRAINING_SCREEN_TEXT.stalePlanHome
+            : '오늘 일정을 아직 안 만들었어요'
+        }
+      />
+    );
+  }
+  /*
+   * 상태 바뀜(2판 P6-6) — 트레이닝 화면의 띠와 같은 함수(lib/report/state-notice.ts). 한 번 눌러 다시 만들 수 있는 날만 주의 색 한 줄로 알리고
+   * (운동 중 · 체크인 없는 날은 홈에서 할 것이 없어 보통 카드), 카드를 누르면 띠가 있는 트레이닝 화면으로 간다. [시작]은 그대로 둔다 — 알림은
+   * 다시 만들기를 권할 뿐이고, 무리인 운동은 안전 재검사가 이미 뺐다. '일정 없음' 뒤인 까닭: 바뀜은 저장한 일정이 있어야 견준다.
+   */
+  const notice = stateNoticeOf(core.stateChanges, {
+    programOwns: screen.programOwns,
+    droppedForSafety: core.droppedForSafety,
+    session: session?.status === 'ACTIVE' ? 'active' : 'none',
+    checkedIn: core.hasCheckinToday,
+  });
+  if (notice.kind === 'remake' && notice.canRemake) {
+    return (
+      <AppCard
+        app="today"
+        tone="warn"
+        status={STATE_NOTICE_TEXT.home}
+        action={count > 0 ? <StartWorkout compact resume={false} /> : undefined}
+      />
+    );
   }
   if (count === 0) {
     return <AppCard app="today" status="일정에 남은 운동이 없어요" />;
@@ -330,13 +401,12 @@ async function ArmcareCard({ user, today }: { user: HomeUser; today: Date }) {
 
 /** 메커니즘 — 고른 수준의 다음 세션과 12칸 진행(수준을 안 골랐으면 고르라고) */
 async function MechanicsCard({ userId }: { userId: string }) {
-  const { program, session, doneToday } = await loadMechanicsProgram(userId);
+  const { program, session, doneToday, painFold } = await loadMechanicsProgram(userId);
   if (!program?.level) {
     return <AppCard app="mechanics" status="수준을 골라 투구 메커니즘 프로그램을 시작해 보세요" />;
   }
   const level = mechanicsLevel(program.level);
   const done = new Set(program.finishedToday ? [] : doneToday);
-  const started = session.some((s) => done.has(s.guideId));
   const completed = program.week == null;
   const bars = (
     <div className="grid grid-cols-12 gap-0.5" aria-label={`${level.name} ${program.total}번 중 ${program.index}번 마침`}>
@@ -350,6 +420,43 @@ async function MechanicsCard({ userId }: { userId: string }) {
       ))}
     </div>
   );
+  /*
+   * 어깨 · 팔꿈치가 아픈 날(2판 P6-5, D5) · 팔을 다 쓴 날 · 통증 확인 전(2판 P6 검토, lib/mechanics/fold.ts) — 프로그램 칸처럼 팔에 싣는 드릴은
+   * 접고 무브먼트만 권한다. 까닭 머리말은 fold.cause. 펼치기('그래도 하기' — 성인의 통증 날만)는 프로그램 칸에 있어서, 할 드릴이 없으면 단추 없이
+   * 카드를 누르면 그리로 간다. 다 마친 수준 · 오늘 마친 날은 예전 줄 그대로.
+   */
+  const fold = painFold && !completed && !program.finishedToday ? painFold : null;
+  const { open } = foldSession(session, fold);
+  if (fold) {
+    const openLeft = open.filter((s) => !done.has(s.guideId));
+    /* 무브먼트만 하고 마친 날은 세션 수가 그대로라 finishedToday 가 아니다 — 그래서 여기서 '마쳤어요'를 따로 말한다 */
+    const openDone = open.length > 0 && openLeft.length === 0;
+    return (
+      <AppCard
+        app="mechanics"
+        tone={openDone ? 'done' : 'warn'}
+        status={
+          openLeft.length > 0
+            ? MECHANICS_FOLD_TEXT.homeOpen(fold.cause, open.length)
+            : openDone
+              ? MECHANICS_FOLD_TEXT.homeOpenDone
+              : MECHANICS_FOLD_TEXT.homeAllFolded
+        }
+        action={
+          openLeft.length > 0 ? (
+            <StartLink
+              app="mechanics"
+              href="/mechanics/play"
+              label={open.some((s) => done.has(s.guideId)) ? '이어서' : '시작'}
+            />
+          ) : undefined
+        }
+      >
+        {bars}
+      </AppCard>
+    );
+  }
+  const started = session.some((s) => done.has(s.guideId));
   return (
     <AppCard
       app="mechanics"

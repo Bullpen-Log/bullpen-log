@@ -68,6 +68,8 @@ export default async function VideosPage({
         sessionType: true,
         pitchCount: true,
         intensity: true,
+        /* 체감 강도(%) — 달력 · 목록이 % 로 보인다(옛 기록은 null 이라 intensity × 10) */
+        effortPct: true,
         maxVelocity: true,
         memo: true,
         videoPaths: true,

@@ -28,6 +28,7 @@ import {
   pickPinned,
   prescriptionLine,
   programChoiceList,
+  programSignalsOf,
   programKeyOf,
   readPinned,
   readSessionProgram,
@@ -38,12 +39,18 @@ import {
   variantCandidates,
   warmupLine,
   weekOfDay,
+  ARM_DEFER_REASON,
+  ARM_THROW_VARIANTS,
   CAUTION_TEXT,
   REST_TEXT,
+  SUBSTITUTE_REASON,
+  painSlotsOf,
+  restTextOf,
   type ItemRx,
   type PinnableExercise,
   type ProgramPlan,
   type TodaySignals,
+  type VariantKey,
 } from '../lib/program/program.ts';
 import {
   historyEntry,
@@ -67,6 +74,12 @@ import {
   type FrozenExercise,
   type FrozenPlan,
 } from '../lib/workout/session-plan.ts';
+/* 2판 P4 커밋 F — 경기 다음 날을 부하로(투구 기록 → facts → 어제 팔 부담, 앱과 같은 길) */
+import { parseThrowPlan } from '../lib/checkin.ts';
+import { yesterdayArmLoadOf } from '../lib/engine/arm-load.ts';
+import { buildFacts, type CheckinLike } from '../lib/report/facts.ts';
+/* 2판 P6-7 — 올림 멈춤 글(영양 추세 깃발이 선 주에 무게 추천이 받는 글) */
+import { FUEL_HOLD_TEXT } from '../lib/nutrition/fuel-check.ts';
 
 let passed = 0;
 let failed = 0;
@@ -784,6 +797,498 @@ check(
     pickCaution(sig({ sleepShort: true }), true, 20) === 'lighter'
 );
 
+/*
+ * 4-1) 경기 다음 날은 부하로(트레이닝 추천 2판 D3 · P4 커밋 F, 2026-10-12) — gameYesterday 는 어제 '경기' 기록이 아니라 어제 팔 부담
+ * (lib/engine/arm-load.ts yesterdayArmLoadOf)이다. 앱(lib/program/load.ts)과 같은 길: 투구 기록 → facts → 어제 팔 부담 → programSignalsOf.
+ */
+console.log('\n4-1) 경기 다음 날은 부하로(D3)');
+{
+  const ASOF = new Date('2026-10-10T09:00:00+09:00');
+  const ago = (n: number) => new Date(ASOF.getTime() - n * 86_400_000).toISOString();
+  const checkinOn = (n: number, throwPlan: string | null): CheckinLike => ({
+    date: ago(n).slice(0, 10),
+    condition: 8,
+    sleep: '보통',
+    shoulder: '정상',
+    elbow: '정상',
+    wrist: '정상',
+    lowerBack: '정상',
+    lowerBody: '정상',
+    preferredParts: [],
+    preferredWorkout: null,
+    throwPlan,
+  });
+  const factsOf = (
+    logs: { daysAgo: number; pitches: number; pct: number; sessionType: string }[],
+    yesterdayPlan: string | null = null
+  ) =>
+    buildFacts({
+      nickname: '프로그램',
+      age: 22,
+      heightCm: 180,
+      baselineDailyLoad: 100,
+      today: ASOF,
+      logs: logs.map((l) => ({
+        date: ago(l.daysAgo),
+        pitchCount: l.pitches,
+        intensity: Math.round(l.pct / 10),
+        effortPct: l.pct,
+        sessionType: l.sessionType,
+        maxVelocity: null,
+        avgVelocity: null,
+      })),
+      checkins: [checkinOn(0, null), checkinOn(1, yesterdayPlan)],
+      memos: [],
+    });
+  /* 오늘 판정 — 던지는 신호만 facts 에서, 나머지는 보통 날(sig) */
+  const dayOf = (facts: ReturnType<typeof factsOf>) =>
+    decideToday(
+      LEGACY,
+      sig({
+        ...programSignalsOf({
+          outing: {
+            answerToday: parseThrowPlan(facts.condition.throwPlanToday),
+            answerYesterday: parseThrowPlan(facts.condition.throwPlanYesterday),
+          },
+          typesToday: [],
+          yesterdayArmLoad: yesterdayArmLoadOf(facts),
+        }),
+      })
+    );
+  /* 어제 기록 한 줄 */
+  const y1 = (pitches: number, pct: number, sessionType: string) => [
+    { daysAgo: 1, pitches, pct, sessionType },
+  ];
+  const light = dayOf(factsOf(y1(15, 100, '경기')));
+  check(
+    '어제 경기 15구 → 진행(예전 경기 다음 날 쉼 — 15 × 100% = 1,500 은 팔 부담이 작다)',
+    light.kind === 'go',
+    light.kind
+  );
+  const zero = dayOf(factsOf(y1(0, 100, '경기')));
+  check("어제 '경기' 0구 줄 → 진행(부하 0)", zero.kind === 'go', zero.kind);
+  const game = dayOf(factsOf(y1(85, 100, '경기')));
+  check(
+    "어제 경기 85구 → 쉼 · 까닭 '어제 팔 부담이 컸어요'(넘길 수 있음)",
+    game.kind === 'rest' &&
+      game.reason === 'gameYesterday' &&
+      REST_TEXT[game.reason] === '어제 팔 부담이 컸어요',
+    game.kind
+  );
+  const pen = dayOf(factsOf(y1(40, 90, '불펜')));
+  check(
+    '어제 불펜 40구 90% → 쉼(경기가 아니어도 세게 던진 날 — 예전에는 진행)',
+    pen.kind === 'rest' && pen.reason === 'gameYesterday',
+    pen.kind
+  );
+  const claimed = dayOf(factsOf([], '오늘 등판'));
+  check(
+    "어제 '오늘 등판' 답 · 기록 없음 → 쉼(부하를 모르니 조이는 쪽)",
+    claimed.kind === 'rest' && claimed.reason === 'gameYesterday',
+    claimed.kind
+  );
+  const claimedLight = dayOf(factsOf(y1(15, 100, '경기'), '오늘 등판'));
+  check(
+    "어제 '오늘 등판' 답 + 어제 경기 15구 → 진행(기록이 이김 — 예전에는 답만으로 쉼)",
+    claimedLight.kind === 'go',
+    claimedLight.kind
+  );
+  /*
+   * 2판 P4 검토 — 쉬는 까닭 글은 어제 팔 부담의 까닭대로(restTextOf). 셋을 한 글('어제 팔 부담이 컸어요')로 쓰면 기록 없는 등판에도 '컸어요'라고
+   * 단정했다. 앱(load.ts)은 같은 facts 의 yesterdayArmLoadOf 를 넘긴다.
+   */
+  const textOf = (facts: ReturnType<typeof factsOf>) =>
+    restTextOf('gameYesterday', yesterdayArmLoadOf(facts)?.kind ?? null);
+  check(
+    "P4 검토 — 쉬는 까닭 글: 어제 경기 85구 '어제 많이 던졌어요' · 기록 없는 등판 '어제 등판한 다음 날이에요' · 까닭 모름은 예전 글",
+    textOf(factsOf(y1(85, 100, '경기'))) === '어제 많이 던졌어요' &&
+      textOf(factsOf([], '오늘 등판')) === '어제 등판한 다음 날이에요' &&
+      restTextOf('gameYesterday') === REST_TEXT.gameYesterday &&
+      restTextOf('gameToday', 'hard') === REST_TEXT.gameToday
+  );
+}
+
+/*
+ * 4-2) 대체 칸의 까닭(2판 P4 검토) — 팔 피로 '심함'(안전 거르기 5-2)만으로 고정 운동이 빠진 칸은 '팔 피로', 그 밖은 '통증 부위'.
+ * 예전에는 팔 피로만 '심함'인 날에도 '대체 · 통증 부위'가 보였다. 칸 · 까닭은 painSlotsOf 하나가 정한다(앱 load.ts · 자체 시험이 같이 부름).
+ */
+console.log('\n4-2) 대체 칸의 까닭');
+{
+  const items = [
+    { slot: 'pushPull' as const, variant: 'push' as const },
+    { slot: 'pushPull' as const, variant: 'pull' as const },
+    { slot: 'power' as const, variant: 'medball' as const },
+  ];
+  const pinned: Record<string, string> = {
+    push: 'bench',
+    pull: 'row',
+    medball: 'ball',
+  };
+  const of = (safe: string[], armOnly: string[]) =>
+    painSlotsOf(
+      items,
+      (v) => (pinned[v] ? { id: pinned[v] } : null),
+      new Set(safe),
+      new Set(armOnly)
+    );
+  const arm = of(['row'], ['bench', 'ball']);
+  check(
+    "4-2 팔 피로만으로 빠진 벤치 · 메디신볼 → 두 칸 다 '팔 피로'",
+    JSON.stringify(arm.painSlots) === JSON.stringify(['pushPull', 'power']) &&
+      arm.slotReasons.pushPull === SUBSTITUTE_REASON.armFatigue &&
+      arm.slotReasons.power === SUBSTITUTE_REASON.armFatigue
+  );
+  const mixed = of([], ['bench', 'ball']);
+  check(
+    "4-2 한 칸에 팔 피로(벤치) · 통증(로우)이 섞이면 '통증 부위'가 이긴다 — 더 조심할 까닭",
+    mixed.slotReasons.pushPull === SUBSTITUTE_REASON.pain &&
+      mixed.slotReasons.power === SUBSTITUTE_REASON.armFatigue
+  );
+  const none = of(['bench', 'row', 'ball'], []);
+  check('4-2 모두 안전하면 대체 칸 없음', none.painSlots.length === 0);
+  const d = decideToday(
+    LEGACY,
+    sig({ painSlots: arm.painSlots, slotReasons: arm.slotReasons })
+  );
+  const old = decideToday(LEGACY, sig({ painSlots: ['pushPull'] }));
+  check(
+    "4-2 decideToday — 대체 까닭은 slotReasons 대로('팔 피로'), slotReasons 없는 옛 신호는 '통증 부위'",
+    d.kind === 'go' &&
+      d.adjust.pushPull?.kind === 'substitute' &&
+      d.adjust.pushPull.reason === '팔 피로' &&
+      old.kind === 'go' &&
+      old.adjust.pushPull?.kind === 'substitute' &&
+      old.adjust.pushPull.reason === '통증 부위'
+  );
+}
+
+/*
+ * 4-3) 중재 신호(트레이닝 추천 2판 P6-2, 2026-10-13) — 프로그램 카드가 중재(lib/engine/arbiter.ts)와 같은 하루를 말하게 판정이 받는 선택 칸
+ * 다섯: armSpent · armThrows(팔로 던지는 변형을 그날 뺀다, 넘겨도) · heavyLowerYesterday(큰 하체를 가볍게, 넘기면 그대로) · hardToday ·
+ * choseRecovery(쉬는 날, 넘길 수 있음). 신호를 만드는 규칙(programArbiterSignals)은 training:test 가 보고, 여기는 판정만 본다.
+ */
+console.log('\n4-3) 중재 신호(2판 P6-2)');
+{
+  /* 목록의 프로그램 + 옛 '비시즌 근력 → 파워'(숨김 — 진행 중인 줄만 이어 간다). 회전 던지기 칸은 지금 옛 프로그램에만 있다 */
+  const keys = [
+    ...PROGRAMS.flatMap((d) => d.perWeek.map((pw) => programKeyOf(d.id, pw))),
+    'offseason-strength-power',
+  ];
+  const plans = keys.map((k) => [k, plan(k)] as const);
+  const variantsOf = (p: ProgramPlan, d: number) =>
+    dayPlan(p, d).items.map((x) => x.variant);
+  const firstDay = (want: (vs: VariantKey[]) => boolean) => {
+    for (const [k, p] of plans)
+      for (let d = 1; d <= p.totalDays; d++)
+        if (want(variantsOf(p, d))) return { k, p, d };
+    return null;
+  };
+
+  /* (가) 신호를 안 주거나 다 거짓 · 빈 값이 아닌 기본값으로 주면 옛 판정과 글자까지 같다 */
+  const oldSigs: Partial<TodaySignals>[] = [
+    {},
+    { gameToday: true },
+    { gameToday: true, override: true },
+    { gameYesterday: true, override: true },
+    { bullpenToday: true },
+    { hardThrowRecent: true },
+    { recovery: 'lowCondition', soreMany: true },
+    { loadCaution: true, painSlots: ['bigLower', 'power'] },
+    { uncertain: true, sleepShort: true },
+    { lastProgramDate: '2026-09-28' },
+    { lastProgramDate: '2026-10-09' },
+  ];
+  const off: Partial<TodaySignals> = {
+    armSpent: false,
+    armThrows: [...ARM_THROW_VARIANTS],
+    heavyLowerYesterday: false,
+    hardToday: false,
+    choseRecovery: false,
+  };
+  let n = 0;
+  const same: string[] = [];
+  for (const [k, p] of plans)
+    for (let d = 1; d <= p.totalDays; d++)
+      for (const o of oldSigs) {
+        n++;
+        const a = decideToday(p, sig({ nextDay: d, ...o }));
+        const b = decideToday(p, sig({ nextDay: d, ...o, ...off }));
+        if (!eq(a, b) || (a.kind === 'go' && 'deferVariants' in a))
+          same.push(`${k} ${d}일차`);
+      }
+  check(
+    `4-3 (가) 새 신호를 안 주면 · 다 거짓으로 주면 옛 판정과 글자까지 같다(뺄 변형 칸도 안 생김) — ${keys.length}개 프로그램 모든 일차 × 옛 신호 ${oldSigs.length}가지 = ${n}가지`,
+    same.length === 0 && n > 1000,
+    same.slice(0, 3).join(' · ')
+  );
+
+  /* (나) 팔을 다 쓴 날 — 변형 단위로 뺀다(점프는 남는다), 칸으로는 안 뺀다, 뺀 날만 주의 '팔 아낌' */
+  const bad: string[] = [];
+  let armDays = 0;
+  let both = 0;
+  let rot = 0;
+  for (const [k, p] of plans)
+    for (let d = 1; d <= p.totalDays; d++) {
+      const vs = variantsOf(p, d);
+      const want = ARM_THROW_VARIANTS.filter((v) => vs.includes(v));
+      const g = decideToday(p, sig({ nextDay: d, armSpent: true }));
+      const got = g.kind === 'go' ? (g.deferVariants ?? []) : null;
+      if (
+        g.kind !== 'go' ||
+        !eq([...(got ?? [])].sort(), [...want].sort()) ||
+        (got ?? []).includes('jump') ||
+        Object.keys(g.adjust).length > 0 ||
+        want.length > 0 !== (g.caution === 'armRest') ||
+        (want.length === 0) !== !('deferVariants' in g)
+      )
+        bad.push(`${k} ${d}일차`);
+      if (want.length > 0) armDays++;
+      if (vs.includes('medball') && vs.includes('jump')) both++;
+      if (vs.includes('rotationalThrow')) rot++;
+    }
+  check(
+    `4-3 (나) 팔을 다 쓴 날 — 모든 일차에서 메디신볼 · 회전 던지기만 그날 빼고(deferVariants) 같은 파워 칸의 점프는 남는다, 칸 조정(adjust)은 없다, 뺀 날만 주의 '팔 아낌'(팔 던지기 든 날 ${armDays} · 메디신볼과 점프가 같이 든 날 ${both} · 회전 던지기 든 날 ${rot})`,
+    bad.length === 0 && armDays > 0 && rot > 0,
+    bad.slice(0, 3).join(' · ')
+  );
+
+  /* (다) 고정 운동으로 가른 팔 던지기(armThrows) — 기본기의 메디신볼 칸에 맨몸 점프를 고정했으면 던지지 않으니 안 뺀다 */
+  const med = firstDay(
+    (vs) => vs.includes('medball') && !vs.includes('rotationalThrow')
+  );
+  if (med) {
+    const narrow = decideToday(
+      med.p,
+      sig({ nextDay: med.d, armSpent: true, armThrows: ['rotationalThrow'] })
+    );
+    const none = decideToday(
+      med.p,
+      sig({ nextDay: med.d, armSpent: true, armThrows: [] })
+    );
+    const wide = decideToday(med.p, sig({ nextDay: med.d, armSpent: true }));
+    check(
+      `4-3 (다) armThrows 를 주면 그것만 — ${med.k} ${med.d}일차(메디신볼 · 회전 던지기 없음): 회전 던지기만 던지는 고정이면 안 빼고 주의도 없음, 빈 목록도 같음, 안 주면 메디신볼을 짐작해 뺀다`,
+      narrow.kind === 'go' &&
+        !('deferVariants' in narrow) &&
+        narrow.caution !== 'armRest' &&
+        eq(narrow, none) &&
+        wide.kind === 'go' &&
+        eq(wide.deferVariants, ['medball']) &&
+        wide.caution === 'armRest'
+    );
+  } else check('4-3 (다) 메디신볼 든 날이 있다', false);
+
+  /* (라) 넘겨도 팔은 아낀다 — 쉬는 날은 쉬는 날 그대로, '그래도 오늘 할래요'면 하는 날인데 던지기는 빼고 주의는 '팔 아낌'이 앞선다 */
+  const noArm = firstDay((vs) => !vs.some((v) => ARM_THROW_VARIANTS.includes(v)));
+  if (med && noArm) {
+    const rest = decideToday(
+      med.p,
+      sig({ nextDay: med.d, gameToday: true, armSpent: true })
+    );
+    const over = decideToday(
+      med.p,
+      sig({ nextDay: med.d, gameToday: true, override: true, armSpent: true })
+    );
+    const overNoArm = decideToday(
+      noArm.p,
+      sig({ nextDay: noArm.d, gameToday: true, override: true, armSpent: true })
+    );
+    check(
+      `4-3 (라) 오늘 등판 + 팔 다 씀 → 쉬는 날(그대로) · 넘기면 하는 날에 메디신볼만 빼고 주의 '팔 아낌'(넘김 글보다 앞), 팔 던지기 없는 날(${noArm.k} ${noArm.d}일차)을 넘기면 넘김 글`,
+      rest.kind === 'rest' &&
+        rest.reason === 'gameToday' &&
+        over.kind === 'go' &&
+        eq(over.deferVariants, ['medball']) &&
+        over.caution === 'armRest' &&
+        overNoArm.kind === 'go' &&
+        !('deferVariants' in overNoArm) &&
+        overNoArm.caution === 'gameOverride'
+    );
+  } else check('4-3 (라) 팔 던지기 없는 날이 있다', false);
+  const rotDay = firstDay((vs) => vs.includes('rotationalThrow'));
+  if (rotDay) {
+    const bp = decideToday(
+      rotDay.p,
+      sig({ nextDay: rotDay.d, bullpenToday: true, armSpent: true })
+    );
+    check(
+      `4-3 (라) 불펜 + 팔 다 씀(${rotDay.k} ${rotDay.d}일차) — 불펜 규칙의 몸통 칸 빼기는 그대로, 회전 던지기는 뺄 변형에도 든다(읽는 쪽은 칸 빼기를 먼저 본다)`,
+      bp.kind === 'go' &&
+        bp.adjust.core?.kind === 'drop' &&
+        (bp.deferVariants ?? []).includes('rotationalThrow')
+    );
+  } else check('4-3 (라) 회전 던지기 든 날이 있다', false);
+
+  /* (마) 어제 하체 날 — 큰 하체는 빼지 않고 가볍게(주의 '어제 하체'), 넘기면 그대로, 큰 하체 없는 날은 아무것도 안 바뀐다 */
+  const big = firstDay((vs) => vs.includes('squat') || vs.includes('hinge'));
+  const noBig = firstDay((vs) => !vs.includes('squat') && !vs.includes('hinge'));
+  if (big && noBig) {
+    const at = (o: Partial<TodaySignals>, x = big) =>
+      decideToday(x.p, sig({ nextDay: x.d, heavyLowerYesterday: true, ...o }));
+    const h = at({});
+    const ho = at({ override: true });
+    const hn = at({}, noBig);
+    const hs = at({ soreMany: true });
+    const hu = at({ uncertain: true });
+    const hp = at({ painSlots: ['bigLower'] });
+    const plain = decideToday(noBig.p, sig({ nextDay: noBig.d }));
+    check(
+      `4-3 (마) 어제 하체 날 — ${big.k} ${big.d}일차: 큰 하체 가볍게 + 주의 '어제 하체' · 넘기면 그대로 · 큰 하체 없는 날(${noBig.k} ${noBig.d}일차)은 옛 판정 그대로 · 근육통보다 앞, 모름보다 뒤 · 통증 대체도 가볍게`,
+      h.kind === 'go' &&
+        h.adjust.bigLower?.kind === 'lighter' &&
+        h.caution === 'lowerBudget' &&
+        ho.kind === 'go' &&
+        !ho.adjust.bigLower &&
+        ho.caution !== 'lowerBudget' &&
+        eq(hn, plain) &&
+        hs.kind === 'go' &&
+        hs.caution === 'lowerBudget' &&
+        hu.kind === 'go' &&
+        hu.caution === 'uncertain' &&
+        hu.adjust.bigLower?.kind === 'lighter' &&
+        hp.kind === 'go' &&
+        hp.adjust.bigLower?.kind === 'substitute' &&
+        hp.adjust.bigLower.lighter === true
+    );
+  } else check('4-3 (마) 큰 하체 있는 날 · 없는 날이 있다', false);
+
+  /* (바) 쉬는 날 둘 — 오늘 세게 던진 날 · 오늘 '회복'을 고름. 넘길 수 있고, 경기 앞뒤 까닭이 먼저, 간격 · 체크인 규칙은 그보다 먼저 */
+  const hard = decideToday(LEGACY, sig({ hardToday: true, hardThrowRecent: true }));
+  const hardOver = decideToday(
+    LEGACY,
+    sig({ hardToday: true, hardThrowRecent: true, override: true })
+  );
+  const rec = decideToday(LEGACY, sig({ choseRecovery: true }));
+  const recOver = decideToday(LEGACY, sig({ choseRecovery: true, override: true }));
+  check(
+    "4-3 (바) 오늘 세게 던진 날 · '회복' 고름 → 쉬는 날(넘길 수 있음), 넘기면 하는 날 + 넘김 글(세게 던진 주의보다 앞)",
+    hard.kind === 'rest' &&
+      hard.reason === 'hardToday' &&
+      hard.canOverride &&
+      hardOver.kind === 'go' &&
+      hardOver.caution === 'gameOverride' &&
+      rec.kind === 'rest' &&
+      rec.reason === 'chooseRecovery' &&
+      recOver.kind === 'go' &&
+      recOver.caution === 'gameOverride'
+  );
+  const kindOf = (o: Partial<TodaySignals>) => {
+    const d = decideToday(LEGACY, sig(o));
+    return d.kind === 'rest' ? `rest:${d.reason}` : d.kind;
+  };
+  const order: [Partial<TodaySignals>, string][] = [
+    [{ gameYesterday: true, hardToday: true }, 'rest:gameYesterday'],
+    [{ gameTomorrow: true, choseRecovery: true }, 'rest:gameTomorrow'],
+    [{ hardToday: true, choseRecovery: true }, 'rest:hardToday'],
+    [{ hardToday: true, lastProgramDate: '2026-10-09' }, 'spacing'],
+    [{ choseRecovery: true, checkedIn: false }, 'needCheckin'],
+    [{ hardToday: true, halted: true }, 'painWait'],
+  ];
+  const wrongOrder = order.filter(([o, want]) => kindOf(o) !== want);
+  check(
+    `4-3 (바) 쉬는 까닭 차례 ${order.length}가지 — 경기 날 · 전날 · 어제 팔 부담 > 오늘 세게 던짐 > '회복' 고름, 간격 · 체크인 · 통증 멈춤은 그보다 먼저`,
+    wrongOrder.length === 0,
+    wrongOrder.map(([o]) => `${JSON.stringify(o)} → ${kindOf(o)}`).join(' · ')
+  );
+
+  /* (사) 주의 차례 — 팔 아낌 > 넘김 > 회복 데이 > 센 불펜 > 모름 > 어제 하체 > 가볍게 > 오래 쉼 > 가벼운 주 */
+  const cautionRows: [
+    string,
+    Partial<TodaySignals>,
+    Parameters<typeof pickCaution>[3],
+    string | null,
+  ][] = [
+    [
+      '팔 아낌 > 넘김 · 회복',
+      { override: true, gameToday: true, recovery: 'loadRisk' },
+      { armRest: true },
+      'armRest',
+    ],
+    [
+      '넘김(오늘 세게 던짐)',
+      { override: true, hardToday: true, recovery: 'loadRisk' },
+      {},
+      'gameOverride',
+    ],
+    [
+      '넘김(회복 고름)',
+      { override: true, choseRecovery: true },
+      { lowerBudget: true },
+      'gameOverride',
+    ],
+    [
+      '넘기지 않은 신호만으로는 넘김 아님',
+      { hardToday: true, choseRecovery: true },
+      {},
+      'restGap',
+    ],
+    [
+      '회복 데이 > 어제 하체',
+      { recovery: 'soreSevere' },
+      { lowerBudget: true },
+      'recovery',
+    ],
+    [
+      '센 불펜 > 어제 하체',
+      { hardThrowRecent: true },
+      { lowerBudget: true },
+      'hardThrow',
+    ],
+    ['모름 > 어제 하체', { uncertain: true }, { lowerBudget: true }, 'uncertain'],
+    [
+      '어제 하체 > 가볍게',
+      { soreMany: true, loadCaution: true },
+      { lowerBudget: true },
+      'lowerBudget',
+    ],
+    ['어제 하체 > 오래 쉼', {}, { lowerBudget: true }, 'lowerBudget'],
+    [
+      '바뀐 것 없이 신호만이면 옛 차례',
+      { armSpent: true, heavyLowerYesterday: true, soreMany: true },
+      {},
+      'lighter',
+    ],
+  ];
+  const wrongCaution = cautionRows.filter(
+    ([, o, applied, want]) => pickCaution(sig(o), false, 20, applied) !== want
+  );
+  check(
+    `4-3 (사) 주의 차례 ${cautionRows.length}가지 — 팔 아낌 > 넘김 > 회복 데이 > 센 불펜 > 모름 > 어제 하체 > 가볍게 > 오래 쉼(바뀐 것만 말한다)`,
+    wrongCaution.length === 0,
+    wrongCaution
+      .map(([name, o, a]) => `${name}: ${pickCaution(sig(o), false, 20, a)}`)
+      .join(' · ')
+  );
+
+  /* (아) 글 — 해요체 · 줄표 없음 · 짧게 · 다음 날을 약속하지 않음('미뤘' · '내일로' 없음 — 다음 날 뺀 것을 읽는 곳이 없다) */
+  const lines = [
+    CAUTION_TEXT.armRest,
+    CAUTION_TEXT.lowerBudget,
+    REST_TEXT.hardToday,
+    REST_TEXT.chooseRecovery,
+    restTextOf('hardToday'),
+    restTextOf('chooseRecovery', 'hard'),
+    ARM_DEFER_REASON,
+  ];
+  const badLines = lines.filter(
+    (t) =>
+      t.includes('—') || t.length > 40 || t.includes('미뤘') || t.includes('내일로')
+  );
+  check(
+    `4-3 (아) 새 글 ${lines.length}줄 — 줄표 없음 · 40자 안 · 다음 날 약속 없음, 주의는 '요.'로 · 쉬는 까닭은 '요'로(뒤에 '. 그래도 할까요?'가 붙는다) · 줄 표시는 마침표 없이`,
+    badLines.length === 0 &&
+      [CAUTION_TEXT.armRest, CAUTION_TEXT.lowerBudget].every((t) =>
+        t.endsWith('요.')
+      ) &&
+      [REST_TEXT.hardToday, REST_TEXT.chooseRecovery].every(
+        (t) => t.endsWith('요') && !t.endsWith('.')
+      ) &&
+      restTextOf('chooseRecovery', 'hard') === REST_TEXT.chooseRecovery &&
+      !ARM_DEFER_REASON.endsWith('.'),
+    badLines.join(' · ')
+  );
+}
+
 /* ── 5) 일차 넘기기 ─────────────────────────────── */
 console.log('\n5) 일차 넘기기');
 const prog = { key: 'offseason-strength-power', day: 5, week: 2 };
@@ -1189,6 +1694,14 @@ check(
   texts.find((t) => t.includes('—')) ?? ''
 );
 check(
+  "쉬는 까닭 · 넘긴 날 주의(2판 P4 커밋 F) — 어제는 '어제 팔 부담이 컸어요'(경기 다음 날이 아님), 넘긴 날은 까닭을 가리지 않는 글",
+  REST_TEXT.gameYesterday === '어제 팔 부담이 컸어요' &&
+    !Object.values(REST_TEXT).some((t) => t.includes('경기 다음 날')) &&
+    !CAUTION_TEXT.gameOverride.includes('경기') &&
+    CAUTION_TEXT.gameOverride.endsWith('멈춰요.'),
+  `${REST_TEXT.gameYesterday} / ${CAUTION_TEXT.gameOverride}`
+);
+check(
   '올림 까닭에 지난 기록',
   reasonText(suggestWeight(wi({ history: [h({ rir: 3 })] }))).includes('100kg × 5')
 );
@@ -1277,6 +1790,30 @@ const oldJson = {
     ) &&
       eq(merged.program, progJson.program) &&
       merged.themeKey === 'lower'
+  );
+  /* P2 — 그 판에서 뺀 · 바꾼 운동은 다시 열어도 안 돌아온다, 더하기(add)의 from 은 거르지 않는다, 기록은 판에 남는다 */
+  const at = '2026-10-12T01:00:00.000Z';
+  const swapped = readFrozenPlan({
+    ...oldJson,
+    exercises: [{ ...oldEx, id: 'c' }],
+    swaps: [
+      { from: 'a', to: 'c', kind: 'replace', where: 'session', slot: 'main', at },
+      { from: 'b', to: null, kind: 'remove', where: 'session', slot: 'main', at },
+      { from: 'd', to: 'e', kind: 'add', where: 'session', slot: 'main', at },
+    ],
+  }) as FrozenPlan;
+  const reopened = mergeReopened(swapped, {
+    ...fresh,
+    exercises: [oldEx, { ...oldEx, id: 'b' }, { ...oldEx, id: 'd' }],
+  });
+  check(
+    '다시 열어도 그 판에서 뺀 · 바꾼 운동은 안 돌아오고(P2), 기록은 남는다',
+    eq(
+      reopened.exercises.map((e) => e.id),
+      ['c', 'd']
+    ) &&
+      reopened.swaps?.length === 3 &&
+      !('swaps' in (readFrozenPlan(oldJson) ?? {}))
   );
   check(
     '프로그램 아닌 판의 교체 = null(지금 그대로)',
@@ -1457,6 +1994,190 @@ const oldJson = {
     '준비 세트를 적어도 처방 세트(뒤쪽)로 채움 판정',
     warm.hitReps && warm.lastWeightKg === 100 && warm.mode === 'linear'
   );
+}
+
+/* ── 2판 P6-7) 올림 멈춤 — 영양 추세 깃발(lib/nutrition/fuel-check.ts)이 선 주 ─────────────────────────────── */
+console.log(
+  '\n2판 P6-7) 올림 멈춤(held) — 영양 추세 깃발이 선 주는 올림만 그대로, 낮춤 · 횟수 옮기기는 그대로'
+);
+{
+  /*
+   * 왜 보는가. 먹는 양 · 몸무게 · 컨디션이 함께 낮은 주에 '다 채웠으니 올림'은 몸이 따라온 증거가 못 된다(next-weight.ts ⑧). 멈추는
+   * 것은 올림(raise · linearUp)뿐이어야 하고, 낮추는 곱(쉰 기간 · 가벼운 주 · 오늘 조정)과 줄임은 그대로, 깃발이 없으면 글자까지 예전과 같아야 한다.
+   */
+  const json = (v: unknown) => JSON.stringify(v);
+  const HOLD = FUEL_HOLD_TEXT;
+  const raise = wi({ history: [h({ rir: 3 })] });
+  const r0 = suggestWeight(raise);
+  const r1 = suggestWeight({ ...raise, holdProgress: HOLD });
+  check(
+    '(가) 여유로 올릴 날(R = T+1) — 깃발이면 지난 무게 그대로 · 까닭 held · 줄 표시 올림 멈춤 · 상한 표시 없음',
+    r0.reason.code === 'raise' &&
+      r0.kg === 105 &&
+      r1.kg === 100 &&
+      r1.reason.code === 'held' &&
+      json(r1.reason) === json({ code: 'held', prevKg: 100, prevReps: 5, why: HOLD }) &&
+      r1.notes.length === 0 &&
+      weightTag(r1) === '올림 멈춤',
+    json(r1)
+  );
+  check(
+    "(가) 까닭 문장 — '지난번 100kg × 5, 올릴 때지만 …했어요.' 한 문장, 해요체 · 줄표 없음",
+    reasonText(r1) === `지난번 100kg × 5, 올릴 때지만 ${HOLD}.` &&
+      !reasonText(r1).includes('—') &&
+      HOLD.length <= 60,
+    reasonText(r1)
+  );
+  const lin = wi({
+    linearStep: 2.5,
+    history: [h({ lastWeightKg: 60, mode: 'linear' })],
+  });
+  check(
+    '(나) 스트롱리프트 한 칸(linearUp)도 멈춤 — 60kg 그대로 · held, weighItem 도 같은 길(데드리프트 +5 → 100 그대로)',
+    suggestWeight(lin).kg === 62.5 &&
+      suggestWeight({ ...lin, holdProgress: HOLD }).kg === 60 &&
+      suggestWeight({ ...lin, holdProgress: HOLD }).reason.code === 'held' &&
+      weighItem(
+        rxOf(sl, 2, 'hinge'),
+        { equipment: ['바벨'] },
+        {
+          adjusted: false,
+          gapDays: 2,
+          history: [h({ lastWeightKg: 100, mode: 'linear' })],
+          tmKg: null,
+          holdProgress: HOLD,
+        }
+      ).suggestion?.kg === 100
+  );
+  const withHold = (o: Partial<WeightInput>) => ({
+    off: suggestWeight(wi(o)),
+    on: suggestWeight(wi({ ...o, holdProgress: HOLD })),
+  });
+  const gap = withHold({ gapDays: 10, history: [h({ rir: 3 })] });
+  const light = withHold({ light: true, reserve: 2, history: [h({ rir: 3 })] });
+  const adj = withHold({ adjusted: true, history: [h({ rir: 3 })] });
+  check(
+    '(다) 낮추는 곱은 그대로 — 쉰 10일 · 가벼운 주 · 오늘 조정이면 지난 무게 × 0.9(90kg), 표시는 낮춤 쪽이 먼저',
+    gap.on.kg === 90 &&
+      gap.on.reason.code === 'held' &&
+      gap.on.notes.includes('gap10') &&
+      weightTag(gap.on) === '오래 쉼' &&
+      light.on.kg === 90 &&
+      light.on.notes.includes('light') &&
+      adj.on.kg === 90 &&
+      weightTag(adj.on) === '−10% 오늘 컨디션' &&
+      reasonText(adj.on).includes('오늘 몸 상태로 10% 낮췄어요.'),
+    json([gap.on, light.on, adj.on])
+  );
+  const miss2 = withHold({
+    history: [h({ rir: 1 }), h({ date: '2026-09-28', hitReps: false })],
+  });
+  const transfer = withHold({ reps: 3, history: [h({ rir: 3 })] });
+  check(
+    '(라) 줄임(두 번 못 채움 −5%)과 횟수 옮기기(5회 → 3회)는 깃발과 상관없이 같다 — 옮긴 무게는 같은 힘의 무게라 올림이 아니다',
+    json(miss2.on) === json(miss2.off) &&
+      miss2.on.kg === 95 &&
+      json(transfer.on) === json(transfer.off) &&
+      transfer.on.reason.code === 'transfer' &&
+      (transfer.on.kg ?? 0) > 100
+  );
+  check(
+    '(마) % 방식은 holdProgress 를 받아도 무게가 같다(4주 동안 기준 무게 그대로)',
+    json(
+      weighItem(
+        rxOf(p531, 1, 'squat'),
+        { equipment: ['바벨'] },
+        { adjusted: false, gapDays: 2, history: [], tmKg: 100, holdProgress: HOLD }
+      )
+    ) ===
+      json(
+        weighItem(
+          rxOf(p531, 1, 'squat'),
+          { equipment: ['바벨'] },
+          { adjusted: false, gapDays: 2, history: [], tmKg: 100 }
+        )
+      )
+  );
+
+  /* (바) 격자 — 올림이 아닌 칸은 깃발과 상관없이 같고, 올림 칸은 held 로 더 무겁지 않다. 빈 글 · 없음은 예전과 글자까지 같다 */
+  {
+    let cells = 0;
+    let raised = 0;
+    const bad: string[] = [];
+    for (const rir of [null, 0, 1, 2, 3, 4])
+      for (const reserve of [null, 1, 2, 3])
+        for (const hitReps of [true, false])
+          for (const light of [false, true])
+            for (const adjusted of [false, true])
+              for (const gapDays of [null, 2, 9, 16, 30])
+                for (const linear of [false, true])
+                  for (const reps of [5, 3])
+                    for (const prevMiss of [false, true]) {
+                      const input = wi({
+                        reps,
+                        reserve,
+                        light,
+                        adjusted,
+                        gapDays,
+                        ...(linear ? { linearStep: 2.5 } : {}),
+                        history: [
+                          h({
+                            rir,
+                            reserve,
+                            hitReps,
+                            lastWeightKg: 80,
+                            mode: linear ? 'linear' : null,
+                          }),
+                          ...(prevMiss
+                            ? [
+                                h({
+                                  date: '2026-09-28',
+                                  hitReps: false,
+                                  lastWeightKg: 80,
+                                }),
+                              ]
+                            : []),
+                        ],
+                      });
+                      cells++;
+                      const off = suggestWeight(input);
+                      const on = suggestWeight({ ...input, holdProgress: HOLD });
+                      const empty = suggestWeight({ ...input, holdProgress: '' });
+                      const up =
+                        off.reason.code === 'raise' || off.reason.code === 'linearUp';
+                      if (up) raised++;
+                      const ok =
+                        json(empty) === json(off) &&
+                        (up
+                          ? on.reason.code === 'held' &&
+                            on.kg != null &&
+                            off.kg != null &&
+                            on.kg <= off.kg &&
+                            on.kg <= 80 &&
+                            !on.notes.includes('cap') &&
+                            weightTag(on) != null
+                          : json(on) === json(off));
+                      if (!ok)
+                        bad.push(
+                          json({
+                            rir,
+                            reserve,
+                            hitReps,
+                            light,
+                            adjusted,
+                            gapDays,
+                            linear,
+                            reps,
+                            prevMiss,
+                          })
+                        );
+                    }
+    check(
+      `(바) 격자 ${cells}가지(올림 ${raised}가지) — 올림 칸만 held(지난 무게 이하 · 상한 표시 없음 · 줄 표시 있음), 나머지와 빈 글은 글자까지 같다`,
+      bad.length === 0 && raised > 0,
+      bad.slice(0, 3).join(' / ')
+    );
+  }
 }
 
 console.log(`\n통과 ${passed} · 실패 ${failed}`);

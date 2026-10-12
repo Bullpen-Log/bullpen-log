@@ -6,13 +6,19 @@ import { redirect } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
 import { requireUser } from '@/lib/dal';
 import { featureLocks, SETUP_PATH } from '@/lib/feature-locks';
-import { ChevronDown } from 'lucide-react';
+import { ChevronDown, Dumbbell } from 'lucide-react';
 import { createPlaybackUrls } from '@/lib/storage';
 import { referenceThumbUrl } from '@/lib/reference-video';
 import { formatPrescription } from '@/lib/exercise-meta';
-import { goalPrescription } from '@/lib/report/goal-prescription';
+import { planPrescription } from '@/lib/report/volume';
+import { planReasonLines } from '@/lib/report/daily-plan';
+import { pickReasonLineOf } from '@/lib/report/score';
 import { loadTodayCore } from '@/lib/report/today-data';
+import { TRAINING_SCREEN_TEXT, trainingScreenOf } from '@/lib/report/training-screen';
+import { remakeFieldsOf, stateNoticeOf } from '@/lib/report/state-notice';
+import { programDayText } from '@/lib/engine/arbiter';
 import { StartWorkout } from './start-workout';
+import { StateNoticeBand } from './state-notice-band';
 import { DoneCard, DoneFold, type DoneLine } from './done-card';
 import { AutoNote } from './auto-note';
 import { readFrozenPlan } from '@/lib/workout/session-plan';
@@ -36,6 +42,7 @@ import { MechanicsSection } from './mechanics-section';
 import { BodyPartsProvider } from '@/components/body-parts';
 import { TrainingCheckin } from './training-checkin';
 import { OpenCheckinButton } from '@/components/notice-bell';
+import { OutingLine } from '@/components/outing-line';
 import { availableParts } from '@/lib/report/today-pick';
 import { exercisesByIds } from '@/lib/library-cache';
 import {
@@ -49,6 +56,7 @@ import {
   hasFinishedBasics,
   programCardProps,
   programResult,
+  programTodayOf,
   recentlyDoneProgram,
 } from '@/lib/program/load';
 import { ageFromBirthDate } from '@/lib/profile';
@@ -128,6 +136,33 @@ function AppHead({
         )}
       </div>
       <PageHeading eyebrow="Training" title={title} />
+    </div>
+  );
+}
+
+/**
+ * 근력 프로그램이 오늘 주인인 날의 일정 자리 한 줄(2판 P6-4, 사용자 결정 D6) — 그날 운동은 맨 위 프로그램 카드가 다 말하고(목록 · 무게 · [운동 시작]),
+ * 여기서는 왜 따로 일정을 안 짜는지만 말한다. 글은 중재와 일정 까닭의 한 곳(lib/engine/arbiter.ts programDayText). 바로 위 다음 등판 한 줄
+ * (components/outing-line.tsx)과 같은 줄 모양이라 둘이 이어 읽힌다. 그 전에 만든 매일 일정이 남아 있으면 그 일정은 오늘 쉰다고 둘째 줄로 알린다.
+ */
+function ProgramDayLine({
+  label,
+  planResting,
+}: {
+  label: string | null;
+  planResting: boolean;
+}) {
+  return (
+    <div className="flex min-h-12 items-center gap-2.5 rounded-2xl border border-line bg-surface px-(--block-pad) py-1.5 text-sm desk:min-h-11">
+      <Dumbbell aria-hidden className="h-4 w-4 shrink-0 text-sky" />
+      <p className="min-w-0 flex-1 break-keep">
+        <span className="block font-semibold text-ink">{programDayText(label)}</span>
+        {planResting && (
+          <span className="block text-xs text-muted">
+            {TRAINING_SCREEN_TEXT.planResting}
+          </span>
+        )}
+      </p>
     </div>
   );
 }
@@ -291,6 +326,33 @@ export default async function TrainingPage({
 
   const resume = todaySession?.status === 'ACTIVE';
   const finished = todaySession?.status === 'FINISHED';
+  /*
+   * 근력 프로그램 카드와 일정 카드가 같은 날 겹치지 않게(2판 P6-4, lib/report/training-screen.ts) — 프로그램이 오늘 주인이면(중재의 매일 일정 몫,
+   * 일정 만들기와 같은 판정) 일정 자리는 한 줄이고 매일 [운동 시작] · 다시 만들기 · 체크 목록 · '운동 더 하기'는 없다. 프로그램 날로 짜였는데 지금은
+   * 프로그램이 주인이 아닌 일정(스러진 일정)은 만들기 전처럼 다시 만들게 한다.
+   */
+  const screen = trainingScreenOf({
+    halted: picked.halted,
+    daily: programView?.arbitration.daily,
+    savedPlan,
+    shownCount: shownPicks.length,
+    /*
+     * 할 프로그램 운동이 있는 날만 프로그램 날 — 일정 만들기(app/actions/training-setup.ts)가 프로그램 날로 짜는 바로 그 판정(programTodayOf).
+     * 판정 'go' 인데 그날 운동이 다 빠진 날 폼을 숨기면 시작할 운동이 하나도 없었다(2판 P6 검토).
+     */
+    programWork: programView ? programTodayOf(programView) != null : false,
+  });
+  /*
+   * 상태 바뀜 띠(2판 P6-6, lib/report/state-notice.ts) — 일정을 만든 뒤 판단 입력이 바뀌었으면 일정 카드 위에 바뀐 줄 · '지금 상태로 다시 만들기'.
+   * 일정 카드를 쓰는 날(screen.usesPlan — 멈춤 · 프로그램 주인 · 스러진 프로그램 날 일정이 아닌 날)만 그린다. 아픈 부위만 바뀌어 이미 뺀 날은 띠 대신
+   * 카드 안의 '무리인 운동 N개를 뺐어요' 한 줄만(두 알림이 겹치지 않게), 마친 날은 띄우지 않고, 운동 중 · 체크인 없는 날은 단추 없이 까닭 한 줄.
+   */
+  const notice = stateNoticeOf(core.stateChanges, {
+    programOwns: screen.programOwns,
+    droppedForSafety,
+    session: finished ? 'finished' : resume ? 'active' : 'none',
+    checkedIn: core.hasCheckinToday,
+  });
 
   /*
    * 화면에 그릴 운동만 자세히 가져온다.
@@ -308,6 +370,8 @@ export default async function TrainingPage({
       slot: p.slot,
       manual: p.manual === true,
       unsafe: p.unsafe,
+      /* 만들 때 얼린 고르기 점수(2판 P5-j) — 일정에 든 것만 있다. 오늘 마쳐서 도로 넣은 것(strays)에는 없다 */
+      score: 'score' in p ? p.score : undefined,
       ex: byId.get(p.exerciseId),
     }))
     .filter((p): p is typeof p & { ex: NonNullable<(typeof p)['ex']> } => p.ex != null);
@@ -367,7 +431,7 @@ export default async function TrainingPage({
    * 저장해 둔 일정은 고른 차례 그대로라, 이미 만든 일정도 열 때 이 차례로 보이게 여기서 한 번 더 세운다.
    */
   const exercises: TodayExercise[] = orderSession(full, SLOT_ORDER).map(
-    ({ slot, manual, unsafe, ex }) => ({
+    ({ slot, manual, unsafe, score, ex }) => ({
       favorite: favExercises.has(ex.id),
       id: ex.id,
       title: ex.title,
@@ -386,8 +450,9 @@ export default async function TrainingPage({
        * 자체라 몇 세트 몇 회인지가 필요하다.
        *
        * 횟수는 오늘 목표에 맞춘다(lib/report/goal-prescription.ts — 근력 향상이면 무거운 운동 4세트 × 5회).
+       * 그날 양을 줄였으면 세트도 줄인 값(처방 한 길 — lib/report/volume.ts planPrescription, 운동 시작 때 얼리는 값과 같다).
        */
-      prescription: formatPrescription(goalPrescription(ex, savedPlan?.goal)),
+      prescription: formatPrescription(planPrescription(ex, savedPlan)),
       /*
        * 아직 촬영하지 않은 운동은 유튜브 참고 영상의 미리보기를 그대로 쓴다.
        * 우리 저장소에 담아 둔 것이 없어 발급받을 주소도 없다.
@@ -411,6 +476,13 @@ export default async function TrainingPage({
        */
       unsafe,
       /*
+       * 왜 이 운동인지 한 줄(2판 P5-k) — 오늘 상태로 앞에 당긴 것만(lib/report/score.ts pickReasonLineOf: 2주 안 한 동작 · 뻐근한 곳
+       * 풀기 · 즐겨찾기). 뒤로 민 신호는 위 '오늘 이렇게 짰어요'가 한 번 말한다. 권하지 않는 운동이면 경고 한 줄만 둔다(둘이 엇갈려 읽힌다).
+       */
+      reason: unsafe
+        ? null
+        : pickReasonLineOf(ex, score, { favorite: favExercises.has(ex.id) }),
+      /*
        * 시간형(버티기)이면 횟수 대신 초를 적게 한다. 30초 플랭크에
        * "몇 회 했나요"를 물으면 답할 수가 없다.
        */
@@ -421,6 +493,13 @@ export default async function TrainingPage({
       past: pastAmounts.get(ex.id) ?? [],
     })
   );
+  /*
+   * 일정 카드의 '오늘 이렇게 짰어요'(2판 P5-k) — 저장한 까닭, 옛 줄은 양 조절 · 힘듦 넘김만. 앞으로 당긴 줄은 지금 보이는 줄과 지금 별로
+   * 거른다(2판 P5 검토) — 그 운동을 빼거나 안전 재확인으로 빠지거나 별을 떼면 '앞에 뒀어요'가 거짓이 된다(운동 줄의 이유와 같은 원칙).
+   */
+  const planReasons = savedPlan
+    ? planReasonLines(savedPlan, { shown: shownPicks, favoriteIds: favExercises })
+    : [];
 
   /*
    * 목록에 더할 수 있는 운동.
@@ -430,8 +509,8 @@ export default async function TrainingPage({
    * 400개를 넘겨도 화면이 무겁지 않다.
    */
   const pickable: PickableExercise[] = core.library.map((raw) => {
-    /* 더하고 나서 목록에 보일 횟수와 같게 — 오늘 목표에 맞춘다(goal-prescription.ts) */
-    const ex = goalPrescription(raw, savedPlan?.goal);
+    /* 더하고 나서 목록에 보일 횟수와 같게 — 오늘 목표 · 양 조절에 맞춘다(처방 한 길, lib/report/volume.ts) */
+    const ex = planPrescription(raw, savedPlan);
     return {
       favorite: favExercises.has(ex.id),
       id: ex.id,
@@ -466,9 +545,11 @@ export default async function TrainingPage({
       checkedIn={core.hasCheckinToday}
       returnTo="/training"
       clash={core.workoutClash}
+      /* 최근 운동 힘듦 급증 — 직접 고르기에 경고 한 줄 · '그래도 고른 대로'(2판 P5-e, lib/report/today-data.ts) */
+      effortSpike={core.effortSpike}
       preferredWorkout={core.preferredWorkout}
       /* 오늘 직접 골라 만들었으면 다시 만들 때도 그쪽으로 연다 */
-      startMode={savedPlan && !savedPlan.auto ? 'manual' : 'auto'}
+      startMode={savedPlan && !savedPlan.auto && !savedPlan.program ? 'manual' : 'auto'}
       /*
        * 체크인이 없으면 이 자리에서 체크인 창을 연다 — 홈으로 보내지 않는다.
        * 상세 체크인의 '하고 싶은 부위'는 라이브러리에 실제로 있는 부위만 고른다(홈과 같다).
@@ -496,6 +577,19 @@ export default async function TrainingPage({
         {doneResult && <ProgramDone result={doneResult} />}
 
         {/*
+        상태 바뀜 띠 — [운동 시작]보다 위. 만든 뒤 바뀐 상태를 보고 다시 만들지 먼저 고르게(시작하면 그 판은 얼어 다시 만들어도 안 바뀐다).
+      */}
+        {screen.usesPlan && savedPlan && (
+          <StateNoticeBand
+            notice={notice}
+            fields={remakeFieldsOf(savedPlan, {
+              returnTo: '/training',
+              availableToday: core.todaySetup?.availableEquipment,
+            })}
+          />
+        )}
+
+        {/*
         운동 시작.
         목록이 있는 날에만 낸다 — 통증인 날과 아직 안 만든 날에는 시작할 것이
         없다. 목록 위에 두는 것은, 스크롤을 내려 운동을 훑기 전에 먼저 눈에
@@ -509,17 +603,19 @@ export default async function TrainingPage({
           <DoneCard
             {...done}
             intensity={trainingNote?.intensity ?? null}
-            canResume={!picked.halted && shownPicks.length > 0}
+            /* 프로그램 날에는 다시 열지 않는다 — 다시 열면 마친 프로그램 판 뒤에 매일 운동이 붙는다(D6 — 보조를 더하지 않는다, 2판 P6-4) */
+            canResume={screen.canResume}
           />
         ) : (
-          !picked.halted &&
-          shownPicks.length > 0 &&
-          /* 프로그램 판이 열려 있으면 이어 하기는 프로그램 카드가 한다 */
-          programView?.todayState !== 'active' && <StartWorkout resume={resume} />
+          /* 프로그램이 오늘 주인이면(진행 중인 프로그램 판 포함) 시작 · 이어 하기는 프로그램 카드가 한다(2판 P6-4) */
+          screen.canStart && <StartWorkout resume={resume} />
         )}
 
         {/* 오늘 일정을 만든 날에는 프로그램 고르기를 숨긴다(2026-10-12 사용자) — 만들기 전에만 */}
         {programStart && savedPlan == null && <ProgramStart props={programStart} />}
+
+        {/* 다음 등판 한 줄(2판 P4) — 일정 카드 위. 짐작한 등판이면 '바꾸기'가 체크인을 연다(components/outing-line.tsx) */}
+        <OutingLine outing={core.state.outing} />
 
         {picked.halted ? (
           <Card className="space-y-2 border-warn-line bg-warn-bg">
@@ -542,7 +638,22 @@ export default async function TrainingPage({
               오늘 체크인 남기기
             </OpenCheckinButton>
           </Card>
-        ) : savedPlan == null ? (
+        ) : screen.programOwns ? (
+          /*
+          근력 프로그램 날(2판 P6-4, D6) — 프로그램 카드가 주인이고 일정 자리는 한 줄. 마친 날은 그것도 안 그린다(위 완료 카드와 프로그램 카드가
+          오늘 한 것을 말한다).
+        */
+          done ? null : (
+            <ProgramDayLine
+              label={
+                programView?.arbitration.program?.today?.label ??
+                programView?.dayLabel ??
+                null
+              }
+              planResting={screen.planResting}
+            />
+          )
+        ) : savedPlan == null || screen.stalePlan ? (
           /*
           아직 안 만든 날.
 
@@ -559,7 +670,12 @@ export default async function TrainingPage({
               <p className="text-lg font-bold text-ink">
                 오늘 운동 일정을 만들어보세요
               </p>
-              <p className="text-sm text-muted">투구량과 몸 상태에 맞춰 골라요.</p>
+              <p className="text-sm text-muted">
+                {/* 프로그램 날로 짜였는데 지금은 프로그램이 쉬는 일정이면 그 까닭을(2판 P6-4) */}
+                {screen.stalePlan
+                  ? TRAINING_SCREEN_TEXT.stalePlan
+                  : '투구량과 몸 상태에 맞춰 골라요.'}
+              </p>
             </div>
             {planForm(false, savedMinutes)}
           </Card>
@@ -615,6 +731,24 @@ export default async function TrainingPage({
               <p className="text-sm leading-relaxed break-keep text-muted">
                 {savedPlan.auto?.reason ?? savedPlan.theme.reason}
               </p>
+              {/*
+                '오늘 이렇게 짰어요' — 일정 까닭 최대 3줄(2판 P5-k, lib/report/daily-plan.ts planReasonLines). 하는 양이 바뀐 까닭(세트
+                줄임 · 힘듦 경고 넘김)이 먼저, 그다음 오늘 상태로 운동 차례를 바꾼 까닭(score.ts planReasonItemsOf). 만들 때 저장한 글이라
+                다시 셈하지 않고, 앞으로 당긴 줄만 지금 보이는 줄 · 지금 별로 거른다(위 planReasons). 목표 · 까닭이 먼저 읽히게 한 단 작은
+                글로 덧붙인다.
+              */}
+              {planReasons.length > 0 && (
+                <div className="space-y-1">
+                  <p className="text-xs font-semibold text-ink/80">
+                    오늘 이렇게 짰어요
+                  </p>
+                  <ul className="list-disc space-y-0.5 pl-4 text-xs leading-relaxed break-keep text-muted marker:text-sky">
+                    {planReasons.map((line) => (
+                      <li key={line}>{line}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
               {savedPlan.auto?.painSuspected && <AutoNote auto={savedPlan.auto} />}
               {savedPlan.minutes < savedPlan.requestedMinutes && (
                 <p className="text-xs text-warn">

@@ -5,8 +5,10 @@ import { shiftDateKey, toDateKey } from '@/lib/pitch-stats';
 import { formatPrescription } from '@/lib/exercise-meta';
 import { exercisesByIds } from '@/lib/library-cache';
 import { readDailyPlan } from '@/lib/report/daily-plan';
-import { goalPrescription } from '@/lib/report/goal-prescription';
+import { planPrescription } from '@/lib/report/volume';
 import { SLOT_LABELS, SLOT_ORDER } from '@/lib/report/theme';
+import { dailyPlanRested } from '@/lib/report/training-screen';
+import { readFrozenPlan } from '@/lib/workout/session-plan';
 
 /**
  * 지난 운동 기록을 날짜별로 읽는다.
@@ -118,15 +120,32 @@ export type PlanDaySummary = {
 export async function planSummaries(
   userId: string
 ): Promise<Record<string, PlanDaySummary>> {
-  const rows = await prisma.dailyTrainingSetup.findMany({
-    where: { userId, date: { gte: summarySince() } },
-    select: { date: true, plan: true },
-  });
+  const since = summarySince();
+  const [rows, programSessions] = await Promise.all([
+    prisma.dailyTrainingSetup.findMany({
+      where: { userId, date: { gte: since } },
+      select: { date: true, plan: true },
+    }),
+    /*
+     * 근력 프로그램 판이 있던 날(날짜만 — 판 JSON 은 안 읽는다, lib/program/load.ts lastProgramSessionKey 와 같은 거르기). 그날 매일 일정이 프로그램
+     * 날로 짜이지 않았으면 그 일정은 쉰 것이라(dailyPlanRested — 화면이 '오늘 쉬어요'로 숨긴 일정) 캘린더에 그날 일정으로 내지 않는다(2판 P6 검토).
+     */
+    prisma.trainingSession.findMany({
+      where: {
+        userId,
+        date: { gte: since },
+        plan: { path: ['program', 'key'], string_starts_with: '' },
+      },
+      select: { date: true },
+    }),
+  ]);
+  const programDays = new Set(programSessions.map((s) => toDateKey(s.date)));
 
   const out: Record<string, PlanDaySummary> = {};
   for (const row of rows) {
     const plan = readDailyPlan(row.plan);
     if (!plan || plan.picks.length === 0) continue;
+    if (dailyPlanRested(plan, programDays.has(toDateKey(row.date)))) continue;
     const slots = new Set<string>(plan.picks.map((p) => p.slot));
     out[toDateKey(row.date)] = {
       theme: plan.theme.label,
@@ -192,7 +211,7 @@ export async function trainingDay(
 ): Promise<TrainingDayDetail> {
   const date = new Date(`${dateKey}T00:00:00.000Z`);
 
-  const [logs, note, setup] = await Promise.all([
+  const [logs, note, setup, session] = await Promise.all([
     prisma.userExerciseLog.findMany({
       where: { userId, date, completed: true },
       select: {
@@ -228,20 +247,52 @@ export async function trainingDay(
       where: { userId_date: { userId, date } },
       select: { plan: true },
     }),
+    /* 그날 운동 판 — 근력 프로그램 판이면 그날 처방이 여기 있다(아래 '계획') */
+    prisma.trainingSession.findUnique({
+      where: { userId_date: { userId, date } },
+      select: { plan: true },
+    }),
   ]);
 
   const doneIds = new Set(logs.map((l) => l.exerciseId));
+  /*
+   * '계획'은 그날 목표 · 양 조절에 맞춘 세트 · 횟수로 적는다 — 그날 트레이닝 화면에 보였던 값(처방 한 길, lib/report/volume.ts).
+   * 옛 줄 · 모양이 안 맞는 줄은 null 이라 라이브러리 처방 그대로다(예전과 같음).
+   */
+  const dayPlan = readDailyPlan(setup?.plan);
+  /*
+   * 그날 근력 프로그램 판(2판 P6 검토, 2026-10-13). 프로그램 날의 처방(5×5 · % 무게)은 일정이 아니라 판에 얼어 있다 — 일정의 목표가 없어
+   * planPrescription 이 라이브러리 기본 처방('3세트 × 8회')을 내면 그날 한 것과 다른 계획이 보였다. 판에 그 운동이 있으면 판의 처방 줄을 쓴다.
+   */
+  const frozen = readFrozenPlan(session?.plan);
+  const programRx = frozen?.program
+    ? new Map(frozen.exercises.map((e) => [e.id, e.prescription]))
+    : null;
+  /**
+   * 한 운동의 '계획' 줄 — 프로그램 판에 있으면 그 처방, 프로그램 날 일정(dayPlan.program)인데 판에 없으면 null(라이브러리 처방은 그날 처방이
+   * 아니다 — 화면은 null 이면 줄을 안 보인다), 그 밖은 예전처럼 일정의 목표 · 양 조절.
+   */
+  const plannedLine = (ex: Parameters<typeof planPrescription>[0] & { id: string }) =>
+    programRx?.has(ex.id)
+      ? (programRx.get(ex.id) ?? null)
+      : dayPlan?.program
+        ? null
+        : formatPrescription(planPrescription(ex, dayPlan));
 
   /*
    * 그날 일정에는 있었지만 체크 안 한 운동.
    *
    * 완료한 것 뒤에 붙인다. 한 일이 먼저 보이고, 빠뜨린 것이 그 아래 남는다.
+   *
+   * 그날 근력 프로그램 판이 있는데 일정이 프로그램 날로 짜이지 않았으면(dailyPlanRested — 화면이 '오늘 쉬어요'로 숨긴 일정, 2판 P6 검토) 그 일정의
+   * 운동은 할 일이 아니었다 — 홈 링 '운동 n/m' · 캘린더 그날 칸이 화면과 같은 말을 하게 안 센다.
    */
-  const plannedIds = readPlanExerciseIds(setup?.plan).filter((id) => !doneIds.has(id));
+  const rested = dailyPlanRested(dayPlan, frozen?.program != null);
+  const plannedIds = rested
+    ? []
+    : readPlanExerciseIds(setup?.plan).filter((id) => !doneIds.has(id));
   /* 이미 들고 있는 목록에서 고른다 — 몇 개 찾자고 DB 를 한 번 더 묻지 않는다 */
   const missed = await exercisesByIds(plannedIds);
-  /* '계획'은 그날 목표에 맞춘 세트 · 횟수로 적는다 — 그날 트레이닝 화면에 보였던 값(goal-prescription.ts) */
-  const dayGoal = readDailyPlan(setup?.plan)?.goal;
 
   const todayKey = toDateKey(appNow());
 
@@ -254,7 +305,7 @@ export async function trainingDay(
         id: l.exerciseId,
         title: l.exercise.title,
         category: l.exercise.category,
-        planned: formatPrescription(goalPrescription(l.exercise, dayGoal)),
+        planned: plannedLine({ ...l.exercise, id: l.exerciseId }),
         done: true,
         setsDone: l.setsDone,
         repsDone: l.repsDone,
@@ -265,7 +316,7 @@ export async function trainingDay(
         id: ex.id,
         title: ex.title,
         category: ex.category,
-        planned: formatPrescription(goalPrescription(ex, dayGoal)),
+        planned: plannedLine(ex),
         done: false,
         setsDone: null,
         repsDone: null,

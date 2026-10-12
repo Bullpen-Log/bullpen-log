@@ -2,12 +2,24 @@ import 'server-only';
 import { cache } from 'react';
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
-import { strengthDatesFrom, type StrengthDates } from '@/lib/report/daily-plan';
+import {
+  patternsDoneFrom,
+  strengthDatesFrom,
+  weeklyMinutesCap,
+  type StrengthHistory,
+} from '@/lib/report/daily-plan';
+import { SWAP_LOOKBACK_DAYS, swappedOutCounts } from '@/lib/report/plan-swaps';
 import { ageFromBirthDate } from '@/lib/profile';
 import { estimateDailyLoad } from '@/lib/baseline';
-import { buildFacts, type CheckinLike, type MemoNote } from '@/lib/report/facts';
+import {
+  OUTING_CALENDAR_DAYS,
+  buildFacts,
+  type CheckinLike,
+  type MemoNote,
+} from '@/lib/report/facts';
 import { buildPitchPlan } from '@/lib/report/plan';
-import { pickCheckinParts } from '@/lib/checkin';
+import { pickArmPain, pickCheckinParts } from '@/lib/checkin';
+import { buildDayState } from '@/lib/engine/day-state';
 import { RECENT_DAYS } from '@/lib/report/today-pick';
 import { shiftDateKey, toDateKey } from '@/lib/pitch-stats';
 import { loadRehabFacts, loadRehabPeriods } from '@/lib/armcare/rehab-store';
@@ -30,8 +42,13 @@ export const LOOKBACK_DAYS = 45;
  * 화면을 조각내 따로 그리기 시작하면 이 자리가 더 중요해진다 — 조각마다
  * 제 자료를 부르는데, 그때마다 DB 를 가면 쪼갠 만큼 느려진다.
  */
-const recentRecords = cache(async (userId: string, sinceIso: string) => {
+const recentRecords = cache(async (userId: string, sinceIso: string, asOf: string) => {
   const since = new Date(sinceIso);
+  /* 달력은 오늘(asOf — 'YYYY-MM-DD')부터 OUTING_CALENDAR_DAYS 일 뒤까지 — @db.Date 칸이라 그날 0시(UTC)로 견준다 */
+  const calendarFrom = new Date(`${asOf}T00:00:00.000Z`);
+  const calendarTo = new Date(
+    `${shiftDateKey(asOf, OUTING_CALENDAR_DAYS)}T00:00:00.000Z`
+  );
   return Promise.all([
     prisma.pitchLog.findMany({
       where: { userId, date: { gte: since } },
@@ -40,6 +57,25 @@ const recentRecords = cache(async (userId: string, sinceIso: string) => {
     prisma.dailyCheckin.findMany({
       where: { userId, date: { gte: since } },
       orderBy: { date: 'desc' },
+    }),
+    /*
+     * 운동 끝 힘듦(2판 P2) — facts.condition.trainingEffort 의 재료. 하루 한 줄 · 45일이라 가볍다. 부하 계산
+     * (lib/report/training-acwr.ts)도 같은 표를 읽지만 cache 범위가 달라 합치지 않는다.
+     */
+    prisma.dailyTrainingNote.findMany({
+      where: { userId, date: { gte: since } },
+      select: { date: true, intensity: true },
+      orderBy: { date: 'asc' },
+    }),
+    /*
+     * 홈 캘린더의 내 일정 — 오늘부터 OUTING_CALENDAR_DAYS 일(2판 P4 커밋 G, 다음 등판 짐작의 재료 facts.condition.outingCalendar). 날짜 ·
+     * 이름만. 내 것만 읽는다 — 홈 캘린더는 관리자끼리 서로의 일정도 보여 주지만(app/(app)/today/page.tsx), 남의 경기로 내 운동을 바꾸면
+     * 안 된다. 등판으로 읽는 이름인지는 buildFacts 가 가린다(lib/calendar-event.ts isOutingTitle).
+     */
+    prisma.calendarEvent.findMany({
+      where: { userId, date: { gte: calendarFrom, lte: calendarTo } },
+      select: { date: true, title: true },
+      orderBy: { date: 'asc' },
     }),
   ]);
 });
@@ -78,20 +114,24 @@ export async function gatherFactsAndPlan(
 ) {
   const since = new Date(today);
   since.setDate(since.getDate() - LOOKBACK_DAYS);
+  const todayKey = toDateKey(today);
 
   /*
    * 진행 중인 재활(재활 2편) — 투구 계획이 멈추고 웨이트가 그 관절의 무거운 운동을 뺀다(facts.condition.rehab).
    * 스위치(REHAB_ENABLED)를 끄면 읽지 않아 null 이다.
    */
-  const [[logs, checkins], rehab] = await Promise.all([
-    recentRecords(user.id, since.toISOString()),
+  const [[logs, checkins, notes, events], rehab] = await Promise.all([
+    recentRecords(user.id, since.toISOString(), todayKey),
     loadRehabFacts(user.id, today),
   ]);
 
-  const todayKey = toDateKey(today);
   const usedLogs = options?.excludeToday
     ? logs.filter((l) => toDateKey(l.date) !== todayKey)
     : logs;
+  /* 오늘 힘듦도 오늘 로그와 같은 규칙으로 뺀다 — 아침 계획을 견줄 때 마친 뒤 남긴 힘듦이 섞이지 않게 */
+  const usedNotes = options?.excludeToday
+    ? notes.filter((n) => n.date.toISOString().slice(0, 10) !== todayKey)
+    : notes;
 
   const facts = buildFacts({
     nickname: user.nickname,
@@ -105,6 +145,8 @@ export async function gatherFactsAndPlan(
       sessionType: l.sessionType,
       pitchCount: l.pitchCount,
       intensity: l.intensity,
+      /* 체감 강도(%) — 2판 D2. 옛 줄은 null 이라 facts 는 intensity × 10 으로 읽는다(pitch-stats.ts effortPctOf) */
+      effortPct: l.effortPct,
       maxVelocity: l.maxVelocity,
       avgVelocity: l.avgVelocity,
     })),
@@ -120,6 +162,8 @@ export async function gatherFactsAndPlan(
       soreness: c.soreness,
       // 던지는 일정 — 매일 운동 계획이 '오늘 등판 · 내일 등판'을 읽는다(theme.ts 의 plannedOuting)
       throwPlan: c.throwPlan,
+      // 팔 피로 — 안전 거르기(prescription.ts 5-2)가 '심함'을 읽고, 오늘 상태 한 장 · 암케어 · 일정 지문도 이 칸을 본다(2판 P4)
+      armFatigue: c.armFatigue,
     })),
     memos: usedLogs
       .filter((l) => l.memo?.trim())
@@ -128,10 +172,46 @@ export async function gatherFactsAndPlan(
         date: l.date.toISOString().slice(0, 10),
         text: l.memo!.trim(),
       })),
+    /* 운동 끝 힘듦(2판 P2) — 날짜는 체크인과 같은 방식(앞 10자리) */
+    trainingNotes: usedNotes.map((n) => ({
+      date: n.date.toISOString().slice(0, 10),
+      intensity: n.intensity,
+    })),
+    /*
+     * 달력 일정(2판 P4 커밋 G) — 늘 넘긴다(없으면 빈 목록). 넘기면 facts 가 다음 등판 짐작의 두 칸(달력 · 같은 요일 경기 날짜)을 만든다.
+     * 날짜는 다른 칸과 같은 방식(앞 10자리). excludeToday 와 상관없다 — 일정은 앞날이고, 같은 요일 경기 날짜는 어제까지만 본다.
+     */
+    calendarEvents: events.map((e) => ({
+      date: e.date.toISOString().slice(0, 10),
+      title: e.title,
+    })),
     today,
   });
+  const plan = buildPitchPlan(facts);
 
-  return { facts, plan: buildPitchPlan(facts), hasLogs: logs.length > 0 };
+  /*
+   * 오늘 상태 한 장(2판 P3, lib/engine/day-state.ts) — facts · plan 에서 다시 읽고, facts 에 없는 팔 통증 자리만 오늘 체크인
+   * 줄에서 더 꺼낸다. 그 줄은 위 recentRecords(react cache)가 이미 읽은 것이라 조회가 늘지 않는다. 오늘 줄을 찾는 법은 buildFacts 가
+   * 오늘 체크인을 찾는 법(날짜 앞 10자리 = 오늘)과 같고, 체크인은 excludeToday 로 거르지 않는 것도 facts 와 같다.
+   * 팔 피로는 2판 P4 커밋 C 부터 facts(CheckinLike.armFatigue)에 있어 장이 거기서 읽는다 — 안전 거르기 · 일정 지문과 같은 칸 하나.
+   * 읽는 독자는 하나씩 옮긴다 — 암케어(lib/armcare/today.ts)가 팔 피로 · 팔 통증 · 오늘 등판을 여기서 읽는다(2판 P3 C1 · C4 뒤집기,
+   * 따로 읽던 오늘 체크인 조회를 걷었다). 프로그램(lib/program/load.ts)도 등판 답 · 세게 던진 날을 여기서 읽는다(2판 P3 읽기 통일 —
+   * 따로 읽던 오늘 · 어제 체크인 조회를 걷었다). 영양은 P6.
+   */
+  const todayCheckin =
+    checkins.find((c) => c.date.toISOString().slice(0, 10) === todayKey) ?? null;
+  const savedArmPain = todayCheckin ? pickArmPain(todayCheckin) : null;
+  const state = buildDayState({
+    facts,
+    plan,
+    extras: {
+      armPain: savedArmPain
+        ? { spots: savedArmPain.armPainSpots, level: savedArmPain.armPainLevel }
+        : null,
+    },
+  });
+
+  return { facts, plan, state, hasLogs: logs.length > 0 };
 }
 
 /**
@@ -248,11 +328,16 @@ const ROTATION_LOOKBACK_DAYS = 14;
  *
  * 2026-10-11 (P1) 부터 저장된 일정(DailyTrainingSetup.plan)도 본다 — 마침을 안 누르는 사람이 날짜 홀짝 예비 규칙에
  * 떨어져 한쪽에 갇히던 것(기준선 구원B 하체 5 · 상체 0). 규칙은 lib/report/daily-plan.ts 의 strengthDatesFrom 한 곳.
+ *
+ * 2026-10-12 (2판 P5-f) 부터 같은 두 조회로 둘을 더 낸다(StrengthHistory) — 최근 2주에 마친 동작 계열(patternsDoneFrom, 완료
+ * 기록에 동작 계열 칸 하나를 더 읽는다)과 자동 맞춤 시간의 위 끝(weeklyMinutesCap, 이미 읽은 일정에서). 조회를 따로 두면 일정
+ * 만들기를 누를 때마다 같은 2주 줄을 또 읽는다. 세 규칙 모두 이 2주(ROTATION_LOOKBACK_DAYS) 안을 본다 — 기간을 넓히면
+ * strengthDatesFrom 의 답이 바뀐다(그 함수는 부르는 쪽이 자른 것을 믿는다).
  */
 export async function lastStrengthDates(
   userId: string,
   today: Date
-): Promise<StrengthDates> {
+): Promise<StrengthHistory> {
   const todayKey = toDateKey(today);
   const sinceKey = shiftDateKey(todayKey, -ROTATION_LOOKBACK_DAYS);
   const range = {
@@ -262,7 +347,10 @@ export async function lastStrengthDates(
   const [logs, rehab, setups] = await Promise.all([
     prisma.userExerciseLog.findMany({
       where: { userId, completed: true, date: range },
-      select: { date: true, exercise: { select: { category: true, title: true } } },
+      select: {
+        date: true,
+        exercise: { select: { category: true, title: true, movementPattern: true } },
+      },
     }),
     loadRehabPeriods(userId, sinceKey),
     /* 그날 저장돼 있던 마지막 일정 — '다시 만들기'를 했으면 마지막 것만 남아 있다(userId_date 하나) */
@@ -272,13 +360,65 @@ export async function lastStrengthDates(
     }),
   ]);
 
-  return strengthDatesFrom({
-    done: logs
-      .map((log) => ({ date: toDateKey(log.date), log }))
-      /* 재활에서 한 컬(조트만 컬 — 상체 스트렝스)이 '상체 날을 했다'로 테마를 뒤집지 않게 */
-      .filter(({ date, log }) => !isRehabCheck(log.exercise.title, date, rehab))
-      .map(({ date, log }) => ({ date, category: log.exercise.category })),
-    planned: setups.map((s) => ({ date: toDateKey(s.date), plan: s.plan })),
-    todayKey,
+  const done = logs
+    .map((log) => ({ date: toDateKey(log.date), log }))
+    /*
+     * 재활에서 한 컬(조트만 컬 — 상체 스트렝스)이 '상체 날을 했다'로 테마를 뒤집지 않게. 동작 계열도 같은 까닭으로 뺀다 —
+     * 재활 단계의 밴드 당기기가 '당기기를 한 날'이 되면 점수가 당기기를 뒤로 민다(patternsDoneFrom 주석).
+     */
+    .filter(({ date, log }) => !isRehabCheck(log.exercise.title, date, rehab))
+    .map(({ date, log }) => ({
+      date,
+      category: log.exercise.category,
+      movementPattern: log.exercise.movementPattern,
+    }));
+  const planned = setups.map((s) => ({ date: toDateKey(s.date), plan: s.plan }));
+
+  return {
+    ...strengthDatesFrom({ done, planned, todayKey }),
+    patternsDone14d: patternsDoneFrom({ done, todayKey }),
+    weeklyMinutesCap: weeklyMinutesCap({ planned, todayKey }),
+  };
+}
+
+/**
+ * 최근 60일 안에 '바꿔서 뺀'(교체 · 빼기) 운동별 횟수 — 규칙은 lib/report/plan-swaps.ts 의 swappedOutCounts 한 곳.
+ *
+ * P5 가 '두 번 이상 바꿔서 뺀 운동 −2' 점수로 읽는다(buildDailyPlan → pickForTheme → orderCandidates). 2026-10-12 (P2)
+ * 에는 만들어 두기만 했고, P5-j(같은 날)부터 앱 경로(generateTodayPlan 의 Promise.all)가 부른다 — 만들기를 누를 때만.
+ * 오늘을 넣는다(lte) — 오늘 빼고 '다시 만들기'한 날 그 운동이 되돌아오지 않게. recentExerciseIds 가 오늘을 빼는 까닭
+ * (체크를 켜고 끄면 목록이 흔들림)은 여기 없다.
+ *
+ * 세션 판(운동 15개 × 처방 · 부위가 든 수 KB)도 기간 안 것을 거르지 않고 다 읽는다. 세션에서 바꾼 것은 그날 일정에도
+ * 같이 적히지만(writeSessionList) 그때 일정 줄이 없으면(프로그램 날 · 일정을 만들기 전에 운동한 날) 세션 판에만 남고,
+ * 그 뒤 같은 날 일정을 만들어 거기서 하나를 빼면 일정에도 기록이 생긴다. '일정에 기록이 있는 날짜의 세션 판은 건너뛰기'
+ * 는 바로 그 경우에 세션에만 있던 줄을 잃었다(2026-10-12 검토에서 확인 — 아낀 것은 바이트뿐). 같은 줄(날짜 · from ·
+ * kind · at)은 swappedOutCounts 가 한 번만 센다.
+ */
+export async function swappedOutRecently(
+  userId: string,
+  today: Date
+): Promise<Map<string, number>> {
+  const todayKey = toDateKey(today);
+  const sinceKey = shiftDateKey(todayKey, -SWAP_LOOKBACK_DAYS);
+  const range = {
+    gte: new Date(`${sinceKey}T00:00:00.000Z`),
+    lte: new Date(`${todayKey}T00:00:00.000Z`),
+  };
+  const [setups, sessions] = await Promise.all([
+    prisma.dailyTrainingSetup.findMany({
+      where: { userId, date: range, plan: { not: Prisma.DbNull } },
+      select: { date: true, plan: true },
+    }),
+    prisma.trainingSession.findMany({
+      where: { userId, date: range },
+      select: { date: true, plan: true },
+    }),
+  ]);
+  return swappedOutCounts({
+    plans: setups.map((s) => ({ date: toDateKey(s.date), plan: s.plan })),
+    sessions: sessions.map((s) => ({ date: toDateKey(s.date), plan: s.plan })),
+    sinceKey,
+    untilKey: todayKey,
   });
 }

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ChartLine } from 'lucide-react';
 import { Card, FormError } from '@/components/ui';
 import { toDateKey } from '@/lib/pitch-stats';
+import { readEffort } from '@/lib/pitch-effort';
 import { REST_SESSION_TYPE } from '@/lib/session-type';
 import { LegendSwatch, MonthCalendar, type DayMark } from '@/components/month-calendar';
 import { Segmented } from '@/components/segmented';
@@ -371,12 +372,13 @@ export function PitchLogPanel({
    * 달력에 칠할 것.
    *
    * '안 던진 날'과 '아직 아무것도 안 남긴 날'은 전혀 다른 뜻인데 둘 다 빈칸이면
-   * 구별이 안 된다. 쉬는 날은 색을 채우지 않고 점선으로 표시한다(intensity null).
+   * 구별이 안 된다. 쉬는 날은 색을 채우지 않고 점선으로 표시한다(effortPct null).
+   * 칸 색은 그날 가장 센 체감 강도(%) — 입력이 % 라 1~10 칸(85% 가 9 로 남는다)이 아니라 고른 값으로 칠한다.
    */
   const marks = useMemo(() => {
     type Acc = {
       pitches: number;
-      intensity: number;
+      effortPct: number;
       video: boolean;
       rested: boolean;
     };
@@ -384,13 +386,13 @@ export function PitchLogPanel({
       const key = log.date.slice(0, 10);
       const prev = acc[key] ?? {
         pitches: 0,
-        intensity: 0,
+        effortPct: 0,
         video: false,
         rested: true,
       };
       acc[key] = {
         pitches: prev.pitches + log.pitchCount,
-        intensity: Math.max(prev.intensity, log.intensity),
+        effortPct: Math.max(prev.effortPct, readEffort(log)?.pct ?? 0),
         video: prev.video || log.videoPaths.length > 0,
         // 하루에 여러 건이면, 한 건이라도 던졌으면 던진 날이다.
         rested: prev.rested && log.sessionType === REST_SESSION_TYPE,
@@ -403,7 +405,7 @@ export function PitchLogPanel({
       /* 영상 점 — 투구 기록 영상 + 구속 측정 클립(그날 칸의 영상 아이콘과 같은 기준, dayHas) */
       const video = d.video || (velocityByDay[key]?.clips ?? 0) > 0;
       out[key] = {
-        intensity: d.rested ? null : d.intensity,
+        effortPct: d.rested ? null : d.effortPct,
         label: d.rested ? '휴식' : `${d.pitches}구`,
         dot: video,
         spoken: [
