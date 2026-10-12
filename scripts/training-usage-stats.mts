@@ -6,26 +6,45 @@
  * 왜 있나. 추천 메커니즘 2판(docs/designs/training-recommendation-engine.md)의 결정 D2(체감 강도 0~100%) ·
  * D3(경기 다음 날을 달력이 아니라 부하로) · D4(성장기 16세 미만)와 P0 는 '지금 사용자가 실제로 무엇을 적고
  * 있나'를 숫자로 알아야 옮길 수 있다 — 등판 질문이 상세 체크인에만 있어 답이 거의 없다는 것, 운동 '마침'을
- * 누르는 날이 드물다는 것, 투구 강도 1~10 이 실제로 어떻게 쓰이는지, 16세 기준이 몇 명을 가르는지.
+ * 누르는 날이 드물다는 것, 투구 강도 1~10 이 실제로 어떻게 쓰이는지, 16세 기준이 몇 명을 가르는지. P4 부터는 다음 등판
+ * 짐작의 재료(⑦ — 달력 일정 이름의 낱말 · 같은 요일 경기)도 센다.
  * 단계(P1 ~ P6 · Y)마다 같은 도구로 다시 재서 전후를 견준다.
  *
  * 규칙. 운영 DB 를 그대로 읽는다(.env 의 DATABASE_URL — 개발 DB 가 곧 운영 DB 다). count · groupBy ·
  * findMany(select 최소)만 쓰고 아무것도 쓰지 않는다. 개인 정보(이메일 · 이름 · 메모 글)는 읽지도 찍지도
- * 않는다 — 집계 숫자만 stdout 에 마크다운 표로 낸다. 1분 안에 끝나야 한다.
+ * 않는다 — 집계 숫자만 stdout 에 마크다운 표로 낸다. 달력 일정 이름(⑦)만 낱말이 들었는지 보려고 메모리에 올리고,
+ * 원문은 찍지 않는다. 1분 안에 끝나야 한다.
  */
 import { PrismaClient } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
-import { effortPctOf, outingLoadOf, toDateKey } from '../lib/pitch-stats.ts';
+import {
+  effortPctOf,
+  outingLoadOf,
+  shiftDateKey,
+  toDateKey,
+} from '../lib/pitch-stats.ts';
 import { ageFromBirthDate } from '../lib/profile.ts';
 import {
   HARD_OUTING_MIN_LOAD,
   HARD_OUTING_MIN_PITCHES,
   NEAR_MAX_INTENSITY,
+  OUTING_CALENDAR_DAYS,
+  type ReportFacts,
 } from '../lib/report/facts.ts';
 import { YOUTH_AGE_THRESHOLD } from '../lib/report/plan.ts';
 import { THROW_PLANS } from '../lib/checkin.ts';
 import { REST_SESSION_TYPE } from '../lib/session-type.ts';
 import { readPlanSwaps } from '../lib/report/plan-swaps.ts';
+import {
+  OUTING_TITLE_EXCLUDE_WORDS,
+  OUTING_TITLE_WORDS,
+  isOutingTitle,
+} from '../lib/calendar-event.ts';
+import {
+  ESTIMATE_LOOKBACK_DAYS,
+  ESTIMATE_MIN_GAMES,
+  outingGuessInputsOf,
+} from '../lib/engine/outing.ts';
 
 const startedAt = Date.now();
 
@@ -1199,6 +1218,290 @@ async function sectionFeedback(
   }
 }
 
+/* ───────────────────── ⑦ 달력 · 같은 요일 — 다음 등판 짐작의 재료 ───────────────────── */
+
+/*
+ * 2판 P4 커밋 G(2026-10-12)부터 체크인 답이 다음 등판을 말하지 않는 날에는 홈 캘린더 일정 이름(lib/calendar-event.ts isOutingTitle) →
+ * 같은 요일 경기(lib/engine/outing.ts — 최근 ESTIMATE_LOOKBACK_DAYS 일에 같은 요일 경기 ESTIMATE_MIN_GAMES 번 이상) 차례로 다음 등판을
+ * 짐작해 일정을 가볍게만 한다. 낱말(경기 · 등판 · 선발) · 빼는 낱말(관람 · 응원)은 '실제 이름을 보고 고친다'고 미뤄 둔 결정이고('시합' ·
+ * '대회'는 사용자 결정 전, '경기도' 같은 땅이름은 알고 둔 오탐 — calendar-event.ts 주석), 같은 요일 문턱 3번도 '2번이면 우연이 너무
+ * 걸린다'는 어림이다(outing.ts 주석). 그래서 실제 일정 이름에 그 낱말이 얼마나 들고, 짐작이 실제로 몇 사람에게 서는지를 센다.
+ *
+ * 일정 이름(CalendarEvent.title)은 낱말이 들었는지 보려고 메모리에만 올리고 찍지 않는다 — 원문은 물론 사용자 · 날짜도 같이 내지 않고
+ * 낱말별 수만 낸다. 메모(memo)는 읽지 않는다.
+ */
+
+/** 아직 안 넣은 후보 낱말 — 넣으면 새로 등판으로 읽힐 이름이 몇인지 미리 센다(사용자 결정 전) */
+const CANDIDATE_TITLE_WORDS = ['시합', '대회'] as const;
+/** 알고 둔 오탐 — 땅이름의 '경기'. 걸려도 그날을 가볍게 할 뿐이지만 실제로 몇 줄인지 본다 */
+const KNOWN_FALSE_TITLE_WORDS = ['경기도'] as const;
+/** 일정 · 경기 기록이 이 수를 넘으면 메모리에 올리는 셈을 건너뛴다(1분 안에 끝내려고) */
+const CALENDAR_LOAD_LIMIT = 50000;
+/** 같은 요일 짐작을 날마다 다시 세 보는 기간 — ② 의 '최근 120일'과 같은 창 */
+const ESTIMATE_REPLAY_DAYS = 120;
+/** 문턱을 하나 낮추면 몇 사람에게 더 서나 — outing.ts 의 '2번이면 격주 경기도 잡지만 우연이 너무 걸린다'를 숫자로 본다 */
+const LOOSER_MIN_GAMES = ESTIMATE_MIN_GAMES - 1;
+/** 경기 기록의 거름 — facts.ts gameDatesOf 와 같다(종류 '경기' · 1구 이상) */
+const GAME_WHERE = { sessionType: '경기', pitchCount: { gt: 0 } };
+const WEEKDAY_NAMES = ['일', '월', '화', '수', '목', '금', '토'];
+
+/** 'YYYY-MM-DD' 의 요일 — 0 일요일 ~ 6 토요일. UTC 자정으로 읽어 시간대를 안 탄다(outing.ts 의 날 번호 셈과 같은 값) */
+function weekdayOfKey(key: string): number {
+  return new Date(`${key}T00:00:00.000Z`).getUTCDay();
+}
+
+/**
+ * asOf 기준 최근 ESTIMATE_LOOKBACK_DAYS 일(어제 ~ 그 날수 전)의 경기 날을 요일마다 센다 — outing.ts sameWeekdayGuesses 와 같은 창.
+ * 그 함수는 내보내지 않으니 여기서 다시 세되, 문턱이 ESTIMATE_MIN_GAMES 일 때는 앱 함수(outingGuessInputsOf)와 답이 같은지 늘 견준다
+ * (어긋나면 던진다 — 통계가 앱과 다른 규칙을 재지 않게). 문턱을 낮춘 셈은 앱에 없는 규칙이라 여기서만 센다.
+ */
+function weekdayCounts(dates: ReadonlySet<string>, asOf: string): number[] {
+  const counts = [0, 0, 0, 0, 0, 0, 0];
+  for (let ago = 1; ago <= ESTIMATE_LOOKBACK_DAYS; ago++) {
+    const key = shiftDateKey(asOf, -ago);
+    if (dates.has(key)) counts[weekdayOfKey(key)] += 1;
+  }
+  return counts;
+}
+
+/** 짐작이 서는 가장 가까운 날(asOf 0 ~ 6일 뒤), 없으면 null — outing.ts guessOf 의 같은 요일 갈래(달력 없음 · 오늘부터) */
+function nearestGuess(counts: number[], asOf: string, minGames: number): number | null {
+  for (let d = 0; d < 7; d++) {
+    if (counts[weekdayOfKey(shiftDateKey(asOf, d))] >= minGames) return d;
+  }
+  return null;
+}
+
+/**
+ * 앱 규칙으로 본 같은 요일 짐작의 가장 가까운 날 — outingGuessInputsOf 가 읽는 칸 셋(asOf · 달력 · 경기 날짜)만 채운 facts 를 넘긴다.
+ * 달력은 null 이라 같은 요일 갈래만 나온다.
+ */
+function appNearestGuess(dates: ReadonlySet<string>, asOf: string): number | null {
+  const facts = {
+    asOf,
+    condition: { outingCalendar: null },
+    patterns: { gameDates: [...dates] },
+  } as unknown as ReportFacts;
+  return outingGuessInputsOf(facts)?.estimate[0] ?? null;
+}
+
+/** 일정 줄을 이름 조건으로 센다 — 줄 · 사용자, 그리고 오늘부터 OUTING_CALENDAR_DAYS 일 안(gather.ts 가 읽는 창 — 오늘 짐작의 재료) */
+function tallyTitles(
+  events: { userId: string; date: Date; title: string }[],
+  match: (title: string) => boolean
+): number[] {
+  const windowEnd = shiftDateKey(TODAY_KEY, OUTING_CALENDAR_DAYS);
+  const users = new Set<string>();
+  const windowUsers = new Set<string>();
+  let rows = 0;
+  let windowRows = 0;
+  for (const e of events) {
+    if (!match(e.title)) continue;
+    rows += 1;
+    users.add(e.userId);
+    const key = keyOf(e.date);
+    if (key >= TODAY_KEY && key <= windowEnd) {
+      windowRows += 1;
+      windowUsers.add(e.userId);
+    }
+  }
+  return [rows, users.size, windowRows, windowUsers.size];
+}
+
+async function sectionCalendar() {
+  heading(
+    `⑦ 달력 · 같은 요일 — 다음 등판 짐작의 재료(2판 P4): 일정 이름에 ${OUTING_TITLE_WORDS.join(' · ')} 하나 이상이고 ${OUTING_TITLE_EXCLUDE_WORDS.join(' · ')} 없음, 또는 최근 ${ESTIMATE_LOOKBACK_DAYS}일 같은 요일 경기 ${ESTIMATE_MIN_GAMES}번 이상`
+  );
+  const [eventCount, gameCount] = await Promise.all([
+    prisma.calendarEvent.count(),
+    prisma.pitchLog.count({ where: GAME_WHERE }),
+  ]);
+
+  if (eventCount > CALENDAR_LOAD_LIMIT) {
+    table(
+      ['일정 이름', '수'],
+      [['(건너뜀)', `일정이 ${CALENDAR_LOAD_LIMIT}줄을 넘어 낱말 표를 안 만든다`]]
+    );
+  } else {
+    const events = await prisma.calendarEvent.findMany({
+      select: { userId: true, date: true, title: true },
+    });
+    const has = (w: string) => (t: string) => t.includes(w);
+    const excluded = (t: string) =>
+      OUTING_TITLE_EXCLUDE_WORDS.some((x) => t.includes(x));
+    const outingWord = (t: string) => OUTING_TITLE_WORDS.some((w) => t.includes(w));
+    table(
+      [
+        '일정 이름',
+        '일정 줄',
+        '사용자',
+        `오늘 ~ ${OUTING_CALENDAR_DAYS}일 뒤 줄`,
+        `오늘 ~ ${OUTING_CALENDAR_DAYS}일 뒤 사용자`,
+      ],
+      [
+        ['일정(CalendarEvent) 전체', ...tallyTitles(events, () => true)],
+        [
+          '등판으로 읽히는 이름(isOutingTitle — 등판 낱말 하나 이상 · 빼는 낱말 없음)',
+          ...tallyTitles(events, isOutingTitle),
+        ],
+        ...OUTING_TITLE_WORDS.map((w) => [
+          `  이름에 등판 낱말 '${w}' 있음`,
+          ...tallyTitles(events, has(w)),
+        ]),
+        ...OUTING_TITLE_EXCLUDE_WORDS.flatMap((w) => [
+          [`이름에 빼는 낱말 '${w}' 있음`, ...tallyTitles(events, has(w))],
+          [
+            '  그중 등판 낱말도 든 것(이 낱말이 막은 몫)',
+            ...tallyTitles(events, (t) => t.includes(w) && outingWord(t)),
+          ],
+        ]),
+        ...CANDIDATE_TITLE_WORDS.flatMap((w) => [
+          [
+            `이름에 후보 낱말 '${w}' 있음(아직 안 넣음)`,
+            ...tallyTitles(events, has(w)),
+          ],
+          [
+            '  그중 넣으면 새로 등판으로 읽힐 것(지금 안 읽힘 · 빼는 낱말 없음)',
+            ...tallyTitles(
+              events,
+              (t) => t.includes(w) && !isOutingTitle(t) && !excluded(t)
+            ),
+          ],
+        ]),
+        ...KNOWN_FALSE_TITLE_WORDS.map((w) => [
+          `이름에 '${w}' 있음(알고 둔 오탐) · 등판으로 읽힘`,
+          ...tallyTitles(events, (t) => t.includes(w) && isOutingTitle(t)),
+        ]),
+      ]
+    );
+  }
+
+  /*
+   * 같은 요일 짐작 — 경기 기록(facts.ts 와 같은 거름)을 사용자마다 날짜 집합으로 모아, 요일 집중 · 오늘 짐작이 서는 사람 · 최근 120일
+   * 날마다 다시 셌을 때 짐작이 선 날과 그 짐작이 맞았는지를 본다. 체크인 답과 상관없이 센다 — 답이 범위를 주면 앱은 짐작하지 않으니
+   * '짐작이 선 날'은 상한이다. 달력이 있으면 앱은 같은 요일을 안 보지만 여기서는 같은 요일 갈래만 따로 잰다.
+   */
+  if (gameCount > CALENDAR_LOAD_LIMIT) {
+    table(
+      ['같은 요일 짐작', '수'],
+      [['(건너뜀)', `경기 기록이 ${CALENDAR_LOAD_LIMIT}줄을 넘어 요일 표를 안 만든다`]]
+    );
+    return;
+  }
+  const games = await prisma.pitchLog.findMany({
+    where: GAME_WHERE,
+    select: { userId: true, date: true },
+  });
+  const datesByUser = new Map<string, Set<string>>();
+  for (const g of games) {
+    const set = datesByUser.get(g.userId) ?? new Set<string>();
+    set.add(keyOf(g.date));
+    datesByUser.set(g.userId, set);
+  }
+
+  /* 요일 집중(전체 기간) — 경기 날이 문턱만큼 있는 사람 중 한 요일에 절반 이상 몰린 사람 */
+  const weekdayDays = [0, 0, 0, 0, 0, 0, 0];
+  let gameDays = 0;
+  let manyGames = 0;
+  let concentrated = 0;
+  for (const dates of datesByUser.values()) {
+    const byWeekday = [0, 0, 0, 0, 0, 0, 0];
+    for (const key of dates) byWeekday[weekdayOfKey(key)] += 1;
+    for (let w = 0; w < 7; w++) weekdayDays[w] += byWeekday[w];
+    gameDays += dates.size;
+    if (dates.size >= ESTIMATE_MIN_GAMES) {
+      manyGames += 1;
+      if (maxOf(byWeekday) * 2 >= dates.size) concentrated += 1;
+    }
+  }
+
+  /*
+   * 오늘 기준(최근 ESTIMATE_LOOKBACK_DAYS 일 경기가 있는 사람 · 짐작이 서는 사람)과 최근 ESTIMATE_REPLAY_DAYS 일 날마다 다시 센 것(짐작이
+   * 선 사용자-날 · 짐작한 날이 지났으면 그날 실제 경기가 있었나). 문턱은 앱 그대로와 하나 낮춘 것 둘.
+   */
+  let recentGameUsers = 0;
+  let guessToday = 0;
+  let guessTodayLoose = 0;
+  const replayStart = recentSinceKey(ESTIMATE_REPLAY_DAYS);
+  const replayOf = (minGames: number) => ({
+    minGames,
+    users: 0,
+    days: 0,
+    judged: 0,
+    hit: 0,
+  });
+  const strict = replayOf(ESTIMATE_MIN_GAMES);
+  const loose = replayOf(LOOSER_MIN_GAMES);
+  for (const dates of datesByUser.values()) {
+    const countsToday = weekdayCounts(dates, TODAY_KEY);
+    if (countsToday.some((n) => n > 0)) recentGameUsers += 1;
+    if (nearestGuess(countsToday, TODAY_KEY, ESTIMATE_MIN_GAMES) != null)
+      guessToday += 1;
+    if (nearestGuess(countsToday, TODAY_KEY, LOOSER_MIN_GAMES) != null)
+      guessTodayLoose += 1;
+
+    const daysBefore = [strict.days, loose.days];
+    for (let day = replayStart; day <= TODAY_KEY; day = shiftDateKey(day, 1)) {
+      const counts = weekdayCounts(dates, day);
+      const app = appNearestGuess(dates, day);
+      for (const r of [strict, loose]) {
+        const d = nearestGuess(counts, day, r.minGames);
+        if (r === strict && d !== app)
+          throw new Error(
+            `⑦ 같은 요일 짐작이 앱 규칙(outingGuessInputsOf)과 다르다: ${day} 여기 ${d} · 앱 ${app}`
+          );
+        if (d == null) continue;
+        r.days += 1;
+        const target = shiftDateKey(day, d);
+        /* 오늘 이후는 아직 던졌는지 모른다 — 맞았나는 지난 날만 본다 */
+        if (target < TODAY_KEY) {
+          r.judged += 1;
+          if (dates.has(target)) r.hit += 1;
+        }
+      }
+    }
+    if (strict.days > daysBefore[0]) strict.users += 1;
+    if (loose.days > daysBefore[1]) loose.users += 1;
+  }
+  const userDays = datesByUser.size * ESTIMATE_REPLAY_DAYS;
+  const replayRows = (r: typeof strict, label: string): (string | number)[][] => [
+    [
+      `${label}: 짐작이 선 사용자 · 사용자-날 / 경기 기록이 있는 사용자 × ${ESTIMATE_REPLAY_DAYS}일`,
+      `${r.users} · ${withPct(r.days, userDays)}`,
+    ],
+    [
+      '  그중 짐작한 날이 지난 날인 것 · 그날 실제 경기가 있었던 것',
+      `${r.judged} · ${withPct(r.hit, r.judged)}`,
+    ],
+  ];
+  table(
+    ['같은 요일 짐작(경기 기록 — 종류 경기 · 1구 이상)', '수'],
+    [
+      [
+        '경기 기록 줄 · 경기 날(사람 · 날짜 한 번) · 사용자',
+        `${games.length} · ${gameDays} · ${datesByUser.size}`,
+      ],
+      [
+        '  요일별 경기 날(전체 기간)',
+        WEEKDAY_NAMES.map((name, w) => `${name} ${weekdayDays[w]}`).join(' · '),
+      ],
+      [
+        `경기 날 ${ESTIMATE_MIN_GAMES}일 이상인 사용자 · 그중 한 요일에 절반 이상 몰린 사람(요일 집중, 전체 기간)`,
+        `${manyGames} · ${concentrated}`,
+      ],
+      [
+        `오늘 기준 최근 ${ESTIMATE_LOOKBACK_DAYS}일 경기가 있는 사용자 · 같은 요일 ${ESTIMATE_MIN_GAMES}번 이상(오늘 짐작이 섬) · ${LOOSER_MIN_GAMES}번 이상으로 낮추면`,
+        `${recentGameUsers} · ${guessToday} · ${guessTodayLoose}`,
+      ],
+      ...replayRows(
+        strict,
+        `${recentLabel(ESTIMATE_REPLAY_DAYS)} 날마다, 문턱 ${ESTIMATE_MIN_GAMES}번`
+      ),
+      ...replayRows(loose, `  같은 기간, 문턱 ${LOOSER_MIN_GAMES}번으로 낮추면`),
+    ]
+  );
+}
+
 /* ─────────────────────────── 실행 ─────────────────────────── */
 
 console.log(`# 트레이닝 추천 — DB 사용 통계(읽기만) · ${TODAY_KEY}\n`);
@@ -1211,6 +1514,7 @@ try {
   await sectionAge();
   await sectionLibrary();
   await sectionFeedback(setups, sessions, pairing);
+  await sectionCalendar();
 } finally {
   await prisma.$disconnect();
 }

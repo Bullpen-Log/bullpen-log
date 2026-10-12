@@ -26,6 +26,15 @@
  * 체크인마다 등판 답 여섯 중 하나, 투구 기록마다 effortPct(대본 1판 강도 × 10 이라 세게 던진 날 · 부하는 같은 값). 그래서 P2 까지의
  * 표와는 ⑤ · ⑫ 의 정의가 다르고(답을 지운 변형으로 옛 숫자를 같이 낸다), 답이 새로 닿은 선수(선발B · 선발D · 구원A)의 날이
  * 바뀐다. 2판 전후를 견줄 때는 그 셋만 바뀌었는지 본다 — 상세 선수 · 비시즌 · 같은 설정 쌍은 그대로여야 한다.
+ *
+ * 번호. '재는 것' 표 · 아래 절 제목 · JSON 칸 주석이 같은 번호를 쓴다. ①~⑫ 는 P0(설계 문서 'P0 결과'의 정의), P4 가 넷을 더했다 —
+ *   ⑬ 팔 피로 '심함' 변형(커밋 C, metrics.armSevere)   ⑭ 등판 전 무거운 하체(커밋 D, metrics.heavyLowerBeforeGame)
+ *   ⑮ 날 종류 · 힘듦 급증 변형(커밋 E, metrics.dayKind) · 등판 답별 테마(metrics.planThemes, P3 부터 있던 표)
+ *   ⑯ 다음 등판 짐작(커밋 G, metrics.calendarGuess).
+ * 커밋 메시지 · 패치노트가 이 번호로 적혀 있어 다시 매기지 않는다. 다음 단계가 더하는 지표는 ⑰ 부터 잇는다. 자체 시험의 불변식
+ * 번호(scripts/training-selftest.mts '[2판 안전망(P0)]' (c) ruleNames)는 따로 매긴 것이라 같은 번호가 다른 것을 뜻한다 — 불변식
+ * ⑪ 등판 창 무거운 하체 = 기준선 ⑭ · 불변식 ⑬ 등판 짐작 = 기준선 ⑯ · 불변식 ⑭ ⑯ 팔 피로 = 기준선 ⑬(불변식 ⑫ 근력 날 본운동 후보 ·
+ * ⑮ 성장기 쉬는 날은 기준선에 짝이 없다).
  */
 import { mkdirSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
@@ -1304,7 +1313,10 @@ function gameMornings(pickPlayer: (p: Player) => boolean) {
 const gameMorningStarters = gameMornings(isStarter);
 const gameMorningAll = gameMornings(() => true);
 
-/* 등판 답별 테마(체크인 있는 날) — 새 답 둘('2~3일 뒤' · '4일 이상 뒤')은 지금 '없음'과 같이 읽힌다(P5 · P6 가 쓴다) */
+/*
+ * ⑮ 등판 답별 테마(체크인 있는 날) — P3 에서는 새 답 둘('2~3일 뒤' · '4일 이상 뒤')이 '없음'과 같이 읽혔고, P4 커밋 E 부터 날 종류
+ * (lib/engine/microcycle.ts R5 · R6)가 가른다. 같은 답의 무거운 하체 수는 ⑭ 표(heavyLowerBeforeGame.byAnswer).
+ */
 const planThemes = THROW_PLANS.map((plan) => {
   const rows = allDays.filter((d) => d.throwPlan === plan);
   return { plan, days: rows.length, themes: themeCounts(rows, (d) => d.theme) };
@@ -2131,7 +2143,7 @@ out.push(
 );
 
 out.push(
-  "\n## 등판 답별 테마(체크인 있는 날) — '2~3일 뒤'는 무거운 하체를 빼고, 하체 · 상체 기록이 없으면 상체 쪽 · '4일 이상 뒤'는 하체 쪽(2판 P4)"
+  "\n## ⑮ 등판 답별 테마(체크인 있는 날) — '2~3일 뒤'는 무거운 하체를 빼고, 하체 · 상체 기록이 없으면 상체 쪽 · '4일 이상 뒤'는 하체 쪽(2판 P4)"
 );
 out.push(
   table(

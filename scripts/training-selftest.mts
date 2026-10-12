@@ -18835,5 +18835,91 @@ console.log(
   }
 }
 
+/* ═══════════════════ [2판 P4] 도구 — 사용 통계 ⑦ · 기준선 번호(scripts/training-usage-stats.mts · scripts/training-baseline.mts) (2026-10-12) ═══════════════════ */
+console.log(
+  '\n[2판 P4] 도구 — 사용 통계 ⑦(달력 낱말 · 같은 요일)이 앱 규칙을 그대로 읽고 이름을 안 찍는가 · 기준선 번호 표가 출력과 맞는가(2026-10-12)'
+);
+{
+  /*
+   * 왜 보는가. 두 도구는 운영 DB 를 읽어 시험으로 돌릴 수 없다. 그래서 소스로만 지킨다 — ① 사용 통계 ⑦ 이 낱말 · 같은 요일 문턱을
+   * 베끼면 앱이 낱말을 바꿔도 통계는 옛 낱말을 센다(lib/calendar-event.ts · lib/engine/outing.ts 에서 가져오고, 같은 요일 셈은 앱 함수와
+   * 늘 견준다) ② 일정 이름은 사용자가 적은 글이라 낱말 수만 내고 원문은 안 찍는다 ③ 기준선의 번호 표(머리 주석)가 '재는 것' 표 · 절 제목과
+   * 어긋나면 설계 문서가 엉뚱한 지표를 가리킨다 — 다음 단계가 ⑰ 을 더할 때 머리 표도 같이 고치게 한다.
+   */
+  const strip = (rel: string) =>
+    readFileSync(new URL(`../${rel}`, import.meta.url), 'utf8')
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/^\s*\/\/.*$/gm, '');
+  const usage = strip('scripts/training-usage-stats.mts');
+  check(
+    'P4 도구 (가) 사용 통계 ⑦ 은 등판 낱말 · 빼는 낱말 · 판정을 lib/calendar-event.ts, 같은 요일 문턱 · 창을 lib/engine/outing.ts 에서 가져오고 낱말 목록을 베끼지 않는다',
+    /import \{\s*OUTING_TITLE_EXCLUDE_WORDS,\s*OUTING_TITLE_WORDS,\s*isOutingTitle,\s*\} from '\.\.\/lib\/calendar-event\.ts';/.test(
+      usage
+    ) &&
+      /import \{\s*ESTIMATE_LOOKBACK_DAYS,\s*ESTIMATE_MIN_GAMES,\s*outingGuessInputsOf,\s*\} from '\.\.\/lib\/engine\/outing\.ts';/.test(
+        usage
+      ) &&
+      !/\[\s*'경기',\s*'등판'/.test(usage) &&
+      !/\[\s*'관람',\s*'응원'/.test(usage)
+  );
+  check(
+    'P4 도구 (가) 같은 요일 셈은 날마다 앱 함수(outingGuessInputsOf)와 견주고 다르면 던진다',
+    /const app = appNearestGuess\(dates, day\);/.test(usage) &&
+      /if \(r === strict && d !== app\)\s*throw new Error\(/.test(usage)
+  );
+  check(
+    'P4 도구 (나) 사용 통계 ⑦ 은 일정 이름을 조건에 넘길 때만 쓰고(찍는 곳 없음) 메모는 읽지 않는다',
+    usage.split('.title').length === 2 &&
+      /if \(!match\(e\.title\)\) continue;/.test(usage) &&
+      /select: \{ userId: true, date: true, title: true \}/.test(usage) &&
+      !/memo/.test(usage)
+  );
+  check(
+    'P4 도구 (다) 실행 차례에 ⑦ 이 있다(⑥ 다음)',
+    /await sectionFeedback\(setups, sessions, pairing\);\s*await sectionCalendar\(\);/.test(
+      usage
+    )
+  );
+
+  /* 기준선 — 머리 주석의 번호 표(①~⑫ 는 P0, 그 뒤는 표에 적힌 것)와 '재는 것' 줄 · 절 제목의 번호 */
+  const baselineRaw = readFileSync(
+    new URL('../scripts/training-baseline.mts', import.meta.url),
+    'utf8'
+  );
+  const head = baselineRaw.slice(0, baselineRaw.indexOf('\nimport '));
+  const mapStart = head.indexOf(' * 번호.');
+  const mapEnd = head.indexOf('커밋 메시지', mapStart);
+  const mapText =
+    mapStart >= 0 && mapEnd > mapStart ? head.slice(mapStart, mapEnd) : '';
+  const circled = (s: string) => [...s.matchAll(/[①-⑳]/g)].map((m) => m[0]);
+  const P0_NUMBERS = circled('①②③④⑤⑥⑦⑧⑨⑩⑪⑫');
+  const mapped = new Set(circled(mapText).filter((n) => !P0_NUMBERS.includes(n)));
+  const baseline = strip('scripts/training-baseline.mts');
+  const rowNumbers = new Set(
+    [...baseline.matchAll(/^\s*'([①-⑳])',$/gm)].map((m) => m[1])
+  );
+  const headingNumbers = new Set(
+    [...baseline.matchAll(/## ([①-⑳]) /g)].map((m) => m[1])
+  );
+  const allowed = new Set([...P0_NUMBERS, ...mapped]);
+  const stray = [...rowNumbers, ...headingNumbers].filter((n) => !allowed.has(n));
+  const unused = [...mapped].filter((n) => !rowNumbers.has(n));
+  check(
+    "P4 도구 (라) 기준선 '재는 것' 줄 · 절 제목의 번호가 모두 머리 주석 번호 표(①~⑫ + P4 의 ⑬~⑯)에 있고, 표의 번호는 모두 줄로 나온다",
+    mapped.size === 4 &&
+      ['⑬', '⑭', '⑮', '⑯'].every((n) => mapped.has(n)) &&
+      stray.length === 0 &&
+      unused.length === 0,
+    `표 ${[...mapped].join(' ')} · 줄 ${[...rowNumbers].join(' ')} · 제목 ${[...headingNumbers].join(' ')}${stray.length ? ` · 표에 없음 ${stray.join(' ')}` : ''}${unused.length ? ` · 줄에 없음 ${unused.join(' ')}` : ''}`
+  );
+  const metricKeys = [...mapText.matchAll(/metrics\.([A-Za-z]+)/g)].map((m) => m[1]);
+  check(
+    'P4 도구 (라) 기준선 번호 표가 가리키는 JSON 칸(metrics.…)이 모두 JSON 에 실린다',
+    metricKeys.length >= 5 &&
+      metricKeys.every((k) => new RegExp(`^\\s+${k},$`, 'm').test(baseline)),
+    metricKeys.join(' · ')
+  );
+}
+
 console.log(`\n${passed}개 통과, ${failed}개 실패`);
 process.exit(failed === 0 ? 0 : 1);
