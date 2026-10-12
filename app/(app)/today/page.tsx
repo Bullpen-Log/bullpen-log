@@ -234,12 +234,14 @@ async function PlanLine({ user }: { user: User }) {
   );
 }
 
-/** '오늘 35~45구까지' · '강도 5~7' / '오늘은 쉬어요' · 까닭 */
+/** '오늘 35~45구까지' · '강도 50~70%' / '오늘은 쉬어요' · 까닭 / '오늘 등판' · '양은 경기가 정해요' */
 function planLine(plan: PitchPlan): { main: string; sub: string } | null {
   const day = plan.threwToday ? plan.tomorrow : plan.today;
   if (!day) return null;
   const when = plan.threwToday ? '내일' : '오늘';
   if (!day.throwing) return { main: `${when}은 쉬어요`, sub: day.reason };
+  /* 등판 날은 범위가 비어 있다 — 양은 경기가 정한다(2판 P3, lib/report/plan.ts DayPlan.outing) */
+  if (day.outing === 'game') return { main: `${when} 등판`, sub: '양은 경기가 정해요' };
   const range = pitchRangeText(day);
   if (!range) return null;
   return {

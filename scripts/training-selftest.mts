@@ -65,6 +65,8 @@ import {
   pickCheckinBody,
   pickCheckinDetail,
   sleepLevelFromHours,
+  nextOutingWindow as checkinNextOutingWindow,
+  todayOutingRole,
   type CheckinPartKey,
   type ThrowPlan,
 } from '../lib/checkin.ts';
@@ -101,6 +103,7 @@ import {
   HIGH_VOLUME_PITCHES,
   HIGH_VOLUME_MIN_REST,
   YOUTH_AGE_THRESHOLD,
+  type DayPlan,
 } from '../lib/report/plan.ts';
 import {
   painEasingParts,
@@ -7962,8 +7965,10 @@ console.log(
    *
    * 알려진 엇갈림(2판 검토안 — P3 '오늘 상태 한 장'에서 한 값으로 모은다. 그 단계에서 아래 기대값을 고친다):
    *   C1 '오늘 등판'인 날 — 일정은 회복인데 암케어는 강화(기록이 없어 던진 날로 안 봄), 투구 계획은 평소대로 던지라 함.
+   *      → P3 로 바뀜(2026-10-12 C1 · C4 뒤집기): 투구 계획 'game'(범위 없이 양은 경기가 정함) · 암케어 'recovery'.
    *   C3 '오늘 불펜' — 영양은 던지는 날(던지기 전 식사)인데 일정 · 암케어 · 프로그램은 평소 날.
    *   C4 어제 '내일 등판' + 오늘 체크인 없음 — 일정 · 영양은 등판 날인데 암케어는 강화, 프로그램은 체크인부터.
+   *      → P3 로 바뀜: 투구 계획 'game' · 암케어 'recovery'(프로그램은 체크인 규칙이 먼저라 그대로 needCheckin).
    *   C5 팔 피로 '심함' — 암케어만 회복, 일정 · 프로그램은 평소 날(팔 피로를 안 읽는다).
    *   C6 어제 '오늘 등판' 답 + 기록 없음 — 프로그램만 경기 다음 날로 쉬고, 일정 · 암케어 · 투구 계획은 평소 날(D3 · P4).
    */
@@ -7987,15 +7992,18 @@ console.log(
       lastUpperKey: null,
       preferredWorkout: facts.condition.today?.preferredWorkout ?? null,
     });
+    /* 'game' = 등판 날(DayPlan.outing — P3 로 생김: 범위 없이 양은 경기가 정함). 불펜 이름표는 범위가 그대로라 'throw' 등으로 읽는다 */
     const pitchPlan = plan.halted
       ? 'halted'
       : plan.today == null
         ? 'threw'
-        : !plan.today.throwing
-          ? 'rest'
-          : plan.today.recovery
-            ? 'recovery'
-            : 'throw';
+        : plan.today.outing === 'game'
+          ? 'game'
+          : !plan.today.throwing
+            ? 'rest'
+            : plan.today.recovery
+              ? 'recovery'
+              : 'throw';
     const planToday = facts.condition.throwPlanToday ?? null;
     const planYesterday = facts.condition.throwPlanYesterday ?? null;
     const asOf = p.asOf ?? TODAY;
@@ -8016,7 +8024,17 @@ console.log(
             loggedAt: asOf.toISOString(),
           })),
       }) ?? 'none';
-    const armcare = decideArmcare({ facts, plan, armFatigue }).kind;
+    /*
+     * 암케어는 앱(lib/armcare/today.ts)처럼 오늘 상태 한 장을 받는다 — P3 로 바뀜(C1 · C4 뒤집기): 그 장의 등판 신호(outing.role)로
+     * 등판 날 회복. 팔 피로도 그 장에 실어 넘긴다(앱은 state.arm.fatigue 를 넘긴다 — 같은 값).
+     */
+    const armState = buildDayState({ facts, plan, extras: { armFatigue } });
+    const armcare = decideArmcare({
+      facts,
+      plan,
+      armFatigue: armState.arm.fatigue,
+      state: armState,
+    }).kind;
     const today = facts.condition.today;
     const zone = facts.load.zone;
     /*
@@ -8085,11 +8103,15 @@ console.log(
       tag: 'C1',
       name: "① 오늘 체크인 '오늘 등판' + 투구 기록 없음",
       person: { today: { throwPlan: '오늘 등판' } },
+      /*
+       * P3 로 바뀜(2026-10-12 C1 · C4 뒤집기) — 왜: 일정은 회복인데 투구 계획은 '평소대로 40~60구', 암케어는 강화를 내 한 아침을
+       * 셋으로 말했다. 투구 계획 'throw' → 'game'(범위 없이 양은 경기가 정함) · 암케어 'strength' → 'recovery'(오늘 상태 한 장의 등판 신호).
+       */
       expect: {
         theme: 'recovery',
-        pitchPlan: 'throw',
+        pitchPlan: 'game',
         nutrition: 'today',
-        armcare: 'strength',
+        armcare: 'recovery',
         program: 'rest:gameToday',
       },
     },
@@ -8124,11 +8146,15 @@ console.log(
       tag: 'C4',
       name: "④ 어제 '내일 등판' + 오늘 체크인 없음",
       person: { today: null, yesterday: { throwPlan: '내일 등판' } },
+      /*
+       * P3 로 바뀜(C1 과 같은 까닭) — 어제 '내일 등판'에 오늘 답이 없으면 오늘이 등판(lib/checkin.ts todayOutingRole). 투구 계획
+       * 'throw' → 'game' · 암케어 'strength' → 'recovery'. 프로그램은 체크인 규칙이 먼저라 그대로 needCheckin.
+       */
       expect: {
         theme: 'recovery',
-        pitchPlan: 'throw',
+        pitchPlan: 'game',
         nutrition: 'today',
-        armcare: 'strength',
+        armcare: 'recovery',
         program: 'needCheckin',
       },
     },
@@ -12309,6 +12335,487 @@ console.log(
       `${bullpen.why.join(' / ')} | ${fromCheckin.why.join(' / ')}`
     );
   }
+}
+
+/* ═══════════════════ [2판 오늘 상태(P3)] C1 · C4 뒤집기 — 투구 계획의 등판 날 · 암케어의 등판 신호 (2026-10-12) ═══════════════════ */
+console.log(
+  '\n[2판 오늘 상태(P3)] C1 · C4 뒤집기 — 등판 날 투구 계획(양은 경기가 정함) · 암케어 회복 · 규칙 한 곳(todayOutingRole) · 안 바뀌는 것(2026-10-12)'
+);
+{
+  /*
+   * 엇갈림 표(위 '[2판 안전망(P0)]' (b))의 C1 · C4 기대값은 그 표에서 고쳤다. 여기서는 그 둘이 '우연히' 맞은 것이 아님을 본다.
+   *   1) '오늘 등판 · 불펜인가'는 lib/checkin.ts todayOutingRole 한 곳 — 투구 계획 · 오늘 상태 한 장 · 암케어가 같은 값을 읽는다
+   *   2) 등판 날 투구 계획의 모양(던지는 날 · 범위 없음 · 까닭)과 앞서는 규칙(통증 · 재활 · 메모 확인 · 이미 던짐)
+   *   3) 바뀌는 것은 오늘 칸뿐 — 답을 지운 facts 로 만든 계획과 견줘 내일 칸 · 멈춤 · 회복 표시가 글자 그대로, 답이 등판 · 불펜이
+   *      아니면 계획 전체가 글자 그대로. 암케어는 오늘 상태를 안 주면 옛 길 그대로
+   * 사람 만들기는 '오늘 상태 한 장' 절의 dsFacts 와 같은 꼴(그 블록 안이라 못 불러 베낀다).
+   */
+  type FlCheckin = Partial<Record<CheckinPartKey, string>> & {
+    condition?: number;
+    throwPlan?: string | null;
+  };
+  type FlLog = {
+    daysAgo: number;
+    pitches: number;
+    intensity: number;
+    sessionType?: string;
+  };
+  type FlPerson = {
+    age?: number | null;
+    today?: FlCheckin | null;
+    yesterday?: FlCheckin | null;
+    logs?: FlLog[];
+    rehab?: RehabFacts | null;
+    memos?: string[];
+  };
+  const flKey = (daysAgo: number) =>
+    new Date(TODAY.getTime() - daysAgo * 86400000).toISOString().slice(0, 10);
+  const flCheckin = (daysAgo: number, c: FlCheckin): CheckinLike => ({
+    date: flKey(daysAgo),
+    condition: c.condition ?? 7,
+    sleep: '보통',
+    shoulder: c.shoulder ?? '정상',
+    elbow: c.elbow ?? '정상',
+    wrist: c.wrist ?? '정상',
+    lowerBack: c.lowerBack ?? '정상',
+    lowerBody: c.lowerBody ?? '정상',
+    preferredParts: [],
+    preferredWorkout: null,
+    ...(c.throwPlan !== undefined ? { throwPlan: c.throwPlan } : {}),
+  });
+  const flFacts = (p: FlPerson) =>
+    buildFacts({
+      nickname: '시험',
+      age: p.age === undefined ? 22 : p.age,
+      heightCm: 180,
+      trainingLevel: null,
+      baselineDailyLoad: 100,
+      rehab: p.rehab ?? null,
+      today: TODAY,
+      logs: (p.logs ?? []).map<PitchLogLike>((l) => ({
+        date: new Date(TODAY.getTime() - l.daysAgo * 86400000).toISOString(),
+        pitchCount: l.pitches,
+        intensity: l.intensity,
+        ...(l.sessionType ? { sessionType: l.sessionType } : {}),
+        maxVelocity: 130,
+        avgVelocity: 120,
+      })),
+      checkins: [
+        ...(p.today ? [flCheckin(0, p.today)] : []),
+        ...(p.yesterday ? [flCheckin(1, p.yesterday)] : []),
+      ],
+      memos: (p.memos ?? []).map((text) => ({ date: flKey(1), text })),
+    });
+  type FlFacts = ReturnType<typeof flFacts>;
+  /* 등판 답만 지운 facts — buildPitchPlan 은 등판 답을 오늘 할 일(outing)에만 쓰므로, 이것과 견주면 바뀐 곳만 드러난다 */
+  const noAnswers = (facts: FlFacts): FlFacts => ({
+    ...facts,
+    condition: { ...facts.condition, throwPlanToday: null, throwPlanYesterday: null },
+  });
+  const flOf = (p: FlPerson) => {
+    const facts = flFacts(p);
+    const plan = buildPitchPlan(facts);
+    return { facts, plan, before: buildPitchPlan(noAnswers(facts)) };
+  };
+  const json = (v: unknown) => JSON.stringify(v);
+  /* outing 칸만 뺀 오늘 칸 — 불펜 이름표 말고는 같은지 볼 때 */
+  const withoutOuting = (day: DayPlan | null) => {
+    if (day == null) return null;
+    const rest: DayPlan = { ...day };
+    delete rest.outing;
+    return rest;
+  };
+
+  /* ── 1) 규칙 한 곳 ── */
+  check(
+    '뒤집기 (한 곳) day-state 의 nextOutingWindow 는 lib/checkin.ts 의 그 함수 그대로(다시 내보냄 — 합치기 규칙이 두 벌이 아니다)',
+    nextOutingWindow === checkinNextOutingWindow
+  );
+  const answers: (ThrowPlan | null)[] = [...THROW_PLANS, null];
+  const roleExpected = (t: ThrowPlan | null, y: ThrowPlan | null) =>
+    t != null
+      ? t === '오늘 등판'
+        ? 'game'
+        : t === '오늘 불펜'
+          ? 'bullpen'
+          : null
+      : y === '내일 등판'
+        ? 'game'
+        : null;
+  const roleMiss: string[] = [];
+  for (const t of answers) {
+    for (const y of answers) {
+      const got = todayOutingRole(t, y);
+      if (got !== roleExpected(t, y)) roleMiss.push(`${t}/${y} → ${got}`);
+    }
+  }
+  check(
+    "뒤집기 (한 곳) todayOutingRole 49쌍 — 오늘 '오늘 등판' · 오늘 답 없이 어제 '내일 등판'만 등판, 오늘 '오늘 불펜'만 불펜(어제 불펜은 이월 없음)",
+    roleMiss.length === 0,
+    roleMiss.join(' · ') || '49쌍 모두 손으로 적은 표와 같음'
+  );
+  check(
+    "뒤집기 (한 곳) 칸 없음(옛 facts, undefined) + 어제 '내일 등판' → 등판 · 목록 밖 오늘 글자 + 어제 '내일 등판' → 없음(답한 것으로 본다)",
+    todayOutingRole(undefined, '내일 등판') === 'game' &&
+      todayOutingRole('비 와서 미정', '내일 등판') === null &&
+      todayOutingRole(undefined, undefined) === null
+  );
+
+  /* ── 2) 등판 날 모양 ── */
+  const c1 = flOf({ today: { throwPlan: '오늘 등판' } });
+  const c1Today = c1.plan.today;
+  check(
+    "뒤집기 (모양) 오늘 '오늘 등판' → 던지는 날 · 범위 넷 모두 비움 · outing 'game' · 까닭 '오늘 등판이라 던질 양은 경기가 정해요.'",
+    c1Today != null &&
+      c1Today.throwing === true &&
+      c1Today.minPitches === null &&
+      c1Today.maxPitches === null &&
+      c1Today.minIntensity === null &&
+      c1Today.maxIntensity === null &&
+      c1Today.outing === 'game' &&
+      c1Today.recovery === undefined &&
+      c1Today.reason === '오늘 등판이라 던질 양은 경기가 정해요.' &&
+      !c1.plan.halted,
+    json(c1Today)
+  );
+  check(
+    "뒤집기 (모양) 등판 날 범위 글은 둘 다 빈 글(pitchRangeText · intensityRangeText) — 화면은 '등판'으로 따로 그린다",
+    c1Today != null &&
+      pitchRangeText(c1Today) === '' &&
+      intensityRangeText(c1Today) === ''
+  );
+  check(
+    '뒤집기 (근거) 오늘 답이면 "체크인 \'오늘 등판\' → 양은 경기가 정함" 한 줄',
+    c1.plan.basis.includes("체크인 '오늘 등판' → 양은 경기가 정함"),
+    c1.plan.basis.join(' / ')
+  );
+  const c4 = flOf({ today: null, yesterday: { throwPlan: '내일 등판' } });
+  check(
+    "뒤집기 (모양) 어제 '내일 등판' + 오늘 체크인 없음 → 등판 날, 근거는 '어제 체크인' 줄",
+    c4.plan.today?.outing === 'game' &&
+      c4.plan.today.maxPitches === null &&
+      c4.plan.basis.includes(
+        "어제 체크인 '내일 등판'(오늘 답 없음) → 오늘 등판, 양은 경기가 정함"
+      ),
+    `${json(c4.plan.today)} | ${c4.plan.basis.join(' / ')}`
+  );
+  const owedPerson: FlPerson = {
+    today: { throwPlan: '오늘 등판' },
+    logs: [{ daysAgo: 1, pitches: 85, intensity: 10, sessionType: '경기' }],
+  };
+  const owed = flOf(owedPerson);
+  const owedLeft = pendingOuting(owed.facts.patterns, 0, owed.facts.profile.age);
+  check(
+    "뒤집기 (여파) 어제 85구 경기 + 오늘 '오늘 등판' → 쉬라고 막지 않고 등판 날, 까닭에 여파 · 남은 날을 덧붙인다(답이 없으면 '완전히 쉬어요')",
+    owedLeft != null &&
+      owed.before.today?.throwing === false &&
+      owed.plan.today?.outing === 'game' &&
+      owed.plan.today.throwing === true &&
+      owed.plan.today.reason ===
+        `오늘 등판이라 던질 양은 경기가 정해요. 다만 85구 등판 여파가 남아 있어요(전력 등판까지 ${owedLeft.left}일).`,
+    `${owed.before.today?.reason} → ${owed.plan.today?.reason}`
+  );
+  const memoCheck = flOf({
+    today: null,
+    yesterday: { throwPlan: '내일 등판' },
+    memos: ['어깨가 좀 아프다'],
+  });
+  check(
+    '뒤집기 (앞서는 규칙) 메모의 통증 표현 확인 전(오늘 체크인 없음)이면 등판 답이 있어도 쉰다 — 아플 수도 있는 팔이 먼저',
+    memoCheck.plan.needsPainCheck &&
+      memoCheck.plan.today?.throwing === false &&
+      memoCheck.plan.today.outing === undefined &&
+      memoCheck.plan.today.reason === '메모의 통증 표현 확인 필요',
+    json(memoCheck.plan.today)
+  );
+  const painDay = flOf({ today: { throwPlan: '오늘 등판', shoulder: '통증' } });
+  const rehabDay = flOf({
+    today: { throwPlan: '오늘 등판' },
+    rehab: rehabFacts(
+      {
+        area: 'shoulder-back',
+        condition: null,
+        severity: 'mild',
+        stage: 2,
+        stageStartedOn: '2026-06-01',
+        stageShortenDays: 0,
+        startedOn: '2026-06-01',
+      },
+      toDateKey(TODAY)
+    ),
+  });
+  check(
+    '뒤집기 (앞서는 규칙) 오늘 통증 · 재활 중이면 등판 답이 있어도 투구 계획은 멈춘다(바뀌기 전과 글자 그대로)',
+    painDay.plan.halted &&
+      painDay.plan.today?.outing === undefined &&
+      json(painDay.plan) === json(painDay.before) &&
+      rehabDay.plan.halted &&
+      rehabDay.plan.rehab != null &&
+      json(rehabDay.plan) === json(rehabDay.before),
+    `${painDay.plan.haltReason} | ${rehabDay.plan.haltReason}`
+  );
+  const threw = flOf({
+    today: { throwPlan: '오늘 등판' },
+    logs: [{ daysAgo: 0, pitches: 50, intensity: 9, sessionType: '경기' }],
+  });
+  check(
+    '뒤집기 (이미 던짐) 오늘 등판 기록이 들어오면 오늘 칸은 없다(threwToday) — 내일 칸은 그 기록으로 짠다',
+    threw.plan.threwToday &&
+      threw.plan.today === null &&
+      json(threw.plan.tomorrow) === json(threw.before.tomorrow),
+    json(threw.plan.tomorrow)
+  );
+
+  /* ── 3) 불펜 ── */
+  const pen = flOf({ today: { throwPlan: '오늘 불펜' } });
+  check(
+    "뒤집기 (불펜) 오늘 '오늘 불펜' → 범위는 답이 없을 때와 글자 그대로, 이름표 outing 'bullpen' · 근거 한 줄만 더함",
+    pen.plan.today?.outing === 'bullpen' &&
+      json(withoutOuting(pen.plan.today)) === json(pen.before.today) &&
+      json(pen.plan.basis) ===
+        json([...pen.before.basis, "체크인 '오늘 불펜' → 범위는 평소대로"]),
+    json(pen.plan.today)
+  );
+  const penRest = flOf({
+    today: { throwPlan: '오늘 불펜' },
+    logs: [{ daysAgo: 1, pitches: 85, intensity: 10, sessionType: '경기' }],
+  });
+  check(
+    "뒤집기 (불펜) 어제 85구 경기 + 오늘 '오늘 불펜' → 그대로 쉬는 날, 쉬는 날에는 불펜 이름표를 안 단다",
+    penRest.plan.today?.throwing === false &&
+      !('outing' in (penRest.plan.today ?? {})) &&
+      json(penRest.plan.today) === json(penRest.before.today),
+    json(penRest.plan.today)
+  );
+
+  /* ── 4) 안 바뀌는 것 — 오늘 답 일곱 × 어제 답 일곱 × 기록 넷 (오늘 답이 없으면 오늘 체크인 있음 · 없음) = 224 ── */
+  const logSets: { name: string; logs: FlLog[] }[] = [
+    { name: '기록 없음', logs: [] },
+    {
+      name: '어제 85구 경기',
+      logs: [{ daysAgo: 1, pitches: 85, intensity: 10, sessionType: '경기' }],
+    },
+    {
+      name: '사흘 전 90구 경기',
+      logs: [{ daysAgo: 3, pitches: 90, intensity: 10, sessionType: '경기' }],
+    },
+    {
+      name: '오늘 40구 불펜',
+      logs: [{ daysAgo: 0, pitches: 40, intensity: 7, sessionType: '불펜' }],
+    },
+  ];
+  const miss = {
+    role: [] as string[],
+    kept: [] as string[],
+    same: [] as string[],
+    bullpen: [] as string[],
+    game: [] as string[],
+    armOld: [] as string[],
+    armSame: [] as string[],
+    armGame: [] as string[],
+  };
+  let gridCount = 0;
+  let gameDays = 0;
+  for (const t of answers) {
+    for (const y of answers) {
+      for (const set of logSets) {
+        for (const present of t != null ? [true] : [true, false]) {
+          gridCount++;
+          const person: FlPerson = {
+            today: present ? (t != null ? { throwPlan: t } : {}) : null,
+            yesterday: y != null ? { throwPlan: y } : {},
+            logs: set.logs,
+          };
+          const name = `${t ?? (present ? '답 없음' : '체크인 없음')}/${y ?? '답 없음'}/${set.name}`;
+          const { facts, plan, before } = flOf(person);
+          const role = todayOutingRole(
+            facts.condition.throwPlanToday,
+            facts.condition.throwPlanYesterday
+          );
+          const state = buildDayState({ facts, plan });
+          if (state.outing.role !== role)
+            miss.role.push(`${name}: ${state.outing.role} ≠ ${role}`);
+          /* 오늘 칸 말고는 글자 그대로 — 내일 칸 · 멈춤 · 회복 · 메모 확인 · 이미 던짐 · 성장기 글 */
+          const keys = [
+            'tomorrow',
+            'halted',
+            'haltReason',
+            'recovering',
+            'needsPainCheck',
+            'threwToday',
+            'youthNote',
+            'rehab',
+          ] as const;
+          for (const k of keys) {
+            if (json(plan[k]) !== json(before[k])) miss.kept.push(`${name}: ${k}`);
+          }
+          if (role == null && json(plan) !== json(before)) miss.same.push(name);
+          if (role === 'bullpen') {
+            const throwing = plan.today?.throwing === true;
+            const ok = throwing
+              ? plan.today?.outing === 'bullpen' &&
+                json(withoutOuting(plan.today)) === json(before.today)
+              : json(plan.today) === json(before.today);
+            if (!ok) miss.bullpen.push(`${name}: ${json(plan.today)}`);
+          }
+          if (role === 'game') {
+            const passThrough =
+              plan.today == null || plan.halted || plan.needsPainCheck;
+            const ok = passThrough
+              ? json(plan.today) === json(before.today)
+              : plan.today?.outing === 'game' &&
+                plan.today.throwing &&
+                plan.today.minPitches === null &&
+                plan.today.maxPitches === null &&
+                plan.today.minIntensity === null &&
+                plan.today.maxIntensity === null;
+            if (!passThrough) gameDays++;
+            if (!ok) miss.game.push(`${name}: ${json(plan.today)}`);
+          }
+          /* 암케어 — 오늘 상태를 안 주면 옛 길(등판 답을 안 읽던 때)과 글자 그대로, 주면 등판일 때만 다르다 */
+          const armOld = decideArmcare({
+            facts: noAnswers(facts),
+            plan: before,
+            armFatigue: null,
+          });
+          const armNoState = decideArmcare({ facts, plan, armFatigue: null });
+          const armWithState = decideArmcare({ facts, plan, armFatigue: null, state });
+          if (json(armNoState) !== json(armOld)) miss.armOld.push(name);
+          if (role !== 'game' && json(armWithState) !== json(armNoState))
+            miss.armSame.push(name);
+          if (role === 'game') {
+            const threwRecord =
+              (facts.patterns.lastOutingPitches ?? 0) > 0 &&
+              facts.patterns.restDays === 0;
+            const ok =
+              armWithState.kind !== 'strength' &&
+              (plan.halted || threwRecord
+                ? json(armWithState) === json(armNoState)
+                : armWithState.reason.startsWith('오늘 등판'));
+            if (!ok)
+              miss.armGame.push(
+                `${name}: ${armWithState.kind} · ${armWithState.reason}`
+              );
+          }
+        }
+      }
+    }
+  }
+  check(
+    `뒤집기 (격자 ${gridCount}) 오늘 상태 한 장의 outing.role = todayOutingRole(같은 함수 · 같은 값)`,
+    gridCount === 224 && miss.role.length === 0,
+    miss.role.slice(0, 3).join(' · ') || `${gridCount}가지`
+  );
+  check(
+    `뒤집기 (격자 ${gridCount}) 오늘 칸 말고는 답을 지운 계획과 글자 그대로(내일 · 멈춤 · 회복 · 메모 확인 · 이미 던짐 · 성장기 · 재활)`,
+    miss.kept.length === 0,
+    miss.kept.slice(0, 3).join(' · ')
+  );
+  check(
+    `뒤집기 (격자 ${gridCount}) 등판 · 불펜이 아닌 답('내일 등판' · '2~3일 뒤' · '4일 이상 뒤' · '없음' · 어제 '오늘 등판' …)은 계획 전체가 글자 그대로`,
+    miss.same.length === 0,
+    miss.same.slice(0, 3).join(' · ')
+  );
+  check(
+    `뒤집기 (격자 ${gridCount}) 불펜 날은 던지는 날에만 이름표, 범위는 그대로`,
+    miss.bullpen.length === 0,
+    miss.bullpen.slice(0, 2).join(' · ')
+  );
+  check(
+    `뒤집기 (격자 ${gridCount}) 등판 날(${gameDays}가지)은 던지는 날 · 범위 없음, 이미 던짐 · 멈춤 · 메모 확인은 그대로 둔다`,
+    gameDays > 0 && miss.game.length === 0,
+    miss.game.slice(0, 2).join(' · ')
+  );
+  check(
+    `뒤집기 (격자 ${gridCount}) 암케어 — 오늘 상태를 안 주면 옛 길과 글자 그대로, 주어도 등판 날이 아니면 같다`,
+    miss.armOld.length === 0 && miss.armSame.length === 0,
+    [...miss.armOld, ...miss.armSame].slice(0, 3).join(' · ')
+  );
+  check(
+    `뒤집기 (격자 ${gridCount}) 암케어 — 등판 날은 강화가 없다(오늘 등판 신호가 맨 앞, 오늘 던진 기록 · 통증 멈춤이 있으면 그 까닭 그대로)`,
+    miss.armGame.length === 0,
+    miss.armGame.slice(0, 2).join(' · ')
+  );
+
+  /* ── 5) 암케어 사례 ── */
+  const armOf = (p: FlPerson, armFatigue: number | null = null, withState = true) => {
+    const { facts, plan } = flOf(p);
+    const state = buildDayState({ facts, plan, extras: { armFatigue } });
+    return decideArmcare({ facts, plan, armFatigue, ...(withState ? { state } : {}) });
+  };
+  const armC1 = armOf({ today: { throwPlan: '오늘 등판' } });
+  check(
+    "뒤집기 (암케어) 오늘 '오늘 등판' → '오늘 등판 → 회복 루틴', 오늘 상태를 안 주면 옛 길대로 강화",
+    armC1.kind === 'recovery' &&
+      armC1.reason === '오늘 등판 → 회복 루틴' &&
+      armOf({ today: { throwPlan: '오늘 등판' } }, null, false).kind === 'strength',
+    armC1.reason
+  );
+  const armThrew = armOf({
+    today: { throwPlan: '오늘 등판' },
+    logs: [{ daysAgo: 0, pitches: 50, intensity: 9, sessionType: '경기' }],
+  });
+  const armTired = armOf({ today: { throwPlan: '오늘 등판' } }, HIGH_ARM_FATIGUE + 1);
+  check(
+    "뒤집기 (암케어) 오늘 던진 기록이 있으면 '오늘 50구'가 맨 앞이고 '오늘 등판'은 두 번 안 적음 · 팔 피로 '심함'이면 '오늘 등판 · 팔 피로' 차례",
+    armThrew.kind === 'recovery' &&
+      armThrew.reason.startsWith('오늘 50구') &&
+      !armThrew.reason.includes('오늘 등판') &&
+      armTired.reason === "오늘 등판 · 팔 피로 '심함' → 회복 루틴",
+    `${armThrew.reason} | ${armTired.reason}`
+  );
+  const armPen = armOf({ today: { throwPlan: '오늘 불펜' } });
+  const armPain = armOf({ today: { throwPlan: '오늘 등판', shoulder: '통증' } });
+  check(
+    "뒤집기 (암케어) 오늘 '오늘 불펜'은 그대로 강화(C3 — 불펜은 날을 안 바꿈) · 통증 날은 등판 답이 있어도 쉬기가 먼저",
+    armPen.kind === 'strength' && armPain.kind === 'rest',
+    `${armPen.reason} | ${armPain.kind}`
+  );
+
+  /* ── 6) 앱 길 · 순환 · 글 ── */
+  const stripComments = (s: string) =>
+    s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  const todaySrc = stripComments(
+    readFileSync(new URL('../lib/armcare/today.ts', import.meta.url), 'utf8')
+  );
+  check(
+    '뒤집기 (앱 길) lib/armcare/today.ts — 오늘 체크인을 따로 읽지 않고 오늘 상태 한 장의 팔 피로 · 팔 통증 · 등판 신호를 넘긴다',
+    !/dailyCheckin/.test(todaySrc) &&
+      /armFatigue: state\.arm\.fatigue/.test(todaySrc) &&
+      /const armPain = state\.arm\.pain;/.test(todaySrc) &&
+      /decideArmcare\(\{[\s\S]*?\bstate,[\s\S]*?\}\)/.test(todaySrc)
+  );
+  const planSrc = stripComments(
+    readFileSync(new URL('../lib/report/plan.ts', import.meta.url), 'utf8')
+  );
+  check(
+    '뒤집기 (순환 없음) lib/report/plan.ts 는 day-state 를 부르지 않고 등판 규칙을 lib/checkin.ts 에서 부른다',
+    !/engine\/day-state/.test(planSrc) &&
+      /import \{ nextOutingWindow, todayOutingRole \} from '@\/lib\/checkin';/.test(
+        planSrc
+      )
+  );
+  const shown = [
+    readFileSync(new URL('../app/(app)/today/page.tsx', import.meta.url), 'utf8'),
+    readFileSync(
+      new URL('../app/(app)/pitch-log/[date]/load.ts', import.meta.url),
+      'utf8'
+    ),
+    readFileSync(new URL('../components/plan-note.tsx', import.meta.url), 'utf8'),
+  ];
+  check(
+    "뒤집기 (화면) 홈 계획 줄 · 투구 기록 '오늘 계획'이 등판 날을 '등판'으로 그린다(빈 범위 ' · ' 를 안 보인다)",
+    /day\.outing === 'game'/.test(shown[0]) &&
+      /game: todayPlanDay\.outing === 'game'/.test(shown[1]) &&
+      /plan\.game/.test(shown[2])
+  );
+  const reasons = [c1Today?.reason ?? '', owed.plan.today?.reason ?? ''];
+  check(
+    '뒤집기 (글) 등판 날 까닭은 해요체 · 줄표 없음 · 굵게 없음',
+    reasons.every((r) => /요(\([^)]*\))?\.$/.test(r)) &&
+      reasons.every((r) => !r.includes('—') && !r.includes('**')),
+    reasons.join(' | ')
+  );
 }
 
 console.log(`\n${passed}개 통과, ${failed}개 실패`);

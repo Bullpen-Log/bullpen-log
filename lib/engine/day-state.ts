@@ -6,12 +6,14 @@
  * 투구 계획은 평소대로 던지라고 하는 날이 생겼다(자체 시험 '[2판 안전망(P0)]' 엇갈림 표 C1~C6). 여기서 한 번 읽어 한 장으로
  * 만들고, 독자는 이것을 보고 저마다의 결론(테마 · 루틴 · 쉬기)을 낸다.
  *
- * 이 파일은 판단을 하지 않는다 — 신호를 모으기만 한다. 첫 단계(이 커밋)에서는 아무 독자의 결론도 바뀌지 않는다:
+ * 이 파일은 판단을 하지 않는다 — 신호를 모으기만 한다. 첫 단계(7ae15c7)에서는 아무 독자의 결론도 바뀌지 않았다:
  *   - 세게 던진 날(recentHardOuting)과 오늘 · 어제 등판 답 합치기(nextOutingWindow)는 theme.ts 의 hardOuting · plannedOuting 이
  *     그대로 여기에 맡긴다(규칙을 옮겼을 뿐 값은 같다 — 자체 시험이 옛 식과 160조합 · 등판 답 49쌍에서 견준다).
  *   - 그 밖의 칸은 기존 규칙 함수(prescription.ts 의 통증 함수 · plan.ts 의 pendingOuting · checkin.ts 의 문턱)를 그대로 부른다.
  *     문턱을 여기서 새로 정하지 않는다 — 새로 정하면 독자와 이 장이 어긋난다.
- * 독자를 이 장으로 옮기는 것(C1 · C4 뒤집기, 프로그램 · 영양 신호 통일)은 다음 단계에서 하나씩.
+ * 독자를 이 장으로 옮기는 것은 단계마다 하나씩 — C1 · C4 뒤집기(2026-10-12): 투구 계획은 같은 등판 규칙(lib/checkin.ts
+ * todayOutingRole)으로 등판 날을 '양은 경기가 정함'으로 내고, 암케어는 이 장(outing.role · arm.fatigue)을 받아 등판 날 회복으로 간다.
+ * 프로그램 · 영양 신호 통일은 다음 단계.
  *
  * 순수 파일이다 — 'server-only' · prisma · 날짜 함수(appNow) 없음. 자체 시험 · 기준선 도구가 node 로 그대로 부른다.
  * DB 를 읽는 쪽은 lib/report/gather.ts(gatherFactsAndPlan 이 state 를 같이 돌려준다 — 이미 react cache 로 읽은 45일치 줄에서
@@ -31,10 +33,12 @@ import {
   armPainSpotsFor,
   formatSleepHours,
   isShortSleep,
-  nextOutingDays,
+  nextOutingWindow,
   parseThrowPlan,
   sorenessWord,
+  todayOutingRole,
   type CheckinPartKey,
+  type OutingWindow,
   type ThrowPlan,
 } from '@/lib/checkin';
 import type { ArmcareAreaKey } from '@/lib/armcare/anatomy';
@@ -69,36 +73,12 @@ export function recentHardOuting(facts: ReportFacts): HardOuting | null {
   );
 }
 
-/** 다음 등판까지 남은 날의 범위 — max null 은 '끝이 없음'(4일 이상 뒤) */
-export type OutingWindow = { min: number; max: number | null };
-
-/**
- * 오늘 답과 어제 답을 합친 '다음 등판까지 남은 날'.
- *
- * 답 하나를 날로 읽는 규칙은 lib/checkin.ts 의 nextOutingDays 한 곳 — 여기서는 둘을 합치기만 한다:
- *   오늘 답이 있으면(null 이 아니면 — '없음'이나 모르는 글자도 '답함'이다) 오늘 답만 본다. 어제 '내일 등판'이었어도 오늘 '없음'
- *   이라고 고쳤으면(비 · 순서 바뀜) 오늘 것을 따른다.
- *   오늘 답이 없으면 어제 답을 하루 당겨 읽는다: '내일 등판' → 오늘(0~0), '2~3일 뒤' → 1~2일 뒤, '4일 이상 뒤' → 3일 이상 뒤.
- *   어제 '오늘 등판'은 이미 지난 등판이라 다음 등판이 아니다(null — 지난 등판은 DayState.outing.daysSinceLast 가 본다).
- *
- * 하루 당긴 범위는 짐작이 아니라 같은 말의 다른 기준일이다. 다만 날을 못 박는 독자(plannedOuting · 영양 · 프로그램)는 지금처럼
- * 꼭 오늘(0~0) · 꼭 내일(1~1)만 쓴다 — 그래서 어제 '2~3일 뒤'는 그들에게 '모름'으로 남는다(lib/checkin.ts THROW_PLANS 주석).
+/*
+ * 오늘 · 어제 등판 답 합치기(nextOutingWindow)와 '오늘 등판 · 불펜인가'(todayOutingRole)는 lib/checkin.ts 에 있다 — 투구 계획
+ * (lib/report/plan.ts)도 같은 규칙을 읽는데, 이 파일이 plan.ts 를 부르므로 plan.ts 가 이 파일을 부르면 순환이 된다(2판 P3 C1 · C4
+ * 뒤집기에서 옮김). 이 파일을 부르던 곳(theme.ts · 자체 시험)이 그대로 맞게 여기서 다시 내보낸다.
  */
-export function nextOutingWindow(
-  todayPlan: string | null | undefined,
-  yesterdayPlan: string | null | undefined
-): { days: OutingWindow | null; from: 'today' | 'yesterday' | null } {
-  if (todayPlan != null) {
-    const days = nextOutingDays(todayPlan);
-    return { days, from: days ? 'today' : null };
-  }
-  const y = nextOutingDays(yesterdayPlan);
-  if (y == null || (y.max != null && y.max - 1 < 0)) return { days: null, from: null };
-  return {
-    days: { min: Math.max(0, y.min - 1), max: y.max == null ? null : y.max - 1 },
-    from: 'yesterday',
-  };
-}
+export { nextOutingWindow, todayOutingRole, type OutingWindow };
 
 /* ─────────────────────────── 계약 ─────────────────────────── */
 
@@ -374,8 +354,11 @@ export function buildDayState({
   const lastLoad = fromLog
     ? ((patterns.hardOutings ?? []).find((o) => o.daysAgo === logDays)?.load ?? null)
     : null;
-  const role: DayState['outing']['role'] =
-    next.days?.max === 0 ? 'game' : answerToday === '오늘 불펜' ? 'bullpen' : null;
+  /* 오늘 할 일 — 투구 계획(DayPlan.outing)과 같은 함수(lib/checkin.ts todayOutingRole) */
+  const role: DayState['outing']['role'] = todayOutingRole(
+    facts.condition.throwPlanToday,
+    facts.condition.throwPlanYesterday
+  );
 
   /* load */
   const hardOuting = recentHardOuting(facts);

@@ -11,6 +11,7 @@ import {
 import { HEAVY_EQUIPMENT, intensityLevel, minutesForSets } from '@/lib/exercise-meta';
 import type { ReportFacts } from '@/lib/report/facts';
 import { pendingOuting, type PitchPlan } from '@/lib/report/plan';
+import type { DayState } from '@/lib/engine/day-state';
 import { withJosa } from '@/lib/korean';
 import {
   ARMCARE_AREAS,
@@ -29,7 +30,7 @@ import {
  *
  *   쉬기   통증이 있는 날 — 루틴 대신 진료 안내
  *   통증   팔(어깨 · 팔꿈치)이 '던질 때만' 아프고 자리를 고른 날 — 아픈 자리는 버티기 · 가벼운 것, 견갑 · 주변 보강, 1세트
- *   회복   던진 날·다음 날, 팔 피로가 높은 날, 부하가 높은 날, 온몸 근육통이 심한 날 — 가볍게, 피가 돌 만큼
+ *   회복   던진 날·다음 날, 등판 날(체크인 답), 팔 피로가 높은 날, 부하가 높은 날, 온몸 근육통이 심한 날 — 가볍게, 피가 돌 만큼
  *   강화   그 밖의 날(던진 지 이틀이 넘은 날) — 부위를 고르게, 제대로
  *
  * 투수 표준 프로그램(Thrower's Ten)과 투구 뒤 48~72시간 회복 원칙을 따랐다.
@@ -80,16 +81,22 @@ export function decideArmcare({
   plan,
   armFatigue,
   armPain = null,
+  state = null,
 }: {
   facts: ReportFacts;
   plan: PitchPlan;
-  /** 오늘 상세 체크인의 팔 피로(1~5). 간편 체크인이면 null */
+  /** 오늘 체크인의 팔 피로(1~5). 안 적었으면 null */
   armFatigue: number | null;
   /**
    * 오늘 체크인의 팔 통증 자리 · 정도(lib/checkin.ts 의 ArmPain). 안 주면(칸이 생기기 전의 기록) 모르는
    * 것으로 보고 쉬기 — 모르면 보수적으로.
    */
   armPain?: { spots: readonly string[]; level: number | null } | null;
+  /**
+   * 오늘 상태 한 장(lib/engine/day-state.ts, 2판 P3) — 안 주면 지금까지와 같다. 지금은 등판 신호(outing.role)만 읽는다:
+   * 오늘 등판이면 강화 대신 회복 루틴(아래 signals 맨 앞). 투구 계획 · 매일 일정과 같은 날을 말하게(엇갈림 표 C1 · C4).
+   */
+  state?: Pick<DayState, 'outing'> | null;
 }): ArmcareDecision {
   /*
    * 통증은 고를 수 있는 것이 아니다. 운동 일정이 멈추는 것과 같은 조건이고
@@ -123,6 +130,13 @@ export function decideArmcare({
   const pitches = p.lastOutingPitches ?? 0;
   const signals: string[] = [];
 
+  /*
+   * 오늘 등판(체크인 '오늘 등판', 또는 어제 '내일 등판' + 오늘 답 없음 — 2판 P3). 기록이 아직 없어도 던질 날이라 등판 날 아침에
+   * 강화 루틴을 내지 않는다. 오늘 던진 기록이 이미 있으면 그 기록(아래 '오늘 N구')이 같은 말을 하니 두 번 적지 않는다.
+   */
+  if (state?.outing.role === 'game' && !(pitches > 0 && p.restDays === 0)) {
+    signals.push('오늘 등판');
+  }
   if (pitches > 0 && p.restDays === 0) signals.push(`오늘 ${pitches}구`);
   else if (pitches > 0 && p.restDays === 1) signals.push(`어제 ${pitches}구`);
   else {

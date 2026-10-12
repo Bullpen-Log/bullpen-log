@@ -1,4 +1,10 @@
 import type { ReportFacts } from '@/lib/report/facts';
+/*
+ * 등판 답(체크인 '던지는 일정')을 읽는 규칙 — lib/engine/day-state.ts 가 아니라 lib/checkin.ts 에서 부른다. day-state 가 이 파일
+ * (pendingOuting)을 부르므로 거꾸로 부르면 순환이 된다. lib/checkin.ts 는 브라우저 부품도 부르는 파일이라 이 파일을 부르는
+ * 화면 부품(insert-cards · pitch-setup-wizard)에 서버 코드가 섞이지 않는다.
+ */
+import { nextOutingWindow, todayOutingRole } from '@/lib/checkin';
 
 /**
  * 향후 3일 투구 계획을 규칙만으로 만든다.
@@ -205,6 +211,16 @@ export type DayPlan = {
   minIntensity: number | null;
   maxIntensity: number | null;
   reason: string;
+  /**
+   * 오늘 할 일 — 체크인 '던지는 일정'(lib/checkin.ts todayOutingRole, 2판 P3 · 2026-10-12). 오늘 칸에만 있다.
+   *
+   *   'game'     등판 날 — throwing 은 true 인데 범위 넷이 모두 null 이다. 던질 양은 경기가 정하고(강판이면 20구, 완투면 100구),
+   *              평소 범위를 내면 회복 테마 · 회복 암케어와 서로 다른 날을 말한다(자체 시험 엇갈림 표 C1 · C4).
+   *   'bullpen'  불펜 날 — 범위는 평소대로 낸다(2026-10-09 결정: 불펜은 날을 안 바꾼다). 이름표만 단다.
+   *
+   * 내일 칸 · 이 칸이 생기기 전의 계획에는 없다. 쉬는 날(통증 확인 · 등판 다음 날)에는 불펜 이름표를 달지 않는다.
+   */
+  outing?: 'game' | 'bullpen';
 };
 
 /**
@@ -589,6 +605,32 @@ export function buildPitchPlan(facts: ReportFacts): PitchPlan {
   }
 
   /*
+   * 7) 오늘 할 일 — 체크인 '던지는 일정'(2판 P3, 2026-10-12 C1 · C4 뒤집기).
+   *
+   * 등판 날에는 평소 범위('40~60구')를 내지 않는다. 몇 구를 던질지는 경기가 정하고, 같은 아침에 매일 일정은 회복 테마 ·
+   * 암케어는 회복 루틴인데 투구 계획만 '평소대로 던져요'라고 하면 앱이 한 날을 두 가지로 말한다. 그래서 '던지는 날'(throwing true)로
+   * 두되 범위를 비우고 까닭에 그렇게 적는다. 아직 지난 등판의 여파가 남았으면(휴식일 표) 그 사실을 까닭에 덧붙인다 — 쉬라고
+   * 막지는 않는다(경기는 앱이 정하지 않는다). 통증 확인 전(needsPainCheck)은 그래도 쉰다 — 아플 수도 있는 팔이 먼저다.
+   *
+   * 불펜 날은 범위를 그대로 둔다(2026-10-09 결정: 불펜은 날을 안 바꾼다). 이름표(outing)만 단다.
+   * 오늘 칸에만 쓴다 — 내일은 오늘 던진 양을 알아야 정해지고, 그 양은 기록이 들어오면 다시 짠다(threwToday).
+   */
+  const outing = todayOutingRole(
+    condition.throwPlanToday,
+    condition.throwPlanYesterday
+  );
+  if (outing === 'game') {
+    basis.push(
+      nextOutingWindow(condition.throwPlanToday, condition.throwPlanYesterday).from ===
+        'yesterday'
+        ? "어제 체크인 '내일 등판'(오늘 답 없음) → 오늘 등판, 양은 경기가 정함"
+        : "체크인 '오늘 등판' → 양은 경기가 정함"
+    );
+  } else if (outing === 'bullpen') {
+    basis.push("체크인 '오늘 불펜' → 범위는 평소대로");
+  }
+
+  /*
    * 오늘 하루만 정한다.
    *
    * 사흘치를 그리던 때에는 '연투가 길면 첫 등판 다음 날을 쉬게 한다'는 규칙이
@@ -609,6 +651,27 @@ export function buildPitchPlan(facts: ReportFacts): PitchPlan {
     if (needsPainCheck) {
       return restDay(dateKey, label, '메모의 통증 표현 확인 필요');
     }
+
+    /* 등판 날(7) — 범위 없이 '던지는 날'. 지난 등판의 여파가 남았으면 그 사실만 덧붙인다 */
+    if (offset === 0 && outing === 'game') {
+      const owed = pendingOuting(patterns, 0, profile.age);
+      return {
+        dateKey,
+        label,
+        throwing: true,
+        minPitches: null,
+        maxPitches: null,
+        minIntensity: null,
+        maxIntensity: null,
+        reason: owed
+          ? `오늘 등판이라 던질 양은 경기가 정해요. 다만 ${owed.pitches}구 등판 여파가 남아 있어요(전력 등판까지 ${owed.left}일).`
+          : '오늘 등판이라 던질 양은 경기가 정해요.',
+        outing: 'game',
+      };
+    }
+    /* 불펜 날 이름표 — 던지는 날에만(아래 쉬는 날은 그대로 쉰다) */
+    const bullpen =
+      offset === 0 && outing === 'bullpen' ? { outing: 'bullpen' as const } : {};
 
     /*
      * 아직 큰 등판의 여파 안이면 가볍게 던진다.
@@ -643,6 +706,7 @@ export function buildPitchPlan(facts: ReportFacts): PitchPlan {
         minIntensity: Math.max(RECOVERY_MIN_INTENSITY, ceiling - INTENSITY_SPAN),
         maxIntensity: ceiling,
         reason: `${pending.pitches}구 등판 회복 중(${pending.elapsed}일째)이라 가볍게 던지며 풀어요`,
+        ...bullpen,
       };
     }
 
@@ -659,6 +723,7 @@ export function buildPitchPlan(facts: ReportFacts): PitchPlan {
       ),
       maxIntensity: adj.maxIntensity,
       reason: adj.label,
+      ...bullpen,
     };
   };
 

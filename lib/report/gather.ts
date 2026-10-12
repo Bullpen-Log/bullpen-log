@@ -158,7 +158,8 @@ export async function gatherFactsAndPlan(
    * 오늘 상태 한 장(2판 P3, lib/engine/day-state.ts) — facts · plan 에서 다시 읽고, facts 에 없는 팔 피로 · 팔 통증 자리만 오늘 체크인
    * 줄에서 더 꺼낸다. 그 줄은 위 recentRecords(react cache)가 이미 읽은 것이라 조회가 늘지 않는다. 오늘 줄을 찾는 법은 buildFacts 가
    * 오늘 체크인을 찾는 법(날짜 앞 10자리 = 오늘)과 같고, 체크인은 excludeToday 로 거르지 않는 것도 facts 와 같다.
-   * 2026-10-12 에는 아무 독자도 이 값을 읽지 않는다 — 다음 단계에서 하나씩 옮긴다(암케어의 따로 읽는 팔 피로 조회도 그때 걷는다).
+   * 읽는 독자는 하나씩 옮긴다 — 암케어(lib/armcare/today.ts)가 팔 피로 · 팔 통증 · 오늘 등판을 여기서 읽는다(2판 P3 C1 · C4 뒤집기,
+   * 따로 읽던 오늘 체크인 조회를 걷었다). 프로그램 · 영양은 다음 단계.
    */
   const todayCheckin =
     checkins.find((c) => c.date.toISOString().slice(0, 10) === todayKey) ?? null;

@@ -614,7 +614,8 @@ export const LOW_CONDITION_THRESHOLD = 4;
  * 처음(2026-09-30)에는 영양 가이드가 탄수화물을 언제 늘릴지 정하려고 넣었다 — 투구 기록은 던진 뒤에야 생겨서,
  * 등판 전날 저녁 · 당일 아침에 챙길 것을 미리 알려면 여기서 받아야 한다. 지금은 매일 운동 계획(lib/report/theme.ts
  * 의 plannedOuting — 등판 날 · 전날에 무거운 하체를 안 내려고)과 근력 프로그램(lib/program/load.ts 의 throwSignals —
- * 경기 날 · 전날 · 다음 날 쉬기)도 읽는다.
+ * 경기 날 · 전날 · 다음 날 쉬기)도 읽는다. 2판 P3(2026-10-12)부터 투구 계획(lib/report/plan.ts — 등판 날은 양을 경기가 정한다)과
+ * 암케어(lib/armcare/routine.ts — 등판 날은 회복 루틴)도 아래 todayOutingRole 로 읽는다.
  *
  * 받는 곳은 간편 체크인(위 CheckinBody, 서버는 body=1 로) — 2026-10-12 전에는 상세에만 있어 답이 거의 없었다.
  *
@@ -626,8 +627,8 @@ export const LOW_CONDITION_THRESHOLD = 4;
  *
  * 어제 답의 이월은 '내일 등판' 하나뿐(plannedOuting · nutrition/guide.ts throwDayKind · program/load.ts 가 같은 규칙):
  * 어제 '2~3일 뒤'는 오늘 1~2일 뒤라 날을 못 박지 못하고, 어제 '오늘 등판'은 던진 기록이 맡는다 — 모르는 것을 짐작하지 않는다.
- * 오늘 · 어제 답을 합치는 곳은 lib/engine/day-state.ts 의 nextOutingWindow 한 곳(2판 P3) — 오늘 상태 한 장은 어제 답을 하루
- * 당긴 범위(어제 '2~3일 뒤' → 1~2일 뒤)까지 실어 두고, 날을 못 박는 독자는 그중 꼭 오늘 · 꼭 내일만 쓴다.
+ * 오늘 · 어제 답을 합치는 곳은 아래 nextOutingWindow 한 곳(2판 P3) — 오늘 상태 한 장은 어제 답을 하루 당긴 범위(어제 '2~3일 뒤'
+ * → 1~2일 뒤)까지 실어 두고, 날을 못 박는 독자는 그중 꼭 오늘 · 꼭 내일만 쓴다. '오늘 등판 · 불펜인가'는 todayOutingRole 하나.
  */
 export const THROW_PLANS = [
   '오늘 등판',
@@ -673,6 +674,57 @@ export function nextOutingDays(
     default:
       return null;
   }
+}
+
+/** 다음 등판까지 남은 날의 범위 — max null 은 '끝이 없음'(4일 이상 뒤) */
+export type OutingWindow = { min: number; max: number | null };
+
+/**
+ * 오늘 답과 어제 답을 합친 '다음 등판까지 남은 날'.
+ *
+ * 답 하나를 날로 읽는 규칙은 위 nextOutingDays — 여기서는 둘을 합치기만 한다:
+ *   오늘 답이 있으면(null 이 아니면 — '없음'이나 모르는 글자도 '답함'이다) 오늘 답만 본다. 어제 '내일 등판'이었어도 오늘 '없음'
+ *   이라고 고쳤으면(비 · 순서 바뀜) 오늘 것을 따른다.
+ *   오늘 답이 없으면 어제 답을 하루 당겨 읽는다: '내일 등판' → 오늘(0~0), '2~3일 뒤' → 1~2일 뒤, '4일 이상 뒤' → 3일 이상 뒤.
+ *   어제 '오늘 등판'은 이미 지난 등판이라 다음 등판이 아니다(null — 지난 등판은 day-state 의 outing.daysSinceLast 가 본다).
+ *
+ * 하루 당긴 범위는 짐작이 아니라 같은 말의 다른 기준일이다. 다만 날을 못 박는 독자(plannedOuting · 영양 · 프로그램)는 지금처럼
+ * 꼭 오늘(0~0) · 꼭 내일(1~1)만 쓴다 — 그래서 어제 '2~3일 뒤'는 그들에게 '모름'으로 남는다.
+ *
+ * 2판 P3 에서 lib/engine/day-state.ts 에 처음 두었다가 이 파일로 옮겼다(그 파일이 다시 내보낸다) — 투구 계획(lib/report/plan.ts)도
+ * 이 합치기를 읽는데, day-state 가 plan.ts 를 부르므로 plan.ts 가 day-state 를 부르면 순환이 된다. 이 파일은 둘 다 이미 부른다.
+ */
+export function nextOutingWindow(
+  todayPlan: string | null | undefined,
+  yesterdayPlan: string | null | undefined
+): { days: OutingWindow | null; from: 'today' | 'yesterday' | null } {
+  if (todayPlan != null) {
+    const days = nextOutingDays(todayPlan);
+    return { days, from: days ? 'today' : null };
+  }
+  const y = nextOutingDays(yesterdayPlan);
+  if (y == null || (y.max != null && y.max - 1 < 0)) return { days: null, from: null };
+  return {
+    days: { min: Math.max(0, y.min - 1), max: y.max == null ? null : y.max - 1 },
+    from: 'yesterday',
+  };
+}
+
+/**
+ * 오늘 할 일 — 등판('game') · 불펜('bullpen') · 없음(null). 2판 P3(2026-10-12).
+ *
+ *   등판  합친 답(nextOutingWindow)이 꼭 오늘(0~0) — 오늘 '오늘 등판', 또는 오늘 답 없이 어제 '내일 등판'
+ *   불펜  오늘 답이 '오늘 불펜'(어제 답은 불펜을 이월하지 않는다 — '내일 불펜'이라는 답이 없다)
+ *
+ * 투구 계획(lib/report/plan.ts 의 DayPlan.outing) · 오늘 상태 한 장(day-state 의 outing.role) · 암케어(그 장을 받아 등판 날 회복)가
+ * 이 한 함수로 읽는다 — 독자마다 '오늘 등판인가'를 따로 셈하면 같은 아침에 서로 다른 날이 된다(자체 시험 엇갈림 표 C1 · C4).
+ */
+export function todayOutingRole(
+  todayPlan: string | null | undefined,
+  yesterdayPlan: string | null | undefined
+): 'game' | 'bullpen' | null {
+  if (nextOutingWindow(todayPlan, yesterdayPlan).days?.max === 0) return 'game';
+  return parseThrowPlan(todayPlan) === '오늘 불펜' ? 'bullpen' : null;
 }
 
 export const CHECKIN_NOTE_MAX = 500;

@@ -60,6 +60,8 @@ export async function loadPitchDay(date: string): Promise<PitchDayData | null> {
           pitches: pitchRangeText(todayPlanDay),
           intensity: intensityRangeText(todayPlanDay),
           reason: todayPlanDay.reason,
+          /* 등판 날은 범위가 비어 있다(양은 경기가 정함 — 2판 P3) */
+          game: todayPlanDay.outing === 'game',
         }
       : null;
 

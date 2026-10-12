@@ -17,6 +17,11 @@ export type PlanNoteData = {
   intensity: string;
   /** 왜 이 계획인지 한 줄 */
   reason: string;
+  /**
+   * 등판 날인가(lib/report/plan.ts 의 DayPlan.outing 'game', 2판 P3). 그날은 범위가 비어 있다 — 양은 경기가 정한다.
+   * 안 주면 아니다.
+   */
+  game?: boolean;
 };
 
 export function PlanNote({ plan }: { plan: PlanNoteData }) {
@@ -24,7 +29,11 @@ export function PlanNote({ plan }: { plan: PlanNoteData }) {
     <div className="rounded-xl border border-line bg-surface-2 px-4 py-3">
       <p className="text-xs font-medium tracking-normal text-sky">오늘 계획</p>
       <p className="mt-1 text-sm font-semibold text-ink">
-        {plan.throwing ? `${plan.pitches} · ${plan.intensity}` : '휴식'}
+        {plan.game
+          ? '등판'
+          : plan.throwing
+            ? `${plan.pitches} · ${plan.intensity}`
+            : '휴식'}
       </p>
       <p className="mt-0.5 text-xs leading-relaxed text-muted">{plan.reason}</p>
     </div>
