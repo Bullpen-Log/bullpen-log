@@ -94,6 +94,7 @@ import {
 } from '../lib/report/plan-swaps.ts';
 import { buildDayState, type DayStateExtras } from '../lib/engine/day-state.ts';
 import { yesterdayArmLoadOf } from '../lib/engine/arm-load.ts';
+import { programArbiterSignals } from '../lib/engine/arbiter.ts';
 import {
   audienceOf,
   dayPlan,
@@ -1927,9 +1928,10 @@ type ProgramDayResult = {
 
 /**
  * 근력 프로그램의 오늘 — 앱(lib/program/load.ts buildProgramDay)의 판정 길을 순수 함수로 그대로 밟는다: 던지는 신호(programSignalsOf ·
- * yesterdayArmLoadOf), 세게 던진 날은 오늘 상태 한 장, 회복 까닭 · 부하 · 근육통 · 잠, 대체할 칸(painSlotsOf — 부위 규칙만 거친 후보).
+ * yesterdayArmLoadOf), 세게 던진 날은 오늘 상태 한 장, 회복 까닭 · 부하 · 근육통 · 잠, 대체할 칸(painSlotsOf — 부위 규칙만 거친 후보),
+ * 중재 신호(2판 P6-2 — lib/engine/arbiter.ts programArbiterSignals: 팔 · 하체 예산 · 오늘 세게 던진 날 · '회복' 고름, 앱과 같은 함수).
  * 아침이라 오늘 투구 종류는 없다. 다른 방식으로 이미 운동했는지(otherWorkoutStarted)와 '그래도 할래요'(override)는 늘 false.
- * 하는 날 목록은 load.ts 처럼 뺀 칸을 건너뛰고, 대체 칸은 같은 변형의 안전한 다른 운동(없으면 건너뜀)으로.
+ * 하는 날 목록은 load.ts 처럼 뺀 칸 · 팔을 아끼는 날 뺀 변형을 건너뛰고, 대체 칸은 같은 변형의 안전한 다른 운동(없으면 건너뜀)으로.
  */
 function programDayOf(
   p: Player,
@@ -1988,14 +1990,25 @@ function programDayOf(
       (zone == null && facts.patterns.lastThrowDate != null),
     painSlots,
     slotReasons,
+    /*
+     * 중재 신호(2판 P6-2) — 앱과 같은 함수 · 같은 장(진행 중인 프로그램은 extrasOf 로 이미 얹혔다). 매일 일정의 하체 마지막 날은 historyOf
+     * (gather.ts lastStrengthDates 와 같은 규칙). 오늘 프로그램 판은 아침이라 없다.
+     */
+    ...programArbiterSignals({
+      state,
+      typesToday: [],
+      lastLowerKey: inputs.history.lastLowerKey,
+      exerciseOf: (v) => (pinned[v] ? byId.get(pinned[v]!) : undefined),
+    }).signals,
   });
   if (decision.kind !== 'go') return { decision, ids: [], bigLower: false };
   const audience = audienceOf(plan.def);
+  const deferred = decision.deferVariants ?? [];
   const chosen: { slot: string; id: string }[] = [];
   for (const rx of items) {
     const a = decision.adjust[rx.slot];
     const pinnedId = pinned[rx.variant];
-    if (!pinnedId || a?.kind === 'drop') continue;
+    if (!pinnedId || a?.kind === 'drop' || deferred.includes(rx.variant)) continue;
     if (a?.kind === 'substitute' && !safeIds.has(pinnedId)) {
       const sub = variantCandidates(
         rx.variant,

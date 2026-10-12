@@ -4,6 +4,9 @@ import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { HIGH_SORENESS, SEVERE_SORENESS, isShortSleep } from '@/lib/checkin';
 import { yesterdayArmLoadOf } from '@/lib/engine/arm-load';
+import { programArbiterSignals } from '@/lib/engine/arbiter';
+import { withProgramCommitment } from '@/lib/engine/day-state';
+import { lastStrengthDates } from '@/lib/report/gather';
 import { droppedOnlyForArmFatigue, selectCandidates } from '@/lib/report/prescription';
 import { LOW_CONDITION_THRESHOLD, painRecoveryReason } from '@/lib/report/theme';
 import type { loadTodayCore } from '@/lib/report/today-data';
@@ -12,6 +15,7 @@ import { readFrozenPlan } from '@/lib/workout/session-plan';
 import { estimate1RM } from '@/lib/workout/history';
 import { toDateKey } from '@/lib/pitch-stats';
 import {
+  ARM_DEFER_REASON,
   CAUTION_TEXT,
   TM_LOOKBACK_DAYS,
   PROGRAMS,
@@ -327,12 +331,17 @@ export async function buildProgramDay(
   if (!plan) return null;
   const todayKey = core.todayKey;
   const facts = core.facts;
-  const [typesToday, session, lastProgramDate] = await Promise.all([
+  const [typesToday, session, lastProgramDate, strengthDates] = await Promise.all([
     pitchTypesToday(user.id, todayKey),
     todaySession(user.id, core.midnight),
     row.lastDoneDate
       ? Promise.resolve(keyOf(row.lastDoneDate))
       : lastProgramSessionKey(user.id, core.midnight),
+    /*
+     * 매일 일정의 하체 마지막 날 — 하체 예산(어제 하체 날이면 오늘 큰 하체를 가볍게)의 재료(2판 P6-2). 일정 만들기(training-setup.ts)와 같은
+     * 조회 · 같은 규칙(완료 기록이 먼저, 없는 날은 저장된 일정). 카드와 운동 시작이 둘 다 여기를 지나 같은 값을 본다(비판 1 빈틈 25).
+     */
+    lastStrengthDates(user.id, core.midnight),
   ]);
 
   /*
@@ -379,9 +388,8 @@ export async function buildProgramDay(
   /* 기본기는 고르는 규칙이 다르다(바벨 없이) — 다시 고정 · 그날 대체도 같은 규칙으로 */
   const audience = audienceOf(plan.def);
 
-  /* 고정 운동이 숨겨졌으면 같은 칸에서 다시 고른다(§3) */
-  const repin: Pinned = {};
-  const pinnedFor = (
+  /* 고정 운동이 숨겨졌으면 같은 칸에서 다시 고른다(§3) — 고르기만(읽기). 다시 고정할 것을 적는 일은 pinnedFor 가 한다 */
+  const pinnedOf = (
     v: VariantKey
   ): { ex: CachedExercise | null; repinned: boolean } => {
     const id = pinned[v];
@@ -389,8 +397,15 @@ export async function buildProgramDay(
     if (ex) return { ex, repinned: false };
     const next =
       variantCandidates(v, core.library, owned, user.trainingLevel, audience)[0] ?? null;
-    if (next) repin[v] = next.id;
     return { ex: next, repinned: next != null };
+  };
+  const repin: Pinned = {};
+  const pinnedFor = (
+    v: VariantKey
+  ): { ex: CachedExercise | null; repinned: boolean } => {
+    const got = pinnedOf(v);
+    if (got.repinned && got.ex) repin[v] = got.ex.id;
+    return got;
   };
 
   /* 대체할 칸과 그 까닭 — 자체 시험 엇갈림 표와 같은 함수(program.ts painSlotsOf) */
@@ -400,6 +415,31 @@ export async function buildProgramDay(
     safeIds,
     armFatigueOnlyIds
   );
+
+  /*
+   * 중재 신호(2판 P6-2) — 팔 예산(오늘 등판 · 경기 기록 · 세게 던진 날이면 팔로 던지는 변형을 뺌) · 하체 예산(어제 하체 날이면 큰 하체를
+   * 가볍게) · 오늘 세게 던진 날 · 오늘 '회복'을 고름(둘 다 쉬는 날). 자체 시험 · 기준선과 같은 함수(lib/engine/arbiter.ts programArbiterSignals)를
+   * 같은 오늘 상태 한 장으로 부른다. 장을 만드는 gather.ts 는 프로그램 줄을 안 읽어 여기서 얹는다(day-state.ts withProgramCommitment —
+   * 일정 만들기와 같은 꼴). 고정 운동은 읽기만 하는 pinnedOf 로 — 다시 고정할 것을 쓰지 않는 변형까지 적지 않게.
+   */
+  const arbiter = programArbiterSignals({
+    state: withProgramCommitment(core.state, {
+      key: row.programKey,
+      nextDay: row.nextDay,
+      totalDays: plan.totalDays,
+      lastDoneDate: keyOf(row.lastDoneDate),
+    }),
+    typesToday,
+    lastLowerKey: strengthDates.lower,
+    session:
+      session?.program?.key === row.programKey
+        ? {
+            state: session.status === 'ACTIVE' ? 'active' : 'finished',
+            day: session.program.day,
+          }
+        : null,
+    exerciseOf: (v) => pinnedOf(v).ex,
+  });
 
   const decision = decideToday(plan, {
     nextDay: row.nextDay,
@@ -425,6 +465,7 @@ export async function buildProgramDay(
       (zone == null && facts.patterns.lastThrowDate != null),
     painSlots,
     slotReasons,
+    ...arbiter.signals,
   });
 
   const { completed, skipped } = progressOf(row, plan);
@@ -461,6 +502,8 @@ export async function buildProgramDay(
   /* 하는 날이 아니어도 목록은 만든다 — 쉬는 날 · 체크인 전에는 흐린 미리보기로 보인다 */
   const adjust = decision.kind === 'go' ? decision.adjust : {};
   const gapDays = decision.kind === 'go' ? decision.gapDays : null;
+  /* 팔을 아끼는 날 뺀 변형(2판 P6-2) — 칸이 아니라 변형이라 같은 파워 칸의 점프는 남는다 */
+  const deferred = decision.kind === 'go' ? (decision.deferVariants ?? []) : [];
 
   const chosen: {
     rx: ItemRx;
@@ -482,6 +525,11 @@ export async function buildProgramDay(
     }
     if (a?.kind === 'drop') {
       view.dropped.push({ slot, title: pinnedEx.title, reason: a.reason });
+      continue;
+    }
+    /* 대체보다 먼저 — 그 칸의 대체 후보도 같은 변형(메디신볼)이라 대체하면 또 던진다 */
+    if (deferred.includes(variant)) {
+      view.dropped.push({ slot, title: pinnedEx.title, reason: ARM_DEFER_REASON });
       continue;
     }
     /* 대체는 그 운동이 통증 부위에 걸릴 때만 — 같은 칸의 다른 운동(스쿼트 · 힌지처럼 한 날 둘)은 그대로 */

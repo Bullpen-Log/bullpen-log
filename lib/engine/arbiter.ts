@@ -24,11 +24,13 @@
  *   5 program  프로그램 — 진행 중인 프로그램이 오늘 하는 날(owns)이면 매일 일정은 프로그램 운동 그대로(D6, PROGRAM_DAY_DAILY 'none').
  *   6 budget   예산 — 하체(무거운 하체가 48시간 안에 두 번 없게)와 시간. 프로그램 운동은 빼지 않고 큰 하체만 가볍게(D6 '그대로'를 지킨다).
  *
- * 이 파일이 정하지 않는 것 — 읽는 쪽이 같은 결과로 한다(부르는 곳은 아직 없다, P6-2 부터 잇는다):
- *   - 프로그램 판정(lib/program/program.ts decideToday)에 신호를 넣는 일: armBudget(state).spent → armSpent, lowerBudget(…).programLighter →
- *     heavyLowerYesterday, programDeferVariants → deferVariants. decideToday 전에 부를 수 있다 — armBudget 은 판정을 안 보고, lowerBudget 은
- *     판정 없이 만든 칸(programCommitment(commitment), 역할 'unknown')으로도 다음 일차를 보고 programLighter 를 낸다. 신호를 만드는 쪽은
- *     lib/program/load.ts(또는 그것이 부르는 순수 함수)다 — program.ts 가 이 파일을 런타임에 부르면 이 파일이 program.ts 를 부르므로 순환이다.
+ * 이 파일이 정하지 않는 것 — 읽는 쪽이 같은 결과로 한다(arbitrate 를 부르는 곳은 아직 없다, P6-3 부터 잇는다):
+ *   - 프로그램 판정(lib/program/program.ts decideToday)에 신호를 넣는 일 — 2판 P6-2 에서 이었다: programArbiterSignals 가 armBudget(state).spent →
+ *     armSpent, 고정 운동으로 가른 팔 던지기 → armThrows(판정이 오늘 일차와 겹치는 것을 deferVariants 로), lowerBudget(…).programLighter →
+ *     heavyLowerYesterday, 쉬라는 날 층의 오늘 세게 던진 날 → hardToday, 사용자 선택 층의 '회복' → choseRecovery 를 만들고 lib/program/load.ts ·
+ *     자체 시험 · 기준선이 그것을 판정에 넘긴다. 판정 전에 부른다 — armBudget 은 판정을 안 보고, lowerBudget 은 판정 없이 만든 칸
+ *     (programCommitment(commitment), 역할 'unknown')으로도 다음 일차를 본다. program.ts 는 이 파일을 부르지 않는다(이 파일이 program.ts 를
+ *     부르므로 순환) — 그래서 신호는 부르는 쪽이 만들어 넘기고, 둘이 같이 쓰는 상수(ARM_THROW_VARIANTS · 하체 글)는 program.ts 에 둔다.
  *   - 매일 일정이 하체 날을 바꾸는 일(theme.ts steerFromEmptyMain 옆): daily.heavyLower false 면 상체(daily.upperOk) 또는 보조로.
  *   - 메커니즘 접기(D5): mechanics.foldThrows · anyway. 드릴이 던지는 것인지는 메커니즘 쪽 술어(isArmLoaded)가 정한다.
  *   - 암케어: 등판 · 오늘 던진 날은 decideArmcare 가 이미 회복으로 간다(오늘 상태 한 장의 outing.role · 오늘 N구). 여기 armcare.strength 는
@@ -52,6 +54,8 @@ import {
 } from '@/lib/engine/exercise-class';
 import type { DayKind, DayRule } from '@/lib/engine/microcycle';
 import {
+  ARM_THROW_VARIANTS,
+  CAUTION_TEXT,
   SLOT_OF,
   VARIANT_LABELS,
   dayLabel,
@@ -60,6 +64,7 @@ import {
   parseProgram,
   type SlotKind,
   type TodayDecision,
+  type TodaySignals,
   type VariantKey,
 } from '@/lib/program/program';
 import { PROGRAM_FOLLOW_DAYS } from '@/lib/report/score';
@@ -91,8 +96,11 @@ export const PROGRAM_DAY_DAILY: ProgramDayDaily = 'none';
  * 팔로 던지는 프로그램 변형 — 메디신볼 · 회전 던지기. 둘 다 메디신볼을 던지는 상체 파워다(program.ts VARIANT_MOVEMENT_KEY 가 상체 파워로
  * 적고, 고정 운동은 isArmPlyo 가 참 — 메디신볼 장비). 점프(하체 파워)는 같은 파워 칸이지만 팔을 안 쓴다 — 그래서 칸(SlotKind)이 아니라
  * 변형 단위로 뺀다(칸 단위로 빼면 점프까지 지운다, 비판 1 빈틈 35).
+ *
+ * 상수는 lib/program/program.ts 에 있다(2판 P6-2 에서 옮김) — 프로그램 판정(decideToday)이 고정 운동을 모를 때 이 목록으로 짐작하는데,
+ * 그 파일이 이 파일을 부르면 순환이라. 여기서는 예전 이름 그대로 다시 내보낸다(부르던 곳 · 자체 시험이 그대로 맞게).
  */
-export const ARM_THROW_VARIANTS: readonly VariantKey[] = ['medball', 'rotationalThrow'];
+export { ARM_THROW_VARIANTS };
 
 /**
  * 프로그램 날의 무거운 하체 — 큰 하체 칸(스쿼트 · 힌지). 기준선 ㉑ 판정자(scripts/training-baseline.mts programDayOf 의 bigLower)와 같은
@@ -284,7 +292,8 @@ export const LOWER_BUDGET_TEXT: Record<LowerBudgetReason | 'programLighter', str
   yesterdayProgram: '어제 근력 프로그램에서 하체를 해서 오늘은 무거운 하체를 쉬어요.',
   yesterdayDaily: '어제 하체를 무겁게 해서 오늘은 무거운 하체를 쉬어요.',
   tomorrowProgram: '다음 근력 프로그램에 큰 하체가 있어 오늘은 무거운 하체를 쉬어요.',
-  programLighter: '어제 하체를 무겁게 했어요. 큰 하체는 가볍게 해요.',
+  /* 프로그램 카드의 주의 한 줄(program.ts CAUTION_TEXT.lowerBudget)과 한 곳 — 중재 결과와 카드가 같은 글을 쓰게(2판 P6-2) */
+  programLighter: CAUTION_TEXT.lowerBudget,
 };
 
 export type LowerBudget = {
@@ -445,6 +454,82 @@ export function programDeferVariants(
 ): VariantKey[] {
   if (!slots) return [];
   return slots.armThrows.filter((v) => budget.defer.programVariants.includes(v));
+}
+
+/* ─────────────────────────── 프로그램 판정 신호(P6-2) ─────────────────────────── */
+
+/** 프로그램 판정(decideToday)에 넘기는 중재 신호 — TodaySignals 의 선택 칸 다섯(모두 채워서) */
+export type ProgramArbiterSignals = Required<
+  Pick<
+    TodaySignals,
+    'armSpent' | 'armThrows' | 'heavyLowerYesterday' | 'hardToday' | 'choseRecovery'
+  >
+>;
+
+/**
+ * 프로그램 판정(lib/program/program.ts decideToday)에 넘길 신호 — 이 파일의 층이 정한 하루를 프로그램 카드도 같은 말로 하게(2판 P6-2).
+ * 앱(lib/program/load.ts buildProgramDay) · 자체 시험 · 기준선 도구가 이 함수 하나를 부른다 — load.ts 는 server-only 라 시험이 신호 규칙을
+ * 베껴 썼다(비판 1 빈틈 3). 판정을 안 보므로 판정 전에 부른다(arbitrate 는 판정 뒤 — 판정의 kind 를 받는다).
+ *
+ *   armSpent             팔 예산을 다 썼다(armBudget.spent — 등판 보호 층). 판정은 오늘 일차의 armThrows 를 뺀다(넘겨도)
+ *   armThrows            팔로 던지는 변형 — ARM_THROW_VARIANTS 가운데 고정 운동이 팔 플라이오(isArmPlyo)인 것(모르면 넣는다).
+ *                        programDeferVariants(programDaySlotsOf(…, exerciseOf), arm) 와 같은 답이다(자체 시험이 견준다)
+ *   heavyLowerYesterday  어제 매일 일정이 하체 날이고 오늘(할 수 있는) 일차에 큰 하체가 있다(lowerBudget.programLighter — 예산 층)
+ *   hardToday            오늘 세게 던진 날(오늘 상태 한 장 load.hardOuting 이 오늘) — 날 종류 R1 의 오늘 쪽, 쉬라는 날 층. 어제 쪽 · R2 · 오늘 등판은
+ *                        판정이 이미 programSignalsOf(gameYesterday · gameToday)로 쉰다
+ *   choseRecovery        오늘 체크인에서 '회복'을 골랐다(사용자 선택 층)
+ *   (둘 다 오늘 프로그램 판이 있으면 거짓 — 그날은 프로그램 것이라 쉬게 하지 않는다, arbitrate 의 fromSession 과 같다)
+ *
+ * state.commitments.program 이 없으면(장에 안 얹었으면) 하체 신호는 거짓이다 — 부르는 쪽이 withProgramCommitment 로 얹어 넘긴다.
+ * exerciseOf 는 고정 운동을 읽기만 해야 한다(다시 고르며 저장할 것을 적는 함수를 넘기면 쓰지 않는 변형까지 적는다).
+ */
+export function programArbiterSignals({
+  state,
+  typesToday = [],
+  lastLowerKey,
+  session = null,
+  exerciseOf,
+}: {
+  state: Pick<DayState, 'asOf' | 'outing' | 'load' | 'body' | 'commitments'>;
+  /** 오늘 투구 기록의 세션 종류(programSignalsOf 와 같은 입력) */
+  typesToday?: readonly string[];
+  /** 매일 일정의 하체 마지막 날(gather.ts lastStrengthDates 의 lower) */
+  lastLowerKey: string | null;
+  /** 오늘 프로그램 판(열었거나 마침) — 있으면 그 판의 일차로 하체를 본다 */
+  session?: ProgramSessionToday | null;
+  exerciseOf?: (variant: VariantKey) => ClassifiableExercise | null | undefined;
+}): {
+  signals: ProgramArbiterSignals;
+  arm: ArmBudget;
+  lower: LowerBudget;
+  /** 판정 없이 본 프로그램 칸(역할 'unknown' · 'session' · 'after') — 하체 예산의 재료 */
+  program: ProgramCommitmentView | null;
+} {
+  const arm = armBudget({ state, typesToday });
+  const program = programCommitment(state.commitments.program, { session, exerciseOf });
+  const lower = lowerBudget({ asOf: state.asOf, lastLowerKey, program });
+  const armThrows = ARM_THROW_VARIANTS.filter((v) => {
+    const ex = exerciseOf?.(v);
+    return ex ? isArmPlyo(ex) : true;
+  });
+  /*
+   * 오늘 프로그램 판이 있으면(열었거나 마침) 쉬라는 날 · 사용자 선택 신호는 안 낸다 — arbitrate 가 그날을 프로그램 것으로 두고 쉬게 하지
+   * 않는 것(fromSession)과 같은 규칙이다. 아침에 프로그램을 마치고 저녁에 세게 던진 불펜을 적은 날, 카드가 '쉬는 날이에요 · 그래도 할래요'를
+   * 내면 이미 한 운동을 쉬라고 하는 셈이다.
+   */
+  const ownsToday = session != null;
+  return {
+    signals: {
+      armSpent: arm.spent,
+      armThrows,
+      heavyLowerYesterday: lower.programLighter,
+      hardToday: !ownsToday && state.load.hardOuting?.daysAgo === 0,
+      choseRecovery: !ownsToday && state.body.preferredWorkout === RECOVERY_WORKOUT,
+    },
+    arm,
+    lower,
+    program,
+  };
 }
 
 /* ─────────────────────────── 시간 예산 ─────────────────────────── */
