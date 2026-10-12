@@ -40,6 +40,8 @@ export type LabSample = {
   /** 올리다 멈춰 정보가 없으면 null — 목록에서 지울 수 있게 보인다 */
   meta: LabMeta | null;
   videos: Partial<Record<LabView, { path: string; url: string | null }>>;
+  /** 마커 샘플의 ③ · ④ 카메라(cam3.* · cam4.*) — 분석은 옆 · 뒤만 쓰고, 이것은 보기 · 정답지용 */
+  extras: { key: 'cam3' | 'cam4'; path: string; url: string | null }[];
   /** v2(서버) — 작업 상태와 결과 파일이 있는 작업 번호들 */
   v2: { job: Pitch3dV2Job | null; resultIds: string[] };
 };
@@ -146,6 +148,11 @@ async function scanFolder(userId: string, id: string) {
     const f = names.find((x) => x.startsWith(`${view}.`));
     if (f) videos[view] = { path: `${folder(userId, id)}/${f}`, url: null };
   }
+  const extras: LabSample['extras'] = [];
+  for (const key of ['cam3', 'cam4'] as const) {
+    const f = names.find((x) => x.startsWith(`${key}.`));
+    if (f) extras.push({ key, path: `${folder(userId, id)}/${f}`, url: null });
+  }
   const resultIds = names
     .filter((n) => n.startsWith(V2_PREFIX) && n.endsWith('.json'))
     .map((n) => n.slice(V2_PREFIX.length, -'.json'.length))
@@ -153,6 +160,7 @@ async function scanFolder(userId: string, id: string) {
   return {
     names,
     videos,
+    extras,
     hasJob: names.includes(JOB_FILE),
     resultIds,
   };
@@ -190,15 +198,20 @@ async function readSample(userId: string, id: string): Promise<LabSample> {
     id,
     meta,
     videos: scan.videos,
+    extras: scan.extras,
     v2: { job: readPitch3dV2Job(jobRaw), resultIds: scan.resultIds },
   };
 }
 
 async function attachUrls(samples: LabSample[]) {
-  const paths = samples.flatMap((s) => Object.values(s.videos).map((v) => v.path));
+  const paths = samples.flatMap((s) => [
+    ...Object.values(s.videos).map((v) => v.path),
+    ...s.extras.map((v) => v.path),
+  ]);
   const urls = await createPlaybackUrls(paths);
   for (const s of samples) {
     for (const v of Object.values(s.videos)) v.url = urls[v.path] ?? null;
+    for (const v of s.extras) v.url = urls[v.path] ?? null;
   }
 }
 
@@ -208,7 +221,8 @@ export async function loadLabSample(
   id: string
 ): Promise<LabSample | null> {
   const sample = await readSample(userId, id);
-  if (!sample.meta && Object.keys(sample.videos).length === 0) return null;
+  if (!sample.meta && Object.keys(sample.videos).length === 0 && sample.extras.length === 0)
+    return null;
   await attachUrls([sample]);
   return sample;
 }

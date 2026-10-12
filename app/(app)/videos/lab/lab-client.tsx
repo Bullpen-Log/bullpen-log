@@ -403,7 +403,7 @@ function SampleCard({
   label?: string;
 }) {
   const router = useRouter();
-  const refs = useRef<Partial<Record<LabView, HTMLVideoElement | null>>>({});
+  const refs = useRef<Partial<Record<string, HTMLVideoElement | null>>>({});
   const [confirm, setConfirm] = useState(false);
   const [error, setError] = useState<string>();
   const [pending, start] = useTransition();
@@ -415,8 +415,7 @@ function SampleCard({
 
   /* 같이 재생 — 두 영상을 처음부터 함께(시간 맞추기는 분석이 할 일이라 여기서는 처음부터만) */
   const playBoth = () => {
-    for (const view of LAB_VIEWS) {
-      const v = refs.current[view];
+    for (const v of Object.values(refs.current)) {
       if (!v) continue;
       v.currentTime = 0;
       void v.play().catch(() => undefined);
@@ -437,6 +436,23 @@ function SampleCard({
     });
 
   const meta = sample.meta;
+  /*
+   * 펼친 영상 칸 — 옆 · 뒤, 마커 샘플이면 ③ 1루 · ④ 홈 대각선까지(cam3 · cam4, 2026-10-12 사용자: "1루 · 홈 방향 2개는 왜 안 보이냐").
+   * 마커 샘플은 카메라 번호를 앞에 붙인다(마커 촬영 안내서의 ①~④).
+   */
+  const marker = meta?.kind === 'marker';
+  const cells = [
+    ...LAB_VIEWS.map((view) => ({
+      key: view,
+      label: (marker ? (view === 'side' ? '① ' : '② ') : '') + LAB_VIEW_LABELS[view],
+      url: sample.videos[view]?.url ?? null,
+    })),
+    ...sample.extras.map((x) => ({
+      key: x.key,
+      label: x.key === 'cam3' ? '③ 1루 쪽' : '④ 홈 쪽 대각선',
+      url: x.url,
+    })),
+  ];
   return (
     <Card className="space-y-3 !py-3">
       {/* 한 줄 — 이름 · 날짜 · 표시 · 메모(한 줄로 자름) · 상태. 줄을 누르면 결과 화면, 오른쪽은 영상 펴기 · 지우기 */}
@@ -482,17 +498,15 @@ function SampleCard({
       {open && (
         <>
       <div className="grid grid-cols-2 gap-2">
-        {LAB_VIEWS.map((view) => {
-          const v = sample.videos[view];
-          return (
-            <div key={view} className="space-y-1">
-              <p className="text-xs text-muted">{LAB_VIEW_LABELS[view]}</p>
-              {v?.url ? (
+        {cells.map((c) => (
+            <div key={c.key} className="space-y-1">
+              <p className="text-xs text-muted">{c.label}</p>
+              {c.url ? (
                 <video
                   ref={(el) => {
-                    refs.current[view] = el;
+                    refs.current[c.key] = el;
                   }}
-                  src={`${v.url}#t=0.001`}
+                  src={`${c.url}#t=0.001`}
                   controls
                   playsInline
                   muted
@@ -505,8 +519,7 @@ function SampleCard({
                 </div>
               )}
             </div>
-          );
-        })}
+        ))}
       </div>
 
       {sample.videos.side?.url && sample.videos.back?.url && (
@@ -516,7 +529,7 @@ function SampleCard({
           className="flex min-h-11 w-full items-center justify-center gap-1.5 rounded-2xl bg-ink/6 text-sm font-semibold text-ink"
         >
           <Play aria-hidden className="h-4 w-4" />
-          같이 재생
+          {cells.length > 2 ? `${cells.length}대 같이 재생` : '같이 재생'}
         </button>
       )}
 
