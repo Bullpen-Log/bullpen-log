@@ -17,7 +17,8 @@ import { goalPrescription } from '@/lib/report/goal-prescription';
  * 있게 — theme → prescription → 여기 → theme 순환을 막는다).
  *
  * 처음 커밋(P5-b)은 길만 놓았다(만드는 쪽이 없어 늘 없었다). P5-d(2026-10-12)부터 decideVolume · volumeForDay 가 언제 줄이는지
- * 정하고, 매일 일정(daily-plan.ts buildDailyPlan)이 그 결과를 싣는다.
+ * 정하고, 매일 일정(daily-plan.ts buildDailyPlan)이 그 결과를 싣는다. P5-e(2026-10-12)부터 최근 운동 힘듦 급증도 '직접 고르기'에서
+ * 세트를 줄인다(그래도 고른 대로 만들 수 있다 — 아래 VolumeSignal).
  */
 
 /** 세트를 줄여도 이만큼은 남긴다 — 3세트 이상인 운동만 한 세트 줄인다(두 세트 운동을 한 세트로 만들면 운동 자체가 흐려진다) */
@@ -115,19 +116,34 @@ export function planPrescription<T extends Prescribed>(
  *   soreHigh    전신 근육통 '많이' 이상(HIGH_SORENESS — '심함'은 보통 회복날이지만 '그래도 하기'로 근력 날이 된 날도 줄인다)
  * 셋 다 안전 거르기가 가장 센 운동을 이미 빼는 날이다(prescription.ts 4-1 · 4-2 · 4-2-1) — 강도를 한 칸 내렸으면 양도 한 칸 내린다.
  * 근력 프로그램의 칸 조정(lib/program/program.ts decideToday — 근육통 '많이' · 짧은 밤이면 큰 하체 세트 −1)과 같은 뜻이다.
- * 힘듦 급증(load.effortSpike)은 다음 커밋(P5-e)이 '그래도 하기'와 함께 더한다 — 그 신호는 강도를 안 내리고 세트만(intensityStep 0).
+ *
+ *   effortSpike 최근 운동 힘듦 급증(오늘 상태 한 장의 load.effortSpike — facts.condition.trainingEffort.spikeFlag, 2판 P2: 7일 안 3개
+ *               이상 · 7일 평균이 28일 평균보다 2 이상 높음). P5-e(2026-10-12) — 부르는 쪽이 reduceForEffort 를 켤 때만 읽는다.
+ *               '직접 고르기'만 켠다(app/actions/training-setup.ts): 일정 만들기 폼이 경고 한 줄과 '그래도 고른 대로'를 보이고, 고르면
+ *               이 신호만 끈다(overrideEffort — 다른 신호 · 안전 거르기는 그대로). 자동 맞춤은 끄고 대신 시간을 한 단계 줄인다
+ *               (auto-setup.ts — 세트와 시간을 두 번 줄이지 않게, 사용자 결정 2026-10-12). 이 신호는 강도를 안 내린다(intensityStep 0) —
+ *               가장 센 운동을 빼는 안전 거르기가 급증을 안 읽기 때문이다(몸이 아니라 지난 운동의 느낌이라 양만 줄인다).
+ * 차례는 오늘 몸(평소 · 잠 · 근육통) 먼저, 지난 운동의 느낌(급증)이 끝 — 한 줄도 그 차례로 잇는다.
  */
-export type VolumeSignal = 'belowUsual' | 'sleepShort' | 'soreHigh';
+export type VolumeSignal = 'belowUsual' | 'sleepShort' | 'soreHigh' | 'effortSpike';
 
 /** 신호를 읽는 차례 — 이유 글 · 화면 한 줄이 이 차례로 적는다(같은 상태면 늘 같은 글) */
 export const VOLUME_SIGNALS: readonly VolumeSignal[] = [
   'belowUsual',
   'sleepShort',
   'soreHigh',
+  'effortSpike',
 ];
 
-/** decideVolume 이 읽는 칸 — DayState 를 통째로 넘기면 된다(자체 시험은 이 칸만 만들어도 된다) */
+/** 오늘 몸에서 온 신호 — 걸리면 안전 거르기가 가장 센 운동도 빼는 날이라 강도도 한 칸(intensityStep −1) */
+const BODY_SIGNALS: readonly VolumeSignal[] = ['belowUsual', 'sleepShort', 'soreHigh'];
+
+/**
+ * decideVolume 이 읽는 칸 — DayState 를 통째로 넘기면 된다(자체 시험은 이 칸만 만들어도 된다). load 는 P5-e 의 힘듦 급증 칸 —
+ * 없으면 급증이 없는 것으로 읽는다(P5-d 의 입력 그대로 돈다).
+ */
 export type VolumeStateInput = {
+  load?: Pick<DayState['load'], 'effortSpike'>;
   body: Pick<
     DayState['body'],
     | 'belowUsual'
@@ -159,6 +175,9 @@ function clauseOf(signal: VolumeSignal, severe: boolean): { and: string; so: str
     return { and: '컨디션이 평소보다 낮고', so: '컨디션이 평소보다 낮아' };
   }
   if (signal === 'sleepShort') return { and: '잠이 부족하고', so: '잠이 부족해' };
+  if (signal === 'effortSpike') {
+    return { and: '최근 운동이 평소보다 힘들었고', so: '최근 운동이 평소보다 힘들어' };
+  }
   return severe
     ? { and: '근육통이 심하고', so: '근육통이 심해' }
     : { and: '근육통이 많고', so: '근육통이 많아' };
@@ -170,18 +189,27 @@ const outOfTen = (n: number) => `${n}/10`;
 /**
  * 오늘 상태로 양 조절을 정한다 — 걸린 신호가 없으면 null(줄이지 않는다). 같은 상태면 늘 같은 값(날짜 · 난수 없음).
  *
- * 오늘 상태 한 장(DayState)의 body 만 읽는다 — 독자가 facts 를 저마다 읽지 않게(2판 P3 의 원칙). 장의 칸은 안전 거르기와 같은
+ * 오늘 상태 한 장(DayState)의 body · load 만 읽는다 — 독자가 facts 를 저마다 읽지 않게(2판 P3 의 원칙). 장의 칸은 안전 거르기와 같은
  * 함수로 만든 값이라(belowUsualCondition · isShortSleep · HIGH_SORENESS) 세트를 줄이는 날과 가장 센 운동을 빼는 날이 어긋나지 않는다.
  * 바닥 4 이하 · 근육통 '심함' 날은 보통 회복날이라 일정에 대지 않는다(volumeForDay 가 근력 날에만 댄다).
+ *
+ * 힘듦 급증(load.effortSpike)은 reduceForEffort 가 참일 때만 신호가 된다(P5-e — 직접 고르기에서 '그래도 고른 대로'를 안 골랐을 때,
+ * VolumeSignal 주석). 급증만 걸린 날은 세트만 줄이고 강도는 그대로(intensityStep 0) — 몸 신호가 하나라도 걸리면 −1.
  */
-export function decideVolume(state: VolumeStateInput): VolumeDecision | null {
+export function decideVolume(
+  state: VolumeStateInput,
+  { reduceForEffort = false }: { reduceForEffort?: boolean } = {}
+): VolumeDecision | null {
   const b = state.body;
+  const effort = reduceForEffort && state.load?.effortSpike === true;
   const signals = VOLUME_SIGNALS.filter((s) =>
     s === 'belowUsual'
       ? b.belowUsual
       : s === 'sleepShort'
         ? b.sleepShort
-        : b.soreMany || b.soreSevere
+        : s === 'soreHigh'
+          ? b.soreMany || b.soreSevere
+          : effort
   );
   if (signals.length === 0) return null;
 
@@ -196,6 +224,8 @@ export function decideVolume(state: VolumeStateInput): VolumeDecision | null {
         ? `어젯밤 ${formatSleepHours(b.sleepHours)}만 잤어요.`
         : '잠이 부족했다고 적었어요.';
     }
+    /* 오늘 상태 한 장(day-state.ts whyLines)이 같은 날 하는 말 그대로 */
+    if (s === 'effortSpike') return '최근 운동 힘듦이 평소보다 높아요.';
     const word = sorenessWord(b.soreness);
     return word ? `전신 근육통이 '${word}'이에요.` : '전신 근육통이 심해요.';
   });
@@ -206,7 +236,7 @@ export function decideVolume(state: VolumeStateInput): VolumeDecision | null {
   ].join(' ');
   return {
     setDelta: -1,
-    intensityStep: -1,
+    intensityStep: signals.some((s) => BODY_SIGNALS.includes(s)) ? -1 : 0,
     signals,
     why,
     line: `${head} 본운동을 한 세트씩 줄였어요.`,

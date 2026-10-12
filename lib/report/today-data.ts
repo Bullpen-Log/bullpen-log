@@ -303,8 +303,9 @@ export async function loadTodayCore(user: UserForToday, today: Date) {
     plan,
     /**
      * 오늘 상태 한 장(2판 P3, lib/engine/day-state.ts) — facts · plan 을 한 번 읽어 모은 신호. 2026-10-12 에는 넘기기만 하고 이
-     * 파일의 어떤 판단(안전 거름 · 부딪힘 · 지문)도 이 값을 읽지 않는다. 프로그램(lib/program/load.ts 의 buildProgramDay)이
-     * 등판 답(outing.answerToday · answerYesterday)과 세게 던진 날(load.hardOutingRecent)을 이 값에서 읽는다(2판 P3 읽기 통일).
+     * 파일의 어떤 판단(안전 거름 · 부딪힘 · 지문)도 이 값을 읽지 않는다(폼에 보일 힘듦 급증 effortSpike 만 여기서 꺼낸다, P5-e).
+     * 프로그램(lib/program/load.ts 의 buildProgramDay)이 등판 답(outing.answerToday · answerYesterday)과 세게 던진 날
+     * (load.hardOutingRecent)을 이 값에서 읽는다(2판 P3 읽기 통일).
      */
     state,
     hasLogs,
@@ -338,6 +339,12 @@ export async function loadTodayCore(user: UserForToday, today: Date) {
     preferredWorkout,
     /** 고른 종류가 몸 상태와 부딪히는가. 안 부딪히면 null */
     workoutClash,
+    /**
+     * 최근 운동 힘듦 급증인가(오늘 상태 한 장의 load.effortSpike — 2판 P5-e). 일정 만들기 폼의 '직접 고르기'가 경고 한 줄과 '그래도
+     * 고른 대로'를 그린다(components/training-forms.tsx) — 안 고르면 본운동 세트를 한 개씩 줄인다(lib/report/volume.ts). 멈춘 날
+     * (picked.halted)은 만들 일정이 없으니 거짓. 급증인지는 서버(buildDailyPlan)가 만들 때 다시 본다 — 이 값은 보이기만 한다.
+     */
+    effortSpike: !picked.halted && state.load.effortSpike,
     /**
      * 일정을 만든 뒤 바뀐 상태 항목 — 사용자에게 보일 한 줄씩(P2 지문, 위 주석). 비어 있으면 바뀐 것이 없거나 견줄 것이 없다.
      * 화면은 아직 안 띄운다(P6). key 까지 필요하면 stateChanges.

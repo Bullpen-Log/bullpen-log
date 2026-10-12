@@ -317,6 +317,13 @@ export async function generateTodayPlan(formData: FormData) {
     lastLowerKey: strengthDates.lower,
     lastUpperKey: strengthDates.upper,
     /*
+     * 최근 운동 힘듦 급증(2판 P5-e) — 직접 고르기는 본운동 세트를 한 개씩 줄이고, 폼의 '그래도 고른 대로'(overrideEffort)면 그 몫만
+     * 되돌린다. 급증인지는 buildDailyPlan 이 오늘 상태(state.load.effortSpike)로 다시 본다 — 폼이 보낸 체크는 급증인 날에만 뜻이 있다.
+     * 자동 맞춤은 세트 대신 시간을 한 단계 줄인다(decideAutoFence) — 두 번 줄이지 않게 여기는 끈다. override 처럼 저장하지 않는다.
+     */
+    reduceForEffort: !auto,
+    overrideEffort: !auto && formData.get('overrideEffort') === 'on',
+    /*
      * "몸 상태 경고를 봤고 그래도 하겠다."
      *
      * 오늘 하루만의 결정이라 저장하지 않는다. 내일 또 같은 상황이면 경고를
@@ -326,7 +333,7 @@ export async function generateTodayPlan(formData: FormData) {
      * 원하는 대로 하고 싶으면 직접 고르기에서 넘기면 된다.
      */
     override: !auto && formData.get('overrideCondition') === 'on',
-    /* 오늘 상태 한 장 — 같은 facts · plan 으로 만든 것. 양 조절(본운동 세트 −1, 2판 P5-d)이 body 를 읽는다 */
+    /* 오늘 상태 한 장 — 같은 facts · plan 으로 만든 것. 양 조절(본운동 세트 −1, 2판 P5-d · e)이 body · 힘듦 급증을 읽는다 */
     state,
   });
 

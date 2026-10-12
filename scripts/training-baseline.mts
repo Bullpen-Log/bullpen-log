@@ -999,9 +999,18 @@ function buildDay(p: Player, i: number, st: State, v: Variant = {}): DailyPlan |
     rotationSeed: seed,
     lastLowerKey: history.lastLowerKey,
     lastUpperKey: history.lastUpperKey,
+    /*
+     * 직접 고르기(위 trainingGoal · override 와 같은 길)라 힘듦 급증이면 본운동 세트 −1(P5-e) — training-setup.ts 가 '직접 고르기'에서
+     * 넘기는 짝 그대로. '그래도 고른 대로'는 안 고른다(override 와 같이 경고를 넘기지 않는 사람).
+     */
+    reduceForEffort: true,
+    overrideEffort: false,
     override: false,
     caution: [],
-    /* 오늘 상태 한 장 — training-setup.ts 가 gatherFactsAndPlan 의 state 를 넘기는 것과 같은 짝(양 조절이 body 를 읽는다, P5-d) */
+    /*
+     * 오늘 상태 한 장 — training-setup.ts 가 gatherFactsAndPlan 의 state 를 넘기는 것과 같은 짝(양 조절이 body · 힘듦 급증을 읽는다,
+     * P5-d · e)
+     */
     state,
   });
   return isHalted(built) ? null : built;

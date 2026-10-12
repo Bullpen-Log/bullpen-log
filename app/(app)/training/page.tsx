@@ -468,6 +468,8 @@ export default async function TrainingPage({
       checkedIn={core.hasCheckinToday}
       returnTo="/training"
       clash={core.workoutClash}
+      /* 최근 운동 힘듦 급증 — 직접 고르기에 경고 한 줄 · '그래도 고른 대로'(2판 P5-e, lib/report/today-data.ts) */
+      effortSpike={core.effortSpike}
       preferredWorkout={core.preferredWorkout}
       /* 오늘 직접 골라 만들었으면 다시 만들 때도 그쪽으로 연다 */
       startMode={savedPlan && !savedPlan.auto ? 'manual' : 'auto'}

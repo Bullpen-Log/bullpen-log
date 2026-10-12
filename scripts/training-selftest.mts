@@ -21599,7 +21599,11 @@ console.log(
   check(
     'P5 양 (가) 셋 다 — 신호 차례(평소 → 잠 → 근육통)로 이유 셋, 한 줄은 앞 마디를 …하고로 잇는다',
     all3 != null &&
-      json(all3.signals) === json(VOLUME_SIGNALS) &&
+      /*
+       * P5 로 바뀜(P5-e) — 넷째 신호 힘듦 급증(effortSpike)이 VOLUME_SIGNALS 끝에 붙었다. 몸 신호 셋을 다 켠 날은 그 목록의 앞 셋이다
+       * (급증은 load 칸 · reduceForEffort 로만 켜진다 — '[2판 P5] 힘듦 급증' 절).
+       */
+      json(all3.signals) === json(VOLUME_SIGNALS.slice(0, 3)) &&
       all3.why.length === 3 &&
       all3.line === '컨디션이 평소보다 낮고 잠이 부족하고 근육통이 많아' + TAIL,
     all3?.line
@@ -22096,6 +22100,643 @@ console.log(
         /override: !auto && formData\.get\('overrideCondition'\) === 'on',\s*state,\s*\}\);/.test(
           setup
         )
+    );
+  }
+}
+
+/* ═══════════════════ [2판 P5] 힘듦 급증 — 직접 고르기 세트 −1 · '그래도 고른 대로' · 자동 맞춤은 시간 한 번(lib/report/volume.ts · daily-plan.ts · auto-setup.ts) (2026-10-12) ═══════════════════ */
+console.log(
+  "\n[2판 P5] 힘듦 급증 — 직접 고르기는 본운동 세트 −1(강도는 그대로) · '그래도 고른 대로'는 그 몫만 되돌림 · 자동 맞춤은 시간을 한 번만 줄임(2026-10-12)"
+);
+{
+  /*
+   * 왜 보는가. 최근 운동 힘듦 급증(facts.condition.trainingEffort.spikeFlag — 운동 끝 힘듦이 7일 안 3개 이상 · 7일 평균이 28일 평균보다
+   * 2 이상 높음, 2판 P2)을 P4 는 날 종류(어제 중간 부하와 겹치면 회복)에만 썼다. P5-e(사용자 결정 2026-10-12)는 남은 몫을 쓴다 —
+   * 직접 고르기는 경고 한 줄과 '그래도 고른 대로'를 보이고 안 고르면 본운동 세트를 한 개씩 줄이며(강도는 안 내린다), 고르면 그 몫만
+   * 되돌린다(다른 신호 · 안전 거르기 · 테마는 그대로). 자동 맞춤은 세트 대신 시간을 한 단계 줄이되 한 번만(부하 · 잠 · 근육통과 겹쳐도).
+   * (가) 판정, (나) 일정에 대기, (다) buildDailyPlan 과 '그래도' 경계, (라) P3 160조합 불변식, (마) 자동 맞춤(검토안 (i)),
+   * (바) 지문은 P4 가 넣은 칸 그대로(검토안 (k)), (사) 소스의 약속을 본다.
+   */
+  const json = (v: unknown) => JSON.stringify(v);
+  const TAIL = ' 본운동을 한 세트씩 줄였어요.';
+  const EFFORT_WHY = '최근 운동 힘듦이 평소보다 높아요.';
+  const EFFORT_LINE = '최근 운동이 평소보다 힘들어' + TAIL;
+  const bodyOf = (
+    on: Partial<VolumeStateInput['body']> = {},
+    effortSpike?: boolean
+  ): VolumeStateInput => ({
+    ...(effortSpike === undefined ? {} : { load: { effortSpike } }),
+    body: {
+      belowUsual: false,
+      condition: 8,
+      usualCondition: null,
+      sleepShort: false,
+      sleepHours: null,
+      soreness: null,
+      soreMany: false,
+      soreSevere: false,
+      ...on,
+    },
+  });
+  /* 어제 안 던진 사람 — 급증이 어제 중간 부하와 겹치면 날 종류가 회복으로 보내서(microcycle.ts R2) 근력 날을 보려면 어제를 비운다 */
+  const QUIET = [0, 38, 0, 35, 0, 40, 0];
+  /* 운동 끝 힘듦 — 7일 안 9 셋, 그 앞 5 넷(급증) / 7일 안 5 셋(평소) */
+  const spikeOf = (f: ReturnType<typeof factsFor>, spike = true) => ({
+    ...f,
+    condition: {
+      ...f.condition,
+      trainingEffort: trainingEffortOf(
+        [
+          ...[1, 2, 4].map((d) => ({
+            date: dayBefore(d).slice(0, 10),
+            intensity: spike ? 9 : 5,
+          })),
+          ...[9, 12, 16, 20].map((d) => ({
+            date: dayBefore(d).slice(0, 10),
+            intensity: 5,
+          })),
+        ],
+        f.asOf
+      ),
+    },
+  });
+  const calmQ = factsFor({ condition: 8, pitches: QUIET });
+  const spikeQ = spikeOf(calmQ);
+  check(
+    'P5 힘듦 (준비) 시험의 사람 — 급증 facts 는 깃발이 서고 평소 facts 는 안 서며, 둘 다 근력 날(어제 안 던짐 — 급증만으로 회복이 안 된다)',
+    spikeQ.condition.trainingEffort?.spikeFlag === true &&
+      spikeOf(calmQ, false).condition.trainingEffort?.spikeFlag === false &&
+      dayKindOf(spikeQ).rank !== 'recovery' &&
+      dayKindOf(spikeQ).rule === dayKindOf(calmQ).rule &&
+      buildDayState({ facts: spikeQ, plan: buildPitchPlan(spikeQ) }).load
+        .effortSpike === true
+  );
+
+  /* ── (가) decideVolume — 급증은 reduceForEffort 일 때만, 세트만(강도 그대로) ── */
+  const spikeAlone = decideVolume(bodyOf({}, true), { reduceForEffort: true });
+  check(
+    "P5 힘듦 (가) 급증만 · 줄이기 켬 → 세트 −1 · 강도 그대로(0) · 이유 한 줄(오늘 상태 한 장과 같은 말) · '최근 운동이 평소보다 힘들어 본운동을 한 세트씩 줄였어요.'",
+    json(spikeAlone) ===
+      json({
+        setDelta: -1,
+        intensityStep: 0,
+        signals: ['effortSpike'],
+        why: [EFFORT_WHY],
+        line: EFFORT_LINE,
+      }),
+    json(spikeAlone)
+  );
+  check(
+    'P5 힘듦 (가) 줄이기를 안 켜면(자동 맞춤 · 옛 부르는 쪽) 급증이 있어도 null, 급증 없음 · load 칸 없음(P5-d 입력)은 켜도 null',
+    decideVolume(bodyOf({}, true)) === null &&
+      decideVolume(bodyOf({}, true), { reduceForEffort: false }) === null &&
+      decideVolume(bodyOf({}, false), { reduceForEffort: true }) === null &&
+      decideVolume(bodyOf(), { reduceForEffort: true }) === null
+  );
+  {
+    const sleepy = bodyOf({ sleepShort: true, sleepHours: 5 }, true);
+    const both = decideVolume(sleepy, { reduceForEffort: true });
+    const ALL_ON = bodyOf(
+      {
+        belowUsual: true,
+        condition: 6,
+        usualCondition: 8,
+        sleepShort: true,
+        sleepHours: 5,
+        soreness: 4,
+        soreMany: true,
+      },
+      true
+    );
+    const four = decideVolume(ALL_ON, { reduceForEffort: true });
+    check(
+      "P5 힘듦 (가) 몸 신호와 겹치면 세트는 여전히 −1(두 번 안 줄임) · 강도 −1(몸 신호 몫) · 급증이 끝 마디 — '잠이 부족하고 최근 운동이 평소보다 힘들어 …', 넷 다 켜면 VOLUME_SIGNALS 그대로",
+      both != null &&
+        json(both.signals) === json(['sleepShort', 'effortSpike']) &&
+        both.setDelta === -1 &&
+        both.intensityStep === -1 &&
+        json(both.why) === json(['어젯밤 5시간만 잤어요.', EFFORT_WHY]) &&
+        both.line === '잠이 부족하고 ' + EFFORT_LINE &&
+        four != null &&
+        json(four.signals) === json(VOLUME_SIGNALS) &&
+        four.line ===
+          '컨디션이 평소보다 낮고 잠이 부족하고 근육통이 많고 ' + EFFORT_LINE,
+      json([both?.line, four?.line])
+    );
+    check(
+      'P5 힘듦 (가) 줄이기를 안 켜면 몸 신호만의 판정은 P5-d 와 글자까지 같다(급증 칸이 있어도)',
+      json(decideVolume(ALL_ON)) === json(decideVolume({ body: ALL_ON.body })) &&
+        json(decideVolume(sleepy)) === json(decideVolume({ body: sleepy.body }))
+    );
+  }
+  {
+    /* 격자 — 몸 4(없음 · 평소 낮음 · 잠 · 근육통 '많이') × 급증 3(칸 없음 · 거짓 · 참) × 줄이기 2 */
+    const BODIES: Partial<VolumeStateInput['body']>[] = [
+      {},
+      { belowUsual: true, condition: 6, usualCondition: 8 },
+      { sleepShort: true, sleepHours: 5 },
+      { soreness: 4, soreMany: true },
+    ];
+    const bad: string[] = [];
+    let cells = 0;
+    for (const [bi, on] of BODIES.entries())
+      for (const spike of [undefined, false, true])
+        for (const reduce of [false, true]) {
+          cells++;
+          const input = bodyOf(on, spike);
+          const d = decideVolume(input, { reduceForEffort: reduce });
+          const body = bi > 0;
+          const effort = reduce && spike === true;
+          const again = decideVolume(input, { reduceForEffort: reduce });
+          if (!body && !effort) {
+            if (d !== null) bad.push(`${bi}/${spike}/${reduce} 없어야`);
+            continue;
+          }
+          if (
+            d == null ||
+            json(again) !== json(d) ||
+            d.setDelta !== -1 ||
+            d.intensityStep !== (body ? -1 : 0) ||
+            d.signals.includes('effortSpike') !== effort ||
+            d.why.length !== d.signals.length ||
+            json(VOLUME_SIGNALS.filter((s) => d.signals.includes(s))) !==
+              json(d.signals) ||
+            !d.line.endsWith(TAIL) ||
+            d.line.length > 64 ||
+            [d.line, ...d.why].some(
+              (l) => l.includes('—') || l.includes('**') || !l.endsWith('요.')
+            )
+          ) {
+            bad.push(`${bi}/${spike}/${reduce} ${json(d)}`);
+          }
+        }
+    check(
+      `P5 힘듦 (가) 격자 ${cells}가지 — 급증 신호는 줄이기 · 깃발이 둘 다일 때만, 세트는 늘 −1, 강도는 몸 신호가 있을 때만 −1, 신호 차례 · 같은 입력 같은 값 · 한 줄 64자 안 · 해요체 · 줄표 없음`,
+      bad.length === 0 && cells === 24,
+      bad.slice(0, 2).join(' · ')
+    );
+  }
+  {
+    const st = buildDayState({ facts: spikeQ, plan: buildPitchPlan(spikeQ) });
+    const d = decideVolume(st, { reduceForEffort: true });
+    check(
+      'P5 힘듦 (가) 실제 facts(급증) — 오늘 상태 한 장을 그대로 넘기면 급증이 걸리고, 이유 줄이 오늘 상태 한 장의 이유 줄에 그대로 있다',
+      d != null &&
+        json(d.signals) === json(['effortSpike']) &&
+        d.why.every((l) => st.why.includes(l)),
+      json([d?.why, st.why])
+    );
+  }
+
+  /* ── (나) volumeForDay · 저장 — 강도 0 인 조절도 실리고 읽히고 무게를 멈춘다 ── */
+  {
+    const v = volumeForDay({
+      decision: spikeAlone,
+      themeKey: 'lower',
+      conditioning: false,
+      exercises: [{ category: '하체 스트렝스', intensity: '높음', sets: 4, reps: 5 }],
+    });
+    check(
+      'P5 힘듦 (나) 근력 날이면 { −1 · 0 · 급증 한 줄 } 이 실리고, 저장했다 읽어도 같고, 그날은 무게를 안 올린다(holdsWeight)',
+      json(v) === json({ setDelta: -1, intensityStep: 0, why: EFFORT_LINE }) &&
+        json(readPlanVolume(JSON.parse(json(v)))) === json(v) &&
+        holdsWeight({ volume: v }),
+      json(v)
+    );
+  }
+
+  /* ── (다) buildDailyPlan — 목록 · 근거는 그대로, 세트만. '그래도 고른 대로'는 그 몫만 되돌린다 ── */
+  const owned = [ALWAYS_OWNED, ...SELECTABLE_EQUIPMENT];
+  const libById = new Map(library.map((ex) => [ex.id, ex]));
+  const SIDES = [
+    { lastLowerKey: null, lastUpperKey: '2026-06-14' },
+    { lastLowerKey: '2026-06-14', lastUpperKey: null },
+  ] as const;
+  const effortDay = (
+    facts: ReturnType<typeof factsFor>,
+    opts: {
+      reduce?: boolean;
+      keep?: boolean;
+      override?: boolean;
+      goal?: string;
+      side?: (typeof SIDES)[number];
+      state?: VolumeStateInput;
+    } = {}
+  ) =>
+    buildDailyPlan({
+      user: { ownedEquipment: owned, trainingLevel: null },
+      facts,
+      plan: buildPitchPlan(facts),
+      library,
+      availableToday: null,
+      requestedMinutes: 60,
+      trainingGoal: opts.goal ?? '근력 향상',
+      recentIds: new Set<string>(),
+      lastLowerKey: opts.side?.lastLowerKey ?? null,
+      lastUpperKey: opts.side?.lastUpperKey ?? null,
+      ...(opts.reduce === undefined ? {} : { reduceForEffort: opts.reduce }),
+      ...(opts.keep === undefined ? {} : { overrideEffort: opts.keep }),
+      ...(opts.override === undefined ? {} : { override: opts.override }),
+      ...(opts.state ? { state: opts.state } : {}),
+    });
+  const minutesOf = (d: DailyPlan) =>
+    Math.round(
+      d.picks.reduce(
+        (s, k) => s + estimateMinutes(planPrescription(libById.get(k.exerciseId)!, d)),
+        0
+      )
+    );
+  {
+    const bad: string[] = [];
+    let pairs = 0;
+    for (const side of SIDES)
+      for (const goal of ['근력 향상', '파워 향상']) {
+        const calm = effortDay(calmQ, { side, goal });
+        const auto = effortDay(spikeQ, { side, goal });
+        const cut = effortDay(spikeQ, { side, goal, reduce: true });
+        const kept = effortDay(spikeQ, { side, goal, reduce: true, keep: true });
+        if (isHalted(calm) || isHalted(auto) || isHalted(cut) || isHalted(kept)) {
+          bad.push(`${goal} 멈춤`);
+          continue;
+        }
+        pairs++;
+        const { volume, estimatedMinutes, ...cutRest } = cut;
+        const { estimatedMinutes: calmMinutes, ...calmRest } = calm;
+        const { overrodeEffort, ...keptRest } = kept;
+        if (
+          (calm.theme.key !== 'lower' && calm.theme.key !== 'upper') ||
+          json(auto) !== json(calm) ||
+          json(cutRest) !== json(calmRest) ||
+          json(volume) !== json({ setDelta: -1, intensityStep: 0, why: EFFORT_LINE }) ||
+          !(estimatedMinutes < calmMinutes) ||
+          estimatedMinutes !== minutesOf(cut) ||
+          overrodeEffort !== true ||
+          json(keptRest) !== json(calm) ||
+          kept.overrode !== false
+        ) {
+          bad.push(
+            `${calm.theme.key}/${goal} ${calmMinutes}→${estimatedMinutes} ${json(volume)} ${overrodeEffort}`
+          );
+        }
+      }
+    check(
+      `P5 힘듦 (다) 급증 날(${pairs}쌍 — 하체 · 상체 × 근력 · 파워): 줄이기 안 켬 = 평소 일정 글자 그대로 · 켬 = 목록 · 근거 · 뺀 것 · 테마는 그대로이고 조절 { −1 · 0 } 과 줄어든 시간만 · '그래도' = 평소 일정 + overrodeEffort 하나(몸 상태 경고 넘김 overrode 는 거짓 그대로)`,
+      pairs === 4 && bad.length === 0,
+      bad.join(' · ')
+    );
+  }
+  {
+    /* '그래도'의 경계 — 되돌린 것이 없으면 표시도 없다. 급증인지는 서버가 오늘 상태로 다시 본다 */
+    const plain = effortDay(calmQ, { side: SIDES[0] });
+    const keptCalm = effortDay(calmQ, { side: SIDES[0], reduce: true, keep: true });
+    const keptNoReduce = effortDay(spikeQ, { side: SIDES[0], keep: true });
+    const sleepy = spikeOf(factsFor({ condition: 8, sleepHours: 5, pitches: QUIET }));
+    const sleepyCut = effortDay(sleepy, { side: SIDES[0], reduce: true });
+    const sleepyKept = effortDay(sleepy, { side: SIDES[0], reduce: true, keep: true });
+    const sleepyAuto = effortDay(sleepy, { side: SIDES[0] });
+    const tired = spikeOf(factsFor({ condition: 3, pitches: QUIET }));
+    const tiredCut = effortDay(tired, { reduce: true });
+    const tiredKept = effortDay(tired, { reduce: true, keep: true });
+    const condCut = effortDay(spikeQ, {
+      side: SIDES[0],
+      goal: CONDITIONING_GOAL,
+      reduce: true,
+    });
+    const condKept = effortDay(spikeQ, {
+      side: SIDES[0],
+      goal: CONDITIONING_GOAL,
+      reduce: true,
+      keep: true,
+    });
+    const ok = (d: ReturnType<typeof effortDay>): d is DailyPlan => !isHalted(d);
+    check(
+      "P5 힘듦 (다) '그래도'의 경계 — 급증이 없는 날 · 줄이기를 안 켠 날에 '그래도'를 보내도 아무 일 없음(서버가 다시 셈)",
+      ok(plain) &&
+        ok(keptCalm) &&
+        json(keptCalm) === json(plain) &&
+        ok(keptNoReduce) &&
+        json(keptNoReduce) === json(effortDay(spikeQ, { side: SIDES[0] }))
+    );
+    check(
+      "P5 힘듦 (다) '그래도'는 급증 몫만 — 짧은 밤과 겹친 날은 '그래도'여도 잠 몫의 −1 이 남고(표시 없음, 되돌린 세트가 없다) · 안 고르면 한 줄에 둘 다 · 세트는 한 번만 줄어 판정 없는 쪽(자동 맞춤)과 같은 세트",
+      ok(sleepyCut) &&
+        ok(sleepyKept) &&
+        ok(sleepyAuto) &&
+        json(sleepyCut.volume) ===
+          json({
+            setDelta: -1,
+            intensityStep: -1,
+            why: '잠이 부족하고 ' + EFFORT_LINE,
+          }) &&
+        json(sleepyKept.volume) ===
+          json({ setDelta: -1, intensityStep: -1, why: '잠이 부족해' + TAIL }) &&
+        !('overrodeEffort' in sleepyKept) &&
+        json(sleepyKept) === json(sleepyAuto) &&
+        sleepyCut.picks.every(
+          (k) =>
+            planPrescription(libById.get(k.exerciseId)!, sleepyCut).sets ===
+            planPrescription(libById.get(k.exerciseId)!, sleepyKept).sets
+        ),
+      json([ok(sleepyCut) && sleepyCut.volume, ok(sleepyKept) && sleepyKept.volume])
+    );
+    check(
+      "P5 힘듦 (다) 줄일 것이 없는 날 — 회복 날(컨디션 3)과 컨디셔닝 목표는 급증이어도 조절이 없고, '그래도'를 골라도 표시가 없다",
+      ok(tiredCut) &&
+        tiredCut.theme.key === 'recovery' &&
+        !('volume' in tiredCut) &&
+        ok(tiredKept) &&
+        json(tiredKept) === json(tiredCut) &&
+        ok(condCut) &&
+        !('volume' in condCut) &&
+        ok(condKept) &&
+        json(condKept) === json(condCut),
+      `${ok(tiredCut) ? tiredCut.theme.key : '멈춤'}`
+    );
+    const condOverride = effortDay(spikeQ, {
+      side: SIDES[0],
+      reduce: true,
+      override: true,
+    });
+    const cutOnly = effortDay(spikeQ, { side: SIDES[0], reduce: true });
+    check(
+      'P5 힘듦 (다) 두 경고는 따로 — 몸 상태 경고를 넘기는 체크(override)는 급증의 세트 −1 을 안 되돌린다',
+      ok(condOverride) &&
+        ok(cutOnly) &&
+        json(condOverride.volume) === json(cutOnly.volume) &&
+        condOverride.volume != null
+    );
+    const given = effortDay(spikeQ, {
+      side: SIDES[1],
+      reduce: true,
+      state: buildDayState({ facts: spikeQ, plan: buildPitchPlan(spikeQ) }),
+    });
+    const handBody = effortDay(spikeQ, {
+      side: SIDES[1],
+      reduce: true,
+      state: bodyOf(),
+    });
+    check(
+      'P5 힘듦 (다) 앱처럼 오늘 상태 한 장을 넘긴 일정 = 안 넘긴 일정 · load 칸 없는 손 입력은 급증이 없는 것으로 읽는다(P5-d 시험 입력 그대로)',
+      json(given) === json(effortDay(spikeQ, { side: SIDES[1], reduce: true })) &&
+        ok(handBody) &&
+        !('volume' in handBody) &&
+        !('overrodeEffort' in handBody)
+    );
+    const saved = ok(cutOnly) ? readDailyPlan(JSON.parse(json(cutOnly))) : null;
+    check(
+      'P5 힘듦 (다) 저장했다 읽은 일정 — 세트는 목표 처방 −1(무게 드는 3세트 이상만) · 시간은 같은 셈 · 무게를 멈춘다',
+      saved != null &&
+        holdsWeight(saved) &&
+        minutesOf(saved) === saved.estimatedMinutes &&
+        saved.picks.every((k) => {
+          const ex = libById.get(k.exerciseId)!;
+          const g = goalPrescription(ex, saved.goal);
+          const want =
+            HEAVY_CATEGORIES.includes(g.category) &&
+            g.sets != null &&
+            g.sets > VOLUME_MIN_SETS
+              ? g.sets - 1
+              : g.sets;
+          return planPrescription(ex, saved).sets === want;
+        })
+    );
+  }
+
+  /* ── (라) P3 160조합 — 급증을 켠 같은 facts 로 세 번(안 켬 · 줄이기 · 그래도) ── */
+  {
+    let built = 0;
+    let cut = 0;
+    let kept = 0;
+    const bad: string[] = [];
+    for (const [i, base] of p3ComboFactsSeen.entries()) {
+      const facts = spikeOf(base);
+      const run = (reduce: boolean, keep: boolean) =>
+        buildDailyPlan({
+          user: { ownedEquipment: owned, trainingLevel: null },
+          facts,
+          plan: buildPitchPlan(facts),
+          library,
+          availableToday: null,
+          requestedMinutes: 45,
+          recentIds: new Set<string>(),
+          lastLowerKey: null,
+          lastUpperKey: null,
+          reduceForEffort: reduce,
+          overrideEffort: keep,
+        });
+      const off = run(false, false);
+      const on = run(true, false);
+      const keep = run(true, true);
+      if (isHalted(off) !== isHalted(on) || isHalted(on) !== isHalted(keep)) {
+        bad.push(`p0-${i} 멈춤 다름`);
+        continue;
+      }
+      if (isHalted(off) || isHalted(on) || isHalted(keep)) continue;
+      built++;
+      const { volume: vOn, estimatedMinutes: mOn, ...restOn } = on;
+      const { volume: vOff, estimatedMinutes: mOff, ...restOff } = off;
+      if (json(restOn) !== json(restOff)) bad.push(`p0-${i} 목록 · 근거 다름`);
+      if (mOn > mOff) bad.push(`p0-${i} 시간 늘어남`);
+      const strength =
+        (on.theme.key === 'lower' || on.theme.key === 'upper') &&
+        on.goal !== CONDITIONING_GOAL;
+      if (vOn && !strength) bad.push(`p0-${i} ${on.theme.key} 에 조절`);
+      if (vOn && vOn.setDelta !== -1) bad.push(`p0-${i} −1 아님`);
+      if (vOff && (!vOn || vOn.intensityStep !== vOff.intensityStep))
+        bad.push(`p0-${i} 몸 신호 조절이 바뀜`);
+      if (vOn && !vOff) {
+        cut++;
+        if (vOn.intensityStep !== 0 || vOn.why !== EFFORT_LINE)
+          bad.push(`p0-${i} 급증만인데 ${json(vOn)}`);
+      }
+      /* 그래도 = 안 켬 + (급증 몫이 실제로 줄였던 날만) 표시 하나 */
+      const { overrodeEffort, ...keepRest } = keep;
+      if (json(keepRest) !== json(off)) bad.push(`p0-${i} 그래도 ≠ 안 켬`);
+      const wantMark = vOn != null && vOff == null;
+      if ((overrodeEffort === true) !== wantMark)
+        bad.push(`p0-${i} 표시 ${overrodeEffort}`);
+      if (overrodeEffort) kept++;
+    }
+    check(
+      `P5 힘듦 (라) 160조합(만든 ${built}개, 급증만으로 줄인 ${cut}개 · 그래도 표시 ${kept}개) — 목록 · 근거는 그대로 · 시간은 안 늘고 · 조절은 근력 날에만 −1 · 몸 신호 조절의 강도는 그대로 · 그래도 = 안 켬 + 되돌린 날에만 표시`,
+      built > 0 && cut > 0 && kept === cut && bad.length === 0,
+      bad.slice(0, 3).join(' · ')
+    );
+  }
+
+  /* ── (마) 자동 맞춤 — 근력 날 시간 한 단계, 한 번만(검토안 (i)) ── */
+  {
+    const sig = (over: Partial<WorkoutSignals> = {}): WorkoutSignals => ({
+      zone: 'optimal',
+      ratio: 1.02,
+      recentDays: 3,
+      recentMinutes: 150,
+      historyDays: 40,
+      daysNeeded: 0,
+      volume: {
+        byPart: VOLUME_GROUPS.map((g) => ({
+          key: g.key,
+          label: g.label,
+          hint: g.hint,
+          sets: 6,
+          previous: 6,
+        })),
+        armCare: { sets: 4, previous: 4 },
+      },
+      ...over,
+    });
+    const fence = (
+      facts: ReturnType<typeof factsFor>,
+      workout = sig(),
+      defaultMinutes = 60
+    ) =>
+      decideAutoFence({
+        facts,
+        plan: buildPitchPlan(facts),
+        workout,
+        defaultMinutes,
+        lastLowerKey: null,
+        lastUpperKey: null,
+      });
+    const RULE = '최근 7일 운동 힘듦이 평소보다 높음 → 시간 한 단계 줄임';
+    const calm = fence(calmQ);
+    const spiked = fence(spikeQ);
+    check(
+      "P5 힘듦 (마) 근력 날 급증 → 규칙 줄 하나 · 고를 시간이 한 단계 아래(60 → 45) · 초안 45분 · 이유 '최근 운동이 평소보다 힘들었다고 하셔서 …' · 목표 · 날 · 부위는 그대로",
+      spiked.strengthDay &&
+        json(spiked.rules) === json([...calm.rules, RULE]) &&
+        Object.values(spiked.minutes).every((ms) => Math.max(...ms) === 45) &&
+        spiked.draft.minutes === 45 &&
+        spiked.draft.reason ===
+          '최근 운동이 평소보다 힘들었다고 하셔서 오늘은 조금 짧게 가요. 목표는 근력 향상으로 두었어요. 시간은 45분으로 줄였어요.' &&
+        json(spiked.goals) === json(calm.goals) &&
+        json(spiked.focuses) === json(calm.focuses) &&
+        json(spiked.day) === json(calm.day) &&
+        spiked.fixedGoal === calm.fixedGoal,
+      json([spiked.rules, spiked.draft.reason])
+    );
+    const power = fence(
+      spikeOf(factsFor({ condition: 8, pitches: QUIET, wants: '파워' })),
+      sig(),
+      90
+    );
+    check(
+      'P5 힘듦 (마) 체크인에서 파워를 고른 날 · 기본 90분 → 목표는 고른 뜻대로(파워 향상), 시간은 75분으로 한 단계 · 이유가 그 둘을 다 말한다',
+      power.fixedGoal === '파워 향상' &&
+        power.rules.filter((r) => r === RULE).length === 1 &&
+        power.draft.minutes === 75 &&
+        power.draft.reason ===
+          '최근 운동이 평소보다 힘들었다고 하셔서 오늘은 조금 짧게 가요. 체크인에서 파워 운동을 고르셔서 목표는 파워 향상으로 잡았어요. 시간은 75분으로 줄였어요.',
+      power.draft.reason
+    );
+    const loaded = sig({ zone: 'caution', ratio: 1.41 });
+    const sore = factsFor({ condition: 8, soreness: 4, pitches: QUIET });
+    const tired = factsFor({ condition: 3, pitches: QUIET });
+    check(
+      'P5 힘듦 (마) 한 번만(검토안 i) — 운동 부하 주의 · 근육통 많이로 이미 줄인 날, 회복 날(컨디션 3), 기본 45분(더 줄일 데 없음), 깃발이 거짓인 날은 급증이 없는 날과 울타리 전체가 글자까지 같다(줄 · 시간 · 이유)',
+      json(fence(spikeQ, loaded)) === json(fence(calmQ, loaded)) &&
+        json(fence(spikeOf(sore))) === json(fence(sore)) &&
+        json(fence(spikeOf(tired))) === json(fence(tired)) &&
+        json(fence(spikeQ, sig(), 45)) === json(fence(calmQ, sig(), 45)) &&
+        json(fence(spikeOf(calmQ, false))) === json(calm) &&
+        !fence(spikeQ, sig(), 45).draft.reason.includes('줄였어요')
+    );
+    {
+      /* 격자 — 컨디션 2 × 근육통 2 × 부하 2 × 기본 시간 3 × 고른 운동 2: 급증이 시간을 두 단계 줄이는 일이 없다 */
+      const bad: string[] = [];
+      let cells = 0;
+      let shortened = 0;
+      for (const condition of [8, 3])
+        for (const soreness of [undefined, 4])
+          for (const zone of ['optimal', 'caution'] as const)
+            for (const minutes of [45, 60, 90])
+              for (const wants of [null, '파워']) {
+                cells++;
+                const f = factsFor({ condition, soreness, pitches: QUIET, wants });
+                const w = sig(zone === 'caution' ? { zone, ratio: 1.41 } : {});
+                const a = fence(f, w, minutes);
+                const b = fence(spikeOf(f), w, minutes);
+                const effortLines = b.rules.filter((r) => r === RULE).length;
+                const plainShort = a.rules.some((r) => r.includes('줄임'));
+                if (json(b.goals) !== json(a.goals)) bad.push(`${cells} 목표가 바뀜`);
+                if (effortLines > 1) bad.push(`${cells} 줄 둘`);
+                if (plainShort && json(b) !== json(a))
+                  bad.push(`${cells} 이미 줄였는데 다름`);
+                for (const g of a.goals) {
+                  const choices = minutesChoicesFor(g);
+                  const am = Math.max(...a.minutes[g]);
+                  const bm = Math.max(...b.minutes[g]);
+                  const step = choices.indexOf(am) - choices.indexOf(bm);
+                  if (step < 0 || step > 1) bad.push(`${cells} ${g} ${am}→${bm}`);
+                  if (step === 1 && effortLines !== 1)
+                    bad.push(`${cells} 줄 없이 줄임`);
+                }
+                if (effortLines === 1) {
+                  shortened++;
+                  if (!b.strengthDay || plainShort)
+                    bad.push(`${cells} 줄일 날이 아닌데 줄 있음`);
+                  if (!b.draft.reason.startsWith('최근 운동이 평소보다 힘들었다고')) {
+                    bad.push(`${cells} 이유 ${b.draft.reason}`);
+                  }
+                }
+                if (effortLines === 0 && json(b) !== json(a))
+                  bad.push(`${cells} 줄 없이 다름`);
+              }
+      check(
+        `P5 힘듦 (마) 자동 맞춤 격자(검토안 i) ${cells}가지(급증으로 줄인 ${shortened}가지) — 고를 시간은 그대로이거나 한 단계만 아래 · 줄은 줄였을 때만 하나 · 목표는 그대로 · 이미 줄인 날은 글자까지 같음`,
+        bad.length === 0 && shortened > 0,
+        bad.slice(0, 3).join(' · ')
+      );
+    }
+  }
+
+  /* ── (바) 일정 지문 — P4 가 넣은 effortSpike 칸 그대로(검토안 (k), 확인만) ── */
+  {
+    const savedFp = fingerprintOf(calmQ);
+    const spikeFp = fingerprintOf(spikeQ);
+    const changes = stateChangesOf(
+      { fingerprint: fingerprintOf(spikeOf(calmQ, false)) },
+      spikeQ
+    );
+    check(
+      'P5 힘듦 (바) 지문(검토안 k) — effortSpike 는 FINGERPRINT_OPTIONAL_KEYS 의 칸 · 힘듦 칸이 없는 facts 의 지문엔 없고 급증 facts 엔 참 · 거짓 → 참이면 그 한 줄(키 effortSpike) · 같은 facts 는 같은 지문',
+      (FINGERPRINT_OPTIONAL_KEYS as readonly string[]).includes('effortSpike') &&
+        !('effortSpike' in savedFp) &&
+        spikeFp.effortSpike === true &&
+        changes.filter((c) => c.key === 'effortSpike').length === 1 &&
+        json(fingerprintOf(spikeQ)) === json(spikeFp),
+      json(changes)
+    );
+  }
+
+  /* ── (사) 소스의 약속 — 직접 고르기만 줄이기 · 폼의 체크 이름 · 오늘 자료가 넘기는 값 · 기준선은 직접 고르기 짝 ── */
+  {
+    const strip = (rel: string) =>
+      readFileSync(new URL(`../${rel}`, import.meta.url), 'utf8')
+        .replace(/\{\/\*[\s\S]*?\*\/\}/g, '')
+        .replace(/\/\*[\s\S]*?\*\//g, '')
+        .replace(/^\s*\/\/.*$/gm, '');
+    const setup = strip('app/actions/training-setup.ts');
+    const today = strip('lib/report/today-data.ts');
+    const page = strip('app/(app)/training/page.tsx');
+    const form = strip('components/training-forms.tsx');
+    const tool = strip('scripts/training-baseline.mts');
+    check(
+      'P5 힘듦 (사) 일정 만들기 서버 동작 — 직접 고르기만 줄이기(reduceForEffort: !auto) · 폼의 overrideEffort 체크는 직접 고르기에서만 읽는다',
+      /reduceForEffort: !auto,\s*overrideEffort: !auto && formData\.get\('overrideEffort'\) === 'on',/.test(
+        setup
+      )
+    );
+    check(
+      "P5 힘듦 (사) 화면 길 — 오늘 자료는 멈추지 않은 날의 오늘 상태 한 장 급증을 넘기고, 트레이닝 화면이 폼에 건네고, 폼은 'overrideEffort' 체크 하나 · 컨디셔닝 목표에서는 안 보인다",
+      /effortSpike: !picked\.halted && state\.load\.effortSpike,/.test(today) &&
+        page.includes('effortSpike={core.effortSpike}') &&
+        form.split('name="overrideEffort"').length - 1 === 1 &&
+        /effortSpike && pickedGoal !== CONDITIONING_GOAL/.test(form)
+    );
+    check(
+      'P5 힘듦 (사) 기준선 하루 만들기는 직접 고르기와 같은 짝(줄이기 켬 · 그래도 안 고름)',
+      /reduceForEffort: true,\s*overrideEffort: false,/.test(tool)
     );
   }
 }

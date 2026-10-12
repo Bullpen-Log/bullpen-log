@@ -134,8 +134,15 @@ export type DailyPlan = {
    * 안 줄인 것으로 읽으니 version 은 그대로(focus 와 같은 까닭). 저장된 값이라 읽는 쪽이 readPlanVolume 으로 다시 본다.
    * P5-d(2026-10-12)부터 buildDailyPlan 이 넣는다 — 평소보다 낮은 컨디션 · 짧은 밤 · 근육통 '많이' 이상인 근력 날(decideVolume ·
    * volumeForDay). 운동 시작 때 세션 판에 얼고(freezePlan), 그 판에서는 자유 운동 무게를 올리지 않는다(holdsWeight).
+   * P5-e(2026-10-12)부터 직접 고르기의 최근 운동 힘듦 급증도 여기 실린다(세트만 −1, intensityStep 0 — buildDailyPlan 의 reduceForEffort).
    */
   volume?: PlanVolume;
+  /**
+   * 힘듦 급증 경고를 보고 '그래도 고른 대로'를 고른 날인가(2판 P5-e, 2026-10-12). 급증 몫이 실제로 세트를 줄였을 날에만 실린다 —
+   * 회복 · 보조 날 · 컨디셔닝 목표 · 다른 신호로 어차피 줄인 날은 되돌린 것이 없어 안 싣는다(overrode 와 같은 원칙: 넘긴 경고가
+   * 실제로 있었을 때만). 화면이 그 사실을 말한다(이유 줄 — P5 화면 단계). 옛 줄 · 안 넘긴 날에는 없으니 version 은 그대로.
+   */
+  overrodeEffort?: true;
 };
 
 /** 통증 등으로 일정을 만들지 않은 경우 */
@@ -167,6 +174,8 @@ export function buildDailyPlan<T extends ExerciseLike>({
   lastLowerKey,
   lastUpperKey,
   override = false,
+  reduceForEffort = false,
+  overrideEffort = false,
   caution = [],
   state,
 }: {
@@ -208,12 +217,25 @@ export function buildDailyPlan<T extends ExerciseLike>({
   lastUpperKey: string | null;
   /** 몸 상태 경고를 보고도 고른 대로 받겠다고 했는가 */
   override?: boolean;
+  /**
+   * 최근 운동 힘듦 급증(state.load.effortSpike)이면 본운동 세트를 한 개씩 줄일지(2판 P5-e) — 직접 고르기만 참이다
+   * (app/actions/training-setup.ts). 자동 맞춤은 대신 시간을 한 단계 줄이니(auto-setup.ts) 거짓 — 두 번 줄이지 않게. 급증이 아닌
+   * 날은 참이어도 아무 일이 없다(급증은 여기서 오늘 상태로 다시 읽는다 — 폼이 보낸 값을 믿지 않는다).
+   */
+  reduceForEffort?: boolean;
+  /**
+   * 힘듦 급증 경고를 보고 '그래도 고른 대로'를 골랐는가(일정 만들기 폼의 overrideEffort). 급증 몫의 세트 −1 만 되돌린다 — 다른 신호
+   * (평소보다 낮은 컨디션 · 짧은 밤 · 근육통)의 세트 −1 · 안전 거르기 · 테마는 그대로. reduceForEffort 가 거짓이면 뜻이 없다.
+   * 오늘 하루만의 결정이라 저장하지 않는다(override 와 같은 까닭) — 되돌린 사실만 overrodeEffort 로 남는다.
+   */
+  overrideEffort?: boolean;
   /** 조심할 부위. 그 부위의 무거운 운동을 뺀다(자동 맞춤의 규칙 초안은 늘 비어 있다) */
   caution?: AutoCaution[];
   /**
    * 오늘 상태 한 장(lib/engine/day-state.ts 의 DayState 를 그대로 넘기면 된다) — 앱은 gatherFactsAndPlan 이 같은 facts · plan 으로 만든
-   * 것을 넘긴다. 양 조절(decideVolume)이 body 를 읽는다. 안 주면 facts · plan 으로 여기서 만든다(body 는 facts 만으로 정해져 넘긴 것과
-   * 같은 값 — 자체 시험이 견준다). 고르기 · 안전 거르기는 이 칸을 안 읽는다(facts 를 읽는다).
+   * 것을 넘긴다. 양 조절(decideVolume)이 body 와 load.effortSpike(P5-e)를 읽는다. 안 주면 facts · plan 으로 여기서 만든다(둘 다 facts
+   * 만으로 정해져 넘긴 것과 같은 값 — 자체 시험이 견준다). load 가 없는 입력(시험의 손 입력)은 급증이 없는 것으로 읽는다. 고르기 ·
+   * 안전 거르기는 이 칸을 안 읽는다(facts 를 읽는다).
    */
   state?: VolumeStateInput;
 }): BuildResult {
@@ -342,13 +364,22 @@ export function buildDailyPlan<T extends ExerciseLike>({
    * 양 조절(2판 P5-d, lib/report/volume.ts) — 평소보다 낮은 컨디션 · 짧은 밤 · 근육통 '많이' 이상인 근력 날, 본운동 세트를 한 개씩.
    * 고른 뒤에 댄다: 고르는 목록은 줄이지 않은 날과 같다(위 pickForTheme 주석). 실제로 줄어든 운동이 있을 때만 싣고, 그날 시간은
    * 줄인 세트로 다시 센다(처방 한 길 — 화면 · 홈 시간이 같은 값을 낸다). 걸린 날만 칸이 생겨 안 걸린 날의 일정은 글자 그대로다.
+   *
+   * 힘듦 급증(P5-e)은 reduceForEffort 일 때만 신호가 되고, '그래도 고른 대로'(overrideEffort)면 그 신호만 끈다. 되돌린 사실은 급증
+   * 몫이 실제로 세트를 줄였을 날에만 남긴다 — 급증을 켠 판정으로는 줄고 끈 판정으로는 안 주는 날(다른 신호로 어차피 줄인 날은
+   * 되돌린 것이 없다).
    */
-  const volume = volumeForDay({
-    decision: decideVolume(state ?? buildDayState({ facts, plan })),
-    themeKey: shownTheme.key,
-    conditioning,
-    exercises: themed.picks.map((p) => p.exercise),
-  });
+  const dayState = state ?? buildDayState({ facts, plan });
+  const volumeOf = (withEffort: boolean) =>
+    volumeForDay({
+      decision: decideVolume(dayState, { reduceForEffort: withEffort }),
+      themeKey: shownTheme.key,
+      conditioning,
+      exercises: themed.picks.map((p) => p.exercise),
+    });
+  const volume = volumeOf(reduceForEffort && !overrideEffort);
+  const overrodeEffort =
+    reduceForEffort && overrideEffort && volume == null && volumeOf(true) != null;
   const estimatedMinutes = volume
     ? Math.round(
         themed.picks.reduce(
@@ -386,6 +417,7 @@ export function buildDailyPlan<T extends ExerciseLike>({
     },
     levelExcludedCount: leveled.excludedCount,
     ...(volume ? { volume } : {}),
+    ...(overrodeEffort ? { overrodeEffort: true as const } : {}),
   };
 }
 

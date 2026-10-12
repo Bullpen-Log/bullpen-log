@@ -35,7 +35,7 @@ import type { TrainingLoad } from '@/lib/training-load';
  * 자동 맞춤 — 목표·시간을 앱이 규칙으로 정하는 일정 만들기.
  *
  * 사용자는 장비만 고른다. 몸을 지키는 규칙(통증, 회복날·보조날, 운동 부하, 수면, 전신
- * 근육통, 체크인에서 고른 운동)이 울타리를 치고, 그 안의 '규칙 초안'(draft)이 오늘 방향이다.
+ * 근육통, 최근 운동 힘듦 급증, 체크인에서 고른 운동)이 울타리를 치고, 그 안의 '규칙 초안'(draft)이 오늘 방향이다.
  * 2026-10-07 AI 를 뺐다(사용자) — 예전에는 이 울타리 안에서 AI 가 골랐다.
  *
  * 운동 종목은 여기서 고르지 않는다. 방향이 정해지면 엔진이 안전 필터를 거쳐
@@ -321,6 +321,28 @@ export function decideAutoFence({
   }
 
   /*
+   * 최근 운동 힘듦 급증(facts.condition.trainingEffort.spikeFlag — 운동 끝 힘듦이 7일 안 3개 이상 · 7일 평균이 28일 평균보다 2 이상
+   * 높음, 2판 P2) — 근력 날이면 시간을 한 단계 줄인다(2판 P5-e, 사용자 결정 2026-10-12). 직접 고르기는 같은 날 본운동 세트를 한 개씩
+   * 줄이는데(lib/report/volume.ts, '그래도 고른 대로'로 되돌릴 수 있다) 자동 맞춤은 그 대신 시간이다 — 일정 만들기가 자동 맞춤에서는
+   * 세트를 안 줄인다(training-setup.ts reduceForEffort). 세트와 시간을 함께 줄이면 같은 신호로 두 번 줄인다.
+   *
+   * 근육통 뒤에 본다. 시간은 한 번만 줄인다(shorten 하나) — 운동 부하 · 잠 · 근육통으로 이미 줄였으면 그대로 두고 줄도 안 적는다
+   * (줄인 것이 없는데 '줄임'이라 적지 않게). 기본 시간이 이미 맨 아래(45분)여도 마찬가지다. 회복 · 보조 날은 근력 날이 아니라 안 본다 —
+   * 회복날은 effectiveMinutes 가 이미 줄이고, 보조 날은 무게 드는 운동이 없다. 어제 중간 부하와 겹친 급증은 날 종류가 이미 회복으로
+   * 보낸다(lib/engine/microcycle.ts R2).
+   */
+  let shortByEffort = false;
+  if (strengthDay && !shorten && facts.condition.trainingEffort?.spikeFlag === true) {
+    shortByEffort = goals.some((goal) => {
+      const base = nearestMinutesChoice(defaultMinutes, goal);
+      return oneStepDown(goal, base) < base;
+    });
+    shorten = shortByEffort;
+    if (shortByEffort)
+      rules.push('최근 7일 운동 힘듦이 평소보다 높음 → 시간 한 단계 줄임');
+  }
+
+  /*
    * 시간은 기본 시간을 넘지 않는다 — 줄이는 것만 고를 수 있다.
    *
    * 기본 시간은 그 사람이 운동에 쓸 수 있는 시간이다. 앱이 몸 상태를 보고
@@ -389,6 +411,7 @@ export function decideAutoFence({
         sleepDebt,
         shorten,
         soreHigh: shortBySoreness || dropPower ? soreWord : null,
+        effortShort: shortByEffort,
         preferred,
         hasHistory: workout.recentDays > 0,
         /* 회복날은 고른 시간보다 짧게 한다 — 이유에는 실제로 할 시간을 적는다 */
@@ -413,6 +436,7 @@ function draftReason({
   sleepDebt,
   shorten,
   soreHigh,
+  effortShort,
   preferred,
   hasHistory,
   actualMinutes,
@@ -426,6 +450,8 @@ function draftReason({
   shorten: boolean;
   /** 근육통 때문에 시간이나 고를 목표가 바뀐 날이면 그 말('많이'). 아니면 null */
   soreHigh: string | null;
+  /** 최근 운동 힘듦 급증으로 시간을 실제로 줄였는가(2판 P5-e) */
+  effortShort: boolean;
   preferred: string | null;
   hasHistory: boolean;
   actualMinutes: number;
@@ -455,6 +481,14 @@ function draftReason({
         ? `체크인에서 ${preferred} 운동을 고르셔서 목표는 ${withJosa(goal, '으로/로')} 잡았어요. `
         : `목표는 ${withJosa(goal, '으로/로')} 두었어요. `;
     return `근육통이 '${soreHigh}'인 날이라 가장 센 운동은 빼고 가요. ${goalNote}${time}`;
+  }
+  if (effortShort) {
+    /* 근육통과 같은 꼴 — 파워 · 웨이트를 직접 고른 날은 목표가 그 뜻대로 갔다는 것까지 */
+    const goalNote =
+      preferred === '파워' || preferred === '웨이트'
+        ? `체크인에서 ${preferred} 운동을 고르셔서 목표는 ${withJosa(goal, '으로/로')} 잡았어요. `
+        : `목표는 ${withJosa(goal, '으로/로')} 두었어요. `;
+    return `최근 운동이 평소보다 힘들었다고 하셔서 오늘은 조금 짧게 가요. ${goalNote}${time}`;
   }
   if (!strengthDay) {
     return `몸을 아끼는 날이라 목표는 ${withJosa(goal, '으로/로')} 두었어요. ${time}`;
