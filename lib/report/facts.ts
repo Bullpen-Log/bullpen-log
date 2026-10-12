@@ -66,6 +66,13 @@ export type CheckinLike = CheckinParts & {
    * 맡는다. 칸이 없거나 null 이면 안 적은 것.
    */
   throwPlan?: string | null;
+  /**
+   * 팔 피로 1~5(lib/checkin.ts 의 DETAIL_SCALES — 2026-10-12 부터 간편 체크인 칸). 2판 P4 커밋 C 에서 facts 에 넣었다 — 예전에는
+   * 오늘 상태 한 장(lib/engine/day-state.ts)이 extras 로 따로 받아 암케어만 읽었는데, 매일 일정의 안전 거르기(prescription.ts 5-2,
+   * '심함'이면 무거운 상체 밀기 · 팔 플라이오를 뺀다)와 일정 지문도 읽어야 해서 판단이 보는 facts 한 곳에 둔다.
+   * 근육통처럼 선택 칸이다 — 저장해 둔 옛 facts · 자가 시험이 손으로 만든 체크인에는 없고, 칸 없음 · null · 범위 밖은 '안 적음'.
+   */
+  armFatigue?: number | null;
 };
 
 export type MemoNote = { date: string; text: string };

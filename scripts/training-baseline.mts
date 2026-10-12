@@ -68,9 +68,11 @@ import {
 import {
   LOW_CONDITION_THRESHOLD,
   nextOutingDays,
+  SEVERE_ARM_FATIGUE,
   THROW_PLANS,
   type ThrowPlan,
 } from '../lib/checkin.ts';
+import { isArmPlyo, isHeavyUpperPush } from '../lib/engine/exercise-class.ts';
 
 const startedAt = Date.now();
 
@@ -836,6 +838,17 @@ type DayRecord = {
    * (답만 있음)의 테마. 그런 날이 아니면 칸이 없다.
    */
   afterGame?: { cleared: ThemeKey | null; dropped: ThemeKey | null };
+  /**
+   * ⑬ 팔 피로 '심함' 변형(2판 P4 커밋 C) — 체크인 있는 날 오늘 체크인에 팔 피로 5 만 얹어 다시 만든 일정의 무거운 상체 밀기 · 팔
+   * 플라이오 수(lib/engine/exercise-class.ts 판정)와, 같은 날 원래 일정의 수. 체크인이 없는 날은 칸이 없다. 대본의 체크인에는 팔 피로가
+   * 없어 원래 일정은 그대로다 — 이 변형이 '팔이 심하게 지친 아침'을 대신 잰다. 멈춘 날(변형에서만 생길 수 있다)은 null.
+   */
+  armSevere?: {
+    pushBase: number;
+    plyoBase: number;
+    push: number | null;
+    plyo: number | null;
+  };
   age15vs22Differs: boolean;
   age14vs22Differs: boolean;
   /** 어제 던진 것(대본) */
@@ -932,6 +945,26 @@ for (const p of PLAYERS) {
           }
         : undefined;
 
+    /* ⑬ 팔 피로 '심함' — 체크인 있는 날 그 체크인에 팔 피로 5 만 얹은 변형(2판 P4 커밋 C) */
+    const armCount = (plan: DailyPlan, isIt: (ex: Exercise) => boolean) =>
+      plan.picks.filter((k) => {
+        const ex = byId.get(k.exerciseId);
+        return ex != null && isIt(ex);
+      }).length;
+    const severe = hasCheckin
+      ? buildDay(p, i, st, {
+          patchCheckin: (c) => ({ ...c, armFatigue: SEVERE_ARM_FATIGUE }),
+        })
+      : null;
+    const armSevere = hasCheckin
+      ? {
+          pushBase: armCount(base, isHeavyUpperPush),
+          plyoBase: armCount(base, isArmPlyo),
+          push: severe ? armCount(severe, isHeavyUpperPush) : null,
+          plyo: severe ? armCount(severe, isArmPlyo) : null,
+        }
+      : undefined;
+
     const ids = base.picks.map((k) => k.exerciseId);
     days.push({
       date: keyOf(i),
@@ -949,6 +982,7 @@ for (const p of PLAYERS) {
       throwPlan: st.checkins.find((c) => c.day === i)?.checkin.throwPlan ?? null,
       ...(answerClearedTheme !== undefined ? { answerClearedTheme } : {}),
       ...(afterGame ? { afterGame } : {}),
+      ...(armSevere ? { armSevere } : {}),
       age15vs22Differs: differs(at15, at22),
       age14vs22Differs: differs(at14, at22),
       yesterday,
@@ -1436,6 +1470,26 @@ const afterGame = {
   ).length,
 };
 
+/*
+ * ⑬ 팔 피로 '심함'(2판 P4 커밋 C) — 체크인 있는 날마다 그 체크인에 팔 피로 5 만 얹은 변형. 원래 일정에 무거운 상체 밀기 · 팔 플라이오가
+ * 든 날과 수, 변형에 든 날과 수(안전 거르기 5-2 가 빼니 0 이어야 한다). 멈춘 변형 날은 따로 센다.
+ */
+const armRows = allDays.filter((d) => d.armSevere != null);
+const sumOf = (pick: (a: NonNullable<DayRecord['armSevere']>) => number | null) =>
+  armRows.reduce((s, d) => s + (pick(d.armSevere!) ?? 0), 0);
+const armSevere = {
+  days: armRows.length,
+  halted: armRows.filter((d) => d.armSevere!.push == null).length,
+  pushDaysBase: armRows.filter((d) => d.armSevere!.pushBase > 0).length,
+  pushDays: armRows.filter((d) => (d.armSevere!.push ?? 0) > 0).length,
+  plyoDaysBase: armRows.filter((d) => d.armSevere!.plyoBase > 0).length,
+  plyoDays: armRows.filter((d) => (d.armSevere!.plyo ?? 0) > 0).length,
+  pushBase: sumOf((a) => a.pushBase),
+  push: sumOf((a) => a.push),
+  plyoBase: sumOf((a) => a.plyoBase),
+  plyo: sumOf((a) => a.plyo),
+};
+
 /* 컨디션 늘 낮음 · 맨몸 늘 마침 — 검토안의 두 줄과 견줄 선수 */
 const lowConditionRows = summaries.filter(
   (s) => PLAYERS.find((p) => p.name === s.name)!.condition === 'low'
@@ -1759,6 +1813,16 @@ out.push(
         '  같은 날 어제 기록만 뺀 변형(답만 — 던졌다고 답하고 기록은 안 남김, 엇갈림 표 C6 과 같은 알려진 빈틈 · P4 가 뒤집는다)',
         `${themeText(afterGame.dropped)} · 근력 ${pct(afterGame.droppedStrength, afterGame.count)} · 기록이 있으면 회복이던 날 중 근력 ${pct(afterGame.recoveryDroppedStrength, afterGame.recoveryDays)}`,
       ],
+      [
+        '⑬',
+        `팔 피로 '심함' 변형(체크인 있는 ${armSevere.days}일에 팔 피로 5 만 얹음) — 무거운 상체 밀기가 든 날: 원래 일정 → 변형(0 이어야 한다, 2판 P4)`,
+        `${pct(armSevere.pushDaysBase, armSevere.days)} → ${pct(armSevere.pushDays, armSevere.days)} · 운동 수 ${armSevere.pushBase} → ${armSevere.push}`,
+      ],
+      [
+        '⑬',
+        '  같은 변형 — 팔 플라이오(메디신볼 · 플라이오 푸시업 …)가 든 날: 원래 일정 → 변형',
+        `${pct(armSevere.plyoDaysBase, armSevere.days)} → ${pct(armSevere.plyoDays, armSevere.days)} · 운동 수 ${armSevere.plyoBase} → ${armSevere.plyo}${armSevere.halted > 0 ? ` · 멈춘 변형 ${armSevere.halted}일` : ''}`,
+      ],
     ]
   )
 );
@@ -1909,8 +1973,11 @@ console.log(out.join('\n'));
 
 const elapsedMs = Date.now() - startedAt;
 const json = {
-  /* 3 = 대본 2판(2026-10-12): 체크인마다 등판 답 · 기록에 체감 강도(%) · ⑤ ⑫ 를 변형으로. 2 와 metrics.gameMorning · afterGame 모양이 다르다 */
-  version: 3,
+  /*
+   * 3 = 대본 2판(2026-10-12): 체크인마다 등판 답 · 기록에 체감 강도(%) · ⑤ ⑫ 를 변형으로. 2 와 metrics.gameMorning · afterGame 모양이 다르다.
+   * 4 = 2판 P4 커밋 C: 날마다 armSevere · metrics.armSevere(⑬ 팔 피로 '심함' 변형)를 더했다(buildCalls 도 그만큼 는다). 3 과 견줄 때는 이 칸을 뺀다.
+   */
+  version: 4,
   /* 돌릴 때마다 바뀌는 것은 이 칸뿐 — 단계 전후를 diff 로 견줄 때는 meta 를 빼고 본다 */
   meta: { generatedAt: new Date().toISOString(), elapsedMs },
   startKey: START_KEY,
@@ -1937,6 +2004,7 @@ const json = {
       throwPlan: d.throwPlan,
       answerClearedTheme: d.answerClearedTheme,
       afterGame: d.afterGame,
+      armSevere: d.armSevere,
       yesterday: d.yesterday,
       today: d.today,
       ids: d.ids,
@@ -2012,6 +2080,7 @@ const json = {
     ),
     afterLightGameThemes: countBy(afterLightGame, (d) => d.theme),
     afterGame,
+    armSevere,
     loadDistribution: { scripted: scriptedDistribution, real: realDistribution },
   },
   comparison,

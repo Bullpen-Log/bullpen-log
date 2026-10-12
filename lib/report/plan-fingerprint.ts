@@ -3,6 +3,7 @@ import { hardOuting } from '@/lib/report/theme';
 import { outingAnswersOf } from '@/lib/engine/outing';
 import {
   CHECKIN_PARTS,
+  armFatigueWord,
   isShortSleep,
   sorenessWord,
   type CheckinPartKey,
@@ -55,6 +56,13 @@ export type PlanFingerprint = {
     preferredWorkout: string | null;
     /** 던지는 일정 답(lib/checkin.ts 의 THROW_PLANS — 답이 늘어도 글자 그대로) */
     throwPlan: string | null;
+    /**
+     * 팔 피로 1~5, 안 적었거나 범위 밖이면 null — 안전 거르기(prescription.ts 5-2)가 '심함'을 읽는다(2판 P4 커밋 C). 선택 칸이다:
+     * 칸이 생기기 전에 저장된 지문과, 칸이 없는 facts(저장해 둔 옛 facts · 자가 시험의 손 체크인)로 찍은 지문에는 없다. 견줄 때는
+     * 둘 다 있을 때만 본다(hardOuting.load 와 같은 약속 — v 는 그대로, 배포 날 옛 지문에 '바뀌었어요'가 뜨지 않게). 안쪽 칸이라
+     * 칸 목록(FINGERPRINT_KEYS)은 그대로다.
+     */
+    armFatigue?: number | null;
   };
   /** 어제 체크인의 던지는 일정 답 — 등판을 읽는 함수(lib/engine/outing.ts outingOf)가 오늘 답이 없을 때 읽는다 */
   throwPlanYesterday: string | null;
@@ -128,6 +136,15 @@ export function fingerprintOf(facts: ReportFacts): PlanFingerprint {
           sleepShort: isShortSleep(today),
           preferredWorkout: today.preferredWorkout ?? null,
           throwPlan: answers.today,
+          /* 칸이 있는 facts 에서만 — 없는 facts 의 지문은 예전과 글자까지 같다. 범위 밖은 안 적은 것(null)으로 */
+          ...(today.armFatigue !== undefined
+            ? {
+                armFatigue:
+                  armFatigueWord(today.armFatigue) != null
+                    ? (today.armFatigue ?? null)
+                    : null,
+              }
+            : {}),
         }
       : null,
     throwPlanYesterday: answers.yesterday,
@@ -184,7 +201,9 @@ export function readPlanFingerprint(value: unknown): PlanFingerprint | null {
       !(c.soreness === null || isNum(c.soreness)) ||
       typeof c.sleepShort !== 'boolean' ||
       !isStrOrNull(c.preferredWorkout) ||
-      !isStrOrNull(c.throwPlan)
+      !isStrOrNull(c.throwPlan) ||
+      /* 팔 피로는 선택 칸 — 없으면(옛 지문) 통과, 있는데 숫자 · null 이 아니면 깨진 지문 */
+      !(c.armFatigue === undefined || c.armFatigue === null || isNum(c.armFatigue))
     ) {
       return null;
     }
@@ -195,6 +214,7 @@ export function readPlanFingerprint(value: unknown): PlanFingerprint | null {
       sleepShort: c.sleepShort,
       preferredWorkout: c.preferredWorkout,
       throwPlan: c.throwPlan,
+      ...(c.armFatigue !== undefined ? { armFatigue: c.armFatigue } : {}),
     };
   }
 
@@ -265,6 +285,7 @@ export type FingerprintKey =
   | 'condition'
   | 'parts'
   | 'soreness'
+  | 'armFatigue'
   | 'sleep'
   | 'preferredWorkout'
   | 'throwPlan'
@@ -367,6 +388,25 @@ export function diffFingerprintChanges(
             ? `근육통 ${quotedEul(wb)} 새로 적었어요`
             : `근육통이 ${quoted(wa)}에서 ${quotedRo(wb)} 바뀌었어요`
       );
+    }
+    /* 팔 피로 — 둘 다 칸이 있을 때만 견준다(칸이 생기기 전의 지문과는 안 견준다). 글은 근육통과 같은 틀 */
+    if (
+      a.armFatigue !== undefined &&
+      b.armFatigue !== undefined &&
+      a.armFatigue !== b.armFatigue
+    ) {
+      const wa = armFatigueWord(a.armFatigue);
+      const wb = armFatigueWord(b.armFatigue);
+      if (wa !== wb) {
+        push(
+          'armFatigue',
+          wb == null
+            ? '팔 피로 표시를 지웠어요'
+            : wa == null
+              ? `팔 피로 ${quotedEul(wb)} 새로 적었어요`
+              : `팔 피로가 ${quoted(wa)}에서 ${quotedRo(wb)} 바뀌었어요`
+        );
+      }
     }
     if (a.sleepShort !== b.sleepShort) {
       push(

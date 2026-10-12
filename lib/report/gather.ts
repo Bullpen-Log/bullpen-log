@@ -137,6 +137,8 @@ export async function gatherFactsAndPlan(
       soreness: c.soreness,
       // 던지는 일정 — 매일 운동 계획이 '오늘 등판 · 내일 등판'을 읽는다(theme.ts 의 plannedOuting)
       throwPlan: c.throwPlan,
+      // 팔 피로 — 안전 거르기(prescription.ts 5-2)가 '심함'을 읽고, 오늘 상태 한 장 · 암케어 · 일정 지문도 이 칸을 본다(2판 P4)
+      armFatigue: c.armFatigue,
     })),
     memos: usedLogs
       .filter((l) => l.memo?.trim())
@@ -155,9 +157,10 @@ export async function gatherFactsAndPlan(
   const plan = buildPitchPlan(facts);
 
   /*
-   * 오늘 상태 한 장(2판 P3, lib/engine/day-state.ts) — facts · plan 에서 다시 읽고, facts 에 없는 팔 피로 · 팔 통증 자리만 오늘 체크인
+   * 오늘 상태 한 장(2판 P3, lib/engine/day-state.ts) — facts · plan 에서 다시 읽고, facts 에 없는 팔 통증 자리만 오늘 체크인
    * 줄에서 더 꺼낸다. 그 줄은 위 recentRecords(react cache)가 이미 읽은 것이라 조회가 늘지 않는다. 오늘 줄을 찾는 법은 buildFacts 가
    * 오늘 체크인을 찾는 법(날짜 앞 10자리 = 오늘)과 같고, 체크인은 excludeToday 로 거르지 않는 것도 facts 와 같다.
+   * 팔 피로는 2판 P4 커밋 C 부터 facts(CheckinLike.armFatigue)에 있어 장이 거기서 읽는다 — 안전 거르기 · 일정 지문과 같은 칸 하나.
    * 읽는 독자는 하나씩 옮긴다 — 암케어(lib/armcare/today.ts)가 팔 피로 · 팔 통증 · 오늘 등판을 여기서 읽는다(2판 P3 C1 · C4 뒤집기,
    * 따로 읽던 오늘 체크인 조회를 걷었다). 프로그램(lib/program/load.ts)도 등판 답 · 세게 던진 날을 여기서 읽는다(2판 P3 읽기 통일 —
    * 따로 읽던 오늘 · 어제 체크인 조회를 걷었다). 영양은 P6.
@@ -169,7 +172,6 @@ export async function gatherFactsAndPlan(
     facts,
     plan,
     extras: {
-      armFatigue: todayCheckin?.armFatigue ?? null,
       armPain: savedArmPain
         ? { spots: savedArmPain.armPainSpots, level: savedArmPain.armPainLevel }
         : null,

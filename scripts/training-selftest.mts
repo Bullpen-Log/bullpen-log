@@ -7739,6 +7739,8 @@ console.log(
     preferredParts?: string[];
     /** 던지는 일정(THROW_PLANS). 안 주면 칸이 없고, null 이면 칸은 있는데 안 적은 것 */
     throwPlan?: string | null;
+    /** 팔 피로 1~5(2판 P4 — facts 칸). 안 주면 칸이 없다 */
+    armFatigue?: number | null;
   };
   type P0Log = {
     daysAgo: number;
@@ -7774,6 +7776,7 @@ console.log(
     ...(c.sleepHours !== undefined ? { sleepHours: c.sleepHours } : {}),
     ...(c.soreness !== undefined ? { soreness: c.soreness } : {}),
     ...(c.throwPlan !== undefined ? { throwPlan: c.throwPlan } : {}),
+    ...(c.armFatigue !== undefined ? { armFatigue: c.armFatigue } : {}),
   });
   const p0Facts = (p: P0Person) => {
     const asOf = p.asOf ?? TODAY;
@@ -8005,6 +8008,7 @@ console.log(
    *   C4 어제 '내일 등판' + 오늘 체크인 없음 — 일정 · 영양은 등판 날인데 암케어는 강화, 프로그램은 체크인부터.
    *      → P3 로 바뀜: 투구 계획 'game' · 암케어 'recovery'(프로그램은 체크인 규칙이 먼저라 그대로 needCheckin).
    *   C5 팔 피로 '심함' — 암케어만 회복, 일정 · 프로그램은 평소 날(팔 피로를 안 읽는다).
+   *      → P4 로 바뀜(2026-10-12 커밋 C): 테마는 그대로 근력이지만 안전 거르기가 무거운 상체 밀기 · 팔 플라이오를 뺀다(여섯째 칸 safety).
    *   C6 어제 '오늘 등판' 답 + 기록 없음 — 프로그램만 경기 다음 날로 쉬고, 일정 · 암케어 · 투구 계획은 평소 날(D3 · P4).
    */
   const program531 = parseProgram('531');
@@ -8015,8 +8019,31 @@ console.log(
     nutrition: string;
     armcare: string;
     program: string;
+    /**
+     * 안전 거르기(selectCandidates) 뒤 후보에 무거운 상체 밀기 · 팔 플라이오가 남았나 — 'heavyArm'(남음) · 'none'. 2판 P4 커밋 C 에서
+     * 더한 여섯째 칸: 팔 피로 규칙(5-2)은 테마가 아니라 후보에서 일해, 다섯 칸만으로는 C5 가 바뀐 것이 안 보였다.
+     */
+    safety: string;
   };
-  const readFive = (p: P0Person, armFatigue: number | null = null): FiveReaders => {
+  /*
+   * 무거운 상체 밀기 · 팔 플라이오의 좁은 판정 — lib/engine/exercise-class.ts 를 베끼지 않는다(그 판정이 틀려도 같이 틀리지 않게).
+   * 누가 봐도 그것인 것만: 이름에 벤치 · 프레스가 든 '높음' 이상 바벨 · 덤벨 상체 근력, 메디신볼 · 플라이오볼을 쓰는 파워.
+   * 실제 표에서 앞은 8개(판정 10개의 부분), 뒤는 5개(판정 7개의 부분)다 — 그래서 '좁은 판정 0'은 판정이 이것들을 놓치지 않는다는 뜻.
+   */
+  const narrowHeavyPush = (e: {
+    category: string;
+    intensity: string;
+    title: string;
+    equipment: readonly string[];
+  }) =>
+    e.category === '상체 스트렝스' &&
+    intensityLevel(e.intensity) > INTENSITY_CAP.MODERATE &&
+    /벤치|프레스/.test(e.title) &&
+    e.equipment.some((q) => q === '바벨' || q === '덤벨');
+  const narrowArmPlyo = (e: { category: string; equipment: readonly string[] }) =>
+    e.category === '파워' &&
+    e.equipment.some((q) => q === '메디신볼' || q === '플라이오볼');
+  const readFive = (p: P0Person): FiveReaders => {
     const facts = p0Facts(p);
     const plan = buildPitchPlan(facts);
     const picked = selectCandidates({ facts, plan, library });
@@ -8061,9 +8088,11 @@ console.log(
       }) ?? 'none';
     /*
      * 암케어는 앱(lib/armcare/today.ts)처럼 오늘 상태 한 장을 받는다 — P3 로 바뀜(C1 · C4 뒤집기): 그 장의 등판 신호(outing.role)로
-     * 등판 날 회복. 팔 피로도 그 장에 실어 넘긴다(앱은 state.arm.fatigue 를 넘긴다 — 같은 값).
+     * 등판 날 회복. 팔 피로도 그 장에서 넘긴다(앱은 state.arm.fatigue 를 넘긴다 — 같은 값). P4 로 바뀜(커밋 C) — 왜: 팔 피로가
+     * facts 칸이 돼, 예전처럼 extras 로 장에만 실으면 안전 거르기(후보)는 못 본다. 이제 사람의 오늘 체크인에 적어 다섯 독자 ·
+     * 안전 거르기가 같은 입력을 본다.
      */
-    const armState = buildDayState({ facts, plan, extras: { armFatigue } });
+    const armState = buildDayState({ facts, plan });
     const armcare = decideArmcare({
       facts,
       plan,
@@ -8125,13 +8154,26 @@ console.log(
           : decision.kind === 'go'
             ? `go${decision.caution ? `:${decision.caution}` : ''}`
             : decision.kind;
-    return { theme: strengthOr(theme.key), pitchPlan, nutrition, armcare, program };
+    const safety = picked.candidates.some((e) => narrowHeavyPush(e) || narrowArmPlyo(e))
+      ? 'heavyArm'
+      : 'none';
+    return {
+      theme: strengthOr(theme.key),
+      pitchPlan,
+      nutrition,
+      armcare,
+      program,
+      safety,
+    };
   };
+  /*
+   * safety 칸(2판 P4 커밋 C 에서 더함)의 기대값은 C5 말고는 더할 때의 값 그대로다 — C2 의 'none' 은 팔 때문이 아니라 부하 지수를 못
+   * 내 무게 드는 운동이 다 빠진 것(2) 부하 구간)이다.
+   */
   const crossRows: {
     tag: string;
     name: string;
     person: P0Person;
-    armFatigue?: number;
     expect: FiveReaders;
   }[] = [
     {
@@ -8148,6 +8190,7 @@ console.log(
         nutrition: 'today',
         armcare: 'recovery',
         program: 'rest:gameToday',
+        safety: 'heavyArm',
       },
     },
     {
@@ -8163,6 +8206,7 @@ console.log(
         nutrition: 'none',
         armcare: 'recovery',
         program: 'rest:gameYesterday',
+        safety: 'none',
       },
     },
     {
@@ -8175,6 +8219,7 @@ console.log(
         nutrition: 'today',
         armcare: 'strength',
         program: 'go',
+        safety: 'heavyArm',
       },
     },
     {
@@ -8191,19 +8236,26 @@ console.log(
         nutrition: 'today',
         armcare: 'recovery',
         program: 'needCheckin',
+        safety: 'heavyArm',
       },
     },
     {
       tag: 'C5',
       name: "⑤ 팔 피로 '심함'(5)",
-      person: { today: {} },
-      armFatigue: HIGH_ARM_FATIGUE + 1,
+      /*
+       * P4 로 바뀜(2026-10-12 커밋 C) — 왜: 팔 피로 '심함'은 암케어만 회복으로 돌리고 일정 · 프로그램은 벤치 프레스 · 메디신볼을 그대로
+       * 냈다(팔 피로를 안 읽음). 이제 팔 피로가 facts 칸이라 안전 거르기가 무거운 상체 밀기 · 팔 플라이오를 뺀다(safety 'none').
+       * 테마는 그대로 근력이다(안전 층만 — 상체날이면 가벼운 밀기 · 당기기가 남는다), 프로그램은 그날 그 칸을 대체한다(이 표는
+       * painSlots 를 [] 로 두어 'go' 그대로). 입력도 옮겼다 — 예전 HIGH_ARM_FATIGUE + 1 을 extras 로 장에만 실었는데 이제 오늘 체크인에.
+       */
+      person: { today: { armFatigue: SEVERE_ARM_FATIGUE } },
       expect: {
         theme: 'strength',
         pitchPlan: 'throw',
         nutrition: 'none',
         armcare: 'recovery',
         program: 'go',
+        safety: 'none',
       },
     },
     {
@@ -8216,6 +8268,7 @@ console.log(
         nutrition: 'none',
         armcare: 'strength',
         program: 'rest:gameYesterday',
+        safety: 'heavyArm',
       },
     },
   ];
@@ -8225,11 +8278,14 @@ console.log(
     ['nutrition', '영양'],
     ['armcare', '암케어'],
     ['program', '프로그램'],
+    ['safety', '안전 거르기(무거운 밀기 · 팔 플라이오)'],
   ];
-  console.log('  | 입력 | 매일 일정 | 투구 계획 | 영양 | 암케어 | 프로그램 |');
-  console.log('  | --- | --- | --- | --- | --- | --- |');
+  console.log(
+    '  | 입력 | 매일 일정 | 투구 계획 | 영양 | 암케어 | 프로그램 | 안전 거르기 |'
+  );
+  console.log('  | --- | --- | --- | --- | --- | --- | --- |');
   for (const row of crossRows) {
-    const got = readFive(row.person, row.armFatigue ?? null);
+    const got = readFive(row.person);
     console.log(`  | ${row.name} | ${readerNames.map(([k]) => got[k]).join(' | ')} |`);
     for (const [key, label] of readerNames) {
       check(
@@ -8366,6 +8422,25 @@ console.log(
       lastUpperKey: p0Pick([null, '2026-06-11', '2026-06-14']),
     };
   };
+  /*
+   * 팔 피로 축(2판 P4 커밋 C) — 사람마다 따로 씨앗(2_000_000 + i)으로 뽑는다. ownedOf 와 같은 까닭이다: 주 난수 흐름에 끼우면 뒤
+   * 사람이 통째로 바뀌어 '지금 값 고정' 검사가 흔들리고, 파일 끝 '오늘 상태 한 장' 절이 베낀 사람(p0PeopleSeen)과도 어긋난다. 그래서
+   * 사람을 만들어 p0PeopleSeen 에 적은 뒤 오늘 체크인에만 얹는다 — 오늘 체크인이 없거나 뽑히지 않은 사람은 글자 하나 안 바뀐다.
+   * 열여섯에 하나(i % 16 === 9)는 '심함'으로 못 박는다 — 난수로만 두면 '심함'이 10% 남짓이라 불변식 ⑭가 빈약해진다.
+   */
+  const withArmAxis = (c: P0Combo, i: number): P0Combo => {
+    const today = c.p.today;
+    if (!today) return c;
+    const rand = p0Rng(2_000_000 + i);
+    const armFatigue =
+      i % 16 === 9
+        ? SEVERE_ARM_FATIGUE
+        : rand() < 0.5
+          ? 1 + Math.floor(rand() * 5)
+          : null;
+    if (armFatigue == null) return c;
+    return { ...c, p: { ...c.p, today: { ...today, armFatigue } } };
+  };
   const buildOf = (c: P0Combo) => {
     const facts = p0Facts(c.p);
     const plan = buildPitchPlan(facts);
@@ -8421,12 +8496,16 @@ console.log(
     forcing: 0,
     themes: new Map<ThemeKey, number>(),
   };
+  /* 2판 P4 커밋 C 에서 더한 덮임 — 위 cover 는 그대로 두고(그 검사 이름 · 문턱을 안 흔들게) 따로 센다 */
+  const armCover = { severe: 0, mild: 0, youthRest: 0 };
   let worstOver = 0;
   const P0_COMBOS = 160;
   for (let i = 0; i < P0_COMBOS; i++) {
-    const c = makeCombo(i);
-    p0PeopleSeen.push(JSON.stringify(c.p));
-    const { facts, built, picked } = buildOf(c);
+    const plainCombo = makeCombo(i);
+    p0PeopleSeen.push(JSON.stringify(plainCombo.p));
+    /* 팔 피로 축은 적은 뒤에 얹는다(withArmAxis 주석) — 칸이 없는 사람은 plainCombo 와 같은 객체 */
+    const c = withArmAxis(plainCombo, i);
+    const { facts, plan, built, picked } = buildOf(c);
     const again = buildOf(c).built;
     cover.total++;
     const unknown = painStateUnknown(facts);
@@ -8508,6 +8587,41 @@ console.log(
         note('⑧', `${c.seed} 만 ${facts.profile.age}세인데 ${titles(hit)}`);
     }
     /*
+     * ⑭ 팔 피로 '심함'(2판 P4 커밋 C) → 무거운 상체 밀기 · 팔 플라이오 0 — 고른 것과 안전 거르기 후보 둘 다, 좁은 판정(narrowHeavyPush ·
+     * narrowArmPlyo — exercise-class.ts 를 베끼지 않는다). 번호 ⑪~⑬ 은 등판 창 · 달력 규칙(P4 커밋 D · G) 몫으로 비워 둔다.
+     */
+    const armNow = facts.condition.today?.armFatigue ?? null;
+    const uniqTitles = (list: { title: string }[]) =>
+      [...new Set(list.map((e) => e.title))].join(', ');
+    if (armNow != null && armNow >= SEVERE_ARM_FATIGUE) {
+      armCover.severe++;
+      const hit = [...exs, ...picked.candidates].filter(
+        (e) => narrowHeavyPush(e) || narrowArmPlyo(e)
+      );
+      if (hit.length > 0) note('⑭', `${c.seed} 팔 피로 심함인데 ${uniqTitles(hit)}`);
+    }
+    /* ⑮ 성장기(YOUTH_AGE_THRESHOLD 미만)가 투구 계획상 공을 쉬는 날 → 팔 플라이오 0(고른 것 · 후보) */
+    if (
+      facts.profile.age != null &&
+      facts.profile.age < YOUTH_AGE_THRESHOLD &&
+      plan.today?.throwing === false
+    ) {
+      armCover.youthRest++;
+      const hit = [...exs, ...picked.candidates].filter(narrowArmPlyo);
+      if (hit.length > 0)
+        note('⑮', `${c.seed} 만 ${facts.profile.age}세 쉬는 날인데 ${uniqTitles(hit)}`);
+    }
+    /*
+     * ⑯ 팔 피로 '심함' 밑(1~4)은 일정을 안 바꾼다 — 팔 피로 칸이 없는 같은 사람(plainCombo)과 글자 그대로. '많이'는 암케어만 회복으로
+     * 돌리고, 그 아래는 고르기 점수(P5) 몫이다 — P5 가 팔 피로를 읽게 되면 이 검사의 기대를 그 단계에서 고친다.
+     */
+    if (armNow != null && armNow < SEVERE_ARM_FATIGUE) {
+      armCover.mild++;
+      const plain = buildOf(plainCombo).built;
+      if (JSON.stringify(plain) !== JSON.stringify(built))
+        note('⑯', `${c.seed} 팔 피로 ${armNow} 인데 일정이 바뀜`);
+    }
+    /*
      * ⑨ 걸리는 시간은 쓰기로 한 시간 + 여유 안 — 여유는 theme.ts 의 totalSlack(min(3, 12%))과 같은 식. 그 상수는 export 되지
      * 않아 여기 적는다(theme.ts 가 바뀌면 같이 고친다). 구간이 비면 '시간을 넘겨서라도 하나'를 넣는 길이 있어 넘칠 수 있다 —
      * 넘친 가장 큰 값을 아래 검사에 고정한다.
@@ -8537,6 +8651,9 @@ console.log(
     ['⑦', '재활 관절의 무거운 운동 0'],
     ['⑧', '15세 미만 매우 높음 0'],
     ['⑩', '같은 입력 두 번 → 같은 목록'],
+    ['⑭', "팔 피로 '심함' → 무거운 상체 밀기 · 팔 플라이오 0(고른 것 · 후보, 2판 P4)"],
+    ['⑮', '성장기 + 투구 계획이 쉬는 날 → 팔 플라이오 0(고른 것 · 후보, 2판 P4)'],
+    ['⑯', "팔 피로 '심함' 밑(1~4) → 칸이 없는 같은 사람과 같은 일정(2판 P4)"],
   ];
   for (const [rule, name] of ruleNames) {
     const found = bad.get(rule) ?? [];
@@ -8569,6 +8686,10 @@ console.log(
       (['recovery', 'assist', 'lower', 'upper'] as const).every(
         (k) => (cover.themes.get(k) ?? 0) > 0
       )
+  );
+  check(
+    `불변식 — 잰 것(2판 P4 팔 피로): 팔 피로 심함 ${armCover.severe} · 심함 밑 ${armCover.mild} · 성장기 쉬는 날 ${armCover.youthRest}`,
+    armCover.severe >= 8 && armCover.mild >= 20 && armCover.youthRest >= 5
   );
 
   /* ─────────────── (d) 성장기 나이(D4 참고) — 지금 코드가 16 · 17세에게 '매우 높음'을 허용하는 것을 고정 ─────────────── */
@@ -11658,6 +11779,8 @@ console.log(
     soreness?: number | null;
     preferredWorkout?: string | null;
     throwPlan?: string | null;
+    /** 팔 피로 1~5 — 2판 P4 커밋 C 부터 facts 칸(예전에는 extras). 안 주면 칸이 없다 */
+    armFatigue?: number | null;
   };
   type DsLog = {
     daysAgo: number;
@@ -11690,6 +11813,7 @@ console.log(
     ...(c.sleepHours !== undefined ? { sleepHours: c.sleepHours } : {}),
     ...(c.soreness !== undefined ? { soreness: c.soreness } : {}),
     ...(c.throwPlan !== undefined ? { throwPlan: c.throwPlan } : {}),
+    ...(c.armFatigue !== undefined ? { armFatigue: c.armFatigue } : {}),
   });
   const dsFacts = (p: DsPerson) =>
     buildFacts({
@@ -12113,10 +12237,18 @@ console.log(
       const rawLevel = side() < 0.3 ? null : 1 + Math.floor(side() * 3);
       const saved = pickArmPain({ armPainSpots: rawSpots, armPainLevel: rawLevel });
       const extras: DayStateExtras = {
-        armFatigue,
         armPain: { spots: saved.armPainSpots, level: saved.armPainLevel },
       };
-      const facts = dsFacts(person);
+      /*
+       * P4 로 바뀜(커밋 C) — 왜: 팔 피로는 이제 facts 칸(CheckinLike.armFatigue)이라 extras 가 아니라 오늘 체크인에 적는다(같은 사람 견주기
+       * 뒤에 얹어 samePeople 은 그대로). 체크인이 없는 날은 팔 피로도 없다 — 예전에는 extras 라 체크인 없이도 값이 실렸다.
+       */
+      const facts = dsFacts(
+        person.today && armFatigue != null
+          ? { ...person, today: { ...person.today, armFatigue } }
+          : person
+      );
+      const armExpected = person.today ? armFatigue : null;
       /* 파일 끝 '[2판 P4] 등판 한 곳' 절이 같은 facts 로 다시 잰다(적기만 — 아래 검사는 그대로) */
       p3ComboFactsSeen.push(facts);
       const plan = buildPitchPlan(facts);
@@ -12170,10 +12302,10 @@ console.log(
       same(
         '팔 피로',
         state.hard.armFatigueHigh,
-        armFatigue != null && armFatigue >= HIGH_ARM_FATIGUE
+        armExpected != null && armExpected >= HIGH_ARM_FATIGUE
       );
       same('팔 피로', state.arm.fatigueHigh, state.hard.armFatigueHigh);
-      same('팔 피로', state.arm.fatigue, armFatigue);
+      same('팔 피로', state.arm.fatigue, armExpected);
 
       /* 팔 통증 자리 — lib/armcare/today.ts 의 armPain 식과 같은 값 */
       const expectArmPain =
@@ -12344,8 +12476,9 @@ console.log(
   /* ── extras — 안 주면 null, 주면 그대로(복사) · 셈한 칸 ── */
   {
     const base = stateOf({ today: {} });
+    /* P4 로 바뀜(커밋 C) — 팔 피로는 이제 extras 가 아니라 체크인 칸이다. 칸 없는 체크인이면 null 인 것은 그대로 */
     check(
-      '오늘 상태 (extras) 안 주면 팔 피로 · 팔 통증 · 프로그램 · 메커니즘 · 체중 흐름이 모두 null',
+      '오늘 상태 (extras) 안 주면 팔 통증 · 프로그램 · 메커니즘 · 체중 흐름이 모두 null, 팔 피로 칸 없는 체크인이면 팔 피로도 null',
       base.state.arm.fatigue === null &&
         base.state.arm.pain === null &&
         base.state.commitments.program === null &&
@@ -12432,13 +12565,17 @@ console.log(
       JSON.stringify(noCheckin.why) === '["오늘 체크인을 아직 안 남겼어요."]',
       noCheckin.why.join(' / ')
     );
-    const heavy = stateOf(
-      {
-        today: { shoulder: '통증', condition: 3, sleepHours: 5, soreness: 5 },
-        logs: [{ daysAgo: 1, pitches: 85, intensity: 10, sessionType: '경기' }],
+    /* P4 로 바뀜(커밋 C) — 팔 피로를 extras 대신 오늘 체크인 칸에 적는다(같은 값 · 같은 글) */
+    const heavy = stateOf({
+      today: {
+        shoulder: '통증',
+        condition: 3,
+        sleepHours: 5,
+        soreness: 5,
+        armFatigue: 5,
       },
-      { armFatigue: 5 }
-    ).state;
+      logs: [{ daysAgo: 1, pitches: 85, intensity: 10, sessionType: '경기' }],
+    }).state;
     const expected = [
       '오늘 어깨 통증이 있어요.',
       '어제 거의 전력으로 85구를 던졌어요.',
@@ -12493,6 +12630,8 @@ console.log(
   type FlCheckin = Partial<Record<CheckinPartKey, string>> & {
     condition?: number;
     throwPlan?: string | null;
+    /** 팔 피로 1~5 — 2판 P4 커밋 C 부터 facts 칸. 안 주면 칸이 없다 */
+    armFatigue?: number | null;
   };
   type FlLog = {
     daysAgo: number;
@@ -12522,6 +12661,7 @@ console.log(
     preferredParts: [],
     preferredWorkout: null,
     ...(c.throwPlan !== undefined ? { throwPlan: c.throwPlan } : {}),
+    ...(c.armFatigue !== undefined ? { armFatigue: c.armFatigue } : {}),
   });
   const flFacts = (p: FlPerson) =>
     buildFacts({
@@ -12908,8 +13048,11 @@ console.log(
 
   /* ── 5) 암케어 사례 ── */
   const armOf = (p: FlPerson, armFatigue: number | null = null, withState = true) => {
-    const { facts, plan } = flOf(p);
-    const state = buildDayState({ facts, plan, extras: { armFatigue } });
+    /* P4 로 바뀜(커밋 C) — 팔 피로를 extras 대신 오늘 체크인 칸에 적는다(그 칸이 facts 에 생겼다). 값 · 결론은 그대로 */
+    const person =
+      armFatigue != null && p.today ? { ...p, today: { ...p.today, armFatigue } } : p;
+    const { facts, plan } = flOf(person);
+    const state = buildDayState({ facts, plan });
     return decideArmcare({ facts, plan, armFatigue, ...(withState ? { state } : {}) });
   };
   const armC1 = armOf({ today: { throwPlan: '오늘 등판' } });
@@ -13653,10 +13796,15 @@ console.log(
       )
   );
   const gatherSrc = srcOf('lib/report/gather.ts');
+  /*
+   * P4 로 바뀜(커밋 C) — 왜: 팔 피로가 facts 칸(CheckinLike.armFatigue)이 돼 gather.ts 는 체크인 줄마다 armFatigue 를 facts 에 넘기고,
+   * 오늘 상태 한 장 extras 로는 안 넘긴다(장이 facts 에서 읽는다 — 두 곳이면 안전 거르기와 장이 다른 값을 볼 수 있다).
+   */
   check(
-    '검토 (배선) gather.ts 가 체감 강도(effortPct)와 오늘 팔 피로를 facts · 오늘 상태로 넘긴다 — 빠지면 % 기록이 반올림된 1~10 으로 읽힌다(선택 칸이라 tsc 가 못 잡음)',
+    '검토 (배선) gather.ts 가 체감 강도(effortPct)와 팔 피로를 facts 로 넘긴다(팔 피로는 extras 로 따로 안 넘김) — 빠지면 % 기록이 반올림된 1~10 으로 읽히고 팔 피로 안전 규칙이 안 걸린다(선택 칸이라 tsc 가 못 잡음)',
     /effortPct: l\.effortPct/.test(gatherSrc) &&
-      /armFatigue: todayCheckin\?\.armFatigue/.test(gatherSrc)
+      /armFatigue: c\.armFatigue/.test(gatherSrc) &&
+      !/armFatigue: todayCheckin/.test(gatherSrc)
   );
   /*
    * 답 글자 견주기 — '통일 (소스)'는 파일 넷 · `=== '답'` 꼴만 봤다. 이제 app · lib · components 전체(lib/checkin.ts 는 규칙의 집이라
@@ -14078,11 +14226,19 @@ console.log(
       reasons[2] === "팔 피로 '9' → 회복 루틴",
     reasons.join(' | ')
   );
-  const stateFacts = factsFor({ condition: 8, pitches: [0, 0, 0, 0, 0, 0, 0] });
+  /* P4 로 바뀜(커밋 C) — 팔 피로를 extras 대신 오늘 체크인 칸(facts)에 적는다 */
+  const plainStateFacts = factsFor({ condition: 8, pitches: [0, 0, 0, 0, 0, 0, 0] });
+  const stateToday = plainStateFacts.condition.today;
+  const stateFacts = {
+    ...plainStateFacts,
+    condition: {
+      ...plainStateFacts.condition,
+      today: stateToday ? { ...stateToday, armFatigue: SEVERE_ARM_FATIGUE } : null,
+    },
+  };
   const sevStateWord = buildDayState({
     facts: stateFacts,
     plan: buildPitchPlan(stateFacts),
-    extras: { armFatigue: SEVERE_ARM_FATIGUE },
   }).arm.fatigueWord;
   check(
     "P4 팔 피로 (라) 오늘 상태 한 장의 팔 피로 말도 같은 함수 — 5 → '심함'",
@@ -14574,6 +14730,346 @@ console.log(
         )
     );
   }
+}
+
+/* ═══════════════════ [2판 P4] 팔 피로 안전 규칙 — lib/report/prescription.ts 5-2 · 5-3 · facts.CheckinLike.armFatigue (2026-10-12) ═══════════════════ */
+console.log(
+  "\n[2판 P4] 팔 피로 안전 규칙 — '심함'이면 무거운 상체 밀기 · 팔 플라이오 제외, 성장기 쉬는 날 팔 플라이오 제외, 팔 피로는 facts 칸 하나(2026-10-12)"
+);
+{
+  /*
+   * 커밋 C 가 바꾼 것: 팔 피로(간편 체크인 1~5)를 facts.CheckinLike 칸으로 올리고(예전에는 오늘 상태 한 장의 extras 로 암케어만 읽었다),
+   * 안전 거르기(selectCandidates)에 조이는 규칙 둘을 더했다.
+   *   5-2  팔 피로 '심함'(SEVERE_ARM_FATIGUE) → 무거운 상체 밀기(isHeavyUpperPush) · 팔 플라이오(isArmPlyo) 제외. 프로그램(partsOnly)에도
+   *   5-3  성장기(YOUTH_AGE_THRESHOLD 미만) + 투구 계획이 공을 쉬는 날 → 팔 플라이오 제외. 프로그램(partsOnly)은 건너뜀(나이 · 날 규칙)
+   * 160조합 불변식은 '[2판 안전망(P0)]' (c) 의 ⑭ ⑮ ⑯, 엇갈림 표 C5 는 여섯째 칸(safety). 여기서는 사례 · 실제 표 · 조이기만 · 지문 · 배선.
+   */
+  const json = (v: unknown) => JSON.stringify(v);
+  type AfLog = {
+    daysAgo: number;
+    pitches: number;
+    intensity: number;
+    sessionType?: string;
+  };
+  const afFacts = (p: {
+    age?: number | null;
+    /** 안 주면 칸이 없다(옛 facts 꼴) */
+    armFatigue?: number | null;
+    /** false 면 오늘 체크인이 없다 */
+    checkin?: boolean;
+    logs?: AfLog[];
+  }) =>
+    buildFacts({
+      nickname: '시험',
+      age: p.age === undefined ? 22 : p.age,
+      heightCm: 180,
+      trainingLevel: null,
+      baselineDailyLoad: 100,
+      rehab: null,
+      today: TODAY,
+      logs: (p.logs ?? []).map<PitchLogLike>((l) => ({
+        date: dayBefore(l.daysAgo),
+        pitchCount: l.pitches,
+        intensity: l.intensity,
+        ...(l.sessionType ? { sessionType: l.sessionType } : {}),
+        maxVelocity: 130,
+        avgVelocity: 120,
+      })),
+      checkins:
+        p.checkin === false
+          ? []
+          : [
+              {
+                date: dayBefore(0).slice(0, 10),
+                condition: 7,
+                sleep: '보통',
+                shoulder: '정상',
+                elbow: '정상',
+                wrist: '정상',
+                lowerBack: '정상',
+                lowerBody: '정상',
+                preferredParts: [],
+                preferredWorkout: null,
+                ...(p.armFatigue !== undefined ? { armFatigue: p.armFatigue } : {}),
+              } satisfies CheckinLike,
+            ],
+      memos: [],
+    });
+  const pick = (facts: ReturnType<typeof afFacts>, partsOnly = false) =>
+    selectCandidates({ facts, plan: buildPitchPlan(facts), library, partsOnly });
+  const ids = (list: { id: string }[]) => list.map((e) => e.id).join(',');
+  const armHeavy = (e: Parameters<typeof isArmPlyo>[0]) =>
+    isHeavyUpperPush(e) || isArmPlyo(e);
+  const ARM_RULE = "팔 피로 '심함'";
+  const YOUTH_RULE = '쉬는 날 팔 플라이오(성장기)';
+  const hasRule = (r: { excluded: { rule: string }[] }, rule: string) =>
+    r.excluded.some((x) => x.rule === rule);
+
+  /* ── (가) 5-2 팔 피로 '심함' — 정확히 무거운 밀기 · 팔 플라이오만 빠진다 ── */
+  const plain = pick(afFacts({}));
+  const sev = pick(afFacts({ armFatigue: SEVERE_ARM_FATIGUE }));
+  const expectedSev = plain.candidates.filter((e) => !armHeavy(e));
+  const removedSev = plain.candidates.filter(armHeavy);
+  check(
+    `P4 팔 피로 규칙 (가) 22세 '심함'(5) → 후보 = 칸 없는 날 후보 − 무거운 상체 밀기 · 팔 플라이오(${removedSev.length}개), 그 밖은 하나도 안 빠짐`,
+    removedSev.length > 0 &&
+      ids(sev.candidates) === ids(expectedSev) &&
+      sev.excluded.find((x) => x.rule === ARM_RULE)?.count === removedSev.length,
+    `${plain.candidates.length} → ${sev.candidates.length} · ${json(sev.excluded)}`
+  );
+  check(
+    "P4 팔 피로 규칙 (가) '심함'의 근거 글 — \"팔 피로 '심함' → 무거운 상체 밀기 · 팔 플라이오 제외\"",
+    sev.basis.includes("팔 피로 '심함' → 무거운 상체 밀기 · 팔 플라이오 제외"),
+    sev.basis.join(' / ')
+  );
+  /* 실제 표의 수 — 무거운 밀기 10 · 팔 플라이오 7 · 겹침 0(앞 '[2판 P4] 운동 분류' 절이 고정한 수와 같은 날 표) */
+  check(
+    'P4 팔 피로 규칙 (가) 실제 표에서 빠지는 것은 무거운 상체 밀기 10 + 팔 플라이오 7 = 17개(겹침 0)',
+    removedSev.length === 17 &&
+      removedSev.filter(isHeavyUpperPush).length === 10 &&
+      removedSev.filter(isArmPlyo).length === 7,
+    `${removedSev.length} — ${removedSev.map((e) => e.title).join(', ')}`
+  );
+  const keptPush = sev.candidates.filter(
+    (e) => e.category === '상체 스트렝스' && e.movementPattern === '밀기'
+  );
+  check(
+    "P4 팔 피로 규칙 (가) '심함'에도 '중간' 이하 밀기 · 당기기 · 하체 파워는 남는다(오탐 없음)",
+    keptPush.length > 0 &&
+      keptPush.every((e) => intensityLevel(e.intensity) <= INTENSITY_CAP.MODERATE) &&
+      sev.candidates.some(
+        (e) => e.category === '상체 스트렝스' && e.movementPattern === '당기기'
+      ) &&
+      sev.candidates.some((e) => e.category === '파워' && isHeavyLower(e)),
+    `남은 밀기 ${keptPush.length}개`
+  );
+  for (const [n, label] of [
+    [4, "'많이'(4)"],
+    [3, "'보통'(3)"],
+    [null, 'null'],
+  ] as const) {
+    const r = pick(afFacts({ armFatigue: n }));
+    check(
+      `P4 팔 피로 규칙 (가) ${label} → 규칙 없음 · 후보 · 근거가 칸 없는 날과 글자 그대로`,
+      !hasRule(r, ARM_RULE) &&
+        ids(r.candidates) === ids(plain.candidates) &&
+        json(r.basis) === json(plain.basis)
+    );
+  }
+  const odd = [9, 0, 4.5].map((n) => pick(afFacts({ armFatigue: n })));
+  check(
+    "P4 팔 피로 규칙 (가) 범위 밖(9 · 0 · 4.5)은 안 적은 것 — 규칙 없음, 근거에 'null' · 숫자가 안 찍힘",
+    odd.every(
+      (r) =>
+        !hasRule(r, ARM_RULE) &&
+        ids(r.candidates) === ids(plain.candidates) &&
+        !r.basis.some((b) => b.includes('팔 피로'))
+    )
+  );
+  const sevProgram = pick(afFacts({ armFatigue: SEVERE_ARM_FATIGUE }), true);
+  check(
+    "P4 팔 피로 규칙 (가) 근력 프로그램(partsOnly)에서도 '심함' 규칙이 걸린다 — 팔 상태 규칙(drop)",
+    hasRule(sevProgram, ARM_RULE) && !sevProgram.candidates.some(armHeavy),
+    json(sevProgram.excluded)
+  );
+  const noCheckin = pick(afFacts({ checkin: false }));
+  check(
+    'P4 팔 피로 규칙 (가) 체크인이 없는 날은 팔 피로 규칙이 없다(칸이 체크인 안에 있다)',
+    !hasRule(noCheckin, ARM_RULE)
+  );
+
+  /*
+   * ── (나) 5-3 성장기 쉬는 날 ──
+   * 평소처럼 던지는 사람(DEFAULT_PITCHES)에서 어제만 55구로 올린다 — 19세 미만 휴식표로 오늘이 공을 쉬는 날이고, 부하 구간이 위험이
+   * 아니라 무게 상한이 '중간' 팔 플라이오(톨닐링 메디신볼 …)를 먼저 빼지 않는다. 규칙이 하는 일이 보이는 날이다. 어제 경기 85구는
+   * 부하 구간이 회복 수준까지만 남겨 규칙 없이도 팔 플라이오가 다 빠져, 규칙을 재지 못한다(처음 그렇게 짰다가 16세 쪽이 0 이었다).
+   */
+  const restLogs: AfLog[] = DEFAULT_PITCHES.map((n, i) => ({
+    daysAgo: i + 1,
+    pitches: i === 0 ? 55 : n,
+    intensity: 7,
+  }));
+  const youthRest = afFacts({ age: 15, logs: restLogs });
+  const youthRestPlan = buildPitchPlan(youthRest);
+  const y15 = pick(youthRest);
+  const y16Facts = afFacts({ age: 16, logs: restLogs });
+  const y16 = pick(y16Facts);
+  check(
+    'P4 팔 피로 규칙 (나) 준비 — 15 · 16세 어제 55구 → 둘 다 투구 계획의 오늘이 공을 쉬는 날 · 부하 구간은 위험이 아님',
+    youthRestPlan.today?.throwing === false &&
+      buildPitchPlan(y16Facts).today?.throwing === false &&
+      youthRest.load.zone !== 'danger',
+    `${youthRest.load.zone} · ${json(youthRestPlan.today)}`
+  );
+  check(
+    `P4 팔 피로 규칙 (나) 15세 쉬는 날 → '${YOUTH_RULE}' · 팔 플라이오 0, 16세 같은 날은 규칙 없음 · 팔 플라이오가 남는다(D4 경계)`,
+    hasRule(y15, YOUTH_RULE) &&
+      !y15.candidates.some(isArmPlyo) &&
+      y15.basis.includes('만 15세(성장기) · 오늘 공을 쉬는 날 → 팔 플라이오 제외') &&
+      !hasRule(y16, YOUTH_RULE) &&
+      y16.candidates.some(isArmPlyo),
+    `15세 ${json(y15.excluded)} | 16세 플라이오 ${y16.candidates.filter(isArmPlyo).length}`
+  );
+  check(
+    `P4 팔 피로 규칙 (나) 15세 쉬는 날 규칙이 빼는 것은 팔 플라이오뿐 — 16세 후보에서 '매우 높음'(성장기 상한) · 팔 플라이오를 뺀 것과 같다`,
+    ids(y15.candidates) ===
+      ids(
+        y16.candidates.filter(
+          (e) => !isArmPlyo(e) && intensityLevel(e.intensity) <= INTENSITY_CAP.STRENGTH
+        )
+      ),
+    `${y15.candidates.length} · ${y16.candidates.length}`
+  );
+  const y15Throw = pick(afFacts({ age: 15 }));
+  const y15Threw = afFacts({
+    age: 15,
+    logs: [{ daysAgo: 0, pitches: 30, intensity: 7, sessionType: '불펜' }],
+  });
+  const y15ThrewPick = pick(y15Threw);
+  const y15Program = pick(youthRest, true);
+  check(
+    'P4 팔 피로 규칙 (나) 15세 던지는 날 · 오늘 이미 던진 날(계획의 오늘 없음) · 근력 프로그램(partsOnly — 나이 · 날 규칙)은 쉬는 날 규칙이 없다',
+    buildPitchPlan(afFacts({ age: 15 })).today?.throwing === true &&
+      !hasRule(y15Throw, YOUTH_RULE) &&
+      buildPitchPlan(y15Threw).today == null &&
+      !hasRule(y15ThrewPick, YOUTH_RULE) &&
+      !hasRule(y15Program, YOUTH_RULE),
+    `${json(y15Throw.excluded)} | ${json(y15ThrewPick.excluded)} | ${json(y15Program.excluded)}`
+  );
+  check(
+    `P4 팔 피로 규칙 (나) 규칙 문턱은 YOUTH_AGE_THRESHOLD(${YOUTH_AGE_THRESHOLD}) 그대로 — 따로 적은 나이가 없다`,
+    /facts\.profile\.age < YOUTH_AGE_THRESHOLD &&\s*plan\.today\?\.throwing === false/.test(
+      readFileSync(new URL('../lib/report/prescription.ts', import.meta.url), 'utf8')
+    )
+  );
+
+  /* ── (다) 조이기만 — P3 160조합의 facts 로: 팔 피로 칸을 지운 facts 의 후보에서 무거운 밀기 · 팔 플라이오만 더 빠질 수 있다 ── */
+  {
+    let severe = 0;
+    let other = 0;
+    const missLoose: string[] = [];
+    for (const [i, facts] of p3ComboFactsSeen.entries()) {
+      const today = facts.condition.today;
+      if (!today || today.armFatigue == null) continue;
+      const stripped = {
+        ...facts,
+        condition: { ...facts.condition, today: { ...today, armFatigue: null } },
+      };
+      const plan = buildPitchPlan(facts);
+      const a = selectCandidates({ facts, plan, library });
+      const b = selectCandidates({ facts: stripped, plan, library });
+      const extra = b.candidates.filter(
+        (e) => !a.candidates.some((x) => x.id === e.id)
+      );
+      const subset = a.candidates.every((e) => b.candidates.some((x) => x.id === e.id));
+      if (today.armFatigue >= SEVERE_ARM_FATIGUE) severe++;
+      else other++;
+      const ok =
+        a.halted === b.halted &&
+        subset &&
+        (today.armFatigue >= SEVERE_ARM_FATIGUE
+          ? extra.every(armHeavy)
+          : extra.length === 0 && ids(a.candidates) === ids(b.candidates));
+      if (!ok) missLoose.push(`p0-${i}(${today.armFatigue}) ${extra.length}`);
+    }
+    check(
+      `P4 팔 피로 규칙 (다) 조이기만 — 팔 피로가 적힌 P3 조합(심함 ${severe} · 그 밑 ${other}) — 후보는 칸을 지운 날의 부분집합이고 더 빠진 것은 무거운 밀기 · 팔 플라이오뿐, '심함' 밑은 같음`,
+      severe >= 5 && other >= 20 && missLoose.length === 0,
+      missLoose.slice(0, 3).join(' / ')
+    );
+  }
+
+  /* ── (라) 일정 지문 — checkin.armFatigue 선택 칸 ── */
+  const fpOf = (armFatigue?: number | null) =>
+    fingerprintOf(afFacts(armFatigue === undefined ? {} : { armFatigue }));
+  const fpNone = fpOf();
+  const fpNull = fpOf(null);
+  const fpSev = fpOf(5);
+  check(
+    'P4 팔 피로 규칙 (라) 지문 — 칸 없는 facts 의 지문에는 armFatigue 가 없다(예전과 글자 그대로) · null 은 null · 5 는 5 · 범위 밖 9 는 null',
+    fpNone.checkin != null &&
+      !('armFatigue' in fpNone.checkin) &&
+      fpNull.checkin?.armFatigue === null &&
+      fpSev.checkin?.armFatigue === 5 &&
+      fpOf(9).checkin?.armFatigue === null,
+    json([fpNone.checkin, fpSev.checkin])
+  );
+  check(
+    'P4 팔 피로 규칙 (라) 지문 — FINGERPRINT_KEYS 는 그대로(안쪽 칸이라) — 바깥 칸 10개',
+    FINGERPRINT_KEYS.length === 10 &&
+      !(FINGERPRINT_KEYS as readonly string[]).includes('armFatigue')
+  );
+  const words = (a: ReturnType<typeof fpOf>, b: ReturnType<typeof fpOf>) =>
+    diffFingerprintChanges(a, b);
+  const added = words(fpNull, fpSev);
+  const changed = words(fpOf(3), fpSev);
+  const cleared = words(fpSev, fpNull);
+  check(
+    "P4 팔 피로 규칙 (라) 지문 — 바뀐 글 셋 — \"팔 피로 '심함'을 새로 적었어요\" · \"팔 피로가 '보통'에서 '심함'으로 바뀌었어요\" · '팔 피로 표시를 지웠어요'(key armFatigue)",
+    json(added) ===
+      json([{ key: 'armFatigue', text: "팔 피로 '심함'을 새로 적었어요" }]) &&
+      json(changed) ===
+        json([
+          { key: 'armFatigue', text: "팔 피로가 '보통'에서 '심함'으로 바뀌었어요" },
+        ]) &&
+      json(cleared) === json([{ key: 'armFatigue', text: '팔 피로 표시를 지웠어요' }]),
+    json([added, changed, cleared])
+  );
+  const allTexts: string[] = [];
+  for (const a of [null, 1, 2, 3, 4, 5])
+    for (const b of [null, 1, 2, 3, 4, 5])
+      allTexts.push(...words(fpOf(a), fpOf(b)).map((c) => c.text));
+  check(
+    `P4 팔 피로 규칙 (라) 지문 — 팔 피로 글 격자 6×6 — ${allTexts.length}줄 모두 해요체 · 줄표 · 굵게 · null 없음 · 60자 안, 같은 값끼리는 글 없음`,
+    allTexts.length === 30 &&
+      allTexts.every(
+        (t) => /요$/.test(t) && !/—|\*\*|null|undefined|NaN/.test(t) && t.length <= 60
+      ),
+    allTexts.slice(0, 3).join(' / ')
+  );
+  check(
+    'P4 팔 피로 규칙 (라) 지문 — 옛 지문(칸 없음)과는 견주지 않는다 — 칸 없는 지문 → 5 · 5 → 칸 없는 지문 모두 바뀜 없음(배포 날 알림이 안 뜬다)',
+    words(fpNone, fpSev).length === 0 && words(fpSev, fpNone).length === 0
+  );
+  const round = readPlanFingerprint(JSON.parse(json(fpSev)));
+  const roundOld = readPlanFingerprint(JSON.parse(json(fpNone)));
+  const broken = readPlanFingerprint({
+    ...fpSev,
+    checkin: { ...fpSev.checkin, armFatigue: '5' },
+  });
+  check(
+    "P4 팔 피로 규칙 (라) 지문 — 읽기 — 저장했다 읽어도 글자 그대로(칸 있음 · 없음 둘 다), 칸이 '5'(글자)면 깨진 지문(null)",
+    json(round) === json(fpSev) && json(roundOld) === json(fpNone) && broken === null,
+    json(round?.checkin)
+  );
+
+  /* ── (마) 배선 — 팔 피로는 facts 한 곳: 오늘 상태 한 장 · 안전 거르기 · 지문이 같은 칸을 읽는다 ── */
+  const sevFacts = afFacts({ armFatigue: SEVERE_ARM_FATIGUE });
+  const sevState = buildDayState({ facts: sevFacts, plan: buildPitchPlan(sevFacts) });
+  check(
+    "P4 팔 피로 규칙 (마) 배선 — 오늘 상태 한 장이 facts 의 팔 피로를 읽는다 — 5 → fatigue 5 · '심함' · 높음, 칸 없는 facts → null",
+    sevState.arm.fatigue === 5 &&
+      sevState.arm.fatigueWord === '심함' &&
+      sevState.hard.armFatigueHigh &&
+      buildDayState({ facts: afFacts({}), plan: buildPitchPlan(afFacts({})) }).arm
+        .fatigue === null,
+    json(sevState.arm)
+  );
+  const stripC = (p: string) =>
+    readFileSync(new URL(`../${p}`, import.meta.url), 'utf8')
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/^\s*\/\/.*$/gm, '');
+  const stateSrc = stripC('lib/engine/day-state.ts');
+  const rxSrc = stripC('lib/report/prescription.ts');
+  check(
+    'P4 팔 피로 규칙 (마) 배선 — day-state 는 extras 로 팔 피로를 안 받는다(칸 하나) · prescription 은 판정을 lib/engine/exercise-class.ts 에서 부른다(베낀 판정 없음)',
+    /const fatigue = today\?\.armFatigue \?\? null;/.test(stateSrc) &&
+      !/extras\.armFatigue|armFatigue\?: number/.test(stateSrc) &&
+      /import \{ isArmPlyo, isHeavyUpperPush \} from '@\/lib\/engine\/exercise-class';/.test(
+        rxSrc
+      ) &&
+      !/메디신볼|플라이오볼/.test(rxSrc)
+  );
 }
 
 console.log(`\n${passed}개 통과, ${failed}개 실패`);

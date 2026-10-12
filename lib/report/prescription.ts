@@ -2,13 +2,16 @@ import {
   CHECKIN_PARTS,
   HIGH_SORENESS,
   LOW_CONDITION_THRESHOLD,
+  SEVERE_ARM_FATIGUE,
   SEVERE_SORENESS,
   SHORT_SLEEP_HOURS,
+  armFatigueWord,
   formatSleepHours,
   isShortSleep,
   sorenessWord,
   type CheckinPartKey,
 } from '@/lib/checkin';
+import { isArmPlyo, isHeavyUpperPush } from '@/lib/engine/exercise-class';
 import { INTENSITY_CAP, intensityLevel, type BodyPart } from '@/lib/exercise-meta';
 import { YOUTH_AGE_THRESHOLD } from '@/lib/report/plan';
 import { BEGINNER_LEVEL_NAME } from '@/lib/report/personalize';
@@ -23,6 +26,11 @@ import type { PitchPlan } from '@/lib/report/plan';
  *
  * 이 파일의 모든 규칙은 안전을 위한 것이며, 후보가 부족하다고 해서
  * 완화하지 않는다. 부족하면 부족하다고 말하는 편이 맞다.
+ *
+ * 근력 프로그램(partsOnly)에서 어느 규칙이 걸리는가 — 부위 · 팔 상태 규칙(통증 · 뻐근 · 최근 통증 · 재활 · 메모 · 팔 피로)은
+ * drop 이라 프로그램에도 걸린다(그 칸이 그날 대체된다). 날 · 나이 · 몸 전체 규칙(부하 구간 · 통증 확인 전 · 성장기 · 경력 ·
+ * 컨디션 · 근육통 · 수면 · 성장기 쉬는 날)은 capTo 처럼 프로그램에서 건너뛴다 — 프로그램은 그런 날 스스로 쉬거나 칸을
+ * 가볍게 한다(lib/program/program.ts decideToday). 새 규칙도 이 기준으로 넣는다(2판 P4).
  */
 
 export type ExerciseLike = {
@@ -169,7 +177,8 @@ export function selectCandidates<T extends ExerciseLike>({
    */
   caution?: { part: CheckinPartKey; why: string }[];
   /**
-   * 부위 규칙만 쓴다 — 몸 전체 강도 상한(부하 구간 · 통증 확인 전 · 성장기 · 경력 · 컨디션 · 근육통 · 수면)은 건너뛴다.
+   * 부위 규칙만 쓴다 — 몸 전체 강도 상한(부하 구간 · 통증 확인 전 · 성장기 · 경력 · 컨디션 · 근육통 · 수면)과 성장기 쉬는 날(5-3)은
+   * 건너뛴다. 팔 피로 '심함'(5-2)은 팔 상태 규칙이라 걸린다.
    * 근력 · 파워 프로그램이 쓴다(lib/program/load.ts). 프로그램은 그런 날에도 진행하고 주의 한 줄 · 칸 조정으로
    * 스스로 가볍게 하므로(설계 D22~D25), 여기서 무거운 운동을 통째로 빼면 고정 운동이 날마다 대체된다.
    */
@@ -411,6 +420,42 @@ export function selectCandidates<T extends ExerciseLike>({
         intensityLevel(ex.intensity) <= INTENSITY_CAP.MODERATE ||
         !ex.bodyParts.some((p) => parts.includes(p))
     );
+  }
+
+  /*
+   * 5-2) 팔 피로 '심함'(SEVERE_ARM_FATIGUE) — 무거운 상체 밀기 · 팔 플라이오를 뺀다(2판 P4 커밋 C).
+   *
+   * 팔은 공을 던지는 곳이라, 팔이 '심하게' 지친 날 벤치 프레스 · 메디신볼 던지기까지 얹으면 같은 관절에 부담이 겹친다.
+   * 어디가 아픈지는 모르니 부위 꼬리표가 아니라 '팔로 밀고 던지는 것'(lib/engine/exercise-class.ts 판정)만 뺀다 — 가벼운 밀기 ·
+   * 당기기 · 하체 · 코어는 남는다. 눈금의 몫을 나눈다: '심함'은 여기서 운동을 뺀다, '많이'(HIGH_ARM_FATIGUE)는 암케어만 회복으로
+   * 돌린다, 그 아래는 고르기 점수(P5) 몫이다. 팔 상태 규칙이라 근력 프로그램에서도 걸린다(그 칸이 그날 대체된다).
+   * 1~5 밖의 값은 안 적은 것으로 넘긴다 — 근육통(4-1)과 같은 판단, 근거에 'null' 이 찍히지 않게.
+   */
+  const armFatigue = today?.armFatigue;
+  const armWord = armFatigueWord(armFatigue);
+  if (armFatigue != null && armWord && armFatigue >= SEVERE_ARM_FATIGUE) {
+    basis.push(`팔 피로 '${armWord}' → 무거운 상체 밀기 · 팔 플라이오 제외`);
+    drop(`팔 피로 '${armWord}'`, (ex) => !isHeavyUpperPush(ex) && !isArmPlyo(ex));
+  }
+
+  /*
+   * 5-3) 성장기(YOUTH_AGE_THRESHOLD 미만)가 투구 계획상 공을 쉬는 날 — 팔 플라이오를 뺀다(2판 D4).
+   *
+   * 쉬는 날(plan.today.throwing 이 false — 큰 등판 다음 날 · 통증 · 메모 확인 · 재활)은 팔을 쉬라는 날인데, 메디신볼 던지기 ·
+   * 플라이오 푸시업은 공 없이 팔을 빠르게 쓰는 운동이다. 성장기의 팔에는 그날 그 부담도 빼 둔다. 만 16세부터는 사용자 결정(D4)대로
+   * 성인 기준이라 그대로다. 나이 · 날 규칙이라 근력 프로그램에서는 건너뛴다 — 3) 성장기 강도 상한과 같은 기준(파일 머리 주석).
+   * 오늘 이미 던져 plan.today 가 없는 날은 쉬는 날이 아니다.
+   */
+  if (
+    !partsOnly &&
+    facts.profile.age != null &&
+    facts.profile.age < YOUTH_AGE_THRESHOLD &&
+    plan.today?.throwing === false
+  ) {
+    basis.push(
+      `만 ${facts.profile.age}세(성장기) · 오늘 공을 쉬는 날 → 팔 플라이오 제외`
+    );
+    drop('쉬는 날 팔 플라이오(성장기)', (ex) => !isArmPlyo(ex));
   }
 
   /*

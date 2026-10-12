@@ -21,7 +21,8 @@
  *
  * 순수 파일이다 — 'server-only' · prisma · 날짜 함수(appNow) 없음. 자체 시험 · 기준선 도구가 node 로 그대로 부른다.
  * DB 를 읽는 쪽은 lib/report/gather.ts(gatherFactsAndPlan 이 state 를 같이 돌려준다 — 이미 react cache 로 읽은 45일치 줄에서
- * 팔 피로 · 팔 통증 자리만 더 꺼내므로 조회가 늘지 않는다).
+ * 팔 통증 자리만 더 꺼내므로 조회가 늘지 않는다). 팔 피로는 2판 P4 커밋 C 부터 facts(CheckinLike.armFatigue)에서 읽는다 — 그 전에는
+ * extras 로 받았는데, 매일 일정의 안전 거르기 · 일정 지문도 같은 값을 읽어야 해서 facts 한 곳으로 옮겼다.
  *
  * import 금지: lib/report/theme.ts(theme 이 이 파일에 맡기므로 되부르면 순환) · lib/program/load.ts · lib/report/plan-fingerprint.ts
  * (둘 다 theme 을 부른다). 프로그램 · 메커니즘 · 체중 흐름은 DayStateExtras 로 받기만 한다.
@@ -122,8 +123,10 @@ export type NutritionTrend = {
 
 /** facts · plan 밖에 있는 것 — 모두 안 줘도 된다(안 주면 그 칸은 null · 모름) */
 export type DayStateExtras = {
-  /** 오늘 체크인의 팔 피로(DailyCheckin.armFatigue, 1~5). facts 에 없다 */
-  armFatigue?: number | null;
+  /*
+   * 팔 피로는 여기 없다 — facts.condition.today.armFatigue 를 읽는다(2판 P4 커밋 C). 칸이 두 곳에 있으면 장과 안전 거르기가 다른
+   * 값을 볼 수 있다.
+   */
   /**
    * 오늘 체크인에 저장된 팔 통증 자리 · 정도(lib/checkin.ts 의 pickArmPain 결과 그대로). 자리는 오늘 어깨 · 팔꿈치가 '통증'인
    * 관절의 것만 남긴다(armPainSpotsFor — lib/armcare/today.ts 와 같은 규칙).
@@ -290,8 +293,8 @@ export function buildDayState({
   const restLeft = pendingOuting(patterns, 0, facts.profile.age)?.left ?? null;
   const restDay = plan.today?.throwing === false;
 
-  /* arm */
-  const fatigue = extras.armFatigue ?? null;
+  /* arm — 팔 피로는 오늘 체크인 칸(facts, 2판 P4). 체크인이 없으면 null */
+  const fatigue = today?.armFatigue ?? null;
   const fatigueHigh = fatigue != null && fatigue >= HIGH_ARM_FATIGUE;
   const painJoints = painParts.filter((p) => p === 'shoulder' || p === 'elbow');
   const saved = extras.armPain ?? null;
