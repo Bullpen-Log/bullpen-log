@@ -34,6 +34,7 @@ import { weighItem } from '@/lib/program/next-weight';
 import type { ItemRx } from '@/lib/program/program';
 import { openSession } from '@/lib/workout/open-session';
 import { withFreeWeights } from '@/lib/workout/free-weight-load';
+import { liftCautious } from '@/lib/workout/free-weight';
 import { advanceProgramDay } from '@/lib/program/advance';
 import { runExercises, type RunExercise } from '@/lib/workout/run-exercises';
 import {
@@ -110,12 +111,14 @@ export async function startWorkout() {
 
   /*
    * 프로그램이 아닌 무게 운동의 추천 — 지난번 세트로(lib/workout/free-weight.ts). 다시 여는 판은 제 목록을 지킨다.
-   * 양을 줄인 판(세트 −1 이 실린 판)이면 무게는 올리지 않는다(holdsWeight, 2판 P5-d).
+   * 양을 줄인 판(세트 −1 이 실린 판)이면 무게는 올리지 않는다(holdsWeight, 2판 P5-d). 성장기 · 입문은 올려도 한 단위 · 처방 줄에
+   * '· 3개 남기고'(liftCautious, 2판 P5-g).
    */
   const weighed = {
     ...plan,
     exercises: await withFreeWeights(user.id, plan.exercises, core.midnight, {
       hold: holdsWeight(plan),
+      cautious: liftCautious(core.facts.profile),
     }),
   };
 
@@ -896,8 +899,8 @@ export async function changeSessionExercise(input: {
           ),
         ],
         session.date,
-        /* 판이 양을 줄였으면 바꿔 넣는 운동도 무게를 올리지 않는다 — 처음 찍은 운동과 같은 규칙(holdsWeight, 2판 P5-d) */
-        { hold: holdsWeight(plan) }
+        /* 판이 양을 줄였으면 바꿔 넣는 운동도 무게를 올리지 않는다 — 처음 찍은 운동과 같은 규칙(holdsWeight, 2판 P5-d · liftCautious P5-g) */
+        { hold: holdsWeight(plan), cautious: liftCautious(core.facts.profile) }
       )
     )[0];
   const list =

@@ -37,7 +37,10 @@ export type FrozenExercise = {
   title: string;
   category: string;
   slot: SlotKey;
-  /** '3세트 × 10회 · 세트 사이 2분 휴식' 같은 한 줄. 안 채운 운동은 없다. */
+  /**
+   * '3세트 × 10회 · 세트 사이 2분 휴식' 같은 한 줄. 안 채운 운동은 없다. 성장기 · 입문의 무게 운동은 '· 3개 남기고'가 붙는다
+   * (lib/workout/free-weight-load.ts, 2판 P5-g).
+   */
   prescription: string | null;
   /** 처방 세트 수. 화면에 '3세트 중 2세트째'로 쓴다. */
   plannedSets: number | null;
@@ -68,7 +71,7 @@ export type FrozenExercise = {
    * 프로그램 날은 next-weight.ts, 그 밖의 무게 운동은 free-weight.ts(2026-10-09 — 그 앞에 찍은 판에는 프로그램 칸에만 있다).
    */
   suggestedKg?: number | null;
-  /** 프로그램이 아닌 운동의 추천 까닭 한 줄('지난번 60kg × 8회를 3세트 다 채워서 2.5kg 올렸어요') — free-weight.ts */
+  /** 프로그램이 아닌 운동의 추천 까닭 한 줄('60kg × 8회 3세트를 두 번 이어 채워서 2.5kg 올렸어요') — free-weight.ts */
   suggestNote?: string | null;
   /**
    * 세트마다 다른 처방(% 방식 — 5/3/1 의 65 · 75 · 85%+ 같은 것). 운동 화면이 그 세트의 무게 · 횟수를 보여 준다.

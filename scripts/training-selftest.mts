@@ -229,7 +229,17 @@ import {
   type VolumeDecision,
   type VolumeStateInput,
 } from '../lib/report/volume.ts';
-import { suggestFreeWeight, type FreeLast } from '../lib/workout/free-weight.ts';
+import {
+  CAUTIOUS_RESERVE,
+  REP_FLOOR_RATIO,
+  STREAK_MAX_GAP_DAYS,
+  cautiousPrescription,
+  liftCautious,
+  repFloorOf,
+  suggestFreeWeight,
+  type FreeLast,
+} from '../lib/workout/free-weight.ts';
+import { UNIT_KG } from '../lib/program/next-weight.ts';
 import {
   ALWAYS_OWNED,
   SELECTABLE_EQUIPMENT,
@@ -247,6 +257,7 @@ import {
   readTrainingGoal,
   readTrainingProfile,
   validFocus,
+  BEGINNER_LEVEL_NAME,
 } from '../lib/report/personalize.ts';
 import {
   DEFAULT_WORKOUT_MINUTES,
@@ -21956,6 +21967,11 @@ console.log(
       date,
       sets: Array.from({ length: 4 }, () => ({ weightKg: 60, reps })),
     });
+    /*
+     * P5 로 바뀜 — 2판 P5-g(자유 운동 무게)부터 같은 무게로 두 번 이어 채워야 올린다(한 번이면 그대로). 그래서 그 앞 날(prev,
+     * 같은 60kg 을 다 채운 06-10)도 준다. hold 가 올림만 멈춘다는 뜻은 그대로다.
+     */
+    const hitPrev = last('2026-06-10', 5);
     const ask = (l: FreeLast, hold?: boolean) =>
       suggestFreeWeight({
         equipment: ['바벨'],
@@ -21963,6 +21979,7 @@ console.log(
         plannedSets: 3,
         plannedReps: 5,
         last: l,
+        prev: hitPrev,
         todayKey: '2026-06-15',
         ...(hold === undefined ? {} : { hold }),
       });
@@ -21970,7 +21987,7 @@ console.log(
     const raised = ask(hitLast);
     const held = ask(hitLast, true);
     check(
-      "P5 양 (마) 다 채운 운동 — 보통 날은 올리고(60 → 62.5kg), 양을 줄인 날은 60kg 그대로 · '오늘은 양을 줄인 날이라 지난번 60kg 그대로예요'",
+      "P5 양 (마) 두 번 이어 다 채운 운동 — 보통 날은 올리고(60 → 62.5kg), 양을 줄인 날은 60kg 그대로 · '오늘은 양을 줄인 날이라 지난번 60kg 그대로예요'",
       raised != null &&
         raised.kg > 60 &&
         held != null &&
@@ -23172,6 +23189,553 @@ console.log(
         /weeklyCap: strengthDates\.weeklyMinutesCap,/.test(setup) &&
         setup.split('weeklyMinutesCap').length - 1 === 1 &&
         setup.split('weeklyCap').length - 1 === 1
+    );
+  }
+}
+
+/* ═══════════════════ [2판 P5] 자유 운동 무게 — 두 번 이어 채우면 올림 · 못 채우면 바로 내림 · hold · cautious(lib/workout/free-weight.ts · free-weight-load.ts) (2026-10-12) ═══════════════════ */
+console.log(
+  '\n[2판 P5] 자유 운동 무게 — 횟수 범위 위 끝을 두 번 이어 채우면 조금 올리고, 아래 끝 밑이면 바로 내리고, 양을 줄인 날은 그대로, 성장기 · 입문은 한 단위 · 3개 남기고(2026-10-12)'
+);
+{
+  /*
+   * 왜 보는가. 검토안 2판 4-5 '무게: 올림은 2회 연속일 때, 내림은 1회로 바로' · 4-4 '성장기 · 입문은 3개 남기기'(P5-g). 프로그램이 아닌
+   * 무게 운동은 '몇 개 더?'를 묻지 않아 횟수로만 정한다 — 처방 횟수가 범위의 위 끝, 그 4분의 3(올림)이 아래 끝. 예전(2026-10-09)
+   * 판은 한 번만 채워도 올렸고 못 채워도 내리지 않았으며, 자체 시험이 0개였다.
+   * (가) 상수 · 아래 끝 표 · 조심할 사람 · 처방 줄 꼬리, (나) 두 번 이어 채우면 올림, (다) 못 채우면 바로 내림(그날 처방으로 잼),
+   * (라) hold, (마) cautious, (바) 쉰 기간 · 추천 없음, (사) 격자 불변식, (아) 소스의 약속.
+   */
+  const json = (v: unknown) => JSON.stringify(v);
+  const TK = '2026-06-15';
+  /** 오늘에서 n 일 전 날짜 키 */
+  const ago = (n: number) => shiftDateKey(TK, -n);
+  /** 같은 무게로 든 세트들(reps 하나가 한 세트) — 그날 처방(plannedReps)은 줄 때만 */
+  const day = (
+    date: string,
+    kg: number,
+    reps: readonly (number | null)[],
+    plannedReps?: number | null
+  ): FreeLast => ({
+    date,
+    sets: reps.map((r) => ({ weightKg: kg, reps: r })),
+    ...(plannedReps === undefined ? {} : { plannedReps }),
+  });
+  type FwInput = Parameters<typeof suggestFreeWeight>[0];
+  const ask = (o: Partial<FwInput>) =>
+    suggestFreeWeight({
+      equipment: ['바벨'],
+      bigLower: true,
+      plannedSets: 3,
+      plannedReps: 8,
+      last: null,
+      todayKey: TK,
+      ...o,
+    });
+  const full60 = (date: string) => day(date, 60, [8, 8, 8]);
+
+  /* ── (가) 상수 · 아래 끝 표 · 조심할 사람 · 처방 줄 꼬리 ── */
+  check(
+    'P5 무게 (가) 상수 — 아래 끝 4분의 3 · 두 번 이어 채움은 8일 안(쉰 기간 낮춤과 같은 선) · 조심하면 3개 남기고 · 바벨 2.5 · 덤벨 2 · 머신 2.5',
+    REP_FLOOR_RATIO === 0.75 &&
+      STREAK_MAX_GAP_DAYS === 8 &&
+      CAUTIOUS_RESERVE === 3 &&
+      UNIT_KG.barbell === 2.5 &&
+      UNIT_KG.dumbbell === 2 &&
+      UNIT_KG.machine === 2.5
+  );
+  {
+    const table: [number, number][] = [
+      [1, 1],
+      [2, 2],
+      [3, 3],
+      [4, 3],
+      [5, 4],
+      [6, 5],
+      [8, 6],
+      [10, 8],
+      [12, 9],
+      [15, 12],
+    ];
+    const wrong = table.filter(([r, f]) => repFloorOf(r) !== f);
+    let monotone = true;
+    for (let r = 1; r <= 40; r++) {
+      const f = repFloorOf(r);
+      if (f < 1 || f > r || (r > 1 && f < repFloorOf(r - 1))) monotone = false;
+    }
+    check(
+      'P5 무게 (가) repFloorOf — 8회 → 6 · 5회 → 4 · 10회 → 8 · 15회 → 12 · 4회 → 3, 1~40회 모두 1 이상 · 처방 이하 · 늘면 안 줄어듦',
+      wrong.length === 0 && monotone,
+      json(wrong.map(([r, f]) => [r, f, repFloorOf(r)]))
+    );
+  }
+  check(
+    "P5 무게 (가) liftCautious — 만 16세 미만(성장기 선 YOUTH_AGE_THRESHOLD) 또는 경력 '입문'만 참, 나이를 모르면 경력만",
+    liftCautious({ age: YOUTH_AGE_THRESHOLD - 1 }) &&
+      liftCautious({ age: 13, trainingLevel: '상급' }) &&
+      !liftCautious({ age: YOUTH_AGE_THRESHOLD }) &&
+      !liftCautious({ age: 30, trainingLevel: '초급' }) &&
+      liftCautious({ age: 30, trainingLevel: BEGINNER_LEVEL_NAME }) &&
+      liftCautious({ age: null, trainingLevel: '입문' }) &&
+      !liftCautious({ age: null }) &&
+      !liftCautious({ age: null, trainingLevel: null }) &&
+      BEGINNER_LEVEL_NAME === '입문'
+  );
+  {
+    const withRest = '3세트 × 8회 · 세트 사이 2분 휴식';
+    const sided = '3세트 × 10회 (좌우 각각) · 세트 사이 90초 휴식';
+    const fromLib = formatPrescription({
+      sets: 4,
+      reps: 5,
+      holdSeconds: null,
+      restSeconds: 120,
+      perSide: false,
+    });
+    check(
+      "P5 무게 (가) cautiousPrescription — 횟수 뒤 · 휴식 앞에 '· 3개 남기고', 휴식이 없으면 끝에, 두 번 불러도 한 번, 줄이 없으면 없음",
+      cautiousPrescription(withRest) ===
+        '3세트 × 8회 · 3개 남기고 · 세트 사이 2분 휴식' &&
+        cautiousPrescription('3세트 × 8회') === '3세트 × 8회 · 3개 남기고' &&
+        cautiousPrescription(sided) ===
+          '3세트 × 10회 (좌우 각각) · 3개 남기고 · 세트 사이 90초 휴식' &&
+        cautiousPrescription(cautiousPrescription(withRest)) ===
+          cautiousPrescription(withRest) &&
+        cautiousPrescription(null) === null &&
+        fromLib != null &&
+        cautiousPrescription(fromLib)!.split('3개 남기고').length - 1 === 1 &&
+        cautiousPrescription(fromLib)!.startsWith('4세트 × 5회 · 3개 남기고'),
+      json([
+        cautiousPrescription(withRest),
+        cautiousPrescription(sided),
+        cautiousPrescription(fromLib),
+      ])
+    );
+  }
+  check(
+    "P5 무게 (가) 꼬리에는 회 · 초 · 분 숫자가 없다 — 운동 화면이 처방 줄의 마지막 '회 · 초 · 분' 숫자를 읽는 곳(session-client plannedAmount)이 안 헷갈린다",
+    !/\d+\s*(회|초|분)/.test(cautiousPrescription('')!) &&
+      [
+        ...cautiousPrescription('3세트 × 8회')!.matchAll(/(\d+)\s*(회|초|분)/g),
+      ].pop()?.[1] === '8'
+  );
+
+  /* ── (나) 두 번 이어 채우면 올림 ── */
+  {
+    const raised = ask({ last: full60(ago(3)), prev: full60(ago(5)) });
+    const hundred = ask({
+      last: day(ago(3), 100, [8, 8, 8]),
+      prev: day(ago(6), 100, [8, 8, 8]),
+    });
+    const dumbbell = ask({
+      equipment: ['덤벨'],
+      bigLower: false,
+      plannedReps: 10,
+      last: day(ago(2), 20, [10, 10, 10]),
+      prev: day(ago(4), 20, [11, 10, 10]),
+    });
+    check(
+      "P5 무게 (나) 같은 무게로 두 번 이어 다 채움 → 올림 — 하체 바벨 60 → 62.5(×1.05) · 100 → 105, 상체 덤벨 20 → 22(×1.025 가 한 단위 밑이라 한 단위) · '60kg × 8회 3세트를 두 번 이어 채워서 2.5kg 올렸어요'",
+      raised?.kg === 62.5 &&
+        raised.note === '60kg × 8회 3세트를 두 번 이어 채워서 2.5kg 올렸어요' &&
+        hundred?.kg === 105 &&
+        dumbbell?.kg === 22,
+      json([raised, hundred, dumbbell])
+    );
+    const once = ask({ last: full60(ago(3)) });
+    check(
+      "P5 무게 (나) P5 로 바뀜 — 한 번만 채움 → 그대로 · '지난번 60kg × 8회를 3세트 다 채웠어요. 한 번 더 채우면 올려요'(2026-10-09 판은 한 번에 62.5 로 올렸다)",
+      once?.kg === 60 &&
+        once.note === '지난번 60kg × 8회를 3세트 다 채웠어요. 한 번 더 채우면 올려요',
+      json(once)
+    );
+    const broken: [string, FreeLast][] = [
+      ['앞 날 무게가 다름(57.5)', day(ago(5), 57.5, [8, 8, 8])],
+      ['앞 날 한 세트 모자람(8 · 8 · 6)', day(ago(5), 60, [8, 8, 6])],
+      ['앞 날 세트 수 모자람(두 세트)', day(ago(5), 60, [8, 8])],
+      ['앞 날이 지난번과 8일 떨어짐', full60(ago(11))],
+      ['앞 날이 지난번과 같은 날', full60(ago(3))],
+      ['앞 날이 지난번보다 뒤', full60(ago(2))],
+    ];
+    const notStreak = broken.filter(
+      ([, p]) => json(ask({ last: full60(ago(3)), prev: p })) !== json(once)
+    );
+    check(
+      "P5 무게 (나) 이어지지 않으면 한 번으로 친다 — 앞 날 무게가 다름 · 앞 날 못 채움 · 세트 모자람 · 8일 넘게 떨어짐 · 같은 날 · 뒤 날이면 '한 번 더 채우면 올려요' 그대로",
+      notStreak.length === 0,
+      json(notStreak.map(([w]) => w))
+    );
+    check(
+      'P5 무게 (나) 이어짐의 경계 — 지난번과 7일 떨어진 앞 날은 이어지고(올림), 8일이면 끊긴다',
+      ask({ last: full60(ago(3)), prev: full60(ago(10)) })?.kg === 62.5 &&
+        ask({ last: full60(ago(3)), prev: full60(ago(11)) })?.kg === 60
+    );
+    check(
+      'P5 무게 (나) 채움은 오늘 처방으로 잰다 — 앞 날이 10회 처방이라 10회씩 했어도 오늘 8회를 넘었으니 채움, 준비 세트(가벼운 무게)는 본 세트가 아니다, 오늘 4세트면 3세트 한 날은 채움이 아니다',
+      ask({ last: full60(ago(3)), prev: day(ago(5), 60, [10, 10, 10], 10) })?.kg ===
+        62.5 &&
+        ask({
+          last: {
+            date: ago(3),
+            sets: [
+              { weightKg: 40, reps: 10 },
+              { weightKg: 50, reps: 5 },
+              ...full60(ago(3)).sets,
+            ],
+          },
+          prev: full60(ago(5)),
+        })?.kg === 62.5 &&
+        ask({ plannedSets: 4, last: full60(ago(3)), prev: full60(ago(5)) })?.note ===
+          '지난번 60kg에서 8회 × 4세트를 두 번 이어 채우면 올려요'
+    );
+  }
+
+  /* ── (다) 못 채우면 바로 내림 ── */
+  {
+    const miss = ask({ last: day(ago(3), 60, [8, 8, 5]), prev: full60(ago(5)) });
+    const heavy = ask({ plannedReps: 5, last: day(ago(2), 100, [5, 5, 3]) });
+    const dumbbell = ask({
+      equipment: ['덤벨'],
+      bigLower: false,
+      plannedReps: 10,
+      last: day(ago(2), 20, [10, 10, 7]),
+    });
+    const lightest = ask({
+      equipment: ['덤벨'],
+      bigLower: false,
+      plannedReps: 10,
+      last: day(ago(2), 2, [10, 10, 5]),
+    });
+    check(
+      "P5 무게 (다) 아래 끝 밑 세트가 하나라도 있으면 한 번에 내림(×0.95, 적어도 한 단위) — 60 → 57.5 · 100 → 95 · 덤벨 20 → 18 · '지난번 60kg에서 6회가 안 된 세트가 있어 2.5kg 낮췄어요', 앞 날을 채웠어도 내린다",
+      miss?.kg === 57.5 &&
+        miss.note === '지난번 60kg에서 6회가 안 된 세트가 있어 2.5kg 낮췄어요' &&
+        heavy?.kg === 95 &&
+        heavy.note === '지난번 100kg에서 4회가 안 된 세트가 있어 5kg 낮췄어요' &&
+        dumbbell?.kg === 18,
+      json([miss, heavy, dumbbell])
+    );
+    check(
+      "P5 무게 (다) 가장 가벼운 단위(덤벨 2kg)는 더 못 내린다 — 2kg 그대로 · '더 낮출 무게가 없어 그대로예요'",
+      lightest?.kg === 2 &&
+        lightest.note ===
+          '지난번 2kg에서 8회가 안 된 세트가 있었어요. 더 낮출 무게가 없어 그대로예요',
+      json(lightest)
+    );
+    const mid = ask({ last: day(ago(3), 60, [8, 7, 6]), prev: full60(ago(5)) });
+    check(
+      "P5 무게 (다) 범위 안(8 · 7 · 6 — 아래 끝 6 이상) · 세트를 덜 한 날은 그대로 · '지난번 60kg에서 8회 × 3세트를 두 번 이어 채우면 올려요', 횟수를 안 적은 세트는 못 채움으로 안 친다",
+      mid?.kg === 60 &&
+        mid.note === '지난번 60kg에서 8회 × 3세트를 두 번 이어 채우면 올려요' &&
+        json(ask({ last: day(ago(3), 60, [8, 8]) })) === json(mid) &&
+        json(ask({ last: day(ago(3), 60, [8, null, 8]) })) === json(mid),
+      json(mid)
+    );
+    const asked5 = ask({ last: day(ago(3), 60, [5, 5, 5], 5) });
+    const unknown5 = ask({ last: day(ago(3), 60, [5, 5, 5]) });
+    check(
+      'P5 무게 (다) 아래 끝은 그날 처방과 오늘 처방 중 작은 쪽 — 그날 5회를 시켜 5회씩 했으면 오늘 8회라도 못 채움이 아니다(그대로 60), 그날 처방을 모르면 오늘 8회의 아래 끝 6 으로 재 내린다(57.5)',
+      asked5?.kg === 60 &&
+        asked5.note === '지난번 60kg에서 8회 × 3세트를 두 번 이어 채우면 올려요' &&
+        unknown5?.kg === 57.5,
+      json([asked5, unknown5])
+    );
+    check(
+      'P5 무게 (다) 그날 처방이 더 많았으면 오늘 처방으로 잰다 — 그날 12회 처방에 7회씩(오늘 8회의 아래 끝 6 이상)은 그대로, 5회씩이면 내림 · 깨진 그날 처방(0 · 2.5 · −3 · null)은 모르는 것과 같다',
+      ask({ last: day(ago(3), 60, [7, 7, 7], 12) })?.kg === 60 &&
+        ask({ last: day(ago(3), 60, [5, 5, 5], 12) })?.kg === 57.5 &&
+        [0, 2.5, -3, null].every(
+          (bad) =>
+            json(ask({ last: day(ago(3), 60, [5, 5, 5], bad) })) === json(unknown5)
+        )
+    );
+  }
+
+  /* ── (라) hold — 양을 줄인 날은 올림만 멈춘다 ── */
+  {
+    const twice = { last: full60(ago(3)), prev: full60(ago(5)) };
+    const holdNote = '오늘은 양을 줄인 날이라 지난번 60kg 그대로예요';
+    check(
+      "P5 무게 (라) 양을 줄인 날(hold) — 두 번 이어 채웠어도 · 한 번 채웠어도 60kg 그대로 · '오늘은 양을 줄인 날이라 지난번 60kg 그대로예요'",
+      ask({ ...twice, hold: true })?.kg === 60 &&
+        ask({ ...twice, hold: true })?.note === holdNote &&
+        ask({ last: full60(ago(3)), hold: true })?.note === holdNote &&
+        ask({ ...twice, hold: true, cautious: true })?.note === holdNote
+    );
+    const others: Partial<FwInput>[] = [
+      { last: day(ago(3), 60, [8, 8, 5]), prev: full60(ago(5)) },
+      { last: day(ago(3), 60, [8, 7, 6]) },
+      { last: full60(ago(9)), prev: full60(ago(11)) },
+      { last: full60(ago(20)) },
+      { last: full60(ago(3)), plannedReps: null },
+    ];
+    check(
+      'P5 무게 (라) hold 는 올림만 멈춘다 — 못 채움(내림) · 범위 안 · 쉰 기간(낮춤) · 처방 횟수 모름은 hold 와 상관없이 같다',
+      others.every((o) => json(ask({ ...o, hold: true })) === json(ask(o)))
+    );
+  }
+
+  /* ── (마) cautious — 성장기 · 입문은 올려도 한 단위 · 3개 남기고 ── */
+  {
+    const twice100 = {
+      last: day(ago(3), 100, [8, 8, 8]),
+      prev: day(ago(6), 100, [8, 8, 8]),
+    };
+    const careful = ask({ ...twice100, cautious: true });
+    check(
+      "P5 무게 (마) 조심해서 들 사람은 두 번 이어 채워도 한 단위만 — 100 → 102.5(보통은 105) · '100kg × 8회 3세트를 두 번 이어 채워서 2.5kg만 올렸어요. 3개는 남기고 멈춰요'",
+      careful?.kg === 102.5 &&
+        careful.note ===
+          '100kg × 8회 3세트를 두 번 이어 채워서 2.5kg만 올렸어요. 3개는 남기고 멈춰요' &&
+        ask(twice100)?.kg === 105 &&
+        ask({
+          equipment: ['덤벨'],
+          bigLower: false,
+          plannedReps: 10,
+          last: day(ago(2), 20, [10, 10, 10]),
+          prev: day(ago(4), 20, [10, 10, 10]),
+          cautious: true,
+        })?.kg === 22,
+      json(careful)
+    );
+    const same: Partial<FwInput>[] = [
+      { last: day(ago(3), 60, [8, 8, 5]) },
+      { last: day(ago(3), 60, [8, 7, 6]) },
+      { last: full60(ago(3)) },
+      { last: full60(ago(9)), prev: full60(ago(11)) },
+      { last: full60(ago(20)) },
+      { last: full60(ago(30)) },
+      { last: full60(ago(3)), plannedReps: null },
+    ];
+    check(
+      'P5 무게 (마) 올림이 아닌 날은 조심해도 같다 — 못 채움 · 범위 안 · 한 번 채움 · 쉰 기간 · 숫자 없음 · 처방 횟수 모름',
+      same.every((o) => json(ask({ ...o, cautious: true })) === json(ask(o)))
+    );
+  }
+
+  /* ── (바) 쉰 기간 · 추천 없음 ── */
+  {
+    const gap = (n: number) => ask({ last: full60(ago(n)), prev: full60(ago(n + 2)) });
+    check(
+      "P5 무게 (바) 쉰 기간 — 7일은 보통(두 번 이어 채움이면 올림), 8~14일 ×0.9(60 → 55) · 15~28일 ×0.85(60 → 50, 28일 → 50) · 29일부터 숫자 없음 · '8일 쉬어서 지난번 60kg보다 10% 낮췄어요'",
+      gap(7)?.kg === 62.5 &&
+        gap(8)?.kg === 55 &&
+        gap(8)?.note === '8일 쉬어서 지난번 60kg보다 10% 낮췄어요' &&
+        gap(14)?.kg === 55 &&
+        gap(15)?.kg === 50 &&
+        gap(15)?.note === '15일 쉬어서 지난번 60kg보다 15% 낮췄어요' &&
+        gap(28)?.kg === 50 &&
+        gap(29) === null,
+      json([gap(7), gap(8), gap(15), gap(28), gap(29)])
+    );
+    check(
+      "P5 무게 (바) 추천 없음 — 맨몸 · 밴드 · 메디신볼, 기록 없음, 무게를 적은 세트가 없는 날은 null · 처방 횟수 모름은 '지난번 60kg 그대로예요' · 처방 세트 모름은 1세트로",
+      ask({ equipment: ['맨몸'], last: full60(ago(3)) }) === null &&
+        ask({ equipment: ['밴드'], last: full60(ago(3)) }) === null &&
+        ask({ equipment: ['메디신볼'], last: full60(ago(3)) }) === null &&
+        ask({ last: null }) === null &&
+        ask({
+          last: {
+            date: ago(3),
+            sets: [
+              { weightKg: null, reps: 8 },
+              { weightKg: 0, reps: 8 },
+            ],
+          },
+        }) === null &&
+        ask({ last: full60(ago(3)), plannedReps: null })?.note ===
+          '지난번 60kg 그대로예요' &&
+        ask({
+          plannedSets: null,
+          last: day(ago(3), 60, [8]),
+          prev: day(ago(5), 60, [8]),
+        })?.kg === 62.5
+    );
+  }
+
+  /* ── (사) 격자 불변식 ── */
+  {
+    type Pattern = 'full' | 'short' | 'below' | 'fewer';
+    const kinds = [
+      { equipment: ['바벨'], bigLower: true, unit: 2.5, tops: [20, 60, 102.5] },
+      { equipment: ['덤벨'], bigLower: false, unit: 2, tops: [2, 10, 24] },
+      { equipment: ['케이블'], bigLower: false, unit: 2.5, tops: [5, 45] },
+    ];
+    const repsFor = (p: Pattern, r: number, s: number): number[] => {
+      if (p === 'full') return Array.from({ length: s }, () => r);
+      if (p === 'short') return [...Array.from({ length: s - 1 }, () => r), r - 1];
+      if (p === 'below')
+        return [...Array.from({ length: s - 1 }, () => r), repFloorOf(r) - 1];
+      return Array.from({ length: s - 1 }, () => r);
+    };
+    let n = 0;
+    let raises = 0;
+    let lowers = 0;
+    let holdsHit = 0;
+    const bad: string[] = [];
+    const note = (why: string, c: unknown) => {
+      if (bad.length < 8) bad.push(`${why} ${json(c)}`);
+    };
+    for (const k of kinds)
+      for (const top of k.tops)
+        for (const reps of [5, 8, 15])
+          for (const sets of [3, 4])
+            for (const pattern of ['full', 'short', 'below', 'fewer'] as Pattern[])
+              for (const prevKind of [
+                'none',
+                'sameHit',
+                'sameMiss',
+                'otherHit',
+              ] as const)
+                for (const lastAgo of [2, 8, 15, 29])
+                  for (const prevGap of [3, 8])
+                    for (const hold of [false, true])
+                      for (const cautious of [false, true]) {
+                        n++;
+                        const lastDay = day(
+                          ago(lastAgo),
+                          top,
+                          repsFor(pattern, reps, sets)
+                        );
+                        const prevDate = ago(lastAgo + prevGap);
+                        const prevDay =
+                          prevKind === 'none'
+                            ? null
+                            : prevKind === 'sameHit'
+                              ? day(prevDate, top, repsFor('full', reps, sets))
+                              : prevKind === 'sameMiss'
+                                ? day(prevDate, top, repsFor('below', reps, sets))
+                                : day(
+                                    prevDate,
+                                    top + k.unit,
+                                    repsFor('full', reps, sets)
+                                  );
+                        const input: FwInput = {
+                          equipment: k.equipment,
+                          bigLower: k.bigLower,
+                          plannedSets: sets,
+                          plannedReps: reps,
+                          last: lastDay,
+                          prev: prevDay,
+                          todayKey: TK,
+                          hold,
+                          cautious,
+                        };
+                        const c = {
+                          kind: k.equipment[0],
+                          top,
+                          reps,
+                          sets,
+                          pattern,
+                          prevKind,
+                          lastAgo,
+                          prevGap,
+                          hold,
+                          cautious,
+                        };
+                        const r = suggestFreeWeight(input);
+                        if (json(r) !== json(suggestFreeWeight(input)))
+                          note('결정성', c);
+                        if ((r === null) !== lastAgo >= 29) {
+                          note('null 은 29일부터만', c);
+                          continue;
+                        }
+                        if (!r) continue;
+                        if (
+                          !r.note.endsWith('요') ||
+                          r.note.includes('—') ||
+                          r.note.includes('**') ||
+                          r.note.length > 60
+                        ) {
+                          note(`글 ${r.note}`, c);
+                        }
+                        if (
+                          Math.abs(r.kg / k.unit - Math.round(r.kg / k.unit)) > 1e-9 ||
+                          r.kg < k.unit
+                        ) {
+                          note(`단위 ${r.kg}`, c);
+                        }
+                        const streak =
+                          pattern === 'full' &&
+                          prevKind === 'sameHit' &&
+                          prevGap < STREAK_MAX_GAP_DAYS;
+                        if (r.kg > top) {
+                          raises++;
+                          if (!(lastAgo < 8 && streak && !hold))
+                            note('올림은 두 번 이어 채운 보통 날만', c);
+                          if (cautious && r.kg - top > k.unit + 1e-9)
+                            note('조심하면 한 단위만', c);
+                        }
+                        if (r.kg < top) {
+                          lowers++;
+                          if (!(lastAgo >= 8 || pattern === 'below'))
+                            note('내림은 못 채움 · 쉰 기간만', c);
+                        }
+                        if (
+                          lastAgo < 8 &&
+                          pattern === 'below' &&
+                          top > k.unit &&
+                          r.kg >= top
+                        ) {
+                          note('못 채우면 바로 내림', c);
+                        }
+                        if (hold && r.kg > top) note('hold 면 안 올림', c);
+                        if (hold && lastAgo < 8 && pattern === 'full') holdsHit++;
+                        const plain = suggestFreeWeight({
+                          ...input,
+                          hold: false,
+                          cautious: false,
+                        });
+                        if (cautious && plain && r.kg > plain.kg)
+                          note('조심하면 보통보다 무겁지 않다', c);
+                        if (
+                          !hold &&
+                          cautious &&
+                          plain &&
+                          plain.kg <= top &&
+                          json(r) !== json(plain)
+                        ) {
+                          note('올림이 아닌 날은 조심해도 같다', c);
+                        }
+                        const unheld = suggestFreeWeight({ ...input, hold: false });
+                        if (
+                          hold &&
+                          unheld &&
+                          unheld.kg < top &&
+                          json(r) !== json(unheld)
+                        ) {
+                          note('hold 는 내림을 안 바꾼다', c);
+                        }
+                      }
+    check(
+      `P5 무게 (사) 격자 ${n}가지(장비 셋 · 무게 · 처방 5 · 8 · 15회 × 3 · 4세트 · 지난번 채움/모자람/아래 끝 밑/세트 덜함 · 앞 날 넷 · 쉰 날 · hold · cautious) — 결정성 · 29일부터만 null · 해요체 60자 · 단위 배수 · 올림은 두 번 이어 채운 보통 날만 · 내림은 못 채움 · 쉰 기간만 · 못 채우면 바로 내림 · 조심하면 한 단위 이하 · hold 는 올림만 멈춤(올림 ${raises} · 내림 ${lowers} · 채운 hold 날 ${holdsHit})`,
+      bad.length === 0 && raises > 0 && lowers > 0 && holdsHit > 0,
+      bad.join(' | ')
+    );
+  }
+
+  /* ── (아) 소스의 약속 — 최근 이틀 · 그날 처방 · 두 자리에서 조심 규칙 ── */
+  {
+    const strip = (rel: string) =>
+      readFileSync(new URL(`../${rel}`, import.meta.url), 'utf8')
+        .replace(/\/\*[\s\S]*?\*\//g, '')
+        .replace(/^\s*\/\/.*$/gm, '');
+    const load = strip('lib/workout/free-weight-load.ts');
+    const work = strip('app/actions/workout.ts');
+    check(
+      'P5 무게 (아) free-weight-load — 운동마다 최근 두 날(FREE_WEIGHT_DAYS 2)을 운동 · 날 짝으로 먼저 고르고(줄 수 자르기 없음) 지난번 · 그 앞 날 · 그날 세션 판의 처방 횟수를 넘긴다, hold · cautious 를 넘기고 cautious 면 처방 줄 꼬리',
+      /export const FREE_WEIGHT_DAYS = 2;/.test(load) &&
+        /userExerciseSet\.groupBy\(/.test(load) &&
+        !/take:/.test(load) &&
+        load.includes('last: days[0] ?? null,') &&
+        load.includes('prev: days[1] ?? null,') &&
+        load.includes('hold: opts.hold === true,') &&
+        load.includes('cautious: opts.cautious === true,') &&
+        load.includes('cautiousPrescription(e.prescription)') &&
+        /readFrozenPlan\(s\.plan\)/.test(load)
+    );
+    check(
+      'P5 무게 (아) 운동 시작 · 운동 중 바꾸기 둘 다 facts.profile 의 liftCautious 를 넘긴다(무게 추천을 부르는 곳은 둘 그대로)',
+      work.split('withFreeWeights(').length - 1 === 2 &&
+        work.split('cautious: liftCautious(core.facts.profile)').length - 1 === 2
     );
   }
 }
