@@ -26,6 +26,7 @@ import {
   nearestMinutesChoice,
   painRecoveryReason,
   workoutConflict,
+  WEEKLY_MINUTES_STEP,
   type SessionTheme,
 } from '@/lib/report/theme';
 import { painEasingParts, rehabEasingParts } from '@/lib/report/prescription';
@@ -35,7 +36,7 @@ import type { TrainingLoad } from '@/lib/training-load';
  * 자동 맞춤 — 목표·시간을 앱이 규칙으로 정하는 일정 만들기.
  *
  * 사용자는 장비만 고른다. 몸을 지키는 규칙(통증, 회복날·보조날, 운동 부하, 수면, 전신
- * 근육통, 최근 운동 힘듦 급증, 체크인에서 고른 운동)이 울타리를 치고, 그 안의 '규칙 초안'(draft)이 오늘 방향이다.
+ * 근육통, 최근 운동 힘듦 급증, 체크인에서 고른 운동, 한 주에 15분씩 늘리기)이 울타리를 치고, 그 안의 '규칙 초안'(draft)이 오늘 방향이다.
  * 2026-10-07 AI 를 뺐다(사용자) — 예전에는 이 울타리 안에서 AI 가 골랐다.
  *
  * 운동 종목은 여기서 고르지 않는다. 방향이 정해지면 엔진이 안전 필터를 거쳐
@@ -170,6 +171,23 @@ function oneStepDown(goal: string, minutes: number): number {
   return choices[Math.max(0, i - 1)];
 }
 
+/**
+ * 이 목표로 오늘 고를 시간의 바탕(몸 신호로 줄이기 전) — 기본 시간에 가장 가까운 선택지를, 한 주에 15분씩 늘리는 위 끝
+ * (weeklyCap, 2판 P5-f)이 있으면 그 밑의 가장 긴 선택지로 누른다. 위 끝 밑에 선택지가 없으면 맨 아래(45분)다 — 그보다 짧게
+ * 고를 길이 없다. 누르기만 한다 — 위 끝이 기본 시간보다 길어도 기본 시간을 넘지 않는다(기본 시간은 그 사람이 쓸 수 있는 시간이다).
+ */
+function baseMinutesFor(
+  goal: string,
+  defaultMinutes: number,
+  weeklyCap: number | null
+): number {
+  const wanted = nearestMinutesChoice(defaultMinutes, goal);
+  if (weeklyCap == null) return wanted;
+  const choices = minutesChoicesFor(goal);
+  const under = choices.filter((m) => m <= weeklyCap);
+  return Math.min(wanted, under.length > 0 ? Math.max(...under) : choices[0]);
+}
+
 export function decideAutoFence({
   facts,
   plan,
@@ -177,6 +195,7 @@ export function decideAutoFence({
   defaultMinutes,
   lastLowerKey,
   lastUpperKey,
+  weeklyCap = null,
 }: {
   facts: ReportFacts;
   plan: PitchPlan;
@@ -185,7 +204,14 @@ export function decideAutoFence({
   defaultMinutes: number;
   lastLowerKey: string | null;
   lastUpperKey: string | null;
+  /**
+   * 한 주에 15분씩 늘리는 오늘 시간의 위 끝(분) — lib/report/daily-plan.ts 의 weeklyMinutesCap(지난주 가장 긴 고른 시간 + 15).
+   * 기본 시간이 이보다 길면 이 밑으로 누른다(2판 P5-f). 없으면(null · 안 줌) 누르지 않는다 — 지난주 일정이 없는 사람 · 옛 시험.
+   */
+  weeklyCap?: number | null;
 }): AutoFence {
+  /* 목표마다 오늘 시간의 바탕 — 아래의 '실제로 줄어드는가' 검사와 시간 목록이 같은 값을 본다(위 끝으로 누른 뒤의 값) */
+  const baseOf = (goal: string) => baseMinutesFor(goal, defaultMinutes, weeklyCap);
   const today = facts.condition.today;
   const preferred = today?.preferredWorkout ?? null;
   const rules: string[] = [];
@@ -304,9 +330,10 @@ export function decideAutoFence({
       /*
        * 실제로 줄어들 때만 줄였다고 한다. 기본 시간이 이미 맨 아래(45분)인 사람은 더 줄일 데가
        * 없다 — 그대로인데 '시간 한 단계 줄임' · '45분으로 줄였습니다'라고 적으면 없는 일을 말하게 된다.
+       * 한 주 위 끝(weeklyCap)이 이미 45분까지 누른 사람도 같다(2판 P5-f) — 그래서 누른 뒤의 바탕(baseOf)으로 본다.
        */
       shortBySoreness = goals.some((goal) => {
-        const base = nearestMinutesChoice(defaultMinutes, goal);
+        const base = baseOf(goal);
         return oneStepDown(goal, base) < base;
       });
       shorten = shortBySoreness;
@@ -334,7 +361,7 @@ export function decideAutoFence({
   let shortByEffort = false;
   if (strengthDay && !shorten && facts.condition.trainingEffort?.spikeFlag === true) {
     shortByEffort = goals.some((goal) => {
-      const base = nearestMinutesChoice(defaultMinutes, goal);
+      const base = baseOf(goal);
       return oneStepDown(goal, base) < base;
     });
     shorten = shortByEffort;
@@ -343,14 +370,32 @@ export function decideAutoFence({
   }
 
   /*
+   * 한 주에 15분씩 늘리기(2판 P5-f, 검토안 4-5 '줄이는 쪽은 바로, 늘리는 쪽은 천천히') — 지난주 가장 길게 고른 시간 + 15분이
+   * 오늘 시간의 위 끝이다(weeklyCap, lib/report/daily-plan.ts weeklyMinutesCap). 기본 시간이 그보다 길면 위 끝까지만 간다.
+   * 몸 신호로 줄이기(위의 한 단계)는 이 위 끝에서 한 단계 아래로 간다 — 줄이는 쪽은 바로 된다는 뜻 그대로.
+   *
+   * 줄은 초안의 목표가 실제로 눌렸을 때만 적는다(줄인 것이 없는데 적지 않게 — 근육통 줄과 같은 원칙). 컨디셔닝으로 정해진 날은
+   * 그 목표의 기본(75분까지)으로 견준다. 지난주 시간은 위 끝에서 한 칸을 빼서 말한다.
+   */
+  const weeklyGoal = fixedGoal ?? DEFAULT_GOAL;
+  const weeklyLimited =
+    weeklyCap != null &&
+    baseOf(weeklyGoal) < nearestMinutesChoice(defaultMinutes, weeklyGoal);
+  if (weeklyLimited) {
+    rules.push(
+      `지난주 가장 긴 운동 ${weeklyCap - WEEKLY_MINUTES_STEP}분 → 오늘은 ${baseOf(weeklyGoal)}분까지(한 주에 ${WEEKLY_MINUTES_STEP}분씩 늘려요)`
+    );
+  }
+
+  /*
    * 시간은 기본 시간을 넘지 않는다 — 줄이는 것만 고를 수 있다.
    *
    * 기본 시간은 그 사람이 운동에 쓸 수 있는 시간이다. 앱이 몸 상태를 보고
-   * 90분을 권해도 그 사람에게 60분밖에 없으면 소용이 없다.
+   * 90분을 권해도 그 사람에게 60분밖에 없으면 소용이 없다. 한 주 위 끝이 있으면 그 밑으로 더 누른다(baseOf).
    */
   const minutes: Record<string, number[]> = {};
   for (const goal of goals) {
-    const base = nearestMinutesChoice(defaultMinutes, goal);
+    const base = baseOf(goal);
     const cap = shorten ? oneStepDown(goal, base) : base;
     minutes[goal] = minutesChoicesFor(goal).filter((m) => m <= cap);
   }
@@ -412,6 +457,7 @@ export function decideAutoFence({
         shorten,
         soreHigh: shortBySoreness || dropPower ? soreWord : null,
         effortShort: shortByEffort,
+        weeklyLimited,
         preferred,
         hasHistory: workout.recentDays > 0,
         /* 회복날은 고른 시간보다 짧게 한다 — 이유에는 실제로 할 시간을 적는다 */
@@ -437,6 +483,7 @@ function draftReason({
   shorten,
   soreHigh,
   effortShort,
+  weeklyLimited,
   preferred,
   hasHistory,
   actualMinutes,
@@ -452,16 +499,24 @@ function draftReason({
   soreHigh: string | null;
   /** 최근 운동 힘듦 급증으로 시간을 실제로 줄였는가(2판 P5-e) */
   effortShort: boolean;
+  /** 한 주에 15분씩 늘리는 위 끝이 초안의 시간을 기본 시간보다 눌렀는가(2판 P5-f) */
+  weeklyLimited: boolean;
   preferred: string | null;
   hasHistory: boolean;
   actualMinutes: number;
 }): string {
+  /*
+   * 시간 문장은 그 시간을 정한 것 하나만 말한다 — 회복날 줄이기 > 몸 신호로 한 단계 줄이기 > 한 주 위 끝 > 기본 시간.
+   * 위 끝만 걸린 날 '시간은 60분이에요'로만 적으면 기본 시간을 90분으로 둔 사람에게 까닭 없이 짧아 보인다.
+   */
   const time =
     actualMinutes < minutes
       ? `회복날이라 시간은 ${actualMinutes}분으로 줄였어요.`
       : shorten
         ? `시간은 ${minutes}분으로 줄였어요.`
-        : `시간은 ${minutes}분이에요.`;
+        : weeklyLimited
+          ? `운동 시간은 한 주에 ${WEEKLY_MINUTES_STEP}분씩 늘려 가요. 오늘은 ${minutes}분이에요.`
+          : `시간은 ${minutes}분이에요.`;
   if (clash) {
     return `${clash.kind} 운동을 하고 싶다고 하셨는데, ${clash.reason}. 그래서 오늘은 몸 상태에 맞춰 가볍게 만들었어요. ${time}`;
   }

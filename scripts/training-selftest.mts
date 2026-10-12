@@ -405,6 +405,9 @@ import {
   plannedStrengthSide,
   readDailyPlan,
   strengthDatesFrom,
+  WEEKLY_MINUTES_FROM_DAYS,
+  WEEKLY_MINUTES_TO_DAYS,
+  weeklyMinutesCap,
   type DailyPlan,
 } from '../lib/report/daily-plan.ts';
 import {
@@ -415,7 +418,9 @@ import {
 import {
   CONDITIONING_DAY_LABEL,
   CONDITIONING_GOAL,
+  WEEKLY_MINUTES_STEP,
   minutesChoicesFor,
+  nearestMinutesChoice,
 } from '../lib/report/theme.ts';
 import {
   STALE_AFTER_MS,
@@ -22737,6 +22742,436 @@ console.log(
     check(
       'P5 힘듦 (사) 기준선 하루 만들기는 직접 고르기와 같은 짝(줄이기 켬 · 그래도 안 고름)',
       /reduceForEffort: true,\s*overrideEffort: false,/.test(tool)
+    );
+  }
+}
+
+/* ═══════════════════ [2판 P5] 주당 시간 — 한 주에 15분씩 늘리기(lib/report/daily-plan.ts weeklyMinutesCap · auto-setup.ts decideAutoFence weeklyCap · gather.ts lastStrengthDates) (2026-10-12) ═══════════════════ */
+console.log(
+  '\n[2판 P5] 주당 시간 — 자동 맞춤은 지난주 가장 길게 고른 시간 + 15분까지만 늘리고 줄이기는 바로 · 2주 기록 조회 하나로 차례 · 계열 · 위 끝(2026-10-12)'
+);
+{
+  /*
+   * 왜 보는가. 검토안 2판 4-5 '시간 바꾸기는 한 주에 ±15분까지 — 줄이는 쪽은 바로, 늘리는 쪽은 천천히'(P5-f). 기본 시간을 90분으로
+   * 둔 사람이 지난주 45분씩 했으면 자동 맞춤은 오늘 60분까지만 간다. 위 끝은 지난주(오늘 −13 ~ −7) 저장된 일정의 고른 시간
+   * 최댓값 + 15(weeklyMinutesCap)이고, 자동 맞춤 울타리(decideAutoFence)가 weeklyCap 으로 받는다. 기준선 도구는 직접 고르기만
+   * 흉내 내서 이 몫은 여기 시험으로만 증명한다.
+   * (가) weeklyMinutesCap(검토안 j), (나) decideAutoFence 의 weeklyCap(검토안 i), (다) 주를 넘기며 15분씩(21일 흉내),
+   * (라) 격자 불변식, (마) 소스의 약속(조회 하나 · 자동 맞춤만).
+   */
+  const json = (v: unknown) => JSON.stringify(v);
+  const TK = '2026-06-15';
+  /** n 일 전(음수면 n 일 뒤) 날짜 키 */
+  const at = (n: number) => shiftDateKey(TK, -n);
+  const planOf = (requestedMinutes: unknown) => ({
+    version: 1,
+    picks: [],
+    requestedMinutes,
+  });
+  const row = (n: number, minutes: unknown) => ({ date: at(n), plan: planOf(minutes) });
+  const capOf = (planned: { date: string; plan: unknown }[], todayKey = TK) =>
+    weeklyMinutesCap({ planned, todayKey });
+
+  /* ── (가) weeklyMinutesCap — 지난주 가장 긴 고른 시간 + 15(검토안 j) ── */
+  check(
+    'P5 주당 (가) 상수 — 한 칸 15분 · 지난주는 오늘 −13 ~ −7(일곱 날) · 2주 조회(gather.ts 의 14일) 안에 든다 · 동작 계열 기간도 14일',
+    WEEKLY_MINUTES_STEP === 15 &&
+      WEEKLY_MINUTES_FROM_DAYS === 13 &&
+      WEEKLY_MINUTES_TO_DAYS === 7 &&
+      WEEKLY_MINUTES_FROM_DAYS - WEEKLY_MINUTES_TO_DAYS + 1 === 7 &&
+      WEEKLY_MINUTES_FROM_DAYS < 14 &&
+      PATTERNS_LOOKBACK_DAYS === 14
+  );
+  check(
+    'P5 주당 (가) weeklyMinutesCap(검토안 j) — 줄 없음 → null · 지난주 75 · 60 → 90 · 차례를 바꿔도 같은 값',
+    capOf([]) === null &&
+      capOf([row(8, 75), row(10, 60)]) === 90 &&
+      capOf([row(10, 60), row(8, 75)]) === 90
+  );
+  check(
+    'P5 주당 (가) 이번 주(−6 ~ 어제) · 오늘 줄은 안 본다 — 이번 주에 90분을 했어도 지난주 45분이면 60, 이번 주 · 오늘만 있으면 null',
+    capOf([row(9, 45), row(6, 90), row(1, 90), row(0, 90)]) === 60 &&
+      capOf([row(6, 90), row(3, 75), row(0, 90)]) === null
+  );
+  check(
+    'P5 주당 (가) 경계 — 오늘 −13 · −7 은 들고, −14 · −6 은 안 든다',
+    capOf([row(13, 75)]) === 90 &&
+      capOf([row(7, 60)]) === 75 &&
+      capOf([row(14, 90)]) === null &&
+      capOf([row(6, 90)]) === null
+  );
+  check(
+    'P5 주당 (가) 모양이 깨진 일정(옛 판 · picks 없음 · null · 글자)과 고른 시간이 양의 숫자가 아닌 줄(글자 · NaN · 무한 · 0 · 음수 · 칸 없음)은 건너뛴다',
+    capOf([
+      { date: at(8), plan: { version: 2, picks: [], requestedMinutes: 90 } },
+      { date: at(8), plan: { version: 1, requestedMinutes: 90 } },
+      { date: at(9), plan: null },
+      { date: at(9), plan: '90' },
+      row(10, '90'),
+      row(10, Number.NaN),
+      row(11, Number.POSITIVE_INFINITY),
+      row(11, 0),
+      row(12, -15),
+      { date: at(12), plan: { version: 1, picks: [] } },
+      row(13, 45),
+    ]) === 60 && capOf([row(10, '90'), row(11, null)]) === null
+  );
+  {
+    /* 실제로 만든 일정(저장 → 읽기 JSON 왕복) — 회복 날은 줄여 쓴 시간(minutes)이 아니라 고른 시간(requestedMinutes)으로 센다 */
+    const make = (condition: number) => {
+      const facts = factsFor({ condition });
+      return buildDailyPlan({
+        user: { ownedEquipment: [], trainingLevel: null },
+        facts,
+        plan: buildPitchPlan(facts),
+        library,
+        availableToday: null,
+        requestedMinutes: 75,
+        trainingGoal: '근력 향상',
+        recentIds: new Set<string>(),
+        lastLowerKey: null,
+        lastUpperKey: null,
+      });
+    };
+    const strong = make(8);
+    const easy = make(3);
+    const saved = (p: unknown) => JSON.parse(JSON.stringify(p)) as unknown;
+    check(
+      'P5 주당 (가) 실제로 만든 일정도 읽는다 — 고른 75분 → 90 · 회복 날(실제로는 더 짧게 씀)도 고른 75분으로 90',
+      !isHalted(strong) &&
+        !isHalted(easy) &&
+        easy.theme.key === 'recovery' &&
+        easy.minutes < easy.requestedMinutes &&
+        capOf([{ date: at(8), plan: saved(strong) }]) === 90 &&
+        capOf([{ date: at(8), plan: saved(easy) }]) === 90,
+      json([
+        isHalted(easy) ? null : [easy.theme.key, easy.minutes, easy.requestedMinutes],
+      ])
+    );
+  }
+
+  /* ── (나) decideAutoFence 의 weeklyCap(검토안 i) ── */
+  const sig = (over: Partial<WorkoutSignals> = {}): WorkoutSignals => ({
+    zone: 'optimal',
+    ratio: 1.02,
+    recentDays: 3,
+    recentMinutes: 150,
+    historyDays: 40,
+    daysNeeded: 0,
+    volume: {
+      byPart: VOLUME_GROUPS.map((g) => ({
+        key: g.key,
+        label: g.label,
+        hint: g.hint,
+        sets: 6,
+        previous: 6,
+      })),
+      armCare: { sets: 4, previous: 4 },
+    },
+    ...over,
+  });
+  /* 어제 안 던진 사람 — 힘듦 급증 절과 같은 까닭(어제 중간 부하와 겹친 급증은 날 종류가 회복으로 보낸다) */
+  const QUIET = [0, 38, 0, 35, 0, 40, 0];
+  const spikeOf = (f: ReturnType<typeof factsFor>) => ({
+    ...f,
+    condition: {
+      ...f.condition,
+      trainingEffort: trainingEffortOf(
+        [
+          ...[1, 2, 4].map((d) => ({ date: dayBefore(d).slice(0, 10), intensity: 9 })),
+          ...[9, 12, 16, 20].map((d) => ({
+            date: dayBefore(d).slice(0, 10),
+            intensity: 5,
+          })),
+        ],
+        f.asOf
+      ),
+    },
+  });
+  const fence = (
+    facts: ReturnType<typeof factsFor>,
+    opts: { minutes?: number; cap?: number | null; workout?: WorkoutSignals } = {}
+  ) =>
+    decideAutoFence({
+      facts,
+      plan: buildPitchPlan(facts),
+      workout: opts.workout ?? sig(),
+      defaultMinutes: opts.minutes ?? 90,
+      lastLowerKey: null,
+      lastUpperKey: null,
+      ...(opts.cap === undefined ? {} : { weeklyCap: opts.cap }),
+    });
+  const WEEK_PREFIX = '지난주 가장 긴 운동 ';
+  const weekLine = (last: number, today: number) =>
+    `${WEEK_PREFIX}${last}분 → 오늘은 ${today}분까지(한 주에 15분씩 늘려요)`;
+  const WEEK_REASON = '운동 시간은 한 주에 15분씩 늘려 가요.';
+  const EFFORT_RULE = '최근 7일 운동 힘듦이 평소보다 높음 → 시간 한 단계 줄임';
+  const loaded = sig({ zone: 'caution', ratio: 1.41 });
+  const calm = factsFor({ condition: 8, pitches: QUIET });
+  const sore = factsFor({ condition: 8, soreness: 4, pitches: QUIET });
+  const tired = factsFor({ condition: 3, pitches: QUIET });
+  const spiked = spikeOf(calm);
+  const free = fence(calm);
+  const capped = fence(calm, { cap: 60 });
+  check(
+    'P5 주당 (준비) 시험의 사람 — 평소 날은 근력 날 · 줄 없음 · 기본 90분 그대로, 급증 facts 는 깃발이 선다',
+    free.strengthDay &&
+      free.rules.length === 0 &&
+      free.draft.minutes === 90 &&
+      spiked.condition.trainingEffort?.spikeFlag === true,
+    json([free.rules, free.draft.minutes])
+  );
+  check(
+    'P5 주당 (나) 기본 90분 · 위 끝 60(지난주 45) → 모든 목표가 60분까지 · 초안 60분 · 한 주 줄 하나 · 이유가 한 주에 15분씩을 말함 · 목표 · 날 · 부위는 그대로',
+    Object.values(capped.minutes).every((ms) => Math.max(...ms) === 60) &&
+      capped.draft.minutes === 60 &&
+      json(capped.rules) === json([weekLine(45, 60)]) &&
+      capped.draft.reason ===
+        `특별히 바꿀 신호가 없어 기본 목표인 근력 향상으로 잡았어요. ${WEEK_REASON} 오늘은 60분이에요.` &&
+      json(capped.goals) === json(free.goals) &&
+      json(capped.focuses) === json(free.focuses) &&
+      json(capped.day) === json(free.day) &&
+      capped.fixedGoal === free.fixedGoal &&
+      json(capped.clash) === json(free.clash),
+    json([capped.rules, capped.draft.reason])
+  );
+  check(
+    'P5 주당 (나) 위 끝이 없거나(null · 안 줌) 기본 시간 이상이면(90 에 105 · 90, 60 에 75) 울타리 전체가 글자까지 같다',
+    json(fence(calm, { cap: null })) === json(free) &&
+      json(fence(calm, { cap: 105 })) === json(free) &&
+      json(fence(calm, { cap: 90 })) === json(free) &&
+      json(fence(calm, { minutes: 60, cap: 75 })) === json(fence(calm, { minutes: 60 }))
+  );
+  {
+    const low = fence(calm, { cap: 50 });
+    check(
+      'P5 주당 (나) 위 끝이 맨 아래보다 짧으면(옛 값 — 지난주 35분 → 50) 맨 아래 45분만 · 줄은 지난주 시간을 그대로 말한다',
+      low.draft.minutes === 45 &&
+        Object.values(low.minutes).every((ms) => json(ms) === json([45])) &&
+        json(low.rules) === json([weekLine(35, 45)]),
+      json(low.rules)
+    );
+  }
+  {
+    const lf = fence(calm, { cap: 60, workout: loaded });
+    check(
+      'P5 주당 (나) 줄이기는 바로 — 운동 부하 주의 날 기본 90 · 위 끝 60 → 컨디셔닝 60분에서 한 단계 아래 45분 · 부하 줄과 한 주 줄이 둘 다 · 이유는 줄였다고 말함',
+      lf.fixedGoal === CONDITIONING_GOAL &&
+        lf.draft.minutes === 45 &&
+        lf.rules.some((r) => r.startsWith('운동 부하 지수')) &&
+        lf.rules.includes(weekLine(45, 60)) &&
+        lf.draft.reason.endsWith('시간은 45분으로 줄였어요.') &&
+        fence(calm, { workout: loaded }).draft.minutes === 60,
+      json([lf.rules, lf.draft.reason])
+    );
+  }
+  {
+    const sf = fence(sore, { cap: 60 });
+    const sf50 = fence(sore, { cap: 50 });
+    check(
+      "P5 주당 (나) 근육통 '많이' — 위 끝 60이면 거기서 한 단계(45분) · 근육통 줄에 '시간 한 단계 줄임', 위 끝이 이미 45분까지 누르면(옛 값 50) 더 줄일 데가 없어 '줄임'을 안 적고 이유도 줄였다고 안 함",
+      sf.draft.minutes === 45 &&
+        sf.rules.some(
+          (r) => r.startsWith('전신 근육통') && r.includes('시간 한 단계 줄임')
+        ) &&
+        sf.rules.includes(weekLine(45, 60)) &&
+        sf50.draft.minutes === 45 &&
+        !sf50.rules.some((r) => r.includes('시간 한 단계 줄임')) &&
+        sf50.rules.some((r) => r.startsWith('전신 근육통')) &&
+        !sf50.draft.reason.includes('줄였어요') &&
+        sf50.draft.reason.includes(WEEK_REASON),
+      json([sf.rules, sf50.rules, sf50.draft.reason])
+    );
+  }
+  {
+    const ef = fence(spiked, { cap: 60 });
+    const ef50 = fence(spiked, { cap: 50 });
+    check(
+      'P5 주당 (나) 힘듦 급증 — 위 끝 60이면 거기서 한 단계(45분) · 급증 줄 하나, 위 끝이 45분까지 누르면(옛 값 50) 급증 줄 없음(줄일 데 없음) · 한 주 줄은 둘 다',
+      ef.draft.minutes === 45 &&
+        ef.rules.filter((r) => r === EFFORT_RULE).length === 1 &&
+        ef.rules.includes(weekLine(45, 60)) &&
+        ef50.draft.minutes === 45 &&
+        !ef50.rules.includes(EFFORT_RULE) &&
+        ef50.rules.includes(weekLine(35, 45)),
+      json([ef.rules, ef50.rules])
+    );
+  }
+  {
+    const tf = fence(tired, { cap: 60 });
+    check(
+      'P5 주당 (나) 회복 날 — 컨디셔닝 75분이 위 끝 60분으로 · 한 주 줄 · 이유는 회복날 줄이기(실제로 할 시간)를 말함 · 위 끝 75면 컨디셔닝 기본(75)과 같아 그대로',
+      !tf.strengthDay &&
+        tf.draft.minutes === 60 &&
+        tf.rules.includes(weekLine(45, 60)) &&
+        tf.draft.reason.includes('회복날이라 시간은') &&
+        json(fence(tired, { cap: 75 })) === json(fence(tired)),
+      json([tf.rules, tf.draft.reason])
+    );
+  }
+
+  /* ── (다) 주를 넘기며 — 21일 동안 날마다 자동 맞춤으로 만들고 저장한 일정이 다음 위 끝이 된다 ── */
+  {
+    const keyOfDay = (d: number) => shiftDateKey(TK, d);
+    const saved: { date: string; plan: unknown }[] = [];
+    for (let d = -13; d < 0; d++) saved.push({ date: keyOfDay(d), plan: planOf(45) });
+    const got: number[] = [];
+    const bad: string[] = [];
+    for (let d = 0; d < 21; d++) {
+      const todayKey = keyOfDay(d);
+      /* gather.ts 처럼 오늘 앞 14일만 넘긴다 */
+      const window = saved.filter(
+        (s) => s.date >= keyOfDay(d - 14) && s.date < todayKey
+      );
+      const cap = weeklyMinutesCap({ planned: window, todayKey });
+      /* 열하루째는 운동 부하 주의 — 줄이기는 바로 */
+      const f = fence(calm, { cap, workout: d === 10 ? loaded : sig() });
+      got.push(f.draft.minutes);
+      saved.push({ date: todayKey, plan: planOf(f.draft.minutes) });
+      const lastWeek = saved
+        .filter((s) => s.date >= keyOfDay(d - 13) && s.date <= keyOfDay(d - 7))
+        .map((s) => (s.plan as { requestedMinutes: number }).requestedMinutes);
+      if (f.draft.minutes > Math.max(...lastWeek) + 15)
+        bad.push(
+          `${d}일째 ${f.draft.minutes}분 > 지난주 ${Math.max(...lastWeek)} + 15`
+        );
+    }
+    const want = [
+      ...Array(7).fill(60),
+      ...[75, 75, 75, 60, 75, 75, 75],
+      ...Array(7).fill(90),
+    ];
+    check(
+      'P5 주당 (다) 21일 흉내(기본 90 · 그 앞 13일 45분) — 첫 주 60 · 둘째 주 75 · 셋째 주 90, 부하 주의 날(열하루째)만 바로 한 단계 아래 · 날마다 지난주 가장 긴 시간 + 15 를 넘지 않음',
+      json(got) === json(want) && bad.length === 0,
+      json(got) + (bad.length ? ' · ' + bad.slice(0, 2).join(' · ') : '')
+    );
+  }
+
+  /* ── (라) 격자 — 기본 시간 4 × 위 끝 7 × 사람 5 × 부하 2 ── */
+  {
+    const capTopOf = (goal: string, cap: number | null) => {
+      if (cap == null) return Number.POSITIVE_INFINITY;
+      const under = minutesChoicesFor(goal).filter((m) => m <= cap);
+      return under.length > 0 ? Math.max(...under) : minutesChoicesFor(goal)[0];
+    };
+    const PEOPLE = [
+      ['평소', calm],
+      ['근육통', sore],
+      ['급증', spiked],
+      ['회복', tired],
+      ['파워', factsFor({ condition: 8, pitches: QUIET, wants: '파워' })],
+    ] as const;
+    const bad: string[] = [];
+    let cells = 0;
+    let limited = 0;
+    for (const minutes of [45, 60, 75, 90])
+      for (const cap of [null, 30, 50, 60, 75, 90, 105])
+        for (const [who, facts] of PEOPLE)
+          for (const workout of [sig(), loaded]) {
+            cells++;
+            const tag = `${who} ${minutes}분 위끝${cap} ${workout.zone}`;
+            const a = fence(facts, { minutes, workout });
+            const b = fence(facts, { minutes, cap, workout });
+            if (cap == null && json(a) !== json(b))
+              bad.push(`${tag} 위 끝 없는데 다름`);
+            for (const k of [
+              'goals',
+              'focuses',
+              'day',
+              'fixedGoal',
+              'clash',
+              'strengthDay',
+            ] as const)
+              if (json(a[k]) !== json(b[k])) bad.push(`${tag} ${k} 바뀜`);
+            const draftGoal = b.draft.goal;
+            for (const g of b.goals) {
+              const base = Math.min(nearestMinutesChoice(minutes, g), capTopOf(g, cap));
+              const choices = minutesChoicesFor(g);
+              const am = Math.max(...a.minutes[g]);
+              const bm = Math.max(...b.minutes[g]);
+              const step = choices.indexOf(base) - choices.indexOf(bm);
+              if (bm > am) bad.push(`${tag} ${g} 늘어남 ${am}→${bm}`);
+              if (step < 0 || step > 1) bad.push(`${tag} ${g} 바탕 ${base} → ${bm}`);
+            }
+            if (b.draft.minutes !== Math.max(...b.minutes[draftGoal]))
+              bad.push(`${tag} 초안 시간`);
+            const lines = b.rules.filter((r) => r.startsWith(WEEK_PREFIX));
+            const draftBase = Math.min(
+              nearestMinutesChoice(minutes, draftGoal),
+              capTopOf(draftGoal, cap)
+            );
+            const shouldLimit = draftBase < nearestMinutesChoice(minutes, draftGoal);
+            if (lines.length !== (shouldLimit ? 1 : 0))
+              bad.push(`${tag} 한 주 줄 ${lines.length}`);
+            if (shouldLimit) {
+              limited++;
+              if (lines[0] !== weekLine((cap as number) - 15, draftBase))
+                bad.push(`${tag} 줄 ${lines[0]}`);
+              if (
+                !b.draft.reason.includes('줄였어요') &&
+                !b.draft.reason.includes(WEEK_REASON)
+              )
+                bad.push(`${tag} 이유 ${b.draft.reason}`);
+            } else {
+              if (json(a) !== json(b)) bad.push(`${tag} 안 눌렀는데 다름`);
+              if (b.draft.reason.includes('한 주에'))
+                bad.push(`${tag} 안 눌렀는데 한 주 이유`);
+            }
+            /* 근육통 · 급증의 '줄임' 줄은 실제로 한 단계 내려간 목표가 있을 때만 */
+            const saysShort = b.rules.some(
+              (r) =>
+                r === EFFORT_RULE ||
+                (r.startsWith('전신 근육통') && r.includes('시간 한 단계 줄임'))
+            );
+            if (saysShort) {
+              const shrank = b.goals.some(
+                (g) =>
+                  Math.max(...b.minutes[g]) <
+                  Math.min(nearestMinutesChoice(minutes, g), capTopOf(g, cap))
+              );
+              if (!shrank) bad.push(`${tag} 줄였다는데 그대로`);
+            }
+          }
+    check(
+      `P5 주당 (라) 자동 맞춤 격자 ${cells}가지(위 끝이 누른 ${limited}가지) — 위 끝은 시간을 늘리지 않고 그 밑으로만 · 몸 신호 줄이기는 누른 바탕에서 한 단계까지 · 목표 · 날 · 부위는 그대로 · 한 주 줄과 이유는 누른 날에만 · 안 누른 날은 글자까지 같음 · '줄임'은 실제로 줄였을 때만`,
+      bad.length === 0 && limited > 0,
+      bad.slice(0, 3).join(' · ')
+    );
+  }
+
+  /* ── (마) 소스의 약속 — 2주 기록 조회 하나 · 위 끝은 자동 맞춤에만 ── */
+  {
+    const strip = (rel: string) =>
+      readFileSync(new URL(`../${rel}`, import.meta.url), 'utf8')
+        .replace(/\{\/\*[\s\S]*?\*\/\}/g, '')
+        .replace(/\/\*[\s\S]*?\*\//g, '')
+        .replace(/^\s*\/\/.*$/gm, '');
+    const setup = strip('app/actions/training-setup.ts');
+    const gather = strip('lib/report/gather.ts');
+    const fn = gather.slice(
+      gather.indexOf('export async function lastStrengthDates('),
+      gather.indexOf('export async function swappedOutRecently(')
+    );
+    check(
+      'P5 주당 (마) 2주 기록 조회 하나 — lastStrengthDates 는 조회 둘(완료 기록 · 일정) 그대로에 완료 기록의 동작 계열 칸만 더 읽고, 재활 체크를 뺀 같은 줄로 차례 · 계열을, 같은 일정 줄로 위 끝을 낸다',
+      fn.length > 0 &&
+        fn.split('prisma.').length - 1 === 2 &&
+        /movementPattern: true/.test(fn) &&
+        /Promise<StrengthHistory>/.test(fn) &&
+        /\.filter\(\(\{ date, log \}\) => !isRehabCheck\(/.test(fn) &&
+        /strengthDatesFrom\(\{ done, planned, todayKey \}\)/.test(fn) &&
+        /patternsDone14d: patternsDoneFrom\(\{ done, todayKey \}\)/.test(fn) &&
+        /weeklyMinutesCap: weeklyMinutesCap\(\{ planned, todayKey \}\)/.test(fn) &&
+        /const ROTATION_LOOKBACK_DAYS = 14;/.test(gather)
+    );
+    check(
+      'P5 주당 (마) 위 끝은 자동 맞춤에만 — 일정 만들기는 2주 기록을 통째로 decideAutoSetup 에 넘기고, 그 안의 decideAutoFence 만 weeklyCap 을 받는다(직접 고르기의 buildDailyPlan 은 안 받음)',
+      /decideAutoSetup\(\{ user, facts, plan, today, strengthDates \}\)/.test(setup) &&
+        /strengthDates: StrengthHistory;/.test(setup) &&
+        /weeklyCap: strengthDates\.weeklyMinutesCap,/.test(setup) &&
+        setup.split('weeklyMinutesCap').length - 1 === 1 &&
+        setup.split('weeklyCap').length - 1 === 1
     );
   }
 }

@@ -19,6 +19,7 @@ import {
   buildDailyPlan,
   isHalted,
   type DailyPlan,
+  type StrengthHistory,
 } from '@/lib/report/daily-plan';
 import { carrySwaps } from '@/lib/report/plan-swaps';
 import { fingerprintOf } from '@/lib/report/plan-fingerprint';
@@ -415,6 +416,9 @@ export async function generateTodayPlan(formData: FormData) {
 /**
  * 자동 맞춤 — 오늘 방향(목표·시간)을 규칙 초안으로 정한다(lib/report/auto-setup.ts).
  * 2026-10-07 AI 를 뺐다(사용자) — 예전에는 이 울타리 안에서 AI 가 골랐다.
+ *
+ * 2판 P5-f(2026-10-12)부터 2주 기록(lastStrengthDates 의 StrengthHistory)을 통째로 받는다 — 하체 · 상체 차례와 한 주에 15분씩
+ * 늘리는 시간의 위 끝(weeklyMinutesCap)이 같은 조회에서 온다. 위 끝은 자동 맞춤에만 건다 — 직접 고르기는 사람이 고른 시간 그대로다.
  */
 async function decideAutoSetup({
   user,
@@ -431,7 +435,7 @@ async function decideAutoSetup({
   facts: ReportFacts;
   plan: PitchPlan;
   today: Date;
-  strengthDates: { lower: string | null; upper: string | null };
+  strengthDates: StrengthHistory;
 }): Promise<AutoRecord> {
   const workout = await trainingLoad(user, today);
   const fence = decideAutoFence({
@@ -441,6 +445,7 @@ async function decideAutoSetup({
     defaultMinutes: user.dailyWorkoutMinutes ?? DEFAULT_WORKOUT_MINUTES,
     lastLowerKey: strengthDates.lower,
     lastUpperKey: strengthDates.upper,
+    weeklyCap: strengthDates.weeklyMinutesCap,
   });
   return { ...fence.draft, by: 'rules', rules: fence.rules };
 }

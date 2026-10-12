@@ -93,6 +93,15 @@ const CONDITIONING_MINUTES = [45, 60, 75] as const;
 /** 목표가 정해지지 않은 자리(내 정보의 기본 시간)에서 쓰는 목록 */
 export const WORKOUT_MINUTES_CHOICES = WEIGHT_MINUTES;
 
+/**
+ * 자동 맞춤이 한 주에 늘릴 수 있는 운동 시간(분) — 선택지 한 칸(트레이닝 추천 2판 P5-f, 2026-10-12).
+ *
+ * 검토안 2판 4-5 '시간 바꾸기는 한 주에 ±15분까지 — 줄이는 쪽은 바로, 늘리는 쪽은 천천히'. 기본 시간을 90분으로 저장해 둔
+ * 사람이 지난주 45분씩만 했으면 오늘 바로 90분이 아니라 60분까지 간다. 몸이 받는 양은 한 번에 두 배가 되지 않게 늘려야
+ * 한다(부하 지수의 급증 구간과 같은 생각). 지난주 시간을 세는 규칙은 lib/report/daily-plan.ts 의 weeklyMinutesCap 한 곳.
+ */
+export const WEEKLY_MINUTES_STEP = 15;
+
 /** 이 목표로 고를 수 있는 시간 */
 export function minutesChoicesFor(goalName: string | null): readonly number[] {
   return goalName === CONDITIONING_GOAL ? CONDITIONING_MINUTES : WEIGHT_MINUTES;

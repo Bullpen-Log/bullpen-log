@@ -26,6 +26,7 @@ import {
   conditioningDay,
   painAvoidedSide,
   steerFromEmptyMain,
+  WEEKLY_MINUTES_STEP,
   type SlotKey,
   type ThemeKey,
 } from '@/lib/report/theme';
@@ -585,3 +586,63 @@ export function patternsDoneFrom({
     [...daysOf.keys()].sort().map((pattern) => [pattern, daysOf.get(pattern)!.size])
   );
 }
+
+/* ------------------------- 지난주 운동 시간으로 정하는 오늘 시간의 위 끝(2판 P5-f) ------------------------- */
+
+/** 지난주로 보는 날 — 오늘 −13일부터 오늘 −7일까지(두 끝 포함, 일곱 날) */
+export const WEEKLY_MINUTES_FROM_DAYS = 13;
+export const WEEKLY_MINUTES_TO_DAYS = 7;
+
+/**
+ * 자동 맞춤이 오늘 고를 수 있는 시간의 위 끝 — 지난주(오늘 −13 ~ −7) 저장된 일정의 고른 시간 가운데 가장 긴 것 + 15분
+ * (트레이닝 추천 2판 P5-f, 2026-10-12, 검토안 4-5 '시간 바꾸기는 한 주에 ±15분까지 — 줄이는 쪽은 바로, 늘리는 쪽은 천천히').
+ * 자동 맞춤(lib/report/auto-setup.ts decideAutoFence 의 weeklyCap)이 기본 시간을 이 값 밑으로 누른다. 줄이기는 이 값과 상관없이
+ * 바로 된다(부하 · 잠 · 근육통 · 힘듦 급증의 한 단계 줄이기).
+ *
+ * 규칙
+ *   지난주만 본다. 이번 주(오늘 −6 ~ 어제)와 오늘은 안 본다 — 기준 주가 미끄러지며 한 주 안에서 자동 맞춤이 제 결과로 다시
+ *     위 끝을 올리면(월 60 → 화 75 → 수 90) '한 주에 15분'이 아니게 된다. 지난주를 기준으로 두면 한 칸 올린 시간이 다음 주에야
+ *     기준이 된다. 그래서 이번 주에 직접 고르기로 더 길게 했어도 위 끝은 그대로다(직접 고르기는 이 상한을 안 받는다).
+ *   '고른 시간'(requestedMinutes)을 센다. 회복 날에 실제로 줄여 쓴 시간(minutes)이 아니다 — 위 끝이 누르는 것도 고른 시간이라
+ *     같은 것끼리 견준다. 회복 날 줄이기는 그날 테마의 규칙이라 다음 근력 날은 다시 고른 시간으로 간다.
+ *   마쳤는지는 안 본다 — 하체 · 상체 차례(strengthDatesFrom)와 같은 가정(계획을 세운 날은 그 계획을 받은 날)이다. 운동한 시간은
+ *     기록에 남지 않아 마친 것으로 셀 길도 없다.
+ *   모양이 안 맞는 줄(readDailyPlan 이 null — 옛 모양 · 깨진 값)과 고른 시간이 양의 숫자가 아닌 줄은 건너뛴다.
+ *   지난주에 센 줄이 하나도 없으면 null — 기준이 없으니 누르지 않는다(처음 쓰는 사람 · 두 주 넘게 쉰 사람은 기본 시간 그대로.
+ *     조회가 2주만 읽어 그보다 앞의 시간을 모른다 — 알고 둔 한계).
+ *
+ * 같은 입력이면 늘 같은 값이다. 부르는 쪽(gather.ts lastStrengthDates)은 하체 · 상체 차례를 보려고 이미 읽은 2주 일정을 그대로
+ * 넘긴다(조회가 늘지 않는다).
+ */
+export function weeklyMinutesCap({
+  planned,
+  todayKey,
+}: {
+  /** 저장된 일정 — 날짜 키와 DailyTrainingSetup.plan 그대로 */
+  planned: readonly { date: string; plan: unknown }[];
+  /** 오늘(YYYY-MM-DD) */
+  todayKey: string;
+}): number | null {
+  const fromKey = shiftDateKey(todayKey, -WEEKLY_MINUTES_FROM_DAYS);
+  const toKey = shiftDateKey(todayKey, -WEEKLY_MINUTES_TO_DAYS);
+  let longest: number | null = null;
+  for (const p of planned) {
+    if (p.date < fromKey || p.date > toKey) continue;
+    const minutes = readDailyPlan(p.plan)?.requestedMinutes;
+    if (typeof minutes !== 'number' || !Number.isFinite(minutes) || minutes <= 0)
+      continue;
+    if (longest == null || minutes > longest) longest = minutes;
+  }
+  return longest == null ? null : longest + WEEKLY_MINUTES_STEP;
+}
+
+/**
+ * 하체 · 상체 차례를 보려고 읽는 2주 기록에서 같이 꺼내는 것 — gather.ts lastStrengthDates 의 반환(2판 P5-f).
+ * 완료 기록 · 저장된 일정 조회 하나로 셋을 다 낸다(조회를 늘리지 않으려고 한 함수에 둔다).
+ */
+export type StrengthHistory = StrengthDates & {
+  /** 최근 2주에 마친 동작 계열별 날 수(patternsDoneFrom) — 마친 날이 없으면 null. 고르기 점수(2판 P5)가 읽을 자리 */
+  patternsDone14d: Map<string, number> | null;
+  /** 자동 맞춤이 오늘 고를 시간의 위 끝(weeklyMinutesCap) — 지난주 일정이 없으면 null */
+  weeklyMinutesCap: number | null;
+};

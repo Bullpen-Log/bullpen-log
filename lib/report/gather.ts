@@ -2,7 +2,12 @@ import 'server-only';
 import { cache } from 'react';
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
-import { strengthDatesFrom, type StrengthDates } from '@/lib/report/daily-plan';
+import {
+  patternsDoneFrom,
+  strengthDatesFrom,
+  weeklyMinutesCap,
+  type StrengthHistory,
+} from '@/lib/report/daily-plan';
 import { SWAP_LOOKBACK_DAYS, swappedOutCounts } from '@/lib/report/plan-swaps';
 import { ageFromBirthDate } from '@/lib/profile';
 import { estimateDailyLoad } from '@/lib/baseline';
@@ -323,11 +328,16 @@ const ROTATION_LOOKBACK_DAYS = 14;
  *
  * 2026-10-11 (P1) 부터 저장된 일정(DailyTrainingSetup.plan)도 본다 — 마침을 안 누르는 사람이 날짜 홀짝 예비 규칙에
  * 떨어져 한쪽에 갇히던 것(기준선 구원B 하체 5 · 상체 0). 규칙은 lib/report/daily-plan.ts 의 strengthDatesFrom 한 곳.
+ *
+ * 2026-10-12 (2판 P5-f) 부터 같은 두 조회로 둘을 더 낸다(StrengthHistory) — 최근 2주에 마친 동작 계열(patternsDoneFrom, 완료
+ * 기록에 동작 계열 칸 하나를 더 읽는다)과 자동 맞춤 시간의 위 끝(weeklyMinutesCap, 이미 읽은 일정에서). 조회를 따로 두면 일정
+ * 만들기를 누를 때마다 같은 2주 줄을 또 읽는다. 세 규칙 모두 이 2주(ROTATION_LOOKBACK_DAYS) 안을 본다 — 기간을 넓히면
+ * strengthDatesFrom 의 답이 바뀐다(그 함수는 부르는 쪽이 자른 것을 믿는다).
  */
 export async function lastStrengthDates(
   userId: string,
   today: Date
-): Promise<StrengthDates> {
+): Promise<StrengthHistory> {
   const todayKey = toDateKey(today);
   const sinceKey = shiftDateKey(todayKey, -ROTATION_LOOKBACK_DAYS);
   const range = {
@@ -337,7 +347,10 @@ export async function lastStrengthDates(
   const [logs, rehab, setups] = await Promise.all([
     prisma.userExerciseLog.findMany({
       where: { userId, completed: true, date: range },
-      select: { date: true, exercise: { select: { category: true, title: true } } },
+      select: {
+        date: true,
+        exercise: { select: { category: true, title: true, movementPattern: true } },
+      },
     }),
     loadRehabPeriods(userId, sinceKey),
     /* 그날 저장돼 있던 마지막 일정 — '다시 만들기'를 했으면 마지막 것만 남아 있다(userId_date 하나) */
@@ -347,15 +360,25 @@ export async function lastStrengthDates(
     }),
   ]);
 
-  return strengthDatesFrom({
-    done: logs
-      .map((log) => ({ date: toDateKey(log.date), log }))
-      /* 재활에서 한 컬(조트만 컬 — 상체 스트렝스)이 '상체 날을 했다'로 테마를 뒤집지 않게 */
-      .filter(({ date, log }) => !isRehabCheck(log.exercise.title, date, rehab))
-      .map(({ date, log }) => ({ date, category: log.exercise.category })),
-    planned: setups.map((s) => ({ date: toDateKey(s.date), plan: s.plan })),
-    todayKey,
-  });
+  const done = logs
+    .map((log) => ({ date: toDateKey(log.date), log }))
+    /*
+     * 재활에서 한 컬(조트만 컬 — 상체 스트렝스)이 '상체 날을 했다'로 테마를 뒤집지 않게. 동작 계열도 같은 까닭으로 뺀다 —
+     * 재활 단계의 밴드 당기기가 '당기기를 한 날'이 되면 점수가 당기기를 뒤로 민다(patternsDoneFrom 주석).
+     */
+    .filter(({ date, log }) => !isRehabCheck(log.exercise.title, date, rehab))
+    .map(({ date, log }) => ({
+      date,
+      category: log.exercise.category,
+      movementPattern: log.exercise.movementPattern,
+    }));
+  const planned = setups.map((s) => ({ date: toDateKey(s.date), plan: s.plan }));
+
+  return {
+    ...strengthDatesFrom({ done, planned, todayKey }),
+    patternsDone14d: patternsDoneFrom({ done, todayKey }),
+    weeklyMinutesCap: weeklyMinutesCap({ planned, todayKey }),
+  };
 }
 
 /**
