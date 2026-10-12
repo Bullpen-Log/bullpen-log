@@ -88,7 +88,12 @@ if __name__ == "__main__":
         if len(use) >= 20:
             rows.append((a, b, cm, float(np.median(use)), len(use), "서 있음" if len(ds) >= 20 else "전체"))
     sc = np.array([cm / 100 / d for a, b, cm, d, n_, w in rows])
-    s = float(np.median(sc))
+    # 배율에 쓸 짝만 고르기 — TAPE_ONLY="L9-L11,R9-R11"(정강이). 줄자 자리를 모르는 짝을 뺀다(2026-10-12: 위팔 · 넙다리는 자리 기억 없음)
+    only = [x for x in os.environ.get("TAPE_ONLY", "").split(",") if x]
+    pick = [k for (a, b, *_), k in zip(rows, sc) if not only or f"{a}-{b}" in only]
+    s = float(np.median(pick if pick else sc))
+    if only:
+        print(f"배율은 {', '.join(only)} 만으로({len(pick)}짝)")
     for (a, b, cm, d, n_, w), k in zip(rows, sc):
         print(f"  {a}-{b} 줄자 {cm}cm · 스티커 {d * s * 100:.1f}cm (n {n_}, {w}) → 배율 {k:.3f}")
     print(f"배율 {s:.4f} m/단위 · 줄자 짝 {len(rows)}개의 흩어짐 {100 * sc.std() / s:.1f}%")
