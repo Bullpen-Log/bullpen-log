@@ -10,11 +10,20 @@
  *   옛 줄(요소마다 stage · easy 를 둔 2026-10-04 아침 모양)은 수준을 안 고른 것으로 읽는다.
  * - 가진 장비로 할 수 있는 도구를 먼저 고르고, 정해진 드릴을 할 장비가 없으면 같은 요소 · 같은 단계의 할 수 있는 드릴로 바꿔
  *   넣고 알린다(맨몸 · 야구공은 누구나). 장비를 아직 안 고른 사람은 거르지 않는다.
- * - 안전 규칙(통증 · 세게 던진 다음 날)은 이 프로그램에 걸지 않는다(사용자분 결정).
+ * - 안전 규칙은 하나만 건다 — 오늘 체크인에서 어깨 · 팔꿈치를 '통증'이라고 한 날은 팔에 싣는 드릴(스로잉 · 메디신볼)을 접고,
+ *   '그래도 하기'로 펼칠 수 있게 둔다(2026-10-13 사용자 결정 D5, 트레이닝 추천 2판 P6-5 — 아래 '팔이 아픈 날 접기'). 막지는 않는다.
+ *   뻐근 · 세게 던진 다음 날 · 재활 단계는 예전처럼 걸지 않는다(2026-10-04 사용자분 결정을 D5 만큼만 좁혔다).
  * - 여섯 번째 세션마다 찍어 처음과 견준 결과(좋아짐 · 비슷 · 못 견줌)를 progress.films 에 남긴다(2026-10-09 — 그 전에는
  *   찍으라고만 하고 결과를 안 받아 드릴이 효과가 있었는지 앱에 남는 것이 없었다). 수준을 바꿔도 지킨다(세션 번호에 붙는 것).
  */
+import {
+  ARM_PAIN_ROUTINE_MIN_AGE,
+  CHECKIN_PARTS,
+  armPainJointsToday,
+  type ArmPainJoint,
+} from '@/lib/checkin';
 import { DRILL_STAGE_NAMES } from '@/lib/exercise-meta';
+import { josa } from '@/lib/korean';
 import {
   MECHANICS_ELEMENTS,
   mechanicsElement,
@@ -417,4 +426,187 @@ export function buildLevelSession({
       },
     ];
   });
+}
+
+/* -------------------------- 팔이 아픈 날 접기(D5) -------------------------- */
+
+/**
+ * 팔에 싣는 드릴인가 — 고른 도구의 분류(MechanicsGuide.category)가 무브먼트 패턴 드릴이 아니면 다 그렇다고 본다.
+ * 스로잉 드릴은 공을 던지고, 메디신볼 드릴은 공을 던지거나 내리친다. 분류 이름은 DB 글자라 모르는 분류(새 분류 · 오타)가
+ * 오면 접는 쪽이 안전하다. 이름(P1~P5)이나 동작 묶음으로 가르지 않는다 — 한 묶음에 스로잉 · 메디신볼 도구가 섞여 있다
+ * (운영 DB 98묶음 중 11). 메커니즘 화면 · 따라 하기 · 시험이 모두 이 하나를 쓴다.
+ */
+export function isArmLoaded(category: string): boolean {
+  return category !== MOVEMENT;
+}
+
+/**
+ * 왜 접나(2판 P6 검토) — pain 오늘 어깨 · 팔꿈치 '통증'(D5) · armSpent 오늘 팔을 다 쓴 날(오늘 등판 · 경기 기록 · 세게 던진 날, 중재의 등판 보호 층) ·
+ * painUnknown 최근 통증인데 오늘 체크인이 없음(중재의 안전 층). 판정은 lib/mechanics/fold.ts mechanicsFoldOf 한 곳.
+ */
+export type MechanicsFoldCause = 'pain' | 'armSpent' | 'painUnknown';
+
+/** 오늘 팔에 싣는 드릴을 접는 날 — 접을 것이 없으면 null(mechanicsPainFold · mechanicsFoldOf) */
+export type MechanicsPainFold = {
+  /** 오늘 '통증'인 팔 관절 — 어깨 → 팔꿈치(통증 날만, 그 밖은 빈 목록) */
+  joints: ArmPainJoint[];
+  /** '어깨' · '팔꿈치' · '어깨 · 팔꿈치'(통증 날만, 그 밖은 빈 글) */
+  label: string;
+  /** 접은 까닭 한 줄 — 프로그램 칸 카드 */
+  reason: string;
+  because: MechanicsFoldCause;
+  /**
+   * '펼치기 → 그래도 하기'를 내는가 — 성인의 통증 날(D5)만. 팔을 다 쓴 날 · 통증 확인 전 · 성장기(만 16세 미만, ARM_PAIN_ROUTINE_MIN_AGE)의 통증
+   * 날은 못 펼친다(따라 하기도 ?anyway=1 을 무시한다).
+   */
+  canUnfold: boolean;
+  /** 트레이닝 홈 한 줄의 까닭 머리말 — '어깨 통증으로' · '등판이라' · '체크인 전이라'(MECHANICS_FOLD_TEXT.homeOpen) */
+  cause: string;
+};
+
+/** 접는 날 화면 글 — 해요체 · 줄표 없이(시험이 본다). label 은 MechanicsPainFold.label */
+export const MECHANICS_FOLD_TEXT = {
+  reason: (label: string) =>
+    `오늘 ${label}${josa(label, '이/가')} 아파 던지기 · 메디신볼 드릴은 접었어요. 그래도 하려면 펼쳐요.`,
+  /** 펼친 뒤(그래도 하기) 카드 · 따라 하기 위 한 줄 */
+  anyway: (label: string) =>
+    `오늘 ${label}${josa(label, '이/가')} 아픈 날이에요. 아프면 바로 멈춰요.`,
+  /** 따라 하기에서 팔에 싣는 드릴을 볼 때 */
+  loadedDrill: (label: string) =>
+    `오늘 ${label}${josa(label, '이/가')} 아픈 날이에요. 팔에 힘이 실리는 드릴이라 아프면 바로 멈추고 건너뛰어요.`,
+  /** 펼친 카드의 팔에 싣는 드릴 줄 밑 */
+  loadedTag: '팔에 힘이 실리는 드릴이에요.',
+  /** 세 드릴이 다 접힌 날 — 시작 단추 대신 */
+  /* 2판 P6 검토 — 통증 말고도(등판 날 · 체크인 전) 접어서 '아프지 않은 날'이 아니라 '다른 날'로 */
+  allFolded: '오늘은 던지기 드릴을 쉬어요. 다른 날 이어서 해요.',
+  /** 접힌 날 할 수 있는 드릴을 다 한 뒤 */
+  openDone: '오늘 할 수 있는 드릴은 마쳤어요. 던지기 드릴은 다른 날 이어서 해요.',
+  /** 무브먼트만 하고 마친 따라 하기 끝 화면 */
+  partialFinish: '오늘은 무브먼트 드릴만 했어요. 이 세션은 다른 날 이어서 해요.',
+  /**
+   * 트레이닝 홈 카드 한 줄(다른 카드 줄처럼 마침표 없이). cause 는 MechanicsPainFold.cause('어깨 통증으로' · '등판이라' …) — 2판 P6 검토부터
+   * 통증 말고도 접어서 까닭 머리말을 받는다.
+   */
+  homeOpen: (cause: string, n: number) => `오늘은 ${cause} 무브먼트 드릴 ${n}개만 해요`,
+  /** 성장기(만 16세 미만)의 통증 날 — 펼치지 못하고 진료를 권한다(lib/checkin.ts ARM_PAIN_ROUTINE_MIN_AGE 와 같은 뜻) */
+  youthReason: (label: string) =>
+    `오늘 ${label}${josa(label, '이/가')} 아파 던지기 · 메디신볼 드릴은 쉬어요. 진료가 먼저예요.`,
+  /** 최근 통증인데 오늘 체크인이 없는 날(중재의 안전 층) — 홈 한 줄 머리말은 lib/mechanics/fold.ts MECHANICS_UNKNOWN_CAUSE */
+  painUnknown: '최근 아팠던 곳이 있어요. 체크인을 남기기 전엔 던지기 드릴을 쉬어요.',
+  homeAllFolded: '오늘은 던지기 드릴을 쉬어요',
+  homeOpenDone: '오늘 할 수 있는 드릴은 마쳤어요',
+} as const;
+
+/** 단추 글 — 프로그램 칸 */
+export const MECHANICS_FOLD_BUTTONS = {
+  unfold: '펼치기',
+  refold: '다시 접기',
+  openOnly: '무브먼트 드릴만 하기',
+  anyway: '그래도 하기',
+} as const;
+
+/**
+ * 오늘 통증으로 접는가 — 오늘 체크인에서 어깨 · 팔꿈치가 '통증'인 날만(사용자 결정 D5). 뻐근 · 손목 · 허리 · 하체 통증 ·
+ * 체크인 없음은 null(접지 않음). 판정은 lib/checkin.ts armPainJointsToday 한 곳 — 오늘 상태 한 장의 arm.painJoints 와
+ * 같은 함수라 같은 체크인이면 같은 답이다(training:test 가 본다). 화면은 이것 하나가 아니라 lib/mechanics/fold.ts mechanicsFoldOf 를 쓴다 —
+ * 그 위 두 층(팔을 다 쓴 날 · 통증 확인 전, 2판 P6 검토)이 먼저고, 아니면 이 함수의 답이다.
+ */
+export function mechanicsPainFold(
+  checkin: { shoulder?: string | null; elbow?: string | null } | null | undefined,
+  { age = null }: { age?: number | null } = {}
+): MechanicsPainFold | null {
+  const joints = armPainJointsToday(checkin);
+  if (joints.length === 0) return null;
+  const label = joints
+    .map((j) => CHECKIN_PARTS.find((p) => p.key === j)?.label ?? j)
+    .join(' · ');
+  /*
+   * 성장기는 못 펼친다(2판 P6 검토 · 가정 — 사용자 확인 전). D5 는 '그래도 하기'를 남기라고 했지만 성장기 예외는 정하지 않았다. 앱은 만 16세 밑의
+   * 팔 통증을 성장판 부상이 섞일 수 있어 운동으로 다루지 않고 진료를 권한다(ARM_PAIN_ROUTINE_MIN_AGE — 통증 루틴 · 재활 프로그램을 안 연다).
+   * 조이는 쪽이라 그 선을 따른다. 나이를 모르면 성인으로 본다(다른 나이 규칙과 같다).
+   */
+  const youth = age != null && age < ARM_PAIN_ROUTINE_MIN_AGE;
+  return {
+    joints,
+    label,
+    reason: youth
+      ? MECHANICS_FOLD_TEXT.youthReason(label)
+      : MECHANICS_FOLD_TEXT.reason(label),
+    because: 'pain',
+    canUnfold: !youth,
+    cause: `${label} 통증으로`,
+  };
+}
+
+/** 세션 드릴을 접을 것 · 할 것으로 — 차례는 그대로. 접는 날이 아니면 다 open */
+export function foldSession<T extends { category: string }>(
+  items: readonly T[],
+  fold: MechanicsPainFold | null
+): { open: T[]; folded: T[] } {
+  if (!fold) return { open: [...items], folded: [] };
+  return {
+    open: items.filter((x) => !isArmLoaded(x.category)),
+    folded: items.filter((x) => isArmLoaded(x.category)),
+  };
+}
+
+/**
+ * 접은 날 따라 하기의 '다른 드릴' · 도구 칩에서 팔에 싣는 것을 뺀다 — 안 빼면 무브먼트 드릴 자리에서 '다른 드릴'을 눌러
+ * 스로잉 · 메디신볼로 바꿔 할 수 있었다(2판 P6 비판). 동작마다 도구를 거르고, 도구가 다 빠진 동작은 뺀다. 처음 고를
+ * 도구(guideId)가 빠졌으면 남은 첫 도구로.
+ */
+export function unloadedAlternatives<
+  V extends { id: string; category: string },
+  A extends { guideId: string; variants: V[] },
+>(alternatives: readonly A[]): A[] {
+  return alternatives.flatMap((a) => {
+    const variants = a.variants.filter((v) => !isArmLoaded(v.category));
+    if (variants.length === 0) return [];
+    const guideId = variants.some((v) => v.id === a.guideId)
+      ? a.guideId
+      : variants[0].id;
+    return [{ ...a, variants, guideId }];
+  });
+}
+
+/**
+ * 따라 하기에 넘길 드릴 — 접는 날(펼치지 않음)은 무브먼트 드릴만, 그 바꾸기 목록도 무브먼트만. partial 은 접은 드릴이
+ * 있었나 — 그러면 마쳐도 세션 수를 안 올린다(finishState). 펼친 날(anyway) · 접지 않는 날은 세션 그대로.
+ */
+export function playItemsFor<
+  V extends { id: string; category: string },
+  T extends { category: string; alternatives: { guideId: string; variants: V[] }[] },
+>(
+  items: readonly T[],
+  fold: MechanicsPainFold | null,
+  anyway: boolean
+): { items: T[]; folded: number; partial: boolean } {
+  if (!fold || anyway) return { items: [...items], folded: 0, partial: false };
+  const { open, folded } = foldSession(items, fold);
+  return {
+    items: open.map((it) => ({
+      ...it,
+      alternatives: unloadedAlternatives(it.alternatives),
+    })),
+    folded: folded.length,
+    partial: folded.length > 0,
+  };
+}
+
+/** 따라 하기를 어디서 시작하나 — 오늘 아직 안 한 첫 드릴, 다 했으면 처음(오늘 이미 마친 세션이면 done 을 비워 부른다) */
+export function resumeAt(
+  items: readonly { guideId: string }[],
+  done: ReadonlySet<string>
+): number {
+  const first = items.findIndex((s) => !done.has(s.guideId));
+  return first < 0 ? 0 : first;
+}
+
+/**
+ * 세션을 마친 뒤의 진행 — 접은 드릴이 남은 채 마쳤으면(partial) 그대로 둔다: 던지기 · 메디신볼 드릴이 든 이 세션은
+ * 아프지 않은 날 다시 한다(세션 수를 올리면 그 드릴들을 영영 건너뛴다). 아니면 다음 세션(12에서 멈춤).
+ */
+export function finishState(state: ProgramState, partial: boolean): ProgramState {
+  if (partial) return state;
+  return { ...state, index: Math.min(state.index + 1, SESSIONS_PER_LEVEL) };
 }

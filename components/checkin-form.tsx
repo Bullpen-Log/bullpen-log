@@ -4,6 +4,7 @@ import {
   Fragment,
   useActionState,
   useEffect,
+  useId,
   useRef,
   useState,
   useSyncExternalStore,
@@ -50,7 +51,9 @@ import {
 } from '@/lib/checkin';
 import { kept, keptAll, withInput } from '@/lib/form-values';
 import { OFFLINE_MESSAGE, orOffline } from '@/lib/action-offline';
-import { toDateKey } from '@/lib/pitch-stats';
+import { shiftDateKey, toDateKey } from '@/lib/pitch-stats';
+import { asksYesterdayPitches, readYesterdayOuting } from '@/lib/outing-line';
+import { EffortChips } from '@/components/effort-chips';
 import { formatWeight, fromWeight, round1, toWeight } from '@/lib/units';
 import { useWeightUnit } from '@/components/use-units';
 import { BodySpotPicker } from '@/components/body-spot-picker';
@@ -242,11 +245,17 @@ function ChipCheckbox({
 
 function Row({
   label,
+  aside,
   top,
   radios,
   children,
 }: {
   label: string;
+  /**
+   * 이름 옆의 작은 회색 글 — 던지는 일정의 '어제: 내일 등판'. 휴대폰은 이름과 한 줄(이름이 칩 위 제 줄에 있다),
+   * 넓은 화면은 이름 밑. 칩 줄 끝에 붙이면 칩이 한 줄 더 늘어난다 — 간편 체크인은 한 줄도 아껴야 한다.
+   */
+  aside?: string | null;
   /**
    * 하나만 고르는 칩 줄일 때 — 묶음에 이 칸의 이름을 붙인다(화면 읽기).
    * 이름은 옆의 글자일 뿐 라디오와 이어져 있지 않다. 근육통 · 팔 피로처럼 보기가 같은 칸이 여럿이라
@@ -264,10 +273,20 @@ function Row({
     <div
       className={`flex flex-col gap-2 sm:flex-row ${top ? 'sm:items-start' : 'sm:items-center'}`}
     >
+      {/*
+        휴대폰은 세로 배치라 이름 칸이 줄 전체 폭을 쓴다(w-full) — w-28(112px)로 묶으면 '어제: 4일 이상 뒤'가 한글 아무
+        글자에서나 끊겼다. 넓은 화면만 112px 칸. 곁글은 줄이 바뀌어도 통째로 넘어가게 nowrap, 12px · 옅게는 굵기로만 가른다
+        (옅은 색 70% 는 흰 바탕 대비가 4.5:1 에 못 미쳤다).
+      */}
       <span
-        className={`w-28 shrink-0 text-xs font-medium text-muted ${top ? 'sm:pt-3.5' : ''}`}
+        className={`w-full shrink-0 text-xs font-medium text-muted sm:w-28 ${top ? 'sm:pt-3.5' : ''}`}
       >
         {label}
+        {aside && (
+          <span className="ml-1.5 text-xs font-normal whitespace-nowrap text-muted sm:mt-0.5 sm:ml-0 sm:block">
+            {aside}
+          </span>
+        )}
       </span>
       <div
         role={radios ? 'radiogroup' : undefined}
@@ -418,6 +437,101 @@ function WeightRow({ defaultKg }: { defaultKg?: string }) {
   );
 }
 
+/**
+ * 어제 등판 — 어제 '오늘 등판'이라 적었는데 어제 투구 기록이 없을 때만 뜨는 줄(트레이닝 추천 2판 P4 커밋 H, 2026-10-12).
+ *
+ * 왜 묻는가. 기록이 없으면 앱은 어제 몇 구를 얼마나 세게 던졌는지 몰라, 오늘을 늘 조이는 쪽(보조 날)으로만 읽는다(날 종류 R3').
+ * 몇 구였는지만 적으면 그 기록으로 부하를 읽는다(세게 던진 날이면 회복, 아니면 평소대로). 투구 기록 창을 따로 열게 하면 대개 안 연다 —
+ * 매일 여는 체크인에서 한 칸으로 받는다. 비워 두면 아무것도 안 남긴다(안 던졌으면 비워 둔다).
+ *
+ * 투구수를 적으면 체감 강도 칩이 펴진다(투구 기록 입력 폼과 같은 부품 · 같은 규칙 — 기본값 없음). 저장은 이 창이 체크인보다 먼저
+ * 투구 기록 API 로 어제 날짜 경기 한 줄을 남긴다(saveCheckinSafely). 값은 폼 칸으로 가고, 저장이 막혀 폼이 다시 그려지면 방금 적은 값으로
+ * 다시 채운다(defaultPitches · defaultEffort).
+ */
+function YesterdayOutingRow({
+  date,
+  defaultPitches,
+  defaultEffort,
+  defaultNoThrow = false,
+}: {
+  /** 어제(YYYY-MM-DD) — 화면 시계 기준 오늘의 하루 전 */
+  date: string;
+  defaultPitches?: string;
+  defaultEffort?: string;
+  defaultNoThrow?: boolean;
+}) {
+  const [pitches, setPitches] = useState(defaultPitches ?? '');
+  const [effort, setEffort] = useState<number | null>(() => {
+    const n = defaultEffort ? Number(defaultEffort) : Number.NaN;
+    return Number.isFinite(n) ? n : null;
+  });
+  /*
+   * '안 던졌어요' — 고르면 어제를 쉰 날로 남긴다(lib/outing-line.ts readYesterdayOuting, 2판 P4 검토). 예전 안내는 '안 던졌으면 비워 두세요'
+   * 였는데 비우면 엔진이 계속 '기록 없는 등판'으로 읽어 다음 날까지 보조 날 · 프로그램 쉬기 · 암케어 회복이 남았다. 투구수와 같이 못 고른다.
+   */
+  const [noThrow, setNoThrow] = useState(defaultNoThrow);
+  const effortId = useId();
+  const filled = !noThrow && pitches.trim() !== '';
+  return (
+    <div className="space-y-2">
+      <Row label="어제 등판" aside="기록 없음">
+        <input
+          type="number"
+          inputMode="numeric"
+          name="yesterdayPitches"
+          aria-label="어제 던진 공 수"
+          min={1}
+          step={1}
+          value={noThrow ? '' : pitches}
+          disabled={noThrow}
+          onChange={(e) => setPitches(e.target.value)}
+          placeholder="몇 구"
+          className={`${numberInput} disabled:opacity-50`}
+        />
+        <span className="text-xs text-muted">구</span>
+        <label className={CHIP_TALL}>
+          <input
+            type="checkbox"
+            name="yesterdayNoThrow"
+            value="1"
+            checked={noThrow}
+            onChange={(e) => {
+              setNoThrow(e.target.checked);
+              if (e.target.checked) setPitches('');
+            }}
+            className="peer sr-only"
+          />
+          <span
+            className={`${chipBase} peer-checked:border-sky peer-checked:bg-sky/10 peer-checked:font-medium peer-checked:text-sky peer-focus-visible:ring-1 peer-focus-visible:ring-sky`}
+          >
+            안 던졌어요
+          </span>
+        </label>
+        <span className="ml-1 self-center text-xs leading-relaxed break-keep text-muted">
+          {noThrow ? '어제는 쉰 날로 남아요' : '적으면 투구 기록에 남아요'}
+        </span>
+      </Row>
+      {/* 투구수를 적어야 펴진다 — 간편 체크인을 한 줄도 늘리지 않게. 넓은 화면은 칸 이름(w-28 + 틈) 만큼 들여 칩이 입력 칸 밑에 선다 */}
+      {filled && (
+        <div className="motion-safe:animate-fade-in sm:pl-30">
+          <EffortChips
+            id={effortId}
+            value={effort}
+            onChange={setEffort}
+            label="어제 체감 강도"
+          />
+        </div>
+      )}
+      <input type="hidden" name="yesterdayDate" value={date} />
+      <input
+        type="hidden"
+        name="yesterdayEffort"
+        value={filled && effort != null ? String(effort) : ''}
+      />
+    </div>
+  );
+}
+
 function SubmitButton() {
   const { pending } = useFormStatus();
   return (
@@ -492,18 +606,27 @@ function ModeSwitch({ mode, onChange }: { mode: Mode; onChange: (m: Mode) => voi
   );
 }
 
-/** 요약에 쓰는 상세 값 — 적은 것만 한 줄씩 */
+/**
+ * 요약에 쓰는 상세 값 — 적은 것만 한 줄씩. 상세에서만 적는 칸(몸무게 · 식욕)뿐이다 — 간편에서 적는 던지는 일정 ·
+ * 팔 피로는 요약의 첫 줄(summaryLines)에 간편 칸과 같이 보인다(2026-10-12, 어느 쪽에서 적었는지 헷갈리지 않게).
+ * 이 줄을 그릴지는 lib/checkin.ts 의 hasDetail 이 정한다(같은 칸을 센다).
+ */
 function detailLines(d: CheckinData, weightUnit: 'kg' | 'lb'): [string, string][] {
+  const out: [string, string][] = [];
+  if (d.bodyWeightKg != null)
+    out.push(['몸무게', formatWeight(d.bodyWeightKg, weightUnit) ?? '']);
+  if (d.appetite != null)
+    out.push(['식욕', APPETITE_LEVELS[d.appetite - 1] ?? String(d.appetite)]);
+  return out;
+}
+
+/** 간편 쪽 1~5 척도(지금은 팔 피로 하나)의 요약 — 적은 것만 [이름, 말] */
+function quickScaleLines(d: CheckinData): [string, string][] {
   const out: [string, string][] = [];
   for (const s of DETAIL_SCALES) {
     const v = d[s.key];
     if (v != null) out.push([s.label, s.options[v - 1] ?? String(v)]);
   }
-  if (d.bodyWeightKg != null)
-    out.push(['몸무게', formatWeight(d.bodyWeightKg, weightUnit) ?? '']);
-  if (d.appetite != null)
-    out.push(['식욕', APPETITE_LEVELS[d.appetite - 1] ?? String(d.appetite)]);
-  if (d.throwPlan) out.push(['던지는 일정', d.throwPlan]);
   return out;
 }
 
@@ -512,14 +635,74 @@ function detailLines(d: CheckinData, weightUnit: 'kg' | 'lb'): [string, string][
  * 레이아웃(체크인 관문 · 알림 창)에 있어 그 자리가 로그인 밖 오류 화면(app/error.tsx, '로그인으로')이다 — 신호가 약한 곳에서
  * 저장을 누르면 앱 전체가 그 화면으로 바뀌고 고른 것도 사라졌다. 실패로 돌려주고 고른 것을 되살린다.
  */
-function saveCheckinSafely(
-  prev: CheckinState,
+async function saveCheckinSafely(
+  prev: FormState,
   formData: FormData
-): Promise<CheckinState> {
-  return orOffline(
+): Promise<FormState> {
+  const yesterday = await logYesterdayOuting(prev?.yesterdayLogged, formData);
+  if ('error' in yesterday)
+    return withInput(
+      { error: yesterday.error, yesterdayLogged: prev?.yesterdayLogged },
+      formData
+    );
+  const saved = await orOffline(
     saveCheckin(prev, formData),
     withInput({ error: OFFLINE_MESSAGE }, formData)
   );
+  return yesterday.logged ? { ...saved, yesterdayLogged: yesterday.logged } : saved;
+}
+
+/**
+ * 체크인 창의 상태 — 체크인 저장 결과에 '이 창에서 어제 등판 기록을 남긴 날'을 더한다. 체크인 저장이 막혀 다시 눌러도 어제 기록을 또
+ * 남기지 않고(투구 기록 API 는 2분 안 같은 값만 거른다 — 그 뒤에 다시 누르면 두 줄이 된다), 그 줄을 숨긴다.
+ */
+type FormState =
+  | (NonNullable<CheckinState> & {
+      /** 이 창에서 어제 투구 기록을 남긴 날(YYYY-MM-DD) */
+      yesterdayLogged?: string;
+    })
+  | undefined;
+
+/**
+ * 어제 등판 줄(YesterdayOutingRow)에 적은 투구를 투구 기록으로 남긴다 — 체크인보다 먼저.
+ *
+ * 투구 기록을 만드는 길은 투구 기록 API(app/api/pitch-log POST) 하나를 그대로 쓴다 — 종류 · 투구수 · 체감 강도 검사, 앞날 거절, 2분 안 같은
+ * 값이면 새로 안 만들기가 거기 있다. 서버 동작에 따로 만들면 셋째 복사본이 생겨 한쪽만 고쳐진다. 먼저 남기는 까닭: 투구수를 잘못 적었으면
+ * 체크인까지 막아 그 자리에서 고치게 하고, 체크인 저장이 레이아웃을 새로 그릴 때(revalidatePath) 어제 기록도 같이 읽혀 줄이 사라지게.
+ * 비웠으면 아무것도 안 하고, 이 창에서 이미 남긴 날이면 다시 안 보낸다.
+ */
+async function logYesterdayOuting(
+  alreadyLogged: string | undefined,
+  formData: FormData
+): Promise<{ error: string } | { logged: string | null }> {
+  const read = readYesterdayOuting({
+    date: formData.get('yesterdayDate'),
+    pitches: formData.get('yesterdayPitches'),
+    effort: formData.get('yesterdayEffort'),
+    noThrow: formData.get('yesterdayNoThrow'),
+  });
+  if (read == null) return { logged: alreadyLogged ?? null };
+  if ('error' in read) return read;
+  if (read.date === alreadyLogged) return { logged: alreadyLogged };
+  try {
+    const res = await fetch('/api/pitch-log', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(read),
+    });
+    if (!res.ok) {
+      const data: { error?: unknown } = await res.json().catch(() => ({}));
+      return {
+        error:
+          typeof data.error === 'string'
+            ? `어제 기록을 남기지 못했어요. ${data.error}`
+            : '어제 기록을 남기지 못했어요. 다시 눌러 주세요.',
+      };
+    }
+    return { logged: read.date };
+  } catch {
+    return { error: OFFLINE_MESSAGE };
+  }
 }
 
 /**
@@ -529,9 +712,12 @@ function saveCheckinSafely(
  * 그날 첫 접속 때 뜨는 체크인 관문(components/checkin-gate.tsx). 그래서 자기 껍데기(테두리·제목)를
  * 만들지 않는다 — 감싸는 쪽이 이미 가지고 있어서 겹친다.
  *
- * 간편과 상세 두 가지로 받는다. 간편은 몸 상태·컨디션·수면, 그리고 선택 칸인 근육통 ·
- * 잔 시간만 — 매일 쓰는 것이라 몇 초 안에 끝나야 한다. 상세는 운동 선호와 앱이 실제로 쓰는
- * 기록(팔 피로 · 몸무게 · 식욕 · 던지는 일정)과 메모까지 받되, 전부 안 채워도 된다.
+ * 간편과 상세 두 가지로 받는다. 간편은 몸 상태·컨디션, 그리고 선택 칸인 던지는 일정 · 팔 피로 · 끼니 양 ·
+ * 걸른 끼니만 — 매일 쓰는 것이라 몇 초 안에 끝나야 한다. 상세는 운동 선호와 앱이 실제로 쓰는
+ * 기록(몸무게 · 식욕)과 메모까지 받되, 전부 안 채워도 된다.
+ *
+ * 던지는 일정은 2026-10-12(트레이닝 추천 2판 D1)에 상세에서 간편으로 옮겼다 — 매일 운동 계획 · 근력 프로그램 ·
+ * 영양 가이드가 다 읽는 답인데 상세에만 있어 거의 오지 않았다. 컨디션 바로 밑에 둔다(추천을 가장 크게 바꾸는 답).
  *
  * 근육통 · 잔 시간은 2026-09-30 에 상세에서 뺐다가 같은 날 되살렸다 — 트레이닝 추천이 읽는다
  * (사용자: "둘다 트레이닝을 추천함에 있어서 필요한 데이터야"). 상세가 아니라 간편 쪽(늘 보이는 자리)에
@@ -540,7 +726,7 @@ function saveCheckinSafely(
  *
  * 간편으로 저장하면 상세 기록은 건드리지 않는다. 아침에 상세로 적어 둔 것을
  * 저녁에 간편으로 고쳐도 몸무게·메모가 지워지지 않는다(app/actions/checkin.ts).
- * 근육통 · 잔 시간은 어느 쪽으로 저장하든 같이 간다(body=1) — 비우면 비운 대로 저장된다.
+ * 간편 쪽 선택 칸(던지는 일정 · 팔 피로 · 끼니)은 어느 쪽으로 저장하든 같이 간다(body=1) — 비우면 비운 대로 저장된다.
  */
 export function CheckinForm({
   recent,
@@ -548,6 +734,7 @@ export function CheckinForm({
   onSaved,
   age = null,
   onLeave,
+  pitchDays,
 }: {
   recent: CheckinData[];
   /** 고를 수 있는 운동 부위 — 라이브러리에서 뽑아 넘어온다 */
@@ -561,6 +748,11 @@ export function CheckinForm({
   age?: number | null;
   /** 팔 통증 안내의 [통증 루틴 하기]로 다른 화면에 갈 때 — 감싸는 창을 닫는 데 쓴다 */
   onLeave?: () => void;
+  /**
+   * 최근 며칠 투구 기록이 있는 날(YYYY-MM-DD, 쉰 날 줄 포함) — 어제 등판 줄을 물을지 가른다(관문 · 종 창이 레이아웃의 같은 목록을 넘긴다).
+   * 안 넘기면(트레이닝 탭 창) 어제 기록이 있는지 모르니 묻지 않는다.
+   */
+  pitchDays?: string[];
 }) {
   // 서버(UTC)와 한국 시간의 날짜가 다른 시간대가 있어,
   // '오늘'은 화면이 뜬 뒤 사용자 시간 기준으로 정한다.
@@ -591,7 +783,7 @@ export function CheckinForm({
    * (todayKey) 서버와 화면이 어긋나지 않는다.
    */
   const [mode, setMode] = useState<Mode>(readMode);
-  const [state, formAction] = useActionState<CheckinState, FormData>(
+  const [state, formAction] = useActionState<FormState, FormData>(
     saveCheckinSafely,
     undefined
   );
@@ -763,10 +955,34 @@ export function CheckinForm({
               ] as [string, string],
             ]
           : []),
+        /* 간편 쪽 선택 칸 — 적은 날만(2026-10-12 상세 줄에서 옮김, 폼과 같은 차례: 던지는 일정 → 팔 피로 → 식사) */
+        ...(today.throwPlan
+          ? [['던지는 일정', today.throwPlan] as [string, string]]
+          : []),
+        ...quickScaleLines(today),
         ...(todaySoreness ? [['근육통', todaySoreness] as [string, string]] : []),
         ...(todayMeals ? [['식사', todayMeals] as [string, string]] : []),
       ]
     : [];
+  /*
+   * 어제 적은 던지는 일정 — 그 줄 이름 옆에 작은 회색 글로만 보인다. 오늘 칩을 미리 고르지 않는다: 안 적은 것과 적은 것은
+   * 다른 뜻이고(어제 '내일 등판'은 오늘 안 적었을 때만 오늘 등판으로 읽힌다, lib/report/theme.ts plannedOuting), 어제
+   * '2~3일 뒤'를 오늘 그대로 두면 하루씩 틀린다. 보이는 까닭은 고쳐 적기 쉽게(어제 2~3일 뒤 → 오늘 내일 등판).
+   * recent 는 관문 · 종 창이 사흘치를 넘긴다(app/(app)/layout.tsx). 트레이닝 탭 창처럼 빈 목록이면 안 보인다.
+   */
+  const yesterdayKey = todayKey ? shiftDateKey(todayKey, -1) : null;
+  const yesterdayPlan = yesterdayKey
+    ? (recent.find((c) => c.date === yesterdayKey)?.throwPlan ?? null)
+    : null;
+  /*
+   * 어제 등판 줄(YesterdayOutingRow) — 어제 '오늘 등판'이라 적었는데 어제 투구 기록이 없을 때만(lib/outing-line.ts). 이 창에서 방금 남겼으면
+   * 레이아웃이 새 목록을 주기 전에도 숨긴다.
+   */
+  const askYesterday =
+    yesterdayKey != null &&
+    pitchDays != null &&
+    state?.yesterdayLogged !== yesterdayKey &&
+    asksYesterdayPitches(yesterdayPlan, pitchDays.includes(yesterdayKey));
   /* 걸른 끼니(여러 개) — 오류로 돌아온 폼 값이 있으면 그것, 아니면 저장된 것 */
   const skippedPicked: readonly string[] =
     (before ? keptAll(before, 'skippedMeals') : undefined) ?? today?.skippedMeals ?? [];
@@ -903,8 +1119,8 @@ export function CheckinForm({
             <form key={formKey} action={formAction} className="space-y-4">
               <input type="hidden" name="date" value={todayKey} />
               {/*
-               * 근육통 · 잔 시간을 담아 보낸다는 표시. 서버는 이것이 왔을 때만 두 칸을 쓴다
-               * (비우면 null). 배포 전에 열려 있던 옛 화면에는 이 표시가 없어, 아침에 적은 값을
+               * 간편 쪽 선택 칸(던지는 일정 · 팔 피로 · 끼니 양 · 걸른 끼니)을 담아 보낸다는 표시. 서버는 이것이 왔을 때만
+               * 그 칸들을 쓴다(비우면 null). 배포 전에 열려 있던 옛 화면에는 이 표시가 없어, 아침에 적은 값을
                * 빈 값으로 덮지 않는다(app/actions/checkin.ts). 상세 fieldset 밖이라 간편에서도 간다.
                */}
               <input type="hidden" name="body" value="1" />
@@ -920,7 +1136,7 @@ export function CheckinForm({
                 <span className="text-[11px] leading-relaxed text-muted">
                   {detailed
                     ? '더 적을수록 추천이 오늘에 맞춰져요. 비워 둔 칸은 저장하지 않아요.'
-                    : '몸 상태 · 컨디션 · 팔 피로. 몇 초면 끝나요.'}
+                    : '몸 상태 · 컨디션 · 던지는 일정 · 팔 피로. 몇 초면 끝나요.'}
                 </span>
               </div>
 
@@ -1032,6 +1248,43 @@ export function CheckinForm({
                   1 안 좋음 · 10 최상 · 수면 · 피로 · 기분까지 합친 오늘 전체 컨디션
                 </span>
               </Row>
+
+              {/*
+               * 던지는 일정(선택) — 2026-10-12 트레이닝 추천 2판 D1 로 상세에서 옮겼다. 매일 운동 계획(등판 날 · 전날
+               * 무거운 하체 빼기) · 근력 프로그램(경기 앞뒤 쉬기) · 영양 가이드가 읽는다. fieldset 밖이라 간편 · 상세 둘 다
+               * 보내고, 서버는 body=1 로 받는다(lib/checkin.ts parseCheckinBody). 끼니 양과 같은 칩: 여섯 칸이라 고르개
+               * (Segmented)는 휴대폰 폭에 안 들어가고, 고른 것을 다시 누르면 풀린다(안 적음으로 되돌리기). 칩 밑 안내 글은
+               * 두지 않는다 — 간편은 한 줄도 아껴야 하고, '다시 누르면 풀려요'는 끼니 양 줄에 있다.
+               */}
+              <Row
+                label="던지는 일정"
+                aside={yesterdayPlan ? `어제: ${yesterdayPlan}` : null}
+                radios
+              >
+                {THROW_PLANS.map((v) => (
+                  <ChipRadio
+                    key={v}
+                    name="throwPlan"
+                    value={v}
+                    toggleable
+                    defaultChecked={pick('throwPlan', today?.throwPlan) === v}
+                  >
+                    {v}
+                  </ChipRadio>
+                ))}
+              </Row>
+
+              {/* 어제 등판 · 몇 구 — 어제 '오늘 등판'인데 기록이 없을 때만(위 askYesterday). 던지는 일정 줄의 '어제: 오늘 등판' 바로 밑 */}
+              {askYesterday && yesterdayKey && (
+                <YesterdayOutingRow
+                  date={yesterdayKey}
+                  defaultPitches={before ? kept(before, 'yesterdayPitches') : undefined}
+                  defaultEffort={before ? kept(before, 'yesterdayEffort') : undefined}
+                  defaultNoThrow={
+                    before ? kept(before, 'yesterdayNoThrow') === '1' : false
+                  }
+                />
+              )}
 
               {/* 팔 피로 — 2026-10-12 상세에서 간편으로 옮겼다(암케어 루틴이 읽는다). 서버는 body=1 로 받는다 */}
               {DETAIL_SCALES.map((s) => (
@@ -1173,7 +1426,10 @@ export function CheckinForm({
                     <WeightRow defaultKg={pick('bodyWeightKg', today?.bodyWeightKg)} />
                   </Section>
 
-                  {/* 식욕 · 던지는 일정은 영양 탭의 가이드가 쓴다(lib/checkin.ts) */}
+                  {/*
+                    식욕은 영양 탭의 가이드가 쓴다(lib/checkin.ts). 던지는 일정은 2026-10-12 에 간편 칸(전신 컨디션 밑)으로
+                    옮겼다 — 여기에도 두면 같은 이름의 라디오 두 벌이 한 묶음으로 엉키고 상세를 열 때만 하나가 더 보인다.
+                  */}
                   <Section title="영양 가이드에 써요">
                     <Row label="식욕" radios>
                       {APPETITE_LEVELS.map((label, i) => (
@@ -1187,19 +1443,6 @@ export function CheckinForm({
                           }
                         >
                           {label}
-                        </ChipRadio>
-                      ))}
-                    </Row>
-                    <Row label="던지는 일정" radios>
-                      {THROW_PLANS.map((v) => (
-                        <ChipRadio
-                          key={v}
-                          name="throwPlan"
-                          value={v}
-                          toggleable
-                          defaultChecked={pick('throwPlan', today?.throwPlan) === v}
-                        >
-                          {v}
                         </ChipRadio>
                       ))}
                     </Row>

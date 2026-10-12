@@ -34,8 +34,11 @@ export type TrendPoint = {
   label: string;
   /** 그날 던진 개수 */
   pitches: number;
-  /** 그날 체감 강도 (안 던진 날은 0) */
-  intensity: number;
+  /**
+   * 그날 체감 강도 %(정수, 안 던진 날은 0). 2026-10-12 1~10(intensity)에서 바꿨다 — 입력이 % 라 그래프도 같은 눈금이어야
+   * 고른 값과 맞는다. 칸 이름을 바꾼 것은 1~10 을 넘기는 곳이 남으면 컴파일이 잡게 하려고다.
+   */
+  effortPct: number;
   /** 그날 최고 구속. 안 던진 날은 null 이라 선이 끊긴다. */
   maxVelocity: number | null;
   /** 그날까지의 7일 누적 부하 (투구수 × 강도의 합) */
@@ -82,9 +85,9 @@ const METRICS = [
   {
     key: 'intensity',
     label: '투구 강도',
-    unit: '/ 10',
+    unit: '%',
     kind: 'bar',
-    hint: '스스로 매긴 그날의 힘 쓴 정도예요.',
+    hint: '스스로 매긴 그날의 체감 강도예요.',
     sparse: false,
   },
 ] as const;
@@ -106,7 +109,7 @@ function valuesFor(points: TrendPoint[], metric: MetricKey): (number | null)[] {
     case 'velocity':
       return points.map((p) => p.maxVelocity);
     case 'intensity':
-      return points.map((p) => p.intensity);
+      return points.map((p) => p.effortPct);
   }
 }
 

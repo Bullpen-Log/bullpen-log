@@ -6,6 +6,7 @@ import { useSpeedUnit } from '@/components/use-units';
 import Link from 'next/link';
 import { ChevronDown, ChevronRight, Film } from 'lucide-react';
 import { REST_SESSION_TYPE, SESSION_TYPES } from '@/lib/session-type';
+import { effortText, readEffort } from '@/lib/pitch-effort';
 import type { Log } from './types';
 import { OPEN_POPUP_TYPES } from '@/lib/transition-types';
 
@@ -37,8 +38,12 @@ function spokenMonth(month: string) {
 
 type Filter = 'all' | 'video' | 'hard' | string;
 
-/** 이 강도부터 '세게 던진 날'로 본다 */
-const HARD_INTENSITY = 8;
+/**
+ * 이 체감 강도(%)부터 '세게 던진' 기록으로 거른다 — 예전 1~10 의 8 × 10. 입력이 % 라 칩 글도 같은 눈금으로 보인다.
+ * 트레이닝 추천의 '세게 던진 날'(투구수 × 체감 강도 2,700, lib/report/facts.ts)과는 다른, 목록을 좁히는 거름이다.
+ */
+const HARD_EFFORT_PCT = 80;
+const hardEnough = (l: Log) => (readEffort(l)?.pct ?? 0) >= HARD_EFFORT_PCT;
 
 export function LogList({ logs }: { logs: Log[] }) {
   /* 구속을 보여줄 단위. 저장은 늘 km/h 다(lib/units.ts). */
@@ -58,7 +63,7 @@ export function LogList({ logs }: { logs: Log[] }) {
     return {
       all: logs.length,
       video: logs.filter((l) => l.videoPaths.length > 0).length,
-      hard: logs.filter((l) => l.intensity >= HARD_INTENSITY).length,
+      hard: logs.filter(hardEnough).length,
       byType,
     };
   }, [logs]);
@@ -73,7 +78,7 @@ export function LogList({ logs }: { logs: Log[] }) {
     const rows = sorted.filter((l) => {
       if (filter === 'all') return true;
       if (filter === 'video') return l.videoPaths.length > 0;
-      if (filter === 'hard') return l.intensity >= HARD_INTENSITY;
+      if (filter === 'hard') return hardEnough(l);
       return l.sessionType === filter;
     });
     const map = new Map<string, Log[]>();
@@ -106,7 +111,7 @@ export function LogList({ logs }: { logs: Log[] }) {
   const chips: { key: Filter; label: string; count: number }[] = [
     { key: 'all', label: '전체', count: counts.all },
     { key: 'video', label: '영상 있는 날', count: counts.video },
-    { key: 'hard', label: `강도 ${HARD_INTENSITY} 이상`, count: counts.hard },
+    { key: 'hard', label: `강도 ${HARD_EFFORT_PCT}% 이상`, count: counts.hard },
     ...SESSION_TYPES.map((t) => ({
       key: t.name as Filter,
       label: t.name,
@@ -203,8 +208,8 @@ export function LogList({ logs }: { logs: Log[] }) {
                                   '쉬는 날'
                                 ) : (
                                   <>
-                                    {log.sessionType} {log.pitchCount}구 · 강도{' '}
-                                    {log.intensity}
+                                    {log.sessionType} {log.pitchCount}구
+                                    {effortText(log) && ` · 강도 ${effortText(log)}`}
                                     {log.maxVelocity != null &&
                                       ` · 최고 ${formatSpeed(log.maxVelocity, speedUnit)}`}
                                   </>

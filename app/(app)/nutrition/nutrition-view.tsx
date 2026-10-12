@@ -60,6 +60,7 @@ import {
 } from '@/lib/nutrition/meta';
 import type { DaySummary, NutritionDay } from '@/lib/nutrition/load';
 import type { Advice } from '@/lib/nutrition/advice';
+import { fuelCardLines, type FuelCard } from '@/lib/nutrition/fuel-check';
 import {
   GUIDE_DISCLAIMER,
   recoveryEaten,
@@ -212,11 +213,14 @@ export function NutritionView({
   day,
   today,
   advice,
+  fuel = null,
 }: {
   day: NutritionDay;
   today: string;
   /** 오늘 영양 조언(lib/nutrition/advice.ts) — 홈 카드와 같은 셈. 지난 날은 할 일이 없어 카드를 안 그린다 */
   advice: Advice;
+  /** 영양 추세 카드 글(lib/nutrition/fuel-check.ts fuelCardOf, 2판 P6-7) — 오늘을 볼 때 깃발이 섰을 때만 */
+  fuel?: FuelCard | null;
 }) {
   useArrowKeys(day.date, today);
   const [, startTransition] = useTransition();
@@ -496,6 +500,12 @@ export function NutritionView({
           </div>
         </div>
       )}
+
+      {/*
+        영양 추세(2판 P6-7) — 지난 7일 적게 먹음 · 몸무게 감소 · 컨디션 낮음이 함께 보일 때만, 오늘만(page.tsx). 트레이닝의 무게 추천이
+        같은 깃발로 올림을 멈춘다. 기록 · 통계 어느 쪽에서도 보이게 그리드 위 전체 폭에 둔다.
+      */}
+      {fuel && <FuelNotice card={fuel} />}
 
       {/* 휴대폰 한 칸도 minmax(0,1fr) — 한 줄 고정 글(식단 카드 요약 같은 것)이 칸의 최소 너비를 밀어 화면 밖으로 넘치지 않게 */}
       <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-block lg:grid-cols-[minmax(0,1fr)_22rem]">
@@ -1183,6 +1193,33 @@ function GuideCard({
           </div>
         </div>
       </div>
+    </section>
+  );
+}
+
+/* ─────────────────────────── 영양 추세 — 무게 올림 멈춤과 같은 깃발(2판 P6-7) ─────────────────────────── */
+
+/**
+ * 영양 추세 카드 — 경고 색 한 장. 까닭 세 줄 · 무게를 어떻게 하는지 · 진료 안내(성장기는 보호자 · 지도자부터). 글은 fuel-check.ts 한 곳.
+ */
+function FuelNotice({ card }: { card: FuelCard }) {
+  /* 몸무게 줄은 보는 사람의 단위로(2판 P6 검토 — 서버가 kg 로 굳히면 lb 를 고른 사람에게 이 줄만 kg 였다) */
+  const unit = useWeightUnit();
+  return (
+    <section
+      aria-labelledby="fuel-title"
+      className="rounded-2xl border border-warn-line bg-warn-bg p-(--block-pad)"
+    >
+      <h2 id="fuel-title" className="text-base font-semibold text-warn break-keep">
+        {card.title}
+      </h2>
+      <ul className="mt-2 space-y-1 text-sm text-ink break-keep">
+        {fuelCardLines(card, unit).map((line) => (
+          <li key={line}>{line}</li>
+        ))}
+      </ul>
+      <p className="mt-3 text-sm font-semibold text-ink break-keep">{card.hold}</p>
+      <p className="mt-1 text-xs leading-relaxed text-muted break-keep">{card.care}</p>
     </section>
   );
 }

@@ -1,6 +1,13 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import {
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from 'react';
 import { Check, ChevronDown } from 'lucide-react';
 import { Button, Field, Input, Textarea } from '@/components/ui';
 import { Segmented } from '@/components/segmented';
@@ -8,8 +15,10 @@ import { VideoUpload, type UploadedVideo } from '@/components/video-upload';
 import { usePlaybackUrls } from '@/components/use-playback-urls';
 import { FilmingGuide } from '@/components/filming-guide';
 import { IntensityGuide } from '@/components/intensity-guide';
+import { EffortChips, focusEffortChips } from '@/components/effort-chips';
 import { makePitchThumb } from '@/lib/pitch-thumbs';
 import { dateKeyLabel } from '@/lib/pitch-stats';
+import { derivedEffortText, readEffort } from '@/lib/pitch-effort';
 import { DEFAULT_SESSION_TYPE, SESSION_TYPES, isRestSession } from '@/lib/session-type';
 import {
   GOOD_DAY_MIN,
@@ -52,7 +61,11 @@ function discardUploads(paths: string[]) {
 const EMPTY_FORM = {
   sessionType: DEFAULT_SESSION_TYPE as string,
   pitchCount: '',
-  intensity: '5',
+  /*
+   * 체감 강도(%) — 기본값 없이 비워 둔다(2판 D2). 예전 1~10 막대는 5 에서 시작해 운영 기록의 3분의 2가 손대지 않은 5 였고,
+   * 그 숫자로 휴식일 · 세게 던진 날이 정해졌다. 저장하기 전에 한 번은 고르게 한다.
+   */
+  effortPct: null as number | null,
   maxVelocity: '',
   avgVelocity: '',
   memo: '',
@@ -67,7 +80,10 @@ export type EntryDraft = {
   id: string;
   sessionType: string;
   pitchCount: number;
+  /** 옛 1~10(쉰 날 0) — effortPct 가 없는 옛 기록은 이것으로 % 를 채운다(lib/pitch-effort.ts readEffort) */
   intensity: number;
+  /** 체감 강도(%). 칸이 생기기 전 기록 · 쉰 날은 null */
+  effortPct?: number | null;
   maxVelocity: number | null;
   avgVelocity: number | null;
   memo: string | null;
@@ -255,16 +271,16 @@ export function EntryForm({
   const editing = Boolean(initial);
 
   /*
-   * 쉰 날 기록은 투구수 · 강도가 0 으로 저장돼 있다(서버가 쉰 날은 0 으로 적는다). 그대로 채우면 던진 날로 바꿀 때 강도 막대는
-   * 1 을 보이는데 값은 '0' 이라 '투구 강도는 1에서 10 사이' 로 저장이 막혔다 — 쉰 날이면 새 기록의 기본값에서 시작한다.
+   * 쉰 날 기록은 투구수 · 강도가 0 으로 저장돼 있다(서버가 쉰 날은 0 으로 적는다). 그대로 채우면 던진 날로 바꿀 때 0% 가
+   * 들어가 저장이 막힌다 — 쉰 날이면 비운 채(새 기록처럼) 시작한다. 체감 강도(%)가 없는 옛 기록은 1~10 × 10 으로 채운다.
    */
+  const initialEffort = initial ? readEffort(initial) : null;
   const [form, setForm] = useState(() =>
     initial
       ? {
           sessionType: initial.sessionType,
           pitchCount: initial.pitchCount > 0 ? String(initial.pitchCount) : '',
-          intensity:
-            initial.intensity >= 1 ? String(initial.intensity) : EMPTY_FORM.intensity,
+          effortPct: initialEffort?.pct ?? null,
           maxVelocity: initial.maxVelocity == null ? '' : String(initial.maxVelocity),
           avgVelocity: initial.avgVelocity == null ? '' : String(initial.avgVelocity),
           memo: initial.memo ?? '',
@@ -278,6 +294,12 @@ export function EntryForm({
     (initial?.videoPaths ?? []).map((path) => ({ path, name: fileNameOf(path) }))
   );
   const [saving, setSaving] = useState(false);
+  /* 체감 강도를 안 고른 채 저장을 눌렀다 — 칩 밑에 한 줄, 고르면 걷는다 */
+  const [effortMissing, setEffortMissing] = useState(false);
+  const effortId = useId();
+  /* 옛 1~10 에서 채운 값을 손대지 않았다 — 저장할 때 옛 강도를 그대로 보내고, 칩 밑에 어디서 온 값인지 알린다 */
+  const keepsLegacyEffort =
+    initialEffort?.derivedFrom != null && form.effortPct === initialEffort.pct;
   /*
    * 이 폼에서 새로 올리고 아직 저장하지 않은 영상. 빼거나 저장 없이 폼을 닫으면 지운다 — 예전에는 버린 업로드가 저장소에
    * 영영 남았다. 저장이 끝나면 비운다(기록에 붙었다). 저장하는 중에 닫히면 지우지 않는다(곧 기록에 붙는다).
@@ -352,6 +374,13 @@ export function EntryForm({
     e.preventDefault();
     /* 단추는 막혀 있지만 Enter 로도 제출된다 */
     if (uploading) return;
+    /* 던진 날인데 체감 강도를 안 골랐다 — 서버까지 가지 않고 그 칸으로 보낸다(서버도 같은 말로 막는다) */
+    if (!isRestSession(form.sessionType) && form.effortPct == null) {
+      onError(undefined);
+      setEffortMissing(true);
+      focusEffortChips(effortId);
+      return;
+    }
     setSaving(true);
     savingRef.current = true;
     onError(undefined);
@@ -368,7 +397,13 @@ export function EntryForm({
           videoPaths: videos.map((v) => v.path),
           sessionType: form.sessionType,
           pitchCount: form.pitchCount,
-          intensity: form.intensity,
+          /*
+           * 옛 기록(체감 강도 % 없음)을 고치는데 채워 둔 값을 그대로 두었으면 옛 1~10 을 보낸다 — 서버가 같은 강도면 % 칸을
+           * 비운 채 둔다(lib/pitch-effort.ts effortUpdate). 그래야 null 이 '% 로 고른 적 없음'으로 남는다. 바꿨으면 % 를 보낸다.
+           */
+          ...(keepsLegacyEffort
+            ? { intensity: initial!.intensity }
+            : { effortPct: form.effortPct }),
           maxVelocity: form.maxVelocity,
           avgVelocity: form.avgVelocity,
           memo: form.memo,
@@ -445,57 +480,42 @@ export function EntryForm({
       */}
           {!resting && (
             <>
-              <div className="grid gap-5 sm:grid-cols-2">
-                <Field label="투구수">
-                  {/* 상한은 오타를 잡는 자리다. 서버에서 같은 선으로 한 번 더 본다. */}
-                  <Input
-                    type="number"
-                    inputMode="numeric"
-                    min="1"
-                    max="500"
-                    value={form.pitchCount}
-                    onChange={(e) => setForm({ ...form, pitchCount: e.target.value })}
-                    placeholder="45"
-                    required
-                  />
-                </Field>
-                <Field label={`투구 강도 ${form.intensity} / 10`}>
-                  <input
-                    type="range"
-                    min="1"
-                    max="10"
-                    value={form.intensity}
-                    onChange={(e) => setForm({ ...form, intensity: e.target.value })}
-                    /*
-                      아이폰은 트랙을 눌러도 손잡이가 안 온다(손잡이를 잡아 끌어야만 움직인다) — 손가락으로 누른 자리의
-                      값으로 바로 옮긴다. 마우스는 브라우저가 이미 해 준다(2026-10-03).
-                    */
-                    onPointerDown={(e) => {
-                      if (e.pointerType === 'mouse') return;
-                      const r = e.currentTarget.getBoundingClientRect();
-                      if (r.width <= 0) return;
-                      const pct = Math.min(
-                        1,
-                        Math.max(0, (e.clientX - r.left) / r.width)
-                      );
-                      setForm({ ...form, intensity: String(Math.round(1 + pct * 9)) });
-                    }}
-                    /* 채워진 길이를 CSS 로 넘긴다 — .range 안에서 트랙을 여기서 끊는다 */
-                    style={
-                      {
-                        '--range-pct': `${((Number(form.intensity) - 1) / 9) * 100}%`,
-                      } as React.CSSProperties
-                    }
-                    className="range mt-3"
-                  />
-                  {/*
-            강도는 부하 지수와 필요한 휴식일을 정하는 값이라, 감으로 찍으면
-            그 뒤 계산이 전부 흔들린다. 고르는 자리 바로 옆에 기준을 둔다.
-          */}
-                  <div className="mt-3">
-                    <IntensityGuide kind="pitch" />
-                  </div>
-                </Field>
+              <Field label="투구수">
+                {/* 상한은 오타를 잡는 자리다. 서버에서 같은 선으로 한 번 더 본다. */}
+                <Input
+                  type="number"
+                  inputMode="numeric"
+                  min="1"
+                  max="500"
+                  value={form.pitchCount}
+                  onChange={(e) => setForm({ ...form, pitchCount: e.target.value })}
+                  placeholder="45"
+                  required
+                />
+              </Field>
+              {/*
+                체감 강도(%) — 투구수 옆 반 칸이 아니라 한 줄을 다 쓴다. 칩 여섯이 넓은 화면의 반의반 칸에는 안 들어간다.
+                강도는 부하 지수 · 휴식일 · 세게 던진 날을 정하는 값이라, 감으로 찍으면 그 뒤 계산이 전부 흔들린다.
+                고르는 자리 바로 밑에 기준을 둔다. Field(label)로 감싸지 않는다 — 단추 여럿을 label 이 감싸면 이름을
+                눌러도 첫 칩이 눌린다.
+              */}
+              <div className="space-y-3">
+                <EffortChips
+                  id={effortId}
+                  value={form.effortPct}
+                  onChange={(pct) => {
+                    setEffortMissing(false);
+                    setForm({ ...form, effortPct: pct });
+                  }}
+                  invalid={effortMissing}
+                  /* '예전에 적은 강도 9에서 계산한 값이에요.' — 고르면 사라진다 */
+                  note={
+                    keepsLegacyEffort
+                      ? `예전에 적은 ${derivedEffortText(initialEffort)}한 값이에요.`
+                      : null
+                  }
+                />
+                <IntensityGuide kind="pitch" />
               </div>
 
               {/*

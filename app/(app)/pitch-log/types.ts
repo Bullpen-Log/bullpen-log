@@ -13,7 +13,10 @@ export type Log = {
   date: string;
   sessionType: string;
   pitchCount: number;
+  /** 옛 1~10(쉰 날 0). 체감 강도는 이것을 직접 읽지 말고 lib/pitch-stats.ts effortPctOf 로 */
   intensity: number;
+  /** 체감 강도 5~100%(2판 D2). 칸이 생기기 전 기록 · 쉰 날은 null — effortPctOf 가 intensity × 10 으로 메운다 */
+  effortPct: number | null;
   maxVelocity: number | null;
   avgVelocity: number | null;
   memo: string | null;

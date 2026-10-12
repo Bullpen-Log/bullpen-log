@@ -1,9 +1,10 @@
 import 'server-only';
 import { needsWeight } from '@/lib/exercise-meta';
 import { formatPrescription } from '@/lib/exercise-meta';
-import { goalPrescription } from '@/lib/report/goal-prescription';
+import { planPrescription, readPlanVolume, type PlanVolume } from '@/lib/report/volume';
 import { SLOT_ORDER, type SlotKey, type ThemeKey } from '@/lib/report/theme';
 import { orderSession } from '@/lib/report/exercise-order';
+import { readPlanSwaps, type PlanSwap } from '@/lib/report/plan-swaps';
 import {
   itemRx,
   lighterRx,
@@ -36,7 +37,10 @@ export type FrozenExercise = {
   title: string;
   category: string;
   slot: SlotKey;
-  /** '3세트 × 10회 · 세트 사이 2분 휴식' 같은 한 줄. 안 채운 운동은 없다. */
+  /**
+   * '3세트 × 10회 · 세트 사이 2분 휴식' 같은 한 줄. 안 채운 운동은 없다. 성장기 · 입문의 무게 운동은 '· 3개 남기고'가 붙는다
+   * (lib/workout/free-weight-load.ts, 2판 P5-g).
+   */
   prescription: string | null;
   /** 처방 세트 수. 화면에 '3세트 중 2세트째'로 쓴다. */
   plannedSets: number | null;
@@ -67,7 +71,7 @@ export type FrozenExercise = {
    * 프로그램 날은 next-weight.ts, 그 밖의 무게 운동은 free-weight.ts(2026-10-09 — 그 앞에 찍은 판에는 프로그램 칸에만 있다).
    */
   suggestedKg?: number | null;
-  /** 프로그램이 아닌 운동의 추천 까닭 한 줄('지난번 60kg × 8회를 3세트 다 채워서 2.5kg 올렸어요') — free-weight.ts */
+  /** 프로그램이 아닌 운동의 추천 까닭 한 줄('60kg × 8회 3세트를 두 번 이어 채워서 2.5kg 올렸어요') — free-weight.ts */
   suggestNote?: string | null;
   /**
    * 세트마다 다른 처방(% 방식 — 5/3/1 의 65 · 75 · 85%+ 같은 것). 운동 화면이 그 세트의 무게 · 횟수를 보여 준다.
@@ -113,7 +117,17 @@ export type FrozenPlan = {
    * 프로그램이 아닌 날은 없다(null).
    */
   program?: SessionProgramTag | null;
+  /**
+   * 그날 양 조절(lib/report/volume.ts — 본운동 세트 −1 등, 2판 P5). 운동 시작 때 일정의 것을 얼려 두고, 운동 중에 바꿔 넣는 운동도
+   * 같은 조절로 찍는다(목표와 같은 까닭). 줄인 것이 없는 판 · 그 앞에 찍은 판에는 없다(undefined) — 옛 판과 똑같은 모양(RG).
+   */
+  volume?: PlanVolume;
   exercises: FrozenExercise[];
+  /**
+   * 운동 중에 뺀 · 바꾼 기록(lib/report/plan-swaps.ts, 2026-10-12 P2). 그날 일정에도 같이 적히지만, 일정 줄이 없는
+   * 프로그램 날은 이것이 유일한 기록이다. 기록이 없는 판에는 없다(undefined) — 옛 판과 똑같은 모양(RG).
+   */
+  swaps?: PlanSwap[];
 };
 
 type SourceExercise = {
@@ -175,17 +189,53 @@ export function freezePlan(
   picks: readonly { exerciseId: string; slot: SlotKey }[],
   byId: Map<string, SourceExercise>,
   /** 오늘 목표 — 세트 · 횟수를 목표에 맞춰 찍는다(트레이닝 화면 목록과 같은 값) */
-  goal: string | null = null
+  goal: string | null = null,
+  /**
+   * 그날 양 조절(lib/report/volume.ts) — 목표 처방 위에 대어 찍고 판에도 싣는다(운동 중 바꿔 넣는 운동이 같은 조절을 쓰게).
+   * 다시 여는 판이면 그 판의 것(volumeToFreeze). 저장된 값일 수 있어 다시 읽는다 — 깨졌으면 없는 것으로.
+   */
+  volume: PlanVolume | null = null
 ): FrozenPlan {
+  const vol = readPlanVolume(volume);
   /* 구간 차례 다음 구간 안의 하는 차례 — 트레이닝 화면 목록과 같은 차례(lib/report/exercise-order.ts) */
   const found = picks
     .map((p) => ({ slot: p.slot, ex: byId.get(p.exerciseId) }))
     .filter((p): p is { slot: SlotKey; ex: SourceExercise } => p.ex != null);
   const exercises = orderSession(found, SLOT_ORDER).map(({ slot, ex }) =>
-    freezeExercise(goalPrescription(ex, goal), slot)
+    freezeExercise(planPrescription(ex, { goal, volume: vol }), slot)
   );
 
-  return { themeKey, themeLabel, goal, exercises };
+  /* 줄인 것이 없는 판은 칸을 안 붙인다 — 예전과 똑같은 모양(회귀 시험 RG) */
+  return { themeKey, themeLabel, goal, exercises, ...(vol ? { volume: vol } : {}) };
+}
+
+/**
+ * 운동 시작 때 얼릴 양 조절 — 다시 여는 판(오늘 이미 마친 판, 운동이 남아 있음)이면 그 판의 것을, 아니면 오늘 일정의 것을.
+ *
+ * 다시 열기(mergeReopened)는 그 판의 목록 · 칸(volume 포함)을 지키고, 오늘 일정에 새로 들어온 운동만 뒤에 붙인다. 붙는 운동을 오늘
+ * 일정의 조절로 찍으면 아침 판(조절 없음)에 저녁 일정(세트 −1)의 운동이 섞여 한 판 안에서 세트가 엇갈린다. 그래서 붙는 운동도
+ * 지키는 판의 조절로 찍는다(목록이 빈 판은 mergeReopened 가 새 판을 그대로 쓰니 오늘 일정의 것).
+ */
+export function volumeToFreeze(
+  kept: FrozenPlan | null,
+  dayVolume: unknown
+): PlanVolume | null {
+  if (kept && kept.exercises.length > 0) return readPlanVolume(kept.volume);
+  return readPlanVolume(dayVolume);
+}
+
+/**
+ * 운동 중 [교체] 목록 · 바꿔 넣는 운동의 처방 기준 — 목표는 판의 것(옛 판은 오늘 일정의 목표), 양 조절은 판의 것만.
+ *
+ * 양 조절은 오늘 일정으로 떨어뜨리지 않는다. 운동을 시작한 뒤에 일정을 다시 만들어 조절이 생겨도, 이 판에 처음 찍은 운동은
+ * 조절 없이 찍혔다 — 바꿔 넣는 운동만 줄이면 한 판 안에서 세트가 엇갈린다. 목표는 옛 판(2026-10-03 전, 목표 칸 없음) 때문에
+ * 일정으로 떨어뜨리던 것을 그대로 둔다. app/actions/workout.ts 의 swapChoices · changeSessionExercise 가 같이 쓴다.
+ */
+export function sessionRxBasis(
+  plan: FrozenPlan,
+  dayGoal: string | null | undefined
+): { goal: string | null; volume: PlanVolume | null } {
+  return { goal: plan.goal ?? dayGoal ?? null, volume: readPlanVolume(plan.volume) };
 }
 
 /** 찍어 둔 것을 다시 읽는다. 모양이 아니면 null — 옛 세션일 수 있다. */
@@ -194,13 +244,19 @@ export function readFrozenPlan(value: unknown): FrozenPlan | null {
   const v = value as Partial<FrozenPlan>;
   if (typeof v.themeKey !== 'string' || !Array.isArray(v.exercises)) return null;
   const program = readSessionProgram(v.program);
+  /* 아는 칸만 새 객체로 옮기므로, 뺀 · 바꾼 기록도 여기서 지켜야 다음 `{ ...plan, exercises }` 쓰기에서 안 사라진다 */
+  const swaps = readPlanSwaps(v);
+  /* 양 조절도 같은 까닭으로 여기서 지킨다 — 빠지면 첫 바꾸기 · 빼기 뒤 바꿔 넣는 운동만 세트가 하나 많아진다(2판 P5) */
+  const volume = readPlanVolume(v.volume);
   return {
     themeKey: v.themeKey as ThemeKey,
     themeLabel: typeof v.themeLabel === 'string' ? v.themeLabel : '오늘의 운동',
     goal: typeof v.goal === 'string' ? v.goal : null,
     exercises: v.exercises as FrozenExercise[],
-    /* 프로그램 날만 붙인다 — 프로그램이 아닌 판은 예전과 똑같은 모양으로 읽는다(회귀 시험 RG) */
+    /* 프로그램 날 · 기록이 있는 판 · 양을 줄인 판만 붙인다 — 그 밖의 판은 예전과 똑같은 모양으로 읽는다(회귀 시험 RG) */
     ...(program ? { program } : {}),
+    ...(swaps.length > 0 ? { swaps } : {}),
+    ...(volume ? { volume } : {}),
   };
 }
 
@@ -265,14 +321,25 @@ export function freezeProgramExercise(
  *
  * 예전에는 오늘 일정으로 새로 찍어, 바꿔 넣은 운동(과 그 세트)이 목록에서 빠져 고치지도 지우지도 못했다
  * ('오늘 목록에 없는 운동'). 쓰던 판의 program(프로그램 일차)도 그대로 남는다(U2 — 다시 열고 다시 마쳐도 일차는 한 번).
+ * 양 조절(volume)도 쓰던 판의 것이 남는다 — 그래서 붙는 운동은 부르는 쪽이 그 판의 조절로 찍어 넘긴다(volumeToFreeze, 2판 P5).
  */
 export function mergeReopened(kept: FrozenPlan | null, plan: FrozenPlan): FrozenPlan {
   if (!kept || kept.exercises.length === 0) return plan;
+  /*
+   * 그 판에서 뺀 · 바꾼 운동(kept.swaps 의 remove · replace)은 다시 붙이지 않는다(P2). 운동 목록 시트가 '뺀 운동은
+   * 오늘만 빠져요'라고 약속하는데, 일정 picks 에는 남아 있어 다시 열면 뒤에 되살아났다. 더하기(add)는 from 을 그대로
+   * 둔 것이라 거를 것이 없다. 되살리고 싶으면 교체 창에서 넣으면 된다.
+   */
+  const out = new Set(
+    (kept.swaps ?? []).filter((s) => s.kind !== 'add').map((s) => s.from)
+  );
   return {
     ...kept,
     exercises: [
       ...kept.exercises,
-      ...plan.exercises.filter((e) => !kept.exercises.some((k) => k.id === e.id)),
+      ...plan.exercises.filter(
+        (e) => !out.has(e.id) && !kept.exercises.some((k) => k.id === e.id)
+      ),
     ],
   };
 }

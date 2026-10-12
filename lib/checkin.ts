@@ -320,6 +320,14 @@ export type CheckinBody = {
   nutrition: MealAmount | null;
   /** 걸른 끼니(DailyCheckin.skippedMeals). 안 적었으면 [] */
   skippedMeals: SkippableMeal[];
+  /**
+   * 던지는 일정(등판 답, DailyCheckin.throwPlan — 아래 THROW_PLANS). 안 적었으면 null.
+   *
+   * 2026-10-12 트레이닝 추천 2판 D1 로 상세에서 간편으로 옮겼다. 매일 운동 계획 · 근력 프로그램 · 영양 가이드가 모두
+   * 읽는데 상세에만 있어 답이 거의 오지 않았다(P0 사용 통계: 체크인 30줄에 1). 칸은 이 하나 · 파서도 이 하나 —
+   * 상세(CheckinDetail)에는 없다. 상세 저장이 같은 값을 한 번 더 쓰거나 빈 값으로 덮지 않게.
+   */
+  throwPlan: ThrowPlan | null;
 };
 
 const isMealAmount = (v: unknown): v is MealAmount =>
@@ -328,7 +336,7 @@ const isSkippable = (v: unknown): v is SkippableMeal =>
   typeof v === 'string' && SKIPPABLE_MEALS.some((m) => m.key === v);
 
 /**
- * 폼에서 온 네 칸 — 어느 것도 오류를 내지 않는다(목록 · 범위 밖은 안 적은 것으로).
+ * 폼에서 온 다섯 칸 — 어느 것도 오류를 내지 않는다(목록 · 범위 밖은 안 적은 것으로).
  * 걸른 끼니는 여러 개라 getAll 로 받는다(옛 호출처럼 안 넘기면 빈 것으로).
  */
 export function parseCheckinBody(
@@ -345,21 +353,27 @@ export function parseCheckinBody(
     soreness: Number.isInteger(s) && s >= 1 && s <= SORENESS_LEVELS.length ? s : null,
     nutrition: isMealAmount(amount) ? amount : null,
     skippedMeals: skipped,
+    throwPlan: parseThrowPlan(get('throwPlan')),
   };
 }
 
-/** DB 행에서 네 칸만 뽑는다. 예전 기록처럼 비어 있으면 null · []. 목록 밖 값(옛 자료)은 안 적은 것으로 */
+/**
+ * DB 행에서 다섯 칸만 뽑는다. 예전 기록처럼 비어 있으면 null · []. 목록 밖 값(옛 자료)은 안 적은 것으로.
+ * 던지는 일정도 목록으로 거른다 — 2026-10-12 전에는 상세 쪽(pickCheckinDetail)이 검사 없이 그대로 넘겼다.
+ */
 export function pickCheckinBody(row: {
   sleepHours?: number | null;
   soreness?: number | null;
   nutrition?: string | null;
   skippedMeals?: string[] | null;
+  throwPlan?: string | null;
 }): CheckinBody {
   return {
     sleepHours: row.sleepHours ?? null,
     soreness: row.soreness ?? null,
     nutrition: isMealAmount(row.nutrition) ? row.nutrition : null,
     skippedMeals: (row.skippedMeals ?? []).filter(isSkippable),
+    throwPlan: parseThrowPlan(row.throwPlan),
   };
 }
 
@@ -426,10 +440,24 @@ export const ARM_PAIN_SPOTS = {
 export type ArmPainJoint = keyof typeof ARM_PAIN_SPOTS;
 
 /**
+ * 오늘 '통증'이라고 한 팔 관절 — 어깨 → 팔꿈치 차례. 뻐근 · 손목 · 허리 · 하체 통증은 넣지 않는다.
+ *
+ * 메커니즘 접기(사용자 결정 D5, lib/mechanics/program.ts mechanicsPainFold)와 오늘 상태 한 장
+ * (lib/engine/day-state.ts arm.painJoints — 중재의 mechanics.because 'pain')가 둘 다 이것을 부른다. 메커니즘은
+ * 체크인 한 줄만 읽고 오늘 상태는 facts 전체로 만들어서, 판정을 따로 두면 같은 체크인에 다른 답이 나올 수
+ * 있었다(트레이닝 추천 2판 P6 비판 — 재활 관절 · 최근 통증이 섞이면 '오늘 통증만'인 D5 와 갈린다).
+ */
+export function armPainJointsToday(
+  parts: { shoulder?: string | null; elbow?: string | null } | null | undefined
+): ArmPainJoint[] {
+  return (['shoulder', 'elbow'] as const).filter((joint) => parts?.[joint] === '통증');
+}
+
+/**
  * 이 나이(만) 밑이면 통증 루틴을 주지 않고 진료만 권한다 — 성장판 부상이 섞여 있어 운동으로 다룰 일이
  * 아니다. 투구 계획이 성장기로 보는 선(lib/report/plan.ts 의 YOUTH_AGE_THRESHOLD)과 같다.
  */
-export const ARM_PAIN_ROUTINE_MIN_AGE = 15;
+export const ARM_PAIN_ROUTINE_MIN_AGE = 16;
 
 export type ArmPain = {
   /** 아픈 자리 — '통증'인 관절의 자리만, ARM_PAIN_SPOTS 차례로 */
@@ -532,14 +560,18 @@ export function canDoPainRoutine({
 /* ─────────────────────────── 상세 체크인 ─────────────────────────── */
 
 /*
- * 간편 체크인은 위의 몸 상태·컨디션·수면(과 선택 칸인 근육통 · 잔 시간)만 받는다. 매일 쓰는 것이라
- * 몇 초 안에 끝나야 한다 — 길어지면 건너뛰기만 누르게 된다.
+ * 간편 체크인은 위의 몸 상태·컨디션(과 선택 칸인 던지는 일정 · 팔 피로 · 끼니 양 · 걸른 끼니)만 받는다. 매일 쓰는
+ * 것이라 몇 초 안에 끝나야 한다 — 길어지면 건너뛰기만 누르게 된다.
  *
  * 상세는 더 적고 싶은 날에만 채운다. 전부 고르지 않아도 되고, 비어 있으면 그날은
  * 안 적은 것이다(0 이나 '보통'으로 채우지 않는다 — 안 적은 것과 보통인 것은 다르다).
  *
- * 무엇을 묻는지: **앱이 실제로 쓰는 것만.** 팔 피로(암케어 루틴이 본다), 몸무게(영양 목표 ·
- * 홈 그래프), 식욕 · 던지는 일정(영양 가이드), 그리고 메모.
+ * 무엇을 묻는지: **앱이 실제로 쓰는 것만.** 몸무게(영양 목표 · 홈 그래프), 식욕(영양 가이드), 그리고 메모.
+ *
+ * 2026-10-12 에 둘을 간편으로 옮겼다 — 팔 피로(암케어 루틴이 본다, 김민)와 던지는 일정(트레이닝 추천 2판 D1 —
+ * 매일 운동 계획 · 근력 프로그램 · 영양 가이드가 읽는다). 던지는 일정은 칸 · 파서까지 CheckinBody 로 옮겼고,
+ * 팔 피로는 아직 아래 DETAIL_SCALES · CheckinDetail 에 남아 있다(간편 폼이 그리고 서버가 body=1 로 받는다 —
+ * 칸을 옮기는 것은 다음에: DETAIL_SCALES 를 그날 상세 · 폼이 같이 쓴다). 그래서 hasDetail 은 둘 다 세지 않는다.
  *
  * 2026-09-30 에 뺐다(사용자: "사용하지 않는 굳이 필요없는 건 빼줘") — 전신 피로 · 스트레스 · 기분 ·
  * 아침 심박 · 수분 · 식사. 어느 계산도 읽지 않고 홈 달력에 보이기만 하던 칸들이다(먹은 것은 영양 탭이
@@ -565,14 +597,38 @@ export const DETAIL_SCALES = [
 
 export type DetailScaleKey = (typeof DETAIL_SCALES)[number]['key'];
 
+/**
+ * 팔 피로가 이 값 이상이면 '높은 날' — '많이'(4)·'심함'(5). 암케어는 회복 루틴으로 간다(lib/armcare/routine.ts 가 다시 내보낸다).
+ *
+ * '보통'(3)은 넘긴다. 공을 던지는 사람의 팔은 대개 조금은 피곤하다. 그것까지 회복으로 돌리면 강화 루틴을 할 날이 거의 없다.
+ * 2026-10-12(2판 P3) routine.ts 에서 여기로 옮겼다 — 오늘 상태 한 장(lib/engine/day-state.ts)이 같은 문턱을 쓰는데, 체크인 눈금의
+ * 문턱은 근육통(HIGH_SORENESS) · 컨디션(LOW_CONDITION_THRESHOLD)처럼 이 파일 한 곳에 둔다.
+ */
+export const HIGH_ARM_FATIGUE = 4;
+
+/**
+ * 팔 피로 '심함'(5). 매일 일정의 안전 거르기가 무거운 상체 밀기 · 팔 플라이오를 뺄 문턱이다(2판 P4 — 판정은
+ * lib/engine/exercise-class.ts, 규칙은 다음 커밋에서 prescription.ts 에 들어간다). 눈금 셋의 몫을 나눈다: '심함'은 운동을 뺀다, '많이'(HIGH_ARM_FATIGUE)는 암케어를 회복으로만
+ * 돌린다, 그 아래는 운동 고르기가 점수로만 본다(P5). '많이'에서 운동까지 빼면 공을 많이 던지는 시기에 상체 날이 거의 빈다.
+ * 근육통의 SEVERE_SORENESS 와 같은 눈금 · 같은 뜻이다.
+ */
+export const SEVERE_ARM_FATIGUE = 5;
+
+/**
+ * 팔 피로 숫자 → 말('많이' 같은 DETAIL_SCALES 의 보기). 정수 1~5 밖이면 null — 안 적은 것으로 본다(sorenessWord 와 같은 꼴).
+ * 암케어 까닭 줄 · 오늘 상태 한 장이 이 함수 하나를 쓴다(예전에는 둘에 보기 복사본이 따로 있었다). 안전 거르기의 근거 글도 이것을 쓴다.
+ */
+export function armFatigueWord(n: number | null | undefined): string | null {
+  const options = DETAIL_SCALES.find((s) => s.key === 'armFatigue')?.options ?? [];
+  return n != null && Number.isInteger(n) ? (options[n - 1] ?? null) : null;
+}
+
 /*
- * 영양 가이드에 쓰는 두 칸(2026-09-30 사용자: "영양 가이드에 필요한 정보가 있다면 체크인에도").
+ * 식욕(2026-09-30 사용자: "영양 가이드에 필요한 정보가 있다면 체크인에도").
  *
- * 식욕은 1~5, 클수록 입맛이 돈다(다른 척도처럼 '클수록 그 느낌이 강하다'). 입맛이 없는
+ * 1~5, 클수록 입맛이 돈다(다른 척도처럼 '클수록 그 느낌이 강하다'). 입맛이 없는
  * 날은 한 번에 많이보다 적게 자주 — 증량 중인 선수에게 특히 중요하다.
- *
- * 던지는 일정은 탄수화물을 언제 늘릴지 정한다. 투구 기록은 던진 뒤에야 생겨서, 등판
- * 전날 저녁 · 당일 아침에 챙길 것을 미리 알려면 여기서 받아야 한다.
+ * 같이 들어온 '던지는 일정'은 아래 THROW_PLANS.
  */
 export const APPETITE_LEVELS = ['거의 없음', '적음', '보통', '좋음', '왕성'] as const;
 
@@ -582,35 +638,181 @@ export const APPETITE_LEVELS = ['거의 없음', '적음', '보통', '좋음', '
  * 2026-10-09 전에는 세 파일에 4 가 따로 적혀 있었다 — 한 곳만 바꾸면 셋이 어긋난다.
  */
 export const LOW_CONDITION_THRESHOLD = 4;
-export const THROW_PLANS = ['오늘 등판', '오늘 불펜', '내일 등판', '없음'] as const;
+
+/*
+ * 던지는 일정(등판 답) — 칩 글이 곧 저장 글이다(DailyCheckin.throwPlan, 글자 칸).
+ *
+ * 처음(2026-09-30)에는 영양 가이드가 탄수화물을 언제 늘릴지 정하려고 넣었다 — 투구 기록은 던진 뒤에야 생겨서,
+ * 등판 전날 저녁 · 당일 아침에 챙길 것을 미리 알려면 여기서 받아야 한다. 지금은 매일 운동 계획(lib/report/theme.ts
+ * 의 plannedOuting — 등판 날 · 전날에 무거운 하체를 안 내려고)과 근력 프로그램(lib/program/program.ts 의 programSignalsOf —
+ * 경기 날 · 전날 · 다음 날 쉬기)도 읽는다. 2판 P3(2026-10-12)부터 투구 계획(lib/report/plan.ts — 등판 날은 양을 경기가 정한다)과
+ * 암케어(lib/armcare/routine.ts — 등판 날은 회복 루틴)도 아래 todayOutingRole 로 읽는다. 독자 다섯 모두 이 파일의 함수
+ * (parseThrowPlan · nextOutingDays · nextOutingWindow · exactOutingDay · todayOutingRole)로만 읽고, 답 글자를 직접 견주지 않는다
+ * (2판 P3 '프로그램 · 영양 읽기 통일' — 그 전에는 프로그램 · 영양이 '오늘 등판' 같은 글자를 저마다 견줬다).
+ *
+ * 받는 곳은 간편 체크인(위 CheckinBody, 서버는 body=1 로) — 2026-10-12 전에는 상세에만 있어 답이 거의 없었다.
+ *
+ * 2026-10-12 트레이닝 추천 2판 D1 로 넷에서 여섯으로. 옛 넷은 글자 그대로(DB 옛 줄 · 얼린 facts 가 그 글자다), 새 둘
+ * '2~3일 뒤' · '4일 이상 뒤'는 "며칠 뒤 등판인지 앱이 모른다"(theme.ts hardOuting 주석)를 메우려는 답이다 — 지금은
+ * 어느 독자도 날을 바꾸지 않고(모두 '없음'과 같이 읽는다) 값만 받아 둔다. 등판까지 남은 날로 셈하는 규칙은 아래
+ * nextOutingDays 한 곳에만 둔다 — 2판 P3 의 '오늘 상태 한 장'(lib/engine/day-state.ts)이 거기서 읽고, 부하 기준(P4) ·
+ * 마지막 무거운 날(P5)이 그것을 쓴다. 답 → 날짜 규칙을 다른 파일에 베끼지 않는다.
+ *
+ * 어제 답의 이월은 '내일 등판' 하나뿐(plannedOuting · nutrition/guide.ts throwDayKind · 프로그램이 같은 규칙):
+ * 어제 '2~3일 뒤'는 오늘 1~2일 뒤라 날을 못 박지 못하고, 어제 '오늘 등판'은 던진 기록이 맡는다 — 모르는 것을 짐작하지 않는다.
+ * 어제 '오늘 등판'인데 어제 기록이 한 줄도 없으면(쉰 날 줄도 기록) 그 답을 지난 등판으로 둔다(lib/engine/outing.ts claimedYesterdayNoLog) — 매일 일정 · 근력 프로그램 · 암케어가
+ * 같은 함수(lib/engine/arm-load.ts yesterdayArmLoadOf, 2판 P4 커밋 F)로 '기록 없는 등판 다음 날'을 읽는다(엇갈림 표 C6).
+ * 프로그램만 한 군데가 다르다(program.ts programSignalsOf 주석 · 자체 시험이 지금 값을 고정): 어제 '내일 등판'을 오늘 답과 상관없이
+ * 경기 날로 읽는다(오늘 답이 이기는 규칙 밖).
+ * 오늘 · 어제 답을 합치는 곳은 아래 nextOutingWindow 한 곳(2판 P3) — 오늘 상태 한 장은 어제 답을 하루 당긴 범위(어제 '2~3일 뒤'
+ * → 1~2일 뒤)까지 실어 두고, 날을 못 박는 독자는 그중 꼭 오늘 · 꼭 내일만 쓴다. '오늘 등판 · 불펜인가'는 todayOutingRole 하나.
+ */
+export const THROW_PLANS = [
+  '오늘 등판',
+  '오늘 불펜',
+  '내일 등판',
+  '2~3일 뒤',
+  '4일 이상 뒤',
+  '없음',
+] as const;
+export type ThrowPlan = (typeof THROW_PLANS)[number];
+
+/**
+ * 폼 · DB 에서 온 던지는 일정 글자를 목록의 값으로. 목록에 없는 글자 · 빈 값 · 글자가 아닌 것은 null(안 적은 것) —
+ * 화면에서는 나올 수 없는 값이고, 그것 때문에 체크인 전체를 막을 일이 아니다.
+ */
+export function parseThrowPlan(raw: unknown): ThrowPlan | null {
+  if (typeof raw !== 'string') return null;
+  const v = raw.trim();
+  return (THROW_PLANS as readonly string[]).includes(v) ? (v as ThrowPlan) : null;
+}
+
+/**
+ * 답이 말하는 '다음 등판까지 남은 날' 범위 — 등판 답을 날짜로 읽는 규칙은 이 한 곳.
+ *
+ *   '오늘 등판' 0~0 · '내일 등판' 1~1 · '2~3일 뒤' 2~3 · '4일 이상 뒤' 4~(끝 없음: max null)
+ *   '오늘 불펜' · '없음' · 안 적음 · 모르는 글자 → null(등판이 아니다 — 불펜은 가볍게 던지는 날이라 날을 바꾸지 않고,
+ *   던진 뒤의 일은 기록으로 세게 던진 날 규칙(theme.ts hardOuting)이 따로 본다)
+ *
+ * null 이 '등판 없음'인지 '안 적음'인지는 여기서 가르지 않는다 — 그 차이가 필요하면 parseThrowPlan 으로 답 자체를 본다.
+ */
+export function nextOutingDays(
+  plan: string | null | undefined
+): { min: number; max: number | null } | null {
+  switch (parseThrowPlan(plan)) {
+    case '오늘 등판':
+      return { min: 0, max: 0 };
+    case '내일 등판':
+      return { min: 1, max: 1 };
+    case '2~3일 뒤':
+      return { min: 2, max: 3 };
+    case '4일 이상 뒤':
+      return { min: 4, max: null };
+    default:
+      return null;
+  }
+}
+
+/** 다음 등판까지 남은 날의 범위 — max null 은 '끝이 없음'(4일 이상 뒤) */
+export type OutingWindow = { min: number; max: number | null };
+
+/**
+ * '가까운 등판 없음'이라는 답인가('없음') — 안 적은 것(null)과 다르다. 2판 P4 커밋 G(2026-10-12)에서 더함: 등판을 읽는 함수
+ * (lib/engine/outing.ts outingOf)가 체크인 답이 다음 등판을 말하지 않을 때 달력 · 같은 요일로 짐작하는데, 오늘 이 답이면 짐작하지
+ * 않는다 — 짐작이 사람의 답을 뒤집지 않게. 답 글자는 이 파일 밖에서 견주지 않는다(위 THROW_PLANS 주석).
+ */
+export function saysNoOuting(plan: string | null | undefined): boolean {
+  return parseThrowPlan(plan) === '없음';
+}
+
+/**
+ * 범위가 하루로 못 박히면 그날(0 = 오늘 · 1 = 내일), 아니면 null — '2~3일 뒤' · '4일 이상 뒤' · 범위 없음(답 없음 · 불펜 · 없음).
+ *
+ * 날을 못 박는 독자(theme.ts plannedOuting · nutrition/guide.ts · program.ts programSignalsOf · 아래 todayOutingRole)는 이 값이
+ * 0 인지 1 인지만 묻는다. 2판 P3(2026-10-12) 전에는 독자마다 `max === 0` · `min === 1 && max === 1` 을 따로 적거나 '오늘 등판' ·
+ * '내일 등판' 글자를 직접 견줬다 — 한 곳만 바꾸면 같은 아침에 서로 다른 날이 된다. 범위의 min 은 0 아래로 안 내려간다(위 두 함수).
+ */
+export function exactOutingDay(w: OutingWindow | null | undefined): number | null {
+  return w != null && w.max === w.min ? w.min : null;
+}
+
+/**
+ * 오늘 답과 어제 답을 합친 '다음 등판까지 남은 날'.
+ *
+ * 답 하나를 날로 읽는 규칙은 위 nextOutingDays — 여기서는 둘을 합치기만 한다:
+ *   오늘 답이 있으면(null 이 아니면 — '없음'이나 모르는 글자도 '답함'이다) 오늘 답만 본다. 어제 '내일 등판'이었어도 오늘 '없음'
+ *   이라고 고쳤으면(비 · 순서 바뀜) 오늘 것을 따른다.
+ *   오늘 답이 없으면 어제 답을 하루 당겨 읽는다: '내일 등판' → 오늘(0~0), '2~3일 뒤' → 1~2일 뒤, '4일 이상 뒤' → 3일 이상 뒤.
+ *   어제 '오늘 등판'은 이미 지난 등판이라 다음 등판이 아니다(null — 지난 등판은 day-state 의 outing.daysSinceLast 가 본다).
+ *
+ * 하루 당긴 범위는 짐작이 아니라 같은 말의 다른 기준일이다. 다만 날을 못 박는 독자(plannedOuting · 영양 · 프로그램)는 지금처럼
+ * 꼭 오늘(0~0) · 꼭 내일(1~1)만 쓴다 — 그래서 어제 '2~3일 뒤'는 그들에게 '모름'으로 남는다.
+ *
+ * 2판 P3 에서 lib/engine/day-state.ts 에 처음 두었다가 이 파일로 옮겼다(그 파일이 다시 내보낸다) — 투구 계획(lib/report/plan.ts)도
+ * 이 합치기를 읽는데, day-state 가 plan.ts 를 부르므로 plan.ts 가 day-state 를 부르면 순환이 된다. 이 파일은 둘 다 이미 부른다.
+ */
+export function nextOutingWindow(
+  todayPlan: string | null | undefined,
+  yesterdayPlan: string | null | undefined
+): { days: OutingWindow | null; from: 'today' | 'yesterday' | null } {
+  if (todayPlan != null) {
+    const days = nextOutingDays(todayPlan);
+    return { days, from: days ? 'today' : null };
+  }
+  const y = nextOutingDays(yesterdayPlan);
+  if (y == null || (y.max != null && y.max - 1 < 0)) return { days: null, from: null };
+  return {
+    days: { min: Math.max(0, y.min - 1), max: y.max == null ? null : y.max - 1 },
+    from: 'yesterday',
+  };
+}
+
+/**
+ * 오늘 할 일 — 등판('game') · 불펜('bullpen') · 없음(null). 2판 P3(2026-10-12).
+ *
+ *   등판  합친 답(nextOutingWindow)이 꼭 오늘(0~0) — 오늘 '오늘 등판', 또는 오늘 답 없이 어제 '내일 등판'
+ *   불펜  오늘 답이 '오늘 불펜'(어제 답은 불펜을 이월하지 않는다 — '내일 불펜'이라는 답이 없다)
+ *
+ * 투구 계획(lib/report/plan.ts 의 DayPlan.outing) · 오늘 상태 한 장(day-state 의 outing.role) · 암케어(그 장을 받아 등판 날 회복)가
+ * 이 한 함수로 읽는다 — 독자마다 '오늘 등판인가'를 따로 셈하면 같은 아침에 서로 다른 날이 된다(자체 시험 엇갈림 표 C1 · C4).
+ */
+export function todayOutingRole(
+  todayPlan: string | null | undefined,
+  yesterdayPlan: string | null | undefined
+): 'game' | 'bullpen' | null {
+  if (exactOutingDay(nextOutingWindow(todayPlan, yesterdayPlan).days) === 0)
+    return 'game';
+  return parseThrowPlan(todayPlan) === '오늘 불펜' ? 'bullpen' : null;
+}
 
 export const CHECKIN_NOTE_MAX = 500;
 /* 몸무게 범위는 내 정보의 몸무게와 같다 */
 export const CHECKIN_WEIGHT_MIN_KG = 20;
 export const CHECKIN_WEIGHT_MAX_KG = 200;
 
+/*
+ * 던지는 일정(throwPlan)은 없다 — 2026-10-12 간편 칸(CheckinBody)으로 옮겼다. 여기 남겨 두면 상세 저장
+ * (app/actions/checkin.ts 의 detail=1, 간편 칸 뒤에 펼친다)이 같은 값을 한 번 더 쓰고, 칸이 비면 간편에서 고른 답을
+ * null 로 덮는다.
+ */
 export type CheckinDetail = Record<DetailScaleKey, number | null> & {
   bodyWeightKg: number | null;
   appetite: number | null;
-  throwPlan: string | null;
   note: string | null;
 };
 
-/** 상세 칸이 하나라도 채워졌는가 — 창을 열 때 상세 쪽을 펼쳐 둘지 정한다 */
+/**
+ * 상세에서만 적는 칸이 하나라도 채워졌는가 — 체크인 요약이 상세 줄(몸무게 · 식욕 · 메모)을 따로 보일지 정한다.
+ * 간편에서 적는 팔 피로(DETAIL_SCALES)와 던지는 일정은 세지 않는다 — 요약의 첫 줄에 간편 칸과 같이 보인다.
+ */
 export function hasDetail(d: Partial<CheckinDetail>) {
-  return (
-    DETAIL_SCALES.some((s) => d[s.key] != null) ||
-    d.bodyWeightKg != null ||
-    d.appetite != null ||
-    d.throwPlan != null ||
-    Boolean(d.note)
-  );
+  return d.bodyWeightKg != null || d.appetite != null || Boolean(d.note);
 }
 
 /**
  * 폼에서 온 상세 값을 정리한다.
  *
- * 비어 있으면 null. 고르는 칸(척도 · 식욕 · 던지는 일정)에 목록에 없는 값이 오면 안 고른
+ * 비어 있으면 null. 고르는 칸(척도 · 식욕)에 목록에 없는 값이 오면 안 고른
  * 것으로 본다 — 화면에서는 나올 수 없는 값이고, 그것 때문에 체크인 전체를 막을
  * 일이 아니다. 숫자는 범위를 벗어나면 알려 준다. 사람이 직접 친 값이라 잘못 친
  * 것일 수 있다.
@@ -641,9 +843,6 @@ export function parseCheckinDetail(
     return { error: '몸무게를 다시 확인해주세요.' };
   }
 
-  const pickFrom = (list: readonly string[], raw: string) =>
-    list.includes(raw.trim()) ? raw.trim() : null;
-
   const appetiteNum = Number(get('appetite'));
   const appetite =
     Number.isInteger(appetiteNum) &&
@@ -662,7 +861,6 @@ export function parseCheckinDetail(
       ...scales,
       bodyWeightKg: bodyWeightKg === null ? null : Math.round(bodyWeightKg * 10) / 10,
       appetite,
-      throwPlan: pickFrom(THROW_PLANS, get('throwPlan')),
       note: note || null,
     },
   };
@@ -670,14 +868,13 @@ export function parseCheckinDetail(
 
 /**
  * DB 행에서 상세 값만 뽑는다. 화면(체크인 창·관문)으로 넘길 때 쓴다.
- * 예전 기록처럼 칸이 비어 있으면 null — 안 적은 것이다.
+ * 예전 기록처럼 칸이 비어 있으면 null — 안 적은 것이다. 던지는 일정은 pickCheckinBody 가 뽑는다.
  */
 export function pickCheckinDetail(row: Partial<CheckinDetail>): CheckinDetail {
   return {
     armFatigue: row.armFatigue ?? null,
     bodyWeightKg: row.bodyWeightKg ?? null,
     appetite: row.appetite ?? null,
-    throwPlan: row.throwPlan ?? null,
     note: row.note ?? null,
   };
 }

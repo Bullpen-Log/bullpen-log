@@ -106,6 +106,8 @@ export default async function AppLayout({
         select: { date: true },
       }),
     ]);
+  /* 최근 며칠 투구를 남긴 날 — 종의 할 일과 체크인 창의 '어제 등판 · 몇 구' 줄이 같이 쓴다 */
+  const pitchDays = recentPitchDays.map((p) => p.date.toISOString().slice(0, 10));
   const gateCheckins: CheckinData[] = recentCheckins.map((c) => ({
     date: c.date.toISOString().slice(0, 10),
     ...pickCheckinParts(c),
@@ -113,7 +115,10 @@ export default async function AppLayout({
     sleep: c.sleep,
     preferredParts: c.preferredParts,
     preferredWorkout: c.preferredWorkout,
-    /* 근육통 · 잔 시간 — 간편 쪽 선택 칸. 체크인 창이 저장된 값으로 다시 채운다 */
+    /*
+     * 간편 쪽 선택 칸(근육통 · 잔 시간 · 끼니 · 던지는 일정). 체크인 창이 저장된 값으로 다시 채우고, 어제 줄의 던지는
+     * 일정은 그 줄 옆에 회색으로 보인다(그래서 사흘치를 넘긴다)
+     */
     ...pickCheckinBody(c),
     ...pickCheckinDetail(c),
     /* 팔 통증 자리 · 정도 — 어깨 · 팔꿈치 '통증'인 날 고른 것. 체크인 창과 요약의 통증 안내가 쓴다 */
@@ -178,7 +183,7 @@ export default async function AppLayout({
          */
         todo={{
           checkinDays: gateCheckins.map((c) => c.date),
-          pitchDays: recentPitchDays.map((p) => p.date.toISOString().slice(0, 10)),
+          pitchDays,
           recentCheckins: gateCheckins,
           parts: availableParts(library),
           /* 만 나이 — 체크인 요약의 팔 통증 안내가 쓴다(만 15세 미만은 루틴 대신 진료). 모르면 null */
@@ -198,6 +203,7 @@ export default async function AppLayout({
         streakDays={streakCheckins.map((c) => c.date.toISOString().slice(0, 10))}
         recent={gateCheckins}
         parts={availableParts(library)}
+        pitchDays={pitchDays}
       />
 
       {/* 오래 비워 둔 탭으로 돌아오면 새로 받는다 — 다른 기기에서 바꾼 사진·정보가 보이게 */}

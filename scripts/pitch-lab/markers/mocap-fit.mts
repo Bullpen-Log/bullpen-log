@@ -35,6 +35,8 @@ const { result } = fitPitch3dV2({
   slowmoFps: null,
   screenRecorded: false,
   events: seg.events,
+  /* 1배로 찍었다고 알면 초점 사전(tracks.meta.focal_prior — 마커 채점 bench.py 가 넣는다) */
+  ...(tr.meta.focal_prior ? { focalPrior: tr.meta.focal_prior } : {}),
   ...(motionTemplate ? { motionTemplate } : {}),
 } as never);
 writeFileSync(join(dir, 'result.json'), JSON.stringify(result));

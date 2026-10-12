@@ -22,6 +22,7 @@ export function CheckRow({
   title,
   badges,
   prescription,
+  note,
   warning,
   thumbUrl,
   thumbClassName = '',
@@ -34,6 +35,11 @@ export function CheckRow({
   /** 제목 옆의 작은 표시(참고 영상 · 카테고리 등) — 화면 읽기도 그대로 읽는다 */
   badges?: ReactNode;
   prescription?: string | null;
+  /**
+   * 처방 밑 작은 한 줄 — 왜 이 운동인지(트레이닝 일정의 고르기 이유, 2판 P5-k). 처방보다 옅게, 체크 단추의 이름에도 담는다(처방 다음,
+   * 경고 앞 — 보이는 차례와 같게).
+   */
+  note?: string | null;
   /** 경고 한 줄 — 있으면 노란 줄로, 체크 단추의 이름에도 담는다 */
   warning?: string | null;
   thumbUrl?: string | null;
@@ -43,7 +49,7 @@ export function CheckRow({
   /** 칩 줄 — 여기 든 단추는 따로 눌린다 */
   children?: ReactNode;
 }) {
-  const spoken = [title, prescription, warning].filter(Boolean).join(', ');
+  const spoken = [title, prescription, note, warning].filter(Boolean).join(', ');
   return (
     <div className={`relative flex items-start gap-3 px-4 py-4 ${className}`}>
       <button
@@ -83,6 +89,14 @@ export function CheckRow({
             className={`block text-xs font-semibold ${done ? 'text-sky-strong' : 'text-muted'}`}
           >
             {prescription}
+          </span>
+        )}
+        {note && (
+          <span
+            aria-hidden
+            className={`block text-xs leading-relaxed break-keep ${done ? 'text-sky-strong/80' : 'text-muted'}`}
+          >
+            {note}
           </span>
         )}
         {children && (

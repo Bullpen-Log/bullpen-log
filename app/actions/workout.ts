@@ -9,8 +9,10 @@ import { requireUser } from '@/lib/dal';
 import { featureLocks, SETUP_PATH } from '@/lib/feature-locks';
 import { exercisesByIds, type CachedExercise } from '@/lib/library-cache';
 import { loadTodayCore } from '@/lib/report/today-data';
+import { readDailyPlan } from '@/lib/report/daily-plan';
+import { withSwaps, type PlanSwap } from '@/lib/report/plan-swaps';
 import { selectCandidates } from '@/lib/report/prescription';
-import { goalPrescription } from '@/lib/report/goal-prescription';
+import { holdsWeight, planPrescription } from '@/lib/report/volume';
 import { slotForTheme } from '@/lib/report/theme';
 import { recentExerciseIds } from '@/lib/report/exercise-recent';
 import { favoriteExerciseIds } from '@/lib/favorites';
@@ -22,13 +24,18 @@ import {
   programSwapEntry,
   programSwapRx,
   readFrozenPlan,
+  sessionRxBasis,
+  volumeToFreeze,
   type FrozenExercise,
+  type FrozenPlan,
 } from '@/lib/workout/session-plan';
 import { activeProgram, programHistory, trainingMaxes } from '@/lib/program/load';
 import { weighItem } from '@/lib/program/next-weight';
 import type { ItemRx } from '@/lib/program/program';
 import { openSession } from '@/lib/workout/open-session';
 import { withFreeWeights } from '@/lib/workout/free-weight-load';
+import { loadHoldProgress } from '@/lib/nutrition/fuel-load';
+import { liftCautious } from '@/lib/workout/free-weight';
 import { advanceProgramDay } from '@/lib/program/advance';
 import { runExercises, type RunExercise } from '@/lib/workout/run-exercises';
 import {
@@ -40,7 +47,9 @@ import {
 import { clampRecordedAt } from '@/lib/workout/set-time';
 import { dayStart, isAbandoned, sessionEnd, STALE_AFTER_MS } from '@/lib/workout/stale';
 import { closeAbandoned, lastSetAt, summaryWrites } from '@/lib/workout/close-stale';
+import { intensityOfEffort } from '@/lib/workout/effort';
 import { saveTrainingNote } from '@/app/actions/exercise-log';
+import { startProgramWorkout } from '@/app/actions/program';
 
 /**
  * 실시간 운동 세션.
@@ -79,6 +88,13 @@ export async function startWorkout() {
   });
   if (open && open.status === 'ACTIVE') redirect('/workout/run');
 
+  /*
+   * 근력 프로그램 날의 일정(2판 P6-3, 사용자 결정 D6 — 그날 일정 = 프로그램 운동 그대로)이면 매일 판으로 열지 않고 프로그램 시작에 맡긴다.
+   * 매일 판으로 열면 프로그램 처방(% · 세트마다 무게) · 일차 태그가 빠져 일차가 안 넘어가고, 프로그램은 '다른 운동을 먼저 시작'으로
+   * 밀린다. 프로그램 시작이 오늘 판 없음 + 하는 날이면 새로 열고, 오늘 마친 프로그램 판이면 그 판을 다시 연다(같은 규칙 한 곳).
+   */
+  if (core.savedPlan?.program) return startProgramWorkout();
+
   if (core.shownPicks.length === 0) {
     /* 만들어 둔 일정이 없다. 먼저 만들게 되돌려 보낸다. */
     redirect('/training');
@@ -94,16 +110,26 @@ export async function startWorkout() {
     theme.label,
     core.shownPicks,
     new Map(details.map((ex) => [ex.id, ex])),
-    /* 세트 · 횟수는 오늘 목표에 맞춰 찍는다 — 트레이닝 화면 목록과 같은 값(goal-prescription.ts) */
-    core.savedPlan?.goal ?? null
+    /* 세트 · 횟수는 오늘 목표 · 양 조절에 맞춰 찍는다 — 트레이닝 화면 목록과 같은 값(처방 한 길, lib/report/volume.ts) */
+    core.savedPlan?.goal ?? null,
+    /* 다시 여는 판은 그 판의 양 조절로 — 붙는 운동이 그 판과 같은 세트로 찍힌다(openSession 의 mergeReopened) */
+    volumeToFreeze(open ? readFrozenPlan(open.plan) : null, core.savedPlan?.volume)
   );
 
   if (plan.exercises.length === 0) redirect('/training');
 
-  /* 프로그램이 아닌 무게 운동의 추천 — 지난번 세트로(lib/workout/free-weight.ts). 다시 여는 판은 제 목록을 지킨다 */
+  /*
+   * 프로그램이 아닌 무게 운동의 추천 — 지난번 세트로(lib/workout/free-weight.ts). 다시 여는 판은 제 목록을 지킨다.
+   * 양 조절이 실린 판(세트 −1, 또는 2판 P5 검토부터 몸 신호로 강도만 −1)이면 무게는 올리지 않는다(holdsWeight, 2판 P5-d). 성장기 · 입문은 올려도 한 단위 · 처방 줄에
+   * '· 3개 남기고'(liftCautious, 2판 P5-g). 영양 추세 깃발이 선 주는 올림만 멈춘다(loadHoldProgress, 2판 P6-7 — 프로그램 날 무게와 같은 읽기).
+   */
   const weighed = {
     ...plan,
-    exercises: await withFreeWeights(user.id, plan.exercises, core.midnight),
+    exercises: await withFreeWeights(user.id, plan.exercises, core.midnight, {
+      hold: holdsWeight(plan),
+      cautious: liftCautious(core.facts.profile),
+      holdProgress: await loadHoldProgress(user.id, core.todayKey),
+    }),
   };
 
   redirect(await openSession(user.id, core.midnight, weighed, open));
@@ -485,7 +511,11 @@ export async function finishWorkout(input: {
   /* 프로그램 날이면 일차를 넘긴다(처방 세트 절반 이상일 때만, 한 번만 — lib/program/advance.ts) */
   await advanceProgramDay(session.id);
 
-  /* 체감 강도는 세션 날짜로 남긴다 — 자정을 넘겨도 세트와 짝이 맞게 */
+  /*
+   * 체감 강도는 세션 날짜로 남긴다 — 자정을 넘겨도 세트와 짝이 맞게.
+   * 강도 없이 온 메모는 버린다(2판 P2 — 마치기 창이 강도를 선택으로 풀면서, 메모만 적고 강도가 없으면 창이 막는다).
+   * 강도를 안 고른 날은 축하 화면의 힘듦 칩(rateWorkoutEffort)이 한 번 더 묻는다.
+   */
   if (typeof input.intensity === 'number') {
     await saveTrainingNote(input.intensity, input.memo ?? '', toDateKey(session.date));
   }
@@ -500,7 +530,97 @@ export async function finishWorkout(input: {
   redirect(`/workout/done?id=${encodeURIComponent(session.id)}`, RedirectType.replace);
 }
 
+/* ---------------------------- 힘듦 한 번 ---------------------------- */
+
+/**
+ * 축하 화면의 힘듦 칩 — 마치기 창에서 강도를 안 고른 날, 마친 뒤 칩 하나를 누르면 그날 DailyTrainingNote 로 남긴다
+ * (트레이닝 추천 2판 P2, lib/workout/effort.ts 의 눈금 3 · 5 · 7 · 9).
+ *
+ * - 본인 판이면 된다(FINISHED 조건 없음). 마친 뒤 같은 날 '운동 더 하기'로 다시 열면 판이 ACTIVE 로 돌아가는데, 뒤로 가기로
+ *   남은 축하 화면에서 눌렀다고 거절할 까닭이 없다 — 힘듦은 날짜마다 한 줄이라 판 상태와 무관하다.
+ * - 그새 적은 줄이 있으면(트레이닝 탭 · 다른 기기) 덮지 않고 그 값을 돌려준다. saveTrainingNote 는 메모까지 비우므로
+ *   여기서 먼저 본다. 화면은 돌려받은 값의 칩을 고정한다.
+ * - 저장은 saveTrainingNote 를 세션 날짜로 부른다 — finishWorkout 과 같은 날짜 규칙(자정을 넘겨도 세트와 짝). 7일 넘은 판은
+ *   그쪽 검사가 거절하고 화면이 한 줄로 알린다.
+ */
+export async function rateWorkoutEffort(input: {
+  sessionId: string;
+  effort: string;
+}): Promise<{ ok: true; intensity: number } | { error: string }> {
+  const user = await requireUser();
+  const intensity = intensityOfEffort(input?.effort);
+  if (intensity == null) return { error: '얼마나 힘들었는지 골라 주세요.' };
+  if (typeof input.sessionId !== 'string' || !input.sessionId) {
+    return { error: '운동을 찾지 못했어요.' };
+  }
+  const session = await prisma.trainingSession.findFirst({
+    where: { id: input.sessionId, userId: user.id },
+    select: { date: true },
+  });
+  if (!session) return { error: '운동을 찾지 못했어요.' };
+
+  const dateKey = toDateKey(session.date);
+  const existing = await prisma.dailyTrainingNote.findUnique({
+    where: {
+      userId_date: { userId: user.id, date: new Date(`${dateKey}T00:00:00.000Z`) },
+    },
+    select: { intensity: true },
+  });
+  if (existing) return { ok: true, intensity: existing.intensity };
+
+  const res = await saveTrainingNote(intensity, '', dateKey);
+  if ('error' in res) return res;
+  return { ok: true, intensity };
+}
+
 /* ---------------------------- 목록 고치기 ---------------------------- */
+
+/**
+ * 세션 판을 새 목록으로 쓰고, 뺀 · 바꾼 기록(entries)을 세션 판과 그날 일정에 같이 남긴다(P2, lib/report/plan-swaps.ts).
+ *
+ * 일정(DailyTrainingSetup.plan)의 목록(picks)은 그대로다 — 세션은 '오늘 실제로 하는 순서'이고 일정은 '처방받은 것'이라
+ * 성격이 다르다. 적는 것은 기록(swaps)뿐이고, 일정 줄이 있을 때만 적는다(프로그램 날은 줄이 없어 세션 판이 유일한 기록).
+ * 둘 다 되거나 둘 다 안 되게 한 트랜잭션으로. 일정은 오늘이 아니라 세션 날짜(session.date)의 줄 — 자정을 넘긴 판은
+ * 세트와 같은 규칙으로 그 판의 날에 적는다. 기록이 없으면(순서만 바꿈) 세션 판만 쓰고 swaps 키도 더하지 않는다.
+ */
+async function writeSessionList(
+  session: { id: string; userId: string; date: Date },
+  plan: FrozenPlan,
+  next: FrozenExercise[],
+  entries: PlanSwap[]
+) {
+  const sessionWrite = () =>
+    prisma.trainingSession.update({
+      where: { id: session.id },
+      data: {
+        plan: {
+          ...withSwaps(plan, entries),
+          exercises: next,
+        } as unknown as Prisma.InputJsonValue,
+      },
+    });
+  if (entries.length === 0) {
+    await sessionWrite();
+    return;
+  }
+  const where = { userId_date: { userId: session.userId, date: session.date } };
+  const setup = await prisma.dailyTrainingSetup.findUnique({
+    where,
+    select: { plan: true },
+  });
+  const daily = readDailyPlan(setup?.plan);
+  if (!daily) {
+    await sessionWrite();
+    return;
+  }
+  await prisma.$transaction([
+    sessionWrite(),
+    prisma.dailyTrainingSetup.update({
+      where,
+      data: { plan: withSwaps(daily, entries) as unknown as Prisma.InputJsonValue },
+    }),
+  ]);
+}
 
 /**
  * 운동하는 도중에 오늘 순서를 바꾸거나 뺀다.
@@ -511,7 +631,8 @@ export async function finishWorkout(input: {
  *
  * 고치는 것은 세션뿐이다. 트레이닝 화면의 일정은 그대로 둔다 — 세션은
  * '오늘 실제로 하는 순서'이고 일정은 '처방받은 것'이라 성격이 다르다.
- * 뺀 운동은 기록이 안 남으므로 저절로 '안 함'이 된다.
+ * 뺀 운동은 기록이 안 남으므로 저절로 '안 함'이 된다. 다만 뺐다는 사실은
+ * 세션 판과 그날 일정의 swaps 에 남긴다(P2) — 다음 추천이 읽는다.
  */
 export async function reorderSession(
   exerciseIds: string[],
@@ -541,19 +662,29 @@ export async function reorderSession(
    * 빼면 기록이 붕 뜬다 — 목록에는 없는데 세트는 남아 있고, 종료할 때
    * 그것까지 요약으로 접힌다. 지우려면 세트를 먼저 지우게 한다.
    */
-  const dropped = plan.exercises.filter((e) => !want.includes(e.id)).map((e) => e.id);
+  const dropped = plan.exercises.filter((e) => !want.includes(e.id));
   if (dropped.length > 0) {
     const has = await prisma.userExerciseSet.findFirst({
-      where: { sessionId: session.id, exerciseId: { in: dropped } },
+      where: { sessionId: session.id, exerciseId: { in: dropped.map((e) => e.id) } },
       select: { exerciseId: true },
     });
     if (has) return { error: '이미 기록을 남긴 운동은 뺄 수 없어요.' };
   }
 
-  await prisma.trainingSession.update({
-    where: { id: session.id },
-    data: { plan: { ...plan, exercises: next } as unknown as Prisma.InputJsonValue },
-  });
+  const at = appNow().toISOString();
+  await writeSessionList(
+    session,
+    plan,
+    next,
+    dropped.map((e) => ({
+      from: e.id,
+      to: null,
+      kind: 'remove' as const,
+      where: 'session' as const,
+      slot: e.slot,
+      at,
+    }))
+  );
 
   /* 화면은 이미 운동 정보를 들고 있다. 순서만 돌려주면 된다. */
   return { ids: next.map((e) => e.id) };
@@ -662,6 +793,8 @@ export async function swapChoices(input: {
         core.picked.candidates,
         new Set(plan.exercises.map((e) => e.id))
       );
+  /* 목록의 처방은 넣을 때 찍는 처방과 같은 기준으로(sessionRxBasis — 목표는 판, 옛 판은 오늘 일정 · 양 조절은 판의 것만) */
+  const rxBasis = sessionRxBasis(plan, core.savedPlan?.goal);
 
   return {
     halted: safety.halted ? (safety.haltReason ?? HALTED_MESSAGE) : null,
@@ -669,13 +802,13 @@ export async function swapChoices(input: {
     blockedIds: core.library.filter((ex) => !safeIds.has(ex.id)).map((ex) => ex.id),
     favoriteIds: [...favorites],
     recentIds,
-    /* 넣은 뒤 운동 화면에 보일 횟수와 같게 — 오늘 목표에 맞춘다 */
+    /* 넣은 뒤 운동 화면에 보일 횟수와 같게 — 오늘 목표 · 양 조절에 맞춘다(처방 한 길, lib/report/volume.ts) */
     library: input.withLibrary
       ? core.library.map((ex) =>
           /* 프로그램 날은 넣을 때 그 칸 · 그 주의 처방이 정해진다(U3) — 목록에 다른 횟수를 보이지 않는다 */
           plan.program
             ? { ...toSwapPick(ex), prescription: null }
-            : toSwapPick(goalPrescription(ex, plan.goal ?? core.savedPlan?.goal))
+            : toSwapPick(planPrescription(ex, rxBasis))
         )
       : null,
   };
@@ -770,12 +903,19 @@ export async function changeSessionExercise(input: {
         user.id,
         [
           freezeExercise(
-            /* 처음 찍은 목록과 같은 목표로 — 옛 판(목표 없음)은 오늘 일정의 목표 */
-            goalPrescription(to, plan.goal ?? core.savedPlan?.goal),
+            /* 처음 찍은 목록과 같은 목표 · 양 조절로 — 옛 판(목표 없음)은 오늘 일정의 목표, 양 조절은 판의 것만(sessionRxBasis) */
+            planPrescription(to, sessionRxBasis(plan, core.savedPlan?.goal)),
             mode === 'replace' ? from.slot : slotForTheme(to, plan.themeKey)
           ),
         ],
-        session.date
+        session.date,
+        /* 판이 양을 줄였으면 바꿔 넣는 운동도 무게를 올리지 않는다 — 처음 찍은 운동과 같은 규칙(holdsWeight, 2판 P5-d · liftCautious P5-g) */
+        {
+          hold: holdsWeight(plan),
+          cautious: liftCautious(core.facts.profile),
+          /* 영양 추세 깃발의 올림 멈춤도 처음 찍은 운동과 같이(2판 P6-7) */
+          holdProgress: await loadHoldProgress(user.id, toDateKey(session.date)),
+        }
       )
     )[0];
   const list =
@@ -787,10 +927,17 @@ export async function changeSessionExercise(input: {
   const next = placeExercise(list, from.id, entry, mode);
   if (!next) return { error: '운동을 넣지 못했어요. 목록을 다시 열어 주세요.' };
 
-  await prisma.trainingSession.update({
-    where: { id: session.id },
-    data: { plan: { ...plan, exercises: next } as unknown as Prisma.InputJsonValue },
-  });
+  /* 무엇을 무엇으로 바꿨는지(또는 더했는지)를 세션 판 · 그날 일정에 남긴다(P2) — kind 는 실제로 한 mode */
+  await writeSessionList(session, plan, next, [
+    {
+      from: from.id,
+      to: entry.id,
+      kind: mode,
+      where: 'session',
+      slot: from.slot,
+      at: appNow().toISOString(),
+    },
+  ]);
 
   /* 화면이 바로 그릴 수 있게 — 설명·영상·지난번 기록·메모·별까지 붙여 준다 */
   const [exercise] = await runExercises(user.id, [entry], session.date);
@@ -811,9 +958,11 @@ async function swapWeigher(
 ): Promise<(rx: ItemRx) => { suggestedKg: number | null; kgs: (number | null)[] | null }> {
   if (!rx || rx.mode === 'none') return () => ({ suggestedKg: null, kgs: null });
   const todayKey = toDateKey(sessionDate);
-  const [row, history] = await Promise.all([
+  const [row, history, holdProgress] = await Promise.all([
     activeProgram(userId),
     programHistory(userId, [to.id], todayKey),
+    /* 영양 추세 깃발이 선 주면 올림만 멈춘다 — 카드(program/load.ts)와 같은 읽기(2판 P6-7) */
+    loadHoldProgress(userId, todayKey),
   ]);
   const tms =
     rx.mode === 'pct'
@@ -825,6 +974,7 @@ async function swapWeigher(
       gapDays,
       history: history.get(to.id) ?? [],
       tmKg: tms.get(to.id) ?? null,
+      holdProgress,
     });
     return { suggestedKg: suggestion?.kg ?? null, kgs };
   };

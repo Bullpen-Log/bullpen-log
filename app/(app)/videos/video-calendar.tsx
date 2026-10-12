@@ -5,10 +5,11 @@ import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import { ArrowRight, Camera, Check, Film, Loader2, Plus, Star } from 'lucide-react';
 import {
   MonthCalendar,
-  intensityClass,
+  effortClass,
   type DayCell,
   type DayMark,
 } from '@/components/month-calendar';
+import { STRONG_EFFORT_PCT, effortText, readEffort } from '@/lib/pitch-effort';
 import { Card } from '@/components/ui';
 import { Expand } from '@/components/expand';
 import { usePlaybackUrls } from '@/components/use-playback-urls';
@@ -34,7 +35,7 @@ import { LinkPending } from '@/components/link-pending';
  * 투구도 영상도 '그날'로 기억한다. 목록에서 카드를 훑으며 찾는 것보다, 달력에서 그날을
  * 짚는 것이 빠르다. 그래서 칸을 크게 두었다. 영상이 있는 날은 칸마다 그날 영상의 한
  * 장면을 채우고 투구수를 얹는다 — 칸만 보고도 어느 날 무엇을 찍었는지 알아본다. 영상이
- * 없는 날은 홈 캘린더와 같이 강도로 칠하고(intensityClass) 투구수를 적는다. 쉬는 날은 점선.
+ * 없는 날은 홈 캘린더와 같이 체감 강도(%)로 칠하고(effortClass) 투구수를 적는다. 쉬는 날은 점선.
  *
  * ■ 칸의 그림(썸네일)
  *
@@ -68,8 +69,8 @@ type Day = {
   logs: VideoLog[];
   /** 그날 던진 공 수(쉬는 날 기록은 빼고) */
   pitches: number;
-  /** 그날 가장 높은 강도 — 칸의 색 */
-  intensity: number;
+  /** 그날 가장 높은 체감 강도(%) — 칸의 색 · 화면 낭독기 글 */
+  effortPct: number;
   /** 쉬는 날로만 남긴 날 */
   rest: boolean;
 };
@@ -107,14 +108,14 @@ export function VideoCalendar({
         paths: [],
         logs: [],
         pitches: 0,
-        intensity: 0,
+        effortPct: 0,
         rest: true,
       };
       day.logs.push(log);
       if (log.sessionType !== REST_SESSION_TYPE) {
         day.rest = false;
         day.pitches += log.pitchCount;
-        day.intensity = Math.max(day.intensity, log.intensity);
+        day.effortPct = Math.max(day.effortPct, readEffort(log)?.pct ?? 0);
         day.paths.push(...log.videoPaths);
       }
       map.set(key, day);
@@ -259,11 +260,11 @@ export function VideoCalendar({
     for (const [key, day] of days) {
       const kinds = [...new Set(day.logs.map((l) => l.sessionType))].join(' · ');
       out[key] = {
-        intensity: null,
+        effortPct: null,
         label: '',
         spoken: day.rest
           ? '쉬는 날'
-          : `${kinds} ${day.pitches}구, 강도 ${day.intensity}${
+          : `${kinds} ${day.pitches}구, 강도 ${day.effortPct}%${
               day.paths.length > 0 ? `, 영상 ${day.paths.length}개` : ''
             }`,
       };
@@ -334,19 +335,25 @@ export function VideoCalendar({
             className={`absolute inset-0 ${
               day.rest
                 ? 'm-1 rounded-md border border-dashed border-line-strong bg-surface-2'
-                : intensityClass(day.intensity)
+                : effortClass(day.effortPct)
             }`}
           />
           <span
             className={`absolute left-1.5 top-1 text-xs font-medium ${
-              !day.rest && day.intensity >= 8 ? 'text-white' : 'text-ink'
+              !day.rest && day.effortPct >= STRONG_EFFORT_PCT
+                ? 'text-white'
+                : 'text-ink'
             } ${cell.isToday ? 'font-bold underline underline-offset-2' : ''}`}
           >
             {cell.day}
           </span>
           <span
             className={`absolute inset-x-0 bottom-1.5 truncate px-1 text-center text-[11px] font-semibold leading-none sm:bottom-2 sm:text-xs ${
-              day.rest ? 'text-muted' : day.intensity >= 8 ? 'text-white' : 'text-ink'
+              day.rest
+                ? 'text-muted'
+                : day.effortPct >= STRONG_EFFORT_PCT
+                  ? 'text-white'
+                  : 'text-ink'
             }`}
           >
             {day.rest ? '휴식' : `${day.pitches}구`}
@@ -652,7 +659,9 @@ function DayPanel({
             ) : (
               <span className="text-sm text-ink">
                 <b className="font-semibold">{l.pitchCount}구</b>
-                <span className="text-muted"> · 강도 {l.intensity}</span>
+                {effortText(l) && (
+                  <span className="text-muted"> · 강도 {effortText(l)}</span>
+                )}
                 {l.maxVelocity != null && (
                   <span className="text-muted">
                     {' '}
@@ -759,7 +768,8 @@ function DayPanel({
             {log && day.logs.length > 1 && (
               <p className="text-xs text-muted">
                 {day.paths.length > 1 && `영상 ${index + 1} · `}
-                {log.sessionType} · {log.pitchCount}구 · 강도 {log.intensity}
+                {log.sessionType} · {log.pitchCount}구
+                {effortText(log) && ` · 강도 ${effortText(log)}`}
               </p>
             )}
           </div>

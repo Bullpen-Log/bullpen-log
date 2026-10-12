@@ -33,7 +33,7 @@ export function FirstDayCard({
   today: string;
   /** 오늘 알맞은 투구 '30~40구'. 쉬는 날 · 계획을 멈춘 날이면 null */
   range: string | null;
-  /** '강도 5~7' */
+  /** '강도 50~70%'(lib/report/plan.ts intensityRangeText) */
   intensity: string;
   /** 숫자 밑 한 줄 — 어떻게 잡은 숫자인지 */
   note: string | null;

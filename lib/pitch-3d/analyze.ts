@@ -9,6 +9,7 @@ import {
   triangulate,
   type Calibration,
   type CalibFrame,
+  type FocalPrior,
   type Obs,
 } from '@/lib/pitch-3d/camera';
 import {
@@ -76,6 +77,8 @@ export type Pitch3dInput = {
   screenRecorded?: boolean;
   /** 시험용 — 옆 영상 시각(초)으로 준 순간. 없으면 옆 영상 규칙(detectPitchEvents) */
   events?: { kneeUp?: number | null; footPlant: number; release: number };
+  /** 초점 사전(선택) — 렌즈를 알 때만(camera.ts FOCAL_PRIOR_1X). 없으면 예전과 같다 */
+  focalPrior?: FocalPrior;
 };
 
 export type FailCode = 'short' | 'events' | 'sync' | 'range' | 'calibration';
@@ -295,9 +298,10 @@ export function analyzePitch3dCore(input: Pitch3dInput): Pitch3dCore | Pitch3dFa
   const trunkLegs = BONES.filter((b) => b.group === 'trunk' || b.group === 'legs');
 
   /* 보정 1차(몸통 · 다리) */
-  let cal: Calibration | null = calibrate(
-    calibInput(buildSynced(), side, back, PASS1_JOINTS, trunkLegs)
-  );
+  let cal: Calibration | null = calibrate({
+    ...calibInput(buildSynced(), side, back, PASS1_JOINTS, trunkLegs),
+    focalPrior: input.focalPrior,
+  });
   if (!cal) return fail('calibration', q0);
 
   /*
@@ -322,7 +326,10 @@ export function analyzePitch3dCore(input: Pitch3dInput): Pitch3dCore | Pitch3dFa
 
   /* 보정 2차(모든 관절) → 시간 한 번 더 */
   cal =
-    calibrate(calibInput(buildSynced(), side, back, CALIB_JOINTS, trunkLegs)) ?? cal;
+    calibrate({
+      ...calibInput(buildSynced(), side, back, CALIB_JOINTS, trunkLegs),
+      focalPrior: input.focalPrior,
+    }) ?? cal;
   backTime = refineSync(side, back, backTime, cal, backDt, ALL_JOINTS);
   backTime = refineFastSync(side, back, backTime, cal, backDt, fastWin);
   const synced = buildSynced();

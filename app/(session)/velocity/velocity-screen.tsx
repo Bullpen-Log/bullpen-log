@@ -159,6 +159,7 @@ import {
 import { isTipsSkippedToday, TipsPopup } from '@/components/velocity/tips-popup';
 import { DIST_MODES, VelocitySettingsFields } from '@/components/velocity/velocity-settings';
 import { Segmented } from '@/components/segmented';
+import { EffortChips } from '@/components/effort-chips';
 import { SectionLabel, Note } from '@/components/velocity/kit';
 import {
   CircleOverlay,
@@ -711,7 +712,12 @@ export function VelocityScreen({
   const [editing, setEditing] = useState<number | null>(null);
   /* 어떤 투구인가 — 첫 설정 단계에서 고르고, 저장할 때 투구 기록의 종류가 된다(저장 시트에서도 바꿀 수 있다) */
   const [sessionType, setSessionType] = useState<string>(DEFAULT_SETUP.sessionType);
-  const [intensity, setIntensity] = useState(7);
+  /*
+   * 투구 기록의 체감 강도(%) — 저장 시트에서 고른다(2판 D2). 투구 기록 입력 폼과 같이 기본값을 두지 않는다: 예전 막대는 7 에서
+   * 시작해 손대지 않은 7 이 그대로 휴식일 · 세게 던진 날 셈에 들어갔다. 안 고르고 저장하면 시트 안에 한 줄로 막는다.
+   */
+  const [effortPct, setEffortPct] = useState<number | null>(null);
+  const [effortMissing, setEffortMissing] = useState(false);
   const [saving, startSaving] = useTransition();
   const [saved, setSaved] = useState(false);
   /* 저장하지 않은 공이 있을 때 나가기 — 묻는 창(앱의 영어 시스템 창 대신) */
@@ -1724,6 +1730,12 @@ export function VelocityScreen({
       setError('예시 공은 저장할 수 없어요 — 관리자 이동 › 예시 공 지우기.');
       return;
     }
+    /* 체감 강도를 안 골랐다 — 칩 밑의 빨간 한 줄로 알린다(서버도 같은 말로 막는다) */
+    if (effortPct == null) {
+      setError(null);
+      setEffortMissing(true);
+      return;
+    }
     setError(null);
     startSaving(async () => {
       let res: Awaited<ReturnType<typeof saveVelocitySession>>;
@@ -1731,7 +1743,7 @@ export function VelocityScreen({
         res = await saveVelocitySession({
           date: draftDate ?? today,
           sessionType,
-          intensity,
+          effortPct,
           /* 되살린 세션을 카메라를 켜기 전에 저장하면 그때의 맥락으로 */
           ...(camera == null && draftMeta ? draftMeta : sessionContext()),
           pitches: pitches.map((p) => ({
@@ -3407,19 +3419,16 @@ export function VelocityScreen({
                 ))}
               </div>
             </div>
-            <label className="block">
-              <span className="flex justify-between text-sm font-semibold">
-                강도 <b className="tabular-nums">{intensity} / 10</b>
-              </span>
-              <input
-                type="range"
-                min={1}
-                max={10}
-                value={intensity}
-                onChange={(e) => setIntensity(Number(e.target.value))}
-                className="mt-2 w-full accent-sky"
-              />
-            </label>
+            {/* 투구 기록 입력 폼과 같은 칩(components/effort-chips.tsx) — 고른 % 와 1~10 을 서버가 같이 남긴다 */}
+            <EffortChips
+              value={effortPct}
+              onChange={(pct) => {
+                setEffortMissing(false);
+                setEffortPct(pct);
+              }}
+              invalid={effortMissing}
+              labelClassName="text-sm font-semibold"
+            />
             {/* 저장 실패(신호 끊김 등) — 시트가 요약의 오류 줄을 덮으니 여기에도 */}
             {error && (
               <p

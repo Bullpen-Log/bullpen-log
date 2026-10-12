@@ -27,6 +27,7 @@ import {
   type TrainingLoad,
 } from '@/lib/training-load';
 import { ACWR_ZONES } from '@/lib/pitch-stats';
+import { scaleToEffortPct } from '@/lib/pitch-effort';
 import { TrendChart, type TrendPoint } from './trend-chart';
 import { LoadPanel, type LoadView } from './load-panel';
 import { Delta, MetricHelp, StatCard, TONE, type Tone } from './parts';
@@ -68,6 +69,8 @@ export type OverviewLog = {
   sessionType: string;
   pitchCount: number;
   intensity: number;
+  /** 체감 강도 5~100%(2판 D2). 옛 기록 · 쉰 날은 null — groupByDay(intensityOf)가 intensity 로 메운다 */
+  effortPct?: number | null;
   maxVelocity: number | null;
   avgVelocity: number | null;
 };
@@ -165,7 +168,8 @@ export function StatsOverview({
     return {
       label: formatShortDate(key),
       pitches: day?.pitchCount ?? 0,
-      intensity: day?.intensity ?? 0,
+      /* 그날 체감 강도(투구수 가중평균, 1~10 실수)를 % 로 — 입력과 같은 눈금이라야 85% 로 고른 날이 85 로 보인다 */
+      effortPct: day ? scaleToEffortPct(day.intensity) : 0,
       // 안 던진 날은 null 이어야 선이 끊긴다. 0으로 두면 구속이 떨어진 것처럼 보인다.
       maxVelocity: day?.maxVelocity ?? null,
       rollingLoad,

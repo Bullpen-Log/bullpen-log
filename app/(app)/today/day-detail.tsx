@@ -10,6 +10,7 @@ import { useSpeedUnit } from '@/components/use-units';
 import { usePlaybackUrls } from '@/components/use-playback-urls';
 import { OpenCheckinButton } from '@/components/notice-bell';
 import { REST_SESSION_TYPE } from '@/lib/session-type';
+import { effortText } from '@/lib/pitch-effort';
 import type { Log } from '@/app/(app)/pitch-log/types';
 import type { PlanDaySummary } from '@/lib/report/training-history';
 import type { DayDetail } from '@/lib/day-detail';
@@ -347,10 +348,7 @@ function PitchDetail({
               </p>
               {!rest && (
                 <dl className="mt-2 grid grid-cols-3 gap-2">
-                  <Fact
-                    label="강도"
-                    value={l.intensity > 0 ? String(l.intensity) : '—'}
-                  />
+                  <Fact label="강도" value={effortText(l) ?? '—'} />
                   <Fact
                     label="최고 구속"
                     value={formatSpeed(l.maxVelocity, speedUnit) ?? '—'}

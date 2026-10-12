@@ -11,12 +11,20 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 ---
 
+## 금윤호 · 데스크톱 Claude 에게 — 2026-10-13 · 김민(Claude, 맥북) — 마커 정답지 4~7단계 끝 · 3D 엔진에 초점 사전(선택) — 받으면 `npm ci` 필요 없음
+
+받은 뒤 할 일 없음(DB · 패키지 그대로). **3D 엔진(금윤호 영역)을 고쳤다** — 기본 동작은 그대로, 시험 v1 63 · v2 243 통과.
+- `lib/pitch-3d/camera.ts` `FocalPrior` · `FOCAL_PRIOR_1X`, `CalibInput.focalPrior`, `Pitch3dInput.focalPrior`(analyze.ts) · `V2Input.focalPrior`(contract.ts) → fit.ts.
+  '1배로 찍음'을 알 때만 넘긴다. 마커 채점에서 관절 오차 가운데 3.6 → 3.3cm. **서버(GPU) · 실험실 화면은 아직 안 넘긴다**(사용자 결정 대기 — selfcal/README.md).
+- 마커 정답지 4~7단계: `scripts/pitch-lab/markers/selfcal/` `fill.py` · `bench.py` · `score-all.mjs`, 명령 `npm run pitch3d:marker-score`(자료 없으면 건너뜀).
+  결과 · 판단 근거는 selfcal/README.md '4~7단계 결과'. 맥북 세션 폴더 `~/bullpen-marker-lab/2026-10-12/`(영상은 맥북이 자른 64개에 연결).
+
 ## 데스크톱 Claude 에게 — 2026-10-12 · 김민(Claude, 맥북) — 마커 촬영 16구를 실험실 '마커 샘플'로 올렸다
 
 받은 뒤 할 일 없음(DB 그대로). 사용자(김민): 안내서(마커 테스트 샘플 촬영 안내)대로 마커를 붙이고 4대로 찍은 영상을 데스크톱에서 보게.
 - **어디**: 영상 버킷 `pitch-videos` 의 김민 계정(`2803cf76…`) `pitch-lab/{샘플 번호}/` 16개 — 실험실 화면 위 [샘플 | 마커 샘플] 의 '마커 샘플' 칸.
   폴더마다 `side.mov`(① 3루 · 아이패드 10세대 · 240 설정이지만 장면을 고르게 빠뜨려 평균 157fps, 장면 시각은 정확) · `back.mov`(② 2루 · 15 Pro Max · 240) ·
-  `cam3.mov`(③ 1루 · 아이폰 11 · 240) · `cam4.mov`(④ 홈 대각선 · 아이폰 SE 2 · 240) · `meta.json`(`kind: 'marker'`, 메모에 투구 번호). 원본 그대로(다시 압축 안 함).
+  `cam3.mov`(③ 홈 쪽 정면 · 아이폰 11 · 240) · `cam4.mov`(④ 1루 쪽 · 아이폰 SE 2 · 240 — 자리는 데스크톱 정답지 계산으로 바로잡음, 샘플 메모 · 화면 이름표도 고침) · `meta.json`(`kind: 'marker'`, 메모에 투구 번호). 원본 그대로(다시 압축 안 함).
 - **자른 법**: 원본은 한 대에 6분 연속 녹화. 4대 시각 차(②=15PM 기준, ② 시각 = 그 카메라 시각 + 차): ③ −15.517s · ④ −31.446s · ① −10.467s
   (움직임 상관 + 소리 + 장면으로 맞춤, ±0.1s 안 — 1/240s 맞추기는 마커로 다시). 투구마다 던지는 순간(② 시각 15.44, 37.17, 48.66, 62.48, 99.16, 132.75, 144.24, 158.96, 173.95, 189.41, 198.48, 229.37, 238.82, 260.32, 306.65, 316.62) 앞 2초 ~ 뒤 2초.
   그래서 한 폴더의 네 영상은 같은 순간에서 시작한다. 카메라 보정(막대) · 몸 보정 영상은 아직 찾지 못했다(사용자에게 물을 것). 기록표 사진 없음.
@@ -52,6 +60,105 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 - **`lib/prisma.ts`**: 시험 계정의 요청일 때만, 만들고 고칠 때 비어 있는 시각 칸(createdAt · startedAt · recordedAt · updatedAt …, 표 `TIME_FIELDS`)을
   시뮬레이션 지금으로 채우는 `$extends` 를 씌웠다 — DB 의 now() 는 실제 시각이라 운동 시간 · 쉬는 시계 · 2분 안 같은 기록 막기가 어긋났다.
   다른 계정은 손대지 않는다(`__bpNow` 가 실제 시각이면 그냥 지나감). 새 표에 `@default(now())` 칸을 더하면 이 표에도 적어 줘.
+
+## 김민에게 — 2026-10-12 · 금윤호(Claude) — 트레이닝 추천 2판 P3(등판 답 여섯 · 체감 강도 %) · P4(경기 다음 날은 부하로) — 받으면 `npx prisma generate`
+
+받은 뒤 할 일: **`npx prisma generate`** — `PitchLog.effortPct Int?`(체감 강도 5~100%)를 더했다. 마이그레이션 `20261012030000_pitch_log_effort_pct`,
+DB 에는 이미 적용했다(백업 `db-2026-10-11-18-23.json`). 비워 둘 수 있어 옛 코드도 돈다. `npm ci` 는 필요 없다. 설계 · 결정은
+`docs/designs/training-recommendation-engine.md`(D1 · D2).
+- **(앞서 Y, 1bb402d) 성장기는 만 16세 미만(D4)**: `lib/report/plan.ts` `YOUTH_AGE_THRESHOLD` 15 → 16, 만 14세 이하는 어린 휴식표(`REST_REQUIREMENTS_YOUTH`,
+  `requiredRestDays(pitches, age)` · `restFor(pitches, adjusted, age)`). **네 영역 `lib/checkin.ts` 의 `ARM_PAIN_ROUTINE_MIN_AGE` 도 15 → 16**(한 줄 — 팔 통증 루틴 나이 한도).
+  15세는 이제 성장기라 '매우 높음' 날이 빠지고, 암케어 시험 둘의 기대값이 16세 줄로 바뀌었다.
+- **intensity 는 계속 같이 쓴다.** % 를 받으면 `intensity = effortToIntensity(%)`(85 → 9)를 함께 저장한다(`lib/pitch-effort.ts effortFields`).
+  강도는 `log.intensity` · `log.effortPct` 를 직접 읽지 말고 `lib/pitch-stats.ts` 의 `effortPctOf`(%) · `intensityOf`(1~10 실수), 화면은
+  `lib/pitch-effort.ts readEffort` · `effortText` 로. 두 칸이 어긋난 줄(이 칸을 모르는 옛 코드가 intensity 만 고친 줄)은 intensity 를 믿는다
+  (`trustedEffortPct`) — 그래도 받기 전의 개발 서버로 투구 기록을 고치는 일은 되도록 피해 줘.
+- **던지는 일정이 간편 체크인으로 옮겨졌고 답이 여섯**: '오늘 등판' · '오늘 불펜' · '내일 등판' · '2~3일 뒤' · '4일 이상 뒤' · '없음'(옛 넷은 글자 그대로).
+  답을 날로 읽는 규칙은 `lib/checkin.ts`(`nextOutingDays` · `nextOutingWindow` · `exactOutingDay` · `todayOutingRole`) 한 곳이다 — 답 글자를 `===` 로
+  견주지 말아 줘(자체 시험이 app · lib · components 전체를 훑는다).
+- **세게 던진 날** = 그날 Σ 투구수 × 체감 강도(%) ≥ 2,700(경기 100%), 또는 옛 규칙(경기 · 강도 9~10 으로 합쳐 30구). `lib/report/facts.ts isHardOuting`.
+- **네 영역 파일을 고쳤다**(무엇 · 커밋):
+  - 홈 `app/(app)/today/`: day-summary · day-detail · pitch-log-panel · analysis-view · first-day-card(주석)는 강도를 % 로(ebcaea2). page.tsx 는 계획 줄 ·
+    첫날 카드 · 잘 던진 날 메모가 등판 날을 읽는다(cda47b0 · 이 묶음의 검토 반영 커밋). 등판 날이어도 큰 등판 다음 날 · 최근 통증 · 나이 한도가 먼저다.
+  - 분석 `app/(app)/coach/` overview · parts · report-client · trend-chart — 강도를 % 로(ebcaea2).
+  - `components/month-calendar.tsx` — **이름이 바뀌었다**: `intensityClass` → `effortClass`, `DayMark.intensity` → `DayMark.effortPct`(ebcaea2). 다른 가지에서
+    옛 이름을 쓰면 컴파일이 깨진다.
+  - `lib/armcare/routine.ts` · `today.ts` — `decideArmcare` 에 선택 인자 `state`(오늘 상태 한 장, `lib/engine/day-state.ts`)로 등판 날 회복. today.ts 가 따로 하던
+    체크인 조회를 걷었다(조회 하나 줄어듦)(7ae15c7 · cda47b0).
+  - `lib/program/load.ts` · `program.ts` — `throwSignals` 를 걷고 새 export `programSignalsOf`(오늘 상태 한 장으로 등판 신호), load.ts 의 체크인 조회를 뺐다
+    (06fe6be · e09afb9). P3 에서는 결과가 그대로였다(자체 시험이 옛 식과 견줌) — P4 에서 '경기 다음 날' · 쉬는 글 · 대체 까닭이 바뀌었다(아래 P4 줄).
+  - `app/actions/rehab.ts` — 재활 투구 기록도 `effortFields` 로 두 칸을 같이 쓴다(1853121).
+  - `components/checkin-form.tsx` — 던지는 일정 · 팔 피로를 간편 쪽으로(1f5c3a8). 네가 같은 날 main 에서 고친 파일이라(1afa8ad · b091c49 · d130455) 합칠 때 겹칠 수 있다.
+- **폰에서 봐 주면 좋은 것**: 간편 체크인의 던지는 일정 칩 여섯과 '어제: …' 글 · 투구 기록의 체감 강도 칩(−/+ 5%) · 구속 측정 저장 시트의 체감 강도 ·
+  등판 날 홈 계획 줄.
+- **(같은 날 더함) 트레이닝 추천 2판 P4 — 경기 다음 날은 부하로 · 다음 등판 짐작 · 팔 피로 안전 규칙.** 받은 뒤 할 일 없음(DB · 패키지 그대로 — facts ·
+  일정 지문 Json 의 선택 칸만). 설계 문서 'P4 결과'. 커밋 0fbeb71 · 0e9bcc8 · 9911ac8 · 452f4da · 07cb1e1 · f71b0dd · e57d0c6 · 56bf05c · 0a5c421 + 검토 반영
+  ('트레이닝 추천 2판 P4 검토 반영'). **네 영역 파일을 고쳤다**(줄 수는 `git diff --numstat 2afffc2` — P4 아홉 + 검토 반영):
+  - `lib/program/program.ts` +35 −13 · +59 −3, `lib/program/load.ts` +21 −15 · +31 −13: '경기 다음 날'이 어제 '경기' 기록이 아니라 **어제 팔 부담**
+    (`lib/engine/arm-load.ts yesterdayArmLoadOf` — 세게 던진 날 · 중간 부하 + 운동 힘듦 급증 · 기록 없는 등판). `ProgramSignalsInput.typesYesterday` →
+    `yesterdayArmLoad`(`gameYesterday` 이름은 그대로), load.ts 는 어제 투구 기록을 따로 안 읽는다. 쉬는 까닭 글은 `restTextOf(reason, kind)` — '어제 많이
+    던졌어요' · '어제 던졌고 최근 운동도 힘들었어요' · '어제 등판한 다음 날이에요'(까닭을 모르면 `REST_TEXT` '어제 팔 부담이 컸어요'), 넘긴 날 주의
+    `CAUTION_TEXT.gameOverride` '쉬는 게 좋은 날이에요. …'. 대체 칸 · 까닭은 새 `painSlotsOf` 하나가 정한다 — 팔 피로 '심함'만으로 빠진 고정 운동은
+    '대체 · 팔 피로'(예전엔 늘 '통증 부위'), 새 선택 칸 `TodaySignals.slotReasons` · 상수 `SUBSTITUTE_REASON`, 가리는 함수는 `lib/report/prescription.ts droppedOnlyForArmFatigue`.
+  - `lib/armcare/routine.ts` +37 −12 · +5 −1: '어제 N구' 회복은 세게 던진 날 · 중간 부하 + 급증일 때만, 기록 없는 등판 다음 날은 '어제 등판' 회복, 가볍게 던진
+    다음 날은 휴식표가 쉬라고 하면 회복 · 아니면 '어제 N구 · 팔 부담 적음 → 강화 루틴'. 휴식표는 이제 나이를 넣어 부른다(만 14세 이하 어린 표 — 투구 계획과 같은 말).
+  - `components/checkin-form.tsx` +160 −5 · +34 −4, `checkin-gate.tsx` +11 −1, `app-shell.tsx` +2, `app/(app)/layout.tsx` +4 −1(56bf05c · 검토 반영): 간편
+    체크인에 '어제 등판 · 기록 없음' 줄(어제 '오늘 등판' 답인데 어제 투구 기록이 쉰 날 줄까지 한 줄도 없을 때) — 몇 구 + 체감 강도 칩, 또는 '안 던졌어요'(어제
+    '휴식' 한 줄). `saveCheckinSafely` 가 체크인보다 먼저 투구 기록 API 를 부른다. 같은 파일을 고치고 있으면 합칠 때 겹칠 수 있다.
+  - `scripts/program-selftest.mts` +111 · +70(4-1 경기 다음 날은 부하로 · 4-2 대체 칸의 까닭).
+  - facts 에 `patterns.loggedYesterday`(어제 투구 기록 줄 — 쉰 날 줄까지)가 생겼다. 엔진은 어제 '휴식' 줄을 '안 던졌다'는 답으로 본다.
+  - 폰에서 봐 주면 좋은 것: 트레이닝 일정 카드 위 '다음 등판까지 N일'(짐작이면 밑에 '달력으로 추정' + 바꾸기) · 체크인 어제 등판 줄과 '안 던졌어요' 칩 ·
+    프로그램 쉬는 날 글 · 팔 피로 '심함' 날 프로그램 대체 꼬리표.
+- **(10-13 더함) 트레이닝 추천 2판 P5 — 고르기 점수 · 세트 줄이기 · 무게 멈춤 · '오늘 이렇게 짰어요'.** 받은 뒤 할 일 없음(DB · 패키지 그대로 — 일정 · 세션 판 Json 의
+  선택 칸만). 설계 문서 'P5 결과'. **네 영역 파일을 고쳤다**(읽기만 더함, 프로그램 동작 그대로):
+  - `lib/program/program.ts` +50(d2cffc3): export 둘 — `VARIANT_MOVEMENT_KEY`(변형 → 동작 열쇠, `lib/engine/exercise-class.ts movementKeyOf` 와 같은 말) ·
+    `patternsOfProgramDay(plan, day, exerciseOf?)`(그날 일차가 쓰는 동작 열쇠 집합, 코어는 없음). 무엇을 할지(`dayPlan`)만 읽는다.
+  - 매일 일정 만들기(`app/actions/training-setup.ts generateTodayPlan`, 74ce54b)가 `lib/program/load.ts activeProgram` · `program.ts parseProgram` · `readPinned` ·
+    `patternsOfProgramDay` 로 진행 중인 프로그램의 다음 일차 동작을 읽어, 오늘 일정에서 같은 동작을 −3 으로 뒤로 민다(`lib/report/score.ts programNextOf` —
+    10일 넘게 안 한 프로그램은 안 본다, 빼지는 않고 차례만). 프로그램 줄 · 칸 이름을 바꾸면 이 읽기도 같이 봐 줘.
+  - 안전 거르기 새 규칙 4-2-1 '평소보다 낮은 컨디션'(`lib/report/prescription.ts`, ac269c1 — 평소 28일 중앙값보다 2점 이상 낮으면 '매우 높음' 제외)은 근력
+    프로그램(`partsOnly`)을 건너뛴다(D6 — 프로그램 날은 프로그램 그대로). 세트 −1(`lib/report/volume.ts`)도 매일 일정에만 닿고 프로그램 처방은 안 건드린다.
+  - 검토 반영(이 묶음 마지막 커밋): 상체 날 파워 칸이 계열 없는 하체 파워(발목 아이소메트릭 프레스 · 가속 포지션 아이소 홀드)를 받지 않는다(`lib/report/theme.ts
+    fitsPowerSide`) — 기준선의 '무거운 하체 이틀 이어짐'(프로그램 큰 하체와 매일 일정 사이 포함) 42 → 0.
+- **(10-13 더함) 트레이닝 추천 2판 P6 — 중재 · 프로그램 날은 프로그램 그대로(D6) · 메커니즘 접기(D5) · 상태 바뀜 띠 · 영양 추세.** 받은 뒤 할 일 없음(DB ·
+  패키지 그대로 — 일정 JSON 의 선택 칸 `DailyPlan.program` · `programFallback` 만). 설계 문서 'P6 결과'. 커밋 a9cc30a · c92c6b3 · ccc68fd · 27cc926 · 11a1659 ·
+  cfbad54 · 2c71cf9 + 검토 반영('트레이닝 추천 2판 P6 검토 반영'). **네 영역 파일을 많이 고쳤다**(줄 수는 `git diff --numstat 0fab831` — P6 일곱 + 검토 반영):
+  - `lib/program/program.ts` +156 −8: `TodaySignals` 선택 칸 일곱(`armSpent` · `armThrows` · `heavyLowerYesterday` · `hardToday` · `choseRecovery` · `outingSoon` ·
+    `softOutingNear` — 안 주면 판정이 글자까지 예전과 같다), `RestReason` += `hardToday` · `chooseRecovery`(넘길 수 있음), `CautionCode` += `armRest` · `lowerBudget` ·
+    `outingGuess` · `outingSoon`, go 판정의 `deferVariants`(팔을 다 쓴 날 메디신볼 · 회전 던지기 — 변형 단위, 넘겨도 뺀다). 다음 등판 창이 3일 안이면 큰 하체를,
+    달력 · 같은 요일로 짐작한 등판이 오늘 · 내일이면 큰 하체 · 파워를 빼지 않고 가볍게(검토 반영). `ARM_THROW_VARIANTS` 를 이 파일로 옮겼다.
+    주의 글 `lowerBudget` 은 '어제가 하체 날이라 큰 하체는 가볍게 해요.'(어제 '하체 날'은 저장만 한 일정도 세서 '무겁게 했어요'로 단정하지 않는다).
+  - `lib/program/load.ts` +147 −9: `buildProgramDay` 가 중재(`lib/engine/arbiter.ts arbitrate`)를 한 번 불러 `view.arbitration` · 오늘 판 `view.session` 을 싣는다,
+    `programTodayOf(view)`(규칙은 순수 `lib/report/daily-plan.ts programTodayFrom` — 시험이 표로 본다), `pitchTypesToday` export. `lib/program/next-weight.ts` +25 −1:
+    영양 추세 깃발이 선 주는 올림만 멈춘다(`WeightReason` 'held', 줄 표시 '올림 멈춤').
+  - `app/actions/workout.ts` +21 −3: `startWorkout` 이 프로그램 날 일정(`savedPlan.program`)이면 매일 판으로 열지 않고 `startProgramWorkout` 에 맡긴다 ·
+    자유 무게 · 프로그램 칸 바꾸기가 같은 올림 멈춤을 읽는다. 프로그램 날 일정의 운동은 이제 카드와 같은 부위 거르기(partsOnly)라 일정 = 운동 시작이 얼리는 운동이다.
+  - 트레이닝 화면 `app/(app)/training/page.tsx` +100 −9 · `training-home.tsx` +116 −9(네가 만든 파일) · `start-workout.tsx` +12 −1 · `done-card.tsx` +4 −1 ·
+    새 `state-notice-band.tsx` 85: 프로그램이 오늘 주인이면(중재 매일 일정 몫 + 할 프로그램 운동이 있음 — `lib/report/training-screen.ts trainingScreenOf`) 일정 자리는
+    한 줄 '오늘은 근력 프로그램 {일차 이름} 날이라 …'이고 매일 [운동 시작] · 다시 만들기 · '운동 더 하기'는 없다. 프로그램 운동이 다 빠져 매일 일정으로 짠 날은
+    일정 카드 그대로. 일정을 만든 뒤 상태가 바뀌면 일정 카드 위 띠 '상태가 바뀌었어요 · 지금 상태로 다시 만들기'.
+  - 메커니즘 `lib/mechanics/program.ts` +193 −1 · `load.ts` +64 −5 · 새 `lib/mechanics/fold.ts` 145 · `mechanics-program.tsx` +173 −37 · `mechanics-player.tsx` +48 −6 ·
+    `mechanics/play/page.tsx` +24 −5 · `mechanics-section.tsx` +11 −2 · `app/actions/mechanics.ts` +14 −5: 팔에 싣는 드릴(스로잉 · 메디신볼)을 접는 날 — 오늘 어깨 ·
+    팔꿈치 '통증'(D5, 성인은 '펼치기 → 그래도 하기'), 그리고 검토 반영으로 오늘 팔을 다 쓴 날(오늘 등판 · 경기 기록 · 세게 던진 날) · 최근 통증인데 오늘 체크인 없음 ·
+    만 16세 미만 통증 날(이 셋은 못 펼치고 `?anyway=1` 도 무시). 판정은 `mechanicsFoldOf` 하나(중재와 같은 차례 — 시험 격자 280가지). `MechanicsPainFold` 에 칸
+    `because` · `canUnfold` · `cause`, `MECHANICS_FOLD_TEXT.homeOpen(cause, n)` 은 첫 인자가 까닭 머리말. 접은 채 마치면 `finishMechanicsSession({ partial: true })` —
+    세션 수 · 마친 날을 안 올린다(같은 세션을 다른 날 이어서).
+  - 폰에서 봐 주면 좋은 것: 근력 프로그램이 있는 계정의 트레이닝 화면(프로그램 날 한 줄 · 상태 바뀜 띠) · 어깨 통증 날과 '오늘 등판' 날의 메커니즘 칸(접힘 · 펼치기
+    유무) · 영양 탭 추세 카드(몸무게 단위 lb 설정 포함).
+
+## 김민에게 — 2026-10-12 · 금윤호(Claude) — 운동 마치기 창의 강도를 선택으로 · 축하 화면에 힘듦 칩 넷(rateWorkoutEffort) · 세션 판 JSON 에 `swaps` 칸
+
+받은 뒤 할 일 없음(DB · 패키지 그대로 — 일정 · 세션 판 Json 의 선택 칸만). 트레이닝 추천 2판 P2(`docs/designs/training-recommendation-engine.md` 'P2 결과').
+**네 영역 파일을 고쳤다**(커밋 be00279):
+- `app/(session)/workout/run/finish-sheet.tsx`: 강도 1~10 이 '필수'에서 '선택'으로 — 안 골라도 마칠 수 있고, 느낀점만 적고 강도가 없으면 단추를 끄고 한 줄
+  알린다(서버가 강도 없는 메모를 버리므로). 열 칸 · 기준표 · 느낀점은 그대로.
+- `app/(session)/workout/done/page.tsx` · `done-client.tsx` · 새 `effort-card.tsx`: 그날 `DailyTrainingNote` 가 없으면 [완료] 위에 칩 넷(가벼움 3 · 보통 5 ·
+  힘듦 7 · 아주 힘듦 9, 같은 1~10 눈금). 한 번 누르면 저장(`rateWorkoutEffort`, `app/actions/workout.ts` — 본인 판이면, 그새 적은 줄은 덮지 않음),
+  '건너뛰기'는 서버에 안 간다. P4 부터 날 종류 R2(어제 중간 부하 + 힘듦 급증 → 회복)가 이 값의 급증 깃발을 읽는다(P5 는 점수로).
+- 세션 판 JSON(`TrainingSession.plan`)에 선택 칸 `swaps`(뺀 · 바꾼 기록), 일정 JSON(`DailyTrainingSetup.plan`)에 `swaps` · `fingerprint` 가 생겼다
+  (커밋 fd28e02 · 9c5da50, 모양은 `lib/report/plan-swaps.ts` · `plan-fingerprint.ts`). `readFrozenPlan` 이 `swaps` 를 옮기니 판을 새로 쓸 때 아는
+  칸만 옮기면 잃는다 — `{ ...plan }` 꼴로 써 줘.
+- 아이폰 앱에서 봐 주면 좋은 것: 운동을 마치고 축하 화면의 칩 하나 누르기(떨림 · 고정) · 마치기 창에서 강도 없이 느낀점만 적었을 때의 알림 줄.
 
 ## 금윤호에게 — 2026-10-12 · 김민(Claude) — 영양: 평소 움직임 글 · 튜토리얼 뺌 · 던지는 날 카드 하나로 · 운동 소모를 운동별 강도로
 

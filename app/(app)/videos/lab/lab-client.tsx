@@ -203,7 +203,9 @@ function UploadCard({ defaultHeightCm }: { defaultHeightCm: number | null }) {
     <Card className="space-y-4">
       <div className="space-y-1">
         <p className="text-base font-semibold text-ink">샘플 올리기</p>
-        <p className="text-xs text-muted">영상 하나에 {LAB_MAX_VIDEO_MB}MB까지예요.</p>
+        <p className="text-xs text-muted">
+          영상 하나에 {LAB_MAX_VIDEO_MB}MB까지예요. 카메라는 1배(기본 렌즈)로 찍어 주세요. 분석이 1배로 계산해요.
+        </p>
       </div>
 
       <div className="grid grid-cols-2 gap-2">
@@ -449,7 +451,8 @@ function SampleCard({
     })),
     ...sample.extras.map((x) => ({
       key: x.key,
-      label: x.key === 'cam3' ? '③ 1루 쪽' : '④ 홈 쪽 대각선',
+      /* 실제 자리는 정답지 계산으로 확인(scripts/pitch-lab/markers/selfcal/README.md) — cam3 아이폰 11 이 홈 쪽 정면, cam4 SE2 가 1루 쪽 */
+      label: x.key === 'cam3' ? '③ 홈 쪽 정면' : '④ 1루 쪽',
       url: x.url,
     })),
   ];

@@ -44,6 +44,11 @@ export type TodayExercise = {
   manual: boolean;
   /** 지금 몸 상태 기준으로는 권하지 않는 운동인가 */
   unsafe: boolean;
+  /**
+   * 왜 이 운동을 골랐는지 한 줄(트레이닝 추천 2판 P5-k — lib/report/score.ts pickReasonLineOf). 오늘 상태로 앞에 당긴 운동에만 있고,
+   * 직접 넣은 것 · 권하지 않는 것 · 이유가 없는 것은 null 이라 줄이 안 나온다.
+   */
+  reason: string | null;
   /** 이 사람이 별을 달아 뒀는가 */
   favorite: boolean;
   /**
@@ -362,6 +367,7 @@ function ExerciseList({
                     </>
                   }
                   prescription={ex.prescription}
+                  note={ex.reason}
                   warning={ex.unsafe ? '오늘 몸 상태에는 권하지 않는 운동이에요' : null}
                   thumbUrl={ex.thumbUrl}
                   thumbClassName="h-14 w-20 sm:h-16 sm:w-24"

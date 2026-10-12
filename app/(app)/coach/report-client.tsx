@@ -29,6 +29,7 @@ import {
   summarize,
   type ReportFinding,
 } from '@/lib/pitch-stats';
+import { effortText, scaleToEffortPct } from '@/lib/pitch-effort';
 import type { Log } from '@/app/(app)/pitch-log/types';
 
 /**
@@ -347,17 +348,29 @@ export function ReportClient({
 
             <Card>
               <h2 className="text-sm font-bold text-ink">투구 강도</h2>
-              <p className="mb-2 mt-1 text-xs text-muted">1~10 자가 평가 기준</p>
+              {/*
+                체감 강도 % 로 보인다(2판 D2) — 입력이 % 라 '6.3 / 10' 은 고른 값과 다른 숫자다. 계산(summarize)은 1~10 실수
+                그대로이고 보일 때만 × 10 해 반올림한다. 변화는 보이는 두 % 의 차이(%p)라 화면의 두 숫자와 맞는다.
+              */}
+              <p className="mb-2 mt-1 text-xs text-muted">스스로 매긴 체감 강도 기준</p>
               <MetricRow
                 label="평균 강도"
-                value={current.avgIntensity.toFixed(1)}
-                unit="/ 10"
-                delta={current.avgIntensity - previous.avgIntensity}
+                value={scaleToEffortPct(current.avgIntensity)}
+                unit="%"
+                delta={
+                  scaleToEffortPct(current.avgIntensity) -
+                  scaleToEffortPct(previous.avgIntensity)
+                }
+                deltaUnit="%p"
                 invert
               />
-              <MetricRow label="최고 강도" value={current.peakIntensity} unit="/ 10" />
               <MetricRow
-                label={`이틀 합산 ${TWO_DAY_INTENSITY_LIMIT} 초과`}
+                label="최고 강도"
+                value={scaleToEffortPct(current.peakIntensity)}
+                unit="%"
+              />
+              <MetricRow
+                label={`이틀 합산 ${scaleToEffortPct(TWO_DAY_INTENSITY_LIMIT)}% 초과`}
                 value={fatigueWindows.length}
                 unit="회"
               />
@@ -399,7 +412,7 @@ export function ReportClient({
                       className="rounded-lg border border-warn-line bg-warn-bg px-2.5 py-1 text-[11px] tabular-nums text-warn"
                     >
                       {formatShortDate(w.firstDay)}→{formatShortDate(w.secondDay)} 합{' '}
-                      {w.total}
+                      {scaleToEffortPct(w.total)}%
                     </span>
                   ))}
                 </div>
@@ -451,7 +464,7 @@ export function ReportClient({
                       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] tabular-nums text-muted">
                         <span className="text-ink">{log.date.slice(0, 10)}</span>
                         <span>{log.pitchCount}구</span>
-                        <span>강도 {log.intensity}/10</span>
+                        {effortText(log) && <span>강도 {effortText(log)}</span>}
                         {log.maxVelocity != null && (
                           <span>최고 {formatSpeed(log.maxVelocity, speedUnit)}</span>
                         )}

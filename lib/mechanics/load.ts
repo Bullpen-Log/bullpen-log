@@ -5,16 +5,19 @@ import { prisma } from '@/lib/prisma';
 import { favoriteDrillIds } from '@/lib/favorites';
 import { visibleGuides } from '@/lib/library-cache';
 import { createPlaybackUrls } from '@/lib/storage';
-import { toDateKey } from '@/lib/pitch-stats';
+import { shiftDateKey, toDateKey } from '@/lib/pitch-stats';
 import { dbDate, keyOfDbDate } from '@/lib/nutrition/days';
+import { ageFromBirthDate } from '@/lib/profile';
 import { equipmentForToday } from '@/lib/report/equipment';
 import { groupDrills, type MechanicsDrillView, type MechanicsVariant } from '@/lib/mechanics/drills';
+import { MECHANICS_PAIN_WINDOW_DAYS, mechanicsFoldOf } from '@/lib/mechanics/fold';
 import {
   buildLevelSession,
   canUseVariant,
   levelAdvice,
   readProgramState,
   type FilmNote,
+  type MechanicsPainFold,
   type SessionItem,
 } from '@/lib/mechanics/program';
 import { levelSession, SESSIONS_PER_LEVEL, type LevelKey } from '@/lib/mechanics/levels';
@@ -55,16 +58,57 @@ export type MechanicsProgramView = {
 };
 
 /**
+ * 접기 판정의 재료(lib/mechanics/fold.ts mechanicsFoldOf, 2판 P6 검토) — 최근 7일 체크인의 다섯 부위 · 던지는 일정(오늘 통증 D5 · 최근 통증인데
+ * 오늘 체크인 없음 · 오늘 · 어제 등판 답)과 오늘 투구 기록(경기 · 세게 던진 날). 오늘 상태 한 장(facts 45일)을 모으면 화면이 무거워져 이 둘만
+ * 읽는다 — 판정은 중재(lib/engine/arbiter.ts)와 같은 규칙 · 같은 차례(자체 시험이 견준다).
+ */
+function foldInputs(userId: string, todayKey: string) {
+  const from = dbDate(shiftDateKey(todayKey, -(MECHANICS_PAIN_WINDOW_DAYS - 1)));
+  return Promise.all([
+    prisma.dailyCheckin.findMany({
+      where: { userId, date: { gte: from, lte: dbDate(todayKey) } },
+      select: {
+        date: true,
+        shoulder: true,
+        elbow: true,
+        wrist: true,
+        lowerBack: true,
+        lowerBody: true,
+        throwPlan: true,
+      },
+    }),
+    prisma.pitchLog.findMany({
+      where: { userId, date: dbDate(todayKey) },
+      select: { sessionType: true, pitchCount: true, intensity: true, effortPct: true },
+    }),
+  ]);
+}
+
+/**
  * 프로그램 칸 · 따라 하기가 읽는 것 — 내 프로그램과 오늘의 세션, 오늘 이미 한 드릴(2026-10-04).
  * 프로그램이 없으면 program 이 null 이고 세션도 비어 있다.
+ *
+ * painFold(2판 P6-5, 사용자 결정 D5 · 2판 P6 검토): 팔에 싣는 드릴을 접는 날 — 오늘 팔을 다 썼거나(등판 · 경기 기록 · 세게 던진 날, 못 펼침),
+ * 최근 통증인데 오늘 체크인이 없거나(못 펼침), 오늘 어깨 · 팔꿈치가 '통증'(성인은 펼쳐 '그래도 하기'). 판정은 lib/mechanics/fold.ts mechanicsFoldOf
+ * 하나 — 최근 7일 체크인과 오늘 투구 기록만 더 읽는다(오늘 상태 한 장 lib/engine/day-state.ts 를 만들면 facts 전체를 모아 화면이 무거워진다).
+ * 같은 규칙 · 같은 차례라 중재와 답이 같다(자체 시험). session 은 접기 전 그대로 — 화면 · 따라 하기가 접는다.
  */
 export async function loadMechanicsProgram(userId: string): Promise<{
   program: MechanicsProgramView | null;
   session: SessionDrillView[];
   /** 오늘 '했다'로 남은 드릴 id — 따라 하기를 이어서 할 때 건너뛴다 */
   doneToday: string[];
+  /** 오늘 팔에 싣는 드릴을 접는가(까닭 · 펼칠 수 있나 포함) — 아니면 null */
+  painFold: MechanicsPainFold | null;
 }> {
-  const todayKey = toDateKey(appNow());
+  const now = appNow();
+  const todayKey = toDateKey(now);
+  /*
+   * 접기 판정의 재료 — 아래 조회와 나란히 읽는다. 아래가 먼저 던지면 이 약속을 안 기다리게 되니, 처리 안 된 거절로 남지 않게 빈 catch 를 단다
+   * (기다릴 때는 그대로 던진다).
+   */
+  const foldRead = foldInputs(userId, todayKey);
+  foldRead.catch(() => {});
   const [row, guides, favorites, logs, user, setup] = await Promise.all([
     prisma.mechanicsProgram.findUnique({ where: { userId } }),
     visibleGuides(),
@@ -73,14 +117,19 @@ export async function loadMechanicsProgram(userId: string): Promise<{
       where: { userId, date: dbDate(todayKey), done: true },
       select: { guideId: true },
     }),
-    prisma.user.findUnique({ where: { id: userId }, select: { ownedEquipment: true } }),
+    prisma.user.findUnique({
+      where: { id: userId },
+      /* 생년월일 — 성장기(만 16세 미만)의 통증 날은 못 펼친다(lib/mechanics/fold.ts) */
+      select: { ownedEquipment: true, birthDate: true },
+    }),
     /* 트레이닝처럼 오늘 쓸 수 있는 장비(오늘 안 골랐으면 가진 것 전부) */
     prisma.dailyTrainingSetup.findUnique({
       where: { userId_date: { userId, date: dbDate(todayKey) } },
       select: { availableEquipment: true },
     }),
   ]);
-  if (!row) return { program: null, session: [], doneToday: [] };
+  const [checkins, pitchesToday] = await foldRead;
+  if (!row) return { program: null, session: [], doneToday: [], painFold: null };
 
   const ownThumbs = await createPlaybackUrls(
     guides.filter((g) => !g.referenceVideoId && g.thumbPath).map((g) => g.thumbPath as string)
@@ -130,5 +179,15 @@ export async function loadMechanicsProgram(userId: string): Promise<{
     const ids = item.alternatives.flatMap((a) => a.variants.map((v) => v.id));
     if (!done.has(item.guideId) && ids.some((id) => done.has(id))) doneToday.push(item.guideId);
   }
-  return { program, session, doneToday };
+  return {
+    program,
+    session,
+    doneToday,
+    painFold: mechanicsFoldOf({
+      todayKey,
+      checkins: checkins.map((c) => ({ ...c, date: keyOfDbDate(c.date) })),
+      logsToday: pitchesToday,
+      age: user?.birthDate ? ageFromBirthDate(user.birthDate, now) : null,
+    }),
+  };
 }

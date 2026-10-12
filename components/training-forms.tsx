@@ -90,6 +90,7 @@ export function PlanForm({
   checkedIn,
   returnTo,
   clash = null,
+  effortSpike = false,
   preferredWorkout = null,
   startMode = 'auto',
   checkinAction,
@@ -134,6 +135,14 @@ export function PlanForm({
    */
   clash?: { kind: string; reason: string; fallbackLabel: string } | null;
   /**
+   * 최근 운동 힘듦 급증인가(운동 끝 힘듦이 7일 평균으로 평소보다 2 이상 높음 — lib/report/today-data.ts, 2판 P5-e).
+   *
+   * 직접 고르기는 그런 날 본운동을 한 세트씩 줄여 만든다(lib/report/volume.ts). 부딪힘 경고와 같이 막지 않는다 — 까닭을 한
+   * 줄로 말하고 '그래도 고른 대로'를 두어(overrideEffort) 고르면 그 몫만 되돌린다. 자동 맞춤은 세트 대신 시간을 줄이고 이유를
+   * 만든 뒤에 말하니 여기서는 아무것도 안 그린다.
+   */
+  effortSpike?: boolean;
+  /**
    * 오늘 체크인에서 고른 운동 종류(파워·웨이트·회복). 목표를 한 번도 안 고른
    * 사람의 첫 목표를 정하는 데 쓴다 — 파워를 골랐으면 파워 향상(goalForUnchosen).
    */
@@ -165,6 +174,12 @@ export function PlanForm({
    * 직접 고르기는 예전 그대로다 — 둘 다 남겨 두기로 했다(사용자분과 정함).
    */
   const [mode, setMode] = useState<'auto' | 'manual'>(startMode);
+
+  /*
+   * 부딪힘 경고에서 '그래도 고른 운동으로'를 켰는가 — 힘듦 급증 경고를 보일지 가른다. 부딪힌 날의 기본은 회복 · 보조 쪽이라
+   * 본운동이 없어 줄일 세트도 없다. 켜야 근력 날이 되고 그때 세트 줄이기가 뜻을 가진다(아래 effortWarn).
+   */
+  const [clashKept, setClashKept] = useState(false);
 
   /*
    * 목표에 따라 고를 수 있는 시간이 다르다.
@@ -206,6 +221,14 @@ export function PlanForm({
    * 목표에 없는 값은 validFocus 가 걸러 준다(근력의 '당기기'가 파워에 남지 않게).
    */
   const pickedFocus = validFocus(pickedGoal, focus) ?? '';
+
+  /*
+   * 힘듦 급증 경고를 보일 때 — 직접 고르기에서, 줄일 본운동이 있을 수 있는 조합만. 컨디셔닝 목표는 무게 드는 운동이 없어
+   * 줄일 것이 없고, 부딪힌 날은 '그래도'를 켜기 전까지 가벼운 날이다. 회복 날이 될지는 여기서 모른다 — 그날은 서버가 줄이지
+   * 않고 '그래도'를 골랐다는 표시도 안 남긴다(lib/report/daily-plan.ts overrodeEffort).
+   */
+  const effortWarn =
+    effortSpike && pickedGoal !== CONDITIONING_GOAL && (!clash || clashKept);
 
   const choices = owned.filter((name) => name !== '맨몸');
   /*
@@ -368,6 +391,7 @@ export function PlanForm({
                   type="checkbox"
                   name="overrideCondition"
                   value="on"
+                  onChange={(e) => setClashKept(e.currentTarget.checked)}
                   className="mt-0.5 h-4 w-4 shrink-0 rounded border-warn-line accent-sky"
                 />
                 알겠어요. 그래도 {clash.kind} 운동으로 만들어주세요
@@ -436,6 +460,27 @@ export function PlanForm({
             selected={`${pickedMinutes}분`}
             compact
           />
+
+          {/*
+            최근 운동 힘듦 급증(2판 P5-e) — 부딪힘 경고와 같은 꼴로 막지 않고 말한다. 고르는 칸들 밑에 둔다: 목표를
+            컨디셔닝으로 바꾸면 이 상자가 사라지는데, 위에 있으면 누르던 목록이 통째로 밀려 올라간다.
+          */}
+          {effortWarn && (
+            <div className="space-y-2 rounded-xl border border-warn-line bg-warn-bg px-4 py-3 motion-safe:animate-fade-in">
+              <p className="text-sm font-bold text-warn">
+                최근 운동이 평소보다 힘들었다고 하셔서 본운동을 한 세트씩 줄여 만들어요.
+              </p>
+              <label className="flex items-start gap-2.5 text-sm font-medium leading-relaxed text-warn">
+                <input
+                  type="checkbox"
+                  name="overrideEffort"
+                  value="on"
+                  className="mt-0.5 h-4 w-4 shrink-0 rounded border-warn-line accent-sky"
+                />
+                그래도 고른 대로 만들어주세요
+              </label>
+            </div>
+          )}
         </>
       )}
 

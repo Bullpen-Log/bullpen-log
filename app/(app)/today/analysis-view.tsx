@@ -110,6 +110,8 @@ async function LoadView({
           sessionType: l.sessionType,
           pitchCount: l.pitchCount,
           intensity: l.intensity,
+          /* 체감 강도(%) — 개요가 groupByDay(intensityOf)로 읽는다. 빼면 85% 가 9(90%)로 보이고 셈해진다 */
+          effortPct: l.effortPct,
           maxVelocity: l.maxVelocity,
           avgVelocity: l.avgVelocity,
         }))}

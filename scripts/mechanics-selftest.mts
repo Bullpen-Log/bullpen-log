@@ -6,6 +6,8 @@
  * 드릴은 공유 DB 에서 읽기만 한다(숨긴 것 빼고 — 화면과 같은 목록). 2026-10-04 바뀐 틀(수준을 골라 정해진 세션을 따라 한다)에
  * 맞춰 본다: 수준 넷의 세션이 모두 라이브러리에 있는 드릴인지 · 단계가 수준에 맞는지 · 투구 차례인지 · 두 주 묶음마다 여섯
  * 요소가 다 나오는지, 장비에 맞춰 바꿔 넣기, 느낌 세기(하루 한 번), 권하기, 옛 진행 읽기, 영상 찍기 알림.
+ * 2판 P6-5(사용자 결정 D5): 어깨 · 팔꿈치가 아픈 날 팔에 싣는 드릴 접기 · 펼치기 · 반만 마치기 — 맨 끝 절(가짜 드릴 표로 고정하고,
+ * 라이브러리 숫자는 출력만).
  */
 import { PrismaClient } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
@@ -25,15 +27,24 @@ import {
   EASY_DAYS,
   FILM_EVERY,
   HARD_DAYS,
+  MECHANICS_FOLD_BUTTONS,
+  MECHANICS_FOLD_TEXT,
   buildLevelSession,
   canUseVariant,
   countFeel,
   doseOf,
   filmPrompt,
+  finishState,
+  foldSession,
   freshState,
+  isArmLoaded,
   levelAdvice,
+  mechanicsPainFold,
+  playItemsFor,
   programStateJson,
   readProgramState,
+  resumeAt,
+  unloadedAlternatives,
   type DrillStage,
   type ProgramState,
 } from '@/lib/mechanics/program';
@@ -310,6 +321,339 @@ ok(
   [FILM_EVERY, FILM_EVERY * 2, FILM_EVERY * 5].every((n) => filmPrompt(n) === 'compare'),
   `${FILM_EVERY}번째마다 견주기`
 );
+
+/* ── 팔이 아픈 날 접기(2판 P6-5, 사용자 결정 D5) ── */
+console.log('\n[2판 P6-5] 어깨 · 팔꿈치 통증 날 접기 · 펼치기 · 반만 마치기');
+{
+  const MOVE = '무브먼트 패턴 드릴';
+  const THROW = '스로잉 드릴';
+  const MED = '메디신볼 드릴';
+
+  /* 분류 판정 — 모르는 분류는 접는 쪽 */
+  ok(isArmLoaded(THROW) && isArmLoaded(MED), '스로잉 · 메디신볼은 팔에 싣는 드릴');
+  ok(!isArmLoaded(MOVE), '무브먼트 패턴은 아님');
+  ok(isArmLoaded('새 분류') && isArmLoaded(''), '모르는 분류 · 빈 분류는 접는 쪽');
+  ok(
+    drills
+      .flatMap((d) => d.variants)
+      .every((v) => [MOVE, THROW, MED].includes(v.category)),
+    '라이브러리 드릴 분류는 셋 중 하나(새 분류가 생기면 다 접힌다 — 알아채려고)',
+    [...new Set(drills.flatMap((d) => d.variants.map((v) => v.category)))].join(' · ')
+  );
+
+  /* 오늘 접는가 — 어깨 · 팔꿈치 '통증'만 */
+  ok(
+    mechanicsPainFold(null) === null && mechanicsPainFold(undefined) === null,
+    '체크인 없음은 안 접음'
+  );
+  ok(mechanicsPainFold({ shoulder: '정상', elbow: '정상' }) === null, '정상은 안 접음');
+  ok(mechanicsPainFold({ shoulder: '뻐근', elbow: '뻐근' }) === null, '뻐근은 안 접음');
+  const otherPain = {
+    shoulder: '정상',
+    elbow: '정상',
+    wrist: '통증',
+    lowerBack: '통증',
+    lowerBody: '통증',
+  };
+  ok(mechanicsPainFold(otherPain) === null, '손목 · 허리 · 하체 통증만이면 안 접음');
+  const sh = mechanicsPainFold({ shoulder: '통증', elbow: '정상' });
+  const el = mechanicsPainFold({ shoulder: '뻐근', elbow: '통증' });
+  const both = mechanicsPainFold({ shoulder: '통증', elbow: '통증' });
+  ok(
+    same(sh?.joints, ['shoulder']) &&
+      sh?.label === '어깨' &&
+      same(el?.joints, ['elbow']) &&
+      el?.label === '팔꿈치',
+    '어깨 · 팔꿈치 하나씩'
+  );
+  ok(
+    same(both?.joints, ['shoulder', 'elbow']) && both?.label === '어깨 · 팔꿈치',
+    '둘 다면 어깨 → 팔꿈치 차례'
+  );
+  ok(
+    sh?.reason ===
+      '오늘 어깨가 아파 던지기 · 메디신볼 드릴은 접었어요. 그래도 하려면 펼쳐요.',
+    '까닭 글(어깨)',
+    sh?.reason
+  );
+  ok(
+    el?.reason ===
+      '오늘 팔꿈치가 아파 던지기 · 메디신볼 드릴은 접었어요. 그래도 하려면 펼쳐요.',
+    '까닭 글(팔꿈치)',
+    el?.reason
+  );
+  {
+    let bad = 0;
+    let folds = 0;
+    for (const s of ['정상', '뻐근', '통증'])
+      for (const e of ['정상', '뻐근', '통증']) {
+        const f = mechanicsPainFold({ shoulder: s, elbow: e });
+        if ((f != null) !== (s === '통증' || e === '통증')) bad++;
+        if (f) folds++;
+      }
+    ok(
+      bad === 0 && folds === 5,
+      '어깨 × 팔꿈치 9가지 — 하나라도 통증인 5가지만 접음',
+      `${folds}가지`
+    );
+  }
+
+  /* 글 — 해요체 · 줄표 없음 · 짧게 */
+  {
+    const texts = Object.values(MECHANICS_FOLD_TEXT).flatMap((t) =>
+      typeof t === 'function'
+        ? [t('어깨', 2), t('어깨 · 팔꿈치', 1), t('팔꿈치', 3)]
+        : [t]
+    );
+    const bad = texts.filter(
+      (t) => t.includes('—') || t.includes('**') || t.length > 60 || !/요\.?$/.test(t)
+    );
+    ok(
+      bad.length === 0,
+      `글 ${texts.length}줄 — 해요체 · 줄표 없음 · 60자 안`,
+      bad.join(' / ')
+    );
+    const buttons = Object.values(MECHANICS_FOLD_BUTTONS);
+    ok(
+      buttons.every((b) => b.length <= 12 && !b.includes('—')),
+      `단추 ${buttons.length}개 — 짧게`,
+      buttons.join(' · ')
+    );
+  }
+
+  /* 가짜 세션 — 운영 DB 없이 고정한다. 차례: 무브먼트 → 스로잉 → 메디신볼 */
+  type V = { id: string; category: string };
+  type Item = {
+    guideId: string;
+    title: string;
+    category: string;
+    alternatives: { guideId: string; title: string; variants: V[] }[];
+  };
+  const alt = (title: string, guideId: string, variants: V[]) => ({
+    title,
+    guideId,
+    variants,
+  });
+  const fake: Item[] = [
+    {
+      guideId: 'm1',
+      title: '무브먼트 1',
+      category: MOVE,
+      alternatives: [
+        alt('무브먼트 1', 'm1', [{ id: 'm1', category: MOVE }]),
+        alt('스로잉 대안', 't9', [{ id: 't9', category: THROW }]),
+        /* 한 묶음에 메디신볼 · 무브먼트 도구가 섞인 대안 — 처음 고를 도구가 메디신볼이면 무브먼트로 */
+        alt('섞인 대안', 'x1', [
+          { id: 'x1', category: MED },
+          { id: 'x2', category: MOVE },
+        ]),
+      ],
+    },
+    {
+      guideId: 't1',
+      title: '스로잉 1',
+      category: THROW,
+      alternatives: [
+        alt('스로잉 1', 't1', [
+          { id: 't1', category: THROW },
+          { id: 't1b', category: MED },
+        ]),
+      ],
+    },
+    {
+      guideId: 'b1',
+      title: '메디신볼 1',
+      category: MED,
+      alternatives: [alt('메디신볼 1', 'b1', [{ id: 'b1', category: MED }])],
+    },
+  ];
+  const ids = (xs: { guideId: string }[]) => xs.map((x) => x.guideId).join();
+
+  /* 통증 없는 날은 변화 0 */
+  {
+    const f = foldSession(fake, null);
+    ok(
+      ids(f.open) === 'm1,t1,b1' && f.folded.length === 0,
+      '안 접는 날 — 다 할 것, 차례 그대로'
+    );
+    const p = playItemsFor(fake, null, false);
+    ok(
+      same(p.items, fake) && !p.partial && p.folded === 0,
+      '안 접는 날 따라 하기 — 세션 그대로(바꾸기 목록까지)'
+    );
+  }
+  /* 접는 날 */
+  {
+    const f = foldSession(fake, sh);
+    ok(
+      ids(f.open) === 'm1' && ids(f.folded) === 't1,b1',
+      '접는 날 — 무브먼트만 할 것, 나머지는 접음(차례 그대로)'
+    );
+    const p = playItemsFor(fake, sh, false);
+    ok(
+      ids(p.items) === 'm1' && p.partial && p.folded === 2,
+      '접는 날 따라 하기 — 무브먼트만 · 반만 마침'
+    );
+    const alts = p.items[0].alternatives;
+    ok(
+      alts
+        .map((a) => `${a.title}:${a.guideId}:${a.variants.map((v) => v.id).join('+')}`)
+        .join(' / ') === '무브먼트 1:m1:m1 / 섞인 대안:x2:x2',
+      "접는 날 '다른 드릴' · 도구 칩에도 팔에 싣는 것이 없음(처음 도구가 빠지면 남은 무브먼트로)",
+      alts.map((a) => a.title).join(' / ')
+    );
+    ok(
+      fake[0].alternatives.length === 3 &&
+        fake[0].alternatives[2].variants.length === 2,
+      '입력은 그대로 둔다'
+    );
+    ok(
+      same(
+        unloadedAlternatives([alt('던지기뿐', 't', [{ id: 't', category: THROW }])]),
+        []
+      ),
+      '도구가 다 빠진 동작은 뺀다'
+    );
+  }
+  /* 펼치기(그래도 하기) — 막지 않는다 */
+  {
+    const p = playItemsFor(fake, both, true);
+    ok(
+      same(p.items, fake) && !p.partial && p.folded === 0,
+      "펼친 날('그래도 하기') — 세션 그대로, 세션 수도 오른다"
+    );
+  }
+  /* 다 접히는 세션 · 다 무브먼트인 세션 */
+  {
+    const allLoaded = fake.slice(1);
+    ok(
+      playItemsFor(allLoaded, el, false).items.length === 0,
+      '다 접히는 세션 — 따라 하기에 넘길 것 없음(프로그램 칸으로)'
+    );
+    const allMove = [fake[0]];
+    const p = playItemsFor(allMove, el, false);
+    ok(
+      ids(p.items) === 'm1' && !p.partial,
+      '접을 드릴이 없는 세션 — 아픈 날이어도 다 하면 세션을 마친다'
+    );
+  }
+  /* 이어서 하기 — 반만 마친 뒤 다시 열기 */
+  {
+    const folded = playItemsFor(fake, sh, false).items;
+    ok(resumeAt(fake, new Set()) === 0, '아무것도 안 했으면 처음부터');
+    ok(resumeAt(fake, new Set(['m1'])) === 1, '하나 했으면 다음부터');
+    ok(
+      resumeAt(folded, new Set(['m1'])) === 0,
+      '무브먼트만 다 한 날 다시 열면 처음(카드는 이미 마쳤다고 알린다)'
+    );
+    ok(resumeAt(fake, new Set(['m1'])) === 1, '같은 날 펼쳐서 하면 접었던 첫 드릴부터');
+    ok(
+      resumeAt(fake, new Set(['m1', 't1', 'b1'])) === 0,
+      '다 했으면 처음(오늘 마친 세션은 부르는 쪽이 done 을 비운다)'
+    );
+  }
+  /* 마치기 — 반만 마치면 진행 그대로 */
+  {
+    const st: ProgramState = { ...freshState('beginner'), index: 4 };
+    const half = finishState(st, true);
+    ok(
+      same(half, st),
+      '반만 마치면 세션 · 느낌 · 견준 결과 그대로(같은 세션을 아프지 않은 날)'
+    );
+    ok(finishState(st, false).index === 5, '다 마치면 다음 세션');
+    ok(finishState({ ...st, index: 12 }, false).index === 12, '12에서 멈춤');
+    ok(same(finishState(st, false).feels, st.feels), '마쳐도 느낌은 그대로');
+  }
+
+  /* 라이브러리 세션 전부 — 접힌 결과의 모양(숫자는 출력만, 라이브러리가 바뀌면 달라진다) */
+  {
+    const toItem = (it: ReturnType<typeof buildLevelSession>[number]) => {
+      const fam = (title: string, guideId: string) => {
+        const d = byTitle.get(title);
+        return d
+          ? [
+              {
+                title,
+                guideId,
+                variants: d.variants.map((v) => ({ id: v.id, category: v.category })),
+              },
+            ]
+          : [];
+      };
+      return {
+        ...it,
+        alternatives: [
+          ...fam(it.title, it.guideId),
+          ...it.swaps.flatMap((w) => fam(w.title, w.guideId)),
+        ],
+      };
+    };
+    let sessions = 0;
+    let items = 0;
+    let folded = 0;
+    let allFolded = 0;
+    let swapsDropped = 0;
+    let badShape = 0;
+    let changedWithoutPain = 0;
+    for (const [, owned] of gearSets)
+      for (const lv of MECHANICS_LEVELS)
+        for (let i = 0; i < SESSIONS_PER_LEVEL; i++) {
+          const session = buildLevelSession({
+            drills,
+            level: lv.key,
+            index: i,
+            owned,
+          }).map(toItem);
+          sessions++;
+          items += session.length;
+          const plain = playItemsFor(session, null, false);
+          if (!same(plain.items, session) || plain.partial) changedWithoutPain++;
+          const p = playItemsFor(session, sh, false);
+          const f = foldSession(session, sh);
+          folded += f.folded.length;
+          if (p.items.length === 0) allFolded++;
+          if (
+            f.open.length + f.folded.length !== session.length ||
+            f.open.some((x) => isArmLoaded(x.category)) ||
+            f.folded.some((x) => !isArmLoaded(x.category)) ||
+            p.partial !== f.folded.length > 0 ||
+            p.items.some((x) =>
+              x.alternatives.some(
+                (a) =>
+                  a.variants.some((v) => isArmLoaded(v.category)) ||
+                  !a.variants.some((v) => v.id === a.guideId)
+              )
+            ) ||
+            p.items.some((x) => x.alternatives[0]?.guideId !== x.guideId)
+          )
+            badShape++;
+          swapsDropped +=
+            session.reduce((n, x) => n + x.alternatives.length, 0) -
+            p.items.reduce((n, x) => n + x.alternatives.length, 0) -
+            f.folded.reduce((n, x) => n + x.alternatives.length, 0);
+          const anyway = playItemsFor(session, sh, true);
+          if (!same(anyway.items, session) || anyway.partial) badShape++;
+        }
+    console.log(
+      `세션 ${sessions}개 · 드릴 ${items}개 — 어깨 통증 날 접힘 ${folded}개 · 다 접힌 세션 ${allFolded}개 · 남은 드릴의 바꾸기에서 뺀 동작 ${swapsDropped}개`
+    );
+    ok(
+      badShape === 0,
+      '라이브러리 세션 전부 — 남은 것은 무브먼트만 · 바꾸기 목록도 무브먼트만 · 첫 대안은 세션 드릴 · 펼치면 그대로',
+      `${badShape}`
+    );
+    ok(
+      changedWithoutPain === 0,
+      '라이브러리 세션 전부 — 통증 없는 날은 따라 하기가 한 글자도 안 바뀜',
+      `${changedWithoutPain}`
+    );
+    ok(
+      folded > 0 && folded < items,
+      '접히는 드릴이 있고, 다 접히지는 않음',
+      `${folded}/${items}`
+    );
+  }
+}
 
 console.log(`\n${pass}개 통과, ${fail}개 실패`);
 if (fail > 0) process.exit(1);

@@ -1346,6 +1346,8 @@ export function AppNav({
           <CheckinForm
             recent={todo.recentCheckins}
             parts={todo.parts}
+            /* 어제 '오늘 등판'인데 기록이 없으면 '어제 등판 · 몇 구' 줄을 묻는다 — 종이 쓰는 같은 목록 */
+            pitchDays={todo.pitchDays}
             age={todo.age}
             /* 팔 통증 안내의 [통증 루틴 하기]로 트레이닝에 갈 때 이 창도 닫는다 */
             onLeave={() => setCheckinOpen(false)}

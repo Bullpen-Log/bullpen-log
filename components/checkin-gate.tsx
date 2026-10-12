@@ -217,6 +217,7 @@ export function CheckinGate({
   streakDays,
   recent,
   parts,
+  pitchDays,
 }: {
   /** 체크인한 날들(YYYY-MM-DD). 서버와 사용자의 '오늘'이 다를 수 있어 며칠치를 받는다. */
   checkedDays: string[];
@@ -226,6 +227,8 @@ export function CheckinGate({
   recent: CheckinData[];
   /** 상세 체크인에서 고를 수 있는 운동 부위 */
   parts: string[];
+  /** 최근 며칠 투구 기록이 있는 날 — 폼이 '어제 등판 · 몇 구' 줄을 물을지 가른다(components/checkin-form.tsx) */
+  pitchDays?: string[];
 }) {
   /*
    * 오늘 날짜 — 앱을 다시 볼 때(다른 앱에 갔다 오거나 자정을 넘긴 뒤)마다 새로 본다.
@@ -406,7 +409,14 @@ export function CheckinGate({
           <CheckinDone today={today} days={[...streakDays, ...checkedDays]} />
         ) : (
           /* 창이 열릴 때만 그린다 — 닫혀 있는 동안 폼이 상태를 들고 있을 까닭이 없다 */
-          open && <CheckinForm recent={recent} parts={parts} onSaved={onSaved} />
+          open && (
+            <CheckinForm
+              recent={recent}
+              parts={parts}
+              pitchDays={pitchDays}
+              onSaved={onSaved}
+            />
+          )
         )}
       </div>
 

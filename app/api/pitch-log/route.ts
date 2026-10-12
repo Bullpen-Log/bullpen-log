@@ -6,6 +6,7 @@ import { deleteVideos, isOwnedBy } from '@/lib/storage';
 import { isRestSession, validateSessionType } from '@/lib/session-type';
 import { isFutureDateKey, toDateKey } from '@/lib/pitch-stats';
 import { cleanCues, isRatedSession, readSatisfaction } from '@/lib/pitch-satisfaction';
+import { effortUpdate, readEffortInput } from '@/lib/pitch-effort';
 
 const MAX_VIDEOS = 2;
 
@@ -31,6 +32,8 @@ type CheckedEntry = {
   sessionType: string;
   pitchCount: number;
   intensity: number;
+  /** 체감 강도 5~100%(2판 D2). 쉰 날 · 옛 화면이 intensity 만 보낸 기록은 null — lib/pitch-effort.ts */
+  effortPct: number | null;
   maxVelocity: number | null;
   avgVelocity: number | null;
   memo: string | null;
@@ -45,7 +48,9 @@ const DUPLICATE_WINDOW_MS = 2 * 60 * 1000;
  * 새로 남길 때(POST)와 고칠 때(PATCH)가 같은 규칙을 써야 하므로
  * 한 곳에 모아둔다. 따로 두면 한쪽만 고쳐져 서로 어긋난다.
  */
-function checkEntry(body: Record<string, unknown>): { error: string } | CheckedEntry {
+function checkEntry(
+  body: Record<string, unknown>
+): { error: string } | { entry: CheckedEntry; legacyEffort: boolean } {
   const checkedType = validateSessionType(String(body.sessionType ?? ''));
   if ('error' in checkedType) return checkedType;
 
@@ -58,11 +63,10 @@ function checkEntry(body: Record<string, unknown>): { error: string } | CheckedE
   const resting = isRestSession(checkedType.value);
 
   const pitchCount = resting ? 0 : Number.parseInt(String(body.pitchCount), 10);
-  const intensity = resting ? 0 : Number.parseInt(String(body.intensity), 10);
 
   if (!resting) {
-    if (Number.isNaN(pitchCount) || Number.isNaN(intensity)) {
-      return { error: '투구수와 강도를 올바르게 입력해주세요' };
+    if (Number.isNaN(pitchCount)) {
+      return { error: '투구수를 올바르게 입력해주세요' };
     }
     if (pitchCount < 1) {
       return {
@@ -74,10 +78,14 @@ function checkEntry(body: Record<string, unknown>): { error: string } | CheckedE
         error: `투구수가 ${MAX_PITCH_COUNT}구를 넘어요. 자릿수를 잘못 누르지 않았는지 확인해 주세요. 나눠 던졌다면 따로 나눠 남겨 주세요`,
       };
     }
-    if (intensity < 1 || intensity > 10) {
-      return { error: '투구 강도는 1에서 10 사이여야 합니다' };
-    }
   }
+
+  /*
+   * 체감 강도 — 새 화면은 effortPct(5~100%)를, 옛 화면(배포 직전에 열어 둔 탭 · 옛 앱)은 intensity(1~10)를 보낸다.
+   * 둘 다 같은 규칙으로 읽어 두 칸을 채운다(lib/pitch-effort.ts). 쉰 날은 effortPct null · intensity 0.
+   */
+  const effort = readEffortInput(body, resting);
+  if ('error' in effort) return effort;
 
   /*
    * 구속은 둘 다 선택 항목이다.
@@ -117,12 +125,16 @@ function checkEntry(body: Record<string, unknown>): { error: string } | CheckedE
   }
 
   return {
-    sessionType: checkedType.value,
-    pitchCount,
-    intensity,
-    maxVelocity,
-    avgVelocity,
-    memo: String(body.memo ?? '').trim() || null,
+    entry: {
+      sessionType: checkedType.value,
+      pitchCount,
+      intensity: effort.intensity,
+      effortPct: effort.effortPct,
+      maxVelocity,
+      avgVelocity,
+      memo: String(body.memo ?? '').trim() || null,
+    },
+    legacyEffort: effort.legacy,
   };
 }
 
@@ -264,10 +276,12 @@ export async function POST(req: Request) {
       );
     }
 
-    const checked = checkEntry(body);
-    if ('error' in checked) {
-      return NextResponse.json({ error: checked.error }, { status: 400 });
+    const read = checkEntry(body);
+    if ('error' in read) {
+      return NextResponse.json({ error: read.error }, { status: 400 });
     }
+    /* 새로 남길 때는 옛 화면이 보낸 1~10 도 그대로 받는다 — effortPct 는 비운 채(null) 남는다 */
+    const checked = read.entry;
 
     const rating = checkSatisfaction(body, checked.sessionType);
     if ('error' in rating) {
@@ -282,8 +296,8 @@ export async function POST(req: Request) {
 
     /*
      * 같은 것을 두 번 남기지 않는다. 휴대폰 신호가 약하면 저장은 됐는데 답만 못 받아 '저장에 실패'가 뜨고, 다시 누르면 같은
-     * 기록이 두 줄이 되어 그날 투구수 · 부하 지수가 두 배가 됐다. 방금(2분 안) 똑같은 값(종류 · 투구수 · 강도 · 구속 · 메모 ·
-     * 영상)으로 만든 기록이 있으면 새로 만들지 않고 그것을 돌려준다 — 사람이 2분 안에 똑같은 기록을 두 번 남길 일은 없다.
+     * 기록이 두 줄이 되어 그날 투구수 · 부하 지수가 두 배가 됐다. 방금(2분 안) 똑같은 값(종류 · 투구수 · 강도 · 체감 강도 % ·
+     * 구속 · 메모 · 영상)으로 만든 기록이 있으면 새로 만들지 않고 그것을 돌려준다 — 사람이 2분 안에 똑같은 기록을 두 번 남길 일은 없다.
      */
     const duplicate = await prisma.pitchLog.findFirst({
       where: {
@@ -343,17 +357,29 @@ export async function PATCH(req: Request) {
     // 남의 기록을 고치지 못하게 본인 것인지 먼저 확인한다.
     const target = await prisma.pitchLog.findFirst({
       where: { id, userId: user.id },
-      select: { id: true, videoPaths: true },
+      select: { id: true, videoPaths: true, intensity: true },
     });
 
     if (!target) {
       return NextResponse.json({ error: '기록을 찾을 수 없어요' }, { status: 404 });
     }
 
-    const checked = checkEntry(body);
-    if ('error' in checked) {
-      return NextResponse.json({ error: checked.error }, { status: 400 });
+    const read = checkEntry(body);
+    if ('error' in read) {
+      return NextResponse.json({ error: read.error }, { status: 400 });
     }
+    /*
+     * 체감 강도 칸은 저장된 강도를 보고 넣는다(lib/pitch-effort.ts effortUpdate). 옛 화면은 1~10 만 보내서, 그대로 덮으면
+     * 85% 로 남긴 기록을 옛 탭에서 메모만 고쳐도 % 가 지워진다 — 같은 강도면 % 칸을 안 건드리고, 다르면 비운다.
+     */
+    const { effortPct, intensity, ...rest } = read.entry;
+    const checked = {
+      ...rest,
+      ...effortUpdate(
+        { effortPct, intensity, legacy: read.legacyEffort },
+        target.intensity
+      ),
+    };
     const rating = checkSatisfaction(body, checked.sessionType);
     if ('error' in rating) {
       return NextResponse.json({ error: rating.error }, { status: 400 });

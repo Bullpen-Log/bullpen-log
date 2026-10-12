@@ -13,10 +13,15 @@ export type PlanNoteData = {
   throwing: boolean;
   /** '40~60구'. 쉬는 날로 잡힌 계획에는 빈 문자열이다. */
   pitches: string;
-  /** '강도 6~8' */
+  /** '강도 60~80%'(lib/report/plan.ts intensityRangeText) */
   intensity: string;
   /** 왜 이 계획인지 한 줄 */
   reason: string;
+  /**
+   * 던지는 등판 날인가(lib/report/plan.ts 의 DayPlan.outing 'game', 2판 P3). 양은 경기가 정해 보통은 나이 한도('95구 이하')만
+   * 있거나 비어 있다. 회복 중인 등판 날은 가벼운 범위가 그대로 온다. 안 주면 아니다.
+   */
+  game?: boolean;
 };
 
 export function PlanNote({ plan }: { plan: PlanNoteData }) {
@@ -24,7 +29,11 @@ export function PlanNote({ plan }: { plan: PlanNoteData }) {
     <div className="rounded-xl border border-line bg-surface-2 px-4 py-3">
       <p className="text-xs font-medium tracking-normal text-sky">오늘 계획</p>
       <p className="mt-1 text-sm font-semibold text-ink">
-        {plan.throwing ? `${plan.pitches} · ${plan.intensity}` : '휴식'}
+        {plan.game
+          ? ['등판', plan.pitches, plan.intensity].filter(Boolean).join(' · ')
+          : plan.throwing
+            ? `${plan.pitches} · ${plan.intensity}`
+            : '휴식'}
       </p>
       <p className="mt-0.5 text-xs leading-relaxed text-muted">{plan.reason}</p>
     </div>

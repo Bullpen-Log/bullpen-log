@@ -1,3 +1,12 @@
+import { exactOutingDay, nextOutingDays, todayOutingRole } from '@/lib/checkin';
+import type { YesterdayArmLoad, YesterdayArmLoadKind } from '@/lib/engine/arm-load';
+import type { DayState } from '@/lib/engine/day-state';
+import {
+  LOWER_POWER_KEY,
+  UPPER_POWER_KEY,
+  movementKeyOf,
+  type ClassifiableExercise,
+} from '@/lib/engine/exercise-class';
 import { intensityLevel } from '@/lib/exercise-meta';
 import { canDo } from '@/lib/report/equipment';
 import { filterByLevel } from '@/lib/report/personalize';
@@ -751,6 +760,50 @@ export function itemRx(plan: ProgramPlan, day: number, variant: VariantKey): Ite
   return dayPlan(plan, day).items.find((x) => x.variant === variant) ?? null;
 }
 
+/**
+ * 변형이 쓰는 동작 열쇠(lib/engine/exercise-class.ts movementKeyOf 와 같은 말) — 고정 운동을 모를 때 쓰는 기본값.
+ *
+ * 변형 규칙(VARIANT_RULES)이 고르는 운동의 열쇠와 같다: 큰 하체 · 한 다리 · 밀기 · 당기기는 그 계열(하체 · 상체 스트렝스만 고르므로),
+ * 점프는 하체 파워(파워 · 스쿼트 · 런지), 메디신볼 · 회전 던지기는 상체 파워(먼저 고르는 것이 던지기 — 밀기 · 당기기 · 회전).
+ * 몸통 버티기는 코어라 열쇠가 없다(null). 기본기의 메디신볼 칸은 공이 없으면 맨몸 점프로 채운다 — 그런 칸 · 뛰며 던지는 것을 고정한
+ * 칸은 기본값이 틀리니, 고정 운동을 아는 쪽은 patternsOfProgramDay 의 exerciseOf 로 넘긴다.
+ */
+export const VARIANT_MOVEMENT_KEY: Record<VariantKey, string | null> = {
+  squat: '스쿼트',
+  hinge: '힌지',
+  push: '밀기',
+  pull: '당기기',
+  singleLeg: '런지',
+  jump: LOWER_POWER_KEY,
+  medball: UPPER_POWER_KEY,
+  antiRotation: null,
+  rotationalThrow: UPPER_POWER_KEY,
+};
+
+/**
+ * 그날(일차) 프로그램이 쓰는 동작 열쇠 — 매일 일정이 같은 동작을 겹쳐 내지 않게 고르기 점수(2판 P5)가 읽는다. 예: 내일 프로그램
+ * 일차에 스쿼트 · 밀기 칸이 있으면 오늘 일정의 바벨 스쿼트 · 벤치 프레스를 뒤로 민다.
+ *
+ * 순수 도우미다 — 무엇을 할지(dayPlan)만 읽고 몸 상태 · 그날 조정(decideToday)은 보지 않는다(그날 빠지는 칸이 있어도 '하기로 한 것'을
+ * 센다). plan 이 null(모르는 키 — parseProgram 실패)이면 빈 집합. exerciseOf 로 변형마다 고정한 운동을 넘기면 그 운동의 열쇠를 쓰고
+ * (movementKeyOf — 기본값보다 정확하다), 운동을 모르는 변형은 VARIANT_MOVEMENT_KEY 로. 열쇠가 없는 칸(코어)은 넣지 않는다.
+ * 같은 plan · day · 고정이면 늘 같은 집합이다.
+ */
+export function patternsOfProgramDay(
+  plan: ProgramPlan | null,
+  day: number,
+  exerciseOf?: (variant: VariantKey) => ClassifiableExercise | null | undefined
+): Set<string> {
+  const out = new Set<string>();
+  if (!plan) return out;
+  for (const x of dayPlan(plan, day).items) {
+    const ex = exerciseOf?.(x.variant);
+    const key = ex ? movementKeyOf(ex) : VARIANT_MOVEMENT_KEY[x.variant];
+    if (key != null) out.add(key);
+  }
+  return out;
+}
+
 /** 칸 이름 — 기본기의 첫 칸은 메디신볼이 없으면 점프로 채워 '던지기 · 점프'라 부른다 */
 export function variantLabel(v: VariantKey, audience: ProgramAudience = 'adult'): string {
   return audience === 'basics' && v === 'medball' ? '던지기 · 점프' : VARIANT_LABELS[v];
@@ -1381,12 +1434,21 @@ export type TodaySignals = {
   otherWorkoutStarted: boolean;
   /** 오늘 통증으로 운동이 멈췄는가(halted) */
   halted: boolean;
-  /** 던지는 일정 */
+  /** 던지는 일정 — 아래 programSignalsOf 가 등판 답 · 투구 기록으로 만든다 */
   gameToday: boolean;
   gameTomorrow: boolean;
+  /**
+   * 어제 팔 부담이 컸다 — 이름은 예전 그대로지만 2판 P4 커밋 F(D3)부터 달력('어제 경기')이 아니라 부하다: 어제 세게 던진 날 · 중간 부하 +
+   * 운동 힘듦 급증 · 기록 없는 등판 다음 날(lib/engine/arm-load.ts yesterdayArmLoadOf). 어제 경기 15구는 아니고, 어제 불펜 40구 90% 는 그렇다.
+   */
   gameYesterday: boolean;
   bullpenToday: boolean;
-  /** 세게 던진 불펜 · 라이브(강도 9~10 · 30구+) 당일 또는 다음 날 */
+  /**
+   * 오늘 · 어제 세게 던진 날이 있다 — 매일 일정과 같은 판정(lib/report/theme.ts hardOuting = 오늘 상태 한 장의 load.hardOuting,
+   * 문턱은 lib/report/facts.ts isHardOuting: Σ 투구수 × 체감 강도 ≥ 2,700, 경기는 100%, 2판 D2). 프로그램이 따로 세지 않는다.
+   * 어제 세게 던진 날은 2판 P4 커밋 F 부터 gameYesterday 로 먼저 쉬므로(넘기면 gameOverride 가 앞선다) 이 주의는 사실상 오늘 세게 던진 날에 붙는다.
+   * 2판 P6-2 부터 앱은 오늘 세게 던진 날도 hardToday 로 먼저 쉬어, 이 주의는 그 신호를 안 주는 옛 입력에서만 보인다.
+   */
   hardThrowRecent: boolean;
   /** 경기 때문에 쉬는 날을 '그래도 오늘 할래요'로 넘겼는가(D24) */
   override: boolean;
@@ -1397,17 +1459,165 @@ export type TodaySignals = {
   sleepShort: boolean;
   /** 부하 지수 모름 · 메모 통증 확인 전 · 상하체 함께 통증(D22) */
   uncertain: boolean;
-  /** 특정 부위 통증 · 뻐근 · 재활 관절로 그날 대체할 칸 */
+  /** 특정 부위 통증 · 뻐근 · 재활 관절 · 팔 피로 '심함'으로 그날 대체할 칸 */
   painSlots: readonly SlotKind[];
+  /**
+   * 대체할 칸의 까닭(painSlotsOf 가 만든다) — 없는 칸은 '통증 부위'. 팔 피로 '심함'(안전 거르기 5-2)만으로 고정 운동이 빠진 칸은 '팔 피로'다
+   * (2판 P4 검토 — 통증을 안 적은 날 '대체 · 통증 부위'가 보였다). 선택 칸이라 옛 입력 · 시험의 신호는 그대로 '통증 부위'.
+   */
+  slotReasons?: Partial<Record<SlotKind, string>>;
+  /*
+   * ── 중재 신호(트레이닝 추천 2판 P6-2, 2026-10-13) ── 모두 선택 칸이다. 안 주면 판정이 예전과 글자 하나 같다(옛 입력 · 시험 그대로).
+   * 앱(lib/program/load.ts) · 자체 시험 · 기준선 도구는 lib/engine/arbiter.ts 의 programArbiterSignals 하나로 만든다. 이 파일이 중재를
+   * 부르면 중재가 이 파일을 부르므로 순환이라, 신호는 부르는 쪽이 만들어 넘긴다(비판 1 빈틈 3).
+   */
+  /**
+   * 오늘 팔을 다 썼다(중재 armBudget.spent — 오늘 등판 · 오늘 경기 기록 · 오늘 세게 던진 날). 오늘 일차의 팔로 던지는 변형(armThrows)을
+   * 그날 뺀다(go 의 deferVariants) — 칸이 아니라 변형으로 빼서 같은 파워 칸의 점프는 남는다. '그래도 오늘 할래요'로도 안 풀린다(중재의
+   * 등판 보호 층 — 쉬는 날을 넘겨도 팔은 아낀다).
+   */
+  armSpent?: boolean;
+  /** 팔로 던지는 변형 — 고정 운동으로 가른 것(programArbiterSignals). 없으면 ARM_THROW_VARIANTS 로 짐작한다 */
+  armThrows?: readonly VariantKey[];
+  /**
+   * 어제 하체 날이었다(프로그램 날이 아닌 매일 일정의 하체 — 중재 lowerBudget.programLighter). 오늘 일차에 큰 하체가 있으면 빼지 않고
+   * 가볍게 한다(D6 '그날의 프로그램 운동 그대로'를 지킨다, 무거운 하체가 48시간 안에 두 번 없게). '그래도 오늘 할래요'면 그대로(중재와 같은 규칙).
+   */
+  heavyLowerYesterday?: boolean;
+  /**
+   * 오늘 세게 던진 날(오늘 상태 한 장 load.hardOuting 이 오늘 — facts.ts isHardOuting). 쉬는 날(rest 'hardToday')이다. 같은 날 매일 일정은
+   * 회복(날 종류 R1)이고 중재도 프로그램을 쉬게 해서(비판 1 빈틈 28), 프로그램 카드만 '하는 날'이라 말하지 않게 맞춘다. 넘길 수 있다.
+   */
+  hardToday?: boolean;
+  /** 오늘 체크인에서 운동 종류 '회복'을 골랐다 — 쉬는 날(rest 'chooseRecovery'). 넘길 수 있다(중재의 사용자 선택 층과 같은 날) */
+  choseRecovery?: boolean;
+  /**
+   * 다음 등판 창의 끝이 3일 안이다(중재 outingNearOf.soon — 매일 일정 안전 거르기 2-2 와 같은 창, 짐작한 출처 포함, 2판 P6 검토). 그날 큰 하체를
+   * 빼지 않고 가볍게 한다 — 매일 일정은 이날 무거운 하체를 빼는데 프로그램만 처방대로 내던 것을 맞춘다. '그래도 오늘 할래요'로 넘겨도 가볍게
+   * (매일 일정의 등판 창 거르기가 '그래도 하기'로 안 풀리는 것과 같다).
+   */
+  outingSoon?: boolean;
+  /**
+   * 짐작한(달력 · 같은 요일) 다음 등판이 오늘이나 내일이다(중재 outingNearOf.softNear — 날 종류 R4' 와 같은 조건, 2판 P6 검토). 큰 하체 · 파워를
+   * 가볍게 한다 — P4 결정 '짐작은 가볍게 하는 쪽에만'(쉬게 하지 않는다).
+   */
+  softOutingNear?: boolean;
 };
 
-export type RestReason = 'gameToday' | 'gameTomorrow' | 'gameYesterday';
+/**
+ * 팔로 던지는 프로그램 변형 — 메디신볼 · 회전 던지기. 둘 다 메디신볼을 던지는 상체 파워다(VARIANT_MOVEMENT_KEY 가 상체 파워로 적고, 고정
+ * 운동은 exercise-class.ts isArmPlyo 가 참 — 메디신볼 장비). 점프(하체 파워)는 같은 파워 칸이지만 팔을 안 쓴다 — 그래서 칸(SlotKind)이
+ * 아니라 변형 단위로 뺀다(칸 단위로 빼면 점프까지 지운다, 비판 1 빈틈 35). 기본기의 메디신볼 칸에 맨몸 점프를, 회전 던지기 칸에 돌리는
+ * 코어를 고정했으면 던지지 않는다 — 고정 운동을 알면 programArbiterSignals 가 그 운동으로 가른다(armThrows).
+ * lib/engine/arbiter.ts 가 같은 상수를 다시 내보낸다(한 곳 — 중재가 이 파일을 부르므로 여기 둔다).
+ */
+export const ARM_THROW_VARIANTS: readonly VariantKey[] = ['medball', 'rotationalThrow'];
+
+/** 팔을 아끼는 날 뺀 변형의 줄 표시 — 카드의 '오늘 뺌: 메디신볼 체스트 패스 · 팔 아끼는 날' */
+export const ARM_DEFER_REASON = '팔 아끼는 날';
+
+/** 그날 대체한 칸 · 운동의 까닭 — 화면 꼬리표 '대체 · …'에 그대로 붙는다 */
+export const SUBSTITUTE_REASON = { pain: '통증 부위', armFatigue: '팔 피로' } as const;
+
+/**
+ * 그날 대체할 칸 — 고정 운동(pinnedOf)이 안전 거르기(partsOnly)를 못 지난 칸과 그 까닭. 앱(lib/program/load.ts)과 자체 시험이 이 함수
+ * 하나를 부른다(2판 P4 검토 — 시험이 painSlots 를 빈 목록으로 두어 앱과 다른 모양을 쟀다).
+ *
+ * 까닭은 팔 피로 '심함'만으로 빠진 운동(lib/report/prescription.ts droppedOnlyForArmFatigue)이면 '팔 피로', 그 밖은 '통증 부위'. 한 칸에
+ * 둘이 섞이면(스쿼트 · 힌지처럼 한 칸에 둘) '통증 부위'가 이긴다 — 더 조심할 까닭을 말한다.
+ */
+export function painSlotsOf(
+  items: readonly { slot: SlotKind; variant: VariantKey }[],
+  pinnedOf: (variant: VariantKey) => { id: string } | null,
+  safeIds: ReadonlySet<string>,
+  armFatigueOnlyIds: ReadonlySet<string>
+): { painSlots: SlotKind[]; slotReasons: Partial<Record<SlotKind, string>> } {
+  const painSlots: SlotKind[] = [];
+  const slotReasons: Partial<Record<SlotKind, string>> = {};
+  for (const x of items) {
+    const ex = pinnedOf(x.variant);
+    if (!ex || safeIds.has(ex.id)) continue;
+    const reason = armFatigueOnlyIds.has(ex.id)
+      ? SUBSTITUTE_REASON.armFatigue
+      : SUBSTITUTE_REASON.pain;
+    if (!painSlots.includes(x.slot)) painSlots.push(x.slot);
+    if (slotReasons[x.slot] !== SUBSTITUTE_REASON.pain) slotReasons[x.slot] = reason;
+  }
+  return { painSlots, slotReasons };
+}
+
+/** 프로그램이 읽는 던지는 신호 — TodaySignals 의 넷 칸 그대로 */
+export type ProgramSignals = Pick<
+  TodaySignals,
+  'gameToday' | 'gameTomorrow' | 'gameYesterday' | 'bullpenToday'
+>;
+
+export type ProgramSignalsInput = {
+  /** 오늘 · 어제 등판 답 — 오늘 상태 한 장(lib/engine/day-state.ts)의 outing 칸 그대로(목록 밖 글자는 이미 null) */
+  outing: Pick<DayState['outing'], 'answerToday' | 'answerYesterday'>;
+  /** 오늘 투구 기록의 세션 종류 — 투구수는 보지 않는다(0구 '경기' 줄도 오늘은 경기로 읽는다) */
+  typesToday: readonly string[];
+  /**
+   * 어제 팔 부담(lib/engine/arm-load.ts yesterdayArmLoadOf(facts) 그대로) — 세게 던진 날 · 중간 부하 + 힘듦 급증 · 기록 없는 등판, 아니면 null.
+   * 2판 P4 커밋 F 전에는 어제 기록의 세션 종류(typesYesterday)를 받아 '경기'면 쉬었다.
+   */
+  yesterdayArmLoad: Pick<YesterdayArmLoad, 'kind'> | null;
+};
+
+/**
+ * 프로그램의 던지는 신호 — 경기 날 · 전날, 어제 팔 부담이 큰 날은 쉬고(넘기기 가능), 불펜 날은 회전 던지기 칸을 뺀다(decideToday).
+ *
+ * 왜 여기 두는가. 2판 P3(2026-10-12) 전에는 lib/program/load.ts 의 throwSignals 가 체크인 두 줄을 따로 읽어 '오늘 등판' 같은
+ * 글자를 직접 견줬고, 자체 시험 엇갈림 표가 그 식을 베껴 두었다(앱이 바뀌면 시험이 옛 식을 재는 셈). 이제 답은 오늘 상태 한
+ * 장에서 받고, 답을 날로 읽는 것은 lib/checkin.ts 의 nextOutingDays · exactOutingDay · todayOutingRole 로만 한다 — 앱(load.ts)과 시험이 이
+ * 함수 하나를 부른다.
+ *
+ *   gameToday     오늘 '오늘 등판' · 어제 '내일 등판' · 오늘 '경기' 기록
+ *   gameTomorrow  오늘 '내일 등판'
+ *   gameYesterday 어제 팔 부담이 컸다(yesterdayArmLoad — 세게 던진 날 · 중간 부하 + 힘듦 급증 · 어제 '오늘 등판' 답에 기록 없음)
+ *   bullpenToday  오늘 '오늘 불펜' · 오늘 불펜 · 라이브 기록
+ *   '2~3일 뒤' · '4일 이상 뒤' · '없음'은 날을 못 박지 못하니 앞의 둘 · 불펜은 false.
+ *
+ * 2판 P4 커밋 F(D3, 2026-10-12)에서 gameYesterday 를 달력에서 부하로 바꿨다. 예전에는 어제 '경기' 기록이면 0구 · 15구라도, 어제 '오늘
+ * 등판' 답이면 가볍게 던진 기록이 있어도 '경기 다음 날'로 쉬었고, 어제 불펜 40구 90% 처럼 세게 던진 날은 주의 한 줄만 달고 했다. 이제
+ * 매일 일정의 날 종류(R1 의 어제 쪽 · R2 · R3') · 암케어의 회복 루틴과 같은 함수(yesterdayArmLoadOf)로 같은 어제를 같게 읽는다.
+ *
+ * 다른 독자와 다른 곳 하나(지금 값 그대로 — 맞출지는 사용자 확인 뒤):
+ *   - 어제 '내일 등판'은 오늘 답과 상관없이 경기 날이다. 매일 일정 · 영양 · 투구 계획은 오늘 답이 이긴다(nextOutingWindow) —
+ *     오늘 '없음'으로 고친 날 프로그램만 '경기 날이에요'로 쉬고, 비로 밀려 오늘 다시 '내일 등판'이면 '내일 경기예요'가 아니라
+ *     '경기 날이에요'가 앞선다(쉬는 것은 같다).
+ */
+export function programSignalsOf(x: ProgramSignalsInput): ProgramSignals {
+  const today = exactOutingDay(nextOutingDays(x.outing.answerToday));
+  /* 어제 답을 어제 기준으로 — 1 은 오늘이 등판 날(어제 '오늘 등판'은 이제 yesterdayArmLoad 가 부하로 본다) */
+  const yesterday = exactOutingDay(nextOutingDays(x.outing.answerYesterday));
+  return {
+    gameToday: today === 0 || yesterday === 1 || x.typesToday.includes('경기'),
+    gameTomorrow: today === 1,
+    gameYesterday: x.yesterdayArmLoad != null,
+    /* 불펜은 오늘 답만(어제 답은 불펜을 이월하지 않는다) — 투구 계획 · 암케어와 같은 함수 */
+    bullpenToday:
+      todayOutingRole(x.outing.answerToday, x.outing.answerYesterday) === 'bullpen' ||
+      x.typesToday.some((t) => t === '불펜' || t === '라이브'),
+  };
+}
+
+/**
+ * 쉬는 까닭 — 경기 날 · 전날 · 어제 팔 부담, 그리고 2판 P6-2 부터 오늘 세게 던진 날(hardToday) · 오늘 '회복'을 고름(chooseRecovery).
+ * 뒤의 둘은 그 신호를 넘긴 부르는 쪽에서만 나온다.
+ */
+export type RestReason =
+  'gameToday' | 'gameTomorrow' | 'gameYesterday' | 'hardToday' | 'chooseRecovery';
 
 export type CautionCode =
+  | 'armRest'
   | 'gameOverride'
   | 'recovery'
   | 'hardThrow'
   | 'uncertain'
+  | 'outingGuess'
+  | 'outingSoon'
+  | 'lowerBudget'
   | 'lighter'
   | 'restGap'
   | 'lightWeek';
@@ -1435,6 +1645,11 @@ export type TodayDecision =
       adjust: Partial<Record<SlotKind, SlotAdjust>>;
       /** 마지막 프로그램 세션 뒤 쉰 날 수(무게 추천의 '쉰 기간'에 쓴다) */
       gapDays: number | null;
+      /**
+       * 오늘 뺄 변형 — 팔을 다 쓴 날(armSpent) 오늘 일차의 팔로 던지는 변형(2판 P6-2). 칸 조정(adjust)과 따로 둔다 — 칸은 점프와 메디신볼이
+       * 같은 파워 칸이라 칸으로 빼면 점프까지 빠진다. 뺄 것이 있을 때만 칸이 생긴다(옛 판정과 모양이 같게). 읽는 쪽은 `?? []`.
+       */
+      deferVariants?: VariantKey[];
     };
 
 export function daysBetween(fromKey: string, toKey: string): number {
@@ -1448,6 +1663,12 @@ export function daysBetween(fromKey: string, toKey: string): number {
  *
  * 프로그램은 스스로 진행한다(D22). 기다리는 것은 통증 멈춤 · 경기 앞뒤(넘길 수 있음) · 어제 프로그램 날뿐이고,
  * 나머지 나쁜 날은 진행하되 주의 한 줄과 칸 조정으로 알린다(§4 · §5 · §6).
+ *
+ * 2판 P6-2(2026-10-13) — 중재(lib/engine/arbiter.ts)가 정한 하루를 프로그램 카드도 같은 말로 하게 신호 다섯을 더 받는다(모두 선택 칸,
+ * 안 주면 예전과 같다. armThrows 는 armSpent 가 뺄 변형을 고정 운동으로 가르는 칸). 오늘 세게 던진 날 · 오늘 '회복'을 고른 날은 쉬는 날(넘길 수 있음 — 중재의 쉬라는 날 · 사용자 선택 층), 팔을 다 쓴
+ * 날은 팔로 던지는 변형을 뺀다(넘겨도 뺀다 — 등판 보호 층), 어제 하체 날이면 큰 하체를 가볍게(넘기면 그대로 — 예산 층).
+ * 2판 P6 검토(같은 날) — 둘 더(outingSoon · softOutingNear, 선택 칸): 다음 등판 창의 끝이 3일 안이면 큰 하체를, 짐작한 등판이 오늘 · 내일이면
+ * 큰 하체 · 파워를 가볍게(넘겨도 — 매일 일정의 등판 창 거르기와 같은 원칙).
  */
 export function decideToday(plan: ProgramPlan, s: TodaySignals): TodayDecision {
   const day = s.nextDay;
@@ -1466,7 +1687,11 @@ export function decideToday(plan: ProgramPlan, s: TodaySignals): TodayDecision {
       ? 'gameTomorrow'
       : s.gameYesterday
         ? 'gameYesterday'
-        : null;
+        : s.hardToday
+          ? 'hardToday'
+          : s.choseRecovery
+            ? 'chooseRecovery'
+            : null;
   if (restReason && !s.override) {
     return { kind: 'rest', day, reason: restReason, canOverride: true };
   }
@@ -1482,6 +1707,26 @@ export function decideToday(plan: ProgramPlan, s: TodaySignals): TodayDecision {
   }
   /* 근육통 '많이' · 잠 부족 — 가장 센 칸(큰 하체)만 가볍게 */
   if (s.soreMany || s.sleepShort) adjust.bigLower = { kind: 'lighter' };
+  /*
+   * 어제 하체 날(매일 일정) — 오늘 큰 하체를 빼지 않고 가볍게(무거운 하체가 48시간 안에 두 번 없게, D6 '그대로'를 지킨다). 그날 큰 하체가
+   * 있을 때만 칸을 건드린다(주의 한 줄이 실제로 바뀐 것만 말하게). '그래도 오늘 할래요'로 연 날은 그대로 — 중재(arbitrate 의
+   * lighterBigLower)와 같은 규칙이다.
+   */
+  const lowerBudget =
+    s.heavyLowerYesterday === true &&
+    !s.override &&
+    items.some((x) => x.slot === 'bigLower');
+  if (lowerBudget) adjust.bigLower = { kind: 'lighter' };
+  /*
+   * 다음 등판이 가깝다(2판 P6 검토) — 창의 끝이 3일 안이면 큰 하체를, 짐작한 등판이 오늘 · 내일이면 큰 하체 · 파워를 가볍게. 빼지 않는다(D6 '그대로').
+   * 넘긴 날(override)에도 한다 — 매일 일정의 등판 창 거르기와 같은 원칙(쉬는 날은 넘겨도 다리는 아낀다). 파워 칸은 아래 부하 '주의'가 빼면 그쪽이 이긴다.
+   */
+  const hasBig = items.some((x) => x.slot === 'bigLower');
+  const hasPower = items.some((x) => x.slot === 'power');
+  const outingGuess = s.softOutingNear === true && (hasBig || hasPower);
+  const outingSoon = !outingGuess && s.outingSoon === true && hasBig;
+  if ((outingGuess || outingSoon) && hasBig) adjust.bigLower = { kind: 'lighter' };
+  if (outingGuess && hasPower) adjust.power = { kind: 'lighter' };
   /* 부하 '주의' — 파워 칸을 뺀다 */
   if (s.loadCaution) adjust.power = { kind: 'drop', reason: '부하 주의' };
   /* 불펜 날 — 회전 던지기를 뺀다(몸통 칸) */
@@ -1493,57 +1738,142 @@ export function decideToday(plan: ProgramPlan, s: TodaySignals): TodayDecision {
     if (adjust[slot]?.kind !== 'drop')
       adjust[slot] = {
         kind: 'substitute',
-        reason: '통증 부위',
+        reason: s.slotReasons?.[slot] ?? SUBSTITUTE_REASON.pain,
         ...(adjust[slot]?.kind === 'lighter' ? { lighter: true as const } : {}),
       };
+  }
+  /*
+   * 팔을 다 쓴 날 — 오늘 일차의 팔로 던지는 변형을 뺀다(칸이 아니라 변형 — 점프는 남는다). 넘긴 날(override)에도 뺀다: 쉬는 날은
+   * 사용자가 넘길 수 있어도 등판 · 세게 던진 날의 팔은 아낀다(중재의 등판 보호 층은 '그래도 하기'로 안 풀린다). 통증으로 대체할 칸이어도
+   * 먼저 뺀다(대체 후보도 같은 변형이라 또 던진다 — 읽는 쪽 load.ts 가 뺀 변형을 대체보다 먼저 본다).
+   */
+  const throws = s.armThrows ?? ARM_THROW_VARIANTS;
+  const deferVariants: VariantKey[] = [];
+  if (s.armSpent) {
+    for (const x of items) {
+      if (throws.includes(x.variant) && !deferVariants.includes(x.variant))
+        deferVariants.push(x.variant);
+    }
   }
 
   return {
     kind: 'go',
     day,
     week,
-    caution: pickCaution(s, isLightWeek(plan, week), gapDays),
+    caution: pickCaution(s, isLightWeek(plan, week), gapDays, {
+      armRest: deferVariants.length > 0,
+      lowerBudget,
+      outingGuess,
+      outingSoon,
+    }),
     adjust,
     gapDays,
+    ...(deferVariants.length > 0 ? { deferVariants } : {}),
   };
 }
 
 /**
  * 맨 위 주의는 한 줄만 — 우선순위(§13-6). 칸에만 해당하는 것은 줄 표시로 간다.
- * 경기 날 넘김 > 회복 데이 > 센 불펜 · 라이브 > 부하 모름 · 통증 확인 전 > 부하 주의 · 근육통 · 잠 > 오래 쉼 > 가벼운 주.
+ * 팔 아낌 > 쉬는 날 넘김 > 회복 데이 > 센 불펜 · 라이브 > 부하 모름 · 통증 확인 전 > 짐작한 등판 오늘 · 내일 > 등판 3일 안 > 어제 하체 >
+ * 부하 주의 · 근육통 · 잠 > 오래 쉼 > 가벼운 주.
+ *
+ * applied 는 판정이 실제로 바꾼 것(2판 P6-2) — armRest 팔로 던지는 변형을 뺐다 · lowerBudget 어제 하체 날이라 큰 하체를 가볍게 했다. 신호만
+ * 있고 바뀐 것이 없으면(그날 메디신볼 · 큰 하체가 없음) 말하지 않는다. 안 주면 예전 차례 그대로다.
+ *
+ * 팔 아낌이 쉬는 날 넘김보다 앞인 까닭: 앱에서 팔을 다 쓴 날(오늘 등판 · 경기 기록 · 세게 던진 날)은 모두 쉬는 날이라, 하는 날이 되는 것은
+ * '그래도 오늘 할래요'로 넘긴 날뿐이다. 그날 '쉬는 게 좋은 날이에요'만 보이면 메디신볼이 왜 빠졌는지 모른다 — 팔 아낌 글에 '아프면 바로
+ * 멈춰요'를 같이 적어 넘김 글의 몫도 한다. 어제 하체가 부하 모름 · 통증 확인 전 뒤인 까닭: 안전 쪽 글이 먼저고(가볍게 한 까닭은 줄 표시
+ * '−10% · −1세트'가 보인다), 근육통 · 잠의 '가볍게'(lighter)보다는 까닭이 구체적이라 앞이다.
  */
 export function pickCaution(
   s: TodaySignals,
   lightWeek: boolean,
-  gapDays: number | null
+  gapDays: number | null,
+  applied: {
+    armRest?: boolean;
+    lowerBudget?: boolean;
+    outingGuess?: boolean;
+    outingSoon?: boolean;
+  } = {}
 ): CautionCode | null {
-  if (s.override && (s.gameToday || s.gameTomorrow || s.gameYesterday))
+  if (applied.armRest) return 'armRest';
+  if (
+    s.override &&
+    (s.gameToday || s.gameTomorrow || s.gameYesterday || s.hardToday || s.choseRecovery)
+  )
     return 'gameOverride';
   if (s.recovery) return 'recovery';
   if (s.hardThrowRecent) return 'hardThrow';
   if (s.uncertain) return 'uncertain';
+  /* 등판이 가까워 가볍게 한 날(2판 P6 검토) — 어제 하체보다 앞(다음 등판이 더 가까운 까닭이다) */
+  if (applied.outingGuess) return 'outingGuess';
+  if (applied.outingSoon) return 'outingSoon';
+  if (applied.lowerBudget) return 'lowerBudget';
   if (s.loadCaution || s.soreMany || s.sleepShort) return 'lighter';
   if (gapDays != null && gapDays >= 8) return 'restGap';
   if (lightWeek) return 'lightWeek';
   return null;
 }
 
-/** 주의 한 줄 문구 — 해요체, 줄표 없이 */
+/**
+ * 주의 한 줄 문구 — 해요체, 줄표 없이.
+ *
+ * gameOverride 는 쉬는 날을 넘긴 세 경우(경기 날 · 전날 · 어제 팔 부담) 모두에 붙는다. 예전 글 '경기 날이에요.'는 전날 · 다음 날에도
+ * 맞지 않았고, 2판 P4 커밋 F 부터 어제 세게 던진 불펜 다음 날도 여기 들어와 더 틀린 말이 돼서 까닭을 가리지 않는 글로 바꿨다. 2판 P6-2 부터
+ * 오늘 세게 던진 날 · 오늘 '회복'을 고른 날을 넘긴 때도 이 글이다(까닭을 가리지 않는 글이라 그대로 맞다).
+ *
+ * armRest 는 빼기만 하고 다시 넣는 날을 약속하지 않는다 — 다음 날 일정이 뺀 것을 읽는 곳이 없어서 '내일로 미뤘어요'는 거짓이 된다(비판 1
+ * 빈틈 31 · 32, 중재 ARM_BUDGET_TEXT 와 같은 꼴). lowerBudget 은 중재 LOWER_BUDGET_TEXT.programLighter 가 이 글을 그대로 쓴다(한 곳).
+ */
 export const CAUTION_TEXT: Record<CautionCode, string> = {
-  gameOverride: '경기 날이에요. 가볍게 하고, 아프면 바로 멈춰요.',
+  armRest: '팔을 아끼는 날이라 던지기 운동은 뺐어요. 아프면 바로 멈춰요.',
+  gameOverride: '쉬는 게 좋은 날이에요. 가볍게 하고, 아프면 바로 멈춰요.',
   recovery: '몸이 지쳐 있어요. 무리하지 말고 천천히 해요.',
   hardThrow: '최근에 많이 던졌어요. 무리하지 마요.',
   uncertain: '오늘 상태를 다 알지 못해요. 조심해서 해요.',
+  /* 짐작한(달력 · 같은 요일) 등판이 오늘 · 내일 — 확정이 아니라 '일 수 있어요'(2판 P6 검토) */
+  outingGuess: '곧 등판일 수 있어 큰 하체와 파워는 가볍게 해요.',
+  outingSoon: '등판이 가까워 큰 하체는 가볍게 해요.',
+  /* 어제 하체 날(저장만 한 일정 · 가벼운 하체 날도 센다 — 중재 lowerBudget)이라 '무겁게 했어요'로 단정하지 않는다(2판 P6 검토) */
+  lowerBudget: '어제가 하체 날이라 큰 하체는 가볍게 해요.',
   lighter: '오늘은 조금 가볍게 했어요.',
   restGap: '오래 쉬었어요. 무게를 낮춰 다시 시작해요.',
   lightWeek: '가벼운 주예요. 무게가 낮은 게 맞아요.',
 };
 
+/**
+ * 쉬는 까닭 — 카드 밑 한 줄과 '그래도 할까요?' 창 제목('…. 그래도 할까요?')에 쓰인다. gameYesterday 는 2판 P4 커밋 F 부터 경기가 아니라
+ * 어제 팔 부담(세게 던진 날 · 중간 부하 + 운동 힘듦 급증 · 기록 없는 등판)이라 '경기 다음 날이에요'가 아니다. hardToday · chooseRecovery 는
+ * 2판 P6-2 — 중재의 쉬는 글(PROGRAM_YIELD_TEXT hard · chooseRecovery)과 같은 날을 카드 한 줄 꼴로 말한다.
+ */
 export const REST_TEXT: Record<RestReason, string> = {
   gameToday: '경기 날이에요',
   gameTomorrow: '내일 경기예요',
-  gameYesterday: '경기 다음 날이에요',
+  gameYesterday: '어제 팔 부담이 컸어요',
+  hardToday: '오늘 많이 던졌어요',
+  chooseRecovery: '오늘 회복을 골랐어요',
 };
+
+/**
+ * 어제 팔 부담으로 쉬는 날의 까닭 — 까닭(yesterdayArmLoadOf 의 kind)마다 다르게(2판 P4 검토). 셋을 한 글('어제 팔 부담이 컸어요')로 쓰면
+ * 기록 없는 등판(투구수를 모름)에도 '컸어요'라고 단정하고, 중간 부하 + 힘듦 급증 날엔 매일 일정('어제 N구를 던졌고 최근 운동도
+ * 힘들었어요') · 암케어('어제 N구')와 다른 말을 했다. REST_TEXT.gameYesterday 는 까닭을 모를 때(옛 신호)만 쓴다.
+ */
+export const REST_YESTERDAY_TEXT: Record<YesterdayArmLoadKind, string> = {
+  hard: '어제 많이 던졌어요',
+  moderateSpike: '어제 던졌고 최근 운동도 힘들었어요',
+  claimedNoLog: '어제 등판한 다음 날이에요',
+};
+
+/** 쉬는 까닭 한 줄 — 어제 팔 부담이면 그 까닭대로, 아니면 REST_TEXT */
+export function restTextOf(
+  reason: RestReason,
+  yesterday: YesterdayArmLoadKind | null = null
+): string {
+  return reason === 'gameYesterday' && yesterday
+    ? REST_YESTERDAY_TEXT[yesterday]
+    : REST_TEXT[reason];
+}
 
 /* ─────────────────────────── 일차 넘기기(§9 · U2 · U4) ─────────────────────────── */
 

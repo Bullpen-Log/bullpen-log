@@ -9,6 +9,7 @@ import { formatSeconds } from '@/lib/exercise-meta';
 import { formatWeight, type WeightUnit } from '@/lib/units';
 import { formatSummary, volumeIn, type ExerciseSummary } from '@/lib/workout/summarize';
 import type { NewRecord } from '@/lib/workout/bests';
+import { EffortCard } from './effort-card';
 
 export type DoneRow = {
   id: string;
@@ -30,6 +31,9 @@ function recordText(kind: NewRecord['kind'], value: number, unit: WeightUnit) {
  * 운동 끝 화면의 그림 — 링이 한 바퀴 그려지고 체크가 톡 뜨며 손에 두 번 떤다. 아래 덩이는 차례로
  * 떠오른다(globals.css 'done-ring' · 'rise-in', 움직임 줄이기면 처음부터 다 보인다). [완료]는 처음부터
  * 서 있다 — 축하가 끝나기를 기다리게 하지 않는다.
+ *
+ * 힘듦 한 번(2판 P2): askEffort 가 있으면 [완료] 바로 위에 칩 넷(effort-card.tsx)을 둔다 — 굴리지 않아도 보이는 자리.
+ * [완료]는 칩과 상관없이 늘 누를 수 있다(건너뛰어도 된다).
  */
 export function DoneClient({
   themeLabel,
@@ -39,7 +43,10 @@ export function DoneClient({
   volumeKg,
   rows,
   program = null,
+  askEffort = null,
 }: {
+  /** 힘듦 칩을 보일 판 — null 이면 그날 강도를 이미 남겨 묻지 않는다(page.tsx 가 DailyTrainingNote 유무로 정한다) */
+  askEffort?: { sessionId: string } | null;
   /** 근력 · 파워 프로그램 날이면 — 일차 넘김 · 고비 한 줄 · 운동별 추천 → 실제(설계 §13-9) */
   program?: {
     headline: string;
@@ -216,6 +223,7 @@ export function DoneClient({
       </div>
 
       <div className="shrink-0 px-5 pt-3 pb-[max(1rem,env(safe-area-inset-bottom))]">
+        {askEffort && <EffortCard sessionId={askEffort.sessionId} />}
         <Link
           href="/training"
           replace

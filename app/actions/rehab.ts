@@ -7,6 +7,7 @@ import { prisma } from '@/lib/prisma';
 import { requireUser } from '@/lib/dal';
 import { ageFromBirthDate } from '@/lib/profile';
 import { shiftDateKey, toDateKey } from '@/lib/pitch-stats';
+import { effortFields } from '@/lib/pitch-effort';
 import { visibleExercises } from '@/lib/library-cache';
 import type { ArmcareAreaKey } from '@/lib/armcare/anatomy';
 import {
@@ -691,7 +692,11 @@ export async function logRehabThrow(input: {
         date,
         sessionType: throwSessionType(step),
         pitchCount: pitches,
-        intensity: throwIntensity(step, pitches),
+        /*
+         * 체감 강도(%)도 같이 남긴다(2판 D2). 복귀표의 1~10(절반 힘 5 · 3/4 힘 7 · 거의 전력 9)을 × 10 — 같은 값이라
+         * 부하 · 휴식 셈은 그대로고, 그날 화면이 % 로 보인다. 칸의 강도 규칙(throwIntensity)은 김민 영역이라 손대지 않는다.
+         */
+        ...effortFields(throwIntensity(step, pitches) * 10),
         memo,
         videoPaths: [],
       },
