@@ -3,7 +3,7 @@
 import { useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ChevronRight, Film, Play, Rotate3d, Trash2, Upload } from 'lucide-react';
+import { Film, Play, Rotate3d, Trash2, Upload } from 'lucide-react';
 import { BackLink, Card, EmptyState, PageHeading } from '@/components/ui';
 import { Segmented } from '@/components/segmented';
 import { DisclosureButton } from '@/components/disclosure';
@@ -103,7 +103,7 @@ export function LabClient({
           description="같은 공을 옆(3루 쪽)과 뒤(2루 쪽)에서 찍은 영상을 짝으로 올려 주세요."
         />
       ) : (
-        <div className="stack-block">
+        <div className="space-y-2">
           {shown.map((s, i) => (
             <SampleCard
               key={s.id}
@@ -407,6 +407,8 @@ function SampleCard({
   const [confirm, setConfirm] = useState(false);
   const [error, setError] = useState<string>();
   const [pending, start] = useTransition();
+  /* 영상은 펼칠 때만 — 26개가 늘 9:16 영상 둘씩 펴져 있어 찾기 힘들었다(2026-10-12 사용자). 접힌 동안은 받지도 않는다 */
+  const [open, setOpen] = useState(false);
 
   /* 상태 표시의 '지금' — 렌더 때마다 바뀌지 않게 한 번만 */
   const [now] = useState(() => Date.now());
@@ -436,10 +438,11 @@ function SampleCard({
 
   const meta = sample.meta;
   return (
-    <Card className="space-y-3">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0 space-y-1">
-          <p className="text-[15px] font-semibold text-ink">
+    <Card className="space-y-3 !py-3">
+      {/* 한 줄 — 이름 · 날짜 · 표시 · 메모(한 줄로 자름) · 상태. 줄을 누르면 결과 화면, 오른쪽은 영상 펴기 · 지우기 */}
+      <div className="flex items-center gap-2">
+        <Link href={`/videos/lab/${sample.id}`} className="min-w-0 flex-1 space-y-0.5">
+          <p className="truncate text-[15px] font-semibold text-ink">
             {label} {n}
             {meta?.createdAt && (
               <span className="ml-2 text-xs font-normal text-muted">
@@ -447,12 +450,25 @@ function SampleCard({
               </span>
             )}
           </p>
-          <p className="text-xs text-muted break-keep">
-            {meta ? labMetaChips(meta).join(' · ') : '올리다 멈췄어요'}
-          </p>
-          {meta?.memo && <p className="text-sm text-ink break-keep">{meta.memo}</p>}
+          {/* 마커 샘플은 표시가 모두 같아 메모(투구 번호)만 — 한 줄이라도 짧게 */}
+          {meta?.kind !== 'marker' && (
+            <p className="truncate text-xs text-muted">
+              {meta ? labMetaChips(meta).join(' · ') : '올리다 멈췄어요'}
+            </p>
+          )}
+          {meta?.memo && <p className="truncate text-xs text-ink/80">{meta.memo}</p>}
           <V2StatusBadge job={sample.v2.job} now={now} />
-        </div>
+        </Link>
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          aria-expanded={open}
+          aria-label={open ? '영상 접기' : '영상 보기'}
+          className="flex h-11 shrink-0 items-center gap-1 rounded-full bg-ink/6 px-3 text-xs font-semibold text-ink"
+        >
+          <Play aria-hidden className="h-3.5 w-3.5" />
+          {open ? '접기' : '영상'}
+        </button>
         <button
           type="button"
           onClick={() => setConfirm(true)}
@@ -463,6 +479,8 @@ function SampleCard({
         </button>
       </div>
 
+      {open && (
+        <>
       <div className="grid grid-cols-2 gap-2">
         {LAB_VIEWS.map((view) => {
           const v = sample.videos[view];
@@ -502,17 +520,8 @@ function SampleCard({
         </button>
       )}
 
-      {/* 3D 분석은 서버 GPU(v2) 결과 화면에서만(설계 pitch-3d-quality.md 화면 결정 1) — v1 기기 안 분석(졸라맨)은 2026-10-08 뺐다 */}
-      <Link
-        href={`/videos/lab/${sample.id}`}
-        className="flex min-h-11 w-full items-center justify-between rounded-2xl bg-ink/4 px-4 text-sm font-semibold text-ink transition-colors active:bg-ink/8 desk:hover:bg-ink/6"
-      >
-        <span className="flex items-center gap-2">
-          <Rotate3d aria-hidden className="h-4 w-4 text-sky" />
-          {sample.v2.job?.status === 'done' ? '3D 결과 보기' : '3D 분석하기'}
-        </span>
-        <ChevronRight aria-hidden className="h-4 w-4 text-muted" />
-      </Link>
+        </>
+      )}
 
       {error && <ErrorLine>{error}</ErrorLine>}
 
