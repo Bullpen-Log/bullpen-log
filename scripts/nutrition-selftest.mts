@@ -201,8 +201,11 @@ import {
   FUEL_WEIGHT_DROP_KG,
   FUEL_WINDOW_DAYS,
   NO_FUEL_CHECK,
+  fuelCardLines,
   fuelCardOf,
   fuelCheckOf,
+  fuelDaysOf,
+  fuelWeightLine,
   mergeDayWeights,
   weeklyWeightChange,
   type FuelDay,
@@ -5837,6 +5840,101 @@ console.log(
           ['2026-10-02', { kg: 70.5, from: 'nutrition' }],
           ['2026-10-04', { kg: 69.8, from: 'nutrition' }],
         ])
+    );
+  }
+
+  /*
+   * ── (아) 날마다 재료 조립 — fuelDaysOf(2판 P6 검토, 2026-10-13) ──
+   * 왜: 이 조립은 fuel-load.ts(server-only)에 있어 시험이 못 읽었다 — 창에 오늘을 넣거나 단백질 모르는 음식을 0g 으로 세도 통과했다. 오늘 아침만
+   * 먹은 상태가 '적게 먹은 날'로 세어지면 깃발이 잘못 서고 무게 올림이 말없이 멈춘다.
+   */
+  {
+    const TODAY_KEY = '2026-10-13';
+    const day = (n: number) => shiftDateKey(TODAY_KEY, -n);
+    const meals = [
+      /* 오늘 — 창 밖(아직 먹는 중) */
+      { date: TODAY_KEY, meal: 'breakfast', kcal: 300, protein: 20, amount: 1 },
+      /* 어제 — 두 끼, 양을 곱한다 */
+      { date: day(1), meal: 'breakfast', kcal: 400, protein: 30, amount: 1.5 },
+      { date: day(1), meal: 'dinner', kcal: 800, protein: 40, amount: 1 },
+      /* 그제 — 단백질 모르는 음식이 섞임 */
+      { date: day(2), meal: 'lunch', kcal: 700, protein: null, amount: 1 },
+      { date: day(2), meal: 'dinner', kcal: 600, protein: 35, amount: 1 },
+      /* 사흘 전 — 한 끼 종류만(두 줄이어도) */
+      { date: day(3), meal: 'lunch', kcal: 500, protein: 25, amount: 1 },
+      { date: day(3), meal: 'lunch', kcal: 200, protein: 10, amount: 1 },
+      /* 여드레 전 — 창 밖 */
+      { date: day(8), meal: 'lunch', kcal: 9999, protein: 1, amount: 1 },
+      { date: day(8), meal: 'dinner', kcal: 9999, protein: 1, amount: 1 },
+    ];
+    const days = fuelDaysOf({
+      todayKey: TODAY_KEY,
+      meals,
+      weights: new Map([
+        [day(1), { kg: 70 }],
+        [TODAY_KEY, { kg: 69 }],
+      ]),
+      conditions: new Map([
+        [day(2), 4],
+        [TODAY_KEY, 2],
+      ]),
+    });
+    const at = (n: number) => days.find((d) => d.date === day(n));
+    check(
+      '(아) 창은 어제까지 7일(D-7..D-1, 날짜 차례) — 오늘 · 여드레 전 끼니 · 몸무게 · 컨디션은 안 센다',
+      json(days.map((d) => d.date)) === json([7, 6, 5, 4, 3, 2, 1].map(day)) &&
+        days.every((d) => d.kcal < 9999) &&
+        !days.some((d) => d.date === TODAY_KEY)
+    );
+    check(
+      '(아) kcal 은 양을 곱한 합, 단백질 모르는 음식이 섞인 날은 단백질 null(0g 으로 안 셈)',
+      at(1)?.kcal === 400 * 1.5 + 800 &&
+        at(1)?.protein === 30 * 1.5 + 40 &&
+        at(2)?.kcal === 1300 &&
+        at(2)?.protein === null &&
+        at(7)?.kcal === 0 &&
+        at(7)?.protein === 0
+    );
+    check(
+      `(아) 기록한 날 = 끼니 종류 ${FUEL_MIN_MEALS}개 이상(같은 끼니 두 줄은 한 끼), 몸무게 · 컨디션은 그날 값`,
+      at(1)?.logged === true &&
+        at(2)?.logged === true &&
+        at(3)?.logged === false &&
+        at(7)?.logged === false &&
+        at(1)?.weightKg === 70 &&
+        at(2)?.weightKg === null &&
+        at(2)?.condition === 4 &&
+        at(1)?.condition === null
+    );
+  }
+
+  /* ── (자) 카드 몸무게 줄은 보는 사람의 단위로 — fuelCardLines(2판 P6 검토) ── */
+  {
+    const on = fuelCheckOf({
+      days: Array.from({ length: FUEL_WINDOW_DAYS }, (_, i) => ({
+        date: shiftDateKey('2026-10-12', -(FUEL_WINDOW_DAYS - 1 - i)),
+        kcal: 1000,
+        protein: 50,
+        weightKg: 80 - i * 0.2,
+        condition: 3,
+        logged: true,
+      })),
+      targets: { kcal: 2800, protein: 140 },
+    });
+    const card = fuelCardOf(on, false);
+    const kgLines = card ? fuelCardLines(card, 'kg') : [];
+    const lbLines = card ? fuelCardLines(card, 'lb') : [];
+    check(
+      '(자) kg 은 서버 글 그대로, lb 는 몸무게 줄만 lb 로(나머지 두 줄 그대로) · 해요체',
+      card != null &&
+        json(kgLines) === json(card.lines) &&
+        lbLines.length === 3 &&
+        lbLines[0] === card.lines[0] &&
+        lbLines[2] === card.lines[2] &&
+        lbLines[1] === '몸무게가 일주일에 3.1lb씩 줄고 있어요.' &&
+        kgLines[1] === '몸무게가 일주일에 1.4kg씩 줄고 있어요.' &&
+        fuelWeightLine(-0.5, 'kg') === '몸무게가 일주일에 0.5kg씩 줄고 있어요.',
+      json([...kgLines, ...lbLines])
     );
   }
 }

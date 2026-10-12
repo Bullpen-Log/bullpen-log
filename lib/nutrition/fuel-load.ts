@@ -7,11 +7,11 @@ import { isSex } from '@/lib/nutrition/meta';
 import { ageOn, computeTargets } from '@/lib/nutrition/targets';
 import { toProfile } from '@/lib/nutrition/load';
 import {
-  FUEL_MIN_MEALS,
   FUEL_WINDOW_DAYS,
   NO_FUEL_CHECK,
   fuelCardOf,
   fuelCheckOf,
+  fuelDaysOf,
   mergeDayWeights,
   type FuelCard,
   type FuelCheck,
@@ -79,23 +79,12 @@ export const loadFuelState = cache(
       0
     );
 
-    const conditionOf = new Map(
-      checkins.map((c) => [keyOfDbDate(c.date), c.condition])
-    );
-    const days: FuelDay[] = Array.from({ length: FUEL_WINDOW_DAYS }, (_, i) => {
-      const date = shiftDateKey(todayKey, -(FUEL_WINDOW_DAYS - i));
-      const rows = meals.filter((m) => keyOfDbDate(m.date) === date);
-      return {
-        date,
-        kcal: rows.reduce((sum, m) => sum + m.kcal * m.amount, 0),
-        /* 단백질을 모르는 음식이 섞인 날은 모름 — 0g 으로 더하면 낮게 보인다(fuel-check.ts ②) */
-        protein: rows.some((m) => m.protein == null)
-          ? null
-          : rows.reduce((sum, m) => sum + (m.protein ?? 0) * m.amount, 0),
-        weightKg: weights.get(date)?.kg ?? null,
-        condition: conditionOf.get(date) ?? null,
-        logged: new Set(rows.map((m) => m.meal)).size >= FUEL_MIN_MEALS,
-      };
+    /* 날마다 재료 — 창(D-7..D-1) · 단백질 모름 · 기록한 날은 순수 함수 하나(fuel-check.ts fuelDaysOf — 자체 시험이 표로 본다, 2판 P6 검토) */
+    const days: FuelDay[] = fuelDaysOf({
+      todayKey,
+      meals: meals.map((m) => ({ ...m, date: keyOfDbDate(m.date) })),
+      weights,
+      conditions: new Map(checkins.map((c) => [keyOfDbDate(c.date), c.condition])),
     });
 
     const check = fuelCheckOf({

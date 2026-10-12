@@ -67,6 +67,7 @@ import {
 } from '../lib/report/facts.ts';
 import { buildPitchPlan, YOUTH_AGE_THRESHOLD } from '../lib/report/plan.ts';
 import {
+  armOnlyBudgetOf,
   buildDailyPlan,
   isHalted,
   patternsDoneFrom,
@@ -101,6 +102,7 @@ import { buildDayState, type DayStateExtras } from '../lib/engine/day-state.ts';
 import { yesterdayArmLoadOf } from '../lib/engine/arm-load.ts';
 import {
   arbitrate,
+  armBudget,
   programArbiterSignals,
   type Arbitration,
 } from '../lib/engine/arbiter.ts';
@@ -1079,9 +1081,12 @@ function buildDay(p: Player, i: number, st: State, v: Variant = {}): DailyPlan |
     state,
     /* 고르기 점수의 재료 — training-setup.ts 의 score 와 같은 칸(2판 P5-j) */
     score,
-    /* 프로그램 날 · 중재의 예산(2판 P6-3) — 프로그램 선수만(runExtra), 그 밖에는 없음 */
+    /*
+     * 프로그램 날 · 중재의 예산(2판 P6-3) — 프로그램 선수는 runExtra 가 넘긴다. 안 넘기면 프로그램 없는 선수는 팔 예산만(armOnlyBudgetOf — 앱
+     * training-setup.ts 와 같은 짝, 2판 P6 검토. 팔을 안 쓴 날은 예전과 같은 일정), 프로그램 선수는 없음
+     */
     programToday: v.programToday ?? null,
-    budget: v.budget ?? null,
+    budget: v.budget ?? (p.program ? null : armOnlyBudgetOf(armBudget({ state }))),
   });
   return isHalted(built) ? null : built;
 }
@@ -2163,14 +2168,17 @@ function runExtra(p: Player): ExtraResult {
     const go = prog?.decision.kind === 'go';
     /*
      * 매일 일정 — 앱(training-setup.ts generateTodayPlan)과 같은 짝(2판 P6-3): 중재가 프로그램 날로 두면 그날 프로그램 운동 그대로(D6), 그 밖의
-     * 날은 중재의 하체 · 팔 예산을 지킨다. 프로그램이 없는 선수는 예전 그대로.
+     * 날은 중재의 하체 · 팔 예산을 지킨다. 프로그램이 없는 선수는 팔 예산만(armOnlyBudgetOf, 2판 P6 검토 — 앱과 같은 짝, 투구 기록 종류는 이
+     * 도구가 프로그램 판정에도 비워 넘기는 것과 같게 비운다).
      */
     const role = prog?.arbitration.daily.role ?? null;
     const programToday =
       prog && (role === 'program' || role === 'assist') ? prog.programToday : null;
     const built = buildDay(p, i, st, {
       programToday,
-      budget: prog ? planBudgetOf(prog.arbitration) : null,
+      budget: prog
+        ? planBudgetOf(prog.arbitration)
+        : armOnlyBudgetOf(armBudget({ state: inputs.state })),
     });
     const programIds = new Set(prog?.ids ?? []);
     const ownPicks = built

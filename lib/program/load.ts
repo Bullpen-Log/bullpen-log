@@ -7,7 +7,6 @@ import { yesterdayArmLoadOf } from '@/lib/engine/arm-load';
 import {
   arbitrate,
   programArbiterSignals,
-  programOwnsDaily,
   type Arbitration,
   type ProgramSessionToday,
 } from '@/lib/engine/arbiter';
@@ -21,7 +20,7 @@ import type { loadTodayCore } from '@/lib/report/today-data';
 import type { CachedExercise } from '@/lib/library-cache';
 import { readFrozenPlan } from '@/lib/workout/session-plan';
 import {
-  programTodayExerciseOf,
+  programTodayFrom,
   type ProgramTodayExercise,
   type ProgramTodayInput,
 } from '@/lib/report/daily-plan';
@@ -144,7 +143,7 @@ export async function hasFinishedBasics(userId: string): Promise<boolean> {
  * 등판 답도 여기서 읽지 않는다 — 오늘 상태 한 장(core.state.outing)의 답을 쓴다. 2판 P3(2026-10-12) 전에는 체크인 두 줄을 여기서
  * 따로 읽었는데, 그 줄은 facts 를 만든 같은 45일치 읽기(lib/report/gather.ts)에 이미 들어 있어 같은 값을 두 번 읽었다.
  */
-async function pitchTypesToday(userId: string, todayKey: string) {
+export async function pitchTypesToday(userId: string, todayKey: string) {
   const pitches = await prisma.pitchLog.findMany({
     where: { userId, date: new Date(`${todayKey}T00:00:00.000Z`) },
     select: { sessionType: true },
@@ -722,24 +721,11 @@ const BUNDLE_SHORT_REST = 30;
  * 그 밖(쉬는 날 · 기다림 · 다 마침)이면 null — 그날은 매일 일정이 예산을 지키며 짠다(planBudgetOf).
  */
 export function programTodayOf(view: ProgramDayView): ProgramTodayInput | null {
-  /* 화면(lib/report/training-screen.ts)과 같은 판정 — 일정이 프로그램 날로 짜이는 날에 화면도 프로그램 카드를 주인으로 둔다(2판 P6-4) */
-  if (!programOwnsDaily(view.arbitration.daily)) return null;
-  if (view.session) {
-    if (view.session.exercises.length === 0) return null;
-    return {
-      key: view.row.programKey,
-      day: view.session.day,
-      label: dayLabel(view.plan, view.session.day),
-      exercises: view.session.exercises,
-    };
-  }
-  if (view.decision.kind !== 'go' || view.rows.length === 0) return null;
-  return {
-    key: view.row.programKey,
-    day: view.day,
-    label: view.dayLabel,
-    exercises: view.rows.map((r) => programTodayExerciseOf(r.exercise, r.rx)),
-  };
+  /*
+   * 규칙은 순수 도우미 하나(lib/report/daily-plan.ts programTodayFrom — 자체 시험이 표로 본다, 2판 P6 검토). 화면(lib/report/training-screen.ts)도
+   * 이 값이 있을 때만 프로그램 카드를 주인으로 둔다(programWork) — 일정이 프로그램 날로 짜이는 날과 화면의 프로그램 날이 같다.
+   */
+  return programTodayFrom(view);
 }
 
 /* ─────────────────────────── 화면에 넘길 모양 ─────────────────────────── */

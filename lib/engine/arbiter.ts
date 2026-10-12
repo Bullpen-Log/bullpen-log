@@ -27,12 +27,15 @@
  * 이 파일이 정하지 않는 것 — 읽는 쪽이 같은 결과로 한다(arbitrate 를 부르는 곳은 아직 없다, P6-3 부터 잇는다):
  *   - 프로그램 판정(lib/program/program.ts decideToday)에 신호를 넣는 일 — 2판 P6-2 에서 이었다: programArbiterSignals 가 armBudget(state).spent →
  *     armSpent, 고정 운동으로 가른 팔 던지기 → armThrows(판정이 오늘 일차와 겹치는 것을 deferVariants 로), lowerBudget(…).programLighter →
- *     heavyLowerYesterday, 쉬라는 날 층의 오늘 세게 던진 날 → hardToday, 사용자 선택 층의 '회복' → choseRecovery 를 만들고 lib/program/load.ts ·
+ *     heavyLowerYesterday, 쉬라는 날 층의 오늘 세게 던진 날 → hardToday, 사용자 선택 층의 '회복' → choseRecovery, 등판 창(outingNearOf, 2판 P6
+ *     검토) → outingSoon · softOutingNear 를 만들고 lib/program/load.ts ·
  *     자체 시험 · 기준선이 그것을 판정에 넘긴다. 판정 전에 부른다 — armBudget 은 판정을 안 보고, lowerBudget 은 판정 없이 만든 칸
  *     (programCommitment(commitment), 역할 'unknown')으로도 다음 일차를 본다. program.ts 는 이 파일을 부르지 않는다(이 파일이 program.ts 를
  *     부르므로 순환) — 그래서 신호는 부르는 쪽이 만들어 넘기고, 둘이 같이 쓰는 상수(ARM_THROW_VARIANTS · 하체 글)는 program.ts 에 둔다.
  *   - 매일 일정이 하체 날을 바꾸는 일(theme.ts steerFromEmptyMain 옆): daily.heavyLower false 면 상체(daily.upperOk) 또는 보조로.
- *   - 메커니즘 접기(D5): mechanics.foldThrows · anyway. 드릴이 던지는 것인지는 메커니즘 쪽 술어(isArmLoaded)가 정한다.
+ *   - 메커니즘 접기(D5): mechanics.foldThrows · anyway. 드릴이 던지는 것인지는 메커니즘 쪽 술어(isArmLoaded)가 정한다. 메커니즘 화면은 오늘 상태
+ *     한 장을 만들지 않고 lib/mechanics/fold.ts mechanicsFoldOf 가 같은 차례(팔 예산 > 통증 확인 전 > 통증, 성장기 통증은 못 펼침)로 정한다 —
+ *     2판 P6 검토부터, 자체 시험이 둘이 같은 답인지 격자로 본다.
  *   - 암케어: 등판 · 오늘 던진 날은 decideArmcare 가 이미 회복으로 간다(오늘 상태 한 장의 outing.role · 오늘 N구). 여기 armcare.strength 는
  *     같은 날을 같은 말로 적어 둘 뿐이다(자체 시험이 둘이 같은지 본다). 암케어 파일은 안 고친다(비판 1 빈틈 9).
  *
@@ -45,7 +48,7 @@
  * 경계) · 오늘 상태 한 장과 날 종류의 타입. lib/report/theme.ts · daily-plan.ts · lib/program/load.ts(server-only)는 부르지 않는다 — 그쪽이
  * 이 파일을 부를 것이라 되부르면 순환이다.
  */
-import type { WorkoutKind } from '@/lib/checkin';
+import { ARM_PAIN_ROUTINE_MIN_AGE, type WorkoutKind } from '@/lib/checkin';
 import type { DayState, ProgramCommitment } from '@/lib/engine/day-state';
 import {
   isArmPlyo,
@@ -67,6 +70,7 @@ import {
   type TodaySignals,
   type VariantKey,
 } from '@/lib/program/program';
+import { HEAVY_LOWER_BLOCK_WITHIN_DAYS } from '@/lib/report/prescription';
 import { PROGRAM_FOLLOW_DAYS } from '@/lib/report/score';
 
 /* ─────────────────────────── 층 ─────────────────────────── */
@@ -290,7 +294,11 @@ export type LowerBudgetReason =
 export const LOWER_BUDGET_TEXT: Record<LowerBudgetReason | 'programLighter', string> = {
   todayProgram: '오늘 근력 프로그램에 큰 하체가 있어 무거운 하체는 더하지 않아요.',
   yesterdayProgram: '어제 근력 프로그램에서 하체를 해서 오늘은 무거운 하체를 쉬어요.',
-  yesterdayDaily: '어제 하체를 무겁게 해서 오늘은 무거운 하체를 쉬어요.',
+  /*
+   * 어제 하체 날 — lastLowerKey 는 완료 기록이 없는 날 저장만 한 일정 · 등판 창의 가벼운 하체 날까지 하체 날로 센다(lowerBudget 주석 —
+   * 조이는 쪽으로 틀린다). 그래서 '무겁게 했어요'라고 단정하지 않는다(2판 P6 검토).
+   */
+  yesterdayDaily: '어제가 하체 날이라 오늘은 무거운 하체를 쉬어요.',
   tomorrowProgram: '다음 근력 프로그램에 큰 하체가 있어 오늘은 무거운 하체를 쉬어요.',
   /* 프로그램 카드의 주의 한 줄(program.ts CAUTION_TEXT.lowerBudget)과 한 곳 — 중재 결과와 카드가 같은 글을 쓰게(2판 P6-2) */
   programLighter: CAUTION_TEXT.lowerBudget,
@@ -458,13 +466,45 @@ export function programDeferVariants(
 
 /* ─────────────────────────── 프로그램 판정 신호(P6-2) ─────────────────────────── */
 
-/** 프로그램 판정(decideToday)에 넘기는 중재 신호 — TodaySignals 의 선택 칸 다섯(모두 채워서) */
+/** 프로그램 판정(decideToday)에 넘기는 중재 신호 — TodaySignals 의 선택 칸 일곱(모두 채워서) */
 export type ProgramArbiterSignals = Required<
   Pick<
     TodaySignals,
-    'armSpent' | 'armThrows' | 'heavyLowerYesterday' | 'hardToday' | 'choseRecovery'
+    | 'armSpent'
+    | 'armThrows'
+    | 'heavyLowerYesterday'
+    | 'hardToday'
+    | 'choseRecovery'
+    | 'outingSoon'
+    | 'softOutingNear'
   >
 >;
+
+/**
+ * 다음 등판이 가까운가 — 프로그램 판정의 두 신호(2판 P6 검토, 2026-10-13). 오늘 상태 한 장의 등판 창(outing.daysUntilNext — 답 · 어제 답 당김 ·
+ * 달력 · 같은 요일 짐작이 다 실린다)만 읽는다.
+ *   soon      창의 끝이 3일 안(HEAVY_LOWER_BLOCK_WITHIN_DAYS — 매일 일정의 안전 거르기 2-2 와 같은 창 · 같은 문턱, 짐작한 출처 포함).
+ *             매일 일정은 이날 무거운 하체를 빼는데 프로그램은 안전 거르기를 partsOnly 로 건너뛰어(D6 '그대로') 스쿼트 · 데드리프트를 처방대로
+ *             냈다 — 그날 일정은 '뺐어요'라 적고 실제 판에는 남았다. 프로그램은 빼지 않고 큰 하체를 가볍게 한다(예산 층과 같은 꼴).
+ *   softNear  짐작한 다음 등판이 오늘이나 내일(날 종류 R4' softOutingNear — lib/engine/microcycle.ts 와 같은 조건). 매일 일정은 이날 무게 없는
+ *             보조 날인데 프로그램은 판정이 짐작을 안 읽어 무거운 날을 냈다. P4 결정 '짐작은 가볍게 하는 쪽에만'을 그대로 옮겨 큰 하체 · 파워를
+ *             가볍게 한다(쉬게 하지는 않는다 — 짐작으로 회복을 내지 않는다).
+ * 확정 답의 오늘 · 내일 등판은 판정이 이미 쉰다(gameToday · gameTomorrow) — '그래도 오늘 할래요'로 넘긴 날에도 soon 이 큰 하체를 가볍게 한다
+ * (매일 일정의 등판 창 거르기도 '그래도 하기'로 안 풀린다).
+ */
+export function outingNearOf(
+  outing: Pick<DayState['outing'], 'daysUntilNext' | 'soft'>
+): {
+  soon: boolean;
+  softNear: boolean;
+} {
+  const w = outing.daysUntilNext;
+  const max = w?.max ?? null;
+  return {
+    soon: max != null && max <= HEAVY_LOWER_BLOCK_WITHIN_DAYS,
+    softNear: outing.soft && max != null && max <= 1,
+  };
+}
 
 /**
  * 프로그램 판정(lib/program/program.ts decideToday)에 넘길 신호 — 이 파일의 층이 정한 하루를 프로그램 카드도 같은 말로 하게(2판 P6-2).
@@ -479,6 +519,8 @@ export type ProgramArbiterSignals = Required<
  *                        판정이 이미 programSignalsOf(gameYesterday · gameToday)로 쉰다
  *   choseRecovery        오늘 체크인에서 '회복'을 골랐다(사용자 선택 층)
  *   (둘 다 오늘 프로그램 판이 있으면 거짓 — 그날은 프로그램 것이라 쉬게 하지 않는다, arbitrate 의 fromSession 과 같다)
+ *   outingSoon           다음 등판 창의 끝이 3일 안(outingNearOf.soon — 2판 P6 검토). 판정은 큰 하체를 가볍게(넘겨도)
+ *   softOutingNear       짐작한 다음 등판이 오늘 · 내일(outingNearOf.softNear). 판정은 큰 하체 · 파워를 가볍게
  *
  * state.commitments.program 이 없으면(장에 안 얹었으면) 하체 신호는 거짓이다 — 부르는 쪽이 withProgramCommitment 로 얹어 넘긴다.
  * exerciseOf 는 고정 운동을 읽기만 해야 한다(다시 고르며 저장할 것을 적는 함수를 넘기면 쓰지 않는 변형까지 적는다).
@@ -518,6 +560,7 @@ export function programArbiterSignals({
    * 내면 이미 한 운동을 쉬라고 하는 셈이다.
    */
   const ownsToday = session != null;
+  const near = outingNearOf(state.outing);
   return {
     signals: {
       armSpent: arm.spent,
@@ -525,6 +568,8 @@ export function programArbiterSignals({
       heavyLowerYesterday: lower.programLighter,
       hardToday: !ownsToday && state.load.hardOuting?.daysAgo === 0,
       choseRecovery: !ownsToday && state.body.preferredWorkout === RECOVERY_WORKOUT,
+      outingSoon: near.soon,
+      softOutingNear: near.softNear,
     },
     arm,
     lower,
@@ -647,15 +692,25 @@ export const PROGRAM_YIELD_TEXT: Partial<Record<DayRule, string>> & {
   programRest: '오늘은 근력 프로그램이 쉬는 날이에요.',
 };
 
-/** 사용자가 '그래도 하기'로 넘긴 것 — 한 줄 */
+/**
+ * 사용자가 '그래도 하기'로 넘긴 것 — 한 줄. lower 는 매일 일정의 하체 예산 넘김 글(lib/report/theme.ts LOWER_BUDGET_OVERRIDE_NOTE)과
+ * 같은 글이다(2판 P6 검토) — 막은 까닭이 어제 · 오늘 · 내일 프로그램이든 어제 하체 날이든 같은 말이라 '어제 하체를 무겁게 했지만'으로 단정하지
+ * 않는다. theme.ts 를 부르면 순환이라 글자를 둘이 같이 두고 자체 시험이 같은지 본다.
+ */
 export const OVERRIDE_TEXT = {
   rest: '쉬는 게 좋은 날이지만 고른 대로 해요. 아프면 바로 멈춰요.',
-  lower: '어제 하체를 무겁게 했지만 고른 대로 해요.',
+  lower: '무거운 하체를 쉬는 날이지만 고른 대로 해요. 아프면 바로 멈춰요.',
 } as const;
 
-/** 오늘 프로그램 날 — 매일 일정 자리의 한 줄(D6) */
-export const programDayText = (day: number) =>
-  `오늘은 근력 프로그램 ${day}일차라 그 운동을 그대로 해요.`;
+/**
+ * 오늘 프로그램 날 — 매일 일정 자리의 한 줄(D6). label 은 그날 일차 이름(program.ts dayLabel '2주차 · 1일차 · 밀기') — 바로 위 프로그램
+ * 카드 · 트레이닝 홈 카드가 같은 이름을 보인다(2판 P6 검토: 처음부터 센 일차 '4일차'를 쓰면 카드의 '2주차 · 1일차'와 어긋났다).
+ * '날이라'로 이어 받침을 가리지 않는다. 이름을 모르면 번호 없이.
+ */
+export const programDayText = (label?: string | null) =>
+  label
+    ? `오늘은 근력 프로그램 ${label} 날이라 그 운동을 그대로 해요.`
+    : '오늘은 근력 프로그램 날이라 그 운동을 그대로 해요.';
 
 /**
  * 하체가 막힌 날 상체로 갈 수 없는 까닭(비판 1 빈틈 28 — 하체 대신 상체로 가면 상체 무게가 새로 생긴다. 팔을 아껴야 하는 날은 보조로).
@@ -715,13 +770,13 @@ export type Arbitration = {
   /** 프로그램 판정에 넣을 것 — 오늘 뺄 변형(팔 예산) · 큰 하체 가볍게(하체 예산) */
   programAdjust: { deferVariants: VariantKey[]; lighterBigLower: boolean };
   /**
-   * 메커니즘 — 던지기 드릴을 접는가. 팔 예산(등판 보호)이면 anyway 거짓(못 펼침), 오늘 어깨 · 팔꿈치 '통증'이면(D5) anyway 참(그래도 하기).
-   * 둘 다면 팔 예산이 이긴다.
+   * 메커니즘 — 던지기 드릴을 접는가. 팔 예산(등판 보호)이면 anyway 거짓(못 펼침), 통증 확인 전(안전 층 — 2판 P6 검토)이면 anyway 거짓, 오늘 어깨 ·
+   * 팔꿈치 '통증'이면(D5) anyway 참(그래도 하기 — 성장기는 거짓). 위가 이긴다.
    */
   mechanics: {
     foldThrows: boolean;
     anyway: boolean;
-    because: 'armSpent' | 'pain' | null;
+    because: 'armSpent' | 'painUnknown' | 'pain' | null;
   };
   /** 암케어 — 강화 루틴을 해도 되는가(팔 예산을 다 쓴 날 거짓 — decideArmcare 가 이미 회복으로 간다) */
   armcare: { strength: boolean };
@@ -755,6 +810,8 @@ export type ArbiterInput = {
   minutes?: { requested: number; program?: number | null; armcare?: number | null };
   /** 프로그램 날의 매일 일정(기본 PROGRAM_DAY_DAILY) — 시험 · 결정이 바뀔 때만 넘긴다 */
   programDayDaily?: ProgramDayDaily;
+  /** 만 나이(모르면 null — 성인으로 본다) — 성장기의 메커니즘 통증 날은 못 펼친다(mechanics.anyway, 2판 P6 검토) */
+  age?: number | null;
 };
 
 /** 체크인의 운동 종류 '회복' — lib/checkin.ts WORKOUT_KINDS 의 값(theme.ts 가 회복 데이로 읽는 그 값) */
@@ -775,6 +832,7 @@ export function arbitrate(input: ArbiterInput): Arbitration {
     override = false,
     minutes,
     programDayDaily = PROGRAM_DAY_DAILY,
+    age = null,
   } = input;
   const applied = new Set<ArbiterLayer>();
   const deferred: Deferred[] = [];
@@ -813,7 +871,8 @@ export function arbitrate(input: ArbiterInput): Arbitration {
     if (program.role === 'owns' && program.today) {
       defer({
         key: 'programDay',
-        what: `근력 프로그램 ${program.today.day}일차`,
+        /* 일차 이름(dayLabel) — 카드가 보이는 '2주차 · 1일차'와 같은 말(programDayText 와 같은 까닭) */
+        what: `근력 프로그램 ${program.today.label}`,
         why: line ?? PROGRAM_YIELD_TEXT.programRest,
         layer,
       });
@@ -901,7 +960,7 @@ export function arbitrate(input: ArbiterInput): Arbitration {
 
   /* 5 프로그램 — 오늘 하는 날이면 매일 일정은 프로그램 그대로(D6) */
   if (owns)
-    say('program', programDayText(program!.today?.day ?? program!.next?.day ?? 1));
+    say('program', programDayText(program!.today?.label ?? program!.next?.label));
 
   /* 6 예산 — 하체(48시간) · 시간. '그래도 하기'는 예산을 넘는다(사용자 선택 > 예산), 경고 한 줄 */
   const lower = lowerBudget({ asOf: state.asOf, lastLowerKey, program });
@@ -966,13 +1025,19 @@ export function arbitrate(input: ArbiterInput): Arbitration {
     overrodeBudget,
   };
 
-  /* 메커니즘 — 팔 예산(못 펼침)이 D5 통증(그래도 하기)보다 앞 */
+  /*
+   * 메커니즘 — 팔 예산(못 펼침) > 통증 확인 전(못 펼침 — 안전 층이 위라는 규칙을 메커니즘에도, 2판 P6 검토) > D5 통증(성인은 그래도 하기, 성장기는
+   * 못 펼침). 메커니즘 화면은 lib/mechanics/fold.ts mechanicsFoldOf 가 같은 차례 · 같은 규칙으로 정한다(자체 시험이 같은 답인지 본다).
+   */
   const pain = state.arm.painJoints.length > 0;
+  const youth = age != null && age < ARM_PAIN_ROUTINE_MIN_AGE;
   const mechanics: Arbitration['mechanics'] = arm.spent
     ? { foldThrows: true, anyway: false, because: 'armSpent' }
-    : pain
-      ? { foldThrows: true, anyway: true, because: 'pain' }
-      : { foldThrows: false, anyway: true, because: null };
+    : halted
+      ? { foldThrows: true, anyway: false, because: 'painUnknown' }
+      : pain
+        ? { foldThrows: true, anyway: !youth, because: 'pain' }
+        : { foldThrows: false, anyway: true, because: null };
 
   const order = ARBITER_LAYERS.filter((l) => applied.has(l));
   return {

@@ -16,12 +16,14 @@ import {
   readTrainingProfile,
 } from '@/lib/report/personalize';
 import {
+  armOnlyBudgetOf,
   buildDailyPlan,
   isHalted,
   planBudgetOf,
   type DailyPlan,
   type StrengthHistory,
 } from '@/lib/report/daily-plan';
+import { armBudget } from '@/lib/engine/arbiter';
 import { painStateUnknown } from '@/lib/report/prescription';
 import { carrySwaps, swappedOutOf } from '@/lib/report/plan-swaps';
 import { fingerprintOf } from '@/lib/report/plan-fingerprint';
@@ -37,6 +39,7 @@ import { favoriteExerciseIds } from '@/lib/favorites';
 import {
   activeProgram,
   buildProgramDay,
+  pitchTypesToday,
   programTodayOf,
   type ProgramRow,
 } from '@/lib/program/load';
@@ -265,6 +268,7 @@ export async function generateTodayPlan(formData: FormData) {
     swappedOut,
     favoriteIds,
     programRow,
+    typesToday,
   ] = await Promise.all([
     /* 누가 보든 같은 목록이라 캐시에서 꺼낸다 (lib/library-cache.ts) */
     visibleExercises(),
@@ -288,6 +292,11 @@ export async function generateTodayPlan(formData: FormData) {
     swappedOutRecently(user.id, today),
     favoriteExerciseIds(user.id),
     activeProgram(user.id),
+    /*
+     * 오늘 투구 기록의 세션 종류 — 프로그램이 없는 사람의 팔 예산(오늘 경기 기록이면 팔 플라이오를 뺀다, 2판 P6 검토). 프로그램이 있으면
+     * buildProgramDay 가 같은 조회를 한 번 더 하지만, 프로그램 줄을 받기 전이라 갈라 묻지 않는다(같은 Promise.all 이라 왕복은 안 는다).
+     */
+    pitchTypesToday(user.id, toDateKey(today)),
   ]);
 
   /*
@@ -419,11 +428,15 @@ export async function generateTodayPlan(formData: FormData) {
     /* 오늘 상태 한 장 — 같은 facts · plan 으로 만든 것. 양 조절(본운동 세트 −1, 2판 P5-d · e)이 body · 힘듦 급증을 읽는다 */
     state,
     /*
-     * 프로그램 날이면 그날 프로그램 운동 그대로(2판 P6-3 · D6). 예산은 프로그램이 있는 사람에게만 넘긴다 — 프로그램 날이 아닌 날, 그리고
-     * 프로그램 날인데 그날 운동이 모두 안전 거르기에 걸려 매일 일정 길로 갈 때 하체 · 팔 예산을 지킨다(프로그램 날 길에서는 안 읽는다).
+     * 프로그램 날이면 그날 프로그램 운동 그대로(2판 P6-3 · D6). 프로그램이 있는 사람은 중재의 하체 · 팔 예산을 넘긴다 — 프로그램 날이 아닌 날,
+     * 그리고 프로그램 날인데 그날 운동이 모두 안전 거르기에 걸려 매일 일정 길로 갈 때 지킨다(프로그램 날 길에서는 안 읽는다). 프로그램이 없는
+     * 사람은 팔 예산만(armOnlyBudgetOf, 2판 P6 검토) — 등판 보호 층(오늘 등판 · 경기 기록 · 세게 던진 날의 팔 플라이오 빼기)은 '그래도 하기'로도
+     * 안 풀리는데, 예전에는 프로그램이 있는 사람에게만 걸렸다. 팔을 안 쓴 날은 예전과 글자까지 같은 일정이다.
      */
     programToday,
-    budget: programDay ? planBudgetOf(programDay.arbitration) : null,
+    budget: programDay
+      ? planBudgetOf(programDay.arbitration)
+      : armOnlyBudgetOf(armBudget({ state, typesToday })),
   });
 
   const date = dateOnly(today);

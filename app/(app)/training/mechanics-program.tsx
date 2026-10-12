@@ -142,9 +142,9 @@ function SessionCard({
 }) {
   const [unfolded, setUnfolded] = useState(false);
   const done = new Set(program.finishedToday ? [] : doneToday);
-  /* 접는 날 — 펼치기 전까지 팔에 싣는 드릴은 목록에서 빼 한 줄로 */
-  const folding = painFold != null && !unfolded;
-  const anyway = painFold != null && unfolded;
+  /* 접는 날 — 펼치기 전까지 팔에 싣는 드릴은 목록에서 빼 한 줄로. 못 펼치는 날(canUnfold 거짓)은 늘 접는다 */
+  const folding = painFold != null && !(unfolded && painFold.canUnfold);
+  const anyway = painFold != null && unfolded && painFold.canUnfold;
   const { open, folded } = foldSession(session, folding ? painFold : null);
   const started = open.some((s) => done.has(s.guideId));
   /* 접은 날 할 수 있는 드릴을 다 했다 — 무브먼트만 하고 마친 뒤(세션 수는 그대로라 같은 세션이 남는다) */
@@ -249,14 +249,17 @@ function SessionCard({
               {folded.map((f) => f.title).join(' · ')}
             </span>
           </span>
-          <button
-            type="button"
-            onClick={() => setUnfolded(true)}
-            className="inline-flex min-h-11 shrink-0 items-center gap-1 rounded-full bg-surface-2 px-4 text-sm font-semibold text-ink transition-colors hover:bg-sky-tint"
-          >
-            {MECHANICS_FOLD_BUTTONS.unfold}
-            <ChevronDown aria-hidden className="h-4 w-4" />
-          </button>
+          {/* 펼치기는 성인의 통증 날만 — 팔을 다 쓴 날 · 통증 확인 전 · 성장기 통증 날은 못 펼친다(2판 P6 검토, lib/mechanics/fold.ts) */}
+          {painFold?.canUnfold && (
+            <button
+              type="button"
+              onClick={() => setUnfolded(true)}
+              className="inline-flex min-h-11 shrink-0 items-center gap-1 rounded-full bg-surface-2 px-4 text-sm font-semibold text-ink transition-colors hover:bg-sky-tint"
+            >
+              {MECHANICS_FOLD_BUTTONS.unfold}
+              <ChevronDown aria-hidden className="h-4 w-4" />
+            </button>
+          )}
         </div>
       )}
       {folding ? (

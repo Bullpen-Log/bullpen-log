@@ -56,6 +56,7 @@ import {
   hasFinishedBasics,
   programCardProps,
   programResult,
+  programTodayOf,
   recentlyDoneProgram,
 } from '@/lib/program/load';
 import { ageFromBirthDate } from '@/lib/profile';
@@ -144,12 +145,18 @@ function AppHead({
  * 여기서는 왜 따로 일정을 안 짜는지만 말한다. 글은 중재와 일정 까닭의 한 곳(lib/engine/arbiter.ts programDayText). 바로 위 다음 등판 한 줄
  * (components/outing-line.tsx)과 같은 줄 모양이라 둘이 이어 읽힌다. 그 전에 만든 매일 일정이 남아 있으면 그 일정은 오늘 쉰다고 둘째 줄로 알린다.
  */
-function ProgramDayLine({ day, planResting }: { day: number; planResting: boolean }) {
+function ProgramDayLine({
+  label,
+  planResting,
+}: {
+  label: string | null;
+  planResting: boolean;
+}) {
   return (
     <div className="flex min-h-12 items-center gap-2.5 rounded-2xl border border-line bg-surface px-(--block-pad) py-1.5 text-sm desk:min-h-11">
       <Dumbbell aria-hidden className="h-4 w-4 shrink-0 text-sky" />
       <p className="min-w-0 flex-1 break-keep">
-        <span className="block font-semibold text-ink">{programDayText(day)}</span>
+        <span className="block font-semibold text-ink">{programDayText(label)}</span>
         {planResting && (
           <span className="block text-xs text-muted">
             {TRAINING_SCREEN_TEXT.planResting}
@@ -329,6 +336,11 @@ export default async function TrainingPage({
     daily: programView?.arbitration.daily,
     savedPlan,
     shownCount: shownPicks.length,
+    /*
+     * 할 프로그램 운동이 있는 날만 프로그램 날 — 일정 만들기(app/actions/training-setup.ts)가 프로그램 날로 짜는 바로 그 판정(programTodayOf).
+     * 판정 'go' 인데 그날 운동이 다 빠진 날 폼을 숨기면 시작할 운동이 하나도 없었다(2판 P6 검토).
+     */
+    programWork: programView ? programTodayOf(programView) != null : false,
   });
   /*
    * 상태 바뀜 띠(2판 P6-6, lib/report/state-notice.ts) — 일정을 만든 뒤 판단 입력이 바뀌었으면 일정 카드 위에 바뀐 줄 · '지금 상태로 다시 만들기'.
@@ -633,8 +645,10 @@ export default async function TrainingPage({
         */
           done ? null : (
             <ProgramDayLine
-              day={
-                programView?.arbitration.program?.today?.day ?? programView?.day ?? 1
+              label={
+                programView?.arbitration.program?.today?.label ??
+                programView?.dayLabel ??
+                null
               }
               planResting={screen.planResting}
             />

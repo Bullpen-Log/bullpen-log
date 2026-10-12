@@ -366,6 +366,36 @@ export function isNearMaxOuting(o: HardOuting): boolean {
   return o.load == null || o.load >= NEAR_MAX_EFFORT_PCT * o.pitches;
 }
 
+/** 하루 투구 합 — 세게 던졌는지 가릴 재료(HardOuting 의 pitches · load · nearMaxPitches) */
+export type OutingTotals = { pitches: number; load: number; nearMaxPitches: number };
+
+/**
+ * 투구 기록 한 줄을 그날 합에 더한다 — buildFacts 의 날마다 합(patterns.hardOutings)과 메커니즘 화면의 '오늘 세게 던졌나'
+ * (lib/mechanics/program.ts mechanicsFoldOf, 2판 P6 검토)가 같은 규칙을 쓰게 한 곳에 둔다. 세션마다 곱해서 더한다(경기는 늘 100% 라 세션
+ * 단위로 가린다). Σ 투구수 × 체감 강도(%)가 0 인 줄(쉰 날 · 0구)은 더하지 않는다 — prev 그대로(처음이면 null).
+ * 옛 규칙의 재료(nearMaxPitches) — 경기, 또는 1~10 으로 9 이상. % 기록은 반올림해 견준다(85% = 8.5 → 9, 저장된 intensity 와 같은 값 —
+ * effortToIntensity). intensityOf 로 읽어 옛 코드가 남긴 낡은 % 는 안 믿는다(lib/pitch-stats.ts trustedEffortPct).
+ */
+export function addOutingLog(
+  prev: OutingTotals | null,
+  log: {
+    sessionType?: string;
+    pitchCount: number;
+    intensity: number;
+    effortPct?: number | null;
+  }
+): OutingTotals | null {
+  const load = outingLoadOf(log);
+  if (load <= 0) return prev;
+  const nearMax =
+    log.sessionType === '경기' || Math.round(intensityOf(log)) >= NEAR_MAX_INTENSITY;
+  return {
+    pitches: (prev?.pitches ?? 0) + log.pitchCount,
+    load: (prev?.load ?? 0) + load,
+    nearMaxPitches: (prev?.nearMaxPitches ?? 0) + (nearMax ? log.pitchCount : 0),
+  };
+}
+
 function daysBetween(fromKey: string, toKey: string) {
   const [fy, fm, fd] = fromKey.split('-').map(Number);
   const [ty, tm, td] = toKey.split('-').map(Number);
@@ -571,26 +601,11 @@ export function buildFacts({
    * 더하기만 하므로 경기 뒤 가벼운 캐치볼은 그날을 세게 던진 날에서 빼지 않는다(늘 보탠다).
    * 날짜는 groupByDay 와 같은 방식(앞 10자리)으로 센다.
    */
-  const outingByDay = new Map<
-    string,
-    { pitches: number; load: number; nearMaxPitches: number }
-  >();
+  const outingByDay = new Map<string, OutingTotals>();
   for (const log of logs) {
-    const load = outingLoadOf(log);
-    if (load <= 0) continue;
     const key = log.date.slice(0, 10);
-    const prev = outingByDay.get(key);
-    /*
-     * 옛 규칙의 재료 — 경기, 또는 1~10 으로 9 이상. % 기록은 반올림해 견준다(85% = 8.5 → 9, 저장된 intensity 와 같은 값 —
-     * effortToIntensity). intensityOf 로 읽어 옛 코드가 남긴 낡은 % 는 안 믿는다(lib/pitch-stats.ts trustedEffortPct).
-     */
-    const nearMax =
-      log.sessionType === '경기' || Math.round(intensityOf(log)) >= NEAR_MAX_INTENSITY;
-    outingByDay.set(key, {
-      pitches: (prev?.pitches ?? 0) + log.pitchCount,
-      load: (prev?.load ?? 0) + load,
-      nearMaxPitches: (prev?.nearMaxPitches ?? 0) + (nearMax ? log.pitchCount : 0),
-    });
+    const next = addOutingLog(outingByDay.get(key) ?? null, log);
+    if (next) outingByDay.set(key, next);
   }
 
   // 최근 7일 체크인만 컨디션 요약에 쓴다.

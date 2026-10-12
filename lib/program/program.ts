@@ -1491,6 +1491,17 @@ export type TodaySignals = {
   hardToday?: boolean;
   /** 오늘 체크인에서 운동 종류 '회복'을 골랐다 — 쉬는 날(rest 'chooseRecovery'). 넘길 수 있다(중재의 사용자 선택 층과 같은 날) */
   choseRecovery?: boolean;
+  /**
+   * 다음 등판 창의 끝이 3일 안이다(중재 outingNearOf.soon — 매일 일정 안전 거르기 2-2 와 같은 창, 짐작한 출처 포함, 2판 P6 검토). 그날 큰 하체를
+   * 빼지 않고 가볍게 한다 — 매일 일정은 이날 무거운 하체를 빼는데 프로그램만 처방대로 내던 것을 맞춘다. '그래도 오늘 할래요'로 넘겨도 가볍게
+   * (매일 일정의 등판 창 거르기가 '그래도 하기'로 안 풀리는 것과 같다).
+   */
+  outingSoon?: boolean;
+  /**
+   * 짐작한(달력 · 같은 요일) 다음 등판이 오늘이나 내일이다(중재 outingNearOf.softNear — 날 종류 R4' 와 같은 조건, 2판 P6 검토). 큰 하체 · 파워를
+   * 가볍게 한다 — P4 결정 '짐작은 가볍게 하는 쪽에만'(쉬게 하지 않는다).
+   */
+  softOutingNear?: boolean;
 };
 
 /**
@@ -1604,6 +1615,8 @@ export type CautionCode =
   | 'recovery'
   | 'hardThrow'
   | 'uncertain'
+  | 'outingGuess'
+  | 'outingSoon'
   | 'lowerBudget'
   | 'lighter'
   | 'restGap'
@@ -1654,6 +1667,8 @@ export function daysBetween(fromKey: string, toKey: string): number {
  * 2판 P6-2(2026-10-13) — 중재(lib/engine/arbiter.ts)가 정한 하루를 프로그램 카드도 같은 말로 하게 신호 다섯을 더 받는다(모두 선택 칸,
  * 안 주면 예전과 같다. armThrows 는 armSpent 가 뺄 변형을 고정 운동으로 가르는 칸). 오늘 세게 던진 날 · 오늘 '회복'을 고른 날은 쉬는 날(넘길 수 있음 — 중재의 쉬라는 날 · 사용자 선택 층), 팔을 다 쓴
  * 날은 팔로 던지는 변형을 뺀다(넘겨도 뺀다 — 등판 보호 층), 어제 하체 날이면 큰 하체를 가볍게(넘기면 그대로 — 예산 층).
+ * 2판 P6 검토(같은 날) — 둘 더(outingSoon · softOutingNear, 선택 칸): 다음 등판 창의 끝이 3일 안이면 큰 하체를, 짐작한 등판이 오늘 · 내일이면
+ * 큰 하체 · 파워를 가볍게(넘겨도 — 매일 일정의 등판 창 거르기와 같은 원칙).
  */
 export function decideToday(plan: ProgramPlan, s: TodaySignals): TodayDecision {
   const day = s.nextDay;
@@ -1702,6 +1717,16 @@ export function decideToday(plan: ProgramPlan, s: TodaySignals): TodayDecision {
     !s.override &&
     items.some((x) => x.slot === 'bigLower');
   if (lowerBudget) adjust.bigLower = { kind: 'lighter' };
+  /*
+   * 다음 등판이 가깝다(2판 P6 검토) — 창의 끝이 3일 안이면 큰 하체를, 짐작한 등판이 오늘 · 내일이면 큰 하체 · 파워를 가볍게. 빼지 않는다(D6 '그대로').
+   * 넘긴 날(override)에도 한다 — 매일 일정의 등판 창 거르기와 같은 원칙(쉬는 날은 넘겨도 다리는 아낀다). 파워 칸은 아래 부하 '주의'가 빼면 그쪽이 이긴다.
+   */
+  const hasBig = items.some((x) => x.slot === 'bigLower');
+  const hasPower = items.some((x) => x.slot === 'power');
+  const outingGuess = s.softOutingNear === true && (hasBig || hasPower);
+  const outingSoon = !outingGuess && s.outingSoon === true && hasBig;
+  if ((outingGuess || outingSoon) && hasBig) adjust.bigLower = { kind: 'lighter' };
+  if (outingGuess && hasPower) adjust.power = { kind: 'lighter' };
   /* 부하 '주의' — 파워 칸을 뺀다 */
   if (s.loadCaution) adjust.power = { kind: 'drop', reason: '부하 주의' };
   /* 불펜 날 — 회전 던지기를 뺀다(몸통 칸) */
@@ -1738,6 +1763,8 @@ export function decideToday(plan: ProgramPlan, s: TodaySignals): TodayDecision {
     caution: pickCaution(s, isLightWeek(plan, week), gapDays, {
       armRest: deferVariants.length > 0,
       lowerBudget,
+      outingGuess,
+      outingSoon,
     }),
     adjust,
     gapDays,
@@ -1747,7 +1774,8 @@ export function decideToday(plan: ProgramPlan, s: TodaySignals): TodayDecision {
 
 /**
  * 맨 위 주의는 한 줄만 — 우선순위(§13-6). 칸에만 해당하는 것은 줄 표시로 간다.
- * 팔 아낌 > 쉬는 날 넘김 > 회복 데이 > 센 불펜 · 라이브 > 부하 모름 · 통증 확인 전 > 어제 하체 > 부하 주의 · 근육통 · 잠 > 오래 쉼 > 가벼운 주.
+ * 팔 아낌 > 쉬는 날 넘김 > 회복 데이 > 센 불펜 · 라이브 > 부하 모름 · 통증 확인 전 > 짐작한 등판 오늘 · 내일 > 등판 3일 안 > 어제 하체 >
+ * 부하 주의 · 근육통 · 잠 > 오래 쉼 > 가벼운 주.
  *
  * applied 는 판정이 실제로 바꾼 것(2판 P6-2) — armRest 팔로 던지는 변형을 뺐다 · lowerBudget 어제 하체 날이라 큰 하체를 가볍게 했다. 신호만
  * 있고 바뀐 것이 없으면(그날 메디신볼 · 큰 하체가 없음) 말하지 않는다. 안 주면 예전 차례 그대로다.
@@ -1761,7 +1789,12 @@ export function pickCaution(
   s: TodaySignals,
   lightWeek: boolean,
   gapDays: number | null,
-  applied: { armRest?: boolean; lowerBudget?: boolean } = {}
+  applied: {
+    armRest?: boolean;
+    lowerBudget?: boolean;
+    outingGuess?: boolean;
+    outingSoon?: boolean;
+  } = {}
 ): CautionCode | null {
   if (applied.armRest) return 'armRest';
   if (
@@ -1772,6 +1805,9 @@ export function pickCaution(
   if (s.recovery) return 'recovery';
   if (s.hardThrowRecent) return 'hardThrow';
   if (s.uncertain) return 'uncertain';
+  /* 등판이 가까워 가볍게 한 날(2판 P6 검토) — 어제 하체보다 앞(다음 등판이 더 가까운 까닭이다) */
+  if (applied.outingGuess) return 'outingGuess';
+  if (applied.outingSoon) return 'outingSoon';
   if (applied.lowerBudget) return 'lowerBudget';
   if (s.loadCaution || s.soreMany || s.sleepShort) return 'lighter';
   if (gapDays != null && gapDays >= 8) return 'restGap';
@@ -1795,7 +1831,11 @@ export const CAUTION_TEXT: Record<CautionCode, string> = {
   recovery: '몸이 지쳐 있어요. 무리하지 말고 천천히 해요.',
   hardThrow: '최근에 많이 던졌어요. 무리하지 마요.',
   uncertain: '오늘 상태를 다 알지 못해요. 조심해서 해요.',
-  lowerBudget: '어제 하체를 무겁게 했어요. 큰 하체는 가볍게 해요.',
+  /* 짐작한(달력 · 같은 요일) 등판이 오늘 · 내일 — 확정이 아니라 '일 수 있어요'(2판 P6 검토) */
+  outingGuess: '곧 등판일 수 있어 큰 하체와 파워는 가볍게 해요.',
+  outingSoon: '등판이 가까워 큰 하체는 가볍게 해요.',
+  /* 어제 하체 날(저장만 한 일정 · 가벼운 하체 날도 센다 — 중재 lowerBudget)이라 '무겁게 했어요'로 단정하지 않는다(2판 P6 검토) */
+  lowerBudget: '어제가 하체 날이라 큰 하체는 가볍게 해요.',
   lighter: '오늘은 조금 가볍게 했어요.',
   restGap: '오래 쉬었어요. 무게를 낮춰 다시 시작해요.',
   lightWeek: '가벼운 주예요. 무게가 낮은 게 맞아요.',

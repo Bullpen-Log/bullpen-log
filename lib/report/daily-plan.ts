@@ -41,10 +41,12 @@ import { buildDayState, type DayState } from '@/lib/engine/day-state';
 import { isArmPlyo, isHeavyLower } from '@/lib/engine/exercise-class';
 import {
   programDayText,
+  programOwnsDaily,
+  type ArmBudget,
   type Arbitration,
   type UpperBlock,
 } from '@/lib/engine/arbiter';
-import type { ItemRx } from '@/lib/program/program';
+import { dayLabel, type ItemRx } from '@/lib/program/program';
 import {
   PLAN_REASONS_MAX,
   SCORE_KEYS,
@@ -204,6 +206,12 @@ export type DailyPlan = {
    * 옛 줄 · 프로그램이 아닌 날에는 없으니 version 은 그대로(focus 와 같은 까닭).
    */
   program?: { key: string; day: number; label: string };
+  /**
+   * 프로그램 날로 만들려 했는데 그날 프로그램 운동이 안전 거르기에 다 걸려 매일 일정 길로 짰다(2판 P6 검토, 2026-10-13). 이 일정은 만든 그날의
+   * 할 일이다 — 화면(lib/report/training-screen.ts)은 프로그램이 주인인 날에도 이 일정을 '쉬어요'로 숨기지 않고 일정 카드로 쓴다(숨기면 그날
+   * 시작할 운동이 하나도 없는 화면이 됐다). 운동 시작은 매일 판으로 연다(program 칸이 없다). 그 밖의 일정에는 없다.
+   */
+  programFallback?: true;
 };
 
 /**
@@ -256,9 +264,54 @@ export function programTodayExerciseOf(
 }
 
 /**
+ * 프로그램 날의 하루(lib/program/load.ts ProgramDayView)에서 매일 일정에 넘길 그날 운동을 고른다 — 순수(2판 P6 검토, 2026-10-13: load.ts 는
+ * server-only 라 시험이 이 규칙을 못 읽어 '오늘 판이 있으면 그 판'을 지워도 시험이 통과했다). load.ts programTodayOf 가 이것을 부른다.
+ *
+ *   중재의 매일 일정 몫이 프로그램이 아니면(programOwnsDaily 거짓)          null — 그날은 매일 일정이 예산을 지키며 짠다
+ *   오늘 이 프로그램 판이 있으면(열었거나 마침)                            그 판의 운동(비면 null) — 카드 목록은 마친 뒤 다음 일차 미리보기라
+ *                                                                        오늘 한 것이 아니다
+ *   판정 'go' · 카드 목록이 있으면                                        카드 목록(뺀 칸 · 팔 아끼는 날 뺀 변형 · 대체 · 가볍게 반영) — 운동
+ *                                                                        시작이 얼리는 것과 같다
+ *   그 밖(쉬는 날 · 기다림 · 다 마침 · 목록 0)                            null
+ * 화면(lib/report/training-screen.ts)은 이 값이 있을 때만 프로그램 카드를 주인으로 둔다(programWork) — 일정 만들기와 같은 판정이라, 매일 일정이
+ * 짜일 날에 화면이 일정 폼을 숨기지 않는다.
+ */
+export function programTodayFrom(view: {
+  arbitration: { daily: Pick<Arbitration['daily'], 'role'> };
+  row: { programKey: string };
+  plan: Parameters<typeof dayLabel>[0];
+  decision: { kind: string };
+  day: number;
+  dayLabel: string;
+  rows: readonly {
+    exercise: { id: string; reps: number | null; holdSeconds: number | null };
+    rx: Pick<ItemRx, 'slot' | 'sets' | 'reps' | 'restSeconds'>;
+  }[];
+  session: { day: number; exercises: readonly ProgramTodayExercise[] } | null;
+}): ProgramTodayInput | null {
+  if (!programOwnsDaily(view.arbitration.daily)) return null;
+  if (view.session) {
+    if (view.session.exercises.length === 0) return null;
+    return {
+      key: view.row.programKey,
+      day: view.session.day,
+      label: dayLabel(view.plan, view.session.day),
+      exercises: [...view.session.exercises],
+    };
+  }
+  if (view.decision.kind !== 'go' || view.rows.length === 0) return null;
+  return {
+    key: view.row.programKey,
+    day: view.day,
+    label: view.dayLabel,
+    exercises: view.rows.map((r) => programTodayExerciseOf(r.exercise, r.rx)),
+  };
+}
+
+/**
  * 중재의 예산을 매일 일정에(2판 P6-3) — 근력 프로그램이 있는 사람이면 부르는 쪽이 늘 넘긴다. 매일 일정 길(프로그램 날이 아닌 날, 프로그램 날인데 그날
- * 운동이 모두 안전 거르기에 걸린 날)에서만 읽는다. 프로그램이 없는 사람에게는 넘기지 않는다(그 사람의 일정은 2판 P6 전과 같다 — 매일 일정끼리는
- * 번갈아 규칙이 이미 하체를 띄운다).
+ * 운동이 모두 안전 거르기에 걸린 날)에서만 읽는다. 프로그램이 없는 사람에게는 팔 예산만 넘긴다(armOnlyBudgetOf, 2판 P6 검토 — 하체는 매일 일정끼리
+ * 번갈아 규칙이 이미 띄우고, 팔을 안 쓴 날은 2판 P6 전과 같은 일정이다).
  */
 export type PlanBudgetInput = {
   /** 무거운 하체(exercise-class.ts isHeavyLower)를 넣어도 되는가 — 중재 lowerBudget 의 dailyHeavyLower('그래도 하기' 전 값) */
@@ -278,6 +331,22 @@ export function planBudgetOf(a: Pick<Arbitration, 'lower' | 'daily'>): PlanBudge
     lowerText: a.lower.text,
     upperBlockedBy: a.daily.upperBlockedBy,
     armPlyo: a.daily.armPlyo,
+  };
+}
+
+/**
+ * 근력 프로그램이 없는 사람의 예산 — 팔 예산만(2판 P6 검토, 2026-10-13). 중재 머리 주석은 '등판 보호 층은 그래도 하기로 안 풀린다'고 하는데,
+ * 예산을 프로그램이 있는 사람에게만 넘겨서 프로그램이 없는 선수가 오늘 등판 · 오늘 경기 기록 · 오늘 세게 던진 날에 '그래도 하기'로 근력 날을
+ * 만들면 메디신볼 같은 팔 플라이오가 후보에 남았다. 팔을 다 쓴 날만 팔 플라이오를 빼고 상체로 날을 바꾸지 않는다(중재 daily 와 같은 칸 —
+ * upperBlockedBy 'armSpent' · armPlyo 거짓). 하체 예산은 없다(프로그램과 겹칠 일이 없다 — 매일 일정끼리는 번갈아 규칙). 팔을 안 쓴 날은
+ * 넘기지 않은 것과 글자까지 같은 일정이 된다(heavyLower 참 · 막는 칸 없음).
+ */
+export function armOnlyBudgetOf(arm: Pick<ArmBudget, 'spent'>): PlanBudgetInput {
+  return {
+    heavyLower: true,
+    lowerText: null,
+    upperBlockedBy: arm.spent ? 'armSpent' : null,
+    armPlyo: !arm.spent,
   };
 }
 
@@ -784,15 +853,22 @@ export function buildDailyPlan<T extends ExerciseLike>({
     ...(volume ? { volume } : {}),
     ...(overrodeEffort ? { overrodeEffort: true as const } : {}),
     ...(reasons.length > 0 ? { reasons } : {}),
+    /* 프로그램 날이었는데 그날 프로그램 운동이 다 빠져 매일 일정으로 짰다 — 화면이 이 일정을 일정 카드로 쓴다(DailyPlan.programFallback) */
+    ...(programToday ? { programFallback: true as const } : {}),
   };
 }
 
 /**
  * 근력 프로그램 날의 일정(2판 P6-3, D6) — 그날 프로그램 운동 그대로. buildDailyPlan 이 멈춘 날을 거른 뒤에 부른다.
  *
- * 안전 층(selectCandidates)을 지난 운동만 싣는다 — 오늘 몸 상태로 무리인 프로그램 운동은 빼고 이유 글에 몇 개를 뺐는지 적는다(화면이 같은 날
- * 다시 보는 안전 재확인 — lib/report/today-data.ts 의 safeIds — 과 같은 거르기라, 저장한 목록이 보일 때 또 빠지지 않는다). 장비 · 경력으로는
- * 거르지 않는다: 프로그램이 가진 장비 · 경력으로 고정한 운동이고, 화면의 재확인도 몸 상태만 본다. 하나도 안 남으면 null(부르는 쪽이 매일 일정 길로).
+ * 안전 층(selectCandidates)의 부위 규칙(partsOnly — 근력 프로그램 카드 · 운동 시작과 같은 거르기)을 지난 운동만 싣는다 — 오늘 아픈 부위로
+ * 무리인 프로그램 운동은 빼고 이유 글에 몇 개를 뺐는지 적는다. 2판 P6 검토(2026-10-13) 전에는 몸 전체 규칙까지(전체 거르기) 걸러 '무리인
+ * 운동 N개는 뺐어요'라고 적었는데, 운동 시작(app/actions/workout.ts → startProgramWorkout)은 카드 목록(partsOnly)을 그대로 얼려 뺀 운동이
+ * 실제 판에 다시 들었다 — 일정(지문 · 상태 바뀜 띠 · 캘린더의 재료)이 실제로 한 것과 다른 기록이 됐다. 날 · 나이 · 몸 전체 규칙(등판 창 ·
+ * 부하 구간 · 성장기 · 컨디션 …)은 프로그램 판정이 스스로 쉬거나 칸을 가볍게 한다(decideToday — 등판 창도 2판 P6 검토부터 큰 하체를 가볍게).
+ * 그래서 이 목록은 프로그램이 실제로 할 것과 같다(같은 날 일정 picks ⊆ 운동 시작이 얼리는 운동, 자체 시험이 본다). 장비 · 경력으로는
+ * 거르지 않는다: 프로그램이 가진 장비 · 경력으로 고정한 운동이다. 하나도 안 남으면 null(부르는 쪽이 매일 일정 길로 — 그 일정에는
+ * programFallback 표시가 붙는다, buildDailyPlan).
  *
  * 날 이름은 '프로그램 · {그날 이름}'(프로그램 판을 얼릴 때의 이름과 같다), 날 열쇠는 남은 운동의 카테고리로 — 하체 스트렝스가 있으면 'lower',
  * 상체 스트렝스만 있으면 'upper', 둘 다 없으면 'assist'. 마친 기록이 없는 날에도 하체 · 상체 차례(strengthDatesFrom 의 계획 쪽)가 그날을
@@ -823,7 +899,9 @@ function programDayPlan<T extends ExerciseLike>({
 }): DailyPlan | null {
   const byId = new Map(library.map((ex) => [ex.id, ex]));
   const safeIds = new Set(
-    selectCandidates({ facts, plan, library, caution }).candidates.map((ex) => ex.id)
+    selectCandidates({ facts, plan, library, caution, partsOnly: true }).candidates.map(
+      (ex) => ex.id
+    )
   );
   const seen = new Set<string>();
   const kept: { item: ProgramTodayExercise; ex: T }[] = [];
@@ -844,7 +922,7 @@ function programDayPlan<T extends ExerciseLike>({
       ? 'upper'
       : 'assist';
   const reason =
-    programDayText(programToday.day) +
+    programDayText(programToday.label) +
     (dropped > 0 ? ` 오늘 몸 상태로 무리인 운동 ${dropped}개는 뺐어요.` : '');
   const estimatedMinutes = Math.round(
     kept.reduce((sum, { item, ex }) => {
@@ -863,7 +941,10 @@ function programDayPlan<T extends ExerciseLike>({
       );
     }, 0)
   );
-  /* 등판 창이 무거운 하체를 뺀 날 표시 — 다른 날과 같은 칸(finishDayTheme 의 heavyLowerAllowed). 실제로 빼는 일은 위 안전 거르기가 했다 */
+  /*
+   * 등판 창 날 표시 — 다른 날과 같은 칸(finishDayTheme 의 heavyLowerAllowed). 프로그램 날은 빼지 않고 판정이 큰 하체를 가볍게 한다(decideToday
+   * outingSoon, 2판 P6 검토) — 칸은 '무거운 하체를 들 날이 아니다'라는 날의 표시로 그대로 둔다.
+   */
   const heavyLowerAllowed = dayKindOf(facts).heavyLowerAllowed;
   return {
     version: 1,

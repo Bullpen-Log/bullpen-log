@@ -20,6 +20,7 @@ const BACK = '/training?view=mechanics';
  * 어깨 · 팔꿈치가 아픈 날(2판 P6-5, 사용자 결정 D5 — lib/mechanics/program.ts playItemsFor): ?anyway=1 이 없으면 무브먼트
  * 드릴만, 그 '다른 드릴' · 도구도 무브먼트만 넘긴다. 접은 드릴이 있었으면 마쳐도 세션 수를 안 올린다(partial). 할 드릴이
  * 없으면 프로그램 칸으로 돌려보낸다(거기에 '그래도 하기'가 있다). ?anyway=1 이면 세션 그대로, 팔에 싣는 드릴마다 주의 한 줄.
+ * 2판 P6 검토 — 오늘 팔을 다 쓴 날 · 통증 확인 전 · 성장기 통증 날도 접고(lib/mechanics/fold.ts mechanicsFoldOf), 그날은 ?anyway=1 을 무시한다.
  */
 export default async function MechanicsPlayPage({
   searchParams,
@@ -32,7 +33,11 @@ export default async function MechanicsPlayPage({
   const { program, session, doneToday, painFold } = await loadMechanicsProgram(user.id);
   if (!program || session.length === 0) redirect(BACK);
 
-  const anyway = (await searchParams).anyway === '1';
+  /*
+   * 펼칠 수 있는 날만 ?anyway=1 을 받는다 — 팔을 다 쓴 날 · 통증 확인 전 · 성장기 통증 날은 주소에 붙여 와도 무브먼트만(2판 P6 검토,
+   * lib/mechanics/fold.ts — 등판 보호 · 안전 층은 '그래도 하기'로 못 넘긴다).
+   */
+  const anyway = (await searchParams).anyway === '1' && painFold?.canUnfold !== false;
   const { items, partial } = playItemsFor(session, painFold, anyway);
   if (items.length === 0) redirect(BACK);
 

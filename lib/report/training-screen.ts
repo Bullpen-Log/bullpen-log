@@ -7,8 +7,8 @@
  * 폼). 둘 중 무엇을 눌러야 하는지 모르고, 일정 쪽 [운동 시작] · '운동 더 하기'(app/actions/workout.ts startWorkout)는 일정이 프로그램 날이 아니면
  * 매일 판을 열어 프로그램을 '다른 운동을 먼저 시작'으로 밀거나, 마친 프로그램 판 뒤에 매일 운동을 덧붙였다(설계 검토 비판 1 빈틈 4 · 5 · 6).
  *
- * 그래서 프로그램이 오늘 주인이면(중재 daily.role — lib/engine/arbiter.ts programOwnsDaily, 일정 만들기와 같은 판정) 프로그램 카드가 주인이고,
- * 일정 자리는 한 줄('오늘은 근력 프로그램 N일차라 그 운동을 그대로 해요.')만 남는다. 매일 [운동 시작] · 다시 만들기 폼 · 체크 목록은 안 그린다.
+ * 그래서 프로그램이 오늘 주인이면(중재 daily.role — lib/engine/arbiter.ts programOwnsDaily · 할 프로그램 운동이 있음, 일정 만들기와 같은 판정) 프로그램 카드가 주인이고,
+ * 일정 자리는 한 줄('오늘은 근력 프로그램 {일차 이름} 날이라 그 운동을 그대로 해요.')만 남는다. 매일 [운동 시작] · 다시 만들기 폼 · 체크 목록은 안 그린다.
  * 마친 날의 '운동 더 하기'도 없다(D6 — 보조 운동을 더하지 않는다).
  *
  * 순수 파일이다(DB · 날짜 함수 없음) — 트레이닝 화면(app/(app)/training/page.tsx)과 트레이닝 홈(training-home.tsx)이 같은 값을 쓰고 자체 시험이 표로 본다.
@@ -40,21 +40,36 @@ export type TrainingScreen = {
 /**
  * @param halted  오늘 처방을 멈췄다(통증 확인 전 — today-data picked.halted). 멈춤 카드가 다 말한다.
  * @param daily   중재의 매일 일정 몫(프로그램이 없으면 null — lib/program/load.ts ProgramDayView.arbitration.daily)
- * @param savedPlan 오늘 저장한 일정(없으면 null). program 칸이 있으면 프로그램 날로 짜인 일정(daily-plan.ts DailyPlan.program)
+ * @param savedPlan 오늘 저장한 일정(없으면 null). program 칸이 있으면 프로그램 날로 짜인 일정(daily-plan.ts DailyPlan.program),
+ *                  programFallback 이면 프로그램 날인데 프로그램 운동이 다 빠져 매일 일정으로 짠 일정
  * @param shownCount 오늘 보일 운동 수(today-data shownPicks — 안전 재확인을 지났거나 이미 마친 것)
+ * @param programWork 오늘 할 프로그램 운동이 있다 — lib/program/load.ts programTodayOf(view) != null(일정 만들기가 프로그램 날로 짜는 바로 그
+ *                  판정, 순수 규칙은 daily-plan.ts programTodayFrom). 판정 'go' 인데 그날 운동이 다 빠진 날(칸 drop · 팔 아끼는 날 뺀 변형 ·
+ *                  대체 후보 없음이 겹침)은 거짓 — 그날 일정 만들기는 매일 일정을 짜는데 화면만 '프로그램 날'이라 폼을 숨겨, 시작할 운동이
+ *                  하나도 없는 막다른 화면이 됐다(2판 P6 검토). 안 주면 참(역할만 본다 — 옛 부르는 쪽).
  */
 export function trainingScreenOf({
   halted,
   daily,
   savedPlan,
   shownCount,
+  programWork = true,
 }: {
   halted: boolean;
   daily: Pick<DailyDirective, 'role'> | null | undefined;
-  savedPlan: Pick<DailyPlan, 'program'> | null | undefined;
+  savedPlan: Pick<DailyPlan, 'program' | 'programFallback'> | null | undefined;
   shownCount: number;
+  programWork?: boolean;
 }): TrainingScreen {
-  const programOwns = !halted && programOwnsDaily(daily);
+  /*
+   * 프로그램이 주인인 날 = 중재가 그날을 프로그램 날로 두고 · 할 프로그램 운동이 있고 · 오늘 일정이 '프로그램 운동이 다 빠져 매일 일정으로 짠 것'이
+   * 아닐 때. 그 일정(programFallback)은 만든 그날의 할 일이라 숨기지 않는다 — 숨기면 매일 [운동 시작]도 없어 그날 할 수 있는 것이 없다.
+   */
+  const programOwns =
+    !halted &&
+    programOwnsDaily(daily) &&
+    programWork &&
+    savedPlan?.programFallback !== true;
   const programPlan = savedPlan?.program != null;
   const stalePlan = !halted && programPlan && !programOwns;
   const usesPlan = !halted && savedPlan != null && !programOwns && !stalePlan;
@@ -67,6 +82,25 @@ export function trainingScreenOf({
     canStart,
     canResume: canStart,
   };
+}
+
+/**
+ * 그날 저장한 매일 일정이 '쉰' 일정인가(2판 P6 검토, 2026-10-13) — 그날 근력 프로그램 판(열었거나 마침)이 있는데 일정은 프로그램 날로 짜이지
+ * 않았다(program 칸도, 프로그램 운동이 다 빠져 매일 일정으로 짰다는 programFallback 표시도 없음). 아침에 '회복'을 골라 매일 일정을 만든 뒤 체크인을
+ * 고쳐 프로그램을 했거나, 경기 날 쉬는 프로그램을 일정을 만든 뒤 '그래도 오늘 할래요'로 넘긴 날이다. 화면은 이 일정을 '오늘 쉬어요'로 숨기는데
+ * (planResting) 홈 링 · 캘린더 · 그날 상세(lib/report/training-history.ts)가 그 운동을 '할 일 · 안 한 운동'으로 세면 화면과 다른 말을 한다.
+ * 그날 판이 없는 날(아직 프로그램을 시작 안 한 오늘)은 모른다 — 프로그램 판정을 다시 해야 알아서(홈이 무거워진다) 판이 생긴 뒤부터 맞는다.
+ */
+export function dailyPlanRested(
+  plan: Pick<DailyPlan, 'program' | 'programFallback'> | null | undefined,
+  programSession: boolean
+): boolean {
+  return (
+    plan != null &&
+    programSession &&
+    plan.program == null &&
+    plan.programFallback !== true
+  );
 }
 
 /** 화면 글(해요체 · 줄표 없음 · 60자 안 — 자체 시험이 본다) */

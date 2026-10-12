@@ -16,7 +16,12 @@
  * - 여섯 번째 세션마다 찍어 처음과 견준 결과(좋아짐 · 비슷 · 못 견줌)를 progress.films 에 남긴다(2026-10-09 — 그 전에는
  *   찍으라고만 하고 결과를 안 받아 드릴이 효과가 있었는지 앱에 남는 것이 없었다). 수준을 바꿔도 지킨다(세션 번호에 붙는 것).
  */
-import { CHECKIN_PARTS, armPainJointsToday, type ArmPainJoint } from '@/lib/checkin';
+import {
+  ARM_PAIN_ROUTINE_MIN_AGE,
+  CHECKIN_PARTS,
+  armPainJointsToday,
+  type ArmPainJoint,
+} from '@/lib/checkin';
 import { DRILL_STAGE_NAMES } from '@/lib/exercise-meta';
 import { josa } from '@/lib/korean';
 import {
@@ -435,14 +440,28 @@ export function isArmLoaded(category: string): boolean {
   return category !== MOVEMENT;
 }
 
-/** 오늘 어깨 · 팔꿈치 통증으로 접는 날 — 접을 것이 없으면 null(mechanicsPainFold) */
+/**
+ * 왜 접나(2판 P6 검토) — pain 오늘 어깨 · 팔꿈치 '통증'(D5) · armSpent 오늘 팔을 다 쓴 날(오늘 등판 · 경기 기록 · 세게 던진 날, 중재의 등판 보호 층) ·
+ * painUnknown 최근 통증인데 오늘 체크인이 없음(중재의 안전 층). 판정은 lib/mechanics/fold.ts mechanicsFoldOf 한 곳.
+ */
+export type MechanicsFoldCause = 'pain' | 'armSpent' | 'painUnknown';
+
+/** 오늘 팔에 싣는 드릴을 접는 날 — 접을 것이 없으면 null(mechanicsPainFold · mechanicsFoldOf) */
 export type MechanicsPainFold = {
-  /** 오늘 '통증'인 팔 관절 — 어깨 → 팔꿈치 */
+  /** 오늘 '통증'인 팔 관절 — 어깨 → 팔꿈치(통증 날만, 그 밖은 빈 목록) */
   joints: ArmPainJoint[];
-  /** '어깨' · '팔꿈치' · '어깨 · 팔꿈치' */
+  /** '어깨' · '팔꿈치' · '어깨 · 팔꿈치'(통증 날만, 그 밖은 빈 글) */
   label: string;
   /** 접은 까닭 한 줄 — 프로그램 칸 카드 */
   reason: string;
+  because: MechanicsFoldCause;
+  /**
+   * '펼치기 → 그래도 하기'를 내는가 — 성인의 통증 날(D5)만. 팔을 다 쓴 날 · 통증 확인 전 · 성장기(만 16세 미만, ARM_PAIN_ROUTINE_MIN_AGE)의 통증
+   * 날은 못 펼친다(따라 하기도 ?anyway=1 을 무시한다).
+   */
+  canUnfold: boolean;
+  /** 트레이닝 홈 한 줄의 까닭 머리말 — '어깨 통증으로' · '등판이라' · '체크인 전이라'(MECHANICS_FOLD_TEXT.homeOpen) */
+  cause: string;
 };
 
 /** 접는 날 화면 글 — 해요체 · 줄표 없이(시험이 본다). label 은 MechanicsPainFold.label */
@@ -458,15 +477,22 @@ export const MECHANICS_FOLD_TEXT = {
   /** 펼친 카드의 팔에 싣는 드릴 줄 밑 */
   loadedTag: '팔에 힘이 실리는 드릴이에요.',
   /** 세 드릴이 다 접힌 날 — 시작 단추 대신 */
-  allFolded: '오늘은 던지기 드릴을 쉬어요. 아프지 않은 날 이어서 해요.',
+  /* 2판 P6 검토 — 통증 말고도(등판 날 · 체크인 전) 접어서 '아프지 않은 날'이 아니라 '다른 날'로 */
+  allFolded: '오늘은 던지기 드릴을 쉬어요. 다른 날 이어서 해요.',
   /** 접힌 날 할 수 있는 드릴을 다 한 뒤 */
-  openDone:
-    '오늘 할 수 있는 드릴은 마쳤어요. 던지기 드릴은 아프지 않은 날 이어서 해요.',
+  openDone: '오늘 할 수 있는 드릴은 마쳤어요. 던지기 드릴은 다른 날 이어서 해요.',
   /** 무브먼트만 하고 마친 따라 하기 끝 화면 */
-  partialFinish: '오늘은 무브먼트 드릴만 했어요. 이 세션은 아프지 않은 날 이어서 해요.',
-  /** 트레이닝 홈 카드 한 줄(다른 카드 줄처럼 마침표 없이) */
-  homeOpen: (label: string, n: number) =>
-    `오늘은 ${label} 통증으로 무브먼트 드릴 ${n}개만 해요`,
+  partialFinish: '오늘은 무브먼트 드릴만 했어요. 이 세션은 다른 날 이어서 해요.',
+  /**
+   * 트레이닝 홈 카드 한 줄(다른 카드 줄처럼 마침표 없이). cause 는 MechanicsPainFold.cause('어깨 통증으로' · '등판이라' …) — 2판 P6 검토부터
+   * 통증 말고도 접어서 까닭 머리말을 받는다.
+   */
+  homeOpen: (cause: string, n: number) => `오늘은 ${cause} 무브먼트 드릴 ${n}개만 해요`,
+  /** 성장기(만 16세 미만)의 통증 날 — 펼치지 못하고 진료를 권한다(lib/checkin.ts ARM_PAIN_ROUTINE_MIN_AGE 와 같은 뜻) */
+  youthReason: (label: string) =>
+    `오늘 ${label}${josa(label, '이/가')} 아파 던지기 · 메디신볼 드릴은 쉬어요. 진료가 먼저예요.`,
+  /** 최근 통증인데 오늘 체크인이 없는 날(중재의 안전 층) — 홈 한 줄 머리말은 lib/mechanics/fold.ts MECHANICS_UNKNOWN_CAUSE */
+  painUnknown: '최근 아팠던 곳이 있어요. 체크인을 남기기 전엔 던지기 드릴을 쉬어요.',
   homeAllFolded: '오늘은 던지기 드릴을 쉬어요',
   homeOpenDone: '오늘 할 수 있는 드릴은 마쳤어요',
 } as const;
@@ -480,19 +506,36 @@ export const MECHANICS_FOLD_BUTTONS = {
 } as const;
 
 /**
- * 오늘 접는가 — 오늘 체크인에서 어깨 · 팔꿈치가 '통증'인 날만(사용자 결정 D5). 뻐근 · 손목 · 허리 · 하체 통증 ·
+ * 오늘 통증으로 접는가 — 오늘 체크인에서 어깨 · 팔꿈치가 '통증'인 날만(사용자 결정 D5). 뻐근 · 손목 · 허리 · 하체 통증 ·
  * 체크인 없음은 null(접지 않음). 판정은 lib/checkin.ts armPainJointsToday 한 곳 — 오늘 상태 한 장의 arm.painJoints 와
- * 같은 함수라 같은 체크인이면 같은 답이다(training:test 가 본다).
+ * 같은 함수라 같은 체크인이면 같은 답이다(training:test 가 본다). 화면은 이것 하나가 아니라 lib/mechanics/fold.ts mechanicsFoldOf 를 쓴다 —
+ * 그 위 두 층(팔을 다 쓴 날 · 통증 확인 전, 2판 P6 검토)이 먼저고, 아니면 이 함수의 답이다.
  */
 export function mechanicsPainFold(
-  checkin: { shoulder?: string | null; elbow?: string | null } | null | undefined
+  checkin: { shoulder?: string | null; elbow?: string | null } | null | undefined,
+  { age = null }: { age?: number | null } = {}
 ): MechanicsPainFold | null {
   const joints = armPainJointsToday(checkin);
   if (joints.length === 0) return null;
   const label = joints
     .map((j) => CHECKIN_PARTS.find((p) => p.key === j)?.label ?? j)
     .join(' · ');
-  return { joints, label, reason: MECHANICS_FOLD_TEXT.reason(label) };
+  /*
+   * 성장기는 못 펼친다(2판 P6 검토 · 가정 — 사용자 확인 전). D5 는 '그래도 하기'를 남기라고 했지만 성장기 예외는 정하지 않았다. 앱은 만 16세 밑의
+   * 팔 통증을 성장판 부상이 섞일 수 있어 운동으로 다루지 않고 진료를 권한다(ARM_PAIN_ROUTINE_MIN_AGE — 통증 루틴 · 재활 프로그램을 안 연다).
+   * 조이는 쪽이라 그 선을 따른다. 나이를 모르면 성인으로 본다(다른 나이 규칙과 같다).
+   */
+  const youth = age != null && age < ARM_PAIN_ROUTINE_MIN_AGE;
+  return {
+    joints,
+    label,
+    reason: youth
+      ? MECHANICS_FOLD_TEXT.youthReason(label)
+      : MECHANICS_FOLD_TEXT.reason(label),
+    because: 'pain',
+    canUnfold: !youth,
+    cause: `${label} 통증으로`,
+  };
 }
 
 /** 세션 드릴을 접을 것 · 할 것으로 — 차례는 그대로. 접는 날이 아니면 다 open */

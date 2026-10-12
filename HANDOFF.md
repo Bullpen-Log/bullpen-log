@@ -116,6 +116,31 @@ DB 에는 이미 적용했다(백업 `db-2026-10-11-18-23.json`). 비워 둘 수
     프로그램(`partsOnly`)을 건너뛴다(D6 — 프로그램 날은 프로그램 그대로). 세트 −1(`lib/report/volume.ts`)도 매일 일정에만 닿고 프로그램 처방은 안 건드린다.
   - 검토 반영(이 묶음 마지막 커밋): 상체 날 파워 칸이 계열 없는 하체 파워(발목 아이소메트릭 프레스 · 가속 포지션 아이소 홀드)를 받지 않는다(`lib/report/theme.ts
     fitsPowerSide`) — 기준선의 '무거운 하체 이틀 이어짐'(프로그램 큰 하체와 매일 일정 사이 포함) 42 → 0.
+- **(10-13 더함) 트레이닝 추천 2판 P6 — 중재 · 프로그램 날은 프로그램 그대로(D6) · 메커니즘 접기(D5) · 상태 바뀜 띠 · 영양 추세.** 받은 뒤 할 일 없음(DB ·
+  패키지 그대로 — 일정 JSON 의 선택 칸 `DailyPlan.program` · `programFallback` 만). 설계 문서 'P6 결과'. 커밋 a9cc30a · c92c6b3 · ccc68fd · 27cc926 · 11a1659 ·
+  cfbad54 · 2c71cf9 + 검토 반영('트레이닝 추천 2판 P6 검토 반영'). **네 영역 파일을 많이 고쳤다**(줄 수는 `git diff --numstat 0fab831` — P6 일곱 + 검토 반영):
+  - `lib/program/program.ts` +156 −8: `TodaySignals` 선택 칸 일곱(`armSpent` · `armThrows` · `heavyLowerYesterday` · `hardToday` · `choseRecovery` · `outingSoon` ·
+    `softOutingNear` — 안 주면 판정이 글자까지 예전과 같다), `RestReason` += `hardToday` · `chooseRecovery`(넘길 수 있음), `CautionCode` += `armRest` · `lowerBudget` ·
+    `outingGuess` · `outingSoon`, go 판정의 `deferVariants`(팔을 다 쓴 날 메디신볼 · 회전 던지기 — 변형 단위, 넘겨도 뺀다). 다음 등판 창이 3일 안이면 큰 하체를,
+    달력 · 같은 요일로 짐작한 등판이 오늘 · 내일이면 큰 하체 · 파워를 빼지 않고 가볍게(검토 반영). `ARM_THROW_VARIANTS` 를 이 파일로 옮겼다.
+    주의 글 `lowerBudget` 은 '어제가 하체 날이라 큰 하체는 가볍게 해요.'(어제 '하체 날'은 저장만 한 일정도 세서 '무겁게 했어요'로 단정하지 않는다).
+  - `lib/program/load.ts` +147 −9: `buildProgramDay` 가 중재(`lib/engine/arbiter.ts arbitrate`)를 한 번 불러 `view.arbitration` · 오늘 판 `view.session` 을 싣는다,
+    `programTodayOf(view)`(규칙은 순수 `lib/report/daily-plan.ts programTodayFrom` — 시험이 표로 본다), `pitchTypesToday` export. `lib/program/next-weight.ts` +25 −1:
+    영양 추세 깃발이 선 주는 올림만 멈춘다(`WeightReason` 'held', 줄 표시 '올림 멈춤').
+  - `app/actions/workout.ts` +21 −3: `startWorkout` 이 프로그램 날 일정(`savedPlan.program`)이면 매일 판으로 열지 않고 `startProgramWorkout` 에 맡긴다 ·
+    자유 무게 · 프로그램 칸 바꾸기가 같은 올림 멈춤을 읽는다. 프로그램 날 일정의 운동은 이제 카드와 같은 부위 거르기(partsOnly)라 일정 = 운동 시작이 얼리는 운동이다.
+  - 트레이닝 화면 `app/(app)/training/page.tsx` +100 −9 · `training-home.tsx` +116 −9(네가 만든 파일) · `start-workout.tsx` +12 −1 · `done-card.tsx` +4 −1 ·
+    새 `state-notice-band.tsx` 85: 프로그램이 오늘 주인이면(중재 매일 일정 몫 + 할 프로그램 운동이 있음 — `lib/report/training-screen.ts trainingScreenOf`) 일정 자리는
+    한 줄 '오늘은 근력 프로그램 {일차 이름} 날이라 …'이고 매일 [운동 시작] · 다시 만들기 · '운동 더 하기'는 없다. 프로그램 운동이 다 빠져 매일 일정으로 짠 날은
+    일정 카드 그대로. 일정을 만든 뒤 상태가 바뀌면 일정 카드 위 띠 '상태가 바뀌었어요 · 지금 상태로 다시 만들기'.
+  - 메커니즘 `lib/mechanics/program.ts` +193 −1 · `load.ts` +64 −5 · 새 `lib/mechanics/fold.ts` 145 · `mechanics-program.tsx` +173 −37 · `mechanics-player.tsx` +48 −6 ·
+    `mechanics/play/page.tsx` +24 −5 · `mechanics-section.tsx` +11 −2 · `app/actions/mechanics.ts` +14 −5: 팔에 싣는 드릴(스로잉 · 메디신볼)을 접는 날 — 오늘 어깨 ·
+    팔꿈치 '통증'(D5, 성인은 '펼치기 → 그래도 하기'), 그리고 검토 반영으로 오늘 팔을 다 쓴 날(오늘 등판 · 경기 기록 · 세게 던진 날) · 최근 통증인데 오늘 체크인 없음 ·
+    만 16세 미만 통증 날(이 셋은 못 펼치고 `?anyway=1` 도 무시). 판정은 `mechanicsFoldOf` 하나(중재와 같은 차례 — 시험 격자 280가지). `MechanicsPainFold` 에 칸
+    `because` · `canUnfold` · `cause`, `MECHANICS_FOLD_TEXT.homeOpen(cause, n)` 은 첫 인자가 까닭 머리말. 접은 채 마치면 `finishMechanicsSession({ partial: true })` —
+    세션 수 · 마친 날을 안 올린다(같은 세션을 다른 날 이어서).
+  - 폰에서 봐 주면 좋은 것: 근력 프로그램이 있는 계정의 트레이닝 화면(프로그램 날 한 줄 · 상태 바뀜 띠) · 어깨 통증 날과 '오늘 등판' 날의 메커니즘 칸(접힘 · 펼치기
+    유무) · 영양 탭 추세 카드(몸무게 단위 lb 설정 포함).
 
 ## 김민에게 — 2026-10-12 · 금윤호(Claude) — 운동 마치기 창의 강도를 선택으로 · 축하 화면에 힘듦 칩 넷(rateWorkoutEffort) · 세션 판 JSON 에 `swaps` 칸
 

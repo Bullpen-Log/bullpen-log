@@ -1,4 +1,6 @@
 import { EAT_FIRST_RATIO } from '@/lib/nutrition/weight-goal';
+import { shiftDateKey } from '@/lib/pitch-stats';
+import { toWeight, type WeightUnit } from '@/lib/units';
 
 /**
  * 영양 추세 깃발 — 지난 7일에 '적게 먹음 · 몸무게가 줄어듦 · 컨디션이 낮음'이 함께 보이면 선다. 순수 함수(DB 를 모른다).
@@ -173,7 +175,7 @@ export function fuelCheckOf(input: {
     why: flag
       ? [
           `지난 ${FUEL_WINDOW_DAYS}일 중 ${lowDays}일은 목표의 ${Math.round(FUEL_LOW_RATIO * 100)}%보다 적게 먹었어요.`,
-          `몸무게가 일주일에 ${numText(-(change as number))}kg씩 줄고 있어요.`,
+          fuelWeightLine(change as number, 'kg'),
           `컨디션이 평균 ${numText(conditionAvg as number)}/10이에요.`,
         ]
       : [],
@@ -185,15 +187,36 @@ export function fuelCheckOf(input: {
   };
 }
 
+/**
+ * 몸무게 줄(③) — 보는 사람의 몸무게 단위로(2판 P6 검토, 2026-10-13). 카드는 서버에서 만들지만 단위는 그 사람 화면의 설정(useWeightUnit)이라,
+ * 화면이 fuelCardLines 로 이 줄만 다시 만든다 — 서버에서 kg 로 굳히면 lb 를 고른 사람에게 이 카드 한 줄만 kg 로 보였다(같은 탭의 체중 카드 ·
+ * 목표 글은 단위를 따른다). kgPerWeek 는 일주일 변화(줄면 −).
+ */
+export function fuelWeightLine(kgPerWeek: number, unit: WeightUnit): string {
+  return `몸무게가 일주일에 ${numText(toWeight(-kgPerWeek, unit))}${unit}씩 줄고 있어요.`;
+}
+
+/** 까닭 세 줄 가운데 몸무게 줄의 자리(섭취 → 몸무게 → 컨디션) */
+const FUEL_WEIGHT_LINE = 1;
+
 export type FuelCard = {
   title: string;
-  /** 까닭 세 줄(FuelCheck.why) */
+  /** 까닭 세 줄(FuelCheck.why — 몸무게 줄은 kg). 화면은 fuelCardLines 로 단위를 맞춰 읽는다 */
   lines: string[];
+  /** 몸무게 일주일 변화(kg, 줄면 −, FuelCheck.kgPerWeek) — 몸무게 줄을 보는 사람의 단위로 다시 만드는 재료 */
+  kgPerWeek: number;
   /** 무게를 어떻게 하는가 */
   hold: string;
   /** 진료 안내 — 성장기는 보호자 · 지도자부터 */
   care: string;
 };
+
+/** 카드의 까닭 줄 — 몸무게 줄만 보는 사람의 단위로(kg 이면 card.lines 그대로) */
+export function fuelCardLines(card: FuelCard, unit: WeightUnit): string[] {
+  return card.lines.map((line, i) =>
+    i === FUEL_WEIGHT_LINE ? fuelWeightLine(card.kgPerWeek, unit) : line
+  );
+}
 
 /**
  * 영양 탭 카드의 글 — 깃발이 섰을 때만. 성장기(만 18세 밑 — 영양의 나이 칸 child · teen)는 보호자 · 지도자와 먼저 이야기하게
@@ -204,11 +227,60 @@ export function fuelCardOf(check: FuelCheck, youth: boolean): FuelCard | null {
   return {
     title: '먹는 양이 모자라 보여요',
     lines: check.why,
+    /* 깃발이 섰으면 몸무게 흐름이 있다(③) — 없을 수 없지만 타입을 위해 0 */
+    kgPerWeek: check.kgPerWeek ?? 0,
     hold: '무게 올리기는 잠시 멈추고, 끼니부터 채워요.',
     care: youth
       ? '보호자나 지도자와 이야기해 보고, 이런 날이 이어지면 진료를 받아 보세요.'
       : '이런 날이 2주 넘게 이어지거나 어지럽고 자주 아프면 진료를 받아 보세요.',
   };
+}
+
+/** 식사 기록 한 줄(MealEntry 의 그 칸들 — 날짜는 'YYYY-MM-DD') */
+export type FuelMealRow = {
+  date: string;
+  meal: string;
+  kcal: number;
+  protein: number | null;
+  amount: number;
+};
+
+/**
+ * 지난 7일의 날마다 재료 — 순수(2판 P6 검토, 2026-10-13: lib/nutrition/fuel-load.ts 는 server-only 라 이 조립 규칙을 시험이 못 읽었다 — 창에
+ * 오늘을 넣거나 단백질 모르는 음식을 0g 으로 세도 시험이 통과했다). fuel-load.ts 가 DB 줄을 읽어 이것을 부른다.
+ *
+ *   창        어제까지 7일(D-7..D-1, 날짜 차례). 오늘 끼니는 안 센다 — 오늘은 아직 먹는 중이라 적게 먹은 날처럼 보인다
+ *   kcal      그날 끼니의 kcal × 양(amount) 합
+ *   protein   단백질을 모르는 음식(protein null)이 하나라도 섞인 날은 null — 0g 으로 더하면 낮게 보인다(fuelCheckOf ②)
+ *   logged    그날 적은 끼니 종류(meal)가 FUEL_MIN_MEALS(둘) 이상 — 한 끼만 적은 날은 기록한 날이 아니다(①)
+ *   weightKg  그날 몸무게(mergeDayWeights — 영양 탭 값이 체크인보다 앞), condition 그날 체크인 컨디션
+ * 창 밖 날짜의 줄(오늘 · 8일 전 …)은 무시한다 — 부르는 쪽이 더 넓게 읽어 넘겨도 같은 날을 본다.
+ */
+export function fuelDaysOf({
+  todayKey,
+  meals,
+  weights,
+  conditions,
+}: {
+  todayKey: string;
+  meals: readonly FuelMealRow[];
+  weights: ReadonlyMap<string, { kg: number }>;
+  conditions: ReadonlyMap<string, number>;
+}): FuelDay[] {
+  return Array.from({ length: FUEL_WINDOW_DAYS }, (_, i) => {
+    const date = shiftDateKey(todayKey, -(FUEL_WINDOW_DAYS - i));
+    const rows = meals.filter((m) => m.date === date);
+    return {
+      date,
+      kcal: rows.reduce((sum, m) => sum + m.kcal * m.amount, 0),
+      protein: rows.some((m) => m.protein == null)
+        ? null
+        : rows.reduce((sum, m) => sum + (m.protein ?? 0) * m.amount, 0),
+      weightKg: weights.get(date)?.kg ?? null,
+      condition: conditions.get(date) ?? null,
+      logged: new Set(rows.map((m) => m.meal)).size >= FUEL_MIN_MEALS,
+    };
+  });
 }
 
 /**

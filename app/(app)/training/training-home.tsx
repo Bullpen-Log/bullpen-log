@@ -9,7 +9,7 @@ import { loadTodayCore, type UserForToday } from '@/lib/report/today-data';
 import { TRAINING_SCREEN_TEXT, trainingScreenOf } from '@/lib/report/training-screen';
 import { STATE_NOTICE_TEXT, stateNoticeOf } from '@/lib/report/state-notice';
 import { PROGRAMS_ENABLED } from '@/lib/program/program';
-import { activeProgram, buildProgramDay } from '@/lib/program/load';
+import { activeProgram, buildProgramDay, programTodayOf } from '@/lib/program/load';
 import { loadArmcareToday, type UserForArmcare } from '@/lib/armcare/today';
 import { ARMCARE_KIND_TEXT } from '@/lib/armcare/routine';
 import { ARMCARE_AREAS, ARMCARE_CATEGORY } from '@/lib/armcare/anatomy';
@@ -258,6 +258,8 @@ async function WorkoutCard({ user, today }: { user: HomeUser; today: Date }) {
     daily: programView?.arbitration.daily,
     savedPlan: core.savedPlan,
     shownCount: count,
+    /* 할 프로그램 운동이 없는 날(다 빠짐)은 일정 만들기가 매일 일정을 짠다 — 프로그램 날로 보지 않는다(트레이닝 화면과 같은 값, 2판 P6 검토) */
+    programWork: programView ? programTodayOf(programView) != null : false,
   });
   if (programView && screen.programOwns) {
     const active = programView.todayState === 'active';
@@ -419,8 +421,9 @@ async function MechanicsCard({ userId }: { userId: string }) {
     </div>
   );
   /*
-   * 어깨 · 팔꿈치가 아픈 날(2판 P6-5, D5) — 프로그램 칸처럼 팔에 싣는 드릴은 접고 무브먼트만 권한다. 펼치기('그래도 하기')는
-   * 프로그램 칸에 있어서, 할 드릴이 없으면 단추 없이 카드를 누르면 그리로 간다. 다 마친 수준 · 오늘 마친 날은 예전 줄 그대로.
+   * 어깨 · 팔꿈치가 아픈 날(2판 P6-5, D5) · 팔을 다 쓴 날 · 통증 확인 전(2판 P6 검토, lib/mechanics/fold.ts) — 프로그램 칸처럼 팔에 싣는 드릴은
+   * 접고 무브먼트만 권한다. 까닭 머리말은 fold.cause. 펼치기('그래도 하기' — 성인의 통증 날만)는 프로그램 칸에 있어서, 할 드릴이 없으면 단추 없이
+   * 카드를 누르면 그리로 간다. 다 마친 수준 · 오늘 마친 날은 예전 줄 그대로.
    */
   const fold = painFold && !completed && !program.finishedToday ? painFold : null;
   const { open } = foldSession(session, fold);
@@ -434,7 +437,7 @@ async function MechanicsCard({ userId }: { userId: string }) {
         tone={openDone ? 'done' : 'warn'}
         status={
           openLeft.length > 0
-            ? MECHANICS_FOLD_TEXT.homeOpen(fold.label, open.length)
+            ? MECHANICS_FOLD_TEXT.homeOpen(fold.cause, open.length)
             : openDone
               ? MECHANICS_FOLD_TEXT.homeOpenDone
               : MECHANICS_FOLD_TEXT.homeAllFolded

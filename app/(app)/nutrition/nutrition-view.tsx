@@ -60,7 +60,7 @@ import {
 } from '@/lib/nutrition/meta';
 import type { DaySummary, NutritionDay } from '@/lib/nutrition/load';
 import type { Advice } from '@/lib/nutrition/advice';
-import type { FuelCard } from '@/lib/nutrition/fuel-check';
+import { fuelCardLines, type FuelCard } from '@/lib/nutrition/fuel-check';
 import {
   GUIDE_DISCLAIMER,
   recoveryEaten,
@@ -1203,6 +1203,8 @@ function GuideCard({
  * 영양 추세 카드 — 경고 색 한 장. 까닭 세 줄 · 무게를 어떻게 하는지 · 진료 안내(성장기는 보호자 · 지도자부터). 글은 fuel-check.ts 한 곳.
  */
 function FuelNotice({ card }: { card: FuelCard }) {
+  /* 몸무게 줄은 보는 사람의 단위로(2판 P6 검토 — 서버가 kg 로 굳히면 lb 를 고른 사람에게 이 줄만 kg 였다) */
+  const unit = useWeightUnit();
   return (
     <section
       aria-labelledby="fuel-title"
@@ -1212,7 +1214,7 @@ function FuelNotice({ card }: { card: FuelCard }) {
         {card.title}
       </h2>
       <ul className="mt-2 space-y-1 text-sm text-ink break-keep">
-        {card.lines.map((line) => (
+        {fuelCardLines(card, unit).map((line) => (
           <li key={line}>{line}</li>
         ))}
       </ul>
