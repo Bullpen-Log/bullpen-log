@@ -285,6 +285,7 @@ import {
 } from '../lib/report/personalize.ts';
 import {
   DEFAULT_WORKOUT_MINUTES,
+  RETURN_SESSIONS,
   SLOT_ORDER,
   WORKOUT_MINUTES_CHOICES,
   compositionFor,
@@ -293,6 +294,7 @@ import {
   estimateMinutes,
   hardOuting,
   mainCandidateCount,
+  orderCandidates,
   painAvoidedSide,
   painRecoveryReason,
   pickForTheme,
@@ -24964,6 +24966,535 @@ console.log(
       'P5 점수 (사) 아직 아무도 안 부른다 — 일정 만들기 · 테마 · 오늘 화면 자료가 score.ts 를 안 읽음(동작 변화 0, 끼우는 것은 P5-i · P5-j)',
       callers.length === 0,
       json(callers)
+    );
+  }
+}
+
+/* ═══════════════════ [2판 P5] 차례에 점수 — lib/report/theme.ts orderCandidates · pickForTheme 의 scoreOf (2026-10-12) ═══════════════════ */
+console.log(
+  '\n[2판 P5] 차례에 점수 — 무리 안에서만 첫째 키 · 동점은 지금 키 · 최근 사흘은 그대로 맨 뒤 · 안정 분할 셋과 거름은 점수보다 위(2026-10-12)'
+);
+{
+  /*
+   * 왜 보는가. 고르기 점수(score.ts)를 후보 차례에 끼운다(P5-i). 점수는 차례만 바꿔야 한다 — 무리(돌아올 것 · 처음 보는 것 · 이른 것)
+   * 나누기 · 번갈아 내기 · 최근 사흘 맨 뒤(회복 규칙) · 오늘 고른 종류 · 부위 · 목표의 안정 분할 · 거름(시간 · 계열 · 파워 비중)이 점수보다
+   * 위다. 그래서 점수가 모두 0 이면 점수 없이 부른 것과 글자까지 같아야 한다 — 기준선 · 도구 · 프로그램처럼 점수를 안 넘기는 길의 회귀 0.
+   * (가) 점수 없음 = 고치기 전 차례(legacyOrder 는 고치기 전 함수를 글자 그대로 옮긴 것) · 모든 점수 0 · NaN = 점수 없음 · 한 번만 센다,
+   * (나) 점수 있음 — 무리 자리 · 번갈아 자리 · 최근 사흘 꼬리 그대로, 무리 안 점수 내림차순 · 동점은 옛 차례, −3 은 뒤 · +2 는 앞, 동점은 씨앗,
+   * (다) pickForTheme — 점수는 차례로만 들어간다(먼저 줄 세운 후보를 넘긴 것과 같음) · 안정 분할 셋이 점수보다 위,
+   * (라) P3 160조합 — 모든 점수 0 = 점수 없음(목록 · 시간 · 알림 글자까지), 실제 점수(scoreContextOf · scoreOf)로 (나) · (다) 의 약속.
+   */
+  const json = (v: unknown) => JSON.stringify(v);
+  const ids = (xs: readonly { id: string }[]) => xs.map((x) => x.id).join(',');
+  type Opts = {
+    recentIds: Set<string>;
+    sessionsAgo: Map<string, number>;
+    rotationSeed?: string;
+  };
+  /** theme.ts 의 mix 와 같은 식(FNV-1a, 씨앗이 앞) — 고치기 전 차례를 되살리는 데만 쓴다 */
+  const mixOld = (id: string, seed: string) => {
+    let h = 0x811c9dc5;
+    const text = `${seed}:${id}`;
+    for (let i = 0; i < text.length; i++) {
+      h ^= text.charCodeAt(i);
+      h = Math.imul(h, 0x01000193) >>> 0;
+    }
+    return h;
+  };
+  /** 고치기 전 orderCandidates(2026-10-12 P5-i 전) — 글자 그대로 옮겨 견준다 */
+  const legacyOrder = <T extends { id: string }>(
+    candidates: T[],
+    { recentIds, sessionsAgo, rotationSeed }: Opts
+  ): T[] => {
+    if (recentIds.size === 0 && sessionsAgo.size === 0 && rotationSeed == null) {
+      return candidates;
+    }
+    const due: T[] = [];
+    const fresh: T[] = [];
+    const early: T[] = [];
+    const recent: T[] = [];
+    for (const ex of candidates) {
+      if (recentIds.has(ex.id)) {
+        recent.push(ex);
+        continue;
+      }
+      const ago = sessionsAgo.get(ex.id);
+      if (ago == null) fresh.push(ex);
+      else if (ago >= RETURN_SESSIONS) due.push(ex);
+      else early.push(ex);
+    }
+    const seedOf = (ex: T) => (rotationSeed ? mixOld(ex.id, rotationSeed) : 0);
+    const byAge = (a: T, b: T) =>
+      (sessionsAgo.get(b.id) ?? 0) - (sessionsAgo.get(a.id) ?? 0) ||
+      seedOf(a) - seedOf(b);
+    due.sort(byAge);
+    early.sort(byAge);
+    fresh.sort((a, b) => seedOf(a) - seedOf(b));
+    const mixed: T[] = [];
+    for (let i = 0; i < Math.max(due.length, fresh.length); i++) {
+      if (i < due.length) mixed.push(due[i]);
+      if (i < fresh.length) mixed.push(fresh[i]);
+    }
+    return [...mixed, ...early, ...recent];
+  };
+  type Group = 'due' | 'fresh' | 'early' | 'recent';
+  /** 무리 이름 — orderCandidates 의 나누기와 같은 뜻 */
+  const groupOf = (id: string, { recentIds, sessionsAgo }: Opts): Group => {
+    if (recentIds.has(id)) return 'recent';
+    const ago = sessionsAgo.get(id);
+    return ago == null ? 'fresh' : ago >= RETURN_SESSIONS ? 'due' : 'early';
+  };
+  /** 결정적인 숫자 — 시험용 점수 · 기록 만들기(난수 대신) */
+  const hashOf = (text: string) => mixOld(text, 'p5i');
+  /** 실제 표로 만든 기록 — 아홉에 하나는 최근 사흘(1세션 전), 셋에 하나는 몇 세션 전(0~11) */
+  const historyOf = (k: number, pool: readonly { id: string }[] = library): Opts => {
+    const recentIds = new Set<string>();
+    const sessionsAgo = new Map<string, number>();
+    for (const e of pool) {
+      const h = hashOf(`${k}:${e.id}`);
+      if (h % 9 === 0) {
+        recentIds.add(e.id);
+        sessionsAgo.set(e.id, 1);
+      } else if (h % 3 === 0) sessionsAgo.set(e.id, (h >>> 4) % 12);
+    }
+    return { recentIds, sessionsAgo };
+  };
+  /**
+   * 점수 있는 차례가 지킬 약속 — 빠진 것 · 더한 것 없음, 자리마다 무리가 옛 차례와 같음(번갈아 자리 · 이른 것 · 최근 사흘 꼬리),
+   * 최근 사흘은 후보 차례 그대로, 무리 안은 점수 내림차순이고 같은 점수끼리는 옛 차례. 어긋나면 그 까닭, 지키면 null.
+   */
+  const orderPromises = <T extends { id: string }>(
+    cands: T[],
+    opts: Opts,
+    score: (ex: T) => number,
+    got: T[]
+  ): string | null => {
+    const old = legacyOrder(cands, opts);
+    if (
+      got.length !== old.length ||
+      new Set(got.map((x) => x.id)).size !== got.length ||
+      [...old]
+        .map((x) => x.id)
+        .sort()
+        .join() !==
+        [...got]
+          .map((x) => x.id)
+          .sort()
+          .join()
+    ) {
+      return '빠짐 · 더함';
+    }
+    const g = (x: T) => groupOf(x.id, opts);
+    if (got.map(g).join() !== old.map(g).join()) return '무리 자리';
+    if (
+      ids(got.filter((x) => g(x) === 'recent')) !==
+      ids(cands.filter((x) => g(x) === 'recent'))
+    ) {
+      return '최근 사흘 차례';
+    }
+    for (const name of ['due', 'fresh', 'early'] as const) {
+      const mine = got.filter((x) => g(x) === name);
+      const was = old.filter((x) => g(x) === name);
+      for (let i = 1; i < mine.length; i++) {
+        if (score(mine[i]) > score(mine[i - 1])) return `${name} 점수 차례`;
+      }
+      for (const v of new Set(mine.map(score))) {
+        if (
+          ids(mine.filter((x) => score(x) === v)) !==
+          ids(was.filter((x) => score(x) === v))
+        ) {
+          return `${name} 동점 차례`;
+        }
+      }
+    }
+    return null;
+  };
+
+  /* ── (가) 점수 없음 = 고치기 전 · 모든 점수 0 · NaN · 한 번만 센다 ── */
+  {
+    const configs: { name: string; opts: Opts }[] = [
+      { name: '등록순', opts: { recentIds: new Set(), sessionsAgo: new Map() } },
+      {
+        name: '씨앗',
+        opts: {
+          recentIds: new Set(),
+          sessionsAgo: new Map(),
+          rotationSeed: '2026-10-12',
+        },
+      },
+      { name: '기록 · 씨앗', opts: { ...historyOf(1), rotationSeed: '2026-10-12' } },
+      { name: '기록만', opts: historyOf(2) },
+    ];
+    const bad: string[] = [];
+    for (const { name, opts } of configs) {
+      const old = ids(legacyOrder(library, opts));
+      if (ids(orderCandidates(library, opts)) !== old) bad.push(`${name} 점수 없음`);
+      if (ids(orderCandidates(library, { ...opts, scoreOf: () => 0 })) !== old) {
+        bad.push(`${name} 모두 0`);
+      }
+      if (
+        ids(orderCandidates(library, { ...opts, scoreOf: () => Number.NaN })) !== old
+      ) {
+        bad.push(`${name} NaN`);
+      }
+    }
+    check(
+      `P5 차례 (가) 실제 표 ${library.length}개 × 넷(등록순 · 씨앗 · 기록 · 기록만) — 점수 없음 · 모든 점수 0 · NaN 이 고치기 전 차례와 글자까지 같다, 아무것도 없으면 받은 배열 그대로`,
+      bad.length === 0 && orderCandidates(library, configs[0].opts) === library,
+      bad.join(' · ')
+    );
+
+    const opts: Opts = { ...historyOf(3), rotationSeed: 's' };
+    const calls = new Map<string, number>();
+    orderCandidates(library, {
+      ...opts,
+      scoreOf: (e) => {
+        calls.set(e.id, (calls.get(e.id) ?? 0) + 1);
+        return (hashOf(e.id) % 5) - 2;
+      },
+    });
+    const want = library.filter((e) => !opts.recentIds.has(e.id)).length;
+    check(
+      `P5 차례 (가) 점수는 운동마다 한 번만 센다 — 최근 사흘 ${opts.recentIds.size}개는 안 세고 나머지 ${want}개를 한 번씩`,
+      opts.recentIds.size > 0 &&
+        calls.size === want &&
+        [...calls.values()].every((n) => n === 1) &&
+        [...calls.keys()].every((id) => !opts.recentIds.has(id))
+    );
+  }
+
+  /* ── (나) 점수 있음 — 무리 · 번갈아 · 최근 사흘은 그대로, 무리 안에서만 ── */
+  {
+    /* 손으로 — 돌아올 것 셋(9 · 8 · 7세션 전) · 처음 셋 · 이른 것 둘(3 · 2) · 최근 사흘 둘, 씨앗 없음(동점은 등록순) */
+    const mk = (id: string) => ({
+      id,
+      category: '상체 스트렝스',
+      intensity: '중간',
+      bodyParts: ['가슴'],
+    });
+    const cands = ['d1', 'd2', 'd3', 'f1', 'f2', 'f3', 'e1', 'e2', 'r1', 'r2'].map(mk);
+    const opts: Opts = {
+      recentIds: new Set(['r1', 'r2']),
+      sessionsAgo: new Map([
+        ['d1', 9],
+        ['d2', 8],
+        ['d3', 7],
+        ['e1', 3],
+        ['e2', 2],
+        ['r1', 1],
+        ['r2', 2],
+      ]),
+    };
+    const pts: Record<string, number> = { d3: 2, f1: -3, e2: 9, r2: 9 };
+    const got = ids(
+      orderCandidates(cands, { ...opts, scoreOf: (e) => pts[e.id] ?? 0 })
+    );
+    check(
+      `P5 차례 (나) 손으로 — 옛 차례 ${ids(legacyOrder(cands, opts))} 에서 +2 는 제 무리 맨 앞(d3) · −3 은 맨 뒤(f1) · 이른 것은 +9 여도 이른 것 자리(e2) · 최근 사흘은 +9 여도 그대로(r2)`,
+      ids(legacyOrder(cands, opts)) === 'd1,f1,d2,f2,d3,f3,e1,e2,r1,r2' &&
+        got === 'd3,f2,d1,f3,d2,f1,e2,e1,r1,r2',
+      got
+    );
+
+    /* 실제 표 — 기록 스무 벌 × 점수(−3 ~ +2), 씨앗 있음 · 없음 */
+    const bad: string[] = [];
+    let moved = 0;
+    let runs = 0;
+    for (let k = 0; k < 20; k++)
+      for (const seed of ['2026-10-12', undefined]) {
+        runs++;
+        const o: Opts = { ...historyOf(10 + k), rotationSeed: seed };
+        const score = (e: { id: string }) => (hashOf(`${k}~${e.id}`) % 6) - 3;
+        const ordered = orderCandidates(library, { ...o, scoreOf: score });
+        const broke = orderPromises(library, o, score, ordered);
+        if (broke) bad.push(`${k}/${seed ?? '-'} ${broke}`);
+        if (ids(ordered) !== ids(legacyOrder(library, o))) moved++;
+      }
+    check(
+      `P5 차례 (나) 실제 표 ${library.length}개 × ${runs}벌(기록 · 점수 −3~+2 · 씨앗 있음 없음) — 빠진 것 없음 · 자리마다 무리 그대로(번갈아 자리 포함) · 최근 사흘 꼬리는 후보 차례 · 무리 안은 점수 내림차순, 같은 점수는 옛 차례(차례가 바뀐 벌 ${moved})`,
+      bad.length === 0 && moved === runs,
+      bad.slice(0, 3).join(' · ')
+    );
+
+    /* 동점은 씨앗 — 모두 같은 점수면 씨앗마다 옛 차례 그대로, 두 씨앗은 서로 다르다 */
+    const a = { recentIds: new Set<string>(), sessionsAgo: new Map<string, number>() };
+    const s1 = ids(
+      orderCandidates(library, { ...a, rotationSeed: '2026-10-11', scoreOf: () => 1 })
+    );
+    const s2 = ids(
+      orderCandidates(library, { ...a, rotationSeed: '2026-10-12', scoreOf: () => 1 })
+    );
+    check(
+      'P5 차례 (나) 동점은 씨앗 — 모두 같은 점수(1)면 날마다 고치기 전 차례 그대로, 이어진 두 날은 서로 다르다',
+      s1 === ids(legacyOrder(library, { ...a, rotationSeed: '2026-10-11' })) &&
+        s2 === ids(legacyOrder(library, { ...a, rotationSeed: '2026-10-12' })) &&
+        s1 !== s2
+    );
+  }
+
+  /* ── (다) pickForTheme — 점수는 차례로만 · 안정 분할 셋이 점수보다 위 ── */
+  {
+    type PickRun = ReturnType<typeof pickForTheme>;
+    const listOf = (r: PickRun) =>
+      json([
+        r.picks.map((p) => `${p.slot}:${p.exercise.id}`),
+        r.estimatedMinutes,
+        r.notes,
+      ]);
+
+    /* 실제 표 — 점수를 넘긴 것 = 그 점수로 먼저 줄 세운 후보를 기록 · 씨앗 없이 넘긴 것(점수는 다른 길로 안 닿는다) */
+    const bad: string[] = [];
+    let runs = 0;
+    let changed = 0;
+    const THEMES: ThemeKey[] = ['lower', 'upper', 'assist', 'recovery'];
+    const goals = TRAINING_GOALS.map((g) => g.name);
+    for (const [ti, theme] of THEMES.entries())
+      for (const [gi, goal] of goals.entries())
+        for (const requested of [45, 75]) {
+          runs++;
+          const k = ti * 10 + gi * 2 + (requested === 45 ? 0 : 1);
+          const o: Opts = { ...historyOf(50 + k), rotationSeed: `d-${k}` };
+          const score = (e: { id: string }) => (hashOf(`p${k}~${e.id}`) % 6) - 3;
+          const rest = {
+            theme,
+            minutes: effectiveMinutes(theme, requested),
+            doneIds: new Set<string>(),
+            goal,
+            preferredParts: k % 3 === 0 ? ['가슴'] : [],
+            preferredWorkout: k % 4 === 1 ? '파워' : k % 4 === 2 ? '웨이트' : null,
+          };
+          const scored = pickForTheme({
+            candidates: library,
+            ...o,
+            ...rest,
+            scoreOf: score,
+          });
+          const pre = pickForTheme({
+            candidates: orderCandidates(library, { ...o, scoreOf: score }),
+            ...rest,
+          });
+          const none = pickForTheme({ candidates: library, ...o, ...rest });
+          if (listOf(scored) !== listOf(pre))
+            bad.push(`${theme} ${goal} ${requested}분`);
+          if (listOf(scored) !== listOf(none)) changed++;
+        }
+    check(
+      `P5 차례 (다) 실제 표 × ${runs}판(테마 넷 × 목표 셋 × 45 · 75분, 부위 · 종류 섞음) — 점수를 넘긴 결과 = 그 점수로 먼저 줄 세운 후보를 넘긴 결과(거름 · 시간 · 계열 · 파워 비중은 점수를 안 본다), 목록이 바뀐 판 ${changed}`,
+      bad.length === 0 && changed > 0,
+      bad.slice(0, 3).join(' · ')
+    );
+
+    /*
+     * 안정 분할 셋 — 시간이 모자라 아무것도 안 들어가는 날(3분)은 본운동 첫 하나를 '가장 짧은 것 · 같으면 앞의 것'으로 억지로 넣는다.
+     * 길이가 같은 운동끼리면 그 하나가 곧 줄의 맨 앞이라, 분할이 점수보다 위인지 그대로 보인다.
+     */
+    const syn = (
+      id: string,
+      category: string,
+      bodyParts: string[],
+      movementPattern: string
+    ) => ({
+      id,
+      category,
+      intensity: '중간',
+      bodyParts,
+      movementPattern,
+      equipment: ['덤벨'],
+    });
+    const mainOf = (
+      cands: ReturnType<typeof syn>[],
+      pts: Record<string, number> | null,
+      more: {
+        goal: string;
+        preferredParts?: string[];
+        preferredWorkout?: string | null;
+      }
+    ) =>
+      pickForTheme({
+        candidates: cands,
+        theme: 'upper',
+        minutes: 3,
+        doneIds: new Set<string>(),
+        rotationSeed: 'p5i',
+        ...more,
+        ...(pts ? { scoreOf: (e: { id: string }) => pts[e.id] ?? 0 } : {}),
+      })
+        .picks.filter((p) => p.slot === 'main')
+        .map((p) => p.exercise.id)
+        .join(',');
+    const chestLow = syn('chest-low', '상체 스트렝스', ['가슴'], '밀기');
+    const chestHigh = syn('chest-high', '상체 스트렝스', ['가슴'], '밀기');
+    const backHigh = syn('back-high', '상체 스트렝스', ['등'], '당기기');
+    const powerHigh = syn('power-high', '파워', ['어깨'], '회전');
+    const powerLow = syn('power-low', '파워', ['어깨'], '회전');
+    const powerMid = syn('power-mid', '파워', ['어깨'], '밀기');
+    const weightLow = syn('weight-low', '상체 스트렝스', ['가슴'], '밀기');
+    const weightHigh = syn('weight-high', '상체 스트렝스', ['등'], '당기기');
+    const costs = new Set(
+      [chestLow, backHigh, powerHigh, weightLow].map((e) => estimateMinutes(e))
+    );
+    const pts = {
+      'chest-low': -9,
+      'chest-high': 5,
+      'back-high': 9,
+      'power-high': 9,
+      'power-low': -9,
+      'power-mid': 5,
+      'weight-low': -9,
+      'weight-high': 9,
+    };
+    const strength = '근력 향상';
+    const power = '파워 향상';
+    const cases: [string, string, string][] = [
+      /* 오늘 고른 부위(wanted) */
+      [
+        '부위 · 점수 없음',
+        mainOf([chestLow, backHigh], null, {
+          goal: strength,
+          preferredParts: ['가슴'],
+        }),
+        'chest-low',
+      ],
+      [
+        '부위 없음 · 점수(대조 — 점수가 차례를 바꾼다)',
+        mainOf([chestLow, backHigh], pts, { goal: strength }),
+        'back-high',
+      ],
+      [
+        '부위 가슴 · 가슴 −9 · 등 +9',
+        mainOf([chestLow, backHigh], pts, { goal: strength, preferredParts: ['가슴'] }),
+        'chest-low',
+      ],
+      [
+        '부위 가슴 · 가슴 안에서는 점수',
+        mainOf([chestLow, chestHigh, backHigh], pts, {
+          goal: strength,
+          preferredParts: ['가슴'],
+        }),
+        'chest-high',
+      ],
+      /* 오늘 고른 운동 종류(mainFirst) — '웨이트'면 상체 스트렝스 먼저 */
+      [
+        '종류 없음 · 점수(대조)',
+        mainOf([powerHigh, weightLow], pts, { goal: power }),
+        'power-high',
+      ],
+      [
+        '종류 웨이트 · 웨이트 −9 · 파워 +9',
+        mainOf([powerHigh, weightLow], pts, {
+          goal: power,
+          preferredWorkout: '웨이트',
+        }),
+        'weight-low',
+      ],
+      /* 목표가 먼저 고를 쪽(goalPrefer) — 파워 향상은 파워 먼저 */
+      [
+        '목표 파워 · 파워 −9 · 웨이트 +9',
+        mainOf([powerLow, weightHigh], pts, { goal: power }),
+        'power-low',
+      ],
+      [
+        '목표 파워 · 파워 안에서는 점수',
+        mainOf([powerLow, powerMid, weightHigh], pts, { goal: power }),
+        'power-mid',
+      ],
+    ];
+    const wrong = cases.filter(([, got, want]) => got !== want);
+    check(
+      `P5 차례 (다) 안정 분할 셋이 점수보다 위 — 오늘 고른 부위 · 종류 · 목표가 먼저 고를 쪽은 점수가 −9 여도 앞, 그 안에서만 점수(대조: 분할이 없으면 +9 가 앞) · ${cases.length}경우`,
+      costs.size === 1 && wrong.length === 0,
+      [
+        `운동 길이 ${[...costs].join('/')}분`,
+        ...wrong.map(([name, got, want]) => `${name}: ${got} (기대 ${want})`),
+      ].join(' · ')
+    );
+  }
+
+  /* ── (라) P3 160조합 — 모든 점수 0 = 점수 없음, 실제 점수로 (나) · (다) 의 약속 ── */
+  {
+    type PickRun = ReturnType<typeof pickForTheme>;
+    const listOf = (r: PickRun) =>
+      json([
+        r.picks.map((p) => `${p.slot}:${p.exercise.id}`),
+        r.estimatedMinutes,
+        r.notes,
+      ]);
+    const THEMES: ThemeKey[] = ['lower', 'upper', 'assist', 'recovery'];
+    const goals = TRAINING_GOALS.map((g) => g.name);
+    const bad: string[] = [];
+    let built = 0;
+    let haltedCount = 0;
+    let moved = 0;
+    let pickMoved = 0;
+    let scoredAny = 0;
+    for (const [i, facts] of p3ComboFactsSeen.entries()) {
+      const plan = buildPitchPlan(facts);
+      const picked = selectCandidates({ facts, plan, library });
+      if (picked.halted) {
+        haltedCount++;
+        continue;
+      }
+      built++;
+      const cands = picked.candidates;
+      const theme = THEMES[i % 4];
+      const opts: Opts = { ...historyOf(100 + i, cands), rotationSeed: `p5i-${i}` };
+      const rest = {
+        theme,
+        minutes: effectiveMinutes(theme, [45, 60, 75, 90][Math.floor(i / 12) % 4]),
+        doneIds: new Set<string>(),
+        goal: goals[Math.floor(i / 4) % goals.length],
+        preferredParts: facts.condition.today?.preferredParts ?? [],
+        preferredWorkout: facts.condition.today?.preferredWorkout ?? null,
+      };
+      const none = pickForTheme({ candidates: cands, ...opts, ...rest });
+      const zero = pickForTheme({
+        candidates: cands,
+        ...opts,
+        ...rest,
+        scoreOf: () => 0,
+      });
+      if (listOf(none) !== listOf(zero)) bad.push(`p0-${i} 모두 0 ≠ 점수 없음`);
+      if (
+        ids(orderCandidates(cands, opts)) !==
+        ids(orderCandidates(cands, { ...opts, scoreOf: () => 0 }))
+      ) {
+        bad.push(`p0-${i} 차례: 모두 0 ≠ 점수 없음`);
+      }
+      /* 실제 점수 — 오늘 상태 한 장에서, 2주 계열은 스쿼트만 한 셈 · 열일곱에 하나는 두 번 바꿔 뺌 · 열셋에 하나는 즐겨찾기 */
+      const state = buildDayState({ facts, plan });
+      const ctx = scoreContextOf({
+        theme,
+        facts,
+        state,
+        patternsDone14d: new Map([['스쿼트', 1]]),
+        swappedOut: new Map(cands.filter((_, k) => k % 17 === 0).map((e) => [e.id, 2])),
+        favoriteIds: new Set(cands.filter((_, k) => k % 13 === 0).map((e) => e.id)),
+      });
+      const real = (ex: (typeof cands)[number]) => scoreOf(ex, ctx).total;
+      if (cands.some((e) => real(e) !== 0)) scoredAny++;
+      const ordered = orderCandidates(cands, { ...opts, scoreOf: real });
+      const broke = orderPromises(cands, opts, real, ordered);
+      if (broke) bad.push(`p0-${i} ${broke}`);
+      if (ids(ordered) !== ids(legacyOrder(cands, opts))) moved++;
+      const scored = pickForTheme({
+        candidates: cands,
+        ...opts,
+        ...rest,
+        scoreOf: real,
+      });
+      const pre = pickForTheme({ candidates: ordered, ...rest });
+      if (listOf(scored) !== listOf(pre)) bad.push(`p0-${i} 점수가 차례 밖에서 닿음`);
+      if (listOf(scored) !== listOf(none)) pickMoved++;
+    }
+    check(
+      `P5 차례 (라) P3 160조합 중 후보가 나온 ${built}명(멈춤 ${haltedCount}) — 모든 점수 0 = 점수 없음(차례 · 목록 · 시간 · 알림 글자까지), 실제 점수(점수가 붙은 ${scoredAny}명)는 무리 · 최근 사흘을 지키고 무리 안에서만 차례를 바꾸며(바뀐 ${moved}명) 차례로만 목록에 닿는다(목록이 바뀐 ${pickMoved}명)`,
+      p3ComboFactsSeen.length === 160 &&
+        built > 0 &&
+        built + haltedCount === 160 &&
+        moved > 0 &&
+        pickMoved > 0 &&
+        bad.length === 0,
+      bad.slice(0, 4).join(' · ')
     );
   }
 }

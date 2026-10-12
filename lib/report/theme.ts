@@ -1575,7 +1575,7 @@ function totalSlack(minutes: number): number {
  * 주 2~3회 하는 사람에게 두어 주에 한 번꼴이라, 지난번 무게가 아직 기억나는
  * 간격이다. 더 짧게 하면 후보가 좁아져 같은 계열 동작이 몰린다.
  */
-const RETURN_SESSIONS = 6;
+export const RETURN_SESSIONS = 6;
 
 /**
  * 후보를 어떤 순서로 볼지 정한다.
@@ -1598,16 +1598,37 @@ const RETURN_SESSIONS = 6;
  * (첫 서른 세션에 7%). 번갈아 내면 둘이 따로 논다 — 같은 조건에서 55%.
  *
  * 빼지는 않는다. 후보가 적은 날에 빼버리면 줄 것이 없어진다.
+ *
+ * 고르기 점수(scoreOf, 2판 P5-i · 2026-10-12)는 ① ② ③ 무리 안에서만 첫째 키로 쓴다 — 클수록 앞. 예전에는 무리 안 차례가
+ * '오래된 것 · 씨앗'뿐이라, 어깨가 뻐근한 날 · 내일 등판인 날에도 같은 줄에서 같은 운동이 뽑혔다(기준선 ⑰ 11.4%). 무리 나누기 ·
+ * 번갈아 내기는 점수보다 위에 둔다 — 오래 안 한 것을 다시 꺼내는 규칙(위 '같은 조건에서 55%')을 점수가 뒤집으면 안 된다. 동점은
+ * 지금 키(① ③ 오래된 것 → 씨앗, ② 씨앗)가 가른다. 그래서 모든 점수가 0 이면 점수 없이 부른 것과 글자까지 같은 차례다(정렬이
+ * 안정적이라). ④ 최근 사흘은 점수를 안 매기고 후보 차례 그대로 맨 뒤 — 점수가 높아도 회복 규칙을 못 넘는다. 점수는 빼지 않는다.
+ * 빼는 것은 안전 거르기(prescription.ts selectCandidates)의 몫이라, 점수가 틀려도 위험한 운동이 들어오지 않는다.
+ *
+ * 자체 시험이 직접 부른다(scripts/training-selftest.mts '[2판 P5] 차례에 점수') — 앱은 pickForTheme 으로만 부른다.
  */
-function orderCandidates<T extends ThemedExercise>(
+export function orderCandidates<T extends ThemedExercise>(
   candidates: T[],
   {
     recentIds,
     sessionsAgo,
     rotationSeed,
-  }: { recentIds: Set<string>; sessionsAgo: Map<string, number>; rotationSeed?: string }
+    scoreOf,
+  }: {
+    recentIds: Set<string>;
+    sessionsAgo: Map<string, number>;
+    rotationSeed?: string;
+    /** 운동마다 고르기 점수(클수록 앞). 안 주면 예전 차례 그대로 */
+    scoreOf?: (ex: T) => number;
+  }
 ): T[] {
-  if (recentIds.size === 0 && sessionsAgo.size === 0 && rotationSeed == null) {
+  if (
+    recentIds.size === 0 &&
+    sessionsAgo.size === 0 &&
+    rotationSeed == null &&
+    scoreOf == null
+  ) {
     return candidates;
   }
 
@@ -1635,10 +1656,22 @@ function orderCandidates<T extends ThemedExercise>(
   const byAge = (a: T, b: T) =>
     (sessionsAgo.get(b.id) ?? 0) - (sessionsAgo.get(a.id) ?? 0) ||
     seedOf(a) - seedOf(b);
+  /*
+   * 점수는 운동마다 한 번만 센다(정렬이 비교마다 부르면 같은 운동을 여러 번 센다). 숫자가 아닌 값(NaN · 무한)은 0 으로 —
+   * 비교가 NaN 을 내면 정렬 차례가 엔진마다 달라진다. 최근 사흘 무리는 점수를 안 쓰니 세지 않는다.
+   */
+  const scores = new Map<T, number>();
+  if (scoreOf != null) {
+    for (const ex of [...due, ...fresh, ...early]) {
+      const v = scoreOf(ex);
+      scores.set(ex, Number.isFinite(v) ? v : 0);
+    }
+  }
+  const byScore = (a: T, b: T) => (scores.get(b) ?? 0) - (scores.get(a) ?? 0);
 
-  due.sort(byAge);
-  early.sort(byAge);
-  fresh.sort((a, b) => seedOf(a) - seedOf(b));
+  due.sort((a, b) => byScore(a, b) || byAge(a, b));
+  early.sort((a, b) => byScore(a, b) || byAge(a, b));
+  fresh.sort((a, b) => byScore(a, b) || seedOf(a) - seedOf(b));
 
   // 돌아올 것 하나, 처음 보는 것 하나 — 번갈아
   const mixed: T[] = [];
@@ -1688,6 +1721,7 @@ export function pickForTheme<T extends ThemedExercise>({
   preferredWorkout = null,
   goal = null,
   focus = null,
+  scoreOf,
 }: {
   candidates: T[];
   theme: ThemeKey;
@@ -1733,6 +1767,15 @@ export function pickForTheme<T extends ThemedExercise>({
   goal?: string | null;
   /** 목표 안에서 좁힌 부위 — 본운동의 스트렝스를 한 계열로 줄인다 */
   focus?: GoalFocusKey | null;
+  /**
+   * 운동마다 고르기 점수 — 오늘 상태(뻐근한 관절 · 다음 등판 · 팔 피로 · 프로그램 · 뺀 운동 · 빠진 계열 · 즐겨찾기)를 작은 정수로
+   * 매긴 것(score.ts 의 scoreOf 가 낸 total 을 넘긴다, 2판 P5). 클수록 먼저 본다.
+   *
+   * 차례만 바꾼다 — 무리(돌아올 것 · 처음 보는 것 · 이른 것) 안에서만 첫째 키라(orderCandidates), 최근 사흘은 그대로 맨 뒤,
+   * 오늘 고른 운동 종류 · 부위 · 목표가 먼저 고를 쪽(아래 안정 분할 셋)과 거름(구간 규격 · 시간 · 계열 겹침 · 파워 비중)은
+   * 점수보다 위다. 빼는 일은 없다. 안 주면 예전 차례 그대로 — 모든 점수가 0 이어도 같다.
+   */
+  scoreOf?: (ex: T) => number;
 }): { picks: ThemedPick<T>[]; estimatedMinutes: number; notes: string[] } {
   /*
    * 목표를 안 준 날은 오늘 고른 운동 종류를 따른다 — 일정 만들기와 같은 규칙이다
@@ -1775,6 +1818,7 @@ export function pickForTheme<T extends ThemedExercise>({
     recentIds: recentIds ?? new Set<string>(),
     sessionsAgo: sessionsAgo ?? new Map<string, number>(),
     rotationSeed,
+    scoreOf,
   });
 
   const taken = new Set<string>();
