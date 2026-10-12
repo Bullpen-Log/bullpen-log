@@ -15,8 +15,10 @@ import { planReasonLines } from '@/lib/report/daily-plan';
 import { pickReasonLineOf } from '@/lib/report/score';
 import { loadTodayCore } from '@/lib/report/today-data';
 import { TRAINING_SCREEN_TEXT, trainingScreenOf } from '@/lib/report/training-screen';
+import { remakeFieldsOf, stateNoticeOf } from '@/lib/report/state-notice';
 import { programDayText } from '@/lib/engine/arbiter';
 import { StartWorkout } from './start-workout';
+import { StateNoticeBand } from './state-notice-band';
 import { DoneCard, DoneFold, type DoneLine } from './done-card';
 import { AutoNote } from './auto-note';
 import { readFrozenPlan } from '@/lib/workout/session-plan';
@@ -328,6 +330,17 @@ export default async function TrainingPage({
     savedPlan,
     shownCount: shownPicks.length,
   });
+  /*
+   * 상태 바뀜 띠(2판 P6-6, lib/report/state-notice.ts) — 일정을 만든 뒤 판단 입력이 바뀌었으면 일정 카드 위에 바뀐 줄 · '지금 상태로 다시 만들기'.
+   * 일정 카드를 쓰는 날(screen.usesPlan — 멈춤 · 프로그램 주인 · 스러진 프로그램 날 일정이 아닌 날)만 그린다. 아픈 부위만 바뀌어 이미 뺀 날은 띠 대신
+   * 카드 안의 '무리인 운동 N개를 뺐어요' 한 줄만(두 알림이 겹치지 않게), 마친 날은 띄우지 않고, 운동 중 · 체크인 없는 날은 단추 없이 까닭 한 줄.
+   */
+  const notice = stateNoticeOf(core.stateChanges, {
+    programOwns: screen.programOwns,
+    droppedForSafety,
+    session: finished ? 'finished' : resume ? 'active' : 'none',
+    checkedIn: core.hasCheckinToday,
+  });
 
   /*
    * 화면에 그릴 운동만 자세히 가져온다.
@@ -550,6 +563,19 @@ export default async function TrainingPage({
 
         {programCard && <ProgramCard props={programCard} />}
         {doneResult && <ProgramDone result={doneResult} />}
+
+        {/*
+        상태 바뀜 띠 — [운동 시작]보다 위. 만든 뒤 바뀐 상태를 보고 다시 만들지 먼저 고르게(시작하면 그 판은 얼어 다시 만들어도 안 바뀐다).
+      */}
+        {screen.usesPlan && savedPlan && (
+          <StateNoticeBand
+            notice={notice}
+            fields={remakeFieldsOf(savedPlan, {
+              returnTo: '/training',
+              availableToday: core.todaySetup?.availableEquipment,
+            })}
+          />
+        )}
 
         {/*
         운동 시작.

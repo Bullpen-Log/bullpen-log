@@ -90,6 +90,7 @@ import {
   selectCandidates,
 } from '../lib/report/prescription.ts';
 import { fingerprintOf, stateChangesOf } from '../lib/report/plan-fingerprint.ts';
+import { stateNoticeOf } from '../lib/report/state-notice.ts';
 import {
   SWAP_LOOKBACK_DAYS,
   swappedOutCounts,
@@ -1365,11 +1366,13 @@ type DayRecord = {
   /**
    * ㉒ 상태 바뀜(2판 P5 도구 T0) — 체크인 있는 날, 아침에 만든 일정의 지문(lib/report/plan-fingerprint.ts fingerprintOf)과 저녁(오늘 던진
    * 기록까지) · 체크인 고침(컨디션 3) facts 를 견준 바뀐 항목(stateChangesOf 의 key), 그 facts 로 다시 만들면 테마나 목록이 달라지나(material).
-   * 오늘 안 던진 날의 저녁은 아침과 같아 keys [] · material false.
+   * 오늘 안 던진 날의 저녁은 아침과 같아 keys [] · material false. 2판 P6-6 부터 shown(앱의 알림 규칙 stateNoticeOf 가 무엇이든 알리나 —
+   * 띠 또는 아픈 부위만 바뀐 날의 안전 한 줄) · band(띠를 띄우나) · dropped(그 facts 로 안전 재검사가 아침 일정에서 뺄 수 — today-data 의
+   * droppedForSafety)를 더했다.
    */
   stateAlert?: {
-    evening: { keys: string[]; material: boolean };
-    edit: { keys: string[]; material: boolean };
+    evening: StateAlertRow;
+    edit: StateAlertRow;
   };
   /**
    * ⑲ 까닭 없는 회복 — 회복 날인데 테마를 회복으로 보내는 까닭(통증 · '회복' 고름 · 날 종류 회복 · 부하 위험 · 컨디션 ≤ 문턱 · 근육통 심함)이
@@ -1380,6 +1383,15 @@ type DayRecord = {
   yesterday: Throw | null;
   /** 오늘 던질 것(대본) — 경기 당일 아침을 찾는 데 쓴다 */
   today: Throw | null;
+};
+
+/** ㉒ 한 변형의 줄 — DayRecord.stateAlert 주석 */
+type StateAlertRow = {
+  keys: string[];
+  material: boolean;
+  shown: boolean;
+  band: boolean;
+  dropped: number;
 };
 
 type PlayerResult = {
@@ -1432,6 +1444,10 @@ function stateVariantOf(
 /**
  * ㉒ 아침 지문과 다른 facts 를 견준다 — 바뀐 항목(stateChangesOf, 앱의 today-data.ts 와 같은 함수)과 그 facts 로 다시 만들면 테마나
  * 목록이 달라지나(씨앗은 아침과 같다 — 다시 만들기의 씨앗까지 바꾸면 늘 달라진다).
+ *
+ * 알리나(shown)는 앱과 같은 규칙(2판 P6-6, lib/report/state-notice.ts stateNoticeOf)으로 — 안전 재검사가 뺄 수(dropped)는 today-data 처럼
+ * 몸 상태만 본 후보(장비 · 경력 거르기 전 전체 라이브러리)로 아침 일정을 거른다. 기준 선수는 근력 프로그램이 없고(programOwns 거짓) 운동 판이
+ * 없으며(session 'none') ㉒ 는 체크인 있는 날만 잰다(checkedIn — 고침 변형도 체크인을 지우지 않는다).
  */
 function alertOf(
   p: Player,
@@ -1440,16 +1456,27 @@ function alertOf(
   base: DailyPlan,
   morningFingerprint: ReturnType<typeof fingerprintOf>,
   v: Variant
-): { keys: string[]; material: boolean } {
+): StateAlertRow {
   const facts = factsFor(p, i, st, v);
-  const keys = stateChangesOf({ fingerprint: morningFingerprint }, facts).map(
-    (c) => c.key
+  const changes = stateChangesOf({ fingerprint: morningFingerprint }, facts);
+  const safeIds = new Set(
+    selectCandidates({ facts, plan: buildPitchPlan(facts), library }).candidates.map(
+      (e) => e.id
+    )
   );
+  const dropped = base.picks.filter((k) => !safeIds.has(k.exerciseId)).length;
+  const notice = stateNoticeOf(changes, {
+    programOwns: false,
+    droppedForSafety: dropped,
+  });
   const again = buildDay(p, i, st, v);
   return {
-    keys,
+    keys: changes.map((c) => c.key),
     material:
       again == null || again.theme.key !== base.theme.key || differs(base, again),
+    shown: notice.kind !== null,
+    band: notice.kind === 'remake',
+    dropped,
   };
 }
 
@@ -1613,7 +1640,7 @@ for (const p of PLAYERS) {
         /* 오늘 안 던진 날의 저녁은 아침과 같은 facts — 다시 만들지 않는다 */
         evening: today
           ? alertOf(p, i, st, base, morningFingerprint, { evening: true })
-          : { keys: [], material: false },
+          : { keys: [], material: false, shown: false, band: false, dropped: 0 },
         edit: alertOf(p, i, st, base, morningFingerprint, {
           patchCheckin: (c) => ({ ...c, condition: EDITED_CONDITION }),
         }),
@@ -3032,16 +3059,20 @@ const lowerGap = {
 
 /*
  * ㉒ 상태 바뀜 — 아침에 만든 일정의 지문과 (가) 저녁(오늘 던진 기록까지) (나) 체크인 고침(컨디션 3)을 견준다.
- *   raw       지문이 바뀐 날(stateChangesOf 가 하나라도)        shown     알림을 띄우는 날 — P6 의 알림 규칙이 생기기 전엔 raw 와 같다
- *   material  그 facts 로 다시 만들면 테마나 목록이 달라지는 날  noise     띄우는데 다시 만들어도 같은 날   miss  달라지는데 안 띄우는 날
+ *   raw       지문이 바뀐 날(stateChangesOf 가 하나라도)        shown     무엇이든 알리는 날 — 앱의 알림 규칙(2판 P6-6 stateNoticeOf: 띠 또는
+ *                                                              아픈 부위만 바뀐 날의 안전 한 줄). P6-6 전에는 raw 와 같다고 봤다
+ *   band      띠('상태가 바뀌었어요' · 다시 만들기)를 띄우는 날   safetyOnly  띠 없이 안전 한 줄만(아픈 부위만 바뀌어 이미 뺀 날)
+ *   material  그 facts 로 다시 만들면 테마나 목록이 달라지는 날  noise     알리는데 다시 만들어도 같은 날   miss  달라지는데 안 알리는 날
  */
-function alertStats(pick: (d: DayRecord) => { keys: string[]; material: boolean }) {
+function alertStats(pick: (d: DayRecord) => StateAlertRow) {
   const rows = allDays.filter((d) => d.stateAlert != null).map(pick);
-  const shown = (r: { keys: string[] }) => r.keys.length > 0;
+  const shown = (r: StateAlertRow) => r.shown;
   return {
     d: rows.length,
-    raw: rows.filter(shown).length,
+    raw: rows.filter((r) => r.keys.length > 0).length,
     shown: rows.filter(shown).length,
+    band: rows.filter((r) => r.band).length,
+    safetyOnly: rows.filter((r) => r.shown && !r.band).length,
     material: rows.filter((r) => r.material).length,
     noise: rows.filter((r) => shown(r) && !r.material).length,
     miss: rows.filter((r) => r.material && !shown(r)).length,
@@ -3545,13 +3576,18 @@ out.push(
       ],
       [
         '㉒',
-        `상태 바뀜(가) 저녁 — 오늘 던진 기록을 넣으면 지문이 바뀐 날 · 다시 만들면 달라지는 날 · 띄우는데 같은 날(소음) · 달라지는데 안 띄우는 날(놓침) / 체크인 있는 날`,
+        `상태 바뀜(가) 저녁 — 오늘 던진 기록을 넣으면 지문이 바뀐 날 · 다시 만들면 달라지는 날 · 알리는데 같은 날(소음) · 달라지는데 안 알리는 날(놓침) / 체크인 있는 날`,
         `${stateAlert.evening.raw} · ${stateAlert.evening.material} · ${stateAlert.evening.noise} · ${stateAlert.evening.miss} / ${stateAlert.evening.d}`,
       ],
       [
         '㉒',
         `  (나) 체크인 고침(컨디션 ${EDITED_CONDITION}) — 같은 넷`,
         `${stateAlert.edit.raw} · ${stateAlert.edit.material} · ${stateAlert.edit.noise} · ${stateAlert.edit.miss} / ${stateAlert.edit.d}`,
+      ],
+      [
+        '㉒',
+        `  알림 규칙(2판 P6-6 stateNoticeOf) — 띠를 띄운 날 · 띠 없이 안전 한 줄만인 날 (가) 저녁 / (나) 체크인 고침`,
+        `${stateAlert.evening.band} · ${stateAlert.evening.safetyOnly} / ${stateAlert.edit.band} · ${stateAlert.edit.safetyOnly}`,
       ],
     ]
   )
@@ -3764,8 +3800,11 @@ const json = {
    *     조절이 실린 날은 일정 · mainSets 가 바뀐다(동작 변화 — 8 과 견주면 그 날만 다르다).
    * 10 = 2판 P5 검토: metrics.volume.holdOnly(무게만 멈춘 날)를 더했다. volumeSetsCut · volumed 는 세트를 줄인 조절만 센다(무게만 멈춘
    *     조절 — setDelta 0 — 은 안 센다). 9 와 견줄 때는 이 칸을 뺀다.
+   * 11 = 2판 P6-6 상태 바뀜 알림: 날마다 stateAlert 의 evening · edit 에 shown · band · dropped, metrics.stateAlert 에 band · safetyOnly 를
+   *     더했다. metrics.stateAlert 의 shown · noise · miss 는 앱의 알림 규칙(stateNoticeOf)으로 센다 — 대본에는 아픈 부위만 바뀌는 변형이
+   *     없어 지금은 raw 와 같다(10 과 견주면 더한 칸만 다르다).
    */
-  version: 10,
+  version: 11,
   /* 돌릴 때마다 바뀌는 것은 이 칸뿐 — 단계 전후를 diff 로 견줄 때는 meta 를 빼고 본다 */
   meta: { generatedAt: new Date().toISOString(), elapsedMs },
   startKey: START_KEY,

@@ -585,6 +585,17 @@ import {
   stateChangesOf,
   type FingerprintChange,
 } from '../lib/report/plan-fingerprint.ts';
+/* 2판 P6-6 — 상태 바뀜 알림 */
+import {
+  KEY_RANK,
+  STATE_NOTICE_MAX_LINES,
+  STATE_NOTICE_TEXT,
+  moreText,
+  remakeFieldsOf,
+  stateNoticeOf,
+  type StateNotice,
+  type TodaySessionState,
+} from '../lib/report/state-notice.ts';
 
 let passed = 0;
 let failed = 0;
@@ -20186,13 +20197,15 @@ console.log(
   /*
    * P5 로 바뀜 — 양 조절(P5-d)이 날마다 volumeSetsCut · 변형의 volumed · metrics.volume 을 더해 JSON 판이 8 → 9.
    * P5 검토로 바뀜(2026-10-13) — 무게만 멈춘 날(metrics.volume.holdOnly)을 더해 9 → 10.
+   * P6 로 바뀜(P6-6, 2026-10-13) — ㉒ 를 앱의 알림 규칙(stateNoticeOf)으로 세며 날마다 stateAlert 에 shown · band · dropped, metrics.stateAlert 에
+   * band · safetyOnly 를 더해 10 → 11.
    */
   check(
-    'P5 도구 (나) 추가 묶음은 ①~⑯ 의 분모에 안 섞이고(allDays 는 기준 12명만), --gate 를 줬을 때만 exit 1, JSON 판은 10',
+    'P5 도구 (나) 추가 묶음은 ①~⑯ 의 분모에 안 섞이고(allDays 는 기준 12명만), --gate 를 줬을 때만 exit 1, JSON 판은 11',
     /const allDays = results\.flatMap\(\(r\) => r\.days\);/.test(tool) &&
       /const failed = GATE_STAGE \? failedGates\(gateRows\) : \[\];/.test(tool) &&
       /process\.exitCode = 1;/.test(tool) &&
-      /version: 10,/.test(tool) &&
+      /version: 11,/.test(tool) &&
       /if \(GATE_ARG != null && !isGateStage\(GATE_ARG\)\)/.test(tool)
   );
 }
@@ -30079,7 +30092,8 @@ console.log(
         /daily: programView\?\.arbitration\.daily,/.test(card) &&
         /buildProgramDay\(core, programRow, user\)/.test(card) &&
         /<StartWorkout compact program resume=\{active\} \/>/.test(card) &&
-        card.split('<StartWorkout').length === 3,
+        /* P6 로 바뀜(P6-6) — 상태 바뀜 카드(주의 색 한 줄)도 [시작]을 그대로 둬 셋째 시작 단추가 생겼다(알림은 다시 만들기를 권할 뿐) */
+        card.split('<StartWorkout').length === 4,
       order.join(' · ')
     );
     const start = strip('app/(app)/training/start-workout.tsx');
@@ -30306,6 +30320,506 @@ console.log(
     const wrong = rows.filter(([, okRow]) => !okRow).map(([n]) => n);
     check(
       `P6-5 (다) 소스 ${rows.length}가지 — 같은 접기 함수 · 펼치기 · 반만 마치기 배선`,
+      wrong.length === 0,
+      wrong.join(' / ')
+    );
+  }
+}
+
+/* ═══════════════════ [2판 P6] 상태 바뀜 알림(P6-6) — lib/report/state-notice.ts (2026-10-13) ═══════════════════ */
+console.log(
+  '\n[2판 P6] 상태 바뀜 알림(P6-6) — 만든 뒤 바뀐 상태를 띠로, 아픈 부위만 바뀌어 이미 뺀 날은 안전 한 줄만, 프로그램 날 · 운동 중 · 체크인 없음은 단추 없이'
+);
+{
+  const json = (v: unknown) => JSON.stringify(v);
+  const ch = (key: FingerprintChange['key'], text: string): FingerprintChange => ({
+    key,
+    text,
+  });
+  const PAIN = ch('parts', '어깨에 통증이 있다고 적었어요');
+  const PAIN2 = ch('parts', '팔꿈치가 뻐근하다고 적었어요');
+  const PAIN_RECENT = ch('painRecent', '최근 통증 부위에 어깨가 더해졌어요');
+  const COND = ch('condition', '컨디션이 8에서 3으로 바뀌었어요');
+  const LAST = ch('lastThrow', '오늘 85구를 던졌어요');
+  const ZONE = ch('zone', '투구 부하가 적정에서 주의 구간으로 바뀌었어요');
+  const HARD = ch('hardOuting', '오늘 거의 전력으로 85구를 던진 기록이 들어왔어요');
+  const PLAN = ch('throwPlan', "던지는 일정을 '오늘 등판'으로 적었어요");
+  const SLEEP = ch('sleep', '잠이 부족했다고 적었어요');
+  const GONE = ch('checkin', '오늘 체크인이 지워졌어요');
+  type Opts = Parameters<typeof stateNoticeOf>[1];
+  const BASE: Opts = { programOwns: false, droppedForSafety: 0 };
+  const sum = (n: StateNotice) =>
+    `${n.kind}|${n.lines.join('/')}|${n.more}|${n.canRemake}|${n.blockedBy}`;
+
+  /* ── (가) 표 — 바뀜 없음 · 통증만 · 투구 추가 · 프로그램 날 · 운동 중 · 마침 · 체크인 없음 · 줄 수 ── */
+  {
+    const rows: [string, FingerprintChange[], Opts, string][] = [
+      ['바뀜 없음', [], BASE, 'null||0|false|null'],
+      [
+        '바뀜 없음 · 안전 재검사가 2개 뺌',
+        [],
+        { ...BASE, droppedForSafety: 2 },
+        'null||0|false|null',
+      ],
+      [
+        '아픈 부위만 · 2개 뺌 → 안전 한 줄만',
+        [PAIN],
+        { ...BASE, droppedForSafety: 2 },
+        'safety-only||0|false|null',
+      ],
+      [
+        '최근 통증 · 오늘 부위만 · 1개 뺌 → 안전 한 줄만',
+        [PAIN_RECENT, PAIN],
+        { ...BASE, droppedForSafety: 1 },
+        'safety-only||0|false|null',
+      ],
+      [
+        '아픈 부위만 · 뺀 것 없음 → 띠',
+        [PAIN],
+        BASE,
+        `remake|${PAIN.text}|0|true|null`,
+      ],
+      [
+        '아픈 부위 + 컨디션 · 2개 뺌 → 띠(부위 먼저)',
+        [COND, PAIN],
+        { ...BASE, droppedForSafety: 2 },
+        `remake|${PAIN.text}/${COND.text}|0|true|null`,
+      ],
+      [
+        '저녁 경기 기록(마지막 투구 · 세게 던진 날 · 부하) → 세게 던진 날이 마지막 투구 줄을 가림',
+        [LAST, HARD, ZONE],
+        BASE,
+        `remake|${HARD.text}/${ZONE.text}|0|true|null`,
+      ],
+      [
+        '가볍게 던진 기록(마지막 투구 · 부하)',
+        [LAST, ZONE],
+        BASE,
+        `remake|${LAST.text}/${ZONE.text}|0|true|null`,
+      ],
+      [
+        '프로그램 날 → 단추 없음',
+        [COND],
+        { ...BASE, programOwns: true },
+        `remake|${COND.text}|0|false|program`,
+      ],
+      [
+        '운동 중 → 단추 없음',
+        [COND],
+        { ...BASE, session: 'active' },
+        `remake|${COND.text}|0|false|active`,
+      ],
+      [
+        '운동 마침 → 안 띄움',
+        [COND, HARD],
+        { ...BASE, session: 'finished' },
+        'null||0|false|null',
+      ],
+      [
+        '운동 마침 · 아픈 부위만 · 뺀 것 → 안 띄움(마침이 이김)',
+        [PAIN],
+        { ...BASE, droppedForSafety: 2, session: 'finished' },
+        'null||0|false|null',
+      ],
+      [
+        '체크인이 지워짐 → 체크인부터',
+        [LAST, GONE],
+        { ...BASE, checkedIn: false },
+        `remake|${GONE.text}/${LAST.text}|0|false|checkin`,
+      ],
+      [
+        '막힘 차례 — 프로그램 > 운동 중 > 체크인',
+        [COND],
+        { programOwns: true, droppedForSafety: 0, session: 'active', checkedIn: false },
+        `remake|${COND.text}|0|false|program`,
+      ],
+      [
+        '여섯 바뀜 → 세 줄 + 외 3가지(부위 둘은 적힌 차례 그대로)',
+        [SLEEP, ZONE, COND, PLAN, PAIN, PAIN2],
+        BASE,
+        `remake|${PAIN.text}/${PAIN2.text}/${PLAN.text}|3|true|null`,
+      ],
+    ];
+    const bad: string[] = [];
+    for (const [name, changes, opts, want] of rows) {
+      const before = json([changes, opts]);
+      const n = stateNoticeOf(changes, opts);
+      const got = sum(n);
+      if (got !== want) bad.push(`${name}: ${got}`);
+      const note = n.blockedBy ? STATE_NOTICE_TEXT[n.blockedBy] : null;
+      if (n.note !== note) bad.push(`${name}: 까닭 ${n.note}`);
+      if (json([changes, opts]) !== before) bad.push(`${name}: 입력이 바뀜`);
+      if (json(stateNoticeOf(changes, opts)) !== json(n))
+        bad.push(`${name}: 같은 입력 다른 답`);
+    }
+    check(
+      `P6-6 (가) stateNoticeOf 표 ${rows.length}가지 — 바뀜 없음 · 통증만(뺀 것 있으면 안전 한 줄만) · 투구 추가 · 프로그램 날 · 운동 중 · 마침 · 체크인 없음 · 줄 수`,
+      bad.length === 0,
+      bad.slice(0, 4).join(' / ')
+    );
+  }
+
+  /* ── (나) 격자 — 바뀜 부분집합 × 뺀 수 × 프로그램 × 판 × 체크인 에서 늘 지키는 것 ── */
+  {
+    const POOL = [PAIN, PAIN_RECENT, COND, LAST, HARD, ZONE, PLAN, GONE];
+    const subsets: FingerprintChange[][] = [];
+    for (let mask = 0; mask < 1 << POOL.length; mask++) {
+      const pick = POOL.filter((_, i) => mask & (1 << i));
+      if (pick.length <= 4) subsets.push(pick);
+    }
+    const SESSIONS: TodaySessionState[] = ['none', 'active', 'finished'];
+    const bad: string[] = [];
+    let combos = 0;
+    const kinds: Record<string, number> = { remake: 0, 'safety-only': 0, null: 0 };
+    for (const changes of subsets)
+      for (const droppedForSafety of [0, 1, 3])
+        for (const programOwns of [false, true])
+          for (const session of SESSIONS)
+            for (const checkedIn of [true, false]) {
+              combos++;
+              const opts = { programOwns, droppedForSafety, session, checkedIn };
+              const n = stateNoticeOf(changes, opts);
+              kinds[String(n.kind)]++;
+              const tag = `${changes.map((c) => c.key).join('+') || '없음'} · ${json(opts)}`;
+              const onlyPain =
+                changes.length > 0 &&
+                changes.every((c) => c.key === 'parts' || c.key === 'painRecent');
+              const wantKind =
+                session === 'finished' || changes.length === 0
+                  ? null
+                  : droppedForSafety > 0 && onlyPain
+                    ? 'safety-only'
+                    : 'remake';
+              if (n.kind !== wantKind) bad.push(`${tag} 종류 ${n.kind}`);
+              if (n.kind !== 'remake') {
+                if (n.lines.length || n.more || n.canRemake || n.blockedBy || n.note)
+                  bad.push(`${tag} 띠 아닌데 줄 · 단추`);
+                continue;
+              }
+              const hasHard = changes.some((c) => c.key === 'hardOuting');
+              const shownTexts = changes
+                .filter((c) => !(hasHard && c.key === 'lastThrow'))
+                .map((c) => c.text);
+              if (n.lines.length > STATE_NOTICE_MAX_LINES)
+                bad.push(`${tag} 줄 ${n.lines.length}`);
+              if (n.lines.length + n.more !== new Set(shownTexts).size)
+                bad.push(`${tag} 줄 + 외 ${n.lines.length}+${n.more}`);
+              if (n.lines.some((l) => !shownTexts.includes(l)))
+                bad.push(`${tag} 없는 줄`);
+              if (hasHard && n.lines.includes(LAST.text))
+                bad.push(`${tag} 마지막 투구 줄이 남음`);
+              for (let k = 1; k < n.lines.length; k++) {
+                const a = changes.find((c) => c.text === n.lines[k - 1])!;
+                const b = changes.find((c) => c.text === n.lines[k])!;
+                if (KEY_RANK[a.key] > KEY_RANK[b.key])
+                  bad.push(`${tag} 차례 ${a.key}>${b.key}`);
+              }
+              const canRemake = !programOwns && session !== 'active' && checkedIn;
+              if (n.canRemake !== canRemake) bad.push(`${tag} 단추 ${n.canRemake}`);
+              if ((n.note == null) !== canRemake) bad.push(`${tag} 까닭 ${n.note}`);
+            }
+    check(
+      `P6-6 (나) 격자 ${combos}가지(띠 ${kinds.remake} · 안전 한 줄만 ${kinds['safety-only']} · 없음 ${kinds.null}) — 종류 규칙 · 줄 ≤ ${STATE_NOTICE_MAX_LINES} · 줄 + 외 = 바뀐 글 수 · 세게 던진 날이 마지막 투구를 가림 · 차례 · 단추는 프로그램 아님 · 운동 중 아님 · 체크인 있음일 때만`,
+      bad.length === 0 &&
+        kinds.remake > 0 &&
+        kinds['safety-only'] > 0 &&
+        kinds.null > 0,
+      bad.slice(0, 4).join(' / ')
+    );
+  }
+
+  /* ── (다) 항목 차례표 — 지문이 내는 항목이 모두 있고 남는 것이 없다(소스로 확인 — 타입 검사와 둘 다) ── */
+  {
+    const src = readFileSync(
+      new URL('../lib/report/plan-fingerprint.ts', import.meta.url),
+      'utf8'
+    );
+    const union = src.slice(src.indexOf('export type FingerprintKey ='));
+    const unionKeys = [...union.slice(0, union.indexOf(';')).matchAll(/'(\w+)'/g)].map(
+      (m) => m[1]
+    );
+    const pushed = [
+      ...new Set([...src.matchAll(/push\(\s*'(\w+)'/g)].map((m) => m[1])),
+    ];
+    const rankKeys = Object.keys(KEY_RANK);
+    const ranks = Object.values(KEY_RANK);
+    check(
+      `P6-6 (다) 항목 차례표 ${rankKeys.length}칸 — FingerprintKey ${unionKeys.length}칸과 같고, 지문이 내는 항목(${pushed.length}가지)이 다 있고, 차례 값이 겹치지 않음 · 체크인 · 아픈 곳이 앞 · 고른 운동 종류가 맨 뒤`,
+      json([...rankKeys].sort()) === json([...unionKeys].sort()) &&
+        pushed.length > 10 &&
+        pushed.every((k) => rankKeys.includes(k)) &&
+        new Set(ranks).size === ranks.length &&
+        KEY_RANK.checkin < KEY_RANK.parts &&
+        KEY_RANK.parts < KEY_RANK.hardOuting &&
+        KEY_RANK.hardOuting < KEY_RANK.lastThrow &&
+        Math.max(...ranks) === KEY_RANK.preferredWorkout,
+      `${rankKeys.length} · ${unionKeys.length} · ${pushed.filter((k) => !rankKeys.includes(k)).join(',')}`
+    );
+  }
+
+  /* ── (라) 실제 지문 흐름 — 저녁 경기 기록 · 체크인 고침 · 아픈 부위만(실제 안전 재검사) ── */
+  {
+    const themeOf = (f: ReturnType<typeof factsFor>) =>
+      decideTheme({
+        facts: f,
+        plan: buildPitchPlan(f),
+        lastLowerKey: null,
+        lastUpperKey: null,
+      }).key;
+    const morning = factsFor({ condition: 7 });
+    const saved = { fingerprint: fingerprintOf(morning) };
+
+    const evening = factsFor({
+      condition: 7,
+      todayLog: { pitches: 85, intensity: 10, sessionType: '경기' },
+    });
+    const eChanges = stateChangesOf(saved, evening);
+    const eNotice = stateNoticeOf(eChanges, BASE);
+    const eKeys = eChanges.map((c) => c.key);
+    check(
+      "P6-6 (라) 저녁에 경기 85구(체감 강도 최고)를 남기면 띠 — 세게 던진 날 줄('…85구를 던진 기록이 들어왔어요')이 있고 같은 투구의 마지막 투구 줄은 없음, 그 facts 로 다시 만들면 회복 날(아침은 아님)",
+      eKeys.includes('hardOuting') &&
+        eKeys.includes('lastThrow') &&
+        eNotice.kind === 'remake' &&
+        eNotice.canRemake &&
+        eNotice.lines.some((l) => l.includes('85구를 던진 기록이 들어왔어요')) &&
+        !eNotice.lines.includes('오늘 85구를 던졌어요') &&
+        themeOf(evening) === 'recovery' &&
+        themeOf(morning) !== 'recovery',
+      `${eKeys.join(',')} · ${eNotice.lines.join(' / ')} · ${themeOf(morning)} → ${themeOf(evening)}`
+    );
+
+    const edited = factsFor({ condition: 3 });
+    const before8 = { fingerprint: fingerprintOf(factsFor({ condition: 8 })) };
+    const cNotice = stateNoticeOf(stateChangesOf(before8, edited), BASE);
+    check(
+      "P6-6 (라) 체크인을 고쳐 컨디션 8 → 3 이면 띠 한 줄('컨디션이 8에서 3으로 바뀌었어요') · 다시 만들면 회복 날",
+      cNotice.kind === 'remake' &&
+        json(cNotice.lines) === json(['컨디션이 8에서 3으로 바뀌었어요']) &&
+        themeOf(edited) === 'recovery',
+      `${sum(cNotice)} · ${themeOf(edited)}`
+    );
+
+    /* 아침 후보(몸 상태만 본 안전 후보 — today-data 의 safeIds 와 같은 길)가 오후 어깨 통증으로 실제로 빠지는가 */
+    const painFacts = factsFor({ condition: 7, pain: true });
+    const safeOf = (f: ReturnType<typeof factsFor>) =>
+      new Set(
+        selectCandidates({ facts: f, plan: buildPitchPlan(f), library }).candidates.map(
+          (e) => e.id
+        )
+      );
+    const morningSafe = [...safeOf(morning)];
+    const afternoonSafe = safeOf(painFacts);
+    const dropped = morningSafe.filter((id) => !afternoonSafe.has(id)).length;
+    const pChanges = stateChangesOf(saved, painFacts);
+    const pNotice = stateNoticeOf(pChanges, { ...BASE, droppedForSafety: dropped });
+    const pNoDrop = stateNoticeOf(pChanges, BASE);
+    check(
+      `P6-6 (라) 오후에 어깨 통증만 적으면 바뀜은 부위뿐 · 안전 재검사가 아침 후보에서 ${dropped}개를 빼 띠 없이 안전 한 줄만, 뺀 것이 없으면 띠`,
+      pChanges.length > 0 &&
+        pChanges.every((c) => c.key === 'parts') &&
+        dropped > 0 &&
+        pNotice.kind === 'safety-only' &&
+        pNoDrop.kind === 'remake',
+      `${pChanges.map((c) => c.text).join(' / ')} · ${pNotice.kind} · ${pNoDrop.kind}`
+    );
+
+    const same = stateNoticeOf(stateChangesOf(saved, factsFor({ condition: 7 })), BASE);
+    check(
+      'P6-6 (라) 같은 facts 로 다시 열면 아무것도 안 띄움',
+      same.kind === null,
+      sum(same)
+    );
+  }
+
+  /* ── (마) 다시 만들기 숨은 칸 — 만들 때 고른 조건 그대로, 경고 넘김 · 기본값 굳히기는 안 싣는다 ── */
+  {
+    type Saved = Parameters<typeof remakeFieldsOf>[0];
+    const eq: Saved['equipment'] = {
+      available: ['맨몸', '덤벨', '밴드'],
+      excludedCount: 0,
+      narrowed: false,
+      bestAddition: null,
+    };
+    const autoPlan = {
+      auto: { goal: '근력 향상' } as unknown as NonNullable<Saved['auto']>,
+      requestedMinutes: 60,
+      goal: '근력 향상',
+      focus: null,
+      equipment: eq,
+    } satisfies Saved;
+    const manualPlan = {
+      requestedMinutes: 75,
+      goal: '근력 향상',
+      focus: 'lowerBody',
+      equipment: eq,
+      /* 넘긴 경고 · 힘듦 넘김이 실린 일정이어도 숨은 칸에는 안 싣는다 */
+      overrode: true,
+      overrodeEffort: true as const,
+    };
+    const programPlan = {
+      program: { key: 'stronglifts-5x5', day: 3, label: '1주차 · 3일차' },
+      requestedMinutes: 60,
+      goal: null,
+      equipment: eq,
+    } satisfies Saved;
+    const a = remakeFieldsOf(autoPlan, {
+      returnTo: '/training',
+      availableToday: ['맨몸', '덤벨'],
+    });
+    const m = remakeFieldsOf(manualPlan, {
+      returnTo: '/training',
+      availableToday: null,
+    });
+    const pr = remakeFieldsOf(programPlan, {
+      returnTo: '/training',
+      availableToday: [],
+    });
+    const dup = remakeFieldsOf(autoPlan, {
+      returnTo: '/training',
+      availableToday: ['덤벨', '덤벨'],
+    });
+    const fd = new FormData();
+    for (const [k, v] of m) fd.append(k, v);
+    const names = [...a, ...m, ...pr].map(([k]) => k);
+    check(
+      'P6-6 (마) 숨은 칸 — 자동 맞춤이면 auto · 직접 고르기면 manual(목표 · 부위 · 고른 시간) · 프로그램 날 일정은 auto · 오늘 장비(없으면 일정에 찍힌 장비) · 같은 장비 한 번 · 경고 넘김 · 힘듦 넘김 · 기본값 굳히기 칸 없음 · 서버가 읽는 값과 같음',
+      json(a) ===
+        json([
+          ['returnTo', '/training'],
+          ['mode', 'auto'],
+          ['minutes', '60'],
+          ['trainingGoal', '근력 향상'],
+          ['availableEquipment', '맨몸'],
+          ['availableEquipment', '덤벨'],
+        ]) &&
+        json(m) ===
+          json([
+            ['returnTo', '/training'],
+            ['mode', 'manual'],
+            ['minutes', '75'],
+            ['trainingGoal', '근력 향상'],
+            ['trainingFocus', 'lowerBody'],
+            ['availableEquipment', '맨몸'],
+            ['availableEquipment', '덤벨'],
+            ['availableEquipment', '밴드'],
+          ]) &&
+        pr.some(([k, v]) => k === 'mode' && v === 'auto') &&
+        !pr.some(([k]) => k === 'trainingGoal' || k === 'trainingFocus') &&
+        pr.filter(([k]) => k === 'availableEquipment').length === 3 &&
+        dup.filter(([k]) => k === 'availableEquipment').length === 1 &&
+        !names.some((k) =>
+          ['overrideCondition', 'overrideEffort', 'saveDefaults'].includes(k)
+        ) &&
+        fd.get('mode') === 'manual' &&
+        readTrainingGoal(fd, null) === '근력 향상' &&
+        Number.parseInt(String(fd.get('minutes')), 10) === 75 &&
+        json(fd.getAll('availableEquipment')) === json(['맨몸', '덤벨', '밴드']),
+      `${json(a)} · ${json(m)} · ${json(pr)}`
+    );
+  }
+
+  /* ── (바) 글 — 해요체 · 줄표 없음 · 60자 안 ── */
+  {
+    const texts = [
+      ...Object.values(STATE_NOTICE_TEXT),
+      ...[1, 2, 3, 9, 12].map(moreText),
+    ];
+    const bad = texts.filter(
+      (t) =>
+        t.includes('—') ||
+        t.includes('**') ||
+        [...t].length > 60 ||
+        !/(요\.?|기|…|가지)$/.test(t)
+    );
+    check(
+      `P6-6 (바) 글 ${texts.length}줄 — 해요체(단추는 '…하기') · 줄표 없음 · 60자 안 · 까닭 줄은 마침표 · 홈 카드 줄은 마침표 없이`,
+      bad.length === 0 &&
+        [
+          STATE_NOTICE_TEXT.program,
+          STATE_NOTICE_TEXT.active,
+          STATE_NOTICE_TEXT.checkin,
+        ].every((t) => t.endsWith('요.')) &&
+        !STATE_NOTICE_TEXT.home.endsWith('.'),
+      bad.join(' / ')
+    );
+  }
+
+  /* ── (사) 소스 배선 — 화면 · 홈 카드 · 띠 · 오늘 자료 · 기준선이 같은 함수 ── */
+  {
+    const strip = (rel: string) =>
+      readFileSync(new URL(`../${rel}`, import.meta.url), 'utf8')
+        .replace(/\{\/\*[\s\S]*?\*\/\}/g, '')
+        .replace(/\/\*[\s\S]*?\*\//g, '')
+        .replace(/^\s*\/\/.*$/gm, '');
+    const page = strip('app/(app)/training/page.tsx');
+    const home = strip('app/(app)/training/training-home.tsx');
+    const homeCard = home.slice(
+      home.indexOf('async function WorkoutCard'),
+      home.indexOf('async function ArmcareCard')
+    );
+    const band = strip('app/(app)/training/state-notice-band.tsx');
+    const today = strip('lib/report/today-data.ts');
+    const tool = strip('scripts/training-baseline.mts');
+    const at = (src: string, needle: string) => src.indexOf(needle);
+    const rows: [string, boolean][] = [
+      [
+        '트레이닝 화면 — 프로그램 주인 · 뺀 수 · 마침/운동 중 · 체크인으로 알림을 정함',
+        /stateNoticeOf\(core\.stateChanges, \{\s*programOwns: screen\.programOwns,\s*droppedForSafety,\s*session: finished \? 'finished' : resume \? 'active' : 'none',\s*checkedIn: core\.hasCheckinToday,\s*\}\)/.test(
+          page
+        ),
+      ],
+      [
+        '트레이닝 화면 — 일정 카드를 쓰는 날만 띠, [운동 시작]보다 위, 숨은 칸은 remakeFieldsOf(오늘 장비)',
+        /\{screen\.usesPlan && savedPlan && \(\s*<StateNoticeBand/.test(page) &&
+          at(page, '<StateNoticeBand') < at(page, 'screen.canStart && <StartWorkout') &&
+          /remakeFieldsOf\(savedPlan, \{\s*returnTo: '\/training',\s*availableToday: core\.todaySetup\?\.availableEquipment,\s*\}\)/.test(
+            page
+          ),
+      ],
+      [
+        '트레이닝 화면 — 기존 안전 한 줄(무리인 운동 N개를 뺐어요)은 그대로',
+        page.includes('몸 상태가 바뀌어 무리인 운동 {droppedForSafety}개를 뺐어요.'),
+      ],
+      [
+        '띠 — 띠 종류만 그리고, 다시 만들기는 SafeForm(신호 끊김 지킴) · generateTodayPlan · 숨은 칸, 보내는 동안 막힘, 체크인 없으면 체크인 단추',
+        /if \(notice\.kind !== 'remake'\) return null;/.test(band) &&
+          /<SafeForm action=\{generateTodayPlan\}>/.test(band) &&
+          /type="hidden" name=\{name\} value=\{value\}/.test(band) &&
+          /disabled=\{pending\}/.test(band) &&
+          /notice\.blockedBy === 'checkin'/.test(band),
+      ],
+      [
+        '트레이닝 홈 — 일정 없음 뒤 · 남은 운동 없음 앞, 다시 만들 수 있는 날만 주의 색 한 줄, 판 상태는 운동 중만',
+        at(homeCard, 'stateNoticeOf(core.stateChanges') >
+          at(homeCard, '!screen.usesPlan') &&
+          at(homeCard, 'stateNoticeOf(core.stateChanges') <
+            at(homeCard, 'count === 0') &&
+          /notice\.kind === 'remake' && notice\.canRemake/.test(homeCard) &&
+          /status=\{STATE_NOTICE_TEXT\.home\}/.test(homeCard) &&
+          /session: session\?\.status === 'ACTIVE' \? 'active' : 'none'/.test(homeCard),
+      ],
+      [
+        '오늘 자료 — 멈춘 날은 빈 바뀜 · 뺀 수는 일정 안에서만 센다(알림의 재료 그대로)',
+        /const stateChanges = picked\.halted \? \[\] : stateChangesOf\(savedPlan, facts\);/.test(
+          today
+        ) &&
+          /droppedForSafety: \(savedPlan\?\.picks\.length \?\? 0\) - planned\.length,/.test(
+            today
+          ),
+      ],
+      [
+        '기준선 ㉒ — 알리나(shown)를 앱과 같은 stateNoticeOf 로',
+        /stateNoticeOf\(changes, \{\s*programOwns: false,\s*droppedForSafety: dropped,?\s*\}\)/.test(
+          tool
+        ) &&
+          /shown: notice\.kind !== null,/.test(tool) &&
+          /const shown = \(r: StateAlertRow\) => r\.shown;/.test(tool),
+      ],
+    ];
+    const wrong = rows.filter(([, okRow]) => !okRow).map(([n]) => n);
+    check(
+      `P6-6 (사) 소스 ${rows.length}가지 — 같은 알림 함수 · 띠 자리 · 한 번 누름 · 홈 카드 차례 · 기준선`,
       wrong.length === 0,
       wrong.join(' / ')
     );

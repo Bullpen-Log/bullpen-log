@@ -18,7 +18,7 @@ import { josa, withJosa } from '@/lib/korean';
  * 상태 값(컨디션 · 아픈 부위 · 등판 답 · 마지막 투구 · 재활)은 어디에도 구조로 남지 않았다. 그래서 아침에 만든 뒤
  * 체크인을 고쳐 컨디션 8 → 3 이 돼도, '오늘 등판'이라고 적거나 오후에 60구를 던져도 화면은 '하체 스트렝스 데이 ·
  * 부하가 적정 범위예요'를 그대로 보였다(안전 재검사는 무거운 운동만 뺀다). 만들 때 지문을 같이 저장해 두고, 읽을 때
- * 지금 facts 로 다시 찍어 다르면 '상태가 바뀌었어요'(화면은 P6 몫 — 여기서는 글만 만든다).
+ * 지금 facts 로 다시 찍어 다르면 '상태가 바뀌었어요'(여기서는 글만 만든다 — 띄울지는 lib/report/state-notice.ts).
  *
  * 무엇을 넣는가. decideTheme · selectCandidates · buildPitchPlan 이 실제로 읽는 facts 칸과 1:1 — 그보다 많으면 알림이
  * 날마다 뜨고(운동 부하 · ratio), 적으면 '다시 만들면 달라지는데 알림이 없다'. 규칙 하나: theme.ts · prescription.ts ·
@@ -38,8 +38,8 @@ import { josa, withJosa } from '@/lib/korean';
  *
  * 순수 함수만 둔다(DB · 날짜 함수 없음 — 같은 facts 면 같은 지문, JSON.stringify 까지 글자가 같다). 안전 재검사
  * (today-data.ts 의 safeIds · droppedForSafety)와는 독립이다 — 그쪽은 '후보'를 지금 기준으로 다시 걸러 운동을 빼는 것,
- * 지문은 '판단 입력'이 바뀌었는지 알리는 것이라 아무것도 빼지 않는다. 둘을 어떻게 한 줄로 합칠지는 P6 화면이 정한다
- * (onlyPainPartChanges 가 그 가름을 돕는다).
+ * 지문은 '판단 입력'이 바뀌었는지 알리는 것이라 아무것도 빼지 않는다. 둘을 어떻게 한 줄로 합칠지는 state-notice.ts 가
+ * 정한다(onlyPainPartChanges 가 그 가름을 돕는다, 2판 P6-6).
  */
 
 export type PlanFingerprint = {

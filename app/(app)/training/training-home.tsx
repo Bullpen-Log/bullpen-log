@@ -7,6 +7,7 @@ import { PageHeading, todayKicker } from '@/components/ui';
 import { OpenCheckinButton } from '@/components/notice-bell';
 import { loadTodayCore, type UserForToday } from '@/lib/report/today-data';
 import { TRAINING_SCREEN_TEXT, trainingScreenOf } from '@/lib/report/training-screen';
+import { STATE_NOTICE_TEXT, stateNoticeOf } from '@/lib/report/state-notice';
 import { PROGRAMS_ENABLED } from '@/lib/program/program';
 import { activeProgram, buildProgramDay } from '@/lib/program/load';
 import { loadArmcareToday, type UserForArmcare } from '@/lib/armcare/today';
@@ -229,7 +230,7 @@ async function SafeCard({
 /**
  * 트레이닝 — 오늘 일정 한 줄과 [시작](운동 판으로 곧장).
  *
- * 차례(2판 P6-4): 마침 > 멈춤 > 근력 프로그램 날 > (상태 바뀜 — 2판 P6-6 이 여기 넣는다) > 일정 없음 > 남은 운동 없음 > 보통. 프로그램이 오늘
+ * 차례(2판 P6-4 · P6-6): 마침 > 멈춤 > 근력 프로그램 날 > 일정 없음 > 상태 바뀜 > 남은 운동 없음 > 보통. 프로그램이 오늘
  * 주인이면(트레이닝 화면과 같은 판정 — lib/report/training-screen.ts) 그날 운동은 프로그램이라 프로그램 이름 · 일차와 프로그램 [시작]을 낸다
  * (사용자 결정 D6). 마침 · 멈춤이 먼저인 까닭: 마친 날은 무엇이든 마친 것이고, 멈춘 날은 프로그램도 기다린다(painWait).
  */
@@ -284,6 +285,27 @@ async function WorkoutCard({ user, today }: { user: HomeUser; today: Date }) {
             ? TRAINING_SCREEN_TEXT.stalePlanHome
             : '오늘 일정을 아직 안 만들었어요'
         }
+      />
+    );
+  }
+  /*
+   * 상태 바뀜(2판 P6-6) — 트레이닝 화면의 띠와 같은 함수(lib/report/state-notice.ts). 한 번 눌러 다시 만들 수 있는 날만 주의 색 한 줄로 알리고
+   * (운동 중 · 체크인 없는 날은 홈에서 할 것이 없어 보통 카드), 카드를 누르면 띠가 있는 트레이닝 화면으로 간다. [시작]은 그대로 둔다 — 알림은
+   * 다시 만들기를 권할 뿐이고, 무리인 운동은 안전 재검사가 이미 뺐다. '일정 없음' 뒤인 까닭: 바뀜은 저장한 일정이 있어야 견준다.
+   */
+  const notice = stateNoticeOf(core.stateChanges, {
+    programOwns: screen.programOwns,
+    droppedForSafety: core.droppedForSafety,
+    session: session?.status === 'ACTIVE' ? 'active' : 'none',
+    checkedIn: core.hasCheckinToday,
+  });
+  if (notice.kind === 'remake' && notice.canRemake) {
+    return (
+      <AppCard
+        app="today"
+        tone="warn"
+        status={STATE_NOTICE_TEXT.home}
+        action={count > 0 ? <StartWorkout compact resume={false} /> : undefined}
       />
     );
   }
