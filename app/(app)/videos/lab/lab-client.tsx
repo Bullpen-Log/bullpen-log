@@ -449,7 +449,8 @@ function SampleCard({
     })),
     ...sample.extras.map((x) => ({
       key: x.key,
-      label: x.key === 'cam3' ? '③ 1루 쪽' : '④ 홈 쪽 대각선',
+      /* 실제 자리는 정답지 계산으로 확인(scripts/pitch-lab/markers/selfcal/README.md) — cam3 아이폰 11 이 홈 쪽 정면, cam4 SE2 가 1루 쪽 */
+      label: x.key === 'cam3' ? '③ 홈 쪽 정면' : '④ 1루 쪽',
       url: x.url,
     })),
   ];
