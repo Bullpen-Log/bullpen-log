@@ -7,6 +7,7 @@ import { yesterdayArmLoadOf } from '@/lib/engine/arm-load';
 import {
   arbitrate,
   programArbiterSignals,
+  programOwnsDaily,
   type Arbitration,
   type ProgramSessionToday,
 } from '@/lib/engine/arbiter';
@@ -714,8 +715,8 @@ const BUNDLE_SHORT_REST = 30;
  * 그 밖(쉬는 날 · 기다림 · 다 마침)이면 null — 그날은 매일 일정이 예산을 지키며 짠다(planBudgetOf).
  */
 export function programTodayOf(view: ProgramDayView): ProgramTodayInput | null {
-  const role = view.arbitration.daily.role;
-  if (role !== 'program' && role !== 'assist') return null;
+  /* 화면(lib/report/training-screen.ts)과 같은 판정 — 일정이 프로그램 날로 짜이는 날에 화면도 프로그램 카드를 주인으로 둔다(2판 P6-4) */
+  if (!programOwnsDaily(view.arbitration.daily)) return null;
   if (view.session) {
     if (view.session.exercises.length === 0) return null;
     return {

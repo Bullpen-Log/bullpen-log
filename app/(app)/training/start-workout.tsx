@@ -1,5 +1,6 @@
 import { Play } from 'lucide-react';
 import { startWorkout } from '@/app/actions/workout';
+import { startProgramWorkout } from '@/app/actions/program';
 import { SafeForm } from '@/components/safe-form';
 
 /**
@@ -11,20 +12,30 @@ import { SafeForm } from '@/components/safe-form';
  *
  * '이어서 하기'로 글자가 바뀌는 것은, 하루에 판이 하나이기 때문이다. 오후에
  * 다시 들어와도 오전에 열어 둔 판을 그대로 잇는다.
+ *
+ * program 이면 근력 프로그램 판을 연다(startProgramWorkout — 프로그램 카드의 [운동 시작]과 같은 동작, 2판 P6-4). 트레이닝 홈 카드가 프로그램이
+ * 오늘 주인인 날에 쓴다 — 매일 시작(startWorkout)은 일정이 프로그램 날로 짜였을 때만 프로그램에 맡기므로, 일정을 안 만든 날 · 그 전에 만든
+ * 매일 일정이 남은 날에 누르면 매일 판을 열어 프로그램을 '다른 운동을 먼저 시작'으로 밀었다.
  */
 export function StartWorkout({
   resume,
   compact = false,
+  program = false,
   className = '',
 }: {
   resume: boolean;
   /** 트레이닝 홈의 앱 카드 — 작은 알약(2026-10-04, training-home.tsx) */
   compact?: boolean;
+  /** 근력 프로그램 판을 연다(2판 P6-4 — 위 주석) */
+  program?: boolean;
   className?: string;
 }) {
   return (
     /* 체육관처럼 신호가 약한 곳에서 누르는 단추라, 못 보내면 오류 화면 대신 밑에 한 줄로(components/safe-form.tsx) */
-    <SafeForm action={startWorkout} className={className}>
+    <SafeForm
+      action={program ? startProgramWorkout : startWorkout}
+      className={className}
+    >
       {compact ? (
         <button
           type="submit"

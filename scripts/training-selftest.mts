@@ -550,10 +550,16 @@ import {
   programDayText,
   programDaySlotsOf,
   programDeferVariants,
+  programOwnsDaily,
   timeBudget,
   type ArbiterInput,
   type Arbitration,
 } from '../lib/engine/arbiter.ts';
+/* 2판 P6-4 D6 화면 — 프로그램 카드와 일정 카드가 같은 날 겹치지 않게 */
+import {
+  TRAINING_SCREEN_TEXT,
+  trainingScreenOf,
+} from '../lib/report/training-screen.ts';
 /* 2판 되먹임(P2) — 운동 끝 힘듦 한 번 */
 import {
   EFFORT_LEVELS,
@@ -29824,6 +29830,277 @@ console.log(
       `P6-3 (카) 새 글 ${added.length}줄 · 시험에서 나온 일정 까닭 ${lines.size}줄의 문장 — 해요체 · 줄표 없음 · 문장마다 60자 안`,
       badLines.length === 0 && lines.size > 3,
       badLines.slice(0, 4).join(' · ')
+    );
+  }
+}
+
+/*
+ * 2판 P6-4 D6 화면(2026-10-13, lib/report/training-screen.ts · app/(app)/training/page.tsx · training-home.tsx) — 근력 프로그램이 오늘 주인이면
+ * 일정 자리는 한 줄이고 매일 [운동 시작] · 다시 만들기 · 체크 목록 · '운동 더 하기'가 없는가(사용자 결정 D6, 설계 검토 비판 1 빈틈 4 · 5 · 6).
+ * 화면은 로그인이 있어야 그려서 여기서는 판정(순수)을 표로, 배선을 소스로 본다.
+ * (가) programOwnsDaily — 중재의 매일 일정 몫 역할 표(일정 만들기 programTodayOf 와 화면이 같이 쓴다)
+ * (나) trainingScreenOf — 격자 전부(멈춤 × 역할 × 일정 × 보일 운동) 불변식 · 예전 규칙과 달라진 곳 · 이름 붙인 장면
+ * (다) 소스 — 트레이닝 화면 · 트레이닝 홈 · 일정 만들기 · 시작 단추가 같은 판정을 쓰고, 홈 카드 차례가 마침 > 멈춤 > 프로그램 > 일정
+ * (라) 글 — 해요체 · 줄표 없음 · 60자 안
+ */
+console.log(
+  '\n[2판 P6] D6 화면(P6-4) — 프로그램이 오늘 주인이면 일정 자리는 한 줄 · 매일 시작 · 다시 열기 없음, 홈 카드 차례'
+);
+{
+  const json = (v: unknown) => JSON.stringify(v);
+  const ROLES = [null, undefined, 'off', 'program', 'assist', 'free'] as const;
+  type Role = (typeof ROLES)[number];
+  const dailyOf = (r: Role) => (r == null ? r : { role: r });
+
+  /* ── (가) 역할 표 ── */
+  {
+    const table = ROLES.map((r) => [String(r), programOwnsDaily(dailyOf(r))]);
+    check(
+      "P6-4 (가) programOwnsDaily — 'program' · 'assist' 만 참, 멈춤('off') · 지금처럼('free') · 프로그램 없음(null · undefined)은 거짓",
+      json(table) ===
+        json([
+          ['null', false],
+          ['undefined', false],
+          ['off', false],
+          ['program', true],
+          ['assist', true],
+          ['free', false],
+        ]),
+      json(table)
+    );
+  }
+
+  /* ── (나) 화면 판정 격자 ── */
+  {
+    const PLANS = [
+      ['없음', null],
+      ['매일 일정', {}],
+      [
+        '프로그램 날 일정',
+        { program: { key: 'stronglifts-5x5', day: 3, label: '1주차 · 3일차' } },
+      ],
+    ] as const;
+    const bad: string[] = [];
+    const changed: string[] = [];
+    let combos = 0;
+    let owns = 0;
+    let stale = 0;
+    let resting = 0;
+    let starts = 0;
+    for (const halted of [false, true])
+      for (const role of ROLES)
+        for (const [planName, savedPlan] of PLANS)
+          for (const shownCount of [0, 4]) {
+            combos++;
+            const input = { halted, daily: dailyOf(role), savedPlan, shownCount };
+            const before = json(input);
+            const r = trainingScreenOf(input);
+            const again = trainingScreenOf(input);
+            const tag = `${halted ? '멈춤' : '-'} · ${String(role)} · ${planName} · ${shownCount}`;
+            const programPlan = savedPlan != null && 'program' in savedPlan;
+            const wantOwns = !halted && (role === 'program' || role === 'assist');
+            if (r.programOwns) owns++;
+            if (r.stalePlan) stale++;
+            if (r.planResting) resting++;
+            if (r.canStart) starts++;
+            const problems = [
+              json(r) !== json(again) && '결정성',
+              json(input) !== before && '입력이 바뀜',
+              r.programOwns !== wantOwns && '주인',
+              halted &&
+                (r.programOwns ||
+                  r.stalePlan ||
+                  r.usesPlan ||
+                  r.planResting ||
+                  r.canStart ||
+                  r.canResume) &&
+                '멈춘 날',
+              r.programOwns &&
+                (r.usesPlan || r.canStart || r.canResume) &&
+                '프로그램 날에 매일 시작',
+              r.stalePlan !== (!halted && programPlan && !wantOwns) && '스러진 일정',
+              r.usesPlan !==
+                (!halted && savedPlan != null && !r.programOwns && !r.stalePlan) &&
+                '일정 카드',
+              r.planResting !== (r.programOwns && savedPlan != null && !programPlan) &&
+                '쉬는 일정 한 줄',
+              r.canStart !== (!halted && r.usesPlan && shownCount > 0) && '시작',
+              r.canResume !== r.canStart && '다시 열기',
+            ].filter(Boolean);
+            if (problems.length > 0) bad.push(`${tag}: ${problems.join(',')}`);
+            /* 예전 규칙(!멈춤 && 보일 운동 > 0) — 프로그램이 없는 사람은 매일 일정이면 그대로여야 한다 */
+            const old = !halted && shownCount > 0;
+            if (role == null && r.canStart !== old)
+              changed.push(`${String(role)} · ${planName} · ${shownCount}`);
+          }
+    check(
+      `P6-4 (나) 격자 ${combos}가지(멈춤 × 역할 ${ROLES.length} × 일정 ${PLANS.length} × 보일 운동) — 결정성 · 입력 그대로, 프로그램이 주인이면 매일 시작 · 다시 열기 · 일정 카드 0, 멈춘 날 아무것도 안 냄, 다시 열기 = 시작 (주인 ${owns} · 스러진 일정 ${stale} · 쉬는 일정 ${resting} · 시작 ${starts})`,
+      bad.length === 0 && owns > 0 && stale > 0 && resting > 0 && starts > 0,
+      bad.slice(0, 5).join(' ‖ ')
+    );
+    check(
+      'P6-4 (나) 프로그램이 없는 사람은 매일 일정이면 예전 규칙 그대로 — 달라진 곳은 일정 없이 오늘 마친 운동만 있는 날(누르면 트레이닝으로 되돌아가던 단추) · 프로그램 날 일정이 남은 날뿐',
+      json(changed) ===
+        json([
+          'null · 없음 · 4',
+          'null · 프로그램 날 일정 · 4',
+          'undefined · 없음 · 4',
+          'undefined · 프로그램 날 일정 · 4',
+        ]),
+      json(changed)
+    );
+    const scene = (
+      role: Role,
+      savedPlan: (typeof PLANS)[number][1],
+      shownCount = 4,
+      halted = false
+    ) => trainingScreenOf({ halted, daily: dailyOf(role), savedPlan, shownCount });
+    const pick = (s: ReturnType<typeof trainingScreenOf>) =>
+      (['programOwns', 'stalePlan', 'usesPlan', 'planResting', 'canStart'] as const)
+        .filter((k) => s[k])
+        .join('+') || '없음';
+    const scenes: [string, string, string][] = [
+      [
+        '프로그램 하는 날 · 일정 안 만듦',
+        pick(scene('program', PLANS[0][1], 0)),
+        'programOwns',
+      ],
+      [
+        '프로그램 하는 날 · 프로그램 날 일정',
+        pick(scene('program', PLANS[2][1])),
+        'programOwns',
+      ],
+      [
+        '프로그램 하는 날 · 그 전에 만든 매일 일정',
+        pick(scene('program', PLANS[1][1])),
+        'programOwns+planResting',
+      ],
+      [
+        '프로그램이 쉬게 된 날 · 프로그램 날 일정',
+        pick(scene('free', PLANS[2][1])),
+        'stalePlan',
+      ],
+      [
+        '프로그램 쉬는 날 · 매일 일정',
+        pick(scene('free', PLANS[1][1])),
+        'usesPlan+canStart',
+      ],
+      [
+        '프로그램 없음 · 매일 일정',
+        pick(scene(null, PLANS[1][1])),
+        'usesPlan+canStart',
+      ],
+      [
+        '프로그램 없음 · 일정 없음 · 마친 운동만',
+        pick(scene(null, PLANS[0][1])),
+        '없음',
+      ],
+      ['멈춘 날 · 프로그램 판 있음', pick(scene('off', PLANS[2][1], 4, true)), '없음'],
+    ];
+    const wrong = scenes.filter(([, got, want]) => got !== want);
+    check(
+      `P6-4 (나) 장면 ${scenes.length}개 — 프로그램 날은 프로그램 카드가 주인(그 전 매일 일정은 '쉬어요' 한 줄), 프로그램이 쉬게 된 날의 프로그램 날 일정은 다시 만들기, 멈춘 날은 멈춤 카드`,
+      wrong.length === 0,
+      wrong.map(([n, got, want]) => `${n}: ${got} (기대 ${want})`).join(' · ')
+    );
+  }
+
+  /* ── (다) 소스 — 같은 판정 · 카드 차례 ── */
+  {
+    const strip = (rel: string) =>
+      readFileSync(new URL(`../${rel}`, import.meta.url), 'utf8')
+        .replace(/\{\/\*[\s\S]*?\*\/\}/g, '')
+        .replace(/\/\*[\s\S]*?\*\//g, '')
+        .replace(/^\s*\/\/.*$/gm, '');
+    const screenSrc = strip('lib/report/training-screen.ts');
+    const imports = [...screenSrc.matchAll(/^import .* from '([^']+)';$/gm)].map(
+      (m) => m[1]
+    );
+    check(
+      'P6-4 (다) lib/report/training-screen.ts 는 순수 — import 는 중재(판정)와 일정 타입뿐(server-only · prisma · 날짜 함수 없음), 프로그램 주인은 programOwnsDaily 로만',
+      json(imports) === json(['@/lib/engine/arbiter', '@/lib/report/daily-plan']) &&
+        /^import type \{ DailyPlan \}/m.test(screenSrc) &&
+        !/server-only|prisma|appNow|new Date\(|Math\.random/.test(screenSrc) &&
+        /programOwnsDaily\(daily\)/.test(screenSrc) &&
+        !/role === |'assist'/.test(screenSrc),
+      imports.join(' · ')
+    );
+    const load = strip('lib/program/load.ts');
+    check(
+      'P6-4 (다) 일정 만들기(lib/program/load.ts programTodayOf)도 같은 판정 — 역할 글자를 따로 견주지 않는다',
+      /export function programTodayOf\(view: ProgramDayView\): ProgramTodayInput \| null \{\s*if \(!programOwnsDaily\(view\.arbitration\.daily\)\) return null;/.test(
+        load
+      ) && !/role !== 'program'|role === 'program'/.test(load)
+    );
+    const page = strip('app/(app)/training/page.tsx');
+    const slot = [
+      '{picked.halted ? (',
+      ') : screen.programOwns ? (',
+      ') : savedPlan == null || screen.stalePlan ? (',
+      ') : exercises.length === 0 ? (',
+    ].map((n) => page.indexOf(n));
+    check(
+      'P6-4 (다) 트레이닝 화면 — 판정은 trainingScreenOf 한 번(중재의 매일 일정 몫 · 오늘 일정 · 보일 운동), 매일 시작은 screen.canStart · 다시 열기는 screen.canResume, 일정 자리 차례는 멈춤 > 프로그램 한 줄 > 만들기(스러진 일정 포함) > 빈 일정 > 일정 카드',
+      page.split('trainingScreenOf({').length === 2 &&
+        /halted: picked\.halted,\s*daily: programView\?\.arbitration\.daily,\s*savedPlan,\s*shownCount: shownPicks\.length,/.test(
+          page
+        ) &&
+        /canResume=\{screen\.canResume\}/.test(page) &&
+        page.split('<StartWorkout').length === 2 &&
+        /screen\.canStart && <StartWorkout resume=\{resume\} \/>/.test(page) &&
+        !/todayState !== 'active'/.test(page) &&
+        slot.every((i, k) => i > 0 && (k === 0 || i > slot[k - 1])) &&
+        /done \? null : \(\s*<ProgramDayLine/.test(page) &&
+        /\{programDayText\(day\)\}/.test(page) &&
+        /startMode=\{savedPlan && !savedPlan\.auto && !savedPlan\.program \? 'manual' : 'auto'\}/.test(
+          page
+        ),
+      slot.join(' · ')
+    );
+    const home = strip('app/(app)/training/training-home.tsx');
+    const card = home.slice(
+      home.indexOf('async function WorkoutCard'),
+      home.indexOf('async function ArmcareCard')
+    );
+    const order = [
+      "session?.status === 'FINISHED'",
+      'if (core.picked.halted)',
+      'if (programView && screen.programOwns)',
+      'if (!screen.usesPlan || !core.savedPlan)',
+      'if (count === 0)',
+    ].map((n) => card.indexOf(n));
+    check(
+      'P6-4 (다) 트레이닝 홈 카드 차례 — 마침 > 멈춤 > 근력 프로그램 날(프로그램 시작 단추) > 일정 없음(스러진 일정 포함) > 남은 운동 없음 > 보통, 판정은 화면과 같은 trainingScreenOf · buildProgramDay',
+      order.every((i, k) => i > 0 && (k === 0 || i > order[k - 1])) &&
+        card.split('trainingScreenOf({').length === 2 &&
+        /daily: programView\?\.arbitration\.daily,/.test(card) &&
+        /buildProgramDay\(core, programRow, user\)/.test(card) &&
+        /<StartWorkout compact program resume=\{active\} \/>/.test(card) &&
+        card.split('<StartWorkout').length === 3,
+      order.join(' · ')
+    );
+    const start = strip('app/(app)/training/start-workout.tsx');
+    check(
+      'P6-4 (다) 시작 단추 — program 이면 프로그램 카드와 같은 startProgramWorkout, 아니면 예전 startWorkout',
+      /action=\{program \? startProgramWorkout : startWorkout\}/.test(start) &&
+        /import \{ startProgramWorkout \} from '@\/app\/actions\/program';/.test(start)
+    );
+  }
+
+  /* ── (라) 글 ── */
+  {
+    const lines = Object.entries(TRAINING_SCREEN_TEXT);
+    const bad = lines.filter(
+      ([k, t]) =>
+        t.length > 60 ||
+        t.includes('—') ||
+        t.includes('**') ||
+        (k === 'stalePlanHome' ? !t.endsWith('요') : !t.endsWith('요.'))
+    );
+    check(
+      `P6-4 (라) 화면 글 ${lines.length}줄 — 해요체 · 줄표 없음 · 60자 안(홈 카드 줄은 다른 줄처럼 마침표 없이)`,
+      bad.length === 0 && lines.length === 3,
+      bad.map(([k]) => k).join(' · ')
     );
   }
 }

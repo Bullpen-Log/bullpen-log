@@ -6,7 +6,7 @@ import { redirect } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
 import { requireUser } from '@/lib/dal';
 import { featureLocks, SETUP_PATH } from '@/lib/feature-locks';
-import { ChevronDown } from 'lucide-react';
+import { ChevronDown, Dumbbell } from 'lucide-react';
 import { createPlaybackUrls } from '@/lib/storage';
 import { referenceThumbUrl } from '@/lib/reference-video';
 import { formatPrescription } from '@/lib/exercise-meta';
@@ -14,6 +14,8 @@ import { planPrescription } from '@/lib/report/volume';
 import { planReasonLines } from '@/lib/report/daily-plan';
 import { pickReasonLineOf } from '@/lib/report/score';
 import { loadTodayCore } from '@/lib/report/today-data';
+import { TRAINING_SCREEN_TEXT, trainingScreenOf } from '@/lib/report/training-screen';
+import { programDayText } from '@/lib/engine/arbiter';
 import { StartWorkout } from './start-workout';
 import { DoneCard, DoneFold, type DoneLine } from './done-card';
 import { AutoNote } from './auto-note';
@@ -131,6 +133,27 @@ function AppHead({
         )}
       </div>
       <PageHeading eyebrow="Training" title={title} />
+    </div>
+  );
+}
+
+/**
+ * 근력 프로그램이 오늘 주인인 날의 일정 자리 한 줄(2판 P6-4, 사용자 결정 D6) — 그날 운동은 맨 위 프로그램 카드가 다 말하고(목록 · 무게 · [운동 시작]),
+ * 여기서는 왜 따로 일정을 안 짜는지만 말한다. 글은 중재와 일정 까닭의 한 곳(lib/engine/arbiter.ts programDayText). 바로 위 다음 등판 한 줄
+ * (components/outing-line.tsx)과 같은 줄 모양이라 둘이 이어 읽힌다. 그 전에 만든 매일 일정이 남아 있으면 그 일정은 오늘 쉰다고 둘째 줄로 알린다.
+ */
+function ProgramDayLine({ day, planResting }: { day: number; planResting: boolean }) {
+  return (
+    <div className="flex min-h-12 items-center gap-2.5 rounded-2xl border border-line bg-surface px-(--block-pad) py-1.5 text-sm desk:min-h-11">
+      <Dumbbell aria-hidden className="h-4 w-4 shrink-0 text-sky" />
+      <p className="min-w-0 flex-1 break-keep">
+        <span className="block font-semibold text-ink">{programDayText(day)}</span>
+        {planResting && (
+          <span className="block text-xs text-muted">
+            {TRAINING_SCREEN_TEXT.planResting}
+          </span>
+        )}
+      </p>
     </div>
   );
 }
@@ -294,6 +317,17 @@ export default async function TrainingPage({
 
   const resume = todaySession?.status === 'ACTIVE';
   const finished = todaySession?.status === 'FINISHED';
+  /*
+   * 근력 프로그램 카드와 일정 카드가 같은 날 겹치지 않게(2판 P6-4, lib/report/training-screen.ts) — 프로그램이 오늘 주인이면(중재의 매일 일정 몫,
+   * 일정 만들기와 같은 판정) 일정 자리는 한 줄이고 매일 [운동 시작] · 다시 만들기 · 체크 목록 · '운동 더 하기'는 없다. 프로그램 날로 짜였는데 지금은
+   * 프로그램이 주인이 아닌 일정(스러진 일정)은 만들기 전처럼 다시 만들게 한다.
+   */
+  const screen = trainingScreenOf({
+    halted: picked.halted,
+    daily: programView?.arbitration.daily,
+    savedPlan,
+    shownCount: shownPicks.length,
+  });
 
   /*
    * 화면에 그릴 운동만 자세히 가져온다.
@@ -490,7 +524,7 @@ export default async function TrainingPage({
       effortSpike={core.effortSpike}
       preferredWorkout={core.preferredWorkout}
       /* 오늘 직접 골라 만들었으면 다시 만들 때도 그쪽으로 연다 */
-      startMode={savedPlan && !savedPlan.auto ? 'manual' : 'auto'}
+      startMode={savedPlan && !savedPlan.auto && !savedPlan.program ? 'manual' : 'auto'}
       /*
        * 체크인이 없으면 이 자리에서 체크인 창을 연다 — 홈으로 보내지 않는다.
        * 상세 체크인의 '하고 싶은 부위'는 라이브러리에 실제로 있는 부위만 고른다(홈과 같다).
@@ -531,13 +565,12 @@ export default async function TrainingPage({
           <DoneCard
             {...done}
             intensity={trainingNote?.intensity ?? null}
-            canResume={!picked.halted && shownPicks.length > 0}
+            /* 프로그램 날에는 다시 열지 않는다 — 다시 열면 마친 프로그램 판 뒤에 매일 운동이 붙는다(D6 — 보조를 더하지 않는다, 2판 P6-4) */
+            canResume={screen.canResume}
           />
         ) : (
-          !picked.halted &&
-          shownPicks.length > 0 &&
-          /* 프로그램 판이 열려 있으면 이어 하기는 프로그램 카드가 한다 */
-          programView?.todayState !== 'active' && <StartWorkout resume={resume} />
+          /* 프로그램이 오늘 주인이면(진행 중인 프로그램 판 포함) 시작 · 이어 하기는 프로그램 카드가 한다(2판 P6-4) */
+          screen.canStart && <StartWorkout resume={resume} />
         )}
 
         {/* 오늘 일정을 만든 날에는 프로그램 고르기를 숨긴다(2026-10-12 사용자) — 만들기 전에만 */}
@@ -567,7 +600,20 @@ export default async function TrainingPage({
               오늘 체크인 남기기
             </OpenCheckinButton>
           </Card>
-        ) : savedPlan == null ? (
+        ) : screen.programOwns ? (
+          /*
+          근력 프로그램 날(2판 P6-4, D6) — 프로그램 카드가 주인이고 일정 자리는 한 줄. 마친 날은 그것도 안 그린다(위 완료 카드와 프로그램 카드가
+          오늘 한 것을 말한다).
+        */
+          done ? null : (
+            <ProgramDayLine
+              day={
+                programView?.arbitration.program?.today?.day ?? programView?.day ?? 1
+              }
+              planResting={screen.planResting}
+            />
+          )
+        ) : savedPlan == null || screen.stalePlan ? (
           /*
           아직 안 만든 날.
 
@@ -584,7 +630,12 @@ export default async function TrainingPage({
               <p className="text-lg font-bold text-ink">
                 오늘 운동 일정을 만들어보세요
               </p>
-              <p className="text-sm text-muted">투구량과 몸 상태에 맞춰 골라요.</p>
+              <p className="text-sm text-muted">
+                {/* 프로그램 날로 짜였는데 지금은 프로그램이 쉬는 일정이면 그 까닭을(2판 P6-4) */}
+                {screen.stalePlan
+                  ? TRAINING_SCREEN_TEXT.stalePlan
+                  : '투구량과 몸 상태에 맞춰 골라요.'}
+              </p>
             </div>
             {planForm(false, savedMinutes)}
           </Card>

@@ -48,7 +48,10 @@ export function DoneCard({
   /** 종료할 때 고른 강도. 트레이닝 화면에서 고쳤으면 그 값이다. */
   intensity: number | null;
   lines: DoneLine[];
-  /** 통증을 입력한 날처럼 목록이 멈춘 날에는 다시 열 수 없다 */
+  /**
+   * 통증을 입력한 날처럼 목록이 멈춘 날에는 다시 열 수 없다. 근력 프로그램이 오늘 주인인 날도 없다(2판 P6-4, D6 — 다시 열면 마친 프로그램 판
+   * 뒤에 매일 운동이 붙는다). 정하는 곳은 lib/report/training-screen.ts canResume.
+   */
   canResume: boolean;
 }) {
   const unit = useWeightUnit();

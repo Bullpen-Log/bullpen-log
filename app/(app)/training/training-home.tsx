@@ -6,6 +6,9 @@ import { prisma } from '@/lib/prisma';
 import { PageHeading, todayKicker } from '@/components/ui';
 import { OpenCheckinButton } from '@/components/notice-bell';
 import { loadTodayCore, type UserForToday } from '@/lib/report/today-data';
+import { TRAINING_SCREEN_TEXT, trainingScreenOf } from '@/lib/report/training-screen';
+import { PROGRAMS_ENABLED } from '@/lib/program/program';
+import { activeProgram, buildProgramDay } from '@/lib/program/load';
 import { loadArmcareToday, type UserForArmcare } from '@/lib/armcare/today';
 import { ARMCARE_KIND_TEXT } from '@/lib/armcare/routine';
 import { ARMCARE_AREAS, ARMCARE_CATEGORY } from '@/lib/armcare/anatomy';
@@ -222,13 +225,22 @@ async function SafeCard({
 
 /* ─────────────────────────────── 카드 셋 ─────────────────────────────── */
 
-/** 트레이닝 — 오늘 일정 한 줄과 [시작](운동 판으로 곧장) */
+/**
+ * 트레이닝 — 오늘 일정 한 줄과 [시작](운동 판으로 곧장).
+ *
+ * 차례(2판 P6-4): 마침 > 멈춤 > 근력 프로그램 날 > (상태 바뀜 — 2판 P6-6 이 여기 넣는다) > 일정 없음 > 남은 운동 없음 > 보통. 프로그램이 오늘
+ * 주인이면(트레이닝 화면과 같은 판정 — lib/report/training-screen.ts) 그날 운동은 프로그램이라 프로그램 이름 · 일차와 프로그램 [시작]을 낸다
+ * (사용자 결정 D6). 마침 · 멈춤이 먼저인 까닭: 마친 날은 무엇이든 마친 것이고, 멈춘 날은 프로그램도 기다린다(painWait).
+ */
 async function WorkoutCard({ user, today }: { user: HomeUser; today: Date }) {
   const core = await loadTodayCore(user, today);
-  const session = await prisma.trainingSession.findUnique({
-    where: { userId_date: { userId: user.id, date: core.midnight } },
-    select: { status: true },
-  });
+  const [session, programRow] = await Promise.all([
+    prisma.trainingSession.findUnique({
+      where: { userId_date: { userId: user.id, date: core.midnight } },
+      select: { status: true },
+    }),
+    PROGRAMS_ENABLED ? activeProgram(user.id) : Promise.resolve(null),
+  ]);
   const count = core.shownPicks.length;
 
   if (session?.status === 'FINISHED') {
@@ -237,8 +249,42 @@ async function WorkoutCard({ user, today }: { user: HomeUser; today: Date }) {
   if (core.picked.halted) {
     return <AppCard app="today" tone="warn" status="오늘은 운동을 처방하지 않았어요" />;
   }
-  if (!core.savedPlan) {
-    return <AppCard app="today" status="오늘 일정을 아직 안 만들었어요" />;
+  /* 프로그램 날은 트레이닝 화면의 프로그램 카드와 같은 길(buildProgramDay — 판정 · 오늘 판 · 중재) */
+  const programView = programRow ? await buildProgramDay(core, programRow, user) : null;
+  const screen = trainingScreenOf({
+    halted: core.picked.halted,
+    daily: programView?.arbitration.daily,
+    savedPlan: core.savedPlan,
+    shownCount: count,
+  });
+  if (programView && screen.programOwns) {
+    const active = programView.todayState === 'active';
+    /* 하는 날인데 그날 운동이 하나도 없으면(모두 빠짐) 프로그램 시작이 트레이닝으로 되돌려 보낸다 — 단추 대신 › 로 프로그램 카드에 가게 */
+    const canStart =
+      active || (programView.decision.kind === 'go' && programView.rows.length > 0);
+    const dayLabel =
+      programView.arbitration.program?.today?.label ?? programView.dayLabel;
+    return (
+      <AppCard
+        app="today"
+        status={`${programView.plan.def.name} · ${dayLabel}`}
+        action={
+          canStart ? <StartWorkout compact program resume={active} /> : undefined
+        }
+      />
+    );
+  }
+  if (!screen.usesPlan || !core.savedPlan) {
+    return (
+      <AppCard
+        app="today"
+        status={
+          screen.stalePlan
+            ? TRAINING_SCREEN_TEXT.stalePlanHome
+            : '오늘 일정을 아직 안 만들었어요'
+        }
+      />
+    );
   }
   if (count === 0) {
     return <AppCard app="today" status="일정에 남은 운동이 없어요" />;

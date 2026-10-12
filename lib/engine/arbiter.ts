@@ -692,6 +692,18 @@ export type DailyDirective = {
   overrodeBudget: boolean;
 };
 
+/**
+ * 오늘 매일 일정 자리를 근력 프로그램이 갖는가(D6, 2판 P6-4) — 중재의 매일 일정 몫이 'program'(지금 길) 또는 'assist'(PROGRAM_DAY_DAILY 를
+ * 바꿀 때의 길). 멈춘 날('off')은 아니다. 일정 만들기(lib/program/load.ts programTodayOf)와 화면(트레이닝 · 트레이닝 홈 —
+ * lib/report/training-screen.ts)이 이 한 판정을 같이 써야, 일정이 프로그램 날로 짜인 날에 화면도 프로그램 카드를 주인으로 둔다.
+ * 프로그램이 없으면(중재 결과가 없음) 거짓.
+ */
+export function programOwnsDaily(
+  daily: Pick<DailyDirective, 'role'> | null | undefined
+): boolean {
+  return daily?.role === 'program' || daily?.role === 'assist';
+}
+
 export type Arbitration = {
   /** 걸린 층(ARBITER_LAYERS 차례) */
   applied: ArbiterLayer[];
