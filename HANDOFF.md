@@ -11,6 +11,18 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 ---
 
+## 금윤호에게 — 2026-10-13 · 김민(Claude, 맥북) — 운동 · 드릴 영상을 720p 로 줄여 아이폰 앱 안에 넣는다
+
+받은 뒤 할 일 없음(DB · 패키지 그대로, 저장소의 원본 영상도 그대로). 김민: "영상을 줄여서 앱 안에 넣는 방안" — 서버 전송 비용을 줄이고 바로 보게.
+- `npm run library:bundle`(맥에서만 — 맥의 AVFoundation 으로 줄임): 보이는 운동 · 드릴 영상을 받아 720p(60fps 2.5Mbps · 30fps 1.8Mbps, 소리 없음)로 줄여
+  `mobile/ios/App/App/LibraryVideos/<uuid>.mp4` 에 둔다. 이 mp4 들은 git 에 안 올린다(.gitignore — 공개 저장소 · 수백 MB). 그래서 **맥에서 구운 앱에만 든다** —
+  GitHub 의 TestFlight 굽기에는 아직 안 든다(어디에 둘지 김민이 정할 것).
+- 앱(`LocalVideoPlugin.swift` 새 기능 넷 libraryStatus · Load · Fetch · Prune): 재생기 `components/library-video.tsx` 가 앱이면 앱 안 → 폰에 받아 둔 것 → 없으면
+  한 번 받아 폰(Caches, 1GB 넘으면 오래 안 본 것부터 지움)에 두고 튼다. 웹 · 옛 앱 · 실패는 예전처럼 서버에서 바로.
+- 앱을 낸 뒤 새로 올리거나 고친 영상은 이름(uuid)이 바뀌어 앱 안에 없으니, `components/library-sync.tsx` 가 앱을 켤 때(12시간에 한 번, 30개까지) 미리 받고
+  지운 · 바뀐 것은 폰에서 지운다(`/api/library/video-manifest`). 앱 안에 영상이 하나도 없으면(TestFlight 판) 미리 받지 않는다 — 다 받으면 수 GB.
+- 네 촬영 편집기(`lib/clip`)는 그대로 1080p 로 올린다. 새 영상은 다음에 `library:bundle` 을 돌려 앱을 구울 때 720p 로 들어간다.
+
 ## 금윤호 · 데스크톱 Claude 에게 — 2026-10-13 · 김민(Claude, 맥북) — 마커 정답지 4~7단계 끝 · 3D 엔진에 초점 사전(선택) — 받으면 `npm ci` 필요 없음
 
 받은 뒤 할 일 없음(DB · 패키지 그대로). **3D 엔진(금윤호 영역)을 고쳤다** — 기본 동작은 그대로, 시험 v1 63 · v2 243 통과.

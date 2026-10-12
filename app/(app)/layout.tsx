@@ -18,6 +18,7 @@ import { AppNav } from '@/components/app-shell';
 import { CheckinGate } from '@/components/checkin-gate';
 import { RefreshOnReturn } from '@/components/refresh-on-return';
 import { SendPendingSets } from '@/components/send-pending-sets';
+import { LibrarySync } from '@/components/library-sync';
 import type { CheckinData } from '@/components/checkin-form';
 import { prisma } from '@/lib/prisma';
 import {
@@ -208,6 +209,7 @@ export default async function AppLayout({
 
       {/* 신호 없이 남겨 폰에 담긴 운동 세트를 어느 화면에서든 이어서 보낸다 */}
       <SendPendingSets />
+      {isNative && <LibrarySync />}
 
       {/*
         팝업 자리. 본문(children) 밖에 둔다 — 팝업이 떠도 밑의 화면은 그대로 남고, 본문의

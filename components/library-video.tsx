@@ -7,6 +7,7 @@ import {
   referenceWatchUrl,
   videoFrameClass,
 } from '@/lib/reference-video';
+import { libraryVideoFromPhone } from '@/lib/local-video';
 
 /**
  * 라이브러리에 올린 영상 재생기.
@@ -60,6 +61,12 @@ export function LibraryVideo({
    */
   const [blocked, setBlocked] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
+
+  /* 폰에서 꺼낸 영상(blob:)은 다 보면 놓아 준다 — 운동 목록을 넘기며 여러 개를 틀어도 메모리에 쌓이지 않게 */
+  useEffect(() => {
+    if (!url?.startsWith('blob:')) return;
+    return () => URL.revokeObjectURL(url);
+  }, [url]);
 
   useEffect(() => {
     const v = videoRef.current;
@@ -145,16 +152,23 @@ export function LibraryVideo({
     setError(undefined);
 
     try {
-      const res = await fetch('/api/library/video-url', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ paths: [path] }),
-      });
-      const data = await res.json().catch(() => ({}));
-      const found = data.urls?.[path];
+      let signed: Promise<string> | undefined;
+      const signedUrl = () =>
+        (signed ??= (async () => {
+          const res = await fetch('/api/library/video-url', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ paths: [path] }),
+          });
+          const data = await res.json().catch(() => ({}));
+          const found = data.urls?.[path];
+          if (!found) throw new Error('영상을 불러올 수 없어요.');
+          return found as string;
+        })());
 
-      if (!found) throw new Error('영상을 불러올 수 없어요.');
-      setUrl(found);
+      /* 아이폰 앱이면 앱 안 · 폰에 받아 둔 영상으로(서버에서 다시 받지 않는다). 안 되면 서버에서 바로 */
+      const local = await libraryVideoFromPhone(path, signedUrl);
+      setUrl(local ?? (await signedUrl()));
     } catch (err) {
       setError(err instanceof Error ? err.message : '영상을 불러올 수 없어요.');
     } finally {
