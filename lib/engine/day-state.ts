@@ -33,8 +33,10 @@ import {
   SEVERE_SORENESS,
   SHORT_SLEEP_HOURS,
   armPainSpotsFor,
+  exactOutingDay,
   formatSleepHours,
   isShortSleep,
+  nextOutingDays,
   nextOutingWindow,
   parseThrowPlan,
   sorenessWord,
@@ -64,7 +66,7 @@ import {
 /**
  * 세게 던진 날의 여파 — 오늘이나 어제 세게 던진 날이 있으면 그날(가까운 것), 없으면 null.
  *
- * '세게 던진 날'의 판정은 lib/report/facts.ts 의 isHardOuting 한 곳(Σ 투구수 × 체감 강도 ≥ 2,700, 옛 facts 는 30구 — 2판 D2).
+ * '세게 던진 날'의 판정은 lib/report/facts.ts 의 isHardOuting 한 곳(Σ 투구수 × 체감 강도 ≥ 2,700 또는 경기 · 강도 9~10 으로 30구, 옛 facts 는 30구 — 2판 D2 · P3 검토).
  * 여기서는 '오늘 · 어제(daysAgo ≤ 1)'만 고른다. theme.ts 의 hardOuting 이 이 함수를 그대로 부른다(2판 P3에서 옮김 — 몸통은 같다).
  * 이 칸이 생기기 전에 저장된 facts(hardOutings 없음)는 빈 목록으로 본다.
  */
@@ -344,7 +346,8 @@ export function buildDayState({
    * 그 답을 1일 전 등판으로 둔다 — 투구수 · 부하는 모르니 null(D3 · P4 가 이 칸을 읽는다). 기록이 오늘 · 어제 것이면 기록이 이긴다.
    */
   const logDays = patterns.restDays;
-  const yesterdayGame = answerYesterday === '오늘 등판';
+  /* 어제 답이 '그날 등판'이었나 — 답 글자를 직접 견주지 않고 lib/checkin.ts 규칙으로(어제 기준 꼭 0일 뒤) */
+  const yesterdayGame = exactOutingDay(nextOutingDays(answerYesterday)) === 0;
   const fromLog = logDays != null && (logDays <= 1 || !yesterdayGame);
   const source: DayState['outing']['source'] = fromLog
     ? 'log'

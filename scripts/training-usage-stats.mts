@@ -17,7 +17,11 @@ import { PrismaClient } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { effortPctOf, outingLoadOf, toDateKey } from '../lib/pitch-stats.ts';
 import { ageFromBirthDate } from '../lib/profile.ts';
-import { HARD_OUTING_MIN_LOAD, HARD_OUTING_MIN_PITCHES } from '../lib/report/facts.ts';
+import {
+  HARD_OUTING_MIN_LOAD,
+  HARD_OUTING_MIN_PITCHES,
+  NEAR_MAX_INTENSITY,
+} from '../lib/report/facts.ts';
 import { YOUTH_AGE_THRESHOLD } from '../lib/report/plan.ts';
 import { THROW_PLANS } from '../lib/checkin.ts';
 import { REST_SESSION_TYPE } from '../lib/session-type.ts';
@@ -519,13 +523,14 @@ async function sectionCompletion(
 
 /**
  * 옛 '세게 던진 날' 규칙의 강도 문턱(1~10) — 2026-10-03 사용자분과 정한 '경기, 또는 강도 9~10'. 앱은 2판 D2(2026-10-12)부터
- * 투구수 × 체감 강도(HARD_OUTING_MIN_LOAD)로 가르고 이 값을 안 쓴다(facts.ts 의 NEAR_MAX_INTENSITY 를 지웠다). 전후를 견주려고 여기만 남긴다.
+ * 투구수 × 체감 강도(HARD_OUTING_MIN_LOAD)로 가르고, P3 검토(같은 날)부터 이 옛 규칙도 같이 본다 — 85% × 30 처럼 곱이 2,700 밑인
+ * 날이 빠지지 않게(facts.ts isHardOuting 의 nearMaxPitches · NEAR_MAX_INTENSITY). 그래서 '지금 정의'는 둘 중 하나다.
  */
-const OLD_NEAR_MAX_INTENSITY = 9;
+const OLD_NEAR_MAX_INTENSITY = NEAR_MAX_INTENSITY;
 
 async function sectionIntensity() {
   heading(
-    `③ 투구 강도(PitchLog.intensity 1~10 · effortPct 5~100%) — '세게 던진 날' 지금 정의(2판 D2): 그날 투구수 × 체감 강도 ≥ ${HARD_OUTING_MIN_LOAD.toLocaleString('en-US')}(경기 100%) · 옛 정의: 경기 또는 강도 ${OLD_NEAR_MAX_INTENSITY}~10 으로 그날 합쳐 ${HARD_OUTING_MIN_PITCHES}구 이상`
+    `③ 투구 강도(PitchLog.intensity 1~10 · effortPct 5~100%) — '세게 던진 날' 지금 정의(2판 D2 · P3 검토): 그날 투구수 × 체감 강도 ≥ ${HARD_OUTING_MIN_LOAD.toLocaleString('en-US')}(경기 100%) 또는 옛 정의 · 옛 정의: 경기 또는 강도 ${OLD_NEAR_MAX_INTENSITY}~10 으로 그날 합쳐 ${HARD_OUTING_MIN_PITCHES}구 이상`
   );
   /* 휴식 기록은 투구수 · 강도가 0 이라 강도 분포에서 뺀다 — 넣으면 0 이 '약하게 던짐'처럼 보인다. */
   const thrownWhere = {
@@ -662,8 +667,8 @@ async function sectionIntensity() {
   /*
    * 기록 단위와 날 단위를 따로 센다. 지금 규칙(2판 D2 — facts.ts outingByDay → isHardOuting)은 날 단위다 — 기록마다
    * 투구수 × 체감 강도(%)(경기 100%, pitch-stats.ts outingLoadOf)를 그날 합쳐 2,700 이상이면 '세게 던진 날'. 옛 규칙(경기이거나
-   * 강도 9~10 인 기록의 투구수를 그날 합쳐 30구 이상)도 나란히 센다 — 옛 규칙으로 세게였던 날은 새 규칙에서도 다 세게이고
-   * (빠지는 날 0 이어야 한다), 새로 세게가 되는 날이 몇인지가 D2 로 달라지는 몫이다.
+   * 강도 9~10 인 기록의 투구수를 그날 합쳐 30구 이상)도 나란히 센다 — 지금 규칙은 옛 규칙의 날도 세게로 본다(P3 검토 — 곱만 보면
+   * 85% × 30 이 빠졌다). 새로 세게가 되는 날이 몇인지가 D2 로 달라지는 몫이다.
    *
    * 날 단위는 기록을 메모리에 올려 센다 — 기록이 상한을 넘으면 이 절만 건너뛴다(1분 안에 끝내려고).
    */
@@ -717,7 +722,10 @@ async function sectionIntensity() {
     days.set(key, d);
   }
   const dayList = [...days.values()];
-  const hardDays = dayList.filter((d) => d.hardLoad >= HARD_OUTING_MIN_LOAD);
+  /* facts.ts isHardOuting 과 같은 판정 — 곱이 문턱 이상이거나 옛 규칙의 재료(nearMaxPitches)가 30구 이상 */
+  const hardDays = dayList.filter(
+    (d) => d.hardLoad >= HARD_OUTING_MIN_LOAD || d.nearMax >= HARD_OUTING_MIN_PITCHES
+  );
   const oldHardDays = dayList.filter((d) => d.nearMax >= HARD_OUTING_MIN_PITCHES);
   const newlyHard = hardDays.filter((d) => d.nearMax < HARD_OUTING_MIN_PITCHES);
   const droppedHard = oldHardDays.filter((d) => d.hardLoad < HARD_OUTING_MIN_LOAD);
@@ -756,7 +764,7 @@ async function sectionIntensity() {
       ],
       ['던진 날(사용자 · 날짜)', dayList.length, '·'],
       [
-        `  세게 던진 날(지금 정의 — 날 단위, 합쳐 ${HARD_OUTING_MIN_LOAD.toLocaleString('en-US')} 이상)`,
+        `  세게 던진 날(지금 정의 — 날 단위, 합쳐 ${HARD_OUTING_MIN_LOAD.toLocaleString('en-US')} 이상 또는 옛 정의)`,
         hardDays.length,
         pct(hardDays.length, dayList.length),
       ],
@@ -771,7 +779,7 @@ async function sectionIntensity() {
         pct(newlyHard.length, dayList.length),
       ],
       [
-        '  옛 정의로 세게였는데 빠진 날(0 이어야 한다 — % 로 85% 같은 값을 적은 날만 생길 수 있다)',
+        '  옛 정의로만 세게 던진 날(곱은 문턱 밑 — % 로 85% 같은 값을 적은 날. 지금 정의가 옛 정의로 지킨다)',
         droppedHard.length,
         pct(droppedHard.length, dayList.length),
       ],

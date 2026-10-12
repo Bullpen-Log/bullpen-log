@@ -132,9 +132,9 @@ export function IntensityGuide({ kind }: { kind: IntensityKind }) {
           <ul className="space-y-2">
             {levels.map((l) => (
               <li key={l.range} className="flex gap-3">
-                {/* 투구 띠는 '90–100%' 처럼 길어 폭을 넓힌다 */}
+                {/* 투구 띠는 '90–100%' 처럼 길어 폭을 넓힌다(PC 의 w-16 은 51px 라 두 줄로 갈렸다 — w-18 · 줄 안 바꿈) */}
                 <span
-                  className={`${kind === 'pitch' ? 'w-16' : 'w-12'} shrink-0 text-xs font-bold tabular-nums text-sky`}
+                  className={`${kind === 'pitch' ? 'w-18' : 'w-12'} shrink-0 text-xs font-bold whitespace-nowrap tabular-nums text-sky`}
                 >
                   {l.range}
                 </span>

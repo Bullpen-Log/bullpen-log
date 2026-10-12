@@ -60,6 +60,34 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 - **`lib/prisma.ts`**: 시험 계정의 요청일 때만, 만들고 고칠 때 비어 있는 시각 칸(createdAt · startedAt · recordedAt · updatedAt …, 표 `TIME_FIELDS`)을
   시뮬레이션 지금으로 채우는 `$extends` 를 씌웠다 — DB 의 now() 는 실제 시각이라 운동 시간 · 쉬는 시계 · 2분 안 같은 기록 막기가 어긋났다.
   다른 계정은 손대지 않는다(`__bpNow` 가 실제 시각이면 그냥 지나감). 새 표에 `@default(now())` 칸을 더하면 이 표에도 적어 줘.
+## 김민에게 — 2026-10-12 · 금윤호(Claude) — 트레이닝 추천 2판 P3(등판 답 여섯 · 체감 강도 %) — 받으면 `npx prisma generate`
+
+받은 뒤 할 일: **`npx prisma generate`** — `PitchLog.effortPct Int?`(체감 강도 5~100%)를 더했다. 마이그레이션 `20261012030000_pitch_log_effort_pct`,
+DB 에는 이미 적용했다(백업 `db-2026-10-11-18-23.json`). 비워 둘 수 있어 옛 코드도 돈다. `npm ci` 는 필요 없다. 설계 · 결정은
+`docs/designs/training-recommendation-engine.md`(D1 · D2).
+- **intensity 는 계속 같이 쓴다.** % 를 받으면 `intensity = effortToIntensity(%)`(85 → 9)를 함께 저장한다(`lib/pitch-effort.ts effortFields`).
+  강도는 `log.intensity` · `log.effortPct` 를 직접 읽지 말고 `lib/pitch-stats.ts` 의 `effortPctOf`(%) · `intensityOf`(1~10 실수), 화면은
+  `lib/pitch-effort.ts readEffort` · `effortText` 로. 두 칸이 어긋난 줄(이 칸을 모르는 옛 코드가 intensity 만 고친 줄)은 intensity 를 믿는다
+  (`trustedEffortPct`) — 그래도 받기 전의 개발 서버로 투구 기록을 고치는 일은 되도록 피해 줘.
+- **던지는 일정이 간편 체크인으로 옮겨졌고 답이 여섯**: '오늘 등판' · '오늘 불펜' · '내일 등판' · '2~3일 뒤' · '4일 이상 뒤' · '없음'(옛 넷은 글자 그대로).
+  답을 날로 읽는 규칙은 `lib/checkin.ts`(`nextOutingDays` · `nextOutingWindow` · `exactOutingDay` · `todayOutingRole`) 한 곳이다 — 답 글자를 `===` 로
+  견주지 말아 줘(자체 시험이 app · lib · components 전체를 훑는다).
+- **세게 던진 날** = 그날 Σ 투구수 × 체감 강도(%) ≥ 2,700(경기 100%), 또는 옛 규칙(경기 · 강도 9~10 으로 합쳐 30구). `lib/report/facts.ts isHardOuting`.
+- **네 영역 파일을 고쳤다**(무엇 · 커밋):
+  - 홈 `app/(app)/today/`: day-summary · day-detail · pitch-log-panel · analysis-view · first-day-card(주석)는 강도를 % 로(ebcaea2). page.tsx 는 계획 줄 ·
+    첫날 카드 · 잘 던진 날 메모가 등판 날을 읽는다(cda47b0 · 이 묶음의 검토 반영 커밋). 등판 날이어도 큰 등판 다음 날 · 최근 통증 · 나이 한도가 먼저다.
+  - 분석 `app/(app)/coach/` overview · parts · report-client · trend-chart — 강도를 % 로(ebcaea2).
+  - `components/month-calendar.tsx` — **이름이 바뀌었다**: `intensityClass` → `effortClass`, `DayMark.intensity` → `DayMark.effortPct`(ebcaea2). 다른 가지에서
+    옛 이름을 쓰면 컴파일이 깨진다.
+  - `lib/armcare/routine.ts` · `today.ts` — `decideArmcare` 에 선택 인자 `state`(오늘 상태 한 장, `lib/engine/day-state.ts`)로 등판 날 회복. today.ts 가 따로 하던
+    체크인 조회를 걷었다(조회 하나 줄어듦)(7ae15c7 · cda47b0).
+  - `lib/program/load.ts` · `program.ts` — `throwSignals` 를 걷고 새 export `programSignalsOf`(오늘 상태 한 장으로 등판 신호), load.ts 의 체크인 조회를 뺐다
+    (06fe6be · e09afb9). 결과는 그대로(자체 시험이 옛 식과 견줌).
+  - `app/actions/rehab.ts` — 재활 투구 기록도 `effortFields` 로 두 칸을 같이 쓴다(1853121).
+  - `components/checkin-form.tsx` — 던지는 일정 · 팔 피로를 간편 쪽으로(1f5c3a8). 네가 같은 날 main 에서 고친 파일이라(1afa8ad · b091c49 · d130455) 합칠 때 겹칠 수 있다.
+- **폰에서 봐 주면 좋은 것**: 간편 체크인의 던지는 일정 칩 여섯과 '어제: …' 글 · 투구 기록의 체감 강도 칩(−/+ 5%) · 구속 측정 저장 시트의 체감 강도 ·
+  등판 날 홈 계획 줄.
+
 ## 김민에게 — 2026-10-12 · 금윤호(Claude) — 운동 마치기 창의 강도를 선택으로 · 축하 화면에 힘듦 칩 넷(rateWorkoutEffort) · 세션 판 JSON 에 `swaps` 칸
 
 받은 뒤 할 일 없음(DB · 패키지 그대로 — 일정 · 세션 판 Json 의 선택 칸만). 트레이닝 추천 2판 P2(`docs/designs/training-recommendation-engine.md` 'P2 결과').

@@ -60,8 +60,11 @@ export async function loadPitchDay(date: string): Promise<PitchDayData | null> {
           pitches: pitchRangeText(todayPlanDay),
           intensity: intensityRangeText(todayPlanDay),
           reason: todayPlanDay.reason,
-          /* 등판 날은 범위가 비어 있다(양은 경기가 정함 — 2판 P3) */
-          game: todayPlanDay.outing === 'game',
+          /*
+           * 등판 날(양은 경기가 정함 — 2판 P3). 큰 등판 다음 날이라 쉬는 날로 남은 등판 날(throwing false)은 '휴식'으로 그리고
+           * 까닭('오늘 등판은 권하지 않아요')을 보인다 — '등판'이라고 쓰면 권하지 않는다는 까닭과 서로 다른 말을 한다.
+           */
+          game: todayPlanDay.outing === 'game' && todayPlanDay.throwing,
         }
       : null;
 

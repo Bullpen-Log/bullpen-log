@@ -51,17 +51,36 @@ export function effortToIntensity(pct: number): number {
   return Math.min(10, Math.max(1, Math.round(pct / 10)));
 }
 
-/** 이 기록의 체감 강도(%) — effortPct 를 적었으면 그것, 아니면(옛 기록) intensity × 10. 쉰 날은 0 */
+/**
+ * 믿을 수 있는 effortPct — 같은 줄의 intensity 가 그 % 를 1~10 으로 내린 값(effortToIntensity)과 맞을 때만. 아니면 null.
+ *
+ * 왜 맞춰 보는가: 개발 DB 가 운영 DB 와 하나라, 이 칸을 모르는 옛 코드(상대방이 아직 받기 전의 개발 서버 · Vercel 되돌리기 ·
+ * 옛 가지의 미리보기 빌드)가 같은 줄을 고칠 수 있다. 옛 고치기는 intensity · 종류만 쓰고 effortPct 는 그대로 둔다. 그래서
+ * 85% 기록을 옛 코드가 휴식(intensity 0)이나 강도 6 으로 바꾸면 낡은 85 가 남는데, 그것을 믿으면 쉰 날이 85% 로, 6 으로 고친
+ * 날이 85% 로 읽힌다. 새 코드는 늘 두 칸을 같이 쓰니(lib/pitch-effort.ts effortFields · effortUpdate) 새 기록은 언제나 맞는다.
+ * 어긋난 줄은 옛 칸(intensity)이 더 최근 값이라 그쪽을 믿는다.
+ */
+export function trustedEffortPct(log: EffortLike): number | null {
+  const pct = log.effortPct;
+  if (pct == null || log.intensity < 1) return null;
+  return effortToIntensity(pct) === log.intensity ? pct : null;
+}
+
+/**
+ * 이 기록의 체감 강도(%) — 믿을 수 있는 effortPct(trustedEffortPct)가 있으면 그것, 아니면(옛 기록 · 옛 코드가 고친 줄)
+ * intensity × 10. 쉰 날은 0
+ */
 export function effortPctOf(log: EffortLike): number {
-  return log.effortPct ?? log.intensity * 10;
+  return trustedEffortPct(log) ?? log.intensity * 10;
 }
 
 /**
  * 1~10 눈금의 강도(실수) — 부하 지수 · 전력 환산 · 이틀 피로 창이 쓰는 눈금. 옛 기록은 intensity 를 그대로 돌려준다
- * (×10 ÷ 10 을 거치지 않아 소수 오차도 없다). 85% 는 8.5.
+ * (×10 ÷ 10 을 거치지 않아 소수 오차도 없다). 85% 는 8.5. effortPct 는 trustedEffortPct 로만 읽는다.
  */
 export function intensityOf(log: EffortLike): number {
-  return log.effortPct != null ? log.effortPct / 10 : log.intensity;
+  const pct = trustedEffortPct(log);
+  return pct != null ? pct / 10 : log.intensity;
 }
 
 /**

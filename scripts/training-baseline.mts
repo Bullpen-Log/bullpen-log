@@ -799,6 +799,8 @@ function patchYesterdayBy(kind: PitchVariant): (log: PitchLogLike) => PitchLogLi
  * 지금 코드의 '세게 던진 날' — 투구수 × 체감 강도(%) ≥ HARD_OUTING_MIN_LOAD(2,700), 경기는 100%(facts.ts · pitch-stats.ts
  * outingLoadOf 그대로, 2판 D2). 대본은 하루 한 번만 던져 기록 하나 = 그날. 이 대본의 던지는 날(불펜 30 · 35구 7, 캐치볼 20 · 25구 5,
  * 경기 20구 · 35구 · 70~90구)은 옛 규칙(경기 또는 강도 9~10 · 30구)과 같은 날만 세게 던진 날이다 — 전후 수치를 견줄 수 있다.
+ * 앱(facts.ts isHardOuting)은 P3 검토부터 옛 규칙의 날(nearMaxPitches ≥ 30 — 85% × 30 같은 날)도 세게로 보는데, 이 대본에는
+ * 그런 날(경기가 아닌 85% 이상 30구)이 없어 곱만 봐도 같은 값이다.
  */
 function isHardThrow(t: Throw | null): boolean {
   if (!t) return false;

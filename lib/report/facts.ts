@@ -8,6 +8,7 @@ import {
   pitchLoadByDay,
   findFatigueWindows,
   groupByDay,
+  intensityOf,
   longestThrowStreak,
   countMissingDays,
   outingLoadOf,
@@ -175,6 +176,7 @@ export type ReportFacts = {
      * 2판 D2(2026-10-12)부터 load = 그날 Σ 투구수 × 체감 강도(%)(lib/pitch-stats.ts 의 outingLoadOf — 경기는 100%),
      * pitches = 그날 던진 공의 합. 그 전에는 '경기이거나 강도 9~10 인 기록의 투구수'만 날마다 더해 pitches 에 담았고
      * load 칸이 없었다 — 그때 저장된 facts 는 load 없이 오고, isHardOuting 이 옛 규칙(pitches ≥ 30)으로 읽는다.
+     * nearMaxPitches(경기 · 강도 9~10 인 공의 합)는 2판 P3 검토(2026-10-12)에 더했다 — 85% × 30 처럼 곱이 2,700 밑인 옛 규칙의 날을 지킨다.
      * 이 칸이 아예 생기기 전에 저장된 facts 에는 없다 — 읽는 쪽은 없으면 빈 목록으로 본다.
      */
     hardOutings?: HardOuting[];
@@ -250,7 +252,9 @@ const OUTING_MEMORY_DAYS = 7;
  * 하나가 90 이상을 보태고, 다른 기록은 0 이상을 보탠다.
  * 새로 세게가 되는 날(곱 규칙의 본뜻 — 적게 세게든 많이 가볍게든 팔에 간 양을 본다): 불펜 40구 70%(2,800) · 60구 50%(3,000) ·
  * 경기 25구 + 캐치볼 20구 50%(3,500) · 경기나 강도 10 으로 27~29구(예전엔 30구 미만이라 아니었다).
- * 빠지는 날: % 로 새로 적은 85% 30구(2,550 — 1~10 이면 9 로 올림돼 세게였다). 옛 기록에는 없는 꼴이다.
+ * 빠지는 날은 없다: % 로 새로 적은 85% 30구는 곱이 2,550 이지만 DB 에는 '강도 9 · 30구'로 남는다(effortToIntensity 가 올림) —
+ * 옛 규칙의 날이라 nearMaxPitches(아래)로 그대로 세게 던진 날이다(2판 P3 검토, 2026-10-12 — 사용자 결정 '강도 9~10 · 30구 와 같은
+ * 날이 세게 던진 날로 남게'). 휴식표(stressFactor)도 85% 를 9 쪽(0.95)으로 읽으니 두 독자가 같은 기록을 같게 본다.
  * 경기는 체감과 상관없이 100%(lib/pitch-stats.ts outingLoadOf) — 경기 20구는 2,000 이라 지금처럼 아니다.
  * 이 파일에 두는 까닭: theme.ts 를 부르지 않는 낮은 층이라 기준선 · 사용 통계 도구 · 오늘 상태(day-state)가 그대로 가져다 쓴다.
  */
@@ -265,6 +269,12 @@ export const HARD_OUTING_MIN_PITCHES = 30;
 /** 거의 전력으로 본다 — 그날 체감 평균이 이 % 이상(옛 강도 9~10). 판정이 아니라 이유 글이 '거의 전력으로'라고 할지만 가른다 */
 export const NEAR_MAX_EFFORT_PCT = 90;
 
+/**
+ * 옛 규칙의 '거의 전력' 1~10 눈금 — 경기가 아니어도 이 강도 이상이면 nearMaxPitches 에 든다. % 기록은 1~10 으로 내려
+ * (effortToIntensity — 85% → 9) 견준다. 저장된 intensity 와 같은 값이라 옛 규칙과 글자 그대로 같은 날을 고른다.
+ */
+export const NEAR_MAX_INTENSITY = 9;
+
 /** 세게 던졌는지 가릴 재료 한 날(facts.patterns.hardOutings) */
 export type HardOuting = {
   daysAgo: number;
@@ -272,12 +282,21 @@ export type HardOuting = {
   pitches: number;
   /** 그날 Σ 투구수 × 체감 강도(%), 경기는 100%(outingLoadOf). 옛 facts 에는 없다 */
   load?: number;
+  /**
+   * 그날 경기이거나 강도 9~10(85% 이상)으로 던진 공의 합 — 옛 규칙의 재료. 이것이 30구를 넘으면 곱이 2,700 밑이어도 세게
+   * 던진 날이다(85% × 30). load 와 같이 실린다. 옛 facts · 옛 지문에는 없다.
+   */
+  nearMaxPitches?: number;
 };
 
-/** 세게 던진 날인가 — load 가 있으면 HARD_OUTING_MIN_LOAD, 없으면(옛 facts) 옛 규칙 HARD_OUTING_MIN_PITCHES */
+/**
+ * 세게 던진 날인가 — load 가 있으면 HARD_OUTING_MIN_LOAD 이상이거나 nearMaxPitches 가 HARD_OUTING_MIN_PITCHES 이상,
+ * 없으면(옛 facts) 옛 규칙 HARD_OUTING_MIN_PITCHES
+ */
 export function isHardOuting(o: HardOuting): boolean {
   return o.load != null
-    ? o.load >= HARD_OUTING_MIN_LOAD
+    ? o.load >= HARD_OUTING_MIN_LOAD ||
+        (o.nearMaxPitches ?? 0) >= HARD_OUTING_MIN_PITCHES
     : o.pitches >= HARD_OUTING_MIN_PITCHES;
 }
 
@@ -355,15 +374,25 @@ export function buildFacts({
    * 더하기만 하므로 경기 뒤 가벼운 캐치볼은 그날을 세게 던진 날에서 빼지 않는다(늘 보탠다).
    * 날짜는 groupByDay 와 같은 방식(앞 10자리)으로 센다.
    */
-  const outingByDay = new Map<string, { pitches: number; load: number }>();
+  const outingByDay = new Map<
+    string,
+    { pitches: number; load: number; nearMaxPitches: number }
+  >();
   for (const log of logs) {
     const load = outingLoadOf(log);
     if (load <= 0) continue;
     const key = log.date.slice(0, 10);
     const prev = outingByDay.get(key);
+    /*
+     * 옛 규칙의 재료 — 경기, 또는 1~10 으로 9 이상. % 기록은 반올림해 견준다(85% = 8.5 → 9, 저장된 intensity 와 같은 값 —
+     * effortToIntensity). intensityOf 로 읽어 옛 코드가 남긴 낡은 % 는 안 믿는다(lib/pitch-stats.ts trustedEffortPct).
+     */
+    const nearMax =
+      log.sessionType === '경기' || Math.round(intensityOf(log)) >= NEAR_MAX_INTENSITY;
     outingByDay.set(key, {
       pitches: (prev?.pitches ?? 0) + log.pitchCount,
       load: (prev?.load ?? 0) + load,
+      nearMaxPitches: (prev?.nearMaxPitches ?? 0) + (nearMax ? log.pitchCount : 0),
     });
   }
 
@@ -420,6 +449,7 @@ export function buildFacts({
           daysAgo: daysBetween(key, asOf),
           pitches: o.pitches,
           load: o.load,
+          nearMaxPitches: o.nearMaxPitches,
         }))
         .filter((o) => o.daysAgo >= 0 && o.daysAgo <= OUTING_MEMORY_DAYS)
         .sort((a, b) => a.daysAgo - b.daysAgo),

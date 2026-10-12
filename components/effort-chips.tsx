@@ -51,7 +51,7 @@ function StepButton({
         haptic('selection');
         onChange(stepEffortPct(value, dir));
       }}
-      className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-ink/6 text-ink transition-colors active:bg-ink/12 disabled:opacity-35 desk:h-8 desk:w-8 desk:hover:bg-ink/10"
+      className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-ink/6 text-ink transition-colors active:bg-ink/12 disabled:opacity-35 desk:h-8 desk:w-8 desk:hover:bg-ink/10"
     >
       <Icon aria-hidden className="h-4 w-4" strokeWidth={2.4} />
     </button>
@@ -91,8 +91,8 @@ export function EffortChips({
       aria-describedby={invalid ? problemId : undefined}
       className="space-y-2"
     >
-      {/* 줄 높이를 늘 40px 로 둔다 — −/+ 가 나타날 때 밑의 칩이 아래로 밀리지 않게 */}
-      <div className="flex min-h-10 items-center justify-between gap-3 desk:min-h-8">
+      {/* 줄 높이를 늘 44px 로 둔다(휴대폰 −/+ 단추가 누르는 자리 44px) — −/+ 가 나타날 때 밑의 칩이 아래로 밀리지 않게 */}
+      <div className="flex min-h-11 items-center justify-between gap-3 desk:min-h-8">
         <span id={labelId} className={`block ${labelClassName}`}>
           {label}
         </span>

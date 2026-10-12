@@ -93,10 +93,12 @@ import {
   toDateKey,
   MIN_STRESS_FACTOR,
   TWO_DAY_INTENSITY_LIMIT,
+  trustedEffortPct,
   type PitchLogLike,
 } from '../lib/pitch-stats.ts';
 import {
   buildPitchPlan,
+  dailyPitchCap,
   intensityRangeText,
   pendingOuting,
   pitchRangeText,
@@ -199,7 +201,7 @@ import {
   buildPartVolume,
   VOLUME_GROUPS,
 } from '../lib/training-volume.ts';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import {
   ARMCARE_AREAS,
   ARMCARE_CATEGORY,
@@ -10738,53 +10740,125 @@ console.log(
       memos: [],
     });
   const hardOf = (logs: PitchLogLike[]) => hardOuting(factsOfLogs(logs));
-  const cases: { name: string; logs: PitchLogLike[]; hard: boolean; load: number }[] = [
-    { name: '30구 × 90%', logs: [pctLog(yesterday, 30, 90)], hard: true, load: 2700 },
-    { name: '30구 × 85%', logs: [pctLog(yesterday, 30, 85)], hard: false, load: 2550 },
-    { name: '30구 × 80%', logs: [pctLog(yesterday, 30, 80)], hard: false, load: 2400 },
+  /*
+   * pitches 칸(그날 던진 공의 합)도 본다 — 이유 글의 'N구'와 isNearMaxOuting('거의 전력' 글)이 이 값을 읽는다. 그날 마지막 기록만
+   * 담아도 load · 판정은 그대로라 예전 표로는 못 잡았다(2판 P3 검토 — 돌연변이 A08).
+   */
+  const cases: {
+    name: string;
+    logs: PitchLogLike[];
+    hard: boolean;
+    load: number;
+    pitches: number;
+  }[] = [
+    {
+      name: '30구 × 90%',
+      logs: [pctLog(yesterday, 30, 90)],
+      hard: true,
+      load: 2700,
+      pitches: 30,
+    },
+    /*
+     * P3 로 바뀜(2판 P3 검토, 2026-10-12) — 왜: 85% 는 DB 에 '강도 9'로 남아 옛 규칙('강도 9~10 · 30구')으로 세게 던진 날인데,
+     * 곱(2,550)만 보면 빠졌다. 사용자 결정은 그 날이 그대로 세게 던진 날로 남는 것이다(facts.ts nearMaxPitches). false → true.
+     */
+    {
+      name: '30구 × 85%',
+      logs: [pctLog(yesterday, 30, 85)],
+      hard: true,
+      load: 2550,
+      pitches: 30,
+    },
+    {
+      name: '31구 × 85%',
+      logs: [pctLog(yesterday, 31, 85)],
+      hard: true,
+      load: 2635,
+      pitches: 31,
+    },
+    {
+      name: '85% 20구 + 10구(나눠 적음)',
+      logs: [pctLog(yesterday, 20, 85), pctLog(yesterday, 10, 85)],
+      hard: true,
+      load: 2550,
+      pitches: 30,
+    },
+    {
+      name: '29구 × 85%',
+      logs: [pctLog(yesterday, 29, 85)],
+      hard: false,
+      load: 2465,
+      pitches: 29,
+    },
+    {
+      name: '30구 × 80%',
+      logs: [pctLog(yesterday, 30, 80)],
+      hard: false,
+      load: 2400,
+      pitches: 30,
+    },
     {
       name: '경기 20구(체감 60%)',
       logs: [pctLog(yesterday, 20, 60, '경기')],
       hard: false,
       load: 2000,
+      pitches: 20,
     },
     {
       name: '경기 35구(체감 60%)',
       logs: [pctLog(yesterday, 35, 60, '경기')],
       hard: true,
       load: 3500,
+      pitches: 35,
     },
-    { name: '60구 × 50%', logs: [pctLog(yesterday, 60, 50)], hard: true, load: 3000 },
-    { name: '40구 × 70%', logs: [pctLog(yesterday, 40, 70)], hard: true, load: 2800 },
+    {
+      name: '60구 × 50%',
+      logs: [pctLog(yesterday, 60, 50)],
+      hard: true,
+      load: 3000,
+      pitches: 60,
+    },
+    {
+      name: '40구 × 70%',
+      logs: [pctLog(yesterday, 40, 70)],
+      hard: true,
+      load: 2800,
+      pitches: 40,
+    },
     {
       name: '경기 25구 + 캐치볼 20구 50%',
       logs: [pctLog(yesterday, 25, 80, '경기'), pctLog(yesterday, 20, 50, '캐치볼')],
       hard: true,
       load: 3500,
+      pitches: 45,
     },
     {
       name: '옛 기록 강도 9 · 30구',
       logs: [logOn(yesterday, 30, 9)],
       hard: true,
       load: 2700,
+      pitches: 30,
     },
     {
       name: '옛 기록 강도 8 · 30구',
       logs: [logOn(yesterday, 30, 8)],
       hard: false,
       load: 2400,
+      pitches: 30,
     },
     {
       name: '옛 기록 강도 9 · 29구',
       logs: [logOn(yesterday, 29, 9)],
       hard: false,
       load: 2610,
+      pitches: 29,
     },
     {
       name: '옛 기록 경기 20구(강도 5)',
       logs: [{ ...logOn(yesterday, 20, 5), sessionType: '경기' }],
       hard: false,
       load: 2000,
+      pitches: 20,
     },
   ];
   const wrong = cases.filter((c) => {
@@ -10792,10 +10866,12 @@ console.log(
     const listed = factsOfLogs(c.logs).patterns.hardOutings?.find(
       (o) => o.daysAgo === 1
     );
-    return (h != null) !== c.hard || listed?.load !== c.load;
+    return (
+      (h != null) !== c.hard || listed?.load !== c.load || listed?.pitches !== c.pitches
+    );
   });
   check(
-    'D2 (판정 표) 30구×90% 세게 · 30구×85% · 80% 아님 · 경기 20구 아님 · 경기 35구 60% 세게 · 60구×50% · 40구×70% 세게 · 경기 25 + 캐치볼 20 세게 · 옛 강도 9 30구 세게 · 옛 8 · 29구 아님',
+    'D2 (판정 표) 30구×90% 세게 · 30 · 31구×85% 와 85% 20+10 세게(P3 검토 — 옛 규칙의 날) · 29구×85% · 80% 아님 · 경기 20구 아님 · 경기 35구 60% 세게 · 60구×50% · 40구×70% 세게 · 경기 25 + 캐치볼 20 세게(45구) · 옛 강도 9 30구 세게 · 옛 8 · 29구 아님 · 그날 공의 합(pitches)까지',
     wrong.length === 0,
     wrong
       .map(
@@ -10948,6 +11024,24 @@ console.log(
       ![game.reason, light.reason, conflict?.reason ?? ''].some((t) =>
         t.includes('—')
       ) && [game.reason, light.reason].every((t) => t.endsWith('올려요.'))
+    );
+    /*
+     * 2판 P3 검토(2026-10-12): 이유 글의 'N구'는 그날 던진 공의 합이다 — 경기 25구 + 캐치볼 20구는 45구(평균이 90% 밑이라
+     * '팔 부담'). 85% 30구(옛 규칙의 날 — nearMaxPitches)도 회복이고 같은 꼴의 글이다.
+     */
+    const mixed = themeOf([
+      pctLog(yesterday, 25, 80, '경기'),
+      pctLog(yesterday, 20, 50, '캐치볼'),
+    ]);
+    const pct85 = themeOf([pctLog(yesterday, 30, 85)]);
+    check(
+      'D2 (이유 글) 경기 25구 + 캐치볼 20구 → "어제 45구를 던져 팔 부담이 컸어요"(그날 공의 합) · 85% 30구 → 회복 "어제 30구를 던져 팔 부담이 컸어요"',
+      mixed.key === 'recovery' &&
+        mixed.reason ===
+          '어제 45구를 던져 팔 부담이 컸어요. 오늘은 가볍게 풀고, 내일부터 무게를 다시 올려요.' &&
+        pct85.key === 'recovery' &&
+        pct85.reason.startsWith('어제 30구를 던져 팔 부담이 컸어요'),
+      `${mixed.reason} / ${pct85.reason}`
     );
   }
 
@@ -12516,14 +12610,21 @@ console.log(
   };
   const owed = flOf(owedPerson);
   const owedLeft = pendingOuting(owed.facts.patterns, 0, owed.facts.profile.age);
+  /*
+   * P3 로 바뀜(2판 P3 검토, 2026-10-12) — 왜: 처음 P3 는 등판 답 하나로 '쉬라고 막지 않고 던지는 날'(범위 없음)을 내, 큰 등판 다음 날의
+   * 완전 휴식 · 회복 중의 가벼운 범위 · 나이 한도가 모두 풀렸다. 사용자 결정(D1~D6)에 없던 것이라 안전 규칙을 먼저 두고 이름표만
+   * 단다 — 다음 날은 쉬는 날 그대로(throwing false) + outing 'game' + '오늘 등판은 권하지 않아요'.
+   */
   check(
-    "뒤집기 (여파) 어제 85구 경기 + 오늘 '오늘 등판' → 쉬라고 막지 않고 등판 날, 까닭에 여파 · 남은 날을 덧붙인다(답이 없으면 '완전히 쉬어요')",
+    "뒤집기 (여파) 어제 85구 경기 + 오늘 '오늘 등판' → 쉬는 날 그대로(범위 없음), 이름표 'game' · 까닭 '85구 등판 다음 날이라 오늘 등판은 권하지 않아요.'",
     owedLeft != null &&
       owed.before.today?.throwing === false &&
       owed.plan.today?.outing === 'game' &&
-      owed.plan.today.throwing === true &&
-      owed.plan.today.reason ===
-        `오늘 등판이라 던질 양은 경기가 정해요. 다만 85구 등판 여파가 남아 있어요(전력 등판까지 ${owedLeft.left}일).`,
+      owed.plan.today.throwing === false &&
+      owed.plan.today.maxPitches === null &&
+      owed.plan.today.reason === '85구 등판 다음 날이라 오늘 등판은 권하지 않아요.' &&
+      json({ ...withoutOuting(owed.plan.today), reason: '' }) ===
+        json({ ...owed.before.today, reason: '' }),
     `${owed.before.today?.reason} → ${owed.plan.today?.reason}`
   );
   const memoCheck = flOf({
@@ -12627,6 +12728,8 @@ console.log(
   };
   let gridCount = 0;
   let gameDays = 0;
+  /* 안전 규칙이 먼저인 등판 날 — 큰 등판 다음 날(쉬는 날) · 회복 중(가벼운 범위) */
+  const gameGuarded = { rest: 0, light: 0 };
   for (const t of answers) {
     for (const y of answers) {
       for (const set of logSets) {
@@ -12672,15 +12775,32 @@ console.log(
           if (role === 'game') {
             const passThrough =
               plan.today == null || plan.halted || plan.needsPainCheck;
+            /*
+             * P3 로 바뀜(2판 P3 검토, 2026-10-12) — 왜: 등판 답이 큰 등판 다음 날 · 회복 중 · 최근 통증을 풀면 안 된다. 답이 없을 때
+             * 쉬는 날이거나 가벼운 범위(recovery · recovering)면 범위는 글자 그대로, 이름표 'game' 과 까닭만 다르다. 그 밖에만
+             * '양은 경기가 정함'(아래끝 · 강도 null, 위끝 = 나이 한도 — 이 격자는 22세라 null).
+             */
+            const b = before.today;
+            const guarded =
+              b != null && (!b.throwing || b.recovery === true || plan.recovering);
+            const sameButTag = (t: DayPlan | null) =>
+              t?.outing === 'game' &&
+              json({ ...withoutOuting(t), reason: '' }) === json({ ...b, reason: '' });
             const ok = passThrough
               ? json(plan.today) === json(before.today)
-              : plan.today?.outing === 'game' &&
-                plan.today.throwing &&
-                plan.today.minPitches === null &&
-                plan.today.maxPitches === null &&
-                plan.today.minIntensity === null &&
-                plan.today.maxIntensity === null;
+              : guarded
+                ? sameButTag(plan.today)
+                : plan.today?.outing === 'game' &&
+                  plan.today.throwing &&
+                  plan.today.minPitches === null &&
+                  plan.today.maxPitches === null &&
+                  plan.today.minIntensity === null &&
+                  plan.today.maxIntensity === null;
             if (!passThrough) gameDays++;
+            if (!passThrough && guarded) {
+              if (b?.throwing) gameGuarded.light++;
+              else gameGuarded.rest++;
+            }
             if (!ok) miss.game.push(`${name}: ${json(plan.today)}`);
           }
           /* 암케어 — 오늘 상태를 안 주면 옛 길(등판 답을 안 읽던 때)과 글자 그대로, 주면 등판일 때만 다르다 */
@@ -12733,8 +12853,11 @@ console.log(
     miss.bullpen.slice(0, 2).join(' · ')
   );
   check(
-    `뒤집기 (격자 ${gridCount}) 등판 날(${gameDays}가지)은 던지는 날 · 범위 없음, 이미 던짐 · 멈춤 · 메모 확인은 그대로 둔다`,
-    gameDays > 0 && miss.game.length === 0,
+    `뒤집기 (격자 ${gridCount}) 등판 날(${gameDays}가지)은 던지는 날 · 범위 없음, 이미 던짐 · 멈춤 · 메모 확인은 그대로 둔다 · 큰 등판 다음 날(${gameGuarded.rest}) · 회복 중(${gameGuarded.light})은 범위 그대로 이름표만(P3 검토)`,
+    gameDays > 0 &&
+      gameGuarded.rest > 0 &&
+      gameGuarded.light > 0 &&
+      miss.game.length === 0,
     miss.game.slice(0, 2).join(' · ')
   );
   check(
@@ -13222,6 +13345,330 @@ console.log(
     "알려진 엇갈림 (프로그램) 어제 '오늘 등판' 답만(기록 없음) → 프로그램만 경기 다음 날(엇갈림 표 C6 그대로 — D3 · P4)",
     sigOf(null, '오늘 등판').gameYesterday === true &&
       stateOf(unFacts(null, '오늘 등판')).outing.source === 'checkin'
+  );
+}
+
+/* ═══════════════════ [2판 오늘 상태(P3)] 검토 반영 — 낡은 % · 등판 날 안전 규칙 · 옛 규칙의 날 · 읽는 길 소스(2026-10-12) ═══════════════════ */
+console.log(
+  '\n[2판 오늘 상태(P3)] 검토 반영 — 낡은 체감 강도 · 등판 날 안전 규칙 먼저 · 85% × 30 · 답 글자 견주기 소스 검사(2026-10-12)'
+);
+{
+  const json = (v: unknown) => JSON.stringify(v);
+  const rvKey = (daysAgo: number) =>
+    new Date(TODAY.getTime() - daysAgo * 86400000).toISOString().slice(0, 10);
+
+  /* ── 1) 낡은 effortPct — 옛 코드가 intensity 만 고친 줄은 옛 칸을 믿는다(lib/pitch-stats.ts trustedEffortPct) ── */
+  const staleRest = { intensity: 0, effortPct: 85 };
+  const staleSix = { intensity: 6, effortPct: 85 };
+  const fresh85 = { intensity: 9, effortPct: 85 };
+  check(
+    '검토 (낡은 %) 쉰 날 + 낡은 85 → 읽기 null · 0% · 0, 강도 6 + 낡은 85 → 60% · 6(강도 6에서 계산), 9 + 85 → 85% · 8.5',
+    trustedEffortPct(staleRest) === null &&
+      readEffort(staleRest) === null &&
+      effortPctOf(staleRest) === 0 &&
+      intensityOf(staleRest) === 0 &&
+      effortText(staleRest) === null &&
+      maxEffortPct([staleRest]) === 0 &&
+      trustedEffortPct(staleSix) === null &&
+      json(readEffort(staleSix)) === json({ pct: 60, derivedFrom: 6 }) &&
+      effortPctOf(staleSix) === 60 &&
+      intensityOf(staleSix) === 6 &&
+      trustedEffortPct(fresh85) === 85 &&
+      json(readEffort(fresh85)) === json({ pct: 85, derivedFrom: null }) &&
+      effortPctOf(fresh85) === 85 &&
+      intensityOf(fresh85) === 8.5,
+    json([readEffort(staleRest), readEffort(staleSix), readEffort(fresh85)])
+  );
+  const everyPct = Array.from({ length: 20 }, (_, i) => (i + 1) * 5);
+  check(
+    '검토 (낡은 %) 새 코드가 쓰는 줄(effortFields — 5~100% 스무 칸)은 모두 믿는다 · 옛 줄(effortPct null)은 null',
+    everyPct.every((p) => trustedEffortPct(effortFields(p)) === p) &&
+      trustedEffortPct({ intensity: 7, effortPct: null }) === null &&
+      trustedEffortPct({ intensity: 7 }) === null
+  );
+  {
+    /* 리뷰가 잰 길 그대로 — 85% 기록을 옛 코드가 휴식으로 바꾼 날 + 전날 40구 강도 5 → 이틀 과부하가 생기면 안 된다 */
+    const d1 = rvKey(2);
+    const d2 = rvKey(1);
+    const logs: PitchLogLike[] = [
+      { date: d1, pitchCount: 40, intensity: 5, maxVelocity: null, avgVelocity: null },
+      {
+        date: d2,
+        sessionType: '휴식',
+        pitchCount: 0,
+        intensity: 0,
+        effortPct: 85,
+        maxVelocity: null,
+        avgVelocity: null,
+      },
+    ];
+    const byDay = groupByDay(logs);
+    check(
+      '검토 (낡은 %) 옛 코드가 85% 기록을 휴식으로 바꾼 날 — 그날 강도 0 · 이틀 과부하 창 없음(낡은 85 를 믿으면 5 + 8.5 = 13.5 로 창이 생겼다)',
+      byDay.get(d2)?.intensity === 0 &&
+        findFatigueWindows(byDay, [d1, d2]).length === 0,
+      json([...byDay.values()])
+    );
+    const stalePen: PitchLogLike = {
+      date: d2,
+      sessionType: '불펜',
+      pitchCount: 30,
+      intensity: 6,
+      effortPct: 85,
+      maxVelocity: null,
+      avgVelocity: null,
+    };
+    const f = buildFacts({
+      nickname: '검토',
+      age: 22,
+      heightCm: 180,
+      baselineDailyLoad: 300,
+      today: TODAY,
+      logs: [stalePen],
+      checkins: [],
+      memos: [],
+    });
+    const listed = f.patterns.hardOutings?.find((o) => o.daysAgo === 1);
+    check(
+      '검토 (낡은 %) 85% 30구를 옛 코드가 강도 6 으로 고친 줄 → 세게 던진 날 재료는 60% 로(load 1,800 · 거의 전력 0구) · 세게 아님',
+      listed?.load === 1800 &&
+        listed.nearMaxPitches === 0 &&
+        listed.pitches === 30 &&
+        !isHardOuting(listed),
+      json(listed)
+    );
+  }
+
+  /* ── 2) 옛 규칙의 날 — nearMaxPitches(facts.ts isHardOuting) ── */
+  check(
+    '검토 (옛 규칙의 날) isHardOuting — load 2,550 이어도 nearMaxPitches 30 이면 세게 · 29 면 아님 · nearMaxPitches 없는 load 2,699 는 아님(옛 지문 꼴)',
+    isHardOuting({ daysAgo: 1, pitches: 30, load: 2550, nearMaxPitches: 30 }) &&
+      !isHardOuting({ daysAgo: 1, pitches: 30, load: 2550, nearMaxPitches: 29 }) &&
+      !isHardOuting({ daysAgo: 1, pitches: 90, load: 2699 }) &&
+      isHardOuting({ daysAgo: 1, pitches: 27, load: 2700, nearMaxPitches: 0 })
+  );
+
+  /* ── 3) 등판 날 안전 규칙 — 나이 셋 × 지난 일 셋 × 답 둘(오늘 '오늘 등판' / 어제 '내일 등판' + 오늘 체크인 없음) ── */
+  type RvCheckin = { daysAgo: number; throwPlan?: string; elbow?: string };
+  const rvCheckin = (c: RvCheckin): CheckinLike => ({
+    date: rvKey(c.daysAgo),
+    condition: 7,
+    sleep: '보통',
+    shoulder: '정상',
+    elbow: c.elbow ?? '정상',
+    wrist: '정상',
+    lowerBack: '정상',
+    lowerBody: '정상',
+    preferredParts: [],
+    preferredWorkout: null,
+    ...(c.throwPlan !== undefined ? { throwPlan: c.throwPlan } : {}),
+  });
+  type RvHistory = '어제 경기 70구' | '3일 전 팔꿈치 통증' | '없음';
+  const rvFacts = (
+    age: number,
+    history: RvHistory,
+    answer: 'today' | 'c4',
+    withAnswers = true
+  ) => {
+    const checkins: RvCheckin[] = [];
+    if (answer === 'today')
+      checkins.push({ daysAgo: 0, ...(withAnswers ? { throwPlan: '오늘 등판' } : {}) });
+    else
+      checkins.push({ daysAgo: 1, ...(withAnswers ? { throwPlan: '내일 등판' } : {}) });
+    if (history === '3일 전 팔꿈치 통증') checkins.push({ daysAgo: 3, elbow: '통증' });
+    return buildFacts({
+      nickname: '검토',
+      age,
+      heightCm: 175,
+      baselineDailyLoad: 100,
+      today: TODAY,
+      logs:
+        history === '어제 경기 70구'
+          ? [
+              {
+                date: new Date(TODAY.getTime() - 86400000).toISOString(),
+                sessionType: '경기',
+                pitchCount: 70,
+                ...effortFields(100),
+                maxVelocity: null,
+                avgVelocity: null,
+              },
+            ]
+          : [],
+      checkins: checkins.map(rvCheckin),
+      memos: [],
+    });
+  };
+  const gridMiss: string[] = [];
+  const gridReasons: string[] = [];
+  let gridN = 0;
+  for (const age of [13, 15, 22]) {
+    const cap = dailyPitchCap(age);
+    for (const history of ['어제 경기 70구', '3일 전 팔꿈치 통증', '없음'] as const) {
+      for (const answer of ['today', 'c4'] as const) {
+        gridN++;
+        const plan = buildPitchPlan(rvFacts(age, history, answer));
+        const before = buildPitchPlan(rvFacts(age, history, answer, false));
+        const t = plan.today;
+        const b = before.today;
+        const name = `${age}세/${history}/${answer}`;
+        let ok: boolean;
+        if (history === '어제 경기 70구') {
+          /* 큰 등판 다음 날 — 쉬는 날 그대로(답이 없을 때와 범위 같음), 이름표와 '권하지 않아요' */
+          ok =
+            t?.throwing === false &&
+            t.outing === 'game' &&
+            t.reason === '70구 등판 다음 날이라 오늘 등판은 권하지 않아요.' &&
+            b?.throwing === false &&
+            json({ ...t, reason: '', outing: undefined }) ===
+              json({ ...b, reason: '', outing: undefined });
+        } else if (history === '3일 전 팔꿈치 통증') {
+          ok =
+            answer === 'c4'
+              ? /* 최근 통증 + 오늘 체크인 없음 → 계획 멈춤이 먼저(등판 이름표 없음) */
+                plan.halted && t?.outing === undefined
+              : /* 최근 통증 + 오늘 정상 → 절반 수준의 범위 그대로, 이름표와 '등판해도 이 양 안에서' */
+                plan.recovering &&
+                t?.throwing === true &&
+                t.outing === 'game' &&
+                t.minPitches != null &&
+                t.maxIntensity != null &&
+                t.maxIntensity <= 5 &&
+                t.minPitches === b?.minPitches &&
+                t.maxPitches === b.maxPitches &&
+                t.maxIntensity === b.maxIntensity &&
+                t.reason === '최근 통증 기록이 있어 등판해도 이 양 안에서 던져요.';
+        } else {
+          /* 지난 일이 없음 — 양은 경기가 정하고 위끝은 나이 한도(13 · 15세 95, 22세 없음) */
+          ok =
+            t?.throwing === true &&
+            t.outing === 'game' &&
+            t.minPitches === null &&
+            t.maxPitches === cap &&
+            t.minIntensity === null &&
+            t.maxIntensity === null &&
+            t.reason ===
+              (cap == null
+                ? '오늘 등판이라 던질 양은 경기가 정해요.'
+                : `오늘 등판이라 던질 양은 경기가 정해요. 하루 한도 ${cap}구는 넘기지 않아요.`);
+        }
+        if (t) gridReasons.push(t.reason);
+        if (!ok) gridMiss.push(`${name}: ${json(t)}`);
+      }
+    }
+  }
+  check(
+    `검토 (등판 날 안전) 나이 셋 × 지난 일 셋 × 답 둘(${gridN}) — 큰 등판 다음 날은 쉬는 날 그대로 · 최근 통증은 절반 범위 그대로(체크인 없으면 멈춤) · 그 밖은 위끝 = 나이 한도`,
+    gridN === 18 && gridMiss.length === 0,
+    gridMiss.slice(0, 2).join(' · ')
+  );
+  check(
+    "검토 (등판 날 안전) 13세 · 15세 등판 날 범위 글은 '95구 이하'(그날 화면의 넘음 경고가 견줄 위끝), 성인은 빈 글",
+    pitchRangeText(buildPitchPlan(rvFacts(13, '없음', 'today')).today!) ===
+      '95구 이하' &&
+      pitchRangeText(buildPitchPlan(rvFacts(15, '없음', 'c4')).today!) ===
+        '95구 이하' &&
+      pitchRangeText(buildPitchPlan(rvFacts(22, '없음', 'today')).today!) === ''
+  );
+  {
+    const restBasis = buildPitchPlan(rvFacts(13, '어제 경기 70구', 'today')).basis;
+    const lightBasis = buildPitchPlan(rvFacts(22, '3일 전 팔꿈치 통증', 'today')).basis;
+    const c4Basis = buildPitchPlan(rvFacts(22, '없음', 'c4')).basis;
+    check(
+      "검토 (등판 날 안전) 근거 줄도 오늘 칸과 같은 말 — 큰 등판 다음 날 '등판은 권하지 않음' · 최근 통증 '가벼운 범위 안에서' · 그 밖은 '양은 경기가 정함'",
+      restBasis.includes(
+        "체크인 '오늘 등판' → 큰 등판 다음 날이라 등판은 권하지 않음"
+      ) &&
+        lightBasis.includes("체크인 '오늘 등판' → 회복 중이라 가벼운 범위 안에서") &&
+        c4Basis.includes(
+          "어제 체크인 '내일 등판'(오늘 답 없음) → 오늘 등판, 양은 경기가 정함"
+        ),
+      [...restBasis, ...lightBasis].filter((b) => b.includes('등판')).join(' / ')
+    );
+  }
+  check(
+    '검토 (등판 날 안전) 까닭 글은 해요체 · 줄표 없음 · 굵게 없음',
+    gridReasons.length > 0 &&
+      gridReasons
+        .filter((r) => r.includes('등판'))
+        .every((r) => /요\.$/.test(r) && !r.includes('—') && !r.includes('**')),
+    [...new Set(gridReasons)].join(' | ')
+  );
+
+  /* ── 4) 화면 · 읽는 길 소스 ── */
+  const stripComments = (s: string) =>
+    s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  const srcOf = (p: string) =>
+    readFileSync(new URL(`../${p}`, import.meta.url), 'utf8');
+  const homeSrc = stripComments(srcOf('app/(app)/today/page.tsx'));
+  check(
+    "검토 (홈) 잘 던진 날 메모가 답 글자 목록 대신 todayOutingRole(facts 의 오늘 · 어제 답)로 — 어제 '내일 등판' + 오늘 답 없음(C4)도 등판 날",
+    !/PRE_THROW_PLANS/.test(homeSrc) &&
+      /todayOutingRole\(\s*facts\.condition\.throwPlanToday,\s*facts\.condition\.throwPlanYesterday\s*\)/.test(
+        homeSrc
+      )
+  );
+  check(
+    "검토 (홈) 계획 줄 — 등판 날 고정 글('양은 경기가 정해요')이 까닭(day.reason)을 덮지 않는다 · 투구 기록 '오늘 계획'은 던지는 등판 날만 '등판'",
+    /if \(day\.outing === 'game'\) \{/.test(homeSrc) &&
+      /sub: day\.reason \}/.test(homeSrc) &&
+      /game: todayPlanDay\.outing === 'game' && todayPlanDay\.throwing/.test(
+        srcOf('app/(app)/pitch-log/[date]/load.ts')
+      )
+  );
+  const gatherSrc = srcOf('lib/report/gather.ts');
+  check(
+    '검토 (배선) gather.ts 가 체감 강도(effortPct)와 오늘 팔 피로를 facts · 오늘 상태로 넘긴다 — 빠지면 % 기록이 반올림된 1~10 으로 읽힌다(선택 칸이라 tsc 가 못 잡음)',
+    /effortPct: l\.effortPct/.test(gatherSrc) &&
+      /armFatigue: todayCheckin\?\.armFatigue/.test(gatherSrc)
+  );
+  /*
+   * 답 글자 견주기 — '통일 (소스)'는 파일 넷 · `=== '답'` 꼴만 봤다. 이제 app · lib · components 전체(lib/checkin.ts 는 규칙의 집이라
+   * 뺀다)에서 네 꼴을 찾는다: `=== '답'` · `'답' ===` · `case '답':` · `includes('답')` / 답 글자로 시작하는 배열. '없음'은 팔 피로 ·
+   * 근육통 칸에도 쓰는 흔한 낱말이라 배열 · includes 꼴에서는 뺀다.
+   */
+  const ALL = THROW_PLANS.join('|');
+  const NAMED = THROW_PLANS.filter((p) => p !== '없음').join('|');
+  const answerPatterns = [
+    new RegExp(`(===|!==)\\s*'(${ALL})'`),
+    new RegExp(`'(${ALL})'\\s*(===|!==)`),
+    new RegExp(`case\\s+'(${ALL})'\\s*:`),
+    new RegExp(`includes\\(\\s*'(${NAMED})'`),
+    new RegExp(`\\[\\s*'(${NAMED})'`),
+  ];
+  const sourceFiles: string[] = [];
+  const walk = (dir: string) => {
+    for (const entry of readdirSync(new URL(`../${dir}/`, import.meta.url), {
+      withFileTypes: true,
+    })) {
+      const rel = `${dir}/${entry.name}`;
+      if (entry.isDirectory()) walk(rel);
+      else if (/\.tsx?$/.test(entry.name) && rel !== 'lib/checkin.ts')
+        sourceFiles.push(rel);
+    }
+  };
+  for (const dir of ['app', 'lib', 'components']) walk(dir);
+  const answerHits = sourceFiles.filter((f) => {
+    const src = stripComments(srcOf(f));
+    return answerPatterns.some((re) => re.test(src));
+  });
+  check(
+    `검토 (소스) app · lib · components ${sourceFiles.length}개 파일에 등판 답 글자를 직접 견주는 꼴(=== · case · includes · 답 배열)이 없다 — 읽기는 lib/checkin.ts 규칙으로`,
+    sourceFiles.length > 100 && answerHits.length === 0,
+    answerHits.join(' · ')
+  );
+  check(
+    '검토 (소스) 잡는 꼴이 실제로 잡는다 — 옛 홈 줄 · 옛 day-state 줄 · case 꼴',
+    answerPatterns.some((re) =>
+      re.test("const PRE_THROW_PLANS: readonly string[] = ['오늘 등판', '오늘 불펜'];")
+    ) &&
+      answerPatterns.some((re) =>
+        re.test("const yesterdayGame = answerYesterday === '오늘 등판';")
+      ) &&
+      answerPatterns.some((re) => re.test("case '내일 등판':")) &&
+      !answerPatterns.some((re) =>
+        re.test("const ARM_FATIGUE_WORDS = ['없음', '조금'];")
+      )
   );
 }
 

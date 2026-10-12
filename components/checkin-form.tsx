@@ -270,12 +270,17 @@ function Row({
     <div
       className={`flex flex-col gap-2 sm:flex-row ${top ? 'sm:items-start' : 'sm:items-center'}`}
     >
+      {/*
+        휴대폰은 세로 배치라 이름 칸이 줄 전체 폭을 쓴다(w-full) — w-28(112px)로 묶으면 '어제: 4일 이상 뒤'가 한글 아무
+        글자에서나 끊겼다. 넓은 화면만 112px 칸. 곁글은 줄이 바뀌어도 통째로 넘어가게 nowrap, 12px · 옅게는 굵기로만 가른다
+        (옅은 색 70% 는 흰 바탕 대비가 4.5:1 에 못 미쳤다).
+      */}
       <span
-        className={`w-28 shrink-0 text-xs font-medium text-muted ${top ? 'sm:pt-3.5' : ''}`}
+        className={`w-full shrink-0 text-xs font-medium text-muted sm:w-28 ${top ? 'sm:pt-3.5' : ''}`}
       >
         {label}
         {aside && (
-          <span className="ml-1.5 text-[11px] font-normal text-muted/70 sm:mt-0.5 sm:ml-0 sm:block">
+          <span className="ml-1.5 text-xs font-normal whitespace-nowrap text-muted sm:mt-0.5 sm:ml-0 sm:block">
             {aside}
           </span>
         )}

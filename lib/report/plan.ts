@@ -214,11 +214,14 @@ export type DayPlan = {
   /**
    * 오늘 할 일 — 체크인 '던지는 일정'(lib/checkin.ts todayOutingRole, 2판 P3 · 2026-10-12). 오늘 칸에만 있다.
    *
-   *   'game'     등판 날 — throwing 은 true 인데 범위 넷이 모두 null 이다. 던질 양은 경기가 정하고(강판이면 20구, 완투면 100구),
-   *              평소 범위를 내면 회복 테마 · 회복 암케어와 서로 다른 날을 말한다(자체 시험 엇갈림 표 C1 · C4).
+   *   'game'     등판 날 — 보통은 throwing true 에 아래끝 · 강도가 null 이고 위끝(maxPitches)은 나이별 하루 한도(성인 null)다.
+   *              던질 양은 경기가 정하고(강판이면 20구, 완투면 100구), 평소 범위를 내면 회복 테마 · 회복 암케어와 서로 다른 날을
+   *              말한다(자체 시험 엇갈림 표 C1 · C4). 큰 등판의 여파 · 최근 통증이 있으면 그 규칙이 먼저다 — 다음 날이면 쉬는 날
+   *              (throwing false), 회복 중이면 가벼운 범위 그대로에 이 이름표만 붙는다(2판 P3 검토).
    *   'bullpen'  불펜 날 — 범위는 평소대로 낸다(2026-10-09 결정: 불펜은 날을 안 바꾼다). 이름표만 단다.
    *
    * 내일 칸 · 이 칸이 생기기 전의 계획에는 없다. 쉬는 날(통증 확인 · 등판 다음 날)에는 불펜 이름표를 달지 않는다.
+   * 통증 확인 전(needsPainCheck)의 쉬는 날에는 등판 이름표도 안 단다.
    */
   outing?: 'game' | 'bullpen';
 };
@@ -609,8 +612,14 @@ export function buildPitchPlan(facts: ReportFacts): PitchPlan {
    *
    * 등판 날에는 평소 범위('40~60구')를 내지 않는다. 몇 구를 던질지는 경기가 정하고, 같은 아침에 매일 일정은 회복 테마 ·
    * 암케어는 회복 루틴인데 투구 계획만 '평소대로 던져요'라고 하면 앱이 한 날을 두 가지로 말한다. 그래서 '던지는 날'(throwing true)로
-   * 두되 범위를 비우고 까닭에 그렇게 적는다. 아직 지난 등판의 여파가 남았으면(휴식일 표) 그 사실을 까닭에 덧붙인다 — 쉬라고
-   * 막지는 않는다(경기는 앱이 정하지 않는다). 통증 확인 전(needsPainCheck)은 그래도 쉰다 — 아플 수도 있는 팔이 먼저다.
+   * 두되 아래끝 · 강도를 비우고 까닭에 그렇게 적는다. 위끝은 나이별 하루 한도(cap, 성인은 null) — 등판 날에도 성장기 한도는
+   * 그대로라 그날 화면의 '계획보다 N구 많아요'가 그것을 견준다.
+   *
+   * 다만 안전 규칙이 먼저다(2판 P3 검토, 2026-10-12 — 등판 답 하나로 여파 · 통증 · 한도가 다 풀리던 것을 되돌림):
+   *   통증 확인 전(needsPainCheck)      그래도 쉰다 — 아플 수도 있는 팔이 먼저다(이름표도 안 단다)
+   *   큰 등판 다음 날(pending 완전 휴식) 쉬는 날 그대로, 이름표 'game' 과 '오늘 등판은 권하지 않아요' 까닭만
+   *   큰 등판 회복 중 · 최근 통증        지금의 가벼운 범위를 그대로 두고 이름표 'game' 과 '등판해도 이 양 안에서' 까닭
+   * 쉬라고 막지는 않는다(경기는 앱이 정하지 않는다) — 계획이 말해 줄 뿐이고, 기록은 그대로 받는다.
    *
    * 불펜 날은 범위를 그대로 둔다(2026-10-09 결정: 불펜은 날을 안 바꾼다). 이름표(outing)만 단다.
    * 오늘 칸에만 쓴다 — 내일은 오늘 던진 양을 알아야 정해지고, 그 양은 기록이 들어오면 다시 짠다(threwToday).
@@ -620,11 +629,20 @@ export function buildPitchPlan(facts: ReportFacts): PitchPlan {
     condition.throwPlanYesterday
   );
   if (outing === 'game') {
+    /* 근거 줄도 오늘 칸(dayFor)과 같은 말을 한다 — 안전 규칙이 먼저인 날에 '양은 경기가 정함'이라 적으면 서로 어긋난다 */
+    const owedToday = pendingOuting(patterns, 0, profile.age);
+    const what = needsPainCheck
+      ? '통증 확인 전이라 투구는 휴식'
+      : owedToday && owedToday.elapsed <= RECOVERY_FULL_REST_DAYS
+        ? '큰 등판 다음 날이라 등판은 권하지 않음'
+        : owedToday || recovering
+          ? '회복 중이라 가벼운 범위 안에서'
+          : '양은 경기가 정함';
     basis.push(
       nextOutingWindow(condition.throwPlanToday, condition.throwPlanYesterday).from ===
         'yesterday'
-        ? "어제 체크인 '내일 등판'(오늘 답 없음) → 오늘 등판, 양은 경기가 정함"
-        : "체크인 '오늘 등판' → 양은 경기가 정함"
+        ? `어제 체크인 '내일 등판'(오늘 답 없음) → 오늘 등판, ${what}`
+        : `체크인 '오늘 등판' → ${what}`
     );
   } else if (outing === 'bullpen') {
     basis.push("체크인 '오늘 불펜' → 범위는 평소대로");
@@ -652,26 +670,12 @@ export function buildPitchPlan(facts: ReportFacts): PitchPlan {
       return restDay(dateKey, label, '메모의 통증 표현 확인 필요');
     }
 
-    /* 등판 날(7) — 범위 없이 '던지는 날'. 지난 등판의 여파가 남았으면 그 사실만 덧붙인다 */
-    if (offset === 0 && outing === 'game') {
-      const owed = pendingOuting(patterns, 0, profile.age);
-      return {
-        dateKey,
-        label,
-        throwing: true,
-        minPitches: null,
-        maxPitches: null,
-        minIntensity: null,
-        maxIntensity: null,
-        reason: owed
-          ? `오늘 등판이라 던질 양은 경기가 정해요. 다만 ${owed.pitches}구 등판 여파가 남아 있어요(전력 등판까지 ${owed.left}일).`
-          : '오늘 등판이라 던질 양은 경기가 정해요.',
-        outing: 'game',
-      };
-    }
+    /* 등판 날(7) — 오늘 칸에만. 여파 · 통증이 있으면 아래 규칙이 먼저고 이름표만 단다 */
+    const game = offset === 0 && outing === 'game';
     /* 불펜 날 이름표 — 던지는 날에만(아래 쉬는 날은 그대로 쉰다) */
     const bullpen =
       offset === 0 && outing === 'bullpen' ? { outing: 'bullpen' as const } : {};
+    const gameTag = game ? { outing: 'game' as const } : {};
 
     /*
      * 아직 큰 등판의 여파 안이면 가볍게 던진다.
@@ -684,6 +688,17 @@ export function buildPitchPlan(facts: ReportFacts): PitchPlan {
     const pending = pendingOuting(patterns, offset, profile.age);
     if (pending) {
       if (pending.elapsed <= RECOVERY_FULL_REST_DAYS) {
+        /* 등판 답이 있어도 쉬는 날 그대로 — 큰 등판 다음 날 다시 전력으로 던지는 것이 휴식표가 막으려는 바로 그 일이다 */
+        if (game) {
+          return {
+            ...restDay(
+              dateKey,
+              label,
+              `${pending.pitches}구 등판 다음 날이라 오늘 등판은 권하지 않아요.`
+            ),
+            outing: 'game',
+          };
+        }
         return restDay(
           dateKey,
           label,
@@ -705,8 +720,32 @@ export function buildPitchPlan(facts: ReportFacts): PitchPlan {
         maxPitches: light.max,
         minIntensity: Math.max(RECOVERY_MIN_INTENSITY, ceiling - INTENSITY_SPAN),
         maxIntensity: ceiling,
-        reason: `${pending.pitches}구 등판 회복 중(${pending.elapsed}일째)이라 가볍게 던지며 풀어요`,
+        reason: game
+          ? `${pending.pitches}구 등판 회복 중(${pending.elapsed}일째)이라 등판해도 이 양 안에서 가볍게 던져요.`
+          : `${pending.pitches}구 등판 회복 중(${pending.elapsed}일째)이라 가볍게 던지며 풀어요`,
         ...bullpen,
+        ...gameTag,
+      };
+    }
+
+    /*
+     * 등판 날 — 여파도 최근 통증도 없으면 양은 경기가 정한다(아래끝 · 강도 없음). 위끝은 나이별 하루 한도(성인 null):
+     * 등판 날이라고 성장기 한도가 풀리지는 않는다.
+     */
+    if (game && !recovering) {
+      return {
+        dateKey,
+        label,
+        throwing: true,
+        minPitches: null,
+        maxPitches: cap,
+        minIntensity: null,
+        maxIntensity: null,
+        reason:
+          cap == null
+            ? '오늘 등판이라 던질 양은 경기가 정해요.'
+            : `오늘 등판이라 던질 양은 경기가 정해요. 하루 한도 ${cap}구는 넘기지 않아요.`,
+        outing: 'game',
       };
     }
 
@@ -722,8 +761,10 @@ export function buildPitchPlan(facts: ReportFacts): PitchPlan {
         adj.maxIntensity - INTENSITY_SPAN
       ),
       maxIntensity: adj.maxIntensity,
-      reason: adj.label,
+      /* 최근 통증이 있는 등판 날 — 낮춘 범위 그대로, 등판해도 그 안에서 */
+      reason: game ? '최근 통증 기록이 있어 등판해도 이 양 안에서 던져요.' : adj.label,
       ...bullpen,
+      ...gameTag,
     };
   };
 

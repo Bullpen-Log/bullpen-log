@@ -3,6 +3,7 @@ import {
   MAX_EFFORT_PCT,
   MIN_EFFORT_PCT,
   effortToIntensity,
+  trustedEffortPct,
 } from '@/lib/pitch-stats';
 
 /**
@@ -111,12 +112,14 @@ export function effortUpdate(
 /**
  * 이 기록의 체감 강도를 화면이 쓸 꼴로 — 폼을 채울 때 · '강도 9에서 계산' 같은 표시를 붙일 때.
  * 쉰 날(안 던짐)은 null. derivedFrom 은 effortPct 가 없어 옛 1~10 에서 바꾼 값일 때 그 1~10(아니면 null).
+ * effortPct 는 trustedEffortPct 로만 읽는다 — 옛 코드가 intensity 만 고쳐 낡은 % 가 남은 줄(쉰 날 + 85 · 6 + 85)은 옛 칸이 이긴다.
  */
 export function readEffort(log: {
   intensity: number;
   effortPct?: number | null;
 }): { pct: number; derivedFrom: number | null } | null {
-  if (log.effortPct != null) return { pct: log.effortPct, derivedFrom: null };
+  const pct = trustedEffortPct(log);
+  if (pct != null) return { pct, derivedFrom: null };
   if (log.intensity >= 1)
     return { pct: log.intensity * 10, derivedFrom: log.intensity };
   return null;
