@@ -1,6 +1,6 @@
 import { isNearMaxOuting, type ReportFacts } from '@/lib/report/facts';
 import { hardOuting } from '@/lib/report/theme';
-import { outingAnswersOf } from '@/lib/engine/outing';
+import { outingAnswersOf, outingGuessInputsOf } from '@/lib/engine/outing';
 import {
   CHECKIN_PARTS,
   armFatigueWord,
@@ -95,6 +95,14 @@ export type PlanFingerprint = {
    * FINGERPRINT_OPTIONAL_KEYS 에 둔다. 견줄 때는 둘 다 있을 때만 본다(v 는 1 그대로).
    */
   effortSpike?: boolean;
+  /**
+   * 다음 등판 짐작의 재료(lib/engine/outing.ts outingGuessInputsOf — 2판 P4 커밋 G): 달력의 다음 등판까지 며칠 · 같은 요일 짐작이 서는 날(오늘부터
+   * 0~6일 뒤). 등판을 읽는 함수가 체크인 답이 없을 때 이 둘로 다음 등판을 짐작해, 날 종류(보조 날)와 안전 거르기(무거운 하체)가 읽는다.
+   * 짐작한 결과가 아니라 재료를 담는다 — 결과를 담으면 체크인 답을 적는 순간 '달력의 경기가 빠졌어요'처럼 틀린 줄이 같이 뜬다(답이
+   * 짐작을 덮었을 뿐 달력은 그대로다). 달력 일정의 이름은 안 담는다(판단이 안 읽는다). 달력을 넘긴 facts(앱의 gather 는 늘 넘긴다)에서만
+   * 나오는 바깥 선택 칸이라 FINGERPRINT_OPTIONAL_KEYS 에 둔다. 견줄 때는 둘 다 있을 때만 본다(v 는 1 그대로).
+   */
+  outingGuess?: { calendar: number | null; estimate: number[] };
 };
 
 /** 지문의 칸 목록(순서까지) — 칸을 더하거나 빼면 자체 시험이 이 목록과 견줘 알린다 */
@@ -117,6 +125,7 @@ export const FINGERPRINT_KEYS = [
  */
 export const FINGERPRINT_OPTIONAL_KEYS = [
   'effortSpike',
+  'outingGuess',
 ] as const satisfies readonly (keyof PlanFingerprint)[];
 
 /** 판단이 읽는 부위 값 — '정상' · 옛 기록의 '괜찮음' · 모르는 값은 안 넣는다(hasPain · 뻐근 규칙이 이 둘만 본다) */
@@ -149,6 +158,8 @@ export function fingerprintOf(facts: ReportFacts): PlanFingerprint {
     ? (facts.patterns.hardOutings ?? []).find((o) => o.daysAgo === restDays)?.load
     : undefined;
   const effort = facts.condition.trainingEffort;
+  /* 짐작의 재료 — 등판을 읽는 함수가 쓰는 같은 함수로(판단이 읽는 칸 = 지문 칸). 달력을 안 넘긴 facts 는 null 이라 칸이 없다 */
+  const guess = outingGuessInputsOf(facts);
   return {
     v: 1,
     asOf: facts.asOf,
@@ -201,6 +212,9 @@ export function fingerprintOf(facts: ReportFacts): PlanFingerprint {
       : null,
     /* 칸이 있는 facts 에서만 — 없는 facts 의 지문은 예전과 글자까지 같다(FINGERPRINT_OPTIONAL_KEYS) */
     ...(effort ? { effortSpike: effort.spikeFlag } : {}),
+    ...(guess
+      ? { outingGuess: { calendar: guess.calendar, estimate: [...guess.estimate] } }
+      : {}),
   };
 }
 
@@ -305,6 +319,21 @@ export function readPlanFingerprint(value: unknown): PlanFingerprint | null {
   /* 힘듦 급증은 선택 칸 — 없으면(옛 지문 · 칸 없는 facts) 통과, 있는데 참 · 거짓이 아니면 깨진 지문 */
   if (v.effortSpike !== undefined && typeof v.effortSpike !== 'boolean') return null;
 
+  /* 등판 짐작의 재료도 선택 칸 — 없으면 통과, 있는데 모양이 틀리면(달력이 숫자 · null 아님, 같은 요일이 숫자 목록 아님) 깨진 지문 */
+  let outingGuess: PlanFingerprint['outingGuess'];
+  if (v.outingGuess !== undefined) {
+    if (!v.outingGuess || typeof v.outingGuess !== 'object') return null;
+    const g = v.outingGuess as Record<string, unknown>;
+    if (
+      !(g.calendar === null || isNum(g.calendar)) ||
+      !Array.isArray(g.estimate) ||
+      !g.estimate.every(isNum)
+    ) {
+      return null;
+    }
+    outingGuess = { calendar: g.calendar, estimate: [...g.estimate] };
+  }
+
   return {
     v: 1,
     asOf: v.asOf,
@@ -317,6 +346,7 @@ export function readPlanFingerprint(value: unknown): PlanFingerprint | null {
     lastThrow,
     hardOuting: outing,
     ...(typeof v.effortSpike === 'boolean' ? { effortSpike: v.effortSpike } : {}),
+    ...(outingGuess ? { outingGuess } : {}),
   };
 }
 
@@ -338,7 +368,8 @@ export type FingerprintKey =
   | 'zone'
   | 'lastThrow'
   | 'hardOuting'
-  | 'effortSpike';
+  | 'effortSpike'
+  | 'outingGuess';
 
 /** 바뀐 항목 하나 — key 는 화면이 가르는 데(onlyPainPartChanges), text 는 그대로 띄우는 데 쓴다 */
 export type FingerprintChange = { key: FingerprintKey; text: string };
@@ -636,7 +667,38 @@ export function diffFingerprintChanges(
     );
   }
 
+  /* 다음 등판 짐작의 재료 — 둘 다 칸이 있을 때만(2판 P4 커밋 G). 달력 · 같은 요일을 따로 한 줄씩 */
+  if (saved.outingGuess !== undefined && now.outingGuess !== undefined) {
+    const a = saved.outingGuess;
+    const b = now.outingGuess;
+    if (a.calendar !== b.calendar) {
+      push(
+        'outingGuess',
+        b.calendar == null
+          ? '달력의 경기 일정이 빠졌어요'
+          : a.calendar == null
+            ? `달력에 ${dayWord(b.calendar)} 경기가 생겼어요`
+            : `달력의 다음 경기가 ${dayWord(a.calendar)}에서 ${dayWord(b.calendar)}로 바뀌었어요`
+      );
+    }
+    if (a.estimate.join('|') !== b.estimate.join('|')) {
+      push(
+        'outingGuess',
+        b.estimate.length === 0
+          ? '같은 요일 경기로 등판을 짐작하지 않게 됐어요'
+          : a.estimate.length === 0
+            ? '최근 같은 요일 경기가 이어져 등판을 짐작했어요'
+            : '같은 요일 경기로 짐작한 등판 날이 바뀌었어요'
+      );
+    }
+  }
+
   return out;
+}
+
+/** 오늘부터 며칠 뒤를 말로 — '오늘' · '내일' · 'N일 뒤'(뒤에 '로'가 와도 맞게 끝이 받침 ㄹ 이거나 모음) */
+function dayWord(days: number): string {
+  return days === 0 ? '오늘' : days === 1 ? '내일' : `${days}일 뒤`;
 }
 
 /** 바뀐 항목의 글만 — 화면에 한 줄씩 그대로 띄운다 */

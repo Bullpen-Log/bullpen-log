@@ -34,6 +34,8 @@ import {
   type TrainingEffort,
   type TrainingNoteLike,
 } from '@/lib/workout/effort';
+/* 달력 일정 이름을 등판으로 읽는 규칙(2판 P4 커밋 G) — 순수 파일(import 없음). 낱말 표는 거기 한 곳 */
+import { isOutingTitle } from '@/lib/calendar-event';
 
 /**
  * 리포트에 쓰이는 모든 수치를 한곳에 모은다.
@@ -76,6 +78,28 @@ export type CheckinLike = CheckinParts & {
 };
 
 export type MemoNote = { date: string; text: string };
+
+/** 홈 캘린더의 일정 한 줄(CalendarEvent) — 등판 짐작에 쓰는 칸만. date 는 'YYYY-MM-DD'(2판 P4 커밋 G) */
+export type CalendarEventLike = { date: string; title: string };
+
+/**
+ * 달력에서 읽는 앞날 — 오늘부터 이 날수 뒤까지(오늘 포함 15일). 등판 창은 3일 안만 쓰지만, 날 종류 · 일정 지문이 '다음 경기가 며칠
+ * 뒤인가'를 보려면 그보다 길어야 하고, 너무 멀면 아직 안 바뀐 일정(우천 · 순서 바뀜)을 오래 믿게 된다. 2주면 주 1회 선발의 다음 두 번이 든다.
+ */
+export const OUTING_CALENDAR_DAYS = 14;
+
+/** 같은 요일 짐작의 재료 — 어제부터 이 날수 전까지(4주)의 경기 날짜(facts.patterns.gameDates). 짐작 규칙은 lib/engine/outing.ts */
+export const GAME_DATES_DAYS = 28;
+
+/** 달력의 다음 등판(facts.condition.outingCalendar) — 등판으로 읽은 일정 중 가장 가까운 것 */
+export type CalendarOuting = {
+  /** 그 일정의 날짜(YYYY-MM-DD) */
+  date: string;
+  /** 오늘부터 며칠 뒤(오늘이면 0) */
+  daysUntil: number;
+  /** 일정 이름 그대로(이유 글은 이 이름을 안 쓴다 — 지문에도 안 담는다) */
+  title: string;
+};
 
 /**
  * 메모에서 통증으로 볼 만한 표현.
@@ -187,6 +211,13 @@ export type ReportFacts = {
      * 이 칸이 아예 생기기 전에 저장된 facts 에는 없다 — 읽는 쪽은 없으면 빈 목록으로 본다.
      */
     hardOutings?: HardOuting[];
+    /**
+     * 최근 4주(어제부터 GAME_DATES_DAYS 일 전까지) 경기 기록이 있는 날(세션 종류 '경기' · 1구 이상), 중복 없이 오름차순 — 같은 요일
+     * 짐작(lib/engine/outing.ts — 같은 요일 3번 이상이면 다음 그 요일을 등판으로 짐작)의 재료(2판 P4 커밋 G). buildFacts 에 calendarEvents 를
+     * 넘겼을 때만 칸이 생긴다(달력 · 짐작 두 칸은 같이 켜진다 — 앱의 gather.ts 는 늘 넘긴다). 칸이 없으면 짐작하지 않는다 — 옛 저장 facts ·
+     * 자체 시험 · 기준선의 옛 입력이 글자 하나 안 바뀌게.
+     */
+    gameDates?: string[];
   };
   condition: {
     today: CheckinLike | null;
@@ -217,6 +248,12 @@ export type ReportFacts = {
      */
     throwPlanToday?: string | null;
     throwPlanYesterday?: string | null;
+    /**
+     * 홈 캘린더의 다음 등판 — 오늘부터 OUTING_CALENDAR_DAYS 일 안의 내 일정 중 이름이 등판으로 읽히는 것(lib/calendar-event.ts
+     * isOutingTitle) 가운데 가장 가까운 것, 없으면 null(2판 P4 커밋 G). 등판을 읽는 함수(lib/engine/outing.ts outingOf)가 체크인 답이 없을
+     * 때 짐작한 출처(soft)로 읽는다 — 가볍게 하는 쪽에만 쓴다. buildFacts 에 calendarEvents 를 넘겼을 때만 칸이 생긴다(옛 facts 에는 없다).
+     */
+    outingCalendar?: CalendarOuting | null;
     /** 최근 메모에서 통증으로 보이는 표현이 걸렸는가 */
     painWordsInMemo: string[];
     /**
@@ -319,6 +356,49 @@ function daysBetween(fromKey: string, toKey: string) {
   return Math.round((Date.UTC(ty, tm - 1, td) - Date.UTC(fy, fm - 1, fd)) / 86_400_000);
 }
 
+const DATE_KEY_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * 달력의 다음 등판 — 오늘(0) ~ OUTING_CALENDAR_DAYS 일 뒤 · 이름이 등판으로 읽히는 것 가운데 가장 가까운 것. 같은 날 둘이면 이름 차례로
+ * 앞의 것(넘겨받은 차례와 상관없이 늘 같은 값). 날짜 꼴이 아니거나 범위 밖이면 버린다. 없으면 null.
+ */
+function nearestCalendarOuting(
+  events: readonly CalendarEventLike[],
+  asOf: string
+): CalendarOuting | null {
+  let best: CalendarOuting | null = null;
+  for (const e of events) {
+    if (typeof e.date !== 'string' || !DATE_KEY_RE.test(e.date)) continue;
+    if (!isOutingTitle(e.title)) continue;
+    const daysUntil = daysBetween(asOf, e.date);
+    if (!(daysUntil >= 0 && daysUntil <= OUTING_CALENDAR_DAYS)) continue;
+    const title = e.title.trim();
+    if (
+      best == null ||
+      daysUntil < best.daysUntil ||
+      (daysUntil === best.daysUntil && title < best.title)
+    ) {
+      best = { date: e.date, daysUntil, title };
+    }
+  }
+  return best;
+}
+
+/**
+ * 같은 요일 짐작의 재료 — 어제(1) ~ GAME_DATES_DAYS 일 전, 세션 종류 '경기'로 1구 이상 던진 날(중복 없이 오름차순). 오늘 기록은 안 넣는다 —
+ * 오늘 던진 것은 세게 던진 날(부하)이 보고, 짐작은 '앞으로의 등판'을 지난 리듬으로 어림하는 것이라.
+ */
+function gameDatesOf(logs: readonly PitchLogLike[], asOf: string): string[] {
+  const days = new Set<string>();
+  for (const log of logs) {
+    if (log.sessionType !== '경기' || !(log.pitchCount > 0)) continue;
+    const key = log.date.slice(0, 10);
+    const ago = daysBetween(key, asOf);
+    if (ago >= 1 && ago <= GAME_DATES_DAYS) days.add(key);
+  }
+  return [...days].sort();
+}
+
 export function buildFacts({
   nickname,
   age,
@@ -330,6 +410,7 @@ export function buildFacts({
   baselineDailyLoad = null,
   rehab = null,
   trainingNotes,
+  calendarEvents,
   today = appNow(),
 }: {
   nickname: string;
@@ -348,6 +429,12 @@ export function buildFacts({
    * 옛 입력(기준선 도구 · 자체 시험)의 결과가 글자 하나 안 바뀌게.
    */
   trainingNotes?: TrainingNoteLike[];
+  /**
+   * 홈 캘린더의 내 일정(gather.ts 가 오늘부터 OUTING_CALENDAR_DAYS 일을 넘긴다 — 날짜 · 이름만). 넘기면(빈 목록이어도) 다음 등판 짐작의
+   * 두 칸(condition.outingCalendar · patterns.gameDates)을 만든다. 안 넘기면 두 칸이 없다 — 옛 입력(기준선 도구 · 자체 시험)의 결과가
+   * 글자 하나 안 바뀌게(trainingNotes 와 같은 약속). 범위 밖 날짜 · 등판이 아닌 이름은 여기서 버린다.
+   */
+  calendarEvents?: CalendarEventLike[];
   today?: Date;
 }): ReportFacts {
   const asOf = toDateKey(today);
@@ -419,6 +506,15 @@ export function buildFacts({
   /* 어제 체크인 — '내일 등판'이라고 적었는지 보려고(plannedOuting) */
   const yesterdayCheckin = checkins.find((c) => daysBetween(c.date, asOf) === 1) ?? null;
 
+  /*
+   * 다음 등판 짐작의 재료 두 칸(2판 P4 커밋 G) — calendarEvents 를 넘겼을 때만 만든다(안 넘기면 키 자체가 없다). 짐작하는 규칙(차례 ·
+   * 같은 요일 3번 · 가볍게만)은 lib/engine/outing.ts 한 곳이고, 여기서는 재료만 고른다.
+   */
+  const outingCalendar = calendarEvents
+    ? nearestCalendarOuting(calendarEvents, asOf)
+    : undefined;
+  const gameDates = calendarEvents ? gameDatesOf(logs, asOf) : undefined;
+
   return {
     asOf,
     profile: { nickname, age, heightCm, trainingLevel },
@@ -461,6 +557,8 @@ export function buildFacts({
         }))
         .filter((o) => o.daysAgo >= 0 && o.daysAgo <= OUTING_MEMORY_DAYS)
         .sort((a, b) => a.daysAgo - b.daysAgo),
+      /* 칸은 달력을 넘겼을 때만 — 조건부 펼침이라 안 넘기면 키 자체가 없다 */
+      ...(gameDates ? { gameDates } : {}),
     },
     condition: {
       today: todayCheckin,
@@ -473,6 +571,8 @@ export function buildFacts({
       rehabParts: rehab && rehab.stage <= 3 ? [rehab.joint] : [],
       throwPlanToday: todayCheckin?.throwPlan ?? null,
       throwPlanYesterday: yesterdayCheckin?.throwPlan ?? null,
+      /* 칸은 달력을 넘겼을 때만 — 없으면 키 자체가 없다(null 은 '달력에 등판이 없음') */
+      ...(outingCalendar !== undefined ? { outingCalendar } : {}),
       painWordsInMemo: findPainKeywords(memos),
       /* 칸은 넘겨받았을 때만 — 조건부 펼침이라 안 넘기면 키 자체가 없다 */
       ...(trainingNotes

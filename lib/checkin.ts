@@ -703,6 +703,15 @@ export function nextOutingDays(
 export type OutingWindow = { min: number; max: number | null };
 
 /**
+ * '가까운 등판 없음'이라는 답인가('없음') — 안 적은 것(null)과 다르다. 2판 P4 커밋 G(2026-10-12)에서 더함: 등판을 읽는 함수
+ * (lib/engine/outing.ts outingOf)가 체크인 답이 다음 등판을 말하지 않을 때 달력 · 같은 요일로 짐작하는데, 오늘 이 답이면 짐작하지
+ * 않는다 — 짐작이 사람의 답을 뒤집지 않게. 답 글자는 이 파일 밖에서 견주지 않는다(위 THROW_PLANS 주석).
+ */
+export function saysNoOuting(plan: string | null | undefined): boolean {
+  return parseThrowPlan(plan) === '없음';
+}
+
+/**
  * 범위가 하루로 못 박히면 그날(0 = 오늘 · 1 = 내일), 아니면 null — '2~3일 뒤' · '4일 이상 뒤' · 범위 없음(답 없음 · 불펜 · 없음).
  *
  * 날을 못 박는 독자(theme.ts plannedOuting · nutrition/guide.ts · program.ts programSignalsOf · 아래 todayOutingRole)는 이 값이

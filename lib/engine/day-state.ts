@@ -422,12 +422,23 @@ function whyLines(s: Omit<DayState, 'why'>): string[] {
   }
   if (outing.lastSource === 'checkin-yesterday')
     out.push('어제 등판했다고 적었는데 투구 기록은 없어요.');
+  /*
+   * 다음 등판 — 어디서 알았는지를 앞에 붙인다(어제 답 · 달력 · 같은 요일 짐작, 2판 P4 커밋 G). 짐작은 '오늘 불펜'과 같이 올 수 있어
+   * (불펜 날에도 내일 이후는 짐작한다 — outing.ts) 그때는 두 줄 다 말한다. 답으로 아는 범위는 불펜과 같이 오지 않는다.
+   */
   if (outing.daysUntilNext) {
     const text = windowText(outing.daysUntilNext);
     out.push(
-      outing.nextSource === 'checkin-yesterday' ? `어제 적은 답으로 보면 ${text}` : text
+      outing.nextSource === 'checkin-yesterday'
+        ? `어제 적은 답으로 보면 ${text}`
+        : outing.nextSource === 'calendar'
+          ? `달력으로 보면 ${text}`
+          : outing.nextSource === 'estimate'
+            ? `같은 요일 경기로 짐작하면 ${text}`
+            : text
     );
-  } else if (outing.role === 'bullpen') {
+  }
+  if (outing.role === 'bullpen' && (!outing.daysUntilNext || outing.soft)) {
     out.push('오늘 불펜 날이에요.');
   }
 

@@ -14,6 +14,7 @@ import {
 } from '@/lib/checkin';
 import { isArmPlyo, isHeavyLower, isHeavyUpperPush } from '@/lib/engine/exercise-class';
 import { outingOf } from '@/lib/engine/outing';
+import type { OutingNextSource } from '@/lib/engine/outing';
 import { INTENSITY_CAP, intensityLevel, type BodyPart } from '@/lib/exercise-meta';
 import { YOUTH_AGE_THRESHOLD } from '@/lib/report/plan';
 import { BEGINNER_LEVEL_NAME } from '@/lib/report/personalize';
@@ -180,6 +181,16 @@ function outingWhenText(w: OutingWindow): string {
   return `${w.min}~${w.max}일 뒤`;
 }
 
+/**
+ * 근거 줄의 '어디서 알았나' — 짐작한 출처(2판 P4 커밋 G)면 앞에 붙인다('달력에 적은 내일 등판' · '같은 요일로 짐작한 오늘 등판').
+ * 체크인 답이면 빈 글자(커밋 D 의 글 그대로). 줄 끝('등판 → 무거운 하체 제외')은 출처와 상관없이 같다 — 그 끝으로 이 규칙을 찾는 곳이 있다.
+ */
+function outingSourceText(source: OutingNextSource): string {
+  if (source === 'calendar') return '달력에 적은 ';
+  if (source === 'estimate') return '같은 요일로 짐작한 ';
+  return '';
+}
+
 export function selectCandidates<T extends ExerciseLike>({
   facts,
   plan,
@@ -304,21 +315,24 @@ export function selectCandidates<T extends ExerciseLike>({
    * 등판은 lib/engine/outing.ts 의 outingOf 한 곳에서 읽는다 — 매일 일정의 테마(plannedOuting) · 오늘 상태 한 장과 같은 창이다.
    * 창의 끝(max)이 3일 이하일 때만 건다. 어제 '4일 이상 뒤'를 오늘 하루 당긴 '3일 이상 뒤'(max 없음)는 걸지 않는다 — 끝이 없는
    * 답이라 '곧 등판'이 아니고, 걸면 '4일 이상 뒤'를 적고 다음 날 체크인을 건너뛴 사람마다 무거운 하체가 빠진다. 다음 등판을 짐작한
-   * 출처(달력 · 같은 요일, outing.soft)는 조이는 쪽이라 이 규칙에 그대로 써도 된다(커밋 G 가 더한다).
+   * 출처(달력 · 같은 요일, outing.soft — 커밋 G)는 조이는 쪽이라 이 규칙에 그대로 쓴다(창에 실려 온다). 근거 줄에만 출처를 붙인다.
    *
    * 날 규칙이라 근력 프로그램(partsOnly)에서는 건너뛴다(파일 머리 주석의 기준, 사용자 결정 D6 — 프로그램 날은 프로그램 그대로).
    * 프로그램은 경기 날 · 전날을 스스로 쉬고(lib/program/program.ts decideToday 의 gameToday · gameTomorrow), '2~3일 뒤'는 그날 칸을
    * 처방대로 한다. 매일 일정과 프로그램이 같은 날 다른 하체를 낼 수 있는데, 둘을 나누는 일은 중재(P6, 하체 예산)의 몫이다.
    * '그래도 하기'(override)로는 안 풀린다 — 테마만 넘기고 이 거르기는 남는다(컨디션 저하 상한과 같은 원칙).
    */
-  const outingWindow = outingOf(facts).daysUntilNext;
+  const outing = outingOf(facts);
+  const outingWindow = outing.daysUntilNext;
   if (
     !partsOnly &&
     outingWindow != null &&
     outingWindow.max != null &&
     outingWindow.max <= HEAVY_LOWER_BLOCK_WITHIN_DAYS
   ) {
-    basis.push(`${outingWhenText(outingWindow)} 등판 → 무거운 하체 제외`);
+    basis.push(
+      `${outingSourceText(outing.nextSource)}${outingWhenText(outingWindow)} 등판 → 무거운 하체 제외`
+    );
     drop('등판 전 무거운 하체', (ex) => !isHeavyLower(ex));
   }
 

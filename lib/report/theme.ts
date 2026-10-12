@@ -324,6 +324,33 @@ function hardOutingReason(outing: HardOuting): string {
 /** 기록 없는 등판 다음 날(R3', C6 결정)의 짧은 말 — 부딪힘 까닭과 이유 글 앞머리가 같은 말 */
 const CLAIMED_NO_LOG_PHRASE = '어제 등판이라고 적었는데 투구 기록이 없어요';
 
+/** 0 일요일 ~ 6 토요일(lib/engine/outing.ts OutingGuess.weekday) */
+const WEEKDAY_NAMES = ['일', '월', '화', '수', '목', '금', '토'] as const;
+
+/**
+ * 짐작한 오늘 · 내일 등판(R4' softOutingNear, 2판 P4 커밋 G)의 말 — 어디서 짐작했는지(달력 · 같은 요일)를 밝히고, 아니면 체크인 답으로
+ * 고칠 수 있다고 말한다(답을 적으면 짐작을 안 쓴다 — outing.ts 차례). 회복 날의 '무게는 모레부터'는 안 붙인다 — 짐작으로는 무게만 뺀다.
+ */
+function softOutingWords(dk: DayKind): { reason: string; clash: string } | null {
+  const g = dk.outing.guess;
+  if (!g || g.days > 1) return null;
+  const when = g.days === 0 ? '오늘' : '내일';
+  if (g.source === 'calendar') {
+    return {
+      reason:
+        g.days === 0
+          ? '달력에 오늘 경기가 있어 무게 대신 코어와 보강을 해요. 등판이 아니면 체크인에서 던지는 일정을 적어 주세요.'
+          : '달력에 내일 경기가 있어 무게 대신 코어와 보강을 해요. 등판 전날은 다리를 가볍게 둬요.',
+      clash: `달력에 ${when} 경기가 있어요`,
+    };
+  }
+  const day = `${WEEKDAY_NAMES[g.weekday] ?? ''}요일`;
+  return {
+    reason: `최근 4주 ${day}에 경기를 ${g.games}번 해서 ${when} 등판으로 봤어요. 무게 대신 코어와 보강을 해요. 아니면 체크인에서 던지는 일정을 적어 주세요.`,
+    clash: `최근 ${day}마다 경기가 있어 ${when} 등판으로 봤어요`,
+  };
+}
+
 /**
  * 날 종류(lib/engine/microcycle.ts dayKindOf)가 회복 · 보조 날일 때의 말 — reason 은 테마 이유(마침표로 끝남), clash 는 부딪힘 까닭
  * (마침표 없이 — workoutConflict 가 돌려주고, decideTheme 이 '그래도 하기' 글 앞에, 화면이 경고에 그대로 쓴다). 근력 · 모름 날은 null.
@@ -333,6 +360,7 @@ const CLAIMED_NO_LOG_PHRASE = '어제 등판이라고 적었는데 투구 기록
  *   R2  '어제 25구를 던졌고 최근 운동도 힘들었어요. 오늘은 가볍게 풀고, 내일부터 무게를 다시 올려요.'
  *   R3' '어제 등판이라고 적었는데 투구 기록이 없어요. 오늘은 무게 대신 코어와 보강을 해요. 기록을 남기면 던진 양으로 다시 짤 수 있어요.'
  *       (기록을 남기면 일정 지문의 마지막 투구가 바뀌어 '상태가 바뀌었어요'가 뜬다 — 다시 짜는 것은 사용자가 고른다)
+ * 커밋 G 에서 하나 더: R4' 짐작한 오늘 · 내일 등판(softOutingWords — 달력 · 같은 요일).
  */
 function dayKindWords(dk: DayKind): { reason: string; clash: string } | null {
   switch (dk.rule) {
@@ -357,6 +385,8 @@ function dayKindWords(dk: DayKind): { reason: string; clash: string } | null {
       };
     case 'outingTomorrow':
       return { reason: plannedOutingReason('tomorrow'), clash: '내일 등판이에요' };
+    case 'softOutingNear':
+      return softOutingWords(dk);
     default:
       return null;
   }
@@ -418,7 +448,7 @@ export function workoutConflict({
   if (soreness != null && soreWord && soreness >= SEVERE_SORENESS) {
     return { reason: `전신 근육통이 '${soreWord}'이에요`, fallback: 'recovery' };
   }
-  /* 등판 전날 · 기록 없는 등판 다음 날 — 회복까지는 아니고 무게만 뺀다(보조·코어, 날 종류의 보조 날) */
+  /* 등판 전날 · 기록 없는 등판 다음 날 · 짐작한 오늘 · 내일 등판 — 회복까지는 아니고 무게만 뺀다(보조·코어, 날 종류의 보조 날) */
   if (dk.rank === 'light' && words) {
     return { reason: words.clash, fallback: 'assist' };
   }
@@ -717,7 +747,8 @@ function decideThemeForBody({
     }
     /*
      * 날 종류의 보조 날 — 회복(위 넷)보다 뒤, 부하 주의와 같은 자리(보조·코어). 등판 전날(무거운 하체를 하면 다음 날 다리가 무겁다)과
-     * 기록 없는 등판 다음 날(C6 결정, 2판 P4 커밋 E — 어제 '오늘 등판'이라 적었는데 기록이 없으면 부하를 몰라 무게를 빼고 기록을 청한다).
+     * 기록 없는 등판 다음 날(C6 결정, 2판 P4 커밋 E — 어제 '오늘 등판'이라 적었는데 기록이 없으면 부하를 몰라 무게를 빼고 기록을 청한다),
+     * 달력 · 같은 요일로 짐작한 오늘 · 내일 등판(커밋 G — 짐작이라 회복까지는 안 가고 여기서 멈춘다).
      * 통증이 아니라 고를 수 있다(override). workoutConflict 가 같은 dk 를 같은 자리에서 읽는다.
      */
     if (dk.rank === 'light' && dkWords) {

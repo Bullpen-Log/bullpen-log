@@ -17,13 +17,16 @@
 import { PrismaClient } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import {
+  GAME_DATES_DAYS,
   HARD_OUTING_MIN_LOAD,
   HARD_OUTING_MIN_PITCHES,
   NEAR_MAX_EFFORT_PCT,
+  OUTING_CALENDAR_DAYS,
   buildFacts,
   findPainKeywords,
   isHardOuting,
   isNearMaxOuting,
+  type CalendarEventLike,
   type CheckinLike,
   type HardOuting,
 } from '../lib/report/facts.ts';
@@ -70,6 +73,7 @@ import {
   pickCheckinDetail,
   sleepLevelFromHours,
   nextOutingWindow as checkinNextOutingWindow,
+  saysNoOuting,
   todayOutingRole,
   type CheckinPartKey,
   type ThrowPlan,
@@ -134,11 +138,19 @@ import {
   type ClassifiableExercise,
 } from '../lib/engine/exercise-class.ts';
 import {
+  ESTIMATE_LOOKBACK_DAYS,
+  ESTIMATE_MIN_GAMES,
   isSoftOutingSource,
   outingAnswersOf,
+  outingGuessInputsOf,
   outingOf,
   type Outing,
 } from '../lib/engine/outing.ts';
+import {
+  OUTING_TITLE_EXCLUDE_WORDS,
+  OUTING_TITLE_WORDS,
+  isOutingTitle,
+} from '../lib/calendar-event.ts';
 import {
   DAY_RULE_RANK,
   FAR_OUTING_MIN_DAYS,
@@ -7782,6 +7794,16 @@ console.log(
     /** 어제 메모 — 통증 표현을 넣으면 오늘 체크인이 없는 날 '확인 전'이 된다 */
     memos?: string[];
     asOf?: Date;
+    /**
+     * 달력 일정(2판 P4 커밋 G) — 주면(빈 목록이어도) facts 에 등판 짐작의 두 칸(달력 · 같은 요일 경기 날짜)이 생긴다. 안 주면 칸이 없어
+     * 예전 사람과 글자까지 같다.
+     */
+    calendar?: CalendarEventLike[];
+    /**
+     * 같은 요일 경기 날짜를 기록 대신 facts 칸에 바로 넣는다(커밋 G 불변식 ⑬ — 기록을 바꾸면 부하 · 투구 계획까지 바뀌어 짐작만의 몫을
+     * 못 가른다). calendar 를 같이 줘야 뜻이 있다.
+     */
+    gameDates?: string[];
   };
   const p0Key = (asOf: Date, daysAgo: number) =>
     new Date(asOf.getTime() - daysAgo * 86400000).toISOString().slice(0, 10);
@@ -7803,6 +7825,13 @@ console.log(
   });
   const p0Facts = (p: P0Person) => {
     const asOf = p.asOf ?? TODAY;
+    const facts = p0BaseFacts(p, asOf);
+    /* 같은 요일 경기 날짜를 바로 넣는 사람(⑬) — 달력을 넘겨 칸이 생긴 facts 에만 덮는다 */
+    if (p.gameDates && facts.patterns.gameDates !== undefined)
+      facts.patterns.gameDates = [...p.gameDates];
+    return facts;
+  };
+  const p0BaseFacts = (p: P0Person, asOf: Date) => {
     return buildFacts({
       nickname: '시험',
       age: p.age === undefined ? 22 : p.age,
@@ -7824,6 +7853,7 @@ console.log(
         ...(p.yesterday ? [p0Checkin(asOf, 1, p.yesterday)] : []),
       ],
       memos: (p.memos ?? []).map((text) => ({ date: p0Key(asOf, 1), text })),
+      ...(p.calendar ? { calendarEvents: p.calendar } : {}),
     });
   };
   /** 하체 · 상체는 날짜로 번갈아 정해지는 값이라 둘을 '근력'으로 묶어 견준다 — 번갈기 규칙이 바뀌어도 이 절이 흔들리지 않게 */
@@ -8403,6 +8433,85 @@ console.log(
         safety: 'heavyArm',
       },
     },
+    /*
+     * 2판 P4 커밋 G 에서 더함 — 짐작한 등판(달력 · 같은 요일). 사용자 결정: 짐작은 가볍게 하는 쪽(무거운 하체 빼기 · 보조)에만. 그래서
+     * 일부러 매일 일정만 보조로 가고, 회복 · 쉬기를 내는 독자(투구 계획 · 영양 · 암케어 · 프로그램)는 답 · 기록만 읽어 그대로다 —
+     * 짐작으로 경기 날 식사 · 회복 루틴 · 프로그램 쉬기를 내면 틀린 아침이 커진다(영양의 '던지기 전 식사'는 더 먹으라는 말이라 가볍게
+     * 하는 쪽이 아니다). 같은 사람에서 달력 · 기록만 빼면 일정이 근력으로 돌아온다(아래 C7′ · C8′).
+     */
+    {
+      tag: 'C7',
+      name: "⑦ 달력에 오늘 '리그 경기' + 오늘 답 없음(커밋 G)",
+      person: {
+        today: {},
+        calendar: [{ date: p0Key(TODAY, 0), title: '리그 경기' }],
+      },
+      expect: {
+        theme: 'assist',
+        pitchPlan: 'throw',
+        nutrition: 'none',
+        armcare: 'strength',
+        program: 'go',
+        safety: 'heavyArm',
+      },
+    },
+    {
+      tag: 'C7′',
+      name: '⑦′ C7 에서 달력만 뺌 — 일정이 근력으로 돌아온다',
+      person: { today: {}, calendar: [] },
+      expect: {
+        theme: 'strength',
+        pitchPlan: 'throw',
+        nutrition: 'none',
+        armcare: 'strength',
+        program: 'go',
+        safety: 'heavyArm',
+      },
+    },
+    {
+      tag: 'C8',
+      name: '⑧ 최근 4주 월요일 경기 3번(7 · 14 · 21일 전) · 오늘 월요일 · 오늘 답 없음(커밋 G)',
+      person: {
+        today: {},
+        calendar: [],
+        logs: [7, 14, 21].map((d) => ({
+          daysAgo: d,
+          pitches: 60,
+          intensity: 10,
+          sessionType: '경기',
+        })),
+      },
+      expect: {
+        theme: 'assist',
+        pitchPlan: 'throw',
+        nutrition: 'none',
+        armcare: 'strength',
+        program: 'go',
+        safety: 'heavyArm',
+      },
+    },
+    {
+      tag: 'C8′',
+      name: '⑧′ C8 에서 21일 전 경기만 뺌(같은 요일 2번) — 짐작이 안 서 근력',
+      person: {
+        today: {},
+        calendar: [],
+        logs: [7, 14].map((d) => ({
+          daysAgo: d,
+          pitches: 60,
+          intensity: 10,
+          sessionType: '경기',
+        })),
+      },
+      expect: {
+        theme: 'strength',
+        pitchPlan: 'throw',
+        nutrition: 'none',
+        armcare: 'strength',
+        program: 'go',
+        safety: 'heavyArm',
+      },
+    },
   ];
   const readerNames: [keyof FiveReaders, string][] = [
     ['theme', '매일 일정'],
@@ -8632,6 +8741,52 @@ console.log(
   const armCover = { severe: 0, mild: 0, youthRest: 0 };
   /* 2판 P4 커밋 D 의 덮임 — 등판 창 안 · 규칙이 실제로 뺀 날 · 창 안에서 하체 날이 선 날(가벼운 하체로) */
   const windowCover = { window: 0, bites: 0, lower: 0 };
+  /*
+   * 2판 P4 커밋 G 의 짝(⑬) — 사람마다 따로 씨앗(4_000_000 + i)으로 달력 일정 · 같은 요일 경기 날짜를 뽑는다(ownedOf · 팔 피로 축과 같은
+   * 까닭: 주 난수 흐름에 끼우면 뒤 사람이 통째로 바뀐다). 원래 사람(c)은 그대로 두고 짝만 만든다. 달력 이름에는 등판이 아닌 것(병원) ·
+   * 빼는 낱말(관람 · 응원)도 섞고, 같은 요일은 2~4번(2번은 짐작이 안 서는 음성 사례)으로. 열여섯에 하나(i % 16 === 3)는 '달력에 오늘
+   * 경기', 또 하나(i % 16 === 11)는 '달력에 내일 선발 등판'으로 못 박는다 — 난수로만 두면 오늘 · 내일 짐작이 빈약하다.
+   */
+  const SOFT_TITLES = [
+    '리그 경기',
+    '선발 등판',
+    '주말 경기',
+    '친선 경기 관람',
+    '병원',
+    '응원 가기',
+  ] as const;
+  const withSoftAxis = (c: P0Combo, i: number): P0Combo => {
+    const rand = p0Rng(4_000_000 + i);
+    const calendar: CalendarEventLike[] = [];
+    if (i % 16 === 3) {
+      calendar.push({ date: p0Key(TODAY, 0), title: '리그 경기' });
+    } else if (i % 16 === 11) {
+      calendar.push({ date: p0Key(TODAY, -1), title: '선발 등판' });
+    } else if (rand() < 0.7) {
+      const n = 1 + Math.floor(rand() * 2);
+      for (let k = 0; k < n; k++) {
+        calendar.push({
+          date: p0Key(TODAY, -Math.floor(rand() * 17)),
+          title: SOFT_TITLES[Math.floor(rand() * SOFT_TITLES.length)],
+        });
+      }
+    }
+    const gameDates: string[] = [];
+    if (rand() < 0.5) {
+      const ahead = Math.floor(rand() * 7);
+      const games = 2 + Math.floor(rand() * 3);
+      for (let w = 1; w <= games; w++) gameDates.push(p0Key(TODAY, 7 * w - ahead));
+    }
+    return { ...c, p: { ...c.p, calendar, gameDates } };
+  };
+  /** 테마 등급 — 회복 < 보조 < 근력(하체 · 상체는 같은 등급) */
+  const THEME_RANK: Record<ThemeKey, number> = {
+    recovery: 0,
+    assist: 1,
+    lower: 2,
+    upper: 2,
+  };
+  const softCover = { soft: 0, lighter: 0, blocked: 0 };
   let worstOver = 0;
   const P0_COMBOS = 160;
   for (let i = 0; i < P0_COMBOS; i++) {
@@ -8641,6 +8796,39 @@ console.log(
     const c = withArmAxis(plainCombo, i);
     const { facts, plan, built, picked } = buildOf(c);
     const again = buildOf(c).built;
+    /*
+     * ⑬ 등판 짐작(2판 P4 커밋 G) — 같은 사람에 달력 · 같은 요일 경기 날짜만 얹은 짝(withSoftAxis)과 견준다. 짐작은 가볍게 하는 쪽에만:
+     * 테마 등급(회복 < 보조 < 근력)이 올라가지 않고, 짐작 때문에 회복이 되지 않으며(보조까지만), 후보는 짝이 원래의 부분집합(무거운 하체만
+     * 더 빠질 수 있다), 멈춤 · 날 못 박기(plannedOuting — 회복 · 쉬기를 내는 독자가 읽는 값)는 그대로다.
+     */
+    {
+      const sc = withSoftAxis(c, i);
+      const soft = buildOf(sc);
+      const so = outingOf(soft.facts);
+      if (so.soft) softCover.soft++;
+      if (isHalted(built) !== isHalted(soft.built)) {
+        note('⑬', `${c.seed} 짐작을 얹으니 멈춤이 바뀜`);
+      } else if (!isHalted(built) && !isHalted(soft.built)) {
+        const before = built.theme.key;
+        const after = soft.built.theme.key;
+        if (THEME_RANK[after] > THEME_RANK[before])
+          note('⑬', `${c.seed} ${before} → ${after}(더 무거워짐)`);
+        if (before !== 'recovery' && after === 'recovery')
+          note('⑬', `${c.seed} ${before} → 회복(짐작으로 회복)`);
+        if (THEME_RANK[after] < THEME_RANK[before]) softCover.lighter++;
+      }
+      const candIdsBefore = new Set(picked.candidates.map((e) => e.id));
+      const extra = soft.picked.candidates.filter((e) => !candIdsBefore.has(e.id));
+      if (extra.length > 0)
+        note('⑬', `${c.seed} 짐작을 얹으니 후보가 늘어남 ${extra.length}개`);
+      if (
+        soft.picked.excluded.some((x) => x.rule === '등판 전 무거운 하체') &&
+        !picked.excluded.some((x) => x.rule === '등판 전 무거운 하체')
+      )
+        softCover.blocked++;
+      if (plannedOuting(soft.facts) !== plannedOuting(facts))
+        note('⑬', `${c.seed} 짐작으로 날을 못 박음(plannedOuting)`);
+    }
     cover.total++;
     const unknown = painStateUnknown(facts);
     /* ③ 통증 확인 전(최근 통증 + 오늘 체크인 없음)이면 멈추고, 그 밖에는 멈추지 않는다 — 양쪽 다 본다 */
@@ -8722,7 +8910,7 @@ console.log(
     }
     /*
      * ⑭ 팔 피로 '심함'(2판 P4 커밋 C) → 무거운 상체 밀기 · 팔 플라이오 0 — 고른 것과 안전 거르기 후보 둘 다, 좁은 판정(narrowHeavyPush ·
-     * narrowArmPlyo — exercise-class.ts 를 베끼지 않는다). ⑪ ⑫ 는 등판 창(P4 커밋 D, 아래), ⑬ 은 달력 규칙(커밋 G) 몫으로 비워 둔다.
+     * narrowArmPlyo — exercise-class.ts 를 베끼지 않는다). ⑪ ⑫ 는 등판 창(P4 커밋 D, 아래), ⑬ 은 등판 짐작(커밋 G, 이 고리 맨 위의 짝).
      */
     const armNow = facts.condition.today?.armFatigue ?? null;
     const uniqTitles = (list: { title: string }[]) =>
@@ -8814,6 +9002,10 @@ console.log(
       "등판 창(오늘 · 내일 · 2~3일 뒤) → 무거운 하체 0(고른 것 · 후보, '그래도 하기' 포함, 2판 P4)",
     ],
     ['⑫', '근력 날이면 그쪽 본운동 후보가 있다(비면 날이 바뀐다, 2판 P4)'],
+    [
+      '⑬',
+      '달력 · 같은 요일 짐작을 얹어도 테마는 더 무거워지지 않고 짐작으로 회복이 되지 않으며, 후보 ⊆ · 멈춤 · 날 못 박기 그대로(2판 P4)',
+    ],
     ['⑭', "팔 피로 '심함' → 무거운 상체 밀기 · 팔 플라이오 0(고른 것 · 후보, 2판 P4)"],
     ['⑮', '성장기 + 투구 계획이 쉬는 날 → 팔 플라이오 0(고른 것 · 후보, 2판 P4)'],
     ['⑯', "팔 피로 '심함' 밑(1~4) → 칸이 없는 같은 사람과 같은 일정(2판 P4)"],
@@ -8857,6 +9049,10 @@ console.log(
   check(
     `불변식 — 잰 것(2판 P4 등판 창): 창 안 ${windowCover.window} · 규칙이 실제로 뺀 날 ${windowCover.bites} · 창 안 하체 날 ${windowCover.lower}`,
     windowCover.window >= 15 && windowCover.bites >= 8 && windowCover.lower >= 1
+  );
+  check(
+    `불변식 — 잰 것(2판 P4 등판 짐작 ⑬): 짐작이 선 짝 ${softCover.soft} · 테마가 가벼워진 짝 ${softCover.lighter} · 무거운 하체가 새로 빠진 짝 ${softCover.blocked}`,
+    softCover.soft >= 30 && softCover.lighter >= 5 && softCover.blocked >= 5
   );
 
   /* ─────────────── (d) 성장기 나이(D4 참고) — 지금 코드가 16 · 17세에게 '매우 높음'을 허용하는 것을 고정 ─────────────── */
@@ -15760,13 +15956,19 @@ console.log(
       .replace(/\/\*[\s\S]*?\*\//g, '')
       .replace(/^\s*\/\/.*$/gm, '');
   const rxSrcD = stripD('lib/report/prescription.ts');
+  /*
+   * P4 로 바뀜(커밋 G) — 왜: 근거 줄에 짐작한 출처('달력에 적은 내일 등판' · '같은 요일로 짐작한 오늘 등판')를 붙이려고 outingOf 의 결과를
+   * 한 번 받아 창(daysUntilNext)과 출처(nextSource)를 같이 읽는다. 창을 outingOf 한 곳에서 읽는 뜻은 그대로다.
+   */
   check(
     'P4 등판 창 (사) 소스 — prescription 은 등판을 outingOf 로만 읽고(답 칸 · 답 규칙을 직접 안 읽음) 판정은 exercise-class.ts 의 isHeavyLower, 규칙은 partsOnly 에서 건너뜀',
     /import \{ outingOf \} from '@\/lib\/engine\/outing';/.test(rxSrcD) &&
       /import \{[^}]*\bisHeavyLower\b[^}]*\} from '@\/lib\/engine\/exercise-class';/.test(
         rxSrcD
       ) &&
-      /const outingWindow = outingOf\(facts\)\.daysUntilNext;/.test(rxSrcD) &&
+      /const outing = outingOf\(facts\);\s*const outingWindow = outing\.daysUntilNext;/.test(
+        rxSrcD
+      ) &&
       /!partsOnly &&\s*outingWindow != null &&\s*outingWindow\.max != null &&\s*outingWindow\.max <= HEAVY_LOWER_BLOCK_WITHIN_DAYS/.test(
         rxSrcD
       ) &&
@@ -15802,6 +16004,8 @@ console.log(
     logs?: McLog[];
     /** 운동 끝 힘듦(DailyTrainingNote) — 안 주면 facts 에 trainingEffort 칸이 없다 */
     notes?: TrainingNoteLike[];
+    /** 달력 일정(2판 P4 커밋 G) — 주면(빈 목록이어도) facts 에 등판 짐작의 두 칸이 생긴다. 안 주면 칸이 없다 */
+    calendar?: CalendarEventLike[];
   };
   const mcCheckin = (daysAgo: number, c: McCheckin): CheckinLike => ({
     date: dayBefore(daysAgo).slice(0, 10),
@@ -15840,6 +16044,7 @@ console.log(
       ],
       memos: [],
       ...(p.notes ? { trainingNotes: p.notes } : {}),
+      ...(p.calendar ? { calendarEvents: p.calendar } : {}),
     });
   /*
    * 힘듦 줄 — 앱(gather.ts)처럼 오늘 줄은 뺀다. 급증: 7일 안 9 셋 · 28일 안 5 넷(7일 평균 9 − 28일 평균 6.7 ≥ 2). 평소: 같은 날 모두 5.
@@ -15860,6 +16065,7 @@ console.log(
     mcFacts({ notes: SPIKE }).condition.trainingEffort?.spikeFlag === true &&
       mcFacts({ notes: CALM }).condition.trainingEffort?.spikeFlag === false
   );
+  /* P4 로 바뀜(커밋 G) — 왜: 짐작한(달력 · 같은 요일) 오늘 · 내일 등판이 보조 날 R4' softOutingNear 로 더해졌다(회복까지는 안 감) */
   check(
     'P4 날 종류 상수 — 중간 부하 1,350(세게 던진 날 2,700 의 절반) · 등판에서 먼 날 4일 · 구원 짧게 20구 초과 · 바닥 30분 · 규칙 → 하는 일 표',
     MODERATE_OUTING_MIN_LOAD === 1350 &&
@@ -15873,6 +16079,7 @@ console.log(
           moderateSpike: 'recovery',
           claimedNoLog: 'light',
           outingTomorrow: 'light',
+          softOutingNear: 'light',
           outingSoon: 'strength',
           outingFar: 'strength',
           none: 'none',
@@ -16106,6 +16313,40 @@ console.log(
         logs: [{ daysAgo: 1, pitches: 25, pct: 100, sessionType: '경기' }],
       },
       expect: { rule: 'outingToday', shorten: true },
+    },
+    /* 커밋 G — 짐작한 등판(달력 · 같은 요일). 답이 없을 때만, 회복까지는 안 가고 보조 · 무거운 하체 빼기 · 모름까지만 */
+    {
+      name: "R4' 달력에 오늘 '주말 리그 경기' · 답 없음 → 보조(짐작이라 회복 아님)",
+      p: { calendar: [{ date: dayBefore(0).slice(0, 10), title: '주말 리그 경기' }] },
+      expect: { rule: 'softOutingNear', side: null, heavy: false, shorten: false },
+    },
+    {
+      name: "R4' 달력에 내일 '선발 등판' · 답 없음 → 보조",
+      p: { calendar: [{ date: dayBefore(-1).slice(0, 10), title: '선발 등판' }] },
+      expect: { rule: 'softOutingNear', heavy: false },
+    },
+    {
+      name: "R4' 같은 요일 — 최근 4주 월요일 경기 3번(7 · 14 · 21일 전) · 오늘 월요일 · 답 없음 → 보조",
+      p: {
+        calendar: [],
+        logs: [7, 14, 21].map((d) => ({
+          daysAgo: d,
+          pitches: 60,
+          pct: 100,
+          sessionType: '경기',
+        })),
+      },
+      expect: { rule: 'softOutingNear', heavy: false },
+    },
+    {
+      name: 'R5 달력에 사흘 뒤 경기 → 근력 날(상체 쪽) · 무거운 하체 뺌',
+      p: { calendar: [{ date: dayBefore(-3).slice(0, 10), title: '리그 경기' }] },
+      expect: { rule: 'outingSoon', side: 'upper', heavy: false },
+    },
+    {
+      name: 'R7 달력에 닷새 뒤 경기 → 모름(짐작으로 하체 쪽을 안 고름) · 무거운 하체 든다',
+      p: { calendar: [{ date: dayBefore(-5).slice(0, 10), title: '리그 경기' }] },
+      expect: { rule: 'none', side: null, heavy: true },
     },
   ];
   for (const c of mcCases) {
@@ -16674,13 +16915,18 @@ console.log(
     const spikeF = mcFacts(r2p);
     const fpCalm = fingerprintOf(calmF);
     const fpSpike = fingerprintOf(spikeF);
+    /*
+     * P4 로 바뀜(커밋 G) — 왜: 바깥 선택 칸에 등판 짐작의 재료(outingGuess)가 더해졌다. 힘듦 칸만 있는 facts(달력을 안 넘김)의 칸 목록은
+     * FINGERPRINT_KEYS + effortSpike, 둘 다 있는 facts 는 + FINGERPRINT_OPTIONAL_KEYS 전부(순서까지).
+     */
     check(
-      'P4 날 종류 (바) 지문 effortSpike — 힘듦 칸이 있는 facts 의 칸 목록 = FINGERPRINT_KEYS + FINGERPRINT_OPTIONAL_KEYS(순서까지), 없는 facts 는 FINGERPRINT_KEYS 그대로',
-      json(Object.keys(fpSpike)) ===
-        json([...FINGERPRINT_KEYS, ...FINGERPRINT_OPTIONAL_KEYS]) &&
+      'P4 날 종류 (바) 지문 effortSpike — 힘듦 칸이 있는 facts 의 칸 목록 = FINGERPRINT_KEYS + effortSpike(순서까지), 달력도 넘기면 + FINGERPRINT_OPTIONAL_KEYS 전부, 없는 facts 는 FINGERPRINT_KEYS 그대로',
+      json(Object.keys(fpSpike)) === json([...FINGERPRINT_KEYS, 'effortSpike']) &&
+        json(Object.keys(fingerprintOf(mcFacts({ ...r2p, calendar: [] })))) ===
+          json([...FINGERPRINT_KEYS, ...FINGERPRINT_OPTIONAL_KEYS]) &&
         json(Object.keys(fingerprintOf(mcFacts({ logs: r2p.logs })))) ===
           json(FINGERPRINT_KEYS) &&
-        json(FINGERPRINT_OPTIONAL_KEYS) === json(['effortSpike']),
+        json(FINGERPRINT_OPTIONAL_KEYS) === json(['effortSpike', 'outingGuess']),
       Object.keys(fpSpike).join(',')
     );
     const up = diffFingerprintChanges(fpCalm, fpSpike);
@@ -17443,6 +17689,716 @@ console.log(
         !/p\.restDays === 1\) signals\.push/.test(routineSrc) &&
         /gameYesterday: x\.yesterdayArmLoad != null/.test(programSrc),
       missing.join(' · ')
+    );
+  }
+}
+
+/* ═══════════════════ [2판 P4] 다음 등판 짐작 — 달력 · 같은 요일(lib/engine/outing.ts · lib/calendar-event.ts isOutingTitle · facts 두 칸) (2026-10-12) ═══════════════════ */
+console.log(
+  '\n[2판 P4] 다음 등판 짐작(달력 · 같은 요일) — 이름 낱말 · 14일 · 4주 3번 · 차례 · 가볍게 하는 쪽에만 · 지문 · 배선(2026-10-12)'
+);
+{
+  /*
+   * 왜 보는가. 답을 안 적는 날에는 경기 아침에도 근력 날이 나왔다(기준선 ⑤). 커밋 G 는 홈 캘린더의 '경기 · 등판 · 선발' 일정과 최근 4주
+   * 같은 요일 경기로 다음 등판을 짐작한다 — 사용자 결정: 짐작은 가볍게 하는 쪽(무거운 하체 빼기 · 보조 날)에만 쓰고 회복으로 보내지 않는다.
+   * (가) 이름 낱말 표 (나) facts 재료 두 칸 (다) 같은 요일 짐작 (라) 체크인 답과의 차례 (마) 가볍게만 — 날 종류 · 테마 · 근거 · 이유 글
+   * (바) 일정 지문 (사) 결정성 · 옛 facts (아) 배선 · 소스. 160조합 불변식은 '[2판 안전망(P0)]' (c) 의 ⑬, 엇갈림 표는 C7 · C8.
+   */
+  const json = (v: unknown) => JSON.stringify(v);
+  /** 오늘부터 며칠 뒤의 날짜 키(과거는 음수) — TODAY 는 2026-06-15 월요일 */
+  const keyIn = (days: number) => dayBefore(-days).slice(0, 10);
+  type GLog = { daysAgo: number; pitches: number; sessionType: string };
+  type GP = {
+    /** 오늘 등판 답 — 안 주면 칸 없는 체크인, null 이면 칸은 있는데 안 적음 */
+    today?: string | null;
+    /** 오늘 체크인 자체가 없다 */
+    noCheckin?: boolean;
+    /** 어제 등판 답 — 안 주면 어제 체크인이 없다 */
+    yesterday?: string | null;
+    logs?: GLog[];
+    /** 달력 — 안 주면 facts 에 짐작 칸이 없다 */
+    calendar?: CalendarEventLike[];
+    preferredWorkout?: string | null;
+  };
+  const gCheckin = (
+    daysAgo: number,
+    throwPlan: string | null | undefined,
+    preferredWorkout: string | null = null
+  ): CheckinLike => ({
+    date: dayBefore(daysAgo).slice(0, 10),
+    condition: 8,
+    sleep: '보통',
+    shoulder: '정상',
+    elbow: '정상',
+    wrist: '정상',
+    lowerBack: '정상',
+    lowerBody: '정상',
+    preferredParts: [],
+    preferredWorkout,
+    ...(throwPlan !== undefined ? { throwPlan } : {}),
+  });
+  const gFacts = (p: GP) =>
+    buildFacts({
+      nickname: '짐작',
+      age: 22,
+      heightCm: 180,
+      trainingLevel: null,
+      baselineDailyLoad: 100,
+      rehab: null,
+      today: TODAY,
+      logs: (p.logs ?? []).map<PitchLogLike>((l) => ({
+        date: dayBefore(l.daysAgo),
+        pitchCount: l.pitches,
+        intensity: 9,
+        sessionType: l.sessionType,
+        maxVelocity: null,
+        avgVelocity: null,
+      })),
+      checkins: [
+        ...(p.noCheckin ? [] : [gCheckin(0, p.today, p.preferredWorkout ?? null)]),
+        ...(p.yesterday !== undefined ? [gCheckin(1, p.yesterday)] : []),
+      ],
+      memos: [],
+      ...(p.calendar ? { calendarEvents: p.calendar } : {}),
+    });
+  const games = (daysAgo: readonly number[], pitches = 20): GLog[] =>
+    daysAgo.map((d) => ({ daysAgo: d, pitches, sessionType: '경기' }));
+  /* 요일 무늬 — 오늘(월)부터 그 요일까지 남은 날로 지난 세 주의 날을 고른다(7w − 남은 날) */
+  const MON = games([7, 14, 21]);
+  const TUE = games([6, 13, 20]);
+  const WED = games([5, 12, 19]);
+  const SAT = games([2, 9, 16]);
+  const cal = (days: number, title = '리그 경기'): CalendarEventLike => ({
+    date: keyIn(days),
+    title,
+  });
+
+  /* ── (가) 이름 낱말 표 ── */
+  {
+    const rows: [unknown, boolean][] = [
+      ['토요일 경기', true],
+      ['주말 리그 경기', true],
+      ['선발 등판', true],
+      ['등판', true],
+      ['선발', true],
+      ['  경기  ', true],
+      ['경기 관람', false],
+      ['프로야구 경기 응원', false],
+      ['선발 응원', false],
+      ['응원', false],
+      ['병원', false],
+      ['불펜 피칭', false],
+      ['연습', false],
+      ['', false],
+      ['   ', false],
+      [null, false],
+      [42, false],
+    ];
+    const wrong = rows.filter(([t, want]) => isOutingTitle(t) !== want);
+    check(
+      `P4 짐작 (가) 이름 낱말 표 ${rows.length}건 — '경기' · '등판' · '선발'이 있으면 등판, '관람' · '응원'이 있으면 아님, 빈 이름 · 글자 아님은 아님`,
+      wrong.length === 0 &&
+        json(OUTING_TITLE_WORDS) === json(['경기', '등판', '선발']) &&
+        json(OUTING_TITLE_EXCLUDE_WORDS) === json(['관람', '응원']),
+      wrong.map(([t]) => json(t)).join(' · ')
+    );
+  }
+
+  /* ── (나) facts 재료 두 칸 ── */
+  {
+    const none = gFacts({});
+    const empty = gFacts({ calendar: [] });
+    check(
+      'P4 짐작 (나) 달력을 안 넘기면 두 칸(condition.outingCalendar · patterns.gameDates)이 키째 없고, 빈 목록을 넘기면 null · [] 로 생긴다',
+      !('outingCalendar' in none.condition) &&
+        !('gameDates' in none.patterns) &&
+        empty.condition.outingCalendar === null &&
+        json(empty.patterns.gameDates) === '[]'
+    );
+    const events: CalendarEventLike[] = [
+      cal(5, '리그 경기'),
+      cal(2, '병원'),
+      cal(3, '경기 관람'),
+      cal(9, '선발 등판'),
+      cal(-1, '어제 경기'),
+      cal(15, '먼 경기'),
+      { date: 'bad-date', title: '경기' },
+    ];
+    const f = gFacts({ calendar: events });
+    const reversed = gFacts({ calendar: [...events].reverse() });
+    check(
+      "P4 짐작 (나) 달력 — 오늘 ~ 14일 뒤 · 등판으로 읽히는 이름 중 가장 가까운 것(5일 뒤 '리그 경기'), 병원 · 관람 · 어제 · 15일 뒤 · 날짜 꼴 아님은 버림, 넘긴 차례와 상관없음",
+      json(f.condition.outingCalendar) ===
+        json({ date: keyIn(5), daysUntil: 5, title: '리그 경기' }) &&
+        json(reversed.condition.outingCalendar) === json(f.condition.outingCalendar),
+      json(f.condition.outingCalendar)
+    );
+    const edge = (days: number) =>
+      gFacts({ calendar: [cal(days)] }).condition.outingCalendar?.daysUntil ?? null;
+    const sameDay = gFacts({ calendar: [cal(2, '주말 경기'), cal(2, '리그 경기')] });
+    const sameDayRev = gFacts({ calendar: [cal(2, '리그 경기'), cal(2, '주말 경기')] });
+    check(
+      `P4 짐작 (나) 달력 — 오늘(0) · 14일 뒤는 든다, 15일 뒤 · 어제는 아니다(OUTING_CALENDAR_DAYS ${OUTING_CALENDAR_DAYS}), 같은 날 둘이면 이름 차례로 앞의 것`,
+      OUTING_CALENDAR_DAYS === 14 &&
+        edge(0) === 0 &&
+        edge(14) === 14 &&
+        edge(15) === null &&
+        edge(-1) === null &&
+        sameDay.condition.outingCalendar?.title === '리그 경기' &&
+        sameDayRev.condition.outingCalendar?.title === '리그 경기'
+    );
+    const g = gFacts({
+      calendar: [],
+      logs: [
+        { daysAgo: 1, pitches: 60, sessionType: '경기' },
+        { daysAgo: 2, pitches: 0, sessionType: '경기' },
+        { daysAgo: 3, pitches: 40, sessionType: '불펜' },
+        { daysAgo: 7, pitches: 30, sessionType: '경기' },
+        { daysAgo: 7, pitches: 25, sessionType: '경기' },
+        { daysAgo: 28, pitches: 50, sessionType: '경기' },
+        { daysAgo: 29, pitches: 50, sessionType: '경기' },
+        { daysAgo: 0, pitches: 20, sessionType: '경기' },
+      ],
+    });
+    check(
+      `P4 짐작 (나) 경기 날짜 — 어제 ~ ${GAME_DATES_DAYS}일 전 · '경기' · 1구 이상만, 같은 날 두 줄은 하루, 오늘 · 0구 · 불펜 · 29일 전은 빼고 오름차순`,
+      GAME_DATES_DAYS === 28 &&
+        json(g.patterns.gameDates) === json([keyIn(-28), keyIn(-7), keyIn(-1)]),
+      json(g.patterns.gameDates)
+    );
+  }
+
+  /* ── (다) 같은 요일 짐작 ── */
+  {
+    const est = (logs: GLog[]) => outingOf(gFacts({ calendar: [], logs }));
+    const mon = est(MON);
+    check(
+      'P4 짐작 (다) 기준일 2026-06-15 은 월요일(요일 셈의 바탕)',
+      new Date(`${keyIn(0)}T00:00:00.000Z`).getUTCDay() === 1
+    );
+    check(
+      "P4 짐작 (다) 최근 4주 월요일 경기 3번 · 오늘 월요일 · 답 없음 → 오늘 등판으로 짐작(출처 'estimate' · soft · 범위 0~0 · 날 못 박음 없음)",
+      mon.nextSource === 'estimate' &&
+        mon.soft &&
+        json(mon.daysUntilNext) === json({ min: 0, max: 0 }) &&
+        mon.nextDay === null &&
+        json(mon.guess) === json({ source: 'estimate', days: 0, weekday: 1, games: 3 }),
+      json(mon)
+    );
+    const rows: { name: string; logs: GLog[]; want: unknown }[] = [
+      {
+        name: '월요일 4번(7 · 14 · 21 · 28일 전) → 오늘 · 4번',
+        logs: games([7, 14, 21, 28]),
+        want: { source: 'estimate', days: 0, weekday: 1, games: 4 },
+      },
+      { name: '월요일 2번 → 짐작 없음', logs: games([7, 14]), want: null },
+      {
+        name: '토요일 3번 → 5일 뒤 토요일',
+        logs: SAT,
+        want: { source: 'estimate', days: 5, weekday: 6, games: 3 },
+      },
+      {
+        name: '토요일 3번 + 화요일 3번 → 가까운 화요일(내일)',
+        logs: [...SAT, ...TUE],
+        want: { source: 'estimate', days: 1, weekday: 2, games: 3 },
+      },
+      {
+        name: '월요일 7 · 14 · 35일 전 → 35일 전은 4주 밖이라 2번 → 없음',
+        logs: games([7, 14, 35]),
+        want: null,
+      },
+      {
+        name: '5일 로테이션(1 · 6 · 11 · 16 · 21 · 26일 전) → 요일이 돌아 없음',
+        logs: games([1, 6, 11, 16, 21, 26]),
+        want: null,
+      },
+      {
+        name: '월요일 7일 전 두 줄 + 14일 전 → 같은 날은 하루라 2번 → 없음',
+        logs: [...games([7, 7]), ...games([14])],
+        want: null,
+      },
+      {
+        name: '월요일 불펜 3번 → 경기가 아니라 없음',
+        logs: [7, 14, 21].map((d) => ({
+          daysAgo: d,
+          pitches: 40,
+          sessionType: '불펜',
+        })),
+        want: null,
+      },
+    ];
+    for (const r of rows) {
+      const o = est(r.logs);
+      check(`P4 짐작 (다) ${r.name}`, json(o.guess) === json(r.want), json(o.guess));
+    }
+    const both = outingGuessInputsOf(
+      gFacts({ calendar: [cal(4)], logs: [...MON, ...TUE] })
+    );
+    check(
+      `P4 짐작 (다) 상수 — 4주(${ESTIMATE_LOOKBACK_DAYS}일 = facts 의 GAME_DATES_DAYS) · ${ESTIMATE_MIN_GAMES}번, 지문 재료는 달력 날수와 짐작이 서는 날 모두(월 · 화 → [0, 1])`,
+      ESTIMATE_LOOKBACK_DAYS === GAME_DATES_DAYS &&
+        ESTIMATE_MIN_GAMES === 3 &&
+        json(both) === json({ calendar: 4, estimate: [0, 1] }) &&
+        outingGuessInputsOf(gFacts({})) === null,
+      json(both)
+    );
+  }
+
+  /* ── (라) 체크인 답과의 차례 ── */
+  {
+    const rows: {
+      name: string;
+      p: GP;
+      want: Partial<Record<keyof Outing, unknown>>;
+    }[] = [
+      {
+        name: "오늘 '2~3일 뒤' + 달력 오늘 경기 → 답이 이긴다(짐작 안 함)",
+        p: { today: '2~3일 뒤', calendar: [cal(0)] },
+        want: {
+          nextSource: 'checkin',
+          daysUntilNext: { min: 2, max: 3 },
+          soft: false,
+          guess: null,
+        },
+      },
+      {
+        name: "오늘 답 없음 + 어제 '4일 이상 뒤' + 달력 내일 경기 → 어제 답(하루 당김)이 이긴다",
+        p: { today: null, yesterday: '4일 이상 뒤', calendar: [cal(1)] },
+        want: {
+          nextSource: 'checkin-yesterday',
+          daysUntilNext: { min: 3, max: null },
+          soft: false,
+          guess: null,
+        },
+      },
+      {
+        name: "오늘 '없음' + 달력 오늘 경기 + 월요일 무늬 → 짐작 안 함('가까운 등판 없음'이라는 답)",
+        p: { today: '없음', calendar: [cal(0)], logs: MON },
+        want: { nextSource: 'none', daysUntilNext: null, soft: false, guess: null },
+      },
+      {
+        name: "오늘 '오늘 불펜' + 달력 오늘 경기 → 오늘은 짐작 안 함(답이 오늘을 말함) · 다른 짐작 없음",
+        p: { today: '오늘 불펜', calendar: [cal(0)] },
+        want: { nextSource: 'none', daysUntilNext: null, role: 'bullpen', guess: null },
+      },
+      {
+        name: "오늘 '오늘 불펜' + 달력 내일 경기 → 달력 내일(불펜 날에도 다음 등판은 짐작)",
+        p: { today: '오늘 불펜', calendar: [cal(1)] },
+        want: {
+          nextSource: 'calendar',
+          daysUntilNext: { min: 1, max: 1 },
+          nextDay: null,
+          soft: true,
+          role: 'bullpen',
+          guess: { source: 'calendar', days: 1 },
+        },
+      },
+      {
+        name: "오늘 '오늘 불펜' + 월요일 · 화요일 무늬 → 오늘(월)은 건너뛰고 내일(화)",
+        p: { today: '오늘 불펜', calendar: [], logs: [...MON, ...TUE] },
+        want: {
+          nextSource: 'estimate',
+          guess: { source: 'estimate', days: 1, weekday: 2, games: 3 },
+        },
+      },
+      {
+        name: '답 없음 + 달력 4일 뒤 + 월요일 무늬(오늘) → 달력이 먼저(사람이 적은 것)',
+        p: { today: null, calendar: [cal(4)], logs: MON },
+        want: { nextSource: 'calendar', daysUntilNext: { min: 4, max: 4 } },
+      },
+      {
+        name: "오늘 답 없음 + 어제 '없음' + 달력 오늘 경기 → 달력(어제 '없음'은 막지 않음)",
+        p: { today: null, yesterday: '없음', calendar: [cal(0)] },
+        want: {
+          nextSource: 'calendar',
+          daysUntilNext: { min: 0, max: 0 },
+          nextDay: null,
+        },
+      },
+      {
+        name: "어제 '오늘 등판' · 기록 없음 + 달력 6일 뒤 → 다음 등판은 달력, 지난 등판은 어제 답",
+        p: { today: null, yesterday: '오늘 등판', calendar: [cal(6)] },
+        want: {
+          nextSource: 'calendar',
+          daysUntilNext: { min: 6, max: 6 },
+          lastSource: 'checkin-yesterday',
+        },
+      },
+      {
+        name: '오늘 체크인 없음 + 달력 오늘 경기 → 달력',
+        p: { noCheckin: true, calendar: [cal(0)] },
+        want: { nextSource: 'calendar', answeredToday: false },
+      },
+      {
+        name: "오늘 목록 밖 글자('모레') + 달력 내일 경기 → 달력('없음'만 막는다)",
+        p: { today: '모레', calendar: [cal(1)] },
+        want: { nextSource: 'calendar', answeredToday: true },
+      },
+      {
+        name: '달력 · 기록 없이 답도 없음 → 모름',
+        p: { today: null, calendar: [] },
+        want: { nextSource: 'none', daysUntilNext: null, soft: false, guess: null },
+      },
+    ];
+    for (const r of rows) {
+      const o = outingOf(gFacts(r.p));
+      const got = Object.fromEntries(
+        Object.keys(r.want).map((k) => [k, o[k as keyof Outing]])
+      );
+      check(`P4 짐작 (라) ${r.name}`, json(got) === json(r.want), json(got));
+    }
+    check(
+      "P4 짐작 (라) saysNoOuting — '없음'(앞뒤 빈칸 포함)만 참, 안 적음 · 불펜 · 목록 밖은 거짓(답 글자는 lib/checkin.ts 밖에서 안 견준다)",
+      saysNoOuting('없음') &&
+        saysNoOuting(' 없음 ') &&
+        !saysNoOuting(null) &&
+        !saysNoOuting(undefined) &&
+        !saysNoOuting('오늘 불펜') &&
+        !saysNoOuting('모레')
+    );
+  }
+
+  /* ── (마) 가볍게 하는 쪽에만 — 날 종류 · 테마 · 근거 줄 · 이유 글 ── */
+  {
+    const theme = (p: GP, override = false) => {
+      const facts = gFacts(p);
+      return decideTheme({
+        facts,
+        plan: buildPitchPlan(facts),
+        lastLowerKey: null,
+        lastUpperKey: null,
+        preferredWorkout: facts.condition.today?.preferredWorkout ?? null,
+        override,
+      });
+    };
+    const calToday = theme({ today: null, calendar: [cal(0)] });
+    const calTomorrow = theme({ today: null, calendar: [cal(1)] });
+    const monToday = theme({ today: null, calendar: [], logs: MON });
+    const firmToday = theme({ today: '오늘 등판', calendar: [cal(0)] });
+    check(
+      "P4 짐작 (마) 달력 오늘 경기 · 답 없음 → 보조(회복 아님) · 이유 '달력에 오늘 경기가 있어 …' / 같은 사람이 '오늘 등판'이라 답하면 회복(답이 못 박음)",
+      calToday.key === 'assist' &&
+        calToday.reason ===
+          '달력에 오늘 경기가 있어 무게 대신 코어와 보강을 해요. 등판이 아니면 체크인에서 던지는 일정을 적어 주세요.' &&
+        firmToday.key === 'recovery',
+      `${calToday.key} · ${calToday.reason} / ${firmToday.key}`
+    );
+    check(
+      "P4 짐작 (마) 달력 내일 경기 → 보조 · 이유 '달력에 내일 경기가 있어 …', 같은 요일(월 3번 · 오늘) → 보조 · 이유에 요일과 횟수",
+      calTomorrow.key === 'assist' &&
+        calTomorrow.reason ===
+          '달력에 내일 경기가 있어 무게 대신 코어와 보강을 해요. 등판 전날은 다리를 가볍게 둬요.' &&
+        monToday.key === 'assist' &&
+        monToday.reason ===
+          '최근 4주 월요일에 경기를 3번 해서 오늘 등판으로 봤어요. 무게 대신 코어와 보강을 해요. 아니면 체크인에서 던지는 일정을 적어 주세요.',
+      `${calTomorrow.reason} / ${monToday.reason}`
+    );
+    const weightFacts = gFacts({
+      today: null,
+      calendar: [cal(0)],
+      preferredWorkout: '웨이트',
+    });
+    const clash = workoutConflict({ facts: weightFacts, preferredWorkout: '웨이트' });
+    const forced = theme(
+      { today: null, calendar: [cal(0)], preferredWorkout: '웨이트' },
+      true
+    );
+    check(
+      "P4 짐작 (마) 짐작한 날에 '웨이트'를 고르면 보조로 권하고(부딪힘 '달력에 오늘 경기가 있어요'), '그래도 하기'면 근력 날로 간다(짐작은 막지 않는다)",
+      clash?.reason === '달력에 오늘 경기가 있어요' &&
+        clash.fallback === 'assist' &&
+        (forced.key === 'lower' || forced.key === 'upper') &&
+        forced.reason.includes('그래도 하겠다고 하셔서'),
+      `${json(clash)} / ${forced.key}`
+    );
+    const pick = (p: GP) => {
+      const facts = gFacts(p);
+      return {
+        facts,
+        picked: selectCandidates({ facts, plan: buildPitchPlan(facts), library }),
+      };
+    };
+    const soonCal = pick({ today: null, calendar: [cal(2)] });
+    const soonWed = pick({ today: null, calendar: [], logs: WED });
+    const farCal = pick({ today: null, calendar: [cal(5)] });
+    const heavyIn = (x: { picked: { candidates: readonly ClassifiableExercise[] } }) =>
+      x.picked.candidates.filter((e) => isHeavyLower(e)).length;
+    check(
+      "P4 짐작 (마) 짐작한 2일 뒤 → 무거운 하체 제외 · 근거 '달력에 적은 2일 뒤 등판 …' · '같은 요일로 짐작한 2일 뒤 등판 …', 날 종류는 근력 날(상체 쪽)",
+      soonCal.picked.basis.includes('달력에 적은 2일 뒤 등판 → 무거운 하체 제외') &&
+        soonWed.picked.basis.includes(
+          '같은 요일로 짐작한 2일 뒤 등판 → 무거운 하체 제외'
+        ) &&
+        heavyIn(soonCal) === 0 &&
+        heavyIn(soonWed) === 0 &&
+        dayKindOf(soonCal.facts).rule === 'outingSoon' &&
+        dayKindOf(soonCal.facts).side === 'upper' &&
+        dayKindOf(soonWed.facts).rule === 'outingSoon',
+      `${soonCal.picked.basis.join(' | ')} // ${soonWed.picked.basis.join(' | ')}`
+    );
+    const farDk = dayKindOf(farCal.facts);
+    check(
+      'P4 짐작 (마) 짐작한 5일 뒤 → 날 종류 모름(R7 — 짐작으로 하체 쪽을 안 고름) · 무거운 하체 든다 · 근거에 등판 줄 없음',
+      farDk.rule === 'none' &&
+        farDk.side === null &&
+        farDk.heavyLowerAllowed &&
+        heavyIn(farCal) > 0 &&
+        !farCal.picked.basis.some((b) => b.endsWith('등판 → 무거운 하체 제외')),
+      `${farDk.rule} · ${heavyIn(farCal)}`
+    );
+    const why = (p: GP) => {
+      const facts = gFacts(p);
+      return buildDayState({ facts, plan: buildPitchPlan(facts) }).why;
+    };
+    const whyCal = why({ today: null, calendar: [cal(1)] });
+    const whyMon = why({ today: null, calendar: [], logs: MON });
+    const whyBull = why({ today: '오늘 불펜', calendar: [cal(1)] });
+    check(
+      "P4 짐작 (마) 오늘 상태 한 장의 이유 줄 — '달력으로 보면 내일 등판이에요.' · '같은 요일 경기로 짐작하면 오늘 등판이에요.', 불펜 날 짐작은 두 줄 다",
+      whyCal.includes('달력으로 보면 내일 등판이에요.') &&
+        whyMon.includes('같은 요일 경기로 짐작하면 오늘 등판이에요.') &&
+        whyBull.includes('달력으로 보면 내일 등판이에요.') &&
+        whyBull.includes('오늘 불펜 날이에요.'),
+      `${whyCal.join(' ')} // ${whyMon.join(' ')} // ${whyBull.join(' ')}`
+    );
+    /* 회복 · 쉬기를 내는 독자는 짐작을 안 읽는다 — plannedOuting(테마 회복) · 프로그램 신호 · 암케어 등판 신호 */
+    const softFacts = gFacts({ today: null, calendar: [cal(0)], logs: MON });
+    const softState = buildDayState({
+      facts: softFacts,
+      plan: buildPitchPlan(softFacts),
+    });
+    const signals = programSignalsOf({
+      outing: softState.outing,
+      typesToday: [],
+      yesterdayArmLoad: yesterdayArmLoadOf(softFacts),
+    });
+    check(
+      'P4 짐작 (마) 회복 · 쉬기를 내는 독자는 짐작을 안 읽는다 — plannedOuting null · 프로그램 경기 날 · 전날 아님 · 오늘 할 일(role) 없음',
+      plannedOuting(softFacts) === null &&
+        !signals.gameToday &&
+        !signals.gameTomorrow &&
+        softState.outing.role === null &&
+        softState.outing.soft,
+      json(signals)
+    );
+  }
+
+  /* ── (바) 일정 지문 — 짐작의 재료를 담는다 ── */
+  {
+    const fpOf = (p: GP) => fingerprintOf(gFacts(p));
+    const base = fpOf({ today: null, calendar: [] });
+    check(
+      'P4 짐작 (바) 달력을 넘긴 facts 의 지문 — 칸 목록 = FINGERPRINT_KEYS + outingGuess(힘듦 칸 없음), 값은 재료({ calendar, estimate })',
+      json(Object.keys(base)) === json([...FINGERPRINT_KEYS, 'outingGuess']) &&
+        json(base.outingGuess) === json({ calendar: null, estimate: [] }) &&
+        json(fpOf({ today: null, calendar: [cal(3)], logs: MON }).outingGuess) ===
+          json({ calendar: 3, estimate: [0] }),
+      Object.keys(base).join(',')
+    );
+    const texts = (a: GP, b: GP) =>
+      diffFingerprintChanges(fpOf(a), fpOf(b))
+        .filter((c) => c.key === 'outingGuess')
+        .map((c) => c.text);
+    const add = texts({ calendar: [] }, { calendar: [cal(1)] });
+    const drop = texts({ calendar: [cal(1)] }, { calendar: [] });
+    const move = texts({ calendar: [cal(3)] }, { calendar: [cal(1)] });
+    check(
+      "P4 짐작 (바) 달력 줄 — 생김 '달력에 내일 경기가 생겼어요' · 빠짐 '달력의 경기 일정이 빠졌어요' · 옮김 '달력의 다음 경기가 3일 뒤에서 내일로 바뀌었어요'",
+      json(add) === json(['달력에 내일 경기가 생겼어요']) &&
+        json(drop) === json(['달력의 경기 일정이 빠졌어요']) &&
+        json(move) === json(['달력의 다음 경기가 3일 뒤에서 내일로 바뀌었어요']),
+      `${add} / ${drop} / ${move}`
+    );
+    const estGone = diffFingerprintChanges(
+      fpOf({ calendar: [], logs: MON }),
+      (() => {
+        /* 같은 기록에서 짐작만 풀린 지문 — 재료 칸만 바꿔 견준다(기록을 바꾸면 마지막 투구 줄도 같이 뜬다) */
+        const f = gFacts({ calendar: [], logs: MON });
+        return { ...fingerprintOf(f), outingGuess: { calendar: null, estimate: [] } };
+      })()
+    ).map((c) => c.text);
+    const estCame = diffFingerprintChanges(
+      {
+        ...fpOf({ calendar: [], logs: MON }),
+        outingGuess: { calendar: null, estimate: [] },
+      },
+      fpOf({ calendar: [], logs: MON })
+    ).map((c) => c.text);
+    check(
+      "P4 짐작 (바) 같은 요일 줄 — 풀림 '같은 요일 경기로 등판을 짐작하지 않게 됐어요' · 섬 '최근 같은 요일 경기가 이어져 등판을 짐작했어요'",
+      json(estGone) === json(['같은 요일 경기로 등판을 짐작하지 않게 됐어요']) &&
+        json(estCame) === json(['최근 같은 요일 경기가 이어져 등판을 짐작했어요']),
+      `${estGone} / ${estCame}`
+    );
+    const answered = diffFingerprintChanges(
+      fpOf({ today: null, calendar: [cal(1)] }),
+      fpOf({ today: '내일 등판', calendar: [cal(1)] })
+    );
+    check(
+      "P4 짐작 (바) 달력이 그대로인데 답을 적어 답이 짐작을 덮으면 — 던지는 일정 줄 하나만(달력 줄이 '빠졌어요'로 같이 뜨지 않는다 — 재료를 담아서)",
+      answered.length === 1 && answered[0].key === 'throwPlan',
+      json(answered)
+    );
+    const full = fpOf({ today: null, calendar: [cal(2)], logs: [...MON, ...TUE] });
+    const legacy = { ...full } as Record<string, unknown>;
+    delete legacy.outingGuess;
+    const legacyRead = readPlanFingerprint(legacy);
+    check(
+      'P4 짐작 (바) 지문 읽기 — 저장했다 읽어도 글자까지 같고, 칸 없는 옛 지문은 읽히되 짐작 줄이 없고(둘 다 있을 때만), 모양이 틀리면 null',
+      json(readPlanFingerprint(JSON.parse(json(full)))) === json(full) &&
+        legacyRead != null &&
+        !('outingGuess' in legacyRead) &&
+        !diffFingerprintChanges(legacyRead, full).some(
+          (c) => c.key === 'outingGuess'
+        ) &&
+        readPlanFingerprint({ ...full, outingGuess: 'x' }) === null &&
+        readPlanFingerprint({
+          ...full,
+          outingGuess: { calendar: '1', estimate: [] },
+        }) === null &&
+        readPlanFingerprint({
+          ...full,
+          outingGuess: { calendar: null, estimate: [1, '2'] },
+        }) === null &&
+        readPlanFingerprint({ ...full, outingGuess: { calendar: null } }) === null,
+      json(full.outingGuess)
+    );
+    /*
+     * 판단 입력이 바뀌면 지문도 바뀐다(P2 규칙) — 기록이 같은 묶음(요일 무늬마다) 안에서 답 · 달력만 바꾼 사람들 중 outingOf 가 다른 두
+     * 사람은 지문을 견주면 바뀐 줄이 하나 이상 나와야 한다. outingOf 가 지문에 없는 칸을 읽게 되면 여기서 깨진다.
+     */
+    const ANSWERS = [null, '없음', '오늘 불펜', '2~3일 뒤', '내일 등판'];
+    const CALS: CalendarEventLike[][] = [
+      [],
+      [cal(0)],
+      [cal(1)],
+      [cal(2, '선발 등판')],
+      [cal(5)],
+      [cal(13)],
+      [cal(1, '경기 관람')],
+    ];
+    const LOG_SETS: GLog[][] = [[], MON, [...MON, ...TUE], SAT, games([7, 14])];
+    let pairs = 0;
+    const silent: string[] = [];
+    for (const logs of LOG_SETS) {
+      const rows = ANSWERS.flatMap((a) =>
+        CALS.map((c) => ({
+          tag: `${a ?? '안 적음'} · ${json(c)}`,
+          p: { today: a, calendar: c, logs },
+        }))
+      );
+      const outs = rows.map((r) => json(outingOf(gFacts(r.p))));
+      const fps = rows.map((r) => fpOf(r.p));
+      for (let i = 0; i < rows.length; i++)
+        for (let j = i + 1; j < rows.length; j++) {
+          if (outs[i] === outs[j]) continue;
+          pairs++;
+          if (diffFingerprintChanges(fps[i], fps[j]).length === 0)
+            silent.push(`${rows[i].tag} ↔ ${rows[j].tag}`);
+        }
+    }
+    check(
+      `P4 짐작 (바) 기록이 같은 묶음에서 등판이 다른 ${pairs}쌍 — 모두 지문 견주기에 바뀐 줄이 있다`,
+      pairs > 1000 && silent.length === 0,
+      silent.slice(0, 3).join(' / ')
+    );
+  }
+
+  /* ── (사) 결정성 · facts 를 안 바꿈 · 옛 facts ── */
+  {
+    const f = gFacts({
+      today: '오늘 불펜',
+      calendar: [cal(1)],
+      logs: [...MON, ...TUE],
+    });
+    const before = json(f);
+    const a = outingOf(f);
+    if (a.guess) a.guess.days = 99;
+    if (a.daysUntilNext) a.daysUntilNext.min = 99;
+    const b = outingOf(f);
+    check(
+      'P4 짐작 (사) 같은 facts 두 번 → 같은 값, 돌려받은 짐작 · 범위를 고쳐도 다음 값 · facts 가 안 바뀐다',
+      json(b) === json(outingOf(f)) &&
+        b.guess?.days === 1 &&
+        b.daysUntilNext?.min === 1 &&
+        json(f) === before,
+      json(b.guess)
+    );
+    const old = JSON.parse(
+      json(gFacts({ today: null, calendar: [cal(0)], logs: MON }))
+    ) as ReturnType<typeof buildFacts>;
+    delete (old.condition as Partial<typeof old.condition>).outingCalendar;
+    delete (old.patterns as Partial<typeof old.patterns>).gameDates;
+    const o = outingOf(old);
+    check(
+      'P4 짐작 (사) 옛 facts(두 칸 없음) — 짐작하지 않는다(모름) · 지문에 짐작 칸 없음',
+      o.nextSource === 'none' &&
+        o.guess === null &&
+        o.soft === false &&
+        !('outingGuess' in fingerprintOf(old)),
+      json(o.guess)
+    );
+  }
+
+  /* ── (아) 배선 · 소스 ── */
+  {
+    const strip = (p: string) =>
+      readFileSync(new URL(`../${p}`, import.meta.url), 'utf8')
+        .replace(/\/\*[\s\S]*?\*\//g, '')
+        .replace(/^\s*\/\/.*$/gm, '');
+    const gatherSrc = strip('lib/report/gather.ts');
+    check(
+      'P4 짐작 (아) gather.ts — recentRecords(cache) 인자는 글자만 셋, 달력은 내 userId 로만 읽고(관리자 공유 없음) buildFacts 에 calendarEvents 로 늘 넘긴다',
+      /cache\(async \(userId: string, sinceIso: string, asOf: string\)/.test(
+        gatherSrc
+      ) &&
+        /prisma\.calendarEvent\.findMany\(\{\s*where: \{\s*userId,/.test(gatherSrc) &&
+        !/role: 'ADMIN'/.test(gatherSrc) &&
+        /calendarEvents: events\.map\(/.test(gatherSrc) &&
+        /recentRecords\(user\.id, since\.toISOString\(\), todayKey\)/.test(gatherSrc)
+    );
+    const calSrc = strip('lib/calendar-event.ts');
+    const factsSrc = strip('lib/report/facts.ts');
+    check(
+      'P4 짐작 (아) 낱말 규칙은 lib/calendar-event.ts 한 곳(그 파일은 import 없음) · facts.ts 가 그것을 부른다',
+      !/^import /m.test(calSrc) &&
+        /import \{ isOutingTitle \} from '@\/lib\/calendar-event';/.test(factsSrc)
+    );
+    /* 짐작 칸을 읽는 곳은 facts(만듦) · outing(읽음) 둘뿐 — 지문은 outingGuessInputsOf 로, 나머지 독자는 outingOf 로 */
+    const readers: string[] = [];
+    const walk = (dir: string) => {
+      for (const entry of readdirSync(new URL(`../${dir}/`, import.meta.url), {
+        withFileTypes: true,
+      })) {
+        const rel = `${dir}/${entry.name}`;
+        if (entry.isDirectory()) walk(rel);
+        else if (
+          /\.tsx?$/.test(entry.name) &&
+          /outingCalendar|gameDates/.test(strip(rel))
+        )
+          readers.push(rel);
+      }
+    };
+    for (const dir of ['app', 'lib', 'components']) walk(dir);
+    check(
+      'P4 짐작 (아) 짐작의 두 칸(outingCalendar · gameDates)을 직접 읽는 파일은 facts.ts · outing.ts 둘뿐',
+      json(readers.sort()) === json(['lib/engine/outing.ts', 'lib/report/facts.ts']),
+      readers.join(' · ')
+    );
+    /* 회복 · 쉬기를 내는 독자(프로그램 · 영양 · 암케어)는 짐작을 안 읽는다 — 짐작 · 범위 칸을 직접 안 본다 */
+    const strict = [
+      'lib/program/program.ts',
+      'lib/program/load.ts',
+      'lib/nutrition/guide.ts',
+      'lib/armcare/routine.ts',
+    ];
+    const leaks = strict.filter((p) =>
+      /\.soft\b|nextSource|\.guess\b|daysUntilNext/.test(strip(p))
+    );
+    check(
+      `P4 짐작 (아) 회복 · 쉬기를 내는 독자(${strict.join(' · ')})는 짐작(soft · guess · 출처 · 범위)을 안 읽는다`,
+      leaks.length === 0,
+      leaks.join(' · ')
     );
   }
 }

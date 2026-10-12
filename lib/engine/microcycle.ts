@@ -14,11 +14,14 @@
  *                      급증(facts.condition.trainingEffort.spikeFlag — 7일 3개 이상 · 평균 +2)                       → 회복
  *   R3' claimedNoLog   어제 '오늘 등판'이라 답했는데 어제 투구 기록이 없다(outing.lastSource 'checkin-yesterday')       → 보조
  *   R4  outingTomorrow 다음 등판이 꼭 내일                                                                          → 보조
- *   R5  outingSoon     다음 등판 창의 끝이 3일 안(2~3일 뒤 · 어제 '2~3일 뒤'를 하루 당긴 1~2일 뒤) — 근력 날이되 무거운 하체는
- *                      안전 거르기가 뺀다(prescription.ts 2-2), 번갈아 예비 규칙에서는 상체 쪽                       → 근력
+ *   R4' softOutingNear 짐작한 다음 등판(달력 · 같은 요일, outing.soft — 커밋 G)이 오늘이나 내일 — 짐작이라 회복까지는 안 가고
+ *                      무게만 뺀다(사용자 결정: 짐작은 가볍게 하는 쪽에만)                                          → 보조
+ *   R5  outingSoon     다음 등판 창의 끝이 3일 안(2~3일 뒤 · 어제 '2~3일 뒤'를 하루 당긴 1~2일 뒤 · 짐작한 2~3일 뒤) — 근력
+ *                      날이되 무거운 하체는 안전 거르기가 뺀다(prescription.ts 2-2), 번갈아 예비 규칙에서는 상체 쪽   → 근력
  *   R6  outingFar      다음 등판 창의 끝이 없거나 3일 밖(4일 이상 뒤 · 어제 답을 당긴 3일 이상 뒤) — 무거운 하체를 들 수 있고,
- *                      창이 4일 이상 · 짐작 아닌 출처 · 어제 · 오늘 안 던졌으면 번갈아 예비 규칙에서 하체 쪽               → 근력
- *   R7  none           모름('없음' · '오늘 불펜' · 안 적음)                                                         → 지금처럼 번갈아
+ *                      창이 4일 이상 · 어제 · 오늘 안 던졌으면 번갈아 예비 규칙에서 하체 쪽. 짐작한 출처는 여기 오지 않는다 —
+ *                      무거운 쪽(하체 쪽)을 짐작으로 고르지 않게 R7 로 본다(설계 검토 G22)                         → 근력
+ *   R7  none           모름('없음' · '오늘 불펜' · 안 적음 · 짐작한 4일 이상 뒤)                                     → 지금처럼 번갈아
  * R2 를 R3 뒤에 두는 까닭: 둘 다 회복이라 날은 같고 글만 다르다. 오늘 등판인 날에 '내일부터 무게를 다시 올려요'(R2 글)라고 하면
  * 틀린 말이라(내일은 등판 다음 날) 오늘 등판의 글('무게는 모레부터')을 쓴다. R3' 를 R4 앞에 두는 까닭은 C6 결정 — 기록이 없는
  * 등판 다음 날을 먼저 말한다(둘 다 보조라 날은 같다).
@@ -61,6 +64,7 @@ export type DayRule =
   | 'moderateSpike'
   | 'claimedNoLog'
   | 'outingTomorrow'
+  | 'softOutingNear'
   | 'outingSoon'
   | 'outingFar'
   | 'none';
@@ -75,6 +79,7 @@ export const DAY_RULE_RANK: Record<DayRule, DayRank> = {
   moderateSpike: 'recovery',
   claimedNoLog: 'light',
   outingTomorrow: 'light',
+  softOutingNear: 'light',
   outingSoon: 'strength',
   outingFar: 'strength',
   none: 'none',
@@ -143,11 +148,14 @@ export function dayKindOf(facts: ReportFacts): DayKind {
             ? 'claimedNoLog'
             : outing.nextDay === 1
               ? 'outingTomorrow'
-              : soon
-                ? 'outingSoon'
-                : w != null
-                  ? 'outingFar'
-                  : 'none';
+              : /* 짐작한 오늘 · 내일 — nextDay 가 비어 있어(outing.ts) 위 R3 · R4 에 안 걸리고 여기서 보조로 */
+                outing.soft && w != null && w.max != null && w.max <= 1
+                ? 'softOutingNear'
+                : soon
+                  ? 'outingSoon'
+                  : w != null && !outing.soft
+                    ? 'outingFar'
+                    : 'none';
 
   /* 등판에서 먼 날 — 짐작한 출처(달력 · 같은 요일)는 무거운 쪽을 허락하지 않는다(outing.ts soft) */
   const farFromOuting =

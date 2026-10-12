@@ -36,6 +36,7 @@ import {
   buildFacts,
   HARD_OUTING_MIN_LOAD,
   NEAR_MAX_EFFORT_PCT,
+  type CalendarEventLike,
   type CheckinLike,
 } from '../lib/report/facts.ts';
 import { buildPitchPlan, YOUTH_AGE_THRESHOLD } from '../lib/report/plan.ts';
@@ -687,6 +688,11 @@ type Variant = {
    * '마침' 뒤 칩) 기본은 칸이 없다 — ⑮ 가 '최근 운동이 힘들었던 사람'을 이 변형으로 잰다(2판 P4 커밋 E).
    */
   trainingNotes?: TrainingNoteLike[];
+  /**
+   * 홈 캘린더 일정(2판 P4 커밋 G) — 주면(빈 목록이어도) buildFacts 에 넘겨 다음 등판 짐작의 두 칸(달력 · 같은 요일 경기 날짜)이 생긴다. 대본의
+   * 기본 날은 넘기지 않는다(그래서 12명 · 336 일정은 커밋 G 전과 글자까지 같다) — ⑯ 이 '달력에 경기' · '같은 요일 짐작' 변형으로 잰다.
+   */
+  calendarEvents?: CalendarEventLike[];
 };
 
 let buildCalls = 0;
@@ -716,6 +722,7 @@ function factsFor(p: Player, i: number, st: State, v: Variant = {}) {
     checkins,
     memos: [],
     ...(v.trainingNotes ? { trainingNotes: v.trainingNotes } : {}),
+    ...(v.calendarEvents ? { calendarEvents: v.calendarEvents } : {}),
   });
 }
 
@@ -886,6 +893,20 @@ type DayRecord = {
    * 강도가 중간(1,350~2,699)인 날만 회복으로 바뀌어야 하고(R2), 그 밖의 날은 그대로여야 한다. 체크인 없는 날은 칸이 없다.
    */
   spikeTheme?: ThemeKey | null;
+  /**
+   * ⑯ 다음 등판 짐작(2판 P4 커밋 G) — 체크인 있고 앞 14일에 경기가 있는 날, 등판 답을 모두 지운 세 변형: 그대로(cleared — 답을 안 적는 사람),
+   * 달력에 다음 경기 하나('리그 경기')를 적음(calendar), 달력은 비우고 같은 요일 짐작만 켬(estimate). 테마와 무거운 하체 수, 같은 요일
+   * 짐작이 선 날수(안 섰으면 null). 멈춘 변형은 테마 · 수가 null. 그런 날이 아니면 칸이 없다.
+   */
+  calendarGuess?: {
+    cleared: ThemeKey | null;
+    calendar: ThemeKey | null;
+    estimate: ThemeKey | null;
+    heavyCleared: number | null;
+    heavyCalendar: number | null;
+    heavyEstimate: number | null;
+    estimateDays: number | null;
+  };
   age15vs22Differs: boolean;
   age14vs22Differs: boolean;
   /** 어제 던진 것(대본) */
@@ -1015,6 +1036,41 @@ for (const p of PLAYERS) {
       ? themeOf(buildDay(p, i, st, { trainingNotes: spikeNotes }))
       : undefined;
 
+    /*
+     * ⑯ 다음 등판 짐작(2판 P4 커밋 G) — 체크인 있고 앞 14일에 경기가 있는 날, 등판 답을 모두 지운 사람(답을 안 적는 사람)에게 달력에 다음
+     * 경기 하나를 적어 주면 · 같은 요일 짐작만 켜면 무엇이 나오나. 짐작은 가볍게 하는 쪽에만 — D0 · D−1 은 근력이 보조로, D−2~3 은 무거운
+     * 하체가 빠지고, 회복은 늘지 않으며, D−4 이상은 그대로여야 한다. 같은 요일 짐작은 대본 앞 14일 기록(PREHISTORY_DAYS)과 그 뒤 기록으로
+     * 선다 — 같은 요일에 경기가 이어지는 선수에게만.
+     */
+    const nextGameDays = daysToNextGame(p.role, i);
+    let calendarGuess: DayRecord['calendarGuess'];
+    if (hasCheckin && nextGameDays != null) {
+      const heavyOf = (plan: DailyPlan | null) =>
+        plan
+          ? plan.picks.filter((k) => {
+              const ex = byId.get(k.exerciseId);
+              return ex != null && isHeavyLower(ex);
+            }).length
+          : null;
+      const cleared = buildDay(p, i, st, { clearThrowPlans: true });
+      const withCalendar = buildDay(p, i, st, {
+        clearThrowPlans: true,
+        calendarEvents: [{ date: keyOf(i + nextGameDays), title: '리그 경기' }],
+      });
+      const estimateVariant: Variant = { clearThrowPlans: true, calendarEvents: [] };
+      const withEstimate = buildDay(p, i, st, estimateVariant);
+      const guess = dayKindOf(factsFor(p, i, st, estimateVariant)).outing.guess;
+      calendarGuess = {
+        cleared: themeOf(cleared),
+        calendar: themeOf(withCalendar),
+        estimate: themeOf(withEstimate),
+        heavyCleared: heavyOf(cleared),
+        heavyCalendar: heavyOf(withCalendar),
+        heavyEstimate: heavyOf(withEstimate),
+        estimateDays: guess?.source === 'estimate' ? guess.days : null,
+      };
+    }
+
     const ids = base.picks.map((k) => k.exerciseId);
     days.push({
       date: keyOf(i),
@@ -1041,6 +1097,7 @@ for (const p of PLAYERS) {
       dayRule: dk.rule,
       shorten: dk.shorten && base.theme.key !== 'recovery',
       ...(spikeTheme !== undefined ? { spikeTheme } : {}),
+      ...(calendarGuess ? { calendarGuess } : {}),
       age15vs22Differs: differs(at15, at22),
       age14vs22Differs: differs(at14, at22),
       yesterday,
@@ -1628,6 +1685,66 @@ const dayKind = {
   },
 };
 
+/*
+ * ⑯ 다음 등판 짐작(2판 P4 커밋 G) — 체크인 있고 앞 14일에 경기가 있는 날을 대본의 진짜 다음 경기(nextGame)로 가르고, 답을 지운 날 → 달력에
+ * 경기를 적은 변형 · 같은 요일 짐작만 켠 변형의 테마 · 무거운 하체를 센다. 같은 요일 짐작은 선 날 · 맞은 날(짐작한 날 = 실제 다음 경기)도.
+ */
+const GUESS_WINDOWS = HEAVY_WINDOWS.filter((w) => w.key !== 'none');
+const guessRows = allDays.filter((d) => d.calendarGuess !== undefined);
+type GuessPick = 'cleared' | 'calendar' | 'estimate';
+const guessThemes = (list: DayRecord[], key: GuessPick) =>
+  countBy(list, (d) => d.calendarGuess![key] ?? '멈춤');
+const heavyDaysOf = (
+  list: DayRecord[],
+  key: 'heavyCleared' | 'heavyCalendar' | 'heavyEstimate'
+) => list.filter((d) => (d.calendarGuess![key] ?? 0) > 0).length;
+const calendarGuess = {
+  byDay: GUESS_WINDOWS.map((w) => {
+    const rows = guessRows.filter((d) => w.pick(d.nextGame));
+    return {
+      window: w.key,
+      label: w.label,
+      days: rows.length,
+      themes: {
+        cleared: guessThemes(rows, 'cleared'),
+        calendar: guessThemes(rows, 'calendar'),
+        estimate: guessThemes(rows, 'estimate'),
+      },
+      heavyDays: {
+        cleared: heavyDaysOf(rows, 'heavyCleared'),
+        calendar: heavyDaysOf(rows, 'heavyCalendar'),
+        estimate: heavyDaysOf(rows, 'heavyEstimate'),
+      },
+    };
+  }),
+  /* 짐작은 회복을 늘리지 않는다 — 답을 지운 날이 회복이 아닌데 짐작 변형이 회복인 날(0 이어야 한다) */
+  newRecovery: {
+    calendar: guessRows.filter(
+      (d) =>
+        d.calendarGuess!.cleared !== 'recovery' &&
+        d.calendarGuess!.calendar === 'recovery'
+    ).length,
+    estimate: guessRows.filter(
+      (d) =>
+        d.calendarGuess!.cleared !== 'recovery' &&
+        d.calendarGuess!.estimate === 'recovery'
+    ).length,
+  },
+  estimate: {
+    days: guessRows.length,
+    guessed: guessRows.filter((d) => d.calendarGuess!.estimateDays != null).length,
+    hit: guessRows.filter(
+      (d) =>
+        d.calendarGuess!.estimateDays != null &&
+        d.calendarGuess!.estimateDays === d.nextGame
+    ).length,
+    byPlayer: countBy(
+      guessRows.filter((d) => d.calendarGuess!.estimateDays != null),
+      (d) => results.find((r) => r.days.includes(d))!.player.name
+    ),
+  },
+};
+
 /* 컨디션 늘 낮음 · 맨몸 늘 마침 — 검토안의 두 줄과 견줄 선수 */
 const lowConditionRows = summaries.filter(
   (s) => PLAYERS.find((p) => p.name === s.name)!.condition === 'low'
@@ -1990,6 +2107,25 @@ out.push(
         '  같은 변형 — 그 밖의 날(어제 안 던짐 · 가볍게 · 세게) 테마가 바뀐 날(0 이어야 한다)',
         pct(dayKind.moderateSpike.otherChanged, dayKind.moderateSpike.otherDays),
       ],
+      ...calendarGuess.byDay.map((r): (string | number | null)[] => [
+        '⑯',
+        `다음 등판 짐작(2판 P4) — ${r.label}, 체크인 있는 ${r.days}일에 등판 답을 지움 → 달력에 경기를 적음 · 같은 요일 짐작만: 테마 / 무거운 하체 든 날`,
+        `${themeText(r.themes.cleared)} → 달력 ${themeText(r.themes.calendar)} · 짐작 ${themeText(r.themes.estimate)} / ${r.heavyDays.cleared} → ${r.heavyDays.calendar} · ${r.heavyDays.estimate}`,
+      ]),
+      [
+        '⑯',
+        '  짐작으로 새로 회복이 된 날(0 이어야 한다 — 가볍게 하는 쪽은 보조까지) · 달력 · 같은 요일',
+        `${calendarGuess.newRecovery.calendar} · ${calendarGuess.newRecovery.estimate}`,
+      ],
+      [
+        '⑯',
+        '  같은 요일 짐작이 선 날 · 그중 짐작한 날 = 실제 다음 경기 · 선수별',
+        `${pct(calendarGuess.estimate.guessed, calendarGuess.estimate.days)} · 맞음 ${pct(calendarGuess.estimate.hit, calendarGuess.estimate.guessed)} · ${
+          Object.entries(calendarGuess.estimate.byPlayer)
+            .map(([k, v]) => `${k} ${v}`)
+            .join(' · ') || '없음'
+        }`,
+      ],
     ]
   )
 );
@@ -2166,8 +2302,10 @@ const json = {
    *     4 와 견줄 때는 이 칸을 뺀다.
    * 6 = 2판 P4 커밋 E: 날마다 dayRule · shorten · spikeTheme, metrics.dayKind(⑮ 날 종류 · 힘듦 급증 변형)를 더했다(buildCalls 는 체크인
    *     있는 날만큼 는다). 5 와 견줄 때는 이 칸을 뺀다.
+   * 7 = 2판 P4 커밋 G: 체크인 있고 앞 14일에 경기가 있는 날마다 calendarGuess, metrics.calendarGuess(⑯ 다음 등판 짐작 — 달력 · 같은 요일
+   *     변형)를 더했다(buildCalls 는 그런 날마다 셋 는다). 6 과 견줄 때는 이 칸 · buildCalls 를 뺀다 — 나머지는 글자까지 같다.
    */
-  version: 6,
+  version: 7,
   /* 돌릴 때마다 바뀌는 것은 이 칸뿐 — 단계 전후를 diff 로 견줄 때는 meta 를 빼고 본다 */
   meta: { generatedAt: new Date().toISOString(), elapsedMs },
   startKey: START_KEY,
@@ -2200,6 +2338,7 @@ const json = {
       dayRule: d.dayRule,
       shorten: d.shorten,
       spikeTheme: d.spikeTheme,
+      calendarGuess: d.calendarGuess,
       yesterday: d.yesterday,
       today: d.today,
       ids: d.ids,
@@ -2278,6 +2417,7 @@ const json = {
     armSevere,
     heavyLowerBeforeGame,
     dayKind,
+    calendarGuess,
     loadDistribution: { scripted: scriptedDistribution, real: realDistribution },
   },
   comparison,

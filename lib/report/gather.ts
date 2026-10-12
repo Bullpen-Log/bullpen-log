@@ -6,7 +6,12 @@ import { strengthDatesFrom, type StrengthDates } from '@/lib/report/daily-plan';
 import { SWAP_LOOKBACK_DAYS, swappedOutCounts } from '@/lib/report/plan-swaps';
 import { ageFromBirthDate } from '@/lib/profile';
 import { estimateDailyLoad } from '@/lib/baseline';
-import { buildFacts, type CheckinLike, type MemoNote } from '@/lib/report/facts';
+import {
+  OUTING_CALENDAR_DAYS,
+  buildFacts,
+  type CheckinLike,
+  type MemoNote,
+} from '@/lib/report/facts';
 import { buildPitchPlan } from '@/lib/report/plan';
 import { pickArmPain, pickCheckinParts } from '@/lib/checkin';
 import { buildDayState } from '@/lib/engine/day-state';
@@ -32,8 +37,13 @@ export const LOOKBACK_DAYS = 45;
  * 화면을 조각내 따로 그리기 시작하면 이 자리가 더 중요해진다 — 조각마다
  * 제 자료를 부르는데, 그때마다 DB 를 가면 쪼갠 만큼 느려진다.
  */
-const recentRecords = cache(async (userId: string, sinceIso: string) => {
+const recentRecords = cache(async (userId: string, sinceIso: string, asOf: string) => {
   const since = new Date(sinceIso);
+  /* 달력은 오늘(asOf — 'YYYY-MM-DD')부터 OUTING_CALENDAR_DAYS 일 뒤까지 — @db.Date 칸이라 그날 0시(UTC)로 견준다 */
+  const calendarFrom = new Date(`${asOf}T00:00:00.000Z`);
+  const calendarTo = new Date(
+    `${shiftDateKey(asOf, OUTING_CALENDAR_DAYS)}T00:00:00.000Z`
+  );
   return Promise.all([
     prisma.pitchLog.findMany({
       where: { userId, date: { gte: since } },
@@ -50,6 +60,16 @@ const recentRecords = cache(async (userId: string, sinceIso: string) => {
     prisma.dailyTrainingNote.findMany({
       where: { userId, date: { gte: since } },
       select: { date: true, intensity: true },
+      orderBy: { date: 'asc' },
+    }),
+    /*
+     * 홈 캘린더의 내 일정 — 오늘부터 OUTING_CALENDAR_DAYS 일(2판 P4 커밋 G, 다음 등판 짐작의 재료 facts.condition.outingCalendar). 날짜 ·
+     * 이름만. 내 것만 읽는다 — 홈 캘린더는 관리자끼리 서로의 일정도 보여 주지만(app/(app)/today/page.tsx), 남의 경기로 내 운동을 바꾸면
+     * 안 된다. 등판으로 읽는 이름인지는 buildFacts 가 가린다(lib/calendar-event.ts isOutingTitle).
+     */
+    prisma.calendarEvent.findMany({
+      where: { userId, date: { gte: calendarFrom, lte: calendarTo } },
+      select: { date: true, title: true },
       orderBy: { date: 'asc' },
     }),
   ]);
@@ -89,17 +109,17 @@ export async function gatherFactsAndPlan(
 ) {
   const since = new Date(today);
   since.setDate(since.getDate() - LOOKBACK_DAYS);
+  const todayKey = toDateKey(today);
 
   /*
    * 진행 중인 재활(재활 2편) — 투구 계획이 멈추고 웨이트가 그 관절의 무거운 운동을 뺀다(facts.condition.rehab).
    * 스위치(REHAB_ENABLED)를 끄면 읽지 않아 null 이다.
    */
-  const [[logs, checkins, notes], rehab] = await Promise.all([
-    recentRecords(user.id, since.toISOString()),
+  const [[logs, checkins, notes, events], rehab] = await Promise.all([
+    recentRecords(user.id, since.toISOString(), todayKey),
     loadRehabFacts(user.id, today),
   ]);
 
-  const todayKey = toDateKey(today);
   const usedLogs = options?.excludeToday
     ? logs.filter((l) => toDateKey(l.date) !== todayKey)
     : logs;
@@ -151,6 +171,14 @@ export async function gatherFactsAndPlan(
     trainingNotes: usedNotes.map((n) => ({
       date: n.date.toISOString().slice(0, 10),
       intensity: n.intensity,
+    })),
+    /*
+     * 달력 일정(2판 P4 커밋 G) — 늘 넘긴다(없으면 빈 목록). 넘기면 facts 가 다음 등판 짐작의 두 칸(달력 · 같은 요일 경기 날짜)을 만든다.
+     * 날짜는 다른 칸과 같은 방식(앞 10자리). excludeToday 와 상관없다 — 일정은 앞날이고, 같은 요일 경기 날짜는 어제까지만 본다.
+     */
+    calendarEvents: events.map((e) => ({
+      date: e.date.toISOString().slice(0, 10),
+      title: e.title,
     })),
     today,
   });

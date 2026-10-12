@@ -133,3 +133,29 @@ export function timeLabel(time: string | null) {
   const h12 = h % 12 === 0 ? 12 : h % 12;
   return `${half} ${h12}:${String(m).padStart(2, '0')}`;
 }
+
+/**
+ * 등판으로 읽는 일정 이름의 낱말 — 트레이닝 추천 2판 P4 커밋 G(2026-10-12, docs/designs/training-recommendation-engine.md).
+ *
+ * 왜 두는가. 다음 등판을 체크인 답(lib/checkin.ts THROW_PLANS)으로만 알면, 답을 안 적는 날에는 경기 아침에도 무거운 근력이 나온다
+ * (기준선 ⑤ '답을 지운 경기 아침'). 홈 캘린더에 '토요일 경기' · '선발 등판'을 적어 두는 사람이 있으니, 그 이름으로 다음 등판을
+ * 짐작한다. 짐작이라 매일 일정을 가볍게 하는 쪽(무거운 하체 빼기 · 보조 날)에만 쓰고, 회복으로 보내거나 무거운 쪽을 허락하는 데는
+ * 쓰지 않는다(lib/engine/outing.ts 의 soft).
+ *
+ * 낱말은 셋(경기 · 등판 · 선발)이고, 남의 경기를 보러 가는 일정(관람 · 응원)은 뺀다. 이름 어디에 있어도 된다('주말 리그 경기' ·
+ * '선발 등판 2차전'). 알고 둔 빈틈: '경기도 원정'처럼 땅이름의 '경기'도 걸린다 — 걸려도 그날을 가볍게 할 뿐이라(무겁게는 안 만든다)
+ * 낱말을 늘리거나 빼기 전에 실제 이름을 보고 정한다. '시합' · '대회'도 아직 안 넣었다(사용자 결정 전).
+ */
+export const OUTING_TITLE_WORDS = ['경기', '등판', '선발'] as const;
+export const OUTING_TITLE_EXCLUDE_WORDS = ['관람', '응원'] as const;
+
+/** 등판으로 읽는 일정 이름인가 — 낱말 하나라도 있고 빼는 낱말은 없음. 글자가 아니거나 빈 이름은 아니다 */
+export function isOutingTitle(title: unknown): boolean {
+  if (typeof title !== 'string') return false;
+  const t = title.trim();
+  if (!t) return false;
+  return (
+    OUTING_TITLE_WORDS.some((w) => t.includes(w)) &&
+    !OUTING_TITLE_EXCLUDE_WORDS.some((w) => t.includes(w))
+  );
+}
