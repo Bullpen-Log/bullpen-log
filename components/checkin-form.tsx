@@ -452,19 +452,26 @@ function YesterdayOutingRow({
   date,
   defaultPitches,
   defaultEffort,
+  defaultNoThrow = false,
 }: {
   /** 어제(YYYY-MM-DD) — 화면 시계 기준 오늘의 하루 전 */
   date: string;
   defaultPitches?: string;
   defaultEffort?: string;
+  defaultNoThrow?: boolean;
 }) {
   const [pitches, setPitches] = useState(defaultPitches ?? '');
   const [effort, setEffort] = useState<number | null>(() => {
     const n = defaultEffort ? Number(defaultEffort) : Number.NaN;
     return Number.isFinite(n) ? n : null;
   });
+  /*
+   * '안 던졌어요' — 고르면 어제를 쉰 날로 남긴다(lib/outing-line.ts readYesterdayOuting, 2판 P4 검토). 예전 안내는 '안 던졌으면 비워 두세요'
+   * 였는데 비우면 엔진이 계속 '기록 없는 등판'으로 읽어 다음 날까지 보조 날 · 프로그램 쉬기 · 암케어 회복이 남았다. 투구수와 같이 못 고른다.
+   */
+  const [noThrow, setNoThrow] = useState(defaultNoThrow);
   const effortId = useId();
-  const filled = pitches.trim() !== '';
+  const filled = !noThrow && pitches.trim() !== '';
   return (
     <div className="space-y-2">
       <Row label="어제 등판" aside="기록 없음">
@@ -475,14 +482,33 @@ function YesterdayOutingRow({
           aria-label="어제 던진 공 수"
           min={1}
           step={1}
-          value={pitches}
+          value={noThrow ? '' : pitches}
+          disabled={noThrow}
           onChange={(e) => setPitches(e.target.value)}
           placeholder="몇 구"
-          className={numberInput}
+          className={`${numberInput} disabled:opacity-50`}
         />
         <span className="text-xs text-muted">구</span>
+        <label className={CHIP_TALL}>
+          <input
+            type="checkbox"
+            name="yesterdayNoThrow"
+            value="1"
+            checked={noThrow}
+            onChange={(e) => {
+              setNoThrow(e.target.checked);
+              if (e.target.checked) setPitches('');
+            }}
+            className="peer sr-only"
+          />
+          <span
+            className={`${chipBase} peer-checked:border-sky peer-checked:bg-sky/10 peer-checked:font-medium peer-checked:text-sky peer-focus-visible:ring-1 peer-focus-visible:ring-sky`}
+          >
+            안 던졌어요
+          </span>
+        </label>
         <span className="ml-1 self-center text-xs leading-relaxed break-keep text-muted">
-          적으면 투구 기록에 남아요 · 안 던졌으면 비워 두세요
+          {noThrow ? '어제는 쉰 날로 남아요' : '적으면 투구 기록에 남아요'}
         </span>
       </Row>
       {/* 투구수를 적어야 펴진다 — 간편 체크인을 한 줄도 늘리지 않게. 넓은 화면은 칸 이름(w-28 + 틈) 만큼 들여 칩이 입력 칸 밑에 선다 */}
@@ -653,6 +679,7 @@ async function logYesterdayOuting(
     date: formData.get('yesterdayDate'),
     pitches: formData.get('yesterdayPitches'),
     effort: formData.get('yesterdayEffort'),
+    noThrow: formData.get('yesterdayNoThrow'),
   });
   if (read == null) return { logged: alreadyLogged ?? null };
   if ('error' in read) return read;
@@ -1253,6 +1280,9 @@ export function CheckinForm({
                   date={yesterdayKey}
                   defaultPitches={before ? kept(before, 'yesterdayPitches') : undefined}
                   defaultEffort={before ? kept(before, 'yesterdayEffort') : undefined}
+                  defaultNoThrow={
+                    before ? kept(before, 'yesterdayNoThrow') === '1' : false
+                  }
                 />
               )}
 

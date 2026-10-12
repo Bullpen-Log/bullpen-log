@@ -117,6 +117,7 @@ import {
 } from '../lib/report/plan.ts';
 import {
   HEAVY_LOWER_BLOCK_WITHIN_DAYS,
+  droppedOnlyForArmFatigue,
   painEasingParts,
   painPartsToday,
   painStateUnknown,
@@ -170,6 +171,7 @@ import {
 import { orderSession, orderWithinSlot } from '../lib/report/exercise-order.ts';
 import {
   YESTERDAY_OUTING_SESSION,
+  YESTERDAY_REST_SESSION,
   asksYesterdayPitches,
   outingLineOf,
   readYesterdayOuting,
@@ -398,9 +400,15 @@ import {
 import {
   CAUTION_TEXT,
   REST_TEXT,
+  REST_YESTERDAY_TEXT,
+  SUBSTITUTE_REASON,
+  dayPlan as programDayPlan,
   decideToday,
+  painSlotsOf,
   parseProgram,
+  pickPinned,
   programSignalsOf,
+  restTextOf,
   type ProgramSignals,
   type TodaySignals,
 } from '../lib/program/program.ts';
@@ -8122,6 +8130,12 @@ console.log(
    */
   const program531 = parseProgram('531');
   check("엇갈림 표 — 프로그램 '531'(주 3번)을 읽을 수 있다", program531 != null);
+  /* 고정 운동 — 장비를 다 가진 사람이 시작할 때 고르는 것(P4 검토 — 대체 칸을 앱과 같은 길로 재려고) */
+  const programPinned = pickPinned(
+    library,
+    [...new Set(library.flatMap((e) => e.equipment))],
+    null
+  );
   type FiveReaders = {
     theme: string;
     pitchPlan: string;
@@ -8243,6 +8257,24 @@ console.log(
     const today = facts.condition.today;
     const zone = facts.load.zone;
     /*
+     * 그날 대체할 칸 — 앱(lib/program/load.ts)과 같은 길(P4 검토로 바뀜, 2026-10-12): 부위 규칙만으로 거른 후보(partsOnly) 밖의 고정 운동 칸,
+     * 까닭은 팔 피로만으로 빠졌으면 '팔 피로'(painSlotsOf). 예전에는 painSlots 를 [] 로 두어 앱과 다른 모양을 쟀다(C5 의 대체가 안 보였다).
+     * 고정 운동은 장비를 다 가진 사람이 처음 고르는 것(pickPinned — 앱이 시작할 때 고르는 규칙 그대로).
+     */
+    const programSafeInput = { facts, plan, library, partsOnly: true };
+    const programSafeIds = new Set(
+      selectCandidates(programSafeInput).candidates.map((e) => e.id)
+    );
+    const programSlots =
+      program531 == null
+        ? { painSlots: [], slotReasons: {} }
+        : painSlotsOf(
+            programDayPlan(program531, 1).items,
+            (v) => (programPinned[v] ? { id: programPinned[v] } : null),
+            programSafeIds,
+            droppedOnlyForArmFatigue(programSafeInput)
+          );
+    /*
      * 프로그램을 못 읽었으면(키가 바뀜) 여기서 멈추지 않고 '프로그램을 못 읽음'으로 돌려준다 — 그러면 프로그램 칸의
      * 검사만 그 까닭으로 깨지고 나머지 네 독자의 검사는 그대로 본다. `program531!` 로 넘기면 decideToday 안에서
      * TypeError 로 스크립트가 통째로 죽어 뒤의 검사 결과를 못 본다.
@@ -8287,15 +8319,27 @@ console.log(
             uncertain:
               painRecoveryReason(facts, plan) != null ||
               (zone == null && facts.patterns.lastThrowDate != null),
-            painSlots: [],
+            painSlots: programSlots.painSlots,
+            slotReasons: programSlots.slotReasons,
           });
+    /* 하는 날에 칸을 대체하면 그 까닭을 붙인다(P4 검토 — 'go+대체:팔 피로'). 대체가 없으면 예전 글자 그대로 */
+    const substituted =
+      decision?.kind === 'go'
+        ? [
+            ...new Set(
+              Object.values(decision.adjust).flatMap((a) =>
+                a?.kind === 'substitute' ? [a.reason] : []
+              )
+            ),
+          ].sort()
+        : [];
     const program =
       decision == null
         ? '프로그램을 못 읽음'
         : decision.kind === 'rest'
           ? `rest:${decision.reason}`
           : decision.kind === 'go'
-            ? `go${decision.caution ? `:${decision.caution}` : ''}`
+            ? `go${decision.caution ? `:${decision.caution}` : ''}${substituted.length ? `+대체:${substituted.join(',')}` : ''}`
             : decision.kind;
     const safety = picked.candidates.some((e) => narrowHeavyPush(e) || narrowArmPlyo(e))
       ? 'heavyArm'
@@ -10080,9 +10124,14 @@ console.log(
     cs.map((c) => c.text).join(' / ');
 
   /* ─── (a) 칸 목록 · 결정성 · 왕복 ─── */
+  /*
+   * P4 검토로 바뀜(2026-10-12) — 왜: 등판을 읽는 함수가 어제 기록 유무(facts.patterns.loggedYesterday — 쉰 날 줄까지)를 읽게 돼, 같은 커밋에서
+   * 지문에 바깥 선택 칸 loggedYesterday 를 더했다(판단이 읽는 칸 = 지문 칸). 지금의 buildFacts 는 이 칸을 늘 만드니 늘 있는 칸 뒤에 붙는다.
+   */
   check(
-    'P2 (지문) 칸 목록이 고정 목록(FINGERPRINT_KEYS)과 순서까지 같다 — 판단이 facts 의 새 칸을 읽으면 둘 다 고친다',
-    JSON.stringify(Object.keys(fpBase)) === JSON.stringify(FINGERPRINT_KEYS),
+    'P2 (지문) 칸 목록이 고정 목록(FINGERPRINT_KEYS)과 순서까지 같다 — 판단이 facts 의 새 칸을 읽으면 둘 다 고친다(P4 검토 뒤 + loggedYesterday)',
+    JSON.stringify(Object.keys(fpBase)) ===
+      JSON.stringify([...FINGERPRINT_KEYS, 'loggedYesterday']),
     Object.keys(fpBase).join(',')
   );
   check(
@@ -10754,10 +10803,12 @@ console.log(
    * 일정 지문에 effortSpike 선택 칸을 더했다(판단이 읽는 칸 = 지문 칸). 칸이 있는 facts 의 지문은 그 칸 하나만 더 붙고, 칸이 없는
    * facts(none)의 지문은 예전과 글자까지 같다. 투구 계획 · 후보 거르기는 여전히 안 읽는다(아래 둘 그대로).
    */
+  /* P4 검토로 바뀜 — 바깥 칸 loggedYesterday 가 effortSpike 뒤에 붙어(FINGERPRINT_OPTIONAL_KEYS 차례) 그 칸을 떼고 견준다 */
+  const { loggedYesterday: noneLogged, ...noneFp } = fingerprintOf(none);
   check(
     'P2 (안 읽음 → P4 로 바뀜) 급증 깃발이 켜지면 일정 지문에 effortSpike: true 한 칸만 더 붙는다(칸 없는 facts 의 지문은 그대로)',
     JSON.stringify(fingerprintOf(spiked)) ===
-      JSON.stringify({ ...fingerprintOf(none), effortSpike: true }) &&
+      JSON.stringify({ ...noneFp, effortSpike: true, loggedYesterday: noneLogged }) &&
       !('effortSpike' in fingerprintOf(none))
   );
   check(
@@ -13372,11 +13423,19 @@ console.log(
            */
           if (yesterdayArmLoadOf(facts)?.kind === 'claimedNoLog') {
             claimedArm++;
-            const okClaimed = plan.halted
-              ? json(armNoState) === json(armOld)
-              : armNoState.kind === 'recovery' &&
-                armNoState.reason.startsWith('어제 등판') &&
-                !armOld.reason.includes('어제 등판');
+            /*
+             * P4 검토로 바뀜 — 왜: 오늘 기록이 있어도 어제 줄이 없으면 기록 없는 등판이다(claimedYesterdayNoLog). 그날은 '오늘 N구'가 먼저라
+             * (회복 까닭 맨 앞) 답을 지운 옛 길과 같다 — 오늘 던진 날도 통증 멈춤처럼 그대로인지 본다.
+             */
+            const threwTodayLog =
+              (facts.patterns.lastOutingPitches ?? 0) > 0 &&
+              facts.patterns.restDays === 0;
+            const okClaimed =
+              plan.halted || threwTodayLog
+                ? json(armNoState) === json(armOld)
+                : armNoState.kind === 'recovery' &&
+                  armNoState.reason.startsWith('어제 등판') &&
+                  !armOld.reason.includes('어제 등판');
             if (!okClaimed) miss.armOld.push(`${name}(기록 없는 등판)`);
           } else if (json(armNoState) !== json(armOld)) miss.armOld.push(name);
           if (role !== 'game' && json(armWithState) !== json(armNoState))
@@ -13879,7 +13938,13 @@ console.log(
      */
     !/dailyCheckin/.test(loadSrc) &&
       /programSignalsOf\(\{\s*outing: core\.state\.outing/.test(loadSrc) &&
-      /yesterdayArmLoad: yesterdayArmLoadOf\(facts\)/.test(loadSrc) &&
+      /*
+       * P4 검토로 바뀜 — 왜: 쉬는 까닭 글(restTextOf)도 어제 팔 부담의 까닭을 읽어, 한 번 꺼내 이름(yesterdayArm)에 담고 두 곳이 같이 쓴다.
+       * 꺼내는 곳은 여전히 하나(yesterdayArmLoadOf(facts) 한 번)인지 본다.
+       */
+      /const yesterdayArm = yesterdayArmLoadOf\(facts\);/.test(loadSrc) &&
+      loadSrc.split('yesterdayArmLoadOf(').length === 2 &&
+      /yesterdayArmLoad: yesterdayArm,/.test(loadSrc) &&
       !/typesYesterday|in: \[today, yesterday\]/.test(loadSrc) &&
       /hardThrowRecent: core\.state\.load\.hardOutingRecent/.test(loadSrc)
   );
@@ -14532,17 +14597,25 @@ console.log(
     (e) => e.movementPattern != null && LOWER_POWER_PATTERNS.includes(e.movementPattern)
   );
   const titles = (list: typeof library) => list.map((e) => e.title).join(' · ');
+  /*
+   * P4 검토로 바뀜(2026-10-12) — 왜: 예전에는 실측 수(팔 플라이오 7 · 무거운 밀기 10)를 고정했다. 이 시험은 운영 DB 의 보이는 운동을
+   * 그대로 읽는데 운동 라이브러리는 두 사람이 거의 매일 고쳐(더하기 · 지우기 · 이름 바꾸기), 코드와 상관없이 운동 하나에 시험이 깨져
+   * 커밋이 막혔다. 수는 detail 로만 찍고 성질(있다 · 표 전부는 아니다 · 카테고리 · 겹침 없음)을 본다.
+   */
   check(
-    'P4 분류 (나) 실제 표 팔 플라이오 7개(2026-10-12 실측 — 라이브러리 파워를 더하거나 고쳤으면 이 수를 고친다) · 모두 파워',
-    armPlyo.length === 7 && armPlyo.every((e) => e.category === '파워'),
+    'P4 분류 (나) 실제 표 팔 플라이오 0 < n < 표 전체 · 모두 파워(수는 detail — 라이브러리가 바뀌어도 성질로 본다)',
+    armPlyo.length > 0 &&
+      armPlyo.length < library.length &&
+      armPlyo.every((e) => e.category === '파워'),
     `${armPlyo.length}개: ${titles(armPlyo)}`
   );
   check(
-    'P4 분류 (나) 실제 표 무거운 상체 밀기 10개(실측) · 모두 상체 스트렝스 · 상체 밀기의 전부는 아님(가벼운 밀기는 남는다)',
-    heavyPush.length === 10 &&
+    'P4 분류 (나) 실제 표 무거운 상체 밀기 0 < n · 모두 상체 스트렝스 · 상체 밀기의 전부는 아님(가벼운 밀기는 남는다) · 팔 플라이오와 겹침 0',
+    heavyPush.length > 0 &&
       heavyPush.every((e) => e.category === '상체 스트렝스') &&
       heavyPush.length <
-        inCat('상체 스트렝스').filter((e) => e.movementPattern === '밀기').length,
+        inCat('상체 스트렝스').filter((e) => e.movementPattern === '밀기').length &&
+      !heavyPush.some(isArmPlyo),
     `${heavyPush.length}개: ${titles(heavyPush)}`
   );
   check(
@@ -14562,7 +14635,10 @@ console.log(
     ),
     `무거운 하체 ${library.filter(isHeavyLower).length} · 팔 플라이오 ${armPlyo.length} · 무거운 밀기 ${heavyPush.length} / ${library.length}`
   );
-  /* 대표 운동 몇 개 — 이름은 바뀔 수 있어 몇 개만 둔다(없으면 그 이름이 바뀐 것) */
+  /*
+   * 대표 운동 몇 개 — 이름은 바뀔 수 있어 몇 개만 둔다. P4 검토로 바뀜: 라이브러리에 없는 이름은 건너뛰고 detail 에 적는다(예전에는 실패 —
+   * 이름 하나 바꾸면 커밋이 막혔다). 판정 자체는 위 (가) 가짜 운동 표가 지킨다.
+   */
   const SAMPLES: [string, [boolean, boolean, boolean]][] = [
     ['바벨 백 스쿼트', [true, false, false]],
     ['고블렛 스쿼트', [false, false, false]],
@@ -14572,16 +14648,22 @@ console.log(
     ['펜들레이 로우', [false, false, false]],
     ['톨닐링 메디신볼 체스트 패스', [false, true, false]],
   ];
+  const sampleMissing = SAMPLES.filter(
+    ([title]) => !library.some((x) => x.title === title)
+  ).map(([title]) => title);
   const sampleWrong = SAMPLES.flatMap(([title, want]) => {
     const e = library.find((x) => x.title === title);
-    if (!e) return [`${title}(라이브러리에 없음)`];
+    if (!e) return [];
     const got = [isHeavyLower(e), isArmPlyo(e), isHeavyUpperPush(e)];
     return got.every((g, i) => g === want[i]) ? [] : [`${title} ${got.join('/')}`];
   });
   check(
-    'P4 분류 (나) 대표 운동 — 바벨 백 스쿼트 · 박스 점프 = 무거운 하체, 벤치 프레스 = 무거운 밀기, 톨닐링 체스트 패스 = 팔 플라이오, 고블렛 스쿼트 · 푸시업 · 펜들레이 로우 = 셋 다 아님',
+    'P4 분류 (나) 대표 운동 — 바벨 백 스쿼트 · 박스 점프 = 무거운 하체, 벤치 프레스 = 무거운 밀기, 톨닐링 체스트 패스 = 팔 플라이오, 고블렛 스쿼트 · 푸시업 · 펜들레이 로우 = 셋 다 아님(라이브러리에 없는 이름은 건너뜀)',
     sampleWrong.length === 0,
-    sampleWrong.join(' · ')
+    [
+      ...sampleWrong,
+      ...(sampleMissing.length ? [`건너뜀: ${sampleMissing.join(' · ')}`] : []),
+    ].join(' · ')
   );
 
   /* ── (다) 하체날 구성과 같은 목록 · 순수 잎 파일 ── */
@@ -14932,7 +15014,16 @@ console.log(
       if (sorted(state.outing) !== sorted(want)) miss.push(`${p.tag}: 칸`);
       const legacy = legacyP3Outing(p.facts);
       const claim = state.why.includes('어제 등판했다고 적었는데 투구 기록은 없어요.');
-      if (claim !== (legacy.source === 'checkin'))
+      /*
+       * P4 검토로 바뀜 — 왜: 이 줄은 지난 등판(P3 식의 source)이 아니라 어제 기록 유무(claimedYesterdayNoLog)를 따른다. P3 식이 말하던 때는
+       * 모두 그대로 말하고(포함), 더 말하는 때는 오늘 기록이 있어 P3 식이 지웠던 날뿐이다.
+       */
+      const claimNow = outingOf(p.facts).claimedYesterdayNoLog;
+      if (
+        claim !== claimNow ||
+        (legacy.source === 'checkin' && !claimNow) ||
+        (claimNow && legacy.source !== 'checkin' && p.facts.patterns.restDays !== 0)
+      )
         miss.push(`${p.tag}: 기록 없는 등판 줄`);
       const viaYesterday = state.why.some((l) =>
         l.startsWith('어제 적은 답으로 보면 ')
@@ -15256,13 +15347,19 @@ console.log(
     sev.basis.includes("팔 피로 '심함' → 무거운 상체 밀기 · 팔 플라이오 제외"),
     sev.basis.join(' / ')
   );
-  /* 실제 표의 수 — 무거운 밀기 10 · 팔 플라이오 7 · 겹침 0(앞 '[2판 P4] 운동 분류' 절이 고정한 수와 같은 날 표) */
+  /*
+   * 실제 표에서 빠지는 것 — P4 검토로 바뀜: 예전에는 실측 수(10 + 7 = 17)를 고정해 운동 라이브러리가 바뀌면 깨졌다(앞 '[2판 P4] 운동 분류'
+   * 절과 같은 까닭). 이제 성질만: 두 갈래가 다 있고 겹치지 않으며, 빠진 수 = 무거운 밀기 + 팔 플라이오. 수는 detail 로.
+   */
+  const removedPush = removedSev.filter(isHeavyUpperPush).length;
+  const removedPlyo = removedSev.filter(isArmPlyo).length;
   check(
-    'P4 팔 피로 규칙 (가) 실제 표에서 빠지는 것은 무거운 상체 밀기 10 + 팔 플라이오 7 = 17개(겹침 0)',
-    removedSev.length === 17 &&
-      removedSev.filter(isHeavyUpperPush).length === 10 &&
-      removedSev.filter(isArmPlyo).length === 7,
-    `${removedSev.length} — ${removedSev.map((e) => e.title).join(', ')}`
+    'P4 팔 피로 규칙 (가) 실제 표에서 빠지는 것 = 무거운 상체 밀기 + 팔 플라이오(둘 다 하나 이상 · 겹침 0, 수는 detail)',
+    removedPush > 0 &&
+      removedPlyo > 0 &&
+      removedPush + removedPlyo === removedSev.length &&
+      !removedSev.some((e) => isHeavyUpperPush(e) && isArmPlyo(e)),
+    `${removedSev.length} = ${removedPush} + ${removedPlyo} — ${removedSev.map((e) => e.title).join(', ')}`
   );
   const keptPush = sev.candidates.filter(
     (e) => e.category === '상체 스트렝스' && e.movementPattern === '밀기'
@@ -16591,7 +16688,11 @@ console.log(
       /* 커밋 E 전 사슬(hardOuting · plannedOuting)로 낸 날 — 급증 칸이 없는 facts 라 R2 는 없고, 새 것은 R3' 하나 */
       const oldRecovery = hardOuting(facts) != null || planned === 'today';
       const oldLight = !oldRecovery && planned === 'tomorrow';
-      const isClaim = !oldRecovery && outing.lastSource === 'checkin-yesterday';
+      /*
+       * P4 검토로 바뀜 — 왜: 기록 없는 등판은 지난 등판(lastSource)이 아니라 어제 기록 유무(claimedYesterdayNoLog)로 본다. 오늘 기록이 있어도
+       * 어제 줄이 없으면 R3'(예전에는 오늘 캐치볼 한 줄이 어제의 기록 없는 등판을 지웠다).
+       */
+      const isClaim = !oldRecovery && outing.claimedYesterdayNoLog;
       if (dk.rank === 'recovery') rec++;
       if (dk.rank === 'light') light++;
       if (isClaim) claimed++;
@@ -16926,14 +17027,17 @@ console.log(
      * P4 로 바뀜(커밋 G) — 왜: 바깥 선택 칸에 등판 짐작의 재료(outingGuess)가 더해졌다. 힘듦 칸만 있는 facts(달력을 안 넘김)의 칸 목록은
      * FINGERPRINT_KEYS + effortSpike, 둘 다 있는 facts 는 + FINGERPRINT_OPTIONAL_KEYS 전부(순서까지).
      */
+    /* P4 검토로 바뀜 — 어제 기록 유무(loggedYesterday)가 바깥 칸 끝에 더해졌다. 지금의 buildFacts 는 늘 만드니 세 경우 모두 끝에 붙는다 */
     check(
-      'P4 날 종류 (바) 지문 effortSpike — 힘듦 칸이 있는 facts 의 칸 목록 = FINGERPRINT_KEYS + effortSpike(순서까지), 달력도 넘기면 + FINGERPRINT_OPTIONAL_KEYS 전부, 없는 facts 는 FINGERPRINT_KEYS 그대로',
-      json(Object.keys(fpSpike)) === json([...FINGERPRINT_KEYS, 'effortSpike']) &&
+      'P4 날 종류 (바) 지문 effortSpike — 힘듦 칸이 있는 facts 의 칸 목록 = FINGERPRINT_KEYS + effortSpike(순서까지), 달력도 넘기면 + FINGERPRINT_OPTIONAL_KEYS 전부, 없는 facts 는 FINGERPRINT_KEYS 그대로(셋 다 끝에 loggedYesterday)',
+      json(Object.keys(fpSpike)) ===
+        json([...FINGERPRINT_KEYS, 'effortSpike', 'loggedYesterday']) &&
         json(Object.keys(fingerprintOf(mcFacts({ ...r2p, calendar: [] })))) ===
           json([...FINGERPRINT_KEYS, ...FINGERPRINT_OPTIONAL_KEYS]) &&
         json(Object.keys(fingerprintOf(mcFacts({ logs: r2p.logs })))) ===
-          json(FINGERPRINT_KEYS) &&
-        json(FINGERPRINT_OPTIONAL_KEYS) === json(['effortSpike', 'outingGuess']),
+          json([...FINGERPRINT_KEYS, 'loggedYesterday']) &&
+        json(FINGERPRINT_OPTIONAL_KEYS) ===
+          json(['effortSpike', 'outingGuess', 'loggedYesterday']),
       Object.keys(fpSpike).join(',')
     );
     const up = diffFingerprintChanges(fpCalm, fpSpike);
@@ -18194,9 +18298,11 @@ console.log(
   {
     const fpOf = (p: GP) => fingerprintOf(gFacts(p));
     const base = fpOf({ today: null, calendar: [] });
+    /* P4 검토로 바뀜 — 바깥 칸 끝에 어제 기록 유무(loggedYesterday)가 붙는다 */
     check(
-      'P4 짐작 (바) 달력을 넘긴 facts 의 지문 — 칸 목록 = FINGERPRINT_KEYS + outingGuess(힘듦 칸 없음), 값은 재료({ calendar, estimate })',
-      json(Object.keys(base)) === json([...FINGERPRINT_KEYS, 'outingGuess']) &&
+      'P4 짐작 (바) 달력을 넘긴 facts 의 지문 — 칸 목록 = FINGERPRINT_KEYS + outingGuess(힘듦 칸 없음) + loggedYesterday, 값은 재료({ calendar, estimate })',
+      json(Object.keys(base)) ===
+        json([...FINGERPRINT_KEYS, 'outingGuess', 'loggedYesterday']) &&
         json(base.outingGuess) === json({ calendar: null, estimate: [] }) &&
         json(fpOf({ today: null, calendar: [cal(3)], logs: MON }).outingGuess) ===
           json({ calendar: 3, estimate: [0] }),
@@ -18919,6 +19025,716 @@ console.log(
       metricKeys.every((k) => new RegExp(`^\\s+${k},$`, 'm').test(baseline)),
     metricKeys.join(' · ')
   );
+}
+
+/* ═══════════════════ [2판 P4] 검토 반영 — 어제 기록 유무 · 성장기 암케어 휴식표 · 쉬는 까닭 글 · 대체 까닭 (2026-10-12) ═══════════════════ */
+console.log(
+  "\n[2판 P4] 검토 반영 — 휴식 줄은 '안 던졌다'는 답 · 오늘 기록이 어제의 기록 없는 등판을 안 지움 · 성장기 암케어도 어린 휴식표 · 쉬는 까닭 글 · 대체 까닭(2026-10-12)"
+);
+{
+  /*
+   * 왜 보는가(반박 검토 열하나 중 코드로 확인한 것). ① 어제 '오늘 등판' 답에 어제를 '휴식'으로 남겨도 엔진은 던진 날만 세어 '기록 없는 등판'
+   * (보조 날 · 프로그램 쉬기 · 암케어 회복)을 냈고, 체크인 창은 쉰 날 줄까지 세어 다시 묻지 않아 풀 길이 없었다. ② 오늘 캐치볼 한 줄만
+   * 남겨도 지난 등판이 오늘 기록이 되어 어제의 기록 없는 등판이 지워졌다(프로그램이 P4 전보다 느슨해짐). ③ 암케어가 휴식표를 나이 없이
+   * 불러 만 14세 이하에게 15~18세 표를 썼다. ④ 프로그램이 쉬는 까닭 셋을 모두 '어제 팔 부담이 컸어요'로 말했다. ⑤ 팔 피로만 '심함'인
+   * 날 프로그램 대체 꼬리표가 '통증 부위'였다. ⑥ 일정 지문이 새 칸(어제 기록 유무)을 담는지.
+   */
+  const json = (v: unknown) => JSON.stringify(v);
+  const iso = (daysAgo: number) =>
+    new Date(TODAY.getTime() - daysAgo * 86400000).toISOString();
+  type RL = {
+    daysAgo: number;
+    pitches: number;
+    sessionType: string;
+    effortPct?: number;
+  };
+  type RP = {
+    age?: number;
+    today?: string | null;
+    yesterday?: string | null;
+    logs?: RL[];
+    armFatigue?: number | null;
+    shoulder?: string;
+  };
+  const rCheckin = (
+    daysAgo: number,
+    throwPlan: string | null | undefined,
+    extra: Partial<CheckinLike> = {}
+  ): CheckinLike => ({
+    date: iso(daysAgo).slice(0, 10),
+    condition: 7,
+    sleep: '보통',
+    shoulder: '정상',
+    elbow: '정상',
+    wrist: '정상',
+    lowerBack: '정상',
+    lowerBody: '정상',
+    preferredParts: [],
+    preferredWorkout: null,
+    ...(throwPlan !== undefined ? { throwPlan } : {}),
+    ...extra,
+  });
+  const rFacts = (p: RP) =>
+    buildFacts({
+      nickname: '검토',
+      age: p.age ?? 22,
+      heightCm: 180,
+      trainingLevel: null,
+      baselineDailyLoad: 100,
+      rehab: null,
+      today: TODAY,
+      logs: (p.logs ?? []).map<PitchLogLike>((l) => ({
+        date: iso(l.daysAgo),
+        pitchCount: l.pitches,
+        intensity: l.sessionType === '휴식' ? 0 : Math.round((l.effortPct ?? 70) / 10),
+        effortPct: l.sessionType === '휴식' ? null : (l.effortPct ?? 70),
+        sessionType: l.sessionType,
+        maxVelocity: null,
+        avgVelocity: null,
+      })),
+      checkins: [
+        rCheckin(0, p.today, {
+          ...(p.armFatigue !== undefined ? { armFatigue: p.armFatigue } : {}),
+          ...(p.shoulder ? { shoulder: p.shoulder } : {}),
+        }),
+        ...(p.yesterday !== undefined ? [rCheckin(1, p.yesterday)] : []),
+      ],
+      memos: [],
+    });
+  type RF = ReturnType<typeof rFacts>;
+  const CLAIM_LINE = '어제 등판했다고 적었는데 투구 기록은 없어요.';
+  const whyOf = (f: RF) => buildDayState({ facts: f, plan: buildPitchPlan(f) }).why;
+  const REST: RL = { daysAgo: 1, pitches: 0, sessionType: '휴식' };
+  const program = parseProgram('531');
+  check("검토 반영 — 프로그램 '531' 을 읽는다", program != null);
+  const baseSig: TodaySignals = {
+    nextDay: 1,
+    today: TODAY.toISOString().slice(0, 10),
+    lastProgramDate: null,
+    checkedIn: true,
+    otherWorkoutStarted: false,
+    halted: false,
+    gameToday: false,
+    gameTomorrow: false,
+    gameYesterday: false,
+    bullpenToday: false,
+    hardThrowRecent: false,
+    override: false,
+    recovery: null,
+    loadCaution: false,
+    soreMany: false,
+    sleepShort: false,
+    uncertain: false,
+    painSlots: [],
+  };
+  /* 앱(lib/program/load.ts)과 같은 길 — 오늘 상태 한 장의 등판 · 오늘 기록 종류 · 어제 팔 부담 */
+  const signalsOf = (f: RF, typesToday: string[]) =>
+    programSignalsOf({
+      outing: buildDayState({ facts: f, plan: buildPitchPlan(f) }).outing,
+      typesToday,
+      yesterdayArmLoad: yesterdayArmLoadOf(f),
+    });
+
+  /* ── (가) 어제 '휴식' 줄은 '안 던졌다'는 답 — 기록 없는 등판이 풀린다 ── */
+  {
+    const rested = rFacts({ yesterday: '오늘 등판', logs: [REST] });
+    const o = outingOf(rested);
+    check(
+      "검토 (가) 어제 '오늘 등판' + 어제 '휴식' 줄 → 어제 기록 있음 · 기록 없는 등판 아님 · 지난 등판 없음",
+      rested.patterns.loggedYesterday === true &&
+        rested.patterns.restDays == null &&
+        !o.claimedYesterdayNoLog &&
+        o.lastSource === 'none' &&
+        o.daysSinceLast == null,
+      json({ logged: rested.patterns.loggedYesterday, last: o.lastSource })
+    );
+    check(
+      "검토 (가) 같은 날 — 어제 팔 부담 없음 · 날 종류가 R3' 아님 · 이유 줄 없음 · 프로그램 안 쉼 · 암케어에 '어제 등판' 없음 · 체크인도 안 물음(한 규칙)",
+      yesterdayArmLoadOf(rested) == null &&
+        dayKindOf(rested).rule !== 'claimedNoLog' &&
+        !whyOf(rested).includes(CLAIM_LINE) &&
+        !signalsOf(rested, []).gameYesterday &&
+        !decideArmcare({
+          facts: rested,
+          plan: buildPitchPlan(rested),
+          armFatigue: null,
+        }).reason.includes('어제 등판') &&
+        !asksYesterdayPitches('오늘 등판', true),
+      `${dayKindOf(rested).rule}`
+    );
+    const older = rFacts({
+      yesterday: '오늘 등판',
+      logs: [REST, { daysAgo: 3, pitches: 40, sessionType: '불펜', effortPct: 70 }],
+    });
+    const oo = outingOf(older);
+    check(
+      "검토 (가) 어제 '휴식' + 사흘 전 불펜 40구 → 지난 등판은 그 기록(3일 · 40구), 어제 답이 기록을 가리지 않는다",
+      !oo.claimedYesterdayNoLog &&
+        oo.lastSource === 'log' &&
+        oo.daysSinceLast === 3 &&
+        oo.lastPitches === 40,
+      json({ last: oo.lastSource, d: oo.daysSinceLast, p: oo.lastPitches })
+    );
+    const none = rFacts({ yesterday: '오늘 등판' });
+    const on = outingOf(none);
+    check(
+      "검토 (가) 어제 줄이 하나도 없으면 그대로 기록 없는 등판 — 지난 등판 '어제 답' · 어제 팔 부담 claimedNoLog · 이유 줄 · 프로그램 쉼 · 체크인이 묻는다",
+      none.patterns.loggedYesterday === false &&
+        on.claimedYesterdayNoLog &&
+        on.lastSource === 'checkin-yesterday' &&
+        on.daysSinceLast === 1 &&
+        yesterdayArmLoadOf(none)?.kind === 'claimedNoLog' &&
+        whyOf(none).includes(CLAIM_LINE) &&
+        signalsOf(none, []).gameYesterday &&
+        asksYesterdayPitches('오늘 등판', false)
+    );
+    /* 옛 facts(칸 없음) — 던진 기록으로만 가린다: 휴식 줄은 못 보고(옛 동작), 어제 던진 기록은 본다 */
+    const stripLogged = (f: RF): RF => {
+      const patterns = { ...f.patterns };
+      delete patterns.loggedYesterday;
+      return { ...f, patterns };
+    };
+    const threw = rFacts({
+      yesterday: '오늘 등판',
+      logs: [{ daysAgo: 1, pitches: 30, sessionType: '경기', effortPct: 100 }],
+    });
+    check(
+      '검토 (가) 옛 facts(loggedYesterday 칸 없음) — 휴식 줄은 못 보아 예전처럼 기록 없는 등판, 어제 던진 기록은 기록으로 본다',
+      outingOf(stripLogged(rested)).claimedYesterdayNoLog &&
+        !outingOf(stripLogged(threw)).claimedYesterdayNoLog &&
+        outingOf(stripLogged(threw)).lastSource === 'log'
+    );
+    /* 체크인의 '물을까'와 엔진이 같은 규칙 — 어제 답 일곱 × 어제 줄 넷 × 오늘 줄 둘 */
+    const YROWS: { name: string; logs: RL[] }[] = [
+      { name: '없음', logs: [] },
+      { name: '휴식', logs: [REST] },
+      {
+        name: '캐치볼 10',
+        logs: [{ daysAgo: 1, pitches: 10, sessionType: '캐치볼', effortPct: 40 }],
+      },
+      {
+        name: '경기 30',
+        logs: [{ daysAgo: 1, pitches: 30, sessionType: '경기', effortPct: 100 }],
+      },
+    ];
+    const TROWS: { name: string; logs: RL[] }[] = [
+      { name: '오늘 없음', logs: [] },
+      {
+        name: '오늘 캐치볼 10',
+        logs: [{ daysAgo: 0, pitches: 10, sessionType: '캐치볼', effortPct: 40 }],
+      },
+    ];
+    const off: string[] = [];
+    let asked = 0;
+    for (const plan of [...THROW_PLANS, null])
+      for (const y of YROWS)
+        for (const t of TROWS) {
+          const f = rFacts({ yesterday: plan, logs: [...y.logs, ...t.logs] });
+          const ask = asksYesterdayPitches(plan, y.logs.length > 0);
+          if (ask) asked++;
+          if (ask !== outingOf(f).claimedYesterdayNoLog)
+            off.push(`${plan}/${y.name}/${t.name}`);
+          if ((yesterdayArmLoadOf(f)?.kind === 'claimedNoLog') !== ask)
+            off.push(`${plan}/${y.name}/${t.name}: 팔 부담`);
+        }
+    check(
+      `검토 (가) 격자 ${(THROW_PLANS.length + 1) * YROWS.length * TROWS.length} — 체크인이 묻는 날 ⇔ 엔진의 기록 없는 등판 ⇔ 어제 팔 부담 claimedNoLog(쉰 날 줄까지 같은 규칙, 묻는 날 ${asked})`,
+      off.length === 0 && asked === 2,
+      off.slice(0, 4).join(' · ')
+    );
+  }
+
+  /* ── (나) 오늘 기록이 어제의 기록 없는 등판을 지우지 않는다 ── */
+  {
+    const catchToday: RL = {
+      daysAgo: 0,
+      pitches: 10,
+      sessionType: '캐치볼',
+      effortPct: 40,
+    };
+    const g = rFacts({ yesterday: '오늘 등판', logs: [catchToday] });
+    const o = outingOf(g);
+    const decision =
+      program == null
+        ? null
+        : decideToday(program, { ...baseSig, ...signalsOf(g, ['캐치볼']) });
+    check(
+      "검토 (나) 어제 '오늘 등판' + 어제 기록 없음 + 오늘 캐치볼 10구 40% → 지난 등판은 오늘 기록이지만 기록 없는 등판은 남는다",
+      o.lastSource === 'log' &&
+        o.daysSinceLast === 0 &&
+        o.claimedYesterdayNoLog &&
+        yesterdayArmLoadOf(g)?.kind === 'claimedNoLog',
+      json({ last: o.lastSource, claim: o.claimedYesterdayNoLog })
+    );
+    check(
+      "검토 (나) 같은 날 — 날 종류 R3'(보조) · 이유 줄 · 프로그램은 어제 등판 다음 날로 쉼('어제 등판한 다음 날이에요') · 체크인이 어제 몇 구를 묻는다",
+      dayKindOf(g).rule === 'claimedNoLog' &&
+        whyOf(g).includes(CLAIM_LINE) &&
+        decision?.kind === 'rest' &&
+        decision.reason === 'gameYesterday' &&
+        restTextOf(decision.reason, yesterdayArmLoadOf(g)?.kind ?? null) ===
+          '어제 등판한 다음 날이에요' &&
+        asksYesterdayPitches('오늘 등판', false),
+      `${dayKindOf(g).rule} · ${decision?.kind}`
+    );
+    const logged = rFacts({
+      yesterday: '오늘 등판',
+      logs: [
+        catchToday,
+        { daysAgo: 1, pitches: 30, sessionType: '경기', effortPct: 100 },
+      ],
+    });
+    check(
+      '검토 (나) 어제 경기 30구를 남기면 풀린다 — 기록 없는 등판 아님, 날 종류는 부하(세게 던진 날 R1)로',
+      !outingOf(logged).claimedYesterdayNoLog &&
+        yesterdayArmLoadOf(logged)?.kind === 'hard' &&
+        dayKindOf(logged).rule === 'hard'
+    );
+  }
+
+  /* ── (다) 성장기 암케어도 어린 휴식표 — 투구 계획과 같은 말 ── */
+  {
+    const yesterdayLog = (
+      age: number,
+      sessionType: string,
+      pitches: number,
+      effortPct: number
+    ) => rFacts({ age, logs: [{ daysAgo: 1, pitches, sessionType, effortPct }] });
+    const armOf = (f: RF) =>
+      decideArmcare({ facts: f, plan: buildPitchPlan(f), armFatigue: null });
+    const y13 = yesterdayLog(13, '불펜', 50, 50);
+    const y12 = yesterdayLog(12, '캐치볼', 60, 30);
+    const a22 = yesterdayLog(22, '불펜', 50, 50);
+    const a13 = armOf(y13);
+    const a12 = armOf(y12);
+    const adult = armOf(a22);
+    check(
+      "검토 (다) 만 13세 어제 불펜 50구 50% — 투구 계획은 쉬는 날, 암케어도 회복('어제 50구 · 아직 쉬는 기간')",
+      buildPitchPlan(y13).today?.throwing === false &&
+        a13.kind === 'recovery' &&
+        a13.reason.startsWith('어제 50구 · 아직 쉬는 기간'),
+      `${buildPitchPlan(y13).today?.throwing} · ${a13.kind} · ${a13.reason}`
+    );
+    check(
+      "검토 (다) 만 12세 어제 캐치볼 60구 30% — 투구 계획은 쉬는 날, 암케어도 회복('어제 60구 · 아직 쉬는 기간')",
+      buildPitchPlan(y12).today?.throwing === false &&
+        a12.kind === 'recovery' &&
+        a12.reason.startsWith('어제 60구 · 아직 쉬는 기간'),
+      `${buildPitchPlan(y12).today?.throwing} · ${a12.kind} · ${a12.reason}`
+    );
+    check(
+      "검토 (다) 같은 기록의 만 22세는 그대로 — 쉬지 않아도 되는 날이라 강화('어제 50구 · 팔 부담 적음')",
+      buildPitchPlan(a22).today?.throwing === true &&
+        adult.kind === 'strength' &&
+        adult.reason.startsWith('어제 50구 · 팔 부담 적음'),
+      `${adult.kind} · ${adult.reason}`
+    );
+    /* 불변식 — 휴식표(나이를 넣어)가 오늘 아직 쉬라고 하면 암케어는 강화를 안 낸다(나이 9~22 × 어제 기록 여섯) */
+    const miss: string[] = [];
+    let owedDays = 0;
+    const SAMPLE_LOGS: [string, number, number][] = [
+      ['불펜', 30, 50],
+      ['불펜', 50, 50],
+      ['캐치볼', 60, 30],
+      ['경기', 40, 100],
+      ['라이브', 25, 80],
+      ['캐치볼', 20, 40],
+    ];
+    for (let age = 9; age <= 22; age++)
+      for (const [t, n, e] of SAMPLE_LOGS) {
+        const f = yesterdayLog(age, t, n, e);
+        if (pendingOuting(f.patterns, 0, age) == null) continue;
+        owedDays++;
+        if (armOf(f).kind === 'strength') miss.push(`${age}세 ${t} ${n}구 ${e}%`);
+      }
+    check(
+      `검토 (다) 불변식 — 휴식표(나이 넣음)가 쉬라는 ${owedDays}가지에서 암케어가 강화를 안 낸다`,
+      owedDays >= 15 && miss.length === 0,
+      miss.slice(0, 4).join(' · ')
+    );
+    const src = readFileSync(
+      new URL('../lib/armcare/routine.ts', import.meta.url),
+      'utf8'
+    );
+    check(
+      '검토 (다) 소스 — 암케어는 휴식표를 나이와 함께 부른다(투구 계획 · 오늘 상태 한 장과 같은 값)',
+      /pendingOuting\(p, 0, facts\.profile\.age\)/.test(src) &&
+        !/pendingOuting\(p\)/.test(src)
+    );
+  }
+
+  /* ── (라) 프로그램이 쉬는 까닭 — 어제 팔 부담의 까닭대로 ── */
+  {
+    const hard = rFacts({
+      logs: [{ daysAgo: 1, pitches: 85, sessionType: '경기', effortPct: 100 }],
+    });
+    const claimed = rFacts({ yesterday: '오늘 등판' });
+    const pen = rFacts({
+      logs: [{ daysAgo: 1, pitches: 30, sessionType: '불펜', effortPct: 70 }],
+    });
+    const spiked: RF = {
+      ...pen,
+      condition: {
+        ...pen.condition,
+        trainingEffort: {
+          last7: [9, 9, 9],
+          last28: [9, 9, 9, 5, 5, 5, 5],
+          spikeFlag: true,
+        },
+      },
+    };
+    const kinds = [hard, spiked, claimed].map(
+      (f) => yesterdayArmLoadOf(f)?.kind ?? null
+    );
+    const texts = kinds.map((k) => restTextOf('gameYesterday', k));
+    check(
+      "검토 (라) 쉬는 까닭 글 — 세게 던진 날 '어제 많이 던졌어요' · 중간 부하 + 힘듦 급증 '어제 던졌고 최근 운동도 힘들었어요' · 기록 없는 등판 '어제 등판한 다음 날이에요'",
+      json(kinds) === json(['hard', 'moderateSpike', 'claimedNoLog']) &&
+        json(texts) ===
+          json([
+            '어제 많이 던졌어요',
+            '어제 던졌고 최근 운동도 힘들었어요',
+            '어제 등판한 다음 날이에요',
+          ]),
+      json({ kinds, texts })
+    );
+    check(
+      "검토 (라) 까닭을 모르면 예전 글 · 다른 쉬는 까닭은 그대로('경기 날이에요' · '내일 경기예요')",
+      restTextOf('gameYesterday') === REST_TEXT.gameYesterday &&
+        restTextOf('gameToday', 'hard') === REST_TEXT.gameToday &&
+        restTextOf('gameTomorrow', 'claimedNoLog') === REST_TEXT.gameTomorrow
+    );
+    const all = [...Object.values(REST_YESTERDAY_TEXT), ...Object.values(REST_TEXT)];
+    check(
+      `검토 (라) 쉬는 까닭 글 ${all.length}개 — 줄표 · 굵게 없음, 해요체(요로 끝), 20자 안, '경기 다음 날' 없음`,
+      all.every(
+        (t) =>
+          !/—|\*\*/.test(t) &&
+          /요$/.test(t) &&
+          t.length <= 20 &&
+          !t.includes('경기 다음 날')
+      ),
+      all.join(' | ')
+    );
+    const loadSrc = readFileSync(
+      new URL('../lib/program/load.ts', import.meta.url),
+      'utf8'
+    );
+    check(
+      '검토 (라) 소스 — 카드의 쉬는 까닭은 restTextOf(같은 어제 팔 부담), REST_TEXT 를 바로 안 읽는다',
+      /restTextOf\(decision\.reason, yesterdayArm\?\.kind \?\? null\)/.test(loadSrc) &&
+        !/REST_TEXT\[/.test(loadSrc)
+    );
+  }
+
+  /* ── (마) 대체 까닭 — 팔 피로만으로 빠진 고정 운동은 '팔 피로' ── */
+  {
+    type FX = {
+      id: string;
+      title: string;
+      category: string;
+      bodyParts: string[];
+      intensity: string;
+      difficulty: string | null;
+      equipment: string[];
+      movementPattern?: string | null;
+    };
+    const fx = (id: string, o: Partial<FX>): FX => ({
+      id,
+      title: id,
+      category: '상체 스트렝스',
+      bodyParts: [],
+      intensity: '중간',
+      difficulty: null,
+      equipment: ['맨몸'],
+      movementPattern: null,
+      ...o,
+    });
+    const bench = fx('fx-bench', {
+      bodyParts: ['삼두'],
+      intensity: '높음',
+      equipment: ['바벨'],
+      movementPattern: '밀기',
+    });
+    const ball = fx('fx-ball', {
+      category: '파워',
+      bodyParts: ['코어'],
+      equipment: ['메디신볼'],
+      movementPattern: '회전',
+    });
+    const row = fx('fx-row', { bodyParts: ['등'], movementPattern: '당기기' });
+    const squat = fx('fx-squat', {
+      category: '하체 스트렝스',
+      bodyParts: ['고관절'],
+      intensity: '높음',
+      equipment: ['바벨'],
+      movementPattern: '스쿼트',
+    });
+    const lib = [bench, ball, row, squat];
+    const pinned: Record<string, FX> = { push: bench, medball: ball, pull: row, squat };
+    const items = [
+      { slot: 'pushPull' as const, variant: 'push' as const },
+      { slot: 'pushPull' as const, variant: 'pull' as const },
+      { slot: 'power' as const, variant: 'medball' as const },
+      { slot: 'bigLower' as const, variant: 'squat' as const },
+    ];
+    const slotsFor = (p: RP) => {
+      const f = rFacts(p);
+      const input = {
+        facts: f,
+        plan: buildPitchPlan(f),
+        library: lib,
+        partsOnly: true,
+      };
+      const safe = new Set(selectCandidates(input).candidates.map((e) => e.id));
+      const armOnly = droppedOnlyForArmFatigue(input);
+      return {
+        armOnly: [...armOnly].sort(),
+        ...painSlotsOf(items, (v) => pinned[v] ?? null, safe, armOnly),
+      };
+    };
+    const arm = slotsFor({ armFatigue: SEVERE_ARM_FATIGUE });
+    check(
+      "검토 (마) 팔 피로 '심함'만 — 무거운 밀기 · 메디신볼만 팔 피로로 빠지고, 그 칸의 까닭은 '팔 피로'(하체 · 당기기는 그대로)",
+      json(arm.armOnly) === json(['fx-ball', 'fx-bench']) &&
+        json(arm.painSlots) === json(['pushPull', 'power']) &&
+        json(arm.slotReasons) ===
+          json({
+            pushPull: SUBSTITUTE_REASON.armFatigue,
+            power: SUBSTITUTE_REASON.armFatigue,
+          }),
+      json(arm)
+    );
+    const pain = slotsFor({ shoulder: '통증' });
+    check(
+      "검토 (마) 어깨 통증만 — 당기기(등)가 빠지고 까닭은 '통증 부위', 팔 피로로 빠진 것 없음",
+      pain.armOnly.length === 0 &&
+        json(pain.painSlots) === json(['pushPull']) &&
+        pain.slotReasons.pushPull === SUBSTITUTE_REASON.pain,
+      json(pain)
+    );
+    const both = slotsFor({ armFatigue: SEVERE_ARM_FATIGUE, shoulder: '통증' });
+    check(
+      "검토 (마) 팔 피로 '심함' + 어깨 통증 — 한 칸에 둘이 섞이면(밀기는 팔 피로 · 당기기는 통증) '통증 부위'가 이기고, 메디신볼 칸은 '팔 피로'",
+      json(both.painSlots) === json(['pushPull', 'power']) &&
+        both.slotReasons.pushPull === SUBSTITUTE_REASON.pain &&
+        both.slotReasons.power === SUBSTITUTE_REASON.armFatigue,
+      json(both)
+    );
+    const quiet = [4, 3, null].map((n) => slotsFor({ armFatigue: n }));
+    check(
+      "검토 (마) 팔 피로 '많이' 이하 · 안 적음 — 팔 피로로 빠진 것도 대체 칸도 없다",
+      quiet.every((q) => q.armOnly.length === 0 && q.painSlots.length === 0),
+      json(quiet)
+    );
+    if (program) {
+      const d = decideToday(program, {
+        ...baseSig,
+        painSlots: arm.painSlots,
+        slotReasons: arm.slotReasons,
+      });
+      const old = decideToday(program, { ...baseSig, painSlots: arm.painSlots });
+      check(
+        "검토 (마) decideToday — 대체 칸의 까닭은 slotReasons 대로('팔 피로'), slotReasons 없는 옛 신호는 '통증 부위'",
+        d.kind === 'go' &&
+          d.adjust.pushPull?.kind === 'substitute' &&
+          d.adjust.pushPull.reason === '팔 피로' &&
+          old.kind === 'go' &&
+          old.adjust.pushPull?.kind === 'substitute' &&
+          old.adjust.pushPull.reason === '통증 부위',
+        json(d.kind === 'go' ? d.adjust : d)
+      );
+    }
+    /*
+     * 실제 표 · 앱 길 — 531 둘째 날(메디신볼 · 밀기 칸)에 팔 피로 '심함'이면 그 칸들이 '팔 피로'로 대체된다. 엇갈림 표 C5 는 첫째 날이라
+     * (점프 · 스쿼트 · 당기기) 대체할 칸이 없어 'go' 그대로다 — 앱도 그날은 대체가 없다. 고정 운동은 장비를 다 가진 사람이 처음 고르는 것.
+     */
+    if (program) {
+      const realPinned = pickPinned(
+        library,
+        [...new Set(library.flatMap((e) => e.equipment))],
+        null
+      );
+      const day2 = (p: RP) => {
+        const f = rFacts(p);
+        const input = { facts: f, plan: buildPitchPlan(f), library, partsOnly: true };
+        const safe = new Set(selectCandidates(input).candidates.map((e) => e.id));
+        const slots = painSlotsOf(
+          programDayPlan(program, 2).items,
+          (v) => (realPinned[v] ? { id: realPinned[v] } : null),
+          safe,
+          droppedOnlyForArmFatigue(input)
+        );
+        return {
+          slots,
+          decision: decideToday(program, {
+            ...baseSig,
+            nextDay: 2,
+            painSlots: slots.painSlots,
+            slotReasons: slots.slotReasons,
+          }),
+        };
+      };
+      const sev = day2({ armFatigue: SEVERE_ARM_FATIGUE });
+      const calm = day2({ armFatigue: 3 });
+      const reasons = Object.values(sev.slots.slotReasons);
+      check(
+        "검토 (마) 실제 표 · 531 둘째 날 — 팔 피로 '심함'이면 메디신볼 칸이 '대체 · 팔 피로'(통증 부위 아님), '보통'이면 대체 없음",
+        sev.slots.painSlots.includes('power') &&
+          reasons.length > 0 &&
+          reasons.every((r) => r === SUBSTITUTE_REASON.armFatigue) &&
+          sev.decision.kind === 'go' &&
+          sev.decision.adjust.power?.kind === 'substitute' &&
+          sev.decision.adjust.power.reason === '팔 피로' &&
+          calm.slots.painSlots.length === 0,
+        json({ sev: sev.slots, calm: calm.slots })
+      );
+    }
+    const loadSrc = readFileSync(
+      new URL('../lib/program/load.ts', import.meta.url),
+      'utf8'
+    );
+    check(
+      "검토 (마) 소스 — 앱은 painSlotsOf · droppedOnlyForArmFatigue 로 칸과 까닭을 정하고, 운동 꼬리표에 '통증 부위'를 바로 적지 않는다",
+      /painSlotsOf\(/.test(loadSrc) &&
+        /droppedOnlyForArmFatigue\(safeInput\)/.test(loadSrc) &&
+        /slotReasons,/.test(loadSrc) &&
+        !/reason: '통증 부위'/.test(loadSrc)
+    );
+  }
+
+  /* ── (바) 일정 지문 — 어제 기록 유무(loggedYesterday) ── */
+  {
+    const fp = (p: RP) => fingerprintOf(rFacts(p));
+    /* 부하 구간 줄은 뺀다 — 기록을 하나 더하면 부하 지수가 생기거나 바뀌어 따로 한 줄 나온다(그 줄은 '[2판 되먹임(P2)]' 절 몫) */
+    const lines = (a: RP, b: RP) =>
+      diffFingerprintChanges(fp(a), fp(b))
+        .filter((c) => c.key !== 'zone')
+        .map((c) => `${c.key}:${c.text}`);
+    const noLog: RP = { yesterday: '오늘 등판' };
+    const rest: RP = { yesterday: '오늘 등판', logs: [REST] };
+    const catchToday: RL = {
+      daysAgo: 0,
+      pitches: 10,
+      sessionType: '캐치볼',
+      effortPct: 40,
+    };
+    check(
+      "검토 (바) 어제를 휴식으로 남기면 '어제 투구 기록을 남겼어요', 지우면 '어제 투구 기록이 지워졌어요'(한 줄씩 · 키 loggedYesterday)",
+      json(lines(noLog, rest)) ===
+        json(['loggedYesterday:어제 투구 기록을 남겼어요']) &&
+        json(lines(rest, noLog)) ===
+          json(['loggedYesterday:어제 투구 기록이 지워졌어요']),
+      json([lines(noLog, rest), lines(rest, noLog)])
+    );
+    const pen30: RL = { daysAgo: 1, pitches: 30, sessionType: '불펜', effortPct: 50 };
+    const both = lines(noLog, { yesterday: '오늘 등판', logs: [pen30] });
+    check(
+      '검토 (바) 어제 던진 기록을 남기면 마지막 투구 줄만 — 같은 바뀜을 두 줄로 말하지 않는다',
+      both.length === 1 && both[0].startsWith('lastThrow:'),
+      json(both)
+    );
+    const withToday = lines(
+      { yesterday: '오늘 등판', logs: [catchToday] },
+      { yesterday: '오늘 등판', logs: [catchToday, pen30] }
+    );
+    check(
+      "검토 (바) 오늘 기록이 마지막 투구인 날 어제 기록을 남기면 '어제 투구 기록을 남겼어요'(마지막 투구 줄이 안 생기는 날)",
+      json(withToday) === json(['loggedYesterday:어제 투구 기록을 남겼어요']),
+      json(withToday)
+    );
+    const saved = fp(rest);
+    const back = readPlanFingerprint(JSON.parse(JSON.stringify(saved)));
+    const oldSaved = { ...saved };
+    delete oldSaved.loggedYesterday;
+    check(
+      '검토 (바) 저장했다 읽어도 칸이 남고(왕복), 참 · 거짓 아닌 값은 깨진 지문, 칸 없는 옛 지문과는 견주지 않는다',
+      json(back) === json(saved) &&
+        readPlanFingerprint({ ...saved, loggedYesterday: 'yes' }) === null &&
+        diffFingerprintChanges(oldSaved, fp(noLog)).every(
+          (c) => c.key !== 'loggedYesterday'
+        )
+    );
+  }
+
+  /* ── (사) 화면 — '추정'은 둘째 줄 · 체크인의 '안 던졌어요' ── */
+  {
+    const strip = (rel: string) =>
+      readFileSync(new URL(`../${rel}`, import.meta.url), 'utf8')
+        .replace(/\/\*[\s\S]*?\*\//g, '')
+        .replace(/^\s*\/\/.*$/gm, '')
+        .replace(/\{\/\*[\s\S]*?\*\/\}/g, '');
+    const comp = strip('components/outing-line.tsx');
+    check(
+      "검토 (사) 다음 등판 한 줄 — 자르는 줄(truncate)엔 main · 오늘 날만, '추정'은 자르지 않는 둘째 줄(좁은 폰에서 '추정'이 먼저 잘리던 것)",
+      /<span className="block truncate">[\s\S]*?\{line\.main\}[\s\S]*?<\/span>\s*\{line\.guess && \(\s*<span className="block [^"]*">\{line\.guess\}<\/span>/.test(
+        comp
+      ) && !/truncate[^"]*">[^<]*\{line\.guess\}/.test(comp)
+    );
+    const y = iso(1).slice(0, 10);
+    const restBody = readYesterdayOuting({
+      date: y,
+      pitches: '',
+      effort: '',
+      noThrow: '1',
+    });
+    check(
+      "검토 (사) '안 던졌어요'만 고르면 어제 쉰 날 한 줄(종류 '휴식' · 0구 · 체감 강도 비움) — 투구 기록 API 검사를 그대로 통과",
+      json(restBody) ===
+        json({
+          date: y,
+          sessionType: '휴식',
+          pitchCount: 0,
+          effortPct: null,
+          videoPaths: [],
+        }) &&
+        YESTERDAY_REST_SESSION === '휴식' &&
+        !('error' in validateSessionType(YESTERDAY_REST_SESSION)) &&
+        !('error' in readEffortInput({ effortPct: null }, true)),
+      json(restBody)
+    );
+    const pitched = readYesterdayOuting({
+      date: y,
+      pitches: '30',
+      effort: '85',
+      noThrow: '1',
+    });
+    const blank = readYesterdayOuting({ date: y, pitches: '', effort: '' });
+    const err = readYesterdayOuting({ date: y, pitches: '0', effort: '80' });
+    check(
+      "검토 (사) 투구수를 적으면 투구수가 이기고, 둘 다 비우면 아무것도 안 남기며, 막는 글은 '안 던졌어요'를 가리킨다('비워 두세요' 아님)",
+      pitched != null &&
+        !('error' in pitched) &&
+        pitched.pitchCount === 30 &&
+        blank === null &&
+        err != null &&
+        'error' in err &&
+        err.error.includes("'안 던졌어요'") &&
+        !err.error.includes('비워 두세요'),
+      json({ pitched, blank, err })
+    );
+    /* 남긴 쉰 날 줄이 엔진에서 어제 답을 푼다 — 화면이 보내는 몸 그대로 facts 에 넣어 */
+    const sentType =
+      restBody != null && !('error' in restBody) ? restBody.sessionType : '';
+    const after = rFacts({
+      yesterday: '오늘 등판',
+      logs: [{ daysAgo: 1, pitches: 0, sessionType: sentType }],
+    });
+    check(
+      "검토 (사) '안 던졌어요'로 남긴 줄이 엔진의 기록 없는 등판을 푼다(날 종류 R3' 아님 · 체크인도 안 물음)",
+      !outingOf(after).claimedYesterdayNoLog &&
+        dayKindOf(after).rule !== 'claimedNoLog' &&
+        !asksYesterdayPitches('오늘 등판', after.patterns.loggedYesterday === true)
+    );
+    const form = strip('components/checkin-form.tsx');
+    check(
+      "검토 (사) 체크인 폼 — '안 던졌어요' 칸(yesterdayNoThrow)을 readYesterdayOuting 에 넘기고, 안내에 '비워 두세요'가 없다",
+      /name="yesterdayNoThrow"/.test(form) &&
+        /noThrow: formData\.get\('yesterdayNoThrow'\)/.test(form) &&
+        />\s*안 던졌어요\s*</.test(form) &&
+        !/비워 두세요/.test(form)
+    );
+  }
 }
 
 console.log(`\n${passed}개 통과, ${failed}개 실패`);

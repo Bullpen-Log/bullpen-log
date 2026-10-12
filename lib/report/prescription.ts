@@ -548,3 +548,33 @@ export function selectCandidates<T extends ExerciseLike>({
     tooFew: pool.length < MIN_CANDIDATES,
   };
 }
+
+/**
+ * 팔 피로 '심함'(5-2) 하나 때문에만 빠진 운동의 id — 같은 입력에서 오늘 체크인의 팔 피로만 지우고 한 번 더 걸렀을 때 남는 것(2판 P4 검토).
+ *
+ * 왜 두는가. 근력 프로그램(partsOnly)은 고정 운동이 이 거르기를 못 지나면 그 칸을 그날 대체하는데(lib/program/load.ts), 까닭을 늘
+ * '통증 부위'로 적었다 — 5-2 가 팔 상태 규칙이라 프로그램에도 걸리면서, 통증을 안 적고 팔 피로만 '심함'인 날에도 벤치 프레스 칸이
+ * '대체 · 통증 부위'로 보였다. 어느 규칙이 뺐는지는 excluded 의 수로는 운동마다 못 가리니, 팔 피로를 지운 입력과 견준다.
+ *
+ * 거르기는 바꾸지 않는다 — 이름표만 고른다(되살리는 규칙이 아니다). 팔 피로가 '심함'이 아닌 날 · 처방을 멈춘 날은 빈 집합.
+ * 다른 규칙(통증 · 뻐근 · 재활 · 메모)에도 걸린 운동은 지운 입력에서도 빠지므로 여기 안 든다 — 통증이 이긴다.
+ */
+export function droppedOnlyForArmFatigue<T extends ExerciseLike>(
+  args: Parameters<typeof selectCandidates<T>>[0]
+): Set<string> {
+  const today = args.facts.condition.today;
+  const armFatigue = today?.armFatigue;
+  if (today == null || armFatigue == null || armFatigue < SEVERE_ARM_FATIGUE)
+    return new Set();
+  const withArm = selectCandidates(args);
+  if (withArm.halted) return new Set();
+  const kept = new Set(withArm.candidates.map((e) => e.id));
+  const withoutArm = selectCandidates({
+    ...args,
+    facts: {
+      ...args.facts,
+      condition: { ...args.facts.condition, today: { ...today, armFatigue: null } },
+    },
+  });
+  return new Set(withoutArm.candidates.filter((e) => !kept.has(e.id)).map((e) => e.id));
+}

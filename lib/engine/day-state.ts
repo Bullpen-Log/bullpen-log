@@ -420,7 +420,8 @@ function whyLines(s: Omit<DayState, 'why'>): string[] {
         : `${when} ${load.hardOuting.pitches}구를 던져 팔 부담이 컸어요.`
     );
   }
-  if (outing.lastSource === 'checkin-yesterday')
+  /* 오늘 기록이 있어도 어제 줄이 없으면 말한다 — 지난 등판(lastSource)이 아니라 어제 기록 유무로(outing.ts claimedYesterdayNoLog) */
+  if (outing.claimedYesterdayNoLog)
     out.push('어제 등판했다고 적었는데 투구 기록은 없어요.');
   /*
    * 다음 등판 — 어디서 알았는지를 앞에 붙인다(어제 답 · 달력 · 같은 요일 짐작, 2판 P4 커밋 G). 짐작은 '오늘 불펜'과 같이 올 수 있어

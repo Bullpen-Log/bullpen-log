@@ -12,7 +12,7 @@
  *   R3  outingToday    다음 등판이 꼭 오늘(오늘 '오늘 등판', 또는 오늘 답 없이 어제 '내일 등판')                      → 회복
  *   R2  moderateSpike  세게는 아니지만 어제 Σ 투구수 × 체감 강도가 세게 던진 날 문턱의 절반(1,350) 이상이고, 최근 운동 힘듦이
  *                      급증(facts.condition.trainingEffort.spikeFlag — 7일 3개 이상 · 평균 +2)                       → 회복
- *   R3' claimedNoLog   어제 '오늘 등판'이라 답했는데 어제 투구 기록이 없다(outing.lastSource 'checkin-yesterday')       → 보조
+ *   R3' claimedNoLog   어제 '오늘 등판'이라 답했는데 어제 투구 기록이 없다(outing.claimedYesterdayNoLog, 쉰 날 줄도 기록) → 보조
  *   R4  outingTomorrow 다음 등판이 꼭 내일                                                                          → 보조
  *   R4' softOutingNear 짐작한 다음 등판(달력 · 같은 요일, outing.soft — 커밋 G)이 오늘이나 내일 — 짐작이라 회복까지는 안 가고
  *                      무게만 뺀다(사용자 결정: 짐작은 가볍게 하는 쪽에만)                                          → 보조

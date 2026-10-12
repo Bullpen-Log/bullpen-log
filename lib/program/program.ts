@@ -1,5 +1,5 @@
 import { exactOutingDay, nextOutingDays, todayOutingRole } from '@/lib/checkin';
-import type { YesterdayArmLoad } from '@/lib/engine/arm-load';
+import type { YesterdayArmLoad, YesterdayArmLoadKind } from '@/lib/engine/arm-load';
 import type { DayState } from '@/lib/engine/day-state';
 import { intensityLevel } from '@/lib/exercise-meta';
 import { canDo } from '@/lib/report/equipment';
@@ -1408,9 +1408,44 @@ export type TodaySignals = {
   sleepShort: boolean;
   /** 부하 지수 모름 · 메모 통증 확인 전 · 상하체 함께 통증(D22) */
   uncertain: boolean;
-  /** 특정 부위 통증 · 뻐근 · 재활 관절로 그날 대체할 칸 */
+  /** 특정 부위 통증 · 뻐근 · 재활 관절 · 팔 피로 '심함'으로 그날 대체할 칸 */
   painSlots: readonly SlotKind[];
+  /**
+   * 대체할 칸의 까닭(painSlotsOf 가 만든다) — 없는 칸은 '통증 부위'. 팔 피로 '심함'(안전 거르기 5-2)만으로 고정 운동이 빠진 칸은 '팔 피로'다
+   * (2판 P4 검토 — 통증을 안 적은 날 '대체 · 통증 부위'가 보였다). 선택 칸이라 옛 입력 · 시험의 신호는 그대로 '통증 부위'.
+   */
+  slotReasons?: Partial<Record<SlotKind, string>>;
 };
+
+/** 그날 대체한 칸 · 운동의 까닭 — 화면 꼬리표 '대체 · …'에 그대로 붙는다 */
+export const SUBSTITUTE_REASON = { pain: '통증 부위', armFatigue: '팔 피로' } as const;
+
+/**
+ * 그날 대체할 칸 — 고정 운동(pinnedOf)이 안전 거르기(partsOnly)를 못 지난 칸과 그 까닭. 앱(lib/program/load.ts)과 자체 시험이 이 함수
+ * 하나를 부른다(2판 P4 검토 — 시험이 painSlots 를 빈 목록으로 두어 앱과 다른 모양을 쟀다).
+ *
+ * 까닭은 팔 피로 '심함'만으로 빠진 운동(lib/report/prescription.ts droppedOnlyForArmFatigue)이면 '팔 피로', 그 밖은 '통증 부위'. 한 칸에
+ * 둘이 섞이면(스쿼트 · 힌지처럼 한 칸에 둘) '통증 부위'가 이긴다 — 더 조심할 까닭을 말한다.
+ */
+export function painSlotsOf(
+  items: readonly { slot: SlotKind; variant: VariantKey }[],
+  pinnedOf: (variant: VariantKey) => { id: string } | null,
+  safeIds: ReadonlySet<string>,
+  armFatigueOnlyIds: ReadonlySet<string>
+): { painSlots: SlotKind[]; slotReasons: Partial<Record<SlotKind, string>> } {
+  const painSlots: SlotKind[] = [];
+  const slotReasons: Partial<Record<SlotKind, string>> = {};
+  for (const x of items) {
+    const ex = pinnedOf(x.variant);
+    if (!ex || safeIds.has(ex.id)) continue;
+    const reason = armFatigueOnlyIds.has(ex.id)
+      ? SUBSTITUTE_REASON.armFatigue
+      : SUBSTITUTE_REASON.pain;
+    if (!painSlots.includes(x.slot)) painSlots.push(x.slot);
+    if (slotReasons[x.slot] !== SUBSTITUTE_REASON.pain) slotReasons[x.slot] = reason;
+  }
+  return { painSlots, slotReasons };
+}
 
 /** 프로그램이 읽는 던지는 신호 — TodaySignals 의 넷 칸 그대로 */
 export type ProgramSignals = Pick<
@@ -1560,7 +1595,7 @@ export function decideToday(plan: ProgramPlan, s: TodaySignals): TodayDecision {
     if (adjust[slot]?.kind !== 'drop')
       adjust[slot] = {
         kind: 'substitute',
-        reason: '통증 부위',
+        reason: s.slotReasons?.[slot] ?? SUBSTITUTE_REASON.pain,
         ...(adjust[slot]?.kind === 'lighter' ? { lighter: true as const } : {}),
       };
   }
@@ -1620,6 +1655,27 @@ export const REST_TEXT: Record<RestReason, string> = {
   gameTomorrow: '내일 경기예요',
   gameYesterday: '어제 팔 부담이 컸어요',
 };
+
+/**
+ * 어제 팔 부담으로 쉬는 날의 까닭 — 까닭(yesterdayArmLoadOf 의 kind)마다 다르게(2판 P4 검토). 셋을 한 글('어제 팔 부담이 컸어요')로 쓰면
+ * 기록 없는 등판(투구수를 모름)에도 '컸어요'라고 단정하고, 중간 부하 + 힘듦 급증 날엔 매일 일정('어제 N구를 던졌고 최근 운동도
+ * 힘들었어요') · 암케어('어제 N구')와 다른 말을 했다. REST_TEXT.gameYesterday 는 까닭을 모를 때(옛 신호)만 쓴다.
+ */
+export const REST_YESTERDAY_TEXT: Record<YesterdayArmLoadKind, string> = {
+  hard: '어제 많이 던졌어요',
+  moderateSpike: '어제 던졌고 최근 운동도 힘들었어요',
+  claimedNoLog: '어제 등판한 다음 날이에요',
+};
+
+/** 쉬는 까닭 한 줄 — 어제 팔 부담이면 그 까닭대로, 아니면 REST_TEXT */
+export function restTextOf(
+  reason: RestReason,
+  yesterday: YesterdayArmLoadKind | null = null
+): string {
+  return reason === 'gameYesterday' && yesterday
+    ? REST_YESTERDAY_TEXT[yesterday]
+    : REST_TEXT[reason];
+}
 
 /* ─────────────────────────── 일차 넘기기(§9 · U2 · U4) ─────────────────────────── */
 

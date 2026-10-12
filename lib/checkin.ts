@@ -646,7 +646,7 @@ export const LOW_CONDITION_THRESHOLD = 4;
  *
  * 어제 답의 이월은 '내일 등판' 하나뿐(plannedOuting · nutrition/guide.ts throwDayKind · 프로그램이 같은 규칙):
  * 어제 '2~3일 뒤'는 오늘 1~2일 뒤라 날을 못 박지 못하고, 어제 '오늘 등판'은 던진 기록이 맡는다 — 모르는 것을 짐작하지 않는다.
- * 어제 '오늘 등판'인데 기록이 없으면 그 답을 지난 등판으로 둔다(lib/engine/outing.ts lastSource) — 매일 일정 · 근력 프로그램 · 암케어가
+ * 어제 '오늘 등판'인데 어제 기록이 한 줄도 없으면(쉰 날 줄도 기록) 그 답을 지난 등판으로 둔다(lib/engine/outing.ts claimedYesterdayNoLog) — 매일 일정 · 근력 프로그램 · 암케어가
  * 같은 함수(lib/engine/arm-load.ts yesterdayArmLoadOf, 2판 P4 커밋 F)로 '기록 없는 등판 다음 날'을 읽는다(엇갈림 표 C6).
  * 프로그램만 한 군데가 다르다(program.ts programSignalsOf 주석 · 자체 시험이 지금 값을 고정): 어제 '내일 등판'을 오늘 답과 상관없이
  * 경기 날로 읽는다(오늘 답이 이기는 규칙 밖).

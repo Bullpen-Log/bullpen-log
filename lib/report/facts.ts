@@ -218,6 +218,14 @@ export type ReportFacts = {
      * 자체 시험 · 기준선의 옛 입력이 글자 하나 안 바뀌게.
      */
     gameDates?: string[];
+    /**
+     * 어제 투구 기록 줄이 하나라도 있나 — 쉰 날 줄(0구 · 종류 '휴식')까지 센다(2판 P4 검토, 2026-10-12). lastThrowDate · restDays ·
+     * hardOutings 는 던진 날(투구수 · 부하 > 0)만 보아 '어제 안 던졌다고 적었다'를 모른다. 그래서 어제 '오늘 등판'이라 답하고 어제를
+     * 휴식으로 남긴 사람도 '기록 없는 등판'(lib/engine/outing.ts claimedYesterdayNoLog)으로 읽혔다 — 체크인 창의 어제 등판 줄은 쉰 날 줄까지
+     * 세어 안 묻는데(lib/outing-line.ts asksYesterdayPitches) 엔진만 계속 '기록이 없어요'라고 해 풀 길이 없었다. 날짜는 groupByDay 와 같은
+     * 방식(앞 10자리)으로 센다. 이 칸이 생기기 전에 저장된 facts 에는 없다 — 읽는 쪽은 던진 기록으로만 가린다(outing.ts).
+     */
+    loggedYesterday?: boolean;
   };
   condition: {
     today: CheckinLike | null;
@@ -559,6 +567,8 @@ export function buildFacts({
         .sort((a, b) => a.daysAgo - b.daysAgo),
       /* 칸은 달력을 넘겼을 때만 — 조건부 펼침이라 안 넘기면 키 자체가 없다 */
       ...(gameDates ? { gameDates } : {}),
+      /* 쉰 날 줄까지 — byDay 는 0구 줄도 그날로 묶는다(lastThrowDate 주석) */
+      loggedYesterday: [...byDay.keys()].some((key) => daysBetween(key, asOf) === 1),
     },
     condition: {
       today: todayCheckin,

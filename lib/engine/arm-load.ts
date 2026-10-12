@@ -12,8 +12,10 @@
  * 무엇을 '컸다'로 보나(위에서 처음 걸리는 것):
  *   hard           어제 세게 던진 날 — Σ 투구수 × 체감 강도 ≥ 2,700 또는 실전 강도 30구(facts.ts isHardOuting, 날 종류 R1 의 어제 쪽)
  *   moderateSpike  어제 중간 부하(세게 던진 날 문턱의 절반 1,350 이상) + 최근 운동 힘듦 급증(날 종류 R2)
- *   claimedNoLog   어제 '오늘 등판'이라 답했는데 어제 투구 기록이 없다(날 종류 R3' — 부하를 모르니 조이는 쪽으로 본다, C6 결정)
- * 셋은 겹치지 않는다 — 앞의 둘은 어제 기록이 있어야 하고 셋째는 기록이 없어야 한다(outing.ts 의 lastSource).
+ *   claimedNoLog   어제 '오늘 등판'이라 답했는데 어제 투구 기록이 한 줄도 없다(쉰 날 줄까지 센다 — 날 종류 R3', 부하를 모르니 조이는
+ *                  쪽으로 본다, C6 결정)
+ * 셋은 겹치지 않는다 — 앞의 둘은 어제 기록이 있어야 하고 셋째는 기록이 없어야 한다(outing.ts 의 claimedYesterdayNoLog). 셋째를 지난 등판
+ * (lastSource)으로 읽지 않는 까닭: 오늘 캐치볼 한 줄만 남겨도 지난 등판은 오늘 기록이 되어 어제의 기록 없는 등판이 지워졌다(2판 P4 검토).
  *
  * 무엇을 안 보나. 오늘 던진 것(오늘 세게 던진 날은 day-state 의 load.hardOutingRecent · 날 종류 R1 이 본다), 그제 이전의 큰 등판(투구
  * 계획의 휴식표 pendingOuting 이 본다 — 암케어는 그쪽도 그대로 읽는다), 투구 기록의 세션 종류 글자('경기' 0구 줄은 부하 0 이라 아무것도
@@ -69,7 +71,7 @@ export function yesterdayArmLoadOf(facts: ReportFacts): YesterdayArmLoad | null 
     yesterday.load >= MODERATE_OUTING_MIN_LOAD
   )
     return { kind: 'moderateSpike', outing: { ...yesterday } };
-  if (outingOf(facts).lastSource === 'checkin-yesterday')
+  if (outingOf(facts).claimedYesterdayNoLog)
     return { kind: 'claimedNoLog', outing: null };
   return null;
 }

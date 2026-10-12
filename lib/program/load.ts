@@ -4,7 +4,7 @@ import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { HIGH_SORENESS, SEVERE_SORENESS, isShortSleep } from '@/lib/checkin';
 import { yesterdayArmLoadOf } from '@/lib/engine/arm-load';
-import { selectCandidates } from '@/lib/report/prescription';
+import { droppedOnlyForArmFatigue, selectCandidates } from '@/lib/report/prescription';
 import { LOW_CONDITION_THRESHOLD, painRecoveryReason } from '@/lib/report/theme';
 import type { loadTodayCore } from '@/lib/report/today-data';
 import type { CachedExercise } from '@/lib/library-cache';
@@ -14,8 +14,8 @@ import { toDateKey } from '@/lib/pitch-stats';
 import {
   CAUTION_TEXT,
   TM_LOOKBACK_DAYS,
-  REST_TEXT,
   PROGRAMS,
+  SUBSTITUTE_REASON,
   audienceOf,
   basicsDoneEnough,
   daysBetween,
@@ -23,11 +23,13 @@ import {
   dayPlan,
   decideToday,
   lighterRx,
+  painSlotsOf,
   parseProgram,
   planSubtitle,
   prescriptionLine,
   programSignalsOf,
   readPinned,
+  restTextOf,
   usedVariants,
   variantCandidates,
   variantLabel,
@@ -335,12 +337,14 @@ export async function buildProgramDay(
 
   /*
    * 등판 답은 오늘 상태 한 장에서 — 매일 일정 · 투구 계획 · 암케어가 읽는 것과 같은 답(자체 시험 엇갈림 표가 같은 함수를 부른다).
-   * '경기 다음 날'은 어제 팔 부담에서 — 매일 일정의 날 종류 · 암케어 회복 루틴과 같은 함수(2판 P4 커밋 F, D3).
+   * '경기 다음 날'은 어제 팔 부담에서 — 매일 일정의 날 종류 · 암케어 회복 루틴과 같은 함수(2판 P4 커밋 F, D3). 쉬는 까닭 글도 그 까닭대로
+   * (restTextOf — 2판 P4 검토).
    */
+  const yesterdayArm = yesterdayArmLoadOf(facts);
   const throwing = programSignalsOf({
     outing: core.state.outing,
     typesToday,
-    yesterdayArmLoad: yesterdayArmLoadOf(facts),
+    yesterdayArmLoad: yesterdayArm,
   });
 
   const today = facts.condition.today;
@@ -355,13 +359,16 @@ export async function buildProgramDay(
           : null;
 
   /* 부위 규칙만으로 오늘 할 수 있는 운동(§4 — 몸 전체 상한은 프로그램이 스스로 가볍게 한다) */
-  const safe = selectCandidates({
+  const safeInput = {
     facts,
     plan: core.plan,
     library: core.library,
     partsOnly: true,
-  });
+  };
+  const safe = selectCandidates(safeInput);
   const safeIds = new Set(safe.candidates.map((e) => e.id));
+  /* 팔 피로 '심함'만으로 빠진 운동 — 대체 꼬리표를 '통증 부위'가 아니라 '팔 피로'로(2판 P4 검토) */
+  const armFatigueOnlyIds = droppedOnlyForArmFatigue(safeInput);
   const byId = new Map(core.library.map((e) => [e.id, e]));
 
   const day = Math.min(row.nextDay, plan.totalDays + 1);
@@ -386,11 +393,13 @@ export async function buildProgramDay(
     return { ex: next, repinned: next != null };
   };
 
-  const painSlots: SlotKind[] = [];
-  for (const x of items) {
-    const { ex } = pinnedFor(x.variant);
-    if (ex && !safeIds.has(ex.id) && !painSlots.includes(x.slot)) painSlots.push(x.slot);
-  }
+  /* 대체할 칸과 그 까닭 — 자체 시험 엇갈림 표와 같은 함수(program.ts painSlotsOf) */
+  const { painSlots, slotReasons } = painSlotsOf(
+    items,
+    (v) => pinnedFor(v).ex,
+    safeIds,
+    armFatigueOnlyIds
+  );
 
   const decision = decideToday(plan, {
     nextDay: row.nextDay,
@@ -415,6 +424,7 @@ export async function buildProgramDay(
       painRecoveryReason(facts, core.plan) != null ||
       (zone == null && facts.patterns.lastThrowDate != null),
     painSlots,
+    slotReasons,
   });
 
   const { completed, skipped } = progressOf(row, plan);
@@ -438,7 +448,10 @@ export async function buildProgramDay(
       decision.kind === 'go' && decision.caution
         ? CAUTION_TEXT[decision.caution]
         : null,
-    restText: decision.kind === 'rest' ? REST_TEXT[decision.reason] : null,
+    restText:
+      decision.kind === 'rest'
+        ? restTextOf(decision.reason, yesterdayArm?.kind ?? null)
+        : null,
     rows: [],
     dropped: [],
     repin,
@@ -487,7 +500,12 @@ export async function buildProgramDay(
       chosen.push({
         rx,
         ex: sub,
-        substituteFor: { title: pinnedEx.title, reason: '통증 부위' },
+        substituteFor: {
+          title: pinnedEx.title,
+          reason: armFatigueOnlyIds.has(pinnedEx.id)
+            ? SUBSTITUTE_REASON.armFatigue
+            : SUBSTITUTE_REASON.pain,
+        },
         repinned: false,
       });
       continue;

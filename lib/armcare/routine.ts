@@ -165,8 +165,12 @@ export function decideArmcare({
      * 까닭에는 쉬게 만든 그 등판을 적는다. 마지막 투구를 적었더니, 나흘 전 95구
      * 뒤 이틀 전에 캐치볼 10개를 한 날 '2일 전 10구 · 아직 쉬는 기간'이 됐다 — 쉬는
      * 까닭은 95구다. 어제 가볍게 던진 날도 휴식표가 하루 쉬라고 하면 여기서 걸린다(그때는 '어제').
+     *
+     * 나이를 넘긴다 — 만 14세 이하는 어린 휴식표(투구 계획 plan.ts · 오늘 상태 한 장과 같은 값, 2판 P4 검토). 2판 P4 커밋 F 로 어제 던진
+     * 다음 날의 회복이 세게 던진 날 · 힘듦 급증 때만 걸리게 되면서 이 휴식표가 바닥을 지키는데, 나이 없이 부르면 13세가 어제 불펜 50구 50%
+     * 를 던진 날 투구 계획은 쉬는 날인데 암케어만 강화 루틴을 냈다.
      */
-    const owed = pendingOuting(p);
+    const owed = pendingOuting(p, 0, facts.profile.age);
     if (owed) {
       const when = owed.elapsed === 1 ? '어제' : `${owed.elapsed}일 전`;
       signals.push(`${when} ${owed.pitches}구 · 아직 쉬는 기간`);

@@ -41,6 +41,9 @@ import {
   weekOfDay,
   CAUTION_TEXT,
   REST_TEXT,
+  SUBSTITUTE_REASON,
+  painSlotsOf,
+  restTextOf,
   type ItemRx,
   type PinnableExercise,
   type ProgramPlan,
@@ -884,6 +887,73 @@ console.log('\n4-1) 경기 다음 날은 부하로(D3)');
     "어제 '오늘 등판' 답 + 어제 경기 15구 → 진행(기록이 이김 — 예전에는 답만으로 쉼)",
     claimedLight.kind === 'go',
     claimedLight.kind
+  );
+  /*
+   * 2판 P4 검토 — 쉬는 까닭 글은 어제 팔 부담의 까닭대로(restTextOf). 셋을 한 글('어제 팔 부담이 컸어요')로 쓰면 기록 없는 등판에도 '컸어요'라고
+   * 단정했다. 앱(load.ts)은 같은 facts 의 yesterdayArmLoadOf 를 넘긴다.
+   */
+  const textOf = (facts: ReturnType<typeof factsOf>) =>
+    restTextOf('gameYesterday', yesterdayArmLoadOf(facts)?.kind ?? null);
+  check(
+    "P4 검토 — 쉬는 까닭 글: 어제 경기 85구 '어제 많이 던졌어요' · 기록 없는 등판 '어제 등판한 다음 날이에요' · 까닭 모름은 예전 글",
+    textOf(factsOf(y1(85, 100, '경기'))) === '어제 많이 던졌어요' &&
+      textOf(factsOf([], '오늘 등판')) === '어제 등판한 다음 날이에요' &&
+      restTextOf('gameYesterday') === REST_TEXT.gameYesterday &&
+      restTextOf('gameToday', 'hard') === REST_TEXT.gameToday
+  );
+}
+
+/*
+ * 4-2) 대체 칸의 까닭(2판 P4 검토) — 팔 피로 '심함'(안전 거르기 5-2)만으로 고정 운동이 빠진 칸은 '팔 피로', 그 밖은 '통증 부위'.
+ * 예전에는 팔 피로만 '심함'인 날에도 '대체 · 통증 부위'가 보였다. 칸 · 까닭은 painSlotsOf 하나가 정한다(앱 load.ts · 자체 시험이 같이 부름).
+ */
+console.log('\n4-2) 대체 칸의 까닭');
+{
+  const items = [
+    { slot: 'pushPull' as const, variant: 'push' as const },
+    { slot: 'pushPull' as const, variant: 'pull' as const },
+    { slot: 'power' as const, variant: 'medball' as const },
+  ];
+  const pinned: Record<string, string> = {
+    push: 'bench',
+    pull: 'row',
+    medball: 'ball',
+  };
+  const of = (safe: string[], armOnly: string[]) =>
+    painSlotsOf(
+      items,
+      (v) => (pinned[v] ? { id: pinned[v] } : null),
+      new Set(safe),
+      new Set(armOnly)
+    );
+  const arm = of(['row'], ['bench', 'ball']);
+  check(
+    "4-2 팔 피로만으로 빠진 벤치 · 메디신볼 → 두 칸 다 '팔 피로'",
+    JSON.stringify(arm.painSlots) === JSON.stringify(['pushPull', 'power']) &&
+      arm.slotReasons.pushPull === SUBSTITUTE_REASON.armFatigue &&
+      arm.slotReasons.power === SUBSTITUTE_REASON.armFatigue
+  );
+  const mixed = of([], ['bench', 'ball']);
+  check(
+    "4-2 한 칸에 팔 피로(벤치) · 통증(로우)이 섞이면 '통증 부위'가 이긴다 — 더 조심할 까닭",
+    mixed.slotReasons.pushPull === SUBSTITUTE_REASON.pain &&
+      mixed.slotReasons.power === SUBSTITUTE_REASON.armFatigue
+  );
+  const none = of(['bench', 'row', 'ball'], []);
+  check('4-2 모두 안전하면 대체 칸 없음', none.painSlots.length === 0);
+  const d = decideToday(
+    LEGACY,
+    sig({ painSlots: arm.painSlots, slotReasons: arm.slotReasons })
+  );
+  const old = decideToday(LEGACY, sig({ painSlots: ['pushPull'] }));
+  check(
+    "4-2 decideToday — 대체 까닭은 slotReasons 대로('팔 피로'), slotReasons 없는 옛 신호는 '통증 부위'",
+    d.kind === 'go' &&
+      d.adjust.pushPull?.kind === 'substitute' &&
+      d.adjust.pushPull.reason === '팔 피로' &&
+      old.kind === 'go' &&
+      old.adjust.pushPull?.kind === 'substitute' &&
+      old.adjust.pushPull.reason === '통증 부위'
   );
 }
 

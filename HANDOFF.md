@@ -60,7 +60,7 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 - **`lib/prisma.ts`**: 시험 계정의 요청일 때만, 만들고 고칠 때 비어 있는 시각 칸(createdAt · startedAt · recordedAt · updatedAt …, 표 `TIME_FIELDS`)을
   시뮬레이션 지금으로 채우는 `$extends` 를 씌웠다 — DB 의 now() 는 실제 시각이라 운동 시간 · 쉬는 시계 · 2분 안 같은 기록 막기가 어긋났다.
   다른 계정은 손대지 않는다(`__bpNow` 가 실제 시각이면 그냥 지나감). 새 표에 `@default(now())` 칸을 더하면 이 표에도 적어 줘.
-## 김민에게 — 2026-10-12 · 금윤호(Claude) — 트레이닝 추천 2판 P3(등판 답 여섯 · 체감 강도 %) — 받으면 `npx prisma generate`
+## 김민에게 — 2026-10-12 · 금윤호(Claude) — 트레이닝 추천 2판 P3(등판 답 여섯 · 체감 강도 %) · P4(경기 다음 날은 부하로) — 받으면 `npx prisma generate`
 
 받은 뒤 할 일: **`npx prisma generate`** — `PitchLog.effortPct Int?`(체감 강도 5~100%)를 더했다. 마이그레이션 `20261012030000_pitch_log_effort_pct`,
 DB 에는 이미 적용했다(백업 `db-2026-10-11-18-23.json`). 비워 둘 수 있어 옛 코드도 돈다. `npm ci` 는 필요 없다. 설계 · 결정은
@@ -82,11 +82,29 @@ DB 에는 이미 적용했다(백업 `db-2026-10-11-18-23.json`). 비워 둘 수
   - `lib/armcare/routine.ts` · `today.ts` — `decideArmcare` 에 선택 인자 `state`(오늘 상태 한 장, `lib/engine/day-state.ts`)로 등판 날 회복. today.ts 가 따로 하던
     체크인 조회를 걷었다(조회 하나 줄어듦)(7ae15c7 · cda47b0).
   - `lib/program/load.ts` · `program.ts` — `throwSignals` 를 걷고 새 export `programSignalsOf`(오늘 상태 한 장으로 등판 신호), load.ts 의 체크인 조회를 뺐다
-    (06fe6be · e09afb9). 결과는 그대로(자체 시험이 옛 식과 견줌).
+    (06fe6be · e09afb9). P3 에서는 결과가 그대로였다(자체 시험이 옛 식과 견줌) — P4 에서 '경기 다음 날' · 쉬는 글 · 대체 까닭이 바뀌었다(아래 P4 줄).
   - `app/actions/rehab.ts` — 재활 투구 기록도 `effortFields` 로 두 칸을 같이 쓴다(1853121).
   - `components/checkin-form.tsx` — 던지는 일정 · 팔 피로를 간편 쪽으로(1f5c3a8). 네가 같은 날 main 에서 고친 파일이라(1afa8ad · b091c49 · d130455) 합칠 때 겹칠 수 있다.
 - **폰에서 봐 주면 좋은 것**: 간편 체크인의 던지는 일정 칩 여섯과 '어제: …' 글 · 투구 기록의 체감 강도 칩(−/+ 5%) · 구속 측정 저장 시트의 체감 강도 ·
   등판 날 홈 계획 줄.
+- **(같은 날 더함) 트레이닝 추천 2판 P4 — 경기 다음 날은 부하로 · 다음 등판 짐작 · 팔 피로 안전 규칙.** 받은 뒤 할 일 없음(DB · 패키지 그대로 — facts ·
+  일정 지문 Json 의 선택 칸만). 설계 문서 'P4 결과'. 커밋 0fbeb71 · 0e9bcc8 · 9911ac8 · 452f4da · 07cb1e1 · f71b0dd · e57d0c6 · 56bf05c · 0a5c421 + 검토 반영
+  ('트레이닝 추천 2판 P4 검토 반영'). **네 영역 파일을 고쳤다**(줄 수는 `git diff --numstat 2afffc2` — P4 아홉 + 검토 반영):
+  - `lib/program/program.ts` +35 −13 · +59 −3, `lib/program/load.ts` +21 −15 · +31 −13: '경기 다음 날'이 어제 '경기' 기록이 아니라 **어제 팔 부담**
+    (`lib/engine/arm-load.ts yesterdayArmLoadOf` — 세게 던진 날 · 중간 부하 + 운동 힘듦 급증 · 기록 없는 등판). `ProgramSignalsInput.typesYesterday` →
+    `yesterdayArmLoad`(`gameYesterday` 이름은 그대로), load.ts 는 어제 투구 기록을 따로 안 읽는다. 쉬는 까닭 글은 `restTextOf(reason, kind)` — '어제 많이
+    던졌어요' · '어제 던졌고 최근 운동도 힘들었어요' · '어제 등판한 다음 날이에요'(까닭을 모르면 `REST_TEXT` '어제 팔 부담이 컸어요'), 넘긴 날 주의
+    `CAUTION_TEXT.gameOverride` '쉬는 게 좋은 날이에요. …'. 대체 칸 · 까닭은 새 `painSlotsOf` 하나가 정한다 — 팔 피로 '심함'만으로 빠진 고정 운동은
+    '대체 · 팔 피로'(예전엔 늘 '통증 부위'), 새 선택 칸 `TodaySignals.slotReasons` · 상수 `SUBSTITUTE_REASON`, 가리는 함수는 `lib/report/prescription.ts droppedOnlyForArmFatigue`.
+  - `lib/armcare/routine.ts` +37 −12 · +5 −1: '어제 N구' 회복은 세게 던진 날 · 중간 부하 + 급증일 때만, 기록 없는 등판 다음 날은 '어제 등판' 회복, 가볍게 던진
+    다음 날은 휴식표가 쉬라고 하면 회복 · 아니면 '어제 N구 · 팔 부담 적음 → 강화 루틴'. 휴식표는 이제 나이를 넣어 부른다(만 14세 이하 어린 표 — 투구 계획과 같은 말).
+  - `components/checkin-form.tsx` +160 −5 · +34 −4, `checkin-gate.tsx` +11 −1, `app-shell.tsx` +2, `app/(app)/layout.tsx` +4 −1(56bf05c · 검토 반영): 간편
+    체크인에 '어제 등판 · 기록 없음' 줄(어제 '오늘 등판' 답인데 어제 투구 기록이 쉰 날 줄까지 한 줄도 없을 때) — 몇 구 + 체감 강도 칩, 또는 '안 던졌어요'(어제
+    '휴식' 한 줄). `saveCheckinSafely` 가 체크인보다 먼저 투구 기록 API 를 부른다. 같은 파일을 고치고 있으면 합칠 때 겹칠 수 있다.
+  - `scripts/program-selftest.mts` +111 · +70(4-1 경기 다음 날은 부하로 · 4-2 대체 칸의 까닭).
+  - facts 에 `patterns.loggedYesterday`(어제 투구 기록 줄 — 쉰 날 줄까지)가 생겼다. 엔진은 어제 '휴식' 줄을 '안 던졌다'는 답으로 본다.
+  - 폰에서 봐 주면 좋은 것: 트레이닝 일정 카드 위 '다음 등판까지 N일'(짐작이면 밑에 '달력으로 추정' + 바꾸기) · 체크인 어제 등판 줄과 '안 던졌어요' 칩 ·
+    프로그램 쉬는 날 글 · 팔 피로 '심함' 날 프로그램 대체 꼬리표.
 
 ## 김민에게 — 2026-10-12 · 금윤호(Claude) — 운동 마치기 창의 강도를 선택으로 · 축하 화면에 힘듦 칩 넷(rateWorkoutEffort) · 세션 판 JSON 에 `swaps` 칸
 
@@ -96,7 +114,7 @@ DB 에는 이미 적용했다(백업 `db-2026-10-11-18-23.json`). 비워 둘 수
   알린다(서버가 강도 없는 메모를 버리므로). 열 칸 · 기준표 · 느낀점은 그대로.
 - `app/(session)/workout/done/page.tsx` · `done-client.tsx` · 새 `effort-card.tsx`: 그날 `DailyTrainingNote` 가 없으면 [완료] 위에 칩 넷(가벼움 3 · 보통 5 ·
   힘듦 7 · 아주 힘듦 9, 같은 1~10 눈금). 한 번 누르면 저장(`rateWorkoutEffort`, `app/actions/workout.ts` — 본인 판이면, 그새 적은 줄은 덮지 않음),
-  '건너뛰기'는 서버에 안 간다. 추천은 아직 이 값을 안 읽는다(P4 · P5).
+  '건너뛰기'는 서버에 안 간다. P4 부터 날 종류 R2(어제 중간 부하 + 힘듦 급증 → 회복)가 이 값의 급증 깃발을 읽는다(P5 는 점수로).
 - 세션 판 JSON(`TrainingSession.plan`)에 선택 칸 `swaps`(뺀 · 바꾼 기록), 일정 JSON(`DailyTrainingSetup.plan`)에 `swaps` · `fingerprint` 가 생겼다
   (커밋 fd28e02 · 9c5da50, 모양은 `lib/report/plan-swaps.ts` · `plan-fingerprint.ts`). `readFrozenPlan` 이 `swaps` 를 옮기니 판을 새로 쓸 때 아는
   칸만 옮기면 잃는다 — `{ ...plan }` 꼴로 써 줘.

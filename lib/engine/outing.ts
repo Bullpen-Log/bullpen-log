@@ -62,7 +62,7 @@ import type { ReportFacts } from '@/lib/report/facts';
 export type OutingNextSource =
   'checkin' | 'checkin-yesterday' | 'calendar' | 'estimate' | 'none';
 
-/** 지난 등판을 무엇으로 아나 — 투구 기록 · 어제 '오늘 등판' 답(기록 없음) · 없음 */
+/** 지난 등판을 무엇으로 아나 — 투구 기록 · 어제 '오늘 등판' 답(어제 기록이 쉰 날 줄까지 없음) · 없음 */
 export type OutingLastSource = 'log' | 'checkin-yesterday' | 'none';
 
 /** 짐작한 출처인가 — 조이는 쪽에만 쓰고 무거운 쪽을 허락하는 데는 안 쓴다 */
@@ -125,10 +125,20 @@ export type Outing = {
   answerYesterday: ThrowPlan | null;
   /** 오늘 답을 남겼는가 — '없음'이나 목록 밖 글자도 답이다(그때 daysUntilNext 는 null 이고 어제 답을 이월하지 않는다) */
   answeredToday: boolean;
-  /** 마지막 등판으로부터 지난 날 — 기록이 먼저, 기록이 없거나 어제 답보다 멀면 어제 '오늘 등판' 답(1), 둘 다 없으면 null */
+  /**
+   * 마지막 등판으로부터 지난 날 — 기록이 먼저, 기록이 없거나 어제 답보다 멀면 어제 '오늘 등판' 답(1, 어제 기록이 한 줄도 없을 때만), 둘 다
+   * 없으면 null
+   */
   daysSinceLast: number | null;
   /** daysSinceLast 를 무엇으로 아나 */
   lastSource: OutingLastSource;
+  /**
+   * 어제 '오늘 등판'이라 답했는데 어제 투구 기록이 한 줄도 없다(쉰 날 줄까지 센다 — facts.patterns.loggedYesterday). 지난 등판(lastSource)과
+   * 따로 둔다(2판 P4 검토, 2026-10-12): lastSource 는 '가장 최근 던진 날'이라 오늘 캐치볼 한 줄만 남겨도 'log' 가 되어, 어제의 기록 없는
+   * 등판이 지워졌다(날 종류 R3' · 프로그램 쉬기 · 암케어 회복이 꺼짐). 어제 팔 부담(lib/engine/arm-load.ts claimedNoLog) · 오늘 상태 한 장의
+   * 이유 줄 · 체크인의 어제 등판 줄(lib/outing-line.ts asksYesterdayPitches)이 모두 이 규칙 하나다.
+   */
+  claimedYesterdayNoLog: boolean;
   /** 마지막으로 던진 날의 투구수(기록에서만) */
   lastPitches: number | null;
   /** 마지막으로 던진 날의 Σ 투구수 × 체감 강도(%)(facts.patterns.hardOutings 의 그날, 이레 안 · 옛 facts 는 null) */
@@ -258,13 +268,23 @@ export function outingOf(facts: ReportFacts): Outing {
    * 지난 등판 — 기록이 먼저다. 어제 '오늘 등판'이라 답했는데 어제 기록이 없으면(던지고 안 적었거나 취소) 기록보다 가까운
    * 그 답을 1일 전 등판으로 둔다 — 투구수 · 부하는 모르니 null(D3 · P4 가 이 칸을 읽는다). 기록이 오늘 · 어제 것이면 기록이 이긴다.
    * 어제 답이 '그날 등판'이었나는 답 글자를 직접 견주지 않고 lib/checkin.ts 규칙으로 본다(어제 기준 꼭 0일 뒤).
+   *
+   * 어제 기록은 쉰 날 줄까지 센다(2판 P4 검토). 어제를 '휴식'으로 남겼으면 '안 던졌다'는 분명한 답이라 어제 답은 풀린 것으로 보고 기록을
+   * 읽는다 — 예전에는 던진 날(restDays)만 보아, 휴식 줄을 남겨도 '기록 없는 등판'이 다음 날까지 남았다. 칸이 없는 옛 facts 는 던진 기록
+   * (restDays · hardOutings · recentOutings 의 어제)으로만 가린다.
    */
   const logDays = patterns.restDays;
   const yesterdayGame = exactOutingDay(nextOutingDays(answerYesterday)) === 0;
-  const fromLog = logDays != null && (logDays <= 1 || !yesterdayGame);
+  const loggedYesterday =
+    patterns.loggedYesterday ??
+    (logDays === 1 ||
+      (patterns.hardOutings ?? []).some((o) => o.daysAgo === 1) ||
+      (patterns.recentOutings ?? []).some((o) => o.daysAgo === 1));
+  const claimedYesterdayNoLog = yesterdayGame && !loggedYesterday;
+  const fromLog = logDays != null && (logDays <= 1 || !claimedYesterdayNoLog);
   const lastSource: OutingLastSource = fromLog
     ? 'log'
-    : yesterdayGame
+    : claimedYesterdayNoLog
       ? 'checkin-yesterday'
       : 'none';
 
@@ -283,8 +303,9 @@ export function outingOf(facts: ReportFacts): Outing {
     answerToday,
     answerYesterday,
     answeredToday: answers.today != null,
-    daysSinceLast: fromLog ? logDays : yesterdayGame ? 1 : null,
+    daysSinceLast: fromLog ? logDays : claimedYesterdayNoLog ? 1 : null,
     lastSource,
+    claimedYesterdayNoLog,
     lastPitches: fromLog ? patterns.lastOutingPitches : null,
     lastLoad: fromLog
       ? ((patterns.hardOutings ?? []).find((o) => o.daysAgo === logDays)?.load ?? null)

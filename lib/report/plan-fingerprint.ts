@@ -103,6 +103,12 @@ export type PlanFingerprint = {
    * 나오는 바깥 선택 칸이라 FINGERPRINT_OPTIONAL_KEYS 에 둔다. 견줄 때는 둘 다 있을 때만 본다(v 는 1 그대로).
    */
   outingGuess?: { calendar: number | null; estimate: number[] };
+  /**
+   * 어제 투구 기록 줄이 있나 — 쉰 날 줄까지(facts.patterns.loggedYesterday). 등판을 읽는 함수(lib/engine/outing.ts)가 어제 '오늘 등판' 답이
+   * 기록으로 풀렸는지 이것으로 가려(2판 P4 검토 — 휴식 줄도 '안 던졌다'는 답) 같은 커밋에서 더한 바깥 선택 칸. 칸이 있는 facts(지금의 buildFacts 는
+   * 늘 만든다)에서만 나오고, 칸이 생기기 전의 지문 · 옛 저장 facts 로 찍은 지문에는 없다. 견줄 때는 둘 다 있을 때만 본다(v 는 1 그대로).
+   */
+  loggedYesterday?: boolean;
 };
 
 /** 지문의 칸 목록(순서까지) — 칸을 더하거나 빼면 자체 시험이 이 목록과 견줘 알린다 */
@@ -126,6 +132,7 @@ export const FINGERPRINT_KEYS = [
 export const FINGERPRINT_OPTIONAL_KEYS = [
   'effortSpike',
   'outingGuess',
+  'loggedYesterday',
 ] as const satisfies readonly (keyof PlanFingerprint)[];
 
 /** 판단이 읽는 부위 값 — '정상' · 옛 기록의 '괜찮음' · 모르는 값은 안 넣는다(hasPain · 뻐근 규칙이 이 둘만 본다) */
@@ -214,6 +221,9 @@ export function fingerprintOf(facts: ReportFacts): PlanFingerprint {
     ...(effort ? { effortSpike: effort.spikeFlag } : {}),
     ...(guess
       ? { outingGuess: { calendar: guess.calendar, estimate: [...guess.estimate] } }
+      : {}),
+    ...(typeof facts.patterns.loggedYesterday === 'boolean'
+      ? { loggedYesterday: facts.patterns.loggedYesterday }
       : {}),
   };
 }
@@ -334,6 +344,10 @@ export function readPlanFingerprint(value: unknown): PlanFingerprint | null {
     outingGuess = { calendar: g.calendar, estimate: [...g.estimate] };
   }
 
+  /* 어제 기록 유무도 선택 칸 — 없으면(옛 지문) 통과, 있는데 참 · 거짓이 아니면 깨진 지문 */
+  if (v.loggedYesterday !== undefined && typeof v.loggedYesterday !== 'boolean')
+    return null;
+
   return {
     v: 1,
     asOf: v.asOf,
@@ -347,6 +361,9 @@ export function readPlanFingerprint(value: unknown): PlanFingerprint | null {
     hardOuting: outing,
     ...(typeof v.effortSpike === 'boolean' ? { effortSpike: v.effortSpike } : {}),
     ...(outingGuess ? { outingGuess } : {}),
+    ...(typeof v.loggedYesterday === 'boolean'
+      ? { loggedYesterday: v.loggedYesterday }
+      : {}),
   };
 }
 
@@ -369,7 +386,8 @@ export type FingerprintKey =
   | 'lastThrow'
   | 'hardOuting'
   | 'effortSpike'
-  | 'outingGuess';
+  | 'outingGuess'
+  | 'loggedYesterday';
 
 /** 바뀐 항목 하나 — key 는 화면이 가르는 데(onlyPainPartChanges), text 는 그대로 띄우는 데 쓴다 */
 export type FingerprintChange = { key: FingerprintKey; text: string };
@@ -691,6 +709,22 @@ export function diffFingerprintChanges(
             : '같은 요일 경기로 짐작한 등판 날이 바뀌었어요'
       );
     }
+  }
+
+  /*
+   * 어제 기록 유무 — 둘 다 칸이 있을 때만(2판 P4 검토). 어제 던진 기록이면 마지막 투구 · 세게 던진 날 줄이 이미 말하니 그 줄이 없을 때만
+   * (어제를 휴식으로 남긴 날 · 오늘 기록이 마지막 투구라 어제 줄이 안 보이는 날) 한 줄 — 같은 바뀜을 두 줄로 말하지 않게.
+   */
+  if (
+    saved.loggedYesterday !== undefined &&
+    now.loggedYesterday !== undefined &&
+    saved.loggedYesterday !== now.loggedYesterday &&
+    !out.some((c) => c.key === 'lastThrow' || c.key === 'hardOuting')
+  ) {
+    push(
+      'loggedYesterday',
+      now.loggedYesterday ? '어제 투구 기록을 남겼어요' : '어제 투구 기록이 지워졌어요'
+    );
   }
 
   return out;
