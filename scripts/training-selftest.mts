@@ -25,6 +25,7 @@ import {
   SEVERE_SORENESS,
   THROW_PLANS,
   WORKOUT_KINDS,
+  hasDetail,
   isShortSleep,
   nextOutingDays,
   parseArmPain,
@@ -34,6 +35,7 @@ import {
   mealSummary,
   pickArmPain,
   pickCheckinBody,
+  pickCheckinDetail,
   sleepLevelFromHours,
   type CheckinPartKey,
   type ThrowPlan,
@@ -1160,6 +1162,10 @@ console.log('\n[체크인 해석] 근육통 · 잔 시간을 오류 없이 읽�
     JSON.stringify(soreResults)
   );
 
+  /*
+   * P3 로 바뀜 — 2026-10-12 D1 폼: 던지는 일정(throwPlan)이 상세에서 간편 칸(CheckinBody)으로 옮겨 와 뽑은 모양에
+   * 다섯째 칸이 붙었다(글자 비교라 기대 객체에도 더한다). 옛 넷 칸의 값 · 차례는 그대로다.
+   */
   check(
     'DB 행에서 뽑기: 칸이 없는 행(옛 기록) → 모두 null · []',
     JSON.stringify(pickCheckinBody({})) ===
@@ -1168,6 +1174,7 @@ console.log('\n[체크인 해석] 근육통 · 잔 시간을 오류 없이 읽�
         soreness: null,
         nutrition: null,
         skippedMeals: [],
+        throwPlan: null,
       })
   );
   check(
@@ -1178,6 +1185,7 @@ console.log('\n[체크인 해석] 근육통 · 잔 시간을 오류 없이 읽�
         soreness: 4,
         nutrition: '보통',
         skippedMeals: ['dinner'],
+        throwPlan: '2~3일 뒤',
       })
     ) ===
       JSON.stringify({
@@ -1185,7 +1193,15 @@ console.log('\n[체크인 해석] 근육통 · 잔 시간을 오류 없이 읽�
         soreness: 4,
         nutrition: '보통',
         skippedMeals: ['dinner'],
+        throwPlan: '2~3일 뒤',
       })
+  );
+  check(
+    'DB 행에서 뽑기: 던지는 일정은 목록으로 거른다 — 옛 넷 · 새 둘은 그대로, 목록 밖 글자 → null',
+    THROW_PLANS.every((a) => pickCheckinBody({ throwPlan: a }).throwPlan === a) &&
+      pickCheckinBody({ throwPlan: '모레' }).throwPlan === null &&
+      pickCheckinBody({ throwPlan: '' }).throwPlan === null &&
+      pickCheckinBody({ throwPlan: null }).throwPlan === null
   );
 
   /* 식사 두 칸(2026-10-07) — 영양 조언이 읽는다. 목록 밖 · 간식 · 중복은 거르고 오류는 내지 않는다 */
@@ -10180,15 +10196,16 @@ console.log(
       parseThrowPlan('오늘등판'),
     ].every((v) => v === null)
   );
+  /*
+   * P3 로 바뀜 — D1 폼(같은 날 다음 커밋)이 던지는 일정을 상세 파서(parseCheckinDetail)에서 간편 파서(parseCheckinBody)로
+   * 옮겼다. 묻는 것은 같다: 폼 글자를 읽는 파서가 parseThrowPlan 과 같은 규칙인가. 상세 파서에 칸이 없다는 것은 아래
+   * '[2판 오늘 상태(P3)] D1 폼' 절이 본다.
+   */
   check(
-    'D1 (파서) parseCheckinDetail 이 같은 파서를 쓴다 — 새 답은 살고, 목록 밖 글자는 null',
+    'D1 (파서) parseCheckinBody 가 같은 파서를 쓴다 — 새 답은 살고, 목록 밖 글자는 null',
     (() => {
-      const detail = (throwPlan: string) =>
-        parseCheckinDetail((name) => (name === 'throwPlan' ? throwPlan : ''));
-      const got = (throwPlan: string) => {
-        const r = detail(throwPlan);
-        return 'value' in r ? r.value.throwPlan : `error:${r.error}`;
-      };
+      const got = (throwPlan: string) =>
+        parseCheckinBody((name) => (name === 'throwPlan' ? throwPlan : '')).throwPlan;
       return (
         got('2~3일 뒤') === '2~3일 뒤' &&
         got(' 4일 이상 뒤 ') === '4일 이상 뒤' &&
@@ -10286,6 +10303,119 @@ console.log(
   check(
     'D1 (위임) 모르는 글자가 오늘 답으로 들어와도 null(어제 이월도 막는다 — 오늘 적은 것이 있으니)',
     plannedOuting(d1Facts('모레', '내일 등판')) === null
+  );
+}
+
+/* ═══════════════════ [2판 오늘 상태(P3)] D1 폼 — 던지는 일정은 간편 칸 하나 · 파서 하나 (2026-10-12) ═══════════════════ */
+console.log(
+  '\n[2판 오늘 상태(P3)] D1 폼 — 던지는 일정은 간편 칸(CheckinBody) 하나, 상세 파서 · 요약 판정에는 없다(2026-10-12)'
+);
+{
+  /*
+   * 던지는 일정이 상세에만 있어 답이 거의 없었다(P0 사용 통계 체크인 30줄에 1). 간편으로 옮기며 지킬 것:
+   *   ① 간편 파서가 읽는다(body=1 이면 간편 · 상세 어느 쪽 저장이든)
+   *   ② 상세 파서는 그 칸을 돌려주지 않는다 — app/actions/checkin.ts 가 상세 값을 간편 값 뒤에 펼쳐서, 상세에 칸이
+   *      남아 있으면 같은 값을 한 번 더 쓰고 칸이 비었을 때 간편 답을 null 로 덮는다
+   *   ③ 요약의 '상세 줄'(hasDetail)은 간편에서 적는 칸(던지는 일정 · 팔 피로)으로 켜지지 않는다
+   *   ④ 화면으로 넘기는 자료(app/(app)/layout.tsx 의 pickCheckinBody + pickCheckinDetail)에는 그대로 실린다
+   */
+  const formOf =
+    (values: Record<string, string>) =>
+    (name: string): string =>
+      values[name] ?? '';
+  /* 서버 동작의 합치기 차례 그대로 — upsert 의 { ...quick, ...body, ...armPain, ...detail } 에서 두 조각만 */
+  const savedThrowPlan = (values: Record<string, string>, detailForm: boolean) => {
+    const get = formOf(values);
+    const body = parseCheckinBody(get);
+    const parsed = detailForm ? parseCheckinDetail(get) : null;
+    const detail = parsed && 'value' in parsed ? parsed.value : {};
+    return ({ ...body, ...detail } as { throwPlan?: unknown }).throwPlan;
+  };
+
+  check(
+    'D1 폼 (간편 파서) 여섯 답을 그대로 읽고, 다른 간편 칸은 그대로 — 근육통 · 끼니 양과 같이 와도',
+    THROW_PLANS.every((a) => {
+      const r = parseCheckinBody(
+        formOf({ throwPlan: a, soreness: '3', mealAmount: '보통' })
+      );
+      return r.throwPlan === a && r.soreness === 3 && r.nutrition === '보통';
+    })
+  );
+  check(
+    'D1 폼 (간편 파서) 안 고름(빈 칸) · 목록 밖 글자 → null, 오류 없이',
+    parseCheckinBody(formOf({})).throwPlan === null &&
+      parseCheckinBody(formOf({ throwPlan: '' })).throwPlan === null &&
+      parseCheckinBody(formOf({ throwPlan: '다음 주' })).throwPlan === null
+  );
+  {
+    const r = parseCheckinDetail(
+      formOf({ throwPlan: '오늘 등판', appetite: '3', note: '메모' })
+    );
+    const keys = 'value' in r ? Object.keys(r.value).sort().join() : `error:${r.error}`;
+    check(
+      'D1 폼 (상세 파서) 폼에 던지는 일정이 있어도 돌려주는 값에 그 칸이 없다 — 칸은 armFatigue · appetite · bodyWeightKg · note 넷',
+      keys === 'appetite,armFatigue,bodyWeightKg,note',
+      keys
+    );
+  }
+  check(
+    'D1 폼 (저장 합치기) 상세로 저장해도 간편 파서가 읽은 답이 남는다 — 여섯 답 모두, 간편 · 상세 저장이 같다',
+    THROW_PLANS.every(
+      (a) =>
+        savedThrowPlan({ throwPlan: a, appetite: '4' }, true) === a &&
+        savedThrowPlan({ throwPlan: a }, false) === a
+    )
+  );
+  check(
+    'D1 폼 (저장 합치기) 고른 답을 다시 눌러 풀고 저장하면 null 로 지워진다(상세 저장이 옛 값을 되살리지 않는다)',
+    savedThrowPlan({ throwPlan: '', appetite: '4' }, true) === null &&
+      savedThrowPlan({}, false) === null
+  );
+  check(
+    'D1 폼 (요약 판정) hasDetail — 던지는 일정 · 팔 피로만 적은 날은 상세 줄이 없고, 몸무게 · 식욕 · 메모는 상세 줄',
+    (() => {
+      const onlyPlan = { throwPlan: '오늘 등판', note: null };
+      const onlyArm = { armFatigue: 3, note: null };
+      return (
+        hasDetail(onlyPlan) === false &&
+        hasDetail(onlyArm) === false &&
+        hasDetail({}) === false &&
+        hasDetail({ note: '' }) === false &&
+        hasDetail({ bodyWeightKg: 72.5 }) === true &&
+        hasDetail({ appetite: 2 }) === true &&
+        hasDetail({ note: '팔이 무거움' }) === true
+      );
+    })()
+  );
+  {
+    /* DB 행 그대로(칸이 다 있는 줄) — layout.tsx 가 두 조각을 펼쳐 체크인 창 자료를 만든다 */
+    const rowOf = (throwPlan: string | null) => ({
+      sleepHours: null,
+      soreness: null,
+      nutrition: null,
+      skippedMeals: [],
+      armFatigue: 2,
+      bodyWeightKg: null,
+      appetite: null,
+      note: null,
+      throwPlan,
+    });
+    check(
+      'D1 폼 (화면 자료) pickCheckinDetail 은 던지는 일정을 싣지 않고, 두 조각을 펼치면 간편 쪽 값이 실린다',
+      THROW_PLANS.every((a) => {
+        const row = rowOf(a);
+        const detail = pickCheckinDetail(row);
+        const merged = { ...pickCheckinBody(row), ...detail };
+        return !Object.keys(detail).includes('throwPlan') && merged.throwPlan === a;
+      }) &&
+        { ...pickCheckinBody(rowOf('모레')), ...pickCheckinDetail(rowOf('모레')) }
+          .throwPlan === null &&
+        pickCheckinDetail(rowOf(null)).armFatigue === 2
+    );
+  }
+  check(
+    'D1 폼 (알려진 하루 영향) 배포 전에 열린 옛 간편 화면은 칸을 안 보낸다 — body=1 만으로 던지는 일정이 null 이 된다(팔 피로와 같은 선택)',
+    savedThrowPlan({ soreness: '2' }, false) === null
   );
 }
 

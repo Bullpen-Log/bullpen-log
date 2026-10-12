@@ -50,7 +50,7 @@ import {
 } from '@/lib/checkin';
 import { kept, keptAll, withInput } from '@/lib/form-values';
 import { OFFLINE_MESSAGE, orOffline } from '@/lib/action-offline';
-import { toDateKey } from '@/lib/pitch-stats';
+import { shiftDateKey, toDateKey } from '@/lib/pitch-stats';
 import { formatWeight, fromWeight, round1, toWeight } from '@/lib/units';
 import { useWeightUnit } from '@/components/use-units';
 import { BodySpotPicker } from '@/components/body-spot-picker';
@@ -242,11 +242,17 @@ function ChipCheckbox({
 
 function Row({
   label,
+  aside,
   top,
   radios,
   children,
 }: {
   label: string;
+  /**
+   * 이름 옆의 작은 회색 글 — 던지는 일정의 '어제: 내일 등판'. 휴대폰은 이름과 한 줄(이름이 칩 위 제 줄에 있다),
+   * 넓은 화면은 이름 밑. 칩 줄 끝에 붙이면 칩이 한 줄 더 늘어난다 — 간편 체크인은 한 줄도 아껴야 한다.
+   */
+  aside?: string | null;
   /**
    * 하나만 고르는 칩 줄일 때 — 묶음에 이 칸의 이름을 붙인다(화면 읽기).
    * 이름은 옆의 글자일 뿐 라디오와 이어져 있지 않다. 근육통 · 팔 피로처럼 보기가 같은 칸이 여럿이라
@@ -268,6 +274,11 @@ function Row({
         className={`w-28 shrink-0 text-xs font-medium text-muted ${top ? 'sm:pt-3.5' : ''}`}
       >
         {label}
+        {aside && (
+          <span className="ml-1.5 text-[11px] font-normal text-muted/70 sm:mt-0.5 sm:ml-0 sm:block">
+            {aside}
+          </span>
+        )}
       </span>
       <div
         role={radios ? 'radiogroup' : undefined}
@@ -492,18 +503,27 @@ function ModeSwitch({ mode, onChange }: { mode: Mode; onChange: (m: Mode) => voi
   );
 }
 
-/** 요약에 쓰는 상세 값 — 적은 것만 한 줄씩 */
+/**
+ * 요약에 쓰는 상세 값 — 적은 것만 한 줄씩. 상세에서만 적는 칸(몸무게 · 식욕)뿐이다 — 간편에서 적는 던지는 일정 ·
+ * 팔 피로는 요약의 첫 줄(summaryLines)에 간편 칸과 같이 보인다(2026-10-12, 어느 쪽에서 적었는지 헷갈리지 않게).
+ * 이 줄을 그릴지는 lib/checkin.ts 의 hasDetail 이 정한다(같은 칸을 센다).
+ */
 function detailLines(d: CheckinData, weightUnit: 'kg' | 'lb'): [string, string][] {
+  const out: [string, string][] = [];
+  if (d.bodyWeightKg != null)
+    out.push(['몸무게', formatWeight(d.bodyWeightKg, weightUnit) ?? '']);
+  if (d.appetite != null)
+    out.push(['식욕', APPETITE_LEVELS[d.appetite - 1] ?? String(d.appetite)]);
+  return out;
+}
+
+/** 간편 쪽 1~5 척도(지금은 팔 피로 하나)의 요약 — 적은 것만 [이름, 말] */
+function quickScaleLines(d: CheckinData): [string, string][] {
   const out: [string, string][] = [];
   for (const s of DETAIL_SCALES) {
     const v = d[s.key];
     if (v != null) out.push([s.label, s.options[v - 1] ?? String(v)]);
   }
-  if (d.bodyWeightKg != null)
-    out.push(['몸무게', formatWeight(d.bodyWeightKg, weightUnit) ?? '']);
-  if (d.appetite != null)
-    out.push(['식욕', APPETITE_LEVELS[d.appetite - 1] ?? String(d.appetite)]);
-  if (d.throwPlan) out.push(['던지는 일정', d.throwPlan]);
   return out;
 }
 
@@ -529,9 +549,12 @@ function saveCheckinSafely(
  * 그날 첫 접속 때 뜨는 체크인 관문(components/checkin-gate.tsx). 그래서 자기 껍데기(테두리·제목)를
  * 만들지 않는다 — 감싸는 쪽이 이미 가지고 있어서 겹친다.
  *
- * 간편과 상세 두 가지로 받는다. 간편은 몸 상태·컨디션·수면, 그리고 선택 칸인 근육통 ·
- * 잔 시간만 — 매일 쓰는 것이라 몇 초 안에 끝나야 한다. 상세는 운동 선호와 앱이 실제로 쓰는
- * 기록(팔 피로 · 몸무게 · 식욕 · 던지는 일정)과 메모까지 받되, 전부 안 채워도 된다.
+ * 간편과 상세 두 가지로 받는다. 간편은 몸 상태·컨디션, 그리고 선택 칸인 던지는 일정 · 팔 피로 · 끼니 양 ·
+ * 걸른 끼니만 — 매일 쓰는 것이라 몇 초 안에 끝나야 한다. 상세는 운동 선호와 앱이 실제로 쓰는
+ * 기록(몸무게 · 식욕)과 메모까지 받되, 전부 안 채워도 된다.
+ *
+ * 던지는 일정은 2026-10-12(트레이닝 추천 2판 D1)에 상세에서 간편으로 옮겼다 — 매일 운동 계획 · 근력 프로그램 ·
+ * 영양 가이드가 다 읽는 답인데 상세에만 있어 거의 오지 않았다. 컨디션 바로 밑에 둔다(추천을 가장 크게 바꾸는 답).
  *
  * 근육통 · 잔 시간은 2026-09-30 에 상세에서 뺐다가 같은 날 되살렸다 — 트레이닝 추천이 읽는다
  * (사용자: "둘다 트레이닝을 추천함에 있어서 필요한 데이터야"). 상세가 아니라 간편 쪽(늘 보이는 자리)에
@@ -540,7 +563,7 @@ function saveCheckinSafely(
  *
  * 간편으로 저장하면 상세 기록은 건드리지 않는다. 아침에 상세로 적어 둔 것을
  * 저녁에 간편으로 고쳐도 몸무게·메모가 지워지지 않는다(app/actions/checkin.ts).
- * 근육통 · 잔 시간은 어느 쪽으로 저장하든 같이 간다(body=1) — 비우면 비운 대로 저장된다.
+ * 간편 쪽 선택 칸(던지는 일정 · 팔 피로 · 끼니)은 어느 쪽으로 저장하든 같이 간다(body=1) — 비우면 비운 대로 저장된다.
  */
 export function CheckinForm({
   recent,
@@ -763,10 +786,25 @@ export function CheckinForm({
               ] as [string, string],
             ]
           : []),
+        /* 간편 쪽 선택 칸 — 적은 날만(2026-10-12 상세 줄에서 옮김, 폼과 같은 차례: 던지는 일정 → 팔 피로 → 식사) */
+        ...(today.throwPlan
+          ? [['던지는 일정', today.throwPlan] as [string, string]]
+          : []),
+        ...quickScaleLines(today),
         ...(todaySoreness ? [['근육통', todaySoreness] as [string, string]] : []),
         ...(todayMeals ? [['식사', todayMeals] as [string, string]] : []),
       ]
     : [];
+  /*
+   * 어제 적은 던지는 일정 — 그 줄 이름 옆에 작은 회색 글로만 보인다. 오늘 칩을 미리 고르지 않는다: 안 적은 것과 적은 것은
+   * 다른 뜻이고(어제 '내일 등판'은 오늘 안 적었을 때만 오늘 등판으로 읽힌다, lib/report/theme.ts plannedOuting), 어제
+   * '2~3일 뒤'를 오늘 그대로 두면 하루씩 틀린다. 보이는 까닭은 고쳐 적기 쉽게(어제 2~3일 뒤 → 오늘 내일 등판).
+   * recent 는 관문 · 종 창이 사흘치를 넘긴다(app/(app)/layout.tsx). 트레이닝 탭 창처럼 빈 목록이면 안 보인다.
+   */
+  const yesterdayKey = todayKey ? shiftDateKey(todayKey, -1) : null;
+  const yesterdayPlan = yesterdayKey
+    ? (recent.find((c) => c.date === yesterdayKey)?.throwPlan ?? null)
+    : null;
   /* 걸른 끼니(여러 개) — 오류로 돌아온 폼 값이 있으면 그것, 아니면 저장된 것 */
   const skippedPicked: readonly string[] =
     (before ? keptAll(before, 'skippedMeals') : undefined) ?? today?.skippedMeals ?? [];
@@ -903,8 +941,8 @@ export function CheckinForm({
             <form key={formKey} action={formAction} className="space-y-4">
               <input type="hidden" name="date" value={todayKey} />
               {/*
-               * 근육통 · 잔 시간을 담아 보낸다는 표시. 서버는 이것이 왔을 때만 두 칸을 쓴다
-               * (비우면 null). 배포 전에 열려 있던 옛 화면에는 이 표시가 없어, 아침에 적은 값을
+               * 간편 쪽 선택 칸(던지는 일정 · 팔 피로 · 끼니 양 · 걸른 끼니)을 담아 보낸다는 표시. 서버는 이것이 왔을 때만
+               * 그 칸들을 쓴다(비우면 null). 배포 전에 열려 있던 옛 화면에는 이 표시가 없어, 아침에 적은 값을
                * 빈 값으로 덮지 않는다(app/actions/checkin.ts). 상세 fieldset 밖이라 간편에서도 간다.
                */}
               <input type="hidden" name="body" value="1" />
@@ -920,7 +958,7 @@ export function CheckinForm({
                 <span className="text-[11px] leading-relaxed text-muted">
                   {detailed
                     ? '더 적을수록 추천이 오늘에 맞춰져요. 비워 둔 칸은 저장하지 않아요.'
-                    : '몸 상태 · 컨디션 · 팔 피로. 몇 초면 끝나요.'}
+                    : '몸 상태 · 컨디션 · 던지는 일정 · 팔 피로. 몇 초면 끝나요.'}
                 </span>
               </div>
 
@@ -1031,6 +1069,31 @@ export function CheckinForm({
                 <span className="ml-1 self-center text-[10px] leading-relaxed break-keep text-muted/60">
                   1 안 좋음 · 10 최상 · 수면 · 피로 · 기분까지 합친 오늘 전체 컨디션
                 </span>
+              </Row>
+
+              {/*
+               * 던지는 일정(선택) — 2026-10-12 트레이닝 추천 2판 D1 로 상세에서 옮겼다. 매일 운동 계획(등판 날 · 전날
+               * 무거운 하체 빼기) · 근력 프로그램(경기 앞뒤 쉬기) · 영양 가이드가 읽는다. fieldset 밖이라 간편 · 상세 둘 다
+               * 보내고, 서버는 body=1 로 받는다(lib/checkin.ts parseCheckinBody). 끼니 양과 같은 칩: 여섯 칸이라 고르개
+               * (Segmented)는 휴대폰 폭에 안 들어가고, 고른 것을 다시 누르면 풀린다(안 적음으로 되돌리기). 칩 밑 안내 글은
+               * 두지 않는다 — 간편은 한 줄도 아껴야 하고, '다시 누르면 풀려요'는 끼니 양 줄에 있다.
+               */}
+              <Row
+                label="던지는 일정"
+                aside={yesterdayPlan ? `어제: ${yesterdayPlan}` : null}
+                radios
+              >
+                {THROW_PLANS.map((v) => (
+                  <ChipRadio
+                    key={v}
+                    name="throwPlan"
+                    value={v}
+                    toggleable
+                    defaultChecked={pick('throwPlan', today?.throwPlan) === v}
+                  >
+                    {v}
+                  </ChipRadio>
+                ))}
               </Row>
 
               {/* 팔 피로 — 2026-10-12 상세에서 간편으로 옮겼다(암케어 루틴이 읽는다). 서버는 body=1 로 받는다 */}
@@ -1173,7 +1236,10 @@ export function CheckinForm({
                     <WeightRow defaultKg={pick('bodyWeightKg', today?.bodyWeightKg)} />
                   </Section>
 
-                  {/* 식욕 · 던지는 일정은 영양 탭의 가이드가 쓴다(lib/checkin.ts) */}
+                  {/*
+                    식욕은 영양 탭의 가이드가 쓴다(lib/checkin.ts). 던지는 일정은 2026-10-12 에 간편 칸(전신 컨디션 밑)으로
+                    옮겼다 — 여기에도 두면 같은 이름의 라디오 두 벌이 한 묶음으로 엉키고 상세를 열 때만 하나가 더 보인다.
+                  */}
                   <Section title="영양 가이드에 써요">
                     <Row label="식욕" radios>
                       {APPETITE_LEVELS.map((label, i) => (
@@ -1187,19 +1253,6 @@ export function CheckinForm({
                           }
                         >
                           {label}
-                        </ChipRadio>
-                      ))}
-                    </Row>
-                    <Row label="던지는 일정" radios>
-                      {THROW_PLANS.map((v) => (
-                        <ChipRadio
-                          key={v}
-                          name="throwPlan"
-                          value={v}
-                          toggleable
-                          defaultChecked={pick('throwPlan', today?.throwPlan) === v}
-                        >
-                          {v}
                         </ChipRadio>
                       ))}
                     </Row>

@@ -320,6 +320,14 @@ export type CheckinBody = {
   nutrition: MealAmount | null;
   /** 걸른 끼니(DailyCheckin.skippedMeals). 안 적었으면 [] */
   skippedMeals: SkippableMeal[];
+  /**
+   * 던지는 일정(등판 답, DailyCheckin.throwPlan — 아래 THROW_PLANS). 안 적었으면 null.
+   *
+   * 2026-10-12 트레이닝 추천 2판 D1 로 상세에서 간편으로 옮겼다. 매일 운동 계획 · 근력 프로그램 · 영양 가이드가 모두
+   * 읽는데 상세에만 있어 답이 거의 오지 않았다(P0 사용 통계: 체크인 30줄에 1). 칸은 이 하나 · 파서도 이 하나 —
+   * 상세(CheckinDetail)에는 없다. 상세 저장이 같은 값을 한 번 더 쓰거나 빈 값으로 덮지 않게.
+   */
+  throwPlan: ThrowPlan | null;
 };
 
 const isMealAmount = (v: unknown): v is MealAmount =>
@@ -328,7 +336,7 @@ const isSkippable = (v: unknown): v is SkippableMeal =>
   typeof v === 'string' && SKIPPABLE_MEALS.some((m) => m.key === v);
 
 /**
- * 폼에서 온 네 칸 — 어느 것도 오류를 내지 않는다(목록 · 범위 밖은 안 적은 것으로).
+ * 폼에서 온 다섯 칸 — 어느 것도 오류를 내지 않는다(목록 · 범위 밖은 안 적은 것으로).
  * 걸른 끼니는 여러 개라 getAll 로 받는다(옛 호출처럼 안 넘기면 빈 것으로).
  */
 export function parseCheckinBody(
@@ -345,21 +353,27 @@ export function parseCheckinBody(
     soreness: Number.isInteger(s) && s >= 1 && s <= SORENESS_LEVELS.length ? s : null,
     nutrition: isMealAmount(amount) ? amount : null,
     skippedMeals: skipped,
+    throwPlan: parseThrowPlan(get('throwPlan')),
   };
 }
 
-/** DB 행에서 네 칸만 뽑는다. 예전 기록처럼 비어 있으면 null · []. 목록 밖 값(옛 자료)은 안 적은 것으로 */
+/**
+ * DB 행에서 다섯 칸만 뽑는다. 예전 기록처럼 비어 있으면 null · []. 목록 밖 값(옛 자료)은 안 적은 것으로.
+ * 던지는 일정도 목록으로 거른다 — 2026-10-12 전에는 상세 쪽(pickCheckinDetail)이 검사 없이 그대로 넘겼다.
+ */
 export function pickCheckinBody(row: {
   sleepHours?: number | null;
   soreness?: number | null;
   nutrition?: string | null;
   skippedMeals?: string[] | null;
+  throwPlan?: string | null;
 }): CheckinBody {
   return {
     sleepHours: row.sleepHours ?? null,
     soreness: row.soreness ?? null,
     nutrition: isMealAmount(row.nutrition) ? row.nutrition : null,
     skippedMeals: (row.skippedMeals ?? []).filter(isSkippable),
+    throwPlan: parseThrowPlan(row.throwPlan),
   };
 }
 
@@ -532,14 +546,18 @@ export function canDoPainRoutine({
 /* ─────────────────────────── 상세 체크인 ─────────────────────────── */
 
 /*
- * 간편 체크인은 위의 몸 상태·컨디션·수면(과 선택 칸인 근육통 · 잔 시간)만 받는다. 매일 쓰는 것이라
- * 몇 초 안에 끝나야 한다 — 길어지면 건너뛰기만 누르게 된다.
+ * 간편 체크인은 위의 몸 상태·컨디션(과 선택 칸인 던지는 일정 · 팔 피로 · 끼니 양 · 걸른 끼니)만 받는다. 매일 쓰는
+ * 것이라 몇 초 안에 끝나야 한다 — 길어지면 건너뛰기만 누르게 된다.
  *
  * 상세는 더 적고 싶은 날에만 채운다. 전부 고르지 않아도 되고, 비어 있으면 그날은
  * 안 적은 것이다(0 이나 '보통'으로 채우지 않는다 — 안 적은 것과 보통인 것은 다르다).
  *
- * 무엇을 묻는지: **앱이 실제로 쓰는 것만.** 팔 피로(암케어 루틴이 본다), 몸무게(영양 목표 ·
- * 홈 그래프), 식욕 · 던지는 일정(영양 가이드), 그리고 메모.
+ * 무엇을 묻는지: **앱이 실제로 쓰는 것만.** 몸무게(영양 목표 · 홈 그래프), 식욕(영양 가이드), 그리고 메모.
+ *
+ * 2026-10-12 에 둘을 간편으로 옮겼다 — 팔 피로(암케어 루틴이 본다, 김민)와 던지는 일정(트레이닝 추천 2판 D1 —
+ * 매일 운동 계획 · 근력 프로그램 · 영양 가이드가 읽는다). 던지는 일정은 칸 · 파서까지 CheckinBody 로 옮겼고,
+ * 팔 피로는 아직 아래 DETAIL_SCALES · CheckinDetail 에 남아 있다(간편 폼이 그리고 서버가 body=1 로 받는다 —
+ * 칸을 옮기는 것은 다음에: DETAIL_SCALES 를 그날 상세 · 폼이 같이 쓴다). 그래서 hasDetail 은 둘 다 세지 않는다.
  *
  * 2026-09-30 에 뺐다(사용자: "사용하지 않는 굳이 필요없는 건 빼줘") — 전신 피로 · 스트레스 · 기분 ·
  * 아침 심박 · 수분 · 식사. 어느 계산도 읽지 않고 홈 달력에 보이기만 하던 칸들이다(먹은 것은 영양 탭이
@@ -588,6 +606,8 @@ export const LOW_CONDITION_THRESHOLD = 4;
  * 등판 전날 저녁 · 당일 아침에 챙길 것을 미리 알려면 여기서 받아야 한다. 지금은 매일 운동 계획(lib/report/theme.ts
  * 의 plannedOuting — 등판 날 · 전날에 무거운 하체를 안 내려고)과 근력 프로그램(lib/program/load.ts 의 throwSignals —
  * 경기 날 · 전날 · 다음 날 쉬기)도 읽는다.
+ *
+ * 받는 곳은 간편 체크인(위 CheckinBody, 서버는 body=1 로) — 2026-10-12 전에는 상세에만 있어 답이 거의 없었다.
  *
  * 2026-10-12 트레이닝 추천 2판 D1 로 넷에서 여섯으로. 옛 넷은 글자 그대로(DB 옛 줄 · 얼린 facts 가 그 글자다), 새 둘
  * '2~3일 뒤' · '4일 이상 뒤'는 "며칠 뒤 등판인지 앱이 모른다"(theme.ts hardOuting 주석)를 메우려는 답이다 — 지금은
@@ -649,28 +669,29 @@ export const CHECKIN_NOTE_MAX = 500;
 export const CHECKIN_WEIGHT_MIN_KG = 20;
 export const CHECKIN_WEIGHT_MAX_KG = 200;
 
+/*
+ * 던지는 일정(throwPlan)은 없다 — 2026-10-12 간편 칸(CheckinBody)으로 옮겼다. 여기 남겨 두면 상세 저장
+ * (app/actions/checkin.ts 의 detail=1, 간편 칸 뒤에 펼친다)이 같은 값을 한 번 더 쓰고, 칸이 비면 간편에서 고른 답을
+ * null 로 덮는다.
+ */
 export type CheckinDetail = Record<DetailScaleKey, number | null> & {
   bodyWeightKg: number | null;
   appetite: number | null;
-  throwPlan: string | null;
   note: string | null;
 };
 
-/** 상세 칸이 하나라도 채워졌는가 — 창을 열 때 상세 쪽을 펼쳐 둘지 정한다 */
+/**
+ * 상세에서만 적는 칸이 하나라도 채워졌는가 — 체크인 요약이 상세 줄(몸무게 · 식욕 · 메모)을 따로 보일지 정한다.
+ * 간편에서 적는 팔 피로(DETAIL_SCALES)와 던지는 일정은 세지 않는다 — 요약의 첫 줄에 간편 칸과 같이 보인다.
+ */
 export function hasDetail(d: Partial<CheckinDetail>) {
-  return (
-    DETAIL_SCALES.some((s) => d[s.key] != null) ||
-    d.bodyWeightKg != null ||
-    d.appetite != null ||
-    d.throwPlan != null ||
-    Boolean(d.note)
-  );
+  return d.bodyWeightKg != null || d.appetite != null || Boolean(d.note);
 }
 
 /**
  * 폼에서 온 상세 값을 정리한다.
  *
- * 비어 있으면 null. 고르는 칸(척도 · 식욕 · 던지는 일정)에 목록에 없는 값이 오면 안 고른
+ * 비어 있으면 null. 고르는 칸(척도 · 식욕)에 목록에 없는 값이 오면 안 고른
  * 것으로 본다 — 화면에서는 나올 수 없는 값이고, 그것 때문에 체크인 전체를 막을
  * 일이 아니다. 숫자는 범위를 벗어나면 알려 준다. 사람이 직접 친 값이라 잘못 친
  * 것일 수 있다.
@@ -719,7 +740,6 @@ export function parseCheckinDetail(
       ...scales,
       bodyWeightKg: bodyWeightKg === null ? null : Math.round(bodyWeightKg * 10) / 10,
       appetite,
-      throwPlan: parseThrowPlan(get('throwPlan')),
       note: note || null,
     },
   };
@@ -727,14 +747,13 @@ export function parseCheckinDetail(
 
 /**
  * DB 행에서 상세 값만 뽑는다. 화면(체크인 창·관문)으로 넘길 때 쓴다.
- * 예전 기록처럼 칸이 비어 있으면 null — 안 적은 것이다.
+ * 예전 기록처럼 칸이 비어 있으면 null — 안 적은 것이다. 던지는 일정은 pickCheckinBody 가 뽑는다.
  */
 export function pickCheckinDetail(row: Partial<CheckinDetail>): CheckinDetail {
   return {
     armFatigue: row.armFatigue ?? null,
     bodyWeightKg: row.bodyWeightKg ?? null,
     appetite: row.appetite ?? null,
-    throwPlan: row.throwPlan ?? null,
     note: row.note ?? null,
   };
 }

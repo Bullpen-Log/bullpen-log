@@ -111,9 +111,9 @@ function heading(title: string) {
 /* ───────────────────── ① 체크인 — 등판 답이 얼마나 오나 ───────────────────── */
 
 /*
- * 상세 전용 칸(지금): app/actions/checkin.ts 가 폼의 detail=1 표시가 있을 때만 쓰는 것 — 팔 피로 · 몸무게 ·
- * 식욕 · 던지는 일정 · 메모 · 운동 종류 · 하고 싶은 부위. 간편 체크인은 몸 상태 · 컨디션 · 수면(늘)과
- * body=1 선택 칸(잔 시간 · 근육통 · 끼니 양 · 걸른 끼니), armpain=1(팔 통증 자리 · 정도)만 쓴다.
+ * 상세 전용 칸(지금): app/actions/checkin.ts 가 폼의 detail=1 표시가 있을 때만 쓰는 것 — 몸무게 · 식욕 · 메모 ·
+ * 운동 종류 · 하고 싶은 부위. 간편 체크인은 몸 상태 · 컨디션(늘)과 body=1 선택 칸(잔 시간 · 근육통 · 끼니 양 ·
+ * 걸른 끼니 · 팔 피로 · 던지는 일정), armpain=1(팔 통증 자리 · 정도)만 쓴다.
  *
  * '상세 줄' 은 **상세 칸이 하나라도 있는 줄**이다 — 하한이다. DB 에 폼 종류 칸이 없고, 상세 폼을 열고 아무것도
  * 안 적으면 detail=1 이라도 null 만 써서 간편 줄과 가를 수 없다. '등판 답 있음(상세 안)' 의 분모도 그래서
@@ -123,13 +123,20 @@ function heading(title: string) {
  * 2026-10-07 에 간편의 body=1 칸으로 되살아나 같은 칸에 들어오므로, 날짜가 2026-09-30 전인 줄의 끼니만 옛 상세로
  * 친다(그 사이 일주일은 아무도 못 적었다). 지난 날짜를 나중에 간편으로 고친 줄은 못 가른다 — 어림이다.
  * '간편 선택 칸 있음' 은 칸이 있는 줄을 센다(어느 폼이 적었는지는 안 본다 — 잔 시간 · 근육통도 09-30 전엔 상세 칸이었다).
+ *
+ * 팔 피로 · 던지는 일정은 2026-10-12 에 간편(body=1)으로 옮겼다(팔 피로는 김민, 던지는 일정은 2판 D1). 끼니와 같은
+ * 수법으로 그날 전 줄만 상세로, 그날부터는 간편 선택 칸으로 친다. 배포가 그날보다 늦어지면 QUICK_MOVE_KEY 를 고친다.
+ * 그래서 '등판 답 있음(상세 줄 대비)' 은 그날 전 줄의 답만 센다(그날부터의 답은 상세 줄 안에 있지 않다).
  */
+const QUICK_MOVE_KEY = '2026-10-12';
+const beforeMove = { date: { lt: dateOfKey(QUICK_MOVE_KEY) } };
+const sinceMove = { date: { gte: dateOfKey(QUICK_MOVE_KEY) } };
 const DETAIL_NOW = {
   OR: [
-    { armFatigue: { not: null } },
+    { AND: [{ armFatigue: { not: null } }, beforeMove] },
     { bodyWeightKg: { not: null } },
     { appetite: { not: null } },
-    { throwPlan: { not: null } },
+    { AND: [{ throwPlan: { not: null } }, beforeMove] },
     { NOT: [{ note: null }, { note: '' }] },
     { preferredWorkout: { not: null } },
     { preferredParts: { isEmpty: false } },
@@ -151,25 +158,45 @@ const QUICK_OPTIONAL = {
     { soreness: { not: null } },
     { nutrition: { not: null } },
     { skippedMeals: { isEmpty: false } },
+    { AND: [{ armFatigue: { not: null } }, sinceMove] },
+    { AND: [{ throwPlan: { not: null } }, sinceMove] },
   ],
 };
 
 async function checkinStats(sinceKey: string | null) {
   const range = sinceKey ? { date: { gte: dateOfKey(sinceKey) } } : {};
-  const [total, users, detailNow, detailAny, quickOpt, throwAny, byPlan] =
-    await Promise.all([
-      prisma.dailyCheckin.count({ where: range }),
-      prisma.dailyCheckin.groupBy({ by: ['userId'], where: range }),
-      prisma.dailyCheckin.count({ where: { ...range, ...DETAIL_NOW } }),
-      prisma.dailyCheckin.count({ where: { ...range, OR: [DETAIL_NOW, DETAIL_OLD] } }),
-      prisma.dailyCheckin.count({ where: { ...range, ...QUICK_OPTIONAL } }),
-      prisma.dailyCheckin.count({ where: { ...range, throwPlan: { not: null } } }),
-      prisma.dailyCheckin.groupBy({
-        by: ['throwPlan'],
-        where: { ...range, throwPlan: { not: null } },
-        _count: { _all: true },
-      }),
-    ]);
+  /* range 와 옮긴 날 조건을 같이 — 둘 다 date 칸이라 펼치면 한쪽이 지워져서 AND 로 묶는다 */
+  const [
+    total,
+    users,
+    detailNow,
+    detailAny,
+    quickOpt,
+    throwAny,
+    throwOld,
+    totalNew,
+    throwNew,
+    byPlan,
+  ] = await Promise.all([
+    prisma.dailyCheckin.count({ where: range }),
+    prisma.dailyCheckin.groupBy({ by: ['userId'], where: range }),
+    prisma.dailyCheckin.count({ where: { ...range, ...DETAIL_NOW } }),
+    prisma.dailyCheckin.count({ where: { ...range, OR: [DETAIL_NOW, DETAIL_OLD] } }),
+    prisma.dailyCheckin.count({ where: { ...range, ...QUICK_OPTIONAL } }),
+    prisma.dailyCheckin.count({ where: { ...range, throwPlan: { not: null } } }),
+    prisma.dailyCheckin.count({
+      where: { AND: [range, beforeMove, { throwPlan: { not: null } }] },
+    }),
+    prisma.dailyCheckin.count({ where: { AND: [range, sinceMove] } }),
+    prisma.dailyCheckin.count({
+      where: { AND: [range, sinceMove, { throwPlan: { not: null } }] },
+    }),
+    prisma.dailyCheckin.groupBy({
+      by: ['throwPlan'],
+      where: { ...range, throwPlan: { not: null } },
+      _count: { _all: true },
+    }),
+  ]);
   return {
     total,
     users: users.length,
@@ -177,6 +204,9 @@ async function checkinStats(sinceKey: string | null) {
     detailAny,
     quickOpt,
     throwAny,
+    throwOld,
+    totalNew,
+    throwNew,
     byPlan,
   };
 }
@@ -196,7 +226,8 @@ async function sectionCheckin() {
     withPct(s.detailAny, s.total),
     withPct(s.quickOpt, s.total),
     withPct(s.throwAny, s.total),
-    withPct(s.throwAny, s.detailNow),
+    withPct(s.throwOld, s.detailNow),
+    withPct(s.throwNew, s.totalNew),
   ];
   table(
     [
@@ -207,7 +238,8 @@ async function sectionCheckin() {
       '상세 줄(옛 상세 칸 포함, 하한)',
       '간편 선택 칸 있음(칸 기준)',
       '등판 답 있음(전체 대비)',
-      '등판 답 있음(상세 줄 대비)',
+      `등판 답 있음(상세 줄 대비, ${QUICK_MOVE_KEY} 전 줄)`,
+      `등판 답 있음(간편으로 옮긴 ${QUICK_MOVE_KEY} 부터 줄 대비)`,
     ],
     [row('전체', all), row(recentLabel(30), recent)]
   );

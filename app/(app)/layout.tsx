@@ -113,7 +113,10 @@ export default async function AppLayout({
     sleep: c.sleep,
     preferredParts: c.preferredParts,
     preferredWorkout: c.preferredWorkout,
-    /* 근육통 · 잔 시간 — 간편 쪽 선택 칸. 체크인 창이 저장된 값으로 다시 채운다 */
+    /*
+     * 간편 쪽 선택 칸(근육통 · 잔 시간 · 끼니 · 던지는 일정). 체크인 창이 저장된 값으로 다시 채우고, 어제 줄의 던지는
+     * 일정은 그 줄 옆에 회색으로 보인다(그래서 사흘치를 넘긴다)
+     */
     ...pickCheckinBody(c),
     ...pickCheckinDetail(c),
     /* 팔 통증 자리 · 정도 — 어깨 · 팔꿈치 '통증'인 날 고른 것. 체크인 창과 요약의 통증 안내가 쓴다 */
