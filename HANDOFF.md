@@ -60,11 +60,15 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 - **`lib/prisma.ts`**: 시험 계정의 요청일 때만, 만들고 고칠 때 비어 있는 시각 칸(createdAt · startedAt · recordedAt · updatedAt …, 표 `TIME_FIELDS`)을
   시뮬레이션 지금으로 채우는 `$extends` 를 씌웠다 — DB 의 now() 는 실제 시각이라 운동 시간 · 쉬는 시계 · 2분 안 같은 기록 막기가 어긋났다.
   다른 계정은 손대지 않는다(`__bpNow` 가 실제 시각이면 그냥 지나감). 새 표에 `@default(now())` 칸을 더하면 이 표에도 적어 줘.
+
 ## 김민에게 — 2026-10-12 · 금윤호(Claude) — 트레이닝 추천 2판 P3(등판 답 여섯 · 체감 강도 %) · P4(경기 다음 날은 부하로) — 받으면 `npx prisma generate`
 
 받은 뒤 할 일: **`npx prisma generate`** — `PitchLog.effortPct Int?`(체감 강도 5~100%)를 더했다. 마이그레이션 `20261012030000_pitch_log_effort_pct`,
 DB 에는 이미 적용했다(백업 `db-2026-10-11-18-23.json`). 비워 둘 수 있어 옛 코드도 돈다. `npm ci` 는 필요 없다. 설계 · 결정은
 `docs/designs/training-recommendation-engine.md`(D1 · D2).
+- **(앞서 Y, 1bb402d) 성장기는 만 16세 미만(D4)**: `lib/report/plan.ts` `YOUTH_AGE_THRESHOLD` 15 → 16, 만 14세 이하는 어린 휴식표(`REST_REQUIREMENTS_YOUTH`,
+  `requiredRestDays(pitches, age)` · `restFor(pitches, adjusted, age)`). **네 영역 `lib/checkin.ts` 의 `ARM_PAIN_ROUTINE_MIN_AGE` 도 15 → 16**(한 줄 — 팔 통증 루틴 나이 한도).
+  15세는 이제 성장기라 '매우 높음' 날이 빠지고, 암케어 시험 둘의 기대값이 16세 줄로 바뀌었다.
 - **intensity 는 계속 같이 쓴다.** % 를 받으면 `intensity = effortToIntensity(%)`(85 → 9)를 함께 저장한다(`lib/pitch-effort.ts effortFields`).
   강도는 `log.intensity` · `log.effortPct` 를 직접 읽지 말고 `lib/pitch-stats.ts` 의 `effortPctOf`(%) · `intensityOf`(1~10 실수), 화면은
   `lib/pitch-effort.ts readEffort` · `effortText` 로. 두 칸이 어긋난 줄(이 칸을 모르는 옛 코드가 intensity 만 고친 줄)은 intensity 를 믿는다
