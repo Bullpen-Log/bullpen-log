@@ -20,6 +20,7 @@ import {
 } from '@/lib/pitch-stats';
 import {
   CHECKIN_PARTS,
+  LOW_CONDITION_THRESHOLD,
   hasPain,
   isShortSleep,
   type CheckinPartKey,
@@ -272,6 +273,13 @@ export type ReportFacts = {
      * 하기'도 이 칸을 읽는다.
      */
     trainingEffort?: TrainingEffort;
+    /**
+     * 평소 컨디션 — 오늘을 뺀 최근 USUAL_CONDITION_DAYS(28)일 체크인 컨디션의 중앙값(usualConditionOf, 2판 P5). 그 안에 체크인이
+     * USUAL_CONDITION_MIN_CHECKINS(14)개 이상일 때만 칸이 생긴다 — 적으면 '평소'라 부를 만큼 모이지 않았다. 늘 8 인 사람의 6 과 늘 6 인
+     * 사람의 6 은 다른 날이라, 안전 거르기(prescription.ts 4-2-1)가 '평소보다 2점 이상 낮은 날'을 이것으로 가린다(belowUsualCondition).
+     * 칸이 생기기 전에 저장된 facts · 체크인이 적은 사람 · 자체 시험의 손 입력에는 없다 — 없으면 평소를 모르는 것으로 본다(아무것도 안 바뀐다).
+     */
+    usualCondition?: UsualCondition;
     /** 최근 7일 평균 컨디션 (1~10, 높을수록 좋음) */
     avgCondition: number | null;
     /**
@@ -365,6 +373,92 @@ function daysBetween(fromKey: string, toKey: string) {
 }
 
 const DATE_KEY_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * 평소 컨디션을 셀 날 — 어제(1)부터 이 날수 전까지(오늘은 뺀다). 4주면 한 달의 들쭉날쭉(시즌 · 시험 기간 · 등판 주기)이 한 번은 들고,
+ * 그보다 길면 몇 달 전의 나를 '평소'로 삼는다. 앱은 45일치 체크인을 이미 읽는다(gather.ts LOOKBACK_DAYS) — 조회가 늘지 않는다.
+ */
+export const USUAL_CONDITION_DAYS = 28;
+
+/**
+ * 이만큼 체크인이 있어야 '평소'라고 부른다 — 28일의 절반. 그보다 적으면 칸을 안 만든다. 몇 번만 적은 사람의 '평소'는 우연히 좋았던 며칠일
+ * 수 있고, 그것보다 낮다고 운동을 빼면 근거 없이 가볍게 하는 셈이다.
+ */
+export const USUAL_CONDITION_MIN_CHECKINS = 14;
+
+/**
+ * 평소보다 이만큼 이상 낮으면 '평소보다 낮은 날'(2판 P5 — 검토안의 '평소 대비 컨디션'). 1점은 하루하루의 흔들림이라 안 본다(들쭉날쭉한
+ * 사람은 1점씩 늘 오르내린다). 2점이면 10점 눈금의 한 단계(좋음 → 보통)가 내려간 것이다.
+ */
+export const BELOW_USUAL_GAP = 2;
+
+/** 평소 컨디션(facts.condition.usualCondition) */
+export type UsualCondition = {
+  /** 오늘을 뺀 28일 체크인 컨디션의 중앙값 — 짝수 개면 가운데 둘의 평균(6.5 처럼 반 점이 나올 수 있다) */
+  median: number;
+  /** 센 체크인 수(날짜마다 하나, USUAL_CONDITION_MIN_CHECKINS 이상) */
+  days: number;
+};
+
+/**
+ * 평소 컨디션 — 오늘을 뺀 어제 ~ USUAL_CONDITION_DAYS 일 전 체크인의 컨디션 중앙값. 체크인이 USUAL_CONDITION_MIN_CHECKINS 개 밑이면 null.
+ *
+ * 평균이 아니라 중앙값인 까닭: 아픈 날 하루의 2 · 아주 좋은 날의 10 이 '평소'를 끌고 가지 않게. 같은 날짜가 둘이면 앞의 것만 센다
+ * (buildFacts 가 오늘 체크인을 찾는 법 — find — 과 같다). 날짜 꼴이 아니거나 컨디션이 숫자가 아닌 줄은 안 센다. 순수 함수 — 같은 입력이면
+ * 늘 같은 값.
+ */
+export function usualConditionOf(
+  checkins: readonly { date: string; condition: number }[],
+  asOf: string
+): UsualCondition | null {
+  const byDate = new Map<string, number>();
+  for (const c of checkins) {
+    if (typeof c.date !== 'string' || !DATE_KEY_RE.test(c.date)) continue;
+    if (typeof c.condition !== 'number' || !Number.isFinite(c.condition)) continue;
+    const ago = daysBetween(c.date, asOf);
+    if (!(ago >= 1 && ago <= USUAL_CONDITION_DAYS)) continue;
+    if (!byDate.has(c.date)) byDate.set(c.date, c.condition);
+  }
+  if (byDate.size < USUAL_CONDITION_MIN_CHECKINS) return null;
+  const sorted = [...byDate.values()].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  const median =
+    sorted.length % 2 === 1 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+  return { median, days: sorted.length };
+}
+
+/** 오늘 컨디션이 평소보다 낮은 날(belowUsualCondition) */
+export type BelowUsualCondition = {
+  /** 오늘 컨디션(1~10) */
+  today: number;
+  /** 평소 컨디션(중앙값) */
+  median: number;
+};
+
+/**
+ * 오늘 컨디션이 평소보다 BELOW_USUAL_GAP(2)점 이상 낮은 날이면 그 두 값, 아니면 null(2판 P5).
+ *
+ * 걸리는 것: 오늘 체크인이 있고 · 평소 컨디션 칸이 있고(체크인 14개 이상) · 오늘 컨디션 ≤ 평소 − 2 · 오늘 컨디션이 바닥
+ * (LOW_CONDITION_THRESHOLD, 4)보다 높을 때. 바닥 이하는 이미 회복날이라(theme.ts · prescription.ts 4) 여기서 다시 말하지 않는다 — 두 규칙이
+ * 한 날을 두 번 세지 않게. 늘 3 인 사람(평소 3)은 평소보다 낮지 않지만 바닥 규칙이 그대로 지킨다.
+ *
+ * 읽는 곳: 안전 거르기(prescription.ts 4-2-1 — 가장 센 운동을 뺀다) · 오늘 상태 한 장(day-state.ts body.belowUsual). 둘이 같은 함수를
+ * 불러 어긋나지 않는다. 옛 facts(칸 없음) · 모양이 깨진 칸은 null.
+ */
+export function belowUsualCondition(
+  facts: Pick<ReportFacts, 'condition'>
+): BelowUsualCondition | null {
+  const today = facts.condition.today;
+  const usual = facts.condition.usualCondition;
+  if (today == null || usual == null) return null;
+  if (typeof usual.median !== 'number' || !Number.isFinite(usual.median)) return null;
+  if (!(usual.days >= USUAL_CONDITION_MIN_CHECKINS)) return null;
+  const c = today.condition;
+  if (typeof c !== 'number' || !Number.isFinite(c)) return null;
+  if (c <= LOW_CONDITION_THRESHOLD) return null;
+  if (c > usual.median - BELOW_USUAL_GAP) return null;
+  return { today: c, median: usual.median };
+}
 
 /**
  * 달력의 다음 등판 — 오늘(0) ~ OUTING_CALENDAR_DAYS 일 뒤 · 이름이 등판으로 읽히는 것 가운데 가장 가까운 것. 같은 날 둘이면 이름 차례로
@@ -523,6 +617,12 @@ export function buildFacts({
     : undefined;
   const gameDates = calendarEvents ? gameDatesOf(logs, asOf) : undefined;
 
+  /*
+   * 평소 컨디션(2판 P5) — 넘겨받은 체크인에서 센다(앱은 45일치를 넘긴다 — 조회가 늘지 않는다). 14개 밑이면 null 이고 칸을 안 만든다
+   * (조건부 펼침) — 체크인이 적은 사람 · 자체 시험 · 기준선의 옛 입력은 facts 가 글자 하나 안 바뀐다.
+   */
+  const usualCondition = usualConditionOf(checkins, asOf);
+
   return {
     asOf,
     profile: { nickname, age, heightCm, trainingLevel },
@@ -588,6 +688,8 @@ export function buildFacts({
       ...(trainingNotes
         ? { trainingEffort: trainingEffortOf(trainingNotes, asOf) }
         : {}),
+      /* 칸은 체크인이 14개 이상일 때만 — 조건부 펼침이라 적으면 키 자체가 없다 */
+      ...(usualCondition ? { usualCondition } : {}),
       avgCondition: conditions.length
         ? conditions.reduce((a, b) => a + b, 0) / conditions.length
         : null,

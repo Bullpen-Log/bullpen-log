@@ -17,18 +17,24 @@
 import { PrismaClient } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import {
+  BELOW_USUAL_GAP,
   GAME_DATES_DAYS,
   HARD_OUTING_MIN_LOAD,
   HARD_OUTING_MIN_PITCHES,
   NEAR_MAX_EFFORT_PCT,
   OUTING_CALENDAR_DAYS,
+  USUAL_CONDITION_DAYS,
+  USUAL_CONDITION_MIN_CHECKINS,
+  belowUsualCondition,
   buildFacts,
   findPainKeywords,
   isHardOuting,
   isNearMaxOuting,
+  usualConditionOf,
   type CalendarEventLike,
   type CheckinLike,
   type HardOuting,
+  type UsualCondition,
 } from '../lib/report/facts.ts';
 import { throwIntensity, throwMemo } from '../lib/armcare/rehab-progress.ts';
 import {
@@ -21076,6 +21082,407 @@ console.log(
       `${withVolume.slice(0, 3).join(' · ')} ${rxDiff.slice(0, 3).join(' · ')}`
     );
   }
+}
+
+/* ═══════════════════ [2판 P5] 평소 대비 컨디션 — lib/report/facts.ts usualConditionOf · belowUsualCondition · prescription.ts 4-2-1 · day-state.ts body.belowUsual (2026-10-12) ═══════════════════ */
+console.log(
+  '\n[2판 P5] 평소 대비 컨디션 — 오늘을 뺀 28일 중앙값(체크인 14개 이상일 때만) · 평소보다 2점 이상 낮으면 가장 센 운동만 뺀다 · 바닥(4) 이하는 그대로(2026-10-12)'
+);
+{
+  /*
+   * 왜 보는가. 컨디션 6 은 늘 6 인 사람에게는 보통 날이고 늘 8 인 사람에게는 덜 된 날이다. 2판 P5 는 오늘을 뺀 28일 체크인의 중앙값을
+   * '평소'로 두고(facts.condition.usualCondition — 14개 이상일 때만 칸), 평소보다 2점 이상 낮은 날에 안전 거르기가 '매우 높음'만 뺀다
+   * (prescription.ts 4-2-1 — 짧은 밤과 같은 상한). 조이는 규칙만이라 후보가 늘지 않고, 바닥(4) 이하 · 1점 차이 · 평소를 모르는 사람 ·
+   * 근력 프로그램(partsOnly)은 글자 그대로다. (가) 평소 셈, (나) facts 칸, (다) 판정, (라) 안전 거르기 · 매일 일정, (마) P3 160조합 격자,
+   * (사) 오늘 상태 한 장을 본다.
+   */
+  type Facts = ReturnType<typeof buildFacts>;
+  const json = (v: unknown) => JSON.stringify(v);
+  const keyBefore = (n: number) => dayBefore(n).slice(0, 10);
+  const asOfKey = keyBefore(0);
+  /* values[0] 이 어제(from 일 전) — 날짜마다 하나 */
+  const rows = (values: (number | null)[], from = 1) =>
+    values.flatMap((c, i) =>
+      c == null ? [] : [{ date: keyBefore(from + i), condition: c }]
+    );
+  const same = (n: number, c: number) => Array.from({ length: n }, () => c);
+  const MIN = USUAL_CONDITION_MIN_CHECKINS;
+
+  /* ── (가) usualConditionOf ── */
+  check(
+    `P5 평소 (가) 지난 체크인 ${MIN - 1}개면 없음(null) · ${MIN}개면 중앙값 — 14개 미만이면 평소를 모른다`,
+    usualConditionOf(rows(same(MIN - 1, 8)), asOfKey) === null &&
+      json(usualConditionOf(rows(same(MIN, 8)), asOfKey)) ===
+        json({ median: 8, days: MIN }),
+    json(usualConditionOf(rows(same(MIN, 8)), asOfKey))
+  );
+  check(
+    'P5 평소 (가) 오늘 체크인은 안 센다 — 지난 13개 + 오늘 하나는 null',
+    usualConditionOf(
+      [...rows(same(MIN - 1, 8)), { date: asOfKey, condition: 8 }],
+      asOfKey
+    ) === null
+  );
+  const plusOne = (date: string) =>
+    usualConditionOf([...rows(same(MIN - 1, 8)), { date, condition: 8 }], asOfKey);
+  check(
+    `P5 평소 (가) 창은 어제 ~ ${USUAL_CONDITION_DAYS}일 전 — 13개 + ${USUAL_CONDITION_DAYS}일 전은 14개, 13개 + ${USUAL_CONDITION_DAYS + 1}일 전 · 내일은 null`,
+    plusOne(keyBefore(USUAL_CONDITION_DAYS))?.days === MIN &&
+      plusOne(keyBefore(USUAL_CONDITION_DAYS + 1)) === null &&
+      plusOne(keyBefore(-1)) === null
+  );
+  const evenRows = rows([...same(7, 5), ...same(7, 8)]);
+  const oddRows = rows([...same(5, 5), ...same(5, 6), ...same(5, 9)]);
+  const tailRows = rows([2, ...same(13, 8), 10]);
+  check(
+    'P5 평소 (가) 중앙값 — 짝수 개면 가운데 둘의 평균(5 일곱 · 8 일곱 → 6.5), 홀수 개면 가운데(5 · 6 · 9 다섯씩 → 6), 끝값이 안 끈다(2 · 8 열셋 · 10 → 8)',
+    usualConditionOf(evenRows, asOfKey)?.median === 6.5 &&
+      usualConditionOf(oddRows, asOfKey)?.median === 6 &&
+      usualConditionOf(tailRows, asOfKey)?.median === 8,
+    `${usualConditionOf(evenRows, asOfKey)?.median} · ${usualConditionOf(oddRows, asOfKey)?.median} · ${usualConditionOf(tailRows, asOfKey)?.median}`
+  );
+  /* 앞의 것이 이기는지 가리려면 값이 중앙값을 움직여야 한다 — 어제(5)를 8 로 덮으면 5 여섯 · 8 여덟 → 8, 뒤의 것이 이기면 6.5 */
+  const dupFirst = [{ date: keyBefore(1), condition: 8 }, ...evenRows];
+  check(
+    'P5 평소 (가) 같은 날짜는 한 번만 센다(앞의 것) — 13날 + 겹친 하루는 null, 14날 앞에 겹친 값은 그날 값이 된다(6.5 → 8)',
+    usualConditionOf(
+      [...rows(same(MIN - 1, 8)), { date: keyBefore(1), condition: 1 }],
+      asOfKey
+    ) === null &&
+      json(usualConditionOf(dupFirst, asOfKey)) === json({ median: 8, days: MIN }),
+    json(usualConditionOf(dupFirst, asOfKey))
+  );
+  const junk = [
+    ...rows(same(MIN - 1, 8)),
+    { date: keyBefore(MIN), condition: Number.NaN },
+    { date: '2026-6-1', condition: 8 },
+    { date: 'x', condition: 8 },
+  ];
+  check(
+    'P5 평소 (가) 컨디션이 숫자가 아니거나 날짜 꼴이 아닌 줄은 안 센다 — 13개 + 깨진 셋은 null',
+    usualConditionOf(junk, asOfKey) === null
+  );
+  const mixed = rows([9, 3, 7, 5, 8, 6, 4, 8, 7, 9, 2, 6, 8, 7, 5, 8]);
+  check(
+    'P5 평소 (가) 차례와 상관없이 같은 값 · 같은 입력 두 번 → 같은 값(16개 → 7)',
+    json(usualConditionOf(mixed, asOfKey)) === json({ median: 7, days: 16 }) &&
+      json(usualConditionOf([...mixed].reverse(), asOfKey)) ===
+        json(usualConditionOf(mixed, asOfKey)),
+    json(usualConditionOf(mixed, asOfKey))
+  );
+
+  /* ── (나) buildFacts 의 칸 ── */
+  const ckOf = (n: number, condition: number, sleep = '보통'): CheckinLike => ({
+    date: keyBefore(n),
+    condition,
+    sleep,
+    shoulder: '괜찮음',
+    elbow: '괜찮음',
+    wrist: '괜찮음',
+    lowerBack: '괜찮음',
+    lowerBody: '괜찮음',
+    preferredParts: [],
+    preferredWorkout: null,
+  });
+  /* factsFor 의 기본 사람(DEFAULT_PITCHES)에 지난 체크인(history[0] 이 어제)만 더한 사람 */
+  const histFacts = ({
+    today,
+    history,
+    sleep,
+  }: {
+    today: number | null;
+    history: (number | null)[];
+    sleep?: string;
+  }): Facts =>
+    buildFacts({
+      nickname: '시험',
+      age: 22,
+      heightCm: 180,
+      baselineDailyLoad: 100,
+      rehab: null,
+      today: TODAY,
+      logs: DEFAULT_PITCHES.map<PitchLogLike>((count, i) => ({
+        date: dayBefore(i + 1),
+        pitchCount: count,
+        intensity: 7,
+        maxVelocity: 130,
+        avgVelocity: 120,
+      })),
+      checkins: [
+        ...(today == null ? [] : [ckOf(0, today, sleep)]),
+        ...history.flatMap((c, i) => (c == null ? [] : [ckOf(i + 1, c)])),
+      ],
+      memos: [],
+    });
+  const f13 = histFacts({ today: 6, history: same(MIN - 1, 8) });
+  const f14 = histFacts({ today: 6, history: same(MIN, 8) });
+  const f0 = histFacts({ today: 6, history: [] });
+  check(
+    'P5 평소 (나) buildFacts — 지난 체크인 13개면 칸 자체가 없다(체크인 없는 사람과 같은 칸 목록), 14개면 { median 8 · days 14 }',
+    !('usualCondition' in f13.condition) &&
+      json(Object.keys(f13.condition)) === json(Object.keys(f0.condition)) &&
+      json(f14.condition.usualCondition) === json({ median: 8, days: MIN }),
+    json(Object.keys(f14.condition))
+  );
+
+  /* ── (다) belowUsualCondition ── */
+  const below = (today: number | null, history: (number | null)[] = same(20, 8)) =>
+    belowUsualCondition(histFacts({ today, history }));
+  check(
+    `P5 평소 (다) 평소 8 · 오늘 6(${BELOW_USUAL_GAP}점 차이) → 걸림 { today 6 · median 8 }`,
+    json(below(6)) === json({ today: 6, median: 8 }),
+    json(below(6))
+  );
+  check(
+    'P5 평소 (다) 평소 8 · 오늘 7(1점 차이) → 안 걸림 · 8 · 9 도 안 걸림',
+    below(7) === null && below(8) === null && below(9) === null,
+    json([below(7), below(8), below(9)])
+  );
+  check(
+    'P5 평소 (다) 평소 8 · 오늘 5(3점 차이) → 걸림',
+    json(below(5)) === json({ today: 5, median: 8 }),
+    json(below(5))
+  );
+  check(
+    `P5 평소 (다) 오늘 ${LOW_CONDITION_THRESHOLD} 이하는 안 걸림 — 바닥 규칙(회복날)이 먼저 지킨다`,
+    below(4) === null && below(3) === null && below(1) === null
+  );
+  check(
+    'P5 평소 (다) 오늘 체크인 없음 · 지난 체크인 13개(평소 모름) → 안 걸림',
+    below(null) === null && below(6, same(MIN - 1, 8)) === null
+  );
+  const withUsual = (f: Facts, usual: unknown): Facts => ({
+    ...f,
+    condition: { ...f.condition, usualCondition: usual as UsualCondition },
+  });
+  const withoutUsual = (f: Facts): Facts => {
+    const condition = { ...f.condition };
+    delete condition.usualCondition;
+    return { ...f, condition };
+  };
+  const today5 = histFacts({ today: 5, history: [] });
+  check(
+    'P5 평소 (다) 반 점 평소 — 6.5 에 오늘 5(1.5점)는 안 걸림, 7 에 오늘 5 는 걸림',
+    belowUsualCondition(withUsual(today5, { median: 6.5, days: 20 })) === null &&
+      json(belowUsualCondition(withUsual(today5, { median: 7, days: 20 }))) ===
+        json({ today: 5, median: 7 })
+  );
+  check(
+    'P5 평소 (다) 옛 facts(칸 없음) · 깨진 칸(중앙값이 글자 · NaN · 센 수가 13 · 센 수 없음 · null) → 안 걸림',
+    belowUsualCondition(f0) === null &&
+      [
+        { median: '8', days: 20 },
+        { median: Number.NaN, days: 20 },
+        { median: 8, days: MIN - 1 },
+        { median: 8 },
+        null,
+      ].every((u) => belowUsualCondition(withUsual(f0, u)) === null)
+  );
+
+  /* ── (라) 안전 거르기 · 매일 일정 ── */
+  const pick = (f: Facts, partsOnly = false) =>
+    selectCandidates({ facts: f, plan: buildPitchPlan(f), library, partsOnly });
+  const levelOf = (e: { intensity: string }) => intensityLevel(e.intensity);
+  const ids = (r: { candidates: { id: string }[] }) => r.candidates.map((e) => e.id);
+  const RULE = '평소보다 낮은 컨디션';
+  const hit6 = histFacts({ today: 6, history: same(20, 8) });
+  const r6 = pick(hit6);
+  const r6plain = pick(withoutUsual(hit6));
+  const top = new Set(
+    r6plain.candidates
+      .filter((e) => levelOf(e) > INTENSITY_CAP.STRENGTH)
+      .map((e) => e.id)
+  );
+  check(
+    `P5 평소 (라) 평소 8 · 오늘 6 → '매우 높음'만 빠진다(칸 없는 같은 사람의 후보에서 그것만 뺀 목록 · 차례 그대로), 뺀 수는 excluded '${RULE}'`,
+    top.size > 0 &&
+      r6.candidates.every((e) => levelOf(e) <= INTENSITY_CAP.STRENGTH) &&
+      json(ids(r6)) === json(ids(r6plain).filter((id) => !top.has(id))) &&
+      json(r6.excluded.filter((x) => x.rule === RULE)) ===
+        json([{ rule: RULE, count: top.size }]),
+    `매우 높음 ${top.size}개 · 후보 ${r6plain.candidates.length} → ${r6.candidates.length}`
+  );
+  const usualLine = '평소 컨디션 8/10 → 오늘 6/10 → 매우 높은 강도 제외';
+  check(
+    `P5 평소 (라) 근거에 '${usualLine}' 한 줄이 더해지고, 다른 근거 · 다른 제외는 칸 없는 같은 사람과 글자 그대로`,
+    r6.basis.includes(usualLine) &&
+      json(r6.basis.filter((l) => l !== usualLine)) === json(r6plain.basis) &&
+      json(r6.excluded.filter((x) => x.rule !== RULE)) === json(r6plain.excluded),
+    r6.basis.join(' / ')
+  );
+  const hit7 = histFacts({ today: 7, history: same(20, 8) });
+  const hit4 = histFacts({ today: 4, history: same(20, 8) });
+  check(
+    'P5 평소 (라) 평소 8 · 오늘 7(1점) → 후보 · 제외 · 근거가 칸 없는 같은 사람과 글자 그대로',
+    json(pick(hit7)) === json(pick(withoutUsual(hit7)))
+  );
+  check(
+    "P5 평소 (라) 평소 8 · 오늘 4(바닥) → 칸 없는 같은 사람과 글자 그대로 — 바닥 규칙('컨디션 저하', 무게 드는 운동 제외)만",
+    json(pick(hit4)) === json(pick(withoutUsual(hit4))) &&
+      pick(hit4).excluded.some((x) => x.rule === '컨디션 저하') &&
+      !pick(hit4).excluded.some((x) => x.rule === RULE)
+  );
+  const p6 = pick(hit6, true);
+  const p6plain = pick(withoutUsual(hit6), true);
+  check(
+    'P5 평소 (라) 근력 프로그램(partsOnly) — 평소 8 · 오늘 6 이어도 후보 · 제외가 칸 없는 같은 사람과 같다(몸 전체 규칙이라 건너뜀)',
+    json(ids(p6)) === json(ids(p6plain)) &&
+      json(p6.excluded) === json(p6plain.excluded) &&
+      p6.candidates.some((e) => levelOf(e) > INTENSITY_CAP.STRENGTH),
+    `후보 ${p6.candidates.length}`
+  );
+  const sleepy = histFacts({ today: 6, history: same(20, 8), sleep: '부족' });
+  const rs = pick(sleepy);
+  const rsPlain = pick(withoutUsual(sleepy));
+  check(
+    "P5 평소 (라) 짧은 밤과 겹친 날 — 같은 상한이라 더 빠지는 것 없음: 후보 · 제외('수면 부족' 수 그대로, 새 줄 없음)가 짧은 밤만인 날과 같고 근거에는 두 줄",
+    json(ids(rs)) === json(ids(rsPlain)) &&
+      json(rs.excluded) === json(rsPlain.excluded) &&
+      rs.excluded.some((x) => x.rule === '수면 부족') &&
+      rs.basis.includes(usualLine) &&
+      rs.basis.includes("오늘 수면 '부족' → 매우 높은 강도 제외"),
+    rs.basis.join(' / ')
+  );
+  const byId = new Map(library.map((e) => [e.id, e]));
+  const dayOf = (f: Facts, override: boolean) =>
+    buildDailyPlan({
+      user: { ownedEquipment: [], trainingLevel: null },
+      facts: f,
+      plan: buildPitchPlan(f),
+      library,
+      availableToday: null,
+      requestedMinutes: 60,
+      recentIds: new Set<string>(),
+      lastLowerKey: null,
+      lastUpperKey: null,
+      override,
+    });
+  const hot = [false, true].map((o) => dayOf(hit6, o));
+  const cold = [false, true].map((o) => dayOf(withoutUsual(hit6), o));
+  const topPicked: string[] = [];
+  const themes: string[] = [];
+  for (const [i, d] of hot.entries()) {
+    const c = cold[i];
+    if (isHalted(d) || isHalted(c)) {
+      themes.push('멈춤');
+      continue;
+    }
+    themes.push(`${d.theme.key}/${c.theme.key}`);
+    for (const p of d.picks) {
+      const ex = byId.get(p.exerciseId);
+      if (ex && levelOf(ex) > INTENSITY_CAP.STRENGTH) topPicked.push(ex.title);
+    }
+  }
+  check(
+    "P5 평소 (라) 매일 일정 — '그래도 하기'(override)여도 고른 것에 '매우 높음' 0, 테마는 칸 없는 같은 사람과 같다(조이는 것은 후보뿐)",
+    topPicked.length === 0 &&
+      themes.length === 2 &&
+      themes.every((t) => {
+        const [a, b] = t.split('/');
+        return b != null && a === b;
+      }),
+    `${themes.join(' · ')} ${topPicked.join(', ')}`
+  );
+
+  /* ── (마) P3 160조합 격자 — 평소를 얹어 본다(평소 = 오늘 + 2 · 오늘 + 1 · 센 수 13 · 프로그램) ── */
+  const grid = { hit: 0, floor: 0, seen: 0 };
+  const bad: string[] = [];
+  for (const [i, f] of p3ComboFactsSeen.entries()) {
+    const c = f.condition.today?.condition;
+    /* 평소가 10 을 넘는 사람은 없다 — 오늘 9 · 10 은 2점 낮을 평소가 없어 뺀다 */
+    if (c == null || c + BELOW_USUAL_GAP > 10) continue;
+    grid.seen++;
+    const plan = buildPitchPlan(f);
+    const base = selectCandidates({ facts: f, plan, library });
+    const baseIds = new Set(ids(base));
+    const run = (usual: UsualCondition, partsOnly = false) =>
+      selectCandidates({ facts: withUsual(f, usual), plan, library, partsOnly });
+    const two = run({ median: c + BELOW_USUAL_GAP, days: 20 });
+    if (c > LOW_CONDITION_THRESHOLD) {
+      grid.hit++;
+      if (two.halted !== base.halted) bad.push(`p0-${i} 멈춤이 바뀜`);
+      if (!ids(two).every((id) => baseIds.has(id))) bad.push(`p0-${i} 후보가 늘어남`);
+      if (two.candidates.some((e) => levelOf(e) > INTENSITY_CAP.STRENGTH))
+        bad.push(`p0-${i} 매우 높음이 남음`);
+      if (
+        !two.halted &&
+        !two.basis.includes(
+          `평소 컨디션 ${c + BELOW_USUAL_GAP}/10 → 오늘 ${c}/10 → 매우 높은 강도 제외`
+        )
+      )
+        bad.push(`p0-${i} 근거 줄 없음`);
+    } else {
+      grid.floor++;
+      if (json(two) !== json(base)) bad.push(`p0-${i} 바닥(${c})인데 바뀜`);
+    }
+    if (json(run({ median: c + BELOW_USUAL_GAP - 1, days: 20 })) !== json(base))
+      bad.push(`p0-${i} 1점인데 바뀜`);
+    if (json(run({ median: c + BELOW_USUAL_GAP, days: MIN - 1 })) !== json(base))
+      bad.push(`p0-${i} 평소 모름(13개)인데 바뀜`);
+    const partsBase = selectCandidates({ facts: f, plan, library, partsOnly: true });
+    const partsTwo = run({ median: c + BELOW_USUAL_GAP, days: 20 }, true);
+    if (
+      json(ids(partsTwo)) !== json(ids(partsBase)) ||
+      json(partsTwo.excluded) !== json(partsBase.excluded)
+    )
+      bad.push(`p0-${i} 프로그램 후보가 바뀜`);
+    /* 오늘 상태 한 장 — 안전 거르기와 같은 함수 */
+    const expect = c > LOW_CONDITION_THRESHOLD;
+    const st = buildDayState({
+      facts: withUsual(f, { median: c + BELOW_USUAL_GAP, days: 20 }),
+      plan,
+    });
+    const line = st.why.find((l) => l.includes('평소'));
+    if (
+      st.body.belowUsual !== expect ||
+      st.body.usualCondition !== c + BELOW_USUAL_GAP ||
+      (st.body.belowUsual && st.body.conditionLow)
+    )
+      bad.push(`p0-${i} 오늘 상태 칸이 다름(${c})`);
+    if (
+      expect !==
+        (line === `오늘 컨디션 ${c}/10이 평소 ${c + BELOW_USUAL_GAP}/10보다 낮아요.`) ||
+      (!expect && line != null)
+    )
+      bad.push(`p0-${i} 오늘 상태 이유 줄(${line ?? '없음'})`);
+    const plainState = buildDayState({ facts: f, plan });
+    if (plainState.body.belowUsual || plainState.body.usualCondition !== null)
+      bad.push(`p0-${i} 칸 없는 facts 인데 평소가 있음`);
+  }
+  check(
+    `P5 평소 (마) P3 160조합 격자(오늘 1~8 인 ${grid.seen}명): 평소 = 오늘 + 2 이면 바닥 위 ${grid.hit}명은 '매우 높음' 0 · 후보가 안 늘고 · 근거 줄, 바닥 ${grid.floor}명 · 1점 · 평소 모름 · 프로그램은 글자 그대로, 오늘 상태 칸 · 이유 줄이 같은 판정`,
+    p3ComboFactsSeen.length === 160 &&
+      grid.hit >= 30 &&
+      grid.floor >= 10 &&
+      bad.length === 0,
+    `${bad.length}건 ${bad.slice(0, 3).join(' / ')}`
+  );
+
+  /* ── (사) 오늘 상태 한 장 ── */
+  const st6 = buildDayState({ facts: hit6, plan: buildPitchPlan(hit6) });
+  check(
+    "P5 평소 (사) 오늘 상태 — 평소 8 · 오늘 6: body.usualCondition 8 · belowUsual 참 · 이유 '오늘 컨디션 6/10이 평소 8/10보다 낮아요.'",
+    st6.body.usualCondition === 8 &&
+      st6.body.belowUsual &&
+      st6.why.includes('오늘 컨디션 6/10이 평소 8/10보다 낮아요.'),
+    json(st6.why)
+  );
+  const st7 = buildDayState({ facts: hit7, plan: buildPitchPlan(hit7) });
+  const st4 = buildDayState({ facts: hit4, plan: buildPitchPlan(hit4) });
+  const st13 = buildDayState({ facts: f13, plan: buildPitchPlan(f13) });
+  check(
+    'P5 평소 (사) 오늘 7 → 평소 8 이지만 belowUsual 거짓 · 평소 줄 없음, 오늘 4 → 컨디션 낮음 줄만(평소 줄 없음), 지난 체크인 13개 → 평소 null',
+    st7.body.usualCondition === 8 &&
+      !st7.body.belowUsual &&
+      !st7.why.some((l) => l.includes('평소')) &&
+      st4.body.conditionLow &&
+      !st4.body.belowUsual &&
+      st4.why.includes('오늘 컨디션이 4/10이에요.') &&
+      !st4.why.some((l) => l.includes('평소')) &&
+      st13.body.usualCondition === null &&
+      !st13.body.belowUsual,
+    `${json(st7.why)} ${json(st4.why)}`
+  );
 }
 
 console.log(`\n${passed}개 통과, ${failed}개 실패`);

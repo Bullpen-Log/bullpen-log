@@ -18,7 +18,7 @@ import type { OutingNextSource } from '@/lib/engine/outing';
 import { INTENSITY_CAP, intensityLevel, type BodyPart } from '@/lib/exercise-meta';
 import { YOUTH_AGE_THRESHOLD } from '@/lib/report/plan';
 import { BEGINNER_LEVEL_NAME } from '@/lib/report/personalize';
-import type { ReportFacts } from '@/lib/report/facts';
+import { belowUsualCondition, type ReportFacts } from '@/lib/report/facts';
 import type { PitchPlan } from '@/lib/report/plan';
 
 /**
@@ -32,7 +32,7 @@ import type { PitchPlan } from '@/lib/report/plan';
  *
  * 근력 프로그램(partsOnly)에서 어느 규칙이 걸리는가 — 부위 · 팔 상태 규칙(통증 · 뻐근 · 최근 통증 · 재활 · 메모 · 팔 피로)은
  * drop 이라 프로그램에도 걸린다(그 칸이 그날 대체된다). 날 · 나이 · 몸 전체 규칙(부하 구간 · 통증 확인 전 · 등판 창 · 성장기 ·
- * 경력 · 컨디션 · 근육통 · 수면 · 성장기 쉬는 날)은 capTo 처럼 프로그램에서 건너뛴다 — 프로그램은 그런 날 스스로 쉬거나 칸을
+ * 경력 · 컨디션 · 평소보다 낮은 컨디션 · 근육통 · 수면 · 성장기 쉬는 날)은 capTo 처럼 프로그램에서 건너뛴다 — 프로그램은 그런 날 스스로 쉬거나 칸을
  * 가볍게 한다(lib/program/program.ts decideToday). 새 규칙도 이 기준으로 넣는다(2판 P4).
  */
 
@@ -291,7 +291,7 @@ export function selectCandidates<T extends ExerciseLike>({
    */
   caution?: { part: CheckinPartKey; why: string }[];
   /**
-   * 부위 규칙만 쓴다 — 몸 전체 강도 상한(부하 구간 · 통증 확인 전 · 성장기 · 경력 · 컨디션 · 근육통 · 수면)과 등판 창의 무거운 하체(2-2) ·
+   * 부위 규칙만 쓴다 — 몸 전체 강도 상한(부하 구간 · 통증 확인 전 · 성장기 · 경력 · 컨디션 · 평소보다 낮은 컨디션 · 근육통 · 수면)과 등판 창의 무거운 하체(2-2) ·
    * 성장기 쉬는 날(5-3)은 건너뛴다. 팔 피로 '심함'(5-2)은 팔 상태 규칙이라 걸린다.
    * 근력 · 파워 프로그램이 쓴다(lib/program/load.ts). 프로그램은 그런 날에도 진행하고 주의 한 줄 · 칸 조정으로
    * 스스로 가볍게 하므로(설계 D22~D25), 여기서 무거운 운동을 통째로 빼면 고정 운동이 날마다 대체된다.
@@ -506,6 +506,27 @@ export function selectCandidates<T extends ExerciseLike>({
     capTo('수면 부족', INTENSITY_CAP.STRENGTH);
   } else if (sleepHours != null) {
     basis.push(`어젯밤 ${formatSleepHours(sleepHours)} 수면 → 제한 없음`);
+  }
+
+  /*
+   * 4-2-1) 평소보다 낮은 컨디션 — 오늘 컨디션이 평소(오늘을 뺀 28일 체크인의 중앙값, 14개 이상일 때만)보다 2점 이상 낮은 날
+   *        (facts.ts belowUsualCondition, 2판 P5). 강도를 한 칸 내린다 — 가장 센 것('매우 높음')만 뺀다.
+   *
+   * 왜 두는가. 컨디션 6 은 늘 6 인 사람에게는 보통 날이고 늘 8 인 사람에게는 무언가 덜 된 날이다. 지금까지는 바닥(4) 하나로만 보아
+   * 늘 8 인 사람의 6 · 5 를 8 과 똑같이 짰다. 몸이 평소보다 덜 된 날에는 최대 무게 · 전력 동작부터 빼는 것이 짧은 밤(4-2)과 같은 판단이라
+   * 같은 상한(STRENGTH)을 쓴다. 바닥 이하(4 이하)는 이 규칙이 안 본다 — 4) 가 이미 무게 드는 것까지 빼고 그날은 회복날이다.
+   * 4-2 바로 뒤에 두는 까닭: 짧은 밤과 같은 상한이라 둘 다 걸린 날 이 줄은 하나도 더 빼지 않고(drop 은 뺀 것이 없으면 excluded 에 안 적는다),
+   * 짧은 밤만 걸린 날의 근거 · 뺀 수가 예전과 글자 그대로 남는다. 기존 4-3 번호는 그대로 두려고 새 번호를 붙였다.
+   * '그래도 하기'(override)로는 안 풀린다 — 테마만 넘기고 이 거르기는 남는다(4) · 4-2 와 같은 원칙). 몸 전체 규칙이라 근력
+   * 프로그램(partsOnly)은 capTo 가 건너뛴다(파일 머리 주석의 기준).
+   * 일정 지문에는 칸을 더하지 않는다 — 평소(어제까지의 28일)는 그날 안에 안 바뀌고, 오늘 컨디션은 지문(checkin.condition)에 이미 있다.
+   */
+  const belowUsual = belowUsualCondition(facts);
+  if (belowUsual) {
+    basis.push(
+      `평소 컨디션 ${belowUsual.median}/10 → 오늘 ${belowUsual.today}/10 → 매우 높은 강도 제외`
+    );
+    capTo('평소보다 낮은 컨디션', INTENSITY_CAP.STRENGTH);
   }
 
   /*

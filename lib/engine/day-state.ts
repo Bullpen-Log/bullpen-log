@@ -47,6 +47,7 @@ import {
 import type { ArmcareAreaKey } from '@/lib/armcare/anatomy';
 import { outingOf, type Outing } from '@/lib/engine/outing';
 import {
+  belowUsualCondition,
   isHardOuting,
   isNearMaxOuting,
   type HardOuting,
@@ -197,6 +198,15 @@ export type DayState = {
     condition: number | null;
     /** LOW_CONDITION_THRESHOLD 이하 */
     conditionLow: boolean;
+    /**
+     * 평소 컨디션 — 오늘을 뺀 28일 체크인의 중앙값(facts.condition.usualCondition, 2판 P5). 체크인이 14개 밑이면 null(평소를 모른다).
+     */
+    usualCondition: number | null;
+    /**
+     * 오늘 컨디션이 평소보다 2점 이상 낮다 — 바닥(conditionLow) 위에서만(lib/report/facts.ts belowUsualCondition). 안전 거르기
+     * (prescription.ts 4-2-1, 가장 센 운동을 뺀다)와 같은 함수라 둘이 어긋나지 않는다.
+     */
+    belowUsual: boolean;
     /** 오늘 '뻐근'이라고 한 부위 */
     stiffParts: CheckinPartKey[];
     /** 최근 7일에 아팠는데 오늘은 통증이라고 하지 않은 부위(painEasingParts) */
@@ -314,6 +324,8 @@ export function buildDayState({
   const soreMany =
     soreness != null && soreKnown && soreness >= HIGH_SORENESS && !soreSevere;
   const sleepShort = today != null && isShortSleep(today);
+  /* 평소 컨디션 — 칸이 없거나(체크인 14개 밑 · 옛 facts) 숫자가 아니면 모르는 것 */
+  const usualMedian = facts.condition.usualCondition?.median;
 
   /*
    * outing — 다음 등판 · 지난 등판은 lib/engine/outing.ts 한 곳(theme.ts plannedOuting 과 같은 함수, 2판 P4 커밋 B). 오늘 할 일(role)도
@@ -364,6 +376,11 @@ export function buildDayState({
       checkedIn: today != null,
       condition,
       conditionLow: condition != null && condition <= LOW_CONDITION_THRESHOLD,
+      usualCondition:
+        typeof usualMedian === 'number' && Number.isFinite(usualMedian)
+          ? usualMedian
+          : null,
+      belowUsual: belowUsualCondition(facts) != null,
       stiffParts: today
         ? CHECKIN_PARTS.filter((p) => today[p.key] === '뻐근').map((p) => p.key)
         : [],
@@ -445,6 +462,12 @@ function whyLines(s: Omit<DayState, 'why'>): string[] {
 
   if (arm.fatigueHigh) out.push(`팔 피로가 '${arm.fatigueWord ?? arm.fatigue}'이에요.`);
   if (body.conditionLow) out.push(`오늘 컨디션이 ${body.condition}/10이에요.`);
+  /* 바닥 위에서만 참이라(belowUsualCondition) 위 줄과 같이 나오지 않는다 */
+  if (body.belowUsual && body.usualCondition != null) {
+    out.push(
+      `오늘 컨디션 ${body.condition}/10이 평소 ${body.usualCondition}/10보다 낮아요.`
+    );
+  }
   if (body.soreSevere || body.soreMany) {
     out.push(`전신 근육통이 '${sorenessWord(body.soreness)}'이에요.`);
   }

@@ -29,6 +29,8 @@ import { josa, withJosa } from '@/lib/korean';
  *   load.ratio · recentOutings · volume — 판단은 zone · hardOutings · lastThrow 만 읽는다.
  *   자동 맞춤의 운동 부하 · poorSleepDays — facts 밖이거나 자동 맞춤만 읽고, 오늘 운동을 마치면 늘 바뀐다(auto.rules 글에 남는다).
  *   recentIds · sessionsAgo · lastLower/UpperKey · 씨앗 — 목록 순서 · 차례이지 '상태'가 아니다.
+ *   condition.usualCondition(평소 컨디션) — 안전 거르기 4-2-1 이 읽지만(2판 P5) 오늘을 뺀 어제까지의 28일이라 같은 날 안에서는 안
+ *     바뀐다. 오늘 컨디션(checkin.condition)이 이미 지문에 있어, 체크인을 고쳐 평소보다 낮아지거나 돌아오면 그 칸이 바뀐 줄을 낸다.
  *   '마지막 투구의 강도 · 종류' — facts 에 날 단위 칸이 없다. 전력 환산(lastOutingAdjusted — 강도 · 종류가 들어간 값)과
  *     hardOuting(그날 투구수 × 체감 강도 ≥ 2,700 — load 선택 칸, 2판 D2), lastThrow.load(마지막으로 던진 날의 투구수 × 체감
  *     강도 — 날 종류의 R2 가 어제 것을 읽어 2판 P4 커밋 E 에서 더함)로 덮는다. 날 종류의 '짧게'가 읽는 실전 강도 공 수
