@@ -61,7 +61,7 @@ def fuse_wrist(kp, sc):
 
 def track_of(p, c, fps=120.0):
     flip = os.environ.get("FLIP") == "1"  # 좌우로 뒤집어 한 번 더 본 2D 와 평균(pose_modal.py --flip → work/kpf)
-    z = np.load(os.path.join(WORK, "kpf" if flip else "kp", f"투구{p:02d}_c{c}.npz"))
+    z = np.load(os.path.join(WORK, "kpf" if flip else os.environ.get("KP_DIR", "kp"), f"투구{p:02d}_c{c}.npz"))
     t, kp, sc = z["t"], z["kp"].astype(float), z["sc"].astype(float)
     if flip:
         kp, sc = avg2d(kp, sc, z["kpf"], z["scf"])
@@ -176,7 +176,9 @@ def cmd_score(ps, cal_path, world_path, name):
         if os.environ.get("K4") != "robust":
             # 기본은 recon 의 K4(네 대 모두 같은 무게). 튼튼한 K4R 은 스티커와 비교하면 더 나빴다(거리 흔들림 1.21 → 1.52cm, 위팔 방향
             # 7.2 → 15°) — 시선을 빼면 둘만 남는 장면이 늘어 더 흔들린다. 진단용으로만 K4=robust.
-            KR = {n: rec[f"K_{kn}_{sd}"] for n, (kn, sd) in K4_OF.items()}
+            # K4_REC: 다른 2D 모델로 만든 K4(같은 tq) — 그 모델의 엔진 결과를 같은 모델의 네 대 교차와 견줄 때
+            kr = np.load(os.path.join(WORK, os.environ["K4_REC"], f"p{p:02d}.npz")) if os.environ.get("K4_REC") else rec
+            KR = {n: kr[f"K_{kn}_{sd}"] for n, (kn, sd) in K4_OF.items()}
         elif os.path.exists(cache):
             KR = {k: v for k, v in np.load(cache).items()}
         else:
