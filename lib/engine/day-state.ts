@@ -35,6 +35,7 @@ import {
   SEVERE_SORENESS,
   SHORT_SLEEP_HOURS,
   armFatigueWord,
+  armPainJointsToday,
   armPainSpotsFor,
   formatSleepHours,
   isShortSleep,
@@ -186,7 +187,7 @@ export type DayState = {
     /** 그 말('많이' …), 범위 밖이면 null */
     fatigueWord: string | null;
     fatigueHigh: boolean;
-    /** 오늘 '통증'인 팔 관절(어깨 · 팔꿈치 — 암케어 통증 루틴이 보는 관절) */
+    /** 오늘 '통증'인 팔 관절(어깨 · 팔꿈치 — 암케어 통증 루틴 · 메커니즘 접기(D5)가 보는 관절, lib/checkin.ts armPainJointsToday) */
     painJoints: CheckinPartKey[];
     /** 그 관절이 있을 때만 자리 · 정도(lib/armcare/today.ts 의 armPain 과 같은 값), 없으면 null */
     pain: { spots: ArmcareAreaKey[]; level: number | null } | null;
@@ -344,7 +345,8 @@ export function buildDayState({
   /* arm — 팔 피로는 오늘 체크인 칸(facts, 2판 P4). 체크인이 없으면 null */
   const fatigue = today?.armFatigue ?? null;
   const fatigueHigh = fatigue != null && fatigue >= HIGH_ARM_FATIGUE;
-  const painJoints = painParts.filter((p) => p === 'shoulder' || p === 'elbow');
+  /* 메커니즘 접기(D5)와 한 함수 — 같은 체크인이면 같은 답(2판 P6-5, lib/checkin.ts) */
+  const painJoints: CheckinPartKey[] = armPainJointsToday(today);
   const saved = extras.armPain ?? null;
   const armPain =
     painJoints.length > 0

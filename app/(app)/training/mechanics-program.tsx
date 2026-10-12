@@ -1,9 +1,17 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useState, useTransition, type CSSProperties } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Check, ChevronDown, Play, RotateCcw, Video } from 'lucide-react';
+import {
+  AlertTriangle,
+  Check,
+  ChevronDown,
+  ChevronUp,
+  Play,
+  RotateCcw,
+  Video,
+} from 'lucide-react';
 import { Button, ButtonLink, Card } from '@/components/ui';
 import { ConfirmDialog } from '@/components/confirm-delete';
 import { ErrorLine } from '@/components/error-line';
@@ -17,7 +25,17 @@ import {
   type LevelKey,
   type MechanicsLevel,
 } from '@/lib/mechanics/levels';
-import { FILM_EVERY, FILM_VERDICTS, filmPrompt, type FilmNote } from '@/lib/mechanics/program';
+import {
+  FILM_EVERY,
+  FILM_VERDICTS,
+  MECHANICS_FOLD_BUTTONS,
+  MECHANICS_FOLD_TEXT,
+  filmPrompt,
+  foldSession,
+  isArmLoaded,
+  type FilmNote,
+  type MechanicsPainFold,
+} from '@/lib/mechanics/program';
 import { FilmVerdictButtons } from './film-verdict';
 import type { MechanicsProgramView, SessionDrillView } from '@/lib/mechanics/load';
 import { resetMechanicsProgram, startMechanicsProgram } from '@/app/actions/mechanics';
@@ -35,10 +53,13 @@ export function MechanicsProgram({
   program,
   session,
   doneToday,
+  painFold = null,
 }: {
   program: MechanicsProgramView | null;
   session: SessionDrillView[];
   doneToday: string[];
+  /** 오늘 어깨 · 팔꿈치 통증으로 팔에 싣는 드릴을 접는가(2판 P6-5, D5) — 아니면 null */
+  painFold?: MechanicsPainFold | null;
 }) {
   if (!program?.level) {
     return (
@@ -67,7 +88,13 @@ export function MechanicsProgram({
       {completed ? (
         <CompletedCard level={level} advice={program.advice} />
       ) : (
-        <SessionCard program={program} level={level} session={session} doneToday={doneToday} />
+        <SessionCard
+          program={program}
+          level={level}
+          session={session}
+          doneToday={doneToday}
+          painFold={painFold}
+        />
       )}
 
       {!completed && program.advice && program.advice.kind !== 'done' && (
@@ -93,20 +120,37 @@ export function MechanicsProgram({
   );
 }
 
-/** 오늘(다음) 세션 — 드릴 셋 · 시작 */
+/**
+ * 오늘(다음) 세션 — 드릴 셋 · 시작.
+ *
+ * 어깨 · 팔꿈치가 아픈 날(2판 P6-5, 사용자 결정 D5): 팔에 싣는 드릴(스로잉 · 메디신볼)은 '접어 둔 드릴' 한 줄로 접고, 시작은
+ * '무브먼트 드릴만 하기'. 막지는 않는다 — '펼치기'를 누르면 세 드릴이 다 보이고 시작이 '그래도 하기'(/mechanics/play?anyway=1)로
+ * 바뀐다. 펼친 것은 이 화면에서만 지킨다(다시 열면 다시 접힌다 — 아픈 날은 매번 한 번 더 고르게).
+ */
 function SessionCard({
   program,
   level,
   session,
   doneToday,
+  painFold,
 }: {
   program: MechanicsProgramView;
   level: MechanicsLevel;
   session: SessionDrillView[];
   doneToday: string[];
+  painFold: MechanicsPainFold | null;
 }) {
+  const [unfolded, setUnfolded] = useState(false);
   const done = new Set(program.finishedToday ? [] : doneToday);
-  const started = session.some((s) => done.has(s.guideId));
+  /* 접는 날 — 펼치기 전까지 팔에 싣는 드릴은 목록에서 빼 한 줄로 */
+  const folding = painFold != null && !unfolded;
+  const anyway = painFold != null && unfolded;
+  const { open, folded } = foldSession(session, folding ? painFold : null);
+  const started = open.some((s) => done.has(s.guideId));
+  /* 접은 날 할 수 있는 드릴을 다 했다 — 무브먼트만 하고 마친 뒤(세션 수는 그대로라 같은 세션이 남는다) */
+  const openDone = folding && open.length > 0 && open.every((s) => done.has(s.guideId));
+  const startClass =
+    'flex min-h-12 w-full items-center justify-center gap-1.5 rounded-full bg-sky text-base font-bold text-white transition-colors hover:bg-sky-strong';
   return (
     <Card className="space-y-4">
       <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
@@ -123,41 +167,130 @@ function SessionCard({
           오늘 세션을 마쳤어요. 더 하고 싶으면 다음 세션을 이어서 해도 돼요.
         </p>
       )}
-      <ol className="space-y-2">
-        {session.map((item, i) => (
-          <li key={item.guideId} className="flex items-start gap-3 rounded-xl bg-surface-2 px-3.5 py-3">
-            <span
-              className={`grid h-6 w-6 shrink-0 place-items-center rounded-full text-xs font-bold ${
-                done.has(item.guideId) ? 'bg-sky text-white' : 'bg-surface text-muted'
-              }`}
+      {painFold &&
+        (folding ? (
+          <p className="flex items-start gap-2 rounded-2xl bg-warn-bg px-4 py-3 text-sm font-semibold break-keep text-warn">
+            <AlertTriangle aria-hidden className="mt-0.5 h-4 w-4 shrink-0" />
+            <span>{painFold.reason}</span>
+          </p>
+        ) : (
+          <div className="flex items-center gap-2 rounded-2xl bg-warn-bg py-1.5 pr-1.5 pl-4">
+            <AlertTriangle aria-hidden className="h-4 w-4 shrink-0 text-warn" />
+            <p className="min-w-0 flex-1 text-sm font-semibold break-keep text-warn">
+              {MECHANICS_FOLD_TEXT.anyway(painFold.label)}
+            </p>
+            <button
+              type="button"
+              onClick={() => setUnfolded(false)}
+              className="inline-flex min-h-11 shrink-0 items-center gap-1 rounded-full px-3 text-sm font-semibold text-warn"
             >
-              {done.has(item.guideId) ? <Check aria-hidden className="h-3.5 w-3.5" /> : i + 1}
-            </span>
-            <span className="min-w-0 flex-1 space-y-0.5">
-              <span className="block text-sm font-bold break-keep text-ink">{item.title}</span>
-              <span className="block text-xs break-keep text-muted">
-                {item.element} · {item.stage} · {item.tool} · {item.dose}
-              </span>
-              {item.gearNote?.replaced && (
-                <span className="block text-xs break-keep text-muted">
-                  {item.gearNote.replaced}에는 {item.gearNote.need}
-                  {josa(item.gearNote.need, '이/가')} 있어야 해서 같은 단계 드릴로 바꿨어요
-                </span>
-              )}
-            </span>
-          </li>
+              <ChevronUp aria-hidden className="h-4 w-4" />
+              {MECHANICS_FOLD_BUTTONS.refold}
+            </button>
+          </div>
         ))}
-      </ol>
-      <Link
-        href="/mechanics/play"
-        className="flex min-h-12 w-full items-center justify-center gap-1.5 rounded-full bg-sky text-base font-bold text-white transition-colors hover:bg-sky-strong"
-      >
-        <Play aria-hidden className="h-4 w-4" fill="currentColor" />
-        {started ? '이어서 하기' : '세션 시작'}
-      </Link>
+      {open.length > 0 && (
+        <ol className="space-y-2">
+          {open.map((item, i) => {
+            const loaded = anyway && isArmLoaded(item.category);
+            return (
+              <li
+                key={item.guideId}
+                className={`flex items-start gap-3 rounded-xl bg-surface-2 px-3.5 py-3 ${
+                  loaded ? 'motion-safe:animate-row-in' : ''
+                }`}
+                style={loaded ? ({ '--row': i } as CSSProperties) : undefined}
+              >
+                <span
+                  className={`grid h-6 w-6 shrink-0 place-items-center rounded-full text-xs font-bold ${
+                    done.has(item.guideId)
+                      ? 'bg-sky text-white'
+                      : 'bg-surface text-muted'
+                  }`}
+                >
+                  {done.has(item.guideId) ? (
+                    <Check aria-hidden className="h-3.5 w-3.5" />
+                  ) : (
+                    i + 1
+                  )}
+                </span>
+                <span className="min-w-0 flex-1 space-y-0.5">
+                  <span className="block text-sm font-bold break-keep text-ink">
+                    {item.title}
+                  </span>
+                  <span className="block text-xs break-keep text-muted">
+                    {item.element} · {item.stage} · {item.tool} · {item.dose}
+                  </span>
+                  {item.gearNote?.replaced && (
+                    <span className="block text-xs break-keep text-muted">
+                      {item.gearNote.replaced}에는 {item.gearNote.need}
+                      {josa(item.gearNote.need, '이/가')} 있어야 해서 같은 단계 드릴로
+                      바꿨어요
+                    </span>
+                  )}
+                  {loaded && (
+                    <span className="block text-xs font-semibold break-keep text-warn">
+                      {MECHANICS_FOLD_TEXT.loadedTag}
+                    </span>
+                  )}
+                </span>
+              </li>
+            );
+          })}
+        </ol>
+      )}
+      {folding && folded.length > 0 && (
+        <div className="flex items-center gap-3 rounded-xl border border-dashed border-line px-3.5 py-3">
+          <span className="min-w-0 flex-1 space-y-0.5">
+            <span className="block text-sm font-bold text-ink">
+              접어 둔 드릴 {folded.length}개
+            </span>
+            <span className="block text-xs break-keep text-muted">
+              {folded.map((f) => f.title).join(' · ')}
+            </span>
+          </span>
+          <button
+            type="button"
+            onClick={() => setUnfolded(true)}
+            className="inline-flex min-h-11 shrink-0 items-center gap-1 rounded-full bg-surface-2 px-4 text-sm font-semibold text-ink transition-colors hover:bg-sky-tint"
+          >
+            {MECHANICS_FOLD_BUTTONS.unfold}
+            <ChevronDown aria-hidden className="h-4 w-4" />
+          </button>
+        </div>
+      )}
+      {folding ? (
+        open.length === 0 ? (
+          <p className="text-sm font-semibold break-keep text-ink">
+            {MECHANICS_FOLD_TEXT.allFolded}
+          </p>
+        ) : openDone ? (
+          <p className="flex items-start gap-1.5 text-sm font-semibold break-keep text-sky-strong">
+            <Check aria-hidden className="mt-0.5 h-4 w-4 shrink-0" />
+            {MECHANICS_FOLD_TEXT.openDone}
+          </p>
+        ) : (
+          <Link href="/mechanics/play" className={startClass}>
+            <Play aria-hidden className="h-4 w-4" fill="currentColor" />
+            {started ? '이어서 하기' : MECHANICS_FOLD_BUTTONS.openOnly}
+          </Link>
+        )
+      ) : (
+        <Link
+          href={anyway ? '/mechanics/play?anyway=1' : '/mechanics/play'}
+          className={startClass}
+        >
+          <Play aria-hidden className="h-4 w-4" fill="currentColor" />
+          {anyway
+            ? MECHANICS_FOLD_BUTTONS.anyway
+            : started
+              ? '이어서 하기'
+              : '세션 시작'}
+        </Link>
+      )}
       <p className="text-xs leading-relaxed break-keep text-muted">
-        드릴마다 느낌을 눌러요. 쉬움이 여러 요소에서 쌓이면 다음 수준을 권해 드려요. 던지는 날 몸을 푼 뒤, 캐치볼 전에
-        하면 알맞아요.
+        드릴마다 느낌을 눌러요. 쉬움이 여러 요소에서 쌓이면 다음 수준을 권해 드려요.
+        던지는 날 몸을 푼 뒤, 캐치볼 전에 하면 알맞아요.
       </p>
     </Card>
   );

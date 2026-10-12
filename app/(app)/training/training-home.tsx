@@ -16,6 +16,7 @@ import { loadArmcareCoverage } from '@/lib/armcare/coverage-load';
 import { visibleExercises } from '@/lib/library-cache';
 import { loadMechanicsProgram } from '@/lib/mechanics/load';
 import { mechanicsLevel } from '@/lib/mechanics/levels';
+import { MECHANICS_FOLD_TEXT, foldSession } from '@/lib/mechanics/program';
 import { shiftDateKey, toDateKey } from '@/lib/pitch-stats';
 import { dbDate, keyOfDbDate } from '@/lib/nutrition/days';
 import { TRAINING_PART_HREF, type TrainingPart } from '@/lib/training-part';
@@ -376,13 +377,12 @@ async function ArmcareCard({ user, today }: { user: HomeUser; today: Date }) {
 
 /** 메커니즘 — 고른 수준의 다음 세션과 12칸 진행(수준을 안 골랐으면 고르라고) */
 async function MechanicsCard({ userId }: { userId: string }) {
-  const { program, session, doneToday } = await loadMechanicsProgram(userId);
+  const { program, session, doneToday, painFold } = await loadMechanicsProgram(userId);
   if (!program?.level) {
     return <AppCard app="mechanics" status="수준을 골라 투구 메커니즘 프로그램을 시작해 보세요" />;
   }
   const level = mechanicsLevel(program.level);
   const done = new Set(program.finishedToday ? [] : doneToday);
-  const started = session.some((s) => done.has(s.guideId));
   const completed = program.week == null;
   const bars = (
     <div className="grid grid-cols-12 gap-0.5" aria-label={`${level.name} ${program.total}번 중 ${program.index}번 마침`}>
@@ -396,6 +396,42 @@ async function MechanicsCard({ userId }: { userId: string }) {
       ))}
     </div>
   );
+  /*
+   * 어깨 · 팔꿈치가 아픈 날(2판 P6-5, D5) — 프로그램 칸처럼 팔에 싣는 드릴은 접고 무브먼트만 권한다. 펼치기('그래도 하기')는
+   * 프로그램 칸에 있어서, 할 드릴이 없으면 단추 없이 카드를 누르면 그리로 간다. 다 마친 수준 · 오늘 마친 날은 예전 줄 그대로.
+   */
+  const fold = painFold && !completed && !program.finishedToday ? painFold : null;
+  const { open } = foldSession(session, fold);
+  if (fold) {
+    const openLeft = open.filter((s) => !done.has(s.guideId));
+    /* 무브먼트만 하고 마친 날은 세션 수가 그대로라 finishedToday 가 아니다 — 그래서 여기서 '마쳤어요'를 따로 말한다 */
+    const openDone = open.length > 0 && openLeft.length === 0;
+    return (
+      <AppCard
+        app="mechanics"
+        tone={openDone ? 'done' : 'warn'}
+        status={
+          openLeft.length > 0
+            ? MECHANICS_FOLD_TEXT.homeOpen(fold.label, open.length)
+            : openDone
+              ? MECHANICS_FOLD_TEXT.homeOpenDone
+              : MECHANICS_FOLD_TEXT.homeAllFolded
+        }
+        action={
+          openLeft.length > 0 ? (
+            <StartLink
+              app="mechanics"
+              href="/mechanics/play"
+              label={open.some((s) => done.has(s.guideId)) ? '이어서' : '시작'}
+            />
+          ) : undefined
+        }
+      >
+        {bars}
+      </AppCard>
+    );
+  }
+  const started = session.some((s) => done.has(s.guideId));
   return (
     <AppCard
       app="mechanics"

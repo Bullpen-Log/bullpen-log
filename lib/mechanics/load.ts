@@ -13,8 +13,10 @@ import {
   buildLevelSession,
   canUseVariant,
   levelAdvice,
+  mechanicsPainFold,
   readProgramState,
   type FilmNote,
+  type MechanicsPainFold,
   type SessionItem,
 } from '@/lib/mechanics/program';
 import { levelSession, SESSIONS_PER_LEVEL, type LevelKey } from '@/lib/mechanics/levels';
@@ -57,15 +59,21 @@ export type MechanicsProgramView = {
 /**
  * 프로그램 칸 · 따라 하기가 읽는 것 — 내 프로그램과 오늘의 세션, 오늘 이미 한 드릴(2026-10-04).
  * 프로그램이 없으면 program 이 null 이고 세션도 비어 있다.
+ *
+ * painFold(2판 P6-5, 사용자 결정 D5): 오늘 체크인에서 어깨 · 팔꿈치가 '통증'이면 팔에 싣는 드릴을 접는다. 체크인 한 줄의
+ * 두 칸만 더 읽는다 — 오늘 상태 한 장(lib/engine/day-state.ts)을 만들면 facts 전체를 모아 메커니즘 화면이 무거워진다. 판정은
+ * 같은 함수(lib/checkin.ts armPainJointsToday)라 답이 같다. session 은 접기 전 그대로 — 화면 · 따라 하기가 접는다.
  */
 export async function loadMechanicsProgram(userId: string): Promise<{
   program: MechanicsProgramView | null;
   session: SessionDrillView[];
   /** 오늘 '했다'로 남은 드릴 id — 따라 하기를 이어서 할 때 건너뛴다 */
   doneToday: string[];
+  /** 오늘 어깨 · 팔꿈치 통증으로 접는가 — 아니면 null */
+  painFold: MechanicsPainFold | null;
 }> {
   const todayKey = toDateKey(appNow());
-  const [row, guides, favorites, logs, user, setup] = await Promise.all([
+  const [row, guides, favorites, logs, user, setup, checkin] = await Promise.all([
     prisma.mechanicsProgram.findUnique({ where: { userId } }),
     visibleGuides(),
     favoriteDrillIds(userId),
@@ -79,8 +87,13 @@ export async function loadMechanicsProgram(userId: string): Promise<{
       where: { userId_date: { userId, date: dbDate(todayKey) } },
       select: { availableEquipment: true },
     }),
+    /* 오늘 어깨 · 팔꿈치만(D5 접기) */
+    prisma.dailyCheckin.findUnique({
+      where: { userId_date: { userId, date: dbDate(todayKey) } },
+      select: { shoulder: true, elbow: true },
+    }),
   ]);
-  if (!row) return { program: null, session: [], doneToday: [] };
+  if (!row) return { program: null, session: [], doneToday: [], painFold: null };
 
   const ownThumbs = await createPlaybackUrls(
     guides.filter((g) => !g.referenceVideoId && g.thumbPath).map((g) => g.thumbPath as string)
@@ -130,5 +143,5 @@ export async function loadMechanicsProgram(userId: string): Promise<{
     const ids = item.alternatives.flatMap((a) => a.variants.map((v) => v.id));
     if (!done.has(item.guideId) && ids.some((id) => done.has(id))) doneToday.push(item.guideId);
   }
-  return { program, session, doneToday };
+  return { program, session, doneToday, painFold: mechanicsPainFold(checkin) };
 }

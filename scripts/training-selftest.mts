@@ -64,6 +64,7 @@ import {
   THROW_PLANS,
   WORKOUT_KINDS,
   armFatigueWord,
+  armPainJointsToday,
   armPainSpotsFor,
   exactOutingDay,
   hasDetail,
@@ -555,6 +556,8 @@ import {
   type ArbiterInput,
   type Arbitration,
 } from '../lib/engine/arbiter.ts';
+/* 2판 P6-5 D5 메커니즘 — 오늘 어깨 · 팔꿈치 통증 날 접기(판정이 오늘 상태 한 장과 같은지) */
+import { isArmLoaded, mechanicsPainFold } from '../lib/mechanics/program.ts';
 /* 2판 P6-4 D6 화면 — 프로그램 카드와 일정 카드가 같은 날 겹치지 않게 */
 import {
   TRAINING_SCREEN_TEXT,
@@ -30101,6 +30104,210 @@ console.log(
       `P6-4 (라) 화면 글 ${lines.length}줄 — 해요체 · 줄표 없음 · 60자 안(홈 카드 줄은 다른 줄처럼 마침표 없이)`,
       bad.length === 0 && lines.length === 3,
       bad.map(([k]) => k).join(' · ')
+    );
+  }
+}
+
+/*
+ * 2판 P6-5 D5 메커니즘(2026-10-13, lib/mechanics/program.ts · lib/checkin.ts armPainJointsToday) — 오늘 어깨 · 팔꿈치가 '통증'인 날만
+ * 메커니즘의 팔에 싣는 드릴(스로잉 · 메디신볼)을 접고 '그래도 하기'로 펼친다(사용자 결정 D5 — 막지 않는다). 메커니즘 화면은 체크인
+ * 한 줄의 두 칸만 읽고, 오늘 상태 한 장 · 중재는 facts 전체로 판정한다 — 같은 체크인이면 같은 답인지 격자로 본다(설계 비판 1 'D5 판정
+ * 길이 둘'). 드릴 접기 · 펼치기 · 반만 마치기 자체는 npm run mechanics:test 가 가짜 드릴 표와 라이브러리 세션 전부로 본다.
+ * (가) 격자 243가지 — 다섯 부위 × 정상 · 뻐근 · 통증: 오늘 상태 arm.painJoints = mechanicsPainFold().joints, 중재 mechanics 'pain' ⇔ 접음
+ * (나) 체크인 없음 · 어제만 통증 · 등판 + 통증 — 메커니즘 화면 판정과 중재가 엇갈리지 않음
+ * (다) 소스 — 읽기 · 따라 하기 · 마치기 · 프로그램 칸 · 트레이닝 홈이 같은 함수를 쓴다, 드릴을 가르는 술어는 isArmLoaded 하나
+ */
+console.log(
+  '\n[2판 P6] D5 메커니즘(P6-5) — 오늘 어깨 · 팔꿈치 통증이면 던지기 · 메디신볼 드릴을 접고 펼칠 수 있게, 판정은 오늘 상태와 같은 함수'
+);
+{
+  const json = (v: unknown) => JSON.stringify(v);
+  const VALUES = ['정상', '뻐근', '통증'] as const;
+  const PARTS = ['shoulder', 'elbow', 'wrist', 'lowerBack', 'lowerBody'] as const;
+  type Parts = Record<(typeof PARTS)[number], string>;
+  const dayKey = (daysAgo: number) =>
+    new Date(TODAY.getTime() - daysAgo * 86400000).toISOString().slice(0, 10);
+  const d5Checkin = (
+    daysAgo: number,
+    parts: Parts,
+    throwPlan?: string
+  ): CheckinLike => ({
+    date: dayKey(daysAgo),
+    condition: 7,
+    sleep: '보통',
+    ...parts,
+    preferredParts: [],
+    preferredWorkout: null,
+    ...(throwPlan ? { throwPlan } : {}),
+  });
+  const d5Facts = (checkins: CheckinLike[]) =>
+    buildFacts({
+      nickname: '시험',
+      age: 22,
+      heightCm: 180,
+      trainingLevel: null,
+      baselineDailyLoad: 100,
+      rehab: null,
+      today: TODAY,
+      logs: [],
+      checkins,
+      memos: [],
+    });
+  const d5Arb = (checkins: CheckinLike[]) => {
+    const facts = d5Facts(checkins);
+    const state = buildDayState({ facts, plan: buildPitchPlan(facts) });
+    return {
+      state,
+      arb: arbitrate({ state, dayKind: dayKindOf(facts), lastLowerKey: null }),
+    };
+  };
+  const NORMAL: Parts = {
+    shoulder: '정상',
+    elbow: '정상',
+    wrist: '정상',
+    lowerBack: '정상',
+    lowerBody: '정상',
+  };
+
+  /* ── (가) 격자 ── */
+  {
+    const bad: string[] = [];
+    let combos = 0;
+    let folds = 0;
+    const walk = (k: number, acc: Parts) => {
+      if (k === PARTS.length) {
+        combos++;
+        const fold = mechanicsPainFold(acc);
+        const { state, arb } = d5Arb([d5Checkin(0, acc)]);
+        const want = (['shoulder', 'elbow'] as const).filter((j) => acc[j] === '통증');
+        if (fold) folds++;
+        if (
+          json(state.arm.painJoints) !== json(fold?.joints ?? []) ||
+          json(armPainJointsToday(acc)) !== json(want) ||
+          (fold != null) !== want.length > 0 ||
+          arb.mechanics.foldThrows !== (fold != null) ||
+          (arb.mechanics.because === 'pain') !== (fold != null) ||
+          !arb.mechanics.anyway
+        )
+          bad.push(
+            `${PARTS.map((p) => acc[p][0]).join('')}: 상태 ${json(state.arm.painJoints)} · 메커니즘 ${json(fold?.joints ?? null)} · 중재 ${arb.mechanics.because}`
+          );
+        return;
+      }
+      for (const v of VALUES) walk(k + 1, { ...acc, [PARTS[k]]: v });
+    };
+    walk(0, NORMAL);
+    check(
+      `P6-5 (가) 격자 ${combos}가지 — 오늘 상태 arm.painJoints · 메커니즘 접기 · 중재 mechanics('pain' · 그래도 하기)가 같은 답, 어깨 · 팔꿈치 '통증'만 접음(${folds}가지)`,
+      bad.length === 0 && combos === 243 && folds === 135,
+      bad.slice(0, 3).join(' / ')
+    );
+  }
+
+  /* ── (나) 경계 장면 ── */
+  {
+    const none = d5Arb([]);
+    const yesterdayOnly = d5Arb([d5Checkin(1, { ...NORMAL, shoulder: '통증' })]);
+    const outingPain = d5Arb([d5Checkin(0, { ...NORMAL, elbow: '통증' }, '오늘 등판')]);
+    const rows: [string, boolean][] = [
+      [
+        '체크인 없음 — 메커니즘은 안 접고, 중재도 접지 않음',
+        mechanicsPainFold(null) === null &&
+          none.state.arm.painJoints.length === 0 &&
+          !none.arb.mechanics.foldThrows,
+      ],
+      [
+        '어제만 어깨 통증 · 오늘 체크인 없음 — D5 는 오늘만 본다(메커니즘 · 중재 둘 다 통증 아님)',
+        yesterdayOnly.state.arm.painJoints.length === 0 &&
+          yesterdayOnly.arb.mechanics.because !== 'pain',
+      ],
+      [
+        "오늘 등판 + 팔꿈치 통증 — 오늘 상태의 통증 관절은 메커니즘 판정과 같고, 중재는 팔 예산이 이겨 못 펼침('armSpent')",
+        json(outingPain.state.arm.painJoints) ===
+          json(mechanicsPainFold({ ...NORMAL, elbow: '통증' })?.joints) &&
+          outingPain.arb.mechanics.because === 'armSpent' &&
+          !outingPain.arb.mechanics.anyway,
+      ],
+    ];
+    const wrong = rows.filter(([, okRow]) => !okRow).map(([n]) => n);
+    check(
+      `P6-5 (나) 경계 장면 ${rows.length}가지 — 체크인 없음 · 어제만 통증 · 등판 + 통증`,
+      wrong.length === 0,
+      wrong.join(' / ')
+    );
+  }
+
+  /* ── (다) 소스 ── */
+  {
+    const strip = (rel: string) =>
+      readFileSync(new URL(`../${rel}`, import.meta.url), 'utf8')
+        .replace(/\{\/\*[\s\S]*?\*\/\}/g, '')
+        .replace(/\/\*[\s\S]*?\*\//g, '')
+        .replace(/^\s*\/\/.*$/gm, '');
+    const load = strip('lib/mechanics/load.ts');
+    const play = strip('app/(session)/mechanics/play/page.tsx');
+    const player = strip('app/(session)/mechanics/play/mechanics-player.tsx');
+    const action = strip('app/actions/mechanics.ts');
+    const finish = action.slice(
+      action.indexOf('export async function finishMechanicsSession')
+    );
+    const card = strip('app/(app)/training/mechanics-program.tsx');
+    const home = strip('app/(app)/training/training-home.tsx');
+    const homeCard = home.slice(home.indexOf('async function MechanicsCard'));
+    const dayState = strip('lib/engine/day-state.ts');
+    const arbiter = strip('lib/engine/arbiter.ts');
+    const rows: [string, boolean][] = [
+      [
+        '읽기 — 오늘 체크인의 어깨 · 팔꿈치 두 칸만 더 읽고 mechanicsPainFold 로',
+        /select: \{ shoulder: true, elbow: true \}/.test(load) &&
+          /painFold: mechanicsPainFold\(checkin\)/.test(load) &&
+          /painFold: null \}/.test(load),
+      ],
+      [
+        '따라 하기 — ?anyway=1 이 아니면 playItemsFor 가 무브먼트만, 비면 프로그램 칸으로, 시작 자리는 resumeAt',
+        /\.anyway === '1'/.test(play) &&
+          /playItemsFor\(session, painFold, anyway\)/.test(play) &&
+          /if \(items\.length === 0\) redirect\(BACK\)/.test(play) &&
+          /startAt=\{resumeAt\(items, done\)\}/.test(play) &&
+          /partial=\{partial\}/.test(play),
+      ],
+      [
+        '마치기 — 반만 마치면 진행 · 세션 수 · 마친 날을 그대로(update 앞에서 돌아감), 다 마치면 finishState',
+        /finishMechanicsSession\(\{ partial \}\)/.test(player) &&
+          /opts\?\.partial === true/.test(finish) &&
+          finish.indexOf('opts?.partial === true') <
+            finish.indexOf('prisma.mechanicsProgram.update') &&
+          /finishState\(state, false\)/.test(finish),
+      ],
+      [
+        "프로그램 칸 — 접힌 드릴 줄 · 펼치기 · '그래도 하기'(?anyway=1)",
+        /foldSession\(session, folding \? painFold : null\)/.test(card) &&
+          /'\/mechanics\/play\?anyway=1'/.test(card) &&
+          /MECHANICS_FOLD_BUTTONS\.unfold/.test(card) &&
+          /MECHANICS_FOLD_BUTTONS\.refold/.test(card),
+      ],
+      [
+        '트레이닝 홈 — 같은 접기로 무브먼트만 권함',
+        /foldSession\(session, fold\)/.test(homeCard) &&
+          /MECHANICS_FOLD_TEXT\.homeOpen/.test(homeCard),
+      ],
+      [
+        '오늘 상태 — 팔 통증 관절은 armPainJointsToday(메커니즘과 한 함수)',
+        /armPainJointsToday\(today\)/.test(dayState),
+      ],
+      [
+        '드릴 분류 술어는 isArmLoaded 하나 — 중재는 드릴 분류 글자를 따로 보지 않음',
+        !/스로잉 드릴|메디신볼 드릴|무브먼트 패턴 드릴/.test(arbiter) &&
+          isArmLoaded('스로잉 드릴') &&
+          isArmLoaded('메디신볼 드릴') &&
+          !isArmLoaded('무브먼트 패턴 드릴'),
+      ],
+    ];
+    const wrong = rows.filter(([, okRow]) => !okRow).map(([n]) => n);
+    check(
+      `P6-5 (다) 소스 ${rows.length}가지 — 같은 접기 함수 · 펼치기 · 반만 마치기 배선`,
+      wrong.length === 0,
+      wrong.join(' / ')
     );
   }
 }

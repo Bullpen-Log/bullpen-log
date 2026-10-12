@@ -26,8 +26,17 @@ export async function MechanicsSection({
   focus: string | null;
 }) {
   if (tab === 'program') {
-    const { program, session, doneToday } = await loadMechanicsProgram(user.id);
-    return <MechanicsProgram program={program} session={session} doneToday={doneToday} />;
+    const { program, session, doneToday, painFold } = await loadMechanicsProgram(
+      user.id
+    );
+    return (
+      <MechanicsProgram
+        program={program}
+        session={session}
+        doneToday={doneToday}
+        painFold={painFold}
+      />
+    );
   }
 
   const [guides, favorites] = await Promise.all([visibleGuides(), favoriteDrillIds(user.id)]);

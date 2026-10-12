@@ -3,14 +3,22 @@
 import { useEffect, useRef, useState, useTransition } from 'react';
 import Link from 'next/link';
 import { unstable_rethrow } from 'next/navigation';
-import { Check, ChevronDown, Info, Shuffle, X } from 'lucide-react';
+import { AlertTriangle, Check, ChevronDown, Info, Shuffle, X } from 'lucide-react';
 import { LibraryVideo } from '@/components/library-video';
 import { ErrorLine } from '@/components/error-line';
 import { useWakeLock } from '@/components/use-wake-lock';
 import { OFFLINE_MESSAGE, orOffline } from '@/lib/action-offline';
 import { mechanicsElement } from '@/lib/mechanics/elements';
 import { mechanicsLevel } from '@/lib/mechanics/levels';
-import { FEELS, doseFields, filmPrompt, levelAdvice, type DrillFeel } from '@/lib/mechanics/program';
+import {
+  FEELS,
+  MECHANICS_FOLD_TEXT,
+  doseFields,
+  filmPrompt,
+  isArmLoaded,
+  levelAdvice,
+  type DrillFeel,
+} from '@/lib/mechanics/program';
 import type { PlayerVariant, SessionDrillView } from '@/lib/mechanics/load';
 import {
   finishMechanicsSession,
@@ -35,6 +43,8 @@ export function MechanicsPlayer({
   label,
   sessionNumber,
   isAdmin,
+  partial = false,
+  painLabel = null,
 }: {
   backHref: string;
   items: SessionDrillView[];
@@ -44,6 +54,13 @@ export function MechanicsPlayer({
   /** 수준과 상관없이 몇 번째 세션인가 — 여섯 번째마다 찍어서 견주라고 한다 */
   sessionNumber: number;
   isAdmin: boolean;
+  /**
+   * 어깨 · 팔꿈치 통증으로 던지기 · 메디신볼 드릴을 접고 무브먼트만 하는 날(2판 P6-5, D5) — 마쳐도 세션 수를 안 올리고
+   * 끝 화면은 권하기 · 찍기 없이 '아프지 않은 날 이어서'
+   */
+  partial?: boolean;
+  /** 아픈 날 '그래도 하기'로 펼쳤으면 아픈 관절 이름('어깨') — 팔에 싣는 드릴마다 주의 한 줄 */
+  painLabel?: string | null;
 }) {
   const [index, setIndex] = useState(startAt);
   const [done, setDone] = useState<boolean[]>(() => items.map((_, i) => i < startAt));
@@ -90,7 +107,9 @@ export function MechanicsPlayer({
 
   /** 세션을 마친다 — 실패하면 끝 화면으로 넘어가지 않고 다시 저장하게 한다 */
   const finish = async () => {
-    const res = await orOffline(finishMechanicsSession(), { error: OFFLINE_MESSAGE });
+    const res = await orOffline(finishMechanicsSession({ partial }), {
+      error: OFFLINE_MESSAGE,
+    });
     if ('error' in res) {
       setError(res.error);
       setFinishFailed(true);
@@ -151,6 +170,7 @@ export function MechanicsPlayer({
           sessionNumber={sessionNumber}
           backHref={backHref}
           count={done.filter(Boolean).length}
+          partial={partial}
         />
       ) : (
         <>
@@ -162,6 +182,7 @@ export function MechanicsPlayer({
               alt={choices[index].alt}
               onChoose={choose}
               isAdmin={isAdmin}
+              painLabel={painLabel}
             />
           </div>
 
@@ -274,19 +295,32 @@ function DrillView({
   alt,
   onChoose,
   isAdmin,
+  painLabel,
 }: {
   item: SessionDrillView;
   view: DrillChoiceView;
   alt: number;
   onChoose: (next: { alt: number; variantId: string }) => void;
   isAdmin: boolean;
+  painLabel: string | null;
 }) {
   const element = mechanicsElement(item.element);
   const alts = item.alternatives.length;
   const note = item.gearNote;
+  /* 아픈 날 펼쳐서 하는 중 — 고른 도구가 팔에 싣는 것일 때만(도구 칩으로 바꾸면 따라 바뀐다) */
+  const caution = painLabel != null && isArmLoaded(view.variant.category);
 
   return (
     <div className="mx-auto max-w-xl space-y-4 px-4 py-5">
+      {caution && (
+        <p
+          role="status"
+          className="flex items-start gap-2 rounded-2xl bg-warn-bg px-4 py-3 text-sm font-semibold break-keep text-warn"
+        >
+          <AlertTriangle aria-hidden className="mt-0.5 h-4 w-4 shrink-0" />
+          <span>{MECHANICS_FOLD_TEXT.loadedDrill(painLabel)}</span>
+        </p>
+      )}
       <div className="space-y-1.5">
         <p className="flex flex-wrap items-center gap-1.5 text-xs font-semibold">
           <span className="rounded-full bg-sky-tint px-2.5 py-0.5 text-sky-strong">{item.element}</span>
@@ -451,12 +485,15 @@ function FinishView({
   sessionNumber,
   backHref,
   count,
+  partial,
 }: {
   advice: ReturnType<typeof levelAdvice>;
   /** 방금 마친 세션이 몇 번째인가(수준과 상관없이) — 여섯 번째마다 찍어서 견주라고 한다 */
   sessionNumber: number;
   backHref: string;
   count: number;
+  /** 아픈 날 무브먼트만 하고 마침 — 세션 수가 안 올랐으니 권하기 · 찍기는 띄우지 않는다 */
+  partial: boolean;
 }) {
   const ref = useRef<HTMLHeadingElement>(null);
   useEffect(() => ref.current?.focus(), []);
@@ -468,14 +505,19 @@ function FinishView({
             <span className="done-check text-2xl font-bold">✓</span>
           </span>
           <h1 ref={ref} tabIndex={-1} className="text-2xl font-bold text-ink outline-none">
-            세션을 마쳤어요
+            {partial ? '오늘 드릴을 마쳤어요' : '세션을 마쳤어요'}
           </h1>
           <p className="text-sm text-muted">드릴 {count}개를 했어요.</p>
+          {partial && (
+            <p className="text-sm leading-relaxed break-keep text-muted">
+              {MECHANICS_FOLD_TEXT.partialFinish}
+            </p>
+          )}
         </div>
 
-        {advice?.to && <LevelOffer kind={advice.kind} to={advice.to} />}
+        {!partial && advice?.to && <LevelOffer kind={advice.kind} to={advice.to} />}
 
-        {filmPrompt(sessionNumber) === 'compare' && (
+        {!partial && filmPrompt(sessionNumber) === 'compare' && (
           <div className="space-y-3 rounded-2xl bg-surface px-4 py-4">
             <p className="text-base font-bold break-keep text-ink">세션 {sessionNumber}번 — 찍어서 견줘 볼 때예요</p>
             <p className="text-sm break-keep text-muted">
