@@ -139,6 +139,7 @@ import {
   recentHardOuting,
   type DayState,
   type DayStateExtras,
+  type ProgramCommitment,
 } from '../lib/engine/day-state.ts';
 import {
   ECCENTRIC_OVERLOAD_MARKER,
@@ -212,6 +213,7 @@ import {
   carrySwaps,
   readPlanSwaps,
   swappedOutCounts,
+  swappedOutOf,
   withSwaps,
   type PlanSwap,
 } from '../lib/report/plan-swaps.ts';
@@ -229,6 +231,28 @@ import {
   type VolumeDecision,
   type VolumeStateInput,
 } from '../lib/report/volume.ts';
+/* 2판 P5 — 고르기 점수(순수, 아직 어디서도 안 부름) */
+import {
+  ARM_FATIGUE_MIN,
+  LOOSEN_CATEGORIES,
+  NEGLECT_PATTERNS,
+  OUTING_NEAR_DAYS,
+  PLAN_REASONS_MAX,
+  PROGRAM_FOLLOW_DAYS,
+  PROGRAM_NEAR_DAYS,
+  SCORE_KEYS,
+  SCORE_POINTS,
+  SWAPPED_MIN,
+  planReasonsOf,
+  programNextOf,
+  reasonLineOf,
+  scoreContextOf,
+  scoreOf,
+  type ExerciseScore,
+  type ScorableExercise,
+  type ScoreContext,
+  type ScoredCandidate,
+} from '../lib/report/score.ts';
 import {
   CAUTIOUS_RESERVE,
   REP_FLOOR_RATIO,
@@ -23736,6 +23760,1210 @@ console.log(
       'P5 무게 (아) 운동 시작 · 운동 중 바꾸기 둘 다 facts.profile 의 liftCautious 를 넘긴다(무게 추천을 부르는 곳은 둘 그대로)',
       work.split('withFreeWeights(').length - 1 === 2 &&
         work.split('cautious: liftCautious(core.facts.profile)').length - 1 === 2
+    );
+  }
+}
+
+/* ═══════════════════ [2판 P5] 고르기 점수 — lib/report/score.ts scoreOf · reasonLineOf · planReasonsOf · programNextOf · scoreContextOf, plan-swaps.ts swappedOutOf (2026-10-12) ═══════════════════ */
+console.log(
+  '\n[2판 P5] 고르기 점수 — 오늘 상태를 운동마다 작은 정수로(빼지 않고 차례만) · 항목 일곱 · 이유 한 줄 · 일정 까닭 2~3줄, 아직 안 부름(2026-10-12)'
+);
+{
+  /*
+   * 왜 보는가. 검토안 4-3 — 안전 거르기를 지난 후보가 오늘 상태와 상관없이 같은 줄을 섰다(기준선 ⑰ 11.4%, 후보가 같은 짝 0%). 점수는
+   * 뒤로 · 앞으로만 정하고, 이 커밋에서는 어디서도 안 부른다(동작 변화 0 — 끼우는 것은 P5-i · P5-j).
+   * (가) 항목 표 — 일곱 항목이 걸리는 때와 안 걸리는 때, 합 · 0 안 싣기 · 칸 차례, (나) 결정성 · ctx 를 안 바꿈 · 실제 표에서 항목마다 걸리는지
+   * (판정이 분류 한 곳과 같은 운동을 고르는지), (다) 프로그램 다음 날 · 오늘 상태에서 ctx 만들기 · 오늘 뺀 운동, (라) 이유 한 줄의 항목 고르기,
+   * (마) 글 격자 — 해요체 · 줄표 없음 · 60자 안 · 조사, (바) 일정 까닭 — 차례 · 상한 · 앞으로 당긴 것은 뽑힌 것만, (사) 소스의 약속.
+   */
+  const json = (v: unknown) => JSON.stringify(v);
+  /** Map · Set 까지 글자로(ctx 를 바꾸지 않았나 견줄 때) */
+  const deep = (v: unknown) =>
+    JSON.stringify(v, (_, x) =>
+      x instanceof Map ? ['Map', [...x]] : x instanceof Set ? ['Set', [...x]] : x
+    );
+  const sx = (
+    o: Partial<ScorableExercise> & { category: string }
+  ): ScorableExercise => ({
+    id: 'x',
+    title: '운동',
+    intensity: '중간',
+    bodyParts: [],
+    equipment: ['맨몸'],
+    movementPattern: null,
+    ...o,
+  });
+  const empty: ScoreContext = {
+    theme: 'lower',
+    eased: new Map(),
+    outing: null,
+    armFatigue: null,
+    programNext: null,
+    patternsDone14d: null,
+    swappedOut: new Map(),
+    swappedOutToday: new Set(),
+    favoriteIds: new Set(),
+  };
+  const shoulderStiff = easedBodyPartsOf([
+    { key: 'shoulder', source: 'stiff', bodyParts: ['어깨', '견갑', '가슴', '등'] },
+  ]);
+  const shoulderAs = (source: 'stiff' | 'recentPain' | 'rehab' | 'memo') =>
+    easedBodyPartsOf([
+      { key: 'shoulder', source, bodyParts: ['어깨', '견갑', '가슴', '등'] },
+    ]);
+  const out = (
+    min: number,
+    max: number | null,
+    nextSource: NonNullable<ScoreContext['outing']>['nextSource'] = 'checkin'
+  ) => ({ daysUntilNext: { min, max }, nextSource });
+
+  /* 실제 표에 있을 법한 운동 — 이름 · 분류 칸만 */
+  const boxJump = sx({
+    id: 'box',
+    title: '박스 점프',
+    category: '파워',
+    intensity: '높음',
+    movementPattern: '스쿼트',
+    bodyParts: ['고관절', '종아리·발목'],
+  });
+  const nordic = sx({
+    id: 'nordic',
+    title: '노르딕 햄스트링 컬',
+    category: '하체 스트렝스',
+    intensity: '높음',
+    movementPattern: '힌지',
+    bodyParts: ['햄스트링·둔근'],
+  });
+  const goblet = sx({
+    id: 'goblet',
+    title: '고블렛 스쿼트',
+    category: '하체 스트렝스',
+    movementPattern: '스쿼트',
+    equipment: ['덤벨'],
+    bodyParts: ['고관절'],
+  });
+  const backSquat = sx({
+    id: 'squat',
+    title: '바벨 백 스쿼트',
+    category: '하체 스트렝스',
+    intensity: '매우 높음',
+    movementPattern: '스쿼트',
+    equipment: ['바벨'],
+    bodyParts: ['고관절'],
+  });
+  const medSlam = sx({
+    id: 'slam',
+    title: '오버헤드 메디신볼 슬램',
+    category: '파워',
+    equipment: ['메디신볼'],
+    bodyParts: ['전신'],
+  });
+  const bench = sx({
+    id: 'bench',
+    title: '벤치 프레스',
+    category: '상체 스트렝스',
+    intensity: '높음',
+    movementPattern: '밀기',
+    equipment: ['바벨'],
+    bodyParts: ['가슴', '삼두'],
+  });
+  const pushup = sx({
+    id: 'pushup',
+    title: '푸시업',
+    category: '상체 스트렝스',
+    movementPattern: '밀기',
+    bodyParts: ['가슴', '삼두'],
+  });
+  const carry = sx({
+    id: 'carry',
+    title: '파머스 캐리',
+    category: '코어',
+    movementPattern: '운반',
+    equipment: ['덤벨'],
+    bodyParts: ['코어', '손목·전완'],
+  });
+  const wristMob = sx({
+    id: 'wmob',
+    title: '손목 가동성',
+    category: '모빌리티',
+    intensity: '매우 낮음',
+    bodyParts: ['손목·전완'],
+  });
+  const shoulderMob = sx({
+    id: 'smob',
+    title: '어깨 가동성',
+    category: '모빌리티',
+    intensity: '매우 낮음',
+    bodyParts: ['어깨'],
+  });
+  const row = sx({
+    id: 'row',
+    title: '덤벨 로우',
+    category: '상체 스트렝스',
+    movementPattern: '당기기',
+    equipment: ['덤벨'],
+    bodyParts: ['등', '이두'],
+  });
+  const curl = sx({
+    id: 'curl',
+    title: '덤벨 컬',
+    category: '상체 스트렝스',
+    movementPattern: '고립',
+    equipment: ['덤벨'],
+    bodyParts: ['이두'],
+  });
+  const pallof = sx({
+    id: 'pallof',
+    title: '팔로프 프레스',
+    category: '코어',
+    movementPattern: '회전',
+    equipment: ['밴드'],
+    bodyParts: ['코어'],
+  });
+  const rdl = sx({
+    id: 'rdl',
+    title: '루마니안 데드리프트',
+    category: '하체 스트렝스',
+    intensity: '높음',
+    movementPattern: '힌지',
+    equipment: ['바벨'],
+    bodyParts: ['햄스트링·둔근'],
+  });
+
+  /* ── (가) 항목 표 ── */
+  {
+    const rows: [
+      string,
+      ScorableExercise,
+      Partial<ScoreContext>,
+      Record<string, number>,
+    ][] = [
+      /* outing */
+      [
+        '등판 내일 · 박스 점프(하체 파워)',
+        boxJump,
+        { outing: out(1, 1) },
+        { outing: -3 },
+      ],
+      [
+        '등판 2~3일 뒤 · 노르딕 컬(천천히 내리는 하체)',
+        nordic,
+        { outing: out(2, 3) },
+        { outing: -3 },
+      ],
+      [
+        '어제 답 이월 1~2일 · 박스 점프',
+        boxJump,
+        { outing: out(1, 2, 'checkin-yesterday') },
+        { outing: -3 },
+      ],
+      [
+        '같은 요일 짐작 오늘 · 박스 점프',
+        boxJump,
+        { outing: out(0, 0, 'estimate') },
+        { outing: -3 },
+      ],
+      ['등판 4일 이상 뒤 · 박스 점프 → 없음', boxJump, { outing: out(4, null) }, {}],
+      [
+        '달력 3일 뒤 · 박스 점프 → 없음(2일 밖)',
+        boxJump,
+        { outing: out(3, 3, 'calendar') },
+        {},
+      ],
+      [
+        '등판 내일 · 고블렛 스쿼트(가벼운 하체) → 없음',
+        goblet,
+        { outing: out(1, 1) },
+        {},
+      ],
+      ['등판 오늘 · 메디신볼 슬램(상체) → 없음', medSlam, { outing: out(0, 0) }, {}],
+      [
+        '등판 모름 · 박스 점프 → 없음',
+        boxJump,
+        { outing: { daysUntilNext: null, nextSource: 'none' } },
+        {},
+      ],
+      /* stiff */
+      [
+        '어깨 뻐근 · 푸시업(가슴 · 중간)',
+        pushup,
+        { eased: shoulderStiff },
+        { stiff: -2 },
+      ],
+      [
+        '어깨 뻐근 · 낮음 → 없음',
+        { ...pushup, intensity: '낮음' },
+        { eased: shoulderStiff },
+        {},
+      ],
+      [
+        '어깨 최근 통증 · 덤벨 로우(등)',
+        row,
+        { eased: shoulderAs('recentPain') },
+        { stiff: -2 },
+      ],
+      [
+        '어깨 뻐근 · 모르는 강도 → 가장 센 쪽',
+        { ...pushup, intensity: '??' },
+        { eased: shoulderStiff },
+        { stiff: -2 },
+      ],
+      [
+        '회복 날 · 어깨 뻐근 · 어깨 가동성 → 앞으로',
+        shoulderMob,
+        { theme: 'recovery', eased: shoulderStiff },
+        { stiff: 2 },
+      ],
+      [
+        '회복 날 · 어깨 재활 · 어깨 가동성 → 없음(뻐근만 당김)',
+        shoulderMob,
+        { theme: 'recovery', eased: shoulderAs('rehab') },
+        {},
+      ],
+      [
+        '하체 날 · 어깨 뻐근 · 어깨 가동성(중간이어도) → 없음(푸는 운동은 안 밂)',
+        { ...shoulderMob, intensity: '중간' },
+        { eased: shoulderStiff },
+        {},
+      ],
+      ['어깨 뻐근 · 부위 안 겹침(고블렛) → 없음', goblet, { eased: shoulderStiff }, {}],
+      /* arm */
+      [
+        "팔 피로 '조금' · 벤치 프레스(무거운 밀기)",
+        bench,
+        { armFatigue: 2 },
+        { arm: -2 },
+      ],
+      ["팔 피로 '없음' · 벤치 프레스 → 없음", bench, { armFatigue: 1 }, {}],
+      [
+        "팔 피로 '보통' · 메디신볼 슬램(팔로 던지기)",
+        medSlam,
+        { armFatigue: 3 },
+        { arm: -2 },
+      ],
+      ["팔 피로 '많이' · 파머스 캐리(쥐기)", carry, { armFatigue: 4 }, { arm: -2 }],
+      [
+        "팔 피로 '심함' · 손목 가동성 → 없음(푸는 운동)",
+        wristMob,
+        { armFatigue: 5 },
+        {},
+      ],
+      ["팔 피로 '많이' · 푸시업(가벼운 밀기) → 없음", pushup, { armFatigue: 4 }, {}],
+      ['팔 피로 모름 · 벤치 프레스 → 없음', bench, { armFatigue: null }, {}],
+      /* program */
+      [
+        '내일 프로그램 스쿼트 · 바벨 백 스쿼트',
+        backSquat,
+        { programNext: { patterns: new Set(['스쿼트']), inDays: 1 } },
+        { program: -3 },
+      ],
+      [
+        '모레 프로그램 스쿼트 → 없음',
+        backSquat,
+        { programNext: { patterns: new Set(['스쿼트']), inDays: 2 } },
+        {},
+      ],
+      [
+        '내일 프로그램 스쿼트 · 박스 점프(하체 파워 열쇠) → 없음',
+        boxJump,
+        { programNext: { patterns: new Set(['스쿼트']), inDays: 1 } },
+        {},
+      ],
+      [
+        '내일 프로그램 하체 파워 · 박스 점프',
+        boxJump,
+        { programNext: { patterns: new Set([LOWER_POWER_KEY]), inDays: 1 } },
+        { program: -3 },
+      ],
+      [
+        '내일 프로그램 밀기 · 팔로프(코어 → 열쇠 없음) → 없음',
+        pallof,
+        { programNext: { patterns: new Set(['밀기', '회전']), inDays: 1 } },
+        {},
+      ],
+      /* swapped */
+      [
+        '60일 두 번 뺌',
+        bench,
+        { swappedOut: new Map([['bench', 2]]) },
+        { swapped: -2 },
+      ],
+      ['60일 한 번 → 없음', bench, { swappedOut: new Map([['bench', 1]]) }, {}],
+      [
+        '오늘 뺌(60일 한 번)',
+        bench,
+        { swappedOut: new Map([['bench', 1]]), swappedOutToday: new Set(['bench']) },
+        { swapped: -3 },
+      ],
+      [
+        '오늘 뺌 + 60일 다섯 번 → 오늘 몫 하나',
+        bench,
+        { swappedOut: new Map([['bench', 5]]), swappedOutToday: new Set(['bench']) },
+        { swapped: -3 },
+      ],
+      /* pattern */
+      [
+        '2주 힌지 0 · 루마니안 데드리프트',
+        rdl,
+        { patternsDone14d: new Map([['스쿼트', 2]]) },
+        { pattern: 2 },
+      ],
+      [
+        '2주 스쿼트 2 · 바벨 백 스쿼트 → 없음',
+        backSquat,
+        { patternsDone14d: new Map([['스쿼트', 2]]) },
+        {},
+      ],
+      ['마친 날 없음(null) → 꺼짐', rdl, { patternsDone14d: null }, {}],
+      ['고립(컬) → 없음(큰 계열만)', curl, { patternsDone14d: new Map() }, {}],
+      [
+        '코어 회전(팔로프) → 없음(무게 운동만)',
+        pallof,
+        { patternsDone14d: new Map() },
+        {},
+      ],
+      [
+        '파워 스쿼트(박스 점프) · 스쿼트 0',
+        boxJump,
+        { patternsDone14d: new Map([['힌지', 1]]) },
+        { pattern: 2 },
+      ],
+      /* favorite */
+      ['즐겨찾기', goblet, { favoriteIds: new Set(['goblet']) }, { favorite: 1 }],
+      ['다른 운동 즐겨찾기 → 없음', goblet, { favoriteIds: new Set(['bench']) }, {}],
+      /* 여럿 */
+      [
+        '모두 — 등판 · 프로그램 · 오늘 뺌 · 계열 · 즐겨찾기',
+        boxJump,
+        {
+          outing: out(1, 1),
+          programNext: { patterns: new Set([LOWER_POWER_KEY]), inDays: 1 },
+          swappedOutToday: new Set(['box']),
+          patternsDone14d: new Map(),
+          favoriteIds: new Set(['box']),
+        },
+        { outing: -3, program: -3, swapped: -3, pattern: 2, favorite: 1 },
+      ],
+    ];
+    const wrong = rows
+      .filter(
+        ([, e, patch, want]) =>
+          json(scoreOf(e, { ...empty, ...patch }).parts) !== json(want)
+      )
+      .map(
+        ([label, e, patch]) =>
+          `${label}(${json(scoreOf(e, { ...empty, ...patch }).parts)})`
+      );
+    check(
+      `P5 점수 (가) 항목 표 — ${rows.length}경우`,
+      wrong.length === 0,
+      wrong.join(' · ')
+    );
+    const sumOk = rows.every(([, e, patch]) => {
+      const s = scoreOf(e, { ...empty, ...patch });
+      const keys = Object.keys(s.parts);
+      return (
+        s.total === Object.values(s.parts).reduce((a, b) => a + (b ?? 0), 0) &&
+        Object.values(s.parts).every((v) => v !== 0) &&
+        json(keys) === json(SCORE_KEYS.filter((k) => keys.includes(k))) &&
+        json(Object.keys(s.detail)) === json(keys)
+      );
+    });
+    check(
+      'P5 점수 (가) total = parts 의 합 · 0 은 안 실음 · 칸은 SCORE_KEYS 차례 · detail 은 parts 와 같은 칸',
+      sumOk
+    );
+    check(
+      'P5 점수 (가) 상수 — 등판 2일 · 팔 피로 조금(2) · 프로그램 내일(1) · 10일 안에 한 사람만 · 두 번 뺌 · 계열 일곱 · 푸는 카테고리 둘 · 일곱 항목 · 까닭 3줄',
+      OUTING_NEAR_DAYS === 2 &&
+        ARM_FATIGUE_MIN === 2 &&
+        PROGRAM_NEAR_DAYS === 1 &&
+        PROGRAM_FOLLOW_DAYS === 10 &&
+        SWAPPED_MIN === 2 &&
+        json(NEGLECT_PATTERNS) ===
+          json(['스쿼트', '힌지', '런지', '밀기', '당기기', '회전', '운반']) &&
+        json(LOOSEN_CATEGORIES) === json(['모빌리티', '회복 및 보강']) &&
+        LOOSEN_CATEGORIES.every((c) => TRAINING_CATEGORY_NAMES.includes(c)) &&
+        json(SCORE_KEYS) ===
+          json([
+            'outing',
+            'stiff',
+            'arm',
+            'program',
+            'swapped',
+            'pattern',
+            'favorite',
+          ]) &&
+        PLAN_REASONS_MAX === 3 &&
+        SCORE_POINTS.outing === -3 &&
+        SCORE_POINTS.program === -3 &&
+        SCORE_POINTS.swappedToday === -3 &&
+        SCORE_POINTS.stiff === -2 &&
+        SCORE_POINTS.arm === -2 &&
+        SCORE_POINTS.swapped === -2 &&
+        SCORE_POINTS.stiffLoosen === 2 &&
+        SCORE_POINTS.pattern === 2 &&
+        SCORE_POINTS.favorite === 1
+    );
+    /* 왜 칸 */
+    const d1 = scoreOf(row, { ...empty, eased: shoulderAs('recentPain') }).detail;
+    const d2 = scoreOf(carry, { ...empty, armFatigue: 4 }).detail;
+    const d3 = scoreOf(nordic, {
+      ...empty,
+      outing: out(2, 3, 'checkin-yesterday'),
+    }).detail;
+    const d4 = scoreOf(bench, { ...empty, swappedOut: new Map([['bench', 3]]) }).detail;
+    check(
+      'P5 점수 (가) 왜 칸 — 관절 · 출처, 팔 피로 · 종류, 등판 창 · 출처 · 종류, 뺀 횟수',
+      json(d1.stiff) ===
+        json({ joint: 'shoulder', source: 'recentPain', loosen: false }) &&
+        json(d2.arm) === json({ fatigue: 4, kind: 'grip' }) &&
+        json(d3.outing) ===
+          json({ min: 2, max: 3, source: 'checkin-yesterday', kind: 'eccentric' }) &&
+        json(d4.swapped) === json({ today: false, count: 3 }),
+      json([d1, d2, d3, d4])
+    );
+    /* 한 부위를 두 까닭이 덮으면 오늘 말한 것(뻐근)이 이긴다 — 안전 규칙의 출처 차례(prescription.ts EASED_SOURCE_ORDER)와 같게 */
+    const mixed = easedBodyPartsOf([
+      {
+        key: 'elbow',
+        source: 'rehab',
+        bodyParts: ['팔꿈치', '손목·전완', '이두', '삼두'],
+      },
+      { key: 'wrist', source: 'stiff', bodyParts: ['손목·전완', '팔꿈치'] },
+    ]);
+    const curlBoth = { ...curl, bodyParts: ['이두', '팔꿈치'] };
+    const curlBicep = { ...curl, bodyParts: ['이두'] };
+    check(
+      'P5 점수 (가) 두 관절이 겹치면 출처 차례(뻐근 → 최근 통증 → 재활 → 메모) — 이두 · 팔꿈치 컬은 손목 뻐근, 이두만이면 팔꿈치 재활',
+      json(scoreOf(curlBoth, { ...empty, eased: mixed }).detail.stiff) ===
+        json({ joint: 'wrist', source: 'stiff', loosen: false }) &&
+        json(scoreOf(curlBicep, { ...empty, eased: mixed }).detail.stiff) ===
+          json({ joint: 'elbow', source: 'rehab', loosen: false })
+    );
+  }
+
+  /* ── (나) 결정성 · ctx 를 안 바꿈 · 실제 표 ── */
+  {
+    const busy: ScoreContext = {
+      theme: 'lower',
+      eased: easedBodyPartsOf([
+        { key: 'shoulder', source: 'stiff', bodyParts: ['어깨', '견갑', '가슴', '등'] },
+        { key: 'lowerBack', source: 'recentPain', bodyParts: ['코어', '등', '고관절'] },
+      ]),
+      outing: out(1, 1),
+      armFatigue: 3,
+      programNext: {
+        patterns: new Set(['스쿼트', '밀기', LOWER_POWER_KEY]),
+        inDays: 1,
+      },
+      patternsDone14d: new Map([
+        ['스쿼트', 2],
+        ['밀기', 1],
+      ]),
+      swappedOut: new Map([[library[0].id, 2]]),
+      swappedOutToday: new Set([library[1].id]),
+      favoriteIds: new Set([library[2].id, library[3].id]),
+    };
+    const before = deep(busy);
+    const first = library.map((e) => scoreOf(e, busy));
+    const second = library.map((e) => scoreOf(e, busy));
+    const reversed = [...library]
+      .reverse()
+      .map((e) => scoreOf(e, busy))
+      .reverse();
+    check(
+      `P5 점수 (나) 결정성 — 실제 표 ${library.length}개를 두 번 · 거꾸로 매겨도 같은 값, ctx 는 그대로`,
+      json(first) === json(second) &&
+        json(first) === json(reversed) &&
+        deep(busy) === before
+    );
+
+    /* 항목마다 실제 표에서 걸리는 운동 = 분류 한 곳으로 따로 센 운동(판정을 다시 적지 않았나) */
+    const loads = (e: (typeof library)[number]) =>
+      !LOOSEN_CATEGORIES.includes(e.category) &&
+      intensityLevel(e.intensity) >= INTENSITY_CAP.MODERATE;
+    const want: Record<string, (e: (typeof library)[number]) => boolean> = {
+      outing: (e) => isLowerPower(e) || isLowerEccentric(e),
+      arm: (e) =>
+        isHeavyUpperPush(e) ||
+        isArmPlyo(e) ||
+        (loads(e) &&
+          (e.bodyParts.includes('손목·전완') || e.movementPattern === '운반')),
+      program: (e) => {
+        const k = movementKeyOf(e);
+        return k != null && busy.programNext!.patterns.has(k);
+      },
+      pattern: (e) =>
+        HEAVY_CATEGORIES.includes(e.category) &&
+        e.movementPattern != null &&
+        NEGLECT_PATTERNS.includes(e.movementPattern) &&
+        !busy.patternsDone14d!.has(e.movementPattern),
+      stiff: (e) => loads(e) && e.bodyParts.some((p) => busy.eased.has(p)),
+    };
+    const mism = Object.entries(want).flatMap(([key, fn]) => {
+      const bad = library.filter(
+        (e, i) =>
+          (first[i].parts[key as keyof ExerciseScore['parts']] != null) !== fn(e)
+      );
+      return bad.length
+        ? [
+            `${key}: ${bad
+              .slice(0, 3)
+              .map((e) => e.title)
+              .join(', ')}`,
+          ]
+        : [];
+    });
+    const counts = Object.fromEntries(
+      SCORE_KEYS.map((k) => [k, first.filter((s) => s.parts[k] != null).length])
+    );
+    check(
+      'P5 점수 (나) 실제 표 — 항목마다 걸리는 운동 = 분류 한 곳(exercise-class)으로 따로 고른 운동, 일곱 항목 모두 1개 이상 걸림',
+      mism.length === 0 && SCORE_KEYS.every((k) => counts[k] > 0),
+      `${json(counts)}${mism.length ? ' · ' + mism.join(' / ') : ''}`
+    );
+    const recovery = library.map((e) =>
+      scoreOf(e, { ...empty, theme: 'recovery', eased: shoulderStiff })
+    );
+    const loosened = library.filter((_, i) => recovery[i].parts.stiff === 2);
+    check(
+      'P5 점수 (나) 실제 표 — 회복 날 어깨 뻐근이면 어깨를 푸는 가동성 · 회복 운동이 앞으로(+2), 모두 푸는 카테고리',
+      loosened.length > 0 &&
+        loosened.every((e) => LOOSEN_CATEGORIES.includes(e.category)),
+      `${loosened.length}개 — ${loosened
+        .slice(0, 3)
+        .map((e) => e.title)
+        .join(', ')}`
+    );
+    check(
+      'P5 점수 (나) 빈 ctx 면 실제 표 모두 0점 · 항목 없음(아무것도 모르는 날은 지금 차례 그대로)',
+      library.every((e) => {
+        const s = scoreOf(e, empty);
+        return s.total === 0 && json(s.parts) === '{}' && json(s.detail) === '{}';
+      })
+    );
+  }
+
+  /* ── (다) 프로그램 다음 날 · ctx 만들기 · 오늘 뺀 운동 ── */
+  {
+    const pc = (o: Partial<ProgramCommitment>): ProgramCommitment => ({
+      key: '531',
+      nextDay: 4,
+      totalDays: 12,
+      lastDoneDate: '2026-06-14',
+      done: false,
+      daysSinceLastDone: 1,
+      ...o,
+    });
+    const pats = new Set(['스쿼트', '밀기']);
+    const nx = (
+      o: Partial<ProgramCommitment> | null,
+      p: ReadonlySet<string> = pats
+    ) => {
+      const r = programNextOf({ commitment: o == null ? null : pc(o), patterns: p });
+      return r ? { patterns: [...r.patterns], inDays: r.inDays } : null;
+    };
+    const rows: [string, unknown, unknown][] = [
+      ['없음', nx(null), null],
+      ['다 마침', nx({ done: true }), null],
+      ['마친 날 모름', nx({ daysSinceLastDone: null, lastDoneDate: null }), null],
+      ['11일 전(안 따름)', nx({ daysSinceLastDone: 11 }), null],
+      [
+        '10일 전 → 내일',
+        nx({ daysSinceLastDone: 10 }),
+        { patterns: ['스쿼트', '밀기'], inDays: 1 },
+      ],
+      [
+        '어제 → 내일(오늘은 쉬는 칸)',
+        nx({ daysSinceLastDone: 1 }),
+        { patterns: ['스쿼트', '밀기'], inDays: 1 },
+      ],
+      [
+        '오늘 마침 → 모레',
+        nx({ daysSinceLastDone: 0 }),
+        { patterns: ['스쿼트', '밀기'], inDays: 2 },
+      ],
+      ['열쇠 없음', nx({}, new Set()), null],
+    ];
+    const wrong = rows
+      .filter(([, got, w]) => json(got) !== json(w))
+      .map(([l, got]) => `${l}(${json(got)})`);
+    const mutable = new Set(['스쿼트']);
+    const kept = programNextOf({ commitment: pc({}), patterns: mutable });
+    mutable.add('힌지');
+    check(
+      `P5 점수 (다) programNextOf — ${rows.length}경우 · 받은 집합을 복사(부르는 쪽이 고쳐도 안 바뀜)`,
+      wrong.length === 0 && json([...kept!.patterns]) === json(['스쿼트']),
+      wrong.join(' · ')
+    );
+    /* 실제 프로그램 일차와 이어 붙이기 — 5/3/1 다음 일차의 동작이 내일이면 같은 동작의 일정 운동이 뒤로 */
+    const plan531 = parseProgram('531');
+    const day1 = patternsOfProgramDay(plan531, 1);
+    const next531 = programNextOf({ commitment: pc({ nextDay: 1 }), patterns: day1 });
+    const hitByProgram = library.filter(
+      (e) => scoreOf(e, { ...empty, programNext: next531 }).parts.program === -3
+    );
+    check(
+      'P5 점수 (다) 5/3/1 1일차 동작이 내일이면 같은 동작 열쇠의 일정 운동만 −3',
+      day1.size > 0 &&
+        hitByProgram.length > 0 &&
+        hitByProgram.every((e) => day1.has(movementKeyOf(e) ?? '')),
+      `${json([...day1])} · ${hitByProgram.length}개`
+    );
+
+    /* 오늘 상태 한 장에서 — 어깨 뻐근 · 메모의 허리 · 팔 피로 3 · 내일 등판 */
+    const facts = factsFor({ condition: 7, parts: { shoulder: '뻐근' } });
+    facts.condition.today = { ...facts.condition.today!, armFatigue: 3 };
+    facts.condition.throwPlanToday = '내일 등판';
+    const state = buildDayState({ facts, plan: buildPitchPlan(facts) });
+    const ctx = scoreContextOf({
+      theme: 'assist',
+      facts,
+      state,
+      caution: [{ part: 'lowerBack', why: '허리가 묵직하다' }],
+    });
+    check(
+      'P5 점수 (다) scoreContextOf — 조심할 관절은 안전 규칙과 같은 함수(뻐근 어깨 · 메모 허리), 등판 · 팔 피로는 오늘 상태 한 장, 안 넘긴 칸은 꺼짐',
+      ctx.theme === 'assist' &&
+        ctx.eased.get('가슴')?.source === 'stiff' &&
+        ctx.eased.get('가슴')?.key === 'shoulder' &&
+        ctx.eased.get('코어')?.source === 'memo' &&
+        json(ctx.outing) ===
+          json({ daysUntilNext: { min: 1, max: 1 }, nextSource: 'checkin' }) &&
+        ctx.armFatigue === 3 &&
+        ctx.programNext === null &&
+        ctx.patternsDone14d === null &&
+        ctx.swappedOut.size === 0 &&
+        ctx.swappedOutToday.size === 0 &&
+        ctx.favoriteIds.size === 0 &&
+        deep(ctx.eased) ===
+          deep(
+            easedBodyPartsOf(
+              easedJointsOf(facts, [{ part: 'lowerBack', why: '허리가 묵직하다' }])
+            )
+          ),
+      deep(ctx)
+    );
+
+    const swaps = {
+      swaps: [
+        {
+          from: 'a',
+          to: null,
+          kind: 'remove',
+          where: 'plan',
+          at: '2026-06-15T01:00:00.000Z',
+        },
+        {
+          from: 'b',
+          to: 'c',
+          kind: 'add',
+          where: 'session',
+          at: '2026-06-15T02:00:00.000Z',
+        },
+        {
+          from: 'd',
+          to: 'e',
+          kind: 'replace',
+          where: 'session',
+          at: '2026-06-15T03:00:00.000Z',
+        },
+        {
+          from: 'a',
+          to: null,
+          kind: 'remove',
+          where: 'plan',
+          at: '2026-06-15T04:00:00.000Z',
+        },
+        { bad: true },
+      ],
+    };
+    check(
+      "P5 점수 (다) swappedOutOf — 그 일정에서 바꿔서 뺀(replace · remove) 운동, 'add' 는 안 넣음, 모양이 안 맞으면 빈 집합",
+      json([...swappedOutOf(swaps)].sort()) === json(['a', 'd']) &&
+        swappedOutOf(null).size === 0 &&
+        swappedOutOf({ swaps: 'x' }).size === 0 &&
+        swappedOutOf({ version: 1, picks: [] }).size === 0
+    );
+  }
+
+  /* ── (라) 이유 한 줄 — 항목 고르기 ── */
+  {
+    const line = (
+      parts: ExerciseScore['parts'],
+      detail: ExerciseScore['detail'] = {}
+    ) => reasonLineOf(goblet, { parts, detail });
+    const s1 = scoreOf(goblet, {
+      ...empty,
+      eased: easedBodyPartsOf([
+        {
+          key: 'lowerBody',
+          source: 'stiff',
+          bodyParts: ['고관절', '햄스트링·둔근', '전신'],
+        },
+      ]),
+      patternsDone14d: new Map(),
+    });
+    const s2 = scoreOf(bench, {
+      ...empty,
+      favoriteIds: new Set(['bench']),
+      swappedOutToday: new Set(['bench']),
+    });
+    const s3 = scoreOf(boxJump, {
+      ...empty,
+      outing: out(1, 1),
+      programNext: { patterns: new Set([LOWER_POWER_KEY]), inDays: 1 },
+    });
+    check(
+      'P5 점수 (라) reasonLineOf — 값이 가장 큰 항목 하나, 같으면 SCORE_KEYS 차례(뻐근 −2 > 계열 +2 · 오늘 뺌 −3 > 즐겨찾기 · 등판 −3 > 프로그램 −3), 없으면 null',
+      reasonLineOf(goblet, s1) === '하체가 뻐근하다고 해서 뒤로 뒀어요.' &&
+        reasonLineOf(bench, s2) === '오늘 뺀 운동이라 뒤로 뒀어요.' &&
+        reasonLineOf(boxJump, s3) === '내일 등판이라 하체 점프는 뒤로 뒀어요.' &&
+        line({}) === null &&
+        reasonLineOf(goblet, scoreOf(goblet, empty)) === null,
+      json([
+        reasonLineOf(goblet, s1),
+        reasonLineOf(bench, s2),
+        reasonLineOf(boxJump, s3),
+      ])
+    );
+    check(
+      'P5 점수 (라) 왜 칸 없이 값만 있어도(값만 저장한 줄) 항목마다 정해 둔 글',
+      line({ pattern: 2 }) === '2주 동안 스쿼트를 안 해서 앞에 뒀어요.' &&
+        reasonLineOf(pallof, { parts: { pattern: 2 } }) ===
+          '2주 동안 회전을 안 해서 앞에 뒀어요.' &&
+        reasonLineOf({ movementPattern: null }, { parts: { pattern: 2 } }) ===
+          '2주 동안 안 한 동작이라 앞에 뒀어요.' &&
+        line({ swapped: -3 }) === '오늘 뺀 운동이라 뒤로 뒀어요.' &&
+        line({ swapped: -2 }) === '여러 번 뺀 운동이라 뒤로 뒀어요.' &&
+        line({ stiff: 2 }) === '뻐근한 부위를 풀어 주려고 앞에 뒀어요.' &&
+        line({ stiff: -2 }) === '조심할 부위를 써서 뒤로 뒀어요.',
+      json([line({ pattern: 2 }), line({ swapped: -2 }), line({ stiff: -2 })])
+    );
+  }
+
+  /* ── (마) 글 격자 ── */
+  {
+    /** 받침이 있나 — 시험이 따로 적은 표(score.ts 의 판단을 베끼지 않으려고 낱말마다 손으로) */
+    const FINAL: Record<string, boolean> = {
+      어깨: false,
+      팔꿈치: false,
+      '손목·전완': true,
+      허리: false,
+      하체: false,
+      스쿼트: false,
+      힌지: false,
+      런지: false,
+      밀기: false,
+      당기기: false,
+      회전: true,
+      운반: true,
+      고립: true,
+      카프: false,
+      '하체 파워': false,
+      '상체 파워': false,
+      없음: true,
+      조금: true,
+      보통: true,
+      많이: false,
+      심함: true,
+      '하체 점프': false,
+      '천천히 내리는 하체 운동': true,
+      '무거운 밀기': false,
+      '팔로 던지는 파워': false,
+      '손으로 쥐는 운동': true,
+    };
+    const bad: string[] = [];
+    const lines = new Set<string>();
+    const textOk = (s: string | null, ...must: string[]) => {
+      if (s == null) return void bad.push('(null)');
+      lines.add(s);
+      const len = [...s].length;
+      const ok =
+        s.endsWith('요.') &&
+        !/[—–]/.test(s) &&
+        !/\s-\s/.test(s) &&
+        !s.includes('**') &&
+        !/undefined|null|NaN/.test(s) &&
+        !/\s{2}/.test(s) &&
+        s.trim() === s &&
+        len <= 60 &&
+        must.every((m) => s.includes(m));
+      if (!ok) bad.push(`${s}(${len}자${must.length ? ' · ' + must.join('/') : ''})`);
+    };
+    const ga = (w: string) => w + (FINAL[w] ? '이' : '가');
+    const eul = (w: string) => w + (FINAL[w] ? '을' : '를');
+    const eun = (w: string) => w + (FINAL[w] ? '은' : '는');
+    const ira = (w: string) => `'${w}'` + (FINAL[w] ? '이라' : '라');
+
+    const joints: [CheckinPartKey, string][] = [
+      ['shoulder', '어깨'],
+      ['elbow', '팔꿈치'],
+      ['wrist', '손목·전완'],
+      ['lowerBack', '허리'],
+      ['lowerBody', '하체'],
+    ];
+    const sources = ['stiff', 'recentPain', 'rehab', 'memo'] as const;
+    /* 2일 안에 드는 창 — 오늘 · 내일 · 모레 · 오늘 답 '2~3일 뒤' · 어제 답을 당긴 1~2일 · 끝이 없는 창(글만 보려고) */
+    const windows: [number, number | null][] = [
+      [0, 0],
+      [1, 1],
+      [2, 2],
+      [2, 3],
+      [1, 2],
+      [2, null],
+    ];
+    const nextSources = [
+      'checkin',
+      'checkin-yesterday',
+      'calendar',
+      'estimate',
+    ] as const;
+    const programKeys = [
+      '스쿼트',
+      '힌지',
+      '런지',
+      '밀기',
+      '당기기',
+      '고립',
+      '카프',
+      LOWER_POWER_KEY,
+      UPPER_POWER_KEY,
+    ];
+    let n = 0;
+    const one = (
+      key: keyof ExerciseScore['parts'],
+      value: number,
+      detail: ExerciseScore['detail'],
+      ...must: string[]
+    ) => {
+      n++;
+      textOk(
+        reasonLineOf(goblet, {
+          parts: { [key]: value } as ExerciseScore['parts'],
+          detail,
+        }),
+        ...must
+      );
+    };
+    for (const [min, max] of windows)
+      for (const source of nextSources)
+        for (const kind of ['jump', 'eccentric'] as const)
+          one(
+            'outing',
+            -3,
+            { outing: { min, max, source, kind } },
+            eun(kind === 'jump' ? '하체 점프' : '천천히 내리는 하체 운동')
+          );
+    for (const [joint, label] of joints)
+      for (const source of sources) {
+        one(
+          'stiff',
+          -2,
+          { stiff: { joint, source, loosen: false } },
+          source === 'rehab' ? `${label} 재활` : ga(label)
+        );
+        one('stiff', 2, { stiff: { joint, source, loosen: true } }, eul(label));
+      }
+    for (const fatigue of [1, 2, 3, 4, 5])
+      for (const [kind, obj] of [
+        ['push', '무거운 밀기'],
+        ['throw', '팔로 던지는 파워'],
+        ['grip', '손으로 쥐는 운동'],
+      ] as const) {
+        const word = ['없음', '조금', '보통', '많이', '심함'][fatigue - 1];
+        one('arm', -2, { arm: { fatigue, kind } }, ira(word), eun(obj));
+      }
+    one('arm', -2, { arm: { fatigue: 7, kind: 'push' } }, "'7'이라");
+    for (const key of programKeys)
+      for (const inDays of [0, 1, 2])
+        one('program', -3, { program: { key, inDays } }, ga(key));
+    for (const today of [true, false])
+      for (const count of [0, 2, 5])
+        one('swapped', today ? -3 : -2, { swapped: { today, count } });
+    for (const pattern of NEGLECT_PATTERNS)
+      one('pattern', 2, { pattern: { pattern } }, eul(pattern));
+    one('favorite', 1, { favorite: true });
+    for (const key of SCORE_KEYS)
+      for (const value of [-3, -2, 1, 2]) one(key, value, {});
+
+    /* 실제 표 — 바쁜 날 ctx 로 모든 운동의 한 줄 */
+    const busy: ScoreContext = {
+      ...empty,
+      eased: easedBodyPartsOf(
+        easedJointsOf(
+          factsFor({ condition: 7, parts: { shoulder: '뻐근', wrist: '뻐근' } })
+        )
+      ),
+      outing: out(2, 3, 'checkin-yesterday'),
+      armFatigue: 3,
+      programNext: {
+        patterns: new Set(['힌지', '당기기', UPPER_POWER_KEY]),
+        inDays: 1,
+      },
+      patternsDone14d: new Map([['스쿼트', 1]]),
+      swappedOut: new Map([[library[5].id, 4]]),
+      favoriteIds: new Set([library[6].id]),
+    };
+    let real = 0;
+    for (const e of library) {
+      const s = scoreOf(e, busy);
+      if (Object.keys(s.parts).length === 0) continue;
+      real++;
+      textOk(reasonLineOf(e, s));
+    }
+    check(
+      `P5 점수 (마) 글 격자 — 이유 한 줄 ${n}경우 + 실제 표 ${real}개: 해요체(…요.) · 줄표 없음 · 굵게 없음 · 60자 안 · 조사(이/가 · 을/를 · 은/는 · 이라/라)`,
+      bad.length === 0 && real > 0,
+      bad.slice(0, 6).join(' · ')
+    );
+    const longest = [...lines].sort((a, b) => [...b].length - [...a].length)[0];
+    check(
+      'P5 점수 (마) 가장 긴 줄도 60자 안',
+      [...longest].length <= 60,
+      `${[...longest].length}자 · ${longest}`
+    );
+  }
+
+  /* ── (바) 일정 까닭 ── */
+  {
+    const sc = (
+      e: ScorableExercise,
+      patch: Partial<ScoreContext>,
+      picked: boolean
+    ): ScoredCandidate => ({
+      score: scoreOf(e, { ...empty, ...patch }),
+      picked,
+    });
+    const VOL = '잠이 부족해 본운동을 한 세트씩 줄였어요.';
+    const r = (
+      scored: ScoredCandidate[],
+      o: { volume?: { why: string } | null; overrodeEffort?: boolean } = {}
+    ) => planReasonsOf({ scored, ...o });
+    const stiffEased = easedBodyPartsOf([
+      {
+        key: 'elbow',
+        source: 'rehab',
+        bodyParts: ['팔꿈치', '손목·전완', '이두', '삼두'],
+      },
+      { key: 'shoulder', source: 'stiff', bodyParts: ['어깨', '견갑', '가슴', '등'] },
+    ]);
+    const cases: [string, string[], string[]][] = [
+      ['빈 후보 · 양 조절 없음', r([]), []],
+      [
+        '양 조절 · 힘듦 넘김 → 그 둘 먼저',
+        r([], { volume: { why: VOL }, overrodeEffort: true }),
+        [VOL, '운동이 힘들었다고 했지만 고른 대로 세트를 그대로 뒀어요.'],
+      ],
+      [
+        '등판 · 두 종류 → 한 줄로',
+        r([
+          sc(boxJump, { outing: out(1, 1) }, false),
+          sc(nordic, { outing: out(1, 1) }, false),
+        ]),
+        ['내일 등판이라 하체 점프와 천천히 내리는 운동은 뒤로 뒀어요.'],
+      ],
+      [
+        '어깨 뻐근 · 팔꿈치 재활이 같이 걸리면 오늘 말한 뻐근으로',
+        r([
+          sc(curl, { eased: stiffEased }, false),
+          sc(pushup, { eased: stiffEased }, true),
+        ]),
+        ['어깨가 뻐근하다고 해서 그쪽 운동은 뒤로 뒀어요.'],
+      ],
+      [
+        '계열 +2 는 뽑힌 것만 — 안 뽑혔으면 말 안 함',
+        r([sc(rdl, { patternsDone14d: new Map() }, false)]),
+        [],
+      ],
+      [
+        '계열 +2 · 뽑힘 → 두 계열까지',
+        r([
+          sc(rdl, { patternsDone14d: new Map() }, true),
+          sc(row, { patternsDone14d: new Map() }, true),
+          sc(bench, { patternsDone14d: new Map() }, true),
+        ]),
+        ['2주 동안 안 한 힌지·당기기를 앞에 뒀어요.'],
+      ],
+      [
+        '즐겨찾기는 뽑힌 것만',
+        r([
+          sc(goblet, { favoriteIds: new Set(['goblet']) }, false),
+          sc(bench, { favoriteIds: new Set(['bench']) }, true),
+        ]),
+        ['즐겨찾기한 운동을 앞에 뒀어요.'],
+      ],
+      [
+        '큰 것부터 — 등판(3) · 오늘 뺌(3) · 팔(2) · 즐겨찾기(1)는 셋째 밖',
+        r([
+          sc(medSlam, { armFatigue: 3 }, false),
+          sc(goblet, { favoriteIds: new Set(['goblet']) }, true),
+          sc(bench, { swappedOutToday: new Set(['bench']) }, false),
+          sc(boxJump, { outing: out(0, 0) }, false),
+        ]),
+        [
+          '오늘 등판이라 하체 점프는 뒤로 뒀어요.',
+          '오늘 뺀 운동은 뒤로 뒀어요.',
+          "팔 피로가 '보통'이라 팔을 많이 쓰는 운동은 뒤로 뒀어요.",
+        ],
+      ],
+      [
+        '상한 3 — 양 조절 · 힘듦 넘김 다음 신호 하나',
+        r(
+          [
+            sc(boxJump, { outing: out(1, 1, 'calendar') }, false),
+            sc(pushup, { eased: shoulderStiff }, false),
+          ],
+          { volume: { why: VOL }, overrodeEffort: true }
+        ),
+        [
+          VOL,
+          '운동이 힘들었다고 했지만 고른 대로 세트를 그대로 뒀어요.',
+          '달력에 내일 등판이 있어 하체 점프는 뒤로 뒀어요.',
+        ],
+      ],
+      [
+        '회복 날 푸는 운동(+) · 무거운 것(−) 둘 다 → 뒤로 먼저',
+        r([
+          sc(shoulderMob, { theme: 'recovery', eased: shoulderStiff }, true),
+          sc(pushup, { theme: 'recovery', eased: shoulderStiff }, false),
+        ]),
+        [
+          '어깨가 뻐근하다고 해서 그쪽 운동은 뒤로 뒀어요.',
+          '뻐근한 어깨를 푸는 운동을 앞에 뒀어요.',
+        ],
+      ],
+      [
+        '프로그램 겹침 · 여러 번 뺌',
+        r([
+          sc(
+            backSquat,
+            { programNext: { patterns: new Set(['스쿼트', '밀기']), inDays: 1 } },
+            false
+          ),
+          sc(
+            bench,
+            {
+              programNext: { patterns: new Set(['스쿼트', '밀기']), inDays: 1 },
+              swappedOut: new Map([['bench', 2]]),
+            },
+            false
+          ),
+        ]),
+        [
+          '내일 근력 프로그램과 겹치는 스쿼트·밀기는 뒤로 뒀어요.',
+          '여러 번 뺀 운동은 뒤로 뒀어요.',
+        ],
+      ],
+    ];
+    const wrong = cases
+      .filter(([, got, w]) => json(got) !== json(w))
+      .map(([l, got]) => `${l}(${json(got)})`);
+    check(
+      `P5 점수 (바) planReasonsOf — ${cases.length}경우(차례 · 상한 · 앞으로 당긴 것은 뽑힌 것만 · 출처 차례)`,
+      wrong.length === 0,
+      wrong.join(' · ')
+    );
+
+    /* 격자 — 실제 표에 신호를 무작위 없이 고루 걸어(운동 차례로 돌려) 일정 까닭이 늘 3줄 안 · 글 규칙 · 같은 줄 없음 */
+    const contexts: Partial<ScoreContext>[] = [
+      { outing: out(1, 1) },
+      { outing: out(2, 3, 'estimate'), armFatigue: 2 },
+      { eased: stiffEased, theme: 'recovery' },
+      { eased: shoulderStiff, armFatigue: 5, patternsDone14d: new Map() },
+      {
+        programNext: { patterns: new Set(['힌지', LOWER_POWER_KEY]), inDays: 0 },
+        favoriteIds: new Set(library.slice(0, 40).map((e) => e.id)),
+      },
+      {
+        swappedOutToday: new Set([library[3].id]),
+        swappedOut: new Map(library.slice(0, 30).map((e) => [e.id, 3])),
+      },
+      {
+        outing: out(1, 2, 'checkin-yesterday'),
+        eased: stiffEased,
+        armFatigue: 4,
+        programNext: {
+          patterns: new Set(['밀기', '당기기', UPPER_POWER_KEY]),
+          inDays: 1,
+        },
+        patternsDone14d: new Map([['스쿼트', 1]]),
+        swappedOutToday: new Set([library[7].id]),
+        favoriteIds: new Set([library[8].id]),
+      },
+    ];
+    const volumes = [null, { why: VOL }];
+    const badLines: string[] = [];
+    let plans = 0;
+    for (const patch of contexts)
+      for (const volume of volumes)
+        for (const overrodeEffort of [false, true])
+          for (const every of [2, 3, 5]) {
+            plans++;
+            const scored = library.map((e, i) => sc(e, patch, i % every === 0));
+            const got = planReasonsOf({ scored, volume, overrodeEffort });
+            const again = planReasonsOf({ scored, volume, overrodeEffort });
+            const ok =
+              got.length <= PLAN_REASONS_MAX &&
+              new Set(got).size === got.length &&
+              json(got) === json(again) &&
+              (volume == null || got[0] === VOL) &&
+              got.every(
+                (s) =>
+                  s.endsWith('요.') &&
+                  !/[—–]/.test(s) &&
+                  !s.includes('**') &&
+                  !/undefined|null|NaN/.test(s) &&
+                  [...s].length <= 60
+              );
+            if (!ok) badLines.push(json(got));
+          }
+    check(
+      `P5 점수 (바) 일정 까닭 격자 — 실제 표 × ${plans}판: 3줄 안 · 같은 줄 없음 · 같은 입력 같은 답 · 양 조절 줄이 맨 앞 · 해요체 · 줄표 없음 · 60자 안`,
+      badLines.length === 0,
+      badLines.slice(0, 3).join(' · ')
+    );
+  }
+
+  /* ── (사) 소스의 약속 ── */
+  {
+    const strip = (p: string) =>
+      readFileSync(p, 'utf8')
+        .replace(/\/\*[\s\S]*?\*\//g, '')
+        .replace(/^\s*\/\/.*$/gm, '');
+    const src = strip('lib/report/score.ts');
+    const importsOf = [...src.matchAll(/^import[\s\S]*?from '([^']+)';/gm)].map(
+      (m) => ({
+        text: m[0],
+        from: m[1],
+      })
+    );
+    const valueImports = importsOf
+      .filter((i) => !/^import type /.test(i.text))
+      .map((i) => i.from);
+    check(
+      'P5 점수 (사) score.ts 는 순수 — server-only · prisma · 날짜 함수 · 난수 없음, theme · day-state · outing · facts 는 타입만, 값으로 부르는 것은 checkin · exercise-class · exercise-meta · prescription 넷',
+      !/server-only|prisma|appNow|new Date|Date\.now|Math\.random/.test(src) &&
+        json(valueImports.sort()) ===
+          json([
+            '@/lib/checkin',
+            '@/lib/engine/exercise-class',
+            '@/lib/exercise-meta',
+            '@/lib/report/prescription',
+          ]),
+      json(valueImports)
+    );
+    const callers = [
+      'lib/report/daily-plan.ts',
+      'lib/report/theme.ts',
+      'app/actions/training-setup.ts',
+      'lib/report/today-data.ts',
+    ].filter((p) => readFileSync(p, 'utf8').includes('report/score'));
+    check(
+      'P5 점수 (사) 아직 아무도 안 부른다 — 일정 만들기 · 테마 · 오늘 화면 자료가 score.ts 를 안 읽음(동작 변화 0, 끼우는 것은 P5-i · P5-j)',
+      callers.length === 0,
+      json(callers)
     );
   }
 }

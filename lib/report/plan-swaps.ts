@@ -106,6 +106,19 @@ export function carrySwaps<T extends { swaps?: PlanSwap[] }>(
 }
 
 /**
+ * 일정(판) 하나에서 '바꿔서 뺀'(replace · remove) 운동 — 고르기 점수(lib/report/score.ts, 2판 P5)가 '다시 만들기' 전의 오늘 일정에서
+ * 읽어, 방금 뺀 운동을 새 일정 앞에 되돌리지 않게 한다(60일 셈 swappedOutCounts 는 두 번부터라 오늘 한 번 뺀 것을 못 잡는다).
+ * 'add' 는 from 을 실제로 했으니 안 넣는다. 모양이 안 맞으면 빈 집합.
+ */
+export function swappedOutOf(value: unknown): Set<string> {
+  return new Set(
+    readPlanSwaps(value)
+      .filter((s) => s.kind !== 'add')
+      .map((s) => s.from)
+  );
+}
+
+/**
  * 기간 안에 '바꿔서 뺀'(replace · remove) 운동별 횟수.
  *
  * 두 출처(그날 일정 · 세션 판)를 합치고 같은 줄(from · kind · at)은 한 번만 센다 — 세션에서 바꾼 것은 두 곳에 같은
