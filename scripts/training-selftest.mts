@@ -31,11 +31,17 @@ import { throwIntensity, throwMemo } from '../lib/armcare/rehab-progress.ts';
 import {
   EFFORT_CHIPS,
   EFFORT_MISSING_ERROR,
+  MID_EFFORT_PCT,
+  STRONG_EFFORT_PCT,
   derivedEffortText,
+  effortBand,
   effortFields,
+  effortText,
   effortUpdate,
+  maxEffortPct,
   readEffort,
   readEffortInput,
+  scaleToEffortPct,
   snapEffortPct,
   stepEffortPct,
 } from '../lib/pitch-effort.ts';
@@ -82,6 +88,7 @@ import {
   shiftDateKey,
   toDateKey,
   MIN_STRESS_FACTOR,
+  TWO_DAY_INTENSITY_LIMIT,
   type PitchLogLike,
 } from '../lib/pitch-stats.ts';
 import {
@@ -11238,6 +11245,227 @@ console.log(
     `D2 쓰기 (재활 복귀표) ${THROWING_STEPS.length}칸 × 1~150개 모두 강도는 예전 그대로(5 · 7 · 9), % 는 ×10`,
     rehabBad.length === 0,
     rehabBad.slice(0, 3).join(' / ')
+  );
+}
+
+console.log(
+  '\n[2판 오늘 상태(P3)] D2 표시 — 강도를 보이는 곳은 모두 체감 강도 % 로(lib/pitch-effort.ts effortText · maxEffortPct · scaleToEffortPct · effortBand), 계산은 그대로(2026-10-12)'
+);
+{
+  /*
+   * 홈 캘린더 · 그날 요약 · 분석 · 투구 기록 달력 · 영상 목록이 '강도 9' · '9/10' 대신 '85%' 를 보인다. 화면 파일(.tsx)은 이
+   * 시험이 못 읽어 규칙(순수 함수)만 본다. 볼 것: ① 옛 기록(effortPct null)은 예전 숫자 × 10 이고 칸 색 · 넘었는지가 예전과
+   * 같다 ② % 로 고른 기록은 고른 값 그대로 ③ 쉰 날은 아무것도 안 보인다 ④ 보이는 글에 줄표 · '/10' 이 없다.
+   */
+  type L = { intensity: number; effortPct?: number | null };
+  const old = (intensity: number): L => ({ intensity, effortPct: null });
+  const pct = (p: number): L => ({ ...effortFields(p) });
+  const rest: L = { intensity: 0, effortPct: null };
+
+  const texts = [
+    effortText(old(9)),
+    effortText(pct(85)),
+    effortText(old(1)),
+    effortText(pct(5)),
+    effortText(rest),
+    effortText({ intensity: 0 }),
+    effortText({ intensity: 7 }),
+  ];
+  check(
+    'D2 표시 (한 건) 옛 강도 9 → 90% · 85% 로 고름 → 85% · 옛 1 → 10% · 5% → 5% · 쉰 날 · 칸 없는 쉰 날 → 없음 · 칸 없는 옛 7 → 70%',
+    JSON.stringify(texts) === '["90%","85%","10%","5%",null,null,"70%"]',
+    JSON.stringify(texts)
+  );
+
+  const oldBad: string[] = [];
+  for (let i = 1; i <= 10; i++) {
+    if (effortText(old(i)) !== `${i * 10}%`)
+      oldBad.push(`${i} → ${effortText(old(i))}`);
+    if (maxEffortPct([old(i)]) !== i * 10) oldBad.push(`max ${i}`);
+  }
+  check(
+    'D2 표시 (옛 기록) 강도 1~10 모두 예전 숫자 × 10 으로 보인다(글 · 그날 최고)',
+    oldBad.length === 0,
+    oldBad.join(' / ')
+  );
+
+  const maxes = [
+    maxEffortPct([]),
+    maxEffortPct([rest]),
+    maxEffortPct([rest, old(7), pct(85)]),
+    maxEffortPct([old(9), pct(85)]),
+    maxEffortPct([pct(75), old(7)]),
+  ];
+  check(
+    'D2 표시 (그날 최고) 기록 없음 0 · 쉰 날만 0 · 쉰 날 + 옛 7 + 85% → 85 · 옛 9 + 85% → 90 · 75% + 옛 7 → 75',
+    maxes.join(',') === '0,0,85,90,75',
+    maxes.join(',')
+  );
+
+  /* 칸 색 — 옛 규칙(1~10 에서 8 이상 진하게 · 5 이상 중간)과 띠가 같아야 옛 기록의 달력이 안 바뀐다 */
+  const oldBand = (i: number) => (i >= 8 ? 'strong' : i >= 5 ? 'mid' : 'light');
+  const bandBad: string[] = [];
+  for (let i = 1; i <= 10; i++) {
+    const read = readEffort(old(i));
+    const band = effortBand(read?.pct ?? 0);
+    if (band !== oldBand(i)) bandBad.push(`${i}: ${band} ≠ ${oldBand(i)}`);
+  }
+  check(
+    `D2 표시 (칸 색) 옛 강도 1~10 은 예전 띠 그대로(문턱 ${MID_EFFORT_PCT} · ${STRONG_EFFORT_PCT}% = 5 · 8 의 × 10)`,
+    bandBad.length === 0 && STRONG_EFFORT_PCT === 80 && MID_EFFORT_PCT === 50,
+    bandBad.join(' / ')
+  );
+  const newBands = [45, 50, 75, 80, 85].map((p) => effortBand(p));
+  check(
+    'D2 표시 (칸 색) % 로 고른 기록은 고른 값으로 — 45 옅게 · 50 중간 · 75 중간 · 80 진하게 · 85 진하게',
+    newBands.join(',') === 'light,mid,mid,strong,strong',
+    newBands.join(',')
+  );
+
+  /* 1~10 눈금의 실수(하루 평균 · 기간 평균 · 이틀 합 · 계획 상한) → 정수 % */
+  const scaled = [7.5, 8.5, 22 / 3, 10, 0, 15.5, 7.75].map(scaleToEffortPct);
+  check(
+    'D2 표시 (눈금 바꾸기) 7.5 → 75 · 8.5 → 85 · 7.33 → 73 · 10 → 100 · 0 → 0 · 이틀 합 15.5 → 155 · 평균 7.75 → 78',
+    scaled.join(',') === '75,85,73,100,0,155,78',
+    scaled.join(',')
+  );
+
+  /* 분석 화면의 하루 값 — groupByDay(intensityOf)를 % 로. 옛 기록만의 날은 예전 강도 × 10 이 정수로 나온다 */
+  const day = (date: string, p: L, pitchCount = 30): PitchLogLike => ({
+    date,
+    sessionType: '불펜',
+    pitchCount,
+    ...p,
+    maxVelocity: null,
+    avgVelocity: null,
+  });
+  const byDay = groupByDay([
+    day('2026-10-01', old(7)),
+    day('2026-10-02', pct(85)),
+    day('2026-10-03', old(9), 30),
+    day('2026-10-03', pct(50), 30),
+  ]);
+  const dayPcts = ['2026-10-01', '2026-10-02', '2026-10-03'].map((k) =>
+    scaleToEffortPct(byDay.get(k)!.intensity)
+  );
+  check(
+    'D2 표시 (분석 하루) 옛 7 → 70% · 85% → 85% · 옛 9 30구 + 50% 30구 → 가중평균 70%',
+    dayPcts.join(',') === '70,85,70',
+    dayPcts.join(',')
+  );
+  const keys = ['2026-10-01', '2026-10-02', '2026-10-03'];
+  const period = summarize(byDay, keys);
+  const windows = findFatigueWindows(byDay, keys);
+  check(
+    'D2 표시 (리포트) 평균 75% · 최고 85% · 이틀 합 155%(10/1+10/2) · 155%(10/2+10/3) — 문턱 100% 를 넘은 이틀 둘',
+    scaleToEffortPct(period.avgIntensity) === 75 &&
+      scaleToEffortPct(period.peakIntensity) === 85 &&
+      windows.map((w) => scaleToEffortPct(w.total)).join(',') === '155,155' &&
+      scaleToEffortPct(TWO_DAY_INTENSITY_LIMIT) === 100,
+    `평균 ${scaleToEffortPct(period.avgIntensity)} · 최고 ${scaleToEffortPct(period.peakIntensity)} · 이틀 ${windows
+      .map((w) => scaleToEffortPct(w.total))
+      .join(',')}`
+  );
+
+  /* 리포트 소견 글 — 문턱을 % 로 말한다(예전 '강도 합이 10을') */
+  const warn = buildReportFindings({
+    days: 7,
+    current: period,
+    previous: summarize(new Map(), []),
+    fatigueCount: 2,
+    streak: 3,
+  }).find((f) => f.title.startsWith('이틀 연속 부하'));
+  const calm = buildReportFindings({
+    days: 7,
+    current: period,
+    previous: summarize(new Map(), []),
+    fatigueCount: 0,
+    streak: 1,
+  }).find((f) => f.title.startsWith('이틀 연속 무리한'));
+  check(
+    'D2 표시 (리포트 소견) 이틀 피로 글 둘이 문턱을 100% 로 말하고 옛 눈금(10을) · 줄표가 없다',
+    !!warn &&
+      !!calm &&
+      warn.detail.includes('체감 강도 합이 100%를') &&
+      calm.detail.includes('체감 강도 합이 100%를') &&
+      ![warn.detail, calm.detail].some((t) => t.includes('10을') || t.includes('—')),
+    `${warn?.detail} / ${calm?.detail}`
+  );
+
+  /* 투구 계획의 강도 범위 — 계획은 1~10 정수로 세우고 글만 % */
+  const planDay = (min: number | null, max: number | null) =>
+    ({
+      dateKey: '2026-10-12',
+      label: '오늘',
+      throwing: max != null,
+      minPitches: null,
+      maxPitches: null,
+      minIntensity: min,
+      maxIntensity: max,
+      reason: '',
+    }) as Parameters<typeof intensityRangeText>[0];
+  const ranges = [
+    intensityRangeText(planDay(6, 8)),
+    intensityRangeText(planDay(null, 7)),
+    intensityRangeText(planDay(5, 5)),
+    intensityRangeText(planDay(null, null)),
+  ];
+  check(
+    "D2 표시 (계획 글) 6~8 → '강도 60~80%' · 상한 7 → '강도 70% 이하' · 5~5 → '강도 50% 이하' · 쉬는 날 → 빈 글",
+    JSON.stringify(ranges) === '["강도 60~80%","강도 70% 이하","강도 50% 이하",""]',
+    JSON.stringify(ranges)
+  );
+  /* 실제 계획에서 나온 범위도 글이 % 로 끝나고 1~10 숫자만 남지 않는다('[투구 계획] 오늘과 내일을 범위로' 절의 facts 를 베낌) */
+  const realPlan = buildPitchPlan({
+    asOf: '2026-09-01',
+    profile: { nickname: '테스트', age: 20, heightCm: 180, trainingLevel: null },
+    volume: {
+      current: { totalPitches: 200, maxDailyPitches: 60, days: 3, adjusted: 180 },
+      previous: { totalPitches: 180, maxDailyPitches: 55, days: 3, adjusted: 160 },
+      changePercent: 11,
+    },
+    load: { ratio: 1.0, zone: 'optimal', acute: 30, chronic: 30, days: 28 },
+    patterns: {
+      fatigueWindows: 0,
+      longestStreak: 1,
+      missingDays: 0,
+      lastThrowDate: '2026-08-28',
+      lastOutingPitches: 20,
+      lastOutingAdjusted: 20,
+      restDays: 4,
+      baselinePitches: 60,
+    },
+    condition: {
+      today: null,
+      painToday: false,
+      painRecently: false,
+      painWordsInMemo: [],
+      avgCondition: 7,
+      poorSleepDays: 0,
+      checkinDays: 5,
+    },
+    memos: [],
+  } as unknown as Parameters<typeof buildPitchPlan>[0]).today;
+  check(
+    "D2 표시 (계획 글) 실제 투구 계획의 강도 글이 '%' 로 끝난다",
+    !!realPlan && /^강도 \d+(~\d+)?%( 이하)?$/.test(intensityRangeText(realPlan)),
+    realPlan ? intensityRangeText(realPlan) : '(오늘 계획 없음)'
+  );
+
+  /* 그날 화면의 '계획 강도를 넘었어요' — % 로 견줘도 5% 칸에서는 1~10 으로 견주던 때와 같다(day-client.tsx) */
+  const capBad: string[] = [];
+  for (let cap = 1; cap <= 10; cap++) {
+    for (let p = MIN_EFFORT_PCT; p <= MAX_EFFORT_PCT; p += EFFORT_STEP) {
+      const before = effortToIntensity(p) > cap;
+      const after = p > scaleToEffortPct(cap);
+      if (before !== after)
+        capBad.push(`${p}% vs 상한 ${cap}: 예전 ${before} · 지금 ${after}`);
+    }
+  }
+  check(
+    'D2 표시 (계획 넘음) 상한 1~10 × 5~100% 칸 200가지 모두 % 로 견줘도 1~10 으로 견주던 답과 같다',
+    capBad.length === 0,
+    capBad.slice(0, 3).join(' / ')
   );
 }
 

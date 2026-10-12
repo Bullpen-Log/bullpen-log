@@ -17,6 +17,7 @@ import { CompareView, type ClipOption } from './compare-view';
 import { VideoGallery } from './video-gallery';
 import { VideoCalendar } from './video-calendar';
 import { OPEN_POPUP_TYPES } from '@/lib/transition-types';
+import { effortText } from '@/lib/pitch-effort';
 import { LinkPending } from '@/components/link-pending';
 
 /**
@@ -28,7 +29,10 @@ export type VideoLog = {
   date: string;
   sessionType: string;
   pitchCount: number;
+  /** 옛 1~10(쉰 날 0). 화면에 보일 때는 lib/pitch-effort.ts effortText · maxEffortPct 로 % 를 만든다 */
   intensity: number;
+  /** 체감 강도 5~100%(2판 D2). 옛 기록 · 쉰 날은 null */
+  effortPct: number | null;
   maxVelocity: number | null;
   memo: string | null;
   videoPaths: string[];
@@ -123,7 +127,7 @@ export function VideosClient({
           summary: [
             log.maxVelocity != null ? `${log.maxVelocity}km/h` : null,
             `${log.pitchCount}구`,
-            `강도 ${log.intensity}/10`,
+            effortText(log) && `강도 ${effortText(log)}`,
           ]
             .filter(Boolean)
             .join(' · '),

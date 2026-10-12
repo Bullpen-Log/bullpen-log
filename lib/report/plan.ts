@@ -288,12 +288,16 @@ export function pitchRangeText(day: DayPlan): string {
     : `${day.maxPitches}구 이하`;
 }
 
-/** '강도 6~8' */
+/**
+ * '강도 60~80%'. 계획은 1~10 눈금(정수)으로 세우고 글만 체감 강도 % 로 보인다(2판 D2, 2026-10-12) — 사용자가 투구 강도를
+ * % 칩으로 고르게 되어 '강도 6~8' 을 보면 무엇을 골라야 할지 한 번 더 바꿔 셈해야 했다. × 10 은 lib/pitch-effort.ts
+ * scaleToEffortPct 와 같은 셈(이 파일은 import 없이 두려고 그대로 곱한다).
+ */
 export function intensityRangeText(day: DayPlan): string {
   if (day.maxIntensity == null) return '';
   return day.minIntensity != null && day.minIntensity < day.maxIntensity
-    ? `강도 ${day.minIntensity}~${day.maxIntensity}`
-    : `강도 ${day.maxIntensity} 이하`;
+    ? `강도 ${day.minIntensity * 10}~${day.maxIntensity * 10}%`
+    : `강도 ${day.maxIntensity * 10}% 이하`;
 }
 
 export type PitchPlan = {

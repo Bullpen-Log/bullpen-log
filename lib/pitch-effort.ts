@@ -128,3 +128,50 @@ export function derivedEffortText(
 ): string | null {
   return read?.derivedFrom != null ? `강도 ${read.derivedFrom}에서 계산` : null;
 }
+
+/* ------------------------------------------------------------------ *
+ * 화면에 보이는 체감 강도(2판 D2 표시, 2026-10-12)
+ *
+ * 입력이 % 로 바뀌었는데 달력 · 그날 요약 · 분석이 '강도 9' · '9/10' 을 그대로 보이면 사용자가 고른 85% 와 다른
+ * 숫자를 본다. 보이는 곳은 모두 아래 셋으로 % 를 만든다(값은 readEffort · effortPctOf 와 같은 규칙 — effortPct 가
+ * 있으면 그것, 옛 기록은 intensity × 10). 칸 색 · '강도 80% 이상' 같은 문턱도 이 % 로 견준다.
+ * ------------------------------------------------------------------ */
+
+/** 기록 한 건의 체감 강도 글 — '85%'. 쉰 날 · 강도를 안 적은 기록은 null */
+export function effortText(log: {
+  intensity: number;
+  effortPct?: number | null;
+}): string | null {
+  const read = readEffort(log);
+  return read ? `${read.pct}%` : null;
+}
+
+/** 여러 기록(같은 날) 가운데 가장 센 체감 강도(%) — 달력 칸 색 · 그날 요약. 던진 기록이 없으면 0 */
+export function maxEffortPct(
+  logs: readonly { intensity: number; effortPct?: number | null }[]
+): number {
+  return logs.reduce((max, log) => Math.max(max, readEffort(log)?.pct ?? 0), 0);
+}
+
+/**
+ * 1~10 눈금의 값(실수)을 화면의 정수 % 로 — 하루 평균(DayTotals.intensity) · 기간 평균 · 최고 · 이틀 합, 투구 계획의
+ * 강도 범위(DayPlan.min/maxIntensity). 하루 가중평균은 7.33 같은 실수라 반올림한다(73%).
+ */
+export function scaleToEffortPct(intensity: number): number {
+  return Math.round(intensity * 10);
+}
+
+/** 달력 칸을 가장 진하게(흰 글자) 칠하는 체감 강도(%) — 예전 1~10 의 8 */
+export const STRONG_EFFORT_PCT = 80;
+/** 중간 진하기의 바닥 — 예전 1~10 의 5 */
+export const MID_EFFORT_PCT = 50;
+
+/**
+ * 칸 색의 띠 — components/month-calendar.tsx effortClass 가 색으로 바꾼다(홈 캘린더 · 투구 기록 달력 · 영상 목록).
+ * 문턱이 예전 1~10 의 × 10 이라 옛 기록은 같은 띠다. 화면 파일(.tsx)은 자체 시험이 못 읽어 규칙만 여기 둔다.
+ */
+export function effortBand(effortPct: number): 'strong' | 'mid' | 'light' {
+  if (effortPct >= STRONG_EFFORT_PCT) return 'strong';
+  if (effortPct >= MID_EFFORT_PCT) return 'mid';
+  return 'light';
+}

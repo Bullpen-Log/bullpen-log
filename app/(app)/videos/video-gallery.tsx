@@ -7,7 +7,8 @@ import Link from 'next/link';
 import { ChevronDown, Film, Star, X } from 'lucide-react';
 import { usePlaybackUrls } from '@/components/use-playback-urls';
 import { fetchPitchThumbs } from '@/lib/pitch-thumbs';
-import { intensityClass } from '@/components/month-calendar';
+import { effortClass } from '@/components/month-calendar';
+import { effortText, readEffort } from '@/lib/pitch-effort';
 import { REST_SESSION_TYPE, SESSION_TYPES } from '@/lib/session-type';
 import { VELOCITY_MEMO_MARK } from '@/lib/velocity-meta';
 import { setFeaturedVideo } from '@/app/actions/featured-video';
@@ -82,7 +83,8 @@ type Clip = Omit<ClipOption, 'path'> & {
   path: string | null;
   sessionType: string;
   pitchCount: number;
-  intensity: number;
+  /** 체감 강도(%) — 칸 색 · '강도 높은순'. 쉰 날 · 강도를 안 적은 기록은 0 */
+  effortPct: number;
   maxVelocity: number | null;
   rest: boolean;
 };
@@ -132,7 +134,7 @@ export function VideoGallery({
                   ? formatSpeed(log.maxVelocity, speedUnit)
                   : null,
                 `${log.pitchCount}구`,
-                `강도 ${log.intensity}/10`,
+                effortText(log) && `강도 ${effortText(log)}`,
                 /* 카메라로 잰 기록 — 공마다 값은 그날 화면의 '구속 측정' 칸에 */
                 log.memo?.startsWith(VELOCITY_MEMO_MARK) ? '카메라 측정' : null,
               ]
@@ -140,7 +142,7 @@ export function VideoGallery({
                 .join(' · '),
           sessionType: log.sessionType,
           pitchCount: log.pitchCount,
-          intensity: log.intensity,
+          effortPct: readEffort(log)?.pct ?? 0,
           maxVelocity: log.maxVelocity,
           rest,
         };
@@ -190,7 +192,7 @@ export function VideoGallery({
     }
     const cmp = (a: Clip, b: Clip) => {
       if (sort === 'velocity') return (b.maxVelocity ?? -1) - (a.maxVelocity ?? -1);
-      if (sort === 'intensity') return b.intensity - a.intensity;
+      if (sort === 'intensity') return b.effortPct - a.effortPct;
       return b.date.localeCompare(a.date);
     };
     return [...map.entries()]
@@ -463,7 +465,7 @@ export function VideoGallery({
                           className={`flex aspect-video w-full flex-col items-center justify-center gap-1 ${
                             clip.rest
                               ? 'border-b border-dashed border-line-strong bg-surface-2 text-muted'
-                              : intensityClass(clip.intensity)
+                              : effortClass(clip.effortPct)
                           }`}
                         >
                           <span className="text-numeric text-3xl leading-none">
@@ -471,7 +473,8 @@ export function VideoGallery({
                           </span>
                           {!clip.rest && (
                             <span className="text-[11px] font-medium opacity-80">
-                              강도 {clip.intensity} · 영상 없음
+                              {clip.effortPct > 0 && `강도 ${clip.effortPct}% · `}영상
+                              없음
                             </span>
                           )}
                         </span>

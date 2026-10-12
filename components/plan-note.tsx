@@ -13,7 +13,7 @@ export type PlanNoteData = {
   throwing: boolean;
   /** '40~60구'. 쉬는 날로 잡힌 계획에는 빈 문자열이다. */
   pitches: string;
-  /** '강도 6~8' */
+  /** '강도 60~80%'(lib/report/plan.ts intensityRangeText) */
   intensity: string;
   /** 왜 이 계획인지 한 줄 */
   reason: string;

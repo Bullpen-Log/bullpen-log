@@ -557,19 +557,24 @@ export function buildReportFindings({
 }): ReportFinding[] {
   const findings: ReportFinding[] = [];
   const label = `최근 ${days}일`;
+  /*
+   * 글의 문턱은 입력과 같은 체감 강도 % 로(2판 D2) — 계산은 1~10 의 합(TWO_DAY_INTENSITY_LIMIT 10)이고 보일 때만 × 10.
+   * lib/pitch-effort.ts scaleToEffortPct 와 같은 셈인데, 그 파일이 이 파일을 읽어 여기서는 부르지 않는다(돌고 도는 import).
+   */
+  const twoDayPct = `${TWO_DAY_INTENSITY_LIMIT * 10}%`;
 
   // 1) 이틀 연속 부하
   if (fatigueCount > 0) {
     findings.push({
       tone: 'warn',
       title: '이틀 연속 부하가 높았던 구간이 있어요',
-      detail: `${label} 동안 ${fatigueCount}번 나왔어요. 이어진 이틀의 강도 합이 ${TWO_DAY_INTENSITY_LIMIT}을 넘으면 어깨 · 팔꿈치에 피로가 쌓여요. 다음 날은 강도를 낮추거나 쉬세요.`,
+      detail: `${label} 동안 ${fatigueCount}번 나왔어요. 이어진 이틀의 체감 강도 합이 ${twoDayPct}를 넘으면 어깨 · 팔꿈치에 피로가 쌓여요. 다음 날은 강도를 낮추거나 쉬세요.`,
     });
   } else if (current.activeDays > 0) {
     findings.push({
       tone: 'good',
       title: '이틀 연속 무리한 날이 없어요',
-      detail: `${label} 동안 이틀 강도 합이 ${TWO_DAY_INTENSITY_LIMIT}을 넘은 적이 없어요.`,
+      detail: `${label} 동안 이틀 체감 강도 합이 ${twoDayPct}를 넘은 적이 없어요.`,
     });
   }
 

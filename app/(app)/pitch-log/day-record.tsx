@@ -7,6 +7,7 @@ import { Pencil, Trash2, VideoOff } from 'lucide-react';
 import { Badge, Card } from '@/components/ui';
 import { PitchVideoPlayer } from '@/components/pitch-video-player';
 import { REST_SESSION_TYPE } from '@/lib/session-type';
+import { effortText } from '@/lib/pitch-effort';
 import { ConfirmDelete } from '@/components/confirm-delete';
 import type { Log } from './types';
 
@@ -98,7 +99,7 @@ export function DayRecord({
                     {log.sessionType}
                   </Badge>
                   <Badge>{log.pitchCount}구</Badge>
-                  <Badge>강도 {log.intensity}/10</Badge>
+                  {effortText(log) && <Badge>강도 {effortText(log)}</Badge>}
                   {log.satisfaction != null && <Badge>만족도 {log.satisfaction}/5</Badge>}
                   {log.avgVelocity != null && (
                     <Badge>평균 {formatSpeed(log.avgVelocity, speedUnit)}</Badge>
