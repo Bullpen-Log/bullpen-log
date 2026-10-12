@@ -27,7 +27,18 @@ import {
   type CheckinLike,
   type HardOuting,
 } from '../lib/report/facts.ts';
-import { throwMemo } from '../lib/armcare/rehab-progress.ts';
+import { throwIntensity, throwMemo } from '../lib/armcare/rehab-progress.ts';
+import {
+  EFFORT_CHIPS,
+  EFFORT_MISSING_ERROR,
+  derivedEffortText,
+  effortFields,
+  effortUpdate,
+  readEffort,
+  readEffortInput,
+  snapEffortPct,
+  stepEffortPct,
+} from '../lib/pitch-effort.ts';
 import {
   CHECKIN_PARTS,
   HIGH_SORENESS,
@@ -10946,6 +10957,288 @@ console.log(
       JSON.stringify(legacyFp.hardOuting)
     );
   }
+}
+
+console.log(
+  '\n[2판 오늘 상태(P3)] D2 쓰기 · 입력 — 체감 강도(%)를 받는 규칙 한 곳(lib/pitch-effort.ts), 옛 화면 · 고치기 · 재활 복귀표(2026-10-12)'
+);
+{
+  /*
+   * 쓰는 길 넷(투구 기록 API POST · PATCH, 구속 측정 저장, 재활 복귀표)이 모두 lib/pitch-effort.ts 를 거친다. 여기서는 그 순수
+   * 규칙을 본다 — 입력 → 저장할 두 칸(effortPct · intensity), 옛 화면(intensity 만)의 길, 고치기에서 저장된 % 를 지키는 규칙,
+   * 그리고 저장한 값을 읽는 쪽(lib/pitch-stats.ts effortPctOf · intensityOf)으로 되읽었을 때 같은 값이 나오는지.
+   */
+  type Read = Exclude<ReturnType<typeof readEffortInput>, { error: string }>;
+  const ok = (r: ReturnType<typeof readEffortInput>): r is Read => !('error' in r);
+  const show = (r: ReturnType<typeof readEffortInput>) => JSON.stringify(r);
+
+  /* 입력 → 저장값 표 */
+  const table: [unknown, number, number][] = [
+    ['85', 85, 9],
+    [85, 85, 9],
+    ['100', 100, 10],
+    ['95', 95, 10],
+    ['90', 90, 9],
+    ['50', 50, 5],
+    ['45', 45, 5],
+    ['15', 15, 2],
+    ['5', 5, 1],
+    ['83', 85, 9],
+    ['82', 80, 8],
+    [' 70 ', 70, 7],
+    ['97.6', 100, 10],
+  ];
+  const tableBad = table.filter(([raw, pct, intensity]) => {
+    const r = readEffortInput({ effortPct: raw }, false);
+    return !ok(r) || r.effortPct !== pct || r.intensity !== intensity || r.legacy;
+  });
+  check(
+    'D2 쓰기 (표) 85 → 85% · 강도 9, 100 → 10, 5 → 1, 83 → 85, 82 → 80(5% 칸) — % 를 받으면 legacy 아님',
+    tableBad.length === 0,
+    tableBad
+      .map(
+        ([raw]) =>
+          `${JSON.stringify(raw)} → ${show(readEffortInput({ effortPct: raw }, false))}`
+      )
+      .join(' / ')
+  );
+
+  /* 5~100 모든 칸: 1~10 은 effortToIntensity 와 같고, 1~10 × 10 이 원래 % 에서 5 넘게 안 벗어난다 */
+  const gridBad: string[] = [];
+  for (let pct = MIN_EFFORT_PCT; pct <= MAX_EFFORT_PCT; pct += EFFORT_STEP) {
+    const r = readEffortInput({ effortPct: pct }, false);
+    if (
+      !ok(r) ||
+      r.effortPct !== pct ||
+      r.intensity !== effortToIntensity(pct) ||
+      r.intensity < 1 ||
+      r.intensity > 10 ||
+      Math.abs(r.intensity * 10 - pct) > 5
+    ) {
+      gridBad.push(`${pct} → ${show(r)}`);
+    }
+  }
+  check(
+    'D2 쓰기 (칸 20개) 5~100% 모두 받고, 1~10 은 effortToIntensity · 1~10 안 · ×10 이 5 안쪽',
+    gridBad.length === 0,
+    gridBad.join(' / ')
+  );
+
+  /* 받지 않는 값 */
+  const rejected: unknown[] = ['0', 0, '4', 4.9, '101', 100.5, 'abc', true, '85%'];
+  const leaked = rejected.filter((raw) =>
+    ok(readEffortInput({ effortPct: raw }, false))
+  );
+  check(
+    'D2 쓰기 (거절) 0 · 4 · 4.9 · 101 · 100.5 · 글자 · true · "85%" 는 "체감 강도는 5~100% 사이로 골라 주세요."',
+    leaked.length === 0 &&
+      rejected.every((raw) => {
+        const r = readEffortInput({ effortPct: raw }, false);
+        return 'error' in r && r.error === '체감 강도는 5~100% 사이로 골라 주세요.';
+      }),
+    leaked.map((x) => JSON.stringify(x)).join(' / ')
+  );
+
+  /* 쉰 날 — 무엇이 와도 effortPct null · intensity 0 */
+  const restAll = [{ effortPct: '85' }, { intensity: '7' }, {}, { effortPct: '0' }].map(
+    (b) => readEffortInput(b, true)
+  );
+  check(
+    'D2 쓰기 (쉰 날) 무엇이 와도 effortPct null · intensity 0 · legacy 아님(0% 도 거절하지 않고 무시)',
+    restAll.every(
+      (r) => ok(r) && r.effortPct === null && r.intensity === 0 && !r.legacy
+    ),
+    restAll.map(show).join(' / ')
+  );
+
+  /* 옛 화면 — intensity 만 보낸다 */
+  const legacy7 = readEffortInput({ intensity: '7' }, false);
+  const legacyNum = readEffortInput({ intensity: 7 }, false);
+  const legacyBlankPct = readEffortInput({ effortPct: '', intensity: '7' }, false);
+  check(
+    'D2 쓰기 (옛 화면) intensity "7" · 7 · (effortPct "" + "7") → effortPct null · 강도 7 · legacy',
+    [legacy7, legacyNum, legacyBlankPct].every(
+      (r) => ok(r) && r.effortPct === null && r.intensity === 7 && r.legacy
+    ),
+    [legacy7, legacyNum, legacyBlankPct].map(show).join(' / ')
+  );
+  const legacyBad = ['0', '11', 'x'].map((raw) =>
+    readEffortInput({ intensity: raw }, false)
+  );
+  check(
+    'D2 쓰기 (옛 화면) 1~10 밖 · 글자는 "투구 강도는 1에서 10 사이여야 해요."',
+    legacyBad.every(
+      (r) => 'error' in r && r.error === '투구 강도는 1에서 10 사이여야 해요.'
+    ),
+    legacyBad.map(show).join(' / ')
+  );
+  const missing = [{}, { effortPct: null }, { effortPct: '', intensity: '' }].map((b) =>
+    readEffortInput(b, false)
+  );
+  check(
+    'D2 쓰기 (빈 값) 던진 날 둘 다 없으면 "체감 강도를 골라 주세요." — 기본값으로 메우지 않는다',
+    missing.every((r) => 'error' in r && r.error === EFFORT_MISSING_ERROR) &&
+      EFFORT_MISSING_ERROR === '체감 강도를 골라 주세요.',
+    missing.map(show).join(' / ')
+  );
+  const both = readEffortInput({ effortPct: 85, intensity: '3' }, false);
+  check(
+    'D2 쓰기 (둘 다 옴) % 가 이긴다 — effortPct 85 · intensity "3" → 85% · 강도 9',
+    ok(both) && both.effortPct === 85 && both.intensity === 9 && !both.legacy,
+    show(both)
+  );
+
+  /* 고치기(PATCH) — 저장된 1~10 을 보고 % 칸을 지킬지 정한다 */
+  const asRead = (r: ReturnType<typeof readEffortInput>) => r as Read;
+  const fresh = effortUpdate(asRead(readEffortInput({ effortPct: 70 }, false)), 9);
+  const keep = effortUpdate(asRead(readEffortInput({ intensity: '9' }, false)), 9);
+  const changed = effortUpdate(asRead(readEffortInput({ intensity: '6' }, false)), 9);
+  const toRest = effortUpdate(asRead(readEffortInput({ intensity: '9' }, true)), 9);
+  check(
+    'D2 쓰기 (고치기) % 를 받으면 두 칸 다 덮는다(70% · 강도 7)',
+    fresh.effortPct === 70 && fresh.intensity === 7,
+    JSON.stringify(fresh)
+  );
+  check(
+    'D2 쓰기 (고치기) 옛 화면 · 같은 강도 9 → intensity 만, effortPct 키가 아예 없다(저장된 85% 를 지킨다)',
+    keep.intensity === 9 && !Object.hasOwn(keep, 'effortPct'),
+    JSON.stringify(keep)
+  );
+  check(
+    'D2 쓰기 (고치기) 옛 화면 · 다른 강도 6 → effortPct 를 비운다(안 비우면 저장된 85% 가 새 6 보다 읽힌다)',
+    Object.hasOwn(changed, 'effortPct') &&
+      changed.effortPct === null &&
+      changed.intensity === 6,
+    JSON.stringify(changed)
+  );
+  check(
+    'D2 쓰기 (고치기) 쉰 날로 바꾸면 effortPct null · intensity 0 으로 덮는다',
+    Object.hasOwn(toRest, 'effortPct') &&
+      toRest.effortPct === null &&
+      toRest.intensity === 0,
+    JSON.stringify(toRest)
+  );
+
+  /* 저장한 줄을 읽는 쪽으로 되읽기 — DB 가 하는 일(update 는 준 칸만 덮는다)을 펼쳐 쓰기로 흉내 낸다 */
+  const stored85 = { pitchCount: 30, sessionType: '불펜', ...effortFields(85) };
+  const afterKeep = { ...stored85, ...keep };
+  const afterChange = { ...stored85, ...changed };
+  /* 옛 화면이 POST 한 줄 — readEffortInput({ intensity: '7' }) 이 돌려준 두 칸 그대로(위 '옛 화면' 검사) */
+  const legacyRow = {
+    pitchCount: 30,
+    sessionType: '불펜',
+    effortPct: ok(legacy7) ? legacy7.effortPct : -1,
+    intensity: ok(legacy7) ? legacy7.intensity : -1,
+  };
+  check(
+    'D2 쓰기 (되읽기) 85% 로 남긴 줄 → effortPctOf 85 · intensityOf 8.5, 옛 탭이 메모만 고친 뒤에도 85',
+    effortPctOf(stored85) === 85 &&
+      intensityOf(stored85) === 8.5 &&
+      effortPctOf(afterKeep) === 85 &&
+      afterKeep.intensity === 9,
+    `${effortPctOf(stored85)} · ${intensityOf(stored85)} · ${effortPctOf(afterKeep)}`
+  );
+  check(
+    'D2 쓰기 (되읽기) 옛 탭이 강도를 6 으로 고친 줄 → effortPctOf 60 · intensityOf 6',
+    effortPctOf(afterChange) === 60 && intensityOf(afterChange) === 6,
+    `${effortPctOf(afterChange)} · ${intensityOf(afterChange)}`
+  );
+  check(
+    'D2 쓰기 (되읽기) 옛 화면이 새로 남긴 줄(effortPct null · 7) → 70% · 7, 옛 규칙과 같은 값',
+    legacyRow.effortPct === null &&
+      effortPctOf(legacyRow) === 70 &&
+      intensityOf(legacyRow) === 7,
+    JSON.stringify(legacyRow)
+  );
+
+  /* 입력이 세게 던진 날까지 — 30구에 85% 는 2,550(아님), 90% 는 2,700(세게). 경기는 고른 % 와 상관없이 100% */
+  const loadOf = (pct: number, sessionType = '불펜') =>
+    outingLoadOf({ pitchCount: 30, sessionType, ...effortFields(pct) });
+  check(
+    'D2 쓰기 (세게 던진 날) 30구 85% → 2,550 < 2,700 · 90% → 2,700 · 경기 30구 50% → 3,000',
+    loadOf(85) === 2550 &&
+      loadOf(85) < HARD_OUTING_MIN_LOAD &&
+      loadOf(90) === HARD_OUTING_MIN_LOAD &&
+      loadOf(50, '경기') === 3000,
+    `${loadOf(85)} · ${loadOf(90)} · ${loadOf(50, '경기')}`
+  );
+
+  /* 폼을 채우는 쪽 */
+  const r85 = readEffort({ effortPct: 85, intensity: 9 });
+  const rOld = readEffort({ effortPct: null, intensity: 9 });
+  const rNoField = readEffort({ intensity: 7 });
+  const rRest = readEffort({ effortPct: null, intensity: 0 });
+  check(
+    'D2 쓰기 (폼 채우기) 85% 기록 → 85 · 옛 기록 9 → 90(9에서) · 칸 없는 옛 값 7 → 70 · 쉰 날 → null(비운 채)',
+    r85?.pct === 85 &&
+      r85.derivedFrom === null &&
+      rOld?.pct === 90 &&
+      rOld.derivedFrom === 9 &&
+      rNoField?.pct === 70 &&
+      rNoField.derivedFrom === 7 &&
+      rRest === null,
+    JSON.stringify([r85, rOld, rNoField, rRest])
+  );
+  check(
+    'D2 쓰기 (표시) 옛 기록은 "강도 9에서 계산", % 로 고른 기록 · 쉰 날은 없음',
+    derivedEffortText(rOld) === '강도 9에서 계산' &&
+      derivedEffortText(r85) === null &&
+      derivedEffortText(rRest) === null,
+    `${derivedEffortText(rOld)} · ${derivedEffortText(r85)} · ${derivedEffortText(rRest)}`
+  );
+
+  /* 칩과 −/+ */
+  check(
+    'D2 쓰기 (칩) 50 · 60 · 70 · 80 · 90 · 100 — 모두 5% 칸 · 받는 범위 안, 오름차순',
+    EFFORT_CHIPS.join(',') === '50,60,70,80,90,100' &&
+      EFFORT_CHIPS.every(
+        (c) => c % EFFORT_STEP === 0 && c >= MIN_EFFORT_PCT && c <= MAX_EFFORT_PCT
+      ),
+    EFFORT_CHIPS.join(',')
+  );
+  const steps = [
+    stepEffortPct(50, -1),
+    stepEffortPct(85, 1),
+    stepEffortPct(5, -1),
+    stepEffortPct(100, 1),
+    stepEffortPct(83, 1),
+    snapEffortPct(83),
+    snapEffortPct(82),
+  ];
+  check(
+    'D2 쓰기 (−/+) 50 − → 45 · 85 + → 90 · 5 에서 멈춤 · 100 에서 멈춤 · 83 은 85 로 맞춘 뒤 +5 → 90',
+    steps.join(',') === '45,90,5,100,90,85,80',
+    steps.join(',')
+  );
+  let walk = 50;
+  for (let i = 0; i < 30; i++) walk = stepEffortPct(walk, -1);
+  let up = 50;
+  for (let i = 0; i < 30; i++) up = stepEffortPct(up, 1);
+  check(
+    'D2 쓰기 (−/+) 30번 눌러도 5~100 밖으로 안 나가고 칸마다 받는 값(5 · 100)',
+    walk === MIN_EFFORT_PCT &&
+      up === MAX_EFFORT_PCT &&
+      ok(readEffortInput({ effortPct: walk }, false)) &&
+      ok(readEffortInput({ effortPct: up }, false)),
+    `${walk} · ${up}`
+  );
+
+  /* 재활 복귀표 — 1~10 은 예전 그대로, % 는 그 ×10 */
+  const rehabBad: string[] = [];
+  for (let step = 1; step <= THROWING_STEPS.length; step++) {
+    for (let pitches = 1; pitches <= 150; pitches++) {
+      const old = throwIntensity(step, pitches);
+      const fields = effortFields(old * 10);
+      if (fields.intensity !== old || fields.effortPct !== old * 10) {
+        rehabBad.push(`${step}칸 ${pitches}개: ${old} → ${JSON.stringify(fields)}`);
+      }
+    }
+  }
+  check(
+    `D2 쓰기 (재활 복귀표) ${THROWING_STEPS.length}칸 × 1~150개 모두 강도는 예전 그대로(5 · 7 · 9), % 는 ×10`,
+    rehabBad.length === 0,
+    rehabBad.slice(0, 3).join(' / ')
+  );
 }
 
 console.log(`\n${passed}개 통과, ${failed}개 실패`);

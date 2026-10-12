@@ -20,6 +20,7 @@ import {
   velocityLogMemo,
 } from '@/lib/velocity-sync';
 import { isRestSession, validateSessionType } from '@/lib/session-type';
+import { readEffortInput } from '@/lib/pitch-effort';
 import { fitCalibration, type CalFit, type CalPair } from '@/lib/velocity-calibration';
 import {
   CALIBRATION_FAMILY,
@@ -77,7 +78,12 @@ export type SaveSessionInput = {
   /** YYYY-MM-DD */
   date: string;
   sessionType: string;
-  intensity: number;
+  /**
+   * 체감 강도 5~100%(2판 D2) — 측정 화면의 저장 시트가 보낸다. 없으면 옛 1~10(intensity)을 받는다(관리자 영상 올리기 ·
+   * 배포 직전에 열어 둔 화면). 둘 다 lib/pitch-effort.ts readEffortInput 이 읽어 투구 기록 두 칸을 채운다.
+   */
+  effortPct?: number | null;
+  intensity?: number;
   fovDeg: number;
   source: 'camera' | 'file';
   device: string | null;
@@ -195,8 +201,12 @@ export async function saveVelocitySession(
   if (isRestSession(type.value))
     return { ok: false, error: '쉬는 날에는 구속을 남길 수 없습니다.' };
 
-  const intensity = num(input.intensity, 1, 10);
-  if (intensity == null) return { ok: false, error: '강도는 1~10 사이여야 합니다.' };
+  /* 투구 기록 API 와 같은 규칙 — % 를 받으면 1~10 도 같이, 옛 1~10 만 오면 % 는 비운다(lib/pitch-effort.ts) */
+  const effort = readEffortInput(
+    { effortPct: input.effortPct, intensity: input.intensity },
+    false
+  );
+  if ('error' in effort) return { ok: false, error: effort.error };
   const fovDeg = num(input.fovDeg, 30, 120);
   if (fovDeg == null) return { ok: false, error: '화각이 올바르지 않습니다.' };
 
@@ -301,7 +311,8 @@ export async function saveVelocitySession(
         date: at,
         sessionType: type.value,
         pitchCount: pitches.length,
-        intensity,
+        intensity: effort.intensity,
+        effortPct: effort.effortPct,
         maxVelocity,
         avgVelocity,
         memo: velocityLogMemo(pitches.length),
