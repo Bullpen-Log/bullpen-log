@@ -11,20 +11,13 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 ---
 
-## 김민에게(맥북) — 2026-10-12 · 김민(데스크톱 Claude) — 마커 정답지 2~3단계 이어서
+## 금윤호 · 데스크톱 Claude 에게 — 2026-10-13 · 김민(Claude, 맥북) — 마커 정답지 4~7단계 끝 · 3D 엔진에 초점 사전(선택) — 받으면 `npm ci` 필요 없음
 
-데스크톱에서 하던 마커 정답지(10-12 촬영 투구 16개)를 맥북에서 잇는다. **진행 · 함정 · 다시 돌리는 법 · 앞으로 계획은
-`scripts/pitch-lab/markers/selfcal/README.md` 에 다 있다 — 먼저 그걸 읽고 사용자에게 지금 상태를 알린다.**
-
-- 한 것: 스티커 찾기 · 2D 관절(Modal) · 시간 맞추기(16개, 대부분 2~5ms) · 카메라 보정(다시 비춤 0.36px, 홀짝 검증 3D 차이 가운데 0.5~0.6cm).
-- 다음: 3단계 마무리(최종 보정 · 미터 · 바닥, 약 15분) → 사용자 허락 뒤 4단계(관절 가운데) · 5단계(엔진 채점).
-- **자료 옮기기(사용자 몫)**: 데스크톱 `C:\Users\PC\bullpen-marker-lab\2026-10-12\` 폴더 통째로(영상 1.8GB + work 290MB)를 맥북
-  `~/bullpen-marker-lab/2026-10-12/` 로 USB · OneDrive 로. 메신저는 안 됨. 영상에 GPS 가 들어 있어 저장소에는 절대 넣지 않는다.
-  못 옮기면 영상만 같은 이름(`videos/투구NN_cN.mov`)으로 두고 README 의 '다시 돌리는 차례'로 work 를 새로 만든다(약 20분).
-- 맥북 메모(아래)와 다른 점: 맥북은 '네 영상이 같은 순간에서 시작(±0.1s)'으로 잘랐다고 했는데, 데스크톱이 원본 트랙 시각(편집 목록 무시)으로
-  잰 투구별 어긋남은 −0.77~+0.76s 였다(`results-2026-10-12/offs16.json`, 카메라 짝 닫힘 2~5ms 로 서로 맞음) — 편집 목록 앞부분(음수 시각) 탓일 수 있어
-  확인할 것. 또 실제 자리는 cam3(아이폰 11)이 홈 쪽 정면, cam4(SE2)가 1루 쪽으로 계산됐다(안내서 ③ · ④ 와 반대).
-- 처리하면 이 줄을 지운다.
+받은 뒤 할 일 없음(DB · 패키지 그대로). **3D 엔진(금윤호 영역)을 고쳤다** — 기본 동작은 그대로, 시험 v1 63 · v2 243 통과.
+- `lib/pitch-3d/camera.ts` `FocalPrior` · `FOCAL_PRIOR_1X`, `CalibInput.focalPrior`, `Pitch3dInput.focalPrior`(analyze.ts) · `V2Input.focalPrior`(contract.ts) → fit.ts.
+  '1배로 찍음'을 알 때만 넘긴다. 마커 채점에서 관절 오차 가운데 3.6 → 3.3cm. **서버(GPU) · 실험실 화면은 아직 안 넘긴다**(사용자 결정 대기 — selfcal/README.md).
+- 마커 정답지 4~7단계: `scripts/pitch-lab/markers/selfcal/` `fill.py` · `bench.py` · `score-all.mjs`, 명령 `npm run pitch3d:marker-score`(자료 없으면 건너뜀).
+  결과 · 판단 근거는 selfcal/README.md '4~7단계 결과'. 맥북 세션 폴더 `~/bullpen-marker-lab/2026-10-12/`(영상은 맥북이 자른 64개에 연결).
 
 ## 데스크톱 Claude 에게 — 2026-10-12 · 김민(Claude, 맥북) — 마커 촬영 16구를 실험실 '마커 샘플'로 올렸다
 

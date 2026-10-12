@@ -216,7 +216,12 @@ def cmd_score(ps, cal_path, world_path, name):
                 le = np.median(np.linalg.norm(E[m, IX[a]] - E[m, IX[b]], axis=1))
                 lt = np.median(np.linalg.norm(T[a][m] - T[b][m], axis=1))
                 bone.append((p, nm, float(le / lt)))
-    out = {"rows": rows, "bone": bone, "mk": mkrows, "dir": dirrows}
+    k4 = [r[4] * 100 for r in rows if r[1] == "K4"]
+    wa = [r[4] * 100 for r in rows if r[1] == "K4" and r[2] in ("lWr", "rWr") and r[3] == "팔 가속"]
+    summary = {"pitches": sorted({r[0] for r in rows}), "k4_median_cm": float(np.median(k4)), "k4_mean_cm": float(np.mean(k4)),
+               "k4_p90_cm": float(np.percentile(k4, 90)), "wrist_accel_p90_cm": float(np.percentile(wa, 90)) if wa else None,
+               "mk_std_cm": float(np.median([r[3] for r in mkrows]) * 100) if mkrows else None}
+    out = {"rows": rows, "bone": bone, "mk": mkrows, "dir": dirrows, "summary": summary}
     os.makedirs(os.path.join(WORK, "bench"), exist_ok=True)
     json.dump(out, open(os.path.join(WORK, "bench", f"score-{name}.json"), "w"))
     report(out)
