@@ -29,7 +29,8 @@ import { PrismaClient } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import {
   buildFacts,
-  NEAR_MAX_INTENSITY,
+  HARD_OUTING_MIN_LOAD,
+  NEAR_MAX_EFFORT_PCT,
   type CheckinLike,
 } from '../lib/report/facts.ts';
 import { buildPitchPlan, YOUTH_AGE_THRESHOLD } from '../lib/report/plan.ts';
@@ -41,7 +42,6 @@ import {
 } from '../lib/report/daily-plan.ts';
 import {
   CONDITIONING_GOAL,
-  HARD_OUTING_MIN_PITCHES,
   minutesChoicesFor,
   type ThemeKey,
 } from '../lib/report/theme.ts';
@@ -53,7 +53,7 @@ import {
 } from '../lib/report/equipment.ts';
 import { TRAINING_LEVEL_NAMES, filterByLevel } from '../lib/report/personalize.ts';
 import { intensityLevel, MAX_INTENSITY_LEVEL } from '../lib/exercise-meta.ts';
-import { shiftDateKey, type PitchLogLike } from '../lib/pitch-stats.ts';
+import { outingLoadOf, shiftDateKey, type PitchLogLike } from '../lib/pitch-stats.ts';
 import { LOW_CONDITION_THRESHOLD } from '../lib/checkin.ts';
 
 const startedAt = Date.now();
@@ -81,7 +81,7 @@ const library = await prisma.exerciseVideo.findMany({
 /*
  * 실제 투구 기록의 투구수 · 강도 · 종류(집계용). D2(체감 강도 0~100%) · D3(세게 던진 날 = 투구수 × 강도)의 문턱을 정할 때
  * 대본 숫자만으로는 모자라서, 실제 분포를 참고 표로 곁들인다. userId · date 는 '같은 사람의 같은 날' 기록을 합쳐 날 단위로
- * 세는 데만 쓰고(facts.ts nearMaxByDay 가 날 단위다) 출력하지 않는다 — 이름 · 메모 같은 개인 정보는 읽지 않는다.
+ * 세는 데만 쓰고(facts.ts outingByDay 가 날 단위다) 출력하지 않는다 — 이름 · 메모 같은 개인 정보는 읽지 않는다.
  */
 const realLogs = await prisma.pitchLog.findMany({
   where: { pitchCount: { gt: 0 } },
@@ -90,6 +90,8 @@ const realLogs = await prisma.pitchLog.findMany({
     date: true,
     pitchCount: true,
     intensity: true,
+    /* 체감 강도(%) — 2판 D2. 옛 줄은 null(세게 던진 날은 intensity × 10 으로 읽는다) */
+    effortPct: true,
     sessionType: true,
   },
 });
@@ -403,7 +405,7 @@ type Throw = { pitchCount: number; intensity: number; sessionType: string };
  * 역할별 던지는 날. 날 번호(i)만으로 정해진다(앞선 기록 14일 포함).
  *   선발 주1회  i ≡ 2 (mod 7) 경기 70~90구 강도 9~10 · +2일 불펜 30구 7 · +4일 캐치볼 25구 5
  *   선발 격주   i ≡ 2 (mod 14) 경기 85구 10 · +3일 불펜 35구 7 · +6일 불펜 30구 7 · +9일 캐치볼 25구 5
- *   구원        사흘에 한 번 경기 20구와 35구를 번갈아(강도 9) — 30구 문턱(HARD_OUTING_MIN_PITCHES) 양쪽에 걸치게 · 다음 날 캐치볼 20구 5
+ *   구원        사흘에 한 번 경기 20구와 35구를 번갈아(강도 9) — 세게 던진 날 문턱(2,000 · 3,500 ↔ HARD_OUTING_MIN_LOAD 2,700) 양쪽에 걸치게 · 다음 날 캐치볼 20구 5
  *   비시즌      안 던진다(최근 투구 기록 없음 → 투구 부하로 거르지 않는 길)
  */
 function throwOn(role: Role, i: number): Throw | null {
@@ -688,7 +690,8 @@ const PITCH_VARIANT_LABEL: Record<PitchVariant, string> = {
 };
 function pitchVariantApplies(kind: PitchVariant, t: Throw): boolean {
   if (kind === 'double') return true;
-  if (kind === 'intensity') return t.intensity >= NEAR_MAX_INTENSITY;
+  /* 강도 9~10(= 체감 90% 이상, 옛 NEAR_MAX_INTENSITY 9 와 같은 날) */
+  if (kind === 'intensity') return t.intensity * 10 >= NEAR_MAX_EFFORT_PCT;
   return t.sessionType === '경기';
 }
 function patchYesterdayBy(kind: PitchVariant): (log: PitchLogLike) => PitchLogLike {
@@ -697,12 +700,14 @@ function patchYesterdayBy(kind: PitchVariant): (log: PitchLogLike) => PitchLogLi
   return (log) => ({ ...log, sessionType: '불펜', intensity: 6 });
 }
 
-/** 지금 코드의 '세게 던진 날' — 경기, 또는 강도 9~10 으로 30구 이상(facts.ts · theme.ts) */
+/**
+ * 지금 코드의 '세게 던진 날' — 투구수 × 체감 강도(%) ≥ HARD_OUTING_MIN_LOAD(2,700), 경기는 100%(facts.ts · pitch-stats.ts
+ * outingLoadOf 그대로, 2판 D2). 대본은 하루 한 번만 던져 기록 하나 = 그날. 이 대본의 던지는 날(불펜 30 · 35구 7, 캐치볼 20 · 25구 5,
+ * 경기 20구 · 35구 · 70~90구)은 옛 규칙(경기 또는 강도 9~10 · 30구)과 같은 날만 세게 던진 날이다 — 전후 수치를 견줄 수 있다.
+ */
 function isHardThrow(t: Throw | null): boolean {
   if (!t) return false;
-  const nearMax =
-    t.sessionType === '경기' || Math.round(t.intensity) >= NEAR_MAX_INTENSITY;
-  return nearMax && t.pitchCount >= HARD_OUTING_MIN_PITCHES;
+  return outingLoadOf(t) >= HARD_OUTING_MIN_LOAD;
 }
 
 /* ------------------------------ 시뮬레이션 ------------------------------ */
@@ -1131,7 +1136,7 @@ const afterHard = allDays.filter((d) => isHardThrow(d.yesterday));
 const afterHardRecovery = afterHard.filter((d) => d.theme === 'recovery').length;
 const afterHardApp = afterHard.filter((d) => d.hasCheckin);
 const afterHardRecoveryApp = afterHardApp.filter((d) => d.theme === 'recovery').length;
-/* 달력으로 '경기 다음 날'이면서 30구 미만이라 세게 던진 날이 아닌 것(구원 20구) — D3 가 가르는 경계 */
+/* 달력으로 '경기 다음 날'이면서 문턱 밑이라(경기 20구 = 2,000) 세게 던진 날이 아닌 것(구원 20구) — D3 가 가르는 경계 */
 const afterLightGame = allDays.filter(
   (d) => d.yesterday?.sessionType === '경기' && !isHardThrow(d.yesterday)
 );
@@ -1152,6 +1157,8 @@ const INTENSITY_BANDS = [
 type LogShape = {
   pitchCount: number;
   intensity: number;
+  /** 체감 강도(%) — 옛 줄 · 대본은 없음(null) */
+  effortPct?: number | null;
   sessionType: string | undefined;
   /** '같은 사람의 같은 날' 열쇠 — 날 단위로 합칠 때만 쓴다(출력하지 않는다) */
   dayKey: string;
@@ -1180,29 +1187,24 @@ function loadDistribution(logs: LogShape[]) {
       ).length;
     }
   }
-  /* 기록 한 줄씩 보면 — 한 줄이 그 자체로 지금 규칙(경기 또는 강도 9~10 · 30구 이상)에 드는 것 */
-  const hardLogs = logs.filter((l) =>
-    isHardThrow({
-      pitchCount: l.pitchCount,
-      intensity: l.intensity,
-      sessionType: l.sessionType ?? '',
-    })
+  /* 기록 한 줄씩 보면 — 한 줄이 그 자체로 지금 규칙(투구수 × 체감 강도 ≥ 2,700, 경기 100%)에 드는 것 */
+  const hardLogs = logs.filter(
+    (l) =>
+      outingLoadOf({ ...l, sessionType: l.sessionType ?? '' }) >= HARD_OUTING_MIN_LOAD
   ).length;
   /*
-   * 날 단위 — 지금 코드(facts.ts nearMaxByDay → theme.ts hardOuting)가 실제로 판정하는 꼴. 경기이거나 강도 9~10 인 기록의
-   * 투구수를 그날 합쳐 30구 이상이면 세게 던진 날. 사용 통계 도구(training-usage-stats.mts)와 같은 식이라 두 숫자를 맞댈 수 있다.
+   * 날 단위 — 지금 코드(facts.ts outingByDay → isHardOuting)가 실제로 판정하는 꼴. 기록마다 투구수 × 체감 강도(%)(경기 100%)를
+   * 그날 합쳐 2,700 이상이면 세게 던진 날. 사용 통계 도구(training-usage-stats.mts)와 같은 식이라 두 숫자를 맞댈 수 있다.
    */
-  const nearMaxByDay = new Map<string, number>();
+  const loadByDay = new Map<string, number>();
   const thrownDays = new Set<string>();
   for (const l of logs) {
     thrownDays.add(l.dayKey);
-    const nearMax =
-      l.sessionType === '경기' || Math.round(l.intensity) >= NEAR_MAX_INTENSITY;
-    if (!nearMax) continue;
-    nearMaxByDay.set(l.dayKey, (nearMaxByDay.get(l.dayKey) ?? 0) + l.pitchCount);
+    const load = outingLoadOf({ ...l, sessionType: l.sessionType ?? '' });
+    loadByDay.set(l.dayKey, (loadByDay.get(l.dayKey) ?? 0) + load);
   }
-  const hardDays = [...nearMaxByDay.values()].filter(
-    (pitches) => pitches >= HARD_OUTING_MIN_PITCHES
+  const hardDays = [...loadByDay.values()].filter(
+    (load) => load >= HARD_OUTING_MIN_LOAD
   ).length;
   return {
     count: logs.length,
@@ -1227,6 +1229,7 @@ const realDistribution = loadDistribution(
   realLogs.map((l) => ({
     pitchCount: l.pitchCount,
     intensity: l.intensity,
+    effortPct: l.effortPct,
     sessionType: l.sessionType,
     dayKey: `${l.userId}|${l.date.toISOString().slice(0, 10)}`,
   }))
@@ -1519,7 +1522,7 @@ out.push(
       ],
       [
         '⑪',
-        `D3 — 세게 던진 다음 날(경기 또는 강도 ≥${NEAR_MAX_INTENSITY} · ${HARD_OUTING_MIN_PITCHES}구 이상의 다음 날)에 지금 코드가 회복을 낸 날 / 그런 날`,
+        `D3 — 세게 던진 다음 날(투구수 × 체감 강도 ≥ ${HARD_OUTING_MIN_LOAD.toLocaleString('en-US')}, 경기 100% 의 다음 날)에 지금 코드가 회복을 낸 날 / 그런 날`,
         both(
           afterHardRecovery,
           afterHard.length,
@@ -1610,7 +1613,7 @@ out.push(
     .map(([k, v]) => `${k}:${v}`)
     .join(
       ' '
-    )} · 지금 규칙의 세게 던진 날(같은 사람의 같은 날 기록을 합쳐 ${HARD_OUTING_MIN_PITCHES}구 이상 — facts.ts 와 같은 날 단위) ${pct(realDistribution.hardDaysByCurrentRule, realDistribution.thrownDays)}, 기록 한 줄씩 보면 ${pct(realDistribution.hardLogsByCurrentRule, realDistribution.count)}`
+    )} · 지금 규칙의 세게 던진 날(같은 사람의 같은 날 기록을 합쳐 투구수 × 체감 강도 ≥ ${HARD_OUTING_MIN_LOAD.toLocaleString('en-US')} — facts.ts 와 같은 날 단위) ${pct(realDistribution.hardDaysByCurrentRule, realDistribution.thrownDays)}, 기록 한 줄씩 보면 ${pct(realDistribution.hardLogsByCurrentRule, realDistribution.count)}`
 );
 
 /* 검토안 2판 수치 — docs/designs/training-recommendation-engine.md '검토안 요지'와 P0 과제 메모에서 옮김 */

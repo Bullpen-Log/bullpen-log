@@ -14,7 +14,14 @@ import {
 } from '@/lib/exercise-meta';
 import { withJosa } from '@/lib/korean';
 import { shiftDateKey } from '@/lib/pitch-stats';
-import type { ReportFacts } from '@/lib/report/facts';
+import {
+  HARD_OUTING_MIN_LOAD,
+  HARD_OUTING_MIN_PITCHES,
+  isHardOuting,
+  isNearMaxOuting,
+  type HardOuting,
+  type ReportFacts,
+} from '@/lib/report/facts';
 import type { PitchPlan } from '@/lib/report/plan';
 import {
   checkinPartLabel,
@@ -217,10 +224,10 @@ export type SessionTheme = {
 export { LOW_CONDITION_THRESHOLD };
 
 /**
- * 세게 던진 날로 치는 최소 투구수(그날 거의 최대 강도로 던진 공의 합).
- * 짧게 몇 개만 세게 던진 날은 다음 날을 막지 않는다(2026-10-03 사용자분과 정함).
+ * 세게 던진 날 문턱 — 값 · 판정은 lib/report/facts.ts 한 곳(HARD_OUTING_MIN_LOAD · isHardOuting, 2판 D2). 여기서는 옛 import
+ * (스크립트 · 자체 시험이 theme 에서 읽는다)가 그대로 맞게 다시 내보내기만 한다.
  */
-export const HARD_OUTING_MIN_PITCHES = 30;
+export { HARD_OUTING_MIN_LOAD, HARD_OUTING_MIN_PITCHES };
 
 /**
  * 세게 던진 날의 여파 — 그날과 다음 날은 가벼운 컨디셔닝(회복·재생 데이), 이틀 뒤부터 무거운 웨이트 · 파워.
@@ -232,17 +239,16 @@ export const HARD_OUTING_MIN_PITCHES = 30;
  * (plannedOuting, 2026-10-09 — 그 전에는 묻기만 하고 안 읽었다). 며칠 뒤 등판인지는 2026-10-12 부터 체크인이
  * '2~3일 뒤 · 4일 이상 뒤'로 받지만(lib/checkin.ts nextOutingDays) 이 테마 규칙은 아직 안 쓴다 — 2판 P4 · P5 몫.
  *
- * '세게 던진 날' = 경기, 또는 강도 9~10으로 그날 합쳐 30구 이상(facts.patterns.hardOutings).
+ * '세게 던진 날' = 그날 투구수 × 체감 강도(%)의 합이 2,700(30구 × 90%) 이상, 경기는 체감과 상관없이 100%
+ * (2판 D2, 2026-10-12 — facts.ts 의 isHardOuting). 그 전 규칙(경기, 또는 강도 9~10 으로 그날 합쳐 30구 이상)으로 세게
+ * 던진 날은 모두 그대로 세게 던진 날이고, 많이 가볍게 던진 날(불펜 40구 70% 같은)이 새로 든다.
  * 그보다 가볍게 던진 날은 다음 날을 막지 않는다. 공을 쉬어야 하는 날은 투구 계획이 따로 말하고,
  * 쌓인 부하는 부하 지수(주의 · 위험 구간)가 따로 본다.
  */
-export function hardOuting(
-  facts: ReportFacts
-): { daysAgo: number; pitches: number } | null {
+export function hardOuting(facts: ReportFacts): HardOuting | null {
   return (
-    (facts.patterns.hardOutings ?? []).find(
-      (o) => o.daysAgo <= 1 && o.pitches >= HARD_OUTING_MIN_PITCHES
-    ) ?? null
+    (facts.patterns.hardOutings ?? []).find((o) => o.daysAgo <= 1 && isHardOuting(o)) ??
+    null
   );
 }
 
@@ -283,14 +289,22 @@ function plannedOutingReason(when: 'today' | 'tomorrow'): string {
     : '내일 등판이라 무게 대신 코어와 보강을 해요. 등판 전날은 다리를 가볍게 둬요.';
 }
 
-/** '오늘 거의 전력으로 82구를 던지셨어요' / '어제 …' */
-function outingPhrase(outing: { pitches: number; daysAgo: number }): string {
+/**
+ * '오늘 거의 전력으로 82구를 던지셨어요' / '어제 60구를 던져 팔 부담이 컸어요'.
+ *
+ * 그날 체감 평균이 90% 이상(경기 · 옛 강도 9~10)이면 예전 글 그대로 '거의 전력으로'. 곱 규칙으로 새로 드는 날(불펜 60구
+ * 50% 같은)에 '거의 전력'이라고 하면 틀린 말이라, 그때는 왜 쉬는지(팔에 간 양)를 말한다. 평균 %는 안 적는다 — 경기는
+ * 적은 값과 상관없이 100% 로 셈해 숫자가 사용자가 고른 것과 달라 보인다.
+ */
+function outingPhrase(outing: HardOuting): string {
   const when = outing.daysAgo === 0 ? '오늘' : '어제';
-  return `${when} 거의 전력으로 ${outing.pitches}구를 던지셨어요`;
+  return isNearMaxOuting(outing)
+    ? `${when} 거의 전력으로 ${outing.pitches}구를 던지셨어요`
+    : `${when} ${outing.pitches}구를 던져 팔 부담이 컸어요`;
 }
 
 /** 세게 던진 날의 회복·재생 데이 이유 — 언제부터 다시 무게를 드는지까지 말한다 */
-function hardOutingReason(outing: { pitches: number; daysAgo: number }): string {
+function hardOutingReason(outing: HardOuting): string {
   return outing.daysAgo === 0
     ? `${outingPhrase(outing)}. 오늘과 내일은 가볍게 풀고, 모레부터 무게를 다시 올려요.`
     : `${outingPhrase(outing)}. 오늘은 가볍게 풀고, 내일부터 무게를 다시 올려요.`;

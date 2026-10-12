@@ -1,4 +1,4 @@
-import type { ReportFacts } from '@/lib/report/facts';
+import { isNearMaxOuting, type ReportFacts } from '@/lib/report/facts';
 import { hardOuting } from '@/lib/report/theme';
 import {
   CHECKIN_PARTS,
@@ -28,7 +28,7 @@ import { josa, withJosa } from '@/lib/korean';
  *   자동 맞춤의 운동 부하 · poorSleepDays — facts 밖이거나 자동 맞춤만 읽고, 오늘 운동을 마치면 늘 바뀐다(auto.rules 글에 남는다).
  *   recentIds · sessionsAgo · lastLower/UpperKey · 씨앗 — 목록 순서 · 차례이지 '상태'가 아니다.
  *   '마지막 투구의 강도 · 종류' — facts 에 날 단위 칸이 없다. 전력 환산(lastOutingAdjusted — 강도 · 종류가 들어간 값)과
- *     hardOuting(경기 또는 강도 9~10 · 30구↑)으로 덮는다. D2(체감 강도, P3)에서 칸이 생기면 선택 칸으로 더한다.
+ *     hardOuting(그날 투구수 × 체감 강도 ≥ 2,700 — load 선택 칸, 2판 D2)으로 덮는다.
  *
  * 순수 함수만 둔다(DB · 날짜 함수 없음 — 같은 facts 면 같은 지문, JSON.stringify 까지 글자가 같다). 안전 재검사
  * (today-data.ts 의 safeIds · droppedForSafety)와는 독립이다 — 그쪽은 '후보'를 지금 기준으로 다시 걸러 운동을 빼는 것,
@@ -67,8 +67,12 @@ export type PlanFingerprint = {
   zone: AcwrZone | null;
   /** 마지막으로 던진 날 — 날짜 · 구수 · 전력 환산 구수(정수) */
   lastThrow: null | { date: string; pitches: number; adjusted: number };
-  /** 세게 던진 날(theme.ts 의 hardOuting — 어제 · 오늘, 30구 이상) */
-  hardOuting: null | { daysAgo: number; pitches: number };
+  /**
+   * 세게 던진 날(theme.ts 의 hardOuting — 어제 · 오늘). pitches 는 그날 던진 공의 합, load 는 그날 투구수 × 체감 강도(%)
+   * (facts.ts 의 HardOuting). load 는 선택 칸이다 — 2판 D2(2026-10-12) 전에 저장된 지문에는 없고(그때 pitches 는 거의 전력
+   * 투구수), load 없는 facts(옛 저장 facts)로 찍은 지문에도 없다. 칸 목록(FINGERPRINT_KEYS)은 그대로다(안쪽 칸이라).
+   */
+  hardOuting: null | { daysAgo: number; pitches: number; load?: number };
 };
 
 /** 지문의 칸 목록(순서까지) — 칸을 더하거나 빼면 자체 시험이 이 목록과 견줘 알린다 */
@@ -134,7 +138,14 @@ export function fingerprintOf(facts: ReportFacts): PlanFingerprint {
             adjusted: Math.round(lastOutingAdjusted ?? lastOutingPitches),
           }
         : null,
-    hardOuting: outing ? { daysAgo: outing.daysAgo, pitches: outing.pitches } : null,
+    /* load 는 있을 때만 — 없는 facts 의 지문은 예전과 글자까지 같다 */
+    hardOuting: outing
+      ? {
+          daysAgo: outing.daysAgo,
+          pitches: outing.pitches,
+          ...(outing.load != null ? { load: outing.load } : {}),
+        }
+      : null,
   };
 }
 
@@ -217,7 +228,13 @@ export function readPlanFingerprint(value: unknown): PlanFingerprint | null {
     if (!v.hardOuting || typeof v.hardOuting !== 'object') return null;
     const o = v.hardOuting as Record<string, unknown>;
     if (!isNum(o.daysAgo) || !isNum(o.pitches)) return null;
-    outing = { daysAgo: o.daysAgo, pitches: o.pitches };
+    /* load 는 선택 칸 — 없으면(옛 지문) 통과, 있는데 숫자가 아니면 깨진 지문 */
+    if (o.load !== undefined && !isNum(o.load)) return null;
+    outing = {
+      daysAgo: o.daysAgo,
+      pitches: o.pitches,
+      ...(isNum(o.load) ? { load: o.load } : {}),
+    };
   }
 
   return {
@@ -482,9 +499,15 @@ export function diffFingerprintChanges(
   {
     const a = saved.hardOuting;
     const b = now.hardOuting;
+    /*
+     * load 는 둘 다 있을 때만 견준다 — 2판 D2 전에 저장된 지문(load 없음)과 지금 지문을 load 하나로 '바뀜'이라 하지 않게.
+     * (그 지문의 pitches 는 거의 전력 투구수라, 경기 뒤 캐치볼을 한 날은 배포 당일 한 번 '바뀌었어요'가 뜰 수 있다.)
+     */
+    const samePitches =
+      a != null && b != null && a.daysAgo === b.daysAgo && a.pitches === b.pitches;
     const same =
       (a == null && b == null) ||
-      (a != null && b != null && a.daysAgo === b.daysAgo && a.pitches === b.pitches);
+      (samePitches && (a.load == null || b.load == null || a.load === b.load));
     if (!same) {
       const when = b && b.daysAgo === 0 ? '오늘' : '어제';
       push(
@@ -492,8 +515,12 @@ export function diffFingerprintChanges(
         b == null
           ? '세게 던진 날 표시가 풀렸어요'
           : a == null
-            ? `${when} 거의 전력으로 ${b.pitches}구를 던진 기록이 들어왔어요`
-            : `세게 던진 기록이 ${when} ${b.pitches}구로 바뀌었어요`
+            ? isNearMaxOuting(b)
+              ? `${when} 거의 전력으로 ${b.pitches}구를 던진 기록이 들어왔어요`
+              : `${when} 팔 부담이 큰 ${b.pitches}구 기록이 들어왔어요`
+            : samePitches
+              ? `${when} 세게 던진 기록의 체감 강도가 바뀌었어요`
+              : `세게 던진 기록이 ${when} ${b.pitches}구로 바뀌었어요`
       );
     }
   }

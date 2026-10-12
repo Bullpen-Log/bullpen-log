@@ -15,10 +15,9 @@
  */
 import { PrismaClient } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
-import { toDateKey } from '../lib/pitch-stats.ts';
+import { effortPctOf, outingLoadOf, toDateKey } from '../lib/pitch-stats.ts';
 import { ageFromBirthDate } from '../lib/profile.ts';
-import { NEAR_MAX_INTENSITY } from '../lib/report/facts.ts';
-import { HARD_OUTING_MIN_PITCHES } from '../lib/report/theme.ts';
+import { HARD_OUTING_MIN_LOAD, HARD_OUTING_MIN_PITCHES } from '../lib/report/facts.ts';
 import { YOUTH_AGE_THRESHOLD } from '../lib/report/plan.ts';
 import { THROW_PLANS } from '../lib/checkin.ts';
 import { REST_SESSION_TYPE } from '../lib/session-type.ts';
@@ -518,9 +517,15 @@ async function sectionCompletion(
 
 /* ───────────────────── ③ 투구 강도 — D2 · D3 의 바탕 ───────────────────── */
 
+/**
+ * 옛 '세게 던진 날' 규칙의 강도 문턱(1~10) — 2026-10-03 사용자분과 정한 '경기, 또는 강도 9~10'. 앱은 2판 D2(2026-10-12)부터
+ * 투구수 × 체감 강도(HARD_OUTING_MIN_LOAD)로 가르고 이 값을 안 쓴다(facts.ts 의 NEAR_MAX_INTENSITY 를 지웠다). 전후를 견주려고 여기만 남긴다.
+ */
+const OLD_NEAR_MAX_INTENSITY = 9;
+
 async function sectionIntensity() {
   heading(
-    `③ 투구 강도(PitchLog.intensity 1~10) — '세게 던진 날' 지금 정의: 경기 또는 강도 ${NEAR_MAX_INTENSITY}~10 으로 그날 합쳐 ${HARD_OUTING_MIN_PITCHES}구 이상`
+    `③ 투구 강도(PitchLog.intensity 1~10 · effortPct 5~100%) — '세게 던진 날' 지금 정의(2판 D2): 그날 투구수 × 체감 강도 ≥ ${HARD_OUTING_MIN_LOAD.toLocaleString('en-US')}(경기 100%) · 옛 정의: 경기 또는 강도 ${OLD_NEAR_MAX_INTENSITY}~10 으로 그날 합쳐 ${HARD_OUTING_MIN_PITCHES}구 이상`
   );
   /* 휴식 기록은 투구수 · 강도가 0 이라 강도 분포에서 뺀다 — 넣으면 0 이 '약하게 던짐'처럼 보인다. */
   const thrownWhere = {
@@ -602,8 +607,10 @@ async function sectionIntensity() {
   );
 
   /*
-   * 기록 단위와 날 단위를 따로 센다. 지금 규칙(facts.ts nearMaxByDay → theme.ts hardOuting)은 날 단위다 —
-   * 경기이거나 강도 9~10 인 기록의 투구수를 그날 합쳐 30구 이상이면 '세게 던진 날'.
+   * 기록 단위와 날 단위를 따로 센다. 지금 규칙(2판 D2 — facts.ts outingByDay → isHardOuting)은 날 단위다 — 기록마다
+   * 투구수 × 체감 강도(%)(경기 100%, pitch-stats.ts outingLoadOf)를 그날 합쳐 2,700 이상이면 '세게 던진 날'. 옛 규칙(경기이거나
+   * 강도 9~10 인 기록의 투구수를 그날 합쳐 30구 이상)도 나란히 센다 — 옛 규칙으로 세게였던 날은 새 규칙에서도 다 세게이고
+   * (빠지는 날 0 이어야 한다), 새로 세게가 되는 날이 몇인지가 D2 로 달라지는 몫이다.
    *
    * 날 단위는 기록을 메모리에 올려 센다 — 기록이 상한을 넘으면 이 절만 건너뛴다(1분 안에 끝내려고).
    */
@@ -621,34 +628,46 @@ async function sectionIntensity() {
       date: true,
       sessionType: true,
       intensity: true,
+      effortPct: true,
       pitchCount: true,
     },
   });
+  /* 옛 규칙 — 1~10 칸으로 본다(% 로 적은 기록도 저장된 intensity 로) */
   const isNearMax = (l: { sessionType: string; intensity: number }) =>
-    l.sessionType === '경기' || Math.round(l.intensity) >= NEAR_MAX_INTENSITY;
+    l.sessionType === '경기' || Math.round(l.intensity) >= OLD_NEAR_MAX_INTENSITY;
   const nearMaxLogs = logs.filter(isNearMax);
   const nearMaxGame = logs.filter((l) => l.sessionType === '경기');
   const gameBelow = nearMaxGame.filter(
-    (l) => Math.round(l.intensity) < NEAR_MAX_INTENSITY
+    (l) => Math.round(l.intensity) < OLD_NEAR_MAX_INTENSITY
   );
   const nearMaxNotGame = logs.filter(
-    (l) => l.sessionType !== '경기' && Math.round(l.intensity) >= NEAR_MAX_INTENSITY
+    (l) => l.sessionType !== '경기' && Math.round(l.intensity) >= OLD_NEAR_MAX_INTENSITY
   );
+  const pctLogs = logs.filter((l) => l.effortPct != null);
 
-  type Day = { pitches: number; nearMax: number; load: number; maxIntensity: number };
+  type Day = {
+    pitches: number;
+    nearMax: number;
+    /** 투구수 × 체감 강도(%) — 경기 특례 없음(D3 미리보기) */
+    load: number;
+    /** 세게 던진 날을 가리는 몫 — 경기 100%(outingLoadOf) */
+    hardLoad: number;
+  };
   const days = new Map<string, Day>();
   for (const l of logs) {
     const key = `${l.userId}|${keyOf(l.date)}`;
-    const d = days.get(key) ?? { pitches: 0, nearMax: 0, load: 0, maxIntensity: 0 };
+    const d = days.get(key) ?? { pitches: 0, nearMax: 0, load: 0, hardLoad: 0 };
     d.pitches += l.pitchCount;
     if (isNearMax(l)) d.nearMax += l.pitchCount;
-    /* D2 의 미리보기 — 투구수 × 강도(지금 1~10 눈금을 ×10 해 0~100 체감 강도로 읽은 것) */
-    d.load += l.pitchCount * l.intensity * 10;
-    d.maxIntensity = Math.max(d.maxIntensity, l.intensity);
+    d.load += l.pitchCount * effortPctOf(l);
+    d.hardLoad += outingLoadOf(l);
     days.set(key, d);
   }
   const dayList = [...days.values()];
-  const hardDays = dayList.filter((d) => d.nearMax >= HARD_OUTING_MIN_PITCHES);
+  const hardDays = dayList.filter((d) => d.hardLoad >= HARD_OUTING_MIN_LOAD);
+  const oldHardDays = dayList.filter((d) => d.nearMax >= HARD_OUTING_MIN_PITCHES);
+  const newlyHard = hardDays.filter((d) => d.nearMax < HARD_OUTING_MIN_PITCHES);
+  const droppedHard = oldHardDays.filter((d) => d.hardLoad < HARD_OUTING_MIN_LOAD);
   const nearMaxDaysUnder = dayList.filter(
     (d) => d.nearMax > 0 && d.nearMax < HARD_OUTING_MIN_PITCHES
   );
@@ -656,6 +675,11 @@ async function sectionIntensity() {
   table(
     ['세게 던진 날 정의에 비춘 것', '수', '비율'],
     [
+      [
+        '던진 기록 중 % 로 적은 것(effortPct 있음)',
+        pctLogs.length,
+        pct(pctLogs.length, thrown),
+      ],
       [
         '던진 기록 중 경기 또는 강도 9~10',
         nearMaxLogs.length,
@@ -673,21 +697,33 @@ async function sectionIntensity() {
         pct(nearMaxNotGame.length, thrown),
       ],
       [
-        `던진 기록 중 지금 정의에 드는 것(경기 또는 9~10, 그 기록만 ${HARD_OUTING_MIN_PITCHES}구 이상)`,
-        nearMaxLogs.filter((l) => l.pitchCount >= HARD_OUTING_MIN_PITCHES).length,
-        pct(
-          nearMaxLogs.filter((l) => l.pitchCount >= HARD_OUTING_MIN_PITCHES).length,
-          thrown
-        ),
+        `던진 기록 중 그 기록만으로 지금 정의에 드는 것(투구수 × 체감 강도 ≥ ${HARD_OUTING_MIN_LOAD.toLocaleString('en-US')})`,
+        logs.filter((l) => outingLoadOf(l) >= HARD_OUTING_MIN_LOAD).length,
+        pct(logs.filter((l) => outingLoadOf(l) >= HARD_OUTING_MIN_LOAD).length, thrown),
       ],
       ['던진 날(사용자 · 날짜)', dayList.length, '·'],
       [
-        `  세게 던진 날(날 단위, 합쳐 ${HARD_OUTING_MIN_PITCHES}구 이상)`,
+        `  세게 던진 날(지금 정의 — 날 단위, 합쳐 ${HARD_OUTING_MIN_LOAD.toLocaleString('en-US')} 이상)`,
         hardDays.length,
         pct(hardDays.length, dayList.length),
       ],
       [
-        `  세게 던졌지만 ${HARD_OUTING_MIN_PITCHES}구 미만(지금은 세게 아님)`,
+        `  옛 정의로 세게 던진 날(경기 또는 9~10 을 합쳐 ${HARD_OUTING_MIN_PITCHES}구 이상)`,
+        oldHardDays.length,
+        pct(oldHardDays.length, dayList.length),
+      ],
+      [
+        '  새로 세게가 된 날(옛 정의로는 아님 — 많이 가볍게 던진 날)',
+        newlyHard.length,
+        pct(newlyHard.length, dayList.length),
+      ],
+      [
+        '  옛 정의로 세게였는데 빠진 날(0 이어야 한다 — % 로 85% 같은 값을 적은 날만 생길 수 있다)',
+        droppedHard.length,
+        pct(droppedHard.length, dayList.length),
+      ],
+      [
+        `  경기 또는 9~10 으로 던졌지만 ${HARD_OUTING_MIN_PITCHES}구 미만(옛 정의로는 세게 아님)`,
         nearMaxDaysUnder.length,
         pct(nearMaxDaysUnder.length, dayList.length),
       ],
@@ -696,7 +732,7 @@ async function sectionIntensity() {
 
   const loads = dayList.map((d) => d.load);
   const pitches = dayList.map((d) => d.pitches);
-  const hardLoads = hardDays.map((d) => d.load);
+  const hardLoads = hardDays.map((d) => d.hardLoad);
   const spread = (label: string, values: number[]) => [
     label,
     fmt(quantile(values, 0.5)),
@@ -708,8 +744,8 @@ async function sectionIntensity() {
     ['하루 단위(D2 · D3 미리보기)', 'p50', 'p75', 'p90', '최대'],
     [
       spread('하루 투구수', pitches),
-      spread('하루 투구수 × 체감 강도(강도 ×10, 0~100)', loads),
-      spread('세게 던진 날의 투구수 × 체감 강도', hardLoads),
+      spread('하루 투구수 × 체감 강도(%, effortPctOf — 경기 특례 없음)', loads),
+      spread('세게 던진 날의 투구수 × 체감 강도(경기 100%)', hardLoads),
     ]
   );
 }

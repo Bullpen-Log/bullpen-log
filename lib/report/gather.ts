@@ -119,6 +119,8 @@ export async function gatherFactsAndPlan(
       sessionType: l.sessionType,
       pitchCount: l.pitchCount,
       intensity: l.intensity,
+      /* 체감 강도(%) — 2판 D2. 옛 줄은 null 이라 facts 는 intensity × 10 으로 읽는다(pitch-stats.ts effortPctOf) */
+      effortPct: l.effortPct,
       maxVelocity: l.maxVelocity,
       avgVelocity: l.avgVelocity,
     })),

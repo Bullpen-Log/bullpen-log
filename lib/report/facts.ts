@@ -10,6 +10,7 @@ import {
   groupByDay,
   longestThrowStreak,
   countMissingDays,
+  outingLoadOf,
   summarize,
   toDateKey,
   type AcwrResult,
@@ -169,13 +170,14 @@ export type ReportFacts = {
      */
     recentOutings: { daysAgo: number; pitches: number; adjusted: number }[];
     /**
-     * 거의 최대 강도로 던진 공 — 날마다, 가까운 것부터(이레 안).
+     * 세게 던졌는지 가릴 재료 — 던진 날마다, 가까운 것부터(이레 안). 판정은 isHardOuting 한 곳(theme.ts 의 hardOuting 이 부른다).
      *
-     * 경기는 강도와 상관없이 전력으로 보고(lib/pitch-stats.ts 의 stressFactor 와 같은 판단), 그 밖은
-     * 강도 NEAR_MAX_INTENSITY 이상으로 던진 공만 센다. 몇 구부터 '세게 던진 날'인지는 theme.ts 가 정한다.
-     * 이 칸이 생기기 전에 저장된 facts 에는 없다 — 읽는 쪽은 없으면 빈 목록으로 본다.
+     * 2판 D2(2026-10-12)부터 load = 그날 Σ 투구수 × 체감 강도(%)(lib/pitch-stats.ts 의 outingLoadOf — 경기는 100%),
+     * pitches = 그날 던진 공의 합. 그 전에는 '경기이거나 강도 9~10 인 기록의 투구수'만 날마다 더해 pitches 에 담았고
+     * load 칸이 없었다 — 그때 저장된 facts 는 load 없이 오고, isHardOuting 이 옛 규칙(pitches ≥ 30)으로 읽는다.
+     * 이 칸이 아예 생기기 전에 저장된 facts 에는 없다 — 읽는 쪽은 없으면 빈 목록으로 본다.
      */
-    hardOutings?: { daysAgo: number; pitches: number }[];
+    hardOutings?: HardOuting[];
   };
   condition: {
     today: CheckinLike | null;
@@ -241,9 +243,48 @@ function changeRate(current: number, previous: number): number | null {
 const OUTING_MEMORY_DAYS = 7;
 
 /**
- * 거의 최대 강도로 본다 — 체감 강도(1~10) 이 값 이상(2026-10-03 사용자분과 정함: 경기, 또는 강도 9~10).
+ * 세게 던진 날 — 그날 던진 공의 투구수 × 체감 강도(%)를 더해 이 값 이상(2판 D2 · D3, 2026-10-12 사용자 결정).
+ *
+ * 2,700 %·구 = 30구 × 90%. 그 전 규칙('경기, 또는 강도 9~10 으로 그날 합쳐 30구 이상', 2026-10-03 사용자분과 정함)의 바닥을
+ * 그대로 옮긴 값이라, 옛 기록(1~10 → ×10)으로 세게 던진 날이던 날은 모두 그대로 세게 던진 날이다 — 경기 · 강도 9~10 의 공
+ * 하나가 90 이상을 보태고, 다른 기록은 0 이상을 보탠다.
+ * 새로 세게가 되는 날(곱 규칙의 본뜻 — 적게 세게든 많이 가볍게든 팔에 간 양을 본다): 불펜 40구 70%(2,800) · 60구 50%(3,000) ·
+ * 경기 25구 + 캐치볼 20구 50%(3,500) · 경기나 강도 10 으로 27~29구(예전엔 30구 미만이라 아니었다).
+ * 빠지는 날: % 로 새로 적은 85% 30구(2,550 — 1~10 이면 9 로 올림돼 세게였다). 옛 기록에는 없는 꼴이다.
+ * 경기는 체감과 상관없이 100%(lib/pitch-stats.ts outingLoadOf) — 경기 20구는 2,000 이라 지금처럼 아니다.
+ * 이 파일에 두는 까닭: theme.ts 를 부르지 않는 낮은 층이라 기준선 · 사용 통계 도구 · 오늘 상태(day-state)가 그대로 가져다 쓴다.
  */
-export const NEAR_MAX_INTENSITY = 9;
+export const HARD_OUTING_MIN_LOAD = 2700;
+
+/**
+ * load 칸이 없는 옛 facts(2026-10-12 전에 저장된 것)를 읽는 문턱 — 그때 pitches 는 '경기이거나 강도 9~10 인 공의 합'이었다.
+ * 짧게 몇 개만 세게 던진 날은 다음 날을 막지 않는다(2026-10-03 사용자분과 정함). theme.ts 가 다시 내보낸다.
+ */
+export const HARD_OUTING_MIN_PITCHES = 30;
+
+/** 거의 전력으로 본다 — 그날 체감 평균이 이 % 이상(옛 강도 9~10). 판정이 아니라 이유 글이 '거의 전력으로'라고 할지만 가른다 */
+export const NEAR_MAX_EFFORT_PCT = 90;
+
+/** 세게 던졌는지 가릴 재료 한 날(facts.patterns.hardOutings) */
+export type HardOuting = {
+  daysAgo: number;
+  /** 그날 던진 공의 합(옛 facts 는 경기 · 강도 9~10 인 공의 합) */
+  pitches: number;
+  /** 그날 Σ 투구수 × 체감 강도(%), 경기는 100%(outingLoadOf). 옛 facts 에는 없다 */
+  load?: number;
+};
+
+/** 세게 던진 날인가 — load 가 있으면 HARD_OUTING_MIN_LOAD, 없으면(옛 facts) 옛 규칙 HARD_OUTING_MIN_PITCHES */
+export function isHardOuting(o: HardOuting): boolean {
+  return o.load != null
+    ? o.load >= HARD_OUTING_MIN_LOAD
+    : o.pitches >= HARD_OUTING_MIN_PITCHES;
+}
+
+/** 거의 전력으로 던진 날인가(글만 가른다) — 옛 facts 는 pitches 가 곧 거의 전력 투구수라 늘 참 */
+export function isNearMaxOuting(o: HardOuting): boolean {
+  return o.load == null || o.load >= NEAR_MAX_EFFORT_PCT * o.pitches;
+}
 
 function daysBetween(fromKey: string, toKey: string) {
   const [fy, fm, fd] = fromKey.split('-').map(Number);
@@ -309,18 +350,21 @@ export function buildFacts({
       .at(-1) ?? null;
 
   /*
-   * 거의 최대 강도로 던진 공 — 날마다 더한다(theme.ts 의 '세게 던진 날' 규칙이 읽는다).
-   * 세션마다 가린다. 하루 평균 강도로 보면 경기 뒤 가벼운 캐치볼이 그날을 '세게 던진 날'에서 빼 버린다.
+   * 세게 던졌는지 가릴 재료 — 날마다 투구수와 투구수 × 체감 강도(%)를 더한다(isHardOuting 이 읽는다).
+   * 세션마다 곱해서 더한다. 하루 평균 강도로 곱하면 같은 값이지만, 경기(늘 100%)를 세션 단위로 가려야 해서 기록마다 곱한다.
+   * 더하기만 하므로 경기 뒤 가벼운 캐치볼은 그날을 세게 던진 날에서 빼지 않는다(늘 보탠다).
    * 날짜는 groupByDay 와 같은 방식(앞 10자리)으로 센다.
    */
-  const nearMaxByDay = new Map<string, number>();
+  const outingByDay = new Map<string, { pitches: number; load: number }>();
   for (const log of logs) {
-    if (log.pitchCount <= 0) continue;
-    if (log.sessionType !== '경기' && Math.round(log.intensity) < NEAR_MAX_INTENSITY) {
-      continue;
-    }
+    const load = outingLoadOf(log);
+    if (load <= 0) continue;
     const key = log.date.slice(0, 10);
-    nearMaxByDay.set(key, (nearMaxByDay.get(key) ?? 0) + log.pitchCount);
+    const prev = outingByDay.get(key);
+    outingByDay.set(key, {
+      pitches: (prev?.pitches ?? 0) + log.pitchCount,
+      load: (prev?.load ?? 0) + load,
+    });
   }
 
   // 최근 7일 체크인만 컨디션 요약에 쓴다.
@@ -371,8 +415,12 @@ export function buildFacts({
         }))
         .filter((o) => o.daysAgo >= 0 && o.daysAgo <= OUTING_MEMORY_DAYS)
         .sort((a, b) => a.daysAgo - b.daysAgo),
-      hardOutings: [...nearMaxByDay]
-        .map(([key, pitches]) => ({ daysAgo: daysBetween(key, asOf), pitches }))
+      hardOutings: [...outingByDay]
+        .map(([key, o]) => ({
+          daysAgo: daysBetween(key, asOf),
+          pitches: o.pitches,
+          load: o.load,
+        }))
         .filter((o) => o.daysAgo >= 0 && o.daysAgo <= OUTING_MEMORY_DAYS)
         .sort((a, b) => a.daysAgo - b.daysAgo),
     },
