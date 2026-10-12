@@ -30,7 +30,9 @@ import { josa, withJosa } from '@/lib/korean';
  *   자동 맞춤의 운동 부하 · poorSleepDays — facts 밖이거나 자동 맞춤만 읽고, 오늘 운동을 마치면 늘 바뀐다(auto.rules 글에 남는다).
  *   recentIds · sessionsAgo · lastLower/UpperKey · 씨앗 — 목록 순서 · 차례이지 '상태'가 아니다.
  *   '마지막 투구의 강도 · 종류' — facts 에 날 단위 칸이 없다. 전력 환산(lastOutingAdjusted — 강도 · 종류가 들어간 값)과
- *     hardOuting(그날 투구수 × 체감 강도 ≥ 2,700 — load 선택 칸, 2판 D2)으로 덮는다.
+ *     hardOuting(그날 투구수 × 체감 강도 ≥ 2,700 — load 선택 칸, 2판 D2), lastThrow.load(마지막으로 던진 날의 투구수 × 체감
+ *     강도 — 날 종류의 R2 가 어제 것을 읽어 2판 P4 커밋 E 에서 더함)로 덮는다. 날 종류의 '짧게'가 읽는 실전 강도 공 수
+ *     (nearMaxPitches)는 따로 안 담는다 — 종류 · 강도가 바뀌면 전력 환산이 같이 바뀐다.
  *
  * 순수 함수만 둔다(DB · 날짜 함수 없음 — 같은 facts 면 같은 지문, JSON.stringify 까지 글자가 같다). 안전 재검사
  * (today-data.ts 의 safeIds · droppedForSafety)와는 독립이다 — 그쪽은 '후보'를 지금 기준으로 다시 걸러 운동을 빼는 것,
@@ -74,14 +76,25 @@ export type PlanFingerprint = {
   rehab: null | { area: string; stage: number; throwing: 'light' | 'none' };
   /** 투구 부하 구간(ratio 는 안 넣는다 — 판단은 구간만 읽는다) */
   zone: AcwrZone | null;
-  /** 마지막으로 던진 날 — 날짜 · 구수 · 전력 환산 구수(정수) */
-  lastThrow: null | { date: string; pitches: number; adjusted: number };
+  /**
+   * 마지막으로 던진 날 — 날짜 · 구수 · 전력 환산 구수(정수). load 는 그날 투구수 × 체감 강도(%)(facts.ts HardOuting.load) — 날 종류
+   * (lib/engine/microcycle.ts)의 R2 가 어제 load 를 읽어(2판 P4 커밋 E) 같은 커밋에서 더한 선택 칸이다. 칸이 생기기 전의 지문 · load 없는
+   * facts(옛 저장 facts)로 찍은 지문에는 없고, 견줄 때는 둘 다 있을 때만 본다(hardOuting.load 와 같은 약속).
+   */
+  lastThrow: null | { date: string; pitches: number; adjusted: number; load?: number };
   /**
    * 세게 던진 날(theme.ts 의 hardOuting — 어제 · 오늘). pitches 는 그날 던진 공의 합, load 는 그날 투구수 × 체감 강도(%)
    * (facts.ts 의 HardOuting). load 는 선택 칸이다 — 2판 D2(2026-10-12) 전에 저장된 지문에는 없고(그때 pitches 는 거의 전력
    * 투구수), load 없는 facts(옛 저장 facts)로 찍은 지문에도 없다. 칸 목록(FINGERPRINT_KEYS)은 그대로다(안쪽 칸이라).
    */
   hardOuting: null | { daysAgo: number; pitches: number; load?: number };
+  /**
+   * 최근 운동 힘듦 급증(facts.condition.trainingEffort.spikeFlag — 2판 P2) — 날 종류의 R2(어제 중간 부하 + 힘듦 급증 → 회복)가 읽어
+   * 2판 P4 커밋 E 에서 더한 바깥 선택 칸. trainingEffort 칸이 있는 facts(앱의 gather 는 늘 넘긴다)에서만 나오고, 칸이 생기기 전의 지문 ·
+   * 그 칸이 없는 facts(자체 시험 · 기준선의 옛 입력)로 찍은 지문에는 없다. 그래서 늘 있는 칸 목록(FINGERPRINT_KEYS)이 아니라
+   * FINGERPRINT_OPTIONAL_KEYS 에 둔다. 견줄 때는 둘 다 있을 때만 본다(v 는 1 그대로).
+   */
+  effortSpike?: boolean;
 };
 
 /** 지문의 칸 목록(순서까지) — 칸을 더하거나 빼면 자체 시험이 이 목록과 견줘 알린다 */
@@ -96,6 +109,14 @@ export const FINGERPRINT_KEYS = [
   'zone',
   'lastThrow',
   'hardOuting',
+] as const satisfies readonly (keyof PlanFingerprint)[];
+
+/**
+ * 칸이 있는 facts 에서만 붙는 바깥 칸(순서까지) — 늘 있는 칸(FINGERPRINT_KEYS) 뒤에 이 차례로 붙는다(2판 P4 커밋 E). 칸을 더하면
+ * 자체 시험이 견줘 알린다.
+ */
+export const FINGERPRINT_OPTIONAL_KEYS = [
+  'effortSpike',
 ] as const satisfies readonly (keyof PlanFingerprint)[];
 
 /** 판단이 읽는 부위 값 — '정상' · 옛 기록의 '괜찮음' · 모르는 값은 안 넣는다(hasPain · 뻐근 규칙이 이 둘만 본다) */
@@ -121,7 +142,13 @@ export function fingerprintOf(facts: ReportFacts): PlanFingerprint {
    * 글자까지 같다(throwPlanToday 가 그 값이다). 달력 · 같은 요일 짐작(커밋 G)처럼 outingOf 가 새 칸을 읽게 되면 그 칸도 여기 담는다.
    */
   const answers = outingAnswersOf(facts);
-  const { lastThrowDate, lastOutingPitches, lastOutingAdjusted } = facts.patterns;
+  const { lastThrowDate, lastOutingPitches, lastOutingAdjusted, restDays } =
+    facts.patterns;
+  /* 마지막으로 던진 날의 load — facts 의 hardOutings 에 그날이 있고 load 가 실렸을 때만(옛 facts 에는 없다) */
+  const lastLoad = lastThrowDate
+    ? (facts.patterns.hardOutings ?? []).find((o) => o.daysAgo === restDays)?.load
+    : undefined;
+  const effort = facts.condition.trainingEffort;
   return {
     v: 1,
     asOf: facts.asOf,
@@ -160,6 +187,8 @@ export function fingerprintOf(facts: ReportFacts): PlanFingerprint {
             date: lastThrowDate,
             pitches: lastOutingPitches,
             adjusted: Math.round(lastOutingAdjusted ?? lastOutingPitches),
+            /* load 는 있을 때만 — 없는 facts 의 지문은 예전과 글자까지 같다 */
+            ...(lastLoad != null ? { load: lastLoad } : {}),
           }
         : null,
     /* load 는 있을 때만 — 없는 facts 의 지문은 예전과 글자까지 같다 */
@@ -170,6 +199,8 @@ export function fingerprintOf(facts: ReportFacts): PlanFingerprint {
           ...(outing.load != null ? { load: outing.load } : {}),
         }
       : null,
+    /* 칸이 있는 facts 에서만 — 없는 facts 의 지문은 예전과 글자까지 같다(FINGERPRINT_OPTIONAL_KEYS) */
+    ...(effort ? { effortSpike: effort.spikeFlag } : {}),
   };
 }
 
@@ -247,7 +278,14 @@ export function readPlanFingerprint(value: unknown): PlanFingerprint | null {
     if (!v.lastThrow || typeof v.lastThrow !== 'object') return null;
     const t = v.lastThrow as Record<string, unknown>;
     if (!isStr(t.date) || !isNum(t.pitches) || !isNum(t.adjusted)) return null;
-    lastThrow = { date: t.date, pitches: t.pitches, adjusted: t.adjusted };
+    /* load 는 선택 칸 — 없으면(옛 지문) 통과, 있는데 숫자가 아니면 깨진 지문 */
+    if (t.load !== undefined && !isNum(t.load)) return null;
+    lastThrow = {
+      date: t.date,
+      pitches: t.pitches,
+      adjusted: t.adjusted,
+      ...(isNum(t.load) ? { load: t.load } : {}),
+    };
   }
 
   let outing: PlanFingerprint['hardOuting'] = null;
@@ -264,6 +302,9 @@ export function readPlanFingerprint(value: unknown): PlanFingerprint | null {
     };
   }
 
+  /* 힘듦 급증은 선택 칸 — 없으면(옛 지문 · 칸 없는 facts) 통과, 있는데 참 · 거짓이 아니면 깨진 지문 */
+  if (v.effortSpike !== undefined && typeof v.effortSpike !== 'boolean') return null;
+
   return {
     v: 1,
     asOf: v.asOf,
@@ -275,6 +316,7 @@ export function readPlanFingerprint(value: unknown): PlanFingerprint | null {
     zone: v.zone as AcwrZone | null,
     lastThrow,
     hardOuting: outing,
+    ...(typeof v.effortSpike === 'boolean' ? { effortSpike: v.effortSpike } : {}),
   };
 }
 
@@ -295,7 +337,8 @@ export type FingerprintKey =
   | 'rehab'
   | 'zone'
   | 'lastThrow'
-  | 'hardOuting';
+  | 'hardOuting'
+  | 'effortSpike';
 
 /** 바뀐 항목 하나 — key 는 화면이 가르는 데(onlyPainPartChanges), text 는 그대로 띄우는 데 쓴다 */
 export type FingerprintChange = { key: FingerprintKey; text: string };
@@ -518,18 +561,25 @@ export function diffFingerprintChanges(
   {
     const a = saved.lastThrow;
     const b = now.lastThrow;
+    /* load 는 둘 다 있을 때만 견준다(2판 P4 커밋 E — 칸이 생기기 전의 지문과는 안 견준다) */
+    const sameCount =
+      a != null &&
+      b != null &&
+      a.date === b.date &&
+      a.pitches === b.pitches &&
+      a.adjusted === b.adjusted;
     const same =
       (a == null && b == null) ||
-      (a != null &&
-        b != null &&
-        a.date === b.date &&
-        a.pitches === b.pitches &&
-        a.adjusted === b.adjusted);
+      (sameCount && (a.load == null || b.load == null || a.load === b.load));
     if (!same) {
       if (b == null) {
         push('lastThrow', '투구 기록이 없어졌어요');
       } else if (b.date === now.asOf && (a == null || a.date !== b.date)) {
         push('lastThrow', `오늘 ${b.pitches}구를 던졌어요`);
+      } else if (sameCount) {
+        /* 구수 · 전력 환산은 같고 투구수 × 체감 강도만 다르다 — 체감 강도를 고친 날 */
+        const when = b.date === now.asOf ? '오늘' : monthDay(b.date);
+        push('lastThrow', `${when} 투구 기록의 체감 강도가 바뀌었어요`);
       } else if (a != null && a.date === b.date) {
         const when = b.date === now.asOf ? '오늘' : monthDay(b.date);
         push('lastThrow', `${when} 투구 기록이 ${b.pitches}구로 바뀌었어요`);
@@ -570,6 +620,20 @@ export function diffFingerprintChanges(
               : `세게 던진 기록이 ${when} ${b.pitches}구로 바뀌었어요`
       );
     }
+  }
+
+  /* 최근 운동 힘듦 급증 — 둘 다 칸이 있을 때만(2판 P4 커밋 E) */
+  if (
+    saved.effortSpike !== undefined &&
+    now.effortSpike !== undefined &&
+    saved.effortSpike !== now.effortSpike
+  ) {
+    push(
+      'effortSpike',
+      now.effortSpike
+        ? '최근 운동 힘듦이 평소보다 높아졌어요'
+        : '최근 운동 힘듦이 평소대로 돌아왔어요'
+    );
   }
 
   return out;

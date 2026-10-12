@@ -8,6 +8,7 @@ import {
 import { recentHardOuting } from '@/lib/engine/day-state';
 import { outingOf } from '@/lib/engine/outing';
 import { LOWER_POWER_PATTERNS } from '@/lib/engine/exercise-class';
+import { dayKindOf, type DayKind } from '@/lib/engine/microcycle';
 import {
   HEAVY_EQUIPMENT,
   intensityLevel,
@@ -219,6 +220,12 @@ export type SessionTheme = {
   label: string;
   /** 왜 오늘 이 테마인지 — 근거 패널과 AI 설명에 그대로 쓴다 */
   reason: string;
+  /**
+   * 무거운 하체를 들 수 있는 날인가(2판 P4 커밋 E) — 등판 창이 3일 안이면 false(안전 거르기 2-2 가 무거운 하체를 뺀 날). 없으면 든다.
+   * 날을 다 정한 뒤 finishDayTheme 이 붙인다 — 날을 바꾸는 함수(steerAroundPain · steerFromEmptyMain · conditioningDay)가 테마를 새로
+   * 만들 때 칸이 빠지지 않게(설계 검토 G18). 화면 · 일정 JSON 의 표시용이고, 실제로 빼는 일은 prescription.ts 가 한다.
+   */
+  heavyLowerAllowed?: boolean;
 };
 
 /** 컨디션이 이 값 이하면 회복 테마로 돌린다 — 값은 lib/checkin.ts(안전 거름 · 암케어 · 프로그램과 같은 값) */
@@ -237,8 +244,8 @@ export { HARD_OUTING_MIN_LOAD, HARD_OUTING_MIN_PITCHES };
  * pendingOuting)을 그대로 따라 90구 다음 날부터 이틀은 회복, 사흘째는 보조, 나흘째에야 무게가 나왔다.
  * 그 표는 '공을 언제 다시 던져도 되나'의 기준이라 웨이트까지 그만큼 막을 까닭이 없었고, 5일
  * 로테이션이면 첫 무거운 날이 다음 등판 전날이 됐다. 여기서는 체크인에 적은 '오늘 등판 · 내일 등판'만 읽는다
- * (plannedOuting, 2026-10-09 — 그 전에는 묻기만 하고 안 읽었다). 며칠 뒤 등판인지는 2026-10-12 부터 체크인이
- * '2~3일 뒤 · 4일 이상 뒤'로 받지만(lib/checkin.ts nextOutingDays) 이 테마 규칙은 아직 안 쓴다 — 2판 P4 · P5 몫.
+ * (plannedOuting, 2026-10-09 — 그 전에는 묻기만 하고 안 읽었다). 며칠 뒤 등판인지('2~3일 뒤 · 4일 이상 뒤', 2026-10-12)는
+ * 2판 P4 커밋 E 부터 날 종류(lib/engine/microcycle.ts dayKindOf)가 읽는다 — 테마는 그 결과로 정한다(decideThemeForBody).
  *
  * '세게 던진 날' = 그날 투구수 × 체감 강도(%)의 합이 2,700(30구 × 90%) 이상, 경기는 체감과 상관없이 100%
  * (2판 D2, 2026-10-12 — facts.ts 의 isHardOuting). 그 전 규칙(경기, 또는 강도 9~10 으로 그날 합쳐 30구 이상)으로 세게
@@ -247,8 +254,8 @@ export { HARD_OUTING_MIN_LOAD, HARD_OUTING_MIN_PITCHES };
  * 쌓인 부하는 부하 지수(주의 · 위험 구간)가 따로 본다.
  *
  * '오늘 · 어제 세게 던진 날을 고르는' 몸통은 2026-10-12(2판 P3)부터 오늘 상태 한 장(lib/engine/day-state.ts 의 recentHardOuting)
- * 에 있다 — 그 장의 load.hardOuting 과 이 값이 늘 같게 한 곳에서 셈한다. 서명 · 값은 그대로라 독자(decideTheme · workoutConflict ·
- * 프로그램 · 일정 지문)는 그대로다.
+ * 에 있다 — 그 장의 load.hardOuting 과 이 값이 늘 같게 한 곳에서 셈한다. 서명 · 값은 그대로라 독자(프로그램 · 일정 지문 · 자체
+ * 시험 · 기준선)는 그대로다. 테마 · 부딪힘은 2판 P4 커밋 E 부터 날 종류(dayKindOf)의 R1 으로 같은 값을 읽는다.
  */
 export function hardOuting(facts: ReportFacts): HardOuting | null {
   return recentHardOuting(facts);
@@ -269,8 +276,9 @@ export function hardOuting(facts: ReportFacts): HardOuting | null {
  * 답을 날로 읽는 규칙은 lib/checkin.ts 의 nextOutingDays 한 곳(2026-10-12, 2판 D1). 여기서는 그 범위가 꼭 오늘(0~0)
  * 이면 today, 꼭 내일(1~1)이면 tomorrow 만 가른다(lib/checkin.ts exactOutingDay — 영양 · 프로그램과 같은 물음) —
  * '2~3일 뒤' · '4일 이상 뒤'는 날을 못 박지 못하니 '없음'처럼 null(테마 그대로). 어제 답의 이월도 '내일 등판'(어제 기준 1~1) 하나뿐 — 어제 '2~3일 뒤'는 오늘 1~2일 뒤라 null.
- * 반환은 둘뿐이라 독자(decideTheme · workoutConflict)는 그대로다. 며칠 뒤 등판을 쓰는 규칙(P4 · P5)은 이 함수를 넓히지 않고
- * outingOf 의 daysUntilNext · nextSource 를 바로 읽는다.
+ * 반환은 둘뿐이다. 며칠 뒤 등판을 쓰는 규칙(P4 · P5)은 이 함수를 넓히지 않고 outingOf 의 daysUntilNext · nextSource 를 바로
+ * 읽는다 — 2판 P4 커밋 E 부터 테마 · 부딪힘도 이 함수가 아니라 날 종류(dayKindOf)의 R3 · R4 로 같은 값(nextDay)을 읽는다. 이 함수는
+ * 얇은 겉옷으로 남는다(자체 시험 · 기준선이 부른다).
  *
  * 오늘 · 어제 답을 합치는 규칙(오늘 답이 이김 · 어제 답은 하루 당겨 읽음)은 2026-10-12(2판 P3)부터 lib/checkin.ts 의
  * nextOutingWindow 한 곳이고, facts 에서 그 답을 꺼내 등판으로 읽는 일은 2판 P4 커밋 B(2026-10-12)부터 lib/engine/outing.ts 의
@@ -313,6 +321,47 @@ function hardOutingReason(outing: HardOuting): string {
     : `${outingPhrase(outing)}. 오늘은 가볍게 풀고, 내일부터 무게를 다시 올려요.`;
 }
 
+/** 기록 없는 등판 다음 날(R3', C6 결정)의 짧은 말 — 부딪힘 까닭과 이유 글 앞머리가 같은 말 */
+const CLAIMED_NO_LOG_PHRASE = '어제 등판이라고 적었는데 투구 기록이 없어요';
+
+/**
+ * 날 종류(lib/engine/microcycle.ts dayKindOf)가 회복 · 보조 날일 때의 말 — reason 은 테마 이유(마침표로 끝남), clash 는 부딪힘 까닭
+ * (마침표 없이 — workoutConflict 가 돌려주고, decideTheme 이 '그래도 하기' 글 앞에, 화면이 경고에 그대로 쓴다). 근력 · 모름 날은 null.
+ *
+ * 글을 여기 한 곳에서 만든다 — 날 종류는 코드(rule)와 재료만 돌려준다(설계 검토 G12). R1 · R3 · R4 의 글은 커밋 E 전과 글자까지 같다
+ * (hardOutingReason · plannedOutingReason · outingPhrase · '오늘 등판이에요' · '내일 등판이에요'). 새 글은 둘:
+ *   R2  '어제 25구를 던졌고 최근 운동도 힘들었어요. 오늘은 가볍게 풀고, 내일부터 무게를 다시 올려요.'
+ *   R3' '어제 등판이라고 적었는데 투구 기록이 없어요. 오늘은 무게 대신 코어와 보강을 해요. 기록을 남기면 던진 양으로 다시 짤 수 있어요.'
+ *       (기록을 남기면 일정 지문의 마지막 투구가 바뀌어 '상태가 바뀌었어요'가 뜬다 — 다시 짜는 것은 사용자가 고른다)
+ */
+function dayKindWords(dk: DayKind): { reason: string; clash: string } | null {
+  switch (dk.rule) {
+    case 'hard':
+      return dk.hard
+        ? { reason: hardOutingReason(dk.hard), clash: outingPhrase(dk.hard) }
+        : null;
+    case 'outingToday':
+      return { reason: plannedOutingReason('today'), clash: '오늘 등판이에요' };
+    case 'moderateSpike': {
+      if (!dk.yesterday) return null;
+      const phrase = `어제 ${dk.yesterday.pitches}구를 던졌고 최근 운동도 힘들었어요`;
+      return {
+        reason: `${phrase}. 오늘은 가볍게 풀고, 내일부터 무게를 다시 올려요.`,
+        clash: phrase,
+      };
+    }
+    case 'claimedNoLog':
+      return {
+        reason: `${CLAIMED_NO_LOG_PHRASE}. 오늘은 무게 대신 코어와 보강을 해요. 기록을 남기면 던진 양으로 다시 짤 수 있어요.`,
+        clash: CLAIMED_NO_LOG_PHRASE,
+      };
+    case 'outingTomorrow':
+      return { reason: plannedOutingReason('tomorrow'), clash: '내일 등판이에요' };
+    default:
+      return null;
+  }
+}
+
 /**
  * 오늘 고른 운동 종류 때문에 몸 상태와 부딪히는가.
  *
@@ -338,15 +387,15 @@ export function workoutConflict({
    * 부하 구간과 같은 결론(회복)에 이르더라도 이유가 다르다. 부하 지수는 4주
    * 평균에 견준 값이라 "위험 구간"이라고만 하면 왜 그런지 알 수 없다.
    * "어제 90구를 던지셨습니다"는 원인을 그대로 말한다.
+   *
+   * 2판 P4 커밋 E 부터 등판 쪽은 날 종류(dayKindOf) 하나로 읽는다 — 회복 날(세게 던진 날 · 오늘 등판 · 어제 중간 부하 + 운동 힘듦 급증)은
+   * 여기 맨 앞, 보조 날(기록 없는 등판 다음 날 · 내일 등판)은 아래 근육통 '심함' 뒤. decideThemeForBody 가 같은 dk 의 같은 rank 를 같은
+   * 두 자리에서 읽으니, 예전처럼 사슬을 두 번 적어 '같이 고칠 것'으로 묶지 않아도 된다.
    */
-  const outing = hardOuting(facts);
-  if (outing) {
-    return { reason: outingPhrase(outing), fallback: 'recovery' };
-  }
-  /* 체크인에 적은 오늘 등판 — 아직 안 던져 기록이 없어도 그날은 가볍게(plannedOuting) */
-  const planned = plannedOuting(facts);
-  if (planned === 'today') {
-    return { reason: '오늘 등판이에요', fallback: 'recovery' };
+  const dk = dayKindOf(facts);
+  const words = dayKindWords(dk);
+  if (dk.rank === 'recovery' && words) {
+    return { reason: words.clash, fallback: 'recovery' };
   }
   if (facts.load.zone === 'danger') {
     return { reason: '투구 부하가 위험 구간이에요', fallback: 'recovery' };
@@ -369,9 +418,9 @@ export function workoutConflict({
   if (soreness != null && soreWord && soreness >= SEVERE_SORENESS) {
     return { reason: `전신 근육통이 '${soreWord}'이에요`, fallback: 'recovery' };
   }
-  /* 등판 전날 — 회복까지는 아니고 무게만 뺀다(보조·코어). decideTheme 의 같은 자리에도 같은 줄이 있다 */
-  if (planned === 'tomorrow') {
-    return { reason: '내일 등판이에요', fallback: 'assist' };
+  /* 등판 전날 · 기록 없는 등판 다음 날 — 회복까지는 아니고 무게만 뺀다(보조·코어, 날 종류의 보조 날) */
+  if (dk.rank === 'light' && words) {
+    return { reason: words.clash, fallback: 'assist' };
   }
   if (facts.load.zone === 'caution') {
     return { reason: '투구 부하가 주의 구간이에요', fallback: 'assist' };
@@ -615,33 +664,24 @@ function decideThemeForBody({
    */
   const conflict = workoutConflict({ facts, preferredWorkout });
   const forcing = conflict != null && override;
+  /* 날 종류 — 등판 주기의 어디쯤인가(lib/engine/microcycle.ts). 아래 두 자리와 번갈아 예비 규칙이 이것 하나를 읽는다 */
+  const dk = dayKindOf(facts);
+  const dkWords = dayKindWords(dk);
 
   if (!forcing) {
     /*
-     * 세게 던진 날의 여파를 맨 앞에 본다(그날 · 다음 날은 가볍게 — hardOuting).
+     * 날 종류의 회복 날을 맨 앞에 본다 — 세게 던진 날(그날 · 다음 날, hardOuting 과 같은 값) · 체크인에 적은 오늘 등판(아직 안 던져
+     * 기록이 없어도 그날은 가볍게 풀고 활성화만) · 어제 중간 부하 + 최근 운동 힘듦 급증(D3, 2판 P4 커밋 E).
      *
      * 부하 지수는 4주 평균에 견주는 값이라 어제 90구가 바로 반영되지 않고,
      * 반영되더라도 "위험 구간"이라고만 하면 왜 그런지 알 수 없다. 던진 것이
      * 원인이면 그것을 그대로 말하는 편이 낫다.
      */
-    const outing = hardOuting(facts);
-    if (outing) {
+    if (dk.rank === 'recovery' && dkWords) {
       return {
         key: 'recovery',
         label: '회복·재생 데이',
-        reason: hardOutingReason(outing),
-      };
-    }
-    /*
-     * 체크인에 적은 오늘 등판(plannedOuting) — 세게 던진 날 바로 뒤. 아직 안 던져 기록이 없어도 그날은
-     * 가볍게 풀고 활성화만 한다. 던지고 나면 hardOuting 이 같은 결론을 기록으로 낸다.
-     */
-    const planned = plannedOuting(facts);
-    if (planned === 'today') {
-      return {
-        key: 'recovery',
-        label: '회복·재생 데이',
-        reason: plannedOutingReason('today'),
+        reason: dkWords.reason,
       };
     }
     if (facts.load.zone === 'danger') {
@@ -676,14 +716,15 @@ function decideThemeForBody({
       };
     }
     /*
-     * 등판 전날 — 회복(위 넷)보다 뒤, 부하 주의와 같은 자리(보조·코어). 전날 무거운 하체를 하면 다음 날
-     * 다리가 무겁다. 통증이 아니라 고를 수 있다(override). workoutConflict 의 같은 자리에도 같은 줄이 있다.
+     * 날 종류의 보조 날 — 회복(위 넷)보다 뒤, 부하 주의와 같은 자리(보조·코어). 등판 전날(무거운 하체를 하면 다음 날 다리가 무겁다)과
+     * 기록 없는 등판 다음 날(C6 결정, 2판 P4 커밋 E — 어제 '오늘 등판'이라 적었는데 기록이 없으면 부하를 몰라 무게를 빼고 기록을 청한다).
+     * 통증이 아니라 고를 수 있다(override). workoutConflict 가 같은 dk 를 같은 자리에서 읽는다.
      */
-    if (planned === 'tomorrow') {
+    if (dk.rank === 'light' && dkWords) {
       return {
         key: 'assist',
         label: '보조·코어 데이',
-        reason: plannedOutingReason('tomorrow'),
+        reason: dkWords.reason,
       };
     }
     if (facts.load.zone === 'caution') {
@@ -726,14 +767,40 @@ function decideThemeForBody({
    * 날짜로 번갈아 도는 예비 규칙을 둔다.
    */
   if (lastLowerKey == null && lastUpperKey == null) {
-    const [, m, d] = facts.asOf.split('-').map(Number);
-    const lower = (m + d) % 2 === 0;
     /*
      * 최근에 던진 날이 없으면 부하 이야기를 하지 않는다 — 볼 투구 부하가 없다. 2026-10-03 부터 투구 기록이
      * 없어도 일정을 만들 수 있게 되어(training/page.tsx), '부하가 적정 범위예요'가 사실과 다른 말이 됐다.
      */
     const noThrows = facts.patterns.lastThrowDate == null;
     const loadNote = '최근 투구 기록이 없어 투구량은 따로 보지 않았어요. ';
+    /*
+     * 날 종류가 쪽을 말하면 그쪽(2판 P4 커밋 E) — 등판이 3일 안(R5)이면 다리를 아끼는 상체, 등판에서 먼 날(R6)이면 하체.
+     * 한쪽 기록이라도 있으면 여기 오지 않는다(아래 번갈아가 이긴다). 날짜 홀짝은 날 종류가 쪽을 말하지 않을 때만.
+     */
+    if (dk.side === 'upper') {
+      return {
+        key: 'upper',
+        label: '상체 스트렝스 데이',
+        reason:
+          todayNote +
+          (noThrows ? loadNote : '') +
+          '등판이 가까워 다리는 아끼고 상체 근력을 해요.' +
+          forcedNote,
+      };
+    }
+    if (dk.side === 'lower') {
+      return {
+        key: 'lower',
+        label: '하체 스트렝스 데이',
+        reason:
+          todayNote +
+          (noThrows ? loadNote : '') +
+          '등판이 아직 멀어 하체 근력을 하기 좋은 날이에요. 투구의 힘은 하체에서 나와요.' +
+          forcedNote,
+      };
+    }
+    const [, m, d] = facts.asOf.split('-').map(Number);
+    const lower = (m + d) % 2 === 0;
     return lower
       ? {
           key: 'lower',
@@ -1317,6 +1384,50 @@ export function effectiveMinutes(theme: ThemeKey, requested: number): number {
   if (theme !== 'recovery') return requested;
   const scaled = Math.floor((requested * RECOVERY_SHARE) / 5) * 5;
   return Math.min(scaled, RECOVERY_MAX_MINUTES);
+}
+
+/** 등판 창 안의 하체 날에 붙이는 한 줄 — 안전 거르기(prescription.ts 2-2)가 무거운 하체를 뺀 날 */
+export const OUTING_LIGHT_LOWER_NOTE =
+  '등판이 가까워 무거운 하체는 빼고 가벼운 하체 운동으로 해요.';
+
+/**
+ * 날을 다 정한 뒤 붙이는 표시(2판 P4 커밋 E) — buildDailyPlan 이 마지막에 한 번 부른다.
+ *
+ * 날을 바꾸는 함수(steerAroundPain · steerFromEmptyMain · conditioningDay)는 테마를 새 객체로 만들어 칸 · 이유 끝줄이 빠진다. 그래서
+ * 표시용은 날이 다 정해진 뒤 날 종류(dk)와 마지막 key 로 한 번에 붙인다(설계 검토 G18):
+ *   heavyLowerAllowed  등판 창이 무거운 하체를 뺀 날에만 false 를 싣는다(없으면 든다 — 옛 일정과 같은 뜻, JSON 이 흔들리지 않게)
+ *   하체 날 한 줄     그날 하체 날이고 본운동이 있는 목표(컨디셔닝 아님)면 OUTING_LIGHT_LOWER_NOTE
+ *   짧게 한 줄        shortened 가 오면(구원 '어제 실전 강도로 20구 넘게', 회복 날 아님) 몇 분으로 줄였는지
+ * 무거운 하체를 실제로 빼는 일은 prescription.ts 가 이미 했다 — 여기서는 글과 표시만 붙인다.
+ */
+export function finishDayTheme(
+  theme: SessionTheme,
+  dk: DayKind,
+  {
+    conditioning,
+    shortened,
+  }: {
+    /** 목표가 컨디셔닝이라 본운동(무게)이 없는 날 */
+    conditioning: boolean;
+    /** 짧게 잡았으면 { 어제 실전 강도로 던진 공 · 줄인 분 }, 아니면 null */
+    shortened: { pitches: number; minutes: number } | null;
+  }
+): SessionTheme {
+  const lines = [theme.reason];
+  if (!dk.heavyLowerAllowed && theme.key === 'lower' && !conditioning) {
+    lines.push(OUTING_LIGHT_LOWER_NOTE);
+  }
+  if (shortened) {
+    lines.push(
+      `어제 실전 강도로 ${shortened.pitches}구를 던져 오늘은 ${shortened.minutes}분으로 짧게 잡았어요.`
+    );
+  }
+  return {
+    key: theme.key,
+    label: theme.label,
+    reason: lines.join(' '),
+    ...(dk.heavyLowerAllowed ? {} : { heavyLowerAllowed: false }),
+  };
 }
 
 export type ThemedExercise = {

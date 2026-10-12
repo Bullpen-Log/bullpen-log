@@ -222,8 +222,9 @@ export type ReportFacts = {
     /**
      * 최근 운동 힘듦(DailyTrainingNote.intensity, 2판 P2 — lib/workout/effort.ts 의 trainingEffortOf): 7일 · 28일 안의 값과
      * 급증 깃발(7일 안 3개 이상 · 7일 평균이 28일 평균보다 2 이상 높음). buildFacts 에 trainingNotes 를 안 넘기면 칸이 없다
-     * (옛 저장 facts · 기준선 도구 · 자체 시험의 옛 입력과 같은 모양). 아직 아무 규칙도 읽지 않는다 — P5 에서 '경고와 그래도
-     * 하기'. 읽게 되면 같은 커밋에서 일정 지문(lib/report/plan-fingerprint.ts)에도 칸을 더한다.
+     * (옛 저장 facts · 기준선 도구 · 자체 시험의 옛 입력과 같은 모양). 2판 P4 커밋 E 부터 날 종류(lib/engine/microcycle.ts)의 R2 가
+     * 급증 깃발을 읽는다(어제 중간 부하 + 급증 → 회복, D3) — 같은 커밋에서 일정 지문에 effortSpike 칸을 더했다. P5 의 '경고와 그래도
+     * 하기'도 이 칸을 읽는다.
      */
     trainingEffort?: TrainingEffort;
     /** 최근 7일 평균 컨디션 (1~10, 높을수록 좋음) */

@@ -77,6 +77,12 @@ import {
   isHeavyLower,
   isHeavyUpperPush,
 } from '../lib/engine/exercise-class.ts';
+import {
+  MODERATE_OUTING_MIN_LOAD,
+  dayKindOf,
+  type DayRule,
+} from '../lib/engine/microcycle.ts';
+import type { TrainingNoteLike } from '../lib/workout/effort.ts';
 
 const startedAt = Date.now();
 
@@ -676,14 +682,17 @@ type Variant = {
   clearThrowPlans?: boolean;
   /** 어제 투구 기록을 뺀다 — 등판 답은 적고 기록은 안 남긴 날(⑫) */
   dropYesterdayLog?: boolean;
+  /**
+   * 운동 끝 힘듦(DailyTrainingNote) — 주면 buildFacts 에 넘겨 facts.condition.trainingEffort 가 생긴다. 대본은 힘듦을 안 남겨(앱이면
+   * '마침' 뒤 칩) 기본은 칸이 없다 — ⑮ 가 '최근 운동이 힘들었던 사람'을 이 변형으로 잰다(2판 P4 커밋 E).
+   */
+  trainingNotes?: TrainingNoteLike[];
 };
 
 let buildCalls = 0;
 
-/** 앱(createDailySetup)이 buildDailyPlan 을 부르는 인자 그대로. 멈춘 날(통증 등)은 null */
-function buildDay(p: Player, i: number, st: State, v: Variant = {}): DailyPlan | null {
-  buildCalls++;
-  const todayKey = keyOf(i);
+/** buildDay 가 그날 아침에 만드는 facts — 날 종류(⑮)를 같은 facts 로 읽으려고 떼어 둔다 */
+function factsFor(p: Player, i: number, st: State, v: Variant = {}) {
   /* 아침에 만든다 — 오늘 던진 것은 아직 기록에 없다 */
   const logs = st.logs
     .filter((l) => l.day < i && !(v.dropYesterdayLog && l.day === i - 1))
@@ -694,7 +703,7 @@ function buildDay(p: Player, i: number, st: State, v: Variant = {}): DailyPlan |
     .filter((c) => c.day <= i)
     .map((c) => (c.day === i && v.patchCheckin ? v.patchCheckin(c.checkin) : c.checkin))
     .map((c) => (v.clearThrowPlans ? { ...c, throwPlan: null } : c));
-  const facts = buildFacts({
+  return buildFacts({
     nickname: p.name,
     age: v.age ?? p.age,
     heightCm: 180,
@@ -706,7 +715,15 @@ function buildDay(p: Player, i: number, st: State, v: Variant = {}): DailyPlan |
     logs,
     checkins,
     memos: [],
+    ...(v.trainingNotes ? { trainingNotes: v.trainingNotes } : {}),
   });
+}
+
+/** 앱(createDailySetup)이 buildDailyPlan 을 부르는 인자 그대로. 멈춘 날(통증 등)은 null */
+function buildDay(p: Player, i: number, st: State, v: Variant = {}): DailyPlan | null {
+  buildCalls++;
+  const todayKey = keyOf(i);
+  const facts = factsFor(p, i, st, v);
   const plan = buildPitchPlan(facts);
   const owned = ownedOf(p.kit);
   const history = historyOf(st, i);
@@ -859,6 +876,16 @@ type DayRecord = {
    */
   heavyLower: number;
   nextGame: number | null;
+  /**
+   * ⑮ 그날 아침의 날 종류(lib/engine/microcycle.ts dayKindOf — 2판 P4 커밋 E)와 구원 '짧게'가 걸렸는가(회복 날은 시간을 안 줄인다).
+   */
+  dayRule: DayRule;
+  shorten: boolean;
+  /**
+   * ⑮ 힘듦 급증 변형 — 체크인 있는 날 '최근 운동이 힘들었던 사람'(7일 안 9 셋 · 28일 안 5 넷)으로 다시 만든 테마. 어제 Σ 투구수 × 체감
+   * 강도가 중간(1,350~2,699)인 날만 회복으로 바뀌어야 하고(R2), 그 밖의 날은 그대로여야 한다. 체크인 없는 날은 칸이 없다.
+   */
+  spikeTheme?: ThemeKey | null;
   age15vs22Differs: boolean;
   age14vs22Differs: boolean;
   /** 어제 던진 것(대본) */
@@ -975,6 +1002,19 @@ for (const p of PLAYERS) {
         }
       : undefined;
 
+    /*
+     * ⑮ 날 종류(2판 P4 커밋 E) — 그날 아침 facts 로 읽은 규칙, 그리고 체크인 있는 날 힘듦 급증 변형의 테마. 힘듦 줄은 그날 기준 1 · 2 · 4일
+     * 전 9, 9 · 12 · 16 · 20일 전 5 — 앱(gather.ts)처럼 오늘 줄은 없다.
+     */
+    const dk = dayKindOf(factsFor(p, i, st));
+    const spikeNotes: TrainingNoteLike[] = [
+      ...[1, 2, 4].map((d) => ({ date: keyOf(i - d), intensity: 9 })),
+      ...[9, 12, 16, 20].map((d) => ({ date: keyOf(i - d), intensity: 5 })),
+    ];
+    const spikeTheme = hasCheckin
+      ? themeOf(buildDay(p, i, st, { trainingNotes: spikeNotes }))
+      : undefined;
+
     const ids = base.picks.map((k) => k.exerciseId);
     days.push({
       date: keyOf(i),
@@ -998,6 +1038,9 @@ for (const p of PLAYERS) {
         return ex != null && isHeavyLower(ex);
       }).length,
       nextGame: daysToNextGame(p.role, i),
+      dayRule: dk.rule,
+      shorten: dk.shorten && base.theme.key !== 'recovery',
+      ...(spikeTheme !== undefined ? { spikeTheme } : {}),
       age15vs22Differs: differs(at15, at22),
       age14vs22Differs: differs(at14, at22),
       yesterday,
@@ -1553,6 +1596,38 @@ const heavyLowerBeforeGame = {
   })),
 };
 
+/*
+ * ⑮ 날 종류(2판 P4 커밋 E) — 체크인 있는 날의 규칙 분포 · 구원 '짧게'가 일정 시간을 줄인 날, 그리고 힘듦 급증 변형. 변형은 어제 대본의
+ * Σ 투구수 × 체감 강도가 중간(MODERATE_OUTING_MIN_LOAD 1,350 이상 · 세게 던진 날 2,700 밑)인 날만 회복이 돼야 하고(R2), 그 밖의 날
+ * (어제 안 던짐 · 가볍게 · 세게)은 테마가 그대로여야 한다(힘듦 급증만으로는 날을 안 바꾼다 — D3 은 투구 부하와 운동 힘듦이 같이 높을 때).
+ */
+const spikeRows = allDays.filter((d) => d.spikeTheme !== undefined);
+const isModerateYesterday = (d: DayRecord) => {
+  const load = d.yesterday ? outingLoadOf(d.yesterday) : 0;
+  return load >= MODERATE_OUTING_MIN_LOAD && load < HARD_OUTING_MIN_LOAD;
+};
+const moderateRows = spikeRows.filter(isModerateYesterday);
+const otherSpikeRows = spikeRows.filter((d) => !isModerateYesterday(d));
+const dayKind = {
+  rulesCheckin: countBy(
+    allDays.filter((d) => d.hasCheckin),
+    (d) => d.dayRule
+  ),
+  rulesNoCheckin: countBy(
+    allDays.filter((d) => !d.hasCheckin),
+    (d) => d.dayRule
+  ),
+  shortenDays: allDays.filter((d) => d.shorten).length,
+  moderateSpike: {
+    moderateDays: moderateRows.length,
+    baseRecovery: moderateRows.filter((d) => d.theme === 'recovery').length,
+    spikeRecovery: moderateRows.filter((d) => d.spikeTheme === 'recovery').length,
+    otherDays: otherSpikeRows.length,
+    otherChanged: otherSpikeRows.filter((d) => d.spikeTheme !== d.theme).length,
+    themesBase: countBy(moderateRows, (d) => d.theme),
+  },
+};
+
 /* 컨디션 늘 낮음 · 맨몸 늘 마침 — 검토안의 두 줄과 견줄 선수 */
 const lowConditionRows = summaries.filter(
   (s) => PLAYERS.find((p) => p.name === s.name)!.condition === 'low'
@@ -1873,7 +1948,7 @@ out.push(
       ],
       [
         '⑫',
-        '  같은 날 어제 기록만 뺀 변형(답만 — 던졌다고 답하고 기록은 안 남김, 엇갈림 표 C6 과 같은 알려진 빈틈 · P4 가 뒤집는다)',
+        '  같은 날 어제 기록만 뺀 변형(답만 — 던졌다고 답하고 기록은 안 남김, 엇갈림 표 C6 · 2판 P4 커밋 E 부터 보조 · 코어)',
         `${themeText(afterGame.dropped)} · 근력 ${pct(afterGame.droppedStrength, afterGame.count)} · 기록이 있으면 회복이던 날 중 근력 ${pct(afterGame.recoveryDroppedStrength, afterGame.recoveryDays)}`,
       ],
       [
@@ -1891,11 +1966,37 @@ out.push(
         `등판 전 무거운 하체(2판 P4) — ${r.label}: 무거운 하체가 든 날(체크인 있는 날 · 없는 날)${r.window === 'd4plus' || r.window === 'none' ? ' · 하체 날 중 든 날(굶지 않음)' : ''}`,
         `${pct(r.checkin.heavyDays, r.checkin.days)} 운동 ${r.checkin.heavy} · 없는 날 ${pct(r.noCheckin.heavyDays, r.noCheckin.days)} 운동 ${r.noCheckin.heavy}${r.window === 'd4plus' || r.window === 'none' ? ` · 하체 날 ${pct(r.checkin.lowerHeavyDays + r.noCheckin.lowerHeavyDays, r.checkin.lower + r.noCheckin.lower)}` : ''}`,
       ]),
+      [
+        '⑮',
+        '날 종류(2판 P4) — 체크인 있는 날의 규칙(lib/engine/microcycle.ts dayKindOf)',
+        Object.entries(dayKind.rulesCheckin)
+          .map(([k, n]) => `${k} ${n}`)
+          .join(' · '),
+      ],
+      [
+        '⑮',
+        '  체크인 없는 날의 규칙 · 구원 짧게(어제 실전 강도로 20구 넘게 — 회복 날 빼고)가 시간을 줄인 날',
+        `${Object.entries(dayKind.rulesNoCheckin)
+          .map(([k, n]) => `${k} ${n}`)
+          .join(' · ')} · 짧게 ${dayKind.shortenDays}일`,
+      ],
+      [
+        '⑮',
+        `  힘듦 급증 변형 — 어제 중간 부하(${MODERATE_OUTING_MIN_LOAD}~${HARD_OUTING_MIN_LOAD - 1}) 날의 회복: 원래 → 변형(D3, 모두 회복이어야 한다)`,
+        `${pct(dayKind.moderateSpike.baseRecovery, dayKind.moderateSpike.moderateDays)} → ${pct(dayKind.moderateSpike.spikeRecovery, dayKind.moderateSpike.moderateDays)}`,
+      ],
+      [
+        '⑮',
+        '  같은 변형 — 그 밖의 날(어제 안 던짐 · 가볍게 · 세게) 테마가 바뀐 날(0 이어야 한다)',
+        pct(dayKind.moderateSpike.otherChanged, dayKind.moderateSpike.otherDays),
+      ],
     ]
   )
 );
 
-out.push("\n## 등판 답별 테마(체크인 있는 날) — 새 답 둘은 지금 '없음'과 같이 읽힌다");
+out.push(
+  "\n## 등판 답별 테마(체크인 있는 날) — '2~3일 뒤'는 무거운 하체를 빼고, 하체 · 상체 기록이 없으면 상체 쪽 · '4일 이상 뒤'는 하체 쪽(2판 P4)"
+);
 out.push(
   table(
     ['등판 답', '날', '테마'],
@@ -2063,8 +2164,10 @@ const json = {
    * 4 = 2판 P4 커밋 C: 날마다 armSevere · metrics.armSevere(⑬ 팔 피로 '심함' 변형)를 더했다(buildCalls 도 그만큼 는다). 3 과 견줄 때는 이 칸을 뺀다.
    * 5 = 2판 P4 커밋 D: 날마다 heavyLower · nextGame · metrics.heavyLowerBeforeGame(⑭ 등판 전 무거운 하체)을 더했다(buildCalls 그대로).
    *     4 와 견줄 때는 이 칸을 뺀다.
+   * 6 = 2판 P4 커밋 E: 날마다 dayRule · shorten · spikeTheme, metrics.dayKind(⑮ 날 종류 · 힘듦 급증 변형)를 더했다(buildCalls 는 체크인
+   *     있는 날만큼 는다). 5 와 견줄 때는 이 칸을 뺀다.
    */
-  version: 5,
+  version: 6,
   /* 돌릴 때마다 바뀌는 것은 이 칸뿐 — 단계 전후를 diff 로 견줄 때는 meta 를 빼고 본다 */
   meta: { generatedAt: new Date().toISOString(), elapsedMs },
   startKey: START_KEY,
@@ -2094,6 +2197,9 @@ const json = {
       armSevere: d.armSevere,
       heavyLower: d.heavyLower,
       nextGame: d.nextGame,
+      dayRule: d.dayRule,
+      shorten: d.shorten,
+      spikeTheme: d.spikeTheme,
       yesterday: d.yesterday,
       today: d.today,
       ids: d.ids,
@@ -2171,6 +2277,7 @@ const json = {
     afterGame,
     armSevere,
     heavyLowerBeforeGame,
+    dayKind,
     loadDistribution: { scripted: scriptedDistribution, real: realDistribution },
   },
   comparison,

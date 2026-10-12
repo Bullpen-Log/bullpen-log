@@ -139,6 +139,17 @@ import {
   outingOf,
   type Outing,
 } from '../lib/engine/outing.ts';
+import {
+  DAY_RULE_RANK,
+  FAR_OUTING_MIN_DAYS,
+  MODERATE_OUTING_MIN_LOAD,
+  RELIEF_SHORTEN_PITCHES,
+  SHORTEN_MIN_MINUTES,
+  dayKindOf,
+  shortenPitchesOf,
+  shortenedMinutes,
+  type DayRule,
+} from '../lib/engine/microcycle.ts';
 import { orderSession, orderWithinSlot } from '../lib/report/exercise-order.ts';
 import {
   freezePlan,
@@ -189,6 +200,7 @@ import {
   pickForTheme,
   plannedOuting,
   workoutConflict,
+  OUTING_LIGHT_LOWER_NOTE,
   type SlotKey,
   type ThemeKey,
 } from '../lib/report/theme.ts';
@@ -378,6 +390,7 @@ import {
 /* 2판 되먹임(P2) — 일정 지문 */
 import {
   FINGERPRINT_KEYS,
+  FINGERPRINT_OPTIONAL_KEYS,
   diffFingerprint,
   diffFingerprintChanges,
   fingerprintOf,
@@ -7817,6 +7830,15 @@ console.log(
     override?: boolean;
     planned: 'today' | 'tomorrow' | null;
     theme: 'recovery' | 'assist' | 'strength';
+    /**
+     * 근력 날의 쪽까지 못 박는 경우(2판 P4 커밋 E — 날 종류의 R5 · R6 은 하체 · 상체 마지막 날이 둘 다 없을 때 쪽을 정한다. 이 표는
+     * 둘 다 null 로 부른다). 안 주면 쪽은 안 본다(날짜 홀짝 — 기준일 06-15 는 상체).
+     */
+    key?: ThemeKey;
+    /**
+     * 안전 거르기 뒤 후보에 무거운 하체가 남는가(2판 P4 커밋 D · E — 등판 창 3일 안이면 false). 안 주면 안 본다.
+     */
+    heavyLower?: boolean;
   }[] = [
     {
       name: "오늘 '오늘 등판'",
@@ -7874,13 +7896,17 @@ console.log(
     /*
      * 알려진 빈틈(D3) — 어제 '오늘 등판'이라 답하고 기록을 안 남기면 매일 일정은 어제 등판을 모른다(체크인은 오늘 · 어제의
      * '내일 등판'만, 기록은 hardOuting 이 본다). 프로그램만 gameYesterday 로 쉰다(아래 (b) C6). P4 에서 부하 기준으로 바꾼다.
+     *
+     * P4 로 바뀜(2026-10-12 커밋 E, C6 결정) — 왜: 던졌다는 답은 있는데 부하를 모르는 날에 무거운 날을 주면 미탐이 된다(facts.ts
+     * '미탐이 오탐보다 위험'). 날 종류의 R3'(lib/engine/microcycle.ts claimedNoLog)가 무게 없는 보조 · 코어 날로 받고 기록을 청한다.
+     * plannedOuting 은 그대로 null(다음 등판이 아니라 지난 등판이라서) — 테마만 strength → assist.
      */
     {
-      name: "오늘 답 없음 + 어제 '오늘 등판' (어제 등판 · 기록 없음 — 알려진 빈틈 D3)",
+      name: "오늘 답 없음 + 어제 '오늘 등판' (어제 등판 · 기록 없음 — P4 로 바뀜: 보조 · 코어)",
       today: { throwPlan: null },
       yesterday: { throwPlan: '오늘 등판' },
       planned: null,
-      theme: 'strength',
+      theme: 'assist',
     },
     {
       name: '둘 다 답 없음',
@@ -7923,41 +7949,55 @@ console.log(
     },
     /*
      * 2판 D1(2026-10-12) 새 답 둘 — '2~3일 뒤' · '4일 이상 뒤'. 날을 못 박지 못하니 plannedOuting 은 '없음'처럼 null, 테마는
-     * 평소(근력). 며칠 뒤 등판을 쓰는 규칙(무거운 하체 허용 · 마지막 무거운 날)은 P4 · P5 에서 day-state 로 — 그때 이 기대값을
-     * 뒤집는다. 어제 '2~3일 뒤'는 오늘 1~2일 뒤라 이월하지 않는다(짐작하지 않는다).
+     * 평소(근력). 어제 '2~3일 뒤'는 오늘 1~2일 뒤라 이월하지 않는다(짐작하지 않는다).
+     *
+     * P4 로 바뀜(2026-10-12 커밋 D · E) — 왜: 검토안 4-2 '2~3일: 근력이되 무거운 하체 금지 · 4일 이상: 무거운 하체'. 테마는 그대로 근력
+     * (strength)이고, 커밋 D 가 등판 창 3일 안의 무거운 하체를 후보에서 빼며(heavyLower false), 커밋 E 의 날 종류가 하체 · 상체 마지막
+     * 날이 둘 다 없을 때의 쪽을 정한다 — 3일 안(R5)이면 다리를 아끼는 상체, 오늘 '4일 이상 뒤'(R6)면 하체. 어제 '4일 이상 뒤'를 하루
+     * 당긴 '3일 이상 뒤'는 3일 뒤일 수도 있어 쪽을 안 정한다(날짜 홀짝 — 06-15 는 상체), 무거운 하체는 든다(끝이 없는 창이라 커밋 D 밖).
      */
     {
-      name: "오늘 '2~3일 뒤' (D1 새 답 — 아직 날을 안 바꾼다)",
+      name: "오늘 '2~3일 뒤' → 근력(상체 쪽) · 무거운 하체 0",
       today: { throwPlan: '2~3일 뒤' },
       planned: null,
       theme: 'strength',
+      key: 'upper',
+      heavyLower: false,
     },
     {
-      name: "오늘 '4일 이상 뒤' (D1 새 답 — 아직 날을 안 바꾼다)",
+      name: "오늘 '4일 이상 뒤' → 근력(하체 쪽) · 무거운 하체 든다",
       today: { throwPlan: '4일 이상 뒤' },
       planned: null,
       theme: 'strength',
+      key: 'lower',
+      heavyLower: true,
     },
     {
-      name: "오늘 답 없음 + 어제 '2~3일 뒤' (이월하지 않는다 — 오늘 1~2일 뒤라 날을 못 박는다)",
+      name: "오늘 답 없음 + 어제 '2~3일 뒤' (이월하지 않는다 — 오늘 1~2일 뒤라 날을 못 박는다) → 근력(상체 쪽) · 무거운 하체 0",
       today: { throwPlan: null },
       yesterday: { throwPlan: '2~3일 뒤' },
       planned: null,
       theme: 'strength',
+      key: 'upper',
+      heavyLower: false,
     },
     {
-      name: "오늘 체크인 없음 + 어제 '4일 이상 뒤'",
+      name: "오늘 체크인 없음 + 어제 '4일 이상 뒤' → 근력(쪽은 날짜 홀짝) · 무거운 하체 든다",
       today: null,
       yesterday: { throwPlan: '4일 이상 뒤' },
       planned: null,
       theme: 'strength',
+      key: 'upper',
+      heavyLower: true,
     },
     {
-      name: "오늘 '2~3일 뒤' + 어제 '내일 등판' (비로 밀림 — 오늘 답이 이긴다)",
+      name: "오늘 '2~3일 뒤' + 어제 '내일 등판' (비로 밀림 — 오늘 답이 이긴다) → 근력(상체 쪽) · 무거운 하체 0",
       today: { throwPlan: '2~3일 뒤' },
       yesterday: { throwPlan: '내일 등판' },
       planned: null,
       theme: 'strength',
+      key: 'upper',
+      heavyLower: false,
     },
   ];
   for (const c of outingCases) {
@@ -7982,6 +8022,23 @@ console.log(
       strengthOr(theme.key) === c.theme,
       `${theme.key} · ${theme.reason}`
     );
+    if (c.key !== undefined) {
+      check(
+        `등판 답 — ${c.name} → 쪽 ${c.key}(하체 · 상체 마지막 날이 둘 다 없을 때, 2판 P4 커밋 E)`,
+        theme.key === c.key,
+        `${theme.key} · ${theme.reason}`
+      );
+    }
+    if (c.heavyLower !== undefined) {
+      const left = selectCandidates({ facts, plan, library }).candidates.filter(
+        isHeavyLower
+      ).length;
+      check(
+        `등판 답 — ${c.name} → 후보의 무거운 하체 ${c.heavyLower ? '남음' : '0'}(2판 P4 커밋 D)`,
+        c.heavyLower ? left > 0 : left === 0,
+        `${left}개`
+      );
+    }
   }
   /* 답이 늘면(D1 — '2~3일 뒤' · '4일 이상 뒤') 여기도 늘려야 한다 — 새 답이 어느 갈래로 가는지 적지 않은 채 지나가지 않게 */
   const answersTested = new Set(
@@ -8012,6 +8069,8 @@ console.log(
    *   C5 팔 피로 '심함' — 암케어만 회복, 일정 · 프로그램은 평소 날(팔 피로를 안 읽는다).
    *      → P4 로 바뀜(2026-10-12 커밋 C): 테마는 그대로 근력이지만 안전 거르기가 무거운 상체 밀기 · 팔 플라이오를 뺀다(여섯째 칸 safety).
    *   C6 어제 '오늘 등판' 답 + 기록 없음 — 프로그램만 경기 다음 날로 쉬고, 일정 · 암케어 · 투구 계획은 평소 날(D3 · P4).
+   *      → P4 로 바뀜(2026-10-12 커밋 E, C6 결정): 매일 일정 'strength' → 'assist'(날 종류 R3' — 기록 없는 등판 다음 날은 무게 없이 보조 ·
+   *        코어, 기록을 청함). 프로그램 · 암케어 · 투구 계획은 그대로(커밋 F 몫 — 프로그램 · 암케어도 부하 기준으로).
    */
   const program531 = parseProgram('531');
   check("엇갈림 표 — 프로그램 '531'(주 3번)을 읽을 수 있다", program531 != null);
@@ -8296,8 +8355,12 @@ console.log(
       tag: 'C6',
       name: "⑥ 어제 '오늘 등판' 답 + 투구 기록 없음 + 오늘 답 없음",
       person: { today: {}, yesterday: { throwPlan: '오늘 등판' } },
+      /*
+       * P4 로 바뀜(2026-10-12 커밋 E) — 왜: 기록 없는 등판 다음 날(C6 결정)은 부하를 몰라 무게를 빼고 보조 · 코어(날 종류 R3').
+       * 매일 일정 'strength' → 'assist'. 나머지 칸은 그대로다.
+       */
       expect: {
-        theme: 'strength',
+        theme: 'assist',
         pitchPlan: 'throw',
         nutrition: 'none',
         armcare: 'strength',
@@ -10448,9 +10511,16 @@ console.log(
   );
 
   /* ── 아직 아무 규칙도 안 읽는다(P5 몫) — 지문 · 투구 계획 · 후보 거르기가 같다 ── */
+  /*
+   * P4 로 바뀜(2026-10-12 커밋 E) — 왜: 날 종류의 R2(어제 중간 부하 + 힘듦 급증 → 회복, D3)가 급증 깃발을 읽게 돼, 같은 커밋에서
+   * 일정 지문에 effortSpike 선택 칸을 더했다(판단이 읽는 칸 = 지문 칸). 칸이 있는 facts 의 지문은 그 칸 하나만 더 붙고, 칸이 없는
+   * facts(none)의 지문은 예전과 글자까지 같다. 투구 계획 · 후보 거르기는 여전히 안 읽는다(아래 둘 그대로).
+   */
   check(
-    'P2 (안 읽음) 급증 깃발이 켜져도 일정 지문(fingerprintOf)은 글자까지 같다',
-    JSON.stringify(fingerprintOf(spiked)) === JSON.stringify(fingerprintOf(none))
+    'P2 (안 읽음 → P4 로 바뀜) 급증 깃발이 켜지면 일정 지문에 effortSpike: true 한 칸만 더 붙는다(칸 없는 facts 의 지문은 그대로)',
+    JSON.stringify(fingerprintOf(spiked)) ===
+      JSON.stringify({ ...fingerprintOf(none), effortSpike: true }) &&
+      !('effortSpike' in fingerprintOf(none))
   );
   check(
     'P2 (안 읽음) 급증 깃발이 켜져도 투구 계획(buildPitchPlan)이 같다',
@@ -15613,6 +15683,1072 @@ console.log(
       ) &&
       !/'스쿼트'|'런지'|'힌지'|'바벨'/.test(rxSrcD)
   );
+}
+
+/* ═══════════════════ [2판 P4] 날 종류 — lib/engine/microcycle.ts dayKindOf · theme.ts 배선 · daily-plan.ts 마무리 (2026-10-12) ═══════════════════ */
+console.log(
+  '\n[2판 P4] 날 종류(dayKindOf) — 규칙 R1~R7 · 테마 두 자리 · 부딪힘 한 사슬 · 번갈아 예비 규칙의 쪽 · 구원 짧게 · 지문 칸 둘(2026-10-12)'
+);
+{
+  /*
+   * 커밋 E 가 바꾼 것: 테마(decideThemeForBody)와 부딪힘(workoutConflict)이 따로 적어 두던 몸 상태 사슬의 등판 쪽을 날 종류(dayKindOf)
+   * 하나로 읽는다. 새로 생긴 날 셋 — R2(어제 중간 부하 + 운동 힘듦 급증 → 회복, D3) · R3'(기록 없는 등판 다음 날 → 보조, C6) ·
+   * R5/R6 의 쪽(하체 · 상체 마지막 날이 둘 다 없을 때). 구원 '어제 실전 강도로 20구 넘게 → 짧게'. 일정 지문에 effortSpike · lastThrow.load.
+   * 엇갈림 표 C6 · 등판 답 사례의 기대값은 '[2판 안전망(P0)]' 절에서 고쳤다(주석 'P4 로 바뀜').
+   */
+  const json = (v: unknown) => JSON.stringify(v);
+  type McCheckin = {
+    throwPlan?: string | null;
+    preferredWorkout?: string | null;
+    condition?: number;
+  };
+  type McLog = { daysAgo: number; pitches: number; pct: number; sessionType?: string };
+  type McPerson = {
+    /** 오늘 체크인 — null 이면 없다, 안 주면 답 칸 없는 체크인 */
+    today?: McCheckin | null;
+    yesterday?: McCheckin | null;
+    logs?: McLog[];
+    /** 운동 끝 힘듦(DailyTrainingNote) — 안 주면 facts 에 trainingEffort 칸이 없다 */
+    notes?: TrainingNoteLike[];
+  };
+  const mcCheckin = (daysAgo: number, c: McCheckin): CheckinLike => ({
+    date: dayBefore(daysAgo).slice(0, 10),
+    condition: c.condition ?? 8,
+    sleep: '보통',
+    shoulder: '정상',
+    elbow: '정상',
+    wrist: '정상',
+    lowerBack: '정상',
+    lowerBody: '정상',
+    preferredParts: [],
+    preferredWorkout: c.preferredWorkout ?? null,
+    ...(c.throwPlan !== undefined ? { throwPlan: c.throwPlan } : {}),
+  });
+  const mcFacts = (p: McPerson) =>
+    buildFacts({
+      nickname: '날 종류',
+      age: 22,
+      heightCm: 180,
+      trainingLevel: null,
+      baselineDailyLoad: 100,
+      rehab: null,
+      today: TODAY,
+      logs: (p.logs ?? []).map<PitchLogLike>((l) => ({
+        date: dayBefore(l.daysAgo),
+        pitchCount: l.pitches,
+        intensity: effortToIntensity(l.pct),
+        effortPct: l.pct,
+        ...(l.sessionType ? { sessionType: l.sessionType } : {}),
+        maxVelocity: null,
+        avgVelocity: null,
+      })),
+      checkins: [
+        ...(p.today === null ? [] : [mcCheckin(0, p.today ?? {})]),
+        ...(p.yesterday ? [mcCheckin(1, p.yesterday)] : []),
+      ],
+      memos: [],
+      ...(p.notes ? { trainingNotes: p.notes } : {}),
+    });
+  /*
+   * 힘듦 줄 — 앱(gather.ts)처럼 오늘 줄은 뺀다. 급증: 7일 안 9 셋 · 28일 안 5 넷(7일 평균 9 − 28일 평균 6.7 ≥ 2). 평소: 같은 날 모두 5.
+   */
+  const noteOn = (daysAgo: number, intensity: number): TrainingNoteLike => ({
+    date: dayBefore(daysAgo).slice(0, 10),
+    intensity,
+  });
+  const SPIKE: TrainingNoteLike[] = [
+    noteOn(1, 9),
+    noteOn(2, 9),
+    noteOn(4, 9),
+    ...[9, 12, 16, 20].map((d) => noteOn(d, 5)),
+  ];
+  const CALM: TrainingNoteLike[] = [1, 2, 4, 9, 12, 16, 20].map((d) => noteOn(d, 5));
+  check(
+    'P4 날 종류 준비 — 힘듦 줄: SPIKE 는 급증 깃발이 켜지고 CALM 은 꺼진다(lib/workout/effort.ts 그대로)',
+    mcFacts({ notes: SPIKE }).condition.trainingEffort?.spikeFlag === true &&
+      mcFacts({ notes: CALM }).condition.trainingEffort?.spikeFlag === false
+  );
+  check(
+    'P4 날 종류 상수 — 중간 부하 1,350(세게 던진 날 2,700 의 절반) · 등판에서 먼 날 4일 · 구원 짧게 20구 초과 · 바닥 30분 · 규칙 → 하는 일 표',
+    MODERATE_OUTING_MIN_LOAD === 1350 &&
+      FAR_OUTING_MIN_DAYS === 4 &&
+      RELIEF_SHORTEN_PITCHES === 20 &&
+      SHORTEN_MIN_MINUTES === 30 &&
+      json(DAY_RULE_RANK) ===
+        json({
+          hard: 'recovery',
+          outingToday: 'recovery',
+          moderateSpike: 'recovery',
+          claimedNoLog: 'light',
+          outingTomorrow: 'light',
+          outingSoon: 'strength',
+          outingFar: 'strength',
+          none: 'none',
+        })
+  );
+  check(
+    'P4 날 종류 짧게 — 60 → 45 · 75 → 55 · 90 → 65 · 45 → 30 · 30 → 30 · 20 → 20(5분 단위 내림, 바닥 30, 늘리지 않음)',
+    json([60, 75, 90, 45, 30, 20].map(shortenedMinutes)) ===
+      json([45, 55, 65, 30, 30, 20])
+  );
+
+  /* ── (가) 규칙표 — 사례마다 rule · rank · 쪽 · 무거운 하체 · 짧게 ── */
+  type McExpect = {
+    rule: DayRule;
+    side?: 'lower' | 'upper' | null;
+    heavy?: boolean;
+    shorten?: boolean;
+  };
+  const mcCases: { name: string; p: McPerson; expect: McExpect }[] = [
+    {
+      name: '기록 · 답 없음',
+      p: {},
+      expect: { rule: 'none', side: null, heavy: true, shorten: false },
+    },
+    {
+      name: "오늘 '없음'",
+      p: { today: { throwPlan: '없음' } },
+      expect: { rule: 'none', side: null, heavy: true },
+    },
+    {
+      name: "오늘 '오늘 불펜'",
+      p: { today: { throwPlan: '오늘 불펜' } },
+      expect: { rule: 'none', side: null, heavy: true },
+    },
+    {
+      name: 'R1 어제 경기 85구',
+      p: { logs: [{ daysAgo: 1, pitches: 85, pct: 100, sessionType: '경기' }] },
+      expect: { rule: 'hard', side: null, heavy: true, shorten: false },
+    },
+    {
+      name: 'R1 오늘 불펜 60구 50%(3,000)',
+      p: { logs: [{ daysAgo: 0, pitches: 60, pct: 50, sessionType: '불펜' }] },
+      expect: { rule: 'hard', shorten: false },
+    },
+    {
+      name: "R1 이 R3 보다 앞 — 어제 경기 85구 + 오늘 '오늘 등판'",
+      p: {
+        today: { throwPlan: '오늘 등판' },
+        logs: [{ daysAgo: 1, pitches: 85, pct: 100, sessionType: '경기' }],
+      },
+      expect: { rule: 'hard', heavy: false },
+    },
+    {
+      name: "R3 오늘 '오늘 등판'",
+      p: { today: { throwPlan: '오늘 등판' } },
+      expect: { rule: 'outingToday', side: null, heavy: false },
+    },
+    {
+      name: "R3 오늘 답 없음 + 어제 '내일 등판'",
+      p: { today: { throwPlan: null }, yesterday: { throwPlan: '내일 등판' } },
+      expect: { rule: 'outingToday', heavy: false },
+    },
+    {
+      name: 'R2 어제 불펜 30구 70%(2,100) + 힘듦 급증',
+      p: {
+        logs: [{ daysAgo: 1, pitches: 30, pct: 70, sessionType: '불펜' }],
+        notes: SPIKE,
+      },
+      expect: { rule: 'moderateSpike', side: null, heavy: true, shorten: false },
+    },
+    {
+      name: 'R2 없음 — 같은 어제 · 힘듦 줄 없음(불펜 70% 는 실전 강도가 아니라 짧게도 아님)',
+      p: { logs: [{ daysAgo: 1, pitches: 30, pct: 70, sessionType: '불펜' }] },
+      expect: { rule: 'none', shorten: false },
+    },
+    {
+      name: 'R2 없음 — 같은 어제 · 힘듦 평소',
+      p: {
+        logs: [{ daysAgo: 1, pitches: 30, pct: 70, sessionType: '불펜' }],
+        notes: CALM,
+      },
+      expect: { rule: 'none' },
+    },
+    {
+      name: 'R2 문턱 — 어제 불펜 30구 45%(1,350) + 급증 → 걸림',
+      p: {
+        logs: [{ daysAgo: 1, pitches: 30, pct: 45, sessionType: '불펜' }],
+        notes: SPIKE,
+      },
+      expect: { rule: 'moderateSpike' },
+    },
+    {
+      name: 'R2 문턱 밑 — 어제 불펜 29구 45%(1,305) + 급증 → 안 걸림',
+      p: {
+        logs: [{ daysAgo: 1, pitches: 29, pct: 45, sessionType: '불펜' }],
+        notes: SPIKE,
+      },
+      expect: { rule: 'none' },
+    },
+    {
+      name: 'R2 없음 — 어제 캐치볼 25구 50%(1,250) + 급증',
+      p: {
+        logs: [{ daysAgo: 1, pitches: 25, pct: 50, sessionType: '캐치볼' }],
+        notes: SPIKE,
+      },
+      expect: { rule: 'none' },
+    },
+    {
+      name: 'R2 없음 — 그제 불펜 30구 70% + 급증(어제만 본다)',
+      p: {
+        logs: [{ daysAgo: 2, pitches: 30, pct: 70, sessionType: '불펜' }],
+        notes: SPIKE,
+      },
+      expect: { rule: 'none' },
+    },
+    {
+      name: "R3 이 R2 보다 앞 — 어제 경기 20구 + 급증 + 오늘 '오늘 등판'",
+      p: {
+        today: { throwPlan: '오늘 등판' },
+        logs: [{ daysAgo: 1, pitches: 20, pct: 100, sessionType: '경기' }],
+        notes: SPIKE,
+      },
+      expect: { rule: 'outingToday', shorten: false },
+    },
+    {
+      name: "R3' 어제 '오늘 등판' + 기록 없음 + 오늘 답 없음",
+      p: { today: { throwPlan: null }, yesterday: { throwPlan: '오늘 등판' } },
+      expect: { rule: 'claimedNoLog', side: null, heavy: true },
+    },
+    {
+      name: "R3' 오늘 체크인 없음 + 어제 '오늘 등판' + 기록 없음",
+      p: { today: null, yesterday: { throwPlan: '오늘 등판' } },
+      expect: { rule: 'claimedNoLog' },
+    },
+    {
+      name: "R3' 가 R4 보다 앞 — 어제 '오늘 등판'(기록 없음) + 오늘 '내일 등판'",
+      p: { today: { throwPlan: '내일 등판' }, yesterday: { throwPlan: '오늘 등판' } },
+      expect: { rule: 'claimedNoLog', heavy: false },
+    },
+    {
+      name: "R3' 없음 — 어제 '오늘 등판' + 어제 경기 20구 기록(부하를 안다)",
+      p: {
+        yesterday: { throwPlan: '오늘 등판' },
+        logs: [{ daysAgo: 1, pitches: 20, pct: 100, sessionType: '경기' }],
+      },
+      expect: { rule: 'none', shorten: false },
+    },
+    {
+      name: "R4 오늘 '내일 등판'",
+      p: { today: { throwPlan: '내일 등판' } },
+      expect: { rule: 'outingTomorrow', side: null, heavy: false },
+    },
+    {
+      name: "R5 오늘 '2~3일 뒤'",
+      p: { today: { throwPlan: '2~3일 뒤' } },
+      expect: { rule: 'outingSoon', side: 'upper', heavy: false },
+    },
+    {
+      name: "R5 오늘 답 없음 + 어제 '2~3일 뒤'(오늘 1~2일 뒤)",
+      p: { today: { throwPlan: null }, yesterday: { throwPlan: '2~3일 뒤' } },
+      expect: { rule: 'outingSoon', side: 'upper', heavy: false },
+    },
+    {
+      name: "R6 오늘 '4일 이상 뒤'",
+      p: { today: { throwPlan: '4일 이상 뒤' } },
+      expect: { rule: 'outingFar', side: 'lower', heavy: true },
+    },
+    {
+      name: "R6 오늘 '4일 이상 뒤' + 어제 불펜 30구 70% → 쪽 없음(어제 던짐)",
+      p: {
+        today: { throwPlan: '4일 이상 뒤' },
+        logs: [{ daysAgo: 1, pitches: 30, pct: 70, sessionType: '불펜' }],
+      },
+      expect: { rule: 'outingFar', side: null, heavy: true },
+    },
+    {
+      name: "R6 오늘 '4일 이상 뒤' + 그제 불펜 30구 70% → 하체 쪽",
+      p: {
+        today: { throwPlan: '4일 이상 뒤' },
+        logs: [{ daysAgo: 2, pitches: 30, pct: 70, sessionType: '불펜' }],
+      },
+      expect: { rule: 'outingFar', side: 'lower' },
+    },
+    {
+      name: "R6 오늘 '4일 이상 뒤' + 오늘 캐치볼 20구 → 쪽 없음(오늘 던짐)",
+      p: {
+        today: { throwPlan: '4일 이상 뒤' },
+        logs: [{ daysAgo: 0, pitches: 20, pct: 50, sessionType: '캐치볼' }],
+      },
+      expect: { rule: 'outingFar', side: null },
+    },
+    {
+      name: "R6 오늘 답 없음 + 어제 '4일 이상 뒤'(오늘 3일 이상 뒤) → 쪽 없음 · 무거운 하체 든다",
+      p: { today: { throwPlan: null }, yesterday: { throwPlan: '4일 이상 뒤' } },
+      expect: { rule: 'outingFar', side: null, heavy: true },
+    },
+    {
+      name: '짧게 — 어제 경기 25구(2,500, 세게 던진 날 밑)',
+      p: { logs: [{ daysAgo: 1, pitches: 25, pct: 100, sessionType: '경기' }] },
+      expect: { rule: 'none', shorten: true },
+    },
+    {
+      name: '짧게 문턱 — 어제 경기 21구',
+      p: { logs: [{ daysAgo: 1, pitches: 21, pct: 100, sessionType: '경기' }] },
+      expect: { rule: 'none', shorten: true },
+    },
+    {
+      name: '짧게 아님 — 어제 경기 20구',
+      p: { logs: [{ daysAgo: 1, pitches: 20, pct: 100, sessionType: '경기' }] },
+      expect: { rule: 'none', shorten: false },
+    },
+    {
+      name: '짧게 — 어제 불펜 25구 90%(실전 강도)',
+      p: { logs: [{ daysAgo: 1, pitches: 25, pct: 90, sessionType: '불펜' }] },
+      expect: { rule: 'none', shorten: true },
+    },
+    {
+      name: '짧게 아님 — 어제 캐치볼 30구 50%(실전 강도 아님)',
+      p: { logs: [{ daysAgo: 1, pitches: 30, pct: 50, sessionType: '캐치볼' }] },
+      expect: { rule: 'none', shorten: false },
+    },
+    {
+      name: '짧게 아님 — 어제 경기 35구(세게 던진 날 → 회복)',
+      p: { logs: [{ daysAgo: 1, pitches: 35, pct: 100, sessionType: '경기' }] },
+      expect: { rule: 'hard', shorten: false },
+    },
+    {
+      name: "짧게(회복 날이라 일정은 안 줄임) — 어제 경기 25구 + 오늘 '오늘 등판'",
+      p: {
+        today: { throwPlan: '오늘 등판' },
+        logs: [{ daysAgo: 1, pitches: 25, pct: 100, sessionType: '경기' }],
+      },
+      expect: { rule: 'outingToday', shorten: true },
+    },
+  ];
+  for (const c of mcCases) {
+    const facts = mcFacts(c.p);
+    const dk = dayKindOf(facts);
+    const e = c.expect;
+    const ok =
+      dk.rule === e.rule &&
+      dk.rank === DAY_RULE_RANK[e.rule] &&
+      (e.side === undefined || dk.side === e.side) &&
+      (e.heavy === undefined || dk.heavyLowerAllowed === e.heavy) &&
+      (e.shorten === undefined || dk.shorten === e.shorten);
+    check(
+      `P4 날 종류 (가) ${c.name} → ${e.rule}${e.side !== undefined ? ` · 쪽 ${e.side}` : ''}${e.heavy !== undefined ? ` · 무거운 하체 ${e.heavy ? '든다' : '뺌'}` : ''}${e.shorten !== undefined ? ` · 짧게 ${e.shorten}` : ''}`,
+      ok,
+      `${dk.rule} · ${dk.rank} · ${dk.side} · ${dk.heavyLowerAllowed} · ${dk.shorten}`
+    );
+  }
+  check(
+    `P4 날 종류 (가) 규칙 ${Object.keys(DAY_RULE_RANK).length}개가 모두 사례에 나온다`,
+    (Object.keys(DAY_RULE_RANK) as DayRule[]).every((r) =>
+      mcCases.some((c) => c.expect.rule === r)
+    )
+  );
+  {
+    const f = mcFacts({
+      today: { throwPlan: '2~3일 뒤' },
+      logs: [{ daysAgo: 1, pitches: 30, pct: 70, sessionType: '불펜' }],
+      notes: SPIKE,
+    });
+    const before = json(f);
+    const a = dayKindOf(f);
+    if (a.yesterday) a.yesterday.pitches = 999;
+    if (a.outing.daysUntilNext) a.outing.daysUntilNext.min = 99;
+    const b = dayKindOf(f);
+    const state = buildDayState({ facts: f, plan: buildPitchPlan(f) });
+    const { threwToday, ...stateOuting } = state.outing;
+    check(
+      'P4 날 종류 (가) 결정성 · facts 를 안 바꿈 · 새 객체 — 재료는 등판 한 곳(outingOf) · 세게 던진 날(hardOuting) · 오늘 상태 한 장과 같은 값',
+      json(b) === json(dayKindOf(f)) &&
+        json(f) === before &&
+        b.yesterday?.pitches === 30 &&
+        json(b.outing) === json(outingOf(f)) &&
+        json(b.hard) === json(hardOuting(f)) &&
+        json(b.outing) === json(stateOuting) &&
+        threwToday === false &&
+        json(b.hard) === json(state.load.hardOuting) &&
+        b.rule === 'moderateSpike',
+      `${b.rule} · ${json(b.yesterday)}`
+    );
+  }
+
+  /* ── (나) 테마 · 부딪힘 배선 — 회복 · 보조 날의 글, 그래도 하기, 쪽 ── */
+  const themeOf = (
+    p: McPerson,
+    opts: {
+      lastLowerKey?: string | null;
+      lastUpperKey?: string | null;
+      override?: boolean;
+    } = {}
+  ) => {
+    const facts = mcFacts(p);
+    return decideTheme({
+      facts,
+      plan: buildPitchPlan(facts),
+      lastLowerKey: opts.lastLowerKey ?? null,
+      lastUpperKey: opts.lastUpperKey ?? null,
+      preferredWorkout: facts.condition.today?.preferredWorkout ?? null,
+      override: opts.override ?? false,
+    });
+  };
+  const r2p: McPerson = {
+    logs: [{ daysAgo: 1, pitches: 30, pct: 70, sessionType: '불펜' }],
+    notes: SPIKE,
+  };
+  const r2 = themeOf(r2p);
+  const r2Clash = workoutConflict({
+    facts: mcFacts({ ...r2p, today: { preferredWorkout: '웨이트' } }),
+    preferredWorkout: '웨이트',
+  });
+  const r2Forced = themeOf(
+    { ...r2p, today: { preferredWorkout: '웨이트' } },
+    { override: true }
+  );
+  check(
+    "P4 날 종류 (나) R2 → 회복 · '어제 30구를 던졌고 최근 운동도 힘들었어요. 오늘은 가볍게 풀고, 내일부터 무게를 다시 올려요.'",
+    r2.key === 'recovery' &&
+      r2.label === '회복·재생 데이' &&
+      r2.reason ===
+        '어제 30구를 던졌고 최근 운동도 힘들었어요. 오늘은 가볍게 풀고, 내일부터 무게를 다시 올려요.',
+    `${r2.key} · ${r2.reason}`
+  );
+  check(
+    'P4 날 종류 (나) 부딪힘 · 그래도 하기 — R2 에 웨이트를 고르면 까닭 같은 말 · 회복으로, 그래도 하기면 근력 + 까닭 · 무리 글',
+    r2Clash?.fallback === 'recovery' &&
+      r2Clash.reason === '어제 30구를 던졌고 최근 운동도 힘들었어요' &&
+      (r2Forced.key === 'lower' || r2Forced.key === 'upper') &&
+      r2Forced.reason.includes(
+        '어제 30구를 던졌고 최근 운동도 힘들었어요. 그래도 하겠다고 하셔서 그대로 만들었어요.'
+      ),
+    `${json(r2Clash)} / ${r2Forced.reason}`
+  );
+  const c6p: McPerson = {
+    today: { throwPlan: null },
+    yesterday: { throwPlan: '오늘 등판' },
+  };
+  const c6 = themeOf(c6p);
+  const c6Clash = workoutConflict({
+    facts: mcFacts({ ...c6p, today: { throwPlan: null, preferredWorkout: '파워' } }),
+    preferredWorkout: '파워',
+  });
+  const c6Forced = themeOf(
+    { ...c6p, today: { throwPlan: null, preferredWorkout: '파워' } },
+    { override: true }
+  );
+  check(
+    "P4 날 종류 (나) R3' → 보조 · '어제 등판이라고 적었는데 투구 기록이 없어요. 오늘은 무게 대신 코어와 보강을 해요. 기록을 남기면 던진 양으로 다시 짤 수 있어요.'",
+    c6.key === 'assist' &&
+      c6.label === '보조·코어 데이' &&
+      c6.reason ===
+        '어제 등판이라고 적었는데 투구 기록이 없어요. 오늘은 무게 대신 코어와 보강을 해요. 기록을 남기면 던진 양으로 다시 짤 수 있어요.',
+    `${c6.key} · ${c6.reason}`
+  );
+  check(
+    "P4 날 종류 (나) R3' 에 파워를 고르면 까닭 같은 말 · 보조로, 그래도 하기면 근력(통증이 아니라 고를 수 있다)",
+    c6Clash?.fallback === 'assist' &&
+      c6Clash.reason === '어제 등판이라고 적었는데 투구 기록이 없어요' &&
+      (c6Forced.key === 'lower' || c6Forced.key === 'upper'),
+    `${json(c6Clash)} / ${c6Forced.key}`
+  );
+  /* 예전 글은 글자 그대로 — R1 · R3 · R4 */
+  const old3 = [
+    themeOf({ today: { throwPlan: '오늘 등판' } }),
+    themeOf({ today: { throwPlan: '내일 등판' } }),
+    themeOf({ logs: [{ daysAgo: 1, pitches: 85, pct: 100, sessionType: '경기' }] }),
+  ];
+  const oldClash = [
+    workoutConflict({
+      facts: mcFacts({ today: { throwPlan: '오늘 등판', preferredWorkout: '웨이트' } }),
+      preferredWorkout: '웨이트',
+    }),
+    workoutConflict({
+      facts: mcFacts({ today: { throwPlan: '내일 등판', preferredWorkout: '웨이트' } }),
+      preferredWorkout: '웨이트',
+    }),
+  ];
+  check(
+    'P4 날 종류 (나) R1 · R3 · R4 의 테마 · 글 · 부딪힘 까닭은 커밋 E 전과 글자까지 같다',
+    old3[0].reason ===
+      '오늘 등판이에요. 가볍게 풀고 활성화만 하고, 무게는 모레부터 다시 올려요.' &&
+      old3[0].key === 'recovery' &&
+      old3[1].reason ===
+        '내일 등판이라 무게 대신 코어와 보강을 해요. 등판 전날은 다리를 가볍게 둬요.' &&
+      old3[1].key === 'assist' &&
+      old3[2].reason ===
+        '어제 거의 전력으로 85구를 던지셨어요. 오늘은 가볍게 풀고, 내일부터 무게를 다시 올려요.' &&
+      old3[2].key === 'recovery' &&
+      json(oldClash) ===
+        json([
+          { reason: '오늘 등판이에요', fallback: 'recovery' },
+          { reason: '내일 등판이에요', fallback: 'assist' },
+        ]),
+    old3.map((t) => t.reason).join(' / ')
+  );
+  /* 차례 — 회복이 보조보다 앞(컨디션 3 + R3' → 회복), 보조는 근육통 '심함' 뒤 · 부하 주의 앞 */
+  const c6Low = themeOf({
+    today: { throwPlan: null, condition: 3 },
+    yesterday: { throwPlan: '오늘 등판' },
+  });
+  check(
+    "P4 날 종류 (나) 차례 — R3'(보조)와 컨디션 3(회복)이 같이 걸리면 회복(회복이 보조보다 앞)",
+    c6Low.key === 'recovery' && c6Low.reason.includes('컨디션이 3/10'),
+    c6Low.reason
+  );
+  /* 쪽 — 하체 · 상체 마지막 날이 둘 다 없을 때만 */
+  const soonFresh = themeOf({ today: { throwPlan: '2~3일 뒤' } });
+  const farFresh = themeOf({ today: { throwPlan: '4일 이상 뒤' } });
+  const soonAfterUpper = themeOf(
+    { today: { throwPlan: '2~3일 뒤' } },
+    { lastLowerKey: '2026-06-10', lastUpperKey: '2026-06-13' }
+  );
+  const farAfterLower = themeOf(
+    { today: { throwPlan: '4일 이상 뒤' } },
+    { lastLowerKey: '2026-06-13', lastUpperKey: '2026-06-10' }
+  );
+  check(
+    "P4 날 종류 (나) 쪽 — 기록 없는 사람: '2~3일 뒤' 상체 · '4일 이상 뒤' 하체(글에 까닭), 한쪽 기록이라도 있으면 번갈아가 이긴다",
+    soonFresh.key === 'upper' &&
+      soonFresh.reason.endsWith('등판이 가까워 다리는 아끼고 상체 근력을 해요.') &&
+      farFresh.key === 'lower' &&
+      farFresh.reason.endsWith(
+        '등판이 아직 멀어 하체 근력을 하기 좋은 날이에요. 투구의 힘은 하체에서 나와요.'
+      ) &&
+      soonAfterUpper.key === 'lower' &&
+      farAfterLower.key === 'upper',
+    [soonFresh, farFresh, soonAfterUpper, farAfterLower]
+      .map((t) => `${t.key} ${t.reason}`)
+      .join(' / ')
+  );
+  check(
+    'P4 날 종류 (나) 새 글 규칙 — 줄표 없음 · 해요체(요. 로 끝남)',
+    [
+      r2.reason,
+      c6.reason,
+      soonFresh.reason,
+      farFresh.reason,
+      OUTING_LIGHT_LOWER_NOTE,
+    ].every((t) => !t.includes('—') && t.endsWith('요.')) &&
+      [r2Clash?.reason ?? '', c6Clash?.reason ?? ''].every(
+        (t) => t.length > 0 && !t.includes('—') && t.endsWith('요')
+      )
+  );
+
+  /* ── (다) 160조합(P3 절이 적어 둔 facts) — 커밋 E 전 사슬과 같은 날 · 두 자리 한 사슬 · 창 같음 · 조이기만 ── */
+  {
+    const rankOf = (k: ThemeKey) => (k === 'recovery' ? 0 : k === 'assist' ? 1 : 2);
+    let n = 0;
+    let rec = 0;
+    let light = 0;
+    let claimed = 0;
+    let soon = 0;
+    let clashes = 0;
+    let spikeBit = 0;
+    const missSame: string[] = [];
+    const missClash: string[] = [];
+    const missWindow: string[] = [];
+    const missSpike: string[] = [];
+    const missClaim: string[] = [];
+    for (const [i, facts] of p3ComboFactsSeen.entries()) {
+      n++;
+      const plan = buildPitchPlan(facts);
+      const dk = dayKindOf(facts);
+      const outing = outingOf(facts);
+      const planned = plannedOuting(facts);
+      /* 커밋 E 전 사슬(hardOuting · plannedOuting)로 낸 날 — 급증 칸이 없는 facts 라 R2 는 없고, 새 것은 R3' 하나 */
+      const oldRecovery = hardOuting(facts) != null || planned === 'today';
+      const oldLight = !oldRecovery && planned === 'tomorrow';
+      const isClaim = !oldRecovery && outing.lastSource === 'checkin-yesterday';
+      if (dk.rank === 'recovery') rec++;
+      if (dk.rank === 'light') light++;
+      if (isClaim) claimed++;
+      if (
+        (dk.rank === 'recovery') !== oldRecovery ||
+        (dk.rank === 'light') !== (oldLight || isClaim)
+      ) {
+        missSame.push(`p3-${i} ${dk.rule}`);
+      }
+      /* 두 자리가 한 사슬 — 통증 회복이 아니고 부딪힘이 있으면, 그래도 하기 없이 만든 테마가 부딪힘의 fallback 과 같다 */
+      const pw = facts.condition.today?.preferredWorkout ?? null;
+      if (painRecoveryReason(facts, plan) == null) {
+        const clash = workoutConflict({ facts, preferredWorkout: pw });
+        if (clash) {
+          clashes++;
+          const day = decideTheme({
+            facts,
+            plan,
+            lastLowerKey: null,
+            lastUpperKey: null,
+            preferredWorkout: pw,
+            override: false,
+          });
+          if (day.key !== clash.fallback)
+            missClash.push(`p3-${i} ${day.key} ≠ ${clash.fallback}`);
+        }
+      }
+      /* 무거운 하체 표시 = 안전 거르기 2-2 가 걸린 날(근거 줄) */
+      const picked = selectCandidates({ facts, plan, library });
+      if (!picked.halted) {
+        const blocked = picked.basis.some((b) => b.endsWith('등판 → 무거운 하체 제외'));
+        if (!dk.heavyLowerAllowed) soon++;
+        if (blocked === dk.heavyLowerAllowed) missWindow.push(`p3-${i}`);
+      }
+      /*
+       * 조이기만 — 힘듦 급증을 얹어도(R2) 테마는 더 무거워지지 않고 후보는 같다. 어제 중간 부하이고 앞선 회복 까닭이 없으면 회복이 된다.
+       */
+      const spiked = {
+        ...facts,
+        condition: {
+          ...facts.condition,
+          trainingEffort: {
+            last7: [9, 9, 9],
+            last28: [9, 9, 9, 5, 5, 5, 5],
+            spikeFlag: true,
+          },
+        },
+      };
+      const base = decideTheme({ facts, plan, lastLowerKey: null, lastUpperKey: null });
+      const withSpike = decideTheme({
+        facts: spiked,
+        plan: buildPitchPlan(spiked),
+        lastLowerKey: null,
+        lastUpperKey: null,
+      });
+      const spikedPick = selectCandidates({
+        facts: spiked,
+        plan: buildPitchPlan(spiked),
+        library,
+      });
+      const yLoad = (facts.patterns.hardOutings ?? []).find(
+        (o) => o.daysAgo === 1
+      )?.load;
+      const moderate =
+        hardOuting(facts) == null &&
+        outing.nextDay !== 0 &&
+        yLoad != null &&
+        yLoad >= MODERATE_OUTING_MIN_LOAD;
+      if (moderate && painRecoveryReason(facts, plan) == null) spikeBit++;
+      if (
+        rankOf(withSpike.key) > rankOf(base.key) ||
+        json(spikedPick.candidates.map((e) => e.id)) !==
+          json(picked.candidates.map((e) => e.id)) ||
+        (moderate && withSpike.key !== 'recovery')
+      ) {
+        missSpike.push(
+          `p3-${i} ${base.key} → ${withSpike.key}${moderate ? ' (중간 부하)' : ''}`
+        );
+      }
+      /* 조이기만 — R3' 날은 어제 답을 지운 같은 사람보다 무겁지 않다 */
+      if (isClaim) {
+        const stripped = {
+          ...facts,
+          condition: { ...facts.condition, throwPlanYesterday: null },
+        };
+        const without = decideTheme({
+          facts: stripped,
+          plan: buildPitchPlan(stripped),
+          lastLowerKey: null,
+          lastUpperKey: null,
+        });
+        if (rankOf(base.key) > rankOf(without.key))
+          missClaim.push(`p3-${i} ${base.key} > ${without.key}`);
+      }
+    }
+    check(
+      `P4 날 종류 (다) ${n}조합 — 회복 날 ⇔ 세게 던진 날 · 오늘 등판, 보조 날 ⇔ 내일 등판 · 기록 없는 등판 다음 날(새 것 ${claimed}) — 회복 ${rec} · 보조 ${light}`,
+      n === 160 && claimed >= 3 && rec >= 20 && light >= 10 && missSame.length === 0,
+      missSame.slice(0, 3).join(' / ')
+    );
+    check(
+      `P4 날 종류 (다) 두 자리 한 사슬 — 부딪힘이 있는 ${clashes}조합에서 그래도 하기 없이 만든 테마 = 부딪힘의 fallback`,
+      clashes >= 20 && missClash.length === 0,
+      missClash.slice(0, 3).join(' / ')
+    );
+    check(
+      `P4 날 종류 (다) 무거운 하체 표시 = 안전 거르기 2-2 가 걸린 날(창 안 ${soon}) — 같은 창 · 같은 문턱`,
+      soon >= 15 && missWindow.length === 0,
+      missWindow.slice(0, 3).join(' / ')
+    );
+    check(
+      `P4 날 종류 (다) 조이기만 — 힘듦 급증을 얹으면 테마는 더 무거워지지 않고 후보는 같다, 어제 중간 부하인 ${spikeBit}조합은 회복`,
+      spikeBit >= 5 && missSpike.length === 0,
+      missSpike.slice(0, 3).join(' / ')
+    );
+    check(
+      "P4 날 종류 (다) 조이기만 — 기록 없는 등판 다음 날(R3')은 어제 답을 지운 같은 사람보다 무겁지 않다",
+      missClaim.length === 0,
+      missClaim.slice(0, 3).join(' / ')
+    );
+  }
+
+  /* ── (라) 일정(buildDailyPlan) — 표시 칸 · 하체 날 한 줄 · 짧게 ── */
+  const allOwned = [ALWAYS_OWNED, ...SELECTABLE_EQUIPMENT];
+  const byIdLib = new Map(library.map((e) => [e.id, e]));
+  const mcBuild = (
+    p: McPerson,
+    opts: {
+      minutes?: number;
+      goal?: string;
+      lastLowerKey?: string | null;
+      lastUpperKey?: string | null;
+    } = {}
+  ) => {
+    const facts = mcFacts(p);
+    return buildDailyPlan({
+      user: { ownedEquipment: allOwned, trainingLevel: '상급' },
+      facts,
+      plan: buildPitchPlan(facts),
+      library,
+      availableToday: null,
+      requestedMinutes: opts.minutes ?? 60,
+      trainingGoal: opts.goal ?? '근력 향상',
+      recentIds: new Set<string>(),
+      rotationSeed: 'p4-daykind',
+      lastLowerKey: opts.lastLowerKey === undefined ? null : opts.lastLowerKey,
+      lastUpperKey: opts.lastUpperKey === undefined ? null : opts.lastUpperKey,
+    });
+  };
+  const picksOf = (b: ReturnType<typeof mcBuild>) =>
+    isHalted(b)
+      ? []
+      : b.picks.map((k) => byIdLib.get(k.exerciseId)).filter((e) => e != null);
+  /* 하체를 더 오래전에 했다 — 번갈아로 하체 날 */
+  const lowerTurn = { lastLowerKey: '2026-06-10', lastUpperKey: '2026-06-13' };
+  const soonLower = mcBuild({ today: { throwPlan: '2~3일 뒤' } }, lowerTurn);
+  const soonUpper = mcBuild({ today: { throwPlan: '2~3일 뒤' } });
+  const farLower = mcBuild({ today: { throwPlan: '4일 이상 뒤' } }, lowerTurn);
+  const soonCond = mcBuild(
+    { today: { throwPlan: '2~3일 뒤' } },
+    { ...lowerTurn, goal: CONDITIONING_GOAL }
+  );
+  check(
+    "P4 날 종류 (라) '2~3일 뒤' 하체 날 — theme.heavyLowerAllowed false · 이유 끝에 '등판이 가까워 무거운 하체는 빼고 가벼운 하체 운동으로 해요.' · 무거운 하체 0 · 본운동 있음",
+    !isHalted(soonLower) &&
+      soonLower.theme.key === 'lower' &&
+      soonLower.theme.heavyLowerAllowed === false &&
+      soonLower.theme.reason.endsWith(` ${OUTING_LIGHT_LOWER_NOTE}`) &&
+      !picksOf(soonLower).some(isHeavyLower) &&
+      soonLower.picks.some((k) => k.slot === 'main'),
+    isHalted(soonLower) ? '멈춤' : `${soonLower.theme.key} · ${soonLower.theme.reason}`
+  );
+  check(
+    "P4 날 종류 (라) '2~3일 뒤' 상체 날(기록 없는 사람) — heavyLowerAllowed false, 하체 한 줄은 없다 · 컨디셔닝 목표 하체 날도 한 줄 없다",
+    !isHalted(soonUpper) &&
+      soonUpper.theme.key === 'upper' &&
+      soonUpper.theme.heavyLowerAllowed === false &&
+      !soonUpper.theme.reason.includes(OUTING_LIGHT_LOWER_NOTE) &&
+      !isHalted(soonCond) &&
+      soonCond.theme.key === 'lower' &&
+      soonCond.theme.heavyLowerAllowed === false &&
+      !soonCond.theme.reason.includes(OUTING_LIGHT_LOWER_NOTE),
+    isHalted(soonUpper) || isHalted(soonCond)
+      ? '멈춤'
+      : `${soonUpper.theme.reason} / ${soonCond.theme.reason}`
+  );
+  check(
+    "P4 날 종류 (라) '4일 이상 뒤' 하체 날 — theme 은 key · label · reason 셋뿐(표시 칸 없음 = 든다, 옛 일정과 같은 모양) · 무거운 하체 든다",
+    !isHalted(farLower) &&
+      json(Object.keys(farLower.theme)) === json(['key', 'label', 'reason']) &&
+      picksOf(farLower).some(isHeavyLower),
+    isHalted(farLower) ? '멈춤' : json(farLower.theme)
+  );
+  const relief = (minutes: number, extra: McPerson = {}) =>
+    mcBuild(
+      { logs: [{ daysAgo: 1, pitches: 25, pct: 100, sessionType: '경기' }], ...extra },
+      { minutes }
+    );
+  const r60 = relief(60);
+  const r45 = relief(45);
+  const rToday = relief(60, { today: { throwPlan: '오늘 등판' } });
+  const r20 = mcBuild(
+    { logs: [{ daysAgo: 1, pitches: 20, pct: 100, sessionType: '경기' }] },
+    { minutes: 60 }
+  );
+  const slackOf = (m: number) => Math.min(3, m * 0.12);
+  check(
+    "P4 날 종류 (라) 구원 짧게 — 어제 경기 25구: 60분 → 45분 · 45분 → 30분, 이유 끝에 '어제 실전 강도로 25구를 던져 오늘은 45분으로 짧게 잡았어요.', 걸리는 시간도 그 안",
+    !isHalted(r60) &&
+      r60.requestedMinutes === 60 &&
+      r60.minutes === 45 &&
+      r60.theme.reason.endsWith(
+        '어제 실전 강도로 25구를 던져 오늘은 45분으로 짧게 잡았어요.'
+      ) &&
+      r60.estimatedMinutes <= 45 + slackOf(45) &&
+      !isHalted(r45) &&
+      r45.minutes === 30 &&
+      r45.theme.reason.endsWith('오늘은 30분으로 짧게 잡았어요.'),
+    isHalted(r60) || isHalted(r45)
+      ? '멈춤'
+      : `${r60.minutes}분 · ${r60.estimatedMinutes}분 · ${r60.theme.reason}`
+  );
+  check(
+    'P4 날 종류 (라) 구원 짧게 아님 — 회복 날(effectiveMinutes 만 · 40분, 두 번 안 줄임) · 어제 경기 20구(60분 그대로, 글 없음)',
+    !isHalted(rToday) &&
+      rToday.theme.key === 'recovery' &&
+      rToday.minutes === effectiveMinutes('recovery', 60) &&
+      !rToday.theme.reason.includes('짧게') &&
+      !isHalted(r20) &&
+      r20.minutes === 60 &&
+      !r20.theme.reason.includes('짧게'),
+    isHalted(rToday) || isHalted(r20) ? '멈춤' : `${rToday.minutes} · ${r20.minutes}`
+  );
+  check(
+    'P4 날 종류 (라) shortenPitchesOf — 짧게인 날만 어제 실전 강도 공 수(25), 아니면 null',
+    shortenPitchesOf(
+      dayKindOf(
+        mcFacts({ logs: [{ daysAgo: 1, pitches: 25, pct: 100, sessionType: '경기' }] })
+      )
+    ) === 25 &&
+      shortenPitchesOf(
+        dayKindOf(
+          mcFacts({
+            logs: [{ daysAgo: 1, pitches: 20, pct: 100, sessionType: '경기' }],
+          })
+        )
+      ) === null
+  );
+
+  /* ── (마) 매일 '2~3일 뒤'라 답하는 구원 7일 — 근력 날 ≥ 2 · 무거운 하체 0 · 본운동 안 빔 · 하체 · 상체 번갈음 ── */
+  {
+    const history: { date: string; plan: unknown }[] = [];
+    const seq: string[] = [];
+    let heavy = 0;
+    let emptyMain = 0;
+    for (let d = 0; d < 7; d++) {
+      const asOf = new Date(TODAY.getTime() + d * 86400000);
+      const key = toDateKey(asOf);
+      const facts = buildFacts({
+        nickname: '구원',
+        age: 22,
+        heightCm: 180,
+        trainingLevel: '상급',
+        baselineDailyLoad: 100,
+        rehab: null,
+        today: asOf,
+        logs: [],
+        checkins: [
+          {
+            date: key,
+            condition: 8,
+            sleep: '보통',
+            shoulder: '정상',
+            elbow: '정상',
+            wrist: '정상',
+            lowerBack: '정상',
+            lowerBody: '정상',
+            preferredParts: [],
+            preferredWorkout: null,
+            throwPlan: '2~3일 뒤',
+          } satisfies CheckinLike,
+        ],
+        memos: [],
+      });
+      const dates = strengthDatesFrom({ done: [], planned: history, todayKey: key });
+      const built = buildDailyPlan({
+        user: { ownedEquipment: allOwned, trainingLevel: '상급' },
+        facts,
+        plan: buildPitchPlan(facts),
+        library,
+        availableToday: null,
+        requestedMinutes: 60,
+        trainingGoal: '근력 향상',
+        recentIds: new Set<string>(),
+        rotationSeed: `p4-relief-${key}`,
+        lastLowerKey: dates.lower,
+        lastUpperKey: dates.upper,
+      });
+      if (isHalted(built)) {
+        seq.push('멈춤');
+        continue;
+      }
+      seq.push(built.theme.key);
+      heavy += picksOf(built).filter(isHeavyLower).length;
+      if (
+        (built.theme.key === 'lower' || built.theme.key === 'upper') &&
+        !built.picks.some((k) => k.slot === 'main')
+      )
+        emptyMain++;
+      history.push({ date: key, plan: built });
+    }
+    const strength = seq.filter((k) => k === 'lower' || k === 'upper').length;
+    const flips = seq.slice(1).filter((k, i) => k !== seq[i]).length;
+    check(
+      `P4 날 종류 (마) 매일 '2~3일 뒤' 7일 — 근력 날 ${strength}(≥ 2) · 무거운 하체 ${heavy} · 본운동 빈 근력 날 ${emptyMain} · 첫날 상체(다리를 아낌) · 하체 · 상체가 날마다 바뀜(${flips}/6)`,
+      strength >= 2 &&
+        heavy === 0 &&
+        emptyMain === 0 &&
+        seq[0] === 'upper' &&
+        flips === 6,
+      seq.join(' → ')
+    );
+  }
+
+  /* ── (바) 일정 지문 — effortSpike · lastThrow.load(날 종류가 새로 읽는 칸) ── */
+  {
+    const calmF = mcFacts({ ...r2p, notes: CALM });
+    const spikeF = mcFacts(r2p);
+    const fpCalm = fingerprintOf(calmF);
+    const fpSpike = fingerprintOf(spikeF);
+    check(
+      'P4 날 종류 (바) 지문 effortSpike — 힘듦 칸이 있는 facts 의 칸 목록 = FINGERPRINT_KEYS + FINGERPRINT_OPTIONAL_KEYS(순서까지), 없는 facts 는 FINGERPRINT_KEYS 그대로',
+      json(Object.keys(fpSpike)) ===
+        json([...FINGERPRINT_KEYS, ...FINGERPRINT_OPTIONAL_KEYS]) &&
+        json(Object.keys(fingerprintOf(mcFacts({ logs: r2p.logs })))) ===
+          json(FINGERPRINT_KEYS) &&
+        json(FINGERPRINT_OPTIONAL_KEYS) === json(['effortSpike']),
+      Object.keys(fpSpike).join(',')
+    );
+    const up = diffFingerprintChanges(fpCalm, fpSpike);
+    const down = diffFingerprintChanges(fpSpike, fpCalm);
+    check(
+      "P4 날 종류 (바) 지문 effortSpike — 급증이 켜지면 '최근 운동 힘듦이 평소보다 높아졌어요', 꺼지면 '최근 운동 힘듦이 평소대로 돌아왔어요'(한 줄씩 · 키 effortSpike)",
+      up.length === 1 &&
+        up[0].key === 'effortSpike' &&
+        up[0].text === '최근 운동 힘듦이 평소보다 높아졌어요' &&
+        down.length === 1 &&
+        down[0].text === '최근 운동 힘듦이 평소대로 돌아왔어요',
+      `${up.map((c) => c.text).join(',')} / ${down.map((c) => c.text).join(',')}`
+    );
+    const legacy = { ...fpSpike } as Record<string, unknown>;
+    delete legacy.effortSpike;
+    const legacyRead = readPlanFingerprint(legacy);
+    check(
+      'P4 날 종류 (바) 지문 effortSpike — 칸이 생기기 전의 지문(칸 없음)은 읽히고, 지금 지문과 견줘도 힘듦 줄이 없다(둘 다 있을 때만)',
+      legacyRead != null &&
+        !('effortSpike' in legacyRead) &&
+        !diffFingerprintChanges(legacyRead, fpSpike).some(
+          (c) => c.key === 'effortSpike'
+        )
+    );
+    check(
+      'P4 날 종류 (바) 지문 — effortSpike · lastThrow.load 가 든 지문은 저장했다 읽어도 글자까지 같고, 모양이 틀리면(참 · 거짓 아님 · 숫자 아님) null',
+      json(readPlanFingerprint(JSON.parse(json(fpSpike)))) === json(fpSpike) &&
+        fpSpike.lastThrow?.load === 2100 &&
+        readPlanFingerprint({ ...fpSpike, effortSpike: 'yes' }) === null &&
+        readPlanFingerprint({
+          ...fpSpike,
+          lastThrow: { ...fpSpike.lastThrow, load: '2100' },
+        }) === null,
+      json(fpSpike.lastThrow)
+    );
+    /* 28구 45% ↔ 50% — 전력 환산이 같아(강도 5 · 계수 0.75 → 21구) 예전 지문으로는 같은데, load 가 1,260 ↔ 1,400 이라 R2 가 뒤집힌다 */
+    const at = (pct: number) =>
+      mcFacts({
+        logs: [{ daysAgo: 1, pitches: 28, pct, sessionType: '불펜' }],
+        notes: SPIKE,
+      });
+    const lo = at(45);
+    const hi = at(50);
+    const loadOnly = diffFingerprintChanges(fingerprintOf(lo), fingerprintOf(hi));
+    check(
+      "P4 날 종류 (바) 지문 lastThrow.load — 어제 28구 45% → 50%(전력 환산은 같음)는 날 종류가 none → moderateSpike 로 바뀌고, 지문은 '6월 14일 투구 기록의 체감 강도가 바뀌었어요' 한 줄로 알아챈다",
+      dayKindOf(lo).rule === 'none' &&
+        dayKindOf(hi).rule === 'moderateSpike' &&
+        fingerprintOf(lo).lastThrow?.adjusted ===
+          fingerprintOf(hi).lastThrow?.adjusted &&
+        loadOnly.length === 1 &&
+        loadOnly[0].key === 'lastThrow' &&
+        loadOnly[0].text === '6월 14일 투구 기록의 체감 강도가 바뀌었어요',
+      loadOnly.map((c) => c.text).join(' / ')
+    );
+    /*
+     * 판단 입력이 바뀌면 지문도 바뀐다(P2 규칙) — 축 하나만 바꾼 이웃끼리 날 종류(rule · 쪽 · 무거운 하체 · 짧게)가 다르면 지문 견주기에
+     * 바뀐 줄이 하나 이상 있어야 한다.
+     */
+    const todayAns: (string | null | undefined)[] = [undefined, null, ...THROW_PLANS];
+    const yAns: (string | null)[] = [
+      null,
+      '오늘 등판',
+      '내일 등판',
+      '2~3일 뒤',
+      '4일 이상 뒤',
+    ];
+    const logSets: McLog[][] = [
+      [],
+      [{ daysAgo: 1, pitches: 25, pct: 100, sessionType: '경기' }],
+      [{ daysAgo: 1, pitches: 28, pct: 45, sessionType: '불펜' }],
+      [{ daysAgo: 1, pitches: 28, pct: 50, sessionType: '불펜' }],
+      [{ daysAgo: 1, pitches: 85, pct: 100, sessionType: '경기' }],
+      [{ daysAgo: 0, pitches: 20, pct: 50, sessionType: '캐치볼' }],
+    ];
+    const noteSets: (TrainingNoteLike[] | undefined)[] = [undefined, CALM, SPIKE];
+    const personOf = (t: number, y: number, l: number, s: number): McPerson => ({
+      today: todayAns[t] === undefined ? {} : { throwPlan: todayAns[t] },
+      ...(yAns[y] != null ? { yesterday: { throwPlan: yAns[y] } } : {}),
+      logs: logSets[l],
+      ...(noteSets[s] ? { notes: noteSets[s] } : {}),
+    });
+    const cache = new Map<
+      string,
+      { kind: string; fp: ReturnType<typeof fingerprintOf> }
+    >();
+    const at4 = (t: number, y: number, l: number, s: number) => {
+      const key = `${t}.${y}.${l}.${s}`;
+      let got = cache.get(key);
+      if (!got) {
+        const f = mcFacts(personOf(t, y, l, s));
+        const dk = dayKindOf(f);
+        got = {
+          kind: json([dk.rule, dk.side, dk.heavyLowerAllowed, dk.shorten]),
+          fp: fingerprintOf(f),
+        };
+        cache.set(key, got);
+      }
+      return got;
+    };
+    let pairs = 0;
+    const silent: string[] = [];
+    const sizes = [todayAns.length, yAns.length, logSets.length, noteSets.length];
+    for (let t = 0; t < sizes[0]; t++)
+      for (let y = 0; y < sizes[1]; y++)
+        for (let l = 0; l < sizes[2]; l++)
+          for (let s = 0; s < sizes[3]; s++) {
+            const here = at4(t, y, l, s);
+            const idx = [t, y, l, s];
+            for (let axis = 0; axis < 4; axis++)
+              for (let v = idx[axis] + 1; v < sizes[axis]; v++) {
+                const j = [...idx];
+                j[axis] = v;
+                const there = at4(j[0], j[1], j[2], j[3]);
+                if (here.kind === there.kind) continue;
+                /* 힘듦 칸이 한쪽만 있는 쌍(옛 지문과 견주는 꼴)은 effortSpike 를 안 견주니 뺀다 — 앱은 늘 칸이 있다 */
+                if ((noteSets[idx[3]] == null) !== (noteSets[j[3]] == null)) continue;
+                pairs++;
+                if (diffFingerprintChanges(here.fp, there.fp).length === 0)
+                  silent.push(`${idx.join('.')} ↔ ${j.join('.')}`);
+              }
+          }
+    check(
+      `P4 날 종류 (바) 지문 — 축 하나만 바꾼 이웃 중 날 종류가 다른 ${pairs}쌍은 모두 지문 견주기에 바뀐 줄이 있다(판단이 읽는 칸 = 지문 칸)`,
+      pairs > 300 && silent.length === 0,
+      silent.slice(0, 3).join(' / ')
+    );
+  }
+
+  /* ── (사) 소스 — 날 종류는 순수 파일, 테마 · 부딪힘은 그것만 읽고 옛 사슬을 베끼지 않는다 ── */
+  {
+    const strip = (p: string) =>
+      readFileSync(new URL(`../${p}`, import.meta.url), 'utf8')
+        .replace(/\/\*[\s\S]*?\*\//g, '')
+        .replace(/^\s*\/\/.*$/gm, '');
+    const mcSrc = strip('lib/engine/microcycle.ts');
+    const specs = [...mcSrc.matchAll(/from '([^']+)'/g)].map((m) => m[1]);
+    check(
+      'P4 날 종류 (사) lib/engine/microcycle.ts 는 순수 — import 는 day-state · outing · facts · prescription 넷뿐(theme 없음), 날짜 함수 · 난수 · server-only · 글 없음',
+      json([...new Set(specs)].sort()) ===
+        json([
+          '@/lib/engine/day-state',
+          '@/lib/engine/outing',
+          '@/lib/report/facts',
+          '@/lib/report/prescription',
+        ]) &&
+        !/new Date\(|appNow|Math\.random|server-only/.test(mcSrc) &&
+        !/요\.'|요'/.test(mcSrc),
+      specs.join(' · ')
+    );
+    const themeSrc = strip('lib/report/theme.ts');
+    const planSrc = strip('lib/report/daily-plan.ts');
+    check(
+      'P4 날 종류 (사) theme.ts — 테마 · 부딪힘은 dayKindOf 를 한 번씩 부르고, 옛 사슬(hardOuting(facts) · plannedOuting(facts) 부르기)이 없다 · daily-plan.ts 가 finishDayTheme 으로 마무리',
+      (themeSrc.match(/dayKindOf\(facts\)/g) ?? []).length === 2 &&
+        !/[^.\w]hardOuting\(facts\)|[^.\w]plannedOuting\(facts\)/.test(themeSrc) &&
+        /const dk = dayKindOf\(facts\);/.test(planSrc) &&
+        /finishDayTheme\(/.test(planSrc)
+    );
+  }
 }
 
 console.log(`\n${passed}개 통과, ${failed}개 실패`);

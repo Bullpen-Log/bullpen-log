@@ -13,6 +13,7 @@ import {
   decideTheme,
   workoutConflict,
   effectiveMinutes,
+  finishDayTheme,
   pickForTheme,
   conditioningDay,
   painAvoidedSide,
@@ -20,6 +21,7 @@ import {
   type SlotKey,
   type ThemeKey,
 } from '@/lib/report/theme';
+import { dayKindOf, shortenPitchesOf, shortenedMinutes } from '@/lib/engine/microcycle';
 import type { ReportFacts } from '@/lib/report/facts';
 import type { PitchPlan } from '@/lib/report/plan';
 import type { AutoCaution, AutoRecord } from '@/lib/report/auto-setup';
@@ -46,7 +48,11 @@ import type { PlanFingerprint } from '@/lib/report/plan-fingerprint';
 export type DailyPlan = {
   /** 모양이 바뀌면 올린다. 옛 기록은 못 읽는 것으로 보고 다시 만들게 한다. */
   version: 1;
-  theme: { key: ThemeKey; label: string; reason: string };
+  /**
+   * heavyLowerAllowed 는 2판 P4 커밋 E 에서 더한 선택 칸 — 등판 창이 무거운 하체를 뺀 날에만 false 가 실린다(theme.ts finishDayTheme).
+   * 없으면 든다고 읽는다(옛 줄과 같은 뜻이라 version 은 그대로 — focus 와 같은 까닭).
+   */
+  theme: { key: ThemeKey; label: string; reason: string; heavyLowerAllowed?: boolean };
   goal: string | null;
   /**
    * 목표 안에서 좁힌 부위. 안 좁혔으면 null 이고, 그때는 앱이 번갈아 정했다.
@@ -248,7 +254,14 @@ export function buildDailyPlan<T extends ExerciseLike>({
     asOf: facts.asOf,
     avoid: painAvoidedSide(facts),
   });
-  const minutes = effectiveMinutes(theme.key, requestedMinutes);
+  /*
+   * 쓸 시간 — 회복 날은 effectiveMinutes 가 줄이고, 그 밖의 날은 구원 '어제 실전 강도로 20구 넘게 던졌으면 짧게'(날 종류의 shorten,
+   * 2판 P4 커밋 E)일 때 × 0.75 · 바닥 30분. 회복 날은 이미 줄였으니 두 번 줄이지 않는다. 고르기 전에 정해야 구성이 그 시간에 맞는다.
+   */
+  const dk = dayKindOf(facts);
+  const baseMinutes = effectiveMinutes(theme.key, requestedMinutes);
+  const shortenPitches = theme.key === 'recovery' ? null : shortenPitchesOf(dk);
+  const minutes = shortenPitches != null ? shortenedMinutes(baseMinutes) : baseMinutes;
 
   const themed = pickForTheme({
     /* 목표에 맞춘 횟수로 시간을 센다 — 화면 · 운동 화면도 같은 값을 쓴다(goal-prescription.ts) */
@@ -271,18 +284,37 @@ export function buildDailyPlan<T extends ExerciseLike>({
    * 운동이 하나도 없는데 '하체 스트렝스 데이'라고 적혀 있으면 안 된다. 이유는
    * 실제로 뽑힌 구간으로 적는다 — 유산소는 영상이 있는 날에만 들어간다.
    */
-  const shownTheme =
-    goal.name === CONDITIONING_GOAL
+  const conditioning = goal.name === CONDITIONING_GOAL;
+  /*
+   * 날을 다 정한 뒤 표시를 붙인다(theme.ts finishDayTheme — 등판 창의 하체 날 한 줄 · 짧게 한 줄 · heavyLowerAllowed). 날을 바꾸는 함수가
+   * 테마를 새로 만들어도 빠지지 않게 마지막에 한 번(2판 P4 커밋 E).
+   */
+  const shownTheme = finishDayTheme(
+    conditioning
       ? conditioningDay(
           theme,
           facts,
           themed.picks.map((p) => p.slot)
         )
-      : theme;
+      : theme,
+    dk,
+    {
+      conditioning,
+      shortened:
+        shortenPitches != null && minutes < baseMinutes
+          ? { pitches: shortenPitches, minutes }
+          : null,
+    }
+  );
 
   return {
     version: 1,
-    theme: { key: shownTheme.key, label: shownTheme.label, reason: shownTheme.reason },
+    theme: {
+      key: shownTheme.key,
+      label: shownTheme.label,
+      reason: shownTheme.reason,
+      ...(shownTheme.heavyLowerAllowed === false ? { heavyLowerAllowed: false } : {}),
+    },
     goal: goal.name,
     focus,
     preferredWorkout,
