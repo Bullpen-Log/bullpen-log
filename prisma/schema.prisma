@@ -111,6 +111,7 @@ model User {
   pitchLogs         PitchLog[]
   velocitySessions  VelocitySession[]
   velocityPitches   VelocityPitch[]
+  velocityAttempts  VelocityAttempt[]
   userExerciseLogs  UserExerciseLog[]
   workoutSessions   TrainingSession[]
   articles          Article[]
@@ -660,6 +661,7 @@ model VelocitySession {
   user     User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   pitchLog PitchLog?      @relation(fields: [pitchLogId], references: [id], onDelete: SetNull)
   pitches  VelocityPitch[]
+  attempts VelocityAttempt[]
 
   @@index([userId, date])
 }
@@ -727,10 +729,59 @@ model VelocityPitch {
 
   session      VelocitySession       @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   calibResults VelocityCalibResult[]
+  attempt      VelocityAttempt?
   user    User            @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, createdAt])
   @@index([sessionId, seq])
+}
+
+/**
+ * 구속 측정 — 공 알림(시도) 하나. 쟀든 못 쟀든 남긴다(2026-10-12 금윤호: 빠른 공일수록 못 재는데 실패는 어디에도 안 남아 구간별로
+ * 셀 수 없었다 — 엔진 2.4 0단계). 알림은 세션을 저장하기 전에 오므로 세션 · 공과는 저장할 때 잇는다(sessionId · pitchId).
+ * 못 잰 공의 스피드건 값은 관리자가 여기에 적는다(gunKmh) — 관리자 날짜 폴더의 '시도' 표.
+ */
+model VelocityAttempt {
+  id            String   @id @default(uuid())
+  userId        String
+  sessionId     String?
+  /// 이 시도로 저장된 공 — 못 쟀거나 세션을 저장하지 않았으면 비어 있다
+  pitchId       String?  @unique
+  date          DateTime @db.Date
+  /// 앱 카메라 시계로 알림 시각(초) · 종류('ball' 날아가는 공 · 'motion' 움직임) · 세기(앱 MotionTrigger strength)
+  atSec         Float?
+  kind          String
+  strength      Float?
+  /// 쟀나 · 못 쟀으면 거부 코드(validate.ts RejectCode) · 까닭 한 토막(analyze-distance.ts DistanceReport.why)
+  ok            Boolean
+  rejectCode    String?
+  why           String?
+  /// 엔진이 이은 공 길 장면 수 — 못 쟀어도 몇 장은 있을 수 있다(0 이면 헛알림에 가깝다)
+  trackFrames   Int?
+  rawKmh        Float?
+  confidence    String?
+  /// 관리자가 적는 스피드건 값(km/h) · 통계에서 뺄까 · 메모
+  gunKmh        Float?
+  excluded      Boolean  @default(false)
+  memo          String?
+  /// 못 잰 공의 영상 클립(보정용 저장을 켠 세션만 서버에) — 칸 뜻은 VelocityPitch 의 clip* 와 같다
+  clipPath      String?
+  clipBytes     Int?
+  clipSec       Float?
+  clipMime      String?
+  clipEventSec  Float?
+  /// 엔진 진단(거리 보고 · 궤적 몇 장) — 못 잰 까닭을 되짚을 때
+  analysis      Json?
+  engineVersion String?
+  createdAt     DateTime @default(now())
+
+  user    User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  session VelocitySession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  pitch   VelocityPitch?   @relation(fields: [pitchId], references: [id], onDelete: SetNull)
+
+  @@index([userId, date])
+  @@index([date])
+  @@index([sessionId])
 }
 
 /**

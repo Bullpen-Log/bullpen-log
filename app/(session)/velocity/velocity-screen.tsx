@@ -50,7 +50,7 @@ import {
   type PitchClip,
   type ResultMeta,
 } from '@/lib/velocity-engine/live-capture';
-import { DualCapture, DualUnsupportedError } from '@/lib/velocity-engine/dual-capture';
+import { DualCapture, DualUnsupportedError, type AttemptInfo } from '@/lib/velocity-engine/dual-capture';
 import { MeasureProgress, measurePhaseOf } from '@/components/velocity/measure-progress';
 import { CameraTuner } from '@/components/velocity/camera-tuner';
 import {
@@ -83,7 +83,7 @@ import {
   type RecorderState,
 } from '@/lib/velocity-recorder';
 import { VELOCITY_ENGINE_VERSION } from '@/lib/velocity-engine/version';
-import { uploadClip } from '@/lib/velocity-clip-upload';
+import { uploadAttemptClip, uploadClip } from '@/lib/velocity-clip-upload';
 import {
   VelocityTutorial,
   setTutorialHidden,
@@ -174,7 +174,12 @@ import {
   fovDegFromFocal,
   lensMatches,
 } from '@/lib/velocity-lens';
-import { saveVelocitySession, type SaveSessionInput, type SavePitchInput } from '@/app/actions/velocity';
+import {
+  recordVelocityAttempt,
+  saveVelocitySession,
+  type SaveSessionInput,
+  type SavePitchInput,
+} from '@/app/actions/velocity';
 import {
   clearDraft,
   deleteClip,
@@ -983,6 +988,7 @@ export function VelocityScreen({
               onError: setError,
               onNotice: setToast,
               onFps: (f) => setFps(Math.round(f)),
+              onAttempt: (a) => attemptRef.current({ ...a, id: idBase + a.id }),
             },
             now.fov,
             now.approach,
@@ -1150,6 +1156,10 @@ export function VelocityScreen({
     (r: ScreenResult, s: LocalPitch['source'], m?: ResultMeta) => void
   >(() => undefined);
   const attachClipRef = useRef<(id: number, clip: PitchClip) => void>(() => undefined);
+  /* 시도 기록(엔진 2.4 0단계) — 결과 번호 → 서버 시도 id, 이번 세션의 시도 id 전부(저장할 때 세션에 잇는다) */
+  const attemptRef = useRef<(a: AttemptInfo) => void>(() => undefined);
+  const attemptIdsRef = useRef(new Map<number, string>());
+  const sessionAttemptIdsRef = useRef<string[]>([]);
   useEffect(() => {
     captureRef.current?.setManual(!autoMode);
   }, [autoMode]);
@@ -1196,6 +1206,48 @@ export function VelocityScreen({
   };
   useEffect(() => {
     attachClipRef.current = attachClipToPitch;
+  });
+
+  /*
+   * 시도 기록 — 앱 카메라의 공 · 움직임 알림마다 쟀나 · 못 쟀으면 까닭을 서버에 남긴다(엔진 2.4 0단계, 2026-10-12: 못 잰 공이 어디에도
+   * 안 남아 빠른 공의 실패를 구간별로 셀 수 없었다). 서버가 안 받아도(신호 없음) 측정은 그대로 — 조용히 넘긴다. 저장할 때 세션 · 공에
+   * 잇는다(attemptIds · attemptId). 못 잰 공의 클립은 관리자의 보정용 저장일 때만 서버에 올린다.
+   */
+  const recordAttempt = (a: AttemptInfo) => {
+    const date = draftDate ?? today;
+    const calib = calibOn;
+    void (async () => {
+      let res: Awaited<ReturnType<typeof recordVelocityAttempt>>;
+      try {
+        res = await recordVelocityAttempt({
+          date,
+          kind: a.kind,
+          atSec: a.atSec,
+          strength: a.strength,
+          ok: a.ok,
+          code: a.code,
+          why: a.why,
+          trackFrames: a.trackFrames,
+          rawKmh: a.rawKmh,
+          confidence: a.confidence,
+          distance: a.distance,
+        });
+      } catch (err) {
+        unstable_rethrow(err);
+        return;
+      }
+      if (!res.ok) return;
+      attemptIdsRef.current.set(a.id, res.id);
+      sessionAttemptIdsRef.current.push(res.id);
+      if (a.clip && calib)
+        await uploadAttemptClip(res.id, a.clip.blob, {
+          sec: a.clip.durationSec,
+          eventSec: a.clip.eventSec,
+        }).catch(() => undefined);
+    })();
+  };
+  useEffect(() => {
+    attemptRef.current = recordAttempt;
   });
 
   /*
@@ -1701,7 +1753,9 @@ export function VelocityScreen({
             memo: p.memo,
             analysis: p.analysis ? withTrail(p) : null,
             autoDetected: p.autoDetected !== false,
+            attemptId: p.captureId != null ? (attemptIdsRef.current.get(p.captureId) ?? null) : null,
           })),
+          attemptIds: sessionAttemptIdsRef.current,
         });
       } catch (err) {
         /* 화면 이동 같은 Next.js 자체 신호는 잡지 않고 그대로 넘긴다 */
@@ -1761,6 +1815,8 @@ export function VelocityScreen({
       await clearDraft();
       setSaved(true);
       setPitches([]);
+      attemptIdsRef.current.clear();
+      sessionAttemptIdsRef.current = [];
       setViewPitch(null);
       setSheet('none');
       setSummaryOpen(false);

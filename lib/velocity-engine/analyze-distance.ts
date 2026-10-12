@@ -108,6 +108,8 @@ export const AUTO_FOV_GUESS_NOTE =
 /** 2.0 이 덧붙이는 것 — 무엇으로 어떻게 쟀나(분석 JSON · 진단) */
 export type DistanceReport = {
   method: 'distance';
+  /** 못 쟀을 때 어느 문에서 끝났나 — 한 토막(shake · few-frames · no-flight · hand-trim · size-slope · implausible · short). 시도 기록(VelocityAttempt.why)에 남는다 */
+  why?: string;
   /** 구속을 낸 거리(m) */
   distanceM: number;
   /** 넣은 거리(m) — 자동이면 첫 어림 */
@@ -347,7 +349,8 @@ export function analyzeByDistance(input: DistanceInput): DistanceResult {
       arcDrops: 0,
     },
   };
-  const fail = (code: Parameters<typeof reject>[0], track: BallObservation[] = []): DistanceResult => {
+  const fail = (code: Parameters<typeof reject>[0], track: BallObservation[] = [], why?: string): DistanceResult => {
+    if (why) report.why = why;
     report.timingMs = Math.round(now() - t0);
     return { ...base, measure: { ok: false, ...reject(code) }, track, distance: report };
   };
@@ -363,10 +366,10 @@ export function analyzeByDistance(input: DistanceInput): DistanceResult {
      */
     report.shaky = stab.maxShiftPx > shakeLimit;
   } else {
-    if ((input.shakePx ?? 0) > 3 * shakeLimit) return fail('CAMERA_SHAKE');
+    if ((input.shakePx ?? 0) > 3 * shakeLimit) return fail('CAMERA_SHAKE', [], 'shake');
     report.shaky = (input.shakePx ?? 0) > shakeLimit;
   }
-  if (frames.length < 10 || !(D > 0)) return fail('NOT_ENOUGH_FRAMES');
+  if (frames.length < 10 || !(D > 0)) return fail('NOT_ENOUGH_FRAMES', [], 'few-frames');
 
   /* 다가오는 공(포수 뒤)은 시간을 거꾸로 놓고 같은 길로 찾는다 — 거꾸로 보면 공이 멀어지며 작아진다 */
   const order = approach === 'approaching' ? frames.map((_, i) => frames.length - 1 - i) : frames.map((_, i) => i);
@@ -382,7 +385,7 @@ export function analyzeByDistance(input: DistanceInput): DistanceResult {
   const bg = medianBackground(pickBackground(frames, stab.extra), width, height);
   const { best, seeds } = bestFlight(fsOrdered, bg, cam, approach === 'approaching' ? -dt : dt, SEL_D, input.seedHint ?? null);
   report.seeds = seeds;
-  if (!best) return fail('NOT_ENOUGH_FRAMES');
+  if (!best) return fail('NOT_ENOUGH_FRAMES', [], 'no-flight');
   report.seedFrame = order[best.seed.i];
   /* 장면 번호를 원래 차례로 되돌린다 */
   const back = (o: TrackedBall): TrackedBall => ({ ...o, i: order[o.i] });
@@ -515,7 +518,7 @@ export function analyzeByDistance(input: DistanceInput): DistanceResult {
     let a = 0;
     while (a < 4 && fit.resid[a] > 3 * Math.max(0.5 * s, fit.rms) && fit.resid[a] > 2.5 * s) a++;
     const used = a ? flightPts.slice(a) : flightPts;
-    if (used.length < 8) return fail('UNSTABLE_TRACK', obsOf(used));
+    if (used.length < 8) return fail('UNSTABLE_TRACK', obsOf(used), 'hand-trim');
     let te: number;
     if (approach === 'receding') {
       const imp = impactTime(fitTrajectory(used, used[used.length - 1].t + dt / 2, cam, opts), used, postReal, dt);
@@ -576,7 +579,7 @@ export function analyzeByDistance(input: DistanceInput): DistanceResult {
      * 말하지 않게).
      */
     if (report.sizeSlope != null && used.filter((o) => !o.ring).length >= 6 && (report.sizeSlope > -0.6 || report.sizeSlope < -1.6))
-      return fail('UNSTABLE_TRACK');
+      return fail('UNSTABLE_TRACK', [], 'size-slope');
     report.flightFrames = used.length;
     report.extended = extended;
     report.rmsPx = Math.round(fit.rms * 100) / 100;
@@ -634,9 +637,9 @@ export function analyzeByDistance(input: DistanceInput): DistanceResult {
     const upRel = -ry * Math.cos(tilt) - rz * Math.sin(tilt);
     const kmh = Math.sqrt(Math.max(0, rx * rx + ry * ry + rz * rz - upRel * upRel)) * Dm * 3.6;
     const track = obsOf(used);
-    if (!(kmh >= MIN_PLAUSIBLE_KMH && kmh <= MAX_PLAUSIBLE_KMH)) return fail('IMPLAUSIBLE_SPEED', track);
+    if (!(kmh >= MIN_PLAUSIBLE_KMH && kmh <= MAX_PLAUSIBLE_KMH)) return fail('IMPLAUSIBLE_SPEED', track, 'implausible');
     const durationSec = used[used.length - 1].t - used[0].t;
-    if (durationSec < 0.15) return fail('TRAVEL_TOO_SHORT', track);
+    if (durationSec < 0.15) return fail('TRAVEL_TOO_SHORT', track, 'short');
 
     /*
      * ± (90% 구간 = 1.645σ) — 넣은 거리 2%(줄자로 쟀다고 보고, 공 크기 어림이면 AUTO_DISTANCE_SIGMA_REL) · 모형 1.5%(19개 영상의 흩어짐) · 끝 시각 반 장(공이 그 사이 간

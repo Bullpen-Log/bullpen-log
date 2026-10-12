@@ -211,6 +211,10 @@ function run(name: string, sc: Scene, tolRel: number) {
   const m = res.measure;
   if (sc.noBall) {
     check(!m.ok, `${name} — 공이 없으면 값을 내지 않는다(${m.ok ? m.kmh : m.code})`);
+    check(
+      typeof res.distance.why === 'string' && res.distance.why.length > 0,
+      `${name} — 못 잰 까닭(why)이 남는다(${String(res.distance.why)})`
+    );
     return;
   }
   const err = m.ok ? m.kmh / truthKmh - 1 : NaN;

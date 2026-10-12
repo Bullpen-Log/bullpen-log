@@ -10,10 +10,12 @@ import {
   adminDeleteVelocityPitch,
   adminDeleteVelocitySession,
   adminUpdateSession,
+  adminUpdateVelocityAttempt,
   adminUpdateVelocityPitch,
   type AdminActionResult,
 } from '@/app/actions/velocity-admin';
 import type {
+  AdminAttemptRow,
   AdminCalibResultRow,
   AdminCalibRunSummary,
   AdminPitchRow,
@@ -1026,5 +1028,176 @@ function DetailList({ rows }: { rows: [string, string, string?][] }) {
         </div>
       ))}
     </dl>
+  );
+}
+
+/* ───────────────────────── 시도(공 알림) 표 — 엔진 2.4 0단계 ───────────────────────── */
+
+/** 스피드건 구간(km/h) — 마지막 칸은 그 위 전부 */
+const ATTEMPT_BINS: [number, number][] = [
+  [0, 100],
+  [100, 110],
+  [110, 120],
+  [120, 130],
+  [130, 140],
+  [140, 999],
+];
+
+/** 시도의 스피드건 값 — 잰 시도는 이어진 공의 값, 못 잰 시도는 관리자가 적은 값 */
+export function attemptGun(a: AdminAttemptRow): number | null {
+  return a.pitch?.gunKmh ?? a.gunKmh ?? null;
+}
+
+/**
+ * 그날의 시도(공 알림) — 건 구간별 시도 · 잼 · 못 잼 표와 시도 줄. 움직임 알림은 공을 찾았을 때만 센다(헛알림은 기록되지 않는다).
+ * 못 잰 시도에 건 값을 적으면 표에 들어간다. '빼기'는 통계에서만 뺀다(지우지 않는다).
+ */
+export function AttemptsPanel({
+  attempts,
+  pending,
+  onRun,
+}: {
+  attempts: AdminAttemptRow[];
+  pending: boolean;
+  onRun: Run;
+}) {
+  const counted = attempts.filter((a) => !a.excluded && (a.kind === 'ball' || a.ok));
+  const okCount = counted.filter((a) => a.ok).length;
+  const rows = ATTEMPT_BINS.map(([lo, hi]) => {
+    const inBin = counted.filter((a) => {
+      const g = attemptGun(a);
+      return g != null && g >= lo && g < hi;
+    });
+    return {
+      label: hi === 999 ? `${lo} 이상` : `${lo}~${hi - 1}`,
+      n: inBin.length,
+      ok: inBin.filter((a) => a.ok).length,
+    };
+  }).filter((r) => r.n > 0);
+  const noGun = counted.filter((a) => attemptGun(a) == null).length;
+  return (
+    <div className="space-y-3">
+      <div>
+        <p className="text-sm font-bold text-ink">
+          시도 {counted.length}번 · 잼 {okCount} · 못 잼 {counted.length - okCount}
+        </p>
+        <p className="text-xs leading-relaxed text-muted">
+          앱 카메라의 공 알림마다 남긴 기록(2.3.20 부터). 못 잰 공은 스피드건 값을 여기 적어야 구간 표에 들어가요.
+        </p>
+      </div>
+      {rows.length > 0 && (
+        <table className="w-full text-xs tabular-nums">
+          <thead>
+            <tr className="text-muted">
+              <th className="text-left font-medium">건(km/h)</th>
+              <th className="text-right font-medium">시도</th>
+              <th className="text-right font-medium">잼</th>
+              <th className="text-right font-medium">못 잼</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => (
+              <tr key={r.label}>
+                <td className="py-0.5">{r.label}</td>
+                <td className="text-right">{r.n}</td>
+                <td className="text-right">{r.ok}</td>
+                <td className={`text-right ${r.n - r.ok ? 'text-danger' : ''}`}>{r.n - r.ok}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+      {noGun > 0 && (
+        <p className="text-xs text-muted">건 값이 없는 시도 {noGun}번은 구간 표에서 빠져요.</p>
+      )}
+      <ul className="divide-y divide-line">
+        {attempts.map((a) => (
+          <AttemptRow key={a.id} a={a} pending={pending} onRun={onRun} />
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function AttemptRow({ a, pending, onRun }: { a: AdminAttemptRow; pending: boolean; onRun: Run }) {
+  const [gun, setGun] = useState(a.gunKmh == null ? '' : String(a.gunKmh));
+  const why = a.ok ? null : [a.rejectCode, a.why].filter(Boolean).join(' · ');
+  const detail = [
+    a.trackFrames != null ? `공 길 ${a.trackFrames}장` : null,
+    a.sizeDistM != null ? `공 크기 거리 ${a.sizeDistM}m` : null,
+    a.sizeSlope != null ? `기울기 ${a.sizeSlope}` : null,
+    a.extended ? `이어 붙임 ${a.extended}장` : null,
+    a.strength ? `세기 ${a.strength.toFixed(1)}` : null,
+  ]
+    .filter(Boolean)
+    .join(' · ');
+  const submitGun = () => {
+    const v = gun.trim() === '' ? null : Number(gun);
+    if (v != null && !Number.isFinite(v)) return;
+    onRun(() => adminUpdateVelocityAttempt(a.id, { gunKmh: v }));
+  };
+  return (
+    <li className={`py-2 text-xs ${a.excluded ? 'opacity-50' : ''}`}>
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+        <span className="tabular-nums text-muted">{hhmm(a.createdAt)}</span>
+        <Badge className={a.ok ? 'text-ok' : 'text-danger'}>
+          {a.ok ? `잼 ${a.rawKmh == null ? '—' : a.rawKmh.toFixed(1)}` : '못 잼'}
+        </Badge>
+        <span className="text-muted">
+          {a.kind === 'ball' ? '공 알림' : '움직임'} · {a.nickname}
+        </span>
+        {a.pitch && (
+          <span className="text-muted">
+            {String(a.pitch.seq).padStart(2, '0')}번 공
+            {a.pitch.gunKmh != null ? ` · 건 ${a.pitch.gunKmh}` : ''}
+          </span>
+        )}
+        {why && <span className="text-danger">{why}</span>}
+        {a.excluded && <span className="text-muted">통계에서 뺌</span>}
+      </div>
+      {detail && <p className="mt-0.5 text-muted">{detail}</p>}
+      {!a.pitch && (
+        <form
+          className="mt-1 flex items-center gap-2"
+          onSubmit={(e) => {
+            e.preventDefault();
+            submitGun();
+          }}
+        >
+          <label className="text-muted" htmlFor={`attempt-gun-${a.id}`}>
+            건
+          </label>
+          <input
+            id={`attempt-gun-${a.id}`}
+            inputMode="decimal"
+            value={gun}
+            onChange={(e) => setGun(e.target.value)}
+            className="h-8 w-20 rounded-md border border-line bg-surface px-2 text-ink"
+            placeholder="km/h"
+          />
+          <Button type="submit" variant="secondary" className="h-8 px-3 text-xs" disabled={pending}>
+            적기
+          </Button>
+          <button
+            type="button"
+            className="text-muted underline"
+            disabled={pending}
+            onClick={() => onRun(() => adminUpdateVelocityAttempt(a.id, { excluded: !a.excluded }))}
+          >
+            {a.excluded ? '다시 넣기' : '빼기'}
+          </button>
+        </form>
+      )}
+      {a.clipUrl && (
+        <a
+          className="mt-1 inline-block text-sky underline"
+          href={a.clipUrl}
+          target="_blank"
+          rel="noreferrer"
+        >
+          클립 보기
+        </a>
+      )}
+    </li>
   );
 }

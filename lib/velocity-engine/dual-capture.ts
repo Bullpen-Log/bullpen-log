@@ -8,6 +8,7 @@ import {
 } from '@/lib/dual-camera';
 import { DEFAULT_CAM_MODE } from '@/lib/velocity-camera-mode';
 import { analyzeVideo, warmDecoder, type VideoAnalyzeResult } from './analyze-video';
+import type { DistanceReport } from './analyze-distance';
 import { LIVE_GOOD_FPS } from './live-meter';
 import type { Approach } from './validate';
 import type {
@@ -38,6 +39,32 @@ export type DualCaptureHandlers = {
   onError: (message: string) => void;
   onNotice?: (message: string) => void;
   onFps?: (fps: number, low: boolean) => void;
+  /** 시도 기록 — 공 · 움직임 알림마다 계산이 끝나면(쟀든 못 쟀든). 헛알림(움직임 클립에 공 길이 거의 없음)은 안 부른다 */
+  onAttempt?: (attempt: AttemptInfo) => void;
+};
+
+/**
+ * 시도 하나 — 측정 화면이 서버에 남긴다(app/actions/velocity.ts recordVelocityAttempt). 2026-10-12: 빠른 공일수록 못 재는데 실패는
+ * 어디에도 안 남아 구간별로 셀 수 없었다(엔진 2.4 0단계).
+ */
+export type AttemptInfo = {
+  /** 결과 번호(ResultMeta.id 와 같다) — 화면이 공과 짝을 맞춘다 */
+  id: number;
+  kind: 'ball' | 'motion';
+  /** 알림 시각(앱 카메라 시계 초) · 세기(MotionTrigger strength) */
+  atSec: number;
+  strength: number;
+  ok: boolean;
+  /** 못 쟀으면 거부 코드(validate.ts RejectCode) · 어느 문에서 끝났나(DistanceReport.why) */
+  code: string | null;
+  why: string | null;
+  /** 엔진이 이은 공 길 장면 수 */
+  trackFrames: number;
+  rawKmh: number | null;
+  confidence: string | null;
+  distance: DistanceReport | null;
+  /** 못 잰 공의 클립 — 보정용 저장이면 화면이 서버에 올린다 */
+  clip: PitchClip | null;
 };
 
 type Bridge = {
@@ -95,6 +122,8 @@ type Job = {
   ball: boolean;
   /** 움직임 작업의 클립 창 안에 공 알림이 왔으면 그 시각(카메라 시계) — 그 공 시각으로 잰다 */
   ballAt?: number;
+  /** 앱 알림의 세기(MotionTrigger strength) — 시도 기록에 남긴다 */
+  strength: number;
   analyzing: boolean;
 };
 
@@ -244,7 +273,8 @@ export class DualCapture {
       listen('throw', (d) => {
         const at = Number(d.atSec);
         /* 옛 앱은 kind 가 없다 — 움직임으로 본다 */
-        if (Number.isFinite(at)) this.onThrow(at, d.kind === 'ball' ? 'ball' : 'motion');
+        if (Number.isFinite(at))
+          this.onThrow(at, d.kind === 'ball' ? 'ball' : 'motion', Number(d.strength) || 0);
       }),
       listen('error', (d) => this.handlers.onError(String(d.message ?? '카메라 오류'))),
       /* 실제로 받은 장면 수(1초마다) — 처리가 밀려 장면을 버리면 약속한 60 보다 낮다. 옛 앱은 이 알림이 없다 */
@@ -288,7 +318,7 @@ export class DualCapture {
     );
   }
 
-  private onThrow(atSec: number, kind: 'ball' | 'motion') {
+  private onThrow(atSec: number, kind: 'ball' | 'motion', strength = 0) {
     if (!this.running || !this.armed) return;
     const ball = kind === 'ball';
     /* 재고 있는 클립 창 안이면 그 클립이 이 공을 담는다 — 공이 확실하면 화면에만 띄운다 */
@@ -320,6 +350,7 @@ export class DualCapture {
       end: atSec + after,
       visible: ball,
       ball,
+      strength,
       analyzing: false,
     };
     this.jobs.push(job);
@@ -412,6 +443,7 @@ export class DualCapture {
       await dropWide();
       return;
     }
+    this.reportAttempt(job, result, main, blob);
     /*
      * 공을 못 쟀다 — 움직임으로만 잡은 클립이거나, 공 알림이었어도 영상에서 공 길을 거의 못 찾았으면 헛알림(와인드업 · 사람 ·
      * 폰을 만짐)으로 보고 조용히 넘긴다(띄웠던 카드는 거둬진다). 공 길은 찾았는데 못 잰 것만 '못 쟀어요'로 알린다.
@@ -453,6 +485,32 @@ export class DualCapture {
     });
     /* 광각은 청하지 않는다(wide: false) — 혹시 왔으면 지운다 */
     await dropWide();
+  }
+
+  /**
+   * 시도 기록 — 계산이 끝난 작업마다 화면에 알린다(쟀든 못 쟀든). 움직임 클립에서 공 길이 거의 없으면(헛알림: 와인드업 · 사람 · 폰을
+   * 만짐) 세지 않는다. 못 잰 공의 클립은 같이 넘긴다 — 보정용 저장이면 화면이 서버에 올린다.
+   */
+  private reportAttempt(job: Job, result: VideoAnalyzeResult, main: DualClip, blob: Blob) {
+    const track = result.track.length;
+    const ok = result.measure.ok;
+    if (!ok && !job.ball && job.ballAt == null && track < 4) return;
+    this.handlers.onAttempt?.({
+      id: job.id,
+      kind: job.ball ? 'ball' : 'motion',
+      atSec: job.at,
+      strength: job.strength,
+      ok,
+      code: result.measure.ok ? null : result.measure.code,
+      why: result.distance?.why ?? null,
+      trackFrames: track,
+      rawKmh: result.measure.ok ? result.measure.kmh : null,
+      confidence: result.measure.ok ? result.measure.confidence : null,
+      distance: result.distance ?? null,
+      clip: ok
+        ? null
+        : { blob, mime: 'video/mp4', durationSec: main.durationSec, eventSec: main.eventSec },
+    });
   }
 
   arm() {

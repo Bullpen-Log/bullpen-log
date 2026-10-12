@@ -246,8 +246,12 @@
  *                      줄이지 않아(VideoFrame) 같은 장면이 평균 4.7 · 최대 76 달랐다. 앱 클립 6개: 가장 크게 움직인 때는 6개 모두 같고 거친 공은
  *                      3개가 같다(나머지는 이음 3~8 의 약한 후보라 어느 쪽도 낫지 않음 — 구속 85.9/73.6 · 71.3/78.6 · 79.9/80.0, 건 77 · 65 · 71).
  *                      크롬 · iOS 웹킷 결과가 6개 모두 끝자리까지 같다. 크롬 전체 7.9~10.1 → 2.3~3.8초.
+ *   2.3.20 2026-10-12  작은 자리(값 그대로): 못 잰 까닭 한 토막(analyze-distance.ts DistanceReport.why — shake · few-frames · no-flight · hand-trim ·
+ *                      size-slope · implausible · short)을 거부 결과에 싣고, 앱 카메라의 공 · 움직임 알림마다 시도 기록(VelocityAttempt — 쟀나 · 거부 코드 ·
+ *                      공 길 장면 수 · 보정용 저장이면 클립)을 남긴다. 관리자 날짜 폴더에 '시도' 표(스피드건 구간별 시도 · 잼 · 못 잼). 빠른 공일수록
+ *                      못 재던 까닭을 세려고(엔진 2.4 0단계, docs/velocity/engine-2.4-plan.md).
  */
-export const VELOCITY_ENGINE_VERSION = '2.3.19';
+export const VELOCITY_ENGINE_VERSION = '2.3.20';
 
 /**
  * 스피드건 보정 짝이 이어지는 묶음 — 작은 자리(0.0.X)는 재는 방법이 같아 짝을 그대로 쓴다(가운데 자리까지 같은 공 모두 — 지금은 '1.9.').
