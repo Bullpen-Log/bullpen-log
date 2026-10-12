@@ -44,6 +44,9 @@ def fit_payload(job: dict, fine: dict, seg: dict, pose_name: str) -> dict:
         "slowmoFps": slowmo if slowmo in (120, 240) else None,
         "screenRecorded": meta.get("screenRecorded") is True,
         "events": seg.get("events"),
+        # 렌즈 — 안내서대로 1배가 기본(2026-10-13 사용자). 엔진이 초점을 폰 1배 둘레로 잡는다(lib/pitch-3d/camera.ts FOCAL_PRIOR_1X,
+        # 마커 채점 관절 오차 3.6 → 3.3cm). 줌으로 찍은 샘플만 meta.lens = "zoom" 으로 끈다.
+        "lens": "zoom" if meta.get("lens") == "zoom" else "1x",
     }
 
 

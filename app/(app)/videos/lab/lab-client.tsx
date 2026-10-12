@@ -203,7 +203,9 @@ function UploadCard({ defaultHeightCm }: { defaultHeightCm: number | null }) {
     <Card className="space-y-4">
       <div className="space-y-1">
         <p className="text-base font-semibold text-ink">샘플 올리기</p>
-        <p className="text-xs text-muted">영상 하나에 {LAB_MAX_VIDEO_MB}MB까지예요.</p>
+        <p className="text-xs text-muted">
+          영상 하나에 {LAB_MAX_VIDEO_MB}MB까지예요. 카메라는 1배(기본 렌즈)로 찍어 주세요. 분석이 1배로 계산해요.
+        </p>
       </div>
 
       <div className="grid grid-cols-2 gap-2">

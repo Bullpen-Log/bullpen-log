@@ -12,6 +12,7 @@ import {
   type V2Input,
 } from '@/lib/pitch-3d/v2/contract';
 import { fitPitch3dV2 } from '@/lib/pitch-3d/v2/fit';
+import { FOCAL_PRIOR_1X } from '@/lib/pitch-3d/camera';
 import type { MotionTemplate } from '@/lib/pitch-3d/v2/motion-template';
 import { readV2Track, toPoseTrack } from '@/lib/pitch-3d/v2/track';
 
@@ -335,6 +336,8 @@ export function runFit(raw: unknown): string {
     /* 거친 전체 영상에서 찾은 순간을 넘겨받는다 — 잘라 낸 구간에서 다시 찾으면 실패했다(2026-10-08 샘플 1 · 3, fit 단계 events) */
     events: readV2Events(r.events),
     motionTemplate: motionTemplate(),
+    /* 렌즈를 알면 초점 사전 — GPU 파이프라인이 안내서대로 '1x' 를 기본으로 넘긴다(pipeline.py fit_payload). 안 주면 예전과 같다 */
+    focalPrior: r.lens === '1x' ? FOCAL_PRIOR_1X : undefined,
   };
   let result;
   try {
