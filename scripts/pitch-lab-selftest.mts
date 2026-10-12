@@ -83,9 +83,13 @@ check('null · 문자열도 받음', readLabMeta(null, NOW).hand === 'R' && read
 check(
   '카드 표시',
   labMetaChips(m).join(' · ') ===
-    '한 대로 나눠 찍음 · 슬로모 240 · 왼손 · 원본 · 키 182cm · 거리 6.5m',
+    '마운드 · 한 대로 나눠 찍음 · 슬로모 240 · 왼손 · 원본 · 키 182cm · 거리 6.5m',
   labMetaChips(m).join(' · ')
 );
+/* 마커 샘플(2026-10-12) — 종류를 읽고 표시 맨 앞에 '마커' */
+check('종류 — 없으면 일반 샘플', readLabMeta({}, NOW).kind === 'sample');
+check('종류 — 마커', readLabMeta({ kind: 'marker' }, NOW).kind === 'marker');
+check('마커 표시가 맨 앞', labMetaChips(readLabMeta({ kind: 'marker' }, NOW))[0] === '마커');
 check('표시 글에 줄표 없음', !labMetaChips(d).some((t) => t.includes('—')));
 
 console.log(`\n통과 ${passed} · 실패 ${failed}`);

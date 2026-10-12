@@ -66,6 +66,10 @@ export function LabClient({
   samples: LabSample[];
   defaultHeightCm: number | null;
 }) {
+  const [tab, setTab] = useState<'sample' | 'marker'>('sample');
+  const normal = samples.filter((s) => s.meta?.kind !== 'marker');
+  const markers = samples.filter((s) => s.meta?.kind === 'marker');
+  const shown = tab === 'marker' ? markers : normal;
   return (
     <div className="stack-page">
       <div className="space-y-2">
@@ -76,8 +80,23 @@ export function LabClient({
           description="옆 · 뒤 영상을 짝으로 올려 두면 3D 분석을 만들어 시험해요."
         />
       </div>
-      <UploadCard defaultHeightCm={defaultHeightCm} />
-      {samples.length === 0 ? (
+      {/*
+        일반 샘플과 마커 샘플(스티커를 붙여 3~4대로 찍은 정답지용)을 따로 둔다 — 2026-10-12 사용자: "기존 샘플과 다른 곳에".
+        마커 샘플은 화면에서 올리지 않는다(카메라 3~4대 영상이라 스크립트로) — 그 탭에는 올리기 카드가 없다.
+      */}
+      {markers.length > 0 && (
+        <Segmented
+          label="샘플 종류"
+          value={tab}
+          onChange={setTab}
+          options={[
+            { value: 'sample', label: `샘플 ${normal.length}` },
+            { value: 'marker', label: `마커 샘플 ${markers.length}` },
+          ]}
+        />
+      )}
+      {tab === 'sample' && <UploadCard defaultHeightCm={defaultHeightCm} />}
+      {shown.length === 0 ? (
         <EmptyState
           icon={<Rotate3d />}
           title="아직 올린 샘플이 없어요"
@@ -85,8 +104,13 @@ export function LabClient({
         />
       ) : (
         <div className="stack-block">
-          {samples.map((s, i) => (
-            <SampleCard key={s.id} sample={s} n={samples.length - i} />
+          {shown.map((s, i) => (
+            <SampleCard
+              key={s.id}
+              sample={s}
+              n={shown.length - i}
+              label={tab === 'marker' ? '마커 샘플' : '샘플'}
+            />
           ))}
         </div>
       )}
@@ -149,6 +173,8 @@ function UploadCard({ defaultHeightCm }: { defaultHeightCm: number | null }) {
         heightCm: height ? Number(height) : null,
         distanceM: distance ? Number(distance) : null,
         memo: memo.trim() || null,
+        /* 화면에서 올리는 것은 늘 일반 샘플 — 마커 샘플은 3~4대 영상이라 스크립트로 올린다 */
+        kind: 'sample',
         files: Object.fromEntries(
           LAB_VIEWS.map((v) => [
             v,
@@ -367,7 +393,15 @@ function NumberField({
 
 /* ─────────────────────────── 샘플 하나 ─────────────────────────── */
 
-function SampleCard({ sample, n }: { sample: LabSample; n: number }) {
+function SampleCard({
+  sample,
+  n,
+  label = '샘플',
+}: {
+  sample: LabSample;
+  n: number;
+  label?: string;
+}) {
   const router = useRouter();
   const refs = useRef<Partial<Record<LabView, HTMLVideoElement | null>>>({});
   const [confirm, setConfirm] = useState(false);
@@ -406,7 +440,7 @@ function SampleCard({ sample, n }: { sample: LabSample; n: number }) {
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 space-y-1">
           <p className="text-[15px] font-semibold text-ink">
-            샘플 {n}
+            {label} {n}
             {meta?.createdAt && (
               <span className="ml-2 text-xs font-normal text-muted">
                 {WHEN.format(new Date(meta.createdAt))}

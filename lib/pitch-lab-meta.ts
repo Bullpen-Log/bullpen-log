@@ -45,6 +45,11 @@ export type LabMeta = {
   memo: string | null;
   /** 올린 파일 이름 · 크기(분석 때 원본을 가려내려고) */
   files: Partial<Record<LabView, { name: string; size: number }>>;
+  /**
+   * 샘플 종류 — 'marker' 는 몸에 스티커(마커)를 붙여 3~4대로 찍은 정답지용(2026-10-12 사용자: "마커 샘플이라고 다르게 표시해서
+   * 기존 샘플과 다른 곳에"). 실험실 목록이 따로 모아 보이고, 같은 폴더에 ③ · ④ 카메라 영상(cam3.* · cam4.*)이 더 있을 수 있다.
+   */
+  kind: 'sample' | 'marker';
   createdAt: string;
 };
 
@@ -92,6 +97,7 @@ export function readLabMeta(raw: unknown, createdAt: string): LabMeta {
     distanceM: num(v.distanceM, 1, 60),
     memo: text(v.memo, 500),
     files,
+    kind: v.kind === 'marker' ? 'marker' : 'sample',
     createdAt: typeof v.createdAt === 'string' ? v.createdAt : createdAt,
   };
 }
@@ -99,6 +105,7 @@ export function readLabMeta(raw: unknown, createdAt: string): LabMeta {
 /** 카드의 작은 표시들 — '동시 촬영 · 슬로모 240 · 오른손 · 화면 녹화' */
 export function labMetaChips(meta: LabMeta): string[] {
   return [
+    ...(meta.kind === 'marker' ? ['마커'] : []),
     meta.ground === 'flat' ? '평지' : '마운드',
     meta.synced ? '동시 촬영' : '한 대로 나눠 찍음',
     meta.slowmoFps ? `슬로모 ${meta.slowmoFps}` : '슬로모 모름',
