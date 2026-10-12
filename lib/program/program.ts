@@ -1,3 +1,5 @@
+import { exactOutingDay, nextOutingDays, todayOutingRole } from '@/lib/checkin';
+import type { DayState } from '@/lib/engine/day-state';
 import { intensityLevel } from '@/lib/exercise-meta';
 import { canDo } from '@/lib/report/equipment';
 import { filterByLevel } from '@/lib/report/personalize';
@@ -1381,12 +1383,15 @@ export type TodaySignals = {
   otherWorkoutStarted: boolean;
   /** 오늘 통증으로 운동이 멈췄는가(halted) */
   halted: boolean;
-  /** 던지는 일정 */
+  /** 던지는 일정 — 아래 programSignalsOf 가 등판 답 · 투구 기록으로 만든다 */
   gameToday: boolean;
   gameTomorrow: boolean;
   gameYesterday: boolean;
   bullpenToday: boolean;
-  /** 세게 던진 불펜 · 라이브(강도 9~10 · 30구+) 당일 또는 다음 날 */
+  /**
+   * 오늘 · 어제 세게 던진 날이 있다 — 매일 일정과 같은 판정(lib/report/theme.ts hardOuting = 오늘 상태 한 장의 load.hardOuting,
+   * 문턱은 lib/report/facts.ts isHardOuting: Σ 투구수 × 체감 강도 ≥ 2,700, 경기는 100%, 2판 D2). 프로그램이 따로 세지 않는다.
+   */
   hardThrowRecent: boolean;
   /** 경기 때문에 쉬는 날을 '그래도 오늘 할래요'로 넘겼는가(D24) */
   override: boolean;
@@ -1400,6 +1405,55 @@ export type TodaySignals = {
   /** 특정 부위 통증 · 뻐근 · 재활 관절로 그날 대체할 칸 */
   painSlots: readonly SlotKind[];
 };
+
+/** 프로그램이 읽는 던지는 신호 — TodaySignals 의 넷 칸 그대로 */
+export type ProgramSignals = Pick<
+  TodaySignals,
+  'gameToday' | 'gameTomorrow' | 'gameYesterday' | 'bullpenToday'
+>;
+
+export type ProgramSignalsInput = {
+  /** 오늘 · 어제 등판 답 — 오늘 상태 한 장(lib/engine/day-state.ts)의 outing 칸 그대로(목록 밖 글자는 이미 null) */
+  outing: Pick<DayState['outing'], 'answerToday' | 'answerYesterday'>;
+  /** 오늘 · 어제 투구 기록의 세션 종류 — 투구수는 보지 않는다(0구 '경기' 줄도 경기로 읽는다) */
+  typesToday: readonly string[];
+  typesYesterday: readonly string[];
+};
+
+/**
+ * 프로그램의 던지는 신호 — 경기 날 · 전날 · 다음 날은 쉬고(넘기기 가능), 불펜 날은 회전 던지기 칸을 뺀다(decideToday).
+ *
+ * 왜 여기 두는가. 2판 P3(2026-10-12) 전에는 lib/program/load.ts 의 throwSignals 가 체크인 두 줄을 따로 읽어 '오늘 등판' 같은
+ * 글자를 직접 견줬고, 자체 시험 엇갈림 표가 그 식을 베껴 두었다(앱이 바뀌면 시험이 옛 식을 재는 셈). 이제 답은 오늘 상태 한
+ * 장에서 받고, 답을 날로 읽는 것은 lib/checkin.ts 의 nextOutingDays · exactOutingDay · todayOutingRole 로만 한다 — 앱(load.ts)과 시험이 이
+ * 함수 하나를 부른다. 결과는 옛 식과 같다(자체 시험이 답 여덟 × 여덟 × 기록 여섯 × 여섯에서 견준다).
+ *
+ *   gameToday     오늘 '오늘 등판' · 어제 '내일 등판' · 오늘 '경기' 기록
+ *   gameTomorrow  오늘 '내일 등판'
+ *   gameYesterday 어제 '오늘 등판' · 어제 '경기' 기록
+ *   bullpenToday  오늘 '오늘 불펜' · 오늘 불펜 · 라이브 기록
+ *   '2~3일 뒤' · '4일 이상 뒤' · '없음'은 날을 못 박지 못하니 넷 다 false.
+ *
+ * 다른 독자와 다른 곳 둘(지금 값 그대로 두었다 — 이 단계는 읽는 길만 모은다. 맞출지는 P4 의 경기 앞뒤 규칙과 함께 사용자 확인 뒤):
+ *   - 어제 '오늘 등판' 답만 있고 기록이 없어도 '경기 다음 날'로 쉰다(엇갈림 표 C6 — 일정 · 암케어 · 투구 계획은 평소 날, D3).
+ *   - 어제 '내일 등판'은 오늘 답과 상관없이 경기 날이다. 매일 일정 · 영양 · 투구 계획은 오늘 답이 이긴다(nextOutingWindow) —
+ *     오늘 '없음'으로 고친 날 프로그램만 '경기 날이에요'로 쉬고, 비로 밀려 오늘 다시 '내일 등판'이면 '내일 경기예요'가 아니라
+ *     '경기 날이에요'가 앞선다(쉬는 것은 같다).
+ */
+export function programSignalsOf(x: ProgramSignalsInput): ProgramSignals {
+  const today = exactOutingDay(nextOutingDays(x.outing.answerToday));
+  /* 어제 답을 어제 기준으로 — 0 은 어제가 등판 날, 1 은 오늘이 등판 날 */
+  const yesterday = exactOutingDay(nextOutingDays(x.outing.answerYesterday));
+  return {
+    gameToday: today === 0 || yesterday === 1 || x.typesToday.includes('경기'),
+    gameTomorrow: today === 1,
+    gameYesterday: yesterday === 0 || x.typesYesterday.includes('경기'),
+    /* 불펜은 오늘 답만(어제 답은 불펜을 이월하지 않는다) — 투구 계획 · 암케어와 같은 함수 */
+    bullpenToday:
+      todayOutingRole(x.outing.answerToday, x.outing.answerYesterday) === 'bullpen' ||
+      x.typesToday.some((t) => t === '불펜' || t === '라이브'),
+  };
+}
 
 export type RestReason = 'gameToday' | 'gameTomorrow' | 'gameYesterday';
 

@@ -1,3 +1,9 @@
+import {
+  exactOutingDay,
+  nextOutingWindow,
+  todayOutingRole,
+  type ThrowPlan,
+} from '@/lib/checkin';
 import type { AgeBand } from '@/lib/nutrition/age';
 import type { GoalKey, MealEntryView } from '@/lib/nutrition/meta';
 import {
@@ -87,10 +93,14 @@ export const GUIDE_DISCLAIMER =
  */
 const THROW_SESSIONS = ['경기', '라이브', '불펜'];
 
-const PLAN_GAME = '오늘 등판';
-const PLAN_BULLPEN = '오늘 불펜';
-const PLAN_TOMORROW = '내일 등판';
-const PLAN_NONE = '없음';
+/*
+ * 카드 이름표 — 체크인 답 글자 그대로라 ThrowPlan 으로 묶어 둔다(목록 글자가 바뀌면 여기서 타입 오류). 답을 읽는 데는 쓰지 않는다:
+ * 그날이 등판 · 불펜 · 전날인지는 아래 dayOf 가 lib/checkin.ts 의 규칙으로 읽는다(2판 P3 '읽기 통일' — 그 전에는 이 글자들과
+ * 직접 견줬다).
+ */
+const BADGE_GAME: ThrowPlan = '오늘 등판';
+const BADGE_BULLPEN: ThrowPlan = '오늘 불펜';
+const BADGE_TOMORROW: ThrowPlan = '내일 등판';
 
 /** 던지기 전 식사의 탄수화물(체중 1kg 당 g) — 등판은 넉넉히, 불펜은 평소 한 끼쯤 */
 export const PRE_GAME_CARB_PER_KG = 1.5;
@@ -143,10 +153,24 @@ function thrownToday(pitches: GuideSignals['pitches']) {
   return { label: `${main.sessionType} ${main.pitchCount}구`, at: main.loggedAt };
 }
 
+/**
+ * 답으로 본 오늘 — 등판('game') · 불펜('bullpen') · 등판 전날('eve') · 아무것도 아님(null).
+ *
+ * 규칙은 lib/checkin.ts 한 곳(매일 일정 · 투구 계획 · 암케어 · 프로그램과 같은 함수): 오늘 답이 이기고(오늘 '없음'이나 다시
+ * '내일 등판'이면 어제 '내일 등판'을 덮는다 — 가까운 말이 맞다), 오늘 답이 없으면 어제 '내일 등판'만 오늘 등판으로 이어 읽는다
+ * (todayOutingRole). 전날은 합친 범위가 꼭 내일(exactOutingDay 1)일 때 — 오늘 '내일 등판'뿐이다(어제 '2~3일 뒤'는 오늘 1~2일 뒤라
+ * 날을 못 박지 못한다).
+ */
+function dayOf(s: GuideSignals): 'game' | 'bullpen' | 'eve' | null {
+  const role = todayOutingRole(s.planToday, s.planYesterday);
+  if (role) return role;
+  return exactOutingDay(nextOutingWindow(s.planToday, s.planYesterday).days) === 1
+    ? 'eve'
+    : null;
+}
+
 /** 오늘이 등판일인가 — 오늘 그렇게 적었거나, 어제 '내일 등판'이라 적고 오늘은 안 적었다 */
-const isGameDay = (s: GuideSignals) =>
-  s.planToday === PLAN_GAME ||
-  (s.planToday == null && s.planYesterday === PLAN_TOMORROW);
+const isGameDay = (s: GuideSignals) => dayOf(s) === 'game';
 
 /**
  * 오늘은 어떤 날인가.
@@ -155,16 +179,14 @@ const isGameDay = (s: GuideSignals) =>
  * (비로 밀린 날)이라 적었으면 오늘 적은 쪽을 따른다 — 가까운 말이 맞다.
  *
  * '2~3일 뒤' · '4일 이상 뒤'(2026-10-12 부터)는 '없음'과 같이 null — 오늘 답이라 어제 '내일 등판'도 덮는다(가까운 말이
- * 맞다). 며칠 뒤인지 셈하는 규칙은 lib/checkin.ts nextOutingDays 한 곳이고, 영양이 그것을 읽는 것은 2판 P6(영양 추세)에서.
+ * 맞다). 며칠 뒤인지 셈하는 규칙은 lib/checkin.ts nextOutingDays 한 곳이고, 그 날수를 영양이 쓰는 것은 2판 P6(영양 추세)에서.
+ * 답을 읽는 길은 위 dayOf(lib/checkin.ts 의 규칙) 하나 — 2판 P3 에서 글자 견주기를 걷었다(결과는 그대로, 자체 시험이 견준다).
  */
 export function throwDayKind(s: GuideSignals): ThrowGuideKind | null {
   if (thrownToday(s.pitches)) return 'after';
-  if (s.planToday === PLAN_GAME || s.planToday === PLAN_BULLPEN) return 'today';
-  if (s.planToday === PLAN_TOMORROW) return 'eve';
-  if (s.planToday === PLAN_NONE) return null;
-  if (s.planToday == null && s.planYesterday === PLAN_TOMORROW) return 'today';
-  /* 오늘 '2~3일 뒤' · '4일 이상 뒤', 모르는 글자, 어제 답이 '내일 등판'이 아닌 날 */
-  return null;
+  const day = dayOf(s);
+  if (day === 'game' || day === 'bullpen') return 'today';
+  return day;
 }
 
 /** 어느 날에나 붙는 덧말 — 식욕이 없는 날, 감량 중 */
@@ -192,7 +214,7 @@ export function throwDayGuide(s: GuideSignals, body: GuideBody): ThrowGuide | nu
   if (kind === 'eve') {
     return {
       ...base,
-      badge: PLAN_TOMORROW,
+      badge: BADGE_TOMORROW,
       title: '저녁 탄수화물 넉넉히',
       lines: [
         '밥 · 면 · 감자처럼 익숙한 탄수화물을 평소보다 조금 넉넉히 드세요. 크게 늘리기보다 오늘 목표를 채우는 게 먼저예요.',
@@ -203,7 +225,7 @@ export function throwDayGuide(s: GuideSignals, body: GuideBody): ThrowGuide | nu
 
   if (kind === 'today') {
     /* 어제 '내일 등판'으로 알게 된 날은 등판으로 본다 */
-    const bullpen = s.planToday === PLAN_BULLPEN;
+    const bullpen = dayOf(s) === 'bullpen';
     const carbs = kg
       ? Math.max(
           PRE_MEAL_MIN_CARBS,
@@ -212,7 +234,7 @@ export function throwDayGuide(s: GuideSignals, body: GuideBody): ThrowGuide | nu
       : null;
     return {
       ...base,
-      badge: bullpen ? PLAN_BULLPEN : PLAN_GAME,
+      badge: bullpen ? BADGE_BULLPEN : BADGE_GAME,
       title: '3~4시간 전에 든든히',
       lines: [
         carbs
@@ -255,7 +277,7 @@ export function throwDayGuide(s: GuideSignals, body: GuideBody): ThrowGuide | nu
       '아직 등판 전이라면 식사는 던지기 3~4시간 전에, 1시간 전에는 바나나처럼 가벼운 것으로 드세요.'
     );
   }
-  if (s.planToday === PLAN_TOMORROW) {
+  if (dayOf(s) === 'eve') {
     lines.push('내일 등판이 있으니 저녁까지 탄수화물을 넉넉히 챙겨 두세요.');
   }
   if (body.ageBand !== 'adult') {
@@ -270,10 +292,11 @@ export function throwDayGuide(s: GuideSignals, body: GuideBody): ThrowGuide | nu
     lines,
     /*
      * 일정을 안 적어 던진 뒤에야 알게 된 날 — 다음에는 전날부터 안내할 수 있다고 한 번 알린다.
-     * '상세 체크인에'라고 하지 않는다 — 2판 D1 로 간편 체크인에서도 받는다.
+     * '상세 체크인에'라고 하지 않는다 — 2판 D1 로 간편 체크인에서도 받는다. 오늘 답이 없고 어제 답으로도 오늘을 몰랐던 날
+     * (어제 '내일 등판'이면 등판일로 알았다 — isGameDay).
      */
     hint:
-      s.planToday == null && s.planYesterday !== PLAN_TOMORROW
+      s.planToday == null && !isGameDay(s)
         ? '체크인에 ‘던지는 일정’을 적어 두면 전날 · 당일에도 안내해 드려요.'
         : null,
     recoveryProtein: protein,

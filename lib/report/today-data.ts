@@ -303,8 +303,8 @@ export async function loadTodayCore(user: UserForToday, today: Date) {
     plan,
     /**
      * 오늘 상태 한 장(2판 P3, lib/engine/day-state.ts) — facts · plan 을 한 번 읽어 모은 신호. 2026-10-12 에는 넘기기만 하고 이
-     * 파일의 어떤 판단(안전 거름 · 부딪힘 · 지문)도 이 값을 읽지 않는다. 프로그램(lib/program/load.ts 의 buildProgramDay)이 다음
-     * 단계에서 core.state 로 신호를 읽는다.
+     * 파일의 어떤 판단(안전 거름 · 부딪힘 · 지문)도 이 값을 읽지 않는다. 프로그램(lib/program/load.ts 의 buildProgramDay)이
+     * 등판 답(outing.answerToday · answerYesterday)과 세게 던진 날(load.hardOutingRecent)을 이 값에서 읽는다(2판 P3 읽기 통일).
      */
     state,
     hasLogs,

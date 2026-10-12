@@ -711,6 +711,25 @@ console.log('\n■ 던지는 날 가이드');
     throwDayKind(sig({ planYesterday: '2~3일 뒤' })) === null &&
       throwDayKind(sig({ planYesterday: '4일 이상 뒤' })) === null
   );
+  /*
+   * 2판 P3 '읽기 통일'(2026-10-12) — 가이드는 답 글자를 직접 견주지 않고 lib/checkin.ts 의 규칙(todayOutingRole · nextOutingWindow ·
+   * exactOutingDay)으로 읽는다. 결과는 옛 식과 같다(training:test 의 '프로그램 · 영양 읽기 통일' 절이 600가지를 견준다). 여기서는
+   * 카드 이름표가 체크인 답 글자 그대로인지, 앞뒤 공백만 다른 글자를 매일 일정과 같이 그 답으로 읽는지만 본다(DB 에는 없는 글자 —
+   * 저장할 때 parseThrowPlan 이 떼어 낸다. 예전 가이드만 이것을 '모르는 글자'로 읽었다).
+   */
+  check(
+    '이름표 — 던지는 날 · 불펜 · 전날 카드의 이름표가 체크인 답 글자 그대로',
+    throwDayGuide(sig({ planToday: '오늘 등판' }), adult)?.badge === '오늘 등판' &&
+      throwDayGuide(sig({ planToday: '오늘 불펜' }), adult)?.badge === '오늘 불펜' &&
+      throwDayGuide(sig({ planToday: '내일 등판' }), adult)?.badge === '내일 등판' &&
+      throwDayGuide(sig({ planYesterday: '내일 등판' }), adult)?.badge === '오늘 등판'
+  );
+  check(
+    '앞뒤 공백만 다른 답도 그 답으로 읽는다(매일 일정 · 프로그램과 같은 규칙)',
+    throwDayKind(sig({ planToday: ' 오늘 등판 ' })) === 'today' &&
+      throwDayKind(sig({ planToday: '내일 등판\n' })) === 'eve' &&
+      throwDayKind(sig({ planYesterday: ' 내일 등판' })) === 'today'
+  );
   check(
     "던진 뒤 카드의 안내 글은 '상세 체크인에'라고 하지 않는다(D1 로 간편 체크인에서도 받는다)",
     (() => {

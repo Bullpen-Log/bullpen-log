@@ -53,6 +53,7 @@ import {
   THROW_PLANS,
   WORKOUT_KINDS,
   armPainSpotsFor,
+  exactOutingDay,
   hasDetail,
   isShortSleep,
   nextOutingDays,
@@ -332,8 +333,17 @@ import {
 import { buildExerciseHistory, estimate1RM } from '../lib/workout/history.ts';
 import { REST_CLOCK_LIMIT_SECONDS, restSeconds } from '../lib/workout/rest.ts';
 /* 2판 안전망(P0) — 다섯 독자 중 매일 일정 · 투구 계획 · 암케어 밖의 둘(영양 · 근력 프로그램) */
-import { throwDayKind } from '../lib/nutrition/guide.ts';
-import { decideToday, parseProgram } from '../lib/program/program.ts';
+import {
+  throwDayGuide,
+  throwDayKind,
+  type GuideSignals,
+} from '../lib/nutrition/guide.ts';
+import {
+  decideToday,
+  parseProgram,
+  programSignalsOf,
+  type ProgramSignals,
+} from '../lib/program/program.ts';
 /* 2판 되먹임(P2) — 운동 끝 힘듦 한 번 */
 import {
   EFFORT_LEVELS,
@@ -7960,8 +7970,9 @@ console.log(
   /* ─────────────── (b) 기능 엇갈림 표 — 같은 입력을 다섯 독자가 어떻게 읽는가(지금 동작 고정) ─────────────── */
   /*
    * 다섯 독자: 매일 일정(decideTheme) · 투구 계획(buildPitchPlan) · 영양(throwDayKind) · 암케어(decideArmcare) ·
-   * 근력 프로그램(decideToday — DB 에서 신호를 만드는 lib/program/load.ts 의 throwSignals · buildProgramDay 는 못 부르므로
-   * 그 안의 판단을 같은 식으로 여기서 만든다. load.ts 가 바뀌면 여기도 같이 고친다).
+   * 근력 프로그램(decideToday — DB 를 읽는 lib/program/load.ts 의 buildProgramDay 는 못 부르므로 그 안의 판단을 여기서 만든다.
+   * 던지는 신호는 앱과 같은 함수 programSignalsOf 를 같은 오늘 상태 한 장으로 부른다(2판 P3 — 그 전에는 load.ts 의 식을 베꼈다).
+   * 회복 · 주의 칸은 아직 load.ts 와 같은 식을 여기 적어 둔다 — load.ts 가 바뀌면 같이 고친다).
    *
    * 알려진 엇갈림(2판 검토안 — P3 '오늘 상태 한 장'에서 한 값으로 모은다. 그 단계에서 아래 기대값을 고친다):
    *   C1 '오늘 등판'인 날 — 일정은 회복인데 암케어는 강화(기록이 없어 던진 날로 안 봄), 투구 계획은 평소대로 던지라 함.
@@ -8052,16 +8063,16 @@ console.log(
             checkedIn: today != null,
             otherWorkoutStarted: false,
             halted: picked.halted,
-            gameToday:
-              planToday === '오늘 등판' ||
-              planYesterday === '내일 등판' ||
-              typesOn(0).includes('경기'),
-            gameTomorrow: planToday === '내일 등판',
-            gameYesterday: planYesterday === '오늘 등판' || typesOn(1).includes('경기'),
-            bullpenToday:
-              planToday === '오늘 불펜' ||
-              typesOn(0).some((t) => t === '불펜' || t === '라이브'),
-            hardThrowRecent: hardOuting(facts) != null,
+            /*
+             * P3 로 바뀜(2026-10-12 프로그램 · 영양 읽기 통일) — 왜: 여기 베껴 둔 throwSignals 식은 앱이 바뀌어도 옛 식을 쟀다.
+             * 이제 앱(lib/program/load.ts)과 같은 함수 programSignalsOf 를 같은 오늘 상태 한 장으로 부른다. 기대값은 그대로.
+             */
+            ...programSignalsOf({
+              outing: armState.outing,
+              typesToday: typesOn(0),
+              typesYesterday: typesOn(1),
+            }),
+            hardThrowRecent: armState.load.hardOutingRecent,
             override: false,
             recovery:
               zone === 'danger'
@@ -12815,6 +12826,402 @@ console.log(
     reasons.every((r) => /요(\([^)]*\))?\.$/.test(r)) &&
       reasons.every((r) => !r.includes('—') && !r.includes('**')),
     reasons.join(' | ')
+  );
+}
+
+/* ═══════════════════ [2판 오늘 상태(P3)] 프로그램 · 영양 읽기 통일 — lib/program/program.ts programSignalsOf · lib/nutrition/guide.ts · lib/checkin.ts exactOutingDay (2026-10-12) ═══════════════════ */
+console.log(
+  '\n[2판 오늘 상태(P3)] 프로그램 · 영양 읽기 통일 — 답 글자 견주기를 걷고 lib/checkin.ts 규칙으로 · 결과는 그대로(2026-10-12)'
+);
+{
+  /*
+   * 이 단계는 읽는 길만 바꾼다. 프로그램(lib/program/load.ts 의 throwSignals 가 체크인 두 줄을 따로 읽어 '오늘 등판' 같은 글자를
+   * 견줌)과 영양(lib/nutrition/guide.ts 의 throwDayKind 가 PLAN_* 글자를 견줌)을 lib/checkin.ts 의 규칙으로 옮겼다. 그래서 본다:
+   *   1) 옛 식(아래에 글자 그대로 남긴 것)과 새 함수가 모든 답 쌍 · 기록에서 같은 값 — 결과가 안 바뀌었다
+   *   2) 앱의 길(facts → 오늘 상태 한 장 → programSignalsOf)도 옛 식과 같다 — 프로그램이 답을 DB 에서 따로 안 읽어도 된다
+   *   3) 읽는 파일 넷에 답 글자 견주기가 남지 않았다 · 프로그램만 다른 두 곳(알려진 엇갈림)은 지금 값 고정
+   * 옛 식의 답은 DB 글자 그대로였다 — 목록 밖 글자('' · '모레' · 띄어쓰기 없는 글자)도 넣어 '견줘도 안 맞던 글자'가 그대로인지 본다.
+   */
+  const RAW: (string | null)[] = [...THROW_PLANS, null, '', '모레', '오늘등판'];
+  const TYPES: string[][] = [
+    [],
+    ['경기'],
+    ['불펜'],
+    ['라이브'],
+    ['캐치볼'],
+    ['경기', '불펜'],
+    ['휴식'],
+  ];
+  const json = (v: unknown) => JSON.stringify(v);
+
+  /* ── 옛 식 — lib/program/load.ts throwSignals(2026-10-12 전) 글자 그대로 ── */
+  const oldProgram = (
+    planToday: string | null,
+    planYesterday: string | null,
+    typesToday: readonly string[],
+    typesYesterday: readonly string[]
+  ): ProgramSignals => ({
+    gameToday:
+      planToday === '오늘 등판' ||
+      planYesterday === '내일 등판' ||
+      typesToday.includes('경기'),
+    gameTomorrow: planToday === '내일 등판',
+    gameYesterday: planYesterday === '오늘 등판' || typesYesterday.includes('경기'),
+    bullpenToday:
+      planToday === '오늘 불펜' ||
+      typesToday.some((t) => t === '불펜' || t === '라이브'),
+  });
+  /* ── 옛 식 — lib/nutrition/guide.ts throwDayKind · isGameDay · 불펜 · 전날 줄 · 알림(2026-10-12 전) 글자 그대로 ── */
+  const oldThrown = (s: GuideSignals) =>
+    s.pitches.some(
+      (p) => ['경기', '라이브', '불펜'].includes(p.sessionType) && p.pitchCount > 0
+    );
+  const oldKind = (s: GuideSignals) => {
+    if (oldThrown(s)) return 'after';
+    if (s.planToday === '오늘 등판' || s.planToday === '오늘 불펜') return 'today';
+    if (s.planToday === '내일 등판') return 'eve';
+    if (s.planToday === '없음') return null;
+    if (s.planToday == null && s.planYesterday === '내일 등판') return 'today';
+    return null;
+  };
+  const oldGameDay = (s: GuideSignals) =>
+    s.planToday === '오늘 등판' ||
+    (s.planToday == null && s.planYesterday === '내일 등판');
+
+  /* ── 1) programSignalsOf = 옛 식(답 열 × 열 × 기록 일곱 × 일곱) ── */
+  let programMiss = 0;
+  let programN = 0;
+  let firstMiss = '';
+  for (const a of RAW)
+    for (const b of RAW)
+      for (const t0 of TYPES)
+        for (const t1 of TYPES) {
+          programN++;
+          const got = programSignalsOf({
+            outing: {
+              answerToday: parseThrowPlan(a),
+              answerYesterday: parseThrowPlan(b),
+            },
+            typesToday: t0,
+            typesYesterday: t1,
+          });
+          if (json(got) !== json(oldProgram(a, b, t0, t1))) {
+            programMiss++;
+            if (!firstMiss)
+              firstMiss = `${a} / ${b} / ${t0.join(',')} / ${t1.join(',')}`;
+          }
+        }
+  check(
+    `통일 (프로그램) programSignalsOf 가 옛 throwSignals 식과 ${programN}가지 모두 같다(답 ${RAW.length} × ${RAW.length} × 기록 ${TYPES.length} × ${TYPES.length})`,
+    programMiss === 0 && programN === RAW.length ** 2 * TYPES.length ** 2,
+    `${programMiss}가지 다름 — 처음: ${firstMiss}`
+  );
+
+  /* ── 2) 앱의 길: 체크인 줄 → facts → 오늘 상태 한 장 → programSignalsOf (줄이 없는 날까지) ── */
+  const unKey = (daysAgo: number) =>
+    new Date(TODAY.getTime() - daysAgo * 86400000).toISOString().slice(0, 10);
+  const unCheckin = (daysAgo: number, throwPlan: string | null): CheckinLike => ({
+    date: unKey(daysAgo),
+    condition: 7,
+    sleep: '보통',
+    shoulder: '정상',
+    elbow: '정상',
+    wrist: '정상',
+    lowerBack: '정상',
+    lowerBody: '정상',
+    preferredParts: [],
+    preferredWorkout: null,
+    throwPlan,
+  });
+  type UnLog = {
+    daysAgo: number;
+    pitches: number;
+    intensity: number;
+    effortPct?: number | null;
+    sessionType: string;
+  };
+  /* undefined = 그날 체크인 줄이 없다(앱의 옛 식은 그때 null 을 읽었다) */
+  const unFacts = (
+    today: string | null | undefined,
+    yesterday: string | null | undefined,
+    logs: UnLog[] = []
+  ) =>
+    buildFacts({
+      nickname: '시험',
+      age: 22,
+      heightCm: 180,
+      trainingLevel: null,
+      baselineDailyLoad: 100,
+      rehab: null,
+      today: TODAY,
+      logs: logs.map<PitchLogLike>((l) => ({
+        date: new Date(TODAY.getTime() - l.daysAgo * 86400000).toISOString(),
+        pitchCount: l.pitches,
+        intensity: l.intensity,
+        ...(l.effortPct !== undefined ? { effortPct: l.effortPct } : {}),
+        sessionType: l.sessionType,
+        maxVelocity: 130,
+        avgVelocity: 120,
+      })),
+      checkins: [
+        ...(today !== undefined ? [unCheckin(0, today)] : []),
+        ...(yesterday !== undefined ? [unCheckin(1, yesterday)] : []),
+      ],
+      memos: [],
+    });
+  const stateOf = (facts: ReturnType<typeof unFacts>) =>
+    buildDayState({ facts, plan: buildPitchPlan(facts) });
+  const ROW: (string | null | undefined)[] = [...RAW, undefined];
+  let pathMiss = 0;
+  let pathN = 0;
+  let pathFirst = '';
+  for (const a of ROW)
+    for (const b of ROW) {
+      pathN++;
+      const state = stateOf(unFacts(a, b));
+      const got = programSignalsOf({
+        outing: state.outing,
+        typesToday: [],
+        typesYesterday: [],
+      });
+      if (json(got) !== json(oldProgram(a ?? null, b ?? null, [], []))) {
+        pathMiss++;
+        if (!pathFirst) pathFirst = `${a} / ${b} → ${json(got)}`;
+      }
+    }
+  check(
+    `통일 (프로그램 · 앱의 길) 체크인 줄 → facts → 오늘 상태 한 장의 답으로 만든 신호가 옛 식(DB 글자)과 ${pathN}쌍 모두 같다(줄 없는 날 포함)`,
+    pathMiss === 0 && pathN === ROW.length ** 2,
+    `${pathMiss}쌍 다름 — 처음: ${pathFirst}`
+  );
+
+  /* 세게 던진 날 — 프로그램이 따로 세지 않고 매일 일정과 같은 값(theme.ts hardOuting = 오늘 상태 한 장의 load.hardOutingRecent) */
+  const hardCases: { name: string; logs: UnLog[]; hard: boolean }[] = [
+    { name: '기록 없음', logs: [], hard: false },
+    {
+      name: '어제 경기 85구 · 강도 10',
+      logs: [{ daysAgo: 1, pitches: 85, intensity: 10, sessionType: '경기' }],
+      hard: true,
+    },
+    {
+      name: '오늘 불펜 40구 · 체감 70% (40 × 70 = 2,800 — 곱 규칙으로 세게)',
+      logs: [
+        { daysAgo: 0, pitches: 40, intensity: 7, effortPct: 70, sessionType: '불펜' },
+      ],
+      hard: true,
+    },
+    {
+      name: '오늘 불펜 20구 · 체감 50% (1,000 — 문턱 밑)',
+      logs: [
+        { daysAgo: 0, pitches: 20, intensity: 5, effortPct: 50, sessionType: '불펜' },
+      ],
+      hard: false,
+    },
+    {
+      name: '이틀 전 불펜 35구 · 옛 강도 9 (오늘 · 어제가 아님)',
+      logs: [{ daysAgo: 2, pitches: 35, intensity: 9, sessionType: '불펜' }],
+      hard: false,
+    },
+    {
+      name: '어제 불펜 29구 · 옛 강도 9 (29 × 90 = 2,610 — 문턱 밑)',
+      logs: [{ daysAgo: 1, pitches: 29, intensity: 9, sessionType: '불펜' }],
+      hard: false,
+    },
+  ];
+  for (const c of hardCases) {
+    const f = unFacts(null, undefined, c.logs);
+    const st = stateOf(f);
+    check(
+      `통일 (세게 던진 날) ${c.name} → 프로그램 hardThrowRecent ${c.hard} = 매일 일정 hardOuting`,
+      st.load.hardOutingRecent === c.hard && (hardOuting(f) != null) === c.hard,
+      `${st.load.hardOutingRecent} · ${hardOuting(f) != null}`
+    );
+  }
+
+  /* ── 3) 영양 — throwDayKind · throwDayGuide = 옛 식(답 열 × 열 × 기록 여섯) ── */
+  const PITCHES: GuideSignals['pitches'][] = [
+    [],
+    [{ sessionType: '경기', pitchCount: 85, loggedAt: TODAY.toISOString() }],
+    [{ sessionType: '불펜', pitchCount: 0, loggedAt: TODAY.toISOString() }],
+    [{ sessionType: '캐치볼', pitchCount: 30, loggedAt: TODAY.toISOString() }],
+    [{ sessionType: '라이브', pitchCount: 25, loggedAt: TODAY.toISOString() }],
+    [
+      { sessionType: '불펜', pitchCount: 40, loggedAt: TODAY.toISOString() },
+      { sessionType: '경기', pitchCount: 0, loggedAt: TODAY.toISOString() },
+    ],
+  ];
+  const body = { weightKg: 80, ageBand: 'adult' as const, goal: 'maintain' as const };
+  let kindMiss = 0;
+  let guideMiss = 0;
+  let nutN = 0;
+  let nutFirst = '';
+  for (const a of RAW)
+    for (const b of RAW)
+      for (const pitches of PITCHES) {
+        nutN++;
+        const s: GuideSignals = {
+          planToday: a,
+          planYesterday: b,
+          appetite: null,
+          pitches,
+        };
+        const kind = oldKind(s);
+        if (throwDayKind(s) !== kind) {
+          kindMiss++;
+          if (!nutFirst) nutFirst = `kind ${a} / ${b} / ${pitches.length}`;
+        }
+        const g = throwDayGuide(s, body);
+        const lines = g?.lines.join(' ') ?? '';
+        const okGuide =
+          (g?.kind ?? null) === kind &&
+          (kind !== 'eve' || g?.badge === '내일 등판') &&
+          (kind !== 'today' ||
+            g?.badge === (s.planToday === '오늘 불펜' ? '오늘 불펜' : '오늘 등판')) &&
+          (g?.hint != null) ===
+            (kind === 'after' &&
+              s.planToday == null &&
+              s.planYesterday !== '내일 등판') &&
+          (kind !== 'after' ||
+            (lines.includes('아직 등판 전이라면') ===
+              (oldGameDay(s) &&
+                !s.pitches.some((p) => p.sessionType === '경기' && p.pitchCount > 0)) &&
+              lines.includes('내일 등판이 있으니') === (s.planToday === '내일 등판')));
+        if (!okGuide) {
+          guideMiss++;
+          if (!nutFirst)
+            nutFirst = `guide ${a} / ${b} / ${pitches.length} → ${json(g)}`;
+        }
+      }
+  check(
+    `통일 (영양) throwDayKind 가 옛 글자 견주기와 ${nutN}가지 모두 같다(답 ${RAW.length} × ${RAW.length} × 기록 ${PITCHES.length})`,
+    kindMiss === 0 && nutN === RAW.length ** 2 * PITCHES.length,
+    `${kindMiss}가지 다름 — 처음: ${nutFirst}`
+  );
+  check(
+    `통일 (영양) throwDayGuide 의 갈래 · 이름표 · 알림 · 등판 전 줄 · 전날 줄이 옛 식과 ${nutN}가지 모두 같다`,
+    guideMiss === 0,
+    `${guideMiss}가지 다름 — 처음: ${nutFirst}`
+  );
+
+  /* ── exactOutingDay — 날을 못 박는 물음 하나 ── */
+  check(
+    'exactOutingDay — 0~0 → 0 · 1~1 → 1 · 2~3 · 4 이상 · 1~2 · 3 이상 · 범위 없음 → null',
+    exactOutingDay({ min: 0, max: 0 }) === 0 &&
+      exactOutingDay({ min: 1, max: 1 }) === 1 &&
+      exactOutingDay({ min: 2, max: 3 }) === null &&
+      exactOutingDay({ min: 4, max: null }) === null &&
+      exactOutingDay({ min: 1, max: 2 }) === null &&
+      exactOutingDay({ min: 3, max: null }) === null &&
+      exactOutingDay(null) === null &&
+      exactOutingDay(undefined) === null
+  );
+  const exactOf = Object.fromEntries(
+    THROW_PLANS.map((a) => [a, exactOutingDay(nextOutingDays(a))])
+  );
+  check(
+    "exactOutingDay(nextOutingDays(답)) — '오늘 등판' 0 · '내일 등판' 1 · 나머지 넷 null",
+    json(exactOf) ===
+      json({
+        '오늘 등판': 0,
+        '오늘 불펜': null,
+        '내일 등판': 1,
+        '2~3일 뒤': null,
+        '4일 이상 뒤': null,
+        없음: null,
+      }),
+    json(exactOf)
+  );
+  /* 어제 답을 하루 당긴 범위에서 꼭 내일이 나오는 답은 없다 — 그래서 영양의 '전날'은 오늘 '내일 등판'뿐이다 */
+  check(
+    "exactOutingDay — 오늘 답 없이 어제 답만으로는 꼭 내일(1)이 안 나온다(꼭 오늘(0)은 어제 '내일 등판'뿐)",
+    THROW_PLANS.every(
+      (b) =>
+        exactOutingDay(checkinNextOutingWindow(null, b).days) !== 1 &&
+        (exactOutingDay(checkinNextOutingWindow(null, b).days) === 0) ===
+          (b === '내일 등판')
+    )
+  );
+
+  /* ── 4) 읽는 파일 넷에 답 글자 견주기가 남지 않았다 ── */
+  const answerCompare = new RegExp(`(===|!==)\\s*'(${THROW_PLANS.join('|')})'`);
+  const readerFiles = [
+    'lib/program/load.ts',
+    'lib/program/program.ts',
+    'lib/nutrition/guide.ts',
+    'lib/report/theme.ts',
+  ];
+  const leftovers = readerFiles.filter((f) =>
+    answerCompare.test(readFileSync(new URL(`../${f}`, import.meta.url), 'utf8'))
+  );
+  check(
+    `통일 (소스) 읽는 파일 넷(${readerFiles.join(' · ')})에 등판 답 글자를 === · !== 로 견주는 줄이 없다`,
+    leftovers.length === 0,
+    leftovers.join(' · ')
+  );
+  const loadSrc = readFileSync(
+    new URL('../lib/program/load.ts', import.meta.url),
+    'utf8'
+  );
+  check(
+    '통일 (소스) 프로그램이 등판 답을 DB 에서 따로 읽지 않고(dailyCheckin 조회 없음) 오늘 상태 한 장으로 신호를 만든다',
+    !/dailyCheckin/.test(loadSrc) &&
+      /programSignalsOf\(\{ outing: core\.state\.outing/.test(loadSrc) &&
+      /hardThrowRecent: core\.state\.load\.hardOutingRecent/.test(loadSrc)
+  );
+
+  /* ── 5) 프로그램만 다른 두 곳 — 알려진 엇갈림(지금 값 고정, 맞출지는 P4 의 경기 앞뒤 규칙과 함께 사용자 확인 뒤) ── */
+  const sigOf = (a: string | null, b: string | null) =>
+    programSignalsOf({
+      outing: { answerToday: parseThrowPlan(a), answerYesterday: parseThrowPlan(b) },
+      typesToday: [],
+      typesYesterday: [],
+    });
+  check(
+    "알려진 엇갈림 (프로그램) 오늘 '없음' + 어제 '내일 등판' → 프로그램은 경기 날(gameToday), 다른 독자는 오늘 답이 이겨 등판 아님",
+    sigOf('없음', '내일 등판').gameToday === true &&
+      todayOutingRole('없음', '내일 등판') === null &&
+      throwDayKind({
+        planToday: '없음',
+        planYesterday: '내일 등판',
+        appetite: null,
+        pitches: [],
+      }) === null
+  );
+  const program531b = parseProgram('531');
+  const rained = sigOf('내일 등판', '내일 등판');
+  const rainedDecision =
+    program531b == null
+      ? null
+      : decideToday(program531b, {
+          nextDay: 1,
+          today: unKey(0),
+          lastProgramDate: null,
+          checkedIn: true,
+          otherWorkoutStarted: false,
+          halted: false,
+          ...rained,
+          hardThrowRecent: false,
+          override: false,
+          recovery: null,
+          loadCaution: false,
+          soreMany: false,
+          sleepShort: false,
+          uncertain: false,
+          painSlots: [],
+        });
+  check(
+    "알려진 엇갈림 (프로그램) 비로 밀린 날(오늘 · 어제 '내일 등판') → 프로그램은 '경기 날이에요'(gameToday 가 앞섬), 매일 일정은 전날(tomorrow)",
+    rained.gameToday &&
+      rained.gameTomorrow &&
+      rainedDecision?.kind === 'rest' &&
+      rainedDecision.reason === 'gameToday' &&
+      plannedOuting(unFacts('내일 등판', '내일 등판')) === 'tomorrow',
+    json(rainedDecision)
+  );
+  check(
+    "알려진 엇갈림 (프로그램) 어제 '오늘 등판' 답만(기록 없음) → 프로그램만 경기 다음 날(엇갈림 표 C6 그대로 — D3 · P4)",
+    sigOf(null, '오늘 등판').gameYesterday === true &&
+      stateOf(unFacts(null, '오늘 등판')).outing.source === 'checkin'
   );
 }
 

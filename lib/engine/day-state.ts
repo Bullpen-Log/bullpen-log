@@ -13,7 +13,9 @@
  *     문턱을 여기서 새로 정하지 않는다 — 새로 정하면 독자와 이 장이 어긋난다.
  * 독자를 이 장으로 옮기는 것은 단계마다 하나씩 — C1 · C4 뒤집기(2026-10-12): 투구 계획은 같은 등판 규칙(lib/checkin.ts
  * todayOutingRole)으로 등판 날을 '양은 경기가 정함'으로 내고, 암케어는 이 장(outing.role · arm.fatigue)을 받아 등판 날 회복으로 간다.
- * 프로그램 · 영양 신호 통일은 다음 단계.
+ * 프로그램 · 영양 읽기 통일(2026-10-12): 근력 프로그램(lib/program/load.ts)은 등판 답(outing.answerToday · answerYesterday)과
+ * 세게 던진 날(load.hardOutingRecent)을 이 장에서 받아 lib/program/program.ts programSignalsOf 로 신호를 만든다. 영양(lib/nutrition/
+ * guide.ts)은 받는 모양(GuideSignals)을 그대로 두고 안에서 lib/checkin.ts 의 같은 규칙으로 읽는다 — 이 장을 받는 것은 P6(영양 추세).
  *
  * 순수 파일이다 — 'server-only' · prisma · 날짜 함수(appNow) 없음. 자체 시험 · 기준선 도구가 node 로 그대로 부른다.
  * DB 를 읽는 쪽은 lib/report/gather.ts(gatherFactsAndPlan 이 state 를 같이 돌려준다 — 이미 react cache 로 읽은 45일치 줄에서

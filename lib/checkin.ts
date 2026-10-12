@@ -613,9 +613,11 @@ export const LOW_CONDITION_THRESHOLD = 4;
  *
  * 처음(2026-09-30)에는 영양 가이드가 탄수화물을 언제 늘릴지 정하려고 넣었다 — 투구 기록은 던진 뒤에야 생겨서,
  * 등판 전날 저녁 · 당일 아침에 챙길 것을 미리 알려면 여기서 받아야 한다. 지금은 매일 운동 계획(lib/report/theme.ts
- * 의 plannedOuting — 등판 날 · 전날에 무거운 하체를 안 내려고)과 근력 프로그램(lib/program/load.ts 의 throwSignals —
+ * 의 plannedOuting — 등판 날 · 전날에 무거운 하체를 안 내려고)과 근력 프로그램(lib/program/program.ts 의 programSignalsOf —
  * 경기 날 · 전날 · 다음 날 쉬기)도 읽는다. 2판 P3(2026-10-12)부터 투구 계획(lib/report/plan.ts — 등판 날은 양을 경기가 정한다)과
- * 암케어(lib/armcare/routine.ts — 등판 날은 회복 루틴)도 아래 todayOutingRole 로 읽는다.
+ * 암케어(lib/armcare/routine.ts — 등판 날은 회복 루틴)도 아래 todayOutingRole 로 읽는다. 독자 다섯 모두 이 파일의 함수
+ * (parseThrowPlan · nextOutingDays · nextOutingWindow · exactOutingDay · todayOutingRole)로만 읽고, 답 글자를 직접 견주지 않는다
+ * (2판 P3 '프로그램 · 영양 읽기 통일' — 그 전에는 프로그램 · 영양이 '오늘 등판' 같은 글자를 저마다 견줬다).
  *
  * 받는 곳은 간편 체크인(위 CheckinBody, 서버는 body=1 로) — 2026-10-12 전에는 상세에만 있어 답이 거의 없었다.
  *
@@ -625,8 +627,10 @@ export const LOW_CONDITION_THRESHOLD = 4;
  * nextOutingDays 한 곳에만 둔다 — 2판 P3 의 '오늘 상태 한 장'(lib/engine/day-state.ts)이 거기서 읽고, 부하 기준(P4) ·
  * 마지막 무거운 날(P5)이 그것을 쓴다. 답 → 날짜 규칙을 다른 파일에 베끼지 않는다.
  *
- * 어제 답의 이월은 '내일 등판' 하나뿐(plannedOuting · nutrition/guide.ts throwDayKind · program/load.ts 가 같은 규칙):
+ * 어제 답의 이월은 '내일 등판' 하나뿐(plannedOuting · nutrition/guide.ts throwDayKind · 프로그램이 같은 규칙):
  * 어제 '2~3일 뒤'는 오늘 1~2일 뒤라 날을 못 박지 못하고, 어제 '오늘 등판'은 던진 기록이 맡는다 — 모르는 것을 짐작하지 않는다.
+ * 프로그램만 두 군데가 다르다(program.ts programSignalsOf 주석 · 자체 시험이 지금 값을 고정): 어제 '오늘 등판'을 '경기 다음 날'로
+ * 읽고(엇갈림 표 C6 — D3 · P4), 어제 '내일 등판'을 오늘 답과 상관없이 경기 날로 읽는다(오늘 답이 이기는 규칙 밖).
  * 오늘 · 어제 답을 합치는 곳은 아래 nextOutingWindow 한 곳(2판 P3) — 오늘 상태 한 장은 어제 답을 하루 당긴 범위(어제 '2~3일 뒤'
  * → 1~2일 뒤)까지 실어 두고, 날을 못 박는 독자는 그중 꼭 오늘 · 꼭 내일만 쓴다. '오늘 등판 · 불펜인가'는 todayOutingRole 하나.
  */
@@ -680,6 +684,17 @@ export function nextOutingDays(
 export type OutingWindow = { min: number; max: number | null };
 
 /**
+ * 범위가 하루로 못 박히면 그날(0 = 오늘 · 1 = 내일), 아니면 null — '2~3일 뒤' · '4일 이상 뒤' · 범위 없음(답 없음 · 불펜 · 없음).
+ *
+ * 날을 못 박는 독자(theme.ts plannedOuting · nutrition/guide.ts · program.ts programSignalsOf · 아래 todayOutingRole)는 이 값이
+ * 0 인지 1 인지만 묻는다. 2판 P3(2026-10-12) 전에는 독자마다 `max === 0` · `min === 1 && max === 1` 을 따로 적거나 '오늘 등판' ·
+ * '내일 등판' 글자를 직접 견줬다 — 한 곳만 바꾸면 같은 아침에 서로 다른 날이 된다. 범위의 min 은 0 아래로 안 내려간다(위 두 함수).
+ */
+export function exactOutingDay(w: OutingWindow | null | undefined): number | null {
+  return w != null && w.max === w.min ? w.min : null;
+}
+
+/**
  * 오늘 답과 어제 답을 합친 '다음 등판까지 남은 날'.
  *
  * 답 하나를 날로 읽는 규칙은 위 nextOutingDays — 여기서는 둘을 합치기만 한다:
@@ -723,7 +738,8 @@ export function todayOutingRole(
   todayPlan: string | null | undefined,
   yesterdayPlan: string | null | undefined
 ): 'game' | 'bullpen' | null {
-  if (nextOutingWindow(todayPlan, yesterdayPlan).days?.max === 0) return 'game';
+  if (exactOutingDay(nextOutingWindow(todayPlan, yesterdayPlan).days) === 0)
+    return 'game';
   return parseThrowPlan(todayPlan) === '오늘 불펜' ? 'bullpen' : null;
 }
 

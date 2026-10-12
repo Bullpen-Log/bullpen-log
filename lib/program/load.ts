@@ -4,11 +4,7 @@ import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { HIGH_SORENESS, SEVERE_SORENESS, isShortSleep } from '@/lib/checkin';
 import { selectCandidates } from '@/lib/report/prescription';
-import {
-  LOW_CONDITION_THRESHOLD,
-  hardOuting,
-  painRecoveryReason,
-} from '@/lib/report/theme';
+import { LOW_CONDITION_THRESHOLD, painRecoveryReason } from '@/lib/report/theme';
 import type { loadTodayCore } from '@/lib/report/today-data';
 import type { CachedExercise } from '@/lib/library-cache';
 import { readFrozenPlan } from '@/lib/workout/session-plan';
@@ -29,6 +25,7 @@ import {
   parseProgram,
   planSubtitle,
   prescriptionLine,
+  programSignalsOf,
   readPinned,
   usedVariants,
   variantCandidates,
@@ -109,43 +106,24 @@ export async function hasFinishedBasics(userId: string): Promise<boolean> {
 
 /* ─────────────────────────── 오늘 신호 ─────────────────────────── */
 
-async function throwSignals(userId: string, todayKey: string) {
+/**
+ * 오늘 · 어제 투구 기록의 세션 종류 — 프로그램의 던지는 신호(program.ts programSignalsOf)의 기록 쪽 재료.
+ *
+ * 투구수 · 강도는 고르지 않는다 — 0구로 적은 '경기' 줄도 경기로 읽던 예전 그대로다(세게 던졌는지는 오늘 상태 한 장의
+ * load.hardOutingRecent 가 facts 로 본다).
+ * 등판 답은 여기서 읽지 않는다 — 오늘 상태 한 장(core.state.outing)의 답을 쓴다. 2판 P3(2026-10-12) 전에는 체크인 두 줄을 여기서
+ * 따로 읽었는데, 그 줄은 facts 를 만든 같은 45일치 읽기(lib/report/gather.ts)에 이미 들어 있어 같은 값을 두 번 읽었다.
+ */
+async function pitchTypesNearToday(userId: string, todayKey: string) {
   const today = new Date(`${todayKey}T00:00:00.000Z`);
   const yesterday = new Date(today.getTime() - 86_400_000);
-  const [checkins, pitches] = await Promise.all([
-    prisma.dailyCheckin.findMany({
-      where: { userId, date: { in: [today, yesterday] } },
-      select: { date: true, throwPlan: true },
-    }),
-    prisma.pitchLog.findMany({
-      where: { userId, date: { in: [today, yesterday] } },
-      select: { date: true, sessionType: true },
-    }),
-  ]);
-  const planOn = (d: Date) =>
-    checkins.find((c) => keyOf(c.date) === keyOf(d))?.throwPlan ?? null;
+  const pitches = await prisma.pitchLog.findMany({
+    where: { userId, date: { in: [today, yesterday] } },
+    select: { date: true, sessionType: true },
+  });
   const typesOn = (d: Date) =>
     pitches.filter((p) => keyOf(p.date) === keyOf(d)).map((p) => p.sessionType);
-  const planToday = planOn(today);
-  const planYesterday = planOn(yesterday);
-  /*
-   * 답 여섯(lib/checkin.ts THROW_PLANS) 가운데 '2~3일 뒤' · '4일 이상 뒤'(2026-10-12 부터)는 경기 신호가 아니다 — 네 불리언
-   * 모두 false 로 '없음'과 같다. 며칠 뒤 등판인지 셈하는 규칙은 lib/checkin.ts nextOutingDays 한 곳이고, 프로그램이 그것을
-   * 읽는 것(gameInDays)은 2판 P3 의 오늘 상태 한 장(day-state)으로 신호를 옮길 때.
-   */
-  return {
-    /* 오늘 등판 · 어제 '내일 등판' · 오늘 경기 기록 */
-    gameToday:
-      planToday === '오늘 등판' ||
-      planYesterday === '내일 등판' ||
-      typesOn(today).includes('경기'),
-    gameTomorrow: planToday === '내일 등판',
-    /* 어제 '오늘 등판' · 어제 경기 기록 */
-    gameYesterday: planYesterday === '오늘 등판' || typesOn(yesterday).includes('경기'),
-    bullpenToday:
-      planToday === '오늘 불펜' ||
-      typesOn(today).some((t) => t === '불펜' || t === '라이브'),
-  };
+  return { typesToday: typesOn(today), typesYesterday: typesOn(yesterday) };
 }
 
 /** 오늘 운동한 판 — 프로그램 날인지와 상태 */
@@ -348,13 +326,16 @@ export async function buildProgramDay(
   if (!plan) return null;
   const todayKey = core.todayKey;
   const facts = core.facts;
-  const [throwing, session, lastProgramDate] = await Promise.all([
-    throwSignals(user.id, todayKey),
+  const [pitchTypes, session, lastProgramDate] = await Promise.all([
+    pitchTypesNearToday(user.id, todayKey),
     todaySession(user.id, core.midnight),
     row.lastDoneDate
       ? Promise.resolve(keyOf(row.lastDoneDate))
       : lastProgramSessionKey(user.id, core.midnight),
   ]);
+
+  /* 등판 답은 오늘 상태 한 장에서 — 매일 일정 · 투구 계획 · 암케어가 읽는 것과 같은 답(자체 시험 엇갈림 표가 같은 함수를 부른다) */
+  const throwing = programSignalsOf({ outing: core.state.outing, ...pitchTypes });
 
   const today = facts.condition.today;
   const zone = facts.load.zone;
@@ -414,7 +395,8 @@ export async function buildProgramDay(
     otherWorkoutStarted: session != null && session.program?.key !== row.programKey,
     halted: core.picked.halted,
     ...throwing,
-    hardThrowRecent: hardOuting(facts) != null,
+    /* 세게 던진 날 — 매일 일정(theme.ts hardOuting)과 같은 값을 오늘 상태 한 장에서(문턱은 facts.ts isHardOuting 한 곳) */
+    hardThrowRecent: core.state.load.hardOutingRecent,
     override: keyOf(row.overrideDate) === todayKey,
     recovery,
     loadCaution: zone === 'caution',

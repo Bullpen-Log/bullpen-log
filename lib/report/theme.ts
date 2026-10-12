@@ -2,6 +2,7 @@ import { orderWithinSlot } from '@/lib/report/exercise-order';
 import {
   LOW_CONDITION_THRESHOLD,
   SEVERE_SORENESS,
+  exactOutingDay,
   sorenessWord,
   type CheckinPartKey,
 } from '@/lib/checkin';
@@ -261,12 +262,12 @@ export function hardOuting(facts: ReportFacts): HardOuting | null {
  *
  * 오늘 적은 답이 먼저다. 어제 '내일 등판'이라고 했어도 오늘 '없음'이라고 고쳤으면(비 · 순서 바뀜) 오늘 것을
  * 따른다 — 오늘 안 적었을 때만 어제 답을 본다. '오늘 불펜'은 날을 바꾸지 않는다 — 가볍게 던지는 날이라
- * 세게 던진 날 규칙이 던진 뒤에 따로 본다. 프로그램의 읽기(lib/program/load.ts 의 throwSignals)는 경기 기록까지
+ * 세게 던진 날 규칙이 던진 뒤에 따로 본다. 프로그램의 읽기(lib/program/program.ts 의 programSignalsOf)는 경기 기록까지
  * 합쳐 보는데, 여기서는 기록은 hardOuting 이 맡으니 체크인만 본다.
  *
  * 답을 날로 읽는 규칙은 lib/checkin.ts 의 nextOutingDays 한 곳(2026-10-12, 2판 D1). 여기서는 그 범위가 꼭 오늘(0~0)
- * 이면 today, 꼭 내일(1~1)이면 tomorrow 만 가른다 — '2~3일 뒤' · '4일 이상 뒤'는 날을 못 박지 못하니 '없음'처럼
- * null(테마 그대로). 어제 답의 이월도 '내일 등판'(어제 기준 1~1) 하나뿐 — 어제 '2~3일 뒤'는 오늘 1~2일 뒤라 null.
+ * 이면 today, 꼭 내일(1~1)이면 tomorrow 만 가른다(lib/checkin.ts exactOutingDay — 영양 · 프로그램과 같은 물음) —
+ * '2~3일 뒤' · '4일 이상 뒤'는 날을 못 박지 못하니 '없음'처럼 null(테마 그대로). 어제 답의 이월도 '내일 등판'(어제 기준 1~1) 하나뿐 — 어제 '2~3일 뒤'는 오늘 1~2일 뒤라 null.
  * 반환은 둘뿐이라 독자(decideTheme · workoutConflict)는 그대로다. 며칠 뒤 등판을 쓰는 규칙은 P4 · P5 에서 day-state 로.
  *
  * 오늘 · 어제 답을 합치는 규칙(오늘 답이 이김 · 어제 답은 하루 당겨 읽음)은 2026-10-12(2판 P3)부터 오늘 상태 한 장
@@ -278,8 +279,9 @@ export function plannedOuting(facts: ReportFacts): 'today' | 'tomorrow' | null {
     facts.condition.throwPlanToday,
     facts.condition.throwPlanYesterday
   );
-  if (days?.max === 0) return 'today';
-  if (days?.min === 1 && days.max === 1) return 'tomorrow';
+  const day = exactOutingDay(days);
+  if (day === 0) return 'today';
+  if (day === 1) return 'tomorrow';
   return null;
 }
 
