@@ -273,6 +273,44 @@ function windowText(w: OutingWindow): string {
 const kgText = (kg: number) => String(Math.round(Math.abs(kg) * 10) / 10);
 
 /**
+ * 진행 중인 프로그램 줄 → 약속 칸(다 마쳤는가 · 마지막으로 마친 날로부터 며칠). buildDayState 와 withProgramCommitment 가 같이 쓴다 —
+ * 두 곳이 따로 세면 '10일 넘게 안 한 프로그램'(고르기 점수 score.ts programNextOf)의 경계가 어긋난다. asOf 는 facts.asOf(오늘 키).
+ */
+export function programCommitmentOf(
+  input: ProgramCommitmentInput,
+  asOf: string
+): ProgramCommitment {
+  return {
+    ...input,
+    done: input.totalDays != null && input.nextDay > input.totalDays,
+    daysSinceLastDone: input.lastDoneDate
+      ? daysBetween(input.lastDoneDate, asOf)
+      : null,
+  };
+}
+
+/**
+ * 이미 만든 장에 진행 중인 프로그램을 얹는다(2판 P5-j, 2026-10-12). 장을 만드는 곳(lib/report/gather.ts gatherFactsAndPlan)은 화면마다
+ * 부르는데 프로그램 줄은 일정 만들기(app/actions/training-setup.ts)만 읽는다 — 거기서 읽은 줄을 이 함수로 얹어 매일 일정의 고르기
+ * 점수(내일 프로그램과 같은 동작은 뒤로)가 commitments.program 하나를 읽게 한다(P6 중재도 같은 칸). why 도 다시 만든다 — 얹은 약속이
+ * '근력 프로그램 N일차를 할 차례예요.' 줄로 같이 보이게. 날 수는 장의 기준일(asOf)로 센다. input 이 null 이면 장 그대로(같은 객체).
+ */
+export function withProgramCommitment(
+  state: DayState,
+  input: ProgramCommitmentInput | null
+): DayState {
+  if (!input) return state;
+  const next: DayState = {
+    ...state,
+    commitments: {
+      ...state.commitments,
+      program: programCommitmentOf(input, state.asOf),
+    },
+  };
+  return { ...next, why: whyLines(next) };
+}
+
+/**
  * 오늘 상태 한 장을 만든다. 같은 facts · plan · extras 면 늘 같은 값이다(날짜 함수 · 난수 없음). facts · plan 을 바꾸지 않고,
  * 돌려주는 목록은 모두 새 배열이다(읽는 쪽이 고쳐도 facts 가 안 바뀐다).
  */
@@ -338,15 +376,7 @@ export function buildDayState({
 
   /* commitments */
   const programIn = extras.program ?? null;
-  const program: ProgramCommitment | null = programIn
-    ? {
-        ...programIn,
-        done: programIn.totalDays != null && programIn.nextDay > programIn.totalDays,
-        daysSinceLastDone: programIn.lastDoneDate
-          ? daysBetween(programIn.lastDoneDate, facts.asOf)
-          : null,
-      }
-    : null;
+  const program = programIn ? programCommitmentOf(programIn, facts.asOf) : null;
   const mechanics = extras.mechanics ? { ...extras.mechanics } : null;
   const nutritionTrend = extras.nutritionTrend ? { ...extras.nutritionTrend } : null;
 

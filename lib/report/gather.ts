@@ -384,8 +384,8 @@ export async function lastStrengthDates(
 /**
  * 최근 60일 안에 '바꿔서 뺀'(교체 · 빼기) 운동별 횟수 — 규칙은 lib/report/plan-swaps.ts 의 swappedOutCounts 한 곳.
  *
- * P5 가 '두 번 이상 바꿔서 뺀 운동 −2' 점수로 읽을 자리(buildDailyPlan → pickForTheme → orderCandidates). 2026-10-12 (P2)
- * 에는 만들어 두기만 하고 앱 경로(generateTodayPlan 의 Promise.all)에 아직 안 끼운다 — 쓰는 곳 없이 조회만 늘지 않게.
+ * P5 가 '두 번 이상 바꿔서 뺀 운동 −2' 점수로 읽는다(buildDailyPlan → pickForTheme → orderCandidates). 2026-10-12 (P2)
+ * 에는 만들어 두기만 했고, P5-j(같은 날)부터 앱 경로(generateTodayPlan 의 Promise.all)가 부른다 — 만들기를 누를 때만.
  * 오늘을 넣는다(lte) — 오늘 빼고 '다시 만들기'한 날 그 운동이 되돌아오지 않게. recentExerciseIds 가 오늘을 빼는 까닭
  * (체크를 켜고 끄면 목록이 흔들림)은 여기 없다.
  *

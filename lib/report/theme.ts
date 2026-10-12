@@ -1359,6 +1359,23 @@ export function mainCandidateCount(
 }
 
 /**
+ * 이 테마 · 목표 · 좁힌 부위의 어느 구간에든 들어갈 수 있는 운동인가 — pickForTheme 이 구간마다 거르는 규칙(fitsSlot)과 회복날의 '가벼운
+ * 것만'(isRecoveryLight)을 같이 본다. 고르는 데는 안 쓴다. 일정 까닭(score.ts planReasonsOf, 2판 P5-j)이 '그날 구간을 두고 겨룬 후보'만
+ * 세려고 쓴다 — 상체 날에 하체 점프까지 세면 그날과 상관없는 '하체 점프는 뒤로 뒀어요'를 말한다. 구성은 한 번만 만들고 판정 함수를
+ * 돌려준다(후보 수백 개에 쓴다).
+ */
+export function competesForDay(
+  theme: ThemeKey,
+  goalName: string | null,
+  focus?: GoalFocusKey | null
+): (ex: ThemedExercise) => boolean {
+  const specs = compositionFor(theme, goalName, focus);
+  return (ex) =>
+    (theme !== 'recovery' || isRecoveryLight(ex)) &&
+    specs.some((sp) => fitsSlot(ex, sp));
+}
+
+/**
  * 근력 날인데 그쪽 본운동 후보가 하나도 없으면 날을 바꾼다 — 반대쪽 근력 날로, 그것도 없거나 어제 했으면 보조 · 코어 날로.
  *
  * 2026-10-11 (트레이닝 추천 2판 P1 '대비책 상한'). 예전에는 본운동이 비면 pickForTheme 의 대비책이 모빌리티 · 암케어만 빼고

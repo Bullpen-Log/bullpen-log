@@ -136,7 +136,9 @@ import {
 import {
   buildDayState,
   nextOutingWindow,
+  programCommitmentOf,
   recentHardOuting,
+  withProgramCommitment,
   type DayState,
   type DayStateExtras,
   type ProgramCommitment,
@@ -231,7 +233,7 @@ import {
   type VolumeDecision,
   type VolumeStateInput,
 } from '../lib/report/volume.ts';
-/* 2판 P5 — 고르기 점수(순수, 아직 어디서도 안 부름) */
+/* 2판 P5 — 고르기 점수(순수 — 일정 만들기 buildDailyPlan 이 부른다, P5-j) */
 import {
   ARM_FATIGUE_MIN,
   LOOSEN_CATEGORIES,
@@ -288,6 +290,7 @@ import {
   RETURN_SESSIONS,
   SLOT_ORDER,
   WORKOUT_MINUTES_CHOICES,
+  competesForDay,
   compositionFor,
   decideTheme,
   effectiveMinutes,
@@ -446,6 +449,7 @@ import {
   WEEKLY_MINUTES_TO_DAYS,
   weeklyMinutesCap,
   type DailyPlan,
+  type PlanScoreInput,
 } from '../lib/report/daily-plan.ts';
 import {
   DEFAULT_GOAL,
@@ -20045,11 +20049,12 @@ console.log(
    * 도구가 목표 처방을 바로 부르면 안 된다(goalPrescription( 0번).
    * P5 로 바뀜 — 양 조절(P5-d)부터 buildDay 가 inputsOf 의 오늘 상태 한 장(state)도 꺼내 buildDailyPlan 에 넘긴다(앱의
    * training-setup.ts 가 gatherFactsAndPlan 의 state 를 넘기는 것과 같은 짝 — 양 조절이 body 를 읽는다).
+   * P5 로 바뀜(P5-j) — 고르기 점수의 재료(score)도 inputsOf 에서 꺼내 넘긴다(training-setup.ts 의 score 와 같은 칸).
    */
   check(
     'P5 도구 (나) 하루 만들기는 어댑터 한 곳 — buildDailyPlan 은 buildDay 에서만, 재료는 inputsOf(오늘 상태 한 장까지), 세트는 setsOf 에서만 처방(planPrescription)을 읽는다',
     tool.split('buildDailyPlan(').length === 2 &&
-      /const \{ facts, plan, state, owned, history, seed \} = inputsOf\(p, i, st, v\);/.test(
+      /const \{ facts, plan, state, owned, history, seed, score \} = inputsOf\(p, i, st, v\);/.test(
         tool
       ) &&
       tool.split('planPrescription(').length === 2 &&
@@ -22140,11 +22145,18 @@ console.log(
     )
       .replace(/\/\*[\s\S]*?\*\//g, '')
       .replace(/^\s*\/\/.*$/gm, '');
+    /*
+     * P5 로 바뀜(P5-j) — 왜: 고르기 점수가 진행 중인 근력 프로그램을 오늘 상태 한 장의 commitments.program 으로 읽는다. 장을 만드는 gather 는
+     * 프로그램 줄을 안 읽어, 일정 만들기가 읽은 줄을 withProgramCommitment 로 얹은 장(같은 이름 state)을 넘긴다. 넘기는 짝은 그대로다.
+     */
     check(
-      'P5 양 (사) 일정 만들기 서버 동작은 gatherFactsAndPlan 의 오늘 상태 한 장(state)을 buildDailyPlan 에 넘긴다(기준선 buildDay 와 같은 짝)',
-      /const \{ facts, plan, state \} = await gatherFactsAndPlan\(user, today\);/.test(
+      'P5 양 (사) 일정 만들기 서버 동작은 gatherFactsAndPlan 의 오늘 상태 한 장(state, 진행 중인 프로그램을 얹은 것)을 buildDailyPlan 에 넘긴다(기준선 buildDay 와 같은 짝)',
+      /const \{ facts, plan, state: gathered \} = await gatherFactsAndPlan\(user, today\);/.test(
         setup
       ) &&
+        /const state = withProgramCommitment\(gathered, program\.commitment\);/.test(
+          setup
+        ) &&
         /override: !auto && formData\.get\('overrideCondition'\) === 'on',\s*state,\s*\}\);/.test(
           setup
         )
@@ -24956,15 +24968,20 @@ console.log(
           ]),
       json(valueImports)
     );
+    /*
+     * P5 로 바뀜(P5-j) — 왜: 일정 만들기(daily-plan.ts buildDailyPlan)가 점수를 끼웠다. 부르는 곳은 거기 한 곳이다 — 테마(theme.ts)는 함수만
+     * 받고(orderCandidates 의 scoreOf), 서버 동작(training-setup.ts)은 재료만 모아 넘기고, 오늘 화면 자료는 안 읽는다. 주석에 파일 이름을
+     * 적는 것은 괜찮아서 import 줄로 본다.
+     */
     const callers = [
       'lib/report/daily-plan.ts',
       'lib/report/theme.ts',
       'app/actions/training-setup.ts',
       'lib/report/today-data.ts',
-    ].filter((p) => readFileSync(p, 'utf8').includes('report/score'));
+    ].filter((p) => /from '@\/lib\/report\/score'/.test(strip(p)));
     check(
-      'P5 점수 (사) 아직 아무도 안 부른다 — 일정 만들기 · 테마 · 오늘 화면 자료가 score.ts 를 안 읽음(동작 변화 0, 끼우는 것은 P5-i · P5-j)',
-      callers.length === 0,
+      'P5 점수 (사) 부르는 곳은 일정 만들기 한 곳 — daily-plan.ts 만 score.ts 를 import 하고, 테마 · 서버 동작 · 오늘 화면 자료는 안 한다',
+      json(callers) === json(['lib/report/daily-plan.ts']),
       json(callers)
     );
   }
@@ -25495,6 +25512,475 @@ console.log(
         pickMoved > 0 &&
         bad.length === 0,
       bad.slice(0, 4).join(' · ')
+    );
+  }
+}
+
+/* ═══════════════════ [2판 P5] 일정에 점수 · 이유 — lib/report/daily-plan.ts buildDailyPlan 의 score · picks[].score · reasons, day-state.ts withProgramCommitment, training-setup.ts · 기준선 inputsOf 의 재료 (2026-10-12) ═══════════════════ */
+console.log(
+  '\n[2판 P5] 일정에 점수 · 이유 — 재료를 넘길 때만 켬 · 차례만 바꿈(테마 · 안전 · 시간 그대로) · 뽑힌 운동의 점수 · 일정 까닭 최대 3줄 · 오늘 뺀 운동 · 프로그램 약속(2026-10-12)'
+);
+{
+  /*
+   * 왜 보는가. 고르기 점수(score.ts)를 일정 만들기에 끼웠다(P5-j). 점수는 차례만 바꿔야 한다 — 테마 · 안전 거르기 · 쓸 시간 · 근거는
+   * 점수와 상관없이 같아야 하고, 뽑힌 운동은 늘 안전 거르기를 지난 후보 안에 있어야 한다. 재료를 안 넘기면 예전과 같은 모양이어야 한다
+   * (자체 시험 · 다른 점검 도구의 길). 저장되는 점수 · 까닭은 같은 재료로 다시 셈한 것과 같아야 한다(배선이 다른 값을 넘기지 않게).
+   * (가) 끔 = 예전 모양 · 켰는데 모든 점수가 0 이면 목록이 같다, (나) P3 160조합 — 켬/끔이 테마 · 안전 · 시간을 안 바꾸고 차례로만 닿는다 ·
+   * 뽑힌 운동의 점수 = 같은 재료로 다시 셈한 점수 · 까닭 = 같은 재료로 다시 셈한 까닭 · 같은 입력 같은 답, (다) 오늘 뺀 운동은 뒤로,
+   * (라) 프로그램 약속 — withProgramCommitment = extras 로 만든 장 · 따르는 프로그램만 · 장이 한 곳, (마) 저장 · 얼리기 모양, (바) 소스.
+   */
+  const json = (v: unknown) => JSON.stringify(v);
+  const goals = TRAINING_GOALS.map((g) => g.name);
+  const levels = TRAINING_LEVELS.map((l) => l.name);
+  const owned = [ALWAYS_OWNED, ...SELECTABLE_EQUIPMENT];
+  const byId = new Map(library.map((e) => [e.id, e]));
+  const stripPicks = (plan: DailyPlan) =>
+    plan.picks.map((p) => ({ exerciseId: p.exerciseId, slot: p.slot }));
+  /** 점수 · 까닭 칸을 뺀 일정 — 끔과 견줄 때 */
+  const bare = (plan: DailyPlan) => {
+    const rest: Partial<DailyPlan> = { ...plan };
+    delete rest.reasons;
+    return { ...rest, picks: stripPicks(plan) };
+  };
+  const OVERRODE_LINE = '운동이 힘들었다고 했지만 고른 대로 세트를 그대로 뒀어요.';
+
+  /** 조합 i 의 재료 — 화면과 같은 거르기(장비 → 경력 → 안전)로 후보를 따로 만든다(점수 · 까닭을 다시 셀 때 쓴다) */
+  const setupOf = (i: number, facts: (typeof p3ComboFactsSeen)[number]) => {
+    const plan = buildPitchPlan(facts);
+    const level = levels[i % levels.length];
+    const usable = filterByEquipment(library, equipmentForToday(owned, null));
+    const leveled = filterByLevel(usable.pool, level);
+    const picked = selectCandidates({ facts, plan, library: leveled.pool });
+    const cands = picked.halted ? [] : picked.candidates;
+    /* 최근 사흘 · 몇 세션 전 — 후보 안에서 결정적으로(열하나에 하나는 최근, 다섯에 하나는 기록) */
+    const recentIds = new Set(cands.filter((_, k) => k % 11 === 3).map((e) => e.id));
+    const sessionsAgo = new Map(
+      cands.filter((_, k) => k % 5 === 1).map((e, k) => [e.id, k % 9] as const)
+    );
+    const state = buildDayState({ facts, plan });
+    const args = {
+      user: { ownedEquipment: owned, trainingLevel: level },
+      facts,
+      plan,
+      library,
+      availableToday: null,
+      requestedMinutes: [45, 60, 75, 90][i % 4],
+      trainingGoal: goals[Math.floor(i / 4) % goals.length],
+      trainingFocus: null,
+      recentIds,
+      sessionsAgo,
+      rotationSeed: `p5j-${i}`,
+      lastLowerKey: null,
+      lastUpperKey: null,
+      state,
+    };
+    /* 실제 재료 — 2주 계열은 스쿼트 · 밀기만 한 셈, 열일곱에 하나는 두 번 바꿔 뺌, 열셋에 하나는 즐겨찾기 */
+    const bundle: PlanScoreInput = {
+      patternsDone14d: new Map([
+        ['밀기', 2],
+        ['스쿼트', 1],
+      ]),
+      swappedOut: new Map(cands.filter((_, k) => k % 17 === 0).map((e) => [e.id, 2])),
+      favoriteIds: new Set(cands.filter((_, k) => k % 13 === 0).map((e) => e.id)),
+    };
+    return { plan, picked, cands, recentIds, state, args, bundle };
+  };
+  /** 저장된 점수 · 까닭을 같은 재료로 다시 셈한다 — buildDailyPlan 밖에서(score.ts · theme.ts 의 공개 함수로만) */
+  const recount = (
+    built: DailyPlan,
+    s: ReturnType<typeof setupOf>,
+    bundle: PlanScoreInput
+  ) => {
+    const ctx = scoreContextOf({
+      theme: built.theme.key,
+      facts: s.args.facts,
+      state: s.args.state,
+      caution: [],
+      programNext: programNextOf({
+        commitment: s.args.state.commitments.program,
+        patterns: bundle.programPatterns ?? new Set<string>(),
+      }),
+      patternsDone14d: bundle.patternsDone14d ?? null,
+      swappedOut: bundle.swappedOut,
+      swappedOutToday: bundle.swappedOutToday,
+      favoriteIds: bundle.favoriteIds,
+    });
+    const competes = competesForDay(
+      built.theme.key,
+      built.goal,
+      (built.focus ?? null) as Parameters<typeof competesForDay>[2]
+    );
+    const pickedIds = new Set(built.picks.map((p) => p.exerciseId));
+    const scored: ScoredCandidate[] = s.cands
+      .filter((e) => !s.recentIds.has(e.id) && competes(e))
+      .map((e) => ({ score: scoreOf(e, ctx), picked: pickedIds.has(e.id) }));
+    const reasons = planReasonsOf({
+      scored,
+      volume: built.volume ?? null,
+      overrodeEffort: built.overrodeEffort === true,
+    });
+    return { ctx, reasons };
+  };
+  const lineOk = (l: string) => !l.includes('—') && /요\.$/.test(l) && l.length <= 60;
+
+  /* ── (가) · (나) P3 160조합 ── */
+  {
+    const bad: string[] = [];
+    let built = 0;
+    let haltedCount = 0;
+    let zeroDays = 0;
+    let listMoved = 0;
+    let withScore = 0;
+    let withReasons = 0;
+    let recentPicks = 0;
+    let worstOff = 0;
+    let worstOn = 0;
+    for (const [i, facts] of p3ComboFactsSeen.entries()) {
+      const s = setupOf(i, facts);
+      const off = buildDailyPlan(s.args);
+      const zero = buildDailyPlan({ ...s.args, score: {} });
+      const on = buildDailyPlan({ ...s.args, score: s.bundle });
+      const again = buildDailyPlan({ ...s.args, score: s.bundle });
+      if (isHalted(off) || isHalted(zero) || isHalted(on)) {
+        if (!(isHalted(off) && isHalted(zero) && isHalted(on)))
+          bad.push(`p0-${i} 멈춤이 갈림`);
+        haltedCount++;
+        continue;
+      }
+      built++;
+      /* (가) 끔은 예전 모양 — 점수 · 까닭 칸이 없다 */
+      if ('reasons' in off || off.picks.some((p) => 'score' in p))
+        bad.push(`p0-${i} 끔인데 점수 · 까닭 칸`);
+      /* (가) 켰는데 겨루는 후보의 점수가 모두 0 이면 끔과 같은 목록, 까닭은 양 조절 · 힘듦 넘김 줄뿐 */
+      const zc = recount(zero, s, {});
+      const competing = s.cands.filter(
+        (e) =>
+          !s.recentIds.has(e.id) && competesForDay(zero.theme.key, zero.goal, null)(e)
+      );
+      const allZero = s.cands.every(
+        (e) => s.recentIds.has(e.id) || scoreOf(e, zc.ctx).total === 0
+      );
+      if (allZero) {
+        zeroDays++;
+        if (json(bare(zero)) !== json(bare(off)))
+          bad.push(`p0-${i} 모든 점수 0 인데 끔과 다름`);
+        const head = [off.volume?.why, off.overrodeEffort ? OVERRODE_LINE : null];
+        if ((zero.reasons ?? []).some((l) => !head.includes(l)))
+          bad.push(`p0-${i} 모든 점수 0 인데 점수 까닭 ${json(zero.reasons)}`);
+      }
+      if (competing.length === 0 && zero.reasons?.length) {
+        /* 겨룬 후보가 없으면 점수 까닭도 없다 */
+        if (zero.reasons.some((l) => l !== off.volume?.why))
+          bad.push(`p0-${i} 겨룬 후보 없이 까닭`);
+      }
+      /* (나) 테마 · 시간 · 근거 · 뺀 규칙 · 장비 · 경력은 점수와 상관없다 */
+      for (const k of [
+        'theme',
+        'goal',
+        'focus',
+        'requestedMinutes',
+        'minutes',
+        'basis',
+        'excluded',
+        'equipment',
+        'levelExcludedCount',
+        'overrode',
+      ] as const) {
+        if (json(on[k]) !== json(off[k])) bad.push(`p0-${i} ${k} 가 점수로 바뀜`);
+      }
+      /* (나) ① 뽑힌 것은 모두 안전 거르기 후보 안 */
+      const candIds = new Set(s.cands.map((e) => e.id));
+      if (on.picks.some((p) => !candIds.has(p.exerciseId)))
+        bad.push(`p0-${i} 후보 밖 운동`);
+      if (json(stripPicks(on)) !== json(stripPicks(off))) listMoved++;
+      /* (나) 같은 입력 같은 답 */
+      if (json(on) !== json(again)) bad.push(`p0-${i} 두 번째가 다름`);
+      /* (나) 뽑힌 운동의 점수 = 다시 셈한 점수(걸렸을 때만 · 최근 사흘은 없음) */
+      const rc = recount(on, s, s.bundle);
+      for (const p of on.picks) {
+        const ex = byId.get(p.exerciseId)!;
+        if (s.recentIds.has(p.exerciseId)) {
+          recentPicks++;
+          if (p.score) bad.push(`p0-${i} 최근 사흘 운동에 점수`);
+          continue;
+        }
+        const want = scoreOf(ex, rc.ctx);
+        const has = Object.keys(want.parts).length > 0;
+        if (has) withScore++;
+        if (
+          has
+            ? json(p.score) !== json({ total: want.total, parts: want.parts })
+            : p.score != null
+        )
+          bad.push(`p0-${i} ${ex.title} 점수 ${json(p.score)} ≠ ${json(want.parts)}`);
+      }
+      /* (나) 까닭 = 다시 셈한 까닭 · 3줄 안 · 양 조절 줄이 맨 앞 · 글 */
+      const reasons = on.reasons ?? [];
+      if (reasons.length > 0) withReasons++;
+      if ('reasons' in on && reasons.length === 0) bad.push(`p0-${i} 빈 까닭 칸`);
+      if (json(reasons) !== json(rc.reasons))
+        bad.push(`p0-${i} 까닭 ${json(reasons)} ≠ ${json(rc.reasons)}`);
+      if (reasons.length > PLAN_REASONS_MAX)
+        bad.push(`p0-${i} 까닭 ${reasons.length}줄`);
+      if (on.volume && reasons[0] !== on.volume.why)
+        bad.push(`p0-${i} 양 조절 줄이 맨 앞이 아님`);
+      if (reasons.some((l) => !lineOk(l))) bad.push(`p0-${i} 글 ${json(reasons)}`);
+      /* ⑨ 시간 — 넘친 것을 끔 · 켬 따로 잰다(구간이 비면 하나는 넣는 길이 있어 끔도 넘칠 수 있다 — P0 ⑨) */
+      const overOf = (pl: DailyPlan) =>
+        pl.estimatedMinutes - pl.minutes - Math.min(3, pl.minutes * 0.12);
+      worstOff = Math.max(worstOff, overOf(off));
+      worstOn = Math.max(worstOn, overOf(on));
+    }
+    check(
+      `P5 일정 (가) 재료를 안 넘기면 예전 모양(점수 · 까닭 칸 없음), 빈 재료로 켜도 겨룬 후보의 점수가 모두 0 인 ${zeroDays}명은 끔과 같은 목록 · 양 조절 줄뿐`,
+      built > 0 &&
+        zeroDays > 0 &&
+        !bad.some((b) => /끔인데|모든 점수 0|겨룬 후보 없이/.test(b)),
+      bad
+        .filter((b) => /끔인데|모든 점수 0|겨룬 후보 없이/.test(b))
+        .slice(0, 3)
+        .join(' · ')
+    );
+    const rest = bad.filter((b) => !/끔인데|모든 점수 0|겨룬 후보 없이/.test(b));
+    check(
+      `P5 일정 (나) P3 160조합(일정 ${built} · 멈춤 ${haltedCount}) — 점수는 테마 · 시간 · 근거 · 뺀 규칙을 안 바꾸고 후보 안에서 차례로만 닿는다(목록이 바뀐 ${listMoved}명) · 뽑힌 운동 점수 ${withScore}개 = 다시 셈한 점수(최근 사흘 ${recentPicks}개는 없음) · 까닭(있는 ${built ? withReasons : 0}명) = 다시 셈한 까닭 · 3줄 안 · 같은 입력 같은 답`,
+      p3ComboFactsSeen.length === 160 &&
+        built + haltedCount === 160 &&
+        listMoved > 0 &&
+        withScore > 0 &&
+        withReasons > 0 &&
+        recentPicks > 0 &&
+        rest.length === 0,
+      rest.slice(0, 3).join(' · ')
+    );
+    check(
+      `P5 일정 (나) ⑨ 시간 — 점수를 켜도 넘친 가장 큰 값이 끔보다 크지 않다(끔 ${worstOff.toFixed(1)}분 · 켬 ${worstOn.toFixed(1)}분)`,
+      worstOn <= Math.max(worstOff, 0) + 1e-9
+    );
+  }
+
+  /*
+   * ── (다) 오늘 뺀 운동 — '다시 만들기'에서 맨 뒤로. 점수(−3)만으로는 무리 안 차례만 바뀌어, 오래 안 한 것 무리에 혼자 있는 운동은 번갈아
+   * 내기가 다시 맨 앞에 세웠다(처음 잰 값 30번 중 8번). 그래서 일정 만들기가 최근 사흘 무리처럼 맨 뒤로 보낸다 — 대신할 것이 없을 때만 다시 든다.
+   */
+  {
+    let tries = 0;
+    let again = 0;
+    const bad: string[] = [];
+    for (const [i, facts] of p3ComboFactsSeen.entries()) {
+      const s = setupOf(i, facts);
+      const on = buildDailyPlan({ ...s.args, score: s.bundle });
+      if (isHalted(on)) continue;
+      const first = on.picks.find(
+        (p) => p.slot === 'main' && !s.recentIds.has(p.exerciseId)
+      );
+      if (!first) continue;
+      tries++;
+      const removed = new Set([first.exerciseId]);
+      const remade = buildDailyPlan({
+        ...s.args,
+        score: { ...s.bundle, swappedOutToday: removed },
+      });
+      if (isHalted(remade)) {
+        bad.push(`p0-${i} 멈춤`);
+        continue;
+      }
+      const back = remade.picks.find((p) => p.exerciseId === first.exerciseId);
+      if (back) {
+        again++;
+        if (back.score?.parts.swapped !== SCORE_POINTS.swappedToday)
+          bad.push(`p0-${i} 다시 든 운동에 −3 이 없음`);
+      }
+      const r = remade.reasons ?? [];
+      if (!r.includes('오늘 뺀 운동은 뒤로 뒀어요.') && r.length < PLAN_REASONS_MAX)
+        bad.push(`p0-${i} 까닭에 오늘 뺀 운동이 없음 ${json(r)}`);
+    }
+    check(
+      `P5 일정 (다) 오늘 뺀 운동(본운동 첫 칸)을 넣고 다시 만들면 맨 뒤로 — ${tries}번 중 다시 든 것 ${again}번(10% 안 · 대신할 것이 없을 때만, 그때는 −3 이 실림), 까닭에 '오늘 뺀 운동은 뒤로 뒀어요.'(3줄이 찼으면 빠질 수 있음)`,
+      tries > 0 && again * 10 <= tries && bad.length === 0,
+      bad.slice(0, 3).join(' · ')
+    );
+  }
+
+  /* ── (라) 프로그램 약속 — 장에 얹기 · 따르는 프로그램만 · 장이 한 곳 ── */
+  {
+    const facts0 = p3ComboFactsSeen[0];
+    const plan0 = buildPitchPlan(facts0);
+    const base = buildDayState({ facts: facts0, plan: plan0 });
+    const day = (n: number) => toDateKey(new Date(TODAY.getTime() - n * 86_400_000));
+    const total531 = parseProgram('531')!.totalDays;
+    const inputs = [
+      { key: '531', nextDay: 2, totalDays: total531, lastDoneDate: day(1) },
+      { key: '531', nextDay: 1, totalDays: total531, lastDoneDate: null },
+      { key: '531', nextDay: total531 + 1, totalDays: total531, lastDoneDate: day(0) },
+      { key: 'stronglifts-5x5', nextDay: 4, totalDays: null, lastDoneDate: day(12) },
+    ];
+    const same = inputs.every(
+      (input) =>
+        json(withProgramCommitment(base, input)) ===
+          json(
+            buildDayState({ facts: facts0, plan: plan0, extras: { program: input } })
+          ) &&
+        json(programCommitmentOf(input, base.asOf)) ===
+          json(
+            buildDayState({ facts: facts0, plan: plan0, extras: { program: input } })
+              .commitments.program
+          )
+    );
+    check(
+      `P5 일정 (라) withProgramCommitment — 만든 장에 얹은 것 = extras 로 만든 장(약속 · why 까지 글자 그대로, ${inputs.length}경우), 없으면 같은 객체`,
+      same &&
+        withProgramCommitment(base, null) === base &&
+        withProgramCommitment(base, inputs[0]).why.some((l) =>
+          l.includes('근력 프로그램')
+        )
+    );
+
+    /* 다음 일차의 동작이 내일이면 같은 동작 열쇠의 운동이 −3, 10일 넘게 안 한 프로그램 · 장에 없는 프로그램은 안 건다 */
+    const plan531 = parseProgram('531')!;
+    let hits = 0;
+    let staleHits = 0;
+    let looseHits = 0;
+    let reasonHits = 0;
+    const bad: string[] = [];
+    for (const [i, facts] of p3ComboFactsSeen.entries()) {
+      const s = setupOf(i, facts);
+      for (const nextDay of [1, 2, 3]) {
+        const patterns = patternsOfProgramDay(plan531, nextDay);
+        const follow = withProgramCommitment(s.state, {
+          key: '531',
+          nextDay,
+          totalDays: plan531.totalDays,
+          lastDoneDate: toDateKey(new Date(TODAY.getTime() - 86_400_000)),
+        });
+        const stale = withProgramCommitment(s.state, {
+          key: '531',
+          nextDay,
+          totalDays: plan531.totalDays,
+          lastDoneDate: toDateKey(
+            new Date(TODAY.getTime() - (PROGRAM_FOLLOW_DAYS + 1) * 86_400_000)
+          ),
+        });
+        const on = buildDailyPlan({
+          ...s.args,
+          state: follow,
+          score: { programPatterns: patterns },
+        });
+        const old = buildDailyPlan({
+          ...s.args,
+          state: stale,
+          score: { programPatterns: patterns },
+        });
+        const loose = buildDailyPlan({
+          ...s.args,
+          score: { programPatterns: patterns },
+        });
+        if (isHalted(on) || isHalted(old) || isHalted(loose)) continue;
+        for (const p of on.picks) {
+          const key = movementKeyOf(byId.get(p.exerciseId)!);
+          const want =
+            !s.recentIds.has(p.exerciseId) && key != null && patterns.has(key);
+          if (want) hits++;
+          if (want !== (p.score?.parts.program === SCORE_POINTS.program))
+            bad.push(`p0-${i} 일차 ${nextDay} ${byId.get(p.exerciseId)!.title}`);
+        }
+        staleHits += old.picks.filter((p) => p.score?.parts.program != null).length;
+        looseHits += loose.picks.filter((p) => p.score?.parts.program != null).length;
+        if ((on.reasons ?? []).some((l) => l.includes('근력 프로그램'))) reasonHits++;
+      }
+    }
+    check(
+      `P5 일정 (라) 프로그램 — 따르는 프로그램(어제 마침)의 다음 일차와 같은 동작 열쇠인 뽑힌 운동만 −3(${hits}개, 까닭 줄 ${reasonHits}판) · 10일 넘게 안 한 프로그램 ${staleHits} · 장에 약속이 없으면 ${looseHits}(동작 집합만으로는 안 건다)`,
+      hits > 0 &&
+        reasonHits > 0 &&
+        staleHits === 0 &&
+        looseHits === 0 &&
+        bad.length === 0,
+      bad.slice(0, 3).join(' · ')
+    );
+  }
+
+  /* ── (마) 저장 · 얼리기 모양 — 점수 · 까닭 칸이 있어도 읽히고 세션 판은 같다 ── */
+  {
+    let n = 0;
+    const bad: string[] = [];
+    for (const [i, facts] of p3ComboFactsSeen.entries()) {
+      const s = setupOf(i, facts);
+      const on = buildDailyPlan({ ...s.args, score: s.bundle });
+      if (isHalted(on) || !on.picks.some((p) => p.score) || !on.reasons) continue;
+      n++;
+      const saved = JSON.parse(json(on));
+      const read = readDailyPlan(saved);
+      if (!read || json(read) !== json(on)) bad.push(`p0-${i} 다시 읽기`);
+      const frozenWith = freezePlan(
+        on.theme.key,
+        on.theme.label,
+        on.picks,
+        byId,
+        on.goal,
+        on.volume ?? null
+      );
+      const frozenBare = freezePlan(
+        on.theme.key,
+        on.theme.label,
+        stripPicks(on),
+        byId,
+        on.goal,
+        on.volume ?? null
+      );
+      if (json(frozenWith) !== json(frozenBare))
+        bad.push(`p0-${i} 세션 판이 점수로 바뀜`);
+    }
+    check(
+      `P5 일정 (마) 점수 · 까닭이 실린 일정 ${n}개 — 저장한 JSON 이 그대로 읽히고(readDailyPlan), 세션 판(freezePlan)은 점수 칸과 상관없다`,
+      n > 0 && bad.length === 0,
+      bad.slice(0, 3).join(' · ')
+    );
+  }
+
+  /* ── (바) 소스의 약속 — 앱 · 기준선이 같은 재료를 같은 규칙으로 ── */
+  {
+    const strip = (rel: string) =>
+      readFileSync(new URL(`../${rel}`, import.meta.url), 'utf8')
+        .replace(/\/\*[\s\S]*?\*\//g, '')
+        .replace(/^\s*\/\/.*$/gm, '');
+    const setup = strip('app/actions/training-setup.ts');
+    const fn = setup.slice(
+      setup.indexOf('export async function generateTodayPlan('),
+      setup.indexOf('async function decideAutoSetup(')
+    );
+    const tool = strip('scripts/training-baseline.mts');
+    const planSrc = strip('lib/report/daily-plan.ts');
+    check(
+      'P5 일정 (바) 일정 만들기 서버 동작 — 조회는 Promise.all 하나(뺀 기록 · 즐겨찾기 · 진행 중인 프로그램을 같이), 점수 재료 다섯 칸을 넘긴다(오늘 뺀 운동은 다시 만들기 전 일정에서)',
+      fn.length > 0 &&
+        fn.split('await Promise.all(').length - 1 === 1 &&
+        /swappedOutRecently\(user\.id, today\),\s*favoriteExerciseIds\(user\.id\),\s*activeProgram\(user\.id\),\s*\]\);/.test(
+          fn
+        ) &&
+        /score: \{\s*programPatterns: program\.patterns,\s*patternsDone14d: strengthDates\.patternsDone14d,\s*swappedOut,\s*swappedOutToday: swappedOutOf\(before\?\.plan\),\s*favoriteIds,\s*\},/.test(
+          fn
+        )
+    );
+    check(
+      'P5 일정 (바) 기준선 — historyOf 가 같은 함수(patternsDoneFrom)로 2주 계열을 내고, inputsOf 가 같은 다섯 칸을 모아 buildDay 가 넘긴다',
+      /patternsDone14d: patternsDoneFrom\(\{ done, todayKey \}\),/.test(tool) &&
+        /patternsDone14d: history\.patternsDone14d,\s*swappedOut,\s*swappedOutToday: swappedOutOf\(st\.planned\.get\(todayKey\)\),\s*favoriteIds: new Set<string>\(\),/.test(
+          tool
+        ) &&
+        /programPatterns: patternsOfProgramDay\(\s*programPlan,\s*st\.program\.nextDay,/.test(
+          tool
+        ) &&
+        /state,\s*score,\s*\}\);\s*return isHalted\(built\) \? null : built;/.test(tool)
+    );
+    check(
+      'P5 일정 (바) daily-plan.ts — 점수는 재료가 있을 때만 켜고(scoreCtx), 테마 고르기에는 함수로만 넘기며, 프로그램은 장의 commitments.program 하나로 읽는다',
+      /if \(score\) \{/.test(planSrc) &&
+        /\.\.\.\(scoreCtx \? \{ scoreOf: \(ex: T\) => scoreFor\(ex, scoreCtx\)\.total \} : \{\}\),/.test(
+          planSrc
+        ) &&
+        /commitment: dayState\.commitments\?\.program,/.test(planSrc) &&
+        (planSrc.match(/scoreContextOf\(/g) ?? []).length === 1
     );
   }
 }

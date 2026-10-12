@@ -69,8 +69,10 @@ import { buildPitchPlan, YOUTH_AGE_THRESHOLD } from '../lib/report/plan.ts';
 import {
   buildDailyPlan,
   isHalted,
+  patternsDoneFrom,
   strengthDatesFrom,
   type DailyPlan,
+  type PlanScoreInput,
 } from '../lib/report/daily-plan.ts';
 import {
   CONDITIONING_GOAL,
@@ -87,6 +89,7 @@ import { fingerprintOf, stateChangesOf } from '../lib/report/plan-fingerprint.ts
 import {
   SWAP_LOOKBACK_DAYS,
   swappedOutCounts,
+  swappedOutOf,
   withSwaps,
 } from '../lib/report/plan-swaps.ts';
 import { buildDayState, type DayStateExtras } from '../lib/engine/day-state.ts';
@@ -97,6 +100,7 @@ import {
   decideToday,
   painSlotsOf,
   parseProgram,
+  patternsOfProgramDay,
   pickPinned,
   programSignalsOf,
   variantCandidates,
@@ -796,8 +800,16 @@ type State = {
   planned: Map<string, DailyPlan>;
   /** 마친 날마다 남긴 운동 끝 힘듦(앱의 DailyTrainingNote — 2판 P2 의 '마침' 뒤 칩) */
   notes: TrainingNoteLike[];
-  /** 진행 중인 근력 프로그램(추가 묶음만) — 앱의 UserTrainingProgram 줄의 nextDay · lastDoneDate */
-  program?: { key: string; nextDay: number; lastDoneDate: string | null };
+  /**
+   * 진행 중인 근력 프로그램(추가 묶음만) — 앱의 UserTrainingProgram 줄의 nextDay · lastDoneDate · pinned(고정 운동). pinned 는 runExtra 가
+   * 처음에 한 번 고른다(앱은 시작 화면에서 고정한다) — 고르기 점수의 '내일 프로그램 동작'(2판 P5-j)이 그 운동의 동작 열쇠로 읽는다.
+   */
+  program?: {
+    key: string;
+    nextDay: number;
+    lastDoneDate: string | null;
+    pinned?: Partial<Record<string, string>>;
+  };
 };
 
 const newState = (p: Player): State => ({
@@ -842,12 +854,20 @@ function historyOf(st: State, i: number) {
   }
 
   /* 하체 · 상체 마지막 날 — gather.ts 의 lastStrengthDates 와 같은 규칙(daily-plan.ts 의 strengthDatesFrom): 완료 기록이 먼저, 없는 날은 저장된 일정 */
-  const done: { date: string; category: string }[] = [];
+  /*
+   * 2주 동안 마친 동작 계열(2판 P5-j) — gather.ts lastStrengthDates 의 patternsDone14d 와 같은 함수 · 같은 줄(완료 기록, 계열은 운동 표에서).
+   * 대본에는 재활 체크가 없어 거를 것이 없다.
+   */
+  const done: { date: string; category: string; movementPattern: string | null }[] = [];
   const planned: { date: string; plan: unknown }[] = [];
   for (let d = i - ROTATION_LOOKBACK_DAYS; d < i; d++) {
     const key = keyOf(d);
     for (const e of st.done.get(key) ?? [])
-      done.push({ date: key, category: e.category });
+      done.push({
+        date: key,
+        category: e.category,
+        movementPattern: byId.get(e.id)?.movementPattern ?? null,
+      });
     const plan = st.planned.get(key);
     if (plan) planned.push({ date: key, plan });
   }
@@ -857,6 +877,7 @@ function historyOf(st: State, i: number) {
     sessionsAgo,
     lastLowerKey: dates.lower,
     lastUpperKey: dates.upper,
+    patternsDone14d: patternsDoneFrom({ done, todayKey }),
   };
 }
 
@@ -955,7 +976,9 @@ function extrasOf(st: State): DayStateExtras {
  *   seed        '사용자 id|날짜'(training-setup.ts, 하루의 첫 만들기)
  *   swappedOut  lib/report/plan-swaps.ts swappedOutCounts(저장된 일정, 60일) — 그날 뺀 기록을 남긴 선수(추가 묶음의 바꾸기 선수)만 값이 있다
  * state 는 P5-d 부터 buildDailyPlan 이 받는다(양 조절 — body 의 평소 대비 컨디션 · 짧은 밤 · 근육통, training-setup.ts 와 같은 짝).
- * swappedOut 은 아직 안 받는다(P5 의 점수가 받을 자리) — 지금은 만들어만 둔다.
+ *   score       고르기 점수의 재료(2판 P5-j, training-setup.ts 의 score 와 같은 칸 · 같은 규칙) — 프로그램 다음 일차의 동작 열쇠(진행 중인
+ *               프로그램은 state.commitments.program — extrasOf 로 장에 얹힌다), 2주 계열(historyOf), 60일 뺀 횟수(swappedOut), 오늘 뺀 운동
+ *               (그날 저장된 일정 — 하루의 첫 만들기라 아침에는 늘 비어 있다), 즐겨찾기(대본에 없다 — 빈 집합).
  */
 function inputsOf(p: Player, i: number, st: State, v: Variant = {}) {
   const todayKey = keyOf(i);
@@ -968,21 +991,43 @@ function inputsOf(p: Player, i: number, st: State, v: Variant = {}) {
     sinceKey: keyOf(i - SWAP_LOOKBACK_DAYS),
     untilKey: todayKey,
   });
+  const history = historyOf(st, i);
+  const programPlan = st.program ? parseProgram(st.program.key) : null;
+  const pinned = st.program?.pinned ?? {};
+  const score: PlanScoreInput = {
+    ...(st.program
+      ? {
+          programPatterns: patternsOfProgramDay(
+            programPlan,
+            st.program.nextDay,
+            (v) => {
+              const id = pinned[v];
+              return id ? byId.get(id) : undefined;
+            }
+          ),
+        }
+      : {}),
+    patternsDone14d: history.patternsDone14d,
+    swappedOut,
+    swappedOutToday: swappedOutOf(st.planned.get(todayKey)),
+    favoriteIds: new Set<string>(),
+  };
   return {
     facts,
     plan,
     state,
     owned: ownedOf(p.kit),
-    history: historyOf(st, i),
+    history,
     seed: [p.id, todayKey].join('|') + (v.seedSuffix ?? ''),
     swappedOut,
+    score,
   };
 }
 
 /** 앱(createDailySetup)이 buildDailyPlan 을 부르는 인자 그대로. 멈춘 날(통증 등)은 null */
 function buildDay(p: Player, i: number, st: State, v: Variant = {}): DailyPlan | null {
   buildCalls++;
-  const { facts, plan, state, owned, history, seed } = inputsOf(p, i, st, v);
+  const { facts, plan, state, owned, history, seed, score } = inputsOf(p, i, st, v);
   const built = buildDailyPlan({
     user: { ownedEquipment: owned, trainingLevel: p.level },
     facts,
@@ -1012,6 +1057,8 @@ function buildDay(p: Player, i: number, st: State, v: Variant = {}): DailyPlan |
      * P5-d · e)
      */
     state,
+    /* 고르기 점수의 재료 — training-setup.ts 의 score 와 같은 칸(2판 P5-j) */
+    score,
   });
   return isHalted(built) ? null : built;
 }
@@ -1989,6 +2036,8 @@ function runExtra(p: Player): ExtraResult {
   const pinned: Partial<Record<string, string>> = programPlan
     ? pickPinned(library, ownedOf(p.kit), p.level, {}, audienceOf(programPlan.def))
     : {};
+  /* 고정 운동을 프로그램 줄에 둔다 — 고르기 점수가 다음 일차의 동작 열쇠를 그 운동으로 읽는다(inputsOf, 2판 P5-j) */
+  if (st.program) st.program = { ...st.program, pinned };
   const days: ExtraDay[] = [];
   for (let i = 0; i < DAYS; i++) {
     const key = keyOf(i);
