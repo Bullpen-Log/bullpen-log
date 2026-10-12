@@ -585,6 +585,46 @@ export function reasonLineOf(
   return lineFor(key, score.parts[key]!, score.detail ?? {}, ex);
 }
 
+/**
+ * 목록에 든 운동의 이유 한 줄 — 트레이닝 화면의 운동 줄(2판 P5-k, 2026-10-13). 일정에 저장한 점수(DailyPlan.picks[].score — 값만, 왜는
+ * 없어 reasonLineOf 가 항목마다 정해 둔 글로 말한다)를 읽는다.
+ *
+ * 앞으로 당긴 항목만 말한다 — 합이 0 보다 클 때, 값이 가장 큰 '+' 항목 하나(2주 안 한 계열 · 회복 날 뻐근한 곳 풀기 · 즐겨찾기).
+ * 뒤로 민 항목(−)은 이 운동이 목록에 든 까닭이 아니다. 뒤로 밀렸는데도 무리 차례(최근 · 오래 안 한 것)가 앞서거나 그 구간을 채울 다른
+ * 후보가 없어 뽑힌 것이라, 목록에 있는 줄에 '뒤로 뒀어요'를 달면 '그런데 왜 있지'가 된다(화면 차례도 점수가 아니라 exercise-order.ts
+ * 가 정해 '뒤'에 있지도 않다). 그 신호는 일정 까닭('오늘 이렇게 짰어요' — planReasonsOf)이 그날 한 번 말한다. 합이 0 이하면(뒤로 민 것이
+ * 당긴 것만큼 크다) 말하지 않는다 — '앞에 뒀어요'가 참이 아니다. 저장된 JSON 이라 모양이 깨졌으면 null.
+ *
+ * 점수는 일정을 만들 때 얼린 값이라, 그 뒤 별을 뗀 운동(favorite: false)은 즐겨찾기 몫을 빼고 본다 — '즐겨찾기한 운동이라'가 거짓이 된다.
+ * 다른 항목(계열 · 뻐근)은 만든 날의 판단 그대로 말한다(일정 까닭과 같은 원칙 — 다시 셈하지 않는다).
+ */
+export function pickReasonLineOf(
+  ex: { movementPattern?: string | null },
+  score: { total: number; parts: ScoreParts } | null | undefined,
+  { favorite = true }: { favorite?: boolean } = {}
+): string | null {
+  if (
+    !score ||
+    typeof score.total !== 'number' ||
+    !score.parts ||
+    typeof score.parts !== 'object'
+  )
+    return null;
+  const ahead: ScoreParts = {};
+  let total = score.total;
+  for (const k of SCORE_KEYS) {
+    const v = score.parts[k];
+    if (typeof v !== 'number' || !(v > 0)) continue;
+    if (k === 'favorite' && !favorite) {
+      total -= v;
+      continue;
+    }
+    ahead[k] = v;
+  }
+  if (!(total > 0)) return null;
+  return reasonLineOf(ex, { parts: ahead });
+}
+
 /** 오늘 일정에서 점수를 매긴 후보 하나 — 뽑혔는가와 함께 */
 export type ScoredCandidate = { score: ExerciseScore; picked: boolean };
 

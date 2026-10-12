@@ -245,6 +245,7 @@ import {
   SCORE_KEYS,
   SCORE_POINTS,
   SWAPPED_MIN,
+  pickReasonLineOf,
   planReasonsOf,
   programNextOf,
   reasonLineOf,
@@ -442,6 +443,7 @@ import {
   buildDailyPlan,
   isHalted,
   patternsDoneFrom,
+  planReasonLines,
   plannedStrengthSide,
   readDailyPlan,
   strengthDatesFrom,
@@ -25981,6 +25983,266 @@ console.log(
         ) &&
         /commitment: dayState\.commitments\?\.program,/.test(planSrc) &&
         (planSrc.match(/scoreContextOf\(/g) ?? []).length === 1
+    );
+  }
+}
+
+/* ═══════════════════ [2판 P5] 화면 이유 — score.ts pickReasonLineOf · daily-plan.ts planReasonLines · 트레이닝 화면(page.tsx · exercise-list.tsx · check-row.tsx) (2026-10-13) ═══════════════════ */
+console.log(
+  "\n[2판 P5] 화면 이유 — 일정 카드의 '오늘 이렇게 짰어요' 최대 3줄 · 운동 줄마다 앞에 당긴 까닭 한 줄(뒤로 민 것은 줄에 안 단다) · 저장한 글 그대로(2026-10-13)"
+);
+{
+  /*
+   * 왜 보는가. 화면은 일정에 저장한 점수 · 까닭(P5-j)을 읽기만 한다. 운동 줄의 이유는 '앞에 뒀어요'만 말해야 한다 — 목록에 든 운동에
+   * '뒤로 뒀어요'를 달면 '그런데 왜 있지'가 된다. 저장된 JSON 이라 모양이 깨져도 화면이 터지지 않아야 하고, 별을 뗀 운동에 '즐겨찾기한
+   * 운동이라'가 남으면 거짓이다. 옛 줄(까닭 칸 없음)도 세트를 줄였으면 그 까닭은 말해야 한다.
+   * (가) pickReasonLineOf 손 입력, (나) planReasonLines 손 입력, (다) P3 160조합 — 실제로 만든 일정을 저장 → 읽기 → 화면 글, (라) 소스.
+   */
+  const json = (v: unknown) => JSON.stringify(v);
+  const AHEAD = '앞에 뒀어요.';
+  const textOk = (line: string) =>
+    line.length <= 60 && !line.includes('—') && line.endsWith('요.');
+
+  /* ── (가) pickReasonLineOf — 합이 양수일 때 가장 큰 '+' 항목 하나, 뒤로 민 것은 말하지 않음, 별을 떼면 즐겨찾기 몫을 뺌 ── */
+  {
+    const hinge = { movementPattern: '힌지' };
+    const none = { movementPattern: null };
+    const line = (
+      ex: { movementPattern?: string | null },
+      score: unknown,
+      opts?: { favorite?: boolean }
+    ) => pickReasonLineOf(ex, score as Parameters<typeof pickReasonLineOf>[1], opts);
+    const cases: [string, string | null, string | null][] = [
+      ['점수 없음', line(hinge, undefined), null],
+      ['null', line(hinge, null), null],
+      ['합 0 · 항목 없음', line(hinge, { total: 0, parts: {} }), null],
+      ['뒤로만(뻐근 −2)', line(hinge, { total: -2, parts: { stiff: -2 } }), null],
+      ['오늘 뺌 −3', line(hinge, { total: -3, parts: { swapped: -3 } }), null],
+      [
+        '당김 = 밂(계열 +2 · 뻐근 −2)',
+        line(hinge, { total: 0, parts: { pattern: 2, stiff: -2 } }),
+        null,
+      ],
+      [
+        '계열 +2',
+        line(hinge, { total: 2, parts: { pattern: 2 } }),
+        '2주 동안 힌지를 안 해서 앞에 뒀어요.',
+      ],
+      [
+        '계열 +2 · 뻐근 −2 · 즐겨찾기 +1 → 계열(가장 큰 +)',
+        line(hinge, { total: 1, parts: { stiff: -2, pattern: 2, favorite: 1 } }),
+        '2주 동안 힌지를 안 해서 앞에 뒀어요.',
+      ],
+      [
+        '회복 날 풀기 +2',
+        line(none, { total: 2, parts: { stiff: 2 } }),
+        '뻐근한 부위를 풀어 주려고 앞에 뒀어요.',
+      ],
+      [
+        '즐겨찾기 +1',
+        line(none, { total: 1, parts: { favorite: 1 } }),
+        '즐겨찾기한 운동이라 앞에 뒀어요.',
+      ],
+      [
+        '별을 뗀 즐겨찾기 +1',
+        line(none, { total: 1, parts: { favorite: 1 } }, { favorite: false }),
+        null,
+      ],
+      [
+        '별을 뗀 즐겨찾기 +1 · 계열 +2 → 계열',
+        line(
+          hinge,
+          { total: 3, parts: { pattern: 2, favorite: 1 } },
+          { favorite: false }
+        ),
+        '2주 동안 힌지를 안 해서 앞에 뒀어요.',
+      ],
+      [
+        '별을 뗀 즐겨찾기 +1 · 계열 +2 · 뻐근 −2 → 합 0',
+        line(
+          hinge,
+          { total: 1, parts: { pattern: 2, favorite: 1, stiff: -2 } },
+          { favorite: false }
+        ),
+        null,
+      ],
+      ['깨진 합(글)', line(hinge, { total: '2', parts: { pattern: 2 } }), null],
+      ['깨진 항목(null)', line(hinge, { total: 2, parts: null }), null],
+      ['깨진 항목 값(글)', line(hinge, { total: 2, parts: { pattern: '2' } }), null],
+      ['NaN 합', line(hinge, { total: Number.NaN, parts: { pattern: 2 } }), null],
+    ];
+    const bad = cases.filter(([, got, want]) => got !== want);
+    check(
+      `P5 화면 (가) pickReasonLineOf — 손 입력 ${cases.length}가지: 합이 양수일 때 가장 큰 '+' 항목 하나로 '앞에 뒀어요', 뒤로 민 것 · 합 0 이하 · 깨진 모양은 null, 별을 떼면 즐겨찾기 몫을 빼고 본다`,
+      bad.length === 0,
+      bad
+        .slice(0, 3)
+        .map(([n, got, want]) => `${n}: ${json(got)} ≠ ${json(want)}`)
+        .join(' · ')
+    );
+  }
+
+  /* ── (나) planReasonLines — 저장한 글 그대로(최대 3줄 · 글만), 옛 줄은 양 조절 · 힘듦 넘김 머리 줄만 ── */
+  {
+    const OVERRODE = '운동이 힘들었다고 했지만 고른 대로 세트를 그대로 뒀어요.';
+    const V = {
+      setDelta: -1,
+      intensityStep: -1,
+      why: '컨디션이 평소보다 낮아 세트를 줄였어요.',
+    };
+    type Input = Parameters<typeof planReasonLines>[0];
+    const of = (v: unknown) => planReasonLines(v as Input);
+    const cases: [string, string[], string[]][] = [
+      [
+        '넷 → 셋까지',
+        of({ reasons: ['가.', '나.', '다.', '라.'] }),
+        ['가.', '나.', '다.'],
+      ],
+      ['글 아닌 것 · 빈 글 버림', of({ reasons: ['가.', 3, '', '  ', null] }), ['가.']],
+      [
+        '저장한 글이 이김(양 조절이 있어도 다시 안 셈)',
+        of({ reasons: ['가.'], volume: V }),
+        ['가.'],
+      ],
+      ['옛 줄 · 양 조절', of({ volume: V }), [V.why]],
+      [
+        '옛 줄 · 양 조절 + 힘듦 넘김',
+        of({ volume: V, overrodeEffort: true }),
+        [V.why, OVERRODE],
+      ],
+      ['옛 줄 · 깨진 양 조절', of({ volume: { setDelta: -2, why: '가.' } }), []],
+      ['옛 줄 · 아무것도 없음', of({}), []],
+    ];
+    const bad = cases.filter(([, got, want]) => json(got) !== json(want));
+    check(
+      `P5 화면 (나) planReasonLines — 손 입력 ${cases.length}가지: 저장한 까닭을 3줄까지 글만, 까닭 칸이 없는 옛 줄은 양 조절 · 힘듦 넘김 줄만(점수 신호는 다시 안 셈)`,
+      bad.length === 0,
+      bad
+        .slice(0, 3)
+        .map(([n, got, want]) => `${n}: ${json(got)} ≠ ${json(want)}`)
+        .join(' · ')
+    );
+  }
+
+  /* ── (다) P3 160조합 — 실제로 만든 일정을 저장 → 읽기 → 화면 글 ── */
+  {
+    const goals = TRAINING_GOALS.map((g) => g.name);
+    const levels = TRAINING_LEVELS.map((l) => l.name);
+    const owned = [ALWAYS_OWNED, ...SELECTABLE_EQUIPMENT];
+    const byId = new Map(library.map((e) => [e.id, e]));
+    let plans = 0;
+    let withReasons = 0;
+    let rows = 0;
+    let shown = 0;
+    let quietBack = 0;
+    const bad: string[] = [];
+    for (const [i, facts] of p3ComboFactsSeen.entries()) {
+      const plan = buildPitchPlan(facts);
+      const level = levels[i % levels.length];
+      const usable = filterByEquipment(library, equipmentForToday(owned, null));
+      const cands = selectCandidates({
+        facts,
+        plan,
+        library: filterByLevel(usable.pool, level).pool,
+      });
+      const pool = cands.halted ? [] : cands.candidates;
+      const built = buildDailyPlan({
+        user: { ownedEquipment: owned, trainingLevel: level },
+        facts,
+        plan,
+        library,
+        availableToday: null,
+        requestedMinutes: [45, 60, 75, 90][i % 4],
+        trainingGoal: goals[Math.floor(i / 4) % goals.length],
+        trainingFocus: null,
+        recentIds: new Set<string>(),
+        sessionsAgo: new Map<string, number>(),
+        rotationSeed: `p5k-${i}`,
+        lastLowerKey: null,
+        lastUpperKey: null,
+        state: buildDayState({ facts, plan }),
+        /* 2주 계열은 밀기만 한 셈(나머지 큰 계열은 +2), 일곱에 하나는 즐겨찾기, 열하나에 하나는 두 번 바꿔 뺌 */
+        score: {
+          patternsDone14d: new Map([['밀기', 2]]),
+          favoriteIds: new Set(pool.filter((_, k) => k % 7 === 0).map((e) => e.id)),
+          swappedOut: new Map(
+            pool.filter((_, k) => k % 11 === 5).map((e) => [e.id, 2])
+          ),
+        },
+      });
+      if (isHalted(built)) continue;
+      plans++;
+      const read = readDailyPlan(JSON.parse(json(built)));
+      if (!read) {
+        bad.push(`p0-${i} 다시 못 읽음`);
+        continue;
+      }
+      const lines = planReasonLines(read);
+      if (lines.length > 0) withReasons++;
+      if (json(lines) !== json(built.reasons ?? []))
+        bad.push(
+          `p0-${i} 일정 까닭 ${json(lines)} ≠ 저장 ${json(built.reasons ?? [])}`
+        );
+      if (lines.length > 3 || !lines.every(textOk))
+        bad.push(`p0-${i} 일정 까닭 글 ${json(lines)}`);
+      for (const p of read.picks) {
+        rows++;
+        const ex = byId.get(p.exerciseId);
+        if (!ex) continue;
+        const line = pickReasonLineOf(ex, p.score);
+        if (line == null) {
+          if (p.score && Object.values(p.score.parts).some((v) => (v ?? 0) < 0))
+            quietBack++;
+          continue;
+        }
+        shown++;
+        if (!textOk(line) || !line.endsWith(AHEAD) || line.includes('뒤로'))
+          bad.push(`p0-${i} ${ex.title}: ${line}`);
+        if (!(p.score && p.score.total > 0))
+          bad.push(`p0-${i} ${ex.title}: 합 ${p.score?.total}`);
+        /* 같은 줄 — 저장한 값의 '+' 항목만 reasonLineOf 에 넣은 것과 같다 */
+        const ahead = Object.fromEntries(
+          Object.entries(p.score!.parts).filter(([, v]) => (v ?? 0) > 0)
+        );
+        if (reasonLineOf(ex, { parts: ahead }) !== line)
+          bad.push(`p0-${i} ${ex.title}: 다른 글`);
+      }
+    }
+    console.log(
+      `    일정 ${plans}개 · 까닭 있는 일정 ${withReasons} · 운동 줄 ${rows} · 이유 줄 ${shown} · 뒤로 민 점수가 있어 조용한 줄 ${quietBack}`
+    );
+    check(
+      `P5 화면 (다) P3 160조합 일정 ${plans}개 — 저장 → 읽기 뒤 '오늘 이렇게 짰어요'가 저장한 까닭과 같고(3줄 · 해요체 · 줄표 없음), 운동 줄 이유 ${shown}개는 모두 '앞에 뒀어요'(합이 양수 · '+' 항목만), 뒤로 민 줄은 조용하다`,
+      plans > 0 && withReasons > 0 && shown > 0 && bad.length === 0,
+      bad.slice(0, 3).join(' · ')
+    );
+  }
+
+  /* ── (라) 소스 — 화면이 저장한 글을 같은 함수로 읽고, 권하지 않는 줄엔 이유를 안 단다 ── */
+  {
+    const strip = (rel: string) =>
+      readFileSync(new URL(`../${rel}`, import.meta.url), 'utf8')
+        .replace(/\/\*[\s\S]*?\*\//g, '')
+        .replace(/\{\/\*[\s\S]*?\*\/\}/g, '')
+        .replace(/^\s*\/\/.*$/gm, '');
+    const page = strip('app/(app)/training/page.tsx');
+    const list = strip('app/(app)/training/exercise-list.tsx');
+    const row = strip('app/(app)/training/check-row.tsx');
+    check(
+      "P5 화면 (라) 트레이닝 화면 — 일정 카드는 planReasonLines(savedPlan) 로 '오늘 이렇게 짰어요'를, 운동 줄은 저장한 점수를 pickReasonLineOf 로(권하지 않는 줄은 null · 별은 지금 것), 체크 줄이 처방 밑에 그리고 화면 읽기 이름에도 담는다",
+      /const planReasons = savedPlan \? planReasonLines\(savedPlan\) : \[\];/.test(
+        page
+      ) &&
+        />\s*오늘 이렇게 짰어요\s*</.test(page) &&
+        /planReasons\.map\(\(line\) => \(\s*<li key=\{line\}>\{line\}<\/li>/.test(
+          page
+        ) &&
+        /score: 'score' in p \? p\.score : undefined,/.test(page) &&
+        /reason: unsafe\s*\?\s*null\s*:\s*pickReasonLineOf\(ex, score, \{ favorite: favExercises\.has\(ex\.id\) \}\),/.test(
+          page
+        ) &&
+        /note=\{ex\.reason\}/.test(list) &&
+        /\[title, prescription, note, warning\]/.test(row)
     );
   }
 }

@@ -11,6 +11,8 @@ import { createPlaybackUrls } from '@/lib/storage';
 import { referenceThumbUrl } from '@/lib/reference-video';
 import { formatPrescription } from '@/lib/exercise-meta';
 import { planPrescription } from '@/lib/report/volume';
+import { planReasonLines } from '@/lib/report/daily-plan';
+import { pickReasonLineOf } from '@/lib/report/score';
 import { loadTodayCore } from '@/lib/report/today-data';
 import { StartWorkout } from './start-workout';
 import { DoneCard, DoneFold, type DoneLine } from './done-card';
@@ -309,6 +311,8 @@ export default async function TrainingPage({
       slot: p.slot,
       manual: p.manual === true,
       unsafe: p.unsafe,
+      /* 만들 때 얼린 고르기 점수(2판 P5-j) — 일정에 든 것만 있다. 오늘 마쳐서 도로 넣은 것(strays)에는 없다 */
+      score: 'score' in p ? p.score : undefined,
       ex: byId.get(p.exerciseId),
     }))
     .filter((p): p is typeof p & { ex: NonNullable<(typeof p)['ex']> } => p.ex != null);
@@ -368,7 +372,7 @@ export default async function TrainingPage({
    * 저장해 둔 일정은 고른 차례 그대로라, 이미 만든 일정도 열 때 이 차례로 보이게 여기서 한 번 더 세운다.
    */
   const exercises: TodayExercise[] = orderSession(full, SLOT_ORDER).map(
-    ({ slot, manual, unsafe, ex }) => ({
+    ({ slot, manual, unsafe, score, ex }) => ({
       favorite: favExercises.has(ex.id),
       id: ex.id,
       title: ex.title,
@@ -413,6 +417,13 @@ export default async function TrainingPage({
        */
       unsafe,
       /*
+       * 왜 이 운동인지 한 줄(2판 P5-k) — 오늘 상태로 앞에 당긴 것만(lib/report/score.ts pickReasonLineOf: 2주 안 한 동작 · 뻐근한 곳
+       * 풀기 · 즐겨찾기). 뒤로 민 신호는 위 '오늘 이렇게 짰어요'가 한 번 말한다. 권하지 않는 운동이면 경고 한 줄만 둔다(둘이 엇갈려 읽힌다).
+       */
+      reason: unsafe
+        ? null
+        : pickReasonLineOf(ex, score, { favorite: favExercises.has(ex.id) }),
+      /*
        * 시간형(버티기)이면 횟수 대신 초를 적게 한다. 30초 플랭크에
        * "몇 회 했나요"를 물으면 답할 수가 없다.
        */
@@ -423,6 +434,8 @@ export default async function TrainingPage({
       past: pastAmounts.get(ex.id) ?? [],
     })
   );
+  /* 일정 카드의 '오늘 이렇게 짰어요'(2판 P5-k) — 저장한 까닭, 옛 줄은 양 조절 · 힘듦 넘김만 */
+  const planReasons = savedPlan ? planReasonLines(savedPlan) : [];
 
   /*
    * 목록에 더할 수 있는 운동.
@@ -622,6 +635,23 @@ export default async function TrainingPage({
               <p className="text-sm leading-relaxed break-keep text-muted">
                 {savedPlan.auto?.reason ?? savedPlan.theme.reason}
               </p>
+              {/*
+                '오늘 이렇게 짰어요' — 일정 까닭 최대 3줄(2판 P5-k, lib/report/daily-plan.ts planReasonLines). 하는 양이 바뀐 까닭(세트
+                줄임 · 힘듦 경고 넘김)이 먼저, 그다음 오늘 상태로 운동 차례를 바꾼 까닭(score.ts planReasonsOf). 만들 때 저장한 글이라
+                다시 셈하지 않는다. 목표 · 까닭이 먼저 읽히게 한 단 작은 글로 덧붙인다.
+              */}
+              {planReasons.length > 0 && (
+                <div className="space-y-1">
+                  <p className="text-xs font-semibold text-ink/80">
+                    오늘 이렇게 짰어요
+                  </p>
+                  <ul className="list-disc space-y-0.5 pl-4 text-xs leading-relaxed break-keep text-muted marker:text-sky">
+                    {planReasons.map((line) => (
+                      <li key={line}>{line}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
               {savedPlan.auto?.painSuspected && <AutoNote auto={savedPlan.auto} />}
               {savedPlan.minutes < savedPlan.requestedMinutes && (
                 <p className="text-xs text-warn">

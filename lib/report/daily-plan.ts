@@ -11,6 +11,7 @@ import {
   applyVolume,
   decideVolume,
   planPrescription,
+  readPlanVolume,
   volumeForDay,
   type PlanVolume,
   type VolumeStateInput,
@@ -34,6 +35,7 @@ import {
 import { dayKindOf, shortenPitchesOf, shortenedMinutes } from '@/lib/engine/microcycle';
 import { buildDayState, type DayState } from '@/lib/engine/day-state';
 import {
+  PLAN_REASONS_MAX,
   planReasonsOf,
   programNextOf,
   scoreContextOf,
@@ -580,6 +582,28 @@ export function readDailyPlan(value: unknown): DailyPlan | null {
   const plan = value as Partial<DailyPlan>;
   if (plan.version !== 1 || !Array.isArray(plan.picks)) return null;
   return plan as DailyPlan;
+}
+
+/**
+ * 트레이닝 화면의 '오늘 이렇게 짰어요' 줄 — 저장한 일정 까닭(reasons, 2판 P5-j)을 읽는다(2판 P5-k, 2026-10-13).
+ *
+ * 저장된 JSON 이라 글이 아닌 것 · 빈 글은 버리고 PLAN_REASONS_MAX 줄까지만. reasons 칸이 없는 줄은 점수 재료 없이 만든 일정(P5-j 전)이다 —
+ * 그래도 양 조절 · 힘듦 넘김(P5-d · P5-e 부터 저장)은 했을 수 있어, 같은 함수(planReasonsOf)에 점수 없이 넣어 그 머리 줄만 만든다(세트를
+ * 줄여 놓고 말이 없으면 '왜 줄었지'가 된다). 점수 신호는 다시 셈하지 않는다 — 만든 뒤 체크인을 고친 날 목록과 까닭이 어긋난다(reasons 주석).
+ */
+export function planReasonLines(
+  plan: Pick<DailyPlan, 'reasons' | 'volume' | 'overrodeEffort'>
+): string[] {
+  if (Array.isArray(plan.reasons)) {
+    return (plan.reasons as unknown[])
+      .filter((line): line is string => typeof line === 'string' && line.trim() !== '')
+      .slice(0, PLAN_REASONS_MAX);
+  }
+  return planReasonsOf({
+    scored: [],
+    volume: readPlanVolume(plan.volume),
+    overrodeEffort: plan.overrodeEffort === true,
+  });
 }
 
 /* ------------------------- 하체 · 상체를 번갈아 돌릴 마지막 날 ------------------------- */
