@@ -52,6 +52,7 @@ import {
   SEVERE_SORENESS,
   THROW_PLANS,
   WORKOUT_KINDS,
+  armPainSpotsFor,
   hasDetail,
   isShortSleep,
   nextOutingDays,
@@ -102,11 +103,19 @@ import {
   YOUTH_AGE_THRESHOLD,
 } from '../lib/report/plan.ts';
 import {
+  painEasingParts,
   painPartsToday,
   painStateUnknown,
   rehabEasingParts,
   selectCandidates,
 } from '../lib/report/prescription.ts';
+import {
+  buildDayState,
+  nextOutingWindow,
+  recentHardOuting,
+  type DayState,
+  type DayStateExtras,
+} from '../lib/engine/day-state.ts';
 import { orderSession, orderWithinSlot } from '../lib/report/exercise-order.ts';
 import {
   freezePlan,
@@ -7665,6 +7674,12 @@ console.log(
   check('깨진 JSON 은 빈 것', Object.keys(parseBodySpots('{oops')).length === 0);
 }
 
+/*
+ * P0 불변식이 만든 사람(c.p)을 차례대로 적어 둔다 — 파일 끝 '[2판 오늘 상태(P3)] 오늘 상태 한 장' 절이 같은 사람들로 재는지 견준다
+ * (그 절은 이 블록 밖이라 makeCombo 를 못 불러 베껴 쓴다). 적기만 하고 아래 검사는 아무것도 안 바뀐다.
+ */
+const p0PeopleSeen: string[] = [];
+
 console.log(
   '\n[2판 안전망(P0)] 등판 답 · 기능 엇갈림 표 · 불변식 · 성장기 나이 · 한쪽 갇힘(2026-10-11)'
 );
@@ -8349,6 +8364,7 @@ console.log(
   const P0_COMBOS = 160;
   for (let i = 0; i < P0_COMBOS; i++) {
     const c = makeCombo(i);
+    p0PeopleSeen.push(JSON.stringify(c.p));
     const { facts, built, picked } = buildOf(c);
     const again = buildOf(c).built;
     cover.total++;
@@ -11467,6 +11483,832 @@ console.log(
     capBad.length === 0,
     capBad.slice(0, 3).join(' / ')
   );
+}
+
+/* ═══════════════════ [2판 오늘 상태(P3)] 오늘 상태 한 장 — lib/engine/day-state.ts (2026-10-12) ═══════════════════ */
+console.log(
+  '\n[2판 오늘 상태(P3)] 오늘 상태 한 장 — 계약 · theme 위임(동작 변화 0) · 160조합 동일성 · 등판 답 49쌍 · 결정성 · 이유 글(2026-10-12)'
+);
+{
+  /*
+   * 이 단계는 '모으기만' 한다 — 독자의 결론이 하나도 안 바뀌어야 한다(위 '[2판 안전망(P0)]' 절의 등판 답 · 엇갈림 표 · 불변식이
+   * 그대로 통과하는 것이 첫 증거). 여기서는 두 가지를 더 본다.
+   *   1) theme.ts 의 hardOuting · plannedOuting 이 day-state 에 맡긴 뒤에도 옛 몸통(아래 legacy*, 위임 전 글자 그대로)과 같은 값
+   *   2) 오늘 상태 한 장의 칸이 기존 규칙 함수(통증 · 재활 · 휴식 · 문턱)의 값과 같다 — 새 문턱이 몰래 생기지 않게
+   * P0 절의 사람 만들기(p0Facts · makeCombo)는 그 블록 안이라 못 불러 여기 베낀다 — 같은 씨앗(20261011) · 같은 뽑는 차례라
+   * 같은 160명이 나온다(사람 말고 장비 · 시간 칸도 같은 차례로 뽑아 버린다 — 차례가 어긋나면 다른 사람이 된다).
+   */
+  type DsCheckin = Partial<Record<CheckinPartKey, string>> & {
+    condition?: number;
+    sleep?: string;
+    sleepHours?: number | null;
+    soreness?: number | null;
+    preferredWorkout?: string | null;
+    throwPlan?: string | null;
+  };
+  type DsLog = {
+    daysAgo: number;
+    pitches: number;
+    intensity: number;
+    sessionType?: string;
+  };
+  type DsPerson = {
+    age?: number | null;
+    trainingLevel?: string | null;
+    today?: DsCheckin | null;
+    yesterday?: DsCheckin | null;
+    logs?: DsLog[];
+    rehab?: RehabFacts | null;
+    memos?: string[];
+  };
+  const dsKey = (daysAgo: number) =>
+    new Date(TODAY.getTime() - daysAgo * 86400000).toISOString().slice(0, 10);
+  const dsCheckin = (daysAgo: number, c: DsCheckin): CheckinLike => ({
+    date: dsKey(daysAgo),
+    condition: c.condition ?? 7,
+    sleep: c.sleep ?? '보통',
+    shoulder: c.shoulder ?? '정상',
+    elbow: c.elbow ?? '정상',
+    wrist: c.wrist ?? '정상',
+    lowerBack: c.lowerBack ?? '정상',
+    lowerBody: c.lowerBody ?? '정상',
+    preferredParts: [],
+    preferredWorkout: c.preferredWorkout ?? null,
+    ...(c.sleepHours !== undefined ? { sleepHours: c.sleepHours } : {}),
+    ...(c.soreness !== undefined ? { soreness: c.soreness } : {}),
+    ...(c.throwPlan !== undefined ? { throwPlan: c.throwPlan } : {}),
+  });
+  const dsFacts = (p: DsPerson) =>
+    buildFacts({
+      nickname: '시험',
+      age: p.age === undefined ? 22 : p.age,
+      heightCm: 180,
+      trainingLevel: p.trainingLevel ?? null,
+      baselineDailyLoad: 100,
+      rehab: p.rehab ?? null,
+      today: TODAY,
+      logs: (p.logs ?? []).map<PitchLogLike>((l) => ({
+        date: new Date(TODAY.getTime() - l.daysAgo * 86400000).toISOString(),
+        pitchCount: l.pitches,
+        intensity: l.intensity,
+        ...(l.sessionType ? { sessionType: l.sessionType } : {}),
+        maxVelocity: 130,
+        avgVelocity: 120,
+      })),
+      checkins: [
+        ...(p.today ? [dsCheckin(0, p.today)] : []),
+        ...(p.yesterday ? [dsCheckin(1, p.yesterday)] : []),
+      ],
+      memos: (p.memos ?? []).map((text) => ({ date: dsKey(1), text })),
+    });
+  const stateOf = (p: DsPerson, extras?: DayStateExtras) => {
+    const facts = dsFacts(p);
+    const plan = buildPitchPlan(facts);
+    return { facts, plan, state: buildDayState({ facts, plan, extras }) };
+  };
+
+  /* 위임 전 theme.ts 의 몸통 — 글자 그대로(2026-10-12 ebcaea2). 동작 변화 0 을 이것과 견준다 */
+  type FactsOf = ReturnType<typeof dsFacts>;
+  const legacyHardOuting = (facts: FactsOf) =>
+    (facts.patterns.hardOutings ?? []).find((o) => o.daysAgo <= 1 && isHardOuting(o)) ??
+    null;
+  const legacyPlanned = (facts: FactsOf): 'today' | 'tomorrow' | null => {
+    const today = facts.condition.throwPlanToday ?? null;
+    const yesterday = facts.condition.throwPlanYesterday ?? null;
+    if (today != null) {
+      const days = nextOutingDays(today);
+      if (days?.max === 0) return 'today';
+      if (days?.min === 1 && days.max === 1) return 'tomorrow';
+      return null;
+    }
+    const days = nextOutingDays(yesterday);
+    return days?.min === 1 && days.max === 1 ? 'today' : null;
+  };
+  /* 오늘 상태의 '다음 등판까지'를 plannedOuting 의 두 값으로 읽기 — 꼭 오늘 · 꼭 내일만 */
+  const plannedOf = (w: DayState['outing']['daysUntilNext']) =>
+    w?.max === 0 ? 'today' : w?.min === 1 && w.max === 1 ? 'tomorrow' : null;
+
+  /* ── 순수 파일 — 'server-only' · prisma · 날짜 함수 · 난수 없음, theme · 프로그램 로더 · 일정 지문을 부르지 않음(순환 금지) ── */
+  {
+    /* 주석은 빼고 본다 — 머리 주석이 '왜 server-only · appNow 가 없는지'를 말하느라 그 낱말을 적는다 */
+    const src = readFileSync(
+      new URL('../lib/engine/day-state.ts', import.meta.url),
+      'utf8'
+    )
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/^\s*\/\/.*$/gm, '');
+    const specs = [...src.matchAll(/from '([^']+)'/g)].map((m) => m[1]);
+    const banned = specs.filter(
+      (s) =>
+        s === 'server-only' ||
+        s.includes('prisma') ||
+        s.endsWith('/report/theme') ||
+        s.endsWith('/program/load') ||
+        s.endsWith('/report/plan-fingerprint') ||
+        s.endsWith('/clock')
+    );
+    check(
+      '오늘 상태 (순수) import 에 server-only · prisma · theme · program/load · plan-fingerprint · clock 이 없다',
+      banned.length === 0 && !src.includes("'server-only'"),
+      banned.join(' · ') || specs.join(' · ')
+    );
+    check(
+      '오늘 상태 (순수) 날짜 함수 · 난수를 안 쓴다(new Date( · appNow · Math.random 없음)',
+      !/new Date\(|appNow|Math\.random/.test(src)
+    );
+    const theme = readFileSync(
+      new URL('../lib/report/theme.ts', import.meta.url),
+      'utf8'
+    );
+    check(
+      '오늘 상태 (위임) theme.ts 의 hardOuting · plannedOuting 이 day-state 에 맡긴다(규칙 한 곳)',
+      /return recentHardOuting\(facts\);/.test(theme) &&
+        /nextOutingWindow\(/.test(theme)
+    );
+    check(
+      '오늘 상태 (문턱 한 곳) 팔 피로 문턱은 lib/checkin.ts 의 값을 암케어가 다시 내보낸다(4)',
+      HIGH_ARM_FATIGUE === 4 &&
+        /export const HIGH_ARM_FATIGUE = 4;/.test(
+          readFileSync(new URL('../lib/checkin.ts', import.meta.url), 'utf8')
+        ) &&
+        !/export const HIGH_ARM_FATIGUE/.test(
+          readFileSync(new URL('../lib/armcare/routine.ts', import.meta.url), 'utf8')
+        )
+    );
+  }
+
+  /* ── 등판 답 49쌍(오늘 일곱 × 어제 일곱, 일곱째 = 안 적음) + 오늘 체크인 없음 7 — 손으로 적은 표와 견준다 ── */
+  {
+    type W = [number, number | null] | null;
+    /* 오늘 답 → 남은 날(nextOutingDays 그대로) */
+    const TODAY_W: Record<ThrowPlan, W> = {
+      '오늘 등판': [0, 0],
+      '오늘 불펜': null,
+      '내일 등판': [1, 1],
+      '2~3일 뒤': [2, 3],
+      '4일 이상 뒤': [4, null],
+      없음: null,
+    };
+    /* 어제 답 → 하루 당겨 읽은 남은 날(어제 '오늘 등판'은 지난 등판이라 null) */
+    const YESTERDAY_W: Record<ThrowPlan, W> = {
+      '오늘 등판': null,
+      '오늘 불펜': null,
+      '내일 등판': [0, 0],
+      '2~3일 뒤': [1, 2],
+      '4일 이상 뒤': [3, null],
+      없음: null,
+    };
+    const answers: (ThrowPlan | null)[] = [...THROW_PLANS, null];
+    const bad: string[] = [];
+    const badPlanned: string[] = [];
+    const badRole: string[] = [];
+    let pairs = 0;
+    for (const noCheckinToday of [false, true]) {
+      for (const t of noCheckinToday ? [null] : answers) {
+        for (const y of answers) {
+          pairs++;
+          const { facts, state } = stateOf({
+            today: noCheckinToday ? null : { throwPlan: t },
+            yesterday: { throwPlan: y },
+          });
+          const w: W = t != null ? TODAY_W[t] : y != null ? YESTERDAY_W[y] : null;
+          const from = w == null ? null : t != null ? 'today' : 'yesterday';
+          const got = state.outing.daysUntilNext;
+          const gotW: W = got ? [got.min, got.max] : null;
+          const tag = `${noCheckinToday ? '체크인 없음' : (t ?? '안 적음')} / 어제 ${y ?? '안 적음'}`;
+          if (
+            JSON.stringify(gotW) !== JSON.stringify(w) ||
+            state.outing.nextFrom !== from
+          ) {
+            bad.push(`${tag}: ${JSON.stringify(gotW)} ${state.outing.nextFrom}`);
+          }
+          const legacy = legacyPlanned(facts);
+          if (plannedOuting(facts) !== legacy || plannedOf(got) !== legacy) {
+            badPlanned.push(
+              `${tag}: 옛 ${legacy} · 지금 ${plannedOuting(facts)} · 장 ${plannedOf(got)}`
+            );
+          }
+          const role = w?.[1] === 0 ? 'game' : t === '오늘 불펜' ? 'bullpen' : null;
+          if (
+            state.outing.role !== role ||
+            state.outing.answeredToday !== (!noCheckinToday && t != null) ||
+            state.outing.answerToday !== (noCheckinToday ? null : t) ||
+            state.outing.answerYesterday !== y
+          ) {
+            badRole.push(
+              `${tag}: ${state.outing.role} · ${state.outing.answeredToday}`
+            );
+          }
+        }
+      }
+    }
+    check(
+      `오늘 상태 (등판 답) ${pairs}가지 — daysUntilNext · nextFrom 이 손으로 적은 표와 같다(오늘 답이 이김 · 어제 답은 하루 당김)`,
+      pairs === 56 && bad.length === 0,
+      bad.slice(0, 3).join(' / ')
+    );
+    check(
+      `오늘 상태 (위임 · 동작 변화 0) ${pairs}가지 — plannedOuting = 위임 전 옛 식 = daysUntilNext 를 꼭 오늘 · 꼭 내일로 읽은 값`,
+      badPlanned.length === 0,
+      badPlanned.slice(0, 3).join(' / ')
+    );
+    check(
+      `오늘 상태 (등판 답) ${pairs}가지 — 오늘 할 일(등판 · 불펜) · 답함 · 답 글자`,
+      badRole.length === 0,
+      badRole.slice(0, 3).join(' / ')
+    );
+    /* 목록 밖 글자(옛 줄 · 손으로 고친 DB) — '답함'으로 보고 어제 답을 막는다(위임 전 plannedOuting 과 같다) */
+    const odd = stateOf({
+      today: { throwPlan: '모름' },
+      yesterday: { throwPlan: '내일 등판' },
+    });
+    check(
+      "오늘 상태 (등판 답) 목록 밖 글자 '모름'은 답함 · 다음 등판 모름 · 어제 '내일 등판'을 이월하지 않는다(옛 식과 같음)",
+      odd.state.outing.answeredToday &&
+        odd.state.outing.answerToday === null &&
+        odd.state.outing.daysUntilNext === null &&
+        legacyPlanned(odd.facts) === null &&
+        plannedOuting(odd.facts) === null,
+      JSON.stringify(odd.state.outing)
+    );
+    /* nextOutingWindow 를 바로 — 칸 없음(undefined, 옛 facts) 은 null 과 같다 */
+    check(
+      "오늘 상태 (등판 답) nextOutingWindow(undefined, '내일 등판') = 오늘(0~0) · 어제에서",
+      JSON.stringify(nextOutingWindow(undefined, '내일 등판')) ===
+        '{"days":{"min":0,"max":0},"from":"yesterday"}',
+      JSON.stringify(nextOutingWindow(undefined, '내일 등판'))
+    );
+  }
+
+  /* ── 지난 등판 — 기록이 먼저, 어제 '오늘 등판' 답은 기록이 없을 때만(1일 · 투구수 모름) ── */
+  {
+    const cases: {
+      name: string;
+      p: DsPerson;
+      expect: {
+        days: number | null;
+        source: string;
+        pitches: number | null;
+        load: number | null;
+      };
+    }[] = [
+      {
+        name: '아무것도 없음',
+        p: { today: {} },
+        expect: { days: null, source: 'none', pitches: null, load: null },
+      },
+      {
+        name: "기록 없음 + 어제 '오늘 등판' 답",
+        p: { today: {}, yesterday: { throwPlan: '오늘 등판' } },
+        expect: { days: 1, source: 'checkin', pitches: null, load: null },
+      },
+      {
+        name: "어제 경기 60구 기록 + 어제 '오늘 등판' 답 (기록이 이긴다)",
+        p: {
+          today: {},
+          yesterday: { throwPlan: '오늘 등판' },
+          logs: [{ daysAgo: 1, pitches: 60, intensity: 9, sessionType: '경기' }],
+        },
+        expect: { days: 1, source: 'log', pitches: 60, load: 6000 },
+      },
+      {
+        name: "사흘 전 불펜 40구 70% + 어제 '오늘 등판' 답 (답이 더 가깝다)",
+        p: {
+          today: {},
+          yesterday: { throwPlan: '오늘 등판' },
+          logs: [{ daysAgo: 3, pitches: 40, intensity: 7, sessionType: '불펜' }],
+        },
+        expect: { days: 1, source: 'checkin', pitches: null, load: null },
+      },
+      {
+        name: '사흘 전 불펜 40구 70% (답 없음)',
+        p: {
+          today: {},
+          logs: [{ daysAgo: 3, pitches: 40, intensity: 7, sessionType: '불펜' }],
+        },
+        expect: { days: 3, source: 'log', pitches: 40, load: 2800 },
+      },
+      {
+        name: "오늘 캐치볼 20구 50% + 어제 '오늘 등판' 답 (오늘 기록이 이긴다)",
+        p: {
+          today: {},
+          yesterday: { throwPlan: '오늘 등판' },
+          logs: [{ daysAgo: 0, pitches: 20, intensity: 5, sessionType: '캐치볼' }],
+        },
+        expect: { days: 0, source: 'log', pitches: 20, load: 1000 },
+      },
+    ];
+    for (const c of cases) {
+      const { state } = stateOf(c.p);
+      const got = {
+        days: state.outing.daysSinceLast,
+        source: state.outing.source,
+        pitches: state.outing.lastPitches,
+        load: state.outing.lastLoad,
+      };
+      check(
+        `오늘 상태 (지난 등판) ${c.name} → ${c.expect.days ?? '없음'}일 · ${c.expect.source}`,
+        JSON.stringify(got) === JSON.stringify(c.expect),
+        JSON.stringify(got)
+      );
+    }
+  }
+
+  /* ── 160조합 — P0 불변식과 같은 사람들로, 오늘 상태의 칸 = 기존 규칙 함수의 값 ── */
+  {
+    const dsRng = (seed: number) => () => {
+      seed = (seed + 0x6d2b79f5) | 0;
+      let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+    const rand = dsRng(20261011);
+    const pick = <T,>(arr: readonly T[]): T => arr[Math.floor(rand() * arr.length)];
+    const chance = (p: number) => rand() < p;
+    const rehabOf = (
+      area: ArmcareAreaKey,
+      severity: RehabSeverity,
+      stage: RehabStage
+    ) =>
+      rehabFacts(
+        {
+          area,
+          condition: null,
+          severity,
+          stage,
+          stageStartedOn: '2026-06-01',
+          stageShortenDays: 0,
+          startedOn: '2026-06-01',
+        },
+        toDateKey(TODAY)
+      );
+    /* P0 의 makeCombo 와 같은 차례로 뽑는다 — 사람 칸 뒤의 시간 · 목표 · 그래도 하기 · 번갈기 칸도 뽑아 버린다(차례 맞추기) */
+    const makePerson = (i: number): DsPerson => {
+      const parts = (): Partial<Record<CheckinPartKey, string>> => {
+        const out: Partial<Record<CheckinPartKey, string>> = {};
+        for (const { key } of CHECKIN_PARTS) {
+          const r = rand();
+          out[key] = r < 0.08 ? '통증' : r < 0.2 ? '뻐근' : '정상';
+        }
+        return out;
+      };
+      const unknownPain = i % 16 === 5;
+      const today: DsCheckin | null =
+        !unknownPain && chance(0.85)
+          ? {
+              ...parts(),
+              condition: pick([2, 3, 4, 5, 6, 7, 8, 9, 10]),
+              sleep: pick(['충분', '보통', '부족']),
+              ...(chance(0.5) ? { sleepHours: pick([5, 6, 7, 8]) } : {}),
+              ...(chance(0.5) ? { soreness: pick([1, 2, 3, 4, 5]) } : {}),
+              preferredWorkout: pick([null, null, '웨이트', '파워', '회복']),
+              throwPlan: pick([null, null, ...THROW_PLANS]),
+            }
+          : null;
+      const yesterday: DsCheckin | null =
+        unknownPain || chance(0.6)
+          ? {
+              ...(unknownPain || chance(0.15) ? { shoulder: '통증' } : {}),
+              throwPlan: pick([null, ...THROW_PLANS]),
+            }
+          : null;
+      const logs: DsLog[] = [];
+      for (let d = 1; d <= 7; d++) {
+        if (!chance(0.5)) continue;
+        logs.push({
+          daysAgo: d,
+          pitches: pick([15, 25, 35, 45, 60, 75, 90]),
+          intensity: pick([4, 5, 6, 7, 8, 9, 10]),
+          sessionType: pick(['경기', '불펜', '라이브', '캐치볼', undefined]),
+        });
+      }
+      if (chance(0.25)) {
+        logs.push({
+          daysAgo: 0,
+          pitches: pick([20, 35, 50, 80]),
+          intensity: pick([5, 7, 9, 10]),
+          sessionType: pick(['경기', '불펜', '캐치볼']),
+        });
+      }
+      const rehab = chance(0.12)
+        ? rehabOf(
+            pick(['shoulder-back', 'elbow-inner'] as const),
+            pick(['mild', 'moderate'] as const),
+            pick([1, 2, 3, 4] as const)
+          )
+        : null;
+      const person: DsPerson = {
+        age: pick([13, 14, 15, 16, 17, 18, 20, 22, 25, 30, null]),
+        trainingLevel: pick([null, '입문', '초급', '중급', '상급']),
+        today,
+        yesterday,
+        logs,
+        rehab,
+        memos: chance(0.1) ? ['어제 던지고 나서 어깨가 조금 아프다'] : [],
+      };
+      /* makeCombo 의 minutes · goal · override · lastLowerKey · lastUpperKey 차례(값은 안 쓴다) */
+      pick([45, 60, 75, 90]);
+      pick([null, '근력 향상', '파워 향상', '컨디셔닝']);
+      chance(0.2);
+      pick([null, '2026-06-12', '2026-06-13']);
+      pick([null, '2026-06-11', '2026-06-14']);
+      return person;
+    };
+    const SPOTS = [
+      'shoulder-back',
+      'shoulder-front',
+      'scapula',
+      'elbow-inner',
+      'elbow-back',
+      '모름',
+    ];
+    const bad = new Map<string, string[]>();
+    const note = (rule: string, msg: string) =>
+      bad.set(rule, [...(bad.get(rule) ?? []), msg]);
+    const cover = {
+      hard: 0,
+      planned: 0,
+      restDay: 0,
+      armHigh: 0,
+      armPain: 0,
+      pain: 0,
+      rehab: 0,
+      halted: 0,
+      why: 0,
+    };
+    const COMBOS = 160;
+    /* P0 불변식이 만든 사람과 글자 하나까지 같은가(p0PeopleSeen — P0 절이 만든 차례대로 적어 둔 것) */
+    let samePeople = 0;
+    for (let i = 0; i < COMBOS; i++) {
+      const person = makePerson(i);
+      if (p0PeopleSeen[i] === JSON.stringify(person)) samePeople++;
+      /* 팔 피로 · 팔 통증 자리는 사람 차례와 따로인 난수 — 위 차례를 흔들지 않게 */
+      const side = dsRng(3_000_000 + i);
+      const armFatigue = side() < 0.3 ? null : 1 + Math.floor(side() * 5);
+      const rawSpots = SPOTS.filter(() => side() < 0.4);
+      const rawLevel = side() < 0.3 ? null : 1 + Math.floor(side() * 3);
+      const saved = pickArmPain({ armPainSpots: rawSpots, armPainLevel: rawLevel });
+      const extras: DayStateExtras = {
+        armFatigue,
+        armPain: { spots: saved.armPainSpots, level: saved.armPainLevel },
+      };
+      const facts = dsFacts(person);
+      const plan = buildPitchPlan(facts);
+      const factsBefore = JSON.stringify(facts);
+      const state = buildDayState({ facts, plan, extras });
+      const again = buildDayState({ facts, plan, extras });
+      const seed = `p0-${i}`;
+      const same = (rule: string, a: unknown, b: unknown) => {
+        if (JSON.stringify(a) !== JSON.stringify(b))
+          note(rule, `${seed} ${JSON.stringify(a)} ≠ ${JSON.stringify(b)}`);
+      };
+      const today = facts.condition.today;
+
+      /* 위임 — theme 의 두 값이 옛 몸통과 같고, 오늘 상태와도 같다 */
+      same('세게 던진 날 (옛 식)', hardOuting(facts), legacyHardOuting(facts));
+      same('세게 던진 날 (장)', state.load.hardOuting, hardOuting(facts));
+      if ((hardOuting(facts) != null) !== state.load.hardOutingRecent)
+        note('세게 던진 날 (장)', `${seed} recent 깃발`);
+      same('세게 던진 날 (장)', recentHardOuting(facts), hardOuting(facts));
+      same('등판 (옛 식)', plannedOuting(facts), legacyPlanned(facts));
+      same('등판 (장)', plannedOf(state.outing.daysUntilNext), plannedOuting(facts));
+
+      /* hard — 통증 · 재활 · 휴식 · 체크인 · 팔 피로 */
+      same('통증 관절', state.hard.painParts, painPartsToday(facts));
+      same('통증 모름', state.hard.painUnknown, painStateUnknown(facts));
+      same('메모 통증 확인', state.hard.needsPainCheck, plan.needsPainCheck);
+      same('투구 멈춤', state.hard.pitchHalted, plan.halted);
+      same('재활', state.hard.rehab != null, facts.condition.rehab != null);
+      if (state.hard.rehab && facts.condition.rehab)
+        same(
+          '재활',
+          [state.hard.rehab.joint, state.hard.rehab.stage],
+          [facts.condition.rehab.joint, facts.condition.rehab.stage]
+        );
+      same('재활 관절', state.hard.rehabParts, rehabEasingParts(facts));
+      same('체크인 필요', state.hard.needsCheckin, today == null);
+      same(
+        '남은 휴식',
+        state.hard.restLeft,
+        pendingOuting(facts.patterns, 0, facts.profile.age)?.left ?? null
+      );
+      same('쉬는 날', state.hard.restDay, plan.today?.throwing === false);
+      /* 쉬는 날인데 멈춤 · 메모 확인이 아니면 여파가 남은 등판이 있어야 한다(plan.ts dayFor 의 갈래) */
+      if (
+        state.hard.restDay &&
+        !state.hard.pitchHalted &&
+        !state.hard.needsPainCheck &&
+        state.hard.restLeft == null
+      )
+        note('쉬는 날', `${seed} 까닭 없는 쉬는 날`);
+      same(
+        '팔 피로',
+        state.hard.armFatigueHigh,
+        armFatigue != null && armFatigue >= HIGH_ARM_FATIGUE
+      );
+      same('팔 피로', state.arm.fatigueHigh, state.hard.armFatigueHigh);
+      same('팔 피로', state.arm.fatigue, armFatigue);
+
+      /* 팔 통증 자리 — lib/armcare/today.ts 의 armPain 식과 같은 값 */
+      const expectArmPain =
+        today?.shoulder === '통증' || today?.elbow === '통증'
+          ? {
+              spots: armPainSpotsFor(today, saved.armPainSpots),
+              level: saved.armPainLevel,
+            }
+          : null;
+      same('팔 통증 자리', state.arm.pain, expectArmPain);
+
+      /* body — 문턱은 매일 일정 · 암케어 · 프로그램이 쓰는 그 식 */
+      same(
+        '컨디션 낮음',
+        state.body.conditionLow,
+        today != null && today.condition <= LOW_CONDITION_THRESHOLD
+      );
+      same('짧은 밤', state.body.sleepShort, today != null && isShortSleep(today));
+      same(
+        '근육통 심함',
+        state.body.soreSevere,
+        today?.soreness != null && today.soreness >= SEVERE_SORENESS
+      );
+      same(
+        '근육통 많이',
+        state.body.soreMany,
+        today?.soreness != null &&
+          today.soreness >= HIGH_SORENESS &&
+          today.soreness < SEVERE_SORENESS
+      );
+      same('최근 통증 부위', state.body.recentPainParts, painEasingParts(facts));
+      same(
+        '뻐근 부위',
+        state.body.stiffParts,
+        today
+          ? CHECKIN_PARTS.filter((p) => today[p.key] === '뻐근').map((p) => p.key)
+          : []
+      );
+
+      /* outing — 지난 등판의 출처 */
+      same('오늘 던짐', state.outing.threwToday, plan.threwToday);
+      if (
+        state.outing.source === 'log' &&
+        state.outing.daysSinceLast !== facts.patterns.restDays
+      )
+        note('지난 등판', `${seed} 기록인데 날이 다름`);
+      if (
+        state.outing.source === 'checkin' &&
+        !(
+          parseThrowPlan(facts.condition.throwPlanYesterday) === '오늘 등판' &&
+          (facts.patterns.restDays == null || facts.patterns.restDays > 1) &&
+          state.outing.daysSinceLast === 1
+        )
+      )
+        note('지난 등판', `${seed} 체크인 출처가 맞지 않음`);
+
+      /* 결정성 · facts 를 안 바꿈 · 이유 글 */
+      same('결정성', state, again);
+      if (JSON.stringify(facts) !== factsBefore)
+        note('facts 그대로', `${seed} facts 가 바뀜`);
+      for (const line of state.why) {
+        if (!/요\.$/.test(line) || /—|\*\*|null|undefined|NaN/.test(line))
+          note('이유 글', `${seed} "${line}"`);
+      }
+
+      if (state.load.hardOutingRecent) cover.hard++;
+      if (state.outing.daysUntilNext) cover.planned++;
+      if (state.hard.restDay) cover.restDay++;
+      if (state.hard.armFatigueHigh) cover.armHigh++;
+      if (state.arm.pain) cover.armPain++;
+      if (state.hard.painParts.length > 0) cover.pain++;
+      if (state.hard.rehab) cover.rehab++;
+      if (state.hard.pitchHalted) cover.halted++;
+      if (state.why.length > 0) cover.why++;
+    }
+    const rules = [
+      ['세게 던진 날 (옛 식)', 'theme.hardOuting = 위임 전 옛 식'],
+      ['세게 던진 날 (장)', 'load.hardOuting · hardOutingRecent = theme.hardOuting'],
+      ['등판 (옛 식)', 'theme.plannedOuting = 위임 전 옛 식'],
+      ['등판 (장)', 'outing.daysUntilNext 를 꼭 오늘 · 꼭 내일로 읽으면 plannedOuting'],
+      ['통증 관절', 'hard.painParts = painPartsToday'],
+      ['통증 모름', 'hard.painUnknown = painStateUnknown'],
+      ['메모 통증 확인', 'hard.needsPainCheck = plan.needsPainCheck'],
+      ['투구 멈춤', 'hard.pitchHalted = plan.halted'],
+      ['재활', 'hard.rehab = facts.condition.rehab(관절 · 단계)'],
+      ['재활 관절', 'hard.rehabParts = rehabEasingParts'],
+      ['체크인 필요', 'hard.needsCheckin = 오늘 체크인 없음'],
+      ['남은 휴식', 'hard.restLeft = pendingOuting(오늘, 나이별 표).left'],
+      ['쉬는 날', 'hard.restDay = 투구 계획의 오늘이 쉬는 날 · 까닭 있음'],
+      ['팔 피로', 'arm · hard 팔 피로 = HIGH_ARM_FATIGUE 문턱'],
+      ['팔 통증 자리', 'arm.pain = lib/armcare/today.ts 의 armPain 식'],
+      ['컨디션 낮음', 'body.conditionLow = LOW_CONDITION_THRESHOLD'],
+      ['짧은 밤', 'body.sleepShort = isShortSleep'],
+      ['근육통 심함', 'body.soreSevere = SEVERE_SORENESS'],
+      ['근육통 많이', 'body.soreMany = HIGH_SORENESS 이상 · 심함 밑'],
+      ['최근 통증 부위', 'body.recentPainParts = painEasingParts'],
+      ['뻐근 부위', "body.stiffParts = 오늘 '뻐근'"],
+      ['오늘 던짐', 'outing.threwToday = plan.threwToday'],
+      ['지난 등판', '지난 등판의 출처(기록 · 체크인)가 규칙대로'],
+      ['결정성', '같은 입력 두 번 → 같은 장'],
+      ['facts 그대로', '장을 만들어도 facts 가 안 바뀐다'],
+      ['이유 글', "이유 글은 모두 '요.'로 끝나고 줄표 · 굵게 · null 이 없다"],
+    ] as const;
+    for (const [rule, name] of rules) {
+      const found = bad.get(rule) ?? [];
+      check(
+        `오늘 상태 (${COMBOS}조합) ${name}`,
+        found.length === 0,
+        found.length > 0 ? `${found.length}건 — ${found.slice(0, 2).join(' / ')}` : ''
+      );
+    }
+    check(
+      `오늘 상태 (${COMBOS}조합) 잰 것: 세게 던진 날 ${cover.hard} · 다음 등판 앎 ${cover.planned} · 쉬는 날 ${cover.restDay} · 팔 피로 높음 ${cover.armHigh} · 팔 통증 자리 ${cover.armPain} · 통증 ${cover.pain} · 재활 ${cover.rehab} · 멈춤 ${cover.halted} · 이유 있음 ${cover.why}`,
+      cover.hard >= 10 &&
+        cover.planned >= 10 &&
+        cover.restDay >= 5 &&
+        cover.armHigh >= 10 &&
+        cover.armPain >= 5 &&
+        cover.pain >= 10 &&
+        cover.rehab >= 5 &&
+        cover.halted >= 5 &&
+        cover.why >= 100
+    );
+    check(
+      `오늘 상태 (${COMBOS}조합) P0 불변식과 같은 사람들이다(사람 ${samePeople}/${COMBOS}명이 글자 하나까지 같음)`,
+      samePeople === COMBOS && p0PeopleSeen.length === COMBOS,
+      `P0 가 적은 사람 ${p0PeopleSeen.length}명`
+    );
+  }
+
+  /* ── 옛 facts(칸이 생기기 전에 저장된 것) — 던지지 않고 null · 모름으로 ── */
+  {
+    const { facts, plan } = stateOf({
+      today: { throwPlan: '내일 등판' },
+      logs: [{ daysAgo: 1, pitches: 85, intensity: 10, sessionType: '경기' }],
+    });
+    const old = JSON.parse(JSON.stringify(facts)) as FactsOf;
+    delete (old.patterns as Partial<FactsOf['patterns']>).hardOutings;
+    const cond = old.condition as Partial<FactsOf['condition']>;
+    delete cond.throwPlanToday;
+    delete cond.throwPlanYesterday;
+    delete cond.painRecentParts;
+    delete cond.rehab;
+    delete cond.rehabParts;
+    delete cond.trainingEffort;
+    let state: DayState | null = null;
+    let error = '';
+    try {
+      state = buildDayState({ facts: old, plan });
+    } catch (e) {
+      error = String(e);
+    }
+    check(
+      '오늘 상태 (옛 facts) 칸이 없어도 던지지 않고 세게 던진 날 · 다음 등판 · 재활 · 급증은 모름으로',
+      state != null &&
+        state.load.hardOuting === null &&
+        state.outing.daysUntilNext === null &&
+        state.outing.answeredToday === false &&
+        state.hard.rehab === null &&
+        state.load.effortSpike === false &&
+        state.body.recentPainParts.length === 0 &&
+        legacyHardOuting(old) === null &&
+        hardOuting(old) === null,
+      error || JSON.stringify(state?.outing)
+    );
+  }
+
+  /* ── extras — 안 주면 null, 주면 그대로(복사) · 셈한 칸 ── */
+  {
+    const base = stateOf({ today: {} });
+    check(
+      '오늘 상태 (extras) 안 주면 팔 피로 · 팔 통증 · 프로그램 · 메커니즘 · 체중 흐름이 모두 null',
+      base.state.arm.fatigue === null &&
+        base.state.arm.pain === null &&
+        base.state.commitments.program === null &&
+        base.state.commitments.mechanics === null &&
+        base.state.nutritionTrend === null
+    );
+    const yesterdayKey = dsKey(1);
+    const mechanics = { level: 'L1', index: 3, finishedToday: false };
+    const withProgram = stateOf(
+      { today: {} },
+      {
+        program: { key: '531', nextDay: 5, totalDays: 12, lastDoneDate: yesterdayKey },
+        mechanics,
+        nutritionTrend: { kgPerWeek: 0.34, kind: 'gain' },
+      }
+    ).state;
+    check(
+      '오늘 상태 (extras) 프로그램 5/12일차 · 어제 마침 → 안 끝남 · 마친 지 1일, 메커니즘 · 체중 흐름은 그대로',
+      withProgram.commitments.program?.done === false &&
+        withProgram.commitments.program.daysSinceLastDone === 1 &&
+        withProgram.commitments.program.nextDay === 5 &&
+        JSON.stringify(withProgram.commitments.mechanics) ===
+          JSON.stringify(mechanics) &&
+        withProgram.nutritionTrend?.kind === 'gain',
+      JSON.stringify(withProgram.commitments)
+    );
+    (withProgram.commitments.mechanics as { index: number }).index = 99;
+    check(
+      '오늘 상태 (extras) 장의 칸을 고쳐도 넘긴 값은 그대로(복사)',
+      mechanics.index === 3
+    );
+    check(
+      "오늘 상태 (extras) 이유 글 — '근력 프로그램 5일차를 할 차례예요.' · '오늘 메커니즘 세션이 남아 있어요.' · '체중이 일주일에 0.3kg씩 늘고 있어요.'",
+      [
+        '근력 프로그램 5일차를 할 차례예요.',
+        '오늘 메커니즘 세션이 남아 있어요.',
+        '체중이 일주일에 0.3kg씩 늘고 있어요.',
+      ].every((l) => withProgram.why.includes(l)),
+      withProgram.why.join(' / ')
+    );
+    const done = stateOf(
+      { today: {} },
+      {
+        program: { key: '531', nextDay: 13, totalDays: 12, lastDoneDate: null },
+        mechanics: { level: null, index: 0, finishedToday: true },
+        nutritionTrend: { kgPerWeek: null, kind: 'unknown' },
+      }
+    ).state;
+    check(
+      "오늘 상태 (extras) 13/12일차 → 다 마침 · 마친 날 모름, 메커니즘 마침 글, 체중 흐름 '모름'은 글 없음",
+      done.commitments.program?.done === true &&
+        done.commitments.program.daysSinceLastDone === null &&
+        done.why.includes('근력 프로그램을 다 마쳤어요.') &&
+        done.why.includes('오늘 메커니즘 세션을 마쳤어요.') &&
+        !done.why.some((l) => l.includes('체중')),
+      done.why.join(' / ')
+    );
+    const noTotal = stateOf(
+      { today: {} },
+      {
+        program: { key: '531', nextDay: 40, lastDoneDate: null },
+        nutritionTrend: { kgPerWeek: -0.5, kind: 'lose' },
+      }
+    ).state;
+    check(
+      "오늘 상태 (extras) 전체 일차를 모르면 '다 마침'으로 보지 않는다 · 줄어드는 체중 글",
+      noTotal.commitments.program?.done === false &&
+        noTotal.why.includes('체중이 일주일에 0.5kg씩 줄고 있어요.'),
+      noTotal.why.join(' / ')
+    );
+  }
+
+  /* ── 이유 글 — 아무것도 안 걸리면 빈 목록, 걸리면 차례대로(넘을 수 없는 것 → 등판 → 팔 · 몸 → 부하) ── */
+  {
+    const calm = stateOf({ today: {} }).state;
+    check(
+      '오늘 상태 (이유 글) 평범한 날(체크인 · 기록 없음 · 아무 신호 없음)은 빈 목록',
+      calm.why.length === 0,
+      calm.why.join(' / ')
+    );
+    const noCheckin = stateOf({ today: null }).state;
+    check(
+      "오늘 상태 (이유 글) 체크인이 없는 날 — '오늘 체크인을 아직 안 남겼어요.' 한 줄",
+      JSON.stringify(noCheckin.why) === '["오늘 체크인을 아직 안 남겼어요."]',
+      noCheckin.why.join(' / ')
+    );
+    const heavy = stateOf(
+      {
+        today: { shoulder: '통증', condition: 3, sleepHours: 5, soreness: 5 },
+        logs: [{ daysAgo: 1, pitches: 85, intensity: 10, sessionType: '경기' }],
+      },
+      { armFatigue: 5 }
+    ).state;
+    const expected = [
+      '오늘 어깨 통증이 있어요.',
+      '어제 거의 전력으로 85구를 던졌어요.',
+      "팔 피로가 '심함'이에요.",
+      '오늘 컨디션이 3/10이에요.',
+      "전신 근육통이 '심함'이에요.",
+      '어젯밤 5시간만 잤어요.',
+    ];
+    const at = expected.map((l) => heavy.why.indexOf(l));
+    check(
+      '오늘 상태 (이유 글) 통증 · 세게 던진 날 · 팔 피로 · 컨디션 · 근육통 · 짧은 밤이 그 차례로 다 나온다',
+      at.every((n, k) => n >= 0 && (k === 0 || n > at[k - 1])),
+      heavy.why.join(' / ')
+    );
+    const carried = stateOf({
+      today: null,
+      yesterday: { throwPlan: '2~3일 뒤' },
+    }).state;
+    check(
+      "오늘 상태 (이유 글) 어제 '2~3일 뒤' + 오늘 체크인 없음 → '어제 적은 답으로 보면 1~2일 뒤 등판이에요.'",
+      carried.why.includes('어제 적은 답으로 보면 1~2일 뒤 등판이에요.'),
+      carried.why.join(' / ')
+    );
+    const bullpen = stateOf({ today: { throwPlan: '오늘 불펜' } }).state;
+    const fromCheckin = stateOf({
+      today: {},
+      yesterday: { throwPlan: '오늘 등판' },
+    }).state;
+    check(
+      '오늘 상태 (이유 글) 오늘 불펜 · 어제 등판 답만 있음(기록 없음)',
+      bullpen.why.includes('오늘 불펜 날이에요.') &&
+        bullpen.outing.role === 'bullpen' &&
+        fromCheckin.why.includes('어제 등판했다고 적었는데 투구 기록은 없어요.'),
+      `${bullpen.why.join(' / ')} | ${fromCheckin.why.join(' / ')}`
+    );
+  }
 }
 
 console.log(`\n${passed}개 통과, ${failed}개 실패`);

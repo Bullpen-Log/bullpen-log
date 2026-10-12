@@ -1,4 +1,5 @@
 import {
+  HIGH_ARM_FATIGUE,
   SEVERE_SORENESS,
   armPainLevelLabel,
   armPainSpotLabel,
@@ -57,12 +58,10 @@ export type ArmcareDecision =
     };
 
 /**
- * 팔 피로(상세 체크인)가 이 값 이상이면 회복으로 간다 — '많이'(4)·'심함'(5).
- *
- * '보통'(3)은 넘긴다. 공을 던지는 사람의 팔은 대개 조금은 피곤하다. 그것까지
- * 회복으로 돌리면 강화 루틴을 할 날이 거의 없다.
+ * 팔 피로가 이 값 이상이면 회복으로 간다 — '많이'(4)·'심함'(5). 값과 까닭은 lib/checkin.ts 한 곳(2026-10-12, 2판 P3 에서 옮김 —
+ * 오늘 상태 한 장 lib/engine/day-state.ts 가 같은 문턱을 쓴다). 여기서는 옛 import(자체 시험 · 화면)가 그대로 맞게 다시 내보낸다.
  */
-export const HIGH_ARM_FATIGUE = 4;
+export { HIGH_ARM_FATIGUE };
 
 /** 팔 피로의 말 — lib/checkin.ts 의 DETAIL_SCALES 와 같은 보기 */
 const ARM_FATIGUE_WORDS = ['없음', '조금', '보통', '많이', '심함'];

@@ -67,7 +67,7 @@ export async function loadTodayCore(user: UserForToday, today: Date) {
    */
   await closeAbandonedSessions(user.id, today);
 
-  const { facts, plan, hasLogs } = await gatherFactsAndPlan(user, today);
+  const { facts, plan, state, hasLogs } = await gatherFactsAndPlan(user, today);
   /*
    * 한 번이라도 투구를 남긴 적이 있나 — hasLogs 는 최근 45일 안만 봐서, 시즌을 쉬다 돌아온 사람에게도 홈의 '여기부터
    * 시작하세요'(처음 온 사람 안내)가 떴다. 최근 기록이 있으면 묻지 않는다.
@@ -301,6 +301,12 @@ export async function loadTodayCore(user: UserForToday, today: Date) {
     midnight,
     facts,
     plan,
+    /**
+     * 오늘 상태 한 장(2판 P3, lib/engine/day-state.ts) — facts · plan 을 한 번 읽어 모은 신호. 2026-10-12 에는 넘기기만 하고 이
+     * 파일의 어떤 판단(안전 거름 · 부딪힘 · 지문)도 이 값을 읽지 않는다. 프로그램(lib/program/load.ts 의 buildProgramDay)이 다음
+     * 단계에서 core.state 로 신호를 읽는다.
+     */
+    state,
     hasLogs,
     everLogged,
     library,

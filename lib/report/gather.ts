@@ -8,7 +8,8 @@ import { ageFromBirthDate } from '@/lib/profile';
 import { estimateDailyLoad } from '@/lib/baseline';
 import { buildFacts, type CheckinLike, type MemoNote } from '@/lib/report/facts';
 import { buildPitchPlan } from '@/lib/report/plan';
-import { pickCheckinParts } from '@/lib/checkin';
+import { pickArmPain, pickCheckinParts } from '@/lib/checkin';
+import { buildDayState } from '@/lib/engine/day-state';
 import { RECENT_DAYS } from '@/lib/report/today-pick';
 import { shiftDateKey, toDateKey } from '@/lib/pitch-stats';
 import { loadRehabFacts, loadRehabPeriods } from '@/lib/armcare/rehab-store';
@@ -151,8 +152,29 @@ export async function gatherFactsAndPlan(
     })),
     today,
   });
+  const plan = buildPitchPlan(facts);
 
-  return { facts, plan: buildPitchPlan(facts), hasLogs: logs.length > 0 };
+  /*
+   * 오늘 상태 한 장(2판 P3, lib/engine/day-state.ts) — facts · plan 에서 다시 읽고, facts 에 없는 팔 피로 · 팔 통증 자리만 오늘 체크인
+   * 줄에서 더 꺼낸다. 그 줄은 위 recentRecords(react cache)가 이미 읽은 것이라 조회가 늘지 않는다. 오늘 줄을 찾는 법은 buildFacts 가
+   * 오늘 체크인을 찾는 법(날짜 앞 10자리 = 오늘)과 같고, 체크인은 excludeToday 로 거르지 않는 것도 facts 와 같다.
+   * 2026-10-12 에는 아무 독자도 이 값을 읽지 않는다 — 다음 단계에서 하나씩 옮긴다(암케어의 따로 읽는 팔 피로 조회도 그때 걷는다).
+   */
+  const todayCheckin =
+    checkins.find((c) => c.date.toISOString().slice(0, 10) === todayKey) ?? null;
+  const savedArmPain = todayCheckin ? pickArmPain(todayCheckin) : null;
+  const state = buildDayState({
+    facts,
+    plan,
+    extras: {
+      armFatigue: todayCheckin?.armFatigue ?? null,
+      armPain: savedArmPain
+        ? { spots: savedArmPain.armPainSpots, level: savedArmPain.armPainLevel }
+        : null,
+    },
+  });
+
+  return { facts, plan, state, hasLogs: logs.length > 0 };
 }
 
 /**

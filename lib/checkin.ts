@@ -583,6 +583,15 @@ export const DETAIL_SCALES = [
 
 export type DetailScaleKey = (typeof DETAIL_SCALES)[number]['key'];
 
+/**
+ * 팔 피로가 이 값 이상이면 '높은 날' — '많이'(4)·'심함'(5). 암케어는 회복 루틴으로 간다(lib/armcare/routine.ts 가 다시 내보낸다).
+ *
+ * '보통'(3)은 넘긴다. 공을 던지는 사람의 팔은 대개 조금은 피곤하다. 그것까지 회복으로 돌리면 강화 루틴을 할 날이 거의 없다.
+ * 2026-10-12(2판 P3) routine.ts 에서 여기로 옮겼다 — 오늘 상태 한 장(lib/engine/day-state.ts)이 같은 문턱을 쓰는데, 체크인 눈금의
+ * 문턱은 근육통(HIGH_SORENESS) · 컨디션(LOW_CONDITION_THRESHOLD)처럼 이 파일 한 곳에 둔다.
+ */
+export const HIGH_ARM_FATIGUE = 4;
+
 /*
  * 식욕(2026-09-30 사용자: "영양 가이드에 필요한 정보가 있다면 체크인에도").
  *
@@ -617,6 +626,8 @@ export const LOW_CONDITION_THRESHOLD = 4;
  *
  * 어제 답의 이월은 '내일 등판' 하나뿐(plannedOuting · nutrition/guide.ts throwDayKind · program/load.ts 가 같은 규칙):
  * 어제 '2~3일 뒤'는 오늘 1~2일 뒤라 날을 못 박지 못하고, 어제 '오늘 등판'은 던진 기록이 맡는다 — 모르는 것을 짐작하지 않는다.
+ * 오늘 · 어제 답을 합치는 곳은 lib/engine/day-state.ts 의 nextOutingWindow 한 곳(2판 P3) — 오늘 상태 한 장은 어제 답을 하루
+ * 당긴 범위(어제 '2~3일 뒤' → 1~2일 뒤)까지 실어 두고, 날을 못 박는 독자는 그중 꼭 오늘 · 꼭 내일만 쓴다.
  */
 export const THROW_PLANS = [
   '오늘 등판',

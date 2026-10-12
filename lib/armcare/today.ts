@@ -108,7 +108,7 @@ export async function loadArmcareToday(user: UserForArmcare, today: Date) {
   const todayKey = toDateKey(today);
   const midnight = new Date(`${todayKey}T00:00:00.000Z`);
 
-  const [{ facts, plan }, library, saved, checkin, logs, rehab] = await Promise.all([
+  const [gathered, library, saved, checkin, logs, rehab] = await Promise.all([
     gatherFactsAndPlan(user, today),
     visibleExercises(),
     prisma.dailyArmcare.findUnique({
@@ -138,6 +138,8 @@ export async function loadArmcareToday(user: UserForArmcare, today: Date) {
     }),
     visibleExercises().then((all) => loadRehabToday(user, todayKey, all)),
   ]);
+  /* state = 오늘 상태 한 장(2판 P3) — 아래 반환에 넘기기만 한다 */
+  const { facts, plan, state } = gathered;
 
   /*
    * 캐시에 담긴 운동이 근육 칸을 더하기 전에 담긴 것이면 그 칸이 없을 수 있다
@@ -188,6 +190,12 @@ export async function loadArmcareToday(user: UserForArmcare, today: Date) {
     midnight,
     facts,
     plan,
+    /**
+     * 오늘 상태 한 장(2판 P3, lib/engine/day-state.ts). 2026-10-12 에는 넘기기만 한다 — 아래 결정(decideArmcare)은 아직 위에서
+     * 따로 읽은 팔 피로 · 팔 통증을 쓴다. state.arm.fatigue · state.arm.pain 이 같은 값이라(같은 오늘 체크인 줄 · 같은 규칙
+     * armPainSpotsFor) 다음 단계에서 그 조회를 걷고 '오늘 등판' 신호를 state.outing 으로 읽는다.
+     */
+    state,
     /** 오늘 체크인을 남겼는가. 없으면 만들지 않는다 — 운동 일정과 같은 규칙. */
     hasCheckinToday: facts.condition.today != null,
     decision: decideArmcare({

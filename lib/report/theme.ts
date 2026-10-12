@@ -2,10 +2,10 @@ import { orderWithinSlot } from '@/lib/report/exercise-order';
 import {
   LOW_CONDITION_THRESHOLD,
   SEVERE_SORENESS,
-  nextOutingDays,
   sorenessWord,
   type CheckinPartKey,
 } from '@/lib/checkin';
+import { nextOutingWindow, recentHardOuting } from '@/lib/engine/day-state';
 import {
   HEAVY_EQUIPMENT,
   intensityLevel,
@@ -17,7 +17,6 @@ import { shiftDateKey } from '@/lib/pitch-stats';
 import {
   HARD_OUTING_MIN_LOAD,
   HARD_OUTING_MIN_PITCHES,
-  isHardOuting,
   isNearMaxOuting,
   type HardOuting,
   type ReportFacts,
@@ -244,12 +243,13 @@ export { HARD_OUTING_MIN_LOAD, HARD_OUTING_MIN_PITCHES };
  * 던진 날은 모두 그대로 세게 던진 날이고, 많이 가볍게 던진 날(불펜 40구 70% 같은)이 새로 든다.
  * 그보다 가볍게 던진 날은 다음 날을 막지 않는다. 공을 쉬어야 하는 날은 투구 계획이 따로 말하고,
  * 쌓인 부하는 부하 지수(주의 · 위험 구간)가 따로 본다.
+ *
+ * '오늘 · 어제 세게 던진 날을 고르는' 몸통은 2026-10-12(2판 P3)부터 오늘 상태 한 장(lib/engine/day-state.ts 의 recentHardOuting)
+ * 에 있다 — 그 장의 load.hardOuting 과 이 값이 늘 같게 한 곳에서 셈한다. 서명 · 값은 그대로라 독자(decideTheme · workoutConflict ·
+ * 프로그램 · 일정 지문)는 그대로다.
  */
 export function hardOuting(facts: ReportFacts): HardOuting | null {
-  return (
-    (facts.patterns.hardOutings ?? []).find((o) => o.daysAgo <= 1 && isHardOuting(o)) ??
-    null
-  );
+  return recentHardOuting(facts);
 }
 
 /**
@@ -268,18 +268,19 @@ export function hardOuting(facts: ReportFacts): HardOuting | null {
  * 이면 today, 꼭 내일(1~1)이면 tomorrow 만 가른다 — '2~3일 뒤' · '4일 이상 뒤'는 날을 못 박지 못하니 '없음'처럼
  * null(테마 그대로). 어제 답의 이월도 '내일 등판'(어제 기준 1~1) 하나뿐 — 어제 '2~3일 뒤'는 오늘 1~2일 뒤라 null.
  * 반환은 둘뿐이라 독자(decideTheme · workoutConflict)는 그대로다. 며칠 뒤 등판을 쓰는 규칙은 P4 · P5 에서 day-state 로.
+ *
+ * 오늘 · 어제 답을 합치는 규칙(오늘 답이 이김 · 어제 답은 하루 당겨 읽음)은 2026-10-12(2판 P3)부터 오늘 상태 한 장
+ * (lib/engine/day-state.ts 의 nextOutingWindow) 한 곳 — 그 장의 outing.daysUntilNext 와 이 값이 늘 같은 셈에서 나온다.
+ * 하루 당긴 어제 '2~3일 뒤'(1~2)는 꼭 내일이 아니니 여기서는 그대로 null 이다(옛 규칙과 같은 값 — 자체 시험이 답 49쌍 + 오늘 체크인 없음 7 · 160조합에서 견준다).
  */
 export function plannedOuting(facts: ReportFacts): 'today' | 'tomorrow' | null {
-  const today = facts.condition.throwPlanToday ?? null;
-  const yesterday = facts.condition.throwPlanYesterday ?? null;
-  if (today != null) {
-    const days = nextOutingDays(today);
-    if (days?.max === 0) return 'today';
-    if (days?.min === 1 && days.max === 1) return 'tomorrow';
-    return null;
-  }
-  const days = nextOutingDays(yesterday);
-  return days?.min === 1 && days.max === 1 ? 'today' : null;
+  const { days } = nextOutingWindow(
+    facts.condition.throwPlanToday,
+    facts.condition.throwPlanYesterday
+  );
+  if (days?.max === 0) return 'today';
+  if (days?.min === 1 && days.max === 1) return 'tomorrow';
+  return null;
 }
 
 /** 등판 날 · 등판 전날의 이유 — 언제부터 다시 무게를 드는지까지 말한다(hardOutingReason 과 같은 틀) */
