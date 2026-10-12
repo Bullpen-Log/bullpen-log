@@ -21,6 +21,11 @@
  * 결과는 표(stdout)와 JSON(임시 폴더, --out= 으로 바꿈)으로 남긴다. 지표 · 날별 기록은 돌릴 때마다 같다(무작위 없음,
  * DB 순서도 createdAt 으로 고정) — 바뀌는 것은 JSON 의 meta(만든 시각 · 걸린 시간)뿐이라, 단계 전후를 diff 로 견줄 때는
  * meta 를 빼고 본다.
+ *
+ * 대본 2판(2026-10-12, 2판 P3). 앱이 등판 답을 간편 체크인에서 받고(D1) 투구 강도를 체감 % 로 받게(D2) 돼, 대본도 그 꼴로 바꿨다 —
+ * 체크인마다 등판 답 여섯 중 하나, 투구 기록마다 effortPct(대본 1판 강도 × 10 이라 세게 던진 날 · 부하는 같은 값). 그래서 P2 까지의
+ * 표와는 ⑤ · ⑫ 의 정의가 다르고(답을 지운 변형으로 옛 숫자를 같이 낸다), 답이 새로 닿은 선수(선발B · 선발D · 구원A)의 날이
+ * 바뀐다. 2판 전후를 견줄 때는 그 셋만 바뀌었는지 본다 — 상세 선수 · 비시즌 · 같은 설정 쌍은 그대로여야 한다.
  */
 import { mkdirSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
@@ -53,8 +58,19 @@ import {
 } from '../lib/report/equipment.ts';
 import { TRAINING_LEVEL_NAMES, filterByLevel } from '../lib/report/personalize.ts';
 import { intensityLevel, MAX_INTENSITY_LEVEL } from '../lib/exercise-meta.ts';
-import { outingLoadOf, shiftDateKey, type PitchLogLike } from '../lib/pitch-stats.ts';
-import { LOW_CONDITION_THRESHOLD } from '../lib/checkin.ts';
+import {
+  effortPctOf,
+  effortToIntensity,
+  outingLoadOf,
+  shiftDateKey,
+  type PitchLogLike,
+} from '../lib/pitch-stats.ts';
+import {
+  LOW_CONDITION_THRESHOLD,
+  nextOutingDays,
+  THROW_PLANS,
+  type ThrowPlan,
+} from '../lib/checkin.ts';
 
 const startedAt = Date.now();
 
@@ -241,7 +257,9 @@ function ownedOf(kit: Kit): string[] {
 
 /**
  * 가상 선수 12명. 나이 14/15/16/17/22/28 · 경력 입문~상급 · 장비 셋 · 목표 셋 · 역할 넷 · 체크인 습관 셋 · 컨디션 셋 · 마침 습관
- * 셋을 섞었다. 한 축을 재는 선수가 둘 이상 있게 짰다 — 등판 답 하는 선발 셋 · 안 하는 선발 셋, 늘 낮은 컨디션 셋, 맨몸 셋.
+ * 셋을 섞었다. 한 축을 재는 선수가 둘 이상 있게 짰다 — 매일 상세 · 매일 간편 · 가끔 체크인하는 선발, 늘 낮은 컨디션 셋, 맨몸 셋.
+ * 대본 1판(P0 ~ P2)은 상세만 등판 답을 적어 '답 하는 선발 셋 · 안 하는 선발 셋'이었다. 2판(P3, 2026-10-12)부터는 체크인하는 날이면
+ * 모두 답한다(간편에 들어갔다) — 답을 안 적는 경우는 선수를 더하지 않고 ⑤ · ⑫ 의 변형(답만 지움)으로 잰다.
  */
 const PLAYER_SPECS: Omit<Player, 'id'>[] = [
   {
@@ -399,13 +417,33 @@ for (const p of PLAYERS) {
 
 /* --------------------------------- 대본 --------------------------------- */
 
-type Throw = { pitchCount: number; intensity: number; sessionType: string };
+/**
+ * 대본의 투구 기록 한 줄 — 앱이 % 칩으로 받은 기록을 저장하는 꼴 그대로(2판 D2): effortPct 와 그것을 1~10 으로 내린
+ * intensity(effortToIntensity)를 같이 둔다. 계산은 앱처럼 effortPctOf · intensityOf · outingLoadOf 로만 읽는다.
+ */
+type Throw = {
+  pitchCount: number;
+  intensity: number;
+  effortPct: number;
+  sessionType: string;
+};
+
+/** 체감 강도(%)로 기록 한 줄을 만든다 — intensity 는 앱이 저장할 때처럼 effortToIntensity(5% 단위 → 1~10) */
+function thrown(pitchCount: number, effortPct: number, sessionType: string): Throw {
+  return {
+    pitchCount,
+    intensity: effortToIntensity(effortPct),
+    effortPct,
+    sessionType,
+  };
+}
 
 /**
- * 역할별 던지는 날. 날 번호(i)만으로 정해진다(앞선 기록 14일 포함).
- *   선발 주1회  i ≡ 2 (mod 7) 경기 70~90구 강도 9~10 · +2일 불펜 30구 7 · +4일 캐치볼 25구 5
- *   선발 격주   i ≡ 2 (mod 14) 경기 85구 10 · +3일 불펜 35구 7 · +6일 불펜 30구 7 · +9일 캐치볼 25구 5
- *   구원        사흘에 한 번 경기 20구와 35구를 번갈아(강도 9) — 세게 던진 날 문턱(2,000 · 3,500 ↔ HARD_OUTING_MIN_LOAD 2,700) 양쪽에 걸치게 · 다음 날 캐치볼 20구 5
+ * 역할별 던지는 날. 날 번호(i)만으로 정해진다(앞선 기록 14일 포함). 체감 강도는 대본 1판의 강도(1~10) × 10 이라 세게 던진
+ * 날 · 부하 지수가 1판과 같은 값으로 읽힌다(effortPctOf = intensity × 10, intensityOf = effortPct ÷ 10).
+ *   선발 주1회  i ≡ 2 (mod 7) 경기 70~90구 90~100% · +2일 불펜 30구 70% · +4일 캐치볼 25구 50%
+ *   선발 격주   i ≡ 2 (mod 14) 경기 85구 100% · +3일 불펜 35구 70% · +6일 불펜 30구 70% · +9일 캐치볼 25구 50%
+ *   구원        사흘에 한 번 경기 20구와 35구를 번갈아(90%) — 세게 던진 날 문턱(경기 100% 로 2,000 · 3,500 ↔ HARD_OUTING_MIN_LOAD 2,700) 양쪽에 걸치게 · 다음 날 캐치볼 20구 50%
  *   비시즌      안 던진다(최근 투구 기록 없음 → 투구 부하로 거르지 않는 길)
  */
 function throwOn(role: Role, i: number): Throw | null {
@@ -413,31 +451,27 @@ function throwOn(role: Role, i: number): Throw | null {
     const r = mod(i - 2, 7);
     if (r === 0) {
       const g = mod(Math.round((i - 2) / 7), 6);
-      return {
-        pitchCount: [70, 80, 90, 85, 75, 88][g],
-        intensity: g % 2 === 0 ? 10 : 9,
-        sessionType: '경기',
-      };
+      return thrown([70, 80, 90, 85, 75, 88][g], g % 2 === 0 ? 100 : 90, '경기');
     }
-    if (r === 2) return { pitchCount: 30, intensity: 7, sessionType: '불펜' };
-    if (r === 4) return { pitchCount: 25, intensity: 5, sessionType: '캐치볼' };
+    if (r === 2) return thrown(30, 70, '불펜');
+    if (r === 4) return thrown(25, 50, '캐치볼');
     return null;
   }
   if (role === 'starter-biweekly') {
     const r = mod(i - 2, 14);
-    if (r === 0) return { pitchCount: 85, intensity: 10, sessionType: '경기' };
-    if (r === 3) return { pitchCount: 35, intensity: 7, sessionType: '불펜' };
-    if (r === 6) return { pitchCount: 30, intensity: 7, sessionType: '불펜' };
-    if (r === 9) return { pitchCount: 25, intensity: 5, sessionType: '캐치볼' };
+    if (r === 0) return thrown(85, 100, '경기');
+    if (r === 3) return thrown(35, 70, '불펜');
+    if (r === 6) return thrown(30, 70, '불펜');
+    if (r === 9) return thrown(25, 50, '캐치볼');
     return null;
   }
   if (role === 'reliever') {
     const r = mod(i, 3);
     if (r === 0) {
       const odd = mod(Math.round(i / 3), 2) === 1;
-      return { pitchCount: odd ? 35 : 20, intensity: 9, sessionType: '경기' };
+      return thrown(odd ? 35 : 20, 90, '경기');
     }
-    if (r === 1) return { pitchCount: 20, intensity: 5, sessionType: '캐치볼' };
+    if (r === 1) return thrown(20, 50, '캐치볼');
     return null;
   }
   return null;
@@ -451,13 +485,55 @@ function conditionOn(pattern: ConditionPattern, i: number): number {
   return [8, 6, 3, 7, 9, 5, 4][mod(i, 7)];
 }
 
-/** 상세 체크인의 던지는 일정 답 — 경기 날 '오늘 등판' · 그 전날 '내일 등판' · 불펜 날 '오늘 불펜' · 그 밖 '없음' */
-function throwPlanOn(role: Role, i: number): string {
-  const today = throwOn(role, i);
-  if (today?.sessionType === '경기') return '오늘 등판';
-  if (throwOn(role, i + 1)?.sessionType === '경기') return '내일 등판';
-  if (today?.sessionType === '불펜') return '오늘 불펜';
-  return '없음';
+/**
+ * 다음 경기까지 이만큼 앞을 본다 — 대본에서 경기 사이가 가장 긴 것이 선발 격주의 14일이라, 시즌 중인 선수는 늘 다음 경기를
+ * 찾고 비시즌만 못 찾는다('없음').
+ */
+const OUTING_LOOKAHEAD_DAYS = 14;
+
+/** 오늘부터 다음 경기까지 남은 날(오늘 경기면 0). 앞을 봐도 경기가 없으면 null */
+function daysToNextGame(role: Role, i: number): number | null {
+  for (let d = 0; d <= OUTING_LOOKAHEAD_DAYS; d++) {
+    if (throwOn(role, i + d)?.sessionType === '경기') return d;
+  }
+  return null;
+}
+
+/**
+ * 체크인의 던지는 일정 답(2판 D1 — 답 여섯, 간편 체크인에 있다). 대본의 경기 날짜를 보고 사람이 고를 답을 고른다:
+ *   경기 날 '오늘 등판' · 그 전날 '내일 등판' · 불펜 날 '오늘 불펜' · 다음 경기가 2~3일 뒤 '2~3일 뒤' · 4일 이상 뒤 '4일 이상 뒤' ·
+ *   다음 경기가 없음(비시즌) '없음'
+ * 불펜이 다음 경기 2~3일 전이어도 '오늘 불펜' — 칩 하나만 고르니 오늘 할 일을 먼저 적는다(lib/checkin.ts 의 차례와 같다).
+ * 구원은 '오늘 등판 · 2~3일 뒤 · 내일 등판'만, 선발은 넷 다(불펜 날 포함) 나온다.
+ */
+function throwPlanOn(role: Role, i: number): ThrowPlan {
+  const next = daysToNextGame(role, i);
+  if (next === 0) return '오늘 등판';
+  if (next === 1) return '내일 등판';
+  if (throwOn(role, i)?.sessionType === '불펜') return '오늘 불펜';
+  if (next == null) return '없음';
+  return next <= 3 ? '2~3일 뒤' : '4일 이상 뒤';
+}
+
+/*
+ * 답이 대본과 맞나 — 답을 날로 읽는 앱의 규칙(lib/checkin.ts nextOutingDays)으로 되읽어 다음 경기 날이 그 범위 안인지 본다.
+ * '오늘 불펜' · '없음'은 범위가 없다(불펜은 날을 안 정하고, 없음은 다음 경기가 없다). 대본이나 앱 규칙이 바뀌어 어긋나면
+ * 숫자를 내기 전에 멈춘다 — 틀린 답으로 잰 기준선은 다음 단계를 잘못 이끈다.
+ */
+for (const role of Object.keys(ROLE_LABEL) as Role[]) {
+  for (let i = -PREHISTORY_DAYS; i < DAYS; i++) {
+    const answer = throwPlanOn(role, i);
+    const next = daysToNextGame(role, i);
+    const range = nextOutingDays(answer);
+    const ok =
+      range == null
+        ? answer === '오늘 불펜' || (answer === '없음' && next == null)
+        : next != null && next >= range.min && (range.max == null || next <= range.max);
+    if (!ok)
+      throw new Error(
+        `${ROLE_LABEL[role]} ${keyOf(i)}: 답 '${answer}' 이 다음 경기 ${next}일 뒤와 안 맞는다`
+      );
+  }
 }
 
 type DayLog = { day: number; log: PitchLogLike };
@@ -494,10 +570,14 @@ function checkinsFor(p: Player): DayCheckin[] {
         lowerBody: '정상',
         preferredParts: [],
         preferredWorkout: null,
-        /* 상세 체크인만 칸을 만든다 — 간편 체크인은 두 칸이 없는 기록과 같은 모양 */
-        ...(detail
-          ? { sleepHours: 7, soreness: 2, throwPlan: throwPlanOn(p.role, i) }
-          : {}),
+        /*
+         * 던지는 일정은 체크인하는 날이면 늘 적는다 — 2판 D1(2026-10-12)로 간편 체크인에 들어가 전신 컨디션 바로 밑에 있다.
+         * 대본 1판은 상세만 적어 '간편 · 가끔 = 답 없는 선발'이었다. 답을 안 적는 사람은 선수를 더하지 않고 ⑤ · ⑫ 의 변형
+         * (답만 지움 · 기록만 지움)으로 잰다 — 분모 336 을 P0 ~ P2 표와 나란히 두려고.
+         */
+        throwPlan: throwPlanOn(p.role, i),
+        /* 잔 시간 · 근육통은 상세 습관만 칸을 만든다 — 간편에서는 고르지 않은 날과 같은 모양 */
+        ...(detail ? { sleepHours: 7, soreness: 2 } : {}),
       },
     });
   }
@@ -583,6 +663,13 @@ type Variant = {
   patchCheckin?: (c: CheckinLike) => CheckinLike;
   /** 어제 투구 기록만 바꾼다 */
   patchYesterday?: (log: PitchLogLike) => PitchLogLike;
+  /**
+   * 체크인의 등판 답을 모두 지운다(오늘 것만이 아니라 어제 것도 — 어제 '내일 등판'이 오늘로 이월되니 오늘 것만 지우면 '답을 안
+   * 적는 사람'이 안 된다). ⑤ · ⑫ 가 대본 1판의 '답 없는 선발'을 같은 날 같은 기록으로 다시 잰다.
+   */
+  clearThrowPlans?: boolean;
+  /** 어제 투구 기록을 뺀다 — 등판 답은 적고 기록은 안 남긴 날(⑫) */
+  dropYesterdayLog?: boolean;
 };
 
 let buildCalls = 0;
@@ -593,15 +680,14 @@ function buildDay(p: Player, i: number, st: State, v: Variant = {}): DailyPlan |
   const todayKey = keyOf(i);
   /* 아침에 만든다 — 오늘 던진 것은 아직 기록에 없다 */
   const logs = st.logs
-    .filter((l) => l.day < i)
+    .filter((l) => l.day < i && !(v.dropYesterdayLog && l.day === i - 1))
     .map((l) =>
       l.day === i - 1 && v.patchYesterday ? v.patchYesterday(l.log) : l.log
     );
   const checkins = st.checkins
     .filter((c) => c.day <= i)
-    .map((c) =>
-      c.day === i && v.patchCheckin ? v.patchCheckin(c.checkin) : c.checkin
-    );
+    .map((c) => (c.day === i && v.patchCheckin ? v.patchCheckin(c.checkin) : c.checkin))
+    .map((c) => (v.clearThrowPlans ? { ...c, throwPlan: null } : c));
   const facts = buildFacts({
     nickname: p.name,
     age: v.age ?? p.age,
@@ -675,29 +761,38 @@ function patchCheckinBy(kind: CheckinVariant): (c: CheckinLike) => CheckinLike {
 }
 
 /**
- * ③ 어제 투구 기록만 바꾸는 세 가지. 따로 잰다 — 경기 기록은 강도와 상관없이 전력으로 보므로(facts.ts) '강도 9→6'은 경기
- * 날에 설계상 아무것도 안 바꾼다. 셋을 하나로 섞으면 그 사실이 0% 속에 묻힌다.
- *   double     투구수 두 배(구원 20구 경기가 30구 문턱을 넘는다)
- *   intensity  강도 9 이상 → 6(어제 강도가 9 이상인 날만 분모)
- *   lighter    경기 → 불펜 · 강도 6(어제가 경기인 날만 분모 — '가볍게 던진 날'이 이 코드에서 실제로 뜻하는 것)
+ * ③ 어제 투구 기록만 바꾸는 세 가지. 따로 잰다 — 경기 기록은 체감과 상관없이 100% 로 보므로(pitch-stats.ts outingLoadOf ·
+ * stressFactor) '90% → 60%'는 경기 날에 설계상 아무것도 안 바꾼다. 셋을 하나로 섞으면 그 사실이 0% 속에 묻힌다.
+ *   double     투구수 두 배(구원 20구 경기 2,000 이 문턱 2,700 을 넘는다)
+ *   intensity  체감 90% 이상 → 60%(어제 체감이 90% 이상인 날만 분모 — 이 대본에서는 경기 날뿐이라 0% 가 정답이다)
+ *   lighter    경기 → 불펜 · 60%(어제가 경기인 날만 분모 — 같은 공을 '경기가 아닌 날 60%'로 적으면 무엇이 바뀌나. 경기 100% 특례가
+ *              빠져 구원 35구 3,500 이 2,100 으로 문턱 밑이 된다 — 종류가 아니라 부하로 가르는 규칙의 증거)
+ * 앱이 저장하는 꼴처럼 effortPct 와 intensity 를 같이 바꾼다 — intensity 만 바꾸면 계산(effortPctOf · intensityOf)이 effortPct 를
+ * 먼저 읽어 아무것도 안 바뀐다(대본 2판에서 한 번 그렇게 0% 가 나왔다).
  */
 type PitchVariant = 'double' | 'intensity' | 'lighter';
 const PITCH_VARIANTS: PitchVariant[] = ['double', 'intensity', 'lighter'];
 const PITCH_VARIANT_LABEL: Record<PitchVariant, string> = {
   double: '투구수 ×2',
-  intensity: '강도 9→6',
-  lighter: '경기 → 불펜 · 강도 6',
+  intensity: '체감 90% 이상 → 60%',
+  lighter: '경기 → 불펜 · 60%',
 };
+/** 바꾼 체감 강도(%) — 대본 1판의 '강도 6' 과 같은 값 */
+const LIGHTER_EFFORT_PCT = 60;
 function pitchVariantApplies(kind: PitchVariant, t: Throw): boolean {
   if (kind === 'double') return true;
-  /* 강도 9~10(= 체감 90% 이상, 옛 NEAR_MAX_INTENSITY 9 와 같은 날) */
-  if (kind === 'intensity') return t.intensity * 10 >= NEAR_MAX_EFFORT_PCT;
+  /* 체감 90% 이상(옛 강도 9~10 과 같은 날) */
+  if (kind === 'intensity') return effortPctOf(t) >= NEAR_MAX_EFFORT_PCT;
   return t.sessionType === '경기';
 }
 function patchYesterdayBy(kind: PitchVariant): (log: PitchLogLike) => PitchLogLike {
   if (kind === 'double') return (log) => ({ ...log, pitchCount: log.pitchCount * 2 });
-  if (kind === 'intensity') return (log) => ({ ...log, intensity: 6 });
-  return (log) => ({ ...log, sessionType: '불펜', intensity: 6 });
+  const lighter = {
+    effortPct: LIGHTER_EFFORT_PCT,
+    intensity: effortToIntensity(LIGHTER_EFFORT_PCT),
+  };
+  if (kind === 'intensity') return (log) => ({ ...log, ...lighter });
+  return (log) => ({ ...log, sessionType: '불펜', ...lighter });
 }
 
 /**
@@ -727,6 +822,18 @@ type DayRecord = {
   pitchChanged: Partial<Record<PitchVariant, { theme: boolean; list: boolean }>>;
   /** 오늘 아침 체크인의 컨디션(없으면 null) — 경기 날 근력을 셀 때 낮은 컨디션 때문에 회복이 된 날을 가른다 */
   condition: number | null;
+  /** 오늘 체크인의 등판 답(체크인 없는 날 null) — 답별 테마 표에 쓴다 */
+  throwPlan: string | null;
+  /**
+   * ⑤ 경기 날 아침(체크인 있음)에 등판 답을 모두 지우고 다시 만든 테마 — '답을 안 적는 사용자'. null 은 멈춘 날(통증 등).
+   * 경기 날 아침이 아니거나 체크인이 없으면 칸이 없다.
+   */
+  answerClearedTheme?: ThemeKey | null;
+  /**
+   * ⑫ 어제 경기 기록이 있고 어제 체크인이 '오늘 등판'이던 날 — 등판 답을 모두 지운 변형(기록만 있음)과 어제 기록만 뺀 변형
+   * (답만 있음)의 테마. 그런 날이 아니면 칸이 없다.
+   */
+  afterGame?: { cleared: ThemeKey | null; dropped: ThemeKey | null };
   age15vs22Differs: boolean;
   age14vs22Differs: boolean;
   /** 어제 던진 것(대본) */
@@ -801,6 +908,28 @@ for (const p of PLAYERS) {
     const at22 = buildDay(p, i, st, { age: 22 });
     const at14 = buildDay(p, i, st, { age: 14 });
 
+    /* ⑤ 경기 날 아침(체크인 있음) — 같은 아침에 등판 답만 모두 지우면(답을 안 적는 사람) 무엇이 나오나 */
+    const today = throwOn(p.role, i);
+    const themeOf = (plan: DailyPlan | null) => plan?.theme.key ?? null;
+    const answerClearedTheme =
+      today?.sessionType === '경기' && hasCheckin
+        ? themeOf(buildDay(p, i, st, { clearThrowPlans: true }))
+        : undefined;
+
+    /*
+     * ⑫ 경기 다음 날 — 어제 '오늘 등판'이라 답하고 경기 기록도 남긴 날. 답을 지운 변형은 '기록이 다음 날을 정하나',
+     * 어제 기록만 뺀 변형은 '답만으로 다음 날을 아나'(엇갈림 표 C6 과 같은 알려진 빈틈 — D3 · P4 가 부하와 답으로 가른다).
+     */
+    const yesterdayPlan =
+      st.checkins.find((c) => c.day === i - 1)?.checkin.throwPlan ?? null;
+    const afterGame =
+      yesterday?.sessionType === '경기' && yesterdayPlan === '오늘 등판'
+        ? {
+            cleared: themeOf(buildDay(p, i, st, { clearThrowPlans: true })),
+            dropped: themeOf(buildDay(p, i, st, { dropYesterdayLog: true })),
+          }
+        : undefined;
+
     const ids = base.picks.map((k) => k.exerciseId);
     days.push({
       date: keyOf(i),
@@ -815,10 +944,13 @@ for (const p of PLAYERS) {
       checkinChanged,
       pitchChanged,
       condition: st.checkins.find((c) => c.day === i)?.checkin.condition ?? null,
+      throwPlan: st.checkins.find((c) => c.day === i)?.checkin.throwPlan ?? null,
+      ...(answerClearedTheme !== undefined ? { answerClearedTheme } : {}),
+      ...(afterGame ? { afterGame } : {}),
       age15vs22Differs: differs(at15, at22),
       age14vs22Differs: differs(at14, at22),
       yesterday,
-      today: throwOn(p.role, i),
+      today,
     });
 
     /* 저장 — 앱은 만든 일정을 그날 DailyTrainingSetup.plan 에 둔다(번갈아 가기의 계획 기록, P1) */
@@ -967,31 +1099,65 @@ const pairSame = pairRows.reduce((s, r) => s + r.same, 0);
 const pairTwinSame = pairRows.reduce((s, r) => s + r.twinSame, 0);
 const pairDays = pairRows.reduce((s, r) => s + r.days, 0);
 
-/* ⑤ 선발의 경기 당일 아침 테마가 lower/upper 인 횟수 / 경기 수 — 등판 답 하는 선발(매일 상세)과 안 하는 선발 따로 */
+/*
+ * ⑤ 경기 날 아침 테마가 하체/상체(근력)인 횟수 / 경기 수.
+ *
+ * 대본 1판(P0 ~ P2)은 등판 답이 상세 체크인에만 있어 '답 하는 선발(매일 상세) 0/10 · 답 없는 선발(간편 · 가끔) 6/10'으로 갈랐다.
+ * 2판 D1 로 간편에도 답이 들어가 체크인하는 날은 모두 답한다 — 그래서 셋으로 가른다:
+ *   답 있음     체크인한 경기 아침(이제 모든 습관) — 앱이 실제로 만드는 날
+ *   답을 지움   같은 아침에 등판 답만 모두 지운 변형(Variant.clearThrowPlans) — 답을 안 적는 사람. 대본 1판의 '답 없는 선발'과 같은 뜻
+ *   체크인 없음 그 아침에 체크인이 없는 경기(선발D 가끔) — 앱이면 일정을 안 만든다. 어제 '내일 등판'이 이월되면 회복이 된다
+ * 컨디션이 회복 문턱 이하인 아침은 등판과 상관없이 회복이라, '등판을 알아서'를 셀 때는 문턱 위만 따로 본다(fit).
+ */
 const isStarter = (p: Player) =>
   p.role === 'starter-weekly' || p.role === 'starter-biweekly';
-function gameMornings(answering: boolean) {
+const isStrengthTheme = (t: ThemeKey | null | undefined) =>
+  t === 'lower' || t === 'upper';
+/** 테마 분포 — 멈춘 날(통증 등, 변형에서만 생길 수 있다)은 '멈춤' */
+const themeCounts = (list: DayRecord[], pick: (d: DayRecord) => ThemeKey | null) =>
+  countBy(list, (d) => pick(d) ?? '멈춤');
+function gameMornings(pickPlayer: (p: Player) => boolean) {
   const rows = results
-    .filter(
-      (r) => isStarter(r.player) && (r.player.checkin === 'detail-daily') === answering
-    )
+    .filter((r) => pickPlayer(r.player))
     .flatMap((r) => r.days.filter((d) => d.today?.sessionType === '경기'));
-  /* 그날 아침 컨디션이 회복 문턱 위(또는 체크인 없음)인 경기만 — 컨디션 때문에 회복이 된 날을 '등판을 알아서'로 셈하지 않게 */
-  const fit = rows.filter(
-    (d) => d.condition == null || d.condition > LOW_CONDITION_THRESHOLD
-  );
-  const strength = (list: DayRecord[]) =>
-    list.filter((d) => d.theme === 'lower' || d.theme === 'upper').length;
+  const answered = rows.filter((d) => d.hasCheckin);
+  const fit = answered.filter((d) => d.condition! > LOW_CONDITION_THRESHOLD);
+  const noCheckin = rows.filter((d) => !d.hasCheckin);
+  const strength = (list: DayRecord[], pick: (d: DayRecord) => ThemeKey | null) =>
+    list.filter((d) => isStrengthTheme(pick(d))).length;
+  const base = (d: DayRecord) => d.theme;
+  const cleared = (d: DayRecord) => d.answerClearedTheme ?? null;
   return {
     games: rows.length,
-    strength: strength(rows),
-    themes: countBy(rows, (d) => d.theme),
-    fitGames: fit.length,
-    fitStrength: strength(fit),
+    answered: {
+      games: answered.length,
+      strength: strength(answered, base),
+      themes: themeCounts(answered, base),
+      fitGames: fit.length,
+      fitStrength: strength(fit, base),
+    },
+    cleared: {
+      games: answered.length,
+      strength: strength(answered, cleared),
+      themes: themeCounts(answered, cleared),
+      fitGames: fit.length,
+      fitStrength: strength(fit, cleared),
+    },
+    noCheckin: {
+      games: noCheckin.length,
+      strength: strength(noCheckin, base),
+      themes: themeCounts(noCheckin, base),
+    },
   };
 }
-const gameMorningAnswering = gameMornings(true);
-const gameMorningSilent = gameMornings(false);
+const gameMorningStarters = gameMornings(isStarter);
+const gameMorningAll = gameMornings(() => true);
+
+/* 등판 답별 테마(체크인 있는 날) — 새 답 둘('2~3일 뒤' · '4일 이상 뒤')은 지금 '없음'과 같이 읽힌다(P5 · P6 가 쓴다) */
+const planThemes = THROW_PLANS.map((plan) => {
+  const rows = allDays.filter((d) => d.throwPlan === plan);
+  return { plan, days: rows.length, themes: themeCounts(rows, (d) => d.theme) };
+});
 
 /*
  * ⑥ 하체 · 상체 한쪽 연속 최대 일수 — 근력 날(lower/upper)만 차례로 보고 같은 쪽이 이어진 가장 긴 줄.
@@ -1141,18 +1307,22 @@ const afterLightGame = allDays.filter(
   (d) => d.yesterday?.sessionType === '경기' && !isHardThrow(d.yesterday)
 );
 
-/** 투구수 × 강도(1~10) 분포 — 세게 던진 날 문턱을 정할 참고 숫자. 대본과 실제 기록 둘 다 */
-const PRODUCT_BUCKETS = [0, 150, 300, 450, 600, 750, 900];
+/**
+ * 투구수 × 체감 강도(%) 분포 — 세게 던진 날 문턱(HARD_OUTING_MIN_LOAD)을 정하고 다시 볼 참고 숫자. 대본과 실제 기록 둘 다.
+ * 값은 판정과 같은 outingLoadOf(경기 100%)라 칸 하나가 문턱에서 끊긴다. 대본 1판은 투구수 × 강도(1~10)로 0~900 칸이었다.
+ */
+const PRODUCT_BUCKETS = [0, 1500, HARD_OUTING_MIN_LOAD, 4500, 6000, 7500, 9000];
 const PITCH_BANDS = [
   { label: '30구 미만', min: 0, max: 29 },
   { label: '30~59구', min: 30, max: 59 },
   { label: '60~89구', min: 60, max: 89 },
   { label: '90구 이상', min: 90, max: Infinity },
 ];
+/* 체감 강도(effortPctOf — 옛 줄은 강도 × 10) 칸. % 칩은 5% 단위라 61~64 · 86~89 는 없다 */
 const INTENSITY_BANDS = [
-  { label: '강도 ≤6', min: 0, max: 6 },
-  { label: '강도 7~8', min: 7, max: 8 },
-  { label: '강도 9~10', min: 9, max: 10 },
+  { label: '체감 ≤60%', min: 0, max: 60 },
+  { label: '체감 65~85%', min: 61, max: 89 },
+  { label: '체감 90~100%', min: 90, max: 100 },
 ];
 type LogShape = {
   pitchCount: number;
@@ -1170,7 +1340,7 @@ function loadDistribution(logs: LogShape[]) {
     const hi = PRODUCT_BUCKETS[b + 1];
     const label = hi == null ? `${lo}+` : `${lo}~${hi - 1}`;
     product[label] = logs.filter((l) => {
-      const v = l.pitchCount * Math.round(l.intensity);
+      const v = outingLoadOf({ ...l, sessionType: l.sessionType ?? '' });
       return v >= lo && (hi == null || v < hi);
     }).length;
   }
@@ -1182,8 +1352,8 @@ function loadDistribution(logs: LogShape[]) {
         (l) =>
           l.pitchCount >= pb.min &&
           l.pitchCount <= pb.max &&
-          Math.round(l.intensity) >= ib.min &&
-          Math.round(l.intensity) <= ib.max
+          effortPctOf(l) >= ib.min &&
+          effortPctOf(l) <= ib.max
       ).length;
     }
   }
@@ -1208,7 +1378,9 @@ function loadDistribution(logs: LogShape[]) {
   ).length;
   return {
     count: logs.length,
-    byIntensity: countBy(logs, (l) => String(Math.round(l.intensity))),
+    /* 체감 강도(%)별 — effortPctOf(옛 줄은 강도 × 10). % 로 적은 줄 수를 따로 둔다(D2 이행이 얼마나 됐나) */
+    byEffortPct: countBy(logs, (l) => String(effortPctOf(l))),
+    effortPctLogs: logs.filter((l) => l.effortPct != null).length,
     bySessionType: countBy(logs, (l) => l.sessionType ?? '(없음)'),
     product,
     cross,
@@ -1235,17 +1407,32 @@ const realDistribution = loadDistribution(
   }))
 );
 
-/* ⑫ 등판 답 없는 선발이 경기 다음 날 받은 테마 분포(답 하는 선발도 견줌) */
-function afterGameThemes(answering: boolean) {
-  const rows = results
-    .filter(
-      (r) => isStarter(r.player) && (r.player.checkin === 'detail-daily') === answering
-    )
-    .flatMap((r) => r.days.filter((d) => d.yesterday?.sessionType === '경기'));
-  return { count: rows.length, themes: countBy(rows, (d) => d.theme) };
-}
-const afterGameSilent = afterGameThemes(false);
-const afterGameAnswering = afterGameThemes(true);
+/*
+ * ⑫ 경기 다음 날 — 어제 '오늘 등판'이라 답하고 경기 기록도 남긴 날(모든 역할). 대본 1판은 '답 없는 선발 · 답 하는 선발' 둘로
+ * 갈라 둘 다 회복 10/10(기록이 있어 답과 무관)이었다. 이제 모두 답하니 같은 날을 두 변형으로 다시 잰다:
+ *   기록만(답을 모두 지움)   기록이 다음 날을 정하나 — 대본 1판의 '답 없는 선발'과 같은 뜻
+ *   답만(어제 기록을 뺌)     '던졌다고 답했지만 기록은 안 남긴' 다음 날 — 지금 테마는 어제 '오늘 등판'을 안 읽는다(엇갈림 표 C6
+ *                            과 같은 알려진 빈틈). D3 · P4 가 부하와 답으로 이 날을 회복 쪽으로 뒤집는다
+ * 어제 기록은 있는데 어제 체크인이 없는 날(가끔 체크인 선발D 의 경기 다음 날)은 세지 않고 수만 따로 적는다.
+ */
+const afterGameRows = allDays.filter((d) => d.afterGame != null);
+const afterGameUnanswered = allDays.filter(
+  (d) => d.yesterday?.sessionType === '경기' && d.afterGame == null
+).length;
+const afterGame = {
+  count: afterGameRows.length,
+  unanswered: afterGameUnanswered,
+  themes: themeCounts(afterGameRows, (d) => d.theme),
+  cleared: themeCounts(afterGameRows, (d) => d.afterGame!.cleared),
+  dropped: themeCounts(afterGameRows, (d) => d.afterGame!.dropped),
+  droppedStrength: afterGameRows.filter((d) => isStrengthTheme(d.afterGame!.dropped))
+    .length,
+  /* 기록이 있으면 회복이던 날(세게 던진 다음 날)만 — 구원 20구처럼 기록이 있어도 근력인 날을 빼고 빈틈의 크기를 본다 */
+  recoveryDays: afterGameRows.filter((d) => d.theme === 'recovery').length,
+  recoveryDroppedStrength: afterGameRows.filter(
+    (d) => d.theme === 'recovery' && isStrengthTheme(d.afterGame!.dropped)
+  ).length,
+};
 
 /* 컨디션 늘 낮음 · 맨몸 늘 마침 — 검토안의 두 줄과 견줄 선수 */
 const lowConditionRows = summaries.filter(
@@ -1272,6 +1459,13 @@ function table(headers: string[], rows: (string | number | null)[][]): string {
 const n = (v: number | null) => (v == null ? '해당 없음' : `${(v * 100).toFixed(1)}%`);
 const sideText = (r: ReturnType<typeof sideRun>) =>
   r.bestSide ? `${r.best}일(${r.bestSide === 'lower' ? '하체' : '상체'})` : '0';
+/** 테마 분포 한 줄 — 'recovery 18 · assist 2' */
+const themeText = (themes: Record<string, number>) =>
+  Object.entries(themes).length
+    ? Object.entries(themes)
+        .map(([k, v]) => `${k} ${v}`)
+        .join(' · ')
+    : '없음';
 const veryHighText = (v: ReturnType<typeof veryHighByAge>) =>
   both(v.days, v.total, v.app.days, v.app.total);
 /** 회복 날 수 — 가끔 체크인하는 선수는 앱이 만드는 날(체크인 있는 날) 중 수를 곁들인다 */
@@ -1432,18 +1626,31 @@ out.push(
       ['④', '  입력까지 똑같은 쌍둥이(도구가 결정적인지)', pct(pairTwinSame, pairDays)],
       [
         '⑤',
-        '등판 답 하는 선발(매일 상세)의 경기 당일 아침 테마가 하체/상체 / 경기 수',
-        pct(gameMorningAnswering.strength, gameMorningAnswering.games),
+        '선발의 경기 날 아침(체크인 있음 — 이제 간편 · 상세 모두 등판 답을 적는다) 테마가 하체/상체 / 그런 아침',
+        pct(gameMorningStarters.answered.strength, gameMorningStarters.answered.games),
       ],
       [
         '⑤',
-        '등판 답 없는 선발(간편 · 가끔)의 경기 당일 아침 테마가 하체/상체 / 경기 수',
-        pct(gameMorningSilent.strength, gameMorningSilent.games),
+        `  그중 아침 컨디션이 회복 문턱(${LOW_CONDITION_THRESHOLD}) 위인 아침만`,
+        pct(
+          gameMorningStarters.answered.fitStrength,
+          gameMorningStarters.answered.fitGames
+        ),
       ],
       [
         '⑤',
-        `  그중 아침 컨디션이 회복 문턱(${LOW_CONDITION_THRESHOLD}) 위이거나 체크인이 없는 경기만`,
-        pct(gameMorningSilent.fitStrength, gameMorningSilent.fitGames),
+        '  같은 아침에 등판 답만 모두 지운 변형(답을 안 적는 사람 — 대본 1판의 답 없는 선발)',
+        `${pct(gameMorningStarters.cleared.strength, gameMorningStarters.cleared.games)} · 문턱 위만 ${pct(gameMorningStarters.cleared.fitStrength, gameMorningStarters.cleared.fitGames)}`,
+      ],
+      [
+        '⑤',
+        "  체크인 없는 경기 아침(앱이면 일정을 안 만든다 — 어제 '내일 등판'이 이월되면 회복)",
+        `${pct(gameMorningStarters.noCheckin.strength, gameMorningStarters.noCheckin.games)} · ${themeText(gameMorningStarters.noCheckin.themes)}`,
+      ],
+      [
+        '⑤',
+        '모든 역할(선발 · 구원)의 경기 날 아침(체크인 있음) 테마가 하체/상체',
+        `${pct(gameMorningAll.answered.strength, gameMorningAll.answered.games)} · 답을 지운 변형 ${pct(gameMorningAll.cleared.strength, gameMorningAll.cleared.games)}(문턱 위만 ${pct(gameMorningAll.cleared.fitStrength, gameMorningAll.cleared.fitGames)})`,
       ],
       [
         '⑥',
@@ -1532,28 +1739,33 @@ out.push(
       ],
       [
         '⑪',
-        '  경기 다음 날인데 30구 미만이라 세게 던진 날이 아닌 것(구원 20구)의 테마',
-        afterLightGame.length
-          ? Object.entries(countBy(afterLightGame, (d) => d.theme))
-              .map(([k, v]) => `${k} ${v}`)
-              .join(' · ')
-          : '없음',
+        `  경기 다음 날인데 문턱 밑이라(경기 20구 = 2,000) 세게 던진 날이 아닌 것(구원 20구)의 테마`,
+        themeText(countBy(afterLightGame, (d) => d.theme)),
       ],
       [
         '⑫',
-        `등판 답 없는 선발의 경기 다음 날 테마 분포(${afterGameSilent.count}일)`,
-        Object.entries(afterGameSilent.themes)
-          .map(([k, v]) => `${k} ${v}`)
-          .join(' · '),
+        `경기 다음 날(어제 '오늘 등판'이라 답하고 기록도 남김, 모든 역할 ${afterGame.count}일 — 어제 체크인 없는 ${afterGame.unanswered}일은 뺌) 테마`,
+        themeText(afterGame.themes),
       ],
       [
         '⑫',
-        `  등판 답 하는 선발(${afterGameAnswering.count}일)`,
-        Object.entries(afterGameAnswering.themes)
-          .map(([k, v]) => `${k} ${v}`)
-          .join(' · '),
+        '  같은 날 등판 답을 모두 지운 변형(기록만 — 기록이 다음 날을 정하나)',
+        themeText(afterGame.cleared),
+      ],
+      [
+        '⑫',
+        '  같은 날 어제 기록만 뺀 변형(답만 — 던졌다고 답하고 기록은 안 남김, 엇갈림 표 C6 과 같은 알려진 빈틈 · P4 가 뒤집는다)',
+        `${themeText(afterGame.dropped)} · 근력 ${pct(afterGame.droppedStrength, afterGame.count)} · 기록이 있으면 회복이던 날 중 근력 ${pct(afterGame.recoveryDroppedStrength, afterGame.recoveryDays)}`,
       ],
     ]
+  )
+);
+
+out.push("\n## 등판 답별 테마(체크인 있는 날) — 새 답 둘은 지금 '없음'과 같이 읽힌다");
+out.push(
+  table(
+    ['등판 답', '날', '테마'],
+    planThemes.map((r) => [r.plan, r.days, r.days ? themeText(r.themes) : '·'])
   )
 );
 
@@ -1582,10 +1794,12 @@ out.push(
   )
 );
 
-out.push('\n## ⑪ 투구수 × 강도 분포 — 대본(선수 12명 28일) vs 실제 기록(집계만)');
+out.push(
+  '\n## ⑪ 투구수 × 체감 강도(%, 경기 100%) 분포 — 대본(선수 12명 28일) vs 실제 기록(집계만)'
+);
 out.push(
   table(
-    ['투구수 × 강도', '대본', '실제'],
+    ['투구수 × 체감 강도', '대본', '실제'],
     Object.keys(scriptedDistribution.product).map((k) => [
       k,
       scriptedDistribution.product[k],
@@ -1596,7 +1810,7 @@ out.push(
 out.push('');
 out.push(
   table(
-    ['실제 기록 · 투구수 \\ 강도', ...INTENSITY_BANDS.map((b) => b.label)],
+    ['실제 기록 · 투구수 \\ 체감 강도', ...INTENSITY_BANDS.map((b) => b.label)],
     PITCH_BANDS.map((pb) => [
       pb.label,
       ...INTENSITY_BANDS.map((ib) => realDistribution.cross[pb.label][ib.label]),
@@ -1604,8 +1818,8 @@ out.push(
   )
 );
 out.push(
-  `\n실제 기록 ${realDistribution.count}건 · 강도별 ${Object.entries(
-    realDistribution.byIntensity
+  `\n실제 기록 ${realDistribution.count}건(% 로 적은 줄 ${realDistribution.effortPctLogs}) · 체감 강도(%, 옛 줄은 강도 × 10)별 ${Object.entries(
+    realDistribution.byEffortPct
   )
     .sort((a, b) => Number(a[0]) - Number(b[0]))
     .map(([k, v]) => `${k}:${v}`)
@@ -1649,7 +1863,8 @@ const comparison: { no: string; what: string; review: string; actual: string }[]
     no: '⑤',
     what: '등판 답 없는 선발의 경기 날 근력',
     review: '10/11',
-    actual: `${gameMorningSilent.strength}/${gameMorningSilent.games}(컨디션 문턱 위만 ${gameMorningSilent.fitStrength}/${gameMorningSilent.fitGames})`,
+    /* 대본 2판 — 체크인하면 모두 답하니 '답 없는 선발'은 답을 지운 변형으로 잰다. 답 있는 아침을 나란히 */
+    actual: `답을 지운 변형 ${gameMorningStarters.cleared.strength}/${gameMorningStarters.cleared.games}(컨디션 문턱 위만 ${gameMorningStarters.cleared.fitStrength}/${gameMorningStarters.cleared.fitGames}) · 답 있음 ${gameMorningStarters.answered.strength}/${gameMorningStarters.answered.games}`,
   },
   {
     no: '⑥',
@@ -1692,7 +1907,8 @@ console.log(out.join('\n'));
 
 const elapsedMs = Date.now() - startedAt;
 const json = {
-  version: 2,
+  /* 3 = 대본 2판(2026-10-12): 체크인마다 등판 답 · 기록에 체감 강도(%) · ⑤ ⑫ 를 변형으로. 2 와 metrics.gameMorning · afterGame 모양이 다르다 */
+  version: 3,
   /* 돌릴 때마다 바뀌는 것은 이 칸뿐 — 단계 전후를 diff 로 견줄 때는 meta 를 빼고 본다 */
   meta: { generatedAt: new Date().toISOString(), elapsedMs },
   startKey: START_KEY,
@@ -1716,6 +1932,9 @@ const json = {
       pitchChanged: d.pitchChanged,
       age15vs22Differs: d.age15vs22Differs,
       age14vs22Differs: d.age14vs22Differs,
+      throwPlan: d.throwPlan,
+      answerClearedTheme: d.answerClearedTheme,
+      afterGame: d.afterGame,
       yesterday: d.yesterday,
       today: d.today,
       ids: d.ids,
@@ -1763,7 +1982,8 @@ const json = {
       d: pairDays,
       ratio: ratio(pairTwinSame, pairDays),
     },
-    gameMorning: { answering: gameMorningAnswering, silent: gameMorningSilent },
+    gameMorning: { starters: gameMorningStarters, all: gameMorningAll },
+    planThemes,
     sideRunMax: Math.max(...summaries.map((s) => s.sideRun.best)),
     sideRunKeyMax: Math.max(...summaries.map((s) => s.sideRunKey.best)),
     exposure: {
@@ -1789,7 +2009,7 @@ const json = {
       afterHardApp.length
     ),
     afterLightGameThemes: countBy(afterLightGame, (d) => d.theme),
-    afterGame: { silent: afterGameSilent, answering: afterGameAnswering },
+    afterGame,
     loadDistribution: { scripted: scriptedDistribution, real: realDistribution },
   },
   comparison,

@@ -534,35 +534,50 @@ async function sectionIntensity() {
   };
   /** 던진 기록이 이 수를 넘으면 날 단위 표(기록을 메모리에 올림)는 건너뛴다 */
   const PITCH_LOAD_LIMIT = 50000;
-  const [total, rest, thrown, zeroNotRest, userGroups, byIntensity, byType, byCount] =
-    await Promise.all([
-      prisma.pitchLog.count(),
-      prisma.pitchLog.count({ where: { sessionType: REST_SESSION_TYPE } }),
-      prisma.pitchLog.count({ where: thrownWhere }),
-      /* 휴식이 아닌데 투구수 0 — API(app/api/pitch-log/route.ts)는 막지만 다른 길(재활 · 구속)이 생기면 여기 잡힌다 */
-      prisma.pitchLog.count({
-        where: { sessionType: { not: REST_SESSION_TYPE }, pitchCount: { lte: 0 } },
-      }),
-      prisma.pitchLog.groupBy({ by: ['userId'], where: thrownWhere }),
-      prisma.pitchLog.groupBy({
-        by: ['intensity'],
-        where: thrownWhere,
-        _count: { _all: true },
-        orderBy: { intensity: 'asc' },
-      }),
-      prisma.pitchLog.groupBy({
-        by: ['sessionType'],
-        where: thrownWhere,
-        _count: { _all: true },
-        _avg: { intensity: true, pitchCount: true },
-        _sum: { pitchCount: true },
-      }),
-      prisma.pitchLog.groupBy({
-        by: ['pitchCount'],
-        where: thrownWhere,
-        _count: { _all: true },
-      }),
-    ]);
+  const [
+    total,
+    rest,
+    thrown,
+    zeroNotRest,
+    userGroups,
+    byIntensity,
+    byEffort,
+    byType,
+    byCount,
+  ] = await Promise.all([
+    prisma.pitchLog.count(),
+    prisma.pitchLog.count({ where: { sessionType: REST_SESSION_TYPE } }),
+    prisma.pitchLog.count({ where: thrownWhere }),
+    /* 휴식이 아닌데 투구수 0 — API(app/api/pitch-log/route.ts)는 막지만 다른 길(재활 · 구속)이 생기면 여기 잡힌다 */
+    prisma.pitchLog.count({
+      where: { sessionType: { not: REST_SESSION_TYPE }, pitchCount: { lte: 0 } },
+    }),
+    prisma.pitchLog.groupBy({ by: ['userId'], where: thrownWhere }),
+    prisma.pitchLog.groupBy({
+      by: ['intensity'],
+      where: thrownWhere,
+      _count: { _all: true },
+      orderBy: { intensity: 'asc' },
+    }),
+    /* 체감 강도(%) 분포 — 두 칸을 같이 묶어야 옛 줄(effortPct null)을 intensity × 10 으로 읽을 수 있다 */
+    prisma.pitchLog.groupBy({
+      by: ['effortPct', 'intensity'],
+      where: thrownWhere,
+      _count: { _all: true },
+    }),
+    prisma.pitchLog.groupBy({
+      by: ['sessionType'],
+      where: thrownWhere,
+      _count: { _all: true },
+      _avg: { intensity: true, pitchCount: true },
+      _sum: { pitchCount: true },
+    }),
+    prisma.pitchLog.groupBy({
+      by: ['pitchCount'],
+      where: thrownWhere,
+      _count: { _all: true },
+    }),
+  ]);
 
   table(
     ['항목', '수'],
@@ -578,6 +593,44 @@ async function sectionIntensity() {
   table(
     ['강도', '기록 수', '비율'],
     byIntensity.map((g) => [g.intensity, g._count._all, pct(g._count._all, thrown)])
+  );
+
+  /*
+   * 체감 강도(%) 분포(2판 D2) — 계산이 읽는 값(effortPctOf: % 로 적었으면 그것, 옛 줄은 강도 × 10)으로 모은다. % 로 적은 줄과
+   * 옛 줄을 나란히 세서 이행이 얼마나 됐는지 본다(옛 줄 수는 2026-10-12 전 던진 기록 수에서 시작해 늘지 않아야 한다).
+   * 5% 단위 칩이라 15 · 85 같은 값은 % 로 적은 줄에서만 나온다.
+   */
+  const effortRows = new Map<number, { pct: number; old: number }>();
+  for (const g of byEffort) {
+    const value = effortPctOf(g);
+    const row = effortRows.get(value) ?? { pct: 0, old: 0 };
+    if (g.effortPct != null) row.pct += g._count._all;
+    else row.old += g._count._all;
+    effortRows.set(value, row);
+  }
+  const effortPctCount = byEffort
+    .filter((g) => g.effortPct != null)
+    .reduce((s, g) => s + g._count._all, 0);
+  table(
+    ['체감 강도(%)', '기록 수', '% 로 적음', '옛 줄(강도 × 10)', '비율'],
+    [
+      ...[...effortRows.entries()]
+        .sort((a, b) => a[0] - b[0])
+        .map(([value, r]) => [
+          `${value}%`,
+          r.pct + r.old,
+          r.pct,
+          r.old,
+          pct(r.pct + r.old, thrown),
+        ]),
+      [
+        '합계',
+        thrown,
+        effortPctCount,
+        thrown - effortPctCount,
+        `% 로 적음 ${pct(effortPctCount, thrown)}`,
+      ],
+    ]
   );
 
   table(
