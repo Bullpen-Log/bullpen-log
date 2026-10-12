@@ -27,7 +27,7 @@ func compress(_ src: URL, _ dst: URL) throws {
     reader.add(out)
 
     try? FileManager.default.removeItem(at: dst)
-    let tmp = dst.deletingLastPathComponent().appendingPathComponent(".tmp-" + dst.lastPathComponent)
+    let tmp = FileManager.default.temporaryDirectory.appendingPathComponent("lib-" + dst.lastPathComponent)
     try? FileManager.default.removeItem(at: tmp)
     let writer = try AVAssetWriter(outputURL: tmp, fileType: .mp4)
     writer.shouldOptimizeForNetworkUse = true
