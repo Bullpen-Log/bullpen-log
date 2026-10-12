@@ -48,6 +48,7 @@ import { dayStart, isAbandoned, sessionEnd, STALE_AFTER_MS } from '@/lib/workout
 import { closeAbandoned, lastSetAt, summaryWrites } from '@/lib/workout/close-stale';
 import { intensityOfEffort } from '@/lib/workout/effort';
 import { saveTrainingNote } from '@/app/actions/exercise-log';
+import { startProgramWorkout } from '@/app/actions/program';
 
 /**
  * 실시간 운동 세션.
@@ -85,6 +86,13 @@ export async function startWorkout() {
     where: { userId_date: { userId: user.id, date: core.midnight } },
   });
   if (open && open.status === 'ACTIVE') redirect('/workout/run');
+
+  /*
+   * 근력 프로그램 날의 일정(2판 P6-3, 사용자 결정 D6 — 그날 일정 = 프로그램 운동 그대로)이면 매일 판으로 열지 않고 프로그램 시작에 맡긴다.
+   * 매일 판으로 열면 프로그램 처방(% · 세트마다 무게) · 일차 태그가 빠져 일차가 안 넘어가고, 프로그램은 '다른 운동을 먼저 시작'으로
+   * 밀린다. 프로그램 시작이 오늘 판 없음 + 하는 날이면 새로 열고, 오늘 마친 프로그램 판이면 그 판을 다시 연다(같은 규칙 한 곳).
+   */
+  if (core.savedPlan?.program) return startProgramWorkout();
 
   if (core.shownPicks.length === 0) {
     /* 만들어 둔 일정이 없다. 먼저 만들게 되돌려 보낸다. */

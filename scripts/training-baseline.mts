@@ -70,9 +70,13 @@ import {
   buildDailyPlan,
   isHalted,
   patternsDoneFrom,
+  planBudgetOf,
+  programTodayExerciseOf,
   strengthDatesFrom,
   type DailyPlan,
+  type PlanBudgetInput,
   type PlanScoreInput,
+  type ProgramTodayInput,
 } from '../lib/report/daily-plan.ts';
 import {
   CONDITIONING_GOAL,
@@ -94,17 +98,24 @@ import {
 } from '../lib/report/plan-swaps.ts';
 import { buildDayState, type DayStateExtras } from '../lib/engine/day-state.ts';
 import { yesterdayArmLoadOf } from '../lib/engine/arm-load.ts';
-import { programArbiterSignals } from '../lib/engine/arbiter.ts';
+import {
+  arbitrate,
+  programArbiterSignals,
+  type Arbitration,
+} from '../lib/engine/arbiter.ts';
 import {
   audienceOf,
+  dayLabel,
   dayPlan,
   decideToday,
+  lighterRx,
   painSlotsOf,
   parseProgram,
   patternsOfProgramDay,
   pickPinned,
   programSignalsOf,
   variantCandidates,
+  type ItemRx,
   type ProgramPlan,
   type RecoveryReason,
   type TodayDecision,
@@ -912,6 +923,13 @@ type Variant = {
    * 기본 날은 넘기지 않는다(그래서 12명 · 336 일정은 커밋 G 전과 글자까지 같다) — ⑯ 이 '달력에 경기' · '같은 요일 짐작' 변형으로 잰다.
    */
   calendarEvents?: CalendarEventLike[];
+  /**
+   * 근력 프로그램 날의 운동(2판 P6-3 · D6) — 주면 매일 일정이 그 운동 그대로다(daily-plan.ts programToday). 추가 묶음의 프로그램 선수가 중재
+   * (arbitrate)로 프로그램 날인 날에만 넘긴다(앱 training-setup.ts 의 programTodayOf 와 같은 짝).
+   */
+  programToday?: ProgramTodayInput | null;
+  /** 중재의 하체 · 팔 예산(daily-plan.ts budget) — 프로그램 선수면 늘(앱의 planBudgetOf 와 같은 짝, 매일 일정 길에서만 읽힌다) */
+  budget?: PlanBudgetInput | null;
 };
 
 let buildCalls = 0;
@@ -1060,6 +1078,9 @@ function buildDay(p: Player, i: number, st: State, v: Variant = {}): DailyPlan |
     state,
     /* 고르기 점수의 재료 — training-setup.ts 의 score 와 같은 칸(2판 P5-j) */
     score,
+    /* 프로그램 날 · 중재의 예산(2판 P6-3) — 프로그램 선수만(runExtra), 그 밖에는 없음 */
+    programToday: v.programToday ?? null,
+    budget: v.budget ?? null,
   });
   return isHalted(built) ? null : built;
 }
@@ -1924,6 +1945,13 @@ type ProgramDayResult = {
   ids: string[];
   /** 큰 하체 칸(스쿼트 · 힌지)을 하는가 — 가볍게여도 하체에 무게가 실린다(㉑) */
   bigLower: boolean;
+  /**
+   * 중재(2판 P6-3) — 앱(lib/program/load.ts buildProgramDay 의 view.arbitration)과 같은 입력: 판정 · 날 종류 · 고정 운동 · 하체 마지막 날.
+   * 아침이라 오늘 판 · 오늘 투구 종류가 없고 '그래도 할래요'(D24)도 없다.
+   */
+  arbitration: Arbitration;
+  /** 그날 프로그램 운동(하는 날만 — load.ts programTodayOf 의 카드 목록 쪽과 같은 모양) */
+  programToday: ProgramTodayInput | null;
 };
 
 /**
@@ -2001,14 +2029,30 @@ function programDayOf(
       exerciseOf: (v) => (pinned[v] ? byId.get(pinned[v]!) : undefined),
     }).signals,
   });
-  if (decision.kind !== 'go') return { decision, ids: [], bigLower: false };
+  /* 중재 — 앱(load.ts)과 같은 입력. 매일 일정이 프로그램 날인지(daily.role)와 예산을 읽는다(runExtra) */
+  const arbitration = arbitrate({
+    state,
+    dayKind: dayKindOf(facts),
+    programDecision: decision.kind,
+    programSession: null,
+    exerciseOf: (v) => (pinned[v] ? byId.get(pinned[v]!) : undefined),
+    lastLowerKey: inputs.history.lastLowerKey,
+    typesToday: [],
+    override: false,
+  });
+  if (decision.kind !== 'go')
+    return { decision, ids: [], bigLower: false, arbitration, programToday: null };
   const audience = audienceOf(plan.def);
   const deferred = decision.deferVariants ?? [];
-  const chosen: { slot: string; id: string }[] = [];
+  const chosen: { slot: string; id: string; rx: ItemRx }[] = [];
   for (const rx of items) {
     const a = decision.adjust[rx.slot];
     const pinnedId = pinned[rx.variant];
     if (!pinnedId || a?.kind === 'drop' || deferred.includes(rx.variant)) continue;
+    /* 그날 처방 — load.ts 처럼 가볍게(−10% · −1세트)면 줄인 세트로(시간 셈에만 쓴다) */
+    const lighter =
+      a?.kind === 'lighter' || (a?.kind === 'substitute' && a.lighter === true);
+    const dayRx = lighter ? lighterRx(rx) : rx;
     if (a?.kind === 'substitute' && !safeIds.has(pinnedId)) {
       const sub = variantCandidates(
         rx.variant,
@@ -2017,15 +2061,25 @@ function programDayOf(
         p.level,
         audience
       ).find((c) => c.id !== pinnedId && safeIds.has(c.id));
-      if (sub) chosen.push({ slot: rx.slot, id: sub.id });
+      if (sub) chosen.push({ slot: rx.slot, id: sub.id, rx: dayRx });
       continue;
     }
-    chosen.push({ slot: rx.slot, id: pinnedId });
+    chosen.push({ slot: rx.slot, id: pinnedId, rx: dayRx });
   }
   return {
     decision,
     ids: chosen.map((c) => c.id),
     bigLower: chosen.some((c) => c.slot === 'bigLower'),
+    arbitration,
+    programToday:
+      chosen.length > 0
+        ? {
+            key: plan.key,
+            day,
+            label: dayLabel(plan, day),
+            exercises: chosen.map((c) => programTodayExerciseOf(byId.get(c.id)!, c.rx)),
+          }
+        : null,
   };
 }
 
@@ -2043,8 +2097,21 @@ type ExtraDay = {
   armFatigue: number | null;
   effortSpike: boolean;
   dayRule: DayRule;
-  /** 근력 프로그램(있는 선수만) — 판정(go · rest:까닭 · spacing …) · 일차 · 큰 하체 · 한 운동 */
-  program?: { decision: string; day: number; bigLower: boolean; ids: string[] };
+  /**
+   * 근력 프로그램(있는 선수만) — 판정(go · rest:까닭 · spacing …) · 일차 · 큰 하체 · 한 운동, 그리고 그날 매일 일정(2판 P6-3):
+   * role 중재의 매일 일정 몫(program · free · off) · daily 매일 일정이 프로그램 날로 짰나(DailyPlan.program) · ownMain 매일 일정이 프로그램
+   * 밖에서 따로 짠 본운동 수 · ownHeavyLower 그중 무거운 하체 수(⑳ — D6 뒤 0).
+   */
+  program?: {
+    decision: string;
+    day: number;
+    bigLower: boolean;
+    ids: string[];
+    role: Arbitration['daily']['role'];
+    daily: boolean;
+    ownMain: number;
+    ownHeavyLower: number;
+  };
   /** 두 번 넘게 뺀 운동(오늘 아침까지) 수와 그중 오늘 일정에 다시 든 수 — 빼는 선수만 */
   removedTwice?: { count: number; picked: number };
 };
@@ -2063,11 +2130,25 @@ function runExtra(p: Player): ExtraResult {
   for (let i = 0; i < DAYS; i++) {
     const key = keyOf(i);
     const inputs = inputsOf(p, i, st);
-    const built = buildDay(p, i, st);
     const prog = programPlan
       ? programDayOf(p, i, st, programPlan, pinned, inputs)
       : null;
     const go = prog?.decision.kind === 'go';
+    /*
+     * 매일 일정 — 앱(training-setup.ts generateTodayPlan)과 같은 짝(2판 P6-3): 중재가 프로그램 날로 두면 그날 프로그램 운동 그대로(D6), 그 밖의
+     * 날은 중재의 하체 · 팔 예산을 지킨다. 프로그램이 없는 선수는 예전 그대로.
+     */
+    const role = prog?.arbitration.daily.role ?? null;
+    const programToday =
+      prog && (role === 'program' || role === 'assist') ? prog.programToday : null;
+    const built = buildDay(p, i, st, {
+      programToday,
+      budget: prog ? planBudgetOf(prog.arbitration) : null,
+    });
+    const programIds = new Set(prog?.ids ?? []);
+    const ownPicks = built
+      ? built.picks.filter((k) => k.slot === 'main' && !programIds.has(k.exerciseId))
+      : [];
     const removedTwiceIds = new Set(
       [...inputs.swappedOut].filter(([, n]) => n >= 2).map(([id]) => id)
     );
@@ -2095,6 +2176,15 @@ function runExtra(p: Player): ExtraResult {
               day: st.program!.nextDay,
               bigLower: prog.bigLower,
               ids: prog.ids,
+              role: prog.arbitration.daily.role,
+              daily: built?.program != null,
+              ownMain: go ? ownPicks.length : 0,
+              ownHeavyLower: go
+                ? ownPicks.filter((k) => {
+                    const ex = byId.get(k.exerciseId);
+                    return ex != null && isHeavyLower(ex);
+                  }).length
+                : 0,
             },
           }
         : {}),
@@ -2109,6 +2199,8 @@ function runExtra(p: Player): ExtraResult {
     });
 
     if (go && prog) {
+      /* 그날 일정도 저장한다 — 앱은 프로그램 날에도 일정 만들기를 누르면 그날 일정(프로그램 운동 그대로)을 남긴다(2판 P6-3) */
+      if (built) st.planned.set(key, built);
       /* 프로그램 날 — 고정 운동을 하고 다음 일차로(lib/program/advance.ts 의 advanceProgramDay 와 같은 뜻) */
       st.done.set(
         key,
@@ -2851,31 +2943,39 @@ const fence = {
 };
 
 /*
- * ⑳ 프로그램 하는 날의 매일 일정(D6 — 그날은 프로그램 그대로, 보조 운동도 안 더한다). 지금(P6 전)은 매일 일정이 프로그램을 몰라
- * 같은 날 본운동을 따로 짠다 — 그 날 · 운동 수 · 무거운 하체 든 날. 추가 묶음의 프로그램 선수 넷만.
+ * ⑳ 프로그램 하는 날의 매일 일정(D6 — 그날은 프로그램 그대로, 보조 운동도 안 더한다). 추가 묶음의 프로그램 선수 넷만.
+ * P6 전(P5 끝)에는 매일 일정이 프로그램을 몰라 같은 날 본운동을 따로 짰다(34/34 날 · 161개). P6-3 부터 그날 일정은 프로그램 운동 그대로라
+ * 일정에 본운동 칸(프로그램 운동)이 있는 것이 맞다 — 그래서 '프로그램 밖에서 따로 짠 본운동'(ownMain)이 든 날을 센다(이름은 그대로
+ * dailyMainDays — 단계 목표 ⑳ 가 이 칸을 읽는다). dailyProgramDays 는 그날 일정이 프로그램 날로 짜인 날(DailyPlan.program).
  */
 const programResults = extraResults.filter((r) => r.player.program != null);
 const goDaysOf = (r: ExtraResult) => r.days.filter((d) => d.program?.decision === 'go');
 const programDay = {
   goDays: programResults.reduce((s, r) => s + goDaysOf(r).length, 0),
   dailyMainDays: programResults.reduce(
-    (s, r) => s + goDaysOf(r).filter((d) => d.mainCount > 0).length,
+    (s, r) => s + goDaysOf(r).filter((d) => d.program!.ownMain > 0).length,
     0
   ),
   dailyMainPicks: programResults.reduce(
-    (s, r) => s + goDaysOf(r).reduce((t, d) => t + d.mainCount, 0),
+    (s, r) => s + goDaysOf(r).reduce((t, d) => t + d.program!.ownMain, 0),
     0
   ),
   dailyHeavyLowerDays: programResults.reduce(
-    (s, r) => s + goDaysOf(r).filter((d) => d.heavyLower > 0).length,
+    (s, r) => s + goDaysOf(r).filter((d) => d.program!.ownHeavyLower > 0).length,
+    0
+  ),
+  dailyProgramDays: programResults.reduce(
+    (s, r) => s + goDaysOf(r).filter((d) => d.program!.daily).length,
     0
   ),
   byPlayer: programResults.map((r) => ({
     name: r.player.name,
     key: r.player.program!,
     goDays: goDaysOf(r).length,
-    dailyMainDays: goDaysOf(r).filter((d) => d.mainCount > 0).length,
+    dailyMainDays: goDaysOf(r).filter((d) => d.program!.ownMain > 0).length,
+    dailyProgramDays: goDaysOf(r).filter((d) => d.program!.daily).length,
     decisions: countBy(r.days, (d) => d.program!.decision),
+    roles: countBy(r.days, (d) => d.program!.role),
   })),
 };
 
@@ -3429,8 +3529,8 @@ out.push(
       ],
       [
         '⑳',
-        '프로그램 하는 날 매일 일정에 본운동이 든 날 / 프로그램 하는 날(추가 묶음 프로그램 넷 — D6 뒤 0 이 목표)',
-        `${pct(programDay.dailyMainDays, programDay.goDays)} · 본운동 ${programDay.dailyMainPicks}개 · 무거운 하체 든 날 ${programDay.dailyHeavyLowerDays}`,
+        '프로그램 하는 날 매일 일정이 프로그램 밖에서 따로 짠 본운동이 든 날 / 프로그램 하는 날(추가 묶음 프로그램 넷 — D6 뒤 0 이 목표)',
+        `${pct(programDay.dailyMainDays, programDay.goDays)} · 따로 짠 본운동 ${programDay.dailyMainPicks}개 · 무거운 하체 든 날 ${programDay.dailyHeavyLowerDays} · 일정이 프로그램 날로 짜인 날 ${programDay.dailyProgramDays}`,
       ],
       [
         '㉑',

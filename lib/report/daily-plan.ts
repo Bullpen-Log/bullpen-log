@@ -27,13 +27,24 @@ import {
   conditioningDay,
   painAvoidedSide,
   steerFromEmptyMain,
+  steerForLowerBudget,
   competesForDay,
+  LOWER_BUDGET_OVERRIDE_NOTE,
   WEEKLY_MINUTES_STEP,
   type SlotKey,
+  type SteerAvoid,
+  type SteerAvoidReason,
   type ThemeKey,
 } from '@/lib/report/theme';
 import { dayKindOf, shortenPitchesOf, shortenedMinutes } from '@/lib/engine/microcycle';
 import { buildDayState, type DayState } from '@/lib/engine/day-state';
+import { isArmPlyo, isHeavyLower } from '@/lib/engine/exercise-class';
+import {
+  programDayText,
+  type Arbitration,
+  type UpperBlock,
+} from '@/lib/engine/arbiter';
+import type { ItemRx } from '@/lib/program/program';
 import {
   PLAN_REASONS_MAX,
   SCORE_KEYS,
@@ -186,7 +197,101 @@ export type DailyPlan = {
    * 저장한 줄은 글(string)뿐이라 그대로 보인다(거를 항목을 모른다 — 타입은 지금 쓰는 모양이고, 읽는 planReasonLines 가 둘 다 받는다).
    */
   reasons?: PlanReason[];
+  /**
+   * 근력 프로그램 날의 일정인가(2판 P6-3, 2026-10-13, 사용자 결정 D6) — 그날 매일 일정은 프로그램 운동 그대로라 picks 가 프로그램의 그날 운동이다
+   * (buildDailyPlan 의 programToday). 읽는 쪽이 이 칸으로 가른다: 운동 시작(app/actions/workout.ts startWorkout)은 매일 판으로 열지 않고 프로그램
+   * 시작에 맡긴다(매일 판으로 열면 프로그램 처방 · 일차가 빠지고 프로그램은 '다른 운동을 먼저 시작'으로 밀린다). 화면은 P6 화면 단계 몫.
+   * 옛 줄 · 프로그램이 아닌 날에는 없으니 version 은 그대로(focus 와 같은 까닭).
+   */
+  program?: { key: string; day: number; label: string };
 };
+
+/**
+ * 오늘 근력 프로그램 날의 운동 하나(2판 P6-3) — 운동 id 와 그날 처방(프로그램 rx). 처방은 시간 셈에만 쓴다(일정 칸은 운동 id · 구간뿐).
+ * 앱은 lib/program/load.ts programTodayOf 가, 기준선 도구 · 자체 시험은 programTodayExerciseOf 로 만든다.
+ */
+export type ProgramTodayExercise = {
+  exerciseId: string;
+  /** 구간 — 프로그램 판을 얼릴 때와 같은 자리(몸통 칸은 'core', 그 밖은 'main' — session-plan.ts freezeProgramExercise) */
+  slot: SlotKey;
+  /** 그날 세트 수(가볍게면 줄인 뒤). 모르면 null(시간을 종류 · 강도로 어림한다) */
+  sets: number | null;
+  reps: number | null;
+  holdSeconds: number | null;
+  restSeconds: number | null;
+};
+
+/**
+ * 오늘 근력 프로그램 날(2판 P6-3, 사용자 결정 D6 '프로그램 진행 중이면 그날 매일 일정 = 프로그램 운동 그대로, 보조 운동은 더하지 않는다').
+ * 부르는 쪽이 중재(lib/engine/arbiter.ts arbitrate 의 daily.role 'program')로 정해 넘긴다 — 판정 · 오늘 판 · 쉬는 날은 중재가 이미 봤다.
+ */
+export type ProgramTodayInput = {
+  /** UserTrainingProgram.programKey */
+  key: string;
+  /** 오늘 하는(했던) 일차 */
+  day: number;
+  /** '1주차 · 2일차 · 밀기'(program.ts dayLabel) */
+  label: string;
+  /** 그날 운동 — 하는 날이면 카드 목록(뺀 칸 · 팔 아끼는 날 뺀 변형 · 대체 반영), 오늘 판이 있으면 그 판의 운동 */
+  exercises: readonly ProgramTodayExercise[];
+};
+
+/**
+ * 프로그램 처방 한 줄 → 일정에 넘길 운동 하나. 버티는 운동(라이브러리에 초만 적힌 것)은 횟수 대신 그 초로 — 운동 시작이 얼리는 규칙
+ * (session-plan.ts freezeProgramExercise 의 isHold)과 같다. 앱(lib/program/load.ts) · 기준선 · 자체 시험이 같은 함수를 쓴다.
+ */
+export function programTodayExerciseOf(
+  ex: { id: string; reps: number | null; holdSeconds: number | null },
+  rx: Pick<ItemRx, 'slot' | 'sets' | 'reps' | 'restSeconds'>
+): ProgramTodayExercise {
+  const isHold = ex.holdSeconds != null && ex.reps == null;
+  return {
+    exerciseId: ex.id,
+    slot: rx.slot === 'core' ? 'core' : 'main',
+    sets: rx.sets.length,
+    reps: isHold ? null : rx.reps,
+    holdSeconds: isHold ? ex.holdSeconds : null,
+    restSeconds: rx.restSeconds,
+  };
+}
+
+/**
+ * 중재의 예산을 매일 일정에(2판 P6-3) — 근력 프로그램이 있는 사람이면 부르는 쪽이 늘 넘긴다. 매일 일정 길(프로그램 날이 아닌 날, 프로그램 날인데 그날
+ * 운동이 모두 안전 거르기에 걸린 날)에서만 읽는다. 프로그램이 없는 사람에게는 넘기지 않는다(그 사람의 일정은 2판 P6 전과 같다 — 매일 일정끼리는
+ * 번갈아 규칙이 이미 하체를 띄운다).
+ */
+export type PlanBudgetInput = {
+  /** 무거운 하체(exercise-class.ts isHeavyLower)를 넣어도 되는가 — 중재 lowerBudget 의 dailyHeavyLower('그래도 하기' 전 값) */
+  heavyLower: boolean;
+  /** 막혔을 때 한 줄(arbiter LOWER_BUDGET_TEXT — 어제 · 오늘 · 내일 프로그램 · 어제 하체) */
+  lowerText: string | null;
+  /** 상체로 가면 안 되는 까닭(중재 daily.upperBlockedBy) — 하체 날을 바꿀 때 상체 대신 보조 · 코어로 */
+  upperBlockedBy: UpperBlock | null;
+  /** 팔 플라이오(isArmPlyo)를 넣어도 되는가 — 중재 daily.armPlyo(팔 예산, '그래도 하기'로도 안 풀린다) */
+  armPlyo: boolean;
+};
+
+/** 중재 결과 → 매일 일정의 예산(앱 · 기준선 · 자체 시험이 같은 함수로) */
+export function planBudgetOf(a: Pick<Arbitration, 'lower' | 'daily'>): PlanBudgetInput {
+  return {
+    heavyLower: a.lower.dailyHeavyLower,
+    lowerText: a.lower.text,
+    upperBlockedBy: a.daily.upperBlockedBy,
+    armPlyo: a.daily.armPlyo,
+  };
+}
+
+/** 상체로 가면 안 되는 까닭(중재) → 날을 바꿀 때의 글(theme.ts SteerAvoid) */
+const UPPER_BLOCK_AVOID: Record<UpperBlock, SteerAvoidReason> = {
+  armSpent: 'arm',
+  armFatigue: 'arm',
+  upperPain: 'pain',
+  upperStiff: 'stiff',
+  upperRehab: 'rehab',
+};
+
+/** 하체 예산의 한 줄을 못 받았을 때(중재는 막을 때 늘 준다) */
+const LOWER_BUDGET_FALLBACK_TEXT = '오늘은 무거운 하체를 쉬어요.';
 
 /**
  * 고르기 점수의 재료 — DB 를 읽는 쪽(app/actions/training-setup.ts generateTodayPlan · 기준선 도구 inputsOf)이 모아 넘긴다(2판 P5-j).
@@ -243,6 +348,8 @@ export function buildDailyPlan<T extends ExerciseLike>({
   caution = [],
   state,
   score,
+  programToday = null,
+  budget = null,
 }: {
   user: UserForPlan;
   facts: ReportFacts;
@@ -310,6 +417,17 @@ export function buildDailyPlan<T extends ExerciseLike>({
    * 의 무리 안 첫째 키 — 빼지는 않는다), 뽑힌 운동에 picks[].score, 일정에 reasons 를 싣는다. 안 넘기면 예전과 글자까지 같다.
    */
   score?: PlanScoreInput;
+  /**
+   * 오늘이 근력 프로그램 날이면 그날 운동(ProgramTodayInput, 2판 P6-3 · D6). 주면 매일 일정의 고르기를 건너뛰고 그 운동을 그대로 싣는다
+   * (안전 거르기를 지난 것만 — 무리인 것은 빼고 알린다). 안 주면(null) 예전과 글자까지 같다.
+   */
+  programToday?: ProgramTodayInput | null;
+  /**
+   * 중재의 하체 · 팔 예산(PlanBudgetInput, 2판 P6-3) — 프로그램이 있는 사람(매일 일정 길에서만 읽는다). 무거운 하체가 막혔으면 후보에서 빼고
+   * 하체 날을 상체(되면) · 보조로 바꾼다('그래도 하기'면 그대로 두고 한 줄), 팔 예산을 다 썼으면 팔 플라이오를 뺀다('그래도 하기'로도).
+   * 안 주면(null) 예전과 글자까지 같다.
+   */
+  budget?: PlanBudgetInput | null;
 }): BuildResult {
   /*
    * 오늘 쓸 수 있는 장비 → 경력 → 안전 순서로 거른다.
@@ -330,6 +448,58 @@ export function buildDailyPlan<T extends ExerciseLike>({
 
   if (picked.halted) {
     return { halted: true, reason: picked.haltReason };
+  }
+
+  /*
+   * 근력 프로그램 날(2판 P6-3, 사용자 결정 D6) — 부르는 쪽이 중재(lib/engine/arbiter.ts)로 오늘이 프로그램 날임을 정해 그날 운동을 넘기면,
+   * 매일 일정의 고르기(테마 · pickForTheme · 점수 · 양 조절)를 건너뛰고 그 운동을 그대로 싣는다. 보조 운동은 더하지 않는다(D6 원문). 안전 층은
+   * 그 위다: 멈춘 날(위)은 멈추고, 오늘 몸 상태로 무리인 운동은 빼고 알린다(programDayPlan). 다 빠지면 아래 매일 일정 길로 간다 — 그날
+   * 할 수 있는 프로그램 운동이 없으니 프로그램 날이 아니다(같은 안전 거르기를 지난 운동으로 짠다).
+   */
+  if (programToday) {
+    const programDay = programDayPlan({
+      programToday,
+      facts,
+      plan,
+      library,
+      caution,
+      requestedMinutes,
+      basis: picked.basis,
+      equipment: {
+        available,
+        excludedCount: usable.excludedCount,
+        narrowed,
+        bestAddition: usable.bestAddition,
+      },
+      levelExcludedCount: leveled.excludedCount,
+    });
+    if (programDay) return programDay;
+  }
+
+  /*
+   * 중재의 예산(2판 P6-3) — 넘긴 날만. 무거운 하체가 막혔으면('그래도 하기'가 아니면) 후보에서 빼고, 팔 예산을 다 썼으면 팔 플라이오를
+   * 뺀다('그래도 하기'로도). 이 뒤의 날 정하기 · 고르기 · 점수는 모두 이 후보(pool)로 한다 — 안전 거르기를 지난 것에서 더 빼기만 한다.
+   */
+  const lowerBlocked = budget != null && !budget.heavyLower;
+  const dropLower = lowerBlocked && !override;
+  const dropArm = budget != null && !budget.armPlyo;
+  const pool =
+    dropLower || dropArm
+      ? picked.candidates.filter(
+          (ex) => !(dropLower && isHeavyLower(ex)) && !(dropArm && isArmPlyo(ex))
+        )
+      : picked.candidates;
+  const budgetExcluded: { rule: string; count: number }[] = [];
+  if (dropLower) {
+    const count = picked.candidates.filter(isHeavyLower).length;
+    if (count > 0) budgetExcluded.push({ rule: '하체 예산 → 무거운 하체 제외', count });
+  }
+  if (dropArm) {
+    const count = picked.candidates.filter(
+      (ex) => isArmPlyo(ex) && !(dropLower && isHeavyLower(ex))
+    ).length;
+    if (count > 0)
+      budgetExcluded.push({ rule: '팔 예산 → 팔로 던지는 파워 제외', count });
   }
 
   /*
@@ -359,19 +529,54 @@ export function buildDailyPlan<T extends ExerciseLike>({
   const focus = findFocus(chosenFocus)?.theme === decided.key ? chosenFocus : null;
   const goal = findGoal(goalName);
   /*
+   * 날을 바꿀 때 가지 않을 쪽(theme.ts SteerAvoid) — 통증 때문에 피한 쪽(steerAroundPain 이 비켜 간 쪽)이 먼저, 그다음 중재가 상체를 막은
+   * 까닭(budget.upperBlockedBy — 팔을 아끼는 날 · 상체 통증 · 뻐근 · 재활, 2판 P6-3). 예산을 안 넘긴 날은 통증 쪽뿐이라 예전과 같다.
+   */
+  const avoid: SteerAvoid[] = [];
+  const painSide = painAvoidedSide(facts);
+  if (painSide) avoid.push({ side: painSide, because: 'pain' });
+  if (budget?.upperBlockedBy)
+    avoid.push({ side: 'upper', because: UPPER_BLOCK_AVOID[budget.upperBlockedBy] });
+  /*
+   * 하체 예산(2판 P6-3) — 하체 날에 들 무거운 하체가 있었는데 예산이 막으면 날을 바꾼다(theme.ts steerForLowerBudget — 상체가 되면 상체, 아니면
+   * 보조 · 코어, 부위를 좁힌 날 · 컨디셔닝은 그대로 무거운 것만 빠진다). '그래도 하기'면 날도 후보도 그대로 두고 한 줄만 단다. 막을 무거운
+   * 하체가 처음부터 없던 날(장비 · 안전 거르기로 이미 빠짐)은 아무것도 안 한다 — 빼지도 않은 날 날을 바꾸지 않게.
+   */
+  const lowerBites =
+    lowerBlocked &&
+    decided.key === 'lower' &&
+    picked.candidates.some(
+      (ex) => isHeavyLower(ex) && competesForDay('lower', goal.name, focus)(ex)
+    );
+  const lowerText = budget?.lowerText ?? LOWER_BUDGET_FALLBACK_TEXT;
+  const budgeted = !lowerBites
+    ? decided
+    : override
+      ? { ...decided, reason: `${decided.reason} ${LOWER_BUDGET_OVERRIDE_NOTE}` }
+      : steerForLowerBudget({
+          day: decided,
+          candidates: pool,
+          goalName: goal.name,
+          focus,
+          lastUpperKey,
+          asOf: facts.asOf,
+          avoid,
+          text: lowerText,
+        });
+  /*
    * 근력 날인데 그쪽 본운동 후보가 0 이면 날을 바꾼다(theme.ts 의 steerFromEmptyMain — 반대쪽, 그것도 없거나 어제
    * 했으면 보조 · 코어). 후보는 안전 거르기를 지난 것만 센다. 부위를 좁힌 날은 바꾸지 않는다(focus 가 그대로 산다).
-   * 통증 때문에 피한 쪽(steerAroundPain 이 비켜 간 쪽)으로는 되돌아가지 않는다 — 그때는 보조 · 코어.
+   * 가지 않을 쪽(avoid — 통증 쪽 · 중재가 상체를 막은 까닭)으로는 되돌아가지 않는다 — 그때는 보조 · 코어.
    */
   const theme = steerFromEmptyMain({
-    day: decided,
-    candidates: picked.candidates,
+    day: budgeted,
+    candidates: pool,
     goalName: goal.name,
     focus,
     lastLowerKey,
     lastUpperKey,
     asOf: facts.asOf,
-    avoid: painAvoidedSide(facts),
+    avoid,
   });
   /*
    * 쓸 시간 — 회복 날은 effectiveMinutes 가 줄이고, 그 밖의 날은 구원 '어제 실전 강도로 20구 넘게 던졌으면 짧게'(날 종류의 shorten,
@@ -441,9 +646,7 @@ export function buildDailyPlan<T extends ExerciseLike>({
      * 양 조절(volume)은 여기 일부러 안 넘긴다 — 고르는 목록은 줄이지 않은 날과 같아야 한다. 줄인 세트만큼 남는 시간을
      * 시간 채우기가 다른 운동으로 메우면 양을 줄인 뜻이 사라진다(줄인 날의 시간은 고른 뒤에 다시 센다 — 2판 P5).
      */
-    candidates: picked.candidates.map((ex) =>
-      planPrescription(ex, { goal: goal.name })
-    ),
+    candidates: pool.map((ex) => planPrescription(ex, { goal: goal.name })),
     theme: theme.key,
     minutes,
     // 만드는 시점에는 아직 아무것도 안 했다.
@@ -463,7 +666,7 @@ export function buildDailyPlan<T extends ExerciseLike>({
     ...(scoreCtx ? { scoreOf: (ex: T) => scoreFor(ex, scoreCtx).total } : {}),
   });
   if (scoreCtx) {
-    for (const ex of picked.candidates) {
+    for (const ex of pool) {
       if (swappedToday.has(ex.id) && !recentIds.has(ex.id)) scoreFor(ex, scoreCtx);
     }
   }
@@ -531,7 +734,7 @@ export function buildDailyPlan<T extends ExerciseLike>({
   const pickedIds = new Set(themed.picks.map((p) => p.exercise.id));
   const competes = competesForDay(theme.key, goal.name, focus);
   const scored: ScoredCandidate[] = scoreCtx
-    ? picked.candidates.flatMap((ex) => {
+    ? pool.flatMap((ex) => {
         const s = scores.get(ex.id);
         return s && competes(ex) ? [{ score: s, picked: pickedIds.has(ex.id) }] : [];
       })
@@ -567,7 +770,10 @@ export function buildDailyPlan<T extends ExerciseLike>({
     })),
     basis: picked.basis,
     notes: themed.notes,
-    excluded: picked.excluded,
+    excluded:
+      budgetExcluded.length > 0
+        ? [...picked.excluded, ...budgetExcluded]
+        : picked.excluded,
     equipment: {
       available,
       excludedCount: usable.excludedCount,
@@ -578,6 +784,115 @@ export function buildDailyPlan<T extends ExerciseLike>({
     ...(volume ? { volume } : {}),
     ...(overrodeEffort ? { overrodeEffort: true as const } : {}),
     ...(reasons.length > 0 ? { reasons } : {}),
+  };
+}
+
+/**
+ * 근력 프로그램 날의 일정(2판 P6-3, D6) — 그날 프로그램 운동 그대로. buildDailyPlan 이 멈춘 날을 거른 뒤에 부른다.
+ *
+ * 안전 층(selectCandidates)을 지난 운동만 싣는다 — 오늘 몸 상태로 무리인 프로그램 운동은 빼고 이유 글에 몇 개를 뺐는지 적는다(화면이 같은 날
+ * 다시 보는 안전 재확인 — lib/report/today-data.ts 의 safeIds — 과 같은 거르기라, 저장한 목록이 보일 때 또 빠지지 않는다). 장비 · 경력으로는
+ * 거르지 않는다: 프로그램이 가진 장비 · 경력으로 고정한 운동이고, 화면의 재확인도 몸 상태만 본다. 하나도 안 남으면 null(부르는 쪽이 매일 일정 길로).
+ *
+ * 날 이름은 '프로그램 · {그날 이름}'(프로그램 판을 얼릴 때의 이름과 같다), 날 열쇠는 남은 운동의 카테고리로 — 하체 스트렝스가 있으면 'lower',
+ * 상체 스트렝스만 있으면 'upper', 둘 다 없으면 'assist'. 마친 기록이 없는 날에도 하체 · 상체 차례(strengthDatesFrom 의 계획 쪽)가 그날을
+ * 완료 기록과 같은 쪽으로 세게 하려고 — 완료 기록의 쪽도 카테고리로 센다(하체를 먼저 본다 — 무거운 하체 48시간이 더 엄한 쪽이라).
+ * 목표는 없다(null — 처방은 프로그램이 정한다), 시간은 프로그램 처방으로 센다(estimateMinutes). 점수 · 양 조절 · 이유 줄은 없다 — 매일 일정이
+ * 고른 것이 아니다. 같은 운동이 두 번 오면 한 번만.
+ */
+function programDayPlan<T extends ExerciseLike>({
+  programToday,
+  facts,
+  plan,
+  library,
+  caution,
+  requestedMinutes,
+  basis,
+  equipment,
+  levelExcludedCount,
+}: {
+  programToday: ProgramTodayInput;
+  facts: ReportFacts;
+  plan: PitchPlan;
+  library: T[];
+  caution: AutoCaution[];
+  requestedMinutes: number;
+  basis: string[];
+  equipment: DailyPlan['equipment'];
+  levelExcludedCount: number;
+}): DailyPlan | null {
+  const byId = new Map(library.map((ex) => [ex.id, ex]));
+  const safeIds = new Set(
+    selectCandidates({ facts, plan, library, caution }).candidates.map((ex) => ex.id)
+  );
+  const seen = new Set<string>();
+  const kept: { item: ProgramTodayExercise; ex: T }[] = [];
+  let dropped = 0;
+  for (const item of programToday.exercises) {
+    const ex = byId.get(item.exerciseId);
+    if (!ex || seen.has(ex.id)) continue;
+    seen.add(ex.id);
+    if (safeIds.has(ex.id)) kept.push({ item, ex });
+    else dropped++;
+  }
+  if (kept.length === 0) return null;
+
+  const categories = new Set(kept.map((k) => k.ex.category));
+  const key: ThemeKey = categories.has('하체 스트렝스')
+    ? 'lower'
+    : categories.has('상체 스트렝스')
+      ? 'upper'
+      : 'assist';
+  const reason =
+    programDayText(programToday.day) +
+    (dropped > 0 ? ` 오늘 몸 상태로 무리인 운동 ${dropped}개는 뺐어요.` : '');
+  const estimatedMinutes = Math.round(
+    kept.reduce((sum, { item, ex }) => {
+      const perSide = (ex as T & { perSide?: boolean }).perSide === true;
+      return (
+        sum +
+        estimateMinutes({
+          category: ex.category,
+          intensity: ex.intensity,
+          sets: item.sets,
+          reps: item.reps,
+          holdSeconds: item.holdSeconds,
+          restSeconds: item.restSeconds,
+          perSide,
+        })
+      );
+    }, 0)
+  );
+  /* 등판 창이 무거운 하체를 뺀 날 표시 — 다른 날과 같은 칸(finishDayTheme 의 heavyLowerAllowed). 실제로 빼는 일은 위 안전 거르기가 했다 */
+  const heavyLowerAllowed = dayKindOf(facts).heavyLowerAllowed;
+  return {
+    version: 1,
+    theme: {
+      key,
+      label: `프로그램 · ${programToday.label}`,
+      reason,
+      ...(heavyLowerAllowed ? {} : { heavyLowerAllowed: false }),
+    },
+    goal: null,
+    focus: null,
+    preferredWorkout: facts.condition.today?.preferredWorkout ?? null,
+    requestedMinutes,
+    minutes: requestedMinutes,
+    estimatedMinutes,
+    picks: kept.map(({ item }) => ({ exerciseId: item.exerciseId, slot: item.slot })),
+    basis,
+    notes: [],
+    excluded:
+      dropped > 0
+        ? [{ rule: '오늘 몸 상태 → 근력 프로그램 운동 제외', count: dropped }]
+        : [],
+    equipment,
+    levelExcludedCount,
+    program: {
+      key: programToday.key,
+      day: programToday.day,
+      label: programToday.label,
+    },
   };
 }
 

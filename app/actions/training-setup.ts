@@ -18,9 +18,11 @@ import {
 import {
   buildDailyPlan,
   isHalted,
+  planBudgetOf,
   type DailyPlan,
   type StrengthHistory,
 } from '@/lib/report/daily-plan';
+import { painStateUnknown } from '@/lib/report/prescription';
 import { carrySwaps, swappedOutOf } from '@/lib/report/plan-swaps';
 import { fingerprintOf } from '@/lib/report/plan-fingerprint';
 import { visibleExercises, type CachedExercise } from '@/lib/library-cache';
@@ -32,8 +34,18 @@ import {
   swappedOutRecently,
 } from '@/lib/report/gather';
 import { favoriteExerciseIds } from '@/lib/favorites';
-import { activeProgram, type ProgramRow } from '@/lib/program/load';
-import { parseProgram, patternsOfProgramDay, readPinned } from '@/lib/program/program';
+import {
+  activeProgram,
+  buildProgramDay,
+  programTodayOf,
+  type ProgramRow,
+} from '@/lib/program/load';
+import {
+  PROGRAMS_ENABLED,
+  parseProgram,
+  patternsOfProgramDay,
+  readPinned,
+} from '@/lib/program/program';
 import {
   withProgramCommitment,
   type ProgramCommitmentInput,
@@ -286,6 +298,32 @@ export async function generateTodayPlan(formData: FormData) {
   const state = withProgramCommitment(gathered, program.commitment);
 
   /*
+   * 근력 프로그램이 있으면 오늘 프로그램 날을 카드와 같은 길로 정한다(2판 P6-3, lib/program/load.ts buildProgramDay — 판정 · 오늘 판 · 중재).
+   * 중재가 오늘을 프로그램 날로 두면(daily.role 'program') 매일 일정은 그날 프로그램 운동 그대로다(사용자 결정 D6 — 보조 운동은 더하지 않는다,
+   * programTodayOf). 그 밖의 날은 중재의 하체 · 팔 예산을 지키며 짠다(planBudgetOf — 어제 · 내일 프로그램 큰 하체와 48시간 안에 겹치지 않게).
+   * 오늘 자료는 위에서 읽은 facts · 장 · 라이브러리를 그대로 넘긴다(loadTodayCore 를 다시 부르면 같은 것을 두 번 읽는다). 프로그램이 없는
+   * 사람은 조회가 늘지 않고 일정도 P6 전과 같다.
+   */
+  const programDay =
+    PROGRAMS_ENABLED && programRow
+      ? await buildProgramDay(
+          {
+            todayKey: toDateKey(today),
+            midnight: dateOnly(today),
+            facts,
+            plan,
+            state: gathered,
+            library,
+            hasCheckinToday: facts.condition.today != null,
+            picked: { halted: painStateUnknown(facts) },
+          },
+          programRow,
+          user
+        )
+      : null;
+  const programToday = programDay ? programTodayOf(programDay) : null;
+
+  /*
    * '다시 만들기'를 누르면 다른 목록이 나오게 한다.
    *
    * 순서를 섞는 씨앗이 날짜뿐이면 같은 날에는 늘 같은 결과가 나온다. 실제로
@@ -311,8 +349,9 @@ export async function generateTodayPlan(formData: FormData) {
    * 재활 때문에 멈춘 날(plan.rehab — 오늘 통증은 아님)은 정한다. 투구 계획만 멈췄고, 재활 관절의 무거운
    * 운동은 규칙이 이미 뺀다(prescription.ts 의 rehabEasingParts).
    */
+  /* 프로그램 날은 목표 · 시간을 정할 것이 없다(그날 운동은 프로그램이 정했다) — 자동 맞춤의 까닭이 프로그램 날 글을 가리지 않게 안 부른다 */
   const made =
-    auto && (!plan.halted || plan.rehab)
+    auto && !programToday && (!plan.halted || plan.rehab)
       ? await decideAutoSetup({ user, facts, plan, today, strengthDates })
       : null;
   const choice: {
@@ -379,6 +418,12 @@ export async function generateTodayPlan(formData: FormData) {
     override: !auto && formData.get('overrideCondition') === 'on',
     /* 오늘 상태 한 장 — 같은 facts · plan 으로 만든 것. 양 조절(본운동 세트 −1, 2판 P5-d · e)이 body · 힘듦 급증을 읽는다 */
     state,
+    /*
+     * 프로그램 날이면 그날 프로그램 운동 그대로(2판 P6-3 · D6). 예산은 프로그램이 있는 사람에게만 넘긴다 — 프로그램 날이 아닌 날, 그리고
+     * 프로그램 날인데 그날 운동이 모두 안전 거르기에 걸려 매일 일정 길로 갈 때 하체 · 팔 예산을 지킨다(프로그램 날 길에서는 안 읽는다).
+     */
+    programToday,
+    budget: programDay ? planBudgetOf(programDay.arbitration) : null,
   });
 
   const date = dateOnly(today);

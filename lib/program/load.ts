@@ -4,7 +4,13 @@ import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { HIGH_SORENESS, SEVERE_SORENESS, isShortSleep } from '@/lib/checkin';
 import { yesterdayArmLoadOf } from '@/lib/engine/arm-load';
-import { programArbiterSignals } from '@/lib/engine/arbiter';
+import {
+  arbitrate,
+  programArbiterSignals,
+  type Arbitration,
+  type ProgramSessionToday,
+} from '@/lib/engine/arbiter';
+import { dayKindOf } from '@/lib/engine/microcycle';
 import { withProgramCommitment } from '@/lib/engine/day-state';
 import { lastStrengthDates } from '@/lib/report/gather';
 import { droppedOnlyForArmFatigue, selectCandidates } from '@/lib/report/prescription';
@@ -12,6 +18,11 @@ import { LOW_CONDITION_THRESHOLD, painRecoveryReason } from '@/lib/report/theme'
 import type { loadTodayCore } from '@/lib/report/today-data';
 import type { CachedExercise } from '@/lib/library-cache';
 import { readFrozenPlan } from '@/lib/workout/session-plan';
+import {
+  programTodayExerciseOf,
+  type ProgramTodayExercise,
+  type ProgramTodayInput,
+} from '@/lib/report/daily-plan';
 import { estimate1RM } from '@/lib/workout/history';
 import { toDateKey } from '@/lib/pitch-stats';
 import {
@@ -68,6 +79,14 @@ import {
 
 export type ProgramRow = Prisma.UserTrainingProgramGetPayload<object>;
 type TodayCore = Awaited<ReturnType<typeof loadTodayCore>>;
+/**
+ * buildProgramDay 가 읽는 오늘 자료 — 트레이닝 화면 · 운동 시작은 loadTodayCore 를 그대로 넘기고, 일정 만들기(app/actions/training-setup.ts
+ * generateTodayPlan, 2판 P6-3)는 이미 읽은 facts · 장 · 라이브러리로 만든다(오늘 자료를 두 번 읽지 않게).
+ */
+export type ProgramDayCore = Pick<
+  TodayCore,
+  'todayKey' | 'midnight' | 'facts' | 'plan' | 'state' | 'library' | 'hasCheckinToday'
+> & { picked: Pick<TodayCore['picked'], 'halted'> };
 
 /** 진행 중인 프로그램(한 사람 하나) */
 export async function activeProgram(userId: string): Promise<ProgramRow | null> {
@@ -139,7 +158,13 @@ async function todaySession(userId: string, midnight: Date) {
   });
   if (!s) return null;
   const plan = readFrozenPlan(s.plan);
-  return { id: s.id, status: s.status, program: plan?.program ?? null };
+  return {
+    id: s.id,
+    status: s.status,
+    program: plan?.program ?? null,
+    /* 그 판의 운동 — 오늘 프로그램 판이 있는 날 매일 일정이 그대로 싣는다(programTodayOf, 2판 P6-3) */
+    exercises: plan?.exercises ?? [],
+  };
 }
 
 /**
@@ -309,6 +334,14 @@ export type ProgramDayView = {
   dropped: { slot: SlotKind; title: string; reason: string }[];
   /** 다시 고정해야 할 것(관리자 숨김) — 운동 시작 때 저장한다 */
   repin: Pinned;
+  /**
+   * 중재(lib/engine/arbiter.ts arbitrate, 2판 P6-3) — 판정 · 오늘 판 · 날 종류 · 예산을 층 차례로 묶은 오늘. 매일 일정(일정 만들기)이 이것으로
+   * 오늘이 프로그램 날인지(daily.role 'program')와 하체 · 팔 예산을 읽는다. '그래도 하기'는 프로그램의 것(D24 — 경기 앞뒤 쉬는 날을 넘김)이라
+   * 역할이 카드의 판정과 같다. 매일 일정 폼의 '그래도 하기'는 일정 만들기가 따로 넘긴다(daily-plan.ts budget · override).
+   */
+  arbitration: Arbitration;
+  /** 오늘 이 프로그램의 판(열었거나 마침)과 그 판의 운동 — 없으면 null */
+  session: (ProgramSessionToday & { exercises: ProgramTodayExercise[] }) | null;
 };
 
 export function progressOf(
@@ -323,7 +356,7 @@ export function progressOf(
  * 오늘 프로그램 날을 만든다. 카드도, 운동 시작도 이것 하나를 쓴다. 모르는 프로그램 키면 null.
  */
 export async function buildProgramDay(
-  core: TodayCore,
+  core: ProgramDayCore,
   row: ProgramRow,
   user: { id: string; ownedEquipment: string[]; trainingLevel: string | null }
 ): Promise<ProgramDayView | null> {
@@ -422,22 +455,24 @@ export async function buildProgramDay(
    * 같은 오늘 상태 한 장으로 부른다. 장을 만드는 gather.ts 는 프로그램 줄을 안 읽어 여기서 얹는다(day-state.ts withProgramCommitment —
    * 일정 만들기와 같은 꼴). 고정 운동은 읽기만 하는 pinnedOf 로 — 다시 고정할 것을 쓰지 않는 변형까지 적지 않게.
    */
+  const arbiterState = withProgramCommitment(core.state, {
+    key: row.programKey,
+    nextDay: row.nextDay,
+    totalDays: plan.totalDays,
+    lastDoneDate: keyOf(row.lastDoneDate),
+  });
+  const sessionToday: ProgramSessionToday | null =
+    session?.program?.key === row.programKey
+      ? {
+          state: session.status === 'ACTIVE' ? 'active' : 'finished',
+          day: session.program.day,
+        }
+      : null;
   const arbiter = programArbiterSignals({
-    state: withProgramCommitment(core.state, {
-      key: row.programKey,
-      nextDay: row.nextDay,
-      totalDays: plan.totalDays,
-      lastDoneDate: keyOf(row.lastDoneDate),
-    }),
+    state: arbiterState,
     typesToday,
     lastLowerKey: strengthDates.lower,
-    session:
-      session?.program?.key === row.programKey
-        ? {
-            state: session.status === 'ACTIVE' ? 'active' : 'finished',
-            day: session.program.day,
-          }
-        : null,
+    session: sessionToday,
     exerciseOf: (v) => pinnedOf(v).ex,
   });
 
@@ -468,6 +503,21 @@ export async function buildProgramDay(
     ...arbiter.signals,
   });
 
+  /*
+   * 중재(2판 P6-3) — 판정 · 오늘 판을 넣어 층 차례로 오늘을 정한다. 매일 일정이 읽는다(view.arbitration). 카드와 같은 장 · 같은 신호 ·
+   * 같은 '그래도 하기'(D24)라 '하는 날'이 둘이 같다(자체 시험 '[2판 P6] 프로그램 판정 신호' (나) 격자).
+   */
+  const arbitration = arbitrate({
+    state: arbiterState,
+    dayKind: dayKindOf(facts),
+    programDecision: decision.kind,
+    programSession: sessionToday,
+    exerciseOf: (v) => pinnedOf(v).ex,
+    lastLowerKey: strengthDates.lower,
+    typesToday,
+    override: keyOf(row.overrideDate) === todayKey,
+  });
+
   const { completed, skipped } = progressOf(row, plan);
   const todayState: ProgramDayView['todayState'] =
     session?.program?.key !== row.programKey
@@ -496,6 +546,21 @@ export async function buildProgramDay(
     rows: [],
     dropped: [],
     repin,
+    arbitration,
+    session:
+      sessionToday && session
+        ? {
+            ...sessionToday,
+            exercises: session.exercises.map((e) => ({
+              exerciseId: e.id,
+              slot: e.slot,
+              sets: e.plannedSets,
+              reps: e.plannedReps,
+              holdSeconds: e.plannedHoldSeconds,
+              restSeconds: e.restSeconds ?? null,
+            })),
+          }
+        : null,
   };
   if (day > plan.totalDays) return view;
 
@@ -637,6 +702,37 @@ export async function buildProgramDay(
 
 /** 이만큼 이하로 쉬는 묶음은 '한 세트씩 번갈아' 하는 묶음이다(운동 화면도 같은 값) */
 const BUNDLE_SHORT_REST = 30;
+
+/* ─────────────────────────── 매일 일정에 넘길 프로그램 날(2판 P6-3) ─────────────────────────── */
+
+/**
+ * 오늘이 근력 프로그램 날이면 그날 운동 — 일정 만들기(app/actions/training-setup.ts)가 매일 일정에 넘긴다(daily-plan.ts programToday, 사용자 결정 D6
+ * '프로그램 진행 중이면 그날 매일 일정 = 프로그램 운동 그대로'). 프로그램 날인지는 중재가 정한다(view.arbitration.daily.role — 'program', 결정이
+ * 바뀌어 'assist' 길이 되어도 그날 운동은 같다). 운동은
+ *   오늘 이 프로그램 판이 있으면(열었거나 마침) 그 판의 운동 — 카드 목록은 마친 뒤 다음 일차의 미리보기라 오늘 한 것이 아니다
+ *   하는 날(판정 'go')이면 카드 목록(view.rows — 뺀 칸 · 팔 아끼는 날 뺀 변형 · 대체 · 가볍게 반영) — 운동 시작이 얼리는 것과 같다
+ * 그 밖(쉬는 날 · 기다림 · 다 마침)이면 null — 그날은 매일 일정이 예산을 지키며 짠다(planBudgetOf).
+ */
+export function programTodayOf(view: ProgramDayView): ProgramTodayInput | null {
+  const role = view.arbitration.daily.role;
+  if (role !== 'program' && role !== 'assist') return null;
+  if (view.session) {
+    if (view.session.exercises.length === 0) return null;
+    return {
+      key: view.row.programKey,
+      day: view.session.day,
+      label: dayLabel(view.plan, view.session.day),
+      exercises: view.session.exercises,
+    };
+  }
+  if (view.decision.kind !== 'go' || view.rows.length === 0) return null;
+  return {
+    key: view.row.programKey,
+    day: view.day,
+    label: view.dayLabel,
+    exercises: view.rows.map((r) => programTodayExerciseOf(r.exercise, r.rx)),
+  };
+}
 
 /* ─────────────────────────── 화면에 넘길 모양 ─────────────────────────── */
 

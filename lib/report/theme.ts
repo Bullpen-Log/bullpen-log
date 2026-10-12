@@ -1399,6 +1399,26 @@ export function competesForDay(
 }
 
 /**
+ * 날을 바꿀 때 가지 않을 쪽과 그 까닭(2판 P6-3, 2026-10-13) — steerFromEmptyMain · steerForLowerBudget 가 읽는다.
+ *   pain   통증 때문에 피한 쪽(painAvoidedSide — steerAroundPain 이 비켜 간 쪽)
+ *   arm    팔을 아끼는 날(중재의 팔 예산을 다 씀 · 팔 피로 '많이' 이상) — 상체로 가면 상체 무게가 새로 생긴다(비판 1 빈틈 28)
+ *   stiff  어깨 · 팔꿈치 · 손목이 오늘 '뻐근'
+ *   rehab  어깨 · 팔꿈치 재활 1~3단계
+ * 예전(2판 P6-2 까지)에는 통증 쪽 하나('lower' | 'upper' | null)였다. 중재(lib/engine/arbiter.ts)의 '상체로 가도 되는가'(upperBlockedBy)를
+ * 같이 받으려고 배열로 넓혔다 — 통증만 주면 예전과 글자까지 같다(같은 글 · 같은 차례).
+ */
+export type SteerAvoidReason = 'pain' | 'arm' | 'stiff' | 'rehab';
+export type SteerAvoid = { side: 'lower' | 'upper'; because: SteerAvoidReason };
+
+/** 그쪽으로 안 가는 까닭 — '{반대쪽}는 … 쉬어요'의 가운데 */
+const STEER_AVOID_WHY: Record<SteerAvoidReason, string> = {
+  pain: '아픈 곳이라',
+  arm: '팔을 아끼는 날이라',
+  stiff: '뻐근한 곳이라',
+  rehab: '재활 중이라',
+};
+
+/**
  * 근력 날인데 그쪽 본운동 후보가 하나도 없으면 날을 바꾼다 — 반대쪽 근력 날로, 그것도 없거나 어제 했으면 보조 · 코어 날로.
  *
  * 2026-10-11 (트레이닝 추천 2판 P1 '대비책 상한'). 예전에는 본운동이 비면 pickForTheme 의 대비책이 모빌리티 · 암케어만 빼고
@@ -1420,7 +1440,7 @@ export function steerFromEmptyMain({
   lastLowerKey,
   lastUpperKey,
   asOf,
-  avoid = null,
+  avoid = [],
 }: {
   day: SessionTheme;
   /** 안전 거르기를 지난 후보(selectCandidates) — 그 안에서만 센다 */
@@ -1431,8 +1451,11 @@ export function steerFromEmptyMain({
   lastUpperKey: string | null;
   /** 오늘(YYYY-MM-DD) */
   asOf: string;
-  /** 통증 때문에 피해야 할 쪽(painAvoidedSide) — 그쪽으로는 되돌아가지 않는다 */
-  avoid?: 'lower' | 'upper' | null;
+  /**
+   * 가지 않을 쪽(SteerAvoid — 통증 쪽 painAvoidedSide, 중재의 '상체로 가도 되는가'). 그쪽으로는 되돌아가지 않고 보조 · 코어 날로 간다.
+   * 앞의 것이 글을 정한다(부르는 쪽이 통증을 먼저 넣는다).
+   */
+  avoid?: readonly SteerAvoid[];
 }): SessionTheme {
   if (day.key !== 'lower' && day.key !== 'upper') return day;
   if (focus) return day;
@@ -1446,7 +1469,8 @@ export function steerFromEmptyMain({
   const otherLast = other === 'lower' ? lastLowerKey : lastUpperKey;
   const yesterday = shiftDateKey(asOf, -1);
 
-  if (otherCount > 0 && otherLast !== yesterday && other !== avoid) {
+  const blocked = avoid.find((a) => a.side === other);
+  if (otherCount > 0 && otherLast !== yesterday && !blocked) {
     return {
       key: other,
       label: other === 'lower' ? '하체 스트렝스 데이' : '상체 스트렝스 데이',
@@ -1456,10 +1480,77 @@ export function steerFromEmptyMain({
   const why =
     otherCount === 0
       ? '하체 · 상체 운동이 모두 없어 오늘은 코어와 보강을 해요. 설정에서 장비를 더하면 근력 날이 생겨요.'
-      : other === avoid
-        ? `${part} 운동이 없고 ${otherPart}는 아픈 곳이라 쉬어요. 오늘은 코어와 보강을 해요.`
+      : blocked
+        ? `${part} 운동이 없고 ${otherPart}는 ${STEER_AVOID_WHY[blocked.because]} 쉬어요. 오늘은 코어와 보강을 해요.`
         : `${part} 운동이 없고 ${otherPart}는 어제 했어요. 오늘은 코어와 보강을 해요.`;
   return { key: 'assist', label: '보조·코어 데이', reason: `${day.reason} ${why}` };
+}
+
+/** 하체 예산을 '그래도 하기'로 넘긴 날의 한 줄 — 까닭(어제 · 내일 · 프로그램)과 상관없이 같은 말 */
+export const LOWER_BUDGET_OVERRIDE_NOTE =
+  '무거운 하체를 쉬는 날이지만 고른 대로 해요. 아프면 바로 멈춰요.';
+
+/**
+ * 하체 예산(중재 lib/engine/arbiter.ts lowerBudget — 무거운 하체가 48시간 안에 두 번 없게)이 막은 날, 하체 날을 바꾼다(2판 P6-3, 2026-10-13).
+ *
+ * 왜. 매일 일정끼리는 번갈아 규칙이 어제 하체면 오늘 상체로 보낸다. 그런데 근력 프로그램과 일정 사이(어제 프로그램 스쿼트 → 오늘 일정 하체,
+ * 오늘 일정 하체 → 내일 프로그램 스쿼트)는 아무도 안 봤다(기준선 ㉑ 이 0 인 것은 대본이 우연히 그랬을 뿐 막는 규칙이 없었다). 부르는 쪽
+ * (daily-plan.ts)이 무거운 하체(exercise-class.ts isHeavyLower)를 후보에서 이미 뺐고, 여기서는 날만 정한다.
+ *
+ * 규칙(위가 이긴다)
+ *   하체 날이 아니면 그대로 — 상체 · 보조 · 회복 날에는 무거운 하체가 처음부터 안 든다.
+ *   사용자가 오늘 부위를 좁혔으면(focus) 하체 날 그대로, 무거운 것만 빠진다 — 사용자 선택이 이긴다(steerFromEmptyMain 과 같은 원칙). 한 줄을 단다.
+ *   본운동 구간이 없는 목표(컨디셔닝)도 그대로 — 바꿀 본운동이 없다. 한 줄을 단다.
+ *   상체로 갈 수 있으면 상체 날 — 상체 본운동 후보가 있고, 어제 상체가 아니고, 상체를 피할 까닭(avoid — 팔을 아끼는 날 · 통증 · 뻐근 · 재활)이 없을 때.
+ *   그 밖에는 보조 · 코어 날(비판 1 빈틈 28 — 상체로 가면 상체 무게가 새로 생긴다).
+ * 이유 글은 원래 까닭 뒤에 예산의 한 줄과 어디로 갔는지를 붙인다(steerFromEmptyMain 과 같은 꼴).
+ * 부르는 쪽은 무거운 하체를 실제로 뺀 날(하체 날에 들 무거운 하체가 있었던 날)에만 부른다 — 빼지도 않은 날 날을 바꾸지 않게.
+ */
+export function steerForLowerBudget({
+  day,
+  candidates,
+  goalName,
+  focus = null,
+  lastUpperKey,
+  asOf,
+  avoid = [],
+  text,
+}: {
+  day: SessionTheme;
+  /** 하체 예산으로 무거운 하체를 뺀 뒤의 후보(안전 거르기도 지난 것) */
+  candidates: readonly ThemedExercise[];
+  goalName: string | null;
+  focus?: GoalFocusKey | null;
+  lastUpperKey: string | null;
+  /** 오늘(YYYY-MM-DD) */
+  asOf: string;
+  /** 가지 않을 쪽(SteerAvoid) — 'upper' 가 있으면 상체로 안 간다 */
+  avoid?: readonly SteerAvoid[];
+  /** 하체 예산의 한 줄(arbiter LOWER_BUDGET_TEXT — 막힌 까닭) */
+  text: string;
+}): SessionTheme {
+  if (day.key !== 'lower') return day;
+  const noted = { ...day, reason: `${day.reason} ${text}` };
+  if (focus) return noted;
+  if (mainCandidateCount(candidates, 'lower', goalName) == null) return noted;
+  const upperCount = mainCandidateCount(candidates, 'upper', goalName) ?? 0;
+  const yesterday = shiftDateKey(asOf, -1);
+  if (
+    upperCount > 0 &&
+    lastUpperKey !== yesterday &&
+    !avoid.some((a) => a.side === 'upper')
+  ) {
+    return {
+      key: 'upper',
+      label: '상체 스트렝스 데이',
+      reason: `${day.reason} ${text} 대신 상체를 해요.`,
+    };
+  }
+  return {
+    key: 'assist',
+    label: '보조·코어 데이',
+    reason: `${day.reason} ${text} 대신 코어와 보강을 해요.`,
+  };
 }
 
 /**
