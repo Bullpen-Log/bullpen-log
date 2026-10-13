@@ -57,7 +57,7 @@ import {
   rotate,
   slerp,
 } from '../lib/pitch-3d/v2/mannequin-frames.ts';
-import { labelValues, measureAngles, measureSpec, momentOf, type Arc } from '../lib/pitch-3d/v2/mannequin-measure.ts';
+import { labelText, labelValues, measureAngles, measureSpec, momentOf, type Arc } from '../lib/pitch-3d/v2/mannequin-measure.ts';
 import {
   computeNormals,
   loftIndices,
@@ -1890,7 +1890,7 @@ console.log('■ 데생 인형 틀(mannequin-frames) · 잰 선(mannequin-measur
     const live = measureAngles(fr[fp]);
     check(
       '잰 값: 착지 장면 다섯 값이 몸으로 나올 범위',
-      live.separation >= 0 && live.separation <= 180 && live.trunk <= 90 && live.knee >= -5 && live.knee <= 160 && live.arm <= 180 && live.elbow >= -5 && live.elbow <= 180,
+      Math.abs(live.separation) <= 180 && live.trunk <= 90 && live.knee >= -5 && live.knee <= 160 && live.arm <= 180 && live.elbow >= -5 && live.elbow <= 180,
       JSON.stringify(Object.fromEntries(Object.entries(live).map(([a, b]) => [a, Math.round(b)])))
     );
     const atPlant = labelValues(live, momentOf(fp, result.events), result.metrics);
@@ -1911,6 +1911,20 @@ console.log('■ 데생 인형 틀(mannequin-frames) · 잰 선(mannequin-measur
     const midF = Math.floor((fp + result.events.release) / 2);
     const between = labelValues(measureAngles(fr[midF]), momentOf(midF, result.events), result.metrics);
     check('잰 값: 순간이 아닌 장면은 표 값 없음 · 흐림 없음', Object.values(between).every((v) => v.table === undefined && !v.off));
+    /* 상하체 분리 부호 — 위에서 본 엉덩이선 · 어깨선 방향(우투 꼴: 닫힌 자세 180°, 열수록 커짐) */
+    const sepAt = (hipDeg: number, shDeg: number) => {
+      const d = (deg: number, r: number): Vec3 => [r * Math.cos((deg * Math.PI) / 180), r * Math.sin((deg * Math.PI) / 180), 0];
+      const hc: Vec3 = [0, 0, 1];
+      const sc: Vec3 = [0, 0, 1.5];
+      return measureAngles({ ...fr[fp], rh: add(hc, d(hipDeg, 0.1)), lh: sub(hc, d(hipDeg, 0.1)), sh: add(sc, d(shDeg, 0.2)), gs: sub(sc, d(shDeg, 0.2)) })
+        .separation;
+    };
+    check(
+      "잰 값: 골반이 더 열리면 분리 +(이름표 숫자) · 어깨가 골반을 앞지르면 −(이름표 '풀림' — 던진 뒤 꼬임이 커진 것처럼 안 읽히게)",
+      Math.abs(sepAt(225, 180) - 45) < 1e-9 && Math.abs(sepAt(225, 270) + 45) < 1e-9 &&
+        labelText('separation', sepAt(225, 180)) === '45°' && labelText('separation', sepAt(225, 270)) === '풀림' &&
+        labelText('separation', -0.4) === '0°' && labelText('trunk', -12) === '-12°'
+    );
     /* 선 명세 — 호의 점은 반지름 위, 가운데 점은 반각, 이름표는 상하체 분리 하나 */
     const spec = measureSpec(fr[fp], F[fp].pelvis, F[fp].chest, k, atPlant);
     const arcOk = spec.arcs.every((a) => {

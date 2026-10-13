@@ -19,7 +19,7 @@ import type { Pitch3dV2Ok } from '@/lib/pitch-3d/v2/contract';
 import { displayTrack } from '@/lib/pitch-3d/v2/display';
 import type { LabGround } from '@/lib/pitch-lab-meta';
 import { canonicalFrames, mannequinFrames } from '@/lib/pitch-3d/v2/mannequin-frames';
-import { labelValues, measureAngles, momentOf, type Label } from '@/lib/pitch-3d/v2/mannequin-measure';
+import { labelText, labelValues, measureAngles, momentOf, type Label } from '@/lib/pitch-3d/v2/mannequin-measure';
 import { anaMaterials, LEGEND, placeLabels, projectToScreen } from '@/lib/pitch-3d/v2/mannequin-pause';
 import { mannequinTrack } from '@/lib/pitch-3d/v2/mannequin-prep';
 import { createFigure } from './mannequin/figure';
@@ -382,7 +382,7 @@ export const Body3D = forwardRef<
         const J = mann.joints[cur];
         labels = ov.update(J, mann.frames[cur], labelValues(measureAngles(J), momentOf(cur, result.events), result.metrics));
         labelsVersion++;
-        if (!isPlaying) setSaid(labels.map((l) => `${l.name} ${Math.round(l.value)}°${l.off && l.table != null ? ` (결과 표 ${Math.round(l.table)}°)` : ''}`));
+        if (!isPlaying) setSaid(labels.map((l) => `${l.name} ${labelText(l.key, l.value)}${l.off && l.table != null ? ` (결과 표 ${Math.round(l.table)}°)` : ''}`));
       };
       /* 효과가 다시 돌 때(새 결과) 범례 · 재질을 비침으로 */
       applyAna(1);
@@ -492,7 +492,7 @@ export const Body3D = forwardRef<
             el.dataset.v = key;
             el.style.borderLeftColor = measureHex(L.key);
             const open = L.off && el.dataset.open === '1';
-            el.innerHTML = `${brief ? '' : `<span class="font-normal text-[#c7cfdd]">${SHORT_NAME[L.key] ?? L.name}</span> `}${Math.round(L.value)}°${
+            el.innerHTML = `${brief ? '' : `<span class="font-normal text-[#c7cfdd]">${SHORT_NAME[L.key] ?? L.name}</span> `}${labelText(L.key, L.value)}${
               open && L.table != null ? `<span class="ml-1 text-[#9aa5b4]">· 표 ${Math.round(L.table)}°</span>` : ''
             }`;
             el.style.pointerEvents = L.off ? 'auto' : 'none';

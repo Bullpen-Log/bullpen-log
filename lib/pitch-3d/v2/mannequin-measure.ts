@@ -66,7 +66,11 @@ function rotateAxis(v: Vec3, k: Vec3, th: number): Vec3 {
   return add(add(scale(v, c), scale(cross(k, v), s)), scale(k, dot(k, v) * (1 - c)));
 }
 
-/** 잰 값 다섯(도) — 예시 page.js 와 같은 식 */
+/**
+ * 잰 값 다섯(도) — 예시 page.js 와 같은 식. 상하체 분리만 부호가 있다: + = 골반이 어깨보다 더 열림(꼬임), − = 어깨가 골반을 앞지름(풀림).
+ * 착지 뒤 0.1초쯤부터 어깨가 골반을 앞질러 릴리스 · 그 뒤엔 −40~−55°(마커 샘플 16 정답 · 엔진 둘 다) — 예시처럼 크기만 보이면 던진 뒤 꼬임이
+ * 45° 로 커진 것처럼 읽혀(2026-10-13 김민) 이름표는 '풀림'으로(labelText).
+ */
 export function measureAngles(J: MannequinJoints): Measures {
   const hm = mid3(J.rh, J.lh);
   const shm = mid3(J.sh, J.gs);
@@ -75,7 +79,7 @@ export function measureAngles(J: MannequinJoints): Measures {
   while (sp > 180) sp -= 360;
   while (sp < -180) sp += 360;
   return {
-    separation: Math.abs(sp),
+    separation: sp,
     trunk: Math.abs(deg(Math.atan2(Tr[0], Tr[2]))),
     knee: 180 - deg(angle(sub(J.lh, J.lk), sub(J.la, J.lk))),
     arm: deg(angle(sub(J.el, J.sh), scale(Tr, -1))),
@@ -91,6 +95,11 @@ export const MOMENT_METRIC: Record<'footPlant' | 'release', Partial<Record<Measu
   footPlant: { separation: 'separationAtPlant', knee: 'leadKneeAtPlant' },
   release: { knee: 'leadKneeAtRelease', arm: 'shoulderAbduction', trunk: 'trunkForwardTilt' },
 };
+
+/** 이름표 글 — 상하체 분리가 음수(어깨가 골반을 앞지름)면 숫자 대신 '풀림' */
+export function labelText(key: MeasureKey, value: number): string {
+  return key === 'separation' && Math.round(value) < 0 ? '풀림' : `${Math.round(value)}°`;
+}
 
 /** 이 장면이 어느 순간인가(아니면 null) */
 export function momentOf(
