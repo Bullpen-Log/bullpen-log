@@ -194,7 +194,8 @@ export type Pitch3dV2Ok = {
   version: string;
   jobId: string;
   hand: 'R' | 'L';
-  engine: { v1: string; pose: string };
+  /** build = 분석 서버 엔진 코드의 지문(scripts/pitch3d-bundle.mjs) — 결과 화면이 서버 지문과 견줘 옛 엔진 결과를 알린다. 옛 결과 · 로컬 실행엔 없다 */
+  engine: { v1: string; pose: string; build?: string };
   /** 장면 시각(옆 영상 원본 트랙 초) */
   t: number[];
   /** 같은 장면의 뒤 영상 시각(초) — 원본 두 칸이 3D 시계를 따라가게(화면 결정 12) */
@@ -375,6 +376,7 @@ export function readPitch3dV2Result(raw: unknown): Pitch3dV2Result | null {
     return null;
   const eng = r.engine as Record<string, unknown> | undefined;
   if (!eng || typeof eng.v1 !== 'string' || typeof eng.pose !== 'string') return null;
+  if (eng.build !== undefined && typeof eng.build !== 'string') return null;
   const cams = r.cameras as Record<string, unknown> | null | undefined;
   if (
     cams != null &&

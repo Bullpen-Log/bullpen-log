@@ -132,3 +132,29 @@ export async function getGpuStatus(callId: string): Promise<GpuStatus> {
     return { kind: 'unknown' };
   }
 }
+
+/**
+ * 지금 분석 서버에 올라간 엔진의 지문(GET {URL}/engine) — 결과에 찍힌 지문(result.engine.build)과 다르면 옛 엔진 결과다.
+ * 5분 기억한다(결과 화면을 열 때마다 서버를 깨우지 않게). 못 물으면 null — 화면은 띠를 안 띄운다.
+ */
+const BUILD_TTL_MS = 5 * 60_000;
+let buildMemo: { at: number; build: string | null } | null = null;
+export async function getEngineBuild(): Promise<string | null> {
+  if (!isPitch3dV2Configured()) return null;
+  if (buildMemo && Date.now() - buildMemo.at < BUILD_TTL_MS) return buildMemo.build;
+  let build: string | null = null;
+  try {
+    const res = await fetch(`${base()}/engine`, {
+      headers: headers(),
+      signal: AbortSignal.timeout(3_000),
+      cache: 'no-store',
+    });
+    const data = res.ok ? ((await res.json().catch(() => null)) as { build?: unknown } | null) : null;
+    build = typeof data?.build === 'string' ? data.build : null;
+  } catch (err) {
+    console.error('[pitch3d v2] engine', err instanceof Error ? err.message : err);
+    return null; // 실패는 기억하지 않는다 — 다음에 다시 묻는다
+  }
+  buildMemo = { at: Date.now(), build };
+  return build;
+}

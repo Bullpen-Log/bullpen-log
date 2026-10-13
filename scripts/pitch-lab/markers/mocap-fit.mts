@@ -53,8 +53,9 @@ const { result } = fitPitch3dV2({
   heightCm: Math.round(tr.meta.height_m * 100),
   jobId: '00000000-0000-4000-8000-000000000000',
   poseModel: 'mocap-bench',
-  slowmoFps: null,
-  screenRecorded: false,
+  /* 서버(pipeline.py fit_payload)처럼 촬영 정보를 — 실험실 샘플 떨림 검사(scripts/pitch-lab/jitter)가 넣는다. 마커는 없어 예전과 같다 */
+  slowmoFps: tr.meta.slowmo_fps === 120 || tr.meta.slowmo_fps === 240 ? tr.meta.slowmo_fps : null,
+  screenRecorded: tr.meta.screen_recorded === true,
   events: seg.events,
   /* 1배로 찍었다고 알면 초점 사전(tracks.meta.focal_prior — 마커 채점 bench.py 가 넣는다) */
   ...(tr.meta.focal_prior ? { focalPrior: tr.meta.focal_prior } : {}),

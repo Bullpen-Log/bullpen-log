@@ -116,6 +116,7 @@ export function V2RequestRow({
   v2Enabled,
   hasVideos,
   hasResult,
+  stale = false,
   error,
   onRequest,
 }: {
@@ -125,6 +126,8 @@ export function V2RequestRow({
   v2Enabled: boolean;
   hasVideos: boolean;
   hasResult: boolean;
+  /** 보고 있는 결과가 지금 서버 엔진보다 옛것(결과의 엔진 지문이 다름) — 고친 엔진은 다시 분석해야 들어간다 */
+  stale?: boolean;
   error?: string;
   onRequest: (consent: boolean) => Promise<boolean>;
 }) {
@@ -147,6 +150,11 @@ export function V2RequestRow({
       {active && hasResult && (
         <p className="rounded-xl bg-sky-tint px-3 py-2 text-xs text-sky break-keep">
           다시 분석 중이에요 — 끝날 때까지 이전 결과를 보고 있어요.
+        </p>
+      )}
+      {stale && !active && (
+        <p className="rounded-xl bg-sky-tint px-3 py-2 text-xs text-sky break-keep">
+          예전 엔진으로 분석한 결과예요. 다시 분석하면 지금 엔진으로 볼 수 있어요.
         </p>
       )}
       <label className="flex items-start gap-3">

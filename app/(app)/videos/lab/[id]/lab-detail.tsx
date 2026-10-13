@@ -79,11 +79,14 @@ const MOMENT: Record<MetricKey, 'footPlant' | 'release'> = {
 export function LabDetail({
   sample,
   v2Enabled,
+  engineBuild = null,
   drillPicks = {},
   preview,
 }: {
   sample: LabSample;
   v2Enabled: boolean;
+  /** 지금 분석 서버 엔진의 지문(page.tsx) — 결과의 지문과 다르면 옛 엔진 결과 */
+  engineBuild?: string | null;
   /** 메커니즘 점검 카드의 요소별 드릴(page.tsx 가 서버에서) */
   drillPicks?: DrillPicks;
   /** 개발 확인용 결과(서버를 안 부른다) */
@@ -194,6 +197,7 @@ export function LabDetail({
             v2Enabled={v2Enabled}
             hasVideos={hasVideos}
             hasResult={result != null}
+            stale={result != null && engineBuild != null && result.engine.build !== engineBuild}
             error={v2.error}
             onRequest={v2.request}
           />
