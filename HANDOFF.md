@@ -21,6 +21,9 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 - 판정: `lib/pitch-3d/v2/mech-judge.ts` 분리 = 최대 분리 크기(드라이브라인 공개 자료 손별 아래 25% · 10%) + 시점(착지 110ms 넘게 이르면 몸통 일찍 열림).
   `MechChecks` 에 `hand` · `separation.atPlantDeg` · `trunkOpenAtPlantDeg` · `pelvisOpenAtPlantDeg`(열림 둘은 마커 정답과 13° 어긋나 판정에 안 씀).
   근거 · 숫자는 `docs/designs/pitch-mechanics-checks.md` 4절. 시험 `pitch3d:v2-test` 259 → 261.
+- (같은 날 더) 분리 이름표가 '풀림'을 안다: `measureAngles` 의 `separation` 이 이제 부호가 있다(+ 골반이 더 열림 · − 어깨가 앞지름, 예전 `Math.abs`).
+  음수면 이름표 · 읽어 주는 글이 숫자 대신 '풀림'(`labelText`, `body-3d.tsx` 두 곳). 김민: "마커 샘플 16에 던지고 나서 꼬임이 45까지" — 착지 뒤 0.1초부터
+  어깨가 골반을 앞질러 릴리스 뒤 −40~−55°(마커 정답도 같음)인데 크기만 보여 꼬임처럼 읽혔다. 시험 261 → 262.
 
 ## 금윤호 · 김민(맥북)에게 — 2026-10-13 · 김민(Claude, 데스크톱) — 3D 결과 화면에 '메커니즘 점검' 카드(드리프트 · 상하체 분리 · 앞다리 버티기 → 드릴)
 
