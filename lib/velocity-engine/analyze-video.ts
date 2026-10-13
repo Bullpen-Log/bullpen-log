@@ -210,7 +210,8 @@ const HDR_NOTE =
   'HDR 영상이라 값이 조금 어긋날 수 있어요. 설정 › 카메라 › 비디오 녹화에서 HDR 비디오를 끄고 찍으면 더 정확합니다.';
 
 /** 보정한 조건의 초당 장면 수 — 60fps 영상(59.94 · 가변 60 포함). 240fps 는 노출 번짐이 달라 합성 시험에서 +3% */
-const CALIBRATED_FPS: [number, number] = [50, 70];
+/* 2.4.2: 앱 카메라가 되면 120fps 로 찍는다(dual-capture PREFER_FPS) — 60 과 같은 노출 셈이라 보정 안으로. 240 은 그대로 밖 */
+const CALIBRATED_FPS: [number, number] = [50, 125];
 
 /**
  * HDR 의 ± 에 더할 σ(비율). HLG → SDR 로 그릴 때의 밝은 쪽 곡선을 실제 영상에 입혀 보면 값이 −4.4% ± 1.5%(최대 −6.9%)

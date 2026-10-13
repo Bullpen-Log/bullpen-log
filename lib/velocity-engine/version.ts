@@ -263,8 +263,12 @@
  *                      calibEligible(믿음 높음 · 이어 찾기 없음 · 끝 튕김 봄 · 공 크기 거리 15% 안 · 거리 자동 아님)을 거리 보고에 싣는다.
  *                      loadCalibration · isPair 가 자격 없는 공을 짝에서 뺀다. 관리자 세션 정보에 '보정식 미리 보기'(지금 짝 · 뺀 짝과 까닭).
  *                      셀프테스트에 10-12 짝 회귀(비율 1.02~1.06 · 127 → 129±3 · 튄 짝 하나 0.5% 안).
+ *   2.4.2  2026-10-13  작은 자리(값 그대로 — 60fps 영상): 앱 카메라 셔터 상한 1/500초(DualCameraPlugin apply, ISO 자동, 끌 때 되돌림) — 빠른 공이
+ *                      번지지 않게. 되면 120fps(같은 화면 · 같은 선명함의 모양이 낼 때만, dual-capture PREFER_FPS → Swift pick prefer). 씨앗 장면 수 ·
+ *                      건너뜀 수가 시간 기준으로(detect.ts trackBall 0.2초 · 1/30초), 보정 조건 fps 50~125(analyze-video). 1초마다 셔터 · ISO 를
+ *                      받아 세션 기기 글에 남긴다. 확인은 TestFlight 빌드 뒤 현장에서(엔진 2.4 B1).
  */
-export const VELOCITY_ENGINE_VERSION = '2.4.1';
+export const VELOCITY_ENGINE_VERSION = '2.4.2';
 
 /**
  * 스피드건 보정 짝이 이어지는 묶음 — 작은 자리(0.0.X)는 재는 방법이 같아 짝을 그대로 쓴다(가운데 자리까지 같은 공 모두 — 지금은 '1.9.').

@@ -99,7 +99,7 @@ function shakeAt(a: number, t: number): [number, number] {
   ];
 }
 
-function render(sc: Scene) {
+function render(sc: Scene, fps = FPS) {
   const r = rng(sc.seed);
   /* 고정 배경 — 위는 어두운 벽 · 나무, 아래는 땅. 무늬 덩어리 */
   const bg = new Float32Array(W * H);
@@ -137,8 +137,8 @@ function render(sc: Scene) {
   }
   const frames: { t: number; luma: Uint8Array }[] = [];
   const t0 = -0.15;
-  for (let i = 0; t0 + i / FPS <= 1.4; i++) {
-    const t = t0 + i / FPS;
+  for (let i = 0; t0 + i / fps <= 1.4; i++) {
+    const t = t0 + i / fps;
     const img = Float32Array.from(bg);
     /* 흰 천 — 그물 쪽 가운데 띠(공이 지나는 곳) */
     if (sheet) for (let y = sheet[1]; y < sheet[3]; y++) for (let x = sheet[0]; x < sheet[2]; x++) img[y * W + x] = 214;
@@ -416,5 +416,35 @@ console.log('\n▶ 세션 거리 보정(기준 20m 세션 — 엔진 2.4 1단계
   check(cleanSize(clean(21, { sizeDistM: null })) == null, '공 크기 거리가 없으면 깨끗한 공이 아님');
 }
 
+
+console.log('\n▶ 120fps(2.4.2 — 앱 카메라가 되면 120 으로 찍는다) — 같은 투구를 60 · 120 으로 그려 1% 안');
+{
+  const sc: Scene = { kmh: 130, launchDeg: -1, sideDeg: -1.2, D: 20, tiltDeg: 0, seed: 11 };
+  const measure = (fps: number) => {
+    const { frames, truthKmh } = render(sc, fps);
+    const res = analyzeByDistance({
+      frames,
+      width: W,
+      height: H,
+      sourceWidth: 1080,
+      sourceHeight: 1920,
+      focalPx: (F * 1080) / W,
+      distanceM: sc.D,
+      tiltRad: 0,
+      fps,
+    });
+    return { kmh: res.measure.ok ? res.measure.kmh : NaN, truthKmh, frames: res.distance.flightFrames };
+  };
+  const a = measure(60);
+  const b = measure(120);
+  check(
+    Number.isFinite(a.kmh) && Number.isFinite(b.kmh) && Math.abs(b.kmh / a.kmh - 1) <= 0.01,
+    `60fps ${a.kmh} · 120fps ${b.kmh} (정답 ${a.truthKmh.toFixed(1)}) — 비행 장면 ${a.frames} · ${b.frames}`
+  );
+  check(
+    Number.isFinite(b.kmh) && Math.abs(b.kmh / b.truthKmh - 1) <= 0.02,
+    `120fps 도 정답 2% 안(씨앗 장면 수 · 건너뜀 수가 시간 기준 — trackBall)`
+  );
+}
 console.log(`\n${'═'.repeat(50)}\n통과 ${passed} / 실패 ${failed}\n${'═'.repeat(50)}`);
 if (failed) process.exit(1);

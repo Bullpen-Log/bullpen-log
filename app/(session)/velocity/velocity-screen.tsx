@@ -479,6 +479,11 @@ type ScreenResult = AnalyzeResult & { live?: LiveReport };
 
 /** 세션 안 공 크기 거리의 허용 흩어짐(가운데 값 대비) — addResult */
 const SESSION_SIZE_SPREAD = 0.09;
+/** 앱 카메라의 셔터 · ISO 를 세션 기기 글에 — ' · 셔터 1/500 ISO 320'(2.4.2) */
+const exposureText = (e: { shutterSec: number | null; iso: number | null } | null) =>
+  e?.shutterSec
+    ? ` · 셔터 1/${Math.round(1 / e.shutterSec)}${e.iso ? ` ISO ${Math.round(e.iso)}` : ''}`
+    : '';
 
 /** 못 잰 공의 머리말 — 믿음이 모자라 버린 공은 '측정 불가' */
 function rejectTitle(r: ScreenResult): string {
@@ -741,6 +746,11 @@ export function VelocityScreen({
   };
   const [camera, setCamera] = useState<CameraInfo | null>(null);
   const [fps, setFps] = useState<number | null>(null);
+  /* 앱 카메라의 지금 셔터 · ISO(1초마다 fps 알림에 실려 옴, 2.4.2) — 세션 기기 글에 남긴다 */
+  const [exposure, setExposure] = useState<{
+    shutterSec: number | null;
+    iso: number | null;
+  } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [last, setLast] = useState<ScreenResult | null>(null);
   const [pitches, setPitches] = useState<LocalPitch[]>([]);
@@ -1225,7 +1235,10 @@ export function VelocityScreen({
               onClip: (id, clip) => attachClipRef.current(idBase + id, clip),
               onError: setError,
               onNotice: setToast,
-              onFps: (f) => setFps(Math.round(f)),
+              onFps: (f, _low, e) => {
+                setFps(Math.round(f));
+                if (e?.shutterSec) setExposure(e);
+              },
               onAttempt: (a) => attemptRef.current({ ...a, id: idBase + a.id }),
             },
             now.fov,
@@ -1886,7 +1899,9 @@ export function VelocityScreen({
     return {
       fovDeg: fov,
       source: pitches.every((p) => p.source === 'file') ? 'file' : 'camera',
-      device: camera ? `${camera.label} ${camera.width}×${camera.height}`.trim() : null,
+      device: camera
+        ? `${camera.label} ${camera.width}×${camera.height}${exposureText(exposure)}`.trim()
+        : null,
       cameraPos: choices.cameraPos,
       net: choices.net,
       forCalibration: calibOn,

@@ -38,7 +38,12 @@ export type DualCaptureHandlers = {
   onClip: (id: number, clip: PitchClip) => void;
   onError: (message: string) => void;
   onNotice?: (message: string) => void;
-  onFps?: (fps: number, low: boolean) => void;
+  /** 1초마다 받은 장면 수 — exposure 는 앱 카메라의 지금 셔터(초) · ISO(2.4.2, 세션 기기 글에 남긴다) */
+  onFps?: (
+    fps: number,
+    low: boolean,
+    exposure?: { shutterSec: number | null; iso: number | null }
+  ) => void;
   /** 시도 기록 — 공 · 움직임 알림마다 계산이 끝나면(쟀든 못 쟀든). 헛알림(움직임 클립에 공 길이 거의 없음)은 안 부른다 */
   onAttempt?: (attempt: AttemptInfo) => void;
 };
@@ -74,23 +79,37 @@ type Bridge = {
     options: unknown,
     callback: (result: unknown, error?: unknown) => void
   ) => string;
-  nativePromise?: (plugin: string, method: string, options?: unknown) => Promise<unknown>;
+  nativePromise?: (
+    plugin: string,
+    method: string,
+    options?: unknown
+  ) => Promise<unknown>;
 };
 
 /** 앱 부품의 알림 받기 — @capacitor/core 의 addListener 와 같은 길(사이트엔 그 패키지가 없다) */
-function listen(eventName: string, cb: (data: Record<string, unknown>) => void): () => void {
+function listen(
+  eventName: string,
+  cb: (data: Record<string, unknown>) => void
+): () => void {
   const cap = (window as Window & { Capacitor?: Bridge }).Capacitor;
   if (!cap?.nativeCallback) return () => undefined;
-  const callbackId = cap.nativeCallback('DualCamera', 'addListener', { eventName }, (data) => {
-    if (data && typeof data === 'object') cb(data as Record<string, unknown>);
-  });
+  const callbackId = cap.nativeCallback(
+    'DualCamera',
+    'addListener',
+    { eventName },
+    (data) => {
+      if (data && typeof data === 'object') cb(data as Record<string, unknown>);
+    }
+  );
   return () => {
-    void cap.nativePromise?.('DualCamera', 'removeListener', { callbackId, eventName }).catch(
-      () => undefined
-    );
+    void cap
+      .nativePromise?.('DualCamera', 'removeListener', { callbackId, eventName })
+      .catch(() => undefined);
   };
 }
 
+/** 되면 이 fps 로(엔진 2.4 B1) — 옛 앱은 이 칸을 모르고 60 */
+const PREFER_FPS = 120;
 /** 한 번에 쥐는 던짐 수 — 계산이 밀리면 그 뒤 던짐은 알리고 넘긴다 */
 const MAX_PENDING = 2;
 
@@ -106,7 +125,8 @@ const MAX_PENDING = 2;
  */
 const BALL_CLIP: [before: number, after: number] = [0.6, 1.6];
 /** 공 알림 카드를 띄웠는데 계산에서 공 길을 못 찾았을 때의 알림 */
-const LOST_BALL_NOTE = '공을 끝까지 찾지 못해 이번 공은 재지 못했어요. 다시 던져 주세요.';
+const LOST_BALL_NOTE =
+  '공을 끝까지 찾지 못해 이번 공은 재지 못했어요. 다시 던져 주세요.';
 /** 공 알림 클립에서 재는 구간 — 공이 처음 보인 때 앞 · 뒤(초). 실험대(릴리스 앞 0.15 ~ 뒤 1.4초)와 같게, 알림이 릴리스보다 조금 늦어 앞을 넉넉히 */
 const BALL_RANGE: [before: number, after: number] = [0.25, 1.45];
 const MOTION_CLIP: [before: number, after: number] = [0.5, 2.6];
@@ -239,6 +259,8 @@ export class DualCapture {
          * 1080p 30 이 됐다(2026-10-08 사용자: 아이폰 15 Pro Max 인데 30프레임). 화질 · 프레임 고르기는 없앴다(1080 · 60 통일).
          */
         fps: DEFAULT_CAM_MODE.fps,
+        /* 되면 120 — 같은 화면 · 같은 선명함의 모양이 낼 수 있을 때만(앱이 고른다, 2.4.2). 빠른 공의 끝 시각 오차가 반이 된다 */
+        preferFps: PREFER_FPS,
         net: this.net,
         preview: this.rect(),
         armed: false,
@@ -274,13 +296,23 @@ export class DualCapture {
         const at = Number(d.atSec);
         /* 옛 앱은 kind 가 없다 — 움직임으로 본다 */
         if (Number.isFinite(at))
-          this.onThrow(at, d.kind === 'ball' ? 'ball' : 'motion', Number(d.strength) || 0);
+          this.onThrow(
+            at,
+            d.kind === 'ball' ? 'ball' : 'motion',
+            Number(d.strength) || 0
+          );
       }),
       listen('error', (d) => this.handlers.onError(String(d.message ?? '카메라 오류'))),
       /* 실제로 받은 장면 수(1초마다) — 처리가 밀려 장면을 버리면 약속한 60 보다 낮다. 옛 앱은 이 알림이 없다 */
       listen('fps', (d) => {
         const f = Number(d.fps);
-        if (Number.isFinite(f) && f > 0) this.handlers.onFps?.(f, f < LIVE_GOOD_FPS);
+        const shutter = Number(d.shutter);
+        const iso = Number(d.iso);
+        if (Number.isFinite(f) && f > 0)
+          this.handlers.onFps?.(f, f < LIVE_GOOD_FPS, {
+            shutterSec: Number.isFinite(shutter) && shutter > 0 ? shutter : null,
+            iso: Number.isFinite(iso) && iso > 0 ? iso : null,
+          });
       })
     );
     this.previewTimer = setInterval(this.syncPreview, 250);
@@ -360,11 +392,17 @@ export class DualCapture {
       .then(() => this.measure(job, gen))
       .catch((e) => {
         if (gen === this.gen && job.visible)
-          this.handlers.onNotice?.(e instanceof Error ? e.message : '영상을 읽지 못했어요');
+          this.handlers.onNotice?.(
+            e instanceof Error ? e.message : '영상을 읽지 못했어요'
+          );
       })
       .finally(() => {
         this.jobs = this.jobs.filter((j) => j !== job);
-        this.recent.push({ start: job.start, end: job.end, until: performance.now() + 5000 });
+        this.recent.push({
+          start: job.start,
+          end: job.end,
+          until: performance.now() + 5000,
+        });
         if (gen === this.gen) this.syncStatus();
       });
   }
@@ -373,17 +411,22 @@ export class DualCapture {
     const id = job.id;
     /* 걸린 시간 — 클립 기다림 · 옮기기 · 계산(앱 콘솔에서 본다, 결과를 빨리 내는 일의 기준) */
     const t0 = performance.now();
-    const clips = await callDualCamera<{ main: DualClip; wide: DualClip | null }>('clip', {
-      atSec: job.at,
-      beforeSec: job.at - job.start,
-      afterSec: job.end - job.at,
-    });
+    const clips = await callDualCamera<{ main: DualClip; wide: DualClip | null }>(
+      'clip',
+      {
+        atSec: job.at,
+        beforeSec: job.at - job.start,
+        afterSec: job.end - job.at,
+      }
+    );
     const dropWide = () =>
       clips.wide
         ? callDualCamera('discard', { paths: [clips.wide.path] }).catch(() => undefined)
         : undefined;
     if (gen !== this.gen) {
-      await callDualCamera('discard', { paths: [clips.main.path] }).catch(() => undefined);
+      await callDualCamera('discard', { paths: [clips.main.path] }).catch(
+        () => undefined
+      );
       await dropWide();
       return;
     }
@@ -399,7 +442,11 @@ export class DualCapture {
      * 건너뛰고 그때부터 구간을 바로 준다(실험대와 같은 구간: 릴리스 앞 0.2초 ~ 뒤 1.4초). 움직임 클립은 공이 어디 있는지 몰라 훑는다.
      */
     /* 공이 처음 보인 때(클립 시각) — 공 알림 작업은 알림 시각, 움직임 작업에 묶인 공 알림은 그 차이만큼 뒤 */
-    const ballEv = job.ball ? main.eventSec : job.ballAt != null ? main.eventSec + (job.ballAt - job.at) : null;
+    const ballEv = job.ball
+      ? main.eventSec
+      : job.ballAt != null
+        ? main.eventSec + (job.ballAt - job.at)
+        : null;
     const ballRange =
       ballEv != null && ballEv < main.durationSec
         ? {
@@ -491,7 +538,12 @@ export class DualCapture {
    * 시도 기록 — 계산이 끝난 작업마다 화면에 알린다(쟀든 못 쟀든). 움직임 클립에서 공 길이 거의 없으면(헛알림: 와인드업 · 사람 · 폰을
    * 만짐) 세지 않는다. 못 잰 공의 클립은 같이 넘긴다 — 보정용 저장이면 화면이 서버에 올린다.
    */
-  private reportAttempt(job: Job, result: VideoAnalyzeResult, main: DualClip, blob: Blob) {
+  private reportAttempt(
+    job: Job,
+    result: VideoAnalyzeResult,
+    main: DualClip,
+    blob: Blob
+  ) {
     const track = result.track.length;
     const ok = result.measure.ok;
     if (!ok && !job.ball && job.ballAt == null && track < 4) return;
@@ -509,7 +561,12 @@ export class DualCapture {
       distance: result.distance ?? null,
       clip: ok
         ? null
-        : { blob, mime: 'video/mp4', durationSec: main.durationSec, eventSec: main.eventSec },
+        : {
+            blob,
+            mime: 'video/mp4',
+            durationSec: main.durationSec,
+            eventSec: main.eventSec,
+          },
     });
   }
 
@@ -605,10 +662,13 @@ export class DualCapture {
   }
   /** 초점 자리 — 스트라이크 존 가운데(세로 화면 0~1). 켜져 있으면 곧바로 그리로 다시 맞춘다 */
   setFocusPoint(p: { x: number; y: number }) {
-    if (Math.abs(p.x - this.focusAt.x) < 0.01 && Math.abs(p.y - this.focusAt.y) < 0.01) return;
+    if (Math.abs(p.x - this.focusAt.x) < 0.01 && Math.abs(p.y - this.focusAt.y) < 0.01)
+      return;
     this.focusAt = p;
     if (this.running)
-      void callDualCamera('focus', { focus: p, far: this.focusFar() }).catch(() => undefined);
+      void callDualCamera('focus', { focus: p, far: this.focusFar() }).catch(
+        () => undefined
+      );
   }
   /**
    * 렌즈 보정은 1~2m 앞 공을 잰다 — '먼 곳만' 초점을 풀고 그 자리(세로 화면 0~1)에 맞춘다. null 이면 존 가운데 · 원래 거리로 되돌린다
@@ -638,9 +698,10 @@ export class DualCapture {
   /** 재초점 단추 — 존 가운데에 다시 맞춘다(측정 중이면 맞춘 뒤 잠근다). 옛 앱은 focus 가 없어 그대로 */
   async refocus(): Promise<CameraFocus> {
     if (this.running) {
-      await callDualCamera('focus', { focus: this.focusAt, far: this.focusFar() }).catch(
-        () => undefined
-      );
+      await callDualCamera('focus', {
+        focus: this.focusAt,
+        far: this.focusFar(),
+      }).catch(() => undefined);
       /* 렌즈가 움직여 맞추는 데 1초 안팎 */
       await new Promise((r) => setTimeout(r, 800));
     }
@@ -656,7 +717,9 @@ export class DualCapture {
     if (this.running && !this.snapBusy) {
       this.snapBusy = true;
       const gen = this.gen;
-      void callDualCamera<Omit<Snapshot, 'luma'> & { luma: string }>('snapshot', { short: 720 })
+      void callDualCamera<Omit<Snapshot, 'luma'> & { luma: string }>('snapshot', {
+        short: 720,
+      })
         .then((s) => {
           if (gen !== this.gen) return;
           const raw = atob(s.luma);

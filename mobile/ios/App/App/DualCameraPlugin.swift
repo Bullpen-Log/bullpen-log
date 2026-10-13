@@ -101,6 +101,7 @@ public class DualCameraPlugin: CAPPlugin, CAPBridgedPlugin {
         DispatchQueue.main.async { [weak self] in self?.detachPreview() }
         let config = DualCameraController.Config(
             fps: Int32(max(24, min(240, call.getInt("fps") ?? 60))),
+            preferFps: Int32(max(0, min(240, call.getInt("preferFps") ?? 0))),
             short: call.getInt("short").map { Int32($0) },
             net: call.getBool("net") ?? false,
             roi: DualCameraPlugin.rect(call.getObject("roi")) ?? MotionTrigger.defaultRoi,
@@ -119,8 +120,8 @@ public class DualCameraPlugin: CAPPlugin, CAPBridgedPlugin {
         controller.onError = { [weak self] message in
             self?.notifyListeners("error", data: ["message": message])
         }
-        controller.onFps = { [weak self] fps, dropped in
-            self?.notifyListeners("fps", data: ["fps": fps, "dropped": dropped])
+        controller.onFps = { [weak self] fps, dropped, shutter, iso in
+            self?.notifyListeners("fps", data: ["fps": fps, "dropped": dropped, "shutter": shutter, "iso": iso])
         }
         self.controller = controller
         controller.start(
@@ -403,6 +404,8 @@ struct DualClip {
 final class DualCameraController: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
     struct Config {
         var fps: Int32
+        /// 되면 이 fps 로(같은 화면 · 같은 선명함의 모양이 낼 수 있을 때만) — 빠른 공의 끝 시각 오차를 반으로(엔진 2.4 B1, 120). 0 이면 fps 그대로
+        var preferFps: Int32 = 0
         /// 일반 카메라의 짧은 변(720 · 1080 · 2160 …) — 사용자가 고른 화질. nil 이면 1080p 쪽에서 알아서
         var short: Int32?
         var net: Bool
@@ -431,7 +434,8 @@ final class DualCameraController: NSObject, AVCaptureVideoDataOutputSampleBuffer
     var onThrow: ((Double, Double, String) -> Void)?
     var onError: ((String) -> Void)?
     /// 실제로 받은 초당 장면 수 · 그 사이 버린 장면 수 — 1초마다. 약속한 60 과 달리 처리가 밀리면 장면을 버린다(구형 폰 · 개발용 빌드)
-    var onFps: ((Double, Int) -> Void)?
+    /// 1초마다 — 받은 장면 수 · 버린 수 · 지금 셔터(초) · ISO(엔진 2.4 B1: 세션에 남긴다)
+    var onFps: ((Double, Int, Double, Double) -> Void)?
     private var fpsCount = 0
     private var fpsDropped = 0
     private var fpsSince = -1.0
@@ -591,6 +595,11 @@ final class DualCameraController: NSObject, AVCaptureVideoDataOutputSampleBuffer
         snapshotWaiters.removeAll()
         snapshotLock.unlock()
         waiters.forEach { $0.done(nil) }
+        /* 셔터 상한을 되돌린다 — 카메라 앱 등 다른 데가 영향을 받지 않게(apply 에서 걸었다) */
+        if let d = mainDevice, (try? d.lockForConfiguration()) != nil {
+            d.activeMaxExposureDuration = .invalid
+            d.unlockForConfiguration()
+        }
         sessionQueue.async {
             if self.session.isRunning { self.session.stopRunning() }
             self.mainQueue.async {
@@ -686,7 +695,7 @@ final class DualCameraController: NSObject, AVCaptureVideoDataOutputSampleBuffer
          */
         let isMulti = multi != nil
         var mainPick = try DualCameraController.pick(
-            mainDevice, fps: config.fps, short: config.short, multi: isMulti, zoom: config.zoom
+            mainDevice, fps: config.fps, short: config.short, multi: isMulti, zoom: config.zoom, prefer: config.preferFps
         )
         /*
          * 자동(고른 화질 없음)이면 60fps 를 못 낼 때 '안 됨' — 사이트가 웹 카메라로 잰다. 화질을 정해 청했으면 60fps 아래도
@@ -829,7 +838,8 @@ final class DualCameraController: NSObject, AVCaptureVideoDataOutputSampleBuffer
     /// short 를 주면 그 짧은 변의 16:9 모양 중에서(사용자가 고른 화질), 아니면 1080p 쪽(긴 변 1280~1920)에서 가장 큰 것.
     /// smallest 면 가장 작은 화면(두 카메라의 하드웨어 몫을 줄일 때).
     private static func pick(
-        _ device: AVCaptureDevice, fps: Int32, short: Int32? = nil, smallest: Bool = false, multi: Bool, zoom: Double = 1
+        _ device: AVCaptureDevice, fps: Int32, short: Int32? = nil, smallest: Bool = false, multi: Bool, zoom: Double = 1,
+        prefer: Int32 = 0
     ) throws -> Picked {
         let all: [(AVCaptureDevice.Format, Int32, Int32, Double)] = device.formats.compactMap { format in
             guard !multi || format.isMultiCamSupported,
@@ -877,8 +887,25 @@ final class DualCameraController: NSObject, AVCaptureVideoDataOutputSampleBuffer
             return a.0.videoZoomFactorUpscaleThreshold < b.0.videoZoomFactorUpscaleThreshold
         }
         guard let best else { throw DualCameraError.unsupported("format") }
-        let actual = Int32(min(Double(fps), best.3).rounded(.down))
-        return Picked(format: best.0, fps: max(1, actual), width: Int(best.1), height: Int(best.2))
+        /*
+         * 바라는 fps(prefer, 120)가 있으면 — 같은 넓이 · 같은 선명함(진짜 2배) · 같은 묶음 읽기인 모양 가운데 그 fps 를 내는 것이 있을 때만
+         * 그것으로(엔진 2.4 B1). 없으면 고른 모양 · 청한 fps 그대로 — 화질을 몰래 낮추지 않는다.
+         */
+        var chosen = best
+        var want = Double(fps)
+        if prefer > fps {
+            let pool = enough.isEmpty ? candidates : enough
+            let same = pool.filter {
+                area(-e) == area(best) && sharp(-e) == sharp(best) && -e.0.isVideoBinned == best.0.isVideoBinned
+                    && -e.3 >= Double(prefer) - 0.5
+            }
+            if let hi = same.max(by: { -e.3 < .3 }) {
+                chosen = hi
+                want = Double(prefer)
+            }
+        }
+        let actual = Int32(min(want, chosen.3).rounded(.down))
+        return Picked(format: chosen.0, fps: max(1, actual), width: Int(chosen.1), height: Int(chosen.2))
     }
 
     private static func apply(_ device: AVCaptureDevice, _ pick: Picked, zoom: Double = 1) throws {
@@ -891,6 +918,16 @@ final class DualCameraController: NSObject, AVCaptureVideoDataOutputSampleBuffer
         let want = CGFloat(max(1, min(zoom, Double(pick.format.videoMaxZoomFactor))))
         if device.videoZoomFactor != want { device.videoZoomFactor = want }
         if device.isFocusModeSupported(.continuousAutoFocus) { device.focusMode = .continuousAutoFocus }
+        /*
+         * 셔터 상한 1/500초(ISO 는 자동) — 빠른 공이 번지지 않게(엔진 2.4 B1). 자동 노출은 어두우면 셔터를 1/60 까지 늘려 40m/s 공이
+         * 한 장면에 공 두세 개 길이로 번졌다. 모양이 허락하는 범위 안으로 넣는다. 끌 때 되돌린다(stop).
+         */
+        if device.isExposureModeSupported(.continuousAutoExposure) { device.exposureMode = .continuousAutoExposure }
+        let lo = pick.format.minExposureDuration
+        let hi = pick.format.maxExposureDuration
+        if lo.isValid, hi.isValid, CMTimeCompare(hi, lo) > 0 {
+            device.activeMaxExposureDuration = CMTimeMaximum(lo, CMTimeMinimum(CMTime(value: 1, timescale: 500), hi))
+        }
     }
 
     /*
@@ -1247,7 +1284,10 @@ final class DualCameraController: NSObject, AVCaptureVideoDataOutputSampleBuffer
         if fpsSince < 0 { fpsSince = t }
         fpsCount += 1
         guard t - fpsSince >= 1 else { return }
-        onFps?(Double(fpsCount - 1) / (t - fpsSince), fpsDropped)
+        onFps?(
+            Double(fpsCount - 1) / (t - fpsSince), fpsDropped,
+            mainDevice?.exposureDuration.seconds ?? 0, Double(mainDevice?.iso ?? 0)
+        )
         fpsSince = t
         fpsCount = 1
         fpsDropped = 0
