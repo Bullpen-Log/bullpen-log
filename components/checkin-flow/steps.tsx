@@ -4,6 +4,7 @@ import {
   ARM_PAIN_LEVELS,
   ARM_PAIN_SPOTS,
   CHECKIN_NOTE_MAX,
+  CHECKIN_PARTS as PART_LABELS,
   CONDITION_BANDS,
   MAX_CONDITION,
   MIN_CONDITION,
@@ -11,8 +12,17 @@ import {
   conditionBand,
   type ArmPainJoint,
 } from '@/lib/checkin';
-import { partsFromSpots, spotLabel, type BodySpots } from '@/lib/body-spots';
+import {
+  SPOT_DEFS,
+  partsFromSpots,
+  spotId,
+  spotLabel,
+  type BodySpots,
+  type SpotSide,
+} from '@/lib/body-spots';
 import { BodySpotPicker } from '@/components/body-spot-picker';
+import { useState } from 'react';
+import { Search } from 'lucide-react';
 import { Chip } from '@/components/day-card';
 import { OutlinePerson, SleepPicture } from './pictures';
 
@@ -51,30 +61,40 @@ export function ConditionStep({
   return (
     <div className="flex h-full flex-col">
       <h1 className={TITLE}>오늘 컨디션은 어때요?</h1>
-      <div className="flex flex-1 items-center justify-center gap-8 py-4">
+      {/* 그림 위 · 슬라이더는 그림 밑에 가로로(2026-10-13 사용자: "스크롤은 전부 그림 하단에 가로로") */}
+      <div className="flex flex-1 flex-col items-center justify-center gap-4 py-4">
         {/* 사람 윤곽 — 띠마다 자세 · 표정 · 색이 다르고 0.16초 옅어지며 바뀐다(pictures.tsx) */}
-        <OutlinePerson band={band} className="h-56 w-32 shrink-0" />
-        <div className="flex flex-col items-center gap-3">
+        <OutlinePerson band={band} className="h-44 w-28 shrink-0" />
+        <div className="flex items-baseline gap-2">
           <p
             className={`text-6xl font-black tabular-nums leading-none ${tone}`}
             aria-hidden
           >
             {value}
           </p>
-          <input
-            type="range"
-            min={MIN_CONDITION}
-            max={MAX_CONDITION}
-            step={1}
-            value={value}
-            onChange={(e) => onChange(Number(e.target.value))}
-            aria-label="오늘 컨디션"
-            aria-valuetext={`${value}점, ${bandWord(value)}`}
-            className="checkin-range"
-            data-vertical
-          />
-          <p className={`text-base font-semibold ${tone}`}>{bandWord(value)}</p>
+          <p className={`text-lg font-semibold ${tone}`}>{bandWord(value)}</p>
         </div>
+        <input
+          type="range"
+          min={MIN_CONDITION}
+          max={MAX_CONDITION}
+          step={1}
+          value={value}
+          onChange={(e) => onChange(Number(e.target.value))}
+          aria-label="오늘 컨디션"
+          aria-valuetext={`${value}점, ${bandWord(value)}`}
+          className="checkin-range w-full max-w-xs"
+        />
+        <ol
+          className="flex w-full max-w-xs justify-between text-[11px] text-muted"
+          aria-hidden
+        >
+          {CONDITION_BANDS.map((b) => (
+            <li key={b.key} className={b.key === band ? 'font-semibold text-sky' : ''}>
+              {b.label}
+            </li>
+          ))}
+        </ol>
       </div>
       {(yesterday != null || usual != null) && (
         <p className="text-center text-sm text-muted">
@@ -139,6 +159,12 @@ export function PainStep({
     onArmSpots(
       armSpots.includes(key) ? armSpots.filter((k) => k !== key) : [...armSpots, key]
     );
+  /* 몸 그림이 가리키는 근육 — 이름 목록에서 고른 것도 같은 자리로(그림이 그 근육을 비추고 정도 단추가 뜬다) */
+  const [active, setActive] = useState<string | null>(null);
+  const pickByName = (id: string) => {
+    if (!spots[id]) onSpots({ ...spots, [id]: '뻐근' });
+    setActive(id);
+  };
   return (
     <div className="space-y-4">
       <div>
@@ -147,7 +173,15 @@ export function PainStep({
           근육을 눌러 뻐근한지 아픈지 골라요. 돌려 볼 수 있어요.
         </p>
       </div>
-      <BodySpotPicker spots={spots} onChange={onSpots} />
+      {/* 3D 몸 그림 — 다리까지 보이게 전보다 높게(2026-10-13 사용자: "하단 길이를 조금 더") */}
+      <BodySpotPicker
+        spots={spots}
+        onChange={onSpots}
+        active={active}
+        onActiveChange={setActive}
+        heightClass="h-[26rem] desk:h-[24rem]"
+      />
+      <MuscleFinder spots={spots} onPick={pickByName} />
       {picked.length > 0 && (
         <ul className="flex flex-wrap gap-2" aria-label="고른 근육">
           {picked.map(([id, level]) => (
@@ -185,6 +219,101 @@ export function PainStep({
         />
       ))}
     </div>
+  );
+}
+
+/**
+ * 이름으로 찾기 — 그림을 눌러 찾기 어려운 근육을 글자로 찾는다(2026-10-13 사용자: "이름을 검색하거나 이름 목록에서 선택").
+ * 검색 칸에 적으면 맞는 근육만, 비우면 부위(어깨 · 팔꿈치 · 손목 · 허리 · 하체)별 전체 목록. 줄마다 오른쪽 · 왼쪽 단추.
+ */
+function MuscleFinder({
+  spots,
+  onPick,
+}: {
+  spots: BodySpots;
+  onPick: (id: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [q, setQ] = useState('');
+  const query = q.trim();
+  const rows = SPOT_DEFS.filter((d) => !query || d.label.includes(query));
+  const groups = PART_LABELS.map((p) => ({
+    part: p,
+    defs: rows.filter((d) => d.part === p.key),
+  })).filter((g) => g.defs.length > 0);
+  const sideBtn = (id: string, word: string) => {
+    const level = spots[id];
+    return (
+      <button
+        key={id}
+        type="button"
+        onClick={() => onPick(id)}
+        aria-pressed={Boolean(level)}
+        className={`inline-flex min-h-9 items-center rounded-full px-3 text-xs font-medium transition-colors ${
+          level === '통증'
+            ? 'bg-danger-bg text-danger'
+            : level === '뻐근'
+              ? 'bg-amber-500/15 text-warn'
+              : 'bg-ink/6 text-ink/80 hover:bg-ink/10'
+        }`}
+      >
+        {word}
+        {level ? ` · ${level}` : ''}
+      </button>
+    );
+  };
+  return (
+    <section className="rounded-2xl bg-surface p-3" aria-label="근육 이름으로 찾기">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        className="flex w-full items-center gap-2 text-left text-sm font-semibold text-ink"
+      >
+        <Search aria-hidden className="h-4 w-4 text-muted" />
+        이름으로 찾기
+        <span className="ml-auto text-xs font-normal text-muted">
+          {open ? '접기' : '검색 · 목록'}
+        </span>
+      </button>
+      {open && (
+        <div className="mt-3 space-y-3">
+          <input
+            type="search"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="예) 삼각근, 광배근, 햄스트링"
+            aria-label="근육 이름 검색"
+            className="w-full rounded-xl border border-transparent bg-ink/5 px-4 py-2.5 text-sm text-ink placeholder:text-muted/60 focus:border-sky focus:bg-surface focus:outline-none"
+          />
+          {groups.length === 0 ? (
+            <p className="text-xs text-muted">
+              맞는 이름이 없어요. 다른 말로 찾아 봐요.
+            </p>
+          ) : (
+            <div className="max-h-72 space-y-3 overflow-y-auto overscroll-contain pr-1">
+              {groups.map((g) => (
+                <div key={g.part.key} className="space-y-1.5">
+                  <p className="text-[11px] font-semibold text-muted">{g.part.label}</p>
+                  <ul className="space-y-1">
+                    {g.defs.map((d) => (
+                      <li key={d.key} className="flex flex-wrap items-center gap-1.5">
+                        <span className="min-w-0 flex-1 text-sm text-ink">
+                          {d.label}
+                        </span>
+                        {(['R', 'L'] as SpotSide[]).map((side) =>
+                          sideBtn(spotId(side, d.key), side === 'R' ? '오른쪽' : '왼쪽')
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </section>
   );
 }
 

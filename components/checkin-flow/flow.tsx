@@ -186,12 +186,9 @@ export function CheckinFlow({
   const questions: StepKey[] = steps.filter((s) => s !== 'welcome' && s !== 'done');
   const idx = steps.indexOf(view.cur);
   const qIdx = questions.indexOf(view.cur);
-  const progress =
-    view.cur === 'welcome'
-      ? 0
-      : view.cur === 'done'
-        ? 1
-        : Math.max(0.06, qIdx / questions.length);
+  /* 진행 띠 — 질문 수로 똑같이 나눠 지금 페이지까지 찬다(2026-10-13 사용자: "페이지 수에 따라 정확히 나눠"). 숫자는 안 적는다 */
+  const filled =
+    view.cur === 'welcome' ? 0 : view.cur === 'done' ? questions.length : qIdx + 1;
 
   /* 초안 — 고치는 날(오늘 체크인이 있음)은 안 적는다. 저장 뒤에도 안 적는다(saved) */
   const [saved, setSaved] = useState(false);
@@ -370,12 +367,13 @@ export function CheckinFlow({
             role="progressbar"
             aria-valuemin={0}
             aria-valuemax={questions.length}
-            aria-valuenow={qIdx}
+            aria-valuenow={qIdx + 1}
             className="mt-2 h-1.5 overflow-hidden rounded-full bg-ink/10"
           >
+            {/* 한 페이지 = 전체의 1/질문 수 — 지금 페이지까지 정확히 그만큼 찬다(칸 표시 없이 띠 하나) */}
             <div
-              className="h-full rounded-full bg-sky transition-[width] duration-[240ms] ease-out"
-              style={{ width: `${progress * 100}%` }}
+              className="h-full rounded-full bg-sky transition-[width] duration-[280ms] ease-out"
+              style={{ width: `${(filled / questions.length) * 100}%` }}
             />
           </div>
         </header>
@@ -454,6 +452,19 @@ export function CheckinFlow({
         <footer
           className={`shrink-0 px-5 pt-2 ${variant === 'page' ? 'pb-[max(1rem,env(safe-area-inset-bottom))]' : 'pb-1'}`}
         >
+          {/* 통증 화면의 건너뛰기 — 단추 줄 위에 작게(2026-10-13 사용자: "이전 · 다음 위에 작은 크기로") */}
+          {view.cur === 'pain' && (
+            <div className="mb-2 flex justify-center">
+              <button
+                type="button"
+                onClick={skipPain}
+                disabled={pending}
+                className="min-h-8 rounded-full px-3 text-xs font-medium text-muted underline-offset-2 transition-colors hover:text-ink hover:underline"
+              >
+                불편한 곳 없어요 · 건너뛰기
+              </button>
+            </div>
+          )}
           <div className="flex items-center gap-2">
             <button
               type="button"
@@ -463,16 +474,6 @@ export function CheckinFlow({
             >
               이전
             </button>
-            {view.cur === 'pain' && (
-              <button
-                type="button"
-                onClick={skipPain}
-                disabled={pending}
-                className="h-12 rounded-2xl px-3 text-sm font-medium text-muted transition-colors hover:text-ink"
-              >
-                건너뛰기
-              </button>
-            )}
             <button
               type="button"
               onClick={next}
