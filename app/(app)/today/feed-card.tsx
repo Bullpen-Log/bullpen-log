@@ -73,6 +73,11 @@ export function FeedCard({ items }: { items: FeedItem[] }) {
   /* 넘어가는 중 — 방향(+1 다음 · −1 이전)과 함께. 끝나면 index 를 바꾸고 제자리로 */
   const [moving, setMoving] = useState<1 | -1 | null>(null);
   const [paused, setPaused] = useState(false);
+  /*
+   * 넘어간 직후 한두 장면 — 트랙을 제자리로 돌릴 때 움직임을 끈다. 예전엔 돌아오는 것도 미끄러져 다음 다음 장이 비쳤다가
+   * 되돌아와(2026-10-13 김민 "오류가 있고 ‹ › 를 눌러도 안 넘어간다") 넘어가지 않은 것처럼 보였다.
+   */
+  const [instant, setInstant] = useState(false);
   const frame = useRef<HTMLDivElement>(null);
   const press = useRef<{ x: number; t: number; w: number; id: number } | null>(null);
   const swiped = useRef(false);
@@ -83,14 +88,14 @@ export function FeedCard({ items }: { items: FeedItem[] }) {
   /* 넘기기 — 움직임 줄이기면 바로, 아니면 밀어 보낸 뒤 index 를 바꾼다 */
   const go = useCallback(
     (dir: 1 | -1) => {
-      if (n < 2 || moving) return;
+      if (n < 2 || moving || instant) return;
       if (reduce) {
         setIndex((i) => at(i + dir));
         return;
       }
       setMoving(dir);
     },
-    [n, moving, reduce, at]
+    [n, moving, instant, reduce, at]
   );
 
   /* 밀어 보내기가 끝나면 index 를 옮기고 트랙을 제자리로(transition 없이 — 같은 그림이라 튀지 않는다) */
@@ -99,9 +104,23 @@ export function FeedCard({ items }: { items: FeedItem[] }) {
     const t = window.setTimeout(() => {
       setIndex((i) => at(i + moving));
       setMoving(null);
+      setInstant(true);
     }, SLIDE_MS);
     return () => window.clearTimeout(t);
   }, [moving, at]);
+
+  /* 제자리로 돌린 그림이 한 번 그려진 뒤(두 장면) 다시 움직일 수 있게 */
+  useEffect(() => {
+    if (!instant) return;
+    let inner = 0;
+    const outer = requestAnimationFrame(() => {
+      inner = requestAnimationFrame(() => setInstant(false));
+    });
+    return () => {
+      cancelAnimationFrame(outer);
+      cancelAnimationFrame(inner);
+    };
+  }, [instant]);
 
   /* 3초마다 다음 장 — 끌거나 커서를 얹거나 탭이 숨어 있으면 쉰다 */
   useEffect(() => {
@@ -171,7 +190,7 @@ export function FeedCard({ items }: { items: FeedItem[] }) {
   const trackStyle: CSSProperties = {
     transform: `translate3d(${offset},0,0)`,
     transition:
-      drag != null || reduce
+      drag != null || reduce || instant
         ? 'none'
         : `transform ${SLIDE_MS}ms cubic-bezier(0.32, 0.72, 0, 1)`,
   };
@@ -179,8 +198,12 @@ export function FeedCard({ items }: { items: FeedItem[] }) {
   return (
     <Card
       className="relative overflow-hidden p-0"
-      onMouseEnter={() => setPaused(true)}
-      onMouseLeave={() => setPaused(false)}
+      /*
+       * 커서를 얹은 동안만 쉰다 — 진짜 마우스만. 아이폰은 누를 때 mouseenter 를 흉내 내고 mouseleave 는 안 보내
+       * ‹ › 를 한 번 누르면 자동 넘김이 영영 멈췄다.
+       */
+      onPointerEnter={(e) => e.pointerType === 'mouse' && setPaused(true)}
+      onPointerLeave={(e) => e.pointerType === 'mouse' && setPaused(false)}
     >
       {/*
        * 위 줄 — 왼쪽 이름표(장마다 바뀜), 오른쪽 ‹ ›. 장이 하나면 단추를 안 낸다.
