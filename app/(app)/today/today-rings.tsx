@@ -170,13 +170,7 @@ export function RingsCard({
                 <span className="mt-2 text-[13px] font-semibold text-ink">
                   {it.label}
                 </span>
-                <span
-                  className={`mt-0.5 max-w-full truncate text-xs tabular-nums ${
-                    it.value >= 1 ? 'font-semibold text-sky' : 'text-muted'
-                  }`}
-                >
-                  {it.caption}
-                </span>
+                {/* 링 밑 작은 글(컨디션 7 · 40구 · 3/5 · 균형 80)은 뺐다(2026-10-13 김민 "완료 표시 밑 한 줄 다 없애") — 화면 읽기 글(aria-label)에만 남김 */}
               </>
             );
             const cls =
