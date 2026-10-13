@@ -80,6 +80,16 @@ import {
   pickCheckinBody,
   pickCheckinDetail,
   sleepLevelFromHours,
+  CONDITION_BANDS,
+  PAIN_FORCED_CONDITION,
+  SHORT_SLEEP_QUALITY,
+  SLEEP_QUALITY_LEVELS,
+  armFatigueFromPain,
+  conditionBand,
+  signalsOf,
+  sleepLevelFromQuality,
+  sleepQualityOf,
+  sleepQualityWord,
   nextOutingWindow as checkinNextOutingWindow,
   saysNoOuting,
   todayOutingRole,
@@ -32081,6 +32091,105 @@ console.log(
       [...wrong, ...badLines].join(' / ')
     );
   }
+}
+
+/* ═══════════════════ [체크인 3판] 신호 셋(lib/checkin.ts signalsOf · sleepQualityOf · armFatigueFromPain) (2026-10-13) ═══════════════════ */
+console.log(
+  '\n[체크인 3판] 신호 셋 — 컨디션 띠 · 수면의 질(옛 칸 어림 · 짧은 밤) · 통증(팔 피로 어림) · 강제 통증 문턱(2026-10-13)'
+);
+{
+  check(
+    '3판 (띠) 1~3 아파요 · 4~7 보통이에요 · 8~10 좋아요 — 띠 셋이 1~10 을 빈틈없이 나눈다',
+    CONDITION_BANDS.length === 3 &&
+      [1, 2, 3].every((n) => conditionBand(n) === 'sick') &&
+      [4, 5, 6, 7].every((n) => conditionBand(n) === 'normal') &&
+      [8, 9, 10].every((n) => conditionBand(n) === 'good') &&
+      PAIN_FORCED_CONDITION === 3 &&
+      LOW_CONDITION_THRESHOLD === 4
+  );
+  check(
+    '3판 (수면) sleepQuality 가 있으면 그것, 없으면 옛 칸 어림 — 6시간 미만 2 · 부족 2 · 보통 3 · 충분 4 · 아무것도 없으면 null · 범위 밖은 어림으로',
+    sleepQualityOf({ sleepQuality: 5, sleep: '부족' }) === 5 &&
+      sleepQualityOf({ sleep: '보통', sleepHours: 5.5 }) === 2 &&
+      sleepQualityOf({ sleep: '부족' }) === 2 &&
+      sleepQualityOf({ sleep: '보통' }) === 3 &&
+      sleepQualityOf({ sleep: '충분' }) === 4 &&
+      sleepQualityOf({ sleep: null }) === null &&
+      sleepQualityOf({ sleepQuality: 9, sleep: '충분' }) === 4
+  );
+  check(
+    '3판 (짧은 밤) isShortSleep 은 수면의 질 2 이하 — 옛 기록(부족 · 6시간 미만)도 같은 답, 말은 다섯',
+    SHORT_SLEEP_QUALITY === 2 &&
+      SLEEP_QUALITY_LEVELS.length === 5 &&
+      isShortSleep({ sleepQuality: 2, sleep: '충분' }) &&
+      !isShortSleep({ sleepQuality: 3, sleep: '부족' }) &&
+      isShortSleep({ sleep: '부족' }) &&
+      isShortSleep({ sleep: '보통', sleepHours: 5 }) &&
+      !isShortSleep({ sleep: '보통' }) &&
+      sleepQualityWord(1) === '거의 못 잠' &&
+      sleepQualityWord(5) === '푹 잠' &&
+      sleepQualityWord(6) === null &&
+      sleepLevelFromQuality(2) === '부족' &&
+      sleepLevelFromQuality(3) === '보통' &&
+      sleepLevelFromQuality(4) === '충분'
+  );
+  check(
+    '3판 (팔 피로 어림) 어깨 · 팔꿈치 통증 + 정도 2 이상이면 심함(5), 던질 때만(1)이면 3, 정도 모르면 심함, 통증이 아니면 null',
+    armFatigueFromPain({ shoulder: '통증', armPainLevel: 2 }) === SEVERE_ARM_FATIGUE &&
+      armFatigueFromPain({ elbow: '통증', armPainLevel: 3 }) === SEVERE_ARM_FATIGUE &&
+      armFatigueFromPain({ shoulder: '통증', armPainLevel: 1 }) === 3 &&
+      armFatigueFromPain({ shoulder: '통증', armPainLevel: null }) ===
+        SEVERE_ARM_FATIGUE &&
+      armFatigueFromPain({ shoulder: '뻐근', elbow: '정상', armPainLevel: 3 }) ===
+        null &&
+      armFatigueFromPain({ wrist: '통증' } as never) === null
+  );
+  const s = signalsOf(
+    {
+      condition: 3,
+      sleepQuality: 2,
+      shoulder: '통증',
+      elbow: '정상',
+      wrist: '뻐근',
+      lowerBack: '정상',
+      lowerBody: '정상',
+      armPainSpots: ['shoulder-back'],
+      armPainLevel: 2,
+    },
+    7
+  );
+  const t = signalsOf(
+    {
+      condition: 5,
+      sleep: '충분',
+      shoulder: '정상',
+      elbow: '정상',
+      wrist: '정상',
+      lowerBack: '정상',
+      lowerBody: '정상',
+    },
+    7.5
+  );
+  check(
+    '3판 (signalsOf) 컨디션 3 → 아파요 · 낮음(평소보다 낮음은 바닥 위에서만) · 잠 2 → 짧은 밤 · 어깨 통증 → 팔 자리 · 정도 · 뻐근은 stiff',
+    s.condition.band === 'sick' &&
+      s.condition.low &&
+      !s.condition.belowUsual &&
+      s.sleep.quality === 2 &&
+      s.sleep.short &&
+      s.pain.any &&
+      s.pain.parts.join() === 'shoulder' &&
+      s.pain.stiff.join() === 'wrist' &&
+      s.pain.arm?.level === 2 &&
+      s.pain.arm.spots.join() === 'shoulder-back' &&
+      t.condition.band === 'normal' &&
+      !t.condition.low &&
+      t.condition.belowUsual &&
+      t.sleep.quality === 4 &&
+      !t.sleep.short &&
+      !t.pain.any &&
+      t.pain.arm === null
+  );
 }
 
 console.log(`\n${passed}개 통과, ${failed}개 실패`);

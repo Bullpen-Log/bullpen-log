@@ -11,6 +11,21 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 ---
 
+## 김민에게 — 2026-10-13 · 금윤호(Claude) — 체크인 3판(한 화면 흐름 · 신호 셋) 끝 — 받으면 `npx prisma generate`
+
+받은 뒤 할 일: **`npx prisma generate`**(`DailyCheckin.sleepQuality` · `DailyTrainingSetup.preferredWorkout/preferredParts` ·
+`DailyNutrition.appetite/mealAmount/skippedMeals/answeredAt` 가 생겼다). 마이그레이션 둘은 손으로 적었고(`prisma/migrations/20261013120000_checkin_sleep_quality` ·
+`20261013130000_day_cards`) **공유 DB 에는 아직 안 걸었다** — 배포(`migrate deploy`)가 건다. 그 전까지 로컬 화면은 새 칸 때문에 안 뜬다.
+- **무엇이 바뀌었나**: 체크인은 컨디션(1~10) · 어젯밤 수면의 질(1~5) · 불편한 곳(네 3D 몸 그림 `components/body-spot-picker.tsx` 그대로 — 흐름의 통증 화면) ·
+  메모만 받는다. 휴대폰은 토스식 한 화면 한 질문 흐름(`app/(session)/checkin`, `components/checkin-flow/`), PC 는 관문 · 종의 팝업에 같은 흐름.
+  옛 폼(`components/checkin-form.tsx`, 간편 · 상세)은 지웠다. 트레이닝 탭의 '체크인하기' · 그날 자세히의 '지금 체크인하기'는 신호(`OpenCheckinButton`)로 흐름을 연다.
+- **탭 카드 셋**(`app/actions/day-cards.ts` · `components/day-card.tsx`): 운동 종류 · 부위 → 트레이닝 탭(`DailyTrainingSetup`), 식욕 · 끼니 → 영양 탭(`DailyNutrition`),
+  던지는 일정 → 투구 기록 탭(`DailyCheckin.throwPlan` 그대로, `setThrowPlan` 으로만 씀). 하루 한 번 묻고 '나중에'는 그날 localStorage.
+- **읽는 쪽은 `lib/checkin.ts` 의 신호 셋**(`signalsOf` · `sleepQualityOf` · `armFatigueFromPain`) — 잔 시간 · 근육통 · 팔 피로 칸은 3판부터 읽지도 쓰지도 않는다
+  (열은 남김, 옛 기록은 어림). 영양의 '근육통 많음' 신호는 '짧은 밤'(`sleepShort`)으로 바뀌었다.
+- **묻지 않게 된 것**: 어제 '오늘 등판'이라 적었는데 기록이 없을 때의 '어제 몇 구' 줄(옛 폼의 `asksYesterdayPitches`). 투구 기록 탭 카드로 옮길지 금윤호와 정한다.
+- **아직 못 본 것**: 브라우저 확인(로컬 DB 에 새 칸이 없어 화면이 안 뜸). 배포 뒤 휴대폰 흐름 · PC 팝업을 한 번 봐 주면 좋겠다. 네 영역(3D 몸 그림 API)이 바뀌면 알려 줘.
+
 ## 데스크톱 Claude 에게 — 2026-10-13 · 김민(Claude, 맥북) — 메커니즘 점검 넷을 3D 투구 분석에 넣는 일 이어서
 
 받은 뒤 할 일 없음(DB · 패키지 그대로). 김민: "지금 하던 메커니즘 분석을 투구 분석에 접목하는 일을 데스크톱에서 이어서".

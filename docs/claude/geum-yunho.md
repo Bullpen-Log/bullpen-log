@@ -1381,4 +1381,9 @@
      쓰려면 SKILL.md 를 직접 읽는다. `/setup-matt-pocock-skills` 는 같이 쓰는 `CLAUDE.md` 를 고치므로 올릴 때
      `HANDOFF.md` 로 김민에게 알린다. GitHub 이슈 방식은 `gh` 가 필요하다(데스크톱엔 없다).
 
+- **체크인 3판(2026-10-13)** — 체크인은 신호 셋(컨디션 1~10 · 수면의 질 1~5 · 불편한 곳) + 메모만. 휴대폰은 전체 화면 흐름 `app/(session)/checkin`,
+  PC 는 관문 · 종의 팝업에 같은 흐름(`components/checkin-flow/`). 운동 종류 · 부위 → 트레이닝 탭 카드, 식욕 · 끼니 → 영양 탭 카드, 던지는 일정 →
+  투구 기록 탭 카드(`app/actions/day-cards.ts` · `components/day-card.tsx`). 읽는 쪽은 `lib/checkin.ts` 의 `signalsOf` · `sleepQualityOf` ·
+  `armFatigueFromPain`(잔 시간 · 근육통 · 팔 피로 칸은 3판부터 안 씀, 열은 남김). 마이그레이션 둘(`20261013120000` · `20261013130000`)은
+  배포가 건다. 옛 파서(`parseCheckinBody` 등)는 옛 기록 · 자가 시험용으로 남겼다.
 - **예상 시간은 Claude 기준(2026-10-09 사용자 규칙).** 계획표 시간은 Claude 가 실제로 걸릴 시간으로 적는다(사람 개발자 기준 금지). 사용자가 할 일은 따로 "사용자 몫"으로.
