@@ -17,7 +17,7 @@ export default async function LabSamplePage({
   const user = await requireAdmin();
   const { id } = await params;
   if (!isLabId(id)) notFound();
-  const sample = await loadLabSample(user.id, id);
+  const sample = await loadLabSample(id, user.id);
   if (!sample) notFound();
   return <LabDetail sample={sample} v2Enabled={isPitch3dV2Configured()} />;
 }
