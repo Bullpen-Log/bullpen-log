@@ -93,7 +93,7 @@ import {
   placeLabels,
   projectToScreen,
 } from '../lib/pitch-3d/v2/mannequin-pause.ts';
-import { KIN_LIMITS, KIN_SPEED, kinematicTrack, twoBoneIk } from '../lib/pitch-3d/v2/kinematics.ts';
+import { KIN_LIMITS, KIN_SPEED, kinematicTrack, kneeTowardToes, twoBoneIk } from '../lib/pitch-3d/v2/kinematics.ts';
 import { moundHeightAt } from '../lib/pitch-3d/v2/pose-rig.ts';
 import { AI_SPINE_DEV_DEG, RULE_TWIST, TRUNK_LEVELS, readAiTrunk, trunkTrack } from '../lib/pitch-3d/v2/trunk.ts';
 import { mechChecks } from '../lib/pitch-3d/v2/mech-checks.ts';
@@ -1287,6 +1287,37 @@ console.log('■ 마운드 · 보기용 다듬기 · 관절 각도 틀(kinematic
           let worst = 0;
           for (let k = 0; k < n; k++) worst = Math.max(worst, norm(sub(F[k][V2J.rWr], Wfix)));
           check('각도 모델: 지어낸 팔꿈치가 미끄러져도 가만한 손목은 제자리(2cm 안)', worst <= 0.02, `${(worst * 100).toFixed(1)}cm`);
+        }
+
+        /*
+         * 4-10 무릎은 발끝 쪽으로 — 25° 굽은 무릎이 발끝 반대쪽(150°)이면 발끝 ±60° 안으로, 뼈 길이 그대로. 무릎이 뒤(180°)를 지나 반대편으로 가도
+         * 한 장면에 튀지 않는다(한계로 자르기만 하면 +60 ↔ −60°). 많이 굽힌 무릎(다리 들기 100°)은 그대로(2026-10-13 기아 샘플 · 샘플 10)
+         */
+        {
+          const hip: Vec3 = [0, 0.9, 0];
+          const ankle: Vec3 = [0, 0.05, 0];
+          const toe: Vec3 = [1, 0, 0];
+          const kneeAt = (thDeg: number, bendDeg: number): Vec3 => {
+            const h = 0.45 * Math.sin((bendDeg * Math.PI) / 360);
+            const t = (thDeg * Math.PI) / 180;
+            return [h * Math.cos(t), 0.475, h * Math.sin(t)];
+          };
+          const sideOf = (k: Vec3) => (Math.atan2(k[2], k[0]) * 180) / Math.PI;
+          const k1 = kneeTowardToes(hip, kneeAt(150, 25), ankle, toe);
+          const lenOk = Math.abs(norm(sub(k1, hip)) - norm(sub(kneeAt(150, 25), hip))) < 1e-9;
+          let jump = 0;
+          let prev: Vec3 | null = null;
+          for (let th = 120; th <= 240; th += 2) {
+            const k = kneeTowardToes(hip, kneeAt(th, 25), ankle, toe);
+            if (prev) jump = Math.max(jump, norm(sub(k, prev)));
+            prev = k;
+          }
+          const lifted = kneeTowardToes(hip, kneeAt(180, 100), ankle, toe);
+          check(
+            '각도 모델: 무릎은 발끝 ±60° 안 · 뒤를 지나도 안 튐 · 다리 들기는 그대로',
+            Math.abs(sideOf(k1)) <= 60.01 && lenOk && jump < 0.01 && norm(sub(lifted, kneeAt(180, 100))) < 1e-9,
+            `${sideOf(k1).toFixed(0)}° · 한 장면 최대 ${(jump * 100).toFixed(2)}cm`
+          );
         }
 
         /* 5 거의 편 팔꿈치가 장면마다 반대로 꺾여도 굽는 축(위팔 비틀림)이 뒤집히지 않는다 · 과신전 5° 안 */

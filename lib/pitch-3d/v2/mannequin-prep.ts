@@ -28,6 +28,8 @@ export type MannequinJoints = {
    * 점으로 두어 좌투 거울 뜨기(canonicalFrames)가 다른 관절과 똑같이 뒤집는다. 없으면 몸통이 예전처럼 곧은 한 덩어리.
    */
   t1?: Vec3; t1s?: Vec3; t2?: Vec3; t2s?: Vec3; t3?: Vec3; t3s?: Vec3;
+  /** 손 검지 · 새끼 밑(던지는 손 hi · hp, 글러브 손 gi · gp) — 손 옆 방향(손바닥 폭)을 이것으로. 없으면 손 방향 × 위팔 */
+  hi?: Vec3; hp?: Vec3; gi?: Vec3; gp?: Vec3;
 };
 
 export type MannequinTrack = {
@@ -129,6 +131,7 @@ export function mannequinTrack(
       rhe: g('rHe', 'lHe'), rto: g('rTo', 'lTo'), lhe: g('lHe', 'rHe'), lto: g('lTo', 'rTo'),
       sh: g('rSh', 'lSh'), gs: g('lSh', 'rSh'), el: g('rEl', 'lEl'), ge: g('lEl', 'rEl'), wr: g('rWr', 'lWr'), gw: g('lWr', 'rWr'),
       ha: g('rHandMid', 'lHandMid'), gh: g('lHandMid', 'rHandMid'),
+      hi: g('rHandIdx', 'lHandIdx'), hp: g('rHandPinky', 'lHandPinky'), gi: g('lHandIdx', 'rHandIdx'), gp: g('lHandPinky', 'rHandPinky'),
       td: lerp(hip, shm, 0.55),
       nose: at(f, IX('nose')), ear: mid(at(f, IX('lEar')), at(f, IX('rEar'))),
       ...trunkFields(TR[k]),

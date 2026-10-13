@@ -1,5 +1,5 @@
 {
- "savedAt": "2026-10-13T12:30:11.246Z",
+ "savedAt": "2026-10-13T13:39:41.120Z",
  "samples": {
   "6814c10f": {
    "prep": {
@@ -55,7 +55,7 @@
     "amp": []
    },
    "lift": {
-    "max": 0.6,
+    "max": 0.64,
     "med": 0.17,
     "amp": []
    },
@@ -111,7 +111,7 @@
     ]
    },
    "lift": {
-    "max": 1.36,
+    "max": 1.26,
     "med": 0.38,
     "amp": [
      "lAn",
@@ -198,6 +198,152 @@
     "max": 2.76,
     "med": 0.33,
     "amp": []
+   }
+  }
+ },
+ "odd": {
+  "6814c10f": {
+   "disp": {
+    "pop": 0,
+    "speed": 0,
+    "knee": 0,
+    "sep": 7
+   },
+   "raw": {
+    "pop": 0,
+    "speed": 10,
+    "knee": 5,
+    "sep": 0
+   },
+   "man": {
+    "pop": 0,
+    "speed": 0
+   }
+  },
+  "c4d81c82": {
+   "disp": {
+    "pop": 0,
+    "speed": 8,
+    "knee": 0,
+    "sep": 0
+   },
+   "raw": {
+    "pop": 0,
+    "speed": 10,
+    "knee": 0,
+    "sep": 0
+   },
+   "man": {
+    "pop": 0,
+    "speed": 0
+   }
+  },
+  "f0464e1f": {
+   "disp": {
+    "pop": 0,
+    "speed": 3,
+    "knee": 0,
+    "sep": 0
+   },
+   "raw": {
+    "pop": 0,
+    "speed": 5,
+    "knee": 0,
+    "sep": 0
+   },
+   "man": {
+    "pop": 0,
+    "speed": 11
+   }
+  },
+  "s1": {
+   "disp": {
+    "pop": 0,
+    "speed": 0,
+    "knee": 0,
+    "sep": 0
+   },
+   "raw": {
+    "pop": 0,
+    "speed": 0,
+    "knee": 0,
+    "sep": 7
+   },
+   "man": {
+    "pop": 0,
+    "speed": 2
+   }
+  },
+  "s10": {
+   "disp": {
+    "pop": 0,
+    "speed": 0,
+    "knee": 0,
+    "sep": 0
+   },
+   "raw": {
+    "pop": 1,
+    "speed": 1,
+    "knee": 0,
+    "sep": 0
+   },
+   "man": {
+    "pop": 0,
+    "speed": 0
+   }
+  },
+  "s2": {
+   "disp": {
+    "pop": 0,
+    "speed": 0,
+    "knee": 0,
+    "sep": 0
+   },
+   "raw": {
+    "pop": 0,
+    "speed": 6,
+    "knee": 0,
+    "sep": 0
+   },
+   "man": {
+    "pop": 0,
+    "speed": 0
+   }
+  },
+  "s3": {
+   "disp": {
+    "pop": 0,
+    "speed": 0,
+    "knee": 0,
+    "sep": 0
+   },
+   "raw": {
+    "pop": 2,
+    "speed": 9,
+    "knee": 1,
+    "sep": 0
+   },
+   "man": {
+    "pop": 0,
+    "speed": 0
+   }
+  },
+  "s9": {
+   "disp": {
+    "pop": 0,
+    "speed": 0,
+    "knee": 0,
+    "sep": 0
+   },
+   "raw": {
+    "pop": 0,
+    "speed": 2,
+    "knee": 0,
+    "sep": 0
+   },
+   "man": {
+    "pop": 0,
+    "speed": 0
    }
   }
  }

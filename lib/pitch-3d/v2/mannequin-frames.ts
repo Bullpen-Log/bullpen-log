@@ -248,10 +248,15 @@ function footPose(
   return { heel, toe, n, ankle: [an0[0], an0[1], an0[2] + lift], lift };
 }
 
-/** 손 틀 — hd 손목 → 손, side = hd × (팔꿈치 − 어깨) 엄지 쪽, nrm 손바닥 쪽 */
-function handFrame(s: Vec3, e: Vec3, w: Vec3, h: Vec3, k: number): HandFrame {
+/**
+ * 손 틀 — hd 손목 → 손, side 엄지 쪽(검지 − 새끼 밑, 손 방향에 수직), nrm 손바닥 쪽. 검지 · 새끼 점이 없거나 손 방향과 겹치면 hd × (팔꿈치 − 어깨).
+ * 예전엔 늘 hd × 위팔이라 팔을 쭉 펴 손과 위팔이 나란해지면 옆 방향이 정해지지 않아 손이 한 장면에 90~150° 휙 돌았고(2026-10-13 실험실 샘플
+ * 글러브 손 · 던지는 손), 엄지 쪽도 아니었다(던지는 손 장면의 절반이 반대).
+ */
+function handFrame(s: Vec3, e: Vec3, w: Vec3, h: Vec3, k: number, idx?: Vec3, pk?: Vec3): HandFrame {
   const hd = normalize(sub(h, w));
-  const side = normalize(cross(hd, sub(e, s)));
+  const width = idx && pk ? sub(sub(idx, pk), scale(hd, dot(sub(idx, pk), hd))) : null;
+  const side = width && Math.hypot(...width) > 0.3 * Math.hypot(...sub(idx!, pk!)) ? normalize(width) : normalize(cross(hd, sub(e, s)));
   const nrm = normalize(cross(side, hd));
   return { hd, side, nrm, q: basis(side, hd, nrm), hc: add(w, scale(hd, 0.045 * k)) };
 }
@@ -274,11 +279,19 @@ export function mannequinFrames(frames: MannequinJoints[], heightM: number): Man
     const { pelvis, chest } = trunkFrames(J);
     let up: Vec3 = [0, 0, 0];
     let fw: Vec3 = [0, 0, 0];
+    let ws = 0;
+    /*
+     * 앞 방향은 단위 벡터의 가중 평균 — 길이가 0.5 밑이면(앞뒤가 엇갈림) 가슴 앞으로. 예전엔 코 − 귀(10cm 남짓)를 그대로 더해 길이가 창 크기를
+     * 따라가, 영상 첫머리(창이 잘림)에서 가슴 앞 → 머리 앞으로 한 장면에 34~54° 넘어갔다(2026-10-13 마커 15구 · 실험실 샘플 첫 장면).
+     */
     for (let j = Math.max(0, i - W); j <= Math.min(n - 1, i + W); j++) {
       const q = 1 - Math.abs(j - i) / (W + 1);
       up = add(up, scale(raw[j][0], q));
-      fw = add(fw, scale(raw[j][1], q));
+      const len = Math.hypot(...raw[j][1]);
+      if (len > 1e-9) fw = add(fw, scale(raw[j][1], q / len));
+      ws += q;
     }
+    fw = scale(fw, 1 / ws);
     const neck = neckOf(J, chest, k);
     return {
       pelvis,
@@ -286,8 +299,8 @@ export function mannequinFrames(frames: MannequinJoints[], heightM: number): Man
       head: headFrame(J, chest, k, up, fw, neck),
       rear: footPose(frames, i, true, k),
       lead: footPose(frames, i, false, k),
-      throwing: handFrame(J.sh, J.el, J.wr, J.ha, k),
-      glove: handFrame(J.gs, J.ge, J.gw, J.gh, k),
+      throwing: handFrame(J.sh, J.el, J.wr, J.ha, k, J.hi, J.hp),
+      glove: handFrame(J.gs, J.ge, J.gw, J.gh, k, J.gi, J.gp),
     };
   });
 }
