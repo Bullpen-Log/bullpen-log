@@ -27,7 +27,8 @@ export type CheckinSignals = {
   nutrition: string | null;
   skippedMeals: string[];
   appetite: number | null;
-  soreness: number | null;
+  /** 짧은 밤(lib/checkin.ts isShortSleep — 3판 수면의 질 2 이하). 근육통 칸은 3판에서 빼서 잠이 그 자리를 맡는다 */
+  sleepShort: boolean;
   throwPlan: string | null;
 };
 
@@ -91,7 +92,7 @@ export function assembleAdviceInput(a: AssembleArgs): AdviceInput {
     checkin = {
       meals: { amount: body.nutrition, skipped: body.skippedMeals as MealKey[] },
       appetite: a.checkinToday.appetite,
-      soreness: a.checkinToday.soreness,
+      sleepShort: a.checkinToday.sleepShort,
     };
   }
   return {

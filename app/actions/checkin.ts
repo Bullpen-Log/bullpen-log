@@ -7,11 +7,13 @@ import { getCurrentUser } from '@/lib/dal';
 import { toDateKey } from '@/lib/pitch-stats';
 import {
   CHECKIN_PARTS,
+  SLEEP_QUALITY_LEVELS,
   parseArmPain,
   parseCheckinBody,
   parseCheckinDetail,
   pickCheckinParts,
   pickWorkoutKind,
+  sleepLevelFromQuality,
   validateCheckin,
   validateCheckinDate,
 } from '@/lib/checkin';
@@ -92,10 +94,28 @@ async function trySaveCheckin(formData: FormData): Promise<CheckinState> {
    * 간편 체크인이 받는 것 — 몸 상태·컨디션·수면(잔 느낌). 늘 저장한다.
    * 같은 자리의 선택 칸인 근육통 · 잔 시간은 바로 밑(body)에서 따로 다룬다.
    */
+  /*
+   * 수면의 질 1~5(체크인 3판, 2026-10-13) — 화면이 보내면 저장하고, 비울 수 없는 옛 느낌 칸(sleep)은 거기서 맞춘다
+   * (sleepLevelFromQuality). 옛 화면은 이 칸이 없어 예전처럼 sleep 만 쓴다. 범위 밖은 화면으로는 못 만든다 — 막는다.
+   */
+  const sleepQualityRaw = String(formData.get('sleepQuality') ?? '').trim();
+  const sleepQuality = sleepQualityRaw === '' ? null : Number(sleepQualityRaw);
+  if (
+    sleepQuality != null &&
+    !(
+      Number.isInteger(sleepQuality) &&
+      sleepQuality >= 1 &&
+      sleepQuality <= SLEEP_QUALITY_LEVELS.length
+    )
+  ) {
+    return { error: '수면의 질을 골라주세요.' };
+  }
   const quick = {
     ...pickCheckinParts(checked.value),
     condition: checked.value.condition,
-    sleep: checked.value.sleep,
+    sleep:
+      sleepQuality != null ? sleepLevelFromQuality(sleepQuality) : checked.value.sleep,
+    ...(sleepQuality != null ? { sleepQuality } : {}),
   };
 
   /*
@@ -117,7 +137,8 @@ async function trySaveCheckin(formData: FormData): Promise<CheckinState> {
     formData.get('body') === '1'
       ? {
           ...parseCheckinBody(bodyGet, (name) => formData.getAll(name).map(String)),
-          armFatigue: 'error' in armFatigueParsed ? null : armFatigueParsed.value.armFatigue,
+          armFatigue:
+            'error' in armFatigueParsed ? null : armFatigueParsed.value.armFatigue,
         }
       : {};
 

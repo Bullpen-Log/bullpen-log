@@ -8,6 +8,7 @@ import {
   armFatigueWord,
   formatSleepHours,
   isShortSleep,
+  sleepQualityWord,
   sorenessWord,
   type CheckinPartKey,
   type OutingWindow,
@@ -497,15 +498,21 @@ export function selectCandidates<T extends ExerciseLike>({
    * 잔 시간도 안 적었고 느낌이 충분 · 보통이면 글을 안 붙인다 — 두 칸이 생기기 전과 같은 근거다.
    */
   const sleepHours = today?.sleepHours;
+  /* 3판(2026-10-13)부터는 수면의 질 1~5 — 적은 날은 그 말을 근거에 남긴다(짧은 밤이 아니어도) */
+  const sleepQuality = sleepQualityWord(today?.sleepQuality);
   if (today && isShortSleep(today)) {
     basis.push(
       sleepHours != null && sleepHours < SHORT_SLEEP_HOURS
         ? `어젯밤 ${formatSleepHours(sleepHours)} 수면 → 매우 높은 강도 제외`
-        : `오늘 수면 '부족' → 매우 높은 강도 제외`
+        : sleepQuality
+          ? `어젯밤 수면 '${sleepQuality}' → 매우 높은 강도 제외`
+          : `오늘 수면 '부족' → 매우 높은 강도 제외`
     );
     capTo('수면 부족', INTENSITY_CAP.STRENGTH);
   } else if (sleepHours != null) {
     basis.push(`어젯밤 ${formatSleepHours(sleepHours)} 수면 → 제한 없음`);
+  } else if (sleepQuality) {
+    basis.push(`어젯밤 수면 '${sleepQuality}' → 제한 없음`);
   }
 
   /*

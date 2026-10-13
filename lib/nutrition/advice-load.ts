@@ -1,6 +1,7 @@
 import 'server-only';
 import { cache } from 'react';
 import { prisma } from '@/lib/prisma';
+import { isShortSleep } from '@/lib/checkin';
 import { loadDayDetailCached, type DayDetailUser } from '@/lib/day-detail';
 import { shiftDateKey } from '@/lib/pitch-stats';
 import { dbDate, keyOfDbDate } from '@/lib/nutrition/days';
@@ -31,7 +32,9 @@ export const loadAdvice = cache(
           nutrition: true,
           skippedMeals: true,
           appetite: true,
-          soreness: true,
+          sleep: true,
+          sleepHours: true,
+          sleepQuality: true,
           throwPlan: true,
         },
       }),
@@ -57,7 +60,7 @@ export const loadAdvice = cache(
               nutrition: todayRow.nutrition,
               skippedMeals: todayRow.skippedMeals,
               appetite: todayRow.appetite,
-              soreness: todayRow.soreness,
+              sleepShort: isShortSleep(todayRow),
               throwPlan: todayRow.throwPlan,
             }
           : null,

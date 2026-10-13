@@ -18,7 +18,7 @@ import {
   type MemoNote,
 } from '@/lib/report/facts';
 import { buildPitchPlan } from '@/lib/report/plan';
-import { pickArmPain, pickCheckinParts } from '@/lib/checkin';
+import { armFatigueFromPain, pickArmPain, pickCheckinParts } from '@/lib/checkin';
 import { buildDayState } from '@/lib/engine/day-state';
 import { RECENT_DAYS } from '@/lib/report/today-pick';
 import { shiftDateKey, toDateKey } from '@/lib/pitch-stats';
@@ -155,6 +155,8 @@ export async function gatherFactsAndPlan(
       ...pickCheckinParts(c),
       condition: c.condition,
       sleep: c.sleep,
+      // 수면의 질(3판) — 짧은 밤은 이것이 정한다. 옛 기록은 null 이라 sleep · sleepHours 로 어림한다(lib/checkin.ts sleepQualityOf)
+      sleepQuality: c.sleepQuality,
       preferredParts: c.preferredParts,
       preferredWorkout: c.preferredWorkout,
       // 잔 시간 · 근육통 — 안 적은 날은 null 이고, 그러면 추천이 아무것도 바꾸지 않는다
@@ -162,8 +164,9 @@ export async function gatherFactsAndPlan(
       soreness: c.soreness,
       // 던지는 일정 — 매일 운동 계획이 '오늘 등판 · 내일 등판'을 읽는다(theme.ts 의 plannedOuting)
       throwPlan: c.throwPlan,
-      // 팔 피로 — 안전 거르기(prescription.ts 5-2)가 '심함'을 읽고, 오늘 상태 한 장 · 암케어 · 일정 지문도 이 칸을 본다(2판 P4)
-      armFatigue: c.armFatigue,
+      // 팔 피로 — 안전 거르기(prescription.ts 5-2)가 '심함'을 읽고, 오늘 상태 한 장 · 암케어 · 일정 지문도 이 칸을 본다(2판 P4).
+      // 3판부터는 묻지 않아 어깨 · 팔꿈치 통증의 정도에서 어림한다(armFatigueFromPain) — 옛 기록은 적은 값 그대로
+      armFatigue: armFatigueFromPain(c) ?? c.armFatigue,
     })),
     memos: usedLogs
       .filter((l) => l.memo?.trim())

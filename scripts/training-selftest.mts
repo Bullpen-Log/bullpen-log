@@ -14541,9 +14541,9 @@ console.log(
    * 오늘 상태 한 장 extras 로는 안 넘긴다(장이 facts 에서 읽는다 — 두 곳이면 안전 거르기와 장이 다른 값을 볼 수 있다).
    */
   check(
-    '검토 (배선) gather.ts 가 체감 강도(effortPct)와 팔 피로를 facts 로 넘긴다(팔 피로는 extras 로 따로 안 넘김) — 빠지면 % 기록이 반올림된 1~10 으로 읽히고 팔 피로 안전 규칙이 안 걸린다(선택 칸이라 tsc 가 못 잡음)',
+    '검토 (배선) gather.ts 가 체감 강도(effortPct)와 팔 피로를 facts 로 넘긴다(팔 피로는 extras 로 따로 안 넘김 · 3판부터 통증 정도에서 어림한 값을 앞에 둔다) — 빠지면 % 기록이 반올림된 1~10 으로 읽히고 팔 피로 안전 규칙이 안 걸린다(선택 칸이라 tsc 가 못 잡음)',
     /effortPct: l\.effortPct/.test(gatherSrc) &&
-      /armFatigue: c\.armFatigue/.test(gatherSrc) &&
+      /armFatigue: armFatigueFromPain(c) ?? c.armFatigue/.test(gatherSrc) &&
       !/armFatigue: todayCheckin/.test(gatherSrc)
   );
   /*

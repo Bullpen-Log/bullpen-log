@@ -11,6 +11,7 @@ import {
   formatSleepHours,
   mealSummary,
   pickCheckinParts,
+  sleepQualityWord,
   sorenessWord,
 } from '@/lib/checkin';
 import { dbDate } from '@/lib/nutrition/days';
@@ -115,7 +116,10 @@ export async function loadDayDetail(
       prisma.dailyCheckin.findUnique({
         where: { userId_date: { userId: user.id, date: day } },
       }),
-      prisma.trainingSession.findMany({ where, select: { id: true, activeSeconds: true } }),
+      prisma.trainingSession.findMany({
+        where,
+        select: { id: true, activeSeconds: true },
+      }),
       prisma.pitchLog.findMany({
         where,
         select: { sessionType: true, pitchCount: true, intensity: true },
@@ -182,6 +186,9 @@ export async function loadDayDetail(
      * 잔 시간 · 근육통을 맨 앞에 둔다 — 간편 쪽에서 적는 칸이고 트레이닝 추천이 읽는 값이라,
      * 그날 운동이 왜 가벼웠는지 돌아볼 때 먼저 찾는다. 안 적은 날은 줄을 만들지 않는다.
      */
+    /* 3판(2026-10-13)부터는 수면의 질 1~5 — 잔 시간 · 근육통은 옛 기록에만 있다 */
+    const sleepQuality = sleepQualityWord(checkin.sleepQuality);
+    if (sleepQuality) details.push({ label: '수면', value: sleepQuality });
     if (checkin.sleepHours != null)
       details.push({ label: '잔 시간', value: formatSleepHours(checkin.sleepHours) });
     const soreness = sorenessWord(checkin.soreness);

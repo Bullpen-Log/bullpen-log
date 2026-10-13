@@ -297,14 +297,26 @@ console.log('\n■ 운동으로 쓴 칼로리');
   check('트레이닝 45분·80kg = 252kcal', tr?.kcal === 252, `${tr?.kcal}`);
   check('1분이 안 되면 없음', trainingBurn(20, 80) === null);
   /* 운동마다의 강도 · 세트로(2026-10-12) — 스트레칭만 한 45분은 힘든 웨이트 45분보다 훨씬 적다 */
-  const stretch = trainingBurn(45 * 60, 80, [{ category: '모빌리티', intensity: '매우 낮음', sets: 6 }]);
-  const heavy = trainingBurn(45 * 60, 80, [{ category: '하체 스트렝스', intensity: '매우 높음', sets: 6 }]);
-  check('스트레칭 45분 < 웨이트 45분', (stretch?.kcal ?? 0) < (heavy?.kcal ?? 0), `${stretch?.kcal} · ${heavy?.kcal}`);
+  const stretch = trainingBurn(45 * 60, 80, [
+    { category: '모빌리티', intensity: '매우 낮음', sets: 6 },
+  ]);
+  const heavy = trainingBurn(45 * 60, 80, [
+    { category: '하체 스트렝스', intensity: '매우 높음', sets: 6 },
+  ]);
+  check(
+    '스트레칭 45분 < 웨이트 45분',
+    (stretch?.kcal ?? 0) < (heavy?.kcal ?? 0),
+    `${stretch?.kcal} · ${heavy?.kcal}`
+  );
   const half = trainingBurn(45 * 60, 80, [
     { category: '모빌리티', intensity: '매우 낮음', sets: 3 },
     { category: '하체 스트렝스', intensity: '매우 높음', sets: 3 },
   ]);
-  check('섞으면 그 사이(세트 몫)', Math.abs((half?.kcal ?? 0) - ((stretch?.kcal ?? 0) + (heavy?.kcal ?? 0)) / 2) <= 1, `${half?.kcal}`);
+  check(
+    '섞으면 그 사이(세트 몫)',
+    Math.abs((half?.kcal ?? 0) - ((stretch?.kcal ?? 0) + (heavy?.kcal ?? 0)) / 2) <= 1,
+    `${half?.kcal}`
+  );
   check('세트가 없으면 예전 값', trainingBurn(45 * 60, 80, [])?.kcal === 252);
   check('휴식은 0', pitchingBurn('휴식', 0, 0, 80) === null);
   const bp = pitchingBurn('불펜', 40, 7, 80);
@@ -2656,7 +2668,7 @@ console.log('\n■ 식단 짜기');
     hot: false,
     throwKind: null,
     appetite: null,
-    soreness: null,
+    sleepShort: false,
     eaten: [],
   };
 
@@ -2709,7 +2721,7 @@ console.log('\n■ 식단 짜기');
       hot: i % 6 === 0,
       throwKind: kinds[i % 4],
       appetite: i % 7 === 0 ? 1 : null,
-      soreness: i % 9 === 0 ? 5 : null,
+      sleepShort: i % 9 === 0,
     };
     const r = buildMealPlan(input);
     const m = planMacros(r.items);
@@ -3153,7 +3165,7 @@ console.log('\n■ 식단 짜기');
             hot: i % 5 === 0,
             throwKind: kinds[i % 4],
             appetite: lowAppetite ? 1 : null,
-            soreness: i % 11 === 0 ? 5 : null,
+            sleepShort: i % 11 === 0,
           });
           const label = `${avoid.join('+') || '없음'}/${mealPattern}/${dietStyle}/${band}`;
           const m = planMacros(r.items);
@@ -3415,7 +3427,7 @@ console.log('\n■ 식단 짜기');
             throwKind,
             hot: (ai + di + bi) % 3 === 0,
             appetite,
-            soreness: (ai + bi) % 5 === 0 ? 5 : null,
+            sleepShort: (ai + bi) % 5 === 0,
             eaten: [
               ...(ate >= 1
                 ? [
@@ -3648,14 +3660,14 @@ console.log('\n■ 식단 짜기');
       !snackKept.reasons.some((l) => l.includes('간식은 빼고')),
     snackKept.reasons.join(' / ')
   );
-  /* 더운 날 줄은 국 · 과일이 실제로 남았을 때만 — 입맛 1 · 근육통 5 · 더운 날은 곁들이가 kcal 줄이기로 다 빠지는 입력 */
+  /* 더운 날 줄은 국 · 과일이 실제로 남았을 때만 — 입맛 1 · 짧은 밤 · 더운 날은 곁들이가 kcal 줄이기로 다 빠지는 입력 */
   const hotDay = buildMealPlan({
     ...lowKorean,
     date: '2026-11-01',
     seed: 'g0',
     hot: true,
     appetite: 1,
-    soreness: 5,
+    sleepShort: true,
   });
   const heatKept = hotDay.meals.some((x) => {
     const tpl = MEAL_TEMPLATES.find((t) => t.key === x.template);
@@ -3773,7 +3785,7 @@ console.log('\n■ 식단 짜기');
         place: 'out',
         throwKind: 'after',
         appetite: 1,
-        soreness: 5,
+        sleepShort: true,
         eaten: [{ meal: 'breakfast', kcal: 375, protein: 24 }],
       },
     ],
@@ -3793,7 +3805,7 @@ console.log('\n■ 식단 짜기');
         place: 'out',
         throwKind: 'after',
         appetite: 1,
-        soreness: 5,
+        sleepShort: true,
       },
     ],
     [
@@ -3841,7 +3853,7 @@ console.log('\n■ 식단 짜기');
     place: 'out',
     throwKind: 'today',
     appetite: 1,
-    soreness: 5,
+    sleepShort: true,
   };
   const skew = buildMealPlan(skewIn);
   const skewQ = ratiosOf(skewIn, skew);
@@ -3987,7 +3999,7 @@ console.log('\n■ 식단 짜기');
       place: 'out',
       throwKind: 'eve',
       appetite: 3,
-      soreness: 5,
+      sleepShort: true,
       eaten: [
         { meal: 'breakfast', kcal: 997, protein: 43 },
         { meal: 'lunch', kcal: 918, protein: 39 },
@@ -4009,7 +4021,7 @@ console.log('\n■ 식단 짜기');
       },
       place: 'gym',
       throwKind: 'eve',
-      soreness: 1,
+      sleepShort: false,
       eaten: [
         { meal: 'breakfast', kcal: 1563, protein: 36 },
         { meal: 'lunch', kcal: 1030, protein: 24 },
@@ -4121,7 +4133,7 @@ console.log('\n■ 식단 짜기');
     `${plp}g · ${proteinLine.reasons.filter((l) => l.startsWith('단백질')).join(' / ')}`
   );
 
-  /* 끼니 제목 — 입맛 1 · 근육통 5 · 더운 날(g0)은 kcal 을 줄이다 미역국 · 수박이 빠지는 입력 */
+  /* 끼니 제목 — 입맛 1 · 짧은 밤 · 더운 날(g0)은 kcal 을 줄이다 미역국 · 수박이 빠지는 입력 */
   check(
     '끼니 제목은 실제로 담은 음식으로(g0 — 뺀 미역국을 적지 않는다)',
     hotDay.meals.every((x) =>
@@ -5086,7 +5098,7 @@ console.log(
       nutrition: '부족',
       skippedMeals: ['breakfast'],
       appetite: 2,
-      soreness: 4,
+      sleepShort: true,
       throwPlan: '오늘 불펜',
     },
     throwPlanYesterday: null,
@@ -5103,11 +5115,11 @@ console.log(
       input.target.protein === 150
   );
   check(
-    '체크인 식사 칸 · 식욕 · 근육통이 간다',
+    '체크인 식사 칸 · 식욕 · 짧은 밤이 간다',
     input.checkin?.meals.amount === '부족' &&
       input.checkin.meals.skipped.join() === 'breakfast' &&
       input.checkin.appetite === 2 &&
-      input.checkin.soreness === 4
+      input.checkin.sleepShort === true
   );
   check(
     '오늘 불펜이면 던지는 날(today), 지난 날은 null · 어제 "내일 등판"이면 체크인 없이도 오늘 등판',

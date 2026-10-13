@@ -1,6 +1,7 @@
 import 'server-only';
 import { appNow } from '@/lib/clock';
 import { prisma } from '@/lib/prisma';
+import { isShortSleep } from '@/lib/checkin';
 import { sessionBurnMixes } from '@/lib/nutrition/burn-load';
 import { shiftDateKey, toDateKey } from '@/lib/pitch-stats';
 import { NUTRITION_BACK_DAYS, dbDate, keyOfDbDate } from '@/lib/nutrition/days';
@@ -114,7 +115,8 @@ export type NutritionDay = {
   planSignals: {
     throwKind: ThrowKind;
     appetite: number | null;
-    soreness: number | null;
+    /** 짧은 밤(lib/checkin.ts isShortSleep — 3판 수면의 질 2 이하) */
+    sleepShort: boolean;
   } | null;
   /** 전날 먹은 것 — '어제와 같이' 담기에 쓴다 */
   yesterday: MealEntryView[];
@@ -347,7 +349,14 @@ export async function loadNutritionDay(
             userId,
             date: { gte: dbDate(shiftDateKey(date, -1)), lte: dbDate(date) },
           },
-          select: { date: true, throwPlan: true, appetite: true, soreness: true },
+          select: {
+            date: true,
+            throwPlan: true,
+            appetite: true,
+            sleep: true,
+            sleepHours: true,
+            sleepQuality: true,
+          },
         })
       : [],
     prisma.mealPlan.findUnique({
@@ -392,7 +401,10 @@ export async function loadNutritionDay(
   /* 운동마다의 강도 · 세트로 셈한다(lib/nutrition/burn.ts trainingBurn) */
   const mixes = await sessionBurnMixes(sessions.map((s) => s.id));
   for (const s of sessions)
-    pushBurn(keyOfDbDate(s.date), trainingBurn(s.activeSeconds, burnKg, mixes.get(s.id)));
+    pushBurn(
+      keyOfDbDate(s.date),
+      trainingBurn(s.activeSeconds, burnKg, mixes.get(s.id))
+    );
   for (const p of pitches) {
     pushBurn(
       keyOfDbDate(p.date),
@@ -596,7 +608,7 @@ export async function loadNutritionDay(
       ? {
           throwKind: guide?.kind ?? null,
           appetite: planOf(date)?.appetite ?? null,
-          soreness: planOf(date)?.soreness ?? null,
+          sleepShort: planOf(date) != null && isShortSleep(planOf(date)!),
         }
       : null,
   };

@@ -274,10 +274,18 @@ export function sleepLevelFromHours(hours: number): (typeof SLEEP_LEVELS)[number
  * 둘 중 하나면 된다(시간은 '부족'을 더할 수만 있고 뺄 수는 없다). 시간을 안 적은 날은 느낌만 본다.
  * '최근 7일 중 잠이 부족한 날'(facts.condition.poorSleepDays)과 오늘의 판정이 이 함수 하나를 쓴다.
  */
-export function isShortSleep(c: { sleep: string; sleepHours?: number | null }) {
-  return (
-    c.sleep === '부족' || (c.sleepHours != null && c.sleepHours < SHORT_SLEEP_HOURS)
-  );
+/**
+ * 짧은 밤 — 3판(2026-10-13)부터 수면의 질(sleepQuality ≤ SHORT_SLEEP_QUALITY)이 정한다. 옛 기록은 느낌 '부족' · 6시간 미만을
+ * 같은 눈금으로 어림한다(sleepQualityOf). 안 적은 날은 짧은 밤이 아니다. 매일 일정(prescription.ts 4-2) · 자동 맞춤 · 영양 ·
+ * 지문이 모두 이 한 함수를 본다.
+ */
+export function isShortSleep(c: {
+  sleep?: string | null;
+  sleepHours?: number | null;
+  sleepQuality?: number | null;
+}) {
+  const q = sleepQualityOf(c);
+  return q != null && q <= SHORT_SLEEP_QUALITY;
 }
 
 /** '6.5시간' — '6시간 30분'으로 풀어 적지 않는다(화면 · 기록 어디서나 같은 모양) */
@@ -876,5 +884,158 @@ export function pickCheckinDetail(row: Partial<CheckinDetail>): CheckinDetail {
     bodyWeightKg: row.bodyWeightKg ?? null,
     appetite: row.appetite ?? null,
     note: row.note ?? null,
+  };
+}
+
+/* ─────────────────────── 체크인 3판 — 신호 셋(컨디션 · 수면 · 통증), 2026-10-13 ─────────────────────── */
+
+/*
+ * 사용자(2026-10-13): "체크인에서는 전신 컨디션 · 수면의 질 · 팔의 통증만 적게 하고, 모든 탭이 그 셋만 보고 계산하게".
+ * 3판 체크인은 컨디션(1~10) · 수면의 질(1~5) · 불편한 곳(몸 그림 · 팔 통증 자리 · 정도) · 메모만 받는다. 읽는 쪽은 아래
+ * signalsOf 가 만든 신호 셋을 본다(오늘 상태 한 장 lib/engine/day-state.ts 가 이것으로 몸 · 팔 칸을 채운다).
+ *
+ * 옛 칸(sleep 느낌 · sleepHours · soreness · armFatigue)은 DB 와 얼린 facts 에 남아 있다 — 3판은 읽지도 쓰지도 않지만, 옛 기록 ·
+ * 자가 시험이 손으로 만든 체크인에서는 신호를 그 칸으로 어림한다(sleepQualityOf · armFatigueFromPain). 새 기록이 쌓이면 옛 길은
+ * 저절로 안 쓰인다.
+ */
+
+/** 수면의 질 1~5 — 클수록 잘 잤다. 화면의 말이기도 하다 */
+export const SLEEP_QUALITY_LEVELS = [
+  '거의 못 잠',
+  '뒤척임',
+  '보통',
+  '잘 잠',
+  '푹 잠',
+] as const;
+/** 이 값 이하면 '짧은 밤' — 매일 일정이 가장 센 운동을 빼고, 영양이 회복 끼니를 권한다(옛 isShortSleep 과 같은 몫) */
+export const SHORT_SLEEP_QUALITY = 2;
+
+/** 수면의 질 숫자 → 말. 범위 밖이면 null */
+export function sleepQualityWord(n: number | null | undefined): string | null {
+  return n != null && Number.isInteger(n)
+    ? (SLEEP_QUALITY_LEVELS[n - 1] ?? null)
+    : null;
+}
+
+/**
+ * 어젯밤 수면의 질(1~5) — 3판 칸(sleepQuality)이 있으면 그것, 없으면 옛 칸으로 어림: 잔 시간 6시간 미만이면 2, 느낌 '부족' 2 ·
+ * '충분' 4 · '보통' 3. 아무것도 없으면 null(안 적음).
+ */
+export function sleepQualityOf(c: {
+  sleepQuality?: number | null;
+  sleep?: string | null;
+  sleepHours?: number | null;
+}): number | null {
+  const q = c.sleepQuality;
+  if (q != null && Number.isInteger(q) && q >= 1 && q <= SLEEP_QUALITY_LEVELS.length)
+    return q;
+  if (c.sleepHours != null && c.sleepHours < SHORT_SLEEP_HOURS) return 2;
+  if (c.sleep === '부족') return 2;
+  if (c.sleep === '충분') return 4;
+  if (c.sleep === '보통') return 3;
+  return null;
+}
+
+/** 3판 화면이 보낸 수면의 질 → 옛 느낌 칸(DB 의 sleep 은 비울 수 없는 열) */
+export function sleepLevelFromQuality(q: number): (typeof SLEEP_LEVELS)[number] {
+  if (q <= SHORT_SLEEP_QUALITY) return '부족';
+  return q >= 4 ? '충분' : '보통';
+}
+
+/** 컨디션 1~10 의 세 띠 — 화면의 그림(아픔 · 보통 · 건강)과 말. 문턱(LOW_CONDITION_THRESHOLD)은 그대로 */
+export const CONDITION_BANDS = [
+  { key: 'sick', label: '아파요', min: 1, max: 3 },
+  { key: 'normal', label: '보통이에요', min: 4, max: 7 },
+  { key: 'good', label: '좋아요', min: 8, max: 10 },
+] as const;
+export type ConditionBand = (typeof CONDITION_BANDS)[number]['key'];
+/** 이 점수 이하면 화면이 '불편한 곳' 확인을 켜 둔다(사용자 결정 — 3점 이하는 고정, 통증 화면에서 건너뛸 수 있다) */
+export const PAIN_FORCED_CONDITION = 3;
+
+export function conditionBand(score: number): ConditionBand {
+  return (
+    CONDITION_BANDS.find((b) => score >= b.min && score <= b.max) ?? CONDITION_BANDS[1]
+  ).key;
+}
+
+/**
+ * 팔 통증 정도(1 던질 때만 · 2 평소에도 · 3 가만히도) → 옛 팔 피로 눈금(1~5). 3판은 팔 피로를 묻지 않는다 —
+ * 안전 거르기(prescription.ts 5-2, '심함' = 5) · 암케어 회복(HIGH 4) · 운동 점수(score.ts)가 옛 눈금을 읽으므로 여기서 맞춘다:
+ * 평소에도 · 가만히도 아프면 '심함'(5), 던질 때만이면 '보통'(3 — 문턱 밑), 통증이 없으면 null.
+ */
+export function armFatigueFromPain(c: {
+  armPainLevel?: number | null;
+  shoulder?: string | null;
+  elbow?: string | null;
+}): number | null {
+  const joint = c.shoulder === '통증' || c.elbow === '통증';
+  if (!joint) return null;
+  const level = c.armPainLevel ?? null;
+  if (level == null) return SEVERE_ARM_FATIGUE;
+  return level >= 2 ? SEVERE_ARM_FATIGUE : 3;
+}
+
+export type CheckinSignals = {
+  condition: {
+    score: number;
+    band: ConditionBand;
+    /** LOW_CONDITION_THRESHOLD 이하 */
+    low: boolean;
+    /** 평소(28일 중앙값)보다 2점 넘게 낮다 — 평소를 모르면 false */
+    belowUsual: boolean;
+  };
+  sleep: {
+    /** 1~5, 안 적었으면 null */
+    quality: number | null;
+    /** SHORT_SLEEP_QUALITY 이하 */
+    short: boolean;
+  };
+  pain: {
+    /** 오늘 '통증'인 부위 */
+    parts: CheckinPartKey[];
+    /** 오늘 '뻐근'인 부위 */
+    stiff: CheckinPartKey[];
+    /** 어깨 · 팔꿈치가 통증일 때 자리 · 정도, 아니면 null */
+    arm: { spots: string[]; level: number | null } | null;
+    /** 통증 부위가 하나라도 있다 */
+    any: boolean;
+  };
+};
+
+/** 체크인 한 건 → 신호 셋. usualCondition 은 오늘을 뺀 28일 중앙값(모르면 null) */
+export function signalsOf(
+  c: Partial<CheckinParts> & {
+    condition: number;
+    sleepQuality?: number | null;
+    sleep?: string | null;
+    sleepHours?: number | null;
+    armPainSpots?: readonly string[] | null;
+    armPainLevel?: number | null;
+  },
+  usualCondition: number | null = null
+): CheckinSignals {
+  const parts = CHECKIN_PARTS.filter((p) => c[p.key] === '통증').map((p) => p.key);
+  const stiff = CHECKIN_PARTS.filter((p) => c[p.key] === '뻐근').map((p) => p.key);
+  const joint = c.shoulder === '통증' || c.elbow === '통증';
+  const quality = sleepQualityOf(c);
+  return {
+    condition: {
+      score: c.condition,
+      band: conditionBand(c.condition),
+      low: c.condition <= LOW_CONDITION_THRESHOLD,
+      belowUsual:
+        usualCondition != null &&
+        c.condition > LOW_CONDITION_THRESHOLD &&
+        c.condition <= usualCondition - 2,
+    },
+    sleep: { quality, short: quality != null && quality <= SHORT_SLEEP_QUALITY },
+    pain: {
+      parts,
+      stiff,
+      arm: joint
+        ? { spots: [...(c.armPainSpots ?? [])], level: c.armPainLevel ?? null }
+        : null,
+      any: parts.length > 0,
+    },
   };
 }

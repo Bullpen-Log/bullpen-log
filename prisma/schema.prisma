@@ -385,13 +385,13 @@ model DailyCheckin {
   /// 1~5 척도는 모두 '클수록 그 느낌이 강하다'로 읽는다(피로 5 = 몹시 피곤).
   /// 기분만 반대로 클수록 좋다 — 화면에 말로 적어 두어 헷갈리지 않게 한다.
 
-  /// 잔 시간(시간). 0.5 단위.
+  /// 잔 시간(시간). 0.5 단위. 3판(2026-10-13)부터 안 씀 — sleepQuality 로
   sleepHours   Float?
-  /// 전신 피로 1~5
+  /// 전신 피로 1~5 — 3판부터 안 씀(읽지도 쓰지도 않음)
   fatigue      Int?
-  /// 전신 근육통 1~5
+  /// 전신 근육통 1~5 — 3판부터 안 씀(통증 · 수면 신호로 대신)
   soreness     Int?
-  /// 던지는 팔의 피로 1~5 — 투수에게 따로 떼어 볼 만한 값이다
+  /// 던지는 팔의 피로 1~5 — 3판부터 묻지 않음(팔 통증 정도에서 어림, lib/checkin.ts armFatigueFromPain)
   armFatigue   Int?
   /// 스트레스 1~5
   stress       Int?
@@ -424,6 +424,8 @@ model DailyCheckin {
   armPainLevel Int?
   /// 불편한 근육(2026-10-12 몸 그림): { "R:deltFront": "뻐근" | "통증" } — lib/body-spots.ts. 부위 칸(shoulder …)은 여기서 가장 센 값
   bodySpots    Json?
+  /// 어젯밤 수면의 질 1~5(체크인 3판, 2026-10-13 — lib/checkin.ts SLEEP_QUALITY_LEVELS). 3판부터 sleep · sleepHours 대신 이것. 옛 기록은 null(읽을 때 어림)
+  sleepQuality Int?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
