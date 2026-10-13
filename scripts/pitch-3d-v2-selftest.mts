@@ -72,7 +72,7 @@ import {
   writeTorso,
   writeTube,
 } from '../lib/pitch-3d/v2/mannequin-loft.ts';
-import { LIGHT_RIG, TORSO, curve, moundShade, toDisplay, valueNoise2 } from '../lib/pitch-3d/v2/mannequin-profiles.ts';
+import { LIGHT_RIG, TORSO, TORSO_KEYS, curve, moundShade, toDisplay, torsoN, valueNoise2 } from '../lib/pitch-3d/v2/mannequin-profiles.ts';
 import {
   BONE_SIZES,
   anaMaterials,
@@ -82,11 +82,9 @@ import {
   boneEnds,
   boneSpec,
   BONE_TABLE,
-  SKELETON,
-  modelToLocal,
-  placeLocal,
-  skeletonPlaces,
-  trunkBlend,
+  fitSkeleton,
+  prepareSkeleton,
+  skeletonT,
   placeLabels,
   projectToScreen,
 } from '../lib/pitch-3d/v2/mannequin-pause.ts';
@@ -2127,18 +2125,33 @@ console.log('■ 데생 인형 멈춤(mannequin-pause) — 뼈 · 호 관 · 부
       '뼈 명세: 관절 12 · 뼈 12 · 목뼈 구슬 3 · 머리, 모두 유한',
       bs.joints.length === 12 && bs.bones.length === BONE_TABLE.length && BONE_TABLE.length === 12 && bs.beads.length === 3 && nums.every(Number.isFinite)
     );
-    /* 몸통 · 골반 실제 뼈대 자리 — 모델의 엉덩이 · 어깨 기준점이 우리 관절에 닿고, 허리 아래는 골반 틀 · 갈비 위는 가슴 틀 */
+    /* 몸통 · 골반 실제 뼈대 — 높이 → 고리 t 이음점, 인형보다 큰 뼈도 인형 단면 안에, 오른쪽 뼈는 오른 엉덩이 쪽 */
     {
-      const P = skeletonPlaces(J, F[i], k);
-      const hipR = placeLocal(P.pelvis, modelToLocal([-SKELETON.hipWidth / 2, SKELETON.hipMid[1], SKELETON.hipMid[2]], SKELETON.hipMid));
-      const shR = placeLocal(P.chest, modelToLocal([-SKELETON.shoulderWidth / 2, SKELETON.shoulderMid[1], SKELETON.shoulderMid[2]], SKELETON.shoulderMid));
-      const dHip = norm(sub(hipR, J.rh));
-      const dSh = norm(sub(shR, J.sh));
-      const right = dot(sub(J.rh, J.lh), P.pelvis.xa) > 0;
+      const pts: number[] = [];
+      for (let y = 0.8; y <= 1.46; y += 0.02)
+        for (let a = 0; a < 16; a++) pts.push(0.3 * Math.cos((a / 16) * Math.PI * 2), y, 0.02 + 0.2 * Math.sin((a / 16) * Math.PI * 2));
+      const pos = Float32Array.from(pts);
+      const prep = prepareSkeleton(pos, new Float32Array(pos.length));
+      const out = new Float32Array(pos.length);
+      fitSkeleton(prep, T, k, norm(sub(J.rh, J.lh)) / 2, norm(sub(J.sh, J.gs)) / 2, out, new Float32Array(pos.length));
+      let worst = 0;
+      let rightOk = true;
+      for (let v = 0; v < pos.length / 3; v++) {
+        const t = prep.t[v];
+        if (prep.dy[v] !== 0) continue;
+        const R = T.ring(t);
+        const q = sub([out[v * 3], out[v * 3 + 1], out[v * 3 + 2]], R.c);
+        const x = dot(q, R.X);
+        const yv = dot(q, R.Fw);
+        const n = torsoN(t);
+        worst = Math.max(worst, ((Math.abs(x) / T.width(t)) ** n + (Math.abs(yv) / (yv > 0 ? T.front(t) : T.back(t))) ** n) ** (1 / n));
+        if (pos[v * 3] < -0.2 && dot(q, sub(J.rh, J.lh)) <= 0) rightOk = false;
+      }
+      const keys = skeletonT(0.9).t === TORSO_KEYS[1] && skeletonT(1.37).t === TORSO_KEYS[5] && skeletonT(0.7).t === 0 && skeletonT(0.7).dy < 0 && skeletonT(1.6).dy > 0;
       check(
-        '실제 뼈대: 오른 엉덩이 · 오른 어깨 기준점이 관절에 닿음(폭 0.7~1.4배 안) · 오른쪽이 틀의 +x · 허리 0 · 갈비 1',
-        dHip < 0.02 * k && dSh < 0.03 * k && right && trunkBlend(0.95) === 0 && trunkBlend(1.25) === 1 && trunkBlend(1.1) > 0.4 && trunkBlend(1.1) < 0.6,
-        `엉덩이 ${dHip.toFixed(4)} · 어깨 ${dSh.toFixed(4)}`
+        '실제 뼈대: 엉덩이 · 어깨 높이가 고리 이음점에 · 인형보다 큰 뼈도 단면 안(같은 높이 고리 기준) · 오른쪽 뼈는 오른 엉덩이 쪽',
+        keys && worst <= 1.02 && rightOk && [...out].every(Number.isFinite),
+        `가장 바깥 ${worst.toFixed(3)}`
       );
     }
     let neckErr = 0;

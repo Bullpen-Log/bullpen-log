@@ -1,5 +1,5 @@
 import type * as Three from 'three';
-import { sub, type Vec3 } from '@/lib/pitch-3d/linalg';
+import { norm, sub, type Vec3 } from '@/lib/pitch-3d/linalg';
 import type { MannequinJoints } from '@/lib/pitch-3d/v2/mannequin-prep';
 import type { MannequinFrame, Quat } from '@/lib/pitch-3d/v2/mannequin-frames';
 import {
@@ -21,12 +21,9 @@ import {
   BONE_SIZES,
   BONE_TABLE,
   LINE_W,
-  SKELETON,
-  modelToLocal,
-  placeLocal,
-  skeletonPlaces,
-  trunkBlend,
-  type SkelPlace,
+  fitSkeleton,
+  prepareSkeleton,
+  type SkeletonPrep,
   anaMaterials,
   arcFrame,
   arcPolyline,
@@ -58,14 +55,10 @@ const TUBE_K = 6;
 
 /**
  * 몸통 · 골반의 실제 뼈대 조각(body-full.glb 뼈 메시 → skeleton-parts.json 의 pelvis · trunk) — 화면을 여러 번 열어도 한 번만 받는다.
- * 정점은 틀 안 좌표로 바꿔 둔다: 골반은 엉덩이 가운데 기준, 몸통은 엉덩이 · 어깨 가운데 기준 둘(높이로 섞는다).
+ * 두 조각을 펼친 삼각형 하나로 모아 인형 고리에 얹을 재료(prepareSkeleton)로 바꿔 둔다.
  */
-type SkeletonData = {
-  pelvis: { pos: Float32Array; nor: Float32Array };
-  trunk: { lp: Float32Array; lc: Float32Array; np: Float32Array; w: Float32Array };
-};
-let skeletonData: Promise<SkeletonData> | null = null;
-function loadSkeletonData(): Promise<SkeletonData> {
+let skeletonData: Promise<SkeletonPrep> | null = null;
+function loadSkeletonData(): Promise<SkeletonPrep> {
   if (!skeletonData) {
     skeletonData = (async () => {
       const [{ GLTFLoader }, raw] = await Promise.all([
@@ -86,33 +79,23 @@ function loadSkeletonData(): Promise<SkeletonData> {
       const nor = geo?.attributes.normal;
       if (!geo?.index || !pos || !nor || pos.count !== raw.vertexCount) throw new Error('뼈대 메시');
       const vp = Uint8Array.from(atob(raw.vertexPart), (c) => c.charCodeAt(0));
-      const want = [raw.parts.indexOf('pelvis'), raw.parts.indexOf('trunk')];
-      const tris: number[][] = [[], []];
+      const want = new Set([raw.parts.indexOf('pelvis'), raw.parts.indexOf('trunk')]);
+      const ids: number[] = [];
       const idx = geo.index;
       for (let t = 0; t < idx.count; t += 3) {
         const a = idx.getX(t);
         const b = idx.getX(t + 1);
         const c = idx.getX(t + 2);
         const part = vp[a] === vp[b] || vp[a] === vp[c] ? vp[a] : vp[b] === vp[c] ? vp[b] : vp[a];
-        const which = want.indexOf(part);
-        if (which >= 0) tris[which].push(a, b, c);
+        if (want.has(part)) ids.push(a, b, c);
       }
-      const m = (v: number): Vec3 => [pos.getX(v), pos.getY(v), pos.getZ(v)];
-      const nl = (v: number): Vec3 => modelToLocal([nor.getX(v), nor.getY(v), nor.getZ(v)], [0, 0, 0]);
-      const fill = (ids: number[], f: (v: number) => Vec3) => {
-        const out = new Float32Array(ids.length * 3);
-        ids.forEach((v, i) => out.set(f(v), i * 3));
-        return out;
-      };
-      return {
-        pelvis: { pos: fill(tris[0], (v) => modelToLocal(m(v), SKELETON.hipMid)), nor: fill(tris[0], nl) },
-        trunk: {
-          lp: fill(tris[1], (v) => modelToLocal(m(v), SKELETON.hipMid)),
-          lc: fill(tris[1], (v) => modelToLocal(m(v), SKELETON.shoulderMid)),
-          np: fill(tris[1], nl),
-          w: Float32Array.from(tris[1], (v) => trunkBlend(pos.getY(v))),
-        },
-      };
+      const P = new Float32Array(ids.length * 3);
+      const N = new Float32Array(ids.length * 3);
+      ids.forEach((v, i) => {
+        P.set([pos.getX(v), pos.getY(v), pos.getZ(v)], i * 3);
+        N.set([nor.getX(v), nor.getY(v), nor.getZ(v)], i * 3);
+      });
+      return prepareSkeleton(P, N);
     })();
     skeletonData.catch(() => {
       skeletonData = null;
@@ -181,61 +164,29 @@ export function createOverlay(THREE: ThreeNS, opts: { heightM: number; onReady?:
       bm.bone
     )
   );
-  /* 몸통 · 골반 실제 뼈대 — 받는 대로 붙인다(그 전엔 팔다리 · 목만) */
-  let skel: { pelvis: Three.Mesh; trunk: Three.Mesh; data: SkeletonData } | null = null;
-  let lastPlaces: { pelvis: SkelPlace; chest: SkelPlace } | null = null;
-  const placeSkeleton = (P: { pelvis: SkelPlace; chest: SkelPlace }) => {
+  /* 몸통 · 골반 실제 뼈대 — 받는 대로 붙인다(그 전엔 팔다리 · 목만). 장면마다 정점을 인형 몸통 고리에 얹는다(fitSkeleton) */
+  let skel: { mesh: Three.Mesh; prep: SkeletonPrep } | null = null;
+  let lastTorso: { T: ReturnType<typeof torsoModel>; hip: number; sh: number } | null = null;
+  const placeSkeleton = ({ T, hip, sh }: NonNullable<typeof lastTorso>) => {
     if (!skel) return;
-    const { pelvis, trunk, data } = skel;
-    const p = P.pelvis;
-    pelvis.matrix.makeBasis(
-      sV.set(...p.xa).multiplyScalar(p.s[0]).clone(),
-      sV.set(...p.ya).multiplyScalar(p.s[1]).clone(),
-      sV.set(...p.za).multiplyScalar(p.s[2]).clone()
-    );
-    pelvis.matrix.setPosition(...p.o);
-    pelvis.matrixWorldNeedsUpdate = true;
-    const tp = trunk.geometry.attributes.position as Three.BufferAttribute;
-    const tn = trunk.geometry.attributes.normal as Three.BufferAttribute;
-    const { lp, lc, np, w } = data.trunk;
-    const rot = (Q: SkelPlace, x: number, y: number, z: number): Vec3 => [
-      Q.xa[0] * x + Q.ya[0] * y + Q.za[0] * z,
-      Q.xa[1] * x + Q.ya[1] * y + Q.za[1] * z,
-      Q.xa[2] * x + Q.ya[2] * y + Q.za[2] * z,
-    ];
-    for (let i = 0; i < w.length; i++) {
-      const a = placeLocal(P.pelvis, [lp[i * 3], lp[i * 3 + 1], lp[i * 3 + 2]]);
-      const b = placeLocal(P.chest, [lc[i * 3], lc[i * 3 + 1], lc[i * 3 + 2]]);
-      const t = w[i];
-      tp.setXYZ(i, a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t);
-      const na = rot(P.pelvis, np[i * 3], np[i * 3 + 1], np[i * 3 + 2]);
-      const nb = rot(P.chest, np[i * 3], np[i * 3 + 1], np[i * 3 + 2]);
-      const nx = na[0] + (nb[0] - na[0]) * t;
-      const ny = na[1] + (nb[1] - na[1]) * t;
-      const nz = na[2] + (nb[2] - na[2]) * t;
-      const L = Math.hypot(nx, ny, nz) || 1;
-      tn.setXYZ(i, nx / L, ny / L, nz / L);
-    }
+    const g = skel.mesh.geometry;
+    const tp = g.attributes.position as Three.BufferAttribute;
+    const tn = g.attributes.normal as Three.BufferAttribute;
+    fitSkeleton(skel.prep, T, k, hip, sh, tp.array as Float32Array, tn.array as Float32Array);
     tp.needsUpdate = true;
     tn.needsUpdate = true;
-    trunk.geometry.computeBoundingSphere();
   };
   let disposed = false;
   loadSkeletonData()
-    .then((data) => {
+    .then((prep) => {
       if (disposed) return;
-      const g1 = keep(new THREE.BufferGeometry());
-      g1.setAttribute('position', new THREE.BufferAttribute(data.pelvis.pos, 3));
-      g1.setAttribute('normal', new THREE.BufferAttribute(data.pelvis.nor, 3));
-      const g2 = keep(new THREE.BufferGeometry());
-      g2.setAttribute('position', new THREE.BufferAttribute(new Float32Array(data.trunk.lp.length), 3));
-      g2.setAttribute('normal', new THREE.BufferAttribute(new Float32Array(data.trunk.np.length), 3));
-      const pelvis = mesh(bones, g1, bm.bone);
-      pelvis.matrixAutoUpdate = false;
-      const trunk = mesh(bones, g2, bm.bone);
-      trunk.frustumCulled = false;
-      skel = { pelvis, trunk, data };
-      if (lastPlaces) placeSkeleton(lastPlaces);
+      const g = keep(new THREE.BufferGeometry());
+      g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(prep.t.length * 3), 3).setUsage(THREE.DynamicDrawUsage));
+      g.setAttribute('normal', new THREE.BufferAttribute(new Float32Array(prep.t.length * 3), 3).setUsage(THREE.DynamicDrawUsage));
+      const m = mesh(bones, g, bm.bone);
+      m.frustumCulled = false;
+      skel = { mesh: m, prep };
+      if (lastTorso) placeSkeleton(lastTorso);
       opts.onReady?.();
     })
     .catch(() => {
@@ -299,8 +250,8 @@ export function createOverlay(THREE: ThreeNS, opts: { heightM: number; onReady?:
       boneMeshes[i].visible = len > 1e-4;
       placeLathe(boneMeshes[i], a2, b2);
     });
-    lastPlaces = skeletonPlaces(J, F, k);
-    placeSkeleton(lastPlaces);
+    lastTorso = { T, hip: norm(sub(J.rh, J.lh)) / 2, sh: norm(sub(J.sh, J.gs)) / 2 };
+    placeSkeleton(lastTorso);
     bs.beads.forEach((b, i) => placeEll(beads[i], b.p, 0.026 * k, 0.014 * k, 0.022 * k, b.q));
     placeEll(skull, bs.skull.p, 0.07 * k, 0.088 * k, 0.08 * k, bs.skull.q);
 
