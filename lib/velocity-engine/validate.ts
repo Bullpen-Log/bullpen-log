@@ -210,7 +210,8 @@ export type RejectCode =
   | 'IMPLAUSIBLE_SPEED'
   | 'LENS_UNKNOWN'
   | 'BRIGHT_BACKGROUND'
-  | 'MOTION_BLUR';
+  | 'MOTION_BLUR'
+  | 'LOW_CONFIDENCE';
 
 export type Rejection = {
   code: RejectCode;
@@ -283,6 +284,14 @@ const REJECTIONS: Record<RejectCode, Omit<Rejection, 'code'>> = {
   MOTION_BLUR: {
     message: '공이 번져 찍혀 이어서 잴 수 없었습니다.',
     fix: '한 장의 노출이 길어 날아가는 공이 번집니다(초당 30장 안팎인 카메라에서 흔해요). 더 밝은 곳에서 재면(노출이 짧아져요) 나아지고, 60fps 로 찍는 카메라 · 앱이면 가장 정확합니다.',
+  },
+  /*
+   * 값은 나왔지만 믿음이 '높음'이 아닌 공 — 측정 화면이 기록하지 않는다(2026-10-13 김민: "믿음 높은 것만 측정하고 제대로 인식하지 못한 것은
+   * 측정 불가"). 10-12 밖 22구에서 믿음 낮은 공 둘이 스피드건과 17 · 22km/h 갈렸다. fix 는 화면이 까닭에 맞춰 바꿔 쓴다.
+   */
+  LOW_CONFIDENCE: {
+    message: '정확하게 재지 못한 공이라 기록하지 않았어요.',
+    fix: '공이 날아가 닿는 곳까지 또렷하게 보이게 하고 다시 던져 주세요.',
   },
   BRIGHT_BACKGROUND: {
     message: '공이 흰 과녁 · 밝은 벽 앞을 지나가 공의 크기를 잴 수 없었습니다.',

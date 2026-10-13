@@ -83,6 +83,7 @@ import {
   type RecorderState,
 } from '@/lib/velocity-recorder';
 import { VELOCITY_ENGINE_VERSION } from '@/lib/velocity-engine/version';
+import { reject } from '@/lib/velocity-engine/validate';
 import { uploadClip } from '@/lib/velocity-clip-upload';
 import {
   VelocityTutorial,
@@ -381,6 +382,24 @@ function trailOf(result: ScreenResult): TrailPoint[] | null {
 }
 /** 카메라 실시간 결과에는 촬영 조건 알림(live)이 붙는다(lib/velocity-engine/live-meter.ts) — 영상 파일 결과에는 없다 */
 type ScreenResult = AnalyzeResult & { live?: LiveReport };
+
+/** 못 잰 공의 머리말 — 믿음이 모자라 버린 공은 '측정 불가' */
+function rejectTitle(r: ScreenResult): string {
+  if (!r.measure.ok && r.measure.code === 'LOW_CONFIDENCE') return '측정 불가';
+  return r.live?.ball?.strong ? '공은 봤는데 못 쟀어요' : '재지 않았어요';
+}
+
+/** 믿음이 모자란 까닭에 맞춘 다음 할 일 — 엔진이 남긴 거리 판단(analyze-distance.ts report)에서 읽는다 */
+function lowConfidenceFix(r: ScreenResult, source: 'camera' | 'file', approaching: boolean): string {
+  const d = 'distance' in r ? (r.distance as DistanceReport | undefined) : undefined;
+  if (approaching) return '포수 뒤에서는 정확하게 잴 수 없어요. 투수 뒤에 폰을 두고 재 주세요.';
+  if (d?.shaky) return '폰이 흔들렸어요. 삼각대에 단단히 고정하고 다시 던져 주세요.';
+  if ((d?.extended ?? 0) > 0 || d?.impact === 'end')
+    return '공이 끝에서 배경에 묻혀 닿는 곳을 또렷이 못 봤어요. 공 뒤에 어두운 배경이 오게 하고 다시 던져 주세요.';
+  if (source === 'file')
+    return '공이 잡힌 구간이 짧거나 흐려요. 60fps 이상, 공이 닿는 곳까지 찍힌 영상으로 다시 재 주세요.';
+  return '공이 잡힌 구간이 짧거나 흐렸어요. 초점과 밝기를 확인하고 다시 던져 주세요.';
+}
 
 /* 관리자 점프의 '예시 공' — 화면(세션 · 요약 · 이전 공)을 자료 없이도 확인할 수 있게 */
 const SAMPLE_PITCHES: { kmh: number; type: string; zone: number; result: string }[] = [
@@ -816,6 +835,22 @@ export function VelocityScreen({
       if (noise) return;
       setLast(result);
       speak('못 쟀어요');
+      return;
+    }
+    /*
+     * 믿음 '높음'이 아닌 공은 기록하지 않고 '측정 불가'로 알린다(2026-10-13 김민: "믿음 높은 것만 측정하고 제대로 인식하지 못한 것은
+     * 측정 불가 안내"). 10-12 밖 22구에서 믿음 낮은 공 둘이 스피드건과 17 · 22km/h 갈렸다 — 틀린 값을 보이느니 다시 던지게 한다.
+     */
+    if (result.measure.confidence !== 'high') {
+      setLast({
+        ...result,
+        measure: {
+          ok: false,
+          ...reject('LOW_CONFIDENCE'),
+          fix: lowConfidenceFix(result, source, approach === 'approaching'),
+        },
+      });
+      speak('측정 불가');
       return;
     }
     setLast(result);
@@ -2448,7 +2483,7 @@ export function VelocityScreen({
                   ) : last && !last.measure.ok ? (
                     <div className="py-3 motion-safe:animate-fade-in">
                       <p className="text-sm font-bold text-warn-line">
-                        {last.live?.ball?.strong ? '공은 봤는데 못 쟀어요' : '재지 않았어요'}
+                        {rejectTitle(last)}
                       </p>
                       <p className="mt-1 text-xs leading-relaxed text-white/90">
                         {last.measure.message}
@@ -2657,7 +2692,7 @@ export function VelocityScreen({
                     ) : (
                       <div className="motion-safe:animate-fade-in">
                         <p className="text-sm font-bold text-warn-line">
-                          {last.live?.ball?.strong ? '공은 봤는데 못 쟀어요' : '재지 않았어요'}
+                          {rejectTitle(last)}
                         </p>
                         <p className="mt-1 text-xs leading-relaxed text-white/90">
                           {last.measure.message}

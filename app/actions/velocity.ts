@@ -162,6 +162,8 @@ export async function loadCalibration(): Promise<{ fit: CalFit; pairs: CalPair[]
       manual: false,
       calibExclude: false,
       engineVersion: { startsWith: CALIBRATION_FAMILY },
+      /* 믿음 높은 공만 — 믿음 낮은 공의 짝이 보정식을 기울였다(2026-10-12, lib/velocity-calibration.ts fitCalibration) */
+      confidence: 'high',
     },
     orderBy: { createdAt: 'desc' },
     take: CAL_PAIR_LIMIT,
