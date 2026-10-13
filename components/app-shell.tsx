@@ -250,8 +250,6 @@ export function AppNav({
     pitchDays: string[];
     /** 종에서 여는 체크인 흐름(3판)의 둘레 — 관문과 같은 재료(components/checkin-flow/types.ts) */
     flow: CheckinFlowContext;
-    /** 만 나이 — 체크인 요약의 팔 통증 안내가 쓴다(만 15세 미만은 루틴 대신 진료). 모르면 null */
-    age: number | null;
     /** 투구 기록이 잠겨 있다(첫 설정 전, lib/feature-locks.ts) — 종의 투구 할 일이 설정으로 가는 단추가 된다 */
     pitchLocked: boolean;
   };

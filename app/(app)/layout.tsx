@@ -2,7 +2,7 @@ import { appNow, appNowMs } from '@/lib/clock';
 import { headers } from 'next/headers';
 import { requireUser } from '@/lib/dal';
 import { isNativeUserAgent } from '@/lib/app-env';
-import { ageFromBirthDate, isSex, toDateInputValue } from '@/lib/profile';
+import { isSex, toDateInputValue } from '@/lib/profile';
 import { toDateKey } from '@/lib/pitch-stats';
 import { createAvatarUrl } from '@/lib/storage';
 import {
@@ -162,8 +162,6 @@ export default async function AppLayout({
           checkinDays,
           pitchDays,
           flow,
-          /* 만 나이 — 체크인 요약의 팔 통증 안내가 쓴다(만 15세 미만은 루틴 대신 진료). 모르면 null */
-          age: user.birthDate ? ageFromBirthDate(user.birthDate) : null,
           /* 투구 기록이 잠겨 있으면 종의 '기록하기' 대신 첫 설정으로 가는 단추 하나(components/notice-bell.tsx) */
           pitchLocked: locks.pitch,
         }}

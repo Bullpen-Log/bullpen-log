@@ -70,6 +70,8 @@ export type DayDetail = {
   checkin: null | {
     condition: number;
     sleep: string;
+    /** 어젯밤 수면의 질 1~5(체크인 3판) — 옛 기록은 null(화면은 그때 느낌 칸 sleep 을 보인다) */
+    sleepQuality: number | null;
     /** 부위마다 — 정상 · 뻐근 · 통증 */
     parts: { label: string; value: string }[];
     /** 간편 · 상세에서 적은 것(적은 날만) — '잔 시간 6.5시간', '근육통 많이', '팔 피로 조금' */
@@ -235,6 +237,7 @@ export async function loadDayDetail(
     checkinOut = {
       condition: checkin.condition,
       sleep: checkin.sleep,
+      sleepQuality: checkin.sleepQuality ?? null,
       parts: CHECKIN_PARTS.map((p) => ({ label: p.label, value: parts[p.key] })),
       details,
       note: checkin.note?.trim() || null,

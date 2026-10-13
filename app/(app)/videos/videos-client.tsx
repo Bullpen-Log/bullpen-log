@@ -67,10 +67,13 @@ export function VideosClient({
   initialView,
   initialCompare = false,
   throwCard,
+  noteDays,
 }: {
   logs: VideoLog[];
   /** '오늘 던지는 일정' 카드의 재료(체크인 3판, throw-plan-card.tsx) */
   throwCard: ThrowCardData;
+  /** 체크인 메모를 남긴 날 — 캘린더 칸의 작은 쪽지 */
+  noteDays: string[];
   /** 날짜(YYYY-MM-DD)별로 고른 대표 영상. 안 고른 날은 없다. */
   featured: Record<string, string>;
   /** 처음에 펴 둘 달(YYYY-MM). 없으면 가장 최근 달 */
@@ -301,6 +304,7 @@ export function VideosClient({
             logs={logs}
             featured={featured}
             measured={measured}
+            noteDays={noteDays}
             initialMonth={initialMonth}
             initialDate={initialDate}
           />

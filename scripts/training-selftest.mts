@@ -19149,30 +19149,30 @@ console.log(
         ) &&
         /import \{ OutingLine \} from '@\/components\/outing-line';/.test(page)
     );
-    const form = strip('components/checkin-form.tsx');
+    /*
+     * 3판(2026-10-13) — 체크인 폼(components/checkin-form.tsx)은 없다. 한 화면 흐름(components/checkin-flow/flow.tsx)이 저장을 saveCheckin
+     * 한 번(orOffline)으로 하고, 어제 등판 · 몇 구 줄은 묻지 않는다(투구 기록 카드로 옮길지 미정). 관문 · 종 창 · 트레이닝 탭 단추는 모두
+     * 같은 흐름을 연다(PC 는 창 · 휴대폰은 app/(session)/checkin).
+     */
+    const flowSrc = strip('components/checkin-flow/flow.tsx');
     check(
-      "P4 화면 (사) 체크인 폼 — 물을지는 asksYesterdayPitches, 칸은 readYesterdayOuting, 남기기는 투구 기록 API 한 번(POST), 글자 '오늘 등판'을 직접 안 견줌",
-      /asksYesterdayPitches\(yesterdayPlan, pitchDays\.includes\(yesterdayKey\)\)/.test(
-        form
-      ) &&
-        /readYesterdayOuting\(\{/.test(form) &&
-        form.split("fetch('/api/pitch-log'").length === 2 &&
-        /method: 'POST'/.test(form) &&
-        /name="yesterdayPitches"/.test(form) &&
-        /<EffortChips/.test(form) &&
-        !/=== '오늘 등판'/.test(form) &&
-        !/prisma/.test(form)
+      '3판 흐름 — 저장은 saveCheckin 한 번(orOffline · flow=3), 투구 기록 API · prisma 를 부르지 않는다',
+      /saveCheckin\(undefined, fd\)/.test(flowSrc) &&
+        /fd\.set\('flow', '3'\)/.test(flowSrc) &&
+        /orOffline\(/.test(flowSrc) &&
+        !/fetch\('\/api\/pitch-log'/.test(flowSrc) &&
+        !/prisma/.test(flowSrc)
     );
     const gate = strip('components/checkin-gate.tsx');
     const shell = strip('components/app-shell.tsx');
     const layout = strip('app/(app)/layout.tsx');
     check(
-      'P4 화면 (사) 관문 · 종 창이 레이아웃의 같은 투구 날 목록을 넘긴다(조회는 안 늚) — 트레이닝 탭 창은 안 넘김(묻지 않음)',
-      /<CheckinForm[\s\S]{0,200}pitchDays=\{pitchDays\}/.test(gate) &&
-        /<CheckinForm[\s\S]{0,300}pitchDays=\{todo\.pitchDays\}/.test(shell) &&
-        /<CheckinGate[\s\S]{0,300}pitchDays=\{pitchDays\}/.test(layout) &&
-        /pitchDays,\n/.test(layout) &&
+      '3판 관문 · 종 창이 레이아웃의 같은 흐름 둘레(flow)를 넘긴다(조회는 안 늚) — 트레이닝 탭 단추는 신호만 보낸다',
+      /<CheckinFlow[\s\S]{0,200}ctx=\{flow\}/.test(gate) &&
+        /<CheckinFlow[\s\S]{0,200}ctx=\{todo\.flow\}/.test(shell) &&
+        /<CheckinGate checkedDays=\{checkinDays\} flow=\{flow\} \/>/.test(layout) &&
         layout.split('prisma.pitchLog.findMany(').length === 2 &&
+        /OpenCheckinButton/.test(strip('app/(app)/training/training-checkin.tsx')) &&
         !/pitchDays/.test(strip('app/(app)/training/training-checkin.tsx'))
     );
     check(
@@ -19972,14 +19972,7 @@ console.log(
         dayKindOf(after).rule !== 'claimedNoLog' &&
         !asksYesterdayPitches('오늘 등판', after.patterns.loggedYesterday === true)
     );
-    const form = strip('components/checkin-form.tsx');
-    check(
-      "검토 (사) 체크인 폼 — '안 던졌어요' 칸(yesterdayNoThrow)을 readYesterdayOuting 에 넘기고, 안내에 '비워 두세요'가 없다",
-      /name="yesterdayNoThrow"/.test(form) &&
-        /noThrow: formData\.get\('yesterdayNoThrow'\)/.test(form) &&
-        />\s*안 던졌어요\s*</.test(form) &&
-        !/비워 두세요/.test(form)
-    );
+    /* 3판(2026-10-13) — 체크인 폼은 없다. '안 던졌어요' 칸은 투구 기록 API(위)에만 남았다 */
   }
 }
 

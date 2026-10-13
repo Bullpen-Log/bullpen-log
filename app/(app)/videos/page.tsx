@@ -55,52 +55,59 @@ export default async function VideosPage({
    * 남겨도 천 줄 남짓이다.
    */
   const todayKey = toDateKey(now());
-  const [logs, featured, measured, checkinToday, calendarRows] = await Promise.all([
-    prisma.pitchLog.findMany({
-      where: { userId: user.id },
-      /*
-       * 오래된 순 — 비교 화면의 영상 고르개가 이 순서로 늘어놓는다. 같은 날은 남긴
-       * 차례로 — 대표를 안 고른 날은 그날 처음 올린 영상이 대표라, 홈 캘린더와 같은
-       * 차례여야 둘이 같은 영상을 가리킨다.
-       */
-      orderBy: [{ date: 'asc' }, { createdAt: 'asc' }],
-      select: {
-        id: true,
-        date: true,
-        sessionType: true,
-        pitchCount: true,
-        intensity: true,
-        /* 체감 강도(%) — 달력 · 목록이 % 로 보인다(옛 기록은 null 이라 intensity × 10) */
-        effortPct: true,
-        maxVelocity: true,
-        memo: true,
-        videoPaths: true,
-      },
-    }),
-    prisma.dailyFeaturedVideo.findMany({
-      where: { userId: user.id },
-      select: { date: true, videoPath: true },
-    }),
-    /* 카메라로 잰 날 — 그날 칸에 '측정 n구 · 최고' 한 줄 */
-    loadVelocityByDate(user.id),
-    /* '오늘 던지는 일정' 카드(체크인 3판) — 오늘 체크인 줄의 답과, 달력의 오늘 · 내일 등판(미리 골라 둔다) */
-    prisma.dailyCheckin.findUnique({
-      where: {
-        userId_date: { userId: user.id, date: new Date(`${todayKey}T00:00:00.000Z`) },
-      },
-      select: { throwPlan: true },
-    }),
-    prisma.calendarEvent.findMany({
-      where: {
-        userId: user.id,
-        date: {
-          gte: new Date(`${todayKey}T00:00:00.000Z`),
-          lte: new Date(`${shiftDateKey(todayKey, 1)}T00:00:00.000Z`),
+  const [logs, featured, measured, checkinToday, calendarRows, noteRows] =
+    await Promise.all([
+      prisma.pitchLog.findMany({
+        where: { userId: user.id },
+        /*
+         * 오래된 순 — 비교 화면의 영상 고르개가 이 순서로 늘어놓는다. 같은 날은 남긴
+         * 차례로 — 대표를 안 고른 날은 그날 처음 올린 영상이 대표라, 홈 캘린더와 같은
+         * 차례여야 둘이 같은 영상을 가리킨다.
+         */
+        orderBy: [{ date: 'asc' }, { createdAt: 'asc' }],
+        select: {
+          id: true,
+          date: true,
+          sessionType: true,
+          pitchCount: true,
+          intensity: true,
+          /* 체감 강도(%) — 달력 · 목록이 % 로 보인다(옛 기록은 null 이라 intensity × 10) */
+          effortPct: true,
+          maxVelocity: true,
+          memo: true,
+          videoPaths: true,
         },
-      },
-      select: { date: true, title: true },
-    }),
-  ]);
+      }),
+      prisma.dailyFeaturedVideo.findMany({
+        where: { userId: user.id },
+        select: { date: true, videoPath: true },
+      }),
+      /* 카메라로 잰 날 — 그날 칸에 '측정 n구 · 최고' 한 줄 */
+      loadVelocityByDate(user.id),
+      /* '오늘 던지는 일정' 카드(체크인 3판) — 오늘 체크인 줄의 답과, 달력의 오늘 · 내일 등판(미리 골라 둔다) */
+      prisma.dailyCheckin.findUnique({
+        where: {
+          userId_date: { userId: user.id, date: new Date(`${todayKey}T00:00:00.000Z`) },
+        },
+        select: { throwPlan: true },
+      }),
+      prisma.calendarEvent.findMany({
+        where: {
+          userId: user.id,
+          date: {
+            gte: new Date(`${todayKey}T00:00:00.000Z`),
+            lte: new Date(`${shiftDateKey(todayKey, 1)}T00:00:00.000Z`),
+          },
+        },
+        select: { date: true, title: true },
+      }),
+      /* 체크인 메모를 남긴 날(체크인 3판) — 캘린더 칸의 작은 쪽지. 하루 한 줄이라 전부 읽어도 가볍다 */
+      prisma.dailyCheckin.findMany({
+        where: { userId: user.id, note: { not: null } },
+        select: { date: true, note: true },
+      }),
+    ]);
+  const noteDays = noteRows.filter((r) => r.note?.trim()).map((r) => toDateKey(r.date));
   const outingOn = (day: string) =>
     calendarRows.some((e) => toDateKey(e.date) === day && isOutingTitle(e.title));
   const throwCard = {
@@ -125,6 +132,7 @@ export default async function VideosPage({
         initialDate={date}
         today={todayKey}
         throwCard={throwCard}
+        noteDays={noteDays}
         canMeasure={canMeasure}
         velocityHref={velocityHref}
         /* 투구 분석(베타, /videos/lab) — 관리자만 */
