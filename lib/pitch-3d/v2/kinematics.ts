@@ -149,6 +149,13 @@ export const KIN_LIMITS = {
  * 한 장면에 이만큼까지만 돈다. 장면 간격은 실제 시간으로 받는다(display.ts — 슬로모는 착지 → 릴리스로 배수를 어림). 목은 몸통만큼 —
  * 몸통이 돌 때 고개는 홈을 보고 있어 몸통에 대한 고개 돌림이 몸통 빠르기로 바뀐다.
  */
+/** 던지는 팔이 엔진 팔 방향을 따르는 구간 — 착지 ~ 릴리스 + 착지→릴리스 시간의 이 배, 앞뒤 섞는 장면 수 */
+export const ARM_FOLLOW_POST = 0.8;
+export const ARM_FOLLOW_RAMP = 3;
+/** 머리 점 마지막 다듬기 폭(장면, [좁게, 넓게]) */
+export const HEAD_POST_SMOOTH: [number, number] = [5, 5];
+/** 따를 때 엔진 팔 방향을 살짝 다듬는 폭(장면) — 0 이면 엔진 그대로(릴리스 뒤 떨림이 원 결과만큼 커짐), 2 면 엔진에서 위팔 가운데 1~3.5° 떨어짐 */
+export const ARM_FOLLOW_SMOOTH = 1.5;
 export const KIN_SPEED = {
   /**
    * 골반은 연구 최대값 가까이 — 1200 일 때 좌투 샘플 골반이 착지 직후 12장면에 97° 돌았다(뒤 영상 엉덩이 점이 엇갈려 지나가지 못하고 한 장면에
@@ -899,6 +906,26 @@ export function kinematicTrack(
     );
   }
 
+  /*
+   * 머리 마지막 다듬기 — 머리 가운데(귀 가운데)의 어깨 가운데 기준 자리를 앞뒤 HEAD_POST_SMOOTH 장면으로 한 번 더. 목 범위 한계가 켜졌다 꺼질 때 머리가 인형 어깨를 따라
+   * 꺾여, 실험실 샘플 넷(c4d8 · f046 · s1 · s3)에서 머리가 원 결과보다 더 떨렸다. 머리는 흔들리지 않는 편이 정확한 것보다 낫다.
+   */
+  if (HEAD_POST_SMOOTH[1] > 0) {
+    /* 머리 모양(코 · 귀의 귀 가운데 기준 자리)은 그대로, 귀 가운데만 — 점마다 다듬으면 고개를 빨리 돌릴 때 머리가 안쪽으로 오그라들어 밀렸다(시험) */
+    const shm = out.map((fr) => midOf(fr[V2J.lSh], fr[V2J.rSh]));
+    const em = out.map((fr) => midOf(fr[V2J.lEar], fr[V2J.rEar]));
+    const emS = smoothMulti(
+      em.map((e, k) => sub(e, shm[k])) as number[][],
+      frames.map(() => 1),
+      HEAD_POST_SMOOTH[0],
+      HEAD_POST_SMOOTH[1]
+    ) as Vec3[];
+    for (let k = 0; k < n; k++) {
+      const d = sub(add(shm[k], emS[k]), em[k]);
+      for (const j of [V2J.nose, V2J.lEar, V2J.rEar]) out[k][j] = add(out[k][j], d);
+    }
+  }
+
   /* ── 팔 ── */
   for (const side of ['L', 'R'] as const) {
     const [Sh, El, Wr, Idx, Mid, Pk] =
@@ -968,6 +995,26 @@ export function kinematicTrack(
       gMin,
       gMax
     ) as Vec3[];
+    /*
+     * 던지는 팔은 착지 → 릴리스 뒤(그 시간의 ARM_FOLLOW_POST 배)까지 엔진 팔 방향(어깨 → 팔꿈치 → 손목)을 그대로 쓴다 — 인형 어깨에 붙이고 방향만.
+     * 2026-10-14 김민: "레이백부터 릴리스 직후까지 다 문제". 겹쳐 보기(원본 영상 + AI 점 + 엔진 + 인형)에서 엔진 팔은 영상에 붙어 있는데 인형 팔만
+     * 떨어져 있었다 — ① 위팔이 어깨선 뒤 45° 를 넘는 레이백을 엔진 실수로 보고 손목을 버림 ② 팔을 인형 몸통 기준 각도로 옮겨 붙여 몸통이 조금만
+     * 달라도 팔이 통째로 돌아감(릴리스 뒤 처짐) ③ 다듬기 · 빠르기 한계가 꼭대기를 한 번 더 깎음. 엔진 쪽은 이미 튄 값을 걸러 보낸다(display despike).
+     * 구간 앞뒤 ARM_FOLLOW_RAMP 장면은 섞고, 엔진 방향은 ARM_FOLLOW_SMOOTH 로 살짝 다듬는다. 실험실 8샘플: 인형 팔 ↔ 엔진 팔 차이 가운데 1.4~5.9 → 0.7~2.4°,
+     * 큰 장면(상위 10%) 4~18 → 2~10°(c4d8 겹쳐 보기 그림). 엔진 어깨까지 따르게 하면 분리 75° 넘는 장면이 늘어 어깨는 몸통 모델 그대로 둔다.
+     */
+    const armEng = new Array<number>(n).fill(0);
+    const smDir = (vs: Vec3[]) =>
+      smoothMulti(vs as number[][], limb.flexW, ARM_FOLLOW_SMOOTH, ARM_FOLLOW_SMOOTH).map((v) => unit(v as Vec3, [0, -1, 0]));
+    const engUS = smDir(frames.map((fr) => unit(sub(fr[El], fr[Sh]), [0, -1, 0])));
+    const engFS = smDir(frames.map((fr) => unit(sub(fr[Wr], fr[El]), [0, -1, 0])));
+    if (throwing && ev) {
+      const span = Math.max(1, ev.release - ev.footPlant);
+      const lo = ev.footPlant;
+      const hi = Math.min(n - 1, ev.release + Math.round(ARM_FOLLOW_POST * span));
+      for (let k = 0; k < n; k++)
+        armEng[k] = clamp(Math.min(k - lo + ARM_FOLLOW_RAMP, hi - k + ARM_FOLLOW_RAMP) / ARM_FOLLOW_RAMP, 0, 1);
+    }
     /* 원 손목을 따르는 정도 — 사람 범위 한계가 손을 쓴 장면(엔진 실수: 위팔이 어깨선 뒤로 80°)은 각도 모델 그대로, 앞뒤로 다듬어 한 장면에 안 바뀌게 */
     const wFollow = smooth1(
       backOver.map((b) => 1 - clamp(b / rad(10), 0, 1)),
@@ -1088,9 +1135,17 @@ export function kinematicTrack(
       /* 거의 편 팔(굽힘 15° 밑)은 비틀림이 늦어도 손 자리가 거의 그대로라 각도 모델 그대로 — 두 마디로 다시 접으면 굽는 쪽을 못 정해 팔꿈치가 튀었다 */
       const wf = wFollow[k] * clamp((flexS[k] - rad(15)) / rad(20), 0, 1);
       const Wt = add(scale(W0, 1 - wf), scale(wrS[k], wf));
-      const E = twoBoneIk(S, E0, W0, Wt);
-      const fw = unit(sub(Wt, E), fw0);
-      const W = add(E, scale(fw, Lf));
+      let E = twoBoneIk(S, E0, W0, Wt);
+      let fw = unit(sub(Wt, E), fw0);
+      let W = add(E, scale(fw, Lf));
+      const ae = armEng[k];
+      if (ae > 0) {
+        const ue = engUS[k];
+        const fe = engFS[k];
+        E = add(S, scale(unit(add(scale(sub(E, S), (1 - ae) / Lu), scale(ue, ae)), ue), Lu));
+        fw = unit(add(scale(fw, 1 - ae), scale(fe, ae)), fe);
+        W = add(E, scale(fw, Lf));
+      }
       /* 굽는 축(손 돌림 · 인형 아래팔의 기준)은 다듬은 축을 새 아래팔에 수직으로만 — 새 두 마디에서 다시 재면 거의 편 팔에서 축이 장면마다 튀었다 */
       const nw = unit(perp(toWorld(M, nb), fw), toWorld(M, nb));
       out[k][El] = E;

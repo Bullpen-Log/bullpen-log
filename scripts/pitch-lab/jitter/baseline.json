@@ -1,5 +1,5 @@
 {
- "savedAt": "2026-10-13T13:39:41.120Z",
+ "savedAt": "2026-10-13T16:52:41.235Z",
  "samples": {
   "6814c10f": {
    "prep": {
@@ -13,12 +13,12 @@
     "amp": []
    },
    "stride": {
-    "max": 2.19,
+    "max": 2.27,
     "med": 0.7,
     "amp": []
    },
    "follow": {
-    "max": 1.75,
+    "max": 1.55,
     "med": 0.53,
     "amp": []
    }
@@ -36,14 +36,11 @@
    },
    "stride": {
     "max": 1.3,
-    "med": 0.47,
-    "amp": [
-     "nose",
-     "rEar"
-    ]
+    "med": 0.38,
+    "amp": []
    },
    "follow": {
-    "max": 2.28,
+    "max": 2.38,
     "med": 0.29,
     "amp": []
    }
@@ -60,15 +57,14 @@
     "amp": []
    },
    "stride": {
-    "max": 1.46,
+    "max": 1.36,
     "med": 0.57,
     "amp": [
-     "lEar",
      "rEar"
     ]
    },
    "follow": {
-    "max": 4.39,
+    "max": 4.48,
     "med": 0.34,
     "amp": []
    }
@@ -87,24 +83,22 @@
     ]
    },
    "stride": {
-    "max": 1.79,
-    "med": 0.91,
+    "max": 1.64,
+    "med": 0.52,
     "amp": [
-     "lEar",
-     "nose",
-     "rEar"
+     "lEar"
     ]
    },
    "follow": {
-    "max": 2.26,
-    "med": 0.65,
+    "max": 1.76,
+    "med": 0.53,
     "amp": []
    }
   },
   "s10": {
    "prep": {
     "max": 1.3,
-    "med": 0.18,
+    "med": 0.2,
     "amp": [
      "rHandMid",
      "rHandPinky"
@@ -120,12 +114,12 @@
     ]
    },
    "stride": {
-    "max": 3.88,
+    "max": 3.37,
     "med": 0.75,
     "amp": []
    },
    "follow": {
-    "max": 4.34,
+    "max": 4.04,
     "med": 0.71,
     "amp": []
    }
@@ -142,12 +136,12 @@
     "amp": []
    },
    "stride": {
-    "max": 2.16,
+    "max": 2.05,
     "med": 0.32,
     "amp": []
    },
    "follow": {
-    "max": 1.89,
+    "max": 1.88,
     "med": 0.43,
     "amp": []
    }
@@ -164,14 +158,14 @@
     "amp": []
    },
    "stride": {
-    "max": 2.22,
+    "max": 2.52,
     "med": 0.48,
     "amp": [
      "lHe"
     ]
    },
    "follow": {
-    "max": 2.21,
+    "max": 2.32,
     "med": 0.64,
     "amp": [
      "nose"
@@ -190,13 +184,13 @@
     "amp": []
    },
    "stride": {
-    "max": 1.99,
+    "max": 1.85,
     "med": 0.39,
     "amp": []
    },
    "follow": {
-    "max": 2.76,
-    "med": 0.33,
+    "max": 1.97,
+    "med": 0.32,
     "amp": []
    }
   }
@@ -241,7 +235,7 @@
   "f0464e1f": {
    "disp": {
     "pop": 0,
-    "speed": 3,
+    "speed": 2,
     "knee": 0,
     "sep": 0
    },
@@ -343,7 +337,7 @@
    },
    "man": {
     "pop": 0,
-    "speed": 0
+    "speed": 1
    }
   }
  }
