@@ -24,7 +24,6 @@ import { PitchLogPanel } from './pitch-log-panel';
 import { TodayRings } from './today-rings';
 import { NutritionCard } from './nutrition-card';
 import { FirstDayCard } from './first-day-card';
-import { RateCard } from './rate-card';
 import { GoodDayNote } from './good-day-note';
 import { todayOutingRole } from '@/lib/checkin';
 import { Highlights } from './highlights';
@@ -215,7 +214,7 @@ async function TodayBody({
    * 하이라이트 재료 — 모두 하루 한 줄로 가볍게 읽는다. 투구는 6주(구속 선 · 투구 막대), 체크인은 두 달(연속 일수),
    * 운동은 2주(지난주와 견줌).
    */
-  const [core, logs, before, checkins, workouts, lastLog, unrated, goodDay] =
+  const [core, logs, before, checkins, workouts, lastLog, goodDay] =
     await Promise.all([
       homeCore(user),
       prisma.pitchLog.findMany({
@@ -245,17 +244,6 @@ async function TodayBody({
         where: { userId: user.id },
         orderBy: { date: 'desc' },
         select: { date: true },
-      }),
-      /* 투구 만족도를 안 매긴 오늘 · 어제 기록 — '어땠어요?' 카드(rate-card.tsx). 같은 날 여럿이면 나중 것 */
-      prisma.pitchLog.findFirst({
-        where: {
-          userId: user.id,
-          date: { gte: dbDate(shiftDateKey(today, -1)) },
-          sessionType: { in: [...RATED_SESSION_TYPES] },
-          satisfaction: null,
-        },
-        orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
-        select: { id: true, date: true, sessionType: true },
       }),
       /* 만족도가 높았던 날의 메모 — 5점 먼저, 같은 점수면 최근 것(good-day-note.tsx) */
       prisma.pitchLog.findFirst({
@@ -397,14 +385,6 @@ async function TodayBody({
           satisfaction={goodNote.satisfaction}
           memo={goodNote.memo}
           cuesGood={goodNote.cuesGood}
-        />
-      )}
-
-      {unrated && (
-        <RateCard
-          id={unrated.id}
-          when={toDateKey(unrated.date) === today ? '오늘' : '어제'}
-          sessionType={unrated.sessionType}
         />
       )}
 
