@@ -617,7 +617,7 @@ export function analyzeByDistance(input: DistanceInput): DistanceResult {
        */
       const r: number[] = [];
       for (const o of used) {
-        if (o.ring || !(o.diam > 0)) continue;
+        if (o.ring || o.streak || !(o.diam > 0)) continue;
         const z = fit.project(o.t)[2];
         if (z > 0) r.push(dAtDm / z / o.diam);
       }
@@ -630,7 +630,7 @@ export function analyzeByDistance(input: DistanceInput): DistanceResult {
       const ld: number[] = [];
       /* 덩어리 점만 — 이어 찾은 테두리 점은 지름이 25% 작게 잡혀 기울기를 비튼다 */
       for (const o of used) {
-        if (o.ring) continue;
+        if (o.ring || o.streak) continue;
         const z = fit.positionAt(o.t)[2];
         if (z > 0 && o.diam > 0) {
           lz.push(Math.log(z));
@@ -656,7 +656,7 @@ export function analyzeByDistance(input: DistanceInput): DistanceResult {
      */
     if (
       report.sizeSlope != null &&
-      used.filter((o) => !o.ring).length >= 6 &&
+      used.filter((o) => !o.ring && !o.streak).length >= 6 &&
       (report.sizeSlope > -0.6 || report.sizeSlope < -1.6)
     )
       return fail('UNSTABLE_TRACK', [], 'size-slope');

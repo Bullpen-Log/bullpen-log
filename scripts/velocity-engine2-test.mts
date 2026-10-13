@@ -7,10 +7,18 @@
  * 노출 2ms 동안 겹쳐 그린다. 공은 카메라 앞 1m 에서 출발해 공기저항 · 중력 · 양력으로 날아가 거리 D 의 그물에 닿으면 튄다.
  * 정답 = 깊이 1m(릴리스)에서의 수평 속력 — 엔진의 대표 구속과 같은 정의.
  */
-import { analyzeByDistance, SPEED_DISTANCE_EXPONENT } from '../lib/velocity-engine/analyze-distance.ts';
+import {
+  analyzeByDistance,
+  SPEED_DISTANCE_EXPONENT,
+} from '../lib/velocity-engine/analyze-distance.ts';
 import { DRAG_K } from '../lib/velocity-engine/trajectory-fit.ts';
 import { alignTrail, type TrailPoint } from '../lib/velocity-tracer.ts';
-import { cleanSize, sessionCorrection, sessionDistOf, type SizeSample } from '../lib/velocity-session-distance.ts';
+import {
+  cleanSize,
+  sessionCorrection,
+  sessionDistOf,
+  type SizeSample,
+} from '../lib/velocity-session-distance.ts';
 
 const W = 720;
 const H = 1280;
@@ -29,7 +37,7 @@ const check = (ok: boolean, msg: string) => {
 /** 결정적 난수 */
 function rng(seed: number) {
   let s = seed >>> 0;
-  return () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296);
+  return () => (s = (s * 1664525 + 1013904223) >>> 0) / 4294967296;
 }
 
 type Scene = {
@@ -48,6 +56,8 @@ type Scene = {
   noBall?: boolean;
   /** 손에 든 폰처럼 들쭉날쭉 흔든다(가장 큰 어긋남 px) — 흔들림 바로잡기(stabilize.ts) */
   shakePx?: number;
+  /** 노출 시간(초) — 기본 2ms. 1/60 · 1/120 이면 공이 그만큼 번진다(2.5.0 번진 공 시험) */
+  exposureSec?: number;
   seed: number;
 };
 
@@ -77,7 +87,11 @@ function flight(sc: Scene) {
   while (t < 1.6) {
     out.push({ t, p: [...p] as [number, number, number] });
     const sp = Math.hypot(...v);
-    const a: [number, number, number] = [g[0] - DRAG_K * sp * v[0], g[1] - DRAG_K * sp * v[1], g[2] - DRAG_K * sp * v[2]];
+    const a: [number, number, number] = [
+      g[0] - DRAG_K * sp * v[0],
+      g[1] - DRAG_K * sp * v[1],
+      g[2] - DRAG_K * sp * v[2],
+    ];
     v = [v[0] + a[0] * dt, v[1] + a[1] * dt, v[2] + a[2] * dt];
     p = [p[0] + v[0] * dt, p[1] + v[1] * dt, p[2] + v[2] * dt];
     if (!bounced && p[2] >= sc.D) {
@@ -104,7 +118,8 @@ function render(sc: Scene, fps = FPS) {
   /* 고정 배경 — 위는 어두운 벽 · 나무, 아래는 땅. 무늬 덩어리 */
   const bg = new Float32Array(W * H);
   for (let y = 0; y < H; y++)
-    for (let x = 0; x < W; x++) bg[y * W + x] = 60 + 50 * (y / H) + 18 * Math.sin(x * 0.05) * Math.sin(y * 0.031);
+    for (let x = 0; x < W; x++)
+      bg[y * W + x] = 60 + 50 * (y / H) + 18 * Math.sin(x * 0.05) * Math.sin(y * 0.031);
   for (let k = 0; k < 220; k++) {
     const cx = r() * W;
     const cy = r() * H;
@@ -115,7 +130,8 @@ function render(sc: Scene, fps = FPS) {
         if ((x - cx) ** 2 + (y - cy) ** 2 < rad * rad) bg[y * W + x] = val;
   }
   const { path, truthKmh } = flight(sc);
-  const at = (t: number) => path[Math.min(path.length - 1, Math.max(0, Math.round(t / 0.0005)))].p;
+  const at = (t: number) =>
+    path[Math.min(path.length - 1, Math.max(0, Math.round(t / 0.0005)))].p;
   /* 흰 천 — 공 길의 먼 쪽(whiteFromM 넘어 그물까지)이 지나는 화면 자리를 덮는다(실내: 포수 뒤 흰 천) */
   let sheet: [number, number, number, number] | null = null;
   if (sc.whiteFromM != null) {
@@ -133,7 +149,12 @@ function render(sc: Scene, fps = FPS) {
       x1 = Math.max(x1, u);
       y1 = Math.max(y1, v);
     }
-    sheet = [Math.max(0, Math.floor(x0 - 30)), Math.max(0, Math.floor(y0 - 30)), Math.min(W, Math.ceil(x1 + 30)), Math.min(H, Math.ceil(y1 + 30))];
+    sheet = [
+      Math.max(0, Math.floor(x0 - 30)),
+      Math.max(0, Math.floor(y0 - 30)),
+      Math.min(W, Math.ceil(x1 + 30)),
+      Math.min(H, Math.ceil(y1 + 30)),
+    ];
   }
   const frames: { t: number; luma: Uint8Array }[] = [];
   const t0 = -0.15;
@@ -141,10 +162,15 @@ function render(sc: Scene, fps = FPS) {
     const t = t0 + i / fps;
     const img = Float32Array.from(bg);
     /* 흰 천 — 그물 쪽 가운데 띠(공이 지나는 곳) */
-    if (sheet) for (let y = sheet[1]; y < sheet[3]; y++) for (let x = sheet[0]; x < sheet[2]; x++) img[y * W + x] = 214;
+    if (sheet)
+      for (let y = sheet[1]; y < sheet[3]; y++)
+        for (let x = sheet[0]; x < sheet[2]; x++) img[y * W + x] = 214;
     if (!sc.noBall && t >= 0) {
-      /* 노출 2ms 를 네 번 겹쳐 그린다(번짐) */
-      const subs = [0, 0.00067, 0.00133, 0.002];
+      /* 노출 시간 동안 겹쳐 그린다(번짐) — 기본 2ms 를 네 번, 1/60 이면 33번 */
+      const expo = sc.exposureSec ?? 0.002;
+      /* 기본 2ms 는 예전과 똑같이 네 번(값이 그대로여야 한다), 긴 노출은 0.5ms 마다 */
+      const nSub = expo <= 0.002 ? 4 : Math.round(expo / 0.0005) + 1;
+      const subs = Array.from({ length: nSub }, (_, k) => (expo * k) / (nSub - 1));
       const acc = new Float32Array(W * H);
       const cov = new Float32Array(W * H);
       for (const ds of subs) {
@@ -153,8 +179,16 @@ function render(sc: Scene, fps = FPS) {
         const u = F * (X / Z) + W / 2;
         const v = F * (Y / Z) + H / 2;
         const rad = (F * R_BALL) / Z;
-        for (let y = Math.max(0, Math.floor(v - rad - 2)); y <= Math.min(H - 1, Math.ceil(v + rad + 2)); y++)
-          for (let x = Math.max(0, Math.floor(u - rad - 2)); x <= Math.min(W - 1, Math.ceil(u + rad + 2)); x++) {
+        for (
+          let y = Math.max(0, Math.floor(v - rad - 2));
+          y <= Math.min(H - 1, Math.ceil(v + rad + 2));
+          y++
+        )
+          for (
+            let x = Math.max(0, Math.floor(u - rad - 2));
+            x <= Math.min(W - 1, Math.ceil(u + rad + 2));
+            x++
+          ) {
             const d = Math.hypot(x - u, y - v);
             const a = Math.min(1, Math.max(0, rad + 0.5 - d));
             if (a <= 0) continue;
@@ -164,10 +198,11 @@ function render(sc: Scene, fps = FPS) {
             cov[y * W + x] += a;
           }
       }
-      for (let k = 0; k < W * H; k++) if (cov[k] > 0) {
-        const a = cov[k] / subs.length;
-        img[k] = img[k] * (1 - a) + (acc[k] / cov[k]) * a;
-      }
+      for (let k = 0; k < W * H; k++)
+        if (cov[k] > 0) {
+          const a = cov[k] / subs.length;
+          img[k] = img[k] * (1 - a) + (acc[k] / cov[k]) * a;
+        }
     }
     const luma = new Uint8Array(W * H);
     if (sc.shakePx) {
@@ -188,7 +223,8 @@ function render(sc: Scene, fps = FPS) {
             (src[q + W] * (1 - fx) + src[q + W + 1] * fx) * fy;
         }
     }
-    for (let k = 0; k < W * H; k++) luma[k] = Math.max(0, Math.min(255, Math.round(img[k] + (r() - 0.5) * 4)));
+    for (let k = 0; k < W * H; k++)
+      luma[k] = Math.max(0, Math.min(255, Math.round(img[k] + (r() - 0.5) * 4)));
     frames.push({ t, luma });
   }
   return { frames, truthKmh };
@@ -245,10 +281,24 @@ function run(name: string, sc: Scene, tolRel: number) {
   if (autoCheck) {
     autoCheck = false;
     /* 자동 — 첫 어림을 크게 틀려도(15m) 공 크기 거리로 다시 맞춰, 그 거리로 잰 값과 같아야 한다 */
-    const auto = analyzeByDistance({ frames, width: W, height: H, sourceWidth: 1080, sourceHeight: 1920, focalPx: (F * 1080) / W, distanceM: 15, tiltRad: (sc.tiltDeg * Math.PI) / 180, fps: FPS, autoDistance: true });
+    const auto = analyzeByDistance({
+      frames,
+      width: W,
+      height: H,
+      sourceWidth: 1080,
+      sourceHeight: 1920,
+      focalPx: (F * 1080) / W,
+      distanceM: 15,
+      tiltRad: (sc.tiltDeg * Math.PI) / 180,
+      fps: FPS,
+      autoDistance: true,
+    });
     const want = m.kmh * ((res.distance.sizeDistM ?? NaN) / sc.D) ** 1.076;
     check(
-      auto.measure.ok && auto.distance.distanceSource === 'ball' && Math.abs(auto.distance.distanceM - (res.distance.sizeDistM ?? NaN)) <= 0.3 && Math.abs(auto.measure.kmh / want - 1) <= 0.01,
+      auto.measure.ok &&
+        auto.distance.distanceSource === 'ball' &&
+        Math.abs(auto.distance.distanceM - (res.distance.sizeDistM ?? NaN)) <= 0.3 &&
+        Math.abs(auto.measure.kmh / want - 1) <= 0.01,
       `자동 거리 — 첫 어림 15m 에서 ${auto.distance.distanceM}m(${auto.distance.distanceSource})로 다시 맞춰 ${auto.measure.ok ? auto.measure.kmh : auto.measure.code}km/h(기대 ${want.toFixed(1)})`
     );
   }
@@ -262,7 +312,8 @@ function run(name: string, sc: Scene, tolRel: number) {
   /* 벗어난 정도 ÷ 허용(2px 또는 반지름의 35%) 의 최댓값 — 1 밑이면 통과 */
   let dev = 0;
   for (const [t, u, v] of path) {
-    const [X, Y, Z] = truth[Math.min(truth.length - 1, Math.max(0, Math.round(t / 0.0005)))].p;
+    const [X, Y, Z] =
+      truth[Math.min(truth.length - 1, Math.max(0, Math.round(t / 0.0005)))].p;
     if (t < 0 || t > hitAt) continue;
     /* 길은 받은 영상(흔들린 것) 위에 그린다 — 흔든 장면이면 정답 자리도 흔들린 만큼 */
     const [sx, sy] = sc.shakePx ? shakeAt(sc.shakePx, t) : [0, 0];
@@ -272,25 +323,54 @@ function run(name: string, sc: Scene, tolRel: number) {
   const t0 = path[0]?.[0] ?? NaN;
   const t1 = path[path.length - 1]?.[0] ?? NaN;
   check(
-    path.length > 10 && t0 >= -0.01 && t0 <= 5 / FPS + 0.005 && Math.abs(t1 - hitAt) <= 0.02 && dev <= 1,
+    path.length > 10 &&
+      t0 >= -0.01 &&
+      t0 <= 5 / FPS + 0.005 &&
+      Math.abs(t1 - hitAt) <= 0.02 &&
+      dev <= 1,
     `${name} — 그릴 길 ${path.length}점 · 처음 ${(t0 * 1000).toFixed(0)}ms(릴리스 0) · 끝 ${(t1 * 1000).toFixed(0)}ms(닿음 ${(hitAt * 1000).toFixed(0)}) · 실제 자리와 허용의 최대 ${dev.toFixed(2)}배`
   );
   if (!alignCheck) return;
   alignCheck = false;
   /* 영상 시각 맞추기 — 같은 장면을 클립처럼(시각 + 3.217초) 놓고 일부러 어긋낸 offset 에서 되찾나(한 장 = 16.7ms 의 반 안) */
-  const points: TrailPoint[] = path.map(([t, u, v, d]) => ({ t, x: u / W, y: v / H, d: d / W }));
+  const points: TrailPoint[] = path.map(([t, u, v, d]) => ({
+    t,
+    x: u / W,
+    y: v / H,
+    d: d / W,
+  }));
   const truthOffset = 3.217;
   const samples = frames.map((f) => ({ time: f.t + truthOffset, luma: f.luma }));
   for (const wrong of [0.05, -0.083, 0]) {
-    const got = alignTrail({ samples, width: W, height: H, crop: { x: 0, y: 0, w: 1, h: 1 }, points, offset: truthOffset + wrong });
+    const got = alignTrail({
+      samples,
+      width: W,
+      height: H,
+      crop: { x: 0, y: 0, w: 1, h: 1 },
+      points,
+      offset: truthOffset + wrong,
+    });
     check(
       got != null && Math.abs(got - truthOffset) <= 1 / 120,
       `영상 시각 맞추기 — ${(wrong * 1000).toFixed(0)}ms 어긋낸 것을 ${got == null ? '못 맞춤' : ((got - truthOffset) * 1000).toFixed(1) + 'ms 로'}`
     );
   }
-  const empty = render({ ...sc, noBall: true }).frames.map((f) => ({ time: f.t + truthOffset, luma: f.luma }));
-  const none = alignTrail({ samples: empty, width: W, height: H, crop: { x: 0, y: 0, w: 1, h: 1 }, points, offset: truthOffset });
-  check(none == null, `영상 시각 맞추기 — 공이 안 보이는 영상이면 그대로 둔다(${none == null ? 'null' : none.toFixed(3)})`);
+  const empty = render({ ...sc, noBall: true }).frames.map((f) => ({
+    time: f.t + truthOffset,
+    luma: f.luma,
+  }));
+  const none = alignTrail({
+    samples: empty,
+    width: W,
+    height: H,
+    crop: { x: 0, y: 0, w: 1, h: 1 },
+    points,
+    offset: truthOffset,
+  });
+  check(
+    none == null,
+    `영상 시각 맞추기 — 공이 안 보이는 영상이면 그대로 둔다(${none == null ? 'null' : none.toFixed(3)})`
+  );
 }
 let alignCheck = true;
 let autoCheck = true;
@@ -336,7 +416,10 @@ run(
 if (sizeRatios.length >= 2) {
   const mean = sizeRatios.reduce((a, x) => a + x, 0) / sizeRatios.length;
   const spread = (Math.max(...sizeRatios) - Math.min(...sizeRatios)) / mean;
-  check(spread <= 0.04, `공 크기 거리 — 장면 ${sizeRatios.length}개의 비가 고르다(흩어짐 ${(spread * 100).toFixed(1)}%)`);
+  check(
+    spread <= 0.04,
+    `공 크기 거리 — 장면 ${sizeRatios.length}개의 비가 고르다(흩어짐 ${(spread * 100).toFixed(1)}% — ${sizeRatios.map((x) => x.toFixed(3)).join(' · ')})`
+  );
 }
 
 console.log('\n▶ 세션 거리(측정 화면 — 공 크기 거리를 세션에서 모으기)');
@@ -375,7 +458,9 @@ console.log('\n▶ 세션 거리(측정 화면 — 공 크기 거리를 세션�
   check(same(sessionDistOf([], mem), null), '깨끗한 공이 아직 없음 — 기억을 안 씀');
 }
 
-console.log('\n▶ 세션 거리 보정(기준 20m 세션 — 엔진 2.4 1단계, lib/velocity-session-distance.ts sessionCorrection)');
+console.log(
+  '\n▶ 세션 거리 보정(기준 20m 세션 — 엔진 2.4 1단계, lib/velocity-session-distance.ts sessionCorrection)'
+);
 {
   const clean = (sizeDistM: number, over: Partial<SizeSample> = {}): SizeSample => ({
     sizeDistM,
@@ -387,17 +472,45 @@ console.log('\n▶ 세션 거리 보정(기준 20m 세션 — 엔진 2.4 1단계
     ...over,
   });
   /* 2026-10-12 밖 깨끗한 19구의 공 크기 거리 — 가운데 값 21.0m, 기준 20m 에서 +5% → 배율 1.05^1.076 */
-  const field = [21.3, 22.2, 20.8, 21.1, 22.4, 19.4, 21.5, 20.6, 20.8, 21.1, 21.0, 21.2, 21.0, 20.9, 21.1, 20.8, 21.7, 20.4, 19.7];
-  const c = sessionCorrection(field.map((d) => clean(d)), 20, SPEED_DISTANCE_EXPONENT);
+  const field = [
+    21.3, 22.2, 20.8, 21.1, 22.4, 19.4, 21.5, 20.6, 20.8, 21.1, 21.0, 21.2, 21.0, 20.9,
+    21.1, 20.8, 21.7, 20.4, 19.7,
+  ];
+  const c = sessionCorrection(
+    field.map((d) => clean(d)),
+    20,
+    SPEED_DISTANCE_EXPONENT
+  );
   check(
-    c != null && c.apply && Math.abs(c.m - 21.0) < 1e-9 && c.n === 19 && Math.abs(c.k - 1.05 ** SPEED_DISTANCE_EXPONENT) < 1e-9,
+    c != null &&
+      c.apply &&
+      Math.abs(c.m - 21.0) < 1e-9 &&
+      c.n === 19 &&
+      Math.abs(c.k - 1.05 ** SPEED_DISTANCE_EXPONENT) < 1e-9,
     `10-12 밖 19구 — 가운데 값 21.0m · 배율 ${c?.k.toFixed(4)}(기준 20m 의 −3.7% 치우침이 사라짐)`
   );
-  check(sessionCorrection([clean(21.3), clean(21.1)], 20, SPEED_DISTANCE_EXPONENT) == null, '깨끗한 공 둘 — 아직 보정 없음');
-  const near = sessionCorrection([clean(20.3), clean(20.4), clean(20.1)], 20, SPEED_DISTANCE_EXPONENT);
-  check(near != null && !near.apply && near.k === 1, '기준과 3% 안(20.3m) — 흩어짐일 뿐, 안 옮김');
-  const far = sessionCorrection([clean(24.2), clean(24.0), clean(23.9)], 20, SPEED_DISTANCE_EXPONENT);
-  check(far != null && !far.apply, '기준과 15% 밖(24m) — 다른 일이라 안 옮김(가운데 값은 알림용으로 남음)');
+  check(
+    sessionCorrection([clean(21.3), clean(21.1)], 20, SPEED_DISTANCE_EXPONENT) == null,
+    '깨끗한 공 둘 — 아직 보정 없음'
+  );
+  const near = sessionCorrection(
+    [clean(20.3), clean(20.4), clean(20.1)],
+    20,
+    SPEED_DISTANCE_EXPONENT
+  );
+  check(
+    near != null && !near.apply && near.k === 1,
+    '기준과 3% 안(20.3m) — 흩어짐일 뿐, 안 옮김'
+  );
+  const far = sessionCorrection(
+    [clean(24.2), clean(24.0), clean(23.9)],
+    20,
+    SPEED_DISTANCE_EXPONENT
+  );
+  check(
+    far != null && !far.apply,
+    '기준과 15% 밖(24m) — 다른 일이라 안 옮김(가운데 값은 알림용으로 남음)'
+  );
   const dirty = [
     clean(25.8, { sizeSlope: -1.6 }),
     clean(23.7, { extended: 5 }),
@@ -413,13 +526,24 @@ console.log('\n▶ 세션 거리 보정(기준 20m 세션 — 엔진 2.4 1단계
     d != null && d.n === 3 && Math.abs(d.m - 21.0) < 1e-9,
     `더러운 공 다섯(기울기 −1.6 · 이어 찾기 · 낮음 · 끝 못 봄 · 12장)은 빠지고 깨끗한 셋만 — ${d?.n}개 · ${d?.m}m`
   );
-  check(cleanSize(clean(21, { sizeDistM: null })) == null, '공 크기 거리가 없으면 깨끗한 공이 아님');
+  check(
+    cleanSize(clean(21, { sizeDistM: null })) == null,
+    '공 크기 거리가 없으면 깨끗한 공이 아님'
+  );
 }
 
-
-console.log('\n▶ 120fps(2.4.2 — 앱 카메라가 되면 120 으로 찍는다) — 같은 투구를 60 · 120 으로 그려 1% 안');
+console.log(
+  '\n▶ 120fps(2.4.2 — 앱 카메라가 되면 120 으로 찍는다) — 같은 투구를 60 · 120 으로 그려 1% 안'
+);
 {
-  const sc: Scene = { kmh: 130, launchDeg: -1, sideDeg: -1.2, D: 20, tiltDeg: 0, seed: 11 };
+  const sc: Scene = {
+    kmh: 130,
+    launchDeg: -1,
+    sideDeg: -1.2,
+    D: 20,
+    tiltDeg: 0,
+    seed: 11,
+  };
   const measure = (fps: number) => {
     const { frames, truthKmh } = render(sc, fps);
     const res = analyzeByDistance({
@@ -433,17 +557,117 @@ console.log('\n▶ 120fps(2.4.2 — 앱 카메라가 되면 120 으로 찍는다
       tiltRad: 0,
       fps,
     });
-    return { kmh: res.measure.ok ? res.measure.kmh : NaN, truthKmh, frames: res.distance.flightFrames };
+    return {
+      kmh: res.measure.ok ? res.measure.kmh : NaN,
+      truthKmh,
+      frames: res.distance.flightFrames,
+    };
   };
   const a = measure(60);
   const b = measure(120);
   check(
-    Number.isFinite(a.kmh) && Number.isFinite(b.kmh) && Math.abs(b.kmh / a.kmh - 1) <= 0.01,
+    Number.isFinite(a.kmh) &&
+      Number.isFinite(b.kmh) &&
+      Math.abs(b.kmh / a.kmh - 1) <= 0.01,
     `60fps ${a.kmh} · 120fps ${b.kmh} (정답 ${a.truthKmh.toFixed(1)}) — 비행 장면 ${a.frames} · ${b.frames}`
   );
   check(
     Number.isFinite(b.kmh) && Math.abs(b.kmh / b.truthKmh - 1) <= 0.02,
     `120fps 도 정답 2% 안(씨앗 장면 수 · 건너뜀 수가 시간 기준 — trackBall)`
+  );
+}
+
+console.log(
+  '\n▶ 번진 공(2.5.0 — 노출 1/60 · 1/120 에서 빠른 공, 옆 2m/s) — 정답 2% 안 · 60fps 비행 24장 이상'
+);
+{
+  const measure = (sc: Scene, fps: number) => {
+    const { frames, truthKmh } = render(sc, fps);
+    const res = analyzeByDistance({
+      frames,
+      width: W,
+      height: H,
+      sourceWidth: 1080,
+      sourceHeight: 1920,
+      focalPx: (F * 1080) / W,
+      distanceM: sc.D,
+      tiltRad: 0,
+      fps,
+    });
+    return {
+      kmh: res.measure.ok ? res.measure.kmh : NaN,
+      code: res.measure.ok ? 'ok' : res.measure.code,
+      truthKmh,
+      frames: res.distance.flightFrames,
+      streaks: res.track.length,
+    };
+  };
+  const cases: [string, Scene][] = [
+    [
+      '140km/h · 1/60',
+      {
+        kmh: 140,
+        launchDeg: -1,
+        sideDeg: -3,
+        D: 20,
+        tiltDeg: 0,
+        seed: 21,
+        exposureSec: 1 / 60,
+      },
+    ],
+    [
+      '160km/h · 1/60',
+      {
+        kmh: 160,
+        launchDeg: -1,
+        sideDeg: -2.6,
+        D: 20,
+        tiltDeg: 0,
+        seed: 22,
+        exposureSec: 1 / 60,
+      },
+    ],
+    [
+      '140km/h · 1/120',
+      {
+        kmh: 140,
+        launchDeg: -1,
+        sideDeg: -3,
+        D: 20,
+        tiltDeg: 0,
+        seed: 23,
+        exposureSec: 1 / 120,
+      },
+    ],
+    [
+      '160km/h · 1/120',
+      {
+        kmh: 160,
+        launchDeg: -1,
+        sideDeg: -2.6,
+        D: 20,
+        tiltDeg: 0,
+        seed: 24,
+        exposureSec: 1 / 120,
+      },
+    ],
+  ];
+  for (const [name, sc] of cases) {
+    const m = measure(sc, 60);
+    const err = m.kmh / m.truthKmh - 1;
+    check(
+      Number.isFinite(m.kmh) && Math.abs(err) <= 0.02 && m.frames >= 24,
+      `${name} — ${Number.isFinite(m.kmh) ? `${m.kmh} (정답 ${m.truthKmh.toFixed(1)}, ${(err * 100).toFixed(1)}%) · 비행 ${m.frames}장` : m.code}`
+    );
+  }
+  /* 기준(노출 2ms) 장면은 그대로여야 한다 — 90km/h 를 2.5.0 전 값과 견준다(0.3km/h 안) */
+  const base = measure(
+    { kmh: 90, launchDeg: 1, sideDeg: -0.8, D: 20, tiltDeg: 0, seed: 31 },
+    60
+  );
+  check(
+    Number.isFinite(base.kmh) && Math.abs(base.kmh - base.truthKmh) <= 0.9,
+    `기준 90km/h(노출 2ms) — ${base.kmh} (정답 ${base.truthKmh.toFixed(1)})`
   );
 }
 console.log(`\n${'═'.repeat(50)}\n통과 ${passed} / 실패 ${failed}\n${'═'.repeat(50)}`);
