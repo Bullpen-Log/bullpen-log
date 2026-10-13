@@ -4,6 +4,7 @@ import { unstable_rethrow } from 'next/navigation';
 import { Check, ChevronRight, Dumbbell, Play, ShieldPlus, Target, type LucideIcon } from 'lucide-react';
 import { prisma } from '@/lib/prisma';
 import { PageHeading, todayKicker } from '@/components/ui';
+import { AnalysisLink } from '@/components/analysis-link';
 import { OpenCheckinButton } from '@/components/notice-bell';
 import { loadTodayCore, type UserForToday } from '@/lib/report/today-data';
 import { TRAINING_SCREEN_TEXT, trainingScreenOf } from '@/lib/report/training-screen';
@@ -73,7 +74,7 @@ export function TrainingHome({
 
   return (
     <div className="stack-page">
-      <PageHeading eyebrow="Training" kicker={todayKicker(today)} title="트레이닝" />
+      <PageHeading eyebrow="Training" kicker={todayKicker(today)} title="트레이닝" inlineAction action={<AnalysisLink view="training" />} />
       <div className="space-y-3">{order.map((app) => cards[app])}</div>
       <Suspense fallback={<div className="h-20" />}>
         <WeekStrip userId={user.id} today={today} />

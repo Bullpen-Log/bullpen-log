@@ -231,5 +231,17 @@ check(
   )
 );
 
+{
+  /* 칸 나누기(2026-10-13) — 투구량은 분석 › 투구, 운동은 분석 › 트레이닝, '이번 주'는 홈에만 */
+  const busy = base({ load: { zone: 'caution', ratio: 1.35 }, workoutDays: [d(0), d(-1), d(-2), d(-9)] });
+  const at = (input: HighlightInput, part: 'home' | 'pitch' | 'training') => buildHighlights(input, part).map((h) => h.key).join(',');
+  check(
+    '칸 나누기: 투구 칸엔 투구량만 · 트레이닝 칸엔 운동만 · 홈엔 그 둘이 없고 다른 데서 달라진 게 있으면 \'이번 주\'도 안 뜸',
+    at(busy, 'pitch') === 'load' && at(busy, 'training') === 'training' && at(busy, 'home') === '',
+    `${at(busy, 'pitch')} | ${at(busy, 'training')} | ${at(busy, 'home')}`
+  );
+  check('칸 나누기: 아무 일 없으면 \'이번 주\'는 홈에만', at(base(), 'home') === 'steady' && at(base(), 'pitch') === '' && at(base(), 'training') === '');
+}
+
 console.log(`\n통과 ${passed} · 실패 ${failed}`);
 if (failed > 0) process.exit(1);
