@@ -33,7 +33,8 @@ export const BEADS = 12;
 export const ARC_CAP = 64;
 
 /**
- * 뼈 14개의 차례와 굵기(br 배 · jr 배) — 예시 draw 의 bone() 호출 순서 그대로: 다리 4 · 발 2 · 팔 6 · 빗장뼈 2.
+ * 뼈 17개의 차례와 굵기(br 배 · jr 배) — 예시 draw 의 bone() 호출 순서 그대로: 다리 4 · 발 2 · 팔 6 · 빗장뼈 2, 그 뒤 골반 3
+ * (엉치 → 두 엉덩이 관절 · 두 엉덩이 사이 — 사용자 2026-10-13: "몸통과 골반은 조금 더 디테일하게").
  * 화면은 이 표로 도형을 한 번 만들고, boneSpec 은 같은 표로 끝점을 채운다.
  */
 export const BONE_TABLE: readonly { r: number; jr: number }[] = [
@@ -51,6 +52,18 @@ export const BONE_TABLE: readonly { r: number; jr: number }[] = [
   { r: 0.55, jr: 0.6 }, // gw → gh
   { r: 0.75, jr: 1 }, // 목 밑 → sh
   { r: 0.75, jr: 1 }, // 목 밑 → gs
+  { r: 0.8, jr: 0.6 }, // 엉치 → rh
+  { r: 0.8, jr: 0.6 }, // 엉치 → lh
+  { r: 0.6, jr: 0.6 }, // rh → lh(두덩 쪽)
+];
+
+/** 골반 · 갈비 · 가슴 고리 차례(색) — 갈비 셋은 가슴 고리 밑에서 흉곽처럼 위로 갈수록 넓어진다 */
+export const RING_COLORS = ['pelvis', 'chest', 'chest', 'chest', 'chest'] as const;
+/** 갈비 고리 셋 — 몸통 가운데 선의 자리 t · 가슴 고리 폭에 대한 비 */
+const RIBS: readonly [number, number][] = [
+  [0.6, 0.72],
+  [0.67, 0.84],
+  [0.75, 0.94],
 ];
 
 /** 범례(예시 #legend) — 잰 선 색 키와 글 */
@@ -66,9 +79,9 @@ export const LEGEND: readonly { key: keyof typeof MEASURE_COLOR; text: string }[
 export type BoneSpec = {
   /** 관절 구슬 12개(rh lh rk lk ra la sh gs el ge wr gw) — 반지름 jr */
   joints: Vec3[];
-  /** 뼈 14개 — 끝점은 관절 그대로(화면이 boneEnds 로 양 끝을 jr·0.55 씩 줄인다) */
+  /** 뼈 17개(BONE_TABLE 차례) — 끝점은 관절 그대로(화면이 boneEnds 로 양 끝을 jr·0.55 씩 줄인다) */
   bones: { a: Vec3; b: Vec3; r: number; jr: number }[];
-  /** 골반 · 가슴 고리(토러스 band — 화면이 q 에 x 축 +90° 를 곱한다) */
+  /** 골반 · 갈비 셋 · 가슴 고리(RING_COLORS 차례, 토러스 band — 화면이 q 에 x 축 +90° 를 곱한다) */
   rings: { c: Vec3; q: Quat; sx: number; sy: number; tz: number; color: 'pelvis' | 'chest' }[];
   /** 척추 구슬 12개(몸통 9 · 목 3) */
   beads: { p: Vec3; q: Quat }[];
@@ -93,6 +106,8 @@ export function boneSpec(J: MannequinJoints, F: MannequinFrame, T: TorsoModel, k
   const [r0, r1] = footBone(F.rear, k);
   const [l0, l1] = footBone(F.lead, k);
   const base = add(T.neck, scale(cf.ya, -0.035 * k));
+  /* 엉치 — 척추 첫 구슬 자리(몸통 가운데 선 0.18 에서 등 쪽 6%) 조금 밑 */
+  const sacrum = add(add(curve(T.C, 0.18), scale(rotate(pf.q, [0, 0, 1]), 0.06 * k)), scale(pf.ya, -0.03 * k));
   const ends: [Vec3, Vec3][] = [
     [J.rh, J.rk],
     [J.rk, J.ra],
@@ -108,18 +123,23 @@ export function boneSpec(J: MannequinJoints, F: MannequinFrame, T: TorsoModel, k
     [J.gw, J.gh],
     [base, J.sh],
     [base, J.gs],
+    [sacrum, J.rh],
+    [sacrum, J.lh],
+    [J.rh, J.lh],
   ];
   const bones = ends.map(([a, b], i) => ({ a, b, r: BONE_TABLE[i].r * br, jr: BONE_TABLE[i].jr * jr }));
+  const chestSx = Math.max(0.15 * k, norm(sub(J.sh, J.gs)) / 2 - 0.01 * k);
   const rings: BoneSpec['rings'] = [
     { c: add(T.hm, scale(pf.ya, 0.035 * k)), q: pf.q, sx: T.hw + 0.035 * k, sy: 0.075 * k, tz: 0.1 * k, color: 'pelvis' },
-    {
-      c: curve(T.C, 0.84),
-      q: cf.q,
-      sx: Math.max(0.15 * k, norm(sub(J.sh, J.gs)) / 2 - 0.01 * k),
-      sy: 0.085 * k,
-      tz: 0.1 * k,
-      color: 'chest',
-    },
+    ...RIBS.map(([t, f]) => ({
+      c: curve(T.C, t),
+      q: slerp(pf.q, cf.q, clamp01((t - 0.2) / 0.5)),
+      sx: chestSx * f,
+      sy: 0.07 * k * f,
+      tz: 0.07 * k,
+      color: 'chest' as const,
+    })),
+    { c: curve(T.C, 0.84), q: cf.q, sx: chestSx, sy: 0.085 * k, tz: 0.1 * k, color: 'chest' },
   ];
   /* 척추 구슬 — 몸통 가운데 선 위를 따라가되 틀의 z(= 앞의 반대) 쪽으로 6% 물러난다(등 쪽). 목 셋은 목 → 목 끝 */
   const beads: BoneSpec['beads'] = [];

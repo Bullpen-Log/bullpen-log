@@ -81,6 +81,8 @@ import {
   arcPolyline,
   boneEnds,
   boneSpec,
+  BONE_TABLE,
+  RING_COLORS,
   placeLabels,
   projectToScreen,
 } from '../lib/pitch-3d/v2/mannequin-pause.ts';
@@ -2119,8 +2121,8 @@ console.log('■ 데생 인형 멈춤(mannequin-pause) — 뼈 · 호 관 · 부
     ];
     const nums = flatSpec(bs);
     check(
-      '뼈 명세: 관절 12 · 뼈 14 · 고리 2 · 척추 구슬 12 · 머리, 모두 유한',
-      bs.joints.length === 12 && bs.bones.length === 14 && bs.rings.length === 2 && bs.beads.length === 12 && nums.every(Number.isFinite)
+      '뼈 명세: 관절 12 · 뼈 17 · 고리 5 · 척추 구슬 12 · 머리, 모두 유한',
+      bs.joints.length === 12 && bs.bones.length === BONE_TABLE.length && bs.rings.length === RING_COLORS.length && bs.beads.length === 12 && nums.every(Number.isFinite)
     );
     let back = 0;
     let offErr = 0;
@@ -2165,9 +2167,9 @@ console.log('■ 데생 인형 멈춤(mannequin-pause) — 뼈 · 호 관 · 부
       const b2 = boneSpec(frL[j], FL[j], TL, k);
       check(
         '좌투 뼈 명세: 우투 꼴(던지는 쪽이 −y) · 개수 같음 · 같은 입력엔 같은 답',
-        b1.bones.length === 14 &&
+        b1.bones.length === BONE_TABLE.length &&
           b1.joints.length === 12 &&
-          b1.rings.length === 2 &&
+          b1.rings.length === RING_COLORS.length &&
           b1.beads.length === 12 &&
           flatSpec(b1).every(Number.isFinite) &&
           frL[j].rh[1] < frL[j].lh[1] && frL[j].sh[1] < frL[j].gs[1] && JSON.stringify(b1) === JSON.stringify(b2)

@@ -57,7 +57,7 @@ export type Transport = {
 export type Body3DHandle = { seek: (frame: number) => void };
 
 /** 각도 이름표의 짧은 이름 — 상자를 작게(긴 이름은 이름표에 마우스를 대면 · 결과 표에서) */
-const SHORT_NAME: Record<string, string> = { separation: '분리', trunk: '기울기', knee: '무릎', arm: '벌림', elbow: '팔꿈치' };
+const SHORT_NAME: Record<string, string> = { separation: '상하체 분리', trunk: '기울기', knee: '무릎', arm: '벌림', elbow: '팔꿈치' };
 
 const VIEWS: { value: ViewName; label: string }[] = [
   { value: 'side', label: '옆' },

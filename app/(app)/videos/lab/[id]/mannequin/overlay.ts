@@ -20,6 +20,7 @@ import {
   BONE_ROUGHNESS,
   BONE_SIZES,
   BONE_TABLE,
+  RING_COLORS,
   LINE_W,
   anaMaterials,
   arcFrame,
@@ -111,7 +112,7 @@ export function createOverlay(THREE: ThreeNS, opts: { heightM: number }): Overla
       bm.bone
     )
   );
-  const rings = [bm.pelvis, bm.chest].map((m) => mesh(bones, keep(new THREE.TorusGeometry(1, 0.09, 10, 48)), m));
+  const rings = RING_COLORS.map((c) => mesh(bones, keep(new THREE.TorusGeometry(1, 0.09, 10, 48)), bm[c]));
   const beads = Array.from({ length: BEADS }, () => mesh(bones, SPHERE, bm.bone));
   const skull = mesh(bones, SPHERE, bm.bone);
 
