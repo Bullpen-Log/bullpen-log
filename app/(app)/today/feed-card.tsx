@@ -210,7 +210,8 @@ export function FeedCard({ items }: { items: FeedItem[] }) {
        * 높이는 예전 영양 카드보다 조금 길게(사용자 "하단 길이를 조금만 늘려줘") — 휴대폰 약 11.1rem · PC 약 8.6rem.
        */}
       <div className="flex items-center gap-1.5 px-(--block-pad) pt-(--block-pad)">
-        <FeedLabel item={item} />
+        {/* 이름표는 넘어가기 시작할 때 바로 다음 장 것으로 — 밀기가 끝난 뒤 바꾸면 한 박자 늦었다(2026-10-13 김민) */}
+        <FeedLabel item={moving != null ? items[at(index + moving)] : item} />
         {n > 1 && (
           <span className="ml-auto flex items-center gap-1">
             <button
