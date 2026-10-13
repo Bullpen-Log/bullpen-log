@@ -20,6 +20,7 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 - **화면**(9e454de · e88af24 · 5e6f61b): 몸통 실제 뼈대를 정점마다 같은 높이의 인형 고리에 얹음(`mannequin-pause.ts` `prepareSkeleton` · `fitSkeleton`,
   옛 `skeletonPlaces` · `placeLocal` · `trunkBlend` 지움 — 인형 밖 뼈 20.8% → 0.8%), 가슴 틀 위 방향 = 몸통 곡선의 어깨 쪽 접선(`mannequin-frames.ts`,
   관절 칸 `tp` 지움 — 릴리스에서 흉추가 C 로), 몸통에 빨간 꼬임 줄 넷(`mannequin-loft.ts` `writeStripes`, 색 `twist`). 아이폰 앱에서 한 번 봐 줘.
+  각도 이름표는 화면 속 몸이 작으면(키 420px 밑) 이름을 빼고 숫자만(`body-3d.tsx` LABEL_FULL_BODY_PX, 글자 11px 그대로).
 
 ## 금윤호에게 — 2026-10-13 · 김민(Claude, 맥북) — 구속 측정: 믿음 '높음'만 기록 · 보정식을 비율 하나로(엔진 2.3.20)
 

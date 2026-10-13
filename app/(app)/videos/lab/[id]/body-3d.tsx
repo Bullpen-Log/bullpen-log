@@ -57,6 +57,8 @@ export type Transport = {
 export type Body3DHandle = { seek: (frame: number) => void };
 
 /** 각도 이름표의 짧은 이름 — 상자를 작게(긴 이름은 이름표에 마우스를 대면 · 결과 표에서) */
+/** 화면 속 몸 키(px)가 이보다 작으면 이름표는 숫자만 */
+const LABEL_FULL_BODY_PX = 420;
 const SHORT_NAME: Record<string, string> = { separation: '상하체 분리', trunk: '기울기', knee: '무릎', arm: '벌림', elbow: '팔꿈치' };
 
 const VIEWS: { value: ViewName; label: string }[] = [
@@ -456,6 +458,19 @@ export const Body3D = forwardRef<
       const placeLabelsDom = () => {
         const w = host.clientWidth;
         const h = host.clientHeight;
+        /*
+         * 멀리서 보면(화면 속 몸이 작으면) 이름을 빼고 숫자만 — 글자는 그대로인데 몸만 작아져 상자가 폼을 가렸다(사용자 2026-10-13).
+         * 무슨 각인지는 색 줄 · 왼쪽 위 범례로 안다. 글자는 11px 아래로 줄이지 않는다(앱 규칙).
+         */
+        let brief = false;
+        if (labels[0]) {
+          const a = rig.localToWorld(sV.set(...labels[0].p)).project(camera);
+          const ax = a.x;
+          const ay = a.y;
+          const b = rig.localToWorld(sV.set(labels[0].p[0], labels[0].p[1], labels[0].p[2] + H)).project(camera);
+          const bodyPx = Math.hypot(((b.x - ax) / 2) * w, ((b.y - ay) / 2) * h);
+          brief = bodyPx < LABEL_FULL_BODY_PX;
+        }
         const boxes: { i: number; x: number; y: number; w: number; h: number }[] = [];
         labelEls.forEach((el, i) => {
           const L = labels[i];
@@ -472,12 +487,12 @@ export const Body3D = forwardRef<
            * 값은 늘 그림(보기용 관절)의 각도. 순간에 결과 표 값과 8° 넘게 벌어지면 흐리게 하고, 누르면 표 값 한 줄을 펼친다
            * (2026-10-12 김민 — 숫자 칸이 공식 값, 이름표는 보이는 각도).
            */
-          const key = `${labelsVersion}:${el.dataset.open ?? ''}`;
+          const key = `${labelsVersion}:${el.dataset.open ?? ''}:${brief ? 1 : 0}`;
           if (el.dataset.v !== key) {
             el.dataset.v = key;
             el.style.borderLeftColor = measureHex(L.key);
             const open = L.off && el.dataset.open === '1';
-            el.innerHTML = `<span class="font-normal text-[#c7cfdd]">${SHORT_NAME[L.key] ?? L.name}</span> ${Math.round(L.value)}°${
+            el.innerHTML = `${brief ? '' : `<span class="font-normal text-[#c7cfdd]">${SHORT_NAME[L.key] ?? L.name}</span> `}${Math.round(L.value)}°${
               open && L.table != null ? `<span class="ml-1 text-[#9aa5b4]">· 표 ${Math.round(L.table)}°</span>` : ''
             }`;
             el.style.pointerEvents = L.off ? 'auto' : 'none';
