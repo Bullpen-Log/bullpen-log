@@ -176,7 +176,7 @@ import {
 } from '@/components/velocity/velocity-settings';
 import { Segmented } from '@/components/segmented';
 import { EffortChips } from '@/components/effort-chips';
-import { SectionLabel, Note } from '@/components/velocity/kit';
+import { CHIP_BASE, CHIP_ON, SectionLabel, Note } from '@/components/velocity/kit';
 import {
   CircleOverlay,
   DEFAULT_CIRCLE,
@@ -520,8 +520,9 @@ const SAMPLE_PITCHES: { kmh: number; type: string; zone: number; result: string 
 ];
 
 /* 카메라 앱 모양의 단추 — 위 줄 동그라미 · 아래 보조 단추 · 라벨 */
+/* 카메라 위 둥근 단추 — 누르는 크기 44px(체크인 · 탭 카드의 칩과 같은 규격) */
 const CHROME_BTN =
-  'inline-flex h-10 w-10 items-center justify-center rounded-full bg-black/45 text-white backdrop-blur transition-colors hover:bg-black/60 disabled:opacity-40';
+  'inline-flex h-11 w-11 items-center justify-center rounded-full bg-black/45 text-white backdrop-blur transition-colors hover:bg-black/60 disabled:opacity-40';
 /* 정보 판(거의 검정) 위의 위 줄 단추 — 옅은 흰 바탕이라야 단추로 보인다 */
 const CHROME_BTN_ON_PANEL = CHROME_BTN.replace('bg-black/45', 'bg-white/10').replace(
   'hover:bg-black/60',
@@ -2611,13 +2612,14 @@ export function VelocityScreen({
        * 내비게이션 바 — 카메라 단계(수평 · 존 · 측정 · 렌즈)는 카메라 앱처럼 위 줄을 카메라 위에 그린다(아래 카메라 무대).
        * 높이는 48px + 시계 자리(box-content) — 앱이 시계 자리까지 그리게 된 뒤 h-12 안에 그 여백을 넣으면 찌그러졌다.
        */}
+      {/* 설정 단계의 머리 — 체크인 흐름처럼 흰 막대 없이 맨바탕 위에 '‹ 뒤로'와 작은 제목(components/checkin-flow/flow.tsx) */}
       {(showAsk || !CAMERA_STEPS.has(step)) && (
-        <header className="box-content flex h-12 shrink-0 items-center justify-between border-b border-line bg-surface px-2 pt-[env(safe-area-inset-top)]">
+        <header className="flex shrink-0 items-center justify-between px-3 pt-[max(0.75rem,env(safe-area-inset-top))]">
           {back ? (
             <button
               type="button"
               onClick={() => setStep(back.to)}
-              className="inline-flex h-10 items-center gap-0.5 rounded-lg pl-1 pr-3 text-sm font-medium text-sky transition-colors hover:bg-sky-tint"
+              className="inline-flex min-h-12 items-center gap-0.5 rounded-full px-2 text-base font-medium text-muted transition-colors hover:text-ink"
             >
               <ChevronLeft aria-hidden className="h-5 w-5" />
               {back.label}
@@ -2626,14 +2628,13 @@ export function VelocityScreen({
             <button
               type="button"
               onClick={leave}
-              className="inline-flex h-10 items-center gap-0.5 rounded-lg pl-1 pr-3 text-sm font-medium text-sky transition-colors hover:bg-sky-tint"
+              className="inline-flex min-h-12 items-center gap-0.5 rounded-full px-2 text-base font-medium text-muted transition-colors hover:text-ink"
             >
               <ChevronLeft aria-hidden className="h-5 w-5" />
               구속 측정
             </button>
           )}
-          <h1 className="text-heading text-base">구속 측정</h1>
-          <span className="h-10 w-10" />
+          <span aria-hidden className="h-12 w-12" />
         </header>
       )}
 
@@ -2669,15 +2670,21 @@ export function VelocityScreen({
           title="폰을 어디에 둘까요?"
           subtitle="공이 날아가는 길과 그물까지 거리로 구속을 재요. 뒤에서 정면으로 보게 두는 두 자리 중 하나예요."
           footer={
-            <PrimaryButton
-              onClick={() => {
-                persistSetup({ targetDistM, releaseDistM, distTape });
-                setStep('net');
-              }}
-            >
-              다음
-              <ChevronRight aria-hidden className="h-4 w-4" />
-            </PrimaryButton>
+            <>
+              {/* 체크인 흐름처럼 [이전][다음] */}
+              <PrimaryButton tone="quiet" onClick={() => setStep('type')}>
+                이전
+              </PrimaryButton>
+              <PrimaryButton
+                onClick={() => {
+                  persistSetup({ targetDistM, releaseDistM, distTape });
+                  setStep('net');
+                }}
+              >
+                다음
+                <ChevronRight aria-hidden className="h-4 w-4" />
+              </PrimaryButton>
+            </>
           }
         >
           <div className="space-y-5">
@@ -2781,10 +2788,15 @@ export function VelocityScreen({
           title="카메라 앞에 네트가 있나요?"
           subtitle="그물이 있으면 초점을 고정해요 — 자동초점은 눈앞의 그물코에 초점을 맞춰 공이 흐려져요."
           footer={
-            <PrimaryButton onClick={goAlign}>
-              카메라 켜기
-              <ChevronRight aria-hidden className="h-4 w-4" />
-            </PrimaryButton>
+            <>
+              <PrimaryButton tone="quiet" onClick={() => setStep('camera')}>
+                이전
+              </PrimaryButton>
+              <PrimaryButton onClick={goAlign}>
+                카메라 켜기
+                <ChevronRight aria-hidden className="h-4 w-4" />
+              </PrimaryButton>
+            </>
           }
         >
           <OptionCards
@@ -2851,7 +2863,7 @@ export function VelocityScreen({
                       />
                     </div>
                   )}
-                  <section className="rounded-3xl bg-white/[0.06] px-5 pb-4 pt-5 text-center">
+                  <section className="rounded-2xl bg-white/[0.06] px-5 pb-4 pt-5 text-center">
                     {lastPitch ? (
                       <div key={lastPitch.id} className="motion-safe:animate-fade-in">
                         <p className="text-xs font-medium text-white/60">
@@ -2931,7 +2943,7 @@ export function VelocityScreen({
                                 patch(lastPitch.id, { pitchType: on ? null : t.key })
                               }
                               aria-pressed={on}
-                              className={`h-10 shrink-0 rounded-full px-3.5 text-sm font-semibold transition-colors ${
+                              className={`h-11 shrink-0 rounded-full px-4 text-sm font-semibold transition-colors ${
                                 on
                                   ? 'bg-sky text-white'
                                   : 'bg-white/10 text-white hover:bg-white/20'
@@ -2948,7 +2960,7 @@ export function VelocityScreen({
                   {error && (
                     <p
                       role="alert"
-                      className="mt-3 rounded-xl border border-danger-line/60 bg-danger/15 px-4 py-2.5 text-sm leading-relaxed text-white"
+                      className="mt-3 rounded-2xl border border-danger-line/60 bg-danger/15 px-4 py-2.5 text-sm leading-relaxed text-white"
                     >
                       {error}
                     </p>
@@ -3003,19 +3015,19 @@ export function VelocityScreen({
                     (isAdmin && !native)) && (
                     <div className={`space-y-2 px-4 ${resultShown ? '' : 'pb-3'}`}>
                       {step === 'align' && (
-                        <p className="rounded-xl bg-black/55 px-4 py-2.5 text-sm leading-snug text-white backdrop-blur motion-safe:animate-fade-in">
+                        <p className="rounded-2xl bg-black/55 px-4 py-2.5 text-sm leading-snug text-white backdrop-blur motion-safe:animate-fade-in">
                           {withGa(targetText)} 가운데 표적에 오게 폰 높이와 방향을
                           맞추세요.
                         </p>
                       )}
                       {step === 'align' && cameraOn && !levelOk && (
-                        <p className="rounded-xl bg-amber-600/90 px-4 py-2.5 text-sm leading-snug text-white">
+                        <p className="rounded-2xl bg-amber-600/90 px-4 py-2.5 text-sm leading-snug text-white">
                           아직 기울어 있어요. 그대로 가도 되지만 코스와 궤적이 비뚤게
                           보여요.
                         </p>
                       )}
                       {step === 'zone' && (
-                        <p className="rounded-xl bg-black/55 px-4 py-2.5 text-sm leading-snug text-white backdrop-blur motion-safe:animate-fade-in">
+                        <p className="rounded-2xl bg-black/55 px-4 py-2.5 text-sm leading-snug text-white backdrop-blur motion-safe:animate-fade-in">
                           존 자리는 릴리스 표적 바로 밑에 고정돼요. 두 손가락으로
                           벌리거나 모서리 손잡이로 크기만 맞춰요.
                         </p>
@@ -3026,12 +3038,12 @@ export function VelocityScreen({
                         phase == null &&
                         (fpsNote ?? standardNote ?? cropNote) &&
                         !error && (
-                          <p className="rounded-xl bg-warn/90 px-4 py-2.5 text-sm leading-snug text-white">
+                          <p className="rounded-2xl bg-warn/90 px-4 py-2.5 text-sm leading-snug text-white">
                             {fpsNote ?? standardNote ?? cropNote}
                           </p>
                         )}
                       {step === 'measure' && isAdmin && !native && !error && !saved && (
-                        <p className="rounded-xl bg-black/55 px-4 py-2 text-xs leading-snug text-white/85 backdrop-blur">
+                        <p className="rounded-2xl bg-black/55 px-4 py-2 text-xs leading-snug text-white/85 backdrop-blur">
                           웹 시험 모드(관리자) — 브라우저 카메라는 대개 초당 30장이라
                           값은 참고용이에요.
                         </p>
@@ -3039,13 +3051,13 @@ export function VelocityScreen({
                       {error && (
                         <p
                           role="alert"
-                          className="rounded-xl bg-danger/90 px-4 py-2.5 text-sm leading-relaxed text-white"
+                          className="rounded-2xl bg-danger/90 px-4 py-2.5 text-sm leading-relaxed text-white"
                         >
                           {error}
                         </p>
                       )}
                       {saved && (
-                        <p className="pointer-events-auto flex items-center gap-2 rounded-xl bg-black/70 px-4 py-2.5 text-sm text-white backdrop-blur">
+                        <p className="pointer-events-auto flex items-center gap-2 rounded-2xl bg-black/70 px-4 py-2.5 text-sm text-white backdrop-blur">
                           <Check aria-hidden className="h-4 w-4 text-ok" />
                           오늘 투구 기록에 남겼어요.
                           {/*
@@ -3061,14 +3073,14 @@ export function VelocityScreen({
                         </p>
                       )}
                       {toast && (
-                        <p className="rounded-xl bg-black/70 px-4 py-2.5 text-center text-sm text-white backdrop-blur motion-safe:animate-fade-in">
+                        <p className="rounded-2xl bg-black/70 px-4 py-2.5 text-center text-sm text-white backdrop-blur motion-safe:animate-fade-in">
                           {toast}
                         </p>
                       )}
                     </div>
                   )}
                 {live && !showCamera && toast && (
-                  <p className="mx-4 mb-3 rounded-xl bg-white/15 px-4 py-2.5 text-center text-sm text-white backdrop-blur motion-safe:animate-fade-in">
+                  <p className="mx-4 mb-3 rounded-2xl bg-white/15 px-4 py-2.5 text-center text-sm text-white backdrop-blur motion-safe:animate-fade-in">
                     {toast}
                   </p>
                 )}
@@ -3286,7 +3298,7 @@ export function VelocityScreen({
               {error && (
                 <p
                   role="alert"
-                  className="absolute inset-x-4 bottom-[calc(5rem+env(safe-area-inset-bottom))] rounded-xl bg-danger/90 px-4 py-2.5 text-sm leading-relaxed text-white"
+                  className="absolute inset-x-4 bottom-[calc(5rem+env(safe-area-inset-bottom))] rounded-2xl bg-danger/90 px-4 py-2.5 text-sm leading-relaxed text-white"
                 >
                   {error}
                 </p>
@@ -3784,9 +3796,9 @@ export function VelocityScreen({
             <button
               type="button"
               onClick={() => remove(editingPitch.id)}
-              className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-danger-bg text-sm font-semibold text-danger transition-colors hover:bg-danger-line/60"
+              className="inline-flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-danger-bg text-base font-semibold text-danger transition-colors hover:bg-danger-line/60"
             >
-              <Trash2 aria-hidden className="h-4 w-4" />이 공 지우기
+              <Trash2 aria-hidden className="h-5 w-5" />이 공 지우기
             </button>
           </div>
         )}
@@ -3807,18 +3819,15 @@ export function VelocityScreen({
             </p>
             <div>
               <p className="mb-1.5 text-sm font-semibold">종류</p>
-              <div className="flex flex-wrap gap-1.5">
+              {/* 체크인 · 탭 카드와 같은 알약 칩, 휴대폰은 같은 너비 칸(chip-grid) */}
+              <div className="chip-grid flex flex-wrap gap-2">
                 {THROW_TYPES.map((t) => (
                   <button
                     key={t.name}
                     type="button"
                     onClick={() => setSessionType(t.name)}
                     aria-pressed={sessionType === t.name}
-                    className={`min-h-9 rounded-full px-3.5 text-sm font-semibold transition-colors ${
-                      sessionType === t.name
-                        ? 'bg-sky text-white'
-                        : 'border border-line-strong bg-surface-2 text-ink hover:border-sky hover:text-sky'
-                    }`}
+                    className={`${CHIP_BASE} ${sessionType === t.name ? CHIP_ON : ''}`}
                   >
                     {t.name}
                   </button>
@@ -3848,9 +3857,9 @@ export function VelocityScreen({
               type="button"
               onClick={save}
               disabled={saving}
-              className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-sky text-sm font-semibold text-white hover:bg-sky-strong disabled:opacity-50"
+              className="inline-flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-sky text-lg font-bold text-white hover:bg-sky-strong disabled:opacity-50"
             >
-              {saving && <Loader2 aria-hidden className="h-4 w-4 animate-spin" />}
+              {saving && <Loader2 aria-hidden className="h-5 w-5 animate-spin" />}
               {uploading
                 ? `클립 올리는 중 ${uploading.done}/${uploading.total}`
                 : clipCount > 0
@@ -3938,7 +3947,7 @@ export function VelocityScreen({
             </p>
           </div>
 
-          <div className="rounded-2xl border border-line bg-surface px-4 py-3 text-sm">
+          <div className="rounded-2xl bg-surface-2 px-4 py-3 text-sm">
             <div className="flex items-center justify-between gap-3">
               <span className="min-w-0">
                 <span className="block text-ink">렌즈 보정</span>
@@ -3968,7 +3977,7 @@ export function VelocityScreen({
                   pauseSession();
                   setStep('lens');
                 }}
-                className="inline-flex h-10 shrink-0 items-center justify-center rounded-xl border border-line-strong bg-surface-2 px-3.5 text-xs font-semibold text-ink hover:border-sky hover:text-sky"
+                className="inline-flex h-11 shrink-0 items-center justify-center rounded-full bg-sky px-4 text-sm font-semibold text-white hover:bg-sky-strong"
               >
                 {lens ? '다시 재기' : '보정하기'}
               </button>

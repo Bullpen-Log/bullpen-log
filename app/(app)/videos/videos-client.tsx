@@ -14,6 +14,7 @@ import {
   type PitchView,
 } from './pitch-log-heading';
 import { CompareView, type ClipOption } from './compare-view';
+import { AnalysisLink } from '@/components/analysis-link';
 import { VideoGallery } from './video-gallery';
 import { VideoCalendar } from './video-calendar';
 import { OPEN_POPUP_TYPES } from '@/lib/transition-types';
@@ -265,6 +266,7 @@ export function VideosClient({
         inlineAction
         action={
           <>
+            <AnalysisLink view="pitch" />
             {/* 기록을 남기는 곳은 날짜 화면이다 — 이 탭에서 곧장 오늘로(PC). 단추 기본 모양이 inline-flex 라 감싸서 숨긴다 */}
             <span className="hidden desk:inline-flex">
               <ButtonLink

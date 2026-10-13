@@ -2179,7 +2179,18 @@ function DetailMenu({
         </div>
 
         <nav className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-2.5 py-2.5 desk:p-2">
-          {groups.map((group, gi) => (
+          {/*
+            휴대폰은 아이폰 앱 폴더처럼 — 둥근 네모 아이콘 + 밑 이름, 한 줄에 넷(2026-10-13 김민). 제목 없는 묶음(홈 · 투구 · …)은
+            한 판으로 이어 붙인다(묶음마다 한 줄이면 칸이 비었다). PC 팝업은 예전 목록 그대로(desk:).
+          */}
+          {groups
+            .reduce<NavGroup[]>((out, g) => {
+              const last = out[out.length - 1];
+              if (!g.title && last && !last.title) out[out.length - 1] = { items: [...last.items, ...g.items] };
+              else out.push(g);
+              return out;
+            }, [])
+            .map((group, gi) => (
             <div
               key={group.title ?? `g${gi}`}
               /*
@@ -2189,12 +2200,12 @@ function DetailMenu({
                */
               className={
                 group.title
-                  ? 'mt-4 space-y-1 desk:mt-2 desk:space-y-0.5 desk:border-t desk:border-line/70 desk:pt-2'
-                  : 'space-y-1 desk:space-y-0.5'
+                  ? 'mt-5 grid grid-cols-4 gap-x-1 gap-y-4 desk:mt-2 desk:block desk:space-y-0.5 desk:border-t desk:border-line/70 desk:pt-2'
+                  : 'grid grid-cols-4 gap-x-1 gap-y-4 pt-1 desk:block desk:space-y-0.5 desk:pt-0'
               }
             >
               {group.title && (
-                <p className="px-3 pb-1 text-xs font-semibold tracking-normal text-ink/65">
+                <p className="col-span-4 px-3 text-xs font-semibold tracking-normal text-ink/65 desk:pb-1">
                   {group.title}
                 </p>
               )}
@@ -2222,17 +2233,23 @@ function DetailMenu({
                     /*
                       누르는 칸은 44px 이상 — 예전에는 32px 남짓이라 옆 항목을 잘못 누르곤 했다.
                     */
-                    className={`flex min-h-11 items-center gap-3 rounded-xl px-3 py-2 transition-colors duration-75 desk:min-h-10 desk:rounded-lg desk:py-1.5 ${
+                    className={`flex min-w-0 flex-col items-center gap-1.5 rounded-2xl px-0.5 py-1 text-center text-ink transition-[colors,transform] duration-75 motion-safe:active:scale-95 desk:min-h-10 desk:flex-row desk:gap-3 desk:rounded-lg desk:px-3 desk:py-1.5 desk:text-left desk:active:scale-100 ${
                       active
-                        ? 'bg-sky text-white'
-                        : 'text-ink hover:bg-ink/6 active:bg-ink/6'
+                        ? 'desk:bg-sky desk:text-white'
+                        : 'desk:hover:bg-ink/6 desk:active:bg-ink/6'
                     }`}
                   >
+                    {/* 앱 아이콘 판(휴대폰만 — PC 는 desk:contents 로 판이 사라져 예전 아이콘 그대로). 지금 화면은 테두리로 */}
+                    <span
+                      className={`grid h-[3.75rem] w-[3.75rem] place-items-center rounded-[1.1rem] bg-sky text-white shadow-sm desk:contents ${
+                        active ? 'ring-2 ring-sky ring-offset-2 ring-offset-surface' : ''
+                      } ${dim ? 'opacity-55' : ''}`}
+                    >
                     <NavGlyph
                       Icon={Icon}
                       locked={item.locked}
                       dim={dim}
-                      className="h-5 w-5"
+                      className="h-7 w-7 desk:h-5 desk:w-5"
                       strokeWidth={active ? 2.4 : 1.9}
                       style={
                         fly
@@ -2242,8 +2259,9 @@ function DetailMenu({
                             : undefined
                       }
                     />
+                    </span>
                     <span
-                      className={`min-w-0 text-[15px] leading-5 desk:text-sm ${active ? 'font-semibold' : 'font-medium'} ${dim ? 'opacity-55' : ''}`}
+                      className={`min-w-0 max-w-full truncate text-xs leading-4 desk:text-sm desk:leading-5 ${active ? 'font-semibold' : 'font-medium'} ${dim ? 'opacity-55' : ''}`}
                     >
                       {item.label}
                     </span>
@@ -2370,7 +2388,13 @@ function MobileTopBar({
   const bar = useSyncExternalStore(subscribeBar, barSnapshot, serverBarSnapshot);
   const back = bar.back;
   /* 홈은 앱 이름을 막대 왼쪽에 — 큰 제목 자리에 두면 날짜 위로 한 줄을 통째로 차지했다(2026-10-13 김민) */
-  const home = usePathname() === '/today';
+  const pathname = usePathname();
+  const home = pathname === '/today';
+  /*
+   * 기록 · 트레이닝 · 영양 탭 첫 화면은 막대를 안 그린다(같은 날 김민: "앱 이름 · 프로필 설정 줄은 홈에만") — 그 탭의 큰 제목이 맨 위.
+   * 하위 화면('‹ 뒤로'가 있는 곳)은 그대로. 시계 자리 칠과 그만큼의 빈칸은 남긴다.
+   */
+  const bare = !back && ['/videos', '/nutrition', '/training'].includes(pathname);
 
   return (
     <>
@@ -2389,6 +2413,7 @@ function MobileTopBar({
       />
       {/* 첫 화면에서 막대가 시계 밑에서 시작하도록 그만큼 비운다 */}
       <div aria-hidden className="h-[env(safe-area-inset-top)] shrink-0 desk:hidden" />
+      {!bare && (
       <header
         /*
          * 아이폰 앱의 내비게이션 막대(2026-10-04 '앱 틀을 네이티브처럼') — 왼쪽 '‹ 뒤로', 가운데 화면 제목(큰 제목이 가려졌을
@@ -2475,6 +2500,7 @@ function MobileTopBar({
           </button>
         </div>
       </header>
+      )}
     </>
   );
 }

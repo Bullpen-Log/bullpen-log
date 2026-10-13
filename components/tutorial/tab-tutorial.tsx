@@ -35,7 +35,7 @@ import { nutritionSlides, pitchSlides, trainingSlides } from './slides';
 export type TabTutorialKey = FeatureKey;
 
 const LABELS: Record<TabTutorialKey, string> = {
-  pitch: '투구 기록 · 처음 안내',
+  pitch: '투구 · 처음 안내',
   training: '트레이닝 · 처음 안내',
   nutrition: '영양 · 처음 안내',
 };

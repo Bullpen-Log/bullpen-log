@@ -59,9 +59,9 @@ export function StepShell({
 }) {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pb-4 pt-4 short:pt-3">
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pb-4 pt-2 short:pt-1">
         <StepBar step={step} total={total} />
-        <h2 className="text-heading mt-4 text-2xl leading-tight short:mt-3 short:text-xl">
+        <h2 className="mt-5 text-2xl font-bold leading-tight text-ink short:mt-3 short:text-xl">
           {title}
         </h2>
         {subtitle && (
@@ -71,7 +71,8 @@ export function StepShell({
         )}
         <div className="mt-5 short:mt-3">{children}</div>
       </div>
-      <div className="flex shrink-0 items-center gap-2 border-t border-line bg-surface px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3">
+      {/* 아래 막대 — 체크인 흐름과 같이 테두리 없이 맨바탕 위에 */}
+      <div className="flex shrink-0 items-center gap-2 px-5 pb-[max(1rem,env(safe-area-inset-bottom))] pt-2">
         {footer}
       </div>
     </div>
@@ -94,10 +95,10 @@ export function PrimaryButton({
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className={`inline-flex h-12 flex-1 items-center justify-center gap-2 rounded-xl text-sm font-semibold transition-colors disabled:opacity-50 ${
+      className={`inline-flex h-14 items-center justify-center gap-2 rounded-2xl transition-colors disabled:opacity-50 ${
         tone === 'sky'
-          ? 'bg-sky text-white hover:bg-sky-strong'
-          : 'border border-line-strong bg-surface-2 text-ink hover:border-sky hover:text-sky'
+          ? 'flex-1 bg-sky text-lg font-bold text-white hover:bg-sky-strong'
+          : 'min-w-28 bg-ink/6 px-5 text-base font-semibold text-ink hover:bg-ink/10'
       }`}
     >
       {children}
@@ -132,7 +133,7 @@ export function AskPreviousStep({
         </>
       }
     >
-      <div className="overflow-hidden rounded-2xl border border-line bg-surface">
+      <div className="overflow-hidden rounded-2xl bg-surface">
         <div className="px-4 py-3">
           <p className="text-sm font-semibold">{setupSummary(setup)}</p>
           <p className="mt-0.5 text-xs text-muted">
@@ -258,11 +259,11 @@ export function DistanceField({
           type="button"
           aria-label="0.5m 줄이기"
           onClick={() => set(value - 0.5)}
-          className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-surface-2 text-ink"
+          className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-ink/6 text-ink transition-colors hover:bg-ink/10"
         >
-          <Minus aria-hidden className="h-5 w-5" />
+          <Minus aria-hidden className="h-6 w-6" />
         </button>
-        <label className="flex h-12 min-w-0 flex-1 items-center justify-center gap-1 rounded-2xl bg-surface-2 px-3">
+        <label className="flex h-14 min-w-0 flex-1 items-center justify-center gap-1 rounded-2xl bg-surface px-3">
           <input
             inputMode="decimal"
             key={value}
@@ -273,17 +274,17 @@ export function DistanceField({
               else e.target.value = String(value);
             }}
             aria-label={`${label}(m)`}
-            className="w-16 bg-transparent text-center text-lg font-semibold tabular-nums text-ink focus:outline-none"
+            className="w-20 bg-transparent text-center text-2xl font-black tabular-nums text-ink focus:outline-none"
           />
-          <span className="text-sm text-muted">m</span>
+          <span className="text-base text-muted">m</span>
         </label>
         <button
           type="button"
           aria-label="0.5m 늘리기"
           onClick={() => set(value + 0.5)}
-          className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-surface-2 text-ink"
+          className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-ink/6 text-ink transition-colors hover:bg-ink/10"
         >
-          <Plus aria-hidden className="h-5 w-5" />
+          <Plus aria-hidden className="h-6 w-6" />
         </button>
       </div>
       <p className="mt-2 px-0.5 text-xs leading-relaxed text-muted">{hint}</p>
@@ -318,7 +319,8 @@ export function tipsFor(c: Choices): Tip[] {
           {
             key: 'distance',
             title: '거리를 줄자로 재면 더 정확해요',
-            short: '그물(미트)까지 거리는 공 크기로 어림해요. 줄자로 재서 넣으면 오차가 절반 밑으로 줄어요.',
+            short:
+              '그물(미트)까지 거리는 공 크기로 어림해요. 줄자로 재서 넣으면 오차가 절반 밑으로 줄어요.',
             long: '구속은 공이 날아가는 길을 장면마다 찾아 물리(공기저항 · 중력)에 맞춘 뒤, 공이 그물 · 미트에 닿은 때의 거리로 크기를 정해요. 그 거리는 공 크기(지름 7.3cm)로 어림해요. 밖 실험 영상에서 평균 2~3km/h 차이였어요. 줄자로 폰 렌즈에서 공이 닿는 곳까지 재서 거리 단계나 설정의 직접 넣기에 적으면 1km/h 안팎으로 좋아져요. 넣은 거리는 곧 자라서 20m 를 21m 로 적으면 값이 5% 높게 나와요. 공 크기 어림은 화각을 알아야 해서 아이폰 카메라 앱 영상과 앱 카메라에서 잘 맞고, 웹 카메라는 렌즈 보정을 하면 맞아요.',
             art: <ArtTape />,
           },
@@ -342,7 +344,8 @@ export function tipsFor(c: Choices): Tip[] {
           {
             key: 'camera',
             title: '1x 기본 렌즈, 줌 끄기',
-            short: '0.5x · 2x · 디지털 줌은 크기 기준이 달라져요. 보정한 렌즈 그대로 쓰세요.',
+            short:
+              '0.5x · 2x · 디지털 줌은 크기 기준이 달라져요. 보정한 렌즈 그대로 쓰세요.',
             long: '렌즈를 바꾸거나 화면을 확대하면 초점거리가 달라져 보정값이 안 맞아요. 항상 1x 기본(광각 아님) 렌즈로, 줌은 1.0 에 두세요. 앱 카메라는 손떨림 보정을 켜고, 렌즈 보정도 그 화면으로 재요. HDR · 시네마틱 같은 밝기 자동 처리는 끄세요.',
             art: <ArtCamera />,
           },

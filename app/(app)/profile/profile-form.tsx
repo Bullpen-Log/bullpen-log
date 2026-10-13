@@ -366,7 +366,7 @@ export function ProfileForm({
       >
         <a href="/videos/setup" className="flex min-h-12 items-center gap-3 px-4 text-sm text-ink">
           <span className="shrink-0">평소 투구량</span>
-          <span className="flex-1 text-right text-muted">투구 기록 설정에서 고치기 ›</span>
+          <span className="flex-1 text-right text-muted">투구 설정에서 고치기 ›</span>
         </a>
         <SelectRow
           label="웨이트 횟수"

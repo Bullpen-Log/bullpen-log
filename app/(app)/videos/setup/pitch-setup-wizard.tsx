@@ -153,10 +153,10 @@ export function PitchSetupWizard({
         };
       case 'summary':
         return {
-          title: `${name ? `${name} 님의 ` : ''}투구 기록 설정이에요`,
+          title: `${name ? `${name} 님의 ` : ''}투구 설정이에요`,
           desc: done
-            ? '저장하면 투구 기록 탭과 홈이 이 값으로 셈해요. 언제든 내 정보에서 고칠 수 있어요.'
-            : '시작하면 투구 기록 탭이 열려요. 언제든 내 정보에서 고칠 수 있어요.',
+            ? '저장하면 투구 탭과 홈이 이 값으로 셈해요. 언제든 내 정보에서 고칠 수 있어요.'
+            : '시작하면 투구 탭이 열려요. 언제든 내 정보에서 고칠 수 있어요.',
         };
     }
   }
@@ -324,7 +324,7 @@ export function PitchSetupWizard({
             <p className="text-xs leading-relaxed break-keep text-muted">
               {done
                 ? '저장하면 내 정보의 같은 칸도 이 값으로 바뀌어요.'
-                : '시작하면 투구 기록 탭이 열리고, 사용법을 짧게 안내해요.'}
+                : '시작하면 투구 탭이 열리고, 사용법을 짧게 안내해요.'}
             </p>
           </div>
         )}

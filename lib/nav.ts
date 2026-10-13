@@ -34,6 +34,8 @@ export type NavIconName =
   | 'clapper'
   /* 구속 측정 — 스피드건(레이더 건)처럼 곧장 잰다. 계기판(관리자)과 가르려고 다른 그림 */
   | 'radar'
+  /* 투구 분석(3D, 실험실) — 서 있는 사람 */
+  | 'body'
   | 'menu';
 
 export type NavItem = {
@@ -145,7 +147,7 @@ export const NAV_GROUPS: NavGroup[] = [
   },
   /* 투구 기록 · 트레이닝 · 영양 · 구속 측정은 처음 가입한 사람에게 잠겨 있다(lock — 위 NavItem.lock) */
   {
-    items: [{ href: '/videos', label: '투구 기록', icon: 'baseball', lock: 'pitch' }],
+    items: [{ href: '/videos', label: '투구', icon: 'baseball', lock: 'pitch' }],
   },
   {
     /* 트레이닝 홈 — 트레이닝 · 암케어 · 메커니즘 앱 카드(lib/training-part.ts) */
@@ -180,6 +182,10 @@ export const NAV_GROUPS: NavGroup[] = [
         lock: 'pitch',
       },
     ],
+  },
+  /* 투구 분석 — 옆 · 뒤 두 영상으로 3D 분석(실험실, 2026-10-13 김민 '더보기에 투구분석'). 아직 관리자만 연다(videos/lab/page.tsx requireAdmin) */
+  {
+    items: [{ href: '/videos/lab', label: '투구 분석', icon: 'body', adminOnly: true, lock: 'pitch' }],
   },
   {
     title: '라이브러리',
@@ -290,8 +296,7 @@ export const MOBILE_TABS: NavItem[] = [
   { href: '/today', label: '홈', icon: 'home' },
   {
     href: '/videos',
-    label: '투구 기록',
-    short: '기록',
+    label: '투구',
     icon: 'baseball',
     lock: 'pitch',
   },

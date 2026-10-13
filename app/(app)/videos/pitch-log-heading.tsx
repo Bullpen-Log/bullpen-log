@@ -91,7 +91,7 @@ export function PitchLogHeading({
       <ViewTransition name="pitch-log-heading">
         <PageHeading
           eyebrow="Pitch log"
-          title="투구 기록"
+          title="투구"
           inlineAction={inlineAction}
           action={
             <div className="flex items-center gap-2">

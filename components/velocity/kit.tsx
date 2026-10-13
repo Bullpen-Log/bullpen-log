@@ -14,7 +14,7 @@ import { Button } from '@/components/ui';
 const join = (...c: (string | false | undefined | null)[]) =>
   c.filter(Boolean).join(' ');
 
-/** 단계 표시 — 여섯 칸 가운데 어디까지 왔나. '2 / 6' 글자보다 한눈에 들어온다 */
+/** 진행 띠 — 체크인 흐름과 같은 띠 하나(components/checkin-flow/flow.tsx). 단계 수로 똑같이 나눠 지금 단계까지 찬다 */
 export function StepBar({ step, total }: { step: number; total: number }) {
   return (
     <div
@@ -23,14 +23,12 @@ export function StepBar({ step, total }: { step: number; total: number }) {
       aria-valuemax={total}
       aria-valuenow={step}
       aria-label={`${total}단계 중 ${step}단계`}
-      className="flex gap-1"
+      className="h-1.5 overflow-hidden rounded-full bg-ink/10"
     >
-      {Array.from({ length: total }, (_, i) => (
-        <span
-          key={i}
-          className={`h-1 flex-1 rounded-full transition-colors ${i < step ? 'bg-sky' : 'bg-line'}`}
-        />
-      ))}
+      <span
+        className="block h-full rounded-full bg-sky transition-[width] duration-[280ms] ease-out"
+        style={{ width: `${Math.min(100, Math.max(0, (step / total) * 100))}%` }}
+      />
     </div>
   );
 }
@@ -51,7 +49,7 @@ export function SectionLabel({
   );
 }
 
-/** 카드 — 앱의 Card 와 같은 테두리 · 모서리. 안 여백은 안에서 정한다(목록은 여백 없이 줄로 나뉜다) */
+/** 카드 — 체크인 흐름의 카드처럼 테두리 없이 맨바탕(bg-page) 위에 흰 면. 안 여백은 안에서 정한다(목록은 여백 없이 줄로 나뉜다) */
 export function Panel({
   className,
   children,
@@ -60,12 +58,7 @@ export function Panel({
   children: ReactNode;
 }) {
   return (
-    <section
-      className={join(
-        'overflow-hidden rounded-2xl border border-line bg-surface',
-        className
-      )}
-    >
+    <section className={join('overflow-hidden rounded-2xl bg-surface', className)}>
       {children}
     </section>
   );
@@ -87,8 +80,11 @@ export function StatRow({
           <dt className="text-xs text-muted">{it.label}</dt>
           <dd className="text-display mt-0.5 text-2xl leading-none tabular-nums text-ink">
             {it.value}
+            {/* 단위는 제 줄에 — 네 칸이면 "km/h" 가 숫자 옆에서 갈렸다 */}
             {it.unit && (
-              <span className="ml-0.5 font-sans text-xs text-muted">{it.unit}</span>
+              <span className="mt-1 block font-sans text-[11px] leading-none text-muted">
+                {it.unit}
+              </span>
             )}
           </dd>
         </div>
@@ -106,10 +102,10 @@ export function Note({
   children: ReactNode;
 }) {
   const cls = {
-    info: 'border-line bg-surface text-muted',
+    info: 'border-transparent bg-ink/5 text-muted',
     warn: 'border-warn-line bg-warn-bg text-warn',
     danger: 'border-danger-line bg-danger-bg text-danger',
-    ok: 'border-line bg-surface text-ink',
+    ok: 'border-transparent bg-ink/5 text-ink',
   }[tone];
   return (
     <p
@@ -121,14 +117,22 @@ export function Note({
   );
 }
 
-/** 칩(하나 고르기) — 운동 등록 폼의 선택 칩(components/choice-inputs.tsx)과 같은 색 · 모서리, 높이 40px */
+/** 칩(하나 고르기) — 체크인 · 탭 카드의 칩(components/day-card.tsx DAY_CHIP)과 같은 알약, 높이 44px */
 export const CHIP_BASE =
-  'min-h-10 rounded-lg border px-3.5 text-sm transition-colors border-line bg-surface-2 text-muted hover:border-sky-soft hover:text-ink';
-export const CHIP_ON = 'border-sky bg-sky/10 font-medium text-sky';
+  'inline-flex min-h-11 items-center justify-center rounded-full border border-transparent bg-ink/6 px-4 text-sm text-ink/80 transition-colors hover:text-ink';
+export const CHIP_ON = 'border-sky bg-sky/10 font-semibold text-sky';
 
-/** 큰 단추 — 앱의 Button 그대로, 높이만 48px 로 못박고 남는 폭을 채운다 */
+/** 큰 단추 — 체크인 흐름의 아래 단추와 같은 크기(56px · 모서리 2xl · 큰 글), 남는 폭을 채운다 */
 export function BigButton({ className, ...props }: ComponentProps<typeof Button>) {
-  return <Button className={join('h-12 flex-1', className)} {...props} />;
+  return (
+    <Button
+      className={join(
+        'h-14 flex-1 rounded-2xl text-base font-bold desk:rounded-2xl',
+        className
+      )}
+      {...props}
+    />
+  );
 }
 
 /**
@@ -157,7 +161,7 @@ export function Chips<V extends string>({
       aria-label={label}
       className={
         wrap
-          ? 'flex flex-wrap gap-2'
+          ? 'chip-grid flex flex-wrap gap-2'
           : 'no-scrollbar -mx-4 flex gap-2 overflow-x-auto px-4'
       }
     >

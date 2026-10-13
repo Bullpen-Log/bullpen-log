@@ -1,16 +1,12 @@
 import { appNow } from '@/lib/clock';
 import { Suspense, cache } from 'react';
-import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { ChevronRight } from 'lucide-react';
-import { LinkPending } from '@/components/link-pending';
 import { prisma } from '@/lib/prisma';
 import { requireUser } from '@/lib/dal';
 import { featureLocks } from '@/lib/feature-locks';
 import { loadTodayCore } from '@/lib/report/today-data';
-import { shiftDateKey, toDateKey } from '@/lib/pitch-stats';
-import { REST_SESSION_TYPE } from '@/lib/session-type';
-import { dbDate, keyOfDbDate } from '@/lib/nutrition/days';
+import { toDateKey } from '@/lib/pitch-stats';
+import { keyOfDbDate } from '@/lib/nutrition/days';
 import { Card, PageHeading } from '@/components/ui';
 import { Skeleton } from '@/components/fallback';
 import {
@@ -18,7 +14,7 @@ import {
   intensityRangeText,
   pitchRangeText,
 } from '@/lib/report/plan';
-import { buildHighlights } from '@/lib/report/highlights';
+import { loadHighlights } from '@/lib/report/highlights-load';
 import { GOOD_DAY_MIN, RATED_SESSION_TYPES } from '@/lib/pitch-satisfaction';
 import { PitchLogPanel } from './pitch-log-panel';
 import { TodayRings } from './today-rings';
@@ -54,7 +50,7 @@ type User = Awaited<ReturnType<typeof requireUser>>;
  */
 const homeCore = cache((user: User) => loadTodayCore(user, now()));
 
-/** 기다리는 동안의 자리 — 하이라이트 두 장과 '더 보기' 줄 모양 */
+/** 기다리는 동안의 자리 — 하이라이트 두 장 모양 */
 function TodaySkeleton() {
   return (
     <div aria-busy="true" className="space-y-3">
@@ -199,7 +195,7 @@ async function PitchLogSection({
   );
 }
 
-/** 캘린더 밑 — 알림 카드 · 첫날 카드 · 하이라이트 · 더 보기 */
+/** 캘린더 밑 — 알림 카드 · 첫날 카드 · 하이라이트('분석 · 그래프 더 보기' 줄은 2026-10-13 김민이 뺌 — 분석은 탭 제목 옆 '분석' 단추로) */
 async function TodayBody({
   user,
   today,
@@ -210,41 +206,11 @@ async function TodayBody({
   /** 투구 기록이 잠겨 있다(첫 설정 전) — 첫날 카드가 숫자 대신 설정으로 가는 단추를 낸다 */
   pitchLocked: boolean;
 }) {
-  /*
-   * 하이라이트 재료 — 모두 하루 한 줄로 가볍게 읽는다. 투구는 6주(구속 선 · 투구 막대), 체크인은 두 달(연속 일수),
-   * 운동은 2주(지난주와 견줌).
-   */
-  const [core, logs, before, checkins, workouts, lastLog, goodDay] =
+  /* 하이라이트는 홈 몫(체크인 · 컨디션 · 이번 주)만 — 투구 · 운동 것은 분석 › 투구 · 트레이닝으로 옮겼다(lib/report/highlights-load.ts) */
+  const core = await homeCore(user);
+  const [{ items: highlights, lastLogDate }, goodDay] =
     await Promise.all([
-      homeCore(user),
-      prisma.pitchLog.findMany({
-        where: { userId: user.id, date: { gte: dbDate(shiftDateKey(today, -41)) } },
-        select: { date: true, pitchCount: true, maxVelocity: true, sessionType: true },
-      }),
-      /* 최근 이레 앞의 역대 최고 구속 — '새 기록'을 가른다 */
-      prisma.pitchLog.aggregate({
-        where: { userId: user.id, date: { lt: dbDate(shiftDateKey(today, -6)) } },
-        _max: { maxVelocity: true },
-      }),
-      prisma.dailyCheckin.findMany({
-        where: { userId: user.id, date: { gte: dbDate(shiftDateKey(today, -61)) } },
-        select: { date: true, condition: true },
-      }),
-      prisma.userExerciseLog.findMany({
-        where: {
-          userId: user.id,
-          completed: true,
-          date: { gte: dbDate(shiftDateKey(today, -13)) },
-        },
-        select: { date: true },
-        distinct: ['date'],
-      }),
-      /* 마지막으로 남긴 투구 기록(쉬는 날 포함) — 기록이 며칠째 비었나 */
-      prisma.pitchLog.findFirst({
-        where: { userId: user.id },
-        orderBy: { date: 'desc' },
-        select: { date: true },
-      }),
+      loadHighlights(user.id, today, { zone: core.facts.load.zone, ratio: core.facts.load.ratio }, 'home'),
       /* 만족도가 높았던 날의 메모 — 5점 먼저, 같은 점수면 최근 것(good-day-note.tsx) */
       prisma.pitchLog.findFirst({
         where: {
@@ -264,17 +230,6 @@ async function TodayBody({
       }),
     ]);
   const { facts, plan, picked } = core;
-
-  const pitchesByDay: Record<string, number> = {};
-  const velocityByDay: Record<string, number> = {};
-  for (const l of logs) {
-    const key = toDateKey(l.date);
-    if (l.sessionType !== REST_SESSION_TYPE) {
-      pitchesByDay[key] = (pitchesByDay[key] ?? 0) + l.pitchCount;
-    }
-    if (l.maxVelocity != null)
-      velocityByDay[key] = Math.max(velocityByDay[key] ?? 0, l.maxVelocity);
-  }
   /*
    * 잘 던진 날 메모는 오늘 던지기 전에만 — 오늘 할 일이 등판 · 불펜이고 오늘 투구 기록(쉬는 날 포함)이 아직 없을 때.
    * 기록을 남기면 그날은 거둔다. '오늘 등판 · 불펜인가'는 투구 계획 · 매일 일정 · 암케어와 같은 함수(lib/checkin.ts
@@ -285,28 +240,12 @@ async function TodayBody({
       facts.condition.throwPlanToday,
       facts.condition.throwPlanYesterday
     ) != null;
-  const loggedToday = logs.some((l) => toDateKey(l.date) === today);
+  const loggedToday = lastLogDate === today;
   const goodNote =
     goodDay?.memo && goodDay.satisfaction != null && throwsToday && !loggedToday
       ? { ...goodDay, memo: goodDay.memo, satisfaction: goodDay.satisfaction }
       : null;
 
-  const conditionByDay: Record<string, number> = {};
-  for (const c of checkins) {
-    if (c.condition != null) conditionByDay[toDateKey(c.date)] = c.condition;
-  }
-
-  const highlights = buildHighlights({
-    today,
-    load: { zone: facts.load.zone, ratio: facts.load.ratio },
-    pitchesByDay,
-    lastLogDate: lastLog ? toDateKey(lastLog.date) : null,
-    velocityByDay,
-    bestBefore: before._max.maxVelocity ?? null,
-    conditionByDay,
-    checkinDays: checkins.map((c) => toDateKey(c.date)),
-    workoutDays: workouts.map((w) => toDateKey(w.date)),
-  });
 
   return (
     <>
@@ -389,17 +328,6 @@ async function TodayBody({
       )}
 
       <Highlights items={highlights} />
-
-      {/* 분석 칸 · 그래프는 따로 한 화면으로(/coach) — 지운 것 없이 거기에 그대로 있다 */}
-      <Link
-        href="/coach"
-        className="flex min-h-12 items-center justify-between rounded-2xl border border-line bg-surface px-(--block-pad) text-[15px] text-ink transition-colors hover:bg-surface-2/60"
-      >
-        분석 · 그래프 더 보기
-        <LinkPending className="h-4 w-4 text-line-strong">
-          <ChevronRight aria-hidden className="h-4 w-4 shrink-0 text-line-strong" />
-        </LinkPending>
-      </Link>
     </>
   );
 }

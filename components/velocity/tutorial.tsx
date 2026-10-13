@@ -177,7 +177,7 @@ function TutorialDialog({ onClose }: { onClose: (hideNext: boolean) => void }) {
             title="건너뛰기"
             className="-mr-2 flex h-12 w-12 items-center justify-center rounded-full text-muted transition-colors hover:bg-surface-2 hover:text-ink"
           >
-            <X aria-hidden className="h-5 w-5" />
+            <X aria-hidden className="h-6 w-6" />
           </button>
         </div>
 
@@ -185,7 +185,7 @@ function TutorialDialog({ onClose }: { onClose: (hideNext: boolean) => void }) {
         <div className="flex min-h-0 flex-1 flex-col justify-center overflow-y-auto py-2">
           <section
             key={slide.key}
-            className={`overflow-hidden rounded-2xl border border-line bg-surface ${
+            className={`overflow-hidden rounded-2xl bg-surface ${
               dir === 'next'
                 ? 'motion-safe:animate-step-next'
                 : 'motion-safe:animate-step-back'
@@ -198,7 +198,10 @@ function TutorialDialog({ onClose }: { onClose: (hideNext: boolean) => void }) {
               <SectionLabel>
                 {index + 1} / {total}
               </SectionLabel>
-              <h2 id="velocity-tutorial-title" className="text-heading text-lg">
+              <h2
+                id="velocity-tutorial-title"
+                className="text-xl font-bold leading-tight text-ink"
+              >
                 {slide.title}
               </h2>
               <p className="mt-2 text-sm leading-relaxed text-ink">{slide.body}</p>
@@ -242,7 +245,7 @@ function TutorialDialog({ onClose }: { onClose: (hideNext: boolean) => void }) {
               type="checkbox"
               checked={hideNext}
               onChange={(e) => setHideNext(e.target.checked)}
-              className="h-5 w-5 shrink-0 accent-sky"
+              className="h-6 w-6 shrink-0 accent-sky"
             />
             다시 보지 않기
           </label>
