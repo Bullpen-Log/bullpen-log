@@ -99,7 +99,8 @@ export function MuscleMapPanel({
             onChange={(next) => {
               setMode(next);
               /* 최근 2주로 바꾸면 고른 것을 풀어 전체 진하기가 보이게 */
-              if (next === 'mine') setSelection({ area: null, muscle: null, part: null });
+              if (next === 'mine')
+                setSelection({ area: null, muscle: null, part: null });
             }}
             options={MODE_OPTIONS}
             layout="flow"
@@ -152,7 +153,11 @@ export function MuscleMapPanel({
         </div>
       )}
 
-      <div className="flex flex-wrap gap-1.5" role="group" aria-label="부위 고르기">
+      <div
+        className="chip-grid flex flex-wrap gap-1.5"
+        role="group"
+        aria-label="부위 고르기"
+      >
         {ARMCARE_AREAS.map((a) => {
           const on = selection.area === a.key;
           /* 최근 2주 보기에서 빈 부위(주로 키우는 운동을 안 함, lib/armcare/coverage.ts GAP_BELOW)는 호박색 점선 */

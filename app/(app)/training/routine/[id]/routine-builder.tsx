@@ -309,7 +309,11 @@ export function RoutineBuilder({
             className="min-w-0 flex-1 bg-transparent text-sm text-ink outline-none placeholder:text-muted/70"
           />
         </label>
-        <div className="flex flex-wrap gap-1.5" role="group" aria-label="부위로 거르기">
+        <div
+          className="chip-grid flex flex-wrap gap-1.5"
+          role="group"
+          aria-label="부위로 거르기"
+        >
           {(['all', ...ARMCARE_AREAS.map((a) => a.key)] as Filter[]).map((key) => {
             const on = filter === key;
             return (

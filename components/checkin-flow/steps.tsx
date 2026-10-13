@@ -340,7 +340,7 @@ function ArmDetail({
     >
       <div className="space-y-1.5">
         <p className="text-sm font-semibold text-ink">{label} 어디가 아파요?</p>
-        <div className="flex flex-wrap gap-2">
+        <div className="chip-grid flex flex-wrap gap-2" data-cols="4">
           {ARM_PAIN_SPOTS[joint].map((s) => (
             <Chip
               key={s.key}
@@ -356,7 +356,7 @@ function ArmDetail({
       {showLevel && (
         <div className="space-y-1.5">
           <p className="text-sm font-semibold text-ink">얼마나 아파요?</p>
-          <div className="flex flex-wrap gap-2">
+          <div className="chip-grid flex flex-wrap gap-2" data-cols="3">
             {ARM_PAIN_LEVELS.map((l) => (
               <Chip
                 key={l.value}

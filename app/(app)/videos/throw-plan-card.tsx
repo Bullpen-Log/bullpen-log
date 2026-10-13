@@ -73,7 +73,7 @@ function PlanForm({
 
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap gap-2">
+      <div className="chip-grid flex flex-wrap gap-2" data-cols="3">
         {THROW_PLANS.map((p) => (
           <Chip
             key={p}

@@ -58,7 +58,7 @@ export function MetaFilter({
           <p className="mb-2 text-xs font-semibold tracking-normal text-muted desk:text-[11px] desk:font-medium">
             {group.label}
           </p>
-          <div className="flex flex-wrap gap-1.5">
+          <div className="chip-grid flex flex-wrap gap-1.5">
             {group.options.map((option) => {
               const on = (value[group.key] ?? []).includes(option);
               return (
