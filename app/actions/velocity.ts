@@ -106,6 +106,9 @@ export type SaveSessionInput = {
   focalPx?: number | null;
   lensCal?: unknown;
   releaseDistM?: number | null;
+  /** 투수 뒤의 폰 → 미트 거리(m) · 출처('tape' · 'session-size' · 'default' · 'auto') — 엔진 2.4 1단계 */
+  distanceM?: number | null;
+  distanceSource?: string | null;
   frameW?: number | null;
   frameH?: number | null;
   pitches: SavePitchInput[];
@@ -353,6 +356,8 @@ export async function saveVelocitySession(
               ) as Prisma.InputJsonValue)
             : undefined,
         releaseDistM: optional(input.releaseDistM, 1, 60),
+        distanceM: optional(input.distanceM, 1, 60),
+        distanceSource: ['tape', 'session-size', 'default', 'auto'].includes(String(input.distanceSource)) ? String(input.distanceSource) : null,
         frameW: optional(input.frameW, 1, 10_000),
         frameH: optional(input.frameH, 1, 10_000),
         pitches: {

@@ -85,8 +85,11 @@ import {
   loadDistMemory,
   medianOf,
   saveDistMemory,
+  sessionCorrection,
   sessionDistOf,
+  TAPE_WARN,
   type DistMemory,
+  type SizeSample,
 } from '@/lib/velocity-session-distance';
 import {
   SegmentedRecorder,
@@ -167,7 +170,8 @@ import {
 } from '@/components/velocity/setup-art';
 import { isTipsSkippedToday, TipsPopup } from '@/components/velocity/tips-popup';
 import {
-  DIST_MODES,
+  DIST_MODES_ADMIN,
+  TAPE_MODES,
   VelocitySettingsFields,
 } from '@/components/velocity/velocity-settings';
 import { Segmented } from '@/components/segmented';
@@ -286,6 +290,8 @@ type SessionContext = Pick<
   | 'focalPx'
   | 'lensCal'
   | 'releaseDistM'
+  | 'distanceM'
+  | 'distanceSource'
   | 'useCal'
   | 'frameW'
   | 'frameH'
@@ -332,6 +338,16 @@ type LocalPitch = SavePitchInput & {
     errorKmh: number;
     clean: boolean;
   } | null;
+  /**
+   * 기준 20m(또는 줄자 거리)로 잰 공의 처음 값 — 세션 거리 보정(withSessionDistance · sessionCorrection, 엔진 2.4 1단계)으로 옮길 때
+   * 여기서 다시 낸다. size 는 깨끗한 공인지 가리는 재료(공 크기 거리 · 기울기 · 이어 찾기 · 끝 · 믿음 · 공 길 장면 수)
+   */
+  std?: {
+    kmh: number;
+    releaseKmh: number | null;
+    errorKmh: number;
+    size: SizeSample;
+  } | null;
 };
 /**
  * 세션 거리(규칙 · 숫자는 lib/velocity-session-distance.ts) — 끝이 깨끗한 공(맞고 튄 공으로 끝, 이어 찾기 없음)에만 쓴다. 실내(흰 천 ·
@@ -340,9 +356,33 @@ type LocalPitch = SavePitchInput & {
  * 공을 더하거나 지울 때마다 다시 센다.
  */
 const SESSION_DIST_TOL = 0.08;
+/** 기준 20m 로 잰 공들의 세션 보정(공 크기 가운데 값) — 그 출처의 공이 셋 미만이면 null */
+function stdCorrection(list: LocalPitch[], source: LocalPitch['source']) {
+  return sessionCorrection(
+    list.filter((p) => p.std && p.source === source).map((p) => p.std!.size),
+    STANDARD_TARGET_DIST_M,
+    SPEED_DISTANCE_EXPONENT
+  );
+}
+/** 저장할 세션의 거리 · 출처 — 줄자가 이기고, 기준 20m 세션은 보정이 걸렸으면 그 가운데 값(엔진 2.4 1단계) */
+function sessionDistanceOf(
+  list: LocalPitch[],
+  s: { cameraPos: string; distAuto: boolean; distTape: boolean; targetDistM: number }
+): { distanceM: number | null; distanceSource: string | null } {
+  if (s.cameraPos !== 'behind-pitcher')
+    return { distanceM: null, distanceSource: null };
+  if (s.distAuto) return { distanceM: null, distanceSource: 'auto' };
+  if (s.distTape) return { distanceM: s.targetDistM, distanceSource: 'tape' };
+  const c = stdCorrection(list, 'camera') ?? stdCorrection(list, 'file');
+  return c?.apply
+    ? { distanceM: c.m, distanceSource: 'session-size' }
+    : { distanceM: STANDARD_TARGET_DIST_M, distanceSource: 'default' };
+}
 function withSessionDistance(
   list: LocalPitch[],
-  memory: DistMemory | null
+  memory: DistMemory | null,
+  /** 줄자로 잰 세션 — 기준 20m 공의 세션 보정을 하지 않는다(줄자가 이긴다) */
+  tape = false
 ): LocalPitch[] {
   const cleanOf = (source: LocalPitch['source']) =>
     list.filter((p) => p.auto?.clean && p.source === source).map((p) => p.auto!.distM);
@@ -350,8 +390,34 @@ function withSessionDistance(
     camera: sessionDistOf(cleanOf('camera'), memory),
     file: sessionDistOf(cleanOf('file'), null),
   };
+  const corr = {
+    camera: tape ? null : stdCorrection(list, 'camera'),
+    file: tape ? null : stdCorrection(list, 'file'),
+  };
   const r1 = (v: number) => Math.round(v * 10) / 10;
   return list.map((p) => {
+    /*
+     * 기준 20m 로 잰 공 — 깨끗한 공 셋부터 공 크기 가운데 값이 기준과 3% 넘게(15% 안) 다르면 그 거리로 옮긴다(2.4.0). 안 걸리면
+     * 처음 값 그대로(다시 낸다 — 공을 지워 보정이 풀려도 돌아오게)
+     */
+    if (p.std) {
+      const c = corr[p.source];
+      const on = c != null && c.apply;
+      const use = on ? c.m : STANDARD_TARGET_DIST_M;
+      const k = on ? c.k : 1;
+      const distance = p.analysis?.distance;
+      return {
+        ...p,
+        rawKmh: r1(p.std.kmh * k),
+        errorKmh: r1(p.std.errorKmh * k),
+        releaseKmh: p.std.releaseKmh != null ? r1(p.std.releaseKmh * k) : null,
+        dist: { m: r1(use), auto: false, from: on ? ('session' as const) : null },
+        analysis:
+          p.analysis && distance
+            ? { ...p.analysis, distance: { ...distance, distanceM: r1(use) } }
+            : p.analysis,
+      };
+    }
     if (!p.auto) return p;
     const s = sess[p.source];
     const on =
@@ -595,6 +661,8 @@ export function VelocityScreen({
   const [releaseDistM, setReleaseDistM] = useState(DEFAULT_SETUP.releaseDistM);
   const [targetDistM, setTargetDistM] = useState(DEFAULT_SETUP.targetDistM);
   const [distAuto, setDistAuto] = useState(DEFAULT_SETUP.distAuto);
+  /* 줄자로 잰 거리를 넣었다 — 세션 거리 보정 없이 그 값으로(엔진 2.4 1단계) */
+  const [distTape, setDistTape] = useState(DEFAULT_SETUP.distTape);
   const [autoMode, setAutoMode] = useState(DEFAULT_SETUP.autoMode);
   const [calibSave, setCalibSave] = useState(DEFAULT_SETUP.calibSave);
   /* 엔진 개발용 녹화(관리자 설정) — 켜면 측정 대기 화면의 시작 단추가 녹화 단추 */
@@ -850,6 +918,7 @@ export function VelocityScreen({
       releaseDistM,
       targetDistM,
       distAuto,
+      distTape,
       autoMode,
       calibSave,
       clipZone,
@@ -1069,12 +1138,33 @@ export function VelocityScreen({
               clean: dist.impact === 'rebound' && dist.extended === 0,
             }
           : null,
+      /* 기준 20m(또는 줄자)로 잰 공 — 세션 거리 보정의 재료(2.4.0). 줄자 세션은 7% 경고에만 쓴다 */
+      std:
+        dist && dist.distanceSource === 'input' && !distAuto
+          ? {
+              kmh: m.kmh,
+              releaseKmh: r?.releaseKmh ?? null,
+              errorKmh: m.errorKmh,
+              size: {
+                sizeDistM: dist.sizeDistM,
+                sizeSlope: dist.sizeSlope,
+                extended: dist.extended,
+                impact: dist.impact,
+                confidence: m.confidence,
+                frames: m.detail.frames,
+              },
+            }
+          : null,
       ...EMPTY_EDIT,
       zone: guessedZone,
     };
     const memory = loadDistMemory();
     setPitches((prev) =>
-      withSessionDistance([...prev, { ...added, id: nextPitchId(prev) }], memory)
+      withSessionDistance(
+        [...prev, { ...added, id: nextPitchId(prev) }],
+        memory,
+        distTape
+      )
     );
     setSaved(false);
     setResultOpen(true);
@@ -1082,8 +1172,8 @@ export function VelocityScreen({
     buzz(30);
     /* 읽어 주는 값도 세션 거리로 옮긴 값 */
     const spoken =
-      withSessionDistance([...pitches, { ...added, id: -1 }], memory).at(-1)?.rawKmh ??
-      m.kmh;
+      withSessionDistance([...pitches, { ...added, id: -1 }], memory, distTape).at(-1)
+        ?.rawKmh ?? m.kmh;
     speak(`${Math.round(toSpeed(shown(spoken), unit))}`);
   };
   useEffect(() => {
@@ -1253,8 +1343,11 @@ export function VelocityScreen({
       setVoice(stored.voice);
       setUseCal(stored.useCal);
       setReleaseDistM(stored.releaseDistM);
-      /* 거리는 기준 20m 고정 — 관리자만 저장한 거리(특수 시험) */
-      setTargetDistM(isAdmin ? stored.targetDistM : STANDARD_TARGET_DIST_M);
+      /* 거리는 기준 20m — 줄자로 쟀으면(distTape) 그 값, 관리자는 저장한 거리(특수 시험). 기준이면 세션마다 공 크기로 맞춘다(2.4.0) */
+      setDistTape(stored.distTape);
+      setTargetDistM(
+        isAdmin || stored.distTape ? stored.targetDistM : STANDARD_TARGET_DIST_M
+      );
       setDistAuto(isAdmin ? stored.distAuto : false);
       setAutoMode(stored.autoMode);
       setCalibSave(stored.calibSave);
@@ -1711,7 +1804,8 @@ export function VelocityScreen({
     setPitches((prev) =>
       withSessionDistance(
         prev.filter((p) => p.id !== id),
-        loadDistMemory()
+        loadDistMemory(),
+        distTape
       )
     );
     setSheet('none');
@@ -1804,11 +1898,34 @@ export function VelocityScreen({
         : null,
       lensCal: lensOk ? lens : null,
       releaseDistM: approach === 'approaching' ? releaseDistM : null,
+      ...sessionDistanceOf(pitches, {
+        cameraPos: choices.cameraPos,
+        distAuto,
+        distTape,
+        targetDistM,
+      }),
       useCal,
       frameW: camera?.width ?? null,
       frameH: camera?.height ?? null,
     };
   };
+  /*
+   * 세션 거리 보정이 처음 걸리거나 값이 바뀌면 한 번 알린다(앞 공도 같이 옮겼으니). 줄자로 잰 세션은 깨끗한 공 셋의 공 크기 가운데 값이
+   * 줄자와 TAPE_WARN(7%) 넘게 다르면 폰 · 미트 자리를 확인하라고 알린다(줄자 값은 그대로).
+   */
+  const corrNoteRef = useRef<string | null>(null);
+  useEffect(() => {
+    const c = stdCorrection(pitches, 'camera');
+    let note: string | null = null;
+    if (c && distTape && Math.abs(c.m / targetDistM - 1) > TAPE_WARN)
+      note = `줄자 ${targetDistM}m · 공 크기 ${c.m}m — 폰이나 미트 자리를 확인하세요`;
+    else if (c?.apply && !distTape)
+      note = `공 ${c.n}개의 공 크기로 세션 거리를 ${c.m}m 로 — 앞 공도 다시 셌어요`;
+    if (note && note !== corrNoteRef.current) {
+      corrNoteRef.current = note;
+      setToast(note);
+    }
+  }, [pitches, distTape, targetDistM]);
   /*
    * 폰에 맡기기(lib/velocity-draft.ts) — 공 목록이 바뀔 때마다 · 영상은 처음 붙을 때 한 번. 담은 영상은 디스크에 놓인 것으로 바꿔 쥐어
    * 메모리를 던다(지금 보는 공 · 막 잰 공은 재생이 끊기지 않게 그대로). 예시 공은 맡기지 않는다.
@@ -2539,7 +2656,7 @@ export function VelocityScreen({
           footer={
             <PrimaryButton
               onClick={() => {
-                persistSetup({ targetDistM, releaseDistM });
+                persistSetup({ targetDistM, releaseDistM, distTape });
                 setStep('net');
               }}
             >
@@ -2560,30 +2677,65 @@ export function VelocityScreen({
               columns={1}
             />
             {choices.cameraPos === 'behind-pitcher' && !isAdmin ? (
-              <p className="px-0.5 text-sm leading-relaxed text-muted">
-                폰에서 포수 미트까지 {STANDARD_TARGET_DIST_M}m로 재요. 정식
-                마운드(18.44m)에서 포수가 조금 뒤에서 받고, 폰을 투수 1m 뒤에 둔
-                거리예요.
-              </p>
+              <div className="space-y-3">
+                {/* 기준 20m 로 재고 세션마다 공 크기로 맞춘다(2.4.0). 줄자로 쟀으면 그 값이 이긴다 */}
+                <p className="px-0.5 text-sm leading-relaxed text-muted">
+                  폰에서 포수 미트까지 {STANDARD_TARGET_DIST_M}m로 재요(정식 마운드에서
+                  포수가 조금 뒤에서 받고, 폰을 투수 1m 뒤에 둔 거리). 실제 거리는 공
+                  크기로 세션마다 맞춰요. 줄자나 레이저로 쟀으면 그 값을 넣어요 — 그게
+                  가장 정확해요.
+                </p>
+                <Segmented
+                  label="폰에서 미트까지"
+                  value={distTape ? 'tape' : 'standard'}
+                  onChange={(v) => {
+                    const tape = v === 'tape';
+                    setDistTape(tape);
+                    if (!tape) setTargetDistM(STANDARD_TARGET_DIST_M);
+                  }}
+                  options={TAPE_MODES}
+                  size="md"
+                />
+                {distTape && (
+                  <DistanceField
+                    label="줄자로 잰 거리"
+                    hint="폰에서 포수 미트까지예요. 5% 틀리면 구속도 5% 틀려요. 정규 마운드에서 폰을 투수판 1m 뒤에 두면 약 19.5m예요."
+                    value={targetDistM}
+                    min={TARGET_DIST_MIN}
+                    max={TARGET_DIST_MAX}
+                    onChange={setTargetDistM}
+                  />
+                )}
+              </div>
             ) : choices.cameraPos === 'behind-pitcher' ? (
               <div className="space-y-4">
-                {/* 거리 — 공 크기로 어림(기본)하거나 줄자로 잰 값을 넣는다. 거리를 안 잰 사람이 기본 20m 로 재 10% 넘게 틀렸다 */}
+                {/* 관리자 — 기준 20m(세션마다 공 크기로 맞춤) · 줄자로 잰 값 · 공마다 공 크기(특수 시험) */}
                 <div>
                   <SectionLabel>폰에서 공이 닿는 곳까지</SectionLabel>
                   <Segmented
                     label="폰에서 공이 닿는 곳까지"
-                    value={distAuto ? 'auto' : 'manual'}
-                    onChange={(v) => setDistAuto(v === 'auto')}
-                    options={DIST_MODES}
+                    value={distAuto ? 'auto' : distTape ? 'manual' : 'standard'}
+                    onChange={(v) => {
+                      setDistAuto(v === 'auto');
+                      setDistTape(v === 'manual');
+                      if (v === 'standard') setTargetDistM(STANDARD_TARGET_DIST_M);
+                    }}
+                    options={DIST_MODES_ADMIN}
                     size="md"
                   />
                   {distAuto && (
                     <p className="mt-2 px-0.5 text-xs leading-relaxed text-muted">
-                      공 크기로 거리를 어림해요. 줄자로 재서 넣으면 더 정확해요.
+                      공마다 공 크기로 거리를 어림해요. 줄자로 재서 넣으면 더 정확해요.
+                    </p>
+                  )}
+                  {!distAuto && !distTape && (
+                    <p className="mt-2 px-0.5 text-xs leading-relaxed text-muted">
+                      기준 {STANDARD_TARGET_DIST_M}m로 재고, 깨끗한 공 셋부터 공 크기
+                      가운데 값으로 세션 거리를 맞춰요.
                     </p>
                   )}
                 </div>
-                {!distAuto && (
+                {!distAuto && distTape && (
                   <DistanceField
                     label="줄자로 잰 거리"
                     hint="그물이나 포수 미트까지예요. 5% 틀리면 구속도 5% 틀려요. 정규 마운드에서 폰을 투수판 1m 뒤에 두면 약 19.5m예요."

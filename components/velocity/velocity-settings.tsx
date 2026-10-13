@@ -69,6 +69,16 @@ export const DIST_MODES = [
   { value: 'auto', label: '자동' },
   { value: 'manual', label: '직접 넣기' },
 ] as const;
+/** 측정의 폰 자리 단계 — 관리자(기준 20m · 줄자 · 공마다 공 크기)와 일반(기준 20m · 줄자). 기준 20m 는 세션마다 공 크기로 맞춘다(엔진 2.4 1단계) */
+export const DIST_MODES_ADMIN = [
+  { value: 'standard', label: '기준 20m' },
+  { value: 'manual', label: '줄자' },
+  { value: 'auto', label: '공마다 공 크기' },
+] as const;
+export const TAPE_MODES = [
+  { value: 'standard', label: '기준 20m' },
+  { value: 'tape', label: '줄자로 쟀어요' },
+] as const;
 
 export function VelocitySettingsFields({
   values,
@@ -93,12 +103,19 @@ export function VelocitySettingsFields({
       <div>
         <SectionLabel>측정</SectionLabel>
         <Panel className="divide-y divide-line">
-          <ChoiceRow title="구속 단위" hint="앱 전체에 적용돼요 — 투구 기록 · 내 정보도 같은 단위로 보여요.">
+          <ChoiceRow
+            title="구속 단위"
+            hint="앱 전체에 적용돼요 — 투구 기록 · 내 정보도 같은 단위로 보여요."
+          >
             <Segmented
               label="구속 단위"
               value={speedUnit}
               onChange={applySpeedUnit}
-              options={SPEED_UNITS.map((u) => ({ value: u.value, label: u.label, hint: u.hint }))}
+              options={SPEED_UNITS.map((u) => ({
+                value: u.value,
+                label: u.label,
+                hint: u.hint,
+              }))}
               size="sm"
             />
           </ChoiceRow>
@@ -418,6 +435,7 @@ export function VelocitySettingsButton({
         releaseDistM: base.releaseDistM,
         targetDistM: base.targetDistM,
         distAuto: base.distAuto,
+        distTape: base.distTape,
         autoMode: base.autoMode,
         calibSave: base.calibSave,
         clipZone: base.clipZone,
@@ -465,6 +483,7 @@ export function VelocitySettingsButton({
                   releaseDistM: base.releaseDistM,
                   targetDistM: base.targetDistM,
                   distAuto: base.distAuto,
+                  distTape: base.distTape,
                   autoMode: base.autoMode,
                   calibSave: base.calibSave,
                   clipZone: base.clipZone,

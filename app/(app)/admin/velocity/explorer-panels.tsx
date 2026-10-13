@@ -159,6 +159,22 @@ export function SessionPanel({
     ...(s.releaseDistM != null
       ? [['릴리스까지', `${s.releaseDistM}m`] as [string, string]]
       : []),
+    ...(s.distanceM != null
+      ? [
+          [
+            '미트까지',
+            `${s.distanceM}m${
+              s.distanceSource === 'tape'
+                ? ' (줄자)'
+                : s.distanceSource === 'session-size'
+                  ? ' (세션 공 크기)'
+                  : s.distanceSource === 'auto'
+                    ? ' (공마다 공 크기)'
+                    : ' (기준)'
+            }`,
+          ] as [string, string],
+        ]
+      : []),
     ['재는 방식', s.autoMode ? '자동 감지' : '수동'],
     [
       '저장 때 보정',

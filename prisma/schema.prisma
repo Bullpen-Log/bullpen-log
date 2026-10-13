@@ -656,6 +656,9 @@ model VelocitySession {
   lensCal        Json?
   /// 포수 뒤일 때 카메라 → 릴리스 지점 거리(m)
   releaseDistM   Float?
+  /// 투수 뒤일 때 구속을 낸 폰 → 미트 거리(m)와 그 출처 — 'tape' 줄자 · 'session-size' 세션의 공 크기 가운데 값 · 'default' 기준 20m 그대로 · 'auto' 공마다 공 크기(관리자). 2.4.0 전 세션은 비어 있다(기준 20m)
+  distanceM      Float?
+  distanceSource String?
   /// 원본 프레임 크기
   frameW         Int?
   frameH         Int?

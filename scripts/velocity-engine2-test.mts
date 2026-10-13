@@ -7,10 +7,10 @@
  * 노출 2ms 동안 겹쳐 그린다. 공은 카메라 앞 1m 에서 출발해 공기저항 · 중력 · 양력으로 날아가 거리 D 의 그물에 닿으면 튄다.
  * 정답 = 깊이 1m(릴리스)에서의 수평 속력 — 엔진의 대표 구속과 같은 정의.
  */
-import { analyzeByDistance } from '../lib/velocity-engine/analyze-distance.ts';
+import { analyzeByDistance, SPEED_DISTANCE_EXPONENT } from '../lib/velocity-engine/analyze-distance.ts';
 import { DRAG_K } from '../lib/velocity-engine/trajectory-fit.ts';
 import { alignTrail, type TrailPoint } from '../lib/velocity-tracer.ts';
-import { sessionDistOf } from '../lib/velocity-session-distance.ts';
+import { cleanSize, sessionCorrection, sessionDistOf, type SizeSample } from '../lib/velocity-session-distance.ts';
 
 const W = 720;
 const H = 1280;
@@ -373,6 +373,47 @@ console.log('\n▶ 세션 거리(측정 화면 — 공 크기 거리를 세션�
     '둘 중 하나가 6% 밖(23.9) — 폰을 옮겼을 수 있어 기억을 안 씀'
   );
   check(same(sessionDistOf([], mem), null), '깨끗한 공이 아직 없음 — 기억을 안 씀');
+}
+
+console.log('\n▶ 세션 거리 보정(기준 20m 세션 — 엔진 2.4 1단계, lib/velocity-session-distance.ts sessionCorrection)');
+{
+  const clean = (sizeDistM: number, over: Partial<SizeSample> = {}): SizeSample => ({
+    sizeDistM,
+    sizeSlope: -0.95,
+    extended: 0,
+    impact: 'rebound',
+    confidence: 'high',
+    frames: 34,
+    ...over,
+  });
+  /* 2026-10-12 밖 깨끗한 19구의 공 크기 거리 — 가운데 값 21.0m, 기준 20m 에서 +5% → 배율 1.05^1.076 */
+  const field = [21.3, 22.2, 20.8, 21.1, 22.4, 19.4, 21.5, 20.6, 20.8, 21.1, 21.0, 21.2, 21.0, 20.9, 21.1, 20.8, 21.7, 20.4, 19.7];
+  const c = sessionCorrection(field.map((d) => clean(d)), 20, SPEED_DISTANCE_EXPONENT);
+  check(
+    c != null && c.apply && Math.abs(c.m - 21.0) < 1e-9 && c.n === 19 && Math.abs(c.k - 1.05 ** SPEED_DISTANCE_EXPONENT) < 1e-9,
+    `10-12 밖 19구 — 가운데 값 21.0m · 배율 ${c?.k.toFixed(4)}(기준 20m 의 −3.7% 치우침이 사라짐)`
+  );
+  check(sessionCorrection([clean(21.3), clean(21.1)], 20, SPEED_DISTANCE_EXPONENT) == null, '깨끗한 공 둘 — 아직 보정 없음');
+  const near = sessionCorrection([clean(20.3), clean(20.4), clean(20.1)], 20, SPEED_DISTANCE_EXPONENT);
+  check(near != null && !near.apply && near.k === 1, '기준과 3% 안(20.3m) — 흩어짐일 뿐, 안 옮김');
+  const far = sessionCorrection([clean(24.2), clean(24.0), clean(23.9)], 20, SPEED_DISTANCE_EXPONENT);
+  check(far != null && !far.apply, '기준과 15% 밖(24m) — 다른 일이라 안 옮김(가운데 값은 알림용으로 남음)');
+  const dirty = [
+    clean(25.8, { sizeSlope: -1.6 }),
+    clean(23.7, { extended: 5 }),
+    clean(22.9, { confidence: 'low' }),
+    clean(22.0, { impact: 'end' }),
+    clean(21.8, { frames: 12 }),
+    clean(21.0),
+    clean(21.1),
+    clean(20.9),
+  ];
+  const d = sessionCorrection(dirty, 20, SPEED_DISTANCE_EXPONENT);
+  check(
+    d != null && d.n === 3 && Math.abs(d.m - 21.0) < 1e-9,
+    `더러운 공 다섯(기울기 −1.6 · 이어 찾기 · 낮음 · 끝 못 봄 · 12장)은 빠지고 깨끗한 셋만 — ${d?.n}개 · ${d?.m}m`
+  );
+  check(cleanSize(clean(21, { sizeDistM: null })) == null, '공 크기 거리가 없으면 깨끗한 공이 아님');
 }
 
 console.log(`\n${'═'.repeat(50)}\n통과 ${passed} / 실패 ${failed}\n${'═'.repeat(50)}`);

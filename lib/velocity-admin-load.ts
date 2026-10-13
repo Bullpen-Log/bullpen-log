@@ -205,6 +205,9 @@ export type AdminSessionRow = {
    */
   lensCalVersion: number | null;
   releaseDistM: number | null;
+  /** 투수 뒤의 폰 → 미트 거리(m) · 출처(tape · session-size · default · auto) — 2.4.0 부터, 옛 세션은 null */
+  distanceM: number | null;
+  distanceSource: string | null;
   autoMode: boolean;
   forCalibration: boolean;
   calScale: number;
@@ -654,6 +657,8 @@ function toSessionRow(s: SessionWithPitches, urls: Record<string, string>): Admi
     lensCal: lensCalText(s.lensCal),
     lensCalVersion: lensCalVersionOf(s.lensCal),
     releaseDistM: s.releaseDistM,
+    distanceM: s.distanceM,
+    distanceSource: s.distanceSource,
     autoMode: s.autoMode,
     forCalibration: s.forCalibration,
     calScale: s.calScale,

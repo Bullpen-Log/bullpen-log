@@ -255,8 +255,12 @@
  *                      size-slope · implausible · short)을 거부 결과에 싣고, 앱 카메라의 공 · 움직임 알림마다 시도 기록(VelocityAttempt — 쟀나 · 거부 코드 ·
  *                      공 길 장면 수 · 보정용 저장이면 클립)을 남긴다. 관리자 날짜 폴더에 '시도' 표(스피드건 구간별 시도 · 잼 · 못 잼). 빠른 공일수록
  *                      못 재던 까닭을 세려고(엔진 2.4 0단계, docs/velocity/engine-2.4-plan.md).
+ *   2.4.0  2026-10-13  가운데 자리(값이 바뀜): 기준 20m 로 잰 세션을 공 크기 거리의 가운데 값으로 옮긴다(lib/velocity-session-distance.ts
+ *                      sessionCorrection — 깨끗한 공 3개부터, 기준과 3% 넘게 · 15% 안에서 다를 때, 배율 (m ÷ 20)^1.076). 줄자로 잰 세션(distTape)은
+ *                      그대로. 세션에 distanceM · distanceSource(tape · session-size · default · auto)를 남긴다. 10-12 밖 22구: 공 크기 가운데 값
+ *                      21.0m → 원값 +5.4%(−3.7% 치우침이 사라짐). 엔진 코드는 그대로 — 화면이 옮기지만 값이 바뀌어 보정 짝 묶음이 2.4 로 새로 시작.
  */
-export const VELOCITY_ENGINE_VERSION = '2.3.22';
+export const VELOCITY_ENGINE_VERSION = '2.4.0';
 
 /**
  * 스피드건 보정 짝이 이어지는 묶음 — 작은 자리(0.0.X)는 재는 방법이 같아 짝을 그대로 쓴다(가운데 자리까지 같은 공 모두 — 지금은 '1.9.').
