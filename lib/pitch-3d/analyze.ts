@@ -320,8 +320,8 @@ export function analyzePitch3dCore(input: Pitch3dInput): Pitch3dCore | Pitch3dFa
     ev.release + 0.5 * (ev.release - ev.footPlant),
   ];
   const repaired =
-    repairLabels(back, side, invertTimes(side, backTime), sideDt, cal, 'back', fastWin) +
-    repairLabels(side, back, (t) => timeAt(side, backTime, t), backDt, cal, 'side', fastWin);
+    repairLabels(back, side, invertTimes(side, backTime), sideDt, cal, 'back', fastWin, hand) +
+    repairLabels(side, back, (t) => timeAt(side, backTime, t), backDt, cal, 'side', fastWin, hand);
   backTime = refineSync(side, back, backTime, cal, backDt, ALL_JOINTS);
 
   /* 보정 2차(모든 관절) → 시간 한 번 더 */
@@ -1022,6 +1022,13 @@ export function refineFastSync(
   });
 }
 
+/** 좌우 다시 고침 — 이 영상의 던지는 팔이 REPAIR_SELF_SURE 넘게 또렷한데 다른 영상의 그 팔이 REPAIR_OTHER_MIN 밑이면, 팔은 앞뒤 장면과 이어질 때만 뒤집는다 */
+const REPAIR_OTHER_MIN = 0.5;
+const REPAIR_SELF_SURE = 0.8;
+/** 두 손목이 사람 키의 이만큼 안에 모였으면(세트 자세) 팔을 뒤집어 줄어드는 다시 비춤이 사람 키의 REPAIR_MIN_GAIN 넘어야 뒤집는다 */
+const REPAIR_NEAR = 0.08;
+const REPAIR_MIN_GAIN = 0.005;
+
 /**
  * 좌우 다시 고침(R3) — target 영상의 장면마다 다른 영상(other)을 대응 시각으로 보간해, 팔 · 다리 묶음을 뒤집는 쪽이 다시 비춤이 30% 넘게
  * 작으면 그 장면의 이름을 바꾼다. 돌려주는 값 = 고친 횟수.
@@ -1034,8 +1041,11 @@ function repairLabels(
   cal: Calibration,
   which: 'side' | 'back',
   /** 빠른 구간(옆 시각) — 여기서는 팔을 앞뒤 장면과 이어질 때만 뒤집는다 */
-  fastWin: [number, number] | null = null
+  fastWin: [number, number] | null = null,
+  /** 던지는 손 — 다른 영상의 던지는 팔이 흐리면 팔은 앞뒤 장면과 이어질 때만 뒤집는다 */
+  hand: 'R' | 'L' | null = null
 ): number {
+  const throwArm = hand === 'L' ? [J.lEl, J.lWr] : hand === 'R' ? [J.rEl, J.rWr] : [];
   let n = 0;
   const fr = target.frames;
   fr.forEach((f, i) => {
@@ -1080,8 +1090,32 @@ function repairLabels(
       };
       const jk = jump(f.p);
       const js = jump(sw);
-      const smoother = !fast || pairs !== ARM_PAIRS || jk == null || js == null || js < jk;
-      if (keep != null && flip != null && flip < keep * 0.7 && smoother) {
+      /*
+       * 이 영상의 던지는 팔(팔꿈치 · 손목)은 또렷한데(REPAIR_SELF_SURE↑) 다른 영상의 그 팔이 흐리면(REPAIR_OTHER_MIN 밑) 빠른 구간 밖에서도 앞뒤 장면과
+       * 더 이어질 때만 뒤집는다 — 팔이 그 카메라 쪽으로
+       * 뻗어 몸에 겹쳐 보이면 2D 모델이 팔 점을 확신 0.3~0.5 로 지어내고, 그 점과 견주면 이름을 바꾼 쪽이 우연히 더 맞아 보였다(2026-10-13 실험실
+       * 샘플 1 백스로잉: 뒤 영상의 공 쥔 팔을 글러브 팔로 바꿔 3D 팔이 가슴 앞에 접힘). 다른 영상이 또렷하면 예전 그대로(좌투 샘플의 니업 전 팔 고침).
+       */
+      const otherBlur =
+        pairs === ARM_PAIRS &&
+        throwArm.some((j) => o[j].v < REPAIR_OTHER_MIN) &&
+        throwArm.every((j) => f.p[j].v >= REPAIR_SELF_SURE);
+      const smoother = !(fast || otherBlur) || pairs !== ARM_PAIRS || jk == null || js == null || js < jk;
+      /*
+       * 손을 모은 세트 자세에서는 두 팔 점이 겹쳐 그대로 · 뒤집음의 다시 비춤이 둘 다 아주 작다(사람 키의 0.4~0.8%) — 비율(30%)만 보면 잡음에도
+       * 뒤집혀, 장면마다 이름이 바뀌어 3D 두 손이 번갈아 튀었다(2026-10-13 실험실 샘플 1 세트: 0.007 → 0.004 로 뒤집기, 화면 손 떨림 키의 2.7%).
+       * 그때는 줄어드는 양(REPAIR_MIN_GAIN)도 넘어야 뒤집는다. 손이 떨어진 장면(팔이 실제로 뒤바뀐 백스로잉 등)은 예전 그대로.
+       */
+      const near = (a: Obs[], person: number) =>
+        Math.hypot(a[J.lWr].x - a[J.rWr].x, a[J.lWr].y - a[J.rWr].y) < REPAIR_NEAR * person;
+      const handsTogether = pairs === ARM_PAIRS && !fast && (near(f.p, target.person) || near(o, other.person));
+      if (
+        keep != null &&
+        flip != null &&
+        flip < keep * 0.7 &&
+        (!handsTogether || keep - flip > REPAIR_MIN_GAIN) &&
+        smoother
+      ) {
         f.p = sw;
         n++;
       }

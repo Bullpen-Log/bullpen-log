@@ -358,10 +358,22 @@ function smoothMulti(
  * 지나 돌아올 때 반대쪽으로 돌아 그 뒤 전체가 한 바퀴 밀렸고, 화면 손이 한 바퀴를 천천히 따라 돌다 한계에 걸려 150° 뒤집힌 채 남았다
  * (2026-10-10 샘플 4 글러브 손, 착지 ~ 끝).
  */
-function unwrap(xs: number[]): number[] {
+function unwrap(xs: number[], at?: number[]): number[] {
   const out = [...xs];
   for (let k = 1; k < out.length; k++) {
-    const ref = median(out.slice(Math.max(0, k - 5), k));
+    const q0 = Math.max(0, k - 5);
+    /*
+     * at(장면 번호)을 주면 앞 장면들의 빠르기로 지금까지 이어 간 자리에 가깝게 — 팔을 쭉 편 장면(비틀림을 못 봄)을 건너뛰면 그 사이 돈 만큼이 반
+     * 바퀴 가까워, 가운데값만 보면 짧은 쪽(거꾸로)으로 이었고 다시 굽은 팔이 다듬기 한계(장면당 20°)로 8장면 동안 거꾸로 돌며 손이 떨렸다
+     * (2026-10-13 실험실 샘플 1 공 놓은 뒤: 162° → 편 팔 11장면 → −24° 를 336° 로, 화면 손목 흔들림 키의 6.7%).
+     */
+    let ref: number;
+    if (at) {
+      const steps: number[] = [];
+      for (let q = Math.max(q0 + 1, k - 4); q < k; q++) steps.push((out[q] - out[q - 1]) / (at[q] - at[q - 1]));
+      const v = steps.length ? median(steps) : 0;
+      ref = median(out.slice(q0, k).map((x, i) => x + v * (at[k] - at[q0 + i])));
+    } else ref = median(out.slice(q0, k));
     out[k] += 2 * Math.PI * Math.round((ref - out[k]) / (2 * Math.PI));
   }
   return out;
@@ -488,7 +500,9 @@ function limbAngles(
   refOf: (u: Vec3) => Vec3,
   conf: (k: number, j: number) => number,
   flexMaxDeg: number,
-  hyperDeg: number
+  hyperDeg: number,
+  /** 비틀림을 앞 장면들의 빠르기로 이어 붙인다(팔만 — 다리에 쓰니 샘플 10 앞 무릎이 펴기 전 두 장면 튐을 빠르기로 읽어 한 바퀴 밀렸다) */
+  byPace = false
 ): Limb {
   const out: Limb = { dir: [], twist: [], twistW: [], flex: [], flexW: [] };
   const seen: boolean[] = [];
@@ -546,7 +560,7 @@ function limbAngles(
   const idx = seen.flatMap((v, k) => (v ? [k] : []));
   if (idx.length === 0) out.twist = out.twist.map(() => 0);
   else {
-    const u = unwrap(idx.map((k) => out.twist[k]));
+    const u = unwrap(idx.map((k) => out.twist[k]), byPace ? idx : undefined);
     const tw = new Array<number>(out.twist.length);
     idx.forEach((k, i) => (tw[k] = u[i]));
     let j = 0;
@@ -871,7 +885,8 @@ export function kinematicTrack(
       elbowRef,
       cf,
       KIN_LIMITS.elbowFlex,
-      KIN_LIMITS.elbowHyper
+      KIN_LIMITS.elbowHyper,
+      true
     );
     /* 어깨 — 위팔이 어깨선 뒤로 너무 가지 않게(수평면에서 바깥 축 기준) */
     const outAx: Vec3 = side === 'L' ? [1, 0, 0] : [-1, 0, 0];

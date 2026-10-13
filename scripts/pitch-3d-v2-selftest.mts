@@ -57,7 +57,7 @@ import {
   rotate,
   slerp,
 } from '../lib/pitch-3d/v2/mannequin-frames.ts';
-import { labelValues, measureAngles, measureSpec, momentOf, type Arc } from '../lib/pitch-3d/v2/mannequin-measure.ts';
+import { labelText, labelValues, measureAngles, measureSpec, momentOf, type Arc } from '../lib/pitch-3d/v2/mannequin-measure.ts';
 import {
   computeNormals,
   loftIndices,
@@ -96,6 +96,10 @@ import {
 import { KIN_LIMITS, KIN_SPEED, kinematicTrack, twoBoneIk } from '../lib/pitch-3d/v2/kinematics.ts';
 import { moundHeightAt } from '../lib/pitch-3d/v2/pose-rig.ts';
 import { AI_SPINE_DEV_DEG, RULE_TWIST, TRUNK_LEVELS, readAiTrunk, trunkTrack } from '../lib/pitch-3d/v2/trunk.ts';
+import { mechChecks } from '../lib/pitch-3d/v2/mech-checks.ts';
+import { judgeMechanics } from '../lib/pitch-3d/v2/mech-judge.ts';
+import { drillPicksFor } from '../lib/mechanics/drills.ts';
+import { FOCUS_POINTS } from '../lib/exercise-meta.ts';
 
 let passed = 0;
 let failed = 0;
@@ -1222,6 +1226,36 @@ console.log('■ 마운드 · 보기용 다듬기 · 관절 각도 틀(kinematic
           );
         }
 
+        /*
+         * 4-8 공 놓은 뒤처럼 팔을 쭉 편 동안에도 안쪽으로 계속 돌고(편 12장면에 192°), 다시 굽은 첫 장면이 110° 엉뚱해도 그 뒤 아래팔이 입력을
+         * 따라간다 — 비틀림을 짧은 쪽(거꾸로)으로 이어 다듬기 한계로 8장면 늦게 따라가던 것(2026-10-13 실험실 샘플 1 손목 흔들림 키의 6.7%)
+         */
+        {
+          const sh = mid0[V2J.rSh];
+          const el = mid0[V2J.rEl];
+          const lf = norm(sub(mid0[V2J.rWr], el));
+          const u = normalize(sub(el, sh));
+          const p1 = normalize(cross(u, [0, 0, 1]));
+          const p2 = cross(u, p1);
+          const n = 40;
+          const th: number[] = [];
+          for (let k = 0, a = 0; k < n; k++) th.push((a += k >= 11 && k <= 22 ? -16 : -8));
+          const foreOf = (k: number) => {
+            const flex = (k >= 10 && k <= 21 ? 3 : 45) * (Math.PI / 180);
+            const t = (th[k] + (k === 22 ? 110 : 0)) * (Math.PI / 180);
+            const pd = add(scale(p1, Math.cos(t)), scale(p2, Math.sin(t)));
+            return add(scale(u, Math.cos(flex)), scale(pd, Math.sin(flex)));
+          };
+          const seq = seqOf(n, (fr, k) => {
+            fr[V2J.rWr] = add(el, scale(foreOf(k), lf));
+          });
+          const F = kinematicTrack(seq, fullConf(n), []).frames;
+          let worst = 0;
+          for (let k = 25; k < n; k++)
+            worst = Math.max(worst, deg(Math.acos(Math.min(1, dot(normalize(sub(F[k][V2J.rWr], F[k][V2J.rEl])), foreOf(k))))));
+          check('각도 모델: 편 팔 동안 돈 비틀림을 같은 쪽으로 이어 다시 굽은 아래팔이 늦지 않는다(25° 안)', worst <= 25, `${worst.toFixed(1)}°`);
+        }
+
         /* 5 거의 편 팔꿈치가 장면마다 반대로 꺾여도 굽는 축(위팔 비틀림)이 뒤집히지 않는다 · 과신전 5° 안 */
         {
           const sh = mid0[V2J.rSh];
@@ -1856,7 +1890,7 @@ console.log('■ 데생 인형 틀(mannequin-frames) · 잰 선(mannequin-measur
     const live = measureAngles(fr[fp]);
     check(
       '잰 값: 착지 장면 다섯 값이 몸으로 나올 범위',
-      live.separation >= 0 && live.separation <= 180 && live.trunk <= 90 && live.knee >= -5 && live.knee <= 160 && live.arm <= 180 && live.elbow >= -5 && live.elbow <= 180,
+      Math.abs(live.separation) <= 180 && live.trunk <= 90 && live.knee >= -5 && live.knee <= 160 && live.arm <= 180 && live.elbow >= -5 && live.elbow <= 180,
       JSON.stringify(Object.fromEntries(Object.entries(live).map(([a, b]) => [a, Math.round(b)])))
     );
     const atPlant = labelValues(live, momentOf(fp, result.events), result.metrics);
@@ -1877,15 +1911,30 @@ console.log('■ 데생 인형 틀(mannequin-frames) · 잰 선(mannequin-measur
     const midF = Math.floor((fp + result.events.release) / 2);
     const between = labelValues(measureAngles(fr[midF]), momentOf(midF, result.events), result.metrics);
     check('잰 값: 순간이 아닌 장면은 표 값 없음 · 흐림 없음', Object.values(between).every((v) => v.table === undefined && !v.off));
-    /* 선 명세 — 호의 점은 반지름 위, 가운데 점은 반각, 이름표 다섯 */
+    /* 상하체 분리 부호 — 위에서 본 엉덩이선 · 어깨선 방향(우투 꼴: 닫힌 자세 180°, 열수록 커짐) */
+    const sepAt = (hipDeg: number, shDeg: number) => {
+      const d = (deg: number, r: number): Vec3 => [r * Math.cos((deg * Math.PI) / 180), r * Math.sin((deg * Math.PI) / 180), 0];
+      const hc: Vec3 = [0, 0, 1];
+      const sc: Vec3 = [0, 0, 1.5];
+      return measureAngles({ ...fr[fp], rh: add(hc, d(hipDeg, 0.1)), lh: sub(hc, d(hipDeg, 0.1)), sh: add(sc, d(shDeg, 0.2)), gs: sub(sc, d(shDeg, 0.2)) })
+        .separation;
+    };
+    check(
+      "잰 값: 골반이 더 열리면 분리 +(이름표 숫자) · 어깨가 골반을 앞지르면 −(이름표 '풀림' — 던진 뒤 꼬임이 커진 것처럼 안 읽히게)",
+      Math.abs(sepAt(225, 180) - 45) < 1e-9 && Math.abs(sepAt(225, 270) + 45) < 1e-9 &&
+        labelText('separation', sepAt(225, 180)) === '45°' && labelText('separation', sepAt(225, 270)) === '풀림' &&
+        labelText('separation', -0.4) === '0°' && labelText('trunk', -12) === '-12°'
+    );
+    /* 선 명세 — 호의 점은 반지름 위, 가운데 점은 반각, 이름표는 상하체 분리 하나 */
     const spec = measureSpec(fr[fp], F[fp].pelvis, F[fp].chest, k, atPlant);
     const arcOk = spec.arcs.every((a) => {
       const r = Math.hypot(...sub(a.points[0], a.c));
       return a.points.every((p) => Math.abs(Math.hypot(...sub(p, a.c)) - r) < 1e-9) && Math.abs(Math.hypot(...sub(a.mid, a.c)) - r) < 1e-9;
     });
     check(
-      '선 명세: 호 다섯 · 이름표 다섯 · 선 아홉 · 점 넷 · 호의 점이 반지름 위',
-      spec.arcs.length === 5 && spec.labels.length === 5 && arcOk && spec.segments.length === 9 && spec.dots.length === 4
+      '선 명세: 이름표는 상하체 분리 하나 · 호 둘(분리 · 몸통) · 선 여섯 · 점 넷(팔꿈치 · 어깨 · 무릎 선 없음) · 호의 점이 반지름 위',
+      spec.arcs.length === 2 && spec.labels.length === 1 && spec.labels[0].key === 'separation' && arcOk && spec.segments.length === 6 &&
+        spec.dots.length === 4 && spec.arcs.every((a) => a.key === 'separation' || a.key === 'trunk')
     );
   }
 }
@@ -2665,6 +2714,164 @@ console.log('■ 몸통 마디(trunk) — 규칙 · AI 상대 값 · 못 믿는 
     '인형 몸통: 좌투 거울 뒤에도 마디 좌우 축이 던지는 쪽(골반 · 가슴 틀과 같은 쪽) · 마디 점도 거울',
     tAt.every((t) => dot(TL.ring(t).X, pfL.xa) > 0) && mirrored.t2s !== undefined && Math.abs(mirrored.t2s[1] + Jt.t2s![1]) < 1e-12
   );
+}
+
+console.log('■ 메커니즘 점검 넷(mech-checks) — 합성 투수: 드리프트 · 골반 수평 · 분리 시점(니업 쪽 가짜 봉우리 무시) · 블록 · 좌투 거울');
+{
+  const N = 200;
+  const dt = 1 / 120;
+  const ku = 40;
+  const fp = 120;
+  const rl = 150;
+  const t = Array.from({ length: N }, (_, k) => 1 + k * dt);
+  // 골반 앞 빠르기(키/초): 20 장면부터 착지까지 늘고, 착지 → 릴리스에 최고의 10% 로 줄고, 그 뒤 그대로
+  const vmax = 2;
+  const v = (k: number) => (k < 20 ? 0 : k <= fp ? (vmax * (k - 20)) / (fp - 20) : k <= rl ? vmax * (1 - (0.9 * (k - fp)) / (rl - fp)) : 0.1 * vmax);
+  const hx: number[] = [];
+  for (let k = 0, x = 0; k < N; k++) hx.push((x += v(k) * dt * 1000));
+  // 분리(°): 착지 3장면 뒤 30° + 니업 때 더 큰 36° 가짜 봉우리(좁힌 구간 밖)
+  const theta = (k: number) => 30 * Math.exp(-(((k - (fp + 3)) / 6) ** 2)) + 36 * Math.exp(-(((k - ku) / 5) ** 2));
+  // 앞무릎 굽힘(°): 착지까지 40 → 착지 10장면 뒤 50(주저앉음) → 릴리스 35
+  const flex = (k: number) => (k <= fp ? 40 : k <= fp + 10 ? 40 + (k - fp) : k <= rl ? 50 - (15 * (k - fp - 10)) / (rl - fp - 10) : 35);
+  const tilt = 240 * Math.tan((5 * Math.PI) / 180);
+  const build = (mirror: boolean, th: (k: number) => number = theta) =>
+    Array.from({ length: N }, (_, k) => {
+      const hip: Vec3 = [hx[k], 500, 0];
+      const pts: Partial<Record<keyof typeof V2J, Vec3>> = {};
+      pts.lHip = [hip[0], hip[1] + (k === fp ? tilt : 0), -120];
+      pts.rHip = [hip[0], hip[1], 120];
+      const phi = ((-90 + th(k)) * Math.PI) / 180;
+      pts.lSh = [hip[0] + 180 * Math.cos(phi), 800, 180 * Math.sin(phi)];
+      pts.rSh = [hip[0] - 180 * Math.cos(phi), 800, -180 * Math.sin(phi)];
+      pts.lKn = add(pts.lHip, [0, -250, 0]);
+      const f = (flex(k) * Math.PI) / 180;
+      pts.lAn = add(pts.lKn, [250 * Math.sin(f), -250 * Math.cos(f), 0]);
+      pts.rAn = [0, 80, 100];
+      pts.rKn = [0, 330, 110];
+      const row = Array.from({ length: N_V2_JOINTS }, () => [hip[0], hip[1], hip[2]]);
+      for (const [nm, p] of Object.entries(pts)) {
+        // 좌투 = 옆 좌표 거울 + 좌우 이름 바꿈
+        const name = mirror ? (nm[0] === 'l' ? 'r' : 'l') + nm.slice(1) : nm;
+        row[V2J[name as keyof typeof V2J]] = mirror ? [p![0], p![1], -p![2]] : [p![0], p![1], p![2]];
+      }
+      return row;
+    });
+  const R = mechChecks({ joints: build(false), t, events: { kneeUp: ku, footPlant: fp, release: rl }, hand: 'R' }, 175);
+  const L = mechChecks({ joints: build(true), t, events: { kneeUp: ku, footPlant: fp, release: rl }, hand: 'L' }, 175);
+  const near = (a: number, b: number, tol: number) => Math.abs(a - b) <= tol;
+  check(
+    '점검: 드리프트 — 니업 때 골반이 축발보다 앞(키 비율 · cm) · 앞으로 간 거리 · 빠르기',
+    R.drift !== null && near(R.drift.aheadAtKneeUp, hx[ku] / 1000, 1e-9) && near(R.drift.aheadAtKneeUpCm!, (hx[ku] / 1000) * 175, 1e-6) &&
+      near(R.drift.travel, (hx[ku] - hx[0]) / 1000, 1e-9) && near(R.drift.speed, v(ku), 0.02) && near(R.drift.speedMs!, v(ku) * 1.75, 0.04),
+    `${R.drift?.aheadAtKneeUpCm?.toFixed(1)}cm · ${R.drift?.speedMs?.toFixed(2)}m/s`
+  );
+  check('점검: 착지 골반 수평 — 글러브 쪽 엉덩이가 5° 높음', near(R.pelvisLevel.tiltDeg, 5, 0.01), `${R.pelvisLevel.tiltDeg.toFixed(2)}°`);
+  check(
+    '점검: 분리 시점 — 착지 150ms 전 ~ 릴리스에서 찾아 니업 쪽 36° 봉우리는 안 잡고 착지 뒤 25ms · 30°',
+    near(R.separation.peakMs, 25, 0.01) && near(R.separation.peakDeg, 30, 0.01),
+    `${R.separation.peakMs.toFixed(1)}ms · ${R.separation.peakDeg.toFixed(1)}°`
+  );
+  check(
+    '점검: 블록 — 골반 감속 90% · 앞무릎 착지 40° → 주저앉음 10° → 릴리스 35°(펴짐 5°)',
+    near(R.block.pelvisDecelPct, 90, 1) && near(R.block.kneeAtPlantDeg, 40, 1e-6) && near(R.block.kneeCollapseDeg, 10, 1e-6) &&
+      near(R.block.kneeAtReleaseDeg, 35, 1e-6) && near(R.block.kneeExtensionDeg, 5, 1e-6),
+    `${R.block.pelvisDecelPct.toFixed(1)}% · ${R.block.kneeAtPlantDeg.toFixed(1)} · +${R.block.kneeCollapseDeg.toFixed(1)} · ${R.block.kneeAtReleaseDeg.toFixed(1)}`
+  );
+  check(
+    '점검: 좌투 거울 — 넷 다 우투와 같은 값',
+    L.drift !== null && near(L.drift.aheadAtKneeUp, R.drift!.aheadAtKneeUp, 1e-9) && near(L.pelvisLevel.tiltDeg, R.pelvisLevel.tiltDeg, 1e-9) &&
+      near(L.separation.peakMs, R.separation.peakMs, 1e-9) && near(L.separation.peakDeg, R.separation.peakDeg, 1e-9) &&
+      near(L.block.pelvisDecelPct, R.block.pelvisDecelPct, 1e-9) && near(L.block.kneeCollapseDeg, R.block.kneeCollapseDeg, 1e-9)
+  );
+  // 다리 들기 ~ 착지 분리가 0 밑(−8°)이고 릴리스 무렵 어깨가 골반을 지나가 반대로 크게(−50°) 갈리는 투구 — 부호를 가운데값으로 정하면 뒤집혀 그쪽을 잡는다
+  const flipTh = (k: number) => theta(k) - 8 - 50 * Math.exp(-(((k - rl) / 6) ** 2));
+  const Fr = mechChecks({ joints: build(false, flipTh), t, events: { kneeUp: ku, footPlant: fp, release: rl }, hand: 'R' });
+  const Fl = mechChecks({ joints: build(true, flipTh), t, events: { kneeUp: ku, footPlant: fp, release: rl }, hand: 'L' });
+  check(
+    '점검: 분리 부호는 던지는 손으로 — 착지 전 분리가 0 밑이어도 릴리스 무렵 반대 분리를 안 잡음(우투 · 좌투)',
+    near(Fr.separation.peakMs, 25, 0.01) && near(Fr.separation.peakDeg, 22, 0.01) && near(Fl.separation.peakMs, 25, 0.01) && near(Fl.separation.peakDeg, 22, 0.01),
+    `${Fr.separation.peakMs.toFixed(1)}ms · ${Fr.separation.peakDeg.toFixed(1)}°`
+  );
+  const noKu = mechChecks({ joints: build(false), t, events: { kneeUp: null, footPlant: fp, release: rl }, hand: 'R' });
+  check(
+    '점검: 니업 없으면 드리프트 없음 · 키를 모르면 cm 없음 · 확신이 없으면 null',
+    noKu.drift === null && R.drift!.conf === null && noKu.separation.peakMs === R.separation.peakMs && mechChecks({ joints: build(false), t, events: { kneeUp: ku, footPlant: fp, release: rl }, hand: 'R' }).drift!.aheadAtKneeUpCm === null
+  );
+}
+
+console.log('■ 메커니즘 점검 판정(mech-judge) — 문턱 · 여러 구 평균 · 확신 낮으면 판정 안 함 · 글 규칙');
+{
+  type M = ReturnType<typeof mechChecks>;
+  const mk = (o: { ahead?: number | null; dConf?: number | null; ms?: number; sep?: number; sConf?: number | null; decel?: number; ext?: number; bConf?: number | null; hand?: 'R' | 'L' }): M => ({
+    hand: o.hand ?? 'R',
+    drift: o.ahead === null ? null : { aheadAtKneeUp: o.ahead ?? 0.1, aheadAtKneeUpCm: null, travel: 0.05, travelCm: null, speed: 0.2, speedMs: null, conf: o.dConf ?? 50 },
+    pelvisLevel: { tiltDeg: 2, conf: 50 },
+    separation: { frame: 0, peakMs: o.ms ?? 0, peakDeg: o.sep ?? 32, atPlantDeg: 20, trunkOpenAtPlantDeg: 5, pelvisOpenAtPlantDeg: 25, conf: o.sConf ?? 50 },
+    block: { pelvisDecelPct: o.decel ?? 95, kneeAtPlantDeg: 30, kneeAtReleaseDeg: 30 - (o.ext ?? 0), kneeExtensionDeg: o.ext ?? 0, kneeCollapseDeg: 5, conf: o.bConf ?? 50 },
+  });
+  const st = (j: ReturnType<typeof judgeMechanics>, k: string) => j.items.find((i) => i.key === k)!.status;
+  check(
+    '판정: 드리프트 — 키의 10% 좋아요 · 7% 보통 · 5% 고칠 점 · 확신 20 이나 니업 없음은 판정 안 함',
+    st(judgeMechanics([mk({ ahead: 0.1 })]), 'drift') === 'good' && st(judgeMechanics([mk({ ahead: 0.07 })]), 'drift') === 'fair' &&
+      st(judgeMechanics([mk({ ahead: 0.05 })]), 'drift') === 'improve' && st(judgeMechanics([mk({ ahead: 0.05, dConf: 20 })]), 'drift') === 'unsure' &&
+      st(judgeMechanics([mk({ ahead: null })]), 'drift') === 'unsure'
+  );
+  check(
+    '판정: 분리 시점 — 착지 20ms 전 좋아요 · 80ms 전 보통 · 130ms 전 고칠 점(몸통 일찍 열림) · 130ms 뒤는 보통까지',
+    st(judgeMechanics([mk({ ms: -20 })]), 'separation') === 'good' && st(judgeMechanics([mk({ ms: -80 })]), 'separation') === 'fair' &&
+      st(judgeMechanics([mk({ ms: -130 })]), 'separation') === 'improve' && st(judgeMechanics([mk({ ms: 130 })]), 'separation') === 'fair'
+  );
+  check(
+    '판정: 분리 크기(우투) — 자료 아래 25%(28.2°) 이상 좋아요 · 그 밑 보통 · 18° 밑 고칠 점(억지로 비틀기보다) · 일찍 열림이 크기보다 먼저',
+    st(judgeMechanics([mk({ sep: 29 })]), 'separation') === 'good' && st(judgeMechanics([mk({ sep: 22 })]), 'separation') === 'fair' &&
+      st(judgeMechanics([mk({ sep: 17 })]), 'separation') === 'improve' &&
+      judgeMechanics([mk({ sep: 17 })]).items.find((i) => i.key === 'separation')!.line.includes('억지로') &&
+      judgeMechanics([mk({ sep: 17, ms: -130 })]).items.find((i) => i.key === 'separation')!.line.includes('일찍')
+  );
+  check(
+    '판정: 분리 크기 좌투는 따로(좌투가 3° 낮다) — 25° 는 좌투 좋아요 · 우투 보통, 16° 는 좌투 보통 · 우투 고칠 점, 자세히에 좌투 자료',
+    st(judgeMechanics([mk({ sep: 25, hand: 'L' })]), 'separation') === 'good' && st(judgeMechanics([mk({ sep: 25 })]), 'separation') === 'fair' &&
+      st(judgeMechanics([mk({ sep: 16, hand: 'L' })]), 'separation') === 'fair' && st(judgeMechanics([mk({ sep: 16 })]), 'separation') === 'improve' &&
+      judgeMechanics([mk({ sep: 25, hand: 'L' })]).items.find((i) => i.key === 'separation')!.detail.includes('좌투 22명')
+  );
+  check(
+    '판정: 블록 — 골반 덜 멈춤(60%) 그리고 무릎 20° 더 굽음일 때만 고칠 점, 하나만이면 보통',
+    st(judgeMechanics([mk({ decel: 60, ext: -20 })]), 'block') === 'improve' && st(judgeMechanics([mk({ decel: 60, ext: 0 })]), 'block') === 'fair' &&
+      st(judgeMechanics([mk({ decel: 95, ext: -20 })]), 'block') === 'fair' && st(judgeMechanics([mk({})]), 'block') === 'good'
+  );
+  const two = judgeMechanics([mk({ ahead: 0.05 }), mk({ ahead: 0.13 })], 180);
+  const three = judgeMechanics([mk({}), mk({}), mk({ ahead: 0.05, dConf: 10 })], 180);
+  check(
+    '판정: 여러 구는 평균(5% + 13% → 좋아요) · 세 구 밑은 참고용 · 확신 낮은 구는 평균에서 뺌 · 키를 알면 cm',
+    st(two, 'drift') === 'good' && two.tentative && !three.tentative && st(three, 'drift') === 'good' &&
+      two.items.find((i) => i.key === 'drift')!.detail.includes('16cm')
+  );
+  const all = [two, three, judgeMechanics([mk({ ahead: 0.05, ms: -130, decel: 60, ext: -20 })])].flatMap((j) => j.items);
+  check(
+    '판정: 골반 수평은 화면에 안 냄 · 글에 줄표 · 기관 이름 없음 · 드릴 꼬리표는 요소 목록 안',
+    all.filter((i) => i.key === 'pelvisLevel').every((i) => !i.shown) && all.every((i) => !/[—–]|드라이브라인|트레드|Driveline|Tread/.test(i.line + i.detail)) &&
+      all.every((i) => (FOCUS_POINTS as readonly string[]).includes(i.focus))
+  );
+}
+
+console.log('■ 점검 카드 드릴 고르기(drillPicksFor) — 쉬운 단계부터 · 같은 단계면 주 요소 먼저 · 수는 보조 요소까지');
+{
+  const d = (title: string, focusPoints: string[], stage: string | null) => ({ title, focusPoints, stage, variants: [] });
+  const drills = [
+    d('통합 주', ['드리프트'], '통합'),
+    d('기초 보조', ['브레이크', '드리프트'], '기초'),
+    d('기초 주', ['드리프트'], '기초'),
+    d('연결 주', ['드리프트', '드롭'], '연결'),
+    d('단계 없음', ['드리프트'], null),
+    d('다른 요소', ['브레이크'], '기초'),
+  ];
+  const p = drillPicksFor(drills, '드리프트');
+  check(
+    '점검 카드: 드리프트 드릴 다섯 중 기초 주 → 기초 보조 → 연결 주 셋',
+    p.count === 5 && p.items.map((x) => x.title).join(',') === '기초 주,기초 보조,연결 주',
+    p.items.map((x) => x.title).join(' · ')
+  );
+  check('점검 카드: 드릴이 없는 요소는 빈 목록', drillPicksFor(drills, '스로잉').count === 0 && drillPicksFor(drills, '스로잉').items.length === 0);
 }
 
 console.log(`\n통과 ${passed} · 실패 ${failed}`);

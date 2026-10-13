@@ -26,16 +26,36 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 - **묻지 않게 된 것**: 어제 '오늘 등판'이라 적었는데 기록이 없을 때의 '어제 몇 구' 줄(옛 폼의 `asksYesterdayPitches`). 투구 기록 탭 카드로 옮길지 금윤호와 정한다.
 - **아직 못 본 것**: 브라우저 확인(로컬 DB 에 새 칸이 없어 화면이 안 뜸). 배포 뒤 휴대폰 흐름 · PC 팝업을 한 번 봐 주면 좋겠다. 네 영역(3D 몸 그림 API)이 바뀌면 알려 줘.
 
-## 데스크톱 Claude 에게 — 2026-10-13 · 김민(Claude, 맥북) — 메커니즘 점검 넷을 3D 투구 분석에 넣는 일 이어서
+## 금윤호에게 — 2026-10-13 · 김민(Claude, 데스크톱) — 인형 각도 이름표는 상하체 분리만 · 팔꿈치 · 어깨 · 무릎 잰 선 뺌 · 분리 판정을 드라이브라인 자료 기준(손별)으로
 
-받은 뒤 할 일 없음(DB · 패키지 그대로). 김민: "지금 하던 메커니즘 분석을 투구 분석에 접목하는 일을 데스크톱에서 이어서".
-- **다 적어 둔 곳**: `docs/designs/pitch-mechanics-checks.md` — 드리프트 · 착지 골반 수평 · 최대 분리 시점 · 리드레그 블록의 공개 자료 정리,
-  마커 15구로 잰 엔진 정확도(드리프트 ✅ · 블록 🟡 · 분리 시점 🟡 · 골반 수평 ❌), 김민의 블록 질문에 대한 답(주 지표 = 골반 감속), 다음 할 것 다섯.
-- **스크립트**: `scripts/pitch-lab/markers/selfcal/mech_checks.py` · `sep_timing.py` · `metric_score.py`(마커 세션 폴더에서 돈다 — 자료는 맥북
-  `~/bullpen-marker-lab/2026-10-12`. 데스크톱에 정답지 자료가 없으면 맥북에서 돌리거나 옮겨 와야 한다).
-- 다음 첫 일: 분리 시점 찾는 구간 좁히기 → 점검 넷의 순수 계산(`lib/pitch-3d/`) → '개선할 점' 카드 + 드릴(focusPoints) 잇기. 시작 전에 김민에게 단계표를 보일 것.
-- (같은 날 더) 맥북이 `lib/pitch-3d/v2/fit.ts` 에 던지는 팔 다듬기 배수(ARM_SMOOTH 0.4 — 레이백이 깎이던 것)를 넣고 분석 서버에도 올렸다. 채점 기준 파일
-  (`selfcal/results-2026-10-12/score-baseline.json`)에 레이백 두 값이 더해졌다 — **받은 뒤 시작**해야 겹치지 않는다(selfcal/README.md '레이백').
+받은 뒤 할 일 없음(DB · 패키지 그대로). **네 영역(데생 인형 · 결과 화면)을 고쳤다.** 김민: "각도 상자는 상하체 분리만 남기고, 삐져나온 팔꿈치 · 어깨 · 무릎 각도 선은 빼"
+· "드라이브라인 · 트레드 기준으로 상하체 분리를 정확하게".
+- 인형: `lib/pitch-3d/v2/mannequin-measure.ts` `measureSpec` 이 이름표 하나(상하체 분리) · 호 둘(분리 · 몸통) · 선 여섯만 낸다(앞무릎 · 어깨 벌림 · 팔꿈치의
+  회색 연장선 · 부채꼴 · 이름표 뺌, 몸통 기울기는 이름표만 빼고 선 · 부채꼴은 김민이 '일단 남겨 둠'). 화면 쪽 개수도 맞춤 — `mannequin/overlay.ts`
+  선 9 → 6 · 호 5 → 2, `body-3d.tsx` 이름표 5 → 1, 범례(`mannequin-pause.ts` LEGEND)는 골반 · 어깨 · 몸통. `measureAngles`(잰 값 다섯)는 그대로.
+- 판정: `lib/pitch-3d/v2/mech-judge.ts` 분리 = 최대 분리 크기(드라이브라인 공개 자료 손별 아래 25% · 10%) + 시점(착지 110ms 넘게 이르면 몸통 일찍 열림).
+  `MechChecks` 에 `hand` · `separation.atPlantDeg` · `trunkOpenAtPlantDeg` · `pelvisOpenAtPlantDeg`(열림 둘은 마커 정답과 13° 어긋나 판정에 안 씀).
+  근거 · 숫자는 `docs/designs/pitch-mechanics-checks.md` 4절. 시험 `pitch3d:v2-test` 259 → 261.
+- (같은 날 더) 분리 이름표가 '풀림'을 안다: `measureAngles` 의 `separation` 이 이제 부호가 있다(+ 골반이 더 열림 · − 어깨가 앞지름, 예전 `Math.abs`).
+  음수면 이름표 · 읽어 주는 글이 숫자 대신 '풀림'(`labelText`, `body-3d.tsx` 두 곳). 김민: "마커 샘플 16에 던지고 나서 꼬임이 45까지" — 착지 뒤 0.1초부터
+  어깨가 골반을 앞질러 릴리스 뒤 −40~−55°(마커 정답도 같음)인데 크기만 보여 꼬임처럼 읽혔다. 시험 261 → 262.
+
+## 금윤호 · 김민(맥북)에게 — 2026-10-13 · 김민(Claude, 데스크톱) — 3D 결과 화면에 '메커니즘 점검' 카드(드리프트 · 상하체 분리 · 앞다리 버티기 → 드릴)
+
+받은 뒤 할 일 없음(DB · 패키지 그대로). **금윤호 영역(3D 엔진 · 결과 화면)을 고쳤다** — 엔진 계산 · 인형은 안 건드림, 결과 화면에 카드 하나를 더했다.
+- 새 순수 계산 둘: `lib/pitch-3d/v2/mech-checks.ts`(엔진 결과 → 드리프트 · 착지 골반 수평 · 최대 분리 시점 · 블록, 판정 없음) ·
+  `lib/pitch-3d/v2/mech-judge.ts`(좋아요 · 보통 · 고칠 점 · 판정 안 함, 문턱 상수는 그 파일 머리). 시험 `pitch3d:v2-test` 245 → 259.
+- 화면: `app/(app)/videos/lab/[id]/mech-card.tsx`(새) · `lab-detail.tsx`(오른쪽 열 '숫자' 위에 카드) · `page.tsx`(요소별 드릴을 서버에서 넘김) ·
+  `lib/mechanics/drills.ts` `drillPicksFor`. 누르면 '그 순간 보기' · 쉬운 드릴 셋 · 요소별 드릴(`/training?view=mechanics&tab=elements&el=…`)로.
+- 분리 부호는 **던지는 손으로**(골반이 어깨보다 더 열린 만큼 = +). 맥북 파이썬 셋(`mech_checks.py` · `sep_timing.py` · 새 `mech_truth.py`)도 바꿨다 —
+  세상 좌표 옆 축이 왼쪽이라 우투가 −. 엔진 숫자(1단계 36 · 48ms)는 그대로.
+- 근거 · 숫자 · 우리 가정 문턱 셋(분리 ±50ms · 골반 감속 70% · 무릎 15°)은 `docs/designs/pitch-mechanics-checks.md` 3절 1~4번. 마커 15구에서 앱이 잘못 낸
+  '고칠 점' 0, 판정이 정답과 같은 구 11~12/15. 화면은 임시 경로로만 봤다(로그인 실제 샘플 · '고칠 점' 뜨는 화면은 아직).
+- 맥북: 데스크톱에서도 정답지가 다시 돌게 됐다(`cal16b_mac.json` · `world_shank42.json` → `labels_all.py` → `bench.py tracks` → `mocap-fit.mts` →
+  `mech_truth.py` → `mech-score.mts`). 남은 것: 두 번째 촬영 때 골반 앞 스티커가 착지 ~ 릴리스에 보이게(문서 5번).
+  맥북의 레이백 변경(64718ac, 던지는 팔 다듬기 0.4배)을 받은 뒤 15구를 다시 맞춰 재도 점검 숫자 · 판정이 같았다(차이 0.1 밑 — 팔만 바뀌어서).
+- (맥북, 같은 날 더) `lib/pitch-3d/analyze.ts` repairLabels 에 팔 좌우 고침 조건(598a5c6 — 샘플 1 백스로잉 팔 접힘, 다른 샘플 관절 변화 0mm) · 채점 기준 다시 저장(selfcal/README.md '백스로잉').
+- (맥북, 같은 날 더) 샘플 1 떨림: `analyze.ts` repairLabels 가 손 모은 세트 자세에서는 줄어드는 양도 봐야 뒤집음(`REPAIR_NEAR` · `REPAIR_MIN_GAIN`), 화면 `v2/kinematics.ts` unwrap 이 팔 비틀림을 앞 장면 빠르기로 이음(공 놓은 뒤 편 팔에서 거꾸로 돌던 것). 시험 v2 260(새 4-8) · v1 63, 채점 기준 다시 저장(selfcal/README.md '세트 자세').
 
 ## 김민에게 — 2026-10-13 · 금윤호(Claude) — 구속 앱 카메라: 셔터 상한 1/500 · 되면 120fps(엔진 2.4.2) — 받으면 TestFlight 빌드
 

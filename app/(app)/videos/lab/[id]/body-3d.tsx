@@ -19,7 +19,7 @@ import type { Pitch3dV2Ok } from '@/lib/pitch-3d/v2/contract';
 import { displayTrack } from '@/lib/pitch-3d/v2/display';
 import type { LabGround } from '@/lib/pitch-lab-meta';
 import { canonicalFrames, mannequinFrames } from '@/lib/pitch-3d/v2/mannequin-frames';
-import { labelValues, measureAngles, momentOf, type Label } from '@/lib/pitch-3d/v2/mannequin-measure';
+import { labelText, labelValues, measureAngles, momentOf, type Label } from '@/lib/pitch-3d/v2/mannequin-measure';
 import { anaMaterials, LEGEND, placeLabels, projectToScreen } from '@/lib/pitch-3d/v2/mannequin-pause';
 import { mannequinTrack } from '@/lib/pitch-3d/v2/mannequin-prep';
 import { createFigure } from './mannequin/figure';
@@ -186,7 +186,7 @@ export const Body3D = forwardRef<
       /* 이름표 다섯(HTML, 캔버스 위에 겹침) — 글은 장면이 바뀔 때만, 자리는 그릴 때마다(placeLabelsDom) */
       /* 이름표를 누르면 다시 그리기 — dirty 는 아래에서 생기므로 나중에 잇는다 */
       let dirtyLabels = () => {};
-      const labelEls = Array.from({ length: 5 }, () => {
+      const labelEls = Array.from({ length: 1 }, () => {
         const el = document.createElement('div');
         el.className =
           'absolute left-0 top-0 whitespace-nowrap rounded py-[2px] pl-1 pr-[5px] text-[11px] font-semibold leading-none text-white tabular-nums will-change-transform';
@@ -382,7 +382,7 @@ export const Body3D = forwardRef<
         const J = mann.joints[cur];
         labels = ov.update(J, mann.frames[cur], labelValues(measureAngles(J), momentOf(cur, result.events), result.metrics));
         labelsVersion++;
-        if (!isPlaying) setSaid(labels.map((l) => `${l.name} ${Math.round(l.value)}°${l.off && l.table != null ? ` (결과 표 ${Math.round(l.table)}°)` : ''}`));
+        if (!isPlaying) setSaid(labels.map((l) => `${l.name} ${labelText(l.key, l.value)}${l.off && l.table != null ? ` (결과 표 ${Math.round(l.table)}°)` : ''}`));
       };
       /* 효과가 다시 돌 때(새 결과) 범례 · 재질을 비침으로 */
       applyAna(1);
@@ -492,7 +492,7 @@ export const Body3D = forwardRef<
             el.dataset.v = key;
             el.style.borderLeftColor = measureHex(L.key);
             const open = L.off && el.dataset.open === '1';
-            el.innerHTML = `${brief ? '' : `<span class="font-normal text-[#c7cfdd]">${SHORT_NAME[L.key] ?? L.name}</span> `}${Math.round(L.value)}°${
+            el.innerHTML = `${brief ? '' : `<span class="font-normal text-[#c7cfdd]">${SHORT_NAME[L.key] ?? L.name}</span> `}${labelText(L.key, L.value)}${
               open && L.table != null ? `<span class="ml-1 text-[#9aa5b4]">· 표 ${Math.round(L.table)}°</span>` : ''
             }`;
             el.style.pointerEvents = L.off ? 'auto' : 'none';
