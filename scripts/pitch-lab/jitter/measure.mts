@@ -139,7 +139,8 @@ const PARTS: { name: string; lim: number; ax: (f: MF) => [number[], number[]] }[
   { name: '골반', lim: 1200, ax: (f) => [f.pelvis.xa, f.pelvis.ya] },
   { name: '가슴', lim: 1500, ax: (f) => [f.chest.xa, f.chest.ya] },
   { name: '머리', lim: 1500, ax: (f) => [f.head.up, f.head.fw] },
-  { name: '던지는손', lim: 6000, ax: (f) => [f.throwing.hd, f.throwing.side] },
+  /* 던지는 손은 공 놓는 순간 위팔 안쪽 돌림(투수 7000°/초 안팎) + 아래팔 엎침이 겹친다 — 9000 */
+  { name: '던지는손', lim: 9000, ax: (f) => [f.throwing.hd, f.throwing.side] },
   { name: '글러브손', lim: 3000, ax: (f) => [f.glove.hd, f.glove.side] },
   { name: '뒷발', lim: 3000, ax: (f) => [nz(f.rear.toe.map((x, i) => x - f.rear.heel[i])), f.rear.n] },
   { name: '앞발', lim: 3000, ax: (f) => [nz(f.lead.toe.map((x, i) => x - f.lead.heel[i])), f.lead.n] },
