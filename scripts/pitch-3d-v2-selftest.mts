@@ -1226,6 +1226,36 @@ console.log('■ 마운드 · 보기용 다듬기 · 관절 각도 틀(kinematic
           );
         }
 
+        /*
+         * 4-8 공 놓은 뒤처럼 팔을 쭉 편 동안에도 안쪽으로 계속 돌고(편 12장면에 192°), 다시 굽은 첫 장면이 110° 엉뚱해도 그 뒤 아래팔이 입력을
+         * 따라간다 — 비틀림을 짧은 쪽(거꾸로)으로 이어 다듬기 한계로 8장면 늦게 따라가던 것(2026-10-13 실험실 샘플 1 손목 흔들림 키의 6.7%)
+         */
+        {
+          const sh = mid0[V2J.rSh];
+          const el = mid0[V2J.rEl];
+          const lf = norm(sub(mid0[V2J.rWr], el));
+          const u = normalize(sub(el, sh));
+          const p1 = normalize(cross(u, [0, 0, 1]));
+          const p2 = cross(u, p1);
+          const n = 40;
+          const th: number[] = [];
+          for (let k = 0, a = 0; k < n; k++) th.push((a += k >= 11 && k <= 22 ? -16 : -8));
+          const foreOf = (k: number) => {
+            const flex = (k >= 10 && k <= 21 ? 3 : 45) * (Math.PI / 180);
+            const t = (th[k] + (k === 22 ? 110 : 0)) * (Math.PI / 180);
+            const pd = add(scale(p1, Math.cos(t)), scale(p2, Math.sin(t)));
+            return add(scale(u, Math.cos(flex)), scale(pd, Math.sin(flex)));
+          };
+          const seq = seqOf(n, (fr, k) => {
+            fr[V2J.rWr] = add(el, scale(foreOf(k), lf));
+          });
+          const F = kinematicTrack(seq, fullConf(n), []).frames;
+          let worst = 0;
+          for (let k = 25; k < n; k++)
+            worst = Math.max(worst, deg(Math.acos(Math.min(1, dot(normalize(sub(F[k][V2J.rWr], F[k][V2J.rEl])), foreOf(k))))));
+          check('각도 모델: 편 팔 동안 돈 비틀림을 같은 쪽으로 이어 다시 굽은 아래팔이 늦지 않는다(25° 안)', worst <= 25, `${worst.toFixed(1)}°`);
+        }
+
         /* 5 거의 편 팔꿈치가 장면마다 반대로 꺾여도 굽는 축(위팔 비틀림)이 뒤집히지 않는다 · 과신전 5° 안 */
         {
           const sh = mid0[V2J.rSh];

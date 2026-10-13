@@ -26,6 +26,7 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
   `mech_truth.py` → `mech-score.mts`). 남은 것: 두 번째 촬영 때 골반 앞 스티커가 착지 ~ 릴리스에 보이게(문서 5번).
   맥북의 레이백 변경(64718ac, 던지는 팔 다듬기 0.4배)을 받은 뒤 15구를 다시 맞춰 재도 점검 숫자 · 판정이 같았다(차이 0.1 밑 — 팔만 바뀌어서).
 - (맥북, 같은 날 더) `lib/pitch-3d/analyze.ts` repairLabels 에 팔 좌우 고침 조건(598a5c6 — 샘플 1 백스로잉 팔 접힘, 다른 샘플 관절 변화 0mm) · 채점 기준 다시 저장(selfcal/README.md '백스로잉').
+- (맥북, 같은 날 더) 샘플 1 떨림: `analyze.ts` repairLabels 가 손 모은 세트 자세에서는 줄어드는 양도 봐야 뒤집음(`REPAIR_NEAR` · `REPAIR_MIN_GAIN`), 화면 `v2/kinematics.ts` unwrap 이 팔 비틀림을 앞 장면 빠르기로 이음(공 놓은 뒤 편 팔에서 거꾸로 돌던 것). 시험 v2 260(새 4-8) · v1 63, 채점 기준 다시 저장(selfcal/README.md '세트 자세').
 
 ## 김민에게 — 2026-10-13 · 금윤호(Claude) — 구속 앱 카메라: 셔터 상한 1/500 · 되면 120fps(엔진 2.4.2) — 받으면 TestFlight 빌드
 

@@ -1025,6 +1025,9 @@ export function refineFastSync(
 /** 좌우 다시 고침 — 이 영상의 던지는 팔이 REPAIR_SELF_SURE 넘게 또렷한데 다른 영상의 그 팔이 REPAIR_OTHER_MIN 밑이면, 팔은 앞뒤 장면과 이어질 때만 뒤집는다 */
 const REPAIR_OTHER_MIN = 0.5;
 const REPAIR_SELF_SURE = 0.8;
+/** 두 손목이 사람 키의 이만큼 안에 모였으면(세트 자세) 팔을 뒤집어 줄어드는 다시 비춤이 사람 키의 REPAIR_MIN_GAIN 넘어야 뒤집는다 */
+const REPAIR_NEAR = 0.08;
+const REPAIR_MIN_GAIN = 0.005;
 
 /**
  * 좌우 다시 고침(R3) — target 영상의 장면마다 다른 영상(other)을 대응 시각으로 보간해, 팔 · 다리 묶음을 뒤집는 쪽이 다시 비춤이 30% 넘게
@@ -1098,7 +1101,21 @@ function repairLabels(
         throwArm.some((j) => o[j].v < REPAIR_OTHER_MIN) &&
         throwArm.every((j) => f.p[j].v >= REPAIR_SELF_SURE);
       const smoother = !(fast || otherBlur) || pairs !== ARM_PAIRS || jk == null || js == null || js < jk;
-      if (keep != null && flip != null && flip < keep * 0.7 && smoother) {
+      /*
+       * 손을 모은 세트 자세에서는 두 팔 점이 겹쳐 그대로 · 뒤집음의 다시 비춤이 둘 다 아주 작다(사람 키의 0.4~0.8%) — 비율(30%)만 보면 잡음에도
+       * 뒤집혀, 장면마다 이름이 바뀌어 3D 두 손이 번갈아 튀었다(2026-10-13 실험실 샘플 1 세트: 0.007 → 0.004 로 뒤집기, 화면 손 떨림 키의 2.7%).
+       * 그때는 줄어드는 양(REPAIR_MIN_GAIN)도 넘어야 뒤집는다. 손이 떨어진 장면(팔이 실제로 뒤바뀐 백스로잉 등)은 예전 그대로.
+       */
+      const near = (a: Obs[], person: number) =>
+        Math.hypot(a[J.lWr].x - a[J.rWr].x, a[J.lWr].y - a[J.rWr].y) < REPAIR_NEAR * person;
+      const handsTogether = pairs === ARM_PAIRS && !fast && (near(f.p, target.person) || near(o, other.person));
+      if (
+        keep != null &&
+        flip != null &&
+        flip < keep * 0.7 &&
+        (!handsTogether || keep - flip > REPAIR_MIN_GAIN) &&
+        smoother
+      ) {
         f.p = sw;
         n++;
       }
