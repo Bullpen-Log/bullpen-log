@@ -120,6 +120,16 @@ const PLANT_TO_RELEASE_S = 0.15;
 const CONTACT_EASE = 2;
 /** 이보다 크게 기운 발(발끝으로 선 발)은 평평하게 펴지 않는다(°) */
 const LEVEL_MAX_DEG = 35;
+/**
+ * 다리 들기 골반 — 엉덩이선을 '축발 뒤꿈치 → 발끝 방향 ± 90°'(축발은 투수판과 나란히 서고 골반은 그에 수직)로 이만큼 돌린다.
+ * 마커 정답지(2026-10-12 · 15구, 골반 앞뒤 스티커로 만든 골반 좌우축)에서 엉덩이선은 실제 골반보다 0.75~0.9배만 돌고(관절 모델의
+ * 엉덩이 점 버릇) 다리 들기 동안 위에서 본 돌림 오차가 가운데 14.6° 였다. 0.7 로 섞으면 투구를 하나씩 빼고 맞춰 봐도 4.8°.
+ * 넣은 뒤(엔진 전체): 골반 돌림 오차 14.2 → 5.0° · 상하체 분리 오차 12.3 → 4.7°, 관절 오차 · 스티커 흔들림은 그대로이거나 조금 나음.
+ * 내딛기부터는 어떤 단서(허벅지 · 무릎 · 어깨 · 귀)도 엉덩이선보다 낫지 않아(11°) 니업 뒤 PELVIS_FOOT_FADE 동안 줄여 끈다.
+ */
+const PELVIS_FOOT_PULL = 0.7;
+/** 니업 → 착지 장면 수의 비 — 이만큼 동안 섞는 몫을 0 으로(한 장면에 골반이 돌지 않게) */
+const PELVIS_FOOT_FADE = 0.25;
 /** 몸통 · 머리 점 다듬기 폭 — 착지 → 릴리스 장면 수의 비(그 구간 ≈ 0.17초라 0.06 ≈ 10ms) */
 const TRUNK_SIGMA = 0.06;
 const TRUNK_JOINTS = [
@@ -945,6 +955,40 @@ function fitOnce(raw: V2Input): {
         );
         target.forEach((fr, k) => (fr[j][d] = ys[k]));
       }
+  }
+
+  /* 다리 들기 골반 — 엉덩이선을 축발 방향에 수직인 쪽으로 PELVIS_FOOT_PULL 만큼(위 축 둘레, 축발 쪽 엉덩이 기준). 맞추기 전 목표에 넣어 뼈 길이는 그대로 */
+  {
+    const ku = core.evIdx.kneeUp;
+    const fp = core.evIdx.footPlant;
+    if (ku != null && ku >= 2 && fp > ku) {
+      const [He, To] = core.hand === 'L' ? [V2J.lHe, V2J.lTo] : [V2J.rHe, V2J.rTo];
+      const fade = Math.max(2, Math.round(PELVIS_FOOT_FADE * (fp - ku)));
+      /* 발 방향은 장면 사이로 고른다(뒤꿈치 · 발끝 점이 흔들린다) */
+      const raw = target.map((fr) => reject(sub(fr[To], fr[He]), U));
+      const sm = [0, 1, 2].map((d) => gaussSmooth(raw.map((v) => v[d]), 2));
+      for (let k = 0; k <= Math.min(n - 1, ku + fade); k++) {
+        const w = k <= ku ? 1 : 1 - (k - ku) / (fade + 1);
+        const fd: Vec3 = [sm[0][k], sm[1][k], sm[2][k]];
+        if (dataW[k][He] <= 0 || dataW[k][To] <= 0 || norm(fd) < 0.02 * H) continue;
+        const lh = target[k][V2J.lHip];
+        const rh = target[k][V2J.rHip];
+        const hl = reject(sub(lh, rh), U);
+        if (norm(hl) < 1e-6) continue;
+        /* 발에 수직인 두 쪽 중 지금 엉덩이선에 가까운 쪽(좌우 부호를 따지지 않아도 된다) */
+        let c = normalize(cross(U, fd));
+        if (dot(c, hl) < 0) c = scale(c, -1);
+        const h1 = normalize(hl);
+        const th = Math.atan2(dot(cross(h1, c), U), dot(h1, c));
+        const Rm = rodrigues(scale(U, PELVIS_FOOT_PULL * w * th));
+        /* 축발 쪽 엉덩이를 축으로 앞쪽 엉덩이만 돌린다 — 가운데를 축으로 돌리면 축발 쪽 엉덩이가 밀려 네 대 교차와 4.4 → 8.4cm 벌어졌다 */
+        const mid = core.hand === 'L' ? lh : rh;
+        target[k][V2J.lHip] = add(mid, mulV(Rm, sub(lh, mid)));
+        target[k][V2J.rHip] = add(mid, mulV(Rm, sub(rh, mid)));
+        X[k][V2J.lHip] = [...target[k][V2J.lHip]] as Vec3;
+        X[k][V2J.rHip] = [...target[k][V2J.rHip]] as Vec3;
+      }
+    }
   }
 
   /*
