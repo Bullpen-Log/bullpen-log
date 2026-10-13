@@ -130,6 +130,13 @@ const LEVEL_MAX_DEG = 35;
 const PELVIS_FOOT_PULL = 0.7;
 /** 니업 → 착지 장면 수의 비 — 이만큼 동안 섞는 몫을 0 으로(한 장면에 골반이 돌지 않게) */
 const PELVIS_FOOT_FADE = 0.25;
+/**
+ * 던지는 팔 시간 다듬기 배수(착지 3장면 전 ~ 릴리스 3장면 뒤) — 한 장면에 손목이 15cm 넘게 움직여, 앞뒤 가운데로 당기는 다듬기를 24번 되풀이하면
+ * 레이백(어깨 외회전) 꼭대기가 20~30° 깎였다(2026-10-13 김민: "레이백을 전혀 구현 못 한다", 샘플 10 · 마커 16). 마커 15구를 네 대 교차(K4)와
+ * 견주면 레이백 최대 오차 가운데 19.6 → 6.7°(치우침 −2.4 → +3.1), 25° 넘게 튄 장면 13 → 14, 관절 오차 그대로(3.97 → 3.96).
+ * 0.3 은 5.2° 지만 튐 20, 0 은 튐 34 · 치우침 +16. 팔 관찰의 튄 값 거르기(햄펠)는 효과가 없어 넣지 않았다(scripts/pitch-lab/markers/selfcal/layback_check.py).
+ */
+const ARM_SMOOTH = 0.4;
 /** 다리 점 튐 거르기 — 햄펠(앞뒤 장면 수 · MAD 배) · 가우스 폭(장면) */
 const LEG_HAMPEL = [4, 2] as const;
 const LEG_SIGMA = 1.5;
@@ -1207,11 +1214,20 @@ function fitOnce(raw: V2Input): {
     for (const b of BONES) one(b);
     for (let i = BONES.length - 1; i >= 0; i--) one(BONES[i]);
   };
+  /* 던지는 팔(팔꿈치 · 손목 · 손 점)은 착지 → 릴리스 동안 다듬기를 ARM_SMOOTH 배로 — 레이백 꼭대기를 깎지 않게 */
+  const throwArm = new Set(
+    core.hand === 'L'
+      ? [V2J.lEl, V2J.lWr, V2J.lHandMid, V2J.lHandIdx, V2J.lHandPinky]
+      : [V2J.rEl, V2J.rWr, V2J.rHandMid, V2J.rHandIdx, V2J.rHandPinky]
+  );
+  const armLo = core.evIdx.footPlant - 3;
+  const armHi = core.evIdx.release + 3;
   const smoothTime = () => {
     for (let j = 0; j < N_V2_JOINTS; j++) {
       for (let k = 1; k < n - 1; k++) {
         if (pinned[k][j]) continue;
-        const s = Math.min(1, SMOOTH_BASE + SMOOTH_SLOPE * (1 - pullW[k][j]));
+        const arm = throwArm.has(j) && k >= armLo && k <= armHi ? ARM_SMOOTH : 1;
+        const s = Math.min(1, SMOOTH_BASE + SMOOTH_SLOPE * (1 - pullW[k][j])) * arm;
         const mid = scale(add(X[k - 1][j], X[k + 1][j]), 0.5);
         X[k][j] = add(X[k][j], scale(sub(mid, X[k][j]), s));
       }

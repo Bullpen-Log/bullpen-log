@@ -21,7 +21,7 @@ export default async function LabSamplePage({
   const user = await requireAdmin();
   const { id } = await params;
   if (!isLabId(id)) notFound();
-  const [sample, guides] = await Promise.all([loadLabSample(user.id, id), visibleGuides()]);
+  const [sample, guides] = await Promise.all([loadLabSample(id, user.id), visibleGuides()]);
   if (!sample) notFound();
   const drills = groupDrills(guides);
   const drillPicks = Object.fromEntries(MECH_FOCUS_POINTS.map((f) => [f, drillPicksFor(drills, f)]));

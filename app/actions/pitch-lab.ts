@@ -5,6 +5,7 @@ import { requireUser } from '@/lib/dal';
 import {
   createV2ResultUploadUrl,
   deleteLabSample,
+  findLabOwner,
   labVideoUrls,
   loadLabJob,
   loadLabMetaRaw,
@@ -67,7 +68,7 @@ export async function saveLabSample(input: {
   if (!isLabId(input.id)) return { error: '샘플 번호를 확인할 수 없어요.' };
   try {
     await saveLabMeta(
-      user.id,
+      (await findLabOwner(input.id, user.id)) ?? user.id,
       input.id,
       readLabMeta(input.meta, new Date().toISOString())
     );
@@ -83,7 +84,8 @@ export async function removeLabSample(input: { id: string }): Promise<Result> {
   if (!user) return { error: '관리자만 할 수 있어요.' };
   if (!isLabId(input.id)) return { error: '샘플 번호를 확인할 수 없어요.' };
   try {
-    await deleteLabSample(user.id, input.id);
+    const owner = await findLabOwner(input.id, user.id);
+    if (owner) await deleteLabSample(owner, input.id);
   } catch {
     return { error: '지우지 못했어요. 다시 해 주세요.' };
   }
@@ -108,15 +110,18 @@ export async function requestPitch3dV2(input: {
   if (!isPitch3dV2Configured()) return { error: '분석 서버 설정이 없어요.' };
   if (input.consent !== true)
     return { error: '영상을 분석 서버로 보내는 동의를 확인해 주세요.' };
+  /* 관리자끼리 같이 쓴다 — 샘플이 든 관리자 폴더(lib/pitch-lab.ts findLabOwner) */
+  const owner = await findLabOwner(input.id, user.id).catch(() => null);
+  if (!owner) return { error: '샘플을 찾지 못했어요.' };
 
   let prev: Pitch3dV2Job | null;
   let urls: { side: string; back: string } | null;
   let metaRaw: unknown;
   try {
     [prev, urls, metaRaw] = await Promise.all([
-      loadLabJob(user.id, input.id),
-      labVideoUrls(user.id, input.id),
-      loadLabMetaRaw(user.id, input.id),
+      loadLabJob(owner, input.id),
+      labVideoUrls(owner, input.id),
+      loadLabMetaRaw(owner, input.id),
     ]);
   } catch {
     return { error: STORAGE_ERROR };
@@ -134,7 +139,7 @@ export async function requestPitch3dV2(input: {
     now: nowIso,
   });
   try {
-    await retryOnce(() => saveLabJob(user.id, input.id, job));
+    await retryOnce(() => saveLabJob(owner, input.id, job));
   } catch {
     return { error: STORAGE_ERROR };
   }
@@ -142,11 +147,11 @@ export async function requestPitch3dV2(input: {
   let uploadUrl: string;
   try {
     uploadUrl = await retryOnce(() =>
-      createV2ResultUploadUrl(user.id, input.id, job.jobId)
+      createV2ResultUploadUrl(owner, input.id, job.jobId)
     );
   } catch {
     job = failV2Job(job, 'upload', Date.now());
-    await saveLabJob(user.id, input.id, job).catch(() => undefined);
+    await saveLabJob(owner, input.id, job).catch(() => undefined);
     revalidatePath(LAB_PATH);
     return { error: STORAGE_ERROR };
   }
@@ -171,7 +176,7 @@ export async function requestPitch3dV2(input: {
       ? failV2Job(job, started.error, Date.now())
       : { ...job, gpuCallId: started.callId };
   try {
-    await retryOnce(() => saveLabJob(user.id, input.id, job));
+    await retryOnce(() => saveLabJob(owner, input.id, job));
   } catch {
     /* GPU 는 이미 돌고 있다 — 번호를 못 적었으면 다음 물음이 gpu 실패로 돌린다(검토 2절). 글은 한 줄 */
     return { error: STORAGE_ERROR };
@@ -190,9 +195,11 @@ export async function checkPitch3dV2(input: {
   const user = await admin();
   if (!user) return { error: '관리자만 할 수 있어요.' };
   if (!isLabId(input.id)) return { error: '샘플을 찾지 못했어요.' };
+  const owner = await findLabOwner(input.id, user.id).catch(() => null);
+  if (!owner) return { job: null };
   let job: Pitch3dV2Job | null;
   try {
-    job = await loadLabJob(user.id, input.id);
+    job = await loadLabJob(owner, input.id);
   } catch {
     return { error: '작업 상태를 읽지 못했어요.' };
   }
@@ -204,7 +211,7 @@ export async function checkPitch3dV2(input: {
     : { kind: 'failed', code: 'gpu' };
   let resultSaved = false;
   if (status.kind === 'done') {
-    const raw = await loadV2Result(user.id, input.id, job.jobId).catch(() => null);
+    const raw = await loadV2Result(owner, input.id, job.jobId).catch(() => null);
     if (raw != null) {
       if (readPitch3dV2Result(raw)) resultSaved = true;
       else status = { kind: 'failed', code: 'internal', stages: status.stages };
@@ -213,7 +220,7 @@ export async function checkPitch3dV2(input: {
   const next = applyGpuStatus(job, job.jobId, status, resultSaved, now);
   if (next !== job) {
     try {
-      await retryOnce(() => saveLabJob(user.id, input.id, next));
+      await retryOnce(() => saveLabJob(owner, input.id, next));
     } catch {
       return { error: '작업 상태를 저장하지 못했어요.' };
     }
@@ -231,9 +238,11 @@ export async function loadPitch3dV2(input: {
   if (!user) return { error: '관리자만 할 수 있어요.' };
   if (!isLabId(input.id) || !isV2JobId(input.jobId))
     return { error: '샘플을 찾지 못했어요.' };
+  const owner = await findLabOwner(input.id, user.id).catch(() => null);
+  if (!owner) return { result: null };
   try {
     return {
-      result: readPitch3dV2Result(await loadV2Result(user.id, input.id, input.jobId)),
+      result: readPitch3dV2Result(await loadV2Result(owner, input.id, input.jobId)),
     };
   } catch {
     return { error: '분석 결과를 불러오지 못했어요.' };

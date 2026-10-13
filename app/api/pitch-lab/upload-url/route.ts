@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/dal';
 import { isStorageConfigured } from '@/lib/storage';
-import { createLabUploadTarget } from '@/lib/pitch-lab';
+import { createLabUploadTarget, findLabOwner } from '@/lib/pitch-lab';
 import {
   LAB_MAX_VIDEO_BYTES,
   LAB_MAX_VIDEO_MB,
@@ -56,8 +56,9 @@ export async function POST(req: Request) {
         { status: 400 }
       );
     }
+    /* 다른 관리자가 만든 샘플에 다시 올리면 그 폴더에, 새 샘플은 내 폴더에 */
     const target = await createLabUploadTarget(
-      user.id,
+      (await findLabOwner(pair, user.id)) ?? user.id,
       pair,
       view,
       typeof fileName === 'string' ? fileName : 'video.mp4'

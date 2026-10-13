@@ -1,4 +1,5 @@
 import 'server-only';
+import { prisma } from '@/lib/prisma';
 import { createPlaybackUrls, videoBucket } from '@/lib/storage';
 import {
   LAB_VIEWS,
@@ -24,6 +25,9 @@ import {
  * 버킷이 받는 파일 종류에 application/json 이 있어야 한다(2026-10-08 더함 — video/* · image/jpeg 뿐이면 meta.json 이 거절된다).
  * DB 표를 만들지 않는다 — 베타 실험용이라 구조를 굳히지 않고, 사용자 폴더라 소유권 확인(isOwnedBy)이 그대로 걸린다.
  * 지우면 폴더째 지운다.
+ *
+ * 관리자끼리 같이 쓴다(2026-10-13 김민: "투구 분석은 관리자 모두 접근 가능하게") — 샘플은 올린 관리자 폴더에 그대로 두고, 목록은 모든 관리자
+ * 폴더를 모으고(listLabSamples), 샘플 하나를 다룰 때는 그 샘플이 든 관리자 폴더를 찾아(findLabOwner) 쓴다. 새 샘플은 올린 사람 폴더에.
  */
 
 const LAB_DIR = 'pitch-lab';
@@ -37,6 +41,8 @@ const folder = (userId: string, id: string) => `${userId}/${LAB_DIR}/${id}`;
 
 export type LabSample = {
   id: string;
+  /** 샘플이 든 폴더의 관리자(올린 사람) */
+  ownerId: string;
   /** 올리다 멈춰 정보가 없으면 null — 목록에서 지울 수 있게 보인다 */
   meta: LabMeta | null;
   videos: Partial<Record<LabView, { path: string; url: string | null }>>;
@@ -196,6 +202,7 @@ async function readSample(userId: string, id: string): Promise<LabSample> {
   }
   return {
     id,
+    ownerId: userId,
     meta,
     videos: scan.videos,
     extras: scan.extras,
@@ -215,28 +222,47 @@ async function attachUrls(samples: LabSample[]) {
   }
 }
 
-/** 샘플 하나(결과 화면) — 폴더가 비었으면 null */
-export async function loadLabSample(
-  userId: string,
-  id: string
-): Promise<LabSample | null> {
-  const sample = await readSample(userId, id);
+/** 관리자 id(실험실 폴더 주인 후보) */
+async function adminIds(): Promise<string[]> {
+  const rows = await prisma.user.findMany({ where: { role: 'ADMIN' }, select: { id: true } });
+  return rows.map((r) => r.id);
+}
+
+/** 그 샘플이 든 관리자 폴더의 주인 — 없으면 null. prefer 를 먼저 본다(보통 올린 사람 자신) */
+export async function findLabOwner(id: string, prefer?: string): Promise<string | null> {
+  const ids = await adminIds();
+  const order = prefer && ids.includes(prefer) ? [prefer, ...ids.filter((x) => x !== prefer)] : ids;
+  for (const uid of order) {
+    const { data, error } = await videoBucket().list(folder(uid, id), { limit: 1 });
+    if (!error && (data ?? []).length > 0) return uid;
+  }
+  return null;
+}
+
+/** 샘플 하나(결과 화면) — 어느 관리자 폴더에도 없거나 폴더가 비었으면 null */
+export async function loadLabSample(id: string, prefer?: string): Promise<LabSample | null> {
+  const owner = await findLabOwner(id, prefer);
+  if (!owner) return null;
+  const sample = await readSample(owner, id);
   if (!sample.meta && Object.keys(sample.videos).length === 0 && sample.extras.length === 0)
     return null;
   await attachUrls([sample]);
   return sample;
 }
 
-/** 내 샘플 — 최근 것부터. 재생 주소까지 붙인다 */
-export async function listLabSamples(userId: string): Promise<LabSample[]> {
+/** 모든 관리자의 샘플 — 최근 것부터. 재생 주소까지 붙인다 */
+export async function listLabSamples(): Promise<LabSample[]> {
   const bucket = videoBucket();
-  const { data: dirs, error } = await bucket.list(`${userId}/${LAB_DIR}`, {
-    limit: 200,
-  });
-  if (error) throw new Error(error.message);
-  /* 폴더는 id 가 없다 */
-  const ids = (dirs ?? []).filter((d) => d.id == null).map((d) => d.name);
-  const samples = await Promise.all(ids.map((id) => readSample(userId, id)));
+  const per = await Promise.all(
+    (await adminIds()).map(async (uid) => {
+      const { data: dirs, error } = await bucket.list(`${uid}/${LAB_DIR}`, { limit: 200 });
+      if (error) throw new Error(error.message);
+      /* 폴더는 id 가 없다 */
+      const ids = (dirs ?? []).filter((d) => d.id == null).map((d) => d.name);
+      return Promise.all(ids.map((id) => readSample(uid, id)));
+    })
+  );
+  const samples = per.flat();
   await attachUrls(samples);
   return samples.sort((a, b) =>
     (b.meta?.createdAt ?? '').localeCompare(a.meta?.createdAt ?? '')
