@@ -1,54 +1,41 @@
 {
- "savedAt": "2026-10-13T11:45:08.709Z",
+ "savedAt": "2026-10-13T12:30:11.246Z",
  "samples": {
   "6814c10f": {
    "prep": {
-    "max": 0.19,
+    "max": 0.2,
     "med": 0.02,
     "amp": []
    },
    "lift": {
-    "max": 0.18,
-    "med": 0.08,
+    "max": 0.19,
+    "med": 0.09,
     "amp": []
    },
    "stride": {
-    "max": 2.65,
-    "med": 0.65,
-    "amp": [
-     "lAn",
-     "lHe",
-     "lTo",
-     "rAn",
-     "rHe",
-     "rTo"
-    ]
+    "max": 2.19,
+    "med": 0.7,
+    "amp": []
    },
    "follow": {
-    "max": 1.88,
-    "med": 0.52,
+    "max": 1.75,
+    "med": 0.53,
     "amp": []
    }
   },
   "c4d81c82": {
    "prep": {
-    "max": 2.91,
-    "med": 0.71,
-    "amp": [
-     "lTo"
-    ]
+    "max": 2.58,
+    "med": 0.68,
+    "amp": []
    },
    "lift": {
-    "max": 1.03,
-    "med": 0.2,
-    "amp": [
-     "lAn",
-     "lHe",
-     "lTo"
-    ]
+    "max": 0.61,
+    "med": 0.19,
+    "amp": []
    },
    "stride": {
-    "max": 1.18,
+    "max": 1.3,
     "med": 0.47,
     "amp": [
      "nose",
@@ -56,58 +43,52 @@
     ]
    },
    "follow": {
-    "max": 2.44,
+    "max": 2.28,
     "med": 0.29,
     "amp": []
    }
   },
   "f0464e1f": {
    "prep": {
-    "max": 0.13,
-    "med": 0.05,
+    "max": 0.14,
+    "med": 0.04,
     "amp": []
    },
    "lift": {
-    "max": 0.73,
+    "max": 0.6,
     "med": 0.17,
-    "amp": [
-     "lTo"
-    ]
+    "amp": []
    },
    "stride": {
-    "max": 1.55,
-    "med": 0.62,
+    "max": 1.46,
+    "med": 0.57,
     "amp": [
      "lEar",
      "rEar"
     ]
    },
    "follow": {
-    "max": 4.72,
+    "max": 4.39,
     "med": 0.34,
-    "amp": [
-     "lHandPinky"
-    ]
+    "amp": []
    }
   },
   "s1": {
    "prep": {
-    "max": 0.21,
+    "max": 0.23,
     "med": 0.05,
     "amp": []
    },
    "lift": {
-    "max": 1.23,
+    "max": 1.11,
     "med": 0.22,
     "amp": [
-     "lHandIdx",
-     "lHandMid",
-     "lHandPinky"
+     "lHandIdx"
     ]
    },
    "stride": {
-    "max": 1.81,
-    "med": 0.85,
+    "max": 1.79,
+    "med": 0.91,
     "amp": [
      "lEar",
      "nose",
@@ -115,25 +96,23 @@
     ]
    },
    "follow": {
-    "max": 2.01,
-    "med": 0.64,
+    "max": 2.26,
+    "med": 0.65,
     "amp": []
    }
   },
   "s10": {
    "prep": {
-    "max": 4.97,
-    "med": 0.2,
+    "max": 1.3,
+    "med": 0.18,
     "amp": [
-     "rHandIdx",
      "rHandMid",
-     "rHandPinky",
-     "rWr"
+     "rHandPinky"
     ]
    },
    "lift": {
-    "max": 1.24,
-    "med": 0.36,
+    "max": 1.36,
+    "med": 0.38,
     "amp": [
      "lAn",
      "lHe",
@@ -141,40 +120,35 @@
     ]
    },
    "stride": {
-    "max": 3.93,
-    "med": 1.56,
-    "amp": [
-     "lAn",
-     "lHe",
-     "lKn",
-     "lTo"
-    ]
+    "max": 3.88,
+    "med": 0.75,
+    "amp": []
    },
    "follow": {
-    "max": 5.39,
-    "med": 0.98,
+    "max": 4.34,
+    "med": 0.71,
     "amp": []
    }
   },
   "s2": {
    "prep": {
-    "max": 0.26,
+    "max": 0.28,
     "med": 0.03,
     "amp": []
    },
    "lift": {
-    "max": 0.26,
-    "med": 0.09,
+    "max": 0.25,
+    "med": 0.08,
     "amp": []
    },
    "stride": {
-    "max": 1.92,
-    "med": 0.44,
+    "max": 2.16,
+    "med": 0.32,
     "amp": []
    },
    "follow": {
-    "max": 2.27,
-    "med": 0.38,
+    "max": 1.89,
+    "med": 0.43,
     "amp": []
    }
   },
@@ -185,20 +159,20 @@
     "amp": []
    },
    "lift": {
-    "max": 0.74,
+    "max": 0.71,
     "med": 0.21,
     "amp": []
    },
    "stride": {
-    "max": 2.27,
+    "max": 2.22,
     "med": 0.48,
     "amp": [
-     "lTo"
+     "lHe"
     ]
    },
    "follow": {
-    "max": 2.28,
-    "med": 0.83,
+    "max": 2.21,
+    "med": 0.64,
     "amp": [
      "nose"
     ]
@@ -206,23 +180,23 @@
   },
   "s9": {
    "prep": {
-    "max": 0.34,
-    "med": 0.04,
+    "max": 0.36,
+    "med": 0.03,
     "amp": []
    },
    "lift": {
-    "max": 0.28,
-    "med": 0.09,
+    "max": 0.27,
+    "med": 0.08,
     "amp": []
    },
    "stride": {
-    "max": 2.08,
-    "med": 0.4,
+    "max": 1.99,
+    "med": 0.39,
     "amp": []
    },
    "follow": {
-    "max": 2.89,
-    "med": 0.34,
+    "max": 2.76,
+    "med": 0.33,
     "amp": []
    }
   }
