@@ -394,8 +394,11 @@ function lowConfidenceFix(r: ScreenResult, source: 'camera' | 'file', approachin
   const d = 'distance' in r ? (r.distance as DistanceReport | undefined) : undefined;
   if (approaching) return '포수 뒤에서는 정확하게 잴 수 없어요. 투수 뒤에 폰을 두고 재 주세요.';
   if (d?.shaky) return '폰이 흔들렸어요. 삼각대에 단단히 고정하고 다시 던져 주세요.';
-  if ((d?.extended ?? 0) > 0 || d?.impact === 'end')
-    return '공이 끝에서 배경에 묻혀 닿는 곳을 또렷이 못 봤어요. 공 뒤에 어두운 배경이 오게 하고 다시 던져 주세요.';
+  /* 흰 과녁 천 · 밝은 벽 앞에서는 공이 끝에서 배경에 묻혀 엔진이 끝을 짐작으로 잇는다(10-09 실내 14구 중 12구) — 흰 배경 앞은 재지 않는다 */
+  if ((d?.extended ?? 0) > 0)
+    return '흰 배경 앞에서는 공이 끝에서 배경에 묻혀 잴 수 없어요. 공 뒤에 어두운 천을 두거나 어두운 쪽을 향해 던져 주세요.';
+  if (d?.impact === 'end')
+    return '공이 닿는 곳(미트 · 그물)이 화면에서 안 보였어요. 공이 닿는 곳까지 화면에 들어오게 해 주세요.';
   if (source === 'file')
     return '공이 잡힌 구간이 짧거나 흐려요. 60fps 이상, 공이 닿는 곳까지 찍힌 영상으로 다시 재 주세요.';
   return '공이 잡힌 구간이 짧거나 흐렸어요. 초점과 밝기를 확인하고 다시 던져 주세요.';
