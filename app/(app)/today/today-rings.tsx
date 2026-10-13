@@ -1,5 +1,4 @@
 import { appNow } from '@/lib/clock';
-import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { Check, HeartPulse, type LucideIcon } from 'lucide-react';
 import { prisma } from '@/lib/prisma';
@@ -33,14 +32,11 @@ import { RingsStage } from './all-done';
 export async function TodayRings({
   user,
   today,
-  footer,
   pitchLocked = false,
 }: {
   user: Awaited<ReturnType<typeof requireUser>>;
   /** 오늘 'YYYY-MM-DD'(한국 시각) */
   today: string;
-  /** 링 밑 한 줄 — 따로 기다리는 것이라 홈이 Suspense 로 감싸 넘긴다 */
-  footer?: ReactNode;
   /** 투구 기록이 잠겨 있다(첫 설정 전) — 투구 링이 설정 화면으로 간다 */
   pitchLocked?: boolean;
 }) {
@@ -115,7 +111,6 @@ export async function TodayRings({
     <RingsCard
       items={items}
       checkinDone={detail.checkin != null}
-      footer={footer}
       day={today}
     />
   );
@@ -143,15 +138,12 @@ export type RingItem = {
 export function RingsCard({
   items,
   checkinDone,
-  footer,
   day,
 }: {
   items: RingItem[];
   checkinDone: boolean;
   /** 오늘(YYYY-MM-DD) — 넷이 다 찬 날의 축하가 하루 한 번(all-done.tsx). 없으면 축하 안 함 */
   day?: string;
-  /** 링 밑 한 줄 — 오늘 투구 안내(홈 page.tsx 의 PlanLine) */
-  footer?: ReactNode;
 }) {
   return (
     <Card className="px-2 desk:px-(--block-pad)">
@@ -199,7 +191,6 @@ export function RingsCard({
           })}
         </div>
       </RingsStage>
-      {footer}
     </Card>
   );
 }

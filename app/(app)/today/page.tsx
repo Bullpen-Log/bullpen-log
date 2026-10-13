@@ -17,7 +17,6 @@ import {
   dailyPitchCap,
   intensityRangeText,
   pitchRangeText,
-  type PitchPlan,
 } from '@/lib/report/plan';
 import { buildHighlights } from '@/lib/report/highlights';
 import { GOOD_DAY_MIN, RATED_SESSION_TYPES } from '@/lib/pitch-satisfaction';
@@ -115,8 +114,7 @@ export default async function HomePage({
       </div>
 
       {/*
-        오늘 — 체크인 · 투구 · 운동 · 영양 링(아이폰 피트니스처럼) + 그 밑 오늘 투구 한 줄.
-        링은 그날 요약 하나만 읽으면 그려지고, 한 줄은 투구 계획을 셈하느라 더 걸려 따로 울타리를 둔다.
+        오늘 — 체크인 · 투구 · 운동 · 영양 링(아이폰 피트니스처럼). 그 밑 '오늘(내일) N구까지' 한 줄은 뺐다(2026-10-13 김민).
       */}
       <Suspense
         fallback={<Skeleton className="h-[13.5rem] rounded-2xl desk:h-[10.5rem]" />}
@@ -125,13 +123,6 @@ export default async function HomePage({
           user={user}
           today={today}
           pitchLocked={locks.pitch}
-          footer={
-            <Suspense
-              fallback={<div className="mt-3 h-11 border-t border-line desk:h-9" />}
-            >
-              <PlanLine user={user} />
-            </Suspense>
-          }
         />
       </Suspense>
 
@@ -207,64 +198,6 @@ async function PitchLogSection({
       }))}
     />
   );
-}
-
-/**
- * 링 밑 한 줄 — 오늘(이미 던졌으면 내일) 알맞은 투구.
- *
- * 앱에서 가장 중요한 안전 안내인데, 예전에는 꺼 둔 AI 리포트 칸 안에 숨어 있었다. 숫자는 투구 계획(lib/report/plan.ts)
- * 그대로라 그날 투구 창 · 분석과 같다. 누르면 분석의 투구 칸(근거)으로. 처음 온 사람은 첫날 카드가 같은 숫자를 크게
- * 보여 주므로 여기서는 비운다.
- */
-async function PlanLine({ user }: { user: User }) {
-  const core = await homeCore(user);
-  const line = core.everLogged ? planLine(core.plan) : null;
-  if (!line) return null;
-  return (
-    <Link
-      href="/coach?view=pitch"
-      className="mx-1 mt-3 flex min-h-11 items-center gap-2 border-t border-line pt-3 text-sm transition-opacity hover:opacity-80 desk:min-h-9"
-    >
-      <span className="min-w-0 flex-1 truncate">
-        <span className="font-semibold text-ink">{line.main}</span>
-        {line.sub && <span className="text-muted"> · {line.sub}</span>}
-      </span>
-      <LinkPending className="h-4 w-4 shrink-0 text-line-strong">
-        <ChevronRight aria-hidden className="h-4 w-4 shrink-0 text-line-strong" />
-      </LinkPending>
-    </Link>
-  );
-}
-
-/** '오늘 35~45구까지' · '강도 50~70%' / '오늘은 쉬어요' · 까닭 / '오늘 등판' · '양은 경기가 정해요 · 하루 95구까지' */
-function planLine(plan: PitchPlan): { main: string; sub: string } | null {
-  const day = plan.threwToday ? plan.tomorrow : plan.today;
-  if (!day) return null;
-  const when = plan.threwToday ? '내일' : '오늘';
-  /* 쉬는 날은 까닭을 그대로 — 큰 등판 다음 날의 등판 날('오늘 등판은 권하지 않아요')도 여기다 */
-  if (!day.throwing) return { main: `${when}은 쉬어요`, sub: day.reason };
-  const range = pitchRangeText(day);
-  const upTo = range.endsWith('이하') ? range : `${range}까지`;
-  /*
-   * 등판 날(2판 P3, lib/report/plan.ts DayPlan.outing). 여파 · 최근 통증으로 가벼운 범위가 남은 날은 그 범위와 까닭(경고)을
-   * 그대로 보인다 — 고정 글로 덮으면 '등판해도 이 양 안에서'가 홈에서 사라진다. 그 밖에는 양은 경기가 정하고 나이 한도만 붙인다.
-   */
-  if (day.outing === 'game') {
-    if (day.minPitches != null)
-      return { main: `${when} 등판 ${upTo}`, sub: day.reason };
-    return {
-      main: `${when} 등판`,
-      sub:
-        day.maxPitches != null
-          ? `양은 경기가 정해요 · 하루 ${day.maxPitches}구까지`
-          : '양은 경기가 정해요',
-    };
-  }
-  if (!range) return null;
-  return {
-    main: `${when} ${upTo}${day.recovery ? ' 가볍게' : ''}`,
-    sub: intensityRangeText(day),
-  };
 }
 
 /** 캘린더 밑 — 알림 카드 · 첫날 카드 · 하이라이트 · 더 보기 */
