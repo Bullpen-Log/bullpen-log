@@ -1911,15 +1911,16 @@ console.log('■ 데생 인형 틀(mannequin-frames) · 잰 선(mannequin-measur
     const midF = Math.floor((fp + result.events.release) / 2);
     const between = labelValues(measureAngles(fr[midF]), momentOf(midF, result.events), result.metrics);
     check('잰 값: 순간이 아닌 장면은 표 값 없음 · 흐림 없음', Object.values(between).every((v) => v.table === undefined && !v.off));
-    /* 선 명세 — 호의 점은 반지름 위, 가운데 점은 반각, 이름표 다섯 */
+    /* 선 명세 — 호의 점은 반지름 위, 가운데 점은 반각, 이름표는 상하체 분리 하나 */
     const spec = measureSpec(fr[fp], F[fp].pelvis, F[fp].chest, k, atPlant);
     const arcOk = spec.arcs.every((a) => {
       const r = Math.hypot(...sub(a.points[0], a.c));
       return a.points.every((p) => Math.abs(Math.hypot(...sub(p, a.c)) - r) < 1e-9) && Math.abs(Math.hypot(...sub(a.mid, a.c)) - r) < 1e-9;
     });
     check(
-      '선 명세: 호 다섯 · 이름표 다섯 · 선 아홉 · 점 넷 · 호의 점이 반지름 위',
-      spec.arcs.length === 5 && spec.labels.length === 5 && arcOk && spec.segments.length === 9 && spec.dots.length === 4
+      '선 명세: 이름표는 상하체 분리 하나 · 호 둘(분리 · 몸통) · 선 여섯 · 점 넷(팔꿈치 · 어깨 · 무릎 선 없음) · 호의 점이 반지름 위',
+      spec.arcs.length === 2 && spec.labels.length === 1 && spec.labels[0].key === 'separation' && arcOk && spec.segments.length === 6 &&
+        spec.dots.length === 4 && spec.arcs.every((a) => a.key === 'separation' || a.key === 'trunk')
     );
   }
 }
@@ -2787,10 +2788,11 @@ console.log('■ 메커니즘 점검 넷(mech-checks) — 합성 투수: 드리�
 console.log('■ 메커니즘 점검 판정(mech-judge) — 문턱 · 여러 구 평균 · 확신 낮으면 판정 안 함 · 글 규칙');
 {
   type M = ReturnType<typeof mechChecks>;
-  const mk = (o: { ahead?: number | null; dConf?: number | null; ms?: number; sConf?: number | null; decel?: number; ext?: number; bConf?: number | null }): M => ({
+  const mk = (o: { ahead?: number | null; dConf?: number | null; ms?: number; sep?: number; sConf?: number | null; decel?: number; ext?: number; bConf?: number | null; hand?: 'R' | 'L' }): M => ({
+    hand: o.hand ?? 'R',
     drift: o.ahead === null ? null : { aheadAtKneeUp: o.ahead ?? 0.1, aheadAtKneeUpCm: null, travel: 0.05, travelCm: null, speed: 0.2, speedMs: null, conf: o.dConf ?? 50 },
     pelvisLevel: { tiltDeg: 2, conf: 50 },
-    separation: { frame: 0, peakMs: o.ms ?? 0, peakDeg: 25, conf: o.sConf ?? 50 },
+    separation: { frame: 0, peakMs: o.ms ?? 0, peakDeg: o.sep ?? 32, atPlantDeg: 20, trunkOpenAtPlantDeg: 5, pelvisOpenAtPlantDeg: 25, conf: o.sConf ?? 50 },
     block: { pelvisDecelPct: o.decel ?? 95, kneeAtPlantDeg: 30, kneeAtReleaseDeg: 30 - (o.ext ?? 0), kneeExtensionDeg: o.ext ?? 0, kneeCollapseDeg: 5, conf: o.bConf ?? 50 },
   });
   const st = (j: ReturnType<typeof judgeMechanics>, k: string) => j.items.find((i) => i.key === k)!.status;
@@ -2801,9 +2803,22 @@ console.log('■ 메커니즘 점검 판정(mech-judge) — 문턱 · 여러 구
       st(judgeMechanics([mk({ ahead: null })]), 'drift') === 'unsure'
   );
   check(
-    '판정: 분리 시점 — 착지 20ms 전 좋아요 · 80ms 전 보통 · 130ms 전 · 130ms 뒤 고칠 점',
+    '판정: 분리 시점 — 착지 20ms 전 좋아요 · 80ms 전 보통 · 130ms 전 고칠 점(몸통 일찍 열림) · 130ms 뒤는 보통까지',
     st(judgeMechanics([mk({ ms: -20 })]), 'separation') === 'good' && st(judgeMechanics([mk({ ms: -80 })]), 'separation') === 'fair' &&
-      st(judgeMechanics([mk({ ms: -130 })]), 'separation') === 'improve' && st(judgeMechanics([mk({ ms: 130 })]), 'separation') === 'improve'
+      st(judgeMechanics([mk({ ms: -130 })]), 'separation') === 'improve' && st(judgeMechanics([mk({ ms: 130 })]), 'separation') === 'fair'
+  );
+  check(
+    '판정: 분리 크기(우투) — 자료 아래 25%(28.2°) 이상 좋아요 · 그 밑 보통 · 18° 밑 고칠 점(억지로 비틀기보다) · 일찍 열림이 크기보다 먼저',
+    st(judgeMechanics([mk({ sep: 29 })]), 'separation') === 'good' && st(judgeMechanics([mk({ sep: 22 })]), 'separation') === 'fair' &&
+      st(judgeMechanics([mk({ sep: 17 })]), 'separation') === 'improve' &&
+      judgeMechanics([mk({ sep: 17 })]).items.find((i) => i.key === 'separation')!.line.includes('억지로') &&
+      judgeMechanics([mk({ sep: 17, ms: -130 })]).items.find((i) => i.key === 'separation')!.line.includes('일찍')
+  );
+  check(
+    '판정: 분리 크기 좌투는 따로(좌투가 3° 낮다) — 25° 는 좌투 좋아요 · 우투 보통, 16° 는 좌투 보통 · 우투 고칠 점, 자세히에 좌투 자료',
+    st(judgeMechanics([mk({ sep: 25, hand: 'L' })]), 'separation') === 'good' && st(judgeMechanics([mk({ sep: 25 })]), 'separation') === 'fair' &&
+      st(judgeMechanics([mk({ sep: 16, hand: 'L' })]), 'separation') === 'fair' && st(judgeMechanics([mk({ sep: 16 })]), 'separation') === 'improve' &&
+      judgeMechanics([mk({ sep: 25, hand: 'L' })]).items.find((i) => i.key === 'separation')!.detail.includes('좌투 22명')
   );
   check(
     '판정: 블록 — 골반 덜 멈춤(60%) 그리고 무릎 20° 더 굽음일 때만 고칠 점, 하나만이면 보통',

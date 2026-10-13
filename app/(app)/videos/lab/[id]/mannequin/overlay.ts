@@ -196,11 +196,11 @@ export function createOverlay(THREE: ThreeNS, opts: { heightM: number; onReady?:
   const skull = mesh(bones, SPHERE, bm.bone);
 
   /* ── 잰 선(한 번만) — 선 9 · 점 4 · 호 5(관 + 부채꼴) ── */
-  const segs = Array.from({ length: 9 }, () => mesh(lines, keep(new THREE.CylinderGeometry(LW, LW, 1, 8)), lm.ref));
+  const segs = Array.from({ length: 6 }, () => mesh(lines, keep(new THREE.CylinderGeometry(LW, LW, 1, 8)), lm.ref));
   const dots = Array.from({ length: 4 }, () => mesh(lines, SPHERE, lm.ref));
   const tubeIndex = loftIndices(ARC_CAP - 1, TUBE_K, true);
   const fanIndex = fanIndices(ARC_CAP);
-  const arcs = Array.from({ length: 5 }, () => {
+  const arcs = Array.from({ length: 2 }, () => {
     const n = loftVertexCount(ARC_CAP - 1, TUBE_K, true);
     const pos = new Float32Array(n * 3);
     const nor = new Float32Array(n * 3);

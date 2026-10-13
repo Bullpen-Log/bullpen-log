@@ -205,9 +205,6 @@ export const LEGEND: readonly { key: keyof typeof MEASURE_COLOR; text: string }[
   { key: 'pelvis', text: '골반' },
   { key: 'chest', text: '어깨' },
   { key: 'trunk', text: '몸통' },
-  { key: 'knee', text: '무릎' },
-  { key: 'arm', text: '어깨 벌림' },
-  { key: 'elbow', text: '팔꿈치' },
 ];
 
 export type BoneSpec = {

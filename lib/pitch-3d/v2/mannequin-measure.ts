@@ -137,8 +137,10 @@ function arcOf(c: Vec3, u0: Vec3, v0: Vec3, r: number, key: MeasureKey): Arc {
 }
 
 /**
- * 멈춤 화면의 선 · 호 · 이름표 — 예시 page.js draw 의 '멈췄을 때' 그대로. k = 키 / 1.8.
+ * 멈춤 화면의 선 · 호 · 이름표 — 예시 page.js draw 의 '멈췄을 때'에서 골반 · 어깨 선, 상하체 분리, 몸통 축만. k = 키 / 1.8.
  * 값은 labelValues 로 정한 것(보기용 값 · 순간의 표 값)을 쓴다.
+ * 이름표는 상하체 분리 하나만, 앞무릎 · 어깨 벌림 · 팔꿈치를 재던 선과 호는 뺐다(2026-10-13 김민: "각도 상자는 상하체 분리만 남기고,
+ * 삐져나온 팔꿈치 · 어깨 · 무릎 각도 선은 빼"). 잰 값 다섯(measureAngles)은 그대로 — 화면 읽기(말하기)와 시험이 쓴다.
  */
 export function measureSpec(
   J: MannequinJoints,
@@ -182,28 +184,6 @@ export function measureSpec(
   segments.push({ a: hm, b: add(hm, scale(hz, 0.36 * k)), color: 'ref' });
   const ta = arcOf(hm, hz, Tr, 0.22 * k, 'trunk');
   arcs.push(ta);
-  label(ta.mid, 'trunk', add([0, 0, 0.05 * k], scale(flat(Tr), 0.12 * k)));
-
-  /* 앞무릎 굽힘: 허벅지 연장선과 정강이 */
-  const th = normalize(sub(J.lk, J.lh));
-  const sn = sub(J.la, J.lk);
-  segments.push({ a: J.lk, b: add(J.lk, scale(th, 0.2 * k)), color: 'ref' });
-  const ka = arcOf(J.lk, th, sn, 0.14 * k, 'knee');
-  arcs.push(ka);
-  label(ka.mid, 'knee', scale(normalize(sub(ka.mid, J.lk)), 0.12 * k));
-
-  /* 어깨 벌림: 몸통 아래쪽과 위팔 */
-  const ua = sub(J.el, J.sh);
-  segments.push({ a: J.sh, b: sub(J.sh, scale(Tr, 0.2 * k)), color: 'ref' });
-  const aa = arcOf(J.sh, scale(Tr, -1), ua, 0.15 * k, 'arm');
-  arcs.push(aa);
-  label(aa.mid, 'arm', scale(normalize(sub(aa.mid, J.sh)), 0.12 * k));
-
-  /* 팔꿈치 굽힘: 위팔 연장선과 아래팔 */
-  segments.push({ a: J.el, b: add(J.el, scale(normalize(ua), 0.16 * k)), color: 'ref' });
-  const ea = arcOf(J.el, ua, sub(J.wr, J.el), 0.1 * k, 'elbow');
-  arcs.push(ea);
-  label(ea.mid, 'elbow', scale(normalize(sub(ea.mid, J.el)), 0.11 * k));
 
   return { measures: measureAngles(J), segments, dots, arcs, labels };
 }

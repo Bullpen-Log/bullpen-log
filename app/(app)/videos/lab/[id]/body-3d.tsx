@@ -186,7 +186,7 @@ export const Body3D = forwardRef<
       /* 이름표 다섯(HTML, 캔버스 위에 겹침) — 글은 장면이 바뀔 때만, 자리는 그릴 때마다(placeLabelsDom) */
       /* 이름표를 누르면 다시 그리기 — dirty 는 아래에서 생기므로 나중에 잇는다 */
       let dirtyLabels = () => {};
-      const labelEls = Array.from({ length: 5 }, () => {
+      const labelEls = Array.from({ length: 1 }, () => {
         const el = document.createElement('div');
         el.className =
           'absolute left-0 top-0 whitespace-nowrap rounded py-[2px] pl-1 pr-[5px] text-[11px] font-semibold leading-none text-white tabular-nums will-change-transform';
