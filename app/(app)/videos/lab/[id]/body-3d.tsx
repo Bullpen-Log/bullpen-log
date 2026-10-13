@@ -219,7 +219,9 @@ export const Body3D = forwardRef<
        * 1/키 배율로 키 = 1 보기 단위에 맞춘다. 좌투는 y 배율 −1 로 거울(three 가 음수 행렬식이면 면 감김을 뒤집어 준다).
        */
       const fig = createFigure(THREE, { heightM: H, hand: result.hand });
-      const ov = createOverlay(THREE, { heightM: H });
+      /* 몸통 · 골반 뼈대는 따로 받아 붙는다 — 붙으면 한 번 다시 그린다(dirty 는 아래에서 생기므로 나중에 잇는다) */
+      let redraw = () => {};
+      const ov = createOverlay(THREE, { heightM: H, onReady: () => redraw() });
       const rig = new THREE.Group();
       rig.rotation.x = -Math.PI / 2;
       rig.scale.set(1 / H, result.hand === 'L' ? -1 / H : 1 / H, 1 / H);
@@ -240,6 +242,9 @@ export const Body3D = forwardRef<
       const target = new THREE.Vector3(center[0], center[1], center[2]);
       controls.target.copy(target);
       let dirty = true;
+      redraw = () => {
+        dirty = true;
+      };
       dirtyLabels = () => {
         dirty = true;
       };

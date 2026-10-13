@@ -82,7 +82,11 @@ import {
   boneEnds,
   boneSpec,
   BONE_TABLE,
-  RING_COLORS,
+  SKELETON,
+  modelToLocal,
+  placeLocal,
+  skeletonPlaces,
+  trunkBlend,
   placeLabels,
   projectToScreen,
 } from '../lib/pitch-3d/v2/mannequin-pause.ts';
@@ -2114,27 +2118,31 @@ console.log('■ 데생 인형 멈춤(mannequin-pause) — 뼈 · 호 관 · 부
     const flatSpec = (s: typeof bs) => [
       ...s.joints.flat(),
       ...s.bones.flatMap((b) => [...b.a, ...b.b, b.r, b.jr]),
-      ...s.rings.flatMap((r) => [...r.c, ...r.q, r.sx, r.sy, r.tz]),
       ...s.beads.flatMap((b) => [...b.p, ...b.q]),
       ...s.skull.p,
       ...s.skull.q,
     ];
     const nums = flatSpec(bs);
     check(
-      '뼈 명세: 관절 12 · 뼈 17 · 고리 5 · 척추 구슬 12 · 머리, 모두 유한',
-      bs.joints.length === 12 && bs.bones.length === BONE_TABLE.length && bs.rings.length === RING_COLORS.length && bs.beads.length === 12 && nums.every(Number.isFinite)
+      '뼈 명세: 관절 12 · 뼈 12 · 목뼈 구슬 3 · 머리, 모두 유한',
+      bs.joints.length === 12 && bs.bones.length === BONE_TABLE.length && BONE_TABLE.length === 12 && bs.beads.length === 3 && nums.every(Number.isFinite)
     );
-    let back = 0;
-    let offErr = 0;
-    for (let b = 0; b < 9; b++) {
-      const t = 0.18 + (0.72 * b) / 8;
-      const d = sub(bs.beads[b].p, curve(T.C, t));
-      offErr = Math.max(offErr, Math.abs(dot(d, rotate(bs.beads[b].q, [0, 0, 1])) - 0.06 * k));
-      if (b === 0 ? dot(d, F[i].pelvis.fw) < 0 : b >= 6 ? dot(d, F[i].chest.fw) < 0 : dot(d, F[i].pelvis.fw) < 0 && dot(d, F[i].chest.fw) < 0) back++;
+    /* 몸통 · 골반 실제 뼈대 자리 — 모델의 엉덩이 · 어깨 기준점이 우리 관절에 닿고, 허리 아래는 골반 틀 · 갈비 위는 가슴 틀 */
+    {
+      const P = skeletonPlaces(J, F[i], k);
+      const hipR = placeLocal(P.pelvis, modelToLocal([-SKELETON.hipWidth / 2, SKELETON.hipMid[1], SKELETON.hipMid[2]], SKELETON.hipMid));
+      const shR = placeLocal(P.chest, modelToLocal([-SKELETON.shoulderWidth / 2, SKELETON.shoulderMid[1], SKELETON.shoulderMid[2]], SKELETON.shoulderMid));
+      const dHip = norm(sub(hipR, J.rh));
+      const dSh = norm(sub(shR, J.sh));
+      const right = dot(sub(J.rh, J.lh), P.pelvis.xa) > 0;
+      check(
+        '실제 뼈대: 오른 엉덩이 · 오른 어깨 기준점이 관절에 닿음(폭 0.7~1.4배 안) · 오른쪽이 틀의 +x · 허리 0 · 갈비 1',
+        dHip < 0.02 * k && dSh < 0.03 * k && right && trunkBlend(0.95) === 0 && trunkBlend(1.25) === 1 && trunkBlend(1.1) > 0.4 && trunkBlend(1.1) < 0.6,
+        `엉덩이 ${dHip.toFixed(4)} · 어깨 ${dSh.toFixed(4)}`
+      );
     }
-    check('척추 구슬: 아홉 개가 가운데 선에서 틀의 뒤(등 쪽)로 6%', offErr < 1e-9 && back === 9, `오차 ${offErr} · 뒤 ${back}/9`);
     let neckErr = 0;
-    for (let b = 9; b < 12; b++) {
+    for (let b = 0; b < 3; b++) {
       const p = bs.beads[b].p;
       const a0 = T.neck;
       const ab = sub(F[i].head.nk, a0);
@@ -2149,11 +2157,10 @@ console.log('■ 데생 인형 멈춤(mannequin-pause) — 뼈 · 호 관 · 부
       Math.abs(bs.bones[1].r - 0.9 * br) < 1e-12 &&
       Math.abs(bs.bones[10].r - 0.55 * br) < 1e-12 &&
       Math.abs(bs.bones[10].jr - 0.6 * jr) < 1e-12 &&
-      Math.abs(bs.bones[4].jr - 0.5 * jr) < 1e-12 &&
-      Math.abs(bs.bones[13].r - 0.75 * br) < 1e-12;
+      Math.abs(bs.bones[4].jr - 0.5 * jr) < 1e-12;
     const e = boneEnds([0, 0, 0], [0, 0, 1], 0.1);
     check(
-      '뼈 굵기 표(허벅지 br · 정강이 0.9 · 손 0.55/jr 0.6 · 발 jr 0.5 · 빗장뼈 0.75) · 양 끝 들이기 jr·0.55',
+      '뼈 굵기 표(허벅지 br · 정강이 0.9 · 손 0.55/jr 0.6 · 발 jr 0.5) · 양 끝 들이기 jr·0.55',
       rOk && Math.abs(e.len - 0.89) < 1e-12 && Math.abs(e.a2[2] - 0.055) < 1e-12 && Math.abs(e.b2[2] - 0.945) < 1e-12
     );
     const L = runV2({ ...base, ...realistic, hand: 'L', name: '인형 멈춤 L' }, 3).result;
@@ -2169,8 +2176,7 @@ console.log('■ 데생 인형 멈춤(mannequin-pause) — 뼈 · 호 관 · 부
         '좌투 뼈 명세: 우투 꼴(던지는 쪽이 −y) · 개수 같음 · 같은 입력엔 같은 답',
         b1.bones.length === BONE_TABLE.length &&
           b1.joints.length === 12 &&
-          b1.rings.length === RING_COLORS.length &&
-          b1.beads.length === 12 &&
+          b1.beads.length === 3 &&
           flatSpec(b1).every(Number.isFinite) &&
           frL[j].rh[1] < frL[j].lh[1] && frL[j].sh[1] < frL[j].gs[1] && JSON.stringify(b1) === JSON.stringify(b2)
       );
