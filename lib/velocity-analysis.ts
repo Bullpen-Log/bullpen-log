@@ -110,6 +110,7 @@ export function analysisOf(
     distance: dist
       ? {
           method: dist.method,
+          why: dist.why,
           distanceM: dist.distanceM,
           inputDistM: dist.inputDistM,
           sizeDistM: dist.sizeDistM,

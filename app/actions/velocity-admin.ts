@@ -473,3 +473,40 @@ export async function adminDeleteCalibRun(runId: string): Promise<AdminActionRes
   revalidateAll(run.date.toISOString().slice(0, 10));
   return { ok: true };
 }
+
+/** 시도(공 알림) 하나를 고친다 — 못 잰 공의 스피드건 값 · 통계 제외 · 메모(엔진 2.4 0단계, 날짜 폴더의 '시도' 표) */
+export async function adminUpdateVelocityAttempt(
+  id: string,
+  patch: { gunKmh?: number | null; excluded?: boolean; memo?: string | null }
+): Promise<AdminActionResult> {
+  if (!(await requireAdminUser())) return NOT_ADMIN;
+  const data: { gunKmh?: number | null; excluded?: boolean; memo?: string | null } = {};
+  if ('gunKmh' in patch) {
+    if (patch.gunKmh == null) data.gunKmh = null;
+    else {
+      const gun = num(patch.gunKmh, MIN_KMH, MAX_KMH);
+      if (gun == null)
+        return {
+          ok: false,
+          error: `스피드건 값은 ${MIN_KMH}~${MAX_KMH} km/h 사이로 넣어주세요.`,
+        };
+      data.gunKmh = Math.round(gun * 10) / 10;
+    }
+  }
+  if ('excluded' in patch) data.excluded = patch.excluded === true;
+  if ('memo' in patch) {
+    const memo = String(patch.memo ?? '').trim();
+    if (memo.length > MEMO_MAX)
+      return { ok: false, error: `메모는 ${MEMO_MAX}자까지 적을 수 있습니다.` };
+    data.memo = memo || null;
+  }
+  if (Object.keys(data).length === 0) return { ok: true };
+  const row = await prisma.velocityAttempt.findUnique({
+    where: { id },
+    select: { id: true, date: true },
+  });
+  if (!row) return { ok: false, error: '시도를 찾을 수 없습니다.' };
+  await prisma.velocityAttempt.update({ where: { id }, data });
+  revalidateAll(row.date.toISOString().slice(0, 10));
+  return { ok: true };
+}

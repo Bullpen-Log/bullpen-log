@@ -56,6 +56,7 @@ import {
 } from './explorer-path';
 import { DriveGlyph, FolderGlyph, PitchFileGlyph } from './explorer-glyphs';
 import {
+  AttemptsPanel,
   CalibResultPanel,
   CalibRunPanel,
   FolderStatPanel,
@@ -795,17 +796,23 @@ export function VelocityExplorer({
       onDeleted={deletedRun}
     />
   ) : (
-    <FolderStatPanel
-      title={label(path)}
-      subtitle={
-        path.level === 'root' || (path.level === 'area' && path.area === 'orig')
-          ? '모든 계정 · 모든 날'
-          : path.level === 'area'
-            ? '나중 모델로 다시 잰 결과 · 차수마다 폴더'
-            : undefined
-      }
-      stat={folderStat}
-    />
+    <div className="space-y-6">
+      <FolderStatPanel
+        title={label(path)}
+        subtitle={
+          path.level === 'root' || (path.level === 'area' && path.area === 'orig')
+            ? '모든 계정 · 모든 날'
+            : path.level === 'area'
+              ? '나중 모델로 다시 잰 결과 · 차수마다 폴더'
+              : undefined
+        }
+        stat={folderStat}
+      />
+      {/* 시도(공 알림) 표 — 그날 원본 폴더에서, 기록이 있을 때만(엔진 2.4 0단계) */}
+      {day && path.level === 'day' && path.area === 'orig' && day.attempts.length > 0 && (
+        <AttemptsPanel attempts={day.attempts} pending={pending} onRun={act} />
+      )}
+    </div>
   );
 
   /* 상태 줄 오른쪽 끝의 모델 — 차수 폴더는 그 차수를 잰 모델(지금과 다르면 둘 다) */

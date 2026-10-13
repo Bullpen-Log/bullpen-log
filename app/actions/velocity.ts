@@ -16,6 +16,7 @@ import {
   deleteVelocityPitchRow,
   deleteVelocitySessionRows,
   sanitizeAnalysis,
+  sanitizeDistance,
   syncVelocitySession,
   velocityLogMemo,
 } from '@/lib/velocity-sync';
@@ -63,6 +64,8 @@ export type SavePitchInput = {
   durationSec: number | null;
   frames: number | null;
   fps: number | null;
+  /** 이 공을 낸 시도 기록(recordVelocityAttempt)의 id — 저장할 때 잇는다. 없어도 된다 */
+  attemptId?: string | null;
   /** 엔진이 본 자료(궤적 · 해상도 · 초점거리 · 맞음새 …) — 영상 없이도 다시 맞춰 볼 수 있게. 없어도 된다 */
   analysis?: unknown;
   /** 자동 감지로 잡힌 공인가(false = 수동으로 단추를 눌러 잼) */
@@ -106,6 +109,8 @@ export type SaveSessionInput = {
   frameW?: number | null;
   frameH?: number | null;
   pitches: SavePitchInput[];
+  /** 이 세션에서 남긴 시도 기록 전부(못 잰 것 포함)의 id — 세션에 잇는다(엔진 2.4 0단계) */
+  attemptIds?: string[];
 };
 
 const num = (v: unknown, lo: number, hi: number): number | null => {
@@ -361,6 +366,35 @@ export async function saveVelocitySession(
     });
   });
 
+  /*
+   * 시도 기록을 이 세션 · 공에 잇는다 — 본인 것 · 아직 안 이어진 것만. 잰 공은 attemptId 로, 못 잰 시도는 세션만.
+   * 잇지 못해도(옛 화면 · 신호) 저장은 끝났다.
+   */
+  try {
+    const ids = Array.isArray(input.attemptIds)
+      ? input.attemptIds.filter((x): x is string => typeof x === 'string').slice(0, 500)
+      : [];
+    const pairs = input.pitches
+      .map((p, i) => ({ attemptId: p.attemptId, pitchId: session.pitches[i]?.id }))
+      .filter(
+        (x): x is { attemptId: string; pitchId: string } =>
+          typeof x.attemptId === 'string' && typeof x.pitchId === 'string'
+      );
+    const all = Array.from(new Set([...ids, ...pairs.map((x) => x.attemptId)]));
+    if (all.length)
+      await prisma.velocityAttempt.updateMany({
+        where: { id: { in: all }, userId: user.id, sessionId: null },
+        data: { sessionId: session.id },
+      });
+    for (const x of pairs)
+      await prisma.velocityAttempt.updateMany({
+        where: { id: x.attemptId, userId: user.id, pitchId: null },
+        data: { pitchId: x.pitchId },
+      });
+  } catch {
+    /* 시도 기록은 보조 자료 — 못 이어도 세션은 저장됐다 */
+  }
+
   revalidateDay(input.date);
   return {
     ok: true,
@@ -557,5 +591,134 @@ export async function attachClip(
     await deleteVideos([old]).catch(() => undefined);
   }
   revalidateDay(row.session.date.toISOString().slice(0, 10));
+  return { ok: true, path };
+}
+
+/* ───────────────────────── 시도 기록(엔진 2.4 0단계) ───────────────────────── */
+
+export type AttemptInput = {
+  /** YYYY-MM-DD */
+  date: string;
+  kind: 'ball' | 'motion';
+  /** 알림 시각(앱 카메라 시계 초) · 세기 */
+  atSec: number | null;
+  strength: number | null;
+  ok: boolean;
+  /** 못 쟀으면 거부 코드 · 어느 문에서 끝났나(DistanceReport.why) */
+  code: string | null;
+  why: string | null;
+  trackFrames: number;
+  rawKmh: number | null;
+  confidence: string | null;
+  /** 엔진의 거리 보고(DistanceReport) — 못 잰 까닭을 되짚는 숫자들만 남긴다(sanitizeDistance) */
+  distance?: unknown;
+};
+
+/**
+ * 공 · 움직임 알림 하나를 시도로 남긴다 — 쟀든 못 쟀든(2026-10-12: 못 잰 공이 어디에도 안 남아 빠른 공의 실패를 구간별로 셀 수
+ * 없었다). 세션을 저장하기 전에 오므로 세션 · 공은 비워 두고, saveVelocitySession 이 attemptIds · attemptId 로 잇는다.
+ */
+export async function recordVelocityAttempt(
+  input: AttemptInput
+): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: '로그인이 필요합니다.' };
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(input.date)))
+    return { ok: false, error: '날짜가 올바르지 않습니다.' };
+  const at = new Date(`${input.date}T00:00:00.000Z`);
+  if (Number.isNaN(at.getTime())) return { ok: false, error: '날짜가 올바르지 않습니다.' };
+  const ok = input.ok === true;
+  const distance = sanitizeDistance(input.distance);
+  const confidence = String(input.confidence ?? '');
+  const row = await prisma.velocityAttempt.create({
+    data: {
+      userId: user.id,
+      date: at,
+      kind: input.kind === 'ball' ? 'ball' : 'motion',
+      atSec: optional(input.atSec, 0, 1_000_000),
+      strength: optional(input.strength, 0, 1_000_000),
+      ok,
+      rejectCode: ok ? null : String(input.code ?? '').slice(0, 40) || null,
+      why: String(input.why ?? '').slice(0, 40) || null,
+      trackFrames: Math.round(num(input.trackFrames, 0, 10_000) ?? 0),
+      rawKmh: ok ? optional(input.rawKmh, 0, 300) : null,
+      confidence: ['high', 'medium', 'low'].includes(confidence) ? confidence : null,
+      analysis: distance ? ({ distance } as Prisma.InputJsonValue) : undefined,
+      engineVersion: VELOCITY_ENGINE_VERSION,
+    },
+    select: { id: true },
+  });
+  revalidateDay(input.date);
+  return { ok: true, id: row.id };
+}
+
+/**
+ * 못 잰 시도의 영상 클립을 올릴 서명 주소 — 관리자의 보정용 저장에서만(회원 클립은 폰에 두고, 못 잰 공은 폰에도 남기지 않는다).
+ * 흐름은 createClipUpload 와 같다.
+ */
+export async function createAttemptClipUpload(
+  attemptId: string,
+  mime: string,
+  bytes: number
+): Promise<ClipUploadTarget> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: '로그인이 필요합니다.' };
+  if (user.role !== 'ADMIN')
+    return { ok: false, error: '못 잰 공의 클립은 관리자의 보정용 저장에서만 올라가요.' };
+  if (!isStorageConfigured())
+    return { ok: false, error: '영상 저장소가 설정되지 않았습니다.' };
+  if (!/^video\//.test(String(mime)))
+    return { ok: false, error: '영상 파일만 올릴 수 있습니다.' };
+  if (!(bytes > 0 && bytes <= MAX_VIDEO_BYTES)) {
+    return {
+      ok: false,
+      error: `클립은 ${Math.round(MAX_VIDEO_BYTES / 1024 / 1024)}MB 까지 올릴 수 있습니다.`,
+    };
+  }
+  const row = await prisma.velocityAttempt.findFirst({
+    where: { id: attemptId, userId: user.id },
+    select: { id: true },
+  });
+  if (!row) return { ok: false, error: '시도를 찾을 수 없습니다.' };
+  const ext = /mp4/.test(mime) ? 'mp4' : /quicktime/.test(mime) ? 'mov' : 'webm';
+  try {
+    const target = await createUploadTarget(user.id, `attempt.${ext}`);
+    return { ok: true, ...target };
+  } catch (e) {
+    return {
+      ok: false,
+      error: e instanceof Error ? e.message : '업로드 주소를 만들지 못했습니다.',
+    };
+  }
+}
+
+/** 올린 클립의 경로 · 크기 · 길이 · 던진 시각을 시도에 적는다. 이미 있던 클립은 지운다 */
+export async function attachAttemptClip(
+  attemptId: string,
+  info: { path: string; bytes: number; sec: number | null; mime: string; eventSec: number | null }
+): Promise<{ ok: true; path: string } | { ok: false; error: string }> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: '로그인이 필요합니다.' };
+  const path = String(info.path ?? '');
+  if (!path || !isOwnedBy(path, user.id))
+    return { ok: false, error: '클립 경로가 올바르지 않습니다.' };
+  const row = await prisma.velocityAttempt.findFirst({
+    where: { id: attemptId, userId: user.id },
+    select: { id: true, clipPath: true, date: true },
+  });
+  if (!row) return { ok: false, error: '시도를 찾을 수 없습니다.' };
+  await prisma.velocityAttempt.update({
+    where: { id: attemptId },
+    data: {
+      clipPath: path,
+      clipBytes: Math.round(num(info.bytes, 0, MAX_VIDEO_BYTES) ?? 0),
+      clipSec: optional(info.sec, 0, 600),
+      clipMime: String(info.mime ?? '').slice(0, 80) || null,
+      clipEventSec: optional(info.eventSec, 0, 600),
+    },
+  });
+  if (row.clipPath && row.clipPath !== path)
+    await deleteVideos([row.clipPath]).catch(() => undefined);
+  revalidateDay(row.date.toISOString().slice(0, 10));
   return { ok: true, path };
 }
