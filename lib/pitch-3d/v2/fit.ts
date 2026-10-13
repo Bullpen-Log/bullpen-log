@@ -130,6 +130,9 @@ const LEVEL_MAX_DEG = 35;
 const PELVIS_FOOT_PULL = 0.7;
 /** 니업 → 착지 장면 수의 비 — 이만큼 동안 섞는 몫을 0 으로(한 장면에 골반이 돌지 않게) */
 const PELVIS_FOOT_FADE = 0.25;
+/** 다리 점 튐 거르기 — 햄펠(앞뒤 장면 수 · MAD 배) · 가우스 폭(장면) */
+const LEG_HAMPEL = [4, 2] as const;
+const LEG_SIGMA = 1.5;
 /** 몸통 · 머리 점 다듬기 폭 — 착지 → 릴리스 장면 수의 비(그 구간 ≈ 0.17초라 0.06 ≈ 10ms) */
 const TRUNK_SIGMA = 0.06;
 const TRUNK_JOINTS = [
@@ -952,6 +955,23 @@ function fitOnce(raw: V2Input): {
             3
           ),
           sigma
+        );
+        target.forEach((fr, k) => (fr[j][d] = ys[k]));
+      }
+    /*
+     * 다리(무릎 · 발목 · 뒤꿈치 · 발끝)도 튄 값을 걸러 고르게 — 잘 안 보이는 앞다리가 틀 채움 · 한 시선 자리 · 관찰 사이를 오가며 2~3장면씩 튀었다
+     * (실험실 샘플 3 좌투 앞다리 · 샘플 10 무릎: 장면 사이 가속 p95 키의 1.9 · 7.0% → 0.3 · 1.1%, 2026-10-13 사용자 "오른다리가 떨린다").
+     * 마커 정답지 관절 오차는 그대로(3.95 → 3.96). 땅에 닿은 발은 아래에서 따로 묶는다.
+     */
+    for (const j of [V2J.lKn, V2J.rKn, V2J.lAn, V2J.rAn, V2J.lHe, V2J.rHe, V2J.lTo, V2J.rTo])
+      for (let d = 0; d < 3; d++) {
+        const ys = gaussSmooth(
+          hampel(
+            target.map((fr) => fr[j][d]),
+            LEG_HAMPEL[0],
+            LEG_HAMPEL[1]
+          ),
+          LEG_SIGMA
         );
         target.forEach((fr, k) => (fr[j][d] = ys[k]));
       }

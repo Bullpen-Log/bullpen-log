@@ -1,6 +1,6 @@
 /**
  * mocap_bench.py 가 만든 tracks.json → 엔진(분석 서버와 같은 길: 순간 찾기 pickSegment → 맞추기 fitPitch3dV2) → result.json.
- * node --import ./scripts/alias-register.mjs scripts/pitch-lab/markers/mocap-fit.mts <폴더> [--segment-only] [--template 틀.json]
+ * node --import ./scripts/alias-register.mjs scripts/pitch-lab/markers/mocap-fit.mts <폴더> [--segment-only] [--template 틀.json | --no-template]
  * 순간(초)은 <폴더>/seg.json 에도 남긴다(틀 만들기가 엔진과 같은 순간을 쓰게).
  */
 import { readFileSync, writeFileSync } from 'node:fs';
@@ -10,8 +10,10 @@ import { pickSegment } from '../../../lib/pitch-3d/v2/run-node.ts';
 
 const dir = process.argv[2];
 const segOnly = process.argv.includes('--segment-only');
+/* 통계 움직임 틀 — 서버(run-node.ts)처럼 기본으로 lib 의 motion-template.json 을 쓴다. --template 로 바꾸고 --no-template 로 끈다 */
 const tplArg = process.argv.indexOf('--template');
-const motionTemplate = tplArg > 0 ? JSON.parse(readFileSync(process.argv[tplArg + 1], 'utf8')) : undefined;
+const tplPath = tplArg > 0 ? process.argv[tplArg + 1] : new URL('../../../lib/pitch-3d/v2/motion-template.json', import.meta.url);
+const motionTemplate = process.argv.includes('--no-template') ? undefined : JSON.parse(readFileSync(tplPath, 'utf8'));
 const tr = JSON.parse(readFileSync(join(dir, 'tracks.json'), 'utf8'));
 /*
  * 서버(services/pitch3d-gpu/pipeline.py)와 같은 길 — 순간 찾기는 거친 30fps 로, 맞추기는 그 구간(옆 · 뒤 영상 초)의 장면만.
