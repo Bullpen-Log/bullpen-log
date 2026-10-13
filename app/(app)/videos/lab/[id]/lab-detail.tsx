@@ -15,6 +15,7 @@ import {
 import type { Pitch3dV2Ok } from '@/lib/pitch-3d/v2/contract';
 import type { Metric, MetricKey } from '@/lib/pitch-3d/metrics';
 import { V2EmptyWell, V2RequestRow, V2StatusBadge } from './analysis-v2';
+import { MechCard, type DrillPicks } from './mech-card';
 import type { Body3DHandle, Transport } from './body-3d';
 import { useV2Analysis } from './use-v2-analysis';
 
@@ -78,10 +79,13 @@ const MOMENT: Record<MetricKey, 'footPlant' | 'release'> = {
 export function LabDetail({
   sample,
   v2Enabled,
+  drillPicks = {},
   preview,
 }: {
   sample: LabSample;
   v2Enabled: boolean;
+  /** 메커니즘 점검 카드의 요소별 드릴(page.tsx 가 서버에서) */
+  drillPicks?: DrillPicks;
   /** 개발 확인용 결과(서버를 안 부른다) */
   preview?: Pitch3dV2Ok | null;
 }) {
@@ -233,6 +237,15 @@ export function LabDetail({
               </p>
             )}
           </section>
+
+          {result && (
+            <MechCard
+              result={result}
+              heightCm={meta?.heightCm ?? null}
+              drillPicks={drillPicks}
+              onJump={jump}
+            />
+          )}
 
           <section className="space-y-2">
             <div className="flex items-baseline justify-between">
