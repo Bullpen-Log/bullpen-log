@@ -2856,6 +2856,16 @@ console.log('■ 메커니즘 점검 넷(mech-checks) — 합성 투수: 드리�
     near(Fr.separation.peakMs, 25, 0.01) && near(Fr.separation.peakDeg, 22, 0.01) && near(Fl.separation.peakMs, 25, 0.01) && near(Fl.separation.peakDeg, 22, 0.01),
     `${Fr.separation.peakMs.toFixed(1)}ms · ${Fr.separation.peakDeg.toFixed(1)}°`
   );
+  const ramp = (k: number) => Math.min(1, Math.max(0, (k - (fp - 2)) / 20)) * 120;
+  const Tr = mechChecks({ joints: build(false, ramp), t, events: { kneeUp: ku, footPlant: fp, release: rl }, hand: 'R' });
+  const Tl = mechChecks({ joints: build(true, ramp), t, events: { kneeUp: ku, footPlant: fp, release: rl }, hand: 'L' });
+  check(
+    '점검: 몸통이 도는 때 — 어깨선이 돈 양의 절반 = 착지 8장면 뒤(착지 → 공 놓기 30장면의 26.7%) · 그 장면 · 좌투 거울 같음 · 안 돌면 못 잼',
+    near(Tr.separation.trunkHalfPct!, (8 / (rl - fp)) * 100, 0.6) && Tr.separation.trunkHalfFrame === fp + 8 &&
+      near(Tl.separation.trunkHalfPct!, Tr.separation.trunkHalfPct!, 1e-9) &&
+      mechChecks({ joints: build(false, () => 0), t, events: { kneeUp: ku, footPlant: fp, release: rl }, hand: 'R' }).separation.trunkHalfPct === null,
+    `${Tr.separation.trunkHalfPct?.toFixed(1)}% · 장면 ${Tr.separation.trunkHalfFrame}`
+  );
   const noKu = mechChecks({ joints: build(false), t, events: { kneeUp: null, footPlant: fp, release: rl }, hand: 'R' });
   check(
     '점검: 니업 없으면 드리프트 없음 · 키를 모르면 cm 없음 · 확신이 없으면 null',
@@ -2866,11 +2876,11 @@ console.log('■ 메커니즘 점검 넷(mech-checks) — 합성 투수: 드리�
 console.log('■ 메커니즘 점검 판정(mech-judge) — 문턱 · 여러 구 평균 · 확신 낮으면 판정 안 함 · 글 규칙');
 {
   type M = ReturnType<typeof mechChecks>;
-  const mk = (o: { ahead?: number | null; dConf?: number | null; ms?: number; sep?: number; sConf?: number | null; decel?: number; ext?: number; bConf?: number | null; hand?: 'R' | 'L' }): M => ({
+  const mk = (o: { ahead?: number | null; dConf?: number | null; ms?: number; sep?: number; sConf?: number | null; decel?: number; ext?: number; bConf?: number | null; hand?: 'R' | 'L'; half?: number | null; open?: number; tConf?: number | null }): M => ({
     hand: o.hand ?? 'R',
     drift: o.ahead === null ? null : { aheadAtKneeUp: o.ahead ?? 0.1, aheadAtKneeUpCm: null, travel: 0.05, travelCm: null, speed: 0.2, speedMs: null, conf: o.dConf ?? 50 },
     pelvisLevel: { tiltDeg: 2, conf: 50 },
-    separation: { frame: 0, peakMs: o.ms ?? 0, peakDeg: o.sep ?? 56, atPlantDeg: 20, trunkOpenAtPlantDeg: 5, pelvisOpenAtPlantDeg: 25, conf: o.sConf ?? 50 },
+    separation: { frame: 0, peakMs: o.ms ?? 0, peakDeg: o.sep ?? 56, atPlantDeg: 20, trunkOpenAtPlantDeg: o.open ?? -20, pelvisOpenAtPlantDeg: 25, trunkHalfPct: o.half === undefined ? 54 : o.half, trunkHalfFrame: 0, trunkConf: o.tConf ?? 50, conf: o.sConf ?? 50 },
     block: { pelvisDecelPct: o.decel ?? 95, kneeAtPlantDeg: 30, kneeAtReleaseDeg: 30 - (o.ext ?? 0), kneeExtensionDeg: o.ext ?? 0, kneeCollapseDeg: 5, conf: o.bConf ?? 50 },
   });
   const st = (j: ReturnType<typeof judgeMechanics>, k: string) => j.items.find((i) => i.key === k)!.status;
@@ -2897,6 +2907,21 @@ console.log('■ 메커니즘 점검 판정(mech-judge) — 문턱 · 여러 구
     st(judgeMechanics([mk({ sep: 50, hand: 'L' })]), 'separation') === 'good' && st(judgeMechanics([mk({ sep: 50 })]), 'separation') === 'fair' &&
       st(judgeMechanics([mk({ sep: 36, hand: 'L' })]), 'separation') === 'fair' && st(judgeMechanics([mk({ sep: 36 })]), 'separation') === 'improve' &&
       judgeMechanics([mk({ sep: 50, hand: 'L' })]).items.find((i) => i.key === 'separation')!.detail.includes('좌투 22명')
+  );
+  check(
+    '판정: 몸통이 도는 때(우투) — 54% 좋아요 · 47% 보통(조금 일찍) · 40% 고칠 점(일찍) · 72% 보통(늦게) · 못 잼 · 어깨 확신 낮음은 판정 안 함 · 화면에 냄',
+    st(judgeMechanics([mk({ half: 54 })]), 'trunkTiming') === 'good' && st(judgeMechanics([mk({ half: 47 })]), 'trunkTiming') === 'fair' &&
+      st(judgeMechanics([mk({ half: 40 })]), 'trunkTiming') === 'improve' && st(judgeMechanics([mk({ half: 72 })]), 'trunkTiming') === 'fair' &&
+      st(judgeMechanics([mk({ half: null })]), 'trunkTiming') === 'unsure' && st(judgeMechanics([mk({ half: 40, tConf: 10 })]), 'trunkTiming') === 'unsure' &&
+      judgeMechanics([mk({})]).items.find((i) => i.key === 'trunkTiming')!.shown &&
+      judgeMechanics([mk({ half: 47, hand: 'L' })]).items.find((i) => i.key === 'trunkTiming')!.status === 'good'
+  );
+  check(
+    '판정: 착지 때 상체 — 20° 닫힘 좋아요 · 10° 닫힘 보통 · 0° 고칠 점(이미 열림) · 옛 분리 크기 · 시점은 화면에 안 냄',
+    st(judgeMechanics([mk({ open: -20 })]), 'trunkAtPlant') === 'good' && st(judgeMechanics([mk({ open: -10 })]), 'trunkAtPlant') === 'fair' &&
+      st(judgeMechanics([mk({ open: 0 })]), 'trunkAtPlant') === 'improve' &&
+      judgeMechanics([mk({ open: 3 })]).items.find((i) => i.key === 'trunkAtPlant')!.detail.includes('3° 열림') &&
+      !judgeMechanics([mk({})]).items.find((i) => i.key === 'separation')!.shown
   );
   check(
     '판정: 블록 — 골반 덜 멈춤(60%) 그리고 무릎 20° 더 굽음일 때만 고칠 점, 하나만이면 보통',

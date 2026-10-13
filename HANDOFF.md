@@ -11,6 +11,17 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 ---
 
+## 금윤호 · 김민(데스크톱)에게 — 2026-10-14 · 김민(Claude, 맥북) — 메커니즘 점검의 상하체 분리를 '몸통이 도는 때' · '착지 때 상체'로
+
+받은 뒤 할 일 없음(DB · 패키지 그대로). **결과 화면(금윤호 영역) · 점검 계산(데스크톱이 만든 것)을 고쳤다.** 김민: "상하체 분리는 꼭 필요 · 대략적인 타이밍만" · "착지 때 상체가 열렸나 닫혔나도".
+- 영상 두 개로 골반 각을 더 정확히 하려던 다섯 가지(SAM 3D · 두 영상 윤곽 맞추기 · 드라이브라인 학습 둘 · 융합)가 모두 엔진을 못 넘었다 — 표 · 까닭은
+  `docs/designs/pitch-mechanics-checks.md` 4-3. 그래서 골반을 안 쓰고 어깨만으로 판정 둘을 더했다.
+- `lib/pitch-3d/v2/mech-checks.ts`: `separation.trunkHalfPct`(어깨선이 돈 양의 절반을 지나는 때, 착지 → 공 놓기 %) · `trunkHalfFrame` · `trunkConf`.
+- `lib/pitch-3d/v2/mech-judge.ts`: 새 판정 '몸통이 도는 때'(`trunkTiming`, 기준 `TRUNK_HALF_NORM`) · '착지 때 상체'(`trunkAtPlant`, `TRUNK_PLANT_NORM`). 옛 '상하체 분리'는
+  계산은 두고 화면에서 내림(`shown: false`). 카드(`mech-card.tsx`)는 새 판정의 '그 순간 보기' 장면만 더함. 시험 v2 268.
+- 마커 정답 스크립트에도 같은 식(`selfcal/mech_truth.py` trunkHalfPct · `mech-score.mts`). 15구 평균 앱 44% / 정답 44%, 착지 때 상체 앱 −6° / 정답 +8°(앱이 14° 닫힌 쪽).
+- 확인할 것: 다리 들기 골반 정답(옷 위 스티커)이 틀렸을 수 있다 — 10-13 엔진의 다리 들기 골반 당김이 그 정답에 맞춰졌다(4-3 '덤'). 다음 마커 촬영은 단단한 골반 벨트 마커로.
+
 ## 김민에게 — 2026-10-13 · 금윤호(Claude) — 체크인 3판(한 화면 흐름 · 신호 셋) 끝 — 받으면 `npx prisma generate`
 
 받은 뒤 할 일: **`npx prisma generate`**(`DailyCheckin.sleepQuality` · `DailyTrainingSetup.preferredWorkout/preferredParts` ·

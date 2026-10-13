@@ -11,6 +11,17 @@ import { angleDeg, mid, sub, type Vec3 } from '@/lib/pitch-3d/linalg';
 
 /** 최대 분리를 찾는 구간의 시작 — 착지 이만큼 전부터 릴리스까지(sep_timing.py '좁힘': 니업부터 찾으면 다리 들 때 평평한 투구가 튄다) */
 export const SEPARATION_PRE_PLANT_S = 0.15;
+/**
+ * 몸통이 도는 때 — 어깨선(위에서 본 각)이 '착지 − 0.4구간 ~ 공 놓기 + 0.3구간' 동안 돈 양의 절반을 지나는 때를 착지 → 공 놓기 사이 %로.
+ * 구간 = 착지 → 공 놓기 시간이라 슬로모 배수와 상관없다. 2026-10-14 김민: "대략적인 타이밍만 맞으면 된다".
+ * 각속도 꼭대기는 우리 엔진이 어깨 회전을 시간으로 다듬어 정할 수 없었다(착지 뒤 두 번 비슷하게 높아 엔진 · 4대 교차가 다른 혹을 골랐다).
+ * 절반 지점은 다듬기에 덜 흔들린다 — 마커 15구 엔진 vs 4대 교차 차이 +1 ± 6ms(상관 0.98), 착지 → 공 놓기 % 로 ±5%p.
+ * 골반 쪽 시점은 엉덩이 점이 몸통에 붙어 돌아(15구 중 9구 골반 · 어깨 꼭대기가 같은 장면) 안 잰다.
+ */
+export const TRUNK_HALF_PRE = 0.4;
+export const TRUNK_HALF_POST = 0.3;
+/** 그 사이 어깨선이 이만큼(°)도 안 돌면 재지 않는다 */
+export const TRUNK_HALF_MIN_DEG = 20;
 
 export type MechChecksInput = Pick<Pitch3dV2Ok, 'joints' | 't' | 'events' | 'hand'> &
   Partial<Pick<Pitch3dV2Ok, 'conf'>>;
@@ -47,6 +58,12 @@ export type MechChecks = {
      */
     trunkOpenAtPlantDeg: number;
     pelvisOpenAtPlantDeg: number;
+    /** 몸통(어깨선)이 돈 양의 절반을 지나는 때 — 착지 → 공 놓기 사이 %(0 = 착지, 100 = 공 놓기). 못 재면 null */
+    trunkHalfPct: number | null;
+    /** 그때와 가장 가까운 장면(그 순간 보기) */
+    trunkHalfFrame: number | null;
+    /** 몸통 점검(도는 때 · 착지 때 열림)이 쓴 어깨 확신 — 착지 ~ 공 놓기 평균 */
+    trunkConf: number | null;
     conf: number | null;
   };
   block: {
@@ -147,6 +164,35 @@ export function mechChecks(r: MechChecksInput, heightCm?: number | null): MechCh
   while (k0 > 0 && r.t[fp] - r.t[k0 - 1] <= SEPARATION_PRE_PLANT_S + 1e-9) k0--;
   let kp = k0;
   for (let k = k0; k <= rl; k++) if (sep(k) > sep(kp)) kp = k;
+  /* 몸통이 도는 때 — 어깨선이 돈 양의 절반 */
+  const span = r.t[rl] - r.t[fp];
+  let trunkHalfPct: number | null = null;
+  let trunkHalfFrame: number | null = null;
+  if (span > 0) {
+    let a = fp;
+    while (a > 0 && r.t[a - 1] >= r.t[fp] - TRUNK_HALF_PRE * span) a--;
+    let b = rl;
+    while (b < n - 1 && r.t[b + 1] <= r.t[rl] + TRUNK_HALF_POST * span) b++;
+    const ys: number[] = [];
+    for (let k = a; k <= b; k++) {
+      const y = yaw(sub(P(k, 'lSh'), P(k, 'rSh')));
+      ys.push(ys.length ? ys[ys.length - 1] + wrap(y - ys[ys.length - 1]) : y);
+    }
+    const total = ys[ys.length - 1] - ys[0];
+    if (Math.abs(total) >= TRUNK_HALF_MIN_DEG) {
+      for (let i = 1; i < ys.length; i++) {
+        const f0 = (ys[i - 1] - ys[0]) / total;
+        const f1 = (ys[i] - ys[0]) / total;
+        if (f1 >= 0.5) {
+          const w = f1 > f0 ? (0.5 - f0) / (f1 - f0) : 0;
+          const th = r.t[a + i - 1] + w * (r.t[a + i] - r.t[a + i - 1]);
+          trunkHalfPct = ((th - r.t[fp]) / span) * 100;
+          trunkHalfFrame = w < 0.5 ? a + i - 1 : a + i;
+          break;
+        }
+      }
+    }
+  }
   const separation = {
     frame: kp,
     peakMs: (r.t[kp] - r.t[fp]) * 1000,
@@ -154,6 +200,9 @@ export function mechChecks(r: MechChecksInput, heightCm?: number | null): MechCh
     atPlantDeg: sep(fp),
     trunkOpenAtPlantDeg: open('Sh', fp),
     pelvisOpenAtPlantDeg: open('Hip', fp),
+    trunkHalfPct,
+    trunkHalfFrame,
+    trunkConf: confOf(['lSh', 'rSh'], Array.from({ length: rl - fp + 1 }, (_, i) => fp + i)),
     conf: confOf(['lSh', 'rSh', 'lHip', 'rHip'], [kp]),
   };
 

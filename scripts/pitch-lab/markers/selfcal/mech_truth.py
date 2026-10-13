@@ -38,12 +38,23 @@ for p in range(2, 17):
                                  np.linalg.norm(K["lHip"][k] - K["lKn"][k]) / np.linalg.norm(K["lAn"][k] - K["lKn"][k]), -1, 1))))
     vf = lambda k: float((hm[min(k + 1, n - 1)] - hm[max(k - 1, 0)]) @ F / (te[min(k + 1, n - 1)] - te[max(k - 1, 0)]))
     pk = np.nanmax([vf(k) for k in range(ku, fp + 1)])
+    # 몸통이 도는 때 — 어깨선이 '착지 − 0.4구간 ~ 공 놓기 + 0.3구간' 동안 돈 양의 절반, 착지 → 공 놓기 %(앱 mech-checks trunkHalfPct 와 같은 식)
+    span = te[rl] - te[fp]
+    ws = [k for k in range(n) if te[fp] - 0.4 * span - 1e-9 <= te[k] <= te[rl] + 0.3 * span + 1e-9 and not np.isnan(K["lSh"][k, 0] + K["rSh"][k, 0])]
+    ys = np.unwrap(np.radians(yaw(K["lSh"][ws] - K["rSh"][ws]))); ys = np.degrees(ys)
+    half = None
+    if len(ys) > 2 and abs(ys[-1] - ys[0]) >= 20:
+        fr = (ys - ys[0]) / (ys[-1] - ys[0]); i = int(np.argmax(fr >= 0.5))
+        if i > 0:
+            th = te[ws[i - 1]] + (0.5 - fr[i - 1]) / (fr[i] - fr[i - 1]) * (te[ws[i]] - te[ws[i - 1]])
+            half = float((th - te[fp]) / span * 100)
     out[p] = {
         "aheadAtKneeUpCm": ahead(ku), "travelCm": ahead(ku) - ahead(k0) if k0 is not None else None,
         "speedMs": float((hm[b] - hm[a]) @ F / (te[b] - te[a])),
         "tiltDeg": float(np.degrees(np.arctan2(hv @ U, np.linalg.norm(hz(hv))))),
         "peakMs": float((te[kp] - te[fp]) * 1000), "peakDeg": float(sg * sep[kp]), "atPlantDeg": float(sg * sep[fp]),
         "trunkOpenAtPlantDeg": float(-sg * wrap(yaw(K["lSh"][fp] - K["rSh"][fp]) - syaw)), "pelvisOpenAtPlantDeg": float(-sg * wrap(yaw(K["lHip"][fp] - K["rHip"][fp]) - syaw)),
+        "trunkHalfPct": half,
         "pelvisDecelPct": float((pk - vf(rl)) / pk * 100),
         "kneeAtPlantDeg": knee(fp), "kneeAtReleaseDeg": knee(rl), "kneeExtensionDeg": knee(fp) - knee(rl),
         "kneeCollapseDeg": max(knee(k) for k in range(fp, rl + 1)) - knee(fp),

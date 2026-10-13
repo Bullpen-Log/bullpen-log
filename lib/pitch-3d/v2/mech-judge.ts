@@ -71,8 +71,31 @@ export const SEP_FAR_MS = 110;
  */
 export const BLOCK_DECEL_LOW = 70;
 export const BLOCK_COLLAPSE_DEG = 15;
+/**
+ * 몸통이 도는 때(mech-checks trunkHalfPct — 어깨선이 돈 양의 절반을 지나는 때, 착지 → 공 놓기 사이 %). 2026-10-14 김민: "상하체 분리는 꼭 필요 ·
+ * 대략적인 타이밍만 맞으면 된다". 위의 분리 크기 · 시점은 엉덩이 점에 기대는데, 영상 두 개로는 골반을 믿을 만큼 못 잰다(마커 15구 골반 오차 내딛기
+ * 9.6° · 팔 가속 17.5°, 윤곽 맞추기 · 몸 모델 · 학습 다섯 가지를 해 봐도 못 넘음) — 그래서 화면에서 내리고 잘 보이는 어깨만으로 '몸통이 언제 도나'를 본다.
+ * 기준 = 드라이브라인 공개 자료(OpenBiomechanics) 관절 가운데로 같은 식: 우투 78명 · 320구 아래 10/25/50/75/90% 46 / 49 / 54 / 59 / 64%,
+ * 좌투 22명 43 / 47 / 52 / 58 / 64%. 같은 선수 흔들림 3%p · 선수 사이 8%p, 구속과 상관 없음(−0.04). 엔진 오차(마커 15구, 4대 교차와) ±5%p.
+ * 이르면 몸통이 일찍 도는 것(골반이 먼저 열리지 못함 — 일찍 열림). 늦은 쪽은 문턱 근거가 없어 보통까지만.
+ */
+export const TRUNK_HALF_ERR = 5;
+export const TRUNK_HALF_NORM = {
+  R: { athletes: 78, p10: 46, p25: 49, p50: 54, p75: 59, p90: 64 },
+  L: { athletes: 22, p10: 43, p25: 47, p50: 52, p75: 58, p90: 64 },
+} as const;
+/**
+ * 착지 때 상체(어깨선) 열림(mech-checks trunkOpenAtPlantDeg — 디딤 방향 기준, + 열림). 2026-10-14 김민: "착지했을 때 상체가 열려 있나 닫혀 있나도 중요".
+ * 같은 자료 · 같은 식: 우투 아래 50/75/90% −20.2 / −12.8 / −5.7°, 좌투 −20.6 / −11.8 / −5.4°(대부분 착지 때 아직 닫혀 있다).
+ * 엔진은 4대 교차보다 늘 약 13° 더 닫힌 쪽으로 읽고(상관 0.93) 구마다 ±9° 흔들린다. 치우침은 보정하지 않는다(한 사람 · 하루 자료, 2026-10-13 결정) —
+ * 대신 엔진이 덜 열리게 읽으니 '열려 있어요'는 확실할 때만 나온다(엔진 값이 위 10% 를 넘으면 실제로는 더 열려 있다). '닫혀 있어요'는 조금 후하다.
+ */
+export const TRUNK_PLANT_NORM = {
+  R: { p50: -20.2, p75: -12.8, p90: -5.7 },
+  L: { p50: -20.6, p75: -11.8, p90: -5.4 },
+} as const;
 
-export type MechKey = 'drift' | 'separation' | 'block' | 'pelvisLevel';
+export type MechKey = 'drift' | 'separation' | 'trunkTiming' | 'trunkAtPlant' | 'block' | 'pelvisLevel';
 export type MechStatus = 'good' | 'fair' | 'improve' | 'unsure';
 export type MechVerdict = {
   key: MechKey;
@@ -151,14 +174,14 @@ export function judgeMechanics(
     }
   }
 
-  /* 상하체 분리 — 크기(최대) + 시점. 둘 중 나쁜 쪽 */
+  /* 상하체 분리 — 크기(최대) + 시점. 둘 중 나쁜 쪽. 엉덩이 점에 기대 믿을 수 없어 화면에 안 낸다(2026-10-14, 위 TRUNK_HALF 주석) */
   {
     const use = list.filter((m) => ok(m.separation.conf));
     const base = {
       key: 'separation' as const,
       title: '상하체 분리',
       focus: '상하체 분리' as const,
-      shown: true,
+      shown: false,
     };
     if (!use.length)
       items.push({ ...base, status: 'unsure', line: UNSURE, detail: '' });
@@ -186,6 +209,58 @@ export function judgeMechanics(
       else if (Math.abs(t) > SEP_NEAR_MS)
         v('fair', '골반과 몸통이 가장 크게 벌어지는 때가 착지에서 조금 떨어져 있어요');
       else v('good', '골반이 먼저 열리고 몸통이 늦게 따라와요');
+    }
+  }
+
+  /* 몸통이 도는 때 */
+  {
+    const xs = list.flatMap((m) =>
+      ok(m.separation.trunkConf) && m.separation.trunkHalfPct != null ? [m.separation.trunkHalfPct] : []
+    );
+    const base = {
+      key: 'trunkTiming' as const,
+      title: '몸통이 도는 때',
+      focus: '상하체 분리' as const,
+      shown: true,
+    };
+    if (!xs.length) items.push({ ...base, status: 'unsure', line: UNSURE, detail: '' });
+    else {
+      const a = avg(xs);
+      const hand = list[0].hand;
+      const N = TRUNK_HALF_NORM[hand];
+      const detail = `착지와 공 놓기 사이 ${Math.round(a)}% 지점에서 어깨선이 반쯤 돌아요 (${hand === 'R' ? '우투' : '좌투'} ${N.athletes}명 자료 가운데 ${N.p50}%, 아래 25% ${N.p25}%)`;
+      const v = (status: MechStatus, line: string) => items.push({ ...base, status, line, detail });
+      if (a < N.p10 - TRUNK_HALF_ERR)
+        v('improve', '착지하자마자 몸통이 일찍 돌아요. 골반이 먼저 돌고 몸통은 늦게 따라오게 해 보세요');
+      else if (a < N.p25) v('fair', '몸통이 조금 일찍 도는 편이에요');
+      else if (a > N.p90 + TRUNK_HALF_ERR) v('fair', '몸통이 늦게 도는 편이에요');
+      else v('good', '몸통이 알맞은 때에 돌아요');
+    }
+  }
+
+  /* 착지 때 상체 열림 */
+  {
+    const xs = list.flatMap((m) =>
+      ok(m.separation.trunkConf) && Number.isFinite(m.separation.trunkOpenAtPlantDeg) ? [m.separation.trunkOpenAtPlantDeg] : []
+    );
+    const base = {
+      key: 'trunkAtPlant' as const,
+      title: '착지 때 상체',
+      focus: '상하체 분리' as const,
+      shown: true,
+    };
+    if (!xs.length) items.push({ ...base, status: 'unsure', line: UNSURE, detail: '' });
+    else {
+      const a = avg(xs);
+      const N = TRUNK_PLANT_NORM[list[0].hand];
+      const r = Math.round(Math.abs(a));
+      const more = Math.round(a - N.p50);
+      const detail = `착지 때 어깨선이 내딛는 방향에서 ${r}° ${a >= 0 ? '열림' : '닫힘'} · 자료 투수 가운데(${Math.round(-N.p50)}° 닫힘)보다 ${Math.abs(more)}° 더 ${more >= 0 ? '열림' : '닫힘'}`;
+      const v = (status: MechStatus, line: string) => items.push({ ...base, status, line, detail });
+      if (a > N.p90)
+        v('improve', '착지할 때 상체가 다른 투수보다 많이 열려 있어요. 앞어깨가 홈을 늦게 보게 해 보세요');
+      else if (a > N.p75) v('fair', '착지할 때 상체가 다른 투수보다 조금 열려 있어요');
+      else v('good', '착지할 때 상체가 잘 닫혀 있어요');
     }
   }
 

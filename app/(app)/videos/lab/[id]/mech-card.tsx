@@ -48,6 +48,8 @@ export function MechCard({
       frames: {
         drift: result.events.kneeUp,
         separation: m.separation.frame,
+        trunkTiming: m.separation.trunkHalfFrame,
+        trunkAtPlant: result.events.footPlant,
         block: result.events.release,
         pelvisLevel: result.events.footPlant,
       } as Record<MechVerdict['key'], number | null>,
