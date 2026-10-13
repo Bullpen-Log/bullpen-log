@@ -279,11 +279,19 @@ export function mannequinFrames(frames: MannequinJoints[], heightM: number): Man
     const { pelvis, chest } = trunkFrames(J);
     let up: Vec3 = [0, 0, 0];
     let fw: Vec3 = [0, 0, 0];
+    let ws = 0;
+    /*
+     * 앞 방향은 단위 벡터의 가중 평균 — 길이가 0.5 밑이면(앞뒤가 엇갈림) 가슴 앞으로. 예전엔 코 − 귀(10cm 남짓)를 그대로 더해 길이가 창 크기를
+     * 따라가, 영상 첫머리(창이 잘림)에서 가슴 앞 → 머리 앞으로 한 장면에 34~54° 넘어갔다(2026-10-13 마커 15구 · 실험실 샘플 첫 장면).
+     */
     for (let j = Math.max(0, i - W); j <= Math.min(n - 1, i + W); j++) {
       const q = 1 - Math.abs(j - i) / (W + 1);
       up = add(up, scale(raw[j][0], q));
-      fw = add(fw, scale(raw[j][1], q));
+      const len = Math.hypot(...raw[j][1]);
+      if (len > 1e-9) fw = add(fw, scale(raw[j][1], q / len));
+      ws += q;
     }
+    fw = scale(fw, 1 / ws);
     const neck = neckOf(J, chest, k);
     return {
       pelvis,
