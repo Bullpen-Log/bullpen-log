@@ -14,6 +14,7 @@ import {
 import { partsFromSpots, spotLabel, type BodySpots } from '@/lib/body-spots';
 import { BodySpotPicker } from '@/components/body-spot-picker';
 import { Chip } from '@/components/day-card';
+import { OutlinePerson, SleepPicture } from './pictures';
 
 /**
  * 체크인 3판의 질문 화면 넷(components/checkin-flow/flow.tsx 가 차례로 띄운다).
@@ -51,8 +52,8 @@ export function ConditionStep({
     <div className="flex h-full flex-col">
       <h1 className={TITLE}>오늘 컨디션은 어때요?</h1>
       <div className="flex flex-1 items-center justify-center gap-8 py-4">
-        {/* 그림 자리 — 3단계에서 사람 윤곽(세 상태)이 들어온다 */}
-        <div data-person={band} className="w-32 shrink-0" />
+        {/* 사람 윤곽 — 띠마다 자세 · 표정 · 색이 다르고 0.16초 옅어지며 바뀐다(pictures.tsx) */}
+        <OutlinePerson band={band} className="h-56 w-32 shrink-0" />
         <div className="flex flex-col items-center gap-3">
           <p
             className={`text-6xl font-black tabular-nums leading-none ${tone}`}
@@ -256,7 +257,8 @@ export function SleepStep({
     <div className="flex h-full flex-col">
       <h1 className={TITLE}>어젯밤 잠은요?</h1>
       <div className="flex flex-1 flex-col items-center justify-center gap-6 py-4">
-        <div data-sleep={value} className="h-32 w-full max-w-xs" />
+        {/* 누운 사람과 달 — 잘 잔 만큼 달이 찬다(pictures.tsx) */}
+        <SleepPicture quality={value} className="h-32 w-full max-w-xs" />
         <p className="text-3xl font-black text-sky">{word}</p>
         <input
           type="range"
