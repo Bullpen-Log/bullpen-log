@@ -520,8 +520,9 @@ const SAMPLE_PITCHES: { kmh: number; type: string; zone: number; result: string 
 ];
 
 /* 카메라 앱 모양의 단추 — 위 줄 동그라미 · 아래 보조 단추 · 라벨 */
+/* 카메라 위 둥근 단추 — 누르는 크기 44px(체크인 · 탭 카드의 칩과 같은 규격) */
 const CHROME_BTN =
-  'inline-flex h-10 w-10 items-center justify-center rounded-full bg-black/45 text-white backdrop-blur transition-colors hover:bg-black/60 disabled:opacity-40';
+  'inline-flex h-11 w-11 items-center justify-center rounded-full bg-black/45 text-white backdrop-blur transition-colors hover:bg-black/60 disabled:opacity-40';
 /* 정보 판(거의 검정) 위의 위 줄 단추 — 옅은 흰 바탕이라야 단추로 보인다 */
 const CHROME_BTN_ON_PANEL = CHROME_BTN.replace('bg-black/45', 'bg-white/10').replace(
   'hover:bg-black/60',
@@ -2862,7 +2863,7 @@ export function VelocityScreen({
                       />
                     </div>
                   )}
-                  <section className="rounded-3xl bg-white/[0.06] px-5 pb-4 pt-5 text-center">
+                  <section className="rounded-2xl bg-white/[0.06] px-5 pb-4 pt-5 text-center">
                     {lastPitch ? (
                       <div key={lastPitch.id} className="motion-safe:animate-fade-in">
                         <p className="text-xs font-medium text-white/60">
@@ -2942,7 +2943,7 @@ export function VelocityScreen({
                                 patch(lastPitch.id, { pitchType: on ? null : t.key })
                               }
                               aria-pressed={on}
-                              className={`h-10 shrink-0 rounded-full px-3.5 text-sm font-semibold transition-colors ${
+                              className={`h-11 shrink-0 rounded-full px-4 text-sm font-semibold transition-colors ${
                                 on
                                   ? 'bg-sky text-white'
                                   : 'bg-white/10 text-white hover:bg-white/20'
@@ -2959,7 +2960,7 @@ export function VelocityScreen({
                   {error && (
                     <p
                       role="alert"
-                      className="mt-3 rounded-xl border border-danger-line/60 bg-danger/15 px-4 py-2.5 text-sm leading-relaxed text-white"
+                      className="mt-3 rounded-2xl border border-danger-line/60 bg-danger/15 px-4 py-2.5 text-sm leading-relaxed text-white"
                     >
                       {error}
                     </p>
@@ -3014,19 +3015,19 @@ export function VelocityScreen({
                     (isAdmin && !native)) && (
                     <div className={`space-y-2 px-4 ${resultShown ? '' : 'pb-3'}`}>
                       {step === 'align' && (
-                        <p className="rounded-xl bg-black/55 px-4 py-2.5 text-sm leading-snug text-white backdrop-blur motion-safe:animate-fade-in">
+                        <p className="rounded-2xl bg-black/55 px-4 py-2.5 text-sm leading-snug text-white backdrop-blur motion-safe:animate-fade-in">
                           {withGa(targetText)} 가운데 표적에 오게 폰 높이와 방향을
                           맞추세요.
                         </p>
                       )}
                       {step === 'align' && cameraOn && !levelOk && (
-                        <p className="rounded-xl bg-amber-600/90 px-4 py-2.5 text-sm leading-snug text-white">
+                        <p className="rounded-2xl bg-amber-600/90 px-4 py-2.5 text-sm leading-snug text-white">
                           아직 기울어 있어요. 그대로 가도 되지만 코스와 궤적이 비뚤게
                           보여요.
                         </p>
                       )}
                       {step === 'zone' && (
-                        <p className="rounded-xl bg-black/55 px-4 py-2.5 text-sm leading-snug text-white backdrop-blur motion-safe:animate-fade-in">
+                        <p className="rounded-2xl bg-black/55 px-4 py-2.5 text-sm leading-snug text-white backdrop-blur motion-safe:animate-fade-in">
                           존 자리는 릴리스 표적 바로 밑에 고정돼요. 두 손가락으로
                           벌리거나 모서리 손잡이로 크기만 맞춰요.
                         </p>
@@ -3037,12 +3038,12 @@ export function VelocityScreen({
                         phase == null &&
                         (fpsNote ?? standardNote ?? cropNote) &&
                         !error && (
-                          <p className="rounded-xl bg-warn/90 px-4 py-2.5 text-sm leading-snug text-white">
+                          <p className="rounded-2xl bg-warn/90 px-4 py-2.5 text-sm leading-snug text-white">
                             {fpsNote ?? standardNote ?? cropNote}
                           </p>
                         )}
                       {step === 'measure' && isAdmin && !native && !error && !saved && (
-                        <p className="rounded-xl bg-black/55 px-4 py-2 text-xs leading-snug text-white/85 backdrop-blur">
+                        <p className="rounded-2xl bg-black/55 px-4 py-2 text-xs leading-snug text-white/85 backdrop-blur">
                           웹 시험 모드(관리자) — 브라우저 카메라는 대개 초당 30장이라
                           값은 참고용이에요.
                         </p>
@@ -3050,13 +3051,13 @@ export function VelocityScreen({
                       {error && (
                         <p
                           role="alert"
-                          className="rounded-xl bg-danger/90 px-4 py-2.5 text-sm leading-relaxed text-white"
+                          className="rounded-2xl bg-danger/90 px-4 py-2.5 text-sm leading-relaxed text-white"
                         >
                           {error}
                         </p>
                       )}
                       {saved && (
-                        <p className="pointer-events-auto flex items-center gap-2 rounded-xl bg-black/70 px-4 py-2.5 text-sm text-white backdrop-blur">
+                        <p className="pointer-events-auto flex items-center gap-2 rounded-2xl bg-black/70 px-4 py-2.5 text-sm text-white backdrop-blur">
                           <Check aria-hidden className="h-4 w-4 text-ok" />
                           오늘 투구 기록에 남겼어요.
                           {/*
@@ -3072,14 +3073,14 @@ export function VelocityScreen({
                         </p>
                       )}
                       {toast && (
-                        <p className="rounded-xl bg-black/70 px-4 py-2.5 text-center text-sm text-white backdrop-blur motion-safe:animate-fade-in">
+                        <p className="rounded-2xl bg-black/70 px-4 py-2.5 text-center text-sm text-white backdrop-blur motion-safe:animate-fade-in">
                           {toast}
                         </p>
                       )}
                     </div>
                   )}
                 {live && !showCamera && toast && (
-                  <p className="mx-4 mb-3 rounded-xl bg-white/15 px-4 py-2.5 text-center text-sm text-white backdrop-blur motion-safe:animate-fade-in">
+                  <p className="mx-4 mb-3 rounded-2xl bg-white/15 px-4 py-2.5 text-center text-sm text-white backdrop-blur motion-safe:animate-fade-in">
                     {toast}
                   </p>
                 )}
@@ -3297,7 +3298,7 @@ export function VelocityScreen({
               {error && (
                 <p
                   role="alert"
-                  className="absolute inset-x-4 bottom-[calc(5rem+env(safe-area-inset-bottom))] rounded-xl bg-danger/90 px-4 py-2.5 text-sm leading-relaxed text-white"
+                  className="absolute inset-x-4 bottom-[calc(5rem+env(safe-area-inset-bottom))] rounded-2xl bg-danger/90 px-4 py-2.5 text-sm leading-relaxed text-white"
                 >
                   {error}
                 </p>
