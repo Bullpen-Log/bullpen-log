@@ -10,6 +10,8 @@
  *    다른 구간이 나빠질 수 있다(세트 자세 고침이 공 놓은 뒤를 3.4 → 7.4% 로).
  *  2 화면 트랙이 원 결과보다 더 떠는 관절이 새로 생겼다(화면 > 원 × 1.25 + 0.3%) — 화면 모델은 다듬기만 해야 한다(편 팔 비틀림을 거꾸로 이어 손이 휘둘림).
  *  3 기준 때 되던 샘플이 실패한다.
+ *  4 화면의 이상한 움직임(순간 튐 · 사람 한계 넘는 빠르기 · 뒤로 꺾인 무릎 · 분리 75° 넘음, measure.mts oddities)이나 인형 방향(골반 ·
+ *    가슴 · 머리 · 두 손 · 두 발)의 순간 튐 · 빠르기 넘음(mannequinOddities)이 늘었다.
  */
 import { spawn, spawnSync } from 'node:child_process';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
@@ -65,13 +67,15 @@ const lines = spawnSync(
   { encoding: 'utf8', maxBuffer: 64 << 20 }
 ).stdout.trim().split('\n');
 
-/* 샘플 → 구간 → { max, med, amp } (화면 기준), 실패한 샘플은 { failed } */
+/* 샘플 → 구간 → { max, med, amp } (화면 기준) · odd(이상한 움직임 장면 수, 화면 · 원), 실패한 샘플은 { failed } */
 const now = {};
+const odd = {};
 keys.forEach((k, i) => {
   const m = JSON.parse(lines[i] ?? '{"failed":"measure"}');
   if (m.failed) return void (now[k] = { failed: m.failed });
+  odd[k] = m.odd;
   now[k] = Object.fromEntries(
-    Object.entries(m).map(([p, joints]) => {
+    Object.entries(m.phases).map(([p, joints]) => {
       const disp = Object.values(joints).map(([d]) => d).sort((a, b) => a - b);
       const amp = Object.entries(joints).filter(([, [d, r]]) => AMP(d, r)).map(([n]) => n).sort();
       return [p, { max: disp.at(-1), med: disp[disp.length >> 1], amp }];
@@ -90,8 +94,23 @@ for (const k of keys) {
             .join(' · '))
   );
 }
+const ODD = ['pop', 'speed', 'knee', 'sep'];
+const ODD_KO = { pop: '순간 튐', speed: '빠르기 넘음', knee: '뒤로 꺾인 무릎', sep: '분리 75° 넘음' };
+const oddLine = (o) => ODD.map((x) => `${ODD_KO[x]} ${o[x]}`).join(' · ');
+console.log('\n이상한 움직임(장면 수) — 화면 / 원 결과');
+for (const k of keys)
+  if (odd[k]) {
+    const where = Object.entries(odd[k].disp.where).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([w, c]) => `${w} ${c}`).join(', ');
+    console.log(`  ${k.padEnd(9)} 화면 ${oddLine(odd[k].disp)} / 원 ${oddLine(odd[k].raw)}${where ? `  [${where}]` : ''}`);
+    const mw = Object.entries(odd[k].man.where).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([w, c]) => `${w} ${c}`).join(', ');
+    console.log(`  ${''.padEnd(9)} 인형 방향 순간 튐 ${odd[k].man.pop} · 빠르기 넘음 ${odd[k].man.speed}${mw ? `  [${mw}]` : ''}`);
+  }
 if (process.argv.includes('--save')) {
-  writeFileSync(BASE, JSON.stringify({ savedAt: new Date().toISOString(), samples: now }, null, 1) + '\n');
+  const strip = (o) => Object.fromEntries(ODD.map((x) => [x, o[x]]));
+  const oddSave = Object.fromEntries(
+    Object.entries(odd).map(([k, o]) => [k, { disp: strip(o.disp), raw: strip(o.raw), man: { pop: o.man.pop, speed: o.man.speed } }])
+  );
+  writeFileSync(BASE, JSON.stringify({ savedAt: new Date().toISOString(), samples: now, odd: oddSave }, null, 1) + '\n');
   console.log('새 기준 저장', BASE);
   process.exit(0);
 }
@@ -99,7 +118,8 @@ if (!existsSync(BASE)) {
   console.log('기준 파일이 없다 — --save 로 만든다');
   process.exit(0);
 }
-const base = JSON.parse(readFileSync(BASE, 'utf8')).samples;
+const baseAll = JSON.parse(readFileSync(BASE, 'utf8'));
+const base = baseAll.samples;
 const bad = [];
 for (const [k, b] of Object.entries(base)) {
   const s = now[k];
@@ -118,6 +138,14 @@ for (const [k, b] of Object.entries(base)) {
     const added = n.amp.filter((j) => !v.amp.includes(j));
     if (added.length) bad.push(`${k} ${PHASE_KO[p]} 화면이 원 결과보다 더 떪: ${added.join(', ')}`);
   }
+}
+/* 4 화면의 이상한 움직임이 늘었다(샘플마다 종류별 2장면 넘게) */
+for (const [k, b] of Object.entries(baseAll.odd ?? {})) {
+  if (!odd[k]) continue;
+  for (const x of ODD)
+    if (odd[k].disp[x] > b.disp[x] + 2) bad.push(`${k} 화면 ${ODD_KO[x]} ${b.disp[x]} → ${odd[k].disp[x]}`);
+  for (const x of ['pop', 'speed'])
+    if (b.man && odd[k].man[x] > b.man[x] + 2) bad.push(`${k} 인형 방향 ${ODD_KO[x]} ${b.man[x]} → ${odd[k].man[x]}`);
 }
 console.log(bad.length ? `\n나빠짐 ${bad.length}:\n  ${bad.join('\n  ')}` : '\n기준과 비교: 나빠진 곳 없음');
 process.exit(bad.length ? 1 : 0);
