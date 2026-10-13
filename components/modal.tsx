@@ -81,6 +81,7 @@ export function Modal({
   description,
   size = 'default',
   origin,
+  bigClose = false,
   children,
 }: {
   open: boolean;
@@ -110,6 +111,8 @@ export function Modal({
    * 거리를 재서 거기서 출발시킨다(아래 useLayoutEffect).
    */
   origin?: { x: number; y: number } | null;
+  /** 닫기(X)를 크게 — 체크인 창(2026-10-13 사용자: "체크인의 x 를 키워줘"). 휴대폰 48px · PC 40px */
+  bigClose?: boolean;
   children: ReactNode;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
@@ -183,7 +186,11 @@ export function Modal({
    */
   const drag = useRef<{ id: number; y: number; t: number; dy: number } | null>(null);
   const startDrag = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (!isPhone() || (e.target as HTMLElement).closest('button, a, input, textarea, select')) return;
+    if (
+      !isPhone() ||
+      (e.target as HTMLElement).closest('button, a, input, textarea, select')
+    )
+      return;
     drag.current = { id: e.pointerId, y: e.clientY, t: performance.now(), dy: 0 };
     e.currentTarget.setPointerCapture(e.pointerId);
   };
@@ -205,10 +212,13 @@ export function Modal({
       return;
     }
     if (d.dy > 0) {
-      el.animate([{ transform: `translateY(${d.dy}px)` }, { transform: 'translateY(0)' }], {
-        duration: 220,
-        easing: 'cubic-bezier(0.32, 0.72, 0, 1)',
-      });
+      el.animate(
+        [{ transform: `translateY(${d.dy}px)` }, { transform: 'translateY(0)' }],
+        {
+          duration: 220,
+          easing: 'cubic-bezier(0.32, 0.72, 0, 1)',
+        }
+      );
     }
     el.style.transform = '';
   };
@@ -355,24 +365,35 @@ export function Modal({
         onPointerUp={endDrag}
         onPointerCancel={endDrag}
       >
-      <div aria-hidden className="mx-auto mt-2 h-[5px] w-9 rounded-full bg-ink/15 desk:hidden" />
-      <div className="flex shrink-0 items-start gap-3 px-5 pt-3 pb-2 desk:border-b desk:border-line desk:py-4">
-        <div className="min-w-0 flex-1">
-          <h2 className="text-base font-bold text-ink">{title}</h2>
-          {description && (
-            <p className="mt-0.5 text-xs leading-relaxed text-muted">{description}</p>
-          )}
+        <div
+          aria-hidden
+          className="mx-auto mt-2 h-[5px] w-9 rounded-full bg-ink/15 desk:hidden"
+        />
+        <div className="flex shrink-0 items-start gap-3 px-5 pt-3 pb-2 desk:border-b desk:border-line desk:py-4">
+          <div className="min-w-0 flex-1">
+            <h2 className="text-base font-bold text-ink">{title}</h2>
+            {description && (
+              <p className="mt-0.5 text-xs leading-relaxed text-muted">{description}</p>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="닫기"
+            /* 폰은 손가락 크기(44px) — 28px 라 창마다 닫기가 잘 안 눌렸다. PC 는 예전 크기 */
+            className={
+              bigClose
+                ? '-mr-3 -mt-3 grid h-12 w-12 shrink-0 place-items-center rounded-xl text-muted transition-colors hover:bg-surface-2 hover:text-ink desk:-mr-2 desk:-mt-2 desk:h-10 desk:w-10'
+                : '-mr-3 -mt-3 grid h-11 w-11 shrink-0 place-items-center rounded-lg text-muted transition-colors hover:bg-surface-2 hover:text-ink desk:-mr-1 desk:-mt-1 desk:h-7 desk:w-7'
+            }
+          >
+            <X
+              className={
+                bigClose ? 'h-7 w-7 desk:h-6 desk:w-6' : 'h-5 w-5 desk:h-4 desk:w-4'
+              }
+            />
+          </button>
         </div>
-        <button
-          type="button"
-          onClick={onClose}
-          aria-label="닫기"
-          /* 폰은 손가락 크기(44px) — 28px 라 창마다 닫기가 잘 안 눌렸다. PC 는 예전 크기 */
-          className="-mr-3 -mt-3 grid h-11 w-11 shrink-0 place-items-center rounded-lg text-muted transition-colors hover:bg-surface-2 hover:text-ink desk:-mr-1 desk:-mt-1 desk:h-7 desk:w-7"
-        >
-          <X className="h-5 w-5 desk:h-4 desk:w-4" />
-        </button>
-      </div>
       </div>
 
       {/*

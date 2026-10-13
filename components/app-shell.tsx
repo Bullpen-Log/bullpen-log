@@ -1352,6 +1352,7 @@ export function AppNav({
         onClose={() => setCheckinOpen(false)}
         title="오늘 체크인"
         origin={popFrom}
+        bigClose
       >
         {checkinOpen && (
           <CheckinFlow
