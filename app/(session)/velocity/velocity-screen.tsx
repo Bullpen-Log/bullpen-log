@@ -2611,13 +2611,14 @@ export function VelocityScreen({
        * 내비게이션 바 — 카메라 단계(수평 · 존 · 측정 · 렌즈)는 카메라 앱처럼 위 줄을 카메라 위에 그린다(아래 카메라 무대).
        * 높이는 48px + 시계 자리(box-content) — 앱이 시계 자리까지 그리게 된 뒤 h-12 안에 그 여백을 넣으면 찌그러졌다.
        */}
+      {/* 설정 단계의 머리 — 체크인 흐름처럼 흰 막대 없이 맨바탕 위에 '‹ 뒤로'와 작은 제목(components/checkin-flow/flow.tsx) */}
       {(showAsk || !CAMERA_STEPS.has(step)) && (
-        <header className="box-content flex h-12 shrink-0 items-center justify-between border-b border-line bg-surface px-2 pt-[env(safe-area-inset-top)]">
+        <header className="flex shrink-0 items-center justify-between px-3 pt-[max(0.75rem,env(safe-area-inset-top))]">
           {back ? (
             <button
               type="button"
               onClick={() => setStep(back.to)}
-              className="inline-flex h-10 items-center gap-0.5 rounded-lg pl-1 pr-3 text-sm font-medium text-sky transition-colors hover:bg-sky-tint"
+              className="inline-flex min-h-12 items-center gap-0.5 rounded-full px-2 text-base font-medium text-muted transition-colors hover:text-ink"
             >
               <ChevronLeft aria-hidden className="h-5 w-5" />
               {back.label}
@@ -2626,14 +2627,13 @@ export function VelocityScreen({
             <button
               type="button"
               onClick={leave}
-              className="inline-flex h-10 items-center gap-0.5 rounded-lg pl-1 pr-3 text-sm font-medium text-sky transition-colors hover:bg-sky-tint"
+              className="inline-flex min-h-12 items-center gap-0.5 rounded-full px-2 text-base font-medium text-muted transition-colors hover:text-ink"
             >
               <ChevronLeft aria-hidden className="h-5 w-5" />
               구속 측정
             </button>
           )}
-          <h1 className="text-heading text-base">구속 측정</h1>
-          <span className="h-10 w-10" />
+          <span className="pr-2 text-xs tabular-nums text-muted">구속 측정</span>
         </header>
       )}
 

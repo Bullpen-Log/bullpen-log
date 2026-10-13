@@ -130,10 +130,8 @@ export function OptionCards<V extends string>({
             role="radio"
             aria-checked={on}
             onClick={() => onChange(o.value)}
-            className={`flex w-full flex-col overflow-hidden rounded-2xl border text-left transition-[border-color,box-shadow,background-color] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky ${
-              on
-                ? 'border-sky bg-sky/5 ring-2 ring-sky/30'
-                : 'border-line bg-surface hover:border-sky-soft'
+            className={`flex w-full flex-col overflow-hidden rounded-2xl border-2 text-left transition-[border-color,background-color] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky ${
+              on ? 'border-sky bg-sky-tint' : 'border-transparent bg-surface'
             }`}
           >
             <span
