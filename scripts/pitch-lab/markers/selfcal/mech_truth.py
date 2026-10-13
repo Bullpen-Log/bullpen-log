@@ -33,6 +33,7 @@ for p in range(2, 17):
     sg = -1 if r["hand"] == "R" else 1  # 골반이 어깨보다 더 열린 만큼 = +. 세상 좌표 옆 축이 왼쪽(world.py y = 위 × 앞)이라 우투가 −. 가운데값으로 정하면 0 근처 투구에서 뒤집힌다
     w = [k for k in range(n) if te[fp] - te[k] <= 0.150 + 1e-9 and k <= rl and not np.isnan(sep[k])]
     kp = max(w, key=lambda k: sg * sep[k])
+    syaw = float(yaw(K["lAn"][fp] - K["rAn"][ku]))  # 디딤 방향(앱과 같은 기준 — 우투 앞발 = 왼발)
     knee = lambda k: 180 - float(np.degrees(np.arccos(np.clip(((K["lHip"][k] - K["lKn"][k]) @ (K["lAn"][k] - K["lKn"][k])) /
                                  np.linalg.norm(K["lHip"][k] - K["lKn"][k]) / np.linalg.norm(K["lAn"][k] - K["lKn"][k]), -1, 1))))
     vf = lambda k: float((hm[min(k + 1, n - 1)] - hm[max(k - 1, 0)]) @ F / (te[min(k + 1, n - 1)] - te[max(k - 1, 0)]))
@@ -41,7 +42,8 @@ for p in range(2, 17):
         "aheadAtKneeUpCm": ahead(ku), "travelCm": ahead(ku) - ahead(k0) if k0 is not None else None,
         "speedMs": float((hm[b] - hm[a]) @ F / (te[b] - te[a])),
         "tiltDeg": float(np.degrees(np.arctan2(hv @ U, np.linalg.norm(hz(hv))))),
-        "peakMs": float((te[kp] - te[fp]) * 1000), "peakDeg": float(sg * sep[kp]),
+        "peakMs": float((te[kp] - te[fp]) * 1000), "peakDeg": float(sg * sep[kp]), "atPlantDeg": float(sg * sep[fp]),
+        "trunkOpenAtPlantDeg": float(-sg * wrap(yaw(K["lSh"][fp] - K["rSh"][fp]) - syaw)), "pelvisOpenAtPlantDeg": float(-sg * wrap(yaw(K["lHip"][fp] - K["rHip"][fp]) - syaw)),
         "pelvisDecelPct": float((pk - vf(rl)) / pk * 100),
         "kneeAtPlantDeg": knee(fp), "kneeAtReleaseDeg": knee(rl), "kneeExtensionDeg": knee(fp) - knee(rl),
         "kneeCollapseDeg": max(knee(k) for k in range(fp, rl + 1)) - knee(fp),

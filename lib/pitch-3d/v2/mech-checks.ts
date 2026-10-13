@@ -16,6 +16,8 @@ export type MechChecksInput = Pick<Pitch3dV2Ok, 'joints' | 't' | 'events' | 'han
   Partial<Pick<Pitch3dV2Ok, 'conf'>>;
 
 export type MechChecks = {
+  /** 던지는 손 — 판정이 손별 기준을 고른다 */
+  hand: 'R' | 'L';
   /** 니업이 없으면 null */
   drift: {
     /** 니업 때 골반 가운데가 축발 발목보다 앞(키 비율 · cm) */
@@ -37,6 +39,14 @@ export type MechChecks = {
     peakMs: number;
     /** 그때 분리(°, 골반이 어깨보다 홈 쪽으로 더 열린 만큼) */
     peakDeg: number;
+    /** 착지 순간 분리(°) — 드라이브라인 지표 '착지 때 골반-몸통 분리'와 같은 뜻 */
+    atPlantDeg: number;
+    /**
+     * 착지 순간 몸통(어깨선) · 골반(엉덩이선)이 디딤 방향 쪽으로 열린 각도(°) — 0 = 옆으로 선 자세(앞 어깨 · 앞 엉덩이가 디딘 쪽을 봄), 90 = 마주 봄.
+     * 드라이브라인 지표 torso_rotation_fp · pelvis_rotation_fp 와 같은 뜻(분리 = 골반 − 몸통). 몸통이 크게 열려 있으면 '일찍 열림'.
+     */
+    trunkOpenAtPlantDeg: number;
+    pelvisOpenAtPlantDeg: number;
     conf: number | null;
   };
   block: {
@@ -123,6 +133,16 @@ export function mechChecks(r: MechChecksInput, heightCm?: number | null): MechCh
   const sep = (k: number) =>
     sg *
     wrap(yaw(sub(P(k, 'lSh'), P(k, 'rSh'))) - yaw(sub(P(k, 'lHip'), P(k, 'rHip'))));
+  /* 열림(°) — 앞쪽(글러브 쪽) − 뒤쪽 점 선이 앞 축에서 홈과 마주 보는 쪽으로 돈 만큼. 우투는 앞쪽이 왼쪽이라 방향각이 줄며 열린다 */
+  /* 기준 방향 = 디딤 방향(니업 때 축발 발목 → 착지 때 앞발 발목, 수평). 결과의 앞 축(골반이 나아간 쪽)을 기준으로 하면 마커 정답과
+     열림이 14° 어긋났다(상관 0.92) — 영상으로는 홈 방향을 모르니 둘 다 몸으로 정하는 디딤 방향으로 맞춘다 */
+  const strideYaw = yaw(sub(P(fp, J(lead, 'An')), P(ku ?? 0, J(back, 'An'))));
+  const open = (part: 'Sh' | 'Hip', k: number) =>
+    -sg *
+    wrap(
+      yaw(sub(P(k, (lead + part) as V2JointName), P(k, (back + part) as V2JointName))) -
+        strideYaw
+    );
   let k0 = fp;
   while (k0 > 0 && r.t[fp] - r.t[k0 - 1] <= SEPARATION_PRE_PLANT_S + 1e-9) k0--;
   let kp = k0;
@@ -131,6 +151,9 @@ export function mechChecks(r: MechChecksInput, heightCm?: number | null): MechCh
     frame: kp,
     peakMs: (r.t[kp] - r.t[fp]) * 1000,
     peakDeg: sep(kp),
+    atPlantDeg: sep(fp),
+    trunkOpenAtPlantDeg: open('Sh', fp),
+    pelvisOpenAtPlantDeg: open('Hip', fp),
     conf: confOf(['lSh', 'rSh', 'lHip', 'rHip'], [kp]),
   };
 
@@ -157,5 +180,5 @@ export function mechChecks(r: MechChecksInput, heightCm?: number | null): MechCh
     conf: confOf([J(lead, 'Hip'), J(lead, 'Kn'), J(lead, 'An')], plantToRelease),
   };
 
-  return { drift, pelvisLevel, separation, block };
+  return { hand: r.hand, drift, pelvisLevel, separation, block };
 }

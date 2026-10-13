@@ -12,7 +12,7 @@
 | --- | --- | --- | --- |
 | 드리프트 | 다리를 드는 동안 무게중심이 투구판에서 앞으로 나감(밀기가 아니라 옮기기). 균형점이 투구판 앞 15~20cm | 니업 때 이미 앞에 있음 — 니업에서 멈춰 버틸 수 있으면 드리프트가 없는 것. 너무 많거나 이르면 뒤 타이밍이 깨짐 | Tread "The Drift" |
 | 착지 골반 수평 | 착지 때 골반 좌우(옆) 기울기 | 두 곳 모두 이 주제를 직접 다룬 글을 못 찾음. 드라이브라인 경기 생체역학 글은 내딛는 동안 골반 옆 기울기가 준 것을 뒷다리 싣기가 약한 신호로 봄. 숫자 기준 없음 | Driveline in-game biomechanics |
-| 최대 분리 시점 | 골반 열림 − 어깨 열림이 가장 큰 때 | 착지 무렵 · 직후. 드라이브라인 기준은 골반 → 몸통 최고 회전 속도 사이 0.05초 이상(각속도 — 우리는 아직 못 잼) | Driveline assessments, Tread arm slot |
+| 최대 분리 시점 | 골반 열림 − 어깨 열림이 가장 큰 때 | 착지 무렵 · 직후. 드라이브라인 블로그의 '골반 → 몸통 최고 회전 속도 사이 0.05초 이상'은 그들 공개 자료(가운데 0.008초)와 안 맞아 안 쓴다 — 4절 | Driveline assessments, Tread arm slot |
 | 리드레그 블록 | 착지 뒤 앞다리가 버텨 몸(무게중심 · 골반)의 앞 움직임을 멈추고 회전으로 넘김 | 착지 → 릴리스 무릎 펴짐(상관 0.27) · 무게중심 감속(0.20)이 따로따로 구속과 관계. 착지 자세 · 골반 회전량은 관계 약함. 땅 미는 힘은 방향보다 크기 | Driveline lead leg block(2022), Efficient front leg(2015) |
 
 ### 블록에 대한 김민의 질문 — "무릎을 굽힌 채 잘 던지는 투수도 있다, 핵심은 골반이 계속 나가는 걸 막는 것 아닌가"
@@ -100,7 +100,55 @@
 
 맥북에서 못 한 것: 요소별 드릴 수 세기 → 데스크톱에서 함(4번).
 
+## 4. 상하체 분리 기준 — 드라이브라인 · 트레드(2026-10-13 데스크톱, 김민: "드라이브라인 · 트레드를 바탕으로 정확한 기준을 파악해 접목" → "한 번 더 검토")
+
+조사 두 번(두 번째는 앞 조사를 모르는 채로 원문과 하나씩 대조) + 공개 자료를 직접 다시 셈. 화면 글에는 기관 이름 대신 '우투 78명 자료' 같은 말만.
+
+**뜻(드라이브라인과 같게)**: 분리 = 골반 회전 − 몸통 회전(수직축, 골반이 먼저 열리면 +, 좌투는 부호를 뒤집어 우투와 맞춤). OpenBiomechanics README 의
+Torso-Pelvis Z '(+) 분리 / (−) 닫힘', 실제로는 골반에 대한 몸통 관절각이라 `pelvis_rotation_fp − torso_rotation_fp` 와 1~2° 안(r 0.98).
+골반 · 몸통 회전의 0° 는 문서에 없다 — 자료로 보면 0° = 옆으로 선 자세, 90° = 홈과 마주 봄(추정). 우리 `mechChecks` · 엔진 표 `separation` 도 같은 뜻.
+
+**숫자 기준은 드라이브라인 공개 자료뿐**(OpenBiomechanics `poi_metrics.csv`, 100명 · 411구 직구, 대학 75 · 독립 12 · 고교 7 · 마이너 6, 평균 84.7mph):
+
+| 지표 | 평균 ± SD | 아래 10 / 25 / 50 / 75 / 90% | 구속과 상관(선수 평균) |
+| --- | --- | --- | --- |
+| 최대 분리(전체) | 32.3 ± 6.6° | 23.4 / 27.6 / 32.3 / 36.7 / 40.8 | 0.30(1° 에 0.22mph) |
+| 최대 분리 · 우투 78명 328구 | 32.8 ± 6.4° | 24.8 / 28.2 / 33.3 | |
+| 최대 분리 · 좌투 22명 83구 | 29.9 ± 7.0° | 22.0 / 24.3 / 30.2 | |
+| 착지 때 분리 | 29.8 ± 6.8°(우투 30.7 · 좌투 26.4) | 20.7 / 25.2 / 30.0 / 34.7 / 38.0 | 0.32 |
+| 골반 → 몸통 회전 속도 꼭대기 사이 | 0.012 ± 0.020초 | −0.005 / 0 / 0.008 / 0.017 / 0.033 | 0.07 |
+| 착지 때 몸통 열림 | 4.8 ± 13.0° | −11.3 / −2.7 / 5.5 / 12.3 / 19.2 | −0.04 |
+
+- 최대 분리는 착지 값보다 가운데 1.4° 만 크다(69% 가 3° 안) — **착지 무렵에 가장 크다**(논문들은 이걸 보이지 않았고, 자료가 뒷받침).
+- **좌투가 같은 구속대에서도 약 3° 낮다**(78~84mph 우투 30.4 · 좌투 27.6°, 84~88mph 34.8 · 31.7°) — 기준을 손별로 둔다(좌투는 표본이 작다).
+- 구속 위 1/3(87.2mph 이상) 33명은 최대 분리 평균 34.6° · 아래 10% 28.4°. 같은 선수의 구마다 흔들림은 가운데 0.9°.
+- 드라이브라인 글의 예(숫자 기준이 아니라 한 선수씩): Dillon Tate 착지 분리 20 → 31° · 최대 23 → 33°, 착지 때 몸통 열림 약 17 → 11°, 구속 평균 93.3 →
+  94.7mph(최고 95.4). '48° 면 엘리트라 부를 수도 있다'(단서 붙은 말, 옛 보고서). '골반 → 몸통 0.05초 이상'은 2018년 한 선수 예시이고, 2019년 글은 0.039초를
+  '꽤 좋다'고 했다 — 공개 자료는 0.05초 넘는 구가 7% 뿐이라 쓰지 않는다. 같은 블로그: '착지 때 몸통 각도는 구속과 상관 없음', '영상으로 본 열림 · 닫힘은
+  15° 단위로만 믿을 만'.
+- 트레드: 숫자 없음. '착지 때 몸통이 닫혀 있어야 · 어깨가 다 열린 채 디디면 밀어 던지게 된다', '엉덩이가 열리며 디딜 때 어깨는 닫힌 채'. '분리를 억지로
+  만들지 말 것' — 엉덩이 안쪽 돌림이 안 되는 한 선수가 분리 드릴로 3~5mph 잃은 예(한 명).
+- **섞으면 안 되는 숫자**: 고교 논문(Bullock 2020 착지 48.4 ± 10.9° · 고교 32명, Orishimo 2023 50 ± 12° · 고교 23 + 대학 6)은 '발이 닿는 순간'(자료의 체중 10%)
+  · 다른 몸 틀이라 공개 자료(체중 100% 착지, 약 30°)보다 20° 쯤 크다 — 우리 기준과 섞지 않는다.
+
+**우리 판정(`mech-judge.ts` SEP_NORM · sepSmallDeg)**: 크기는 최대 분리로(착지 값은 우리 착지 순간 정의가 자료와 달라 흔들림 — 마커 정답과 6.0°, 최대는 3.4°).
+그 손의 아래 25%(우투 28.2 · 좌투 24.3°) 이상 좋아요 · 그 밑 보통('평균보다 적은 편') · 아래 10% 에서 엔진 오차 × 2 를 뺀 값(우투 18.0 · 좌투 15.2°) 밑 고칠 점 —
+글은 '억지로 비틀기보다 골반이 먼저 열리게'(트레드의 주의). 시점은 착지 110ms 넘게 이르면 '몸통이 일찍 열림'으로 고칠 점(트레드가 가장 강조하는 잘못),
+늦은 쪽 · 조금 떨어진 쪽은 보통까지.
+- 마커 15구(우투): 구마다 앱 = 정답 판정 13/15(손별 기준 전 공통 기준 14/15 — p05 가 새 문턱 18° 근처 17.1°). 15구 평균 최대 분리 22°(정답 24°) → 보통.
+- **안 쓰는 것**: 착지 때 몸통 열림(트레드의 '일찍 열림'과 같은 뜻) — 계산은 넣었지만(`trunkOpenAtPlantDeg`) 정답과 늘 13° 덜 열린 쪽으로 어긋나(상관 0.94,
+  기준을 디딤 방향으로 바꿔도 같음) 판정 안 함(드라이브라인도 영상 열림은 15° 단위로만 믿을 만, 구속과 상관 없음). 골반 → 몸통 회전 속도 순서 — 팔 가속 때 골반 오차 18~29° 라 못 잼.
+- **주의**: 자료는 마커 흉곽 틀, 우리는 어깨 · 엉덩이 점 선 — 절대값이 몇 도 다를 수 있다. 분리는 구속 차이의 10% 쯤만 설명한다(상관 0.3) — 목표가 아니라 진단.
+
 ## 출처
+- Driveline OpenBiomechanics(README · poi_metrics.csv): https://github.com/drivelineresearch/openbiomechanics/tree/main/baseball_pitching
+- Driveline · Dillon Tate(분리 예): https://drivelinebaseball.com/blogs/blog/dillon-tate-using-biomechanics-for-player-development
+- Tread · 7 causes of pushing: https://treadathletics.com/7-causes-of-pushing/
+- Tread · Hip anatomy: https://treadathletics.com/how-does-hip-anatomy-affect-your-ideal-mechanics/
+- Driveline · How to interpret biomechanics reports: https://drivelinebaseball.com/blogs/blog/interpret-biomechanics-reports
+- Driveline · Quantitative vs qualitative mechanical analysis: https://drivelinebaseball.com/blogs/blog/quantitative-vs-qualitative-mechanical-analysis-in-pitching-biomechanics
+- Tread · External rotation, throw harder: https://treadathletics.com/external-rotation-throw-harder/
+- Bullock 2020(IJSPT): https://pmc.ncbi.nlm.nih.gov/articles/PMC7727427/ · Orishimo 2023: https://pubmed.ncbi.nlm.nih.gov/35836313/
 - Tread · The "Drift": https://treadathletics.com/the-drift/
 - Tread · "Using Your Legs": https://treadathletics.com/energy-flow/
 - Tread · Arm slot differences: https://treadathletics.com/arm-slot-differences/

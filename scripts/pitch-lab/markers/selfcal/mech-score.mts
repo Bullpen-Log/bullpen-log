@@ -28,9 +28,10 @@ for (const [p, T] of Object.entries(truth)) {
   apps.push(m);
   const n = (k: string) => (T[k] == null ? NaN : (T[k] as number));
   truths.push({
+    hand: r.hand,
     drift: { aheadAtKneeUp: n('aheadAtKneeUpCm') / heightCm, aheadAtKneeUpCm: n('aheadAtKneeUpCm'), travel: n('travelCm') / heightCm, travelCm: n('travelCm'), speed: n('speedMs') * 100 / heightCm, speedMs: n('speedMs'), conf: null },
     pelvisLevel: { tiltDeg: n('tiltDeg'), conf: null },
-    separation: { frame: 0, peakMs: n('peakMs'), peakDeg: n('peakDeg'), conf: null },
+    separation: { frame: 0, peakMs: n('peakMs'), peakDeg: n('peakDeg'), atPlantDeg: n('atPlantDeg'), trunkOpenAtPlantDeg: n('trunkOpenAtPlantDeg'), pelvisOpenAtPlantDeg: n('pelvisOpenAtPlantDeg'), conf: null },
     block: { pelvisDecelPct: n('pelvisDecelPct'), kneeAtPlantDeg: n('kneeAtPlantDeg'), kneeAtReleaseDeg: n('kneeAtReleaseDeg'), kneeExtensionDeg: n('kneeExtensionDeg'), kneeCollapseDeg: n('kneeCollapseDeg'), conf: null },
   });
   put('드리프트: 니업 때 골반이 축발보다 앞(cm)', m.drift?.aheadAtKneeUpCm, T.aheadAtKneeUpCm);
@@ -39,6 +40,12 @@ for (const [p, T] of Object.entries(truth)) {
   put('골반 수평: 착지 때 엉덩이선 기울기(°)', m.pelvisLevel.tiltDeg, T.tiltDeg);
   put('분리 시점: 착지 기준(ms)', m.separation.peakMs, T.peakMs);
   put('분리 크기: 그때 분리(°)', m.separation.peakDeg, T.peakDeg);
+  put('분리: 착지 순간(°)', m.separation.atPlantDeg, T.atPlantDeg);
+  const tbl = (k: string) => r.metrics.find((x) => x.key === k)?.value;
+  put('(엔진 표) 골반-어깨 꼬임 최대(°)', tbl('separationMax'), T.peakDeg);
+  put('(엔진 표) 골반-어깨 꼬임 착지(°)', tbl('separationAtPlant'), T.atPlantDeg);
+  put('착지 때 몸통 열림(°)', m.separation.trunkOpenAtPlantDeg, T.trunkOpenAtPlantDeg);
+  put('착지 때 골반 열림(°)', m.separation.pelvisOpenAtPlantDeg, T.pelvisOpenAtPlantDeg);
   put('블록: 골반 앞 속도 줄어든 몫(%)', m.block.pelvisDecelPct, T.pelvisDecelPct);
   put('블록: 앞무릎 착지(°)', m.block.kneeAtPlantDeg, T.kneeAtPlantDeg);
   put('블록: 앞무릎 릴리스(°)', m.block.kneeAtReleaseDeg, T.kneeAtReleaseDeg);
