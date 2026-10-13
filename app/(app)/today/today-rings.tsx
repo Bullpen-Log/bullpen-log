@@ -8,6 +8,7 @@ import { SETUP_PATH } from '@/lib/feature-locks';
 import { loadAdvice } from '@/lib/nutrition/advice-load';
 import { serviceHour } from '@/lib/nutrition/advice-input';
 import { dbDate } from '@/lib/nutrition/days';
+import { parsePlanItems } from '@/lib/nutrition/meal-plan';
 import { REST_SESSION_TYPE } from '@/lib/session-type';
 import { NAV_ICONS } from '@/components/nav-icons';
 import { OpenCheckinButton } from '@/components/notice-bell';
@@ -40,14 +41,20 @@ export async function TodayRings({
   /** 투구 기록이 잠겨 있다(첫 설정 전) — 투구 링이 설정 화면으로 간다 */
   pitchLocked?: boolean;
 }) {
-  const [detail, logs, advice] = await Promise.all([
+  const [detail, logs, advice, mealPlan] = await Promise.all([
     loadDayDetailCached(user, today),
     prisma.pitchLog.findMany({
       where: { userId: user.id, date: dbDate(today) },
       select: { sessionType: true, pitchCount: true },
     }),
     loadAdvice(user, today, today, serviceHour(now())),
+    /* 오늘 식단 계획(영양 탭 '식단 짜기') — 짜 두기만 해도 영양 링이 찬다(2026-10-13 사용자) */
+    prisma.mealPlan.findUnique({
+      where: { userId_date: { userId: user.id, date: dbDate(today) } },
+      select: { items: true },
+    }),
   ]);
+  const planned = mealPlan != null && parsePlanItems(mealPlan.items).length > 0;
 
   const exercises = detail.training.exercises;
   const doneCount = exercises.filter((e) => e.done).length;
@@ -91,14 +98,17 @@ export async function TodayRings({
       key: 'nutrition',
       label: '영양',
       icon: NAV_ICONS.utensils,
-      value:
-        advice.score !== null
+      /* 오늘 식단 계획을 짜 두었으면 다 찬 것 — 아니면 예전처럼 균형 점수 · 먹은 칼로리 */
+      value: planned
+        ? 1
+        : advice.score !== null
           ? advice.score / 100
           : target.kcal > 0
             ? kcal / target.kcal
             : 0,
-      caption:
-        advice.score !== null
+      caption: planned
+        ? '계획 완료'
+        : advice.score !== null
           ? `균형 ${advice.score}`
           : kcal > 0
             ? `${kcal.toLocaleString('ko-KR')}kcal`

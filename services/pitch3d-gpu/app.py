@@ -173,6 +173,17 @@ def web():
         progress[call.object_id] = {"status": "pending", "jobId": str(body["jobId"]), "at": time.time()}
         return {"callId": call.object_id}
 
+    @api.get("/engine")
+    def engine_build():
+        # 지금 올린 엔진의 지문(scripts/pitch3d-bundle.mjs 의 build.json) — 결과 화면이 결과에 찍힌 지문과 견줘 옛 엔진 결과를 알린다
+        from pitch3d_gpu.engine import ENGINE_DIR
+
+        try:
+            with open(ENGINE_DIR / "lib" / "pitch-3d" / "v2" / "build.json", encoding="utf-8") as f:
+                return {"build": json.load(f).get("build")}
+        except (OSError, ValueError):
+            return {"build": None}
+
     @api.get("/jobs/{call_id}")
     def status(call_id: str):
         try:

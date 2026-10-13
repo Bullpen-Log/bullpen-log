@@ -316,6 +316,16 @@ function motionTemplate(): MotionTemplate | undefined {
   return template ?? undefined;
 }
 
+/** 엔진 지문 — 묶음(scripts/pitch3d-bundle.mjs)이 옆에 둔 build.json. 저장소에서 바로 돌리면 없다 */
+let build: string | null | undefined;
+function engineBuild(): string | null {
+  if (build === undefined) {
+    const url = new URL('./build.json', import.meta.url);
+    build = existsSync(url) ? ((JSON.parse(readFileSync(url, 'utf8')) as { build?: string }).build ?? null) : null;
+  }
+  return build;
+}
+
 /** fit 입력 모양 검사 → 맞추기 → 저장할 JSON 문자열(실패도 결과 모양이다) */
 export function runFit(raw: unknown): string {
   const r = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
@@ -354,6 +364,8 @@ export function runFit(raw: unknown): string {
     console.error('[pitch3d v2 fit]', err instanceof Error ? err.stack : err);
     return JSON.stringify(v2Fail(jobId, 'internal', 'fit'));
   }
+  const stamp = engineBuild();
+  if (stamp && result.ok) result = { ...result, engine: { ...result.engine, build: stamp } };
   const stored = storedV2ResultJson(result);
   if ('error' in stored) {
     console.error('[pitch3d v2 fit]', stored.error);

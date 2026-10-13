@@ -1256,6 +1256,39 @@ console.log('■ 마운드 · 보기용 다듬기 · 관절 각도 틀(kinematic
           check('각도 모델: 편 팔 동안 돈 비틀림을 같은 쪽으로 이어 다시 굽은 아래팔이 늦지 않는다(25° 안)', worst <= 25, `${worst.toFixed(1)}°`);
         }
 
+        /*
+         * 4-9 굽힌 팔(115°)에서 엔진이 지어낸 팔꿈치(확신 0)가 첫 장면들에 어깨 → 손목 축 둘레로 240° 미끄러져도 손목이 가만하면 화면 손목도
+         * 제자리(2cm 안) — 각을 따로 다듬어 손이 8장면 동안 휘둘리던 것(2026-10-13 실험실 샘플 10 첫머리, 화면 손 키의 5%)
+         */
+        {
+          const S = mid0[V2J.rSh];
+          const Lu = norm(sub(mid0[V2J.rEl], S));
+          const Lf = norm(sub(mid0[V2J.rWr], mid0[V2J.rEl]));
+          const c = normalize(sub(mid0[V2J.rWr], S));
+          const d = Math.sqrt(Lu * Lu + Lf * Lf - 2 * Lu * Lf * Math.cos((65 * Math.PI) / 180));
+          const Wfix = add(S, scale(c, d));
+          const along = (Lu * Lu - Lf * Lf + d * d) / (2 * d);
+          const h = Math.sqrt(Lu * Lu - along * along);
+          const b1 = normalize(cross(c, [0, 1, 0]));
+          const b2 = cross(c, b1);
+          const n = 30;
+          const seq = seqOf(n, (fr, k) => {
+            const phi = (Math.min(k, 3) / 3) * ((240 * Math.PI) / 180); // 장면마다 80°(샘플 10 은 장면마다 65~107°)
+            fr[V2J.rEl] = add(add(S, scale(c, along)), add(scale(b1, h * Math.cos(phi)), scale(b2, h * Math.sin(phi))));
+            fr[V2J.rWr] = Wfix;
+            const fd = normalize(sub(Wfix, fr[V2J.rEl]));
+            for (const j of [V2J.rHandIdx, V2J.rHandMid, V2J.rHandPinky]) fr[j] = add(Wfix, scale(fd, 0.05));
+          });
+          const conf = fullConf(n).map((row, k) => {
+            if (k < 12) row[V2J.rEl] = 0;
+            return row;
+          });
+          const F = kinematicTrack(seq, conf, []).frames;
+          let worst = 0;
+          for (let k = 0; k < n; k++) worst = Math.max(worst, norm(sub(F[k][V2J.rWr], Wfix)));
+          check('각도 모델: 지어낸 팔꿈치가 미끄러져도 가만한 손목은 제자리(2cm 안)', worst <= 0.02, `${(worst * 100).toFixed(1)}cm`);
+        }
+
         /* 5 거의 편 팔꿈치가 장면마다 반대로 꺾여도 굽는 축(위팔 비틀림)이 뒤집히지 않는다 · 과신전 5° 안 */
         {
           const sh = mid0[V2J.rSh];

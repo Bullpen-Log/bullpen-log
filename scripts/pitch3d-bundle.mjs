@@ -7,6 +7,7 @@
  *   node scripts/pitch3d-bundle.mjs --check    묶은 뒤, 합성 투수 하나를 묶음 실행기(run-node.ts fit)와 앱의 엔진 둘로 돌려 결과 JSON 이 같은지 본다
  */
 import { execFileSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import {
   cpSync,
   existsSync,
@@ -42,12 +43,15 @@ const FILES = [
 rmSync(OUT, { recursive: true, force: true });
 mkdirSync(OUT, { recursive: true });
 let imports = 0;
+/* 엔진 지문 — 묶은 파일 내용 전체의 해시. 결과에 찍히고(run-node.ts) 서버가 GET /engine 으로 알려, 결과 화면이 옛 엔진 결과를 안다 */
+const hash = createHash('sha256');
 for (const rel of FILES) {
   const src = join(ROOT, rel);
   const dst = join(OUT, rel);
   mkdirSync(dirname(dst), { recursive: true });
   if (!rel.endsWith('.ts')) {
     cpSync(src, dst);
+    hash.update(`${rel}\0`).update(readFileSync(src));
     continue;
   }
   let code = readFileSync(src, 'utf8');
@@ -62,7 +66,10 @@ for (const rel of FILES) {
   });
   if (/from '@\//.test(code)) throw new Error(`${rel}: 못 바꾼 '@/' 가 남았다`);
   writeFileSync(dst, code);
+  hash.update(`${rel}\0`).update(code);
 }
+const build = hash.digest('hex').slice(0, 12);
+writeFileSync(join(OUT, 'lib/pitch-3d/v2/build.json'), JSON.stringify({ build }) + '\n');
 writeFileSync(
   join(OUT, 'package.json'),
   JSON.stringify({ type: 'module', private: true }, null, 2) + '\n'
@@ -72,7 +79,7 @@ writeFileSync(
   '만들어지는 폴더 — scripts/pitch3d-bundle.mjs 가 lib/pitch-3d · lib/pose 를 복사한 것. 손으로 고치지 않는다.\n'
 );
 console.log(
-  `묶음: ${FILES.length}개 파일 · 바꾼 import ${imports}개 → ${relative(ROOT, OUT)}`
+  `묶음: ${FILES.length}개 파일 · 바꾼 import ${imports}개 · 지문 ${build} → ${relative(ROOT, OUT)}`
 );
 
 if (process.argv.includes('--check')) {
@@ -125,8 +132,14 @@ writeFileSync(process.argv[3], runFit(input));
     }
   );
   const a = readFileSync(appOut, 'utf8');
-  const b = readFileSync(bundleOut, 'utf8');
-  const parsed = JSON.parse(b);
+  const parsed = JSON.parse(readFileSync(bundleOut, 'utf8'));
+  /* 묶음만 지문을 찍는다 — 지문이 맞는지 보고 뗀 뒤 견준다 */
+  if (parsed.ok && parsed.engine?.build !== build) {
+    console.error('확인 실패: 묶음 결과에 엔진 지문이 없다');
+    process.exit(1);
+  }
+  if (parsed.engine) delete parsed.engine.build;
+  const b = JSON.stringify(parsed);
   if (a !== b) {
     console.error('확인 실패: 묶음 실행기와 앱 엔진의 결과가 다르다');
     process.exit(1);

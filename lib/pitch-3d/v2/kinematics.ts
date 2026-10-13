@@ -890,12 +890,15 @@ export function kinematicTrack(
     );
     /* 어깨 — 위팔이 어깨선 뒤로 너무 가지 않게(수평면에서 바깥 축 기준) */
     const outAx: Vec3 = side === 'L' ? [1, 0, 0] : [-1, 0, 0];
-    limb.dir = limb.dir.map((u) => {
+    /* 어깨선 뒤 한계를 넘은 만큼(라디안) — 그 장면은 원 손목을 따르지 않고 한계 안 각도 모델을 쓴다(아래 손목 자리) */
+    const backOver = new Array<number>(n).fill(0);
+    limb.dir = limb.dir.map((u, k) => {
       const h = Math.hypot(u[0], u[2]);
       if (h < 0.35) return u;
       const back = Math.atan2(-u[2], dot(u, outAx));
       const lim = rad(KIN_LIMITS.shoulderBack);
       if (back <= lim) return u;
+      backOver[k] = back - lim;
       const r1 = rot(u, [0, 1, 0], back - lim);
       const r2 = rot(u, [0, 1, 0], lim - back);
       return Math.atan2(-r1[2], dot(r1, outAx)) < Math.atan2(-r2[2], dot(r2, outAx))
@@ -927,6 +930,22 @@ export function kinematicTrack(
     );
     const Lu = lenOf(Sh, El);
     const Lf = lenOf(El, Wr);
+    /*
+     * 손목 자리 — 원 손목을 같은 세기로 다듬은 세상 자리. 팔꿈치는 아래 각(방향 · 굽힘 · 비틀림)에서 굽은 쪽만 가져와
+     * 두 마디로 다시 접는다(twoBoneIk). 세 각을 따로 다듬으면 서로 묶인 값이 어긋나, 엔진이 지어낸 팔꿈치(확신 0)가 미끄러질 때 원 손목은
+     * 그대로인데 화면 손이 8장면 동안 휘둘렸다(2026-10-13 실험실 샘플 10 영상 첫머리: 비틀림이 장면마다 107°, 화면 손 키의 5% · 원 0.3%).
+     */
+    const wrS = smoothMulti(
+      frames.map((fr) => fr[Wr]),
+      limb.flexW,
+      gMin,
+      gMax
+    ) as Vec3[];
+    /* 원 손목을 따르는 정도 — 사람 범위 한계가 손을 쓴 장면(엔진 실수: 위팔이 어깨선 뒤로 80°)은 각도 모델 그대로, 앞뒤로 다듬어 한 장면에 안 바뀌게 */
+    const wFollow = smooth1(
+      backOver.map((b) => 1 - clamp(b / rad(10), 0, 1)),
+      frames.map(() => 1)
+    );
 
     /* 아래팔 비틀림 · 손목 — 손 점을 아래팔 틀(축 = 아래팔, 둘째 = 팔꿈치가 굽는 축)에서 */
     const pron: number[] = [];
@@ -1036,11 +1055,17 @@ export function kinematicTrack(
       const nRef = elbowRef(u);
       const nb = rot(nRef, u, twistS[k]);
       const f = rot(u, nb, flexS[k]);
-      const uw = toWorld(M, u);
-      const nw = toWorld(M, nb);
-      const fw = toWorld(M, f);
-      const E = add(S, scale(uw, Lu));
+      const E0 = add(S, scale(toWorld(M, u), Lu));
+      const fw0 = toWorld(M, f);
+      const W0 = add(E0, scale(fw0, Lf));
+      /* 거의 편 팔(굽힘 15° 밑)은 비틀림이 늦어도 손 자리가 거의 그대로라 각도 모델 그대로 — 두 마디로 다시 접으면 굽는 쪽을 못 정해 팔꿈치가 튀었다 */
+      const wf = wFollow[k] * clamp((flexS[k] - rad(15)) / rad(20), 0, 1);
+      const Wt = add(scale(W0, 1 - wf), scale(wrS[k], wf));
+      const E = twoBoneIk(S, E0, W0, Wt);
+      const fw = unit(sub(Wt, E), fw0);
       const W = add(E, scale(fw, Lf));
+      /* 굽는 축(손 돌림 · 인형 아래팔의 기준)은 다듬은 축을 새 아래팔에 수직으로만 — 새 두 마디에서 다시 재면 거의 편 팔에서 축이 장면마다 튀었다 */
+      const nw = unit(perp(toWorld(M, nb), fw), toWorld(M, nb));
       out[k][El] = E;
       out[k][Wr] = W;
       const e2 = nw;
@@ -1118,6 +1143,11 @@ export function kinematicTrack(
       const lim = rad(KIN_LIMITS.hipRotation + KIN_LIMITS.hipRotationUnseen * (1 - hipSeen[k]));
       return clamp(t, c0 - lim, c0 + lim);
     });
+    /* 원 발목을 따르는 정도 — 엉덩이 돌림 한계가 손을 쓴 장면(보이는 엉덩이에서 다리가 110° 돈 엔진 실수)은 각도 모델 그대로 */
+    const wFollow = smooth1(
+      twistU.map((t, k) => 1 - clamp(Math.abs(t - twistS[k]) / rad(10), 0, 1)),
+      frames.map(() => 1)
+    );
     const Lt = lenOf(Hp, Kn);
     const Ls = lenOf(Kn, An);
     /*
@@ -1157,6 +1187,13 @@ export function kinematicTrack(
       frames.map((_, k) => (conf ? clamp((conf[k][An] - conf[k][Kn] - 30) / 30, 0, 1) : 0)),
       frames.map(() => 1)
     );
+    /* 발목 자리 — 팔의 손목처럼 원 발목을 다듬은 세상 자리(무릎은 각에서 굽은 쪽만) — 골반 틀 안 자리면 땅에 선 발이 화면 골반을 따라 흔들렸다 */
+    const anS = smoothMulti(
+      frames.map((fr) => fr[An]),
+      limb.flexW,
+      0.6,
+      1.2
+    ) as Vec3[];
 
     for (let k = 0; k < n; k++) {
       const M = pM[k];
@@ -1170,15 +1207,13 @@ export function kinematicTrack(
       let sw = toWorld(M, s);
       let K = add(Hpt, scale(uw, Lt));
       let A = add(K, scale(sw, Ls));
-      if (wAnk[k] > 0.01) {
-        const target = add(scale(A, 1 - wAnk[k]), scale(frames[k][An], wAnk[k]));
-        K = twoBoneIk(Hpt, K, A, target, kneePole(Hpt, K, nw));
-        A = target;
-        sw = unit(sub(A, K), sw);
-        const nb2 = cross(unit(sub(K, Hpt), uw), sw);
-        if (norm(nb2) > 1e-3) nw = scale(normalize(nb2), dot(nb2, nw) < 0 ? -1 : 1);
-        else nw = unit(perp(nw, sw), nw);
-      }
+      const ank = add(scale(A, 1 - wFollow[k]), scale(anS[k], wFollow[k]));
+      const target = add(scale(ank, 1 - wAnk[k]), scale(frames[k][An], wAnk[k]));
+      K = twoBoneIk(Hpt, K, A, target, kneePole(Hpt, K, nw));
+      A = target;
+      sw = unit(sub(A, K), sw);
+      /* 무릎이 굽는 축은 다듬은 축을 새 정강이에 수직으로만(팔과 같다 — 거의 편 앞다리에서 두 마디로 다시 재면 축이 튀었다) */
+      nw = unit(perp(nw, sw), nw);
       const [f2, f3] = footFrame(sw, M);
       const fromLocal = (v: Vec3, L: number) =>
         scale(unit(add(add(scale(sw, v[0]), scale(f2, v[1])), scale(f3, v[2])), sw), L);
