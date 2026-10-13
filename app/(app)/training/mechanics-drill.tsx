@@ -17,7 +17,11 @@ export type { MechanicsDrillView, MechanicsVariant } from '@/lib/mechanics/drill
  * 받다가 신호가 끊겨도 화면 전체 오류로 번지지 않게 '못 받음'으로 둔다. 도구를 바꾸면 그 드릴의 설명을 새로 받는다.
  */
 function useGuideDescription(id: string) {
-  const [got, setGot] = useState<{ id: string; text: string | null; failed: boolean }>();
+  const [got, setGot] = useState<{
+    id: string;
+    text: string | null;
+    failed: boolean;
+  }>();
   const [loading, startLoading] = useTransition();
   const mine = got?.id === id ? got : undefined;
 
@@ -33,7 +37,13 @@ function useGuideDescription(id: string) {
       }
     });
   };
-  return { text: mine?.text ?? null, failed: mine?.failed ?? false, loaded: !!mine, loading, load };
+  return {
+    text: mine?.text ?? null,
+    failed: mine?.failed ?? false,
+    loaded: !!mine,
+    loading,
+    load,
+  };
 }
 
 /**
@@ -109,7 +119,11 @@ export function MechanicsDrill({
       {open && (
         <div className="space-y-3 px-4 pb-4">
           {drill.variants.length > 1 && (
-            <div role="radiogroup" aria-label="도구" className="flex flex-wrap gap-1.5">
+            <div
+              role="radiogroup"
+              aria-label="도구"
+              className="chip-grid flex flex-wrap gap-1.5"
+            >
               {drill.variants.map((v, i) => (
                 <button
                   key={v.id}

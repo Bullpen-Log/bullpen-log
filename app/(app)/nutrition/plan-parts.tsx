@@ -103,7 +103,11 @@ export function PlanCard({
   const envChips = (
     <div className="space-y-2">
       <p className="text-xs font-medium text-muted">오늘 훈련 장소</p>
-      <div role="group" aria-label="오늘 훈련 장소" className="flex flex-wrap gap-2">
+      <div
+        role="group"
+        aria-label="오늘 훈련 장소"
+        className="chip-grid flex flex-wrap gap-2"
+      >
         {PLAN_PLACES.map((p) => (
           <button
             key={p.key}

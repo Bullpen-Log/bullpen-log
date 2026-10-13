@@ -1042,7 +1042,7 @@ function ChoiceChips({
   const on = (v: string) =>
     multiple ? (value as readonly string[]).includes(v) : value === v;
   return (
-    <div role="group" aria-label={label} className="flex flex-wrap gap-2">
+    <div role="group" aria-label={label} className="chip-grid flex flex-wrap gap-2">
       {options.map((o) => (
         <label key={o.value} className="inline-flex">
           <input

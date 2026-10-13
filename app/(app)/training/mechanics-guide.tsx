@@ -51,7 +51,10 @@ export function MechanicsGuide({
   const [via, setVia] = useState<(typeof MECHANICS_SYMPTOMS)[number] | null>(null);
   const modal = useModalState<InfoTarget>();
 
-  const openElement = (name: string, symptom: (typeof MECHANICS_SYMPTOMS)[number] | null) => {
+  const openElement = (
+    name: string,
+    symptom: (typeof MECHANICS_SYMPTOMS)[number] | null
+  ) => {
     setOpen(name);
     setVia(symptom);
     const key = mechanicsElement(name)?.key;
@@ -82,7 +85,7 @@ export function MechanicsGuide({
 
       <section className="space-y-2.5">
         <h2 className="px-1 text-sm font-semibold text-muted">이런 고민이 있나요?</h2>
-        <div className="flex flex-wrap gap-1.5">
+        <div className="chip-grid flex flex-wrap gap-1.5" data-cols="2">
           {MECHANICS_SYMPTOMS.map((s) => (
             <button
               key={s.text}
@@ -119,9 +122,7 @@ export function MechanicsGuide({
       <Modal
         open={modal.open}
         onClose={modal.close}
-        title={
-          modal.content?.kind === 'element' ? modal.content.name : '투구의 흐름'
-        }
+        title={modal.content?.kind === 'element' ? modal.content.name : '투구의 흐름'}
         description={
           modal.content?.kind === 'element'
             ? mechanicsElement(modal.content.name)?.line
@@ -156,12 +157,16 @@ function ElementChain({
             onClick={() => onPick(el.name)}
             aria-current={current === el.name ? 'true' : undefined}
             className={`flex min-h-12 w-full items-center gap-2 rounded-2xl px-3 text-left transition-colors ${
-              current === el.name ? 'bg-sky text-white' : 'bg-surface text-ink hover:bg-sky-tint'
+              current === el.name
+                ? 'bg-sky text-white'
+                : 'bg-surface text-ink hover:bg-sky-tint'
             }`}
           >
             <span
               className={`grid h-6 w-6 shrink-0 place-items-center rounded-full text-xs font-bold ${
-                current === el.name ? 'bg-white/25 text-white' : 'bg-sky-tint text-sky-strong'
+                current === el.name
+                  ? 'bg-white/25 text-white'
+                  : 'bg-sky-tint text-sky-strong'
               }`}
             >
               {el.order}
@@ -177,7 +182,9 @@ function ElementChain({
 /** 그 요소의 드릴 — 단계마다, 주 요소인 드릴 먼저 · 함께 쓰는 드릴 뒤에 */
 function drillsFor(name: string, drills: MechanicsDrillView[]) {
   return DRILL_STAGES.map((stage) => {
-    const inStage = drills.filter((d) => d.stage === stage.name && d.focusPoints.includes(name));
+    const inStage = drills.filter(
+      (d) => d.stage === stage.name && d.focusPoints.includes(name)
+    );
     return {
       stage,
       primary: inStage.filter((d) => d.focusPoints[0] === name),
@@ -286,10 +293,20 @@ function ElementCard({
                 </h3>
                 <ul className="space-y-2">
                   {primary.map((d) => (
-                    <MechanicsDrill key={d.title} drill={d} secondary={false} isAdmin={isAdmin} />
+                    <MechanicsDrill
+                      key={d.title}
+                      drill={d}
+                      secondary={false}
+                      isAdmin={isAdmin}
+                    />
                   ))}
                   {secondary.map((d) => (
-                    <MechanicsDrill key={d.title} drill={d} secondary isAdmin={isAdmin} />
+                    <MechanicsDrill
+                      key={d.title}
+                      drill={d}
+                      secondary
+                      isAdmin={isAdmin}
+                    />
                   ))}
                 </ul>
               </div>

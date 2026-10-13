@@ -1740,7 +1740,7 @@ function PickFood({ food, onAdd }: { food: Food; onAdd: (amount: number) => void
         )}
       </div>
 
-      <div className="flex flex-wrap gap-1.5">
+      <div className="chip-grid flex flex-wrap gap-1.5">
         {QUICK.map((a) => (
           <button
             key={a}

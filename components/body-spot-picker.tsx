@@ -3,12 +3,20 @@
 import { useState } from 'react';
 import { X } from 'lucide-react';
 import dynamic from 'next/dynamic';
-import { SPOT_LEVELS, spotLabel, type BodySpots, type SpotLevel } from '@/lib/body-spots';
+import {
+  SPOT_LEVELS,
+  spotLabel,
+  type BodySpots,
+  type SpotLevel,
+} from '@/lib/body-spots';
 
 /* 3D 는 three.js 를 끌고 와서 칸을 펼 때만 받는다(체크인은 모든 화면에 실린다) */
 const BodySpot3D = dynamic(
   () => import('@/components/body-spot-3d').then((m) => m.BodySpot3D),
-  { ssr: false, loading: () => <div className="h-full w-full animate-pulse rounded-2xl bg-ink/6" /> }
+  {
+    ssr: false,
+    loading: () => <div className="h-full w-full animate-pulse rounded-2xl bg-ink/6" />,
+  }
 );
 
 /**
@@ -18,11 +26,25 @@ const BodySpot3D = dynamic(
 export function BodySpotPicker({
   spots,
   onChange,
+  active: activeProp,
+  onActiveChange,
+  heightClass,
 }: {
   spots: BodySpots;
   onChange: (next: BodySpots) => void;
+  /**
+   * 지금 가리키는 근육을 바깥이 쥘 때(체크인 3판의 '이름으로 찾기'가 고른 근육을 그림이 비추고 정도 단추를 띄우게).
+   * 둘을 같이 넘기면 제어형, 안 넘기면 예전처럼 스스로 든다.
+   */
+  active?: string | null;
+  onActiveChange?: (id: string | null) => void;
+  /** 그림 칸 높이 — 기본 h-80(PC h-72). 체크인 3판 흐름은 다리까지 보이게 더 높게 넘긴다 */
+  heightClass?: string;
 }) {
-  const [active, setActive] = useState<string | null>(null);
+  const [activeOwn, setActiveOwn] = useState<string | null>(null);
+  const controlled = activeProp !== undefined && onActiveChange !== undefined;
+  const active = controlled ? activeProp : activeOwn;
+  const setActive = controlled ? onActiveChange : setActiveOwn;
   const tap = (id: string) => {
     setActive(id);
     if (!spots[id]) onChange({ ...spots, [id]: '뻐근' });
@@ -39,14 +61,20 @@ export function BodySpotPicker({
 
   return (
     <div className="space-y-3">
-      <div className="h-80 overflow-hidden rounded-2xl bg-surface desk:h-72 desk:border desk:border-line">
+      <div
+        className={`overflow-hidden rounded-2xl bg-surface desk:border desk:border-line ${heightClass ?? 'h-80 desk:h-72'}`}
+      >
         <BodySpot3D spots={spots} active={active} onTap={tap} />
       </div>
 
       {active && activeLevel ? (
         <div className="flex flex-wrap items-center gap-2 rounded-xl bg-surface px-3 py-2 desk:border desk:border-line">
           <span className="text-sm font-semibold text-ink">{spotLabel(active)}</span>
-          <div className="ml-auto flex gap-1.5" role="radiogroup" aria-label="얼마나 불편해요?">
+          <div
+            className="ml-auto flex gap-1.5"
+            role="radiogroup"
+            aria-label="얼마나 불편해요?"
+          >
             {SPOT_LEVELS.map((lv) => (
               <button
                 key={lv}
@@ -76,7 +104,9 @@ export function BodySpotPicker({
         </div>
       ) : (
         <p className="text-center text-xs text-muted">
-          {picked.length ? '고른 곳을 누르면 정도를 바꿀 수 있어요.' : '불편한 근육을 눌러 주세요.'}
+          {picked.length
+            ? '고른 곳을 누르면 정도를 바꿀 수 있어요.'
+            : '불편한 근육을 눌러 주세요.'}
         </p>
       )}
 
@@ -86,7 +116,9 @@ export function BodySpotPicker({
             <li key={id}>
               <span
                 className={`inline-flex min-h-9 items-center gap-1 rounded-full pr-1 pl-3 text-xs font-medium ${
-                  spots[id] === '통증' ? 'bg-danger-bg text-danger' : 'bg-amber-500/15 text-warn'
+                  spots[id] === '통증'
+                    ? 'bg-danger-bg text-danger'
+                    : 'bg-amber-500/15 text-warn'
                 }`}
               >
                 <button type="button" onClick={() => setActive(id)}>

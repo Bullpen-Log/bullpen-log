@@ -118,13 +118,19 @@ function SatisfactionFields({
   value: string;
   good: string[];
   bad: string[];
-  onChange: (next: { satisfaction?: string; cuesGood?: string[]; cuesBad?: string[] }) => void;
+  onChange: (next: {
+    satisfaction?: string;
+    cuesGood?: string[];
+    cuesBad?: string[];
+  }) => void;
 }) {
   const [open, setOpen] = useState(good.length + bad.length > 0);
   const toggle = (cue: string, side: 'good' | 'bad') => {
     const mine = side === 'good' ? good : bad;
     const other = side === 'good' ? bad : good;
-    const nextMine = mine.includes(cue) ? mine.filter((c) => c !== cue) : [...mine, cue];
+    const nextMine = mine.includes(cue)
+      ? mine.filter((c) => c !== cue)
+      : [...mine, cue];
     const nextOther = other.filter((c) => c !== cue);
     onChange(
       side === 'good'
@@ -172,7 +178,7 @@ function SatisfactionFields({
           ).map(([side, title, picked]) => (
             <div key={side} role="group" aria-label={title} className="space-y-2">
               <span className="block text-xs text-muted">{title}</span>
-              <div className="flex flex-wrap gap-2">
+              <div className="chip-grid flex flex-wrap gap-2">
                 {PITCH_CUES.map((cue) => {
                   const on = picked.includes(cue);
                   return (
@@ -183,7 +189,9 @@ function SatisfactionFields({
                       aria-pressed={on}
                       className={`inline-flex items-center gap-1 ${chipClass(on)}`}
                     >
-                      {on && <Check aria-hidden className="h-3.5 w-3.5" strokeWidth={2.6} />}
+                      {on && (
+                        <Check aria-hidden className="h-3.5 w-3.5" strokeWidth={2.6} />
+                      )}
                       {cue}
                     </button>
                   );
@@ -284,7 +292,8 @@ export function EntryForm({
           maxVelocity: initial.maxVelocity == null ? '' : String(initial.maxVelocity),
           avgVelocity: initial.avgVelocity == null ? '' : String(initial.avgVelocity),
           memo: initial.memo ?? '',
-          satisfaction: initial.satisfaction == null ? '' : String(initial.satisfaction),
+          satisfaction:
+            initial.satisfaction == null ? '' : String(initial.satisfaction),
           cuesGood: initial.cuesGood ?? [],
           cuesBad: initial.cuesBad ?? [],
         }
@@ -456,7 +465,7 @@ export function EntryForm({
             label="투구 종류"
             hint={SESSION_TYPES.find((t) => t.name === form.sessionType)?.hint}
           >
-            <div className="mt-1 flex flex-wrap gap-2">
+            <div className="chip-grid mt-1 flex flex-wrap gap-2">
               {SESSION_TYPES.map((t) => {
                 const active = form.sessionType === t.name;
                 return (

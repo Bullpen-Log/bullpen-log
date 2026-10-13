@@ -2816,7 +2816,7 @@ html[data-dualcam] [data-finder] > video {
 
 /*
  * 체크인 3판의 슬라이더(components/checkin-flow/steps.tsx) — 테마 파랑(accent-color), 누르는 자리를 넉넉히.
- * data-vertical 은 세로(위가 10) — 컨디션을 사람 그림 옆의 온도계처럼 올리고 내린다.
+ * 모두 그림 밑에 가로로(2026-10-13 사용자) — 세로 꼴은 뺐다.
  */
 .checkin-range {
   accent-color: var(--color-sky);
@@ -2824,10 +2824,69 @@ html[data-dualcam] [data-finder] > video {
   height: 2.25rem;
   touch-action: pan-x;
 }
-.checkin-range[data-vertical] {
-  writing-mode: vertical-lr;
-  direction: rtl;
-  width: 2.25rem;
-  height: 14rem;
-  touch-action: pan-y;
+
+/*
+ * 고르는 칩 줄 — 휴대폰에서는 같은 너비 칸으로(2026-10-13 사용자: "기본적인 줄맞춤도 안 되어 있다").
+ *
+ * 칩을 flex-wrap 으로 늘어놓으면 글자 길이마다 칩 너비가 달라 줄 끝이 들쭉날쭉하고, 아래 꽉 찬 단추(저장)와 오른쪽 끝이
+ * 안 맞았다. 휴대폰(desk 의 반대)에서는 격자로 바꿔 칸 너비를 똑같이 나누고 양 끝을 카드 안쪽 끝에 붙인다 — 375px 에서
+ * 카드 안에서도 기본 셋, data-cols 로 둘 · 셋 · 넷을 고정할 수 있다. 칩 높이는 누르기 편한 44px 이상, 긴 말은 칸 안에서 낱말 단위로
+ * 두 줄이 된다(한 줄의 칸 높이는 같이 늘어 줄이 어긋나지 않는다). PC 는 예전 그대로(마우스라 작은 칩이 낫다).
+ */
+@media not all and (min-width: 36rem) and (hover: hover) and (pointer: fine) {
+  .chip-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(5.25rem, 1fr));
+  }
+  .chip-grid[data-cols='2'] {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .chip-grid[data-cols='3'] {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .chip-grid[data-cols='4'] {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+  .chip-grid > button,
+  .chip-grid > a {
+    width: 100%;
+    min-width: 0;
+    min-height: 2.75rem;
+    justify-content: center;
+    text-align: center;
+    padding-inline: 0.25rem;
+    /* 칸 안에서는 낱말 가운데서 안 끊는다 — 좁은 넷 칸의 '추천대로'가 '추천대'/'로'로 갈렸다 */
+    overflow-wrap: normal;
+  }
+  .chip-grid > label {
+    display: flex;
+    width: 100%;
+    min-width: 0;
+  }
+  .chip-grid > label > span:not(.sr-only) {
+    flex: 1;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 0.25rem;
+    min-width: 0;
+    min-height: 2.75rem;
+    text-align: center;
+    padding-inline: 0.25rem;
+    /* 칸 안에서는 낱말 가운데서 안 끊는다 — 좁은 넷 칸의 '추천대로'가 '추천대'/'로'로 갈렸다 */
+    overflow-wrap: normal;
+  }
+}
+
+/*
+ * 글은 낱말 단위로만 끊는다(2026-10-13 사용자: 줄맞춤) — 브라우저는 한글을 아무 데서나 끊어 '2분할 비'/'교', '여'/'기에'처럼
+ * 낱말 가운데서 갈렸다(위 .text-heading 과 같은 까닭을 앱 전체로). 띄어쓰기 없이 긴 글(주소 등)은 칸을 넘칠 때만 끊는다 — anywhere 라 좁은 칸(달력 · 탭 막대)의 최소 너비는 예전과 같다.
+ * base 층이라 break-all 같은 유틸리티가 이긴다.
+ */
+@layer base {
+  body {
+    word-break: keep-all;
+    overflow-wrap: anywhere;
+  }
 }
