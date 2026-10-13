@@ -23,7 +23,7 @@ import {
   serverBarSnapshot,
   subscribeBar,
 } from '@/lib/nav-state';
-import { NAV_ICONS } from '@/components/nav-icons';
+import { NAV_ICONS, NAV_TINT } from '@/components/nav-icons';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { quietRefresh } from '@/lib/quiet-refresh';
 import { forgetPage, rememberPage } from '@/lib/last-page';
@@ -2240,17 +2240,26 @@ function DetailMenu({
                     }`}
                   >
                     {/* 앱 아이콘 판(휴대폰만 — PC 는 desk:contents 로 판이 사라져 예전 아이콘 그대로). 지금 화면은 테두리로 */}
+                    {/*
+                      아이폰 앱처럼: 둥근 네모(22.5%) · 위 밝고 아래 짙은 앱 색 · 위쪽 빛 반사 · 안쪽 테두리 빛 · 바닥 그림자 · 굵은 흰 그림에
+                      옅은 그림자(2026-10-13 김민 "싼 티 말고 고품질로"). 색은 NAV_TINT.
+                    */}
                     <span
-                      className={`grid h-[3.75rem] w-[3.75rem] place-items-center rounded-[1.1rem] bg-sky text-white shadow-sm desk:contents ${
-                        active ? 'ring-2 ring-sky ring-offset-2 ring-offset-surface' : ''
+                      style={{ '--t1': NAV_TINT[item.icon][0], '--t2': NAV_TINT[item.icon][1] } as CSSProperties}
+                      className={`relative grid h-[3.75rem] w-[3.75rem] place-items-center overflow-hidden rounded-[22.5%] bg-linear-to-b from-(--t1) to-(--t2) text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.4),inset_0_-1px_0_rgba(0,0,0,0.15),0_1px_2px_rgba(0,0,0,0.12),0_6px_14px_-4px_rgba(0,0,0,0.28)] [&_svg]:drop-shadow-[0_1px_1.5px_rgba(0,0,0,0.22)] desk:contents desk:[&_svg]:drop-shadow-none ${
+                        active ? 'outline-2 outline-offset-2 outline-sky' : ''
                       } ${dim ? 'opacity-55' : ''}`}
                     >
+                    <span
+                      aria-hidden
+                      className="pointer-events-none absolute inset-x-0 top-0 h-1/2 bg-linear-to-b from-white/30 to-white/0 desk:hidden"
+                    />
                     <NavGlyph
                       Icon={Icon}
                       locked={item.locked}
                       dim={dim}
-                      className="h-7 w-7 desk:h-5 desk:w-5"
-                      strokeWidth={active ? 2.4 : 1.9}
+                      className="h-[1.85rem] w-[1.85rem] desk:h-5 desk:w-5"
+                      strokeWidth={active ? 2.4 : 2.25}
                       style={
                         fly
                           ? flyStyle(`nav-fly-${i}`, i, 'fly')
