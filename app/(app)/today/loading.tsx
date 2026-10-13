@@ -1,6 +1,5 @@
 import { Skeleton } from '@/components/fallback';
 import { PageHeading } from '@/components/ui';
-import { HomeTitleArt } from './home-title';
 
 /**
  * 홈을 불러오는 동안.
@@ -13,7 +12,9 @@ import { HomeTitleArt } from './home-title';
 export default function Loading() {
   return (
     <div className="stack-page" aria-busy="true" aria-live="polite">
-      <PageHeading eyebrow="Home" title="홈" titleArt={<HomeTitleArt />} />
+      <div className="sr-only mb-0! desk:not-sr-only desk:mb-(--gap-page)!">
+        <PageHeading eyebrow="Home" title="홈" />
+      </div>
       <span className="sr-only">불러오는 중이에요</span>
       {/* 오늘 링 자리(today-rings.tsx) */}
       <Skeleton className="h-[13.5rem] rounded-2xl desk:h-[10.5rem]" />
