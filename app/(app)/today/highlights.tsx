@@ -86,7 +86,7 @@ const W = 64;
 const H = 36;
 
 /** 작은 그림 — 바탕은 옅은 회색, 지금 것(마지막)만 색을 칠한다(그림은 색 적게) */
-function MiniChart({ chart, warn }: { chart: HighlightChart; warn: boolean }) {
+export function MiniChart({ chart, warn }: { chart: HighlightChart; warn: boolean }) {
   const tone = warn ? 'text-warn' : 'text-sky';
 
   if (chart.kind === 'dots') {

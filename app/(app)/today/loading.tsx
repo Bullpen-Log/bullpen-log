@@ -18,15 +18,11 @@ export default function Loading() {
       <span className="sr-only">불러오는 중이에요</span>
       {/* 오늘 링 자리(today-rings.tsx) */}
       <Skeleton className="h-[13.5rem] rounded-2xl desk:h-[10.5rem]" />
-      {/* 오늘 영양 카드 자리(nutrition-card.tsx) */}
-      <Skeleton className="h-[10.5rem] rounded-2xl" />
+      {/* 요약 칸 자리(feed-card.tsx — 예전 영양 카드 자리) */}
+      <Skeleton className="h-[11.25rem] rounded-2xl desk:h-[9rem]" />
       <Skeleton className="h-[26rem] rounded-2xl" />
-      {/* 하이라이트 자리(highlights.tsx) */}
-      <div className="space-y-3">
-        <Skeleton className="h-7 w-28 rounded-lg" />
-        <Skeleton className="h-20 rounded-2xl" />
-        <Skeleton className="h-20 rounded-2xl" />
-      </div>
+      {/* 캘린더 밑 조건부 카드 자리 */}
+      <Skeleton className="h-20 rounded-2xl" />
     </div>
   );
 }

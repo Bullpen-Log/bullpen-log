@@ -8,9 +8,9 @@ import { buildHighlights, type HighlightInput, type HighlightPart } from '@/lib/
 /**
  * 하이라이트 재료를 읽어 그 칸(홈 · 분석 › 투구 · 분석 › 트레이닝)의 것만 — 홈(app/(app)/today/page.tsx)과 분석(analysis-view.tsx)이 같이 쓴다.
  * 모두 하루 한 줄로 가볍게 읽는다: 투구 6주(구속 선 · 투구 막대), 체크인 두 달(연속 일수), 운동 2주(지난주와 견줌).
- * load 는 오늘의 투구 부하 지수(loadTodayCore 의 facts.load) — 부르는 쪽이 이미 가지고 있다.
+ * load 는 오늘의 투구 부하 지수(loadTodayCore 의 facts.load) — 부르는 쪽이 이미 가지고 있다. part 를 안 주면 모든 몫(홈 요약 칸).
  */
-export async function loadHighlights(userId: string, today: string, load: HighlightInput['load'], part: HighlightPart) {
+export async function loadHighlights(userId: string, today: string, load: HighlightInput['load'], part?: HighlightPart) {
   const [logs, before, checkins, workouts, lastLog] = await Promise.all([
     prisma.pitchLog.findMany({
       where: { userId, date: { gte: dbDate(shiftDateKey(today, -41)) } },
