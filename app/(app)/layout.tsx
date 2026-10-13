@@ -13,22 +13,13 @@ import {
   visibleGroups,
 } from '@/lib/nav';
 import { featureLocks } from '@/lib/feature-locks';
-import { cleanBodySpots } from '@/lib/body-spots';
 import { AppNav } from '@/components/app-shell';
 import { CheckinGate } from '@/components/checkin-gate';
 import { RefreshOnReturn } from '@/components/refresh-on-return';
 import { SendPendingSets } from '@/components/send-pending-sets';
 import { LibrarySync } from '@/components/library-sync';
-import type { CheckinData } from '@/components/checkin-form';
 import { prisma } from '@/lib/prisma';
-import {
-  pickArmPain,
-  pickCheckinBody,
-  pickCheckinDetail,
-  pickCheckinParts,
-} from '@/lib/checkin';
-import { visibleExercises } from '@/lib/library-cache';
-import { availableParts } from '@/lib/report/today-pick';
+import { contextFrom } from '@/lib/checkin-flow-load';
 import { MainTransition } from '@/components/main-transition';
 import { SiteFooter } from '@/components/site-footer';
 import { PullToRefresh } from '@/components/pull-to-refresh';
@@ -88,14 +79,13 @@ export default async function AppLayout({
    * 오른쪽 위 알림(종)에 줄 것 — 최근 며칠 동안 투구를 남긴 날. 날짜만 읽는다.
    * 같은 날 여러 번 남겼어도 한 줄이면 된다(distinct). 체크인은 위 목록을 같이 쓴다.
    */
-  const [avatarUrl, recentCheckins, library, recentPitchDays, streakCheckins] =
+  const [avatarUrl, recentCheckins, recentPitchDays, streakCheckins] =
     await Promise.all([
       createAvatarUrl(user.avatarPath),
       prisma.dailyCheckin.findMany({
         where: { userId: user.id, date: { gte: checkinWindowStart() } },
         orderBy: { date: 'desc' },
       }),
-      visibleExercises(),
       prisma.pitchLog.findMany({
         where: { userId: user.id, date: { gte: checkinWindowStart() } },
         select: { date: true },
@@ -104,29 +94,15 @@ export default async function AppLayout({
       /* 체크인을 마치면 'N일 연속'을 보여 준다(체크인 관문) — 날짜만 */
       prisma.dailyCheckin.findMany({
         where: { userId: user.id, date: { gte: streakWindowStart() } },
-        select: { date: true },
+        /* 컨디션도 — 흐름의 '평소 컨디션'(28일 중앙값)을 같은 줄에서 센다 */
+        select: { date: true, condition: true },
       }),
     ]);
   /* 최근 며칠 투구를 남긴 날 — 종의 할 일과 체크인 창의 '어제 등판 · 몇 구' 줄이 같이 쓴다 */
   const pitchDays = recentPitchDays.map((p) => p.date.toISOString().slice(0, 10));
-  const gateCheckins: CheckinData[] = recentCheckins.map((c) => ({
-    date: c.date.toISOString().slice(0, 10),
-    ...pickCheckinParts(c),
-    condition: c.condition,
-    sleep: c.sleep,
-    preferredParts: c.preferredParts,
-    preferredWorkout: c.preferredWorkout,
-    /*
-     * 간편 쪽 선택 칸(근육통 · 잔 시간 · 끼니 · 던지는 일정). 체크인 창이 저장된 값으로 다시 채우고, 어제 줄의 던지는
-     * 일정은 그 줄 옆에 회색으로 보인다(그래서 사흘치를 넘긴다)
-     */
-    ...pickCheckinBody(c),
-    ...pickCheckinDetail(c),
-    /* 팔 통증 자리 · 정도 — 어깨 · 팔꿈치 '통증'인 날 고른 것. 체크인 창과 요약의 통증 안내가 쓴다 */
-    ...pickArmPain(c),
-    /* 몸 그림에서 고른 불편한 근육 */
-    bodySpots: cleanBodySpots(c.bodySpots),
-  }));
+  /* 체크인 흐름(3판)의 둘레 — 관문과 종이 같은 것을 받는다(components/checkin-flow/types.ts) */
+  const flow = contextFrom(user.nickname, recentCheckins, streakCheckins);
+  const checkinDays = flow.recent.map((c) => c.date);
 
   return (
     /* 세로로 쌓는 틀 — 본문이 짧은 화면에서도 맨 밑 정보(SiteFooter)가 화면 바닥에 붙는다 */
@@ -183,10 +159,9 @@ export default async function AppLayout({
          * 화면이 router.refresh 로 새로 받는다 — 둘 다 이 목록이 곧바로 새로워진다.
          */
         todo={{
-          checkinDays: gateCheckins.map((c) => c.date),
+          checkinDays,
           pitchDays,
-          recentCheckins: gateCheckins,
-          parts: availableParts(library),
+          flow,
           /* 만 나이 — 체크인 요약의 팔 통증 안내가 쓴다(만 15세 미만은 루틴 대신 진료). 모르면 null */
           age: user.birthDate ? ageFromBirthDate(user.birthDate) : null,
           /* 투구 기록이 잠겨 있으면 종의 '기록하기' 대신 첫 설정으로 가는 단추 하나(components/notice-bell.tsx) */
@@ -199,13 +174,7 @@ export default async function AppLayout({
         체크인 관문 — 그날 체크인을 안 했으면 어느 화면으로 들어오든 먼저 뜬다.
         화면 맨 위 칸(top layer)에 뜨는 창이라 여기 두어도 모든 것 위에 선다.
       */}
-      <CheckinGate
-        checkedDays={gateCheckins.map((c) => c.date)}
-        streakDays={streakCheckins.map((c) => c.date.toISOString().slice(0, 10))}
-        recent={gateCheckins}
-        parts={availableParts(library)}
-        pitchDays={pitchDays}
-      />
+      <CheckinGate checkedDays={checkinDays} flow={flow} />
 
       {/* 오래 비워 둔 탭으로 돌아오면 새로 받는다 — 다른 기기에서 바꾼 사진·정보가 보이게 */}
       <RefreshOnReturn />

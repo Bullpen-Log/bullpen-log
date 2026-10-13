@@ -6,6 +6,7 @@ import { prisma } from '@/lib/prisma';
 import { getCurrentUser } from '@/lib/dal';
 import { toDateKey } from '@/lib/pitch-stats';
 import {
+  CHECKIN_NOTE_MAX,
   CHECKIN_PARTS,
   SLEEP_QUALITY_LEVELS,
   parseArmPain,
@@ -165,7 +166,17 @@ async function trySaveCheckin(formData: FormData): Promise<CheckinState> {
    * (팔 피로는 아직 둘 다에 있지만 같은 폼 값을 같은 검사로 읽어 늘 같다.)
    */
   let detail = {};
-  if (formData.get('detail') === '1') {
+  if (formData.get('flow') === '3') {
+    /*
+     * 체크인 3판 흐름(components/checkin-flow) — 상세 칸 가운데 메모만 받는다(운동 종류 · 몸무게 · 식욕은 탭 카드로 갔다,
+     * app/actions/day-cards.ts). 옛 상세 칸은 건드리지 않는다.
+     */
+    const note = String(formData.get('note') ?? '').trim();
+    if (note.length > CHECKIN_NOTE_MAX) {
+      return { error: `메모는 ${CHECKIN_NOTE_MAX}자까지 적을 수 있어요.` };
+    }
+    detail = { note: note || null };
+  } else if (formData.get('detail') === '1') {
     const parsed = parseCheckinDetail((name) => String(formData.get(name) ?? ''));
     if ('error' in parsed) return parsed;
     detail = {

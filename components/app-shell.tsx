@@ -35,7 +35,8 @@ import { Modal } from '@/components/modal';
 import { ProfilePanel, type ProfileData } from '@/components/profile-panel';
 import { SettingsPanel, type SettingsData } from '@/components/settings-panel';
 import { CLOSE_SETTINGS_EVENT } from '@/components/settings-info';
-import { CheckinForm, type CheckinData } from '@/components/checkin-form';
+import { CheckinFlow } from '@/components/checkin-flow/flow';
+import type { CheckinFlowContext } from '@/components/checkin-flow/types';
 import {
   NoticeBellButton,
   NoticePanel,
@@ -184,12 +185,7 @@ const DOCK_FALLBACK: Anchor = { top: 74, right: 158, edge: 16 };
 function within(el: Element | null | undefined, x: number, y: number) {
   const r = el?.getBoundingClientRect();
   return (
-    r != null &&
-    r.width > 0 &&
-    x >= r.left &&
-    x < r.right &&
-    y >= r.top &&
-    y < r.bottom
+    r != null && r.width > 0 && x >= r.left && x < r.right && y >= r.top && y < r.bottom
   );
 }
 
@@ -252,8 +248,8 @@ export function AppNav({
   todo: {
     checkinDays: string[];
     pitchDays: string[];
-    recentCheckins: CheckinData[];
-    parts: string[];
+    /** 종에서 여는 체크인 흐름(3판)의 둘레 — 관문과 같은 재료(components/checkin-flow/types.ts) */
+    flow: CheckinFlowContext;
     /** 만 나이 — 체크인 요약의 팔 통증 안내가 쓴다(만 15세 미만은 루틴 대신 진료). 모르면 null */
     age: number | null;
     /** 투구 기록이 잠겨 있다(첫 설정 전, lib/feature-locks.ts) — 종의 투구 할 일이 설정으로 가는 단추가 된다 */
@@ -484,7 +480,9 @@ export function AppNav({
       (e) => {
         if (to === 'sheet') return;
         if (e.target !== document.documentElement || !isPlainClick(e)) return;
-        const hit = [...(navRef.current?.querySelectorAll<HTMLElement>('button, a') ?? [])]
+        const hit = [
+          ...(navRef.current?.querySelectorAll<HTMLElement>('button, a') ?? []),
+        ]
           .filter((el) => !(watcher.current && el === gridRef.current))
           .find((el) => within(el, e.clientX, e.clientY));
         hit?.click();
@@ -879,7 +877,8 @@ export function AppNav({
    */
   const sheetIcons: 'none' | 'quick' | 'all' =
     choreo == null || at !== 'sheet' ? 'none' : 'quick';
-  const sheetGrows = at === 'sheet' && (choreo === 'bar-sheet' || choreo === 'dock-sheet');
+  const sheetGrows =
+    at === 'sheet' && (choreo === 'bar-sheet' || choreo === 'dock-sheet');
   /*
    * 도크에서 나는 아이콘 — 막대 · 팝업 어느 쪽과 오가든 넷만 날고 나머지는 돋거나 잦아든다.
    */
@@ -947,17 +946,13 @@ export function AppNav({
    * 새 목록이 오면 서버를 믿는다 — 예전에는 한 번 켜면 끝까지 남아서, '오늘 안
    * 던졌어요'를 누른 뒤 그 기록을 지워도 종은 '알림이 없어요'라고 했다.
    */
-  const [checkedHere, setCheckedHere] = useState<{ day: string; basis: string[] } | null>(
-    null
-  );
   const [restedHere, setRestedHere] = useState<{ day: string; basis: string[] } | null>(
     null
   );
   const notice: NoticeState = {
     day,
-    checkinDone:
-      todo.checkinDays.includes(day) ||
-      (checkedHere?.day === day && checkedHere.basis === todo.checkinDays),
+    /* 체크인은 저장하면 틀을 새로 그리므로(app/actions/checkin.ts revalidatePath layout) 목록이 곧바로 새로워진다 */
+    checkinDone: todo.checkinDays.includes(day),
     pitchDone:
       todo.pitchDays.includes(day) ||
       (restedHere?.day === day && restedHere.basis === todo.pitchDays),
@@ -1051,8 +1046,18 @@ export function AppNav({
     };
   }, [bellOpen]);
 
-  /* 창에서 '체크인하기' — 체크인 창을 누른 단추에서 띄운다(알림 창은 openFrom 이 닫는다) */
-  const openCheckin = (el: HTMLElement | null) => openFrom(el, setCheckinOpen);
+  /*
+   * 창에서 '체크인하기' — PC 는 체크인 흐름(3판)을 누른 단추에서 창으로 띄우고(알림 창은 openFrom 이 닫는다),
+   * 휴대폰은 전체 화면 흐름(app/(session)/checkin)으로 간다 — 관문과 같은 기준(DESK_MEDIA).
+   */
+  const openCheckin = (el: HTMLElement | null) => {
+    if (window.matchMedia(DESK_MEDIA).matches) {
+      openFrom(el, setCheckinOpen);
+      return;
+    }
+    setBellOpen(false);
+    router.push('/checkin');
+  };
 
   /*
    * 다른 화면의 '오늘 체크인'(OpenCheckinButton)도 이 창을 연다 — 창은 여기
@@ -1099,7 +1104,11 @@ export function AppNav({
       const res = await fetch('/api/pitch-log', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ date: day, sessionType: REST_SESSION_TYPE, videoPaths: [] }),
+        body: JSON.stringify({
+          date: day,
+          sessionType: REST_SESSION_TYPE,
+          videoPaths: [],
+        }),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
@@ -1287,7 +1296,11 @@ export function AppNav({
           onPointerDown={pickInDock}
           /* 팝업이 될 때는 팝업과 같은 이름표 — 상자가 그 자리에서 팝업으로 자란다(globals.css '팝업') */
           name={
-            choreo === 'dock-sheet' ? 'nav-sheet' : choreo == null ? 'shell-dock' : 'nav-dock'
+            choreo === 'dock-sheet'
+              ? 'nav-sheet'
+              : choreo == null
+                ? 'shell-dock'
+                : 'nav-dock'
           }
           icons={dockIcons}
           quickHrefs={quickHrefs}
@@ -1339,23 +1352,15 @@ export function AppNav({
       <Modal
         open={checkinOpen}
         onClose={() => setCheckinOpen(false)}
-        title="오늘 컨디션 체크인"
+        title="오늘 체크인"
         origin={popFrom}
       >
         {checkinOpen && (
-          <CheckinForm
-            recent={todo.recentCheckins}
-            parts={todo.parts}
-            /* 어제 '오늘 등판'인데 기록이 없으면 '어제 등판 · 몇 구' 줄을 묻는다 — 종이 쓰는 같은 목록 */
-            pitchDays={todo.pitchDays}
-            age={todo.age}
-            /* 팔 통증 안내의 [통증 루틴 하기]로 트레이닝에 갈 때 이 창도 닫는다 */
-            onLeave={() => setCheckinOpen(false)}
-            onSaved={(d) => {
-              /* 지금 받아 둔 목록을 기준으로 적어 둔다 — 새 목록이 오면 그것을 믿는다 */
-              setCheckedHere({ day: d, basis: todo.checkinDays });
-              setCheckinOpen(false);
-            }}
+          <CheckinFlow
+            variant="popup"
+            ctx={todo.flow}
+            onDone={() => setCheckinOpen(false)}
+            onSkip={() => setCheckinOpen(false)}
           />
         )}
       </Modal>
@@ -1706,7 +1711,11 @@ function NavGlyph({
     <span className={`relative flex shrink-0 ${dim ? 'opacity-55' : ''}`} style={style}>
       <Icon aria-hidden className={className} strokeWidth={strokeWidth} />
       {locked && (
-        <Lock aria-hidden className="absolute -bottom-1 -right-1 h-3 w-3" strokeWidth={2.4} />
+        <Lock
+          aria-hidden
+          className="absolute -bottom-1 -right-1 h-3 w-3"
+          strokeWidth={2.4}
+        />
       )}
     </span>
   );
@@ -2042,7 +2051,11 @@ function DetailMenu({
    */
   const drag = useRef<{ id: number; y: number; t: number; dy: number } | null>(null);
   const startDrag = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (window.matchMedia(DESK_MEDIA).matches || (e.target as HTMLElement).closest('button, a')) return;
+    if (
+      window.matchMedia(DESK_MEDIA).matches ||
+      (e.target as HTMLElement).closest('button, a')
+    )
+      return;
     drag.current = { id: e.pointerId, y: e.clientY, t: performance.now(), dy: 0 };
     e.currentTarget.setPointerCapture(e.pointerId);
   };
@@ -2064,10 +2077,13 @@ function DetailMenu({
       return;
     }
     if (d.dy > 0) {
-      el.animate([{ transform: `translateY(${d.dy}px)` }, { transform: 'translateY(0)' }], {
-        duration: 220,
-        easing: 'cubic-bezier(0.32, 0.72, 0, 1)',
-      });
+      el.animate(
+        [{ transform: `translateY(${d.dy}px)` }, { transform: 'translateY(0)' }],
+        {
+          duration: 220,
+          easing: 'cubic-bezier(0.32, 0.72, 0, 1)',
+        }
+      );
     }
     el.style.transform = '';
   };
@@ -2144,20 +2160,23 @@ function DetailMenu({
           onPointerUp={endDrag}
           onPointerCancel={endDrag}
         >
-        <div aria-hidden className="mx-auto mt-2 h-[5px] w-9 shrink-0 rounded-full bg-ink/15 desk:hidden" />
-        <div className="flex h-12 shrink-0 items-center justify-between px-4 desk:border-b desk:border-line">
-          <span className="text-heading text-lg text-ink desk:text-sm">메뉴</span>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="닫기"
-            className="-mr-2 grid h-11 w-11 place-items-center text-muted transition-colors hover:text-ink desk:mr-0 desk:h-auto desk:w-auto desk:rounded-lg desk:p-2 desk:hover:bg-ink/6"
-          >
-            <span className="grid h-8 w-8 place-items-center rounded-full bg-ink/6 desk:contents">
-              <X className="h-4 w-4 desk:h-5 desk:w-5" strokeWidth={2.4} />
-            </span>
-          </button>
-        </div>
+          <div
+            aria-hidden
+            className="mx-auto mt-2 h-[5px] w-9 shrink-0 rounded-full bg-ink/15 desk:hidden"
+          />
+          <div className="flex h-12 shrink-0 items-center justify-between px-4 desk:border-b desk:border-line">
+            <span className="text-heading text-lg text-ink desk:text-sm">메뉴</span>
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="닫기"
+              className="-mr-2 grid h-11 w-11 place-items-center text-muted transition-colors hover:text-ink desk:mr-0 desk:h-auto desk:w-auto desk:rounded-lg desk:p-2 desk:hover:bg-ink/6"
+            >
+              <span className="grid h-8 w-8 place-items-center rounded-full bg-ink/6 desk:contents">
+                <X className="h-4 w-4 desk:h-5 desk:w-5" strokeWidth={2.4} />
+              </span>
+            </button>
+          </div>
         </div>
 
         <nav className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-2.5 py-2.5 desk:p-2">
@@ -2591,7 +2610,11 @@ function MobileTabs({
                 }`}
               >
                 <span className="flex h-[26px] w-[26px] items-center justify-center">
-                  <Squares spinning={spinning} onDone={() => setSpinning(false)} size="lg" />
+                  <Squares
+                    spinning={spinning}
+                    onDone={() => setSpinning(false)}
+                    size="lg"
+                  />
                 </span>
                 {tab.short ?? tab.label}
               </button>
@@ -2614,7 +2637,9 @@ function MobileTabs({
               onClick={(e) => {
                 if (!active || !sameScreen(currentUrl(), tab.href)) return;
                 e.preventDefault();
-                const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+                const reduce = window.matchMedia(
+                  '(prefers-reduced-motion: reduce)'
+                ).matches;
                 window.scrollTo({ top: 0, behavior: reduce ? 'auto' : 'smooth' });
               }}
               /*
