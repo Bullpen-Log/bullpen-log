@@ -21,7 +21,7 @@ def load_det(p, c):
 
 
 def load_kp_full(p, c):
-    z = np.load(os.path.join(WORK, "kp", f"투구{p:02d}_c{c}.npz"))
+    z = np.load(os.path.join(WORK, os.environ.get("KP_DIR", "kp"), f"투구{p:02d}_c{c}.npz"))  # KP_DIR: 다른 2D 모델 비교(README '2D 모델 비교')
     return z["t"], z["kp"], z["sc"]
 
 

@@ -53,6 +53,7 @@ import {
   canonicalFrames,
   frame as mannequinFrame,
   mannequinFrames,
+  mid,
   rotate,
   slerp,
 } from '../lib/pitch-3d/v2/mannequin-frames.ts';
@@ -69,10 +70,14 @@ import {
   fanIndices,
   writeFan,
   writeLoft,
+  STRIPE,
+  STRIPE_VERTS,
+  stripeIndices,
+  writeStripes,
   writeTorso,
   writeTube,
 } from '../lib/pitch-3d/v2/mannequin-loft.ts';
-import { LIGHT_RIG, TORSO, curve, moundShade, toDisplay, valueNoise2 } from '../lib/pitch-3d/v2/mannequin-profiles.ts';
+import { LIGHT_RIG, TORSO, TORSO_KEYS, curve, moundShade, toDisplay, torsoN, valueNoise2 } from '../lib/pitch-3d/v2/mannequin-profiles.ts';
 import {
   BONE_SIZES,
   anaMaterials,
@@ -81,6 +86,10 @@ import {
   arcPolyline,
   boneEnds,
   boneSpec,
+  BONE_TABLE,
+  fitSkeleton,
+  prepareSkeleton,
+  skeletonT,
   placeLabels,
   projectToScreen,
 } from '../lib/pitch-3d/v2/mannequin-pause.ts';
@@ -1471,7 +1480,11 @@ console.log('■ 마운드 · 보기용 다듬기 · 관절 각도 틀(kinematic
             worst = Math.max(worst, deg(Math.acos(Math.max(-1, Math.min(1, dot(a, b))))));
           }
           const cap = KIN_SPEED.plantedThigh / 60;
-          check(`각도 모델: 디딘 다리 무릎이 4장면 옆으로 튀어도 넙다리는 한 장면 ${cap}° 남짓까지`, worst <= cap + 1.5, `${worst.toFixed(1)}°`);
+          /*
+           * 넙다리 방향은 cap 을 정확히 지키고, 그 뒤 땅에 묶인 발목에 맞춰 무릎을 다시 접는 단계가 무릎 굽힘에 따라 1.5~1.7° 를 더한다 — 자세는 합성
+           * 투수를 엔진에 맞춘 가운데 장면이라 엔진 다듬기가 바뀌면 같이 움직인다(2026-10-13 다듬기 세기 바꿈: 14.8 → 15.0°). 그래서 여유 2°.
+           */
+          check(`각도 모델: 디딘 다리 무릎이 4장면 옆으로 튀어도 넙다리는 한 장면 ${cap}° 남짓까지`, worst <= cap + 2, `${worst.toFixed(1)}°`);
         }
 
         /*
@@ -2031,14 +2044,58 @@ console.log('■ 데생 인형 겉면(mannequin-loft) — 색인 · 정점 · �
     rh: z(0.95, -0.15), lh: z(0.95, 0.15), rk: z(0.5, -0.15), lk: z(0.5, 0.15), ra: z(0.08, -0.15), la: z(0.08, 0.15),
     rhe: z(0.02, -0.15, -0.05), rto: z(0.02, -0.15, 0.2), lhe: z(0.02, 0.15, -0.05), lto: z(0.02, 0.15, 0.2),
     sh: z(1.45, -0.2), gs: z(1.45, 0.2), el: z(1.15, -0.25), ge: z(1.15, 0.25), wr: z(0.9, -0.25), gw: z(0.9, 0.25),
-    ha: z(0.85, -0.25), gh: z(0.85, 0.25), td: z(1.2), tp: z(1.48), nose: z(1.68, 0, 0.1), ear: z(1.68),
+    ha: z(0.85, -0.25), gh: z(0.85, 0.25), td: z(1.2), nose: z(1.68, 0, 0.1), ear: z(1.68),
   };
+  /* 흉추 C — 허벅지는 서 있고 어깨만 앞(+x)으로: 골반 위 < 엉덩이 → 어깨 축 < 가슴 위(앞으로 더 숙임) */
+  {
+    const fwd = (v: Vec3) => Math.atan2(v[0], v[2]);
+    const mv = (p: Vec3): Vec3 => [p[0] + 0.25, p[1], p[2]];
+    const J2: MannequinJoints = { ...J, sh: mv(J.sh), gs: mv(J.gs), el: mv(J.el), ge: mv(J.ge), wr: mv(J.wr), gw: mv(J.gw), ha: mv(J.ha), gh: mv(J.gh), nose: mv(J.nose), ear: mv(J.ear), td: [0.1375, 0, 1.2] };
+    const F2 = mannequinFrames([J2], 1.8)[0];
+    const ax = fwd(sub(mid(J2.sh, J2.gs), mid(J2.rh, J2.lh)));
+    check(
+      '가슴 위 방향: 몸통이 골반보다 앞으로 숙으면 가슴은 축보다 더 숙임(흉추 C)',
+      fwd(F2.pelvis.ya) < ax - 0.05 && fwd(F2.chest.ya) > ax + 0.05,
+      `골반 ${fwd(F2.pelvis.ya).toFixed(3)} · 축 ${ax.toFixed(3)} · 가슴 ${fwd(F2.chest.ya).toFixed(3)}`
+    );
+  }
   const pf = mannequinFrame(sub(J.rh, J.lh), [0, 0, 1]);
   const cf = mannequinFrame(sub(J.sh, J.gs), [0, 0, 1]);
   const T = torsoModel(J, pf, cf, 1);
   const pants = new Float32Array(TORSO_PANTS_VERTS * 3);
   const shirt = new Float32Array(TORSO_SHIRT_VERTS * 3);
   writeTorso(T, pants, shirt);
+  /* 꼬임 줄 — 앞줄 가운데는 겉면(앞 두께)에서 lift 만큼 바깥, 옆줄은 폭 + lift. 가슴 틀만 30° 돌리면 줄 위 끝이 그만큼 돌고 아래 끝은 그대로 */
+  {
+    const st = new Float32Array(STRIPE_VERTS * 3);
+    writeStripes(T, st, 1);
+    const P = (s2: number, r: number): Vec3 => {
+      const o = (s2 * (STRIPE.N + 1) + r) * 2 * 3;
+      return [(st[o] + st[o + 3]) / 2, (st[o + 1] + st[o + 4]) / 2, (st[o + 2] + st[o + 5]) / 2];
+    };
+    const r = STRIPE.N >> 1;
+    const t = STRIPE.from + ((STRIPE.to - STRIPE.from) * r) / STRIPE.N;
+    const R = T.ring(t);
+    const fErr = Math.abs(dot(sub(P(0, r), R.c), R.Fw) - (T.front(t) + STRIPE.lift));
+    const sErr = Math.abs(dot(sub(P(1, r), R.c), R.X) - (T.width(t) + STRIPE.lift));
+    const tw = 0.5;
+    const cf2 = mannequinFrame([Math.sin(tw), -Math.cos(tw), 0], [0, 0, 1]);
+    const T2 = torsoModel(J, pf, cf2, 1);
+    const st2 = new Float32Array(STRIPE_VERTS * 3);
+    writeStripes(T2, st2, 1);
+    const yaw = (b: Float32Array, rr: number) => {
+      const o = rr * 2 * 3;
+      const q = (b === st ? T : T2).ring(STRIPE.from + ((STRIPE.to - STRIPE.from) * rr) / STRIPE.N).c;
+      return Math.atan2((b[o + 1] + b[o + 4]) / 2 - q[1], (b[o] + b[o + 3]) / 2 - q[0]);
+    };
+    const dTop = Math.abs(Math.abs(yaw(st2, STRIPE.N) - yaw(st, STRIPE.N)) - tw);
+    const dBot = Math.abs(yaw(st2, 0) - yaw(st, 0));
+    check(
+      '꼬임 줄: 앞 · 옆 줄이 겉면 바깥 lift 에, 가슴만 돌리면 위 끝이 그만큼(아래는 그대로) · 색인 4×N×6',
+      st.every(Number.isFinite) && fErr < 1e-6 && sErr < 1e-6 && dTop < 0.12 && dBot < 0.02 && stripeIndices().length === 4 * STRIPE.N * 6,
+      `앞 ${fErr.toExponential(1)} · 옆 ${sErr.toExponential(1)} · 위 ${dTop.toFixed(3)} · 아래 ${dBot.toFixed(3)}`
+    );
+  }
   check(
     '몸통 정점: 모두 유한, 바지 (split+1)·K · 상의 (RN−split+1)·K',
     pants.every(Number.isFinite) && shirt.every(Number.isFinite) &&
@@ -2108,27 +2165,46 @@ console.log('■ 데생 인형 멈춤(mannequin-pause) — 뼈 · 호 관 · 부
     const flatSpec = (s: typeof bs) => [
       ...s.joints.flat(),
       ...s.bones.flatMap((b) => [...b.a, ...b.b, b.r, b.jr]),
-      ...s.rings.flatMap((r) => [...r.c, ...r.q, r.sx, r.sy, r.tz]),
       ...s.beads.flatMap((b) => [...b.p, ...b.q]),
       ...s.skull.p,
       ...s.skull.q,
     ];
     const nums = flatSpec(bs);
     check(
-      '뼈 명세: 관절 12 · 뼈 14 · 고리 2 · 척추 구슬 12 · 머리, 모두 유한',
-      bs.joints.length === 12 && bs.bones.length === 14 && bs.rings.length === 2 && bs.beads.length === 12 && nums.every(Number.isFinite)
+      '뼈 명세: 관절 12 · 뼈 12 · 목뼈 구슬 3 · 머리, 모두 유한',
+      bs.joints.length === 12 && bs.bones.length === BONE_TABLE.length && BONE_TABLE.length === 12 && bs.beads.length === 3 && nums.every(Number.isFinite)
     );
-    let back = 0;
-    let offErr = 0;
-    for (let b = 0; b < 9; b++) {
-      const t = 0.18 + (0.72 * b) / 8;
-      const d = sub(bs.beads[b].p, curve(T.C, t));
-      offErr = Math.max(offErr, Math.abs(dot(d, rotate(bs.beads[b].q, [0, 0, 1])) - 0.06 * k));
-      if (b === 0 ? dot(d, F[i].pelvis.fw) < 0 : b >= 6 ? dot(d, F[i].chest.fw) < 0 : dot(d, F[i].pelvis.fw) < 0 && dot(d, F[i].chest.fw) < 0) back++;
+    /* 몸통 · 골반 실제 뼈대 — 높이 → 고리 t 이음점, 인형보다 큰 뼈도 인형 단면 안에, 오른쪽 뼈는 오른 엉덩이 쪽 */
+    {
+      const pts: number[] = [];
+      for (let y = 0.8; y <= 1.46; y += 0.02)
+        for (let a = 0; a < 16; a++) pts.push(0.3 * Math.cos((a / 16) * Math.PI * 2), y, 0.02 + 0.2 * Math.sin((a / 16) * Math.PI * 2));
+      const pos = Float32Array.from(pts);
+      const prep = prepareSkeleton(pos, new Float32Array(pos.length));
+      const out = new Float32Array(pos.length);
+      fitSkeleton(prep, T, k, norm(sub(J.rh, J.lh)) / 2, norm(sub(J.sh, J.gs)) / 2, out, new Float32Array(pos.length));
+      let worst = 0;
+      let rightOk = true;
+      for (let v = 0; v < pos.length / 3; v++) {
+        const t = prep.t[v];
+        if (prep.dy[v] !== 0) continue;
+        const R = T.ring(t);
+        const q = sub([out[v * 3], out[v * 3 + 1], out[v * 3 + 2]], R.c);
+        const x = dot(q, R.X);
+        const yv = dot(q, R.Fw);
+        const n = torsoN(t);
+        worst = Math.max(worst, ((Math.abs(x) / T.width(t)) ** n + (Math.abs(yv) / (yv > 0 ? T.front(t) : T.back(t))) ** n) ** (1 / n));
+        if (pos[v * 3] < -0.2 && dot(q, sub(J.rh, J.lh)) <= 0) rightOk = false;
+      }
+      const keys = skeletonT(0.9).t === TORSO_KEYS[1] && skeletonT(1.37).t === TORSO_KEYS[5] && skeletonT(0.7).t === 0 && skeletonT(0.7).dy < 0 && skeletonT(1.6).dy > 0;
+      check(
+        '실제 뼈대: 엉덩이 · 어깨 높이가 고리 이음점에 · 인형보다 큰 뼈도 단면 안(같은 높이 고리 기준) · 오른쪽 뼈는 오른 엉덩이 쪽',
+        keys && worst <= 1.02 && rightOk && [...out].every(Number.isFinite),
+        `가장 바깥 ${worst.toFixed(3)}`
+      );
     }
-    check('척추 구슬: 아홉 개가 가운데 선에서 틀의 뒤(등 쪽)로 6%', offErr < 1e-9 && back === 9, `오차 ${offErr} · 뒤 ${back}/9`);
     let neckErr = 0;
-    for (let b = 9; b < 12; b++) {
+    for (let b = 0; b < 3; b++) {
       const p = bs.beads[b].p;
       const a0 = T.neck;
       const ab = sub(F[i].head.nk, a0);
@@ -2143,11 +2219,10 @@ console.log('■ 데생 인형 멈춤(mannequin-pause) — 뼈 · 호 관 · 부
       Math.abs(bs.bones[1].r - 0.9 * br) < 1e-12 &&
       Math.abs(bs.bones[10].r - 0.55 * br) < 1e-12 &&
       Math.abs(bs.bones[10].jr - 0.6 * jr) < 1e-12 &&
-      Math.abs(bs.bones[4].jr - 0.5 * jr) < 1e-12 &&
-      Math.abs(bs.bones[13].r - 0.75 * br) < 1e-12;
+      Math.abs(bs.bones[4].jr - 0.5 * jr) < 1e-12;
     const e = boneEnds([0, 0, 0], [0, 0, 1], 0.1);
     check(
-      '뼈 굵기 표(허벅지 br · 정강이 0.9 · 손 0.55/jr 0.6 · 발 jr 0.5 · 빗장뼈 0.75) · 양 끝 들이기 jr·0.55',
+      '뼈 굵기 표(허벅지 br · 정강이 0.9 · 손 0.55/jr 0.6 · 발 jr 0.5) · 양 끝 들이기 jr·0.55',
       rOk && Math.abs(e.len - 0.89) < 1e-12 && Math.abs(e.a2[2] - 0.055) < 1e-12 && Math.abs(e.b2[2] - 0.945) < 1e-12
     );
     const L = runV2({ ...base, ...realistic, hand: 'L', name: '인형 멈춤 L' }, 3).result;
@@ -2161,10 +2236,9 @@ console.log('■ 데생 인형 멈춤(mannequin-pause) — 뼈 · 호 관 · 부
       const b2 = boneSpec(frL[j], FL[j], TL, k);
       check(
         '좌투 뼈 명세: 우투 꼴(던지는 쪽이 −y) · 개수 같음 · 같은 입력엔 같은 답',
-        b1.bones.length === 14 &&
+        b1.bones.length === BONE_TABLE.length &&
           b1.joints.length === 12 &&
-          b1.rings.length === 2 &&
-          b1.beads.length === 12 &&
+          b1.beads.length === 3 &&
           flatSpec(b1).every(Number.isFinite) &&
           frL[j].rh[1] < frL[j].lh[1] && frL[j].sh[1] < frL[j].gs[1] && JSON.stringify(b1) === JSON.stringify(b2)
       );
@@ -2549,7 +2623,7 @@ console.log('■ 몸통 마디(trunk) — 규칙 · AI 상대 값 · 못 믿는 
     rh: z(0.95, -0.15), lh: z(0.95, 0.15), rk: z(0.5, -0.15), lk: z(0.5, 0.15), ra: z(0.08, -0.15), la: z(0.08, 0.15),
     rhe: z(0.02, -0.15, -0.05), rto: z(0.02, -0.15, 0.2), lhe: z(0.02, 0.15, -0.05), lto: z(0.02, 0.15, 0.2),
     sh: z(1.45, -0.2), gs: z(1.45, 0.2), el: z(1.15, -0.25), ge: z(1.15, 0.25), wr: z(0.9, -0.25), gw: z(0.9, 0.25),
-    ha: z(0.85, -0.25), gh: z(0.85, 0.25), td: z(1.225), tp: z(1.475), nose: z(1.68, 0, 0.1), ear: z(1.68),
+    ha: z(0.85, -0.25), gh: z(0.85, 0.25), td: z(1.225), nose: z(1.68, 0, 0.1), ear: z(1.68),
   };
   const rotZ = (v: Vec3, deg: number): Vec3 => {
     const a = (deg * Math.PI) / 180;

@@ -21,7 +21,7 @@ export type MannequinJoints = {
   rhe: Vec3; rto: Vec3; lhe: Vec3; lto: Vec3;
   sh: Vec3; gs: Vec3; el: Vec3; ge: Vec3; wr: Vec3; gw: Vec3; ha: Vec3; gh: Vec3;
   /** 몸통 축 위 두 점(엉덩이 가운데 → 어깨 가운데의 55% · 105%) */
-  td: Vec3; tp: Vec3;
+  td: Vec3;
   nose: Vec3; ear: Vec3;
   /**
    * 몸통 마디(trunk.ts) — 엉덩이 → 어깨의 0.41 · 0.60 · 0.83 높이의 단면 가운데(t1 · t2 · t3)와 가운데 + 좌우 축 10cm(t1s · t2s · t3s).
@@ -129,7 +129,7 @@ export function mannequinTrack(
       rhe: g('rHe', 'lHe'), rto: g('rTo', 'lTo'), lhe: g('lHe', 'rHe'), lto: g('lTo', 'rTo'),
       sh: g('rSh', 'lSh'), gs: g('lSh', 'rSh'), el: g('rEl', 'lEl'), ge: g('lEl', 'rEl'), wr: g('rWr', 'lWr'), gw: g('lWr', 'rWr'),
       ha: g('rHandMid', 'lHandMid'), gh: g('lHandMid', 'rHandMid'),
-      td: lerp(hip, shm, 0.55), tp: lerp(hip, shm, 1.05),
+      td: lerp(hip, shm, 0.55),
       nose: at(f, IX('nose')), ear: mid(at(f, IX('lEar')), at(f, IX('rEar'))),
       ...trunkFields(TR[k]),
     };

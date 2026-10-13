@@ -11,11 +11,51 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 ---
 
+## 금윤호에게 — 2026-10-13 · 김민(Claude, 맥북) — 3D 엔진 골반 · 앞다리 + 결과 화면 몸통(뼈대 맞춤 · 흉추 C · 꼬임 줄)
+
+받은 뒤 할 일 없음(DB · 패키지 그대로). **네 영역(3D 엔진 · 인형)을 고쳤다.** 시험 v1 63 · v2 245 통과, `pitch3d:bundle --check` 같음.
+- **엔진**(`fit.ts`, 6b9a3bf · 150364e): 다리 들기 골반 방향을 축발(뒤꿈치 → 발끝)로 당김(마커 채점 골반 돌림 14.2 → 5.0° · 분리 12.3 → 4.7°),
+  다리 관절 목표에 튀는 값 거르기(샘플 3 · 10 앞다리 떨림). 던지는 팔(샘플 1 · 10)은 엔진 결함 근거가 없어 안 고침(selfcal/README.md).
+  분석 서버(Modal)에도 올렸다(같은 날, `npm run pitch3d:bundle` → `modal deploy app.py`) — 새로 분석하는 영상부터 들어간다.
+- **화면**(9e454de · e88af24 · 5e6f61b): 몸통 실제 뼈대를 정점마다 같은 높이의 인형 고리에 얹음(`mannequin-pause.ts` `prepareSkeleton` · `fitSkeleton`,
+  옛 `skeletonPlaces` · `placeLocal` · `trunkBlend` 지움 — 인형 밖 뼈 20.8% → 0.8%), 가슴 틀 위 방향 = 몸통 곡선의 어깨 쪽 접선(`mannequin-frames.ts`,
+  관절 칸 `tp` 지움 — 릴리스에서 흉추가 C 로), 몸통에 빨간 꼬임 줄 넷(`mannequin-loft.ts` `writeStripes`, 색 `twist`). 아이폰 앱에서 한 번 봐 줘.
+  각도 이름표는 화면 속 몸이 작으면(키 420px 밑) 이름을 빼고 숫자만(`body-3d.tsx` LABEL_FULL_BODY_PX, 글자 11px 그대로).
+
+## 금윤호에게 — 2026-10-13 · 김민(Claude, 맥북) — 구속 측정: 믿음 '높음'만 기록 · 보정식을 비율 하나로(엔진 2.3.20)
+
+받은 뒤 할 일 없음(DB · 패키지 그대로). 네 영역(구속 측정). 김민: "빨라질수록 실제보다 많이 낮게 나온다 → 원인 · 고쳐줘 · 믿음 높은 것만 측정하고 나머지는 측정 불가 안내".
+- 원인: 보정식(`lib/velocity-calibration.ts` fitCalibration)이 최소제곱 직선이라, 10-09 실내 짝 13개(12개 믿음 낮음 · 65~80 에 몰림 · 튄 짝 둘)로
+  기울기가 하한 0.8 에 붙었다(×0.8 + 14.55 → 원값 127 이 116, 건 129). 원값은 빠르기와 상관없이 고르게 약 2% 낮을 뿐이었다(10-12 밖 22구).
+- 고침: 보정식 = 비율 하나(건 ÷ 카메라의 가운데 값, 0.9~1.1, 짝 3개부터), 짝은 믿음 '높음'만(`loadCalibration`). 측정 화면(`velocity-screen.tsx` addResult)은
+  믿음 '높음'이 아닌 공을 기록하지 않고 '측정 불가' + 까닭별 안내(`lowConfidenceFix` — 포수 뒤 · 흔들림 · 끝이 배경에 묻힘 · 그 밖)를 보인다. 새 거부 코드
+  `LOW_CONFIDENCE`(validate.ts, 엔진 값은 그대로라 2.3.20 작은 자리). 10-12 공에 대 보면 기록되는 15구 평균 오차 7.4 → 2.8km/h.
+
+## 금윤호에게 — 2026-10-13 · 김민(Claude, 맥북) — 운동 · 드릴 영상을 720p 로 줄여 아이폰 앱 안에 넣는다
+
+받은 뒤 할 일 없음(DB · 패키지 그대로, 저장소의 원본 영상도 그대로). 김민: "영상을 줄여서 앱 안에 넣는 방안" — 서버 전송 비용을 줄이고 바로 보게.
+- `npm run library:bundle`(맥에서만 — 맥의 AVFoundation 으로 줄임): 보이는 운동 · 드릴 영상을 받아 720p(60fps 2.5Mbps · 30fps 1.8Mbps, 소리 없음)로 줄여
+  `mobile/ios/App/App/LibraryVideos/<uuid>.mp4` 에 두고, 저장소 `library-720/<uuid>.mp4` 에도 올린다(원본 `library/` 는 그대로). mp4 는 git 에 안 올린다
+  (공개 저장소 · 674MB). GitHub 의 TestFlight 굽기는 사이트 `/api/library/bundle` 에서 굽기 전용 열쇠(`LIBRARY_BUNDLE_TOKEN` — Vercel 환경변수 · GitHub 비밀,
+  둘 다 넣어 둠)로 받아 넣는다(`mobile/scripts/fetch-library-videos.mjs`). **새 영상을 올렸으면 맥에서 `library:bundle` 을 돌려야** 다음 앱에 들고 720p 로 틀린다.
+- 앱(`LocalVideoPlugin.swift` 새 기능 넷 libraryStatus · Load · Fetch · Prune): 재생기 `components/library-video.tsx` 가 앱이면 앱 안 → 폰에 받아 둔 것 → 없으면
+  한 번 받아 폰(Caches, 1GB 넘으면 오래 안 본 것부터 지움)에 두고 튼다. 웹 · 옛 앱 · 실패는 예전처럼 서버에서 바로.
+- 앱을 낸 뒤 새로 올리거나 고친 영상은 이름(uuid)이 바뀌어 앱 안에 없으니, `components/library-sync.tsx` 가 앱을 켤 때(12시간에 한 번, 30개까지) 미리 받고
+  지운 · 바뀐 것은 폰에서 지운다(`/api/library/video-manifest`). 앱 안에 영상이 하나도 없으면(TestFlight 판) 미리 받지 않는다 — 다 받으면 수 GB.
+- 운동 영상 재생(웹 포함)은 줄인 판이 있으면 그것을 튼다(`/api/library/video-url` 의 `small` — 재생기 · 앱 미리 받기만). 네 촬영 편집기 · '올린 영상 편집' ·
+  썸네일 고치기는 small 없이 원본을 받는다. 촬영 편집기(`lib/clip`)는 그대로 1080p 로 올린다.
+
 ## 금윤호 · 데스크톱 Claude 에게 — 2026-10-13 · 김민(Claude, 맥북) — 마커 정답지 4~7단계 끝 · 3D 엔진에 초점 사전(선택) — 받으면 `npm ci` 필요 없음
 
 받은 뒤 할 일 없음(DB · 패키지 그대로). **3D 엔진(금윤호 영역)을 고쳤다** — 기본 동작은 그대로, 시험 v1 63 · v2 243 통과.
 - `lib/pitch-3d/camera.ts` `FocalPrior` · `FOCAL_PRIOR_1X`, `CalibInput.focalPrior`, `Pitch3dInput.focalPrior`(analyze.ts) · `V2Input.focalPrior`(contract.ts) → fit.ts.
-  '1배로 찍음'을 알 때만 넘긴다. 마커 채점에서 관절 오차 가운데 3.6 → 3.3cm. **서버(GPU) · 실험실 화면은 아직 안 넘긴다**(사용자 결정 대기 — selfcal/README.md).
+  '1배로 찍음'을 알 때만 넘긴다. 마커 채점에서 관절 오차 가운데 3.6 → 3.3cm. 서버는 1배를 기본으로 넘긴다(a709a99, 사용자 결정).
+- **(같은 날 더) 엔진 개선 2차 — `lib/pitch-3d/v2/fit.ts`**: 골반 폭 상한(어깨 폭의 0.72배 — 골반이 22% 넓게 나왔다) · 시간 다듬기 세기
+  `min(1, 0.35 + 0.9(1−w))`(예전 `0.1 + 0.9(1−w)²`) · 끝 다듬기 8번 → 뼈 투영 1번. 마커 15구로 홀수에서 고르고 짝수로 확인: 관절 가운데
+  3.3 → 3.2 · 평균 4.1 → 3.95cm · 골반 폭 1.22 → 1.05. 해 보고 버린 것(240 장면 · 손 점으로 손목 보강 · 좌우 뒤집기 평균 · 정답 초점)은
+  selfcal/README.md '엔진 개선 2차' 표. 시험 v1 63 · v2 243 통과 — v2 의 '디딘 다리 넙다리 한 장면' 여유를 1.5 → 2° 로 넓혔다(넙다리 방향 제한은
+  정확하고, 그 뒤 묶인 발목에 무릎을 다시 접는 단계가 1.5~1.7° 를 더함 · 시험 투수 자세가 엔진 결과라 14.8 → 15.0°). 서버(Modal)에도 올렸다(같은 날,
+  `npm run pitch3d:bundle` → `modal deploy app.py`). 채점 기준(`score-baseline.json`)도 새로 저장했다.
 - 마커 정답지 4~7단계: `scripts/pitch-lab/markers/selfcal/` `fill.py` · `bench.py` · `score-all.mjs`, 명령 `npm run pitch3d:marker-score`(자료 없으면 건너뜀).
   결과 · 판단 근거는 selfcal/README.md '4~7단계 결과'. 맥북 세션 폴더 `~/bullpen-marker-lab/2026-10-12/`(영상은 맥북이 자른 64개에 연결).
 

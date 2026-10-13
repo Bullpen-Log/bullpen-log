@@ -167,6 +167,8 @@ export async function loadCalibration(): Promise<{ fit: CalFit; pairs: CalPair[]
       manual: false,
       calibExclude: false,
       engineVersion: { startsWith: CALIBRATION_FAMILY },
+      /* 믿음 높은 공만 — 믿음 낮은 공의 짝이 보정식을 기울였다(2026-10-12, lib/velocity-calibration.ts fitCalibration) */
+      confidence: 'high',
     },
     orderBy: { createdAt: 'desc' },
     take: CAL_PAIR_LIMIT,
@@ -639,7 +641,7 @@ export async function recordVelocityAttempt(
       rejectCode: ok ? null : String(input.code ?? '').slice(0, 40) || null,
       why: String(input.why ?? '').slice(0, 40) || null,
       trackFrames: Math.round(num(input.trackFrames, 0, 10_000) ?? 0),
-      rawKmh: ok ? optional(input.rawKmh, 0, 300) : null,
+      rawKmh: optional(input.rawKmh, 0, 300),
       confidence: ['high', 'medium', 'low'].includes(confidence) ? confidence : null,
       analysis: distance ? ({ distance } as Prisma.InputJsonValue) : undefined,
       engineVersion: VELOCITY_ENGINE_VERSION,

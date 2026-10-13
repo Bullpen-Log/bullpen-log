@@ -36,7 +36,7 @@
 
 | 단계 | 하는 일 | 끝 |
 |---|---|---|
-| 0 | 시도 기록 `VelocityAttempt`(알림마다 쟀나 · 거부 코드 · why · 공 길 장면 수 · 보정용이면 클립), 관리자 날짜 폴더 '시도' 표(건 구간별 시도 · 잼 · 못 잼, 못 잰 공의 건 값 적기), 조용한 거부에 까닭(`DistanceReport.why`). 2.3.20 | 2026-10-12 |
+| 0 | 시도 기록 `VelocityAttempt`(알림마다 쟀나 · 거부 코드 · why · 공 길 장면 수 · 보정용이면 클립), 관리자 날짜 폴더 '시도' 표(건 구간별 시도 · 잼 · 못 잼, 못 잰 공의 건 값 적기), 조용한 거부에 까닭(`DistanceReport.why`). 2.3.22 | 2026-10-12 |
 | 1 | 세션 거리: 줄자 입력 + 공 크기 거리의 세션 중앙값(깨끗한 공 3개부터), 둘이 7% 넘게 다르면 경고, 공마다 distanceSource. 2.4.0 | |
 | 2 | 보정식: 낮음 · 수기 제외 → Theil–Sen(0.92~1.08) → 잔차 2.5·MAD 제외 → 짝 8 · 범위 30 전에는 비율만. 셀프테스트 | |
 | 3 | 믿음 문: sizeDistM/D 0.85~1.15 밖 · extended > 8 · fitQuality < 0.6 → 거부 + 메시지. 오늘 3개 궤적을 회귀 시험으로 | |
@@ -47,7 +47,7 @@
 
 - `prisma/schema.prisma` `VelocityAttempt` + 마이그레이션 `20261012120000_velocity_attempt`(손으로 씀 — 배포의 migrate deploy 가 적용).
   `lib/prisma.ts` TIME_FIELDS 에 `velocityAttempt`(시험 계정 시각).
-- 엔진: `analyze-distance.ts` `DistanceReport.why`(shake · few-frames · no-flight · hand-trim · size-slope · implausible · short), 2.3.20.
+- 엔진: `analyze-distance.ts` `DistanceReport.why`(shake · few-frames · no-flight · hand-trim · size-slope · implausible · short), 2.3.22(김민의 2.3.20 · 2.3.21 뒤).
   `velocity-sync.ts sanitizeDistance` · `velocity-analysis.ts analysisOf` 가 why 를 싣는다. 합성 시험에 '못 잰 까닭이 남는다' 확인.
 - 앱 카메라 길: `dual-capture.ts` `onAttempt`(쟀든 못 쟀든, 헛알림 제외) → 측정 화면 `recordAttempt` → `recordVelocityAttempt`(서버).
   세션 저장이 `attemptIds` · 공마다 `attemptId` 로 잇는다. 못 잰 공의 클립은 관리자 보정용 저장일 때만 `uploadAttemptClip`.

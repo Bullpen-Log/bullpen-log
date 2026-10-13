@@ -47,7 +47,8 @@
     "clip:test": "node --import ./scripts/alias-register.mjs scripts/clip-selftest.mts",
     "shoot:plan": "node --env-file=.env --import ./scripts/alias-register.mjs scripts/shoot-plan.mts",
     "shoot:refs": "node --env-file=.env --import ./scripts/alias-register.mjs scripts/shoot-refs.mts",
-    "shoot:outdoor": "node --env-file=.env --import ./scripts/alias-register.mjs scripts/shoot-plan-outdoor.mts"
+    "shoot:outdoor": "node --env-file=.env --import ./scripts/alias-register.mjs scripts/shoot-plan-outdoor.mts",
+    "library:bundle": "node --env-file=.env --import ./scripts/alias-register.mjs scripts/library-bundle.mts"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.9.1",

@@ -89,6 +89,30 @@ export async function saveAppFileToPhone(path: string): Promise<string> {
   return id;
 }
 
+/** 앱이 load · libraryLoad 로 내준 파일을 조각으로 읽어 재생 주소(blob:)로 */
+async function readToBlobUrl(file: string, onProgress: (p: number) => void): Promise<string> {
+  const parts: Uint8Array<ArrayBuffer>[] = [];
+  let offset = 0;
+  try {
+    for (;;) {
+      const chunk = await call<{ data: string; size: number; eof: boolean }>('read', {
+        path: file,
+        offset,
+        length: CHUNK,
+      });
+      const bytes = decodeBase64(chunk.data);
+      parts.push(bytes);
+      offset += bytes.length;
+      onProgress(chunk.size > 0 ? Math.min(1, offset / chunk.size) : 0);
+      if (chunk.eof || bytes.length === 0) break;
+    }
+  } finally {
+    await call('discard', { paths: [file] }).catch(() => undefined);
+  }
+  const type = file.toLowerCase().endsWith('.mov') ? 'video/quicktime' : 'video/mp4';
+  return URL.createObjectURL(new Blob(parts, { type }));
+}
+
 /* 한 번 꺼낸 영상은 화면이 살아 있는 동안 다시 쓴다 */
 const loaded = new Map<string, Promise<string>>();
 
@@ -98,30 +122,96 @@ export function loadPhoneVideo(path: string, onProgress: (p: number) => void = (
   if (hit) return hit;
   const job = (async () => {
     const res = await call<{ path: string; size: number }>('load', { id: phoneAssetId(path) });
-    const parts: Uint8Array<ArrayBuffer>[] = [];
-    let offset = 0;
-    try {
-      for (;;) {
-        const chunk = await call<{ data: string; size: number; eof: boolean }>('read', {
-          path: res.path,
-          offset,
-          length: CHUNK,
-        });
-        const bytes = decodeBase64(chunk.data);
-        parts.push(bytes);
-        offset += bytes.length;
-        onProgress(chunk.size > 0 ? Math.min(1, offset / chunk.size) : 0);
-        if (chunk.eof || bytes.length === 0) break;
-      }
-    } finally {
-      await call('discard', { paths: [res.path] }).catch(() => undefined);
-    }
-    const type = res.path.toLowerCase().endsWith('.mov') ? 'video/quicktime' : 'video/mp4';
-    return URL.createObjectURL(new Blob(parts, { type }));
+    return readToBlobUrl(res.path, onProgress);
   })();
   loaded.set(path, job);
   job.catch(() => loaded.delete(path));
   return job;
+}
+
+/*
+ * ── 운동 · 드릴(라이브러리) 영상 ──
+ * 2026-10-13 김민: "영상을 줄여서 앱 안에 넣는 방안" — 서버 전송 비용을 줄이고 바로 보게. 720p 로 줄인 영상이 앱 안에
+ * 들어 있고(npm run library:bundle), 앱을 낸 뒤 새로 올리거나 고친 영상은 처음 볼 때(또는 LibrarySync 가 미리) 한 번 받아
+ * 폰에 둔다. 저장소 경로 'library/<uuid>.mp4' 의 uuid 가 이름이라, 영상을 고치면 이름이 바뀌어 새것을 받는다.
+ * 웹 · 옛 앱(부품에 이 기능이 없음) · 실패는 예전처럼 서버에서 바로 튼다.
+ */
+
+/** 'library/<uuid>.mp4' → '<uuid>' (LocalVideoPlugin · scripts/library-bundle.mts 와 같은 규칙) */
+export function libraryKey(path: string): string | null {
+  return /^library\/([\w-]{1,64})\.\w+$/.exec(path)?.[1] ?? null;
+}
+
+type LibraryFile = { path: string; size: number; source: 'bundle' | 'cache' };
+
+/** 앱 안 · 폰에 받아 둔 것 — 없으면 null, 옛 앱이면 던진다 */
+async function libraryLocal(key: string): Promise<LibraryFile | null> {
+  try {
+    return await call<LibraryFile>('libraryLoad', { key });
+  } catch (err) {
+    if (err instanceof LocalVideoError && err.code === 'missing') return null;
+    throw err;
+  }
+}
+
+/**
+ * 라이브러리 영상을 폰에서 재생 주소(blob:)로. 폰에 없으면 signedUrl 로 한 번 받아 둔 뒤.
+ * 앱이 아니거나 옛 앱 · 받기 실패면 null — 부른 쪽이 서버 주소로 바로 튼다. 다 쓴 blob 주소는 부른 쪽이 revoke 한다.
+ */
+export async function libraryVideoFromPhone(
+  path: string,
+  signedUrl: () => Promise<string>
+): Promise<string | null> {
+  const key = libraryKey(path);
+  if (!key || !localVideoAvailable()) return null;
+  try {
+    const file =
+      (await libraryLocal(key)) ??
+      (await call<LibraryFile>('libraryFetch', { key, url: await signedUrl() }));
+    return await readToBlobUrl(file.path, () => {});
+  } catch {
+    return null;
+  }
+}
+
+/** 받아 둘 것 고르기 — 앱 안에 영상이 하나도 없으면(영상 없이 구운 앱) 미리 받지 않는다(모두 받으면 수 GB) */
+export async function libraryMissing(paths: string[]): Promise<{ missing: string[]; keep: string[] } | null> {
+  if (!localVideoAvailable()) return null;
+  try {
+    const status = await call<{ bundled: number }>('libraryStatus');
+    if (!status.bundled) return null;
+    const keep = paths.map(libraryKey).filter((k): k is string => k !== null);
+    const missing: string[] = [];
+    for (const p of paths) {
+      const key = libraryKey(p);
+      if (!key) continue;
+      const file = await libraryLocal(key);
+      if (file) await call('discard', { paths: [file.path] }).catch(() => undefined);
+      else missing.push(p);
+    }
+    return { missing, keep };
+  } catch {
+    return null;
+  }
+}
+
+/** 한 영상을 폰에 받아 두기(재생은 안 함) */
+export async function libraryPrefetch(path: string, url: string): Promise<boolean> {
+  const key = libraryKey(path);
+  if (!key) return false;
+  try {
+    const file = await call<LibraryFile>('libraryFetch', { key, url });
+    await call('discard', { paths: [file.path] }).catch(() => undefined);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** 받아 둔 것 중 keep(지금 보이는 영상)에 없는 것 지우기 */
+export async function libraryPrune(keep: string[]): Promise<void> {
+  if (!localVideoAvailable()) return;
+  await call('libraryPrune', { keep }).catch(() => undefined);
 }
 
 /** 이 폰의 앱 안 영상 지우기 — 기록에 붙이기 전에 뺀 것. 앱이 아니면 아무것도 안 한다 */

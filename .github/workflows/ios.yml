@@ -77,6 +77,13 @@ jobs:
           set -o pipefail
           npx cap sync ios 2>&1 | tee "$RUNNER_TEMP/sync.log"
 
+      # 운동 · 드릴 영상(720p)을 앱 안에 — 사이트가 굽기 전용 열쇠로 읽기 주소를 준다(npm run library:bundle 이
+      # 줄여 저장소 library-720/ 에 올린 것). 열쇠가 없거나 못 받으면 영상 없이 굽는다(앱이 볼 때 받아 폰에 둔다).
+      - name: 운동 영상 넣기
+        env:
+          LIBRARY_BUNDLE_TOKEN: ${{ secrets.LIBRARY_BUNDLE_TOKEN }}
+        run: node scripts/fetch-library-videos.mjs
+
       # 빌드 번호는 올릴 때마다 커져야 한다(같거나 작으면 애플이 거절한다). 시각으로 만든다 —
       # 20260930.123045(UTC). 맥북에서 손으로 올릴 때도 같은 모양을 쓰면 겹치지 않는다.
       - name: 빌드 번호 정하기

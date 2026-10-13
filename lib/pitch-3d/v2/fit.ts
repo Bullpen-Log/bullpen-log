@@ -63,8 +63,18 @@ import { byTime, medianStepOf, obsAt, toPoseTrack } from '@/lib/pitch-3d/v2/trac
  */
 
 const ITERATIONS = 24;
-/** 끝에 관찰 당김 없이 다듬기 · 뼈 투영만 되풀이(길이를 굳힌다) */
-const POLISH = 8;
+/**
+ * 시간 다듬기 세기 = SMOOTH_BASE + SMOOTH_SLOPE × (1 − 당김 무게), 1 이 넘으면 1(앞뒤 장면 가운데로). 마커 정답지(2026-10-12 · 15구)로 설정을
+ * 하나씩 바꿔 가며 고르고(홀수 투구로 고르고 짝수 투구로 확인) 둘 다 나아진 것만 남겼다 — 예전 0.1 + 0.9 × (1 − w)² 와 끝 다듬기 8번을
+ * 두고 관절 오차 평균 4.00 → 3.95cm(아래 POLISH 1번 포함). 끝 다듬기의 시간 매끈은 관찰에서 멀어지게만 해서 빼고 뼈 투영만 남겼다.
+ */
+const SMOOTH_BASE = 0.35;
+const SMOOTH_SLOPE = 0.9;
+/**
+ * 끝에 뼈 투영만 한 번 더 — 사슬로 이어진 뼈가 서로 당겨 한 번에 다 안 맞는 몫을 줄인다. 합성 '실제처럼' 뼈 흔들림 1.2 → 0.7%(핵심 합격 1% 밑).
+ * 더 하면 마커 채점이 나빠졌다(8번: 짝수 투구 오차 평균 3.94 → 4.04cm, 스티커 흔들림은 같음) — 관절 모델의 점이 뼈에 꼭 붙어 있지 않아서.
+ */
+const POLISH = 1;
 /** 2D 확신 문턱 — 두 시선 교차 · 한 시선만 · 안 보임 */
 const SEEN = 0.3;
 const SURE = 0.7;
@@ -110,6 +120,19 @@ const PLANT_TO_RELEASE_S = 0.15;
 const CONTACT_EASE = 2;
 /** 이보다 크게 기운 발(발끝으로 선 발)은 평평하게 펴지 않는다(°) */
 const LEVEL_MAX_DEG = 35;
+/**
+ * 다리 들기 골반 — 엉덩이선을 '축발 뒤꿈치 → 발끝 방향 ± 90°'(축발은 투수판과 나란히 서고 골반은 그에 수직)로 이만큼 돌린다.
+ * 마커 정답지(2026-10-12 · 15구, 골반 앞뒤 스티커로 만든 골반 좌우축)에서 엉덩이선은 실제 골반보다 0.75~0.9배만 돌고(관절 모델의
+ * 엉덩이 점 버릇) 다리 들기 동안 위에서 본 돌림 오차가 가운데 14.6° 였다. 0.7 로 섞으면 투구를 하나씩 빼고 맞춰 봐도 4.8°.
+ * 넣은 뒤(엔진 전체): 골반 돌림 오차 14.2 → 5.0° · 상하체 분리 오차 12.3 → 4.7°, 관절 오차 · 스티커 흔들림은 그대로이거나 조금 나음.
+ * 내딛기부터는 어떤 단서(허벅지 · 무릎 · 어깨 · 귀)도 엉덩이선보다 낫지 않아(11°) 니업 뒤 PELVIS_FOOT_FADE 동안 줄여 끈다.
+ */
+const PELVIS_FOOT_PULL = 0.7;
+/** 니업 → 착지 장면 수의 비 — 이만큼 동안 섞는 몫을 0 으로(한 장면에 골반이 돌지 않게) */
+const PELVIS_FOOT_FADE = 0.25;
+/** 다리 점 튐 거르기 — 햄펠(앞뒤 장면 수 · MAD 배) · 가우스 폭(장면) */
+const LEG_HAMPEL = [4, 2] as const;
+const LEG_SIGMA = 1.5;
 /** 몸통 · 머리 점 다듬기 폭 — 착지 → 릴리스 장면 수의 비(그 구간 ≈ 0.17초라 0.06 ≈ 10ms) */
 const TRUNK_SIGMA = 0.06;
 const TRUNK_JOINTS = [
@@ -259,6 +282,8 @@ const BONES: Bone[] = [
   { a: V2J.rSh, b: V2J.rHip, key: 'trunkSide', def: 0.29, soft: 0.08 },
 ];
 const RIGID = BONES.filter((b) => !b.soft);
+/** 골반 폭 ÷ 어깨 폭 상한(관절 모델의 엉덩이 · 어깨 점 기준 — 사람 대부분 0.6~0.7, 마커 촬영 0.645) */
+const HIP_TO_SHOULDER_MAX = 0.72;
 
 /** 부모(채우기 차례 — 부모가 먼저 온다) */
 const FILL_ORDER: number[] = [
@@ -550,6 +575,14 @@ function fitOnce(raw: V2Input): {
       const arr = samples.get(b.key) ?? [];
       lengthOf.set(b.key, arr.length >= 5 ? median(arr) : b.def * H);
     }
+    /*
+     * 골반 폭 상한 — 어깨 폭의 HIP_TO_SHOULDER_MAX 배(2026-10-13 마커 채점). 옆 카메라에서 두 엉덩이가 앞뒤로 겹쳐 그 방향(= 골반 폭 방향)
+     * 깊이 잡음이 커서, 잡음 섞인 거리의 중앙값이 늘 길게 나왔다 — 실제 투구 15개에서 엔진 골반/어깨 0.82(네 대 교차 0.645 ± 0.015),
+     * 골반 폭이 22% 넓었다. 어깨는 두 영상에서 잘 갈려 거의 맞는다(0.99).
+     */
+    const sh = lengthOf.get('shoulders');
+    const hp = lengthOf.get('hips');
+    if (sh != null && hp != null) lengthOf.set('hips', Math.min(hp, HIP_TO_SHOULDER_MAX * sh));
   }
   const L = (b: Bone) => lengthOf.get(b.key)!;
   const boneLenByChild = new Map<number, number>();
@@ -925,6 +958,57 @@ function fitOnce(raw: V2Input): {
         );
         target.forEach((fr, k) => (fr[j][d] = ys[k]));
       }
+    /*
+     * 다리(무릎 · 발목 · 뒤꿈치 · 발끝)도 튄 값을 걸러 고르게 — 잘 안 보이는 앞다리가 틀 채움 · 한 시선 자리 · 관찰 사이를 오가며 2~3장면씩 튀었다
+     * (실험실 샘플 3 좌투 앞다리 · 샘플 10 무릎: 장면 사이 가속 p95 키의 1.9 · 7.0% → 0.3 · 1.1%, 2026-10-13 사용자 "오른다리가 떨린다").
+     * 마커 정답지 관절 오차는 그대로(3.95 → 3.96). 땅에 닿은 발은 아래에서 따로 묶는다.
+     */
+    for (const j of [V2J.lKn, V2J.rKn, V2J.lAn, V2J.rAn, V2J.lHe, V2J.rHe, V2J.lTo, V2J.rTo])
+      for (let d = 0; d < 3; d++) {
+        const ys = gaussSmooth(
+          hampel(
+            target.map((fr) => fr[j][d]),
+            LEG_HAMPEL[0],
+            LEG_HAMPEL[1]
+          ),
+          LEG_SIGMA
+        );
+        target.forEach((fr, k) => (fr[j][d] = ys[k]));
+      }
+  }
+
+  /* 다리 들기 골반 — 엉덩이선을 축발 방향에 수직인 쪽으로 PELVIS_FOOT_PULL 만큼(위 축 둘레, 축발 쪽 엉덩이 기준). 맞추기 전 목표에 넣어 뼈 길이는 그대로 */
+  {
+    const ku = core.evIdx.kneeUp;
+    const fp = core.evIdx.footPlant;
+    if (ku != null && ku >= 2 && fp > ku) {
+      const [He, To] = core.hand === 'L' ? [V2J.lHe, V2J.lTo] : [V2J.rHe, V2J.rTo];
+      const fade = Math.max(2, Math.round(PELVIS_FOOT_FADE * (fp - ku)));
+      /* 발 방향은 장면 사이로 고른다(뒤꿈치 · 발끝 점이 흔들린다) */
+      const raw = target.map((fr) => reject(sub(fr[To], fr[He]), U));
+      const sm = [0, 1, 2].map((d) => gaussSmooth(raw.map((v) => v[d]), 2));
+      for (let k = 0; k <= Math.min(n - 1, ku + fade); k++) {
+        const w = k <= ku ? 1 : 1 - (k - ku) / (fade + 1);
+        const fd: Vec3 = [sm[0][k], sm[1][k], sm[2][k]];
+        if (dataW[k][He] <= 0 || dataW[k][To] <= 0 || norm(fd) < 0.02 * H) continue;
+        const lh = target[k][V2J.lHip];
+        const rh = target[k][V2J.rHip];
+        const hl = reject(sub(lh, rh), U);
+        if (norm(hl) < 1e-6) continue;
+        /* 발에 수직인 두 쪽 중 지금 엉덩이선에 가까운 쪽(좌우 부호를 따지지 않아도 된다) */
+        let c = normalize(cross(U, fd));
+        if (dot(c, hl) < 0) c = scale(c, -1);
+        const h1 = normalize(hl);
+        const th = Math.atan2(dot(cross(h1, c), U), dot(h1, c));
+        const Rm = rodrigues(scale(U, PELVIS_FOOT_PULL * w * th));
+        /* 축발 쪽 엉덩이를 축으로 앞쪽 엉덩이만 돌린다 — 가운데를 축으로 돌리면 축발 쪽 엉덩이가 밀려 네 대 교차와 4.4 → 8.4cm 벌어졌다 */
+        const mid = core.hand === 'L' ? lh : rh;
+        target[k][V2J.lHip] = add(mid, mulV(Rm, sub(lh, mid)));
+        target[k][V2J.rHip] = add(mid, mulV(Rm, sub(rh, mid)));
+        X[k][V2J.lHip] = [...target[k][V2J.lHip]] as Vec3;
+        X[k][V2J.rHip] = [...target[k][V2J.rHip]] as Vec3;
+      }
+    }
   }
 
   /*
@@ -1091,8 +1175,8 @@ function fitOnce(raw: V2Input): {
 
   /*
    * ── 자리 기반 맞추기 ──
-   * 되풀이마다 관찰로 당김 → 시간 매끈 → 뼈 길이 투영(앞 · 뒤 두 번 훑음) 차례 — 뼈 투영이 마지막이라 매 되풀이 끝에 길이가 맞고,
-   * 끝에 관찰 당김 없는 다듬기 몇 번으로 길이를 굳힌다(처음엔 당김이 마지막이어서 뼈 흔들림이 6% 남았다, 합성).
+   * 되풀이마다 관찰로 당김 → 시간 매끈 → 뼈 길이 투영(앞 · 뒤 두 번 훑음) 차례 — 뼈 투영이 마지막이라 매 되풀이 끝에 길이가 맞는다
+   * (처음엔 당김이 마지막이어서 뼈 흔들림이 6% 남았다, 합성).
    */
   const projectBones = (k: number) => {
     const fr = X[k];
@@ -1123,12 +1207,11 @@ function fitOnce(raw: V2Input): {
     for (const b of BONES) one(b);
     for (let i = BONES.length - 1; i >= 0; i--) one(BONES[i]);
   };
-  const smoothTime = (gain: number) => {
+  const smoothTime = () => {
     for (let j = 0; j < N_V2_JOINTS; j++) {
       for (let k = 1; k < n - 1; k++) {
         if (pinned[k][j]) continue;
-        const w = pullW[k][j];
-        const s = gain * (0.1 + 0.9 * (1 - w) * (1 - w));
+        const s = Math.min(1, SMOOTH_BASE + SMOOTH_SLOPE * (1 - pullW[k][j]));
         const mid = scale(add(X[k - 1][j], X[k + 1][j]), 0.5);
         X[k][j] = add(X[k][j], scale(sub(mid, X[k][j]), s));
       }
@@ -1142,13 +1225,10 @@ function fitOnce(raw: V2Input): {
         X[k][j] = add(X[k][j], scale(sub(target[k][j], X[k][j]), 0.5 * w));
       }
     }
-    smoothTime(1);
+    smoothTime();
     for (let k = 0; k < n; k++) projectBones(k);
   }
-  for (let it = 0; it < POLISH; it++) {
-    smoothTime(0.5);
-    for (let k = 0; k < n; k++) projectBones(k);
-  }
+  for (let it = 0; it < POLISH; it++) for (let k = 0; k < n; k++) projectBones(k);
   fixHingeFlips(X, U);
 
   /* ── 확신 · 다시 비춤 ── */

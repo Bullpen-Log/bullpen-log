@@ -1082,7 +1082,7 @@ export function AttemptsPanel({
           시도 {counted.length}번 · 잼 {okCount} · 못 잼 {counted.length - okCount}
         </p>
         <p className="text-xs leading-relaxed text-muted">
-          앱 카메라의 공 알림마다 남긴 기록(2.3.20 부터). 못 잰 공은 스피드건 값을 여기 적어야 구간 표에 들어가요.
+          앱 카메라의 공 알림마다 남긴 기록(2.3.22 부터). 못 잰 공은 스피드건 값을 여기 적어야 구간 표에 들어가요.
         </p>
       </div>
       {rows.length > 0 && (

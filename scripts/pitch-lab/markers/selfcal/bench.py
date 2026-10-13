@@ -35,9 +35,38 @@ PARTS = {"어깨": ["lSh", "rSh"], "팔꿈치": ["lEl", "rEl"], "손목": ["lWr"
          "발목": ["lAn", "rAn"], "발": ["lHe", "rHe", "lTo", "rTo"], "머리": ["lEar", "rEar"]}
 
 
+def avg2d(kp, sc, kpf, scf):
+    """두 번 본 2D 를 확신 무게로 평균 — 두 자리가 사람 크기의 8% 넘게 갈리면 확신 높은 쪽만"""
+    w0, w1 = np.clip(sc, 1e-3, None), np.clip(scf, 1e-3, None)
+    out = (kp * w0[..., None] + kpf * w1[..., None]) / (w0 + w1)[..., None]
+    size = np.ptp(kp[:, :17, 1], axis=1)[:, None]
+    far = np.linalg.norm(kp - kpf, axis=2) > 0.08 * np.maximum(size, 1)
+    pick = np.where((scf > sc)[..., None], kpf, kp)
+    out[far] = pick[far]
+    return out, np.where(far, np.maximum(sc, scf), (sc + scf) / 2)
+
+
+def fuse_wrist(kp, sc):
+    """손목 = 몸 손목(9 · 10)과 손 뿌리(91 · 112)의 확신 무게 평균 — 둘이 사람 크기의 5% 넘게 갈리면 확신 높은 쪽"""
+    kp, sc = kp.copy(), sc.copy()
+    size = np.maximum(np.ptp(kp[:, :17, 1], axis=1), 1)
+    for b, h in ((9, 91), (10, 112)):
+        wb, wh = np.clip(sc[:, b], 1e-3, None), np.clip(sc[:, h], 1e-3, None)
+        avg = (kp[:, b] * wb[:, None] + kp[:, h] * wh[:, None]) / (wb + wh)[:, None]
+        far = np.linalg.norm(kp[:, b] - kp[:, h], axis=1) > 0.05 * size
+        kp[:, b] = np.where(far[:, None], np.where((wh > wb)[:, None], kp[:, h], kp[:, b]), avg)
+        sc[:, b] = np.where(far, np.maximum(sc[:, b], sc[:, h]), (sc[:, b] + sc[:, h]) / 2)
+    return kp, sc
+
+
 def track_of(p, c, fps=120.0):
-    z = np.load(os.path.join(WORK, "kp", f"투구{p:02d}_c{c}.npz"))
-    t, kp, sc = z["t"], z["kp"], z["sc"]
+    flip = os.environ.get("FLIP") == "1"  # 좌우로 뒤집어 한 번 더 본 2D 와 평균(pose_modal.py --flip → work/kpf)
+    z = np.load(os.path.join(WORK, "kpf" if flip else os.environ.get("KP_DIR", "kp"), f"투구{p:02d}_c{c}.npz"))
+    t, kp, sc = z["t"], z["kp"].astype(float), z["sc"].astype(float)
+    if flip:
+        kp, sc = avg2d(kp, sc, z["kpf"], z["scf"])
+    if os.environ.get("WFUSE") == "1":
+        kp, sc = fuse_wrist(kp, sc)
     W, H = [int(v) for v in z["wh"]]
     # 서버는 구간을 min(120, 영상 fps)로 푼다 — 240 영상은 둘에 하나. 시각은 원본 트랙 그대로
     keep, last = [], -1e9
@@ -147,7 +176,9 @@ def cmd_score(ps, cal_path, world_path, name):
         if os.environ.get("K4") != "robust":
             # 기본은 recon 의 K4(네 대 모두 같은 무게). 튼튼한 K4R 은 스티커와 비교하면 더 나빴다(거리 흔들림 1.21 → 1.52cm, 위팔 방향
             # 7.2 → 15°) — 시선을 빼면 둘만 남는 장면이 늘어 더 흔들린다. 진단용으로만 K4=robust.
-            KR = {n: rec[f"K_{kn}_{sd}"] for n, (kn, sd) in K4_OF.items()}
+            # K4_REC: 다른 2D 모델로 만든 K4(같은 tq) — 그 모델의 엔진 결과를 같은 모델의 네 대 교차와 견줄 때
+            kr = np.load(os.path.join(WORK, os.environ["K4_REC"], f"p{p:02d}.npz")) if os.environ.get("K4_REC") else rec
+            KR = {n: kr[f"K_{kn}_{sd}"] for n, (kn, sd) in K4_OF.items()}
         elif os.path.exists(cache):
             KR = {k: v for k, v in np.load(cache).items()}
         else:

@@ -49,7 +49,16 @@ console.log(`3/3 채점(성공 ${ok.length}/16: ${ok.join(',')})`);
 const report = py('score', ok.join(','), 'work/cal16b.json', 'work/world.json', 'now');
 console.log(report.split('\n').filter((l) => !l.startsWith('objc')).join('\n'));
 const now = JSON.parse(readFileSync(join(SESSION, 'work', 'bench', 'score-now.json'), 'utf8')).summary;
-const keys = ['k4_median_cm', 'k4_mean_cm', 'k4_p90_cm', 'wrist_accel_p90_cm', 'mk_std_cm'];
+/* 골반 돌림 · 상하체 분리(골반 앞뒤 스티커 정답 — pelvis_score.py) */
+const pel = execFileSync(PY, [join(HERE, 'pelvis_score.py'), ok.join(',')], { cwd: SESSION, stdio: ['ignore', 'pipe', 'pipe'] })
+  .toString()
+  .split('\n')
+  .filter((l) => !l.startsWith('objc'));
+console.log(pel.filter((l) => !l.startsWith('{')).join('\n'));
+const ps = JSON.parse(pel.filter((l) => l.startsWith('{')).pop() ?? '{}');
+now.pelvis_med_deg = ps.pelvis_med;
+now.sep_med_deg = ps.sep_med;
+const keys = ['k4_median_cm', 'k4_mean_cm', 'k4_p90_cm', 'wrist_accel_p90_cm', 'mk_std_cm', 'pelvis_med_deg', 'sep_med_deg'];
 if (process.argv.includes('--save')) {
   writeFileSync(BASE, JSON.stringify({ ...now, savedAt: new Date().toISOString() }, null, 1) + '\n');
   console.log('새 기준 저장', BASE);

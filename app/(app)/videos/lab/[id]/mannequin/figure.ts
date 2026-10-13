@@ -9,9 +9,12 @@ import {
   loftIndices,
   loftVertexCount,
   shoeAxes,
+  STRIPE_VERTS,
+  stripeIndices,
   torsoIndices,
   torsoModel,
   writeLoft,
+  writeStripes,
   writeTorso,
 } from '@/lib/pitch-3d/v2/mannequin-loft';
 import {
@@ -171,6 +174,9 @@ export function createFigure(THREE: ThreeNS, opts: { heightM: number; hand: 'R' 
   const { pants: pantsIdx, shirt: shirtIdx } = torsoIndices();
   const pants = loftFrom(new Float32Array(TORSO_PANTS_VERTS * 3), pantsIdx, M.pants);
   const shirt = loftFrom(new Float32Array(TORSO_SHIRT_VERTS * 3), shirtIdx, M.shirt);
+  /* 꼬임 줄 넷(앞 · 양옆 · 뒤) — 몸통 고리를 따라 돌아 상하체 분리가 꽈배기처럼 보인다 */
+  const twist = loftFrom(new Float32Array(STRIPE_VERTS * 3), stripeIndices(), M.twist);
+  twist.mesh.castShadow = false;
   const crotch = ell(M.pants);
   /*
    * 벨트(둥근 고리 · 버클 · 고리)는 뺐다(2026-10-12 김민: "허리에 있는 저 검정색 링은 왜 있는거야") — 딱딱한 고리가 골반 → 가슴 꼬임 구간
@@ -239,6 +245,8 @@ export function createFigure(THREE: ThreeNS, opts: { heightM: number; hand: 'R' 
     writeTorso(T, pants.pos, shirt.pos);
     flush(pants);
     flush(shirt);
+    writeStripes(T, twist.pos, k);
+    flush(twist);
     placeEll(crotch, add(T.crotch, scale(pf.ya, 0.04 * k)), T.hw + 0.02 * k, 0.05 * k, 0.08 * k, pf.q);
     const at = (t: number) => {
       const R = T.ring(t);

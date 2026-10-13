@@ -11,3 +11,7 @@ capacitor-cordova-ios-plugins
 # Generated Config files
 App/App/capacitor.config.json
 App/App/config.xml
+
+# 앱 안 운동 영상(npm run library:bundle 이 만듦 — 크고 공개 저장소라 올리지 않는다)
+App/App/LibraryVideos/*.mp4
+App/App/LibraryVideos/.tmp-*

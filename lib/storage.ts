@@ -396,3 +396,36 @@ export async function createLibraryUploadTarget(
 export function isLibraryPath(path: string) {
   return path.startsWith(`${LIBRARY_PREFIX}/`) && !path.includes('..');
 }
+
+/**
+ * 720p 로 줄인 라이브러리 영상 — 'library/<uuid>.x' 의 짝 'library-720/<uuid>.mp4'. npm run library:bundle 이 올린다(원본은 그대로).
+ * 아이폰 앱 안에 넣는 영상과 같은 파일이고, 앱 굽기(/api/library/bundle) · 앱이 새 영상을 받을 때 · 운동 영상 재생에 쓴다
+ * (2026-10-13 김민 — 서버 전송량을 줄이려고). 촬영 편집기는 원본을 그대로 쓴다.
+ */
+export const LIBRARY_SMALL_PREFIX = 'library-720';
+
+export function smallLibraryPath(path: string): string | null {
+  const m = /^library\/([\w-]{1,64})\.\w+$/.exec(path);
+  return m ? `${LIBRARY_SMALL_PREFIX}/${m[1]}.mp4` : null;
+}
+
+/* 저장소에 있는 줄인 판 목록 — 10분 붙들어 둔다(새로 줄여 올린 것은 그 뒤에 쓰인다) */
+let smallCopies: { at: number; set: Promise<Set<string>> } | null = null;
+
+export function smallLibraryCopies(): Promise<Set<string>> {
+  if (smallCopies && Date.now() - smallCopies.at < 10 * 60 * 1000) return smallCopies.set;
+  const set = (async () => {
+    const found = new Set<string>();
+    const bucket = getClient().storage.from(VIDEO_BUCKET);
+    for (let offset = 0; ; offset += 1000) {
+      const { data, error } = await bucket.list(LIBRARY_SMALL_PREFIX, { limit: 1000, offset });
+      if (error || !data) throw new Error(error?.message ?? '줄인 영상 목록을 못 읽었어요');
+      for (const f of data) found.add(`${LIBRARY_SMALL_PREFIX}/${f.name}`);
+      if (data.length < 1000) break;
+    }
+    return found;
+  })();
+  smallCopies = { at: Date.now(), set };
+  set.catch(() => (smallCopies = null));
+  return set;
+}

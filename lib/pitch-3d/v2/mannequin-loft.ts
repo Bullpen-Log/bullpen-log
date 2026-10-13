@@ -312,6 +312,62 @@ export function writeTorso(model: TorsoModel, pants: Float32Array, shirt: Float3
   }
 }
 
+/**
+ * 꼬임 줄 넷 — 몸통 겉면의 앞 · 오른 옆 · 뒤 · 왼 옆을 사타구니 위부터 어깨까지 따라가는 가는 띠(사용자 2026-10-13: 상하체 분리 때 몸통이
+ * 꽈배기처럼 꼬이는 게 보이게). 고리 틀이 골반 → 마디 → 가슴으로 돌아가므로 줄도 잰 만큼만 돌아간다(부풀리지 않는다).
+ * 띠마다 고리 N+1 개 × 정점 둘(겉면 접선 방향으로 ±반폭, 바깥으로 lift 만큼 띄움).
+ */
+export const STRIPE = { from: 0.04, to: 0.9, N: 40, w: 0.02, lift: 0.004 } as const;
+export const STRIPE_VERTS = 4 * (STRIPE.N + 1) * 2;
+export function stripeIndices(): number[] {
+  const out: number[] = [];
+  for (let s = 0; s < 4; s++)
+    for (let r = 0; r < STRIPE.N; r++) {
+      const a = (s * (STRIPE.N + 1) + r) * 2;
+      out.push(a, a + 1, a + 2, a + 1, a + 3, a + 2);
+    }
+  return out;
+}
+/** 꼬임 줄 정점 쓰기 — writeRing 과 같은 초타원 위의 각(앞 π/2 · 오른 옆 0 · 뒤 3π/2 · 왼 옆 π) */
+export function writeStripes(model: TorsoModel, out: Float32Array, k: number) {
+  const { from, to, N, w, lift } = STRIPE;
+  for (let r = 0; r <= N; r++) {
+    const t = from + ((to - from) * r) / N;
+    const { c, X, Fw } = model.ring(t);
+    const W = model.width(t);
+    const up = model.front(t);
+    const dn = model.back(t);
+    const e = 2 / torsoN(t);
+    const at = (a: number): [number, number] => {
+      const ca = Math.cos(a);
+      const sa = Math.sin(a);
+      return [W * Math.sign(ca) * Math.abs(ca) ** e, (sa > 0 ? up : dn) * Math.sign(sa) * Math.abs(sa) ** e];
+    };
+    [Math.PI / 2, 0, (3 * Math.PI) / 2, Math.PI].forEach((a, s) => {
+      const p = at(a);
+      const p1 = at(a + 0.01);
+      const p0 = at(a - 0.01);
+      const tl = Math.hypot(p1[0] - p0[0], p1[1] - p0[1]) || 1;
+      const tx = (p1[0] - p0[0]) / tl;
+      const ty = (p1[1] - p0[1]) / tl;
+      /* 바깥 = 접선을 고리 평면에서 돌린 쪽(초타원은 볼록 — 가운데에서 먼 쪽) */
+      let nx = ty;
+      let ny = -tx;
+      if (nx * p[0] + ny * p[1] < 0) {
+        nx = -nx;
+        ny = -ny;
+      }
+      for (let side = 0; side < 2; side++) {
+        const h = (side ? 1 : -1) * w * 0.5 * k;
+        const x = p[0] + tx * h + nx * lift * k;
+        const y = p[1] + ty * h + ny * lift * k;
+        const o = ((s * (N + 1) + r) * 2 + side) * 3;
+        for (let d = 0; d < 3; d++) out[o + d] = c[d] + X[d] * x + Fw[d] * y;
+      }
+    });
+  }
+}
+
 /** 신발 — 예시 shoe 의 틀: fx 발 축 · U 위 · X 옆, 시작점 s0(뒤꿈치 뒤 2.5%), 가운데 선 P(t) */
 export function shoeAxes(heel: Vec3, toe: Vec3, up0: Vec3, k: number) {
   const fx = normalize(sub(toe, heel));

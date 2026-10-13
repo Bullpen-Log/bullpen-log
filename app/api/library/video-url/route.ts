@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/dal';
-import { createPlaybackUrls, isLibraryPath } from '@/lib/storage';
+import { createPlaybackUrls, isLibraryPath, smallLibraryCopies, smallLibraryPath } from '@/lib/storage';
 import { libraryVideoPaths } from '@/lib/library-cache';
 
 /** 한 번에 받아갈 수 있는 영상 수. */
@@ -20,7 +20,7 @@ export async function POST(req: Request) {
   }
 
   try {
-    const { paths } = await req.json();
+    const { paths, small } = await req.json();
 
     if (!Array.isArray(paths) || paths.length === 0) {
       return NextResponse.json({ urls: {} });
@@ -42,6 +42,22 @@ export async function POST(req: Request) {
     const registered = await libraryVideoPaths(requested);
     const allowed = requested.filter((p) => registered.has(p));
     if (allowed.length === 0) return NextResponse.json({ urls: {} });
+
+    /*
+     * small: 720p 로 줄인 판이 있으면 그것을(재생 · 아이폰 앱이 받아 둘 때 — 서버 전송량이 1/3). 없거나 목록을 못 읽으면 원본.
+     * 촬영 편집기 · 썸네일 고치기는 small 없이 원본을 받는다.
+     */
+    if (small === true) {
+      const copies = await smallLibraryCopies().catch(() => new Set<string>());
+      const pick = new Map(allowed.map((p) => {
+        const s = smallLibraryPath(p);
+        return [p, s && copies.has(s) ? s : p] as const;
+      }));
+      const signed = await createPlaybackUrls([...new Set(pick.values())]);
+      const urls: Record<string, string> = {};
+      for (const [p, s] of pick) if (signed[s]) urls[p] = signed[s];
+      return NextResponse.json({ urls });
+    }
 
     return NextResponse.json({ urls: await createPlaybackUrls(allowed) });
   } catch (error) {

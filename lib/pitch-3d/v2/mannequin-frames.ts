@@ -1,5 +1,6 @@
 import { add, cross, dot, normalize, scale, sub, type Vec3 } from '@/lib/pitch-3d/linalg';
 import type { MannequinJoints, MannequinTrack } from '@/lib/pitch-3d/v2/mannequin-prep';
+import { RULE_BEND } from '@/lib/pitch-3d/v2/trunk';
 
 /**
  * 데생 인형 — 장면마다 미리 셈해 두는 '틀'(설계 docs/designs/pitch-3d-mannequin.md §6, 2026-10-11 금윤호). 순수 — three 없이 화면
@@ -168,8 +169,15 @@ function trunkFrames(J: MannequinJoints): { pelvis: Frame; chest: Frame } {
   const hm = mid3(J.rh, J.lh);
   const tUp = normalize(sub(J.td, hm));
   const thUp = normalize(add(normalize(sub(J.rh, J.rk)), normalize(sub(J.lh, J.lk))));
-  const pelvis = frame(sub(J.rh, J.lh), add(scale(tUp, 0.6), scale(thUp, 0.4)));
-  const chest = frame(sub(J.sh, J.gs), sub(J.tp, J.td));
+  const pUp = normalize(add(scale(tUp, 0.6), scale(thUp, 0.4)));
+  const pelvis = frame(sub(J.rh, J.lh), pUp);
+  /*
+   * 가슴 위 방향 = 몸통 곡선(trunk.ts 규칙: 골반 위 방향으로 RULE_BEND 만큼 나간 뒤 어깨로 휘는 2차 곡선)의 어깨 쪽 접선 — 골반보다 몸통이 앞 · 옆으로
+   * 더 기울면 가슴도 그만큼 더 숙여 흉추가 C 로 휜다. 예전엔 엉덩이 → 어깨 직선이라 곡선이 어깨 밑에서 직선으로 꺾여 돌아왔다(릴리스 20° → 8°, 2026-10-13).
+   * 귀 방향은 안 쓴다 — 릴리스에서 머리는 과녁을 보려고 서 있어 몸통 축보다 22~43° 뒤로 누워 가슴을 거꾸로 젖힌다.
+   */
+  const shm = mid3(J.sh, J.gs);
+  const chest = frame(sub(J.sh, J.gs), sub(shm, add(hm, scale(pUp, Math.hypot(...sub(shm, hm)) * RULE_BEND))));
   return { pelvis, chest };
 }
 
