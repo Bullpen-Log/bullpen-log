@@ -6,6 +6,7 @@
  * 분류할 때 묶음마다 같게 넣었다(scripts/mechanics-classify-2026-10-04.json).
  */
 import type { CachedGuide } from '@/lib/library-cache';
+import { DRILL_STAGE_NAMES } from '@/lib/exercise-meta';
 import { referenceThumbUrl } from '@/lib/reference-video';
 
 /** 같은 동작의 도구 하나 — 야구공 · 작은 메디신볼 · 큰 메디신볼 … */
@@ -93,4 +94,20 @@ export function groupDrills(
   };
   for (const d of byTitle.values()) d.variants.sort((a, b) => rank(a.tool) - rank(b.tool));
   return [...byTitle.values()];
+}
+
+/** 3D 분석 '메커니즘 점검' 카드가 고칠 요소마다 보여 줄 드릴 — 쉬운 단계부터, 같은 단계면 그 요소가 주 요소인 동작 먼저 */
+export type DrillPick = { title: string; stage: string | null };
+
+export function drillPicksFor(drills: MechanicsDrillView[], element: string, n = 3): { count: number; items: DrillPick[] } {
+  const order: readonly string[] = DRILL_STAGE_NAMES;
+  const stageRank = (s: string | null) => (s && order.includes(s) ? order.indexOf(s) : order.length);
+  const mine = drills.filter((d) => d.focusPoints.includes(element));
+  const sorted = [...mine].sort(
+    (a, b) =>
+      stageRank(a.stage) - stageRank(b.stage) ||
+      Number(a.focusPoints[0] !== element) - Number(b.focusPoints[0] !== element) ||
+      a.title.localeCompare(b.title, 'ko')
+  );
+  return { count: mine.length, items: sorted.slice(0, n).map((d) => ({ title: d.title, stage: d.stage })) };
 }

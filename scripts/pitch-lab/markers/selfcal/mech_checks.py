@@ -66,9 +66,9 @@ for p in range(2, 17):
     es = wrap(yaw(Eg["lSh"] - Eg["rSh"]) - yaw(Eg["lHip"] - Eg["rHip"]))
     pt = np.array([PS.pelvis_yaw(tpl, {nm: S[nm][k] for nm in PS.PEL}) for k in range(n)])
     ts = wrap(yaw(K["lSh"] - K["rSh"]) - pt)
-    sg = -1 if np.nanmedian(es[ku:fp + 1]) < 0 else 1
+    sg = -1 if r["hand"] == "R" else 1  # 손으로 부호 — 골반이 더 열린 만큼 = +, 세상 좌표 옆 축이 왼쪽이라 우투가 −(가운데값으로 정하면 0 근처 투구에서 뒤집힌다)
     es, ts = es * sg, ts * sg
-    win = range(ku, rl + 1)
+    win = range(max(0, fp - int(round(0.150 / dt))), rl + 1)  # 착지 150ms 전 ~ 릴리스(sep_timing.py '좁힘' — 니업부터면 다리 들 때 평평한 투구가 튄다)
     cov = np.mean([not np.isnan(ts[k]) for k in win])
     ke = max(win, key=lambda k: es[k])
     put("최대 분리 시점(착지 기준 ms) · 엔진 혼자", p, (ke - fp) * dt * 1000, (ke - fp) * dt * 1000)

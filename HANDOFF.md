@@ -11,14 +11,19 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 ---
 
-## 데스크톱 Claude 에게 — 2026-10-13 · 김민(Claude, 맥북) — 메커니즘 점검 넷을 3D 투구 분석에 넣는 일 이어서
+## 금윤호 · 김민(맥북)에게 — 2026-10-13 · 김민(Claude, 데스크톱) — 3D 결과 화면에 '메커니즘 점검' 카드(드리프트 · 상하체 분리 · 앞다리 버티기 → 드릴)
 
-받은 뒤 할 일 없음(DB · 패키지 그대로). 김민: "지금 하던 메커니즘 분석을 투구 분석에 접목하는 일을 데스크톱에서 이어서".
-- **다 적어 둔 곳**: `docs/designs/pitch-mechanics-checks.md` — 드리프트 · 착지 골반 수평 · 최대 분리 시점 · 리드레그 블록의 공개 자료 정리,
-  마커 15구로 잰 엔진 정확도(드리프트 ✅ · 블록 🟡 · 분리 시점 🟡 · 골반 수평 ❌), 김민의 블록 질문에 대한 답(주 지표 = 골반 감속), 다음 할 것 다섯.
-- **스크립트**: `scripts/pitch-lab/markers/selfcal/mech_checks.py` · `sep_timing.py` · `metric_score.py`(마커 세션 폴더에서 돈다 — 자료는 맥북
-  `~/bullpen-marker-lab/2026-10-12`. 데스크톱에 정답지 자료가 없으면 맥북에서 돌리거나 옮겨 와야 한다).
-- 다음 첫 일: 분리 시점 찾는 구간 좁히기 → 점검 넷의 순수 계산(`lib/pitch-3d/`) → '개선할 점' 카드 + 드릴(focusPoints) 잇기. 시작 전에 김민에게 단계표를 보일 것.
+받은 뒤 할 일 없음(DB · 패키지 그대로). **금윤호 영역(3D 엔진 · 결과 화면)을 고쳤다** — 엔진 계산 · 인형은 안 건드림, 결과 화면에 카드 하나를 더했다.
+- 새 순수 계산 둘: `lib/pitch-3d/v2/mech-checks.ts`(엔진 결과 → 드리프트 · 착지 골반 수평 · 최대 분리 시점 · 블록, 판정 없음) ·
+  `lib/pitch-3d/v2/mech-judge.ts`(좋아요 · 보통 · 고칠 점 · 판정 안 함, 문턱 상수는 그 파일 머리). 시험 `pitch3d:v2-test` 245 → 259.
+- 화면: `app/(app)/videos/lab/[id]/mech-card.tsx`(새) · `lab-detail.tsx`(오른쪽 열 '숫자' 위에 카드) · `page.tsx`(요소별 드릴을 서버에서 넘김) ·
+  `lib/mechanics/drills.ts` `drillPicksFor`. 누르면 '그 순간 보기' · 쉬운 드릴 셋 · 요소별 드릴(`/training?view=mechanics&tab=elements&el=…`)로.
+- 분리 부호는 **던지는 손으로**(골반이 어깨보다 더 열린 만큼 = +). 맥북 파이썬 셋(`mech_checks.py` · `sep_timing.py` · 새 `mech_truth.py`)도 바꿨다 —
+  세상 좌표 옆 축이 왼쪽이라 우투가 −. 엔진 숫자(1단계 36 · 48ms)는 그대로.
+- 근거 · 숫자 · 우리 가정 문턱 셋(분리 ±50ms · 골반 감속 70% · 무릎 15°)은 `docs/designs/pitch-mechanics-checks.md` 3절 1~4번. 마커 15구에서 앱이 잘못 낸
+  '고칠 점' 0, 판정이 정답과 같은 구 11~12/15. 화면은 임시 경로로만 봤다(로그인 실제 샘플 · '고칠 점' 뜨는 화면은 아직).
+- 맥북: 데스크톱에서도 정답지가 다시 돌게 됐다(`cal16b_mac.json` · `world_shank42.json` → `labels_all.py` → `bench.py tracks` → `mocap-fit.mts` →
+  `mech_truth.py` → `mech-score.mts`). 남은 것: 두 번째 촬영 때 골반 앞 스티커가 착지 ~ 릴리스에 보이게(문서 5번).
 
 ## 김민에게 — 2026-10-13 · 금윤호(Claude) — 구속 앱 카메라: 셔터 상한 1/500 · 되면 120fps(엔진 2.4.2) — 받으면 TestFlight 빌드
 
