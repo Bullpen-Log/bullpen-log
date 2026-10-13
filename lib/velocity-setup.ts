@@ -82,16 +82,15 @@ export const RELEASE_DIST_MAX = 40;
 export const TARGET_DIST_MIN = 5;
 export const TARGET_DIST_MAX = 40;
 
+/*
+ * 고를 수 있는 자리는 투수 뒤 하나 — 포수 뒤는 엔진이 늘 믿음 '낮음'으로 매겨, 믿음 '높음'만 기록하게 된 뒤(2026-10-13 김민)로는 모든 공이
+ * 측정 불가였다. 타입 · 옛 세션 줄('behind-catcher')은 그대로 두고, 저장된 설정은 투수 뒤로 읽는다(loadSetup).
+ */
 export const CAMERA_OPTIONS: { key: CameraPos; label: string; hint: string }[] = [
   {
     key: 'behind-pitcher',
     label: '투수 뒤',
-    hint: '1m 이내 · 공이 멀어져요 · 거리는 공 크기로 어림해요',
-  },
-  {
-    key: 'behind-catcher',
-    label: '포수 뒤',
-    hint: '네트 뒤 1~3m · 공이 다가와요 · 코스가 잘 보여요',
+    hint: '투수 바로 뒤 1m 안 · 폰에서 미트까지 약 20m · 포수 뒤에서는 잴 수 없어요',
   },
 ];
 
@@ -242,6 +241,11 @@ export function loadSetup(): VelocitySetup | null {
     const p = JSON.parse(raw) as Partial<VelocitySetup>;
     if (p.cameraPos !== 'behind-pitcher' && p.cameraPos !== 'behind-catcher')
       return null;
+    /* 포수 뒤는 더는 고를 수 없다(CAMERA_OPTIONS) — 지난 설정이 포수 뒤였으면 투수 뒤로, 존도 투수 뒤 기본으로 */
+    if (p.cameraPos === 'behind-catcher') {
+      p.cameraPos = 'behind-pitcher';
+      p.zone = undefined;
+    }
     return {
       sessionType:
         typeof p.sessionType === 'string' &&
