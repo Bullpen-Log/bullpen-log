@@ -290,7 +290,7 @@ const REJECTIONS: Record<RejectCode, Omit<Rejection, 'code'>> = {
    * 측정 불가"). 10-12 밖 22구에서 믿음 낮은 공 둘이 스피드건과 17 · 22km/h 갈렸다. fix 는 화면이 까닭에 맞춰 바꿔 쓴다.
    */
   LOW_CONFIDENCE: {
-    message: '정확하게 재지 못한 공이라 기록하지 않았어요.',
+    message: '인식 조건에 맞지 않아 측정할 수 없어요.',
     fix: '공이 날아가 닿는 곳까지 또렷하게 보이게 하고 다시 던져 주세요.',
   },
   BRIGHT_BACKGROUND: {
