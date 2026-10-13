@@ -34,6 +34,8 @@ export type NavIconName =
   | 'clapper'
   /* 구속 측정 — 스피드건(레이더 건)처럼 곧장 잰다. 계기판(관리자)과 가르려고 다른 그림 */
   | 'radar'
+  /* 투구 분석(3D, 실험실) — 서 있는 사람 */
+  | 'body'
   | 'menu';
 
 export type NavItem = {
@@ -180,6 +182,10 @@ export const NAV_GROUPS: NavGroup[] = [
         lock: 'pitch',
       },
     ],
+  },
+  /* 투구 분석 — 옆 · 뒤 두 영상으로 3D 분석(실험실, 2026-10-13 김민 '더보기에 투구분석'). 아직 관리자만 연다(videos/lab/page.tsx requireAdmin) */
+  {
+    items: [{ href: '/videos/lab', label: '투구 분석', icon: 'body', adminOnly: true, lock: 'pitch' }],
   },
   {
     title: '라이브러리',
