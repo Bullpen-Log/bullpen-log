@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, useTransition, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
-import { Check, ChevronLeft } from 'lucide-react';
+import { Check, ChevronLeft, X } from 'lucide-react';
 import { saveCheckin } from '@/app/actions/checkin';
 import { logout } from '@/app/actions/auth';
 import { OFFLINE_MESSAGE, orOffline } from '@/lib/action-offline';
@@ -186,12 +186,9 @@ export function CheckinFlow({
   const questions: StepKey[] = steps.filter((s) => s !== 'welcome' && s !== 'done');
   const idx = steps.indexOf(view.cur);
   const qIdx = questions.indexOf(view.cur);
-  const progress =
-    view.cur === 'welcome'
-      ? 0
-      : view.cur === 'done'
-        ? 1
-        : Math.max(0.06, qIdx / questions.length);
+  /* 진행 띠 — 질문 수로 똑같이 나눠 지금 페이지까지 찬다(2026-10-13 사용자: "페이지 수에 따라 정확히 나눠"). 숫자는 안 적는다 */
+  const filled =
+    view.cur === 'welcome' ? 0 : view.cur === 'done' ? questions.length : qIdx + 1;
 
   /* 초안 — 고치는 날(오늘 체크인이 있음)은 안 적는다. 저장 뒤에도 안 적는다(saved) */
   const [saved, setSaved] = useState(false);
@@ -348,6 +345,22 @@ export function CheckinFlow({
           : 'flex h-[min(78dvh,42rem)] flex-col'
       }
     >
+      {/*
+        고치는 날 휴대폰 전체 화면의 환영 — 오른쪽 위 닫기(X)로 홈에(2026-10-13 사용자: "닫기는 우상단에 있으니 아래 단추는 필요 없다").
+        PC 창은 창 자신의 X 가 있다(components/modal.tsx).
+      */}
+      {variant === 'page' && existing && view.cur === 'welcome' && (
+        <header className="flex shrink-0 justify-end px-3 pt-[max(0.5rem,env(safe-area-inset-top))]">
+          <button
+            type="button"
+            onClick={() => router.replace('/')}
+            aria-label="닫기"
+            className="grid h-12 w-12 place-items-center rounded-full text-muted transition-colors hover:bg-ink/6 hover:text-ink"
+          >
+            <X aria-hidden className="h-7 w-7" />
+          </button>
+        </header>
+      )}
       {/* 위 — 처음으로 · 몇 번째 · 진행 띠. 환영 · 완료에는 없다 */}
       {showChrome && (
         <header
@@ -357,9 +370,9 @@ export function CheckinFlow({
             <button
               type="button"
               onClick={() => go('welcome', -1)}
-              className="-ml-2 inline-flex min-h-10 items-center gap-0.5 rounded-full px-2 text-sm font-medium text-muted transition-colors hover:text-ink"
+              className="-ml-2 inline-flex min-h-12 items-center gap-0.5 rounded-full px-2 text-base font-medium text-muted transition-colors hover:text-ink"
             >
-              <ChevronLeft aria-hidden className="h-4 w-4" />
+              <ChevronLeft aria-hidden className="h-5 w-5" />
               처음으로
             </button>
             <span className="text-xs tabular-nums text-muted" aria-live="polite">
@@ -370,12 +383,13 @@ export function CheckinFlow({
             role="progressbar"
             aria-valuemin={0}
             aria-valuemax={questions.length}
-            aria-valuenow={qIdx}
+            aria-valuenow={qIdx + 1}
             className="mt-2 h-1.5 overflow-hidden rounded-full bg-ink/10"
           >
+            {/* 한 페이지 = 전체의 1/질문 수 — 지금 페이지까지 정확히 그만큼 찬다(칸 표시 없이 띠 하나) */}
             <div
-              className="h-full rounded-full bg-sky transition-[width] duration-[240ms] ease-out"
-              style={{ width: `${progress * 100}%` }}
+              className="h-full rounded-full bg-sky transition-[width] duration-[280ms] ease-out"
+              style={{ width: `${(filled / questions.length) * 100}%` }}
             />
           </div>
         </header>
@@ -408,76 +422,62 @@ export function CheckinFlow({
               buzz(20);
               go('condition', 1);
             }}
-            className="flex h-12 w-full items-center justify-center rounded-2xl bg-sky text-base font-bold text-white transition-colors hover:bg-sky-strong"
+            className="flex h-14 w-full items-center justify-center rounded-2xl bg-sky text-lg font-bold text-white transition-colors hover:bg-sky-strong"
           >
             {existing ? '고치기 시작' : '시작'}
           </button>
-          <div className="flex items-center justify-center gap-4 text-xs text-muted">
-            <form action={logout}>
-              <button
-                type="submit"
-                className="min-h-9 underline-offset-2 hover:underline"
-              >
-                로그인 · 회원가입 화면으로
-              </button>
-            </form>
-            {!existing && (
+          {/* 고치는 날은 아래 글 단추가 없다 — 로그인 화면은 필요 없고 닫기는 오른쪽 위(X)에 있다(2026-10-13 사용자) */}
+          {!existing && (
+            <div className="flex items-center justify-center gap-4 text-sm text-muted">
+              <form action={logout}>
+                <button
+                  type="submit"
+                  className="min-h-11 underline-offset-2 hover:underline"
+                >
+                  로그인 · 회원가입 화면으로
+                </button>
+              </form>
               <button
                 type="button"
                 onClick={skipToday}
-                className="min-h-9 underline-offset-2 hover:underline"
+                className="min-h-11 underline-offset-2 hover:underline"
               >
                 오늘은 건너뛰기
               </button>
-            )}
-            {existing && variant === 'popup' && (
-              <button
-                type="button"
-                onClick={() => onSkip?.()}
-                className="min-h-9 underline-offset-2 hover:underline"
-              >
-                닫기
-              </button>
-            )}
-            {existing && variant === 'page' && (
-              <button
-                type="button"
-                onClick={() => router.replace('/')}
-                className="min-h-9 underline-offset-2 hover:underline"
-              >
-                홈으로
-              </button>
-            )}
-          </div>
+            </div>
+          )}
         </footer>
       ) : view.cur === 'done' ? null : (
         <footer
           className={`shrink-0 px-5 pt-2 ${variant === 'page' ? 'pb-[max(1rem,env(safe-area-inset-bottom))]' : 'pb-1'}`}
         >
+          {/* 통증 화면의 건너뛰기 — 단추 줄 위에 작게(2026-10-13 사용자: "이전 · 다음 위에 작은 크기로") */}
+          {view.cur === 'pain' && (
+            <div className="mb-2 flex justify-center">
+              <button
+                type="button"
+                onClick={skipPain}
+                disabled={pending}
+                className="min-h-10 rounded-full px-3 text-sm font-medium text-muted underline-offset-2 transition-colors hover:text-ink hover:underline"
+              >
+                불편한 곳 없어요 · 건너뛰기
+              </button>
+            </div>
+          )}
           <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={back}
               disabled={pending}
-              className="flex h-12 min-w-24 items-center justify-center rounded-2xl bg-ink/6 px-4 text-sm font-semibold text-ink transition-colors hover:bg-ink/10 disabled:opacity-50"
+              className="flex h-14 min-w-28 items-center justify-center rounded-2xl bg-ink/6 px-5 text-base font-semibold text-ink transition-colors hover:bg-ink/10 disabled:opacity-50"
             >
               이전
             </button>
-            {view.cur === 'pain' && (
-              <button
-                type="button"
-                onClick={skipPain}
-                disabled={pending}
-                className="h-12 rounded-2xl px-3 text-sm font-medium text-muted transition-colors hover:text-ink"
-              >
-                건너뛰기
-              </button>
-            )}
             <button
               type="button"
               onClick={next}
               disabled={pending}
-              className="flex h-12 flex-1 items-center justify-center rounded-2xl bg-sky text-base font-bold text-white transition-colors hover:bg-sky-strong disabled:opacity-60"
+              className="flex h-14 flex-1 items-center justify-center rounded-2xl bg-sky text-lg font-bold text-white transition-colors hover:bg-sky-strong disabled:opacity-60"
             >
               {view.cur === 'memo'
                 ? pending

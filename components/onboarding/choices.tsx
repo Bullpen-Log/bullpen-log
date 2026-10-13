@@ -226,7 +226,7 @@ export function Chips<V extends string>({
         aria-label={legend ? undefined : label}
         aria-labelledby={legend ? `${name}-legend` : undefined}
         {...groupProps(name, invalid)}
-        className="flex flex-wrap gap-2"
+        className="chip-grid flex flex-wrap gap-2"
       >
         {options.map((o, i) => {
           const on = value === o.value;
@@ -280,7 +280,7 @@ export function MultiChips<V extends string>({
         aria-label={label}
         id={`${name}-field`}
         data-field={name}
-        className="flex flex-wrap gap-2"
+        className="chip-grid flex flex-wrap gap-2"
       >
         {options.map((o, i) => {
           const on = values.includes(o.value);

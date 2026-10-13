@@ -68,7 +68,11 @@ export function PitchEditorFields({
     /* 창이 열린 뒤에(열 때 닫기 단추로 가는 초점보다 늦게) — 0.1초씩 1초까지 */
     const go = () => {
       const el = gunRef.current;
-      if (el?.closest('dialog')?.open !== false && document.activeElement?.closest('dialog')) el?.focus();
+      if (
+        el?.closest('dialog')?.open !== false &&
+        document.activeElement?.closest('dialog')
+      )
+        el?.focus();
       else if (++tries < 10) t = setTimeout(go, 100);
     };
     t = setTimeout(go, 120);
@@ -77,7 +81,7 @@ export function PitchEditorFields({
   return (
     <div className="flex flex-col gap-4">
       <Field label="구종">
-        <div className="flex flex-wrap gap-1.5">
+        <div className="chip-grid flex flex-wrap gap-1.5">
           {PITCH_TYPES.map((t) => (
             <Chip
               key={t.key}
@@ -113,7 +117,11 @@ export function PitchEditorFields({
         </div>
       </Field>
 
-      <Field label="스피드건 값" hint="같이 쟀으면 적어요 — 보정에 쓰여요" className={focusGun ? 'order-first' : ''}>
+      <Field
+        label="스피드건 값"
+        hint="같이 쟀으면 적어요 — 보정에 쓰여요"
+        className={focusGun ? 'order-first' : ''}
+      >
         <div className="relative">
           <input
             ref={gunRef}

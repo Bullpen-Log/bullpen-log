@@ -99,7 +99,7 @@ function MealForm({
     <div className="space-y-3">
       <div className="space-y-1.5">
         <p className="text-xs font-semibold text-muted">식욕</p>
-        <div className="flex flex-wrap gap-2">
+        <div className="chip-grid flex flex-wrap gap-2">
           {APPETITE_LEVELS.map((label, i) => (
             <Chip
               key={label}
@@ -113,7 +113,7 @@ function MealForm({
       </div>
       <div className="space-y-1.5">
         <p className="text-xs font-semibold text-muted">끼니 양</p>
-        <div className="flex flex-wrap gap-2">
+        <div className="chip-grid flex flex-wrap gap-2" data-cols="3">
           {MEAL_AMOUNTS.map((a) => (
             <Chip
               key={a}
@@ -127,7 +127,7 @@ function MealForm({
       </div>
       <div className="space-y-1.5">
         <p className="text-xs font-semibold text-muted">거른 끼니</p>
-        <div className="flex flex-wrap gap-2">
+        <div className="chip-grid flex flex-wrap gap-2" data-cols="3">
           {SKIPPABLE_MEALS.map((m) => (
             <Chip
               key={m.key}

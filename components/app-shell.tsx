@@ -1352,6 +1352,7 @@ export function AppNav({
         onClose={() => setCheckinOpen(false)}
         title="오늘 체크인"
         origin={popFrom}
+        bigClose
       >
         {checkinOpen && (
           <CheckinFlow
@@ -2368,6 +2369,8 @@ function MobileTopBar({
    */
   const bar = useSyncExternalStore(subscribeBar, barSnapshot, serverBarSnapshot);
   const back = bar.back;
+  /* 홈은 앱 이름을 막대 왼쪽에 — 큰 제목 자리에 두면 날짜 위로 한 줄을 통째로 차지했다(2026-10-13 김민) */
+  const home = usePathname() === '/today';
 
   return (
     <>
@@ -2417,6 +2420,7 @@ function MobileTopBar({
               <span className="truncate">{back.label || '뒤로'}</span>
             </button>
           )}
+          {!back && home && <Wordmark className="pl-2 text-2xl text-ink" />}
         </div>
 
         {/* 가운데 제목 — 큰 제목이 막대 밑으로 가려졌을 때만(아이폰처럼). 화면 읽기 프로그램은 큰 제목을 읽는다 */}

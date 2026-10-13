@@ -83,7 +83,7 @@ function PrefsForm({
 
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap gap-2">
+      <div className="chip-grid flex flex-wrap gap-2" data-cols="4">
         <Chip pressed={workout == null} onClick={() => setWorkout(null)}>
           {NO_WORKOUT_KIND}
         </Chip>
@@ -107,7 +107,7 @@ function PrefsForm({
           <p className="text-xs font-semibold text-muted">
             하고 싶은 부위 (없어도 돼요)
           </p>
-          <div className="flex flex-wrap gap-2">
+          <div className="chip-grid flex flex-wrap gap-2">
             {parts.map((p) => (
               <Chip key={p} pressed={picked.includes(p)} onClick={() => togglePart(p)}>
                 {p}

@@ -41,7 +41,7 @@ export type VideoLog = {
 
 /* 휴대폰 고르개 밑 줄의 단추(2분할 비교 · 구속 측정) — 반씩 나눠 서는 알약 */
 const PHONE_PILL =
-  'order-2 inline-flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-full bg-surface px-4 text-sm font-semibold text-sky-strong transition-opacity active:opacity-60';
+  'order-2 inline-flex min-h-11 min-w-0 flex-1 basis-0 items-center justify-center gap-1 whitespace-nowrap rounded-full bg-surface px-2 text-[13px] font-semibold text-sky-strong transition-opacity active:opacity-60';
 
 /* 보기 칸 [캘린더 | 목록 | 구속 측정]은 투구 기록 머리와 같이 둔다(pitch-log-heading.tsx) */
 type View = PitchView;

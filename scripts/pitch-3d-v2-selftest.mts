@@ -2839,7 +2839,7 @@ console.log('■ 메커니즘 점검 판정(mech-judge) — 문턱 · 여러 구
     hand: o.hand ?? 'R',
     drift: o.ahead === null ? null : { aheadAtKneeUp: o.ahead ?? 0.1, aheadAtKneeUpCm: null, travel: 0.05, travelCm: null, speed: 0.2, speedMs: null, conf: o.dConf ?? 50 },
     pelvisLevel: { tiltDeg: 2, conf: 50 },
-    separation: { frame: 0, peakMs: o.ms ?? 0, peakDeg: o.sep ?? 32, atPlantDeg: 20, trunkOpenAtPlantDeg: 5, pelvisOpenAtPlantDeg: 25, conf: o.sConf ?? 50 },
+    separation: { frame: 0, peakMs: o.ms ?? 0, peakDeg: o.sep ?? 56, atPlantDeg: 20, trunkOpenAtPlantDeg: 5, pelvisOpenAtPlantDeg: 25, conf: o.sConf ?? 50 },
     block: { pelvisDecelPct: o.decel ?? 95, kneeAtPlantDeg: 30, kneeAtReleaseDeg: 30 - (o.ext ?? 0), kneeExtensionDeg: o.ext ?? 0, kneeCollapseDeg: 5, conf: o.bConf ?? 50 },
   });
   const st = (j: ReturnType<typeof judgeMechanics>, k: string) => j.items.find((i) => i.key === k)!.status;
@@ -2855,17 +2855,17 @@ console.log('■ 메커니즘 점검 판정(mech-judge) — 문턱 · 여러 구
       st(judgeMechanics([mk({ ms: -130 })]), 'separation') === 'improve' && st(judgeMechanics([mk({ ms: 130 })]), 'separation') === 'fair'
   );
   check(
-    '판정: 분리 크기(우투) — 자료 아래 25%(28.2°) 이상 좋아요 · 그 밑 보통 · 18° 밑 고칠 점(억지로 비틀기보다) · 일찍 열림이 크기보다 먼저',
-    st(judgeMechanics([mk({ sep: 29 })]), 'separation') === 'good' && st(judgeMechanics([mk({ sep: 22 })]), 'separation') === 'fair' &&
-      st(judgeMechanics([mk({ sep: 17 })]), 'separation') === 'improve' &&
-      judgeMechanics([mk({ sep: 17 })]).items.find((i) => i.key === 'separation')!.line.includes('억지로') &&
-      judgeMechanics([mk({ sep: 17, ms: -130 })]).items.find((i) => i.key === 'separation')!.line.includes('일찍')
+    '판정: 분리 크기(우투, 우리 자) — 자료 아래 25%(53.3°) 이상 좋아요 · 그 밑 보통 · 39° 밑 고칠 점(억지로 비틀기보다) · 일찍 열림이 크기보다 먼저',
+    st(judgeMechanics([mk({ sep: 54 })]), 'separation') === 'good' && st(judgeMechanics([mk({ sep: 45 })]), 'separation') === 'fair' &&
+      st(judgeMechanics([mk({ sep: 38 })]), 'separation') === 'improve' &&
+      judgeMechanics([mk({ sep: 38 })]).items.find((i) => i.key === 'separation')!.line.includes('억지로') &&
+      judgeMechanics([mk({ sep: 38, ms: -130 })]).items.find((i) => i.key === 'separation')!.line.includes('일찍')
   );
   check(
-    '판정: 분리 크기 좌투는 따로(좌투가 3° 낮다) — 25° 는 좌투 좋아요 · 우투 보통, 16° 는 좌투 보통 · 우투 고칠 점, 자세히에 좌투 자료',
-    st(judgeMechanics([mk({ sep: 25, hand: 'L' })]), 'separation') === 'good' && st(judgeMechanics([mk({ sep: 25 })]), 'separation') === 'fair' &&
-      st(judgeMechanics([mk({ sep: 16, hand: 'L' })]), 'separation') === 'fair' && st(judgeMechanics([mk({ sep: 16 })]), 'separation') === 'improve' &&
-      judgeMechanics([mk({ sep: 25, hand: 'L' })]).items.find((i) => i.key === 'separation')!.detail.includes('좌투 22명')
+    '판정: 분리 크기 좌투는 따로(좌투가 4~5° 낮다) — 50° 는 좌투 좋아요 · 우투 보통, 36° 는 좌투 보통 · 우투 고칠 점, 자세히에 좌투 자료',
+    st(judgeMechanics([mk({ sep: 50, hand: 'L' })]), 'separation') === 'good' && st(judgeMechanics([mk({ sep: 50 })]), 'separation') === 'fair' &&
+      st(judgeMechanics([mk({ sep: 36, hand: 'L' })]), 'separation') === 'fair' && st(judgeMechanics([mk({ sep: 36 })]), 'separation') === 'improve' &&
+      judgeMechanics([mk({ sep: 50, hand: 'L' })]).items.find((i) => i.key === 'separation')!.detail.includes('좌투 22명')
   );
   check(
     '판정: 블록 — 골반 덜 멈춤(60%) 그리고 무릎 20° 더 굽음일 때만 고칠 점, 하나만이면 보통',

@@ -51,7 +51,7 @@ export function CheckboxGroup({
   return (
     <fieldset>
       <Legend label={label} hint={hint} />
-      <div className="flex flex-wrap gap-2">
+      <div className="chip-grid flex flex-wrap gap-2">
         {options.map((option) => (
           <label key={option} className="inline-flex">
             <input
@@ -115,7 +115,11 @@ export function RadioGroup({
   return (
     <fieldset>
       <Legend label={label} hint={hint} />
-      <div className={compact ? 'flex flex-wrap gap-2' : 'grid gap-2 sm:grid-cols-3'}>
+      <div
+        className={
+          compact ? 'chip-grid flex flex-wrap gap-2' : 'grid gap-2 sm:grid-cols-3'
+        }
+      >
         {options.map((option) => (
           <label key={option.name} className="group block">
             <input
