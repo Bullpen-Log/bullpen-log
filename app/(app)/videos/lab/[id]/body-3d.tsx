@@ -365,12 +365,12 @@ export const Body3D = forwardRef<
       let labelsVersion = 0;
       const applyAna = (a: number) => {
         const m = anaMaterials(a);
-        for (const mat of Object.values(fig.materials)) {
+        for (const [key, mat] of Object.entries(fig.materials)) {
           if (mat.transparent !== m.figTransparent) {
             mat.transparent = m.figTransparent;
             mat.needsUpdate = true;
           }
-          mat.opacity = m.figOpacity;
+          mat.opacity = key === 'twist' ? m.twistOpacity : m.figOpacity;
           mat.depthWrite = m.figDepthWrite;
         }
         ov.setAna(a);

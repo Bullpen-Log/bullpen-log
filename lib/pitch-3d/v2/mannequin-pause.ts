@@ -282,6 +282,8 @@ export function anaMaterials(a: number) {
   return {
     figTransparent,
     figOpacity: 1 - 0.78 * a,
+    /* 꼬임 줄 — 인형이 비쳐도 꼬임이 보이게 덜 옅게 */
+    twistOpacity: 1 - 0.25 * a,
     figDepthWrite: !figTransparent,
     boneTransparent: a < 0.996,
     boneOpacity: a,

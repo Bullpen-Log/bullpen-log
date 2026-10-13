@@ -70,6 +70,10 @@ import {
   fanIndices,
   writeFan,
   writeLoft,
+  STRIPE,
+  STRIPE_VERTS,
+  stripeIndices,
+  writeStripes,
   writeTorso,
   writeTube,
 } from '../lib/pitch-3d/v2/mannequin-loft.ts';
@@ -2061,6 +2065,37 @@ console.log('■ 데생 인형 겉면(mannequin-loft) — 색인 · 정점 · �
   const pants = new Float32Array(TORSO_PANTS_VERTS * 3);
   const shirt = new Float32Array(TORSO_SHIRT_VERTS * 3);
   writeTorso(T, pants, shirt);
+  /* 꼬임 줄 — 앞줄 가운데는 겉면(앞 두께)에서 lift 만큼 바깥, 옆줄은 폭 + lift. 가슴 틀만 30° 돌리면 줄 위 끝이 그만큼 돌고 아래 끝은 그대로 */
+  {
+    const st = new Float32Array(STRIPE_VERTS * 3);
+    writeStripes(T, st, 1);
+    const P = (s2: number, r: number): Vec3 => {
+      const o = (s2 * (STRIPE.N + 1) + r) * 2 * 3;
+      return [(st[o] + st[o + 3]) / 2, (st[o + 1] + st[o + 4]) / 2, (st[o + 2] + st[o + 5]) / 2];
+    };
+    const r = STRIPE.N >> 1;
+    const t = STRIPE.from + ((STRIPE.to - STRIPE.from) * r) / STRIPE.N;
+    const R = T.ring(t);
+    const fErr = Math.abs(dot(sub(P(0, r), R.c), R.Fw) - (T.front(t) + STRIPE.lift));
+    const sErr = Math.abs(dot(sub(P(1, r), R.c), R.X) - (T.width(t) + STRIPE.lift));
+    const tw = 0.5;
+    const cf2 = mannequinFrame([Math.sin(tw), -Math.cos(tw), 0], [0, 0, 1]);
+    const T2 = torsoModel(J, pf, cf2, 1);
+    const st2 = new Float32Array(STRIPE_VERTS * 3);
+    writeStripes(T2, st2, 1);
+    const yaw = (b: Float32Array, rr: number) => {
+      const o = rr * 2 * 3;
+      const q = (b === st ? T : T2).ring(STRIPE.from + ((STRIPE.to - STRIPE.from) * rr) / STRIPE.N).c;
+      return Math.atan2((b[o + 1] + b[o + 4]) / 2 - q[1], (b[o] + b[o + 3]) / 2 - q[0]);
+    };
+    const dTop = Math.abs(Math.abs(yaw(st2, STRIPE.N) - yaw(st, STRIPE.N)) - tw);
+    const dBot = Math.abs(yaw(st2, 0) - yaw(st, 0));
+    check(
+      '꼬임 줄: 앞 · 옆 줄이 겉면 바깥 lift 에, 가슴만 돌리면 위 끝이 그만큼(아래는 그대로) · 색인 4×N×6',
+      st.every(Number.isFinite) && fErr < 1e-6 && sErr < 1e-6 && dTop < 0.12 && dBot < 0.02 && stripeIndices().length === 4 * STRIPE.N * 6,
+      `앞 ${fErr.toExponential(1)} · 옆 ${sErr.toExponential(1)} · 위 ${dTop.toFixed(3)} · 아래 ${dBot.toFixed(3)}`
+    );
+  }
   check(
     '몸통 정점: 모두 유한, 바지 (split+1)·K · 상의 (RN−split+1)·K',
     pants.every(Number.isFinite) && shirt.every(Number.isFinite) &&

@@ -19,6 +19,8 @@ export const MANNEQUIN_COLOR = {
   ball: 0xffffff,
   seam: 0xc8312c,
   stripe: 0x1f4f84,
+  /* 꼬임 줄 — 유니폼 파이핑 같은 빨강(상아색 뼈 · 잰 선 색과 겹치지 않게) */
+  twist: 0xd23b3b,
   button: 0xf2efe6,
   buckle: 0xc9a227,
 } as const;
@@ -37,6 +39,7 @@ export const MANNEQUIN_ROUGHNESS: Record<keyof typeof MANNEQUIN_COLOR, number> =
   ball: 0.45,
   seam: 0.6,
   stripe: 0.7,
+  twist: 0.6,
   button: 0.4,
   buckle: 0.35,
 };
