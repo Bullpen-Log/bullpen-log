@@ -844,7 +844,11 @@ export function VelocityScreen({
      * 믿음 '높음'이 아닌 공은 기록하지 않고 '측정 불가'로 알린다(2026-10-13 김민: "믿음 높은 것만 측정하고 제대로 인식하지 못한 것은
      * 측정 불가 안내"). 10-12 밖 22구에서 믿음 낮은 공 둘이 스피드건과 17 · 22km/h 갈렸다 — 틀린 값을 보이느니 다시 던지게 한다.
      */
-    if (result.measure.confidence !== 'high') {
+    /*
+     * 관리자가 '정확도 보정용 저장'을 켰으면 버리지 않고 기록한다(믿음은 그대로 남고 알림이 붙는다) — 줄자 거리 · 조건을 바꿔 찍는
+     * 엔진 시험에서 낮음 공의 클립까지 있어야 까닭을 본다. 보정식은 어차피 '높음' 짝만 쓴다(loadCalibration).
+     */
+    if (result.measure.confidence !== 'high' && !calibOn) {
       setLast({
         ...result,
         measure: {
@@ -948,6 +952,9 @@ export function VelocityScreen({
           ? [standardNoteOf(camera.offStandard)]
           : []),
         ...distNotes,
+        ...(m.confidence !== 'high'
+          ? ['보정용 저장이라 기록했어요. 보통 측정이면 측정 불가로 빠지는 공이에요.']
+          : []),
         ...(result.live?.notes.map((note) => note.text) ?? []),
         ...(source === 'file' ? ((result as { video?: { notes: string[] } }).video?.notes ?? []) : []),
       ],
