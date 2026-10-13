@@ -119,16 +119,16 @@ export function TipsPopup({
     >
       {/* 머리 — 작은 제목 · 닫기 */}
       <div className="flex h-14 shrink-0 items-center justify-between pl-5 pr-2">
-        <h2 id={titleId} className="text-heading text-base">
+        <h2 id={titleId} className="text-lg font-bold text-ink">
           정확하게 재려면
         </h2>
         <button
           type="button"
           onClick={onClose}
           aria-label="닫기"
-          className="inline-flex h-10 w-10 items-center justify-center rounded-full text-muted transition-colors hover:bg-surface-2 hover:text-ink"
+          className="inline-flex h-12 w-12 items-center justify-center rounded-full text-muted transition-colors hover:bg-ink/6 hover:text-ink"
         >
-          <X aria-hidden className="h-5 w-5" />
+          <X aria-hidden className="h-6 w-6" />
         </button>
       </div>
 
@@ -136,13 +136,13 @@ export function TipsPopup({
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-2">
         <div
           key={tip.key}
-          className="motion-safe:animate-fade-in overflow-hidden rounded-2xl border border-line bg-surface"
+          className="motion-safe:animate-fade-in overflow-hidden rounded-2xl bg-surface"
         >
           <div className="flex aspect-[4/3] items-center justify-center bg-sky-tint/60 px-6 text-sky short:aspect-auto short:h-32">
             {tip.art}
           </div>
           <div className="px-5 pb-4 pt-4 short:pt-3">
-            <p className="text-heading text-lg">{tip.title}</p>
+            <p className="text-xl font-bold leading-tight text-ink">{tip.title}</p>
             <p className="mt-1.5 text-sm leading-relaxed text-muted">{tip.short}</p>
             <button
               type="button"
@@ -195,16 +195,16 @@ export function TipsPopup({
       </div>
 
       {/* 발 — 이전 · 다음(마지막은 카메라 켜기), 그 밑 가운데 작게 '오늘은 보지 않기' */}
-      <div className="shrink-0 border-t border-line px-4 pb-1 pt-3">
+      <div className="shrink-0 px-5 pb-2 pt-2">
         <div className="flex items-center gap-2">
           <button
             type="button"
             onClick={() => setI(index - 1)}
             disabled={index === 0}
             aria-label="이전"
-            className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-line-strong bg-surface-2 text-ink transition-colors enabled:hover:border-sky enabled:hover:text-sky disabled:opacity-40"
+            className="inline-flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-ink/6 text-ink transition-colors enabled:hover:bg-ink/10 disabled:opacity-40"
           >
-            <ChevronLeft aria-hidden className="h-5 w-5" />
+            <ChevronLeft aria-hidden className="h-6 w-6" />
           </button>
           <PrimaryButton onClick={() => (last ? onClose() : setI(index + 1))}>
             {last ? '카메라 켜기' : '다음'}
@@ -215,7 +215,7 @@ export function TipsPopup({
           <button
             type="button"
             onClick={skipToday}
-            className="inline-flex min-h-10 items-center px-3 text-xs text-muted underline-offset-2 transition-colors hover:text-ink hover:underline"
+            className="inline-flex min-h-11 items-center px-3 text-sm text-muted underline-offset-2 transition-colors hover:text-ink hover:underline"
           >
             오늘은 보지 않기
           </button>

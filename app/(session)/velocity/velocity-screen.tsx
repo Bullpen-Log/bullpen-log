@@ -176,7 +176,7 @@ import {
 } from '@/components/velocity/velocity-settings';
 import { Segmented } from '@/components/segmented';
 import { EffortChips } from '@/components/effort-chips';
-import { SectionLabel, Note } from '@/components/velocity/kit';
+import { CHIP_BASE, CHIP_ON, SectionLabel, Note } from '@/components/velocity/kit';
 import {
   CircleOverlay,
   DEFAULT_CIRCLE,
@@ -3796,9 +3796,9 @@ export function VelocityScreen({
             <button
               type="button"
               onClick={() => remove(editingPitch.id)}
-              className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-danger-bg text-sm font-semibold text-danger transition-colors hover:bg-danger-line/60"
+              className="inline-flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-danger-bg text-base font-semibold text-danger transition-colors hover:bg-danger-line/60"
             >
-              <Trash2 aria-hidden className="h-4 w-4" />이 공 지우기
+              <Trash2 aria-hidden className="h-5 w-5" />이 공 지우기
             </button>
           </div>
         )}
@@ -3819,18 +3819,15 @@ export function VelocityScreen({
             </p>
             <div>
               <p className="mb-1.5 text-sm font-semibold">종류</p>
-              <div className="flex flex-wrap gap-1.5">
+              {/* 체크인 · 탭 카드와 같은 알약 칩, 휴대폰은 같은 너비 칸(chip-grid) */}
+              <div className="chip-grid flex flex-wrap gap-2">
                 {THROW_TYPES.map((t) => (
                   <button
                     key={t.name}
                     type="button"
                     onClick={() => setSessionType(t.name)}
                     aria-pressed={sessionType === t.name}
-                    className={`min-h-9 rounded-full px-3.5 text-sm font-semibold transition-colors ${
-                      sessionType === t.name
-                        ? 'bg-sky text-white'
-                        : 'border border-line-strong bg-surface-2 text-ink hover:border-sky hover:text-sky'
-                    }`}
+                    className={`${CHIP_BASE} ${sessionType === t.name ? CHIP_ON : ''}`}
                   >
                     {t.name}
                   </button>
@@ -3860,9 +3857,9 @@ export function VelocityScreen({
               type="button"
               onClick={save}
               disabled={saving}
-              className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-sky text-sm font-semibold text-white hover:bg-sky-strong disabled:opacity-50"
+              className="inline-flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-sky text-lg font-bold text-white hover:bg-sky-strong disabled:opacity-50"
             >
-              {saving && <Loader2 aria-hidden className="h-4 w-4 animate-spin" />}
+              {saving && <Loader2 aria-hidden className="h-5 w-5 animate-spin" />}
               {uploading
                 ? `클립 올리는 중 ${uploading.done}/${uploading.total}`
                 : clipCount > 0
@@ -3950,7 +3947,7 @@ export function VelocityScreen({
             </p>
           </div>
 
-          <div className="rounded-2xl border border-line bg-surface px-4 py-3 text-sm">
+          <div className="rounded-2xl bg-surface-2 px-4 py-3 text-sm">
             <div className="flex items-center justify-between gap-3">
               <span className="min-w-0">
                 <span className="block text-ink">렌즈 보정</span>
@@ -3980,7 +3977,7 @@ export function VelocityScreen({
                   pauseSession();
                   setStep('lens');
                 }}
-                className="inline-flex h-10 shrink-0 items-center justify-center rounded-xl border border-line-strong bg-surface-2 px-3.5 text-xs font-semibold text-ink hover:border-sky hover:text-sky"
+                className="inline-flex h-11 shrink-0 items-center justify-center rounded-full bg-sky px-4 text-sm font-semibold text-white hover:bg-sky-strong"
               >
                 {lens ? '다시 재기' : '보정하기'}
               </button>
