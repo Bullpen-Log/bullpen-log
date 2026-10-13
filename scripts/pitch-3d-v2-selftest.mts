@@ -53,6 +53,7 @@ import {
   canonicalFrames,
   frame as mannequinFrame,
   mannequinFrames,
+  mid,
   rotate,
   slerp,
 } from '../lib/pitch-3d/v2/mannequin-frames.ts';
@@ -2039,8 +2040,21 @@ console.log('■ 데생 인형 겉면(mannequin-loft) — 색인 · 정점 · �
     rh: z(0.95, -0.15), lh: z(0.95, 0.15), rk: z(0.5, -0.15), lk: z(0.5, 0.15), ra: z(0.08, -0.15), la: z(0.08, 0.15),
     rhe: z(0.02, -0.15, -0.05), rto: z(0.02, -0.15, 0.2), lhe: z(0.02, 0.15, -0.05), lto: z(0.02, 0.15, 0.2),
     sh: z(1.45, -0.2), gs: z(1.45, 0.2), el: z(1.15, -0.25), ge: z(1.15, 0.25), wr: z(0.9, -0.25), gw: z(0.9, 0.25),
-    ha: z(0.85, -0.25), gh: z(0.85, 0.25), td: z(1.2), tp: z(1.48), nose: z(1.68, 0, 0.1), ear: z(1.68),
+    ha: z(0.85, -0.25), gh: z(0.85, 0.25), td: z(1.2), nose: z(1.68, 0, 0.1), ear: z(1.68),
   };
+  /* 흉추 C — 허벅지는 서 있고 어깨만 앞(+x)으로: 골반 위 < 엉덩이 → 어깨 축 < 가슴 위(앞으로 더 숙임) */
+  {
+    const fwd = (v: Vec3) => Math.atan2(v[0], v[2]);
+    const mv = (p: Vec3): Vec3 => [p[0] + 0.25, p[1], p[2]];
+    const J2: MannequinJoints = { ...J, sh: mv(J.sh), gs: mv(J.gs), el: mv(J.el), ge: mv(J.ge), wr: mv(J.wr), gw: mv(J.gw), ha: mv(J.ha), gh: mv(J.gh), nose: mv(J.nose), ear: mv(J.ear), td: [0.1375, 0, 1.2] };
+    const F2 = mannequinFrames([J2], 1.8)[0];
+    const ax = fwd(sub(mid(J2.sh, J2.gs), mid(J2.rh, J2.lh)));
+    check(
+      '가슴 위 방향: 몸통이 골반보다 앞으로 숙으면 가슴은 축보다 더 숙임(흉추 C)',
+      fwd(F2.pelvis.ya) < ax - 0.05 && fwd(F2.chest.ya) > ax + 0.05,
+      `골반 ${fwd(F2.pelvis.ya).toFixed(3)} · 축 ${ax.toFixed(3)} · 가슴 ${fwd(F2.chest.ya).toFixed(3)}`
+    );
+  }
   const pf = mannequinFrame(sub(J.rh, J.lh), [0, 0, 1]);
   const cf = mannequinFrame(sub(J.sh, J.gs), [0, 0, 1]);
   const T = torsoModel(J, pf, cf, 1);
@@ -2574,7 +2588,7 @@ console.log('■ 몸통 마디(trunk) — 규칙 · AI 상대 값 · 못 믿는 
     rh: z(0.95, -0.15), lh: z(0.95, 0.15), rk: z(0.5, -0.15), lk: z(0.5, 0.15), ra: z(0.08, -0.15), la: z(0.08, 0.15),
     rhe: z(0.02, -0.15, -0.05), rto: z(0.02, -0.15, 0.2), lhe: z(0.02, 0.15, -0.05), lto: z(0.02, 0.15, 0.2),
     sh: z(1.45, -0.2), gs: z(1.45, 0.2), el: z(1.15, -0.25), ge: z(1.15, 0.25), wr: z(0.9, -0.25), gw: z(0.9, 0.25),
-    ha: z(0.85, -0.25), gh: z(0.85, 0.25), td: z(1.225), tp: z(1.475), nose: z(1.68, 0, 0.1), ear: z(1.68),
+    ha: z(0.85, -0.25), gh: z(0.85, 0.25), td: z(1.225), nose: z(1.68, 0, 0.1), ear: z(1.68),
   };
   const rotZ = (v: Vec3, deg: number): Vec3 => {
     const a = (deg * Math.PI) / 180;
