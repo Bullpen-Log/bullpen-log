@@ -70,6 +70,17 @@ export type HighlightInput = {
 };
 
 export const MAX_HIGHLIGHTS = 3;
+
+/**
+ * 하이라이트가 사는 곳(2026-10-13 김민: "투구량 · 운동은 각자의 카테고리로") — 투구 것은 분석 › 투구, 운동은 분석 › 트레이닝
+ * (두 탭 제목 옆 '분석' 단추로 들어간다), 체크인 · 컨디션 · 이번 주 요약만 홈에 남는다.
+ */
+export type HighlightPart = 'home' | 'pitch' | 'training';
+export function partOf(key: Highlight['key']): HighlightPart {
+  if (key === 'load' || key === 'gap' || key === 'velocity' || key === 'away') return 'pitch';
+  if (key === 'training') return 'training';
+  return 'home';
+}
 /** 투구 기록이 이만큼 비면 남기라고 한다 — 안 남긴 날은 쉰 날로 쳐서 부하가 틀어진다 */
 export const GAP_DAYS = 3;
 /** 이보다 오래 비었으면 잔소리 대신 '오랜만이에요' */
@@ -106,7 +117,7 @@ function runBack(start: string, ok: (key: string) => boolean) {
   return n;
 }
 
-export function buildHighlights(input: HighlightInput): Highlight[] {
+export function buildHighlights(input: HighlightInput, part?: HighlightPart): Highlight[] {
   const { today, load, pitchesByDay, velocityByDay, conditionByDay } = input;
   const week = days(today, -6, 0);
   const lastWeek = days(today, -13, -7);
@@ -253,11 +264,14 @@ export function buildHighlights(input: HighlightInput): Highlight[] {
     });
   }
 
-  if (out.length > 0) return out.slice(0, MAX_HIGHLIGHTS);
+  const kept = part ? out.filter((h) => partOf(h.key) === part) : out;
+  if (kept.length > 0) return kept.slice(0, MAX_HIGHLIGHTS);
+  /* 달라진 게 없을 때의 한 장은 홈 몫('이번 주') · 투구 몫('오랜만이에요')이 하나씩 — 다른 데서 달라진 게 있으면 그쪽이 말한다 */
+  if (part && out.length > 0 && part !== 'pitch') return [];
 
   /* ── 달라진 게 없을 때 ── */
 
-  if (gap != null && gap > AWAY_DAYS) {
+  if (gap != null && gap > AWAY_DAYS && (!part || part === 'pitch')) {
     return [
       {
         key: 'away',
@@ -269,6 +283,7 @@ export function buildHighlights(input: HighlightInput): Highlight[] {
       },
     ];
   }
+  if (part && part !== 'home') return [];
   const weekPitches = week.reduce((n, k) => n + (pitchesByDay[k] ?? 0), 0);
   if (weekPitches === 0 && thisWeek === 0) return [];
   return [

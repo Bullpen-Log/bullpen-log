@@ -9,6 +9,10 @@ import { TrainingReviewCards } from '@/app/(app)/coach/training-review';
 import { GoodDaysCard } from '@/app/(app)/coach/good-days';
 import { loadGoodDays } from '@/lib/report/good-days-load';
 import type { AnalysisTab } from './analysis-tabs';
+import { Highlights } from './highlights';
+import { loadHighlights } from '@/lib/report/highlights-load';
+import { loadTodayCore } from '@/lib/report/today-data';
+import { appNow } from '@/lib/clock';
 
 /**
  * 홈 분석 칸의 속 — 고른 날 기준의 분석. 서버에서 그린다.
@@ -41,6 +45,7 @@ const noonOf = (key: string) => new Date(`${key}T12:00:00+09:00`);
 export async function AnalysisView({
   user,
   date,
+  today,
   tab,
 }: {
   user: User;
@@ -49,7 +54,7 @@ export async function AnalysisView({
   today: string;
   tab: AnalysisTab;
 }) {
-  return <LoadView user={user} date={date} tab={tab} />;
+  return <LoadView user={user} date={date} today={today} tab={tab} />;
 }
 
 /* ─────────────────────────── 투구 · 트레이닝 ─────────────────────────── */
@@ -63,16 +68,18 @@ export async function AnalysisView({
 async function LoadView({
   user,
   date,
+  today,
   tab,
 }: {
   user: User;
   date: string;
+  today: string;
   tab: AnalysisTab;
 }) {
   const asOf = noonOf(date);
   const since = shiftDateKey(date, -LOOKBACK_DAYS);
 
-  const [logs, training, best, review, goodDays] = await Promise.all([
+  const [logs, training, best, review, goodDays, highlights] = await Promise.all([
     prisma.pitchLog.findMany({
       where: { userId: user.id, date: { gte: dbDay(since), lte: dbDay(date) } },
       orderBy: { date: 'asc' },
@@ -92,12 +99,24 @@ async function LoadView({
     tab === 'training' ? trainingReview(user.id, asOf) : null,
     /* 잘 던진 날은 투구 칸에서만 — 매긴 날이 8일 안 되면 날짜만 센다(lib/report/good-days-load.ts) */
     tab === 'pitch' ? loadGoodDays(user.id, date) : null,
+    /*
+     * 하이라이트 — 이 칸(투구 · 트레이닝) 것만, 오늘 분석일 때만(2026-10-13 김민: 홈에서 각 카테고리로 옮김 — 두 탭 제목 옆 '분석' 단추로 들어온다).
+     * 부하 지수는 홈과 같은 셈(loadTodayCore)이라 숫자가 같다. 분석 화면 자신을 가리키는 주소는 뺀다.
+     */
+    date === today
+      ? loadTodayCore(user, appNow()).then((core) =>
+          loadHighlights(user.id, today, { zone: core.facts.load.zone, ratio: core.facts.load.ratio }, tab)
+        )
+      : null,
   ]);
 
   const serialized = logs.map((log) => ({ ...log, date: log.date.toISOString() }));
 
   return (
     <div className="space-y-6">
+      {highlights && highlights.items.length > 0 && (
+        <Highlights items={highlights.items.map((h) => (h.href?.startsWith('/coach') ? { ...h, href: null } : h))} />
+      )}
       <StatsOverview
         view={tab}
         bestVelocity={
