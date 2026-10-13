@@ -2370,7 +2370,13 @@ function MobileTopBar({
   const bar = useSyncExternalStore(subscribeBar, barSnapshot, serverBarSnapshot);
   const back = bar.back;
   /* 홈은 앱 이름을 막대 왼쪽에 — 큰 제목 자리에 두면 날짜 위로 한 줄을 통째로 차지했다(2026-10-13 김민) */
-  const home = usePathname() === '/today';
+  const pathname = usePathname();
+  const home = pathname === '/today';
+  /*
+   * 기록 · 트레이닝 · 영양 탭 첫 화면은 막대를 안 그린다(같은 날 김민: "앱 이름 · 프로필 설정 줄은 홈에만") — 그 탭의 큰 제목이 맨 위.
+   * 하위 화면('‹ 뒤로'가 있는 곳)은 그대로. 시계 자리 칠과 그만큼의 빈칸은 남긴다.
+   */
+  const bare = !back && ['/videos', '/nutrition', '/training'].includes(pathname);
 
   return (
     <>
@@ -2389,6 +2395,7 @@ function MobileTopBar({
       />
       {/* 첫 화면에서 막대가 시계 밑에서 시작하도록 그만큼 비운다 */}
       <div aria-hidden className="h-[env(safe-area-inset-top)] shrink-0 desk:hidden" />
+      {!bare && (
       <header
         /*
          * 아이폰 앱의 내비게이션 막대(2026-10-04 '앱 틀을 네이티브처럼') — 왼쪽 '‹ 뒤로', 가운데 화면 제목(큰 제목이 가려졌을
@@ -2475,6 +2482,7 @@ function MobileTopBar({
           </button>
         </div>
       </header>
+      )}
     </>
   );
 }
