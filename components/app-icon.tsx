@@ -1,0 +1,86 @@
+import type { CSSProperties } from 'react';
+import type { LucideIcon } from 'lucide-react';
+
+/**
+ * 휴대폰 더보기의 앱 아이콘 — 아이폰(iOS 26) 앱 아이콘처럼 유리 · 입체(2026-10-13 김민: "10점에 2점 — 3D · 글라스 느낌, 실제 아이폰 앱처럼").
+ *
+ * 겹:
+ * 1. 판 — 앱 색 두 가지(t1 밝음 → t2 짙음) 대각 그라데이션, 둥근 네모(22.5%, 되는 브라우저는 squircle).
+ * 2. 유리 — 위 왼쪽에서 비치는 반사(radial) · 아래 가장자리로 새어 나오는 빛(유리를 지난 빛) · 안쪽 테두리 빛 · 바닥 안쪽 그늘.
+ * 3. 그림 — 짙은 색으로 한 번 아래로 밀어 그린 '두께'(돌출) 위에 흰 → 옅은 하늘색 그라데이션 선, 그 밑 부드러운 그림자.
+ * 4. 바깥 그림자 — 앱 색이 비친 그림자 + 바닥 접촉 그림자.
+ * 그라데이션 정의(#app-glyph)는 이 부품이 한 번씩 그리는 숨은 svg 에 있다(같은 id 여러 번이어도 첫 것을 쓴다).
+ */
+export function AppIcon({
+  Icon,
+  tint,
+  size = 60,
+  className = '',
+  style,
+}: {
+  Icon: LucideIcon;
+  /** [밝은 색, 짙은 색] */
+  tint: [string, string];
+  size?: number;
+  className?: string;
+  style?: CSSProperties;
+}) {
+  const [t1, t2] = tint;
+  const g = Math.round(size * 0.5);
+  return (
+    <span
+      className={`relative isolate grid shrink-0 place-items-center overflow-hidden rounded-[22.5%] [corner-shape:squircle] ${className}`}
+      style={{
+        width: size,
+        height: size,
+        background: `linear-gradient(145deg, ${t1} 0%, color-mix(in oklab, ${t1}, ${t2} 55%) 48%, ${t2} 100%)`,
+        boxShadow: [
+          'inset 0 0 0 0.5px rgba(255,255,255,0.45)',
+          'inset 0 1.5px 1px rgba(255,255,255,0.65)',
+          'inset 0 -3px 6px rgba(0,0,0,0.22)',
+          `0 10px 18px -8px color-mix(in oklab, ${t2}, black 25%)`,
+          '0 2px 3px rgba(0,0,0,0.18)',
+        ].join(','),
+        ...style,
+      }}
+    >
+      <svg width="0" height="0" className="absolute" aria-hidden>
+        <defs>
+          <linearGradient id="app-glyph" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stopColor="#ffffff" />
+            <stop offset="1" stopColor="#dfe9ff" />
+          </linearGradient>
+        </defs>
+      </svg>
+      {/* 유리 반사 — 위 왼쪽 */}
+      <span
+        aria-hidden
+        className="pointer-events-none absolute inset-0 -z-0"
+        style={{ background: 'radial-gradient(120% 85% at 22% -8%, rgba(255,255,255,0.62) 0%, rgba(255,255,255,0.18) 38%, rgba(255,255,255,0) 60%)' }}
+      />
+      {/* 유리를 지난 빛 — 아래 가장자리 */}
+      <span
+        aria-hidden
+        className="pointer-events-none absolute inset-0"
+        style={{ background: 'radial-gradient(90% 55% at 50% 118%, rgba(255,255,255,0.42) 0%, rgba(255,255,255,0) 70%)' }}
+      />
+      {/* 그림 — 두께(짙은 색으로 아래로) + 앞면(흰 그라데이션) */}
+      <span className="relative grid place-items-center" style={{ width: g, height: g }}>
+        <Icon
+          aria-hidden
+          className="absolute"
+          width={g}
+          height={g}
+          strokeWidth={2.6}
+          style={{
+            color: `color-mix(in oklab, ${t2}, black 35%)`,
+            transform: 'translateY(1.6px)',
+            filter: 'blur(0.4px) drop-shadow(0 2px 2.5px rgba(0,0,0,0.35))',
+            opacity: 0.85,
+          }}
+        />
+        <Icon aria-hidden className="relative" width={g} height={g} strokeWidth={2.4} stroke="url(#app-glyph)" />
+      </span>
+    </span>
+  );
+}

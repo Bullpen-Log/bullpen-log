@@ -23,7 +23,8 @@ import {
   serverBarSnapshot,
   subscribeBar,
 } from '@/lib/nav-state';
-import { NAV_ICONS } from '@/components/nav-icons';
+import { NAV_ICONS, NAV_TINT } from '@/components/nav-icons';
+import { AppIcon } from '@/components/app-icon';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { quietRefresh } from '@/lib/quiet-refresh';
 import { forgetPage, rememberPage } from '@/lib/last-page';
@@ -37,6 +38,7 @@ import { SettingsPanel, type SettingsData } from '@/components/settings-panel';
 import { CLOSE_SETTINGS_EVENT } from '@/components/settings-info';
 import { CheckinFlow } from '@/components/checkin-flow/flow';
 import type { CheckinFlowContext } from '@/components/checkin-flow/types';
+import { haptic } from '@/lib/haptics';
 import {
   NoticeBellButton,
   NoticePanel,
@@ -2239,26 +2241,37 @@ function DetailMenu({
                         : 'desk:hover:bg-ink/6 desk:active:bg-ink/6'
                     }`}
                   >
-                    {/* 앱 아이콘 판(휴대폰만 — PC 는 desk:contents 로 판이 사라져 예전 아이콘 그대로). 지금 화면은 테두리로 */}
-                    <span
-                      className={`grid h-[3.75rem] w-[3.75rem] place-items-center rounded-[1.1rem] bg-sky text-white shadow-sm desk:contents ${
-                        active ? 'ring-2 ring-sky ring-offset-2 ring-offset-surface' : ''
-                      } ${dim ? 'opacity-55' : ''}`}
-                    >
-                    <NavGlyph
-                      Icon={Icon}
-                      locked={item.locked}
-                      dim={dim}
-                      className="h-7 w-7 desk:h-5 desk:w-5"
-                      strokeWidth={active ? 2.4 : 1.9}
-                      style={
-                        fly
-                          ? flyStyle(`nav-fly-${i}`, i, 'fly')
-                          : grow
-                            ? growStyle(`nav-grow-${i}`, growOrder.get(item.href) ?? 0)
-                            : undefined
-                      }
-                    />
+                    {/*
+                      휴대폰 — 아이폰 앱 아이콘(유리 반사 · 입체 그림, components/app-icon.tsx, 2026-10-13 김민 "3D · 글라스"). 지금 화면은 파란 테두리,
+                      잠긴 탭은 흐리게 + 자물쇠. PC 팝업은 예전 아이콘(NavGlyph — 날아가는 연출 이름표가 여기 붙는다).
+                    */}
+                    <span className={`relative desk:hidden ${dim ? 'opacity-55' : ''}`}>
+                      <AppIcon
+                        Icon={Icon}
+                        tint={NAV_TINT[item.icon]}
+                        className={active ? 'outline-2 outline-offset-2 outline-sky' : ''}
+                      />
+                      {item.locked && (
+                        <span className="absolute -right-1 -bottom-1 grid h-5 w-5 place-items-center rounded-full bg-surface text-ink shadow">
+                          <Lock aria-hidden className="h-3 w-3" strokeWidth={2.4} />
+                        </span>
+                      )}
+                    </span>
+                    <span className="hidden desk:contents">
+                      <NavGlyph
+                        Icon={Icon}
+                        locked={item.locked}
+                        dim={dim}
+                        className="h-5 w-5"
+                        strokeWidth={active ? 2.4 : 1.9}
+                        style={
+                          fly
+                            ? flyStyle(`nav-fly-${i}`, i, 'fly')
+                            : grow
+                              ? growStyle(`nav-grow-${i}`, growOrder.get(item.href) ?? 0)
+                              : undefined
+                        }
+                      />
                     </span>
                     <span
                       className={`min-w-0 max-w-full truncate text-xs leading-4 desk:text-sm desk:leading-5 ${active ? 'font-semibold' : 'font-medium'} ${dim ? 'opacity-55' : ''}`}
@@ -2570,6 +2583,42 @@ function TabFace({
 }
 
 /**
+ * 길게 눌러 끌 때 손가락을 따라오는 둥근 배경 — 고른 칸의 배경과 같은 모양(bg-ink/8)이고 크기는 칸 하나다.
+ * 가로 막대(휴대폰)는 x 만, 세로 막대(패드)는 y 만 따른다. 알약 안쪽 여백(p-1) 밖으로는 안 나간다.
+ */
+function DragThumb({
+  bar,
+  drag,
+}: {
+  bar: RefObject<HTMLDivElement | null>;
+  drag: { x: number; y: number };
+}) {
+  const el = bar.current;
+  const first = el?.querySelector<HTMLElement>('[data-tab-href]');
+  if (!el || !first) return null;
+  const box = el.getBoundingClientRect();
+  const r = first.getBoundingClientRect();
+  const vertical = box.height > box.width;
+  const pad = 4;
+  const w = r.width;
+  const h = r.height;
+  const left = vertical
+    ? r.left - box.left
+    : Math.max(pad, Math.min(box.width - pad - w, drag.x - w / 2));
+  const top = vertical
+    ? Math.max(pad, Math.min(box.height - pad - h, drag.y - h / 2))
+    : r.top - box.top;
+  return (
+    <span
+      aria-hidden
+      data-thumb
+      className="pointer-events-none absolute rounded-full bg-ink/8 pad:rounded-2xl"
+      style={{ left, top, width: w, height: h }}
+    />
+  );
+}
+
+/**
  * 모바일 하단 탭바 — 바닥에서 살짝 떠 있는 둥근 알약(아이폰 iOS 26 · 앱스토어의 하단 바처럼).
  *
  * 2026-10-01 사용자 "애플 앱스토어의 하단 바처럼 전체적으로 동글동글하게" + 앱스토어 화면을 보내 줌: 화면 끝에 붙은
@@ -2590,6 +2639,103 @@ function MobileTabs({
 }) {
   const isActive = useIsActive();
   const [spinning, setSpinning] = useState(false);
+  const router = useRouter();
+  const bar = useRef<HTMLDivElement>(null);
+  /*
+   * 길게 눌러 끌기(2026-10-13 사용자: "메뉴 바도 길게 눌러서 스와이프하면 동그란 원이 터치된 부분을 따라서 움직이게").
+   * 알약 안에서 손가락을 떼지 않고 0.28초 넘게 누르면 고른 칸의 둥근 배경이 손가락을 따라오고, 놓은 자리의 탭으로 간다.
+   * 짧게 누르면 예전처럼 그 칸으로. drag 는 손가락의 알약 안 자리(px)이고 null 이면 끌지 않는 중이다. 끌고 있는 동안은
+   * 원래 칸의 배경을 숨기고 떠다니는 배경 하나를 그린다(같은 이름표를 둘 두면 전환이 깨진다).
+   */
+  const [drag, setDrag] = useState<{ x: number; y: number; under: string | null } | null>(
+    null
+  );
+  const hold = useRef<{ id: number; x: number; y: number; timer: number } | null>(null);
+  const dragged = useRef(false);
+  /** 손가락 자리에서 가장 가까운 칸 — 가로(휴대폰) · 세로(패드) 어느 쪽이든 중심 거리로 */
+  const tabAt = (x: number, y: number) => {
+    const el = bar.current;
+    if (!el) return null;
+    let best: { href: string; rect: DOMRect } | null = null;
+    let bestD = Infinity;
+    for (const node of el.querySelectorAll<HTMLElement>('[data-tab-href]')) {
+      const r = node.getBoundingClientRect();
+      const cx = r.left + r.width / 2;
+      const cy = r.top + r.height / 2;
+      const d = (x - cx) ** 2 + (y - cy) ** 2;
+      if (d < bestD) {
+        bestD = d;
+        best = { href: node.dataset.tabHref ?? '', rect: r };
+      }
+    }
+    return best;
+  };
+  const startHold = (e: ReactPointerEvent<HTMLDivElement>) => {
+    if (e.pointerType === 'mouse') return;
+    stopHold();
+    const { pointerId: id, clientX: x, clientY: y } = e;
+    const target = e.currentTarget;
+    const timer = window.setTimeout(() => {
+      const hit = tabAt(x, y);
+      if (!hit) return;
+      dragged.current = true;
+      try {
+        target.setPointerCapture(id);
+      } catch {
+        /* 이미 뗀 포인터면 붙들 수 없다 — 그래도 끌기는 시작한다 */
+      }
+      haptic('medium');
+      const box = target.getBoundingClientRect();
+      setDrag({ x: x - box.left, y: y - box.top, under: hit.href });
+    }, 280);
+    hold.current = { id, x, y, timer };
+  };
+  const stopHold = () => {
+    if (hold.current) window.clearTimeout(hold.current.timer);
+    hold.current = null;
+  };
+  const moveHold = (e: ReactPointerEvent<HTMLDivElement>) => {
+    const h = hold.current;
+    if (!h || h.id !== e.pointerId) return;
+    if (!dragged.current) {
+      /* 길게 누르기 전에 8px 넘게 움직였으면 끌기가 아니라 화면 굴리기 · 짧은 누름이다 */
+      if (Math.abs(e.clientX - h.x) > 8 || Math.abs(e.clientY - h.y) > 8) stopHold();
+      return;
+    }
+    const box = e.currentTarget.getBoundingClientRect();
+    const hit = tabAt(e.clientX, e.clientY);
+    setDrag((d) => {
+      if (d && hit && d.under !== hit.href) haptic('selection');
+      return {
+        x: Math.max(0, Math.min(box.width, e.clientX - box.left)),
+        y: Math.max(0, Math.min(box.height, e.clientY - box.top)),
+        under: hit?.href ?? d?.under ?? null,
+      };
+    });
+  };
+  const endHold = (e: ReactPointerEvent<HTMLDivElement>) => {
+    const h = hold.current;
+    if (!h || h.id !== e.pointerId) return;
+    stopHold();
+    if (!dragged.current) return;
+    const hit = e.type === 'pointercancel' ? null : tabAt(e.clientX, e.clientY);
+    setDrag(null);
+    /* click 이 뒤따라 오면 막는다(아래 onClickCapture) — 다음 그림에서 푼다 */
+    window.setTimeout(() => {
+      dragged.current = false;
+    }, 0);
+    if (!hit) return;
+    if (hit.href === MORE_HREF) {
+      setSpinning(true);
+      onMenu();
+      return;
+    }
+    const tab = tabs.find((t) => t.href === hit.href);
+    if (!tab) return;
+    if (isActive(tab.href)) return;
+    haptic('light');
+    router.push(tab.href);
+  };
 
   return (
     <nav
@@ -2608,7 +2754,25 @@ function MobileTabs({
         바탕이 흰색 약 80%(뒤의 진한 것이 20% 남짓 비침)였고, 70% 일 때 사용자가 "너무 투명하다"고 해 88% 로 올렸다.
         양옆 여백(nav)은 노치 자리와 견줘 큰 쪽 — 가로로 돌린 사파리에서 알약 끝이 노치 밑에 들어갔다(2026-10-03).
       */}
-      <div className="pointer-events-auto mx-auto flex max-w-md rounded-full border border-line/60 bg-surface/88 p-1 shadow-[0_8px_32px_-12px_rgba(15,23,42,0.3)] backdrop-blur-2xl backdrop-saturate-150 pad:h-full pad:max-w-none pad:flex-col pad:gap-1 pad:rounded-none pad:border-y-0 pad:border-l-0 pad:pt-[calc(env(safe-area-inset-top)+0.75rem)] pad:pr-2 pad:pl-[calc(env(safe-area-inset-left)+0.5rem)] pad:shadow-none">
+      <div
+        ref={bar}
+        onPointerDown={startHold}
+        onPointerMove={moveHold}
+        onPointerUp={endHold}
+        onPointerCancel={endHold}
+        onClickCapture={(e) => {
+          if (dragged.current) {
+            e.preventDefault();
+            e.stopPropagation();
+          }
+        }}
+        onContextMenu={(e) => {
+          /* 길게 누르면 iOS 가 링크 미리보기 · 복사 메뉴를 띄운다 — 끌기와 겹치니 막는다 */
+          if (hold.current || drag) e.preventDefault();
+        }}
+        className="pointer-events-auto relative mx-auto flex max-w-md touch-none rounded-full border border-line/60 bg-surface/88 p-1 shadow-[0_8px_32px_-12px_rgba(15,23,42,0.3)] backdrop-blur-2xl backdrop-saturate-150 pad:h-full pad:max-w-none pad:flex-col pad:gap-1 pad:rounded-none pad:border-y-0 pad:border-l-0 pad:pt-[calc(env(safe-area-inset-top)+0.75rem)] pad:pr-2 pad:pl-[calc(env(safe-area-inset-left)+0.5rem)] pad:shadow-none"
+      >
+        {drag && <DragThumb bar={bar} drag={drag} />}
         {tabs.map((tab) => {
           /*
            * '더보기'는 화면으로 넘어가지 않고 옆에서 사이드바를 연다.
@@ -2627,6 +2791,7 @@ function MobileTabs({
               <button
                 key={tab.href}
                 type="button"
+                data-tab-href={tab.href}
                 onClick={() => {
                   setSpinning(true);
                   onMenu();
@@ -2655,6 +2820,8 @@ function MobileTabs({
             <Link
               key={tab.href}
               href={tab.href}
+              data-tab-href={tab.href}
+              draggable={false}
               /* 잠긴 탭(첫 설정 전, lib/nav.ts applyLocks)은 흐리게 + 아이콘 오른쪽 아래 자물쇠. 링크는 산다 — 누르면 설정 화면 */
               aria-label={tab.locked ? `${tab.label}(설정 전)` : undefined}
               data-locked={tab.locked ? '' : undefined}
@@ -2690,7 +2857,7 @@ function MobileTabs({
                * 색은 이미 글자와 아이콘이 알려주므로 이 배경은 장식이다.
                * 읽어 줄 필요가 없어 aria-hidden 을 단다.
                */}
-              {active && (
+              {active && !drag && (
                 <span
                   aria-hidden
                   style={{ viewTransitionName: 'tab-indicator' }}

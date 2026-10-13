@@ -9,20 +9,15 @@ import { toDateKey } from '@/lib/pitch-stats';
 import { keyOfDbDate } from '@/lib/nutrition/days';
 import { Card, PageHeading } from '@/components/ui';
 import { Skeleton } from '@/components/fallback';
-import {
-  dailyPitchCap,
-  intensityRangeText,
-  pitchRangeText,
-} from '@/lib/report/plan';
+import { dailyPitchCap, intensityRangeText, pitchRangeText } from '@/lib/report/plan';
 import { loadHighlights } from '@/lib/report/highlights-load';
 import { GOOD_DAY_MIN, RATED_SESSION_TYPES } from '@/lib/pitch-satisfaction';
 import { PitchLogPanel } from './pitch-log-panel';
 import { TodayRings } from './today-rings';
-import { NutritionCard } from './nutrition-card';
+import { Feed } from './feed';
 import { FirstDayCard } from './first-day-card';
 import { GoodDayNote } from './good-day-note';
 import { todayOutingRole } from '@/lib/checkin';
-import { Highlights } from './highlights';
 import { loadPitchHistory, readDateParam } from './history';
 
 /**
@@ -50,13 +45,11 @@ type User = Awaited<ReturnType<typeof requireUser>>;
  */
 const homeCore = cache((user: User) => loadTodayCore(user, now()));
 
-/** 기다리는 동안의 자리 — 하이라이트 두 장 모양 */
+/** 기다리는 동안의 자리 — 카드 한 장 모양(하이라이트는 2026-10-13 위 요약 칸으로 옮겨 밑에는 조건부 카드만 남는다) */
 function TodaySkeleton() {
   return (
     <div aria-busy="true" className="space-y-3">
       <span className="sr-only">오늘 기록을 불러오는 중이에요</span>
-      <Skeleton className="h-7 w-28 rounded-lg" />
-      <Skeleton className="h-20 rounded-2xl" />
       <Skeleton className="h-20 rounded-2xl" />
     </div>
   );
@@ -114,19 +107,18 @@ export default async function HomePage({
       <Suspense
         fallback={<Skeleton className="h-[13.5rem] rounded-2xl desk:h-[10.5rem]" />}
       >
-        <TodayRings
-          user={user}
-          today={today}
-          pitchLocked={locks.pitch}
-        />
+        <TodayRings user={user} today={today} pitchLocked={locks.pitch} />
       </Suspense>
 
       {/*
-        오늘 영양 — 할 일 한 줄 · 탄 · 단 · 지 더 먹을 양 · 균형 점수(nutrition-card.tsx). 음식을 안 적은 날도 체크인의 식사 칸 ·
-        던지는 일정 · 오늘 한 운동으로 말한다. 링과 같은 그날 요약을 읽지만(React cache) 체크인 · 투구를 더 읽어 따로 기다린다.
+        요약 칸(우리끼리 '뉴스' — 화면에는 그 말이 없다, feed.tsx · feed-card.tsx, 2026-10-13). 예전 영양 카드 자리다.
+        하이라이트(평소와 달라진 것 — 투구 · 운동 · 홈 몫 모두) · 부하 지수 · 오늘 운동 · 영양 한 줄을 3초마다 한 장씩 돌려 보이고,
+        누르면 그 탭으로 간다. 예전 영양 카드(10.5rem)보다 조금 길다(사용자 "하단 길이를 조금만 늘려줘").
       */}
-      <Suspense fallback={<Skeleton className="h-[10.5rem] rounded-2xl" />}>
-        <NutritionCard user={user} today={today} />
+      <Suspense
+        fallback={<Skeleton className="h-[11.25rem] rounded-2xl desk:h-[9rem]" />}
+      >
+        <Feed user={user} today={today} />
       </Suspense>
 
       {/*
@@ -195,7 +187,7 @@ async function PitchLogSection({
   );
 }
 
-/** 캘린더 밑 — 알림 카드 · 첫날 카드 · 하이라이트('분석 · 그래프 더 보기' 줄은 2026-10-13 김민이 뺌 — 분석은 탭 제목 옆 '분석' 단추로) */
+/** 캘린더 밑 — 알림 카드 · 첫날 카드 · 잘 던진 날 메모(하이라이트 · '분석 · 그래프 더 보기' 줄은 2026-10-13 뺌 — 하이라이트는 위 요약 칸으로) */
 async function TodayBody({
   user,
   today,
@@ -206,29 +198,33 @@ async function TodayBody({
   /** 투구 기록이 잠겨 있다(첫 설정 전) — 첫날 카드가 숫자 대신 설정으로 가는 단추를 낸다 */
   pitchLocked: boolean;
 }) {
-  /* 하이라이트는 홈 몫(체크인 · 컨디션 · 이번 주)만 — 투구 · 운동 것은 분석 › 투구 · 트레이닝으로 옮겼다(lib/report/highlights-load.ts) */
+  /* 하이라이트는 위 요약 칸(feed.tsx)이 보인다 — 여기서는 마지막 기록 날만 쓴다(lib/report/highlights-load.ts 가 같이 준다) */
   const core = await homeCore(user);
-  const [{ items: highlights, lastLogDate }, goodDay] =
-    await Promise.all([
-      loadHighlights(user.id, today, { zone: core.facts.load.zone, ratio: core.facts.load.ratio }, 'home'),
-      /* 만족도가 높았던 날의 메모 — 5점 먼저, 같은 점수면 최근 것(good-day-note.tsx) */
-      prisma.pitchLog.findFirst({
-        where: {
-          userId: user.id,
-          sessionType: { in: [...RATED_SESSION_TYPES] },
-          satisfaction: { gte: GOOD_DAY_MIN },
-          memo: { not: null },
-        },
-        orderBy: [{ satisfaction: 'desc' }, { date: 'desc' }, { createdAt: 'desc' }],
-        select: {
-          date: true,
-          sessionType: true,
-          satisfaction: true,
-          memo: true,
-          cuesGood: true,
-        },
-      }),
-    ]);
+  const [{ lastLogDate }, goodDay] = await Promise.all([
+    loadHighlights(
+      user.id,
+      today,
+      { zone: core.facts.load.zone, ratio: core.facts.load.ratio },
+      'home'
+    ),
+    /* 만족도가 높았던 날의 메모 — 5점 먼저, 같은 점수면 최근 것(good-day-note.tsx) */
+    prisma.pitchLog.findFirst({
+      where: {
+        userId: user.id,
+        sessionType: { in: [...RATED_SESSION_TYPES] },
+        satisfaction: { gte: GOOD_DAY_MIN },
+        memo: { not: null },
+      },
+      orderBy: [{ satisfaction: 'desc' }, { date: 'desc' }, { createdAt: 'desc' }],
+      select: {
+        date: true,
+        sessionType: true,
+        satisfaction: true,
+        memo: true,
+        cuesGood: true,
+      },
+    }),
+  ]);
   const { facts, plan, picked } = core;
   /*
    * 잘 던진 날 메모는 오늘 던지기 전에만 — 오늘 할 일이 등판 · 불펜이고 오늘 투구 기록(쉬는 날 포함)이 아직 없을 때.
@@ -245,7 +241,6 @@ async function TodayBody({
     goodDay?.memo && goodDay.satisfaction != null && throwsToday && !loggedToday
       ? { ...goodDay, memo: goodDay.memo, satisfaction: goodDay.satisfaction }
       : null;
-
 
   return (
     <>
@@ -326,8 +321,6 @@ async function TodayBody({
           cuesGood={goodNote.cuesGood}
         />
       )}
-
-      <Highlights items={highlights} />
     </>
   );
 }
