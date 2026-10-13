@@ -19,6 +19,8 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 - **스크립트**: `scripts/pitch-lab/markers/selfcal/mech_checks.py` · `sep_timing.py` · `metric_score.py`(마커 세션 폴더에서 돈다 — 자료는 맥북
   `~/bullpen-marker-lab/2026-10-12`. 데스크톱에 정답지 자료가 없으면 맥북에서 돌리거나 옮겨 와야 한다).
 - 다음 첫 일: 분리 시점 찾는 구간 좁히기 → 점검 넷의 순수 계산(`lib/pitch-3d/`) → '개선할 점' 카드 + 드릴(focusPoints) 잇기. 시작 전에 김민에게 단계표를 보일 것.
+- (같은 날 더) 맥북이 `lib/pitch-3d/v2/fit.ts` 에 던지는 팔 다듬기 배수(ARM_SMOOTH 0.4 — 레이백이 깎이던 것)를 넣고 분석 서버에도 올렸다. 채점 기준 파일
+  (`selfcal/results-2026-10-12/score-baseline.json`)에 레이백 두 값이 더해졌다 — **받은 뒤 시작**해야 겹치지 않는다(selfcal/README.md '레이백').
 
 ## 김민에게 — 2026-10-13 · 금윤호(Claude) — 구속 앱 카메라: 셔터 상한 1/500 · 되면 120fps(엔진 2.4.2) — 받으면 TestFlight 빌드
 

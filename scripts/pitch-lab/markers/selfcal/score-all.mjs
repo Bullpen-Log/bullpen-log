@@ -58,7 +58,16 @@ console.log(pel.filter((l) => !l.startsWith('{')).join('\n'));
 const ps = JSON.parse(pel.filter((l) => l.startsWith('{')).pop() ?? '{}');
 now.pelvis_med_deg = ps.pelvis_med;
 now.sep_med_deg = ps.sep_med;
-const keys = ['k4_median_cm', 'k4_mean_cm', 'k4_p90_cm', 'wrist_accel_p90_cm', 'mk_std_cm', 'pelvis_med_deg', 'sep_med_deg'];
+/* 레이백(어깨 외회전) 최대 — 네 대 교차(K4) 대비 오차 가운데 · 25° 넘게 튄 장면(layback_check.py) */
+const lb = execFileSync(PY, [join(HERE, 'layback_check.py'), ok.join(',')], { cwd: SESSION, env: { ...process.env, QUIET: '1' }, stdio: ['ignore', 'pipe', 'pipe'] })
+  .toString()
+  .split('\n')
+  .filter((l) => !l.startsWith('objc'));
+console.log(lb.filter((l) => l.startsWith('레이백')).join('\n'));
+const ls = JSON.parse(lb.filter((l) => l.startsWith('{')).pop() ?? '{}');
+now.layback_med_deg = ls.layback_med;
+now.layback_jumps = ls.layback_jumps;
+const keys = ['k4_median_cm', 'k4_mean_cm', 'k4_p90_cm', 'wrist_accel_p90_cm', 'mk_std_cm', 'pelvis_med_deg', 'sep_med_deg', 'layback_med_deg', 'layback_jumps'];
 if (process.argv.includes('--save')) {
   writeFileSync(BASE, JSON.stringify({ ...now, savedAt: new Date().toISOString() }, null, 1) + '\n');
   console.log('새 기준 저장', BASE);
