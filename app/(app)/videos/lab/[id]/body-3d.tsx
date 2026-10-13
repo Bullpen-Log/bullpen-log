@@ -56,6 +56,9 @@ export type Transport = {
 };
 export type Body3DHandle = { seek: (frame: number) => void };
 
+/** 각도 이름표의 짧은 이름 — 상자를 작게(긴 이름은 이름표에 마우스를 대면 · 결과 표에서) */
+const SHORT_NAME: Record<string, string> = { separation: '분리', trunk: '기울기', knee: '무릎', arm: '벌림', elbow: '팔꿈치' };
+
 const VIEWS: { value: ViewName; label: string }[] = [
   { value: 'side', label: '옆' },
   { value: 'back', label: '뒤' },
@@ -184,8 +187,9 @@ export const Body3D = forwardRef<
       const labelEls = Array.from({ length: 5 }, () => {
         const el = document.createElement('div');
         el.className =
-          'absolute left-0 top-0 whitespace-nowrap rounded-md py-[5px] pl-[7px] pr-2 text-[12px] leading-none text-white tabular-nums will-change-transform';
-        el.style.background = 'rgba(12,16,22,.8)';
+          'absolute left-0 top-0 whitespace-nowrap rounded py-[2px] pl-1 pr-[5px] text-[11px] font-semibold leading-none text-white tabular-nums will-change-transform';
+        /* 짧은 이름 + 숫자로 작게(사용자 2026-10-13: 상자가 커서 투구 폼이 가렸다) */
+        el.style.background = 'rgba(12,16,22,.55)';
         el.style.borderLeft = '3px solid #fff';
         el.style.display = 'none';
         el.addEventListener('click', () => {
@@ -468,12 +472,15 @@ export const Body3D = forwardRef<
             el.dataset.v = key;
             el.style.borderLeftColor = measureHex(L.key);
             const open = L.off && el.dataset.open === '1';
-            el.innerHTML = `${L.name}<b class="ml-1 font-semibold">${Math.round(L.value)}°</b>${
+            el.innerHTML = `<span class="font-normal text-[#c7cfdd]">${SHORT_NAME[L.key] ?? L.name}</span> ${Math.round(L.value)}°${
               open && L.table != null ? `<span class="ml-1 text-[#9aa5b4]">· 표 ${Math.round(L.table)}°</span>` : ''
             }`;
             el.style.pointerEvents = L.off ? 'auto' : 'none';
             el.style.cursor = L.off ? 'pointer' : '';
-            el.title = L.off && L.table != null ? `결과 표 값 ${Math.round(L.table)}° — 화면 자세와 ${Math.round(Math.abs(L.value - L.table))}° 달라요` : '';
+            el.title =
+              L.off && L.table != null
+                ? `${L.name} · 결과 표 값 ${Math.round(L.table)}° — 화면 자세와 ${Math.round(Math.abs(L.value - L.table))}° 달라요`
+                : L.name;
           }
           el.style.display = '';
           el.style.opacity = L.off ? '0.55' : '1';
