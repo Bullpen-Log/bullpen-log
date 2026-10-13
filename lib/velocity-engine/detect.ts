@@ -593,7 +593,11 @@ function darkMask(
     const wrow = y * wpr;
     for (let x = 0; x < width; x++) {
       const b = bgD[row + x];
-      if (b >= minBg && spread[row + x] <= DARK_MAX_SPREAD && currLuma[row + x] - b < dTh)
+      if (
+        b >= minBg &&
+        spread[row + x] <= DARK_MAX_SPREAD &&
+        currLuma[row + x] - b < dTh
+      )
         darkRaw[wrow + (x >>> 5)] |= 1 << (x & 31);
     }
   }
@@ -1005,11 +1009,18 @@ export function trackBall(
     frameHeight,
     seedCenterRatio = 0.45,
     maxStepPx = Math.max(frameWidth, frameHeight) * 0.12,
-    maxGapFrames = 2,
     approach = 'receding',
-    seedFrames = 12,
     focalDiameterPx,
   } = options;
+  /*
+   * 씨앗을 찾는 앞 장면 수 · 건너뛰어도 되는 장면 수는 시간으로(60fps 에서 12장 · 2장) — 120fps 면 두 배(2.4.2). 장면 시각으로 fps 를 어림한다.
+   */
+  const fpsEst =
+    frames.length > 1 && frames[frames.length - 1].t > frames[0].t
+      ? (frames.length - 1) / (frames[frames.length - 1].t - frames[0].t)
+      : 60;
+  const maxGapFrames = options.maxGapFrames ?? Math.max(2, Math.round(fpsEst / 30));
+  const seedFrames = options.seedFrames ?? Math.max(12, Math.round(0.2 * fpsEst));
   /*
    * 씨앗이 될 수 있는 최대 지름 — 릴리스 0.8m 일 때의 공 크기. 검사의 최소 거리(0.4m)보다 빡빡하게 두는
    * 까닭: 실제 영상에서 투수의 손 · 팔이 100~120px 덩어리로 잡혀 궤적의 첫 점이 되곤 했다(0.4m 기준으로는
@@ -1116,7 +1127,9 @@ export function trackBall(
         {
           const linkDt = frames[f].t - last.t;
           prevSpeedPxPerSec =
-            linkDt > 0 ? Math.hypot(picked.cx - last.x, picked.cy - last.y) / linkDt : null;
+            linkDt > 0
+              ? Math.hypot(picked.cx - last.x, picked.cy - last.y) / linkDt
+              : null;
         }
         missed = 0;
         last = {

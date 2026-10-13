@@ -38,6 +38,7 @@ const TIME_FIELDS: Record<string, string[]> = {
   userRehabSession: ['createdAt'],
   userRehabWeekly: ['createdAt'],
   userTrainingProgram: ['startedAt', 'createdAt', 'updatedAt'],
+  velocityAttempt: ['createdAt'],
   velocityCalibRun: ['createdAt'],
   velocityPitch: ['createdAt'],
   velocityRecording: ['createdAt', 'updatedAt'],

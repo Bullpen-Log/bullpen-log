@@ -51,6 +51,8 @@ export type VelocitySetup = {
    * 사람이 기본 20m 로 재 값이 10% 넘게 틀렸다(밖 실험 영상의 실제 거리 약 22.5m). 줄자로 재 넣으면 끈다.
    */
   distAuto: boolean;
+  /** 줄자(레이저)로 잰 거리를 넣었다 — 세션 거리 보정(공 크기 가운데 값, lib/velocity-session-distance.ts sessionCorrection)을 하지 않고 넣은 값이 이긴다(엔진 2.4 1단계) */
+  distTape: boolean;
   /** 자동 측정 — 켜 두면 공마다 알아서 잡는다. 끄면 공마다 단추를 눌러 기다린다 */
   autoMode: boolean;
   /**
@@ -218,6 +220,7 @@ export const DEFAULT_SETUP: Omit<VelocitySetup, 'savedAt'> = {
   releaseDistM: 18.5,
   targetDistM: STANDARD_TARGET_DIST_M,
   distAuto: false,
+  distTape: false,
   autoMode: true,
   calibSave: false,
   clipZone: true,
@@ -279,6 +282,7 @@ export function loadSetup(): VelocitySetup | null {
               typeof p.targetDistM === 'number' &&
               p.targetDistM !== DEFAULT_SETUP.targetDistM
             ),
+      distTape: p.distTape === true,
       autoMode: p.autoMode !== false,
       calibSave: p.calibSave === true,
       clipZone: p.clipZone !== false,

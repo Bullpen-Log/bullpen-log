@@ -12,7 +12,11 @@
  */
 import { measureVelocity } from '../lib/velocity-engine/measure.ts';
 import { iphoneLens, simulatePitch } from '../lib/velocity-engine/simulate.ts';
-import { BALL_DIAMETER_M, type BallObservation } from '../lib/velocity-engine/geometry.ts';
+import {
+  BALL_DIAMETER_M,
+  type BallObservation,
+} from '../lib/velocity-engine/geometry.ts';
+import { applyCalibration, fitCalibration } from '../lib/velocity-calibration.ts';
 
 let passed = 0;
 let failed = 0;
@@ -246,12 +250,19 @@ console.log('\n════ 4. 공기저항이 엔진 가정과 다를 때 (습�
   }
 }
 
-console.log('\n════ 5. 맞춤(모델 1.6.0) — 두 끝 자르기 · 먼 쪽 곡률 · 무게 · 불확실성 ════\n');
+console.log(
+  '\n════ 5. 맞춤(모델 1.6.0) — 두 끝 자르기 · 먼 쪽 곡률 · 무게 · 불확실성 ════\n'
+);
 {
   const K = 0.006;
   const fD = BALL_DIAMETER_M * lens.focalPx;
   /** 투수 뒤 가상 투구에서 관측 시각 t 의 참 속도(km/h) — simulatePitch 는 나아간 거리로 e^(−K·s) 만큼 느려진다 */
-  const trueSpeedAt = (sim: ReturnType<typeof simulatePitch>, kmh: number, rel: number, t: number) => {
+  const trueSpeedAt = (
+    sim: ReturnType<typeof simulatePitch>,
+    kmh: number,
+    rel: number,
+    t: number
+  ) => {
     const d = sim.trueDistances.find((x) => Math.abs(x.t - t) < 1e-9);
     return d ? kmh * Math.exp(-K * (d.z - rel)) : NaN;
   };
@@ -265,7 +276,12 @@ console.log('\n════ 5. 맞춤(모델 1.6.0) — 두 끝 자르기 · 먼
       const s = Math.log(1 + K * v0 * t) / K;
       const z = z0 - s;
       if (z < zEnd) break;
-      obs.push({ t, x: lens.frameWidth / 2, y: lens.frameHeight / 2 - 40, diameterPx: fD / z });
+      obs.push({
+        t,
+        x: lens.frameWidth / 2,
+        y: lens.frameHeight / 2 - 40,
+        diameterPx: fD / z,
+      });
       truth.push({ t, z, v: (v0 / (1 + K * v0 * t)) * 3.6 });
     }
     return { obs, truth };
@@ -274,13 +290,21 @@ console.log('\n════ 5. 맞춤(모델 1.6.0) — 두 끝 자르기 · 먼
   // 5-1) 투수 뒤: 손과 한 덩어리로 잡힌 첫 장면(지름 ×1.45)과 손가락에 가린 첫 장면(×0.7)은 빠진다
   for (const f of [1.45, 0.7]) {
     const sim = simulatePitch({ kmh: 125, lens, fps: 60, releaseDistanceM: 2.2 });
-    const obs = sim.observations.map((o, i) => (i === 0 ? { ...o, diameterPx: o.diameterPx * f } : o));
-    const r = measureVelocity({ observations: obs, lens, stability: { maxBackgroundShiftPx: 1 } });
+    const obs = sim.observations.map((o, i) =>
+      i === 0 ? { ...o, diameterPx: o.diameterPx * f } : o
+    );
+    const r = measureVelocity({
+      observations: obs,
+      lens,
+      stability: { maxBackgroundShiftPx: 1 },
+    });
     const truth = r.ok ? trueSpeedAt(sim, 125, 2.2, r.detail.startT) : NaN;
     check(
       `투수 뒤 첫 장면 지름 ×${f} → 빼고 잰다`,
       r.ok && r.detail.startTrimmed === 1 && Math.abs(r.detail.startKmh - truth) < 1,
-      r.ok ? `앞에서 뺀 장 ${r.detail.startTrimmed} · 첫 관측 시점 ${r.detail.startKmh} / 정답 ${truth.toFixed(1)}` : r.code
+      r.ok
+        ? `앞에서 뺀 장 ${r.detail.startTrimmed} · 첫 관측 시점 ${r.detail.startKmh} / 정답 ${truth.toFixed(1)}`
+        : r.code
     );
   }
 
@@ -288,15 +312,31 @@ console.log('\n════ 5. 맞춤(모델 1.6.0) — 두 끝 자르기 · 먼
   //      다가오는 공은 거리가 줄므로 방향을 뒤집어 본다(뒤집지 않으면 커진 장면을 남긴다)
   for (const which of ['first', 'last'] as const) {
     const { obs, truth } = approachingObs(130, 60, 14, 1.6);
-    const k = which === 'first' ? obs.findIndex((o) => o.diameterPx >= 9) : obs.length - 1;
-    const bad = obs.map((o, i) => (i === k ? { ...o, diameterPx: o.diameterPx * (which === 'first' ? 1.5 : 1.3) } : o));
-    const r = measureVelocity({ observations: bad, lens, stability: { maxBackgroundShiftPx: 1 }, approach: 'approaching' });
-    const tr = r.ok ? truth.find((x) => Math.abs(x.t - r.detail.startT) < 1e-9) : undefined;
-    const trimmed = r.ok ? (which === 'first' ? r.detail.startTrimmed : r.detail.endTrimmed) : 0;
+    const k =
+      which === 'first' ? obs.findIndex((o) => o.diameterPx >= 9) : obs.length - 1;
+    const bad = obs.map((o, i) =>
+      i === k ? { ...o, diameterPx: o.diameterPx * (which === 'first' ? 1.5 : 1.3) } : o
+    );
+    const r = measureVelocity({
+      observations: bad,
+      lens,
+      stability: { maxBackgroundShiftPx: 1 },
+      approach: 'approaching',
+    });
+    const tr = r.ok
+      ? truth.find((x) => Math.abs(x.t - r.detail.startT) < 1e-9)
+      : undefined;
+    const trimmed = r.ok
+      ? which === 'first'
+        ? r.detail.startTrimmed
+        : r.detail.endTrimmed
+      : 0;
     check(
       `포수 뒤 ${which === 'first' ? '첫(먼)' : '마지막(가까운)'} 장면이 부풀면 → 빼고 잰다`,
       r.ok && trimmed === 1 && tr != null && Math.abs(r.detail.startKmh - tr.v) < 1.5,
-      r.ok ? `뺀 장 ${trimmed} · 첫 관측 시점 ${r.detail.startKmh} / 정답 ${tr?.v.toFixed(1)}` : r.code
+      r.ok
+        ? `뺀 장 ${trimmed} · 첫 관측 시점 ${r.detail.startKmh} / 정답 ${tr?.v.toFixed(1)}`
+        : r.code
     );
   }
 
@@ -305,14 +345,25 @@ console.log('\n════ 5. 맞춤(모델 1.6.0) — 두 끝 자르기 · 먼
     const sim = simulatePitch({ kmh: 110, lens, fps: 60, releaseDistanceM: 2.5 });
     const obs = sim.observations.map((o, i) => {
       const z = sim.trueDistances[i].z;
-      return z > 9 ? { ...o, diameterPx: o.diameterPx * (1 + Math.min(0.04, (0.04 * (z - 9)) / 3)) } : o;
+      return z > 9
+        ? {
+            ...o,
+            diameterPx: o.diameterPx * (1 + Math.min(0.04, (0.04 * (z - 9)) / 3)),
+          }
+        : o;
     });
-    const r = measureVelocity({ observations: obs, lens, stability: { maxBackgroundShiftPx: 1 } });
+    const r = measureVelocity({
+      observations: obs,
+      lens,
+      stability: { maxBackgroundShiftPx: 1 },
+    });
     const truth = r.ok ? trueSpeedAt(sim, 110, 2.5, r.detail.startT) : NaN;
     check(
       '먼 쪽 자가 틀어진 궤적 → 먼 장면을 빼고 1km/h 안',
       r.ok && r.detail.farTrimmed > 0 && Math.abs(r.detail.startKmh - truth) < 1,
-      r.ok ? `먼 쪽에서 뺀 장 ${r.detail.farTrimmed} · 첫 관측 시점 ${r.detail.startKmh} / 정답 ${truth.toFixed(1)}` : r.code
+      r.ok
+        ? `먼 쪽에서 뺀 장 ${r.detail.farTrimmed} · 첫 관측 시점 ${r.detail.startKmh} / 정답 ${truth.toFixed(1)}`
+        : r.code
     );
   }
 
@@ -326,15 +377,27 @@ console.log('\n════ 5. 맞춤(모델 1.6.0) — 두 끝 자르기 · 먼
     const errs: number[] = [];
     const zs: number[] = [];
     for (let seed = 1; seed <= 100; seed++) {
-      const sim = simulatePitch({ kmh: 125, lens, fps, diameterNoisePx: 1, seed, releaseDistanceM: rel });
-      const r = measureVelocity({ observations: sim.observations, lens, stability: { maxBackgroundShiftPx: 1 } });
+      const sim = simulatePitch({
+        kmh: 125,
+        lens,
+        fps,
+        diameterNoisePx: 1,
+        seed,
+        releaseDistanceM: rel,
+      });
+      const r = measureVelocity({
+        observations: sim.observations,
+        lens,
+        stability: { maxBackgroundShiftPx: 1 },
+      });
       if (!r.ok || r.detail.startSeKmh == null) continue;
       const e = r.detail.startKmh - trueSpeedAt(sim, 125, rel, r.detail.startT);
       errs.push(e);
       zs.push(e / r.detail.startSeKmh);
     }
     const mean = errs.reduce((a, b) => a + b, 0) / Math.max(1, errs.length);
-    const cover = zs.filter((z) => Math.abs(z) <= 1.645).length / Math.max(1, zs.length);
+    const cover =
+      zs.filter((z) => Math.abs(z) <= 1.645).length / Math.max(1, zs.length);
     check(
       `${fps}fps · 릴리스 ${rel}m · 지름 잡음 1px — 치우침 없고 SE 가 맞는 크기`,
       errs.length >= 50 && Math.abs(mean) < 1 && cover >= 0.8 && cover <= 0.97,
@@ -350,8 +413,19 @@ console.log('\n════ 5. 맞춤(모델 1.6.0) — 두 끝 자르기 · 먼
     let rejected = 0;
     for (const noise of [0.3, 1, 2])
       for (let seed = 1; seed <= 30; seed++) {
-        const sim = simulatePitch({ kmh: 120, lens, fps: 60, diameterNoisePx: noise, seed, releaseDistanceM: 2.5 });
-        const r = measureVelocity({ observations: sim.observations, lens, stability: { maxBackgroundShiftPx: 1 } });
+        const sim = simulatePitch({
+          kmh: 120,
+          lens,
+          fps: 60,
+          diameterNoisePx: noise,
+          seed,
+          releaseDistanceM: 2.5,
+        });
+        const r = measureVelocity({
+          observations: sim.observations,
+          lens,
+          stability: { maxBackgroundShiftPx: 1 },
+        });
         if (!r.ok) {
           rejected++;
           continue;
@@ -359,19 +433,93 @@ console.log('\n════ 5. 맞춤(모델 1.6.0) — 두 끝 자르기 · 먼
         const truth = trueSpeedAt(sim, 120, 2.5, r.detail.startT);
         const rel = Math.abs(r.detail.startKmh - truth) / truth;
         byConf[r.confidence].push(rel);
-        const pm = 1.645 * Math.hypot(r.detail.startSeKmh ?? Infinity, 0.01 * r.detail.startKmh);
+        const pm =
+          1.645 * Math.hypot(r.detail.startSeKmh ?? Infinity, 0.01 * r.detail.startKmh);
         if (Math.abs(r.detail.startKmh - truth) <= pm) covered++;
         n++;
       }
     const worst = (a: number[]) => (a.length ? Math.max(...a) * 100 : 0);
     check(
       "믿음 '높음' 3% 안 · '보통' 6% 안 · ± 가 80% 이상 덮음",
-      worst(byConf.high) < 3 && worst(byConf.medium) < 6 && covered / Math.max(1, n) >= 0.8,
+      worst(byConf.high) < 3 &&
+        worst(byConf.medium) < 6 &&
+        covered / Math.max(1, n) >= 0.8,
       `높음 ${byConf.high.length}개 최대 ${worst(byConf.high).toFixed(1)}% · 보통 ${byConf.medium.length}개 최대 ${worst(byConf.medium).toFixed(1)}% · 낮음 ${byConf.low.length}개 최대 ${worst(byConf.low).toFixed(1)}% · 거부 ${rejected} · ± 가 덮음 ${covered}/${n}`
     );
   }
 }
 
+console.log(
+  '\n▶ 보정식 — 비율 가운데 값(2.3.20 김민)이 튄 짝에 안 흔들리는가(엔진 2.4 A단계 회귀)'
+);
+{
+  /* 2026-10-12 밖 깨끗한 19구(믿음 높음) raw → 건 */
+  const clean: [number, number][] = [
+    [67.9, 71],
+    [68.2, 71],
+    [82.9, 87],
+    [74, 77],
+    [100.3, 92],
+    [84, 87],
+    [94.2, 98],
+    [93.4, 97],
+    [95.4, 98],
+    [108.5, 111],
+    [110.8, 116],
+    [115, 121],
+    [120.1, 121],
+    [122.3, 127],
+    [103.6, 106],
+    [123.9, 126],
+    [67.3, 66],
+    [127, 129],
+    [122.8, 127],
+  ];
+  /* 10-09 실내 13구(대부분 믿음 낮음)와 10-12 의 튄 둘 — loadCalibration 이 거르지만, 섞여도 가운데 값이라 덜 흔들린다 */
+  const dirty: [number, number][] = [
+    [66.4, 65],
+    [70.5, 65],
+    [69.6, 66],
+    [68.5, 67],
+    [74, 74],
+    [74, 66],
+    [71.3, 79],
+    [79.6, 74],
+    [71, 71],
+    [93.5, 92],
+    [70.2, 97],
+    [111.3, 97],
+    [105.6, 89],
+    [71.2, 93],
+    [100.5, 97],
+  ];
+  const toPairs = (xs: [number, number][]) =>
+    xs.map(([measured, gun]) => ({ measured, gun }));
+  const fitClean = fitCalibration(toPairs(clean));
+  check(
+    'A: 깨끗한 19구 — 비율 1.02~1.06',
+    fitClean.offset === 0 && fitClean.scale >= 1.02 && fitClean.scale <= 1.06,
+    `×${fitClean.scale} (짝 ${fitClean.n})`
+  );
+  const shown = applyCalibration(127, fitClean);
+  check(
+    'A: 원값 127 → 보정 뒤 129 ± 3 (10-12 에는 화면 119.8 이었다)',
+    Math.abs(shown - 129) <= 3,
+    `${shown}`
+  );
+  const fitAll = fitCalibration(toPairs([...clean, ...dirty]));
+  check(
+    'A: 34구를 다 섞어도 비율 0.95 위(직선 최소제곱은 0.8 하한에 붙었다)',
+    fitAll.scale >= 0.95,
+    `×${fitAll.scale}`
+  );
+  const wild = fitCalibration(toPairs([...clean, [60, 140]]));
+  check(
+    'A: 튄 짝 하나(60 → 140)가 비율을 0.5% 넘게 못 움직인다',
+    Math.abs(wild.scale / fitClean.scale - 1) <= 0.005,
+    `×${fitClean.scale} → ×${wild.scale}`
+  );
+}
 console.log(`\n${'═'.repeat(50)}`);
 console.log(`통과 ${passed} / 실패 ${failed}`);
 console.log(`${'═'.repeat(50)}\n`);

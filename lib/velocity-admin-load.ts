@@ -160,6 +160,8 @@ export type AdminPitchRow = {
   fps: number | null;
   gunKmh: number | null;
   calibExclude: boolean;
+  /** 엔진이 짝으로 쓸 만하다고 본 공인가(2.4.1) — 옛 공은 null(짝으로 본다) */
+  calibEligible: boolean | null;
   /** 수기 — 카메라 값 없이 스피드건 값만 적어 올린 공(rawKmh · kmh 는 그 값) */
   manual: boolean;
   autoDetected: boolean;
@@ -205,6 +207,9 @@ export type AdminSessionRow = {
    */
   lensCalVersion: number | null;
   releaseDistM: number | null;
+  /** 투수 뒤의 폰 → 미트 거리(m) · 출처(tape · session-size · default · auto) — 2.4.0 부터, 옛 세션은 null */
+  distanceM: number | null;
+  distanceSource: string | null;
   autoMode: boolean;
   forCalibration: boolean;
   calScale: number;
@@ -220,6 +225,8 @@ export type AdminDay = {
   date: string;
   stat: AdminDayStat;
   sessions: AdminSessionRow[];
+  /** 그날의 시도(공 알림) 전부 — 날짜 폴더의 '시도' 표(엔진 2.4 0단계) */
+  attempts: AdminAttemptRow[];
 };
 
 /* ───────────────────────── 오차 통계 ───────────────────────── */
@@ -231,6 +238,7 @@ export { errorStats, isPair, pitchError };
 /* ───────────────────────── 종합 ───────────────────────── */
 
 type OverviewPitch = {
+  calibEligible?: boolean | null;
   sessionId: string;
   userId: string;
   rawKmh: number;
@@ -614,6 +622,7 @@ function toPitchRow(
     fps: p.fps,
     gunKmh: p.gunKmh,
     calibExclude: p.calibExclude,
+    calibEligible: calibEligibleOf(p.analysis),
     manual: p.manual,
     autoDetected: p.autoDetected,
     pitchType: p.pitchType,
@@ -652,6 +661,8 @@ function toSessionRow(s: SessionWithPitches, urls: Record<string, string>): Admi
     lensCal: lensCalText(s.lensCal),
     lensCalVersion: lensCalVersionOf(s.lensCal),
     releaseDistM: s.releaseDistM,
+    distanceM: s.distanceM,
+    distanceSource: s.distanceSource,
     autoMode: s.autoMode,
     forCalibration: s.forCalibration,
     calScale: s.calScale,
@@ -684,6 +695,7 @@ export async function loadVelocityAdminDay(date: string): Promise<AdminDay> {
     include: SESSION_INCLUDE,
   });
   const rows = await sessionRowsOf(sessions);
+  const attempts = await attemptRowsOf(at);
 
   /* 그날 타일 — 종합과 같은 계산 */
   const flat: OverviewPitch[] = sessions.flatMap((s) =>
@@ -695,6 +707,7 @@ export async function loadVelocityAdminDay(date: string): Promise<AdminDay> {
       releaseKmh: p.releaseKmh,
       gunKmh: p.gunKmh,
       calibExclude: p.calibExclude,
+      calibEligible: calibEligibleOf(p.analysis),
       manual: p.manual,
       clipPath: p.clipPath,
       clipBytes: p.clipBytes,
@@ -702,7 +715,7 @@ export async function loadVelocityAdminDay(date: string): Promise<AdminDay> {
     }))
   );
 
-  return { date, stat: dayStatOf(date, flat), sessions: rows };
+  return { date, stat: dayStatOf(date, flat), sessions: rows, attempts };
 }
 
 /* ───────────────────────── 보정 차수 ───────────────────────── */
@@ -787,4 +800,103 @@ export async function loadVelocityAdminCalibRun(
     ...calibRunSummaryOf(run, nicknames.get(run.userId) ?? '—'),
     rows,
   };
+}
+
+/* ───────────────────────── 시도(공 알림) — 엔진 2.4 0단계 ───────────────────────── */
+
+export type AdminAttemptRow = {
+  id: string;
+  userId: string;
+  nickname: string;
+  sessionId: string | null;
+  pitchId: string | null;
+  createdAt: string;
+  atSec: number | null;
+  kind: string;
+  strength: number | null;
+  ok: boolean;
+  rejectCode: string | null;
+  why: string | null;
+  trackFrames: number | null;
+  rawKmh: number | null;
+  confidence: string | null;
+  /** 관리자가 적은 스피드건 값 — 못 잰 시도의 유일한 건 값 */
+  gunKmh: number | null;
+  excluded: boolean;
+  memo: string | null;
+  clipPath: string | null;
+  clipUrl: string | null;
+  clipSec: number | null;
+  clipEventSec: number | null;
+  engineVersion: string | null;
+  /** 이어진 공(쟀을 때) — 차례 · 보정 후 값 · 그 공의 스피드건 값 */
+  pitch: { seq: number; kmh: number; gunKmh: number | null; calibExclude: boolean } | null;
+  /** 엔진 거리 보고의 요약 — 공 크기 거리 · 지름–깊이 기울기 · 이어 붙임 */
+  sizeDistM: number | null;
+  sizeSlope: number | null;
+  extended: number | null;
+};
+
+/** 그날의 시도 전부(모든 계정) — 클립이 있으면 서명 재생 주소까지 */
+async function attemptRowsOf(at: Date): Promise<AdminAttemptRow[]> {
+  let rows: Awaited<ReturnType<typeof findAttempts>>;
+  try {
+    rows = await findAttempts(at);
+  } catch {
+    /* 표가 아직 없다(마이그레이션 20261012120000_velocity_attempt 가 DB 에 적용되기 전) — 날짜 폴더는 그대로 열린다 */
+    return [];
+  }
+  const paths = rows.map((r) => r.clipPath).filter((p): p is string => !!p);
+  const urls = paths.length ? await createPlaybackUrls(paths) : {};
+  const n = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
+  return rows.map((r) => {
+    const d = (r.analysis as { distance?: Record<string, unknown> } | null)?.distance ?? null;
+    return {
+      id: r.id,
+      userId: r.userId,
+      nickname: r.user.nickname,
+      sessionId: r.sessionId,
+      pitchId: r.pitchId,
+      createdAt: r.createdAt.toISOString(),
+      atSec: r.atSec,
+      kind: r.kind,
+      strength: r.strength,
+      ok: r.ok,
+      rejectCode: r.rejectCode,
+      why: r.why,
+      trackFrames: r.trackFrames,
+      rawKmh: r.rawKmh,
+      confidence: r.confidence,
+      gunKmh: r.gunKmh,
+      excluded: r.excluded,
+      memo: r.memo,
+      clipPath: r.clipPath,
+      clipUrl: r.clipPath ? (urls[r.clipPath] ?? null) : null,
+      clipSec: r.clipSec,
+      clipEventSec: r.clipEventSec,
+      engineVersion: r.engineVersion,
+      pitch: r.pitch,
+      sizeDistM: n(d?.sizeDistM),
+      sizeSlope: n(d?.sizeSlope),
+      extended: n(d?.extended),
+    };
+  });
+}
+
+/** 그날의 시도 줄(표가 없으면 던진다 — attemptRowsOf 가 받는다) */
+function findAttempts(at: Date) {
+  return prisma.velocityAttempt.findMany({
+    where: { date: at },
+    orderBy: { createdAt: 'asc' },
+    include: {
+      user: { select: { nickname: true } },
+      pitch: { select: { seq: true, kmh: true, gunKmh: true, calibExclude: true } },
+    },
+  });
+}
+
+/** 엔진이 짝으로 쓸 만하다고 봤나(analysis.distance.calibEligible, 2.4.1) — 옛 공은 null */
+function calibEligibleOf(analysis: unknown): boolean | null {
+  const v = (analysis as { distance?: { calibEligible?: unknown } | null } | null)?.distance?.calibEligible;
+  return typeof v === 'boolean' ? v : null;
 }

@@ -11,7 +11,11 @@ import {
   syncVelocitySession,
 } from '@/lib/velocity-sync';
 import type { Prisma } from '@prisma/client';
-import { VELOCITY_ENGINE_VERSION } from '@/lib/velocity-engine/version';
+import {
+  CALIBRATION_FAMILY,
+  VELOCITY_ENGINE_VERSION,
+} from '@/lib/velocity-engine/version';
+import { fitCalibration, type CalFit } from '@/lib/velocity-calibration';
 import {
   PITCH_RESULT_KEYS,
   PITCH_TYPE_KEYS,
@@ -288,8 +292,12 @@ export async function adminApplyMeasurement(
   if (!(await requireAdminUser())) return NOT_ADMIN;
   const raw = num(values.rawKmh, MIN_KMH, MAX_KMH);
   if (raw == null)
-    return { ok: false, error: `구속 값이 ${MIN_KMH}~${MAX_KMH} km/h 를 벗어났습니다.` };
-  const opt = (v: unknown, lo: number, hi: number) => (v == null ? null : num(v, lo, hi));
+    return {
+      ok: false,
+      error: `구속 값이 ${MIN_KMH}~${MAX_KMH} km/h 를 벗어났습니다.`,
+    };
+  const opt = (v: unknown, lo: number, hi: number) =>
+    v == null ? null : num(v, lo, hi);
 
   const row = await prisma.velocityPitch.findUnique({
     where: { id },
@@ -301,7 +309,8 @@ export async function adminApplyMeasurement(
   });
   if (!row) return { ok: false, error: '공을 찾을 수 없습니다.' };
 
-  const kmh = Math.round((raw * row.session.calScale + row.session.calOffset) * 10) / 10;
+  const kmh =
+    Math.round((raw * row.session.calScale + row.session.calOffset) * 10) / 10;
   await prisma.velocityPitch.update({
     where: { id },
     data: {
@@ -392,7 +401,8 @@ export async function adminSaveCalibRun(input: {
   }
 
   /* 값 검사 — 잰 것은 카메라 값이 꼭 있고, 못 잰 것은 값 없이 까닭만 */
-  const opt = (v: unknown, lo: number, hi: number) => (v == null ? null : num(v, lo, hi));
+  const opt = (v: unknown, lo: number, hi: number) =>
+    v == null ? null : num(v, lo, hi);
   const rows: Prisma.VelocityCalibResultCreateWithoutRunInput[] = [];
   const ids = new Set<string>();
   for (const r of input.results) {
@@ -423,7 +433,9 @@ export async function adminSaveCalibRun(input: {
       releaseKmh: opt(r.releaseKmh, 0, 250),
       errorKmh: opt(r.errorKmh, 0, 100),
       confidence:
-        r.confidence != null && CONFIDENCES.includes(r.confidence) ? r.confidence : null,
+        r.confidence != null && CONFIDENCES.includes(r.confidence)
+          ? r.confidence
+          : null,
       frames: opt(r.frames, 0, 10_000),
       fps: opt(r.fps, 0, 1000),
       reject: null,
@@ -472,4 +484,125 @@ export async function adminDeleteCalibRun(runId: string): Promise<AdminActionRes
   await prisma.velocityCalibRun.delete({ where: { id: runId } });
   revalidateAll(run.date.toISOString().slice(0, 10));
   return { ok: true };
+}
+
+/** 시도(공 알림) 하나를 고친다 — 못 잰 공의 스피드건 값 · 통계 제외 · 메모(엔진 2.4 0단계, 날짜 폴더의 '시도' 표) */
+export async function adminUpdateVelocityAttempt(
+  id: string,
+  patch: { gunKmh?: number | null; excluded?: boolean; memo?: string | null }
+): Promise<AdminActionResult> {
+  if (!(await requireAdminUser())) return NOT_ADMIN;
+  const data: { gunKmh?: number | null; excluded?: boolean; memo?: string | null } = {};
+  if ('gunKmh' in patch) {
+    if (patch.gunKmh == null) data.gunKmh = null;
+    else {
+      const gun = num(patch.gunKmh, MIN_KMH, MAX_KMH);
+      if (gun == null)
+        return {
+          ok: false,
+          error: `스피드건 값은 ${MIN_KMH}~${MAX_KMH} km/h 사이로 넣어주세요.`,
+        };
+      data.gunKmh = Math.round(gun * 10) / 10;
+    }
+  }
+  if ('excluded' in patch) data.excluded = patch.excluded === true;
+  if ('memo' in patch) {
+    const memo = String(patch.memo ?? '').trim();
+    if (memo.length > MEMO_MAX)
+      return { ok: false, error: `메모는 ${MEMO_MAX}자까지 적을 수 있습니다.` };
+    data.memo = memo || null;
+  }
+  if (Object.keys(data).length === 0) return { ok: true };
+  const row = await prisma.velocityAttempt.findUnique({
+    where: { id },
+    select: { id: true, date: true },
+  });
+  if (!row) return { ok: false, error: '시도를 찾을 수 없습니다.' };
+  await prisma.velocityAttempt.update({ where: { id }, data });
+  revalidateAll(row.date.toISOString().slice(0, 10));
+  return { ok: true };
+}
+
+/* ───────────────────────── 보정식 미리 보기(2.4.1) — 읽기만 ───────────────────────── */
+
+export type CalibPreviewPair = {
+  pitchId: string;
+  date: string;
+  seq: number;
+  measured: number;
+  gun: number;
+  /** 왜 짝에서 빠졌나 — 비었으면 쓴 짝 */
+  excluded: string | null;
+};
+export type CalibPreview = {
+  /** 지금 규칙(loadCalibration 과 같은 거름)으로 다시 맞춘 식 */
+  fit: CalFit;
+  used: CalibPreviewPair[];
+  excluded: CalibPreviewPair[];
+};
+
+/**
+ * 그 사람의 스피드건 짝으로 지금 규칙대로 보정식을 다시 맞춰 보여 준다(DB 에 쓰지 않는다) — 어느 짝이 쓰이고 어느 짝이 왜 빠졌나
+ * (믿음 낮음 · 짝 자격 없음(calibEligible) · 관리자가 뺌 · 다른 모델 묶음 · 밝은 배경 · 대비 길 · 기준 밖). 거름 규칙은 app/actions/velocity.ts
+ * loadCalibration 과 같아야 한다 — 바꾸면 둘 다.
+ */
+export async function adminPreviewCalibration(
+  userId: string
+): Promise<CalibPreview | AdminActionResult> {
+  if (!(await requireAdminUser())) return NOT_ADMIN;
+  const rows = await prisma.velocityPitch.findMany({
+    where: { userId, gunKmh: { not: null }, manual: false },
+    orderBy: { createdAt: 'desc' },
+    take: 200,
+    select: {
+      id: true,
+      seq: true,
+      rawKmh: true,
+      gunKmh: true,
+      confidence: true,
+      calibExclude: true,
+      engineVersion: true,
+      analysis: true,
+      session: { select: { date: true } },
+    },
+  });
+  const used: CalibPreviewPair[] = [];
+  const excluded: CalibPreviewPair[] = [];
+  for (const r of rows) {
+    const a = r.analysis as {
+      polarity?: unknown;
+      fallback?: unknown;
+      offStandard?: unknown;
+      distance?: { calibEligible?: unknown } | null;
+    } | null;
+    const why = r.calibExclude
+      ? '관리자가 뺌'
+      : !(r.engineVersion ?? '').startsWith(CALIBRATION_FAMILY)
+        ? `다른 모델 묶음(${r.engineVersion ?? '옛 공'})`
+        : r.confidence !== 'high'
+          ? '믿음 낮음'
+          : a?.distance?.calibEligible === false
+            ? '짝 자격 없음(이어 찾기 · 끝 못 봄 · 거리 불일치 · 거리 자동)'
+            : a?.polarity === 'dark' || a?.polarity === 'mixed'
+              ? '밝은 배경 앞 어두운 공'
+              : a?.fallback != null
+                ? '대비 길로 잼'
+                : Array.isArray(a?.offStandard) && a.offStandard.length > 0
+                  ? '기준 조건 밖'
+                  : null;
+    const pair: CalibPreviewPair = {
+      pitchId: r.id,
+      date: r.session.date.toISOString().slice(0, 10),
+      seq: r.seq,
+      measured: r.rawKmh,
+      gun: r.gunKmh as number,
+      excluded: why,
+    };
+    (why ? excluded : used).push(pair);
+  }
+  return {
+    fit: fitCalibration(used.map((p) => ({ measured: p.measured, gun: p.gun }))),
+    used,
+    excluded,
+  };
 }

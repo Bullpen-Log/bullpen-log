@@ -167,7 +167,7 @@ function sanitizeLive(raw: unknown): Record<string, unknown> | null {
  * 브라우저가 보낸 것을 그대로 믿지 않는다.
  */
 /** 모델 2.0 의 거리 자 기록 — 숫자 · 정해진 낱말만 */
-function sanitizeDistance(raw: unknown): Record<string, unknown> | null {
+export function sanitizeDistance(raw: unknown): Record<string, unknown> | null {
   if (!raw || typeof raw !== 'object') return null;
   const d = raw as Record<string, unknown>;
   const n = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
@@ -176,6 +176,8 @@ function sanitizeDistance(raw: unknown): Record<string, unknown> | null {
   return {
     method: 'distance',
     distanceM,
+    why: typeof d.why === 'string' ? d.why.slice(0, 40) : null,
+    calibEligible: typeof d.calibEligible === 'boolean' ? d.calibEligible : null,
     inputDistM: n(d.inputDistM),
     sizeDistM: n(d.sizeDistM),
     distanceSource: d.distanceSource === 'ball' ? 'ball' : 'input',

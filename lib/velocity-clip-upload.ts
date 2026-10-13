@@ -1,7 +1,7 @@
 'use client';
 
 import { unstable_rethrow } from 'next/navigation';
-import { attachClip, createClipUpload } from '@/app/actions/velocity';
+import { attachAttemptClip, attachClip, createAttemptClipUpload, createClipUpload } from '@/app/actions/velocity';
 import { localVideoAvailable, saveBlobToPhone } from '@/lib/local-video';
 
 /* 서버 액션이 신호 끊김으로 던지면 — 부르는 쪽(저장 · 전환)이 오류 화면으로 넘어가지 않게 실패로 돌려준다 */
@@ -96,4 +96,51 @@ export async function uploadClip(
   }
   if (!attached.ok) return attached;
   return { ok: true, path: target.path };
+}
+
+/**
+ * 못 잰 시도의 클립을 서버에 올리고 시도에 적는다 — 관리자의 보정용 저장에서만 부른다(폰에는 두지 않는다). 흐름은 uploadClip 의
+ * 서버 길과 같다. 실패해도 조용히 — 시도 기록(숫자)은 이미 남았다.
+ */
+export async function uploadAttemptClip(
+  attemptId: string,
+  blob: Blob,
+  info: { sec: number | null; eventSec: number | null }
+): Promise<{ ok: true; path: string } | { ok: false; error: string }> {
+  const mime = blob.type || 'video/mp4';
+  let target: Awaited<ReturnType<typeof createAttemptClipUpload>>;
+  try {
+    target = await createAttemptClipUpload(attemptId, mime, blob.size);
+  } catch (err) {
+    unstable_rethrow(err);
+    return OFFLINE;
+  }
+  if (!target.ok) return target;
+  try {
+    await new Promise<void>((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open('PUT', target.signedUrl);
+      xhr.setRequestHeader('Content-Type', mime);
+      xhr.onload = () =>
+        xhr.status >= 200 && xhr.status < 300
+          ? resolve()
+          : reject(new Error('클립 업로드에 실패했습니다.'));
+      xhr.onerror = () => reject(new Error('네트워크 오류로 클립을 올리지 못했습니다.'));
+      xhr.send(blob);
+    });
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : '클립을 올리지 못했습니다.' };
+  }
+  try {
+    return await attachAttemptClip(attemptId, {
+      path: target.path,
+      bytes: blob.size,
+      sec: info.sec,
+      mime,
+      eventSec: info.eventSec,
+    });
+  } catch (err) {
+    unstable_rethrow(err);
+    return OFFLINE;
+  }
 }

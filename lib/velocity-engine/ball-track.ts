@@ -11,7 +11,13 @@
  * 모든 픽셀 값은 원본 1080(짧은 변) 기준으로 맞춘 것을 해상도 배율(scale)로 옮긴다 — 앱의 분석 해상도는 720 이다.
  * 시험 코드(2026-10-07, ~/bullpen-velocity-lab/proto2)에서 옮겼다. 정한 까닭은 그 시험의 기록에 있다(기억: velocity-engine-2-rebuild).
  */
-import { fitTrajectory, rebase, type PinholeCamera, type TrackPoint, type TrajectoryFit } from './trajectory-fit.ts';
+import {
+  fitTrajectory,
+  rebase,
+  type PinholeCamera,
+  type TrackPoint,
+  type TrajectoryFit,
+} from './trajectory-fit.ts';
 import { fromRef, toRef, type Motion } from './stabilize.ts';
 
 /** 장면 묶음 — 분석 해상도의 밝기(0~255)와 시각(초) */
@@ -43,6 +49,8 @@ export type TrackedBall = {
   diam: number;
   /** 둥근 테두리로 찾았나(이어 찾기 4) — 밝기 덩어리 중심과 자가 달라 따로 표시 */
   ring?: boolean;
+  /** 번진 공(길쭉함 1.6~2.6)으로 이은 장면(2.5.0) — 지름은 짧은 변, 크기 자(sizeDistM · 기울기)에서 빼고 맞춤 무게는 절반 */
+  streak?: boolean;
 };
 
 /** 해상도 배율 — 짧은 변 1080 을 1 로 */
@@ -53,7 +61,11 @@ export function pixelScale(fs: { w: number; h: number }): number {
 /* ───────────────────────────── 배경 · 덩어리 ───────────────────────────── */
 
 /** 화소별 중앙값 — 장면 몇 장(홀수가 좋다). 공 · 몸처럼 지나가는 것은 빠지고 가만한 배경만 남는다 */
-export function medianBackground(frames: ArrayLike<number>[], w: number, h: number): Uint8Array {
+export function medianBackground(
+  frames: ArrayLike<number>[],
+  w: number,
+  h: number
+): Uint8Array {
   const n = frames.length;
   const out = new Uint8Array(w * h);
   if (!n) return out;
@@ -97,7 +109,20 @@ export type Blob = {
   bh: number;
   /** 둘러싼 원을 채운 비율 — 둥글수록 1 에 가깝다 */
   fill: number;
+  /** 길쭉함(긴 변 ÷ 짧은 변) · 둘러싼 타원을 채운 비율 · 짧은 변(px) — 번진 공(2.5.0): 타원을 잘 채우면서 1.6 넘게 길쭉하면 streak */
+  elong: number;
+  efill: number;
+  minor: number;
+  streak: boolean;
 };
+
+/** 번진 공으로 볼 길쭉함의 범위 — 1.6 까지는 '둥근 공'으로 씨앗이 될 수 있고, 2.6 넘으면 팔 · 몸이다 */
+export const STREAK_MIN_ELONG = 1.6;
+export const STREAK_MAX_ELONG = 2.6;
+/** 번진 공의 타원 채움 하한 — 막대 · ㄱ자는 타원을 못 채운다 */
+export const STREAK_MIN_EFILL = 0.6;
+/** 씨앗 뒤 이만큼 장면 안에서만 번진 공을 잇는다 — 릴리스 근처(가깝고 빠른 때)만 번진다 */
+export const STREAK_FRAMES = 6;
 
 /** findBlobs 가 다시 쓰는 표시 배열 — 장면마다 새로 잡지 않는다 */
 let BLOB_MASK = new Uint8Array(0);
@@ -129,8 +154,12 @@ export function findBlobs(
   for (let y = 0; y < rh; y++) {
     const row = (y + y0) * w + x0;
     const o = y * rw;
-    if (abs) for (let x = 0; x < rw; x++) mask[o + x] = Math.abs(frame[row + x] - bg[row + x]) > thr ? 1 : 0;
-    else for (let x = 0; x < rw; x++) mask[o + x] = frame[row + x] - bg[row + x] > thr ? 1 : 0;
+    if (abs)
+      for (let x = 0; x < rw; x++)
+        mask[o + x] = Math.abs(frame[row + x] - bg[row + x]) > thr ? 1 : 0;
+    else
+      for (let x = 0; x < rw; x++)
+        mask[o + x] = frame[row + x] - bg[row + x] > thr ? 1 : 0;
   }
   const stack: number[] = [];
   const blobs: Blob[] = [];
@@ -179,6 +208,8 @@ export function findBlobs(
     if (area < minArea) continue;
     const bw = bx1 - bx0 + 1;
     const bh = by1 - by0 + 1;
+    const elong = Math.max(bw, bh) / Math.min(bw, bh);
+    const efill = area / (Math.PI * (bw / 2) * (bh / 2));
     blobs.push({
       area,
       cx: sx / sw,
@@ -186,6 +217,13 @@ export function findBlobs(
       bw,
       bh,
       fill: area / (Math.PI * (Math.max(bw, bh) / 2) ** 2),
+      elong,
+      efill,
+      minor: Math.min(bw, bh),
+      streak:
+        elong > STREAK_MIN_ELONG &&
+        elong <= STREAK_MAX_ELONG &&
+        efill >= STREAK_MIN_EFILL,
     });
   }
   return blobs;
@@ -207,8 +245,16 @@ export function refineCenter(
   let sy = 0;
   let area = 0;
   const R = Math.ceil(r);
-  for (let y = Math.max(0, Math.floor(cy - R)); y <= Math.min(h - 1, Math.ceil(cy + R)); y++)
-    for (let x = Math.max(0, Math.floor(cx - R)); x <= Math.min(w - 1, Math.ceil(cx + R)); x++) {
+  for (
+    let y = Math.max(0, Math.floor(cy - R));
+    y <= Math.min(h - 1, Math.ceil(cy + R));
+    y++
+  )
+    for (
+      let x = Math.max(0, Math.floor(cx - R));
+      x <= Math.min(w - 1, Math.ceil(cx + R));
+      x++
+    ) {
       if ((x - cx) ** 2 + (y - cy) ** 2 > r * r) continue;
       const d = frame[y * w + x] - bg[y * w + x];
       if (d <= thr) continue;
@@ -224,14 +270,23 @@ export function refineCenter(
 /* ───────────────────────────── 둥근 테두리 ───────────────────────────── */
 
 /** 쌍선형으로 한 점 밝기 — 밖이면 NaN */
-export function sampleAt(img: ArrayLike<number>, w: number, h: number, x: number, y: number): number {
+export function sampleAt(
+  img: ArrayLike<number>,
+  w: number,
+  h: number,
+  x: number,
+  y: number
+): number {
   if (x < 0 || y < 0 || x > w - 1.001 || y > h - 1.001) return NaN;
   const x0 = Math.floor(x);
   const y0 = Math.floor(y);
   const fx = x - x0;
   const fy = y - y0;
   const p = y0 * w + x0;
-  return (img[p] * (1 - fx) + img[p + 1] * fx) * (1 - fy) + (img[p + w] * (1 - fx) + img[p + w + 1] * fx) * fy;
+  return (
+    (img[p] * (1 - fx) + img[p + 1] * fx) * (1 - fy) +
+    (img[p + w] * (1 - fx) + img[p + w + 1] * fx) * fy
+  );
 }
 
 /**
@@ -287,7 +342,16 @@ export function ringScore(
     const ya = y + ra * sn[k];
     const xb = x + rb * co[k];
     const yb = y + rb * sn[k];
-    if (xa < 0 || ya < 0 || xa > xmax || ya > ymax || xb < 0 || yb < 0 || xb > xmax || yb > ymax) {
+    if (
+      xa < 0 ||
+      ya < 0 ||
+      xa > xmax ||
+      ya > ymax ||
+      xb < 0 ||
+      yb < 0 ||
+      xb > xmax ||
+      yb > ymax
+    ) {
       c[k] = NaN;
       continue;
     }
@@ -296,13 +360,17 @@ export function ringScore(
     const fxa = xa - xa0;
     const fya = ya - ya0;
     const pa = ya0 * w + xa0;
-    const a = (img[pa] * (1 - fxa) + img[pa + 1] * fxa) * (1 - fya) + (img[pa + w] * (1 - fxa) + img[pa + w + 1] * fxa) * fya;
+    const a =
+      (img[pa] * (1 - fxa) + img[pa + 1] * fxa) * (1 - fya) +
+      (img[pa + w] * (1 - fxa) + img[pa + w + 1] * fxa) * fya;
     const xb0 = Math.floor(xb);
     const yb0 = Math.floor(yb);
     const fxb = xb - xb0;
     const fyb = yb - yb0;
     const pb = yb0 * w + xb0;
-    const b = (img[pb] * (1 - fxb) + img[pb + 1] * fxb) * (1 - fyb) + (img[pb + w] * (1 - fxb) + img[pb + w + 1] * fxb) * fyb;
+    const b =
+      (img[pb] * (1 - fxb) + img[pb + 1] * fxb) * (1 - fyb) +
+      (img[pb + w] * (1 - fxb) + img[pb + w + 1] * fxb) * fyb;
     c[k] = Math.abs(a - b);
     m++;
   }
@@ -482,7 +550,11 @@ export function diffWindow(
 
 /* ───────────────────────────── 씨앗 · 이어 찾기 ───────────────────────────── */
 
-const round = (b: Blob) => b.fill > 0.72 && b.bw / b.bh > 0.7 && b.bw / b.bh < 1.4;
+/*
+ * 둥근 공 — 둘러싼 타원을 잘 채우고(0.72) 길쭉함이 STREAK_MIN_ELONG(1.6) 안. 예전(원 채움 0.72 · 가로세로 0.7~1.4)은 노출 1/60 에서
+ * 살짝 번진 공(1.4~1.6)을 씨앗에서 떨어뜨렸다(2.5.0 — 셔터 상한 전 영상 · 빠른 공). 타원 채움이라 막대 · ㄱ자는 그대로 걸린다.
+ */
+const round = (b: Blob) => b.efill > 0.72 && b.elong <= STREAK_MIN_ELONG;
 
 export type Seed = { i: number; blob: Blob };
 
@@ -515,14 +587,21 @@ export function findSeeds(
     return b;
   };
   for (let i = Math.max(0, from); i <= Math.min(fs.t.length - 2, to); i++) {
-    const big = blobsAt(i).filter((b) => b.area >= 30 * s * s && round(b) && b.area > 150 * s * s);
+    const big = blobsAt(i).filter(
+      (b) => b.area >= 30 * s * s && round(b) && b.area > 150 * s * s
+    );
     if (!big.length) continue;
     const next = blobsAt(i + 1).filter(round);
     for (const b of big.sort((p, q) => q.area - p.area)) {
       const r = Math.sqrt(b.area / Math.PI);
       const m = next.find((c) => {
         const d = Math.hypot(c.cx - b.cx, c.cy - b.cy);
-        return c.area < b.area * 0.97 && c.area > b.area * 0.3 && d < 1.5 * r && (d > 2 * s || c.area < b.area * 0.85);
+        return (
+          c.area < b.area * 0.97 &&
+          c.area > b.area * 0.3 &&
+          d < 1.5 * r &&
+          (d > 2 * s || c.area < b.area * 0.85)
+        );
       });
       if (m) {
         out.push({ i, blob: b });
@@ -537,7 +616,11 @@ export function findSeeds(
  * 씨앗에서 덩어리를 이어 간다 — 앞 두 장으로 다음 자리를 짐작(움직임의 0.8배), 문(gate) 안에서 가장 가까운 덩어리. 면적은
  * 앞 장의 0.25~1.6배(+20). 두 장까지 건너뛴다. 중심은 원 안의 밝기 무게로 다듬는다.
  */
-export function blobTrack(fs: FrameSet, bg: ArrayLike<number>, seed: Seed): TrackedBall[] {
+export function blobTrack(
+  fs: FrameSet,
+  bg: ArrayLike<number>,
+  seed: Seed
+): TrackedBall[] {
   const s = pixelScale(fs);
   const { w, h } = fs;
   const raw: { i: number; b: Blob }[] = [{ i: seed.i, b: seed.blob }];
@@ -556,8 +639,21 @@ export function blobTrack(fs: FrameSet, bg: ArrayLike<number>, seed: Seed): Trac
       Math.min(w, Math.ceil(px + gate)),
       Math.min(h, Math.ceil(py + gate)),
     ];
+    /*
+     * 번진 공(streak)은 씨앗 뒤 STREAK_FRAMES 장 안에서만, 짧은 변이 앞 공 지름의 0.7~1.3배일 때만 잇는다(2.5.0) — 릴리스 근처의
+     * 빠른 공이 길게 찍혀도 놓치지 않게. 그보다 뒤의 길쭉한 것은 몸 · 그물이라 예전처럼 뺀다. 번진 공은 넓이가 길이만큼 크다.
+     */
+    const lastDiam = last.b.streak
+      ? last.b.minor
+      : 2 * Math.sqrt(last.b.area / Math.PI);
     const cand = findBlobs(fs.luma[i], bg, w, box, 18, Math.max(2, 3 * s * s)).filter(
-      (b) => b.area < last.b.area * 1.6 + 20 * s * s && b.area > last.b.area * 0.25
+      (b) =>
+        b.streak
+          ? i - seed.i <= STREAK_FRAMES &&
+            b.minor >= lastDiam * 0.7 &&
+            b.minor <= lastDiam * 1.3 &&
+            b.area < last.b.area * 3 + 20 * s * s
+          : b.area < last.b.area * 1.6 + 20 * s * s && b.area > last.b.area * 0.25
     );
     let best: Blob | null = null;
     let bd = Infinity;
@@ -575,8 +671,22 @@ export function blobTrack(fs: FrameSet, bg: ArrayLike<number>, seed: Seed): Trac
     raw.push({ i, b: best });
   }
   return raw.map(({ i, b }) => {
+    /* 번진 공 — 중심은 무게 중심(번진 길이의 가운데 = 노출 가운데 때의 자리), 지름은 짧은 변. 원 안에서 다듬지 않는다 */
+    if (b.streak) {
+      const [u, v] = refOf(fs, i, b.cx, b.cy);
+      return { i, t: fs.t[i], u, v, diam: b.minor, streak: true };
+    }
     const r = Math.sqrt(b.area / Math.PI);
-    const f = refineCenter(fs.luma[i], bg, w, h, b.cx, b.cy, Math.max(4 * s, r * 1.6), 10);
+    const f = refineCenter(
+      fs.luma[i],
+      bg,
+      w,
+      h,
+      b.cx,
+      b.cy,
+      Math.max(4 * s, r * 1.6),
+      10
+    );
     const [u, v] = refOf(fs, i, f ? f.cx : b.cx, f ? f.cy : b.cy);
     return { i, t: fs.t[i], u, v, diam: f ? f.diam : 2 * r };
   });
@@ -593,8 +703,19 @@ export function ringSigma(r: number, s: number): number {
   return 0.6 * s + 0.08 * r;
 }
 
-export function toPoints(track: TrackedBall[], s: number): (TrackPoint & TrackedBall)[] {
-  return track.map((o) => ({ ...o, sigma: o.ring ? ringSigma(o.diam / 2, s) : blobSigma(o.diam, s) }));
+export function toPoints(
+  track: TrackedBall[],
+  s: number
+): (TrackPoint & TrackedBall)[] {
+  return track.map((o) => ({
+    ...o,
+    /* 번진 공은 중심이 노출 가운데 때라 반 장 안팎 흔들린다 — 오차 폭 두 배(맞춤 무게 1/4) */
+    sigma: o.ring
+      ? ringSigma(o.diam / 2, s)
+      : o.streak
+        ? 2 * blobSigma(o.diam, s)
+        : blobSigma(o.diam, s),
+  }));
 }
 
 /**
@@ -613,13 +734,15 @@ export function consistentPrefix(
     let seg = pts.slice(0, e);
     let f = fitTrajectory(seg, seg[seg.length - 1].t + dt / 2, cam, { dragScaleM });
     let a = 0;
-    while (a < 4 && f.resid[a] > 3 * Math.max(0.5 * s, f.rms) && f.resid[a] > 2.5 * s) a++;
+    while (a < 4 && f.resid[a] > 3 * Math.max(0.5 * s, f.rms) && f.resid[a] > 2.5 * s)
+      a++;
     if (a) {
       seg = seg.slice(a);
       if (seg.length < minLen) continue;
       f = fitTrajectory(seg, seg[seg.length - 1].t + dt / 2, cam, { dragScaleM });
     }
-    if (Math.max(...f.resid.slice(-4)) <= 2 * s && f.rms <= 1.6 * s) return { seg, fit: f };
+    if (Math.max(...f.resid.slice(-4)) <= 2 * s && f.rms <= 1.6 * s)
+      return { seg, fit: f };
   }
   return null;
 }
@@ -654,7 +777,13 @@ export function extendRansac(
   seg: (TrackPoint & TrackedBall)[],
   cam: PinholeCamera,
   fps: number,
-  opts: { iters?: number; maxGapSec?: number; K?: number; dragScaleM?: number; raw?: boolean } = {}
+  opts: {
+    iters?: number;
+    maxGapSec?: number;
+    K?: number;
+    dragScaleM?: number;
+    raw?: boolean;
+  } = {}
 ): ExtendResult {
   const s = pixelScale(fs);
   const dt = 1 / fps;
@@ -686,7 +815,9 @@ export function extendRansac(
     if (g) rs.push(g.r * fit0.project(o.t)[2]);
   }
   rs.sort((a, b) => a - b);
-  const kR = rs.length ? rs[rs.length >> 1] : (last.diam / 2) * 0.75 * fit0.project(last.t)[2];
+  const kR = rs.length
+    ? rs[rs.length >> 1]
+    : (last.diam / 2) * 0.75 * fit0.project(last.t)[2];
   /* 덩어리 중심 − 테두리 중심 어긋남 — 앞부분 끝 6장에서 크고 또렷하고 둥근 공만 */
   const dd: [number, number][] = [];
   for (const o of pts.slice(-6)) {
@@ -713,7 +844,8 @@ export function extendRansac(
     const b = [...a].sort((x, y) => x - y);
     return b[b.length >> 1];
   };
-  const offset: [number, number] = dd.length >= 3 ? [mid(dd.map((d) => d[0])), mid(dd.map((d) => d[1]))] : [0, 0];
+  const offset: [number, number] =
+    dd.length >= 3 ? [mid(dd.map((d) => d[0])), mid(dd.map((d) => d[1]))] : [0, 0];
   const lags = [4, 6, 8].map((k) => Math.max(1, Math.round(k * per60)));
 
   /* 1) 후보 모으기 */
@@ -746,7 +878,19 @@ export function extendRansac(
         ring: true,
       };
     };
-    const c = findRings(dw.img, dw.W, dw.H, pu - dw.x0, pv - dw.y0, rp, gate, K, spread, 0.5, band)
+    const c = findRings(
+      dw.img,
+      dw.W,
+      dw.H,
+      pu - dw.x0,
+      pv - dw.y0,
+      rp,
+      gate,
+      K,
+      spread,
+      0.5,
+      band
+    )
       .filter((g) => g.score >= 8)
       .map((g) => toCand(g, dw.x0, dw.y0));
     /*
@@ -754,10 +898,23 @@ export function extendRansac(
      * 붙고(119_cb −15.8) 실내도 나빠졌다(2026-10-07 19개). 공 찾기 모델이 생기면 다시 본다.
      */
     if (opts.raw === true)
-      for (const g of findRings(fs.luma[i], fs.w, fs.h, pu, pv, rp, gate, 2, spread, 0.5, band)) {
+      for (const g of findRings(
+        fs.luma[i],
+        fs.w,
+        fs.h,
+        pu,
+        pv,
+        rp,
+        gate,
+        2,
+        spread,
+        0.5,
+        band
+      )) {
         if (g.score < 15) continue;
         const cand = toCand(g, 0, 0);
-        if (!c.some((o) => Math.hypot(o.u - cand.u, o.v - cand.v) < 0.5 * g.r)) c.push(cand);
+        if (!c.some((o) => Math.hypot(o.u - cand.u, o.v - cand.v) < 0.5 * g.r))
+          c.push(cand);
       }
     frames.push({ i, c });
   }
@@ -786,7 +943,11 @@ export function extendRansac(
     }
     return run;
   };
-  let best: { run: Cand[]; err: number; f: TrajectoryFit | null } = { run: [], err: Infinity, f: null };
+  let best: { run: Cand[]; err: number; f: TrajectoryFit | null } = {
+    run: [],
+    err: Infinity,
+    f: null,
+  };
   /* 늘 같은 결과가 나오게 — 결정적 난수 */
   let seed = 12345;
   const rnd = () => (seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648;
@@ -796,21 +957,35 @@ export function extendRansac(
     if (a.i === b.i) continue;
     const [p, q] = a.i < b.i ? [a, b] : [b, a];
     const te = q.t + dt / 2;
-    const f = fitTrajectory([...pts, p, q], te, cam, { dragScaleM, init: rebase(fit0, te) });
-    if (f.resid[f.resid.length - 1] > 3 * q.sigma || f.resid[f.resid.length - 2] > 3 * p.sigma) continue;
+    const f = fitTrajectory([...pts, p, q], te, cam, {
+      dragScaleM,
+      init: rebase(fit0, te),
+    });
+    if (
+      f.resid[f.resid.length - 1] > 3 * q.sigma ||
+      f.resid[f.resid.length - 2] > 3 * p.sigma
+    )
+      continue;
     const run = runOf(f);
     if (!run.includes(p) || !run.includes(q)) continue;
     const err = run.reduce((acc, c) => {
       const [u, v] = f.project(c.t);
       return acc + Math.hypot(c.u - u, c.v - v);
     }, 0);
-    if (run.length > best.run.length || (run.length === best.run.length && err < best.err)) best = { run, err, f };
+    if (
+      run.length > best.run.length ||
+      (run.length === best.run.length && err < best.err)
+    )
+      best = { run, err, f };
   }
   /* 3) 다듬기 — 고른 줄로 다시 맞춰 한 번 더 줄 세우기 */
   if (best.run.length >= 3 && best.f) {
     for (let r = 0; r < 2; r++) {
       const te = best.run[best.run.length - 1].t + dt / 2;
-      const f = fitTrajectory([...pts, ...best.run], te, cam, { dragScaleM, init: rebase(best.f as TrajectoryFit, te) });
+      const f = fitTrajectory([...pts, ...best.run], te, cam, {
+        dragScaleM,
+        init: rebase(best.f as TrajectoryFit, te),
+      });
       const run = runOf(f);
       if (run.length >= best.run.length) best = { ...best, run, f };
       else break;
@@ -818,7 +993,11 @@ export function extendRansac(
   }
   /* 끝에 4장(60fps 기준) 넘게 떨어져 홀로 붙은 점은 버린다 */
   const isolated = Math.round(4 * per60);
-  while (best.run.length >= 2 && best.run[best.run.length - 1].i - best.run[best.run.length - 2].i >= isolated) best.run.pop();
+  while (
+    best.run.length >= 2 &&
+    best.run[best.run.length - 1].i - best.run[best.run.length - 2].i >= isolated
+  )
+    best.run.pop();
   if (best.run.length < 3) return { pts, added: 0, offset };
   /*
    * 줄이 걸친 장면의 70% 넘게 차야 한다 — 진짜 공은 촘촘히 이어지고(실내 086: 11장 모두, 111_00: 21장 중 15장), 밖 그물에서 맞은
