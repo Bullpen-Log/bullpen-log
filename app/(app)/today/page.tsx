@@ -1,9 +1,6 @@
 import { appNow } from '@/lib/clock';
 import { Suspense, cache } from 'react';
-import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { ChevronRight } from 'lucide-react';
-import { LinkPending } from '@/components/link-pending';
 import { prisma } from '@/lib/prisma';
 import { requireUser } from '@/lib/dal';
 import { featureLocks } from '@/lib/feature-locks';
@@ -53,7 +50,7 @@ type User = Awaited<ReturnType<typeof requireUser>>;
  */
 const homeCore = cache((user: User) => loadTodayCore(user, now()));
 
-/** 기다리는 동안의 자리 — 하이라이트 두 장과 '더 보기' 줄 모양 */
+/** 기다리는 동안의 자리 — 하이라이트 두 장 모양 */
 function TodaySkeleton() {
   return (
     <div aria-busy="true" className="space-y-3">
@@ -198,7 +195,7 @@ async function PitchLogSection({
   );
 }
 
-/** 캘린더 밑 — 알림 카드 · 첫날 카드 · 하이라이트 · 더 보기 */
+/** 캘린더 밑 — 알림 카드 · 첫날 카드 · 하이라이트('분석 · 그래프 더 보기' 줄은 2026-10-13 김민이 뺌 — 분석은 탭 제목 옆 '분석' 단추로) */
 async function TodayBody({
   user,
   today,
@@ -331,17 +328,6 @@ async function TodayBody({
       )}
 
       <Highlights items={highlights} />
-
-      {/* 분석 칸 · 그래프는 따로 한 화면으로(/coach) — 지운 것 없이 거기에 그대로 있다 */}
-      <Link
-        href="/coach"
-        className="flex min-h-12 items-center justify-between rounded-2xl border border-line bg-surface px-(--block-pad) text-[15px] text-ink transition-colors hover:bg-surface-2/60"
-      >
-        분석 · 그래프 더 보기
-        <LinkPending className="h-4 w-4 text-line-strong">
-          <ChevronRight aria-hidden className="h-4 w-4 shrink-0 text-line-strong" />
-        </LinkPending>
-      </Link>
     </>
   );
 }
