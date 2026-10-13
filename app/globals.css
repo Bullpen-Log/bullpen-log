@@ -2890,3 +2890,61 @@ html[data-dualcam] [data-finder] > video {
     overflow-wrap: anywhere;
   }
 }
+
+/*
+ * 홈 축하(app/(app)/today/all-done.tsx) — 링 넷이 다 찬 날 한 번. 웹은 링이 차례로 위로 빠지고(0.52초, 0.06초 간격) 체크 ·
+ * 이모지가 퍼진다. 앱은 화면 전체가 흐려지며 가운데에. 움직임 줄이기면 빠지기 · 이모지 없이 완료 모양만.
+ */
+@media (prefers-reduced-motion: no-preference) {
+  .rings-lift > * > * {
+    animation: rings-lift 520ms cubic-bezier(0.5, 0, 0.75, 0) both;
+  }
+  .rings-lift > * > :nth-child(2) {
+    animation-delay: 60ms;
+  }
+  .rings-lift > * > :nth-child(3) {
+    animation-delay: 120ms;
+  }
+  .rings-lift > * > :nth-child(4) {
+    animation-delay: 180ms;
+  }
+  .cheer-bit {
+    animation: cheer-bit 1200ms cubic-bezier(0.22, 1, 0.36, 1) both;
+    animation-delay: var(--d, 500ms);
+  }
+  .celebrate-in {
+    animation: celebrate-in 260ms ease-out both;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cheer-bit {
+    display: none;
+  }
+}
+@keyframes rings-lift {
+  to {
+    transform: translateY(-140%);
+    opacity: 0;
+  }
+}
+@keyframes cheer-bit {
+  0% {
+    opacity: 0;
+    transform: translate(0, 0) scale(0.4);
+  }
+  25% {
+    opacity: 1;
+  }
+  75% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(var(--dx), var(--dy)) scale(1);
+  }
+}
+@keyframes celebrate-in {
+  from {
+    opacity: 0;
+  }
+}
