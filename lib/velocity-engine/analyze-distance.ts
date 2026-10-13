@@ -91,6 +91,8 @@ export const BLOB_SIZE_RATIO = 1.185;
 export const SPEED_DISTANCE_EXPONENT = 1.076;
 /** 공 크기로 어림한 거리의 σ(비율) — 위 흩어짐 2~3% 와 길마다 갈리는 1% 남짓 */
 export const AUTO_DISTANCE_SIGMA_REL = 0.03;
+/** 튕김을 못 본 끝(impact 'end')을 믿는 공 크기 거리 · 넣은 거리 차이 — 10-12 밖 그런 공 둘은 3 · 5% 였다 */
+export const END_SIZE_AGREE = 0.1;
 /**
  * 공 크기 거리는 초점거리에 비례한다 — 화각을 짐작했으면(렌즈 정보 · 렌즈 보정 · 앱 카메라 값 없음) 그만큼 더 틀린다. 아이폰 영상 · 웹
  * 카메라의 화각은 짐작과 8% 안팎 갈린다. 부르는 쪽(analyze-video · live-meter)이 ± 에 더하고 이 알림을 붙인다.
@@ -655,7 +657,12 @@ export function analyzeByDistance(input: DistanceInput): DistanceResult {
     );
     const errorKmh = 1.645 * sigmaRel * kmh;
     let confidence: Confidence = 'medium';
-    if (approach === 'approaching' || extended > 0 || report.impact === 'end' || report.shaky) confidence = 'low';
+    /*
+     * 끝에서 튕기는 장면을 못 봤어도(impact 'end' — 포수가 받아 공이 멈춤) 이어 찾지 않았으면 끝은 본 것이다 — 넣은 거리일 때는 '낮음'으로
+     * 떨어뜨리지 않고, 아래에서 공 크기 거리가 넣은 거리와 END_SIZE_AGREE 안인지로 가린다(2.3.21 — 10-12 밖 그런 공 둘이
+     * 스피드건과 1% 안이었는데 '낮음'이라 측정 불가로 빠졌다). 끝을 이어 찾았거나(흰 배경) 거리 자동이면 그대로 '낮음'.
+     */
+    if (approach === 'approaching' || extended > 0 || (report.impact === 'end' && auto) || report.shaky) confidence = 'low';
     /* 공 크기로 어림한 거리는 줄자보다 덜 믿는다 — '보통'까지 */
     else if (!auto && used.length * dt >= 0.4 && fit.rms <= 1.2 * s) confidence = 'high';
     report.timingMs = Math.round(now() - t0);
@@ -711,7 +718,9 @@ export function analyzeByDistance(input: DistanceInput): DistanceResult {
   {
     const s = report.sizeDistM;
     const off = !input.autoDistance && s != null ? Math.abs(s / D - 1) : 0;
-    if (off > INPUT_SIZE_MISMATCH && out.measure.ok) {
+    /* 튕김을 못 본 끝은 공이 그물 · 미트 앞에서 끊겼을 수도 있다 — 공 크기 거리가 넣은 거리와 더 가깝게 맞을 때만 믿는다 */
+    const endUnseen = !input.autoDistance && report.impact === 'end' && (s == null || off > END_SIZE_AGREE);
+    if ((off > INPUT_SIZE_MISMATCH || endUnseen) && out.measure.ok) {
       const m = out.measure;
       m.confidence = 'low';
       m.errorKmh = Math.max(m.errorKmh, round1(m.kmh * off));

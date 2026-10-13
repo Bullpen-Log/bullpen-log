@@ -383,6 +383,9 @@ function trailOf(result: ScreenResult): TrailPoint[] | null {
 /** 카메라 실시간 결과에는 촬영 조건 알림(live)이 붙는다(lib/velocity-engine/live-meter.ts) — 영상 파일 결과에는 없다 */
 type ScreenResult = AnalyzeResult & { live?: LiveReport };
 
+/** 세션 안 공 크기 거리의 허용 흩어짐(가운데 값 대비) — addResult */
+const SESSION_SIZE_SPREAD = 0.09;
+
 /** 못 잰 공의 머리말 — 믿음이 모자라 버린 공은 '측정 불가' */
 function rejectTitle(r: ScreenResult): string {
   if (!r.measure.ok && r.measure.code === 'LOW_CONFIDENCE') return '측정 불가';
@@ -859,6 +862,32 @@ export function VelocityScreen({
       });
       speak('측정 불가');
       return;
+    }
+    /*
+     * 같은 세션의 공 크기 거리 — 앞서 기록한 공 셋 이상의 가운데 값에서 SESSION_SIZE_SPREAD 넘게 튀면 이 공의 끝(그물 · 미트에 닿은 때)을
+     * 잘못 잡은 것이다. 10-12 밖 22구: 정상 공은 가운데 값 ±8.1% 안, 스피드건과 13% 갈린 공이 −10.4%(10-03 밖 13개는 ±6.6% 안).
+     */
+    const sizeNow = (result as { distance?: DistanceReport }).distance?.sizeDistM;
+    const sizes = pitches
+      .filter((p) => p.source === source)
+      .map((p) => (p.analysis as { distance?: { sizeDistM?: unknown } } | null | undefined)?.distance?.sizeDistM)
+      .filter((v): v is number => typeof v === 'number' && v > 0)
+      .sort((a, b) => a - b);
+    if (!calibOn && sizeNow != null && sizes.length >= 3) {
+      const n = sizes.length;
+      const mid = n % 2 ? sizes[(n - 1) / 2] : (sizes[n / 2 - 1] + sizes[n / 2]) / 2;
+      if (Math.abs(sizeNow / mid - 1) > SESSION_SIZE_SPREAD) {
+        setLast({
+          ...result,
+          measure: {
+            ok: false,
+            ...reject('LOW_CONFIDENCE'),
+            fix: '이 공은 앞 공들과 거리 판독이 달라 잴 수 없었어요. 폰과 미트 자리는 그대로 두고 다시 던져 주세요.',
+          },
+        });
+        speak('측정 불가');
+        return;
+      }
     }
     setLast(result);
     const m = result.measure;
