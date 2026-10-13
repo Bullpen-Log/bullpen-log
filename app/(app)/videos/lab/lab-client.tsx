@@ -73,7 +73,7 @@ export function LabClient({
   return (
     <div className="stack-page">
       <div className="space-y-2">
-        <BackLink href="/videos">투구 기록</BackLink>
+        <BackLink href="/videos">투구</BackLink>
         <PageHeading
           kicker="베타"
           title="투구 분석"

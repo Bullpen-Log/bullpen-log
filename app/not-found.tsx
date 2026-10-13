@@ -29,7 +29,7 @@ export default function NotFound() {
         <FallbackLink href="/today" primary>
           홈으로
         </FallbackLink>
-        <FallbackLink href="/videos">투구 기록</FallbackLink>
+        <FallbackLink href="/videos">투구</FallbackLink>
       </FallbackActions>
     </FallbackShell>
   );

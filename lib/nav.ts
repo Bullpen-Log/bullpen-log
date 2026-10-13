@@ -145,7 +145,7 @@ export const NAV_GROUPS: NavGroup[] = [
   },
   /* 투구 기록 · 트레이닝 · 영양 · 구속 측정은 처음 가입한 사람에게 잠겨 있다(lock — 위 NavItem.lock) */
   {
-    items: [{ href: '/videos', label: '투구 기록', icon: 'baseball', lock: 'pitch' }],
+    items: [{ href: '/videos', label: '투구', icon: 'baseball', lock: 'pitch' }],
   },
   {
     /* 트레이닝 홈 — 트레이닝 · 암케어 · 메커니즘 앱 카드(lib/training-part.ts) */
@@ -290,8 +290,7 @@ export const MOBILE_TABS: NavItem[] = [
   { href: '/today', label: '홈', icon: 'home' },
   {
     href: '/videos',
-    label: '투구 기록',
-    short: '기록',
+    label: '투구',
     icon: 'baseball',
     lock: 'pitch',
   },

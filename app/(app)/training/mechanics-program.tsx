@@ -586,7 +586,7 @@ function FilmCard({ sessionsDone, films }: { sessionsDone: number; films: FilmNo
         href={kind === 'baseline' ? '/videos' : '/videos?compare=1'}
         className="min-h-11 w-full rounded-full text-sm"
       >
-        {kind === 'baseline' ? '투구 기록 열기' : '2분할 비교 열기'}
+        {kind === 'baseline' ? '투구 탭 열기' : '2분할 비교 열기'}
       </ButtonLink>
       {kind === 'compare' && (
         <div className="border-t border-line/70 pt-3">

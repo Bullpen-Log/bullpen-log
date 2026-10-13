@@ -62,7 +62,7 @@ function tabLink(
     case 'pitch':
       return {
         href: `/pitch-log/${date}`,
-        label: opts.empty ? '이 날 투구 남기기' : '투구 기록에서 자세히',
+        label: opts.empty ? '이 날 투구 남기기' : '투구 탭에서 자세히',
       };
     case 'training':
       return {
@@ -85,7 +85,7 @@ function tabLink(
       /* 영상 캘린더가 그날을 열어 둔 채로 시작한다 */
       return {
         href: `/videos?date=${date}`,
-        label: opts.empty ? '투구 기록으로' : '투구 기록에서 보기',
+        label: opts.empty ? '투구 탭으로' : '투구 탭에서 보기',
       };
     case 'checkin':
       /* 체크인은 따로 탭이 없다 — 오늘 것은 오른쪽 위 알림(종)의 체크인 창에서 고친다 */
