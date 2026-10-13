@@ -58,7 +58,7 @@ export function SessionSummary({
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pb-6 pt-4 short:pt-3">
         {/* (1) 머리 */}
         <header>
-          <h2 className="text-heading text-2xl leading-tight">세션 요약</h2>
+          <h2 className="text-2xl font-bold leading-tight text-ink">세션 요약</h2>
           <p className="mt-1.5 text-sm leading-relaxed text-muted">
             {formatDate(date)} · {setupText} · {pitches.length}구
           </p>
@@ -79,8 +79,8 @@ export function SessionSummary({
         )}
       </div>
 
-      {/* (7) 맨 밑 고정 단추 — 설정 단계(StepShell)의 발과 같은 모양 */}
-      <div className="flex shrink-0 items-center gap-2 border-t border-line bg-surface px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3">
+      {/* (7) 맨 밑 고정 단추 — 설정 단계(StepShell) · 체크인 흐름의 아래 막대와 같은 모양(테두리 없이) */}
+      <div className="flex shrink-0 items-center gap-2 px-5 pb-[max(1rem,env(safe-area-inset-bottom))] pt-2">
         {empty ? (
           <PrimaryButton onClick={onContinue}>구속 측정하기</PrimaryButton>
         ) : (
@@ -275,7 +275,7 @@ export function SessionDetails({
                   disabled={!p.clip}
                   aria-label={p.clip ? '영상 보기' : '영상 없음'}
                   title={p.clip ? '영상 보기' : '영상 없음'}
-                  className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-surface-2 text-ink transition-colors hover:bg-sky-tint hover:text-sky disabled:opacity-40 disabled:hover:bg-surface-2 disabled:hover:text-ink"
+                  className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-ink/6 text-ink transition-colors hover:bg-sky-tint hover:text-sky disabled:opacity-40 disabled:hover:bg-surface-2 disabled:hover:text-ink"
                 >
                   <Play aria-hidden className="h-4 w-4 fill-current" />
                 </button>
@@ -285,7 +285,7 @@ export function SessionDetails({
                     onClick={() => onDeletePitch(p.id)}
                     aria-label={`${p.seq}번째 공 지우기`}
                     title="이 공 지우기"
-                    className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-muted transition-colors hover:bg-danger-bg hover:text-danger"
+                    className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-muted transition-colors hover:bg-danger-bg hover:text-danger"
                   >
                     <Trash2 aria-hidden className="h-4 w-4" />
                   </button>

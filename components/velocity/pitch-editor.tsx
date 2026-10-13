@@ -135,7 +135,7 @@ export function PitchEditorFields({
               set({ gunKmh: textToGun(t, unit) });
             }}
             placeholder={unit === 'mph' ? '예) 86' : '예) 138'}
-            className="h-11 w-full rounded-xl border border-line bg-surface-2 px-4 pr-14 text-base tabular-nums text-ink placeholder:text-muted/60 focus:border-sky focus:outline-none"
+            className="h-12 w-full rounded-2xl border border-transparent bg-ink/5 px-4 pr-14 text-base tabular-nums text-ink placeholder:text-muted/60 focus:border-sky focus:bg-surface focus:outline-none"
           />
           <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-xs text-muted">
             {speedLabel(unit)}
@@ -149,7 +149,7 @@ export function PitchEditorFields({
           onChange={(e) => set({ memo: e.target.value || null })}
           maxLength={500}
           placeholder="예) 팔이 늦게 나옴"
-          className="h-11 w-full rounded-xl border border-line bg-surface-2 px-4 text-base text-ink placeholder:text-muted/60 focus:border-sky focus:outline-none"
+          className="h-12 w-full rounded-2xl border border-transparent bg-ink/5 px-4 text-base text-ink placeholder:text-muted/60 focus:border-sky focus:bg-surface focus:outline-none"
         />
       </Field>
     </div>
@@ -310,9 +310,9 @@ export function BottomSheet({
           type="button"
           onClick={onClose}
           aria-label="닫기"
-          className="-mr-2 rounded-full p-2 text-muted transition-colors hover:bg-surface-2 hover:text-ink"
+          className="-mr-2 grid h-12 w-12 place-items-center rounded-full text-muted transition-colors hover:bg-ink/6 hover:text-ink"
         >
-          <X aria-hidden className="h-4 w-4" />
+          <X aria-hidden className="h-6 w-6" />
         </button>
       </div>
       <div className="max-h-[70dvh] overflow-y-auto overscroll-contain px-5 pb-[max(env(safe-area-inset-bottom),1.25rem)] pt-3">

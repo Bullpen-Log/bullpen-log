@@ -202,7 +202,7 @@ export function PitchResult({
           <button
             type="button"
             onClick={onGun}
-            className="mt-2 inline-flex h-9 items-center gap-1.5 rounded-full bg-white/10 px-3.5 text-sm font-medium text-white transition-colors hover:bg-white/20"
+            className="mt-2 inline-flex h-11 items-center gap-1.5 rounded-full bg-white/10 px-4 text-sm font-medium text-white transition-colors hover:bg-white/20"
           >
             {gunText ? `스피드건 ${gunText}` : '스피드건 값 넣기'}
             <Pencil aria-hidden className="h-3.5 w-3.5 opacity-70" />
@@ -222,7 +222,7 @@ export function PitchResult({
                 type="button"
                 onClick={() => onPitchType(on ? null : t.key)}
                 aria-pressed={on}
-                className={`h-10 shrink-0 rounded-full px-3.5 text-sm font-semibold transition-colors ${
+                className={`h-11 shrink-0 rounded-full px-4 text-sm font-semibold transition-colors ${
                   on ? 'bg-sky text-white' : 'bg-white/10 text-white hover:bg-white/20'
                 }`}
               >
@@ -234,7 +234,7 @@ export function PitchResult({
         <button
           type="button"
           onClick={onNext}
-          className="mt-4 h-12 w-full rounded-full bg-white text-base font-semibold text-black transition-colors active:bg-white/85"
+          className="mt-4 h-14 w-full rounded-2xl bg-sky text-lg font-bold text-white transition-colors active:bg-sky-strong"
         >
           {nextLabel}
         </button>

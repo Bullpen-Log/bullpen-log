@@ -181,7 +181,7 @@ export function VelocitySettingsFields({
                   else e.target.value = String(values.fovDeg);
                 }}
                 aria-label="카메라 가로 화각(도)"
-                className="h-11 w-20 rounded-xl border border-line bg-surface-2 px-3 text-right text-sm tabular-nums text-ink transition-colors focus:border-sky focus:outline-none"
+                className="h-12 w-24 rounded-2xl border border-transparent bg-ink/5 px-3 text-right text-base tabular-nums text-ink transition-colors focus:border-sky focus:bg-surface focus:outline-none"
               />
               °
             </span>
@@ -264,7 +264,7 @@ function DistanceRow({
             else e.target.value = String(value);
           }}
           aria-label={`${title}(m)`}
-          className="h-11 w-20 rounded-xl border border-line bg-surface-2 px-3 text-right text-sm tabular-nums text-ink transition-colors focus:border-sky focus:outline-none"
+          className="h-12 w-24 rounded-2xl border border-transparent bg-ink/5 px-3 text-right text-base tabular-nums text-ink transition-colors focus:border-sky focus:bg-surface focus:outline-none"
         />
         m
       </span>
@@ -314,7 +314,7 @@ function ToggleRow({
         checked={checked}
         disabled={disabled}
         onChange={(e) => onChange(e.target.checked)}
-        className="h-5 w-5 shrink-0 accent-sky"
+        className="h-6 w-6 shrink-0 accent-sky"
       />
     </label>
   );
@@ -471,7 +471,7 @@ export function VelocitySettingsButton({
           <div className="flex flex-wrap gap-2">
             <Button
               variant="secondary"
-              className="h-10 px-3.5 text-xs"
+              className="h-12 rounded-full px-4 text-sm"
               onClick={() =>
                 saveSetup({
                   sessionType: base.sessionType,
@@ -496,7 +496,7 @@ export function VelocitySettingsButton({
             </Button>
             <Button
               variant="secondary"
-              className="h-10 px-3.5 text-xs"
+              className="h-12 rounded-full px-4 text-sm"
               onClick={() => clearSetup()}
             >
               저장된 설정 지우기
