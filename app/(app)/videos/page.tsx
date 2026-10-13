@@ -6,7 +6,8 @@ import { requireUser } from '@/lib/dal';
 import { isNativeUserAgent } from '@/lib/app-env';
 import { featureLocks, SETUP_PATH } from '@/lib/feature-locks';
 import { loadVelocityByDate } from '@/lib/velocity-load';
-import { toDateKey } from '@/lib/pitch-stats';
+import { shiftDateKey, toDateKey } from '@/lib/pitch-stats';
+import { isOutingTitle } from '@/lib/calendar-event';
 import { VideosClient } from './videos-client';
 
 /**
@@ -53,7 +54,8 @@ export default async function VideosPage({
    * 목록은 기록 전체를 훑는 자리다. 한 줄이 숫자 몇 개와 짧은 메모라, 매일 3년을
    * 남겨도 천 줄 남짓이다.
    */
-  const [logs, featured, measured] = await Promise.all([
+  const todayKey = toDateKey(now());
+  const [logs, featured, measured, checkinToday, calendarRows] = await Promise.all([
     prisma.pitchLog.findMany({
       where: { userId: user.id },
       /*
@@ -81,7 +83,35 @@ export default async function VideosPage({
     }),
     /* 카메라로 잰 날 — 그날 칸에 '측정 n구 · 최고' 한 줄 */
     loadVelocityByDate(user.id),
+    /* '오늘 던지는 일정' 카드(체크인 3판) — 오늘 체크인 줄의 답과, 달력의 오늘 · 내일 등판(미리 골라 둔다) */
+    prisma.dailyCheckin.findUnique({
+      where: {
+        userId_date: { userId: user.id, date: new Date(`${todayKey}T00:00:00.000Z`) },
+      },
+      select: { throwPlan: true },
+    }),
+    prisma.calendarEvent.findMany({
+      where: {
+        userId: user.id,
+        date: {
+          gte: new Date(`${todayKey}T00:00:00.000Z`),
+          lte: new Date(`${shiftDateKey(todayKey, 1)}T00:00:00.000Z`),
+        },
+      },
+      select: { date: true, title: true },
+    }),
   ]);
+  const outingOn = (day: string) =>
+    calendarRows.some((e) => toDateKey(e.date) === day && isOutingTitle(e.title));
+  const throwCard = {
+    plan: checkinToday?.throwPlan ?? null,
+    hasCheckin: checkinToday != null,
+    hint: outingOn(todayKey)
+      ? '오늘 등판'
+      : outingOn(shiftDateKey(todayKey, 1))
+        ? '내일 등판'
+        : null,
+  };
 
   // Date 객체는 클라이언트로 그대로 넘길 수 없어 문자열로 바꿔 전달한다.
   return (
@@ -93,14 +123,17 @@ export default async function VideosPage({
         )}
         initialMonth={month ?? (date ? date.slice(0, 7) : null)}
         initialDate={date}
-        today={toDateKey(now())}
+        today={todayKey}
+        throwCard={throwCard}
         canMeasure={canMeasure}
         velocityHref={velocityHref}
         /* 투구 분석(베타, /videos/lab) — 관리자만 */
         canAnalyze={user.role === 'ADMIN'}
         measured={measured}
         /* ?view=list 는 구속 측정 관리자의 고르개에서 '목록'을 눌러 돌아올 때(pitch-log-heading.tsx) */
-        initialView={params.view === 'list' || params.compare === '1' ? 'list' : 'calendar'}
+        initialView={
+          params.view === 'list' || params.compare === '1' ? 'list' : 'calendar'
+        }
         /* ?compare=1 — 메커닉 프로그램의 '찍어서 견줘 보세요'에서 곧장 둘을 고르는 자리로 */
         initialCompare={params.compare === '1'}
       />

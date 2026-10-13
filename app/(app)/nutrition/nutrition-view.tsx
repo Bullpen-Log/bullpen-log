@@ -90,6 +90,7 @@ import { FoodSheet } from './food-sheet';
 import { GoalSheet } from './goal-sheet';
 import { WeekChart, WeightTrend } from './charts';
 import { PlanBlock, PlanCard, PlanEditRow, type PlanEdit } from './plan-parts';
+import { NutritionCheckinCard } from './nutrition-checkin-card';
 import { EASE, originOf, toFoodInput, type Origin } from './shared';
 
 /*
@@ -506,6 +507,11 @@ export function NutritionView({
         같은 깃발로 올림을 멈춘다. 기록 · 통계 어느 쪽에서도 보이게 그리드 위 전체 폭에 둔다.
       */}
       {fuel && <FuelNotice card={fuel} />}
+
+      {/* 오늘 식욕 · 끼니 카드(체크인 3판) — 체크인에서 옮겨 온 질문. 오늘만, 하루 한 번 */}
+      {day.date === today && (
+        <NutritionCheckinCard day={day.date} answer={day.checkinAnswers} />
+      )}
 
       {/* 휴대폰 한 칸도 minmax(0,1fr) — 한 줄 고정 글(식단 카드 요약 같은 것)이 칸의 최소 너비를 밀어 화면 밖으로 넘치지 않게 */}
       <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-block lg:grid-cols-[minmax(0,1fr)_22rem]">
@@ -1231,7 +1237,13 @@ function FuelNotice({ card }: { card: FuelCard }) {
  * 권하는 범위, 펴면 점수 조각(열량 · 단백질 · 탄수화물 · 끼니). 사용자(2026-10-07): 홈은 간단, 탭은 세부.
  * 던지는 날 가이드 카드(GuideCard)는 그대로 밑에 둔다 — 무엇을 언제 먹을지의 긴 안내는 거기 있다.
  */
-function AdviceCard({ advice, guide = null }: { advice: Advice; guide?: React.ReactNode }) {
+function AdviceCard({
+  advice,
+  guide = null,
+}: {
+  advice: Advice;
+  guide?: React.ReactNode;
+}) {
   const [open, setOpen] = useState(false);
   const more = advice.more;
   const canOpen = advice.parts.length > 0;

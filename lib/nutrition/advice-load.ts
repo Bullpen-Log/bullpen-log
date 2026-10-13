@@ -23,7 +23,7 @@ export const loadAdvice = cache(
     hour: number
   ): Promise<Advice> => {
     const prevDay = shiftDateKey(date, -1);
-    const [detail, checkins, pitches, sessions] = await Promise.all([
+    const [detail, checkins, pitches, sessions, mealRow] = await Promise.all([
       loadDayDetailCached(user, date),
       prisma.dailyCheckin.findMany({
         where: { userId: user.id, date: { in: [dbDate(date), dbDate(prevDay)] } },
@@ -46,24 +46,41 @@ export const loadAdvice = cache(
         where: { userId: user.id, date: dbDate(date) },
         select: { activeSeconds: true },
       }),
+      /* 영양 탭 카드의 답(체크인 3판 — 식욕 · 끼니 양 · 걸른 끼니). 답했으면 체크인 줄의 옛 칸보다 앞선다 */
+      prisma.dailyNutrition.findUnique({
+        where: { userId_date: { userId: user.id, date: dbDate(date) } },
+        select: {
+          appetite: true,
+          mealAmount: true,
+          skippedMeals: true,
+          answeredAt: true,
+        },
+      }),
     ]);
     const rowOf = (day: string) => checkins.find((c) => keyOfDbDate(c.date) === day);
     const todayRow = rowOf(date);
+    const answered = mealRow?.answeredAt != null;
     return buildAdvice(
       assembleAdviceInput({
         date,
         today,
         hour,
         detail,
-        checkinToday: todayRow
-          ? {
-              nutrition: todayRow.nutrition,
-              skippedMeals: todayRow.skippedMeals,
-              appetite: todayRow.appetite,
-              sleepShort: isShortSleep(todayRow),
-              throwPlan: todayRow.throwPlan,
-            }
-          : null,
+        /* 체크인 줄(수면 · 던지는 일정)과 영양 카드 답(식욕 · 끼니) 가운데 하나라도 있으면 읽는다 */
+        checkinToday:
+          todayRow || answered
+            ? {
+                nutrition: answered
+                  ? mealRow.mealAmount
+                  : (todayRow?.nutrition ?? null),
+                skippedMeals: answered
+                  ? mealRow.skippedMeals
+                  : (todayRow?.skippedMeals ?? []),
+                appetite: answered ? mealRow.appetite : (todayRow?.appetite ?? null),
+                sleepShort: todayRow ? isShortSleep(todayRow) : false,
+                throwPlan: todayRow?.throwPlan ?? null,
+              }
+            : null,
         throwPlanYesterday: rowOf(prevDay)?.throwPlan ?? null,
         pitches: pitches.map((p) => ({
           sessionType: p.sessionType,

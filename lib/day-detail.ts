@@ -108,26 +108,45 @@ export async function loadDayDetail(
   const day = dbDate(date);
   const where = { userId: user.id, date: day };
 
-  const [training, meals, profileRow, checkin, sessions, pitches, recentKg, clips] =
-    await Promise.all([
-      trainingDay(user.id, date),
-      prisma.mealEntry.findMany({ where, orderBy: { createdAt: 'asc' } }),
-      prisma.nutritionProfile.findUnique({ where: { userId: user.id } }),
-      prisma.dailyCheckin.findUnique({
-        where: { userId_date: { userId: user.id, date: day } },
-      }),
-      prisma.trainingSession.findMany({
-        where,
-        select: { id: true, activeSeconds: true },
-      }),
-      prisma.pitchLog.findMany({
-        where,
-        select: { sessionType: true, pitchCount: true, intensity: true },
-      }),
-      /* 목표의 체중 — 영양 탭과 같은 규칙(그날 → 30일 안 가장 최근 → 가입 때) */
-      recentWeightKg(user.id, date),
-      opts.clips ? loadVelocityClipsDay(user.id, day) : Promise.resolve([]),
-    ]);
+  const [
+    training,
+    meals,
+    profileRow,
+    checkin,
+    sessions,
+    pitches,
+    recentKg,
+    clips,
+    mealRow,
+  ] = await Promise.all([
+    trainingDay(user.id, date),
+    prisma.mealEntry.findMany({ where, orderBy: { createdAt: 'asc' } }),
+    prisma.nutritionProfile.findUnique({ where: { userId: user.id } }),
+    prisma.dailyCheckin.findUnique({
+      where: { userId_date: { userId: user.id, date: day } },
+    }),
+    prisma.trainingSession.findMany({
+      where,
+      select: { id: true, activeSeconds: true },
+    }),
+    prisma.pitchLog.findMany({
+      where,
+      select: { sessionType: true, pitchCount: true, intensity: true },
+    }),
+    /* 목표의 체중 — 영양 탭과 같은 규칙(그날 → 30일 안 가장 최근 → 가입 때) */
+    recentWeightKg(user.id, date),
+    opts.clips ? loadVelocityClipsDay(user.id, day) : Promise.resolve([]),
+    /* 영양 탭 카드의 답(체크인 3판 — 식욕 · 끼니). 답했으면 체크인 줄의 옛 칸보다 앞선다 */
+    prisma.dailyNutrition.findUnique({
+      where: { userId_date: { userId: user.id, date: day } },
+      select: {
+        appetite: true,
+        mealAmount: true,
+        skippedMeals: true,
+        answeredAt: true,
+      },
+    }),
+  ]);
 
   /* ── 영양: 합과 그날 목표 ── */
   const weightKg = recentKg ?? user.weightKg;
@@ -193,8 +212,12 @@ export async function loadDayDetail(
       details.push({ label: '잔 시간', value: formatSleepHours(checkin.sleepHours) });
     const soreness = sorenessWord(checkin.soreness);
     if (soreness) details.push({ label: '근육통', value: soreness });
-    /* 식사(끼니 양 · 걸른 끼니) — 영양 조언이 읽는 간편 칸 */
-    const meals = mealSummary(checkin.nutrition, checkin.skippedMeals);
+    /* 식사(끼니 양 · 걸른 끼니) · 식욕 — 3판은 영양 탭 카드(DailyNutrition)가 묻는다. 답했으면 그것, 아니면 체크인 줄의 옛 칸 */
+    const answered = mealRow?.answeredAt != null;
+    const meals = mealSummary(
+      answered ? mealRow.mealAmount : checkin.nutrition,
+      answered ? mealRow.skippedMeals : checkin.skippedMeals
+    );
     if (meals) details.push({ label: '식사', value: meals });
     for (const s of DETAIL_SCALES) {
       const v = checkin[s.key];
@@ -204,12 +227,9 @@ export async function loadDayDetail(
     }
     if (checkin.bodyWeightKg != null)
       details.push({ label: '체중', value: `${checkin.bodyWeightKg}kg` });
-    if (
-      checkin.appetite != null &&
-      checkin.appetite >= 1 &&
-      checkin.appetite <= APPETITE_LEVELS.length
-    )
-      details.push({ label: '식욕', value: APPETITE_LEVELS[checkin.appetite - 1] });
+    const appetite = answered ? mealRow.appetite : checkin.appetite;
+    if (appetite != null && appetite >= 1 && appetite <= APPETITE_LEVELS.length)
+      details.push({ label: '식욕', value: APPETITE_LEVELS[appetite - 1] });
     if (checkin.throwPlan)
       details.push({ label: '던지는 일정', value: checkin.throwPlan });
     checkinOut = {

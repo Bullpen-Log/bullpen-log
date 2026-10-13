@@ -118,6 +118,15 @@ export type NutritionDay = {
     /** 짧은 밤(lib/checkin.ts isShortSleep — 3판 수면의 질 2 이하) */
     sleepShort: boolean;
   } | null;
+  /**
+   * 영양 탭 카드 '오늘 식욕 · 끼니는요?'의 답(체크인 3판, DailyNutrition — app/(app)/nutrition/nutrition-checkin-card.tsx).
+   * 오늘만 · 답했을 때만, 아직이면 null. 조언 · 가이드 · 식단 짜기의 식욕은 이 답이 체크인 줄의 옛 칸보다 앞선다.
+   */
+  checkinAnswers: {
+    appetite: number | null;
+    mealAmount: string | null;
+    skippedMeals: string[];
+  } | null;
   /** 전날 먹은 것 — '어제와 같이' 담기에 쓴다 */
   yesterday: MealEntryView[];
   /** 목표 계산에 쓴 몸 정보 — 목표 설정 창이 미리 계산해 보여 준다 */
@@ -274,6 +283,7 @@ export async function loadNutritionDay(
     calendarRows,
     planRows,
     mealPlanRow,
+    nutritionToday,
   ] = await Promise.all([
     prisma.nutritionProfile.findUnique({ where: { userId } }),
     prisma.mealEntry.findMany({
@@ -363,6 +373,18 @@ export async function loadNutritionDay(
       where: { userId_date: { userId, date: dbDate(date) } },
       select: { items: true, context: true },
     }),
+    /* 영양 탭 카드의 답(체크인 3판) — 오늘만 */
+    isToday
+      ? prisma.dailyNutrition.findUnique({
+          where: { userId_date: { userId, date: dbDate(date) } },
+          select: {
+            appetite: true,
+            mealAmount: true,
+            skippedMeals: true,
+            answeredAt: true,
+          },
+        })
+      : null,
   ]);
 
   const calendar: Record<string, number> = {};
@@ -551,12 +573,17 @@ export async function loadNutritionDay(
 
   /* ── 던지는 날 가이드(오늘만) ── */
   const planOf = (day: string) => planRows.find((c) => keyOfDbDate(c.date) === day);
+  /* 식욕 — 3판은 영양 탭 카드(DailyNutrition)가 묻는다. 답했으면 그것, 아니면 체크인 줄의 옛 칸(2판까지) */
+  const answered = nutritionToday?.answeredAt != null;
+  const appetiteToday = answered
+    ? nutritionToday.appetite
+    : (planOf(date)?.appetite ?? null);
   const guide = isToday
     ? throwDayGuide(
         {
           planToday: planOf(date)?.throwPlan ?? null,
           planYesterday: planOf(prevDay)?.throwPlan ?? null,
-          appetite: planOf(date)?.appetite ?? null,
+          appetite: appetiteToday,
           pitches: pitches
             .filter((p) => keyOfDbDate(p.date) === date)
             .map((p) => ({
@@ -604,10 +631,18 @@ export async function loadNutritionDay(
           context: parsePlanContext(mealPlanRow.context),
         }
       : null,
+    checkinAnswers:
+      answered && nutritionToday
+        ? {
+            appetite: nutritionToday.appetite,
+            mealAmount: nutritionToday.mealAmount,
+            skippedMeals: nutritionToday.skippedMeals,
+          }
+        : null,
     planSignals: isToday
       ? {
           throwKind: guide?.kind ?? null,
-          appetite: planOf(date)?.appetite ?? null,
+          appetite: appetiteToday,
           sleepShort: planOf(date) != null && isShortSleep(planOf(date)!),
         }
       : null,
