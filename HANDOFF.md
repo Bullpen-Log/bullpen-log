@@ -16,7 +16,7 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 받은 뒤 할 일 없음(DB · 패키지 그대로). **네 영역(3D 엔진 · 인형)을 고쳤다.** 시험 v1 63 · v2 245 통과, `pitch3d:bundle --check` 같음.
 - **엔진**(`fit.ts`, 6b9a3bf · 150364e): 다리 들기 골반 방향을 축발(뒤꿈치 → 발끝)로 당김(마커 채점 골반 돌림 14.2 → 5.0° · 분리 12.3 → 4.7°),
   다리 관절 목표에 튀는 값 거르기(샘플 3 · 10 앞다리 떨림). 던지는 팔(샘플 1 · 10)은 엔진 결함 근거가 없어 안 고침(selfcal/README.md).
-  **분석 서버(Modal)에는 아직 안 올렸다** — 사용자 결정 대기. 올리면 `npm run pitch3d:bundle` 뒤 `modal deploy app.py`.
+  분석 서버(Modal)에도 올렸다(같은 날, `npm run pitch3d:bundle` → `modal deploy app.py`) — 새로 분석하는 영상부터 들어간다.
 - **화면**(9e454de · e88af24 · 5e6f61b): 몸통 실제 뼈대를 정점마다 같은 높이의 인형 고리에 얹음(`mannequin-pause.ts` `prepareSkeleton` · `fitSkeleton`,
   옛 `skeletonPlaces` · `placeLocal` · `trunkBlend` 지움 — 인형 밖 뼈 20.8% → 0.8%), 가슴 틀 위 방향 = 몸통 곡선의 어깨 쪽 접선(`mannequin-frames.ts`,
   관절 칸 `tp` 지움 — 릴리스에서 흉추가 C 로), 몸통에 빨간 꼬임 줄 넷(`mannequin-loft.ts` `writeStripes`, 색 `twist`). 아이폰 앱에서 한 번 봐 줘.
