@@ -29,7 +29,6 @@ import { RateCard } from './rate-card';
 import { GoodDayNote } from './good-day-note';
 import { todayOutingRole } from '@/lib/checkin';
 import { Highlights } from './highlights';
-import { HomeTitleArt } from './home-title';
 import { loadPitchHistory, readDateParam } from './history';
 
 /**
@@ -107,8 +106,13 @@ export default async function HomePage({
         제목 — 다른 탭과 같은 모양. 매일 여는 화면이라 인사 · 안내는 뺐다. loading.tsx 도 똑같이 그려, 불러오는
         동안과 다 온 뒤에 자리가 바뀌지 않는다.
       */}
-      {/* 휴대폰은 큰 제목 자리에 불펜로그 로고 + 오늘 날짜(home-title.tsx), PC 는 예전 그대로 */}
-      <PageHeading eyebrow="Home" title="홈" titleArt={<HomeTitleArt />} />
+      {/*
+        휴대폰은 제목을 화면에 안 그린다 — 앱 이름은 위 막대 왼쪽, 날짜는 뺐다(2026-10-13 김민 "날짜 아예 빼고 여백 맞춰").
+        화면 읽기 · 위 막대 작은 제목용으로만 남고, 링 카드가 본문 위 여백(24px) 바로 밑에서 시작한다. PC 는 예전 그대로.
+      */}
+      <div className="sr-only mb-0! desk:not-sr-only desk:mb-(--gap-page)!">
+        <PageHeading eyebrow="Home" title="홈" />
+      </div>
 
       {/*
         오늘 — 체크인 · 투구 · 운동 · 영양 링(아이폰 피트니스처럼) + 그 밑 오늘 투구 한 줄.

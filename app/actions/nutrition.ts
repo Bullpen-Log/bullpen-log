@@ -464,6 +464,8 @@ export async function makeMealPlan(
     create: { userId: user.id, date: dbDate(date), items: plan.items, context },
   });
   revalidatePath(PATH);
+  /* 홈 '오늘' 영양 링이 식단 계획을 본다(app/(app)/today/today-rings.tsx) */
+  revalidatePath('/today');
   return { ok: true };
 }
 
@@ -624,6 +626,8 @@ export async function clearMealPlan(date: string): Promise<NutritionResult> {
   if (!isNutritionDate(date)) return BAD_DATE;
   await prisma.mealPlan.deleteMany({ where: { userId: user.id, date: dbDate(date) } });
   revalidatePath(PATH);
+  /* 홈 '오늘' 영양 링이 식단 계획을 본다(app/(app)/today/today-rings.tsx) */
+  revalidatePath('/today');
   return { ok: true };
 }
 
