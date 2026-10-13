@@ -42,8 +42,8 @@ const base: AdviceInput = {
 const withCheckin = (
   meals: MealCheck,
   appetite: number | null = null,
-  soreness: number | null = null
-): AdviceInput['checkin'] => ({ meals, appetite, soreness });
+  sleepShort = false
+): AdviceInput['checkin'] => ({ meals, appetite, sleepShort });
 
 console.log('\n■ 할 일 상황표 — 위가 이긴다');
 const after = buildAdvice({
@@ -126,10 +126,10 @@ check(
 );
 const sore = buildAdvice({
   ...base,
-  checkin: withCheckin({ amount: null, skipped: [] }, 4, 4),
+  checkin: withCheckin({ amount: null, skipped: [] }, 4, true),
 });
 check(
-  '근육통 4 면 단백질 한 번 더(입맛 4 는 안 걸림)',
+  '짧은 밤이면 단백질 한 번 더(입맛 4 는 안 걸림)',
   sore.headline?.includes('단백질 한 번 더') === true,
   sore.headline ?? ''
 );
@@ -186,7 +186,7 @@ check(
       after: { lo: 20, hi: 30 },
       skipped: [],
       appetite: 1,
-      soreness: 5,
+      sleepShort: true,
     };
     const h = r.say(s).headline;
     return !h.includes('1시간') && !h.includes('운동 뒤');
@@ -397,7 +397,7 @@ console.log('\n■ [메모 2] 성장기 금지어 — 어떤 상황에서도 없
             for (const ageBand of BANDS)
               for (const eaten of EATENS)
                 for (const appetite of [null, 1, 3])
-                  for (const soreness of [null, 5]) {
+                  for (const sleepShort of [false, true]) {
                     n++;
                     const a = buildAdvice({
                       ...base,
@@ -406,7 +406,7 @@ console.log('\n■ [메모 2] 성장기 금지어 — 어떤 상황에서도 없
                       training,
                       goal: undefined,
                       body: { weightKg: ageBand === 'child' ? 35 : 70, ageBand, goal },
-                      checkin: { meals, appetite, soreness },
+                      checkin: { meals, appetite, sleepShort },
                       eaten,
                       eatenMeals: eaten ? { lunch: eaten.kcal } : {},
                     } as AdviceInput);
@@ -571,7 +571,7 @@ console.log('\n■ [메모 6] 무작위 10,000가지 — 예외 · NaN · 결정
           : {
               meals: pick(MEALS),
               appetite: pick([null, 1, 2, 3, 4, 5]),
-              soreness: pick([null, 1, 3, 4, 5]),
+              sleepShort: pick([false, false, true]),
             },
       throwKind: pick(KINDS),
       training: pick(TRAININGS),

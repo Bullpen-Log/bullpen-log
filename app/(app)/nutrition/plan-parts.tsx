@@ -11,11 +11,7 @@ import {
   Replace,
   Trash2,
 } from 'lucide-react';
-import {
-  DIET_STYLES,
-  MEAL_PATTERNS,
-  type DietPrefs,
-} from '@/lib/nutrition/diet-prefs';
+import { DIET_STYLES, MEAL_PATTERNS, type DietPrefs } from '@/lib/nutrition/diet-prefs';
 import {
   PLAN_PLACES,
   amountStep,
@@ -75,7 +71,7 @@ export function PlanCard({
   signals: {
     throwKind: ThrowKind;
     appetite: number | null;
-    soreness: number | null;
+    sleepShort: boolean;
   } | null;
   /** 짜 둔 계획의 조건 — 없으면 아직 안 짰다 */
   context: PlanContext | null;
@@ -99,7 +95,7 @@ export function PlanCard({
   const state = [
     signals?.throwKind ? THROW_WORD[signals.throwKind] : null,
     signals?.appetite != null && signals.appetite <= 2 ? '입맛 없음' : null,
-    signals?.soreness != null && signals.soreness >= 4 ? '근육통 많음' : null,
+    signals?.sleepShort ? '잠 부족' : null,
     label(DIET_STYLES, prefs.dietStyle),
     label(MEAL_PATTERNS, prefs.mealPattern),
   ].filter(Boolean);

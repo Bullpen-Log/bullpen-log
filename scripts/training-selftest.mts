@@ -80,6 +80,16 @@ import {
   pickCheckinBody,
   pickCheckinDetail,
   sleepLevelFromHours,
+  CONDITION_BANDS,
+  PAIN_FORCED_CONDITION,
+  SHORT_SLEEP_QUALITY,
+  SLEEP_QUALITY_LEVELS,
+  armFatigueFromPain,
+  conditionBand,
+  signalsOf,
+  sleepLevelFromQuality,
+  sleepQualityOf,
+  sleepQualityWord,
   nextOutingWindow as checkinNextOutingWindow,
   saysNoOuting,
   todayOutingRole,
@@ -14541,9 +14551,9 @@ console.log(
    * 오늘 상태 한 장 extras 로는 안 넘긴다(장이 facts 에서 읽는다 — 두 곳이면 안전 거르기와 장이 다른 값을 볼 수 있다).
    */
   check(
-    '검토 (배선) gather.ts 가 체감 강도(effortPct)와 팔 피로를 facts 로 넘긴다(팔 피로는 extras 로 따로 안 넘김) — 빠지면 % 기록이 반올림된 1~10 으로 읽히고 팔 피로 안전 규칙이 안 걸린다(선택 칸이라 tsc 가 못 잡음)',
+    '검토 (배선) gather.ts 가 체감 강도(effortPct)와 팔 피로를 facts 로 넘긴다(팔 피로는 extras 로 따로 안 넘김 · 3판부터 통증 정도에서 어림한 값을 앞에 둔다) — 빠지면 % 기록이 반올림된 1~10 으로 읽히고 팔 피로 안전 규칙이 안 걸린다(선택 칸이라 tsc 가 못 잡음)',
     /effortPct: l\.effortPct/.test(gatherSrc) &&
-      /armFatigue: c\.armFatigue/.test(gatherSrc) &&
+      /armFatigue: armFatigueFromPain\(c\) \?\? c\.armFatigue/.test(gatherSrc) &&
       !/armFatigue: todayCheckin/.test(gatherSrc)
   );
   /*
@@ -19149,30 +19159,30 @@ console.log(
         ) &&
         /import \{ OutingLine \} from '@\/components\/outing-line';/.test(page)
     );
-    const form = strip('components/checkin-form.tsx');
+    /*
+     * 3판(2026-10-13) — 체크인 폼(components/checkin-form.tsx)은 없다. 한 화면 흐름(components/checkin-flow/flow.tsx)이 저장을 saveCheckin
+     * 한 번(orOffline)으로 하고, 어제 등판 · 몇 구 줄은 묻지 않는다(투구 기록 카드로 옮길지 미정). 관문 · 종 창 · 트레이닝 탭 단추는 모두
+     * 같은 흐름을 연다(PC 는 창 · 휴대폰은 app/(session)/checkin).
+     */
+    const flowSrc = strip('components/checkin-flow/flow.tsx');
     check(
-      "P4 화면 (사) 체크인 폼 — 물을지는 asksYesterdayPitches, 칸은 readYesterdayOuting, 남기기는 투구 기록 API 한 번(POST), 글자 '오늘 등판'을 직접 안 견줌",
-      /asksYesterdayPitches\(yesterdayPlan, pitchDays\.includes\(yesterdayKey\)\)/.test(
-        form
-      ) &&
-        /readYesterdayOuting\(\{/.test(form) &&
-        form.split("fetch('/api/pitch-log'").length === 2 &&
-        /method: 'POST'/.test(form) &&
-        /name="yesterdayPitches"/.test(form) &&
-        /<EffortChips/.test(form) &&
-        !/=== '오늘 등판'/.test(form) &&
-        !/prisma/.test(form)
+      '3판 흐름 — 저장은 saveCheckin 한 번(orOffline · flow=3), 투구 기록 API · prisma 를 부르지 않는다',
+      /saveCheckin\(undefined, fd\)/.test(flowSrc) &&
+        /fd\.set\('flow', '3'\)/.test(flowSrc) &&
+        /orOffline\(/.test(flowSrc) &&
+        !/fetch\('\/api\/pitch-log'/.test(flowSrc) &&
+        !/prisma/.test(flowSrc)
     );
     const gate = strip('components/checkin-gate.tsx');
     const shell = strip('components/app-shell.tsx');
     const layout = strip('app/(app)/layout.tsx');
     check(
-      'P4 화면 (사) 관문 · 종 창이 레이아웃의 같은 투구 날 목록을 넘긴다(조회는 안 늚) — 트레이닝 탭 창은 안 넘김(묻지 않음)',
-      /<CheckinForm[\s\S]{0,200}pitchDays=\{pitchDays\}/.test(gate) &&
-        /<CheckinForm[\s\S]{0,300}pitchDays=\{todo\.pitchDays\}/.test(shell) &&
-        /<CheckinGate[\s\S]{0,300}pitchDays=\{pitchDays\}/.test(layout) &&
-        /pitchDays,\n/.test(layout) &&
+      '3판 관문 · 종 창이 레이아웃의 같은 흐름 둘레(flow)를 넘긴다(조회는 안 늚) — 트레이닝 탭 단추는 신호만 보낸다',
+      /<CheckinFlow[\s\S]{0,200}ctx=\{flow\}/.test(gate) &&
+        /<CheckinFlow[\s\S]{0,200}ctx=\{todo\.flow\}/.test(shell) &&
+        /<CheckinGate checkedDays=\{checkinDays\} flow=\{flow\} \/>/.test(layout) &&
         layout.split('prisma.pitchLog.findMany(').length === 2 &&
+        /OpenCheckinButton/.test(strip('app/(app)/training/training-checkin.tsx')) &&
         !/pitchDays/.test(strip('app/(app)/training/training-checkin.tsx'))
     );
     check(
@@ -19972,14 +19982,7 @@ console.log(
         dayKindOf(after).rule !== 'claimedNoLog' &&
         !asksYesterdayPitches('오늘 등판', after.patterns.loggedYesterday === true)
     );
-    const form = strip('components/checkin-form.tsx');
-    check(
-      "검토 (사) 체크인 폼 — '안 던졌어요' 칸(yesterdayNoThrow)을 readYesterdayOuting 에 넘기고, 안내에 '비워 두세요'가 없다",
-      /name="yesterdayNoThrow"/.test(form) &&
-        /noThrow: formData\.get\('yesterdayNoThrow'\)/.test(form) &&
-        />\s*안 던졌어요\s*</.test(form) &&
-        !/비워 두세요/.test(form)
-    );
+    /* 3판(2026-10-13) — 체크인 폼은 없다. '안 던졌어요' 칸은 투구 기록 API(위)에만 남았다 */
   }
 }
 
@@ -32088,6 +32091,105 @@ console.log(
       [...wrong, ...badLines].join(' / ')
     );
   }
+}
+
+/* ═══════════════════ [체크인 3판] 신호 셋(lib/checkin.ts signalsOf · sleepQualityOf · armFatigueFromPain) (2026-10-13) ═══════════════════ */
+console.log(
+  '\n[체크인 3판] 신호 셋 — 컨디션 띠 · 수면의 질(옛 칸 어림 · 짧은 밤) · 통증(팔 피로 어림) · 강제 통증 문턱(2026-10-13)'
+);
+{
+  check(
+    '3판 (띠) 1~3 아파요 · 4~7 보통이에요 · 8~10 좋아요 — 띠 셋이 1~10 을 빈틈없이 나눈다',
+    CONDITION_BANDS.length === 3 &&
+      [1, 2, 3].every((n) => conditionBand(n) === 'sick') &&
+      [4, 5, 6, 7].every((n) => conditionBand(n) === 'normal') &&
+      [8, 9, 10].every((n) => conditionBand(n) === 'good') &&
+      PAIN_FORCED_CONDITION === 3 &&
+      LOW_CONDITION_THRESHOLD === 4
+  );
+  check(
+    '3판 (수면) sleepQuality 가 있으면 그것, 없으면 옛 칸 어림 — 6시간 미만 2 · 부족 2 · 보통 3 · 충분 4 · 아무것도 없으면 null · 범위 밖은 어림으로',
+    sleepQualityOf({ sleepQuality: 5, sleep: '부족' }) === 5 &&
+      sleepQualityOf({ sleep: '보통', sleepHours: 5.5 }) === 2 &&
+      sleepQualityOf({ sleep: '부족' }) === 2 &&
+      sleepQualityOf({ sleep: '보통' }) === 3 &&
+      sleepQualityOf({ sleep: '충분' }) === 4 &&
+      sleepQualityOf({ sleep: null }) === null &&
+      sleepQualityOf({ sleepQuality: 9, sleep: '충분' }) === 4
+  );
+  check(
+    '3판 (짧은 밤) isShortSleep 은 수면의 질 2 이하 — 옛 기록(부족 · 6시간 미만)도 같은 답, 말은 다섯',
+    SHORT_SLEEP_QUALITY === 2 &&
+      SLEEP_QUALITY_LEVELS.length === 5 &&
+      isShortSleep({ sleepQuality: 2, sleep: '충분' }) &&
+      !isShortSleep({ sleepQuality: 3, sleep: '부족' }) &&
+      isShortSleep({ sleep: '부족' }) &&
+      isShortSleep({ sleep: '보통', sleepHours: 5 }) &&
+      !isShortSleep({ sleep: '보통' }) &&
+      sleepQualityWord(1) === '거의 못 잠' &&
+      sleepQualityWord(5) === '푹 잠' &&
+      sleepQualityWord(6) === null &&
+      sleepLevelFromQuality(2) === '부족' &&
+      sleepLevelFromQuality(3) === '보통' &&
+      sleepLevelFromQuality(4) === '충분'
+  );
+  check(
+    '3판 (팔 피로 어림) 어깨 · 팔꿈치 통증 + 정도 2 이상이면 심함(5), 던질 때만(1)이면 3, 정도 모르면 심함, 통증이 아니면 null',
+    armFatigueFromPain({ shoulder: '통증', armPainLevel: 2 }) === SEVERE_ARM_FATIGUE &&
+      armFatigueFromPain({ elbow: '통증', armPainLevel: 3 }) === SEVERE_ARM_FATIGUE &&
+      armFatigueFromPain({ shoulder: '통증', armPainLevel: 1 }) === 3 &&
+      armFatigueFromPain({ shoulder: '통증', armPainLevel: null }) ===
+        SEVERE_ARM_FATIGUE &&
+      armFatigueFromPain({ shoulder: '뻐근', elbow: '정상', armPainLevel: 3 }) ===
+        null &&
+      armFatigueFromPain({ wrist: '통증' } as never) === null
+  );
+  const s = signalsOf(
+    {
+      condition: 3,
+      sleepQuality: 2,
+      shoulder: '통증',
+      elbow: '정상',
+      wrist: '뻐근',
+      lowerBack: '정상',
+      lowerBody: '정상',
+      armPainSpots: ['shoulder-back'],
+      armPainLevel: 2,
+    },
+    7
+  );
+  const t = signalsOf(
+    {
+      condition: 5,
+      sleep: '충분',
+      shoulder: '정상',
+      elbow: '정상',
+      wrist: '정상',
+      lowerBack: '정상',
+      lowerBody: '정상',
+    },
+    7.5
+  );
+  check(
+    '3판 (signalsOf) 컨디션 3 → 아파요 · 낮음(평소보다 낮음은 바닥 위에서만) · 잠 2 → 짧은 밤 · 어깨 통증 → 팔 자리 · 정도 · 뻐근은 stiff',
+    s.condition.band === 'sick' &&
+      s.condition.low &&
+      !s.condition.belowUsual &&
+      s.sleep.quality === 2 &&
+      s.sleep.short &&
+      s.pain.any &&
+      s.pain.parts.join() === 'shoulder' &&
+      s.pain.stiff.join() === 'wrist' &&
+      s.pain.arm?.level === 2 &&
+      s.pain.arm.spots.join() === 'shoulder-back' &&
+      t.condition.band === 'normal' &&
+      !t.condition.low &&
+      t.condition.belowUsual &&
+      t.sleep.quality === 4 &&
+      !t.sleep.short &&
+      !t.pain.any &&
+      t.pain.arm === null
+  );
 }
 
 console.log(`\n${passed}개 통과, ${failed}개 실패`);

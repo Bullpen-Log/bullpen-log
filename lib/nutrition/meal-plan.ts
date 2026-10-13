@@ -61,9 +61,8 @@ export function isPlace(v: unknown): v is Place {
 /** 던지는 날의 종류 — 영양 가이드(guide.ts)와 같은 말: 등판 전날 · 던지는 날 · 던진 뒤 */
 export type ThrowKind = 'eve' | 'today' | 'after' | null;
 
-/** 식욕이 이 밑이면 '입맛 없는 날'(guide.ts 와 같은 기준), 근육통이 이 위면 '많이'(lib/checkin.ts HIGH_SORENESS) */
+/** 식욕이 이 밑이면 '입맛 없는 날'(guide.ts 와 같은 기준) */
 const LOW_APPETITE = 2;
-const HIGH_SORENESS = 4;
 
 export type PlanInput = {
   date: string;
@@ -80,7 +79,8 @@ export type PlanInput = {
   hot: boolean;
   throwKind: ThrowKind;
   appetite: number | null;
-  soreness: number | null;
+  /** 짧은 밤(체크인 3판 수면의 질 2 이하) — 회복 끼니(자기 전 단백질 · 저녁 회복 틀). 2026-10-13 전에는 근육통 '많이'가 이 자리 */
+  sleepShort: boolean;
   /** 이미 먹은 것(끼니별 합) — 그 끼니는 짜지 않는다 */
   eaten: { meal: MealKey; kcal: number; protein: number }[];
   /**
@@ -235,8 +235,7 @@ function slotShares(input: PlanInput): [Slot, number][] {
 }
 
 const lowAppetite = (i: PlanInput) => i.appetite !== null && i.appetite <= LOW_APPETITE;
-const highSoreness = (i: PlanInput) =>
-  i.soreness !== null && i.soreness >= HIGH_SORENESS;
+const shortSleep = (i: PlanInput) => i.sleepShort;
 const minorBand = (i: PlanInput) => i.ageBand !== 'adult';
 
 /* ─────────────────────────── 틀 고르기 ─────────────────────────── */
@@ -408,7 +407,7 @@ function wants(
     add('light', 3);
     add('dense', -1);
   }
-  if (highSoreness(input)) {
+  if (shortSleep(input)) {
     if (slot === 'snack') add('bed', 3);
     if (slot === 'dinner') add('rec', 2);
   }
@@ -614,7 +613,7 @@ function pickTemplate(
     input.throwKind,
     input.hot,
     input.appetite,
-    input.soreness,
+    input.sleepShort ? 1 : 0,
   ].join('|');
   if (!memo.ranked.has(key)) memo.ranked.set(key, rankFor());
   const cached = memo.ranked.get(key);
@@ -1056,7 +1055,7 @@ export function buildMealPlan(input: PlanInput): MealPlanResult {
         hot: false,
         throwKind: null,
         appetite: null,
-        soreness: null,
+        sleepShort: false,
         eaten: [],
       },
       recent,
@@ -1923,9 +1922,9 @@ function whyLines(
       lines.push('입맛이 없는 날이라 간식을 더해 양을 나눴어요.');
     }
   }
-  if (highSoreness(input) && tagged('snack', 'bed')) {
+  if (shortSleep(input) && tagged('snack', 'bed')) {
     lines.push(
-      `근육통이 많은 날이라 간식에 ${snackDairy ? '유제품 ' : ''}단백질을 한 번 더 넣었어요.`
+      `잠이 짧은 날이라 간식에 ${snackDairy ? '유제품 ' : ''}단백질을 한 번 더 넣었어요.`
     );
   }
   if (input.hot && heatKept)

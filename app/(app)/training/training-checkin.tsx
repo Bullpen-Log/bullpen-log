@@ -1,53 +1,31 @@
 'use client';
 
-import { useState } from 'react';
-import { Modal } from '@/components/modal';
-import { CheckinForm } from '@/components/checkin-form';
+import { ChevronRight } from 'lucide-react';
+import { OpenCheckinButton } from '@/components/notice-bell';
 
 /**
  * 트레이닝에서 바로 남기는 체크인.
  *
- * 운동 일정은 오늘 체크인을 보고 짜서, 체크인이 없으면 만들기 폼 대신 '체크인
- * 먼저'가 뜬다. 예전에는 거기서 홈으로 보냈다 — 홈으로 가서 체크인하고, 다시
- * 트레이닝으로 돌아와 만들기를 눌러야 했다. 이제 이 자리에서 창을 띄워 남긴다.
- *
- * 창 안은 알림(종)의 체크인 창·첫 접속 창과 같은 폼(components/checkin-form.tsx)이라
- * 간편·상세가 그대로다. 저장하면 서버가 트레이닝 화면을 다시 그려 보내고, 이제
- * 체크인이 있으니 이 단추가 있던 자리에 만들기 폼이 선다 — 창은 그와 함께 닫힌다.
- * 폼이 저장을 알려 오면(onSaved) 여기서도 한 번 더 닫는다.
- *
- * 폼에 지난 체크인을 넘기지 않는다(recent=[]). 폼은 그 목록에서 '오늘 것'만 찾아
- * 채우는데, 이 단추는 오늘 체크인이 없을 때만 뜨기 때문이다.
+ * 운동 일정은 오늘 체크인을 보고 짜서, 체크인이 없으면 만들기 폼 대신 '체크인 먼저'가 뜬다. 예전에는 여기서 제 창에
+ * 옛 폼을 띄웠는데, 3판(2026-10-13)부터 체크인은 한 화면 흐름 하나다 — 신호(OpenCheckinButton)를 보내면 틀
+ * (components/app-shell.tsx)이 PC 는 창으로, 휴대폰은 전체 화면(app/(session)/checkin)으로 연다. 저장하면 서버가
+ * 트레이닝 화면을 다시 그려 보내고, 이제 체크인이 있으니 이 단추가 있던 자리에 만들기 폼이 선다.
  */
 export function TrainingCheckin({
-  parts,
-  description = '30초면 돼요. 남기면 바로 오늘 운동 일정을 만들 수 있어요.',
+  description = '20초면 돼요. 남기면 바로 오늘 운동 일정을 만들 수 있어요.',
 }: {
-  parts: string[];
-  /** 창 위의 한 줄 — 암케어 화면은 '오늘의 암케어를 만들 수 있습니다'로 바꾼다 */
+  /** 옛 호출 호환 — 3판 체크인은 부위를 묻지 않아 쓰지 않는다 */
+  parts?: string[];
+  /** 단추 위의 한 줄 — 암케어 화면은 '오늘의 암케어를 만들 수 있습니다'로 바꾼다 */
   description?: string;
 }) {
-  const [open, setOpen] = useState(false);
-
   return (
-    <>
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className="inline-block rounded-xl bg-sky px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-sky-strong"
-      >
+    <div className="space-y-2">
+      <p className="text-sm text-muted">{description}</p>
+      <OpenCheckinButton className="inline-flex min-h-11 items-center gap-1 rounded-full bg-sky px-5 text-sm font-semibold text-white transition-colors hover:bg-sky-strong desk:min-h-10 desk:rounded-xl">
         체크인하기
-      </button>
-
-      <Modal
-        open={open}
-        onClose={() => setOpen(false)}
-        title="오늘 컨디션 체크인"
-        description={description}
-      >
-        {/* 열릴 때만 그린다 — 닫았다 다시 열면 새 폼으로 시작한다 */}
-        {open && <CheckinForm recent={[]} parts={parts} onSaved={() => setOpen(false)} />}
-      </Modal>
-    </>
+        <ChevronRight aria-hidden className="h-4 w-4" />
+      </OpenCheckinButton>
+    </div>
   );
 }

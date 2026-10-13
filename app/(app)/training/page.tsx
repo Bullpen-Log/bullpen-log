@@ -41,6 +41,7 @@ import { MechanicsTabs, type MechanicsTab } from './mechanics-tabs';
 import { MechanicsSection } from './mechanics-section';
 import { BodyPartsProvider } from '@/components/body-parts';
 import { TrainingCheckin } from './training-checkin';
+import { TrainingPrefsCard } from './training-prefs-card';
 import { OpenCheckinButton } from '@/components/notice-bell';
 import { OutingLine } from '@/components/outing-line';
 import { availableParts } from '@/lib/report/today-pick';
@@ -529,6 +530,17 @@ export default async function TrainingPage({
   });
 
   /** 홈과 트레이닝 둘 다에서 만들 수 있다. 여기서 만들면 여기로 돌아온다. */
+  /*
+   * '오늘 하고 싶은 운동' 카드(체크인 3판, 2026-10-13) — 체크인 상세에서 옮겨 온 질문. 일정을 만들 수 있는 날(체크인이 있는 날)에만
+   * 만들기 폼 위에 선다. 답은 facts 로 폼(preferredWorkout)과 일정 만들기에 들어간다(lib/report/gather.ts).
+   */
+  const prefsCard = core.hasCheckinToday ? (
+    <TrainingPrefsCard
+      day={core.todayKey}
+      answer={core.trainingPrefs}
+      parts={availableParts(core.library)}
+    />
+  ) : null;
   const planForm = (generated: boolean, minutes: number) => (
     <PlanForm
       owned={user.ownedEquipment}
@@ -560,6 +572,13 @@ export default async function TrainingPage({
         )
       }
     />
+  );
+  /* 만들기 폼 위에 '오늘 하고 싶은 운동' 카드 — 세 자리(처음 만들기 · 빈 일정 · 조건 바꿔 다시 만들기)가 같이 쓴다 */
+  const planBlock = (generated: boolean, minutes: number) => (
+    <>
+      {prefsCard}
+      {planForm(generated, minutes)}
+    </>
   );
 
   /* 운동의 부위 태그를 누르면 전신 3D 창(components/body-parts.tsx) — 목록과 운동 추가 창이 쓴다 */
@@ -677,7 +696,7 @@ export default async function TrainingPage({
                   : '투구량과 몸 상태에 맞춰 골라요.'}
               </p>
             </div>
-            {planForm(false, savedMinutes)}
+            {planBlock(false, savedMinutes)}
           </Card>
         ) : exercises.length === 0 ? (
           <Card className="space-y-4">
@@ -689,7 +708,7 @@ export default async function TrainingPage({
                 ? '몸 상태가 바뀌어 무리인 운동이 모두 빠졌어요.'
                 : '지금 할 수 있는 운동이 아직 없어요.'}
             </p>
-            {planForm(false, savedPlan.requestedMinutes)}
+            {planBlock(false, savedPlan.requestedMinutes)}
           </Card>
         ) : (
           <>
@@ -726,7 +745,9 @@ export default async function TrainingPage({
                 까닭(auto.reason)이 테마 까닭보다 구체적이라 그것 하나만, 아니면 테마 까닭.
               */}
               {savedPlan.goal && (
-                <p className="text-sm font-semibold text-ink">목표 · {savedPlan.goal}</p>
+                <p className="text-sm font-semibold text-ink">
+                  목표 · {savedPlan.goal}
+                </p>
               )}
               <p className="text-sm leading-relaxed break-keep text-muted">
                 {savedPlan.auto?.reason ?? savedPlan.theme.reason}
@@ -770,9 +791,14 @@ export default async function TrainingPage({
               <details className="group border-t border-sky-soft/30 pt-3">
                 <summary className="flex cursor-pointer list-none items-center gap-1 text-sm font-semibold text-sky-strong">
                   조건 바꿔 다시 만들기
-                  <ChevronDown aria-hidden className="h-4 w-4 transition-transform group-open:rotate-180" />
+                  <ChevronDown
+                    aria-hidden
+                    className="h-4 w-4 transition-transform group-open:rotate-180"
+                  />
                 </summary>
-                <div className="pt-3">{planForm(true, savedPlan.requestedMinutes)}</div>
+                <div className="pt-3">
+                  {planBlock(true, savedPlan.requestedMinutes)}
+                </div>
               </details>
             </Card>
 
@@ -830,7 +856,6 @@ export default async function TrainingPage({
                 {MIN_CANDIDATES}개 이상).
               </p>
             )}
-
           </>
         )}
       </div>

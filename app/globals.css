@@ -2813,3 +2813,21 @@ html[data-dualcam] [data-finder] {
 html[data-dualcam] [data-finder] > video {
   visibility: hidden;
 }
+
+/*
+ * 체크인 3판의 슬라이더(components/checkin-flow/steps.tsx) — 테마 파랑(accent-color), 누르는 자리를 넉넉히.
+ * data-vertical 은 세로(위가 10) — 컨디션을 사람 그림 옆의 온도계처럼 올리고 내린다.
+ */
+.checkin-range {
+  accent-color: var(--color-sky);
+  width: 100%;
+  height: 2.25rem;
+  touch-action: pan-x;
+}
+.checkin-range[data-vertical] {
+  writing-mode: vertical-lr;
+  direction: rtl;
+  width: 2.25rem;
+  height: 14rem;
+  touch-action: pan-y;
+}

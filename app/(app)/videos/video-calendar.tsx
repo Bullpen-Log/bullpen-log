@@ -2,7 +2,16 @@
 
 import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
-import { ArrowRight, Camera, Check, Film, Loader2, Plus, Star } from 'lucide-react';
+import {
+  ArrowRight,
+  Camera,
+  Check,
+  Film,
+  Loader2,
+  Plus,
+  Star,
+  StickyNote,
+} from 'lucide-react';
 import {
   MonthCalendar,
   effortClass,
@@ -78,18 +87,33 @@ type Day = {
 /** 칸의 그림 상태 — 주소 / 없음(뜨는 중) / 물어보는 중(undefined) */
 type Thumbs = Record<string, string | null>;
 
+/** 체크인 메모가 있는 날 — 칸 오른쪽 위의 작은 쪽지(체크인 3판). 밝은 바탕(장면 · 센 강도)에서는 흰색 */
+function NoteMark({ light = false }: { light?: boolean }) {
+  return (
+    <span
+      aria-label="메모 있음"
+      className={`absolute right-1 top-1 ${light ? 'text-white drop-shadow' : 'text-muted'}`}
+    >
+      <StickyNote aria-hidden className="h-3 w-3" />
+    </span>
+  );
+}
+
 export function VideoCalendar({
   logs,
   featured,
   initialMonth,
   initialDate,
   measured,
+  noteDays = [],
 }: {
   logs: VideoLog[];
   /** 날짜별로 고른 대표 영상 */
   featured: Record<string, string>;
   /** 날짜별 카메라 구속 측정 요약 — 그날 칸 머리에 한 줄 */
   measured: Record<string, { n: number; max: number }>;
+  /** 체크인 메모를 남긴 날(YYYY-MM-DD, 체크인 3판) — 칸 오른쪽 위에 작은 메모 표시 */
+  noteDays?: string[];
   /** 처음에 펴 둘 달(YYYY-MM) */
   initialMonth: string | null;
   /** 처음에 열어 둘 날(YYYY-MM-DD) — 홈에서 '영상 탭에서 보기'로 들어온 경우 */
@@ -99,6 +123,8 @@ export function VideoCalendar({
    * 날짜별 기록 — 영상이 없는 날도. 쉬는 날로 남긴 기록의 영상은 세지 않는다(붙을 일이
    * 없지만 혹시 몰라).
    */
+  /* 체크인 메모가 있는 날 — 칸의 작은 쪽지(NoteMark) */
+  const noted = useMemo(() => new Set(noteDays), [noteDays]);
   const days = useMemo(() => {
     const map = new Map<string, Day>();
     for (const log of logs) {
@@ -358,6 +384,9 @@ export function VideoCalendar({
           >
             {day.rest ? '휴식' : `${day.pitches}구`}
           </span>
+          {noted.has(cell.key) && (
+            <NoteMark light={!day.rest && day.effortPct >= STRONG_EFFORT_PCT} />
+          )}
         </>
       );
     }
@@ -390,6 +419,7 @@ export function VideoCalendar({
             {day.paths.length}
           </span>
         )}
+        {noted.has(cell.key) && <NoteMark light />}
       </>
     );
   };
