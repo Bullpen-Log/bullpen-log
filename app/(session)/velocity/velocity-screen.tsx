@@ -2634,7 +2634,7 @@ export function VelocityScreen({
               구속 측정
             </button>
           )}
-          <span className="pr-2 text-xs tabular-nums text-muted">구속 측정</span>
+          <span aria-hidden className="h-12 w-12" />
         </header>
       )}
 

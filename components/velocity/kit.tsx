@@ -80,8 +80,11 @@ export function StatRow({
           <dt className="text-xs text-muted">{it.label}</dt>
           <dd className="text-display mt-0.5 text-2xl leading-none tabular-nums text-ink">
             {it.value}
+            {/* 단위는 제 줄에 — 네 칸이면 "km/h" 가 숫자 옆에서 갈렸다 */}
             {it.unit && (
-              <span className="ml-0.5 font-sans text-xs text-muted">{it.unit}</span>
+              <span className="mt-1 block font-sans text-[11px] leading-none text-muted">
+                {it.unit}
+              </span>
             )}
           </dd>
         </div>
@@ -99,10 +102,10 @@ export function Note({
   children: ReactNode;
 }) {
   const cls = {
-    info: 'border-line bg-surface text-muted',
+    info: 'border-transparent bg-ink/5 text-muted',
     warn: 'border-warn-line bg-warn-bg text-warn',
     danger: 'border-danger-line bg-danger-bg text-danger',
-    ok: 'border-line bg-surface text-ink',
+    ok: 'border-transparent bg-ink/5 text-ink',
   }[tone];
   return (
     <p
