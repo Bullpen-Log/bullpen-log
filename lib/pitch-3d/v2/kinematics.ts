@@ -618,6 +618,33 @@ export function twoBoneIk(top: Vec3, midP: Vec3, end: Vec3, target: Vec3, hint?:
 export const kneePole = (hip: Vec3, knee: Vec3, axis: Vec3 | undefined): Vec3 | undefined =>
   axis ? cross(unit(sub(knee, hip), [0, -1, 0]), axis) : undefined;
 
+/** 무릎이 굽는 쪽이 발끝 방향에서 벗어날 수 있는 만큼 — 경첩이라 정강이 돌림 · 발끝 벌림만큼만 */
+const KNEE_TOE_MAX = 60;
+/**
+ * 무릎을 발끝 쪽으로 — 엉덩이 → 발목 축 둘레에서 무릎이 굽은 쪽(발끝 방향에서 잰 각 θ)을, 뒤로 간 만큼은 발끝 쪽으로 거울처럼 접고(|θ| > 90°
+ * 면 180° − |θ|) ±KNEE_TOE_MAX 로 묶는다(굽힘 · 길이 그대로). 다듬은 굽는 축으로 무릎을 다시 접으면 축이 반 바퀴 틀린 장면에 무릎이 발끝 반대로
+ * 꺾였다(2026-10-13 실험실 기아 샘플 공 놓은 뒤 15장면 · 샘플 10 착지 전: 원 결과는 거의 편 다리인데 화면은 22° 를 발끝 반대로). 접지 않고
+ * 한계로 자르기만 하면 무릎이 뒤를 지나 반대편으로 갈 때 +60° ↔ −60° 로 한 장면에 튀었다(같은 샘플 착지 뒤 18 · 25장면).
+ */
+export function kneeTowardToes(hip: Vec3, knee: Vec3, ankle: Vec3, toeDir: Vec3): Vec3 {
+  const e = unit(sub(ankle, hip), [0, -1, 0]);
+  const v = sub(knee, hip);
+  const along = dot(v, e);
+  const off = sub(v, scale(e, along));
+  const r = norm(off);
+  const fwd = perp(toeDir, e);
+  if (r < 1e-6 || norm(fwd) < 1e-6) return knee;
+  const th = signedAngle(normalize(fwd), scale(off, 1 / r), e);
+  const folded = Math.abs(th) <= Math.PI / 2 ? th : Math.sign(th) * (Math.PI - Math.abs(th));
+  const want = clamp(folded, -rad(KNEE_TOE_MAX), rad(KNEE_TOE_MAX));
+  if (Math.abs(want - th) < 1e-9) return knee;
+  /* 많이 굽힌 무릎(다리 들기)은 발이 아래로 처져 발끝이 기준이 못 된다 — 굽힘 50° 까지 묶고 70° 까지 풀어 준다 */
+  const bend = Math.acos(clamp(dot(unit(v, e), unit(sub(ankle, knee), e)), -1, 1));
+  const w = clamp((rad(70) - bend) / rad(20), 0, 1);
+  if (w <= 0) return knee;
+  return add(add(hip, scale(e, along)), scale(rot(scale(off, 1 / r), e, (want - th) * w), r));
+}
+
 export type KinematicTrack = {
   /** 다시 만든 관절 점(25, 키 = 1) */
   frames: Vec3[][];
@@ -1104,6 +1131,19 @@ export function kinematicTrack(
     ),
     frames.map(() => 1)
   );
+  /* 발끝 방향(원 결과 뒤꿈치 → 발끝, 다듬음) — 무릎이 굽는 쪽의 기준(kneeTowardToes). 다리 계산 · 땅에 묶인 발이 같은 것을 쓴다 */
+  const toeDirOf = Object.fromEntries(
+    (['L', 'R'] as const).map((side) => {
+      const [An, He, To] = side === 'L' ? [V2J.lAn, V2J.lHe, V2J.lTo] : [V2J.rAn, V2J.rHe, V2J.rTo];
+      return [
+        side,
+        smoothMulti(
+          frames.map((fr) => sub(fr[To], fr[He])),
+          frames.map((_, k) => Math.min(cf(k, An), cf(k, He), cf(k, To)) + 0.02)
+        ) as Vec3[],
+      ];
+    })
+  ) as Record<'L' | 'R', Vec3[]>;
   for (const side of ['L', 'R'] as const) {
     const [Hp, Kn, An, He, To] =
       side === 'L'
@@ -1187,6 +1227,7 @@ export function kinematicTrack(
       frames.map((_, k) => (conf ? clamp((conf[k][An] - conf[k][Kn] - 30) / 30, 0, 1) : 0)),
       frames.map(() => 1)
     );
+    const toeDir = toeDirOf[side];
     /* 발목 자리 — 팔의 손목처럼 원 발목을 다듬은 세상 자리(무릎은 각에서 굽은 쪽만) — 골반 틀 안 자리면 땅에 선 발이 화면 골반을 따라 흔들렸다 */
     const anS = smoothMulti(
       frames.map((fr) => fr[An]),
@@ -1211,6 +1252,13 @@ export function kinematicTrack(
       const target = add(scale(ank, 1 - wAnk[k]), scale(frames[k][An], wAnk[k]));
       K = twoBoneIk(Hpt, K, A, target, kneePole(Hpt, K, nw));
       A = target;
+      const K2 = kneeTowardToes(Hpt, K, A, toeDir[k]);
+      if (K2 !== K) {
+        K = K2;
+        /* 무릎을 옮겼으면 굽는 축도 새 두 마디에서(옛 축 부호에 맞추면 뒤 단계가 그 축으로 무릎을 도로 뒤로 접었다) */
+        const nb2 = cross(unit(sub(K, Hpt), uw), unit(sub(A, K), sw));
+        if (norm(nb2) > 0.05) nw = normalize(nb2);
+      }
       sw = unit(sub(A, K), sw);
       /* 무릎이 굽는 축은 다듬은 축을 새 정강이에 수직으로만(팔과 같다 — 거의 편 앞다리에서 두 마디로 다시 재면 축이 튀었다) */
       nw = unit(perp(nw, sw), nw);
@@ -1281,13 +1329,15 @@ export function kinematicTrack(
       out[k][An] = target;
       out[k][He] = add(scale(add(out[k][He], shift), 1 - w), scale(frames[at][He], w));
       out[k][To] = add(scale(add(out[k][To], shift), 1 - w), scale(frames[at][To], w));
+      out[k][Kn] = kneeTowardToes(out[k][Hp], out[k][Kn], out[k][An], toeDirOf[c.side][k]);
       const s = unit(sub(out[k][An], out[k][Kn]), [0, -1, 0]);
       const t = unit(sub(out[k][Kn], out[k][Hp]), s);
       const nb = cross(t, s);
       if (norm(nb) > 1e-6) {
         const ref = refs[k][c.side === 'L' ? 'thighL' : 'thighR'];
         const nn = normalize(nb);
-        const pick = ref && dot(ref, nn) < 0 ? scale(nn, -1) : nn;
+        /* 무릎이 굽어 있으면(3° 넘게) 두 마디에서 잰 축 그대로 — 무릎은 이미 발끝 쪽이다(kneeTowardToes). 거의 편 다리만 옛 축 부호를 따른다 */
+        const pick = norm(nb) <= 0.05 && ref && dot(ref, nn) < 0 ? scale(nn, -1) : nn;
         refs[k][c.side === 'L' ? 'thighL' : 'thighR'] = pick;
         refs[k][c.side === 'L' ? 'shankL' : 'shankR'] = pick;
       }
