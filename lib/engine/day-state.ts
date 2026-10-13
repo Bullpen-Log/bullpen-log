@@ -40,6 +40,7 @@ import {
   formatSleepHours,
   isShortSleep,
   nextOutingWindow,
+  sleepQualityWord,
   sorenessWord,
   todayOutingRole,
   type CheckinPartKey,
@@ -218,10 +219,12 @@ export type DayState = {
     soreMany: boolean;
     /** '심함'(SEVERE_SORENESS) — 매일 일정 · 암케어가 회복으로 가는 문턱과 같다 */
     soreSevere: boolean;
-    /** 잔 느낌 · 잔 시간 */
+    /** 잔 느낌 · 잔 시간(옛 칸 — 3판부터 새 기록은 느낌만 수면의 질에서 맞춘 값) */
     sleep: string | null;
     sleepHours: number | null;
-    /** 짧은 밤(isShortSleep) */
+    /** 어젯밤 수면의 질 1~5(체크인 3판, lib/checkin.ts SLEEP_QUALITY_LEVELS) — 옛 기록 · 안 적은 날은 null */
+    sleepQuality: number | null;
+    /** 짧은 밤(isShortSleep — 수면의 질 2 이하, 옛 기록은 '부족' · 6시간 미만) */
     sleepShort: boolean;
     /** 오늘 고른 운동 종류, 안 골랐으면 null */
     preferredWorkout: string | null;
@@ -422,6 +425,7 @@ export function buildDayState({
       soreSevere,
       sleep: today?.sleep ?? null,
       sleepHours: today?.sleepHours ?? null,
+      sleepQuality: today?.sleepQuality ?? null,
       sleepShort,
       preferredWorkout: today?.preferredWorkout ?? null,
     },
@@ -504,10 +508,13 @@ function whyLines(s: Omit<DayState, 'why'>): string[] {
     out.push(`전신 근육통이 '${sorenessWord(body.soreness)}'이에요.`);
   }
   if (body.sleepShort) {
+    const quality = sleepQualityWord(body.sleepQuality);
     out.push(
       body.sleepHours != null && body.sleepHours < SHORT_SLEEP_HOURS
         ? `어젯밤 ${formatSleepHours(body.sleepHours)}만 잤어요.`
-        : '잠이 부족했다고 적었어요.'
+        : quality
+          ? `어젯밤 잠이 '${quality}'이었어요.`
+          : '잠이 부족했다고 적었어요.'
     );
   }
 

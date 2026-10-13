@@ -1,5 +1,6 @@
 import 'server-only';
 import { prisma } from '@/lib/prisma';
+import { pickWorkoutKind } from '@/lib/checkin';
 import { toDateKey } from '@/lib/pitch-stats';
 import { gatherFactsAndPlan } from '@/lib/report/gather';
 import { selectCandidates } from '@/lib/report/prescription';
@@ -109,7 +110,14 @@ export async function loadTodayCore(user: UserForToday, today: Date) {
      */
     prisma.dailyTrainingSetup.findUnique({
       where: { userId_date: { userId: user.id, date: midnight } },
-      select: { availableEquipment: true, plan: true, generatedAt: true },
+      select: {
+        availableEquipment: true,
+        plan: true,
+        generatedAt: true,
+        /* 트레이닝 탭 카드의 답(체크인 3판) — 카드가 요약 · 다시 묻기를 가른다 */
+        preferredWorkout: true,
+        preferredParts: true,
+      },
     }),
     /* 오늘의 암케어 — 거기서 한 체크는 아래 strays 에서 뺀다 */
     prisma.dailyArmcare.findUnique({
@@ -337,6 +345,17 @@ export async function loadTodayCore(user: UserForToday, today: Date) {
     hasCheckinToday: facts.condition.today != null,
     /** 오늘 고른 운동 종류 — 파워 / 웨이트 / 회복. 안 골랐으면 null */
     preferredWorkout,
+    /**
+     * 트레이닝 탭의 '오늘 하고 싶은 운동' 카드(체크인 3판, app/(app)/training/training-prefs-card.tsx) — 답했으면 그 답
+     * (workout 은 앱에 맡겼으면 null), 아직 안 물었으면 null. 판단은 이 값을 안 읽는다 — facts(위 preferredWorkout)가 같은 답을 든다.
+     */
+    trainingPrefs:
+      todaySetup?.preferredWorkout != null
+        ? {
+            workout: pickWorkoutKind(todaySetup.preferredWorkout),
+            parts: todaySetup.preferredParts,
+          }
+        : null,
     /** 고른 종류가 몸 상태와 부딪히는가. 안 부딪히면 null */
     workoutClash,
     /**

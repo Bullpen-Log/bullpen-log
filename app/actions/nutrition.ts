@@ -443,7 +443,7 @@ export async function makeMealPlan(
     hot,
     throwKind: day.planSignals?.throwKind ?? null,
     appetite: day.planSignals?.appetite ?? null,
-    soreness: day.planSignals?.soreness ?? null,
+    sleepShort: day.planSignals?.sleepShort ?? false,
     eaten: [...eaten].flatMap(([meal, v]) => (isMealKey(meal) ? [{ meal, ...v }] : [])),
     recent: recentTemplates(
       date,

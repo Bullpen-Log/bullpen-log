@@ -185,6 +185,10 @@ model DailyTrainingSetup {
   /// 일정이 있어도 보여주지 않는다. 모양은 lib/report/daily-plan.ts의 DailyPlan.
   plan               Json?
   generatedAt        DateTime?
+  /// 오늘 하고 싶은 운동 종류(체크인 3판, 2026-10-13 — 트레이닝 탭 카드, app/actions/day-cards.ts). 파워 · 웨이트 · 회복 · "추천대로"(답했지만 앱에 맡김). null 이면 아직 안 물었다
+  preferredWorkout   String?
+  /// 오늘 하고 싶은 운동 부위(라이브러리 부위 이름). 안 고르면 []
+  preferredParts     String[]  @default([])
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
   user               User      @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -385,13 +389,13 @@ model DailyCheckin {
   /// 1~5 척도는 모두 '클수록 그 느낌이 강하다'로 읽는다(피로 5 = 몹시 피곤).
   /// 기분만 반대로 클수록 좋다 — 화면에 말로 적어 두어 헷갈리지 않게 한다.
 
-  /// 잔 시간(시간). 0.5 단위.
+  /// 잔 시간(시간). 0.5 단위. 3판(2026-10-13)부터 안 씀 — sleepQuality 로
   sleepHours   Float?
-  /// 전신 피로 1~5
+  /// 전신 피로 1~5 — 3판부터 안 씀(읽지도 쓰지도 않음)
   fatigue      Int?
-  /// 전신 근육통 1~5
+  /// 전신 근육통 1~5 — 3판부터 안 씀(통증 · 수면 신호로 대신)
   soreness     Int?
-  /// 던지는 팔의 피로 1~5 — 투수에게 따로 떼어 볼 만한 값이다
+  /// 던지는 팔의 피로 1~5 — 3판부터 묻지 않음(팔 통증 정도에서 어림, lib/checkin.ts armFatigueFromPain)
   armFatigue   Int?
   /// 스트레스 1~5
   stress       Int?
@@ -424,6 +428,8 @@ model DailyCheckin {
   armPainLevel Int?
   /// 불편한 근육(2026-10-12 몸 그림): { "R:deltFront": "뻐근" | "통증" } — lib/body-spots.ts. 부위 칸(shoulder …)은 여기서 가장 센 값
   bodySpots    Json?
+  /// 어젯밤 수면의 질 1~5(체크인 3판, 2026-10-13 — lib/checkin.ts SLEEP_QUALITY_LEVELS). 3판부터 sleep · sleepHours 대신 이것. 옛 기록은 null(읽을 때 어림)
+  sleepQuality Int?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1424,6 +1430,14 @@ model DailyNutrition {
   userId    String
   date      DateTime @db.Date
   weightKg  Float?
+  /// 오늘 식욕 1~5(체크인 3판, 2026-10-13 — 영양 탭 카드, lib/checkin.ts APPETITE_LEVELS). 2판까지는 DailyCheckin.appetite
+  appetite  Int?
+  /// 끼니 양(lib/checkin.ts MEAL_AMOUNTS — 잘 먹음 · 보통 · 부족). 2판까지는 DailyCheckin.nutrition
+  mealAmount String?
+  /// 걸른 끼니(SKIPPABLE_MEALS 의 key). 2판까지는 DailyCheckin.skippedMeals
+  skippedMeals String[] @default([])
+  /// 영양 탭 카드에 답한 때 — null 이면 아직 안 물었다(아무것도 안 고른 답과 가른다). 서버가 appNow() 로 적는다
+  answeredAt DateTime?
   /// 그날 사진으로 음식을 알아본 횟수(영양 로드맵 7번 — AI 를 부르므로 하루 상한을 센다). 이 칸만 있는 줄은 체중이 비어 있다 — 체중을 읽는 곳은 모두 weightKg 가 있는 줄만 본다.
   photoCalls Int     @default(0)
   createdAt DateTime @default(now())

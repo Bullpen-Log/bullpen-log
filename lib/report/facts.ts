@@ -59,9 +59,17 @@ export type CheckinLike = CheckinParts & {
    * 둘 다 있어도 없어도 되는 칸(?)으로 둔다. 칸이 아예 없는 값이 여러 곳에 있다 — 저장해 둔
    * 리포트의 facts, 두 칸이 생기기 전의 기록, 자가 시험이 손으로 만든 체크인(satisfies CheckinLike).
    * 읽는 쪽은 '칸 없음'과 null 을 똑같이 '안 적음'으로 본다: 아무것도 바꾸지 않고 글도 안 붙인다.
+   *
+   * 체크인 3판(2026-10-13)부터 둘 다 묻지 않는다 — 새 기록은 null 이고, 잠은 sleepQuality 가, 근육통 자리는 통증 신호가 맡는다.
+   * 옛 기록 · 얼린 facts 에만 값이 있어 읽는 규칙은 남겨 둔다.
    */
   sleepHours?: number | null;
   soreness?: number | null;
+  /**
+   * 어젯밤 수면의 질 1~5(체크인 3판 — lib/checkin.ts SLEEP_QUALITY_LEVELS). 짧은 밤(isShortSleep)은 이 칸이 정하고, 옛 칸(sleep ·
+   * sleepHours)은 이 칸이 없는 기록에서 같은 눈금으로 어림한 것이다. 옛 facts · 자가 시험의 손 체크인에는 없다(칸 없음 · null = 안 적음).
+   */
+  sleepQuality?: number | null;
   /**
    * 체크인에 적은 던지는 일정(lib/checkin.ts 의 THROW_PLANS — '오늘 등판' · '오늘 불펜' · '내일 등판' · '2~3일 뒤' ·
    * '4일 이상 뒤' · '없음', 2026-10-12 부터 여섯). 매일 운동 계획이 '오늘 등판 · 내일 등판'을 읽는다(theme.ts 의
@@ -74,6 +82,9 @@ export type CheckinLike = CheckinParts & {
    * 오늘 상태 한 장(lib/engine/day-state.ts)이 extras 로 따로 받아 암케어만 읽었는데, 매일 일정의 안전 거르기(prescription.ts 5-2,
    * '심함'이면 무거운 상체 밀기 · 팔 플라이오를 뺀다)와 일정 지문도 읽어야 해서 판단이 보는 facts 한 곳에 둔다.
    * 근육통처럼 선택 칸이다 — 저장해 둔 옛 facts · 자가 시험이 손으로 만든 체크인에는 없고, 칸 없음 · null · 범위 밖은 '안 적음'.
+   *
+   * 3판(2026-10-13)부터 묻지 않는다 — gather 가 어깨 · 팔꿈치 통증의 정도에서 어림해 넣는다(lib/checkin.ts armFatigueFromPain:
+   * 평소에도 · 가만히도 아프면 '심함'). 읽는 규칙은 그대로라 통증 신호 하나가 안전 거르기 · 암케어 · 점수를 함께 움직인다.
    */
   armFatigue?: number | null;
 };
@@ -621,7 +632,8 @@ export function buildFacts({
    */
   const todayCheckin = checkins.find((c) => c.date === asOf) ?? null;
   /* 어제 체크인 — '내일 등판'이라고 적었는지 보려고(plannedOuting) */
-  const yesterdayCheckin = checkins.find((c) => daysBetween(c.date, asOf) === 1) ?? null;
+  const yesterdayCheckin =
+    checkins.find((c) => daysBetween(c.date, asOf) === 1) ?? null;
 
   /*
    * 다음 등판 짐작의 재료 두 칸(2판 P4 커밋 G) — calendarEvents 를 넘겼을 때만 만든다(안 넘기면 키 자체가 없다). 짐작하는 규칙(차례 ·

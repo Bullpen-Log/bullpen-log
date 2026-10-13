@@ -9,6 +9,7 @@ import { formatSpeed } from '@/lib/units';
 import { useSpeedUnit } from '@/components/use-units';
 import { usePlaybackUrls } from '@/components/use-playback-urls';
 import { OpenCheckinButton } from '@/components/notice-bell';
+import { sleepQualityWord } from '@/lib/checkin';
 import { REST_SESSION_TYPE } from '@/lib/session-type';
 import { effortText } from '@/lib/pitch-effort';
 import type { Log } from '@/app/(app)/pitch-log/types';
@@ -190,6 +191,22 @@ export function DayDetailBlock({
 
       {/* 줄이나 날짜가 바뀔 때마다 새로 그려, 내용이 옅게 떠오르며 바뀐다 */}
       <div key={`${date}-${focus}`} className="motion-safe:animate-fade-in px-5 py-4">
+        {/*
+          그날 메모(체크인 3판 — 흐름의 마지막 질문이 여기 남는다). 체크인 칸은 제 자리에서 보이니 다른 칸에서만 맨 위에 한 줄.
+          그날 요약이 와 있을 때만 — 투구 기록의 메모는 그 기록 줄에 그대로 있다(둘 다 있으면 출처가 다른 두 줄).
+        */}
+        {!ahead && focus !== 'checkin' && detail?.checkin?.note && (
+          <p className="mb-4 flex gap-1.5 rounded-xl bg-surface-2 px-4 py-3 text-[13px] leading-relaxed break-keep text-ink/80">
+            <StickyNote
+              aria-hidden
+              className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted"
+            />
+            <span className="line-clamp-3">
+              <b className="font-semibold text-muted">체크인 메모</b> ·{' '}
+              {detail.checkin.note}
+            </span>
+          </p>
+        )}
         {focus === 'schedule' && (
           <DaySchedule
             date={date}
@@ -587,7 +604,8 @@ function CheckinDetail({ c, isToday }: { c: DayDetail['checkin']; isToday: boole
     <div className="space-y-4">
       <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <Fact label="컨디션" value={`${c.condition} / 10`} strong />
-        <Fact label="수면" value={c.sleep} />
+        {/* 3판은 수면의 질 1~5 — 옛 기록은 그때의 느낌 칸 */}
+        <Fact label="수면" value={sleepQualityWord(c.sleepQuality) ?? c.sleep} />
       </dl>
       <ul className="flex flex-wrap gap-1.5" aria-label="부위">
         {c.parts.map((p) => (

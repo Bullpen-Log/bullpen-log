@@ -58,8 +58,8 @@ export type AdviceInput = {
     meals: MealCheck;
     /** 식욕 1~5. 안 적었으면 null */
     appetite: number | null;
-    /** 전신 근육통 1~5. 안 적었으면 null */
-    soreness: number | null;
+    /** 짧은 밤 — 체크인 3판의 수면의 질 2 이하(lib/checkin.ts isShortSleep). 2026-10-13 전에는 근육통 칸이 이 자리에 있었다 */
+    sleepShort: boolean;
   } | null;
   /** 던지는 날의 종류(lib/nutrition/guide.ts throwDayKind) — 아닌 날은 null */
   throwKind: ThrowGuideKind | null;
@@ -157,8 +157,6 @@ export const MEAL_OVER_HOUR: Record<MealKey, number> = {
 export const LATE_HOUR = 20;
 /** 이 아래면 입맛이 없는 날(거의 없음 · 적음) — 영양 가이드 · 식단 짜기와 같은 선 */
 export const LOW_APPETITE = 2;
-/** 이 위면 근육통이 많은 날 — 트레이닝 추천(lib/checkin.ts HIGH_SORENESS)과 같은 선 */
-export const HIGH_SORENESS = 4;
 
 /**
  * 지금까지 먹었어야 할 하루 몫(0~1) — 시각으로. 아침 7~10시 · 점심 12~14시 · 저녁 18~20시에 오르고 사이는 조금씩.
@@ -297,7 +295,7 @@ type Situation = {
   after: MacroRange;
   skipped: MealKey[];
   appetite: number | null;
-  soreness: number | null;
+  sleepShort: boolean;
 };
 
 export type HeadlineRule = {
@@ -433,17 +431,18 @@ export const HEADLINE_RULES: readonly HeadlineRule[] = [
           },
   },
   {
-    key: 'soreness',
-    when: (s) => s.soreness !== null && s.soreness >= HIGH_SORENESS,
+    /* 짧은 밤(체크인 3판 수면의 질 2 이하) — 2026-10-13 전의 '근육통 많음' 자리. 회복이 덜 된 날의 끼니는 같다 */
+    key: 'short-sleep',
+    when: (s) => s.sleepShort,
     say: (s) =>
       s.late
         ? {
-            headline: `${LATE_PROTEIN}로 단백질 한 번 더`,
-            why: '근육통이 많은 날은 자기 전 단백질이 회복을 도와요.',
+            headline: `${LATE_PROTEIN}로 단백질 한 번 더 · 카페인은 그만`,
+            why: '잠이 짧은 날은 몸이 다 못 쉬어요. 자기 전 단백질이 돕고, 늦은 카페인은 오늘 밤도 짧게 해요.',
           }
         : {
-            headline: '저녁과 자기 전에 단백질 한 번 더 · 우유 · 요거트',
-            why: '근육통이 많은 날은 단백질을 한 번 더 나눠 먹는 게 좋아요.',
+            headline: '물 · 단백질 한 번 더 챙기고 오후 카페인은 피하기',
+            why: '잠이 짧은 날은 몸이 다 못 쉬어요. 단백질을 한 번 더 나누고, 오후 카페인은 오늘 밤 잠도 짧게 해요.',
           },
   },
   {
@@ -550,7 +549,7 @@ function headlineOf(
     after: afterProtein(input.body.weightKg, input.body.ageBand),
     skipped: input.checkin?.meals.skipped ?? [],
     appetite: input.checkin?.appetite ?? null,
-    soreness: input.checkin?.soreness ?? null,
+    sleepShort: input.checkin?.sleepShort ?? false,
   };
   const rule = HEADLINE_RULES.find((r) => r.when(s))!;
   return { ...rule.say(s), rule: rule.key };

@@ -18,7 +18,12 @@ import {
   type MemoNote,
 } from '@/lib/report/facts';
 import { buildPitchPlan } from '@/lib/report/plan';
-import { pickArmPain, pickCheckinParts } from '@/lib/checkin';
+import {
+  armFatigueFromPain,
+  pickArmPain,
+  pickCheckinParts,
+  pickWorkoutKind,
+} from '@/lib/checkin';
 import { buildDayState } from '@/lib/engine/day-state';
 import { RECENT_DAYS } from '@/lib/report/today-pick';
 import { shiftDateKey, toDateKey } from '@/lib/pitch-stats';
@@ -77,6 +82,14 @@ const recentRecords = cache(async (userId: string, sinceIso: string, asOf: strin
       select: { date: true, title: true },
       orderBy: { date: 'asc' },
     }),
+    /*
+     * 트레이닝 탭 카드의 답(체크인 3판, 2026-10-13 — 오늘 하고 싶은 운동 종류 · 부위). 체크인 줄의 같은 칸은 2판까지의 기록이라,
+     * 날짜가 같은 카드 답이 있으면 그것이 이긴다(아래 checkins 매핑). 하루 한 줄 · 45일이라 가볍다.
+     */
+    prisma.dailyTrainingSetup.findMany({
+      where: { userId, date: { gte: since }, preferredWorkout: { not: null } },
+      select: { date: true, preferredWorkout: true, preferredParts: true },
+    }),
   ]);
 });
 
@@ -120,7 +133,7 @@ export async function gatherFactsAndPlan(
    * 진행 중인 재활(재활 2편) — 투구 계획이 멈추고 웨이트가 그 관절의 무거운 운동을 뺀다(facts.condition.rehab).
    * 스위치(REHAB_ENABLED)를 끄면 읽지 않아 null 이다.
    */
-  const [[logs, checkins, notes, events], rehab] = await Promise.all([
+  const [[logs, checkins, notes, events, setups], rehab] = await Promise.all([
     recentRecords(user.id, since.toISOString(), todayKey),
     loadRehabFacts(user.id, today),
   ]);
@@ -132,6 +145,9 @@ export async function gatherFactsAndPlan(
   const usedNotes = options?.excludeToday
     ? notes.filter((n) => n.date.toISOString().slice(0, 10) !== todayKey)
     : notes;
+
+  /* 트레이닝 탭 카드의 답 — 날짜 열쇠로. '추천대로'는 pickWorkoutKind 가 null(앱에 맡김)로 읽는다 */
+  const setupOf = new Map(setups.map((s) => [s.date.toISOString().slice(0, 10), s]));
 
   const facts = buildFacts({
     nickname: user.nickname,
@@ -155,15 +171,29 @@ export async function gatherFactsAndPlan(
       ...pickCheckinParts(c),
       condition: c.condition,
       sleep: c.sleep,
-      preferredParts: c.preferredParts,
-      preferredWorkout: c.preferredWorkout,
+      // 수면의 질(3판) — 짧은 밤은 이것이 정한다. 옛 기록은 null 이라 sleep · sleepHours 로 어림한다(lib/checkin.ts sleepQualityOf)
+      sleepQuality: c.sleepQuality,
+      /*
+       * 오늘 하고 싶은 운동 종류 · 부위 — 3판부터 트레이닝 탭 카드(DailyTrainingSetup)가 묻는다. 같은 날 카드 답이 있으면 그것,
+       * 없으면 체크인 줄의 옛 칸(2판까지 상세 체크인이 적던 것).
+       */
+      ...(() => {
+        const s = setupOf.get(c.date.toISOString().slice(0, 10));
+        return s
+          ? {
+              preferredParts: s.preferredParts,
+              preferredWorkout: pickWorkoutKind(s.preferredWorkout),
+            }
+          : { preferredParts: c.preferredParts, preferredWorkout: c.preferredWorkout };
+      })(),
       // 잔 시간 · 근육통 — 안 적은 날은 null 이고, 그러면 추천이 아무것도 바꾸지 않는다
       sleepHours: c.sleepHours,
       soreness: c.soreness,
       // 던지는 일정 — 매일 운동 계획이 '오늘 등판 · 내일 등판'을 읽는다(theme.ts 의 plannedOuting)
       throwPlan: c.throwPlan,
-      // 팔 피로 — 안전 거르기(prescription.ts 5-2)가 '심함'을 읽고, 오늘 상태 한 장 · 암케어 · 일정 지문도 이 칸을 본다(2판 P4)
-      armFatigue: c.armFatigue,
+      // 팔 피로 — 안전 거르기(prescription.ts 5-2)가 '심함'을 읽고, 오늘 상태 한 장 · 암케어 · 일정 지문도 이 칸을 본다(2판 P4).
+      // 3판부터는 묻지 않아 어깨 · 팔꿈치 통증의 정도에서 어림한다(armFatigueFromPain) — 옛 기록은 적은 값 그대로
+      armFatigue: armFatigueFromPain(c) ?? c.armFatigue,
     })),
     memos: usedLogs
       .filter((l) => l.memo?.trim())

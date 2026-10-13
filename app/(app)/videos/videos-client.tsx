@@ -19,6 +19,7 @@ import { VideoCalendar } from './video-calendar';
 import { OPEN_POPUP_TYPES } from '@/lib/transition-types';
 import { effortText } from '@/lib/pitch-effort';
 import { LinkPending } from '@/components/link-pending';
+import { ThrowPlanCard, type ThrowCardData } from './throw-plan-card';
 
 /**
  * 투구 기록 한 건 — 캘린더 · 목록에 필요한 만큼만. 평균 구속 · 자세 분석 같은 것은 그날
@@ -65,8 +66,14 @@ export function VideosClient({
   measured,
   initialView,
   initialCompare = false,
+  throwCard,
+  noteDays,
 }: {
   logs: VideoLog[];
+  /** '오늘 던지는 일정' 카드의 재료(체크인 3판, throw-plan-card.tsx) */
+  throwCard: ThrowCardData;
+  /** 체크인 메모를 남긴 날 — 캘린더 칸의 작은 쪽지 */
+  noteDays: string[];
   /** 날짜(YYYY-MM-DD)별로 고른 대표 영상. 안 고른 날은 없다. */
   featured: Record<string, string>;
   /** 처음에 펴 둘 달(YYYY-MM). 없으면 가장 최근 달 */
@@ -224,14 +231,22 @@ export function VideosClient({
       </div>
       {/* 휴대폰의 구속 측정 — 고르개 밑 줄(2분할 비교 옆) */}
       {canMeasure && (
-        <button type="button" onClick={() => router.push('/velocity')} className={`${PHONE_PILL} desk:hidden`}>
+        <button
+          type="button"
+          onClick={() => router.push('/velocity')}
+          className={`${PHONE_PILL} desk:hidden`}
+        >
           <Radar aria-hidden className="h-4 w-4" />
           구속 측정
         </button>
       )}
       {/* 휴대폰의 투구 분석(베타) — 같은 줄, 관리자만 */}
       {canAnalyze && (
-        <button type="button" onClick={() => router.push('/videos/lab')} className={`${PHONE_PILL} desk:hidden`}>
+        <button
+          type="button"
+          onClick={() => router.push('/videos/lab')}
+          className={`${PHONE_PILL} desk:hidden`}
+        >
           <Rotate3d aria-hidden className="h-4 w-4" />
           투구 분석
         </button>
@@ -279,6 +294,8 @@ export function VideosClient({
         }
       />
 
+      {/* 오늘 던지는 일정 카드(체크인 3판) — 체크인에서 옮겨 온 질문. 하루 한 번, '모름'이면 오늘은 접어 둔다 */}
+      <ThrowPlanCard day={todayKey} data={throwCard} />
 
       {/* 두 방식을 오갈 때 살짝 떠오르며 바뀐다 */}
       <div key={view} className="motion-safe:animate-fade-in">
@@ -287,6 +304,7 @@ export function VideosClient({
             logs={logs}
             featured={featured}
             measured={measured}
+            noteDays={noteDays}
             initialMonth={initialMonth}
             initialDate={initialDate}
           />
