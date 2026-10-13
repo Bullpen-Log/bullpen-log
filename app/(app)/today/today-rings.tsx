@@ -13,6 +13,7 @@ import { REST_SESSION_TYPE } from '@/lib/session-type';
 import { NAV_ICONS } from '@/components/nav-icons';
 import { OpenCheckinButton } from '@/components/notice-bell';
 import { Card } from '@/components/ui';
+import { RingsStage } from './all-done';
 
 /**
  * 홈 맨 위 '오늘' — 체크인 · 투구 · 운동 · 영양을 링 넷으로 한눈에.
@@ -111,7 +112,12 @@ export async function TodayRings({
   ];
 
   return (
-    <RingsCard items={items} checkinDone={detail.checkin != null} footer={footer} />
+    <RingsCard
+      items={items}
+      checkinDone={detail.checkin != null}
+      footer={footer}
+      day={today}
+    />
   );
 }
 
@@ -138,52 +144,61 @@ export function RingsCard({
   items,
   checkinDone,
   footer,
+  day,
 }: {
   items: RingItem[];
   checkinDone: boolean;
+  /** 오늘(YYYY-MM-DD) — 넷이 다 찬 날의 축하가 하루 한 번(all-done.tsx). 없으면 축하 안 함 */
+  day?: string;
   /** 링 밑 한 줄 — 오늘 투구 안내(홈 page.tsx 의 PlanLine) */
   footer?: ReactNode;
 }) {
   return (
     <Card className="px-2 desk:px-(--block-pad)">
-      <div className="grid grid-cols-4 gap-1">
-        {items.map((it) => {
-          const face = (
-            <>
-              <Ring value={it.value} icon={it.icon} />
-              <span className="mt-2 text-[13px] font-semibold text-ink">
-                {it.label}
-              </span>
-              <span
-                className={`mt-0.5 max-w-full truncate text-xs tabular-nums ${
-                  it.value >= 1 ? 'font-semibold text-sky' : 'text-muted'
-                }`}
+      {/* 넷이 다 차면 축하(웹은 카드 안에서 링이 위로 빠지고 체크, 앱은 화면 가운데) — all-done.tsx */}
+      <RingsStage
+        allDone={day != null && items.every((it) => it.value >= 1)}
+        day={day ?? ''}
+      >
+        <div className="grid grid-cols-4 gap-1">
+          {items.map((it) => {
+            const face = (
+              <>
+                <Ring value={it.value} icon={it.icon} />
+                <span className="mt-2 text-[13px] font-semibold text-ink">
+                  {it.label}
+                </span>
+                <span
+                  className={`mt-0.5 max-w-full truncate text-xs tabular-nums ${
+                    it.value >= 1 ? 'font-semibold text-sky' : 'text-muted'
+                  }`}
+                >
+                  {it.caption}
+                </span>
+              </>
+            );
+            const cls =
+              'flex min-w-0 flex-col items-center rounded-2xl py-1 transition-opacity hover:opacity-80';
+            return it.href ? (
+              <Link
+                key={it.key}
+                href={it.href}
+                className={cls}
+                aria-label={`${it.label} ${it.caption}`}
               >
-                {it.caption}
-              </span>
-            </>
-          );
-          const cls =
-            'flex min-w-0 flex-col items-center rounded-2xl py-1 transition-opacity hover:opacity-80';
-          return it.href ? (
-            <Link
-              key={it.key}
-              href={it.href}
-              className={cls}
-              aria-label={`${it.label} ${it.caption}`}
-            >
-              {face}
-            </Link>
-          ) : (
-            <OpenCheckinButton key={it.key} className={cls}>
-              {face}
-              <span className="sr-only">
-                {checkinDone ? ', 고치기' : ', 지금 남기기'}
-              </span>
-            </OpenCheckinButton>
-          );
-        })}
-      </div>
+                {face}
+              </Link>
+            ) : (
+              <OpenCheckinButton key={it.key} className={cls}>
+                {face}
+                <span className="sr-only">
+                  {checkinDone ? ', 고치기' : ', 지금 남기기'}
+                </span>
+              </OpenCheckinButton>
+            );
+          })}
+        </div>
+      </RingsStage>
       {footer}
     </Card>
   );
