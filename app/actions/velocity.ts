@@ -641,7 +641,7 @@ export async function recordVelocityAttempt(
       rejectCode: ok ? null : String(input.code ?? '').slice(0, 40) || null,
       why: String(input.why ?? '').slice(0, 40) || null,
       trackFrames: Math.round(num(input.trackFrames, 0, 10_000) ?? 0),
-      rawKmh: ok ? optional(input.rawKmh, 0, 300) : null,
+      rawKmh: optional(input.rawKmh, 0, 300),
       confidence: ['high', 'medium', 'low'].includes(confidence) ? confidence : null,
       analysis: distance ? ({ distance } as Prisma.InputJsonValue) : undefined,
       engineVersion: VELOCITY_ENGINE_VERSION,

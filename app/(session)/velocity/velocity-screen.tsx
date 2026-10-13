@@ -50,8 +50,15 @@ import {
   type PitchClip,
   type ResultMeta,
 } from '@/lib/velocity-engine/live-capture';
-import { DualCapture, DualUnsupportedError, type AttemptInfo } from '@/lib/velocity-engine/dual-capture';
-import { MeasureProgress, measurePhaseOf } from '@/components/velocity/measure-progress';
+import {
+  DualCapture,
+  DualUnsupportedError,
+  type AttemptInfo,
+} from '@/lib/velocity-engine/dual-capture';
+import {
+  MeasureProgress,
+  measurePhaseOf,
+} from '@/components/velocity/measure-progress';
 import { CameraTuner } from '@/components/velocity/camera-tuner';
 import {
   dualCameraStatus,
@@ -64,7 +71,11 @@ import { DEFAULT_CAM_MODE, camModeLabel, fpsGood } from '@/lib/velocity-camera-m
 import { focalPxFromFov } from '@/lib/velocity-engine/geometry';
 import { liveFpsNote, type LiveReport } from '@/lib/velocity-engine/live-meter';
 import { readVideoLens, videoFovFor } from '@/lib/velocity-engine/video-lens';
-import { analysisOf, type AnalysisJson, distanceMismatch } from '@/lib/velocity-analysis';
+import {
+  analysisOf,
+  type AnalysisJson,
+  distanceMismatch,
+} from '@/lib/velocity-analysis';
 import {
   SPEED_DISTANCE_EXPONENT,
   type DistanceReport,
@@ -138,10 +149,7 @@ import { SESSION_TYPES, isRestSession } from '@/lib/session-type';
 import { formatSpeed, speedLabel, toSpeed } from '@/lib/units';
 import { useSpeedUnit } from '@/components/use-units';
 import { useWakeLock } from '@/components/use-wake-lock';
-import {
-  BottomSheet,
-  PitchEditorFields,
-} from '@/components/velocity/pitch-editor';
+import { BottomSheet, PitchEditorFields } from '@/components/velocity/pitch-editor';
 import {
   DistanceField,
   LevelBubble,
@@ -158,7 +166,10 @@ import {
   SetupSummaryRow,
 } from '@/components/velocity/setup-art';
 import { isTipsSkippedToday, TipsPopup } from '@/components/velocity/tips-popup';
-import { DIST_MODES, VelocitySettingsFields } from '@/components/velocity/velocity-settings';
+import {
+  DIST_MODES,
+  VelocitySettingsFields,
+} from '@/components/velocity/velocity-settings';
 import { Segmented } from '@/components/segmented';
 import { EffortChips } from '@/components/effort-chips';
 import { SectionLabel, Note } from '@/components/velocity/kit';
@@ -253,7 +264,11 @@ type CameraPlan = 'web' | 'app';
  * 일반 하나로 못 켜서 웹 카메라. 엔진 개발용 녹화는 웹 카메라의 영상 흐름을 찍으므로 웹 카메라. 상태를 아직 모르면 웹 카메라로
  * 본다(켤 때는 기다렸다 고른다).
  */
-function cameraPlan(native: boolean, recordMode: boolean, s: DualStatus | null): CameraPlan {
+function cameraPlan(
+  native: boolean,
+  recordMode: boolean,
+  s: DualStatus | null
+): CameraPlan {
   if (!native || recordMode || !s) return 'web';
   return s.single ? 'app' : 'web';
 }
@@ -310,7 +325,13 @@ type LocalPitch = SavePitchInput & {
    * 공 크기로 어림한 거리로 잰 처음 값 — 세션 거리로 옮길 때 여기서 다시 낸다. clean 은 끝이 깨끗했나(맞고 튄 공으로 끝을 정하고 이어
    * 찾은 것이 없다) — 세션 거리는 이런 공에만 쓴다
    */
-  auto?: { distM: number; kmh: number; releaseKmh: number | null; errorKmh: number; clean: boolean } | null;
+  auto?: {
+    distM: number;
+    kmh: number;
+    releaseKmh: number | null;
+    errorKmh: number;
+    clean: boolean;
+  } | null;
 };
 /**
  * 세션 거리(규칙 · 숫자는 lib/velocity-session-distance.ts) — 끝이 깨끗한 공(맞고 튄 공으로 끝, 이어 찾기 없음)에만 쓴다. 실내(흰 천 ·
@@ -345,7 +366,9 @@ function withSessionDistance(
       releaseKmh: p.auto.releaseKmh != null ? r1(p.auto.releaseKmh * k) : null,
       dist: { m: r1(use), auto: true, from: on ? s.from : null },
       analysis:
-        p.analysis && distance ? { ...p.analysis, distance: { ...distance, distanceM: r1(use) } } : p.analysis,
+        p.analysis && distance
+          ? { ...p.analysis, distance: { ...distance, distanceM: r1(use) } }
+          : p.analysis,
     };
   });
 }
@@ -398,9 +421,14 @@ function rejectTitle(r: ScreenResult): string {
 }
 
 /** 믿음이 모자란 까닭에 맞춘 다음 할 일 — 엔진이 남긴 거리 판단(analyze-distance.ts report)에서 읽는다 */
-function lowConfidenceFix(r: ScreenResult, source: 'camera' | 'file', approaching: boolean): string {
+function lowConfidenceFix(
+  r: ScreenResult,
+  source: 'camera' | 'file',
+  approaching: boolean
+): string {
   const d = 'distance' in r ? (r.distance as DistanceReport | undefined) : undefined;
-  if (approaching) return '포수 뒤에서는 정확하게 잴 수 없어요. 투수 뒤에 폰을 두고 재 주세요.';
+  if (approaching)
+    return '포수 뒤에서는 정확하게 잴 수 없어요. 투수 뒤에 폰을 두고 재 주세요.';
   if (d?.shaky) return '폰이 흔들렸어요. 삼각대에 단단히 고정하고 다시 던져 주세요.';
   /* 흰 과녁 천 · 밝은 벽 앞에서는 공이 끝에서 배경에 묻혀 엔진이 끝을 짐작으로 잇는다(10-09 실내 14구 중 12구) — 흰 배경 앞은 재지 않는다 */
   if ((d?.extended ?? 0) > 0)
@@ -515,6 +543,19 @@ export function VelocityScreen({
   /* 공이 된 결과 번호 · 결과보다 먼저 온 클립(attachClipToPitch) — 이벤트 안에서만 만진다 */
   const acceptedIdsRef = useRef(new Set<number>());
   const earlyClipsRef = useRef(new Map<number, { clip: PitchClip; at: number }>());
+  /* 시도 기록이 아직 안 보낸 알림(결과 번호 → 시도) — 화면이 결과를 버리면(측정 불가) 그 까닭을 싣는다(dropAttempt · recordAttempt) */
+  const pendingAttemptsRef = useRef(new Map<number, AttemptInfo>());
+  const dropAttempt = (id: number | undefined, why: string) => {
+    if (id == null) return;
+    const a = pendingAttemptsRef.current.get(id);
+    if (a)
+      pendingAttemptsRef.current.set(id, {
+        ...a,
+        ok: false,
+        code: 'LOW_CONFIDENCE',
+        why,
+      });
+  };
   /*
    * 카메라를 켤 때 넣는 설정의 최신 값 — 아래 useLayoutEffect 가 그릴 때마다 맞춘다. enterCameraStep 은 누르기 전 그림의
    * startCamera 를 부르므로, 그 함수가 쥔 값을 쓰면 flushSync 로 막 넣은 설정('이 설정으로 시작'의 네트 · 포수 뒤 · 릴리스
@@ -569,13 +610,17 @@ export function VelocityScreen({
       captures: d.captures + 1,
       ok: d.ok + (r.measure.ok ? 1 : 0),
       rejected: d.rejected + (r.measure.ok ? 0 : 1),
-      last: r.measure.ok ? `${r.measure.kmh.toFixed(1)}km/h · 궤적 ${r.track.length}장` : `${r.measure.code} · 궤적 ${r.track.length}장`,
+      last: r.measure.ok
+        ? `${r.measure.kmh.toFixed(1)}km/h · 궤적 ${r.track.length}장`
+        : `${r.measure.code} · 궤적 ${r.track.length}장`,
     }));
   });
   /* 녹화기 · 그 상태(찍는 시간 · 조각 · 올림) — 녹화 중이 아니면 null */
   const recorderRef = useRef<SegmentedRecorder | null>(null);
   const [rec, setRec] = useState<RecorderState | null>(null);
-  const recording = rec != null && (rec.phase === 'starting' || rec.phase === 'recording' || rec.phase === 'stopping');
+  const recording =
+    rec != null &&
+    (rec.phase === 'starting' || rec.phase === 'recording' || rec.phase === 'stopping');
   /* 저장된 공 영상에 스트라이크 존을 겹쳐 그릴까(설정) */
   const [clipZone, setClipZone] = useState(DEFAULT_SETUP.clipZone);
   /* 보정용 저장은 관리자만 효과가 있다 */
@@ -588,9 +633,12 @@ export function VelocityScreen({
   /* 공 하나의 결과 화면 — 잴 때마다 띄운다(가장 최근 공). 영상 파일로 잰 공은 그 파일을 되풀이한다 */
   const [resultOpen, setResultOpen] = useState(false);
   const [fileReplay, setFileReplay] = useState<string | null>(null);
-  useEffect(() => () => {
-    if (fileReplay) URL.revokeObjectURL(fileReplay);
-  }, [fileReplay]);
+  useEffect(
+    () => () => {
+      if (fileReplay) URL.revokeObjectURL(fileReplay);
+    },
+    [fileReplay]
+  );
   /* 주의사항 팝업 — 설정이 끝나고 카메라 화면 위에 뜬다. '오늘은 보지 않기'면 그날은 안 뜬다 */
   const [tipsOpen, setTipsOpen] = useState(false);
   /* 목록에서 고른 공의 결과 화면('잰 직후처럼') */
@@ -659,7 +707,11 @@ export function VelocityScreen({
       net: choices.net,
       focalRatio,
       releaseDistM,
-      distanceM: distanceOf({ cameraPos: choices.cameraPos, targetDistM, releaseDistM }),
+      distanceM: distanceOf({
+        cameraPos: choices.cameraPos,
+        targetDistM,
+        releaseDistM,
+      }),
       distanceAuto: distanceAutoOf({ cameraPos: choices.cameraPos, distAuto }),
       autoMode,
       recordMode: recOn,
@@ -731,9 +783,7 @@ export function VelocityScreen({
   const shown = (raw: number) =>
     useCal && fit.n > 0 ? applyCalibration(raw, fit) : raw;
 
-  const [sheet, setSheet] = useState<'none' | 'settings' | 'save' | 'pitch'>(
-    'none'
-  );
+  const [sheet, setSheet] = useState<'none' | 'settings' | 'save' | 'pitch'>('none');
   const [editing, setEditing] = useState<number | null>(null);
   /* 어떤 투구인가 — 첫 설정 단계에서 고르고, 저장할 때 투구 기록의 종류가 된다(저장 시트에서도 바꿀 수 있다) */
   const [sessionType, setSessionType] = useState<string>(DEFAULT_SETUP.sessionType);
@@ -865,6 +915,7 @@ export function VelocityScreen({
           fix: lowConfidenceFix(result, source, approach === 'approaching'),
         },
       });
+      dropAttempt(meta?.id, 'low-confidence');
       speak('측정 불가');
       return;
     }
@@ -875,7 +926,11 @@ export function VelocityScreen({
     const sizeNow = (result as { distance?: DistanceReport }).distance?.sizeDistM;
     const sizes = pitches
       .filter((p) => p.source === source)
-      .map((p) => (p.analysis as { distance?: { sizeDistM?: unknown } } | null | undefined)?.distance?.sizeDistM)
+      .map(
+        (p) =>
+          (p.analysis as { distance?: { sizeDistM?: unknown } } | null | undefined)
+            ?.distance?.sizeDistM
+      )
       .filter((v): v is number => typeof v === 'number' && v > 0)
       .sort((a, b) => a - b);
     if (!calibOn && sizeNow != null && sizes.length >= 3) {
@@ -890,6 +945,7 @@ export function VelocityScreen({
             fix: '이 공은 앞 공들과 거리 판독이 달라 잴 수 없었어요. 폰과 미트 자리는 그대로 두고 다시 던져 주세요.',
           },
         });
+        dropAttempt(meta?.id, 'session-size');
         speak('측정 불가');
         return;
       }
@@ -904,8 +960,14 @@ export function VelocityScreen({
     const dist = (result as { distance?: DistanceReport }).distance ?? null;
     const distNotes: string[] = [];
     const mismatch = dist ? distanceMismatch({ distance: dist }) : null;
-    if (dist && distanceAutoOf({ cameraPos: choices.cameraPos, distAuto }) && dist.distanceSource === 'input')
-      distNotes.push(`공이 덜 잡혀 거리를 어림하지 못했어요. ${dist.distanceM}m로 쟀어요.`);
+    if (
+      dist &&
+      distanceAutoOf({ cameraPos: choices.cameraPos, distAuto }) &&
+      dist.distanceSource === 'input'
+    )
+      distNotes.push(
+        `공이 덜 잡혀 거리를 어림하지 못했어요. ${dist.distanceM}m로 쟀어요.`
+      );
     else if (mismatch)
       distNotes.push(
         `공을 미트까지 따라가지 못한 것 같아요(넣은 거리 ${mismatch.input}m · 공 크기로 본 거리 ${mismatch.size}m). 값이 틀릴 수 있어 최고 · 평균에서 뺐어요.`
@@ -990,7 +1052,9 @@ export function VelocityScreen({
           ? ['보정용 저장이라 기록했어요. 보통 측정이면 측정 불가로 빠지는 공이에요.']
           : []),
         ...(result.live?.notes.map((note) => note.text) ?? []),
-        ...(source === 'file' ? ((result as { video?: { notes: string[] } }).video?.notes ?? []) : []),
+        ...(source === 'file'
+          ? ((result as { video?: { notes: string[] } }).video?.notes ?? [])
+          : []),
       ],
       trail: trailOf(result),
       hitT: meta?.hitT ?? null,
@@ -1009,13 +1073,17 @@ export function VelocityScreen({
       zone: guessedZone,
     };
     const memory = loadDistMemory();
-    setPitches((prev) => withSessionDistance([...prev, { ...added, id: nextPitchId(prev) }], memory));
+    setPitches((prev) =>
+      withSessionDistance([...prev, { ...added, id: nextPitchId(prev) }], memory)
+    );
     setSaved(false);
     setResultOpen(true);
     /* 앱(아이폰)에서도 떨린다 — navigator.vibrate 는 아이폰에 없다(lib/haptics.ts) */
     buzz(30);
     /* 읽어 주는 값도 세션 거리로 옮긴 값 */
-    const spoken = withSessionDistance([...pitches, { ...added, id: -1 }], memory).at(-1)?.rawKmh ?? m.kmh;
+    const spoken =
+      withSessionDistance([...pitches, { ...added, id: -1 }], memory).at(-1)?.rawKmh ??
+      m.kmh;
     speak(`${Math.round(toSpeed(shown(spoken), unit))}`);
   };
   useEffect(() => {
@@ -1075,23 +1143,27 @@ export function VelocityScreen({
             now.net
           )
         : new LiveCapture(
-      video,
-      {
-        onStatus: onCaptureStatus,
-        onResult: (r, meta) => {
-          noteDiagRef.current(r);
-          addResultRef.current(r, 'camera', meta && { ...meta, id: idBase + meta.id });
-        },
-        onInfo: setLiveInfo,
-        onClip: (id, clip) => attachClipRef.current(idBase + id, clip),
-        onError: setError,
-        onNotice: setToast,
-        onFps: (f) => setFps(Math.round(f)),
-      },
-      now.fov,
-      now.approach,
-      now.net
-    );
+            video,
+            {
+              onStatus: onCaptureStatus,
+              onResult: (r, meta) => {
+                noteDiagRef.current(r);
+                addResultRef.current(
+                  r,
+                  'camera',
+                  meta && { ...meta, id: idBase + meta.id }
+                );
+              },
+              onInfo: setLiveInfo,
+              onClip: (id, clip) => attachClipRef.current(idBase + id, clip),
+              onError: setError,
+              onNotice: setToast,
+              onFps: (f) => setFps(Math.round(f)),
+            },
+            now.fov,
+            now.approach,
+            now.net
+          );
     if (capture instanceof DualCapture) capture.setFocusPoint(now.focusAt);
     setAppCapture(capture instanceof DualCapture ? capture : null);
     capture.setFocalPerLongSide(now.focalRatio);
@@ -1293,38 +1365,44 @@ export function VelocityScreen({
    * 안 남아 빠른 공의 실패를 구간별로 셀 수 없었다). 서버가 안 받아도(신호 없음) 측정은 그대로 — 조용히 넘긴다. 저장할 때 세션 · 공에
    * 잇는다(attemptIds · attemptId). 못 잰 공의 클립은 관리자의 보정용 저장일 때만 서버에 올린다.
    */
-  const recordAttempt = (a: AttemptInfo) => {
+  const recordAttempt = (a0: AttemptInfo) => {
     const date = draftDate ?? today;
     const calib = calibOn;
-    void (async () => {
-      let res: Awaited<ReturnType<typeof recordVelocityAttempt>>;
-      try {
-        res = await recordVelocityAttempt({
-          date,
-          kind: a.kind,
-          atSec: a.atSec,
-          strength: a.strength,
-          ok: a.ok,
-          code: a.code,
-          why: a.why,
-          trackFrames: a.trackFrames,
-          rawKmh: a.rawKmh,
-          confidence: a.confidence,
-          distance: a.distance,
-        });
-      } catch (err) {
-        unstable_rethrow(err);
-        return;
-      }
-      if (!res.ok) return;
-      attemptIdsRef.current.set(a.id, res.id);
-      sessionAttemptIdsRef.current.push(res.id);
-      if (a.clip && calib)
-        await uploadAttemptClip(res.id, a.clip.blob, {
-          sec: a.clip.durationSec,
-          eventSec: a.clip.eventSec,
-        }).catch(() => undefined);
-    })();
+    /* 결과를 받은 화면(addResult)이 바로 이어서 버릴 수 있다(측정 불가) — 한 박자 뒤에 보내 그 까닭까지 싣는다(dropAttempt) */
+    pendingAttemptsRef.current.set(a0.id, a0);
+    setTimeout(() => {
+      const a = pendingAttemptsRef.current.get(a0.id) ?? a0;
+      pendingAttemptsRef.current.delete(a0.id);
+      void (async () => {
+        let res: Awaited<ReturnType<typeof recordVelocityAttempt>>;
+        try {
+          res = await recordVelocityAttempt({
+            date,
+            kind: a.kind,
+            atSec: a.atSec,
+            strength: a.strength,
+            ok: a.ok,
+            code: a.code,
+            why: a.why,
+            trackFrames: a.trackFrames,
+            rawKmh: a.rawKmh,
+            confidence: a.confidence,
+            distance: a.distance,
+          });
+        } catch (err) {
+          unstable_rethrow(err);
+          return;
+        }
+        if (!res.ok) return;
+        attemptIdsRef.current.set(a.id, res.id);
+        sessionAttemptIdsRef.current.push(res.id);
+        if (a.clip && calib)
+          await uploadAttemptClip(res.id, a.clip.blob, {
+            sec: a.clip.durationSec,
+            eventSec: a.clip.eventSec,
+          }).catch(() => undefined);
+      })();
+    }, 0);
   };
   useEffect(() => {
     attemptRef.current = recordAttempt;
@@ -1365,7 +1443,8 @@ export function VelocityScreen({
   };
   useLayoutEffect(() => {
     const el = pagerRef.current;
-    if (live && el && !showCamera) el.scrollTo({ left: el.clientWidth, behavior: 'instant' });
+    if (live && el && !showCamera)
+      el.scrollTo({ left: el.clientWidth, behavior: 'instant' });
     // eslint-disable-next-line react-hooks/exhaustive-deps -- 붙을 때만(그 뒤는 굴림이 showCamera 를 정한다)
   }, [live]);
   /* 세션을 멈춘다 — 설정에서 존 다시 놓기 · 렌즈 보정으로 갈 때. 잰 공은 그대로라 돌아와 '측정 시작'으로 이어 잰다 */
@@ -1503,7 +1582,11 @@ export function VelocityScreen({
         focalPerLongSide: fileFov != null ? null : focalRatio,
         releaseDistanceM: approach === 'approaching' ? releaseDistM : null,
         /* 엔진 2.0 — 영상 파일은 찍을 때의 폰 기울기를 몰라 숙임 0 */
-        distanceM: distanceOf({ cameraPos: choices.cameraPos, targetDistM, releaseDistM }),
+        distanceM: distanceOf({
+          cameraPos: choices.cameraPos,
+          targetDistM,
+          releaseDistM,
+        }),
         distanceAuto: distanceAutoOf({ cameraPos: choices.cameraPos, distAuto }),
         tiltRad: null,
       });
@@ -1614,7 +1697,9 @@ export function VelocityScreen({
     setPitches((prev) => prev.map((p) => (p.id === id ? { ...p, ...edit } : p)));
   /* 이번 세션(카메라)의 깨끗한 공이 3개를 넘기면 그 중앙값을 지난 세션 거리로 남긴다 — 다음 세션 첫 공부터 쓴다 */
   useEffect(() => {
-    const ds = pitches.filter((p) => p.auto?.clean && p.source === 'camera').map((p) => p.auto!.distM);
+    const ds = pitches
+      .filter((p) => p.auto?.clean && p.source === 'camera')
+      .map((p) => p.auto!.distM);
     if (ds.length >= SESSION_DIST_MIN)
       saveDistMemory({
         distM: Math.round(medianOf(ds) * 100) / 100,
@@ -1636,7 +1721,9 @@ export function VelocityScreen({
   const shownPitches = pitches.map((p) => ({ ...p, kmh: shown(p.rawKmh) }));
   /* 저장 때 올릴 영상 수 */
   const clipCount = pitches.reduce((n, p) => n + (p.clip ? 1 : 0), 0);
-  const stats = summarize(shownPitches.map((p) => ({ ...p, excluded: distanceMismatch(p.analysis) != null })));
+  const stats = summarize(
+    shownPitches.map((p) => ({ ...p, excluded: distanceMismatch(p.analysis) != null }))
+  );
   /* 세션 화면 · 요약 · 이전 공 시트가 받는 모양(components/velocity/session-types.ts) */
   const sessionPitches: SessionPitch[] = shownPitches.map((p, i) => ({
     id: p.id,
@@ -1710,7 +1797,11 @@ export function VelocityScreen({
       net: choices.net,
       forCalibration: calibOn,
       autoMode,
-      focalPx: longSide ? (focalRatio ? focalRatio * longSide : focalPxFromFov(longSide, fov)) : null,
+      focalPx: longSide
+        ? focalRatio
+          ? focalRatio * longSide
+          : focalPxFromFov(longSide, fov)
+        : null,
       lensCal: lensOk ? lens : null,
       releaseDistM: approach === 'approaching' ? releaseDistM : null,
       useCal,
@@ -1745,7 +1836,11 @@ export function VelocityScreen({
       const known = storedRef.current.get(p.id);
       if (!known || (known.src !== clip.blob && known.stored !== clip.blob)) {
         storedRef.current.set(p.id, { src: clip.blob, stored: clip.blob });
-        void putClip(p.id, { blob: clip.blob, durationSec: clip.durationSec, eventSec: clip.eventSec }).then((got) => {
+        void putClip(p.id, {
+          blob: clip.blob,
+          durationSec: clip.durationSec,
+          eventSec: clip.eventSec,
+        }).then((got) => {
           if (got && storedRef.current.get(p.id)?.src === clip.blob)
             storedRef.current.set(p.id, { src: clip.blob, stored: got.blob });
         });
@@ -1753,7 +1848,11 @@ export function VelocityScreen({
         const url = URL.createObjectURL(known.stored);
         const old = clip.url;
         setPitches((prev) =>
-          prev.map((q) => (q.id === p.id && q.clip?.blob === clip.blob ? { ...q, clip: { ...clip, url, blob: known.stored } } : q))
+          prev.map((q) =>
+            q.id === p.id && q.clip?.blob === clip.blob
+              ? { ...q, clip: { ...clip, url, blob: known.stored } }
+              : q
+          )
         );
         URL.revokeObjectURL(old);
       }
@@ -1775,7 +1874,15 @@ export function VelocityScreen({
         const c = clips.get(p.id);
         if (!c) return p;
         storedRef.current.set(p.id, { src: c.blob, stored: c.blob });
-        return { ...p, clip: { url: URL.createObjectURL(c.blob), blob: c.blob, durationSec: c.durationSec, eventSec: c.eventSec } };
+        return {
+          ...p,
+          clip: {
+            url: URL.createObjectURL(c.blob),
+            blob: c.blob,
+            durationSec: c.durationSec,
+            eventSec: c.eventSec,
+          },
+        };
       });
       setPitches((prev) => (prev.length ? prev : restored));
       setDraftDate(d.date);
@@ -1788,7 +1895,14 @@ export function VelocityScreen({
       }
     })();
     void retryUploads((u) =>
-      uploadClip(u.pitchId, u.blob, { sec: u.sec, eventSec: u.eventSec }, undefined, u.kind, u.phone).then((r) => r.ok)
+      uploadClip(
+        u.pitchId,
+        u.blob,
+        { sec: u.sec, eventSec: u.eventSec },
+        undefined,
+        u.kind,
+        u.phone
+      ).then((r) => r.ok)
     );
     return () => {
       alive = false;
@@ -1839,7 +1953,10 @@ export function VelocityScreen({
             memo: p.memo,
             analysis: p.analysis ? withTrail(p) : null,
             autoDetected: p.autoDetected !== false,
-            attemptId: p.captureId != null ? (attemptIdsRef.current.get(p.captureId) ?? null) : null,
+            attemptId:
+              p.captureId != null
+                ? (attemptIdsRef.current.get(p.captureId) ?? null)
+                : null,
           })),
           attemptIds: sessionAttemptIdsRef.current,
         });
@@ -1888,13 +2005,22 @@ export function VelocityScreen({
             if (!r.ok) {
               failed++;
               /* 폰에 맡겨 두었다가 다음에 열 때 다시 올린다 */
-              await queueUpload({ pitchId: id, blob: clip.blob, sec: clip.durationSec, eventSec: clip.eventSec, kind, phone });
+              await queueUpload({
+                pitchId: id,
+                blob: clip.blob,
+                sec: clip.durationSec,
+                eventSec: clip.eventSec,
+                kind,
+                phone,
+              });
             }
             setUploading({ done: i + 1, total: targets.length });
           }
           setUploading(null);
           if (failed)
-            setError(`클립 ${failed}개를 올리지 못했어요. 폰에 두었다가 다음에 열 때 다시 올려요(측정값은 저장됐어요).`);
+            setError(
+              `클립 ${failed}개를 올리지 못했어요. 폰에 두었다가 다음에 열 때 다시 올려요(측정값은 저장됐어요).`
+            );
         }
       }
       for (const p of pitches) revokeClips(p);
@@ -2186,27 +2312,37 @@ export function VelocityScreen({
           )}
         </div>
       )}
-      {cameraOn && appCapture && isAdmin && tunerOpen && step !== 'lens' && !(live && !showCamera) && (
-        <div className="absolute inset-x-3 top-[calc(5.5rem+env(safe-area-inset-top))] z-20">
-          <CameraTuner
-            capture={appCapture}
-            onClose={() => setTunerOpen(false)}
-            onTuned={(d) =>
-              /* 바꾼 것이 기준 조건 밖이면 알림 · 공 기록에 남긴다(카메라를 다시 켜면 기본으로 돌아가 이 표시도 사라진다) */
-              setCamera((c) =>
-                c && {
-                  ...c,
-                  offStandard: [
-                    ...c.offStandard.filter((r) => !r.endsWith(TUNED)),
-                    ...(d.stabilization === 'off' ? [`손떨림 보정 끔${TUNED}`] : []),
-                    ...(Math.abs(d.zoom - (c.zoom ?? 1)) > 0.05 ? [`줌 ${d.zoom}배${TUNED}`] : []),
-                  ],
-                }
-              )
-            }
-          />
-        </div>
-      )}
+      {cameraOn &&
+        appCapture &&
+        isAdmin &&
+        tunerOpen &&
+        step !== 'lens' &&
+        !(live && !showCamera) && (
+          <div className="absolute inset-x-3 top-[calc(5.5rem+env(safe-area-inset-top))] z-20">
+            <CameraTuner
+              capture={appCapture}
+              onClose={() => setTunerOpen(false)}
+              onTuned={(d) =>
+                /* 바꾼 것이 기준 조건 밖이면 알림 · 공 기록에 남긴다(카메라를 다시 켜면 기본으로 돌아가 이 표시도 사라진다) */
+                setCamera(
+                  (c) =>
+                    c && {
+                      ...c,
+                      offStandard: [
+                        ...c.offStandard.filter((r) => !r.endsWith(TUNED)),
+                        ...(d.stabilization === 'off'
+                          ? [`손떨림 보정 끔${TUNED}`]
+                          : []),
+                        ...(Math.abs(d.zoom - (c.zoom ?? 1)) > 0.05
+                          ? [`줌 ${d.zoom}배${TUNED}`]
+                          : []),
+                      ],
+                    }
+                )
+              }
+            />
+          </div>
+        )}
 
       {/*
         진단 표시(관리자 설정) — 밖에서 하나도 안 잡힐 때 그 자리에서 까닭을 본다: 장면 받는 길(worker-stream 이 가장 가볍다) ·
@@ -2219,7 +2355,9 @@ export function VelocityScreen({
           className="pointer-events-none absolute left-3 top-[calc(6.25rem+env(safe-area-inset-top))] z-30 max-w-[15rem] rounded-lg bg-black/70 px-2.5 py-1.5 text-xs leading-snug text-white/90 tabular-nums backdrop-blur"
         >
           <p>
-            {camera?.label.startsWith('DualCamera') ? 'dual(앱)' : (liveInfo?.pipeline ?? '—')}
+            {camera?.label.startsWith('DualCamera')
+              ? 'dual(앱)'
+              : (liveInfo?.pipeline ?? '—')}
             {' · '}
             {fps ?? '—'}fps
             {liveInfo?.stats?.procAvgMs != null &&
@@ -2232,12 +2370,15 @@ export function VelocityScreen({
           {diag.last && <p className="truncate text-white/70">마지막 {diag.last}</p>}
           {liveInfo?.frame && (
             <p className="truncate text-white/60">
-              {liveInfo.frame.format} {liveInfo.frame.coded[0]}×{liveInfo.frame.coded[1]}
+              {liveInfo.frame.format} {liveInfo.frame.coded[0]}×
+              {liveInfo.frame.coded[1]}
               {liveInfo.rotationFix ? ` · 돌림 ${liveInfo.rotationFix}°` : ''}
             </p>
           )}
           {liveInfo?.streamFailed && (
-            <p className="truncate text-amber-300">직접 받기 실패: {liveInfo.streamFailed}</p>
+            <p className="truncate text-amber-300">
+              직접 받기 실패: {liveInfo.streamFailed}
+            </p>
           )}
           <p className="text-white/60">상태 {STATUS_TEXT[status]}</p>
         </div>
@@ -2420,8 +2561,9 @@ export function VelocityScreen({
             />
             {choices.cameraPos === 'behind-pitcher' && !isAdmin ? (
               <p className="px-0.5 text-sm leading-relaxed text-muted">
-                폰에서 포수 미트까지 {STANDARD_TARGET_DIST_M}m로 재요. 정식 마운드(18.44m)에서 포수가 조금 뒤에서 받고, 폰을 투수 1m
-                뒤에 둔 거리예요.
+                폰에서 포수 미트까지 {STANDARD_TARGET_DIST_M}m로 재요. 정식
+                마운드(18.44m)에서 포수가 조금 뒤에서 받고, 폰을 투수 1m 뒤에 둔
+                거리예요.
               </p>
             ) : choices.cameraPos === 'behind-pitcher' ? (
               <div className="space-y-4">
@@ -2533,126 +2675,129 @@ export function VelocityScreen({
                   inert={showCamera}
                   className="pointer-events-auto h-full w-full shrink-0 snap-start overflow-y-auto overscroll-contain bg-black/98 px-4 pb-6 pt-[calc(3.5rem+env(safe-area-inset-top))]"
                 >
-                {phase && (
-                  <div className="mb-3">
-                    <MeasureProgress phase={phase} captureSec={captureSec} runKey={captureRun} />
-                  </div>
-                )}
-                <section className="rounded-3xl bg-white/[0.06] px-5 pb-4 pt-5 text-center">
-                  {lastPitch ? (
-                    <div key={lastPitch.id} className="motion-safe:animate-fade-in">
-                      <p className="text-xs font-medium text-white/60">
-                        {pitches.length}구째
-                        {lastPitch.autoDetected === false ? ' · 수동' : ''}
-                        {pitchTypeLabel(lastPitch.pitchType)
-                          ? ` · ${pitchTypeLabel(lastPitch.pitchType)}`
-                          : ''}
-                      </p>
-                      <p className="text-display mt-1 text-7xl leading-none tabular-nums">
-                        {speedNum(shown(lastPitch.rawKmh))}
-                        <span className="ml-2 text-xl text-white/60">
-                          {speedLabel(unit)}
-                        </span>
-                      </p>
-                      <p className="mt-2 text-xs text-white/70">
-                        ± {speedNum(lastPitch.errorKmh)} ·{' '}
-                        {
-                          CONFIDENCE_TEXT[
-                            lastPitch.confidence as keyof typeof CONFIDENCE_TEXT
-                          ]
-                        }
-                        {lastPitch.releaseKmh != null &&
-                          ` · 릴리스 ${speedNum(shown(lastPitch.releaseKmh))}`}
-                        {lastPitch.zone != null &&
-                          ` · ${zoneLabel(lastPitch.zone)}(짐작)`}
-                      </p>
-                      {lastPitch.notes?.slice(0, 2).map((text) => (
-                        <p
-                          key={text}
-                          className="mt-1.5 text-xs leading-snug text-warn-line"
-                        >
-                          {text}
-                        </p>
-                      ))}
-                    </div>
-                  ) : last && !last.measure.ok ? (
-                    <div className="py-3 motion-safe:animate-fade-in">
-                      <p className="text-sm font-bold text-warn-line">
-                        {rejectTitle(last)}
-                      </p>
-                      <p className="mt-1 text-xs leading-relaxed text-white/90">
-                        {last.measure.message}
-                      </p>
-                      <p className="mt-1 text-xs leading-relaxed text-white/60">
-                        {last.measure.fix}
-                      </p>
-                    </div>
-                  ) : (
-                    <div className="py-6">
-                      <p className="text-lg font-semibold">
-                        {status === 'armed' ? '던지세요' : STATUS_TEXT[status]}
-                      </p>
-                      <p className="mt-1 text-xs leading-relaxed text-white/60">
-                        {autoMode
-                          ? '공마다 알아서 잡아요. 끝나면 아래 가운데 세션 종료.'
-                          : '아래 오른쪽 "다음 공"을 누르고 던지세요.'}
-                      </p>
-                      {(fpsNote ?? cropNote) && (
-                        <p className="mt-2 text-xs leading-snug text-warn-line">
-                          {fpsNote ?? cropNote}
-                        </p>
-                      )}
+                  {phase && (
+                    <div className="mb-3">
+                      <MeasureProgress
+                        phase={phase}
+                        captureSec={captureSec}
+                        runKey={captureRun}
+                      />
                     </div>
                   )}
-
-                  {/* 방금 공 구종 — 한 번에 */}
-                  {lastPitch && (
-                    <div className="no-scrollbar -mx-5 mt-4 flex gap-1.5 overflow-x-auto px-5 pb-0.5">
-                      {PITCH_TYPES.map((t) => {
-                        const on = lastPitch.pitchType === t.key;
-                        return (
-                          <button
-                            key={t.key}
-                            type="button"
-                            onClick={() =>
-                              patch(lastPitch.id, { pitchType: on ? null : t.key })
-                            }
-                            aria-pressed={on}
-                            className={`h-10 shrink-0 rounded-full px-3.5 text-sm font-semibold transition-colors ${
-                              on
-                                ? 'bg-sky text-white'
-                                : 'bg-white/10 text-white hover:bg-white/20'
-                            }`}
+                  <section className="rounded-3xl bg-white/[0.06] px-5 pb-4 pt-5 text-center">
+                    {lastPitch ? (
+                      <div key={lastPitch.id} className="motion-safe:animate-fade-in">
+                        <p className="text-xs font-medium text-white/60">
+                          {pitches.length}구째
+                          {lastPitch.autoDetected === false ? ' · 수동' : ''}
+                          {pitchTypeLabel(lastPitch.pitchType)
+                            ? ` · ${pitchTypeLabel(lastPitch.pitchType)}`
+                            : ''}
+                        </p>
+                        <p className="text-display mt-1 text-7xl leading-none tabular-nums">
+                          {speedNum(shown(lastPitch.rawKmh))}
+                          <span className="ml-2 text-xl text-white/60">
+                            {speedLabel(unit)}
+                          </span>
+                        </p>
+                        <p className="mt-2 text-xs text-white/70">
+                          ± {speedNum(lastPitch.errorKmh)} ·{' '}
+                          {
+                            CONFIDENCE_TEXT[
+                              lastPitch.confidence as keyof typeof CONFIDENCE_TEXT
+                            ]
+                          }
+                          {lastPitch.releaseKmh != null &&
+                            ` · 릴리스 ${speedNum(shown(lastPitch.releaseKmh))}`}
+                          {lastPitch.zone != null &&
+                            ` · ${zoneLabel(lastPitch.zone)}(짐작)`}
+                        </p>
+                        {lastPitch.notes?.slice(0, 2).map((text) => (
+                          <p
+                            key={text}
+                            className="mt-1.5 text-xs leading-snug text-warn-line"
                           >
-                            {t.label}
-                          </button>
-                        );
-                      })}
-                    </div>
+                            {text}
+                          </p>
+                        ))}
+                      </div>
+                    ) : last && !last.measure.ok ? (
+                      <div className="py-3 motion-safe:animate-fade-in">
+                        <p className="text-sm font-bold text-warn-line">
+                          {rejectTitle(last)}
+                        </p>
+                        <p className="mt-1 text-xs leading-relaxed text-white/90">
+                          {last.measure.message}
+                        </p>
+                        <p className="mt-1 text-xs leading-relaxed text-white/60">
+                          {last.measure.fix}
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="py-6">
+                        <p className="text-lg font-semibold">
+                          {status === 'armed' ? '던지세요' : STATUS_TEXT[status]}
+                        </p>
+                        <p className="mt-1 text-xs leading-relaxed text-white/60">
+                          {autoMode
+                            ? '공마다 알아서 잡아요. 끝나면 아래 가운데 세션 종료.'
+                            : '아래 오른쪽 "다음 공"을 누르고 던지세요.'}
+                        </p>
+                        {(fpsNote ?? cropNote) && (
+                          <p className="mt-2 text-xs leading-snug text-warn-line">
+                            {fpsNote ?? cropNote}
+                          </p>
+                        )}
+                      </div>
+                    )}
+
+                    {/* 방금 공 구종 — 한 번에 */}
+                    {lastPitch && (
+                      <div className="no-scrollbar -mx-5 mt-4 flex gap-1.5 overflow-x-auto px-5 pb-0.5">
+                        {PITCH_TYPES.map((t) => {
+                          const on = lastPitch.pitchType === t.key;
+                          return (
+                            <button
+                              key={t.key}
+                              type="button"
+                              onClick={() =>
+                                patch(lastPitch.id, { pitchType: on ? null : t.key })
+                              }
+                              aria-pressed={on}
+                              className={`h-10 shrink-0 rounded-full px-3.5 text-sm font-semibold transition-colors ${
+                                on
+                                  ? 'bg-sky text-white'
+                                  : 'bg-white/10 text-white hover:bg-white/20'
+                              }`}
+                            >
+                              {t.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </section>
+
+                  {error && (
+                    <p
+                      role="alert"
+                      className="mt-3 rounded-xl border border-danger-line/60 bg-danger/15 px-4 py-2.5 text-sm leading-relaxed text-white"
+                    >
+                      {error}
+                    </p>
                   )}
-                </section>
 
-                {error && (
-                  <p
-                    role="alert"
-                    className="mt-3 rounded-xl border border-danger-line/60 bg-danger/15 px-4 py-2.5 text-sm leading-relaxed text-white"
-                  >
-                    {error}
-                  </p>
-                )}
-
-
-                {/* 이번 세션 — 세션 요약과 같은 부품을 어두운 색으로. 공을 누르면 고치기, ▶ 는 그 공의 영상 */}
-                <SessionDetails
-                  className="theme-dark mt-5 text-ink"
-                  pitches={sessionPitches}
-                  unit={unit}
-                  onPlayClip={(id) => setViewPitch(id)}
-                  onEditPitch={(id) => {
-                    setEditing(id);
-                    setSheet('pitch');
-                  }}
-                />
+                  {/* 이번 세션 — 세션 요약과 같은 부품을 어두운 색으로. 공을 누르면 고치기, ▶ 는 그 공의 영상 */}
+                  <SessionDetails
+                    className="theme-dark mt-5 text-ink"
+                    pitches={sessionPitches}
+                    unit={unit}
+                    onPlayClip={(id) => setViewPitch(id)}
+                    onEditPitch={(id) => {
+                      setEditing(id);
+                      setSheet('pitch');
+                    }}
+                  />
                 </div>
               </div>
             )}
@@ -2672,7 +2817,11 @@ export function VelocityScreen({
               <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 flex flex-col gap-2">
                 {phase && (!live || showCamera) && (
                   <div className="px-4 pb-3">
-                    <MeasureProgress phase={phase} captureSec={captureSec} runKey={captureRun} />
+                    <MeasureProgress
+                      phase={phase}
+                      captureSec={captureSec}
+                      runKey={captureRun}
+                    />
                   </div>
                 )}
                 {(!live || showCamera) &&
@@ -2882,7 +3031,9 @@ export function VelocityScreen({
                 pitchType={shownPitch.pitchType}
                 onPitchType={(pitchType) => patch(shownPitch.id, { pitchType })}
                 gunText={
-                  shownPitch.gunKmh != null ? `${speedNum(shownPitch.gunKmh)} ${speedLabel(unit)}` : null
+                  shownPitch.gunKmh != null
+                    ? `${speedNum(shownPitch.gunKmh)} ${speedLabel(unit)}`
+                    : null
                 }
                 onGun={() => {
                   setEditing(shownPitch.id);
@@ -3049,7 +3200,9 @@ export function VelocityScreen({
                     }`}
                   />
                   <span className="truncate">
-                    {recording ? `녹화 중 ${formatClock(rec?.elapsedSec ?? 0)}` : STATUS_TEXT[status]}
+                    {recording
+                      ? `녹화 중 ${formatClock(rec?.elapsedSec ?? 0)}`
+                      : STATUS_TEXT[status]}
                   </span>
                 </span>
               )}
@@ -3089,7 +3242,10 @@ export function VelocityScreen({
             <div className="relative z-10 flex shrink-0 items-start justify-between bg-black px-6 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3">
               {/* 쪽 점 — 지금 카메라 · 이번 세션 중 어디인지(옆으로 넘길 수 있다는 표시). 검은 막대 위라 내용과 안 겹친다 */}
               {step === 'measure' && live && (
-                <div aria-hidden className="absolute inset-x-0 top-1 flex justify-center gap-1.5">
+                <div
+                  aria-hidden
+                  className="absolute inset-x-0 top-1 flex justify-center gap-1.5"
+                >
                   <span
                     className={`h-1.5 w-1.5 rounded-full transition-colors ${showCamera ? 'bg-white' : 'bg-white/35'}`}
                   />
@@ -3179,7 +3335,9 @@ export function VelocityScreen({
                       </span>
                     </span>
                     <span className={SIDE_LABEL}>
-                      {rec?.progress != null ? `올리는 중 ${rec.progress}%` : '올린 조각'}
+                      {rec?.progress != null
+                        ? `올리는 중 ${rec.progress}%`
+                        : '올린 조각'}
                     </span>
                   </div>
                   <div className="flex flex-col items-center">
@@ -3203,7 +3361,10 @@ export function VelocityScreen({
                       className="group flex h-[4.75rem] w-[4.75rem] items-center justify-center rounded-full border-4 border-white/90 disabled:opacity-60"
                     >
                       {rec?.phase === 'starting' || rec?.phase === 'stopping' ? (
-                        <Loader2 aria-hidden className="h-7 w-7 animate-spin text-white" />
+                        <Loader2
+                          aria-hidden
+                          className="h-7 w-7 animate-spin text-white"
+                        />
                       ) : recording ? (
                         <span className="h-8 w-8 rounded-lg bg-red-500 transition-transform group-active:scale-90" />
                       ) : cameraOn ? (
@@ -3233,7 +3394,11 @@ export function VelocityScreen({
                       {formatClock(rec?.elapsedSec ?? 0)}
                     </span>
                     <span className={SIDE_LABEL}>
-                      {rec?.failed ? `실패 ${rec.failed}` : recording ? '녹화 중' : '대기'}
+                      {rec?.failed
+                        ? `실패 ${rec.failed}`
+                        : recording
+                          ? '녹화 중'
+                          : '대기'}
                     </span>
                   </div>
                 </>
@@ -3469,8 +3634,8 @@ export function VelocityScreen({
         {stats && (
           <div className="space-y-4">
             <p className="text-sm text-muted">
-              {draftDate ?? today} · {stats.n}구 · 최고 {formatSpeed(stats.max, unit)} · 평균{' '}
-              {formatSpeed(stats.avg, unit)}
+              {draftDate ?? today} · {stats.n}구 · 최고 {formatSpeed(stats.max, unit)} ·
+              평균 {formatSpeed(stats.avg, unit)}
               {useCal && fit.n > 0 ? ` · 보정 ${calibrationText(fit)}` : ' · 보정 없음'}
             </p>
             <div>

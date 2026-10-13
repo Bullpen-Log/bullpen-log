@@ -47,7 +47,7 @@
 
 - `prisma/schema.prisma` `VelocityAttempt` + 마이그레이션 `20261012120000_velocity_attempt`(손으로 씀 — 배포의 migrate deploy 가 적용).
   `lib/prisma.ts` TIME_FIELDS 에 `velocityAttempt`(시험 계정 시각).
-- 엔진: `analyze-distance.ts` `DistanceReport.why`(shake · few-frames · no-flight · hand-trim · size-slope · implausible · short), 2.3.22.
+- 엔진: `analyze-distance.ts` `DistanceReport.why`(shake · few-frames · no-flight · hand-trim · size-slope · implausible · short), 2.3.22(김민의 2.3.20 · 2.3.21 뒤).
   `velocity-sync.ts sanitizeDistance` · `velocity-analysis.ts analysisOf` 가 why 를 싣는다. 합성 시험에 '못 잰 까닭이 남는다' 확인.
 - 앱 카메라 길: `dual-capture.ts` `onAttempt`(쟀든 못 쟀든, 헛알림 제외) → 측정 화면 `recordAttempt` → `recordVelocityAttempt`(서버).
   세션 저장이 `attemptIds` · 공마다 `attemptId` 로 잇는다. 못 잰 공의 클립은 관리자 보정용 저장일 때만 `uploadAttemptClip`.
