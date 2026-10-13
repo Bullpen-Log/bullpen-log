@@ -144,7 +144,7 @@ export function OptionCards<V extends string>({
               {o.art}
             </span>
             <span className="flex flex-1 flex-col px-3.5 py-3">
-              <span className="text-sm font-semibold text-ink">{o.label}</span>
+              <span className="text-base font-bold text-ink">{o.label}</span>
               <span className="mt-0.5 text-xs leading-relaxed text-muted">
                 {o.hint}
               </span>

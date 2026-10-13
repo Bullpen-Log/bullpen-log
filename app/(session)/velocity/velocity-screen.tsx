@@ -2669,15 +2669,21 @@ export function VelocityScreen({
           title="폰을 어디에 둘까요?"
           subtitle="공이 날아가는 길과 그물까지 거리로 구속을 재요. 뒤에서 정면으로 보게 두는 두 자리 중 하나예요."
           footer={
-            <PrimaryButton
-              onClick={() => {
-                persistSetup({ targetDistM, releaseDistM, distTape });
-                setStep('net');
-              }}
-            >
-              다음
-              <ChevronRight aria-hidden className="h-4 w-4" />
-            </PrimaryButton>
+            <>
+              {/* 체크인 흐름처럼 [이전][다음] */}
+              <PrimaryButton tone="quiet" onClick={() => setStep('type')}>
+                이전
+              </PrimaryButton>
+              <PrimaryButton
+                onClick={() => {
+                  persistSetup({ targetDistM, releaseDistM, distTape });
+                  setStep('net');
+                }}
+              >
+                다음
+                <ChevronRight aria-hidden className="h-4 w-4" />
+              </PrimaryButton>
+            </>
           }
         >
           <div className="space-y-5">
@@ -2781,10 +2787,15 @@ export function VelocityScreen({
           title="카메라 앞에 네트가 있나요?"
           subtitle="그물이 있으면 초점을 고정해요 — 자동초점은 눈앞의 그물코에 초점을 맞춰 공이 흐려져요."
           footer={
-            <PrimaryButton onClick={goAlign}>
-              카메라 켜기
-              <ChevronRight aria-hidden className="h-4 w-4" />
-            </PrimaryButton>
+            <>
+              <PrimaryButton tone="quiet" onClick={() => setStep('camera')}>
+                이전
+              </PrimaryButton>
+              <PrimaryButton onClick={goAlign}>
+                카메라 켜기
+                <ChevronRight aria-hidden className="h-4 w-4" />
+              </PrimaryButton>
+            </>
           }
         >
           <OptionCards
