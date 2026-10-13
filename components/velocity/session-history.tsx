@@ -119,7 +119,7 @@ export function SessionHistory({
                   */}
                   <a
                     href={`/pitch-log/${s.date}`}
-                    className="flex min-h-14 items-center gap-3 px-4 py-2 transition-colors hover:bg-surface-2/60 active:bg-surface-2"
+                    className="flex min-h-14 items-center gap-3 px-4 py-2 transition-colors hover:bg-ink/4 active:bg-ink/6"
                   >
                     <span className="min-w-0 flex-1">
                       <span className="flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5">
@@ -167,11 +167,11 @@ export function SessionHistory({
 function EmptyState() {
   return (
     <Panel className="flex flex-col items-center px-5 py-8 text-center motion-safe:animate-fade-in">
-      <span className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-surface-2 text-muted">
-        <Activity aria-hidden className="h-5 w-5" />
+      <span className="inline-flex h-14 w-14 items-center justify-center rounded-full bg-sky-tint text-sky">
+        <Activity aria-hidden className="h-6 w-6" />
       </span>
-      <p className="mt-3 text-sm font-semibold text-ink">아직 잰 세션이 없어요</p>
-      <p className="mt-1 text-xs leading-relaxed text-muted">
+      <p className="mt-3 text-base font-bold text-ink">아직 잰 세션이 없어요</p>
+      <p className="mt-1 text-sm leading-relaxed text-muted">
         아래 측정 시작을 누르면 여기에 구속 변화가 쌓여요
       </p>
     </Panel>
@@ -210,7 +210,8 @@ function TrendChart({ points, unitText }: { points: TrendPoint[]; unitText: stri
 
   const plotW = W - PAD.l - PAD.r;
   const plotH = H - PAD.t - PAD.b;
-  const x = (i: number) => (n === 1 ? PAD.l + plotW / 2 : PAD.l + (i * plotW) / (n - 1));
+  const x = (i: number) =>
+    n === 1 ? PAD.l + plotW / 2 : PAD.l + (i * plotW) / (n - 1);
   const y = (v: number) => PAD.t + ((top - v) / (top - bottom)) * plotH;
   const ticks = ticksFor(bottom, top);
 
@@ -260,7 +261,13 @@ function TrendChart({ points, unitText }: { points: TrendPoint[]; unitText: stri
             />
           )}
           {points.map((p, i) => (
-            <circle key={`a-${p.id}`} cx={x(i)} cy={y(p.avg)} r={2} className="fill-sky/40" />
+            <circle
+              key={`a-${p.id}`}
+              cx={x(i)}
+              cy={y(p.avg)}
+              r={2}
+              className="fill-sky/40"
+            />
           ))}
 
           {/* 최고 — 굵게 */}
@@ -276,7 +283,13 @@ function TrendChart({ points, unitText }: { points: TrendPoint[]; unitText: stri
           )}
           {points.map((p, i) =>
             i === n - 1 ? null : (
-              <circle key={`m-${p.id}`} cx={x(i)} cy={y(p.max)} r={3} className="fill-sky" />
+              <circle
+                key={`m-${p.id}`}
+                cx={x(i)}
+                cy={y(p.max)}
+                r={3}
+                className="fill-sky"
+              />
             )
           )}
 
@@ -310,7 +323,9 @@ function TrendChart({ points, unitText }: { points: TrendPoint[]; unitText: stri
         {n > 1 && <span>{shortDate(last.date)}</span>}
       </div>
       {n === 1 && (
-        <p className="mt-1.5 text-center text-xs text-muted">세션이 쌓이면 선이 그려져요</p>
+        <p className="mt-1.5 text-center text-xs text-muted">
+          세션이 쌓이면 선이 그려져요
+        </p>
       )}
     </div>
   );
