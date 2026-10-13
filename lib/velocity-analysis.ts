@@ -111,6 +111,7 @@ export function analysisOf(
       ? {
           method: dist.method,
           why: dist.why,
+          calibEligible: dist.calibEligible,
           distanceM: dist.distanceM,
           inputDistM: dist.inputDistM,
           sizeDistM: dist.sizeDistM,

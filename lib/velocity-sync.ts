@@ -177,6 +177,7 @@ export function sanitizeDistance(raw: unknown): Record<string, unknown> | null {
     method: 'distance',
     distanceM,
     why: typeof d.why === 'string' ? d.why.slice(0, 40) : null,
+    calibEligible: typeof d.calibEligible === 'boolean' ? d.calibEligible : null,
     inputDistM: n(d.inputDistM),
     sizeDistM: n(d.sizeDistM),
     distanceSource: d.distanceSource === 'ball' ? 'ball' : 'input',

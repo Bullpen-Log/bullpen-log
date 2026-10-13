@@ -259,8 +259,12 @@
  *                      sessionCorrection — 깨끗한 공 3개부터, 기준과 3% 넘게 · 15% 안에서 다를 때, 배율 (m ÷ 20)^1.076). 줄자로 잰 세션(distTape)은
  *                      그대로. 세션에 distanceM · distanceSource(tape · session-size · default · auto)를 남긴다. 10-12 밖 22구: 공 크기 가운데 값
  *                      21.0m → 원값 +5.4%(−3.7% 치우침이 사라짐). 엔진 코드는 그대로 — 화면이 옮기지만 값이 바뀌어 보정 짝 묶음이 2.4 로 새로 시작.
+ *   2.4.1  2026-10-13  작은 자리(값 그대로): 쟀어도 약한 공에 까닭 한 토막(why — size-mismatch · end-unseen · extended · fit-quality)과 짝 자격
+ *                      calibEligible(믿음 높음 · 이어 찾기 없음 · 끝 튕김 봄 · 공 크기 거리 15% 안 · 거리 자동 아님)을 거리 보고에 싣는다.
+ *                      loadCalibration · isPair 가 자격 없는 공을 짝에서 뺀다. 관리자 세션 정보에 '보정식 미리 보기'(지금 짝 · 뺀 짝과 까닭).
+ *                      셀프테스트에 10-12 짝 회귀(비율 1.02~1.06 · 127 → 129±3 · 튄 짝 하나 0.5% 안).
  */
-export const VELOCITY_ENGINE_VERSION = '2.4.0';
+export const VELOCITY_ENGINE_VERSION = '2.4.1';
 
 /**
  * 스피드건 보정 짝이 이어지는 묶음 — 작은 자리(0.0.X)는 재는 방법이 같아 짝을 그대로 쓴다(가운데 자리까지 같은 공 모두 — 지금은 '1.9.').

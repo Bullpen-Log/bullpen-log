@@ -25,7 +25,13 @@ import {
   MAX_PLAUSIBLE_KMH,
   type Confidence,
 } from './validate.ts';
-import { fitTrajectory, speedWithSe, trajectoryState, type PinholeCamera, type TrajectoryFit } from './trajectory-fit.ts';
+import {
+  fitTrajectory,
+  speedWithSe,
+  trajectoryState,
+  type PinholeCamera,
+  type TrajectoryFit,
+} from './trajectory-fit.ts';
 import { motionAt, refToFrame, stabilize } from './stabilize.ts';
 import {
   blobTrack,
@@ -112,6 +118,8 @@ export type DistanceReport = {
   method: 'distance';
   /** 못 쟀을 때 어느 문에서 끝났나 — 한 토막(shake · few-frames · no-flight · hand-trim · size-slope · implausible · short). 시도 기록(VelocityAttempt.why)에 남는다 */
   why?: string;
+  /** 스피드건 짝으로 쓸 만한가(2.4.1) — 믿음 높음 · 이어 찾기 없음 · 끝 튕김 봄 · 공 크기 거리 15% 안 · 거리 자동 아님. 못 쟀으면 없다 */
+  calibEligible?: boolean;
   /** 구속을 낸 거리(m) */
   distanceM: number;
   /** 넣은 거리(m) — 자동이면 첫 어림 */
@@ -174,11 +182,15 @@ export function fpsOf(t: number[]): number | null {
 }
 
 /** 배경으로 쓸 장면 — 던지기 전 장면(최대 8)과 구간 장면을 고르게(최대 13) */
-function pickBackground(frames: CapturedFrame[], extra: ArrayLike<number>[]): ArrayLike<number>[] {
+function pickBackground(
+  frames: CapturedFrame[],
+  extra: ArrayLike<number>[]
+): ArrayLike<number>[] {
   const out: ArrayLike<number>[] = extra.slice(-8);
   const n = frames.length;
   const take = Math.min(13, n);
-  for (let k = 0; k < take; k++) out.push(frames[Math.round((k * (n - 1)) / Math.max(1, take - 1))].luma);
+  for (let k = 0; k < take; k++)
+    out.push(frames[Math.round((k * (n - 1)) / Math.max(1, take - 1))].luma);
   return out.length % 2 ? out : out.slice(1);
 }
 
@@ -200,11 +212,18 @@ function bestFlight(
   const s = pixelScale(fs);
   let hinted: Seed[] = [];
   if (hint) {
-    const near = fs.t.map((t, i) => [t, i] as const).filter(([t]) => Math.abs(t - hint.t) <= 0.1);
+    const near = fs.t
+      .map((t, i) => [t, i] as const)
+      .filter(([t]) => Math.abs(t - hint.t) <= 0.1);
     if (near.length) hinted = findSeeds(fs, bg, near[0][1], near[near.length - 1][1]);
   }
   /* 닫힌 함수 안에서 바꾸므로 null 로 좁혀지지 않게 단언으로 둔다 */
-  let best = null as { seed: Seed; raw: TrackedBall[]; seg: ReturnType<typeof toPoints>; fit: TrajectoryFit } | null;
+  let best = null as {
+    seed: Seed;
+    raw: TrackedBall[];
+    seg: ReturnType<typeof toPoints>;
+    fit: TrajectoryFit;
+  } | null;
   const tryAll = (list: Seed[]) => {
     for (const seed of list.slice(0, 16)) {
       const raw = blobTrack(fs, bg, seed);
@@ -215,7 +234,8 @@ function bestFlight(
       const seg = pre.seg;
       const shrink = seg[0].diam / seg[seg.length - 1].diam;
       if (!(shrink >= 1.3)) continue;
-      if (!best || seg.length > best.seg.length) best = { seed, raw, seg, fit: pre.fit };
+      if (!best || seg.length > best.seg.length)
+        best = { seed, raw, seg, fit: pre.fit };
       /* 충분히 긴 줄이면(0.25초 · 두 배 넘게 작아짐) 더 보지 않는다 — 이른 씨앗이 대개 그 공이다 */
       if (seg.length * Math.abs(dt) >= 0.25 && shrink >= 1.8) break;
     }
@@ -248,7 +268,8 @@ function impactTime(
     const den = post.reduce((a, q) => a + (q.t - mt) ** 2, 0);
     const line = (key: 'u' | 'v') => {
       const m = post.reduce((a, q) => a + q[key], 0) / n;
-      const b = den > 0 ? post.reduce((a, q) => a + (q.t - mt) * (q[key] - m), 0) / den : 0;
+      const b =
+        den > 0 ? post.reduce((a, q) => a + (q.t - mt) * (q[key] - m), 0) / den : 0;
       return (t: number) => m + b * (t - mt);
     };
     const pu = line('u');
@@ -295,7 +316,11 @@ export function analyzeByDistance(input: DistanceInput): DistanceResult {
   const dt = 1 / fps;
   const s = pixelScale(fs);
   const kAnalyze = width / sourceWidth;
-  const cam: PinholeCamera = { f: input.focalPx * kAnalyze, cx: width / 2, cy: height / 2 };
+  const cam: PinholeCamera = {
+    f: input.focalPx * kAnalyze,
+    cx: width / 2,
+    cy: height / 2,
+  };
   /* 기준 장면 자리 → 그 때의 영상 자리 — 결과 화면은 받은 그대로의 영상(흔들린 것) 위에 공 길을 그린다 */
   const onFrame = (t: number, u: number, v: number): [number, number] =>
     stab.motion
@@ -351,10 +376,19 @@ export function analyzeByDistance(input: DistanceInput): DistanceResult {
       arcDrops: 0,
     },
   };
-  const fail = (code: Parameters<typeof reject>[0], track: BallObservation[] = [], why?: string): DistanceResult => {
+  const fail = (
+    code: Parameters<typeof reject>[0],
+    track: BallObservation[] = [],
+    why?: string
+  ): DistanceResult => {
     if (why) report.why = why;
     report.timingMs = Math.round(now() - t0);
-    return { ...base, measure: { ok: false, ...reject(code) }, track, distance: report };
+    return {
+      ...base,
+      measure: { ok: false, ...reject(code) },
+      track,
+      distance: report,
+    };
   };
   /*
    * 흔들림 — 문턱(1.x 와 같은 6, 분석 720 기준)의 3배를 넘으면 거부, 그 사이는 재고 알린다(사용자 규칙 2026-09-30: 실시간은 막지
@@ -371,10 +405,14 @@ export function analyzeByDistance(input: DistanceInput): DistanceResult {
     if ((input.shakePx ?? 0) > 3 * shakeLimit) return fail('CAMERA_SHAKE', [], 'shake');
     report.shaky = (input.shakePx ?? 0) > shakeLimit;
   }
-  if (frames.length < 10 || !(D > 0)) return fail('NOT_ENOUGH_FRAMES', [], 'few-frames');
+  if (frames.length < 10 || !(D > 0))
+    return fail('NOT_ENOUGH_FRAMES', [], 'few-frames');
 
   /* 다가오는 공(포수 뒤)은 시간을 거꾸로 놓고 같은 길로 찾는다 — 거꾸로 보면 공이 멀어지며 작아진다 */
-  const order = approach === 'approaching' ? frames.map((_, i) => frames.length - 1 - i) : frames.map((_, i) => i);
+  const order =
+    approach === 'approaching'
+      ? frames.map((_, i) => frames.length - 1 - i)
+      : frames.map((_, i) => i);
   const fsOrdered: FrameSet =
     approach === 'approaching'
       ? {
@@ -385,7 +423,14 @@ export function analyzeByDistance(input: DistanceInput): DistanceResult {
         }
       : fs;
   const bg = medianBackground(pickBackground(frames, stab.extra), width, height);
-  const { best, seeds } = bestFlight(fsOrdered, bg, cam, approach === 'approaching' ? -dt : dt, SEL_D, input.seedHint ?? null);
+  const { best, seeds } = bestFlight(
+    fsOrdered,
+    bg,
+    cam,
+    approach === 'approaching' ? -dt : dt,
+    SEL_D,
+    input.seedHint ?? null
+  );
   report.seeds = seeds;
   if (!best) return fail('NOT_ENOUGH_FRAMES', [], 'no-flight');
   report.seedFrame = order[best.seed.i];
@@ -432,7 +477,11 @@ export function analyzeByDistance(input: DistanceInput): DistanceResult {
     approach === 'receding' &&
     endO.diam <= 1.6 * dAtD &&
     best.raw.some(
-      (o) => o.i > endO.i && o.i <= endO.i + Math.round((2 * fps) / 60) && o.diam >= 1.15 * endO.diam && near(o)
+      (o) =>
+        o.i > endO.i &&
+        o.i <= endO.i + Math.round((2 * fps) / 60) &&
+        o.diam >= 1.15 * endO.diam &&
+        near(o)
     );
   /*
    * 맞고 튄 공 — 앞부분 끝 바로 뒤(2.5장 안)에 덩어리가 3장 넘게 이어지고, 그것이 끝 자리에서 시작해 한 직선 위를 고르게 움직이며 날던
@@ -456,7 +505,8 @@ export function analyzeByDistance(input: DistanceInput): DistanceResult {
     let ss = 0;
     for (const key of ['u', 'v'] as const) {
       const m = pts.reduce((a, q) => a + q[key], 0) / n;
-      const b = den > 0 ? pts.reduce((a, q) => a + (q.t - mt) * (q[key] - m), 0) / den : 0;
+      const b =
+        den > 0 ? pts.reduce((a, q) => a + (q.t - mt) * (q[key] - m), 0) / den : 0;
       for (const q of pts) ss += (q[key] - m - b * (q.t - mt)) ** 2;
     }
     return Math.sqrt(ss / n);
@@ -479,7 +529,9 @@ export function analyzeByDistance(input: DistanceInput): DistanceResult {
      * 했다(132). 실내에서 놓친 공은 미트까지 8~14장을 더 간다.
      */
     if (!ext.added && flight.length > 10) {
-      const ext2 = extendRansac(fsOrdered, flight.slice(0, -2), cam, fps, { dragScaleM: SEL_D });
+      const ext2 = extendRansac(fsOrdered, flight.slice(0, -2), cam, fps, {
+        dragScaleM: SEL_D,
+      });
       const beyond = ext2.pts[ext2.pts.length - 1].i - flight[flight.length - 1].i;
       /* 원래 끝 너머 부분도 75% 넘게 차야 한다 — 밖 그물에서 맞은 뒤 흔들림이 띄엄띄엄 이어진 것(129: 6장 중 4)을 거른다 */
       const endI = flight[flight.length - 1].i;
@@ -493,11 +545,18 @@ export function analyzeByDistance(input: DistanceInput): DistanceResult {
   /* 맞출 점들 — 비행(원래 차례) · 끝 뒤 덩어리. 이어 찾은 것을 빼고 다시 맞출 때도 쓴다 */
   const prepare = (fl: typeof flight, ext: number) => {
     const flightReal = fl.map((o) => back(o)).sort((a, b) => a.t - b.t);
-    const endI = approach === 'approaching' ? flightReal[0].i : flightReal[flightReal.length - 1].i;
+    const endI =
+      approach === 'approaching'
+        ? flightReal[0].i
+        : flightReal[flightReal.length - 1].i;
     /* 끝 뒤 덩어리(맞고 튄 공)로 끝 시각을 정하는 것은 이어 찾기가 더한 것이 없을 때만 — 이어 찾은 끝 뒤의 덩어리는 엉뚱한 것이다 */
     const postReal = (ext ? [] : best.raw)
       .map(back)
-      .filter((o) => (approach === 'approaching' ? o.i < endI && o.i >= endI - 6 : o.i > endI && o.i <= endI + Math.round((6 * fps) / 60)))
+      .filter((o) =>
+        approach === 'approaching'
+          ? o.i < endI && o.i >= endI - 6
+          : o.i > endI && o.i <= endI + Math.round((6 * fps) / 60)
+      )
       .sort((a, b) => a.t - b.t)
       .slice(0, 4);
     return { flightPts: toPoints(flightReal, s), postReal, extended: ext };
@@ -516,14 +575,29 @@ export function analyzeByDistance(input: DistanceInput): DistanceResult {
     const { flightPts, postReal, extended } = prep;
     /* 앞의 손 붙은 점을 한 번 더 걷고(4장까지) 끝을 정해 맞춘다 */
     const opts = { dragScaleM: Dm, tilt };
-    let fit = fitTrajectory(flightPts, flightPts[flightPts.length - 1].t + dt / 2, cam, opts);
+    let fit = fitTrajectory(
+      flightPts,
+      flightPts[flightPts.length - 1].t + dt / 2,
+      cam,
+      opts
+    );
     let a = 0;
-    while (a < 4 && fit.resid[a] > 3 * Math.max(0.5 * s, fit.rms) && fit.resid[a] > 2.5 * s) a++;
+    while (
+      a < 4 &&
+      fit.resid[a] > 3 * Math.max(0.5 * s, fit.rms) &&
+      fit.resid[a] > 2.5 * s
+    )
+      a++;
     const used = a ? flightPts.slice(a) : flightPts;
     if (used.length < 8) return fail('UNSTABLE_TRACK', obsOf(used), 'hand-trim');
     let te: number;
     if (approach === 'receding') {
-      const imp = impactTime(fitTrajectory(used, used[used.length - 1].t + dt / 2, cam, opts), used, postReal, dt);
+      const imp = impactTime(
+        fitTrajectory(used, used[used.length - 1].t + dt / 2, cam, opts),
+        used,
+        postReal,
+        dt
+      );
       te = imp.te;
       report.impact = imp.impact;
     } else {
@@ -580,7 +654,11 @@ export function analyzeByDistance(input: DistanceInput): DistanceResult {
      * 귀퉁이의 덩어리를 공으로 잡아 169.8km/h 를 냈다: −2.08). 공이 아니니 조용히 넘긴다(궤적을 안 넘긴다 — 화면이 '못 쟀어요'를
      * 말하지 않게).
      */
-    if (report.sizeSlope != null && used.filter((o) => !o.ring).length >= 6 && (report.sizeSlope > -0.6 || report.sizeSlope < -1.6))
+    if (
+      report.sizeSlope != null &&
+      used.filter((o) => !o.ring).length >= 6 &&
+      (report.sizeSlope > -0.6 || report.sizeSlope < -1.6)
+    )
       return fail('UNSTABLE_TRACK', [], 'size-slope');
     report.flightFrames = used.length;
     report.extended = extended;
@@ -637,9 +715,11 @@ export function analyzeByDistance(input: DistanceInput): DistanceResult {
      */
     const [rx, ry, rz] = fit.velocityAt(tRel);
     const upRel = -ry * Math.cos(tilt) - rz * Math.sin(tilt);
-    const kmh = Math.sqrt(Math.max(0, rx * rx + ry * ry + rz * rz - upRel * upRel)) * Dm * 3.6;
+    const kmh =
+      Math.sqrt(Math.max(0, rx * rx + ry * ry + rz * rz - upRel * upRel)) * Dm * 3.6;
     const track = obsOf(used);
-    if (!(kmh >= MIN_PLAUSIBLE_KMH && kmh <= MAX_PLAUSIBLE_KMH)) return fail('IMPLAUSIBLE_SPEED', track, 'implausible');
+    if (!(kmh >= MIN_PLAUSIBLE_KMH && kmh <= MAX_PLAUSIBLE_KMH))
+      return fail('IMPLAUSIBLE_SPEED', track, 'implausible');
     const durationSec = used[used.length - 1].t - used[0].t;
     if (durationSec < 0.15) return fail('TRAVEL_TOO_SHORT', track, 'short');
 
@@ -665,9 +745,16 @@ export function analyzeByDistance(input: DistanceInput): DistanceResult {
      * 떨어뜨리지 않고, 아래에서 공 크기 거리가 넣은 거리와 END_SIZE_AGREE 안인지로 가린다(2.3.21 — 10-12 밖 그런 공 둘이
      * 스피드건과 1% 안이었는데 '낮음'이라 측정 불가로 빠졌다). 끝을 이어 찾았거나(흰 배경) 거리 자동이면 그대로 '낮음'.
      */
-    if (approach === 'approaching' || extended > 0 || (report.impact === 'end' && auto) || report.shaky) confidence = 'low';
+    if (
+      approach === 'approaching' ||
+      extended > 0 ||
+      (report.impact === 'end' && auto) ||
+      report.shaky
+    )
+      confidence = 'low';
     /* 공 크기로 어림한 거리는 줄자보다 덜 믿는다 — '보통'까지 */
-    else if (!auto && used.length * dt >= 0.4 && fit.rms <= 1.2 * s) confidence = 'high';
+    else if (!auto && used.length * dt >= 0.4 && fit.rms <= 1.2 * s)
+      confidence = 'high';
     report.timingMs = Math.round(now() - t0);
     const kmhEnd = Math.hypot(...fit.velocityAt(used[used.length - 1].t)) * Dm * 3.6;
     return {
@@ -680,7 +767,11 @@ export function analyzeByDistance(input: DistanceInput): DistanceResult {
         detail: {
           frames: used.length,
           fitQuality: Math.round(Math.max(0, 1 - fit.rms / (4 * s)) * 1000) / 1000,
-          travelM: round1(Math.abs(fit.positionAt(used[used.length - 1].t)[2] - fit.positionAt(used[0].t)[2]) * Dm),
+          travelM: round1(
+            Math.abs(
+              fit.positionAt(used[used.length - 1].t)[2] - fit.positionAt(used[0].t)[2]
+            ) * Dm
+          ),
           releaseDistanceM: round1(fit.positionAt(tRel)[2] * Dm),
           durationSec: Math.round(durationSec * 1000) / 1000,
           startKmh: round1(v3),
@@ -704,7 +795,12 @@ export function analyzeByDistance(input: DistanceInput): DistanceResult {
    * 공 크기 거리 +22%, −18.8km/h). 실내에서 흰 천 위로 놓친 공을 이어 찾은 것은 넣은 거리가 맞으면 공 크기 거리와 5% 안, 합성 장면의
    * 흰 천도 13% 라 걸리지 않는다.
    */
-  if (!input.autoDistance && prep.extended > 0 && report.sizeDistM != null && report.sizeDistM / D > 1.18) {
+  if (
+    !input.autoDistance &&
+    prep.extended > 0 &&
+    report.sizeDistM != null &&
+    report.sizeDistM / D > 1.18
+  ) {
     const keep = { prep, out, report: { ...report, path: report.path } };
     prep = prepare(
       best.seg.map((o) => ({ ...o })),
@@ -722,11 +818,35 @@ export function analyzeByDistance(input: DistanceInput): DistanceResult {
     const s = report.sizeDistM;
     const off = !input.autoDistance && s != null ? Math.abs(s / D - 1) : 0;
     /* 튕김을 못 본 끝은 공이 그물 · 미트 앞에서 끊겼을 수도 있다 — 공 크기 거리가 넣은 거리와 더 가깝게 맞을 때만 믿는다 */
-    const endUnseen = !input.autoDistance && report.impact === 'end' && (s == null || off > END_SIZE_AGREE);
+    const endUnseen =
+      !input.autoDistance &&
+      report.impact === 'end' &&
+      (s == null || off > END_SIZE_AGREE);
     if ((off > INPUT_SIZE_MISMATCH || endUnseen) && out.measure.ok) {
       const m = out.measure;
       m.confidence = 'low';
       m.errorKmh = Math.max(m.errorKmh, round1(m.kmh * off));
+    }
+    /*
+     * 2.4.1 — 쟀어도 약한 데가 있으면 까닭 한 토막(why)을 남긴다(받는 쪽은 그대로 — 화면 규칙이 정한다). 시도 기록 · 분석 JSON 에 실린다.
+     * calibEligible — 스피드건 짝으로 쓸 만한 공인가: 믿음 높음 · 이어 찾기 없음 · 끝 튕김 봄 · 공 크기 거리가 넣은 거리와 15% 안.
+     * 공마다 공 크기로 거리를 어림한 공은 아니다(비율 보정은 거리 · 화각 같은 크기 오차를 메우는데, 그 공은 이미 크기를 스스로 맞췄다).
+     */
+    if (out.measure.ok) {
+      const fq = out.measure.detail.fitQuality;
+      if (report.why == null) {
+        if (off > INPUT_SIZE_MISMATCH) report.why = 'size-mismatch';
+        else if (endUnseen) report.why = 'end-unseen';
+        else if ((report.extended ?? 0) > 8) report.why = 'extended';
+        /* 맞음새 = 1 − 잔차 ÷ (4σ) 라 잔차 2.5σ 넘음(0.375 밑)도 여기에 든다 */
+        else if (fq < 0.6) report.why = 'fit-quality';
+      }
+      report.calibEligible =
+        !input.autoDistance &&
+        out.measure.confidence === 'high' &&
+        (report.extended ?? 0) === 0 &&
+        report.impact === 'rebound' &&
+        off <= INPUT_SIZE_MISMATCH;
     }
   }
   /* 자동이면 공 크기로 어림한 거리로 다시 — 넣은 거리로 잰 값이 그럴 수 없는 구속이어도(거리가 크게 틀림) 다시 본다 */
@@ -741,6 +861,8 @@ export function analyzeByDistance(input: DistanceInput): DistanceResult {
   return out;
 }
 
-function obsOf(pts: { t: number; u: number; v: number; diam: number }[]): BallObservation[] {
+function obsOf(
+  pts: { t: number; u: number; v: number; diam: number }[]
+): BallObservation[] {
   return pts.map((o) => ({ t: o.t, x: o.u, y: o.v, diameterPx: o.diam }));
 }

@@ -12,13 +12,15 @@ export type PairLike = {
   calibExclude: boolean;
   /** 수기 공(카메라 값 없음) — 짝이 아니다 */
   manual?: boolean;
+  /** 엔진이 짝으로 쓸 만하다고 본 공인가(analysis.distance.calibEligible, 2.4.1) — 없으면(옛 공) 짝으로 본다 */
+  calibEligible?: boolean | null;
 };
 
 const round1 = (n: number) => Math.round(n * 10) / 10;
 
 /** 짝인가 — 스피드건 값이 있고 보정에서 빼지 않은, 카메라로 잰 공(수기는 아님) */
 export function isPair<T extends PairLike>(p: T): p is T & { gunKmh: number } {
-  return p.gunKmh != null && !p.calibExclude && !p.manual;
+  return p.gunKmh != null && !p.calibExclude && !p.manual && p.calibEligible !== false;
 }
 
 /** 공 하나의 오차 — (릴리스 추정 ?? 보정 후 값) − 스피드건. 짝이 아니면 null */

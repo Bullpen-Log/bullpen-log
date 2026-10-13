@@ -186,9 +186,16 @@ export async function loadCalibration(): Promise<{ fit: CalFit; pairs: CalPair[]
    */
   const pairs = rows
     .filter((r) => {
-      const a = r.analysis as { polarity?: unknown; fallback?: unknown; offStandard?: unknown } | null;
+      const a = r.analysis as {
+        polarity?: unknown;
+        fallback?: unknown;
+        offStandard?: unknown;
+        distance?: { calibEligible?: unknown } | null;
+      } | null;
       const offStandard = Array.isArray(a?.offStandard) && a.offStandard.length > 0;
-      return a?.polarity !== 'dark' && a?.polarity !== 'mixed' && a?.fallback == null && !offStandard;
+      /* 엔진이 짝으로 못 쓴다고 본 공(이어 찾기 · 끝 못 봄 · 공 크기 거리 불일치 · 거리 자동 — 2.4.1 calibEligible)도 뺀다 */
+      const eligible = a?.distance?.calibEligible !== false;
+      return a?.polarity !== 'dark' && a?.polarity !== 'mixed' && a?.fallback == null && !offStandard && eligible;
     })
     .map((r) => ({ measured: r.rawKmh, gun: r.gunKmh as number }));
   return { fit: fitCalibration(pairs), pairs };

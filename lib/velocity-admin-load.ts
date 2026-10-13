@@ -160,6 +160,8 @@ export type AdminPitchRow = {
   fps: number | null;
   gunKmh: number | null;
   calibExclude: boolean;
+  /** 엔진이 짝으로 쓸 만하다고 본 공인가(2.4.1) — 옛 공은 null(짝으로 본다) */
+  calibEligible: boolean | null;
   /** 수기 — 카메라 값 없이 스피드건 값만 적어 올린 공(rawKmh · kmh 는 그 값) */
   manual: boolean;
   autoDetected: boolean;
@@ -236,6 +238,7 @@ export { errorStats, isPair, pitchError };
 /* ───────────────────────── 종합 ───────────────────────── */
 
 type OverviewPitch = {
+  calibEligible?: boolean | null;
   sessionId: string;
   userId: string;
   rawKmh: number;
@@ -619,6 +622,7 @@ function toPitchRow(
     fps: p.fps,
     gunKmh: p.gunKmh,
     calibExclude: p.calibExclude,
+    calibEligible: calibEligibleOf(p.analysis),
     manual: p.manual,
     autoDetected: p.autoDetected,
     pitchType: p.pitchType,
@@ -703,6 +707,7 @@ export async function loadVelocityAdminDay(date: string): Promise<AdminDay> {
       releaseKmh: p.releaseKmh,
       gunKmh: p.gunKmh,
       calibExclude: p.calibExclude,
+      calibEligible: calibEligibleOf(p.analysis),
       manual: p.manual,
       clipPath: p.clipPath,
       clipBytes: p.clipBytes,
@@ -888,4 +893,10 @@ function findAttempts(at: Date) {
       pitch: { select: { seq: true, kmh: true, gunKmh: true, calibExclude: true } },
     },
   });
+}
+
+/** 엔진이 짝으로 쓸 만하다고 봤나(analysis.distance.calibEligible, 2.4.1) — 옛 공은 null */
+function calibEligibleOf(analysis: unknown): boolean | null {
+  const v = (analysis as { distance?: { calibEligible?: unknown } | null } | null)?.distance?.calibEligible;
+  return typeof v === 'boolean' ? v : null;
 }
