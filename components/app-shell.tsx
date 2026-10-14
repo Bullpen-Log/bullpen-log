@@ -24,6 +24,7 @@ import {
   subscribeBar,
 } from '@/lib/nav-state';
 import { NAV_ICONS, NAV_TINT } from '@/components/nav-icons';
+import { TabSwipe } from '@/components/tab-swipe';
 import { AppIcon } from '@/components/app-icon';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { quietRefresh } from '@/lib/quiet-refresh';
@@ -1379,6 +1380,8 @@ export function AppNav({
       </Modal>
 
       <MobileTabs tabs={tabs} menuOpen={open} onMenu={() => go('sheet')} />
+      {/* 휴대폰 탭 쓸기 — 본문을 옆으로 끌면 이웃 탭으로(components/tab-swipe.tsx) */}
+      <TabSwipe tabs={tabs} />
 
       <DetailMenu
         groups={groups}

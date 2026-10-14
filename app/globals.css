@@ -2740,6 +2740,19 @@ html[data-splash] *::after {
 }
 
 /*
+ * 탭 쓸기의 자리표시(components/tab-swipe.tsx) — 새 화면이 그려지면(data-done) 옅어지며 걷힌다. 본문(main)의 밀림은 인라인 transform.
+ */
+[data-tab-ghost][data-done] {
+  opacity: 0;
+  transition: opacity 180ms ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-tab-ghost][data-done] {
+    transition: none;
+  }
+}
+
+/*
  * 휴대폰 위 막대 숨기기(components/app-shell.tsx MobileTopBar · useBarHidden, 2026-10-14 "인스타 홈처럼") — 아래로 굴리면 위로
  * 미끄러지며 옅어져 시계 자리 밑으로 들어가고, 위로 굴리면 같은 길로 돌아온다. 시계 자리(data-safe-area)는 늘 그 위에 있다.
  * 곡선은 아이폰 밀기(빠르게 출발해 부드럽게 멈춤). 움직임 줄이기면 곧장 바뀐다.
