@@ -1254,7 +1254,7 @@ export function AppNav({
                 !bellSheet &&
                 noticePanel(
                   panelPcId,
-                  'absolute right-0 top-full mt-3 w-72 max-h-[calc(100dvh-5rem)] overflow-y-auto overscroll-contain'
+                  'absolute right-0 top-full mt-3 w-72 max-h-[calc(100dvh-5rem)] overflow-x-hidden overflow-y-auto overscroll-contain'
                 )}
             </div>
 
@@ -2099,7 +2099,7 @@ function DetailMenu({
         PC 팝업은 그대로 — 이 바깥 div 는 desk:contents 로 사라지고, 높이 한도(--pop-max)를 창에서 물려받아 안의 목록만 굴린다.
       */}
       <div data-scrim className="grid h-full w-full place-items-center desk:contents">
-        <div className="flex max-w-full flex-col items-center gap-2.5 desk:contents">
+        <div className="flex w-full max-w-full flex-col items-center gap-2.5 desk:contents">
           <span
             aria-hidden
             className="text-[15px] font-semibold tracking-tight text-white/90 desk:hidden"
@@ -2115,12 +2115,12 @@ function DetailMenu({
               type="button"
               onClick={onClose}
               aria-label="닫기"
-              className="absolute top-3 right-3 z-10 grid h-8 w-8 place-items-center rounded-full bg-white/15 text-white/80 transition-colors hover:bg-white/25 hover:text-white desk:hidden"
+              className="absolute top-2.5 right-2.5 z-10 grid h-7 w-7 place-items-center rounded-full bg-white/15 text-white/80 transition-colors hover:bg-white/25 hover:text-white desk:hidden"
             >
               <X className="h-4 w-4" />
             </button>
 
-            <nav className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-0 py-0 desk:p-2">
+            <nav className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain px-0 py-0 desk:p-2">
               {/*
             휴대폰은 아이폰 앱 폴더처럼 — 둥근 네모 아이콘 + 밑 이름, 한 줄에 넷(2026-10-13 김민). 제목 없는 묶음(홈 · 투구 · …)은
             한 판으로 이어 붙인다(묶음마다 한 줄이면 칸이 비었다). PC 팝업은 예전 목록 그대로(desk:).

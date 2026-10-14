@@ -1661,7 +1661,7 @@ dialog[data-drawer]::backdrop {
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.35),
       0 24px 60px -20px rgba(0, 0, 0, 0.7);
-    padding: 22px 18px 26px;
+    padding: 30px 18px 26px;
     /* 닫힌 모습 — 하단 탭 '더보기' 쪽(오른쪽 아래)으로 줄어 있다 */
     transform-origin: 88% 100%;
     transform: scale(0.55);
