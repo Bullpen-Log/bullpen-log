@@ -263,6 +263,12 @@ function run(name: string, sc: Scene, tolRel: number) {
       : !res.distance.stabilized,
     `${name} — 흔들림 ${sc.shakePx ?? 0}px → 바로잡음 ${res.distance.stabilized ? `${res.distance.shakePx}px` : '없음'}`
   );
+  /* 바로잡은 흔들린 공은 '보통'(기록됨), '높음'은 아니다(보정 짝에서 빠짐) — 2.5.1 */
+  if (sc.shakePx && m.ok && res.distance.shaky)
+    check(
+      m.confidence === 'medium',
+      `${name} — 바로잡은 흔들린 공의 믿음 '보통'(${m.confidence})`
+    );
   check(
     m.ok && Math.abs(err) <= tolRel,
     `${name} — 정답 ${truthKmh.toFixed(1)} · 잰 값 ${m.ok ? m.kmh : m.code} (${m.ok ? (err * 100).toFixed(2) + '%' : '-'}, 허용 ±${(tolRel * 100).toFixed(1)}%) · 비행 ${res.distance.flightFrames}장(+${res.distance.extended}) 끝 ${res.distance.impact} ${res.distance.timingMs}ms`
