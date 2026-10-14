@@ -3092,6 +3092,51 @@ html[data-app='native'] body:not(:has([data-safe-area]))::before {
 .rounded-2xl.border-line.bg-surface {
   border-color: transparent;
 }
+/*
+ * 카드가 바탕 위에 떠 있게 — 앱스토어처럼(2026-10-15 김민: "평면적인 2D 카드를 실제 공간에 떠 있는 물체처럼"). 참고 영상(앱스토어
+ * 투데이)의 카드를 보면 ① 카드 바로 밑의 좁고 조금 진한 접촉 그림자 ② 멀리 넓게 퍼지는 옅은 주변 그림자 ③ 거의 안 보이는 반투명
+ * 가장자리(0.5px) ④ 위 모서리의 흰 빛 한 줄. 그림자 하나를 진하게 하는 것이 아니라 네 겹을 겹쳐 둔다(--card-float).
+ * 같은 선택자라 Card 와 손으로 만든 카드 60여 곳이 한 번에 바뀐다. PC 도 같다(테두리는 PC 에만, 밑 media). 그림자는 둥근 모서리를
+ * 그대로 따른다(box-shadow). 바탕을 안 건드리므로(background-image 없음) bg-hero · bg-spotlight 같은 제 바탕이 있는 카드도 그대로다.
+ * 누르면(press-feedback 의 data-pressed — 카드 통째 링크 · 단추) 살짝 눌리며 그림자가 짧아진다. 움직임 줄이기면 전환 없음.
+ * 다크 · 네이비는 검은 바탕이라 그림자 대신 가장자리 빛(흰 8%)과 위 모서리 빛으로 뜬다.
+ */
+.rounded-2xl.border-line.bg-surface {
+  --card-ink: 20 30 50;
+  --card-float:
+    inset 0 1px 0 rgb(255 255 255 / 0.7),
+    0 0 0 0.5px rgb(var(--card-ink) / 0.06),
+    0 1px 2px rgb(var(--card-ink) / 0.05),
+    0 6px 16px -4px rgb(var(--card-ink) / 0.08),
+    0 22px 44px -14px rgb(var(--card-ink) / 0.12);
+  box-shadow: var(--card-float);
+  transition:
+    transform 180ms cubic-bezier(0.2, 0, 0, 1),
+    box-shadow 180ms cubic-bezier(0.2, 0, 0, 1);
+}
+.rounded-2xl.border-line.bg-surface[data-pressed] {
+  transform: scale(0.985);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.7),
+    0 0 0 0.5px rgb(var(--card-ink) / 0.06),
+    0 1px 2px rgb(var(--card-ink) / 0.05),
+    0 3px 8px -2px rgb(var(--card-ink) / 0.08);
+}
+:root[data-theme='dark'] .rounded-2xl.border-line.bg-surface,
+:root[data-theme='navy'] .rounded-2xl.border-line.bg-surface,
+.theme-dark .rounded-2xl.border-line.bg-surface {
+  --card-float:
+    inset 0 1px 0 rgb(255 255 255 / 0.07),
+    0 0 0 0.5px rgb(255 255 255 / 0.08),
+    0 1px 2px rgb(0 0 0 / 0.4),
+    0 8px 20px -6px rgb(0 0 0 / 0.5);
+  box-shadow: var(--card-float);
+}
+@media (prefers-reduced-motion: reduce) {
+  .rounded-2xl.border-line.bg-surface {
+    transition: none;
+  }
+}
 @media (min-width: 36rem) and (hover: hover) and (pointer: fine) {
   .rounded-2xl.border-line.bg-surface {
     border-color: var(--color-line);
