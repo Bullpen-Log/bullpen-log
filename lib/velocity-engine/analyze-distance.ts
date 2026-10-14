@@ -745,15 +745,19 @@ export function analyzeByDistance(input: DistanceInput): DistanceResult {
      * 떨어뜨리지 않고, 아래에서 공 크기 거리가 넣은 거리와 END_SIZE_AGREE 안인지로 가린다(2.3.21 — 10-12 밖 그런 공 둘이
      * 스피드건과 1% 안이었는데 '낮음'이라 측정 불가로 빠졌다). 끝을 이어 찾았거나(흰 배경) 거리 자동이면 그대로 '낮음'.
      */
+    /*
+     * 흔들림 — 배경으로 재서 바로잡았으면(stabilized) '보통'까지, 못 바로잡았으면 '낮음'(2.5.1, 2026-10-14 사용자: 손에 든 폰도 재고
+     * '보통'으로 기록 · 표시). 흔든 밖 13개를 바로잡으면 평균 오차 1.6~1.9km/h 로 흔들리지 않은 것과 비슷했다(2.2.0). 보정 짝은 '높음'만이라 빠진다.
+     */
     if (
       approach === 'approaching' ||
       extended > 0 ||
       (report.impact === 'end' && auto) ||
-      report.shaky
+      (report.shaky && !report.stabilized)
     )
       confidence = 'low';
     /* 공 크기로 어림한 거리는 줄자보다 덜 믿는다 — '보통'까지 */
-    else if (!auto && used.length * dt >= 0.4 && fit.rms <= 1.2 * s)
+    else if (!auto && !report.shaky && used.length * dt >= 0.4 && fit.rms <= 1.2 * s)
       confidence = 'high';
     report.timingMs = Math.round(now() - t0);
     const kmhEnd = Math.hypot(...fit.velocityAt(used[used.length - 1].t)) * Dm * 3.6;

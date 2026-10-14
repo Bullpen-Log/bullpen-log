@@ -1837,12 +1837,16 @@ final class MotionTrigger {
     private struct Point {
         let f: Int
         let t: Double
+        /// 첫 장면 기준 자리(줄인 칸) — 폰이 밀린 만큼(cums)을 더해, 손에 든 폰에서도 공 길이 흔들림 없이 이어진다
         let x: Double
         let y: Double
         let a: Double
         let fill: Double
-        /// 그 장면에서 바뀐 칸의 몫 — 화면이 통째로 움직이면(손에 든 폰) 크다
+        /// 그 장면에서 바뀐 칸의 몫 — 흔들림을 뺀 뒤에도 화면이 통째로 바뀌면(돌림 · 앞뒤로 움직임 · 폰을 만짐) 크다
         let moved: Double
+        /// 그 장면의 화면 자리(줄인 칸) — 가운데 70% 검사 · 알림용
+        let rx: Double
+        let ry: Double
     }
 
     private struct Blob {
@@ -1869,6 +1873,9 @@ final class MotionTrigger {
     private var gh = 0
     private var grids: [[UInt8]] = []
     private var times: [Double] = []
+    /// 장면마다 앞 장면에서 밀린 만큼(shiftOf) · 그 누적(첫 장면 기준) — grids 와 같은 차례
+    private var shifts: [(Int, Int)] = []
+    private var cums: [(Double, Double)] = []
     private var frame = 0
     private var tracks: [[Point]] = []
     private var lastHit = -Double.infinity
@@ -1891,8 +1898,10 @@ final class MotionTrigger {
     static let MAX_WOBBLE = 6.0
     /// 한 장면의 덩어리가 이보다 많으면 공 찾기를 쉰다
     static let MAX_BLOBS = 80
-    /// 공 길 동안 바뀐 칸 몫의 평균 상한
+    /// 공 길 동안 바뀐 칸 몫의 평균 상한 — 흔들림(밀림)을 뺀 뒤의 값이다
     static let MAX_MOVED = 0.016
+    /// 한 장면 사이에 폰이 밀렸다고 볼 수 있는 가장 큰 값(줄인 칸, 1080p 에서 32px)
+    static let SHIFT_MAX = 8
     /// 알린 뒤 쉬는 시간(초)
     static let REST_SEC = 1.0
     /// 공을 알린 뒤 이만큼(초)은 움직임을 알리지 않는다 — 포수가 공을 돌려주거나 투수가 걸어가는 움직임마다 사이트가 3초 영상을 받아
@@ -1962,6 +1971,8 @@ final class MotionTrigger {
             gh = height / s
             grids = []
             times = []
+            shifts = []
+            cums = []
             tracks = []
         }
         let n = gw * gh
@@ -1977,16 +1988,30 @@ final class MotionTrigger {
                 }
             }
         }
+        /*
+         * 흔들림 빼기(2026-10-14 사용자: "흔들림 빼고 보기") — 손에 든 폰은 장면마다 화면이 통째로 밀려, 세 장면 차이에 무늬 있는 곳이
+         * 모두 남았다. 그래서 진짜 공도 '화면이 통째로 움직임'(MAX_MOVED)으로 버려져 손으로 재면 아무것도 안 잡혔다(10-12). 앞 장면에서
+         * 밀린 만큼을 재(shiftOf) 그만큼 옮겨 견준다. 삼각대 위에서는 밀림이 0 이라 예전과 같다.
+         */
+        let sh = grids.last.map { MotionTrigger.shiftOf(prev: $0, cur: g, gw: gw, gh: gh) } ?? (0, 0)
+        let c0 = cums.last ?? (0, 0)
         grids.append(g)
         times.append(t)
+        shifts.append(sh)
+        cums.append((c0.0 + Double(sh.0), c0.1 + Double(sh.1)))
         frame += 1
         if grids.count > 3 {
             grids.removeFirst()
             times.removeFirst()
+            shifts.removeFirst()
+            cums.removeFirst()
         }
         guard grids.count == 3 else { return nil }
-        /* 가운데 장면(b)을 본다 — 앞(a) · 뒤(c) 모두와 다른 곳만 */
+        /* 가운데 장면(b)을 본다 — 앞(a) · 뒤(c) 모두와 다른 곳만. b(x) ≈ a(x + 밀림 b) ≈ c(x − 밀림 c) */
         let tb = times[1]
+        let (abx, aby) = shifts[1]
+        let (bcx, bcy) = shifts[2]
+        let (offX, offY) = cums[1]
         let fb = frame - 1
         guard tb >= quietUntil else {
             tracks.removeAll()
@@ -2003,18 +2028,32 @@ final class MotionTrigger {
             grids[1].withUnsafeBufferPointer { b in
                 grids[2].withUnsafeBufferPointer { c in
                     d.withUnsafeMutableBufferPointer { dp in
-                        for k in 0..<n {
-                            let bb = Int(b[k])
-                            let m = min(abs(bb - Int(a[k])), abs(bb - Int(c[k])))
-                            dp[k] = UInt8(m)
-                            sumD += m
+                        for j in 0..<gh {
+                            let ja = j + aby, jc = j - bcy
+                            let rowOk = ja >= 0 && ja < gh && jc >= 0 && jc < gh
+                            for i in 0..<gw {
+                                let k = j * gw + i
+                                let ia = i + abx, ic = i - bcx
+                                /* 옮기면 화면 밖인 칸은 견줄 것이 없다 — 바뀌지 않은 것으로 */
+                                guard rowOk, ia >= 0, ia < gw, ic >= 0, ic < gw else {
+                                    dp[k] = 0
+                                    continue
+                                }
+                                let bb = Int(b[k])
+                                let m = min(abs(bb - Int(a[ja * gw + ia])), abs(bb - Int(c[jc * gw + ic])))
+                                dp[k] = UInt8(m)
+                                sumD += m
+                            }
                         }
                     }
-                    /* 움직임 세기 — 가운데 70% 에서 장면 b 와 c 의 차이(예전 알아채기와 같은 뜻) */
+                    /* 움직임 세기 — 가운데 70% 에서 장면 b 와 c 의 차이(예전 알아채기와 같은 뜻, 밀림을 뺀 뒤) */
                     for j in Swift.stride(from: ey0, to: ey1, by: 2) {
+                        let jc = j - bcy
+                        guard jc >= 0, jc < gh else { continue }
                         for i in Swift.stride(from: ex0, to: ex1, by: 2) {
-                            let k = j * gw + i
-                            sumE += abs(Int(c[k]) - Int(b[k]))
+                            let ic = i - bcx
+                            guard ic >= 0, ic < gw else { continue }
+                            sumE += abs(Int(c[jc * gw + ic]) - Int(b[j * gw + i]))
                             nE += 1
                         }
                     }
@@ -2090,9 +2129,10 @@ final class MotionTrigger {
             let w = bl.maxX - bl.minX + 1, h = bl.maxY - bl.minY + 1
             let fill = Double(bl.area) / Double(w * h)
             guard Double(max(w, h)) / Double(min(w, h)) <= 3, fill >= 0.3 else { continue }
+            let rx = bl.sx / Double(bl.area), ry = bl.sy / Double(bl.area)
             points.append(Point(
-                f: fb, t: tb, x: bl.sx / Double(bl.area), y: bl.sy / Double(bl.area), a: Double(bl.area), fill: fill,
-                moved: Double(over) / Double(n)
+                f: fb, t: tb, x: rx + offX, y: ry + offY, a: Double(bl.area), fill: fill,
+                moved: Double(over) / Double(n), rx: rx, ry: ry
             ))
         }
 
@@ -2167,7 +2207,7 @@ final class MotionTrigger {
         follow = nil
         return Hit(
             kind: "end", atSec: last.t, strength: why, length: fl.count, areaFirst: fl[0].a, areaLast: last.a,
-            x: last.x, y: last.y, ballAt: fl[0].t
+            x: last.rx, y: last.ry, ballAt: fl[0].t
         )
     }
 
@@ -2188,12 +2228,12 @@ final class MotionTrigger {
             }
             guard Double(trend) >= 0.6 * Double(tr.count - 1), wobble <= MotionTrigger.MAX_WOBBLE else { continue }
             /*
-             * 길 동안 화면이 통째로 움직였으면 공이 아니다 — 손에 든 폰 · 폰을 만짐(2026-10-08 맥에 연결해 본 헛것: 바뀐 칸 평균 1.9~3.2%,
-             * 진짜 공 10개는 0.3~1.4%)
+             * 길 동안 화면이 통째로 움직였으면 공이 아니다 — 폰을 만짐 · 돌림(2026-10-08 맥에 연결해 본 헛것: 바뀐 칸 평균 1.9~3.2%,
+             * 진짜 공 10개는 0.3~1.4%). 2026-10-14 부터 이 값은 밀림을 뺀 뒤라, 손에 든 폰의 흔들림만으로는 넘지 않는다
              */
             guard tr.reduce(0, { $0 + $1.moved }) / Double(tr.count) <= MotionTrigger.MAX_MOVED else { continue }
             /* 가운데 70% 에서 시작 — 수평 단계에서 릴리스 포인트를 가운데 표적에 맞춘다. 가장자리(발 · 바닥 · 그물 끝)의 헛것을 뺀다 */
-            let fx = first.x / Double(gw), fy = first.y / Double(gh)
+            let fx = first.rx / Double(gw), fy = first.ry / Double(gh)
             guard fx >= 0.15, fx <= 0.85, fy >= 0.15, fy <= 0.85 else { continue }
             let ok = receding
                 ? (a0 >= MotionTrigger.MIN_AREA && a1 <= MotionTrigger.SHRINK * a0)
@@ -2201,10 +2241,49 @@ final class MotionTrigger {
             guard ok else { continue }
             return (Hit(
                 kind: "ball", atSec: first.t, strength: receding ? a0 / max(1, a1) : a1 / max(1, a0),
-                length: tr.count, areaFirst: a0, areaLast: a1, x: first.x, y: first.y
+                length: tr.count, areaFirst: a0, areaLast: a1, x: first.rx, y: first.ry
             ), tr)
         }
         return nil
+    }
+
+    /// 앞 장면(prev)에서 이 장면(cur)으로 화면이 밀린 만큼(줄인 칸, 정수) — cur(x, y) ≈ prev(x + dx, y + dy). 가운데 80% 를 4칸마다 짚어
+    /// 차이 합이 가장 작은 자리를 2칸 걸음 → 그 둘레 1칸으로 찾는다(장면당 견줌 90번쯤 × 5천 칸). 돌림 · 앞뒤 움직임은 못 뺀다 — 그것은
+    /// 그대로 남아 MAX_MOVED 가 거른다. 0 과 2% 안으로 같으면 0 — 삼각대 위 무늬 없는 화면이 1칸씩 떨지 않게.
+    private static func shiftOf(prev: [UInt8], cur: [UInt8], gw: Int, gh: Int) -> (Int, Int) {
+        let r = MotionTrigger.SHIFT_MAX
+        let x0 = max(r, gw / 10), x1 = gw - x0, y0 = max(r, gh / 10), y1 = gh - y0
+        guard x1 > x0, y1 > y0, prev.count == cur.count else { return (0, 0) }
+        return prev.withUnsafeBufferPointer { p -> (Int, Int) in
+            cur.withUnsafeBufferPointer { q -> (Int, Int) in
+                func cost(_ dx: Int, _ dy: Int) -> Int {
+                    var sum = 0
+                    for j in Swift.stride(from: y0, to: y1, by: 4) {
+                        let rq = j * gw, rp = (j + dy) * gw + dx
+                        for i in Swift.stride(from: x0, to: x1, by: 4) {
+                            sum += abs(Int(q[rq + i]) - Int(p[rp + i]))
+                        }
+                    }
+                    return sum
+                }
+                let zero = cost(0, 0)
+                var bx = 0, by = 0, bestC = zero
+                for dy in Swift.stride(from: -r, through: r, by: 2) {
+                    for dx in Swift.stride(from: -r, through: r, by: 2) where dx != 0 || dy != 0 {
+                        let c = cost(dx, dy)
+                        if c < bestC { bestC = c; bx = dx; by = dy }
+                    }
+                }
+                let cx = bx, cy = by
+                for dy in (cy - 1)...(cy + 1) where abs(dy) <= r {
+                    for dx in (cx - 1)...(cx + 1) where abs(dx) <= r && (dx != cx || dy != cy) {
+                        let c = cost(dx, dy)
+                        if c < bestC { bestC = c; bx = dx; by = dy }
+                    }
+                }
+                return Double(bestC) >= 0.98 * Double(zero) ? (0, 0) : (bx, by)
+            }
+        }
     }
 
     /// 자리(x, y)를 장면 차례에 맞춘 직선에서 벗어난 정도(제곱평균)
