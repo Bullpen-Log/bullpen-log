@@ -2024,35 +2024,56 @@ function DetailMenu({
     const el = ref.current;
     if (!el) return;
     if (open && !el.open) {
-      /* 지난번 끌어내려 닫은 흔적(data-dismiss)은 지우고 연다 — 이번엔 하단 탭 쪽으로 줄며 닫힌다 */
+      /* 지난번 끌어내려 닫은 흔적(data-dismiss · 폴더의 인라인 자리)은 지우고 연다 — 남으면 폴더가 아래에 뜬다 */
       el.removeAttribute('data-dismiss');
+      folder.current?.style.removeProperty('transform');
       el.showModal();
     }
     if (!open && el.open) {
-      /* 끌어내리다 놓아 닫을 때 — 남은 자리(인라인 transform)를 지워야 닫히는 움직임이 거기서 이어진다 */
+      /* 끌어내리다 놓아 닫을 때 — 인라인 자리를 닫는 것과 같은 순간에 지워야 내려가는 움직임이 거기서 이어진다 */
       el.style.transform = '';
+      folder.current?.style.removeProperty('transform');
       el.close();
     }
   }, [open]);
 
   /*
-   * 휴대폰 — 화면 어디서든 누른 채 아래로 끌면 폴더가 따라 내려오고, 충분히(80px) 내리거나 빠르게 튕기면 아래로 미끄러져
+   * 휴대폰 — 화면 어디서든 누른 채 아래로 끌면 폴더가 따라 내려오고, 충분히(100px) 내리거나 빠르게 튕기면 아래로 미끄러져
    * 닫힌다(2026-10-14 사용자: "화면 어디든 누른 상태로 아래로 이동하는 제스처면 아래로 내려가며 사라지게"). 덜 내리면 제자리로.
-   * 8px 넘게 움직였으면 손을 떼도 타일 · 막 누름으로 치지 않는다(onClickCapture). PC 팝업은 끌지 않는다.
+   *
+   * 2026-10-14 고침(사용자 "갑자기 메뉴가 밑으로 사라진다 · 밖을 눌러도 안 닫힌다"):
+   * - 끌기는 세로로 12px 넘게, 가로보다 세로로 더 움직였을 때만 — 타일을 누르다 손가락이 조금 떨려도 끌기가 되지 않는다.
+   *   닫힘 문턱도 올렸다(100px, 또는 48px 넘게 빠르게). 예전(8px · 24px 빠르게)에는 흔들린 누름이 폴더를 내렸다.
+   * - 끌어 닫은 뒤 폴더에 남던 인라인 transform 을 닫는 순간 · 여는 순간 지운다 — 남아 있으면 다음에 열 때 폴더가 그만큼 아래에 떴다.
+   * - 밖 누르기는 click 이 아니라 손을 뗄 때(pointerup) 정한다 — 누른 곳과 뗀 곳이 둘 다 폴더 밖이면 닫는다. 폴더 옆 빈 곳은
+   *   폭 전체의 감싸개가 받아 data-scrim 이 아니었고, 아이폰은 맨 div 에 click 을 잘 안 보낸다.
+   * PC 팝업은 끌지 않는다(바깥 누르기는 아래 onClick).
    */
   const folder = useRef<HTMLDivElement>(null);
   const drag = useRef<{
     id: number;
+    x: number;
     y: number;
     t: number;
     dy: number;
     on: boolean;
+    outside: boolean;
   } | null>(null);
   const swiped = useRef(false);
+  const inFolder = (t: EventTarget | null) =>
+    t instanceof Element && t.closest('[data-folder]') != null;
   const startDrag = (e: React.PointerEvent<HTMLDialogElement>) => {
     if (window.matchMedia(DESK_MEDIA).matches) return;
     if (e.pointerType === 'mouse' && e.button !== 0) return;
-    drag.current = { id: e.pointerId, y: e.clientY, t: e.timeStamp, dy: 0, on: false };
+    drag.current = {
+      id: e.pointerId,
+      x: e.clientX,
+      y: e.clientY,
+      t: e.timeStamp,
+      dy: 0,
+      on: false,
+      outside: !inFolder(e.target),
+    };
     swiped.current = false;
   };
   const moveDrag = (e: React.PointerEvent<HTMLDialogElement>) => {
@@ -2061,7 +2082,12 @@ function DetailMenu({
     if (!d || !f || e.pointerId !== d.id) return;
     const dy = e.clientY - d.y;
     if (!d.on) {
-      if (Math.abs(dy) < 8) return;
+      const dx = Math.abs(e.clientX - d.x);
+      if (dy < 12 || dy < dx) {
+        /* 위로 · 옆으로 많이 움직였으면 끌기도 누르기도 아니다 */
+        if (dx > 12 || dy < -12) d.outside = false;
+        return;
+      }
       d.on = true;
       swiped.current = true;
       try {
@@ -2071,23 +2097,30 @@ function DetailMenu({
       }
     }
     d.dy = Math.max(0, dy);
-    f.style.transform = `translateY(${d.dy}px)`;
+    f.style.setProperty('transform', `translateY(${d.dy}px)`);
   };
   const endDrag = (e: React.PointerEvent<HTMLDialogElement>) => {
     const d = drag.current;
     const f = folder.current;
     if (!d || !f || e.pointerId !== d.id) return;
     drag.current = null;
-    if (!d.on) return;
+    if (!d.on) {
+      /* 그냥 누름 — 누른 곳도 뗀 곳도 폴더 밖이면 닫는다(아이폰 폴더처럼) */
+      if (e.type === 'pointerup' && d.outside && !inFolder(e.target)) onClose();
+      return;
+    }
+    if (e.type === 'pointercancel') {
+      f.style.removeProperty('transform');
+      return;
+    }
     const speed = d.dy / Math.max(1, e.timeStamp - d.t);
-    f.style.transform = '';
-    if (d.dy > 80 || (d.dy > 24 && speed > 0.5)) {
-      /* 아래로 미끄러져 닫힌다 — globals.css 의 [data-dismiss='down'] */
+    if (d.dy > 100 || (d.dy > 48 && speed > 0.7)) {
+      /* 아래로 미끄러져 닫힌다 — globals.css 의 [data-dismiss='down']. 인라인 자리는 닫는 순간(useLayoutEffect) 지운다 */
       ref.current?.setAttribute('data-dismiss', 'down');
-      f.style.transform = `translateY(${d.dy}px)`;
       onClose();
       return;
     }
+    f.style.removeProperty('transform');
     if (d.dy > 0)
       f.animate(
         [{ transform: `translateY(${d.dy}px)` }, { transform: 'translateY(0)' }],
@@ -2131,10 +2164,10 @@ function DetailMenu({
           onClose();
         }
       }}
-      /* 배경을 눌러도 닫는다 — PC 는 dialog 자기 자신, 휴대폰은 폴더 밖 흐린 막(data-scrim)이 목표가 된다(아이폰 폴더처럼) */
+      /* 배경을 눌러도 닫는다 — PC 만. 휴대폰은 손을 뗄 때(endDrag) 정한다 — 두 번 닫지 않게 여기선 건너뛴다 */
       onClick={(e) => {
-        const t = e.target as HTMLElement;
-        if (t === ref.current || t.hasAttribute('data-scrim')) onClose();
+        if (!window.matchMedia(DESK_MEDIA).matches) return;
+        if (e.target === ref.current) onClose();
       }}
       onPointerDown={startDrag}
       onPointerMove={moveDrag}
