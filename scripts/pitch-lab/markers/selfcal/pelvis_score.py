@@ -22,6 +22,7 @@ def wrap(d):
     return (d + 180) % 360 - 180
 
 
+DUMP = []
 CUES = None  # 실험용 — 리스트를 넣으면 정답 장면마다 엔진 관절을 모은다
 PEL = ["L_ASIS", "R_ASIS", "L_PSIS", "R_PSIS"]
 
@@ -111,6 +112,12 @@ def run(ps, cal_path, world_path, quiet=False):
         kh = {sd: np.array([[np.interp(tt, tq, khp[sd][:, a], left=np.nan, right=np.nan) for a in range(3)] for tt in te]) for sd in "LR"}
         k4h = kh["L"] - kh["R"]
         eh = E[:, B.IX["lHip"]] - E[:, B.IX["rHip"]]
+        # 후보 골반 방향 끼우기(실험) — PELVIS_ALT 폴더의 pNN.npz 'hip'(장면 × 3, 엔진 좌표의 오른쪽 → 왼쪽 엉덩이 방향, 없는 장면은 NaN)
+        alt = os.environ.get("PELVIS_ALT")
+        if alt and os.path.exists(os.path.join(alt, f"p{p:02d}.npz")):
+            hv = np.load(os.path.join(alt, f"p{p:02d}.npz"))["hip"]
+            ok = ~np.isnan(hv[:, 0])
+            eh[ok] = (R @ hv[ok].T).T
         es = E[:, B.IX["lSh"]] - E[:, B.IX["rSh"]]
         ev = r["events"]
         for k in range(len(te)):
@@ -121,6 +128,8 @@ def run(ps, cal_path, world_path, quiet=False):
             se = wrap(yaw(es[k]) - yaw(eh[k]))
             kpe = wrap(yaw(k4h[k]) - pyaw[k]) if not np.isnan(k4h[k, 0]) else np.nan
             rows.append((p, B.phase_of(k, ev), float(pe), float(st), float(se), float(kpe)))
+            if os.environ.get("PELVIS_DUMP"):
+                DUMP.append((p, k, k - ev["footPlant"], B.phase_of(k, ev), float(pe)))
             if CUES is not None:
                 CUES.append({"p": p, "k": k, "ph": B.phase_of(k, ev), "truth": float(pyaw[k]), "E": E[k].tolist(), "ev": ev, "n": len(te)})
     if not quiet:
@@ -153,4 +162,6 @@ def summary(rows):
 if __name__ == "__main__":
     ps = [int(x) for x in sys.argv[1].split(",")]
     rows = run(ps, os.path.join(WORK, "cal16b.json"), os.path.join(WORK, "world.json"))
+    if os.environ.get("PELVIS_DUMP"):
+        json.dump(DUMP, open(os.environ["PELVIS_DUMP"], "w"))
     print(json.dumps(summary(rows)))

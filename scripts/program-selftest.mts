@@ -20,6 +20,9 @@ import {
   dayPlan,
   decideToday,
   finishLine,
+  inSeasonKind,
+  withKind,
+  SESSION_KIND_LABELS,
   isLightWeek,
   itemRx,
   lighterRx,
@@ -49,6 +52,8 @@ import {
   type ItemRx,
   type PinnableExercise,
   type ProgramPlan,
+  type InSeasonInput,
+  type SessionKind,
   type TodaySignals,
   type VariantKey,
 } from '../lib/program/program.ts';
@@ -77,6 +82,7 @@ import {
 /* 2판 P4 커밋 F — 경기 다음 날을 부하로(투구 기록 → facts → 어제 팔 부담, 앱과 같은 길) */
 import { parseThrowPlan } from '../lib/checkin.ts';
 import { yesterdayArmLoadOf } from '../lib/engine/arm-load.ts';
+import { lastOutingDateOf } from '../lib/engine/outing.ts';
 import { buildFacts, type CheckinLike } from '../lib/report/facts.ts';
 /* 2판 P6-7 — 올림 멈춤 글(영양 추세 깃발이 선 주에 무게 추천이 받는 글) */
 import { FUEL_HOLD_TEXT } from '../lib/nutrition/fuel-check.ts';
@@ -102,16 +108,22 @@ const rxOf = (p: ProgramPlan, day: number, v: Parameters<typeof itemRx>[2]) =>
 const LEGACY = plan('offseason-strength-power');
 {
   /* 옛 프로그램 — 2026-10-07 바꾸기 전 함수로 찍어 둔 1~24일차와 같아야 한다 */
-  const fixture = JSON.parse(
-    readFileSync(new URL('./fixtures/legacy-program.json', import.meta.url), 'utf-8')
-  );
+  /* 이름표(label)는 견주지 않는다 — 2026-10-14 'N주차 · M일차' → 'N번 세션'으로 글만 바뀌었다. 지키는 것은 처방이다 */
+  const fixture = (
+    JSON.parse(
+      readFileSync(new URL('./fixtures/legacy-program.json', import.meta.url), 'utf-8')
+    ) as Record<string, unknown>[]
+  ).map((row) => {
+    const rest = { ...row };
+    delete rest.label;
+    return rest;
+  });
   const now = [];
   for (let d = 1; d <= LEGACY.totalDays; d++) {
     const p = dayPlan(LEGACY, d);
     now.push({
       day: d,
       week: weekOfDay(LEGACY, d),
-      label: dayLabel(LEGACY, d),
       contrast: p.items.some((x) => x.group),
       items: p.items.map((x) => ({
         slot: x.slot,
@@ -143,21 +155,21 @@ const plans = PROGRAMS.flatMap((def) =>
 const allDays = (p: ProgramPlan) =>
   Array.from({ length: p.totalDays }, (_, d) => dayPlan(p, d + 1));
 check(
-  '프로그램 8개(성인 7 + 기본기 1) · 모두 4주 · 옛 프로그램은 목록에 없음',
-  PROGRAMS.length === 8 &&
-    PROGRAMS.filter((p) => audienceOf(p) === 'adult').length === 7 &&
+  '프로그램 9개(성인 8 + 기본기 1) · 모두 4주 · 옛 프로그램은 목록에 없음',
+  PROGRAMS.length === 9 &&
+    PROGRAMS.filter((p) => audienceOf(p) === 'adult').length === 8 &&
     PROGRAMS.filter((p) => audienceOf(p) === 'basics').length === 1 &&
     PROGRAMS.every((p) => p.weeks === 4) &&
     !PROGRAMS.some((p) => p.id === 'offseason-strength-power')
 );
 check(
   '주 3번 12회 · 주 2번 8회',
-  plans.every((p) => p.totalDays === p.perWeek * 4) && plans.length === 13
+  plans.every((p) => p.totalDays === p.perWeek * 4) && plans.length === 14
 );
 check(
-  '스트롱리프트 · 텍사스는 주 3번만',
+  '스트롱리프트는 주 3번만 · 텍사스 메소드는 지움(2026-10-14)',
   parseProgram('stronglifts-5x5:2') === null &&
-    parseProgram('texas-method:2') === null &&
+    parseProgram('texas-method') === null &&
     parseProgram('531:2') != null
 );
 check(
@@ -198,7 +210,6 @@ const p531 = plan('531');
 const p531x2 = plan('531:2');
 const bbb = plan('531-bbb');
 const jug = plan('juggernaut-5s');
-const texas = plan('texas-method');
 const sl = plan('stronglifts-5x5');
 const ws = plan('ws4sb');
 const fc = plan('french-contrast');
@@ -243,12 +254,17 @@ check(
   '주 2번 — 4주차(가벼운 주)는 7 · 8일차',
   weekOfDay(p531x2, 7) === 4 &&
     isLightWeek(p531x2, weekOfDay(p531x2, 8)) &&
-    dayLabel(p531x2, 3) === '2주차 · 1일차'
+    dayLabel(p531x2, 3) === '3번 세션'
 );
 check(
-  '5/3/1 은 들기 전에 점프, 밀기 날은 메디신볼',
+  '5/3/1 은 들기 전에 워밍업 점프(2세트 × 3회), 밀기 날은 메디신볼',
   dayPlan(p531, 1).items[0].variant === 'jump' &&
+    dayPlan(p531, 1).items[0].sets.length === 2 &&
     dayPlan(p531, 2).items[0].variant === 'medball'
+);
+check(
+  '저거넛은 점프 · 메디신볼 · 회전 던지기 없음',
+  allDays(jug).every((dp) => !dp.items.some((x) => ['jump', 'medball', 'rotationalThrow'].includes(x.variant)))
 );
 check(
   'BBB = 5/3/1 + 같은 운동 10회 5세트(4주는 없음)',
@@ -268,26 +284,6 @@ check(
     const x = rxOf(jug, 7, 'squat').sets;
     return x[x.length - 1].pct === 0.85 && x[x.length - 1].plus === true;
   })()
-);
-check(
-  '텍사스 = 많이 · 가볍게 · 최고 기록',
-  eq(
-    [1, 2, 3].map((d) => dayPlan(texas, d).label),
-    ['많이 하는 날', '가벼운 날', '최고 기록 날']
-  )
-);
-check(
-  '텍사스 금요일이 매주 오름',
-  [1, 2, 3, 4]
-    .map((w) => rxOf(texas, (w - 1) * 3 + 3, 'squat').sets[0].pct as number)
-    .every((v, i, a) => i === 0 || v > a[i - 1])
-);
-check(
-  '텍사스 월 = 금의 90%',
-  Math.abs(
-    (rxOf(texas, 1, 'squat').sets[0].pct as number) -
-      0.9 * (rxOf(texas, 3, 'squat').sets[0].pct as number)
-  ) < 1e-9
 );
 check(
   '스트롱리프트 A · B(B 날 오버헤드 프레스는 뺌)',
@@ -334,10 +330,28 @@ check(
       .every((p) => allDays(p).every((dp) => dp.items.every((x) => !x.group)))
   );
 }
+{
+  /* 2026-10-14 김민 — 파워가 든 프로그램은 매주 회전 던지기 */
+  const weekly = (key: string, v: string) => {
+    const p = plan(key);
+    const out: number[] = [];
+    for (let w = 1; w <= p.totalWeeks; w++) {
+      let n = 0;
+      for (let d = (w - 1) * p.perWeek + 1; d <= w * p.perWeek; d++)
+        n += dayPlan(p, d).items.filter((x) => x.variant === v).reduce((m, x) => m + x.sets.length, 0);
+      out.push(n);
+    }
+    return out;
+  };
+  const rotKeys = ['531', '531:2', '531-bbb', '531-bbb:2', 'ws4sb', 'ws4sb:2', 'french-contrast', 'french-contrast:2'];
+  const noRot = rotKeys.filter((k) => weekly(k, 'rotationalThrow').some((n) => n === 0));
+  check('파워가 든 프로그램은 매주 회전 던지기', noRot.length === 0, noRot.join(','));
+}
 check(
-  '일차 이름에 날 이름',
-  dayLabel(texas, 2) === '1주차 · 2일차 · 가벼운 날',
-  dayLabel(texas, 2)
+  '세션 이름에 날 이름 — 주차 · 일차 대신 N번 세션(2026-10-14)',
+  dayLabel(plan('stronglifts-5x5'), 2) === '2번 세션 · B 날' &&
+    dayLabel(plan('stronglifts-5x5'), 12).startsWith('12번 세션'),
+  dayLabel(plan('stronglifts-5x5'), 2)
 );
 check(
   '% 처방 한 줄',
@@ -392,8 +406,8 @@ check(
 {
   const list = programChoiceList();
   check(
-    '고르기 목록 8개, 주마다 4줄',
-    list.length === 8 && list.every((c) => c.weeks.length === 4)
+    '고르기 목록 9개, 주마다 4줄',
+    list.length === 9 && list.every((c) => c.weeks.length === 4)
   );
   check(
     '스트롱리프트는 % 안 씀, 5/3/1 은 씀',
@@ -433,6 +447,60 @@ console.log('\n1-1) 기본기 4주');
     d.items.reduce((m, x) => m + x.sets.length * (30 + x.restSeconds) / 60 + 0.5, 0);
   const longest = Math.max(...days.map(minutes));
   check('가장 긴 날도 40분 안', longest <= 40, `${Math.round(longest)}분`);
+}
+
+/* ── 1-2) 시즌 중 · 선발 · 불펜(2026-10-14) ─────────────────────────────── */
+console.log('\n1-2) 시즌 중');
+{
+  const st = plan('inseason-starter:2');
+  const rp = plan('inseason-reliever');
+  check('시즌 중 키 · 선발 주 2번 8회 · 불펜 주 3번 12회', st?.totalDays === 8 && rp?.totalDays === 12);
+  const base: InSeasonInput = { daysSinceGame: null, pitchesYesterday: 0, pitchesTwoDaysAgo: 0, daysSinceLift: 1, day: 1 };
+  const s = (d: number | null) => inSeasonKind('starter', { ...base, daysSinceGame: d });
+  check(
+    '선발: 등판 다음 날 하체 · 이틀 뒤 움직임만 · 사흘 뒤 상체 · 나흘 뒤 짧은 하체 · 모르면 전신',
+    s(1) === 'lower' && s(2) === null && s(3) === 'upper' && s(4) === 'shortLower' && s(null) === 'full' && s(6) === 'full'
+  );
+  const r = (o: Partial<typeof base>) => inSeasonKind('reliever', { ...base, ...o });
+  check(
+    '불펜: 어제 20구 넘게면 하체 · 그다음 날 움직임만 · 사흘 넘게 쉬면 전신 · 나머지는 짧은 하체 ↔ 상체',
+    r({ pitchesYesterday: 25 }) === 'lower' &&
+      r({ pitchesYesterday: 20 }) !== 'lower' &&
+      r({ pitchesTwoDaysAgo: 25 }) === null &&
+      r({ daysSinceLift: 3 }) === 'full' &&
+      r({ daysSinceLift: null }) === 'full' &&
+      r({ day: 1 }) === 'shortLower' &&
+      r({ day: 2 }) === 'shortUpper' &&
+      r({ pitchesYesterday: 10, daysSinceLift: 5, day: 2 }) === 'shortUpper'
+  );
+  const kinds = Object.keys(SESSION_KIND_LABELS) as SessionKind[];
+  const days = (p: ProgramPlan | null) =>
+    p ? kinds.flatMap((k) => [1, 2, 3, 4].map((w) => dayPlan(withKind(p, k), (w - 1) * p.perWeek + 1))) : [];
+  const all = [...days(st), ...days(rp)];
+  check(
+    '시즌 중 모든 날: 몸통 하나 이하 · 같은 변형 두 번 없음 · 4~6가지 · 매 세트 3개 남기고',
+    all.length === 40 &&
+      all.every((d) => {
+        const vs = d.items.map((x) => x.variant);
+        return (
+          d.items.filter((x) => x.slot === 'core').length <= 1 &&
+          new Set(vs).size === vs.length &&
+          vs.length >= 4 &&
+          vs.length <= 6 &&
+          d.items.every((x) => x.slot === 'power' || x.slot === 'core' || x.reserve === 3)
+        );
+      })
+  );
+  check(
+    '세션 종류 이름이 날 이름에',
+    st != null && dayLabel(withKind(st, 'upper'), 3) === '3번 세션 · 상체 날'
+  );
+  check('시즌 중 아닌 프로그램엔 종류를 안 얹음', withKind(plan('531')!, 'upper').kind === undefined);
+  const tag = readSessionProgram({ key: 'inseason-reliever', day: 2, week: 1, kind: 'shortUpper' });
+  check(
+    '운동 판 꼬리표가 세션 종류를 지킴 · 모르는 값은 버림',
+    tag?.kind === 'shortUpper' && readSessionProgram({ key: 'x', day: 1, week: 1, kind: 'leg' })?.kind === undefined
+  );
 }
 
 /* ── 2) 시작 자격 ─────────────────────────────── */
@@ -582,6 +650,13 @@ const lib: PinnableExercise[] = [
     '당기기: 철봉 없으면 풀업 빠짐, 두 손 먼저',
     !pull.includes('pull') && pull[0] === 'brow',
     pull.join(',')
+  );
+  const push = variantCandidates('push', lib, full, '중급').map((e) => e.id);
+  const pushNoBar = variantCandidates('push', lib, ['덤벨', '메디신볼', '벤치'], '중급').map((e) => e.id);
+  check(
+    '밀기: 바벨 벤치 프레스 먼저(2026-10-14), 바벨이 없으면 덤벨 벤치 프레스',
+    push[0] === 'bp' && pushNoBar[0] === 'dbp',
+    `${push.join(',')} / ${pushNoBar.join(',')}`
   );
   const pins = pickPinned(lib, full, '중급');
   check(
@@ -855,6 +930,45 @@ console.log('\n4-1) 경기 다음 날은 부하로(D3)');
         }),
       })
     );
+  /* 마지막 등판 날(2026-10-14) — 경기 기록 · 체크인 '오늘 등판' · 달력 등판 일정을 합침, 0구 줄만 있는 날은 뺌 */
+  {
+    const lastOf = (
+      logs: { daysAgo: number; pitches: number; sessionType: string }[],
+      plans: [number, string][],
+      events: [number, string][] | null
+    ) =>
+      lastOutingDateOf(
+        buildFacts({
+          nickname: '프로그램',
+          age: 22,
+          heightCm: 180,
+          baselineDailyLoad: 100,
+          today: ASOF,
+          logs: logs.map((l) => ({
+            date: ago(l.daysAgo),
+            pitchCount: l.pitches,
+            intensity: 9,
+            effortPct: 90,
+            sessionType: l.sessionType,
+            maxVelocity: null,
+            avgVelocity: null,
+          })),
+          checkins: plans.map(([n, p]) => checkinOn(n, p)),
+          memos: [],
+          ...(events ? { calendarEvents: events.map(([n, title]) => ({ date: ago(n).slice(0, 10), title })) } : {}),
+        })
+      );
+    const game4 = [{ daysAgo: 4, pitches: 80, sessionType: '경기' }];
+    check(
+      '마지막 등판 날: 경기 기록 · 체크인 답 · 달력 중 가장 늦은 날, 0구 줄만 남긴 날 · 오늘은 안 셈, 달력을 안 넘긴 옛 입력은 칸 없음',
+      lastOf(game4, [], []) === ago(4).slice(0, 10) &&
+        lastOf(game4, [[2, '오늘 등판']], []) === ago(2).slice(0, 10) &&
+        lastOf([], [], [[3, '리그 경기']]) === ago(3).slice(0, 10) &&
+        lastOf([{ daysAgo: 2, pitches: 0, sessionType: '휴식' }], [[2, '오늘 등판']], []) === null &&
+        lastOf([], [[0, '오늘 등판']], []) === null &&
+        lastOf(game4, [[2, '오늘 등판']], null) === null
+    );
+  }
   /* 어제 기록 한 줄 */
   const y1 = (pitches: number, pct: number, sessionType: string) => [
     { daysAgo: 1, pitches, pct, sessionType },
@@ -1289,6 +1403,17 @@ console.log('\n4-3) 중재 신호(2판 P6-2)');
   );
 }
 
+{
+  const st = plan('inseason-starter:2')!;
+  check(
+    '시즌 중: 어제 팔 부담이 커도 쉬지 않음 · 움직임만 하는 날은 쉼 · 등판 날 · 전날은 쉼',
+    decideToday(st, sig({ gameYesterday: true })).kind === 'go' &&
+      decideToday(st, sig({ inSeasonMove: true })).kind === 'rest' &&
+      decideToday(st, sig({ gameToday: true })).kind === 'rest' &&
+      decideToday(st, sig({ gameTomorrow: true })).kind === 'rest' &&
+      decideToday(plan('531')!, sig({ inSeasonMove: true })).kind === 'go'
+  );
+}
 /* ── 5) 일차 넘기기 ─────────────────────────────── */
 console.log('\n5) 일차 넘기기');
 const prog = { key: 'offseason-strength-power', day: 5, week: 2 };
@@ -1328,10 +1453,10 @@ check(
 );
 check(
   '끝내기 줄(미만)',
-  finishLine(5, 16, 7) === '16세트 중 7세트. 8세트를 하면 다음 일차로 가요',
+  finishLine(5, 16, 7) === '16세트 중 7세트. 8세트를 하면 다음 세션으로 가요',
   finishLine(5, 16, 7)
 );
-check('끝내기 줄(넘음)', finishLine(5, 15, 8) === '5일차를 마쳐요');
+check('끝내기 줄(넘음)', finishLine(5, 15, 8) === '5번 세션을 마쳐요');
 check(
   '준비 세트 줄',
   warmupLine(95) === '빈 봉×8 → 57.5×5 → 75×3 · 적지 않아도 돼요',

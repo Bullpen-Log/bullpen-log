@@ -11,6 +11,7 @@ import {
   type ProgramSessionToday,
 } from '@/lib/engine/arbiter';
 import { dayKindOf } from '@/lib/engine/microcycle';
+import { lastOutingDateOf } from '@/lib/engine/outing';
 import { withProgramCommitment } from '@/lib/engine/day-state';
 import { lastStrengthDates } from '@/lib/report/gather';
 import { loadHoldProgress } from '@/lib/nutrition/fuel-load';
@@ -26,6 +27,7 @@ import {
 } from '@/lib/report/daily-plan';
 import { estimate1RM } from '@/lib/workout/history';
 import { toDateKey } from '@/lib/pitch-stats';
+import type { ReportFacts } from '@/lib/report/facts';
 import {
   ARM_DEFER_REASON,
   CAUTION_TEXT,
@@ -38,6 +40,7 @@ import {
   dayLabel,
   dayPlan,
   decideToday,
+  inSeasonKind,
   lighterRx,
   painSlotsOf,
   parseProgram,
@@ -50,10 +53,12 @@ import {
   variantCandidates,
   variantLabel,
   warmupLine,
+  withKind,
   type ItemRx,
   type Pinned,
   type ProgramPlan,
   type RecoveryReason,
+  type SessionKind,
   type SlotAdjust,
   type SlotKind,
   type TodayDecision,
@@ -343,6 +348,8 @@ export type ProgramDayView = {
   arbitration: Arbitration;
   /** 오늘 이 프로그램의 판(열었거나 마침)과 그 판의 운동 — 없으면 null */
   session: (ProgramSessionToday & { exercises: ProgramTodayExercise[] }) | null;
+  /** 시즌 중 선발인데 마지막 등판 날을 모른다 — 카드가 물어본다(오늘 날짜 키). 그 밖엔 null */
+  askLastOuting: string | null;
 };
 
 export function progressOf(
@@ -361,8 +368,8 @@ export async function buildProgramDay(
   row: ProgramRow,
   user: { id: string; ownedEquipment: string[]; trainingLevel: string | null }
 ): Promise<ProgramDayView | null> {
-  const plan = parseProgram(row.programKey);
-  if (!plan) return null;
+  const basePlan = parseProgram(row.programKey);
+  if (!basePlan) return null;
   const todayKey = core.todayKey;
   const facts = core.facts;
   const [typesToday, session, lastProgramDate, strengthDates] = await Promise.all([
@@ -377,6 +384,10 @@ export async function buildProgramDay(
      */
     lastStrengthDates(user.id, core.midnight),
   ]);
+
+  /* 시즌 중 프로그램이면 오늘 세션 종류를 얹는다(null = 움직임만 하는 날 — 판정이 쉬게 하고, 넘기면 번갈아 차례대로) */
+  const kind = inSeasonKindOf(basePlan, facts, lastProgramDate, row.nextDay);
+  const plan = withKind(basePlan, kind);
 
   /*
    * 등판 답은 오늘 상태 한 장에서 — 매일 일정 · 투구 계획 · 암케어가 읽는 것과 같은 답(자체 시험 엇갈림 표가 같은 함수를 부른다).
@@ -461,6 +472,7 @@ export async function buildProgramDay(
     nextDay: row.nextDay,
     totalDays: plan.totalDays,
     lastDoneDate: keyOf(row.lastDoneDate),
+    kind: plan.kind,
   });
   const sessionToday: ProgramSessionToday | null =
     session?.program?.key === row.programKey
@@ -501,6 +513,7 @@ export async function buildProgramDay(
       (zone == null && facts.patterns.lastThrowDate != null),
     painSlots,
     slotReasons,
+    ...(basePlan.def.inSeason ? { inSeasonMove: kind === null } : {}),
     ...arbiter.signals,
   });
 
@@ -548,6 +561,10 @@ export async function buildProgramDay(
     dropped: [],
     repin,
     arbitration,
+    askLastOuting:
+      basePlan.def.inSeason === 'starter' && decision.kind !== 'done' && lastOutingDateOf(facts) == null
+        ? todayKey
+        : null,
     session:
       sessionToday && session
         ? {
@@ -737,6 +754,10 @@ export type ProgramCardProps = {
   basics: boolean;
   /** '12회 · 주 3번 · 4주' */
   subtitle: string;
+  /** 시즌 중 프로그램인가 — 카드 머리가 '시즌 중 프로그램' */
+  inSeason: boolean;
+  /** 마지막 등판을 물을 날(오늘 날짜 키) — ProgramDayView.askLastOuting */
+  askLastOuting: string | null;
   kind: TodayDecision['kind'];
   todayState: ProgramDayView['todayState'];
   day: number;
@@ -787,11 +808,15 @@ export function programCardProps(
     name: plan.def.name,
     basics: audience === 'basics',
     subtitle: planSubtitle(plan),
+    inSeason: plan.def.inSeason != null,
+    askLastOuting: view.askLastOuting,
     kind: view.decision.kind,
     todayState: view.todayState,
     day: view.day,
     dayLabel: view.dayLabel,
-    nextLabel: nextDay <= plan.totalDays ? dayLabel(plan, nextDay) : null,
+    /* 시즌 중 다음 세션 종류는 그날 상태로 정해서 아직 모른다 — 번호만 */
+    nextLabel:
+      nextDay > plan.totalDays ? null : plan.def.inSeason ? `${nextDay}번 세션` : dayLabel(plan, nextDay),
     completed: view.completed,
     skipped: view.skipped,
     total: plan.totalDays,
@@ -907,4 +932,28 @@ export async function programResult(
         };
       }),
   };
+}
+
+/**
+ * 시즌 중 프로그램의 오늘 세션 종류(program.ts inSeasonKind) — 재료는 facts(마지막 경기 날 · 어제 · 그저께 투구 수)와 마지막 프로그램 날.
+ * 시즌 중이 아니면 undefined, 움직임만 하는 날이면 null.
+ */
+export function inSeasonKindOf(
+  plan: ProgramPlan,
+  facts: ReportFacts,
+  lastProgramDate: string | null,
+  nextDay: number
+): SessionKind | null | undefined {
+  const role = plan.def.inSeason;
+  if (!role) return undefined;
+  const lastGame = lastOutingDateOf(facts);
+  const pitchesAgo = (n: number) =>
+    facts.patterns.recentOutings.find((o) => o.daysAgo === n)?.pitches ?? 0;
+  return inSeasonKind(role, {
+    daysSinceGame: lastGame ? daysBetween(lastGame, facts.asOf) : null,
+    pitchesYesterday: pitchesAgo(1),
+    pitchesTwoDaysAgo: pitchesAgo(2),
+    daysSinceLift: lastProgramDate ? daysBetween(lastProgramDate, facts.asOf) : null,
+    day: nextDay,
+  });
 }

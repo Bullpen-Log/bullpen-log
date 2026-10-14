@@ -10,6 +10,7 @@ import { DisclosureButton } from '@/components/disclosure';
 import { ErrorLine } from '@/components/error-line';
 import { ConfirmDialog } from '@/components/confirm-delete';
 import { uploadToStorage } from '@/components/video-upload';
+import { readVideoFps } from '@/lib/velocity-engine/video-fps';
 import { OFFLINE_MESSAGE, orOffline } from '@/lib/action-offline';
 import { quietRefresh } from '@/lib/quiet-refresh';
 import { removeLabSample, saveLabSample } from '@/app/actions/pitch-lab';
@@ -135,6 +136,8 @@ function UploadCard({ defaultHeightCm }: { defaultHeightCm: number | null }) {
   const [progress, setProgress] = useState<{ view: LabView; percent: number } | null>(
     null
   );
+  /* 고른 영상의 초당 장수(파일 머리에서 — 못 읽으면 null) */
+  const [fpsOf, setFpsOf] = useState<Partial<Record<LabView, number | null>>>({});
   const [error, setError] = useState<string>();
   const [, start] = useTransition();
 
@@ -149,7 +152,28 @@ function UploadCard({ defaultHeightCm }: { defaultHeightCm: number | null }) {
       return;
     }
     setFiles((f) => ({ ...f, [view]: file }));
+    setFpsOf((m) => ({ ...m, [view]: undefined }));
+    void readVideoFps(file).then((v) => {
+      setFpsOf((m) => {
+        const next = { ...m, [view]: v };
+        /* 두 영상 다 고속(원본 슬로모)이면 촬영 정보를 저절로 — 슬로모 배수 · 원본 */
+        const both = LAB_VIEWS.map((x) => next[x]);
+        if (both.every((x): x is number => x != null && x >= 100)) {
+          setFps(Math.min(...both) >= 200 ? '240' : '120');
+          setSource('original');
+        }
+        return next;
+      });
+    });
   };
+  const known = LAB_VIEWS.map((v) => fpsOf[v]).filter((x): x is number => x != null);
+  const slow = known.filter((x) => x <= 65);
+  const fpsWarn =
+    slow.length > 0
+      ? `초당 ${Math.round(Math.min(...slow))}장 영상이에요. 공을 놓는 순간 팔이 번지고, 슬로모를 내보낸 영상은 두 영상의 시간이 어긋나 3D가 덜 정확해요. 240fps 슬로모로 찍어 사진 앱의 원본 그대로 올려 주세요.`
+      : known.length === 2 && Math.abs(known[0] - known[1]) > 0.1 * Math.max(...known)
+        ? `두 영상의 초당 장수가 달라요(옆 ${Math.round(known[0])} · 뒤 ${Math.round(known[1])}). 같은 설정으로 찍으면 더 정확해요.`
+        : null;
 
   const upload = async () => {
     setError(undefined);
@@ -205,6 +229,9 @@ function UploadCard({ defaultHeightCm }: { defaultHeightCm: number | null }) {
         <p className="text-base font-semibold text-ink">샘플 올리기</p>
         <p className="text-xs text-muted">
           영상 하나에 {LAB_MAX_VIDEO_MB}MB까지예요. 카메라는 1배(기본 렌즈)로 찍어 주세요. 분석이 1배로 계산해요.
+        </p>
+        <p className="text-xs text-muted">
+          240fps 슬로모로 찍어, 내보내거나 화면 녹화하지 말고 원본 그대로 올리면 가장 정확해요.
         </p>
       </div>
 
@@ -296,6 +323,12 @@ function UploadCard({ defaultHeightCm }: { defaultHeightCm: number | null }) {
           </div>
         )}
       </div>
+
+      {fpsWarn && (
+        <p role="status" className="rounded-xl bg-warn-bg px-3 py-2 text-xs text-warn">
+          {fpsWarn}
+        </p>
+      )}
 
       {error && <ErrorLine>{error}</ErrorLine>}
 

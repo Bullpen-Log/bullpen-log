@@ -158,7 +158,7 @@ function SessionCard({
           {program.finishedToday ? '다음 세션' : '오늘의 세션'}
         </h2>
         <span className="text-xs text-muted">
-          {level.name} · {program.week}주차 {program.day}번째 · 15~20분
+          {level.name} · {program.index + 1}번 세션 · 15~20분
         </span>
       </div>
       {program.finishedToday && (
@@ -487,7 +487,7 @@ function LevelPicker({ current, index }: { current: LevelKey | null; index: numb
           setAsk(null);
         }}
         title="수준을 바꿀까요?"
-        detail={`${ask ? mechanicsLevel(ask).name : ''} 1주차 1번째 세션부터 시작해요. 지금까지 한 드릴 기록은 남아요.`}
+        detail={`${ask ? mechanicsLevel(ask).name : ''} 1번 세션부터 시작해요. 지금까지 한 드릴 기록은 남아요.`}
         confirmLabel="바꾸기"
         pending={pending}
         pendingLabel="바꾸는 중…"

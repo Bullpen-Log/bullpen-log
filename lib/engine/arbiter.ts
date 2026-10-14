@@ -65,6 +65,8 @@ import {
   dayPlan,
   daysBetween,
   parseProgram,
+  withKind,
+  type SessionKind,
   type SlotKind,
   type TodayDecision,
   type TodaySignals,
@@ -172,9 +174,11 @@ export type ProgramSessionToday = { state: 'active' | 'finished'; day: number };
 export function programDaySlotsOf(
   key: string,
   day: number,
-  exerciseOf?: (variant: VariantKey) => ClassifiableExercise | null | undefined
+  exerciseOf?: (variant: VariantKey) => ClassifiableExercise | null | undefined,
+  kind?: SessionKind
 ): ProgramDaySlots | null {
-  const plan = parseProgram(key);
+  const parsed = parseProgram(key);
+  const plan = parsed && withKind(parsed, kind);
   if (!plan || day < 1 || day > plan.totalDays) return null;
   const items = dayPlan(plan, day).items;
   const variants = items.map((x) => x.variant);
@@ -219,7 +223,7 @@ export function programCommitment(
   if (!commitment) return null;
   const plan = parseProgram(commitment.key);
   if (!plan) return null;
-  const slotsOf = (day: number) => programDaySlotsOf(commitment.key, day, exerciseOf);
+  const slotsOf = (day: number) => programDaySlotsOf(commitment.key, day, exerciseOf, commitment.kind);
   const since = commitment.daysSinceLastDone;
   const doneToday = since === 0;
 
@@ -703,13 +707,13 @@ export const OVERRIDE_TEXT = {
 } as const;
 
 /**
- * 오늘 프로그램 날 — 매일 일정 자리의 한 줄(D6). label 은 그날 일차 이름(program.ts dayLabel '2주차 · 1일차 · 밀기') — 바로 위 프로그램
+ * 오늘 프로그램 날 — 매일 일정 자리의 한 줄(D6). label 은 그날 일차 이름(program.ts dayLabel '4번 세션 · 밀기') — 바로 위 프로그램
  * 카드 · 트레이닝 홈 카드가 같은 이름을 보인다(2판 P6 검토: 처음부터 센 일차 '4일차'를 쓰면 카드의 '2주차 · 1일차'와 어긋났다).
- * '날이라'로 이어 받침을 가리지 않는다. 이름을 모르면 번호 없이.
+ * '차례라'로 이어 받침을 가리지 않는다. 이름을 모르면 번호 없이.
  */
 export const programDayText = (label?: string | null) =>
   label
-    ? `오늘은 근력 프로그램 ${label} 날이라 그 운동을 그대로 해요.`
+    ? `오늘은 근력 프로그램 ${label} 차례라 그 운동을 그대로 해요.`
     : '오늘은 근력 프로그램 날이라 그 운동을 그대로 해요.';
 
 /**
