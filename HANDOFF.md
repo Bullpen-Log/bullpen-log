@@ -18,7 +18,9 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 쓸 데 없으면 tint 가지를 지워도 된다.
 - `components/app-icon.tsx`: `look: 'tint' | 'clear'`, `active`. clear = 흰 14%(지금 화면 28%) 판 + 뒤 흐림 + 위 1px 빛 + 흰 테두리 + 흰 글리프.
 - `components/app-shell.tsx` DetailMenu 휴대폰 가지: 아래 시트 → dialog 가 화면 전체 흐린 막(`data-scrim`, 누르면 닫힘) + 가운데 유리 폴더(`data-folder`) + 위 흰 '메뉴'.
-  손잡이 · 끌어내려 닫기(startDrag …)는 걷었다(아이폰 폴더처럼 바깥 누르기 · X · Esc). 3열 64px, 묶음 제목 · 이름 · 내 정보 줄 흰색. **PC 팝업(desk:)은 안 건드렸다.**
+  손잡이 · X 는 없다 — 막 누르기 · Esc · **화면 어디서든 누른 채 아래로 끌면 폴더가 따라 내려오다 아래로 미끄러져 닫힌다**(dialog 의 startDrag, `data-dismiss=down`).
+  3열, 타일 크기는 화면 높이가 정한다(`--tile` 44~58px — 관리자 14개도 굴리지 않고 한 장, SE 667px 까지). 홈 타일은 휴대폰에 없고(하단 탭에 있다) '설정' 타일이
+  들어왔다(`onSettings`). **휴대폰 위 막대 오른쪽은 종만** — 톱니 · 내 정보 단추를 뺐다(MobileTopBar 의 그 props 도). **PC 팝업(desk:)은 안 건드렸다.**
 - `app/globals.css` 휴대폰 `dialog[data-drawer]`: 막(검정 50% + blur 18px) · `[data-folder]`(흰 16% · 어두운 테마 14% · blur 28px · 36px) · 하단 탭 쪽에서 0.55 → 1 로
   부풀어 뜸(320ms) · 줄이기면 옅어지기만. ::backdrop 에 blur 를 안 건 이유: 아이폰 WebKit 에서 판별 불가 → dialog 자신이 막.
 - **아이폰 앱에서 봐 주면 좋은 것**: 더보기를 열 때 뒤가 흐려지는지(WKWebView backdrop-filter — 네가 MobileTopBar 에서 겪은 깜빡임이 여기도 나는지. 막은

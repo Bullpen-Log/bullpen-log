@@ -30,13 +30,16 @@ export function AppIcon({
   look?: 'tint' | 'clear';
   /** 지금 화면(clear) — 판을 더 밝게 + 흰 테두리 */
   active?: boolean;
-  size?: number;
+  /** px, 또는 clear 에서는 CSS 길이('var(--tile)') — 폴더가 화면 높이에 맞춰 정한다 */
+  size?: number | string;
   className?: string;
   style?: CSSProperties;
 }) {
   const [t1, t2] = tint;
-  const g = Math.round(size * 0.5);
+  const px = typeof size === 'number' ? size : 60;
+  const g = Math.round(px * 0.5);
   if (look === 'clear') {
+    const gs = typeof size === 'number' ? g : `calc(${size} * 0.5)`;
     return (
       <span
         className={`relative isolate grid shrink-0 place-items-center overflow-hidden rounded-[22.5%] text-white [corner-shape:squircle] ${className}`}
@@ -62,7 +65,11 @@ export function AppIcon({
           width={g}
           height={g}
           stroke="#fff"
-          style={{ filter: 'drop-shadow(0 1px 1px rgba(0,0,0,0.35))' }}
+          style={{
+            width: gs,
+            height: gs,
+            filter: 'drop-shadow(0 1px 1px rgba(0,0,0,0.35))',
+          }}
         />
       </span>
     );

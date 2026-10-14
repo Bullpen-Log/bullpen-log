@@ -1635,6 +1635,8 @@ dialog[data-drawer]::backdrop {
     /* 폴더가 하단 탭 위에 앉게 — 아래는 탭 막대만큼 더 비운다 */
     padding: env(safe-area-inset-top) env(safe-area-inset-right)
       calc(env(safe-area-inset-bottom) + 4.5rem) env(safe-area-inset-left);
+    /* 끌어내려 닫기(app-shell startDrag) — 손가락 움직임을 브라우저 스크롤에 뺏기지 않는다 */
+    touch-action: none;
     opacity: 0;
     transform: none;
     transition:
@@ -1651,6 +1653,11 @@ dialog[data-drawer]::backdrop {
     background: transparent;
   }
   dialog[data-drawer] [data-folder] {
+    /*
+     * 타일 크기는 화면 높이가 정한다 — 굴리지 않고 한 장에 다 들어가게(2026-10-14 사용자). 관리자는 5줄 + 제목 둘 + 내 정보 줄.
+     * 844px(아이폰 14)에서 58px, 667px(SE)에서 44px 쯤.
+     */
+    --tile: clamp(44px, calc((100dvh - 31rem) / 5), 58px);
     width: calc(100% - 2.5rem);
     max-width: 22rem;
     border-radius: 36px;
@@ -1661,7 +1668,7 @@ dialog[data-drawer]::backdrop {
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.35),
       0 24px 60px -20px rgba(0, 0, 0, 0.7);
-    padding: 30px 18px 26px;
+    padding: 20px 18px 20px;
     /* 닫힌 모습 — 하단 탭 '더보기' 쪽(오른쪽 아래)으로 줄어 있다 */
     transform-origin: 88% 100%;
     transform: scale(0.55);
@@ -1704,6 +1711,21 @@ dialog[data-drawer]::backdrop {
   }
   html[data-theme='dark'] dialog[data-drawer] [data-folder] {
     background: rgba(255, 255, 255, 0.14);
+  }
+  /*
+   * 끌어내려 닫을 때(app-shell endDrag 가 data-dismiss=down 을 달고 닫는다) — 하단 탭 쪽으로 줄지 않고 아래로 미끄러져 사라진다.
+   * 막은 그만큼 천천히 옅어진다.
+   */
+  dialog[data-drawer][data-dismiss='down'] {
+    transition:
+      opacity 280ms ease-in,
+      overlay 280ms ease-in allow-discrete,
+      display 280ms ease-in allow-discrete;
+  }
+  dialog[data-drawer][data-dismiss='down']:not([open]) [data-folder] {
+    opacity: 1;
+    transform: translateY(110vh) !important;
+    transition: transform 280ms cubic-bezier(0.32, 0.72, 0, 1);
   }
 }
 
