@@ -17,7 +17,7 @@ import { useSpeedUnit } from '@/components/use-units';
 import { formatSpeed } from '@/lib/units';
 import { buzz, haptic } from '@/lib/haptics';
 import { OPEN_POPUP_TYPES } from '@/lib/transition-types';
-import type { FeedItem } from '@/lib/report/feed-items';
+import type { FeedItem, FeedVariant } from '@/lib/report/feed-items';
 import { OpenCheckinButton } from '@/components/notice-bell';
 import { MiniChart } from './highlights';
 
@@ -44,6 +44,23 @@ const DWELL_NONE_MS = 2000;
 const MANUAL_REST_MS = 10_000;
 /** 넘어가는 시간 */
 const SLIDE_MS = 320;
+/**
+ * 장 안의 말을 바꾸는 박자 — 장이 이만큼 넘어갈 때마다(자동 · ‹ › · 점 · 쓸기 모두) 다음 라운드. 2026-10-14 사용자: "뜨는 순서는
+ * 규칙적으로, 그 안의 정보만 랜덤, 바뀌는 조건은 세 장이 지났을 때".
+ */
+const ROUND_EVERY = 3;
+
+/** 후보 차례 — [0](기본 · 하이라이트 · 통증)은 첫 라운드에 고정, 나머지를 섞는다(Fisher–Yates). 같은 말이 연달아 안 나온다 */
+function shuffledOrders(items: FeedItem[]) {
+  return items.map((it) => {
+    const o = it.variants.map((_, j) => j);
+    for (let i = o.length - 1; i > 1; i--) {
+      const j = 1 + Math.floor(Math.random() * i);
+      [o[i], o[j]] = [o[j], o[i]];
+    }
+    return o;
+  });
+}
 /** 놓았을 때 넘어가는 기준 — 폭의 이만큼 */
 const SNAP_RATIO = 0.25;
 /** 빠르게 튕기면 짧게 밀어도 넘어간다(px/ms) */
@@ -71,20 +88,56 @@ export function FeedCard({ items }: { items: FeedItem[] }) {
   const reduce = useReducedMotion();
   /* 직접 넘긴 때(이벤트 timeStamp — performance.now 기준) — 그 뒤 MANUAL_REST_MS 동안 자동 넘김을 쉰다 */
   const manualAt = useRef(0);
+  /*
+   * 장마다 어떤 말을 보일지 — orders[i] 는 i번째 장의 후보 차례, round 는 지금 라운드(넘어간 횟수 ÷ ROUND_EVERY).
+   * 보고 있는 장은 그 장에 들어올 때의 라운드(seen)를 쓴다 — 라운드가 바뀌어도 눈앞의 글은 안 바뀌고, 다음에 들어오는 장부터 새 말.
+   */
+  const [orders, setOrders] = useState(() =>
+    items.map((it) => it.variants.map((_, j) => j))
+  );
+  const [round, setRound] = useState(0);
+  const [seen, setSeen] = useState<number[]>(() => items.map(() => 0));
+  const advances = useRef(0);
+  const variantOf = (i: number, landed: boolean): FeedVariant => {
+    const it = items[i];
+    const o = orders[i] ?? [];
+    const r = landed ? (seen[i] ?? 0) : round;
+    return it.variants[o[r % Math.max(1, o.length)] ?? 0] ?? it.variants[0];
+  };
+  /* 처음 그릴 때는 [0](기본) — 그린 뒤 바로 섞는다(그리는 중엔 무작위를 안 쓴다; 탭이 숨어 있어도 돌게 setTimeout) */
+  useEffect(() => {
+    const id = window.setTimeout(() => setOrders(shuffledOrders(items)), 0);
+    return () => window.clearTimeout(id);
+  }, [items]);
 
   const at = useCallback((i: number) => ((i % n) + n) % n, [n]);
+
+  /* 한 장 넘어감을 센다 — ROUND_EVERY 마다 다음 라운드. 돌려주는 값은 넘어간 뒤의 라운드 */
+  const bump = useCallback(() => {
+    advances.current += 1;
+    if (advances.current % ROUND_EVERY === 0) {
+      setRound(round + 1);
+      return round + 1;
+    }
+    return round;
+  }, [round]);
+  const land = useCallback((i: number, r: number) => {
+    setIndex(i);
+    setSeen((s) => (s[i] === r ? s : s.map((v, k) => (k === i ? r : v))));
+  }, []);
 
   /* 넘기기 — 움직임 줄이기면 바로, 아니면 밀어 보낸 뒤 index 를 바꾼다 */
   const go = useCallback(
     (dir: 1 | -1) => {
       if (n < 2 || moving || instant) return;
+      const r = bump();
       if (reduce) {
-        setIndex((i) => at(i + dir));
+        land(at(index + dir), r);
         return;
       }
       setMoving(dir);
     },
-    [n, moving, instant, reduce, at]
+    [n, moving, instant, reduce, at, index, bump, land]
   );
 
   /* 점을 눌러 그 장으로 — 이웃이면 밀어 보내고, 멀면 미끄러짐 없이 바로 바꾼다 */
@@ -97,7 +150,7 @@ export function FeedCard({ items }: { items: FeedItem[] }) {
     if (d === 1) go(1);
     else if (d === n - 1) go(-1);
     else {
-      setIndex(i);
+      land(i, bump());
       setInstant(true);
     }
   };
@@ -106,12 +159,12 @@ export function FeedCard({ items }: { items: FeedItem[] }) {
   useEffect(() => {
     if (moving == null) return;
     const t = window.setTimeout(() => {
-      setIndex((i) => at(i + moving));
+      land(at(index + moving), round);
       setMoving(null);
       setInstant(true);
     }, SLIDE_MS);
     return () => window.clearTimeout(t);
-  }, [moving, at]);
+  }, [moving, at, index, round, land]);
 
   /* 제자리로 돌린 그림이 한 번 그려진 뒤(두 장면) 다시 움직일 수 있게 */
   useEffect(() => {
@@ -218,11 +271,18 @@ export function FeedCard({ items }: { items: FeedItem[] }) {
     >
       {/*
        * 위 줄 — 왼쪽 이름표(장마다 바뀜), 오른쪽 ‹ ›. 장이 하나면 단추를 안 낸다.
-       * 높이는 예전 영양 카드보다 조금 길게(사용자 "하단 길이를 조금만 늘려줘") — 휴대폰 약 11.1rem · PC 약 8.6rem.
+       * 높이는 2026-10-14 2판에서 더 길게(사용자 "하단 길이를 늘리고 정보를 한 줄 더") — 장 9.75rem · PC 7rem, 셋째 줄과 큰 그래프 자리.
        */}
       <div className="flex items-center gap-1.5 px-(--block-pad) pt-(--block-pad)">
         {/* 이름표는 넘어가기 시작할 때 바로 다음 장 것으로 — 밀기가 끝난 뒤 바꾸면 한 박자 늦었다(2026-10-13 김민) */}
-        <FeedLabel item={moving != null ? items[at(index + moving)] : item} />
+        <FeedLabel
+          item={moving != null ? items[at(index + moving)] : item}
+          warn={
+            moving != null
+              ? !!variantOf(at(index + moving), false).warn
+              : !!variantOf(index, true).warn
+          }
+        />
         {/* ‹ › 는 PC 만 — 휴대폰은 오른쪽 아래 점으로(손가락에 너무 작았다) */}
         {n > 1 && (
           <span className="ml-auto hidden items-center gap-1 desk:flex">
@@ -258,7 +318,7 @@ export function FeedCard({ items }: { items: FeedItem[] }) {
        */}
       <div
         ref={frame}
-        className="relative h-[7.75rem] select-none touch-pan-y desk:h-[5.75rem]"
+        className="relative h-[9.75rem] select-none touch-pan-y desk:h-[7rem]"
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerEnd}
@@ -274,9 +334,30 @@ export function FeedCard({ items }: { items: FeedItem[] }) {
         aria-atomic
       >
         <div className="absolute inset-0 flex" style={trackStyle}>
-          {n > 1 && <FeedSlide item={prev} unit={unit} ghost offset={-1} />}
-          <FeedSlide item={item} unit={unit} offset={0} />
-          {n > 1 && <FeedSlide item={next} unit={unit} ghost offset={1} />}
+          {n > 1 && (
+            <FeedSlide
+              item={prev}
+              variant={variantOf(at(index - 1), false)}
+              unit={unit}
+              ghost
+              offset={-1}
+            />
+          )}
+          <FeedSlide
+            item={item}
+            variant={variantOf(index, true)}
+            unit={unit}
+            offset={0}
+          />
+          {n > 1 && (
+            <FeedSlide
+              item={next}
+              variant={variantOf(at(index + 1), false)}
+              unit={unit}
+              ghost
+              offset={1}
+            />
+          )}
         </div>
       </div>
       {/*
@@ -315,9 +396,9 @@ export function FeedCard({ items }: { items: FeedItem[] }) {
   );
 }
 
-function FeedLabel({ item }: { item: FeedItem }) {
+function FeedLabel({ item, warn }: { item: FeedItem; warn: boolean }) {
   const Icon = item.icon ? NAV_ICONS[item.icon] : null;
-  const tone = item.warn ? 'text-warn' : 'text-sky';
+  const tone = warn ? 'text-warn' : 'text-sky';
   return (
     <span className={`flex items-center gap-1.5 ${tone}`}>
       {Icon && <Icon aria-hidden className="h-4 w-4" strokeWidth={2.25} />}
@@ -336,42 +417,52 @@ function FeedLabel({ item }: { item: FeedItem }) {
  */
 function FeedSlide({
   item,
+  variant: v,
   unit,
   ghost = false,
   offset,
 }: {
   item: FeedItem;
+  /** 이 라운드에 보일 말(item.variants 가운데 하나) */
+  variant: FeedVariant;
   unit: ReturnType<typeof useSpeedUnit>;
   ghost?: boolean;
   offset: -1 | 0 | 1;
 }) {
-  const text = item.text
-    .replace('{speed}', formatSpeed(item.speed, unit) ?? '')
-    .replace('{diff}', formatSpeed(item.diff, unit) ?? '');
+  const warn = !!v.warn;
+  const text = v.text
+    .replace('{speed}', formatSpeed(v.speed, unit) ?? '')
+    .replace('{diff}', formatSpeed(v.diff, unit) ?? '');
   const face = (
     <>
       <span className="min-w-0 flex-1">
         <span
-          className={`block text-[17px] leading-snug font-semibold break-keep ${
-            item.warn ? 'text-warn' : item.tone === 'none' ? 'text-muted' : 'text-ink'
+          className={`block text-lg leading-snug font-semibold break-keep ${
+            warn ? 'text-warn' : item.tone === 'none' ? 'text-muted' : 'text-ink'
           }`}
         >
           {text}
         </span>
         {/* 기록 없음 장의 밑줄은 '남기러 가기' 알약 — 무엇을 적을 수 있는지 알려 주는 안내 */}
-        {item.sub && item.tone === 'none' ? (
+        {v.sub && item.tone === 'none' ? (
           <span className="mt-2 inline-flex min-h-7 items-center rounded-full border border-dashed border-line-strong px-2.5 text-xs font-medium text-sky">
-            {item.sub}
+            {v.sub}
           </span>
         ) : (
-          item.sub && (
+          v.sub && (
             <span className="mt-1.5 block text-[13px] leading-snug text-muted break-keep">
-              {item.sub}
+              {v.sub}
             </span>
           )
         )}
+        {/* 셋째 줄 — 정보 한 줄 더(2026-10-14 사용자: "한 개만 정보를 더") */}
+        {v.detail && (
+          <span className="mt-1 block text-xs leading-snug text-muted/80 break-keep">
+            {v.detail}
+          </span>
+        )}
       </span>
-      {item.chart && <MiniChart chart={item.chart} warn={!!item.warn} />}
+      {v.chart && <MiniChart chart={v.chart} warn={warn} size="lg" />}
       {item.href && (
         <LinkPending className="h-4 w-4 shrink-0 text-line-strong">
           <ChevronRight aria-hidden className="h-4 w-4 shrink-0 text-line-strong" />
@@ -379,9 +470,9 @@ function FeedSlide({
       )}
     </>
   );
-  /* 휴대폰은 밑에 점 쪽수 자리(pb-7) */
+  /* 휴대폰은 밑에 점 쪽수 자리(pb-8) */
   const cls =
-    'absolute inset-y-0 flex w-full items-center gap-3 px-(--block-pad) pb-7 desk:pb-(--block-pad)';
+    'absolute inset-y-0 flex w-full items-center gap-3 px-(--block-pad) pb-8 desk:pb-(--block-pad)';
   const style: CSSProperties = { left: `${offset * 100}%` };
   if (item.checkin && !item.href) {
     return (
