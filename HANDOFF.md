@@ -16,9 +16,9 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 받은 뒤 할 일 없음(DB 구조 · 패키지 그대로). 사용자: 드릴 37개를 "운동영상 및 트레이닝에서 모두 나중에 촬영으로 보내고 운동영상 촬영일정에서도 제거".
 **같이 쓰는 드릴 라이브러리 분류를 바꾼다**(AGENTS 3번 — 알림). 운동 63개 때와 같은 방식이다.
 - 드릴 분류에도 `나중에 촬영`(`lib/categories.ts` MECHANICS_CATEGORIES 끝). 드릴 영상 화면에는 그 칸으로 보이고(비면 안 보임), 트레이닝(메커니즘 프로그램 ·
-  요소별 드릴 · 3D 결과 화면 드릴)은 새 `trainingGuides()`(`lib/library-cache.ts`)로 그 칸을 뺀다. 드릴 기록 저장 · 설명 펼치기는 그대로 `visibleGuides()`. 캐시 `library:guides:v10`.
-- 원래 분류 `lib/shoot/later-drills.json`(스로잉 16 · 메디신볼 14 · 무브먼트 7). 운영 DB 는 백업 뒤 `node --env-file=.env scripts/drills-later-2026-10-14.mjs --apply`
-  (확인만은 인자 없이, 되돌리기는 `--restore 이름…`). 클라우드엔 `.env` 가 없어 이 스크립트는 아직 안 돌렸다.
+  요소별 드릴 · 3D 결과 화면 드릴)은 새 `trainingGuides()`(`lib/library-cache.ts`)로 그 칸을 뺀다. 드릴 기록 저장 · 설명 펼치기는 그대로 `visibleGuides()`. 캐시 `library:guides:v11`.
+- 원래 분류 `lib/shoot/later-drills.json`(스로잉 16 · 메디신볼 14 · 무브먼트 7). **운영 DB 에 적용함**(데스크톱, 백업 `db-2026-10-14-14-06.json`,
+  `scripts/drills-later-2026-10-14.mjs --apply` — 37개). v10 은 적용 전 내용이 담겼을 수 있어 v11 로 올렸다. 되돌리기는 `--restore 이름…`.
 - 촬영 계획: 야외 8~10주에서 37개를 빼고 남은 83개로 야외 3주를 다시 짰다(`buildOutdoorWeeks`, 주마다 약 1:35 — **8~10주 번호가 바뀜**, 체크는 id 로 붙어 그대로). 실내 1~7주는 그대로.
   shoot:test 70 통과 · 2 실패(예전부터 — 실내 하체 · 같은 부위 연속).
 

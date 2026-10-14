@@ -113,7 +113,7 @@ export const allGuides = unstable_cache(
    * :v9 — 같은 날 '스플릿 스탠스 발목 등척 밀기'를 운동 라이브러리 파워로 옮기고 '등척'을 '아이소메트릭'으로.
    * :v10 — 2026-10-14 드릴 37개를 '나중에 촬영'으로(scripts/drills-later-2026-10-14.mjs).
    */
-  ['library:guides:v10'],
+  ['library:guides:v11'],
   { tags: [LIBRARY_TAG] }
 );
 
