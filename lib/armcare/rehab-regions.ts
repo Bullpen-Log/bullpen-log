@@ -164,7 +164,6 @@ export const REHAB_REGIONS: Record<ArmcareAreaKey, RegionSpec> = {
       [
         '튜빙 내회전 0도',
         '튜빙 외회전 0도',
-        '사이드라잉 내회전',
         '사이드라잉 외회전',
         '프론 로우 + 외회전',
         '튜빙 서라투스 펀치',
@@ -364,7 +363,6 @@ export const REHAB_REGIONS: Record<ArmcareAreaKey, RegionSpec> = {
         '프론 로우 + 외회전',
       ],
       [
-        '덤벨 컬 에센트릭 오버로드',
         '에센트릭 밴드 바이셉스 컬',
         '전완 프로네이션 에센트릭 오버로드',
         '리스트 플렉션 에센트릭 오버로드',
@@ -402,7 +400,6 @@ export const REHAB_REGIONS: Record<ArmcareAreaKey, RegionSpec> = {
       ],
       [
         '에센트릭 밴드 바이셉스 컬',
-        '덤벨 컬 에센트릭 오버로드',
         '전완 수피네이션 에센트릭 오버로드',
         '조트만 컬',
         '하프닐링 튜빙 외회전 90도',

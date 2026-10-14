@@ -3,6 +3,7 @@ import { unstable_cache, updateTag } from 'next/cache';
 import type { ExerciseVideo, MechanicsGuide } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { clearPlaybackUrlCache } from '@/lib/storage';
+import { LATER_CATEGORY } from '@/lib/categories';
 
 /**
  * 운동·드릴 목록을 한 번만 읽어 두고 돌려쓴다.
@@ -88,7 +89,7 @@ export const allExercises = unstable_cache(
    * 오늘의 암케어가 루틴을 못 짠다. 관리자가 운동을 하나 저장해야(clearLibraryCache)
    * 풀리는데, 그것을 기다릴 일이 아니다.
    */
-  ['library:exercises:v25'],
+  ['library:exercises:v28'],
   { tags: [LIBRARY_TAG] }
 );
 
@@ -120,9 +121,11 @@ export async function visibleGuides(): Promise<CachedGuide[]> {
   return (await allGuides()).filter((g) => g.hiddenAt == null);
 }
 
-/** 숨기지 않은 운동만. 새 일정에 나갈 수 있는 것들이다. */
+/** 숨기지 않은 운동만. 새 일정에 나갈 수 있는 것들이다. '나중에 촬영'(영상 전)도 뺀다 — lib/categories.ts LATER_CATEGORY */
 export async function visibleExercises(): Promise<CachedExercise[]> {
-  return (await allExercises()).filter((ex) => ex.hiddenAt == null);
+  return (await allExercises()).filter(
+    (ex) => ex.hiddenAt == null && ex.category !== LATER_CATEGORY
+  );
 }
 
 /**

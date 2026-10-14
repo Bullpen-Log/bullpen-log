@@ -40,7 +40,16 @@ export const TRAINING_CATEGORIES = [
    * 운동 중에는 분으로 받는다.
    */
   { name: '유산소', tone: 'recovery' },
+  /*
+   * 나중에 촬영 — 영상이 아직 없어 뒤로 미룬 운동(2026-10-14 사용자). 워밍업처럼 어느 테마의 구성에도 없어 일정에 안 뽑히고,
+   * 새 일정 · 암케어 · 재활 · 루틴이 보는 visibleExercises(lib/library-cache.ts)에서도 빠진다. 운동 영상 화면에만 이 칸으로 보인다.
+   * 원래 분류는 lib/shoot/later.json — 찍으면 scripts/library-later-2026-10-14.mjs --restore 로 되돌린다.
+   */
+  { name: '나중에 촬영', tone: 'recovery' },
 ] as const satisfies readonly { name: string; tone: CategoryTone }[];
+
+/** 나중에 촬영할 운동의 분류 이름 — 추천 · 루틴에서 빠진다 */
+export const LATER_CATEGORY = '나중에 촬영';
 
 /** 투구 메커니즘 하위 카테고리 */
 export const MECHANICS_CATEGORIES = [
