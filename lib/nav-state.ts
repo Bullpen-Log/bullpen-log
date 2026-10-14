@@ -98,7 +98,9 @@ export function clearBarBack(href: string) {
 /* ── 3. 화면 이동 방향 ── */
 
 /** fade = 하단 탭 · 메뉴처럼 옆으로 나란한 곳으로 — 옅어지며 바뀐다 */
-export type NavDirection = 'push' | 'pop' | 'fade' | 'none';
+/** swipe-next · swipe-prev = 본문을 옆으로 쓸어 이웃 탭으로(components/tab-swipe.tsx) · zoom = 홈에서 구속 측정으로(멀리서 튀어나옴) */
+export type NavDirection =
+  'push' | 'pop' | 'fade' | 'none' | 'swipe-next' | 'swipe-prev' | 'zoom';
 
 /** '‹ 뒤로'가 router.back() 을 부르기 직전에 켠다 — 뒤따르는 popstate 를 '앱 안의 뒤로'로 읽게 */
 let backPressed = false;

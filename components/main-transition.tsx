@@ -23,7 +23,7 @@ function endNavMotion() {
   const main = document.querySelector('main');
   if (
     main &&
-    (nav === 'push' || nav === 'fade') &&
+    (nav === 'push' || nav === 'fade' || nav.startsWith('swipe')) &&
     main.getBoundingClientRect().top < 0
   ) {
     window.scrollTo(0, 0);
