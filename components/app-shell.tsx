@@ -1254,7 +1254,7 @@ export function AppNav({
                 !bellSheet &&
                 noticePanel(
                   panelPcId,
-                  'absolute right-0 top-full mt-3 w-72 max-h-[calc(100dvh-5rem)] overflow-y-auto overscroll-contain'
+                  'absolute right-0 top-full mt-3 w-72 max-h-[calc(100dvh-5rem)] overflow-x-hidden overflow-y-auto overscroll-contain'
                 )}
             </div>
 
@@ -1708,12 +1708,7 @@ function NavGlyph({
   return (
     <span className={`relative flex shrink-0 ${dim ? 'opacity-55' : ''}`} style={style}>
       <Icon aria-hidden className={className} />
-      {locked && (
-        <Lock
-          aria-hidden
-          className="absolute -bottom-1 -right-1 h-3 w-3"
-        />
-      )}
+      {locked && <Lock aria-hidden className="absolute -bottom-1 -right-1 h-3 w-3" />}
     </span>
   );
 }
@@ -2038,51 +2033,6 @@ function DetailMenu({
     }
   }, [open]);
 
-  /*
-   * 휴대폰 시트를 끌어내려 닫기 — 손잡이 · '메뉴' 줄을 잡고 아래로 끌면 따라 내려오고, 충분히(110px) 내리거나
-   * 빠르게 튕기면 닫힌다. 덜 내리면 제자리로 돌아간다. 손잡이를 달아 두고 끌리지 않아 고장 난 것처럼 보였다
-   * (2026-10-03 아이폰 점검). 앱의 다른 시트(components/modal.tsx)와 같은 숫자 · 같은 몸짓. 단추를 잡은 것은
-   * 끌기가 아니다. PC 오른쪽 판은 끌지 않는다.
-   */
-  const drag = useRef<{ id: number; y: number; t: number; dy: number } | null>(null);
-  const startDrag = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (
-      window.matchMedia(DESK_MEDIA).matches ||
-      (e.target as HTMLElement).closest('button, a')
-    )
-      return;
-    drag.current = { id: e.pointerId, y: e.clientY, t: performance.now(), dy: 0 };
-    e.currentTarget.setPointerCapture(e.pointerId);
-  };
-  const moveDrag = (e: React.PointerEvent<HTMLDivElement>) => {
-    const d = drag.current;
-    const el = ref.current;
-    if (!d || !el || e.pointerId !== d.id) return;
-    d.dy = Math.max(0, e.clientY - d.y);
-    el.style.transform = `translateY(${d.dy}px)`;
-  };
-  const endDrag = (e: React.PointerEvent<HTMLDivElement>) => {
-    const d = drag.current;
-    const el = ref.current;
-    if (!d || !el || e.pointerId !== d.id) return;
-    drag.current = null;
-    const speed = d.dy / Math.max(1, performance.now() - d.t);
-    if (d.dy > 110 || (d.dy > 30 && speed > 0.6)) {
-      onClose();
-      return;
-    }
-    if (d.dy > 0) {
-      el.animate(
-        [{ transform: `translateY(${d.dy}px)` }, { transform: 'translateY(0)' }],
-        {
-          duration: 220,
-          easing: 'cubic-bezier(0.32, 0.72, 0, 1)',
-        }
-      );
-    }
-    el.style.transform = '';
-  };
-
   return (
     <dialog
       ref={ref}
@@ -2116,9 +2066,10 @@ function DetailMenu({
           onClose();
         }
       }}
-      /* 배경을 눌러도 닫는다. 배경 클릭은 dialog 자기 자신을 목표로 삼는다. */
+      /* 배경을 눌러도 닫는다 — PC 는 dialog 자기 자신, 휴대폰은 폴더 밖 흐린 막(data-scrim)이 목표가 된다(아이폰 폴더처럼) */
       onClick={(e) => {
-        if (e.target === ref.current) onClose();
+        const t = e.target as HTMLElement;
+        if (t === ref.current || t.hasAttribute('data-scrim')) onClose();
       }}
       /*
        * 살짝 비친다(bg-surface/85). 유리처럼 뒤가 어렴풋이 보이되, 글자가 뒤와
@@ -2140,166 +2091,173 @@ function DetailMenu({
        * 휴대폰은 아래 시트(폭 전체 · 불투명 — globals.css 의 '휴대폰의 더보기'), PC 는 도크와 같은 유리
        * 팝업(w-72 · 비침 · 테두리 · 그림자).
        */
-      className="ui-chrome w-full border-0 bg-surface p-0 text-ink shadow-2xl backdrop:bg-black/40 desk:w-72 desk:border desk:border-line/70 desk:bg-surface/85 desk:shadow-xl desk:backdrop:bg-transparent desk:backdrop-blur-xl"
+      className="ui-chrome w-full border-0 bg-transparent p-0 text-ink shadow-none backdrop:bg-transparent desk:w-72 desk:border desk:border-line/70 desk:bg-surface/85 desk:shadow-xl desk:backdrop:bg-transparent desk:backdrop-blur-xl"
     >
       {/*
-        PC 팝업은 높이 한도(--pop-max)를 창에서 물려받아 안의 목록만 굴린다. 휴대폰 시트는 시계 자리 밑에서
-        멈추고 손잡이를 단다.
+        휴대폰(2026-10-14 2판) — 아이폰 앱 폴더처럼. dialog 는 화면 전체의 흐린 막(globals.css 의 휴대폰 dialog[data-drawer])이고,
+        그 가운데에 반투명 유리 폴더([data-folder])와 그 위 흰 '메뉴' 글자. 뒤(본문)가 흐려진 채 비친다. 막을 누르면 닫힌다.
+        PC 팝업은 그대로 — 이 바깥 div 는 desk:contents 로 사라지고, 높이 한도(--pop-max)를 창에서 물려받아 안의 목록만 굴린다.
       */}
-      <div className="flex max-h-[calc(100dvh-env(safe-area-inset-top)-0.75rem)] flex-col desk:max-h-[inherit]">
-        {/* 손잡이 · '메뉴' 줄 — 휴대폰은 여기를 잡고 끌어내려 닫는다(startDrag). PC 팝업에는 없다 — Esc · 바깥으로 닫는다 */}
-        <div
-          className="shrink-0 touch-none desk:hidden"
-          onPointerDown={startDrag}
-          onPointerMove={moveDrag}
-          onPointerUp={endDrag}
-          onPointerCancel={endDrag}
-        >
-          <div
+      <div data-scrim className="grid h-full w-full place-items-center desk:contents">
+        <div className="flex w-full max-w-full flex-col items-center gap-2.5 desk:contents">
+          <span
             aria-hidden
-            className="mx-auto mt-2 h-[5px] w-9 shrink-0 rounded-full bg-ink/15 desk:hidden"
-          />
-          <div className="flex h-12 shrink-0 items-center justify-between px-4 desk:border-b desk:border-line">
-            <span className="text-heading text-lg text-ink desk:text-sm">메뉴</span>
+            className="text-[15px] font-semibold tracking-tight text-white/90 desk:hidden"
+          >
+            메뉴
+          </span>
+          <div
+            data-folder
+            className="relative flex max-h-[calc(100dvh-env(safe-area-inset-top)-env(safe-area-inset-bottom)-7rem)] flex-col desk:max-h-[inherit]"
+          >
+            {/* 닫기 — 폴더 오른쪽 위 작은 흰 원(아이폰 폴더엔 없지만 읽기 프로그램 · 자판용). PC 팝업에는 없다 — Esc · 바깥으로 닫는다 */}
             <button
               type="button"
               onClick={onClose}
               aria-label="닫기"
-              className="-mr-2 grid h-11 w-11 place-items-center text-muted transition-colors hover:text-ink desk:mr-0 desk:h-auto desk:w-auto desk:rounded-lg desk:p-2 desk:hover:bg-ink/6"
+              className="absolute top-2.5 right-2.5 z-10 grid h-7 w-7 place-items-center rounded-full bg-white/15 text-white/80 transition-colors hover:bg-white/25 hover:text-white desk:hidden"
             >
-              <span className="grid h-8 w-8 place-items-center rounded-full bg-ink/6 desk:contents">
-                <X className="h-4 w-4 desk:h-5 desk:w-5" />
+              <X className="h-4 w-4" />
+            </button>
+
+            <nav className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain px-0 py-0 desk:p-2">
+              {/*
+            휴대폰은 아이폰 앱 폴더처럼 — 둥근 네모 아이콘 + 밑 이름, 한 줄에 넷(2026-10-13 김민). 제목 없는 묶음(홈 · 투구 · …)은
+            한 판으로 이어 붙인다(묶음마다 한 줄이면 칸이 비었다). PC 팝업은 예전 목록 그대로(desk:).
+          */}
+              {groups
+                .reduce<NavGroup[]>((out, g) => {
+                  const last = out[out.length - 1];
+                  if (!g.title && last && !last.title)
+                    out[out.length - 1] = { items: [...last.items, ...g.items] };
+                  else out.push(g);
+                  return out;
+                }, [])
+                .map((group, gi) => (
+                  <div
+                    key={group.title ?? `g${gi}`}
+                    /*
+                     * 제목 없는 묶음(홈·영상·트레이닝·분석)은 한 줄씩이라 붙여 두고,
+                     * 제목 있는 묶음 앞에서만 선을 긋고 띈다. 묶음마다 같은 간격을
+                     * 주면 위 넷 사이가 제목 자리처럼 비어 보였다.
+                     */
+                    className={
+                      group.title
+                        ? 'mt-4 grid grid-cols-3 gap-x-2 gap-y-5 desk:mt-2 desk:block desk:space-y-0.5 desk:border-t desk:border-line/70 desk:pt-2'
+                        : 'grid grid-cols-3 gap-x-2 gap-y-5 pt-1 desk:block desk:space-y-0.5 desk:pt-0'
+                    }
+                  >
+                    {group.title && (
+                      <p className="col-span-3 -mb-1 px-1 text-[11px] font-semibold tracking-normal text-white/60 desk:col-span-1 desk:mb-0 desk:px-3 desk:pb-1 desk:text-xs desk:text-ink/65">
+                        {group.title}
+                      </p>
+                    )}
+                    {group.items.map((item) => {
+                      const Icon = NAV_ICONS[item.icon];
+                      const active = isActive(item.href);
+                      const i = flyIndex(item.href);
+                      const quick = quickHrefs.includes(item.href);
+                      const fly = flyNames === 'all' || (flyNames === 'quick' && quick);
+                      const grow = grows && !quick;
+                      /*
+                       * 잠긴 탭(첫 설정 전, lib/nav.ts applyLocks)은 흐리게 + 아이콘 오른쪽 아래 자물쇠 — 막대와 같은 NavGlyph.
+                       * 흐림은 아이콘 · 이름에 따로 단다(링크에 달면 날아가는 아이콘에 안 실린다 — NavGlyph). 지금 그 설정 화면에
+                       * 있으면(파란 줄) 흐리지 않는다 — 파란 바탕 위 흰 글자를 흐리면 읽히지 않는다.
+                       */
+                      const dim = item.locked && !active;
+                      return (
+                        <Link
+                          key={item.href}
+                          href={item.href}
+                          aria-current={active ? 'page' : undefined}
+                          aria-label={
+                            item.locked ? `${item.label}(설정 전)` : undefined
+                          }
+                          data-locked={item.locked ? '' : undefined}
+                          onClick={onNavigate}
+                          /*
+                      누르는 칸은 44px 이상 — 예전에는 32px 남짓이라 옆 항목을 잘못 누르곤 했다.
+                    */
+                          className={`flex min-w-0 flex-col items-center gap-2 rounded-2xl px-0.5 py-1 text-center text-white transition-[colors,transform] duration-75 motion-safe:active:scale-95 desk:min-h-10 desk:flex-row desk:gap-3 desk:rounded-lg desk:px-3 desk:py-1.5 desk:text-left desk:text-ink desk:active:scale-100 ${
+                            active
+                              ? 'desk:bg-sky desk:text-white'
+                              : 'desk:hover:bg-ink/6 desk:active:bg-ink/6'
+                          }`}
+                        >
+                          {/*
+                      휴대폰 — 아이폰 앱 아이콘(유리 반사 · 입체 그림, components/app-icon.tsx, 2026-10-13 김민 "3D · 글라스"). 지금 화면은 파란 테두리,
+                      잠긴 탭은 흐리게 + 자물쇠. PC 팝업은 예전 아이콘(NavGlyph — 날아가는 연출 이름표가 여기 붙는다).
+                    */}
+                          <span
+                            className={`relative desk:hidden ${dim ? 'opacity-50' : ''}`}
+                          >
+                            <AppIcon
+                              Icon={Icon}
+                              tint={NAV_TINT[item.icon]}
+                              look="clear"
+                              active={active}
+                              size={64}
+                            />
+                            {item.locked && (
+                              <span className="absolute -right-1 -bottom-1 grid h-5 w-5 place-items-center rounded-full bg-white/25 text-white backdrop-blur">
+                                <Lock aria-hidden className="h-3 w-3" />
+                              </span>
+                            )}
+                          </span>
+                          <span className="hidden desk:contents">
+                            <NavGlyph
+                              Icon={Icon}
+                              locked={item.locked}
+                              dim={dim}
+                              className="h-5 w-5"
+                              style={
+                                fly
+                                  ? flyStyle(`nav-fly-${i}`, i, 'fly')
+                                  : grow
+                                    ? growStyle(
+                                        `nav-grow-${i}`,
+                                        growOrder.get(item.href) ?? 0
+                                      )
+                                    : undefined
+                              }
+                            />
+                          </span>
+                          <span
+                            className={`min-w-0 max-w-full truncate text-[12px] leading-4 text-white/92 desk:text-sm desk:leading-5 desk:text-inherit ${active ? 'font-semibold' : 'font-medium'} ${dim ? 'opacity-55' : ''}`}
+                          >
+                            {item.label}
+                          </span>
+                        </Link>
+                      );
+                    })}
+                  </div>
+                ))}
+            </nav>
+
+            {/*
+          메뉴를 닫고 내 정보 창을 연다.
+          내 정보가 화면이 아니라 창이 되면서 여기도 링크가 아니라 버튼이다.
+        */}
+            <button
+              type="button"
+              onClick={(e) => {
+                onNavigate();
+                onProfile(e.currentTarget);
+              }}
+              className="mt-5 flex w-full shrink-0 items-center gap-3 rounded-2xl border-t border-white/20 px-1 pt-4 pb-0 text-left transition-colors duration-75 hover:bg-white/10 desk:mt-0 desk:rounded-none desk:rounded-b-2xl desk:border-line desk:px-3 desk:py-2 desk:pb-2 desk:hover:bg-ink/6"
+            >
+              <Avatar nickname={nickname} avatarUrl={avatarUrl} />
+              <span className="min-w-0">
+                <span className="block truncate text-sm font-medium text-white desk:text-ink">
+                  {nickname}
+                </span>
+                <span className="block text-xs text-white/65 desk:text-ink/65">
+                  {isAdmin ? '관리자' : '내 정보'}
+                </span>
               </span>
             </button>
           </div>
         </div>
-
-        <nav className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-2.5 py-2.5 desk:p-2">
-          {/*
-            휴대폰은 아이폰 앱 폴더처럼 — 둥근 네모 아이콘 + 밑 이름, 한 줄에 넷(2026-10-13 김민). 제목 없는 묶음(홈 · 투구 · …)은
-            한 판으로 이어 붙인다(묶음마다 한 줄이면 칸이 비었다). PC 팝업은 예전 목록 그대로(desk:).
-          */}
-          {groups
-            .reduce<NavGroup[]>((out, g) => {
-              const last = out[out.length - 1];
-              if (!g.title && last && !last.title) out[out.length - 1] = { items: [...last.items, ...g.items] };
-              else out.push(g);
-              return out;
-            }, [])
-            .map((group, gi) => (
-            <div
-              key={group.title ?? `g${gi}`}
-              /*
-               * 제목 없는 묶음(홈·영상·트레이닝·분석)은 한 줄씩이라 붙여 두고,
-               * 제목 있는 묶음 앞에서만 선을 긋고 띈다. 묶음마다 같은 간격을
-               * 주면 위 넷 사이가 제목 자리처럼 비어 보였다.
-               */
-              className={
-                group.title
-                  ? 'mt-5 grid grid-cols-4 gap-x-1 gap-y-4 desk:mt-2 desk:block desk:space-y-0.5 desk:border-t desk:border-line/70 desk:pt-2'
-                  : 'grid grid-cols-4 gap-x-1 gap-y-4 pt-1 desk:block desk:space-y-0.5 desk:pt-0'
-              }
-            >
-              {group.title && (
-                <p className="col-span-4 px-3 text-xs font-semibold tracking-normal text-ink/65 desk:pb-1">
-                  {group.title}
-                </p>
-              )}
-              {group.items.map((item) => {
-                const Icon = NAV_ICONS[item.icon];
-                const active = isActive(item.href);
-                const i = flyIndex(item.href);
-                const quick = quickHrefs.includes(item.href);
-                const fly = flyNames === 'all' || (flyNames === 'quick' && quick);
-                const grow = grows && !quick;
-                /*
-                 * 잠긴 탭(첫 설정 전, lib/nav.ts applyLocks)은 흐리게 + 아이콘 오른쪽 아래 자물쇠 — 막대와 같은 NavGlyph.
-                 * 흐림은 아이콘 · 이름에 따로 단다(링크에 달면 날아가는 아이콘에 안 실린다 — NavGlyph). 지금 그 설정 화면에
-                 * 있으면(파란 줄) 흐리지 않는다 — 파란 바탕 위 흰 글자를 흐리면 읽히지 않는다.
-                 */
-                const dim = item.locked && !active;
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    aria-current={active ? 'page' : undefined}
-                    aria-label={item.locked ? `${item.label}(설정 전)` : undefined}
-                    data-locked={item.locked ? '' : undefined}
-                    onClick={onNavigate}
-                    /*
-                      누르는 칸은 44px 이상 — 예전에는 32px 남짓이라 옆 항목을 잘못 누르곤 했다.
-                    */
-                    className={`flex min-w-0 flex-col items-center gap-1.5 rounded-2xl px-0.5 py-1 text-center text-ink transition-[colors,transform] duration-75 motion-safe:active:scale-95 desk:min-h-10 desk:flex-row desk:gap-3 desk:rounded-lg desk:px-3 desk:py-1.5 desk:text-left desk:active:scale-100 ${
-                      active
-                        ? 'desk:bg-sky desk:text-white'
-                        : 'desk:hover:bg-ink/6 desk:active:bg-ink/6'
-                    }`}
-                  >
-                    {/*
-                      휴대폰 — 아이폰 앱 아이콘(유리 반사 · 입체 그림, components/app-icon.tsx, 2026-10-13 김민 "3D · 글라스"). 지금 화면은 파란 테두리,
-                      잠긴 탭은 흐리게 + 자물쇠. PC 팝업은 예전 아이콘(NavGlyph — 날아가는 연출 이름표가 여기 붙는다).
-                    */}
-                    <span className={`relative desk:hidden ${dim ? 'opacity-55' : ''}`}>
-                      <AppIcon
-                        Icon={Icon}
-                        tint={NAV_TINT[item.icon]}
-                        className={active ? 'outline-2 outline-offset-2 outline-sky' : ''}
-                      />
-                      {item.locked && (
-                        <span className="absolute -right-1 -bottom-1 grid h-5 w-5 place-items-center rounded-full bg-surface text-ink shadow">
-                          <Lock aria-hidden className="h-3 w-3" />
-                        </span>
-                      )}
-                    </span>
-                    <span className="hidden desk:contents">
-                      <NavGlyph
-                        Icon={Icon}
-                        locked={item.locked}
-                        dim={dim}
-                        className="h-5 w-5"
-                        style={
-                          fly
-                            ? flyStyle(`nav-fly-${i}`, i, 'fly')
-                            : grow
-                              ? growStyle(`nav-grow-${i}`, growOrder.get(item.href) ?? 0)
-                              : undefined
-                        }
-                      />
-                    </span>
-                    <span
-                      className={`min-w-0 max-w-full truncate text-xs leading-4 desk:text-sm desk:leading-5 ${active ? 'font-semibold' : 'font-medium'} ${dim ? 'opacity-55' : ''}`}
-                    >
-                      {item.label}
-                    </span>
-                  </Link>
-                );
-              })}
-            </div>
-          ))}
-        </nav>
-
-        {/*
-          메뉴를 닫고 내 정보 창을 연다.
-          내 정보가 화면이 아니라 창이 되면서 여기도 링크가 아니라 버튼이다.
-        */}
-        <button
-          type="button"
-          onClick={(e) => {
-            onNavigate();
-            onProfile(e.currentTarget);
-          }}
-          className="flex w-full shrink-0 items-center gap-3 border-t border-line px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] text-left transition-colors duration-75 hover:bg-ink/6 desk:rounded-b-2xl desk:px-3 desk:py-2 desk:pb-2"
-        >
-          <Avatar nickname={nickname} avatarUrl={avatarUrl} />
-          <span className="min-w-0">
-            <span className="block truncate text-sm font-medium text-ink">
-              {nickname}
-            </span>
-            <span className="block text-xs text-ink/65">
-              {isAdmin ? '관리자' : '내 정보'}
-            </span>
-          </span>
-        </button>
       </div>
     </dialog>
   );
@@ -2420,91 +2378,91 @@ function MobileTopBar({
       {/* 첫 화면에서 막대가 시계 밑에서 시작하도록 그만큼 비운다 */}
       <div aria-hidden className="h-[env(safe-area-inset-top)] shrink-0 desk:hidden" />
       {!bare && (
-      <header
-        /*
-         * 아이폰 앱의 내비게이션 막대(2026-10-04 '앱 틀을 네이티브처럼') — 왼쪽 '‹ 뒤로', 가운데 화면 제목(큰 제목이 가려졌을
-         * 때만), 오른쪽 종 · 설정 · 내 정보. 늘 그 자리에 있다.
-         *
-         * 예전에는 왼쪽에 로고가 있는 웹사이트 머리였고, 스크롤을 내리면 막대가 통째로 위로 숨었다 — 화면 중간에서는 지금
-         * 어느 화면인지, 어디로 돌아가는지가 보이지 않았다(점검: "가장 웹사이트 같은 곳"). 로고는 뺐다 — 홈은 아래 탭에 있다.
-         *
-         * 본문이 바뀌는 동안 막대는 움직이지 않는다(이름표 shell-topbar). 뒤 흐림(backdrop-blur)은 뺐다 — 바탕이 거의
-         * 불투명이라 흐림은 안 보이는데, 아이폰 사파리는 그 위로 무언가 움직일 때마다 흐림을 다시 계산하다 깜빡인다.
-         *
-         * 양옆 여백은 노치 자리와 견줘 큰 쪽 — 가로로 돌린 사파리에서 단추가 노치 밑에 들어갔다(2026-10-03).
-         */
-        ref={headerRef}
-        data-mobile-topbar
-        style={{ viewTransitionName: 'shell-topbar' }}
-        className={`sticky top-[env(safe-area-inset-top)] z-40 flex h-14 items-center gap-2 border-b pl-[max(0.5rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] transition-colors duration-200 desk:hidden ${
-          scrolled ? 'border-line bg-surface' : 'border-transparent bg-page'
-        }`}
-      >
-        <div className="flex min-w-0 flex-1 items-center">
-          {back && (
-            <button
-              type="button"
-              onClick={() => goBack(router, back.href)}
-              className="inline-flex min-h-11 max-w-[34vw] items-center gap-0.5 text-base text-sky transition-opacity active:opacity-60"
-            >
-              <ChevronLeft aria-hidden className="h-6 w-6 shrink-0" />
-              <span className="truncate">{back.label || '뒤로'}</span>
-            </button>
-          )}
-          {!back && home && <Wordmark className="pl-2 text-2xl text-ink" />}
-        </div>
-
-        {/* 가운데 제목 — 큰 제목이 막대 밑으로 가려졌을 때만(아이폰처럼). 화면 읽기 프로그램은 큰 제목을 읽는다 */}
-        <p
-          aria-hidden
-          className={`pointer-events-none absolute top-1/2 left-1/2 max-w-[44%] -translate-x-1/2 -translate-y-1/2 truncate text-base font-semibold text-ink transition-opacity duration-200 ${
-            bar.title && bar.collapsed ? 'opacity-100' : 'opacity-0'
+        <header
+          /*
+           * 아이폰 앱의 내비게이션 막대(2026-10-04 '앱 틀을 네이티브처럼') — 왼쪽 '‹ 뒤로', 가운데 화면 제목(큰 제목이 가려졌을
+           * 때만), 오른쪽 종 · 설정 · 내 정보. 늘 그 자리에 있다.
+           *
+           * 예전에는 왼쪽에 로고가 있는 웹사이트 머리였고, 스크롤을 내리면 막대가 통째로 위로 숨었다 — 화면 중간에서는 지금
+           * 어느 화면인지, 어디로 돌아가는지가 보이지 않았다(점검: "가장 웹사이트 같은 곳"). 로고는 뺐다 — 홈은 아래 탭에 있다.
+           *
+           * 본문이 바뀌는 동안 막대는 움직이지 않는다(이름표 shell-topbar). 뒤 흐림(backdrop-blur)은 뺐다 — 바탕이 거의
+           * 불투명이라 흐림은 안 보이는데, 아이폰 사파리는 그 위로 무언가 움직일 때마다 흐림을 다시 계산하다 깜빡인다.
+           *
+           * 양옆 여백은 노치 자리와 견줘 큰 쪽 — 가로로 돌린 사파리에서 단추가 노치 밑에 들어갔다(2026-10-03).
+           */
+          ref={headerRef}
+          data-mobile-topbar
+          style={{ viewTransitionName: 'shell-topbar' }}
+          className={`sticky top-[env(safe-area-inset-top)] z-40 flex h-14 items-center gap-2 border-b pl-[max(0.5rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] transition-colors duration-200 desk:hidden ${
+            scrolled ? 'border-line bg-surface' : 'border-transparent bg-page'
           }`}
         >
-          {bar.title}
-        </p>
+          <div className="flex min-w-0 flex-1 items-center">
+            {back && (
+              <button
+                type="button"
+                onClick={() => goBack(router, back.href)}
+                className="inline-flex min-h-11 max-w-[34vw] items-center gap-0.5 text-base text-sky transition-opacity active:opacity-60"
+              >
+                <ChevronLeft aria-hidden className="h-6 w-6 shrink-0" />
+                <span className="truncate">{back.label || '뒤로'}</span>
+              </button>
+            )}
+            {!back && home && <Wordmark className="pl-2 text-2xl text-ink" />}
+          </div>
 
-        {/* 종은 설정 왼쪽 — PC 막대와 같은 차례 */}
-        <div className="flex shrink-0 items-center gap-2">
-          {bell}
-          {/*
+          {/* 가운데 제목 — 큰 제목이 막대 밑으로 가려졌을 때만(아이폰처럼). 화면 읽기 프로그램은 큰 제목을 읽는다 */}
+          <p
+            aria-hidden
+            className={`pointer-events-none absolute top-1/2 left-1/2 max-w-[44%] -translate-x-1/2 -translate-y-1/2 truncate text-base font-semibold text-ink transition-opacity duration-200 ${
+              bar.title && bar.collapsed ? 'opacity-100' : 'opacity-0'
+            }`}
+          >
+            {bar.title}
+          </p>
+
+          {/* 종은 설정 왼쪽 — PC 막대와 같은 차례 */}
+          <div className="flex shrink-0 items-center gap-2">
+            {bell}
+            {/*
             창은 종 바로 뒤에 둔다 — 키보드로 종을 열면 Tab 한 번에 창 안으로 들어간다.
             맨 끝에 두면 톱니·사진을 먼저 거쳐야 했다. 자리는 막대에 붙여 잡는다(absolute).
           */}
-          {panel}
+            {panel}
 
-          <button
-            type="button"
-            onClick={(e) => {
-              setSpinning(true);
-              onSettings(e.currentTarget);
-            }}
-            aria-haspopup="dialog"
-            aria-expanded={settingsOpen}
-            aria-label="설정"
-            /* 보이는 동그라미는 36px 그대로, 누르는 자리만 44px(before) — 종과 같은 방법(2026-10-03 아이폰 점검) */
-            className="relative flex h-9 w-9 items-center justify-center rounded-full text-muted transition-colors duration-75 before:absolute before:-inset-1 before:rounded-full active:bg-surface-2 active:text-ink"
-          >
-            <Cog
-              aria-hidden
-              className={spinning ? 'h-5 w-5 motion-safe:animate-cog' : 'h-5 w-5'}
-              onAnimationEnd={() => setSpinning(false)}
-            />
-          </button>
+            <button
+              type="button"
+              onClick={(e) => {
+                setSpinning(true);
+                onSettings(e.currentTarget);
+              }}
+              aria-haspopup="dialog"
+              aria-expanded={settingsOpen}
+              aria-label="설정"
+              /* 보이는 동그라미는 36px 그대로, 누르는 자리만 44px(before) — 종과 같은 방법(2026-10-03 아이폰 점검) */
+              className="relative flex h-9 w-9 items-center justify-center rounded-full text-muted transition-colors duration-75 before:absolute before:-inset-1 before:rounded-full active:bg-surface-2 active:text-ink"
+            >
+              <Cog
+                aria-hidden
+                className={spinning ? 'h-5 w-5 motion-safe:animate-cog' : 'h-5 w-5'}
+                onAnimationEnd={() => setSpinning(false)}
+              />
+            </button>
 
-          <button
-            type="button"
-            onClick={(e) => onProfile(e.currentTarget)}
-            aria-haspopup="dialog"
-            aria-expanded={profileOpen}
-            aria-label="내 정보"
-            /* 사진은 36px 그대로, 누르는 자리만 44px(before) */
-            className="relative rounded-full transition-opacity duration-75 before:absolute before:-inset-1 before:rounded-full active:opacity-70"
-          >
-            <Avatar nickname={nickname} avatarUrl={avatarUrl} />
-          </button>
-        </div>
-      </header>
+            <button
+              type="button"
+              onClick={(e) => onProfile(e.currentTarget)}
+              aria-haspopup="dialog"
+              aria-expanded={profileOpen}
+              aria-label="내 정보"
+              /* 사진은 36px 그대로, 누르는 자리만 44px(before) */
+              className="relative rounded-full transition-opacity duration-75 before:absolute before:-inset-1 before:rounded-full active:opacity-70"
+            >
+              <Avatar nickname={nickname} avatarUrl={avatarUrl} />
+            </button>
+          </div>
+        </header>
       )}
     </>
   );
@@ -2562,12 +2520,7 @@ function TabFace({
         pending ? 'font-semibold text-sky' : active ? 'font-semibold' : ''
       }`}
     >
-      <NavGlyph
-        Icon={Icon}
-        locked={locked}
-        dim={false}
-        className="h-[26px] w-[26px]"
-      />
+      <NavGlyph Icon={Icon} locked={locked} dim={false} className="h-[26px] w-[26px]" />
       {label}
     </span>
   );
@@ -2638,9 +2591,11 @@ function MobileTabs({
    * 짧게 누르면 예전처럼 그 칸으로. drag 는 손가락의 알약 안 자리(px)이고 null 이면 끌지 않는 중이다. 끌고 있는 동안은
    * 원래 칸의 배경을 숨기고 떠다니는 배경 하나를 그린다(같은 이름표를 둘 두면 전환이 깨진다).
    */
-  const [drag, setDrag] = useState<{ x: number; y: number; under: string | null } | null>(
-    null
-  );
+  const [drag, setDrag] = useState<{
+    x: number;
+    y: number;
+    under: string | null;
+  } | null>(null);
   const hold = useRef<{ id: number; x: number; y: number; timer: number } | null>(null);
   const dragged = useRef(false);
   /** 손가락 자리에서 가장 가까운 칸 — 가로(휴대폰) · 세로(패드) 어느 쪽이든 중심 거리로 */
