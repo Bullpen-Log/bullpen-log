@@ -5596,13 +5596,26 @@ console.log('\n[암케어] 부위·근육 · 오늘의 루틴 · 부하');
     strength.items.map((it) => `${it.area}:${titleOf(it.exerciseId)}`).join(' / ')
   );
   check(
-    '강화 — 약 20분 (15~22분)',
-    strength.estimatedMinutes >= 15 && strength.estimatedMinutes <= 22,
+    '강화 — 약 25분 (22~29분)',
+    strength.estimatedMinutes >= 22 && strength.estimatedMinutes <= 29,
     `${strength.items.length}개 · ${strength.estimatedMinutes}분`
   );
   check(
-    '강화 — 2세트씩',
-    strength.items.every((it) => it.sets === 2)
+    '강화 — 1~2세트, 어깨 뒤 · 팔꿈치 안 · 밖 첫 자리는 2세트',
+    strength.items.every((it) => it.sets === 1 || it.sets === 2) &&
+      (['shoulder-back', 'elbow-inner', 'elbow-outer'] as const).every(
+        (a) => strength.items.find((it) => it.area === a)?.sets === 2
+      )
+  );
+  /* 2026-10-14 김민: 어깨 · 견갑 · 팔꿈치 = 강화 4 · 2 · 4, 회복 3 · 2 · 3 */
+  const ratio = (r: typeof strength) => {
+    const n = (keys: string[]) => r.items.filter((it) => keys.includes(it.area)).length;
+    return [n(['shoulder-back', 'shoulder-front', 'shoulder-top']), n(['scapula']), n(['elbow-inner', 'elbow-outer'])].join('/');
+  };
+  check(
+    '부위 비율 — 강화 4/2/4 · 회복 3/2/3 (어깨/견갑/팔꿈치)',
+    ratio(strength) === '4/2/4' && ratio(build('recovery')) === '3/2/3',
+    `${ratio(strength)} · ${ratio(build('recovery'))}`
   );
   /* 완요골근이 주 근육인 운동은 해머컬 계열이다 — 함께 뺀다 */
   const armStrength = [...strength.items, ...build('recovery').items].filter((it) =>
@@ -5690,10 +5703,11 @@ console.log('\n[암케어] 부위·근육 · 오늘의 루틴 · 부하');
     heavyIn.map((it) => titleOf(it.exerciseId)).join(', ')
   );
   check(
-    '회복 — 1세트씩, 셋 이상, 10분 안쪽',
-    recovery.items.every((it) => it.sets === 1) &&
+    '회복 — 1~2세트, 셋 이상, 약 20분 (16~22분)',
+    recovery.items.every((it) => it.sets === 1 || it.sets === 2) &&
       recovery.items.length >= 3 &&
-      recovery.estimatedMinutes <= 11,
+      recovery.estimatedMinutes >= 16 &&
+      recovery.estimatedMinutes <= 22,
     `${recovery.items.length}개 · ${recovery.estimatedMinutes}분 · ` +
       recovery.items.map((it) => titleOf(it.exerciseId)).join(' / ')
   );

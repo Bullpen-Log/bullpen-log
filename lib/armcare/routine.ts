@@ -271,13 +271,11 @@ export type ArmcareRoutine = {
 /**
  * 부위를 채우는 차례 — 앞의 것이 먼저, 시간이 모자라면 뒤의 것이 빠진다.
  *
- * 강화는 여섯 부위를 하나씩 먼저 채운다: 어깨 후방(외회전) → 견갑 → 팔꿈치
- * 내측 → 어깨 전방(내회전) → 어깨 상부 → 팔꿈치 외측. 투수에게 가장 흔한 부상
- * 자리부터다 — 감속을 버티는 어깨 뒤쪽과, 인대 부담을 나눠 받는 팔꿈치 안쪽.
- * 이 여섯이 필수 자리(CORE_SLOTS)고, 시간이 남으면 견갑과 어깨 후방을 하나씩
- * 더한다.
- *
- * 회복은 가볍게 다섯 — 어깨 뒤·앞을 버티기로, 견갑 둘, 팔꿈치 안쪽 하나.
+ * 어깨 · 견갑 · 팔꿈치를 강화 4 · 2 · 4, 회복 3 · 2 · 3 자리로 담는다(2026-10-14 김민 — 어깨 비중은 괜찮은데 팔꿈치가
+ * 부족하다. 예전엔 강화 4 · 2 · 2, 회복 2 · 2 · 1 이라 팔꿈치 바깥은 강화의 마지막 필수 자리, 회복엔 안쪽 하나뿐이었다).
+ * 차례는 투수에게 가장 흔한 부상 자리부터 — 감속을 버티는 어깨 뒤쪽과, 인대 부담을 나눠 받는 팔꿈치 안쪽.
+ * 모든 자리가 필수(CORE_SLOTS)라 시간이 빠듯해도 비율이 무너지지 않는다. 같은 부위 두 자리는 주 근육이 겹치지
+ * 않는 운동을 먼저 고른다(아래 usedMuscles — 팔꿈치 안쪽이면 손목 굽히기 하나 · 아래팔 안쪽 돌리기나 쥐기 하나).
  *
  * 팔꿈치 후방(삼두근)·전방(이두근)은 루틴에 넣지 않는다. 푸시다운·컬 같은 팔
  * 근력 운동이라, 관리 루틴에 끼우면 가볍게 챙기려던 날의 결이 흐려진다. 강화
@@ -290,12 +288,23 @@ const SLOTS: Record<FixedKind, readonly ArmcareAreaKey[]> = {
     'scapula',
     'elbow-inner',
     'shoulder-front',
+    'elbow-outer',
     'shoulder-top',
+    'elbow-inner',
+    'shoulder-back',
+    'scapula',
+    'elbow-outer',
+  ],
+  recovery: [
+    'shoulder-back',
+    'scapula',
+    'elbow-inner',
+    'shoulder-front',
     'elbow-outer',
     'scapula',
-    'shoulder-back',
+    'shoulder-top',
+    'elbow-inner',
   ],
-  recovery: ['shoulder-back', 'scapula', 'shoulder-front', 'scapula', 'elbow-inner'],
 };
 
 /**
@@ -318,25 +327,28 @@ const SLOT_MUSCLES: Partial<Record<ArmcareAreaKey, readonly string[]>> = {
  * 짧은 견갑 운동이 대신 들어갔다 — 부위를 고르게 담는 것이 이 루틴의 알맹이인데
  * 한 부위가 통째로 빠졌다. 뒤의 덤 자리는 한도 안에서만 넣는다.
  */
-const CORE_SLOTS: Record<FixedKind, number> = { strength: 6, recovery: 5 };
+const CORE_SLOTS: Record<FixedKind, number> = { strength: 10, recovery: 8 };
+
+/**
+ * 자리마다 세트 — SLOTS 와 같은 차례(2026-10-14 김민: 강화 약 25분 · 회복 약 20분, '회복할 때도 많이').
+ * 강화는 어깨 뒤 · 팔꿈치 안 · 팔꿈치 밖의 첫 자리만 2세트, 나머지는 1세트(실제 라이브러리로 23~27분).
+ * 회복은 1세트씩, 가장 흔한 부상 자리 둘(어깨 뒤 · 팔꿈치 안)만 2세트(18~20분).
+ */
+const SLOT_SETS: Record<FixedKind, readonly number[]> = {
+  strength: [2, 1, 2, 1, 2, 1, 1, 1, 1, 1],
+  recovery: [2, 1, 2, 1, 1, 1, 1, 1],
+};
 /** 필수 자리가 넘겨도 되는 시간 */
 const CORE_SLACK_MINUTES = 5;
 
 /**
- * 루틴 시간(분)과 세트.
- *
- * 처음 설계는 강화 3세트였다. 그런데 암케어 운동은 거의 다 '2세트 × 10회(좌우
- * 각각) · 휴식 45초'라, 3세트로 하면 여섯 부위에 30분이 넘는다. 부위를 고르게
- * 담는 것이 이 루틴의 알맹이라 세트를 2로 두고(성장기 권장과도 같다) 20분에
- * 맞췄다.
- *
- * 회복은 1세트 — 피가 돌 만큼만. 다섯 개에 10분이 안 된다.
- *
- * 통증 루틴도 1세트 · 약 10분이다(2026-10-03 정함). 아픈 날은 많이 하는 날이 아니다.
+ * 루틴 시간(분)과 기본 세트. 처음엔 강화 2세트 · 20분, 회복 1세트 · 9분이었다(부위를 고르게 담느라 세트를 줄였다).
+ * 2026-10-14 김민이 운동량이 적다고 해 자리를 늘리고(강화 10 · 회복 8) 자리마다 세트를 정했다(SLOT_SETS) — 강화 약 25분,
+ * 회복 약 20분. 통증 루틴은 그대로 1세트 · 약 10분이다(아픈 날은 많이 하는 날이 아니다).
  */
 const BUDGET_MINUTES: Record<ArmcareKind, number> = {
-  strength: 20,
-  recovery: 9,
+  strength: 25,
+  recovery: 20,
   pain: 10,
 };
 const SETS: Record<ArmcareKind, number> = { strength: 2, recovery: 1, pain: 1 };
@@ -485,6 +497,8 @@ type Slot = {
   core: boolean;
   /** '낮음' 이하만 — 통증 루틴의 견갑 · 주변 자리 */
   lightOnly: boolean;
+  /** 이 자리의 세트 — 없으면 종류의 세트(SETS) */
+  sets?: number;
 };
 
 /**
@@ -614,11 +628,11 @@ export function buildArmcareRoutine({
     (previous?.items ?? []).map((it) => [it.exerciseId, it.area])
   );
 
-  const put = (ex: ArmcareCandidate, area: ArmcareAreaKey) => {
-    items.push({ exerciseId: ex.id, area, sets });
+  const put = (ex: ArmcareCandidate, area: ArmcareAreaKey, n = sets) => {
+    items.push({ exerciseId: ex.id, area, sets: n });
     taken.add(ex.id);
     if (ex.targetMuscles[0]) usedMuscles.add(ex.targetMuscles[0]);
-    used += armcareMinutes(ex, sets);
+    used += armcareMinutes(ex, n);
     if (ELBOW_AREAS.includes(area)) elbowCount++;
   };
 
@@ -640,6 +654,7 @@ export function buildArmcareRoutine({
       : SLOTS[kind].map((area, i) => ({
           area,
           core: i < CORE_SLOTS[kind],
+          sets: SLOT_SETS[kind][i],
           lightOnly: false,
         }));
   for (const id of doneToday) {
@@ -659,7 +674,7 @@ export function buildArmcareRoutine({
    */
   const noGear = new Set<ArmcareAreaKey>();
   const byRule = new Set<ArmcareAreaKey>();
-  for (const { area, core, lightOnly } of slots) {
+  for (const { area, core, lightOnly, sets: slotSets = sets } of slots) {
     /* 팔꿈치가 뻐근하면 전완은 하나만 */
     if (stiffElbow && ELBOW_AREAS.includes(area) && elbowCount >= 1) continue;
 
@@ -685,9 +700,9 @@ export function buildArmcareRoutine({
     const fresh = pool.filter((ex) => !usedMuscles.has(ex.targetMuscles[0] ?? ''));
     const cap = budget + (core ? CORE_SLACK_MINUTES : SLACK_MINUTES);
     const next = [...fresh, ...pool].find(
-      (ex) => used + armcareMinutes(ex, sets) <= cap
+      (ex) => used + armcareMinutes(ex, slotSets) <= cap
     );
-    if (next) put(next, area);
+    if (next) put(next, area, slotSets);
   }
 
   if (kind === 'pain') {
