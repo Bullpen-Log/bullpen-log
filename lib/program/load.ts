@@ -29,6 +29,7 @@ import { estimate1RM } from '@/lib/workout/history';
 import { toDateKey } from '@/lib/pitch-stats';
 import type { ReportFacts } from '@/lib/report/facts';
 import {
+  ARM_ACCESSORIES,
   ARM_DEFER_REASON,
   CAUTION_TEXT,
   TM_LOOKBACK_DAYS,
@@ -43,6 +44,8 @@ import {
   inSeasonKind,
   isOptionalProgramExercise,
   isYouthAge,
+  accessoryOccurrence,
+  accessoryPick,
   lighterRx,
   painSlotsOf,
   parseProgram,
@@ -458,10 +461,36 @@ export async function buildProgramDay(
     return got;
   };
 
+  /*
+   * 보조 메뉴 칸 — 고정이 아니라 그 칸 후보를 사람 · 프로그램마다 섞은 차례로 세션마다 다음 것(program.ts accessoryPick, 2026-10-14 사용자:
+   * "보조운동은 다양하고 세션마다 다른 걸로"). 그날 본운동과 같은 운동은 안 고른다.
+   */
+  const mainIds = new Set(
+    items.filter((x) => !x.assist).flatMap((x) => {
+      const ex = pinnedOf(x.variant).ex;
+      return ex ? [ex.id] : [];
+    })
+  );
+  const accessoryOf = new Map<VariantKey, CachedExercise | null>();
+  for (const x of items) {
+    if (!x.assist || accessoryOf.has(x.variant)) continue;
+    accessoryOf.set(
+      x.variant,
+      accessoryPick(
+        x.variant,
+        variantCandidates(x.variant, core.library, owned, user.trainingLevel, audience, youth),
+        `${user.id}|${row.startedAt.toISOString()}|${x.variant}`,
+        accessoryOccurrence(plan, day, x.variant),
+        mainIds
+      )
+    );
+  }
+  const exOf = (v: VariantKey) => (accessoryOf.has(v) ? (accessoryOf.get(v) ?? null) : pinnedFor(v).ex);
+
   /* 대체할 칸과 그 까닭 — 자체 시험 엇갈림 표와 같은 함수(program.ts painSlotsOf) */
   const { painSlots, slotReasons } = painSlotsOf(
     items,
-    (v) => pinnedFor(v).ex,
+    exOf,
     safeIds,
     armFatigueOnlyIds
   );
@@ -602,7 +631,9 @@ export async function buildProgramDay(
   for (const rx of items) {
     const { slot, variant } = rx;
     const a = adjust[slot];
-    const { ex: pinnedEx, repinned } = pinnedFor(variant);
+    const { ex: pinnedEx, repinned } = rx.assist
+      ? { ex: accessoryOf.get(variant) ?? null, repinned: false }
+      : pinnedFor(variant);
     if (!pinnedEx) {
       view.dropped.push({
         slot,
@@ -617,7 +648,8 @@ export async function buildProgramDay(
       continue;
     }
     /* 대체보다 먼저 — 그 칸의 대체 후보도 같은 변형(메디신볼)이라 대체하면 또 던진다 */
-    if (deferred.includes(variant)) {
+    /* 팔을 아끼는 날은 팔 보조(삼두 · 이두 · 전완)도 뺀다 — 던지는 변형만 빼던 것에 더해(2026-10-14) */
+    if (deferred.includes(variant) || (deferred.length > 0 && ARM_ACCESSORIES.includes(variant))) {
       view.dropped.push({ slot, title: pinnedEx.title, reason: ARM_DEFER_REASON });
       continue;
     }
