@@ -781,22 +781,6 @@
        "breakAfter": false
       },
       {
-       "exerciseId": "75a43fb1-9089-41df-b4ad-b0879ff98c9c",
-       "no": "2-02",
-       "title": "리버스 토 워크",
-       "station": "넓은 바닥(이동)",
-       "bucket": "모빌리티",
-       "equipment": [
-        "맨몸"
-       ],
-       "at": 17.1,
-       "minutes": 1.7,
-       "load": 0.2,
-       "cue": "2~3회 · 끝 자세 2초",
-       "perSide": false,
-       "breakAfter": false
-      },
-      {
        "exerciseId": "d7acede9-5efa-464b-b1f2-c6d3d89cf455",
        "no": "2-03",
        "title": "백 페달",
@@ -858,22 +842,6 @@
        "load": 0.2,
        "cue": "2~3회 · 끝 자세 2초 · 한쪽",
        "perSide": true,
-       "breakAfter": false
-      },
-      {
-       "exerciseId": "bcecaaa9-2bb2-4f23-9667-35394281fa62",
-       "no": "2-07",
-       "title": "토 워크",
-       "station": "넓은 바닥(이동)",
-       "bucket": "모빌리티",
-       "equipment": [
-        "맨몸"
-       ],
-       "at": 25.6,
-       "minutes": 1.7,
-       "load": 0.2,
-       "cue": "2~3회 · 끝 자세 2초",
-       "perSide": false,
        "breakAfter": false
       },
       {
@@ -4081,9 +4049,9 @@
        "breakAfter": false
       },
       {
-       "exerciseId": "f70c850d-d583-474d-832d-7667a2efb843",
+       "exerciseId": "84b2db84-b873-4005-86a3-77294b59f077",
        "no": "5-19",
-       "title": "덤벨 래디얼 디비에이션",
+       "title": "덤벨 리스트 익스텐션",
        "station": "덤벨 · 케틀벨",
        "bucket": "전완 · 팔꿈치",
        "equipment": [
@@ -4097,9 +4065,9 @@
        "breakAfter": true
       },
       {
-       "exerciseId": "84b2db84-b873-4005-86a3-77294b59f077",
+       "exerciseId": "7c125173-4fd4-4040-8f8a-f6ced2918ac6",
        "no": "5-20",
-       "title": "덤벨 리스트 익스텐션",
+       "title": "덤벨 리스트 플렉션",
        "station": "덤벨 · 케틀벨",
        "bucket": "전완 · 팔꿈치",
        "equipment": [
@@ -4113,31 +4081,15 @@
        "breakAfter": false
       },
       {
-       "exerciseId": "7c125173-4fd4-4040-8f8a-f6ced2918ac6",
-       "no": "5-21",
-       "title": "덤벨 리스트 플렉션",
-       "station": "덤벨 · 케틀벨",
-       "bucket": "전완 · 팔꿈치",
-       "equipment": [
-        "덤벨"
-       ],
-       "at": 72.5,
-       "minutes": 1.7,
-       "load": 0.5,
-       "cue": "3회 · 한쪽",
-       "perSide": true,
-       "breakAfter": false
-      },
-      {
        "exerciseId": "f55d1b91-9fde-44a9-a955-88acb699c3cc",
-       "no": "5-22",
+       "no": "5-21",
        "title": "덤벨 숄더 프레스",
        "station": "덤벨 · 케틀벨",
        "bucket": "상체 밀기 · 어깨",
        "equipment": [
         "덤벨"
        ],
-       "at": 74.2,
+       "at": 72.5,
        "minutes": 1.7,
        "load": 2,
        "cue": "3회",
@@ -4146,47 +4098,15 @@
        "oldVideo": "library/18930a82-483a-4a48-bae6-bafb7bf2cf77.mov"
       },
       {
-       "exerciseId": "7ed34709-2841-430c-89d1-b7f6c676c167",
-       "no": "5-23",
-       "title": "덤벨 울나 디비에이션",
-       "station": "덤벨 · 케틀벨",
-       "bucket": "전완 · 팔꿈치",
-       "equipment": [
-        "덤벨"
-       ],
-       "at": 75.9,
-       "minutes": 1.7,
-       "load": 0.5,
-       "cue": "3회 · 한쪽",
-       "perSide": true,
-       "breakAfter": false
-      },
-      {
-       "exerciseId": "9e9805c1-024a-4656-ba69-411d6df282e1",
-       "no": "5-24",
-       "title": "덤벨 전완 프로네이션·수피네이션",
-       "station": "덤벨 · 케틀벨",
-       "bucket": "전완 · 팔꿈치",
-       "equipment": [
-        "덤벨"
-       ],
-       "at": 77.6,
-       "minutes": 1.7,
-       "load": 0.5,
-       "cue": "3회 · 한쪽",
-       "perSide": true,
-       "breakAfter": false
-      },
-      {
        "exerciseId": "9f24f527-c615-44ea-8ac4-8fd1156184e7",
-       "no": "5-25",
+       "no": "5-22",
        "title": "덤벨 컬 드롭 캐치",
        "station": "덤벨 · 케틀벨",
        "bucket": "전완 · 팔꿈치",
        "equipment": [
         "덤벨"
        ],
-       "at": 79.3,
+       "at": 74.2,
        "minutes": 2.5,
        "load": 1.5,
        "cue": "2~3회",
@@ -4195,7 +4115,7 @@
       },
       {
        "exerciseId": "e45ca1c0-aafc-48f3-b450-933ad8da28c3",
-       "no": "5-26",
+       "no": "5-23",
        "title": "덤벨 스퀴즈 푸시업",
        "station": "덤벨 · 케틀벨",
        "bucket": "상체 밀기 · 어깨",
@@ -4203,11 +4123,59 @@
         "덤벨",
         "맨몸"
        ],
-       "at": 81.8,
+       "at": 76.7,
        "minutes": 1.7,
        "load": 1,
        "cue": "3회",
        "perSide": false,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "f70c850d-d583-474d-832d-7667a2efb843",
+       "no": "5-24",
+       "title": "케이블 래디얼 디비에이션",
+       "station": "덤벨 · 케틀벨",
+       "bucket": "전완 · 팔꿈치",
+       "equipment": [
+        "케이블"
+       ],
+       "at": 78.4,
+       "minutes": 1.7,
+       "load": 0.5,
+       "cue": "3회 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "7ed34709-2841-430c-89d1-b7f6c676c167",
+       "no": "5-25",
+       "title": "케이블 울나 디비에이션",
+       "station": "덤벨 · 케틀벨",
+       "bucket": "전완 · 팔꿈치",
+       "equipment": [
+        "케이블"
+       ],
+       "at": 80.1,
+       "minutes": 1.7,
+       "load": 0.5,
+       "cue": "3회 · 한쪽",
+       "perSide": true,
+       "breakAfter": false
+      },
+      {
+       "exerciseId": "9e9805c1-024a-4656-ba69-411d6df282e1",
+       "no": "5-26",
+       "title": "케이블 전완 프로네이션·수피네이션",
+       "station": "덤벨 · 케틀벨",
+       "bucket": "전완 · 팔꿈치",
+       "equipment": [
+        "케이블"
+       ],
+       "at": 81.8,
+       "minutes": 1.7,
+       "load": 0.5,
+       "cue": "3회 · 한쪽",
+       "perSide": true,
        "breakAfter": false
       }
      ]
