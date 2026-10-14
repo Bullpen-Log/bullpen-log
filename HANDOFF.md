@@ -11,6 +11,19 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 ---
 
+## 김민에게 — 2026-10-14 · 금윤호(Claude) — 휴대폰 더보기를 아이폰 앱 폴더처럼(클리어 아이콘 · 반투명 폴더 · 뒤 흐림) — 네 app-icon.tsx 를 만졌다
+
+받은 뒤 할 일 없음(DB · 패키지 그대로). 사용자(영상 둘로): "아이폰 앱 폴더 느낌, 애플 폴더보다 상하로 길게, 폴더는 반투명 · 뒤는 비치게, 앱 색은 빼고
+로고만 흰색". iOS 26 '클리어' 모드다. **네 10-13 유리 아이콘(색 그라데이션)은 지우지 않았다** — `AppIcon look="tint"` 로 그대로 있고, 더보기만 `look="clear"` 를 쓴다.
+쓸 데 없으면 tint 가지를 지워도 된다.
+- `components/app-icon.tsx`: `look: 'tint' | 'clear'`, `active`. clear = 흰 14%(지금 화면 28%) 판 + 뒤 흐림 + 위 1px 빛 + 흰 테두리 + 흰 글리프.
+- `components/app-shell.tsx` DetailMenu 휴대폰 가지: 아래 시트 → dialog 가 화면 전체 흐린 막(`data-scrim`, 누르면 닫힘) + 가운데 유리 폴더(`data-folder`) + 위 흰 '메뉴'.
+  손잡이 · 끌어내려 닫기(startDrag …)는 걷었다(아이폰 폴더처럼 바깥 누르기 · X · Esc). 3열 64px, 묶음 제목 · 이름 · 내 정보 줄 흰색. **PC 팝업(desk:)은 안 건드렸다.**
+- `app/globals.css` 휴대폰 `dialog[data-drawer]`: 막(검정 50% + blur 18px) · `[data-folder]`(흰 16% · 어두운 테마 14% · blur 28px · 36px) · 하단 탭 쪽에서 0.55 → 1 로
+  부풀어 뜸(320ms) · 줄이기면 옅어지기만. ::backdrop 에 blur 를 안 건 이유: 아이폰 WebKit 에서 판별 불가 → dialog 자신이 막.
+- **아이폰 앱에서 봐 주면 좋은 것**: 더보기를 열 때 뒤가 흐려지는지(WKWebView backdrop-filter — 네가 MobileTopBar 에서 겪은 깜빡임이 여기도 나는지. 막은
+  정적이라 괜찮을 거라 봤다), 하단 탭 자리에서 부풀어 뜨는지, 막을 누르면 닫히는지, 14개(관리자)일 때 폴더가 한 장에 들어가는지(375×812 에선 629/700px).
+
 ## 김민에게 — 2026-10-14 · 금윤호(Claude) — 아이콘 체계: 아이콘은 `components/icon.tsx` 하나에서 받는다(굵기 2.5) · 색 원 부품 · 네 영역(앱 틀 · 더보기)을 만졌다
 
 받은 뒤 할 일 없음(DB · 패키지 그대로). 제안서 `docs/designs/icon-system.md` 의 1~4단계를 했다('한 것' 절). **네가 답하기 전에 `app-icon.tsx` ·
