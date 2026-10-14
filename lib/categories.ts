@@ -56,6 +56,12 @@ export const MECHANICS_CATEGORIES = [
   { name: '스로잉 드릴', tone: 'power' },
   { name: '메디신볼 드릴', tone: 'core' },
   { name: '무브먼트 패턴 드릴', tone: 'mobility' },
+  /*
+   * 나중에 촬영 — 영상이 아직 없어 뒤로 미룬 드릴(2026-10-14 사용자, 운동의 같은 칸과 같은 뜻). 드릴 영상 화면에는 이 칸으로 보이고,
+   * 트레이닝(메커니즘 프로그램 · 요소별 드릴 · 3D 결과 화면의 드릴)이 보는 trainingGuides(lib/library-cache.ts)에서는 빠진다.
+   * 원래 분류는 lib/shoot/later-drills.json — 찍으면 scripts/drills-later-2026-10-14.mjs --restore 로 되돌린다.
+   */
+  { name: '나중에 촬영', tone: 'recovery' },
 ] as const satisfies readonly { name: string; tone: CategoryTone }[];
 
 export const TRAINING_CATEGORY_NAMES: readonly string[] = TRAINING_CATEGORIES.map(
