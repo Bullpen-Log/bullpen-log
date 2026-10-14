@@ -84,6 +84,7 @@ export function DayCard({
   answer,
   children,
   laterLabel,
+  folded = false,
 }: {
   /** 카드마다 다른 열쇠(training · nutrition · throw) */
   storageKey: string;
@@ -98,6 +99,8 @@ export function DayCard({
   children: (close: () => void) => ReactNode;
   /** '나중에' 단추의 말 — 던지는 일정 카드는 '모름' */
   laterLabel?: string;
+  /** 답이 없어도 접힌 알약으로 시작한다 — 영양 · 투구 탭(2026-10-14 김민: 화면을 핵심만) */
+  folded?: boolean;
 }) {
   /*
    * 열려 있나 — 기본은 '답이 없고 오늘 나중에를 안 눌렀을 때'. 사람이 누른 것(바꾸기 · 나중에 · 저장 끝)은 forced 가 이긴다.
@@ -109,7 +112,7 @@ export function DayCard({
     () => null
   );
   const [forced, setForced] = useState<boolean | null>(null);
-  const open = forced ?? (answer == null && laterDay !== day);
+  const open = forced ?? (answer == null && laterDay !== day && !folded);
   const setOpen = (v: boolean) => setForced(v);
 
   if (open) {
@@ -148,8 +151,8 @@ export function DayCard({
       onClick={() => setOpen(true)}
       className="motion-safe:animate-fade-in inline-flex max-w-full items-center gap-2 rounded-full bg-ink/6 px-3.5 py-2 text-left text-xs text-ink transition-colors hover:bg-ink/10"
     >
-      <span className="font-semibold text-muted">오늘 설정</span>
-      <span className="truncate">{answer ?? '답하기'}</span>
+      <span className="truncate font-semibold text-muted">{answer == null ? title : '오늘 설정'}</span>
+      <span className={answer == null ? 'shrink-0 text-sky' : 'truncate'}>{answer ?? '답하기'}</span>
       <Pencil aria-hidden className="h-3.5 w-3.5 shrink-0 text-muted" />
     </button>
   );
