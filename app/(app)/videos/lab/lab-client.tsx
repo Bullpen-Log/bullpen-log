@@ -11,6 +11,8 @@ import { ErrorLine } from '@/components/error-line';
 import { ConfirmDialog } from '@/components/confirm-delete';
 import { uploadToStorage } from '@/components/video-upload';
 import { readVideoFps } from '@/lib/velocity-engine/video-fps';
+import { readVideoLens } from '@/lib/velocity-engine/video-lens';
+import { fileFingerprint, labVideoBlock, type LabVideoInfo } from '@/lib/pitch-lab-guard';
 import { OFFLINE_MESSAGE, orOffline } from '@/lib/action-offline';
 import { quietRefresh } from '@/lib/quiet-refresh';
 import { removeLabSample, saveLabSample } from '@/app/actions/pitch-lab';
@@ -50,6 +52,42 @@ const HAND_OPTIONS = [
   { value: 'R', label: '오른손' },
   { value: 'L', label: '왼손' },
 ] as const;
+
+/** 영상의 짧은 변 · 길이 — 브라우저가 머리만 읽는다(못 읽는 코덱이면 null, 그 칸으로는 안 막는다) */
+function readVideoBox(file: File): Promise<{ shortSide: number | null; durationSec: number | null }> {
+  return new Promise((resolve) => {
+    const v = document.createElement('video');
+    const url = URL.createObjectURL(file);
+    let done = false;
+    const finish = (r: { shortSide: number | null; durationSec: number | null }) => {
+      if (done) return;
+      done = true;
+      URL.revokeObjectURL(url);
+      v.removeAttribute('src');
+      resolve(r);
+    };
+    v.preload = 'metadata';
+    v.muted = true;
+    v.onloadedmetadata = () =>
+      finish({
+        shortSide: v.videoWidth > 0 ? Math.min(v.videoWidth, v.videoHeight) : null,
+        durationSec: Number.isFinite(v.duration) && v.duration > 0 ? v.duration : null,
+      });
+    v.onerror = () => finish({ shortSide: null, durationSec: null });
+    setTimeout(() => finish({ shortSide: null, durationSec: null }), 5000);
+    v.src = url;
+  });
+}
+
+/** 올리기 전 검사 재료(lib/pitch-lab-guard.ts labVideoBlock) — GPU 를 안 쓴다 */
+async function probeLabVideo(file: File): Promise<LabVideoInfo> {
+  const [fps, box, lens] = await Promise.all([
+    readVideoFps(file),
+    readVideoBox(file),
+    readVideoLens(file).catch(() => null),
+  ]);
+  return { name: file.name, fps, ...box, focal35: lens?.focal35 ?? null };
+}
 
 const WHEN = new Intl.DateTimeFormat('ko-KR', {
   timeZone: 'Asia/Seoul',
@@ -138,11 +176,13 @@ function UploadCard({ defaultHeightCm }: { defaultHeightCm: number | null }) {
   );
   /* 고른 영상의 초당 장수(파일 머리에서 — 못 읽으면 null) */
   const [fpsOf, setFpsOf] = useState<Partial<Record<LabView, number | null>>>({});
+  /* 고른 영상의 지문(같은 영상 다시 막기) — 검사가 끝나야 생긴다 */
+  const [fpOf, setFpOf] = useState<Partial<Record<LabView, string>>>({});
   const [error, setError] = useState<string>();
   const [, start] = useTransition();
 
   const busy = progress != null;
-  const ready = LAB_VIEWS.every((v) => files[v]) && !busy;
+  const ready = LAB_VIEWS.every((v) => files[v] && fpOf[v]) && !busy;
 
   const pick = (view: LabView, file: File | undefined) => {
     setError(undefined);
@@ -153,6 +193,20 @@ function UploadCard({ defaultHeightCm }: { defaultHeightCm: number | null }) {
     }
     setFiles((f) => ({ ...f, [view]: file }));
     setFpsOf((m) => ({ ...m, [view]: undefined }));
+    setFpOf((m) => ({ ...m, [view]: undefined }));
+    /*
+     * 올리기 전 검사(GPU 0원) — 화면 녹화 · 30fps 급 · 낮은 해상도 · 줌 · 너무 짧으면 고른 것을 되돌리고 까닭 + 다시 찍기 안내.
+     * 2026-10-14 사용자: 이상한 영상으로 계속 실패해 GPU 비용이 나가지 않게.
+     */
+    void Promise.all([probeLabVideo(file), fileFingerprint(file)]).then(([info, fp]) => {
+      const block = labVideoBlock(info);
+      if (block) {
+        setFiles((f) => (f[view] === file ? { ...f, [view]: undefined } : f));
+        setError(`${LAB_VIEW_LABELS[view]} 영상: ${block}`);
+        return;
+      }
+      setFpOf((m) => ({ ...m, [view]: fp }));
+    });
     void readVideoFps(file).then((v) => {
       setFpsOf((m) => {
         const next = { ...m, [view]: v };
@@ -202,7 +256,7 @@ function UploadCard({ defaultHeightCm }: { defaultHeightCm: number | null }) {
         files: Object.fromEntries(
           LAB_VIEWS.map((v) => [
             v,
-            { name: files[v]?.name ?? '', size: files[v]?.size ?? 0 },
+            { name: files[v]?.name ?? '', size: files[v]?.size ?? 0, fp: fpOf[v] },
           ])
         ),
       };
@@ -214,6 +268,7 @@ function UploadCard({ defaultHeightCm }: { defaultHeightCm: number | null }) {
         return;
       }
       setFiles({});
+      setFpOf({});
       setMemo('');
       start(() => quietRefresh(router));
     } catch (err) {

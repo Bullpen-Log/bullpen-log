@@ -19,6 +19,10 @@ COARSE_FPS = 30.0  # 거친 1차는 30fps 면 시간 맞추기에 충분(v1 이 
 FINE_FPS = 120.0
 MAX_FRAMES = 600  # E-CAP — TS contract MAX_V2_FRAMES 와 같은 값
 MAX_VIDEO_SEC = 20.0  # 검토 4절 '너무 김' — 처음 20초만(투구 한 번은 5~6초)
+# 일찍 멈추기(2026-10-14 사용자: 이상한 영상으로 GPU 비용이 새지 않게) — 거친 2D 에서 투수가 이만큼 못 되면 고운 2D · 맞추기를 건너뛰고 'framing'.
+# 문턱은 끝까지 돌려도 틀릴 영상만 — 실험실 샘플 1 옆(화면 녹화, 투수 292px)도 결과는 나왔다. 마커 촬영은 367~495px.
+FRAMING_MIN_SEEN = 0.3  # 몸이 보인 장면 비율(앞뒤로 길게 찍어도 걸리지 않게 낮게)
+FRAMING_MIN_HEIGHT_PX = 200  # 몸 높이(px) 중앙값
 DOWNLOAD_RETRY = (1.0, 3.0)
 UPLOAD_RETRY = (1.0, 3.0)
 V2_VERSION = "2.0.0"
@@ -177,6 +181,8 @@ def run_job(
             mark("pose")
             for name, tr in tracks.items():
                 print(f"[pitch3d pose] {name}: {track_summary(tr)}")
+            if any(framing_bad(tr) for tr in tracks.values()):
+                raise StepFail("framing", "pose")
 
             # 영상 fps 도 넘긴다 — 구간 상한(600장)을 실제로 풀 장면 수로 센다(30fps 로 구운 슬로모션은 120 가정의 네 배 길이까지 담긴다)
             seg = engine.run(
@@ -267,11 +273,11 @@ def run_job(
         return {"status": "failed", "code": parsed.get("code", "internal"), "stage": parsed.get("stage", "fit"), "stages": stages}
 
 
-def track_summary(track: dict) -> str:
-    """로그용 — 장면 수 · 사람이 보인 장면 비율 · 몸 17점 확신 평균 · 사람 높이(px) 중앙값."""
+def track_stats(track: dict) -> tuple[float, float, float]:
+    """(사람이 보인 장면 비율, 몸 17점 확신 평균, 사람 높이(px) 중앙값) — 장면이 없으면 (0, 0, 0)."""
     fr = track.get("frames", [])
     if not fr:
-        return "frames 0"
+        return 0.0, 0.0, 0.0
     confs = []
     heights = []
     seen = 0
@@ -287,9 +293,24 @@ def track_summary(track: dict) -> str:
                 heights.append(max(ys) - min(ys))
     heights.sort()
     med = heights[len(heights) // 2] if heights else 0
+    return seen / len(fr), sum(confs) / len(confs), float(med)
+
+
+def framing_bad(track: dict) -> bool:
+    """투수가 너무 작거나 거의 안 보이나(일찍 멈추기, FRAMING_*)."""
+    seen, _, height = track_stats(track)
+    return seen < FRAMING_MIN_SEEN or height < FRAMING_MIN_HEIGHT_PX
+
+
+def track_summary(track: dict) -> str:
+    """로그용 — 장면 수 · 사람이 보인 장면 비율 · 몸 17점 확신 평균 · 사람 높이(px) 중앙값."""
+    fr = track.get("frames", [])
+    if not fr:
+        return "frames 0"
+    seen, conf, med = track_stats(track)
     return (
         f"frames {len(fr)} · {fr[0]['t']:.2f}~{fr[-1]['t']:.2f}s · fps {track.get('fps')} · W×H {track.get('W')}×{track.get('H')} · "
-        f"seen {seen / len(fr):.0%} · conf {sum(confs) / len(confs):.2f} · height {med:.0f}px"
+        f"seen {seen:.0%} · conf {conf:.2f} · height {med:.0f}px"
     )
 
 

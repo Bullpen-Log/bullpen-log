@@ -7,12 +7,15 @@ import {
   deleteLabSample,
   findLabOwner,
   labVideoUrls,
+  loadLabGuard,
   loadLabJob,
   loadLabMetaRaw,
   loadV2Result,
+  saveLabGuard,
   saveLabJob,
   saveLabMeta,
 } from '@/lib/pitch-lab';
+import { guardBlock, readLabGuard, recordFail } from '@/lib/pitch-lab-guard';
 import {
   applyGpuStatus,
   canRequestV2,
@@ -21,6 +24,7 @@ import {
   newV2Job,
   PITCH3D_V2_VERSION,
   readPitch3dV2Result,
+  V2_VIDEO_FAULT,
   type GpuStatus,
   type Pitch3dV2Job,
   type Pitch3dV2Result,
@@ -130,6 +134,25 @@ export async function requestPitch3dV2(input: {
   const now = Date.now();
   const can = canRequestV2(prev, now);
   if ('error' in can) return can;
+  /*
+   * GPU 비용 지키기(lib/pitch-lab-guard.ts) — 같은 엔진 판에서 영상 탓으로 실패한 샘플 · 파일은 다시 안 돌리고, 하루 실패 10번이면 멈춘다.
+   * 엔진 판이 바뀌면 같은 영상도 다시 해 볼 수 있다(고친 엔진으로는 될 수 있어서).
+   */
+  if (
+    prev?.status === 'failed' &&
+    prev.fail &&
+    V2_VIDEO_FAULT.has(prev.fail.code) &&
+    prev.engine === PITCH3D_V2_VERSION
+  )
+    return { error: '이 영상은 분석하지 못했어요. 같은 영상으로는 또 실패해요. 촬영 안내대로 다시 찍어 올려 주세요.' };
+  const meta = readLabMeta(metaRaw, new Date(now).toISOString());
+  const fps = Object.values(meta.files).flatMap((f) => (f?.fp ? [f.fp] : []));
+  const blocked = guardBlock(await loadLabGuard(user.id).catch(() => readLabGuard(null)), {
+    nowMs: now,
+    fps,
+    engine: PITCH3D_V2_VERSION,
+  });
+  if (blocked) return { error: blocked };
 
   const nowIso = new Date(now).toISOString();
   let job = newV2Job(prev, {
@@ -156,8 +179,7 @@ export async function requestPitch3dV2(input: {
     return { error: STORAGE_ERROR };
   }
 
-  /* 샘플의 촬영 정보(던지는 손 · 슬로모 · 화면 녹화 · 키) — 예전엔 null 로 읽어 늘 기본값(오른손 · 화면 녹화 · 슬로모 모름)이 갔다 */
-  const meta = readLabMeta(metaRaw, nowIso);
+  /* 샘플의 촬영 정보(던지는 손 · 슬로모 · 화면 녹화 · 키, 위 meta) — 예전엔 null 로 읽어 늘 기본값(오른손 · 화면 녹화 · 슬로모 모름)이 갔다 */
   const started = await startGpuJob({
     jobId: job.jobId,
     engine: PITCH3D_V2_VERSION,
@@ -224,9 +246,27 @@ export async function checkPitch3dV2(input: {
     } catch {
       return { error: '작업 상태를 저장하지 못했어요.' };
     }
+    if (next.status === 'failed' && next.fail) await countFail(owner, input.id, next, now);
     revalidatePath(LAB_PATH);
   }
   return { job: next };
+}
+
+/**
+ * 실패를 요청한 사람의 기록에 센다(하루 상한 · 영상 탓이면 파일 지문). 못 적어도 분석 흐름은 막지 않는다.
+ * ponytail: 두 화면이 같은 순간에 상태를 물으면 한 실패가 두 번 셀 수 있다 — 상한이 넉넉해(10) 둔다, 잦으면 job 에 '셌음' 표시를 둔다.
+ */
+async function countFail(owner: string, id: string, job: Pitch3dV2Job, nowMs: number) {
+  if (!job.fail) return;
+  try {
+    const meta = readLabMeta(await loadLabMetaRaw(owner, id), new Date(nowMs).toISOString());
+    const fps = Object.values(meta.files).flatMap((f) => (f?.fp ? [f.fp] : []));
+    const g = await loadLabGuard(job.requestedBy);
+    const next = recordFail(g, { nowMs, code: job.fail.code, fps, engine: job.engine });
+    if (next !== g) await saveLabGuard(job.requestedBy, next);
+  } catch {
+    /* 기록 못 함 — 다음 실패에 다시 */
+  }
 }
 
 /** v2 결과 읽기 — 지금 작업 또는 보여 줄 작업(shownJobId)의 것만. 없거나 모양이 틀리면 null */

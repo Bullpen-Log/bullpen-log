@@ -1,6 +1,7 @@
 import 'server-only';
 import { prisma } from '@/lib/prisma';
 import { createPlaybackUrls, videoBucket } from '@/lib/storage';
+import { readLabGuard, type LabGuard } from '@/lib/pitch-lab-guard';
 import {
   LAB_VIEWS,
   readLabMeta,
@@ -92,6 +93,15 @@ async function getJson(path: string): Promise<unknown | null> {
   } catch {
     return null;
   }
+}
+
+/** 사람마다 GPU 비용 지키기 기록(lib/pitch-lab-guard.ts) — 관리자 폴더 바로 밑 파일이라 샘플 목록(폴더만 센다)에 안 섞인다 */
+const guardPath = (userId: string) => `${userId}/${LAB_DIR}/_guard.json`;
+export async function loadLabGuard(userId: string): Promise<LabGuard> {
+  return readLabGuard(await getJson(guardPath(userId)));
+}
+export async function saveLabGuard(userId: string, guard: LabGuard) {
+  await putJson(guardPath(userId), guard);
 }
 
 /** 촬영 정보(meta.json) 원본 — 없으면 null. 모양 검사는 readLabMeta 가 */
