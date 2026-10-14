@@ -42,6 +42,7 @@ import {
   decideToday,
   inSeasonKind,
   isOptionalProgramExercise,
+  isYouthAge,
   lighterRx,
   painSlotsOf,
   parseProgram,
@@ -55,6 +56,7 @@ import {
   variantLabel,
   warmupLine,
   withKind,
+  youthRx,
   type ItemRx,
   type Pinned,
   type ProgramPlan,
@@ -433,6 +435,8 @@ export async function buildProgramDay(
   const owned = user.ownedEquipment;
   /* 기본기는 고르는 규칙이 다르다(바벨 없이) — 다시 고정 · 그날 대체도 같은 규칙으로 */
   const audience = audienceOf(plan.def);
+  /* 성장기(만 16세 미만) — 매우 높음 빼고 고르고, 남기는 개수를 늘린다 */
+  const youth = isYouthAge(facts.profile.age);
 
   /* 고정 운동이 숨겨졌으면 같은 칸에서 다시 고른다(§3) — 고르기만(읽기). 다시 고정할 것을 적는 일은 pinnedFor 가 한다 */
   const pinnedOf = (
@@ -442,7 +446,7 @@ export async function buildProgramDay(
     const ex = id ? byId.get(id) : undefined;
     if (ex) return { ex, repinned: false };
     const next =
-      variantCandidates(v, core.library, owned, user.trainingLevel, audience)[0] ?? null;
+      variantCandidates(v, core.library, owned, user.trainingLevel, audience, youth)[0] ?? null;
     return { ex: next, repinned: next != null };
   };
   const repin: Pinned = {};
@@ -624,7 +628,8 @@ export async function buildProgramDay(
         core.library,
         owned,
         user.trainingLevel,
-        audience
+        audience,
+        youth
       ).find((c) => c.id !== pinnedEx.id && safeIds.has(c.id));
       if (!sub) {
         view.dropped.push({ slot, title: pinnedEx.title, reason: '오늘 몸 상태' });
@@ -665,7 +670,9 @@ export async function buildProgramDay(
   for (const c of chosen) {
     const a = adjust[c.rx.slot] ?? null;
     const lighter = a?.kind === 'lighter' || (a?.kind === 'substitute' && a.lighter === true);
-    const rx = lighter ? lighterRx(c.rx) : c.rx;
+    const base = lighter ? lighterRx(c.rx) : c.rx;
+    /* 성장기는 남기는 개수를 늘린다(program.ts youthRx) — 프로그램 칸의 처방이 운동 화면 · 다음 무게까지 이것으로 간다 */
+    const rx = youth ? youthRx(base) : base;
     const { suggestion, kgs } = weighItem(rx, c.ex, {
       adjusted: lighter,
       gapDays,

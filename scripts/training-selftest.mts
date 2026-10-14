@@ -1129,13 +1129,12 @@ console.log('\n[안전] 몸이 안 좋은 날 무거운 운동이 섞이지 않�
 {
   const { picked } = planFor({ person: { condition: 8 }, level: '입문' });
   const maxed = picked.candidates.filter((e) => intensityLevel(e.intensity) > 4);
-  const hard = picked.candidates.filter(
-    (e) => e.difficulty === '상급' || e.difficulty === '중급'
-  );
+  /* 2026-10-14 사용자: 입문도 중급까지(personalize.ts) — 상급만 빠진다 */
+  const hard = picked.candidates.filter((e) => e.difficulty === '상급');
   check('경력 입문 → 최대 강도 제외', maxed.length === 0);
   check(
-    '경력 입문 → 초급 난이도만',
-    hard.length === 0,
+    '경력 입문 → 상급 난이도는 빠짐(중급까지)',
+    hard.length === 0 && picked.candidates.some((e) => e.difficulty === '중급'),
     `후보 ${picked.candidates.length}개`
   );
 }

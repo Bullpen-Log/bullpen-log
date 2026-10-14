@@ -22,6 +22,9 @@ import {
   finishLine,
   inSeasonKind,
   isOptionalProgramExercise,
+  isYouthAge,
+  youthRx,
+  YOUTH_RESERVE,
   withKind,
   SESSION_KIND_LABELS,
   isLightWeek,
@@ -516,8 +519,8 @@ check('다 맞으면 시작', checkEligibility(base).ok);
 {
   const r = checkEligibility({ ...base, age: null });
   check('생년월일 없음 → 물음', !r.ok && r.kind === 'ask' && r.step === 'birth');
-  const r17 = checkEligibility({ ...base, age: 17 });
-  check('만 17세 → 막힘', !r17.ok && r17.kind === 'blocked');
+  /* 2026-10-14 사용자: 중학생부터(만 13세) — 16세 미만은 성장기 규칙(youthRx · 매우 높음 빼기) */
+  check('만 17세 · 13세 → 시작', checkEligibility({ ...base, age: 17 }).ok && checkEligibility({ ...base, age: 13 }).ok);
   const rLv = checkEligibility({ ...base, trainingLevel: null });
   check('경력 없음 → 물음', !rLv.ok && rLv.kind === 'ask' && rLv.step === 'level');
   const rIn = checkEligibility({ ...base, trainingLevel: '입문' });
@@ -556,15 +559,18 @@ check('다 맞으면 시작', checkEligibility(base).ok);
   check('기본기: 성인 중급도 → 시작', checkEligibility({ ...base, audience: 'basics' }).ok);
   const rBe = checkEligibility({ ...kid, ownedEquipment: [] });
   check('기본기: 장비 안 고름 → 물음', !rBe.ok && rBe.kind === 'ask' && rBe.step === 'equipment');
-  const r16 = checkEligibility({ ...base, age: 16 });
-  check('성인: 만 16세 → 막힘, 할 일은 기본기', !r16.ok && r16.kind === 'blocked' && r16.action.includes('기본기'));
+  const r12a = checkEligibility({ ...base, age: 12 });
+  check('성인 프로그램: 만 12세 → 막힘(13세부터)', !r12a.ok && r12a.kind === 'blocked' && r12a.reason.includes('13세'));
   const r10 = checkEligibility({ ...base, age: 10 });
   check('성인: 만 10세 → 막힘, 할 일은 직접 고르기', !r10.ok && r10.kind === 'blocked' && r10.action.includes('직접 고르기'));
   const rNov = checkEligibility({ ...base, trainingLevel: '입문' });
   check('성인 입문 · 기본기 안 마침 → 막힘, 할 일은 기본기', !rNov.ok && rNov.kind === 'blocked' && rNov.action.includes('기본기'));
   check('성인 입문 · 기본기 마침 → 시작', checkEligibility({ ...base, trainingLevel: '입문', basicsDone: true }).ok);
-  check('만 17세는 기본기를 마쳐도 성인은 막힘', !checkEligibility({ ...base, age: 17, basicsDone: true }).ok);
-  check('고르기 화면 막힘 = 시작 자격 막힘', eq(profileBlock({ age: 16, trainingLevel: '초급' }), { reason: r16.ok ? '' : (r16 as { reason: string }).reason, action: r16.ok ? '' : (r16 as { action: string }).action }));
+  check('고르기 화면 막힘 = 시작 자격 막힘', eq(profileBlock({ age: 12, trainingLevel: '초급' }), { reason: r12a.ok ? '' : (r12a as { reason: string }).reason, action: r12a.ok ? '' : (r12a as { action: string }).action }));
+  /* 성장기 처방 — 무게 칸은 3개 남기고, 매우 높음은 후보에서 빠진다 */
+  check('성장기: 15세는 성장기 · 16세 · 나이 모름은 아님', isYouthAge(15) && !isYouthAge(16) && !isYouthAge(null));
+  const pctRx = dayPlan(p531, 1).items.map((it) => itemRx(p531, 1, it.variant)).find((x) => x?.mode === 'pct');
+  check('성장기: % 방식 + 세트도 3개 남기고', pctRx != null && youthRx(pctRx).reserve === YOUTH_RESERVE && prescriptionLine(youthRx(pctRx)).includes(`+는 ${YOUTH_RESERVE}개 남기고`), pctRx ? prescriptionLine(youthRx(pctRx)) : 'no pct');
   check('나이 모르면 고르기 화면은 막지 않음', profileBlock({ age: null, trainingLevel: '초급' }) === null && profileBlock({ audience: 'basics', age: null, trainingLevel: '입문' }) === null);
   const bplan = plan('basics-4w');
   check('기본기 마침: 다 건너뛰면 안 셈 · 6번 하면 셈', !basicsDoneEnough(bplan, 13, 12) && !basicsDoneEnough(bplan, 13, 7) && basicsDoneEnough(bplan, 13, 6) && basicsDoneEnough(bplan, 13, 0));
@@ -740,7 +746,8 @@ const lib: PinnableExercise[] = [
   const all = ['맨몸', '밴드', '덤벨', '메디신볼', '바벨', '벤치', 'TRX', '철봉', '박스'];
   check('기본기: 바벨 · 매우 높음 · 상급은 후보에 없음', !variantCandidates('squat', blib, all, '상급', 'basics').some((e) => ['bsq', 'fsq'].includes(e.id)) && !variantCandidates('pull', blib, all, '상급', 'basics').some((e) => e.id === 'wpu') && !variantCandidates('medball', blib, all, '상급', 'basics').some((e) => e.id === 'dd'));
   check('기본기 스쿼트: 덤벨 있으면 고블렛, 맨몸만이면 템포 맨몸', first('squat', all) === 'gob' && first('squat', ['맨몸']) === 'tbs');
-  check('기본기 힌지: 입문(초급만)은 글루트 브리지, 중급은 덤벨 RDL', first('hinge', all, '입문') === 'gbr' && first('hinge', all) === 'drdl');
+  /* 2026-10-14 사용자: 입문도 중급 운동까지 — 덤벨이 있으면 입문도 덤벨 RDL(스쿼트의 고블렛과 같이), 맨몸만이면 글루트 브리지 */
+  check('기본기 힌지: 덤벨 있으면 입문도 덤벨 RDL, 맨몸만이면 글루트 브리지', first('hinge', all, '입문') === 'drdl' && first('hinge', all) === 'drdl' && first('hinge', ['맨몸'], '입문') === 'gbr');
   check('기본기 밀기: 푸시업을 파이크보다 먼저', first('push', all) === 'pu');
   check('기본기 당기기: TRX 로우 먼저, 밴드만이면 밴드 로우, 맨몸만이면 없음', first('pull', all) === 'trx' && first('pull', ['맨몸', '밴드']) === 'hbr' && first('pull', ['맨몸']) === null);
   check('기본기 한 다리: 리버스 런지 먼저, 맨몸만이면 레터럴 런지(보수볼은 뒤로)', first('singleLeg', all) === 'drl' && first('singleLeg', ['맨몸']) === 'll');

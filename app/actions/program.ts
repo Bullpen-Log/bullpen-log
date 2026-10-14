@@ -24,6 +24,7 @@ import {
   VARIANT_KEYS,
   audienceOf,
   checkEligibility,
+  isYouthAge,
   parseProgram,
   pickPinned,
   programDef,
@@ -107,7 +108,14 @@ export async function startProgram(input: {
   /* 고정 운동 — 보낸 것 중 후보에 있는 것만 지키고, 나머지는 규칙대로 고른다(안 쓰는 변형도 골라 둔다 — 해가 없다) */
   const library = await visibleExercises();
   const keep: Pinned = readPinned(input.pinned ?? {});
-  const pinned = pickPinned(library, ownedEquipment, trainingLevel, keep, audience);
+  const pinned = pickPinned(
+    library,
+    ownedEquipment,
+    trainingLevel,
+    keep,
+    audience,
+    isYouthAge(birthDate ? ageFromBirthDate(birthDate, now) : null)
+  );
 
   const result = await prisma.$transaction(async (tx) => {
     /* 진행 중은 한 사람 하나 — Prisma 가 조건 붙은 유일 규칙을 못 적어 트랜잭션 안에서 본다(재활과 같다) */
@@ -180,7 +188,8 @@ export async function programChoices(input: {
       library,
       owned,
       level,
-      def ? audienceOf(def) : 'adult'
+      def ? audienceOf(def) : 'adult',
+      isYouthAge(user.birthDate ? ageFromBirthDate(user.birthDate) : null)
     ).map((e) => ({
       id: e.id,
       title: e.title,
@@ -207,7 +216,14 @@ export async function previewPinned(input: {
   const byId = new Map(library.map((e) => [e.id, e.title]));
   const def = programDef(input.programId);
   const audience = def ? audienceOf(def) : 'adult';
-  const pinned = pickPinned(library, owned, level, {}, audience);
+  const pinned = pickPinned(
+    library,
+    owned,
+    level,
+    {},
+    audience,
+    isYouthAge(user.birthDate ? ageFromBirthDate(user.birthDate) : null)
+  );
   return {
     pinned: (def ? usedVariants(def) : VARIANT_KEYS).map((v) => ({
       variant: v,
@@ -348,7 +364,8 @@ export async function repinProgramExercise(input: {
     library,
     user.ownedEquipment,
     user.trainingLevel,
-    def ? audienceOf(def) : 'adult'
+    def ? audienceOf(def) : 'adult',
+    isYouthAge(user.birthDate ? ageFromBirthDate(user.birthDate) : null)
   ).some((e) => e.id === input.exerciseId);
   if (!ok) return { error: '이 칸에 넣을 수 없는 운동이에요.' };
   await prisma.userTrainingProgram.update({
