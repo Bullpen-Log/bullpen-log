@@ -52,6 +52,9 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 - 마커 정답 스크립트에도 같은 식(`selfcal/mech_truth.py` trunkHalfPct · `mech-score.mts`). 15구 평균 앱 44% / 정답 44%, 착지 때 상체 앱 −6° / 정답 +8°(앱이 14° 닫힌 쪽).
 - 확인할 것: 다리 들기 골반 정답(옷 위 스티커)이 틀렸을 수 있다 — 10-13 엔진의 다리 들기 골반 당김이 그 정답에 맞춰졌다(4-3 '덤'). 다음 마커 촬영은 단단한 골반 벨트 마커로.
 
+- (같은 날 더) 앞다리 버티기: 앞무릎이 착지보다 40° 넘게 더 굽거나 골반 감속이 115% 넘는 공은 엔진 오류로 보고 판정에서 뺀다(`mech-judge.ts` BLOCK_IMPLAUSIBLE_*).
+  실험실 240fps 두 샘플이 34~64° · 125~129% 였는데 겹쳐 보기에서 엔진 앞다리가 착지 뒤 AI 점보다 많이 굽어 있었다. 마커 15구 앱 판정은 그대로. 시험 v2 269.
+  옷 점 추적(골반)도 해 봤지만 엔진을 못 넘었다(`docs/designs/pitch-mechanics-checks.md` 4-3 표) — 골반은 토요일(10-18) 벨트 마커 촬영 뒤에.
 ## 김민에게 — 2026-10-13 · 금윤호(Claude) — 체크인 3판(한 화면 흐름 · 신호 셋) 끝 — 받으면 `npx prisma generate`
 
 받은 뒤 할 일: **`npx prisma generate`**(`DailyCheckin.sleepQuality` · `DailyTrainingSetup.preferredWorkout/preferredParts` ·

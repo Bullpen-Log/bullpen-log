@@ -72,6 +72,13 @@ export const SEP_FAR_MS = 110;
 export const BLOCK_DECEL_LOW = 70;
 export const BLOCK_COLLAPSE_DEG = 15;
 /**
+ * 엔진 오류로 보고 그 공을 판정에서 빼는 값 — 앞무릎이 착지보다 40° 넘게 더 굽음, 골반 감속 115% 넘음(골반이 뒤로 감). 2026-10-14 실험실 240fps
+ * 두 샘플(c4d8 · f046)이 34~64° 더 굽고 125~129% 였는데, 겹쳐 보기에서 엔진 앞다리가 착지 뒤 뒤 영상 AI 점보다 짧고 많이 굽어 있었다
+ * (실제 영상은 무릎이 거의 그대로). 마커 투수 15구는 감속 79~105% · 무릎 ±20° 안이라 걸리지 않는다.
+ */
+export const BLOCK_IMPLAUSIBLE_SINK_DEG = 40;
+export const BLOCK_IMPLAUSIBLE_DECEL = 115;
+/**
  * 몸통이 도는 때(mech-checks trunkHalfPct — 어깨선이 돈 양의 절반을 지나는 때, 착지 → 공 놓기 사이 %). 2026-10-14 김민: "상하체 분리는 꼭 필요 ·
  * 대략적인 타이밍만 맞으면 된다". 위의 분리 크기 · 시점은 엉덩이 점에 기대는데, 영상 두 개로는 골반을 믿을 만큼 못 잰다(마커 15구 골반 오차 내딛기
  * 9.6° · 팔 가속 17.5°, 윤곽 맞추기 · 몸 모델 · 학습 다섯 가지를 해 봐도 못 넘음) — 그래서 화면에서 내리고 잘 보이는 어깨만으로 '몸통이 언제 도나'를 본다.
@@ -267,7 +274,11 @@ export function judgeMechanics(
   /* 리드레그 블록 */
   {
     const use = list.filter(
-      (m) => ok(m.block.conf) && Number.isFinite(m.block.pelvisDecelPct)
+      (m) =>
+        ok(m.block.conf) &&
+        Number.isFinite(m.block.pelvisDecelPct) &&
+        m.block.pelvisDecelPct <= BLOCK_IMPLAUSIBLE_DECEL &&
+        m.block.kneeExtensionDeg >= -BLOCK_IMPLAUSIBLE_SINK_DEG
     );
     const base = {
       key: 'block' as const,

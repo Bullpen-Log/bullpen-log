@@ -2928,6 +2928,11 @@ console.log('■ 메커니즘 점검 판정(mech-judge) — 문턱 · 여러 구
     st(judgeMechanics([mk({ decel: 60, ext: -20 })]), 'block') === 'improve' && st(judgeMechanics([mk({ decel: 60, ext: 0 })]), 'block') === 'fair' &&
       st(judgeMechanics([mk({ decel: 95, ext: -20 })]), 'block') === 'fair' && st(judgeMechanics([mk({})]), 'block') === 'good'
   );
+  check(
+    '판정: 블록 — 무릎 40° 넘게 더 굽음 · 골반 감속 115% 넘음은 엔진 오류로 보고 뺌(그 공뿐이면 판정 안 함, 다른 공이 있으면 그것으로)',
+    st(judgeMechanics([mk({ ext: -64 })]), 'block') === 'unsure' && st(judgeMechanics([mk({ decel: 129 })]), 'block') === 'unsure' &&
+      st(judgeMechanics([mk({ ext: -64 }), mk({})]), 'block') === 'good'
+  );
   const two = judgeMechanics([mk({ ahead: 0.05 }), mk({ ahead: 0.13 })], 180);
   const three = judgeMechanics([mk({}), mk({}), mk({ ahead: 0.05, dConf: 10 })], 180);
   check(
