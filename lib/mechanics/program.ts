@@ -265,17 +265,22 @@ const THROWING = '스로잉 드릴';
 export type Dose = { sets: number; reps: number };
 
 /**
- * 몇 번 · 얼마나 세게 — 드릴(MechanicsGuide)에는 세트 · 횟수가 없어서 트레드 애슬레틱스의 드릴 진행표를 따랐다
- * (Fixing a Late Arm, lib/mechanics/elements.ts [T7]): 드릴마다 2세트 × 8회, 처음 몇 번은 느린 동작으로 감을 잡고
- * 다시 익히기 50~60% → 이어 하기 60~70% → 전체 동작에 옮기기 60~75%. 드라이브라인도 드릴은 전력이 아니라 그날 정한
- * 세기로 한다([D9]). 그래서 단계가 올라도 횟수는 같고 세기와 하는 법만 바뀐다. 분류마다 따로 둔 칸은 나중에 두 곳의 근거가
- * 생기면 고치려고 남겨 둔다. 스로잉 드릴에도 공을 안 던지는 팔 동작이 있어 '구'가 아니라 '회'로 적는다.
+ * 몇 번 · 얼마나 세게 — 드릴(MechanicsGuide)에는 세트 · 횟수가 없어서 분류마다 정한다.
+ * 처음엔 트레드의 드릴 진행표(Fixing a Late Arm, lib/mechanics/elements.ts [T7])대로 모든 드릴을 2세트 × 8회로 두었다.
+ * 2026-10-14 김민과 분류별로 나눴다(현장 관례로 어림한 값 — 공개 처방을 찾으면 다시 맞춘다):
+ *   메디신볼 3세트 × 5회 — 파워 운동이라 적게, 매번 힘껏(2×8 이면 힘이 떨어진 채로 던지는 횟수가 생긴다)
+ *   스로잉   2세트 × 10회 — 현장에서는 드릴마다 8~12구
+ *   무브먼트 2세트 × 10회 — 공을 안 던져 10회 넘게도 흔하다
+ * 단계가 올라도 횟수는 같고 세기와 하는 법만 바뀐다([T7] 다시 익히기 50~60% → 이어 하기 60~70% → 옮기기 60~75%, 드라이브라인도
+ * 드릴은 그날 정한 세기로 — [D9]). 스로잉 드릴에도 공을 안 던지는 팔 동작이 있어 '구'가 아니라 '회'로 적는다.
  */
-const TREAD_DOSE: Dose = { sets: 2, reps: 8 };
+const MEDBALL_DOSE: Dose = { sets: 3, reps: 5 };
+const THROWING_DOSE: Dose = { sets: 2, reps: 10 };
+const MOVEMENT_DOSE: Dose = { sets: 2, reps: 10 };
 const DOSES: Record<string, Record<DrillStage, Dose>> = {
-  [MOVEMENT]: { 기초: TREAD_DOSE, 연결: TREAD_DOSE, 통합: TREAD_DOSE },
-  [MEDBALL]: { 기초: TREAD_DOSE, 연결: TREAD_DOSE, 통합: TREAD_DOSE },
-  [THROWING]: { 기초: TREAD_DOSE, 연결: TREAD_DOSE, 통합: TREAD_DOSE },
+  [MOVEMENT]: { 기초: MOVEMENT_DOSE, 연결: MOVEMENT_DOSE, 통합: MOVEMENT_DOSE },
+  [MEDBALL]: { 기초: MEDBALL_DOSE, 연결: MEDBALL_DOSE, 통합: MEDBALL_DOSE },
+  [THROWING]: { 기초: THROWING_DOSE, 연결: THROWING_DOSE, 통합: THROWING_DOSE },
 };
 
 /** 단계마다 어떻게 할지 — 따라 하기의 처방 밑 한 줄. 스로잉은 [T7] 의 세 걸음 */
