@@ -24,6 +24,9 @@ import {
   isOptionalProgramExercise,
   isYouthAge,
   youthRx,
+  accessoryPick,
+  accessoryOccurrence,
+  ACCESSORY_KEYS,
   YOUTH_RESERVE,
   withKind,
   SESSION_KIND_LABELS,
@@ -567,6 +570,22 @@ check('다 맞으면 시작', checkEligibility(base).ok);
   check('성인 입문 · 기본기 안 마침 → 막힘, 할 일은 기본기', !rNov.ok && rNov.kind === 'blocked' && rNov.action.includes('기본기'));
   check('성인 입문 · 기본기 마침 → 시작', checkEligibility({ ...base, trainingLevel: '입문', basicsDone: true }).ok);
   check('고르기 화면 막힘 = 시작 자격 막힘', eq(profileBlock({ age: 12, trainingLevel: '초급' }), { reason: r12a.ok ? '' : (r12a as { reason: string }).reason, action: r12a.ok ? '' : (r12a as { action: string }).action }));
+  /* 보조 메뉴(2026-10-14) — 본운동은 고정, 보조는 그날 본운동에 맞춘 칸을 세션마다 후보 전체를 돌며 고른다 */
+  {
+    const px = (id: string, title: string) =>
+      ({ id, title, category: '상체 스트렝스', movementPattern: '당기기', equipment: ['케이블'], intensity: '중간', difficulty: '초급', perSide: false }) as PinnableExercise;
+    const pool = ['a', 'b', 'c', 'd', 'e'].map((id) => px(id, `로우 ${id}`)).concat(px('h', '로우 아이소 홀드'));
+    const firstLap = [0, 1, 2, 3, 4].map((n) => accessoryPick('hpull', pool, 'u1|hpull', n)?.id);
+    check('보조: 한 바퀴(5개) 안에는 겹치지 않고, 버티기는 빠짐', new Set(firstLap).size === 5 && !firstLap.includes('h'), firstLap.join());
+    check('보조: 여섯째는 다시 처음 · 같은 입력 같은 답', accessoryPick('hpull', pool, 'u1|hpull', 5)?.id === firstLap[0] && accessoryPick('hpull', pool, 'u1|hpull', 2)?.id === firstLap[2]);
+    check('보조: 사람마다 차례가 다르다', [0, 1, 2, 3, 4].map((n) => accessoryPick('hpull', pool, 'u2|hpull', n)?.id).join() !== firstLap.join());
+    check('보조: 그날 본운동은 안 고른다', accessoryPick('hpull', [px('m', '바벨 로우')], 'u1', 0, new Set(['m'])) === null);
+    const kinds = (d: number) => dayPlan(bbb, d).items.filter((x) => x.assist).map((x) => x.variant).join();
+    check('BBB 메뉴: 스쿼트 날 · 벤치 날 · 힌지 날', kinds(1) === 'hpull,pushAcc,hamstring,antiRotation' && kinds(2) === 'vpull,scap,triceps,antiRotation' && kinds(3) === 'hpull,pushAcc,singleLeg,forearm', `${kinds(1)} / ${kinds(2)} / ${kinds(3)}`);
+    check('BBB 메뉴: 본운동(스쿼트)은 보조가 아니고 보조는 2세트', dayPlan(bbb, 1).items.some((x) => x.variant === 'squat' && !x.assist) && dayPlan(bbb, 1).items.filter((x) => x.assist && x.mode === 'reserve').every((x) => x.sets.length === 2));
+    check('보조 칸 몇 번째: BBB 4일차 가로 당기기는 앞에 2번(1 · 3일차)', accessoryOccurrence(bbb, 4, 'hpull') === 2);
+    check('보조 칸은 고르기 화면 · 고정에 안 든다', usedVariants(bbb.def).every((v) => !ACCESSORY_KEYS.includes(v)));
+  }
   /* 성장기 처방 — 무게 칸은 3개 남기고, 매우 높음은 후보에서 빠진다 */
   check('성장기: 15세는 성장기 · 16세 · 나이 모름은 아님', isYouthAge(15) && !isYouthAge(16) && !isYouthAge(null));
   const pctRx = dayPlan(p531, 1).items.map((it) => itemRx(p531, 1, it.variant)).find((x) => x?.mode === 'pct');
