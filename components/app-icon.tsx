@@ -14,19 +14,59 @@ import type { LucideIcon } from 'lucide-react';
 export function AppIcon({
   Icon,
   tint,
+  look = 'tint',
+  active = false,
   size = 60,
   className = '',
   style,
 }: {
   Icon: LucideIcon;
-  /** [밝은 색, 짙은 색] */
+  /** [밝은 색, 짙은 색] — look="tint" 에서만 쓴다 */
   tint: [string, string];
+  /**
+   * tint — 앱 색 유리(위 설명). clear — iOS 26 '클리어' 모드(2026-10-14 사용자: "색은 투명, 로고만 흰색"): 색 없이 반투명 유리 판 +
+   * 뒤 흐림 + 위쪽 빛 테두리 + 흰 글리프. 어두운 뒤(더보기 폴더의 흐린 막) 위에서 쓴다.
+   */
+  look?: 'tint' | 'clear';
+  /** 지금 화면(clear) — 판을 더 밝게 + 흰 테두리 */
+  active?: boolean;
   size?: number;
   className?: string;
   style?: CSSProperties;
 }) {
   const [t1, t2] = tint;
   const g = Math.round(size * 0.5);
+  if (look === 'clear') {
+    return (
+      <span
+        className={`relative isolate grid shrink-0 place-items-center overflow-hidden rounded-[22.5%] text-white [corner-shape:squircle] ${className}`}
+        style={{
+          width: size,
+          height: size,
+          background: active ? 'rgba(255,255,255,0.28)' : 'rgba(255,255,255,0.14)',
+          backdropFilter: 'blur(14px) saturate(1.4)',
+          WebkitBackdropFilter: 'blur(14px) saturate(1.4)',
+          boxShadow: [
+            'inset 0 1px 0 rgba(255,255,255,0.45)',
+            'inset 0 -1px 0 rgba(0,0,0,0.18)',
+            active
+              ? '0 0 0 1.5px rgba(255,255,255,0.55)'
+              : '0 0 0 1px rgba(255,255,255,0.22)',
+            '0 8px 20px -10px rgba(0,0,0,0.6)',
+          ].join(','),
+          ...style,
+        }}
+      >
+        <Icon
+          aria-hidden
+          width={g}
+          height={g}
+          stroke="#fff"
+          style={{ filter: 'drop-shadow(0 1px 1px rgba(0,0,0,0.35))' }}
+        />
+      </span>
+    );
+  }
   return (
     <span
       className={`relative isolate grid shrink-0 place-items-center overflow-hidden rounded-[22.5%] [corner-shape:squircle] ${className}`}
@@ -56,16 +96,25 @@ export function AppIcon({
       <span
         aria-hidden
         className="pointer-events-none absolute inset-0 -z-0"
-        style={{ background: 'radial-gradient(120% 85% at 22% -8%, rgba(255,255,255,0.62) 0%, rgba(255,255,255,0.18) 38%, rgba(255,255,255,0) 60%)' }}
+        style={{
+          background:
+            'radial-gradient(120% 85% at 22% -8%, rgba(255,255,255,0.62) 0%, rgba(255,255,255,0.18) 38%, rgba(255,255,255,0) 60%)',
+        }}
       />
       {/* 유리를 지난 빛 — 아래 가장자리 */}
       <span
         aria-hidden
         className="pointer-events-none absolute inset-0"
-        style={{ background: 'radial-gradient(90% 55% at 50% 118%, rgba(255,255,255,0.42) 0%, rgba(255,255,255,0) 70%)' }}
+        style={{
+          background:
+            'radial-gradient(90% 55% at 50% 118%, rgba(255,255,255,0.42) 0%, rgba(255,255,255,0) 70%)',
+        }}
       />
       {/* 그림 — 두께(짙은 색으로 아래로) + 앞면(흰 그라데이션) */}
-      <span className="relative grid place-items-center" style={{ width: g, height: g }}>
+      <span
+        className="relative grid place-items-center"
+        style={{ width: g, height: g }}
+      >
         <Icon
           aria-hidden
           className="absolute"
@@ -79,7 +128,14 @@ export function AppIcon({
             opacity: 0.85,
           }}
         />
-        <Icon aria-hidden className="relative" width={g} height={g} strokeWidth={2.4} stroke="url(#app-glyph)" />
+        <Icon
+          aria-hidden
+          className="relative"
+          width={g}
+          height={g}
+          strokeWidth={2.4}
+          stroke="url(#app-glyph)"
+        />
       </span>
     </span>
   );
