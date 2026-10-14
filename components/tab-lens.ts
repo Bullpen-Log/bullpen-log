@@ -21,6 +21,12 @@ import { useEffect, useState, type RefObject } from 'react';
  * 움직임 줄이기면 스프링 없이 바로 옮기고 부풀지 않는다.
  */
 
+/**
+ * 탭을 고른 신호 — 하단 탭이 아닌 곳에서 탭을 옮길 때(본문 쓸기, components/tab-swipe.tsx) 렌즈가 화면을 기다리지 않고
+ * 곧바로 그 칸으로 가게. detail 은 탭 주소. 하단 탭(app-shell.tsx MobileTabs)이 듣고 누른 탭처럼 다룬다.
+ */
+export const TAB_CHOSEN_EVENT = 'bullpen-tab-chosen';
+
 type Spring = { x: number; v: number };
 type Tuning = { k: number; c: number };
 
