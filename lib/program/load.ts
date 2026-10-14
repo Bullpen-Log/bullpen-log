@@ -348,6 +348,8 @@ export type ProgramDayView = {
   arbitration: Arbitration;
   /** 오늘 이 프로그램의 판(열었거나 마침)과 그 판의 운동 — 없으면 null */
   session: (ProgramSessionToday & { exercises: ProgramTodayExercise[] }) | null;
+  /** 시즌 중 선발인데 마지막 등판 날을 모른다 — 카드가 물어본다(오늘 날짜 키). 그 밖엔 null */
+  askLastOuting: string | null;
 };
 
 export function progressOf(
@@ -559,6 +561,10 @@ export async function buildProgramDay(
     dropped: [],
     repin,
     arbitration,
+    askLastOuting:
+      basePlan.def.inSeason === 'starter' && decision.kind !== 'done' && lastOutingDateOf(facts) == null
+        ? todayKey
+        : null,
     session:
       sessionToday && session
         ? {
@@ -748,6 +754,10 @@ export type ProgramCardProps = {
   basics: boolean;
   /** '12회 · 주 3번 · 4주' */
   subtitle: string;
+  /** 시즌 중 프로그램인가 — 카드 머리가 '시즌 중 프로그램' */
+  inSeason: boolean;
+  /** 마지막 등판을 물을 날(오늘 날짜 키) — ProgramDayView.askLastOuting */
+  askLastOuting: string | null;
   kind: TodayDecision['kind'];
   todayState: ProgramDayView['todayState'];
   day: number;
@@ -793,11 +803,15 @@ export function programCardProps(
     name: plan.def.name,
     basics: audience === 'basics',
     subtitle: planSubtitle(plan),
+    inSeason: plan.def.inSeason != null,
+    askLastOuting: view.askLastOuting,
     kind: view.decision.kind,
     todayState: view.todayState,
     day: view.day,
     dayLabel: view.dayLabel,
-    nextLabel: nextDay <= plan.totalDays ? dayLabel(plan, nextDay) : null,
+    /* 시즌 중 다음 세션 종류는 그날 상태로 정해서 아직 모른다 — 번호만 */
+    nextLabel:
+      nextDay > plan.totalDays ? null : plan.def.inSeason ? `${nextDay}번 세션` : dayLabel(plan, nextDay),
     completed: view.completed,
     skipped: view.skipped,
     total: plan.totalDays,
