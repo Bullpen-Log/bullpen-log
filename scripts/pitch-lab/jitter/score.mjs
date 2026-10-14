@@ -17,7 +17,7 @@ import { spawn, spawnSync } from 'node:child_process';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir, cpus } from 'node:os';
 import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = join(HERE, '..', '..', '..');
@@ -54,7 +54,7 @@ await Promise.all(
     for (let k = queue.shift(); k; k = queue.shift()) {
       const dir = join(LAB, 'jitter', k);
       await new Promise((res) =>
-        spawn(process.execPath, ['--import', join(REPO, 'scripts/alias-register.mjs'), join(REPO, 'scripts/pitch-lab/markers/mocap-fit.mts'), dir], {
+        spawn(process.execPath, ['--import', pathToFileURL(join(REPO, 'scripts/alias-register.mjs')).href, join(REPO, 'scripts/pitch-lab/markers/mocap-fit.mts'), dir], {
           stdio: 'ignore',
         }).on('close', res)
       );
@@ -63,7 +63,7 @@ await Promise.all(
 );
 const lines = spawnSync(
   process.execPath,
-  ['--import', join(REPO, 'scripts/alias-register.mjs'), join(HERE, 'measure.mts'), ...keys.map((k) => join(LAB, 'jitter', k, 'result.json'))],
+  ['--import', pathToFileURL(join(REPO, 'scripts/alias-register.mjs')).href, join(HERE, 'measure.mts'), ...keys.map((k) => join(LAB, 'jitter', k, 'result.json'))],
   { encoding: 'utf8', maxBuffer: 64 << 20 }
 ).stdout.trim().split('\n');
 
