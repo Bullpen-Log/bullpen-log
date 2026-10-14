@@ -2013,6 +2013,37 @@ function DetailMenu({
       .map((item, k) => [item.href, k])
   );
 
+  const folder = useRef<HTMLDivElement>(null);
+  /*
+   * 휴대폰 폴더는 절대 굴리지 않는다(2026-10-14 사용자 — 아이폰 앱에서 관리자 14개가 넘쳐 굴렀다). 타일 크기는 CSS(--tile)가 화면 높이로
+   * 어림하고, 열 때 실제로 재서 넘치면 넘친 만큼을 줄 수로 나눠 타일을 줄인다(최소 30px). 글자 크기 · 기기마다 다른 여백까지 맞는다.
+   * 그리고 처음 초점을 폴더 자체로 — <dialog> 가 첫 타일에 초점을 줘 파란 테두리가 떴다.
+   */
+  const fitFolder = () => {
+    const f = folder.current;
+    if (!f || window.matchMedia(DESK_MEDIA).matches) return;
+    f.focus({ preventScroll: true });
+    const nav = f.querySelector('nav');
+    if (!nav) return;
+    f.style.removeProperty('--tile');
+    for (let n = 0; n < 4; n++) {
+      const over = nav.scrollHeight - nav.clientHeight;
+      if (over <= 0) return;
+      const icons = [...nav.querySelectorAll<HTMLElement>('.tile-icon')].filter(
+        (el) => el.offsetWidth > 0
+      );
+      if (!icons.length) return;
+      const rows = new Set(
+        icons.map(
+          (el) => (el.closest('[data-tile]') as HTMLElement | null)?.offsetTop ?? 0
+        )
+      ).size;
+      const now = icons[0].offsetWidth;
+      const next = Math.max(30, now - Math.ceil(over / Math.max(1, rows)));
+      if (next >= now) return;
+      f.style.setProperty('--tile', `${next}px`);
+    }
+  };
   /*
    * showModal() 은 DOM 을 직접 건드리는 일이라 effect 에서 부른다.
    *
@@ -2028,6 +2059,7 @@ function DetailMenu({
       el.removeAttribute('data-dismiss');
       folder.current?.style.removeProperty('transform');
       el.showModal();
+      fitFolder();
     }
     if (!open && el.open) {
       /* 끌어내리다 놓아 닫을 때 — 인라인 자리를 닫는 것과 같은 순간에 지워야 내려가는 움직임이 거기서 이어진다 */
@@ -2035,6 +2067,14 @@ function DetailMenu({
       folder.current?.style.removeProperty('transform');
       el.close();
     }
+  }, [open]);
+
+  /* 열려 있는 동안 화면이 돌거나 크기가 바뀌면 다시 맞춘다 */
+  useEffect(() => {
+    if (!open) return;
+    const on = () => fitFolder();
+    window.addEventListener('resize', on);
+    return () => window.removeEventListener('resize', on);
   }, [open]);
 
   /*
@@ -2049,7 +2089,6 @@ function DetailMenu({
    *   폭 전체의 감싸개가 받아 data-scrim 이 아니었고, 아이폰은 맨 div 에 click 을 잘 안 보낸다.
    * PC 팝업은 끌지 않는다(바깥 누르기는 아래 onClick).
    */
-  const folder = useRef<HTMLDivElement>(null);
   const drag = useRef<{
     id: number;
     x: number;
@@ -2218,11 +2257,12 @@ function DetailMenu({
           <div
             ref={folder}
             data-folder
-            className="relative flex max-h-[calc(100dvh-env(safe-area-inset-top)-env(safe-area-inset-bottom)-6.25rem)] flex-col desk:max-h-[inherit]"
+            tabIndex={-1}
+            className="relative flex max-h-[calc(100dvh-env(safe-area-inset-top)-env(safe-area-inset-bottom)-6.25rem)] flex-col outline-none desk:max-h-[inherit]"
           >
             {/* 휴대폰 폴더엔 닫기 단추가 없다(아이폰처럼) — 막 누르기 · 아래로 끌기 · Esc 로 닫는다. PC 팝업도 Esc · 바깥으로 */}
 
-            <nav className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain px-0 py-0 [scrollbar-width:none] desk:p-2">
+            <nav className="min-h-0 flex-1 overflow-hidden px-0 py-0 desk:overflow-x-hidden desk:overflow-y-auto desk:overscroll-contain desk:p-2">
               {/*
             휴대폰은 아이폰 앱 폴더처럼 — 둥근 네모 아이콘 + 밑 이름, 한 줄에 넷(2026-10-13 김민). 제목 없는 묶음(홈 · 투구 · …)은
             한 판으로 이어 붙인다(묶음마다 한 줄이면 칸이 비었다). PC 팝업은 예전 목록 그대로(desk:).
@@ -2245,8 +2285,8 @@ function DetailMenu({
                      */
                     className={
                       group.title
-                        ? 'mt-3 grid grid-cols-3 gap-x-2 gap-y-3.5 desk:mt-2 desk:block desk:space-y-0.5 desk:border-t desk:border-line/70 desk:pt-2'
-                        : 'grid grid-cols-3 gap-x-2 gap-y-3.5 desk:block desk:space-y-0.5 desk:pt-0'
+                        ? 'mt-3 grid grid-cols-[repeat(3,minmax(0,5.25rem))] justify-center gap-x-4 gap-y-3 desk:mt-2 desk:block desk:space-y-0.5 desk:border-t desk:border-line/70 desk:pt-2'
+                        : 'grid grid-cols-[repeat(3,minmax(0,5.25rem))] justify-center gap-x-4 gap-y-3 desk:block desk:space-y-0.5 desk:pt-0'
                     }
                   >
                     {group.title && (
@@ -2276,6 +2316,7 @@ function DetailMenu({
                             item.locked ? `${item.label}(설정 전)` : undefined
                           }
                           data-locked={item.locked ? '' : undefined}
+                          data-tile
                           onClick={onNavigate}
                           /*
                       누르는 칸은 44px 이상 — 예전에는 32px 남짓이라 옆 항목을 잘못 누르곤 했다.
@@ -2300,6 +2341,7 @@ function DetailMenu({
                               look="clear"
                               active={active}
                               size="var(--tile)"
+                              className="tile-icon"
                             />
                             {item.locked && (
                               <span className="absolute -right-1 -bottom-1 grid h-5 w-5 place-items-center rounded-full bg-white/25 text-white backdrop-blur">
@@ -2336,10 +2378,11 @@ function DetailMenu({
                   </div>
                 ))}
               {/* 설정 — 위 막대의 톱니가 폴더로 들어왔다(휴대폰만, 2026-10-14 사용자 "홈 우상단엔 알림만"). 창이라 링크가 아니라 단추 */}
-              <div className="mt-3 grid grid-cols-3 gap-x-2 gap-y-3.5 desk:hidden">
+              <div className="mt-3 grid grid-cols-[repeat(3,minmax(0,5.25rem))] justify-center gap-x-4 gap-y-3 desk:hidden">
                 <button
                   type="button"
                   aria-haspopup="dialog"
+                  data-tile
                   onClick={(e) => {
                     onNavigate();
                     onSettings(e.currentTarget);
@@ -2351,6 +2394,7 @@ function DetailMenu({
                     tint={NAV_TINT.settings}
                     look="clear"
                     size="var(--tile)"
+                    className="tile-icon"
                   />
                   <span className="min-w-0 max-w-full truncate text-[12px] leading-4 font-medium text-white/92">
                     설정
