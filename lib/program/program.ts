@@ -36,9 +36,9 @@ export type VariantKey =
   | 'squat'
   | 'hinge'
   | 'push'
+  /* 머리 위 밀기(오버헤드 프레스) — 스트롱리프트 B 날. 벤치(push)와 따로 고정해야 두 무게가 따로 오른다 */
+  | 'ohp'
   | 'pull'
-  | 'pullVertical'
-  | 'pushAssist'
   | 'singleLeg'
   | 'jump'
   | 'medball'
@@ -58,9 +58,8 @@ export const VARIANT_KEYS: readonly VariantKey[] = [
   'squat',
   'hinge',
   'push',
+  'ohp',
   'pull',
-  'pullVertical',
-  'pushAssist',
   'singleLeg',
   'jump',
   'medball',
@@ -72,9 +71,8 @@ export const VARIANT_LABELS: Record<VariantKey, string> = {
   squat: '스쿼트',
   hinge: '힌지',
   push: '밀기',
+  ohp: '머리 위 밀기',
   pull: '당기기',
-  pullVertical: '세로 당기기',
-  pushAssist: '보조 밀기',
   singleLeg: '한 다리',
   jump: '점프',
   medball: '메디신볼',
@@ -111,9 +109,8 @@ export const SLOT_OF: Record<VariantKey, SlotKind> = {
   squat: 'bigLower',
   hinge: 'bigLower',
   push: 'pushPull',
+  ohp: 'pushPull',
   pull: 'pushPull',
-  pullVertical: 'pushPull',
-  pushAssist: 'pushPull',
   singleLeg: 'singleLeg',
   jump: 'power',
   medball: 'power',
@@ -142,6 +139,12 @@ export const WEIGHTED_SLOTS: readonly SlotKind[] = [
  * 메디신볼은 2026-10-14 에 뺐다(김민 — 못 던지는 환경일 수 있다). 없으면 메디신볼 칸은 빠지고, 있어도 선택 운동이다(isOptionalProgramExercise).
  */
 export const REQUIRED_EQUIPMENT: readonly string[] = ['바벨', '덤벨'];
+
+/**
+ * 있으면 좋은 장비(필수 아님, 2026-10-15 사용자) — 바벨 · 덤벨만이어도 보조 칸은 비지 않지만(ACCESSORY_FALLBACK), 벤치가 있으면 덤벨 로우 ·
+ * 프레스가, 밴드가 있으면 풀다운 · 삼두 · 풀어파트가 생겨 대체가 거의 없다. 시작 시트가 '권장'으로 보여 준다.
+ */
+export const RECOMMENDED_EQUIPMENT: readonly string[] = ['벤치', '밴드'];
 
 /**
  * 선택 운동 — 메디신볼을 던지는 칸(메디신볼 · 회전 던지기)은 건너뛰어도 된다(2026-10-14 김민: 못 던지는 환경일 수 있다).
@@ -362,8 +365,8 @@ const ACC_REPS: Partial<Record<VariantKey, number>> = {
 };
 
 /**
- * 그날 보조 메뉴(2026-10-14 사용자와 정함) — 본운동에 맞춰 칸 넷, 각 2~3세트. 웬들러 원칙대로 당기기는 날마다(밀기보다 많이), 투수 맞춤으로
- * 무거운 머리 위 밀기는 빼고, 그날 본운동과 같은 근육은 피한다(벤치 날은 보조 밀기 대신 삼두 · 어깨 뒤쪽).
+ * 그날 보조 메뉴(2026-10-14 사용자와 정함) — 본운동에 맞춰 칸 넷, 각 2~3세트. 웬들러 원칙대로 당기기는 날마다(밀기보다 많이), 그날
+ * 본운동과 같은 근육은 피한다(벤치 날은 보조 밀기 대신 삼두 · 어깨 뒤쪽).
  *   스쿼트 날  가로 당기기 · 보조 밀기 · 햄스트링 · 몸통
  *   벤치 날    세로 당기기 · 어깨 뒤쪽 · 삼두 · 몸통
  *   힌지 날    가로 당기기 · 보조 밀기 · 한 다리 · 전완
@@ -406,9 +409,9 @@ const STRONGLIFTS: ProgramDef = {
   origin: 'StrongLifts 5×5 · 메흐디 하딤',
   summary: '매번 5회 5세트, 다 채우면 다음에 무게를 올려요',
   detail: [
-    'A 날(스쿼트 · 밀기 · 당기기)과 B 날(스쿼트 · 데드리프트)을 번갈아 해요.',
+    'A 날(스쿼트 · 벤치 프레스 · 바벨 로우)과 B 날(데드리프트 · 오버헤드 프레스)을 번갈아 해요. 투수에 맞춰 스쿼트는 A 날만, B 날은 데드리프트를 3세트로 해요.',
     '다 채우면 다음 회차에 2.5kg(데드리프트 5kg)을 올리고, 세 번 연속 못 채우면 10% 낮춰요.',
-    '투수에 맞춰 오버헤드 프레스는 빼고 밀기는 벤치 프레스로 해요. 날마다 몸통 버티기를 더했어요.',
+    '본운동 뒤 짧은 보조(A 날 세로 당기기 · 삼두, B 날 가로 당기기 · 이두, 날마다 몸통)를 2세트씩 하고, 보조는 세션마다 바뀌어요.',
   ],
   weeks: 4,
   perWeek: [3],
@@ -417,17 +420,25 @@ const STRONGLIFTS: ProgramDef = {
     const a = day % 2 === 1;
     return {
       label: a ? 'A 날' : 'B 날',
-      /* 투수 맞춤: B 날의 오버헤드 프레스는 뺀다 — 밀기가 매 회차면 벤치 무게가 원본보다 세 배 빨리 오른다 */
+      /*
+       * 원본 그대로 B 날 오버헤드 프레스(2026-10-14 사용자: 투수도 머리 위 운동을 한다 — 예전엔 뺐다). 벤치(push)와 따로 고정(ohp)이라 무게가
+       * 따로 오른다. 투수 맞춤(2026-10-15 사용자): 스쿼트는 A 날만 — 원본은 매 세션 스쿼트라 투구와 겹쳐 다리가 쉬지 못한다. B 날은 그 자리를
+       * 데드리프트 3세트(원본 1세트)로. 본운동 뒤 짧은 보조 2세트(웬들러 원칙대로 당기기는 날마다 — A 날은 로우가 본운동이라 세로 당기기) · 몸통.
+       */
       items: a
         ? [
             item('squat', 'linear', reps(5, 5), 180),
             item('push', 'linear', reps(5, 5), 120),
             item('pull', 'linear', reps(5, 5), 120),
+            item('vpull', 'reserve', reps(2, 8, 2), 75, { assist: true }),
+            item('triceps', 'reserve', reps(2, 12, 2), 60, { assist: true }),
             coreItem(),
           ]
         : [
-            item('squat', 'linear', reps(5, 5), 180),
-            item('hinge', 'linear', reps(1, 5), 180),
+            item('hinge', 'linear', reps(3, 5), 180),
+            item('ohp', 'linear', reps(5, 5), 120),
+            item('hpull', 'reserve', reps(2, 10, 2), 75, { assist: true }),
+            item('biceps', 'reserve', reps(2, 12, 2), 60, { assist: true }),
             coreItem(),
           ],
     };
@@ -1020,9 +1031,8 @@ export const VARIANT_MOVEMENT_KEY: Record<VariantKey, string | null> = {
   squat: '스쿼트',
   hinge: '힌지',
   push: '밀기',
+  ohp: '밀기',
   pull: '당기기',
-  pullVertical: '당기기',
-  pushAssist: '밀기',
   singleLeg: '런지',
   jump: LOWER_POWER_KEY,
   medball: UPPER_POWER_KEY,
@@ -1448,7 +1458,8 @@ const VARIANT_RULES: Record<VariantKey, VariantRule> = {
       isWeighted(ex) &&
       intensityLevel(ex.intensity) >= 4,
     /* 데드리프트 · RDL 이 큰 힌지다 — 힙 쓰러스트는 보조라 뒤로 */
-    rank: (ex) => [/데드리프트|RDL/.test(ex.title) ? 0 : 1, BARBELL_FIRST(ex)],
+    /* 원본(5×5 · 5/3/1)의 큰 힌지는 데드리프트 — RDL 은 그다음(2026-10-14) */
+    rank: (ex) => [/데드리프트/.test(ex.title) ? 0 : /RDL/.test(ex.title) ? 1 : 2, BARBELL_FIRST(ex)],
   },
   /*
    * 밀기는 바벨 벤치 프레스를 먼저(2026-10-14 김민: "벤치를 덤벨 프레스로 바꿀 필요 없다 — 벤치도 중요하다". 예전엔 어깨 보호로 덤벨을 먼저 골랐다).
@@ -1469,10 +1480,19 @@ const VARIANT_RULES: Record<VariantKey, VariantRule> = {
       BARBELL_FIRST(ex),
     ],
   },
+  /* 머리 위 밀기 — 바벨(밀리터리 프레스)을 먼저, 없으면 덤벨 숄더 프레스 */
+  ohp: {
+    match: (ex) =>
+      ex.category === '상체 스트렝스' &&
+      ex.movementPattern === '밀기' &&
+      OVERHEAD_PRESS.test(ex.title) &&
+      isWeighted(ex) &&
+      intensityLevel(ex.intensity) >= 3,
+    rank: (ex) => [ex.perSide ? 1 : 0, BARBELL_FIRST(ex)],
+  },
   /*
-   * 당기기(가로 · 로우)는 무거운 것이 적어 '중간'까지 받는다. 2026-10-14 김민: 매 세션 바벨 로우는 투수에게 맞나 → 허리를 굽혀 버티는 바벨
-   * 벤트오버 로우는 같은 날 스쿼트 · 데드리프트와 허리 부담이 겹친다. 가슴을 대는 로우 · 한 팔 덤벨 로우 · 케이블 로우를 먼저, 바벨 로우는 맨 뒤.
-   * 버티기(아이소) · 빠르게(스피드) · 풀오버 · 풀다운(세로 당기기 칸의 것)도 뒤로.
+   * 당기기(로우) — 스트롱리프트 본운동. 바벨 로우를 먼저(원본 그대로 — 2026-10-15 사용자: '허리 부담이라 바벨 로우는 맨 뒤' 규칙을 없앰).
+   * 무거운 것이 적어 '중간'까지 받는다. 버티기(아이소) · 빠르게(스피드) · 풀오버 · 풀다운(세로 당기기 칸의 것)은 뒤로.
    */
   pull: {
     match: (ex) =>
@@ -1482,35 +1502,9 @@ const VARIANT_RULES: Record<VariantKey, VariantRule> = {
       intensityLevel(ex.intensity) >= 3,
     rank: (ex) => [
       /로우/.test(ex.title) && !/아이소|스피드/.test(ex.title) ? 0 : 1,
-      ex.equipment.includes('바벨') ? 1 : 0,
-      wordRank(ex.title, ['체스트 서포티드 덤벨 로우', '싱글암 덤벨 로우', '시티드 케이블 로우', '싱글암 케이블 로우', '고릴라 로우']),
-      -intensityLevel(ex.intensity),
-    ],
-  },
-  /* 세로 당기기 — 친업 · 풀업(몸무게), 없으면 밴드 보조 · 풀다운. 로우와 세션마다 번갈아 한다(waveDay). 버티기 · 중량은 뒤로 */
-  pullVertical: {
-    match: (ex) =>
-      ex.category === '상체 스트렝스' &&
-      ex.movementPattern === '당기기' &&
-      /친업|풀업|풀다운/.test(ex.title) &&
-      intensityLevel(ex.intensity) >= 3,
-    rank: (ex) => [
-      /아이소|중량/.test(ex.title) ? 1 : 0,
-      wordRank(ex.title, ['친업', '풀업', '밴드 보조 친업', '밴드 보조 풀업', '싱글암 케이블 풀다운']),
-    ],
-  },
-  /* 보조 밀기 — 하체 날에 가볍게(덤벨 벤치 · 푸시업). 머리 위로 미는 것 · 본 운동 바벨 벤치는 뒤로(투수 어깨 · 같은 운동 겹침) */
-  pushAssist: {
-    match: (ex) =>
-      ex.category === '상체 스트렝스' &&
-      ex.movementPattern === '밀기' &&
-      !OVERHEAD_PRESS.test(ex.title) &&
-      intensityLevel(ex.intensity) >= 3,
-    rank: (ex) => [
-      /파이크|에센트릭|밴드 저항/.test(ex.title) ? 1 : 0,
-      ex.equipment.includes('바벨') ? 1 : 0,
+      BARBELL_FIRST(ex),
       ex.perSide ? 1 : 0,
-      wordRank(ex.title, ['덤벨 벤치 프레스', '푸시업', '덤벨 플로어 프레스', '인클라인 덤벨 프레스', '중량 푸시업']),
+      -intensityLevel(ex.intensity),
     ],
   },
   singleLeg: {
@@ -1587,13 +1581,9 @@ const VARIANT_RULES: Record<VariantKey, VariantRule> = {
     match: (ex) => ex.category === '상체 스트렝스' && ex.movementPattern === '당기기' && VERTICAL_PULL.test(ex.title),
     rank: () => [],
   },
-  /* 투수 맞춤 — 바벨 · 머리 위로 무겁게 미는 것은 빼고 덤벨 · 케이블 · 푸시업 종류로 */
+  /* 보조 밀기 — 덤벨 · 케이블 · 푸시업 종류(바벨은 본운동 몫). 머리 위 프레스도 든다(2026-10-14 사용자: 투수도 머리 위 운동을 한다) */
   pushAcc: {
-    match: (ex) =>
-      ex.category === '상체 스트렝스' &&
-      ex.movementPattern === '밀기' &&
-      !ex.equipment.includes('바벨') &&
-      !/숄더 프레스|푸시 프레스|파이크/.test(ex.title),
+    match: (ex) => ex.category === '상체 스트렝스' && ex.movementPattern === '밀기' && !ex.equipment.includes('바벨'),
     rank: () => [],
   },
   hamstring: {
@@ -1791,9 +1781,7 @@ export type Pinned = Partial<Record<VariantKey, string>>;
  * 때문에 그대로 두고, 나머지는 같은 칸의 후보를 그 칸이 나올 때마다 다음 것으로 바꾼다. 고정 운동(pinned)이 첫째, 기본기는 돌리지 않는다.
  */
 export const ROTATING_VARIANTS: readonly VariantKey[] = [
-  'pull',
-  'pullVertical',
-  'pushAssist',
+  /* 당기기(pull)는 뺀다 — 이제 스트롱리프트의 본운동(바벨 로우 5×5 직선 증량)뿐이라 돌리면 무게 흐름이 끊긴다. 보조 당기기는 hpull · vpull(accessoryPick) */
   'singleLeg',
   'jump',
   'medball',
@@ -1871,6 +1859,29 @@ export function accessoryPick<T extends PinnableExercise>(
     .sort((a, b) => a.k - b.k || a.c.id.localeCompare(b.c.id))
     .map((x) => x.c);
   return pool.length > 0 ? pool[Math.max(0, occurrence) % pool.length] : null;
+}
+
+/**
+ * 보조 칸의 그날 운동 — 그 칸에서 고르고(accessoryPick), 가진 장비로 할 것이 없으면 비슷한 칸(ACCESSORY_FALLBACK)에서 차례로. 대신 골랐으면
+ * substituted 가 참(화면 '대체 · 장비'). 고른 운동은 used 에 넣는다 — 같은 날 두 칸에 같은 운동이 안 나오게.
+ */
+export function accessoryWithFallback<T extends PinnableExercise>(
+  variant: VariantKey,
+  candidatesOf: (v: VariantKey) => readonly T[],
+  seed: string,
+  occurrence: number,
+  used: Set<string>
+): { ex: T | null; substituted: boolean } {
+  const tries = [{ variant, only: undefined as RegExp | undefined }, ...(ACCESSORY_FALLBACK[variant] ?? [])];
+  for (const [i, { variant: v, only }] of tries.entries()) {
+    const pool = candidatesOf(v).filter((c) => !only || only.test(c.title));
+    const ex = accessoryPick(v, pool, seed, occurrence, used);
+    if (ex) {
+      used.add(ex.id);
+      return { ex, substituted: i > 0 };
+    }
+  }
+  return { ex: null, substituted: false };
 }
 
 /** 이 칸(variant)이 보조로 몇 번 나왔나 — 1일차부터 day 앞날까지(그날 운동을 고르는 차례 accessoryPick 의 occurrence) */
@@ -2000,7 +2011,28 @@ export const ARM_THROW_VARIANTS: readonly VariantKey[] = ['medball', 'rotational
 export const ARM_DEFER_REASON = '팔 아끼는 날';
 
 /** 그날 대체한 칸 · 운동의 까닭 — 화면 꼬리표 '대체 · …'에 그대로 붙는다 */
-export const SUBSTITUTE_REASON = { pain: '통증 부위', armFatigue: '팔 피로' } as const;
+export const SUBSTITUTE_REASON = { pain: '통증 부위', armFatigue: '팔 피로', gear: '장비' } as const;
+
+/**
+ * 보조 칸에 가진 장비로 할 운동이 하나도 없을 때 대신 고르는 비슷한 칸 — 앞에서부터 본다(2026-10-15 사용자: "프로그램은 본운동 장비만 있으면
+ * 되게, 보조는 장비가 없으면 비슷한 걸로"). 바벨 · 덤벨만 있으면 세로 당기기(철봉 · 케이블 · 밴드)와 삼두(케이블 · 벤치 · 밴드)가 빈다.
+ * 화면에는 '대체 · 장비'와 '오늘은 세로 당기기 대신이에요'가 붙는다.
+ */
+export const ACCESSORY_FALLBACK: Partial<
+  Record<VariantKey, readonly { variant: VariantKey; only?: RegExp }[]>
+> = {
+  /* 로우까지 다 쓰면 어깨 뒤쪽(덤벨 레이즈) — 등 위쪽을 같이 쓴다 */
+  vpull: [{ variant: 'hpull' }, { variant: 'scap' }],
+  hpull: [{ variant: 'vpull' }, { variant: 'scap' }],
+  scap: [{ variant: 'hpull' }],
+  /* 삼두는 삼두를 많이 쓰는 푸시업 종류부터, 없으면 보조 밀기 */
+  triceps: [{ variant: 'pushAcc', only: /푸시업/ }, { variant: 'pushAcc' }],
+  biceps: [{ variant: 'hpull' }, { variant: 'vpull' }],
+  forearm: [{ variant: 'biceps' }],
+  pushAcc: [{ variant: 'triceps' }],
+  hamstring: [{ variant: 'singleLeg' }],
+  singleLeg: [{ variant: 'hamstring' }],
+};
 
 /**
  * 그날 대체할 칸 — 고정 운동(pinnedOf)이 안전 거르기(partsOnly)를 못 지난 칸과 그 까닭. 앱(lib/program/load.ts)과 자체 시험이 이 함수

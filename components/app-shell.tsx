@@ -2941,7 +2941,7 @@ function MobileTabs({
         style={{ '--tab-count': tabs.length } as CSSProperties}
         data-tab-bar
         /* 가로 알약의 유리(바탕 · 테두리 · 빛 · 그림자)는 globals.css '하단 탭의 유리 알약' — 가만히 있을 때도 유리로 보이게 */
-        className="pointer-events-auto relative mx-auto flex max-w-md touch-none rounded-full p-1 text-white pad:h-full pad:max-w-none pad:flex-col pad:gap-1 pad:rounded-none pad:pt-[calc(env(safe-area-inset-top)+0.75rem)] pad:pr-2 pad:pl-[calc(env(safe-area-inset-left)+0.5rem)] pad:text-ink"
+        className="pointer-events-auto relative mx-auto flex max-w-md touch-none rounded-full p-1 text-(--tab-fg) pad:h-full pad:max-w-none pad:flex-col pad:gap-1 pad:rounded-none pad:pt-[calc(env(safe-area-inset-top)+0.75rem)] pad:pr-2 pad:pl-[calc(env(safe-area-inset-left)+0.5rem)] pad:text-ink"
       >
         {/*
           렌즈 — 지금 탭 뒤의 캡슐 하나(components/tab-lens.ts 가 옮긴다, 모양은 globals.css '하단 탭의 유리 렌즈').
@@ -2980,6 +2980,7 @@ function MobileTabs({
                 type="button"
                 data-tab-href={tab.href}
                 onClick={() => {
+                  lens.to(tabs.indexOf(tab));
                   setSpinning(true);
                   onMenu();
                 }}
@@ -3022,7 +3023,11 @@ function MobileTabs({
                */
               onClick={(e) => {
                 if (!active || !sameScreen(currentUrl(), tab.href)) {
-                  if (!active) setChosen({ href: tab.href, from: pathname });
+                  if (!active) {
+                    /* 렌즈는 화면을 다시 그리기 전에 곧바로 — effect 를 기다리면 한두 장면 늦게 출발했다 */
+                    lens.to(tabs.indexOf(tab));
+                    setChosen({ href: tab.href, from: pathname });
+                  }
                   return;
                 }
                 e.preventDefault();

@@ -45,7 +45,7 @@ import {
   isOptionalProgramExercise,
   isYouthAge,
   accessoryOccurrence,
-  accessoryPick,
+  accessoryWithFallback,
   lighterRx,
   painSlotsOf,
   parseProgram,
@@ -484,18 +484,21 @@ export async function buildProgramDay(
     })
   );
   const accessoryOf = new Map<VariantKey, CachedExercise | null>();
+  /* 장비가 없어 비슷한 칸에서 대신 고른 칸(ACCESSORY_FALLBACK) — 화면에 '대체 · 장비' */
+  const gearSubstituted = new Set<VariantKey>();
+  /* 같은 날 같은 운동이 두 칸에 안 나오게 — 본운동 · 앞 칸에서 고른 것 */
+  const usedToday = new Set(mainIds);
   for (const x of items) {
     if (!x.assist || accessoryOf.has(x.variant)) continue;
-    accessoryOf.set(
+    const { ex, substituted } = accessoryWithFallback(
       x.variant,
-      accessoryPick(
-        x.variant,
-        variantCandidates(x.variant, core.library, owned, user.trainingLevel, audience, youth),
-        `${user.id}|${row.startedAt.toISOString()}|${x.variant}`,
-        accessoryOccurrence(plan, day, x.variant),
-        mainIds
-      )
+      (v) => variantCandidates(v, core.library, owned, user.trainingLevel, audience, youth),
+      `${user.id}|${row.startedAt.toISOString()}|${x.variant}`,
+      accessoryOccurrence(plan, day, x.variant),
+      usedToday
     );
+    accessoryOf.set(x.variant, ex);
+    if (substituted) gearSubstituted.add(x.variant);
   }
   const exOf = (v: VariantKey) => (accessoryOf.has(v) ? (accessoryOf.get(v) ?? null) : pinnedFor(v).ex);
 
@@ -692,7 +695,15 @@ export async function buildProgramDay(
       });
       continue;
     }
-    chosen.push({ rx, ex: pinnedEx, substituteFor: null, repinned });
+    chosen.push({
+      rx,
+      ex: pinnedEx,
+      substituteFor:
+        rx.assist && gearSubstituted.has(variant)
+          ? { title: variantLabel(variant, audience), reason: SUBSTITUTE_REASON.gear }
+          : null,
+      repinned,
+    });
   }
 
   const pctIds = chosen.filter((c) => c.rx.mode === 'pct').map((c) => c.ex.id);

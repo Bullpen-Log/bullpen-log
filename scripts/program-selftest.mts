@@ -25,6 +25,7 @@ import {
   isYouthAge,
   youthRx,
   accessoryPick,
+  accessoryWithFallback,
   accessoryOccurrence,
   ACCESSORY_KEYS,
   YOUTH_RESERVE,
@@ -293,16 +294,17 @@ check(
   })()
 );
 check(
-  '스트롱리프트 A · B(B 날 오버헤드 프레스는 뺌)',
+  '스트롱리프트 A · B(B 날 오버헤드 프레스 · 스쿼트는 A 날만 · B 날 데드리프트 3세트 · 보조 2세트)',
   eq(
     dayPlan(sl, 1).items.map((x) => x.variant),
-    ['squat', 'push', 'pull', 'antiRotation']
+    ['squat', 'push', 'pull', 'vpull', 'triceps', 'antiRotation']
   ) &&
     eq(
       dayPlan(sl, 2).items.map((x) => x.variant),
-      ['squat', 'hinge', 'antiRotation']
+      ['hinge', 'ohp', 'hpull', 'biceps', 'antiRotation']
     ) &&
-    rxOf(sl, 2, 'hinge').sets.length === 1 &&
+    rxOf(sl, 2, 'ohp').mode === 'linear' &&
+    rxOf(sl, 2, 'hinge').sets.length === 3 &&
     rxOf(sl, 1, 'squat').mode === 'linear'
 );
 check('스트롱리프트 가벼운 주 없음', !isLightWeek(sl, 4));
@@ -408,7 +410,7 @@ check(
 );
 check(
   '쓰는 변형만',
-  eq(usedVariants(sl.def), ['squat', 'hinge', 'push', 'pull', 'antiRotation'])
+  eq(usedVariants(sl.def), ['squat', 'hinge', 'push', 'ohp', 'pull', 'antiRotation'])
 );
 {
   const list = programChoiceList();
@@ -586,6 +588,28 @@ check('다 맞으면 시작', checkEligibility(base).ok);
     check('보조 칸 몇 번째: BBB 4일차 가로 당기기는 앞에 2번(1 · 3일차)', accessoryOccurrence(bbb, 4, 'hpull') === 2);
     check('보조 칸은 고르기 화면 · 고정에 안 든다', usedVariants(bbb.def).every((v) => !ACCESSORY_KEYS.includes(v)));
   }
+  /* 장비가 없는 보조 칸은 비슷한 칸에서 대신(2026-10-15) — 바벨 · 덤벨만이면 세로 당기기 · 삼두가 빈다 */
+  {
+    const mk = (id: string, title: string, pattern: string, equipment: string[]) =>
+      ({ id, title, category: '상체 스트렝스', movementPattern: pattern, equipment, intensity: '중간', difficulty: '초급', perSide: false }) as PinnableExercise;
+    const lib2 = [
+      mk('row1', '고릴라 로우', '당기기', ['덤벨']),
+      mk('row2', '바벨 로우', '당기기', ['바벨']),
+      mk('pd', '싱글암 케이블 풀다운', '당기기', ['케이블']),
+      mk('pu', '푸시업', '밀기', ['맨몸']),
+      mk('tri', '케이블 트라이셉스 푸시다운', '밀기', ['케이블']),
+    ];
+    const owned = ['맨몸', '바벨', '덤벨'];
+    const of = (v: VariantKey) => variantCandidates(v, lib2, owned, '중급');
+    const used = new Set<string>(['row2']);
+    const vp = accessoryWithFallback('vpull', of, 's', 0, used);
+    check('장비 대체: 세로 당기기가 없으면 가로 당기기(오늘 안 쓴 것)로, 대체 표시', vp.ex?.id === 'row1' && vp.substituted, vp.ex?.id);
+    const tr = accessoryWithFallback('triceps', of, 's', 0, used);
+    check('장비 대체: 삼두가 없으면 보조 밀기(푸시업)로', tr.ex?.id === 'pu' && tr.substituted, tr.ex?.id);
+    const hp = accessoryWithFallback('hpull', of, 's', 0, new Set());
+    check('장비 대체: 할 수 있으면 그 칸 그대로(대체 아님)', hp.ex != null && !hp.substituted);
+    check('장비 대체: 다 쓰면 null', accessoryWithFallback('vpull', of, 's', 0, new Set(['row1', 'row2'])).ex === null);
+  }
   /* 성장기 처방 — 무게 칸은 3개 남기고, 매우 높음은 후보에서 빠진다 */
   check('성장기: 15세는 성장기 · 16세 · 나이 모름은 아님', isYouthAge(15) && !isYouthAge(16) && !isYouthAge(null));
   const pctRx = dayPlan(p531, 1).items.map((it) => itemRx(p531, 1, it.variant)).find((x) => x?.mode === 'pct');
@@ -684,14 +708,14 @@ const lib: PinnableExercise[] = [
   );
   const pull = variantCandidates('pull', lib, full, '중급').map((e) => e.id);
   check(
-    '당기기(로우): 철봉 없으면 풀업 빠짐, 바벨 로우는 맨 뒤(2026-10-14 허리 부담)',
-    !pull.includes('pull') && pull.length > 1 && pull[0] !== 'brow' && pull.at(-1) === 'brow',
+    '당기기(로우): 철봉 없으면 풀업 빠짐, 바벨 로우 먼저(2026-10-15 사용자: 맨 뒤 규칙 없앰)',
+    !pull.includes('pull') && pull.length > 1 && pull[0] === 'brow',
     pull.join(',')
   );
   check(
-    '세로 당기기 = 풀업 · 친업, 철봉 없으면 없음',
-    variantCandidates('pullVertical', lib, ['맨몸', '철봉'], '중급')[0]?.id === 'pull' &&
-      variantCandidates('pullVertical', lib, ['바벨', '덤벨'], '중급').length === 0
+    '세로 당기기(보조 vpull) = 풀업 · 친업, 철봉 없으면 없음',
+    variantCandidates('vpull', lib, ['맨몸', '철봉'], '중급').some((e) => e.id === 'pull') &&
+      variantCandidates('vpull', lib, ['바벨', '덤벨'], '중급').length === 0
   );
   const push = variantCandidates('push', lib, full, '중급').map((e) => e.id);
   const pushNoBar = variantCandidates('push', lib, ['덤벨', '메디신볼', '벤치'], '중급').map((e) => e.id);
@@ -2156,7 +2180,10 @@ const oldJson = {
     [
       { setNo: 1, weightKg: 20, reps: 8, rir: null },
       { setNo: 2, weightKg: 60, reps: 3, rir: null },
+      /* B 날 데드리프트 3세트(2026-10-15) */
       { setNo: 3, weightKg: 100, reps: 5, rir: null },
+      { setNo: 4, weightKg: 100, reps: 5, rir: null },
+      { setNo: 5, weightKg: 100, reps: 5, rir: null },
     ]
   );
   check(

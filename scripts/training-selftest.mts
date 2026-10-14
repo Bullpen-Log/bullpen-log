@@ -542,6 +542,7 @@ import {
   parseProgram,
   patternsOfProgramDay,
   pickPinned,
+  ACCESSORY_KEYS,
   programKeyOf,
   programSignalsOf,
   restTextOf,
@@ -8491,7 +8492,20 @@ console.log(
         ? { painSlots: [], slotReasons: {} }
         : painSlotsOf(
             programDayPlan(program531, 1).items,
-            (v) => (programPinned[v] ? { id: programPinned[v] } : null),
+            /*
+             * 보조 메뉴 칸은 고정이 아니라 세션마다 바뀐다(앱 load.ts accessoryPick, 2026-10-14) — 이 표는 그 칸에서 가장 센 후보가 나온 날
+             * (팔 피로에 걸릴 수 있는 최악의 날)로 잰다. 가벼운 것이 나온 날은 대체 없이 그대로다.
+             */
+            (v) => {
+              if (ACCESSORY_KEYS.includes(v)) {
+                const all = [...new Set(library.flatMap((e) => e.equipment))];
+                const ex = [...variantCandidates(v, library, all, null)].sort(
+                  (x, y) => intensityLevel(y.intensity) - intensityLevel(x.intensity) || x.id.localeCompare(y.id)
+                )[0];
+                return ex ? { id: ex.id } : null;
+              }
+              return programPinned[v] ? { id: programPinned[v] } : null;
+            },
             programSafeIds,
             droppedOnlyForArmFatigue(programSafeInput)
           );
@@ -20744,11 +20758,12 @@ console.log(
   );
   const strong = parseProgram('stronglifts-5x5');
   check(
-    'P5 도우미 (다) 스트롱리프트 A 날 = 스쿼트 · 밀기 · 당기기, B 날 = 스쿼트 · 힌지(몸통 버티기는 열쇠 없음)',
+    /* 2026-10-15 — B 날은 스쿼트 대신 데드리프트 3세트 · 오버헤드 프레스 · 보조 가로 당기기(투수 맞춤) */
+    'P5 도우미 (다) 스트롱리프트 A 날 = 스쿼트 · 밀기 · 당기기, B 날 = 힌지 · 밀기 · 당기기(몸통 · 팔 보조는 열쇠 없음)',
     strong != null &&
       json([...patternsOfProgramDay(strong, 1)].sort()) ===
         json(['당기기', '밀기', '스쿼트']) &&
-      json([...patternsOfProgramDay(strong, 2)].sort()) === json(['스쿼트', '힌지']),
+      json([...patternsOfProgramDay(strong, 2)].sort()) === json(['당기기', '밀기', '힌지']),
     strong
       ? `${json([...patternsOfProgramDay(strong, 1)])} | ${json([...patternsOfProgramDay(strong, 2)])}`
       : '키 없음'
