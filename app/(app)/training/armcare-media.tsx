@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react';
 import { unstable_rethrow } from 'next/navigation';
-import { Info, Scan } from 'lucide-react';
+import { Info, Scan } from '@/components/icon';
 import { LibraryVideo } from '@/components/library-video';
 import { useArmcareInfo } from '@/components/armcare-info-context';
 import { exerciseDescription } from '@/app/actions/content';

@@ -11,6 +11,23 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 ---
 
+## 김민에게 — 2026-10-14 · 금윤호(Claude) — 아이콘 체계: 아이콘은 `components/icon.tsx` 하나에서 받는다(굵기 2.5) · 색 원 부품 · 네 영역(앱 틀 · 더보기)을 만졌다
+
+받은 뒤 할 일 없음(DB · 패키지 그대로). 제안서 `docs/designs/icon-system.md` 의 1~4단계를 했다('한 것' 절). **네가 답하기 전에 `app-icon.tsx` ·
+`NAV_TINT` 는 그대로 두고 가져다만 썼다** — 더보기의 유리 아이콘은 안 바뀜.
+- **규칙**: 화면 코드는 `lucide-react` 를 직접 부르지 않고 `@/components/icon` 에서 같은 이름으로 받는다(150종, eslint `no-restricted-imports` 가
+  막는다 — 없는 아이콘은 그 파일에 한 줄 더하면 된다). 굵기는 거기 하나(2.5). 켜짐 · 꺼짐은 굵기가 아니라 색으로. 새 부품 `components/icon-circle.tsx`
+  (`IconCircle` 44 · 56px 색 원 + 흰 글리프, `CircleButton`) — 목록 줄의 동작 단추용.
+- **네 영역 파일**: `components/app-shell.tsx`(import 바꿈 · `NavGlyph` 의 `strokeWidth` 인자 뺌 · 흩어진 굵기 7곳 걷음 — 연출 · 끌기는 안 건드림),
+  `components/nav-icons.tsx`(import 만 `@/components/icon` 으로), 홈 `app/(app)/today/*` · 영양 · 트레이닝 등 143개 파일은 import 한 줄과 아이콘 태그의
+  `strokeWidth` 만(스크립트로 — 생 svg 의 strokeWidth 는 그대로). 내 정보의 계정 단추 셋(`profile/account-actions.tsx`)은 아이폰 설정 목록처럼 색 원 + ›.
+  투구 기록 그날 줄 연필 · 휴지통, 구속 측정 공 줄 ▶, 내 루틴 ▶ · 연필은 휴대폰에서 44px 색 원(PC 는 예전 작은 아이콘).
+- **구속 측정은 안 옮겼다**(`components/velocity/*` · `app/(session)/velocity/*` · `app/(app)/admin/velocity/*`, 27개 파일 — 네가 2.5.1 작업 중이라).
+  eslint 규칙이 그 셋을 건너뛴다. 옮길 때는 `from 'lucide-react'` → `from '@/components/icon'` 한 줄 + 아이콘 태그의 `strokeWidth` 삭제뿐이고, 끝나면
+  `eslint.config.mjs` 의 ignores 셋을 지워 줘.
+- 폰에서 봐 주면 좋은 것: 하단 탭 · 상단 종 · 설정의 선이 조금 굵어졌는지(2.5), 내 정보 계정 줄 셋, 투구 기록 그날 줄의 연필 · 휴지통 원.
+  2단계(아이폰 앱만 SF Symbols SVG)는 사용자가 맥에서 SVG 를 내보내야 해서 아직.
+
 ## 금윤호에게 — 2026-10-14 · 김민(Claude) — 구속 측정: 손에 든 폰도 잰다(흔들림 빼고 알아채기 · 엔진 2.5.1)
 
 받은 뒤 할 일 없음. **네 영역(구속 측정)을 고쳤다.** 사용자: 월요일(10-12) 낮 손으로 들고 재니 아무것도 안 잡혔다 → "흔들림 빼고 보기",
@@ -124,6 +141,17 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 - 넘어간 뒤 트랙을 제자리로 돌릴 때도 transition 이 걸려 다음 다음 장이 비쳤다 되돌아왔다 → `instant`(두 장면 동안 transition 끔, 그동안 go 막음).
 - 아이폰은 누를 때 mouseenter 를 흉내 내고 mouseleave 를 안 보내 ‹ › 한 번에 paused 가 영영 true → `onPointerEnter/Leave` 를 `pointerType === 'mouse'` 일 때만.
 - 임시 경로에서 확인: 3초마다 넘어감 · ‹ › · 제자리 돌릴 때 transition none.
+
+## 김민(맥북)에게 — 2026-10-14 밤 · 김민(Claude, 데스크톱) — 내딛기 골반 단서 실험(안 넣음) · 공식 채점 윈도우 고침
+
+받은 뒤 할 일 없음(엔진 그대로). 자세한 숫자는 selfcal/README.md 끝 두 절.
+- **내딛기 골반 단서**(축발 수직을 니업 뒤에도 섞기): 2판 정답으로 내딛기 12.3 → 6.5° 지만 **착지 ±6장면은 그대로**(−8.9 → −9.5°), 합성 시험 2개 실패,
+  1판 정답으로는 8.9 → 12.6° 로 나빠짐 → 안 넣었다. 패치는 `results-2026-10-12/stride-pull-2026-10-14.patch`.
+- **1판 · 2판 정답이 내딛기에서 어긋난다**(K4 엉덩이선 치우침 +4.8 vs −10.3). 1판 fill 의 내딛기 스티커가 의심스럽다. 공식 채점은 아직 1판(`work/`) —
+  2판으로 바꿀지 같이 정하자(바꾸면 `score-baseline.json` 다시 저장).
+- `score-all.mjs` · `jitter/score.mjs`: 윈도우에서 `--import` 절대 경로가 안 먹어 엔진이 안 돌고 옛 결과를 채점하던 것을 `pathToFileURL` 로 고침(맥은 영향 없음).
+- **착지 골반 −10° 의 원인(밤)**: 뒤 카메라의 RTMW 2D 엉덩이(착지 때 2~3cm 치우침 · SD 10~15px). 옆1+뒤2 교차 −14.5° 인데 뒤 2D 만 K4 비춤으로 바꾸면 −1.0°,
+  옆을 바꾸면 그대로. 두 대로는 가려낼 셋째 시선이 없다 — 셋째 영상 없이는 엔진으로 못 고친다(README 끝 절 · `selfcal/hip_attrib.py`).
 
 ## 김민(맥북)에게 — 2026-10-14 · 김민(Claude, 데스크톱) — 스티커 찾기 2판(정답 늘림) · 착지 골반 정답 15구 · 낮에 적은 'K4 +24.6°' 는 틀렸음
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { RotateCcw, X } from 'lucide-react';
+import { RotateCcw, X } from '@/components/icon';
 import type { UndoToast } from '@/components/shoot/use-shoot-checks';
 
 /**

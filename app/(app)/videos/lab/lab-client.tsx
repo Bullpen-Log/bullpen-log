@@ -3,7 +3,7 @@
 import { useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Film, Play, Rotate3d, Trash2, Upload } from 'lucide-react';
+import { Film, Play, Rotate3d, Trash2, Upload } from '@/components/icon';
 import { BackLink, Card, EmptyState, PageHeading } from '@/components/ui';
 import { Segmented } from '@/components/segmented';
 import { DisclosureButton } from '@/components/disclosure';

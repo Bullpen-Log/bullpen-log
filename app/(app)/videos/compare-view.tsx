@@ -14,7 +14,7 @@ import {
   Ruler,
   Undo2,
   X,
-} from 'lucide-react';
+} from '@/components/icon';
 import { EmptyState } from '@/components/ui';
 import {
   formatTime,
@@ -416,7 +416,7 @@ export function CompareView({
             className="ml-auto grid h-11 w-11 place-items-center rounded-full text-ink transition-colors"
           >
             <span className="grid h-8 w-8 place-items-center rounded-full bg-white/15">
-              <X className="h-4 w-4" strokeWidth={2.4} />
+              <X className="h-4 w-4" />
             </span>
           </button>
         </div>

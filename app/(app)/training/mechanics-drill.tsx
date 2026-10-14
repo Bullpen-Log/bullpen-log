@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react';
 import { unstable_rethrow } from 'next/navigation';
-import { Info } from 'lucide-react';
+import { Info } from '@/components/icon';
 import { LibraryVideo } from '@/components/library-video';
 import { FavoriteButton } from '@/components/favorite-button';
 import { guideDescription } from '@/app/actions/content';

@@ -2,7 +2,7 @@
 
 import { useActionState, useState } from 'react';
 import { useFormStatus } from 'react-dom';
-import { Film, RefreshCw } from 'lucide-react';
+import { Film, RefreshCw } from '@/components/icon';
 import { createGuide, updateGuide, type ActionState } from '@/app/actions/content';
 import { guardFormAction } from '@/lib/action-offline';
 import { Button, Field, FormError, Input, Textarea } from '@/components/ui';

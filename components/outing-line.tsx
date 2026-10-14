@@ -1,4 +1,4 @@
-import { CalendarClock } from 'lucide-react';
+import { CalendarClock } from '@/components/icon';
 import { OpenCheckinButton } from '@/components/notice-bell';
 import type { Outing } from '@/lib/engine/outing';
 import { outingLineOf } from '@/lib/outing-line';

@@ -1,7 +1,7 @@
 'use client';
 
 import { useActionState, useState } from 'react';
-import { Check } from 'lucide-react';
+import { Check } from '@/components/icon';
 import { updatePatchNote, type PatchNoteState } from '@/app/actions/patch-note';
 import { guardFormAction } from '@/lib/action-offline';
 import { Button, FormError, Textarea } from '@/components/ui';

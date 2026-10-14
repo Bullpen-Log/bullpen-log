@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Pencil, RotateCcw } from 'lucide-react';
+import { Pencil, RotateCcw } from '@/components/icon';
 import { CountUp } from '@/components/onboarding/count-up';
 import { INPUT_LARGE, invalidProps } from '@/components/onboarding/step-card';
 import { useSyncedText } from '@/components/onboarding/use-synced-text';

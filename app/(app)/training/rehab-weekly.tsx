@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useTransition } from 'react';
-import { ChevronLeft, CircleCheck } from 'lucide-react';
+import { ChevronLeft, CircleCheck } from '@/components/icon';
 import { Button } from '@/components/ui';
 import { ErrorLine } from '@/components/error-line';
 import { OFFLINE_MESSAGE, orOffline } from '@/lib/action-offline';

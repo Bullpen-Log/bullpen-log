@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, useTransition, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
-import { Check, ChevronLeft, X } from 'lucide-react';
+import { Check, ChevronLeft, X } from '@/components/icon';
 import { saveCheckin } from '@/app/actions/checkin';
 import { logout } from '@/app/actions/auth';
 import { OFFLINE_MESSAGE, orOffline } from '@/lib/action-offline';
@@ -544,7 +544,7 @@ function Welcome({ nickname, edit }: { nickname: string; edit: boolean }) {
   return (
     <div className="flex h-full flex-col items-center justify-center text-center">
       <div className="grid h-24 w-24 place-items-center rounded-full bg-sky text-white shadow-[0_12px_32px_-12px_var(--color-sky)]">
-        <Check aria-hidden className="h-12 w-12" strokeWidth={3} />
+        <Check aria-hidden className="h-12 w-12" />
       </div>
       <h1 className="mt-7 text-2xl font-bold text-ink">
         {edit ? '오늘 체크인을 고칠게요' : `다시 돌아오신 걸 환영해요 ${nickname}`}
@@ -607,7 +607,7 @@ function Done({
           aria-hidden
           className="finish-pop done-check absolute inset-3 grid place-items-center rounded-full bg-sky text-white"
         >
-          <Check className="h-10 w-10" strokeWidth={3} />
+          <Check className="h-10 w-10" />
         </span>
       </div>
       <p className="mt-6 text-2xl font-bold text-ink">

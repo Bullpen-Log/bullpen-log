@@ -11,7 +11,7 @@ import {
   Play,
   RotateCcw,
   Video,
-} from 'lucide-react';
+} from '@/components/icon';
 import { Button, ButtonLink, Card } from '@/components/ui';
 import { ConfirmDialog } from '@/components/confirm-delete';
 import { ErrorLine } from '@/components/error-line';

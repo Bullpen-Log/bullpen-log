@@ -1,6 +1,6 @@
 'use client';
 
-import { ChevronRight } from 'lucide-react';
+import { ChevronRight } from '@/components/icon';
 import { OpenCheckinButton } from '@/components/notice-bell';
 
 /**

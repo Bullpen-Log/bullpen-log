@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useTransition, type ReactNode } from 'react';
-import { Loader2, RotateCcw } from 'lucide-react';
+import { Loader2, RotateCcw } from '@/components/icon';
 import { Segmented } from '@/components/segmented';
 import { Skeleton } from '@/components/fallback';
 import { analysisFor } from '@/app/actions/analysis';

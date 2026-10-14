@@ -11,12 +11,12 @@ import { execFileSync, spawn } from 'node:child_process';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = join(HERE, '..', '..', '..', '..');
 const SESSION = process.env.MARKER_SESSION ?? join(homedir(), 'bullpen-marker-lab', '2026-10-12');
-const PY = process.env.MARKER_PY ?? join(SESSION, '..', '.venv', 'bin', 'python');
+const PY = process.env.MARKER_PY ?? [join(SESSION, '..', '.venv', 'bin', 'python'), join(SESSION, '..', '.venv', 'Scripts', 'python.exe')].find((p) => existsSync(p)) ?? '';
 const BASE = join(HERE, 'results-2026-10-12', 'score-baseline.json');
 /** 이만큼(비율) 넘게 나빠지면 실패 */
 const TOL = 0.03;
@@ -36,7 +36,7 @@ await Promise.all(
     (p) =>
       new Promise((res) => {
         const dir = join(SESSION, 'work', 'bench', `p${String(p).padStart(2, '0')}`);
-        const ch = spawn(process.execPath, ['--import', join(REPO, 'scripts', 'alias-register.mjs'), join(REPO, 'scripts', 'pitch-lab', 'markers', 'mocap-fit.mts'), dir], { stdio: 'ignore' });
+        const ch = spawn(process.execPath, ['--import', pathToFileURL(join(REPO, 'scripts', 'alias-register.mjs')).href, join(REPO, 'scripts', 'pitch-lab', 'markers', 'mocap-fit.mts'), dir], { stdio: 'ignore' });
         ch.on('close', res);
       })
   )

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { ImagePlus, Loader2 } from 'lucide-react';
+import { ImagePlus, Loader2 } from '@/components/icon';
 import { captureThumbnail } from '@/lib/capture-thumbnail';
 
 /**

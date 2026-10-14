@@ -11,7 +11,7 @@ import {
   type ReactNode,
 } from 'react';
 import { createPortal, useFormStatus } from 'react-dom';
-import { CalendarDays, Info } from 'lucide-react';
+import { CalendarDays, Info } from '@/components/icon';
 import { MiniCalendar } from '@/components/mini-calendar';
 import { useModalState } from '@/components/modal';
 import { LegalSheet, wantsNewTab, type LegalDoc } from '@/components/legal-sheet';

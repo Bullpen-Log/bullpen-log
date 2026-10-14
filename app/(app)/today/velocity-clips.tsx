@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useSyncExternalStore } from 'react';
-import { RotateCw } from 'lucide-react';
+import { RotateCw } from '@/components/icon';
 import { formatSpeed } from '@/lib/units';
 import { useSpeedUnit } from '@/components/use-units';
 import { ClipPlayer } from '@/components/velocity/clip-player';

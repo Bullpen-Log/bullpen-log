@@ -12,7 +12,7 @@ import {
   Minus,
   NotebookPen,
   TriangleAlert,
-} from 'lucide-react';
+} from '@/components/icon';
 import { Card, EmptyState } from '@/components/ui';
 import { Segmented } from '@/components/segmented';
 import {

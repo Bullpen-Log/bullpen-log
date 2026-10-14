@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ChevronRight } from 'lucide-react';
+import { ChevronRight } from '@/components/icon';
 import { REST_SESSION_TYPE } from '@/lib/session-type';
 import { OPEN_POPUP_TYPES } from '@/lib/transition-types';
 import { quietRefresh } from '@/lib/quiet-refresh';

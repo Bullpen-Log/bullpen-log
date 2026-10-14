@@ -2,7 +2,8 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { ChevronDown, Pencil, Play, Plus } from 'lucide-react';
+import { ChevronDown, Pencil, Play, Plus } from '@/components/icon';
+import { IconCircle } from '@/components/icon-circle';
 import { MY_ROUTINE_MAX } from '@/lib/armcare/my-routines';
 import { Checklist, type ArmcareTodayItem } from './armcare-today';
 
@@ -143,21 +144,24 @@ function RoutineCard({
             className={`h-4 w-4 shrink-0 text-muted transition-transform ${open ? 'rotate-180' : ''}`}
           />
         </button>
+        {/* 동작 단추는 색 원(휴대폰) — 아이폰 전화 앱 목록처럼(components/icon-circle.tsx). PC 는 예전 칸 */}
         {all > 0 && (
           <Link
             href={`/armcare/play/${r.id}?d=${dateKey}`}
             aria-label={`${r.name} 따라하기`}
-            className="flex w-12 shrink-0 items-center justify-center border-l border-line text-sky transition-colors hover:bg-sky-tint"
+            className="flex shrink-0 items-center justify-center pr-2 transition-[opacity,transform] active:opacity-80 motion-safe:active:scale-95 desk:w-12 desk:border-l desk:border-line desk:pr-0 desk:text-sky desk:hover:bg-sky-tint"
           >
-            <Play aria-hidden className="h-4 w-4" />
+            <IconCircle Icon={Play} className="desk:hidden" />
+            <Play aria-hidden className="hidden h-4 w-4 desk:block" />
           </Link>
         )}
         <Link
           href={`/training/routine/${r.id}`}
           aria-label={`${r.name} 고치기`}
-          className="flex w-12 shrink-0 items-center justify-center border-l border-line text-muted transition-colors hover:bg-surface-2 hover:text-sky"
+          className="flex shrink-0 items-center justify-center pr-3 transition-[opacity,transform] active:opacity-80 motion-safe:active:scale-95 desk:w-12 desk:border-l desk:border-line desk:pr-0 desk:text-muted desk:hover:bg-surface-2 desk:hover:text-sky"
         >
-          <Pencil aria-hidden className="h-4 w-4" />
+          <IconCircle Icon={Pencil} className="desk:hidden" />
+          <Pencil aria-hidden className="hidden h-4 w-4 desk:block" />
         </Link>
       </div>
 

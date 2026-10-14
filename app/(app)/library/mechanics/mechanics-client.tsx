@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { Pencil, Star, Trash2, X } from 'lucide-react';
+import { Pencil, Star, Trash2, X } from '@/components/icon';
 import { deleteGuide, setGuideThumbnail } from '@/app/actions/content';
 import { toggleDrillFavorite } from '@/app/actions/favorite';
 import { FavoriteButton } from '@/components/favorite-button';
@@ -309,7 +309,6 @@ export function MechanicsClient({
             <Star
               className="h-3.5 w-3.5"
               fill={onlyFavorites ? 'currentColor' : 'none'}
-              strokeWidth={1.9}
             />
             즐겨찾기
             {favoriteCount > 0 && (

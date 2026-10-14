@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
-import { ArrowLeft, GitCommitHorizontal } from 'lucide-react';
+import { ArrowLeft, GitCommitHorizontal } from '@/components/icon';
 import { requireUser } from '@/lib/dal';
 import { prisma } from '@/lib/prisma';
 import { Card } from '@/components/ui';

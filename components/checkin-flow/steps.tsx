@@ -22,7 +22,7 @@ import {
 } from '@/lib/body-spots';
 import { BodySpotPicker } from '@/components/body-spot-picker';
 import { useState } from 'react';
-import { Search } from 'lucide-react';
+import { Search } from '@/components/icon';
 import { Chip } from '@/components/day-card';
 import { OutlinePerson, SleepPicture } from './pictures';
 

@@ -1,4 +1,4 @@
-import { UserCog } from 'lucide-react';
+import { UserCog } from '@/components/icon';
 import { Speed } from '@/components/speed';
 import { estimateDailyLoad } from '@/lib/baseline';
 import { LOOKBACK_DAYS } from '@/lib/report/gather';

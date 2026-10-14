@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Settings2 } from 'lucide-react';
+import { Settings2 } from '@/components/icon';
 import { Modal } from '@/components/modal';
 import { TrainingSettingsForm } from '@/components/training-forms';
 

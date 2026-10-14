@@ -2,7 +2,7 @@
 
 import { useRef, useState } from 'react';
 import { useFormStatus } from 'react-dom';
-import { RefreshCw } from 'lucide-react';
+import { RefreshCw } from '@/components/icon';
 import { CheckboxGroup, RadioGroup } from '@/components/choice-inputs';
 import { Segmented } from '@/components/segmented';
 import { OpenCheckinButton } from '@/components/notice-bell';

@@ -1,6 +1,6 @@
 'use client';
 
-import { Check } from 'lucide-react';
+import { Check } from '@/components/icon';
 
 /**
  * 운동·드릴 등록 폼에서 쓰는 선택 입력.
@@ -158,7 +158,6 @@ export function RadioGroup({
                 <Check
                   aria-hidden
                   className="h-5 w-5 shrink-0 text-sky opacity-0 transition-opacity group-has-[:checked]:opacity-100 desk:hidden"
-                  strokeWidth={2.6}
                 />
               </span>
             )}

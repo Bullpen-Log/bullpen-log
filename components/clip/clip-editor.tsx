@@ -17,7 +17,7 @@ import {
   Upload,
   VolumeX,
   X,
-} from 'lucide-react';
+} from '@/components/icon';
 import { captureThumbnail } from '@/lib/capture-thumbnail';
 import { haptic } from '@/lib/haptics';
 import {

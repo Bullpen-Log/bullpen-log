@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { AlertCircle, Check, ChevronDown, ChevronRight, Play } from 'lucide-react';
+import { AlertCircle, Check, ChevronDown, ChevronRight, Play } from '@/components/icon';
 import { ExerciseBadges } from '@/components/meta-badges';
 import {
   ARMCARE_AREAS,

@@ -2,7 +2,8 @@
 
 import { useActionState, useState } from 'react';
 import { useFormStatus } from 'react-dom';
-import { KeyRound, LogOut, UserMinus } from 'lucide-react';
+import { ChevronRight, KeyRound, LogOut, UserMinus, type LucideIcon } from '@/components/icon';
+import { IconCircle, type CircleTone } from '@/components/icon-circle';
 import {
   changePassword,
   deleteAccount,
@@ -29,18 +30,41 @@ import { Modal } from '@/components/modal';
  * 아니다. 로그아웃은 되돌릴 것이 없어 바로 한다.
  */
 
+/**
+ * 줄 하나 — 아이폰 설정 목록처럼 왼쪽 색 원 + 이름 + › (2026-10-14 아이콘 체계, components/icon-circle.tsx).
+ * 예전엔 테두리 단추 셋이 쌓여 있었다.
+ */
+function ActionRow({
+  Icon,
+  tone = 'sky',
+  children,
+  ...rest
+}: {
+  Icon: LucideIcon;
+  tone?: CircleTone;
+  children: React.ReactNode;
+} & React.ButtonHTMLAttributes<HTMLButtonElement>) {
+  return (
+    <button
+      {...rest}
+      className={`flex min-h-14 w-full items-center gap-3 px-3 text-left text-sm transition-colors active:bg-ink/6 disabled:opacity-60 ${
+        tone === 'danger' ? 'text-danger' : 'text-ink'
+      }`}
+    >
+      <IconCircle Icon={Icon} tone={tone} />
+      <span className="flex-1">{children}</span>
+      <ChevronRight aria-hidden className="h-4 w-4 text-muted/70" />
+    </button>
+  );
+}
+
 /** 누른 뒤 서버가 로그인 화면으로 보낼 때까지 한 번 더 못 누르게 한다 */
 function LogoutButton() {
   const { pending } = useFormStatus();
   return (
-    <button
-      type="submit"
-      disabled={pending}
-      className="flex w-full items-center justify-center gap-2 rounded-xl border border-line px-4 py-2.5 text-sm text-muted transition-colors hover:border-line-strong hover:text-ink disabled:opacity-60"
-    >
-      <LogOut className="h-4 w-4" />
+    <ActionRow type="submit" disabled={pending} Icon={LogOut}>
       {pending ? '로그아웃하는 중…' : '로그아웃'}
-    </button>
+    </ActionRow>
   );
 }
 
@@ -54,34 +78,35 @@ export function AccountActions() {
   const [formSeq, setFormSeq] = useState(0);
 
   return (
-    <div className="space-y-2 border-t border-line pt-4">
-      <form action={logout}>
-        <LogoutButton />
-      </form>
+    <div className="border-t border-line pt-4">
+      <div className="divide-y divide-line overflow-hidden rounded-2xl bg-surface-2">
+        <form action={logout}>
+          <LogoutButton />
+        </form>
 
-      <button
-        type="button"
-        onClick={() => {
-          setFormSeq((n) => n + 1);
-          setPwOpen(true);
-        }}
-        className="flex w-full items-center justify-center gap-2 rounded-xl border border-line px-4 py-2.5 text-sm text-muted transition-colors hover:border-sky hover:text-sky"
-      >
-        <KeyRound className="h-4 w-4" />
-        비밀번호 바꾸기
-      </button>
+        <ActionRow
+          type="button"
+          Icon={KeyRound}
+          onClick={() => {
+            setFormSeq((n) => n + 1);
+            setPwOpen(true);
+          }}
+        >
+          비밀번호 바꾸기
+        </ActionRow>
 
-      <button
-        type="button"
-        onClick={() => {
-          setFormSeq((n) => n + 1);
-          setOutOpen(true);
-        }}
-        className="flex w-full items-center justify-center gap-2 rounded-xl border border-line px-4 py-2.5 text-sm text-muted transition-colors hover:border-danger-line hover:text-danger"
-      >
-        <UserMinus className="h-4 w-4" />
-        회원 탈퇴
-      </button>
+        <ActionRow
+          type="button"
+          Icon={UserMinus}
+          tone="danger"
+          onClick={() => {
+            setFormSeq((n) => n + 1);
+            setOutOpen(true);
+          }}
+        >
+          회원 탈퇴
+        </ActionRow>
+      </div>
 
       <Modal
         open={pwOpen}

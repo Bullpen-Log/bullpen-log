@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ChevronLeft } from 'lucide-react';
+import { ChevronLeft } from '@/components/icon';
 
 /**
  * 약관 · 개인정보의 '돌아가기'(2026-10-03).
@@ -28,7 +28,7 @@ export function LegalBackLink({ fallback }: { fallback: string }) {
        */
       className="-mr-1 inline-flex min-h-11 items-center gap-0.5 text-base text-sky transition-opacity active:opacity-60 desk:mr-0 desk:min-h-0 desk:gap-1.5 desk:rounded-lg desk:border desk:border-line desk:px-3 desk:py-1.5 desk:text-xs desk:font-medium desk:text-muted desk:transition-colors desk:hover:border-sky desk:hover:text-sky"
     >
-      <ChevronLeft aria-hidden className="h-6 w-6 desk:h-3.5 desk:w-3.5" strokeWidth={2.2} />
+      <ChevronLeft aria-hidden className="h-6 w-6 desk:h-3.5 desk:w-3.5" />
       돌아가기
     </Link>
   );

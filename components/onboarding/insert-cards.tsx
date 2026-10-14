@@ -1,7 +1,7 @@
 'use client';
 
 import type { ReactNode } from 'react';
-import { Flame, ShieldCheck } from 'lucide-react';
+import { Flame, ShieldCheck } from '@/components/icon';
 import { CountUp } from '@/components/onboarding/count-up';
 import { pitchingBurn, trainingBurn } from '@/lib/nutrition/burn';
 import { kcalText } from '@/lib/nutrition/meta';

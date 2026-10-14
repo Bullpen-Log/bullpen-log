@@ -12,7 +12,7 @@ import {
   Sprout,
   Stethoscope,
   TrendingDown,
-} from 'lucide-react';
+} from '@/components/icon';
 import { ConfirmDialog } from '@/components/confirm-delete';
 import { ErrorLine } from '@/components/error-line';
 import { Modal, useModalState } from '@/components/modal';
@@ -529,7 +529,7 @@ function CheckRow({ ok, children }: { ok: boolean; children: React.ReactNode }) 
           ok ? 'bg-sky text-white' : 'border-2 border-line-strong'
         }`}
       >
-        {ok && <Check className="h-3 w-3" strokeWidth={3} />}
+        {ok && <Check className="h-3 w-3" />}
       </span>
       <span className={ok ? 'text-ink' : 'text-muted'}>
         {children}

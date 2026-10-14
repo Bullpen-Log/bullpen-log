@@ -14,7 +14,7 @@ import {
 } from 'react';
 import { flushSync } from 'react-dom';
 import Link, { useLinkStatus } from 'next/link';
-import { ChevronLeft, Lock, X } from 'lucide-react';
+import { ChevronLeft, Lock, X } from '@/components/icon';
 import { goBack } from '@/components/back-link';
 import {
   barSnapshot,
@@ -1655,7 +1655,6 @@ function SettingsCog({
       <Icon
         aria-hidden
         className={spinning ? 'h-5 w-5 motion-safe:animate-cog' : 'h-5 w-5'}
-        strokeWidth={open ? 2.4 : 1.9}
         onAnimationEnd={() => setSpinning(false)}
       />
     </button>
@@ -1695,7 +1694,6 @@ function NavGlyph({
   locked = false,
   dim = locked,
   className,
-  strokeWidth,
   style,
 }: {
   Icon: (typeof NAV_ICONS)[keyof typeof NAV_ICONS];
@@ -1704,18 +1702,16 @@ function NavGlyph({
   dim?: boolean;
   /** 아이콘 크기 */
   className: string;
-  strokeWidth: number;
   /** 연출 이름표(flyStyle · growStyle) */
   style?: CSSProperties;
 }) {
   return (
     <span className={`relative flex shrink-0 ${dim ? 'opacity-55' : ''}`} style={style}>
-      <Icon aria-hidden className={className} strokeWidth={strokeWidth} />
+      <Icon aria-hidden className={className} />
       {locked && (
         <Lock
           aria-hidden
           className="absolute -bottom-1 -right-1 h-3 w-3"
-          strokeWidth={2.4}
         />
       )}
     </span>
@@ -1779,7 +1775,6 @@ function TopIcon({
         Icon={Icon}
         locked={item.locked}
         className="h-[1.375rem] w-[1.375rem]"
-        strokeWidth={lit ? 2.4 : 1.9}
         style={flyName}
       />
     </Link>
@@ -1909,7 +1904,6 @@ function DockGrid({
                 Icon={Icon}
                 locked={item.locked}
                 className="h-[1.375rem] w-[1.375rem]"
-                strokeWidth={lit ? 2.4 : 1.9}
                 style={named ? flyStyle(`nav-fly-${i}`, i, kind) : undefined}
               />
               <Tip>{name}</Tip>
@@ -2174,7 +2168,7 @@ function DetailMenu({
               className="-mr-2 grid h-11 w-11 place-items-center text-muted transition-colors hover:text-ink desk:mr-0 desk:h-auto desk:w-auto desk:rounded-lg desk:p-2 desk:hover:bg-ink/6"
             >
               <span className="grid h-8 w-8 place-items-center rounded-full bg-ink/6 desk:contents">
-                <X className="h-4 w-4 desk:h-5 desk:w-5" strokeWidth={2.4} />
+                <X className="h-4 w-4 desk:h-5 desk:w-5" />
               </span>
             </button>
           </div>
@@ -2253,7 +2247,7 @@ function DetailMenu({
                       />
                       {item.locked && (
                         <span className="absolute -right-1 -bottom-1 grid h-5 w-5 place-items-center rounded-full bg-surface text-ink shadow">
-                          <Lock aria-hidden className="h-3 w-3" strokeWidth={2.4} />
+                          <Lock aria-hidden className="h-3 w-3" />
                         </span>
                       )}
                     </span>
@@ -2263,7 +2257,6 @@ function DetailMenu({
                         locked={item.locked}
                         dim={dim}
                         className="h-5 w-5"
-                        strokeWidth={active ? 2.4 : 1.9}
                         style={
                           fly
                             ? flyStyle(`nav-fly-${i}`, i, 'fly')
@@ -2454,7 +2447,7 @@ function MobileTopBar({
               onClick={() => goBack(router, back.href)}
               className="inline-flex min-h-11 max-w-[34vw] items-center gap-0.5 text-base text-sky transition-opacity active:opacity-60"
             >
-              <ChevronLeft aria-hidden className="h-6 w-6 shrink-0" strokeWidth={2.2} />
+              <ChevronLeft aria-hidden className="h-6 w-6 shrink-0" />
               <span className="truncate">{back.label || '뒤로'}</span>
             </button>
           )}
@@ -2495,7 +2488,6 @@ function MobileTopBar({
             <Cog
               aria-hidden
               className={spinning ? 'h-5 w-5 motion-safe:animate-cog' : 'h-5 w-5'}
-              strokeWidth={1.9}
               onAnimationEnd={() => setSpinning(false)}
             />
           </button>
@@ -2567,7 +2559,7 @@ function TabFace({
   return (
     <span
       className={`relative flex flex-col items-center gap-0.5 transition-colors duration-75 ${
-        pending ? 'font-semibold text-sky' : ''
+        pending ? 'font-semibold text-sky' : active ? 'font-semibold' : ''
       }`}
     >
       <NavGlyph
@@ -2575,7 +2567,6 @@ function TabFace({
         locked={locked}
         dim={false}
         className="h-[26px] w-[26px]"
-        strokeWidth={active || pending ? 2.2 : 1.8}
       />
       {label}
     </span>

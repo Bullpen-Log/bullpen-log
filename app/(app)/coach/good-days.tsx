@@ -1,4 +1,4 @@
-import { ChevronDown } from 'lucide-react';
+import { ChevronDown } from '@/components/icon';
 import type { FactorResult, GoodDayResult } from '@/lib/report/good-days';
 
 /**

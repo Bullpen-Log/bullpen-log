@@ -1,6 +1,6 @@
 'use client';
 
-import { CloudUpload, Loader2 } from 'lucide-react';
+import { CloudUpload, Loader2 } from '@/components/icon';
 import type { useClipFlow } from '@/components/shoot/use-clip-flow';
 
 /** '올리지 못한 영상 N개 · 다시 올리기' — 신호가 끊겨 폰에 맡겨 둔 영상(lib/clip/outbox.ts). 없으면 아무것도 안 그린다 */

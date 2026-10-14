@@ -1,4 +1,4 @@
-import { Info, Monitor, Ruler, SlidersHorizontal } from 'lucide-react';
+import { Info, Monitor, Ruler, SlidersHorizontal } from '@/components/icon';
 import { MEDICAL_NOTICE } from '@/components/site-footer';
 import { SettingsInfoRows } from '@/components/settings-info';
 import { ThemeToggle } from '@/components/theme-toggle';
