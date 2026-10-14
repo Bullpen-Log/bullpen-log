@@ -1366,6 +1366,7 @@ export function AppNav({
         onClose={() => setSettingsOpen(false)}
         title="설정"
         origin={popFrom}
+        look="folder"
       >
         <SettingsPanel data={settings} returnTo={here} />
       </Modal>
@@ -1375,6 +1376,7 @@ export function AppNav({
         onClose={() => setProfileOpen(false)}
         title="내 정보"
         origin={popFrom}
+        look="folder"
       >
         <ProfilePanel data={profile} avatarUrl={avatarUrl} today={today} />
       </Modal>
