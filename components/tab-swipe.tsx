@@ -13,6 +13,7 @@ import { DESK_MEDIA, MORE_HREF, type NavItem } from '@/lib/nav';
 import { TRAINING_HOME_HREF } from '@/lib/training-part';
 import { setNavDirection } from '@/lib/nav-state';
 import { haptic } from '@/lib/haptics';
+import { TAB_CHOSEN_EVENT } from '@/components/tab-lens';
 
 /**
  * 휴대폰 탭 쓸기(2026-10-14 사용자 "인스타처럼 — 터치한 만큼만 옆으로 따라오고, 빠르게 움직이면 바로 넘어가게").
@@ -192,6 +193,8 @@ export function TabSwipe({
         haptic('selection');
         target.current = next.href;
         setX(-d.dir * d.w);
+        /* 하단 탭의 렌즈도 지금 그 칸으로(화면을 기다리지 않고 — 본문과 같이 미끄러진다) */
+        window.dispatchEvent(new CustomEvent(TAB_CHOSEN_EVENT, { detail: next.href }));
         /* 끝까지 밀린 뒤 간다 — 새 화면은 자리표시 뒤에서 그려지고, 그려지면 자리표시가 걷힌다(위 effect) */
         window.setTimeout(() => {
           setNavDirection('none');
