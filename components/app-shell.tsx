@@ -2250,7 +2250,7 @@ function DetailMenu({
         <div className="flex w-full max-w-full flex-col items-center gap-2.5 desk:contents">
           <span
             aria-hidden
-            className="text-[15px] font-semibold tracking-tight text-white/90 desk:hidden"
+            className="text-[15px] font-semibold tracking-tight text-(--folder-fg)/90 desk:hidden"
           >
             메뉴
           </span>
@@ -2290,7 +2290,7 @@ function DetailMenu({
                     }
                   >
                     {group.title && (
-                      <p className="col-span-3 -mb-1 px-1 text-[11px] font-semibold tracking-normal text-white/60 desk:col-span-1 desk:mb-0 desk:px-3 desk:pb-1 desk:text-xs desk:text-ink/65">
+                      <p className="col-span-3 -mb-1 px-1 text-[11px] font-semibold tracking-normal text-(--folder-fg)/60 desk:col-span-1 desk:mb-0 desk:px-3 desk:pb-1 desk:text-xs desk:text-ink/65">
                         {group.title}
                       </p>
                     )}
@@ -2322,7 +2322,7 @@ function DetailMenu({
                       누르는 칸은 44px 이상 — 예전에는 32px 남짓이라 옆 항목을 잘못 누르곤 했다.
                     */
                           /* 휴대폰 폴더에는 홈이 없다(2026-10-14 사용자 — 홈은 하단 탭에 있다). PC 팝업에는 그대로 */
-                          className={`${item.href === '/today' ? 'hidden desk:flex' : 'flex'} min-w-0 flex-col items-center gap-1.5 rounded-2xl px-0.5 py-0.5 text-center text-white transition-[colors,transform] duration-75 motion-safe:active:scale-95 desk:min-h-10 desk:flex-row desk:gap-3 desk:rounded-lg desk:px-3 desk:py-1.5 desk:text-left desk:text-ink desk:active:scale-100 ${
+                          className={`${item.href === '/today' ? 'hidden desk:flex' : 'flex'} min-w-0 flex-col items-center gap-1.5 rounded-2xl px-0.5 py-0.5 text-center text-(--folder-fg) transition-[colors,transform] duration-75 motion-safe:active:scale-95 desk:min-h-10 desk:flex-row desk:gap-3 desk:rounded-lg desk:px-3 desk:py-1.5 desk:text-left desk:text-ink desk:active:scale-100 ${
                             active
                               ? 'desk:bg-sky desk:text-white'
                               : 'desk:hover:bg-ink/6 desk:active:bg-ink/6'
@@ -2344,7 +2344,7 @@ function DetailMenu({
                               className="tile-icon"
                             />
                             {item.locked && (
-                              <span className="absolute -right-1 -bottom-1 grid h-5 w-5 place-items-center rounded-full bg-white/25 text-white backdrop-blur">
+                              <span className="absolute -right-1 -bottom-1 grid h-5 w-5 place-items-center rounded-full bg-(--folder-fg)/20 text-(--folder-fg) backdrop-blur">
                                 <Lock aria-hidden className="h-3 w-3" />
                               </span>
                             )}
@@ -2368,7 +2368,7 @@ function DetailMenu({
                             />
                           </span>
                           <span
-                            className={`min-w-0 max-w-full truncate text-[12px] leading-4 text-white/92 desk:text-sm desk:leading-5 desk:text-inherit ${active ? 'font-semibold' : 'font-medium'} ${dim ? 'opacity-55' : ''}`}
+                            className={`min-w-0 max-w-full truncate text-[12px] leading-4 text-(--folder-fg)/92 desk:text-sm desk:leading-5 desk:text-inherit ${active ? 'font-semibold' : 'font-medium'} ${dim ? 'opacity-55' : ''}`}
                           >
                             {item.label}
                           </span>
@@ -2387,7 +2387,7 @@ function DetailMenu({
                     onNavigate();
                     onSettings(e.currentTarget);
                   }}
-                  className="flex min-w-0 flex-col items-center gap-1.5 rounded-2xl px-0.5 py-0.5 text-center text-white transition-[colors,transform] duration-75 motion-safe:active:scale-95"
+                  className="flex min-w-0 flex-col items-center gap-1.5 rounded-2xl px-0.5 py-0.5 text-center text-(--folder-fg) transition-[colors,transform] duration-75 motion-safe:active:scale-95"
                 >
                   <AppIcon
                     Icon={NAV_ICONS.settings}
@@ -2396,7 +2396,7 @@ function DetailMenu({
                     size="var(--tile)"
                     className="tile-icon"
                   />
-                  <span className="min-w-0 max-w-full truncate text-[12px] leading-4 font-medium text-white/92">
+                  <span className="min-w-0 max-w-full truncate text-[12px] leading-4 font-medium text-(--folder-fg)/92">
                     설정
                   </span>
                 </button>
@@ -2413,14 +2413,14 @@ function DetailMenu({
                 onNavigate();
                 onProfile(e.currentTarget);
               }}
-              className="mt-4 flex w-full shrink-0 items-center gap-3 rounded-2xl border-t border-white/20 px-1 pt-3 pb-0 text-left transition-colors duration-75 hover:bg-white/10 desk:mt-0 desk:rounded-none desk:rounded-b-2xl desk:border-line desk:px-3 desk:py-2 desk:pb-2 desk:hover:bg-ink/6"
+              className="mt-4 flex w-full shrink-0 items-center gap-3 rounded-2xl border-t border-(--folder-fg)/20 px-1 pt-3 pb-0 text-left transition-colors duration-75 hover:bg-(--folder-fg)/10 desk:mt-0 desk:rounded-none desk:rounded-b-2xl desk:border-line desk:px-3 desk:py-2 desk:pb-2 desk:hover:bg-ink/6"
             >
               <Avatar nickname={nickname} avatarUrl={avatarUrl} />
               <span className="min-w-0">
-                <span className="block truncate text-sm font-medium text-white desk:text-ink">
+                <span className="block truncate text-sm font-medium text-(--folder-fg) desk:text-ink">
                   {nickname}
                 </span>
-                <span className="block text-xs text-white/65 desk:text-ink/65">
+                <span className="block text-xs text-(--folder-fg)/65 desk:text-ink/65">
                   {isAdmin ? '관리자' : '내 정보'}
                 </span>
               </span>
