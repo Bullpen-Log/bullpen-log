@@ -437,13 +437,12 @@ export function HomeTrends({
 
   return (
     /*
-      h-full · flex-col — 옆의 분석 칸과 위아래 끝을 맞춘다. 두 칸은 한 줄(grid)에서 같은
-      높이로 늘어나고, 그래프 상자가 남는 높이를 채운다(flex-1 · 줄은 똑같이 나눈다).
-      분석이 길면 그래프가 그만큼 커진다.
+      분석 밑에 쌓인다(2026-10-14) — 예전엔 분석 옆에서 그 높이만큼 늘어났는데, 장 수가 한두 장이면 카드 하나가 900px 넘게
+      늘어나 장 수를 고른 화면(metrics)은 카드 높이를 못박는다.
     */
     <section
       aria-labelledby="trends-title"
-      className="@container flex h-full flex-col gap-4 pt-6"
+      className="@container flex flex-col gap-4"
     >
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div className="min-w-0">
@@ -524,12 +523,12 @@ export function HomeTrends({
       */}
       <div
         key={`${range.from}~${range.to}`}
-        className={`grid min-h-0 flex-1 auto-rows-fr gap-3 ${
+        className={`grid gap-3 ${
           shownMetrics.length === 1
-            ? 'grid-cols-1'
+            ? 'auto-rows-[12rem] grid-cols-1 desk:auto-rows-[14rem]'
             : shownMetrics.length === 2
-              ? 'grid-cols-2'
-              : 'grid-cols-2 @3xl:grid-cols-3'
+              ? 'auto-rows-[12rem] grid-cols-2 desk:auto-rows-[14rem]'
+              : 'min-h-0 flex-1 auto-rows-fr grid-cols-2 @3xl:grid-cols-3'
         }`}
       >
         {shownMetrics.map((m) => {

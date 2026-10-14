@@ -206,7 +206,7 @@ export function StatsOverview({
   };
 
   return (
-    <div className="space-y-6">
+    <div className="stack-block">
       {/* ── 투구 ────────────────────────────────────────────── */}
       {view === 'pitch' && (
         <>
@@ -218,8 +218,8 @@ export function StatsOverview({
             throwStreak={streak}
           />
 
-          {/* 셋이라 두 칸으로 두면 남는 칸이 회색 덩이로 보인다 */}
-          <section className="grid gap-px overflow-hidden rounded-2xl border border-line bg-line @md:grid-cols-3">
+          {/* 셋을 늘 한 줄로(휴대폰도 — 세로로 쌓으면 숫자 셋이 화면 한 장을 차지했다, 2026-10-14) */}
+          <section className="grid grid-cols-3 gap-px overflow-hidden rounded-2xl border border-line bg-line">
             <StatCard
               label="이번 주 투구"
               value={current.totalPitches}
@@ -253,9 +253,7 @@ export function StatsOverview({
                     최장 {streak}일 연투
                   </span>
                 ) : lastThrowKey ? (
-                  <span className="text-xs text-muted">
-                    최근 4주 최장 연투 {streak}일
-                  </span>
+                  <span className="text-xs text-muted">최장 연투 {streak}일</span>
                 ) : (
                   <span className="text-xs text-muted/60">기록 없음</span>
                 )

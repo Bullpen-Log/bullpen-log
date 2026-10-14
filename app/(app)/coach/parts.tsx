@@ -32,12 +32,13 @@ export function Delta({
   const Icon = flat ? Minus : up ? ArrowUpRight : ArrowDownRight;
 
   return (
-    <span className={`inline-flex items-center gap-1 text-xs ${TONE[tone].text}`}>
+    <span className={`inline-flex items-center gap-1 whitespace-nowrap text-xs ${TONE[tone].text}`}>
       <Icon className="h-3.5 w-3.5" />
       <span className="tabular-nums">
         {flat ? '변화 없음' : `${Math.abs(rounded)}%`}
       </span>
-      <span className="text-muted/60">{suffix}</span>
+      {/* 휴대폰은 숫자 칸이 한 줄 셋이라 좁다 — 화살표 · % 만(뜻은 칸 이름 '이번 주'가 말한다) */}
+      <span className="hidden text-muted/60 desk:inline">{suffix}</span>
     </span>
   );
 }
@@ -56,21 +57,22 @@ export function StatCard({
   tone?: Tone;
 }) {
   return (
-    <div className="relative bg-surface px-5 py-5 sm:px-6 sm:py-6">
+    /* 한 줄 셋이라 휴대폰은 안쪽 여백을 줄인다(칸 하나 약 114px), PC 는 블록 여백 */
+    <div className="relative min-w-0 bg-surface px-3 py-4 desk:p-(--block-pad)">
       {/* 상태를 알리는 얇은 상단 선 */}
       <span
         className={`absolute inset-x-0 top-0 h-px ${
           tone === 'neutral' ? 'bg-transparent' : TONE[tone].bar
         }`}
       />
-      <p className="text-[11px] font-medium tracking-normal text-muted">{label}</p>
-      <p className="mt-3 flex items-baseline gap-1.5">
-        <span className="text-numeric text-3xl leading-none text-ink tabular-nums sm:text-4xl">
+      <p className="truncate text-xs font-medium tracking-normal text-muted">{label}</p>
+      <p className="mt-2 flex flex-wrap items-baseline gap-x-1">
+        <span className="text-numeric text-lg leading-none whitespace-nowrap text-ink tabular-nums min-[360px]:text-xl desk:text-3xl">
           {value}
         </span>
         {unit && <span className="text-xs text-muted">{unit}</span>}
       </p>
-      {footer && <div className="mt-3 min-h-[1.25rem]">{footer}</div>}
+      {footer && <div className="mt-2 leading-snug">{footer}</div>}
     </div>
   );
 }
