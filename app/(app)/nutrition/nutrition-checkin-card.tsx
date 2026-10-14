@@ -49,6 +49,7 @@ export function NutritionCheckinCard({
       title="오늘 식욕 · 끼니는요?"
       hint="음식을 하나하나 안 적어도 오늘 조언과 식단이 여기에 맞춰요."
       answer={summary}
+      folded
     >
       {(close) => <MealForm day={day} initial={answer} onDone={close} />}
     </DayCard>

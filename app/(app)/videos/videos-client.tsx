@@ -2,9 +2,9 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Columns2, Plus, Radar, Rotate3d } from 'lucide-react';
-import Link from 'next/link';
-import { ButtonLink, PageHeading } from '@/components/ui';
+import { Columns2, Ellipsis, Radar, Rotate3d } from 'lucide-react';
+import { PageHeading } from '@/components/ui';
+import { Modal } from '@/components/modal';
 import { useTodayKey } from '@/components/use-today-key';
 import {
   PITCH_VIEW_OPTIONS,
@@ -17,10 +17,9 @@ import { CompareView, type ClipOption } from './compare-view';
 import { AnalysisLink } from '@/components/analysis-link';
 import { VideoGallery } from './video-gallery';
 import { VideoCalendar } from './video-calendar';
-import { OPEN_POPUP_TYPES } from '@/lib/transition-types';
 import { effortText } from '@/lib/pitch-effort';
-import { LinkPending } from '@/components/link-pending';
-import { ThrowPlanCard, type ThrowCardData } from './throw-plan-card';
+import { type ThrowCardData } from './throw-plan-card';
+import { TodayCard, type TodayCardData } from './today-card';
 
 /**
  * 투구 기록 한 건 — 캘린더 · 목록에 필요한 만큼만. 평균 구속 · 자세 분석 같은 것은 그날
@@ -40,9 +39,12 @@ export type VideoLog = {
   videoPaths: string[];
 };
 
-/* 휴대폰 고르개 밑 줄의 단추(2분할 비교 · 구속 측정) — 반씩 나눠 서는 알약 */
-const PHONE_PILL =
-  'order-2 inline-flex min-h-11 min-w-0 flex-1 basis-0 items-center justify-center gap-1 whitespace-nowrap rounded-full bg-surface px-2 text-[13px] font-semibold text-sky-strong transition-opacity active:opacity-60';
+/* 휴대폰 제목 줄의 둥근 아이콘 단추(구속 측정 · 더 보기) */
+const ROUND_ICON =
+  'flex h-11 w-11 items-center justify-center rounded-full bg-surface text-sky-strong transition-opacity active:opacity-60';
+/* 더 보기 시트의 한 줄 */
+const SHEET_ROW =
+  'flex min-h-14 w-full items-center gap-3 rounded-2xl px-3 text-left text-[15px] font-medium text-ink transition-colors active:bg-ink/6';
 
 /* 보기 칸 [캘린더 | 목록 | 구속 측정]은 투구 기록 머리와 같이 둔다(pitch-log-heading.tsx) */
 type View = PitchView;
@@ -68,11 +70,14 @@ export function VideosClient({
   initialView,
   initialCompare = false,
   throwCard,
+  todayCard,
   noteDays,
 }: {
   logs: VideoLog[];
   /** '오늘 던지는 일정' 카드의 재료(체크인 3판, throw-plan-card.tsx) */
   throwCard: ThrowCardData;
+  /** 맨 위 '오늘' 카드 — 오늘 계획 한 줄 · 오늘 남긴 양(today-card.tsx) */
+  todayCard: TodayCardData;
   /** 체크인 메모를 남긴 날 — 캘린더 칸의 작은 쪽지 */
   noteDays: string[];
   /** 날짜(YYYY-MM-DD)별로 고른 대표 영상. 안 고른 날은 없다. */
@@ -116,6 +121,8 @@ export function VideosClient({
     if (canMeasure) router.prefetch('/velocity');
   }, [router, velocityHref, canMeasure]);
   const [comparing, setComparing] = useState(false);
+  /* 휴대폰 제목 줄의 '…' — 2분할 비교 · 투구 분석(2026-10-14 핵심만: 고르개 밑 알약 줄을 걷었다) */
+  const [more, setMore] = useState(false);
   /* 목록에서 고른 둘. 비교 화면이 이 둘로 열린다. */
   const [preset, setPreset] = useState<{ a: string; b: string } | null>(null);
   /* 목록에서 비교할 둘을 고르는 중인가 */
@@ -182,9 +189,8 @@ export function VideosClient({
         <button
           type="button"
           onClick={startCompare}
-          className={`${PHONE_PILL} desk:order-none desk:flex-none desk:min-h-0 desk:rounded-lg desk:border desk:border-sky desk:bg-sky-tint desk:px-3 desk:py-1.5 desk:text-xs desk:hover:bg-sky-tint/70`}
+          className="hidden items-center rounded-lg border border-sky bg-sky-tint px-3 py-1.5 text-xs font-semibold text-sky-strong transition-colors hover:bg-sky-tint/70 desk:inline-flex"
         >
-          <Columns2 aria-hidden className="h-4 w-4 desk:hidden" />
           2분할 비교
         </button>
       ) : (
@@ -230,28 +236,6 @@ export function VideosClient({
           </button>
         )}
       </div>
-      {/* 휴대폰의 구속 측정 — 고르개 밑 줄(2분할 비교 옆) */}
-      {canMeasure && (
-        <button
-          type="button"
-          onClick={() => router.push('/velocity')}
-          className={`${PHONE_PILL} desk:hidden`}
-        >
-          <Radar aria-hidden className="h-4 w-4" />
-          구속 측정
-        </button>
-      )}
-      {/* 휴대폰의 투구 분석(베타) — 같은 줄, 관리자만 */}
-      {canAnalyze && (
-        <button
-          type="button"
-          onClick={() => router.push('/videos/lab')}
-          className={`${PHONE_PILL} desk:hidden`}
-        >
-          <Rotate3d aria-hidden className="h-4 w-4" />
-          투구 분석
-        </button>
-      )}
     </>
   );
 
@@ -267,37 +251,66 @@ export function VideosClient({
         action={
           <>
             <AnalysisLink view="pitch" />
-            {/* 기록을 남기는 곳은 날짜 화면이다 — 이 탭에서 곧장 오늘로(PC). 단추 기본 모양이 inline-flex 라 감싸서 숨긴다 */}
-            <span className="hidden desk:inline-flex">
-              <ButtonLink
-                href={`/pitch-log/${todayKey}`}
-                transitionTypes={OPEN_POPUP_TYPES}
-                className="gap-1.5"
-              >
-                <LinkPending>
-                  <Plus aria-hidden className="h-4 w-4" />
-                </LinkPending>
-                오늘 기록 남기기
-              </ButtonLink>
-            </span>
+            {/* 휴대폰 — 구속 측정 · 더 보기(2분할 비교 · 투구 분석). PC 는 고르개 줄에 글 단추로 있다 */}
             <div className="flex items-center gap-2 desk:hidden">
-              <Link
-                href={`/pitch-log/${todayKey}`}
-                transitionTypes={OPEN_POPUP_TYPES}
-                aria-label="오늘 기록 남기기"
-                className="flex h-11 w-11 items-center justify-center rounded-full bg-sky text-white transition-opacity active:opacity-60"
-              >
-                <LinkPending className="h-5 w-5">
-                  <Plus aria-hidden className="h-5 w-5" strokeWidth={2.4} />
-                </LinkPending>
-              </Link>
+              {canMeasure && (
+                <button
+                  type="button"
+                  onClick={() => router.push('/velocity')}
+                  aria-label="구속 측정"
+                  className={ROUND_ICON}
+                >
+                  <Radar aria-hidden className="h-5 w-5" />
+                </button>
+              )}
+              {(clips.length >= 2 || canAnalyze) && (
+                <button
+                  type="button"
+                  onClick={() => setMore(true)}
+                  aria-label="더 보기"
+                  className={ROUND_ICON}
+                >
+                  <Ellipsis aria-hidden className="h-5 w-5" />
+                </button>
+              )}
             </div>
           </>
         }
       />
 
-      {/* 오늘 던지는 일정 카드(체크인 3판) — 체크인에서 옮겨 온 질문. 하루 한 번, '모름'이면 오늘은 접어 둔다 */}
-      <ThrowPlanCard day={todayKey} data={throwCard} />
+      {/* 오늘 — 계획 한 줄 · 던지는 일정(접힌 알약) · 기록 남기기 */}
+      <TodayCard today={todayKey} data={todayCard} throwCard={throwCard} />
+
+      <Modal open={more} onClose={() => setMore(false)} title="더 보기">
+        <div className="space-y-1">
+          {clips.length >= 2 && (
+            <button
+              type="button"
+              onClick={() => {
+                setMore(false);
+                startCompare();
+              }}
+              className={SHEET_ROW}
+            >
+              <Columns2 aria-hidden className="h-5 w-5 text-sky-strong" />
+              2분할 비교
+            </button>
+          )}
+          {canAnalyze && (
+            <button
+              type="button"
+              onClick={() => {
+                setMore(false);
+                router.push('/videos/lab');
+              }}
+              className={SHEET_ROW}
+            >
+              <Rotate3d aria-hidden className="h-5 w-5 text-sky-strong" />
+              투구 분석
+            </button>
+          )}
+        </div>
+      </Modal>
 
       {/* 두 방식을 오갈 때 살짝 떠오르며 바뀐다 */}
       <div key={view} className="motion-safe:animate-fade-in">

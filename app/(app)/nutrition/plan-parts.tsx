@@ -132,43 +132,54 @@ export function PlanCard({
     </div>
   );
 
-  /* ── 아직 안 짰다 ── */
+  /* ── 아직 안 짰다 ── 휴대폰은 한 줄 '오늘 식단 짜기 ›'로 접어 두고 누르면 조건 · 단추가 펴진다(2026-10-14 김민: 핵심만). PC 는 늘 펼침 */
   if (!has) {
     return (
       <section
         aria-labelledby="plan-card-title"
-        className="motion-safe:animate-fade-in space-y-3 rounded-2xl border border-line bg-surface p-(--block-pad)"
+        className="motion-safe:animate-fade-in rounded-2xl border border-line bg-surface p-(--block-pad)"
       >
-        <div>
-          <div>
-            <h2 id="plan-card-title" className="text-sm font-bold text-ink">
-              오늘 식단 짜기
-            </h2>
-            <p className="text-xs leading-relaxed text-muted">
-              {kcalText(targets.kcal)}kcal · 단백질 {targets.protein}g에 맞춰, 오늘
-              상태와 취향대로 짜요.
-            </p>
-          </div>
-        </div>
-        <p className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-muted">
-          {state.join(' · ')}
-          <button
-            type="button"
-            onClick={onOpenPrefs}
-            className="-my-2 inline-flex min-h-10 items-center rounded-md px-1 font-semibold text-sky-strong underline-offset-2 hover:underline"
-          >
-            취향 바꾸기
-          </button>
-        </p>
-        {envChips}
         <button
           type="button"
-          disabled={pending}
-          onClick={() => onMake({ place, hot, variant: 0 })}
-          className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-full bg-sky px-5 text-sm font-semibold text-white transition-[background-color,opacity] hover:bg-sky-strong disabled:opacity-60 desk:w-auto desk:rounded-xl"
+          onClick={() => setOpen((o) => !o)}
+          aria-expanded={open}
+          className="flex w-full items-center gap-2 text-left desk:pointer-events-none"
         >
-          {pending ? '짜는 중…' : '식단 짜기'}
+          <span className="min-w-0 flex-1">
+            <span id="plan-card-title" className="block text-sm font-bold text-ink">
+              오늘 식단 짜기
+            </span>
+            <span className="block text-xs leading-relaxed text-muted">
+              {kcalText(targets.kcal)}kcal · 단백질 {targets.protein}g에 맞춰, 오늘
+              상태와 취향대로 짜요.
+            </span>
+          </span>
+          <ChevronDown
+            aria-hidden
+            className={`h-4 w-4 shrink-0 text-muted transition-transform duration-200 desk:hidden ${EASE} ${open ? 'rotate-180' : ''}`}
+          />
         </button>
+        <div className={`mt-3 space-y-3 desk:block ${open ? 'block' : 'hidden'}`}>
+          <p className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-muted">
+            {state.join(' · ')}
+            <button
+              type="button"
+              onClick={onOpenPrefs}
+              className="-my-2 inline-flex min-h-10 items-center rounded-md px-1 font-semibold text-sky-strong underline-offset-2 hover:underline"
+            >
+              취향 바꾸기
+            </button>
+          </p>
+          {envChips}
+          <button
+            type="button"
+            disabled={pending}
+            onClick={() => onMake({ place, hot, variant: 0 })}
+            className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-full bg-sky px-5 text-sm font-semibold text-white transition-[background-color,opacity] hover:bg-sky-strong disabled:opacity-60 desk:w-auto desk:rounded-xl"
+          >
+            {pending ? '짜는 중…' : '식단 짜기'}
+          </button>
+        </div>
       </section>
     );
   }

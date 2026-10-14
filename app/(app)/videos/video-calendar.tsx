@@ -6,6 +6,7 @@ import {
   ArrowRight,
   Camera,
   Check,
+  ChevronDown,
   Film,
   Loader2,
   Plus,
@@ -587,6 +588,8 @@ function DayPanel({
   const { urls } = usePlaybackUrls(day?.paths ?? []);
   const player = useRef<HTMLVideoElement>(null);
   const [status, setStatus] = useState<'idle' | 'saving' | 'saved' | 'failed'>('idle');
+  /* 휴대폰은 썸네일 · 대표 단추를 '영상 관리'를 눌러야 편다(2026-10-14 핵심만) */
+  const [tools, setTools] = useState(false);
 
   /* 아무것도 남기지 않은 날 — 그날 기록 화면으로 가서 남긴다 */
   if (!day) {
@@ -651,9 +654,16 @@ function DayPanel({
           {spokenDate(date)}
           <span className="font-normal text-muted">
             {day.rest ? ' · 쉬는 날' : ` · ${day.pitches}구`}
-            {day.paths.length > 0 && ` · 영상 ${day.paths.length}개`}
-            {measured &&
-              ` · 카메라 측정 ${measured.n}구 · 최고 ${formatSpeed(measured.max, speedUnit)}`}
+            {/* 휴대폰은 날짜 · 투구 수 · 최고 구속만(2026-10-14 핵심만) */}
+            {day.paths.length > 0 && (
+              <span className="hidden desk:inline"> · 영상 {day.paths.length}개</span>
+            )}
+            {measured && (
+              <>
+                <span className="hidden desk:inline"> · 카메라 측정 {measured.n}구</span>
+                {` · 최고 ${formatSpeed(measured.max, speedUnit)}`}
+              </>
+            )}
           </span>
         </h3>
         <Link
@@ -661,9 +671,10 @@ function DayPanel({
           transitionTypes={OPEN_POPUP_TYPES}
           className="group inline-flex items-center gap-1 rounded-lg px-2 py-1 text-sm font-semibold text-sky-strong transition-colors hover:bg-sky-tint"
         >
-          {day.paths.length > 0
-            ? '기록 고치기 · 자세 분석'
-            : '기록 고치기 · 영상 올리기'}
+          <span className="desk:hidden">자세히</span>
+          <span className="hidden desk:inline">
+            {day.paths.length > 0 ? '기록 고치기 · 자세 분석' : '기록 고치기 · 영상 올리기'}
+          </span>
           <LinkPending className="h-3.5 w-3.5">
             <ArrowRight
               aria-hidden
@@ -756,7 +767,19 @@ function DayPanel({
               )}
             </div>
 
-            <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setTools((t) => !t)}
+              aria-expanded={tools}
+              className="-my-1 inline-flex min-h-10 items-center gap-1 text-xs font-semibold text-muted desk:hidden"
+            >
+              영상 관리
+              <ChevronDown
+                aria-hidden
+                className={`h-3.5 w-3.5 transition-transform duration-200 ${tools ? 'rotate-180' : ''}`}
+              />
+            </button>
+            <div className={`flex-wrap items-center gap-2 desk:flex ${tools ? 'flex' : 'hidden'}`}>
               <button
                 type="button"
                 onClick={takeThisScene}

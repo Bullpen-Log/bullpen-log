@@ -24,7 +24,16 @@ export type ThrowCardData = {
  * 2판까지 체크인에 있던 던지는 일정 답의 새 집. 칸은 체크인 줄 그대로(DailyCheckin.throwPlan, app/actions/day-cards.ts setThrowPlan) —
  * 매일 일정 · 투구 계획 · 프로그램 · 영양 가이드 · 암케어가 모두 그 줄을 읽는다. '모름'(나중에)은 저장하지 않고 오늘 하루 접어 둔다.
  */
-export function ThrowPlanCard({ day, data }: { day: string; data: ThrowCardData }) {
+export function ThrowPlanCard({
+  day,
+  data,
+  folded = false,
+}: {
+  day: string;
+  data: ThrowCardData;
+  /** 접힌 알약으로 시작 — 투구 탭 '오늘' 카드 안(2026-10-14 핵심만) */
+  folded?: boolean;
+}) {
   return (
     <DayCard
       storageKey="throw"
@@ -33,6 +42,7 @@ export function ThrowPlanCard({ day, data }: { day: string; data: ThrowCardData 
       hint="등판 · 불펜 날은 운동 일정 · 끼니 · 암케어가 거기에 맞춰요."
       answer={data.plan}
       laterLabel="모름"
+      folded={folded}
     >
       {(close) => <PlanForm day={day} data={data} onDone={close} />}
     </DayCard>

@@ -1,7 +1,7 @@
 'use client';
 
-import type { MouseEvent } from 'react';
-import { Pencil } from 'lucide-react';
+import { useState, type MouseEvent } from 'react';
+import { ChevronDown, Pencil } from 'lucide-react';
 import { paceText } from '@/components/onboarding/format';
 import { PlanStats } from '@/components/onboarding/plan-stats';
 import { useWeightUnit } from '@/components/use-units';
@@ -20,7 +20,8 @@ import { dateText } from '@/lib/nutrition/period';
  * 가입에서 본 화면이 탭에 그대로 있다: 기초대사량 · 활동대사량 · 운동 전 목표 · 탄단지 g · 목표 체중까지 약 N주 · 예상 선.
  *
  * 숫자는 저장된 목표 그대로(단백질 g/kg 도 저장값) 운동 없는 날로 셈한다(previewOfProfile) — 그날 운동이 더해진 '오늘 목표'는
- * '나의 하루' 카드가 말한다. 고치기는 목표 창(GoalSheet)에서 — 여기서는 보기만.
+ * '오늘 영양' 카드가 말한다. 고치기는 목표 창(GoalSheet)에서 — 여기서는 보기만.
+ * 2026-10-14 김민(핵심만): 평소엔 한 줄(목표 · 하루 열량 · 단백질), 계산 내역(PlanStats)은 '자세히'를 눌러야 편다.
  */
 export function MyPlanCard({
   day,
@@ -34,6 +35,7 @@ export function MyPlanCard({
   className?: string;
 }) {
   const unit = useWeightUnit();
+  const [open, setOpen] = useState(false);
   const body: OnboardingBody = {
     age: day.body.age,
     sex: day.body.sex,
@@ -59,6 +61,9 @@ export function MyPlanCard({
           <h2 className="text-sm font-bold text-ink">
             내 계획 · <span className="text-sky-strong">{goal}</span>
           </h2>
+          <p className="mt-0.5 text-sm tabular-nums text-ink">
+            하루 {p.targets.kcal.toLocaleString()}kcal · 단백질 {p.targets.protein}g
+          </p>
           {parts.length > 0 && (
             <p className="mt-0.5 text-xs leading-relaxed break-keep text-muted">
               {parts.join(' · ')}
@@ -74,7 +79,19 @@ export function MyPlanCard({
           고치기
         </button>
       </div>
-      <PlanStats p={p} a={a} body={body} today={today} active />
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        className="-mb-1 inline-flex min-h-9 items-center gap-1 text-xs font-semibold text-muted transition-colors hover:text-ink"
+      >
+        {open ? '계산 내역 접기' : '계산 내역 보기'}
+        <ChevronDown
+          aria-hidden
+          className={`h-3.5 w-3.5 transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
+        />
+      </button>
+      {open && <PlanStats p={p} a={a} body={body} today={today} active />}
     </section>
   );
 }
