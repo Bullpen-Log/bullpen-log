@@ -42,20 +42,26 @@ export function AppIcon({
     const gs = typeof size === 'number' ? g : `calc(${size} * 0.5)`;
     return (
       <span
-        className={`relative isolate grid shrink-0 place-items-center overflow-hidden rounded-[22.5%] text-white [corner-shape:squircle] ${className}`}
+        /*
+         * 색은 테마가 정한다(globals.css 의 --tile-*, 2026-10-14 사용자 "화이트는 하늘색을 옅게 반투명, 네이비는 네이비 반투명, 다크는 그대로").
+         * 값이 없으면 어두운 뒤의 흰 유리(다크).
+         */
+        className={`relative isolate grid shrink-0 place-items-center overflow-hidden rounded-[22.5%] text-(--tile-fg,#fff) [corner-shape:squircle] ${className}`}
         style={{
           width: size,
           height: size,
-          background: active ? 'rgba(255,255,255,0.28)' : 'rgba(255,255,255,0.14)',
+          background: active
+            ? 'var(--tile-bg-active, rgba(255,255,255,0.28))'
+            : 'var(--tile-bg, rgba(255,255,255,0.14))',
           backdropFilter: 'blur(14px) saturate(1.4)',
           WebkitBackdropFilter: 'blur(14px) saturate(1.4)',
           boxShadow: [
-            'inset 0 1px 0 rgba(255,255,255,0.45)',
+            'inset 0 1px 0 var(--tile-gloss, rgba(255,255,255,0.45))',
             'inset 0 -1px 0 rgba(0,0,0,0.18)',
             active
-              ? '0 0 0 1.5px rgba(255,255,255,0.55)'
-              : '0 0 0 1px rgba(255,255,255,0.22)',
-            '0 8px 20px -10px rgba(0,0,0,0.6)',
+              ? '0 0 0 1.5px var(--tile-ring-active, rgba(255,255,255,0.55))'
+              : '0 0 0 1px var(--tile-ring, rgba(255,255,255,0.22))',
+            '0 8px 20px -10px var(--tile-shadow, rgba(0,0,0,0.6))',
           ].join(','),
           ...style,
         }}
@@ -64,11 +70,11 @@ export function AppIcon({
           aria-hidden
           width={g}
           height={g}
-          stroke="#fff"
+          stroke="currentColor"
           style={{
             width: gs,
             height: gs,
-            filter: 'drop-shadow(0 1px 1px rgba(0,0,0,0.35))',
+            filter: 'drop-shadow(0 1px 1px var(--tile-glyph-shadow, rgba(0,0,0,0.35)))',
           }}
         />
       </span>

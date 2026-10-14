@@ -318,6 +318,7 @@ export function FeedCard({ items }: { items: FeedItem[] }) {
        */}
       <div
         ref={frame}
+        data-no-swipe
         className="relative h-[9.75rem] select-none touch-pan-y desk:h-[7rem]"
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
