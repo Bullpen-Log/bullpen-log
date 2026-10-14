@@ -36,6 +36,8 @@ export type VariantKey =
   | 'squat'
   | 'hinge'
   | 'push'
+  /* 머리 위 밀기(오버헤드 프레스) — 스트롱리프트 B 날. 벤치(push)와 따로 고정해야 두 무게가 따로 오른다 */
+  | 'ohp'
   | 'pull'
   | 'singleLeg'
   | 'jump'
@@ -56,6 +58,7 @@ export const VARIANT_KEYS: readonly VariantKey[] = [
   'squat',
   'hinge',
   'push',
+  'ohp',
   'pull',
   'singleLeg',
   'jump',
@@ -68,6 +71,7 @@ export const VARIANT_LABELS: Record<VariantKey, string> = {
   squat: '스쿼트',
   hinge: '힌지',
   push: '밀기',
+  ohp: '머리 위 밀기',
   pull: '당기기',
   singleLeg: '한 다리',
   jump: '점프',
@@ -105,6 +109,7 @@ export const SLOT_OF: Record<VariantKey, SlotKind> = {
   squat: 'bigLower',
   hinge: 'bigLower',
   push: 'pushPull',
+  ohp: 'pushPull',
   pull: 'pushPull',
   singleLeg: 'singleLeg',
   jump: 'power',
@@ -354,8 +359,8 @@ const ACC_REPS: Partial<Record<VariantKey, number>> = {
 };
 
 /**
- * 그날 보조 메뉴(2026-10-14 사용자와 정함) — 본운동에 맞춰 칸 넷, 각 2~3세트. 웬들러 원칙대로 당기기는 날마다(밀기보다 많이), 투수 맞춤으로
- * 무거운 머리 위 밀기는 빼고, 그날 본운동과 같은 근육은 피한다(벤치 날은 보조 밀기 대신 삼두 · 어깨 뒤쪽).
+ * 그날 보조 메뉴(2026-10-14 사용자와 정함) — 본운동에 맞춰 칸 넷, 각 2~3세트. 웬들러 원칙대로 당기기는 날마다(밀기보다 많이), 그날
+ * 본운동과 같은 근육은 피한다(벤치 날은 보조 밀기 대신 삼두 · 어깨 뒤쪽).
  *   스쿼트 날  가로 당기기 · 보조 밀기 · 햄스트링 · 몸통
  *   벤치 날    세로 당기기 · 어깨 뒤쪽 · 삼두 · 몸통
  *   힌지 날    가로 당기기 · 보조 밀기 · 한 다리 · 전완
@@ -398,9 +403,9 @@ const STRONGLIFTS: ProgramDef = {
   origin: 'StrongLifts 5×5 · 메흐디 하딤',
   summary: '매번 5회 5세트, 다 채우면 다음에 무게를 올려요',
   detail: [
-    'A 날(스쿼트 · 밀기 · 당기기)과 B 날(스쿼트 · 데드리프트)을 번갈아 해요.',
+    'A 날(스쿼트 · 벤치 프레스 · 바벨 로우)과 B 날(데드리프트 · 오버헤드 프레스)을 번갈아 해요. 투수에 맞춰 스쿼트는 A 날만, B 날은 데드리프트를 3세트로 해요.',
     '다 채우면 다음 회차에 2.5kg(데드리프트 5kg)을 올리고, 세 번 연속 못 채우면 10% 낮춰요.',
-    '투수에 맞춰 오버헤드 프레스는 빼고 밀기는 벤치 프레스로 해요. 날마다 몸통 버티기를 더했어요.',
+    '본운동 뒤 짧은 보조(A 날 세로 당기기 · 삼두, B 날 가로 당기기 · 이두, 날마다 몸통)를 2세트씩 하고, 보조는 세션마다 바뀌어요.',
   ],
   weeks: 4,
   perWeek: [3],
@@ -409,17 +414,25 @@ const STRONGLIFTS: ProgramDef = {
     const a = day % 2 === 1;
     return {
       label: a ? 'A 날' : 'B 날',
-      /* 투수 맞춤: B 날의 오버헤드 프레스는 뺀다 — 밀기가 매 회차면 벤치 무게가 원본보다 세 배 빨리 오른다 */
+      /*
+       * 원본 그대로 B 날 오버헤드 프레스(2026-10-14 사용자: 투수도 머리 위 운동을 한다 — 예전엔 뺐다). 벤치(push)와 따로 고정(ohp)이라 무게가
+       * 따로 오른다. 투수 맞춤(2026-10-15 사용자): 스쿼트는 A 날만 — 원본은 매 세션 스쿼트라 투구와 겹쳐 다리가 쉬지 못한다. B 날은 그 자리를
+       * 데드리프트 3세트(원본 1세트)로. 본운동 뒤 짧은 보조 2세트(웬들러 원칙대로 당기기는 날마다 — A 날은 로우가 본운동이라 세로 당기기) · 몸통.
+       */
       items: a
         ? [
             item('squat', 'linear', reps(5, 5), 180),
             item('push', 'linear', reps(5, 5), 120),
             item('pull', 'linear', reps(5, 5), 120),
+            item('vpull', 'reserve', reps(2, 8, 2), 75, { assist: true }),
+            item('triceps', 'reserve', reps(2, 12, 2), 60, { assist: true }),
             coreItem(),
           ]
         : [
-            item('squat', 'linear', reps(5, 5), 180),
-            item('hinge', 'linear', reps(1, 5), 180),
+            item('hinge', 'linear', reps(3, 5), 180),
+            item('ohp', 'linear', reps(5, 5), 120),
+            item('hpull', 'reserve', reps(2, 10, 2), 75, { assist: true }),
+            item('biceps', 'reserve', reps(2, 12, 2), 60, { assist: true }),
             coreItem(),
           ],
     };
@@ -1012,6 +1025,7 @@ export const VARIANT_MOVEMENT_KEY: Record<VariantKey, string | null> = {
   squat: '스쿼트',
   hinge: '힌지',
   push: '밀기',
+  ohp: '밀기',
   pull: '당기기',
   singleLeg: '런지',
   jump: LOWER_POWER_KEY,
@@ -1438,7 +1452,8 @@ const VARIANT_RULES: Record<VariantKey, VariantRule> = {
       isWeighted(ex) &&
       intensityLevel(ex.intensity) >= 4,
     /* 데드리프트 · RDL 이 큰 힌지다 — 힙 쓰러스트는 보조라 뒤로 */
-    rank: (ex) => [/데드리프트|RDL/.test(ex.title) ? 0 : 1, BARBELL_FIRST(ex)],
+    /* 원본(5×5 · 5/3/1)의 큰 힌지는 데드리프트 — RDL 은 그다음(2026-10-14) */
+    rank: (ex) => [/데드리프트/.test(ex.title) ? 0 : /RDL/.test(ex.title) ? 1 : 2, BARBELL_FIRST(ex)],
   },
   /*
    * 밀기는 바벨 벤치 프레스를 먼저(2026-10-14 김민: "벤치를 덤벨 프레스로 바꿀 필요 없다 — 벤치도 중요하다". 예전엔 어깨 보호로 덤벨을 먼저 골랐다).
@@ -1460,6 +1475,16 @@ const VARIANT_RULES: Record<VariantKey, VariantRule> = {
     ],
   },
   /* 당기기는 무거운 것이 적어 '중간'까지 받는다. 덤벨 · 바벨 로우를 철봉보다 먼저(무게 흐름을 보려고) */
+  /* 머리 위 밀기 — 바벨(밀리터리 프레스)을 먼저, 없으면 덤벨 숄더 프레스 */
+  ohp: {
+    match: (ex) =>
+      ex.category === '상체 스트렝스' &&
+      ex.movementPattern === '밀기' &&
+      OVERHEAD_PRESS.test(ex.title) &&
+      isWeighted(ex) &&
+      intensityLevel(ex.intensity) >= 3,
+    rank: (ex) => [ex.perSide ? 1 : 0, BARBELL_FIRST(ex)],
+  },
   pull: {
     match: (ex) =>
       ex.category === '상체 스트렝스' &&
@@ -1535,13 +1560,9 @@ const VARIANT_RULES: Record<VariantKey, VariantRule> = {
     match: (ex) => ex.category === '상체 스트렝스' && ex.movementPattern === '당기기' && VERTICAL_PULL.test(ex.title),
     rank: () => [],
   },
-  /* 투수 맞춤 — 바벨 · 머리 위로 무겁게 미는 것은 빼고 덤벨 · 케이블 · 푸시업 종류로 */
+  /* 보조 밀기 — 덤벨 · 케이블 · 푸시업 종류(바벨은 본운동 몫). 머리 위 프레스도 든다(2026-10-14 사용자: 투수도 머리 위 운동을 한다) */
   pushAcc: {
-    match: (ex) =>
-      ex.category === '상체 스트렝스' &&
-      ex.movementPattern === '밀기' &&
-      !ex.equipment.includes('바벨') &&
-      !/숄더 프레스|푸시 프레스|파이크/.test(ex.title),
+    match: (ex) => ex.category === '상체 스트렝스' && ex.movementPattern === '밀기' && !ex.equipment.includes('바벨'),
     rank: () => [],
   },
   hamstring: {

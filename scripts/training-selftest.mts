@@ -20741,11 +20741,12 @@ console.log(
   );
   const strong = parseProgram('stronglifts-5x5');
   check(
-    'P5 도우미 (다) 스트롱리프트 A 날 = 스쿼트 · 밀기 · 당기기, B 날 = 스쿼트 · 힌지(몸통 버티기는 열쇠 없음)',
+    /* 2026-10-15 — B 날은 스쿼트 대신 데드리프트 3세트 · 오버헤드 프레스 · 보조 가로 당기기(투수 맞춤) */
+    'P5 도우미 (다) 스트롱리프트 A 날 = 스쿼트 · 밀기 · 당기기, B 날 = 힌지 · 밀기 · 당기기(몸통 · 팔 보조는 열쇠 없음)',
     strong != null &&
       json([...patternsOfProgramDay(strong, 1)].sort()) ===
         json(['당기기', '밀기', '스쿼트']) &&
-      json([...patternsOfProgramDay(strong, 2)].sort()) === json(['스쿼트', '힌지']),
+      json([...patternsOfProgramDay(strong, 2)].sort()) === json(['당기기', '밀기', '힌지']),
     strong
       ? `${json([...patternsOfProgramDay(strong, 1)])} | ${json([...patternsOfProgramDay(strong, 2)])}`
       : '키 없음'
