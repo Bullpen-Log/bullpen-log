@@ -285,7 +285,7 @@ export function FeedCard({ items }: { items: FeedItem[] }) {
         />
         {/* ‹ › 는 PC 만 — 휴대폰은 오른쪽 아래 점으로(손가락에 너무 작았다) */}
         {n > 1 && (
-          <span className="ml-auto hidden items-center gap-1 desk:flex">
+          <span className="ml-auto hidden items-center gap-1.5 desk:flex">
             <button
               type="button"
               onClick={(e) => {
@@ -293,9 +293,9 @@ export function FeedCard({ items }: { items: FeedItem[] }) {
                 go(-1);
               }}
               aria-label="이전"
-              className="flex h-8 w-8 items-center justify-center rounded-full text-line-strong transition-colors hover:bg-surface-2 hover:text-ink active:bg-surface-2 desk:h-7 desk:w-7"
+              className="flex h-10 w-10 items-center justify-center rounded-full bg-surface-2/70 text-muted transition-colors hover:bg-surface-2 hover:text-ink active:scale-95 active:bg-surface-2"
             >
-              <ChevronLeft aria-hidden className="h-4 w-4" />
+              <ChevronLeft aria-hidden className="h-5 w-5" strokeWidth={2.5} />
             </button>
             <button
               type="button"
@@ -304,9 +304,9 @@ export function FeedCard({ items }: { items: FeedItem[] }) {
                 go(1);
               }}
               aria-label="다음"
-              className="flex h-8 w-8 items-center justify-center rounded-full text-line-strong transition-colors hover:bg-surface-2 hover:text-ink active:bg-surface-2 desk:h-7 desk:w-7"
+              className="flex h-10 w-10 items-center justify-center rounded-full bg-surface-2/70 text-muted transition-colors hover:bg-surface-2 hover:text-ink active:scale-95 active:bg-surface-2"
             >
-              <ChevronRight aria-hidden className="h-4 w-4" />
+              <ChevronRight aria-hidden className="h-5 w-5" strokeWidth={2.5} />
             </button>
           </span>
         )}
@@ -380,11 +380,11 @@ export function FeedCard({ items }: { items: FeedItem[] }) {
                 aria-selected={on}
                 aria-label={`${i + 1}번째 장 · ${it.label}`}
                 onClick={(e) => jumpTo(i, e.timeStamp)}
-                className="flex h-6 w-5 items-center justify-center"
+                className="flex h-8 w-6 items-center justify-center"
               >
                 <span
-                  className={`block h-1.5 rounded-full transition-[width,background-color] duration-300 ease-out ${
-                    on ? 'w-4 bg-sky' : 'w-1.5 bg-ink/20'
+                  className={`block h-2 rounded-full transition-[width,background-color] duration-300 ease-out ${
+                    on ? 'w-5 bg-sky' : 'w-2 bg-ink/20'
                   }`}
                 />
               </button>
