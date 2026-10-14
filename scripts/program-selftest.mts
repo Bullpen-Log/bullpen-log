@@ -293,16 +293,17 @@ check(
   })()
 );
 check(
-  '스트롱리프트 A · B(B 날 오버헤드 프레스는 뺌)',
+  '스트롱리프트 A · B(B 날 오버헤드 프레스 · 스쿼트는 A 날만 · B 날 데드리프트 3세트 · 보조 2세트)',
   eq(
     dayPlan(sl, 1).items.map((x) => x.variant),
-    ['squat', 'push', 'pull', 'antiRotation']
+    ['squat', 'push', 'pull', 'vpull', 'triceps', 'antiRotation']
   ) &&
     eq(
       dayPlan(sl, 2).items.map((x) => x.variant),
-      ['squat', 'hinge', 'antiRotation']
+      ['hinge', 'ohp', 'hpull', 'biceps', 'antiRotation']
     ) &&
-    rxOf(sl, 2, 'hinge').sets.length === 1 &&
+    rxOf(sl, 2, 'ohp').mode === 'linear' &&
+    rxOf(sl, 2, 'hinge').sets.length === 3 &&
     rxOf(sl, 1, 'squat').mode === 'linear'
 );
 check('스트롱리프트 가벼운 주 없음', !isLightWeek(sl, 4));
@@ -408,7 +409,7 @@ check(
 );
 check(
   '쓰는 변형만',
-  eq(usedVariants(sl.def), ['squat', 'hinge', 'push', 'pull', 'antiRotation'])
+  eq(usedVariants(sl.def), ['squat', 'hinge', 'push', 'ohp', 'pull', 'antiRotation'])
 );
 {
   const list = programChoiceList();
@@ -689,9 +690,9 @@ const lib: PinnableExercise[] = [
     pull.join(',')
   );
   check(
-    '세로 당기기 = 풀업 · 친업, 철봉 없으면 없음',
-    variantCandidates('pullVertical', lib, ['맨몸', '철봉'], '중급')[0]?.id === 'pull' &&
-      variantCandidates('pullVertical', lib, ['바벨', '덤벨'], '중급').length === 0
+    '세로 당기기(보조 vpull) = 풀업 · 친업, 철봉 없으면 없음',
+    variantCandidates('vpull', lib, ['맨몸', '철봉'], '중급').some((e) => e.id === 'pull') &&
+      variantCandidates('vpull', lib, ['바벨', '덤벨'], '중급').length === 0
   );
   const push = variantCandidates('push', lib, full, '중급').map((e) => e.id);
   const pushNoBar = variantCandidates('push', lib, ['덤벨', '메디신볼', '벤치'], '중급').map((e) => e.id);
@@ -2156,7 +2157,10 @@ const oldJson = {
     [
       { setNo: 1, weightKg: 20, reps: 8, rir: null },
       { setNo: 2, weightKg: 60, reps: 3, rir: null },
+      /* B 날 데드리프트 3세트(2026-10-15) */
       { setNo: 3, weightKg: 100, reps: 5, rir: null },
+      { setNo: 4, weightKg: 100, reps: 5, rir: null },
+      { setNo: 5, weightKg: 100, reps: 5, rir: null },
     ]
   );
   check(
