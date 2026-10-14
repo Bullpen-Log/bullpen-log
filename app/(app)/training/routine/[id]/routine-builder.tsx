@@ -358,7 +358,7 @@ export function RoutineBuilder({
                           {e.view.title}
                         </span>
                         {e.view.method && (
-                          <span className="text-[10px] font-semibold text-sky-strong">
+                          <span className="text-caption font-semibold text-sky-strong">
                             {methodByKey(e.view.method).label}
                           </span>
                         )}

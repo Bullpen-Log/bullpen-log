@@ -63,7 +63,7 @@ export function MechanicsProgram({
 }) {
   if (!program?.level) {
     return (
-      <div className="space-y-5">
+      <div className="stack-block">
         <Card className="space-y-2">
           <h2 className="text-heading text-lg text-ink">투구 메커니즘 향상 프로그램</h2>
           <p className="text-sm leading-relaxed break-keep text-ink/85">
@@ -84,7 +84,7 @@ export function MechanicsProgram({
   const completed = program.week == null;
 
   return (
-    <div className="space-y-5">
+    <div className="stack-block">
       {completed ? (
         <CompletedCard level={level} advice={program.advice} />
       ) : (

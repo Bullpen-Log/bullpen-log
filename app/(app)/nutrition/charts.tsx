@@ -272,7 +272,7 @@ export function WeightTrend({
               x={targetIn ? PAD : PAD + 11}
               y={targetTextY}
               textAnchor="start"
-              className="fill-current text-[10px] font-semibold tabular-nums"
+              className="fill-current text-caption font-semibold tabular-nums"
             >
               목표 {r1(target)}
             </text>

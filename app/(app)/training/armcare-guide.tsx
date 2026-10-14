@@ -98,7 +98,7 @@ export function ArmcareGuide({
   return (
     <MyRoutinesProvider routines={routines}>
       <ArmcareInfoProvider side={side}>
-        <div className="space-y-6">
+        <div className="stack-page">
           <p className="text-sm break-keep text-muted">
             근육을 누르거나 부위를 펼쳐 보세요.
           </p>
@@ -269,7 +269,7 @@ function AreaCard({
         type="button"
         onClick={onToggle}
         aria-expanded={open}
-        className="flex w-full items-center gap-3 px-4 py-4 text-left transition-colors hover:bg-surface-2"
+        className="flex w-full items-center gap-3 px-(--block-pad) py-4 text-left transition-colors hover:bg-surface-2"
       >
         {/* 제목 밑 설명 한 줄(던질 때 하는 일)은 뺐다 — 2026-09-26 사용자분 */}
         <span className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-2">
@@ -287,7 +287,7 @@ function AreaCard({
       </button>
 
       {open && (
-        <div className="space-y-4 border-t border-line px-4 py-4">
+        <div className="space-y-4 border-t border-line p-(--block-pad)">
           {/*
             부상과 근육은 이름만 칩으로 — 설명은 '자세히 보기' 창에 둔다. 펼치자마자 글이
             몇 문단씩 나오면 읽지 않고 닫는다(2026-09-26 사용자분). 근육 칩을 누르면 그
@@ -363,7 +363,7 @@ function GuideExercise({
           <span className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
             <span className="text-sm font-bold break-keep text-ink">{ex.title}</span>
             {secondary && (
-              <span className="text-[10px] font-medium text-muted">함께 쓰는 운동</span>
+              <span className="text-caption font-medium text-muted">함께 쓰는 운동</span>
             )}
             <AddToRoutine exerciseId={ex.id} title={ex.title} />
           </span>

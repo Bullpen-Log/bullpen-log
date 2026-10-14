@@ -415,7 +415,7 @@ export function VideoCalendar({
           {day.pitches}구
         </span>
         {day.paths.length > 1 && (
-          <span className="absolute bottom-1 right-1 inline-flex items-center gap-0.5 rounded-md bg-black/60 px-1 py-0.5 text-[10px] font-semibold leading-none text-white">
+          <span className="absolute bottom-1 right-1 inline-flex items-center gap-0.5 rounded-md bg-black/60 px-1 py-0.5 text-caption font-semibold leading-none text-white">
             <Film aria-hidden className="h-2.5 w-2.5" />
             {day.paths.length}
           </span>
@@ -428,11 +428,11 @@ export function VideoCalendar({
   const shownDay = shown ? days.get(shown) : undefined;
 
   return (
-    <div className="space-y-4">
+    <div className="stack-block">
       {error && (
         <p
           role="alert"
-          className="rounded-lg border border-danger-line bg-danger-bg px-3 py-2 text-xs text-danger"
+          className="rounded-2xl border border-danger-line bg-danger-bg p-(--block-pad) text-xs text-danger"
         >
           {error}
         </p>
@@ -448,7 +448,7 @@ export function VideoCalendar({
         캘린더 머리와 꼬리 · 밑 여백). 칸은 화면 높이에서 이만큼을 뺀 나머지를 나눠 가진다
         (globals.css 의 cal-cell-fit). 세로가 낮은 PC(desk-low)는 여백을 줄여 이 값도 작다.
       */}
-      <div className="grid gap-block [--cal-chrome:31rem] xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)] xl:items-start desk-low:[--cal-chrome:21.5rem]">
+      <div className="grid gap-block [--cal-chrome:31rem] lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)] lg:items-start desk-low:[--cal-chrome:21.5rem]">
         <Card>
           <MonthCalendar
             month={month}
@@ -471,7 +471,7 @@ export function VideoCalendar({
         <div ref={panelRef} className="scroll-mt-20">
           {/* 나란히 둘 때 아무 날도 안 골랐으면 오른쪽이 비지 않게 — 무엇이 여기 뜨는지 */}
           {selected == null && (
-            <p className="hidden rounded-2xl empty-well px-6 py-16 text-center text-sm leading-relaxed text-muted xl:block">
+            <p className="hidden rounded-2xl empty-well px-6 py-16 text-center text-sm leading-relaxed text-muted lg:block">
               날짜를 누르면 그날 남긴 투구와
               <br />
               영상이 여기에 펴져요.
@@ -645,11 +645,11 @@ function DayPanel({
 
   return (
     /*
-      세로가 낮은 PC 에서 캘린더 옆에 설 때(xl)는 화면 밑을 넘지 않는다 — 기록이 여럿이거나 메모가
+      세로가 낮은 PC 에서 캘린더 옆에 설 때(lg)는 화면 밑을 넘지 않는다 — 기록이 여럿이거나 메모가
       길어 넘치는 날만 이 칸 안에서 굴린다. 10.75rem 은 위 막대 · 제목 · 밑 여백이다.
     */
-    <section className="motion-safe:animate-fade-in overflow-hidden rounded-2xl border border-line bg-surface desk-low:xl:max-h-[calc(100dvh-12.5rem)] desk-low:xl:overflow-y-auto">
-      <header className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-b border-line px-5 py-3 desk-low:py-2">
+    <section className="motion-safe:animate-fade-in overflow-hidden rounded-2xl border border-line bg-surface desk-low:lg:max-h-[calc(100dvh-12.5rem)] desk-low:lg:overflow-y-auto">
+      <header className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-b border-line px-(--block-pad) py-3 desk-low:py-2">
         <h3 className="text-sm font-bold text-ink">
           {spokenDate(date)}
           <span className="font-normal text-muted">
@@ -689,7 +689,7 @@ function DayPanel({
         {day.logs.map((l, i) => (
           <li
             key={l.id}
-            className="motion-safe:animate-row-in flex flex-wrap items-baseline gap-x-3 gap-y-1 px-5 py-2.5 desk-low:py-2"
+            className="motion-safe:animate-row-in flex flex-wrap items-baseline gap-x-3 gap-y-1 px-(--block-pad) py-2.5 desk-low:py-2"
             style={{ '--row': i } as React.CSSProperties}
           >
             <span className="rounded-md bg-surface-2 px-1.5 py-0.5 text-caption font-semibold text-muted">
@@ -722,7 +722,7 @@ function DayPanel({
 
       {!playing || day.paths.length === 0 ? (
         !day.rest && (
-          <p className="px-5 py-4 text-xs text-muted">
+          <p className="px-(--block-pad) py-4 text-xs text-muted">
             이 날은 올린 영상이 없어요. 기록을 고칠 때 영상을 함께 올릴 수 있어요.
           </p>
         )
@@ -730,7 +730,7 @@ function DayPanel({
         <div
           className={`grid gap-4 p-(--block-pad) desk-low:gap-3 ${
             day.paths.length > 1
-              ? 'lg:grid-cols-[minmax(0,1fr)_14rem] xl:grid-cols-1'
+              ? 'md:grid-cols-[minmax(0,1fr)_14rem] lg:grid-cols-1'
               : ''
           }`}
         >
@@ -828,7 +828,7 @@ function DayPanel({
           </div>
 
           {day.paths.length > 1 && (
-            <ul className="grid grid-cols-2 content-start gap-2 lg:grid-cols-1 xl:grid-cols-3 desk-low:xl:grid-cols-4">
+            <ul className="grid grid-cols-2 content-start gap-2 md:grid-cols-1 lg:grid-cols-3 desk-low:lg:grid-cols-4">
               {day.paths.map((path, i) => {
                 const on = path === playing;
                 return (

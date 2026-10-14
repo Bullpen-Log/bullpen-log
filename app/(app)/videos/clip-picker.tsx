@@ -165,7 +165,7 @@ export function ClipPicker({
               ) : (
                 groups.map(([month, items]) => (
                   <div key={month}>
-                    <p className="sticky top-0 bg-surface-2 px-3 py-1 text-[10px] font-medium tracking-wider text-muted">
+                    <p className="sticky top-0 bg-surface-2 px-3 py-1 text-caption font-medium tracking-wider text-muted">
                       {month.replace('-', '. ')}
                     </p>
                     {items.map((c) => (
@@ -185,7 +185,7 @@ export function ClipPicker({
                           <span className="block text-xs text-ink">
                             {shortDate(c.date)} · {c.label}
                           </span>
-                          <span className="mt-0.5 block truncate text-[10px] text-muted">
+                          <span className="mt-0.5 block truncate text-caption text-muted">
                             {c.summary}
                           </span>
                         </span>
@@ -199,7 +199,7 @@ export function ClipPicker({
               )}
             </div>
 
-            <p className="border-t border-line px-3 py-1.5 text-[10px] text-muted">
+            <p className="border-t border-line px-3 py-1.5 text-caption text-muted">
               전체 {clips.length}개
             </p>
           </div>

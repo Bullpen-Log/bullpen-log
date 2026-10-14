@@ -251,7 +251,7 @@ export function DaySummary({
     >
       {/* 날짜를 바꿀 때마다 새로 그려, 아이콘이 차례로 다시 들어온다 */}
       <div key={date} className="flex flex-1 flex-col">
-        <header className="relative px-5 pb-3 pt-4">
+        <header className="relative px-(--block-pad) pb-3 pt-4">
           <p className="text-xs font-semibold text-sky">{agoText(date, today)}</p>
           <h3 className="text-heading mt-0.5 text-lg text-ink">{spokenDay(date)}</h3>
           <button

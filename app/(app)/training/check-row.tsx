@@ -51,7 +51,7 @@ export function CheckRow({
 }) {
   const spoken = [title, prescription, note, warning].filter(Boolean).join(', ');
   return (
-    <div className={`relative flex items-start gap-3 px-4 py-4 ${className}`}>
+    <div className={`relative flex items-start gap-3 px-(--block-pad) py-4 ${className}`}>
       <button
         type="button"
         role="checkbox"

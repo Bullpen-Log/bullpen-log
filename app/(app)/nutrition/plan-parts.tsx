@@ -175,7 +175,7 @@ export function PlanCard({
             type="button"
             disabled={pending}
             onClick={() => onMake({ place, hot, variant: 0 })}
-            className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-full bg-sky px-5 text-sm font-semibold text-white transition-[background-color,opacity] hover:bg-sky-strong disabled:opacity-60 desk:w-auto desk:rounded-xl"
+            className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-full bg-sky px-5 text-sm font-semibold text-white transition-[background-color,opacity] hover:bg-sky-strong disabled:opacity-60 pad:w-auto pad:px-6 desk:w-auto desk:rounded-xl"
           >
             {pending ? '짜는 중…' : '식단 짜기'}
           </button>

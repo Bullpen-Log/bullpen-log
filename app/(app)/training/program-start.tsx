@@ -103,7 +103,7 @@ export function ProgramStart({ props }: { props: ProgramStartProps }) {
         <span className="flex flex-wrap items-center gap-1.5">
           <span className="text-subhead font-semibold text-ink">{basicsChoice.name}</span>
           {recommend && (
-            <span className="rounded-md bg-sky px-1.5 py-0.5 text-[10px] font-semibold text-white">
+            <span className="rounded-md bg-sky px-1.5 py-0.5 text-caption font-semibold text-white">
               추천
             </span>
           )}
@@ -347,7 +347,7 @@ function StartSheet({
                   <span className="flex flex-wrap items-center gap-1.5">
                     <span className="text-subhead font-semibold text-ink">{p.name}</span>
                     {props.blocked && !props.basicsBlocked && (
-                      <span className="rounded-md bg-sky px-1.5 py-0.5 text-[10px] font-semibold text-white">
+                      <span className="rounded-md bg-sky px-1.5 py-0.5 text-caption font-semibold text-white">
                         추천
                       </span>
                     )}

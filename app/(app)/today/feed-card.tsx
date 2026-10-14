@@ -403,9 +403,9 @@ function FeedLabel({ item, warn }: { item: FeedItem; warn: boolean }) {
   return (
     <span className={`flex items-center gap-1.5 ${tone}`}>
       {Icon && <Icon aria-hidden className="h-4 w-4" />}
-      <span className="text-[15px] font-semibold">{item.label}</span>
+      <span className="text-subhead font-semibold">{item.label}</span>
       {item.tone === 'past' && (
-        <span className="rounded-full bg-ink/6 px-1.5 py-0.5 text-[10px] font-medium text-muted">
+        <span className="rounded-full bg-ink/6 px-1.5 py-0.5 text-caption font-medium text-muted">
           지난 기록
         </span>
       )}
@@ -451,7 +451,7 @@ function FeedSlide({
           </span>
         ) : (
           v.sub && (
-            <span className="mt-1.5 block text-[13px] leading-snug text-muted break-keep">
+            <span className="mt-1.5 block text-footnote leading-snug text-muted break-keep">
               {v.sub}
             </span>
           )

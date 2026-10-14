@@ -188,7 +188,7 @@ export function MuscleMapPanel({
         })}
       </div>
 
-      <div className="space-y-2.5 rounded-2xl border border-line bg-surface px-4 py-4">
+      <div className="space-y-2.5 rounded-2xl border border-line bg-surface p-(--block-pad)">
         {!area ? (
           <p className="text-footnote break-keep text-muted">
             암케어 근육 {ARMCARE_MUSCLES.length}개 · 누르면 부위, 한 번 더 누르면 근육
@@ -353,7 +353,7 @@ function MuscleDetail({
               </span>
               {/* 섞여 있을 때만 — 전부 함께 쓰는 운동이면 위 줄이 이미 말한다 */}
               {primary.length > 0 && ex.targetMuscles[0] !== muscle && (
-                <span className="block text-[10px] font-medium text-muted">
+                <span className="block text-caption font-medium text-muted">
                   함께 쓰는 운동
                 </span>
               )}

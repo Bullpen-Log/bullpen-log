@@ -36,7 +36,7 @@ export function TodayCard({
       <Link
         href={`/pitch-log/${today}`}
         transitionTypes={OPEN_POPUP_TYPES}
-        className="flex min-h-12 w-full items-center justify-center gap-1.5 rounded-full bg-sky text-subhead font-semibold text-white transition-opacity active:opacity-60 desk:inline-flex desk:min-h-10 desk:w-auto desk:rounded-xl desk:px-5 desk:text-sm"
+        className="flex min-h-12 w-full items-center justify-center gap-1.5 rounded-full bg-sky text-subhead font-semibold text-white transition-opacity active:opacity-60 pad:inline-flex pad:w-auto pad:px-6 desk:inline-flex desk:min-h-10 desk:w-auto desk:rounded-xl desk:px-5 desk:text-sm"
       >
         <LinkPending className="h-4 w-4">
           <Plus aria-hidden className="h-4 w-4" />

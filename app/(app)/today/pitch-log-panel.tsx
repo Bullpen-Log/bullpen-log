@@ -428,7 +428,7 @@ export function PitchLogPanel({
   const shownFacts = useMemo(() => factsOf(shownDate), [factsOf, shownDate]);
 
   return (
-    <div className="space-y-3">
+    <div className="stack-block">
       {/*
         제목을 없앴다. 예전에는 '투구 일지'라는 이름과 그 밑에 설명 글이 있었는데,
         이 덩이가 이미 홈의 맨 앞이라 스스로 무엇인지 보여준다 — 이름표가 없어도

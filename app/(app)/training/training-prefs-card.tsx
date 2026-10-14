@@ -122,7 +122,7 @@ function PrefsForm({
         type="button"
         disabled={pending}
         onClick={save}
-        className="inline-flex min-h-11 w-full items-center justify-center rounded-full bg-sky px-5 text-sm font-semibold text-white transition-[background-color,opacity] hover:bg-sky-strong disabled:opacity-60 desk:min-h-10 desk:w-auto desk:rounded-xl"
+        className="inline-flex min-h-11 w-full items-center justify-center rounded-full bg-sky px-5 text-sm font-semibold text-white transition-[background-color,opacity] hover:bg-sky-strong disabled:opacity-60 pad:w-auto pad:px-6 desk:min-h-10 desk:w-auto desk:rounded-xl"
       >
         {pending ? '저장 중…' : '이대로 할래요'}
       </button>

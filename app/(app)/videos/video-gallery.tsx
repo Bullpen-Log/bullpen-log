@@ -334,7 +334,7 @@ export function VideoGallery({
   }
 
   return (
-    <div className={selecting ? 'space-y-3 pb-24' : 'space-y-3'}>
+    <div className={selecting ? 'stack-block pb-24' : 'stack-block'}>
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
         <p className="text-sm font-bold text-ink">
           투구 기록 <span className="text-numeric text-base">{recordCount}</span>건
@@ -407,7 +407,7 @@ export function VideoGallery({
       {featureError && (
         <p
           role="alert"
-          className="rounded-lg border border-danger-line bg-danger-bg px-3 py-2 text-xs text-danger"
+          className="rounded-2xl border border-danger-line bg-danger-bg p-(--block-pad) text-xs text-danger"
         >
           {featureError}
         </p>
@@ -426,7 +426,7 @@ export function VideoGallery({
               type="button"
               onClick={() => setToggled((prev) => ({ ...prev, [group.month]: !open }))}
               aria-expanded={open}
-              className="flex w-full items-center gap-2 px-5 py-3 text-left transition-colors hover:bg-surface-2"
+              className="flex w-full items-center gap-2 px-(--block-pad) py-3 text-left transition-colors hover:bg-surface-2"
             >
               <ChevronDown
                 aria-hidden

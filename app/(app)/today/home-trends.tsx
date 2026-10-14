@@ -1012,7 +1012,7 @@ function Chart({
                     y={y(t)}
                     textAnchor="start"
                     dominantBaseline="middle"
-                    className="fill-muted text-[10px] tabular-nums"
+                    className="fill-muted text-caption tabular-nums"
                   >
                     {tickText(t)}
                   </text>
@@ -1027,7 +1027,7 @@ function Chart({
                 x={i === 0 ? padL : i === last ? w - padR : x(i)}
                 y={h - 3}
                 textAnchor={i === 0 ? 'start' : i === last ? 'end' : 'middle'}
-                className="fill-muted text-[10px] tabular-nums"
+                className="fill-muted text-caption tabular-nums"
               >
                 {xText(i)}
               </text>

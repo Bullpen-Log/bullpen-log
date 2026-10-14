@@ -76,8 +76,8 @@ export function TrainingHome({
   return (
     <div className="stack-page">
       <PageHeading eyebrow="Training" kicker={todayKicker(today)} title="트레이닝" inlineAction action={<AnalysisLink view="training" />} />
-      <div className="space-y-3">{order.map((app) => cards[app])}</div>
-      <Suspense fallback={<div className="h-20" />}>
+      <div className="stack-block">{order.map((app) => cards[app])}</div>
+      <Suspense fallback={<div className="h-12" />}>
         <WeekStrip userId={user.id} today={today} />
       </Suspense>
     </div>

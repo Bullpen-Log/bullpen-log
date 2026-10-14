@@ -269,7 +269,7 @@ export async function ArmcareSection({
     <ArmcareInfoProvider side={throwingSide(user.throwingHand)}>
       {/* 따라하기에서 신호가 없어 못 보낸 체크가 폰에 남아 있으면 이어서 보낸다 */}
       <SendPendingChecks />
-      <div className="space-y-10">
+      <div className="stack-page">
         <section className="space-y-3">
           {data.rehab ? (
             <SectionHead

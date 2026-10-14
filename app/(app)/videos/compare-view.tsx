@@ -177,7 +177,7 @@ function ComparePane({
       {/* 측정 중에는 화면별로 되돌리기·지우기를 둔다. */}
       {drawing && (
         <div className="flex items-center gap-1.5 border-t border-line px-2 py-1.5">
-          <span className="text-[10px] text-muted">
+          <span className="text-caption text-muted">
             {side}면 측정 {shapes.length}
           </span>
           <button
@@ -202,7 +202,7 @@ function ComparePane({
       )}
 
       {clip && (
-        <p className="truncate border-t border-line px-2 py-1.5 text-[10px] text-muted sm:text-caption">
+        <p className="truncate border-t border-line px-2 py-1.5 text-caption text-muted">
           {clip.summary}
         </p>
       )}
@@ -237,7 +237,7 @@ function ComparePane({
         </button>
       </div>
 
-      <div className="border-t border-line px-2 py-1 text-[10px] tabular-nums text-muted">
+      <div className="border-t border-line px-2 py-1 text-caption tabular-nums text-muted">
         {formatTime(current)} · 기준 {formatTime(mark)}
       </div>
     </div>

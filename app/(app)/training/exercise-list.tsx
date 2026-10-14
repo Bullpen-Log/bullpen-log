@@ -160,7 +160,7 @@ export function ExerciseChecklist({
   };
 
   return (
-    <div className="space-y-3">
+    <div className="stack-block">
       {/* 진행 상황 */}
       <div className="rounded-2xl border border-line bg-surface p-(--block-pad)">
         <div className="flex items-baseline justify-between gap-3">
@@ -249,7 +249,7 @@ function RowFooter({ ex }: { ex: TodayExercise }) {
   if (!text && !hasVideo) return null;
   return (
     <div className="border-t border-line">
-      <div className="flex min-h-10 items-center gap-2 pr-1.5 pl-4 text-xs">
+      <div className="flex min-h-10 items-center gap-2 pr-1.5 pl-(--block-pad) text-xs">
         {text ? (
           <span className="min-w-0 flex-1 truncate">
             <span className="text-muted">지난번 {shortDate(last.date)}</span>
@@ -273,7 +273,7 @@ function RowFooter({ ex }: { ex: TodayExercise }) {
         )}
       </div>
       {open && (
-        <div className="space-y-3 px-4 pb-4">
+        <div className="space-y-3 px-(--block-pad) pb-(--block-pad)">
           <LibraryVideo
             path={ex.videoPath}
             referenceVideoId={ex.referenceVideoId}
@@ -360,7 +360,7 @@ function ExerciseList({
                       <CategoryBadge name={ex.category} />
                       {/* 참고 영상인지는 밑의 '참고 영상 보기' 단추가 알린다(ExerciseVideo) */}
                       {ex.manual && (
-                        <span className="text-[10px] font-medium text-muted">
+                        <span className="text-caption font-medium text-muted">
                           직접 넣음
                         </span>
                       )}

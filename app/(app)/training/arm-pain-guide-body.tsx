@@ -47,7 +47,7 @@ export function ArmPainGuideBody({
 
       <RedFlags />
 
-      <section className="space-y-2.5 rounded-2xl bg-surface-2 px-4 py-3.5">
+      <section className="space-y-2.5 rounded-2xl bg-surface-2 p-(--block-pad)">
         <h3 className="text-xs font-bold text-sky-strong">오늘은</h3>
         <p className="text-ink">{advice.text}</p>
         {advice.routine && routineHref && (

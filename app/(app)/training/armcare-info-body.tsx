@@ -319,7 +319,7 @@ function MuscleList({
             className="flex w-full items-center gap-3 px-3.5 py-2.5 text-left transition-colors hover:bg-surface-2"
           >
             <span className="min-w-0 flex-1">
-              <b className="block text-[14px] font-semibold text-ink">{name}</b>
+              <b className="block text-sm font-semibold text-ink">{name}</b>
               <span className="block text-xs text-muted">{muscleInfo(name)?.does}</span>
             </span>
             <ChevronRight aria-hidden className="h-4 w-4 shrink-0 text-muted" />
@@ -344,7 +344,7 @@ function ExerciseMuscles({
   const ref = useScrollTop();
   const line = helpsLine([...muscles]);
   return (
-    <div ref={ref} className="space-y-4 text-[14px] leading-relaxed break-keep text-ink/85">
+    <div ref={ref} className="space-y-4 text-sm leading-relaxed break-keep text-ink/85">
       <MuscleList muscles={muscles} onMuscle={onMuscle} />
       {line && <p className="text-xs text-muted">{line}</p>}
       <Disclaimer />
@@ -371,7 +371,7 @@ function AreaInfo({
   return (
     <div
       ref={ref}
-      className="space-y-5 text-[14px] leading-relaxed break-keep text-ink/85"
+      className="space-y-5 text-sm leading-relaxed break-keep text-ink/85"
     >
       <NavRow back={back} />
       <Section title="던질 때 하는 일">
@@ -452,7 +452,7 @@ function MuscleInfo({
   return (
     <div
       ref={ref}
-      className="space-y-5 text-[14px] leading-relaxed break-keep text-ink/85"
+      className="space-y-5 text-sm leading-relaxed break-keep text-ink/85"
     >
       <NavRow
         back={back}

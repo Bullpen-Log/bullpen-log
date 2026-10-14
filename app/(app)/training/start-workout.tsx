@@ -47,7 +47,7 @@ export function StartWorkout({
       ) : (
         <button
           type="submit"
-          className="flex w-full items-center justify-center gap-2 rounded-2xl bg-sky py-4 text-base font-bold text-white transition-transform motion-safe:active:scale-[0.98]"
+          className="flex w-full items-center justify-center gap-2 rounded-2xl bg-sky py-4 text-base font-bold text-white transition-transform motion-safe:active:scale-[0.98] pad:inline-flex pad:w-auto pad:px-8"
         >
           <Play className="h-5 w-5" />
           {resume ? '운동 이어서 하기' : '운동 시작'}

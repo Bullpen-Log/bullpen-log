@@ -449,7 +449,7 @@ export function NutritionView({
       {error && (
         <div
           role="alert"
-          className="motion-safe:animate-fade-in flex items-start gap-2 rounded-xl border border-danger-line bg-danger-bg px-4 py-3 text-sm text-danger"
+          className="motion-safe:animate-fade-in flex items-start gap-2 rounded-2xl border border-danger-line bg-danger-bg p-(--block-pad) text-sm text-danger"
         >
           <p className="flex-1">{error}</p>
           <button
@@ -472,7 +472,7 @@ export function NutritionView({
       */}
       {!day.onboarded && (
         /* 한 줄 띠(2026-10-14 김민: 핵심만) — 설명 줄 · '목표 창에서'는 뺐다(목표 창은 머리의 목표 단추로) */
-        <div className="flex items-center gap-3 rounded-2xl border border-sky/30 bg-sky-tint px-4 py-2.5">
+        <div className="flex items-center gap-3 rounded-2xl border border-sky/30 bg-sky-tint p-(--block-pad)">
           <p className="min-w-0 flex-1 text-sm text-ink break-keep">
             {day.hasProfile ? '새 계획 화면으로 목표를 다시 정해 볼까요?' : '열 가지 질문으로 내 계획을 만들어요.'}
           </p>
@@ -1291,7 +1291,7 @@ function TodayCard({
           <h2 id="today-nutrition-title" className="text-xs text-muted">
             {!isToday ? '이날 먹은 열량' : over ? '목표보다 더 먹었어요' : '남은 열량'}
           </h2>
-          <p className="text-numeric text-[1.75rem] leading-tight text-ink">
+          <p className="text-numeric text-3xl leading-tight text-ink">
             <span className={`transition-colors ${over ? 'text-warn' : ''}`}>
               {kcalText(isToday ? Math.abs(left) : eaten.kcal)}
             </span>
@@ -2185,7 +2185,7 @@ function WeightCard({
         >
           {copy.label && <p className="text-xs text-muted">{copy.label}</p>}
           {copy.number && (
-            <p className="text-[1.75rem] font-bold leading-tight tabular-nums text-ink">
+            <p className="text-3xl font-bold leading-tight tabular-nums text-ink">
               {copy.number}
             </p>
           )}

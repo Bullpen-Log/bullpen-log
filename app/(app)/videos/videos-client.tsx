@@ -43,7 +43,7 @@ export type VideoLog = {
  * 휴대폰은 반반 두 칸(글자가 보여야 처음 쓰는 사람도 찾는다), PC 는 고르개 줄 오른쪽에 글 단추.
  */
 const TOOL_BUTTON =
-  'flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-2xl bg-surface px-3 text-sm font-semibold text-ink transition-opacity active:opacity-60 desk:h-9 desk:min-h-0 desk:flex-none desk:rounded-lg desk:border desk:border-sky desk:bg-sky-tint desk:text-xs desk:text-sky-strong desk:hover:bg-sky-tint/70';
+  'flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-2xl bg-surface px-3 text-sm font-semibold text-ink transition-opacity active:opacity-60 pad:flex-none pad:px-5 desk:h-9 desk:min-h-0 desk:flex-none desk:rounded-lg desk:border desk:border-sky desk:bg-sky-tint desk:text-xs desk:text-sky-strong desk:hover:bg-sky-tint/70';
 
 /* 보기 칸 [캘린더 | 목록 | 구속 측정]은 투구 기록 머리와 같이 둔다(pitch-log-heading.tsx) */
 type View = PitchView;
@@ -169,7 +169,7 @@ export function VideosClient({
   /* 보기 고르개 줄 — 세로가 낮은 PC 에서는 제목 줄 오른쪽으로 올라간다(아래) */
   const viewControls = (
     <PitchViewSwitch
-      className="w-full desk:w-auto"
+      className="w-full pad:w-auto pad:min-w-80 desk:w-auto"
       value={view}
       onChange={(next) => {
         /* 관리자 웹의 세 번째 칸은 보기가 아니라 관리자 화면으로 가는 길 */
@@ -211,12 +211,12 @@ export function VideosClient({
           <>
             {viewControls}
             <div className="hidden desk:block">{tools}</div>
+            <div className="w-full desk:hidden">{tools}</div>
           </>
         }
         inlineAction
         action={<AnalysisLink view="pitch" />}
       />
-      <div className="desk:hidden">{tools}</div>
 
       {/* 오늘 — 계획 한 줄 · 던지는 일정(접힌 알약) · 기록 남기기 */}
       <TodayCard today={todayKey} data={todayCard} throwCard={throwCard} />
