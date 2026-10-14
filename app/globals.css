@@ -2740,6 +2740,33 @@ html[data-splash] *::after {
 }
 
 /*
+ * 휴대폰 위 막대 숨기기(components/app-shell.tsx MobileTopBar · useBarHidden, 2026-10-14 "인스타 홈처럼") — 아래로 굴리면 위로
+ * 미끄러지며 옅어져 시계 자리 밑으로 들어가고, 위로 굴리면 같은 길로 돌아온다. 시계 자리(data-safe-area)는 늘 그 위에 있다.
+ * 곡선은 아이폰 밀기(빠르게 출발해 부드럽게 멈춤). 움직임 줄이기면 곧장 바뀐다.
+ */
+[data-mobile-topbar] {
+  transition:
+    transform 280ms cubic-bezier(0.32, 0.72, 0, 1),
+    opacity 200ms ease-out,
+    border-color 200ms;
+}
+[data-mobile-topbar][data-hidden] {
+  transform: translateY(-100%);
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    transform 240ms cubic-bezier(0.32, 0.72, 0, 1),
+    opacity 160ms ease-in,
+    border-color 200ms;
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-mobile-topbar],
+  [data-mobile-topbar][data-hidden] {
+    transition: border-color 200ms;
+  }
+}
+
+/*
  * 아이폰 앱 안 — <html data-app="native">(app/layout.tsx 의 첫 스크립트, lib/native-app.ts 가 붙인다).
  *
  * 앱은 화면 끝(시계 · 홈 막대 자리)까지 그린다(mobile/capacitor.config.json 의 contentInset 'never' +

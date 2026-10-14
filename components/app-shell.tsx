@@ -2510,6 +2510,8 @@ function MobileTopBar({
    * 하위 화면('‹ 뒤로'가 있는 곳)은 그대로. 시계 자리 칠과 그만큼의 빈칸은 남긴다.
    */
   const bare = !back && ['/videos', '/nutrition', '/training'].includes(pathname);
+  /* 숨기기는 첫 화면들만 — '‹ 뒤로'가 있는 화면은 돌아갈 길을 늘 보인다. 알림 창이 열려 있으면 안 숨긴다 */
+  const hidden = useBarHidden(!back && !bare && panel == null);
 
   return (
     <>
@@ -2519,15 +2521,20 @@ function MobileTopBar({
         막대만 떠 있어 보였다(2026-09-30 사용자 "매우 부자연스럽다").
         data-safe-area — 이 틀이 시계 · 홈 막대 여백을 스스로 비운다는 표시(globals.css '아이폰 앱 안').
       */}
+      {/*
+        2026-10-14 2판(사용자 "인스타 홈처럼") — 시계 자리는 반투명 유리(바탕색 75% + 뒤 흐림). 막대가 숨어 본문이 시계 밑으로
+        지나갈 때 그 부분이 자연스럽게 비쳐 흐려진다. 막대도 같은 유리라 둘이 한 면으로 보인다.
+      */}
       <div
         data-safe-area
         aria-hidden
-        className={`pointer-events-none fixed inset-x-0 top-0 z-45 h-[env(safe-area-inset-top)] transition-colors duration-200 desk:hidden ${
-          scrolled ? 'bg-surface' : 'bg-page'
-        }`}
+        className="pointer-events-none fixed inset-x-0 top-0 z-45 h-[env(safe-area-inset-top)] bg-page/75 backdrop-blur-xl backdrop-saturate-150 desk:hidden"
       />
-      {/* 첫 화면에서 막대가 시계 밑에서 시작하도록 그만큼 비운다 */}
-      <div aria-hidden className="h-[env(safe-area-inset-top)] shrink-0 desk:hidden" />
+      {/* 막대는 화면에 붙어(fixed) 있으니 그만큼 비운다 — 시계 자리 + 막대(bare 면 시계 자리만) */}
+      <div
+        aria-hidden
+        className={`shrink-0 desk:hidden ${bare ? 'h-[env(safe-area-inset-top)]' : 'h-[calc(env(safe-area-inset-top)+3.5rem)]'}`}
+      />
       {!bare && (
         <header
           /*
@@ -2544,9 +2551,15 @@ function MobileTopBar({
            */
           ref={headerRef}
           data-mobile-topbar
+          data-hidden={hidden ? '' : undefined}
           style={{ viewTransitionName: 'shell-topbar' }}
-          className={`sticky top-[env(safe-area-inset-top)] z-40 flex h-14 items-center gap-2 border-b pl-[max(0.5rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] transition-colors duration-200 desk:hidden ${
-            scrolled ? 'border-line bg-surface' : 'border-transparent bg-page'
+          /*
+           * 2026-10-14 2판 — 화면에 붙은(fixed) 반투명 유리 막대. 아래로 굴리면 위로 미끄러져 숨고(globals.css 의
+           * [data-mobile-topbar][data-hidden]) 위로 굴리면 돌아온다 — 본문이 화면 전체를 쓴다. 뒤 흐림을 다시 켰다(사용자 요청) —
+           * 아이폰 사파리에서 흐린 면 위로 무언가 움직일 때 깜빡이던 일이 다시 보이면 여기(backdrop-blur-xl)를 뺀다.
+           */
+          className={`fixed inset-x-0 top-[env(safe-area-inset-top)] z-40 flex h-14 items-center gap-2 border-b bg-page/75 pl-[max(0.5rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] backdrop-blur-xl backdrop-saturate-150 transition-[border-color] duration-200 desk:hidden ${
+            scrolled ? 'border-line/70' : 'border-transparent'
           }`}
         >
           <div className="flex min-w-0 flex-1 items-center">
@@ -2560,18 +2573,21 @@ function MobileTopBar({
                 <span className="truncate">{back.label || '뒤로'}</span>
               </button>
             )}
-            {!back && home && <Wordmark className="pl-2 text-2xl text-ink" />}
           </div>
 
-          {/* 가운데 제목 — 큰 제목이 막대 밑으로 가려졌을 때만(아이폰처럼). 화면 읽기 프로그램은 큰 제목을 읽는다 */}
-          <p
-            aria-hidden
-            className={`pointer-events-none absolute top-1/2 left-1/2 max-w-[44%] -translate-x-1/2 -translate-y-1/2 truncate text-base font-semibold text-ink transition-opacity duration-200 ${
-              bar.title && bar.collapsed ? 'opacity-100' : 'opacity-0'
-            }`}
-          >
-            {bar.title}
-          </p>
+          {/* 홈은 로고가 가운데(2026-10-14 사용자 "인스타처럼 로고를 가운데로"). 그 밖은 큰 제목이 막대 밑으로 가려졌을 때만 작은 제목 */}
+          {!back && home ? (
+            <Wordmark className="pointer-events-none absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-2xl text-ink" />
+          ) : (
+            <p
+              aria-hidden
+              className={`pointer-events-none absolute top-1/2 left-1/2 max-w-[44%] -translate-x-1/2 -translate-y-1/2 truncate text-base font-semibold text-ink transition-opacity duration-200 ${
+                bar.title && bar.collapsed ? 'opacity-100' : 'opacity-0'
+              }`}
+            >
+              {bar.title}
+            </p>
+          )}
 
           {/* 오른쪽은 종만 — 설정 · 내 정보는 더보기 폴더 안으로 갔다(2026-10-14 사용자 "앱 홈 우상단에는 알림 아이콘만") */}
           <div className="flex shrink-0 items-center gap-2">
@@ -2585,7 +2601,40 @@ function MobileTopBar({
   );
 }
 
-/** 화면을 조금이라도 굴렸는가 — 위 막대가 맨 위에서는 바탕과 한 면, 굴리면 흰 막대가 된다 */
+/**
+ * 위 막대 숨기기 — 아래로 굴리면 막대가 위로 미끄러져 사라지고(본문이 시계 자리까지 올라간다), 위로 굴리면 다시 내려온다
+ * (2026-10-14 사용자 "인스타 홈처럼"). 맨 위 근처(8px)에서는 늘 보인다. 작은 떨림(4px 안)은 무시. 알림 창이 열려 있으면 안 숨긴다
+ * (창이 막대 안에 있다). enabled 가 아니면(‹ 뒤로 가 있는 하위 화면) 늘 보인다.
+ */
+function useBarHidden(enabled: boolean) {
+  const [hidden, setHidden] = useState(false);
+  useEffect(() => {
+    if (!enabled) return;
+    let frame = 0;
+    let last = window.scrollY;
+    const read = () => {
+      frame = 0;
+      const y = window.scrollY;
+      const dy = y - last;
+      last = y;
+      if (y < 8) setHidden(false);
+      else if (dy > 4 && y > 64) setHidden(true);
+      else if (dy < -4) setHidden(false);
+    };
+    const onScroll = () => {
+      if (!frame) frame = requestAnimationFrame(read);
+    };
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => {
+      window.removeEventListener('scroll', onScroll);
+      cancelAnimationFrame(frame);
+    };
+  }, [enabled]);
+  /* 꺼지면 값과 상관없이 보인다 — 다시 켜질 때 지난 값이 남지 않게 effect 가 아니라 여기서 */
+  return enabled && hidden;
+}
+
+/** 화면을 조금이라도 굴렸는가 — 위 막대가 맨 위에서는 밑 선이 없고, 굴리면 가는 선이 본문과 가른다 */
 function useScrolledFromTop() {
   const [scrolled, setScrolled] = useState(false);
   useEffect(() => {
