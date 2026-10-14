@@ -2550,7 +2550,7 @@ function MobileTopBar({
       <div
         data-safe-area
         aria-hidden
-        className="pointer-events-none fixed inset-x-0 top-0 z-45 h-[env(safe-area-inset-top)] bg-page/75 backdrop-blur-xl backdrop-saturate-150 desk:hidden"
+        className="pointer-events-none fixed inset-x-0 top-0 z-45 h-[env(safe-area-inset-top)] bg-page/85 backdrop-blur-md desk:hidden"
       />
       {/* 막대는 화면에 붙어(fixed) 있으니 그만큼 비운다 — 시계 자리 + 막대(bare 면 시계 자리만) */}
       <div
@@ -2580,7 +2580,7 @@ function MobileTopBar({
            * [data-mobile-topbar][data-hidden]) 위로 굴리면 돌아온다 — 본문이 화면 전체를 쓴다. 뒤 흐림을 다시 켰다(사용자 요청) —
            * 아이폰 사파리에서 흐린 면 위로 무언가 움직일 때 깜빡이던 일이 다시 보이면 여기(backdrop-blur-xl)를 뺀다.
            */
-          className={`fixed inset-x-0 top-[env(safe-area-inset-top)] z-40 flex h-14 items-center gap-2 border-b bg-page/75 pl-[max(0.5rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] backdrop-blur-xl backdrop-saturate-150 transition-[border-color] duration-200 desk:hidden ${
+          className={`fixed inset-x-0 top-[env(safe-area-inset-top)] z-40 flex h-14 items-center gap-2 border-b bg-page/85 pl-[max(0.5rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] backdrop-blur-md transition-[border-color] duration-200 desk:hidden ${
             scrolled ? 'border-line/70' : 'border-transparent'
           }`}
         >

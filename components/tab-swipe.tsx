@@ -36,9 +36,13 @@ const SNAP_RATIO = 0.25;
 /** 빠르게 튕기면 짧게 밀어도 넘어간다(px/ms) */
 const FLICK_SPEED = 0.45;
 /** 이보다 움직여야 쓸기 — 그 전엔 누름 */
-const SLOP = 10;
+const SLOP = 12;
+/** 옆으로가 세로보다 이만큼 커야 쓸기(약 35° 안) — 비스듬한 스크롤이 화면을 옆으로 끌던 것 */
+const LOCK_RATIO = 1.4;
 /** 끝까지 미끄러지는 시간 */
 const SETTLE_MS = 260;
+/** 넘어간 화면이 이만큼 안 오면(신호 끊김 · 오류) 제자리로 — 본문이 화면 밖에 남아 빈 화면이던 것 */
+const GIVE_UP_MS = 8000;
 
 type Ghost = { dir: 1 | -1; item: NavItem; done: boolean };
 
@@ -66,6 +70,9 @@ export function TabSwipe({
     dir: 0 | 1 | -1;
   } | null>(null);
   const target = useRef<string | null>(null);
+  /* 끝까지 미끄러지는 움직임이 끝나는 때 — 새 화면이 그보다 빨리 와도 움직임을 끊지 않고 끝난 뒤 제자리로 */
+  const settleUntil = useRef(0);
+  const giveUp = useRef(0);
   /* 지금 밀린 거리 — 자리표시가 한 장면 늦게 생겨도 그 자리에서 시작하게 */
   const xRef = useRef(0);
   useLayoutEffect(() => {
@@ -78,20 +85,30 @@ export function TabSwipe({
     latest.current = { pathname, tabs, order };
   }, [pathname, tabs, order]);
 
-  /* 화면이 바뀌면(새 탭이 그려지면) 본문을 제자리로, 자리표시는 옅어지며 걷힌다 */
-  useEffect(() => {
+  /*
+   * 화면이 바뀌면(새 탭이 그려지면) 본문을 제자리로, 자리표시는 옅어지며 걷힌다. 그리기 전에(layout effect) — passive effect 면
+   * 새 화면이 화면 밖(밀린 자리)에 한 장면 그려지고 화면 전환이 그 자리를 찍었다. 미끄러지는 중이면 끝난 뒤에.
+   */
+  useLayoutEffect(() => {
     if (!target.current) return;
     target.current = null;
-    const main = document.querySelector<HTMLElement>('main');
-    if (main) {
-      main.style.transition = 'none';
-      main.style.transform = '';
-      void main.offsetWidth;
-      main.style.transition = '';
-    }
-    setGhost((g) => (g ? { ...g, done: true } : g));
-    const t = window.setTimeout(() => setGhost(null), 200);
-    return () => window.clearTimeout(t);
+    window.clearTimeout(giveUp.current);
+    const finish = () => {
+      const main = document.querySelector<HTMLElement>('main');
+      if (main) {
+        main.style.transition = 'none';
+        main.style.transform = '';
+        main.style.willChange = '';
+        void main.offsetWidth;
+        main.style.transition = '';
+      }
+      xRef.current = 0;
+      setGhost((g) => (g ? { ...g, done: true } : g));
+      window.setTimeout(() => setGhost((g) => (g?.done ? null : g)), 200);
+    };
+    const wait = settleUntil.current - performance.now();
+    if (wait > 0) window.setTimeout(finish, wait);
+    else finish();
   }, [pathname]);
 
   useEffect(() => {
@@ -102,8 +119,16 @@ export function TabSwipe({
     const indexOf = (path: string) => latest.current.order.indexOf(path);
 
     const blocked = (el: Element | null) => {
+      /* 창 · 시트 안(본문 DOM 안에 있어도 위에 떠 있다) */
+      if (el?.closest('dialog, [data-sheet], [data-gate]')) return true;
       for (let e = el; e && e !== main; e = e.parentElement) {
         if (e.hasAttribute('data-no-swipe')) return true;
+        /*
+         * 손가락을 스스로 받는 부품 — touch-action 을 따로 둔 것(그래프 훑기 · 밀어서 지우기 · 3D 돌리기 · 영상 편집 등은 모두
+         * touch-pan-y 또는 touch-none). 예전엔 그 위에서 옆으로 밀면 부품과 본문이 같이 움직여 탭이 넘어갔다.
+         */
+        const ta = getComputedStyle(e).touchAction;
+        if (ta !== 'auto' && ta !== 'manipulation') return true;
         const tag = e.tagName;
         if (
           tag === 'INPUT' ||
@@ -132,6 +157,8 @@ export function TabSwipe({
       if (e.pointerType === 'mouse' || window.matchMedia(DESK_MEDIA).matches) return;
       if (indexOf(latest.current.pathname) < 0) return;
       if (e.clientX < 16) return;
+      /* 당겨서 새로고침이 걸려 있으면(components/pull-to-refresh.tsx) */
+      if (document.documentElement.dataset.ptr) return;
       if (
         !(e.target instanceof Element) ||
         !main.contains(e.target) ||
@@ -155,15 +182,19 @@ export function TabSwipe({
       const dx = e.clientX - d.x;
       const dy = e.clientY - d.y;
       if (!d.on) {
-        if (Math.abs(dx) < SLOP) return;
-        if (Math.abs(dy) > Math.abs(dx)) {
+        if (Math.abs(dx) < SLOP && Math.abs(dy) < SLOP) return;
+        if (Math.abs(dx) < Math.abs(dy) * LOCK_RATIO) {
           drag.current = null;
           return;
         }
         d.on = true;
         main.style.transition = 'none';
+        main.style.willChange = 'transform';
+        /* 잡은 자리부터 따라오게 — 문턱(SLOP)만큼 튀지 않게 */
+        d.x += dx > 0 ? SLOP : -SLOP;
       }
-      const dir: 1 | -1 = dx < 0 ? 1 : -1;
+      const mdx = e.clientX - d.x;
+      const dir: 1 | -1 = mdx < 0 ? 1 : -1;
       if (dir !== d.dir) {
         d.dir = dir;
         const i = indexOf(latest.current.pathname);
@@ -173,7 +204,7 @@ export function TabSwipe({
       const i = indexOf(latest.current.pathname);
       const has = !!swipeTabs()[i + dir];
       /* 옆 탭이 없으면 고무줄 */
-      d.dx = has ? dx : dx * 0.25;
+      d.dx = has ? mdx : mdx * 0.25;
       setX(d.dx);
     };
     const onEnd = (e: PointerEvent) => {
@@ -192,19 +223,33 @@ export function TabSwipe({
       if (next && far && e.type !== 'pointercancel') {
         haptic('selection');
         target.current = next.href;
+        settleUntil.current = performance.now() + SETTLE_MS;
         setX(-d.dir * d.w);
         /* 하단 탭의 렌즈도 지금 그 칸으로(화면을 기다리지 않고 — 본문과 같이 미끄러진다) */
         window.dispatchEvent(new CustomEvent(TAB_CHOSEN_EVENT, { detail: next.href }));
-        /* 끝까지 밀린 뒤 간다 — 새 화면은 자리표시 뒤에서 그려지고, 그려지면 자리표시가 걷힌다(위 effect) */
-        window.setTimeout(() => {
-          setNavDirection('none');
-          router.push(next.href);
-        }, SETTLE_MS);
+        /*
+         * 놓는 순간 간다 — 예전엔 끝까지 밀린 뒤(0.26초) 불러 그만큼 늦었다. 새 화면은 자리표시 뒤에서 그려지고, 미끄러짐이 끝난 뒤
+         * 자리표시가 걷힌다(위 layout effect). 끝내 안 오면 제자리로.
+         */
+        setNavDirection('none');
+        router.push(next.href);
+        window.clearTimeout(giveUp.current);
+        giveUp.current = window.setTimeout(() => {
+          if (target.current !== next.href) return;
+          target.current = null;
+          setX(0);
+          window.setTimeout(() => {
+            main.style.transition = '';
+            main.style.willChange = '';
+            setGhost(null);
+          }, SETTLE_MS);
+        }, GIVE_UP_MS);
         return;
       }
       setX(0);
       window.setTimeout(() => {
         main.style.transition = '';
+        main.style.willChange = '';
         setGhost(null);
       }, SETTLE_MS);
     };
@@ -220,6 +265,8 @@ export function TabSwipe({
       document.removeEventListener('pointercancel', onEnd);
       main.style.transform = '';
       main.style.transition = '';
+      main.style.willChange = '';
+      window.clearTimeout(giveUp.current);
     };
   }, [router]);
 

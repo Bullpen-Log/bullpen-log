@@ -904,8 +904,9 @@ input[type='date']::-webkit-calendar-picker-indicator {
     0 0 0 0.5px rgb(var(--tab-dim) / 0.1),
     0 16px 40px -12px rgb(var(--tab-dim) / 0.3),
     0 2px 6px rgb(var(--tab-dim) / 0.08);
-  -webkit-backdrop-filter: blur(28px) saturate(170%) brightness(var(--tab-bright));
-  backdrop-filter: blur(28px) saturate(170%) brightness(var(--tab-bright));
+  /* 흐림 반지름은 굴릴 때 장면마다 다시 셈하는 몫이라 20px 로(28px 은 바탕이 86~90% 불투명해진 뒤로 차이가 안 보였다) */
+  -webkit-backdrop-filter: blur(20px) saturate(160%) brightness(var(--tab-bright));
+  backdrop-filter: blur(20px) saturate(160%) brightness(var(--tab-bright));
 }
 :root[data-theme='dark'] [data-tab-bar] {
   --tab-fg: #fff;
