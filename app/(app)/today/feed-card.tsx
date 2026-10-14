@@ -15,10 +15,13 @@ import { NAV_ICONS } from '@/components/nav-icons';
 import { LinkPending } from '@/components/link-pending';
 import { useSpeedUnit } from '@/components/use-units';
 import { formatSpeed } from '@/lib/units';
-import { haptic } from '@/lib/haptics';
+import { buzz, haptic } from '@/lib/haptics';
 import { OPEN_POPUP_TYPES } from '@/lib/transition-types';
-import type { HighlightChart } from '@/lib/report/highlights';
+import type { FeedItem } from '@/lib/report/feed-items';
+import { OpenCheckinButton } from '@/components/notice-bell';
 import { MiniChart } from './highlights';
+
+export type { FeedItem } from '@/lib/report/feed-items';
 
 /**
  * 홈 요약 칸 — 링 밑, 예전 영양 카드 자리(2026-10-13 사용자: "영양이 있는 자리를 뉴스칸으로").
@@ -34,27 +37,11 @@ import { MiniChart } from './highlights';
  * 누르기와 쓸기를 가른다 — 6px 넘게 움직였으면 손을 떼도 링크가 열리지 않는다(click 을 막는다).
  */
 
-export type FeedItem = {
-  key: string;
-  /** 위 작은 이름표(영양 · 투구량 · 오늘 운동 …) */
-  label: string;
-  /** 문장. 구속은 {speed} · {diff} 자리로 — 단위(km/h · mph)는 이 기기 설정으로 */
-  text: string;
-  /** 밑 작은 줄(탄 +30g · 단 충분 …) */
-  sub?: string;
-  speed?: number;
-  diff?: number;
-  /** 누르면 갈 곳. 없으면 누르지 않는 장 */
-  href: string | null;
-  /** 안전에 관한 것 — 경고색 */
-  warn?: boolean;
-  chart?: HighlightChart | null;
-  /** 이름표 옆 아이콘(nav-icons 열쇠) */
-  icon?: keyof typeof NAV_ICONS;
-};
-
-/** 한 장을 보이는 시간 */
+/** 한 장을 보이는 시간 — 기록 없음 장은 짧게 */
 const DWELL_MS = 3000;
+const DWELL_NONE_MS = 2000;
+/** ‹ › · 점 · 쓸기로 직접 넘긴 뒤 자동 넘김을 쉬는 시간(2026-10-14 사용자 계획) */
+const MANUAL_REST_MS = 10_000;
 /** 넘어가는 시간 */
 const SLIDE_MS = 320;
 /** 놓았을 때 넘어가는 기준 — 폭의 이만큼 */
@@ -82,6 +69,8 @@ export function FeedCard({ items }: { items: FeedItem[] }) {
   const press = useRef<{ x: number; t: number; w: number; id: number } | null>(null);
   const swiped = useRef(false);
   const reduce = useReducedMotion();
+  /* 직접 넘긴 때(이벤트 timeStamp — performance.now 기준) — 그 뒤 MANUAL_REST_MS 동안 자동 넘김을 쉰다 */
+  const manualAt = useRef(0);
 
   const at = useCallback((i: number) => ((i % n) + n) % n, [n]);
 
@@ -97,6 +86,21 @@ export function FeedCard({ items }: { items: FeedItem[] }) {
     },
     [n, moving, instant, reduce, at]
   );
+
+  /* 점을 눌러 그 장으로 — 이웃이면 밀어 보내고, 멀면 미끄러짐 없이 바로 바꾼다 */
+  const jumpTo = (i: number, at: number) => {
+    if (i === index || moving != null || instant) return;
+    buzz(10);
+    /* 때는 이벤트의 시각(performance.now 와 같은 기준) — 그리는 중에 시계를 읽지 않는다 */
+    manualAt.current = at;
+    const d = (((i - index) % n) + n) % n;
+    if (d === 1) go(1);
+    else if (d === n - 1) go(-1);
+    else {
+      setIndex(i);
+      setInstant(true);
+    }
+  };
 
   /* 밀어 보내기가 끝나면 index 를 옮기고 트랙을 제자리로(transition 없이 — 같은 그림이라 튀지 않는다) */
   useEffect(() => {
@@ -122,16 +126,22 @@ export function FeedCard({ items }: { items: FeedItem[] }) {
     };
   }, [instant]);
 
-  /* 3초마다 다음 장 — 끌거나 커서를 얹거나 탭이 숨어 있으면 쉰다 */
+  /*
+   * 다음 장으로 — 끌거나 커서를 얹거나 탭이 숨어 있으면 쉰다. 기록 없음 장은 2초, 직접 넘긴 뒤에는 10초 쉬었다가.
+   * 장이 바뀔 때마다 타이머를 새로 건다(index 의존) — 직접 넘겨도 그 장을 꽉 채워 본다.
+   */
   useEffect(() => {
     if (n < 2 || paused || drag != null || moving != null) return;
-    let id = 0;
-    const tick = () => {
-      if (document.visibilityState === 'visible') go(1);
-    };
-    id = window.setInterval(tick, DWELL_MS);
-    return () => window.clearInterval(id);
-  }, [n, paused, drag, moving, go]);
+    const dwell = items[index]?.tone === 'none' ? DWELL_NONE_MS : DWELL_MS;
+    const rest = Math.max(0, manualAt.current + MANUAL_REST_MS - performance.now());
+    const id = window.setTimeout(
+      () => {
+        if (document.visibilityState === 'visible') go(1);
+      },
+      Math.max(dwell, rest)
+    );
+    return () => window.clearTimeout(id);
+  }, [n, paused, drag, moving, go, index, items]);
 
   const onPointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
     if (n < 2 || moving != null) return;
@@ -169,6 +179,7 @@ export function FeedCard({ items }: { items: FeedItem[] }) {
     setDrag(null);
     if (far) {
       haptic('selection');
+      manualAt.current = e.timeStamp;
       go(drag < 0 ? 1 : -1);
     }
   };
@@ -212,11 +223,15 @@ export function FeedCard({ items }: { items: FeedItem[] }) {
       <div className="flex items-center gap-1.5 px-(--block-pad) pt-(--block-pad)">
         {/* 이름표는 넘어가기 시작할 때 바로 다음 장 것으로 — 밀기가 끝난 뒤 바꾸면 한 박자 늦었다(2026-10-13 김민) */}
         <FeedLabel item={moving != null ? items[at(index + moving)] : item} />
+        {/* ‹ › 는 PC 만 — 휴대폰은 오른쪽 아래 점으로(손가락에 너무 작았다) */}
         {n > 1 && (
-          <span className="ml-auto flex items-center gap-1">
+          <span className="ml-auto hidden items-center gap-1 desk:flex">
             <button
               type="button"
-              onClick={() => go(-1)}
+              onClick={(e) => {
+                manualAt.current = e.timeStamp;
+                go(-1);
+              }}
               aria-label="이전"
               className="flex h-8 w-8 items-center justify-center rounded-full text-line-strong transition-colors hover:bg-surface-2 hover:text-ink active:bg-surface-2 desk:h-7 desk:w-7"
             >
@@ -224,7 +239,10 @@ export function FeedCard({ items }: { items: FeedItem[] }) {
             </button>
             <button
               type="button"
-              onClick={() => go(1)}
+              onClick={(e) => {
+                manualAt.current = e.timeStamp;
+                go(1);
+              }}
               aria-label="다음"
               className="flex h-8 w-8 items-center justify-center rounded-full text-line-strong transition-colors hover:bg-surface-2 hover:text-ink active:bg-surface-2 desk:h-7 desk:w-7"
             >
@@ -261,6 +279,38 @@ export function FeedCard({ items }: { items: FeedItem[] }) {
           {n > 1 && <FeedSlide item={next} unit={unit} ghost offset={1} />}
         </div>
       </div>
+      {/*
+       * 점 쪽수 — 오른쪽 아래. 지금 장은 긴 파란 점, 누르면 그 장으로(2026-10-14 사용자: "몇 개 있는지 · 어디쯤인지").
+       * 넘어가는 중에는 다음 장의 점이 먼저 길어진다(이름표와 같은 박자).
+       */}
+      {n > 1 && (
+        <div
+          role="tablist"
+          aria-label={`${n}장 중 ${index + 1}번째`}
+          className="absolute right-(--block-pad) bottom-2 flex items-center"
+        >
+          {items.map((it, i) => {
+            const on = i === (moving != null ? at(index + moving) : index);
+            return (
+              <button
+                key={it.key}
+                type="button"
+                role="tab"
+                aria-selected={on}
+                aria-label={`${i + 1}번째 장 · ${it.label}`}
+                onClick={(e) => jumpTo(i, e.timeStamp)}
+                className="flex h-6 w-5 items-center justify-center"
+              >
+                <span
+                  className={`block h-1.5 rounded-full transition-[width,background-color] duration-300 ease-out ${
+                    on ? 'w-4 bg-sky' : 'w-1.5 bg-ink/20'
+                  }`}
+                />
+              </button>
+            );
+          })}
+        </div>
+      )}
     </Card>
   );
 }
@@ -272,6 +322,11 @@ function FeedLabel({ item }: { item: FeedItem }) {
     <span className={`flex items-center gap-1.5 ${tone}`}>
       {Icon && <Icon aria-hidden className="h-4 w-4" strokeWidth={2.25} />}
       <span className="text-[15px] font-semibold">{item.label}</span>
+      {item.tone === 'past' && (
+        <span className="rounded-full bg-ink/6 px-1.5 py-0.5 text-[10px] font-medium text-muted">
+          지난 기록
+        </span>
+      )}
     </span>
   );
 }
@@ -298,15 +353,22 @@ function FeedSlide({
       <span className="min-w-0 flex-1">
         <span
           className={`block text-[17px] leading-snug font-semibold break-keep ${
-            item.warn ? 'text-warn' : 'text-ink'
+            item.warn ? 'text-warn' : item.tone === 'none' ? 'text-muted' : 'text-ink'
           }`}
         >
           {text}
         </span>
-        {item.sub && (
-          <span className="mt-1.5 block text-[13px] leading-snug text-muted break-keep">
+        {/* 기록 없음 장의 밑줄은 '남기러 가기' 알약 — 무엇을 적을 수 있는지 알려 주는 안내 */}
+        {item.sub && item.tone === 'none' ? (
+          <span className="mt-2 inline-flex min-h-7 items-center rounded-full border border-dashed border-line-strong px-2.5 text-xs font-medium text-sky">
             {item.sub}
           </span>
+        ) : (
+          item.sub && (
+            <span className="mt-1.5 block text-[13px] leading-snug text-muted break-keep">
+              {item.sub}
+            </span>
+          )
         )}
       </span>
       {item.chart && <MiniChart chart={item.chart} warn={!!item.warn} />}
@@ -317,9 +379,21 @@ function FeedSlide({
       )}
     </>
   );
+  /* 휴대폰은 밑에 점 쪽수 자리(pb-7) */
   const cls =
-    'absolute inset-y-0 flex w-full items-center gap-3 px-(--block-pad) pb-(--block-pad)';
+    'absolute inset-y-0 flex w-full items-center gap-3 px-(--block-pad) pb-7 desk:pb-(--block-pad)';
   const style: CSSProperties = { left: `${offset * 100}%` };
+  if (item.checkin && !item.href) {
+    return (
+      <OpenCheckinButton
+        className={`${cls} text-left transition-opacity hover:opacity-80`}
+        style={style}
+        ghost={ghost}
+      >
+        {face}
+      </OpenCheckinButton>
+    );
+  }
   if (item.href) {
     return (
       <Link
