@@ -295,7 +295,7 @@ export function FeedCard({ items }: { items: FeedItem[] }) {
               aria-label="이전"
               className="flex h-10 w-10 items-center justify-center rounded-full bg-surface-2/70 text-muted transition-colors hover:bg-surface-2 hover:text-ink active:scale-95 active:bg-surface-2"
             >
-              <ChevronLeft aria-hidden className="h-5 w-5" strokeWidth={2.5} />
+              <ChevronLeft aria-hidden className="h-5 w-5" />
             </button>
             <button
               type="button"
@@ -306,7 +306,7 @@ export function FeedCard({ items }: { items: FeedItem[] }) {
               aria-label="다음"
               className="flex h-10 w-10 items-center justify-center rounded-full bg-surface-2/70 text-muted transition-colors hover:bg-surface-2 hover:text-ink active:scale-95 active:bg-surface-2"
             >
-              <ChevronRight aria-hidden className="h-5 w-5" strokeWidth={2.5} />
+              <ChevronRight aria-hidden className="h-5 w-5" />
             </button>
           </span>
         )}
