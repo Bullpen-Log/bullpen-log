@@ -1,5 +1,5 @@
 import { favoriteDrillIds } from '@/lib/favorites';
-import { visibleGuides } from '@/lib/library-cache';
+import { trainingGuides } from '@/lib/library-cache';
 import { createPlaybackUrls } from '@/lib/storage';
 import { groupDrills } from '@/lib/mechanics/drills';
 import type { MechanicsTab } from './mechanics-tabs';
@@ -39,7 +39,7 @@ export async function MechanicsSection({
     );
   }
 
-  const [guides, favorites] = await Promise.all([visibleGuides(), favoriteDrillIds(user.id)]);
+  const [guides, favorites] = await Promise.all([trainingGuides(), favoriteDrillIds(user.id)]);
   const ownThumbs = await createPlaybackUrls(
     guides.filter((g) => !g.referenceVideoId && g.thumbPath).map((g) => g.thumbPath as string)
   );

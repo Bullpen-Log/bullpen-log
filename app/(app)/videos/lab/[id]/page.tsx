@@ -4,7 +4,7 @@ import { loadLabSample } from '@/lib/pitch-lab';
 import { isLabId } from '@/lib/pitch-lab-meta';
 import { getEngineBuild, isPitch3dV2Configured } from '@/lib/pitch-3d/v2/gpu-client';
 import { MECH_FOCUS_POINTS } from '@/lib/pitch-3d/v2/mech-judge';
-import { visibleGuides } from '@/lib/library-cache';
+import { trainingGuides } from '@/lib/library-cache';
 import { drillPicksFor, groupDrills } from '@/lib/mechanics/drills';
 import { LabDetail } from './lab-detail';
 
@@ -24,7 +24,7 @@ export default async function LabSamplePage({
   if (!isLabId(id)) notFound();
   const [sample, guides, engineBuild] = await Promise.all([
     loadLabSample(id, user.id),
-    visibleGuides(),
+    trainingGuides(),
     getEngineBuild(),
   ]);
   if (!sample) notFound();
