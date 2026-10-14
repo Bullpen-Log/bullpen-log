@@ -25,7 +25,7 @@ export function Highlights({ items }: { items: Highlight[] }) {
 
   return (
     <section aria-labelledby="highlights-title" className="space-y-3">
-      <h2 id="highlights-title" className="text-heading px-1 text-xl text-ink">
+      <h2 id="highlights-title" className="text-heading text-xl text-ink">
         하이라이트
       </h2>
       <ul className={`grid gap-3 ${DESK_COLS[items.length] ?? DESK_COLS[3]}`}>

@@ -118,29 +118,27 @@ export function AnalysisBlock({
       <section
         id="analysis"
         aria-labelledby="analysis-title"
-        className="@container scroll-mt-20 space-y-4 pt-6"
+        className="@container scroll-mt-20"
       >
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <div className="min-w-0">
-            <h2
-              id="analysis-title"
-              className="text-heading flex items-center gap-2 text-xl text-ink"
+        {/*
+          머리 — 쪽 제목('투구 분석' · '트레이닝 분석')이 이미 무엇인지 말하므로 화면에는 날짜만, 그것도 오늘이 아닐 때만 한 줄
+          (그래프 점이나 홈 그날 칸으로 다른 날을 봤을 때). 예전 '분석 / 오늘' 두 줄이 제목 밑에 큰 공백을 만들었다(2026-10-14).
+        */}
+        <h2 id="analysis-title" className="sr-only">
+          분석
+        </h2>
+        {date !== today && (
+          <p className="mb-(--gap-block) text-sm text-muted">
+            {/* 날짜가 바뀔 때마다 살짝 떠오른다 — 무엇이 바뀌었는지 눈이 따라간다 */}
+            <b
+              key={date}
+              className="motion-safe:animate-fade-in inline-block font-semibold text-ink"
             >
-              분석
-            </h2>
-            <p className="mt-1 text-sm text-muted">
-              {/* 날짜가 바뀔 때마다 살짝 떠오른다 — 무엇이 바뀌었는지 눈이 따라간다 */}
-              <b
-                key={date}
-                className="motion-safe:animate-fade-in inline-block font-semibold text-ink"
-              >
-                {date === today
-                  ? '오늘'
-                  : `${spokenDay(date)} · ${agoText(date, today)}`}
-              </b>
-            </p>
-          </div>
-        </div>
+              {`${spokenDay(date)} · ${agoText(date, today)}`}
+            </b>
+            <span> 기준</span>
+          </p>
+        )}
 
         <div className="relative" aria-busy={waiting}>
           {waiting && shown && (
