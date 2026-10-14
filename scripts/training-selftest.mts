@@ -24383,6 +24383,15 @@ console.log(
         { patternsDone14d: new Map([['스쿼트', 2]]) },
         {},
       ],
+      /* 2026-10-14 — 밀기 · 당기기는 짝보다 덜 한 쪽 +1(1 대 1로) */
+      [
+        '2주 밀기 3 · 당기기 5 → 벤치(밀기) +1',
+        bench,
+        { patternsDone14d: new Map([['밀기', 3], ['당기기', 5]]) },
+        { pattern: 1 },
+      ],
+      ['2주 밀기 5 · 당기기 3 → 벤치 없음', bench, { patternsDone14d: new Map([['밀기', 5], ['당기기', 3]]) }, {}],
+      ['2주 밀기 4 · 당기기 4 → 없음', bench, { patternsDone14d: new Map([['밀기', 4], ['당기기', 4]]) }, {}],
       ['마친 날 없음(null) → 꺼짐', rdl, { patternsDone14d: null }, {}],
       ['고립(컬) → 없음(큰 계열만)', curl, { patternsDone14d: new Map() }, {}],
       [
