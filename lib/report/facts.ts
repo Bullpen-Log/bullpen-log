@@ -22,7 +22,9 @@ import {
   CHECKIN_PARTS,
   LOW_CONDITION_THRESHOLD,
   hasPain,
+  exactOutingDay,
   isShortSleep,
+  nextOutingDays,
   type CheckinPartKey,
   type CheckinParts,
 } from '@/lib/checkin';
@@ -230,6 +232,12 @@ export type ReportFacts = {
      * 자체 시험 · 기준선의 옛 입력이 글자 하나 안 바뀌게.
      */
     gameDates?: string[];
+    /**
+     * 마지막 등판 날(어제 ~ GAME_DATES_DAYS 일 전) — '경기' 기록에, 그날 체크인 답 '오늘 등판' · 그날 달력의 등판 일정을 더한다(2026-10-14,
+     * 시즌 중 선발 프로그램이 '등판 며칠 뒤'를 센다). 경기를 투구 기록에 안 남긴 사람도 답이나 달력만 있으면 안다. 그날 0구 줄만 남겼으면
+     * (휴식) 안 던진 날로 본다. gameDates 와 같이 calendarEvents 를 넘겼을 때만 칸이 생긴다. 읽는 곳은 lib/engine/outing.ts lastOutingDateOf.
+     */
+    lastOutingDate?: string | null;
     /**
      * 어제 투구 기록 줄이 하나라도 있나 — 쉰 날 줄(0구 · 종류 '휴식')까지 센다(2판 P4 검토, 2026-10-12). lastThrowDate · restDays ·
      * hardOutings 는 던진 날(투구수 · 부하 > 0)만 보아 '어제 안 던졌다고 적었다'를 모른다. 그래서 어제 '오늘 등판'이라 답하고 어제를
@@ -531,6 +539,30 @@ function nearestCalendarOuting(
  * 같은 요일 짐작의 재료 — 어제(1) ~ GAME_DATES_DAYS 일 전, 세션 종류 '경기'로 1구 이상 던진 날(중복 없이 오름차순). 오늘 기록은 안 넣는다 —
  * 오늘 던진 것은 세게 던진 날(부하)이 보고, 짐작은 '앞으로의 등판'을 지난 리듬으로 어림하는 것이라.
  */
+function lastOutingDateOf(
+  logs: readonly PitchLogLike[],
+  checkins: readonly CheckinLike[],
+  events: readonly CalendarEventLike[],
+  asOf: string
+): string | null {
+  const pitched = new Map<string, number>();
+  for (const l of logs) {
+    const key = l.date.slice(0, 10);
+    pitched.set(key, (pitched.get(key) ?? 0) + Math.max(0, l.pitchCount || 0));
+  }
+  const claimed = (key: unknown): key is string => {
+    if (typeof key !== 'string' || !DATE_KEY_RE.test(key)) return false;
+    const ago = daysBetween(key, asOf);
+    return ago >= 1 && ago <= GAME_DATES_DAYS && pitched.get(key) !== 0;
+  };
+  const days = [
+    ...gameDatesOf(logs, asOf),
+    ...checkins.filter((c) => exactOutingDay(nextOutingDays(c.throwPlan)) === 0).map((c) => c.date),
+    ...events.filter((e) => isOutingTitle(e.title)).map((e) => e.date),
+  ].filter(claimed);
+  return days.length ? days.sort().at(-1)! : null;
+}
+
 function gameDatesOf(logs: readonly PitchLogLike[], asOf: string): string[] {
   const days = new Set<string>();
   for (const log of logs) {
@@ -643,6 +675,9 @@ export function buildFacts({
     ? nearestCalendarOuting(calendarEvents, asOf)
     : undefined;
   const gameDates = calendarEvents ? gameDatesOf(logs, asOf) : undefined;
+  const lastOutingDate = calendarEvents
+    ? lastOutingDateOf(logs, checkins, calendarEvents, asOf)
+    : undefined;
 
   /*
    * 평소 컨디션(2판 P5) — 넘겨받은 체크인에서 센다(앱은 45일치를 넘긴다 — 조회가 늘지 않는다). 14개 밑이면 null 이고 칸을 안 만든다
@@ -694,6 +729,7 @@ export function buildFacts({
         .sort((a, b) => a.daysAgo - b.daysAgo),
       /* 칸은 달력을 넘겼을 때만 — 조건부 펼침이라 안 넘기면 키 자체가 없다 */
       ...(gameDates ? { gameDates } : {}),
+      ...(lastOutingDate !== undefined ? { lastOutingDate } : {}),
       /* 쉰 날 줄까지 — byDay 는 0구 줄도 그날로 묶는다(lastThrowDate 주석) */
       loggedYesterday: [...byDay.keys()].some((key) => daysBetween(key, asOf) === 1),
     },

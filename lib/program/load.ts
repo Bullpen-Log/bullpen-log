@@ -11,7 +11,7 @@ import {
   type ProgramSessionToday,
 } from '@/lib/engine/arbiter';
 import { dayKindOf } from '@/lib/engine/microcycle';
-import { lastGameDateOf } from '@/lib/engine/outing';
+import { lastOutingDateOf } from '@/lib/engine/outing';
 import { withProgramCommitment } from '@/lib/engine/day-state';
 import { lastStrengthDates } from '@/lib/report/gather';
 import { loadHoldProgress } from '@/lib/nutrition/fuel-load';
@@ -919,7 +919,7 @@ export function inSeasonKindOf(
 ): SessionKind | null | undefined {
   const role = plan.def.inSeason;
   if (!role) return undefined;
-  const lastGame = lastGameDateOf(facts);
+  const lastGame = lastOutingDateOf(facts);
   const pitchesAgo = (n: number) =>
     facts.patterns.recentOutings.find((o) => o.daysAgo === n)?.pitches ?? 0;
   return inSeasonKind(role, {

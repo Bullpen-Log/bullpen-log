@@ -82,6 +82,7 @@ import {
 /* 2판 P4 커밋 F — 경기 다음 날을 부하로(투구 기록 → facts → 어제 팔 부담, 앱과 같은 길) */
 import { parseThrowPlan } from '../lib/checkin.ts';
 import { yesterdayArmLoadOf } from '../lib/engine/arm-load.ts';
+import { lastOutingDateOf } from '../lib/engine/outing.ts';
 import { buildFacts, type CheckinLike } from '../lib/report/facts.ts';
 /* 2판 P6-7 — 올림 멈춤 글(영양 추세 깃발이 선 주에 무게 추천이 받는 글) */
 import { FUEL_HOLD_TEXT } from '../lib/nutrition/fuel-check.ts';
@@ -929,6 +930,45 @@ console.log('\n4-1) 경기 다음 날은 부하로(D3)');
         }),
       })
     );
+  /* 마지막 등판 날(2026-10-14) — 경기 기록 · 체크인 '오늘 등판' · 달력 등판 일정을 합침, 0구 줄만 있는 날은 뺌 */
+  {
+    const lastOf = (
+      logs: { daysAgo: number; pitches: number; sessionType: string }[],
+      plans: [number, string][],
+      events: [number, string][] | null
+    ) =>
+      lastOutingDateOf(
+        buildFacts({
+          nickname: '프로그램',
+          age: 22,
+          heightCm: 180,
+          baselineDailyLoad: 100,
+          today: ASOF,
+          logs: logs.map((l) => ({
+            date: ago(l.daysAgo),
+            pitchCount: l.pitches,
+            intensity: 9,
+            effortPct: 90,
+            sessionType: l.sessionType,
+            maxVelocity: null,
+            avgVelocity: null,
+          })),
+          checkins: plans.map(([n, p]) => checkinOn(n, p)),
+          memos: [],
+          ...(events ? { calendarEvents: events.map(([n, title]) => ({ date: ago(n).slice(0, 10), title })) } : {}),
+        })
+      );
+    const game4 = [{ daysAgo: 4, pitches: 80, sessionType: '경기' }];
+    check(
+      '마지막 등판 날: 경기 기록 · 체크인 답 · 달력 중 가장 늦은 날, 0구 줄만 남긴 날 · 오늘은 안 셈, 달력을 안 넘긴 옛 입력은 칸 없음',
+      lastOf(game4, [], []) === ago(4).slice(0, 10) &&
+        lastOf(game4, [[2, '오늘 등판']], []) === ago(2).slice(0, 10) &&
+        lastOf([], [], [[3, '리그 경기']]) === ago(3).slice(0, 10) &&
+        lastOf([{ daysAgo: 2, pitches: 0, sessionType: '휴식' }], [[2, '오늘 등판']], []) === null &&
+        lastOf([], [[0, '오늘 등판']], []) === null &&
+        lastOf(game4, [[2, '오늘 등판']], null) === null
+    );
+  }
   /* 어제 기록 한 줄 */
   const y1 = (pitches: number, pct: number, sessionType: string) => [
     { daysAgo: 1, pitches, pct, sessionType },

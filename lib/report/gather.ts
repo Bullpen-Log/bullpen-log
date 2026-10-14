@@ -12,6 +12,7 @@ import { SWAP_LOOKBACK_DAYS, swappedOutCounts } from '@/lib/report/plan-swaps';
 import { ageFromBirthDate } from '@/lib/profile';
 import { estimateDailyLoad } from '@/lib/baseline';
 import {
+  GAME_DATES_DAYS,
   OUTING_CALENDAR_DAYS,
   buildFacts,
   type CheckinLike,
@@ -49,8 +50,11 @@ export const LOOKBACK_DAYS = 45;
  */
 const recentRecords = cache(async (userId: string, sinceIso: string, asOf: string) => {
   const since = new Date(sinceIso);
-  /* 달력은 오늘(asOf — 'YYYY-MM-DD')부터 OUTING_CALENDAR_DAYS 일 뒤까지 — @db.Date 칸이라 그날 0시(UTC)로 견준다 */
-  const calendarFrom = new Date(`${asOf}T00:00:00.000Z`);
+  /*
+   * 달력은 GAME_DATES_DAYS 일 전(지난 등판 — facts lastOutingDate)부터 오늘(asOf — 'YYYY-MM-DD') + OUTING_CALENDAR_DAYS 일 뒤까지 —
+   * @db.Date 칸이라 그날 0시(UTC)로 견준다. 다음 등판(nearestCalendarOuting)은 오늘부터만 본다.
+   */
+  const calendarFrom = new Date(`${shiftDateKey(asOf, -GAME_DATES_DAYS)}T00:00:00.000Z`);
   const calendarTo = new Date(
     `${shiftDateKey(asOf, OUTING_CALENDAR_DAYS)}T00:00:00.000Z`
   );
