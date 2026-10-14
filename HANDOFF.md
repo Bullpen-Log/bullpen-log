@@ -11,6 +11,18 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 ---
 
+## 금윤호에게 — 2026-10-14 · 김민(Claude, 맥북) — 근력 프로그램에 '시즌 중 · 선발' · '시즌 중 · 불펜'
+
+받은 뒤 할 일 없음(DB · 패키지 그대로 — 운동 판 JSON 의 program 에 선택 칸 `kind` 만). **네 영역(중재 · 오늘 상태 · 등판 짐작)을 조금 고쳤다**(a793c762).
+김민: "시즌 중에도 선발 · 불펜 나눠서".
+- `lib/program/program.ts`: 목표 '시즌 중'(`inSeason`), 프로그램 둘(선발 주 2번 · 불펜 주 3번, 크레시 원칙 — 매 세트 3개 남김 · 당기기는 로우 위주). 그날 세션 종류
+  (`SessionKind` 하체 · 상체 · 전신 · 짧은 하체 · 짧은 상체)는 번호가 아니라 오늘 상태로 고른다(`inSeasonKind` — 선발은 마지막 경기 며칠 뒤, 불펜은 어제 · 그저께 20구 넘게).
+  null = 움직임만 하는 날 → 판정 'rest' 'inSeasonMove'. 시즌 중은 어제 팔 부담(`gameYesterday`)으로 안 쉰다(등판 다음 날이 하체 날), 등판 날 · 전날은 그대로 쉰다.
+- 종류는 `ProgramPlan.kind`(`withKind`)로 실어 나른다: `load.ts inSeasonKindOf` → `ProgramCommitmentInput.kind`(day-state) → `programDaySlotsOf(…, kind)`(arbiter) →
+  운동 판 꼬리표 `SessionProgramTag.kind`(교체 `programSwapRx` · 축하 화면이 같은 날을 다시 짓게).
+- `lib/engine/outing.ts` 에 `lastGameDateOf(facts)` 를 더했다(gameDates 를 직접 읽는 파일은 facts · outing 둘뿐이라는 시험 때문에).
+- 시험 program 221 · training 1783(실패 2 는 예전부터 — 홈 계획 줄 등판 글). 화면은 로그인이 필요해 못 봤다: 트레이닝 프로그램 고르기의 '시즌 중' 칸 · 시즌 중 날 카드.
+
 ## 금윤호에게 — 2026-10-14 · 김민(Claude, 맥북) — 근력 · 파워 프로그램 이름표를 'N주차 · M일차' → 'N번 세션'으로
 
 받은 뒤 할 일 없음(DB · 패키지 그대로). 김민: "몸 상태에 맞게 당겨 하거나 미뤄 4주 앞뒤로 맞추게 — 일차 말고 세션". 프로그램은 원래 달력이 아니라 차례로
