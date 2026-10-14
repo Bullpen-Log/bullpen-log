@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useTransition } from 'react';
-import { Bell, Plus, Trash2 } from 'lucide-react';
+import { Bell, Plus, Trash2 } from '@/components/icon';
 import { Button, Field, FormError, Input, Textarea } from '@/components/ui';
 import { ConfirmDialog } from '@/components/confirm-delete';
 import { toast } from '@/components/toast';

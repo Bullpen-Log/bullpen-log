@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { Loader2, Play } from 'lucide-react';
+import { Loader2, Play } from '@/components/icon';
 import {
   referenceEmbedUrl,
   referenceWatchUrl,

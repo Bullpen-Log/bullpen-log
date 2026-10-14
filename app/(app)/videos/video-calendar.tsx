@@ -12,7 +12,7 @@ import {
   Plus,
   Star,
   StickyNote,
-} from 'lucide-react';
+} from '@/components/icon';
 import {
   MonthCalendar,
   effortClass,

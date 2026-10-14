@@ -17,7 +17,7 @@ import {
   Target,
   Utensils,
   type LucideIcon,
-} from 'lucide-react';
+} from '@/components/icon';
 import type { TutorialSlide } from './tutorial-dialog';
 
 /**
@@ -40,7 +40,7 @@ function Art({ icon: Icon }: { icon: LucideIcon }) {
       aria-hidden
       className="flex h-28 w-28 items-center justify-center rounded-full bg-surface/80 text-sky shadow-[0_1px_2px_rgb(15_23_42/0.04)]"
     >
-      <Icon className="h-14 w-14" strokeWidth={1.5} />
+      <Icon className="h-14 w-14" />
     </span>
   );
 }

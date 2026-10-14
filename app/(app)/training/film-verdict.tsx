@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useTransition } from 'react';
-import { Check } from 'lucide-react';
+import { Check } from '@/components/icon';
 import { ErrorLine } from '@/components/error-line';
 import { OFFLINE_MESSAGE, orOffline } from '@/lib/action-offline';
 import { FILM_VERDICTS, type FilmNote, type FilmVerdict } from '@/lib/mechanics/program';
@@ -58,7 +58,7 @@ export function FilmVerdictButtons({
                 on ? 'bg-sky text-white' : 'bg-ink/6 text-ink active:bg-ink/10'
               }`}
             >
-              {on && <Check aria-hidden className="h-4 w-4" strokeWidth={3} />}
+              {on && <Check aria-hidden className="h-4 w-4" />}
               {v.label}
             </button>
           );

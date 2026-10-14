@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { ArrowDownRight, ArrowUpRight, ChevronDown, Minus } from 'lucide-react';
+import { ArrowDownRight, ArrowUpRight, ChevronDown, Minus } from '@/components/icon';
 import { ACWR_ZONES, ACWR_ZONE_ORDER, type AcwrZone } from '@/lib/pitch-stats';
 import { scaleToEffortPct } from '@/lib/pitch-effort';
 

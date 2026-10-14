@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useTransition } from 'react';
-import { Check } from 'lucide-react';
+import { Check } from '@/components/icon';
 import { Modal } from '@/components/modal';
 import { Button, Input } from '@/components/ui';
 import { ErrorLine } from '@/components/error-line';
@@ -192,7 +192,7 @@ export function JudgedBox({ pass, fails }: { pass: boolean; fails: string[] }) {
     >
       {pass ? (
         <p className="flex items-center gap-2 font-semibold">
-          <Check aria-hidden className="h-4 w-4 text-sky-strong" strokeWidth={3} />
+          <Check aria-hidden className="h-4 w-4 text-sky-strong" />
           통과했어요
         </p>
       ) : (

@@ -19,7 +19,15 @@ const eslintConfig = defineConfig([
    */
   {
     files: ['app/**/*.{ts,tsx}', 'components/**/*.{ts,tsx}', 'lib/**/*.{ts,tsx}'],
-    ignores: ['components/icon.tsx', 'components/baseball-icon.tsx', 'components/app-icon.tsx'],
+    ignores: [
+      'components/icon.tsx',
+      'components/baseball-icon.tsx',
+      'components/app-icon.tsx',
+      /* 구속 측정은 메인 세션(김민)이 작업 중이라 아직 안 옮겼다(2026-10-14 HANDOFF) — 옮기면 이 셋을 지운다 */
+      'components/velocity/**',
+      'app/(session)/velocity/**',
+      'app/(app)/admin/velocity/**',
+    ],
     rules: {
       'no-restricted-imports': [
         'error',

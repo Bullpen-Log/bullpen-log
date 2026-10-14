@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react';
 import { formatSpeed } from '@/lib/units';
 import { useSpeedUnit } from '@/components/use-units';
 import Link from 'next/link';
-import { ChevronDown, ChevronRight, Film } from 'lucide-react';
+import { ChevronDown, ChevronRight, Film } from '@/components/icon';
 import { REST_SESSION_TYPE, SESSION_TYPES } from '@/lib/session-type';
 import { effortText, readEffort } from '@/lib/pitch-effort';
 import type { Log } from './types';

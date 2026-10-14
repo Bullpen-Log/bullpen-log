@@ -11,7 +11,7 @@ import {
   RotateCcw,
   Ruler,
   X,
-} from 'lucide-react';
+} from '@/components/icon';
 import {
   formatTime,
   useFrameDuration,
@@ -161,7 +161,7 @@ export function PitchVideoPlayer({ src, label }: { src: string; label: string })
             className="grid h-11 w-11 place-items-center rounded-full text-ink transition-colors"
           >
             <span className="grid h-8 w-8 place-items-center rounded-full bg-white/15">
-              <X className="h-4 w-4" strokeWidth={2.4} />
+              <X className="h-4 w-4" />
             </span>
           </button>
         </div>

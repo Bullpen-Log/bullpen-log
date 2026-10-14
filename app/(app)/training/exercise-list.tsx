@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react';
 import { unstable_rethrow } from 'next/navigation';
-import { ChevronDown, Play, X } from 'lucide-react';
+import { ChevronDown, Play, X } from '@/components/icon';
 import { setExerciseDone } from '@/app/actions/exercise-log';
 import { CHECK_CONNECTION } from '@/lib/offline';
 import { removeFromTodayPlan } from '@/app/actions/plan-edit';

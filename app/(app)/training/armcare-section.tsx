@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { ChevronRight } from 'lucide-react';
+import { ChevronRight } from '@/components/icon';
 import { visibleExercises, type CachedExercise } from '@/lib/library-cache';
 import { availableParts } from '@/lib/report/today-pick';
 import { ARMCARE_CATEGORY, primaryArea } from '@/lib/armcare/anatomy';

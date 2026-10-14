@@ -9,7 +9,7 @@ import {
 } from 'react';
 import Link from 'next/link';
 import { unstable_rethrow } from 'next/navigation';
-import { Check, Plus } from 'lucide-react';
+import { Check, Plus } from '@/components/icon';
 import { Modal } from '@/components/modal';
 import { addToMyArmcareRoutine } from '@/app/actions/armcare';
 import { MY_ROUTINE_MAX, MY_ROUTINE_MAX_ITEMS } from '@/lib/armcare/my-routines';

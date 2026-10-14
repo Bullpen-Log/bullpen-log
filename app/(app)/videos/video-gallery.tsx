@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import { formatSpeed } from '@/lib/units';
 import { useSpeedUnit } from '@/components/use-units';
 import Link from 'next/link';
-import { ChevronDown, Film, Star, X } from 'lucide-react';
+import { ChevronDown, Film, Star, X } from '@/components/icon';
 import { usePlaybackUrls } from '@/components/use-playback-urls';
 import { fetchPitchThumbs } from '@/lib/pitch-thumbs';
 import { effortClass } from '@/components/month-calendar';

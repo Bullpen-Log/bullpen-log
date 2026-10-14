@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useSyncExternalStore } from 'react';
-import { Check, CircleAlert } from 'lucide-react';
+import { Check, CircleAlert } from '@/components/icon';
 import { haptic } from '@/lib/haptics';
 
 /**
@@ -89,7 +89,6 @@ export function Toaster() {
           <Icon
             aria-hidden
             className={`h-4.5 w-4.5 shrink-0 ${item.tone === 'error' ? 'text-danger' : 'text-sky-soft'}`}
-            strokeWidth={2.6}
           />
           <span className="break-keep">{item.text}</span>
         </span>

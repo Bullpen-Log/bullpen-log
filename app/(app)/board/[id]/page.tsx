@@ -1,5 +1,5 @@
 import { notFound } from 'next/navigation';
-import { ChevronRight, ExternalLink, Eye, Trash2 } from 'lucide-react';
+import { ChevronRight, ExternalLink, Eye, Trash2 } from '@/components/icon';
 import { prisma } from '@/lib/prisma';
 import { requireUser } from '@/lib/dal';
 import { deleteArticle } from '@/app/actions/board';

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Rotate3d } from 'lucide-react';
+import { Rotate3d } from '@/components/icon';
 import Link from 'next/link';
 import { Badge } from '@/components/ui';
 import { ErrorLine } from '@/components/error-line';

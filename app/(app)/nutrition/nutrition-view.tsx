@@ -27,7 +27,7 @@ import {
   Settings2,
   Trash2,
   X,
-} from 'lucide-react';
+} from '@/components/icon';
 import { MiniCalendar } from '@/components/mini-calendar';
 import { useWeightUnit } from '@/components/use-units';
 import { Segmented } from '@/components/segmented';

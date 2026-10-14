@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useSyncExternalStore, type ReactNode } from 'react';
-import { Pencil } from 'lucide-react';
+import { Pencil } from '@/components/icon';
 import { buzz } from '@/lib/haptics';
 
 /**

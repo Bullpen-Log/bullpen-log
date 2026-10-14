@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { X } from 'lucide-react';
+import { X } from '@/components/icon';
 import dynamic from 'next/dynamic';
 import {
   SPOT_LEVELS,

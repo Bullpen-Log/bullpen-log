@@ -1,7 +1,7 @@
 'use client';
 
 import { useId } from 'react';
-import { Minus, Plus } from 'lucide-react';
+import { Minus, Plus } from '@/components/icon';
 import { Segmented } from '@/components/segmented';
 import { haptic } from '@/lib/haptics';
 import { MAX_EFFORT_PCT, MIN_EFFORT_PCT } from '@/lib/pitch-stats';
@@ -53,7 +53,7 @@ function StepButton({
       }}
       className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-ink/6 text-ink transition-colors active:bg-ink/12 disabled:opacity-35 desk:h-8 desk:w-8 desk:hover:bg-ink/10"
     >
-      <Icon aria-hidden className="h-4 w-4" strokeWidth={2.4} />
+      <Icon aria-hidden className="h-4 w-4" />
     </button>
   );
 }

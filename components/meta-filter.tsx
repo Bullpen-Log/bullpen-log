@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { SlidersHorizontal, X } from 'lucide-react';
+import { SlidersHorizontal, X } from '@/components/icon';
 import { Modal } from '@/components/modal';
 
 type FilterGroup = {

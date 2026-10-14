@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Activity, BookOpen, Flame } from 'lucide-react';
+import { Activity, BookOpen, Flame } from '@/components/icon';
 
 const TABS = [
   {

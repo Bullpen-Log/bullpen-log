@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, useTransition } from 'react';
 import { unstable_rethrow } from 'next/navigation';
-import { AlertTriangle, Search, Star, X } from 'lucide-react';
+import { AlertTriangle, Search, Star, X } from '@/components/icon';
 import { Segmented } from '@/components/segmented';
 import { matchesSearch } from '@/lib/korean';
 import {
@@ -227,7 +227,6 @@ export function SwapSheetView({
                 aria-label="즐겨찾기"
                 className="h-3.5 w-3.5 shrink-0 text-warn"
                 fill="currentColor"
-                strokeWidth={1.5}
               />
             )}
             <span className="min-w-0 break-keep">{p.title}</span>
@@ -308,7 +307,7 @@ export function SwapSheetView({
               className="-mr-2 grid h-11 w-11 shrink-0 place-items-center text-muted transition-colors hover:text-ink"
             >
               <span className="grid h-8 w-8 place-items-center rounded-full bg-ink/6">
-                <X className="h-4 w-4" strokeWidth={2.4} />
+                <X className="h-4 w-4" />
               </span>
             </button>
           </div>

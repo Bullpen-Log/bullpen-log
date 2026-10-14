@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { ChartNoAxesColumn } from 'lucide-react';
+import { ChartNoAxesColumn } from '@/components/icon';
 import { LinkPending } from '@/components/link-pending';
 
 /**
@@ -13,7 +13,7 @@ export function AnalysisLink({ view }: { view: 'pitch' | 'training' }) {
       className="inline-flex h-11 items-center gap-1.5 rounded-full bg-surface-2 px-4 text-sm font-semibold text-ink transition-opacity active:opacity-60 desk:h-8 desk:px-3"
     >
       <LinkPending className="h-4 w-4">
-        <ChartNoAxesColumn aria-hidden className="h-4 w-4 text-sky" strokeWidth={2.2} />
+        <ChartNoAxesColumn aria-hidden className="h-4 w-4 text-sky" />
       </LinkPending>
       분석
     </Link>

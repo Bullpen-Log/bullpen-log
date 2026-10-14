@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Camera, Check, ChevronDown, Smartphone } from 'lucide-react';
+import { Camera, Check, ChevronDown, Smartphone } from '@/components/icon';
 
 /**
  * 투구 영상 촬영 가이드.

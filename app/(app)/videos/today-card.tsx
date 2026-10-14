@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { Plus } from 'lucide-react';
+import { Plus } from '@/components/icon';
 import { Card } from '@/components/ui';
 import { LinkPending } from '@/components/link-pending';
 import { OPEN_POPUP_TYPES } from '@/lib/transition-types';
@@ -45,7 +45,7 @@ export function TodayCard({
         className="flex min-h-12 w-full items-center justify-center gap-1.5 rounded-full bg-sky text-[15px] font-semibold text-white transition-opacity active:opacity-60 desk:inline-flex desk:min-h-10 desk:w-auto desk:rounded-xl desk:px-5 desk:text-sm"
       >
         <LinkPending className="h-4 w-4">
-          <Plus aria-hidden className="h-4 w-4" strokeWidth={2.4} />
+          <Plus aria-hidden className="h-4 w-4" />
         </LinkPending>
         {data.logged ? `오늘 ${data.logged.pitches}구 · 기록 더하기` : '오늘 기록 남기기'}
       </Link>

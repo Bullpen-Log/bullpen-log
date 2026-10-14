@@ -27,7 +27,7 @@ import {
   Trash2,
   X,
   ScanBarcode,
-} from 'lucide-react';
+} from '@/components/icon';
 import { Modal } from '@/components/modal';
 import { Segmented } from '@/components/segmented';
 import { Expand } from '@/components/expand';

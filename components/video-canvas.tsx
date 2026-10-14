@@ -8,7 +8,7 @@ import {
   MoveVertical,
   Triangle,
   Undo2,
-} from 'lucide-react';
+} from '@/components/icon';
 
 /**
  * 좌표는 '영상 화면 안'에서의 0~1 비율로 저장한다.

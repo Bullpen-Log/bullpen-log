@@ -9,7 +9,7 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from 'react';
 import Link from 'next/link';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight } from '@/components/icon';
 import { Card } from '@/components/ui';
 import { NAV_ICONS } from '@/components/nav-icons';
 import { LinkPending } from '@/components/link-pending';
@@ -320,7 +320,7 @@ function FeedLabel({ item }: { item: FeedItem }) {
   const tone = item.warn ? 'text-warn' : 'text-sky';
   return (
     <span className={`flex items-center gap-1.5 ${tone}`}>
-      {Icon && <Icon aria-hidden className="h-4 w-4" strokeWidth={2.25} />}
+      {Icon && <Icon aria-hidden className="h-4 w-4" />}
       <span className="text-[15px] font-semibold">{item.label}</span>
       {item.tone === 'past' && (
         <span className="rounded-full bg-ink/6 px-1.5 py-0.5 text-[10px] font-medium text-muted">

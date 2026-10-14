@@ -11,7 +11,7 @@ import {
   Utensils,
   X,
   type LucideIcon,
-} from 'lucide-react';
+} from '@/components/icon';
 import { REST_SESSION_TYPE } from '@/lib/session-type';
 import { maxEffortPct } from '@/lib/pitch-effort';
 import { Baseball } from '@/components/baseball-icon';

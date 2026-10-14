@@ -10,7 +10,7 @@ import {
   RefreshCw,
   Replace,
   Trash2,
-} from 'lucide-react';
+} from '@/components/icon';
 import { DIET_STYLES, MEAL_PATTERNS, type DietPrefs } from '@/lib/nutrition/diet-prefs';
 import {
   PLAN_PLACES,
@@ -125,7 +125,7 @@ export function PlanCard({
           onClick={() => setHot((h) => !h)}
           className={CHIP}
         >
-          {hot && <Check aria-hidden className="h-3.5 w-3.5" strokeWidth={2.6} />}
+          {hot && <Check aria-hidden className="h-3.5 w-3.5" />}
           더운 날 야외
         </button>
       </div>
@@ -332,7 +332,7 @@ export function PlanBlock({
           aria-label={`${meal === 'snack' ? '간식' : '이 끼니'} 식단 모두 먹었어요`}
           className="-mr-1 inline-flex h-9 shrink-0 items-center gap-1 rounded-lg px-2 text-xs font-semibold text-sky transition-colors hover:bg-sky-tint"
         >
-          <Check aria-hidden className="h-3.5 w-3.5" strokeWidth={2.6} />
+          <Check aria-hidden className="h-3.5 w-3.5" />
           모두 먹었어요
         </button>
       </div>
@@ -353,7 +353,6 @@ export function PlanBlock({
               <Check
                 aria-hidden
                 className="hidden h-5 w-5 group-hover:block"
-                strokeWidth={2.6}
               />
             </button>
             <button

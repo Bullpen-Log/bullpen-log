@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { ChevronLeft, ChevronRight, Plus, Stethoscope } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus, Stethoscope } from '@/components/icon';
 import { Modal, useModalState } from '@/components/modal';
 import { Button, Input } from '@/components/ui';
 import { ErrorLine } from '@/components/error-line';

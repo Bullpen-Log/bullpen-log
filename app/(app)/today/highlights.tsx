@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { ChevronRight } from 'lucide-react';
+import { ChevronRight } from '@/components/icon';
 import { useSpeedUnit } from '@/components/use-units';
 import { formatSpeed } from '@/lib/units';
 import { OPEN_POPUP_TYPES } from '@/lib/transition-types';

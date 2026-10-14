@@ -11,6 +11,23 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 ---
 
+## 김민에게 — 2026-10-14 · 금윤호(Claude) — 아이콘 체계: 아이콘은 `components/icon.tsx` 하나에서 받는다(굵기 2.5) · 색 원 부품 · 네 영역(앱 틀 · 더보기)을 만졌다
+
+받은 뒤 할 일 없음(DB · 패키지 그대로). 제안서 `docs/designs/icon-system.md` 의 1~4단계를 했다('한 것' 절). **네가 답하기 전에 `app-icon.tsx` ·
+`NAV_TINT` 는 그대로 두고 가져다만 썼다** — 더보기의 유리 아이콘은 안 바뀜.
+- **규칙**: 화면 코드는 `lucide-react` 를 직접 부르지 않고 `@/components/icon` 에서 같은 이름으로 받는다(150종, eslint `no-restricted-imports` 가
+  막는다 — 없는 아이콘은 그 파일에 한 줄 더하면 된다). 굵기는 거기 하나(2.5). 켜짐 · 꺼짐은 굵기가 아니라 색으로. 새 부품 `components/icon-circle.tsx`
+  (`IconCircle` 44 · 56px 색 원 + 흰 글리프, `CircleButton`) — 목록 줄의 동작 단추용.
+- **네 영역 파일**: `components/app-shell.tsx`(import 바꿈 · `NavGlyph` 의 `strokeWidth` 인자 뺌 · 흩어진 굵기 7곳 걷음 — 연출 · 끌기는 안 건드림),
+  `components/nav-icons.tsx`(import 만 `@/components/icon` 으로), 홈 `app/(app)/today/*` · 영양 · 트레이닝 등 143개 파일은 import 한 줄과 아이콘 태그의
+  `strokeWidth` 만(스크립트로 — 생 svg 의 strokeWidth 는 그대로). 내 정보의 계정 단추 셋(`profile/account-actions.tsx`)은 아이폰 설정 목록처럼 색 원 + ›.
+  투구 기록 그날 줄 연필 · 휴지통, 구속 측정 공 줄 ▶, 내 루틴 ▶ · 연필은 휴대폰에서 44px 색 원(PC 는 예전 작은 아이콘).
+- **구속 측정은 안 옮겼다**(`components/velocity/*` · `app/(session)/velocity/*` · `app/(app)/admin/velocity/*`, 27개 파일 — 네가 2.5.1 작업 중이라).
+  eslint 규칙이 그 셋을 건너뛴다. 옮길 때는 `from 'lucide-react'` → `from '@/components/icon'` 한 줄 + 아이콘 태그의 `strokeWidth` 삭제뿐이고, 끝나면
+  `eslint.config.mjs` 의 ignores 셋을 지워 줘.
+- 폰에서 봐 주면 좋은 것: 하단 탭 · 상단 종 · 설정의 선이 조금 굵어졌는지(2.5), 내 정보 계정 줄 셋, 투구 기록 그날 줄의 연필 · 휴지통 원.
+  2단계(아이폰 앱만 SF Symbols SVG)는 사용자가 맥에서 SVG 를 내보내야 해서 아직.
+
 ## 금윤호에게 — 2026-10-14 · 김민(Claude) — 구속 측정: 손에 든 폰도 잰다(흔들림 빼고 알아채기 · 엔진 2.5.1)
 
 받은 뒤 할 일 없음. **네 영역(구속 측정)을 고쳤다.** 사용자: 월요일(10-12) 낮 손으로 들고 재니 아무것도 안 잡혔다 → "흔들림 빼고 보기",

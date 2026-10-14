@@ -3,7 +3,7 @@
 
 import { useActionState, useEffect, useState, useSyncExternalStore } from 'react';
 import { useFormStatus } from 'react-dom';
-import { ChevronDown } from 'lucide-react';
+import { ChevronDown } from '@/components/icon';
 import { MiniCalendar } from '@/components/mini-calendar';
 import { updateProfile, type ProfileState } from '@/app/actions/profile';
 import { guardFormAction } from '@/lib/action-offline';

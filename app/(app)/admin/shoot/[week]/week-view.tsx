@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
 import { useRouter } from 'next/navigation';
-import { Check, Clapperboard, Clock3, Coffee, RotateCcw, Wrench } from 'lucide-react';
+import { Check, Clapperboard, Clock3, Coffee, RotateCcw, Wrench } from '@/components/icon';
 import { ButtonLink, PageHeading } from '@/components/ui';
 import { Modal, useModalState } from '@/components/modal';
 import { Segmented } from '@/components/segmented';
@@ -438,7 +438,7 @@ function Row({
           <span
             className={`grid h-7 w-7 place-items-center rounded-full transition-[background-color,box-shadow,transform] duration-200 motion-safe:active:scale-90 ${STATE_PILL[state]}`}
           >
-            {Icon && <Icon aria-hidden className="h-4 w-4" strokeWidth={2.6} />}
+            {Icon && <Icon aria-hidden className="h-4 w-4" />}
           </span>
         </button>
         <button

@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState, useTransition } from 'react';
-import { AlertTriangle, Plus, Search, Star } from 'lucide-react';
+import { AlertTriangle, Plus, Search, Star } from '@/components/icon';
 import { Modal } from '@/components/modal';
 import { MetaFilter, matchesFilter, type FilterState } from '@/components/meta-filter';
 import { matchesSearch } from '@/lib/korean';
@@ -194,7 +194,6 @@ export function AddExercise({
               <Star
                 className="h-3.5 w-3.5"
                 fill={onlyFavorites ? 'currentColor' : 'none'}
-                strokeWidth={1.9}
               />
               {/*
                 '즐겨찾기 2 만 보기'로 쓰면 숫자 뒤에 '만'이 붙어 2만(20,000)처럼
@@ -240,7 +239,6 @@ export function AddExercise({
                             aria-label="즐겨찾기"
                             className="h-3.5 w-3.5 shrink-0 self-center text-warn"
                             fill="currentColor"
-                            strokeWidth={1.5}
                           />
                         )}
                         <span className="text-sm font-semibold text-ink">

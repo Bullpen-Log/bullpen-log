@@ -27,7 +27,7 @@ import {
   Timer,
   Trash2,
   X,
-} from 'lucide-react';
+} from '@/components/icon';
 import { LibraryVideo } from '@/components/library-video';
 import { ExerciseHistoryPanel } from '@/components/exercise-history';
 import { useWakeLock } from '@/components/use-wake-lock';
@@ -234,7 +234,7 @@ function SetDots({ planned, done }: { planned: number; done: number }) {
       </span>
       {done >= planned ? (
         <span className="finish-pop inline-flex items-center gap-1 text-xs font-semibold text-sky">
-          <Check aria-hidden className="h-3.5 w-3.5" strokeWidth={3} />
+          <Check aria-hidden className="h-3.5 w-3.5" />
           {planned}세트 다 했어요
         </span>
       ) : (
@@ -1033,7 +1033,7 @@ export function SessionClient({
           className="-m-1.5 grid h-11 w-11 shrink-0 place-items-center text-muted transition-colors hover:text-ink"
         >
           <span className="grid h-8 w-8 place-items-center rounded-full bg-ink/6">
-            <X className="h-4 w-4" strokeWidth={2.4} />
+            <X className="h-4 w-4" />
           </span>
         </button>
         {/*
@@ -1155,7 +1155,6 @@ export function SessionClient({
             <Star
               className={`h-6 w-6 ${favorites.has(ex.id) ? 'text-sky' : 'text-muted'}`}
               fill={favorites.has(ex.id) ? 'currentColor' : 'none'}
-              strokeWidth={1.8}
             />
           </button>
           <button
@@ -1566,7 +1565,7 @@ export function SessionClient({
                     onClick={fillSuggested}
                     className="mx-auto flex min-h-9 w-fit items-center gap-1.5 rounded-full px-3 text-[13px] font-semibold text-sky transition-opacity active:opacity-60"
                   >
-                    <RotateCcw aria-hidden className="h-3.5 w-3.5" strokeWidth={2.4} />
+                    <RotateCcw aria-hidden className="h-3.5 w-3.5" />
                     추천{' '}
                     {wUnit === 'lb' ? roundForDisplay(suggestKg, 'lb') : suggestKg}
                     {wUnit} 담기
@@ -1585,7 +1584,7 @@ export function SessionClient({
                     onClick={fillLast}
                     className="mx-auto flex min-h-9 w-fit items-center gap-1.5 rounded-full px-3 text-[13px] font-semibold text-sky transition-opacity active:opacity-60"
                   >
-                    <RotateCcw aria-hidden className="h-3.5 w-3.5" strokeWidth={2.4} />
+                    <RotateCcw aria-hidden className="h-3.5 w-3.5" />
                     지난번 그대로 담기
                   </button>
                 )
@@ -1612,12 +1611,12 @@ export function SessionClient({
                 </>
               ) : allDone ? (
                 <>
-                  <Check className="h-6 w-6" strokeWidth={2.6} />
+                  <Check className="h-6 w-6" />
                   운동 종료
                 </>
               ) : (
                 <>
-                  <Check className="h-6 w-6" strokeWidth={2.6} />
+                  <Check className="h-6 w-6" />
                   {`${mine.length + 1}세트 완료`}
                 </>
               )}

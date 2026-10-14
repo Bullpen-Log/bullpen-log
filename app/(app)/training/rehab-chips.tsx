@@ -1,6 +1,6 @@
 'use client';
 
-import { Check } from 'lucide-react';
+import { Check } from '@/components/icon';
 
 /**
  * 재활 화면의 고르는 칩 — 체크인의 팔 통증 칩과 같은 모양(휴대폰은 회색 알약 · 고른 것은 파랑, PC 는 네모 칩).
@@ -48,7 +48,7 @@ export function RehabChips<V extends string | number>({
           />
           <span className="flex min-h-10 cursor-pointer items-center gap-1.5 rounded-full border border-transparent bg-ink/6 px-3.5 py-2 text-sm text-ink/80 transition-colors select-none peer-checked:border-sky peer-checked:bg-sky/10 peer-checked:font-semibold peer-checked:text-sky peer-focus-visible:ring-1 peer-focus-visible:ring-sky desk:min-h-9 desk:rounded-lg desk:border-line desk:bg-surface-2 desk:px-3 desk:text-xs desk:text-muted desk:hover:border-sky-soft desk:hover:text-ink desk:peer-checked:font-medium">
             {multiple && on(o.value) && (
-              <Check aria-hidden className="h-3.5 w-3.5" strokeWidth={2.6} />
+              <Check aria-hidden className="h-3.5 w-3.5" />
             )}
             {o.label}
           </span>

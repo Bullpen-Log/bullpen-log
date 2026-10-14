@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Columns2, Ellipsis, Radar, Rotate3d } from 'lucide-react';
+import { Columns2, Ellipsis, Radar, Rotate3d } from '@/components/icon';
 import { PageHeading } from '@/components/ui';
 import { Modal } from '@/components/modal';
 import { useTodayKey } from '@/components/use-today-key';

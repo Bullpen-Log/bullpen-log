@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { ChevronDown, ChevronRight, Play, TriangleAlert } from 'lucide-react';
+import { ChevronDown, ChevronRight, Play, TriangleAlert } from '@/components/icon';
 import {
   DISCLAIMER,
   RED_FLAGS,

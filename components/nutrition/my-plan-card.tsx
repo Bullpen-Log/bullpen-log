@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, type MouseEvent } from 'react';
-import { ChevronDown, Pencil } from 'lucide-react';
+import { ChevronDown, Pencil } from '@/components/icon';
 import { paceText } from '@/components/onboarding/format';
 import { PlanStats } from '@/components/onboarding/plan-stats';
 import { useWeightUnit } from '@/components/use-units';

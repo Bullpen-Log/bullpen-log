@@ -8,7 +8,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import { X } from 'lucide-react';
+import { X } from '@/components/icon';
 import { DESK_MEDIA } from '@/lib/nav';
 
 /** 휴대폰 틀인가 — 휴대폰의 창은 아래에서 올라오는 시트다(globals.css 의 dialog[data-sheet]) */

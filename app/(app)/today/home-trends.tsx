@@ -20,7 +20,7 @@ import {
   Minus,
   Scale,
   type LucideIcon,
-} from 'lucide-react';
+} from '@/components/icon';
 import { Baseball } from '@/components/baseball-icon';
 import { haptic } from '@/lib/haptics';
 import { smoothPath } from '@/lib/smooth-path';

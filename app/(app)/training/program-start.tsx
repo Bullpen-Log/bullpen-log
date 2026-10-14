@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useTransition } from 'react';
-import { ChevronRight } from 'lucide-react';
+import { ChevronRight } from '@/components/icon';
 import { Modal } from '@/components/modal';
 import { Segmented } from '@/components/segmented';
 import { DisclosureButton } from '@/components/disclosure';

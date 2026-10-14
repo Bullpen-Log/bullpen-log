@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
-import { ChevronDown, ChevronRight } from 'lucide-react';
+import { ChevronDown, ChevronRight } from '@/components/icon';
 import { Expand } from '@/components/expand';
 import { mechanicsElement } from '@/lib/mechanics/elements';
 import type { DrillPick } from '@/lib/mechanics/drills';

@@ -20,7 +20,7 @@ import {
   Info,
   Play,
   X,
-} from 'lucide-react';
+} from '@/components/icon';
 import { LibraryVideo } from '@/components/library-video';
 import { useWakeLock } from '@/components/use-wake-lock';
 import { markExerciseDone, refreshTrainingLists } from '@/app/actions/exercise-log';
@@ -422,7 +422,7 @@ export function ArmcarePlayer({
           <div className={rehabCheck ? 'mx-auto max-w-md space-y-4' : 'space-y-4'}>
             {count > 0 && (
               <span className="finish-pop mx-auto grid h-20 w-20 place-items-center rounded-full bg-sky text-white">
-                <Check className="h-10 w-10" strokeWidth={3} />
+                <Check className="h-10 w-10" />
               </span>
             )}
             <p className="text-heading text-2xl text-ink">
@@ -581,7 +581,7 @@ export function ArmcarePlayer({
               onClick={() => dispatch({ type: 'set', at: Date.now() })}
               className="flex w-full items-center justify-center gap-2 rounded-xl bg-sky py-4 text-base font-bold text-white hover:bg-sky-strong"
             >
-              <Check className="h-5 w-5" strokeWidth={3} /> 세트 끝 ({doneSets + 1}/
+              <Check className="h-5 w-5" /> 세트 끝 ({doneSets + 1}/
               {it.sets})
             </button>
           )}

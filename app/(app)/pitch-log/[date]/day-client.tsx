@@ -4,7 +4,7 @@ import { useCallback, useMemo, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { quietRefresh } from '@/lib/quiet-refresh';
-import { ArrowLeft, House, Plus, type LucideIcon } from 'lucide-react';
+import { ArrowLeft, House, Plus, type LucideIcon } from '@/components/icon';
 import { Baseball } from '@/components/baseball-icon';
 import { FormError } from '@/components/ui';
 import { usePlaybackUrls } from '@/components/use-playback-urls';
