@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ChartLine } from 'lucide-react';
+import { ChartLine } from '@/components/icon';
 import { Card, FormError } from '@/components/ui';
 import { toDateKey } from '@/lib/pitch-stats';
 import { readEffort } from '@/lib/pitch-effort';

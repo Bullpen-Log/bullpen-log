@@ -1,7 +1,7 @@
 'use client';
 
 import { useRef, useState } from 'react';
-import { ChevronDown } from 'lucide-react';
+import { ChevronDown } from '@/components/icon';
 
 /** 이보다 짧으면 접지 않는다. 두세 줄짜리를 접어 봐야 누를 것만 하나 는다. */
 const LONG = 220;

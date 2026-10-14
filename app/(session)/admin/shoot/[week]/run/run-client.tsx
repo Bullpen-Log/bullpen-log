@@ -13,7 +13,7 @@ import {
   MapPin,
   PauseCircle,
   X,
-} from 'lucide-react';
+} from '@/components/icon';
 import { Modal, useModalState } from '@/components/modal';
 import { ShootExerciseDetail } from '@/components/shoot/exercise-detail';
 import { STATE_LABEL, STATE_PILL } from '@/components/shoot/status';
@@ -363,7 +363,7 @@ export function RunClient({
           ) : (
             <section className="rise-in space-y-4 py-6 text-center">
               <span className="mx-auto grid h-16 w-16 place-items-center rounded-full bg-sky text-white">
-                <Check aria-hidden className="h-8 w-8" strokeWidth={2.6} />
+                <Check aria-hidden className="h-8 w-8" />
               </span>
               <h1 className="text-heading text-2xl text-ink">
                 이 주 계획을 다 찍었어요
@@ -440,7 +440,7 @@ export function RunClient({
                   aria-label="영상 없이 찍음으로 체크하고 다음으로"
                   className="flex h-[72px] w-16 shrink-0 flex-col items-center justify-center gap-0.5 rounded-3xl bg-ink/6 text-xs font-semibold text-ink motion-safe:active:scale-95"
                 >
-                  <Check aria-hidden className="h-5 w-5" strokeWidth={2.6} />
+                  <Check aria-hidden className="h-5 w-5" />
                   찍음
                 </button>
                 <button
@@ -448,7 +448,7 @@ export function RunClient({
                   onClick={() => clipTarget && void clips.startCamera(clipTarget)}
                   className="flex h-[72px] min-w-0 flex-1 items-center justify-center gap-2 rounded-full bg-sky text-lg font-bold text-white motion-safe:active:scale-[0.98]"
                 >
-                  <Camera aria-hidden className="h-6 w-6" strokeWidth={2.4} />
+                  <Camera aria-hidden className="h-6 w-6" />
                   {infos[current.exerciseId]?.uploaded ? '다시 찍기' : '영상 찍기'}
                 </button>
               </>
@@ -459,7 +459,7 @@ export function RunClient({
                 onClick={shoot}
                 className="flex h-[72px] min-w-0 flex-1 items-center justify-center gap-2 rounded-full bg-sky text-lg font-bold text-white motion-safe:active:scale-[0.98]"
               >
-                <Check aria-hidden className="h-6 w-6" strokeWidth={2.8} />
+                <Check aria-hidden className="h-6 w-6" />
                 찍음 · 다음으로
               </button>
             )}

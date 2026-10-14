@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { ArrowDown, ChevronRight } from 'lucide-react';
+import { ArrowDown, ChevronRight } from '@/components/icon';
 import {
   ARMCARE_AREAS,
   ARMCARE_MUSCLES,

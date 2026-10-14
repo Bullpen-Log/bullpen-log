@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Camera, Check, ChevronDown, Smartphone } from 'lucide-react';
+import { Camera, Check, ChevronDown, Smartphone } from '@/components/icon';
 
 /**
  * 투구 영상 촬영 가이드.
@@ -247,7 +247,7 @@ export function FilmingGuide({ defaultOpen = false }: { defaultOpen?: boolean })
             투구 영상 촬영 가이드
           </span>
           <span className="mt-0.5 block text-xs text-muted">
-            이대로 찍어 두면 나중에 투구 분석에 그대로 쓸 수 있어요
+            이대로 찍어 두면 나중에 3D 동작 분석에 그대로 쓸 수 있어요
           </span>
         </span>
         <ChevronDown

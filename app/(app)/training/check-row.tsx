@@ -1,7 +1,7 @@
 'use client';
 
 import type { ReactNode } from 'react';
-import { AlertTriangle, Check } from 'lucide-react';
+import { AlertTriangle, Check } from '@/components/icon';
 
 /**
  * 줄 어디를 눌러도 체크되는 운동 한 줄 — 트레이닝 목록(exercise-list.tsx)과 암케어 체크
@@ -69,7 +69,7 @@ export function CheckRow({
           done ? 'border-sky bg-sky text-white' : 'border-line-strong'
         }`}
       >
-        {done && <Check className="finish-pop h-3.5 w-3.5" strokeWidth={3} />}
+        {done && <Check className="finish-pop h-3.5 w-3.5" />}
       </span>
       <span className="pointer-events-none relative min-w-0 flex-1 space-y-1.5">
         <span className="flex flex-wrap items-baseline gap-x-2 gap-y-1">

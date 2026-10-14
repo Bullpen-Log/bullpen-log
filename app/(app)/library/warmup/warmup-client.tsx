@@ -2,7 +2,7 @@
 
 import { useActionState, useState } from 'react';
 import Link from 'next/link';
-import { ChevronDown, ChevronUp, Pencil, Plus, X } from 'lucide-react';
+import { ChevronDown, ChevronUp, Pencil, Plus, X } from '@/components/icon';
 import {
   addWarmupItem,
   moveWarmupItem,

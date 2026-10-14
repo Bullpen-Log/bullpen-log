@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState, useTransition } from 'react';
-import { Camera, Loader2, Trash2 } from 'lucide-react';
+import { Camera, Loader2, Trash2 } from '@/components/icon';
 import { saveAvatar } from '@/app/actions/profile';
 import { FormError } from '@/components/ui';
 import { toast } from '@/components/toast';

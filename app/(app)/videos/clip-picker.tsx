@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Check, ChevronDown, Search, X } from 'lucide-react';
+import { Check, ChevronDown, Search, X } from '@/components/icon';
 import type { ClipOption } from './compare-view';
 
 /** 날짜에서 연도를 떼어 좁은 화면에서도 읽히게 한다. */

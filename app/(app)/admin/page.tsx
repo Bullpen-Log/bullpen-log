@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { ChevronRight, Clapperboard, Gauge, ScrollText } from 'lucide-react';
+import { ChevronRight, Clapperboard, Gauge, ScrollText } from '@/components/icon';
 import { prisma } from '@/lib/prisma';
 import { requireAdmin } from '@/lib/dal';
 import { Badge, Card, PageHeading } from '@/components/ui';

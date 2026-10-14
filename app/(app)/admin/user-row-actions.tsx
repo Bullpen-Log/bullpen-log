@@ -2,7 +2,7 @@
 
 import { useActionState, useRef, useState } from 'react';
 import { useFormStatus } from 'react-dom';
-import { ShieldCheck, ShieldOff, Trash2 } from 'lucide-react';
+import { ShieldCheck, ShieldOff, Trash2 } from '@/components/icon';
 import { deleteUser, toggleUserRole, type AdminState } from '@/app/actions/admin';
 import { guardFormAction } from '@/lib/action-offline';
 import { ConfirmDialog } from '@/components/confirm-delete';

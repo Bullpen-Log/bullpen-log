@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useTransition } from 'react';
-import { ChartLine, Check } from 'lucide-react';
+import { ChartLine, Check } from '@/components/icon';
 import { setExerciseDone } from '@/app/actions/exercise-log';
 import { CategoryBadge } from '@/components/category-badge';
 import { ExerciseHistoryPanel } from '@/components/exercise-history';
@@ -89,7 +89,7 @@ export function DayExercises({
                 }`}
                 aria-hidden
               >
-                {ex.done && <Check className="h-3.5 w-3.5" strokeWidth={3} />}
+                {ex.done && <Check className="h-3.5 w-3.5" />}
               </span>
               <span className="min-w-0 flex-1">
                 <span className="flex flex-wrap items-baseline gap-x-2 gap-y-1">

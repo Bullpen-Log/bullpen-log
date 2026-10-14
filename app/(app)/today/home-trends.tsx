@@ -20,7 +20,7 @@ import {
   Minus,
   Scale,
   type LucideIcon,
-} from 'lucide-react';
+} from '@/components/icon';
 import { Baseball } from '@/components/baseball-icon';
 import { haptic } from '@/lib/haptics';
 import { smoothPath } from '@/lib/smooth-path';
@@ -178,7 +178,7 @@ function readRange(
   }
 }
 
-type MetricKey = 'pitches' | 'velocity' | 'condition' | 'weight' | 'kcal' | 'training';
+export type MetricKey = 'pitches' | 'velocity' | 'condition' | 'weight' | 'kcal' | 'training';
 type Combine = 'sum' | 'avg' | 'max' | 'last';
 
 /**
@@ -321,6 +321,7 @@ export function HomeTrends({
   nutritionByDay,
   checkinByDay,
   weightByDay,
+  metrics: only,
   onJump,
 }: {
   today: string;
@@ -332,9 +333,12 @@ export function HomeTrends({
   checkinByDay: Record<string, CheckinDay>;
   /** 날짜별 체중(kg) — 영양 탭에 적은 것이 체크인보다 앞선다 */
   weightByDay: Record<string, number>;
+  /** 그릴 그래프 — 투구 분석은 투구수 · 최고 구속, 트레이닝 분석은 운동만(2026-10-14). 안 주면 여섯 장 다 */
+  metrics?: MetricKey[];
   /** 캘린더가 그날을 고른다 */
   onJump: (date: string) => void;
 }) {
+  const shownMetrics = only ? METRICS.filter((m) => only.includes(m.key)) : METRICS;
   const speedUnit = useSpeedUnit();
   const weightUnit = useWeightUnit();
 
@@ -379,7 +383,7 @@ export function HomeTrends({
   }, [logs, checkinByDay, weightByDay, nutritionByDay, trainingByDay]);
 
   /* 기록이 하나라도 있는 날 — 기간 고르는 작은 달력에 점을 찍는다 */
-  const hasRecord = (day: string) => METRICS.some((m) => valueOf(m.key, day) != null);
+  const hasRecord = (day: string) => shownMetrics.some((m) => valueOf(m.key, day) != null);
 
   /* 보여 줄 기간 — 4주 · 12주는 오늘로 끝나고, '기간 설정'은 고른 대로 */
   const range: Range =
@@ -433,13 +437,12 @@ export function HomeTrends({
 
   return (
     /*
-      h-full · flex-col — 옆의 분석 칸과 위아래 끝을 맞춘다. 두 칸은 한 줄(grid)에서 같은
-      높이로 늘어나고, 그래프 상자가 남는 높이를 채운다(flex-1 · 줄은 똑같이 나눈다).
-      분석이 길면 그래프가 그만큼 커진다.
+      분석 밑에 쌓인다(2026-10-14) — 예전엔 분석 옆에서 그 높이만큼 늘어났는데, 장 수가 한두 장이면 카드 하나가 900px 넘게
+      늘어나 장 수를 고른 화면(metrics)은 카드 높이를 못박는다.
     */
     <section
       aria-labelledby="trends-title"
-      className="@container flex h-full flex-col gap-4 pt-6"
+      className="@container flex flex-col gap-4"
     >
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div className="min-w-0">
@@ -520,9 +523,15 @@ export function HomeTrends({
       */}
       <div
         key={`${range.from}~${range.to}`}
-        className="grid min-h-0 flex-1 auto-rows-fr grid-cols-2 gap-3 @3xl:grid-cols-3"
+        className={`grid gap-3 ${
+          shownMetrics.length === 1
+            ? 'auto-rows-[12rem] grid-cols-1 desk:auto-rows-[14rem]'
+            : shownMetrics.length === 2
+              ? 'auto-rows-[12rem] grid-cols-2 desk:auto-rows-[14rem]'
+              : 'min-h-0 flex-1 auto-rows-fr grid-cols-2 @3xl:grid-cols-3'
+        }`}
       >
-        {METRICS.map((m) => {
+        {shownMetrics.map((m) => {
           const values = days.map((d) => valueOf(m.key, d));
           const got = values.filter((v): v is number => v != null);
           const now = combine(values, m.total);

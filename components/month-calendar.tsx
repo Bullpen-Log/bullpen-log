@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
-import { ChartLine, ChevronDown, ChevronLeft, ChevronRight, Info } from 'lucide-react';
+import { ChartLine, ChevronDown, ChevronLeft, ChevronRight, Info } from '@/components/icon';
 import { dateKeyOf, toDateKey } from '@/lib/pitch-stats';
 import { STRONG_EFFORT_PCT, effortBand } from '@/lib/pitch-effort';
 
@@ -269,7 +269,7 @@ export function MonthCalendar({
             }
             className="grid h-10 w-10 place-items-center rounded-full text-sky transition-colors desk:h-8 desk:w-8 desk:rounded-lg desk:border desk:border-line desk:text-muted desk:hover:border-sky desk:hover:text-sky"
           >
-            <ChevronLeft className="h-5 w-5 desk:h-4 desk:w-4" strokeWidth={2.4} />
+            <ChevronLeft className="h-5 w-5 desk:h-4 desk:w-4" />
           </button>
           <button
             type="button"
@@ -281,7 +281,7 @@ export function MonthCalendar({
             }
             className="grid h-10 w-10 place-items-center rounded-full text-sky transition-colors desk:h-8 desk:w-8 desk:rounded-lg desk:border desk:border-line desk:text-muted desk:hover:border-sky desk:hover:text-sky"
           >
-            <ChevronRight className="h-5 w-5 desk:h-4 desk:w-4" strokeWidth={2.4} />
+            <ChevronRight className="h-5 w-5 desk:h-4 desk:w-4" />
           </button>
         </div>
       </div>

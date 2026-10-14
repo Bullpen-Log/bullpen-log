@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react';
 import Link from 'next/link';
 import { unstable_rethrow } from 'next/navigation';
-import { Check, ChevronRight, Play, RefreshCw } from 'lucide-react';
+import { Check, ChevronRight, Play, RefreshCw } from '@/components/icon';
 import { setExerciseDone } from '@/app/actions/exercise-log';
 import { makeArmcareRoutine } from '@/app/actions/armcare';
 import { CHECK_CONNECTION } from '@/lib/offline';
@@ -370,7 +370,7 @@ export function Checklist({
           </p>
           {allDone && (
             <span className="finish-pop inline-flex items-center gap-1 rounded-full bg-sky px-2.5 py-1 text-xs font-bold text-white">
-              <Check aria-hidden className="h-3.5 w-3.5" strokeWidth={3} />
+              <Check aria-hidden className="h-3.5 w-3.5" />
               {doneLabel}
             </span>
           )}

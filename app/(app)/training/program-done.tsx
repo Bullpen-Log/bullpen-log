@@ -3,7 +3,7 @@ import type { ProgramResult } from '@/lib/program/load';
 
 /**
  * 프로그램을 다 마쳤을 때(설계 §13-13) — 큰 운동 넷의 추정 최대를 숫자 그대로. 안 올랐으면 '이번엔 그대로예요'.
- * 기본기 4주는 무게가 없어 숫자 대신 다음 길(성인은 근력 · 파워 프로그램, 만 18세 전이면 코치와 함께 무게)을 말한다.
+ * 기본기 4주는 무게가 없어 숫자 대신 다음 길(근력 · 파워 프로그램 — 만 13세부터, 16세 전이면 성장기 규칙)을 말한다.
  * 끝난 뒤 사흘 동안 트레이닝 맨 위에 둔다. 다음 프로그램 고르기는 바로 밑의 입구 한 줄(program-start.tsx).
  */
 export function ProgramDone({ result }: { result: ProgramResult }) {
@@ -21,8 +21,8 @@ export function ProgramDone({ result }: { result: ProgramResult }) {
       </div>
       {result.basics && (
         <p className="text-sm leading-relaxed break-keep text-ink">
-          자세가 익숙해졌으면 무게를 더할 때예요. 성인은 이제 근력 · 파워 프로그램을 고를 수 있어요. 만 18세
-          전이면 코치나 트레이너와 함께 무게를 시작해요.
+          자세가 익숙해졌으면 무게를 더할 때예요. 이제 근력 · 파워 프로그램을 고를 수 있어요. 만 16세 전이면 가장
+          무거운 운동은 빼고, 세트마다 3개씩 남기고 해요.
         </p>
       )}
       <ul className="divide-y divide-line">

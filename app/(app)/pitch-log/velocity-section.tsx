@@ -2,7 +2,8 @@
 
 import { addTransitionType, useState, useTransition, type ComponentProps } from 'react';
 import { unstable_rethrow, useRouter } from 'next/navigation';
-import { Camera, ChevronRight, Loader2, Play, RotateCw, Trash2 } from 'lucide-react';
+import { Camera, ChevronRight, Loader2, Play, RotateCw, Trash2 } from '@/components/icon';
+import { IconCircle } from '@/components/icon-circle';
 import { quietRefresh } from '@/lib/quiet-refresh';
 import { QUIET_REFRESH } from '@/lib/transition-types';
 import { ConfirmDialog } from '@/components/confirm-delete';
@@ -351,11 +352,10 @@ export function VelocitySection({ sessions }: { sessions: VelocitySessionView[] 
                       type="button"
                       onClick={() => setViewing(p)}
                       aria-label={`${p.seq}번째 공 영상 보기`}
-                      className="group flex w-13 shrink-0 items-center justify-center pr-1 transition-colors hover:bg-surface-2"
+                      className="flex w-14 shrink-0 items-center justify-center pr-1 transition-[opacity,transform] active:opacity-80 motion-safe:active:scale-95"
                     >
-                      <span className="flex h-9 w-9 items-center justify-center rounded-full bg-sky/10 text-sky transition-colors group-hover:bg-sky group-hover:text-white">
-                        <Play aria-hidden className="ml-0.5 h-4 w-4 fill-current" />
-                      </span>
+                      {/* 색 원 + 흰 ▶ — 아이폰 전화 앱 목록의 동작 단추처럼(components/icon-circle.tsx, 2026-10-14) */}
+                      <IconCircle Icon={Play} />
                     </button>
                   )}
                 </li>

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
-import { Check } from 'lucide-react';
+import { Check } from '@/components/icon';
 
 /** 한 줄이 떠오르는 간격 · 마지막 줄 뒤 머무는 시간(ms) */
 const LINE_MS = 380;
@@ -55,7 +55,7 @@ export function BuildingSteps({
             className="motion-safe:animate-row-in flex items-center gap-3 text-subhead text-ink break-keep"
           >
             <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-sky text-white">
-              <Check aria-hidden className="h-3.5 w-3.5" strokeWidth={3} />
+              <Check aria-hidden className="h-3.5 w-3.5" />
             </span>
             {line}
           </li>

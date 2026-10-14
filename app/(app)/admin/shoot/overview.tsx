@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { Clapperboard, ChevronRight } from 'lucide-react';
+import { Clapperboard, ChevronRight } from '@/components/icon';
 import { BackLink, ButtonLink, Card, PageHeading } from '@/components/ui';
 import { ShootGauge, StackBar } from '@/components/shoot/gauge';
 import { STATE_LABEL, STATE_PILL, dayText, stampText } from '@/components/shoot/status';

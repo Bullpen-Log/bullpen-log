@@ -1,6 +1,6 @@
 'use client';
 
-import { Play, Star } from 'lucide-react';
+import { Play, Star } from '@/components/icon';
 
 /**
  * 목록에서 쓰는 작은 카드. 미리보기 사진과 이름만 보여준다.
@@ -70,7 +70,7 @@ export function LibraryTile({
             aria-hidden
             className="absolute right-2 top-2 flex h-6 w-6 items-center justify-center rounded-full bg-shade/70 text-warn backdrop-blur-sm"
           >
-            <Star className="h-3.5 w-3.5" fill="currentColor" strokeWidth={1.5} />
+            <Star className="h-3.5 w-3.5" fill="currentColor" />
           </span>
         )}
       </span>

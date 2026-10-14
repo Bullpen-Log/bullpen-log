@@ -230,13 +230,22 @@ export async function deleteUserFiles(userId: string) {
   const paths: string[] = [];
   const PAGE = 100;
   try {
-    for (let offset = 0; ; offset += PAGE) {
-      const { data, error } = await bucket.list(userId, { limit: PAGE, offset });
-      if (error) throw error;
-      /* 폴더 안의 폴더는 없다(파일은 모두 `{userId}/파일`) — 혹시 있으면(id 없음) 건너뛴다 */
-      for (const item of data ?? []) if (item.id) paths.push(`${userId}/${item.name}`);
-      if (!data || data.length < PAGE) break;
-    }
+    /*
+     * 폴더 안의 폴더도(id 없음) 들어가 지운다 — 3D 동작 분석 영상은 `{userId}/pitch-lab/{샘플}/…` 에 있다(2026-10-14 일반 사용자에게 열며:
+     * 예전엔 한 층만 지워 탈퇴해도 그 영상이 남았다). 깊이는 3층까지(그보다 깊은 폴더는 만들지 않는다).
+     */
+    const walk = async (dir: string, depth: number): Promise<void> => {
+      for (let offset = 0; ; offset += PAGE) {
+        const { data, error } = await bucket.list(dir, { limit: PAGE, offset });
+        if (error) throw error;
+        for (const item of data ?? []) {
+          if (item.id) paths.push(`${dir}/${item.name}`);
+          else if (depth < 3) await walk(`${dir}/${item.name}`, depth + 1);
+        }
+        if (!data || data.length < PAGE) break;
+      }
+    };
+    await walk(userId, 1);
     for (let i = 0; i < paths.length; i += PAGE) {
       const { error } = await bucket.remove(paths.slice(i, i + PAGE));
       if (error) throw error;

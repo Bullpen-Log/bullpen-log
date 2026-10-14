@@ -10,13 +10,13 @@ import {
 } from '@/lib/pitch-lab-meta';
 
 /**
- * 투구 분석 실험실(베타) — 옆 · 뒤 영상 하나를 저장소로 직접 올릴 임시 주소. 관리자만.
+ * 3D 동작 분석(베타) — 옆 · 뒤 영상 하나를 저장소로 직접 올릴 임시 주소. 로그인한 누구나 — 자기 폴더에만(관리자는 관리자끼리).
  * 샘플 번호 · 어느 쪽은 주소의 ?pair= · ?view= 로 받는다(components/video-upload.tsx 의 uploadToStorage 가 몸통을 정한다).
  */
 export async function POST(req: Request) {
   const user = await getCurrentUser();
-  if (!user || user.role !== 'ADMIN') {
-    return NextResponse.json({ error: '관리자만 올릴 수 있어요' }, { status: 403 });
+  if (!user) {
+    return NextResponse.json({ error: '로그인이 필요해요' }, { status: 401 });
   }
   if (!isStorageConfigured()) {
     return NextResponse.json(
@@ -56,9 +56,9 @@ export async function POST(req: Request) {
         { status: 400 }
       );
     }
-    /* 다른 관리자가 만든 샘플에 다시 올리면 그 폴더에, 새 샘플은 내 폴더에 */
+    /* 다른 관리자가 만든 샘플에 다시 올리면 그 폴더에(관리자끼리), 새 샘플은 내 폴더에 — 일반 사용자는 늘 자기 폴더 */
     const target = await createLabUploadTarget(
-      (await findLabOwner(pair, user.id)) ?? user.id,
+      (await findLabOwner(pair, user)) ?? user.id,
       pair,
       view,
       typeof fileName === 'string' ? fileName : 'video.mp4'

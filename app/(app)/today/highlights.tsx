@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { ChevronRight } from 'lucide-react';
+import { ChevronRight } from '@/components/icon';
 import { useSpeedUnit } from '@/components/use-units';
 import { formatSpeed } from '@/lib/units';
 import { OPEN_POPUP_TYPES } from '@/lib/transition-types';
@@ -25,7 +25,7 @@ export function Highlights({ items }: { items: Highlight[] }) {
 
   return (
     <section aria-labelledby="highlights-title" className="space-y-3">
-      <h2 id="highlights-title" className="text-heading px-1 text-xl text-ink">
+      <h2 id="highlights-title" className="text-heading text-xl text-ink">
         하이라이트
       </h2>
       <ul className={`grid gap-3 ${DESK_COLS[items.length] ?? DESK_COLS[3]}`}>
@@ -86,18 +86,23 @@ const W = 64;
 const H = 36;
 
 /** 작은 그림 — 바탕은 옅은 회색, 지금 것(마지막)만 색을 칠한다(그림은 색 적게) */
-export function MiniChart({ chart, warn }: { chart: HighlightChart; warn: boolean }) {
+export function MiniChart({
+  chart,
+  warn,
+  size = 'sm',
+}: {
+  chart: HighlightChart;
+  warn: boolean;
+  /** lg — 홈 요약 칸(2026-10-14 사용자 "그래프가 잘 안 보이니 키워줘"): 휴대폰 96×54 · PC 80×45. viewBox 는 그대로라 선도 같이 굵어진다 */
+  size?: 'sm' | 'lg';
+}) {
   const tone = warn ? 'text-warn' : 'text-sky';
+  const cls =
+    size === 'lg' ? 'h-[54px] w-24 shrink-0 desk:h-[45px] desk:w-20' : 'shrink-0';
 
   if (chart.kind === 'dots') {
     return (
-      <svg
-        aria-hidden
-        width={W}
-        height={H}
-        viewBox={`0 0 ${W} ${H}`}
-        className="shrink-0"
-      >
+      <svg aria-hidden width={W} height={H} viewBox={`0 0 ${W} ${H}`} className={cls}>
         {chart.values.map((on, i) => (
           <circle
             key={i}
@@ -120,13 +125,7 @@ export function MiniChart({ chart, warn }: { chart: HighlightChart; warn: boolea
     const bw = 10;
     const gap = (W - bw * n) / Math.max(1, n - 1);
     return (
-      <svg
-        aria-hidden
-        width={W}
-        height={H}
-        viewBox={`0 0 ${W} ${H}`}
-        className="shrink-0"
-      >
+      <svg aria-hidden width={W} height={H} viewBox={`0 0 ${W} ${H}`} className={cls}>
         {chart.values.map((v, i) => {
           const h = Math.max(2, (v / max) * (H - 2));
           return (

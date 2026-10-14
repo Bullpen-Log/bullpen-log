@@ -1,7 +1,5 @@
 import type { ReactNode } from 'react';
-import { ArrowDownRight, ArrowUpRight, ChevronDown, Minus } from 'lucide-react';
-import { ACWR_ZONES, ACWR_ZONE_ORDER, type AcwrZone } from '@/lib/pitch-stats';
-import { scaleToEffortPct } from '@/lib/pitch-effort';
+import { ArrowDownRight, ArrowUpRight, Minus } from '@/components/icon';
 
 /*
  * 상태 색과 칩은 components/tone.tsx 로 옮겼다. 홈에서도 부하 상태를 보여주게
@@ -34,12 +32,13 @@ export function Delta({
   const Icon = flat ? Minus : up ? ArrowUpRight : ArrowDownRight;
 
   return (
-    <span className={`inline-flex items-center gap-1 text-xs ${TONE[tone].text}`}>
+    <span className={`inline-flex items-center gap-1 whitespace-nowrap text-xs ${TONE[tone].text}`}>
       <Icon className="h-3.5 w-3.5" />
       <span className="tabular-nums">
         {flat ? '변화 없음' : `${Math.abs(rounded)}%`}
       </span>
-      <span className="text-muted/60">{suffix}</span>
+      {/* 휴대폰은 숫자 칸이 한 줄 셋이라 좁다 — 화살표 · % 만(뜻은 칸 이름 '이번 주'가 말한다) */}
+      <span className="hidden text-muted/60 desk:inline">{suffix}</span>
     </span>
   );
 }
@@ -58,321 +57,23 @@ export function StatCard({
   tone?: Tone;
 }) {
   return (
-    <div className="relative bg-surface p-(--block-pad)">
+    /* 한 줄 셋이라 휴대폰은 안쪽 여백을 줄인다(칸 하나 약 114px), PC 는 블록 여백 */
+    <div className="relative min-w-0 bg-surface px-3 py-4 desk:p-(--block-pad)">
       {/* 상태를 알리는 얇은 상단 선 */}
       <span
         className={`absolute inset-x-0 top-0 h-px ${
           tone === 'neutral' ? 'bg-transparent' : TONE[tone].bar
         }`}
       />
-      <p className="text-caption font-medium tracking-normal text-muted">{label}</p>
-      <p className="mt-3 flex items-baseline gap-1.5">
-        <span className="text-numeric text-3xl leading-none text-ink tabular-nums sm:text-4xl">
+      <p className="truncate text-xs font-medium tracking-normal text-muted">{label}</p>
+      <p className="mt-2 flex flex-wrap items-baseline gap-x-1">
+        <span className="text-numeric text-lg leading-none whitespace-nowrap text-ink tabular-nums min-[360px]:text-xl desk:text-3xl">
           {value}
         </span>
         {unit && <span className="text-xs text-muted">{unit}</span>}
       </p>
-      {footer && <div className="mt-3 min-h-[1.25rem]">{footer}</div>}
+      {footer && <div className="mt-2 leading-snug">{footer}</div>}
     </div>
   );
 }
 
-/**
- * 게이지는 0~2.0을 그리므로 구간 경계 0.8 / 1.3 / 1.5가
- * 각각 40% / 65% / 75% 위치에 온다.
- */
-const GAUGE_SEGMENTS: {
-  zone: AcwrZone;
-  short: string;
-  width: number;
-  fill: string;
-}[] = [
-  { zone: 'low', short: '낮음', width: 40, fill: 'bg-sky-500/25' },
-  { zone: 'optimal', short: '적정', width: 25, fill: 'bg-emerald-500/40' },
-  { zone: 'caution', short: '주의', width: 10, fill: 'bg-amber-500/40' },
-  { zone: 'danger', short: '위험', width: 25, fill: 'bg-red-500/35' },
-];
-
-const ZONE_TONE: Record<AcwrZone, Tone> = {
-  low: 'info',
-  optimal: 'good',
-  caution: 'warn',
-  danger: 'bad',
-};
-
-/** 0 ~ 2.0 범위에서 현재 부하 비율이 어디에 있는지, 각 구간이 뭘 뜻하는지 보여준다. */
-export function ZoneGauge({
-  ratio,
-  activeZone,
-}: {
-  ratio: number;
-  activeZone: AcwrZone;
-}) {
-  const position = Math.min(Math.max(ratio / 2, 0), 1) * 100;
-
-  return (
-    <div>
-      {/* 바늘을 막대 위에 겹쳐 현재 위치를 바로 읽히게 한다. */}
-      <div className="relative py-1.5">
-        <div className="flex h-2.5 w-full overflow-hidden rounded-full">
-          {GAUGE_SEGMENTS.map((s) => (
-            <span key={s.zone} className={s.fill} style={{ width: `${s.width}%` }} />
-          ))}
-        </div>
-        <span
-          className="absolute inset-y-0 -translate-x-1/2"
-          style={{ left: `${position}%` }}
-          aria-hidden
-        >
-          {/* 게이지 색은 테마와 무관하므로 바늘도 항상 어둡게 두어야 읽힌다 */}
-          <span className="block h-full w-[3px] rounded-full bg-shade shadow-[0_0_0_2px_#ffffff]" />
-        </span>
-      </div>
-
-      {/* 구간 이름 — 색만 있고 뜻이 없으면 읽을 수 없다. */}
-      <div className="mt-1.5 flex">
-        {GAUGE_SEGMENTS.map((s) => (
-          <span
-            key={s.zone}
-            className={`text-center text-[10px] ${
-              s.zone === activeZone
-                ? `font-semibold ${TONE[ZONE_TONE[s.zone]].text}`
-                : 'text-muted/50'
-            }`}
-            style={{ width: `${s.width}%` }}
-          >
-            {s.short}
-          </span>
-        ))}
-      </div>
-
-      {/* 경계 숫자 */}
-      <div className="relative mt-1 h-3 text-[10px] tabular-nums text-muted/50">
-        {[
-          { value: '0', at: 0 },
-          { value: '0.8', at: 40 },
-          { value: '1.3', at: 65 },
-          { value: '1.5', at: 75 },
-          { value: '2.0', at: 100 },
-        ].map(({ value, at }) => (
-          <span
-            key={value}
-            className="absolute top-0"
-            style={{
-              left: `${at}%`,
-              transform:
-                at === 0
-                  ? 'none'
-                  : at === 100
-                    ? 'translateX(-100%)'
-                    : 'translateX(-50%)',
-            }}
-          >
-            {value}
-          </span>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-/**
- * 부하 지수 설명. 처음 보는 사람이 숫자만으로는 뜻을 알 수 없어
- * 계산법과 구간의 의미를 펼쳐볼 수 있게 둔다.
- */
-export function LoadIndexHelp({
-  which,
-  acute,
-  chronic,
-  activeZone,
-}: {
-  /**
-   * 어느 지수를 푸는가.
-   *
-   * 예전에는 둘을 한 카드에 나란히 두고 여기서 같이 풀었다. 지금은 칸이 갈려
-   * 한 번에 하나만 보이므로, 안 보이는 지수까지 설명하면 "그 숫자가 어디 있지"
-   * 하고 찾게 된다.
-   */
-  which: 'pitching' | 'training';
-  acute: number;
-  chronic: number;
-  activeZone?: AcwrZone;
-}) {
-  const pitching = which === 'pitching';
-  return (
-    <details className="group border-t border-line pt-3">
-      <summary className="flex min-h-10 cursor-pointer list-none items-center gap-1.5 text-xs text-muted transition-colors hover:text-sky">
-        <ChevronDown className="h-3.5 w-3.5 transition-transform group-open:rotate-180" />
-        부하 지수가 뭔가요?
-      </summary>
-
-      <div className="mt-4 space-y-4 text-caption leading-relaxed text-muted">
-        <div>
-          <p className="font-semibold text-ink">어떻게 나오나요</p>
-          <div className="mt-2 space-y-1.5 rounded-lg border border-line bg-surface-2 px-3 py-2.5 tabular-nums">
-            {pitching ? (
-              <p>
-                투구 부하 <span className="text-ink">= 투구수 × 강도</span>
-                <span className="ml-1 text-muted/60">(50구를 강도 6으로 → 300)</span>
-              </p>
-            ) : (
-              <p>
-                운동 부하 <span className="text-ink">= 세트 수 × 운동 계수 × 강도</span>
-                <span className="ml-1 text-muted/60">
-                  (계수는 데드리프트 한 세트를 1로 놓은 값)
-                </span>
-              </p>
-            )}
-            <p>
-              부하 지수 <span className="text-ink">= 최근 부하 ÷ 평소 부하</span>
-              <span className="ml-1 text-muted/60">
-                (최근일수록 크게 반영되는 평균)
-              </span>
-            </p>
-            <p className="text-muted/70">
-              {pitching
-                ? '가입 때 답한 평소 투구량이 처음 기준이 되고, 기록이 쌓일수록 실제 기록으로 바뀌어요.'
-                : '가입 때 답한 평소 웨이트 횟수가 처음 기준이 되고, 기록이 쌓일수록 실제 기록으로 바뀌어요.'}
-            </p>
-            {chronic > 0 && (
-              <p className="border-t border-line pt-1.5 text-muted/70">
-                지금 {pitching ? '투구' : '운동'}은 {Math.round(acute)} ÷{' '}
-                {Math.round(chronic)} ={' '}
-                <span className="text-ink">{(acute / chronic).toFixed(2)}</span>
-              </p>
-            )}
-          </div>
-        </div>
-
-        <div>
-          <p className="font-semibold text-ink">왜 보나요</p>
-          <p className="mt-1.5">
-            몸은 평소 하던 양에 익숙해져 있어요. 그래서 양 자체보다 평소보다 얼마나
-            늘었는지가 부상 위험과 더 가까워요.
-          </p>
-        </div>
-
-        <div>
-          <p className="font-semibold text-ink">구간</p>
-          <ul className="mt-2 space-y-1.5">
-            {ACWR_ZONE_ORDER.map((zone) => {
-              const z = ACWR_ZONES[zone];
-              const active = zone === activeZone;
-              return (
-                <li
-                  key={zone}
-                  className={`flex gap-2 rounded-lg px-2 py-1.5 ${
-                    active ? 'bg-surface-2' : ''
-                  }`}
-                >
-                  <span
-                    className={`mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full ${TONE[ZONE_TONE[zone]].dot}`}
-                  />
-                  <span className="min-w-0">
-                    <span
-                      className={
-                        active
-                          ? `font-semibold ${TONE[ZONE_TONE[zone]].text}`
-                          : 'text-ink'
-                      }
-                    >
-                      {z.short}
-                    </span>
-                    <span className="ml-1.5 tabular-nums text-muted/60">{z.range}</span>
-                    {active && <span className="ml-1.5 text-muted/60">← 지금</span>}
-                    <span className="block">{z.meaning}</span>
-                  </span>
-                </li>
-              );
-            })}
-          </ul>
-        </div>
-
-        {/*
-          왜 안 합치는지는 물어볼 만한 것이라 미리 답해 둔다.
-          숫자 둘이 나란히 있으면 "그래서 몇이야?"가 먼저 떠오른다.
-        */}
-        <div>
-          <p className="font-semibold text-ink">운동 계수가 뭔가요</p>
-          <p className="mt-1.5">
-            운동 한 세트가 몸에 주는 부담이에요. 데드리프트 한 세트를 1로 두면 사이드
-            레터럴 레이즈는 0.3, 스트레칭은 0.04예요.
-          </p>
-        </div>
-
-        <div>
-          <p className="font-semibold text-ink">왜 하나로 안 합치나요</p>
-          <p className="mt-1.5">
-            투구와 운동은 세는 단위가 달라 그대로 더할 수 없어요. 둘 다 &lsquo;평소의 몇
-            배&rsquo;로 보여 주니 나란히 두고 읽어 주세요.
-          </p>
-        </div>
-
-        {/* 화면 아래의 안내와 겹치지 않게, 여기서는 지표 자체의 한계를 말한다. */}
-        <p className="rounded-lg border border-line bg-surface-2 px-3 py-2.5 text-muted/70">
-          <span className="text-ink">알아두세요.</span> 널리 쓰이는 방식이지만 절대
-          기준은 아니에요. 수면 · 컨디션 · 나이 · 폼은 빼고 기록한 양과 강도로만
-          계산해요.
-        </p>
-      </div>
-    </details>
-  );
-}
-
-/** 뒷받침 카드 4장이 각각 어떻게 나온 값인지. 용어를 처음 보는 사람 기준으로 쓴다. */
-export function MetricHelp({
-  twoDayLimit,
-  show,
-}: {
-  twoDayLimit: number;
-  /**
-   * 설명할 항목의 이름. 안 주면 전부 낸다.
-   *
-   * 분석이 세 칸으로 갈리면서 한 칸에 안 보이는 숫자까지 설명하면
-   * "그 숫자가 어디 있지" 하고 찾게 된다.
-   */
-  show?: readonly string[];
-}) {
-  const items = [
-    {
-      title: '이번 주 투구',
-      body: '오늘까지 7일 동안 던진 공 수예요. 증감은 그 전 7일과 견준 값이에요.',
-    },
-    {
-      title: '이번 주 운동',
-      body: '지난 7일 중 운동을 마쳤다고 표시한 날 수예요. 시간은 한 세트에 정해진 시간(쉬는 시간 포함)을 더한 값이고, 부하 지수는 시간이 아니라 세트로 세어요.',
-    },
-    {
-      title: '마지막 투구',
-      /* twoDayLimit 는 1~10 눈금(TWO_DAY_INTENSITY_LIMIT) — 입력과 같은 % 로 보인다(10 → 100%) */
-      body: `마지막 기록 뒤로 며칠 지났는지예요. "이틀 연속 과부하"는 이어진 이틀의 체감 강도 합이 ${scaleToEffortPct(twoDayLimit)}%를 넘은 때, "연투"는 최근 4주에서 쉬지 않고 던진 가장 긴 날 수예요.`,
-    },
-    {
-      title: '개인 최고 구속',
-      body: '지금까지 기록한 가장 빠른 구속이에요. 스피드건이 없으면 비워 둬도 다른 계산은 그대로 돼요.',
-    },
-  ];
-
-  const shown = show ? items.filter((i) => show.includes(i.title)) : items;
-  if (shown.length === 0) return null;
-
-  return (
-    <details className="group rounded-2xl border border-line bg-surface p-(--block-pad)">
-      <summary className="flex min-h-10 cursor-pointer list-none items-center gap-1.5 text-xs text-muted transition-colors hover:text-sky">
-        <ChevronDown className="h-3.5 w-3.5 transition-transform group-open:rotate-180" />
-        {shown.length === 1
-          ? '이 숫자는 어떻게 나오나요?'
-          : '이 숫자들은 어떻게 나오나요?'}
-      </summary>
-
-      <dl className="mt-4 grid gap-4 @md:grid-cols-2">
-        {shown.map((item) => (
-          <div key={item.title}>
-            <dt className="text-xs font-semibold text-ink">{item.title}</dt>
-            <dd className="mt-1 text-caption leading-relaxed text-muted">{item.body}</dd>
-          </div>
-        ))}
-      </dl>
-    </details>
-  );
-}

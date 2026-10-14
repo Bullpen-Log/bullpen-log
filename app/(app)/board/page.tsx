@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { Eye, Paperclip } from 'lucide-react';
+import { Eye, Paperclip } from '@/components/icon';
 import { prisma } from '@/lib/prisma';
 import { requireUser } from '@/lib/dal';
 import { Badge, ButtonLink, EmptyState, PageHeading } from '@/components/ui';

@@ -1,6 +1,6 @@
 import { appNow } from '@/lib/clock';
 import Link from 'next/link';
-import { Check, HeartPulse, type LucideIcon } from 'lucide-react';
+import { Check, HeartPulse, type LucideIcon } from '@/components/icon';
 import { prisma } from '@/lib/prisma';
 import type { requireUser } from '@/lib/dal';
 import { loadDayDetailCached } from '@/lib/day-detail';
@@ -239,7 +239,7 @@ function Ring({ value, icon: Icon }: { value: number; icon: LucideIcon }) {
           aria-hidden
           className="finish-pop done-check absolute inset-[22%] grid place-items-center rounded-full bg-sky text-white"
         >
-          <Check className="h-5 w-5 desk:h-4 desk:w-4" strokeWidth={3} />
+          <Check className="h-5 w-5 desk:h-4 desk:w-4" />
         </span>
       ) : (
         <Icon aria-hidden className="h-5 w-5 text-muted" />

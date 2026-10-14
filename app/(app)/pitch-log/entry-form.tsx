@@ -8,7 +8,7 @@ import {
   useState,
   useSyncExternalStore,
 } from 'react';
-import { Check, ChevronDown } from 'lucide-react';
+import { Check, ChevronDown } from '@/components/icon';
 import { Button, Field, Input, Textarea } from '@/components/ui';
 import { Segmented } from '@/components/segmented';
 import { VideoUpload, type UploadedVideo } from '@/components/video-upload';
@@ -190,7 +190,7 @@ function SatisfactionFields({
                       className={`inline-flex items-center gap-1 ${chipClass(on)}`}
                     >
                       {on && (
-                        <Check aria-hidden className="h-3.5 w-3.5" strokeWidth={2.6} />
+                        <Check aria-hidden className="h-3.5 w-3.5" />
                       )}
                       {cue}
                     </button>

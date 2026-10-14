@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, type ReactNode } from 'react';
-import { ChevronDown, Wrench } from 'lucide-react';
+import { ChevronDown, Wrench } from '@/components/icon';
 import { LibraryVideo } from '@/components/library-video';
 import { referenceThumbUrl } from '@/lib/reference-video';
 import type { ShootExerciseInfo } from '@/lib/shoot/load';

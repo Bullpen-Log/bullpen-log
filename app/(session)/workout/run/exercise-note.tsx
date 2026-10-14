@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react';
 import { unstable_rethrow } from 'next/navigation';
-import { NotebookPen, Pencil } from 'lucide-react';
+import { NotebookPen, Pencil } from '@/components/icon';
 import { saveExerciseNote } from '@/app/actions/exercise-note';
 import { EXERCISE_NOTE_MAX, cleanExerciseNote } from '@/lib/exercise-meta';
 

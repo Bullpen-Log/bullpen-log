@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, type ReactNode } from 'react';
-import { ChevronDown, ChevronRight } from 'lucide-react';
+import { ChevronDown, ChevronRight } from '@/components/icon';
 import { Modal, useModalState } from '@/components/modal';
 import { DRILL_STAGES } from '@/lib/exercise-meta';
 import {

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useTransition, type ReactNode } from 'react';
-import { Check } from 'lucide-react';
+import { Check } from '@/components/icon';
 import { Modal } from '@/components/modal';
 import { Segmented } from '@/components/segmented';
 import { useWeightUnit } from '@/components/use-units';
@@ -1059,7 +1059,6 @@ function ChoiceChips({
               <Check
                 aria-hidden
                 className="motion-safe:animate-fade-in h-3.5 w-3.5"
-                strokeWidth={2.6}
               />
             )}
             {o.label}

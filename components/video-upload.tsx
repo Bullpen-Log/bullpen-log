@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { Film, Loader2, Upload, X } from 'lucide-react';
+import { Film, Loader2, Upload, X } from '@/components/icon';
 import { captureThumbnail } from '@/lib/capture-thumbnail';
 import { useWakeLock } from '@/components/use-wake-lock';
 import { insideApp } from '@/lib/shoot-camera';

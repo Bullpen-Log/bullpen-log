@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { RotateCcw } from 'lucide-react';
+import { RotateCcw } from '@/components/icon';
 import { MacroBar } from '@/components/onboarding/plan-stats';
 import { INPUT_LARGE, invalidProps } from '@/components/onboarding/step-card';
 import { useSyncedText } from '@/components/onboarding/use-synced-text';

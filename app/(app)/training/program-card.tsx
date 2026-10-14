@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useTransition } from 'react';
-import { AlertCircle, Play } from 'lucide-react';
+import { AlertCircle, Play } from '@/components/icon';
 import { Card } from '@/components/ui';
 import { Modal, useModalState } from '@/components/modal';
 import { ConfirmDialog } from '@/components/confirm-delete';

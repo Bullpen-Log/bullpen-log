@@ -11,7 +11,7 @@ import {
   Search,
   Trash2,
   X,
-} from 'lucide-react';
+} from '@/components/icon';
 import { ExerciseBadges } from '@/components/meta-badges';
 import { MuscleChips } from '@/components/muscle-chips';
 import { ConfirmDelete } from '@/components/confirm-delete';

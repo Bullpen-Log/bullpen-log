@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Check, X } from 'lucide-react';
+import { Check, X } from '@/components/icon';
 import { summarizeSets } from '@/lib/workout/summarize';
 import { IntensityGuide } from '@/components/intensity-guide';
 import type { RunSet } from './session-client';
@@ -110,7 +110,7 @@ export function FinishSheet({
             className="-mt-1 -mr-2 grid h-11 w-11 shrink-0 place-items-center text-muted transition-colors hover:text-ink"
           >
             <span className="grid h-8 w-8 place-items-center rounded-full bg-ink/6">
-              <X className="h-4 w-4" strokeWidth={2.4} />
+              <X className="h-4 w-4" />
             </span>
           </button>
         </div>
@@ -226,7 +226,7 @@ export function FinishSheet({
             disabled={busy || memoNeedsIntensity || pendingCount > 0}
             className="flex h-[72px] w-full items-center justify-center gap-2 rounded-full bg-sky text-lg font-bold text-white transition disabled:opacity-40 motion-safe:active:scale-[0.98]"
           >
-            <Check className="h-6 w-6" strokeWidth={2.6} />
+            <Check className="h-6 w-6" />
             {busy ? '정리 중' : '운동 마치기'}
           </button>
           <button

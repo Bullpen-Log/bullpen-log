@@ -37,6 +37,15 @@ import { add, cross, dot, norm, normalize, scale, sub, type Vec3 } from '../lib/
 import { pickSegment, readV2Events, runFit, segmentWindow } from '../lib/pitch-3d/v2/run-node.ts';
 import { toPoseTrack } from '../lib/pitch-3d/v2/track.ts';
 import {
+  DAILY_FAIL_LIMIT,
+  fileFingerprint,
+  guardBlock,
+  labVideoBlock,
+  readLabGuard,
+  recordFail,
+  seoulDay,
+} from '../lib/pitch-lab-guard.ts';
+import {
   base,
   cameras,
   EV,
@@ -2966,6 +2975,46 @@ console.log('■ 점검 카드 드릴 고르기(drillPicksFor) — 쉬운 단계
     p.items.map((x) => x.title).join(' · ')
   );
   check('점검 카드: 드릴이 없는 요소는 빈 목록', drillPicksFor(drills, '스로잉').count === 0 && drillPicksFor(drills, '스로잉').items.length === 0);
+}
+
+{
+  console.log('■ GPU 비용 지키기(pitch-lab-guard) — 올리기 전 검사 · 같은 영상 · 하루 실패 상한');
+  const ok = { name: 'IMG_0412.MOV', fps: 240, shortSide: 1080, durationSec: 6, focal35: 24 };
+  check('원본 240fps 1080p 1배 6초 → 통과', labVideoBlock(ok) === null);
+  check('화면 녹화(ScreenRecording_…) → 막음', labVideoBlock({ ...ok, name: 'ScreenRecording_10-08-2026 10-17-43_1.mov' }) !== null);
+  check('30fps → 막음 · 60fps → 통과', labVideoBlock({ ...ok, fps: 29.97 }) !== null && labVideoBlock({ ...ok, fps: 60 }) === null);
+  check('606p(샘플 1 옆 화면 녹화 크기) → 막음', labVideoBlock({ ...ok, shortSide: 606 }) !== null);
+  check(
+    '2배(48mm) · 0.5배(13mm) → 막음, 옛 1배 26mm → 통과',
+    labVideoBlock({ ...ok, focal35: 48 }) !== null && labVideoBlock({ ...ok, focal35: 13 }) !== null && labVideoBlock({ ...ok, focal35: 26 }) === null
+  );
+  check('1.5초 → 막음', labVideoBlock({ ...ok, durationSec: 1.5 }) !== null);
+  check('못 읽은 칸은 막지 않음', labVideoBlock({ name: 'a.mov', fps: null, shortSide: null, durationSec: null, focal35: null }) === null);
+
+  const t0 = Date.parse('2026-10-14T14:00:00Z'); // 한국 23시
+  check('한국 날짜(UTC 14시 = 23시 · 15시 = 다음 날)', seoulDay(t0) === '2026-10-14' && seoulDay(t0 + 3600_000) === '2026-10-15');
+  let g = readLabGuard(null);
+  const fp = 'a'.repeat(64);
+  for (let i = 0; i < DAILY_FAIL_LIMIT - 1; i++) g = recordFail(g, { nowMs: t0, code: 'internal', fps: [], engine: '2.0.0' });
+  check('9번 실패 → 아직 걸 수 있음', guardBlock(g, { nowMs: t0, fps: [], engine: '2.0.0' }) === null);
+  g = recordFail(g, { nowMs: t0, code: 'gpu', fps: [], engine: '2.0.0' });
+  check('GPU 를 못 부른 실패(gpu)는 안 셈', g.fails === DAILY_FAIL_LIMIT - 1);
+  g = recordFail(g, { nowMs: t0, code: 'events', fps: [fp], engine: '2.0.0' });
+  check('10번 → 오늘은 막음', g.fails === DAILY_FAIL_LIMIT && guardBlock(g, { nowMs: t0, fps: [], engine: '2.0.0' }) !== null);
+  check('다음 날(한국)이면 다시 걸 수 있음(같은 영상 빼고)', guardBlock(g, { nowMs: t0 + 3600_000, fps: [], engine: '2.0.0' }) === null);
+  check('영상 탓 실패의 파일은 다음 날에도 같은 엔진이면 막음', guardBlock(g, { nowMs: t0 + 86400_000, fps: [fp], engine: '2.0.0' }) !== null);
+  check('엔진 판이 바뀌면 같은 파일도 다시', guardBlock(g, { nowMs: t0 + 86400_000, fps: [fp], engine: '2.0.1' }) === null);
+  const g2 = recordFail(readLabGuard(null), { nowMs: t0, code: 'timeout', fps: [fp], engine: '2.0.0' });
+  check('영상 탓이 아닌 실패(timeout)는 파일을 막지 않음', guardBlock(g2, { nowMs: t0, fps: [fp], engine: '2.0.0' }) === null);
+  check('저장된 기록 다시 읽기(모양이 틀린 칸은 버림)', readLabGuard({ ...g, failed: [...g.failed, { fp: 1 }] }).failed.length === 1);
+  const big = new Uint8Array(3 << 20).map((_, i) => i % 251);
+  const f1 = await fileFingerprint(new Blob([big]));
+  const big2 = big.slice();
+  big2[big2.length - 1] ^= 1;
+  check(
+    '지문: 같은 파일 같음 · 끝 1바이트가 다르면 다름 · 64자',
+    f1 === (await fileFingerprint(new Blob([big]))) && f1 !== (await fileFingerprint(new Blob([big2]))) && f1.length === 64
+  );
 }
 
 console.log(`\n통과 ${passed} · 실패 ${failed}`);

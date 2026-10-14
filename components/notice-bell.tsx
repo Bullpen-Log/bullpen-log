@@ -2,7 +2,7 @@
 
 import { useRef, useState, type RefObject } from 'react';
 import Link from 'next/link';
-import { Bell, CheckCircle2, ChevronRight, ClipboardList, Target } from 'lucide-react';
+import { Bell, CheckCircle2, ChevronRight, ClipboardList, Target } from '@/components/icon';
 import { OPEN_POPUP_TYPES } from '@/lib/transition-types';
 import { SETUP_PATH } from '@/lib/feature-locks';
 import { LinkPending } from '@/components/link-pending';
@@ -39,16 +39,26 @@ export const OPEN_CHECKIN_EVENT = 'bullpen:open-checkin';
 export function OpenCheckinButton({
   children,
   className,
+  style,
+  ghost = false,
 }: {
   children: React.ReactNode;
   className?: string;
+  style?: React.CSSProperties;
+  /** 화면 밖의 장(홈 요약 칸의 이전 · 다음 장) — 읽기 프로그램 · 탭 키에서 뺀다 */
+  ghost?: boolean;
 }) {
   return (
     <button
       type="button"
       aria-haspopup="dialog"
+      style={style}
+      aria-hidden={ghost || undefined}
+      tabIndex={ghost ? -1 : undefined}
       onClick={(e) =>
-        window.dispatchEvent(new CustomEvent(OPEN_CHECKIN_EVENT, { detail: e.currentTarget }))
+        window.dispatchEvent(
+          new CustomEvent(OPEN_CHECKIN_EVENT, { detail: e.currentTarget })
+        )
       }
       className={className}
     >
@@ -125,7 +135,6 @@ export function NoticeBellButton({
       <Bell
         aria-hidden
         className="h-[1.05rem] w-[1.05rem]"
-        strokeWidth={open ? 2.4 : 1.9}
       />
       {count > 0 && (
         <span
@@ -178,7 +187,9 @@ export function NoticePanel({
   const { day, checkinDone, pitchDone, pitchLocked } = state;
   const sheet = variant === 'sheet';
   /* 할 일 칸 · 단추 모양 — 시트는 아이폰 목록처럼 옅은 면 · 알약 */
-  const itemCls = sheet ? 'rounded-2xl bg-surface-2 p-4' : 'rounded-xl border border-line p-3';
+  const itemCls = sheet
+    ? 'rounded-2xl bg-surface-2 p-4'
+    : 'rounded-xl border border-line p-3';
   const btnShape = sheet ? 'rounded-full px-4 text-sm' : 'rounded-lg px-3 text-xs';
   const allDone = checkinDone && pitchDone;
   const root = useRef<HTMLDivElement>(null);
@@ -216,7 +227,9 @@ export function NoticePanel({
       {sheet ? (
         <p className="-mt-1 text-sm text-muted">{spokenDay(day)}</p>
       ) : (
-        <p className="px-1 text-caption font-semibold text-ink/65">{spokenDay(day)} · 오늘 할 일</p>
+        <p className="px-1 text-[11px] font-semibold text-ink/65">
+          {spokenDay(day)} · 오늘 할 일
+        </p>
       )}
 
       {allDone ? (
@@ -224,7 +237,9 @@ export function NoticePanel({
           <CheckCircle2 aria-hidden className="h-5 w-5 shrink-0 text-ok" />
           <div>
             <p className="text-sm font-semibold text-ink">지금은 알림이 없어요</p>
-            <p className="mt-0.5 text-xs text-muted">오늘 체크인과 투구 기록을 다 남겼어요.</p>
+            <p className="mt-0.5 text-xs text-muted">
+              오늘 체크인과 투구 기록을 다 남겼어요.
+            </p>
           </div>
         </div>
       ) : (
@@ -320,7 +335,9 @@ export function NoticePanel({
       {(checkinDone || pitchDone) && (
         <div
           className={
-            sheet ? 'mt-4 flex flex-wrap gap-2' : 'mt-2 flex flex-wrap gap-x-1 border-t border-line pt-2'
+            sheet
+              ? 'mt-4 flex flex-wrap gap-2'
+              : 'mt-2 flex flex-wrap gap-x-1 border-t border-line pt-2'
           }
         >
           {checkinDone && (

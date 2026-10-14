@@ -1,4 +1,4 @@
-import { Play } from 'lucide-react';
+import { Play } from '@/components/icon';
 import { startWorkout } from '@/app/actions/workout';
 import { startProgramWorkout } from '@/app/actions/program';
 import { SafeForm } from '@/components/safe-form';

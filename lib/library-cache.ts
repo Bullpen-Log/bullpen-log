@@ -3,6 +3,7 @@ import { unstable_cache, updateTag } from 'next/cache';
 import type { ExerciseVideo, MechanicsGuide } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { clearPlaybackUrlCache } from '@/lib/storage';
+import { LATER_CATEGORY } from '@/lib/categories';
 
 /**
  * 운동·드릴 목록을 한 번만 읽어 두고 돌려쓴다.
@@ -88,7 +89,7 @@ export const allExercises = unstable_cache(
    * 오늘의 암케어가 루틴을 못 짠다. 관리자가 운동을 하나 저장해야(clearLibraryCache)
    * 풀리는데, 그것을 기다릴 일이 아니다.
    */
-  ['library:exercises:v25'],
+  ['library:exercises:v29'],
   { tags: [LIBRARY_TAG] }
 );
 
@@ -110,19 +111,27 @@ export const allGuides = unstable_cache(
    * :v3 — 같은 날 빈자리를 채우는 드릴 12개를 더했다(scripts/mechanics-add-drills-2026-10-04.mjs).
    * :v8 — 2026-10-09 겹치는 메디신볼 드릴 13개를 숨겼다(51 → 38).
    * :v9 — 같은 날 '스플릿 스탠스 발목 등척 밀기'를 운동 라이브러리 파워로 옮기고 '등척'을 '아이소메트릭'으로.
+   * :v10 — 2026-10-14 드릴 37개를 '나중에 촬영'으로(scripts/drills-later-2026-10-14.mjs).
    */
-  ['library:guides:v9'],
+  ['library:guides:v11'],
   { tags: [LIBRARY_TAG] }
 );
 
-/** 숨기지 않은 드릴만 — 투구 드릴 화면 · 메커니즘이 보는 목록 */
+/** 숨기지 않은 드릴만 — 투구 드릴 영상 화면이 보는 목록('나중에 촬영' 칸도 보인다) */
 export async function visibleGuides(): Promise<CachedGuide[]> {
   return (await allGuides()).filter((g) => g.hiddenAt == null);
 }
 
-/** 숨기지 않은 운동만. 새 일정에 나갈 수 있는 것들이다. */
+/** 트레이닝이 고를 수 있는 드릴 — 숨긴 것과 '나중에 촬영'(영상 전)을 뺀다. 운동의 visibleExercises 와 같은 규칙 */
+export async function trainingGuides(): Promise<CachedGuide[]> {
+  return (await visibleGuides()).filter((g) => g.category !== LATER_CATEGORY);
+}
+
+/** 숨기지 않은 운동만. 새 일정에 나갈 수 있는 것들이다. '나중에 촬영'(영상 전)도 뺀다 — lib/categories.ts LATER_CATEGORY */
 export async function visibleExercises(): Promise<CachedExercise[]> {
-  return (await allExercises()).filter((ex) => ex.hiddenAt == null);
+  return (await allExercises()).filter(
+    (ex) => ex.hiddenAt == null && ex.category !== LATER_CATEGORY
+  );
 }
 
 /**

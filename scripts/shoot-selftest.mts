@@ -86,9 +86,10 @@ function invariants(p: ShootPlan, label: string) {
     );
   });
   check(`${label} — 계획 시각이 앞 운동이 끝난 뒤`, clockOk);
-  const endOk = p.weeks.every((w) => w.end <= SESSION_MINUTES - WRAP_MINUTES);
+  /* 2026-10-14 사용자: "한 세션에 3시간 정도로" — 실내 4회를 꽉 채워 2:49~2:56 에 끝난다. 촬영은 3시간 안, 정리(WRAP)는 조금 넘을 수 있다 */
+  const endOk = p.weeks.every((w) => w.end <= SESSION_MINUTES);
   check(
-    `${label} — 매주 백업 10분 전(2:50)에 촬영이 끝남`,
+    `${label} — 매주 3시간 안에 촬영이 끝남`,
     endOk,
     p.weeks.map((w) => clockText(w.end)).join(' · ')
   );
@@ -217,9 +218,9 @@ const indoorPlan: ShootPlan = { ...plan, weeks: plan.weeks.filter((w) => !w.outd
 {
   const items = indoorPlan.weeks.flatMap(weekItems);
   check(
-    '실내 7주 · 403개(야외를 붙여도 그대로)',
-    indoorPlan.weeks.length === 7 &&
-      items.length === 403 &&
+    '실내 5주 · 327개(야외를 붙여도 그대로 — 2026-10-14 사용자가 14개 지우고 토 워크 둘 · 나중에 촬영 60개를 뺌, 403 → 327 · 한 회 3시간쯤으로 7 → 5주)',
+    indoorPlan.weeks.length === 5 &&
+      items.length === 327 &&
       indoorPlan.weeks.every((w, i) => w.week === i + 1),
     `${indoorPlan.weeks.length}주 · ${items.length}개`
   );
@@ -242,9 +243,9 @@ console.log('\n■ 고정 계획 — 야외 8~10주(투구 드릴만 — 워밍�
   const drills = items.filter((i) => i.kind === 'drill');
   const warms = items.filter((i) => i.kind === 'warmup');
   check(
-    '야외 3주(8 · 9 · 10) — 드릴 120 · 워밍업 없음',
-    out.map((w) => w.week).join() === '8,9,10' &&
-      drills.length === 120 &&
+    '야외 2주(6 · 7) — 드릴 83 · 워밍업 없음(2026-10-14 사용자가 37개를 나중에 촬영으로 뺌, 120 → 83 · 3 → 2주)',
+    out.map((w) => w.week).join() === '6,7' &&
+      drills.length === 83 &&
       warms.length === 0,
     `${out.map((w) => w.week).join(',')} · 드릴 ${drills.length} · 워밍업 ${warms.length}`
   );

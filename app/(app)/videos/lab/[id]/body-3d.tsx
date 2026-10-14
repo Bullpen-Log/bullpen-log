@@ -9,7 +9,7 @@ import {
   useRef,
   useState,
 } from 'react';
-import { Pause, Play } from 'lucide-react';
+import { Pause, Play } from '@/components/icon';
 import type * as Three from 'three';
 import { Segmented } from '@/components/segmented';
 import { hasWebGL } from '@/components/three-stage';

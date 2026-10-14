@@ -1,23 +1,27 @@
 import { appNow } from '@/lib/clock';
 import { cache } from 'react';
+import { prisma } from '@/lib/prisma';
 import type { requireUser } from '@/lib/dal';
 import { loadTodayCore } from '@/lib/report/today-data';
 import { loadHighlights } from '@/lib/report/highlights-load';
+import { loadDayDetailCached } from '@/lib/day-detail';
 import type { Advice } from '@/lib/nutrition/advice';
 import { loadAdvice } from '@/lib/nutrition/advice-load';
 import { serviceHour } from '@/lib/nutrition/advice-input';
-import { ACWR_ZONES } from '@/lib/pitch-stats';
-import { FeedCard, type FeedItem } from './feed-card';
+import { dbDate } from '@/lib/nutrition/days';
+import { shiftDateKey, toDateKey } from '@/lib/pitch-stats';
+import { CHECKIN_PARTS } from '@/lib/checkin';
+import { buildFeedItems } from '@/lib/report/feed-items';
+import { FeedCard } from './feed-card';
 
 type HomeUser = Awaited<ReturnType<typeof requireUser>>;
 
 /**
- * 홈 요약 칸의 재료(서버) — 그리기는 feed-card.tsx. 우리끼리 '뉴스'라 부르는 칸이다(화면에는 그 말이 없다).
+ * 홈 요약 칸의 재료(서버) — 그리기는 feed-card.tsx, 장을 만드는 셈은 lib/report/feed-items.ts. 우리끼리 '뉴스'라 부르는 칸이다(화면에는
+ * 그 말이 없다).
  *
- * 장의 차례: 하이라이트(평소와 달라진 것 — 안전 → 성장 → 꾸준함, lib/report/highlights.ts, 투구 · 운동 · 홈 몫 모두) → 부하 지수 →
- * 오늘 운동 → 영양 한 줄. 하이라이트는 예전에 캘린더 밑에 따로 있던 것을 여기로 옮겼고(2026-10-13), 영양은 예전 이 자리의 카드
- * (nutrition-card.tsx)를 한 장으로 줄인 것이다 — 할 일 한 줄 + 탄 · 단 · 지 더 먹을 양. 모두 누르면 그 탭으로 간다.
- * 분석 › 투구 · 트레이닝 제목 옆 '분석' 단추에서 보이는 하이라이트(highlights-load.ts 의 part)는 그대로다 — 여기는 모든 몫을 돌린다.
+ * 2026-10-14 부터 장은 늘 여섯(투구량 → 구속 → 부하 지수 → 컨디션 → 운동 → 영양). 오늘 기록이 없으면 지난 기록의 통계 · 그래프를, 아예
+ * 없으면 '기록 없음 · 남기러 가기'를 보인다. 하이라이트('달라진 것')는 장을 더하지 않고 그 장의 말을 바꾼다.
  *
  * 오늘 자료는 한 요청에 한 번만(React cache — 링 · 캘린더 밑 카드가 같은 user 객체로 부른다).
  */
@@ -26,75 +30,77 @@ const homeCore = cache((user: HomeUser) => loadTodayCore(user, now()));
 export async function Feed({ user, today }: { user: HomeUser; today: string }) {
   const core = await homeCore(user);
   const load = { zone: core.facts.load.zone, ratio: core.facts.load.ratio };
-  const [{ items: highlights }, advice] = await Promise.all([
-    loadHighlights(user.id, today, load),
-    loadAdvice(user, today, today, serviceHour(now())),
-  ]);
-  const items: FeedItem[] = [];
+  const [{ items: highlights, input, extra }, advice, detail, weekMeals] =
+    await Promise.all([
+      loadHighlights(user.id, today, load),
+      loadAdvice(user, today, today, serviceHour(now())),
+      /* 오늘 먹은 kcal · 목표 — 홈 링과 같은 그날 요약(한 요청에 한 번) */
+      loadDayDetailCached(user, today),
+      /* 최근 7일(오늘 뺌)의 식사 — 오늘 안 적은 날의 '지난 기록' 장 */
+      prisma.mealEntry.findMany({
+        where: {
+          userId: user.id,
+          date: { gte: dbDate(shiftDateKey(today, -7)), lt: dbDate(today) },
+        },
+        select: { date: true, kcal: true },
+      }),
+    ]);
 
-  for (const h of highlights) {
-    items.push({
-      key: `hl-${h.key}-${h.label}`,
-      label: h.label,
-      text: h.text,
-      speed: h.speed,
-      diff: h.diff,
-      href: h.href,
-      warn: h.warn,
-      chart: h.chart,
-      icon:
-        h.key === 'training'
-          ? 'dumbbell'
-          : h.key === 'condition' || h.key === 'streak'
-            ? 'shield'
-            : 'baseball',
-    });
+  const byDay = new Map<string, number>();
+  for (const m of weekMeals) {
+    const k = toDateKey(m.date);
+    byDay.set(k, (byDay.get(k) ?? 0) + m.kcal);
   }
+  const week =
+    byDay.size > 0
+      ? {
+          avgKcal: [...byDay.values()].reduce((a, b) => a + b, 0) / byDay.size,
+          days: byDay.size,
+        }
+      : null;
 
-  /*
-   * 부하 지수 — 하이라이트가 '달라진 것'만 말하므로 평소에는 안 뜬다. 사용자가 "부하 점수 · 분석 · 그래프 요약도 여기서"라고 해서
-   * 늘 한 장 둔다(기록이 있어 지수가 셈해질 때). 누르면 분석 › 투구.
-   */
-  if (
-    load.ratio != null &&
-    load.zone != null &&
-    !highlights.some((h) => h.key === 'load')
-  ) {
-    const z = ACWR_ZONES[load.zone];
-    items.push({
-      key: 'load',
-      label: '부하 지수',
-      text: `${load.ratio.toFixed(2)} · ${z.label}`,
-      sub: z.meaning,
-      href: '/coach?view=pitch',
-      warn: z.tone === 'warn' || z.tone === 'bad',
-      icon: 'gauge',
-    });
-  }
-
-  /* 오늘 운동 — 일정이 있고 멈춘 날이 아닐 때. 프로그램 날은 프로그램 일차 이름으로 */
   const plan = core.savedPlan;
-  if (plan && !core.picked.halted) {
-    const done = core.doneIds.size;
-    const total = core.shownPicks.length;
-    items.push({
-      key: 'workout',
-      label: '오늘 운동',
-      text: plan.program
-        ? `${plan.program.label} · ${core.shownMinutes}분`
-        : `${plan.theme.label} · ${core.shownMinutes}분`,
-      sub:
-        total > 0 && done > 0
-          ? done >= total
-            ? '오늘 운동을 다 마쳤어요'
-            : `${total}개 중 ${done}개 했어요`
-          : (plan.goal ?? undefined),
-      href: '/training',
-      icon: 'dumbbell',
-    });
-  }
-
-  items.push(nutritionItem(advice));
+  const facts = core.facts;
+  const partLabel = new Map<string, string>(CHECKIN_PARTS.map((p) => [p.key, p.label]));
+  const items = buildFeedItems({
+    ...input,
+    ...extra,
+    lastOutingAdjusted: facts.patterns.lastOutingAdjusted,
+    missingDays: facts.patterns.missingDays,
+    acuteChronic:
+      facts.load.ratio != null
+        ? { acute: facts.load.acute, chronic: facts.load.chronic }
+        : null,
+    usualCondition: facts.condition.usualCondition?.median ?? null,
+    painRecentParts: (facts.condition.painRecentParts ?? [])
+      .map((k) => partLabel.get(k))
+      .filter((l): l is string => l != null),
+    painToday: facts.condition.painToday,
+    workout:
+      plan && !core.picked.halted
+        ? {
+            label: plan.program ? plan.program.label : plan.theme.label,
+            minutes: core.shownMinutes,
+            done: core.doneIds.size,
+            total: core.shownPicks.length,
+            goal: plan.goal ?? null,
+            programDay: plan.program?.day ?? null,
+            leftMinutes: core.leftMinutes,
+          }
+        : null,
+    nutrition: {
+      score: advice.score,
+      headline: advice.headline,
+      parts: macroParts(advice),
+      todayKcal: detail.nutrition.kcal,
+      targetKcal: detail.nutrition.target.kcal,
+      protein: detail.nutrition.protein,
+      targetProtein: detail.nutrition.target.protein,
+      mealsToday: detail.nutrition.meals.filter((m) => m.kcal > 0).length,
+      week,
+    },
+    highlights,
+  });
 
   return <FeedCard items={items} />;
 }
@@ -110,9 +116,9 @@ const MACROS = [
   ['fat', '지방'],
 ] as const;
 
-/** 영양 한 장 — 할 일 한 줄 + 탄 · 단 · 지(더 먹을 양 · 충분 · 자료가 없으면 권하는 범위) */
-function nutritionItem(a: Advice): FeedItem {
-  const parts = MACROS.map(([key, label]) => {
+/** 영양 장의 밑줄 — 탄 · 단 · 지(더 먹을 양 · 충분 · 자료가 없으면 권하는 범위) */
+function macroParts(a: Advice): string[] {
+  return MACROS.map(([key, label]) => {
     if (a.more) {
       const v = a.more[key];
       if (v <= 0) return `${label} 충분`;
@@ -120,12 +126,4 @@ function nutritionItem(a: Advice): FeedItem {
     }
     return `${label} ${a.range[key].lo}~${a.range[key].hi}g`;
   });
-  return {
-    key: 'nutrition',
-    label: a.score !== null ? `영양 · 균형 ${a.score}` : '영양',
-    text: a.headline ?? '오늘 권하는 양이에요',
-    sub: parts.join(' · '),
-    href: '/nutrition',
-    icon: 'utensils',
-  };
 }

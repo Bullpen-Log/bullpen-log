@@ -1,7 +1,7 @@
 'use client';
 
 import { useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
-import { X } from 'lucide-react';
+import { X } from '@/components/icon';
 import { Button } from '@/components/ui';
 import { SPLASH_ATTR, SPLASH_END_EVENT } from '@/components/app-splash';
 

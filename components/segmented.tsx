@@ -2,7 +2,7 @@
 
 import { useSyncExternalStore, type KeyboardEvent, type MouseEvent } from 'react';
 import Link from 'next/link';
-import type { LucideIcon } from 'lucide-react';
+import type { LucideIcon } from '@/components/icon';
 import {
   isPlainClick,
   thumbStyle,

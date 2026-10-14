@@ -1,4 +1,4 @@
-import { ChevronDown } from 'lucide-react';
+import { ChevronDown } from '@/components/icon';
 import type { FactorResult, GoodDayResult } from '@/lib/report/good-days';
 
 /**
@@ -17,7 +17,7 @@ export function GoodDaysCard({ result }: { result: GoodDayResult }) {
 
   return (
     <section className="rounded-2xl border border-line bg-surface p-(--block-pad)">
-      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+      <div className="space-y-0.5">
         <h2 className="text-base font-bold text-ink">잘 던진 날</h2>
         <p className="text-xs text-muted">불펜 · 라이브 · 경기 뒤 매긴 만족도로 찾아요</p>
       </div>

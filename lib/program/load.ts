@@ -29,6 +29,7 @@ import { estimate1RM } from '@/lib/workout/history';
 import { toDateKey } from '@/lib/pitch-stats';
 import type { ReportFacts } from '@/lib/report/facts';
 import {
+  ARM_ACCESSORIES,
   ARM_DEFER_REASON,
   CAUTION_TEXT,
   TM_LOOKBACK_DAYS,
@@ -42,6 +43,9 @@ import {
   decideToday,
   inSeasonKind,
   isOptionalProgramExercise,
+  isYouthAge,
+  accessoryOccurrence,
+  accessoryPick,
   lighterRx,
   painSlotsOf,
   parseProgram,
@@ -58,6 +62,7 @@ import {
   variantLabel,
   warmupLine,
   withKind,
+  youthRx,
   type ItemRx,
   type Pinned,
   type ProgramPlan,
@@ -436,6 +441,8 @@ export async function buildProgramDay(
   const owned = user.ownedEquipment;
   /* 기본기는 고르는 규칙이 다르다(바벨 없이) — 다시 고정 · 그날 대체도 같은 규칙으로 */
   const audience = audienceOf(plan.def);
+  /* 성장기(만 16세 미만) — 매우 높음 빼고 고르고, 남기는 개수를 늘린다 */
+  const youth = isYouthAge(facts.profile.age);
 
   /* 고정 운동이 숨겨졌으면 같은 칸에서 다시 고른다(§3) — 고르기만(읽기). 다시 고정할 것을 적는 일은 pinnedFor 가 한다 */
   const anchorOf = (
@@ -445,9 +452,7 @@ export async function buildProgramDay(
     const ex = id ? byId.get(id) : undefined;
     if (ex) return { ex, repinned: false };
     const next =
-      variantCandidates(v, core.library, owned, user.trainingLevel, audience)[0] ?? null;
-    /* 철봉이 없어 세로 당기기를 못 하면 그날은 로우로(당기기가 통째로 빠지지 않게) — 고정은 안 바꾼다 */
-    if (!next && v === 'pullVertical') return { ex: anchorOf('pull').ex, repinned: false };
+      variantCandidates(v, core.library, owned, user.trainingLevel, audience, youth)[0] ?? null;
     return { ex: next, repinned: next != null };
   };
   /* 보조 칸은 세션마다 다른 운동(program.ts ROTATING_VARIANTS) — 고정 운동을 첫째로 같은 칸 후보를 그 칸이 나온 차례대로 */
@@ -468,10 +473,36 @@ export async function buildProgramDay(
     return got;
   };
 
+  /*
+   * 보조 메뉴 칸 — 고정이 아니라 그 칸 후보를 사람 · 프로그램마다 섞은 차례로 세션마다 다음 것(program.ts accessoryPick, 2026-10-14 사용자:
+   * "보조운동은 다양하고 세션마다 다른 걸로"). 그날 본운동과 같은 운동은 안 고른다.
+   */
+  const mainIds = new Set(
+    items.filter((x) => !x.assist).flatMap((x) => {
+      const ex = pinnedOf(x.variant).ex;
+      return ex ? [ex.id] : [];
+    })
+  );
+  const accessoryOf = new Map<VariantKey, CachedExercise | null>();
+  for (const x of items) {
+    if (!x.assist || accessoryOf.has(x.variant)) continue;
+    accessoryOf.set(
+      x.variant,
+      accessoryPick(
+        x.variant,
+        variantCandidates(x.variant, core.library, owned, user.trainingLevel, audience, youth),
+        `${user.id}|${row.startedAt.toISOString()}|${x.variant}`,
+        accessoryOccurrence(plan, day, x.variant),
+        mainIds
+      )
+    );
+  }
+  const exOf = (v: VariantKey) => (accessoryOf.has(v) ? (accessoryOf.get(v) ?? null) : pinnedFor(v).ex);
+
   /* 대체할 칸과 그 까닭 — 자체 시험 엇갈림 표와 같은 함수(program.ts painSlotsOf) */
   const { painSlots, slotReasons } = painSlotsOf(
     items,
-    (v) => pinnedFor(v).ex,
+    exOf,
     safeIds,
     armFatigueOnlyIds
   );
@@ -612,7 +643,9 @@ export async function buildProgramDay(
   for (const rx of items) {
     const { slot, variant } = rx;
     const a = adjust[slot];
-    const { ex: pinnedEx, repinned } = pinnedFor(variant);
+    const { ex: pinnedEx, repinned } = rx.assist
+      ? { ex: accessoryOf.get(variant) ?? null, repinned: false }
+      : pinnedFor(variant);
     if (!pinnedEx) {
       view.dropped.push({
         slot,
@@ -627,7 +660,8 @@ export async function buildProgramDay(
       continue;
     }
     /* 대체보다 먼저 — 그 칸의 대체 후보도 같은 변형(메디신볼)이라 대체하면 또 던진다 */
-    if (deferred.includes(variant)) {
+    /* 팔을 아끼는 날은 팔 보조(삼두 · 이두 · 전완)도 뺀다 — 던지는 변형만 빼던 것에 더해(2026-10-14) */
+    if (deferred.includes(variant) || (deferred.length > 0 && ARM_ACCESSORIES.includes(variant))) {
       view.dropped.push({ slot, title: pinnedEx.title, reason: ARM_DEFER_REASON });
       continue;
     }
@@ -638,7 +672,8 @@ export async function buildProgramDay(
         core.library,
         owned,
         user.trainingLevel,
-        audience
+        audience,
+        youth
       ).find((c) => c.id !== pinnedEx.id && safeIds.has(c.id));
       if (!sub) {
         view.dropped.push({ slot, title: pinnedEx.title, reason: '오늘 몸 상태' });
@@ -679,7 +714,9 @@ export async function buildProgramDay(
   for (const c of chosen) {
     const a = adjust[c.rx.slot] ?? null;
     const lighter = a?.kind === 'lighter' || (a?.kind === 'substitute' && a.lighter === true);
-    const rx = lighter ? lighterRx(c.rx) : c.rx;
+    const base = lighter ? lighterRx(c.rx) : c.rx;
+    /* 성장기는 남기는 개수를 늘린다(program.ts youthRx) — 프로그램 칸의 처방이 운동 화면 · 다음 무게까지 이것으로 간다 */
+    const rx = youth ? youthRx(base) : base;
     const { suggestion, kgs } = weighItem(rx, c.ex, {
       adjusted: lighter,
       gapDays,

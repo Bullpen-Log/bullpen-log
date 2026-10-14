@@ -492,6 +492,12 @@ function rejectTitle(r: ScreenResult): string {
 }
 
 /** 믿음이 모자란 까닭에 맞춘 다음 할 일 — 엔진이 남긴 거리 판단(analyze-distance.ts report)에서 읽는다 */
+/** 흔들림을 배경으로 재서 바로잡아 '보통'이 된 공 — 손에 든 폰(엔진 2.5.1) */
+function steadied(r: ScreenResult): boolean {
+  const d = 'distance' in r ? (r.distance as DistanceReport | undefined) : undefined;
+  return r.measure.ok && r.measure.confidence === 'medium' && !!d?.shaky && !!d.stabilized;
+}
+
 function lowConfidenceFix(
   r: ScreenResult,
   source: 'camera' | 'file',
@@ -986,7 +992,8 @@ export function VelocityScreen({
      * 관리자가 '정확도 보정용 저장'을 켰으면 버리지 않고 기록한다(믿음은 그대로 남고 알림이 붙는다) — 줄자 거리 · 조건을 바꿔 찍는
      * 엔진 시험에서 낮음 공의 클립까지 있어야 까닭을 본다. 보정식은 어차피 '높음' 짝만 쓴다(loadCalibration).
      */
-    if (result.measure.confidence !== 'high' && !calibOn) {
+    /* 흔들림을 바로잡아 잰 공(손에 든 폰)은 '보통'이어도 기록한다 — 2026-10-14 사용자, 표시가 붙는다(steadied) */
+    if (result.measure.confidence !== 'high' && !steadied(result) && !calibOn) {
       setLast({
         ...result,
         measure: {
@@ -1128,9 +1135,11 @@ export function VelocityScreen({
           ? [standardNoteOf(camera.offStandard)]
           : []),
         ...distNotes,
-        ...(m.confidence !== 'high'
-          ? ['보정용 저장이라 기록했어요. 보통 측정이면 측정 불가로 빠지는 공이에요.']
-          : []),
+        ...(steadied(result)
+          ? ['폰이 흔들려 바로잡아 잰 값이에요. 고정한 폰보다 조금 덜 정확할 수 있어요.']
+          : m.confidence !== 'high'
+            ? ['보정용 저장이라 기록했어요. 보통 측정이면 측정 불가로 빠지는 공이에요.']
+            : []),
         ...(result.live?.notes.map((note) => note.text) ?? []),
         ...(source === 'file'
           ? ((result as { video?: { notes: string[] } }).video?.notes ?? [])

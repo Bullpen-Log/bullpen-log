@@ -1,7 +1,7 @@
 'use client';
 
 import type { ReactNode } from 'react';
-import { ChevronDown, type LucideIcon } from 'lucide-react';
+import { ChevronDown, type LucideIcon } from '@/components/icon';
 
 /*
  * 펼치기 · 더 보기 단추 — 한 모양(2026-10-04 '앱 느낌' 단추 정리).

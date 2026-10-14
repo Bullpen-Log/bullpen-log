@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { Check } from 'lucide-react';
+import { Check } from '@/components/icon';
 import { isNativeClient } from '@/lib/app-env';
 import { buzz } from '@/lib/haptics';
 
@@ -91,7 +91,7 @@ function Cheer({ animate, size }: { animate: boolean; size: 'card' | 'screen' })
             animate ? 'finish-pop done-check' : ''
           }`}
         >
-          <Check className={big ? 'h-10 w-10' : 'h-7 w-7'} strokeWidth={3} />
+          <Check className={big ? 'h-10 w-10' : 'h-7 w-7'} />
         </span>
         {animate &&
           BITS.map((b) => (

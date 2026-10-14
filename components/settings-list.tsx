@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, type ReactNode } from 'react';
-import { ChevronsUpDown } from 'lucide-react';
+import { ChevronsUpDown } from '@/components/icon';
 
 /*
  * 아이폰 설정 목록 — 묶음(옅은 면 · 둥근 모서리) 안에 '이름 · 값' 줄이 선으로 갈린다(2026-10-04 '앱 느낌' 4단계).

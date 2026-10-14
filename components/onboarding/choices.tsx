@@ -1,7 +1,7 @@
 'use client';
 
 import { useRef, type KeyboardEvent, type ReactNode } from 'react';
-import { Check } from 'lucide-react';
+import { Check } from '@/components/icon';
 import { PROBLEM_ID } from '@/components/onboarding/step-card';
 
 /**
@@ -170,7 +170,7 @@ export function OptionCards<V extends string>({
                     : 'scale-90 border-line-strong bg-surface text-transparent'
                 }`}
               >
-                <Check className="h-3.5 w-3.5" strokeWidth={3} />
+                <Check className="h-3.5 w-3.5" />
               </span>
             </button>
           );
@@ -296,7 +296,7 @@ export function MultiChips<V extends string>({
               style={{ '--row': i } as React.CSSProperties}
               className={`${chipBase} ${on ? chipOn : chipOff(false)}`}
             >
-              {on && <Check aria-hidden className="h-3.5 w-3.5" strokeWidth={3} />}
+              {on && <Check aria-hidden className="h-3.5 w-3.5" />}
               {o.label}
             </button>
           );

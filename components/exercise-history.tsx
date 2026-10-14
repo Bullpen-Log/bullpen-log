@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState, type PointerEvent } from 'react';
-import { NotebookPen } from 'lucide-react';
+import { NotebookPen } from '@/components/icon';
 import { exerciseHistory } from '@/app/actions/exercise-history';
 import { useWeightUnit } from '@/components/use-units';
 import { useBoxSize } from '@/components/use-box-size';

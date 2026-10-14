@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
-import { Camera, CameraOff, Loader2, ScanBarcode, X } from 'lucide-react';
+import { Camera, CameraOff, Loader2, ScanBarcode, X } from '@/components/icon';
 import { ErrorLine } from '@/components/error-line';
 import { buzz } from '@/lib/haptics';
 import { cleanBarcode, expandUpcE } from '@/lib/nutrition/barcode';

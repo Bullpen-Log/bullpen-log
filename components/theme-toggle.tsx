@@ -1,7 +1,7 @@
 'use client';
 
 import { useSyncExternalStore } from 'react';
-import { Moon, MoonStar, Sun, SunMoon, type LucideIcon } from 'lucide-react';
+import { Moon, MoonStar, Sun, SunMoon, type LucideIcon } from '@/components/icon';
 import {
   applyTheme,
   getServerTheme,

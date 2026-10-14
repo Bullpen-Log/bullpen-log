@@ -2,9 +2,8 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Columns2, Ellipsis, Radar, Rotate3d } from 'lucide-react';
+import { Radar, Rotate3d } from '@/components/icon';
 import { PageHeading } from '@/components/ui';
-import { Modal } from '@/components/modal';
 import { useTodayKey } from '@/components/use-today-key';
 import {
   PITCH_VIEW_OPTIONS,
@@ -39,12 +38,12 @@ export type VideoLog = {
   videoPaths: string[];
 };
 
-/* 휴대폰 제목 줄의 둥근 아이콘 단추(구속 측정 · 더 보기) */
-const ROUND_ICON =
-  'flex h-11 w-11 items-center justify-center rounded-full bg-surface text-sky-strong transition-opacity active:opacity-60';
-/* 더 보기 시트의 한 줄 */
-const SHEET_ROW =
-  'flex min-h-14 w-full items-center gap-3 rounded-2xl px-3 text-left text-subhead font-medium text-ink transition-colors active:bg-ink/6';
+/*
+ * 찍으러 가는 문 둘(구속 측정 · 3D 동작 분석) — 2026-10-14 사용자: 제목 옆 '분석'(보기)과 나눠, 고르개 밑에 같은 무게로.
+ * 휴대폰은 반반 두 칸(글자가 보여야 처음 쓰는 사람도 찾는다), PC 는 고르개 줄 오른쪽에 글 단추.
+ */
+const TOOL_BUTTON =
+  'flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-2xl bg-surface px-3 text-sm font-semibold text-ink transition-opacity active:opacity-60 desk:h-9 desk:min-h-0 desk:flex-none desk:rounded-lg desk:border desk:border-sky desk:bg-sky-tint desk:text-xs desk:text-sky-strong desk:hover:bg-sky-tint/70';
 
 /* 보기 칸 [캘린더 | 목록 | 구속 측정]은 투구 기록 머리와 같이 둔다(pitch-log-heading.tsx) */
 type View = PitchView;
@@ -65,7 +64,6 @@ export function VideosClient({
   today,
   canMeasure,
   velocityHref,
-  canAnalyze,
   measured,
   initialView,
   initialCompare = false,
@@ -92,8 +90,6 @@ export function VideosClient({
   canMeasure: boolean;
   /** 관리자 웹 — 세 번째 칸을 고르면 보기를 바꾸지 않고 이 주소(구속 측정 관리자)로 간다 */
   velocityHref: string | null;
-  /** 투구 분석(베타) 단추를 보이는가 — 관리자만 */
-  canAnalyze: boolean;
   /** 날짜별 카메라 측정 요약(공 수 · 최고 km/h) — 캘린더의 그날 칸에 적는다 */
   measured: Record<string, { n: number; max: number }>;
   /** 처음 보일 칸 — ?view=velocity 로 들어오면 구속 측정 */
@@ -121,8 +117,6 @@ export function VideosClient({
     if (canMeasure) router.prefetch('/velocity');
   }, [router, velocityHref, canMeasure]);
   const [comparing, setComparing] = useState(false);
-  /* 휴대폰 제목 줄의 '…' — 2분할 비교 · 투구 분석(2026-10-14 핵심만: 고르개 밑 알약 줄을 걷었다) */
-  const [more, setMore] = useState(false);
   /* 목록에서 고른 둘. 비교 화면이 이 둘로 열린다. */
   const [preset, setPreset] = useState<{ a: string; b: string } | null>(null);
   /* 목록에서 비교할 둘을 고르는 중인가 */
@@ -172,145 +166,60 @@ export function VideosClient({
     );
   }
 
-  /* 견주기로 곧장 — 목록으로 넘어가 둘을 고르는 자리를 연다 */
-  const startCompare = () => {
-    setView('list');
-    setSelecting(true);
-  };
-
   /* 보기 고르개 줄 — 세로가 낮은 PC 에서는 제목 줄 오른쪽으로 올라간다(아래) */
   const viewControls = (
-    <>
-      {/*
-        캘린더에서도 견주기로 곧장 — 목록으로 넘어가 둘을 고르는 자리를 연다. 휴대폰은 고르개 밑 줄에 구속 측정과 나란히
-        (order-2 · 반씩), PC 는 예전 자리(왼쪽 끝). 한때 ⋯ 시트 안에 넣었더니 둘 다 찾기 어려웠다(2026-10-04 사용자).
-      */}
-      {view === 'calendar' && clips.length >= 2 ? (
-        <button
-          type="button"
-          onClick={startCompare}
-          className="hidden items-center rounded-lg border border-sky bg-sky-tint px-3 py-1.5 text-xs font-semibold text-sky-strong transition-colors hover:bg-sky-tint/70 desk:inline-flex"
-        >
-          2분할 비교
+    <PitchViewSwitch
+      className="w-full desk:w-auto"
+      value={view}
+      onChange={(next) => {
+        /* 관리자 웹의 세 번째 칸은 보기가 아니라 관리자 화면으로 가는 길 */
+        if (next === 'velocity' && velocityHref) {
+          router.push(velocityHref);
+          return;
+        }
+        setView(next);
+        if (next === 'calendar') setSelecting(false);
+      }}
+      options={viewOptions}
+    />
+  );
+
+  /*
+   * 찍으러 가는 문 — 구속 측정(앱 안이면 누구나, 웹이면 관리자만 · canMeasure) · 3D 동작 분석(누구나). 링크가 아니라 push 라 뒤로 가기로
+   * 이 화면 · 이 보기로 돌아온다. 2분할 비교는 목록 보기 안 단추로(video-gallery.tsx — 영상 둘을 고르는 일이라).
+   */
+  const tools = (
+    <div className="flex items-center gap-2">
+      {canMeasure && (
+        <button type="button" onClick={() => router.push('/velocity')} className={TOOL_BUTTON}>
+          <Radar aria-hidden className="h-4 w-4 text-sky-strong" />
+          구속 측정
         </button>
-      ) : (
-        <span className="hidden desk:block" />
       )}
-      <div className="order-1 flex w-full items-center gap-2 desk:order-none desk:w-auto">
-        <PitchViewSwitch
-          className="w-full desk:w-auto"
-          value={view}
-          onChange={(next) => {
-            /* 관리자 웹의 세 번째 칸은 보기가 아니라 관리자 화면으로 가는 길 */
-            if (next === 'velocity' && velocityHref) {
-              router.push(velocityHref);
-              return;
-            }
-            setView(next);
-            if (next === 'calendar') setSelecting(false);
-          }}
-          options={viewOptions}
-        />
-        {/*
-          구속 측정 모드로 — 폰 카메라로 재는 화면(/velocity). 앱 안이면 누구나, 웹이면 관리자만
-          (canMeasure). 링크가 아니라 push 라 뒤로 가기로 이 화면 · 이 보기로 돌아온다.
-        */}
-        {canMeasure && (
-          <button
-            type="button"
-            onClick={() => router.push('/velocity')}
-            className="hidden h-9 items-center gap-1.5 rounded-lg border border-sky bg-sky-tint px-3 text-xs font-semibold text-sky-strong transition-colors hover:bg-sky-tint/70 desk:inline-flex"
-          >
-            <Radar aria-hidden className="h-4 w-4" />
-            구속 측정
-          </button>
-        )}
-        {canAnalyze && (
-          <button
-            type="button"
-            onClick={() => router.push('/videos/lab')}
-            className="hidden h-9 items-center gap-1.5 rounded-lg border border-sky bg-sky-tint px-3 text-xs font-semibold text-sky-strong transition-colors hover:bg-sky-tint/70 desk:inline-flex"
-          >
-            <Rotate3d aria-hidden className="h-4 w-4" />
-            투구 분석
-          </button>
-        )}
-      </div>
-    </>
+      <button type="button" onClick={() => router.push('/videos/lab')} className={TOOL_BUTTON}>
+        <Rotate3d aria-hidden className="h-4 w-4 text-sky-strong" />
+        3D 동작 분석
+      </button>
+    </div>
   );
 
   return (
     <div className="stack-page">
-      {/*
-        머리 — 휴대폰은 제목 오른쪽에 둥근 [+], 그 밑에 꽉 찬 고르개, 그 밑에 [2분할 비교 | 구속 측정](2026-10-04). 둘을
-        ⋯ 시트에 넣었더니 찾기 어려워(사용자) 다시 꺼냈다. PC 는 예전 그대로.
-      */}
+      {/* 머리 — 제목 옆은 '분석'(보기) 하나, 고르개 밑(PC 는 고르개 줄 오른쪽)에 찍으러 가는 문 둘(2026-10-14) */}
       <PitchLogHeading
-        controls={viewControls}
-        inlineAction
-        action={
+        controls={
           <>
-            <AnalysisLink view="pitch" />
-            {/* 휴대폰 — 구속 측정 · 더 보기(2분할 비교 · 투구 분석). PC 는 고르개 줄에 글 단추로 있다 */}
-            <div className="flex items-center gap-2 desk:hidden">
-              {canMeasure && (
-                <button
-                  type="button"
-                  onClick={() => router.push('/velocity')}
-                  aria-label="구속 측정"
-                  className={ROUND_ICON}
-                >
-                  <Radar aria-hidden className="h-5 w-5" />
-                </button>
-              )}
-              {(clips.length >= 2 || canAnalyze) && (
-                <button
-                  type="button"
-                  onClick={() => setMore(true)}
-                  aria-label="더 보기"
-                  className={ROUND_ICON}
-                >
-                  <Ellipsis aria-hidden className="h-5 w-5" />
-                </button>
-              )}
-            </div>
+            {viewControls}
+            <div className="hidden desk:block">{tools}</div>
           </>
         }
+        inlineAction
+        action={<AnalysisLink view="pitch" />}
       />
+      <div className="desk:hidden">{tools}</div>
 
       {/* 오늘 — 계획 한 줄 · 던지는 일정(접힌 알약) · 기록 남기기 */}
       <TodayCard today={todayKey} data={todayCard} throwCard={throwCard} />
-
-      <Modal open={more} onClose={() => setMore(false)} title="더 보기">
-        <div className="space-y-1">
-          {clips.length >= 2 && (
-            <button
-              type="button"
-              onClick={() => {
-                setMore(false);
-                startCompare();
-              }}
-              className={SHEET_ROW}
-            >
-              <Columns2 aria-hidden className="h-5 w-5 text-sky-strong" />
-              2분할 비교
-            </button>
-          )}
-          {canAnalyze && (
-            <button
-              type="button"
-              onClick={() => {
-                setMore(false);
-                router.push('/videos/lab');
-              }}
-              className={SHEET_ROW}
-            >
-              <Rotate3d aria-hidden className="h-5 w-5 text-sky-strong" />
-              투구 분석
-            </button>
-          )}
-        </div>
-      </Modal>
 
       {/* 두 방식을 오갈 때 살짝 떠오르며 바뀐다 */}
       <div key={view} className="motion-safe:animate-fade-in">

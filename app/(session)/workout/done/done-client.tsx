@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react';
 import Link from 'next/link';
-import { Check, Trophy } from 'lucide-react';
+import { Check, Trophy } from '@/components/icon';
 import { buzz } from '@/lib/haptics';
 import { useWeightUnit } from '@/components/use-units';
 import { formatSeconds } from '@/lib/exercise-meta';
@@ -118,7 +118,7 @@ export function DoneClient({
               aria-hidden
               className="finish-pop done-check absolute inset-3 grid place-items-center rounded-full bg-sky text-white"
             >
-              <Check className="h-10 w-10" strokeWidth={3} />
+              <Check className="h-10 w-10" />
             </span>
           </div>
 
@@ -182,7 +182,7 @@ export function DoneClient({
                   record ? (
                     <li key={id} className="flex items-center gap-3 px-4 py-3">
                       <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-sky text-white">
-                        <Trophy aria-hidden className="h-4 w-4" strokeWidth={2.4} />
+                        <Trophy aria-hidden className="h-4 w-4" />
                       </span>
                       <span className="min-w-0 flex-1">
                         <span className="block truncate text-subhead font-semibold text-ink">

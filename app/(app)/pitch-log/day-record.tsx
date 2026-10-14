@@ -3,7 +3,8 @@
 import { isPhoneVideoPath, phoneVideoElsewhereText } from '@/lib/local-video';
 import { formatSpeed } from '@/lib/units';
 import { useSpeedUnit } from '@/components/use-units';
-import { Pencil, Trash2, VideoOff } from 'lucide-react';
+import { Pencil, Trash2, VideoOff } from '@/components/icon';
+import { IconCircle } from '@/components/icon-circle';
 import { Badge, Card } from '@/components/ui';
 import { PitchVideoPlayer } from '@/components/pitch-video-player';
 import { REST_SESSION_TYPE } from '@/lib/session-type';
@@ -109,14 +110,16 @@ export function DayRecord({
             </div>
           </div>
           {/* 휴대폰은 두 단추를 44px 로 키우고 사이를 띄운다 — 32px 가 붙어 있어 연필을 누르려다 휴지통을 눌렀다(PC 는 그대로, 2026-10-03) */}
-          <div className="flex shrink-0 items-center gap-3 desk:gap-1">
+          {/* 휴대폰은 색 원(아이폰 전화 앱 목록의 ⓘ 처럼, components/icon-circle.tsx) — PC 는 예전 작은 아이콘(2026-10-14 아이콘 체계) */}
+          <div className="flex shrink-0 items-center gap-2 desk:gap-1">
             <button
               type="button"
               onClick={() => onEdit(log)}
               aria-label="기록 수정"
-              className="flex h-11 w-11 items-center justify-center rounded-lg text-muted transition-colors hover:bg-surface-2 hover:text-sky desk:h-8 desk:w-8"
+              className="flex items-center justify-center rounded-full transition-[opacity,transform] active:opacity-80 motion-safe:active:scale-95 desk:h-8 desk:w-8 desk:rounded-lg desk:text-muted desk:hover:bg-surface-2 desk:hover:text-sky"
             >
-              <Pencil className="h-4 w-4" />
+              <IconCircle Icon={Pencil} className="desk:hidden" />
+              <Pencil className="hidden h-4 w-4 desk:block" />
             </button>
             {/*
             휴지통이 연필 바로 옆이라 잘못 누르기 쉽다. 게다가 기록만이 아니라
@@ -145,9 +148,10 @@ export function DayRecord({
                   </p>
                 </div>
               }
-              className="flex h-11 w-11 items-center justify-center rounded-lg text-muted transition-colors hover:bg-danger-bg hover:text-danger desk:h-8 desk:w-8"
+              className="flex items-center justify-center rounded-full transition-[opacity,transform] active:opacity-80 motion-safe:active:scale-95 desk:h-8 desk:w-8 desk:rounded-lg desk:text-muted desk:hover:bg-danger-bg desk:hover:text-danger"
             >
-              <Trash2 className="h-4 w-4" />
+              <IconCircle Icon={Trash2} tone="danger" className="desk:hidden" />
+              <Trash2 className="hidden h-4 w-4 desk:block" />
             </ConfirmDelete>
           </div>
         </div>

@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useLinkStatus } from 'next/link';
-import { Loader2 } from 'lucide-react';
+import { Loader2 } from '@/components/icon';
 
 /** 투구 기록 팝업이 떴다는 알림 — DayModal 이 뜰 때 보낸다(announcePopupOpened) */
 const POPUP_OPENED = 'bullpen:popup-opened';

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { ChevronDown, Info } from 'lucide-react';
+import { ChevronDown, Info } from '@/components/icon';
 
 /**
  * 체감 강도 기준표. 투구용과 운동용이 따로 있다.

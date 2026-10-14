@@ -21,9 +21,13 @@ import {
   decideToday,
   finishLine,
   inSeasonKind,
-  rotatedPick,
-  variantTurn,
   isOptionalProgramExercise,
+  isYouthAge,
+  youthRx,
+  accessoryPick,
+  accessoryOccurrence,
+  ACCESSORY_KEYS,
+  YOUTH_RESERVE,
   withKind,
   SESSION_KIND_LABELS,
   isLightWeek,
@@ -419,40 +423,6 @@ check(
   );
 }
 
-/* ── 1-0) 5/3/1 계열 보조(2026-10-14) ─────────────────────────────── */
-{
-  const has = (p: ProgramPlan, d: number, v: VariantKey) => dayPlan(p, d).items.some((x) => x.variant === v);
-  for (const key of ['531', '531-bbb', 'juggernaut-5s', '531:2', '531-bbb:2']) {
-    const p = plan(key);
-    const days = Array.from({ length: p.totalDays }, (_, i) => i + 1);
-    check(
-      `${key}: 매 세션 당기기 · 한 다리, 벤치 없는 날만 보조 밀기, 힌지 날은 로우, 세로 당기기 섞임`,
-      days.every((d) => (has(p, d, 'pull') || has(p, d, 'pullVertical')) && has(p, d, 'singleLeg')) &&
-        days.every((d) => has(p, d, 'pushAssist') === !has(p, d, 'push')) &&
-        days.every((d) => !has(p, d, 'hinge') || has(p, d, 'pull')) &&
-        days.some((d) => has(p, d, 'pullVertical')) &&
-        days.some((d) => has(p, d, 'pull'))
-    );
-  }
-}
-
-/* ── 1-0b) 보조 칸 세션마다 돌리기(2026-10-14) ─────────────────────────────── */
-{
-  const p = plan('531');
-  const turns = Array.from({ length: p.totalDays }, (_, i) => variantTurn(p, i + 1, 'singleLeg'));
-  const pool = ['a', 'b', 'c', 'd', 'e', 'f', 'g'].map((id) => ({ id }));
-  const picks = turns.map((t) => rotatedPick({ id: 'x' }, pool, t)?.id);
-  check(
-    '보조 칸: 나올 때마다 다음 운동 — 고정 운동이 첫째, 앞 6개를 돌고, 이어진 두 세션이 같지 않음',
-    turns.join() === Array.from({ length: p.totalDays }, (_, i) => i).join() &&
-      picks[0] === 'x' &&
-      picks.slice(0, 6).join() === 'x,a,b,c,d,e' &&
-      picks.every((id, i) => i === 0 || id !== picks[i - 1]) &&
-      rotatedPick(null, [], 3) === null &&
-      rotatedPick({ id: 'x' }, [], 5)?.id === 'x'
-  );
-}
-
 /* ── 1-1) 기본기 4주(2026-10-09) ─────────────────────────────── */
 console.log('\n1-1) 기본기 4주');
 {
@@ -552,8 +522,8 @@ check('다 맞으면 시작', checkEligibility(base).ok);
 {
   const r = checkEligibility({ ...base, age: null });
   check('생년월일 없음 → 물음', !r.ok && r.kind === 'ask' && r.step === 'birth');
-  const r17 = checkEligibility({ ...base, age: 17 });
-  check('만 17세 → 막힘', !r17.ok && r17.kind === 'blocked');
+  /* 2026-10-14 사용자: 중학생부터(만 13세) — 16세 미만은 성장기 규칙(youthRx · 매우 높음 빼기) */
+  check('만 17세 · 13세 → 시작', checkEligibility({ ...base, age: 17 }).ok && checkEligibility({ ...base, age: 13 }).ok);
   const rLv = checkEligibility({ ...base, trainingLevel: null });
   check('경력 없음 → 물음', !rLv.ok && rLv.kind === 'ask' && rLv.step === 'level');
   const rIn = checkEligibility({ ...base, trainingLevel: '입문' });
@@ -592,15 +562,34 @@ check('다 맞으면 시작', checkEligibility(base).ok);
   check('기본기: 성인 중급도 → 시작', checkEligibility({ ...base, audience: 'basics' }).ok);
   const rBe = checkEligibility({ ...kid, ownedEquipment: [] });
   check('기본기: 장비 안 고름 → 물음', !rBe.ok && rBe.kind === 'ask' && rBe.step === 'equipment');
-  const r16 = checkEligibility({ ...base, age: 16 });
-  check('성인: 만 16세 → 막힘, 할 일은 기본기', !r16.ok && r16.kind === 'blocked' && r16.action.includes('기본기'));
+  const r12a = checkEligibility({ ...base, age: 12 });
+  check('성인 프로그램: 만 12세 → 막힘(13세부터)', !r12a.ok && r12a.kind === 'blocked' && r12a.reason.includes('13세'));
   const r10 = checkEligibility({ ...base, age: 10 });
   check('성인: 만 10세 → 막힘, 할 일은 직접 고르기', !r10.ok && r10.kind === 'blocked' && r10.action.includes('직접 고르기'));
   const rNov = checkEligibility({ ...base, trainingLevel: '입문' });
   check('성인 입문 · 기본기 안 마침 → 막힘, 할 일은 기본기', !rNov.ok && rNov.kind === 'blocked' && rNov.action.includes('기본기'));
   check('성인 입문 · 기본기 마침 → 시작', checkEligibility({ ...base, trainingLevel: '입문', basicsDone: true }).ok);
-  check('만 17세는 기본기를 마쳐도 성인은 막힘', !checkEligibility({ ...base, age: 17, basicsDone: true }).ok);
-  check('고르기 화면 막힘 = 시작 자격 막힘', eq(profileBlock({ age: 16, trainingLevel: '초급' }), { reason: r16.ok ? '' : (r16 as { reason: string }).reason, action: r16.ok ? '' : (r16 as { action: string }).action }));
+  check('고르기 화면 막힘 = 시작 자격 막힘', eq(profileBlock({ age: 12, trainingLevel: '초급' }), { reason: r12a.ok ? '' : (r12a as { reason: string }).reason, action: r12a.ok ? '' : (r12a as { action: string }).action }));
+  /* 보조 메뉴(2026-10-14) — 본운동은 고정, 보조는 그날 본운동에 맞춘 칸을 세션마다 후보 전체를 돌며 고른다 */
+  {
+    const px = (id: string, title: string) =>
+      ({ id, title, category: '상체 스트렝스', movementPattern: '당기기', equipment: ['케이블'], intensity: '중간', difficulty: '초급', perSide: false }) as PinnableExercise;
+    const pool = ['a', 'b', 'c', 'd', 'e'].map((id) => px(id, `로우 ${id}`)).concat(px('h', '로우 아이소 홀드'));
+    const firstLap = [0, 1, 2, 3, 4].map((n) => accessoryPick('hpull', pool, 'u1|hpull', n)?.id);
+    check('보조: 한 바퀴(5개) 안에는 겹치지 않고, 버티기는 빠짐', new Set(firstLap).size === 5 && !firstLap.includes('h'), firstLap.join());
+    check('보조: 여섯째는 다시 처음 · 같은 입력 같은 답', accessoryPick('hpull', pool, 'u1|hpull', 5)?.id === firstLap[0] && accessoryPick('hpull', pool, 'u1|hpull', 2)?.id === firstLap[2]);
+    check('보조: 사람마다 차례가 다르다', [0, 1, 2, 3, 4].map((n) => accessoryPick('hpull', pool, 'u2|hpull', n)?.id).join() !== firstLap.join());
+    check('보조: 그날 본운동은 안 고른다', accessoryPick('hpull', [px('m', '바벨 로우')], 'u1', 0, new Set(['m'])) === null);
+    const kinds = (d: number) => dayPlan(bbb, d).items.filter((x) => x.assist).map((x) => x.variant).join();
+    check('BBB 메뉴: 스쿼트 날 · 벤치 날 · 힌지 날', kinds(1) === 'hpull,pushAcc,hamstring,antiRotation' && kinds(2) === 'vpull,scap,triceps,antiRotation' && kinds(3) === 'hpull,pushAcc,singleLeg,forearm', `${kinds(1)} / ${kinds(2)} / ${kinds(3)}`);
+    check('BBB 메뉴: 본운동(스쿼트)은 보조가 아니고 보조는 2세트', dayPlan(bbb, 1).items.some((x) => x.variant === 'squat' && !x.assist) && dayPlan(bbb, 1).items.filter((x) => x.assist && x.mode === 'reserve').every((x) => x.sets.length === 2));
+    check('보조 칸 몇 번째: BBB 4일차 가로 당기기는 앞에 2번(1 · 3일차)', accessoryOccurrence(bbb, 4, 'hpull') === 2);
+    check('보조 칸은 고르기 화면 · 고정에 안 든다', usedVariants(bbb.def).every((v) => !ACCESSORY_KEYS.includes(v)));
+  }
+  /* 성장기 처방 — 무게 칸은 3개 남기고, 매우 높음은 후보에서 빠진다 */
+  check('성장기: 15세는 성장기 · 16세 · 나이 모름은 아님', isYouthAge(15) && !isYouthAge(16) && !isYouthAge(null));
+  const pctRx = dayPlan(p531, 1).items.map((it) => itemRx(p531, 1, it.variant)).find((x) => x?.mode === 'pct');
+  check('성장기: % 방식 + 세트도 3개 남기고', pctRx != null && youthRx(pctRx).reserve === YOUTH_RESERVE && prescriptionLine(youthRx(pctRx)).includes(`+는 ${YOUTH_RESERVE}개 남기고`), pctRx ? prescriptionLine(youthRx(pctRx)) : 'no pct');
   check('나이 모르면 고르기 화면은 막지 않음', profileBlock({ age: null, trainingLevel: '초급' }) === null && profileBlock({ audience: 'basics', age: null, trainingLevel: '입문' }) === null);
   const bplan = plan('basics-4w');
   check('기본기 마침: 다 건너뛰면 안 셈 · 6번 하면 셈', !basicsDoneEnough(bplan, 13, 12) && !basicsDoneEnough(bplan, 13, 7) && basicsDoneEnough(bplan, 13, 6) && basicsDoneEnough(bplan, 13, 0));
@@ -782,7 +771,8 @@ const lib: PinnableExercise[] = [
   const all = ['맨몸', '밴드', '덤벨', '메디신볼', '바벨', '벤치', 'TRX', '철봉', '박스'];
   check('기본기: 바벨 · 매우 높음 · 상급은 후보에 없음', !variantCandidates('squat', blib, all, '상급', 'basics').some((e) => ['bsq', 'fsq'].includes(e.id)) && !variantCandidates('pull', blib, all, '상급', 'basics').some((e) => e.id === 'wpu') && !variantCandidates('medball', blib, all, '상급', 'basics').some((e) => e.id === 'dd'));
   check('기본기 스쿼트: 덤벨 있으면 고블렛, 맨몸만이면 템포 맨몸', first('squat', all) === 'gob' && first('squat', ['맨몸']) === 'tbs');
-  check('기본기 힌지: 입문(초급만)은 글루트 브리지, 중급은 덤벨 RDL', first('hinge', all, '입문') === 'gbr' && first('hinge', all) === 'drdl');
+  /* 2026-10-14 사용자: 입문도 중급 운동까지 — 덤벨이 있으면 입문도 덤벨 RDL(스쿼트의 고블렛과 같이), 맨몸만이면 글루트 브리지 */
+  check('기본기 힌지: 덤벨 있으면 입문도 덤벨 RDL, 맨몸만이면 글루트 브리지', first('hinge', all, '입문') === 'drdl' && first('hinge', all) === 'drdl' && first('hinge', ['맨몸'], '입문') === 'gbr');
   check('기본기 밀기: 푸시업을 파이크보다 먼저', first('push', all) === 'pu');
   check('기본기 당기기: TRX 로우 먼저, 밴드만이면 밴드 로우, 맨몸만이면 없음', first('pull', all) === 'trx' && first('pull', ['맨몸', '밴드']) === 'hbr' && first('pull', ['맨몸']) === null);
   check('기본기 한 다리: 리버스 런지 먼저, 맨몸만이면 레터럴 런지(보수볼은 뒤로)', first('singleLeg', all) === 'drl' && first('singleLeg', ['맨몸']) === 'll');

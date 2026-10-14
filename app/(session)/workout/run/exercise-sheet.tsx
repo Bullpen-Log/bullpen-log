@@ -1,6 +1,6 @@
 'use client';
 
-import { ChevronDown, ChevronUp, X } from 'lucide-react';
+import { ChevronDown, ChevronUp, X } from '@/components/icon';
 import type { RunExercise, RunSet } from './session-client';
 
 /**
@@ -76,7 +76,7 @@ export function ExerciseSheet({
               className="-mr-2 grid h-11 w-11 shrink-0 place-items-center text-muted transition-colors hover:text-ink"
             >
               <span className="grid h-8 w-8 place-items-center rounded-full bg-ink/6">
-                <X className="h-4 w-4" strokeWidth={2.4} />
+                <X className="h-4 w-4" />
               </span>
             </button>
           </div>

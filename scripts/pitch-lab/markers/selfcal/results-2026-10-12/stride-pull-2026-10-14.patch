@@ -1,0 +1,68 @@
+diff --git a/lib/pitch-3d/v2/fit.ts b/lib/pitch-3d/v2/fit.ts
+index a45225af..49966594 100644
+--- a/lib/pitch-3d/v2/fit.ts
++++ b/lib/pitch-3d/v2/fit.ts
+@@ -30,6 +30,7 @@ import {
+   sub,
+   transpose,
+   type Vec3,
++  angleDeg,
+ } from '@/lib/pitch-3d/linalg';
+ import { computeMetrics, type Frame3 } from '@/lib/pitch-3d/metrics';
+ import { J, N_JOINTS } from '@/lib/pitch-3d/motion';
+@@ -125,11 +126,21 @@ const LEVEL_MAX_DEG = 35;
+  * 마커 정답지(2026-10-12 · 15구, 골반 앞뒤 스티커로 만든 골반 좌우축)에서 엉덩이선은 실제 골반보다 0.75~0.9배만 돌고(관절 모델의
+  * 엉덩이 점 버릇) 다리 들기 동안 위에서 본 돌림 오차가 가운데 14.6° 였다. 0.7 로 섞으면 투구를 하나씩 빼고 맞춰 봐도 4.8°.
+  * 넣은 뒤(엔진 전체): 골반 돌림 오차 14.2 → 5.0° · 상하체 분리 오차 12.3 → 4.7°, 관절 오차 · 스티커 흔들림은 그대로이거나 조금 나음.
+- * 내딛기부터는 어떤 단서(허벅지 · 무릎 · 어깨 · 귀)도 엉덩이선보다 낫지 않아(11°) 니업 뒤 PELVIS_FOOT_FADE 동안 줄여 끈다.
++ * 내딛기(니업 → 착지)에도 이어 간다(2026-10-14 데스크톱, 스티커 찾기 2판으로 내딛기 정답 242장면): 엔진 엉덩이선은 내딛기 내내 실제 골반보다
++ * 덜 열린 쪽(치우침 +8°, |오차| 가운데 12.4°)이고 축발 수직은 반대쪽(−8.5°)이라, 둘을 반씩 섞으면 투구 하나씩 빼고 재도 |오차| 5.4° · 치우침 −1° 다
++ * (무릎 · 발목 · 어깨 · 넙다리 단서는 모두 못 미침). 축발이 니업 때 방향에서 PELVIS_FOOT_TURN_DEG 넘게 돌면(끌리거나 떼어질 때 — 투구 6 · 12 는 28°)
++ * 그 뒤 PELVIS_FOOT_TURN_FADE_DEG 동안 섞기를 0 으로 — 안 끄면 그 투구들이 10° 넘게 나빠진다. 상위 10% 오차는 24.2 → 23.2° 로 그대로.
+  */
+ const PELVIS_FOOT_PULL = 0.7;
+-/** 니업 → 착지 장면 수의 비 — 이만큼 동안 섞는 몫을 0 으로(한 장면에 골반이 돌지 않게) */
++/** 니업 → 착지 장면 수의 비 — 이만큼 동안 섞는 몫을 PELVIS_FOOT_PULL 에서 PELVIS_FOOT_PULL_STRIDE 로 내린다(한 장면에 골반이 돌지 않게) */
+ const PELVIS_FOOT_FADE = 0.25;
++/** 내딛기 동안 섞는 몫 */
++const PELVIS_FOOT_PULL_STRIDE = 0.5;
++/** 축발이 니업 때 방향에서 이만큼 넘게 돌면 섞기를 끈다(°) — 그 뒤 PELVIS_FOOT_TURN_FADE_DEG 에 걸쳐 0 으로 */
++const PELVIS_FOOT_TURN_DEG = 18;
++const PELVIS_FOOT_TURN_FADE_DEG = 8;
++/** 내딛기 동안 축발이 안 보이면 마지막으로 본 방향을 이만큼(장면, 120fps 기준 0.3초)까지 잇는다 */
++const PELVIS_FOOT_HOLD = 36;
+ /**
+  * 던지는 팔 시간 다듬기 배수(착지 3장면 전 ~ 릴리스 3장면 뒤) — 한 장면에 손목이 15cm 넘게 움직여, 앞뒤 가운데로 당기는 다듬기를 24번 되풀이하면
+  * 레이백(어깨 외회전) 꼭대기가 20~30° 깎였다(2026-10-13 김민: "레이백을 전혀 구현 못 한다", 샘플 10 · 마커 16). 마커 15구를 네 대 교차(K4)와
+@@ -994,10 +1005,27 @@ function fitOnce(raw: V2Input): {
+       /* 발 방향은 장면 사이로 고른다(뒤꿈치 · 발끝 점이 흔들린다) */
+       const raw = target.map((fr) => reject(sub(fr[To], fr[He]), U));
+       const sm = [0, 1, 2].map((d) => gaussSmooth(raw.map((v) => v[d]), 2));
+-      for (let k = 0; k <= Math.min(n - 1, ku + fade); k++) {
+-        const w = k <= ku ? 1 : 1 - (k - ku) / (fade + 1);
+-        const fd: Vec3 = [sm[0][k], sm[1][k], sm[2][k]];
+-        if (dataW[k][He] <= 0 || dataW[k][To] <= 0 || norm(fd) < 0.02 * H) continue;
++      /* 니업 때 축발 방향 — 내딛기 동안 이 방향에서 얼마나 돌았나(끌림 · 떼어짐)를 본다 */
++      const fd0: Vec3 = [sm[0][ku], sm[1][ku], sm[2][ku]];
++      const ratio = PELVIS_FOOT_PULL_STRIDE / PELVIS_FOOT_PULL;
++      /* 착지 직전엔 축발(뒤꿈치 · 발끝)이 앞다리에 가려 두 영상에 안 잡히는 장면이 잦다 — 축발은 디딘 채라 마지막으로 본 방향을 PELVIS_FOOT_HOLD 장면까지 잇는다 */
++      let lastFd: Vec3 | null = null;
++      let lastK = -1;
++      for (let k = 0; k <= Math.min(n - 1, fp); k++) {
++        let w = k <= ku ? 1 : k <= ku + fade ? 1 - (1 - ratio) * ((k - ku) / (fade + 1)) : ratio;
++        let fd: Vec3 = [sm[0][k], sm[1][k], sm[2][k]];
++        if (dataW[k][He] <= 0 || dataW[k][To] <= 0 || norm(fd) < 0.02 * H) {
++          if (k <= ku || lastFd == null || k - lastK > PELVIS_FOOT_HOLD) continue;
++          fd = lastFd;
++        } else {
++          lastFd = fd;
++          lastK = k;
++        }
++        if (k > ku && norm(fd0) >= 0.02 * H) {
++          const turn = Math.abs(angleDeg(fd0, fd));
++          if (turn > PELVIS_FOOT_TURN_DEG) w *= Math.max(0, 1 - (turn - PELVIS_FOOT_TURN_DEG) / PELVIS_FOOT_TURN_FADE_DEG);
++          if (w <= 0) continue;
++        }
+         const lh = target[k][V2J.lHip];
+         const rh = target[k][V2J.rHip];
+         const hl = reject(sub(lh, rh), U);

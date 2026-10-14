@@ -4,7 +4,7 @@ import { isPhoneVideoPath, phoneVideoElsewhereText } from '@/lib/local-video';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import { useState, type CSSProperties, type ReactNode } from 'react';
-import { ArrowRight, Camera, Check, Circle, Film, StickyNote } from 'lucide-react';
+import { ArrowRight, Camera, Check, Circle, Film, StickyNote } from '@/components/icon';
 import { formatSpeed } from '@/lib/units';
 import { useSpeedUnit } from '@/components/use-units';
 import { usePlaybackUrls } from '@/components/use-playback-urls';

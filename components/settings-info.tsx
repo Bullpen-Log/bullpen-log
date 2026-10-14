@@ -1,6 +1,6 @@
 'use client';
 
-import { ChevronRight } from 'lucide-react';
+import { ChevronRight } from '@/components/icon';
 import { Modal, useModalState } from '@/components/modal';
 import { LegalSheet, type LegalDoc } from '@/components/legal-sheet';
 import { CONTACT } from '@/components/site-footer';

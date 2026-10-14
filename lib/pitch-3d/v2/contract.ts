@@ -128,6 +128,7 @@ export type V2Input = {
 export type V2FailCode =
   | 'video'
   | 'short'
+  | 'framing'
   | 'events'
   | 'sync'
   | 'range'
@@ -145,6 +146,8 @@ export type V2Stage = 'download' | 'pose' | 'segment' | 'fit' | 'upload';
 export const V2_FAIL_TEXT: Record<V2FailCode, string> = {
   video: '영상을 읽지 못했어요. 원본 파일(HEVC · 5~6초)로 다시 올려 주세요.',
   short: FAIL_TEXT.short,
+  /* GPU 가 거친 2D 에서 일찍 멈춤(pipeline.py FRAMING_*) — 투수가 작거나 잘 안 보여 끝까지 돌려도 틀린다 */
+  framing: '투수가 작게 찍혔거나 잘 안 보여요. 투수가 화면 높이의 절반쯤 되게, 몸이 다 나오게 다시 찍어 주세요.',
   events: FAIL_TEXT.events,
   sync: FAIL_TEXT.sync,
   range: FAIL_TEXT.range,
@@ -161,6 +164,7 @@ export const V2_FAIL_TEXT: Record<V2FailCode, string> = {
 export const V2_VIDEO_FAULT: ReadonlySet<V2FailCode> = new Set<V2FailCode>([
   'video',
   'short',
+  'framing',
   'events',
   'sync',
   'range',

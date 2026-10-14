@@ -1,7 +1,7 @@
 'use client';
 
 import type { ReactNode } from 'react';
-import { Flame, ShieldCheck } from 'lucide-react';
+import { Flame, ShieldCheck } from '@/components/icon';
 import { CountUp } from '@/components/onboarding/count-up';
 import { pitchingBurn, trainingBurn } from '@/lib/nutrition/burn';
 import { kcalText } from '@/lib/nutrition/meta';
@@ -63,7 +63,7 @@ export function InsertCard({
 
 /**
  * 투구 첫 설정의 첫 화면 — 미성년자(만 19세 미만 · 나이 모름)는 '{나이}세는 하루 {한도}구까지예요', 성인은 한도 대신
- * 오늘 양을 무엇으로 정하는지(2026-10-12 사용자: "만 21세 120구는 이상해 — 미성년자만 제한, 성인은 다른 문구로").
+ * 지금 팔 상태를 무엇으로 보는지(2026-10-12 사용자: "만 21세 120구는 이상해 — 미성년자만 제한, 성인은 다른 문구로").
  */
 export function PitchCapInsert({
   age,
@@ -81,9 +81,9 @@ export function PitchCapInsert({
     return (
       <InsertCard
         icon={<ShieldCheck aria-hidden />}
-        headline={<>오늘 던질 양은 내 기록으로 정해요</>}
+        headline={<>지금 팔 상태를 알려 드려요</>}
         lines={[
-          '평소 던지던 양과 최근 몇 주의 부하를 견줘, 갑자기 늘지 않게 오늘 양을 알려 드려요.',
+          '평소 던지던 양과 최근 몇 주의 부하를 견줘, 지금이 위험한지 안전한지 알려 드려요.',
           restLine,
           '팀 · 지도자의 지침이 먼저예요.',
         ]}
@@ -104,7 +104,7 @@ export function PitchCapInsert({
       }
       lines={[
         restLine,
-        '투구를 적으면 홈이 오늘 던질 수 있는 양과 쉬어야 할 날을 매일 알려 드려요.',
+        '투구를 적으면 지금 팔이 위험한지 안전한지 매일 알려 드려요.',
         '기준은 유소년 투구수 가이드(Pitch Smart)예요. 팀 · 지도자의 지침이 먼저예요.',
       ]}
     />

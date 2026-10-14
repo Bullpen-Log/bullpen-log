@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useTransition } from 'react';
 import Link from 'next/link';
 import { unstable_rethrow } from 'next/navigation';
-import { AlertTriangle, Check, ChevronDown, Info, Shuffle, X } from 'lucide-react';
+import { AlertTriangle, Check, ChevronDown, Info, Shuffle, X } from '@/components/icon';
 import { LibraryVideo } from '@/components/library-video';
 import { ErrorLine } from '@/components/error-line';
 import { useWakeLock } from '@/components/use-wake-lock';

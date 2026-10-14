@@ -855,23 +855,84 @@ input[type='date']::-webkit-calendar-picker-indicator {
 }
 
 /*
- * 지금 어느 탭인지 알려주는 하단 탭의 둥근 배경(예전엔 짧은 막대).
+ * 하단 탭의 유리 렌즈 — 지금 탭 뒤의 캡슐 하나(components/app-shell.tsx MobileTabs · 움직임은 components/tab-lens.ts).
  *
- * 화면에 한 번에 하나뿐이고 이름이 같아서, 브라우저가 옛 자리에서 새 자리로
- * 잇는다. 틀보다 위에 둬야 탭바를 가로질러 지나간다.
+ * 2026-10-14 사용자가 iOS 26 탭 막대 영상을 주며 "그와 최대한 같게". 예전에는 탭마다 배경을 두고 화면 전환
+ * (view-transition 'tab-indicator')이 옮겼다 — 이름표가 없어졌으니 그 규칙도 지웠다. 렌즈는 탭바(shell-tabbar) 안에
+ * 있어 전환 중에도 탭바의 새 모습(살아 있는 그림)과 함께 움직인다.
  *
- * 220ms 는 여섯 칸 끝에서 끝까지 가는 거리를 기준으로 잡았다. 더 빠르면 튀고,
- * 더 느리면 손을 뗀 뒤에도 막대가 따라오는 것처럼 보인다.
+ * 자리는 CSS 변수 --p(칸 번호, 소수)로만 — 칸 폭이 같아(flex-1) 렌즈 폭 = 안쪽 폭 ÷ 칸 수(--tab-count, 탭바가 준다), translateX 의
+ * 100% 가 칸 하나다. 그래서 서버가 그린 첫 그림부터 맞는 자리이고 잴 것이 없다. 패드 세로 막대는 칸 64px + 사이 4px.
+ * --sx · --sy(부풂 · 늘어남), --lift(유리 테두리), --fill(회색 캡슐), --show(고른 칸이 없으면 0)는 tab-lens.ts 가 장면마다 쓴다.
  *
- * 사이드바에도 같은 것을 달았다가 뺐다. 거기서는 표시가 글자만 한 불투명한
- * 알약이라, 위로 빠져나온 그 면이 지나가는 자리의 글자를 덮고 도착 전에는
- * 흰 글자만 남겨 놓았다. 덮을 것이 없는 얇은 선에만 쓴다.
+ * 세 겹 — fill: 가라앉아 있을 때의 회색 캡슐(흰 14%), glass: 부풀었을 때의 유리(가장자리 1px 빛 · 위쪽 빛 · 안쪽 그늘 ·
+ * 밑 그림자), rim: 영상의 무지개 굴절을 흉내 낸 아주 옅은 테두리(위쪽만 진하게). 렌즈는 아이콘 밑(z 0)이라 글자를 안 가린다.
  */
-::view-transition-group(tab-indicator) {
-  /* 본문과 같은 시간에 끝나게 — 막대만 늦게 도착하면 따로 노는 것처럼 보인다 */
-  animation-duration: 180ms;
-  animation-timing-function: cubic-bezier(0.32, 0.72, 0, 1);
-  z-index: 110;
+[data-tab-lens] {
+  position: absolute;
+  top: 0.25rem;
+  left: 0.25rem;
+  z-index: 0;
+  width: calc((100% - 0.5rem) / var(--tab-count, 5));
+  height: 3.25rem;
+  border-radius: 9999px;
+  pointer-events: none;
+  opacity: var(--show, 1);
+  transform: translate3d(calc(var(--p, 0) * 100%), 0, 0) scale(var(--sx, 1), var(--sy, 1));
+  will-change: transform, opacity;
+}
+[data-tab-lens] > span {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+}
+[data-tab-lens] > [data-lens-fill] {
+  background: rgb(255 255 255 / 0.14);
+  opacity: var(--fill, 1);
+}
+[data-tab-lens] > [data-lens-glass] {
+  opacity: var(--lift, 0);
+  background: radial-gradient(120% 90% at 50% 0%, rgb(255 255 255 / 0.12), transparent 62%);
+  box-shadow:
+    inset 0 0 0 1px rgb(255 255 255 / 0.3),
+    inset 0 1.5px 1px rgb(255 255 255 / 0.45),
+    inset 0 -8px 14px rgb(0 0 0 / 0.16),
+    0 10px 24px -8px rgb(0 0 0 / 0.55);
+}
+[data-tab-lens] > [data-lens-rim] {
+  inset: -0.5px;
+  padding: 1.5px;
+  opacity: calc(var(--lift, 0) * 0.5);
+  background: conic-gradient(
+    from 300deg,
+    transparent 0deg,
+    #ff6b8b 20deg,
+    #ffd36b 40deg,
+    #7dffb0 60deg,
+    #6bc8ff 80deg,
+    #b98bff 100deg,
+    transparent 125deg 360deg
+  );
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+}
+/* 패드 — 왼쪽 세로 막대(밝은 유리 그대로): 칸 64px + 사이 4px, 회색 캡슐은 글자색 8% */
+@media (min-width: 46.5rem) and (min-height: 37.5rem) and (pointer: coarse) {
+  [data-tab-lens] {
+    top: calc(env(safe-area-inset-top) + 0.75rem);
+    left: calc(env(safe-area-inset-left) + 0.5rem);
+    right: 0.5rem;
+    width: auto;
+    height: 4rem;
+    border-radius: 1rem;
+    transform: translate3d(0, calc(var(--p, 0) * 4.25rem), 0) scale(var(--sx, 1), var(--sy, 1));
+  }
+  [data-tab-lens] > [data-lens-fill] {
+    background: color-mix(in srgb, var(--color-ink) 8%, transparent);
+  }
 }
 
 /*
@@ -1623,27 +1684,171 @@ dialog[data-drawer]::backdrop {
  * 위 규칙과 무게가 같아 뒤에 둔다. 조건은 desk 의 반대.
  */
 @media not all and (min-width: 36rem) and (hover: hover) and (pointer: fine) {
+  /*
+   * 2026-10-14 2판 — 아이폰 앱 폴더처럼. 아래 시트 대신, dialog 가 화면 전체의 흐린 막(뒤 본문이 비친 채 흐려지고
+   * 어두워진다 — 밝은 테마에서도 어둡게 해 흰 글리프 · 흰 이름이 늘 읽힌다)이고, 그 가운데에 반투명 유리 폴더
+   * ([data-folder])가 하단 탭 '더보기' 자리에서 부풀어 뜬다(iOS 폴더 줌). ::backdrop 에 blur 를 거는 건 아이폰
+   * WebKit 에서 판별 불가라 dialog 자신이 막이다. 막을 누르면 닫힌다(app-shell DetailMenu 의 data-scrim).
+   */
   dialog[data-drawer] {
-    /* 팝업(위 기본 규칙)의 자리 잡기를 되돌린다 — 시트는 바닥에 붙는다 */
     inset: 0;
-    margin: auto 0 0;
+    margin: 0;
     width: 100%;
-    /* auto 가 아니라 fit-content — 화면에 붙은(fixed · inset 0) 창은 auto 면 화면 높이로 늘어난다 */
-    height: fit-content;
-    max-height: calc(100dvh - env(safe-area-inset-top) - 0.75rem);
-    border-radius: 28px 28px 0 0;
+    height: 100%;
+    max-height: none;
+    border-radius: 0;
     transform-origin: center;
-    /* 미끄러지는 것만 — 옅어지면 내려가기도 전에 사라진다 */
-    opacity: 1;
-    transform: translateY(100%);
+    background: rgba(0, 0, 0, 0.5);
+    -webkit-backdrop-filter: blur(18px) saturate(1.2);
+    backdrop-filter: blur(18px) saturate(1.2);
+    /* 폴더가 하단 탭 위에 앉게 — 아래는 탭 막대만큼 더 비운다 */
+    padding: env(safe-area-inset-top) env(safe-area-inset-right)
+      calc(env(safe-area-inset-bottom) + 4.5rem) env(safe-area-inset-left);
+    /* 끌어내려 닫기(app-shell startDrag) — 손가락 움직임을 브라우저 스크롤에 뺏기지 않는다 */
+    touch-action: none;
+    opacity: 0;
+    transform: none;
     transition:
-      transform 260ms cubic-bezier(0.32, 0.72, 0, 1),
-      overlay 260ms ease-in allow-discrete,
-      display 260ms ease-in allow-discrete;
+      opacity 140ms ease-in,
+      overlay 140ms ease-in allow-discrete,
+      display 140ms ease-in allow-discrete;
   }
   dialog[data-drawer][open] {
+    opacity: 1;
+    transition: opacity 160ms ease-out;
+    animation: none;
+  }
+  dialog[data-drawer]::backdrop {
+    background: transparent;
+  }
+  /*
+   * 폴더 안에서는 초점 테두리를 그리지 않는다(2026-10-14 사용자 "파란 테두리 절대 안 나오게") — 휴대폰은 손가락으로만 고르고,
+   * 열 때 초점은 폴더 자체로 간다(app-shell fitFolder). 누를 때 깜빡이는 회색 칠도 뺀다.
+   */
+  dialog[data-drawer] :focus,
+  dialog[data-drawer] :focus-visible {
+    outline: none;
+  }
+  dialog[data-drawer] a,
+  dialog[data-drawer] button {
+    -webkit-tap-highlight-color: transparent;
+  }
+  dialog[data-drawer] [data-folder] {
+    /*
+     * 타일 크기는 화면 높이가 정한다 — 굴리지 않고 한 장에 다 들어가게(2026-10-14 사용자). 관리자는 5줄 + 제목 둘 + 내 정보 줄.
+     * 844px(아이폰 14)에서 58px, 667px(SE)에서 44px 쯤.
+     */
+    --tile: clamp(40px, calc((100dvh - 34rem) / 5), 52px);
+    width: calc(100% - 2.5rem);
+    max-width: 22rem;
+    border-radius: 36px;
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    background: rgba(255, 255, 255, 0.16);
+    -webkit-backdrop-filter: blur(28px) saturate(1.5);
+    backdrop-filter: blur(28px) saturate(1.5);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.35),
+      0 24px 60px -20px rgba(0, 0, 0, 0.7);
+    padding: 24px 22px 22px;
+    /* 닫힌 모습 — 하단 탭 '더보기' 쪽(오른쪽 아래)으로 줄어 있다 */
+    transform-origin: 88% 100%;
+    transform: scale(0.55);
+    opacity: 0;
+    transition:
+      transform 140ms ease-in,
+      opacity 140ms ease-in;
+  }
+  dialog[data-drawer][open] [data-folder] {
     transform: none;
-    animation: sheet-in 380ms cubic-bezier(0.32, 0.72, 0, 1);
+    opacity: 1;
+    transition: none;
+    animation: folder-in 320ms cubic-bezier(0.2, 0.9, 0.3, 1.05);
+  }
+  @keyframes folder-in {
+    0% {
+      opacity: 0;
+      transform: scale(0.55);
+    }
+    100% {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    dialog[data-drawer] [data-folder] {
+      transform: none;
+    }
+    dialog[data-drawer][open] [data-folder] {
+      animation: folder-fade 160ms ease-out;
+    }
+    @keyframes folder-fade {
+      from {
+        opacity: 0;
+      }
+      to {
+        opacity: 1;
+      }
+    }
+  }
+  /*
+   * 테마별 색(2026-10-14 사용자 "지금은 전부 블랙 — 화이트는 메뉴를 좀 더 희게 반투명 · 타일은 하늘색을 옅게 반투명, 네이비는
+   * 네이비 반투명, 다크는 그대로"). 막 · 폴더 · 타일 · 글자(--folder-fg) · 타일 글리프(--tile-fg, app-icon.tsx)를 한 묶음으로.
+   * 다크 = 기본값(검은 막 + 흰 유리 + 흰 글리프). 화이트는 밝은 폴더라 글리프 · 글자를 짙은 잉크로 — 흰 글리프는 옅은 하늘색 위에서
+   * 안 읽힌다(대비 1.3:1).
+   */
+  dialog[data-drawer] {
+    --folder-fg: #fff;
+  }
+  html[data-theme='dark'] dialog[data-drawer] [data-folder] {
+    background: rgba(255, 255, 255, 0.14);
+  }
+  html[data-theme='light'] dialog[data-drawer],
+  html:not([data-theme]) dialog[data-drawer] {
+    --folder-fg: #1d1d1f;
+    --tile-bg: rgba(10, 132, 214, 0.16);
+    --tile-bg-active: rgba(10, 132, 214, 0.32);
+    --tile-fg: #0a6fb8;
+    --tile-gloss: rgba(255, 255, 255, 0.7);
+    --tile-ring: rgba(10, 132, 214, 0.22);
+    --tile-ring-active: rgba(10, 132, 214, 0.6);
+    --tile-shadow: rgba(10, 132, 214, 0.25);
+    --tile-glyph-shadow: rgba(255, 255, 255, 0.6);
+    background: rgba(242, 242, 247, 0.55);
+  }
+  html[data-theme='light'] dialog[data-drawer] [data-folder],
+  html:not([data-theme]) dialog[data-drawer] [data-folder] {
+    background: rgba(255, 255, 255, 0.62);
+    border-color: rgba(255, 255, 255, 0.8);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.9),
+      0 24px 60px -20px rgba(29, 29, 31, 0.35);
+  }
+  html[data-theme='navy'] dialog[data-drawer] {
+    --tile-bg: rgba(51, 65, 85, 0.55);
+    --tile-bg-active: rgba(96, 120, 150, 0.6);
+    --tile-ring: rgba(148, 163, 184, 0.3);
+    --tile-ring-active: rgba(186, 230, 253, 0.6);
+    --tile-shadow: rgba(2, 6, 23, 0.7);
+    background: rgba(11, 18, 32, 0.55);
+  }
+  html[data-theme='navy'] dialog[data-drawer] [data-folder] {
+    background: rgba(30, 41, 59, 0.6);
+    border-color: rgba(148, 163, 184, 0.25);
+  }
+  /*
+   * 끌어내려 닫을 때(app-shell endDrag 가 data-dismiss=down 을 달고 닫는다) — 하단 탭 쪽으로 줄지 않고 아래로 미끄러져 사라진다.
+   * 막은 그만큼 천천히 옅어진다.
+   */
+  dialog[data-drawer][data-dismiss='down'] {
+    transition:
+      opacity 280ms ease-in,
+      overlay 280ms ease-in allow-discrete,
+      display 280ms ease-in allow-discrete;
+  }
+  dialog[data-drawer][data-dismiss='down']:not([open]) [data-folder] {
+    opacity: 1;
+    transform: translateY(110vh) !important;
+    transition: transform 280ms cubic-bezier(0.32, 0.72, 0, 1);
   }
 }
 
@@ -2273,8 +2478,7 @@ dialog[data-gate][open]::backdrop {
    * 그대로다. 세로 화면은 그 값이 0 이라 예전과 같다(앱은 세로로만 돈다).
    */
   dialog[data-sheet],
-  dialog[data-gate],
-  dialog[data-drawer] {
+  dialog[data-gate] {
     padding-left: env(safe-area-inset-left);
     padding-right: env(safe-area-inset-right);
   }
@@ -2601,6 +2805,46 @@ html[data-splash] *::after {
     [class*='text-display']
   ) {
     font-size: 16px;
+  }
+}
+
+/*
+ * 탭 쓸기의 자리표시(components/tab-swipe.tsx) — 새 화면이 그려지면(data-done) 옅어지며 걷힌다. 본문(main)의 밀림은 인라인 transform.
+ */
+[data-tab-ghost][data-done] {
+  opacity: 0;
+  transition: opacity 180ms ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-tab-ghost][data-done] {
+    transition: none;
+  }
+}
+
+/*
+ * 휴대폰 위 막대 숨기기(components/app-shell.tsx MobileTopBar · useBarHidden, 2026-10-14 "인스타 홈처럼") — 아래로 굴리면 위로
+ * 미끄러지며 옅어져 시계 자리 밑으로 들어가고, 위로 굴리면 같은 길로 돌아온다. 시계 자리(data-safe-area)는 늘 그 위에 있다.
+ * 곡선은 아이폰 밀기(빠르게 출발해 부드럽게 멈춤). 움직임 줄이기면 곧장 바뀐다.
+ */
+[data-mobile-topbar] {
+  transition:
+    transform 280ms cubic-bezier(0.32, 0.72, 0, 1),
+    opacity 200ms ease-out,
+    border-color 200ms;
+}
+[data-mobile-topbar][data-hidden] {
+  transform: translateY(-100%);
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    transform 240ms cubic-bezier(0.32, 0.72, 0, 1),
+    opacity 160ms ease-in,
+    border-color 200ms;
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-mobile-topbar],
+  [data-mobile-topbar][data-hidden] {
+    transition: border-color 200ms;
   }
 }
 

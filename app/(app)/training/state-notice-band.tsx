@@ -1,7 +1,7 @@
 'use client';
 
 import { useFormStatus } from 'react-dom';
-import { RefreshCw } from 'lucide-react';
+import { RefreshCw } from '@/components/icon';
 import { generateTodayPlan } from '@/app/actions/training-setup';
 import { SafeForm } from '@/components/safe-form';
 import { OpenCheckinButton } from '@/components/notice-bell';

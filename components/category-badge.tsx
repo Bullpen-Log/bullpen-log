@@ -10,7 +10,7 @@ import {
   Waves,
   Zap,
   type LucideIcon,
-} from 'lucide-react';
+} from '@/components/icon';
 /**
  * 카테고리 배지 — 아이콘과 이름(회색 한 가지).
  *
@@ -60,7 +60,7 @@ export function CategoryBadge({
     <span
       className={`inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-caption font-medium ${chip} ${className}`}
     >
-      {Icon && <Icon aria-hidden className="h-3 w-3" strokeWidth={2.2} />}
+      {Icon && <Icon aria-hidden className="h-3 w-3" />}
       {name}
     </span>
   );
@@ -81,7 +81,7 @@ export function CategoryIcon({
       aria-hidden
       className={`flex shrink-0 items-center justify-center rounded-xl ${chip} ${className}`}
     >
-      <Icon className="h-[55%] w-[55%]" strokeWidth={2} />
+      <Icon className="h-[55%] w-[55%]" />
     </span>
   );
 }

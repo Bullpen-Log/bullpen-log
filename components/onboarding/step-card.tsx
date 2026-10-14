@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useRef, type ReactNode } from 'react';
-import { CircleAlert } from 'lucide-react';
+import { CircleAlert } from '@/components/icon';
 import { Wordmark } from '@/components/logo';
 
 /**

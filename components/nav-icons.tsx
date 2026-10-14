@@ -1,4 +1,5 @@
 import {
+  Baseball,
   BookOpen,
   Clapperboard,
   Dumbbell,
@@ -13,9 +14,8 @@ import {
   Target,
   Utensils,
   type LucideIcon,
-} from 'lucide-react';
+} from '@/components/icon';
 import type { NavIconName } from '@/lib/nav';
-import { Baseball } from '@/components/baseball-icon';
 
 /**
  * 메뉴 아이콘 이름 → 그림.

@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
-import { ArrowUpDown, ChevronRight, GitCommitHorizontal, Search, StickyNote } from 'lucide-react';
+import { ArrowUpDown, ChevronRight, GitCommitHorizontal, Search, StickyNote } from '@/components/icon';
 import { Card, EmptyState, Input } from '@/components/ui';
 
 export type PatchRow = {

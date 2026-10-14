@@ -7,12 +7,15 @@ import {
   deleteLabSample,
   findLabOwner,
   labVideoUrls,
+  loadLabGuard,
   loadLabJob,
   loadLabMetaRaw,
   loadV2Result,
+  saveLabGuard,
   saveLabJob,
   saveLabMeta,
 } from '@/lib/pitch-lab';
+import { guardBlock, readLabGuard, recordFail } from '@/lib/pitch-lab-guard';
 import {
   applyGpuStatus,
   canRequestV2,
@@ -21,6 +24,7 @@ import {
   newV2Job,
   PITCH3D_V2_VERSION,
   readPitch3dV2Result,
+  V2_VIDEO_FAULT,
   type GpuStatus,
   type Pitch3dV2Job,
   type Pitch3dV2Result,
@@ -33,7 +37,8 @@ import {
 import { isLabId, readLabMeta } from '@/lib/pitch-lab-meta';
 
 /**
- * 투구 분석 실험실(베타)의 서버 동작 — 관리자만. 영상은 브라우저가 이미 올렸고(app/api/pitch-lab/upload-url), 여기서는 촬영 정보 ·
+ * 3D 동작 분석(베타, 옛 이름 투구 분석 실험실)의 서버 동작 — 로그인한 누구나(2026-10-14 일반 사용자에게 엶). 사람마다 자기 폴더만,
+ * 관리자는 관리자끼리 같이 본다(lib/pitch-lab.ts ownerIds). GPU 비용은 lib/pitch-lab-guard.ts 가 지킨다. 영상은 브라우저가 이미 올렸고(app/api/pitch-lab/upload-url), 여기서는 촬영 정보 ·
  * 분석 결과 · v2 작업 상태를 다룬다. 오류 글은 해요체 한 줄(화면이 그대로 보인다).
  *
  * v2(서버 GPU, 설계 pitch-3d-quality.md 기술 D1): job.json 을 쓰는 것은 여기 둘(requestPitch3dV2 · checkPitch3dV2)뿐이다.
@@ -44,11 +49,6 @@ type Result = { ok: true } | { error: string };
 
 const LAB_PATH = '/videos/lab';
 const STORAGE_ERROR = '저장소에 쓰지 못했어요. 다시 해 주세요.';
-
-async function admin() {
-  const user = await requireUser();
-  return user.role === 'ADMIN' ? user : null;
-}
 
 /** 저장소 쓰기 — 한 번 다시(검토 2절 StorageError) */
 async function retryOnce<T>(fn: () => Promise<T>): Promise<T> {
@@ -63,14 +63,16 @@ export async function saveLabSample(input: {
   id: string;
   meta: unknown;
 }): Promise<Result> {
-  const user = await admin();
-  if (!user) return { error: '관리자만 할 수 있어요.' };
+  const user = await requireUser();
   if (!isLabId(input.id)) return { error: '샘플 번호를 확인할 수 없어요.' };
   try {
     await saveLabMeta(
-      (await findLabOwner(input.id, user.id)) ?? user.id,
+      (await findLabOwner(input.id, user)) ?? user.id,
       input.id,
-      readLabMeta(input.meta, new Date().toISOString())
+      /* 마커 샘플은 관리자 스크립트만 — 일반 사용자가 보낸 kind 는 늘 sample */
+      ((m) => (user.role === 'ADMIN' ? m : { ...m, kind: 'sample' as const }))(
+        readLabMeta(input.meta, new Date().toISOString())
+      )
     );
   } catch {
     return { error: '정보를 저장하지 못했어요. 다시 해 주세요.' };
@@ -80,11 +82,10 @@ export async function saveLabSample(input: {
 }
 
 export async function removeLabSample(input: { id: string }): Promise<Result> {
-  const user = await admin();
-  if (!user) return { error: '관리자만 할 수 있어요.' };
+  const user = await requireUser();
   if (!isLabId(input.id)) return { error: '샘플 번호를 확인할 수 없어요.' };
   try {
-    const owner = await findLabOwner(input.id, user.id);
+    const owner = await findLabOwner(input.id, user);
     if (owner) await deleteLabSample(owner, input.id);
   } catch {
     return { error: '지우지 못했어요. 다시 해 주세요.' };
@@ -104,14 +105,13 @@ export async function requestPitch3dV2(input: {
   id: string;
   consent: boolean;
 }): Promise<{ ok: true; job: Pitch3dV2Job } | { error: string }> {
-  const user = await admin();
-  if (!user) return { error: '관리자만 할 수 있어요.' };
+  const user = await requireUser();
   if (!isLabId(input.id)) return { error: '샘플을 찾지 못했어요.' };
   if (!isPitch3dV2Configured()) return { error: '분석 서버 설정이 없어요.' };
   if (input.consent !== true)
     return { error: '영상을 분석 서버로 보내는 동의를 확인해 주세요.' };
-  /* 관리자끼리 같이 쓴다 — 샘플이 든 관리자 폴더(lib/pitch-lab.ts findLabOwner) */
-  const owner = await findLabOwner(input.id, user.id).catch(() => null);
+  /* 샘플이 든 폴더 — 자기 것(관리자는 관리자끼리 같이, lib/pitch-lab.ts findLabOwner) */
+  const owner = await findLabOwner(input.id, user).catch(() => null);
   if (!owner) return { error: '샘플을 찾지 못했어요.' };
 
   let prev: Pitch3dV2Job | null;
@@ -130,6 +130,25 @@ export async function requestPitch3dV2(input: {
   const now = Date.now();
   const can = canRequestV2(prev, now);
   if ('error' in can) return can;
+  /*
+   * GPU 비용 지키기(lib/pitch-lab-guard.ts) — 같은 엔진 판에서 영상 탓으로 실패한 샘플 · 파일은 다시 안 돌리고, 하루 실패 10번이면 멈춘다.
+   * 엔진 판이 바뀌면 같은 영상도 다시 해 볼 수 있다(고친 엔진으로는 될 수 있어서).
+   */
+  if (
+    prev?.status === 'failed' &&
+    prev.fail &&
+    V2_VIDEO_FAULT.has(prev.fail.code) &&
+    prev.engine === PITCH3D_V2_VERSION
+  )
+    return { error: '이 영상은 분석하지 못했어요. 같은 영상으로는 또 실패해요. 촬영 안내대로 다시 찍어 올려 주세요.' };
+  const meta = readLabMeta(metaRaw, new Date(now).toISOString());
+  const fps = Object.values(meta.files).flatMap((f) => (f?.fp ? [f.fp] : []));
+  const blocked = guardBlock(await loadLabGuard(user.id).catch(() => readLabGuard(null)), {
+    nowMs: now,
+    fps,
+    engine: PITCH3D_V2_VERSION,
+  });
+  if (blocked) return { error: blocked };
 
   const nowIso = new Date(now).toISOString();
   let job = newV2Job(prev, {
@@ -156,8 +175,7 @@ export async function requestPitch3dV2(input: {
     return { error: STORAGE_ERROR };
   }
 
-  /* 샘플의 촬영 정보(던지는 손 · 슬로모 · 화면 녹화 · 키) — 예전엔 null 로 읽어 늘 기본값(오른손 · 화면 녹화 · 슬로모 모름)이 갔다 */
-  const meta = readLabMeta(metaRaw, nowIso);
+  /* 샘플의 촬영 정보(던지는 손 · 슬로모 · 화면 녹화 · 키, 위 meta) — 예전엔 null 로 읽어 늘 기본값(오른손 · 화면 녹화 · 슬로모 모름)이 갔다 */
   const started = await startGpuJob({
     jobId: job.jobId,
     engine: PITCH3D_V2_VERSION,
@@ -192,10 +210,9 @@ export async function requestPitch3dV2(input: {
 export async function checkPitch3dV2(input: {
   id: string;
 }): Promise<{ job: Pitch3dV2Job | null } | { error: string }> {
-  const user = await admin();
-  if (!user) return { error: '관리자만 할 수 있어요.' };
+  const user = await requireUser();
   if (!isLabId(input.id)) return { error: '샘플을 찾지 못했어요.' };
-  const owner = await findLabOwner(input.id, user.id).catch(() => null);
+  const owner = await findLabOwner(input.id, user).catch(() => null);
   if (!owner) return { job: null };
   let job: Pitch3dV2Job | null;
   try {
@@ -224,9 +241,27 @@ export async function checkPitch3dV2(input: {
     } catch {
       return { error: '작업 상태를 저장하지 못했어요.' };
     }
+    if (next.status === 'failed' && next.fail) await countFail(owner, input.id, next, now);
     revalidatePath(LAB_PATH);
   }
   return { job: next };
+}
+
+/**
+ * 실패를 요청한 사람의 기록에 센다(하루 상한 · 영상 탓이면 파일 지문). 못 적어도 분석 흐름은 막지 않는다.
+ * ponytail: 두 화면이 같은 순간에 상태를 물으면 한 실패가 두 번 셀 수 있다 — 상한이 넉넉해(10) 둔다, 잦으면 job 에 '셌음' 표시를 둔다.
+ */
+async function countFail(owner: string, id: string, job: Pitch3dV2Job, nowMs: number) {
+  if (!job.fail) return;
+  try {
+    const meta = readLabMeta(await loadLabMetaRaw(owner, id), new Date(nowMs).toISOString());
+    const fps = Object.values(meta.files).flatMap((f) => (f?.fp ? [f.fp] : []));
+    const g = await loadLabGuard(job.requestedBy);
+    const next = recordFail(g, { nowMs, code: job.fail.code, fps, engine: job.engine });
+    if (next !== g) await saveLabGuard(job.requestedBy, next);
+  } catch {
+    /* 기록 못 함 — 다음 실패에 다시 */
+  }
 }
 
 /** v2 결과 읽기 — 지금 작업 또는 보여 줄 작업(shownJobId)의 것만. 없거나 모양이 틀리면 null */
@@ -234,11 +269,10 @@ export async function loadPitch3dV2(input: {
   id: string;
   jobId: string;
 }): Promise<{ result: Pitch3dV2Result | null } | { error: string }> {
-  const user = await admin();
-  if (!user) return { error: '관리자만 할 수 있어요.' };
+  const user = await requireUser();
   if (!isLabId(input.id) || !isV2JobId(input.jobId))
     return { error: '샘플을 찾지 못했어요.' };
-  const owner = await findLabOwner(input.id, user.id).catch(() => null);
+  const owner = await findLabOwner(input.id, user).catch(() => null);
   if (!owner) return { result: null };
   try {
     return {

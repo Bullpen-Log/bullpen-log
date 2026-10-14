@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useTransition } from 'react';
-import { Check, Pencil } from 'lucide-react';
+import { Check, Pencil } from '@/components/icon';
 import { saveTrainingNote } from '@/app/actions/exercise-log';
 import { OFFLINE_MESSAGE, orOffline } from '@/lib/action-offline';
 import { IntensityGuide } from '@/components/intensity-guide';
@@ -64,7 +64,7 @@ export function TrainingNote({
       <div className="rounded-2xl border border-line bg-surface p-(--block-pad)">
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
           <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-sky">
-            <Check className="h-4 w-4" strokeWidth={3} />
+            <Check className="h-4 w-4" />
             오늘 운동 강도 {intensity}/10
           </span>
           <button

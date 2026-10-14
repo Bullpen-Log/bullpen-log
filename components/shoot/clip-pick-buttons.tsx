@@ -1,7 +1,7 @@
 'use client';
 
 import { useRef, useState } from 'react';
-import { Camera, Loader2, Scissors, Upload } from 'lucide-react';
+import { Camera, Loader2, Scissors, Upload } from '@/components/icon';
 import type { ClipTarget } from '@/components/shoot/use-clip-flow';
 import { appCameraMissingText } from '@/lib/shoot-camera';
 

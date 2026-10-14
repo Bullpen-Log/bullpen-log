@@ -1,6 +1,6 @@
 'use client';
 
-import { Dumbbell, Flame, Target } from 'lucide-react';
+import { Dumbbell, Flame, Target } from '@/components/icon';
 import { isBodyPart, useBodyParts } from '@/components/body-parts-context';
 
 /**

@@ -1,4 +1,4 @@
-import { ChevronDown } from 'lucide-react';
+import { ChevronDown } from '@/components/icon';
 import { dateKeyLabel } from '@/lib/pitch-stats';
 
 /**

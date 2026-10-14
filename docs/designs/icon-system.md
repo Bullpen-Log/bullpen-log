@@ -42,5 +42,19 @@
 
 ## 5. 김민에게 묻는 것
 
-- `app-icon.tsx` · `NAV_TINT` 를 앱 전체 규칙의 뿌리로 삼아도 되나(네가 만든 것이라).
-- 1단계를 누가 하나 — 금윤호 쪽에서 하면 `components/app-shell.tsx` 하단 탭 · 더보기를 같이 만지게 된다.
+- `app-icon.tsx` · `NAV_TINT` 를 앱 전체 규칙의 뿌리로 삼아도 되나(네가 만든 것이라). — 답 전이라 **그대로 두고 가져다만 썼다**(6절).
+- 1단계를 누가 하나 — 금윤호 쪽에서 하면 `components/app-shell.tsx` 하단 탭 · 더보기를 같이 만지게 된다. — 금윤호 쪽(Claude)이 했다(6절).
+
+## 6. 한 것(2026-10-14, 금윤호 · Claude — 사용자: "저 프롬프트대로 끝까지")
+
+1. **규칙 한 파일** — `components/icon.tsx`: 아이콘 150종을 같은 이름으로 다시 내보내며 굵기 2.5 를 기본으로 건다(`weighted`). 화면 코드는
+   `lucide-react` 를 직접 못 부른다(`eslint.config.mjs` `no-restricted-imports`). `components/icon-circle.tsx`: `IconCircle`(원 44 · 56, 색 sky ·
+   danger · tint, 글리프 55%) · `CircleButton`. `nav-icons.tsx` 도 여기서 받는다. 김민의 `app-icon.tsx` · `NAV_TINT` 는 그대로(더보기 전용).
+2. **앱 틀** — `app-shell.tsx` 하단 탭 · 막대 · 도크 · 판 · 종 · 설정 · 뒤로의 굵기 지정(2.4 · 1.9 로 켜짐 · 꺼짐을 가르던 것)을 걷음. 켜짐은 색 · 굵은 글자로.
+   내 정보 계정 단추 셋(`profile/account-actions.tsx`)은 아이폰 설정 목록처럼 색 원 + 이름 + ›(탈퇴는 빨강).
+3. **목록 줄 동작 단추** — 투구 기록 그날 줄 연필 · 휴지통(`pitch-log/day-record.tsx`), 구속 측정 공 줄 ▶(`pitch-log/velocity-section.tsx`), 내 루틴 ▶ · 연필
+   (`training/my-routines.tsx`): 휴대폰 44px 색 원, PC 는 예전 작은 아이콘(`desk:`).
+4. **일괄** — 143개 파일의 import 한 줄 + 아이콘 태그 `strokeWidth` 66곳 삭제(스크립트, 생 svg 는 안 건드림). 구속 측정 27개 파일은 메인 세션 작업 중이라
+   남김(eslint ignores 셋 — 옮기면 지운다). tsc · lint 0 · `npx next build` 통과.
+- **남은 것**: ① 아이폰 앱만 SF Symbols SVG(3절 3번 — 사용자가 맥에서 40~50개를 `public/icons/sf/` 로 내보내면 `icon.tsx` 가 앱 UA 에서만 그것을 씀)
+  ② 구속 측정 27개 파일(김민) ③ 김민 답 둘(5절) ④ 영양 기록 줄 · 식단 줄의 휴지통(−/+ 걸음 옆이라 원은 무거워 그대로 둠 — 봐서 정하기).

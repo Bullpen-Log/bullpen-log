@@ -1,7 +1,7 @@
 import { Suspense, type ReactNode } from 'react';
 import Link from 'next/link';
 import { unstable_rethrow } from 'next/navigation';
-import { Check, ChevronRight, Dumbbell, Play, ShieldPlus, Target, type LucideIcon } from 'lucide-react';
+import { Check, ChevronRight, Dumbbell, Play, ShieldPlus, Target, type LucideIcon } from '@/components/icon';
 import { prisma } from '@/lib/prisma';
 import { PageHeading, todayKicker } from '@/components/ui';
 import { AnalysisLink } from '@/components/analysis-link';
@@ -125,7 +125,7 @@ function AppIcon({ app }: { app: TrainingPart }) {
   return (
     /* 칠한 네모 + 흰 그림 — 아이폰 앱 아이콘처럼. 옅은 색 네모 위 색 그림은 AI 템플릿의 기능 카드 같았다(2026-10-04) */
     <span className={`grid h-11 w-11 shrink-0 place-items-center rounded-[14px] text-white ${a.button}`}>
-      <Icon aria-hidden className="h-6 w-6" strokeWidth={2.1} />
+      <Icon aria-hidden className="h-6 w-6" />
     </span>
   );
 }

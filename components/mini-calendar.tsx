@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, type CSSProperties } from 'react';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight } from '@/components/icon';
 import { dateKeyOf } from '@/lib/pitch-stats';
 
 const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'];

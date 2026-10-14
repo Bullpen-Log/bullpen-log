@@ -3,7 +3,7 @@
 import { useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Film, Play, Rotate3d, Trash2, Upload } from 'lucide-react';
+import { Film, Play, Rotate3d, Trash2, Upload } from '@/components/icon';
 import { BackLink, Card, EmptyState, PageHeading } from '@/components/ui';
 import { Segmented } from '@/components/segmented';
 import { DisclosureButton } from '@/components/disclosure';
@@ -11,6 +11,8 @@ import { ErrorLine } from '@/components/error-line';
 import { ConfirmDialog } from '@/components/confirm-delete';
 import { uploadToStorage } from '@/components/video-upload';
 import { readVideoFps } from '@/lib/velocity-engine/video-fps';
+import { readVideoLens } from '@/lib/velocity-engine/video-lens';
+import { fileFingerprint, labVideoBlock, type LabVideoInfo } from '@/lib/pitch-lab-guard';
 import { OFFLINE_MESSAGE, orOffline } from '@/lib/action-offline';
 import { quietRefresh } from '@/lib/quiet-refresh';
 import { removeLabSample, saveLabSample } from '@/app/actions/pitch-lab';
@@ -51,6 +53,42 @@ const HAND_OPTIONS = [
   { value: 'L', label: '왼손' },
 ] as const;
 
+/** 영상의 짧은 변 · 길이 — 브라우저가 머리만 읽는다(못 읽는 코덱이면 null, 그 칸으로는 안 막는다) */
+function readVideoBox(file: File): Promise<{ shortSide: number | null; durationSec: number | null }> {
+  return new Promise((resolve) => {
+    const v = document.createElement('video');
+    const url = URL.createObjectURL(file);
+    let done = false;
+    const finish = (r: { shortSide: number | null; durationSec: number | null }) => {
+      if (done) return;
+      done = true;
+      URL.revokeObjectURL(url);
+      v.removeAttribute('src');
+      resolve(r);
+    };
+    v.preload = 'metadata';
+    v.muted = true;
+    v.onloadedmetadata = () =>
+      finish({
+        shortSide: v.videoWidth > 0 ? Math.min(v.videoWidth, v.videoHeight) : null,
+        durationSec: Number.isFinite(v.duration) && v.duration > 0 ? v.duration : null,
+      });
+    v.onerror = () => finish({ shortSide: null, durationSec: null });
+    setTimeout(() => finish({ shortSide: null, durationSec: null }), 5000);
+    v.src = url;
+  });
+}
+
+/** 올리기 전 검사 재료(lib/pitch-lab-guard.ts labVideoBlock) — GPU 를 안 쓴다 */
+async function probeLabVideo(file: File): Promise<LabVideoInfo> {
+  const [fps, box, lens] = await Promise.all([
+    readVideoFps(file),
+    readVideoBox(file),
+    readVideoLens(file).catch(() => null),
+  ]);
+  return { name: file.name, fps, ...box, focal35: lens?.focal35 ?? null };
+}
+
 const WHEN = new Intl.DateTimeFormat('ko-KR', {
   timeZone: 'Asia/Seoul',
   month: 'long',
@@ -77,8 +115,8 @@ export function LabClient({
         <BackLink href="/videos">투구</BackLink>
         <PageHeading
           kicker="베타"
-          title="투구 분석"
-          description="옆 · 뒤 영상을 짝으로 올려 두면 3D 분석을 만들어 시험해요."
+          title="3D 동작 분석"
+          description="같은 공을 옆과 뒤에서 함께 찍어 올리면 몸의 움직임을 3D 로 보여 줘요."
         />
       </div>
       {/*
@@ -100,7 +138,7 @@ export function LabClient({
       {shown.length === 0 ? (
         <EmptyState
           icon={<Rotate3d />}
-          title="아직 올린 샘플이 없어요"
+          title="아직 올린 영상이 없어요"
           description="같은 공을 옆(3루 쪽)과 뒤(2루 쪽)에서 찍은 영상을 짝으로 올려 주세요."
         />
       ) : (
@@ -110,7 +148,7 @@ export function LabClient({
               key={s.id}
               sample={s}
               n={shown.length - i}
-              label={tab === 'marker' ? '마커 샘플' : '샘플'}
+              label={tab === 'marker' ? '마커 샘플' : '투구'}
             />
           ))}
         </div>
@@ -138,11 +176,13 @@ function UploadCard({ defaultHeightCm }: { defaultHeightCm: number | null }) {
   );
   /* 고른 영상의 초당 장수(파일 머리에서 — 못 읽으면 null) */
   const [fpsOf, setFpsOf] = useState<Partial<Record<LabView, number | null>>>({});
+  /* 고른 영상의 지문(같은 영상 다시 막기) — 검사가 끝나야 생긴다 */
+  const [fpOf, setFpOf] = useState<Partial<Record<LabView, string>>>({});
   const [error, setError] = useState<string>();
   const [, start] = useTransition();
 
   const busy = progress != null;
-  const ready = LAB_VIEWS.every((v) => files[v]) && !busy;
+  const ready = LAB_VIEWS.every((v) => files[v] && fpOf[v]) && !busy;
 
   const pick = (view: LabView, file: File | undefined) => {
     setError(undefined);
@@ -153,6 +193,20 @@ function UploadCard({ defaultHeightCm }: { defaultHeightCm: number | null }) {
     }
     setFiles((f) => ({ ...f, [view]: file }));
     setFpsOf((m) => ({ ...m, [view]: undefined }));
+    setFpOf((m) => ({ ...m, [view]: undefined }));
+    /*
+     * 올리기 전 검사(GPU 0원) — 화면 녹화 · 30fps 급 · 낮은 해상도 · 줌 · 너무 짧으면 고른 것을 되돌리고 까닭 + 다시 찍기 안내.
+     * 2026-10-14 사용자: 이상한 영상으로 계속 실패해 GPU 비용이 나가지 않게.
+     */
+    void Promise.all([probeLabVideo(file), fileFingerprint(file)]).then(([info, fp]) => {
+      const block = labVideoBlock(info);
+      if (block) {
+        setFiles((f) => (f[view] === file ? { ...f, [view]: undefined } : f));
+        setError(`${LAB_VIEW_LABELS[view]} 영상: ${block}`);
+        return;
+      }
+      setFpOf((m) => ({ ...m, [view]: fp }));
+    });
     void readVideoFps(file).then((v) => {
       setFpsOf((m) => {
         const next = { ...m, [view]: v };
@@ -202,7 +256,7 @@ function UploadCard({ defaultHeightCm }: { defaultHeightCm: number | null }) {
         files: Object.fromEntries(
           LAB_VIEWS.map((v) => [
             v,
-            { name: files[v]?.name ?? '', size: files[v]?.size ?? 0 },
+            { name: files[v]?.name ?? '', size: files[v]?.size ?? 0, fp: fpOf[v] },
           ])
         ),
       };
@@ -214,6 +268,7 @@ function UploadCard({ defaultHeightCm }: { defaultHeightCm: number | null }) {
         return;
       }
       setFiles({});
+      setFpOf({});
       setMemo('');
       start(() => quietRefresh(router));
     } catch (err) {
@@ -226,7 +281,7 @@ function UploadCard({ defaultHeightCm }: { defaultHeightCm: number | null }) {
   return (
     <Card className="space-y-4">
       <div className="space-y-1">
-        <p className="text-base font-semibold text-ink">샘플 올리기</p>
+        <p className="text-base font-semibold text-ink">영상 올리기</p>
         <p className="text-xs text-muted">
           영상 하나에 {LAB_MAX_VIDEO_MB}MB까지예요. 카메라는 1배(기본 렌즈)로 찍어 주세요. 분석이 1배로 계산해요.
         </p>

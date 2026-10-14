@@ -1,6 +1,6 @@
 'use client';
 
-import { ChevronDown, CircleCheck } from 'lucide-react';
+import { ChevronDown, CircleCheck } from '@/components/icon';
 import { startWorkout } from '@/app/actions/workout';
 import { SafeForm } from '@/components/safe-form';
 import { useWeightUnit } from '@/components/use-units';

@@ -17,7 +17,7 @@ from pathlib import Path
 
 from . import engine
 from .mapping import JOINT_MAP, N_JOINTS, RTMW_INDEX, RTMW_TOTAL, V2_NAMES, to_v2_points
-from .pipeline import MAX_FRAMES, _decimate, fit_payload, sanity_track
+from .pipeline import framing_bad, MAX_FRAMES, _decimate, fit_payload, sanity_track
 from .video import upright_turn
 
 passed = 0
@@ -80,6 +80,23 @@ class _F:
 t = FakePose().track([_F(0.0), _F(1 / 60)], 1080, 1920, 60.0)
 sanity_track(t)
 check("가짜 관절로 엔진 입력 모양(V2Track)", len(t["frames"]) == 2)
+
+print("■ 일찍 멈추기(framing) — 투수가 작거나 안 보이면 고운 2D 전에")
+
+
+def _tr(height_px: float, seen_every: int) -> dict:
+    frames = []
+    for k in range(60):
+        v = 0.9 if k % seen_every == 0 else 0.1
+        frames.append({"t": k / 30, "p": [[100.0, 300.0 + height_px * j / 16, v] for j in range(17)] + [[0.0, 0.0, 0.0]] * (N_JOINTS - 17)})
+    return {"W": 1080, "H": 1920, "fps": 30.0, "frames": frames}
+
+
+check("투수 292px · 다 보임(실험실 샘플 1 옆) → 그대로", not framing_bad(_tr(292, 1)))
+check("투수 150px → 멈춤", framing_bad(_tr(150, 1)))
+check("다섯 장면에 한 번만 보임(20%) → 멈춤", framing_bad(_tr(400, 5)))
+check("두 장면에 한 번 보임(50%) → 그대로", not framing_bad(_tr(400, 2)))
+check("장면 없음 → 멈춤", framing_bad({"W": 1, "H": 1, "fps": 30, "frames": []}))
 
 print("■ 영상 회전(display matrix) → 바로 세우기")
 check(

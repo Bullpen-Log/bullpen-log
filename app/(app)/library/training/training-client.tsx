@@ -10,7 +10,7 @@ import {
   Star,
   Trash2,
   X,
-} from 'lucide-react';
+} from '@/components/icon';
 import {
   deleteExercise,
   exerciseDescription,
@@ -527,7 +527,6 @@ export function TrainingClient({
             <Star
               className="h-3.5 w-3.5"
               fill={onlyFavorites ? 'currentColor' : 'none'}
-              strokeWidth={1.9}
             />
             즐겨찾기
             {favoriteCount > 0 && (
@@ -596,7 +595,6 @@ export function TrainingClient({
                   aria-hidden
                   className="h-4 w-4"
                   fill={onlyFavorites ? 'currentColor' : 'none'}
-                  strokeWidth={1.9}
                 />
                 즐겨찾기
                 <span className="tabular-nums">{favoriteCount}</span>

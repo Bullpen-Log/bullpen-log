@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useTransition } from 'react';
-import { Check } from 'lucide-react';
+import { Check } from '@/components/icon';
 import { rateWorkoutEffort } from '@/app/actions/workout';
 import { OFFLINE_MESSAGE, orOffline } from '@/lib/action-offline';
 import { haptic } from '@/lib/haptics';
@@ -56,7 +56,7 @@ export function EffortCard({ sessionId }: { sessionId: string }) {
         </p>
         {saved ? (
           <span className="inline-flex items-center gap-1 text-xs font-semibold text-sky">
-            <Check className="h-3.5 w-3.5" strokeWidth={3} />
+            <Check className="h-3.5 w-3.5" />
             {level?.intensity}/10
           </span>
         ) : (

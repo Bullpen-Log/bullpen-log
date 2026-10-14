@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useTransition } from 'react';
-import { Star } from 'lucide-react';
+import { Star } from '@/components/icon';
 import { OFFLINE_MESSAGE, orOffline } from '@/lib/action-offline';
 
 /**
@@ -57,7 +57,6 @@ export function FavoriteButton({
       className={variant === 'full' ? 'h-4 w-4' : 'h-[1.15rem] w-[1.15rem]'}
       // 채운 별과 빈 별로 가른다. 색만 다르면 흑백 화면에서 구별이 안 된다.
       fill={favorite ? 'currentColor' : 'none'}
-      strokeWidth={favorite ? 1.5 : 1.9}
     />
   );
 
@@ -70,7 +69,7 @@ export function FavoriteButton({
         aria-label={`${label} 즐겨찾기`}
         className={className}
       >
-        <Star className="h-5 w-5" fill={favorite ? 'currentColor' : 'none'} strokeWidth={1.9} />
+        <Star className="h-5 w-5" fill={favorite ? 'currentColor' : 'none'} />
         {error ? '다시 눌러 주세요' : favorite ? '해제' : '즐겨찾기'}
       </button>
     );

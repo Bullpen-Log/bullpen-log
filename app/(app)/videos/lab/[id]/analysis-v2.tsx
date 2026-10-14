@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Rotate3d } from 'lucide-react';
+import { Rotate3d } from '@/components/icon';
 import Link from 'next/link';
 import { Badge } from '@/components/ui';
 import { ErrorLine } from '@/components/error-line';
@@ -83,9 +83,9 @@ export function V2EmptyWell({
       ? '영상 탓일 수 있어요. 밝은 곳 · 원본 파일 · 삼각대 · 두 폰 60~120° 로 다시 찍어 올려 주세요.'
       : '서버 쪽 문제예요. 아래에서 다시 분석할 수 있어요.';
   } else if (!v2Enabled) {
-    title = '서버 분석 설정이 없어요';
-    line =
-      '관리자가 PITCH3D_GPU_URL · KEY · SECRET 을 넣으면 여기서 3D 분석을 걸 수 있어요.';
+    /* 서버 설정(PITCH3D_GPU_*)이 없는 곳 — 일반 사용자도 보므로 설정 이름은 안 쓴다 */
+    title = '지금은 3D 분석을 쓸 수 없어요';
+    line = '잠시 뒤 다시 와 주세요.';
   } else if (!hasVideos) {
     title = '옆 · 뒤 영상이 다 있어야 해요';
   } else {

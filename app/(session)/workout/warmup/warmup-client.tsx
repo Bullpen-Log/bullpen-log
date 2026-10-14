@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useTransition } from 'react';
-import { Check, ChevronRight, Info } from 'lucide-react';
+import { Check, ChevronRight, Info } from '@/components/icon';
 import { LibraryVideo } from '@/components/library-video';
 import { useWakeLock } from '@/components/use-wake-lock';
 import { unstable_rethrow } from 'next/navigation';
@@ -149,7 +149,7 @@ export function WarmupClient({
                               : 'border-line-strong'
                           }`}
                         >
-                          {checked && <Check className="h-4 w-4" strokeWidth={3} />}
+                          {checked && <Check className="h-4 w-4" />}
                         </span>
 
                         <span className="min-w-0 flex-1">
