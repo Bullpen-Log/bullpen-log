@@ -16,6 +16,7 @@ import { flushSync } from 'react-dom';
 import Link, { useLinkStatus } from 'next/link';
 import { ChevronLeft, Lock } from '@/components/icon';
 import { goBack } from '@/components/back-link';
+import { useTabLens } from '@/components/tab-lens';
 import {
   barSnapshot,
   currentUrl,
@@ -2608,15 +2609,12 @@ function useScrolledFromTop() {
 }
 
 /**
- * 하단 탭의 얼굴 — 누르는 즉시 하늘색이 된다.
+ * 하단 탭의 얼굴 — 아이콘 위, 이름 아래.
  *
- * 화면이 실제로 바뀌는 것은 서버가 새 화면을 보내 준 뒤다. 그동안 아무 표시가
- * 없으면 '눌렸나?' 하고 한 번 더 누르게 된다. 링크가 움직이기 시작한
- * 순간(useLinkStatus 의 pending)부터 켜진 색으로 바꿔, 누른 곳이 바로 대답하게 한다.
- *
- * 위의 짧은 막대는 여기서 켜지 않는다. 그 막대는 이름표(tab-indicator)가 하나라
- * 화면이 바뀔 때 옛 탭에서 새 탭으로 미끄러지는데, 누르자마자 새 탭에 따로 막대를
- * 그리면 막대가 둘이 된다. 색만 먼저 바꾼다.
+ * 누르면 렌즈(유리 캡슐, components/tab-lens.ts)가 곧바로 이 칸으로 미끄러져 와 누른 곳이 먼저 대답한다. 화면이 실제로
+ * 바뀌는 것은 서버가 새 화면을 보내 준 뒤라, 그사이 이름만 먼저 굵게 한다(useLinkStatus 의 pending). 예전에는 하늘색으로
+ * 바꿨는데, 2026-10-14 사용자가 고른 참고 영상(iOS 26 탭 막대)은 색 없이 흰 아이콘 · 흰 글자에 캡슐만 움직인다.
+ * data-tab-face — 렌즈가 지나갈 때 아이콘이 살짝 커지는 자리(tab-lens.ts 가 transform 을 쓴다).
  */
 function TabFace({
   Icon,
@@ -2633,8 +2631,9 @@ function TabFace({
   const { pending } = useLinkStatus();
   return (
     <span
-      className={`relative flex flex-col items-center gap-0.5 transition-colors duration-75 ${
-        pending ? 'font-semibold text-sky' : active ? 'font-semibold' : ''
+      data-tab-face
+      className={`relative flex flex-col items-center gap-0.5 ${
+        pending || active ? 'font-semibold' : ''
       }`}
     >
       <NavGlyph Icon={Icon} locked={locked} dim={false} className="h-[26px] w-[26px]" />
@@ -2643,50 +2642,21 @@ function TabFace({
   );
 }
 
-/**
- * 길게 눌러 끌 때 손가락을 따라오는 둥근 배경 — 고른 칸의 배경과 같은 모양(bg-ink/8)이고 크기는 칸 하나다.
- * 가로 막대(휴대폰)는 x 만, 세로 막대(패드)는 y 만 따른다. 알약 안쪽 여백(p-1) 밖으로는 안 나간다.
- */
-function DragThumb({
-  bar,
-  drag,
-}: {
-  bar: RefObject<HTMLDivElement | null>;
-  drag: { x: number; y: number };
-}) {
-  const el = bar.current;
-  const first = el?.querySelector<HTMLElement>('[data-tab-href]');
-  if (!el || !first) return null;
-  const box = el.getBoundingClientRect();
-  const r = first.getBoundingClientRect();
-  const vertical = box.height > box.width;
-  const pad = 4;
-  const w = r.width;
-  const h = r.height;
-  const left = vertical
-    ? r.left - box.left
-    : Math.max(pad, Math.min(box.width - pad - w, drag.x - w / 2));
-  const top = vertical
-    ? Math.max(pad, Math.min(box.height - pad - h, drag.y - h / 2))
-    : r.top - box.top;
-  return (
-    <span
-      aria-hidden
-      data-thumb
-      className="pointer-events-none absolute rounded-full bg-ink/8 pad:rounded-2xl"
-      style={{ left, top, width: w, height: h }}
-    />
-  );
-}
+/** 누른 탭으로 옮긴 렌즈가 화면이 끝내 안 바뀌면(신호 끊김 · 막힘) 이만큼 뒤 지금 화면의 탭으로 돌아간다 */
+const CHOSEN_TIMEOUT_MS = 8000;
 
 /**
- * 모바일 하단 탭바 — 바닥에서 살짝 떠 있는 둥근 알약(아이폰 iOS 26 · 앱스토어의 하단 바처럼).
+ * 모바일 하단 탭바 — 바닥에서 살짝 떠 있는 둥근 알약.
  *
- * 2026-10-01 사용자 "애플 앱스토어의 하단 바처럼 전체적으로 동글동글하게" + 앱스토어 화면을 보내 줌: 화면 끝에 붙은
- * 흰 막대(위 테두리 · 지금 탭 위의 짧은 선) 대신, 양옆 20px · 밑으로 --tab-bar-gap(globals.css) 떨어져 뜬 반투명 알약이다.
- * 앱스토어를 재서 맞췄다 — 알약 높이 62pt, 양옆 · 밑 여백 약 21pt, 지금 탭은 옅은 회색 알약 위에 파란 아이콘 · 이름,
- * 다른 탭은 검은 아이콘 · 이름. 칸 높이 52px, 아이콘 26px, 이름 10px. 알약 윗변까지의 높이(--tab-bar-top)를 본문 끝
- * 여백과 그 위에 띄우는 것들이 같이 쓴다.
+ * 2026-10-01 사용자 "애플 앱스토어의 하단 바처럼 전체적으로 동글동글하게" — 양옆 20px · 밑으로 --tab-bar-gap(globals.css)
+ * 떨어져 뜬 알약. 칸 높이 52px, 아이콘 26px, 이름 10px, 알약 62px. 알약 윗변까지의 높이(--tab-bar-top)를 본문 끝 여백과
+ * 그 위에 띄우는 것들이 같이 쓴다.
+ *
+ * 2026-10-14 사용자가 참고 영상(iOS 26 탭 막대)을 주며 "그와 최대한 같게": 휴대폰은 어두운 유리 알약(반투명 짙은 회색 +
+ * 뒤 흐림 + 얇은 흰 테두리)에 흰 아이콘 · 흰 이름, 지금 탭 뒤에는 회색 캡슐 하나(렌즈)가 있고 탭을 옮기면 그 캡슐이
+ * 유리 렌즈로 부풀며 탄성 있게 미끄러진다(components/tab-lens.ts). 예전에는 탭마다 배경을 두고 화면 전환
+ * (view-transition 'tab-indicator')이 옮겼다 — 누른 뒤 서버가 답할 때까지 안 움직였고 탄성도 없었다.
+ * 패드의 왼쪽 세로 막대는 밝은 모양 그대로 두고(요청은 하단 바) 렌즈 움직임만 같다.
  */
 function MobileTabs({
   tabs,
@@ -2694,62 +2664,94 @@ function MobileTabs({
   onMenu,
 }: {
   tabs: NavItem[];
-  /** 사이드바가 열려 있는가 — '더보기'를 켜진 색으로 둔다 */
+  /** 사이드바가 열려 있는가 — 렌즈를 '더보기'에 둔다 */
   menuOpen: boolean;
   onMenu: () => void;
 }) {
   const isActive = useIsActive();
+  const pathname = usePathname();
   const [spinning, setSpinning] = useState(false);
   const router = useRouter();
   const bar = useRef<HTMLDivElement>(null);
+  const lensEl = useRef<HTMLSpanElement>(null);
+
+  /*
+   * 렌즈가 설 칸 — 사이드바가 열렸으면 '더보기', 방금 누른 탭이 있으면 그 탭(화면이 오기 전에 먼저 옮긴다), 아니면 지금
+   * 화면의 탭. 주소가 바뀌면 누른 탭 기억을 지운다 — 그때부터는 지금 화면이 정한다(뒤로 가기 · 잠긴 탭이 설정 화면으로
+   * 보낸 경우도 지금 화면과 맞는다). 화면이 끝내 안 오면 CHOSEN_TIMEOUT_MS 뒤 지금 화면의 탭으로 돌아간다.
+   */
+  const activeHref = tabs.find((t) => t.href !== MORE_HREF && isActive(t.href))?.href ?? null;
+  const [chosen, setChosen] = useState<{ href: string; from: string } | null>(null);
+  const liveChosen = chosen && chosen.from === pathname ? chosen.href : null;
+  const selectedHref = menuOpen ? MORE_HREF : (liveChosen ?? activeHref);
+  const selectedIndex = selectedHref ? tabs.findIndex((t) => t.href === selectedHref) : -1;
+  useEffect(() => {
+    if (!chosen) return;
+    const timer = window.setTimeout(() => setChosen(null), CHOSEN_TIMEOUT_MS);
+    return () => window.clearTimeout(timer);
+  }, [chosen]);
+
+  /* 첫 그림의 렌즈 자리 — 서버가 그린 HTML 에 그대로 실린다(이후로는 tab-lens.ts 가 CSS 변수를 직접 쓴다) */
+  const [firstIndex] = useState(selectedIndex);
+  const lens = useTabLens(bar, lensEl, firstIndex);
+  const dragging = useRef(false);
+  useEffect(() => {
+    if (!dragging.current) lens.to(selectedIndex);
+  }, [lens, selectedIndex]);
+
   /*
    * 길게 눌러 끌기(2026-10-13 사용자: "메뉴 바도 길게 눌러서 스와이프하면 동그란 원이 터치된 부분을 따라서 움직이게").
-   * 알약 안에서 손가락을 떼지 않고 0.28초 넘게 누르면 고른 칸의 둥근 배경이 손가락을 따라오고, 놓은 자리의 탭으로 간다.
-   * 짧게 누르면 예전처럼 그 칸으로. drag 는 손가락의 알약 안 자리(px)이고 null 이면 끌지 않는 중이다. 끌고 있는 동안은
-   * 원래 칸의 배경을 숨기고 떠다니는 배경 하나를 그린다(같은 이름표를 둘 두면 전환이 깨진다).
+   * 알약 안에서 손가락을 떼지 않고 0.28초 넘게 누르면 렌즈가 부푼 채 손가락을 따라오고, 놓은 자리의 탭으로 간다.
+   * 짧게 누르면 예전처럼 그 칸으로.
    */
-  const [drag, setDrag] = useState<{
-    x: number;
-    y: number;
-    under: string | null;
-  } | null>(null);
   const hold = useRef<{ id: number; x: number; y: number; timer: number } | null>(null);
   const dragged = useRef(false);
-  /** 손가락 자리에서 가장 가까운 칸 — 가로(휴대폰) · 세로(패드) 어느 쪽이든 중심 거리로 */
-  const tabAt = (x: number, y: number) => {
+  const under = useRef<string | null>(null);
+  /** 칸 가운데들 — 끌기를 시작할 때 한 번 잰다(손가락 자리 → 칸 번호) */
+  const centers = useRef<{ href: string; c: number }[]>([]);
+  const vertical = () => {
     const el = bar.current;
-    if (!el) return null;
-    let best: { href: string; rect: DOMRect } | null = null;
-    let bestD = Infinity;
-    for (const node of el.querySelectorAll<HTMLElement>('[data-tab-href]')) {
-      const r = node.getBoundingClientRect();
-      const cx = r.left + r.width / 2;
-      const cy = r.top + r.height / 2;
-      const d = (x - cx) ** 2 + (y - cy) ** 2;
-      if (d < bestD) {
-        bestD = d;
-        best = { href: node.dataset.tabHref ?? '', rect: r };
+    return !!el && el.clientHeight > el.clientWidth;
+  };
+  const measure = () => {
+    const el = bar.current;
+    if (!el) return;
+    const v = vertical();
+    centers.current = Array.from(el.querySelectorAll<HTMLElement>('[data-tab-href]')).map(
+      (node) => {
+        const r = node.getBoundingClientRect();
+        return { href: node.dataset.tabHref ?? '', c: v ? r.top + r.height / 2 : r.left + r.width / 2 };
       }
-    }
-    return best;
+    );
+  };
+  /** 손가락 자리 → 칸 번호(소수, 첫 칸 0 ~ 끝 칸) */
+  const indexAt = (x: number, y: number) => {
+    const cs = centers.current;
+    if (cs.length < 2) return 0;
+    const at = vertical() ? y : x;
+    const p = (at - cs[0].c) / ((cs[cs.length - 1].c - cs[0].c) / (cs.length - 1));
+    return Math.max(0, Math.min(cs.length - 1, p));
   };
   const startHold = (e: ReactPointerEvent<HTMLDivElement>) => {
+    lens.press(true);
     if (e.pointerType === 'mouse') return;
     stopHold();
     const { pointerId: id, clientX: x, clientY: y } = e;
     const target = e.currentTarget;
     const timer = window.setTimeout(() => {
-      const hit = tabAt(x, y);
-      if (!hit) return;
+      measure();
+      if (centers.current.length === 0) return;
       dragged.current = true;
+      dragging.current = true;
       try {
         target.setPointerCapture(id);
       } catch {
         /* 이미 뗀 포인터면 붙들 수 없다 — 그래도 끌기는 시작한다 */
       }
       haptic('medium');
-      const box = target.getBoundingClientRect();
-      setDrag({ x: x - box.left, y: y - box.top, under: hit.href });
+      const p = indexAt(x, y);
+      under.current = centers.current[Math.round(p)]?.href ?? null;
+      lens.follow(p);
     }, 280);
     hold.current = { id, x, y, timer };
   };
@@ -2762,40 +2764,48 @@ function MobileTabs({
     if (!h || h.id !== e.pointerId) return;
     if (!dragged.current) {
       /* 길게 누르기 전에 8px 넘게 움직였으면 끌기가 아니라 화면 굴리기 · 짧은 누름이다 */
-      if (Math.abs(e.clientX - h.x) > 8 || Math.abs(e.clientY - h.y) > 8) stopHold();
+      if (Math.abs(e.clientX - h.x) > 8 || Math.abs(e.clientY - h.y) > 8) {
+        stopHold();
+        lens.press(false);
+      }
       return;
     }
-    const box = e.currentTarget.getBoundingClientRect();
-    const hit = tabAt(e.clientX, e.clientY);
-    setDrag((d) => {
-      if (d && hit && d.under !== hit.href) haptic('selection');
-      return {
-        x: Math.max(0, Math.min(box.width, e.clientX - box.left)),
-        y: Math.max(0, Math.min(box.height, e.clientY - box.top)),
-        under: hit?.href ?? d?.under ?? null,
-      };
-    });
+    const p = indexAt(e.clientX, e.clientY);
+    const href = centers.current[Math.round(p)]?.href ?? null;
+    if (href && href !== under.current) haptic('selection');
+    under.current = href;
+    lens.follow(p);
   };
   const endHold = (e: ReactPointerEvent<HTMLDivElement>) => {
+    lens.press(false);
     const h = hold.current;
     if (!h || h.id !== e.pointerId) return;
     stopHold();
     if (!dragged.current) return;
-    const hit = e.type === 'pointercancel' ? null : tabAt(e.clientX, e.clientY);
-    setDrag(null);
+    const cancelled = e.type === 'pointercancel';
+    const href = cancelled ? null : centers.current[Math.round(indexAt(e.clientX, e.clientY))]?.href;
+    dragging.current = false;
     /* click 이 뒤따라 오면 막는다(아래 onClickCapture) — 다음 그림에서 푼다 */
     window.setTimeout(() => {
       dragged.current = false;
     }, 0);
-    if (!hit) return;
-    if (hit.href === MORE_HREF) {
+    const tab = href ? tabs.find((t) => t.href === href) : undefined;
+    if (!tab) {
+      lens.release(selectedIndex);
+      return;
+    }
+    if (tab.href === MORE_HREF) {
+      lens.release(tabs.indexOf(tab));
       setSpinning(true);
       onMenu();
       return;
     }
-    const tab = tabs.find((t) => t.href === hit.href);
-    if (!tab) return;
-    if (isActive(tab.href)) return;
+    if (isActive(tab.href)) {
+      lens.release(selectedIndex);
+      return;
+    }
+    lens.release(tabs.indexOf(tab));
+    setChosen({ href: tab.href, from: pathname });
     haptic('light');
     router.push(tab.href);
   };
@@ -2813,16 +2823,21 @@ function MobileTabs({
       className="pointer-events-none fixed inset-x-0 bottom-0 z-50 pb-(--tab-bar-gap) pl-[max(1.25rem,env(safe-area-inset-left))] pr-[max(1.25rem,env(safe-area-inset-right))] desk:hidden pad:top-0 pad:right-auto pad:w-(--rail) pad:p-0"
     >
       {/*
-        알약만 누를 수 있다 — 양옆 빈 곳을 누르면 밑의 본문으로 간다. 뒤의 본문이 살짝만 비치는 유리 — 앱스토어를 재 보니
-        바탕이 흰색 약 80%(뒤의 진한 것이 20% 남짓 비침)였고, 70% 일 때 사용자가 "너무 투명하다"고 해 88% 로 올렸다.
-        양옆 여백(nav)은 노치 자리와 견줘 큰 쪽 — 가로로 돌린 사파리에서 알약 끝이 노치 밑에 들어갔다(2026-10-03).
+        알약만 누를 수 있다 — 양옆 빈 곳을 누르면 밑의 본문으로 간다. 양옆 여백(nav)은 노치 자리와 견줘 큰 쪽 — 가로로 돌린
+        사파리에서 알약 끝이 노치 밑에 들어갔다(2026-10-03).
+        휴대폰은 어두운 유리(2026-10-14 참고 영상) — 짙은 회색 72% + 뒤 흐림 · 채도, 얇은 흰 테두리, 위 1px 빛, 밑 그림자.
+        글자 · 아이콘은 흰색(currentColor). 패드 막대는 예전의 밝은 유리 그대로.
       */}
       <div
         ref={bar}
+        data-tabbar
         onPointerDown={startHold}
         onPointerMove={moveHold}
         onPointerUp={endHold}
         onPointerCancel={endHold}
+        onPointerLeave={() => {
+          if (!dragged.current) lens.press(false);
+        }}
         onClickCapture={(e) => {
           if (dragged.current) {
             e.preventDefault();
@@ -2831,11 +2846,28 @@ function MobileTabs({
         }}
         onContextMenu={(e) => {
           /* 길게 누르면 iOS 가 링크 미리보기 · 복사 메뉴를 띄운다 — 끌기와 겹치니 막는다 */
-          if (hold.current || drag) e.preventDefault();
+          if (hold.current || dragging.current) e.preventDefault();
         }}
-        className="pointer-events-auto relative mx-auto flex max-w-md touch-none rounded-full border border-line/60 bg-surface/88 p-1 shadow-[0_8px_32px_-12px_rgba(15,23,42,0.3)] backdrop-blur-2xl backdrop-saturate-150 pad:h-full pad:max-w-none pad:flex-col pad:gap-1 pad:rounded-none pad:border-y-0 pad:border-l-0 pad:pt-[calc(env(safe-area-inset-top)+0.75rem)] pad:pr-2 pad:pl-[calc(env(safe-area-inset-left)+0.5rem)] pad:shadow-none"
+        style={{ '--tab-count': tabs.length } as CSSProperties}
+        className="pointer-events-auto relative mx-auto flex max-w-md touch-none rounded-full border border-white/12 bg-[rgb(30_30_32/0.72)] p-1 text-white shadow-[0_12px_32px_-10px_rgb(0_0_0/0.55),inset_0_1px_0_rgb(255_255_255/0.08)] backdrop-blur-2xl backdrop-saturate-150 pad:h-full pad:max-w-none pad:flex-col pad:gap-1 pad:rounded-none pad:border-y-0 pad:border-l-0 pad:border-line/60 pad:bg-surface/88 pad:pt-[calc(env(safe-area-inset-top)+0.75rem)] pad:pr-2 pad:pl-[calc(env(safe-area-inset-left)+0.5rem)] pad:text-ink pad:shadow-none"
       >
-        {drag && <DragThumb bar={bar} drag={drag} />}
+        {/*
+          렌즈 — 지금 탭 뒤의 캡슐 하나(components/tab-lens.ts 가 옮긴다, 모양은 globals.css '하단 탭의 유리 렌즈').
+          --p 는 칸 번호 — 칸 폭이 같아 CSS 만으로 자리를 셈하므로 서버가 그린 첫 그림부터 맞는 자리에 있다.
+          장식이라 읽어 주지 않는다(지금 탭은 글자 굵기 · aria-current 가 알린다).
+        */}
+        <span
+          ref={lensEl}
+          aria-hidden
+          data-tab-lens
+          style={
+            { '--p': Math.max(0, firstIndex), '--show': firstIndex >= 0 ? 1 : 0 } as CSSProperties
+          }
+        >
+          <span data-lens-fill />
+          <span data-lens-glass />
+          <span data-lens-rim />
+        </span>
         {tabs.map((tab) => {
           /*
            * '더보기'는 화면으로 넘어가지 않고 옆에서 사이드바를 연다.
@@ -2844,10 +2876,7 @@ function MobileTabs({
            * 옆에서 미끄러져 나오던 같은 메뉴가 좁은 화면에서만 화면 전환이 되어,
            * 창 폭 하나로 메뉴가 전혀 다르게 열렸다. 이제 폭과 상관없이 같은
            * 사이드바가 같은 몸짓(네모가 돌며 오른쪽에서 밀려 들어옴)으로 열린다.
-           *
-           * 켜진 표시(위의 짧은 막대)는 달지 않는다. 그 막대는 이름이 하나라
-           * 화면에 둘이 있으면 탭을 옮길 때 미끄러지는 효과가 통째로 깨진다.
-           * 색만 바꾼다.
+           * 열려 있는 동안 렌즈가 이 칸에 선다.
            */
           if (tab.href === MORE_HREF) {
             return (
@@ -2861,18 +2890,21 @@ function MobileTabs({
                 }}
                 aria-haspopup="dialog"
                 aria-expanded={menuOpen}
-                className={`relative flex h-[52px] flex-1 flex-col items-center justify-center gap-0.5 rounded-full text-[10px] font-medium transition-[color,transform] duration-75 motion-safe:active:scale-90 pad:h-16 pad:flex-none pad:rounded-2xl pad:text-xs ${
-                  menuOpen ? 'font-semibold text-sky' : 'text-ink active:text-sky'
-                }`}
+                className="relative z-10 flex h-[52px] flex-1 flex-col items-center justify-center rounded-full text-[10px] font-medium transition-transform duration-100 motion-safe:active:scale-[0.94] pad:h-16 pad:flex-none pad:rounded-2xl pad:text-xs"
               >
-                <span className="flex h-[26px] w-[26px] items-center justify-center">
-                  <Squares
-                    spinning={spinning}
-                    onDone={() => setSpinning(false)}
-                    size="lg"
-                  />
+                <span
+                  data-tab-face
+                  className={`flex flex-col items-center gap-0.5 ${menuOpen ? 'font-semibold' : ''}`}
+                >
+                  <span className="flex h-[26px] w-[26px] items-center justify-center">
+                    <Squares
+                      spinning={spinning}
+                      onDone={() => setSpinning(false)}
+                      size="lg"
+                    />
+                  </span>
+                  {tab.short ?? tab.label}
                 </span>
-                {tab.short ?? tab.label}
               </button>
             );
           }
@@ -2885,15 +2917,19 @@ function MobileTabs({
               href={tab.href}
               data-tab-href={tab.href}
               draggable={false}
+              aria-current={active ? 'page' : undefined}
               /* 잠긴 탭(첫 설정 전, lib/nav.ts applyLocks)은 흐리게 + 아이콘 오른쪽 아래 자물쇠. 링크는 산다 — 누르면 설정 화면 */
               aria-label={tab.locked ? `${tab.label}(설정 전)` : undefined}
               data-locked={tab.locked ? '' : undefined}
               /*
-               * 지금 탭을 한 번 더 누르면 — 그 탭의 첫 화면이면 맨 위로 올라가고, 하위 화면이면 첫 화면으로 간다(아이폰 탭
-               * 바처럼, 2026-10-04). 예전에는 아무 일도 없었다.
+               * 누르면 렌즈가 곧바로 이 칸으로 간다(화면이 오기 전에). 지금 탭을 한 번 더 누르면 — 그 탭의 첫 화면이면
+               * 맨 위로 올라가고, 하위 화면이면 첫 화면으로 간다(아이폰 탭 바처럼, 2026-10-04).
                */
               onClick={(e) => {
-                if (!active || !sameScreen(currentUrl(), tab.href)) return;
+                if (!active || !sameScreen(currentUrl(), tab.href)) {
+                  if (!active) setChosen({ href: tab.href, from: pathname });
+                  return;
+                }
                 e.preventDefault();
                 const reduce = window.matchMedia(
                   '(prefers-reduced-motion: reduce)'
@@ -2901,32 +2937,13 @@ function MobileTabs({
                 window.scrollTo({ top: 0, behavior: reduce ? 'auto' : 'smooth' });
               }}
               /*
-               * 휴대폰에서 가장 많이 눌리는 자리다. 눌렀을 때 살짝 작아지고
-               * 색이 바뀌게 해서, 화면이 바뀌기 전에 먼저 대답하게 한다.
-               * 움직임을 줄여 쓰는 사람에게는 크기 변화 없이 색만 바뀐다.
+               * 휴대폰에서 가장 많이 눌리는 자리다. 눌렀을 때 살짝 작아져 먼저 대답한다(렌즈도 부푼다).
+               * 움직임을 줄여 쓰는 사람에게는 크기 변화가 없다.
                */
-              className={`relative flex h-[52px] flex-1 flex-col items-center justify-center gap-0.5 rounded-full text-[10px] font-medium transition-[color,transform] duration-75 motion-safe:active:scale-90 pad:h-16 pad:flex-none pad:rounded-2xl pad:text-xs ${
+              className={`relative z-10 flex h-[52px] flex-1 flex-col items-center justify-center rounded-full text-[10px] font-medium transition-transform duration-100 motion-safe:active:scale-[0.94] pad:h-16 pad:flex-none pad:rounded-2xl pad:text-xs ${
                 tab.locked ? 'opacity-55' : ''
-              } ${active ? 'font-semibold text-sky' : 'text-ink active:text-sky'}`}
+              }`}
             >
-              {/*
-               * 지금 어느 탭인지 감싸는 둥근 배경 — 아이폰 탭 바의 고른 칸처럼.
-               *
-               * 화면에 한 번에 하나만 있고 이름이 같아서, 탭을 옮기면 브라우저가
-               * 사라졌다 나타나는 대신 옛 자리에서 새 자리로 미끄러뜨린다.
-               * 전환 중에는 이름 붙은 것이 아이콘들 위로 올라와 지나가는데, 옅은 회색(글자색 8%)이라
-               * 지나가는 자리의 아이콘 · 글자를 가리지 않는다(불투명하면 덮는다 — globals.css 'tab-indicator').
-               *
-               * 색은 이미 글자와 아이콘이 알려주므로 이 배경은 장식이다.
-               * 읽어 줄 필요가 없어 aria-hidden 을 단다.
-               */}
-              {active && !drag && (
-                <span
-                  aria-hidden
-                  style={{ viewTransitionName: 'tab-indicator' }}
-                  className="absolute inset-0 rounded-full bg-ink/8 pad:rounded-2xl"
-                />
-              )}
               <TabFace
                 Icon={Icon}
                 active={active}
