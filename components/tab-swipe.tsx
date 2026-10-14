@@ -11,7 +11,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { NAV_ICONS } from '@/components/nav-icons';
 import { DESK_MEDIA, MORE_HREF, type NavItem } from '@/lib/nav';
 import { TRAINING_HOME_HREF } from '@/lib/training-part';
-import { setNavDirection } from '@/lib/nav-state';
+import { barSnapshot, setNavDirection } from '@/lib/nav-state';
 import { haptic } from '@/lib/haptics';
 import { TAB_CHOSEN_EVENT } from '@/components/tab-lens';
 
@@ -51,6 +51,10 @@ const WAIT_MS = 350;
 /** 넘어간 화면이 이만큼 안 오면(신호 끊김 · 오류) 제자리로 — 본문이 화면 밖에 남아 빈 화면이던 것 */
 const GIVE_UP_MS = 8000;
 
+/** 손가락을 스스로 받는 부품(touch-action 을 따로 둔 것) — 클래스 · 인라인 스타일로 가린다 */
+const TOUCH_OWNER =
+  '.touch-none, .touch-pan-y, .touch-pan-x, .touch-pinch-zoom, [style*="touch-action"]';
+
 /** 주소에서 물음표 뒤를 뺀 것 — 트레이닝은 /training?view=home 이라 pathname 과 그대로 비교하면 안 맞았다(2026-10-15 버그) */
 const base = (href: string) => href.split('?')[0];
 
@@ -85,6 +89,8 @@ export function TabSwipe({
   const target = useRef<string | null>(null);
   const waitTimer = useRef(0);
   const giveUp = useRef(0);
+  /* 제자리로 돌아가는 움직임이 끝난 뒤 정리 — 그 사이 다시 끌면 걷는다(예전엔 끄는 중에 자리표시가 사라져 옆이 비었다) */
+  const settleTimer = useRef(0);
   /* 지금 밀린 거리 — 자리표시가 한 장면 늦게 생겨도 그 자리에서 시작하게 */
   const xRef = useRef(0);
   useLayoutEffect(() => {
@@ -150,10 +156,10 @@ export function TabSwipe({
         if (e.hasAttribute('data-no-swipe')) return true;
         /*
          * 손가락을 스스로 받는 부품 — touch-action 을 따로 둔 것(그래프 훑기 · 밀어서 지우기 · 3D 돌리기 · 영상 편집 등은 모두
-         * touch-pan-y 또는 touch-none). 예전엔 그 위에서 옆으로 밀면 부품과 본문이 같이 움직여 탭이 넘어갔다.
+         * touch-pan-y 또는 touch-none). 예전엔 그 위에서 옆으로 밀면 부품과 본문이 같이 움직여 탭이 넘어갔다. 클래스 · 인라인 스타일로
+         * 가린다 — 누를 때마다 조상마다 getComputedStyle 을 부르면 스타일을 강제로 다시 셈했다.
          */
-        const ta = getComputedStyle(e).touchAction;
-        if (ta !== 'auto' && ta !== 'manipulation') return true;
+        if (e.matches(TOUCH_OWNER)) return true;
         const tag = e.tagName;
         if (
           tag === 'INPUT' ||
@@ -170,10 +176,14 @@ export function TabSwipe({
       return false;
     };
 
-    const setX = (dx: number) => {
+    /*
+     * --swipe-x(화면 전환이 이어 밀 자리)는 <html> 에 적어서, 손가락이 움직일 때마다 적으면 문서 전체 스타일을 다시 셈했다(120Hz 화면이면
+     * 초당 120번). 끄는 동안엔 본문 · 자리표시만 옮기고, 놓거나 밀어 둘 때(commit)만 적는다.
+     */
+    const setX = (dx: number, commit = true) => {
       xRef.current = dx;
       main.style.transform = dx ? `translateX(${dx}px)` : '';
-      html.style.setProperty('--swipe-x', `${dx}px`);
+      if (commit) html.style.setProperty('--swipe-x', `${dx}px`);
       const g = ghostEl.current;
       if (g) g.style.transform = `translateX(${dx}px)`;
     };
@@ -186,6 +196,8 @@ export function TabSwipe({
       if (e.clientX < 16) return;
       /* 당겨서 새로고침이 걸려 있으면(components/pull-to-refresh.tsx) */
       if (document.documentElement.dataset.ptr) return;
+      /* 탭의 첫 화면에서만 — 트레이닝 하위 화면(메커니즘 · 암케어, '‹ 뒤로'가 있음)도 주소는 /training 이라 걸렸다 */
+      if (barSnapshot().back) return;
       if (
         !(e.target instanceof Element) ||
         !main.contains(e.target) ||
@@ -202,11 +214,6 @@ export function TabSwipe({
         dx: 0,
         dir: 0,
       };
-      /* 옆 탭을 미리 받아 둔다 — 놓는 순간 바로 있게 */
-      for (const dir of [1, -1] as const) {
-        const n = neighbor(i, dir);
-        if (n) router.prefetch(n.item.href);
-      }
     };
     const onMove = (e: PointerEvent) => {
       const d = drag.current;
@@ -220,8 +227,16 @@ export function TabSwipe({
           return;
         }
         d.on = true;
+        window.clearTimeout(settleTimer.current);
         main.style.transition = 'none';
         main.style.willChange = 'transform';
+        if (ghostEl.current) ghostEl.current.style.transition = 'none';
+        /* 옆 탭을 미리 받아 둔다 — 쓸기로 정해진 뒤에만(예전엔 누르거나 굴리기 시작할 때마다 받았다) */
+        const i0 = indexOf(latest.current.pathname);
+        for (const dir of [1, -1] as const) {
+          const n0 = neighbor(i0, dir);
+          if (n0) router.prefetch(n0.item.href);
+        }
         /* 잡은 자리부터 따라오게 — 문턱(SLOP)만큼 튀지 않게 */
         d.x += dx > 0 ? SLOP : -SLOP;
       }
@@ -235,7 +250,7 @@ export function TabSwipe({
       }
       /* 옆 탭이 없으면 고무줄 */
       d.dx = n ? mdx : mdx * 0.25;
-      setX(d.dx);
+      setX(d.dx, false);
     };
     const onEnd = (e: PointerEvent) => {
       const d = drag.current;
@@ -250,6 +265,8 @@ export function TabSwipe({
       const g = ghostEl.current;
       if (n && far && e.type !== 'pointercancel') {
         haptic('selection');
+        /* 화면 전환이 이어 밀 자리 — 끄는 동안엔 안 적었으니 지금 */
+        html.style.setProperty('--swipe-x', `${d.dx}px`);
         target.current = n.item.href;
         /* 바로 간다 — 화면 전환이 지금 자리(--swipe-x)에서 이어 민다. 구속 측정은 멀리서 튀어나오는 전환(zoom) */
         setNavDirection(n.camera ? 'zoom' : d.dir === 1 ? 'swipe-next' : 'swipe-prev');
@@ -292,7 +309,8 @@ export function TabSwipe({
       main.style.transition = ease;
       if (g) g.style.transition = ease;
       setX(0);
-      window.setTimeout(() => {
+      window.clearTimeout(settleTimer.current);
+      settleTimer.current = window.setTimeout(() => {
         main.style.transition = '';
         main.style.willChange = '';
         setGhost(null);
@@ -313,6 +331,7 @@ export function TabSwipe({
       main.style.willChange = '';
       window.clearTimeout(giveUp.current);
       window.clearTimeout(waitTimer.current);
+      window.clearTimeout(settleTimer.current);
     };
   }, [router]);
 

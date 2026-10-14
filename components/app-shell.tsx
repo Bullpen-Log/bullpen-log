@@ -1401,7 +1401,10 @@ export function AppNav({
       {/* 휴대폰 탭 쓸기 — 본문을 옆으로 끌면 이웃 탭으로(components/tab-swipe.tsx) */}
       <TabSwipe
         tabs={tabs}
-        camera={groups.flatMap((g) => g.items).find((i) => i.icon === 'radar') ?? null}
+        camera={
+          /* 잠긴 사람(투구 첫 설정 전)은 설정 화면 주소라 구속 측정 전환(zoom)을 걸면 안 된다 */
+          groups.flatMap((g) => g.items).find((i) => i.icon === 'radar' && !i.locked) ?? null
+        }
       />
 
       <DetailMenu
@@ -2553,7 +2556,7 @@ function MobileTopBar({
       <div
         data-safe-area
         aria-hidden
-        className="pointer-events-none fixed inset-x-0 top-0 z-45 h-[env(safe-area-inset-top)] bg-page/85 backdrop-blur-md desk:hidden"
+        className="pointer-events-none fixed inset-x-0 top-0 z-45 h-[env(safe-area-inset-top)] bg-page/92 desk:hidden pad:left-(--rail)"
       />
       {/* 막대는 화면에 붙어(fixed) 있으니 그만큼 비운다 — 시계 자리 + 막대(bare 면 시계 자리만) */}
       <div
@@ -2580,10 +2583,11 @@ function MobileTopBar({
           style={{ viewTransitionName: 'shell-topbar' }}
           /*
            * 2026-10-14 2판 — 화면에 붙은(fixed) 반투명 유리 막대. 아래로 굴리면 위로 미끄러져 숨고(globals.css 의
-           * [data-mobile-topbar][data-hidden]) 위로 굴리면 돌아온다 — 본문이 화면 전체를 쓴다. 뒤 흐림을 다시 켰다(사용자 요청) —
-           * 아이폰 사파리에서 흐린 면 위로 무언가 움직일 때 깜빡이던 일이 다시 보이면 여기(backdrop-blur-xl)를 뺀다.
+           * [data-mobile-topbar][data-hidden]) 위로 굴리면 돌아온다 — 본문이 화면 전체를 쓴다.
+           * (2026-10-15) 뒤 흐림은 다시 뺐다 — 바탕이 85~92% 라 흐림은 거의 안 보이는데 굴릴 때 장면마다 다시 셈했다(시계 자리도 같이).
+           * 아이패드는 왼쪽 탭 막대(--rail)만큼 비킨다 — 막대 밑에 깔려 '‹ 뒤로'를 누르면 홈 탭이 눌렸다.
            */
-          className={`fixed inset-x-0 top-[env(safe-area-inset-top)] z-40 flex h-14 items-center gap-2 border-b bg-page/85 pl-[max(0.5rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] backdrop-blur-md transition-[border-color] duration-200 desk:hidden ${
+          className={`fixed inset-x-0 top-[env(safe-area-inset-top)] z-40 flex h-14 items-center gap-2 border-b bg-page/92 pl-[max(0.5rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] transition-[border-color] pad:left-(--rail) duration-200 desk:hidden ${
             scrolled ? 'border-line/70' : 'border-transparent'
           }`}
         >

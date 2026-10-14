@@ -191,7 +191,9 @@ export function CheckinFlow({
     view.cur === 'welcome' ? 0 : view.cur === 'done' ? questions.length : qIdx + 1;
 
   /* 초안 — 고치는 날(오늘 체크인이 있음)은 안 적는다. 저장 뒤에도 안 적는다(saved) */
-  const [saved, setSaved] = useState(false);
+  /* 저장했으면 처음 체크인인지 고친 것인지 — 저장 뒤 화면을 다시 받으면(revalidatePath) existing 이 오늘 것으로 차서, 그걸 보면
+     첫 체크인도 '고쳤어요'가 떴다. 그래서 저장하기 전에 정해 둔다 */
+  const [saved, setSaved] = useState<false | 'new' | 'edit'>(false);
   useEffect(() => {
     if (!today || !answers || existing || saved) return;
     writeDraft(today, answers);
@@ -204,6 +206,7 @@ export function CheckinFlow({
 
   const submit = () => {
     if (!today || !answers) return;
+    const wasEdit = existing != null;
     start(async () => {
       setError(null);
       const fd = new FormData();
@@ -227,7 +230,7 @@ export function CheckinFlow({
         return;
       }
       clearDraft(today);
-      setSaved(true);
+      setSaved(wasEdit ? 'edit' : 'new');
       buzz(30);
       go('done', 1);
     });
@@ -326,7 +329,7 @@ export function CheckinFlow({
           <Done
             today={today}
             days={[...ctx.streakDays, today]}
-            edit={existing != null && !saved ? false : existing != null}
+            edit={saved ? saved === 'edit' : existing != null}
             rest={restCard}
             onHome={finish}
             onHold={() => setHold(true)}
