@@ -56,6 +56,11 @@ import {
   stepEffortPct,
 } from '../lib/pitch-effort.ts';
 import {
+  buildFeedItems,
+  type FeedInput,
+  type FeedItem,
+} from '../lib/report/feed-items.ts';
+import {
   CHECKIN_PARTS,
   DETAIL_SCALES,
   HIGH_SORENESS,
@@ -5610,7 +5615,11 @@ console.log('\n[암케어] 부위·근육 · 오늘의 루틴 · 부하');
   /* 2026-10-14 김민: 어깨 · 견갑 · 팔꿈치 = 강화 4 · 2 · 4, 회복 3 · 2 · 4 */
   const ratio = (r: typeof strength) => {
     const n = (keys: string[]) => r.items.filter((it) => keys.includes(it.area)).length;
-    return [n(['shoulder-back', 'shoulder-front', 'shoulder-top']), n(['scapula']), n(['elbow-inner', 'elbow-outer'])].join('/');
+    return [
+      n(['shoulder-back', 'shoulder-front', 'shoulder-top']),
+      n(['scapula']),
+      n(['elbow-inner', 'elbow-outer']),
+    ].join('/');
   };
   check(
     '부위 비율 — 강화 4/2/4 · 회복 3/2/4 (어깨/견갑/팔꿈치)',
@@ -32203,6 +32212,219 @@ console.log(
       !t.sleep.short &&
       !t.pain.any &&
       t.pain.arm === null
+  );
+}
+
+/* ═══════════════════ [홈 요약] 늘 여섯 장 · 오늘 → 지난 기록 → 기록 없음 · 하이라이트는 장을 바꿈(lib/report/feed-items.ts, 2026-10-14) ═══════════════════ */
+console.log(
+  '\n[홈 요약] 여섯 장 고정 — 오늘 · 지난 기록 · 기록 없음 세 상태, 하이라이트는 더하지 않고 그 장의 말을 바꾼다(2026-10-14)'
+);
+{
+  const T = '2026-10-14';
+  const base = (): FeedInput => ({
+    today: T,
+    load: { zone: null, ratio: null },
+    pitchesByDay: {},
+    lastLogDate: null,
+    velocityByDay: {},
+    bestBefore: null,
+    conditionByDay: {},
+    usualCondition: null,
+    checkinDays: [],
+    workoutDays: [],
+    workout: null,
+    nutrition: {
+      score: null,
+      headline: null,
+      parts: [],
+      todayKcal: 0,
+      targetKcal: 2400,
+      week: null,
+    },
+    highlights: [],
+  });
+  const keysOf = (items: FeedItem[]) => items.map((i) => i.key).join(',');
+  const ORDER = 'pitches,velocity,load,condition,workout,nutrition';
+
+  const empty = buildFeedItems(base());
+  check(
+    '홈 요약 (빈 계정) 여섯 장이 늘 있고 차례는 투구량 → 구속 → 부하 → 컨디션 → 운동 → 영양, 모두 기록 없음 + 남기러 가기',
+    keysOf(empty) === ORDER &&
+      empty.every((i) => i.tone === 'none' && i.sub === '남기러 가기') &&
+      empty[0].text === '기록 없음' &&
+      empty[2].text === '28일 기록이 없어 못 재요' &&
+      empty[3].checkin === true &&
+      empty[3].href === null &&
+      empty[0].href === `/pitch-log/${T}` &&
+      empty[4].href === '/training' &&
+      empty[5].href === '/nutrition'
+  );
+
+  const full = buildFeedItems({
+    ...base(),
+    load: { zone: 'optimal', ratio: 1.02 },
+    pitchesByDay: { [T]: 45, '2026-10-11': 30, '2026-10-02': 50 },
+    lastLogDate: T,
+    velocityByDay: { [T]: 131.2, '2026-10-11': 129.4, '2026-09-25': 128 },
+    bestBefore: 133,
+    conditionByDay: { [T]: 8, '2026-10-13': 6 },
+    usualCondition: 7,
+    checkinDays: [T, '2026-10-13', '2026-10-12'],
+    workoutDays: [T, '2026-10-12'],
+    workout: { label: '하체 근력', minutes: 40, done: 2, total: 6, goal: '근력 향상' },
+    nutrition: {
+      score: 82,
+      headline: '저녁에 단백질 한 번 더',
+      parts: ['탄수화물 +30g', '단백질 충분', '지방 충분'],
+      todayKcal: 1800,
+      targetKcal: 2400,
+      week: { avgKcal: 2000, days: 5 },
+    },
+  });
+  check(
+    '홈 요약 (오늘 다 있음) 여섯 장 모두 today — 오늘 45구 · 4주 125구 막대, 오늘 최고 131.2(이번 주 뺀 3주 최고 128 보다 +3.2) · 역대 133, 부하 1.02, 컨디션 8(평소 7보다 좋음 · 3일째), 운동 6개 중 2개, 영양 균형 82',
+    keysOf(full) === ORDER &&
+      full.every((i) => i.tone === 'today') &&
+      full[0].text === '오늘 45구 던졌어요.' &&
+      full[0].sub === '최근 7일 75구 · 4주 125구' &&
+      full[0].chart?.kind === 'bars' &&
+      full[0].chart.values.join() === '0,0,50,75' &&
+      full[1].speed === 131.2 &&
+      full[1].diff === 3.2 &&
+      full[1].text.includes('+{diff}') &&
+      full[1].sub === '역대 최고 133km/h' &&
+      full[2].text === '1.02 · 적정' &&
+      full[3].text === '오늘 컨디션 8/10' &&
+      full[3].sub === '평소 7보다 좋아요 · 체크인 3일째' &&
+      full[4].text === '하체 근력 · 40분' &&
+      full[4].sub === '6개 중 2개 했어요' &&
+      full[5].label === '영양 · 균형 82' &&
+      full[5].text === '저녁에 단백질 한 번 더'
+  );
+
+  const past = buildFeedItems({
+    ...base(),
+    load: { zone: 'low', ratio: 0.6 },
+    pitchesByDay: { '2026-10-10': 30, '2026-10-03': 40 },
+    lastLogDate: '2026-10-10',
+    velocityByDay: { '2026-10-10': 127.5 },
+    bestBefore: 130,
+    conditionByDay: { '2026-10-13': 6, '2026-10-12': 8 },
+    checkinDays: ['2026-10-13', '2026-10-12'],
+    workoutDays: ['2026-10-12', '2026-10-09', '2026-10-06'],
+    nutrition: { ...base().nutrition, week: { avgKcal: 1800, days: 4 } },
+    /* 하이라이트 'steady' 는 투구량 장으로 — 장이 늘지 않는다 */
+    highlights: [
+      {
+        key: 'steady',
+        warn: false,
+        label: '이번 주',
+        text: '이번 주 투구 0구 · 운동 0번이에요. 크게 달라진 건 없어요.',
+        href: '/coach',
+        chart: null,
+      },
+    ],
+  });
+  check(
+    '홈 요약 (오늘 없음 · 지난 기록) 여섯 장 모두 past — 마지막 투구 10월 10일 · 30구 → 하이라이트 글로 바뀜, 최근 6주 최고 127.5 · 역대 130, 부하 0.6 낮음, 7일 평균 7 · 연속 2일, 14일 중 3일 운동, 7일 평균 1,800kcal · 목표의 75%',
+    keysOf(past) === ORDER &&
+      past.every((i) => i.tone === 'past') &&
+      past[0].text.startsWith('이번 주 투구 0구') &&
+      past[0].href === '/coach' &&
+      past[1].text === '최근 6주 최고 {speed}' &&
+      past[1].speed === 127.5 &&
+      past[1].sub === '역대 최고 130km/h' &&
+      past[2].text === '0.60 · 부하 낮음' &&
+      past[3].text === '최근 7일 평균 7/10' &&
+      past[3].sub === '체크인 2일 연속 · 오늘은 아직' &&
+      past[3].checkin === true &&
+      past[4].text === '최근 14일 중 3일 운동했어요.' &&
+      past[5].text === '최근 7일 평균 1,800kcal' &&
+      past[5].sub === '목표의 75% · 4일 기록 · 오늘은 아직'
+  );
+
+  /* 하이라이트가 둘 와도 장은 여섯 — 같은 장에 둘이면 먼저 온 것(안전 → 성장), 경고색 · 그래프도 따라온다 */
+  const hl = buildFeedItems({
+    ...base(),
+    load: { zone: 'danger', ratio: 1.6 },
+    pitchesByDay: { [T]: 60 },
+    lastLogDate: T,
+    highlights: [
+      {
+        key: 'load',
+        warn: true,
+        label: '투구량',
+        text: '최근 1주 투구 부담이 평소보다 60% 커요. 며칠은 쉬거나 줄여요.',
+        href: '/coach?view=pitch',
+        chart: { kind: 'bars', values: [0, 0, 0, 60] },
+      },
+      {
+        key: 'load',
+        warn: false,
+        label: '투구량',
+        text: '둘째 — 무시돼야 한다',
+        href: '/coach?view=pitch',
+        chart: null,
+      },
+      {
+        key: 'velocity',
+        warn: false,
+        label: '구속',
+        text: '첫 구속 기록이에요. {speed}',
+        speed: 120,
+        href: '/coach',
+        chart: null,
+      },
+    ],
+  });
+  check(
+    '홈 요약 (하이라이트) 장은 여전히 여섯 — 부하 장이 경고 글 · 막대로 바뀌고 둘째 같은 장은 무시, 구속 장은 기록 없음(none)이었어도 하이라이트가 채우면 past 로',
+    keysOf(hl) === ORDER &&
+      hl[2].warn === true &&
+      hl[2].text.startsWith('최근 1주 투구 부담이 평소보다 60%') &&
+      hl[2].chart?.kind === 'bars' &&
+      hl[2].sub === undefined &&
+      hl[1].text === '첫 구속 기록이에요. {speed}' &&
+      hl[1].speed === 120 &&
+      hl[1].tone === 'past' &&
+      hl[0].tone === 'today' &&
+      hl[0].text === '오늘 60구 던졌어요.'
+  );
+
+  /* 구속 — 오늘이 역대 최고 · 3주 전보다 떨어진 날 · 최근 6주는 없고 옛 최고만 */
+  const bestToday = buildFeedItems({
+    ...base(),
+    pitchesByDay: { [T]: 10 },
+    lastLogDate: T,
+    velocityByDay: { [T]: 135, '2026-10-01': 136.5 },
+    bestBefore: 130,
+  });
+  const onlyOld = buildFeedItems({ ...base(), bestBefore: 128 });
+  check(
+    '홈 요약 (구속 셋) 3주 전 136.5 보다 낮으면 −{diff} 1.5 · 역대 136.5, 최근 6주가 비고 옛 최고만 있으면 past 글 한 줄(그래프 없음)',
+    bestToday[1].text.includes('−{diff}') &&
+      bestToday[1].diff === 1.5 &&
+      bestToday[1].sub === '역대 최고 136.5km/h' &&
+      onlyOld[1].tone === 'past' &&
+      onlyOld[1].speed === 128 &&
+      onlyOld[1].chart === null &&
+      onlyOld[0].tone === 'none'
+  );
+
+  /* 컨디션 — 체크인은 있는데 7일 안 점수가 없을 때(두 달 전 기록만) · 운동 일정은 있고 멈춘 날(workout null → 지난 기록) */
+  const oldCheckin = buildFeedItems({
+    ...base(),
+    checkinDays: ['2026-08-20'],
+    conditionByDay: { '2026-08-20': 5 },
+    workoutDays: ['2026-10-13'],
+  });
+  check(
+    '홈 요약 (컨디션 · 운동 과거) 7일 안 점수가 없으면 "오늘 체크인을 아직 안 했어요" · 연속 0 이면 "오늘 체크인을 남겨요", 운동은 14일 중 1일',
+    oldCheckin[3].tone === 'past' &&
+      oldCheckin[3].text === '오늘 체크인을 아직 안 했어요' &&
+      oldCheckin[3].sub === '오늘 체크인을 남겨요' &&
+      oldCheckin[4].tone === 'past' &&
+      oldCheckin[4].text === '최근 14일 중 1일 운동했어요.'
   );
 }
 

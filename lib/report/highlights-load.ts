@@ -3,14 +3,23 @@ import { prisma } from '@/lib/prisma';
 import { shiftDateKey, toDateKey } from '@/lib/pitch-stats';
 import { REST_SESSION_TYPE } from '@/lib/session-type';
 import { dbDate } from '@/lib/nutrition/days';
-import { buildHighlights, type HighlightInput, type HighlightPart } from '@/lib/report/highlights';
+import {
+  buildHighlights,
+  type HighlightInput,
+  type HighlightPart,
+} from '@/lib/report/highlights';
 
 /**
  * 하이라이트 재료를 읽어 그 칸(홈 · 분석 › 투구 · 분석 › 트레이닝)의 것만 — 홈(app/(app)/today/page.tsx)과 분석(analysis-view.tsx)이 같이 쓴다.
  * 모두 하루 한 줄로 가볍게 읽는다: 투구 6주(구속 선 · 투구 막대), 체크인 두 달(연속 일수), 운동 2주(지난주와 견줌).
  * load 는 오늘의 투구 부하 지수(loadTodayCore 의 facts.load) — 부르는 쪽이 이미 가지고 있다. part 를 안 주면 모든 몫(홈 요약 칸).
  */
-export async function loadHighlights(userId: string, today: string, load: HighlightInput['load'], part?: HighlightPart) {
+export async function loadHighlights(
+  userId: string,
+  today: string,
+  load: HighlightInput['load'],
+  part?: HighlightPart
+) {
   const [logs, before, checkins, workouts, lastLog] = await Promise.all([
     prisma.pitchLog.findMany({
       where: { userId, date: { gte: dbDate(shiftDateKey(today, -41)) } },
@@ -26,36 +35,46 @@ export async function loadHighlights(userId: string, today: string, load: Highli
       select: { date: true, condition: true },
     }),
     prisma.userExerciseLog.findMany({
-      where: { userId, completed: true, date: { gte: dbDate(shiftDateKey(today, -13)) } },
+      where: {
+        userId,
+        completed: true,
+        date: { gte: dbDate(shiftDateKey(today, -13)) },
+      },
       select: { date: true },
       distinct: ['date'],
     }),
     /* 마지막으로 남긴 투구 기록(쉬는 날 포함) — 기록이 며칠째 비었나 */
-    prisma.pitchLog.findFirst({ where: { userId }, orderBy: { date: 'desc' }, select: { date: true } }),
+    prisma.pitchLog.findFirst({
+      where: { userId },
+      orderBy: { date: 'desc' },
+      select: { date: true },
+    }),
   ]);
   const pitchesByDay: Record<string, number> = {};
   const velocityByDay: Record<string, number> = {};
   for (const l of logs) {
     const key = toDateKey(l.date);
-    if (l.sessionType !== REST_SESSION_TYPE) pitchesByDay[key] = (pitchesByDay[key] ?? 0) + l.pitchCount;
-    if (l.maxVelocity != null) velocityByDay[key] = Math.max(velocityByDay[key] ?? 0, l.maxVelocity);
+    if (l.sessionType !== REST_SESSION_TYPE)
+      pitchesByDay[key] = (pitchesByDay[key] ?? 0) + l.pitchCount;
+    if (l.maxVelocity != null)
+      velocityByDay[key] = Math.max(velocityByDay[key] ?? 0, l.maxVelocity);
   }
   const conditionByDay: Record<string, number> = {};
-  for (const c of checkins) if (c.condition != null) conditionByDay[toDateKey(c.date)] = c.condition;
+  for (const c of checkins)
+    if (c.condition != null) conditionByDay[toDateKey(c.date)] = c.condition;
   const lastLogDate = lastLog ? toDateKey(lastLog.date) : null;
-  const items = buildHighlights(
-    {
-      today,
-      load,
-      pitchesByDay,
-      lastLogDate,
-      velocityByDay,
-      bestBefore: before._max.maxVelocity ?? null,
-      conditionByDay,
-      checkinDays: checkins.map((c) => toDateKey(c.date)),
-      workoutDays: workouts.map((w) => toDateKey(w.date)),
-    },
-    part
-  );
-  return { items, lastLogDate };
+  /* 홈 요약 칸(lib/report/feed-items.ts)이 같은 재료로 여섯 장을 만든다 — 그대로 돌려준다 */
+  const input: HighlightInput = {
+    today,
+    load,
+    pitchesByDay,
+    lastLogDate,
+    velocityByDay,
+    bestBefore: before._max.maxVelocity ?? null,
+    conditionByDay,
+    checkinDays: checkins.map((c) => toDateKey(c.date)),
+    workoutDays: workouts.map((w) => toDateKey(w.date)),
+  };
+  const items = buildHighlights(input, part);
+  return { items, lastLogDate, input };
 }
