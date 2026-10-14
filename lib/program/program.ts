@@ -1485,9 +1485,8 @@ const VARIANT_RULES: Record<VariantKey, VariantRule> = {
     rank: (ex) => [ex.perSide ? 1 : 0, BARBELL_FIRST(ex)],
   },
   /*
-   * 당기기(가로 · 로우)는 무거운 것이 적어 '중간'까지 받는다. 2026-10-14 김민: 매 세션 바벨 로우는 투수에게 맞나 → 허리를 굽혀 버티는 바벨
-   * 벤트오버 로우는 같은 날 스쿼트 · 데드리프트와 허리 부담이 겹친다. 가슴을 대는 로우 · 한 팔 덤벨 로우 · 케이블 로우를 먼저, 바벨 로우는 맨 뒤.
-   * 버티기(아이소) · 빠르게(스피드) · 풀오버 · 풀다운(세로 당기기 칸의 것)도 뒤로.
+   * 당기기(로우) — 스트롱리프트 본운동. 바벨 로우를 먼저(원본 그대로 — 2026-10-15 사용자: '허리 부담이라 바벨 로우는 맨 뒤' 규칙을 없앰).
+   * 무거운 것이 적어 '중간'까지 받는다. 버티기(아이소) · 빠르게(스피드) · 풀오버 · 풀다운(세로 당기기 칸의 것)은 뒤로.
    */
   pull: {
     match: (ex) =>
@@ -1497,8 +1496,8 @@ const VARIANT_RULES: Record<VariantKey, VariantRule> = {
       intensityLevel(ex.intensity) >= 3,
     rank: (ex) => [
       /로우/.test(ex.title) && !/아이소|스피드/.test(ex.title) ? 0 : 1,
-      ex.equipment.includes('바벨') ? 1 : 0,
-      wordRank(ex.title, ['체스트 서포티드 덤벨 로우', '싱글암 덤벨 로우', '시티드 케이블 로우', '싱글암 케이블 로우', '고릴라 로우']),
+      BARBELL_FIRST(ex),
+      ex.perSide ? 1 : 0,
       -intensityLevel(ex.intensity),
     ],
   },

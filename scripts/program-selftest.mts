@@ -685,8 +685,8 @@ const lib: PinnableExercise[] = [
   );
   const pull = variantCandidates('pull', lib, full, '중급').map((e) => e.id);
   check(
-    '당기기(로우): 철봉 없으면 풀업 빠짐, 바벨 로우는 맨 뒤(2026-10-14 허리 부담)',
-    !pull.includes('pull') && pull.length > 1 && pull[0] !== 'brow' && pull.at(-1) === 'brow',
+    '당기기(로우): 철봉 없으면 풀업 빠짐, 바벨 로우 먼저(2026-10-15 사용자: 맨 뒤 규칙 없앰)',
+    !pull.includes('pull') && pull.length > 1 && pull[0] === 'brow',
     pull.join(',')
   );
   check(
