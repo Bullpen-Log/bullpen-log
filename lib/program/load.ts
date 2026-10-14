@@ -852,7 +852,8 @@ export function programCardProps(
       label: variantLabel(v, audience),
       title: pinned[v] ? (byId.get(pinned[v] as string) ?? null) : null,
     })),
-    upcoming: Array.from({ length: Math.max(0, plan.totalDays - nextDay + 1) }, (_, k) => nextDay + k).map((d) => ({
+    /* 시즌 중은 세션 종류를 그날 상태(등판 며칠 뒤 · 어제 몇 구)로 정해 앞날을 모른다 — 오늘 종류로 앞날을 다 그리면 틀린다 */
+    upcoming: (plan.def.inSeason ? [] : Array.from({ length: Math.max(0, plan.totalDays - nextDay + 1) }, (_, k) => nextDay + k)).map((d) => ({
       day: d,
       label: dayLabel(plan, d),
       items: dayPlan(plan, d).items.map((rx) => ({
