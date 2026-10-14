@@ -443,6 +443,8 @@ export async function buildProgramDay(
     if (ex) return { ex, repinned: false };
     const next =
       variantCandidates(v, core.library, owned, user.trainingLevel, audience)[0] ?? null;
+    /* 철봉이 없어 세로 당기기를 못 하면 그날은 로우로(당기기가 통째로 빠지지 않게) — 고정은 안 바꾼다 */
+    if (!next && v === 'pullVertical') return { ex: pinnedOf('pull').ex, repinned: false };
     return { ex: next, repinned: next != null };
   };
   const repin: Pinned = {};

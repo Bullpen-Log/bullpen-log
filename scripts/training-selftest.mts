@@ -8684,13 +8684,16 @@ console.log(
        * 테마는 그대로 근력이다(안전 층만 — 상체날이면 가벼운 밀기 · 당기기가 남는다), 프로그램은 그날 그 칸을 대체한다(이 표는
        * painSlots 를 [] 로 두어 'go' 그대로). 입력도 옮겼다 — 예전 HIGH_ARM_FATIGUE + 1 을 extras 로 장에만 실었는데 이제 오늘 체크인에.
        */
+      /*
+       * 2026-10-14 — 531 첫날(스쿼트 날)에 보조 밀기(덤벨 벤치)가 생겨, 팔 피로 '심함'이면 그 칸을 '팔 피로'로 대체한다(벤치 날과 같은 규칙).
+       */
       person: { today: { armFatigue: SEVERE_ARM_FATIGUE } },
       expect: {
         theme: 'strength',
         pitchPlan: 'throw',
         nutrition: 'none',
         armcare: 'recovery',
-        program: 'go',
+        program: 'go+대체:팔 피로',
         safety: 'none',
       },
     },

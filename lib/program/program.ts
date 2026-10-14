@@ -36,6 +36,8 @@ export type VariantKey =
   | 'hinge'
   | 'push'
   | 'pull'
+  | 'pullVertical'
+  | 'pushAssist'
   | 'singleLeg'
   | 'jump'
   | 'medball'
@@ -47,6 +49,8 @@ export const VARIANT_KEYS: readonly VariantKey[] = [
   'hinge',
   'push',
   'pull',
+  'pullVertical',
+  'pushAssist',
   'singleLeg',
   'jump',
   'medball',
@@ -59,6 +63,8 @@ export const VARIANT_LABELS: Record<VariantKey, string> = {
   hinge: '힌지',
   push: '밀기',
   pull: '당기기',
+  pullVertical: '세로 당기기',
+  pushAssist: '보조 밀기',
   singleLeg: '한 다리',
   jump: '점프',
   medball: '메디신볼',
@@ -72,6 +78,8 @@ export const SLOT_OF: Record<VariantKey, SlotKind> = {
   hinge: 'bigLower',
   push: 'pushPull',
   pull: 'pushPull',
+  pullVertical: 'pushPull',
+  pushAssist: 'pushPull',
   singleLeg: 'singleLeg',
   jump: 'power',
   medball: 'power',
@@ -400,11 +408,24 @@ function waveDay(
       const extra = bbb && i === 0 && !light ? pctSets(5, 10, BBB_PCT[week - 1]) : [];
       items.push(item(v, 'pct', [...wave[week - 1], ...extra], v === 'push' ? 150 : 180));
     });
-    if (bbb) {
-      items.push(assist('pull', 5, 10, light));
-    } else {
-      items.push(assist('pull', 3, 10, light), assist('singleLeg', 3, 8, light));
-    }
+    /*
+     * 보조(2026-10-14 김민: '보조로 밀기는 안 해? 보조가 하나뿐?'). 원저자 템플릿처럼 매 세션 밀기 · 당기기 · 한 다리를 고루 —
+     *   밀기: 벤치(본 운동)가 없는 날만 보조 밀기 2×10(투수라 당기기보다 적게)
+     *   당기기: 로우와 세로 당기기(친업)를 세션마다 번갈아. 힌지(데드리프트) 날은 늘 로우 — 허리를 쉬게 가슴 대는 로우가 먼저 뽑힌다
+     *   한 다리: BBB 에도(예전엔 당기기 하나뿐)
+     */
+    /* 힌지 없는 날만 세어 번갈아 — 주 3번은 주 1번, 주 2번(힌지 날이 늘 짝수)은 두 주에 한 번 세로 당기기 */
+    let plain = 0;
+    for (let i = 1; i <= day; i++) if (!mainLifts(i, perWeek).includes('hinge')) plain++;
+    const pullV: VariantKey = !lifts.includes('hinge') && plain % 2 === 0 ? 'pullVertical' : 'pull';
+    if (!lifts.includes('push')) items.push(assist('pushAssist', 2, 10, light));
+    /* 세로 당기기(친업)는 몸무게라 3×8 — BBB 의 5×10(50회)은 친업으로는 너무 많다 */
+    items.push(
+      pullV === 'pullVertical'
+        ? assist(pullV, 3, 8, light)
+        : assist(pullV, bbb ? 5 : 3, 10, light),
+      assist('singleLeg', 3, 8, light)
+    );
     /* 몸통 칸은 하루 하나 — 회전 던지기를 한 날은 그것이 몸통 운동(옛 프로그램의 파워 블록과 같다) */
     if (items[0].variant !== 'rotationalThrow') items.push(coreItem(light));
     return { label: null, items };
@@ -927,6 +948,8 @@ export const VARIANT_MOVEMENT_KEY: Record<VariantKey, string | null> = {
   hinge: '힌지',
   push: '밀기',
   pull: '당기기',
+  pullVertical: '당기기',
+  pushAssist: '밀기',
   singleLeg: '런지',
   jump: LOWER_POWER_KEY,
   medball: UPPER_POWER_KEY,
@@ -1344,14 +1367,49 @@ const VARIANT_RULES: Record<VariantKey, VariantRule> = {
       BARBELL_FIRST(ex),
     ],
   },
-  /* 당기기는 무거운 것이 적어 '중간'까지 받는다. 덤벨 · 바벨 로우를 철봉보다 먼저(무게 흐름을 보려고) */
+  /*
+   * 당기기(가로 · 로우)는 무거운 것이 적어 '중간'까지 받는다. 2026-10-14 김민: 매 세션 바벨 로우는 투수에게 맞나 → 허리를 굽혀 버티는 바벨
+   * 벤트오버 로우는 같은 날 스쿼트 · 데드리프트와 허리 부담이 겹친다. 가슴을 대는 로우 · 한 팔 덤벨 로우 · 케이블 로우를 먼저, 바벨 로우는 맨 뒤.
+   * 버티기(아이소) · 빠르게(스피드) · 풀오버 · 풀다운(세로 당기기 칸의 것)도 뒤로.
+   */
   pull: {
     match: (ex) =>
       ex.category === '상체 스트렝스' &&
       ex.movementPattern === '당기기' &&
       isWeighted(ex) &&
       intensityLevel(ex.intensity) >= 3,
-    rank: (ex) => [ex.perSide ? 1 : 0, -intensityLevel(ex.intensity)],
+    rank: (ex) => [
+      /로우/.test(ex.title) && !/아이소|스피드/.test(ex.title) ? 0 : 1,
+      ex.equipment.includes('바벨') ? 1 : 0,
+      wordRank(ex.title, ['체스트 서포티드 덤벨 로우', '싱글암 덤벨 로우', '시티드 케이블 로우', '싱글암 케이블 로우', '고릴라 로우']),
+      -intensityLevel(ex.intensity),
+    ],
+  },
+  /* 세로 당기기 — 친업 · 풀업(몸무게), 없으면 밴드 보조 · 풀다운. 로우와 세션마다 번갈아 한다(waveDay). 버티기 · 중량은 뒤로 */
+  pullVertical: {
+    match: (ex) =>
+      ex.category === '상체 스트렝스' &&
+      ex.movementPattern === '당기기' &&
+      /친업|풀업|풀다운/.test(ex.title) &&
+      intensityLevel(ex.intensity) >= 3,
+    rank: (ex) => [
+      /아이소|중량/.test(ex.title) ? 1 : 0,
+      wordRank(ex.title, ['친업', '풀업', '밴드 보조 친업', '밴드 보조 풀업', '싱글암 케이블 풀다운']),
+    ],
+  },
+  /* 보조 밀기 — 하체 날에 가볍게(덤벨 벤치 · 푸시업). 머리 위로 미는 것 · 본 운동 바벨 벤치는 뒤로(투수 어깨 · 같은 운동 겹침) */
+  pushAssist: {
+    match: (ex) =>
+      ex.category === '상체 스트렝스' &&
+      ex.movementPattern === '밀기' &&
+      !OVERHEAD_PRESS.test(ex.title) &&
+      intensityLevel(ex.intensity) >= 3,
+    rank: (ex) => [
+      /파이크|에센트릭|밴드 저항/.test(ex.title) ? 1 : 0,
+      ex.equipment.includes('바벨') ? 1 : 0,
+      ex.perSide ? 1 : 0,
+      wordRank(ex.title, ['덤벨 벤치 프레스', '푸시업', '덤벨 플로어 프레스', '인클라인 덤벨 프레스', '중량 푸시업']),
+    ],
   },
   singleLeg: {
     match: (ex) =>

@@ -417,6 +417,23 @@ check(
   );
 }
 
+/* ── 1-0) 5/3/1 계열 보조(2026-10-14) ─────────────────────────────── */
+{
+  const has = (p: ProgramPlan, d: number, v: VariantKey) => dayPlan(p, d).items.some((x) => x.variant === v);
+  for (const key of ['531', '531-bbb', 'juggernaut-5s', '531:2', '531-bbb:2']) {
+    const p = plan(key);
+    const days = Array.from({ length: p.totalDays }, (_, i) => i + 1);
+    check(
+      `${key}: 매 세션 당기기 · 한 다리, 벤치 없는 날만 보조 밀기, 힌지 날은 로우, 세로 당기기 섞임`,
+      days.every((d) => (has(p, d, 'pull') || has(p, d, 'pullVertical')) && has(p, d, 'singleLeg')) &&
+        days.every((d) => has(p, d, 'pushAssist') === !has(p, d, 'push')) &&
+        days.every((d) => !has(p, d, 'hinge') || has(p, d, 'pull')) &&
+        days.some((d) => has(p, d, 'pullVertical')) &&
+        days.some((d) => has(p, d, 'pull'))
+    );
+  }
+}
+
 /* ── 1-1) 기본기 4주(2026-10-09) ─────────────────────────────── */
 console.log('\n1-1) 기본기 4주');
 {
@@ -659,9 +676,14 @@ const lib: PinnableExercise[] = [
   );
   const pull = variantCandidates('pull', lib, full, '중급').map((e) => e.id);
   check(
-    '당기기: 철봉 없으면 풀업 빠짐, 두 손 먼저',
-    !pull.includes('pull') && pull[0] === 'brow',
+    '당기기(로우): 철봉 없으면 풀업 빠짐, 바벨 로우는 맨 뒤(2026-10-14 허리 부담)',
+    !pull.includes('pull') && pull.length > 1 && pull[0] !== 'brow' && pull.at(-1) === 'brow',
     pull.join(',')
+  );
+  check(
+    '세로 당기기 = 풀업 · 친업, 철봉 없으면 없음',
+    variantCandidates('pullVertical', lib, ['맨몸', '철봉'], '중급')[0]?.id === 'pull' &&
+      variantCandidates('pullVertical', lib, ['바벨', '덤벨'], '중급').length === 0
   );
   const push = variantCandidates('push', lib, full, '중급').map((e) => e.id);
   const pushNoBar = variantCandidates('push', lib, ['덤벨', '메디신볼', '벤치'], '중급').map((e) => e.id);
