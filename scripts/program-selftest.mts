@@ -589,6 +589,13 @@ const lib: PinnableExercise[] = [
     !pull.includes('pull') && pull[0] === 'brow',
     pull.join(',')
   );
+  const push = variantCandidates('push', lib, full, '중급').map((e) => e.id);
+  const pushNoBar = variantCandidates('push', lib, ['덤벨', '메디신볼', '벤치'], '중급').map((e) => e.id);
+  check(
+    '밀기: 바벨 벤치 프레스 먼저(2026-10-14), 바벨이 없으면 덤벨 벤치 프레스',
+    push[0] === 'bp' && pushNoBar[0] === 'dbp',
+    `${push.join(',')} / ${pushNoBar.join(',')}`
+  );
   const pins = pickPinned(lib, full, '중급');
   check(
     '9개 중 라이브러리로 채울 수 있는 것은 다 채움',
