@@ -1,18 +1,14 @@
-import { UserCog } from '@/components/icon';
 import { Speed } from '@/components/speed';
 import { estimateDailyLoad } from '@/lib/baseline';
 import { LOOKBACK_DAYS } from '@/lib/report/gather';
 import {
   CHRONIC_WINDOW_DAYS,
-  TWO_DAY_INTENSITY_LIMIT,
   buildDateRange,
   buildDateRangeOffset,
   acwrTrend,
   computeAcwr,
   pitchLoadByDay,
   countMissingDays,
-  countSessionTypes,
-  dailyLoad,
   findFatigueWindows,
   formatShortDate,
   groupByDay,
@@ -27,10 +23,8 @@ import {
   type TrainingLoad,
 } from '@/lib/training-load';
 import { ACWR_ZONES } from '@/lib/pitch-stats';
-import { scaleToEffortPct } from '@/lib/pitch-effort';
-import { TrendChart, type TrendPoint } from './trend-chart';
 import { LoadPanel, type LoadView } from './load-panel';
-import { Delta, MetricHelp, StatCard, TONE, type Tone } from './parts';
+import { Delta, StatCard, TONE, type Tone } from './parts';
 import type { CoachView } from './tabs';
 
 /**
@@ -42,8 +36,10 @@ import type { CoachView } from './tabs';
  * 뒷받침으로 내렸다.
  *
  *   지금 조심할 것 — 투구·운동 부하 지수 (걱정스러운 쪽이 크게)
- *   뒷받침 넷      — 이번 주 투구 / 이번 주 운동 / 마지막 투구 / 최고 구속
- *   28일 추이
+ *   뒷받침 셋      — 이번 주 투구 / 마지막 투구 / 최고 구속
+ *
+ * 28일 추이 그래프 · 지표 설명 · 생년월일 안내는 2026-10-14 걷었다(사용자 "너무 조잡해 · 중요한 내용만") — 추이는 옆의
+ * 그래프(투구수 · 최고 구속)가 같은 것을 보인다.
  *
  * 프로필 카드는 뺐다. 이름과 나이는 이 화면을 열 때 알고 싶은 것이 아니다.
  * 구속 카드도 뺐다 — 스피드건이 없는 사용자가 대부분이라 크게 둘 값이 아니다.
@@ -140,41 +136,10 @@ export function StatsOverview({
    */
   const acwrHistory = acwrTrend(pitchLoads, today, 14, { seedDailyLoad });
   const fatigue = findFatigueWindows(byDay, last28);
-  /*
-   * 최근 4주에 무엇을 하며 지냈는지.
-   * 같은 800구라도 경기 위주였는지 불펜 위주였는지에 따라 몸에 남는 것이 다르다.
-   */
-  const sessionCounts = countSessionTypes(
-    logs.map((l) => ({
-      date: l.date,
-      sessionType: l.sessionType,
-      pitchCount: l.pitchCount,
-    })),
-    last28
-  );
   const streak = longestThrowStreak(byDay, last28);
 
   const lastThrowKey = [...byDay.keys()].sort().at(-1);
   const restDays = lastThrowKey ? daysSince(lastThrowKey, todayKey) : null;
-
-  // 그래프에서 고를 수 있는 네 가지를 한 번에 만들어 둔다.
-  const chartPoints: TrendPoint[] = last28.map((key, i) => {
-    const window = last28.slice(Math.max(0, i - 6), i + 1);
-    const rollingLoad = window.reduce((sum, k) => {
-      const day = byDay.get(k);
-      return sum + (day ? dailyLoad(day) : 0);
-    }, 0);
-    const day = byDay.get(key);
-    return {
-      label: formatShortDate(key),
-      pitches: day?.pitchCount ?? 0,
-      /* 그날 체감 강도(투구수 가중평균, 1~10 실수)를 % 로 — 입력과 같은 눈금이라야 85% 로 고른 날이 85 로 보인다 */
-      effortPct: day ? scaleToEffortPct(day.intensity) : 0,
-      // 안 던진 날은 null 이어야 선이 끊긴다. 0으로 두면 구속이 떨어진 것처럼 보인다.
-      maxVelocity: day?.maxVelocity ?? null,
-      rollingLoad,
-    };
-  });
 
   const hasRecords = totalRecords > 0;
   /*
@@ -325,56 +290,6 @@ export function StatsOverview({
             />
           </section>
 
-          {/* 지표가 어떻게 나오는 숫자인지 — 안 적어두면 그냥 믿거나 그냥 무시한다 */}
-          <MetricHelp
-            twoDayLimit={TWO_DAY_INTENSITY_LIMIT}
-            show={['이번 주 투구', '마지막 투구', '개인 최고 구속']}
-          />
-
-          {/* ── 최근 28일 추이 ──────────────────────────────────── */}
-          <div className="min-w-0 rounded-2xl border border-line bg-surface p-(--block-pad)">
-            <div className="mb-5 min-w-0">
-              <h2 className="text-base font-bold text-ink">최근 28일 추이</h2>
-              {/*
-            무엇을 하며 지냈는지 한 줄로 먼저 보여준다. 그래프는 얼마나
-            던졌는지는 알려주지만 무엇을 했는지는 알려주지 않는다.
-          */}
-              {sessionCounts.length > 0 ? (
-                <p className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-muted">
-                  {sessionCounts.map((t, i) => (
-                    <span key={t.name} className="whitespace-nowrap">
-                      {i > 0 && <span className="mr-1.5 text-line-strong">·</span>}
-                      <span className="text-ink">{t.name}</span>{' '}
-                      {t.pitches > 0 ? `${t.count}회 (${t.pitches}구)` : `${t.count}일`}
-                    </span>
-                  ))}
-                </p>
-              ) : (
-                <p className="mt-1 text-xs leading-relaxed text-muted">
-                  보고 싶은 항목을 골라보세요.
-                </p>
-              )}
-            </div>
-            <TrendChart points={chartPoints} />
-          </div>
-
-          {/* ── 생년월일 안내 ───────────────────────────────────── */}
-          {!user.birthDate && (
-            /*
-              예전에는 눌러서 내 정보 화면으로 가는 링크였다. 그 화면이 창으로
-              바뀌면서 갈 곳이 없어졌으므로, 어디서 고치는지만 알려준다.
-            */
-            <div className="flex items-center gap-4 rounded-2xl border border-sky-soft/60 bg-sky/5 p-(--block-pad)">
-              <UserCog className="h-5 w-5 shrink-0 text-sky" />
-              <span className="min-w-0 flex-1 text-sm leading-relaxed text-ink/90">
-                생년월일이 아직 등록되지 않았어요. 나이에 맞는 안전한 투구수를
-                계산하려면 필요해요.
-              </span>
-              <span className="shrink-0 text-xs font-medium tracking-normal break-keep text-sky">
-                위쪽 내 사진에서 입력
-              </span>
-            </div>
-          )}
         </>
       )}
 

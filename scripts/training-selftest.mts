@@ -13831,19 +13831,18 @@ console.log(
         planSrc
       )
   );
+  /*
+   * 2026-10-14 사용자: 화면은 몇 구를 던지라고 하지 않고 지금 팔 상태(위험 · 주의 · 안전)만 보인다(lib/report/arm-status.ts).
+   * 예전 이 칸은 홈 계획 줄 · 투구 기록 '오늘 계획'이 등판 날을 '등판'으로 그리는지 봤다 — 이제 그 숫자 칸이 없다.
+   */
   const shown = [
-    readFileSync(new URL('../app/(app)/today/page.tsx', import.meta.url), 'utf8'),
-    readFileSync(
-      new URL('../app/(app)/pitch-log/[date]/load.ts', import.meta.url),
-      'utf8'
-    ),
-    readFileSync(new URL('../components/plan-note.tsx', import.meta.url), 'utf8'),
-  ];
+    'app/(app)/today/page.tsx',
+    'app/(app)/pitch-log/[date]/load.ts',
+    'app/(app)/videos/page.tsx',
+  ].map((f) => readFileSync(new URL(`../${f}`, import.meta.url), 'utf8'));
   check(
-    "뒤집기 (화면) 홈 계획 줄 · 투구 기록 '오늘 계획'이 등판 날을 '등판'으로 그린다(빈 범위 ' · ' 를 안 보인다)",
-    /day\.outing === 'game'/.test(shown[0]) &&
-      /game: todayPlanDay\.outing === 'game'/.test(shown[1]) &&
-      /plan\.game/.test(shown[2])
+    '뒤집기 (화면) 홈 · 그날 화면 · 투구 기록 탭은 권하는 투구수(pitchRangeText · intensityRangeText) 대신 지금 팔 상태(armStatusOf)를 보인다',
+    shown.every((src) => !/pitchRangeText|intensityRangeText/.test(src) && /armStatusOf\(/.test(src))
   );
   const reasons = [c1Today?.reason ?? '', owed.plan.today?.reason ?? ''];
   check(

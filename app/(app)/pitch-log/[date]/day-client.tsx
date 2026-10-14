@@ -9,9 +9,8 @@ import { Baseball } from '@/components/baseball-icon';
 import { FormError } from '@/components/ui';
 import { usePlaybackUrls } from '@/components/use-playback-urls';
 import { isFutureDateKey } from '@/lib/pitch-stats';
-import { maxEffortPct, scaleToEffortPct } from '@/lib/pitch-effort';
-import { REST_SESSION_TYPE } from '@/lib/session-type';
-import { PlanNote, type PlanNoteData } from '@/components/plan-note';
+import { ArmStatusNote } from '@/components/arm-status-note';
+import type { ArmStatus } from '@/lib/report/arm-status';
 import { EntryForm } from '../entry-form';
 import { DayRecord } from '../day-record';
 import type { Log } from '../types';
@@ -84,21 +83,14 @@ function BackLink({
 export function DayClient({
   date,
   todayKey,
-  todayPlan,
-  todayLimits,
+  todayStatus,
   initialLogs,
   velocity,
 }: {
   date: string;
   todayKey: string;
-  /** 오늘 날짜일 때만 들어온다 */
-  todayPlan: PlanNoteData | null;
-  /** 오늘 계획의 상한 — 남긴 기록이 넘었는지 견준다. 오늘 날짜일 때만 들어온다 */
-  todayLimits: {
-    throwing: boolean;
-    maxPitches: number | null;
-    maxIntensity: number | null;
-  } | null;
+  /** 지금 팔 상태(위험 · 주의 · 안전) — 오늘 날짜일 때만 들어온다 */
+  todayStatus: ArmStatus | null;
   initialLogs: Log[];
   /** 카메라로 잰 구속 — 세션과 공 하나하나. 없으면 빈 배열 */
   velocity: VelocitySessionView[];
@@ -112,36 +104,6 @@ export function DayClient({
 
   const future = isFutureDateKey(date);
   const logs = initialLogs;
-
-  /*
-   * 계획을 넘겼는지 본다 — 오늘 남긴 기록을 모두 합쳐서(쉰 날 표시는 빼고).
-   *
-   * 계획만 세워주고 지켰는지 아무도 안 보면 그 계획은 장식이다. 저장을 막지는
-   * 않는다 — 이미 던진 것을 못 적게 하면 기록이 사라질 뿐이다. 예전에는 홈의 '오늘
-   * 투구' 상자가 견줬는데 그 상자가 알림(종)으로 옮겨 가서 여기서 견준다.
-   */
-  const thrown = logs.filter((l) => l.sessionType !== REST_SESSION_TYPE);
-  const overText = (() => {
-    if (!todayLimits || thrown.length === 0) return null;
-    if (!todayLimits.throwing) return '오늘은 쉬는 것이 계획이었어요.';
-    const total = thrown.reduce((sum, l) => sum + l.pitchCount, 0);
-    /*
-     * 체감 강도는 % 로 견준다(2판 D2) — 계획 상한은 1~10 이라 × 10. 입력이 5% 칸이라 1~10 으로 견주던 때와 넘었는지가
-     * 같다(75% 는 예전에도 8 로 남아 7 을 넘었다). 글도 고른 값과 같은 % 로 보인다.
-     */
-    const topEffort = maxEffortPct(thrown);
-    const capPct =
-      todayLimits.maxIntensity != null
-        ? scaleToEffortPct(todayLimits.maxIntensity)
-        : null;
-    const parts = [
-      todayLimits.maxPitches != null && total > todayLimits.maxPitches
-        ? `계획보다 ${total - todayLimits.maxPitches}구 많아요`
-        : null,
-      capPct != null && topEffort > capPct ? `계획 강도(${capPct}%)를 넘었어요` : null,
-    ].filter(Boolean);
-    return parts.length ? `${parts.join(' · ')}.` : null;
-  })();
 
   const videoPaths = useMemo(() => logs.flatMap((l) => l.videoPaths), [logs]);
   const {
@@ -222,14 +184,7 @@ export function DayClient({
         </p>
       )}
 
-      {date === todayKey && todayPlan && <PlanNote plan={todayPlan} />}
-
-      {/* 계획을 넘겼으면 알린다. 막지는 않고 알리기만 한다. */}
-      {overText && (
-        <p className="rounded-lg border border-warn-line bg-warn-bg px-3 py-2 text-xs leading-relaxed text-warn">
-          {overText} 내일 계획에 반영돼요. 어깨나 팔꿈치가 무거우면 체크인에 남겨주세요.
-        </p>
-      )}
+      {date === todayKey && todayStatus && <ArmStatusNote status={todayStatus} />}
 
       {/* 카메라 구속 측정 — 공마다 구종 · 코스 · 결과를 고치고 지운다 */}
       <VelocitySection sessions={velocity} />

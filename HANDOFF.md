@@ -18,11 +18,39 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 쓸 데 없으면 tint 가지를 지워도 된다.
 - `components/app-icon.tsx`: `look: 'tint' | 'clear'`, `active`. clear = 흰 14%(지금 화면 28%) 판 + 뒤 흐림 + 위 1px 빛 + 흰 테두리 + 흰 글리프.
 - `components/app-shell.tsx` DetailMenu 휴대폰 가지: 아래 시트 → dialog 가 화면 전체 흐린 막(`data-scrim`, 누르면 닫힘) + 가운데 유리 폴더(`data-folder`) + 위 흰 '메뉴'.
-  손잡이 · 끌어내려 닫기(startDrag …)는 걷었다(아이폰 폴더처럼 바깥 누르기 · X · Esc). 3열 64px, 묶음 제목 · 이름 · 내 정보 줄 흰색. **PC 팝업(desk:)은 안 건드렸다.**
+  손잡이 · X 는 없다 — 막 누르기 · Esc · **화면 어디서든 누른 채 아래로 끌면 폴더가 따라 내려오다 아래로 미끄러져 닫힌다**(dialog 의 startDrag, `data-dismiss=down`).
+  3열, 타일 크기는 화면 높이가 정한다(`--tile` 44~58px — 관리자 14개도 굴리지 않고 한 장, SE 667px 까지). 홈 타일은 휴대폰에 없고(하단 탭에 있다) '설정' 타일이
+  들어왔다(`onSettings`). **휴대폰 위 막대 오른쪽은 종만** — 톱니 · 내 정보 단추를 뺐다(MobileTopBar 의 그 props 도). **PC 팝업(desk:)은 안 건드렸다.**
 - `app/globals.css` 휴대폰 `dialog[data-drawer]`: 막(검정 50% + blur 18px) · `[data-folder]`(흰 16% · 어두운 테마 14% · blur 28px · 36px) · 하단 탭 쪽에서 0.55 → 1 로
   부풀어 뜸(320ms) · 줄이기면 옅어지기만. ::backdrop 에 blur 를 안 건 이유: 아이폰 WebKit 에서 판별 불가 → dialog 자신이 막.
 - **아이폰 앱에서 봐 주면 좋은 것**: 더보기를 열 때 뒤가 흐려지는지(WKWebView backdrop-filter — 네가 MobileTopBar 에서 겪은 깜빡임이 여기도 나는지. 막은
   정적이라 괜찮을 거라 봤다), 하단 탭 자리에서 부풀어 뜨는지, 막을 누르면 닫히는지, 14개(관리자)일 때 폴더가 한 장에 들어가는지(375×812 에선 629/700px).
+
+## 금윤호에게 — 2026-10-14 · 김민(Claude, 클라우드) — 분석 화면을 투구 분석 · 트레이닝 분석 둘로 가르고 줄였다
+
+받은 뒤 할 일 없음(DB · 패키지 그대로). 사용자: "투구 · 트레이닝 분석, 그래프가 너무 조잡 · 중요한 것만 · 투구에서 누르면 투구만, 트레이닝에서 누르면 트레이닝만".
+- `/coach?view=pitch` = '투구 분석'(‹ 투구 기록), `?view=training` = '트레이닝 분석'(‹ 트레이닝). 투구 · 트레이닝 고르개를 걷었다(`analysis-block.tsx`).
+- 투구: 하이라이트 · 부하 지수 · 이번 주 · 마지막 투구 · 최고 구속 · 잘 던진 날 + 그래프 둘(투구수 · 최고 구속). 뺀 것: 28일 추이(`trend-chart.tsx`) · 기간별 기록
+  (`report-client.tsx` — 투구량 · 강도 · 코멘트 · 메모) · 지표 설명 · 생년월일 안내.
+- 트레이닝: 하이라이트 · 운동 부하 지수 · '최근 4주' 한 장(운동한 날 · 암케어 한 날 + 주별 막대) + 그래프 하나(운동). '투구와 운동' 격자(`training-day-grid.tsx`) 뺌.
+- 부하 지수 카드는 큰 숫자 · 상태 · 한 줄 뜻 · 2주 흐름만(게이지 · 조언 · '어떻게 나온 숫자' 접이 뺌 — `parts.tsx` 의 ZoneGauge · LoadIndexHelp · MetricHelp 지움).
+  그래프(`home-trends.tsx`)에 `metrics` 인자(안 주면 여섯 장 다).
+- 화면은 클라우드라 못 봤다(.env 없음). 폰에서 두 분석 화면을 한 번 봐 줘.
+
+## 금윤호에게 — 2026-10-14 · 김민(Claude, 클라우드) — '오늘 N~M구 던지세요'를 없애고 '지금 팔 상태 위험 · 주의 · 안전'으로
+
+받은 뒤 할 일 없음(DB · 패키지 그대로). **네 영역(투구 기록 탭 · 그날 화면 · 홈 첫날 카드)을 고쳤다.** 사용자: "몇 구를 던져라 이런 식이 아니라
+지금이 위험한 상태인지 안전한 상태인지 알려 줘".
+- 새 순수 함수 `lib/report/arm-status.ts armStatusOf(facts)` — 통증 · 재활 · 큰 등판의 여파(휴식표, `pendingOuting`) · 성장기 하루 한도를 넘김 ·
+  3일 넘는 연투 · 부하 지수로 신호를 모아 가장 센 것 하나를 머리로(위험 > 주의 > 안전). 오늘 던진 기록까지 넣은 facts 를 받는다(excludeToday 안 씀) —
+  던지고 남기면 곧바로 바뀐다. 화면 부품 `components/arm-status-note.tsx`. 시험 `npm run arm-status:test`(19).
+- 바뀐 화면: 투구 기록 '오늘' 카드(`videos/page.tsx` · `today-card.tsx`), 그날 화면(`pitch-log/[date]/load.ts` · `day-client.tsx` — '오늘 계획' 칸과
+  '계획보다 N구 많아요' 줄을 걷음, `components/plan-note.tsx` 지움), 홈 첫날 카드(`first-day-card.tsx` props `range · intensity · note` → `status`),
+  투구 첫 설정 · 소개 화면 글.
+- **투구 계획 계산(`buildPitchPlan`)은 그대로다** — 매일 운동 · 암케어 · 오늘 상태 한 장이 '오늘 공을 쉬는 날인가'를 거기서 읽는다. 화면만 숫자를 안 보인다.
+- `training:test` 의 '뒤집기 (화면) 홈 계획 줄' 시험을 '화면은 권하는 투구수 대신 armStatusOf 를 보인다'로 바꿨다(지운 plan-note.tsx 를 읽던 것).
+  클라우드엔 `.env` 가 없어 training:test · 화면은 못 돌려 봤다 — 폰에서 투구 기록 탭 '오늘' 카드 한 번 봐 줘.
+
 ## 금윤호에게 — 2026-10-14 · 김민(Claude) — 운동 63개를 새 분류 '나중에 촬영'으로 · 촬영 계획에서 뺌(운영 DB)
 
 받은 뒤 할 일 없음. 사용자: "전부 다 나중에 촬영할거야. 운동 카테고리에서 새로 만들어서 … 촬영일정에서는 전부 삭제 · 어느 카테고리였는지 기억하게".

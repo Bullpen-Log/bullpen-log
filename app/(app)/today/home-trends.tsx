@@ -178,7 +178,7 @@ function readRange(
   }
 }
 
-type MetricKey = 'pitches' | 'velocity' | 'condition' | 'weight' | 'kcal' | 'training';
+export type MetricKey = 'pitches' | 'velocity' | 'condition' | 'weight' | 'kcal' | 'training';
 type Combine = 'sum' | 'avg' | 'max' | 'last';
 
 /**
@@ -321,6 +321,7 @@ export function HomeTrends({
   nutritionByDay,
   checkinByDay,
   weightByDay,
+  metrics: only,
   onJump,
 }: {
   today: string;
@@ -332,9 +333,12 @@ export function HomeTrends({
   checkinByDay: Record<string, CheckinDay>;
   /** 날짜별 체중(kg) — 영양 탭에 적은 것이 체크인보다 앞선다 */
   weightByDay: Record<string, number>;
+  /** 그릴 그래프 — 투구 분석은 투구수 · 최고 구속, 트레이닝 분석은 운동만(2026-10-14). 안 주면 여섯 장 다 */
+  metrics?: MetricKey[];
   /** 캘린더가 그날을 고른다 */
   onJump: (date: string) => void;
 }) {
+  const shownMetrics = only ? METRICS.filter((m) => only.includes(m.key)) : METRICS;
   const speedUnit = useSpeedUnit();
   const weightUnit = useWeightUnit();
 
@@ -379,7 +383,7 @@ export function HomeTrends({
   }, [logs, checkinByDay, weightByDay, nutritionByDay, trainingByDay]);
 
   /* 기록이 하나라도 있는 날 — 기간 고르는 작은 달력에 점을 찍는다 */
-  const hasRecord = (day: string) => METRICS.some((m) => valueOf(m.key, day) != null);
+  const hasRecord = (day: string) => shownMetrics.some((m) => valueOf(m.key, day) != null);
 
   /* 보여 줄 기간 — 4주 · 12주는 오늘로 끝나고, '기간 설정'은 고른 대로 */
   const range: Range =
@@ -520,9 +524,15 @@ export function HomeTrends({
       */}
       <div
         key={`${range.from}~${range.to}`}
-        className="grid min-h-0 flex-1 auto-rows-fr grid-cols-2 gap-3 @3xl:grid-cols-3"
+        className={`grid min-h-0 flex-1 auto-rows-fr gap-3 ${
+          shownMetrics.length === 1
+            ? 'grid-cols-1'
+            : shownMetrics.length === 2
+              ? 'grid-cols-2'
+              : 'grid-cols-2 @3xl:grid-cols-3'
+        }`}
       >
-        {METRICS.map((m) => {
+        {shownMetrics.map((m) => {
           const values = days.map((d) => valueOf(m.key, d));
           const got = values.filter((v): v is number => v != null);
           const now = combine(values, m.total);

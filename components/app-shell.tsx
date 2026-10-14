@@ -14,7 +14,7 @@ import {
 } from 'react';
 import { flushSync } from 'react-dom';
 import Link, { useLinkStatus } from 'next/link';
-import { ChevronLeft, Lock, X } from '@/components/icon';
+import { ChevronLeft, Lock } from '@/components/icon';
 import { goBack } from '@/components/back-link';
 import {
   barSnapshot,
@@ -1311,12 +1311,6 @@ export function AppNav({
       )}
 
       <MobileTopBar
-        nickname={nickname}
-        avatarUrl={avatarUrl}
-        settingsOpen={settingsOpen}
-        onSettings={(el) => openFrom(el, setSettingsOpen)}
-        profileOpen={profileOpen}
-        onProfile={(el) => openFrom(el, setProfileOpen)}
         headerRef={bellPhoneBox}
         bell={
           <NoticeBellButton
@@ -1401,6 +1395,7 @@ export function AppNav({
           land('bar');
         }}
         onProfile={(el) => openFrom(el, setProfileOpen)}
+        onSettings={(el) => openFrom(el, setSettingsOpen)}
         anchor={anchor ?? DOCK_FALLBACK}
         flyIndex={flyIndex}
         flyNames={sheetIcons}
@@ -1969,6 +1964,7 @@ function DetailMenu({
   onNavigate,
   onDismissed,
   onProfile,
+  onSettings,
   anchor,
   flyIndex,
   flyNames,
@@ -1991,6 +1987,8 @@ function DetailMenu({
   onDismissed: () => void;
   /** 메뉴 맨 아래 내 정보를 눌렀을 때. 누른 버튼을 함께 준다. */
   onProfile: (el: HTMLElement) => void;
+  /** 휴대폰 폴더의 '설정' 타일 — 위 막대의 톱니가 폴더로 들어왔다(2026-10-14 사용자) */
+  onSettings: (el: HTMLElement) => void;
   /** PC 팝업이 설 자리 — 도크와 같은 위, 막대와 같은 오른쪽 끝(휴대폰 시트는 안 쓴다) */
   anchor: Anchor;
   /** 아이콘의 이름표 번호 — 도크·막대와 같은 번호를 쓴다 */
@@ -2015,6 +2013,37 @@ function DetailMenu({
       .map((item, k) => [item.href, k])
   );
 
+  const folder = useRef<HTMLDivElement>(null);
+  /*
+   * 휴대폰 폴더는 절대 굴리지 않는다(2026-10-14 사용자 — 아이폰 앱에서 관리자 14개가 넘쳐 굴렀다). 타일 크기는 CSS(--tile)가 화면 높이로
+   * 어림하고, 열 때 실제로 재서 넘치면 넘친 만큼을 줄 수로 나눠 타일을 줄인다(최소 30px). 글자 크기 · 기기마다 다른 여백까지 맞는다.
+   * 그리고 처음 초점을 폴더 자체로 — <dialog> 가 첫 타일에 초점을 줘 파란 테두리가 떴다.
+   */
+  const fitFolder = () => {
+    const f = folder.current;
+    if (!f || window.matchMedia(DESK_MEDIA).matches) return;
+    f.focus({ preventScroll: true });
+    const nav = f.querySelector('nav');
+    if (!nav) return;
+    f.style.removeProperty('--tile');
+    for (let n = 0; n < 4; n++) {
+      const over = nav.scrollHeight - nav.clientHeight;
+      if (over <= 0) return;
+      const icons = [...nav.querySelectorAll<HTMLElement>('.tile-icon')].filter(
+        (el) => el.offsetWidth > 0
+      );
+      if (!icons.length) return;
+      const rows = new Set(
+        icons.map(
+          (el) => (el.closest('[data-tile]') as HTMLElement | null)?.offsetTop ?? 0
+        )
+      ).size;
+      const now = icons[0].offsetWidth;
+      const next = Math.max(30, now - Math.ceil(over / Math.max(1, rows)));
+      if (next >= now) return;
+      f.style.setProperty('--tile', `${next}px`);
+    }
+  };
   /*
    * showModal() 은 DOM 을 직접 건드리는 일이라 effect 에서 부른다.
    *
@@ -2025,13 +2054,121 @@ function DetailMenu({
   useLayoutEffect(() => {
     const el = ref.current;
     if (!el) return;
-    if (open && !el.open) el.showModal();
+    if (open && !el.open) {
+      /* 지난번 끌어내려 닫은 흔적(data-dismiss · 폴더의 인라인 자리)은 지우고 연다 — 남으면 폴더가 아래에 뜬다 */
+      el.removeAttribute('data-dismiss');
+      folder.current?.style.removeProperty('transform');
+      el.showModal();
+      fitFolder();
+    }
     if (!open && el.open) {
-      /* 끌어내리다 놓아 닫을 때 — 남은 자리(인라인 transform)를 지워야 닫히는 움직임이 거기서 이어진다 */
+      /* 끌어내리다 놓아 닫을 때 — 인라인 자리를 닫는 것과 같은 순간에 지워야 내려가는 움직임이 거기서 이어진다 */
       el.style.transform = '';
+      folder.current?.style.removeProperty('transform');
       el.close();
     }
   }, [open]);
+
+  /* 열려 있는 동안 화면이 돌거나 크기가 바뀌면 다시 맞춘다 */
+  useEffect(() => {
+    if (!open) return;
+    const on = () => fitFolder();
+    window.addEventListener('resize', on);
+    return () => window.removeEventListener('resize', on);
+  }, [open]);
+
+  /*
+   * 휴대폰 — 화면 어디서든 누른 채 아래로 끌면 폴더가 따라 내려오고, 충분히(100px) 내리거나 빠르게 튕기면 아래로 미끄러져
+   * 닫힌다(2026-10-14 사용자: "화면 어디든 누른 상태로 아래로 이동하는 제스처면 아래로 내려가며 사라지게"). 덜 내리면 제자리로.
+   *
+   * 2026-10-14 고침(사용자 "갑자기 메뉴가 밑으로 사라진다 · 밖을 눌러도 안 닫힌다"):
+   * - 끌기는 세로로 12px 넘게, 가로보다 세로로 더 움직였을 때만 — 타일을 누르다 손가락이 조금 떨려도 끌기가 되지 않는다.
+   *   닫힘 문턱도 올렸다(100px, 또는 48px 넘게 빠르게). 예전(8px · 24px 빠르게)에는 흔들린 누름이 폴더를 내렸다.
+   * - 끌어 닫은 뒤 폴더에 남던 인라인 transform 을 닫는 순간 · 여는 순간 지운다 — 남아 있으면 다음에 열 때 폴더가 그만큼 아래에 떴다.
+   * - 밖 누르기는 click 이 아니라 손을 뗄 때(pointerup) 정한다 — 누른 곳과 뗀 곳이 둘 다 폴더 밖이면 닫는다. 폴더 옆 빈 곳은
+   *   폭 전체의 감싸개가 받아 data-scrim 이 아니었고, 아이폰은 맨 div 에 click 을 잘 안 보낸다.
+   * PC 팝업은 끌지 않는다(바깥 누르기는 아래 onClick).
+   */
+  const drag = useRef<{
+    id: number;
+    x: number;
+    y: number;
+    t: number;
+    dy: number;
+    on: boolean;
+    outside: boolean;
+  } | null>(null);
+  const swiped = useRef(false);
+  const inFolder = (t: EventTarget | null) =>
+    t instanceof Element && t.closest('[data-folder]') != null;
+  const startDrag = (e: React.PointerEvent<HTMLDialogElement>) => {
+    if (window.matchMedia(DESK_MEDIA).matches) return;
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    drag.current = {
+      id: e.pointerId,
+      x: e.clientX,
+      y: e.clientY,
+      t: e.timeStamp,
+      dy: 0,
+      on: false,
+      outside: !inFolder(e.target),
+    };
+    swiped.current = false;
+  };
+  const moveDrag = (e: React.PointerEvent<HTMLDialogElement>) => {
+    const d = drag.current;
+    const f = folder.current;
+    if (!d || !f || e.pointerId !== d.id) return;
+    const dy = e.clientY - d.y;
+    if (!d.on) {
+      const dx = Math.abs(e.clientX - d.x);
+      if (dy < 12 || dy < dx) {
+        /* 위로 · 옆으로 많이 움직였으면 끌기도 누르기도 아니다 */
+        if (dx > 12 || dy < -12) d.outside = false;
+        return;
+      }
+      d.on = true;
+      swiped.current = true;
+      try {
+        e.currentTarget.setPointerCapture(e.pointerId);
+      } catch {
+        /* 붙들 수 없는 포인터 — 따라오기는 그대로 */
+      }
+    }
+    d.dy = Math.max(0, dy);
+    f.style.setProperty('transform', `translateY(${d.dy}px)`);
+  };
+  const endDrag = (e: React.PointerEvent<HTMLDialogElement>) => {
+    const d = drag.current;
+    const f = folder.current;
+    if (!d || !f || e.pointerId !== d.id) return;
+    drag.current = null;
+    if (!d.on) {
+      /* 그냥 누름 — 누른 곳도 뗀 곳도 폴더 밖이면 닫는다(아이폰 폴더처럼) */
+      if (e.type === 'pointerup' && d.outside && !inFolder(e.target)) onClose();
+      return;
+    }
+    if (e.type === 'pointercancel') {
+      f.style.removeProperty('transform');
+      return;
+    }
+    const speed = d.dy / Math.max(1, e.timeStamp - d.t);
+    if (d.dy > 100 || (d.dy > 48 && speed > 0.7)) {
+      /* 아래로 미끄러져 닫힌다 — globals.css 의 [data-dismiss='down']. 인라인 자리는 닫는 순간(useLayoutEffect) 지운다 */
+      ref.current?.setAttribute('data-dismiss', 'down');
+      onClose();
+      return;
+    }
+    f.style.removeProperty('transform');
+    if (d.dy > 0)
+      f.animate(
+        [{ transform: `translateY(${d.dy}px)` }, { transform: 'translateY(0)' }],
+        {
+          duration: 220,
+          easing: 'cubic-bezier(0.32, 0.72, 0, 1)',
+        }
+      );
+  };
 
   return (
     <dialog
@@ -2066,10 +2203,21 @@ function DetailMenu({
           onClose();
         }
       }}
-      /* 배경을 눌러도 닫는다 — PC 는 dialog 자기 자신, 휴대폰은 폴더 밖 흐린 막(data-scrim)이 목표가 된다(아이폰 폴더처럼) */
+      /* 배경을 눌러도 닫는다 — PC 만. 휴대폰은 손을 뗄 때(endDrag) 정한다 — 두 번 닫지 않게 여기선 건너뛴다 */
       onClick={(e) => {
-        const t = e.target as HTMLElement;
-        if (t === ref.current || t.hasAttribute('data-scrim')) onClose();
+        if (!window.matchMedia(DESK_MEDIA).matches) return;
+        if (e.target === ref.current) onClose();
+      }}
+      onPointerDown={startDrag}
+      onPointerMove={moveDrag}
+      onPointerUp={endDrag}
+      onPointerCancel={endDrag}
+      onClickCapture={(e) => {
+        if (swiped.current) {
+          e.preventDefault();
+          e.stopPropagation();
+          swiped.current = false;
+        }
       }}
       /*
        * 살짝 비친다(bg-surface/85). 유리처럼 뒤가 어렴풋이 보이되, 글자가 뒤와
@@ -2107,20 +2255,14 @@ function DetailMenu({
             메뉴
           </span>
           <div
+            ref={folder}
             data-folder
-            className="relative flex max-h-[calc(100dvh-env(safe-area-inset-top)-env(safe-area-inset-bottom)-7rem)] flex-col desk:max-h-[inherit]"
+            tabIndex={-1}
+            className="relative flex max-h-[calc(100dvh-env(safe-area-inset-top)-env(safe-area-inset-bottom)-6.25rem)] flex-col outline-none desk:max-h-[inherit]"
           >
-            {/* 닫기 — 폴더 오른쪽 위 작은 흰 원(아이폰 폴더엔 없지만 읽기 프로그램 · 자판용). PC 팝업에는 없다 — Esc · 바깥으로 닫는다 */}
-            <button
-              type="button"
-              onClick={onClose}
-              aria-label="닫기"
-              className="absolute top-2.5 right-2.5 z-10 grid h-7 w-7 place-items-center rounded-full bg-white/15 text-white/80 transition-colors hover:bg-white/25 hover:text-white desk:hidden"
-            >
-              <X className="h-4 w-4" />
-            </button>
+            {/* 휴대폰 폴더엔 닫기 단추가 없다(아이폰처럼) — 막 누르기 · 아래로 끌기 · Esc 로 닫는다. PC 팝업도 Esc · 바깥으로 */}
 
-            <nav className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain px-0 py-0 desk:p-2">
+            <nav className="min-h-0 flex-1 overflow-hidden px-0 py-0 desk:overflow-x-hidden desk:overflow-y-auto desk:overscroll-contain desk:p-2">
               {/*
             휴대폰은 아이폰 앱 폴더처럼 — 둥근 네모 아이콘 + 밑 이름, 한 줄에 넷(2026-10-13 김민). 제목 없는 묶음(홈 · 투구 · …)은
             한 판으로 이어 붙인다(묶음마다 한 줄이면 칸이 비었다). PC 팝업은 예전 목록 그대로(desk:).
@@ -2143,8 +2285,8 @@ function DetailMenu({
                      */
                     className={
                       group.title
-                        ? 'mt-4 grid grid-cols-3 gap-x-2 gap-y-5 desk:mt-2 desk:block desk:space-y-0.5 desk:border-t desk:border-line/70 desk:pt-2'
-                        : 'grid grid-cols-3 gap-x-2 gap-y-5 pt-1 desk:block desk:space-y-0.5 desk:pt-0'
+                        ? 'mt-3 grid grid-cols-[repeat(3,minmax(0,5.25rem))] justify-center gap-x-4 gap-y-3 desk:mt-2 desk:block desk:space-y-0.5 desk:border-t desk:border-line/70 desk:pt-2'
+                        : 'grid grid-cols-[repeat(3,minmax(0,5.25rem))] justify-center gap-x-4 gap-y-3 desk:block desk:space-y-0.5 desk:pt-0'
                     }
                   >
                     {group.title && (
@@ -2174,11 +2316,13 @@ function DetailMenu({
                             item.locked ? `${item.label}(설정 전)` : undefined
                           }
                           data-locked={item.locked ? '' : undefined}
+                          data-tile
                           onClick={onNavigate}
                           /*
                       누르는 칸은 44px 이상 — 예전에는 32px 남짓이라 옆 항목을 잘못 누르곤 했다.
                     */
-                          className={`flex min-w-0 flex-col items-center gap-2 rounded-2xl px-0.5 py-1 text-center text-white transition-[colors,transform] duration-75 motion-safe:active:scale-95 desk:min-h-10 desk:flex-row desk:gap-3 desk:rounded-lg desk:px-3 desk:py-1.5 desk:text-left desk:text-ink desk:active:scale-100 ${
+                          /* 휴대폰 폴더에는 홈이 없다(2026-10-14 사용자 — 홈은 하단 탭에 있다). PC 팝업에는 그대로 */
+                          className={`${item.href === '/today' ? 'hidden desk:flex' : 'flex'} min-w-0 flex-col items-center gap-1.5 rounded-2xl px-0.5 py-0.5 text-center text-white transition-[colors,transform] duration-75 motion-safe:active:scale-95 desk:min-h-10 desk:flex-row desk:gap-3 desk:rounded-lg desk:px-3 desk:py-1.5 desk:text-left desk:text-ink desk:active:scale-100 ${
                             active
                               ? 'desk:bg-sky desk:text-white'
                               : 'desk:hover:bg-ink/6 desk:active:bg-ink/6'
@@ -2196,7 +2340,8 @@ function DetailMenu({
                               tint={NAV_TINT[item.icon]}
                               look="clear"
                               active={active}
-                              size={64}
+                              size="var(--tile)"
+                              className="tile-icon"
                             />
                             {item.locked && (
                               <span className="absolute -right-1 -bottom-1 grid h-5 w-5 place-items-center rounded-full bg-white/25 text-white backdrop-blur">
@@ -2232,10 +2377,34 @@ function DetailMenu({
                     })}
                   </div>
                 ))}
+              {/* 설정 — 위 막대의 톱니가 폴더로 들어왔다(휴대폰만, 2026-10-14 사용자 "홈 우상단엔 알림만"). 창이라 링크가 아니라 단추 */}
+              <div className="mt-3 grid grid-cols-[repeat(3,minmax(0,5.25rem))] justify-center gap-x-4 gap-y-3 desk:hidden">
+                <button
+                  type="button"
+                  aria-haspopup="dialog"
+                  data-tile
+                  onClick={(e) => {
+                    onNavigate();
+                    onSettings(e.currentTarget);
+                  }}
+                  className="flex min-w-0 flex-col items-center gap-1.5 rounded-2xl px-0.5 py-0.5 text-center text-white transition-[colors,transform] duration-75 motion-safe:active:scale-95"
+                >
+                  <AppIcon
+                    Icon={NAV_ICONS.settings}
+                    tint={NAV_TINT.settings}
+                    look="clear"
+                    size="var(--tile)"
+                    className="tile-icon"
+                  />
+                  <span className="min-w-0 max-w-full truncate text-[12px] leading-4 font-medium text-white/92">
+                    설정
+                  </span>
+                </button>
+              </div>
             </nav>
 
             {/*
-          메뉴를 닫고 내 정보 창을 연다.
+                메뉴를 닫고 내 정보 창을 연다.
           내 정보가 화면이 아니라 창이 되면서 여기도 링크가 아니라 버튼이다.
         */}
             <button
@@ -2244,7 +2413,7 @@ function DetailMenu({
                 onNavigate();
                 onProfile(e.currentTarget);
               }}
-              className="mt-5 flex w-full shrink-0 items-center gap-3 rounded-2xl border-t border-white/20 px-1 pt-4 pb-0 text-left transition-colors duration-75 hover:bg-white/10 desk:mt-0 desk:rounded-none desk:rounded-b-2xl desk:border-line desk:px-3 desk:py-2 desk:pb-2 desk:hover:bg-ink/6"
+              className="mt-4 flex w-full shrink-0 items-center gap-3 rounded-2xl border-t border-white/20 px-1 pt-3 pb-0 text-left transition-colors duration-75 hover:bg-white/10 desk:mt-0 desk:rounded-none desk:rounded-b-2xl desk:border-line desk:px-3 desk:py-2 desk:pb-2 desk:hover:bg-ink/6"
             >
               <Avatar nickname={nickname} avatarUrl={avatarUrl} />
               <span className="min-w-0">
@@ -2310,22 +2479,10 @@ function Avatar({
  * 창이 뜬다 — 기기가 달라도 하는 일과 보이는 것이 같아야 한다.
  */
 function MobileTopBar({
-  nickname,
-  avatarUrl,
-  settingsOpen,
-  onSettings,
-  profileOpen,
-  onProfile,
   headerRef,
   bell,
   panel,
 }: {
-  nickname: string;
-  avatarUrl: string | null;
-  settingsOpen: boolean;
-  onSettings: (el: HTMLElement) => void;
-  profileOpen: boolean;
-  onProfile: (el: HTMLElement) => void;
   /** 알림 창의 '바깥'을 가릴 때 쓴다 — 종과 창이 모두 이 막대 안에 있다 */
   headerRef: RefObject<HTMLElement | null>;
   /** 알림(종) 단추 */
@@ -2333,13 +2490,7 @@ function MobileTopBar({
   /** 알림 창. 닫혀 있으면 null */
   panel: React.ReactNode;
 }) {
-  const Cog = NAV_ICONS.settings;
   const router = useRouter();
-  /*
-   * 톱니가 한 바퀴 돈다 — PC 막대의 톱니와 같다(SettingsCog).
-   * 화면 폭이 바뀌었다고 같은 버튼이 다르게 대답하면 다른 버튼인 줄 안다.
-   */
-  const [spinning, setSpinning] = useState(false);
   /*
    * 맨 위에서는 막대가 바탕과 같은 색이고 밑 선이 없다 — 아이폰의 큰 제목 화면처럼 막대와 제목이 한 면이다.
    * 굴리면 흰 막대와 가는 선이 나타나 본문과 갈린다(2026-10-01 사용자 '애플처럼').
@@ -2422,45 +2573,11 @@ function MobileTopBar({
             {bar.title}
           </p>
 
-          {/* 종은 설정 왼쪽 — PC 막대와 같은 차례 */}
+          {/* 오른쪽은 종만 — 설정 · 내 정보는 더보기 폴더 안으로 갔다(2026-10-14 사용자 "앱 홈 우상단에는 알림 아이콘만") */}
           <div className="flex shrink-0 items-center gap-2">
             {bell}
-            {/*
-            창은 종 바로 뒤에 둔다 — 키보드로 종을 열면 Tab 한 번에 창 안으로 들어간다.
-            맨 끝에 두면 톱니·사진을 먼저 거쳐야 했다. 자리는 막대에 붙여 잡는다(absolute).
-          */}
+            {/* 창은 종 바로 뒤에 둔다 — 키보드로 종을 열면 Tab 한 번에 창 안으로 들어간다. 자리는 막대에 붙여 잡는다(absolute). */}
             {panel}
-
-            <button
-              type="button"
-              onClick={(e) => {
-                setSpinning(true);
-                onSettings(e.currentTarget);
-              }}
-              aria-haspopup="dialog"
-              aria-expanded={settingsOpen}
-              aria-label="설정"
-              /* 보이는 동그라미는 36px 그대로, 누르는 자리만 44px(before) — 종과 같은 방법(2026-10-03 아이폰 점검) */
-              className="relative flex h-9 w-9 items-center justify-center rounded-full text-muted transition-colors duration-75 before:absolute before:-inset-1 before:rounded-full active:bg-surface-2 active:text-ink"
-            >
-              <Cog
-                aria-hidden
-                className={spinning ? 'h-5 w-5 motion-safe:animate-cog' : 'h-5 w-5'}
-                onAnimationEnd={() => setSpinning(false)}
-              />
-            </button>
-
-            <button
-              type="button"
-              onClick={(e) => onProfile(e.currentTarget)}
-              aria-haspopup="dialog"
-              aria-expanded={profileOpen}
-              aria-label="내 정보"
-              /* 사진은 36px 그대로, 누르는 자리만 44px(before) */
-              className="relative rounded-full transition-opacity duration-75 before:absolute before:-inset-1 before:rounded-full active:opacity-70"
-            >
-              <Avatar nickname={nickname} avatarUrl={avatarUrl} />
-            </button>
           </div>
         </header>
       )}
