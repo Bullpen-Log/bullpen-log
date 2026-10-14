@@ -116,10 +116,19 @@ export function oddities(F: F3, dt: number) {
       const bend = angle(ku.map((x) => x / (Math.hypot(...ku) || 1)), ks.map((x) => x / (Math.hypot(...ks) || 1)));
       if (bend < 60 && fm > 1e-6 && (off[0] * fwd[0] + off[1] * fwd[1] + off[2] * fwd[2]) / fm < -KNEE_BACK_M) bump('knee', `${s}무릎`);
     }
-    /* 위에서 본(y 위) 어깨선 − 엉덩이선 각 */
-    const yaw = (a: string, b: string) => Math.atan2(fr[J[b]][2] - fr[J[a]][2], fr[J[b]][0] - fr[J[a]][0]);
-    let sep = ((yaw('lSh', 'rSh') - yaw('lHip', 'rHip')) * 180) / Math.PI;
-    sep = ((sep + 540) % 360) - 180;
+    /*
+     * 몸통 축(엉덩이 가운데 → 어깨 가운데)에 수직인 면에서 잰 어깨선 − 엉덩이선 각. 예전엔 위에서 본(세상 y) 각이라, 팔로스루에 골반이 옆으로
+     * 크게 기울면(엉덩이선이 거의 위아래) 화면이 몸 전체를 마운드에 맞춰 몇 도 기울인 것만으로 분리가 −70 → −78° 로 바뀌어 '75° 넘음'이 됐다(6814 샘플).
+     */
+    const T = nz(pt(fr, ['lSh', 'rSh']).map((x, i) => x - pt(fr, ['lHip', 'rHip'])[i]));
+    const onPlane = (a: string, b: string) => {
+      const v = pt(fr, b).map((x, i) => x - pt(fr, a)[i]);
+      const d = v[0] * T[0] + v[1] * T[1] + v[2] * T[2];
+      return nz(v.map((x, i) => x - d * T[i]));
+    };
+    const h = onPlane('lHip', 'rHip'), sv = onPlane('lSh', 'rSh');
+    const cr = [h[1] * sv[2] - h[2] * sv[1], h[2] * sv[0] - h[0] * sv[2], h[0] * sv[1] - h[1] * sv[0]];
+    const sep = (Math.atan2(cr[0] * T[0] + cr[1] * T[1] + cr[2] * T[2], h[0] * sv[0] + h[1] * sv[1] + h[2] * sv[2]) * 180) / Math.PI;
     if (Math.abs(sep) > 75) bump('sep', '분리');
   }
   return out;

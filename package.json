@@ -43,6 +43,7 @@
     "pitch3d:v2-test": "node --import ./scripts/alias-register.mjs scripts/pitch-3d-v2-selftest.mts",
     "pitch3d:marker-score": "node scripts/pitch-lab/markers/selfcal/score-all.mjs",
     "pitch3d:jitter": "node scripts/pitch-lab/jitter/score.mjs",
+    "pitch3d:overlay": "node scripts/pitch-lab/overlay/overlay.mjs",
     "pitch3d:bundle": "node scripts/pitch3d-bundle.mjs --check",
     "shoot:test": "node --import ./scripts/alias-register.mjs scripts/shoot-selftest.mts",
     "clip:test": "node --import ./scripts/alias-register.mjs scripts/clip-selftest.mts",

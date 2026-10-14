@@ -1,5 +1,5 @@
 {
- "savedAt": "2026-10-13T16:52:41.235Z",
+ "savedAt": "2026-10-14T01:50:43.401Z",
  "samples": {
   "6814c10f": {
    "prep": {
@@ -8,17 +8,17 @@
     "amp": []
    },
    "lift": {
-    "max": 0.19,
+    "max": 0.18,
     "med": 0.09,
     "amp": []
    },
    "stride": {
-    "max": 2.27,
-    "med": 0.7,
+    "max": 2.28,
+    "med": 0.68,
     "amp": []
    },
    "follow": {
-    "max": 1.55,
+    "max": 1.57,
     "med": 0.53,
     "amp": []
    }
@@ -35,13 +35,13 @@
     "amp": []
    },
    "stride": {
-    "max": 1.3,
-    "med": 0.38,
+    "max": 0.85,
+    "med": 0.35,
     "amp": []
    },
    "follow": {
-    "max": 2.38,
-    "med": 0.29,
+    "max": 2.39,
+    "med": 0.25,
     "amp": []
    }
   },
@@ -57,14 +57,12 @@
     "amp": []
    },
    "stride": {
-    "max": 1.36,
+    "max": 1.32,
     "med": 0.57,
-    "amp": [
-     "rEar"
-    ]
+    "amp": []
    },
    "follow": {
-    "max": 4.48,
+    "max": 4.49,
     "med": 0.34,
     "amp": []
    }
@@ -78,19 +76,15 @@
    "lift": {
     "max": 1.11,
     "med": 0.22,
-    "amp": [
-     "lHandIdx"
-    ]
+    "amp": []
    },
    "stride": {
-    "max": 1.64,
-    "med": 0.52,
-    "amp": [
-     "lEar"
-    ]
+    "max": 1.71,
+    "med": 0.34,
+    "amp": []
    },
    "follow": {
-    "max": 1.76,
+    "max": 1.78,
     "med": 0.53,
     "amp": []
    }
@@ -98,7 +92,7 @@
   "s10": {
    "prep": {
     "max": 1.3,
-    "med": 0.2,
+    "med": 0.16,
     "amp": [
      "rHandMid",
      "rHandPinky"
@@ -106,7 +100,7 @@
    },
    "lift": {
     "max": 1.26,
-    "med": 0.38,
+    "med": 0.35,
     "amp": [
      "lAn",
      "lHe",
@@ -114,13 +108,13 @@
     ]
    },
    "stride": {
-    "max": 3.37,
+    "max": 3.36,
     "med": 0.75,
     "amp": []
    },
    "follow": {
-    "max": 4.04,
-    "med": 0.71,
+    "max": 4.03,
+    "med": 0.68,
     "amp": []
    }
   },
@@ -132,16 +126,16 @@
    },
    "lift": {
     "max": 0.25,
-    "med": 0.08,
+    "med": 0.09,
     "amp": []
    },
    "stride": {
     "max": 2.05,
-    "med": 0.32,
+    "med": 0.41,
     "amp": []
    },
    "follow": {
-    "max": 1.88,
+    "max": 1.9,
     "med": 0.43,
     "amp": []
    }
@@ -149,27 +143,25 @@
   "s3": {
    "prep": {
     "max": 0.72,
-    "med": 0.1,
+    "med": 0.09,
     "amp": []
    },
    "lift": {
     "max": 0.71,
-    "med": 0.21,
+    "med": 0.2,
     "amp": []
    },
    "stride": {
-    "max": 2.52,
+    "max": 2.53,
     "med": 0.48,
     "amp": [
      "lHe"
     ]
    },
    "follow": {
-    "max": 2.32,
-    "med": 0.64,
-    "amp": [
-     "nose"
-    ]
+    "max": 2.34,
+    "med": 0.62,
+    "amp": []
    }
   },
   "s9": {
@@ -179,17 +171,17 @@
     "amp": []
    },
    "lift": {
-    "max": 0.27,
+    "max": 0.26,
     "med": 0.08,
     "amp": []
    },
    "stride": {
-    "max": 1.85,
+    "max": 1.92,
     "med": 0.39,
     "amp": []
    },
    "follow": {
-    "max": 1.97,
+    "max": 1.98,
     "med": 0.32,
     "amp": []
    }
@@ -201,13 +193,13 @@
     "pop": 0,
     "speed": 0,
     "knee": 0,
-    "sep": 7
+    "sep": 13
    },
    "raw": {
     "pop": 0,
     "speed": 10,
     "knee": 5,
-    "sep": 0
+    "sep": 13
    },
    "man": {
     "pop": 0,
@@ -255,17 +247,17 @@
     "pop": 0,
     "speed": 0,
     "knee": 0,
-    "sep": 0
+    "sep": 14
    },
    "raw": {
     "pop": 0,
     "speed": 0,
     "knee": 0,
-    "sep": 7
+    "sep": 13
    },
    "man": {
     "pop": 0,
-    "speed": 2
+    "speed": 3
    }
   },
   "s10": {
@@ -273,13 +265,13 @@
     "pop": 0,
     "speed": 0,
     "knee": 0,
-    "sep": 0
+    "sep": 10
    },
    "raw": {
     "pop": 1,
     "speed": 1,
     "knee": 0,
-    "sep": 0
+    "sep": 10
    },
    "man": {
     "pop": 0,
@@ -309,13 +301,13 @@
     "pop": 0,
     "speed": 0,
     "knee": 0,
-    "sep": 0
+    "sep": 9
    },
    "raw": {
     "pop": 2,
     "speed": 9,
     "knee": 1,
-    "sep": 0
+    "sep": 9
    },
    "man": {
     "pop": 0,
