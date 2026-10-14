@@ -295,14 +295,18 @@ export async function loadTodayCore(user: UserForToday, today: Date) {
   const shownPicks = [...planned, ...strays];
 
   const byId = new Map(library.map((ex) => [ex.id, ex]));
-  const shownMinutes = Math.round(
-    shownPicks.reduce((sum, p) => {
-      const ex = byId.get(p.exerciseId);
-      if (!ex) return sum;
-      /* 트레이닝 화면 목록 · 운동 시작과 같은 세트 · 횟수로 센다(처방 한 길 — lib/report/volume.ts planPrescription) */
-      return sum + estimateMinutes(planPrescription(ex, savedPlan));
-    }, 0)
-  );
+  const minutesOf = (picks: typeof shownPicks) =>
+    Math.round(
+      picks.reduce((sum, p) => {
+        const ex = byId.get(p.exerciseId);
+        if (!ex) return sum;
+        /* 트레이닝 화면 목록 · 운동 시작과 같은 세트 · 횟수로 센다(처방 한 길 — lib/report/volume.ts planPrescription) */
+        return sum + estimateMinutes(planPrescription(ex, savedPlan));
+      }, 0)
+    );
+  const shownMinutes = minutesOf(shownPicks);
+  /* 아직 안 한 운동의 분 — 홈 요약 칸 '남은 운동' */
+  const leftMinutes = minutesOf(shownPicks.filter((p) => !doneIds.has(p.exerciseId)));
 
   return {
     todayKey,
@@ -341,6 +345,7 @@ export async function loadTodayCore(user: UserForToday, today: Date) {
      * 홈과 트레이닝이 같은 숫자를 말해야 하므로 여기서 한 번만 센다.
      */
     shownMinutes,
+    leftMinutes,
     /** 오늘 체크인을 남겼는가. 안 남기면 안전 규칙 두 가지가 빠진다. */
     hasCheckinToday: facts.condition.today != null,
     /** 오늘 고른 운동 종류 — 파워 / 웨이트 / 회복. 안 골랐으면 null */

@@ -10,6 +10,7 @@ import { loadAdvice } from '@/lib/nutrition/advice-load';
 import { serviceHour } from '@/lib/nutrition/advice-input';
 import { dbDate } from '@/lib/nutrition/days';
 import { shiftDateKey, toDateKey } from '@/lib/pitch-stats';
+import { CHECKIN_PARTS } from '@/lib/checkin';
 import { buildFeedItems } from '@/lib/report/feed-items';
 import { FeedCard } from './feed-card';
 
@@ -29,20 +30,21 @@ const homeCore = cache((user: HomeUser) => loadTodayCore(user, now()));
 export async function Feed({ user, today }: { user: HomeUser; today: string }) {
   const core = await homeCore(user);
   const load = { zone: core.facts.load.zone, ratio: core.facts.load.ratio };
-  const [{ items: highlights, input }, advice, detail, weekMeals] = await Promise.all([
-    loadHighlights(user.id, today, load),
-    loadAdvice(user, today, today, serviceHour(now())),
-    /* 오늘 먹은 kcal · 목표 — 홈 링과 같은 그날 요약(한 요청에 한 번) */
-    loadDayDetailCached(user, today),
-    /* 최근 7일(오늘 뺌)의 식사 — 오늘 안 적은 날의 '지난 기록' 장 */
-    prisma.mealEntry.findMany({
-      where: {
-        userId: user.id,
-        date: { gte: dbDate(shiftDateKey(today, -7)), lt: dbDate(today) },
-      },
-      select: { date: true, kcal: true },
-    }),
-  ]);
+  const [{ items: highlights, input, extra }, advice, detail, weekMeals] =
+    await Promise.all([
+      loadHighlights(user.id, today, load),
+      loadAdvice(user, today, today, serviceHour(now())),
+      /* 오늘 먹은 kcal · 목표 — 홈 링과 같은 그날 요약(한 요청에 한 번) */
+      loadDayDetailCached(user, today),
+      /* 최근 7일(오늘 뺌)의 식사 — 오늘 안 적은 날의 '지난 기록' 장 */
+      prisma.mealEntry.findMany({
+        where: {
+          userId: user.id,
+          date: { gte: dbDate(shiftDateKey(today, -7)), lt: dbDate(today) },
+        },
+        select: { date: true, kcal: true },
+      }),
+    ]);
 
   const byDay = new Map<string, number>();
   for (const m of weekMeals) {
@@ -58,9 +60,22 @@ export async function Feed({ user, today }: { user: HomeUser; today: string }) {
       : null;
 
   const plan = core.savedPlan;
+  const facts = core.facts;
+  const partLabel = new Map<string, string>(CHECKIN_PARTS.map((p) => [p.key, p.label]));
   const items = buildFeedItems({
     ...input,
-    usualCondition: core.facts.condition.usualCondition?.median ?? null,
+    ...extra,
+    lastOutingAdjusted: facts.patterns.lastOutingAdjusted,
+    missingDays: facts.patterns.missingDays,
+    acuteChronic:
+      facts.load.ratio != null
+        ? { acute: facts.load.acute, chronic: facts.load.chronic }
+        : null,
+    usualCondition: facts.condition.usualCondition?.median ?? null,
+    painRecentParts: (facts.condition.painRecentParts ?? [])
+      .map((k) => partLabel.get(k))
+      .filter((l): l is string => l != null),
+    painToday: facts.condition.painToday,
     workout:
       plan && !core.picked.halted
         ? {
@@ -69,6 +84,8 @@ export async function Feed({ user, today }: { user: HomeUser; today: string }) {
             done: core.doneIds.size,
             total: core.shownPicks.length,
             goal: plan.goal ?? null,
+            programDay: plan.program?.day ?? null,
+            leftMinutes: core.leftMinutes,
           }
         : null,
     nutrition: {
@@ -77,6 +94,9 @@ export async function Feed({ user, today }: { user: HomeUser; today: string }) {
       parts: macroParts(advice),
       todayKcal: detail.nutrition.kcal,
       targetKcal: detail.nutrition.target.kcal,
+      protein: detail.nutrition.protein,
+      targetProtein: detail.nutrition.target.protein,
+      mealsToday: detail.nutrition.meals.filter((m) => m.kcal > 0).length,
       week,
     },
     highlights,

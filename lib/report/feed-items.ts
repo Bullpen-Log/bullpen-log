@@ -49,12 +49,26 @@ export type FeedInput = {
   velocityByDay: Record<string, number>;
   /** 최근 이레 앞의 역대 최고 구속(km/h). 없으면 null */
   bestBefore: number | null;
+  /** 그 기록을 낸 날 YYYY-MM-DD. 없으면 null */
+  bestBeforeDate: string | null;
+  /** 마지막으로 던진 날의 전력 환산 투구수(facts.patterns.lastOutingAdjusted). 없으면 null */
+  lastOutingAdjusted: number | null;
+  /** 최근 4주 가운데 기록이 아예 없는 날 수(facts.patterns.missingDays) */
+  missingDays: number;
+  /** 급성(7일) · 만성(28일) 부하 — 주당 환산(facts.load). 지수가 없으면 null */
+  acuteChronic: { acute: number; chronic: number } | null;
   /** 날짜별 컨디션(1~10) — 최근 두 달 */
   conditionByDay: Record<string, number>;
   /** 평소 컨디션(28일 중앙값, lib/report/facts.ts). 모르면 null */
   usualCondition: number | null;
   /** 체크인한 날 — 두 달 */
   checkinDays: string[];
+  /** 날짜별 어젯밤 수면의 질 1~5(체크인 3판) — 두 달. 안 적은 날은 없다 */
+  sleepByDay: Record<string, number>;
+  /** 오늘을 뺀 최근 7일 체크인에서 '통증'이라고 한 부위 이름(어깨 · 팔꿈치 …). 없으면 빈 목록 */
+  painRecentParts: string[];
+  /** 오늘 체크인에 통증이 있는가 */
+  painToday: boolean;
   /** 운동한 날 — 최근 14일 */
   workoutDays: string[];
   /** 오늘 운동 일정 — 없거나 멈춘 날은 null */
@@ -64,6 +78,10 @@ export type FeedInput = {
     done: number;
     total: number;
     goal: string | null;
+    /** 근력 · 파워 프로그램의 몇 번째 세션인가. 매일 판이면 null */
+    programDay: number | null;
+    /** 아직 안 한 운동의 어림 분 */
+    leftMinutes: number;
   } | null;
   nutrition: {
     /** 오늘 균형 점수(음식을 적었거나 식욕 · 끼니를 답한 날). 없으면 null */
@@ -74,6 +92,11 @@ export type FeedInput = {
     /** 오늘 먹은 kcal(0 이면 안 적음) */
     todayKcal: number;
     targetKcal: number;
+    /** 오늘 먹은 단백질 g · 목표 g */
+    protein: number;
+    targetProtein: number;
+    /** 오늘 음식을 적은 끼니 수 */
+    mealsToday: number;
     /** 최근 7일(오늘 뺌) 가운데 음식을 적은 날의 평균 kcal · 날 수. 없으면 null */
     week: { avgKcal: number; days: number } | null;
   };
