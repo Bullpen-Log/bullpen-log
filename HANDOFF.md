@@ -11,6 +11,20 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 ---
 
+## 금윤호에게 — 2026-10-14 · 김민(Claude, 클라우드) — '오늘 N~M구 던지세요'를 없애고 '지금 팔 상태 위험 · 주의 · 안전'으로
+
+받은 뒤 할 일 없음(DB · 패키지 그대로). **네 영역(투구 기록 탭 · 그날 화면 · 홈 첫날 카드)을 고쳤다.** 사용자: "몇 구를 던져라 이런 식이 아니라
+지금이 위험한 상태인지 안전한 상태인지 알려 줘".
+- 새 순수 함수 `lib/report/arm-status.ts armStatusOf(facts)` — 통증 · 재활 · 큰 등판의 여파(휴식표, `pendingOuting`) · 성장기 하루 한도를 넘김 ·
+  3일 넘는 연투 · 부하 지수로 신호를 모아 가장 센 것 하나를 머리로(위험 > 주의 > 안전). 오늘 던진 기록까지 넣은 facts 를 받는다(excludeToday 안 씀) —
+  던지고 남기면 곧바로 바뀐다. 화면 부품 `components/arm-status-note.tsx`. 시험 `npm run arm-status:test`(19).
+- 바뀐 화면: 투구 기록 '오늘' 카드(`videos/page.tsx` · `today-card.tsx`), 그날 화면(`pitch-log/[date]/load.ts` · `day-client.tsx` — '오늘 계획' 칸과
+  '계획보다 N구 많아요' 줄을 걷음, `components/plan-note.tsx` 지움), 홈 첫날 카드(`first-day-card.tsx` props `range · intensity · note` → `status`),
+  투구 첫 설정 · 소개 화면 글.
+- **투구 계획 계산(`buildPitchPlan`)은 그대로다** — 매일 운동 · 암케어 · 오늘 상태 한 장이 '오늘 공을 쉬는 날인가'를 거기서 읽는다. 화면만 숫자를 안 보인다.
+- `training:test` 의 '뒤집기 (화면) 홈 계획 줄' 시험을 '화면은 권하는 투구수 대신 armStatusOf 를 보인다'로 바꿨다(지운 plan-note.tsx 를 읽던 것).
+  클라우드엔 `.env` 가 없어 training:test · 화면은 못 돌려 봤다 — 폰에서 투구 기록 탭 '오늘' 카드 한 번 봐 줘.
+
 ## 금윤호에게 — 2026-10-14 · 김민(Claude) — 운동 63개를 새 분류 '나중에 촬영'으로 · 촬영 계획에서 뺌(운영 DB)
 
 받은 뒤 할 일 없음. 사용자: "전부 다 나중에 촬영할거야. 운동 카테고리에서 새로 만들어서 … 촬영일정에서는 전부 삭제 · 어느 카테고리였는지 기억하게".
