@@ -3,6 +3,8 @@ import sys, os, json, glob, time
 import numpy as np, cv2
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from mk import markers
+import blobs_v2  # DET_V2=1 이면 2판 찾기(색 넓힘 + top-hat)
+FIND = blobs_v2.find_blobs if os.environ.get("DET_V2") else markers.find_blobs
 from multiprocessing import Pool
 
 WORK = os.environ.get("MARKER_WORK", os.path.join(os.getcwd(), "work"))  # 영상 · 찾은 자료 폴더(저장소 밖) — 기본은 지금 폴더/work
@@ -26,7 +28,7 @@ def run(path):
             d = np.abs(g - prev)
             e = cv2.resize(d, (gx, gy), interpolation=cv2.INTER_AREA).round(2).tolist()
         prev = g
-        frames.append({"t": round(t, 6), "e": e, **markers.find_blobs(img)})
+        frames.append({"t": round(t, 6), "e": e, **FIND(img)})
     with open(out, "w", encoding="utf-8") as f:
         json.dump({"video": os.path.basename(path), "w": w, "h": h, "frames": frames}, f)
     return name, f"{len(frames)} 장면 · {time.time() - t0:.0f}초"
