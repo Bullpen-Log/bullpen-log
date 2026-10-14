@@ -792,6 +792,11 @@ export type ProgramCardProps = {
   }[];
   dropped: { title: string; reason: string }[];
   pinned: { variant: VariantKey; label: string; title: string | null }[];
+  /**
+   * 앞으로 할 세션 — 다음 일차부터 끝까지, 그날 운동(고정 운동 이름 · 없으면 칸 이름)과 처방 한 줄(2026-10-14 김민: "현재 세션밖에 안
+   * 나와 추후에 어떤 세션을 하는지 모른다"). 무게는 그날 기록으로 정해지니 넣지 않는다.
+   */
+  upcoming: { day: number; label: string; items: { title: string; line: string }[] }[];
 };
 
 export function programCardProps(
@@ -846,6 +851,14 @@ export function programCardProps(
       variant: v,
       label: variantLabel(v, audience),
       title: pinned[v] ? (byId.get(pinned[v] as string) ?? null) : null,
+    })),
+    upcoming: Array.from({ length: Math.max(0, plan.totalDays - nextDay + 1) }, (_, k) => nextDay + k).map((d) => ({
+      day: d,
+      label: dayLabel(plan, d),
+      items: dayPlan(plan, d).items.map((rx) => ({
+        title: (pinned[rx.variant] && byId.get(pinned[rx.variant] as string)) || variantLabel(rx.variant, audience),
+        line: prescriptionLine(rx),
+      })),
     })),
   };
 }

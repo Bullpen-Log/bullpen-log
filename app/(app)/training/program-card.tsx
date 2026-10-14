@@ -41,6 +41,7 @@ export function ProgramCard({ props }: { props: ProgramCardProps }) {
   const p = props;
   const reason = useModalState<Row>();
   const [more, setMore] = useState(false);
+  const [ahead, setAhead] = useState(false);
   const [confirm, setConfirm] = useState<'skip' | 'stop' | 'override' | null>(null);
   const [repin, setRepin] = useState(false);
   const [error, setError] = useState<string>();
@@ -214,6 +215,33 @@ export function ProgramCard({ props }: { props: ProgramCardProps }) {
       </div>
 
       {error && <ErrorLine>{error}</ErrorLine>}
+
+      {p.upcoming.length > 0 && (
+        <div className="-mx-(--block-pad) border-t border-line">
+          <DisclosureButton
+            open={ahead}
+            onClick={() => setAhead((v) => !v)}
+            label={`앞으로 할 세션 · ${p.upcoming.length}회`}
+          />
+          {ahead && (
+            <ol className="space-y-3 px-(--block-pad) pb-3">
+              {p.upcoming.map((u) => (
+                <li key={u.day}>
+                  <p className="text-sm font-semibold text-ink">{u.label}</p>
+                  <ul className="mt-1 space-y-0.5">
+                    {u.items.map((it, i) => (
+                      <li key={i} className="flex gap-2 text-sm">
+                        <span className="min-w-0 flex-1 truncate text-ink">{it.title}</span>
+                        <span className="shrink-0 text-xs text-muted">{it.line}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </li>
+              ))}
+            </ol>
+          )}
+        </div>
+      )}
 
       <div className="-mx-(--block-pad) -mb-(--block-pad) border-t border-line">
         <DisclosureButton
