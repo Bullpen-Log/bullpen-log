@@ -2977,6 +2977,7 @@ function MobileTabs({
                 type="button"
                 data-tab-href={tab.href}
                 onClick={() => {
+                  lens.to(tabs.indexOf(tab));
                   setSpinning(true);
                   onMenu();
                 }}
@@ -3019,7 +3020,11 @@ function MobileTabs({
                */
               onClick={(e) => {
                 if (!active || !sameScreen(currentUrl(), tab.href)) {
-                  if (!active) setChosen({ href: tab.href, from: pathname });
+                  if (!active) {
+                    /* 렌즈는 화면을 다시 그리기 전에 곧바로 — effect 를 기다리면 한두 장면 늦게 출발했다 */
+                    lens.to(tabs.indexOf(tab));
+                    setChosen({ href: tab.href, from: pathname });
+                  }
                   return;
                 }
                 e.preventDefault();
