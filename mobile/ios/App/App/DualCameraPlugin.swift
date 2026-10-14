@@ -896,10 +896,10 @@ final class DualCameraController: NSObject, AVCaptureVideoDataOutputSampleBuffer
         if prefer > fps {
             let pool = enough.isEmpty ? candidates : enough
             let same = pool.filter {
-                area(-e) == area(best) && sharp(-e) == sharp(best) && -e.0.isVideoBinned == best.0.isVideoBinned
-                    && -e.3 >= Double(prefer) - 0.5
+                area($0) == area(best) && sharp($0) == sharp(best) && $0.0.isVideoBinned == best.0.isVideoBinned
+                    && $0.3 >= Double(prefer) - 0.5
             }
-            if let hi = same.max(by: { -e.3 < .3 }) {
+            if let hi = same.max(by: { $0.3 < $1.3 }) {
                 chosen = hi
                 want = Double(prefer)
             }
