@@ -37,7 +37,7 @@ import {
  */
 
 const GOALS: { value: ProgramGoal; label: string }[] = (
-  ['base', 'strength', 'power'] as const
+  ['base', 'strength', 'power', 'inSeason'] as const
 ).map((g) => ({ value: g, label: GOAL_LABELS[g] }));
 
 export type ProgramStartProps = {

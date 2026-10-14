@@ -20,6 +20,9 @@ import {
   dayPlan,
   decideToday,
   finishLine,
+  inSeasonKind,
+  withKind,
+  SESSION_KIND_LABELS,
   isLightWeek,
   itemRx,
   lighterRx,
@@ -49,6 +52,8 @@ import {
   type ItemRx,
   type PinnableExercise,
   type ProgramPlan,
+  type InSeasonInput,
+  type SessionKind,
   type TodaySignals,
   type VariantKey,
 } from '../lib/program/program.ts';
@@ -149,16 +154,16 @@ const plans = PROGRAMS.flatMap((def) =>
 const allDays = (p: ProgramPlan) =>
   Array.from({ length: p.totalDays }, (_, d) => dayPlan(p, d + 1));
 check(
-  '프로그램 7개(성인 6 + 기본기 1) · 모두 4주 · 옛 프로그램은 목록에 없음',
-  PROGRAMS.length === 7 &&
-    PROGRAMS.filter((p) => audienceOf(p) === 'adult').length === 6 &&
+  '프로그램 9개(성인 8 + 기본기 1) · 모두 4주 · 옛 프로그램은 목록에 없음',
+  PROGRAMS.length === 9 &&
+    PROGRAMS.filter((p) => audienceOf(p) === 'adult').length === 8 &&
     PROGRAMS.filter((p) => audienceOf(p) === 'basics').length === 1 &&
     PROGRAMS.every((p) => p.weeks === 4) &&
     !PROGRAMS.some((p) => p.id === 'offseason-strength-power')
 );
 check(
   '주 3번 12회 · 주 2번 8회',
-  plans.every((p) => p.totalDays === p.perWeek * 4) && plans.length === 12
+  plans.every((p) => p.totalDays === p.perWeek * 4) && plans.length === 14
 );
 check(
   '스트롱리프트는 주 3번만 · 텍사스 메소드는 지움(2026-10-14)',
@@ -251,9 +256,14 @@ check(
     dayLabel(p531x2, 3) === '3번 세션'
 );
 check(
-  '5/3/1 은 들기 전에 점프, 밀기 날은 메디신볼',
+  '5/3/1 은 들기 전에 워밍업 점프(2세트 × 3회), 밀기 날은 메디신볼',
   dayPlan(p531, 1).items[0].variant === 'jump' &&
+    dayPlan(p531, 1).items[0].sets.length === 2 &&
     dayPlan(p531, 2).items[0].variant === 'medball'
+);
+check(
+  '저거넛은 점프 · 메디신볼 · 회전 던지기 없음',
+  allDays(jug).every((dp) => !dp.items.some((x) => ['jump', 'medball', 'rotationalThrow'].includes(x.variant)))
 );
 check(
   'BBB = 5/3/1 + 같은 운동 10회 5세트(4주는 없음)',
@@ -332,7 +342,7 @@ check(
     }
     return out;
   };
-  const rotKeys = ['531', '531:2', '531-bbb', '531-bbb:2', 'juggernaut-5s', 'juggernaut-5s:2', 'ws4sb', 'ws4sb:2', 'french-contrast', 'french-contrast:2'];
+  const rotKeys = ['531', '531:2', '531-bbb', '531-bbb:2', 'ws4sb', 'ws4sb:2', 'french-contrast', 'french-contrast:2'];
   const noRot = rotKeys.filter((k) => weekly(k, 'rotationalThrow').some((n) => n === 0));
   check('파워가 든 프로그램은 매주 회전 던지기', noRot.length === 0, noRot.join(','));
 }
@@ -395,8 +405,8 @@ check(
 {
   const list = programChoiceList();
   check(
-    '고르기 목록 7개, 주마다 4줄',
-    list.length === 7 && list.every((c) => c.weeks.length === 4)
+    '고르기 목록 9개, 주마다 4줄',
+    list.length === 9 && list.every((c) => c.weeks.length === 4)
   );
   check(
     '스트롱리프트는 % 안 씀, 5/3/1 은 씀',
@@ -436,6 +446,60 @@ console.log('\n1-1) 기본기 4주');
     d.items.reduce((m, x) => m + x.sets.length * (30 + x.restSeconds) / 60 + 0.5, 0);
   const longest = Math.max(...days.map(minutes));
   check('가장 긴 날도 40분 안', longest <= 40, `${Math.round(longest)}분`);
+}
+
+/* ── 1-2) 시즌 중 · 선발 · 불펜(2026-10-14) ─────────────────────────────── */
+console.log('\n1-2) 시즌 중');
+{
+  const st = plan('inseason-starter:2');
+  const rp = plan('inseason-reliever');
+  check('시즌 중 키 · 선발 주 2번 8회 · 불펜 주 3번 12회', st?.totalDays === 8 && rp?.totalDays === 12);
+  const base: InSeasonInput = { daysSinceGame: null, pitchesYesterday: 0, pitchesTwoDaysAgo: 0, daysSinceLift: 1, day: 1 };
+  const s = (d: number | null) => inSeasonKind('starter', { ...base, daysSinceGame: d });
+  check(
+    '선발: 등판 다음 날 하체 · 이틀 뒤 움직임만 · 사흘 뒤 상체 · 나흘 뒤 짧은 하체 · 모르면 전신',
+    s(1) === 'lower' && s(2) === null && s(3) === 'upper' && s(4) === 'shortLower' && s(null) === 'full' && s(6) === 'full'
+  );
+  const r = (o: Partial<typeof base>) => inSeasonKind('reliever', { ...base, ...o });
+  check(
+    '불펜: 어제 20구 넘게면 하체 · 그다음 날 움직임만 · 사흘 넘게 쉬면 전신 · 나머지는 짧은 하체 ↔ 상체',
+    r({ pitchesYesterday: 25 }) === 'lower' &&
+      r({ pitchesYesterday: 20 }) !== 'lower' &&
+      r({ pitchesTwoDaysAgo: 25 }) === null &&
+      r({ daysSinceLift: 3 }) === 'full' &&
+      r({ daysSinceLift: null }) === 'full' &&
+      r({ day: 1 }) === 'shortLower' &&
+      r({ day: 2 }) === 'shortUpper' &&
+      r({ pitchesYesterday: 10, daysSinceLift: 5, day: 2 }) === 'shortUpper'
+  );
+  const kinds = Object.keys(SESSION_KIND_LABELS) as SessionKind[];
+  const days = (p: ProgramPlan | null) =>
+    p ? kinds.flatMap((k) => [1, 2, 3, 4].map((w) => dayPlan(withKind(p, k), (w - 1) * p.perWeek + 1))) : [];
+  const all = [...days(st), ...days(rp)];
+  check(
+    '시즌 중 모든 날: 몸통 하나 이하 · 같은 변형 두 번 없음 · 4~6가지 · 매 세트 3개 남기고',
+    all.length === 40 &&
+      all.every((d) => {
+        const vs = d.items.map((x) => x.variant);
+        return (
+          d.items.filter((x) => x.slot === 'core').length <= 1 &&
+          new Set(vs).size === vs.length &&
+          vs.length >= 4 &&
+          vs.length <= 6 &&
+          d.items.every((x) => x.slot === 'power' || x.slot === 'core' || x.reserve === 3)
+        );
+      })
+  );
+  check(
+    '세션 종류 이름이 날 이름에',
+    st != null && dayLabel(withKind(st, 'upper'), 3) === '3번 세션 · 상체 날'
+  );
+  check('시즌 중 아닌 프로그램엔 종류를 안 얹음', withKind(plan('531')!, 'upper').kind === undefined);
+  const tag = readSessionProgram({ key: 'inseason-reliever', day: 2, week: 1, kind: 'shortUpper' });
+  check(
+    '운동 판 꼬리표가 세션 종류를 지킴 · 모르는 값은 버림',
+    tag?.kind === 'shortUpper' && readSessionProgram({ key: 'x', day: 1, week: 1, kind: 'leg' })?.kind === undefined
+  );
 }
 
 /* ── 2) 시작 자격 ─────────────────────────────── */
@@ -1299,6 +1363,17 @@ console.log('\n4-3) 중재 신호(2판 P6-2)');
   );
 }
 
+{
+  const st = plan('inseason-starter:2')!;
+  check(
+    '시즌 중: 어제 팔 부담이 커도 쉬지 않음 · 움직임만 하는 날은 쉼 · 등판 날 · 전날은 쉼',
+    decideToday(st, sig({ gameYesterday: true })).kind === 'go' &&
+      decideToday(st, sig({ inSeasonMove: true })).kind === 'rest' &&
+      decideToday(st, sig({ gameToday: true })).kind === 'rest' &&
+      decideToday(st, sig({ gameTomorrow: true })).kind === 'rest' &&
+      decideToday(plan('531')!, sig({ inSeasonMove: true })).kind === 'go'
+  );
+}
 /* ── 5) 일차 넘기기 ─────────────────────────────── */
 console.log('\n5) 일차 넘기기');
 const prog = { key: 'offseason-strength-power', day: 5, week: 2 };

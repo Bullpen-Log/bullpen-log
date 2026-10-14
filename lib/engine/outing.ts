@@ -161,6 +161,11 @@ export function outingAnswersOf(facts: ReportFacts): {
   };
 }
 
+/** 최근 4주(어제까지) 마지막 경기 날 — 시즌 중 선발 프로그램이 '등판 며칠 뒤'를 센다(lib/program/load.ts inSeasonKindOf). 없으면 null */
+export function lastGameDateOf(facts: ReportFacts): string | null {
+  return facts.patterns.gameDates?.at(-1) ?? null;
+}
+
 const DAY_MS = 86_400_000;
 
 /** 'YYYY-MM-DD' → 1970-01-01 부터 센 날 번호. 꼴이 아니면 null — 시각 · 시간대를 안 읽는다 */

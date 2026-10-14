@@ -108,8 +108,10 @@ export type ProgramId =
   | 'ws4sb'
   | 'french-contrast'
   | 'offseason-strength-power'
-  | 'basics-4w';
-export type ProgramGoal = 'base' | 'strength' | 'power';
+  | 'basics-4w'
+  | 'inseason-starter'
+  | 'inseason-reliever';
+export type ProgramGoal = 'base' | 'strength' | 'power' | 'inSeason';
 /**
  * 누구의 프로그램인가 — adult: 만 18세 이상 · 입문 아님(설계 D10), basics: 만 13세부터 · 경력 상관없이(기본기 4주).
  * 고르기 화면 · 시작 자격 · 운동 고르기 규칙이 이것으로 갈린다.
@@ -121,7 +123,72 @@ export const GOAL_LABELS: Record<ProgramGoal, string> = {
   base: '기초',
   strength: '근력',
   power: '파워',
+  inSeason: '시즌 중',
 };
+
+/*
+ * 시즌 중 프로그램(2026-10-14 김민 — 선발 · 불펜을 나눠서). 세션 번호가 아니라 오늘 상태(마지막 등판에서 며칠 · 어제 몇 구)로 그날 세션 종류를
+ * 고른다(inSeasonKind). 근거: 에릭 크레시의 시즌 중 글 — 선발은 등판 다음 날 하체 무겁게 · 이틀 뒤 움직임만 · 사흘 뒤 상체 무겁게, 불펜은 긴
+ * 운동(전신 15~17세트) 하나와 짧은 운동 둘(하체 · 상체 위주 8~12세트)을 어제 던진 공 수(20구)로 고른다. 시즌 중에는 머리 위로 당기기를 주 1번
+ * 넘게 하지 않고 로우를 더 한다(팔꿈치) — 우리 당기기 칸은 원래 로우를 먼저 고른다(VARIANT_RULES.pull).
+ */
+export type InSeasonRole = 'starter' | 'reliever';
+export type SessionKind = 'lower' | 'upper' | 'full' | 'shortLower' | 'shortUpper';
+export const SESSION_KIND_LABELS: Record<SessionKind, string> = {
+  lower: '하체 날',
+  upper: '상체 날',
+  full: '전신 날',
+  shortLower: '짧은 하체 날',
+  shortUpper: '짧은 상체 날',
+};
+/** 오늘 상태를 모를 때(목록 · 화면 미리 보기 · 옛 판)의 차례 */
+const KIND_CYCLE: Record<InSeasonRole, readonly SessionKind[]> = {
+  starter: ['lower', 'upper'],
+  reliever: ['shortLower', 'shortUpper'],
+};
+
+export type InSeasonInput = {
+  /** 마지막 경기(등판)에서 며칠 — 어제 1, 기록 없으면 null(facts.patterns.gameDates) */
+  daysSinceGame: number | null;
+  /** 어제 · 그저께 던진 공 수(투구 기록, 없으면 0) */
+  pitchesYesterday: number;
+  pitchesTwoDaysAgo: number;
+  /** 마지막 프로그램 세션에서 며칠 — 없으면 null */
+  daysSinceLift: number | null;
+  /** 다음 세션 번호 — 번갈아 고를 때 */
+  day: number;
+};
+
+/** 불펜이 '많이 던졌다'고 보는 공 수 — 크레시: 20구 넘으면 선발의 등판 다음 날처럼 */
+export const RELIEVER_HEAVY_PITCHES = 20;
+
+/**
+ * 오늘의 시즌 중 세션 종류 — null 이면 움직임 운동만 하는 날(웨이트 없음). 등판 날 · 등판 전날은 decideToday 의 경기 규칙이 쉬게 한다.
+ *   선발: 등판 다음 날 하체 · 이틀 뒤 움직임 · 사흘 뒤 상체 · 나흘 뒤(5일 간격) 짧은 하체 · 등판 기록이 없거나 더 쉬었으면 전신
+ *   불펜: 어제 20구 넘게 → 하체 · 그저께 20구 넘게 던지고 어제 쉼 → 움직임 · 어제 안 던졌고 사흘 넘게 안 들었으면 전신 · 그 밖은 짧은 하체 ↔ 짧은 상체
+ */
+export function inSeasonKind(role: InSeasonRole, x: InSeasonInput): SessionKind | null {
+  if (role === 'starter') {
+    const d = x.daysSinceGame;
+    if (d === 1) return 'lower';
+    if (d === 2) return null;
+    if (d === 3) return 'upper';
+    if (d === 4) return 'shortLower';
+    return 'full';
+  }
+  if (x.pitchesYesterday > RELIEVER_HEAVY_PITCHES) return 'lower';
+  if (x.pitchesYesterday === 0 && x.pitchesTwoDaysAgo > RELIEVER_HEAVY_PITCHES) return null;
+  if (x.pitchesYesterday === 0 && (x.daysSinceLift == null || x.daysSinceLift >= 3)) return 'full';
+  return cycle(KIND_CYCLE.reliever, x.day);
+}
+
+/** 오늘 세션 종류를 얹은 계획 — dayPlan · dayLabel 이 그 종류로 만든다(시즌 중이 아니면 그대로) */
+export function withKind(plan: ProgramPlan, kind: SessionKind | null | undefined): ProgramPlan {
+  return plan.def.inSeason && kind ? { ...plan, kind } : plan;
+}
+
+const kindOf = (plan: ProgramPlan, day: number): SessionKind | undefined =>
+  plan.def.inSeason ? (plan.kind ?? cycle(KIND_CYCLE[plan.def.inSeason], day)) : undefined;
 
 /**
  * 무게를 정하는 방식(lib/program/next-weight.ts).
@@ -172,8 +239,16 @@ export type ProgramDef = {
   lightWeeks: readonly number[];
   /** 그 주로 넘어가는 날 끝 화면의 한 줄(옛 프로그램의 5주 '파워 블록') */
   weekNotes?: Readonly<Record<number, string>>;
-  /** day = 프로그램 안 일차(1부터), light = 가벼운 주(lightWeeks) */
-  build: (day: number, week: number, perWeek: PerWeek, light: boolean) => DayBuild;
+  /** day = 프로그램 안 일차(1부터), light = 가벼운 주(lightWeeks), kind = 시즌 중 프로그램의 그날 세션 종류(inSeasonKind) */
+  build: (
+    day: number,
+    week: number,
+    perWeek: PerWeek,
+    light: boolean,
+    kind?: SessionKind
+  ) => DayBuild;
+  /** 시즌 중 프로그램 — 그날 운동을 세션 번호가 아니라 오늘 상태로 고른다(inSeasonKind) */
+  inSeason?: InSeasonRole;
   /** 없으면 adult */
   audience?: ProgramAudience;
   /** 시작에 꼭 있어야 하는 장비 — 없으면 REQUIRED_EQUIPMENT(바벨 · 덤벨 · 메디신볼) */
@@ -283,22 +358,26 @@ const BBB_PCT = [0.5, 0.6, 0.6];
 
 function waveDay(
   wave: readonly (readonly SetRx[])[],
-  bbb: boolean
+  bbb: boolean,
+  primer: boolean
 ): ProgramDef['build'] {
   return (day, week, perWeek, light) => {
     const lifts = mainLifts(day, perWeek);
-    const items: Item[] = [
-      /*
-       * 원저자 권장: 들기 전에 뛰고 던지기. 밀기 날은 메디신볼, 힌지 날은 회전 던지기(2026-10-14 김민 — 투구는 회전이라 주 1번 이상
-       * 회전 파워를. 주 3번 · 2번 모두 힌지 날이 주 1번), 나머지는 점프.
-       */
-      item(
-        lifts[0] === 'push' ? 'medball' : lifts[0] === 'hinge' ? 'rotationalThrow' : 'jump',
-        'none',
-        reps(3, 3),
-        90
-      ),
-    ];
+    /*
+     * 원저자 권장: 들기 전에 뛰고 던지기. 밀기 날은 메디신볼, 힌지 날은 회전 던지기(2026-10-14 김민 — 투구는 회전이라 주 1번 이상
+     * 회전 파워를. 주 3번 · 2번 모두 힌지 날이 주 1번), 나머지는 점프. 근력이 목적이라 워밍업으로만 — 2세트 × 3회 · 60초
+     * (2026-10-14 김민: "파워가 목적이 아니잖아"). 저거넛은 넣지 않는다(primer false).
+     */
+    const items: Item[] = primer
+      ? [
+          item(
+            lifts[0] === 'push' ? 'medball' : lifts[0] === 'hinge' ? 'rotationalThrow' : 'jump',
+            'none',
+            reps(2, 3),
+            60
+          ),
+        ]
+      : [];
     lifts.forEach((v, i) => {
       const extra = bbb && i === 0 && !light ? pctSets(5, 10, BBB_PCT[week - 1]) : [];
       items.push(item(v, 'pct', [...wave[week - 1], ...extra], v === 'push' ? 150 : 180));
@@ -328,7 +407,7 @@ const BBB_531: ProgramDef = {
   weeks: 4,
   perWeek: [2, 3],
   lightWeeks: [4],
-  build: waveDay(WAVE_531, true),
+  build: waveDay(WAVE_531, true, true),
 };
 
 /* ─────────────────────────────── 근력 ─────────────────────────────── */
@@ -342,12 +421,12 @@ const W531: ProgramDef = {
   detail: [
     '본 운동 3세트의 마지막(+)은 할 수 있는 만큼 하되 2개 남기고 멈춰요.',
     '%는 기준 무게(추정 최대의 90%)의 비율이에요. 기준 무게는 시작 전 기록으로 정하고 4주 동안 그대로예요.',
-    '원저자 권장대로 들기 전에 점프나 메디신볼을 해요(힌지 날은 회전 던지기). 보조로 당기기 · 한 다리 · 몸통을 해요.',
+    '원저자 권장대로 들기 전에 워밍업으로 점프나 메디신볼을 가볍게 해요(힌지 날은 회전 던지기). 보조로 당기기 · 한 다리 · 몸통을 해요.',
   ],
   weeks: 4,
   perWeek: [2, 3],
   lightWeeks: [4],
-  build: waveDay(WAVE_531, false),
+  build: waveDay(WAVE_531, false, true),
 };
 
 const JUGGERNAUT: ProgramDef = {
@@ -359,12 +438,12 @@ const JUGGERNAUT: ProgramDef = {
   detail: [
     '1주는 5회를 여러 세트 쌓고, 2주는 무게를 올리고, 3주는 + 세트로 기록을 내고, 4주는 가볍게 해요.',
     '%는 기준 무게(추정 최대의 90%)의 비율이에요. + 세트는 2개 남기고 멈춰요.',
-    '들기 전에 점프나 메디신볼을 해요(힌지 날은 회전 던지기). 보조로 당기기 · 한 다리 · 몸통을 해요.',
+    '보조로 당기기 · 한 다리 · 몸통을 해요.',
   ],
   weeks: 4,
   perWeek: [2, 3],
   lightWeeks: [4],
-  build: waveDay(WAVE_JUGGERNAUT_5S, false),
+  build: waveDay(WAVE_JUGGERNAUT_5S, false, false),
 };
 
 /* ─────────────────────────────── 파워 ─────────────────────────────── */
@@ -591,6 +670,107 @@ const BASICS: ProgramDef = {
   },
 };
 
+/* ─────────────────────────────── 시즌 중 ─────────────────────────────── */
+
+/* 시즌 중은 매 세트 3개 남기고(여유를 넉넉히) — 세트는 비시즌의 절반쯤, 한 번 35~40분 안 */
+const keep = (variant: VariantKey, n: number, count: number, rest = 120): Item =>
+  item(variant, 'reserve', reps(n, count, 3), rest);
+
+/** 시즌 중 하루 — 큰 하체는 주마다 힌지 ↔ 스쿼트, 당기기는 밀기 세트 이상 */
+function inSeasonDay(kind: SessionKind, week: number): DayBuild {
+  const big: VariantKey = week % 2 === 1 ? 'hinge' : 'squat';
+  const label = SESSION_KIND_LABELS[kind];
+  switch (kind) {
+    /* 하체 무겁게 + 상체 가볍게(크레시: 등판 다음 날) — 13세트 */
+    case 'lower':
+      return {
+        label,
+        items: [
+          item('jump', 'none', reps(2, 3), 90),
+          keep(big, 3, 5, 180),
+          keep('singleLeg', 2, 6, 90),
+          keep('push', 2, 8, 90),
+          keep('pull', 2, 10, 90),
+          coreItem(true),
+        ],
+      };
+    /* 상체 무겁게 + 하체 가볍게 + 적은 메디신볼(크레시: 사흘 뒤) — 회전 던지기가 몸통 칸, 11세트 */
+    case 'upper':
+      return {
+        label,
+        items: [
+          item('rotationalThrow', 'none', reps(2, 3), 90),
+          keep('push', 3, 6, 150),
+          keep('pull', 4, 8, 90),
+          keep('singleLeg', 2, 8, 90),
+        ],
+      };
+    /* 긴 전신(크레시: 불펜의 긴 운동 15~17세트) */
+    case 'full':
+      return {
+        label,
+        items: [
+          item('jump', 'none', reps(2, 3), 90),
+          keep(big, 3, 5, 180),
+          keep('push', 3, 6, 150),
+          keep('pull', 3, 8, 90),
+          keep('singleLeg', 2, 6, 90),
+          coreItem(true),
+        ],
+      };
+    /* 짧은 하체 위주(8~12세트) */
+    case 'shortLower':
+      return {
+        label,
+        items: [keep(big, 3, 5, 180), keep('singleLeg', 2, 6, 90), keep('pull', 2, 10, 90), coreItem(true)],
+      };
+    /* 짧은 상체 위주(8~12세트) */
+    case 'shortUpper':
+      return {
+        label,
+        items: [keep('push', 3, 6, 150), keep('pull', 3, 8, 90), keep('singleLeg', 2, 8, 90), coreItem(true)],
+      };
+  }
+}
+
+const INSEASON_STARTER: ProgramDef = {
+  id: 'inseason-starter',
+  goal: 'inSeason',
+  name: '시즌 중 · 선발',
+  origin: '에릭 크레시의 시즌 중 선발 투수 원칙',
+  summary: '등판 다음 날 하체, 사흘 뒤 상체. 등판 날짜에 맞춰 세션이 바뀌어요',
+  detail: [
+    '등판 다음 날은 하체를 무겁게 · 상체는 가볍게, 이틀 뒤는 움직임 운동만, 사흘 뒤는 상체를 무겁게 · 하체는 가볍게 해요. 등판 전날과 등판 날은 쉬어요.',
+    '등판 사이가 길면(나흘 뒤) 짧은 하체를 더하고, 등판 기록이 없으면 전신으로 해요. 경기를 투구 기록에 남겨야 날짜를 알아요.',
+    '시즌 중이라 세트는 적게, 매 세트 3개 남기고 멈춰요. 당기기는 로우 위주로 해요.',
+  ],
+  weeks: 4,
+  perWeek: [2],
+  lightWeeks: [],
+  inSeason: 'starter',
+  build: (day, week, _perWeek, _light, kind) =>
+    inSeasonDay(kind ?? cycle(KIND_CYCLE.starter, day), week),
+};
+
+const INSEASON_RELIEVER: ProgramDef = {
+  id: 'inseason-reliever',
+  goal: 'inSeason',
+  name: '시즌 중 · 불펜',
+  origin: '에릭 크레시의 시즌 중 구원 투수 원칙',
+  summary: '어제 던진 공 수로 그날 세션이 정해져요',
+  detail: [
+    '어제 20구 넘게 던졌으면 하체를 무겁게 하고, 다음 날은 움직임 운동만 해요.',
+    '적게 던졌거나 안 던졌으면 짧은 하체 · 짧은 상체를 번갈아 하고, 사흘 넘게 쉬었으면 전신으로 해요.',
+    '시즌 중이라 세트는 적게, 매 세트 3개 남기고 멈춰요. 당기기는 로우 위주로 해요.',
+  ],
+  weeks: 4,
+  perWeek: [3],
+  lightWeeks: [],
+  inSeason: 'reliever',
+  build: (day, week, _perWeek, _light, kind) =>
+    inSeasonDay(kind ?? cycle(KIND_CYCLE.reliever, day), week),
+};
+
 /** 고르기 화면의 차례 — 기본기는 화면이 따로 맨 위에 둔다(audience) */
 export const PROGRAMS: readonly ProgramDef[] = [
   STRONGLIFTS,
@@ -599,6 +779,8 @@ export const PROGRAMS: readonly ProgramDef[] = [
   JUGGERNAUT,
   WS4SB,
   FRENCH_CONTRAST,
+  INSEASON_STARTER,
+  INSEASON_RELIEVER,
   BASICS,
 ];
 const ALL_PROGRAMS: readonly ProgramDef[] = [...PROGRAMS, LEGACY];
@@ -612,6 +794,8 @@ export type ProgramPlan = {
   perWeek: PerWeek;
   totalWeeks: number;
   totalDays: number;
+  /** 시즌 중 프로그램의 오늘 세션 종류(withKind) — 없으면 세션 번호로 번갈아 */
+  kind?: SessionKind;
 };
 
 /** DB 의 programKey — 주 3번은 id 그대로, 주 2번은 'id:2'(DB 구조를 바꾸지 않으려고 키에 싣는다) */
@@ -703,7 +887,7 @@ export function dayPlan(
   const d = Math.min(plan.totalDays, Math.max(1, day));
   const week = weekOfDay(plan, d);
   const light = isLightWeek(plan, week);
-  const built = plan.def.build(d, week, plan.perWeek, light);
+  const built = plan.def.build(d, week, plan.perWeek, light, kindOf(plan, d));
   return { label: built.label, items: built.items.map((x) => toRx(x, light)) };
 }
 
@@ -764,11 +948,15 @@ export function variantLabel(v: VariantKey, audience: ProgramAudience = 'adult')
 /** 이 프로그램이 쓰는 변형 — 시작 시트 · 고정 운동 바꾸기는 이것만 보여 준다 */
 export function usedVariants(def: ProgramDef): VariantKey[] {
   const used = new Set<VariantKey>();
+  const kinds: readonly (SessionKind | undefined)[] = def.inSeason
+    ? (Object.keys(SESSION_KIND_LABELS) as SessionKind[])
+    : [undefined];
   for (const perWeek of def.perWeek) {
     for (let day = 1; day <= def.weeks * perWeek; day++) {
       const week = Math.ceil(day / perWeek);
-      for (const x of def.build(day, week, perWeek, def.lightWeeks.includes(week)).items)
-        used.add(x.variant);
+      for (const kind of kinds)
+        for (const x of def.build(day, week, perWeek, def.lightWeeks.includes(week), kind).items)
+          used.add(x.variant);
     }
   }
   return VARIANT_KEYS.filter((v) => used.has(v));
@@ -1468,6 +1656,11 @@ export type TodaySignals = {
    * 가볍게 한다 — P4 결정 '짐작은 가볍게 하는 쪽에만'(쉬게 하지 않는다).
    */
   softOutingNear?: boolean;
+  /**
+   * 시즌 중 프로그램의 움직임 운동만 하는 날(inSeasonKind 가 null — 선발의 등판 이틀 뒤, 불펜의 많이 던진 이틀 뒤). 쉬는 날(rest 'inSeasonMove')이고
+   * 넘길 수 있다. 시즌 중이 아니면 안 준다.
+   */
+  inSeasonMove?: boolean;
 };
 
 /**
@@ -1573,7 +1766,12 @@ export function programSignalsOf(x: ProgramSignalsInput): ProgramSignals {
  * 뒤의 둘은 그 신호를 넘긴 부르는 쪽에서만 나온다.
  */
 export type RestReason =
-  'gameToday' | 'gameTomorrow' | 'gameYesterday' | 'hardToday' | 'chooseRecovery';
+  | 'gameToday'
+  | 'gameTomorrow'
+  | 'gameYesterday'
+  | 'hardToday'
+  | 'chooseRecovery'
+  | 'inSeasonMove';
 
 export type CautionCode =
   | 'armRest'
@@ -1647,17 +1845,20 @@ export function decideToday(plan: ProgramPlan, s: TodaySignals): TodayDecision {
   /* 프로그램 날은 하루 한 번, 어제가 프로그램 날이면 오늘은 아님(§6). 오늘 이미 했으면 여기 오지 않는다. */
   if (gapDays === 1) return { kind: 'spacing', day };
 
+  /* 시즌 중은 등판 다음 날이 하체 날이다(크레시) — 어제 팔 부담으로 쉬지 않는다. 등판 날 · 전날은 그대로 쉰다 */
   const restReason: RestReason | null = s.gameToday
     ? 'gameToday'
     : s.gameTomorrow
       ? 'gameTomorrow'
-      : s.gameYesterday
+      : s.gameYesterday && !plan.def.inSeason
         ? 'gameYesterday'
         : s.hardToday
           ? 'hardToday'
           : s.choseRecovery
             ? 'chooseRecovery'
-            : null;
+            : s.inSeasonMove && plan.def.inSeason
+              ? 'inSeasonMove'
+              : null;
   if (restReason && !s.override) {
     return { kind: 'rest', day, reason: restReason, canOverride: true };
   }
@@ -1818,6 +2019,7 @@ export const REST_TEXT: Record<RestReason, string> = {
   gameYesterday: '어제 팔 부담이 컸어요',
   hardToday: '오늘 많이 던졌어요',
   chooseRecovery: '오늘 회복을 골랐어요',
+  inSeasonMove: '오늘은 움직임 운동만 하는 날이에요',
 };
 
 /**
@@ -1849,6 +2051,8 @@ export type SessionProgramTag = {
   week: number;
   /** 운동 시작 때 판정한 쉰 기간(일) — 운동 중 [교체]의 무게가 카드와 같게. 2026-10-07 앞의 판에는 없다 */
   gapDays?: number | null;
+  /** 시즌 중 프로그램이면 운동 시작 때 고른 세션 종류 — 교체 · 축하 화면이 같은 날을 다시 짓게 */
+  kind?: SessionKind;
 };
 
 /** 얼린 목록의 program 을 읽는다. 모양이 아니면 null(프로그램 아닌 날) */
@@ -1867,6 +2071,7 @@ export function readSessionProgram(value: unknown): SessionProgramTag | null {
     day: v.day as number,
     week: v.week as number,
     ...(typeof v.gapDays === 'number' ? { gapDays: v.gapDays } : {}),
+    ...(typeof v.kind === 'string' && v.kind in SESSION_KIND_LABELS ? { kind: v.kind } : {}),
   };
 }
 

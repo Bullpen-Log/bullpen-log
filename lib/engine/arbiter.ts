@@ -65,6 +65,8 @@ import {
   dayPlan,
   daysBetween,
   parseProgram,
+  withKind,
+  type SessionKind,
   type SlotKind,
   type TodayDecision,
   type TodaySignals,
@@ -172,9 +174,11 @@ export type ProgramSessionToday = { state: 'active' | 'finished'; day: number };
 export function programDaySlotsOf(
   key: string,
   day: number,
-  exerciseOf?: (variant: VariantKey) => ClassifiableExercise | null | undefined
+  exerciseOf?: (variant: VariantKey) => ClassifiableExercise | null | undefined,
+  kind?: SessionKind
 ): ProgramDaySlots | null {
-  const plan = parseProgram(key);
+  const parsed = parseProgram(key);
+  const plan = parsed && withKind(parsed, kind);
   if (!plan || day < 1 || day > plan.totalDays) return null;
   const items = dayPlan(plan, day).items;
   const variants = items.map((x) => x.variant);
@@ -219,7 +223,7 @@ export function programCommitment(
   if (!commitment) return null;
   const plan = parseProgram(commitment.key);
   if (!plan) return null;
-  const slotsOf = (day: number) => programDaySlotsOf(commitment.key, day, exerciseOf);
+  const slotsOf = (day: number) => programDaySlotsOf(commitment.key, day, exerciseOf, commitment.kind);
   const since = commitment.daysSinceLastDone;
   const doneToday = since === 0;
 
