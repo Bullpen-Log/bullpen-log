@@ -27829,9 +27829,9 @@ console.log(
         }
       }
     check(
-      'P6-1 (다) 프로그램 변형 미루기 — WS4SB 2일차(점프 · 메디신볼)는 메디신볼만, 모든 일차에서 다 쓴 날 = 그날 팔 던지기 · 아닌 날 = 없음',
+      'P6-1 (다) 프로그램 변형 미루기 — WS4SB 2일차(점프 · 회전 던지기)는 회전 던지기만, 모든 일차에서 다 쓴 날 = 그날 팔 던지기 · 아닌 날 = 없음',
       mixed.variants.includes('jump') &&
-        same(programDeferVariants(mixed, spentB), ['medball']) &&
+        same(programDeferVariants(mixed, spentB), ['rotationalThrow']) &&
         programDeferVariants(null, spentB).length === 0 &&
         badDays.length === 0,
       badDays.slice(0, 5).join(' · ')
@@ -27986,14 +27986,14 @@ console.log(
       { prog: ws2, programDecision: 'go', override: true, mechanics: true }
     ).r;
     scene(
-      "C 오늘 등판 + '그래도 오늘 할래요'(D24) → 프로그램은 하되 메디신볼은 오늘 뺌(점프는 남김) · 메커니즘 접고 못 펼침",
+      "C 오늘 등판 + '그래도 오늘 할래요'(D24) → 프로그램은 하되 회전 던지기는 오늘 뺌(점프는 남김) · 메커니즘 접고 못 펼침",
       c,
       c.top === 'outing' &&
         same(c.applied, ['outing', 'choice', 'program']) &&
         c.program?.role === 'owns' &&
-        same(c.programAdjust.deferVariants, ['medball']) &&
+        same(c.programAdjust.deferVariants, ['rotationalThrow']) &&
         same(keysOf(c), [
-          'programVariant:medball',
+          'programVariant:rotationalThrow',
           'mechanicsThrows',
           'armcareStrength',
         ]) &&

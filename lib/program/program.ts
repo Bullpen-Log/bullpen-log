@@ -289,8 +289,16 @@ function waveDay(
   return (day, week, perWeek, light) => {
     const lifts = mainLifts(day, perWeek);
     const items: Item[] = [
-      /* 원저자 권장: 들기 전에 뛰고 던지기. 밀기 날은 메디신볼 */
-      item(lifts[0] === 'push' ? 'medball' : 'jump', 'none', reps(3, 3), 90),
+      /*
+       * 원저자 권장: 들기 전에 뛰고 던지기. 밀기 날은 메디신볼, 힌지 날은 회전 던지기(2026-10-14 김민 — 투구는 회전이라 주 1번 이상
+       * 회전 파워를. 주 3번 · 2번 모두 힌지 날이 주 1번), 나머지는 점프.
+       */
+      item(
+        lifts[0] === 'push' ? 'medball' : lifts[0] === 'hinge' ? 'rotationalThrow' : 'jump',
+        'none',
+        reps(3, 3),
+        90
+      ),
     ];
     lifts.forEach((v, i) => {
       const extra = bbb && i === 0 && !light ? pctSets(5, 10, BBB_PCT[week - 1]) : [];
@@ -301,7 +309,8 @@ function waveDay(
     } else {
       items.push(assist('pull', 3, 10, light), assist('singleLeg', 3, 8, light));
     }
-    items.push(coreItem(light));
+    /* 몸통 칸은 하루 하나 — 회전 던지기를 한 날은 그것이 몸통 운동(옛 프로그램의 파워 블록과 같다) */
+    if (items[0].variant !== 'rotationalThrow') items.push(coreItem(light));
     return { label: null, items };
   };
 }
@@ -334,7 +343,7 @@ const W531: ProgramDef = {
   detail: [
     '본 운동 3세트의 마지막(+)은 할 수 있는 만큼 하되 2개 남기고 멈춰요.',
     '%는 기준 무게(추정 최대의 90%)의 비율이에요. 기준 무게는 시작 전 기록으로 정하고 4주 동안 그대로예요.',
-    '원저자 권장대로 들기 전에 점프나 메디신볼을 하고, 보조로 당기기 · 한 다리 · 몸통을 해요.',
+    '원저자 권장대로 들기 전에 점프나 메디신볼을 해요(힌지 날은 회전 던지기). 보조로 당기기 · 한 다리 · 몸통을 해요.',
   ],
   weeks: 4,
   perWeek: [2, 3],
@@ -357,7 +366,7 @@ const TEXAS: ProgramDef = {
   detail: [
     '월요일은 5세트 × 5회(금요일 무게의 90%), 수요일은 가볍게(월요일의 80~90%), 금요일은 5회 1세트로 매주 기록을 올려요.',
     '%는 기준 무게(추정 최대의 90%)의 비율이에요.',
-    '투수에 맞춰 파워 클린 대신 점프로 해요. 주 3번만 할 수 있어요.',
+    '투수에 맞춰 파워 클린 대신 점프로 하고, 어깨 뒤쪽을 위해 당기기를 매번 밀기보다 많이 해요. 주 3번만 할 수 있어요.',
   ],
   weeks: 4,
   perWeek: [3],
@@ -373,6 +382,8 @@ const TEXAS: ProgramDef = {
             item('squat', 'pct', pctSets(5, 5, mon), 180),
             item('push', 'pct', pctSets(5, 5, mon), 150),
             item('hinge', 'pct', pctSets(1, 5, fri), 180),
+            /* 투수 맞춤: 당기기를 밀기 이상(2026-10-14 — 원본은 밀기 9세트 · 당기기 3세트로 어깨 뒤쪽이 모자랐다). 주 4 + 3 + 3 = 10세트 */
+            assist('pull', 4, 8, false),
             coreItem(),
           ],
         },
@@ -392,6 +403,7 @@ const TEXAS: ProgramDef = {
             item('jump', 'none', reps(5, 3), 90),
             item('squat', 'pct', pctSets(1, 5, fri), 180),
             item('push', 'pct', pctSets(1, 5, fri), 150),
+            assist('pull', 3, 8, false),
             coreItem(),
           ],
         },
@@ -410,7 +422,7 @@ const JUGGERNAUT: ProgramDef = {
   detail: [
     '1주는 5회를 여러 세트 쌓고, 2주는 무게를 올리고, 3주는 + 세트로 기록을 내고, 4주는 가볍게 해요.',
     '%는 기준 무게(추정 최대의 90%)의 비율이에요. + 세트는 2개 남기고 멈춰요.',
-    '들기 전에 점프나 메디신볼을 하고, 보조로 당기기 · 한 다리 · 몸통을 해요.',
+    '들기 전에 점프나 메디신볼을 해요(힌지 날은 회전 던지기). 보조로 당기기 · 한 다리 · 몸통을 해요.',
   ],
   weeks: 4,
   perWeek: [2, 3],
@@ -455,11 +467,11 @@ const WS4SB: ProgramDef = {
       label: '점프 날',
       items: [
         item('jump', 'none', reps(5, 3), 90),
-        item('medball', 'none', reps(4, 3), 90),
+        /* 회전 던지기 — 투구는 회전이라 주 1번 이상(2026-10-14). 앞으로 던지기는 상체 반복 날에 */
+        item('rotationalThrow', 'none', reps(4, 3), 90),
         assist('singleLeg', 3, 10, false),
         assist('push', 3, 10, false),
         assist('pull', 3, 10, false),
-        coreItem(),
       ],
     };
     const upper: DayBuild = {
@@ -491,7 +503,7 @@ const FRENCH_CONTRAST: ProgramDef = {
   summary: '무겁게 들고 바로 점프, 메디신볼까지 한 묶음으로 해요',
   detail: [
     '무겁게(추정 최대의 80~88%, 기준 무게로는 89~98%) → 20초 → 점프 5회 → 20초 → 메디신볼 5회가 한 묶음이에요. 묶음 사이는 3분 쉬어요.',
-    '원본의 넷째 · 다섯째 동작(무게 들고 점프, 도움 받는 점프)은 우리 장비에 맞춰 메디신볼 하나로 합쳤어요.',
+    '원본의 넷째 · 다섯째 동작(무게 들고 점프, 도움 받는 점프)은 우리 장비에 맞춰 메디신볼 하나로 합쳤어요. 힌지 날은 회전 던지기예요.',
     '4주는 가볍게 해요.',
   ],
   weeks: 4,
@@ -499,10 +511,13 @@ const FRENCH_CONTRAST: ProgramDef = {
   lightWeeks: [4],
   build: (day, week, _perWeek, light) => {
     const w = CONTRAST_WEEKS[week - 1];
+    /* 힌지 묶음의 끝은 회전 던지기 — 투구는 회전이라 주 1번 이상(2026-10-14) */
     const bundle = (v: VariantKey): Item[] => [
       item(v, 'pct', pctSets(w.rounds, w.count, w.max / TM_RATIO), 20),
       item('jump', 'none', reps(w.rounds, 5), 20, { group: true }),
-      item('medball', 'none', reps(w.rounds, 5), 180, { group: true }),
+      item(v === 'hinge' ? 'rotationalThrow' : 'medball', 'none', reps(w.rounds, 5), 180, {
+        group: true,
+      }),
     ];
     return day % 2 === 1
       ? {
@@ -516,7 +531,8 @@ const FRENCH_CONTRAST: ProgramDef = {
         }
       : {
           label: 'B 날',
-          items: [...bundle('hinge'), assist('push', 3, 8, light), coreItem(light)],
+          /* 몸통 칸은 하루 하나 — 회전 던지기가 몸통 운동 */
+          items: [...bundle('hinge'), assist('push', 3, 8, light)],
         };
   },
 };

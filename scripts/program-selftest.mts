@@ -340,6 +340,30 @@ check(
       .every((p) => allDays(p).every((dp) => dp.items.every((x) => !x.group)))
   );
 }
+{
+  /* 2026-10-14 김민 — 파워가 든 프로그램은 매주 회전 던지기, 텍사스는 당기기 세트가 밀기 이상 */
+  const weekly = (key: string, v: string) => {
+    const p = plan(key);
+    const out: number[] = [];
+    for (let w = 1; w <= p.totalWeeks; w++) {
+      let n = 0;
+      for (let d = (w - 1) * p.perWeek + 1; d <= w * p.perWeek; d++)
+        n += dayPlan(p, d).items.filter((x) => x.variant === v).reduce((m, x) => m + x.sets.length, 0);
+      out.push(n);
+    }
+    return out;
+  };
+  const rotKeys = ['531', '531:2', '531-bbb', '531-bbb:2', 'juggernaut-5s', 'juggernaut-5s:2', 'ws4sb', 'ws4sb:2', 'french-contrast', 'french-contrast:2'];
+  const noRot = rotKeys.filter((k) => weekly(k, 'rotationalThrow').some((n) => n === 0));
+  check('파워가 든 프로그램은 매주 회전 던지기', noRot.length === 0, noRot.join(','));
+  const pullW = weekly('texas-method', 'pull');
+  const pushW = weekly('texas-method', 'push');
+  check(
+    '텍사스: 주마다 당기기 세트가 밀기 이상',
+    pullW.every((n, i) => n >= pushW[i]),
+    `당기기 ${pullW.join('/')} · 밀기 ${pushW.join('/')}`
+  );
+}
 check(
   '세션 이름에 날 이름 — 주차 · 일차 대신 N번 세션(2026-10-14)',
   dayLabel(texas, 2) === '2번 세션 · 가벼운 날' && dayLabel(texas, 12).startsWith('12번 세션'),
