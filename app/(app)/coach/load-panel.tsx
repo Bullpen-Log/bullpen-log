@@ -1,13 +1,12 @@
 import Link from 'next/link';
 import {
-  ACWR_TARGET_MAX,
   ACWR_ZONES,
   CHRONIC_WINDOW_DAYS,
   describeRatio,
   type AcwrTrendPoint,
   type AcwrZone,
 } from '@/lib/pitch-stats';
-import { LoadIndexHelp, StatusChip, TONE, ZoneGauge } from './parts';
+import { StatusChip, TONE } from './parts';
 import { LoadTrend } from './load-trend';
 
 /**
@@ -78,10 +77,9 @@ function Primary({ view }: { view: LoadView }) {
     <div className="space-y-4 px-6 py-7 sm:px-8">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-[11px] font-medium tracking-normal text-muted">
+          <p className="text-xs font-medium tracking-normal text-muted">
             {view.name} 부하 지수
           </p>
-          <p className="mt-1 text-[11px] leading-relaxed text-muted/70">{view.what}</p>
         </div>
         {zone ? (
           <StatusChip tone={zone.tone}>{zone.label}</StatusChip>
@@ -99,44 +97,19 @@ function Primary({ view }: { view: LoadView }) {
               >
                 {view.ratio.toFixed(2)}
               </span>
-              <span className="text-sm text-muted">
-                / {ACWR_TARGET_MAX.toFixed(2)} 이하 권장
-              </span>
             </p>
             <p className={`mt-1.5 text-sm font-medium ${TONE[zone.tone].text}`}>
               {describeRatio(view.ratio)}
               <span className="ml-1.5 font-normal text-muted">· {view.meaning}</span>
             </p>
-            {/* 문진 추정치가 섞여 있는 동안에는 그 사실을 숨기지 않는다. */}
+            {/* 문진 추정치가 섞여 있는 동안에는 그 사실을 숨기지 않는다 — 단정하지 않게 한 줄로 */}
             {view.estimated && (
-              <p className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-line-strong bg-surface-2 px-2.5 py-1 text-[11px] text-muted">
-                문진 추정 기준 · 실측 반영 {Math.round(view.realWeight * 100)}%
-                <span className="text-muted/60">· 기록할수록 정확해져요</span>
+              <p className="mt-2 text-xs text-muted">
+                아직 기록이 적어 숫자가 크게 흔들려요. 며칠만 더 남기면 자리를 잡아요.
               </p>
             )}
           </div>
 
-          <ZoneGauge ratio={view.ratio} activeZone={view.zone} />
-          <p className="text-xs leading-relaxed text-muted">
-            {view.advice}
-            {/*
-              평소치가 아직 문진 추정일 때는 조언을 단정하지 않는다.
-
-              가입 첫날에 52구를 한 번 남겼더니 지수가 1.42(주의)가 되면서
-              "이번 주는 투구수나 강도를 조금 낮추는 편이 안전합니다"가 떴다.
-              실측이 7%뿐인데 처음 쓰는 사람에게는 앱이 "무리했다"고 말한
-              것으로 읽힌다. 리포트를 쓰는 AI 에게는 이미 같은 조건에서
-              단정하지 말라고 일러두고 있었는데, 규칙으로 내는 이 문장에는
-              그 장치가 없었다.
-            */}
-            {view.estimated && (
-              <span className="text-muted/70">
-                {' '}
-                다만 아직 평소치가 문진 추정이라 이 숫자는 크게 흔들려요. 며칠만 더
-                남기면 자리를 잡아요.
-              </span>
-            )}
-          </p>
           {/* 최근 2주 흐름 — 건강 앱 그래프처럼(load-trend.tsx) */}
           <LoadTrend trend={view.trend} />
         </>
@@ -230,15 +203,6 @@ export function LoadPanel({
         </p>
       )}
 
-      {/* 어떻게 나온 숫자인지 — 안 적어두면 그냥 믿거나 그냥 무시한다 */}
-      <div className="px-6 pb-4 sm:px-8">
-        <LoadIndexHelp
-          which={which}
-          acute={view.acute}
-          chronic={view.chronic}
-          activeZone={view.zone ?? undefined}
-        />
-      </div>
     </section>
   );
 }

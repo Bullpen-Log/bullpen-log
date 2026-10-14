@@ -1,22 +1,18 @@
 import type { ReviewWeek, TrainingReview } from '@/lib/report/training-review';
-import { TrainingDayGrid } from './training-day-grid';
 
 /**
- * 트레이닝 돌아보기 — 주별 흐름 · 투구와 운동.
+ * 트레이닝 돌아보기 — 최근 4주 한 장.
  *
- * 분석의 트레이닝 칸이 보는 것은 둘이다.
- *
- *   얼마나 했나            주별 흐름
- *   던진 만큼 챙겼나        투구와 운동
+ * 2026-10-14 사용자 "너무 조잡해 · 중요한 내용만 · 트레이닝에서 누르면 트레이닝만": 예전엔 '최근 4주 운동'(주마다 일 · 분 ·
+ * 운동 수 · 강도 + 설명) 과 '투구와 운동'(던진 날 · 운동한 날 · 암케어 한 날 + 28칸 격자 + 설명) 두 장이었다. 이제 한 장 —
+ * 위에 운동한 날 · 암케어 한 날 두 숫자, 밑에 주마다 운동한 날 막대. 투구 쪽 숫자(던진 날)는 투구 분석의 몫이라 뺐고, 던진 날이
+ * 있는데 암케어가 없을 때만 한 줄로 짚는다(던지는 사람의 어깨 · 팔꿈치 관리는 다른 운동으로 대신할 수 없다).
  */
 
 const FULL_DAYS = 5;
 
-/** 2026-08-31 → 8/31 */
-function shortDate(key: string) {
-  const [, m, d] = key.split('-');
-  return `${Number(m)}/${Number(d)}`;
-}
+/** 던진 날이 이만큼 되는데 암케어가 하나도 없으면 짚어 준다 */
+const ARM_CARE_ALERT_DAYS = 3;
 
 /* ───────────────────────────── 주별 흐름 ───────────────────────────── */
 
@@ -30,9 +26,6 @@ function WeekRow({ week, busiest }: { week: ReviewWeek; busiest: number }) {
         >
           {week.label}
         </span>
-        <span className="text-[11px] text-muted/60">
-          {shortDate(week.from)}–{shortDate(week.to)}
-        </span>
         {empty ? (
           <span className="ml-auto text-xs text-muted/60">쉬었어요</span>
         ) : (
@@ -41,10 +34,7 @@ function WeekRow({ week, busiest }: { week: ReviewWeek; busiest: number }) {
               {week.days}
             </span>
             <span className="text-xs text-muted">일</span>
-            <span className="text-xs text-muted/60">
-              · {week.minutes}분 · 운동 {week.count}개
-              {week.intensity != null && ` · 강도 ${week.intensity}`}
-            </span>
+            <span className="text-xs text-muted">· {week.minutes}분</span>
           </span>
         )}
       </div>
@@ -63,60 +53,32 @@ function WeekRow({ week, busiest }: { week: ReviewWeek; busiest: number }) {
   );
 }
 
-/* ──────────────────────────── 투구와 운동 ──────────────────────────── */
+/* ───────────────────────────── 묶음 ───────────────────────────── */
 
-/**
- * 던진 날 옆에 운동한 날을 겹쳐 놓는다.
- *
- * 한동안 이 자리가 '부위별 세트 추이'였다. 그런데 이 앱을 쓰는 사람은 투구를
- * 먼저 적고 운동은 나중에 적는다 — 넉 달치를 세어 보니 던진 날은 스물셋인데
- * 운동을 마쳤다고 누른 날은 셋이었다. 그 상태에서 부위별 세트는 무엇을 그려도
- * 빈 표였고, 빈 표는 아무 말도 안 한다.
- *
- * 같은 빈칸이라도 던진 날 옆에 놓으면 그 자체로 할 말이 된다 — "열세 번 던지는
- * 동안 암케어를 한 번도 안 했다". 세트 표가 절대 할 수 없던 말이고, 투구와
- * 운동을 한곳에 적는 이 앱만 할 수 있는 말이다.
- *
- * 암케어를 따로 한 줄 뺀다. 운동 안에 섞어 두면 '운동은 했으니 됐다'로 읽히는데,
- * 던지는 사람에게 어깨·팔꿈치 관리는 다른 운동으로 대신할 수 있는 것이 아니다.
- */
-
-/** 던진 날이 이만큼 되는데 암케어가 하나도 없으면 짚어 준다 */
-const ARM_CARE_ALERT_DAYS = 3;
-
-function PitchTraining({
+export function TrainingReviewCards({
   review,
   weeks: weekCount,
 }: {
   review: TrainingReview;
+  /** 보는 주 수 */
   weeks: number;
 }) {
-  const { days, totals } = review;
-
-  /* 주 단위로 끊는다 — 스물여덟 칸을 한 줄로 늘어놓으면 어디가 어느 주인지 모른다 */
-  const weeks = Array.from({ length: weekCount }, (_, i) =>
-    days.slice(i * 7, i * 7 + 7)
-  );
-
-  /*
-   * 던진 날이 어느 정도 있는데 암케어가 하나도 없을 때만 짚는다.
-   *
-   * 던진 적이 없으면 안 챙긴 것이 아니라 챙길 일이 없었던 것이다. 그때까지
-   * 붉게 두면 경고가 늘 켜져 있게 되고, 늘 켜진 경고는 아무 뜻이 없다.
-   */
+  const { weeks, totals } = review;
+  const busiest = Math.max(...weeks.map((w) => w.days), 0);
+  const anyTraining = weeks.some((w) => w.days > 0);
+  /* 던진 적이 없으면 안 챙긴 것이 아니라 챙길 일이 없었던 것 — 그때는 짚지 않는다 */
   const armCareMissing =
     totals.pitchedDays >= ARM_CARE_ALERT_DAYS && totals.armCareDays === 0;
-
   const counts: { label: string; value: number; alert?: boolean }[] = [
-    { label: '던진 날', value: totals.pitchedDays },
     { label: '운동한 날', value: totals.trainedDays },
     { label: '암케어 한 날', value: totals.armCareDays, alert: armCareMissing },
   ];
 
   return (
-    <div className="space-y-4">
-      {/* 숫자 셋 — 격자를 보기 전에 요점을 먼저 말한다 */}
-      <div className="grid grid-cols-3 gap-2">
+    <section className="space-y-4 rounded-2xl border border-line bg-surface p-(--block-pad)">
+      <h2 className="text-base font-bold text-ink">최근 {weekCount}주</h2>
+
+      <div className="grid grid-cols-2 gap-2">
         {counts.map((c) => (
           <div
             key={c.label}
@@ -124,7 +86,7 @@ function PitchTraining({
               c.alert ? 'border-warn-line bg-warn-bg' : 'border-line bg-surface-2'
             }`}
           >
-            <p className="text-[11px] text-muted">{c.label}</p>
+            <p className="text-xs text-muted">{c.label}</p>
             <p
               className={`text-numeric mt-0.5 text-xl leading-none tabular-nums ${
                 c.alert ? 'text-warn' : 'text-ink'
@@ -138,77 +100,22 @@ function PitchTraining({
       </div>
 
       {armCareMissing && (
-        <p className="rounded-xl border border-warn-line bg-warn-bg px-4 py-3 text-xs leading-relaxed text-warn">
-          최근 {weekCount}주 동안 {totals.pitchedDays}일 던졌는데 암케어 기록이 없어요.
-          암케어는 던진 뒤 어깨와 팔꿈치를 관리하는 운동이에요.
+        <p className="text-xs leading-relaxed text-warn">
+          {totals.pitchedDays}일 던지는 동안 암케어 기록이 없어요.
         </p>
       )}
 
-      {/* 격자 — 언제 던지고 언제 챙겼는지. 칸을 누르면 그날을 한 줄로 보인다(training-day-grid.tsx) */}
-      <TrainingDayGrid weeks={weeks} weekCount={weekCount} />
-    </div>
-  );
-}
-
-/* ───────────────────────────── 묶음 ───────────────────────────── */
-
-export function TrainingReviewCards({
-  review,
-  weeks: weekCount,
-}: {
-  review: TrainingReview;
-  /** 주별 흐름과 부위 추이가 보는 주 수 */
-  weeks: number;
-}) {
-  const { weeks } = review;
-  const busiest = Math.max(...weeks.map((w) => w.days), 0);
-  const anyTraining = weeks.some((w) => w.days > 0);
-
-  return (
-    <>
-      {/* ── 주별 흐름 ─────────────────────────────────────── */}
-      <section className="rounded-2xl border border-line bg-surface p-(--block-pad)">
-        <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-          <h2 className="text-base font-bold text-ink">최근 {weekCount}주 운동</h2>
-          <p className="text-xs text-muted">오늘부터 7일씩 거슬러 나눠요</p>
-        </div>
-
-        {anyTraining ? (
-          <ul className="mt-4 space-y-3.5">
-            {weeks.map((w) => (
-              <WeekRow key={w.ago} week={w} busiest={busiest} />
-            ))}
-          </ul>
-        ) : (
-          <p className="mt-4 rounded-xl empty-well px-4 py-8 text-center text-sm leading-relaxed text-muted">
-            최근 {weekCount}주 동안 마친 운동(암케어 제외)이 없어요.
-            <br />
-            트레이닝에서 운동을 마치고 눌러 주면 여기에 쌓여요.
-          </p>
-        )}
-
-        {/* 어떻게 나온 숫자인지 — 안 적어두면 그냥 믿거나 그냥 무시한다 */}
-        <p className="mt-3 text-[11px] leading-relaxed text-muted/70">
-          암케어를 뺀 운동을 마친 날만 세어요. 시간은 세트마다 정해진 시간(쉬는 시간
-          포함)을 더한 값이고, 강도는 그 주의 평균이에요.
+      {anyTraining ? (
+        <ul className="space-y-3.5">
+          {weeks.map((w) => (
+            <WeekRow key={w.ago} week={w} busiest={busiest} />
+          ))}
+        </ul>
+      ) : (
+        <p className="rounded-xl empty-well px-4 py-8 text-center text-sm leading-relaxed text-muted">
+          최근 {weekCount}주 동안 마친 운동이 없어요.
         </p>
-      </section>
-
-      {/* ── 투구와 운동 ───────────────────────────────────── */}
-      <section className="rounded-2xl border border-line bg-surface p-(--block-pad)">
-        <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-          <h2 className="text-base font-bold text-ink">투구와 운동</h2>
-          <p className="text-xs text-muted">던진 날과 챙긴 날을 나란히</p>
-        </div>
-
-        <div className="mt-4">
-          <PitchTraining review={review} weeks={weekCount} />
-        </div>
-
-        <p className="mt-3 text-[11px] leading-relaxed text-muted/70">
-          칸 하나가 하루예요. 운동은 &lsquo;마침&rsquo;을 누른 날만 칠해져요.
-        </p>
-      </section>
-    </>
+      )}
+    </section>
   );
 }
