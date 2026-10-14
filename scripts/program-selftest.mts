@@ -149,21 +149,21 @@ const plans = PROGRAMS.flatMap((def) =>
 const allDays = (p: ProgramPlan) =>
   Array.from({ length: p.totalDays }, (_, d) => dayPlan(p, d + 1));
 check(
-  '프로그램 8개(성인 7 + 기본기 1) · 모두 4주 · 옛 프로그램은 목록에 없음',
-  PROGRAMS.length === 8 &&
-    PROGRAMS.filter((p) => audienceOf(p) === 'adult').length === 7 &&
+  '프로그램 7개(성인 6 + 기본기 1) · 모두 4주 · 옛 프로그램은 목록에 없음',
+  PROGRAMS.length === 7 &&
+    PROGRAMS.filter((p) => audienceOf(p) === 'adult').length === 6 &&
     PROGRAMS.filter((p) => audienceOf(p) === 'basics').length === 1 &&
     PROGRAMS.every((p) => p.weeks === 4) &&
     !PROGRAMS.some((p) => p.id === 'offseason-strength-power')
 );
 check(
   '주 3번 12회 · 주 2번 8회',
-  plans.every((p) => p.totalDays === p.perWeek * 4) && plans.length === 13
+  plans.every((p) => p.totalDays === p.perWeek * 4) && plans.length === 12
 );
 check(
-  '스트롱리프트 · 텍사스는 주 3번만',
+  '스트롱리프트는 주 3번만 · 텍사스 메소드는 지움(2026-10-14)',
   parseProgram('stronglifts-5x5:2') === null &&
-    parseProgram('texas-method:2') === null &&
+    parseProgram('texas-method') === null &&
     parseProgram('531:2') != null
 );
 check(
@@ -204,7 +204,6 @@ const p531 = plan('531');
 const p531x2 = plan('531:2');
 const bbb = plan('531-bbb');
 const jug = plan('juggernaut-5s');
-const texas = plan('texas-method');
 const sl = plan('stronglifts-5x5');
 const ws = plan('ws4sb');
 const fc = plan('french-contrast');
@@ -276,26 +275,6 @@ check(
   })()
 );
 check(
-  '텍사스 = 많이 · 가볍게 · 최고 기록',
-  eq(
-    [1, 2, 3].map((d) => dayPlan(texas, d).label),
-    ['많이 하는 날', '가벼운 날', '최고 기록 날']
-  )
-);
-check(
-  '텍사스 금요일이 매주 오름',
-  [1, 2, 3, 4]
-    .map((w) => rxOf(texas, (w - 1) * 3 + 3, 'squat').sets[0].pct as number)
-    .every((v, i, a) => i === 0 || v > a[i - 1])
-);
-check(
-  '텍사스 월 = 금의 90%',
-  Math.abs(
-    (rxOf(texas, 1, 'squat').sets[0].pct as number) -
-      0.9 * (rxOf(texas, 3, 'squat').sets[0].pct as number)
-  ) < 1e-9
-);
-check(
   '스트롱리프트 A · B(B 날 오버헤드 프레스는 뺌)',
   eq(
     dayPlan(sl, 1).items.map((x) => x.variant),
@@ -341,7 +320,7 @@ check(
   );
 }
 {
-  /* 2026-10-14 김민 — 파워가 든 프로그램은 매주 회전 던지기, 텍사스는 당기기 세트가 밀기 이상 */
+  /* 2026-10-14 김민 — 파워가 든 프로그램은 매주 회전 던지기 */
   const weekly = (key: string, v: string) => {
     const p = plan(key);
     const out: number[] = [];
@@ -356,18 +335,12 @@ check(
   const rotKeys = ['531', '531:2', '531-bbb', '531-bbb:2', 'juggernaut-5s', 'juggernaut-5s:2', 'ws4sb', 'ws4sb:2', 'french-contrast', 'french-contrast:2'];
   const noRot = rotKeys.filter((k) => weekly(k, 'rotationalThrow').some((n) => n === 0));
   check('파워가 든 프로그램은 매주 회전 던지기', noRot.length === 0, noRot.join(','));
-  const pullW = weekly('texas-method', 'pull');
-  const pushW = weekly('texas-method', 'push');
-  check(
-    '텍사스: 주마다 당기기 세트가 밀기 이상',
-    pullW.every((n, i) => n >= pushW[i]),
-    `당기기 ${pullW.join('/')} · 밀기 ${pushW.join('/')}`
-  );
 }
 check(
   '세션 이름에 날 이름 — 주차 · 일차 대신 N번 세션(2026-10-14)',
-  dayLabel(texas, 2) === '2번 세션 · 가벼운 날' && dayLabel(texas, 12).startsWith('12번 세션'),
-  dayLabel(texas, 2)
+  dayLabel(plan('stronglifts-5x5'), 2) === '2번 세션 · B 날' &&
+    dayLabel(plan('stronglifts-5x5'), 12).startsWith('12번 세션'),
+  dayLabel(plan('stronglifts-5x5'), 2)
 );
 check(
   '% 처방 한 줄',
@@ -422,8 +395,8 @@ check(
 {
   const list = programChoiceList();
   check(
-    '고르기 목록 8개, 주마다 4줄',
-    list.length === 8 && list.every((c) => c.weeks.length === 4)
+    '고르기 목록 7개, 주마다 4줄',
+    list.length === 7 && list.every((c) => c.weeks.length === 4)
   );
   check(
     '스트롱리프트는 % 안 씀, 5/3/1 은 씀',

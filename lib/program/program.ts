@@ -16,7 +16,7 @@ import { withJosa } from '@/lib/korean';
  * 근력 · 파워 프로그램 — 프로그램 목록 · 시작 자격 · 운동 고정 · 오늘 판정 · 일차 넘기기. 순수 함수만(DB 를 모른다).
  *
  * 안전 · 화면 규칙: docs/designs/pitcher-strength-power-programs.md. 프로그램 목록은 이 파일의 PROGRAMS.
- * 2026-10-07 사용자: "실제 있는 프로그램을 기반으로" — 스트롱리프트 5×5 · 5/3/1 BBB · 5/3/1 · 텍사스 메소드 ·
+ * 2026-10-07 사용자: "실제 있는 프로그램을 기반으로" — 스트롱리프트 5×5 · 5/3/1 BBB · 5/3/1 · (텍사스 메소드 — 2026-10-14 지움: 주 3번 무거운 스쿼트라 투구 일정과 부딪힘) ·
  * 저거넛 5회 파도 · WS4SB · 프렌치 컨트라스트. 모두 원본의 첫 4주. 투수라서 원본과 다르게 한 곳에는 '투수 맞춤' 주석을 단다.
  * 옛 '비시즌 근력 → 파워'(8주)는 목록에서 숨기고, 진행 중인 줄만 같은 모양(LEGACY)으로 이어 간다.
  * 2026-10-09 기본기 4주(BASICS) — 성장기 · 입문용, 무게 추천 없이 횟수 · 세트로만(docs/designs/youth-beginner-path.md).
@@ -104,7 +104,6 @@ export type ProgramId =
   | 'stronglifts-5x5'
   | '531-bbb'
   | '531'
-  | 'texas-method'
   | 'juggernaut-5s'
   | 'ws4sb'
   | 'french-contrast'
@@ -126,7 +125,7 @@ export const GOAL_LABELS: Record<ProgramGoal, string> = {
 
 /**
  * 무게를 정하는 방식(lib/program/next-weight.ts).
- *   pct     — 기준 무게(TM)의 몇 %. TM 은 시작 전 기록으로 정해 4주 동안 그대로(5/3/1 · 저거넛 · 텍사스 · 프렌치 컨트라스트)
+ *   pct     — 기준 무게(TM)의 몇 %. TM 은 시작 전 기록으로 정해 4주 동안 그대로(5/3/1 · 저거넛 · 프렌치 컨트라스트)
  *   linear  — 다 채우면 다음 회차 한 칸(스트롱리프트)
  *   reserve — '몇 개 남기고' + 지난 기록(보조 운동 · 최고까지 올리기 · 옛 프로그램)
  *   none    — 무게 없음(점프 · 메디신볼 · 몸통)
@@ -349,68 +348,6 @@ const W531: ProgramDef = {
   perWeek: [2, 3],
   lightWeeks: [4],
   build: waveDay(WAVE_531, false),
-};
-
-/**
- * 텍사스 금요일 5회 1세트의 TM % — 매주 2.5%씩 최고 기록. 투수 맞춤: 4주차 92.5%(추정 최대의 83%)로 끝내
- * 5회 최대(약 86%)까지 가지 않는다 — 1~2개는 남는다.
- */
-const texasFriday = (week: number) => 0.85 + 0.025 * (week - 1);
-
-const TEXAS: ProgramDef = {
-  id: 'texas-method',
-  goal: 'strength',
-  name: '텍사스 메소드',
-  origin: 'Texas Method · 마크 리피토 · 글렌 펜들레이',
-  summary: '월 많이, 수 가볍게, 금 최고 기록을 내요',
-  detail: [
-    '월요일은 5세트 × 5회(금요일 무게의 90%), 수요일은 가볍게(월요일의 80~90%), 금요일은 5회 1세트로 매주 기록을 올려요.',
-    '%는 기준 무게(추정 최대의 90%)의 비율이에요.',
-    '투수에 맞춰 파워 클린 대신 점프로 하고, 어깨 뒤쪽을 위해 당기기를 매번 밀기보다 많이 해요. 주 3번만 할 수 있어요.',
-  ],
-  weeks: 4,
-  perWeek: [3],
-  lightWeeks: [],
-  build: (day, week) => {
-    const fri = texasFriday(week);
-    const mon = fri * 0.9;
-    return cycle<DayBuild>(
-      [
-        {
-          label: '많이 하는 날',
-          items: [
-            item('squat', 'pct', pctSets(5, 5, mon), 180),
-            item('push', 'pct', pctSets(5, 5, mon), 150),
-            item('hinge', 'pct', pctSets(1, 5, fri), 180),
-            /* 투수 맞춤: 당기기를 밀기 이상(2026-10-14 — 원본은 밀기 9세트 · 당기기 3세트로 어깨 뒤쪽이 모자랐다). 주 4 + 3 + 3 = 10세트 */
-            assist('pull', 4, 8, false),
-            coreItem(),
-          ],
-        },
-        {
-          label: '가벼운 날',
-          items: [
-            item('squat', 'pct', pctSets(2, 5, mon * 0.8), 120),
-            item('push', 'pct', pctSets(3, 5, mon * 0.9), 120),
-            assist('pull', 3, 8, false),
-            coreItem(),
-          ],
-        },
-        {
-          label: '최고 기록 날',
-          items: [
-            /* 투수 맞춤: 파워 클린 대신 점프 */
-            item('jump', 'none', reps(5, 3), 90),
-            item('squat', 'pct', pctSets(1, 5, fri), 180),
-            item('push', 'pct', pctSets(1, 5, fri), 150),
-            assist('pull', 3, 8, false),
-            coreItem(),
-          ],
-        },
-      ],
-      day
-    );
-  },
 };
 
 const JUGGERNAUT: ProgramDef = {
@@ -659,7 +596,6 @@ export const PROGRAMS: readonly ProgramDef[] = [
   STRONGLIFTS,
   BBB_531,
   W531,
-  TEXAS,
   JUGGERNAUT,
   WS4SB,
   FRENCH_CONTRAST,
