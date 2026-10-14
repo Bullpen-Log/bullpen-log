@@ -551,7 +551,7 @@ const STATUS_TEXT: Record<LiveStatus, string> = {
   off: '카메라 꺼짐',
   starting: '카메라 켜는 중…',
   ready: '준비됨',
-  settling: '가만히 — 배경 잡는 중',
+  settling: '가만히 · 배경 잡는 중',
   armed: '던지세요',
   capturing: '영상 담는 중…',
   analyzing: '구속 계산 중…',
@@ -1639,7 +1639,7 @@ export function VelocityScreen({
       res.ok
         ? `녹화를 구속 측정 관리자에 올렸어요(조각 ${res.parts}개)`
         : res.parts > 0
-          ? `조각 ${res.parts}개만 올렸어요 — ${res.error ?? '일부를 못 올렸어요'}`
+          ? `조각 ${res.parts}개만 올렸어요. ${res.error ?? '일부를 못 올렸어요'}`
           : (res.error ?? '녹화를 올리지 못했어요')
     );
   };
@@ -1765,12 +1765,12 @@ export function VelocityScreen({
     if (Math.abs(gotShort - asked.short) > 8 || Math.abs(gotFps - asked.fps) > 2) {
       setToast(
         `이 카메라는 ${camModeLabel(asked)} 를 못 내 ${gotShort}p · ${gotFps}fps 로 켰어요${
-          low ? ' — 60fps 아래라 측정이 잘 안 돼요' : ''
+          low ? ' · 60fps 아래라 측정이 잘 안 돼요' : ''
         }`
       );
       return;
     }
-    if (low) setToast(`지금 ${gotFps}fps 예요 — 60fps 아래라 측정이 잘 안 돼요`);
+    if (low) setToast(`지금 ${gotFps}fps 예요. 60fps 아래라 측정이 잘 안 돼요`);
   };
 
   useEffect(() => {
@@ -1943,9 +1943,9 @@ export function VelocityScreen({
     const c = stdCorrection(pitches, 'camera');
     let note: string | null = null;
     if (c && distTape && Math.abs(c.m / targetDistM - 1) > TAPE_WARN)
-      note = `줄자 ${targetDistM}m · 공 크기 ${c.m}m — 폰이나 미트 자리를 확인하세요`;
+      note = `줄자 ${targetDistM}m · 공 크기 ${c.m}m. 폰이나 미트 자리를 확인하세요`;
     else if (c?.apply && !distTape)
-      note = `공 ${c.n}개의 공 크기로 세션 거리를 ${c.m}m 로 — 앞 공도 다시 셌어요`;
+      note = `공 ${c.n}개의 공 크기로 세션 거리를 ${c.m}m 로 맞추고 앞 공도 다시 셌어요`;
     if (note && note !== corrNoteRef.current) {
       corrNoteRef.current = note;
       setToast(note);
@@ -2057,7 +2057,7 @@ export function VelocityScreen({
     /* 관리자 점프의 예시 공은 화면 확인용 — 실제 기록에 섞이면 안 된다 */
     if (pitches.some((p) => p.sample)) {
       setSheet('none');
-      setError('예시 공은 저장할 수 없어요 — 관리자 이동 › 예시 공 지우기.');
+      setError('예시 공은 저장할 수 없어요. 관리자 이동 › 예시 공 지우기.');
       return;
     }
     /* 체감 강도를 안 골랐다 — 칩 밑의 빨간 한 줄로 알린다(서버도 같은 말로 막는다) */
@@ -2200,7 +2200,7 @@ export function VelocityScreen({
     setEditing(null);
     if (key === 'ask') {
       if (!stored) {
-        setToast('저장된 설정이 없어요 — 설정을 한 번 마치면 생겨요');
+        setToast('저장된 설정이 없어요. 설정을 한 번 마치면 생겨요');
         return;
       }
       setLive(false);
@@ -2656,7 +2656,7 @@ export function VelocityScreen({
           step={1}
           total={5}
           title="어떤 투구인가요?"
-          subtitle="투구 기록에 이 종류로 남아요 — 나중에 돌아볼 때 무엇을 하다 던졌는지 갈려요."
+          subtitle="투구 기록에 이 종류로 남아요. 나중에 돌아볼 때 무엇을 하다 던졌는지 갈려요."
           footer={
             <PrimaryButton onClick={() => setStep('camera')}>
               다음
@@ -2795,7 +2795,7 @@ export function VelocityScreen({
           step={3}
           total={5}
           title="카메라 앞에 네트가 있나요?"
-          subtitle="그물이 있으면 초점을 고정해요 — 자동초점은 눈앞의 그물코에 초점을 맞춰 공이 흐려져요."
+          subtitle="그물이 있으면 초점을 고정해요. 자동초점은 눈앞의 그물코에 초점을 맞춰 공이 흐려져요."
           footer={
             <>
               <PrimaryButton tone="quiet" onClick={() => setStep('camera')}>
@@ -3492,7 +3492,7 @@ export function VelocityScreen({
                       onClick={step === 'align' ? goZone : goMeasure}
                       disabled={!cameraOn}
                       aria-label={
-                        step === 'align' ? '다음 — 스트라이크 존' : '완료 — 측정 화면'
+                        step === 'align' ? '다음 · 스트라이크 존' : '완료 · 측정 화면'
                       }
                       className="group flex h-[4.75rem] w-[4.75rem] items-center justify-center rounded-full border-4 border-white/90 disabled:opacity-40"
                     >
@@ -3970,7 +3970,7 @@ export function VelocityScreen({
                       )}°`
                     : lens
                       ? '공으로 잰 값을 쓰는 중'
-                      : `아직 안 했어요 — 화각 ${fov}° 가정으로 계산 중. 정확도를 위해 꼭 한 번 하세요.`}
+                      : `아직 안 했어요. 화각 ${fov}° 가정으로 계산 중. 정확도를 위해 꼭 한 번 하세요.`}
                   {lens && camera && !lensOk && (
                     <span className="block text-warn">
                       저장된 보정이 이 카메라(이름 · 비율 · 줌)와 달라요 — 지금은 화각

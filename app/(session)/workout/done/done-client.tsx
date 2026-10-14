@@ -150,7 +150,7 @@ export function DoneClient({
                 근력 · 파워 프로그램
               </h2>
               <div className="mt-2 space-y-2 rounded-2xl bg-surface px-4 py-3">
-                <p className="text-[15px] font-semibold text-ink">{program.headline}</p>
+                <p className="text-subhead font-semibold text-ink">{program.headline}</p>
                 {program.lifts.length > 0 && (
                   <ul className="divide-y divide-line">
                     {program.lifts.map((l) => (
@@ -185,7 +185,7 @@ export function DoneClient({
                         <Trophy aria-hidden className="h-4 w-4" />
                       </span>
                       <span className="min-w-0 flex-1">
-                        <span className="block truncate text-[15px] font-semibold text-ink">
+                        <span className="block truncate text-subhead font-semibold text-ink">
                           {title}
                         </span>
                         {record.before != null && (
@@ -209,10 +209,10 @@ export function DoneClient({
             <ul className="mt-2 divide-y divide-line overflow-hidden rounded-2xl bg-surface">
               {rows.map((r) => (
                 <li key={r.id} className="flex items-center gap-3 px-4 py-3">
-                  <span className="min-w-0 flex-1 truncate text-[15px] text-ink">
+                  <span className="min-w-0 flex-1 truncate text-subhead text-ink">
                     {r.title}
                   </span>
-                  <span className="shrink-0 text-[13px] tabular-nums text-muted">
+                  <span className="shrink-0 text-footnote tabular-nums text-muted">
                     {formatSummary(r.summary, unit)}
                   </span>
                 </li>

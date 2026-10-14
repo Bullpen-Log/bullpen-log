@@ -100,7 +100,7 @@ export function ProgramStart({ props }: { props: ProgramStartProps }) {
     >
       <span className="min-w-0 flex-1">
         <span className="flex flex-wrap items-center gap-1.5">
-          <span className="text-[15px] font-semibold text-ink">{basicsChoice.name}</span>
+          <span className="text-subhead font-semibold text-ink">{basicsChoice.name}</span>
           {recommend && (
             <span className="rounded-md bg-sky px-1.5 py-0.5 text-[10px] font-semibold text-white">
               추천
@@ -125,7 +125,7 @@ export function ProgramStart({ props }: { props: ProgramStartProps }) {
         className="flex min-h-12 w-full items-center gap-3 rounded-2xl bg-surface px-(--block-pad) text-left"
       >
         <span className="min-w-0 flex-1">
-          <span className="block text-[15px] font-semibold text-ink">
+          <span className="block text-subhead font-semibold text-ink">
             근력 · 파워 프로그램
           </span>
           <span className="block text-xs text-muted break-keep">
@@ -344,7 +344,7 @@ function StartSheet({
               >
                 <span className="min-w-0 flex-1">
                   <span className="flex flex-wrap items-center gap-1.5">
-                    <span className="text-[15px] font-semibold text-ink">{p.name}</span>
+                    <span className="text-subhead font-semibold text-ink">{p.name}</span>
                     {props.blocked && !props.basicsBlocked && (
                       <span className="rounded-md bg-sky px-1.5 py-0.5 text-[10px] font-semibold text-white">
                         추천
@@ -379,7 +379,7 @@ function StartSheet({
                     className="flex min-h-14 w-full items-center gap-3 py-2 text-left"
                   >
                     <span className="min-w-0 flex-1">
-                      <span className="block text-[15px] font-semibold text-ink">
+                      <span className="block text-subhead font-semibold text-ink">
                         {p.name}
                       </span>
                       <span className="block text-xs text-muted break-keep">
@@ -432,7 +432,7 @@ function StartSheet({
                 {required.map((e) => (
                   <span
                     key={e}
-                    className="rounded-full border border-line-strong px-2.5 py-1 text-xs font-semibold text-ink"
+                    className="inline-flex min-h-10 items-center rounded-full border border-line-strong px-3 text-xs font-semibold text-ink"
                   >
                     {e}
                   </span>
@@ -498,7 +498,7 @@ function StartSheet({
                   onClick={() => setLevel(l.name)}
                   className={`flex min-h-12 w-full items-center justify-between rounded-xl border px-3 text-left ${level === l.name ? 'border-sky bg-sky/8' : 'border-line'}`}
                 >
-                  <span className="text-[15px] text-ink">{l.name}</span>
+                  <span className="text-subhead text-ink">{l.name}</span>
                   <span className="text-xs text-muted">{l.desc}</span>
                 </button>
               ))}
@@ -573,7 +573,7 @@ function StartSheet({
                           );
                           setChanging(null);
                         }}
-                        className="flex min-h-12 w-full items-center text-left text-[15px] text-ink"
+                        className="flex min-h-12 w-full items-center text-left text-subhead text-ink"
                       >
                         {c.title}
                       </button>
@@ -592,7 +592,7 @@ function StartSheet({
                   >
                     <span className="min-w-0">
                       <span className="block text-xs text-muted">{x.label}</span>
-                      <span className="block truncate text-[15px] text-ink">
+                      <span className="block truncate text-subhead text-ink">
                         {x.title ?? '할 수 있는 운동이 없어요'}
                       </span>
                     </span>

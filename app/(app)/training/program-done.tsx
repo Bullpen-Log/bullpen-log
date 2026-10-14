@@ -35,7 +35,7 @@ export function ProgramDone({ result }: { result: ProgramResult }) {
             >
               <span className="min-w-0">
                 <span className="block text-xs text-muted">{l.label} · 추정 최대</span>
-                <span className="block truncate text-[15px] text-ink">{l.title}</span>
+                <span className="block truncate text-subhead text-ink">{l.title}</span>
               </span>
               <span className="shrink-0 text-right text-sm">
                 {l.from != null && l.to != null ? (

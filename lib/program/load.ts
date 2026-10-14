@@ -53,6 +53,9 @@ import {
   prescriptionLine,
   programSignalsOf,
   readPinned,
+  ROTATING_VARIANTS,
+  rotatedPick,
+  variantTurn,
   restTextOf,
   usedVariants,
   variantCandidates,
@@ -442,7 +445,7 @@ export async function buildProgramDay(
   const youth = isYouthAge(facts.profile.age);
 
   /* 고정 운동이 숨겨졌으면 같은 칸에서 다시 고른다(§3) — 고르기만(읽기). 다시 고정할 것을 적는 일은 pinnedFor 가 한다 */
-  const pinnedOf = (
+  const anchorOf = (
     v: VariantKey
   ): { ex: CachedExercise | null; repinned: boolean } => {
     const id = pinned[v];
@@ -452,12 +455,21 @@ export async function buildProgramDay(
       variantCandidates(v, core.library, owned, user.trainingLevel, audience, youth)[0] ?? null;
     return { ex: next, repinned: next != null };
   };
+  /* 보조 칸은 세션마다 다른 운동(program.ts ROTATING_VARIANTS) — 고정 운동을 첫째로 같은 칸 후보를 그 칸이 나온 차례대로 */
+  const pinnedOf = (v: VariantKey): { ex: CachedExercise | null; repinned: boolean } => {
+    const got = anchorOf(v);
+    if (audience !== 'adult' || !ROTATING_VARIANTS.includes(v) || !got.ex) return got;
+    const pool = variantCandidates(v, core.library, owned, user.trainingLevel, audience);
+    return { ex: rotatedPick(got.ex, pool, variantTurn(plan, day, v)), repinned: got.repinned };
+  };
   const repin: Pinned = {};
   const pinnedFor = (
     v: VariantKey
   ): { ex: CachedExercise | null; repinned: boolean } => {
     const got = pinnedOf(v);
-    if (got.repinned && got.ex) repin[v] = got.ex.id;
+    /* 다시 고정은 고정 운동(첫째)만 — 돌린 차례의 운동을 고정으로 적지 않는다 */
+    const anchor = anchorOf(v);
+    if (anchor.repinned && anchor.ex) repin[v] = anchor.ex.id;
     return got;
   };
 
@@ -896,7 +908,12 @@ export function programCardProps(
       day: d,
       label: dayLabel(plan, d),
       items: dayPlan(plan, d).items.map((rx) => ({
-        title: (pinned[rx.variant] && byId.get(pinned[rx.variant] as string)) || variantLabel(rx.variant, audience),
+        /* 보조 칸은 세션마다 바뀌어 미리 이름을 못 박는다 — 칸 이름으로 */
+        title:
+          (!ROTATING_VARIANTS.includes(rx.variant) &&
+            pinned[rx.variant] &&
+            byId.get(pinned[rx.variant] as string)) ||
+          variantLabel(rx.variant, audience),
         line: prescriptionLine(rx),
       })),
     })),

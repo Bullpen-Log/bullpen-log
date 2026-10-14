@@ -259,7 +259,7 @@ export function PlanForm({
     return (
       <div className="space-y-2 rounded-xl border border-line bg-surface-2 px-4 py-3">
         <p className="text-sm font-bold text-ink">오늘 체크인을 먼저 남겨주세요</p>
-        <p className="text-[13px] leading-relaxed text-muted">
+        <p className="text-footnote leading-relaxed text-muted">
           운동 일정은 오늘 몸 상태를 보고 짜요. 체크인이 없으면 통증이나 뻐근한 곳을
           모른 채 짜게 돼요. 30초면 돼요.
         </p>
@@ -352,7 +352,7 @@ export function PlanForm({
 
       {mode === 'auto' ? (
         <>
-          <p className="text-[13px] leading-relaxed text-muted">
+          <p className="text-footnote leading-relaxed text-muted">
             오늘 체크인 · 최근 투구 · 운동 기록을 보고 목표와 시간을 정해요. 장비만
             골라주세요.
           </p>
@@ -368,7 +368,7 @@ export function PlanForm({
               <p className="text-sm font-bold text-warn">
                 {clash.kind} 운동을 하고 싶다고 하셨는데, {clash.reason}.
               </p>
-              <p className="text-[13px] leading-relaxed text-warn">
+              <p className="text-footnote leading-relaxed text-warn">
                 자동 맞춤은 몸 상태에 맞춰 {clash.fallbackLabel} 위주로 만들어요.{' '}
                 {clash.kind} 운동을 하고 싶으면 ‘직접 고르기’에서 만들 수 있어요.
               </p>
@@ -382,11 +382,11 @@ export function PlanForm({
               <p className="text-sm font-bold text-warn">
                 {clash.kind} 운동을 하고 싶다고 하셨는데, {clash.reason}.
               </p>
-              <p className="text-[13px] leading-relaxed text-warn">
+              <p className="text-footnote leading-relaxed text-warn">
                 그래서 기본은 {clash.fallbackLabel} 위주로 만들어요. 몸이 괜찮으면
                 원하는 대로 만들어도 돼요.
               </p>
-              <label className="flex items-start gap-2.5 text-[13px] font-medium leading-relaxed text-warn">
+              <label className="flex items-start gap-2.5 text-footnote font-medium leading-relaxed text-warn">
                 <input
                   type="checkbox"
                   name="overrideCondition"

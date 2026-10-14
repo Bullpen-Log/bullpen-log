@@ -161,7 +161,7 @@ export function AnalysisBlock({
                     return next;
                   })
                 }
-                className="inline-flex items-center gap-1 rounded-lg px-2 py-1 font-semibold text-sky transition-colors hover:bg-sky-tint"
+                className="-my-2 inline-flex min-h-10 items-center gap-1 rounded-lg px-2 font-semibold text-sky transition-colors hover:bg-sky-tint"
               >
                 <RotateCcw aria-hidden className="h-3.5 w-3.5" />
                 다시 불러오기

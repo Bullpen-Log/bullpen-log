@@ -23,6 +23,7 @@ import { shiftDateKey, toDateKey } from '@/lib/pitch-stats';
 import { dbDate, keyOfDbDate } from '@/lib/nutrition/days';
 import { TRAINING_PART_HREF, type TrainingPart } from '@/lib/training-part';
 import { StartWorkout } from './start-workout';
+import { withJosa } from '@/lib/korean';
 
 type HomeUser = UserForToday & UserForArmcare & { id: string };
 
@@ -335,7 +336,7 @@ async function ArmcareCard({ user, today }: { user: HomeUser; today: Date }) {
     map.gaps.length > 0 && data.decision.kind !== 'rest' ? (
       <Link
         href="/training?view=armcare&tab=guide"
-        className={`relative z-10 inline-flex min-h-8 items-center gap-0.5 text-xs font-semibold ${APPS.armcare.ink}`}
+        className={`relative z-10 -my-1 inline-flex min-h-10 items-center gap-0.5 text-xs font-semibold ${APPS.armcare.ink}`}
       >
         {map.coverage.total === 0 ? '여기부터 해 보세요' : '2주째 안 한 곳'}:{' '}
         {map.gaps.map((key) => ARMCARE_AREAS.find((a) => a.key === key)?.label ?? key).join(' · ')}
@@ -378,7 +379,7 @@ async function ArmcareCard({ user, today }: { user: HomeUser; today: Date }) {
   const label = ARMCARE_KIND_TEXT[data.routine.kind].label;
   if (items.length > 0 && done >= items.length) {
     return (
-      <AppCard app="armcare" tone="done" status={`오늘 ${label}를 마쳤어요`}>
+      <AppCard app="armcare" tone="done" status={`오늘 ${withJosa(label, '을/를')} 마쳤어요`}>
         {gapLine}
       </AppCard>
     );

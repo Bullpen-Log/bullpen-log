@@ -98,7 +98,7 @@ export function CommitBody({ text }: { text: string }) {
         type="button"
         onClick={toggle}
         aria-expanded={open}
-        className="mt-1 inline-flex items-center gap-1 text-[11px] font-medium text-muted transition-colors duration-75 hover:text-sky"
+        className="mt-1 inline-flex items-center gap-1 text-caption font-medium text-muted transition-colors duration-75 hover:text-sky"
       >
         {open ? '접기' : '더 보기'}
         <ChevronDown

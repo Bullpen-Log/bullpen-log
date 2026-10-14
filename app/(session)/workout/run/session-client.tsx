@@ -1052,7 +1052,7 @@ export function SessionClient({
             목록 단추 — 2026-10-12 사용자: "목록 버튼이 심각하게 작다". 예전엔 막대 옆 14px 아이콘뿐이었다. 44px 알약에 글자 ·
             몇 번째인지까지 — 막대를 눌러도 같이 열린다(이 단추 전체가 목록 열기).
           */}
-          <span className="flex h-11 shrink-0 items-center gap-1.5 rounded-full bg-sky/12 px-3.5 text-[13px] font-semibold text-sky-strong">
+          <span className="flex h-11 shrink-0 items-center gap-1.5 rounded-full bg-sky/12 px-3.5 text-footnote font-semibold text-sky-strong">
             <ListOrdered aria-hidden className="h-4 w-4" />
             목록
             <span className="tabular-nums">
@@ -1101,7 +1101,7 @@ export function SessionClient({
           /* 누르는 자리는 44px, 보이는 알약은 그보다 작게 */
           className="group -my-1 flex min-h-11 shrink-0 items-center disabled:opacity-50"
         >
-          <span className="rounded-full bg-ink/6 px-3.5 py-2 text-[13px] font-semibold text-ink transition-colors group-hover:text-sky group-active:bg-ink/12">
+          <span className="rounded-full bg-ink/6 px-3.5 py-2 text-footnote font-semibold text-ink transition-colors group-hover:text-sky group-active:bg-ink/12">
             {ending ? '정리 중' : '운동 종료'}
           </span>
         </button>
@@ -1123,7 +1123,7 @@ export function SessionClient({
           <CloudOff aria-hidden className="h-3.5 w-3.5 shrink-0" />
           {offline ? (
             <span>
-              <b>신호가 없어요.</b> 세트 {pending.length}개를 폰에 저장해 두었고, 신호가
+              신호가 없어요. 세트 {pending.length}개를 폰에 저장해 두었고, 신호가
               잡히면 저절로 보내요.
             </span>
           ) : (
@@ -1160,7 +1160,7 @@ export function SessionClient({
           <button
             type="button"
             onClick={() => setSwap(true)}
-            className="mt-1.5 inline-flex min-h-8 shrink-0 items-center gap-1 rounded-full bg-surface px-3 text-xs font-semibold text-ink transition-colors active:bg-ink/6"
+            className="mt-1.5 inline-flex min-h-10 shrink-0 items-center gap-1 rounded-full bg-surface px-3 text-xs font-semibold text-ink transition-colors active:bg-ink/6"
           >
             {mine.length > 0 ? (
               <Plus aria-hidden className="h-3.5 w-3.5" />
@@ -1184,7 +1184,7 @@ export function SessionClient({
               <button
                 type="button"
                 onClick={() => goTo(at + 1)}
-                className="min-h-9 shrink-0 rounded-full px-3 font-semibold text-sky"
+                className="min-h-10 shrink-0 rounded-full px-3 font-semibold text-sky"
               >
                 건너뛰기
               </button>
@@ -1336,7 +1336,7 @@ export function SessionClient({
                       className="flex min-h-13 min-w-0 flex-1 items-center gap-3 py-2 pr-1 pl-3.5 text-left transition-colors active:bg-ink/4"
                     >
                       <span
-                        className={`grid h-6 w-6 shrink-0 place-items-center rounded-full text-[11px] font-bold tabular-nums ${
+                        className={`grid h-6 w-6 shrink-0 place-items-center rounded-full text-caption font-bold tabular-nums ${
                           fixingThis ? 'bg-sky text-white' : 'bg-ink/6 text-muted'
                         }`}
                       >
@@ -1351,12 +1351,12 @@ export function SessionClient({
                       </span>
                       {/* 지난 모든 기록보다 나은 세트 — 남기는 순간 톡 뜨고 손에 두 번 떤다(save) */}
                       {record?.setNo === s.setNo && (
-                        <span className="finish-pop shrink-0 rounded-full bg-sky px-2 py-0.5 text-[11px] font-bold text-white">
+                        <span className="finish-pop shrink-0 rounded-full bg-sky px-2 py-0.5 text-caption font-bold text-white">
                           새 최고
                         </span>
                       )}
                       {s.rir != null && (
-                        <span className="shrink-0 rounded-full bg-ink/6 px-2 py-0.5 text-[11px] text-muted">
+                        <span className="shrink-0 rounded-full bg-ink/6 px-2 py-0.5 text-caption text-muted">
                           여유 {s.rir >= 4 ? '4+' : s.rir}
                         </span>
                       )}
@@ -1548,12 +1548,12 @@ export function SessionClient({
                 <div className="flex items-center gap-2 rounded-xl bg-sky/10 px-3.5 py-1 text-xs text-sky">
                   <Pencil aria-hidden className="h-3.5 w-3.5 shrink-0" />
                   <span className="flex-1">
-                    <b>{editIndex + 1}세트</b>를 고치는 중이에요
+                    {editIndex + 1}세트를 고치는 중이에요
                   </span>
                   <button
                     type="button"
                     onClick={endEdit}
-                    className="-mr-1.5 min-h-9 shrink-0 px-1.5 font-semibold transition-opacity active:opacity-60"
+                    className="-mr-1.5 min-h-10 shrink-0 px-1.5 font-semibold transition-opacity active:opacity-60"
                   >
                     그만두기
                   </button>
@@ -1563,7 +1563,7 @@ export function SessionClient({
                   <button
                     type="button"
                     onClick={fillSuggested}
-                    className="mx-auto flex min-h-9 w-fit items-center gap-1.5 rounded-full px-3 text-[13px] font-semibold text-sky transition-opacity active:opacity-60"
+                    className="mx-auto flex min-h-10 w-fit items-center gap-1.5 rounded-full px-3 text-footnote font-semibold text-sky transition-opacity active:opacity-60"
                   >
                     <RotateCcw aria-hidden className="h-3.5 w-3.5" />
                     추천{' '}
@@ -1572,7 +1572,7 @@ export function SessionClient({
                   </button>
                   {/* 자유 운동의 추천은 까닭 한 줄을 붙인다 — 왜 올랐는지(안 올랐는지) 보여야 믿고 담는다(free-weight.ts) */}
                   {ex.suggestNote && (
-                    <p className="text-center text-[11px] leading-relaxed break-keep text-muted">
+                    <p className="text-center text-caption leading-relaxed break-keep text-muted">
                       {ex.suggestNote}
                     </p>
                   )}
@@ -1582,7 +1582,7 @@ export function SessionClient({
                   <button
                     type="button"
                     onClick={fillLast}
-                    className="mx-auto flex min-h-9 w-fit items-center gap-1.5 rounded-full px-3 text-[13px] font-semibold text-sky transition-opacity active:opacity-60"
+                    className="mx-auto flex min-h-10 w-fit items-center gap-1.5 rounded-full px-3 text-footnote font-semibold text-sky transition-opacity active:opacity-60"
                   >
                     <RotateCcw aria-hidden className="h-3.5 w-3.5" />
                     지난번 그대로 담기
@@ -1631,7 +1631,7 @@ export function SessionClient({
               type="button"
               onClick={() => goTo(at - 1)}
               disabled={at === 0}
-              className="flex min-h-11 flex-1 items-center justify-center gap-1 rounded-full bg-ink/6 text-[13px] font-semibold text-ink transition active:bg-ink/12 disabled:opacity-30 motion-safe:active:scale-[0.98]"
+              className="flex min-h-11 flex-1 items-center justify-center gap-1 rounded-full bg-ink/6 text-footnote font-semibold text-ink transition active:bg-ink/12 disabled:opacity-30 motion-safe:active:scale-[0.98]"
             >
               <ChevronLeft className="h-4 w-4" />
               이전 운동
@@ -1640,7 +1640,7 @@ export function SessionClient({
               type="button"
               onClick={() => goTo(at + 1)}
               disabled={at === list.length - 1}
-              className="flex min-h-11 min-w-0 flex-1 items-center justify-center gap-1 rounded-full bg-ink/6 px-3 text-[13px] font-semibold text-ink transition active:bg-ink/12 disabled:opacity-30 motion-safe:active:scale-[0.98]"
+              className="flex min-h-11 min-w-0 flex-1 items-center justify-center gap-1 rounded-full bg-ink/6 px-3 text-footnote font-semibold text-ink transition active:bg-ink/12 disabled:opacity-30 motion-safe:active:scale-[0.98]"
             >
               {/* 다음이 무엇인지 이름까지 — 목록을 안 열어도 보이게(2026-10-12) */}
               <span className="truncate">
@@ -1770,7 +1770,7 @@ function RirQuestion({
             className="flex min-h-14 flex-col items-center justify-center rounded-2xl bg-ink/6 text-xl font-bold text-ink transition active:bg-sky active:text-white"
           >
             {o.label}
-            <span className="h-4 text-[11px] font-medium text-muted">{o.hint}</span>
+            <span className="h-4 text-caption font-medium text-muted">{o.hint}</span>
           </button>
         ))}
       </div>

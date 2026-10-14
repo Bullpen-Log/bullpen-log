@@ -110,7 +110,7 @@ export function WarmupClient({
           {cards.map((card) => (
             <section key={card.id}>
               <div className="flex flex-wrap items-baseline gap-x-2 px-1">
-                <h2 className="text-heading text-[15px] text-ink">{card.name}</h2>
+                <h2 className="text-heading text-subhead text-ink">{card.name}</h2>
                 {card.forToday ? (
                   <span className="rounded-md bg-sky/10 px-1.5 py-0.5 text-[10px] font-semibold text-sky-strong">
                     오늘 맞춤
@@ -154,7 +154,7 @@ export function WarmupClient({
 
                         <span className="min-w-0 flex-1">
                           <span
-                            className={`block text-[15px] font-bold break-keep ${
+                            className={`block text-subhead font-bold break-keep ${
                               checked ? 'text-sky-strong' : 'text-ink'
                             }`}
                           >

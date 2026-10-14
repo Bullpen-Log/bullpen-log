@@ -1949,7 +1949,7 @@ function Tip({ children }: { children: React.ReactNode }) {
   return (
     <span
       aria-hidden
-      className="pointer-events-none absolute left-1/2 top-full z-10 mt-1 -translate-x-1/2 -translate-y-0.5 whitespace-nowrap rounded-md bg-ink px-2 py-1 text-[11px] font-medium leading-none text-page opacity-0 shadow-md transition-[opacity,translate] duration-150 group-hover:translate-y-0 group-hover:opacity-100 group-focus-visible:translate-y-0 group-focus-visible:opacity-100 motion-reduce:transition-none"
+      className="pointer-events-none absolute left-1/2 top-full z-10 mt-1 -translate-x-1/2 -translate-y-0.5 whitespace-nowrap rounded-md bg-ink px-2 py-1 text-caption font-medium leading-none text-page opacity-0 shadow-md transition-[opacity,translate] duration-150 group-hover:translate-y-0 group-hover:opacity-100 group-focus-visible:translate-y-0 group-focus-visible:opacity-100 motion-reduce:transition-none"
     >
       {children}
     </span>
@@ -2936,7 +2936,9 @@ function MobileTabs({
           if (hold.current || dragging.current) e.preventDefault();
         }}
         style={{ '--tab-count': tabs.length } as CSSProperties}
-        className="pointer-events-auto relative mx-auto flex max-w-md touch-none rounded-full border border-white/12 bg-[rgb(30_30_32/0.72)] p-1 text-white shadow-[0_12px_32px_-10px_rgb(0_0_0/0.55),inset_0_1px_0_rgb(255_255_255/0.08)] backdrop-blur-2xl backdrop-saturate-150 pad:h-full pad:max-w-none pad:flex-col pad:gap-1 pad:rounded-none pad:border-y-0 pad:border-l-0 pad:border-line/60 pad:bg-surface/88 pad:pt-[calc(env(safe-area-inset-top)+0.75rem)] pad:pr-2 pad:pl-[calc(env(safe-area-inset-left)+0.5rem)] pad:text-ink pad:shadow-none"
+        data-tab-bar
+        /* 가로 알약의 유리(바탕 · 테두리 · 빛 · 그림자)는 globals.css '하단 탭의 유리 알약' — 가만히 있을 때도 유리로 보이게 */
+        className="pointer-events-auto relative mx-auto flex max-w-md touch-none rounded-full p-1 text-white pad:h-full pad:max-w-none pad:flex-col pad:gap-1 pad:rounded-none pad:pt-[calc(env(safe-area-inset-top)+0.75rem)] pad:pr-2 pad:pl-[calc(env(safe-area-inset-left)+0.5rem)] pad:text-ink"
       >
         {/*
           렌즈 — 지금 탭 뒤의 캡슐 하나(components/tab-lens.ts 가 옮긴다, 모양은 globals.css '하단 탭의 유리 렌즈').

@@ -231,16 +231,16 @@ export function SwapSheetView({
             )}
             <span className="min-w-0 break-keep">{p.title}</span>
           </p>
-          <p className="mt-0.5 text-[11px] leading-relaxed break-keep text-muted">
+          <p className="mt-0.5 text-caption leading-relaxed break-keep text-muted">
             {sub}
           </p>
           {p.prescription && (
-            <p className="text-[11px] leading-relaxed text-muted/80">
+            <p className="text-caption leading-relaxed text-muted/80">
               {p.prescription}
             </p>
           )}
           {unsafe && !halted && (
-            <p className="mt-1 flex items-start gap-1 text-[11px] leading-relaxed text-warn">
+            <p className="mt-1 flex items-start gap-1 text-caption leading-relaxed text-warn">
               <AlertTriangle aria-hidden className="mt-0.5 h-3 w-3 shrink-0" />
               오늘 몸 상태로는 넣을 수 없는 운동이에요
             </p>
@@ -250,7 +250,7 @@ export function SwapSheetView({
           type="button"
           onClick={() => onPick(p.id)}
           disabled={off || pending}
-          className={`shrink-0 rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors disabled:cursor-not-allowed ${
+          className={`inline-flex min-h-10 shrink-0 items-center rounded-lg border px-3 text-xs font-semibold transition-colors disabled:cursor-not-allowed ${
             off
               ? 'border-line bg-surface-2 text-muted'
               : 'border-sky bg-sky text-white active:bg-sky-strong disabled:opacity-60'
@@ -311,7 +311,7 @@ export function SwapSheetView({
               </span>
             </button>
           </div>
-          <p className="mt-0.5 text-[11px] leading-relaxed break-keep text-muted">
+          <p className="mt-0.5 text-caption leading-relaxed break-keep text-muted">
             {mode === 'replace'
               ? `‘${current.title}’ 대신 할 운동을 고르세요.`
               : `이미 세트를 남긴 운동이라 그대로 두고, 고른 운동을 ‘${current.title}’ 바로 다음에 더해요.`}
@@ -385,7 +385,7 @@ export function SwapSheetView({
               <div className="space-y-4">
                 {favoritePicks.length > 0 && (
                   <section>
-                    <p className="mb-1.5 px-1 text-[11px] font-semibold text-muted">
+                    <p className="mb-1.5 px-1 text-caption font-semibold text-muted">
                       즐겨찾기
                     </p>
                     <ul className="space-y-1.5">
@@ -395,7 +395,7 @@ export function SwapSheetView({
                 )}
                 {recentPicks.length > 0 && (
                   <section>
-                    <p className="mb-1.5 px-1 text-[11px] font-semibold text-muted">
+                    <p className="mb-1.5 px-1 text-caption font-semibold text-muted">
                       최근에 한 운동
                     </p>
                     <ul className="space-y-1.5">
@@ -423,7 +423,7 @@ export function SwapSheetView({
             </>
           )}
 
-          <p className="mt-3 px-2 text-center text-[11px] leading-relaxed break-keep text-muted/80">
+          <p className="mt-3 px-2 text-center text-caption leading-relaxed break-keep text-muted/80">
             바꾼 운동은 오늘 운동에만 반영돼요. 트레이닝 화면의 일정은 그대로예요.
           </p>
         </div>

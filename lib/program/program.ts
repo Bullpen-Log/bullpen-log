@@ -37,6 +37,8 @@ export type VariantKey =
   | 'hinge'
   | 'push'
   | 'pull'
+  | 'pullVertical'
+  | 'pushAssist'
   | 'singleLeg'
   | 'jump'
   | 'medball'
@@ -57,6 +59,8 @@ export const VARIANT_KEYS: readonly VariantKey[] = [
   'hinge',
   'push',
   'pull',
+  'pullVertical',
+  'pushAssist',
   'singleLeg',
   'jump',
   'medball',
@@ -69,6 +73,8 @@ export const VARIANT_LABELS: Record<VariantKey, string> = {
   hinge: '힌지',
   push: '밀기',
   pull: '당기기',
+  pullVertical: '세로 당기기',
+  pushAssist: '보조 밀기',
   singleLeg: '한 다리',
   jump: '점프',
   medball: '메디신볼',
@@ -106,6 +112,8 @@ export const SLOT_OF: Record<VariantKey, SlotKind> = {
   hinge: 'bigLower',
   push: 'pushPull',
   pull: 'pushPull',
+  pullVertical: 'pushPull',
+  pushAssist: 'pushPull',
   singleLeg: 'singleLeg',
   jump: 'power',
   medball: 'power',
@@ -1013,6 +1021,8 @@ export const VARIANT_MOVEMENT_KEY: Record<VariantKey, string | null> = {
   hinge: '힌지',
   push: '밀기',
   pull: '당기기',
+  pullVertical: '당기기',
+  pushAssist: '밀기',
   singleLeg: '런지',
   jump: LOWER_POWER_KEY,
   medball: UPPER_POWER_KEY,
@@ -1459,14 +1469,49 @@ const VARIANT_RULES: Record<VariantKey, VariantRule> = {
       BARBELL_FIRST(ex),
     ],
   },
-  /* 당기기는 무거운 것이 적어 '중간'까지 받는다. 덤벨 · 바벨 로우를 철봉보다 먼저(무게 흐름을 보려고) */
+  /*
+   * 당기기(가로 · 로우)는 무거운 것이 적어 '중간'까지 받는다. 2026-10-14 김민: 매 세션 바벨 로우는 투수에게 맞나 → 허리를 굽혀 버티는 바벨
+   * 벤트오버 로우는 같은 날 스쿼트 · 데드리프트와 허리 부담이 겹친다. 가슴을 대는 로우 · 한 팔 덤벨 로우 · 케이블 로우를 먼저, 바벨 로우는 맨 뒤.
+   * 버티기(아이소) · 빠르게(스피드) · 풀오버 · 풀다운(세로 당기기 칸의 것)도 뒤로.
+   */
   pull: {
     match: (ex) =>
       ex.category === '상체 스트렝스' &&
       ex.movementPattern === '당기기' &&
       isWeighted(ex) &&
       intensityLevel(ex.intensity) >= 3,
-    rank: (ex) => [ex.perSide ? 1 : 0, -intensityLevel(ex.intensity)],
+    rank: (ex) => [
+      /로우/.test(ex.title) && !/아이소|스피드/.test(ex.title) ? 0 : 1,
+      ex.equipment.includes('바벨') ? 1 : 0,
+      wordRank(ex.title, ['체스트 서포티드 덤벨 로우', '싱글암 덤벨 로우', '시티드 케이블 로우', '싱글암 케이블 로우', '고릴라 로우']),
+      -intensityLevel(ex.intensity),
+    ],
+  },
+  /* 세로 당기기 — 친업 · 풀업(몸무게), 없으면 밴드 보조 · 풀다운. 로우와 세션마다 번갈아 한다(waveDay). 버티기 · 중량은 뒤로 */
+  pullVertical: {
+    match: (ex) =>
+      ex.category === '상체 스트렝스' &&
+      ex.movementPattern === '당기기' &&
+      /친업|풀업|풀다운/.test(ex.title) &&
+      intensityLevel(ex.intensity) >= 3,
+    rank: (ex) => [
+      /아이소|중량/.test(ex.title) ? 1 : 0,
+      wordRank(ex.title, ['친업', '풀업', '밴드 보조 친업', '밴드 보조 풀업', '싱글암 케이블 풀다운']),
+    ],
+  },
+  /* 보조 밀기 — 하체 날에 가볍게(덤벨 벤치 · 푸시업). 머리 위로 미는 것 · 본 운동 바벨 벤치는 뒤로(투수 어깨 · 같은 운동 겹침) */
+  pushAssist: {
+    match: (ex) =>
+      ex.category === '상체 스트렝스' &&
+      ex.movementPattern === '밀기' &&
+      !OVERHEAD_PRESS.test(ex.title) &&
+      intensityLevel(ex.intensity) >= 3,
+    rank: (ex) => [
+      /파이크|에센트릭|밴드 저항/.test(ex.title) ? 1 : 0,
+      ex.equipment.includes('바벨') ? 1 : 0,
+      ex.perSide ? 1 : 0,
+      wordRank(ex.title, ['덤벨 벤치 프레스', '푸시업', '덤벨 플로어 프레스', '인클라인 덤벨 프레스', '중량 푸시업']),
+    ],
   },
   singleLeg: {
     match: (ex) =>
@@ -1474,8 +1519,9 @@ const VARIANT_RULES: Record<VariantKey, VariantRule> = {
       ex.movementPattern === '런지' &&
       isWeighted(ex) &&
       intensityLevel(ex.intensity) >= 3,
-    /* 스플릿 스쿼트 · 리버스 런지가 무게를 올려 가기 좋은 한쪽 하체다 */
+    /* 스플릿 스쿼트 · 리버스 런지가 무게를 올려 가기 좋은 한쪽 하체다. 불안정 지면(보수볼)은 맨 뒤 */
     rank: (ex) => [
+      /보수볼/.test(ex.title) ? 1 : 0,
       /스플릿 스쿼트|리버스 런지/.test(ex.title) ? 0 : 1,
       ex.equipment.includes('덤벨') ? 0 : 1,
       -intensityLevel(ex.intensity),
@@ -1512,15 +1558,21 @@ const VARIANT_RULES: Record<VariantKey, VariantRule> = {
     ],
   },
   /* 회전 던지기 — 메디신볼을 먼저, 없으면 돌리는 코어 */
+  /*
+   * 회전 던지기 — 이름에 회전 동작이 든 메디신볼 던지기(스쿱 · 사이드 · 로테이셔널)를 먼저. 2026-10-14 라이브러리에는 그런 던지기가 없고
+   * 오버헤드 · 푸시 슬램이 '회전'으로 적혀 이 칸에 들어왔다(위아래로 던지는 것이라 회전이 아니다) — 그래서 이름도 본다. 없으면 돌리는 코어
+   * (케이블 · 랜드마인 로테이션을 앉아서 비트는 러시안 트위스트보다 먼저).
+   */
   rotationalThrow: {
     match: (ex) =>
       (ex.category === '파워' &&
         ex.equipment.includes('메디신볼') &&
-        ex.movementPattern === '회전') ||
+        ex.movementPattern === '회전' &&
+        /로테이션|로테이셔널|회전|스쿱|사이드|쉿/.test(ex.title)) ||
       (ex.category === '코어' &&
         ROTATION_WORDS.some((w) => ex.title.includes(w)) &&
         !ANTI_ROTATION_WORDS.some((w) => ex.title.includes(w))),
-    rank: (ex) => [ex.category === '파워' ? 0 : 1],
+    rank: (ex) => [ex.category === '파워' ? 0 : 1, /트위스트/.test(ex.title) ? 1 : 0],
   },
   /*
    * 보조 메뉴 칸(ACCESSORY_KEYS) — 고르기 차례(rank)는 쓰지 않는다(accessoryPick 이 사람마다 섞는다). 버티기(아이소 · 홀드)는 처방이
@@ -1733,6 +1785,43 @@ export function variantCandidates<T extends PinnableExercise>(
 }
 
 export type Pinned = Partial<Record<VariantKey, string>>;
+
+/**
+ * 세션마다 돌리는 보조 칸(2026-10-14 김민: "4주 고정이면 안 돼 — 세션마다 다르게"). 본 운동(스쿼트 · 힌지 · 밀기)은 무게 흐름(TM · 직선 증량)
+ * 때문에 그대로 두고, 나머지는 같은 칸의 후보를 그 칸이 나올 때마다 다음 것으로 바꾼다. 고정 운동(pinned)이 첫째, 기본기는 돌리지 않는다.
+ */
+export const ROTATING_VARIANTS: readonly VariantKey[] = [
+  'pull',
+  'pullVertical',
+  'pushAssist',
+  'singleLeg',
+  'jump',
+  'medball',
+  'antiRotation',
+  'rotationalThrow',
+];
+/** 한 칸에서 돌리는 운동 수 — 후보 순서(변형 규칙)의 앞에서 이만큼 */
+export const ROTATION_MAX = 6;
+
+/** 이 세션 앞에서 그 칸이 나온 세션 수 — 돌리는 차례 */
+export function variantTurn(plan: ProgramPlan, day: number, variant: VariantKey): number {
+  let n = 0;
+  for (let d = 1; d < day; d++) if (dayPlan(plan, d).items.some((x) => x.variant === variant)) n++;
+  return n;
+}
+
+/** 그 차례의 운동 — 고정 운동을 첫째로, 같은 칸 후보를 차례로(앞에서 ROTATION_MAX 개). 후보가 없으면 고정 운동 */
+export function rotatedPick<T extends { id: string }>(
+  anchor: T | null,
+  candidates: readonly T[],
+  turn: number
+): T | null {
+  const list = [...(anchor ? [anchor] : []), ...candidates.filter((c) => c.id !== anchor?.id)].slice(
+    0,
+    ROTATION_MAX
+  );
+  return list.length ? list[turn % list.length] : null;
+}
 
 /** 시작할 때 9개를 고른다. 후보가 없는 변형은 비워 둔다 — 그 칸은 그날 대체 규칙으로 간다. */
 export function pickPinned<T extends PinnableExercise>(

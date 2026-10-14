@@ -138,7 +138,7 @@ export function ProgramCard({ props }: { props: ProgramCardProps }) {
                 className="flex min-h-12 w-full items-center gap-3 py-2 text-left"
               >
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-[15px] text-ink">
+                  <span className="block truncate text-subhead text-ink">
                     {r.optional && (
                       <span className="mr-1.5 rounded-full bg-ink/6 px-1.5 py-0.5 text-xs font-semibold text-muted">
                         선택
@@ -150,7 +150,7 @@ export function ProgramCard({ props }: { props: ProgramCardProps }) {
                     <span className="block text-xs text-muted">{r.contrast}</span>
                   )}
                   {r.tag && (
-                    <span className="mt-0.5 inline-block rounded-md bg-ink/6 px-1.5 text-[11px] text-muted">
+                    <span className="mt-0.5 inline-block rounded-md bg-ink/6 px-1.5 text-caption text-muted">
                       {r.tag}
                     </span>
                   )}
@@ -160,7 +160,7 @@ export function ProgramCard({ props }: { props: ProgramCardProps }) {
                     <span className="text-numeric text-base font-bold text-sky-strong">
                       {kgText(r.kg)}kg
                       {r.perHand && (
-                        <span className="ml-1 text-[11px] font-medium text-muted">
+                        <span className="ml-1 text-caption font-medium text-muted">
                           한 손
                         </span>
                       )}
@@ -419,7 +419,7 @@ function RepinSheet({
               >
                 <span className="min-w-0">
                   <span className="block text-xs text-muted">{x.label}</span>
-                  <span className="block truncate text-[15px] text-ink">
+                  <span className="block truncate text-subhead text-ink">
                     {x.title ?? '고를 수 있는 운동이 없어요'}
                   </span>
                 </span>
@@ -444,7 +444,7 @@ function RepinSheet({
                 onClick={() => choose(c.id)}
                 className="flex min-h-12 w-full items-center justify-between gap-3 text-left disabled:opacity-50"
               >
-                <span className="truncate text-[15px] text-ink">{c.title}</span>
+                <span className="truncate text-subhead text-ink">{c.title}</span>
                 {current?.title === c.title && (
                   <span className="text-xs text-muted">지금</span>
                 )}

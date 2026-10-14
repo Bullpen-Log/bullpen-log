@@ -56,9 +56,9 @@ export function DoneCard({
 }) {
   const unit = useWeightUnit();
   return (
-    <section className="space-y-3 rounded-2xl border border-sky bg-sky-tint px-4 py-4">
+    <section className="space-y-3 rounded-2xl border border-sky bg-sky-tint p-(--block-pad)">
       <div className="flex items-center justify-between gap-3">
-        <p className="flex items-center gap-1.5 text-[15px] font-bold text-sky-strong">
+        <p className="flex items-center gap-1.5 text-subhead font-bold text-sky-strong">
           <CircleCheck aria-hidden className="h-5 w-5" />
           오늘 운동 완료
         </p>
@@ -82,7 +82,7 @@ export function DoneCard({
           },
         ].map((n) => (
           <div key={n.label} className="rounded-xl bg-surface px-2 py-2.5 text-center">
-            <p className="text-[11px] text-muted">{n.label}</p>
+            <p className="text-caption text-muted">{n.label}</p>
             <p className="mt-0.5 text-numeric text-xl text-ink">
               {n.value}
               <span className="ml-0.5 text-xs font-normal text-muted">{n.unit}</span>
@@ -95,7 +95,7 @@ export function DoneCard({
         <ul className="divide-y divide-line rounded-xl bg-surface px-3">
           {lines.map((l) => (
             <li key={l.id} className="flex items-center gap-3 py-2">
-              <span className="min-w-0 flex-1 truncate text-[13px] font-semibold text-ink">
+              <span className="min-w-0 flex-1 truncate text-footnote font-semibold text-ink">
                 {l.title}
               </span>
               <span className="shrink-0 text-xs tabular-nums text-muted">

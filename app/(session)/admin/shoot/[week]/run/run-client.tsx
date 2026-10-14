@@ -534,13 +534,13 @@ export function RunClient({
                     </span>
                   </span>
                   {it === current ? (
-                    <span className="shrink-0 rounded-full bg-sky px-2 py-0.5 text-[11px] font-bold text-white">
+                    <span className="shrink-0 rounded-full bg-sky px-2 py-0.5 text-caption font-bold text-white">
                       지금
                     </span>
                   ) : (
                     st !== 'todo' && (
                       <span
-                        className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold ${STATE_PILL[st]}`}
+                        className={`shrink-0 rounded-full px-2 py-0.5 text-caption font-semibold ${STATE_PILL[st]}`}
                       >
                         {STATE_LABEL[st]}
                       </span>
@@ -561,7 +561,7 @@ function PaceChip({ minutes }: { minutes: number }) {
   const early = minutes < -2;
   return (
     <span
-      className={`rounded-full px-2 py-0.5 text-[11px] font-semibold tabular-nums ${
+      className={`rounded-full px-2 py-0.5 text-caption font-semibold tabular-nums ${
         late ? 'bg-warn/15 text-warn' : 'bg-sky/12 text-sky-strong'
       }`}
     >

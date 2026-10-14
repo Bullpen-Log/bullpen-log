@@ -190,7 +190,7 @@ export function ExerciseChecklist({
           아직 하나도 안 눌렀을 때만 말한다. 다 하고 나서까지 잔소리할 일이 아니다.
         */}
         {doneCount === 0 && items.length > 0 && (
-          <p className="mt-3 text-[11px] leading-relaxed text-muted">
+          <p className="mt-3 text-caption leading-relaxed text-muted">
             마친 운동은 눌러서 표시해주세요. 표시해야 운동 부하에 들어가고 다음 일정에서
             같은 부위가 겹치지 않아요.
           </p>
@@ -216,7 +216,7 @@ export function ExerciseChecklist({
         return (
           <section key={slot} className="space-y-2.5">
             <div className="flex flex-wrap items-baseline gap-x-2 px-1">
-              <h2 className="text-heading text-[15px] text-ink">{label}</h2>
+              <h2 className="text-heading text-subhead text-ink">{label}</h2>
               <span className="text-xs text-muted">{hint}</span>
             </div>
             <ExerciseList items={group} onToggle={toggle} onRemove={remove} />

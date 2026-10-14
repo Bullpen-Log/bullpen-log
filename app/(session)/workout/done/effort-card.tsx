@@ -51,7 +51,7 @@ export function EffortCard({ sessionId }: { sessionId: string }) {
   return (
     <div className="rise-in mx-auto mb-3 max-w-md rounded-2xl bg-surface px-4 py-3 [--rise-delay:1050ms]">
       <div className="flex items-center justify-between gap-3">
-        <p className="text-[15px] font-semibold text-ink">
+        <p className="text-subhead font-semibold text-ink">
           {saved ? '오늘 힘듦을 남겼어요' : '오늘 얼마나 힘들었나요?'}
         </p>
         {saved ? (

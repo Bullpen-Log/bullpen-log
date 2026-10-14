@@ -684,9 +684,14 @@ const lib: PinnableExercise[] = [
   );
   const pull = variantCandidates('pull', lib, full, '중급').map((e) => e.id);
   check(
-    '당기기: 철봉 없으면 풀업 빠짐, 두 손 먼저',
-    !pull.includes('pull') && pull[0] === 'brow',
+    '당기기(로우): 철봉 없으면 풀업 빠짐, 바벨 로우는 맨 뒤(2026-10-14 허리 부담)',
+    !pull.includes('pull') && pull.length > 1 && pull[0] !== 'brow' && pull.at(-1) === 'brow',
     pull.join(',')
+  );
+  check(
+    '세로 당기기 = 풀업 · 친업, 철봉 없으면 없음',
+    variantCandidates('pullVertical', lib, ['맨몸', '철봉'], '중급')[0]?.id === 'pull' &&
+      variantCandidates('pullVertical', lib, ['바벨', '덤벨'], '중급').length === 0
   );
   const push = variantCandidates('push', lib, full, '중급').map((e) => e.id);
   const pushNoBar = variantCandidates('push', lib, ['덤벨', '메디신볼', '벤치'], '중급').map((e) => e.id);
@@ -712,8 +717,9 @@ const lib: PinnableExercise[] = [
     JSON.stringify(pins)
   );
   check(
-    '메디신볼 파워는 회전 아닌 것 먼저, 회전 던지기는 회전 메디신볼',
-    pins.medball === 'chest' && pins.rotationalThrow === 'slam'
+    '메디신볼 파워는 회전 아닌 것 먼저, 회전 던지기는 위아래 슬램이 아니라 돌리는 운동(2026-10-14 — 이름도 본다)',
+    pins.medball === 'chest' && pins.rotationalThrow !== 'slam' && pins.rotationalThrow != null,
+    String(pins.rotationalThrow)
   );
   check(
     '밴드가 없으면 항회전은 한쪽 캐리로',

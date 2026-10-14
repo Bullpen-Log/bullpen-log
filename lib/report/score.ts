@@ -20,6 +20,7 @@
  *   program   다음 근력 프로그램 날이 내일 안(PROGRAM_NEAR_DAYS) — 그날 프로그램과 같은 동작 열쇠(movementKeyOf)       −3
  *   swapped   오늘 일정에서 뺀 운동 −3, 최근 60일에 두 번 이상 바꿔서 뺀 운동(plan-swaps.ts swappedOutCounts) −2
  *   pattern   2주 동안 한 번도 안 한 큰 동작 계열(스쿼트 · 힌지 · 런지 · 밀기 · 당기기 · 회전 · 운반)의 무게 운동   +2
+ *             밀기 · 당기기는 둘 다 했어도 짝보다 덜 한 쪽   +1(2026-10-14 — 1 대 1로 맞춘다)
  *   favorite  즐겨찾기한 운동                                                                                          +1
  *
  * 값을 이렇게 둔 까닭. 등판 · 프로그램 겹침(−3)은 다음 날 몸에 남는 것이라 가장 크게, 몸이 오늘 말한 것(뻐근 · 팔 피로 −2)은 그다음,
@@ -122,8 +123,13 @@ export const SCORE_POINTS = {
   swapped: -2,
   swappedToday: -3,
   pattern: 2,
+  /* 밀기 · 당기기 중 2주에 덜 한 쪽(2026-10-14 김민: 밀기 · 당기기를 1 대 1로) */
+  patternBalance: 1,
   favorite: 1,
 } as const;
+
+/** 밀기 ↔ 당기기 — 2주 동안 덜 한 쪽을 앞으로(patternBalance) */
+const PATTERN_PAIR: Readonly<Record<string, string>> = { 밀기: '당기기', 당기기: '밀기' };
 
 /**
  * 다음 등판이 이 날수 안이면 다리에 남는 하체를 뒤로 민다 — 2일. 사흘 넘게 남으면 하체 근력을 해도 등판 날엔 풀린다(검토안 4-2
@@ -237,7 +243,7 @@ export type ScoreDetail = {
   };
   program?: { key: string; inDays: number };
   swapped?: { today: boolean; count: number };
-  pattern?: { pattern: string };
+  pattern?: { pattern: string; /** 안 한 것이 아니라 짝보다 덜 한 것(밀기 · 당기기) */ balance?: true };
   favorite?: true;
 };
 
@@ -417,6 +423,15 @@ export function scoreOf(ex: ScorableExercise, ctx: ScoreContext): ExerciseScore 
   ) {
     parts.pattern = SCORE_POINTS.pattern;
     detail.pattern = { pattern };
+  } else if (
+    ctx.patternsDone14d &&
+    HEAVY_CATEGORIES.includes(ex.category) &&
+    pattern != null &&
+    PATTERN_PAIR[pattern] != null &&
+    (ctx.patternsDone14d.get(pattern) ?? 0) < (ctx.patternsDone14d.get(PATTERN_PAIR[pattern]) ?? 0)
+  ) {
+    parts.pattern = SCORE_POINTS.patternBalance;
+    detail.pattern = { pattern, balance: true };
   }
 
   /* favorite */
@@ -545,6 +560,8 @@ function fallbackLine(
         ? '오늘 뺀 운동이라 뒤로 뒀어요.'
         : '여러 번 뺀 운동이라 뒤로 뒀어요.';
     case 'pattern':
+      if (value === SCORE_POINTS.patternBalance && ex.movementPattern)
+        return `2주 동안 ${josa(ex.movementPattern, '을', '를')} 덜 해서 앞에 뒀어요.`;
       return ex.movementPattern
         ? `2주 동안 ${josa(ex.movementPattern, '을', '를')} 안 해서 앞에 뒀어요.`
         : '2주 동안 안 한 동작이라 앞에 뒀어요.';

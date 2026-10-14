@@ -367,7 +367,7 @@ export function VideoGallery({
               onClick={() => setSort(s.key)}
               aria-pressed={sort === s.key}
               /* 휴대폰은 테두리 없는 알약, PC 는 예전 테두리 칩 */
-              className={`min-h-8 rounded-full border px-3 text-xs font-medium transition-colors desk:min-h-0 desk:rounded-lg desk:px-2.5 desk:py-1 desk:text-[11px] ${
+              className={`min-h-8 rounded-full border px-3 text-xs font-medium transition-colors desk:min-h-0 desk:rounded-lg desk:px-2.5 desk:py-1 desk:text-caption ${
                 sort === s.key
                   ? 'border-sky bg-sky-tint text-sky-strong'
                   : 'border-transparent bg-ink/6 text-ink/70 desk:border-line desk:bg-transparent desk:text-muted desk:hover:border-sky-soft'
@@ -386,7 +386,7 @@ export function VideoGallery({
             type="button"
             onClick={() => setFilter(c.key)}
             aria-pressed={filter === c.key}
-            className={`inline-flex min-h-9 items-center gap-1.5 rounded-full border px-3.5 text-[13px] font-medium transition-colors desk:min-h-0 desk:rounded-lg desk:px-2.5 desk:py-1.5 desk:text-xs ${
+            className={`inline-flex min-h-9 items-center gap-1.5 rounded-full border px-3.5 text-footnote font-medium transition-colors desk:min-h-0 desk:rounded-lg desk:px-2.5 desk:py-1.5 desk:text-xs ${
               filter === c.key
                 ? 'border-sky bg-sky-tint text-sky-strong'
                 : 'border-transparent bg-ink/6 text-ink/80 desk:border-line desk:bg-transparent desk:text-muted desk:hover:border-sky-soft'
@@ -394,7 +394,7 @@ export function VideoGallery({
           >
             {c.label}
             <span
-              className={`text-numeric text-[13px] leading-none ${
+              className={`text-numeric text-footnote leading-none ${
                 filter === c.key ? 'text-sky-strong' : 'text-line-strong'
               }`}
             >
@@ -472,7 +472,7 @@ export function VideoGallery({
                             {clip.rest ? '휴식' : `${clip.pitchCount}구`}
                           </span>
                           {!clip.rest && (
-                            <span className="text-[11px] font-medium opacity-80">
+                            <span className="text-caption font-medium opacity-80">
                               {clip.effortPct > 0 && `강도 ${clip.effortPct}% · `}영상
                               없음
                             </span>
@@ -511,22 +511,22 @@ export function VideoGallery({
                       )}
 
                       {selecting && slot >= 0 && (
-                        <span className="absolute top-2 right-2 flex h-6 w-6 items-center justify-center rounded-full bg-sky text-[11px] font-bold text-white shadow">
+                        <span className="absolute top-2 right-2 flex h-6 w-6 items-center justify-center rounded-full bg-sky text-caption font-bold text-white shadow">
                           {slot === 0 ? 'A' : 'B'}
                         </span>
                       )}
 
                       <span className="block space-y-1 px-3 py-2.5 text-left">
                         <span className="flex flex-wrap items-baseline gap-x-1.5">
-                          <span className="text-[13px] font-semibold text-ink">
+                          <span className="text-footnote font-semibold text-ink">
                             {spokenDate(clip.date)}
                           </span>
-                          <span className="text-[11px] text-muted">
+                          <span className="text-caption text-muted">
                             {clip.sessionType}
                             {clip.path && clip.label !== '영상' && ` · ${clip.label}`}
                           </span>
                         </span>
-                        <span className="block text-[11px] text-muted">
+                        <span className="block text-caption text-muted">
                           {clip.summary}
                         </span>
                       </span>
@@ -570,7 +570,7 @@ export function VideoGallery({
                               ? '캘린더에서 이 날을 누르면 이 영상이 떠요'
                               : '이 날의 대표 영상으로 고르기'
                           }
-                          className={`absolute left-2 top-2 z-10 inline-flex items-center gap-1 rounded-full px-2 py-1 text-[11px] font-semibold shadow transition-colors ${
+                          className={`absolute left-2 top-2 z-10 inline-flex items-center gap-1 rounded-full px-2 py-1 text-caption font-semibold shadow transition-colors ${
                             isFeatured
                               ? 'bg-sky text-white'
                               : 'bg-shade/60 text-white/90 hover:bg-shade/80 hover:text-white'

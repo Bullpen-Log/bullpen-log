@@ -155,7 +155,7 @@ export function VideosClient({
             <button
               type="button"
               onClick={() => setComparing(false)}
-              className="rounded-lg border border-line-strong px-3 py-1.5 text-xs font-semibold text-ink transition-colors hover:border-sky hover:text-sky"
+              className="inline-flex min-h-10 items-center rounded-lg border border-line-strong px-3 text-xs font-semibold text-ink transition-colors hover:border-sky hover:text-sky"
             >
               투구 기록으로
             </button>

@@ -70,7 +70,7 @@ export function BodyPartsView({
           {parts.map((p) => (
             <li key={p}>
               <b className="font-semibold text-sky-strong">{p}</b>{' '}
-              <span className="text-[13px] text-muted">{BODY_PART_MAP[p].muscles}</span>
+              <span className="text-footnote text-muted">{BODY_PART_MAP[p].muscles}</span>
             </li>
           ))}
         </ul>

@@ -70,7 +70,7 @@ export function TrainingNote({
           <button
             type="button"
             onClick={() => setEditing(true)}
-            className="ml-auto inline-flex items-center gap-1 rounded-lg border border-line-strong px-2.5 py-1 text-xs text-ink transition-colors hover:border-sky hover:text-sky"
+            className="-my-2 ml-auto inline-flex min-h-10 items-center gap-1 rounded-lg border border-line-strong px-3 text-xs text-ink transition-colors hover:border-sky hover:text-sky"
           >
             <Pencil className="h-3 w-3" />
             고치기
@@ -117,7 +117,7 @@ export function TrainingNote({
           }
           className="range"
         />
-        <div className="flex justify-between text-[11px] text-muted">
+        <div className="flex justify-between text-caption text-muted">
           <span>1 아주 가벼움</span>
           <span>10 최대</span>
         </div>

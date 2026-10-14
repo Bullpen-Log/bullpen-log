@@ -171,7 +171,7 @@ function PainNote({ pain, onArea }: { pain: PainLine; onArea: (key: ArmcareAreaK
             key={s.key}
             type="button"
             onClick={() => onArea(s.key)}
-            className="inline-flex min-h-9 items-center gap-0.5 rounded-full bg-surface px-3 text-xs font-semibold text-warn"
+            className="inline-flex min-h-10 items-center gap-0.5 rounded-full bg-surface px-3 text-xs font-semibold text-warn"
           >
             {s.label} 보기
             <ChevronRight aria-hidden className="h-3.5 w-3.5" />
@@ -273,7 +273,7 @@ function AreaCard({
       >
         {/* 제목 밑 설명 한 줄(던질 때 하는 일)은 뺐다 — 2026-09-26 사용자분 */}
         <span className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-2">
-          <span className="flex items-center gap-2 text-[15px] font-bold text-ink">
+          <span className="flex items-center gap-2 text-subhead font-bold text-ink">
             {area.label}
           </span>
           <span className="text-xs text-muted">운동 {count}개</span>
@@ -308,7 +308,7 @@ function AreaCard({
               <InfoButton
                 key={name}
                 target={{ kind: 'muscle', name }}
-                className="rounded-full bg-sky-tint px-2.5 py-1 text-xs font-semibold text-sky-strong transition-colors hover:bg-sky hover:text-white"
+                className="inline-flex min-h-10 items-center rounded-full bg-sky-tint px-3 text-xs font-semibold text-sky-strong transition-colors hover:bg-sky hover:text-white"
               >
                 {name} ›
               </InfoButton>
@@ -322,7 +322,7 @@ function AreaCard({
           <div className="space-y-2">
             <h3 className="text-xs font-semibold text-muted">운동</h3>
             {count === 0 ? (
-              <p className="text-[13px] text-muted">
+              <p className="text-footnote text-muted">
                 이 부위를 키우는 운동이 아직 없어요.
               </p>
             ) : (

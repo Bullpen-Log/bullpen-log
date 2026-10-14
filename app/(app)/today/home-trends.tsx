@@ -633,7 +633,7 @@ function RangeEnd({
         aria-expanded={open}
         aria-haspopup="dialog"
         aria-label={`${label} ${spokenDay(value)}, 다른 날 고르기`}
-        className={`inline-flex min-h-9 items-center gap-1.5 rounded-lg border px-3 text-sm font-semibold tabular-nums text-ink transition-colors ${
+        className={`inline-flex min-h-10 items-center gap-1.5 rounded-lg border px-3 text-sm font-semibold tabular-nums text-ink transition-colors ${
           open
             ? 'border-sky bg-sky-tint'
             : 'border-line-strong bg-surface hover:border-sky'
@@ -761,7 +761,7 @@ function TrendCell({
         {change && hover == null && (
           <span
             title={change.spoken}
-            className={`inline-flex shrink-0 items-center gap-0.5 rounded-full bg-current/10 px-1.5 py-0.5 text-[11px] font-semibold tabular-nums ${tone}`}
+            className={`inline-flex shrink-0 items-center gap-0.5 rounded-full bg-current/10 px-1.5 py-0.5 text-caption font-semibold tabular-nums ${tone}`}
           >
             <Arrow aria-hidden className="h-3 w-3" strokeWidth={2.5} />
             {change.text}
@@ -778,7 +778,7 @@ function TrendCell({
         )}
       </p>
       {/* 숫자 밑 한 줄 — 며칠 · 평균(예전엔 숫자 옆에 붙어 좁은 칸에서 잘렸다). 훑는 동안은 그 날짜 */}
-      <p className="min-h-4 truncate text-[11px] leading-4 text-muted">{shownNote}</p>
+      <p className="min-h-4 truncate text-caption leading-4 text-muted">{shownNote}</p>
       <Chart
         kind={kind}
         tone={tone}
