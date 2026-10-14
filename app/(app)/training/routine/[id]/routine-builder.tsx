@@ -181,7 +181,7 @@ export function RoutineBuilder({
           onChange={(e) => setName(e.target.value)}
           maxLength={MY_ROUTINE_NAME_MAX}
           placeholder="예: 투구 전 루틴, 집에서"
-          className="w-full rounded-xl border border-line bg-surface px-4 py-3 text-[15px] text-ink outline-none transition-colors placeholder:text-muted/70 focus:border-sky"
+          className="w-full rounded-xl border border-line bg-surface px-4 py-3 text-subhead text-ink outline-none transition-colors placeholder:text-muted/70 focus:border-sky"
         />
       </div>
 

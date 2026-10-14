@@ -45,7 +45,7 @@ export function MuscleChips({
       {shown.map((m) => {
         const strong = highlight ? highlight.includes(m) : m === muscles[0];
         /* 부위 색 점은 거뒀다(2026-10-01 '기본색 하나 + 고른 것만 강조') — 고른 근육만 강조색 */
-        const look = `inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium ${
+        const look = `inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-caption font-medium ${
           strong ? 'bg-sky-tint text-sky-strong' : 'bg-surface-2 text-muted'
         }`;
         return info ? (
@@ -73,14 +73,14 @@ export function MuscleChips({
             type="button"
             onClick={() => setAll(true)}
             aria-label={`근육 ${hidden.length}개 더 보기`}
-            className="min-h-6 rounded-full bg-surface-2 px-2 py-0.5 text-[11px] font-medium text-muted ring-sky transition-shadow hover:ring-1 relative before:absolute before:-inset-x-0.5 before:-inset-y-2"
+            className="min-h-6 rounded-full bg-surface-2 px-2 py-0.5 text-caption font-medium text-muted ring-sky transition-shadow hover:ring-1 relative before:absolute before:-inset-x-0.5 before:-inset-y-2"
           >
             +{hidden.length}
           </button>
         ) : (
           <span
             title={hidden.join(' · ')}
-            className="rounded-full bg-surface-2 px-2 py-0.5 text-[11px] font-medium text-muted"
+            className="rounded-full bg-surface-2 px-2 py-0.5 text-caption font-medium text-muted"
           >
             +{hidden.length}
           </span>

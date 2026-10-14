@@ -166,7 +166,7 @@ function Picker({
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-sm text-ink">{ex.title}</span>
                   {ex.prescription && (
-                    <span className="block truncate text-[11px] text-muted">
+                    <span className="block truncate text-caption text-muted">
                       {ex.prescription}
                     </span>
                   )}
@@ -209,7 +209,7 @@ function RoutineBlock({
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <h2 className="text-base font-bold text-ink">{routine.name}</h2>
-              <span className="rounded-md border border-line-strong bg-surface-2 px-2 py-0.5 text-[11px] text-muted">
+              <span className="rounded-md border border-line-strong bg-surface-2 px-2 py-0.5 text-caption text-muted">
                 {WHEN[routine.kind] ?? routine.kind}
               </span>
             </div>
@@ -243,14 +243,14 @@ function RoutineBlock({
               key={item.exerciseId}
               className="flex items-center gap-2.5 rounded-xl border border-line px-2.5 py-2"
             >
-              <span className="w-4 shrink-0 text-center text-[11px] text-muted">
+              <span className="w-4 shrink-0 text-center text-caption text-muted">
                 {i + 1}
               </span>
               <Thumb url={item.thumbUrl} title={item.title} />
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-sm text-ink">{item.title}</span>
                 {item.prescription && (
-                  <span className="block truncate text-[11px] text-muted">
+                  <span className="block truncate text-caption text-muted">
                     {item.prescription}
                   </span>
                 )}

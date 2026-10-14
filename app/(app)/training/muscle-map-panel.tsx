@@ -190,7 +190,7 @@ export function MuscleMapPanel({
 
       <div className="space-y-2.5 rounded-2xl border border-line bg-surface px-4 py-4">
         {!area ? (
-          <p className="text-[13px] break-keep text-muted">
+          <p className="text-footnote break-keep text-muted">
             암케어 근육 {ARMCARE_MUSCLES.length}개 · 누르면 부위, 한 번 더 누르면 근육
           </p>
         ) : selection.muscle ? (
@@ -205,7 +205,7 @@ export function MuscleMapPanel({
         ) : (
           <>
             <div className="flex items-center gap-2">
-              <b className="min-w-0 flex-1 text-[15px] text-ink">{area.label}</b>
+              <b className="min-w-0 flex-1 text-subhead text-ink">{area.label}</b>
               <InfoButton
                 target={{ kind: 'area', key: area.key }}
                 className={INFO_PILL}
@@ -289,11 +289,11 @@ function MuscleDetail({
 
   return (
     <>
-      <p className="flex flex-wrap items-center gap-1.5 text-[15px]">
+      <p className="flex flex-wrap items-center gap-1.5 text-subhead">
         <button
           type="button"
           onClick={onBack}
-          className="text-[13px] font-semibold text-sky-strong"
+          className="text-footnote font-semibold text-sky-strong"
         >
           {areaLabel}
         </button>
@@ -306,7 +306,7 @@ function MuscleDetail({
         '팔을 바깥으로 돌림, 감속'이라고만 나오는데, 누르면 자세히 볼 수 있게".
       */}
       <div className="flex items-start gap-2">
-        <p className="min-w-0 flex-1 pt-1 text-[13px] font-semibold break-keep text-ink">
+        <p className="min-w-0 flex-1 pt-1 text-footnote font-semibold break-keep text-ink">
           {info?.does}
         </p>
         <InfoButton
@@ -374,7 +374,7 @@ function MuscleDetail({
           )}
         </ul>
       ) : (
-        <p className="text-[13px] text-muted">이 근육을 쓰는 운동이 아직 없어요.</p>
+        <p className="text-footnote text-muted">이 근육을 쓰는 운동이 아직 없어요.</p>
       )}
 
       <ShowAreaButton label={areaLabel} onClick={onShowArea} />

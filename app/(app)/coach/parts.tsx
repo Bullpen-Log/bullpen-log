@@ -58,14 +58,14 @@ export function StatCard({
   tone?: Tone;
 }) {
   return (
-    <div className="relative bg-surface px-5 py-5 sm:px-6 sm:py-6">
+    <div className="relative bg-surface p-(--block-pad)">
       {/* 상태를 알리는 얇은 상단 선 */}
       <span
         className={`absolute inset-x-0 top-0 h-px ${
           tone === 'neutral' ? 'bg-transparent' : TONE[tone].bar
         }`}
       />
-      <p className="text-[11px] font-medium tracking-normal text-muted">{label}</p>
+      <p className="text-caption font-medium tracking-normal text-muted">{label}</p>
       <p className="mt-3 flex items-baseline gap-1.5">
         <span className="text-numeric text-3xl leading-none text-ink tabular-nums sm:text-4xl">
           {value}
@@ -201,12 +201,12 @@ export function LoadIndexHelp({
   const pitching = which === 'pitching';
   return (
     <details className="group border-t border-line pt-3">
-      <summary className="flex cursor-pointer list-none items-center gap-1.5 text-[11px] text-muted transition-colors hover:text-sky">
+      <summary className="flex min-h-10 cursor-pointer list-none items-center gap-1.5 text-xs text-muted transition-colors hover:text-sky">
         <ChevronDown className="h-3.5 w-3.5 transition-transform group-open:rotate-180" />
         부하 지수가 뭔가요?
       </summary>
 
-      <div className="mt-4 space-y-4 text-[11px] leading-relaxed text-muted">
+      <div className="mt-4 space-y-4 text-caption leading-relaxed text-muted">
         <div>
           <p className="font-semibold text-ink">어떻게 나오나요</p>
           <div className="mt-2 space-y-1.5 rounded-lg border border-line bg-surface-2 px-3 py-2.5 tabular-nums">
@@ -358,7 +358,7 @@ export function MetricHelp({
 
   return (
     <details className="group rounded-2xl border border-line bg-surface p-(--block-pad)">
-      <summary className="flex cursor-pointer list-none items-center gap-1.5 text-[11px] text-muted transition-colors hover:text-sky">
+      <summary className="flex min-h-10 cursor-pointer list-none items-center gap-1.5 text-xs text-muted transition-colors hover:text-sky">
         <ChevronDown className="h-3.5 w-3.5 transition-transform group-open:rotate-180" />
         {shown.length === 1
           ? '이 숫자는 어떻게 나오나요?'
@@ -369,7 +369,7 @@ export function MetricHelp({
         {shown.map((item) => (
           <div key={item.title}>
             <dt className="text-xs font-semibold text-ink">{item.title}</dt>
-            <dd className="mt-1 text-[11px] leading-relaxed text-muted">{item.body}</dd>
+            <dd className="mt-1 text-caption leading-relaxed text-muted">{item.body}</dd>
           </div>
         ))}
       </dl>

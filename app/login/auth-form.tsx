@@ -572,7 +572,7 @@ function BirthDateField({
         aria-haspopup="dialog"
         aria-expanded={open}
         {...invalidProps(invalid)}
-        className={`flex w-full items-center justify-between gap-2 rounded-xl border bg-surface-2 px-4 py-3.5 text-left text-[15px] transition-colors focus:border-sky focus:outline-none ${
+        className={`flex w-full items-center justify-between gap-2 rounded-xl border bg-surface-2 px-4 py-3.5 text-left text-subhead transition-colors focus:border-sky focus:outline-none ${
           invalid ? 'border-danger' : open ? 'border-sky' : 'border-line'
         }`}
       >
@@ -1042,7 +1042,7 @@ function SignupWizard({
         {panel(
           'terms',
           <div className="rounded-2xl border border-line bg-surface-2/60 p-3">
-            <label className="flex cursor-pointer items-center gap-3 rounded-xl px-1 py-2 text-[15px] font-semibold text-ink">
+            <label className="flex cursor-pointer items-center gap-3 rounded-xl px-1 py-2 text-subhead font-semibold text-ink">
               <input
                 type="checkbox"
                 checked={answers.agreeTerms && answers.agreePrivacy}

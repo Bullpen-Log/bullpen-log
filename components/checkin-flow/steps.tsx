@@ -86,7 +86,7 @@ export function ConditionStep({
           className="checkin-range w-full max-w-xs"
         />
         <ol
-          className="flex w-full max-w-xs justify-between text-[11px] text-muted"
+          className="flex w-full max-w-xs justify-between text-caption text-muted"
           aria-hidden
         >
           {CONDITION_BANDS.map((b) => (
@@ -193,7 +193,7 @@ export function PainStep({
                   delete next[id];
                   onSpots(next);
                 }}
-                className={`inline-flex min-h-9 items-center gap-1.5 rounded-full px-3 text-xs font-semibold ${
+                className={`inline-flex min-h-10 items-center gap-1.5 rounded-full px-3 text-xs font-semibold ${
                   level === '통증'
                     ? 'bg-danger-bg text-danger'
                     : 'bg-amber-500/15 text-warn'
@@ -249,7 +249,7 @@ function MuscleFinder({
         type="button"
         onClick={() => onPick(id)}
         aria-pressed={Boolean(level)}
-        className={`inline-flex min-h-9 items-center rounded-full px-3 text-xs font-medium transition-colors ${
+        className={`inline-flex min-h-10 items-center rounded-full px-3 text-xs font-medium transition-colors ${
           level === '통증'
             ? 'bg-danger-bg text-danger'
             : level === '뻐근'
@@ -294,7 +294,7 @@ function MuscleFinder({
             <div className="max-h-72 space-y-3 overflow-y-auto overscroll-contain pr-1">
               {groups.map((g) => (
                 <div key={g.part.key} className="space-y-1.5">
-                  <p className="text-[11px] font-semibold text-muted">{g.part.label}</p>
+                  <p className="text-caption font-semibold text-muted">{g.part.label}</p>
                   <ul className="space-y-1">
                     {g.defs.map((d) => (
                       <li key={d.key} className="flex flex-wrap items-center gap-1.5">
@@ -351,7 +351,7 @@ function ArmDetail({
             </Chip>
           ))}
         </div>
-        <p className="text-[11px] text-muted">여러 개 · 몰라도 돼요</p>
+        <p className="text-caption text-muted">여러 개 · 몰라도 돼요</p>
       </div>
       {showLevel && (
         <div className="space-y-1.5">
@@ -401,7 +401,7 @@ export function SleepStep({
           className="checkin-range w-full max-w-xs"
         />
         <ol
-          className="flex w-full max-w-xs justify-between text-[11px] text-muted"
+          className="flex w-full max-w-xs justify-between text-caption text-muted"
           aria-hidden
         >
           {SLEEP_QUALITY_LEVELS.map((w, i) => (
@@ -441,7 +441,7 @@ export function MemoStep({
         placeholder="예) 어제 롱토스 뒤 어깨 뒤가 당겼다"
         className="w-full flex-1 resize-none rounded-2xl border border-transparent bg-surface px-4 py-3 text-base text-ink placeholder:text-muted/60 focus:border-sky focus:outline-none"
       />
-      <p className="text-right text-[11px] tabular-nums text-muted">
+      <p className="text-right text-caption tabular-nums text-muted">
         {value.length} / {CHECKIN_NOTE_MAX}
       </p>
       {error && (

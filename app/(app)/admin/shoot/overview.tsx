@@ -184,7 +184,7 @@ export async function ShootOverview({
                     <span className="flex items-center gap-2 text-base font-bold text-ink">
                       {w.week}주차
                       {w.outdoor && (
-                        <span className="rounded-full bg-ink/6 px-2 py-0.5 text-[11px] font-semibold text-muted">
+                        <span className="rounded-full bg-ink/6 px-2 py-0.5 text-caption font-semibold text-muted">
                           야외
                         </span>
                       )}
@@ -263,7 +263,7 @@ export async function ShootOverview({
                       )}
                     </span>
                     <span
-                      className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold ${STATE_PILL[c.status]}`}
+                      className={`shrink-0 rounded-full px-2 py-0.5 text-caption font-semibold ${STATE_PILL[c.status]}`}
                     >
                       {STATE_LABEL[c.status]}
                     </span>
@@ -369,7 +369,7 @@ export async function ShootOverview({
                         </td>
                         <td className="py-2 pr-3 whitespace-nowrap">
                           <span
-                            className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${STATE_PILL[c.status]}`}
+                            className={`rounded-full px-2 py-0.5 text-caption font-semibold ${STATE_PILL[c.status]}`}
                           >
                             {STATE_LABEL[c.status]}
                           </span>

@@ -533,7 +533,7 @@ export function VelocitySection({ sessions }: { sessions: VelocitySessionView[] 
                 type="button"
                 onClick={save}
                 disabled={pending}
-                className="inline-flex h-12 flex-1 items-center justify-center gap-2 rounded-2xl bg-sky text-[15px] font-bold text-white transition-colors hover:bg-sky-strong disabled:opacity-50"
+                className="inline-flex h-12 flex-1 items-center justify-center gap-2 rounded-2xl bg-sky text-subhead font-bold text-white transition-colors hover:bg-sky-strong disabled:opacity-50"
               >
                 {pending && <Loader2 aria-hidden className="h-4 w-4 animate-spin" />}
                 저장

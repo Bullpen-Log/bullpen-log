@@ -21,7 +21,7 @@ function Legend({ label, hint }: { label: string; hint?: string }) {
  * 칩 — 휴대폰은 테두리 없는 회색 알약(체크인 칩과 같은 모양), PC 는 예전 네모 칩(2026-10-01 '애플처럼').
  */
 const chipBase =
-  'cursor-pointer select-none rounded-full border border-transparent bg-ink/6 px-3.5 py-2 text-[13px] text-ink/80 transition-colors desk:rounded-lg desk:border-line desk:bg-surface-2 desk:px-3 desk:text-xs desk:text-muted desk:hover:border-sky-soft desk:hover:text-ink';
+  'cursor-pointer select-none rounded-full border border-transparent bg-ink/6 px-3.5 py-2 text-footnote text-ink/80 transition-colors desk:rounded-lg desk:border-line desk:bg-surface-2 desk:px-3 desk:text-xs desk:text-muted desk:hover:border-sky-soft desk:hover:text-ink';
 
 /*
  * 설명이 붙는 고르기(경력 · 목표 …) — 휴대폰은 한 줄에 하나씩 둥근 칸, 고른 칸은 파랑으로 두르고 오른쪽에 체크
@@ -139,7 +139,7 @@ export function RadioGroup({
               >
                 <span className="inline">{option.name}</span>
                 {option.desc && (
-                  <span className="ml-1.5 text-[11px] opacity-70">{option.desc}</span>
+                  <span className="ml-1.5 text-caption opacity-70">{option.desc}</span>
                 )}
               </span>
             ) : (
@@ -149,7 +149,7 @@ export function RadioGroup({
                 <span className="min-w-0 flex-1">
                   <span className="block">{option.name}</span>
                   {option.desc && (
-                    <span className="mt-1 block text-xs leading-relaxed font-normal opacity-70 desk:text-[11px]">
+                    <span className="mt-1 block text-xs leading-relaxed font-normal opacity-70 desk:text-caption">
                       {option.desc}
                     </span>
                   )}

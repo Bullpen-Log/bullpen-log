@@ -479,7 +479,7 @@ export function NutritionView({
           <div className="flex shrink-0 items-center">
             <Link
               href="/nutrition/setup"
-              className="rounded-xl bg-sky px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-sky-strong"
+              className="inline-flex min-h-10 items-center rounded-full bg-sky px-4 text-sm font-semibold text-white transition-colors hover:bg-sky-strong desk:rounded-xl"
             >
               시작하기
             </Link>
@@ -722,7 +722,7 @@ function DateNav({
   const prev = shiftDateKey(date, -1);
   const next = shiftDateKey(date, 1);
   const arrow =
-    'flex h-9 w-9 items-center justify-center rounded-lg text-muted transition-colors hover:bg-surface-2 hover:text-ink';
+    'flex h-10 w-10 items-center justify-center rounded-lg text-muted transition-colors hover:bg-surface-2 hover:text-ink';
 
   /*
    * 작은 달력 판.
@@ -942,7 +942,7 @@ function WeekStrip({
           const face = (
             <>
               <span
-                className={`text-[11px] ${selected ? 'text-white/80' : 'text-muted'}`}
+                className={`text-caption ${selected ? 'text-white/80' : 'text-muted'}`}
               >
                 {weekday}
               </span>
@@ -1071,7 +1071,7 @@ function GuideCard({
           <span className="rounded-full border border-sky/30 bg-sky-tint px-2.5 py-0.5 text-xs font-semibold text-ink">
             {guide.badge}
           </span>
-          <h2 id="throw-guide-title" className="text-[15px] font-bold text-ink">
+          <h2 id="throw-guide-title" className="text-subhead font-bold text-ink">
             {guide.title}
           </h2>
         </div>
@@ -1176,7 +1176,7 @@ function GuideCard({
             {guide.hint && (
               <p className="text-xs leading-relaxed text-muted">{guide.hint}</p>
             )}
-            <p className="text-[11px] leading-relaxed text-muted">{GUIDE_DISCLAIMER}</p>
+            <p className="text-caption leading-relaxed text-muted">{GUIDE_DISCLAIMER}</p>
           </div>
         </div>
       </div>
@@ -1313,7 +1313,7 @@ function TodayCard({
         {isToday && advice.score !== null && (
           <div className="shrink-0 text-right">
             <p className="text-numeric text-xl leading-none text-ink">{advice.score}</p>
-            <p className="mt-1 text-[11px] text-muted">균형</p>
+            <p className="mt-1 text-caption text-muted">균형</p>
           </div>
         )}
       </div>
@@ -1352,7 +1352,7 @@ function TodayCard({
 
       {headline && (
         <p
-          className={`border-t border-line pt-3 text-[15px] leading-snug font-semibold ${
+          className={`border-t border-line pt-3 text-subhead leading-snug font-semibold ${
             advice.highlight ? 'text-sky-strong' : 'text-ink'
           }`}
         >
@@ -1577,7 +1577,7 @@ function MealSection({
             aria-expanded={shown}
             className="flex min-h-10 min-w-0 flex-1 items-center gap-2 text-left"
           >
-            <span className="shrink-0 text-[15px] font-bold text-ink">{label}</span>
+            <span className="shrink-0 text-subhead font-bold text-ink">{label}</span>
             <span
               className={`ml-auto truncate text-xs tabular-nums ${p.done ? 'text-ok' : 'text-muted'}`}
             >
@@ -1592,7 +1592,7 @@ function MealSection({
           </button>
         ) : (
           <>
-            <span className="text-[15px] font-bold text-ink">{label}</span>
+            <span className="text-subhead font-bold text-ink">{label}</span>
             <button
               type="button"
               onClick={onOpen}
@@ -1609,7 +1609,7 @@ function MealSection({
           shown ? 'flex' : 'hidden'
         }`}
       >
-        <h2 className="hidden shrink-0 text-[15px] font-bold text-ink desk:block">{label}</h2>
+        <h2 className="hidden shrink-0 text-subhead font-bold text-ink desk:block">{label}</h2>
         {/*
           끼니별 단백질 — 세 끼는 한 끼 목표와 견주어 숫자 밑에 가는 막대를 둔다(머리 줄 높이 36px 안이라
           칸이 커지지 않는다). 목표의 8할을 넘기면 초록 + 체크. 간식은 숫자만.
@@ -1659,14 +1659,14 @@ function MealSection({
                 <button
                   type="button"
                   onClick={() => setEditing(false)}
-                  className="motion-safe:animate-fade-in inline-flex h-9 items-center rounded-lg px-2.5 text-xs font-medium text-muted transition-colors hover:bg-surface-2 hover:text-ink"
+                  className="motion-safe:animate-fade-in inline-flex h-10 items-center rounded-lg px-2.5 text-xs font-medium text-muted transition-colors hover:bg-surface-2 hover:text-ink"
                 >
                   취소
                 </button>
                 <button
                   type="button"
                   onClick={finish}
-                  className="motion-safe:animate-fade-in inline-flex h-9 items-center rounded-lg px-2.5 text-sm font-semibold text-sky transition-colors hover:bg-sky-tint"
+                  className="motion-safe:animate-fade-in inline-flex h-10 items-center rounded-lg px-2.5 text-sm font-semibold text-sky transition-colors hover:bg-sky-tint"
                 >
                   완료
                 </button>
@@ -1678,14 +1678,14 @@ function MealSection({
                   onClick={startEdit}
                   disabled={editable.length === 0 && plan.length === 0}
                   aria-label={`${label} 편집`}
-                  className="inline-flex h-9 items-center rounded-lg px-2.5 text-xs font-medium text-muted transition-colors hover:bg-surface-2 hover:text-ink disabled:opacity-40"
+                  className="inline-flex h-10 items-center rounded-lg px-2.5 text-xs font-medium text-muted transition-colors hover:bg-surface-2 hover:text-ink disabled:opacity-40"
                 >
                   편집
                 </button>
                 <button
                   type="button"
                   onClick={onOpen}
-                  className="inline-flex h-9 items-center gap-1 rounded-lg px-2.5 text-sm font-medium text-sky transition-colors hover:bg-sky-tint"
+                  className="inline-flex h-10 items-center gap-1 rounded-lg px-2.5 text-sm font-medium text-sky transition-colors hover:bg-sky-tint"
                 >
                   <Plus aria-hidden className="h-4 w-4" />
                   담기
@@ -1744,7 +1744,7 @@ function MealSection({
             <button
               type="button"
               onClick={toggleAllRemoved}
-              className={`-mr-2 inline-flex h-9 shrink-0 items-center rounded-lg px-2.5 text-xs font-medium transition-colors ${
+              className={`-mr-2 inline-flex h-10 shrink-0 items-center rounded-lg px-2.5 text-xs font-medium transition-colors ${
                 allRemoved
                   ? 'text-sky hover:bg-sky-tint'
                   : 'text-danger hover:bg-danger-bg'
@@ -2263,7 +2263,7 @@ function WeightCard({
         targetKg={plan.targetKg}
       />
       {hasStatus && (
-        <p className="break-keep text-[11px] leading-relaxed text-muted">{copy.foot}</p>
+        <p className="break-keep text-caption leading-relaxed text-muted">{copy.foot}</p>
       )}
     </section>
   );

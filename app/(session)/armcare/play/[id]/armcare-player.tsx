@@ -389,7 +389,7 @@ export function ArmcarePlayer({
     <>
       {unsent > 0 && <Unsent count={unsent} onRetry={resend} />}
       {refusedHere.length > 0 && refused && (
-        <p className="rounded-xl border border-danger-line bg-danger-bg px-3.5 py-2.5 text-[13px] leading-relaxed break-keep text-danger">
+        <p className="rounded-xl border border-danger-line bg-danger-bg px-3.5 py-2.5 text-footnote leading-relaxed break-keep text-danger">
           체크 {refusedHere.length}개를 남기지 못했어요. {refused.message}
         </p>
       )}
@@ -482,7 +482,7 @@ export function ArmcarePlayer({
       <div ref={scroller} className="flex-1 overflow-y-auto">
         <div className="mx-auto max-w-xl space-y-4 px-4 py-4">
           {notice && (
-            <p className="flex items-start gap-2 rounded-xl border border-warn-line bg-warn-bg px-3.5 py-2.5 text-[13px] leading-relaxed break-keep text-warn">
+            <p className="flex items-start gap-2 rounded-xl border border-warn-line bg-warn-bg px-3.5 py-2.5 text-footnote leading-relaxed break-keep text-warn">
               <AlertTriangle aria-hidden className="mt-0.5 h-4 w-4 shrink-0" />
               {notice}
             </p>
@@ -522,7 +522,7 @@ export function ArmcarePlayer({
               )}
               <SetDots total={it.sets} done={doneSets} />
               {it.unsafe && !done && (
-                <p className="flex items-start gap-1.5 pt-1 text-[13px] leading-relaxed break-keep text-warn">
+                <p className="flex items-start gap-1.5 pt-1 text-footnote leading-relaxed break-keep text-warn">
                   <AlertTriangle aria-hidden className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                   지금 몸 상태에는 권하지 않는 운동이에요. 건너뛰어도 돼요.
                 </p>
@@ -651,7 +651,7 @@ function Shell({
           >
             <X className="h-5 w-5" />
           </BackTo>
-          <p className="min-w-0 flex-1 truncate text-[15px] font-bold text-ink">
+          <p className="min-w-0 flex-1 truncate text-subhead font-bold text-ink">
             {title}
           </p>
           {items.length > 0 && (
@@ -721,7 +721,7 @@ function Countdown({ clock, label }: { clock: Clock; label: string }) {
 /** 신호가 없어 못 남긴 체크 — 몇 개인지와 [다시 보내기]. 폰에 담아 뒀다 저절로도 보낸다 */
 function Unsent({ count, onRetry }: { count: number; onRetry: () => void }) {
   return (
-    <p className="rounded-xl border border-warn-line bg-warn-bg px-3.5 py-2.5 text-[13px] leading-relaxed break-keep text-warn">
+    <p className="rounded-xl border border-warn-line bg-warn-bg px-3.5 py-2.5 text-footnote leading-relaxed break-keep text-warn">
       인터넷이 끊겨 체크 {count}개를 아직 못 남겼어요. 폰에 담아 뒀다가 신호가 돌아오면
       보내요.{' '}
       <button type="button" onClick={onRetry} className="font-semibold text-sky-strong">

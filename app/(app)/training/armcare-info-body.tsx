@@ -385,7 +385,7 @@ function AreaInfo({
           {area.injuries.map((injury) => (
             <li key={injury.name}>
               <b className="font-semibold text-warn">{injury.name}</b>
-              <p className="text-[13px] text-ink/75">{injury.desc}</p>
+              <p className="text-footnote text-ink/75">{injury.desc}</p>
             </li>
           ))}
         </ul>
@@ -470,7 +470,7 @@ function MuscleInfo({
       <Section title="이렇게 키워요">
         <p>{d.train}</p>
       </Section>
-      <dl className="grid grid-cols-[5.5em_1fr] gap-x-3 gap-y-1.5 rounded-xl bg-surface-2 px-3.5 py-3 text-[13px]">
+      <dl className="grid grid-cols-[5.5em_1fr] gap-x-3 gap-y-1.5 rounded-xl bg-surface-2 px-3.5 py-3 text-footnote">
         <dt className="font-semibold text-sky-strong">붙는 곳</dt>
         <dd className="text-ink/80">{info.at}</dd>
         {partNames.length > 1 && (

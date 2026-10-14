@@ -151,7 +151,7 @@ export function MiniCalendar({
         {WEEKDAYS.map((w, i) => (
           <span
             key={w}
-            className={`pb-1 text-center text-[11px] font-medium ${
+            className={`pb-1 text-center text-caption font-medium ${
               i === 0 ? 'text-red-600/70' : i === 6 ? 'text-blue-400/70' : 'text-muted'
             }`}
           >

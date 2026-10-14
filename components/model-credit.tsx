@@ -10,7 +10,7 @@
  */
 export function ModelCredit({ className = '' }: { className?: string }) {
   return (
-    <p className={`hidden text-[11px] text-muted desk:block ${className}`}>
+    <p className={`hidden text-caption text-muted desk:block ${className}`}>
       3D: Z-Anatomy · BodyParts3D ·{' '}
       <a
         href="https://creativecommons.org/licenses/by-sa/4.0/deed.ko"

@@ -216,7 +216,7 @@ export function NoticePanel({
       {sheet ? (
         <p className="-mt-1 text-sm text-muted">{spokenDay(day)}</p>
       ) : (
-        <p className="px-1 text-[11px] font-semibold text-ink/65">{spokenDay(day)} · 오늘 할 일</p>
+        <p className="px-1 text-caption font-semibold text-ink/65">{spokenDay(day)} · 오늘 할 일</p>
       )}
 
       {allDone ? (

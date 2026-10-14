@@ -586,7 +586,7 @@ export function DrawingToolbar({
             aria-pressed={tool === t.kind}
             title={t.label}
             aria-label={t.label}
-            className={`flex h-10 items-center gap-1.5 px-2.5 text-[11px] transition-colors ${
+            className={`flex h-10 items-center gap-1.5 px-2.5 text-caption transition-colors ${
               i > 0 ? 'border-l border-line' : ''
             } ${
               tool === t.kind
@@ -644,7 +644,7 @@ export function DrawingToolbar({
       </div>
 
       {!compact && active && (
-        <p className="w-full text-[11px] text-muted">{active.hint}</p>
+        <p className="w-full text-caption text-muted">{active.hint}</p>
       )}
     </div>
   );

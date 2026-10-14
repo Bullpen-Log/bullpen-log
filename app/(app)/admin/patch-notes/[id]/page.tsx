@@ -64,7 +64,7 @@ export default async function PatchNotePage({
             {note.areas.map((a) => (
               <span
                 key={a}
-                className="rounded-md border border-line-strong px-1.5 py-0.5 text-[11px] text-muted"
+                className="rounded-md border border-line-strong px-1.5 py-0.5 text-caption text-muted"
               >
                 {a}
               </span>
@@ -77,7 +77,7 @@ export default async function PatchNotePage({
       <div className="grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-line bg-line sm:grid-cols-4">
         {stats.map((s) => (
           <div key={s.label} className="bg-surface px-4 py-3">
-            <p className="text-[11px] tracking-normal text-muted">{s.label}</p>
+            <p className="text-caption tracking-normal text-muted">{s.label}</p>
             <p className="text-numeric mt-1 text-xl text-ink">{s.value}</p>
           </div>
         ))}
@@ -132,7 +132,7 @@ export default async function PatchNotePage({
         <PatchNoteEditor id={note.id} note={note.note ?? ''} />
 
         {note.editedAt && note.editedBy && (
-          <p className="text-[11px] text-muted/70">
+          <p className="text-caption text-muted/70">
             {note.editedBy} 님이 {spokenTime(note.editedAt)}에 메모를 고쳤습니다.
           </p>
         )}

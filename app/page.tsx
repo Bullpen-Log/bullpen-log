@@ -116,7 +116,7 @@ export default async function LandingPage() {
         <ul className="mt-8 divide-y divide-line">
           {POINTS.map((p) => (
             <li key={p.title} className="py-4 first:pt-0">
-              <p className="text-[15px] font-semibold break-keep text-ink">{p.title}</p>
+              <p className="text-subhead font-semibold break-keep text-ink">{p.title}</p>
               <p className="mt-1 text-sm leading-relaxed break-keep text-muted">
                 {p.body}
               </p>

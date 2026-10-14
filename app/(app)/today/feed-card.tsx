@@ -218,7 +218,7 @@ export function FeedCard({ items }: { items: FeedItem[] }) {
               type="button"
               onClick={() => go(-1)}
               aria-label="이전"
-              className="flex h-8 w-8 items-center justify-center rounded-full text-line-strong transition-colors hover:bg-surface-2 hover:text-ink active:bg-surface-2 desk:h-7 desk:w-7"
+              className="-m-1 flex h-10 w-10 items-center justify-center rounded-full text-line-strong transition-colors hover:bg-surface-2 hover:text-ink active:bg-surface-2 desk:h-7 desk:w-7"
             >
               <ChevronLeft aria-hidden className="h-4 w-4" />
             </button>
@@ -226,7 +226,7 @@ export function FeedCard({ items }: { items: FeedItem[] }) {
               type="button"
               onClick={() => go(1)}
               aria-label="다음"
-              className="flex h-8 w-8 items-center justify-center rounded-full text-line-strong transition-colors hover:bg-surface-2 hover:text-ink active:bg-surface-2 desk:h-7 desk:w-7"
+              className="-m-1 flex h-10 w-10 items-center justify-center rounded-full text-line-strong transition-colors hover:bg-surface-2 hover:text-ink active:bg-surface-2 desk:h-7 desk:w-7"
             >
               <ChevronRight aria-hidden className="h-4 w-4" />
             </button>
@@ -271,7 +271,7 @@ function FeedLabel({ item }: { item: FeedItem }) {
   return (
     <span className={`flex items-center gap-1.5 ${tone}`}>
       {Icon && <Icon aria-hidden className="h-4 w-4" strokeWidth={2.25} />}
-      <span className="text-[15px] font-semibold">{item.label}</span>
+      <span className="text-subhead font-semibold">{item.label}</span>
     </span>
   );
 }
@@ -304,7 +304,7 @@ function FeedSlide({
           {text}
         </span>
         {item.sub && (
-          <span className="mt-1.5 block text-[13px] leading-snug text-muted break-keep">
+          <span className="mt-1.5 block text-footnote leading-snug text-muted break-keep">
             {item.sub}
           </span>
         )}

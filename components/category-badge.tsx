@@ -58,7 +58,7 @@ export function CategoryBadge({
   const { chip, Icon } = categoryStyle(name);
   return (
     <span
-      className={`inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] font-medium ${chip} ${className}`}
+      className={`inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-caption font-medium ${chip} ${className}`}
     >
       {Icon && <Icon aria-hidden className="h-3 w-3" strokeWidth={2.2} />}
       {name}

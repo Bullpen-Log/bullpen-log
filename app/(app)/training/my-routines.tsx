@@ -42,7 +42,7 @@ export function MyRoutines({
   return (
     <div className="space-y-3">
       {painToday && routines.length > 0 && (
-        <p className="rounded-lg border border-warn-line bg-warn-bg px-4 py-3 text-[13px] leading-relaxed break-keep text-warn">
+        <p className="rounded-lg border border-warn-line bg-warn-bg px-4 py-3 text-footnote leading-relaxed break-keep text-warn">
           오늘 통증을 남기셨어요. 쉬는 걸 권해요.
         </p>
       )}
@@ -50,7 +50,7 @@ export function MyRoutines({
       {routines.length === 0 ? (
         <div className="space-y-3 rounded-2xl bg-surface px-5 py-5 desk:border desk:border-dashed desk:border-line-strong">
           <p className="text-sm font-bold text-ink">아직 만든 루틴이 없어요</p>
-          <p className="text-[13px] break-keep text-muted">
+          <p className="text-footnote break-keep text-muted">
             자주 하는 운동만 골라 이름을 붙여 두세요.
           </p>
           <NewRoutineLink />
@@ -120,7 +120,7 @@ function RoutineCard({
           className="flex min-w-0 flex-1 items-center gap-3 px-4 py-4 text-left transition-colors hover:bg-surface-2"
         >
           <span className="min-w-0 flex-1 space-y-0.5">
-            <span className="block text-[15px] font-bold break-keep text-ink">
+            <span className="block text-subhead font-bold break-keep text-ink">
               {r.name}
             </span>
             <span className="block text-xs text-muted">
@@ -164,7 +164,7 @@ function RoutineCard({
       {open && (
         <div className="space-y-3 border-t border-line px-3 py-3 sm:px-4">
           {all === 0 ? (
-            <p className="px-1 text-[13px] text-muted">
+            <p className="px-1 text-footnote text-muted">
               담긴 운동이 모두 라이브러리에서 숨겨졌어요. 고치기에서 다시 담아 주세요.
             </p>
           ) : (

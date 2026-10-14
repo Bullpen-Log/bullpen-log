@@ -280,7 +280,7 @@ export function DayClient({
                 <button
                   type="button"
                   onClick={() => setFormOpen(false)}
-                  className="text-xs text-muted transition-colors hover:text-ink"
+                  className="-my-2 inline-flex min-h-10 items-center px-3 text-xs text-muted transition-colors hover:text-ink"
                 >
                   취소
                 </button>

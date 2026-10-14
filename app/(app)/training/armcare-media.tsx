@@ -197,10 +197,10 @@ export function MethodNote({ method }: { method: ArmcareMethodKey | null }) {
   const m = methodByKey(method);
   return (
     <div className="space-y-2 rounded-xl border border-sky-soft/60 bg-sky-tint/50 px-3.5 py-3">
-      <p className="text-[13px] font-bold break-keep text-sky-strong">
+      <p className="text-footnote font-bold break-keep text-sky-strong">
         {m.label} 방식 <span className="font-medium text-muted">· {m.cue}</span>
       </p>
-      <dl className="grid grid-cols-[4.5em_1fr] gap-x-3 gap-y-1.5 text-[13px] leading-relaxed break-keep">
+      <dl className="grid grid-cols-[4.5em_1fr] gap-x-3 gap-y-1.5 text-footnote leading-relaxed break-keep">
         <dt className="font-semibold text-sky-strong">하는 법</dt>
         <dd className="text-ink/85">{m.what}</dd>
         <dt className="font-semibold text-sky-strong">왜</dt>

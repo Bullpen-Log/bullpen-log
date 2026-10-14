@@ -169,7 +169,7 @@ export function AvatarPicker({
             type="button"
             disabled={working}
             onClick={() => fileRef.current?.click()}
-            className="inline-flex items-center gap-1.5 rounded-xl border border-line-strong px-3 py-2 text-xs font-semibold text-ink transition-colors hover:bg-surface-2 disabled:opacity-50"
+            className="inline-flex min-h-10 items-center gap-1.5 rounded-xl border border-line-strong px-3 text-xs font-semibold text-ink transition-colors hover:bg-surface-2 disabled:opacity-50"
           >
             <Camera aria-hidden className="h-3.5 w-3.5" />
             {preview ? '사진 바꾸기' : '사진 올리기'}
@@ -180,7 +180,7 @@ export function AvatarPicker({
               type="button"
               disabled={working}
               onClick={remove}
-              className="inline-flex items-center gap-1.5 rounded-xl border border-line px-3 py-2 text-xs text-muted transition-colors hover:border-danger-line hover:text-danger disabled:opacity-50"
+              className="inline-flex min-h-10 items-center gap-1.5 rounded-xl border border-line px-3 text-xs text-muted transition-colors hover:border-danger-line hover:text-danger disabled:opacity-50"
             >
               <Trash2 aria-hidden className="h-3.5 w-3.5" />
               지우기

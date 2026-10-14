@@ -82,7 +82,7 @@ export function StatRow({
             {it.value}
             {/* 단위는 제 줄에 — 네 칸이면 "km/h" 가 숫자 옆에서 갈렸다 */}
             {it.unit && (
-              <span className="mt-1 block font-sans text-[11px] leading-none text-muted">
+              <span className="mt-1 block font-sans text-caption leading-none text-muted">
                 {it.unit}
               </span>
             )}

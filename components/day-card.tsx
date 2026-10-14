@@ -133,7 +133,7 @@ export function DayCard({
                 writeLater(storageKey, day);
                 setOpen(false);
               }}
-              className="shrink-0 rounded-full px-2.5 py-1 text-xs font-medium text-muted transition-colors hover:bg-ink/6 hover:text-ink"
+              className="-my-2 inline-flex min-h-10 shrink-0 items-center rounded-full px-3 text-xs font-medium text-muted transition-colors hover:bg-ink/6 hover:text-ink"
             >
               {laterLabel ?? '나중에'}
             </button>
@@ -149,7 +149,7 @@ export function DayCard({
     <button
       type="button"
       onClick={() => setOpen(true)}
-      className="motion-safe:animate-fade-in inline-flex max-w-full items-center gap-2 rounded-full bg-ink/6 px-3.5 py-2 text-left text-xs text-ink transition-colors hover:bg-ink/10"
+      className="motion-safe:animate-fade-in inline-flex min-h-10 max-w-full items-center gap-2 rounded-full bg-ink/6 px-3.5 text-left text-xs text-ink transition-colors hover:bg-ink/10"
     >
       <span className="truncate font-semibold text-muted">{answer == null ? title : '오늘 설정'}</span>
       <span className={answer == null ? 'shrink-0 text-sky' : 'truncate'}>{answer ?? '답하기'}</span>

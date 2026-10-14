@@ -1938,7 +1938,7 @@ function Tip({ children }: { children: React.ReactNode }) {
   return (
     <span
       aria-hidden
-      className="pointer-events-none absolute left-1/2 top-full z-10 mt-1 -translate-x-1/2 -translate-y-0.5 whitespace-nowrap rounded-md bg-ink px-2 py-1 text-[11px] font-medium leading-none text-page opacity-0 shadow-md transition-[opacity,translate] duration-150 group-hover:translate-y-0 group-hover:opacity-100 group-focus-visible:translate-y-0 group-focus-visible:opacity-100 motion-reduce:transition-none"
+      className="pointer-events-none absolute left-1/2 top-full z-10 mt-1 -translate-x-1/2 -translate-y-0.5 whitespace-nowrap rounded-md bg-ink px-2 py-1 text-caption font-medium leading-none text-page opacity-0 shadow-md transition-[opacity,translate] duration-150 group-hover:translate-y-0 group-hover:opacity-100 group-focus-visible:translate-y-0 group-focus-visible:opacity-100 motion-reduce:transition-none"
     >
       {children}
     </span>

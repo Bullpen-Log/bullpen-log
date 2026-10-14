@@ -120,7 +120,7 @@ export function ExerciseSheet({
                     >
                       {ex.title}
                     </span>
-                    <span className="block truncate text-[11px] text-muted">
+                    <span className="block truncate text-caption text-muted">
                       {/* 뺄 수 없는 까닭을 글로 — title(마우스 올리기)은 폰에서 안 보인다 */}
                       {done > 0
                         ? `${done}세트 남김 · 기록이 있어 못 빼요`
@@ -172,7 +172,7 @@ export function ExerciseSheet({
           })}
         </ol>
 
-        <p className="px-4 pb-3 text-center text-[11px] leading-relaxed text-muted/80">
+        <p className="px-4 pb-3 text-center text-caption leading-relaxed text-muted/80">
           뺀 운동은 오늘만 빠져요. 트레이닝 화면의 일정은 그대로 남아요.
         </p>
       </div>

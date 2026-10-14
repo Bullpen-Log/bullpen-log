@@ -95,7 +95,7 @@ export function StepCard({
               {title}
             </h1>
             {desc && (
-              <p className="mt-2.5 max-w-md text-sm leading-relaxed break-keep text-muted md:mt-4 md:text-[15px] md:short:mt-2.5">
+              <p className="mt-2.5 max-w-md text-sm leading-relaxed break-keep text-muted md:mt-4 md:text-subhead md:short:mt-2.5">
                 {desc}
               </p>
             )}
@@ -146,7 +146,7 @@ export function TextButton({
 }
 
 /** 글을 치는 큰 칸 — 가입 · 온보딩의 입력칸에 덧붙인다(components/ui Input) */
-export const INPUT_LARGE = 'py-3.5 text-[15px] aria-invalid:border-danger';
+export const INPUT_LARGE = 'py-3.5 text-subhead aria-invalid:border-danger';
 
 /** 막힌 까닭을 적는 줄의 id — 문제의 칸이 aria-describedby 로 가리킨다 */
 export const PROBLEM_ID = 'onboarding-problem';
@@ -168,7 +168,7 @@ export function ProblemLine({ seq, children }: { seq: number; children: ReactNod
       key={seq}
       id={PROBLEM_ID}
       role="alert"
-      className="mt-4 flex items-start gap-1.5 text-[13px] leading-5 text-danger md:text-sm"
+      className="mt-4 flex items-start gap-1.5 text-footnote leading-5 text-danger md:text-sm"
     >
       <CircleAlert aria-hidden className="mt-0.5 h-4 w-4 shrink-0" />
       {children}

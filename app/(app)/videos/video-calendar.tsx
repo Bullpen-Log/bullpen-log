@@ -375,7 +375,7 @@ export function VideoCalendar({
             {cell.day}
           </span>
           <span
-            className={`absolute inset-x-0 bottom-1.5 truncate px-1 text-center text-[11px] font-semibold leading-none sm:bottom-2 sm:text-xs ${
+            className={`absolute inset-x-0 bottom-1.5 truncate px-1 text-center text-caption font-semibold leading-none sm:bottom-2 sm:text-xs ${
               day.rest
                 ? 'text-muted'
                 : day.effortPct >= STRONG_EFFORT_PCT
@@ -411,7 +411,7 @@ export function VideoCalendar({
         >
           {cell.day}
         </span>
-        <span className="absolute bottom-1 left-1.5 text-[11px] font-semibold leading-none text-white drop-shadow sm:text-xs">
+        <span className="absolute bottom-1 left-1.5 text-caption font-semibold leading-none text-white drop-shadow sm:text-xs">
           {day.pitches}구
         </span>
         {day.paths.length > 1 && (
@@ -599,7 +599,7 @@ function DayPanel({
         <Link
           href={`/pitch-log/${date}`}
           transitionTypes={OPEN_POPUP_TYPES}
-          className="mt-2 inline-flex items-center gap-1 rounded-lg px-2 py-1 text-sm font-semibold text-sky-strong transition-colors hover:bg-sky-tint"
+          className="mt-2 inline-flex min-h-10 items-center gap-1 rounded-lg px-3 text-sm font-semibold text-sky-strong transition-colors hover:bg-sky-tint"
         >
           <LinkPending className="h-3.5 w-3.5">
             <Plus aria-hidden className="h-3.5 w-3.5" />
@@ -669,7 +669,7 @@ function DayPanel({
         <Link
           href={`/pitch-log/${date}`}
           transitionTypes={OPEN_POPUP_TYPES}
-          className="group inline-flex items-center gap-1 rounded-lg px-2 py-1 text-sm font-semibold text-sky-strong transition-colors hover:bg-sky-tint"
+          className="group -my-1 inline-flex min-h-10 items-center gap-1 rounded-lg px-2 text-sm font-semibold text-sky-strong transition-colors hover:bg-sky-tint"
         >
           <span className="desk:hidden">자세히</span>
           <span className="hidden desk:inline">
@@ -692,7 +692,7 @@ function DayPanel({
             className="motion-safe:animate-row-in flex flex-wrap items-baseline gap-x-3 gap-y-1 px-5 py-2.5 desk-low:py-2"
             style={{ '--row': i } as React.CSSProperties}
           >
-            <span className="rounded-md bg-surface-2 px-1.5 py-0.5 text-[11px] font-semibold text-muted">
+            <span className="rounded-md bg-surface-2 px-1.5 py-0.5 text-caption font-semibold text-muted">
               {l.sessionType}
             </span>
             {l.sessionType === REST_SESSION_TYPE ? (

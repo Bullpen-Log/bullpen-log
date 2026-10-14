@@ -75,7 +75,7 @@ export function CheckRow({
         <span className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
           <span
             aria-hidden
-            className={`text-[15px] font-bold tracking-[-0.01em] break-keep ${
+            className={`text-subhead font-bold tracking-[-0.01em] break-keep ${
               done ? 'text-sky-strong' : 'text-ink'
             }`}
           >
@@ -105,7 +105,7 @@ export function CheckRow({
         {warning && (
           <span
             aria-hidden
-            className="flex items-start gap-1.5 text-[11px] leading-relaxed text-warn"
+            className="flex items-start gap-1.5 text-caption leading-relaxed text-warn"
           >
             <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" />
             {warning}

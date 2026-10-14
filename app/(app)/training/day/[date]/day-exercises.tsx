@@ -94,7 +94,7 @@ export function DayExercises({
               <span className="min-w-0 flex-1">
                 <span className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
                   <span
-                    className={`text-[15px] font-bold tracking-[-0.01em] break-keep ${
+                    className={`text-subhead font-bold tracking-[-0.01em] break-keep ${
                       ex.done ? 'text-ink' : 'text-muted'
                     }`}
                   >
@@ -160,7 +160,7 @@ export function DayExercises({
         고장난 줄 안다.
       */}
       {exercises.length > 0 && (
-        <p className="px-1 text-[11px] leading-relaxed text-muted/70">
+        <p className="px-1 text-caption leading-relaxed text-muted/70">
           {detail.editable
             ? '눌러서 켜고 끌 수 있어요. 세트·횟수·무게는 오늘 것만 적을 수 있어요.'
             : '일주일이 지난 기록은 고칠 수 없어요.'}{' '}

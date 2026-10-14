@@ -44,7 +44,7 @@ const ROUND_ICON =
   'flex h-11 w-11 items-center justify-center rounded-full bg-surface text-sky-strong transition-opacity active:opacity-60';
 /* 더 보기 시트의 한 줄 */
 const SHEET_ROW =
-  'flex min-h-14 w-full items-center gap-3 rounded-2xl px-3 text-left text-[15px] font-medium text-ink transition-colors active:bg-ink/6';
+  'flex min-h-14 w-full items-center gap-3 rounded-2xl px-3 text-left text-subhead font-medium text-ink transition-colors active:bg-ink/6';
 
 /* 보기 칸 [캘린더 | 목록 | 구속 측정]은 투구 기록 머리와 같이 둔다(pitch-log-heading.tsx) */
 type View = PitchView;
@@ -161,7 +161,7 @@ export function VideosClient({
             <button
               type="button"
               onClick={() => setComparing(false)}
-              className="rounded-lg border border-line-strong px-3 py-1.5 text-xs font-semibold text-ink transition-colors hover:border-sky hover:text-sky"
+              className="inline-flex min-h-10 items-center rounded-lg border border-line-strong px-3 text-xs font-semibold text-ink transition-colors hover:border-sky hover:text-sky"
             >
               투구 기록으로
             </button>

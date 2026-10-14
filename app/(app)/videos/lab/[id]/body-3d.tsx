@@ -189,7 +189,7 @@ export const Body3D = forwardRef<
       const labelEls = Array.from({ length: 1 }, () => {
         const el = document.createElement('div');
         el.className =
-          'absolute left-0 top-0 whitespace-nowrap rounded py-[2px] pl-1 pr-[5px] text-[11px] font-semibold leading-none text-white tabular-nums will-change-transform';
+          'absolute left-0 top-0 whitespace-nowrap rounded py-[2px] pl-1 pr-[5px] text-caption font-semibold leading-none text-white tabular-nums will-change-transform';
         /* 짧은 이름 + 숫자로 작게(사용자 2026-10-13: 상자가 커서 투구 폼이 가렸다) */
         el.style.background = 'rgba(12,16,22,.55)';
         el.style.borderLeft = '3px solid #fff';
@@ -499,7 +499,7 @@ export const Body3D = forwardRef<
             el.style.cursor = L.off ? 'pointer' : '';
             el.title =
               L.off && L.table != null
-                ? `${L.name} · 결과 표 값 ${Math.round(L.table)}° — 화면 자세와 ${Math.round(Math.abs(L.value - L.table))}° 달라요`
+                ? `${L.name} · 결과 표 값 ${Math.round(L.table)}° · 화면 자세와 ${Math.round(Math.abs(L.value - L.table))}° 달라요`
                 : L.name;
           }
           el.style.display = '';

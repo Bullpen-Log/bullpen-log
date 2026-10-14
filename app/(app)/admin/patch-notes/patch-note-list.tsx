@@ -246,7 +246,7 @@ function Chips({
 }) {
   return (
     <div className="flex items-center gap-1.5">
-      <span className="inline-flex items-center gap-1 text-[11px] text-muted">
+      <span className="inline-flex items-center gap-1 text-caption text-muted">
         {icon}
         {label}
       </span>

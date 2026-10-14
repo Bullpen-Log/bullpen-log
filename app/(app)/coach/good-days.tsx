@@ -39,7 +39,7 @@ export function GoodDaysCard({ result }: { result: GoodDayResult }) {
 
       {all.length > 0 && <Details rows={all} />}
 
-      <p className="mt-3 text-[11px] leading-relaxed text-muted/70">
+      <p className="mt-3 text-caption leading-relaxed text-muted/70">
         최근 180일, 매긴 날 {rated}일. 하루에 여러 번 매기면 평균 하나로 보고, 시즌 내내 같이 오르내린 흐름은 빼고
         견줘요. 우연으로 생기기 어려운 차이만 말해요.
       </p>
@@ -51,7 +51,7 @@ function NotYet({ rated, needed }: { rated: number; needed: number }) {
   return (
     <div className="mt-4 space-y-2">
       <p className="text-sm leading-relaxed text-ink/85">
-        만족도를 매긴 날이 <b className="tabular-nums">{rated}</b>일이에요. {needed}일이 되면 어떤 날 잘
+        만족도를 매긴 날이 <span className="tabular-nums">{rated}</span>일이에요. {needed}일이 되면 어떤 날 잘
         던지는지 찾아 드려요.
       </p>
       <div className="h-2 overflow-hidden rounded-full bg-surface-2" aria-hidden>
@@ -60,7 +60,7 @@ function NotYet({ rated, needed }: { rated: number; needed: number }) {
           style={{ width: `${Math.min(100, (rated / needed) * 100)}%` }}
         />
       </div>
-      <p className="text-[11px] text-muted">불펜 · 라이브 · 경기를 적을 때 만족도를 매기면 쌓여요.</p>
+      <p className="text-caption text-muted">불펜 · 라이브 · 경기를 적을 때 만족도를 매기면 쌓여요.</p>
     </div>
   );
 }
@@ -68,7 +68,7 @@ function NotYet({ rated, needed }: { rated: number; needed: number }) {
 function PatternList({ title, items }: { title: string; items: string[] }) {
   return (
     <div>
-      <p className="text-[11px] font-semibold text-muted">{title}</p>
+      <p className="text-caption font-semibold text-muted">{title}</p>
       <ul className="mt-1.5 space-y-1.5">
         {items.map((text) => (
           <li
@@ -88,9 +88,9 @@ function Details({ rows }: { rows: FactorResult[] }) {
   const shown = rows.slice(0, 8);
   return (
     <details className="group mt-4 border-t border-line pt-3">
-      <summary className="flex cursor-pointer list-none items-center gap-1.5 text-[11px] text-muted transition-colors hover:text-sky">
+      <summary className="flex min-h-10 cursor-pointer list-none items-center gap-1.5 text-xs text-muted transition-colors hover:text-sky">
         <ChevronDown className="h-3.5 w-3.5 transition-transform group-open:rotate-180" />
-        자세히 — 견줘 본 항목
+        자세히 · 견줘 본 항목
       </summary>
       <ul className="mt-3 space-y-2">
         {shown.map((r) => (
@@ -102,7 +102,7 @@ function Details({ rows }: { rows: FactorResult[] }) {
           </li>
         ))}
       </ul>
-      <p className="mt-2 text-[11px] leading-relaxed text-muted/70">
+      <p className="mt-2 text-caption leading-relaxed text-muted/70">
         만족도 평균(1~5) 높은 쪽 vs 낮은 쪽, 그 날 수. 날 수가 적거나 차이가 0.7점 안이면 위에는 안 올려요.
       </p>
     </details>

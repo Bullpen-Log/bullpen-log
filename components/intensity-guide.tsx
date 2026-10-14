@@ -142,7 +142,7 @@ export function IntensityGuide({ kind }: { kind: IntensityKind }) {
                   <span className="block text-xs font-semibold text-ink">
                     {l.label}
                   </span>
-                  <span className="mt-0.5 block text-[11px] leading-relaxed text-muted">
+                  <span className="mt-0.5 block text-caption leading-relaxed text-muted">
                     {l.detail}
                   </span>
                 </span>
@@ -155,7 +155,7 @@ export function IntensityGuide({ kind }: { kind: IntensityKind }) {
               낮게 적고 싶은 마음을 막는 한 줄. 이 숫자로 휴식일이 정해지므로
               "살살 던졌다"고 낮춰 적으면 덜 쉬라는 답이 돌아온다.
             */
-            <p className="rounded-lg border border-warn-line bg-warn-bg px-3 py-2 text-[11px] leading-relaxed text-warn">
+            <p className="rounded-lg border border-warn-line bg-warn-bg px-3 py-2 text-caption leading-relaxed text-warn">
               <strong>느낌보다 팔에 가는 부담은 커요.</strong> 연구에 따르면 절반 힘으로
               던져도 구속은 최고의 80%가 나오고, 팔꿈치에 걸리는 힘은 75%나 돼요. 가볍게
               느껴져도 실제로 던진 만큼 적어주세요.
@@ -165,7 +165,7 @@ export function IntensityGuide({ kind }: { kind: IntensityKind }) {
               끝나자마자 물으면 마지막 운동으로 답하기 쉽다. 안전과 걸린 문제는
               아니라서 경고 색이 아니라 안내 색으로 둔다.
             */
-            <p className="rounded-lg border border-sky-soft/60 bg-sky-tint px-3 py-2 text-[11px] leading-relaxed text-sky-strong">
+            <p className="rounded-lg border border-sky-soft/60 bg-sky-tint px-3 py-2 text-caption leading-relaxed text-sky-strong">
               <strong>오늘 운동 전체를 합쳐서 떠올려 주세요.</strong> 마지막 운동이
               아니라 처음부터 끝까지 합친 느낌이 기준이에요.
             </p>

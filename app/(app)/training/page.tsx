@@ -815,7 +815,7 @@ export default async function TrainingPage({
             처음 쓰는 사람이기 때문이다. 운동 열여섯 개 밑에 있으면 닿지 않는다.
           */}
             {user.ownedEquipment.length === 0 && (
-              <p className="rounded-lg border border-warn-line bg-warn-bg px-4 py-3 text-[13px] text-warn">
+              <p className="rounded-lg border border-warn-line bg-warn-bg px-4 py-3 text-footnote text-warn">
                 장비를 안 골라 전부 있다고 보고 골랐어요. 위 ‘트레이닝 설정’에서
                 고르세요.
               </p>
@@ -851,7 +851,7 @@ export default async function TrainingPage({
 
             {/* 후보가 빠듯하면 숨기지 않고 알린다. */}
             {picked.tooFew && (
-              <p className="rounded-lg border border-warn-line bg-warn-bg px-4 py-3 text-[13px] text-warn">
+              <p className="rounded-lg border border-warn-line bg-warn-bg px-4 py-3 text-footnote text-warn">
                 오늘 조건에 맞는 운동이 {picked.candidates.length}개뿐이에요(권장{' '}
                 {MIN_CANDIDATES}개 이상).
               </p>

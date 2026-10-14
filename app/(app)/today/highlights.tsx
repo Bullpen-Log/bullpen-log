@@ -41,7 +41,7 @@ export function Highlights({ items }: { items: Highlight[] }) {
                 >
                   {h.label}
                 </span>
-                <span className="mt-0.5 block text-[15px] leading-snug text-ink">
+                <span className="mt-0.5 block text-subhead leading-snug text-ink">
                   {text}
                 </span>
               </span>

@@ -153,7 +153,7 @@ export function PitchVideoPlayer({ src, label }: { src: string; label: string })
       {expanded && (
         <div className="flex shrink-0 items-center gap-3 border-b border-line px-3 py-2.5">
           <span className="min-w-0 flex-1 truncate text-sm text-ink">{label}</span>
-          <span className="hidden text-[11px] text-muted sm:inline">Esc 키로 닫기</span>
+          <span className="hidden text-caption text-muted sm:inline">Esc 키로 닫기</span>
           <button
             type="button"
             onClick={() => setExpanded(false)}
@@ -333,7 +333,7 @@ export function PitchVideoPlayer({ src, label }: { src: string; label: string })
                 type="button"
                 onClick={() => setSpeed(s)}
                 aria-pressed={speed === s}
-                className={`px-2 text-[11px] transition-colors sm:px-2.5 sm:text-xs ${
+                className={`px-2 text-caption transition-colors sm:px-2.5 sm:text-xs ${
                   i > 0 ? 'border-l border-line' : ''
                 } ${
                   speed === s
@@ -349,7 +349,7 @@ export function PitchVideoPlayer({ src, label }: { src: string; label: string })
       </div>
 
       {/* 시간 · 프레임 정보 */}
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-line px-3 py-2 text-[11px] text-muted">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-line px-3 py-2 text-caption text-muted">
         <span className="tabular-nums">
           {formatTime(current)} / {formatTime(duration)}
         </span>

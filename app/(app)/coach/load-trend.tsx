@@ -108,7 +108,7 @@ export function LoadTrend({ trend }: { trend: AcwrTrendPoint[] }) {
         ) : (
           <>
             <p className="text-xs font-semibold text-ink">최근 2주 흐름</p>
-            <p className="text-[11px] tabular-nums text-muted">
+            <p className="text-caption tabular-nums text-muted">
               {formatShortDate(trend[0].dateKey)} ~ {formatShortDate(last.dateKey)}
             </p>
           </>

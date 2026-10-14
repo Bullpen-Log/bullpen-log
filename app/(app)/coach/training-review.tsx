@@ -30,7 +30,7 @@ function WeekRow({ week, busiest }: { week: ReviewWeek; busiest: number }) {
         >
           {week.label}
         </span>
-        <span className="text-[11px] text-muted/60">
+        <span className="text-caption text-muted/60">
           {shortDate(week.from)}–{shortDate(week.to)}
         </span>
         {empty ? (
@@ -124,7 +124,7 @@ function PitchTraining({
               c.alert ? 'border-warn-line bg-warn-bg' : 'border-line bg-surface-2'
             }`}
           >
-            <p className="text-[11px] text-muted">{c.label}</p>
+            <p className="text-caption text-muted">{c.label}</p>
             <p
               className={`text-numeric mt-0.5 text-xl leading-none tabular-nums ${
                 c.alert ? 'text-warn' : 'text-ink'
@@ -188,7 +188,7 @@ export function TrainingReviewCards({
         )}
 
         {/* 어떻게 나온 숫자인지 — 안 적어두면 그냥 믿거나 그냥 무시한다 */}
-        <p className="mt-3 text-[11px] leading-relaxed text-muted/70">
+        <p className="mt-3 text-caption leading-relaxed text-muted/70">
           암케어를 뺀 운동을 마친 날만 세어요. 시간은 세트마다 정해진 시간(쉬는 시간
           포함)을 더한 값이고, 강도는 그 주의 평균이에요.
         </p>
@@ -205,7 +205,7 @@ export function TrainingReviewCards({
           <PitchTraining review={review} weeks={weekCount} />
         </div>
 
-        <p className="mt-3 text-[11px] leading-relaxed text-muted/70">
+        <p className="mt-3 text-caption leading-relaxed text-muted/70">
           칸 하나가 하루예요. 운동은 &lsquo;마침&rsquo;을 누른 날만 칠해져요.
         </p>
       </section>

@@ -99,7 +99,7 @@ function MetricRow({
         </span>
         {rounded != null && (
           <span
-            className={`flex items-center gap-0.5 text-[11px] tabular-nums ${
+            className={`flex items-center gap-0.5 text-caption tabular-nums ${
               flat ? 'text-muted' : positive ? 'text-sky' : 'text-warn'
             }`}
           >
@@ -239,7 +239,7 @@ export function ReportClient({
             <span className="text-base font-bold text-ink">기간별 돌아보기</span>
             <span className="text-xs text-muted">{periodLabel}</span>
             {findings.length > 0 && (
-              <span className="rounded-lg border border-sky-soft/60 bg-sky/10 px-2 py-0.5 text-[11px] font-medium text-sky-strong">
+              <span className="rounded-lg border border-sky-soft/60 bg-sky/10 px-2 py-0.5 text-caption font-medium text-sky-strong">
                 코멘트 {findings.length}개
               </span>
             )}
@@ -409,7 +409,7 @@ export function ReportClient({
                   {fatigueWindows.slice(0, 10).map((w) => (
                     <span
                       key={`${w.firstDay}-${w.secondDay}`}
-                      className="rounded-lg border border-warn-line bg-warn-bg px-2.5 py-1 text-[11px] tabular-nums text-warn"
+                      className="rounded-lg border border-warn-line bg-warn-bg px-2.5 py-1 text-caption tabular-nums text-warn"
                     >
                       {formatShortDate(w.firstDay)}→{formatShortDate(w.secondDay)} 합{' '}
                       {scaleToEffortPct(w.total)}%
@@ -443,7 +443,7 @@ export function ReportClient({
                       key={d}
                       type="button"
                       onClick={() => setPickedMemoDate(d)}
-                      className={`shrink-0 rounded-lg border px-3 py-2 text-xs tabular-nums transition-colors ${
+                      className={`inline-flex min-h-10 shrink-0 items-center rounded-lg border px-3 text-xs tabular-nums transition-colors ${
                         d === activeMemoDate
                           ? 'border-sky bg-sky/10 text-sky'
                           : 'border-line text-muted hover:border-line-strong hover:text-ink'
@@ -461,7 +461,7 @@ export function ReportClient({
                       key={log.id}
                       className="rounded-xl border border-line bg-surface-2 p-4"
                     >
-                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] tabular-nums text-muted">
+                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-caption tabular-nums text-muted">
                         <span className="text-ink">{log.date.slice(0, 10)}</span>
                         <span>{log.pitchCount}구</span>
                         {effortText(log) && <span>강도 {effortText(log)}</span>}

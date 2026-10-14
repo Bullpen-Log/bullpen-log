@@ -54,7 +54,7 @@ export function VelocityWordmark({
       <VelocityMark className={big ? 'h-14 w-14' : 'h-8 w-8'} />
       <div className="leading-none">
         <p
-          className={`text-display text-sky ${big ? 'text-[15px]' : 'text-[10px]'} tracking-[0.18em]`}
+          className={`text-display text-sky ${big ? 'text-subhead' : 'text-[10px]'} tracking-[0.18em]`}
         >
           BULLPEN
         </p>

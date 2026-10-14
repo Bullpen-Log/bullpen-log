@@ -479,12 +479,12 @@ function Row({
           <span className="hidden w-24 shrink-0 truncate text-xs text-muted desk:block">
             {carried ? it.station : (it.group ?? BUCKET_LABEL[it.bucket])}
           </span>
-          <span className="hidden w-28 shrink-0 text-right text-[11px] text-muted lg:block">
+          <span className="hidden w-28 shrink-0 text-right text-caption text-muted lg:block">
             {check ? `${check.by ?? ''} ${stampText(check.at)}` : ''}
           </span>
           {mark ? (
             <span
-              className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-bold ${
+              className={`shrink-0 rounded-full px-2 py-0.5 text-caption font-bold ${
                 mark === '지금' ? 'bg-sky text-white' : 'bg-sky/12 text-sky-strong'
               }`}
             >
@@ -494,7 +494,7 @@ function Row({
             state !== 'todo' &&
             state !== 'done' && (
               <span
-                className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold ${STATE_PILL[state]}`}
+                className={`shrink-0 rounded-full px-2 py-0.5 text-caption font-semibold ${STATE_PILL[state]}`}
               >
                 {STATE_LABEL[state]}
               </span>

@@ -59,7 +59,7 @@ export function ShootExerciseDetail({
           {equipment.map((e) => (
             <span
               key={e}
-              className="rounded-full bg-ink/6 px-2.5 py-1 text-[13px] font-medium"
+              className="rounded-full bg-ink/6 px-2.5 py-1 text-footnote font-medium"
             >
               {e}
             </span>
@@ -153,7 +153,7 @@ function Fold({
         <span className="flex items-center gap-2">
           {label}
           {badge && (
-            <span className="rounded-full bg-sky/12 px-2 py-0.5 text-[11px] font-bold text-sky-strong">
+            <span className="rounded-full bg-sky/12 px-2 py-0.5 text-caption font-bold text-sky-strong">
               {badge}
             </span>
           )}
