@@ -3,7 +3,7 @@
 import { Children, useEffect, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ChevronLeft } from 'lucide-react';
+import { ChevronLeft } from '@/components/icon';
 import {
   clearBarBack,
   markBackPressed,
@@ -67,7 +67,7 @@ export function BackLink({ href, children }: { href: string; children: ReactNode
       }}
       className="-ml-1.5 hidden min-h-11 items-center gap-0.5 text-base text-sky transition-opacity active:opacity-60 desk:inline-flex desk:min-h-0 desk:text-sm"
     >
-      <ChevronLeft aria-hidden className="h-6 w-6 desk:h-4 desk:w-4" strokeWidth={2.2} />
+      <ChevronLeft aria-hidden className="h-6 w-6 desk:h-4 desk:w-4" />
       {children}
     </Link>
   );

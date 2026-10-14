@@ -2,7 +2,7 @@
 
 import { useRef, useState, type RefObject } from 'react';
 import Link from 'next/link';
-import { Bell, CheckCircle2, ChevronRight, ClipboardList, Target } from 'lucide-react';
+import { Bell, CheckCircle2, ChevronRight, ClipboardList, Target } from '@/components/icon';
 import { OPEN_POPUP_TYPES } from '@/lib/transition-types';
 import { SETUP_PATH } from '@/lib/feature-locks';
 import { LinkPending } from '@/components/link-pending';
@@ -135,7 +135,6 @@ export function NoticeBellButton({
       <Bell
         aria-hidden
         className="h-[1.05rem] w-[1.05rem]"
-        strokeWidth={open ? 2.4 : 1.9}
       />
       {count > 0 && (
         <span
