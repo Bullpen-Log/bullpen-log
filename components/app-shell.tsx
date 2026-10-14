@@ -296,6 +296,18 @@ export function AppNav({
   const [anchor, setAnchor] = useState<Anchor | null>(null);
   const [profileOpen, setProfileOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  /*
+   * 설정 · 내 정보를 더보기 폴더에서 열었나 — 그 창을 닫으면(막 누름 · 끌어내림 · Esc) 폴더로 돌아간다(2026-10-15 사용자
+   * "메뉴에 들어간 뒤 눌러 들어가니, 나갈 때 원래 메뉴로"). 위 막대 · PC 에서 연 것은 그냥 닫힌다.
+   */
+  const backToMenu = useRef(false);
+  const closeToMenu = (show: (on: boolean) => void) => {
+    show(false);
+    if (!backToMenu.current) return;
+    backToMenu.current = false;
+    /* 창이 내려가기 시작한 뒤 폴더가 부풀어 뜬다 */
+    window.setTimeout(() => go('sheet'), 120);
+  };
   /* 알림(종)의 작은 창, 그리고 거기서 여는 오늘 체크인 창 */
   const [bellOpen, setBellOpen] = useState(false);
   /*
@@ -1081,7 +1093,10 @@ export function AppNav({
    * 여기 하나라 신호로 받는다(위 체크인 신호와 같은 길).
    */
   useEffect(() => {
-    const close = () => setSettingsOpen(false);
+    const close = () => {
+      backToMenu.current = false;
+      setSettingsOpen(false);
+    };
     window.addEventListener(CLOSE_SETTINGS_EVENT, close);
     return () => window.removeEventListener(CLOSE_SETTINGS_EVENT, close);
   }, []);
@@ -1364,7 +1379,7 @@ export function AppNav({
 
       <Modal
         open={settingsOpen}
-        onClose={() => setSettingsOpen(false)}
+        onClose={() => closeToMenu(setSettingsOpen)}
         title="설정"
         origin={popFrom}
         look="folder"
@@ -1374,7 +1389,7 @@ export function AppNav({
 
       <Modal
         open={profileOpen}
-        onClose={() => setProfileOpen(false)}
+        onClose={() => closeToMenu(setProfileOpen)}
         title="내 정보"
         origin={popFrom}
         look="folder"
@@ -1400,8 +1415,14 @@ export function AppNav({
           setSheetBuilt(false);
           land('bar');
         }}
-        onProfile={(el) => openFrom(el, setProfileOpen)}
-        onSettings={(el) => openFrom(el, setSettingsOpen)}
+        onProfile={(el) => {
+          backToMenu.current = true;
+          openFrom(el, setProfileOpen);
+        }}
+        onSettings={(el) => {
+          backToMenu.current = true;
+          openFrom(el, setSettingsOpen);
+        }}
         anchor={anchor ?? DOCK_FALLBACK}
         flyIndex={flyIndex}
         flyNames={sheetIcons}
@@ -2254,12 +2275,7 @@ function DetailMenu({
       */}
       <div data-scrim className="grid h-full w-full place-items-center desk:contents">
         <div className="flex w-full max-w-full flex-col items-center gap-2.5 desk:contents">
-          <span
-            aria-hidden
-            className="text-[15px] font-semibold tracking-tight text-(--folder-fg)/90 desk:hidden"
-          >
-            메뉴
-          </span>
+          {/* 판 위 '메뉴' 글자는 뺐다(2026-10-15 사용자) — 이름은 dialog 의 aria-label 이 맡는다 */}
           <div
             ref={folder}
             data-folder
@@ -2734,11 +2750,14 @@ function MobileTabs({
    * 화면의 탭. 주소가 바뀌면 누른 탭 기억을 지운다 — 그때부터는 지금 화면이 정한다(뒤로 가기 · 잠긴 탭이 설정 화면으로
    * 보낸 경우도 지금 화면과 맞는다). 화면이 끝내 안 오면 CHOSEN_TIMEOUT_MS 뒤 지금 화면의 탭으로 돌아간다.
    */
-  const activeHref = tabs.find((t) => t.href !== MORE_HREF && isActive(t.href))?.href ?? null;
+  const activeHref =
+    tabs.find((t) => t.href !== MORE_HREF && isActive(t.href))?.href ?? null;
   const [chosen, setChosen] = useState<{ href: string; from: string } | null>(null);
   const liveChosen = chosen && chosen.from === pathname ? chosen.href : null;
   const selectedHref = menuOpen ? MORE_HREF : (liveChosen ?? activeHref);
-  const selectedIndex = selectedHref ? tabs.findIndex((t) => t.href === selectedHref) : -1;
+  const selectedIndex = selectedHref
+    ? tabs.findIndex((t) => t.href === selectedHref)
+    : -1;
   useEffect(() => {
     if (!chosen) return;
     const timer = window.setTimeout(() => setChosen(null), CHOSEN_TIMEOUT_MS);
@@ -2780,12 +2799,15 @@ function MobileTabs({
     const el = bar.current;
     if (!el) return;
     const v = vertical();
-    centers.current = Array.from(el.querySelectorAll<HTMLElement>('[data-tab-href]')).map(
-      (node) => {
-        const r = node.getBoundingClientRect();
-        return { href: node.dataset.tabHref ?? '', c: v ? r.top + r.height / 2 : r.left + r.width / 2 };
-      }
-    );
+    centers.current = Array.from(
+      el.querySelectorAll<HTMLElement>('[data-tab-href]')
+    ).map((node) => {
+      const r = node.getBoundingClientRect();
+      return {
+        href: node.dataset.tabHref ?? '',
+        c: v ? r.top + r.height / 2 : r.left + r.width / 2,
+      };
+    });
   };
   /** 손가락 자리 → 칸 번호(소수, 첫 칸 0 ~ 끝 칸) */
   const indexAt = (x: number, y: number) => {
@@ -2846,7 +2868,9 @@ function MobileTabs({
     stopHold();
     if (!dragged.current) return;
     const cancelled = e.type === 'pointercancel';
-    const href = cancelled ? null : centers.current[Math.round(indexAt(e.clientX, e.clientY))]?.href;
+    const href = cancelled
+      ? null
+      : centers.current[Math.round(indexAt(e.clientX, e.clientY))]?.href;
     dragging.current = false;
     /* click 이 뒤따라 오면 막는다(아래 onClickCapture) — 다음 그림에서 푼다 */
     window.setTimeout(() => {
@@ -2914,7 +2938,7 @@ function MobileTabs({
         style={{ '--tab-count': tabs.length } as CSSProperties}
         data-tab-bar
         /* 가로 알약의 유리(바탕 · 테두리 · 빛 · 그림자)는 globals.css '하단 탭의 유리 알약' — 가만히 있을 때도 유리로 보이게 */
-        className="pointer-events-auto relative mx-auto flex max-w-md touch-none rounded-full p-1 text-white pad:h-full pad:max-w-none pad:flex-col pad:gap-1 pad:rounded-none pad:pt-[calc(env(safe-area-inset-top)+0.75rem)] pad:pr-2 pad:pl-[calc(env(safe-area-inset-left)+0.5rem)] pad:text-ink"
+        className="pointer-events-auto relative mx-auto flex max-w-md touch-none rounded-full p-1 text-(--tab-fg) pad:h-full pad:max-w-none pad:flex-col pad:gap-1 pad:rounded-none pad:pt-[calc(env(safe-area-inset-top)+0.75rem)] pad:pr-2 pad:pl-[calc(env(safe-area-inset-left)+0.5rem)] pad:text-ink"
       >
         {/*
           렌즈 — 지금 탭 뒤의 캡슐 하나(components/tab-lens.ts 가 옮긴다, 모양은 globals.css '하단 탭의 유리 렌즈').
@@ -2926,7 +2950,10 @@ function MobileTabs({
           aria-hidden
           data-tab-lens
           style={
-            { '--p': Math.max(0, firstIndex), '--show': firstIndex >= 0 ? 1 : 0 } as CSSProperties
+            {
+              '--p': Math.max(0, firstIndex),
+              '--show': firstIndex >= 0 ? 1 : 0,
+            } as CSSProperties
           }
         >
           <span data-lens-fill />
