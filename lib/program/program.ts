@@ -10,6 +10,7 @@ import {
 import { intensityLevel } from '@/lib/exercise-meta';
 import { canDo } from '@/lib/report/equipment';
 import { filterByLevel } from '@/lib/report/personalize';
+import { YOUTH_AGE_THRESHOLD } from '@/lib/report/plan';
 import { withJosa } from '@/lib/korean';
 
 /**
@@ -1058,7 +1059,8 @@ export function prescriptionLine(
       ? `${base} · 가볍게 · ${rx.reserve}개 남기고`
       : `${base} · ${rx.reserve}개 남기고`;
   }
-  if (rx.mode === 'linear') return `${n}세트 × ${rx.reps}회${side} · 다 채우면 다음에 올려요`;
+  if (rx.mode === 'linear')
+    return `${n}세트 × ${rx.reps}회${side} · ${rx.reserve != null ? `${rx.reserve}개 남기고 · ` : ''}다 채우면 다음에 올려요`;
   const kgs = opts.kgs;
   const same = (i: number, j: number) =>
     rx.sets[i].reps === rx.sets[j].reps &&
@@ -1077,7 +1079,8 @@ export function prescriptionLine(
     parts.push(`${count} ${amount}`);
     i = j + 1;
   }
-  const plus = rx.sets.some((s) => s.plus) ? ` · +는 ${PLUS_RESERVE}개 남기고` : '';
+  /* 성장기(youthRx)면 reserve 가 + 세트의 남김이다 */
+  const plus = rx.sets.some((s) => s.plus) ? ` · +는 ${rx.reserve ?? PLUS_RESERVE}개 남기고` : '';
   return `${parts.join(' → ')}${side}${plus}`;
 }
 
@@ -1132,7 +1135,26 @@ export function programChoiceList(): ProgramChoice[] {
 
 /* ─────────────────────────── 시작 자격(§1) ─────────────────────────── */
 
-export const PROGRAM_MIN_AGE = 18;
+/**
+ * 근력 · 파워 프로그램의 아래 끝 — 2026-10-14 사용자: "중학생들도 다 웨이트 할 수 있어"(예전 18). 만 16세 미만은 성장기 규칙을 같이 건다
+ * (매일 일정과 같은 선 lib/report/plan.ts YOUTH_AGE_THRESHOLD): 강도 '매우 높음' 운동은 안 고르고(variantCandidates youth), 본 세트 ·
+ * + 세트 · 직선 증량도 YOUTH_RESERVE 개 남기고(youthRx).
+ */
+export const PROGRAM_MIN_AGE = 13;
+
+/** 성장기 처방에서 남기는 개수 — 매일 일정의 CAUTIOUS_RESERVE(lib/workout/free-weight.ts)와 같다 */
+export const YOUTH_RESERVE = 3;
+
+/** 성장기인가 — 매일 일정과 같은 선(만 16세 미만). 나이를 모르면 아니다 */
+export function isYouthAge(age: number | null | undefined): boolean {
+  return age != null && age < YOUTH_AGE_THRESHOLD;
+}
+
+/** 성장기 처방 — 무게를 드는 칸은 YOUTH_RESERVE 개 남기고(% 방식의 + 세트 · 직선 증량 포함). 무게 없는 칸(none)은 그대로 */
+export function youthRx(rx: ItemRx): ItemRx {
+  if (rx.mode === 'none') return rx;
+  return { ...rx, reserve: Math.max(rx.reserve ?? 0, YOUTH_RESERVE) };
+}
 /** 기본기 4주의 아래 끝(2026-10-09 사용자) */
 export const BASICS_MIN_AGE = 13;
 
@@ -1540,11 +1562,18 @@ export function variantCandidates<T extends PinnableExercise>(
   owned: readonly string[],
   trainingLevel: string | null,
   /** 기본기는 다른 규칙(BASICS_RULES) — 바벨 없이, 가벼운 것부터 */
-  audience: ProgramAudience = 'adult'
+  audience: ProgramAudience = 'adult',
+  /** 성장기(isYouthAge) — 강도 '매우 높음'은 빼고 고른다 */
+  youth = false
 ): T[] {
   const ownedSet = new Set(owned);
   const rule = (audience === 'basics' ? BASICS_RULES : VARIANT_RULES)[variant];
-  const usable = library.filter((ex) => rule.match(ex) && canDo(ex, ownedSet));
+  const usable = library.filter(
+    (ex) =>
+      rule.match(ex) &&
+      canDo(ex, ownedSet) &&
+      (!youth || intensityLevel(ex.intensity) < intensityLevel('매우 높음'))
+  );
   const leveled = filterByLevel(usable, trainingLevel).pool;
   /* filterByLevel 이 경력 순으로 세운 것을 지키며, 같은 경력 안에서 변형 규칙의 차례로 */
   const levelRank = new Map(leveled.map((ex, i) => [ex.id, i]));
@@ -1563,11 +1592,12 @@ export function pickPinned<T extends PinnableExercise>(
   owned: readonly string[],
   trainingLevel: string | null,
   keep: Pinned = {},
-  audience: ProgramAudience = 'adult'
+  audience: ProgramAudience = 'adult',
+  youth = false
 ): Pinned {
   const out: Pinned = {};
   for (const v of VARIANT_KEYS) {
-    const candidates = variantCandidates(v, library, owned, trainingLevel, audience);
+    const candidates = variantCandidates(v, library, owned, trainingLevel, audience, youth);
     const kept = keep[v];
     if (kept && candidates.some((c) => c.id === kept)) {
       out[v] = kept;

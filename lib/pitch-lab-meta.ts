@@ -43,8 +43,8 @@ export type LabMeta = {
   /** 폰에서 투수까지(m) — 모르면 null */
   distanceM: number | null;
   memo: string | null;
-  /** 올린 파일 이름 · 크기(분석 때 원본을 가려내려고) */
-  files: Partial<Record<LabView, { name: string; size: number }>>;
+  /** 올린 파일 이름 · 크기(분석 때 원본을 가려내려고) · 지문(lib/pitch-lab-guard.ts — 영상 탓으로 실패한 파일을 다시 안 돌리려고, 옛 샘플은 없다) */
+  files: Partial<Record<LabView, { name: string; size: number; fp?: string }>>;
   /**
    * 샘플 종류 — 'marker' 는 몸에 스티커(마커)를 붙여 3~4대로 찍은 정답지용(2026-10-12 사용자: "마커 샘플이라고 다르게 표시해서
    * 기존 샘플과 다른 곳에"). 실험실 목록이 따로 모아 보이고, 같은 폴더에 ③ · ④ 카메라 영상(cam3.* · cam4.*)이 더 있을 수 있다.
@@ -52,6 +52,9 @@ export type LabMeta = {
   kind: 'sample' | 'marker';
   createdAt: string;
 };
+
+const isFingerprint = (v: unknown): v is string =>
+  typeof v === 'string' && /^[0-9a-f]{64}$/.test(v);
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -85,7 +88,8 @@ export function readLabMeta(raw: unknown, createdAt: string): LabMeta {
     const f = rawFiles[view] as Record<string, unknown> | undefined;
     const name = text(f?.name, 200);
     const size = num(f?.size, 0, 10 * 1024 * 1024 * 1024);
-    if (name && size != null) files[view] = { name, size };
+    if (name && size != null)
+      files[view] = { name, size, ...(isFingerprint(f?.fp) ? { fp: f.fp } : {}) };
   }
   return {
     synced: v.synced !== false,

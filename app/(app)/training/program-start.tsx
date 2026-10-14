@@ -108,7 +108,7 @@ export function ProgramStart({ props }: { props: ProgramStartProps }) {
           )}
         </span>
         <span className="block text-xs text-muted break-keep">
-          처음이거나 만 {BASICS_MIN_AGE}~{PROGRAM_MIN_AGE - 1}세 · 무게 없이 자세부터 · 주{' '}
+          웨이트가 처음이면 · 무게 없이 자세부터 · 주{' '}
           {basicsChoice.perWeek[basicsChoice.perWeek.length - 1]}번 약 35분
         </span>
       </span>
@@ -352,7 +352,7 @@ function StartSheet({
                     )}
                   </span>
                   <span className="block text-xs text-muted break-keep">
-                    처음이거나 만 {BASICS_MIN_AGE}~{PROGRAM_MIN_AGE - 1}세 · {p.summary}
+                    웨이트가 처음이면 · {p.summary}
                   </span>
                 </span>
                 <ChevronRight aria-hidden className="h-4 w-4 shrink-0 text-muted" />

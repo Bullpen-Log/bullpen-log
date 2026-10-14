@@ -74,7 +74,7 @@ function Primary({ view }: { view: LoadView }) {
   const zone = view.zone ? ACWR_ZONES[view.zone] : null;
 
   return (
-    <div className="space-y-4 px-6 py-7 sm:px-8">
+    <div className="space-y-4 p-(--block-pad)">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="text-xs font-medium tracking-normal text-muted">
@@ -169,7 +169,7 @@ export function LoadPanel({
 
   return (
     /* 평평한 흰 면 — 은은한 빛 그라데이션(bg-spotlight)은 AI 템플릿의 카드 같았다(2026-10-04) */
-    <section className="overflow-hidden rounded-3xl border border-line bg-surface">
+    <section className="overflow-hidden rounded-2xl border border-line bg-surface">
       <Primary view={view} />
 
       {/*
@@ -180,7 +180,7 @@ export function LoadPanel({
         missingDays != null &&
         missingWarningAt != null &&
         missingDays >= missingWarningAt && (
-          <p className="border-t border-warn-line bg-warn-bg px-6 py-3 text-[11px] leading-relaxed text-warn sm:px-8">
+          <p className="border-t border-warn-line bg-warn-bg px-(--block-pad) py-3 text-xs leading-relaxed text-warn">
             최근 {CHRONIC_WINDOW_DAYS}일 중 {missingDays}일은 기록이 없어 안 던진 날로
             셌어요. 그래서 지수가 낮게 나올 수 있어요. 던진 날이 있으면{' '}
             <Link href="/today" className="font-semibold text-sky-strong">
@@ -197,7 +197,7 @@ export function LoadPanel({
         그래서 지수 옆에 붙인다.
       */}
       {isPitching && throwStreak != null && throwStreak >= STREAK_WARNING && (
-        <p className="border-t border-warn-line bg-warn-bg px-6 py-3 text-[11px] leading-relaxed text-warn sm:px-8">
+        <p className="border-t border-warn-line bg-warn-bg px-(--block-pad) py-3 text-xs leading-relaxed text-warn">
           최근 4주에 {throwStreak}일 연속으로 던진 구간이 있어요. 지수가 높지 않아도
           쉬는 날을 넣어 주세요.
         </p>

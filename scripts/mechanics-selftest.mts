@@ -64,8 +64,9 @@ function ok(cond: boolean, name: string, detail = '') {
 const prisma = new PrismaClient({
   adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }),
 });
+/* 앱의 trainingGuides(lib/library-cache.ts)와 같게 — 숨긴 것 · '나중에 촬영'(영상 전, 2026-10-14) 드릴은 빼고 */
 const rows = await prisma.mechanicsGuide.findMany({
-  where: { hiddenAt: null },
+  where: { hiddenAt: null, category: { not: '나중에 촬영' } },
   orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
 });
 await prisma.$disconnect();

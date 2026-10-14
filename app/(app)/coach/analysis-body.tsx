@@ -56,8 +56,11 @@ export function AnalysisBody({
   };
 
   return (
-    /* 넓은 화면은 분석('그날')과 그래프('요즘')를 나란히, 좁으면 분석 밑에 그래프 */
-    <div className="grid gap-x-6 xl:grid-cols-2">
+    /*
+     * 분석 밑에 그래프 — 한 줄로 쌓는다(2026-10-14 사용자 "공백 · 간격이 안 맞아"). 예전엔 넓은 화면에서 둘을 나란히 두고 그래프가
+     * 분석 높이만큼 늘어났는데, 그래프가 한두 장으로 줄자 카드 하나가 900px 넘게 늘어났다. 사이는 쪽의 큰 덩이 간격(stack-page).
+     */
+    <div className="stack-page">
       <AnalysisBlock
         date={date}
         today={today}

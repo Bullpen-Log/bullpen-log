@@ -360,7 +360,10 @@ export function programSwapRx(
   const program = parsed && withKind(parsed, plan.program.kind);
   const base = program ? itemRx(program, plan.program.day, from.programSlot.variant) : null;
   if (!base) return null;
-  const full = from.programSlot.adjusted ? lighterRx(base) : base;
+  const lighter = from.programSlot.adjusted ? lighterRx(base) : base;
+  /* 바꾸기 전 칸이 더 남겼으면(성장기 youthRx) 그대로 — 일정에는 나이가 없어 칸의 값을 이어 받는다 */
+  const kept = from.programSlot.reserve;
+  const full = kept != null && kept > (lighter.reserve ?? 0) ? { ...lighter, reserve: kept } : lighter;
   const planned = from.plannedSets ?? full.sets.length;
   const left = loggedFromSets > 0 ? Math.max(1, planned - loggedFromSets) : planned;
   /* 남은 세트는 뒤쪽 — 5/3/1 이면 아직 안 한 무거운 세트들 */

@@ -115,7 +115,7 @@ async function LoadView({
   const serialized = logs.map((log) => ({ ...log, date: log.date.toISOString() }));
 
   return (
-    <div className="space-y-6">
+    <div className="stack-block">
       {highlights && highlights.items.length > 0 && (
         <Highlights items={highlights.items.map((h) => (h.href?.startsWith('/coach') ? { ...h, href: null } : h))} />
       )}
@@ -147,7 +147,7 @@ async function LoadView({
       )}
       {tab === 'pitch' && goodDays && <GoodDaysCard result={goodDays} />}
 
-      <p className="pb-2 text-center text-[11px] leading-relaxed text-muted/60">
+      <p className="text-center text-xs leading-relaxed text-muted/70">
         부하 지수는 훈련량 관리를 돕는 참고 지표예요. 통증이 있다면 수치와 관계없이
         전문의와 상담하세요.
       </p>
