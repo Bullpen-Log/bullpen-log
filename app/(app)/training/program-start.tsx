@@ -13,6 +13,7 @@ import {
   GOAL_LABELS,
   PLUS_RESERVE,
   PROGRAM_MIN_AGE,
+  RECOMMENDED_EQUIPMENT,
   TM_LOOKBACK_DAYS,
   equipmentBlock,
   profileBlock,
@@ -542,6 +543,11 @@ function StartSheet({
             {missing.length > 0 && owned.length > 0 && (
               <p className="text-sm text-muted">{missing.join(', ')}도 있어야 해요.</p>
             )}
+            {!basics && (
+              <p className="text-xs text-muted">
+                권장: {RECOMMENDED_EQUIPMENT.join(' · ')}. 있으면 보조 운동이 다양해져요.
+              </p>
+            )}
           </div>
         )}
 
@@ -634,6 +640,16 @@ function StartSheet({
                   ? `기준 무게는 시작 전 ${TM_LOOKBACK_DAYS / 7}주 기록으로 정해요. 기록이 없으면 첫날 ${PLUS_RESERVE}개 남는 무게로 정해요.`
                   : '기록이 없으면 처음엔 몇 개 남는 무게로 맞추고, 그 뒤부터 추천해요.'}
             </p>
+            {/* 권장 장비(벤치 · 밴드)가 빠졌으면 — 막지는 않고, 보조는 비슷한 운동으로 바꿔 넣는다(program.ts ACCESSORY_FALLBACK) */}
+            {!basics &&
+              RECOMMENDED_EQUIPMENT.some((e) => !(props.owned.length > 0 ? props.owned : owned).includes(e)) && (
+                <p className="text-muted break-keep">
+                  {RECOMMENDED_EQUIPMENT.filter((e) => !(props.owned.length > 0 ? props.owned : owned).includes(e)).join(
+                    ' · '
+                  )}
+                  가 있으면 보조 운동이 다양해져요. 없으면 비슷한 운동으로 바꿔 넣어요.
+                </p>
+              )}
           </div>
         )}
 

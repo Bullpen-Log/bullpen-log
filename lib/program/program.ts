@@ -141,6 +141,12 @@ export const WEIGHTED_SLOTS: readonly SlotKind[] = [
 export const REQUIRED_EQUIPMENT: readonly string[] = ['바벨', '덤벨'];
 
 /**
+ * 있으면 좋은 장비(필수 아님, 2026-10-15 사용자) — 바벨 · 덤벨만이어도 보조 칸은 비지 않지만(ACCESSORY_FALLBACK), 벤치가 있으면 덤벨 로우 ·
+ * 프레스가, 밴드가 있으면 풀다운 · 삼두 · 풀어파트가 생겨 대체가 거의 없다. 시작 시트가 '권장'으로 보여 준다.
+ */
+export const RECOMMENDED_EQUIPMENT: readonly string[] = ['벤치', '밴드'];
+
+/**
  * 선택 운동 — 메디신볼을 던지는 칸(메디신볼 · 회전 던지기)은 건너뛰어도 된다(2026-10-14 김민: 못 던지는 환경일 수 있다).
  * 카드 · 운동 화면이 '선택'으로 적고, 세션을 마쳤다고 세는 세트(절반)에 넣지 않는다. 메디신볼이 없어 점프 · 돌리는 코어로 채운 칸은 그대로 센다.
  */
@@ -1855,6 +1861,29 @@ export function accessoryPick<T extends PinnableExercise>(
   return pool.length > 0 ? pool[Math.max(0, occurrence) % pool.length] : null;
 }
 
+/**
+ * 보조 칸의 그날 운동 — 그 칸에서 고르고(accessoryPick), 가진 장비로 할 것이 없으면 비슷한 칸(ACCESSORY_FALLBACK)에서 차례로. 대신 골랐으면
+ * substituted 가 참(화면 '대체 · 장비'). 고른 운동은 used 에 넣는다 — 같은 날 두 칸에 같은 운동이 안 나오게.
+ */
+export function accessoryWithFallback<T extends PinnableExercise>(
+  variant: VariantKey,
+  candidatesOf: (v: VariantKey) => readonly T[],
+  seed: string,
+  occurrence: number,
+  used: Set<string>
+): { ex: T | null; substituted: boolean } {
+  const tries = [{ variant, only: undefined as RegExp | undefined }, ...(ACCESSORY_FALLBACK[variant] ?? [])];
+  for (const [i, { variant: v, only }] of tries.entries()) {
+    const pool = candidatesOf(v).filter((c) => !only || only.test(c.title));
+    const ex = accessoryPick(v, pool, seed, occurrence, used);
+    if (ex) {
+      used.add(ex.id);
+      return { ex, substituted: i > 0 };
+    }
+  }
+  return { ex: null, substituted: false };
+}
+
 /** 이 칸(variant)이 보조로 몇 번 나왔나 — 1일차부터 day 앞날까지(그날 운동을 고르는 차례 accessoryPick 의 occurrence) */
 export function accessoryOccurrence(plan: ProgramPlan, day: number, variant: VariantKey): number {
   let n = 0;
@@ -1982,7 +2011,28 @@ export const ARM_THROW_VARIANTS: readonly VariantKey[] = ['medball', 'rotational
 export const ARM_DEFER_REASON = '팔 아끼는 날';
 
 /** 그날 대체한 칸 · 운동의 까닭 — 화면 꼬리표 '대체 · …'에 그대로 붙는다 */
-export const SUBSTITUTE_REASON = { pain: '통증 부위', armFatigue: '팔 피로' } as const;
+export const SUBSTITUTE_REASON = { pain: '통증 부위', armFatigue: '팔 피로', gear: '장비' } as const;
+
+/**
+ * 보조 칸에 가진 장비로 할 운동이 하나도 없을 때 대신 고르는 비슷한 칸 — 앞에서부터 본다(2026-10-15 사용자: "프로그램은 본운동 장비만 있으면
+ * 되게, 보조는 장비가 없으면 비슷한 걸로"). 바벨 · 덤벨만 있으면 세로 당기기(철봉 · 케이블 · 밴드)와 삼두(케이블 · 벤치 · 밴드)가 빈다.
+ * 화면에는 '대체 · 장비'와 '오늘은 세로 당기기 대신이에요'가 붙는다.
+ */
+export const ACCESSORY_FALLBACK: Partial<
+  Record<VariantKey, readonly { variant: VariantKey; only?: RegExp }[]>
+> = {
+  /* 로우까지 다 쓰면 어깨 뒤쪽(덤벨 레이즈) — 등 위쪽을 같이 쓴다 */
+  vpull: [{ variant: 'hpull' }, { variant: 'scap' }],
+  hpull: [{ variant: 'vpull' }, { variant: 'scap' }],
+  scap: [{ variant: 'hpull' }],
+  /* 삼두는 삼두를 많이 쓰는 푸시업 종류부터, 없으면 보조 밀기 */
+  triceps: [{ variant: 'pushAcc', only: /푸시업/ }, { variant: 'pushAcc' }],
+  biceps: [{ variant: 'hpull' }, { variant: 'vpull' }],
+  forearm: [{ variant: 'biceps' }],
+  pushAcc: [{ variant: 'triceps' }],
+  hamstring: [{ variant: 'singleLeg' }],
+  singleLeg: [{ variant: 'hamstring' }],
+};
 
 /**
  * 그날 대체할 칸 — 고정 운동(pinnedOf)이 안전 거르기(partsOnly)를 못 지난 칸과 그 까닭. 앱(lib/program/load.ts)과 자체 시험이 이 함수

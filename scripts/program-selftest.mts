@@ -25,6 +25,7 @@ import {
   isYouthAge,
   youthRx,
   accessoryPick,
+  accessoryWithFallback,
   accessoryOccurrence,
   ACCESSORY_KEYS,
   YOUTH_RESERVE,
@@ -586,6 +587,28 @@ check('다 맞으면 시작', checkEligibility(base).ok);
     check('BBB 메뉴: 본운동(스쿼트)은 보조가 아니고 보조는 2세트', dayPlan(bbb, 1).items.some((x) => x.variant === 'squat' && !x.assist) && dayPlan(bbb, 1).items.filter((x) => x.assist && x.mode === 'reserve').every((x) => x.sets.length === 2));
     check('보조 칸 몇 번째: BBB 4일차 가로 당기기는 앞에 2번(1 · 3일차)', accessoryOccurrence(bbb, 4, 'hpull') === 2);
     check('보조 칸은 고르기 화면 · 고정에 안 든다', usedVariants(bbb.def).every((v) => !ACCESSORY_KEYS.includes(v)));
+  }
+  /* 장비가 없는 보조 칸은 비슷한 칸에서 대신(2026-10-15) — 바벨 · 덤벨만이면 세로 당기기 · 삼두가 빈다 */
+  {
+    const mk = (id: string, title: string, pattern: string, equipment: string[]) =>
+      ({ id, title, category: '상체 스트렝스', movementPattern: pattern, equipment, intensity: '중간', difficulty: '초급', perSide: false }) as PinnableExercise;
+    const lib2 = [
+      mk('row1', '고릴라 로우', '당기기', ['덤벨']),
+      mk('row2', '바벨 로우', '당기기', ['바벨']),
+      mk('pd', '싱글암 케이블 풀다운', '당기기', ['케이블']),
+      mk('pu', '푸시업', '밀기', ['맨몸']),
+      mk('tri', '케이블 트라이셉스 푸시다운', '밀기', ['케이블']),
+    ];
+    const owned = ['맨몸', '바벨', '덤벨'];
+    const of = (v: VariantKey) => variantCandidates(v, lib2, owned, '중급');
+    const used = new Set<string>(['row2']);
+    const vp = accessoryWithFallback('vpull', of, 's', 0, used);
+    check('장비 대체: 세로 당기기가 없으면 가로 당기기(오늘 안 쓴 것)로, 대체 표시', vp.ex?.id === 'row1' && vp.substituted, vp.ex?.id);
+    const tr = accessoryWithFallback('triceps', of, 's', 0, used);
+    check('장비 대체: 삼두가 없으면 보조 밀기(푸시업)로', tr.ex?.id === 'pu' && tr.substituted, tr.ex?.id);
+    const hp = accessoryWithFallback('hpull', of, 's', 0, new Set());
+    check('장비 대체: 할 수 있으면 그 칸 그대로(대체 아님)', hp.ex != null && !hp.substituted);
+    check('장비 대체: 다 쓰면 null', accessoryWithFallback('vpull', of, 's', 0, new Set(['row1', 'row2'])).ex === null);
   }
   /* 성장기 처방 — 무게 칸은 3개 남기고, 매우 높음은 후보에서 빠진다 */
   check('성장기: 15세는 성장기 · 16세 · 나이 모름은 아님', isYouthAge(15) && !isYouthAge(16) && !isYouthAge(null));
