@@ -5607,14 +5607,14 @@ console.log('\n[암케어] 부위·근육 · 오늘의 루틴 · 부하');
         (a) => strength.items.find((it) => it.area === a)?.sets === 2
       )
   );
-  /* 2026-10-14 김민: 어깨 · 견갑 · 팔꿈치 = 강화 4 · 2 · 4, 회복 3 · 2 · 3 */
+  /* 2026-10-14 김민: 어깨 · 견갑 · 팔꿈치 = 강화 4 · 2 · 4, 회복 3 · 2 · 4 */
   const ratio = (r: typeof strength) => {
     const n = (keys: string[]) => r.items.filter((it) => keys.includes(it.area)).length;
     return [n(['shoulder-back', 'shoulder-front', 'shoulder-top']), n(['scapula']), n(['elbow-inner', 'elbow-outer'])].join('/');
   };
   check(
-    '부위 비율 — 강화 4/2/4 · 회복 3/2/3 (어깨/견갑/팔꿈치)',
-    ratio(strength) === '4/2/4' && ratio(build('recovery')) === '3/2/3',
+    '부위 비율 — 강화 4/2/4 · 회복 3/2/4 (어깨/견갑/팔꿈치)',
+    ratio(strength) === '4/2/4' && ratio(build('recovery')) === '3/2/4',
     `${ratio(strength)} · ${ratio(build('recovery'))}`
   );
   /* 완요골근이 주 근육인 운동은 해머컬 계열이다 — 함께 뺀다 */
