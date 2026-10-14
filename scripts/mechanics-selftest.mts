@@ -105,7 +105,8 @@ for (const lv of MECHANICS_LEVELS) {
     const weeks = bi === 0 ? '1~2' : '3~4';
     block.forEach((titles, si) => {
       const tag = `${lv.name} ${weeks}주차 ${si + 1}번째`;
-      ok(titles.length === 3, `세션 드릴 셋 ${tag}`, `${titles.length}개`);
+      const per = lv.key === 'intermediate' || lv.key === 'advanced' ? 4 : 3;
+      ok(titles.length === per, `세션 드릴 ${per}개 ${tag}`, `${titles.length}개`);
       ok(new Set(titles).size === titles.length, `세션 안 겹침 없음 ${tag}`);
       const found = titles.map((t) => byTitle.get(t));
       titles.forEach((t, i) => ok(found[i] != null, `라이브러리에 있음 ${tag}: ${t}`));
@@ -177,7 +178,8 @@ for (const [gearLabel, owned] of gearSets) {
       const items = buildLevelSession({ drills, level: lv.key, index: i, owned });
       const tag = `${gearLabel} · ${lv.name} ${i + 1}번째`;
       built += 1;
-      ok(items.length === 3, `드릴 셋 ${tag}`, `${items.length}개`);
+      const per = lv.key === 'intermediate' || lv.key === 'advanced' ? 4 : 3;
+      ok(items.length === per, `드릴 ${per}개 ${tag}`, `${items.length}개`);
       ok(new Set(items.map((x) => x.title)).size === items.length, `겹침 없음 ${tag}`);
       const groups = items.map((x) => groupOf(x.element));
       ok(groups.every((g, k) => k === 0 || groups[k - 1] <= g), `차례 ${tag}`);

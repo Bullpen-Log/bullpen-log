@@ -138,7 +138,14 @@ export function ProgramCard({ props }: { props: ProgramCardProps }) {
                 className="flex min-h-12 w-full items-center gap-3 py-2 text-left"
               >
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-[15px] text-ink">{r.title}</span>
+                  <span className="block truncate text-[15px] text-ink">
+                    {r.optional && (
+                      <span className="mr-1.5 rounded-full bg-ink/6 px-1.5 py-0.5 text-xs font-semibold text-muted">
+                        선택
+                      </span>
+                    )}
+                    {r.title}
+                  </span>
                   {r.contrast && (
                     <span className="block text-xs text-muted">{r.contrast}</span>
                   )}
