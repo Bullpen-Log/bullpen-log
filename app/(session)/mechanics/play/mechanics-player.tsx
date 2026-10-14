@@ -574,7 +574,7 @@ function LevelOffer({ kind, to }: { kind: 'done' | 'up' | 'down'; to: Parameters
     <div className="space-y-3 rounded-2xl bg-surface px-4 py-4">
       {state === 'changed' ? (
         <p className="text-sm font-semibold break-keep text-ink">
-          {level.name} 프로그램으로 바꿨어요. 다음 세션부터 {level.name} 1주차예요.
+          {level.name} 프로그램으로 바꿨어요. 다음은 {level.name} 1번 세션이에요.
         </p>
       ) : (
         <>

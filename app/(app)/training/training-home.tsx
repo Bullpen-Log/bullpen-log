@@ -467,7 +467,7 @@ async function MechanicsCard({ userId }: { userId: string }) {
           ? `${level.name} 프로그램을 마쳤어요`
           : program.finishedToday
             ? '오늘 세션을 마쳤어요'
-            : `${level.name} ${program.week}주차 ${program.day}번째 · 드릴 ${session.length}개 · 15~20분`
+            : `${level.name} ${program.index + 1}번 세션 · 드릴 ${session.length}개 · 15~20분`
       }
       action={
         session.length > 0 ? (
