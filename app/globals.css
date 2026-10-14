@@ -1729,12 +1729,14 @@ dialog[data-drawer]::backdrop {
  */
 @media not all and (min-width: 36rem) and (hover: hover) and (pointer: fine) {
   /*
+   * (dialog[data-look='folder'] — 설정 · 내 정보 창(components/modal.tsx look="folder")도 같은 규칙을 탄다, 2026-10-14 밤)
    * 2026-10-14 2판 — 아이폰 앱 폴더처럼. 아래 시트 대신, dialog 가 화면 전체의 흐린 막(뒤 본문이 비친 채 흐려지고
    * 어두워진다 — 밝은 테마에서도 어둡게 해 흰 글리프 · 흰 이름이 늘 읽힌다)이고, 그 가운데에 반투명 유리 폴더
    * ([data-folder])가 하단 탭 '더보기' 자리에서 부풀어 뜬다(iOS 폴더 줌). ::backdrop 에 blur 를 거는 건 아이폰
    * WebKit 에서 판별 불가라 dialog 자신이 막이다. 막을 누르면 닫힌다(app-shell DetailMenu 의 data-scrim).
    */
-  dialog[data-drawer] {
+  dialog[data-drawer],
+  dialog[data-look='folder'] {
     inset: 0;
     margin: 0;
     width: 100%;
@@ -1757,12 +1759,14 @@ dialog[data-drawer]::backdrop {
       overlay 140ms ease-in allow-discrete,
       display 140ms ease-in allow-discrete;
   }
-  dialog[data-drawer][open] {
+  dialog[data-drawer][open],
+  dialog[data-look='folder'][open] {
     opacity: 1;
     transition: opacity 160ms ease-out;
     animation: none;
   }
-  dialog[data-drawer]::backdrop {
+  dialog[data-drawer]::backdrop,
+  dialog[data-look='folder']::backdrop {
     background: transparent;
   }
   /*
@@ -1770,14 +1774,19 @@ dialog[data-drawer]::backdrop {
    * 열 때 초점은 폴더 자체로 간다(app-shell fitFolder). 누를 때 깜빡이는 회색 칠도 뺀다.
    */
   dialog[data-drawer] :focus,
-  dialog[data-drawer] :focus-visible {
+  dialog[data-look='folder'] :focus,
+  dialog[data-drawer] :focus-visible,
+  dialog[data-look='folder'] :focus-visible {
     outline: none;
   }
   dialog[data-drawer] a,
-  dialog[data-drawer] button {
+  dialog[data-look='folder'] a,
+  dialog[data-drawer] button,
+  dialog[data-look='folder'] button {
     -webkit-tap-highlight-color: transparent;
   }
-  dialog[data-drawer] [data-folder] {
+  dialog[data-drawer] [data-folder],
+  dialog[data-look='folder'] [data-folder] {
     /*
      * 타일 크기는 화면 높이가 정한다 — 굴리지 않고 한 장에 다 들어가게(2026-10-14 사용자). 관리자는 5줄 + 제목 둘 + 내 정보 줄.
      * 844px(아이폰 14)에서 58px, 667px(SE)에서 44px 쯤.
@@ -1802,7 +1811,8 @@ dialog[data-drawer]::backdrop {
       transform 140ms ease-in,
       opacity 140ms ease-in;
   }
-  dialog[data-drawer][open] [data-folder] {
+  dialog[data-drawer][open] [data-folder],
+  dialog[data-look='folder'][open] [data-folder] {
     transform: none;
     opacity: 1;
     transition: none;
@@ -1819,10 +1829,12 @@ dialog[data-drawer]::backdrop {
     }
   }
   @media (prefers-reduced-motion: reduce) {
-    dialog[data-drawer] [data-folder] {
+    dialog[data-drawer] [data-folder],
+    dialog[data-look='folder'] [data-folder] {
       transform: none;
     }
-    dialog[data-drawer][open] [data-folder] {
+    dialog[data-drawer][open] [data-folder],
+    dialog[data-look='folder'][open] [data-folder] {
       animation: folder-fade 160ms ease-out;
     }
     @keyframes folder-fade {
@@ -1840,14 +1852,18 @@ dialog[data-drawer]::backdrop {
    * 다크 = 기본값(검은 막 + 흰 유리 + 흰 글리프). 화이트는 밝은 폴더라 글리프 · 글자를 짙은 잉크로 — 흰 글리프는 옅은 하늘색 위에서
    * 안 읽힌다(대비 1.3:1).
    */
-  dialog[data-drawer] {
+  dialog[data-drawer],
+  dialog[data-look='folder'] {
     --folder-fg: #fff;
   }
-  html[data-theme='dark'] dialog[data-drawer] [data-folder] {
+  html[data-theme='dark'] dialog[data-drawer] [data-folder],
+  html[data-theme='dark'] dialog[data-look='folder'] [data-folder] {
     background: rgba(255, 255, 255, 0.14);
   }
   html[data-theme='light'] dialog[data-drawer],
-  html:not([data-theme]) dialog[data-drawer] {
+  html[data-theme='light'] dialog[data-look='folder'],
+  html:not([data-theme]) dialog[data-drawer],
+  html:not([data-theme]) dialog[data-look='folder'] {
     --folder-fg: #1d1d1f;
     --tile-bg: rgba(10, 132, 214, 0.16);
     --tile-bg-active: rgba(10, 132, 214, 0.32);
@@ -1860,14 +1876,17 @@ dialog[data-drawer]::backdrop {
     background: rgba(242, 242, 247, 0.55);
   }
   html[data-theme='light'] dialog[data-drawer] [data-folder],
-  html:not([data-theme]) dialog[data-drawer] [data-folder] {
+  html[data-theme='light'] dialog[data-look='folder'] [data-folder],
+  html:not([data-theme]) dialog[data-drawer] [data-folder],
+  html:not([data-theme]) dialog[data-look='folder'] [data-folder] {
     background: rgba(255, 255, 255, 0.62);
     border-color: rgba(255, 255, 255, 0.8);
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.9),
       0 24px 60px -20px rgba(29, 29, 31, 0.35);
   }
-  html[data-theme='navy'] dialog[data-drawer] {
+  html[data-theme='navy'] dialog[data-drawer],
+  html[data-theme='navy'] dialog[data-look='folder'] {
     --tile-bg: rgba(51, 65, 85, 0.55);
     --tile-bg-active: rgba(96, 120, 150, 0.6);
     --tile-ring: rgba(148, 163, 184, 0.3);
@@ -1875,7 +1894,8 @@ dialog[data-drawer]::backdrop {
     --tile-shadow: rgba(2, 6, 23, 0.7);
     background: rgba(11, 18, 32, 0.55);
   }
-  html[data-theme='navy'] dialog[data-drawer] [data-folder] {
+  html[data-theme='navy'] dialog[data-drawer] [data-folder],
+  html[data-theme='navy'] dialog[data-look='folder'] [data-folder] {
     background: rgba(30, 41, 59, 0.6);
     border-color: rgba(148, 163, 184, 0.25);
   }
@@ -1883,13 +1903,15 @@ dialog[data-drawer]::backdrop {
    * 끌어내려 닫을 때(app-shell endDrag 가 data-dismiss=down 을 달고 닫는다) — 하단 탭 쪽으로 줄지 않고 아래로 미끄러져 사라진다.
    * 막은 그만큼 천천히 옅어진다.
    */
-  dialog[data-drawer][data-dismiss='down'] {
+  dialog[data-drawer][data-dismiss='down'],
+  dialog[data-look='folder'][data-dismiss='down'] {
     transition:
       opacity 280ms ease-in,
       overlay 280ms ease-in allow-discrete,
       display 280ms ease-in allow-discrete;
   }
-  dialog[data-drawer][data-dismiss='down']:not([open]) [data-folder] {
+  dialog[data-drawer][data-dismiss='down']:not([open]) [data-folder],
+  dialog[data-look='folder'][data-dismiss='down']:not([open]) [data-folder] {
     opacity: 1;
     transform: translateY(110vh) !important;
     transition: transform 280ms cubic-bezier(0.32, 0.72, 0, 1);
@@ -2531,6 +2553,10 @@ dialog[data-gate][open]::backdrop {
    * 바닥에 붙은 시트의 아래쪽(입력칸 · 저장 단추)이 자판 뒤에 숨었다. --kb · --vvh 는 components/viewport-vars.tsx 가
    * 자판이 있을 때만 적는다 — 없으면 이 규칙이 안 걸려 예전 모양 그대로다.
    */
+  /* 폴더 창(설정 · 내 정보)은 가운데 서므로 자판만큼 아래를 비워 판이 그 위로 올라온다 */
+  html[data-keyboard] dialog[data-look='folder'] {
+    padding-bottom: calc(env(safe-area-inset-bottom) + var(--kb, 0px) + 1rem);
+  }
   html[data-keyboard] dialog[data-sheet],
   html[data-keyboard] dialog[data-gate] {
     margin-bottom: var(--kb, 0px);
@@ -2862,6 +2888,51 @@ html[data-splash] *::after {
 @media (prefers-reduced-motion: reduce) {
   [data-tab-ghost][data-done] {
     transition: none;
+  }
+}
+
+/*
+ * 폴더 안의 내용(설정 · 내 정보, components/modal.tsx look="folder") — 화면 부품은 bg-surface-2 · text-ink · text-muted 로 그려져 있는데,
+ * 반투명 유리 위에서는 더보기 타일과 같은 유리로 보여야 한다. 그래서 휴대폰의 폴더 창 안에서만 그 뜻을 바꿔 읽는다(한 곳에서 — 부품을
+ * 하나하나 고치지 않는다). 색의 바탕은 더보기와 같은 --folder-fg · --tile-* (위 테마 묶음). PC(desk)는 예전 창 그대로.
+ */
+@media not all and (min-width: 36rem) and (hover: hover) and (pointer: fine) {
+  dialog[data-look='folder'] [data-folder] {
+    color: var(--folder-fg);
+  }
+  dialog[data-look='folder'] [data-folder] .bg-surface-2,
+  dialog[data-look='folder'] [data-folder] .bg-surface,
+  dialog[data-look='folder'] [data-folder] .bg-ink\/5,
+  dialog[data-look='folder'] [data-folder] .bg-ink\/6 {
+    background-color: var(--tile-bg, rgba(255, 255, 255, 0.14));
+    box-shadow: inset 0 1px 0 var(--tile-gloss, rgba(255, 255, 255, 0.3));
+  }
+  dialog[data-look='folder'] [data-folder] .divide-line > :not(:last-child),
+  dialog[data-look='folder'] [data-folder] .border-line,
+  dialog[data-look='folder'] [data-folder] .border-t,
+  dialog[data-look='folder'] [data-folder] .border-b {
+    border-color: color-mix(in srgb, var(--folder-fg) 16%, transparent);
+  }
+  dialog[data-look='folder'] [data-folder] .text-ink {
+    color: var(--folder-fg);
+  }
+  dialog[data-look='folder'] [data-folder] [class*='text-muted'] {
+    color: color-mix(in srgb, var(--folder-fg) 62%, transparent);
+  }
+  dialog[data-look='folder']
+    [data-folder]
+    :is(input, select, textarea):not([type='checkbox']):not([type='radio']):not(
+      [type='range']
+    ) {
+    background-color: var(--tile-bg, rgba(255, 255, 255, 0.14));
+    color: var(--folder-fg);
+    border-color: color-mix(in srgb, var(--folder-fg) 18%, transparent);
+  }
+  dialog[data-look='folder'] [data-folder] ::placeholder {
+    color: color-mix(in srgb, var(--folder-fg) 40%, transparent);
+  }
+  dialog[data-look='folder'] [data-folder] .no-scrollbar {
+    scrollbar-width: none;
   }
 }
 
