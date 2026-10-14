@@ -15,8 +15,11 @@ import { AnalysisBody } from './analysis-body';
  * 정보가 많아서 읽어볼지 모르겠다 · 너무 길어지는 건 싫다" → 홈에는 달라진 것만 문장으로(하이라이트) 남기고,
  * 분석 칸(투구 · 트레이닝 — 리포트 칸은 2026-10-07 AI 를 빼며 지웠다)과 그래프는 이 화면으로 옮겼다.
  *
- * 주소: ?view=pitch|training(처음 펼 칸 — 없으면 투구), ?date=YYYY-MM-DD(그날 분석 — 홈 그날 칸의 '그날 분석').
+ * 주소: ?view=pitch|training(어느 분석 — 없으면 투구), ?date=YYYY-MM-DD(그날 분석 — 홈 그날 칸의 '그날 분석').
  * 예전 홈 주소(/today?analysis=…)도 여기로 온다.
+ *
+ * 2026-10-14 사용자: "너무 조잡해 · 중요한 내용만 · 투구에서 분석을 누르면 투구만, 트레이닝에서 누르면 트레이닝만". 그래서
+ * 투구 · 트레이닝 고르개를 걷고 주소의 view 하나만 그린다 — 제목 · 돌아갈 곳 · 그래프도 그 칸 것만.
  *
  * 한 번에 다 그려 보낸다(2026-10-06 "화면 전환 중 로딩 화면이 깨진다"). 예전에는 화면 뼈대 → 제목 + 분석 뼈대 →
  * 분석 칸이 뜬 뒤 따로 받아 온 내용으로 세 번 바뀌었다. 이제 기다리는 동안은 같은 모양의 loading.tsx 하나, 다 오면
@@ -36,12 +39,16 @@ export default async function CoachPage({
 
   return (
     <div className="stack-page">
-      <BackLink href="/today">홈</BackLink>
-      <PageHeading title="분석 · 그래프" />
+      {view === 'training' ? (
+        <BackLink href="/training">트레이닝</BackLink>
+      ) : (
+        <BackLink href="/videos">투구 기록</BackLink>
+      )}
+      <PageHeading title={view === 'training' ? '트레이닝 분석' : '투구 분석'} />
       <AnalysisBody
         today={today}
         initialDate={date}
-        initialTab={view}
+        tab={view}
         initialView={<AnalysisView user={user} date={date} today={today} tab={view} />}
         earliest={`${h.loadedFrom}-01`}
         logs={h.logs}

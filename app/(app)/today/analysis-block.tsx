@@ -2,7 +2,6 @@
 
 import { useEffect, useState, useTransition, type ReactNode } from 'react';
 import { Loader2, RotateCcw } from '@/components/icon';
-import { Segmented } from '@/components/segmented';
 import { Skeleton } from '@/components/fallback';
 import { analysisFor } from '@/app/actions/analysis';
 import { agoText, spokenDay } from './day-summary';
@@ -11,17 +10,13 @@ import type { AnalysisTab } from './analysis-tabs';
 /**
  * 분석 칸 — 분석 · 그래프 화면(/coach)이 쥔 날짜의 분석.
  *
- * 두 칸 — 투구(부하 지수·28일 추이·기간별 기록), 트레이닝(운동 부하·4주 돌아보기). 고른 날
+ * 투구(부하 지수 · 이번 주 · 잘 던진 날) 또는 트레이닝(운동 부하 · 4주) 하나만 — 들어온 탭의 것(2026-10-14 사용자:
+ * "투구에서 분석을 누르면 투구만, 트레이닝에서 누르면 트레이닝만"). 예전엔 둘을 고르개로 갈아 봤다. 고른 날
  * 기준으로 다시 셈한다(그날까지의 기록으로 — 그때 어땠는지). 리포트 칸은 2026-10-07 AI 를 빼며 지웠다.
  *
  * 내용은 서버가 그려 보낸다(app/actions/analysis.tsx). 분석 화면의 부품들이 서버에서
  * 셈하도록 짜여 있어서다. 한 번 받은 날·칸은 들고 있다가 다시 누르면 바로 보인다.
  */
-
-const TABS = [
-  { value: 'pitch', label: '투구' },
-  { value: 'training', label: '트레이닝' },
-] as const;
 
 /** 기다리는 동안의 자리 */
 export function AnalysisSkeleton() {
@@ -37,22 +32,22 @@ export function AnalysisSkeleton() {
 export function AnalysisBlock({
   date,
   today,
-  initialTab,
+  tab,
   initialView,
 }: {
   /** 보여 줄 날 — 캘린더에서 고른 날, 안 골랐으면 오늘 */
   date: string;
   today: string;
-  initialTab: AnalysisTab;
+  /** 어느 분석인가 — 바뀌지 않는다(투구 분석 · 트레이닝 분석은 따로 연다) */
+  tab: AnalysisTab;
   /**
    * 처음 펼 날 · 칸의 내용 — 서버가 화면과 함께 그려 보낸다(분석 · 그래프 화면 /coach).
    *
    * 없으면 화면이 뜬 뒤 그 칸을 따로 받아 와(analysisFor), 불러오는 중 뼈대가 화면 뼈대 → 이 칸 뼈대로 두 번 바뀌었다
    * (2026-10-06 "화면 전환 중 로딩 화면이 깨진다"). 서버가 새로 그려 보내면 이것도 새것으로 온다.
    */
-  initialView?: { date: string; tab: AnalysisTab; node: ReactNode };
+  initialView?: { date: string; node: ReactNode };
 }) {
-  const [tab, setTab] = useState<AnalysisTab>(initialTab);
   const [cache, setCache] = useState<Record<string, ReactNode>>({});
   const [failed, setFailed] = useState<Record<string, boolean>>({});
   const [, startTransition] = useTransition();
@@ -69,7 +64,7 @@ export function AnalysisBlock({
 
   const key = `${date}:${tab}`;
   const node =
-    initialView && key === `${initialView.date}:${initialView.tab}`
+    initialView && key === `${initialView.date}:${tab}`
       ? initialView.node
       : cache[key];
 
@@ -145,15 +140,6 @@ export function AnalysisBlock({
               </b>
             </p>
           </div>
-          <Segmented
-            label="분석 보기"
-            role="tablist"
-            value={tab}
-            onChange={setTab}
-            options={TABS}
-            tone="raised"
-            itemClassName="px-4 py-1.5"
-          />
         </div>
 
         <div className="relative" aria-busy={waiting}>

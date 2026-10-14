@@ -2,11 +2,15 @@
 
 import { useState, type ReactNode } from 'react';
 import { AnalysisBlock } from '@/app/(app)/today/analysis-block';
-import { HomeTrends } from '@/app/(app)/today/home-trends';
+import { HomeTrends, type MetricKey } from '@/app/(app)/today/home-trends';
 import type { AnalysisTab } from '@/app/(app)/today/analysis-tabs';
 import type { Log } from '@/app/(app)/pitch-log/types';
 import type { TrainingDaySummary } from '@/lib/report/training-history';
 import type { CheckinDay, NutritionDay } from '@/app/(app)/today/day-summary';
+
+/** 그 분석의 그래프 — 투구는 투구수 · 최고 구속, 트레이닝은 운동만(2026-10-14 '투구만 · 트레이닝만') */
+const PITCH_METRICS: MetricKey[] = ['pitches', 'velocity'];
+const TRAINING_METRICS: MetricKey[] = ['training'];
 
 /**
  * 분석 · 그래프 화면의 몸통 — 예전 홈 캘린더 밑에 있던 두 칸 그대로(2026-10-05 홈 정리로 옮겨 옴).
@@ -18,7 +22,7 @@ import type { CheckinDay, NutritionDay } from '@/app/(app)/today/day-summary';
 export function AnalysisBody({
   today,
   initialDate,
-  initialTab,
+  tab,
   initialView,
   earliest,
   logs,
@@ -29,7 +33,8 @@ export function AnalysisBody({
 }: {
   today: string;
   initialDate: string;
-  initialTab: AnalysisTab;
+  /** 어느 분석인가 — 투구면 투구만, 트레이닝이면 트레이닝만(2026-10-14) */
+  tab: AnalysisTab;
   /** 처음 펼 날 · 칸의 내용 — 서버가 함께 그려 보낸다(뜬 뒤에 따로 받아 오지 않게, analysis-block.tsx) */
   initialView: ReactNode;
   earliest: string;
@@ -56,8 +61,8 @@ export function AnalysisBody({
       <AnalysisBlock
         date={date}
         today={today}
-        initialTab={initialTab}
-        initialView={{ date: initialDate, tab: initialTab, node: initialView }}
+        tab={tab}
+        initialView={{ date: initialDate, node: initialView }}
       />
       <HomeTrends
         today={today}
@@ -67,6 +72,7 @@ export function AnalysisBody({
         nutritionByDay={nutritionByDay}
         checkinByDay={checkinByDay}
         weightByDay={weightByDay}
+        metrics={tab === 'training' ? TRAINING_METRICS : PITCH_METRICS}
         onJump={showDay}
       />
     </div>

@@ -9,7 +9,7 @@ import { loadVelocityByDate } from '@/lib/velocity-load';
 import { shiftDateKey, toDateKey } from '@/lib/pitch-stats';
 import { isOutingTitle } from '@/lib/calendar-event';
 import { gatherFactsAndPlan } from '@/lib/report/gather';
-import { intensityRangeText, pitchRangeText } from '@/lib/report/plan';
+import { armStatusOf } from '@/lib/report/arm-status';
 import { VideosClient } from './videos-client';
 
 /**
@@ -57,7 +57,7 @@ export default async function VideosPage({
    * 남겨도 천 줄 남짓이다.
    */
   const todayKey = toDateKey(now());
-  const [logs, featured, measured, checkinToday, calendarRows, noteRows, { plan }] =
+  const [logs, featured, measured, checkinToday, calendarRows, noteRows, { facts }] =
     await Promise.all([
       prisma.pitchLog.findMany({
         where: { userId: user.id },
@@ -108,8 +108,8 @@ export default async function VideosPage({
         where: { userId: user.id, note: { not: null } },
         select: { date: true, note: true },
       }),
-      /* '오늘' 카드의 계획 한 줄 — 투구 기록 팝업과 같은 셈(오늘 기록은 빼고 오늘 몫을 낸다) */
-      gatherFactsAndPlan(user, now(), { excludeToday: true }),
+      /* '오늘' 카드의 지금 팔 상태 — 오늘 던진 기록까지 넣어 센다(던지고 나면 곧바로 바뀐다, lib/report/arm-status.ts) */
+      gatherFactsAndPlan(user, now()),
     ]);
   const noteDays = noteRows.filter((r) => r.note?.trim()).map((r) => toDateKey(r.date));
   const outingOn = (day: string) =>
@@ -125,29 +125,12 @@ export default async function VideosPage({
   };
 
   /*
-   * '오늘' 카드(2026-10-14 김민: 홈 · 트레이닝처럼 핵심만) — 오늘 계획 한 줄 · 까닭 한 줄 · 오늘 남긴 양. 계획 글은 투구 기록 팝업
-   * (pitch-log/[date]/load.ts)과 같은 함수로 만든다.
+   * '오늘' 카드(2026-10-14 김민: 홈 · 트레이닝처럼 핵심만) — 지금 팔 상태(위험 · 주의 · 안전)와 오늘 남긴 양. 예전엔 오늘 계획
+   * '권장 40~55구 · 강도 60~80%' 였다(같은 날 사용자: 몇 구를 던지라고 하지 말고 지금 위험한지 안전한지만).
    */
-  const day = plan.today;
-  const todayLine = plan.halted
-    ? { line: '오늘은 투구를 쉬어요', sub: plan.haltReason }
-    : !day
-      ? null
-      : !day.throwing
-        ? { line: '오늘은 쉬는 날이에요', sub: day.reason }
-        : {
-            line: [
-              day.outing === 'game' ? '오늘 등판' : day.outing === 'bullpen' ? '오늘 불펜' : '오늘 던지는 날',
-              pitchRangeText(day) && `권장 ${pitchRangeText(day)}`,
-              intensityRangeText(day),
-            ]
-              .filter(Boolean)
-              .join(' · '),
-            sub: day.reason,
-          };
   const todayLogs = logs.filter((l) => toDateKey(l.date) === todayKey);
   const todayCard = {
-    plan: todayLine,
+    status: armStatusOf(facts),
     logged: todayLogs.length > 0 ? { pitches: todayLogs.reduce((n, l) => n + l.pitchCount, 0) } : null,
   };
 
