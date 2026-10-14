@@ -24,6 +24,13 @@ const from = fromArg ? Number(fromArg.slice(7)) : 1;
 const paceArg = process.argv.find((a) => a.startsWith('--pace='));
 const pace = paceArg ? Number(paceArg.slice(7)) : undefined;
 const old = JSON.parse(readFileSync(new URL('../lib/shoot/plan-data.json', import.meta.url), 'utf8')) as ShootPlan;
+/*
+ * --sessions=5 — 회 수를 정한다(3시간 맞춤 대신). --planned — 지금 계획(from 주차부터의 실내)에 든 운동만 다시 나눈다: 지운 · 뺀 운동(토 워크 ·
+ * 나중에 촬영)이 DB 에 남아 있어도 되살리지 않게(2026-10-14 사용자: "한 세션에 60개 정도로").
+ */
+const sessionsArg = process.argv.find((a) => a.startsWith('--sessions='));
+const forcedSessions = sessionsArg ? Number(sessionsArg.slice(11)) : null;
+const plannedOnly = process.argv.includes('--planned');
 const kept = old.weeks.filter((w) => !w.outdoor && w.week < from);
 const outdoor = old.weeks.filter((w) => w.outdoor);
 const keptIds = new Set(kept.flatMap((w) => w.stations.flatMap((s) => s.items.map((i) => i.exerciseId))));
@@ -46,8 +53,11 @@ const found = await prisma.exerciseVideo.findMany({
   },
 });
 await prisma.$disconnect();
+const plannedIds = new Set(
+  old.weeks.filter((w) => !w.outdoor && w.week >= from).flatMap((w) => w.stations.flatMap((s) => s.items.map((i) => i.exerciseId)))
+);
 const rows = found
-  .filter((x) => !keptIds.has(x.id))
+  .filter((x) => !keptIds.has(x.id) && (!plannedOnly || plannedIds.has(x.id)))
   .map(({ source, videoPath, ...x }) => ({ ...x, oldVideo: source === 'OWN' ? videoPath : null }));
 
 const today = new Date().toISOString().slice(0, 10);
@@ -60,10 +70,10 @@ const fits = (p: ReturnType<typeof buildPlan>) => p.weeks.every((w) => w.end <= 
 let plan = buildPlan(rows, today);
 /* 7회 아래로는 줄이지 않는다 — 2026-10-10 408개는 6회에 들긴 했지만 여유 5분 · 하체 차이 11점이었고 야외 주차 번호가 당겨졌다 */
 const minSessions = pace ? 1 : from > 1 ? indoorWeeks - kept.length : Math.max(DEFAULT_OPTIONS.sessions, 7);
-for (let n = minSessions; n <= 20; n++) {
+for (let n = forcedSessions ?? minSessions; n <= 20; n++) {
   /* --from=2(2026-10-10, 360개 · 6회): 1.75 는 하체 차이 9.7점이라 2(3.0점 · 가장 늦은 끝 2:40) — 1.5~3 · 자리 벌점 0.8~1.6 을 견줘 고름 */
-  plan = { ...buildPlan(rows, today, { ...DEFAULT_OPTIONS, sessions: n, loadWeight: from > 1 ? 2 : 1.75, pace }), version: 3 };
-  if (fits(plan)) break;
+  plan = { ...buildPlan(rows, today, { ...DEFAULT_OPTIONS, sessions: n, loadWeight: Number(process.env.LW ?? (from > 1 ? 2 : 1.75)), stationPenalty: Number(process.env.SP ?? DEFAULT_OPTIONS.stationPenalty), pace }), version: 3 };
+  if (forcedSessions != null || fits(plan)) break;
 }
 if (from > 1) {
   /* 새로 나눈 주를 from 주차부터 — 번호(2-01 …)도 그 주차로 */
