@@ -1615,27 +1615,95 @@ dialog[data-drawer]::backdrop {
  * 위 규칙과 무게가 같아 뒤에 둔다. 조건은 desk 의 반대.
  */
 @media not all and (min-width: 36rem) and (hover: hover) and (pointer: fine) {
+  /*
+   * 2026-10-14 2판 — 아이폰 앱 폴더처럼. 아래 시트 대신, dialog 가 화면 전체의 흐린 막(뒤 본문이 비친 채 흐려지고
+   * 어두워진다 — 밝은 테마에서도 어둡게 해 흰 글리프 · 흰 이름이 늘 읽힌다)이고, 그 가운데에 반투명 유리 폴더
+   * ([data-folder])가 하단 탭 '더보기' 자리에서 부풀어 뜬다(iOS 폴더 줌). ::backdrop 에 blur 를 거는 건 아이폰
+   * WebKit 에서 판별 불가라 dialog 자신이 막이다. 막을 누르면 닫힌다(app-shell DetailMenu 의 data-scrim).
+   */
   dialog[data-drawer] {
-    /* 팝업(위 기본 규칙)의 자리 잡기를 되돌린다 — 시트는 바닥에 붙는다 */
     inset: 0;
-    margin: auto 0 0;
+    margin: 0;
     width: 100%;
-    /* auto 가 아니라 fit-content — 화면에 붙은(fixed · inset 0) 창은 auto 면 화면 높이로 늘어난다 */
-    height: fit-content;
-    max-height: calc(100dvh - env(safe-area-inset-top) - 0.75rem);
-    border-radius: 28px 28px 0 0;
+    height: 100%;
+    max-height: none;
+    border-radius: 0;
     transform-origin: center;
-    /* 미끄러지는 것만 — 옅어지면 내려가기도 전에 사라진다 */
-    opacity: 1;
-    transform: translateY(100%);
+    background: rgba(0, 0, 0, 0.5);
+    -webkit-backdrop-filter: blur(18px) saturate(1.2);
+    backdrop-filter: blur(18px) saturate(1.2);
+    /* 폴더가 하단 탭 위에 앉게 — 아래는 탭 막대만큼 더 비운다 */
+    padding: env(safe-area-inset-top) env(safe-area-inset-right)
+      calc(env(safe-area-inset-bottom) + 4.5rem) env(safe-area-inset-left);
+    opacity: 0;
+    transform: none;
     transition:
-      transform 260ms cubic-bezier(0.32, 0.72, 0, 1),
-      overlay 260ms ease-in allow-discrete,
-      display 260ms ease-in allow-discrete;
+      opacity 140ms ease-in,
+      overlay 140ms ease-in allow-discrete,
+      display 140ms ease-in allow-discrete;
   }
   dialog[data-drawer][open] {
+    opacity: 1;
+    transition: opacity 160ms ease-out;
+    animation: none;
+  }
+  dialog[data-drawer]::backdrop {
+    background: transparent;
+  }
+  dialog[data-drawer] [data-folder] {
+    width: calc(100% - 2.5rem);
+    max-width: 22rem;
+    border-radius: 36px;
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    background: rgba(255, 255, 255, 0.16);
+    -webkit-backdrop-filter: blur(28px) saturate(1.5);
+    backdrop-filter: blur(28px) saturate(1.5);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.35),
+      0 24px 60px -20px rgba(0, 0, 0, 0.7);
+    padding: 22px 18px 26px;
+    /* 닫힌 모습 — 하단 탭 '더보기' 쪽(오른쪽 아래)으로 줄어 있다 */
+    transform-origin: 88% 100%;
+    transform: scale(0.55);
+    opacity: 0;
+    transition:
+      transform 140ms ease-in,
+      opacity 140ms ease-in;
+  }
+  dialog[data-drawer][open] [data-folder] {
     transform: none;
-    animation: sheet-in 380ms cubic-bezier(0.32, 0.72, 0, 1);
+    opacity: 1;
+    transition: none;
+    animation: folder-in 320ms cubic-bezier(0.2, 0.9, 0.3, 1.05);
+  }
+  @keyframes folder-in {
+    0% {
+      opacity: 0;
+      transform: scale(0.55);
+    }
+    100% {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    dialog[data-drawer] [data-folder] {
+      transform: none;
+    }
+    dialog[data-drawer][open] [data-folder] {
+      animation: folder-fade 160ms ease-out;
+    }
+    @keyframes folder-fade {
+      from {
+        opacity: 0;
+      }
+      to {
+        opacity: 1;
+      }
+    }
+  }
+  html[data-theme='dark'] dialog[data-drawer] [data-folder] {
+    background: rgba(255, 255, 255, 0.14);
   }
 }
 
@@ -2265,8 +2333,7 @@ dialog[data-gate][open]::backdrop {
    * 그대로다. 세로 화면은 그 값이 0 이라 예전과 같다(앱은 세로로만 돈다).
    */
   dialog[data-sheet],
-  dialog[data-gate],
-  dialog[data-drawer] {
+  dialog[data-gate] {
     padding-left: env(safe-area-inset-left);
     padding-right: env(safe-area-inset-right);
   }
