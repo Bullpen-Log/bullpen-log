@@ -52,14 +52,11 @@ const LABELS: Record<MetricKey, string> = {
 };
 
 /** 겉에 보이는 지표(나머지는 '자세히') */
-const MAIN: MetricKey[] = [
-  'trunkForwardTilt',
-  'trunkLateralTilt',
-  'separationMax',
-  'leadKneeAtPlant',
-  'strideLength',
-  'shoulderAbduction',
-];
+/**
+ * 숫자 칸에 보이는 것 — 메커니즘 점검이 판정에 쓰는 것(상하체 분리 · 앞다리 버티기의 앞무릎)과 보폭 · 디딤 방향(같은 날 김민 '중요한 것'). 2026-10-14 김민: "숫자에 잡다한 게
+ * 많다, 분석에 쓰는 것만". 나머지 지표는 결과에 그대로 있다(인형 이름표 · 시험이 읽음).
+ */
+const MAIN: MetricKey[] = ['separationMax', 'leadKneeAtPlant', 'leadKneeAtRelease', 'strideLength', 'strideOffset'];
 
 /** 지표 → 보여 줄 순간 */
 const MOMENT: Record<MetricKey, 'footPlant' | 'release'> = {
@@ -149,7 +146,6 @@ export function LabDetail({
         (m): m is Metric => m != null
       )
     : [];
-  const rest = result ? result.metrics.filter((m) => !MAIN.includes(m.key)) : [];
 
   return (
     <div className="stack-page">
@@ -267,7 +263,7 @@ export function LabDetail({
                   숫자는 아직 참고용이에요. 누르면 그 순간으로 가요.
                 </p>
                 <ul className="divide-y divide-line">
-                  {[...main, ...rest].map((m) => (
+                  {main.map((m) => (
                     <MetricRow
                       key={m.key}
                       m={m}
