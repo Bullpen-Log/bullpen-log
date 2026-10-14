@@ -880,7 +880,12 @@ input[type='date']::-webkit-calendar-picker-indicator {
 [data-tab-bar] {
   background:
     radial-gradient(140% 100% at 18% 0%, rgb(255 255 255 / 0.1), transparent 55%),
-    linear-gradient(180deg, rgb(255 255 255 / 0.09), rgb(255 255 255 / 0.02) 55%, rgb(0 0 0 / 0.05)),
+    linear-gradient(
+      180deg,
+      rgb(255 255 255 / 0.09),
+      rgb(255 255 255 / 0.02) 55%,
+      rgb(0 0 0 / 0.05)
+    ),
     rgb(28 28 30 / 0.78);
   border: 1px solid rgb(255 255 255 / 0.18);
   box-shadow:
@@ -904,7 +909,8 @@ input[type='date']::-webkit-calendar-picker-indicator {
   border-radius: 9999px;
   pointer-events: none;
   opacity: var(--show, 1);
-  transform: translate3d(calc(var(--p, 0) * 100%), 0, 0) scale(var(--sx, 1), var(--sy, 1));
+  transform: translate3d(calc(var(--p, 0) * 100%), 0, 0)
+    scale(var(--sx, 1), var(--sy, 1));
   will-change: transform, opacity;
 }
 [data-tab-lens] > span {
@@ -926,7 +932,11 @@ input[type='date']::-webkit-calendar-picker-indicator {
 }
 [data-tab-lens] > [data-lens-glass] {
   opacity: var(--lift, 0);
-  background: radial-gradient(120% 90% at 50% 0%, rgb(255 255 255 / 0.12), transparent 62%);
+  background: radial-gradient(
+    120% 90% at 50% 0%,
+    rgb(255 255 255 / 0.12),
+    transparent 62%
+  );
   box-shadow:
     inset 0 0 0 1px rgb(255 255 255 / 0.3),
     inset 0 1.5px 1px rgb(255 255 255 / 0.45),
@@ -962,7 +972,8 @@ input[type='date']::-webkit-calendar-picker-indicator {
     width: auto;
     height: 4rem;
     border-radius: 1rem;
-    transform: translate3d(0, calc(var(--p, 0) * 4.25rem), 0) scale(var(--sx, 1), var(--sy, 1));
+    transform: translate3d(0, calc(var(--p, 0) * 4.25rem), 0)
+      scale(var(--sx, 1), var(--sy, 1));
   }
   [data-tab-lens] > [data-lens-fill] {
     background: color-mix(in srgb, var(--color-ink) 8%, transparent);
@@ -2879,6 +2890,110 @@ html[data-splash] *::after {
 }
 
 /*
+ * 탭 쓸기의 화면 전환(components/tab-swipe.tsx, 2026-10-15) — 손을 뗀 자리(--swipe-x, 끄는 동안 html 에 적힌다)에서 옛 본문은 밖으로,
+ * 새 본문은 그 옆(한 화면 너비 너머)에서 제자리로. swipe-next 는 왼쪽으로(다음 탭), swipe-prev 는 오른쪽으로. 그래서 자리표시 대신
+ * 실제 새 화면이 미끄러져 들어온다. 이름 규칙과 딱지 규칙은 따로(사파리 18.0~18.1).
+ */
+@keyframes swipe-old-next {
+  from {
+    transform: translateX(var(--swipe-x, 0px));
+  }
+  to {
+    transform: translateX(-100%);
+  }
+}
+@keyframes swipe-new-next {
+  from {
+    transform: translateX(calc(var(--swipe-x, 0px) + 100%));
+  }
+  to {
+    transform: none;
+  }
+}
+@keyframes swipe-old-prev {
+  from {
+    transform: translateX(var(--swipe-x, 0px));
+  }
+  to {
+    transform: translateX(100%);
+  }
+}
+@keyframes swipe-new-prev {
+  from {
+    transform: translateX(calc(var(--swipe-x, 0px) - 100%));
+  }
+  to {
+    transform: none;
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  html[data-nav^='swipe']::view-transition-old(app-main),
+  html[data-nav^='swipe']::view-transition-new(app-main) {
+    mix-blend-mode: normal;
+    background-color: var(--color-page);
+  }
+  html[data-nav^='swipe']::view-transition-old(.page),
+  html[data-nav^='swipe']::view-transition-new(.page) {
+    mix-blend-mode: normal;
+    background-color: var(--color-page);
+  }
+  html[data-nav='swipe-next']::view-transition-old(app-main) {
+    animation: 300ms cubic-bezier(0.32, 0.72, 0, 1) both swipe-old-next;
+  }
+  html[data-nav='swipe-next']::view-transition-old(.page) {
+    animation: 300ms cubic-bezier(0.32, 0.72, 0, 1) both swipe-old-next;
+  }
+  html[data-nav='swipe-next']::view-transition-new(app-main) {
+    animation: 300ms cubic-bezier(0.32, 0.72, 0, 1) both swipe-new-next;
+  }
+  html[data-nav='swipe-next']::view-transition-new(.page) {
+    animation: 300ms cubic-bezier(0.32, 0.72, 0, 1) both swipe-new-next;
+  }
+  html[data-nav='swipe-prev']::view-transition-old(app-main) {
+    animation: 300ms cubic-bezier(0.32, 0.72, 0, 1) both swipe-old-prev;
+  }
+  html[data-nav='swipe-prev']::view-transition-old(.page) {
+    animation: 300ms cubic-bezier(0.32, 0.72, 0, 1) both swipe-old-prev;
+  }
+  html[data-nav='swipe-prev']::view-transition-new(app-main) {
+    animation: 300ms cubic-bezier(0.32, 0.72, 0, 1) both swipe-new-prev;
+  }
+  html[data-nav='swipe-prev']::view-transition-new(.page) {
+    animation: 300ms cubic-bezier(0.32, 0.72, 0, 1) both swipe-new-prev;
+  }
+
+  /*
+   * 홈 → 구속 측정(zoom) — 아이폰 카메라처럼 멀리서 튀어나온다(2026-10-15 사용자). 구속 측정은 다른 틀(app/(session))이라 본문 이름이
+   * 없고 화면 전체(root)가 바뀐다 — 옛 화면은 살짝 줄며 어두워지고, 새 화면은 작게(0.55) 흐리게 시작해 제자리로 커진다.
+   */
+  html[data-nav='zoom']::view-transition-old(root) {
+    display: block;
+    animation: 420ms ease-out both zoom-dim;
+  }
+  html[data-nav='zoom']::view-transition-new(root) {
+    animation: 420ms cubic-bezier(0.2, 0.9, 0.3, 1) both zoom-in;
+  }
+}
+@keyframes zoom-in {
+  from {
+    transform: scale(0.55);
+    opacity: 0;
+  }
+  55% {
+    opacity: 1;
+  }
+  to {
+    transform: none;
+  }
+}
+@keyframes zoom-dim {
+  to {
+    transform: scale(0.96);
+    opacity: 0.35;
+  }
+}
+
+/*
  * 탭 쓸기의 자리표시(components/tab-swipe.tsx) — 새 화면이 그려지면(data-done) 옅어지며 걷힌다. 본문(main)의 밀림은 인라인 transform.
  */
 [data-tab-ghost][data-done] {
@@ -3104,10 +3219,8 @@ html[data-app='native'] body:not(:has([data-safe-area]))::before {
 .rounded-2xl.border-line.bg-surface {
   --card-ink: 20 30 50;
   --card-float:
-    inset 0 1px 0 rgb(255 255 255 / 0.7),
-    0 0 0 0.5px rgb(var(--card-ink) / 0.06),
-    0 1px 2px rgb(var(--card-ink) / 0.05),
-    0 6px 16px -4px rgb(var(--card-ink) / 0.08),
+    inset 0 1px 0 rgb(255 255 255 / 0.7), 0 0 0 0.5px rgb(var(--card-ink) / 0.06),
+    0 1px 2px rgb(var(--card-ink) / 0.05), 0 6px 16px -4px rgb(var(--card-ink) / 0.08),
     0 22px 44px -14px rgb(var(--card-ink) / 0.12);
   box-shadow: var(--card-float);
   transition:
@@ -3126,10 +3239,8 @@ html[data-app='native'] body:not(:has([data-safe-area]))::before {
 :root[data-theme='navy'] .rounded-2xl.border-line.bg-surface,
 .theme-dark .rounded-2xl.border-line.bg-surface {
   --card-float:
-    inset 0 1px 0 rgb(255 255 255 / 0.07),
-    0 0 0 0.5px rgb(255 255 255 / 0.08),
-    0 1px 2px rgb(0 0 0 / 0.4),
-    0 8px 20px -6px rgb(0 0 0 / 0.5);
+    inset 0 1px 0 rgb(255 255 255 / 0.07), 0 0 0 0.5px rgb(255 255 255 / 0.08),
+    0 1px 2px rgb(0 0 0 / 0.4), 0 8px 20px -6px rgb(0 0 0 / 0.5);
   box-shadow: var(--card-float);
 }
 @media (prefers-reduced-motion: reduce) {

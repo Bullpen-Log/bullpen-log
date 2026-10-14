@@ -1399,7 +1399,10 @@ export function AppNav({
 
       <MobileTabs tabs={tabs} menuOpen={open} onMenu={() => go('sheet')} />
       {/* 휴대폰 탭 쓸기 — 본문을 옆으로 끌면 이웃 탭으로(components/tab-swipe.tsx) */}
-      <TabSwipe tabs={tabs} />
+      <TabSwipe
+        tabs={tabs}
+        camera={groups.flatMap((g) => g.items).find((i) => i.icon === 'radar') ?? null}
+      />
 
       <DetailMenu
         groups={groups}
