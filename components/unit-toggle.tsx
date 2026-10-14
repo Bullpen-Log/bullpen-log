@@ -77,7 +77,7 @@ function Row<V extends string>({
     <div className="flex items-center justify-between gap-3">
       <span className="min-w-0">
         <span className="block text-sm text-ink">{label}</span>
-        <span className="block text-[11px] text-muted">{hint}</span>
+        <span className="block text-caption text-muted">{hint}</span>
       </span>
 
       {/*

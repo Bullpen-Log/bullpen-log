@@ -52,7 +52,7 @@ export function BuildingSteps({
           <li
             key={line}
             style={{ animationDelay: `${i * LINE_MS}ms` }}
-            className="motion-safe:animate-row-in flex items-center gap-3 text-[15px] text-ink break-keep"
+            className="motion-safe:animate-row-in flex items-center gap-3 text-subhead text-ink break-keep"
           >
             <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-sky text-white">
               <Check aria-hidden className="h-3.5 w-3.5" />

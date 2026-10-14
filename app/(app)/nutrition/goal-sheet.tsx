@@ -505,7 +505,7 @@ export function GoalSheet({
                   rule.band === 'child'
                     ? rule.goalHint.lose
                     : rule.band === 'teen'
-                      ? '성장기라 감량 카드는 없어요 — 자라는 몸에서 빼면 키 · 회복이 먼저 손해를 봐요.'
+                      ? '성장기라 감량 카드는 없어요. 자라는 몸에서 빼면 키 · 회복이 먼저 손해를 봐요.'
                       : undefined
                 }
               >
@@ -910,7 +910,7 @@ function Stat({
 }) {
   return (
     <div>
-      <dt className="text-[11px] text-muted">{label}</dt>
+      <dt className="text-caption text-muted">{label}</dt>
       <dd
         className={strong ? 'text-base font-bold text-ink' : 'font-semibold text-ink'}
       >

@@ -202,7 +202,7 @@ function ComparePane({
       )}
 
       {clip && (
-        <p className="truncate border-t border-line px-2 py-1.5 text-[10px] text-muted sm:text-[11px]">
+        <p className="truncate border-t border-line px-2 py-1.5 text-[10px] text-muted sm:text-caption">
           {clip.summary}
         </p>
       )}
@@ -230,7 +230,7 @@ function ComparePane({
           onClick={onMark}
           title="지금 화면을 기준점으로 지정"
           aria-label={`${side}면 기준점 지정`}
-          className="flex h-11 min-w-0 flex-1 items-center justify-center gap-1 rounded-lg border border-line text-[11px] desk:h-9 text-muted transition-colors hover:border-sky hover:text-sky"
+          className="flex h-11 min-w-0 flex-1 items-center justify-center gap-1 rounded-lg border border-line text-caption desk:h-9 text-muted transition-colors hover:border-sky hover:text-sky"
         >
           <Flag className="h-3.5 w-3.5 shrink-0" />
           <span className="truncate">기준점</span>
@@ -408,7 +408,7 @@ export function CompareView({
       {expanded && (
         <div className="flex shrink-0 items-center gap-3 px-1">
           <span className="text-sm text-ink">2분할 비교</span>
-          <span className="hidden text-[11px] text-muted sm:inline">Esc 키로 닫기</span>
+          <span className="hidden text-caption text-muted sm:inline">Esc 키로 닫기</span>
           <button
             type="button"
             onClick={() => setExpanded(false)}
@@ -586,7 +586,7 @@ export function CompareView({
                 type="button"
                 onClick={() => setSpeed(s)}
                 aria-pressed={speed === s}
-                className={`px-2 text-[11px] transition-colors sm:px-2.5 sm:text-xs ${
+                className={`px-2 text-caption transition-colors sm:px-2.5 sm:text-xs ${
                   i > 0 ? 'border-l border-line' : ''
                 } ${
                   speed === s

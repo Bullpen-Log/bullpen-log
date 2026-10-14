@@ -82,7 +82,7 @@ export function BodySpotPicker({
                 role="radio"
                 aria-checked={activeLevel === lv}
                 onClick={() => set(active, lv)}
-                className={`inline-flex min-h-10 items-center rounded-full px-3.5 text-[13px] transition-colors desk:min-h-0 desk:py-1 desk:text-xs ${
+                className={`inline-flex min-h-10 items-center rounded-full px-3.5 text-footnote transition-colors desk:min-h-0 desk:py-1 desk:text-xs ${
                   activeLevel === lv
                     ? lv === '통증'
                       ? 'bg-danger-bg font-semibold text-danger'
@@ -96,7 +96,7 @@ export function BodySpotPicker({
             <button
               type="button"
               onClick={() => set(active, null)}
-              className="inline-flex min-h-10 items-center rounded-full bg-ink/6 px-3 text-[13px] text-muted desk:min-h-0 desk:py-1 desk:text-xs"
+              className="inline-flex min-h-10 items-center rounded-full bg-ink/6 px-3 text-footnote text-muted desk:min-h-0 desk:py-1 desk:text-xs"
             >
               빼기
             </button>

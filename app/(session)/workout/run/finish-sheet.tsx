@@ -167,7 +167,7 @@ export function FinishSheet({
               </button>
             ))}
           </div>
-          <div className="mt-1.5 flex justify-between px-1 text-[11px] text-muted">
+          <div className="mt-1.5 flex justify-between px-1 text-caption text-muted">
             <span>1 아주 가벼움</span>
             <span>10 최대</span>
           </div>
@@ -180,7 +180,7 @@ export function FinishSheet({
           <label className="mt-4 block space-y-1.5">
             <span className="text-sm font-medium text-ink">
               느낀점
-              <span className="ml-1.5 text-[11px] font-normal text-muted">선택</span>
+              <span className="ml-1.5 text-caption font-normal text-muted">선택</span>
             </span>
             <textarea
               value={memo}

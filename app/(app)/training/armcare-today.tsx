@@ -180,7 +180,7 @@ export function ArmcareToday({
           {/* 한 운동씩 크게 따라 하기 — 목록을 읽지 않아도 된다 (armcare/play) */}
           <Link
             href={`/armcare/play/today?d=${dateKey}`}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-sky px-3.5 py-2 text-sm font-semibold text-white transition-colors hover:bg-sky-strong"
+            className="inline-flex min-h-10 items-center gap-1.5 rounded-lg bg-sky px-3.5 text-sm font-semibold text-white transition-colors hover:bg-sky-strong"
           >
             <Play aria-hidden className="h-4 w-4" />
             따라하기
@@ -189,7 +189,7 @@ export function ArmcareToday({
             type="button"
             onClick={make}
             disabled={making}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-line-strong px-3 py-1.5 text-xs font-semibold text-ink transition-colors hover:border-sky hover:text-sky disabled:opacity-60"
+            className="inline-flex min-h-10 items-center gap-1.5 rounded-lg border border-line-strong px-3 text-xs font-semibold text-ink transition-colors hover:border-sky hover:text-sky disabled:opacity-60"
           >
             <RefreshCw aria-hidden className="h-3.5 w-3.5" />
             {making ? '만드는 중…' : '다시 만들기'}
@@ -242,7 +242,7 @@ export function WeekDots({ week }: { week: { key: string; done: boolean }[] }) {
           return (
             <li key={d.key} className="space-y-1">
               <span
-                className={`mx-auto grid h-7 w-7 place-items-center rounded-full text-[11px] font-bold ${
+                className={`mx-auto grid h-7 w-7 place-items-center rounded-full text-caption font-bold ${
                   d.done
                     ? 'bg-sky text-white'
                     : isToday
@@ -253,7 +253,7 @@ export function WeekDots({ week }: { week: { key: string; done: boolean }[] }) {
                 {d.done ? '✓' : ''}
               </span>
               <span
-                className={`block text-[11px] ${isToday ? 'font-bold text-ink' : 'text-muted'}`}
+                className={`block text-caption ${isToday ? 'font-bold text-ink' : 'text-muted'}`}
               >
                 {isToday ? '오늘' : WEEKDAYS[new Date(y, m - 1, dd).getDay()]}
               </span>
@@ -386,7 +386,7 @@ export function Checklist({
       {dayChanged && (
         <p className="rounded-lg border border-warn-line bg-warn-bg px-4 py-3 text-sm leading-relaxed break-keep text-warn">
           날짜가 바뀌었어요. 이 목록의 체크는 {monthDay(shownDate)} 기록으로 남아요.{' '}
-          <button type="button" onClick={showToday} className="font-semibold text-sky-strong">
+          <button type="button" onClick={showToday} className="-my-2 inline-flex min-h-10 items-center font-semibold text-sky-strong">
             오늘 목록 보기
           </button>
         </p>
@@ -407,7 +407,7 @@ export function Checklist({
           >
             {area && (
               <div className="flex flex-wrap items-baseline gap-x-2 px-1">
-                <h2 className="flex items-center gap-2 text-heading text-[15px] text-ink">
+                <h2 className="flex items-center gap-2 text-heading text-subhead text-ink">
                   {area.label}
                 </h2>
               </div>

@@ -518,8 +518,8 @@ function FinishView({
         {!partial && advice?.to && <LevelOffer kind={advice.kind} to={advice.to} />}
 
         {!partial && filmPrompt(sessionNumber) === 'compare' && (
-          <div className="space-y-3 rounded-2xl bg-surface px-4 py-4">
-            <p className="text-base font-bold break-keep text-ink">세션 {sessionNumber}번 — 찍어서 견줘 볼 때예요</p>
+          <div className="space-y-3 rounded-2xl bg-surface p-(--block-pad)">
+            <p className="text-base font-bold break-keep text-ink">세션 {sessionNumber}번 · 찍어서 견줘 볼 때예요</p>
             <p className="text-sm break-keep text-muted">
               같은 자리에서 다시 찍어 투구 기록에 남기고, 처음 영상과 2분할 비교로 나란히 놓아 보세요. 구속도 같이
               재 두면 바뀐 것이 효과가 있었는지 알 수 있어요.
@@ -571,7 +571,7 @@ function LevelOffer({ kind, to }: { kind: 'done' | 'up' | 'down'; to: Parameters
         ? '여러 요소에서 ‘쉬움’이 서로 다른 날 쌓였어요. 드릴이 편해졌다면 다음 수준이 더 맞을 수 있어요.'
         : '4주 동안 12번을 다 했어요. 편하지 않았다면 프로그램 칸에서 같은 수준을 한 번 더 해도 돼요.';
   return (
-    <div className="space-y-3 rounded-2xl bg-surface px-4 py-4">
+    <div className="space-y-3 rounded-2xl bg-surface p-(--block-pad)">
       {state === 'changed' ? (
         <p className="text-sm font-semibold break-keep text-ink">
           {level.name} 프로그램으로 바꿨어요. 다음은 {level.name} 1번 세션이에요.

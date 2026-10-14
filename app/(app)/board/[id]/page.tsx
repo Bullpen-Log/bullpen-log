@@ -113,7 +113,7 @@ export default async function ArticleDetailPage({
         </a>
       )}
 
-      <div className="whitespace-pre-wrap text-[15px] leading-[1.9] text-ink/90">
+      <div className="whitespace-pre-wrap text-subhead leading-[1.9] text-ink/90">
         {article.content}
       </div>
     </article>

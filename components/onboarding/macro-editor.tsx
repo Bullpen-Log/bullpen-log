@@ -126,7 +126,7 @@ function GramRow({
         <span className="flex items-center gap-2 text-xs font-medium text-muted">
           {label}
           {manual && (
-            <span className="rounded-full bg-sky/15 px-2 py-0.5 text-[11px] font-medium text-sky-strong">
+            <span className="rounded-full bg-sky/15 px-2 py-0.5 text-caption font-medium text-sky-strong">
               직접 · 계산 {Math.round(auto)}g
             </span>
           )}

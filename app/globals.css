@@ -60,6 +60,14 @@
 
 @theme {
   /*
+   * 대괄호로 적던 글자 크기의 이름(2026-10-14 김민 — 화면 점검: text-[13px] 같은 값이 329곳). 아이폰 글자 체계(HIG)의 이름을 빌려
+   * 크기는 예전 그대로 둔다 — 휴대폰 · PC 를 가리지 않는 고정 크기라 좁은 칸이 바뀌지 않는다. 새 화면은 이 셋과 text-xs/sm/base 만 쓴다.
+   */
+  --text-caption: 0.6875rem;
+  --text-footnote: 0.8125rem;
+  --text-subhead: 0.9375rem;
+
+  /*
    * 애플(iOS)처럼 깔끔한 팔레트 — 색 기운 없는 중립 회색 + 강조색 하나(2026-10-01 사용자 "애플처럼 깔끔하고
    * 감성있게"). 예전에는 Tailwind 의 slate(남색 기운 회색)와 옅은 하늘색(#0ea5e9)이라 웹 대시보드처럼 보였고,
    * 하늘색 단추 위 흰 글자의 대비가 2.8:1 로 읽기 어려웠다.
@@ -184,7 +192,7 @@
  * - 휴대폰은 그대로다 — 손가락으로 누르는 크기라 PC 틀(desk, 조건은 위와 같다)에서만 바꾼다.
  *
  * 테마 값(@layer theme)보다 뒤(@layer base)라 이긴다. Tailwind 가 p-4 · text-2xl 같은 것을 이 변수로
- * 그리므로 화면 코드를 하나하나 고치지 않아도 전부 따라온다. 대괄호로 적은 값(text-[11px])은 안 따라온다.
+ * 그리므로 화면 코드를 하나하나 고치지 않아도 전부 따라온다. 대괄호로 적은 값(text-[11px])과 고정 이름(text-caption · footnote · subhead)은 안 따라온다.
  * 새 블록은 Card 를 쓰거나 p-(--block-pad) 로 안쪽 여백을 맞춘다.
  */
 @layer base {
@@ -847,23 +855,128 @@ input[type='date']::-webkit-calendar-picker-indicator {
 }
 
 /*
- * 지금 어느 탭인지 알려주는 하단 탭의 둥근 배경(예전엔 짧은 막대).
+ * 하단 탭의 유리 렌즈 — 지금 탭 뒤의 캡슐 하나(components/app-shell.tsx MobileTabs · 움직임은 components/tab-lens.ts).
  *
- * 화면에 한 번에 하나뿐이고 이름이 같아서, 브라우저가 옛 자리에서 새 자리로
- * 잇는다. 틀보다 위에 둬야 탭바를 가로질러 지나간다.
+ * 2026-10-14 사용자가 iOS 26 탭 막대 영상을 주며 "그와 최대한 같게". 예전에는 탭마다 배경을 두고 화면 전환
+ * (view-transition 'tab-indicator')이 옮겼다 — 이름표가 없어졌으니 그 규칙도 지웠다. 렌즈는 탭바(shell-tabbar) 안에
+ * 있어 전환 중에도 탭바의 새 모습(살아 있는 그림)과 함께 움직인다.
  *
- * 220ms 는 여섯 칸 끝에서 끝까지 가는 거리를 기준으로 잡았다. 더 빠르면 튀고,
- * 더 느리면 손을 뗀 뒤에도 막대가 따라오는 것처럼 보인다.
+ * 자리는 CSS 변수 --p(칸 번호, 소수)로만 — 칸 폭이 같아(flex-1) 렌즈 폭 = 안쪽 폭 ÷ 칸 수(--tab-count, 탭바가 준다), translateX 의
+ * 100% 가 칸 하나다. 그래서 서버가 그린 첫 그림부터 맞는 자리이고 잴 것이 없다. 패드 세로 막대는 칸 64px + 사이 4px.
+ * --sx · --sy(부풂 · 늘어남), --lift(유리 테두리), --fill(회색 캡슐), --show(고른 칸이 없으면 0)는 tab-lens.ts 가 장면마다 쓴다.
  *
- * 사이드바에도 같은 것을 달았다가 뺐다. 거기서는 표시가 글자만 한 불투명한
- * 알약이라, 위로 빠져나온 그 면이 지나가는 자리의 글자를 덮고 도착 전에는
- * 흰 글자만 남겨 놓았다. 덮을 것이 없는 얇은 선에만 쓴다.
+ * 세 겹 — fill: 가라앉아 있을 때의 회색 캡슐(흰 14%), glass: 부풀었을 때의 유리(가장자리 1px 빛 · 위쪽 빛 · 안쪽 그늘 ·
+ * 밑 그림자), rim: 영상의 무지개 굴절을 흉내 낸 아주 옅은 테두리(위쪽만 진하게). 렌즈는 아이콘 밑(z 0)이라 글자를 안 가린다.
  */
-::view-transition-group(tab-indicator) {
-  /* 본문과 같은 시간에 끝나게 — 막대만 늦게 도착하면 따로 노는 것처럼 보인다 */
-  animation-duration: 180ms;
-  animation-timing-function: cubic-bezier(0.32, 0.72, 0, 1);
-  z-index: 110;
+/*
+ * 하단 탭의 유리 알약(가로 막대) — 가만히 있을 때도 유리로 보이게(2026-10-14 김민: "버튼을 안 누르고 있어도 glassmorphism, 지금은 너무
+ * 평면적"). 참고 영상(iOS 26)을 멈춰 보면 막대는 어두운 유리에 위쪽이 살짝 밝고(빛을 받는 면) 가장자리에 가는 빛 테두리, 밑에는
+ * 부드러운 그림자가 있다. 고른 칸의 캡슐도 평평한 회색이 아니라 위가 밝은 유리 조각이다.
+ *   바탕: 어두운 반투명 + 위에서 아래로 옅어지는 흰 빛(위 10% → 0) + 왼쪽 위의 둥근 하이라이트
+ *   테두리: 1px 흰 14%, 그 위로 위쪽 모서리 1px 흰 빛(안쪽 그림자)과 아래쪽 모서리 어두운 선
+ *   뒤 흐림: blur 28px · 채도 170%
+ * 패드의 세로 막대는 밝은 유리 그대로(아래 media).
+ */
+[data-tab-bar] {
+  background:
+    radial-gradient(140% 100% at 18% 0%, rgb(255 255 255 / 0.1), transparent 55%),
+    linear-gradient(180deg, rgb(255 255 255 / 0.09), rgb(255 255 255 / 0.02) 55%, rgb(0 0 0 / 0.05)),
+    rgb(28 28 30 / 0.78);
+  border: 1px solid rgb(255 255 255 / 0.18);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.18),
+    inset 0 -1px 0 rgb(0 0 0 / 0.28),
+    0 0 0 0.5px rgb(0 0 0 / 0.35),
+    0 16px 40px -12px rgb(0 0 0 / 0.6),
+    0 2px 6px rgb(0 0 0 / 0.2);
+  /* brightness 로 뒤를 어둡게 — 앱 화면은 밝은 바탕이라 반투명만으로는 회색 판이 됐다. 어두운 유리가 뒤를 비치면서도 어둡게 */
+  -webkit-backdrop-filter: blur(28px) saturate(170%) brightness(0.35);
+  backdrop-filter: blur(28px) saturate(170%) brightness(0.35);
+}
+
+[data-tab-lens] {
+  position: absolute;
+  top: 0.25rem;
+  left: 0.25rem;
+  z-index: 0;
+  width: calc((100% - 0.5rem) / var(--tab-count, 5));
+  height: 3.25rem;
+  border-radius: 9999px;
+  pointer-events: none;
+  opacity: var(--show, 1);
+  transform: translate3d(calc(var(--p, 0) * 100%), 0, 0) scale(var(--sx, 1), var(--sy, 1));
+  will-change: transform, opacity;
+}
+[data-tab-lens] > span {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+}
+/* 가라앉아 있는 캡슐 — 평평한 회색이 아니라 위가 밝은 유리 조각(가는 빛 테두리 · 위 1px 빛 · 안쪽 밑 그늘 · 밑 그림자) */
+[data-tab-lens] > [data-lens-fill] {
+  background:
+    radial-gradient(120% 80% at 50% 0%, rgb(255 255 255 / 0.14), transparent 60%),
+    linear-gradient(180deg, rgb(255 255 255 / 0.3), rgb(255 255 255 / 0.17));
+  box-shadow:
+    inset 0 0 0 1px rgb(255 255 255 / 0.18),
+    inset 0 1px 0 rgb(255 255 255 / 0.32),
+    inset 0 -5px 10px rgb(0 0 0 / 0.1),
+    0 6px 14px -6px rgb(0 0 0 / 0.45);
+  opacity: var(--fill, 1);
+}
+[data-tab-lens] > [data-lens-glass] {
+  opacity: var(--lift, 0);
+  background: radial-gradient(120% 90% at 50% 0%, rgb(255 255 255 / 0.12), transparent 62%);
+  box-shadow:
+    inset 0 0 0 1px rgb(255 255 255 / 0.3),
+    inset 0 1.5px 1px rgb(255 255 255 / 0.45),
+    inset 0 -8px 14px rgb(0 0 0 / 0.16),
+    0 10px 24px -8px rgb(0 0 0 / 0.55);
+}
+[data-tab-lens] > [data-lens-rim] {
+  inset: -0.5px;
+  padding: 1.5px;
+  opacity: calc(var(--lift, 0) * 0.5);
+  background: conic-gradient(
+    from 300deg,
+    transparent 0deg,
+    #ff6b8b 20deg,
+    #ffd36b 40deg,
+    #7dffb0 60deg,
+    #6bc8ff 80deg,
+    #b98bff 100deg,
+    transparent 125deg 360deg
+  );
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+}
+/* 패드 — 왼쪽 세로 막대(밝은 유리 그대로): 칸 64px + 사이 4px, 회색 캡슐은 글자색 8% */
+@media (min-width: 46.5rem) and (min-height: 37.5rem) and (pointer: coarse) {
+  [data-tab-lens] {
+    top: calc(env(safe-area-inset-top) + 0.75rem);
+    left: calc(env(safe-area-inset-left) + 0.5rem);
+    right: 0.5rem;
+    width: auto;
+    height: 4rem;
+    border-radius: 1rem;
+    transform: translate3d(0, calc(var(--p, 0) * 4.25rem), 0) scale(var(--sx, 1), var(--sy, 1));
+  }
+  [data-tab-lens] > [data-lens-fill] {
+    background: color-mix(in srgb, var(--color-ink) 8%, transparent);
+    box-shadow: none;
+  }
+  /* 패드 세로 막대는 밝은 유리 — 가로 알약의 어두운 유리 규칙을 걷는다 */
+  [data-tab-bar] {
+    background: color-mix(in srgb, var(--color-surface) 88%, transparent);
+    border: 0;
+    border-right: 1px solid color-mix(in srgb, var(--color-line) 60%, transparent);
+    box-shadow: none;
+    -webkit-backdrop-filter: blur(24px) saturate(150%);
+    backdrop-filter: blur(24px) saturate(150%);
+  }
 }
 
 /*
@@ -1616,12 +1729,14 @@ dialog[data-drawer]::backdrop {
  */
 @media not all and (min-width: 36rem) and (hover: hover) and (pointer: fine) {
   /*
+   * (dialog[data-look='folder'] — 설정 · 내 정보 창(components/modal.tsx look="folder")도 같은 규칙을 탄다, 2026-10-14 밤)
    * 2026-10-14 2판 — 아이폰 앱 폴더처럼. 아래 시트 대신, dialog 가 화면 전체의 흐린 막(뒤 본문이 비친 채 흐려지고
    * 어두워진다 — 밝은 테마에서도 어둡게 해 흰 글리프 · 흰 이름이 늘 읽힌다)이고, 그 가운데에 반투명 유리 폴더
    * ([data-folder])가 하단 탭 '더보기' 자리에서 부풀어 뜬다(iOS 폴더 줌). ::backdrop 에 blur 를 거는 건 아이폰
    * WebKit 에서 판별 불가라 dialog 자신이 막이다. 막을 누르면 닫힌다(app-shell DetailMenu 의 data-scrim).
    */
-  dialog[data-drawer] {
+  dialog[data-drawer],
+  dialog[data-look='folder'] {
     inset: 0;
     margin: 0;
     width: 100%;
@@ -1644,12 +1759,14 @@ dialog[data-drawer]::backdrop {
       overlay 140ms ease-in allow-discrete,
       display 140ms ease-in allow-discrete;
   }
-  dialog[data-drawer][open] {
+  dialog[data-drawer][open],
+  dialog[data-look='folder'][open] {
     opacity: 1;
     transition: opacity 160ms ease-out;
     animation: none;
   }
-  dialog[data-drawer]::backdrop {
+  dialog[data-drawer]::backdrop,
+  dialog[data-look='folder']::backdrop {
     background: transparent;
   }
   /*
@@ -1657,14 +1774,19 @@ dialog[data-drawer]::backdrop {
    * 열 때 초점은 폴더 자체로 간다(app-shell fitFolder). 누를 때 깜빡이는 회색 칠도 뺀다.
    */
   dialog[data-drawer] :focus,
-  dialog[data-drawer] :focus-visible {
+  dialog[data-look='folder'] :focus,
+  dialog[data-drawer] :focus-visible,
+  dialog[data-look='folder'] :focus-visible {
     outline: none;
   }
   dialog[data-drawer] a,
-  dialog[data-drawer] button {
+  dialog[data-look='folder'] a,
+  dialog[data-drawer] button,
+  dialog[data-look='folder'] button {
     -webkit-tap-highlight-color: transparent;
   }
-  dialog[data-drawer] [data-folder] {
+  dialog[data-drawer] [data-folder],
+  dialog[data-look='folder'] [data-folder] {
     /*
      * 타일 크기는 화면 높이가 정한다 — 굴리지 않고 한 장에 다 들어가게(2026-10-14 사용자). 관리자는 5줄 + 제목 둘 + 내 정보 줄.
      * 844px(아이폰 14)에서 58px, 667px(SE)에서 44px 쯤.
@@ -1689,7 +1811,8 @@ dialog[data-drawer]::backdrop {
       transform 140ms ease-in,
       opacity 140ms ease-in;
   }
-  dialog[data-drawer][open] [data-folder] {
+  dialog[data-drawer][open] [data-folder],
+  dialog[data-look='folder'][open] [data-folder] {
     transform: none;
     opacity: 1;
     transition: none;
@@ -1706,10 +1829,12 @@ dialog[data-drawer]::backdrop {
     }
   }
   @media (prefers-reduced-motion: reduce) {
-    dialog[data-drawer] [data-folder] {
+    dialog[data-drawer] [data-folder],
+    dialog[data-look='folder'] [data-folder] {
       transform: none;
     }
-    dialog[data-drawer][open] [data-folder] {
+    dialog[data-drawer][open] [data-folder],
+    dialog[data-look='folder'][open] [data-folder] {
       animation: folder-fade 160ms ease-out;
     }
     @keyframes folder-fade {
@@ -1727,14 +1852,18 @@ dialog[data-drawer]::backdrop {
    * 다크 = 기본값(검은 막 + 흰 유리 + 흰 글리프). 화이트는 밝은 폴더라 글리프 · 글자를 짙은 잉크로 — 흰 글리프는 옅은 하늘색 위에서
    * 안 읽힌다(대비 1.3:1).
    */
-  dialog[data-drawer] {
+  dialog[data-drawer],
+  dialog[data-look='folder'] {
     --folder-fg: #fff;
   }
-  html[data-theme='dark'] dialog[data-drawer] [data-folder] {
+  html[data-theme='dark'] dialog[data-drawer] [data-folder],
+  html[data-theme='dark'] dialog[data-look='folder'] [data-folder] {
     background: rgba(255, 255, 255, 0.14);
   }
   html[data-theme='light'] dialog[data-drawer],
-  html:not([data-theme]) dialog[data-drawer] {
+  html[data-theme='light'] dialog[data-look='folder'],
+  html:not([data-theme]) dialog[data-drawer],
+  html:not([data-theme]) dialog[data-look='folder'] {
     --folder-fg: #1d1d1f;
     --tile-bg: rgba(10, 132, 214, 0.16);
     --tile-bg-active: rgba(10, 132, 214, 0.32);
@@ -1747,14 +1876,17 @@ dialog[data-drawer]::backdrop {
     background: rgba(242, 242, 247, 0.55);
   }
   html[data-theme='light'] dialog[data-drawer] [data-folder],
-  html:not([data-theme]) dialog[data-drawer] [data-folder] {
+  html[data-theme='light'] dialog[data-look='folder'] [data-folder],
+  html:not([data-theme]) dialog[data-drawer] [data-folder],
+  html:not([data-theme]) dialog[data-look='folder'] [data-folder] {
     background: rgba(255, 255, 255, 0.62);
     border-color: rgba(255, 255, 255, 0.8);
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.9),
       0 24px 60px -20px rgba(29, 29, 31, 0.35);
   }
-  html[data-theme='navy'] dialog[data-drawer] {
+  html[data-theme='navy'] dialog[data-drawer],
+  html[data-theme='navy'] dialog[data-look='folder'] {
     --tile-bg: rgba(51, 65, 85, 0.55);
     --tile-bg-active: rgba(96, 120, 150, 0.6);
     --tile-ring: rgba(148, 163, 184, 0.3);
@@ -1762,7 +1894,8 @@ dialog[data-drawer]::backdrop {
     --tile-shadow: rgba(2, 6, 23, 0.7);
     background: rgba(11, 18, 32, 0.55);
   }
-  html[data-theme='navy'] dialog[data-drawer] [data-folder] {
+  html[data-theme='navy'] dialog[data-drawer] [data-folder],
+  html[data-theme='navy'] dialog[data-look='folder'] [data-folder] {
     background: rgba(30, 41, 59, 0.6);
     border-color: rgba(148, 163, 184, 0.25);
   }
@@ -1770,13 +1903,15 @@ dialog[data-drawer]::backdrop {
    * 끌어내려 닫을 때(app-shell endDrag 가 data-dismiss=down 을 달고 닫는다) — 하단 탭 쪽으로 줄지 않고 아래로 미끄러져 사라진다.
    * 막은 그만큼 천천히 옅어진다.
    */
-  dialog[data-drawer][data-dismiss='down'] {
+  dialog[data-drawer][data-dismiss='down'],
+  dialog[data-look='folder'][data-dismiss='down'] {
     transition:
       opacity 280ms ease-in,
       overlay 280ms ease-in allow-discrete,
       display 280ms ease-in allow-discrete;
   }
-  dialog[data-drawer][data-dismiss='down']:not([open]) [data-folder] {
+  dialog[data-drawer][data-dismiss='down']:not([open]) [data-folder],
+  dialog[data-look='folder'][data-dismiss='down']:not([open]) [data-folder] {
     opacity: 1;
     transform: translateY(110vh) !important;
     transition: transform 280ms cubic-bezier(0.32, 0.72, 0, 1);
@@ -2418,6 +2553,10 @@ dialog[data-gate][open]::backdrop {
    * 바닥에 붙은 시트의 아래쪽(입력칸 · 저장 단추)이 자판 뒤에 숨었다. --kb · --vvh 는 components/viewport-vars.tsx 가
    * 자판이 있을 때만 적는다 — 없으면 이 규칙이 안 걸려 예전 모양 그대로다.
    */
+  /* 폴더 창(설정 · 내 정보)은 가운데 서므로 자판만큼 아래를 비워 판이 그 위로 올라온다 */
+  html[data-keyboard] dialog[data-look='folder'] {
+    padding-bottom: calc(env(safe-area-inset-bottom) + var(--kb, 0px) + 1rem);
+  }
   html[data-keyboard] dialog[data-sheet],
   html[data-keyboard] dialog[data-gate] {
     margin-bottom: var(--kb, 0px);
@@ -2706,7 +2845,7 @@ html[data-splash] *::after {
  * 로그인(15px) · 검색 · 메모(14px) 칸을 한 번 누르면 그 뒤 모든 화면이 확대된 채라 오른쪽이
  * 잘리고 비율이 틀어져 보였다(2026-09-28 사용자, 사파리). 마우스로 쓰는 PC 는 그대로 14px.
  *
- * @layer 밖이라 text-sm · text-[15px] 같은 클래스보다 힘이 세다. 일부러 크게 쓴 입력칸
+ * @layer 밖이라 text-sm · text-subhead 같은 클래스보다 힘이 세다. 일부러 크게 쓴 입력칸
  * (text-lg 이상)은 건드리지 않는다.
  */
 @media (pointer: coarse) {
@@ -2749,6 +2888,51 @@ html[data-splash] *::after {
 @media (prefers-reduced-motion: reduce) {
   [data-tab-ghost][data-done] {
     transition: none;
+  }
+}
+
+/*
+ * 폴더 안의 내용(설정 · 내 정보, components/modal.tsx look="folder") — 화면 부품은 bg-surface-2 · text-ink · text-muted 로 그려져 있는데,
+ * 반투명 유리 위에서는 더보기 타일과 같은 유리로 보여야 한다. 그래서 휴대폰의 폴더 창 안에서만 그 뜻을 바꿔 읽는다(한 곳에서 — 부품을
+ * 하나하나 고치지 않는다). 색의 바탕은 더보기와 같은 --folder-fg · --tile-* (위 테마 묶음). PC(desk)는 예전 창 그대로.
+ */
+@media not all and (min-width: 36rem) and (hover: hover) and (pointer: fine) {
+  dialog[data-look='folder'] [data-folder] {
+    color: var(--folder-fg);
+  }
+  dialog[data-look='folder'] [data-folder] .bg-surface-2,
+  dialog[data-look='folder'] [data-folder] .bg-surface,
+  dialog[data-look='folder'] [data-folder] .bg-ink\/5,
+  dialog[data-look='folder'] [data-folder] .bg-ink\/6 {
+    background-color: var(--tile-bg, rgba(255, 255, 255, 0.14));
+    box-shadow: inset 0 1px 0 var(--tile-gloss, rgba(255, 255, 255, 0.3));
+  }
+  dialog[data-look='folder'] [data-folder] .divide-line > :not(:last-child),
+  dialog[data-look='folder'] [data-folder] .border-line,
+  dialog[data-look='folder'] [data-folder] .border-t,
+  dialog[data-look='folder'] [data-folder] .border-b {
+    border-color: color-mix(in srgb, var(--folder-fg) 16%, transparent);
+  }
+  dialog[data-look='folder'] [data-folder] .text-ink {
+    color: var(--folder-fg);
+  }
+  dialog[data-look='folder'] [data-folder] [class*='text-muted'] {
+    color: color-mix(in srgb, var(--folder-fg) 62%, transparent);
+  }
+  dialog[data-look='folder']
+    [data-folder]
+    :is(input, select, textarea):not([type='checkbox']):not([type='radio']):not(
+      [type='range']
+    ) {
+    background-color: var(--tile-bg, rgba(255, 255, 255, 0.14));
+    color: var(--folder-fg);
+    border-color: color-mix(in srgb, var(--folder-fg) 18%, transparent);
+  }
+  dialog[data-look='folder'] [data-folder] ::placeholder {
+    color: color-mix(in srgb, var(--folder-fg) 40%, transparent);
+  }
+  dialog[data-look='folder'] [data-folder] .no-scrollbar {
+    scrollbar-width: none;
   }
 }
 
@@ -2907,6 +3091,51 @@ html[data-app='native'] body:not(:has([data-safe-area]))::before {
  */
 .rounded-2xl.border-line.bg-surface {
   border-color: transparent;
+}
+/*
+ * 카드가 바탕 위에 떠 있게 — 앱스토어처럼(2026-10-15 김민: "평면적인 2D 카드를 실제 공간에 떠 있는 물체처럼"). 참고 영상(앱스토어
+ * 투데이)의 카드를 보면 ① 카드 바로 밑의 좁고 조금 진한 접촉 그림자 ② 멀리 넓게 퍼지는 옅은 주변 그림자 ③ 거의 안 보이는 반투명
+ * 가장자리(0.5px) ④ 위 모서리의 흰 빛 한 줄. 그림자 하나를 진하게 하는 것이 아니라 네 겹을 겹쳐 둔다(--card-float).
+ * 같은 선택자라 Card 와 손으로 만든 카드 60여 곳이 한 번에 바뀐다. PC 도 같다(테두리는 PC 에만, 밑 media). 그림자는 둥근 모서리를
+ * 그대로 따른다(box-shadow). 바탕을 안 건드리므로(background-image 없음) bg-hero · bg-spotlight 같은 제 바탕이 있는 카드도 그대로다.
+ * 누르면(press-feedback 의 data-pressed — 카드 통째 링크 · 단추) 살짝 눌리며 그림자가 짧아진다. 움직임 줄이기면 전환 없음.
+ * 다크 · 네이비는 검은 바탕이라 그림자 대신 가장자리 빛(흰 8%)과 위 모서리 빛으로 뜬다.
+ */
+.rounded-2xl.border-line.bg-surface {
+  --card-ink: 20 30 50;
+  --card-float:
+    inset 0 1px 0 rgb(255 255 255 / 0.7),
+    0 0 0 0.5px rgb(var(--card-ink) / 0.06),
+    0 1px 2px rgb(var(--card-ink) / 0.05),
+    0 6px 16px -4px rgb(var(--card-ink) / 0.08),
+    0 22px 44px -14px rgb(var(--card-ink) / 0.12);
+  box-shadow: var(--card-float);
+  transition:
+    transform 180ms cubic-bezier(0.2, 0, 0, 1),
+    box-shadow 180ms cubic-bezier(0.2, 0, 0, 1);
+}
+.rounded-2xl.border-line.bg-surface[data-pressed] {
+  transform: scale(0.985);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.7),
+    0 0 0 0.5px rgb(var(--card-ink) / 0.06),
+    0 1px 2px rgb(var(--card-ink) / 0.05),
+    0 3px 8px -2px rgb(var(--card-ink) / 0.08);
+}
+:root[data-theme='dark'] .rounded-2xl.border-line.bg-surface,
+:root[data-theme='navy'] .rounded-2xl.border-line.bg-surface,
+.theme-dark .rounded-2xl.border-line.bg-surface {
+  --card-float:
+    inset 0 1px 0 rgb(255 255 255 / 0.07),
+    0 0 0 0.5px rgb(255 255 255 / 0.08),
+    0 1px 2px rgb(0 0 0 / 0.4),
+    0 8px 20px -6px rgb(0 0 0 / 0.5);
+  box-shadow: var(--card-float);
+}
+@media (prefers-reduced-motion: reduce) {
+  .rounded-2xl.border-line.bg-surface {
+    transition: none;
+  }
 }
 @media (min-width: 36rem) and (hover: hover) and (pointer: fine) {
   .rounded-2xl.border-line.bg-surface {

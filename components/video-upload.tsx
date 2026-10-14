@@ -446,21 +446,21 @@ export function VideoUpload({
               {/* 한 번 눌렀을 때 나오는 안내 — 다시 누르면 뺀다 */}
               {asking === v.path && (
                 <div className="border-t border-danger-line bg-danger-bg px-3 py-2.5">
-                  <p className="text-[11px] leading-relaxed text-danger">
+                  <p className="text-caption leading-relaxed text-danger">
                     {confirmRemove?.(v)}
                   </p>
                   <div className="mt-2 flex gap-2">
                     <button
                       type="button"
                       onClick={() => remove(v.path)}
-                      className="rounded-lg bg-danger px-3 py-1.5 text-[11px] font-semibold text-white"
+                      className="rounded-lg bg-danger px-3 py-1.5 text-caption font-semibold text-white"
                     >
                       빼기
                     </button>
                     <button
                       type="button"
                       onClick={() => setAsking(null)}
-                      className="rounded-lg border border-line px-3 py-1.5 text-[11px] text-muted transition-colors hover:text-ink"
+                      className="rounded-lg border border-line px-3 py-1.5 text-caption text-muted transition-colors hover:text-ink"
                     >
                       그대로 두기
                     </button>

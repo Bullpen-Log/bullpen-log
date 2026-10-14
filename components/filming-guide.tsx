@@ -267,7 +267,7 @@ export function FilmingGuide({ defaultOpen = false }: { defaultOpen?: boolean })
                 key={label}
                 className="rounded-xl border border-line bg-surface-2 p-4"
               >
-                <p className="mb-2 text-[11px] font-medium tracking-normal text-muted">
+                <p className="mb-2 text-caption font-medium tracking-normal text-muted">
                   {label}
                 </p>
                 {view}

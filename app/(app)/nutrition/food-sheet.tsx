@@ -1598,7 +1598,7 @@ function SearchResults({
           {remoteLoading && (
             <div className="motion-safe:animate-fade-in space-y-2 py-1">
               {remote.length > 0 && (
-                <p role="status" className="px-1 text-[11px] text-muted/80">
+                <p role="status" className="px-1 text-caption text-muted/80">
                   상품을 더 찾는 중…
                 </p>
               )}
@@ -1623,7 +1623,7 @@ function SearchResults({
       {/* 찾는 말이 바뀌면 이름 칸도 그 말로 새로 시작한다 */}
       <CustomEntry key={q} q={q} onAdd={onCustom} />
 
-      <p className="px-1 text-[11px] leading-relaxed text-muted/80">
+      <p className="px-1 text-caption leading-relaxed text-muted/80">
         {mfds
           ? '식약처 자료는 식품의약품안전처 식품영양성분 데이터베이스(공공데이터포털)에서 가져와요.'
           : '식약처 음식 검색은 아직 연결 전이에요. 목록에 없는 음식은 직접 입력으로 담아 주세요.'}
@@ -1760,11 +1760,11 @@ function PickFood({ food, onAdd }: { food: Food; onAdd: (amount: number) => void
 
       <dl className="grid grid-cols-4 gap-2 rounded-xl bg-surface p-2.5 text-center tabular-nums">
         <div>
-          <dt className="text-[11px] text-muted">칼로리</dt>
+          <dt className="text-caption text-muted">칼로리</dt>
           <dd className="text-base font-bold text-ink">{kcalText(got.kcal)}</dd>
         </div>
         <div>
-          <dt className="text-[11px] text-muted">탄수화물</dt>
+          <dt className="text-caption text-muted">탄수화물</dt>
           <dd className="text-sm font-semibold text-ink">
             {food.carbs === null ? (
               <span className="text-muted">정보 없음</span>
@@ -1774,7 +1774,7 @@ function PickFood({ food, onAdd }: { food: Food; onAdd: (amount: number) => void
           </dd>
         </div>
         <div>
-          <dt className="text-[11px] text-muted">단백질</dt>
+          <dt className="text-caption text-muted">단백질</dt>
           <dd className="text-sm font-semibold text-ink">
             {food.protein === null ? (
               <span className="text-muted">정보 없음</span>
@@ -1784,7 +1784,7 @@ function PickFood({ food, onAdd }: { food: Food; onAdd: (amount: number) => void
           </dd>
         </div>
         <div>
-          <dt className="text-[11px] text-muted">지방</dt>
+          <dt className="text-caption text-muted">지방</dt>
           <dd className="text-sm font-semibold text-ink">
             {food.fat === null ? (
               <span className="text-muted">정보 없음</span>

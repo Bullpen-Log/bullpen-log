@@ -57,7 +57,7 @@ export function StageOverlay({
         </p>
       )}
       {status === 'ready' && (
-        <p className="pointer-events-none absolute bottom-2.5 left-2.5 rounded-full bg-surface/85 px-2.5 py-1 text-[11px] text-muted">
+        <p className="pointer-events-none absolute bottom-2.5 left-2.5 rounded-full bg-surface/85 px-2.5 py-1 text-caption text-muted">
           {hint}
         </p>
       )}

@@ -542,6 +542,7 @@ import {
   parseProgram,
   patternsOfProgramDay,
   pickPinned,
+  ACCESSORY_KEYS,
   programKeyOf,
   programSignalsOf,
   restTextOf,
@@ -8491,7 +8492,20 @@ console.log(
         ? { painSlots: [], slotReasons: {} }
         : painSlotsOf(
             programDayPlan(program531, 1).items,
-            (v) => (programPinned[v] ? { id: programPinned[v] } : null),
+            /*
+             * 보조 메뉴 칸은 고정이 아니라 세션마다 바뀐다(앱 load.ts accessoryPick, 2026-10-14) — 이 표는 그 칸에서 가장 센 후보가 나온 날
+             * (팔 피로에 걸릴 수 있는 최악의 날)로 잰다. 가벼운 것이 나온 날은 대체 없이 그대로다.
+             */
+            (v) => {
+              if (ACCESSORY_KEYS.includes(v)) {
+                const all = [...new Set(library.flatMap((e) => e.equipment))];
+                const ex = [...variantCandidates(v, library, all, null)].sort(
+                  (x, y) => intensityLevel(y.intensity) - intensityLevel(x.intensity) || x.id.localeCompare(y.id)
+                )[0];
+                return ex ? { id: ex.id } : null;
+              }
+              return programPinned[v] ? { id: programPinned[v] } : null;
+            },
             programSafeIds,
             droppedOnlyForArmFatigue(programSafeInput)
           );
@@ -8692,13 +8706,16 @@ console.log(
        * 테마는 그대로 근력이다(안전 층만 — 상체날이면 가벼운 밀기 · 당기기가 남는다), 프로그램은 그날 그 칸을 대체한다(이 표는
        * painSlots 를 [] 로 두어 'go' 그대로). 입력도 옮겼다 — 예전 HIGH_ARM_FATIGUE + 1 을 extras 로 장에만 실었는데 이제 오늘 체크인에.
        */
+      /*
+       * 2026-10-14 — 531 첫날(스쿼트 날)에 보조 밀기(덤벨 벤치)가 생겨, 팔 피로 '심함'이면 그 칸을 '팔 피로'로 대체한다(벤치 날과 같은 규칙).
+       */
       person: { today: { armFatigue: SEVERE_ARM_FATIGUE } },
       expect: {
         theme: 'strength',
         pitchPlan: 'throw',
         nutrition: 'none',
         armcare: 'recovery',
-        program: 'go',
+        program: 'go+대체:팔 피로',
         safety: 'none',
       },
     },
@@ -20762,7 +20779,13 @@ console.log(
     /* 큰 하체 · 한 다리 · 밀기 · 당기기 · 점프는 후보 전부, 메디신볼 · 회전 던지기 · 몸통 버티기는 먼저 고르는 것(고정 기본값) */
     const strict = ['squat', 'hinge', 'push', 'pull', 'singleLeg', 'jump'].includes(v);
     const looked = strict ? cands : cands.slice(0, 1);
-    const wrong = looked.filter((e) => movementKeyOf(e) !== want);
+    /*
+     * 회전 던지기는 라이브러리에 돌려 던지는 메디신볼이 없으면 돌리는 코어(케이블 · 랜드마인 로테이션)로 채운다(2026-10-14 — 위아래 슬램을
+     * 회전으로 고르던 것을 고침). 코어는 열쇠가 없고(null), 그 날은 exerciseOf 로 그 운동의 열쇠를 쓴다(아래).
+     */
+    const wrong = looked.filter(
+      (e) => movementKeyOf(e) !== want && !(v === 'rotationalThrow' && e.category === '코어')
+    );
     variantSeen.push(`${v} ${looked.length}`);
     if (wrong.length > 0)
       variantWrong.push(`${v}: ${wrong.map((e) => e.title).join(', ')}`);
@@ -24382,6 +24405,15 @@ console.log(
         { patternsDone14d: new Map([['스쿼트', 2]]) },
         {},
       ],
+      /* 2026-10-14 — 밀기 · 당기기는 짝보다 덜 한 쪽 +1(1 대 1로) */
+      [
+        '2주 밀기 3 · 당기기 5 → 벤치(밀기) +1',
+        bench,
+        { patternsDone14d: new Map([['밀기', 3], ['당기기', 5]]) },
+        { pattern: 1 },
+      ],
+      ['2주 밀기 5 · 당기기 3 → 벤치 없음', bench, { patternsDone14d: new Map([['밀기', 5], ['당기기', 3]]) }, {}],
+      ['2주 밀기 4 · 당기기 4 → 없음', bench, { patternsDone14d: new Map([['밀기', 4], ['당기기', 4]]) }, {}],
       ['마친 날 없음(null) → 꺼짐', rdl, { patternsDone14d: null }, {}],
       ['고립(컬) → 없음(큰 계열만)', curl, { patternsDone14d: new Map() }, {}],
       [

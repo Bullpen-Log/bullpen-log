@@ -36,6 +36,7 @@ export function TrainingPrefsCard({
       title="오늘 하고 싶은 운동이 있나요?"
       hint="고르면 그쪽으로 일정을 짜요. 아픈 날은 고른 것과 상관없이 회복으로 가요."
       answer={summary}
+      folded
     >
       {(close) => <PrefsForm day={day} initial={answer} parts={parts} onDone={close} />}
     </DayCard>

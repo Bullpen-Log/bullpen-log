@@ -76,7 +76,7 @@ export function WeekChart({
         {week.map((d) => (
           <span
             key={d.date}
-            className={`flex-1 text-center text-[11px] ${
+            className={`flex-1 text-center text-caption ${
               d.date === selected ? 'font-semibold text-ink' : 'text-muted'
             }`}
           >

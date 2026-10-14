@@ -128,7 +128,7 @@ function Primary({ view }: { view: LoadView }) {
                   }}
                 />
               </div>
-              <p className="text-[11px] tabular-nums text-muted/70">
+              <p className="text-caption tabular-nums text-muted/70">
                 기록 {view.historyDays}일 / {CHRONIC_WINDOW_DAYS}일 · {view.daysNeeded}
                 일 더 필요
               </p>

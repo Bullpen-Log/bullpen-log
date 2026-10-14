@@ -295,7 +295,7 @@ export function MonthCalendar({
           {WEEKDAYS.map((w) => (
             <div
               key={w}
-              className="pb-1 text-center text-[11px] font-medium text-muted"
+              className="pb-1 text-center text-caption font-medium text-muted"
             >
               {w}
             </div>
@@ -362,12 +362,12 @@ export function MonthCalendar({
                 className="h-3.5 w-3.5 transition-transform group-open:rotate-180"
               />
             </summary>
-            <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-2 pt-1 text-[11px] text-muted">
+            <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-2 pt-1 text-caption text-muted">
               {children}
             </div>
           </details>
           <div
-            className={`hidden flex-wrap items-center gap-x-3 gap-y-2 border-t border-line pt-4 text-[11px] text-muted desk:flex ${
+            className={`hidden flex-wrap items-center gap-x-3 gap-y-2 border-t border-line pt-4 text-caption text-muted desk:flex ${
               low ? 'desk-low:pt-3' : ''
             }`}
           >
@@ -527,7 +527,7 @@ function DayGrid({
             <span
               className={
                 isToday
-                  ? `grid h-6 w-6 place-items-center rounded-full text-[13px] font-bold ${
+                  ? `grid h-6 w-6 place-items-center rounded-full text-footnote font-bold ${
                       mark?.effortPct != null && mark.effortPct >= STRONG_EFFORT_PCT
                         ? 'bg-surface text-sky'
                         : 'bg-sky text-white'
@@ -538,7 +538,7 @@ function DayGrid({
               {day}
             </span>
             {mark && (
-              <span className="max-w-full truncate px-0.5 text-[10px] leading-none opacity-80 sm:text-[11px]">
+              <span className="max-w-full truncate px-0.5 text-[10px] leading-none opacity-80 sm:text-caption">
                 {mark.label}
               </span>
             )}

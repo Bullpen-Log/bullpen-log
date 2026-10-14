@@ -549,7 +549,7 @@ function SampleCard({
       {/* 한 줄 — 이름 · 날짜 · 표시 · 메모(한 줄로 자름) · 상태. 줄을 누르면 결과 화면, 오른쪽은 영상 펴기 · 지우기 */}
       <div className="flex items-center gap-2">
         <Link href={`/videos/lab/${sample.id}`} className="min-w-0 flex-1 space-y-0.5">
-          <p className="truncate text-[15px] font-semibold text-ink">
+          <p className="truncate text-subhead font-semibold text-ink">
             {label} {n}
             {meta?.createdAt && (
               <span className="ml-2 text-xs font-normal text-muted">

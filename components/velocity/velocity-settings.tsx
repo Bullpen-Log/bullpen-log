@@ -105,7 +105,7 @@ export function VelocitySettingsFields({
         <Panel className="divide-y divide-line">
           <ChoiceRow
             title="구속 단위"
-            hint="앱 전체에 적용돼요 — 투구 기록 · 내 정보도 같은 단위로 보여요."
+            hint="앱 전체에 적용돼요. 투구 기록 · 내 정보도 같은 단위로 보여요."
           >
             <Segmented
               label="구속 단위"
@@ -151,7 +151,7 @@ export function VelocitySettingsFields({
             hint={
               calibration.n > 0
                 ? `내 짝 ${calibration.n}개로 맞춘 식 ${calibrationText(calibration)}`
-                : '아직 짝이 없어요 — 공에 스피드건 값을 적고 저장하면 쌓여요.'
+                : '아직 짝이 없어요. 공에 스피드건 값을 적고 저장하면 쌓여요.'
             }
             checked={values.useCal}
             disabled={calibration.n === 0}

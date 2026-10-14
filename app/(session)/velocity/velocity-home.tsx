@@ -119,7 +119,7 @@ export function VelocityHome({
           {stored ? (
             <div className="border-t border-line px-5 py-3">
               <p className="mb-2 text-xs font-semibold text-muted">
-                지난 설정 — 시작하면 그대로 쓸지 물어요
+                지난 설정 · 시작하면 그대로 쓸지 물어요
               </p>
               <SetupSummaryRow
                 sessionType={stored.sessionType}
