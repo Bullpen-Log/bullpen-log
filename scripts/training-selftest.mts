@@ -20757,7 +20757,13 @@ console.log(
     /* 큰 하체 · 한 다리 · 밀기 · 당기기 · 점프는 후보 전부, 메디신볼 · 회전 던지기 · 몸통 버티기는 먼저 고르는 것(고정 기본값) */
     const strict = ['squat', 'hinge', 'push', 'pull', 'singleLeg', 'jump'].includes(v);
     const looked = strict ? cands : cands.slice(0, 1);
-    const wrong = looked.filter((e) => movementKeyOf(e) !== want);
+    /*
+     * 회전 던지기는 라이브러리에 돌려 던지는 메디신볼이 없으면 돌리는 코어(케이블 · 랜드마인 로테이션)로 채운다(2026-10-14 — 위아래 슬램을
+     * 회전으로 고르던 것을 고침). 코어는 열쇠가 없고(null), 그 날은 exerciseOf 로 그 운동의 열쇠를 쓴다(아래).
+     */
+    const wrong = looked.filter(
+      (e) => movementKeyOf(e) !== want && !(v === 'rotationalThrow' && e.category === '코어')
+    );
     variantSeen.push(`${v} ${looked.length}`);
     if (wrong.length > 0)
       variantWrong.push(`${v}: ${wrong.map((e) => e.title).join(', ')}`);

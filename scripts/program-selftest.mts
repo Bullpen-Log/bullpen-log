@@ -21,6 +21,8 @@ import {
   decideToday,
   finishLine,
   inSeasonKind,
+  rotatedPick,
+  variantTurn,
   isOptionalProgramExercise,
   withKind,
   SESSION_KIND_LABELS,
@@ -434,6 +436,23 @@ check(
   }
 }
 
+/* ── 1-0b) 보조 칸 세션마다 돌리기(2026-10-14) ─────────────────────────────── */
+{
+  const p = plan('531');
+  const turns = Array.from({ length: p.totalDays }, (_, i) => variantTurn(p, i + 1, 'singleLeg'));
+  const pool = ['a', 'b', 'c', 'd', 'e', 'f', 'g'].map((id) => ({ id }));
+  const picks = turns.map((t) => rotatedPick({ id: 'x' }, pool, t)?.id);
+  check(
+    '보조 칸: 나올 때마다 다음 운동 — 고정 운동이 첫째, 앞 6개를 돌고, 이어진 두 세션이 같지 않음',
+    turns.join() === Array.from({ length: p.totalDays }, (_, i) => i).join() &&
+      picks[0] === 'x' &&
+      picks.slice(0, 6).join() === 'x,a,b,c,d,e' &&
+      picks.every((id, i) => i === 0 || id !== picks[i - 1]) &&
+      rotatedPick(null, [], 3) === null &&
+      rotatedPick({ id: 'x' }, [], 5)?.id === 'x'
+  );
+}
+
 /* ── 1-1) 기본기 4주(2026-10-09) ─────────────────────────────── */
 console.log('\n1-1) 기본기 4주');
 {
@@ -709,8 +728,9 @@ const lib: PinnableExercise[] = [
     JSON.stringify(pins)
   );
   check(
-    '메디신볼 파워는 회전 아닌 것 먼저, 회전 던지기는 회전 메디신볼',
-    pins.medball === 'chest' && pins.rotationalThrow === 'slam'
+    '메디신볼 파워는 회전 아닌 것 먼저, 회전 던지기는 위아래 슬램이 아니라 돌리는 운동(2026-10-14 — 이름도 본다)',
+    pins.medball === 'chest' && pins.rotationalThrow !== 'slam' && pins.rotationalThrow != null,
+    String(pins.rotationalThrow)
   );
   check(
     '밴드가 없으면 항회전은 한쪽 캐리로',

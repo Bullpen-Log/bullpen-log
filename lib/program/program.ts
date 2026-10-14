@@ -423,7 +423,7 @@ function waveDay(
     items.push(
       pullV === 'pullVertical'
         ? assist(pullV, 3, 8, light)
-        : assist(pullV, bbb ? 5 : 3, 10, light),
+        : assist(pullV, bbb ? 5 : 4, 10, light),
       assist('singleLeg', 3, 8, light)
     );
     /* 몸통 칸은 하루 하나 — 회전 던지기를 한 날은 그것이 몸통 운동(옛 프로그램의 파워 블록과 같다) */
@@ -767,7 +767,13 @@ function inSeasonDay(kind: SessionKind, week: number): DayBuild {
     case 'shortUpper':
       return {
         label,
-        items: [keep('push', 3, 6, 150), keep('pull', 3, 8, 90), keep('singleLeg', 2, 8, 90), coreItem(true)],
+        /* 회전 던지기 2×3(몸통 칸) — 불펜은 '상체 날'이 안 와 회전 파워가 한 번도 없었다(2026-10-14 김민) */
+        items: [
+          item('rotationalThrow', 'none', reps(2, 3), 60),
+          keep('push', 3, 6, 150),
+          keep('pull', 3, 8, 90),
+          keep('singleLeg', 2, 8, 90),
+        ],
       };
   }
 }
@@ -1417,8 +1423,9 @@ const VARIANT_RULES: Record<VariantKey, VariantRule> = {
       ex.movementPattern === '런지' &&
       isWeighted(ex) &&
       intensityLevel(ex.intensity) >= 3,
-    /* 스플릿 스쿼트 · 리버스 런지가 무게를 올려 가기 좋은 한쪽 하체다 */
+    /* 스플릿 스쿼트 · 리버스 런지가 무게를 올려 가기 좋은 한쪽 하체다. 불안정 지면(보수볼)은 맨 뒤 */
     rank: (ex) => [
+      /보수볼/.test(ex.title) ? 1 : 0,
       /스플릿 스쿼트|리버스 런지/.test(ex.title) ? 0 : 1,
       ex.equipment.includes('덤벨') ? 0 : 1,
       -intensityLevel(ex.intensity),
@@ -1455,15 +1462,21 @@ const VARIANT_RULES: Record<VariantKey, VariantRule> = {
     ],
   },
   /* 회전 던지기 — 메디신볼을 먼저, 없으면 돌리는 코어 */
+  /*
+   * 회전 던지기 — 이름에 회전 동작이 든 메디신볼 던지기(스쿱 · 사이드 · 로테이셔널)를 먼저. 2026-10-14 라이브러리에는 그런 던지기가 없고
+   * 오버헤드 · 푸시 슬램이 '회전'으로 적혀 이 칸에 들어왔다(위아래로 던지는 것이라 회전이 아니다) — 그래서 이름도 본다. 없으면 돌리는 코어
+   * (케이블 · 랜드마인 로테이션을 앉아서 비트는 러시안 트위스트보다 먼저).
+   */
   rotationalThrow: {
     match: (ex) =>
       (ex.category === '파워' &&
         ex.equipment.includes('메디신볼') &&
-        ex.movementPattern === '회전') ||
+        ex.movementPattern === '회전' &&
+        /로테이션|로테이셔널|회전|스쿱|사이드|쉿/.test(ex.title)) ||
       (ex.category === '코어' &&
         ROTATION_WORDS.some((w) => ex.title.includes(w)) &&
         !ANTI_ROTATION_WORDS.some((w) => ex.title.includes(w))),
-    rank: (ex) => [ex.category === '파워' ? 0 : 1],
+    rank: (ex) => [ex.category === '파워' ? 0 : 1, /트위스트/.test(ex.title) ? 1 : 0],
   },
 };
 
@@ -1614,6 +1627,43 @@ export function variantCandidates<T extends PinnableExercise>(
 }
 
 export type Pinned = Partial<Record<VariantKey, string>>;
+
+/**
+ * 세션마다 돌리는 보조 칸(2026-10-14 김민: "4주 고정이면 안 돼 — 세션마다 다르게"). 본 운동(스쿼트 · 힌지 · 밀기)은 무게 흐름(TM · 직선 증량)
+ * 때문에 그대로 두고, 나머지는 같은 칸의 후보를 그 칸이 나올 때마다 다음 것으로 바꾼다. 고정 운동(pinned)이 첫째, 기본기는 돌리지 않는다.
+ */
+export const ROTATING_VARIANTS: readonly VariantKey[] = [
+  'pull',
+  'pullVertical',
+  'pushAssist',
+  'singleLeg',
+  'jump',
+  'medball',
+  'antiRotation',
+  'rotationalThrow',
+];
+/** 한 칸에서 돌리는 운동 수 — 후보 순서(변형 규칙)의 앞에서 이만큼 */
+export const ROTATION_MAX = 6;
+
+/** 이 세션 앞에서 그 칸이 나온 세션 수 — 돌리는 차례 */
+export function variantTurn(plan: ProgramPlan, day: number, variant: VariantKey): number {
+  let n = 0;
+  for (let d = 1; d < day; d++) if (dayPlan(plan, d).items.some((x) => x.variant === variant)) n++;
+  return n;
+}
+
+/** 그 차례의 운동 — 고정 운동을 첫째로, 같은 칸 후보를 차례로(앞에서 ROTATION_MAX 개). 후보가 없으면 고정 운동 */
+export function rotatedPick<T extends { id: string }>(
+  anchor: T | null,
+  candidates: readonly T[],
+  turn: number
+): T | null {
+  const list = [...(anchor ? [anchor] : []), ...candidates.filter((c) => c.id !== anchor?.id)].slice(
+    0,
+    ROTATION_MAX
+  );
+  return list.length ? list[turn % list.length] : null;
+}
 
 /** 시작할 때 9개를 고른다. 후보가 없는 변형은 비워 둔다 — 그 칸은 그날 대체 규칙으로 간다. */
 export function pickPinned<T extends PinnableExercise>(
