@@ -183,9 +183,12 @@ export const NAV_GROUPS: NavGroup[] = [
       },
     ],
   },
-  /* 투구 분석 — 옆 · 뒤 두 영상으로 3D 분석(실험실, 2026-10-13 김민 '더보기에 투구분석'). 아직 관리자만 연다(videos/lab/page.tsx requireAdmin) */
+  /*
+   * 3D 동작 분석 — 옆 · 뒤 두 영상으로 3D(2026-10-13 김민 '더보기에 투구분석'). 2026-10-14 이름을 바꾸고('투구 분석'은 기록 분석 /coach 와
+   * 헷갈렸다) 일반 사용자에게도 연다 — 사람마다 자기 영상만(lib/pitch-lab.ts ownerIds), GPU 비용은 lib/pitch-lab-guard.ts.
+   */
   {
-    items: [{ href: '/videos/lab', label: '투구 분석', icon: 'body', adminOnly: true, lock: 'pitch' }],
+    items: [{ href: '/videos/lab', label: '3D 동작 분석', icon: 'body', lock: 'pitch' }],
   },
   {
     title: '라이브러리',

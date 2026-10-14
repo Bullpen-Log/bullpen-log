@@ -37,7 +37,8 @@ import {
 import { isLabId, readLabMeta } from '@/lib/pitch-lab-meta';
 
 /**
- * 투구 분석 실험실(베타)의 서버 동작 — 관리자만. 영상은 브라우저가 이미 올렸고(app/api/pitch-lab/upload-url), 여기서는 촬영 정보 ·
+ * 3D 동작 분석(베타, 옛 이름 투구 분석 실험실)의 서버 동작 — 로그인한 누구나(2026-10-14 일반 사용자에게 엶). 사람마다 자기 폴더만,
+ * 관리자는 관리자끼리 같이 본다(lib/pitch-lab.ts ownerIds). GPU 비용은 lib/pitch-lab-guard.ts 가 지킨다. 영상은 브라우저가 이미 올렸고(app/api/pitch-lab/upload-url), 여기서는 촬영 정보 ·
  * 분석 결과 · v2 작업 상태를 다룬다. 오류 글은 해요체 한 줄(화면이 그대로 보인다).
  *
  * v2(서버 GPU, 설계 pitch-3d-quality.md 기술 D1): job.json 을 쓰는 것은 여기 둘(requestPitch3dV2 · checkPitch3dV2)뿐이다.
@@ -48,11 +49,6 @@ type Result = { ok: true } | { error: string };
 
 const LAB_PATH = '/videos/lab';
 const STORAGE_ERROR = '저장소에 쓰지 못했어요. 다시 해 주세요.';
-
-async function admin() {
-  const user = await requireUser();
-  return user.role === 'ADMIN' ? user : null;
-}
 
 /** 저장소 쓰기 — 한 번 다시(검토 2절 StorageError) */
 async function retryOnce<T>(fn: () => Promise<T>): Promise<T> {
@@ -67,14 +63,16 @@ export async function saveLabSample(input: {
   id: string;
   meta: unknown;
 }): Promise<Result> {
-  const user = await admin();
-  if (!user) return { error: '관리자만 할 수 있어요.' };
+  const user = await requireUser();
   if (!isLabId(input.id)) return { error: '샘플 번호를 확인할 수 없어요.' };
   try {
     await saveLabMeta(
-      (await findLabOwner(input.id, user.id)) ?? user.id,
+      (await findLabOwner(input.id, user)) ?? user.id,
       input.id,
-      readLabMeta(input.meta, new Date().toISOString())
+      /* 마커 샘플은 관리자 스크립트만 — 일반 사용자가 보낸 kind 는 늘 sample */
+      ((m) => (user.role === 'ADMIN' ? m : { ...m, kind: 'sample' as const }))(
+        readLabMeta(input.meta, new Date().toISOString())
+      )
     );
   } catch {
     return { error: '정보를 저장하지 못했어요. 다시 해 주세요.' };
@@ -84,11 +82,10 @@ export async function saveLabSample(input: {
 }
 
 export async function removeLabSample(input: { id: string }): Promise<Result> {
-  const user = await admin();
-  if (!user) return { error: '관리자만 할 수 있어요.' };
+  const user = await requireUser();
   if (!isLabId(input.id)) return { error: '샘플 번호를 확인할 수 없어요.' };
   try {
-    const owner = await findLabOwner(input.id, user.id);
+    const owner = await findLabOwner(input.id, user);
     if (owner) await deleteLabSample(owner, input.id);
   } catch {
     return { error: '지우지 못했어요. 다시 해 주세요.' };
@@ -108,14 +105,13 @@ export async function requestPitch3dV2(input: {
   id: string;
   consent: boolean;
 }): Promise<{ ok: true; job: Pitch3dV2Job } | { error: string }> {
-  const user = await admin();
-  if (!user) return { error: '관리자만 할 수 있어요.' };
+  const user = await requireUser();
   if (!isLabId(input.id)) return { error: '샘플을 찾지 못했어요.' };
   if (!isPitch3dV2Configured()) return { error: '분석 서버 설정이 없어요.' };
   if (input.consent !== true)
     return { error: '영상을 분석 서버로 보내는 동의를 확인해 주세요.' };
-  /* 관리자끼리 같이 쓴다 — 샘플이 든 관리자 폴더(lib/pitch-lab.ts findLabOwner) */
-  const owner = await findLabOwner(input.id, user.id).catch(() => null);
+  /* 샘플이 든 폴더 — 자기 것(관리자는 관리자끼리 같이, lib/pitch-lab.ts findLabOwner) */
+  const owner = await findLabOwner(input.id, user).catch(() => null);
   if (!owner) return { error: '샘플을 찾지 못했어요.' };
 
   let prev: Pitch3dV2Job | null;
@@ -214,10 +210,9 @@ export async function requestPitch3dV2(input: {
 export async function checkPitch3dV2(input: {
   id: string;
 }): Promise<{ job: Pitch3dV2Job | null } | { error: string }> {
-  const user = await admin();
-  if (!user) return { error: '관리자만 할 수 있어요.' };
+  const user = await requireUser();
   if (!isLabId(input.id)) return { error: '샘플을 찾지 못했어요.' };
-  const owner = await findLabOwner(input.id, user.id).catch(() => null);
+  const owner = await findLabOwner(input.id, user).catch(() => null);
   if (!owner) return { job: null };
   let job: Pitch3dV2Job | null;
   try {
@@ -274,11 +269,10 @@ export async function loadPitch3dV2(input: {
   id: string;
   jobId: string;
 }): Promise<{ result: Pitch3dV2Result | null } | { error: string }> {
-  const user = await admin();
-  if (!user) return { error: '관리자만 할 수 있어요.' };
+  const user = await requireUser();
   if (!isLabId(input.id) || !isV2JobId(input.jobId))
     return { error: '샘플을 찾지 못했어요.' };
-  const owner = await findLabOwner(input.id, user.id).catch(() => null);
+  const owner = await findLabOwner(input.id, user).catch(() => null);
   if (!owner) return { result: null };
   try {
     return {

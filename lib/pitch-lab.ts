@@ -238,10 +238,22 @@ async function adminIds(): Promise<string[]> {
   return rows.map((r) => r.id);
 }
 
-/** 그 샘플이 든 관리자 폴더의 주인 — 없으면 null. prefer 를 먼저 본다(보통 올린 사람 자신) */
-export async function findLabOwner(id: string, prefer?: string): Promise<string | null> {
+/** 보는 사람 — 3D 동작 분석은 2026-10-14 부터 일반 사용자에게도 연다 */
+export type LabViewer = { id: string; role: string };
+
+/**
+ * 보는 사람이 볼 수 있는 폴더 주인 — 관리자는 관리자끼리 서로의 샘플(예전 그대로, 마커 샘플 포함), 일반 사용자는 자기 것만.
+ * 관리자도 일반 사용자의 영상은 안 본다(남의 투구 영상).
+ */
+async function ownerIds(viewer: LabViewer): Promise<string[]> {
+  if (viewer.role !== 'ADMIN') return [viewer.id];
   const ids = await adminIds();
-  const order = prefer && ids.includes(prefer) ? [prefer, ...ids.filter((x) => x !== prefer)] : ids;
+  return [viewer.id, ...ids.filter((x) => x !== viewer.id)];
+}
+
+/** 그 샘플이 든 폴더의 주인(보는 사람이 볼 수 있는 폴더 안에서) — 없으면 null. 자기 폴더를 먼저 본다 */
+export async function findLabOwner(id: string, viewer: LabViewer): Promise<string | null> {
+  const order = await ownerIds(viewer);
   for (const uid of order) {
     const { data, error } = await videoBucket().list(folder(uid, id), { limit: 1 });
     if (!error && (data ?? []).length > 0) return uid;
@@ -249,9 +261,9 @@ export async function findLabOwner(id: string, prefer?: string): Promise<string 
   return null;
 }
 
-/** 샘플 하나(결과 화면) — 어느 관리자 폴더에도 없거나 폴더가 비었으면 null */
-export async function loadLabSample(id: string, prefer?: string): Promise<LabSample | null> {
-  const owner = await findLabOwner(id, prefer);
+/** 샘플 하나(결과 화면) — 볼 수 있는 폴더에 없거나 폴더가 비었으면 null */
+export async function loadLabSample(id: string, viewer: LabViewer): Promise<LabSample | null> {
+  const owner = await findLabOwner(id, viewer);
   if (!owner) return null;
   const sample = await readSample(owner, id);
   if (!sample.meta && Object.keys(sample.videos).length === 0 && sample.extras.length === 0)
@@ -260,11 +272,11 @@ export async function loadLabSample(id: string, prefer?: string): Promise<LabSam
   return sample;
 }
 
-/** 모든 관리자의 샘플 — 최근 것부터. 재생 주소까지 붙인다 */
-export async function listLabSamples(): Promise<LabSample[]> {
+/** 보는 사람이 볼 수 있는 샘플(관리자는 모든 관리자 것, 일반 사용자는 자기 것) — 최근 것부터. 재생 주소까지 붙인다 */
+export async function listLabSamples(viewer: LabViewer): Promise<LabSample[]> {
   const bucket = videoBucket();
   const per = await Promise.all(
-    (await adminIds()).map(async (uid) => {
+    (await ownerIds(viewer)).map(async (uid) => {
       const { data: dirs, error } = await bucket.list(`${uid}/${LAB_DIR}`, { limit: 200 });
       if (error) throw new Error(error.message);
       /* 폴더는 id 가 없다 */

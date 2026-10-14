@@ -115,8 +115,8 @@ export function LabClient({
         <BackLink href="/videos">투구</BackLink>
         <PageHeading
           kicker="베타"
-          title="투구 분석"
-          description="옆 · 뒤 영상을 짝으로 올려 두면 3D 분석을 만들어 시험해요."
+          title="3D 동작 분석"
+          description="같은 공을 옆과 뒤에서 함께 찍어 올리면 몸의 움직임을 3D 로 보여 줘요."
         />
       </div>
       {/*
@@ -138,7 +138,7 @@ export function LabClient({
       {shown.length === 0 ? (
         <EmptyState
           icon={<Rotate3d />}
-          title="아직 올린 샘플이 없어요"
+          title="아직 올린 영상이 없어요"
           description="같은 공을 옆(3루 쪽)과 뒤(2루 쪽)에서 찍은 영상을 짝으로 올려 주세요."
         />
       ) : (
@@ -148,7 +148,7 @@ export function LabClient({
               key={s.id}
               sample={s}
               n={shown.length - i}
-              label={tab === 'marker' ? '마커 샘플' : '샘플'}
+              label={tab === 'marker' ? '마커 샘플' : '투구'}
             />
           ))}
         </div>
@@ -281,7 +281,7 @@ function UploadCard({ defaultHeightCm }: { defaultHeightCm: number | null }) {
   return (
     <Card className="space-y-4">
       <div className="space-y-1">
-        <p className="text-base font-semibold text-ink">샘플 올리기</p>
+        <p className="text-base font-semibold text-ink">영상 올리기</p>
         <p className="text-xs text-muted">
           영상 하나에 {LAB_MAX_VIDEO_MB}MB까지예요. 카메라는 1배(기본 렌즈)로 찍어 주세요. 분석이 1배로 계산해요.
         </p>

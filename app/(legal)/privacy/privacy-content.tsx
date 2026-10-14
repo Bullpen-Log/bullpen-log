@@ -15,7 +15,7 @@ export function PrivacyContent() {
     <article>
       <LegalHeading
         title="개인정보 처리방침"
-        updatedAt="2026년 10월 7일"
+        updatedAt="2026년 10월 14일"
         summary={
           <>
             Bullpen Log는 <strong>안전한 투구량을 계산하는 데 필요한 만큼만</strong>{' '}
@@ -100,6 +100,7 @@ export function PrivacyContent() {
           rows={[
             ['Vercel Inc.', '서비스 실행과 배포', '해외'],
             ['Supabase Inc.', '데이터베이스와 영상 저장', '해외'],
+            ['Modal Labs, Inc.', '3D 동작 분석(올린 투구 영상에서 몸 관절 찾기, 분석이 끝나면 그쪽에 남기지 않음)', '해외'],
           ]}
         />
         <p>
@@ -188,6 +189,10 @@ export function PrivacyContent() {
         <p>
           2026년 10월 7일: AI 기능을 없애면서 맡기는 곳에서 Anthropic PBC(리포트 문장 생성)를
           뺐습니다.
+        </p>
+        <p>
+          2026년 10월 14일: 3D 동작 분석을 열면서 맡기는 곳에 Modal Labs, Inc.(올린 투구 영상에서
+          몸 관절 찾기)를 더했습니다.
         </p>
       </Article>
 

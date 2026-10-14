@@ -150,10 +150,10 @@ export function LabDetail({
   return (
     <div className="stack-page">
       <div className="space-y-2">
-        <BackLink href="/videos/lab">투구 분석</BackLink>
+        <BackLink href="/videos/lab">3D 동작 분석</BackLink>
         <PageHeading
           title={
-            meta?.createdAt ? `${WHEN.format(new Date(meta.createdAt))} 샘플` : '샘플'
+            meta?.createdAt ? `${WHEN.format(new Date(meta.createdAt))} 투구` : '투구'
           }
           description={meta ? labMetaChips(meta).join(' · ') : undefined}
           action={<V2StatusBadge job={v2.job} now={now} />}
