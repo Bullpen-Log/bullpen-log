@@ -68,6 +68,7 @@ import type { RunExercise } from '@/lib/workout/run-exercises';
 import {
   asksReserve as asksReserveFor,
   finishLine,
+  isOptionalProgramExercise,
   setsNeeded,
   warmupLine,
 } from '@/lib/program/program';
@@ -552,7 +553,8 @@ export function SessionClient({
   /* 프로그램 날의 끝내기 한 줄 — 처방 세트 절반 · 아직 안 답한 '몇 개 더?'(설계 §13-9) */
   const programFinish = useMemo(() => {
     if (programDay == null) return null;
-    const slotted = list.filter((e) => e.programSlot);
+    /* 선택 운동(메디신볼 던지기)은 세지 않는다 — lib/program/advance.ts 와 같은 셈 */
+    const slotted = list.filter((e) => e.programSlot && !isOptionalProgramExercise(e));
     const planned = slotted.reduce((n, e) => n + (e.plannedSets ?? 0), 0);
     const logged = sets.filter((x) =>
       slotted.some((e) => e.id === x.exerciseId)
@@ -1174,6 +1176,21 @@ export function SessionClient({
             {ex.prescription}
             {ex.perSide && ' (좌우 각각)'}
           </p>
+        )}
+        {isOptionalProgramExercise(ex) && (
+          <div className="mt-1 flex items-center gap-2 text-xs text-muted">
+            <span className="shrink-0 rounded-full bg-ink/6 px-2 py-0.5 font-semibold text-ink">선택</span>
+            <span className="min-w-0 flex-1">메디신볼을 못 던지면 건너뛰어도 돼요</span>
+            {at < list.length - 1 && (
+              <button
+                type="button"
+                onClick={() => goTo(at + 1)}
+                className="min-h-9 shrink-0 rounded-full px-3 font-semibold text-sky"
+              >
+                건너뛰기
+              </button>
+            )}
+          </div>
         )}
         {ex.programSlot?.slot === 'bigLower' &&
           wUnit === 'kg' &&

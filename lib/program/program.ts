@@ -86,8 +86,26 @@ export const WEIGHTED_SLOTS: readonly SlotKind[] = [
   'singleLeg',
 ];
 
-/** 시작에 꼭 있어야 하는 장비(§1) — 모든 프로그램이 같다. 트랩바는 '바벨'에 들어간다(§13-21). */
-export const REQUIRED_EQUIPMENT: readonly string[] = ['바벨', '덤벨', '메디신볼'];
+/**
+ * 시작에 꼭 있어야 하는 장비(§1) — 모든 프로그램이 같다. 트랩바는 '바벨'에 들어간다(§13-21).
+ * 메디신볼은 2026-10-14 에 뺐다(김민 — 못 던지는 환경일 수 있다). 없으면 메디신볼 칸은 빠지고, 있어도 선택 운동이다(isOptionalProgramExercise).
+ */
+export const REQUIRED_EQUIPMENT: readonly string[] = ['바벨', '덤벨'];
+
+/**
+ * 선택 운동 — 메디신볼을 던지는 칸(메디신볼 · 회전 던지기)은 건너뛰어도 된다(2026-10-14 김민: 못 던지는 환경일 수 있다).
+ * 카드 · 운동 화면이 '선택'으로 적고, 세션을 마쳤다고 세는 세트(절반)에 넣지 않는다. 메디신볼이 없어 점프 · 돌리는 코어로 채운 칸은 그대로 센다.
+ */
+export function isOptionalProgramExercise(ex: {
+  programSlot?: { variant: VariantKey } | null;
+  equipment: readonly string[];
+}): boolean {
+  return (
+    ex.programSlot != null &&
+    (ex.programSlot.variant === 'medball' || ex.programSlot.variant === 'rotationalThrow') &&
+    ex.equipment.includes('메디신볼')
+  );
+}
 
 /** 기준 무게(TM) = 추정 최대 × 0.9 — 5/3/1 · 저거넛 원본 규칙 */
 export const TM_RATIO = 0.9;
@@ -251,7 +269,7 @@ export type ProgramDef = {
   inSeason?: InSeasonRole;
   /** 없으면 adult */
   audience?: ProgramAudience;
-  /** 시작에 꼭 있어야 하는 장비 — 없으면 REQUIRED_EQUIPMENT(바벨 · 덤벨 · 메디신볼) */
+  /** 시작에 꼭 있어야 하는 장비 — 없으면 REQUIRED_EQUIPMENT(바벨 · 덤벨) */
   required?: readonly string[];
 };
 

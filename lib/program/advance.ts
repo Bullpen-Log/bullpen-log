@@ -2,7 +2,7 @@ import 'server-only';
 import { appNow } from '@/lib/clock';
 import { prisma } from '@/lib/prisma';
 import { readFrozenPlan } from '@/lib/workout/session-plan';
-import { parseProgram, shouldAdvance } from '@/lib/program/program';
+import { isOptionalProgramExercise, parseProgram, shouldAdvance } from '@/lib/program/program';
 
 /**
  * 이 판으로 프로그램 일차를 넘긴다 — 넘겼으면 true.
@@ -27,7 +27,8 @@ export async function advanceProgramDay(sessionId: string): Promise<boolean> {
   });
   if (!row) return false;
 
-  const slotted = plan.exercises.filter((e) => e.programSlot);
+  /* 선택 운동(메디신볼 던지기)은 세지 않는다 — 건너뛰어도 세션을 마친 것으로 */
+  const slotted = plan.exercises.filter((e) => e.programSlot && !isOptionalProgramExercise(e));
   const plannedSets = slotted.reduce((n, e) => n + (e.plannedSets ?? 0), 0);
   const loggedSets = await prisma.userExerciseSet.count({
     where: { sessionId: session.id, exerciseId: { in: slotted.map((e) => e.id) } },

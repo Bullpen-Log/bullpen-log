@@ -21,6 +21,7 @@ import {
   decideToday,
   finishLine,
   inSeasonKind,
+  isOptionalProgramExercise,
   withKind,
   SESSION_KIND_LABELS,
   isLightWeek,
@@ -527,10 +528,21 @@ check('다 맞으면 시작', checkEligibility(base).ok);
     !rE.ok && rE.kind === 'ask' && rE.step === 'equipment'
   );
   const rM = checkEligibility({ ...base, ownedEquipment: ['바벨', '덤벨'] });
+  check('메디신볼 없음 → 시작(2026-10-14 필수 장비에서 뺌)', rM.ok);
+  const rD = checkEligibility({ ...base, ownedEquipment: ['바벨'] });
   check(
-    '메디신볼 없음 → 막힘, 조사',
-    !rM.ok && rM.kind === 'blocked' && rM.reason.startsWith('메디신볼이'),
-    !rM.ok && rM.kind === 'blocked' ? rM.reason : ''
+    '덤벨 없음 → 막힘, 조사',
+    !rD.ok && rD.kind === 'blocked' && rD.reason.startsWith('덤벨이'),
+    !rD.ok && rD.kind === 'blocked' ? rD.reason : ''
+  );
+  check(
+    '선택 운동 = 메디신볼로 던지는 칸만(맨몸 점프 · 돌리는 코어로 채운 칸 · 다른 칸은 아님)',
+    isOptionalProgramExercise({ programSlot: { variant: 'medball' }, equipment: ['메디신볼'] }) &&
+      isOptionalProgramExercise({ programSlot: { variant: 'rotationalThrow' }, equipment: ['메디신볼'] }) &&
+      !isOptionalProgramExercise({ programSlot: { variant: 'medball' }, equipment: ['맨몸'] }) &&
+      !isOptionalProgramExercise({ programSlot: { variant: 'rotationalThrow' }, equipment: ['맨몸'] }) &&
+      !isOptionalProgramExercise({ programSlot: { variant: 'jump' }, equipment: ['메디신볼'] }) &&
+      !isOptionalProgramExercise({ programSlot: null, equipment: ['메디신볼'] })
   );
 }
 
@@ -556,7 +568,7 @@ check('다 맞으면 시작', checkEligibility(base).ok);
   check('나이 모르면 고르기 화면은 막지 않음', profileBlock({ age: null, trainingLevel: '초급' }) === null && profileBlock({ audience: 'basics', age: null, trainingLevel: '입문' }) === null);
   const bplan = plan('basics-4w');
   check('기본기 마침: 다 건너뛰면 안 셈 · 6번 하면 셈', !basicsDoneEnough(bplan, 13, 12) && !basicsDoneEnough(bplan, 13, 7) && basicsDoneEnough(bplan, 13, 6) && basicsDoneEnough(bplan, 13, 0));
-  check('장비 막힘: 성인은 바벨 · 덤벨 · 메디신볼, 기본기는 없음', equipmentBlock(['맨몸'])?.reason.startsWith('바벨, 덤벨, 메디신볼이') === true && equipmentBlock(['맨몸'], []) === null);
+  check('장비 막힘: 성인은 바벨 · 덤벨, 기본기는 없음', equipmentBlock(['맨몸'])?.reason.startsWith('바벨, 덤벨이') === true && equipmentBlock(['맨몸'], []) === null);
 }
 
 /* ── 3) 운동 고정 ─────────────────────────────── */

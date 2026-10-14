@@ -41,6 +41,7 @@ import {
   dayPlan,
   decideToday,
   inSeasonKind,
+  isOptionalProgramExercise,
   lighterRx,
   painSlotsOf,
   parseProgram,
@@ -602,7 +603,8 @@ export async function buildProgramDay(
       view.dropped.push({
         slot,
         title: variantLabel(variant, audience),
-        reason: '할 수 있는 운동이 없어요',
+        /* 메디신볼은 필수 장비가 아니다(2026-10-14) — 없으면 그 칸만 빠진다 */
+        reason: variant === 'medball' && !owned.includes('메디신볼') ? '메디신볼이 없어 빼요' : '할 수 있는 운동이 없어요',
       });
       continue;
     }
@@ -784,6 +786,8 @@ export type ProgramCardProps = {
     substituteFor: string | null;
     /** 묶음 한 줄(바로 이어서) */
     contrast: string | null;
+    /** 선택 운동(메디신볼 던지기) — 건너뛰어도 된다 */
+    optional: boolean;
     first: boolean;
   }[];
   dropped: { title: string; reason: string }[];
@@ -834,6 +838,7 @@ export function programCardProps(
       warmup: r.warmup,
       substituteFor: r.substituteFor?.title ?? null,
       contrast: r.contrast,
+      optional: isOptionalProgramExercise({ programSlot: { variant: r.variant }, equipment: r.exercise.equipment }),
       first: r.suggestion != null && r.suggestion.kg == null,
     })),
     dropped: view.dropped.map((d) => ({ title: d.title, reason: d.reason })),
