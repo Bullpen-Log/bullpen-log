@@ -9,7 +9,7 @@ import { toDateKey } from '@/lib/pitch-stats';
 import { keyOfDbDate } from '@/lib/nutrition/days';
 import { Card, PageHeading } from '@/components/ui';
 import { Skeleton } from '@/components/fallback';
-import { dailyPitchCap, intensityRangeText, pitchRangeText } from '@/lib/report/plan';
+import { armStatusOf } from '@/lib/report/arm-status';
 import { loadHighlights } from '@/lib/report/highlights-load';
 import { GOOD_DAY_MIN, RATED_SESSION_TYPES } from '@/lib/pitch-satisfaction';
 import { PitchLogPanel } from './pitch-log-panel';
@@ -275,40 +275,17 @@ async function TodayBody({
       )}
 
       {/*
-        처음 온 사람에게 어디부터인지 알려준다 — 오늘 던져도 되는 양 + 바로 누르는 단추(first-day-card.tsx).
+        처음 온 사람에게 어디부터인지 알려준다 — 지금 팔 상태(위험 · 주의 · 안전) + 바로 누르는 단추(first-day-card.tsx).
 
         투구 기록이 하나도 없을 때만 낸다. 한 번이라도 남긴 사람에게는 잔소리가 되고, 매일 뜨는
-        안내는 곧 안 읽게 된다. 숫자는 투구 계획(lib/report/plan.ts)의 오늘 몫 그대로다 — 기록이
-        없으면 나이 한도의 절반에서 시작하고 아직 부하를 몰라 한 번 더 낮춘다.
-        투구 기록이 잠겨 있으면(첫 설정 전) 숫자 없이 설정으로 가는 단추 하나다 — 던지는 손 · 평소 투구량을
-        모르는 채 낸 숫자라 아직 믿을 것이 못 된다.
+        안내는 곧 안 읽게 된다. 예전엔 오늘 알맞은 투구('30~40구')를 냈다(2026-10-14 사용자: 몇 구를 던지라고 하지 말고
+        위험한지 안전한지만). 투구 기록이 잠겨 있으면(첫 설정 전) 상태 없이 설정으로 가는 단추 하나다.
       */}
       {!core.everLogged && (
         <FirstDayCard
           today={today}
           pitchLocked={pitchLocked}
-          range={
-            !plan.halted && plan.today?.throwing
-              ? pitchRangeText(plan.today) || null
-              : null
-          }
-          intensity={plan.today ? intensityRangeText(plan.today) : ''}
-          note={
-            /*
-             * 등판 날은 숫자가 '하루 한도'(성장기 · 나이 모름 — '95구 이하')거나 회복 중의 가벼운 범위다. '처음이라 절반쯤'은
-             * 맞지 않으니 계획의 까닭('하루 한도 95구는 넘기지 않아요' · '등판해도 이 양 안에서')을 그대로 쓴다(2판 P3 검토).
-             * 성인은 한도가 없어 숫자 자체가 없다(range null — 이 줄도 안 보인다).
-             */
-            plan.today?.outing === 'game' && plan.today.throwing
-              ? plan.today.reason
-              : plan.recovering
-                ? null
-                : facts.profile.age == null
-                  ? '처음이라 낮게 잡았어요. 생년월일을 넣으면 나이에 맞춰요.'
-                  : dailyPitchCap(facts.profile.age) == null
-                    ? '처음이라 낮게 잡았어요. 던진 기록이 쌓이면 내 양에 맞춰요.'
-                    : `만 ${facts.profile.age}세 하루 한도 ${dailyPitchCap(facts.profile.age)}구에서, 처음이라 절반쯤으로 잡았어요.`
-          }
+          status={armStatusOf(facts)}
         />
       )}
 

@@ -3,7 +3,6 @@ import type { requireUser } from '@/lib/dal';
 import { shiftDateKey, toDateKey } from '@/lib/pitch-stats';
 import { trainingLoad } from '@/lib/report/training-acwr';
 import { REVIEW_WEEKS, trainingReview } from '@/lib/report/training-review';
-import { ReportClient } from '@/app/(app)/coach/report-client';
 import { StatsOverview } from '@/app/(app)/coach/overview';
 import { TrainingReviewCards } from '@/app/(app)/coach/training-review';
 import { GoodDaysCard } from '@/app/(app)/coach/good-days';
@@ -62,8 +61,11 @@ export async function AnalysisView({
 /**
  * 부하와 추이 — 그날까지의 기록으로 셈한다.
  *
- * 투구: 부하 지수, 이번 주·마지막 투구·개인 최고 구속, 28일 추이, 기간별 기록.
- * 트레이닝: 운동 부하 지수와 4주 돌아보기(부위별 세트).
+ * 투구: 하이라이트 · 부하 지수 · 이번 주 · 마지막 투구 · 개인 최고 구속 · 잘 던진 날.
+ * 트레이닝: 하이라이트 · 운동 부하 지수 · 최근 4주.
+ *
+ * 2026-10-14 사용자 "너무 조잡해 · 중요한 내용만": 투구의 28일 추이(옆 그래프와 겹침) · 기간별 기록(투구량 · 강도 · 코멘트 ·
+ * 메모) · 지표 설명을 걷고, 트레이닝의 '투구와 운동' 격자를 최근 4주 카드의 두 숫자로 줄였다.
  */
 async function LoadView({
   user,
@@ -144,7 +146,6 @@ async function LoadView({
         <TrainingReviewCards review={review} weeks={REVIEW_WEEKS} />
       )}
       {tab === 'pitch' && goodDays && <GoodDaysCard result={goodDays} />}
-      {tab === 'pitch' && <ReportClient logs={serialized} today={asOf} />}
 
       <p className="pb-2 text-center text-[11px] leading-relaxed text-muted/60">
         부하 지수는 훈련량 관리를 돕는 참고 지표예요. 통증이 있다면 수치와 관계없이
