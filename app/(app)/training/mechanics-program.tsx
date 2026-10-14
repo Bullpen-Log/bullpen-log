@@ -67,7 +67,7 @@ export function MechanicsProgram({
         <Card className="space-y-2">
           <h2 className="text-heading text-lg text-ink">투구 메커니즘 향상 프로그램</h2>
           <p className="text-sm leading-relaxed break-keep text-ink/85">
-            수준을 하나 고르면 4주 동안 주 {PER_WEEK}번, 정해진 드릴 세 개씩 투구 차례대로 해요. 한 번에 15~20분이고,
+            수준을 하나 고르면 4주 동안 주 {PER_WEEK}번, 정해진 드릴 세 개씩(중급 · 고급은 네 개) 투구 차례대로 해요. 한 번에 15~25분이고,
             던지는 날 몸을 푼 뒤 캐치볼 전에 하면 알맞아요. 처음이면 입문부터 시작하세요.
           </p>
         </Card>
@@ -158,7 +158,7 @@ function SessionCard({
           {program.finishedToday ? '다음 세션' : '오늘의 세션'}
         </h2>
         <span className="text-xs text-muted">
-          {level.name} · {program.index + 1}번 세션 · 15~20분
+          {level.name} · {program.index + 1}번 세션 · {level.key === 'intermediate' || level.key === 'advanced' ? '20~25분' : '15~20분'}
         </span>
       </div>
       {program.finishedToday && (
