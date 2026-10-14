@@ -3,7 +3,7 @@ import 'server-only';
 import { appNow } from '@/lib/clock';
 import { prisma } from '@/lib/prisma';
 import { favoriteDrillIds } from '@/lib/favorites';
-import { visibleGuides } from '@/lib/library-cache';
+import { trainingGuides } from '@/lib/library-cache';
 import { createPlaybackUrls } from '@/lib/storage';
 import { shiftDateKey, toDateKey } from '@/lib/pitch-stats';
 import { dbDate, keyOfDbDate } from '@/lib/nutrition/days';
@@ -111,7 +111,7 @@ export async function loadMechanicsProgram(userId: string): Promise<{
   foldRead.catch(() => {});
   const [row, guides, favorites, logs, user, setup] = await Promise.all([
     prisma.mechanicsProgram.findUnique({ where: { userId } }),
-    visibleGuides(),
+    trainingGuides(),
     favoriteDrillIds(userId),
     prisma.userDrillLog.findMany({
       where: { userId, date: dbDate(todayKey), done: true },

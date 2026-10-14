@@ -5,7 +5,7 @@ import { Pencil, Star, Trash2, X } from '@/components/icon';
 import { deleteGuide, setGuideThumbnail } from '@/app/actions/content';
 import { toggleDrillFavorite } from '@/app/actions/favorite';
 import { FavoriteButton } from '@/components/favorite-button';
-import { MECHANICS_CATEGORIES } from '@/lib/categories';
+import { LATER_CATEGORY, MECHANICS_CATEGORIES } from '@/lib/categories';
 import { DRILL_EQUIPMENT, DRILL_STAGE_NAMES, FOCUS_POINTS } from '@/lib/exercise-meta';
 import { CategorySection } from '@/components/category-section';
 import { LibraryVideo } from '@/components/library-video';
@@ -359,6 +359,8 @@ export function MechanicsClient({
         <div className="space-y-4">
           {MECHANICS_CATEGORIES.map((category) => {
             const items = byCategory[category.name] ?? [];
+            /* '나중에 촬영'은 미뤄 둔 드릴이 있을 때만 — 빈 칸에 '첫 드릴을 등록해보세요'를 띄울 자리가 아니다 */
+            if (category.name === LATER_CATEGORY && items.length === 0) return null;
 
             return (
               <CategorySection
