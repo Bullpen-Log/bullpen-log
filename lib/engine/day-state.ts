@@ -526,7 +526,7 @@ function whyLines(s: Omit<DayState, 'why'>): string[] {
     out.push(
       commitments.program.done
         ? '근력 프로그램을 다 마쳤어요.'
-        : `근력 프로그램 ${commitments.program.nextDay}일차를 할 차례예요.`
+        : `근력 프로그램 ${commitments.program.nextDay}번 세션을 할 차례예요.`
     );
   }
   if (commitments.mechanics) {

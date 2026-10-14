@@ -687,9 +687,9 @@ export function programDef(id: string): ProgramDef | null {
   return PROGRAMS.find((p) => p.id === id) ?? null;
 }
 
-/** 카드 부제 — '12회 · 주 3번 · 4주' */
+/** 카드 부제 — '세션 12번 · 주 3번이면 4주'(세션은 몸 상태에 따라 당기거나 미룬다 — dayLabel) */
 export function planSubtitle(plan: ProgramPlan): string {
-  return `${plan.totalDays}회 · 주 ${plan.perWeek}번 · ${plan.totalWeeks}주`;
+  return `세션 ${plan.totalDays}번 · 주 ${plan.perWeek}번이면 ${plan.totalWeeks}주`;
 }
 
 export function weekOfDay(plan: ProgramPlan, day: number): number {
@@ -822,11 +822,14 @@ export function usedVariants(def: ProgramDef): VariantKey[] {
   return VARIANT_KEYS.filter((v) => used.has(v));
 }
 
+/*
+ * 이름표 — 'N번 세션'(2026-10-14 김민: 'N주차 · M일차' 대신 세션으로). 프로그램은 달력이 아니라 차례로 나아간다 — 마친 세션만큼 넘어가고,
+ * 막는 것은 '이틀 연달아'뿐이라(decideToday spacing) 몸 상태에 따라 당겨 하거나 미뤄 4주 앞뒤로 맞출 수 있다. 주차는 이름표에서 빼고
+ * 가벼운 주(lightWeeks) · 처방에만 쓴다(세션 차례로 셈 — weekOfDay).
+ */
 export function dayLabel(plan: ProgramPlan, day: number): string {
-  const week = weekOfDay(plan, day);
-  const inWeek = ((day - 1) % plan.perWeek) + 1;
   const label = dayPlan(plan, day).label;
-  return `${week}주차 · ${inWeek}일차${label ? ` · ${label}` : ''}`;
+  return `${day}번 세션${label ? ` · ${label}` : ''}`;
 }
 
 /** 세트만 바꾼 처방 — 본 세트 횟수 · 여유를 남은 세트로 다시 정한다(가볍게 · 운동 중 교체) */
@@ -1838,7 +1841,7 @@ export const CAUTION_TEXT: Record<CautionCode, string> = {
   lowerBudget: '어제가 하체 날이라 큰 하체는 가볍게 해요.',
   lighter: '오늘은 조금 가볍게 했어요.',
   restGap: '오래 쉬었어요. 무게를 낮춰 다시 시작해요.',
-  lightWeek: '가벼운 주예요. 무게가 낮은 게 맞아요.',
+  lightWeek: '가볍게 하는 세션이에요. 무게가 낮은 게 맞아요.',
 };
 
 /**
@@ -1934,8 +1937,8 @@ export function shouldAdvance(a: AdvanceInput): boolean {
 /* ─────────────────────────── 진행 · 끝(§13-13 · 15) ─────────────────────────── */
 
 /**
- * 끝내기 창의 한 줄(§13-9) — '16세트 중 7세트. 8세트를 하면 다음 일차로 가요'.
- * 넘었으면 '2일차를 마쳐요'.
+ * 끝내기 창의 한 줄(§13-9) — '16세트 중 7세트. 8세트를 하면 다음 세션으로 가요'.
+ * 넘었으면 '2번 세션을 마쳐요'.
  */
 export function finishLine(
   day: number,
@@ -1943,8 +1946,8 @@ export function finishLine(
   loggedSets: number
 ): string {
   const need = setsNeeded(plannedSets);
-  if (loggedSets >= need) return `${day}일차를 마쳐요`;
-  return `${plannedSets}세트 중 ${loggedSets}세트. ${need}세트를 하면 다음 일차로 가요`;
+  if (loggedSets >= need) return `${day}번 세션을 마쳐요`;
+  return `${plannedSets}세트 중 ${loggedSets}세트. ${need}세트를 하면 다음 세션으로 가요`;
 }
 
 /** 준비 세트 한 줄(§13-8) — 바벨 큰 운동만. 빈 봉 20kg 에서 60% · 80% 를 2.5kg 단위로. */

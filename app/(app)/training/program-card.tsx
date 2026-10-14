@@ -10,6 +10,7 @@ import { ErrorLine } from '@/components/error-line';
 import { SafeForm } from '@/components/safe-form';
 import { OpenCheckinButton } from '@/components/notice-bell';
 import { OFFLINE_MESSAGE, orOffline } from '@/lib/action-offline';
+import { withJosa } from '@/lib/korean';
 import {
   overrideProgramRest,
   programChoices,
@@ -75,9 +76,9 @@ export function ProgramCard({ props }: { props: ProgramCardProps }) {
       : p.kind === 'spacing'
         ? '어제 프로그램을 했어요. 하루 쉬고 이어 가요.'
         : p.kind === 'painWait'
-          ? `통증 기록이 있어 ${p.dayLabel}는 기다려요.`
+          ? `통증 기록이 있어 ${withJosa(p.dayLabel, '은/는')} 기다려요.`
           : p.kind === 'otherMode'
-            ? `${p.dayLabel}는 다음에 해요.`
+            ? `${withJosa(p.dayLabel, '은/는')} 다음에 해요.`
             : p.kind === 'needCheckin'
               ? '체크인을 남기면 오늘 몸 상태에 맞춰 정해요.'
               : null;
@@ -242,7 +243,7 @@ export function ProgramCard({ props }: { props: ProgramCardProps }) {
         open={confirm === 'skip'}
         onClose={() => setConfirm(null)}
         onConfirm={() => run(() => skipProgramDay({ day: p.day }))}
-        title={`${p.dayLabel}를 건너뛸까요?`}
+        title={`${withJosa(p.dayLabel, '을/를')} 건너뛸까요?`}
         detail={`건너뛴 날은 완료로 세지 않아요. 지금 완료 ${p.completed} · 건너뜀 ${p.skipped}.`}
         confirmLabel="건너뛰기"
         pending={pending}

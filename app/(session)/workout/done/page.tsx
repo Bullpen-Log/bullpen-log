@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { requireUser } from '@/lib/dal';
 import { readFrozenPlan } from '@/lib/workout/session-plan';
 import { dayLabel, isLightWeek, parseProgram, weekOfDay } from '@/lib/program/program';
+import { withJosa } from '@/lib/korean';
 import { summarizeSets, totalVolumeKg } from '@/lib/workout/summarize';
 import { priorBests } from '@/lib/workout/prior-bests';
 import { newRecord } from '@/lib/workout/bests';
@@ -152,7 +153,7 @@ export default async function WorkoutDonePage({
               ? '프로그램을 다 마쳤어요'
               : advanced
                 ? `${dayLabel(pp, tag.day)} 완료 · 다음 ${dayLabel(pp, tag.day + 1)}`
-                : `절반이 안 돼 ${dayLabel(pp, tag.day)}를 다시 해요`,
+                : `절반이 안 돼 ${withJosa(dayLabel(pp, tag.day), '을/를')} 다시 해요`,
           note: !advanced
             ? null
             : last

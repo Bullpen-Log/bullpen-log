@@ -102,16 +102,22 @@ const rxOf = (p: ProgramPlan, day: number, v: Parameters<typeof itemRx>[2]) =>
 const LEGACY = plan('offseason-strength-power');
 {
   /* 옛 프로그램 — 2026-10-07 바꾸기 전 함수로 찍어 둔 1~24일차와 같아야 한다 */
-  const fixture = JSON.parse(
-    readFileSync(new URL('./fixtures/legacy-program.json', import.meta.url), 'utf-8')
-  );
+  /* 이름표(label)는 견주지 않는다 — 2026-10-14 'N주차 · M일차' → 'N번 세션'으로 글만 바뀌었다. 지키는 것은 처방이다 */
+  const fixture = (
+    JSON.parse(
+      readFileSync(new URL('./fixtures/legacy-program.json', import.meta.url), 'utf-8')
+    ) as Record<string, unknown>[]
+  ).map((row) => {
+    const rest = { ...row };
+    delete rest.label;
+    return rest;
+  });
   const now = [];
   for (let d = 1; d <= LEGACY.totalDays; d++) {
     const p = dayPlan(LEGACY, d);
     now.push({
       day: d,
       week: weekOfDay(LEGACY, d),
-      label: dayLabel(LEGACY, d),
       contrast: p.items.some((x) => x.group),
       items: p.items.map((x) => ({
         slot: x.slot,
@@ -243,7 +249,7 @@ check(
   '주 2번 — 4주차(가벼운 주)는 7 · 8일차',
   weekOfDay(p531x2, 7) === 4 &&
     isLightWeek(p531x2, weekOfDay(p531x2, 8)) &&
-    dayLabel(p531x2, 3) === '2주차 · 1일차'
+    dayLabel(p531x2, 3) === '3번 세션'
 );
 check(
   '5/3/1 은 들기 전에 점프, 밀기 날은 메디신볼',
@@ -335,8 +341,8 @@ check(
   );
 }
 check(
-  '일차 이름에 날 이름',
-  dayLabel(texas, 2) === '1주차 · 2일차 · 가벼운 날',
+  '세션 이름에 날 이름 — 주차 · 일차 대신 N번 세션(2026-10-14)',
+  dayLabel(texas, 2) === '2번 세션 · 가벼운 날' && dayLabel(texas, 12).startsWith('12번 세션'),
   dayLabel(texas, 2)
 );
 check(
@@ -1328,10 +1334,10 @@ check(
 );
 check(
   '끝내기 줄(미만)',
-  finishLine(5, 16, 7) === '16세트 중 7세트. 8세트를 하면 다음 일차로 가요',
+  finishLine(5, 16, 7) === '16세트 중 7세트. 8세트를 하면 다음 세션으로 가요',
   finishLine(5, 16, 7)
 );
-check('끝내기 줄(넘음)', finishLine(5, 15, 8) === '5일차를 마쳐요');
+check('끝내기 줄(넘음)', finishLine(5, 15, 8) === '5번 세션을 마쳐요');
 check(
   '준비 세트 줄',
   warmupLine(95) === '빈 봉×8 → 57.5×5 → 75×3 · 적지 않아도 돼요',
