@@ -890,6 +890,9 @@ input[type='date']::-webkit-calendar-picker-indicator {
   --tab-dim: 20 30 50;
   --tab-bright: 1.08;
   --lens-ink: 20 30 50;
+  /* 아이콘 · 글자 — 고른 칸은 앱의 파랑(아이폰 탭 막대처럼), 나머지는 회색(2026-10-15 김민: 라이트에서 검은 아이콘이 안 어울림) */
+  --tab-on: var(--color-sky);
+  --tab-off: var(--color-muted);
   background:
     radial-gradient(140% 100% at 18% 0%, rgb(var(--tab-hi) / 0.5), transparent 55%),
     linear-gradient(180deg, rgb(var(--tab-hi) / 0.4), rgb(var(--tab-hi) / 0.08) 55%, rgb(var(--tab-dim) / 0.03)),
@@ -912,6 +915,8 @@ input[type='date']::-webkit-calendar-picker-indicator {
   --tab-dim: 0 0 0;
   --tab-bright: 0.35;
   --lens-ink: 255 255 255;
+  --tab-on: #fff;
+  --tab-off: rgb(255 255 255 / 0.62);
   background:
     radial-gradient(140% 100% at 18% 0%, rgb(var(--tab-hi) / 0.1), transparent 55%),
     linear-gradient(180deg, rgb(var(--tab-hi) / 0.09), rgb(var(--tab-hi) / 0.02) 55%, rgb(var(--tab-dim) / 0.05)),
@@ -931,6 +936,8 @@ input[type='date']::-webkit-calendar-picker-indicator {
   --tab-dim: 3 8 18;
   --tab-bright: 0.4;
   --lens-ink: 200 220 255;
+  --tab-on: var(--color-sky-strong);
+  --tab-off: rgb(200 220 255 / 0.6);
   background:
     radial-gradient(140% 100% at 18% 0%, rgb(var(--tab-hi) / 0.12), transparent 55%),
     linear-gradient(180deg, rgb(var(--tab-hi) / 0.1), rgb(var(--tab-hi) / 0.02) 55%, rgb(var(--tab-dim) / 0.06)),
@@ -941,6 +948,15 @@ input[type='date']::-webkit-calendar-picker-indicator {
     0 0 0 0.5px rgb(var(--tab-dim) / 0.35),
     0 16px 40px -12px rgb(var(--tab-dim) / 0.6),
     0 2px 6px rgb(var(--tab-dim) / 0.2);
+}
+
+/* 탭의 색 — 고른 칸(aria-current) · 열린 더보기(aria-expanded)는 --tab-on, 나머지는 --tab-off. 잠긴 탭의 흐림은 그대로 */
+[data-tab-bar] > [data-tab-href] {
+  color: var(--tab-off, var(--tab-fg));
+}
+[data-tab-bar] > [data-tab-href][aria-current='page'],
+[data-tab-bar] > [data-tab-href][aria-expanded='true'] {
+  color: var(--tab-on, var(--tab-fg));
 }
 
 [data-tab-lens] {
