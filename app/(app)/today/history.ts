@@ -19,7 +19,17 @@ import { loadVelocityByDate } from '@/lib/velocity-load';
  * 그날 칸이 투구 · 운동 말고도 영양 · 컨디션 · 리포트까지 한 번에 보여 주므로 모두 하루 한 줄로 줄여 같이 읽는다 —
  * 날짜를 누를 때마다 받아 오면 칸을 옮길 때마다 기다린다.
  */
-export async function loadPitchHistory(user: { id: string }) {
+export async function loadPitchHistory(
+  user: { id: string },
+  options?: {
+    /**
+     * 체중(weightByDay)을 읽나 — 기본은 읽는다. 체중은 분석 · 그래프 화면(/coach)의 체중 그래프만 쓰고 홈 캘린더는 안 써서,
+     * 홈은 false 로 영양 탭 체중 조회를 건너뛴다(그때 weightByDay 는 빈 표).
+     */
+    weights?: boolean;
+  }
+) {
+  const withWeights = options?.weights ?? true;
   const now = appNow();
   /*
    * 달의 1일로 맞춘다. 그냥 13개월을 빼면 시작점이 달 중간이 되어 그 달은 절반만 읽히는데, 화면은 '읽은 달'로
@@ -69,17 +79,23 @@ export async function loadPitchHistory(user: { id: string }) {
       },
     }),
     /* 영양 탭에 적은 체중 — 그래프의 체중 */
-    prisma.dailyNutrition.findMany({
-      where: { userId: user.id, date: { gte: initialFrom }, weightKg: { not: null } },
-      select: { date: true, weightKg: true },
-    }),
+    withWeights
+      ? prisma.dailyNutrition.findMany({
+          where: {
+            userId: user.id,
+            date: { gte: initialFrom },
+            weightKg: { not: null },
+          },
+          select: { date: true, weightKg: true },
+        })
+      : Promise.resolve([]),
     /* 카메라로 잰 공 — 그날 칸의 투구 · 영상 아이콘(공 수 · 최고 · 영상 수) */
     loadVelocityByDate(user.id, initialFrom),
   ]);
 
   /* 체중 — 체크인에 적은 것 위에 영양 탭에 적은 것을 덮는다(영양 탭과 같은 차례) */
   const weightByDay: Record<string, number> = {};
-  for (const c of checkins) {
+  for (const c of withWeights ? checkins : []) {
     if (c.bodyWeightKg != null) weightByDay[toDateKey(c.date)] = c.bodyWeightKg;
   }
   for (const d of dailyWeights) {

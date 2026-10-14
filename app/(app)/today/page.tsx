@@ -1,16 +1,15 @@
 import { appNow } from '@/lib/clock';
-import { Suspense, cache } from 'react';
+import { Suspense } from 'react';
 import { redirect } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
 import { requireUser } from '@/lib/dal';
 import { featureLocks } from '@/lib/feature-locks';
-import { loadTodayCore } from '@/lib/report/today-data';
+import { loadTodayCoreCached } from '@/lib/report/today-data';
 import { toDateKey } from '@/lib/pitch-stats';
 import { keyOfDbDate } from '@/lib/nutrition/days';
 import { Card, PageHeading } from '@/components/ui';
 import { Skeleton } from '@/components/fallback';
 import { armStatusOf } from '@/lib/report/arm-status';
-import { loadHighlights } from '@/lib/report/highlights-load';
 import { GOOD_DAY_MIN, RATED_SESSION_TYPES } from '@/lib/pitch-satisfaction';
 import { PitchLogPanel } from './pitch-log-panel';
 import { TodayRings } from './today-rings';
@@ -40,10 +39,9 @@ function now() {
 type User = Awaited<ReturnType<typeof requireUser>>;
 
 /*
- * 오늘 자료(투구 계획 · 부하 · 오늘 일정) — 링 밑 한 줄과 아래 하이라이트가 같이 쓴다. 무거운 계산이라 한 요청 안에서는
- * 한 번만 돈다(React cache — 같은 user 객체면 처음 것을 돌려준다. user 는 레이아웃이 읽어 둔 그 객체다).
+ * 오늘 자료(투구 계획 · 부하 · 오늘 일정)는 위 요약 칸(feed.tsx)과 캘린더 밑 카드가 같이 쓴다 — 무거운 계산이라 한 요청 안에서는
+ * 한 번만 돈다(lib/report/today-data.ts 의 loadTodayCoreCached, 같은 user 객체면 처음 것을 돌려준다).
  */
-const homeCore = cache((user: User) => loadTodayCore(user, now()));
 
 /** 기다리는 동안의 자리 — 카드 한 장 모양(하이라이트는 2026-10-13 위 요약 칸으로 옮겨 밑에는 조건부 카드만 남는다) */
 function TodaySkeleton() {
@@ -145,7 +143,8 @@ async function PitchLogSection({
   initialDate: string | null;
 }) {
   const [h, events] = await Promise.all([
-    loadPitchHistory(user),
+    /* 체중은 홈 캘린더가 안 쓴다(분석 화면 그래프만) — 그 조회를 건너뛴다 */
+    loadPitchHistory(user, { weights: false }),
     /*
      * 일정 — 사람마다 많지 않아 전부 읽는다(지난 달 · 앞 달을 넘겨도 바로 보이게).
      * 관리자는 다른 관리자의 일정도 함께 본다(읽기만 — 고치기 · 알림은 제 것만).
@@ -198,15 +197,17 @@ async function TodayBody({
   /** 투구 기록이 잠겨 있다(첫 설정 전) — 첫날 카드가 숫자 대신 설정으로 가는 단추를 낸다 */
   pitchLocked: boolean;
 }) {
-  /* 하이라이트는 위 요약 칸(feed.tsx)이 보인다 — 여기서는 마지막 기록 날만 쓴다(lib/report/highlights-load.ts 가 같이 준다) */
-  const core = await homeCore(user);
-  const [{ lastLogDate }, goodDay] = await Promise.all([
-    loadHighlights(
-      user.id,
-      today,
-      { zone: core.facts.load.zone, ratio: core.facts.load.ratio },
-      'home'
-    ),
+  /*
+   * 셋 다 서로 기다리지 않는다. 하이라이트는 위 요약 칸(feed.tsx)이 보이고, 여기서는 마지막 기록 날만 쓴다 — 예전엔 그 하나를 얻으려고
+   * 하이라이트 재료(조회 다섯)를 통째로 읽었다. 그중 이 날을 낸 조회(lib/report/highlights-load.ts 의 lastLog — 쉬는 날 포함 가장 최근 줄)만 그대로 묻는다.
+   */
+  const [core, lastLog, goodDay] = await Promise.all([
+    loadTodayCoreCached(user),
+    prisma.pitchLog.findFirst({
+      where: { userId: user.id },
+      orderBy: { date: 'desc' },
+      select: { date: true },
+    }),
     /* 만족도가 높았던 날의 메모 — 5점 먼저, 같은 점수면 최근 것(good-day-note.tsx) */
     prisma.pitchLog.findFirst({
       where: {
@@ -236,7 +237,7 @@ async function TodayBody({
       facts.condition.throwPlanToday,
       facts.condition.throwPlanYesterday
     ) != null;
-  const loggedToday = lastLogDate === today;
+  const loggedToday = lastLog != null && toDateKey(lastLog.date) === today;
   const goodNote =
     goodDay?.memo && goodDay.satisfaction != null && throwsToday && !loggedToday
       ? { ...goodDay, memo: goodDay.memo, satisfaction: goodDay.satisfaction }

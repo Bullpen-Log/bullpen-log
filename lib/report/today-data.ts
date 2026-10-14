@@ -1,4 +1,6 @@
 import 'server-only';
+import { cache } from 'react';
+import { appNow } from '@/lib/clock';
 import { prisma } from '@/lib/prisma';
 import { pickWorkoutKind } from '@/lib/checkin';
 import { toDateKey } from '@/lib/pitch-stats';
@@ -55,6 +57,14 @@ export type UserForToday = {
   ownedEquipment: string[];
 };
 
+/**
+ * 한 요청 안에서 loadTodayCore 를 한 번만 — 홈의 요약 칸(feed.tsx)과 캘린더 밑 카드(page.tsx)가 같이 부른다. 예전에는 두 파일이
+ * 저마다 cache 를 만들어 홈을 열 때마다 이 무거운 셈이 두 번 돌았다. 같은 user 객체(레이아웃이 읽어 둔 것, lib/dal.ts)면 처음 것을 돌려준다.
+ */
+export const loadTodayCoreCached = cache((user: UserForToday) =>
+  loadTodayCore(user, appNow())
+);
+
 export async function loadTodayCore(user: UserForToday, today: Date) {
   const todayKey = toDateKey(today);
   const midnight = new Date(`${todayKey}T00:00:00.000Z`);
@@ -68,19 +78,28 @@ export async function loadTodayCore(user: UserForToday, today: Date) {
    */
   await closeAbandonedSessions(user.id, today);
 
-  const { facts, plan, state, hasLogs } = await gatherFactsAndPlan(user, today);
   /*
-   * 한 번이라도 투구를 남긴 적이 있나 — hasLogs 는 최근 45일 안만 봐서, 시즌을 쉬다 돌아온 사람에게도 홈의 '여기부터
-   * 시작하세요'(처음 온 사람 안내)가 떴다. 최근 기록이 있으면 묻지 않는다.
+   * 닫은 뒤의 조회는 서로 기다리지 않는다 — facts 를 쓰는 것은 아래 계산뿐이라, 투구 계획 · 기록 유무 · 오늘 자료를 한꺼번에
+   * 읽는다(예전에는 셋을 차례로 기다려 홈 · 트레이닝을 열 때마다 왕복이 셋 쌓였다).
    */
-  const everLogged =
-    hasLogs ||
-    (await prisma.pitchLog.findFirst({
+  const [
+    { facts, plan, state, hasLogs },
+    anyLog,
+    library,
+    doneLogs,
+    todaySetup,
+    armcareToday,
+    myRoutines,
+  ] = await Promise.all([
+    gatherFactsAndPlan(user, today),
+    /*
+     * 한 번이라도 투구를 남긴 적이 있나 — hasLogs 는 최근 45일 안만 봐서, 시즌을 쉬다 돌아온 사람에게도 홈의 '여기부터
+     * 시작하세요'(처음 온 사람 안내)가 떴다. 기다리지 않으려고 같이 묻고, 최근 기록이 있으면 아래에서 이 답은 안 본다.
+     */
+    prisma.pitchLog.findFirst({
       where: { userId: user.id },
       select: { id: true },
-    })) !== null;
-
-  const [library, doneLogs, todaySetup, armcareToday, myRoutines] = await Promise.all([
+    }),
     /*
      * 거르는 데 필요한 항목만 가져온다.
      *
@@ -130,6 +149,7 @@ export async function loadTodayCore(user: UserForToday, today: Date) {
       select: { items: true },
     }),
   ]);
+  const everLogged = hasLogs || anyLog !== null;
 
   /*
    * 만들어 둔 일정을 읽기만 한다. 화면을 열 때 새로 만들지 않는다.

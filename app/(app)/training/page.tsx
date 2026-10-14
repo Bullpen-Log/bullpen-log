@@ -14,6 +14,7 @@ import { planPrescription } from '@/lib/report/volume';
 import { planReasonLines } from '@/lib/report/daily-plan';
 import { pickReasonLineOf } from '@/lib/report/score';
 import { loadTodayCore } from '@/lib/report/today-data';
+import { toDateKey } from '@/lib/pitch-stats';
 import { TRAINING_SCREEN_TEXT, trainingScreenOf } from '@/lib/report/training-screen';
 import { remakeFieldsOf, stateNoticeOf } from '@/lib/report/state-notice';
 import { programDayText } from '@/lib/engine/arbiter';
@@ -259,13 +260,17 @@ export default async function TrainingPage({
     );
   }
 
-  const core = await loadTodayCore(user, today);
-  const { savedPlan, picked, doneIds, shownPicks, droppedForSafety } = core;
-
-  const [trainingNote, favExercises, todaySession] = await Promise.all([
+  /*
+   * 오늘 자료와 오늘 메모 · 별 · 오늘 판을 같이 읽는다 — 셋은 오늘 자료를 기다릴 까닭이 없다(예전엔 차례로 기다렸다).
+   * midnight 는 loadTodayCore 의 core.midnight 와 같은 값이다. 지난 판 닫기(loadTodayCore 첫머리)는 지난 날짜의 판만 건드려
+   * 오늘 판 · 메모 · 별과 겹치지 않는다. 프로그램 줄은 그 닫기가 바꿀 수 있어(lib/program/advance.ts) 아래에서 오늘 자료 뒤에 읽는다.
+   */
+  const midnight = new Date(`${toDateKey(today)}T00:00:00.000Z`);
+  const [core, trainingNote, favExercises, todaySession] = await Promise.all([
+    loadTodayCore(user, today),
     /* 오늘 운동이 어땠는지 — 하루에 하나. 목록 아래에 적는다. */
     prisma.dailyTrainingNote.findUnique({
-      where: { userId_date: { userId: user.id, date: core.midnight } },
+      where: { userId_date: { userId: user.id, date: midnight } },
       select: { intensity: true, memo: true },
     }),
     /* 별을 달아 둔 것 — 목록에 표시하고, 고르는 창에서 위로 올린다 */
@@ -278,20 +283,24 @@ export default async function TrainingPage({
      * 마치고 돌아와도 처음처럼 [운동 시작]이 떠 있었다.
      */
     prisma.trainingSession.findUnique({
-      where: { userId_date: { userId: user.id, date: core.midnight } },
+      where: { userId_date: { userId: user.id, date: midnight } },
       select: { id: true, status: true, plan: true, activeSeconds: true },
     }),
   ]);
+  const { savedPlan, picked, doneIds, shownPicks, droppedForSafety } = core;
   /*
    * 근력 · 파워 프로그램(lib/program) — 진행 중이면 맨 위 카드, 끝난 지 사흘 안이면 결과 카드, 아니면 입구 한 줄(설계 §13-1).
    * 카드의 목록 · 무게는 운동 시작(app/actions/program.ts)이 얼리는 것과 같은 함수에서 나온다.
    */
   const programRow = PROGRAMS_ENABLED ? await activeProgram(user.id) : null;
-  const [programView, doneProgram] = await Promise.all([
+  /* 기본기 4주를 마쳤나(아래 basicsDone) — 진행 중인 줄이 없으면 programView 가 늘 없으니 미리 같이 묻는다 */
+  const asksBasics = PROGRAMS_ENABLED && user.trainingLevel === '입문';
+  const [programView, doneProgram, basicsEarly] = await Promise.all([
     programRow ? buildProgramDay(core, programRow, user) : Promise.resolve(null),
     PROGRAMS_ENABLED && !programRow
       ? recentlyDoneProgram(user.id, today)
       : Promise.resolve(null),
+    asksBasics && !programRow ? hasFinishedBasics(user.id) : Promise.resolve(null),
   ]);
   const programCard = programView ? programCardProps(programView, core.library) : null;
   const doneResult = doneProgram
@@ -300,8 +309,8 @@ export default async function TrainingPage({
   const programAge = user.birthDate ? ageFromBirthDate(user.birthDate, today) : null;
   /* 성인 입문만 — 기본기 4주를 마쳤으면 성인 프로그램이 열린다(program.ts 의 profileBlock) */
   const basicsDone =
-    PROGRAMS_ENABLED && !programView && user.trainingLevel === '입문'
-      ? await hasFinishedBasics(user.id)
+    asksBasics && !programView
+      ? (basicsEarly ?? (await hasFinishedBasics(user.id)))
       : false;
   const knownProfile = {
     age: programAge,

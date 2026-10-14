@@ -131,6 +131,12 @@ export async function gatherFactsAndPlan(
 ) {
   const since = new Date(today);
   since.setDate(since.getDate() - LOOKBACK_DAYS);
+  /*
+   * 그 UTC 날짜의 0시로 맞춘다 — 지금 시각(밀리초까지)을 품은 채 넘기면 부를 때마다 recentRecords 의 열쇠가 달라 cache 가 안 먹었다.
+   * 네 표의 date 칸은 모두 @db.Date 라 Prisma 가 견줄 때 시각을 버리고 날짜만 보므로(2026-10-15 운영 DB 에서 읽기만 해 확인)
+   * 읽히는 줄은 예전과 같다.
+   */
+  since.setUTCHours(0, 0, 0, 0);
   const todayKey = toDateKey(today);
 
   /*
