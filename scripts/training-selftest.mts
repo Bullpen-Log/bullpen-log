@@ -32447,6 +32447,199 @@ console.log(
       oldCheckin[4].tone === 'past' &&
       oldCheckin[4].text === '최근 14일 중 1일 운동했어요.'
   );
+
+  /* ═══ 후보(variants) — 장마다 보여줄 수 있는 말 여럿, 자료 있는 것만(2026-10-14 2판) ═══ */
+  const ids = (it: FeedItem) => it.variants.map((v) => v.id);
+  const sameAsFirst = (it: FeedItem) => {
+    const v = it.variants[0];
+    return (
+      v != null &&
+      v.text === it.text &&
+      v.sub === it.sub &&
+      v.speed === it.speed &&
+      v.diff === it.diff &&
+      !!v.warn === !!it.warn &&
+      v.chart === it.chart
+    );
+  };
+  check(
+    '홈 요약 (후보) 모든 장에 후보가 하나 이상, [0] 은 장의 글과 같다 — 빈 계정은 장마다 딱 하나(기록 없음)',
+    empty.every(
+      (i) => i.variants.length === 1 && i.variants[0].id === 'base' && sameAsFirst(i)
+    ) &&
+      full.every((i) => i.variants.length >= 1 && sameAsFirst(i)) &&
+      past.every((i) => sameAsFirst(i))
+  );
+  check(
+    '홈 요약 (후보 · 다 있음) 투구량 · 구속 · 운동 · 영양에 후보 3개 이상 · 컨디션 2개 이상, 후보 id 는 겹치지 않는다',
+    [full[0], full[1], full[4], full[5]].every((i) => i.variants.length >= 3) &&
+      full[3].variants.length >= 2 &&
+      full.every((i) => new Set(ids(i)).size === i.variants.length)
+  );
+  check(
+    '홈 요약 (후보 · 투구량) 이번 주 75구 vs 지난 주 50구 → "이번 주 +50%", 4주 최다 10월 2일 50구 · 던진 날 3일, 연속 1일은 후보 아님',
+    full[0].variants.find((v) => v.id === 'week-vs-last')?.text === '이번 주 +50%' &&
+      full[0].variants.find((v) => v.id === 'month-max')?.text ===
+        '4주 최다 10월 2일 · 50구' &&
+      full[0].variants.find((v) => v.id === 'month-max')?.sub ===
+        '던진 날 3일 · 하루 평균 42구' &&
+      !ids(full[0]).includes('streak')
+  );
+  const wk = buildFeedItems({
+    ...base(),
+    pitchesByDay: {
+      [T]: 40,
+      '2026-10-13': 30,
+      '2026-10-12': 20,
+      '2026-10-05': 60,
+      '2026-10-04': 40,
+    },
+    lastLogDate: T,
+    lastOutingAdjusted: 52,
+  });
+  check(
+    '홈 요약 (후보 · 투구량) 이번 주 90구 · 지난 주 100구 → "이번 주 −10%", 3일 연속 · 마지막 휴식 10월 11일, 전력 환산 52구',
+    wk[0].variants.find((v) => v.id === 'week-vs-last')?.text === '이번 주 −10%' &&
+      wk[0].variants.find((v) => v.id === 'week-vs-last')?.sub ===
+        '이번 주 90구 · 지난 주 100구' &&
+      wk[0].variants.find((v) => v.id === 'streak')?.text === '3일 연속 던졌어요' &&
+      wk[0].variants.find((v) => v.id === 'streak')?.sub === '마지막 휴식 10월 11일' &&
+      wk[0].variants.find((v) => v.id === 'adjusted')?.text === '전력 환산 52구'
+  );
+  const vel = buildFeedItems({
+    ...base(),
+    velocityByDay: { [T]: 131, '2026-10-06': 129.5, '2026-09-10': 127.5 },
+    bestBefore: 133,
+    bestBeforeDate: '2026-08-20',
+    pitchesByDay: { [T]: 10 },
+    lastLogDate: T,
+  });
+  check(
+    '홈 요약 (후보 · 구속) 4주 전(9월 10일 주) 127.5 → 이번 주 131 "4주 전보다 +{diff}" 3.5, 역대 최고 133 · 8월 20일, 3번 재고 평균 129.3, 130 넘긴 날 1일',
+    vel[1].variants.find((v) => v.id === 'trend')?.text === '4주 전보다 +{diff}' &&
+      vel[1].variants.find((v) => v.id === 'trend')?.diff === 3.5 &&
+      vel[1].variants.find((v) => v.id === 'best-day')?.speed === 133 &&
+      vel[1].variants.find((v) => v.id === 'best-day')?.sub === '8월 20일에 세웠어요' &&
+      vel[1].variants.find((v) => v.id === 'measured')?.sub ===
+        '날 최고의 평균 129.3km/h' &&
+      vel[1].variants.find((v) => v.id === 'over-130')?.text === '130 넘긴 날 1일'
+  );
+  const ld = buildFeedItems({
+    ...base(),
+    load: { zone: 'optimal', ratio: 1.0 },
+    acuteChronic: { acute: 120, chronic: 120 },
+    missingDays: 9,
+    pitchesByDay: { [T]: 10 },
+    lastLogDate: T,
+  });
+  check(
+    '홈 요약 (후보 · 부하) 주 120구 · 평소 120구, 적정 상한(1.3)까지 +30%, 28일 중 9일 빈 날 안내 — 위험 구간(1.6)은 여유 후보 없음',
+    ld[2].variants.find((v) => v.id === 'acute-chronic')?.text ===
+      '주 120구 · 평소 120구' &&
+      ld[2].variants.find((v) => v.id === 'room')?.text === '적정 상한까지 +30%' &&
+      ld[2].variants.find((v) => v.id === 'missing')?.text ===
+        '28일 중 9일 기록이 없어요' &&
+      !ids(hl[2]).includes('room')
+  );
+  const cond = buildFeedItems({
+    ...base(),
+    conditionByDay: { [T]: 7, '2026-10-13': 9, '2026-10-12': 5, '2026-10-11': 6 },
+    checkinDays: [T, '2026-10-13', '2026-10-12', '2026-10-11', '2026-10-02'],
+    sleepByDay: { [T]: 2, '2026-10-13': 4, '2026-10-12': 5 },
+  });
+  check(
+    '홈 요약 (후보 · 컨디션) 이번 주 최고 9(화) · 최저 5(월), 어젯밤 뒤척임 · 잘 잔 날 2일 · 셋째 줄 "가장 센 운동은 빼요", 이번 달 체크인 5일',
+    cond[3].variants.find((v) => v.id === 'week-hi-lo')?.text ===
+      '이번 주 최고 9(화) · 최저 5(월)' &&
+      cond[3].variants.find((v) => v.id === 'sleep')?.text === '어젯밤 뒤척임' &&
+      cond[3].variants.find((v) => v.id === 'sleep')?.sub === '7일 중 잘 잔 날 2일' &&
+      cond[3].variants.find((v) => v.id === 'sleep')?.detail ===
+        '오늘 가장 센 운동은 빼요' &&
+      cond[3].variants.find((v) => v.id === 'month-checkins')?.text ===
+        '이번 달 체크인 5일' &&
+      !ids(full[3]).includes('sleep')
+  );
+  const painy = buildFeedItems({
+    ...base(),
+    conditionByDay: { [T]: 6 },
+    checkinDays: [T],
+    painRecentParts: ['어깨', '팔꿈치'],
+  });
+  const painHl = buildFeedItems({
+    ...base(),
+    conditionByDay: { [T]: 6 },
+    checkinDays: [T],
+    painToday: true,
+    highlights: [
+      {
+        key: 'condition',
+        warn: true,
+        label: '컨디션',
+        text: '컨디션이 사흘째 낮아요.',
+        href: '/coach',
+        chart: null,
+      },
+    ],
+  });
+  check(
+    '홈 요약 (후보 · 통증) 통증은 맨 앞이고 장의 글도 그것 — "최근 7일 통증 · 어깨 · 팔꿈치" 경고색, 하이라이트가 있으면 하이라이트 → 통증 → 기본',
+    painy[3].variants[0].id === 'pain-recent' &&
+      painy[3].text === '최근 7일 통증 · 어깨 · 팔꿈치' &&
+      painy[3].warn === true &&
+      painy[3].variants[1].id === 'base' &&
+      painHl[3].variants[0].id === 'highlight' &&
+      painHl[3].text === '컨디션이 사흘째 낮아요.' &&
+      painHl[3].variants[1].id === 'pain-today' &&
+      painHl[3].variants[2].id === 'base'
+  );
+  const wo = buildFeedItems({
+    ...base(),
+    workoutDays: [T, '2026-10-13', '2026-10-12', '2026-10-06'],
+    workout: {
+      label: '근력 · 시즌 중',
+      minutes: 45,
+      done: 1,
+      total: 5,
+      goal: null,
+      programDay: 7,
+      leftMinutes: 32,
+    },
+  });
+  check(
+    '홈 요약 (후보 · 운동) 프로그램 7번 세션, 남은 운동 4개 · 약 32분, 3일 연속, 이번 주 3일 · 지난 주 1일; 오늘 없음 fixture 는 "마지막 운동 10월 12일"',
+    wo[4].variants.find((v) => v.id === 'program')?.text ===
+      '근력 · 시즌 중 7번 세션' &&
+      wo[4].variants.find((v) => v.id === 'left')?.text === '남은 운동 4개' &&
+      wo[4].variants.find((v) => v.id === 'left')?.sub === '약 32분' &&
+      wo[4].variants.find((v) => v.id === 'streak')?.text === '3일 연속 운동했어요' &&
+      wo[4].variants.find((v) => v.id === 'week-vs-last')?.text ===
+        '이번 주 3일 · 지난 주 1일' &&
+      past[4].variants.find((v) => v.id === 'last')?.text === '마지막 운동 10월 12일'
+  );
+  check(
+    '홈 요약 (후보 · 영양) 오늘 600kcal 남음, 단백질 90g / 130g · 40g 더, 7일 평균 2,000kcal · 목표의 83%, 3끼',
+    full[5].variants.find((v) => v.id === 'left-kcal')?.text ===
+      '오늘 600kcal 남았어요' &&
+      full[5].variants.find((v) => v.id === 'protein')?.text === '단백질 90g / 130g' &&
+      full[5].variants.find((v) => v.id === 'protein')?.sub === '40g 더 먹어요' &&
+      full[5].variants.find((v) => v.id === 'week-avg')?.sub ===
+        '목표의 83% · 5일 기록' &&
+      full[5].variants.find((v) => v.id === 'meals')?.text === '오늘 3끼 적었어요' &&
+      !ids(past[5]).includes('left-kcal')
+  );
+  const tooLong = [full, wk, vel, ld, cond, painy, wo]
+    .flat()
+    .flatMap((i) => i.variants)
+    .filter((v) => v.id !== 'base' && v.id !== 'highlight')
+    .filter(
+      (v) =>
+        v.text.length > 22 || (v.sub?.length ?? 0) > 26 || (v.detail?.length ?? 0) > 28
+    )
+    .map((v) => `${v.id}:${v.text}`);
+  check(
+    `홈 요약 (후보 · 글 길이 — 기본 글 빼고) 큰 글 ≤ 22자 · 밑줄 ≤ 26자 · 셋째 줄 ≤ 28자 — 넘친 것: ${tooLong.join(', ') || '없음'}`,
+    tooLong.length === 0
+  );
 }
 
 console.log(`\n${passed}개 통과, ${failed}개 실패`);

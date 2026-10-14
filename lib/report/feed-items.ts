@@ -1,5 +1,6 @@
 import { shiftDateKey } from '@/lib/pitch-stats';
-import { ACWR_ZONES, type AcwrZone } from '@/lib/pitch-stats';
+import { ACWR_TARGET_MAX, ACWR_ZONES, type AcwrZone } from '@/lib/pitch-stats';
+import { SLEEP_QUALITY_LEVELS } from '@/lib/checkin';
 import type { Highlight, HighlightChart } from '@/lib/report/highlights';
 
 /**
@@ -14,6 +15,23 @@ import type { Highlight, HighlightChart } from '@/lib/report/highlights';
  */
 
 export type FeedTone = 'today' | 'past' | 'none';
+
+/**
+ * 한 장이 보여줄 수 있는 말 하나(2026-10-14 사용자: "그 파트에서 보여줄 만한 유용한 정보를 랜덤하게, 보여줄 수 있는 것만").
+ * 장은 variants 를 여럿 갖고 화면(feed-card.tsx)이 세 장 지날 때마다 다음 것을 고른다. variants[0] 은 장의 기본 글이자
+ * 첫 라운드(하이라이트 · 통증이 있으면 그것이 맨 앞 — 안전 먼저).
+ */
+export type FeedVariant = {
+  id: string;
+  text: string;
+  sub?: string;
+  /** 셋째 줄(작고 흐림) — 정보 한 줄 더 */
+  detail?: string;
+  speed?: number;
+  diff?: number;
+  warn?: boolean;
+  chart?: HighlightChart | null;
+};
 
 export type FeedItem = {
   key: 'pitches' | 'velocity' | 'load' | 'condition' | 'workout' | 'nutrition';
@@ -35,6 +53,8 @@ export type FeedItem = {
   /** 이름표 옆 아이콘(components/nav-icons.tsx 의 열쇠) */
   icon: 'baseball' | 'gauge' | 'shield' | 'dumbbell' | 'utensils';
   tone: FeedTone;
+  /** 보여줄 수 있는 말들 — [0] 은 위 text · sub · … 와 같다. 기록 없음 장은 하나뿐 */
+  variants: FeedVariant[];
 };
 
 export type FeedInput = {
@@ -163,10 +183,11 @@ export function buildFeedItems(input: FeedInput): FeedItem[] {
     checkin: checkin || undefined,
     chart: null,
     tone: 'none',
+    variants: [],
   });
 
   /* ── 1. 투구량 ── */
-  const weekBars: HighlightChart = {
+  const weekBars: Ctx['weekBars'] = {
     kind: 'bars',
     values: [3, 2, 1, 0].map((w) =>
       days(today, -6 - 7 * w, -7 * w).reduce((n, k) => n + (pitchesByDay[k] ?? 0), 0)
@@ -187,6 +208,7 @@ export function buildFeedItems(input: FeedInput): FeedItem[] {
       href: `/pitch-log/${today}`,
       chart: weekBars,
       tone: 'today',
+      variants: [],
     };
   } else if (lastPitchDay) {
     pitches = {
@@ -198,13 +220,14 @@ export function buildFeedItems(input: FeedInput): FeedItem[] {
       href: `${ANALYSIS}?view=pitch`,
       chart: weekBars,
       tone: 'past',
+      variants: [],
     };
   } else {
     pitches = none('pitches', '투구량', 'baseball', `/pitch-log/${today}`);
   }
 
   /* ── 2. 구속 ── */
-  const velocityLine: HighlightChart = {
+  const velocityLine: Ctx['velocityLine'] = {
     kind: 'line',
     values: [5, 4, 3, 2, 1, 0].map((w) =>
       maxOf(days(today, -6 - 7 * w, -7 * w).map((k) => velocityByDay[k]))
@@ -233,6 +256,7 @@ export function buildFeedItems(input: FeedInput): FeedItem[] {
       href: ANALYSIS,
       chart: velocityLine,
       tone: 'today',
+      variants: [],
     };
     /* 역대 최고는 문장에 {speed} 가 하나뿐이라 숫자로 적는다(단위는 화면이 붙인다 — sub 는 단위 자리가 없어 km/h 그대로) */
     velocity.sub =
@@ -250,6 +274,7 @@ export function buildFeedItems(input: FeedInput): FeedItem[] {
       href: ANALYSIS,
       chart: velocityLine,
       tone: 'past',
+      variants: [],
     };
   } else if (input.bestBefore != null) {
     velocity = {
@@ -261,6 +286,7 @@ export function buildFeedItems(input: FeedInput): FeedItem[] {
       href: ANALYSIS,
       chart: null,
       tone: 'past',
+      variants: [],
     };
   } else {
     velocity = none('velocity', '구속', 'baseball', `/pitch-log/${today}`);
@@ -280,6 +306,7 @@ export function buildFeedItems(input: FeedInput): FeedItem[] {
       warn: z.tone === 'warn' || z.tone === 'bad',
       chart: null,
       tone: (pitchesByDay[today] ?? 0) > 0 ? 'today' : 'past',
+      variants: [],
     };
   } else {
     loadItem = {
@@ -321,6 +348,7 @@ export function buildFeedItems(input: FeedInput): FeedItem[] {
       checkin: true,
       chart: weekDots,
       tone: 'today',
+      variants: [],
     };
   } else if (weekCond.length > 0 || input.checkinDays.length > 0) {
     const avg = weekCond.length
@@ -337,6 +365,7 @@ export function buildFeedItems(input: FeedInput): FeedItem[] {
       checkin: true,
       chart: weekDots,
       tone: 'past',
+      variants: [],
     };
   } else {
     condition = none('condition', '컨디션', 'shield', null, true);
@@ -366,6 +395,7 @@ export function buildFeedItems(input: FeedInput): FeedItem[] {
       href: '/training',
       chart: workDots,
       tone: 'today',
+      variants: [],
     };
   } else if (twoWeeks > 0) {
     workout = {
@@ -377,6 +407,7 @@ export function buildFeedItems(input: FeedInput): FeedItem[] {
       href: '/training',
       chart: workDots,
       tone: 'past',
+      variants: [],
     };
   } else {
     workout = none('workout', '운동', 'dumbbell', '/training');
@@ -399,6 +430,7 @@ export function buildFeedItems(input: FeedInput): FeedItem[] {
       href: '/nutrition',
       chart: null,
       tone: 'today',
+      variants: [],
     };
   } else if (n.week) {
     const pct =
@@ -415,11 +447,22 @@ export function buildFeedItems(input: FeedInput): FeedItem[] {
       href: '/nutrition',
       chart: null,
       tone: 'past',
+      variants: [],
     };
   } else {
     nutrition = none('nutrition', '영양', 'utensils', '/nutrition');
   }
 
+  const ctx: Ctx = {
+    week,
+    weekBars,
+    monthPitches,
+    velocityLine,
+    bestEver,
+    weekDots,
+    workDots,
+    worked,
+  };
   const items: FeedItem[] = [
     pitches,
     velocity,
@@ -447,6 +490,369 @@ export function buildFeedItems(input: FeedInput): FeedItem[] {
       it.checkin = undefined;
     }
     if (it.tone === 'none') it.tone = 'past';
+    it.variants = [baseVariant(it, 'highlight')];
+  }
+
+  /* 후보 — 자료가 있는 것만. 기본 글(지금 fields)이 [0](하이라이트가 있으면 그 뒤), 통증은 맨 앞 */
+  for (const it of items) {
+    const base = baseVariant(it, 'base');
+    const more = it.tone === 'none' ? [] : extraVariants(it.key, input, ctx);
+    const pain =
+      it.key === 'condition' && it.tone !== 'none' ? painVariant(input) : null;
+    const list = [...it.variants, base, ...more];
+    if (pain) {
+      list.splice(it.variants.length ? 1 : 0, 0, pain);
+      /* 통증이 첫 라운드 — 장의 글도 그것으로 */
+      if (!it.variants.length)
+        Object.assign(it, {
+          text: pain.text,
+          sub: pain.sub,
+          warn: pain.warn,
+          chart: pain.chart,
+        });
+    }
+    it.variants = list;
   }
   return items;
+}
+
+function baseVariant(it: FeedItem, id: string): FeedVariant {
+  return {
+    id,
+    text: it.text,
+    sub: it.sub,
+    speed: it.speed,
+    diff: it.diff,
+    warn: it.warn,
+    chart: it.chart,
+  };
+}
+
+/** 장 밖에서도 쓰는 셈 — buildFeedItems 안에서 만든 것들 */
+type Ctx = {
+  week: string[];
+  weekBars: { kind: 'bars'; values: number[] };
+  monthPitches: number;
+  velocityLine: { kind: 'line'; values: (number | null)[]; minSpan: number };
+  bestEver: number | null;
+  weekDots: HighlightChart;
+  workDots: HighlightChart;
+  worked: Set<string>;
+};
+
+const fmt = (n: number) => Math.round(n).toLocaleString('ko-KR');
+const WEEKDAY = ['일', '월', '화', '수', '목', '금', '토'];
+function weekday(key: string) {
+  const [y, m, d] = key.split('-').map(Number);
+  return WEEKDAY[new Date(Date.UTC(y, m - 1, d)).getUTCDay()];
+}
+
+/** 오늘 아프거나, 오늘을 뺀 최근 7일에 통증이 있었으면 — 안전이라 첫 라운드 */
+function painVariant(input: FeedInput): FeedVariant | null {
+  if (input.painToday)
+    return {
+      id: 'pain-today',
+      text: '오늘 통증이 있어요',
+      sub: '무거운 운동은 빼고, 아픈 날은 던지지 않아요',
+      warn: true,
+      chart: null,
+    };
+  if (input.painRecentParts.length)
+    return {
+      id: 'pain-recent',
+      text: `최근 7일 통증 · ${input.painRecentParts.join(' · ')}`,
+      sub: '그 부위 무거운 운동은 며칠 빼요',
+      detail: '오늘 괜찮아도 체크인에 남기면 일정이 맞춰요',
+      warn: true,
+      chart: null,
+    };
+  return null;
+}
+
+function extraVariants(key: FeedItem['key'], input: FeedInput, c: Ctx): FeedVariant[] {
+  const { today, pitchesByDay, velocityByDay, conditionByDay } = input;
+  const out: FeedVariant[] = [];
+  const push = (v: FeedVariant | null | false | undefined) => {
+    if (v) out.push(v);
+  };
+
+  if (key === 'pitches') {
+    const thisWeek = c.weekBars.values[3];
+    const lastWeek = c.weekBars.values[2];
+    if (lastWeek > 0 && thisWeek > 0) {
+      const pct = Math.round(((thisWeek - lastWeek) / lastWeek) * 100);
+      push({
+        id: 'week-vs-last',
+        text:
+          pct === 0
+            ? '이번 주, 지난 주와 같아요'
+            : `이번 주 ${pct > 0 ? '+' : '−'}${Math.abs(pct)}%`,
+        sub: `이번 주 ${thisWeek}구 · 지난 주 ${lastWeek}구`,
+        detail: `최근 4주 ${c.monthPitches}구`,
+        chart: c.weekBars,
+      });
+    }
+    const month = days(today, -27, 0).filter((k) => (pitchesByDay[k] ?? 0) > 0);
+    if (month.length >= 2) {
+      const top = month.reduce((a, b) => (pitchesByDay[b] > pitchesByDay[a] ? b : a));
+      push({
+        id: 'month-max',
+        text: `4주 최다 ${monthDay(top)} · ${pitchesByDay[top]}구`,
+        sub: `던진 날 ${month.length}일 · 하루 평균 ${Math.round(c.monthPitches / month.length)}구`,
+        chart: c.weekBars,
+      });
+    }
+    const streak = runBack(today, (k) => (pitchesByDay[k] ?? 0) > 0);
+    let lastRest: string | null = null;
+    for (let i = 0; i <= 41; i++) {
+      const k = shiftDateKey(today, -i);
+      if ((pitchesByDay[k] ?? 0) === 0) {
+        lastRest = k;
+        break;
+      }
+    }
+    if (streak >= 2)
+      push({
+        id: 'streak',
+        text: `${streak}일 연속 던졌어요`,
+        sub: lastRest ? `마지막 휴식 ${monthDay(lastRest)}` : undefined,
+        detail: streak >= 4 ? '쉬는 날을 하루 넣어 보세요' : undefined,
+        warn: streak >= 5,
+        chart: c.weekBars,
+      });
+    if (input.lastOutingAdjusted != null && input.lastOutingAdjusted > 0)
+      push({
+        id: 'adjusted',
+        text: `전력 환산 ${Math.round(input.lastOutingAdjusted)}구`,
+        sub: '마지막 등판을 경기 강도로 바꾼 값',
+        detail: '휴식 일수는 이 값으로 정해요',
+        chart: c.weekBars,
+      });
+  }
+
+  if (key === 'velocity') {
+    const line = c.velocityLine.values;
+    const firstIdx = line.findIndex((v) => v != null);
+    const lastIdx = line.length - 1 - [...line].reverse().findIndex((v) => v != null);
+    if (firstIdx >= 0 && lastIdx - firstIdx >= 2) {
+      const d = round1(line[lastIdx]! - line[firstIdx]!);
+      push({
+        id: 'trend',
+        text:
+          d === 0
+            ? `${lastIdx - firstIdx}주 전과 같아요`
+            : `${lastIdx - firstIdx}주 전보다 ${d > 0 ? '+' : '−'}{diff}`,
+        diff: Math.abs(d),
+        sub: '주 최고 구속끼리 견줌',
+        chart: c.velocityLine,
+      });
+    }
+    if (input.bestBefore != null && input.bestBeforeDate)
+      push({
+        id: 'best-day',
+        text: '역대 최고 {speed}',
+        speed: c.bestEver ?? input.bestBefore,
+        sub:
+          c.bestEver != null && c.bestEver > input.bestBefore
+            ? '최근 이레 안에 세웠어요'
+            : `${monthDay(input.bestBeforeDate)}에 세웠어요`,
+        chart: c.velocityLine,
+      });
+    const measured = Object.keys(velocityByDay);
+    if (measured.length >= 2) {
+      const avg = round1(
+        measured.reduce((a, k) => a + velocityByDay[k], 0) / measured.length
+      );
+      push({
+        id: 'measured',
+        text: `6주 동안 ${measured.length}번 쟀어요`,
+        sub: `날 최고의 평균 ${avg}km/h`,
+        chart: c.velocityLine,
+      });
+    }
+    const over = measured.filter((k) => velocityByDay[k] >= 130).length;
+    if (over > 0)
+      push({
+        id: 'over-130',
+        text: `130 넘긴 날 ${over}일`,
+        sub: '최근 6주',
+        chart: c.velocityLine,
+      });
+  }
+
+  if (key === 'load') {
+    const ac = input.acuteChronic;
+    if (ac && ac.chronic > 0)
+      push({
+        id: 'acute-chronic',
+        text: `주 ${fmt(ac.acute)}구 · 평소 ${fmt(ac.chronic)}구`,
+        sub: '최근 7일 · 28일 평균(주당 환산)',
+        detail: '둘의 비율이 부하 지수예요',
+        chart: null,
+      });
+    if (
+      input.load.ratio != null &&
+      input.load.ratio > 0 &&
+      input.load.ratio < ACWR_TARGET_MAX
+    ) {
+      const room = Math.round(
+        ((ACWR_TARGET_MAX - input.load.ratio) / input.load.ratio) * 100
+      );
+      push({
+        id: 'room',
+        text: `적정 상한까지 +${room}%`,
+        sub: `지수 ${input.load.ratio.toFixed(2)} → ${ACWR_TARGET_MAX}`,
+        detail: '이 안에서 늘리면 몸이 따라와요',
+        chart: null,
+      });
+    }
+    if (input.missingDays >= 7)
+      push({
+        id: 'missing',
+        text: `28일 중 ${input.missingDays}일 기록이 없어요`,
+        sub: '빈 날은 0구로 쳐서 지수가 낮게 나와요',
+        chart: null,
+      });
+  }
+
+  if (key === 'condition') {
+    const scored = c.week.filter((k) => conditionByDay[k] != null);
+    if (scored.length >= 3) {
+      const hi = scored.reduce((a, b) =>
+        conditionByDay[b] > conditionByDay[a] ? b : a
+      );
+      const lo = scored.reduce((a, b) =>
+        conditionByDay[b] < conditionByDay[a] ? b : a
+      );
+      push({
+        id: 'week-hi-lo',
+        text: `이번 주 최고 ${conditionByDay[hi]}(${weekday(hi)}) · 최저 ${conditionByDay[lo]}(${weekday(lo)})`,
+        sub: `${scored.length}일 적었어요`,
+        chart: c.weekDots,
+      });
+    }
+    const sleepToday = input.sleepByDay[today];
+    const sleptWell = c.week.filter((k) => (input.sleepByDay[k] ?? 0) >= 4).length;
+    const sleptAny = c.week.filter((k) => input.sleepByDay[k] != null).length;
+    if (sleepToday != null || sleptAny >= 3)
+      push({
+        id: 'sleep',
+        text:
+          sleepToday != null
+            ? `어젯밤 ${SLEEP_QUALITY_LEVELS[sleepToday - 1] ?? '보통'}`
+            : `7일 중 잘 잔 날 ${sleptWell}일`,
+        sub:
+          sleepToday != null
+            ? `7일 중 잘 잔 날 ${sleptWell}일`
+            : `${sleptAny}일 적었어요`,
+        detail:
+          sleepToday != null && sleepToday <= 2
+            ? '오늘 가장 센 운동은 빼요'
+            : undefined,
+        chart: c.weekDots,
+      });
+    const monthStart = today.slice(0, 8) + '01';
+    const thisMonth = input.checkinDays.filter(
+      (k) => k >= monthStart && k <= today
+    ).length;
+    if (thisMonth >= 2)
+      push({
+        id: 'month-checkins',
+        text: `이번 달 체크인 ${thisMonth}일`,
+        sub: `${Number(today.slice(8, 10))}일 중`,
+        chart: c.weekDots,
+      });
+  }
+
+  if (key === 'workout') {
+    const w = input.workout;
+    if (w && w.programDay != null)
+      push({
+        id: 'program',
+        text: `${w.label} ${w.programDay}번 세션`,
+        sub: w.goal ?? undefined,
+        chart: c.workDots,
+      });
+    if (w && w.total > 0 && w.done < w.total)
+      push({
+        id: 'left',
+        text: `남은 운동 ${w.total - w.done}개`,
+        sub: w.leftMinutes > 0 ? `약 ${w.leftMinutes}분` : undefined,
+        chart: c.workDots,
+      });
+    const streak = runBack(c.worked.has(today) ? today : shiftDateKey(today, -1), (k) =>
+      c.worked.has(k)
+    );
+    const lastWork = [...input.workoutDays].sort().at(-1) ?? null;
+    if (streak >= 2)
+      push({
+        id: 'streak',
+        text: `${streak}일 연속 운동했어요`,
+        sub: '최근 14일 기준',
+        chart: c.workDots,
+      });
+    else if (lastWork && lastWork !== today)
+      push({
+        id: 'last',
+        text: `마지막 운동 ${monthDay(lastWork)}`,
+        sub: `최근 14일 중 ${input.workoutDays.length}일`,
+        chart: c.workDots,
+      });
+    const thisWeek = c.week.filter((k) => c.worked.has(k)).length;
+    const lastWeek = days(today, -13, -7).filter((k) => c.worked.has(k)).length;
+    if (thisWeek + lastWeek >= 2)
+      push({
+        id: 'week-vs-last',
+        text: `이번 주 ${thisWeek}일 · 지난 주 ${lastWeek}일`,
+        sub: '운동한 날',
+        chart: c.workDots,
+      });
+  }
+
+  if (key === 'nutrition') {
+    const n = input.nutrition;
+    if (n.todayKcal > 0 && n.targetKcal > 0) {
+      const left = n.targetKcal - n.todayKcal;
+      push({
+        id: 'left-kcal',
+        text:
+          left > 0
+            ? `오늘 ${fmt(left)}kcal 남았어요`
+            : `목표보다 ${fmt(-left)}kcal 더 먹었어요`,
+        sub: `먹은 ${fmt(n.todayKcal)} · 목표 ${fmt(n.targetKcal)}`,
+        chart: null,
+      });
+    }
+    if (n.todayKcal > 0 && n.targetProtein > 0)
+      push({
+        id: 'protein',
+        text: `단백질 ${fmt(n.protein)}g / ${fmt(n.targetProtein)}g`,
+        sub:
+          n.protein >= n.targetProtein
+            ? '오늘 목표를 채웠어요'
+            : `${fmt(n.targetProtein - n.protein)}g 더 먹어요`,
+        chart: null,
+      });
+    if (n.week && n.todayKcal > 0) {
+      const pct =
+        n.targetKcal > 0 ? Math.round((n.week.avgKcal / n.targetKcal) * 100) : null;
+      push({
+        id: 'week-avg',
+        text: `최근 7일 평균 ${fmt(n.week.avgKcal)}kcal`,
+        sub:
+          pct != null
+            ? `목표의 ${pct}% · ${n.week.days}일 기록`
+            : `${n.week.days}일 기록`,
+        chart: null,
+      });
+    }
+    if (n.mealsToday > 0)
+      push({
+        id: 'meals',
+        text: `오늘 ${n.mealsToday}끼 적었어요`,
+        sub: n.todayKcal > 0 ? `${fmt(n.todayKcal)}kcal` : undefined,
+        chart: null,
+      });
+  }
+  return out;
 }
