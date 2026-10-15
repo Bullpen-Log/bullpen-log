@@ -31,7 +31,6 @@ import {
   Loader2,
   RotateCcw,
   Settings2,
-  Square,
   Trash2,
   X,
 } from 'lucide-react';
@@ -2399,15 +2398,11 @@ export function VelocityScreen({
    */
   const waitShutter = (
     <div className="flex flex-col items-center">
-      <button
-        type="button"
+      <Shutter
         onClick={() => setStep('type')}
         disabled={step !== 'home' || fileBusy}
-        aria-label="측정 시작"
-        className="group flex h-[4.75rem] w-[4.75rem] items-center justify-center rounded-full border-4 border-white/90 transition-opacity disabled:opacity-35"
-      >
-        <span className="h-16 w-16 rounded-full bg-white transition-transform group-active:scale-90" />
-      </button>
+        label="측정 시작"
+      />
       <span className={`${SIDE_LABEL} transition-opacity ${step === 'home' ? '' : 'opacity-35'}`}>
         측정 시작
       </span>
@@ -3631,8 +3626,7 @@ export function VelocityScreen({
                     </span>
                   </div>
                   <div className="flex flex-col items-center">
-                    <button
-                      type="button"
+                    <Shutter
                       onClick={
                         recording
                           ? () => void stopRecording()
@@ -3645,26 +3639,19 @@ export function VelocityScreen({
                         rec?.phase === 'starting' ||
                         rec?.phase === 'stopping'
                       }
-                      aria-label={
+                      label={
                         recording ? '녹화 멈춤' : cameraOn ? '녹화 시작' : '카메라 켜기'
                       }
-                      className="group flex h-[4.75rem] w-[4.75rem] items-center justify-center rounded-full border-4 border-white/90 disabled:opacity-60"
-                    >
-                      {rec?.phase === 'starting' || rec?.phase === 'stopping' ? (
-                        <Loader2
-                          aria-hidden
-                          className="h-7 w-7 animate-spin text-white"
-                        />
-                      ) : recording ? (
-                        <span className="h-8 w-8 rounded-lg bg-red-500 transition-transform group-active:scale-90" />
-                      ) : cameraOn ? (
-                        <span className="h-16 w-16 rounded-full bg-red-500 transition-transform group-active:scale-90" />
-                      ) : (
-                        <span className="flex h-16 w-16 items-center justify-center rounded-full bg-white text-black">
-                          <Camera aria-hidden className="h-6 w-6" />
-                        </span>
-                      )}
-                    </button>
+                      state={
+                        rec?.phase === 'starting' || rec?.phase === 'stopping'
+                          ? 'busy'
+                          : recording
+                            ? 'stop'
+                            : cameraOn
+                              ? 'ready'
+                              : 'off'
+                      }
+                    />
                     <span className={SIDE_LABEL}>
                       {rec?.phase === 'stopping'
                         ? '남은 조각 올리는 중'
@@ -3712,21 +3699,12 @@ export function VelocityScreen({
                     )}
                   </div>
                   <div className="flex flex-col items-center">
-                    <button
-                      type="button"
+                    <Shutter
                       onClick={cameraOn ? startSession : startCamera}
                       disabled={status === 'starting' || fileBusy}
-                      aria-label={cameraOn ? '측정 시작' : '카메라 켜기'}
-                      className="group flex h-[4.75rem] w-[4.75rem] items-center justify-center rounded-full border-4 border-white/90 disabled:opacity-40"
-                    >
-                      <span className="flex h-16 w-16 items-center justify-center rounded-full bg-white text-black transition-transform group-active:scale-90">
-                        {status === 'starting' ? (
-                          <Loader2 aria-hidden className="h-6 w-6 animate-spin" />
-                        ) : cameraOn ? null : (
-                          <Camera aria-hidden className="h-6 w-6" />
-                        )}
-                      </span>
-                    </button>
+                      label={cameraOn ? '측정 시작' : '카메라 켜기'}
+                      state={status === 'starting' ? 'busy' : cameraOn ? 'ready' : 'off'}
+                    />
                     <span className={SIDE_LABEL}>
                       {cameraOn ? '측정 시작' : '카메라 켜기'}
                     </span>
@@ -3768,16 +3746,7 @@ export function VelocityScreen({
                     <span className={SIDE_LABEL}>초점</span>
                   </div>
                   <div className="flex flex-col items-center">
-                    <button
-                      type="button"
-                      onClick={endSession}
-                      aria-label="세션 종료"
-                      className="group flex h-[4.75rem] w-[4.75rem] items-center justify-center rounded-full border-4 border-white/90"
-                    >
-                      <span className="flex h-16 w-16 items-center justify-center rounded-full bg-danger text-white transition-transform group-active:scale-90">
-                        <Square aria-hidden className="h-6 w-6 fill-current" />
-                      </span>
-                    </button>
+                    <Shutter onClick={endSession} label="세션 종료" state="stop" />
                     <span className={SIDE_LABEL}>
                       세션 종료{pitches.length ? ` · ${pitches.length}구` : ''}
                     </span>
@@ -4192,6 +4161,45 @@ export function VelocityScreen({
  * 지난 설정으로 바로 시작할까 — 카메라 위 안내창. 저장된 설정을 그림 칸으로 보이고, 카드 밑 [새 설정 | 이 설정으로 시작].
  * 사용자 요청: "전에 사용한 설정을 바로 사용할 수 있도록 하고 하단에 새 설정".
  */
+/**
+ * 셔터 — 아이폰 동영상 녹화 단추처럼 흰 고리 안 빨간 원(2026-10-15 김민: "기본 사진 버튼 느낌 말고 빨간색, 테두리까지 고품질로").
+ * 측정 중(세션 · 녹화)에는 빨간 원이 둥근 네모로 줄어든다(멈춤). 켜는 중은 도는 표시, 카메라가 꺼져 있으면 카메라 그림.
+ */
+function Shutter({
+  onClick,
+  disabled,
+  label,
+  state = 'ready',
+}: {
+  onClick: () => void;
+  disabled?: boolean;
+  label: string;
+  state?: 'ready' | 'stop' | 'busy' | 'off';
+}) {
+  const stop = state === 'stop';
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      aria-label={label}
+      className="group relative flex h-[4.75rem] w-[4.75rem] items-center justify-center rounded-full border-[3.5px] border-white bg-black/20 shadow-[0_4px_18px_rgba(0,0,0,0.45),inset_0_0_0_1px_rgba(0,0,0,0.25)] transition-opacity disabled:opacity-35"
+    >
+      <span
+        className={`flex items-center justify-center bg-[radial-gradient(circle_at_50%_30%,#ff7a6e_0%,#ff3b30_52%,#d9201a_100%)] text-white shadow-[inset_0_1px_1.5px_rgba(255,255,255,0.45),inset_0_-2px_5px_rgba(120,0,0,0.35),0_1px_3px_rgba(0,0,0,0.35)] transition-[width,height,border-radius,scale] duration-300 ease-[cubic-bezier(0.2,0.9,0.3,1)] group-active:scale-90 ${
+          stop ? 'h-7 w-7 rounded-[0.55rem]' : 'h-[3.75rem] w-[3.75rem] rounded-full'
+        }`}
+      >
+        {state === 'busy' ? (
+          <Loader2 aria-hidden className="h-6 w-6 animate-spin" />
+        ) : state === 'off' ? (
+          <Camera aria-hidden className="h-6 w-6" />
+        ) : null}
+      </span>
+    </button>
+  );
+}
+
 function PreviousSetupCard({
   setup,
   onFresh,
