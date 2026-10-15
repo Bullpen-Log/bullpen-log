@@ -2538,11 +2538,13 @@ function MobileTopBar({
    * 하위 화면('‹ 뒤로'가 있는 곳)은 그대로. 시계 자리 칠과 그만큼의 빈칸은 남긴다.
    */
   /*
-   * 2026-10-15 판 넘기기(components/tab-pager.tsx): 막대는 네 탭 모두에 — 예전엔 투구 · 트레이닝 · 영양에서 막대를 안 그려(bare)
-   * 탭마다 제목 높이가 달랐다(사용자 "각 탭의 메인 제목 높이가 안 맞는다"). 가운데는 홈이면 로고, 아니면 작은 제목.
+   * 2026-10-15 저녁 4cce94dd 가 이것을 걷어 네 탭 모두에 막대(가운데 작은 제목 · 오른쪽 종)를 그렸는데, 김민: "트레이닝 · 영양 위에 가운데
+   * 제목 · 오른쪽 알림이 떠 비율이 이상하다 — 싹 지우고 원래대로". 그래서 되살렸다. 탭마다 제목 높이는 판(tab-pager)의 위 여백으로 맞춘다
+   * (globals.css [data-panel][data-bare]).
    */
+  const bare = !back && ['/videos', '/nutrition', '/training'].includes(pathname);
   /* 숨기기는 첫 화면들만 — '‹ 뒤로'가 있는 화면은 돌아갈 길을 늘 보인다. 알림 창이 열려 있으면 안 숨긴다 */
-  const hidden = useBarHidden(!back && panel == null);
+  const hidden = useBarHidden(!back && !bare && panel == null);
 
   return (
     <>
@@ -2566,7 +2568,7 @@ function MobileTopBar({
       <div
         aria-hidden
         data-top-veil
-        data-short={hidden ? '' : undefined}
+        data-short={bare || hidden ? '' : undefined}
         className="pointer-events-none fixed inset-x-0 top-0 z-39 desk:hidden pad:left-(--rail)"
       >
         {/* 흐림 세 겹 — 위로 갈수록 겹이 늘어 점점 흐려진다(globals.css 'top-veil' — 한 선을 넘는 순간 확 흐려지지 않게) */}
@@ -2583,9 +2585,9 @@ function MobileTopBar({
       <div
         aria-hidden
         data-bar-spacer
-        className="h-[calc(env(safe-area-inset-top)+3.5rem)] shrink-0 desk:hidden"
+        className={`shrink-0 desk:hidden ${bare ? 'h-[env(safe-area-inset-top)]' : 'h-[calc(env(safe-area-inset-top)+3.5rem)]'}`}
       />
-      {
+      {!bare && (
         <header
           /*
            * 아이폰 앱의 내비게이션 막대(2026-10-04 '앱 틀을 네이티브처럼') — 왼쪽 '‹ 뒤로', 가운데 화면 제목(큰 제목이 가려졌을
@@ -2646,7 +2648,7 @@ function MobileTopBar({
             {panel}
           </div>
         </header>
-      }
+      )}
     </>
   );
 }
