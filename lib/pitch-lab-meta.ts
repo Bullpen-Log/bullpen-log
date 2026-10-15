@@ -42,6 +42,18 @@ export const LAB_GROUND_OPTIONS = [
   { value: 'flat', label: '평지' },
 ] as const;
 
+export type LabFile = {
+  name: string;
+  size: number;
+  fp?: string;
+  /** 찍은 시각(ISO) */
+  at?: string;
+  /** 찍은 시각의 출처 — apple: 아이폰 녹화 시작 · mvhd: 파일 머리(기기마다 시작 또는 끝) */
+  src?: 'apple' | 'mvhd';
+  /** 영상 길이(초) */
+  dur?: number;
+};
+
 export type LabMeta = {
   /** 같은 공을 두 대로 동시에 찍었는가 — 아니면 한 대로 옆 · 뒤를 나눠 찍은 것 */
   synced: boolean;
@@ -56,11 +68,21 @@ export type LabMeta = {
    */
   ground: LabGround;
   heightCm: number | null;
-  /** 폰에서 투수까지(m) — 모르면 null */
+  /**
+   * 폰에서 투수까지(m) — 옛 샘플의 한 칸(어느 폰인지 모른다). 2026-10-15 부터는 폰마다 distances 에 적고 이 칸은 null.
+   */
   distanceM: number | null;
+  /**
+   * 폰마다 투수까지(m) — 적은 폰만(2026-10-15 사용자: "폰까지의 거리는 카메라 2대마다 — 1배 줌이어도 폰마다 크기가 다름").
+   * 지금은 기록 · 표시만 한다(3D 계산은 두 영상으로 카메라 자리를 스스로 찾는다).
+   */
+  distances: Partial<Record<LabView, number>>;
   memo: string | null;
-  /** 올린 파일 이름 · 크기(분석 때 원본을 가려내려고) · 지문(lib/pitch-lab-guard.ts — 영상 탓으로 실패한 파일을 다시 안 돌리려고, 옛 샘플은 없다) */
-  files: Partial<Record<LabView, { name: string; size: number; fp?: string }>>;
+  /**
+   * 올린 파일 이름 · 크기(분석 때 원본을 가려내려고) · 지문(lib/pitch-lab-guard.ts — 영상 탓으로 실패한 파일을 다시 안 돌리려고, 옛 샘플은 없다) ·
+   * 찍은 시각 · 그 출처 · 길이(lib/pitch-lab-file.ts — 따로 찍은 짝을 서버가 한 번 더 막으려고, 2026-10-15 부터 · 못 읽었으면 없다)
+   */
+  files: Partial<Record<LabView, LabFile>>;
   /**
    * 샘플 종류 — 'marker' 는 몸에 스티커(마커)를 붙여 3~4대로 찍은 정답지용(2026-10-12 사용자: "마커 샘플이라고 다르게 표시해서
    * 기존 샘플과 다른 곳에"). 실험실 목록이 따로 모아 보이고, 같은 폴더에 ③ · ④ 카메라 영상(cam3.* · cam4.*)이 더 있을 수 있다.
@@ -104,8 +126,26 @@ export function readLabMeta(raw: unknown, createdAt: string): LabMeta {
     const f = rawFiles[view] as Record<string, unknown> | undefined;
     const name = text(f?.name, 200);
     const size = num(f?.size, 0, 10 * 1024 * 1024 * 1024);
+    const at = typeof f?.at === 'string' && Number.isFinite(Date.parse(f.at)) ? f.at : null;
+    const dur = num(f?.dur, 0, 3600);
     if (name && size != null)
-      files[view] = { name, size, ...(isFingerprint(f?.fp) ? { fp: f.fp } : {}) };
+      files[view] = {
+        name,
+        size,
+        ...(isFingerprint(f?.fp) ? { fp: f.fp } : {}),
+        ...(at ? { at } : {}),
+        ...(f?.src === 'apple' || f?.src === 'mvhd' ? { src: f.src } : {}),
+        ...(dur != null ? { dur } : {}),
+      };
+  }
+  const distances: LabMeta['distances'] = {};
+  const rawDist = (v.distances && typeof v.distances === 'object' ? v.distances : {}) as Record<
+    string,
+    unknown
+  >;
+  for (const view of LAB_VIEWS) {
+    const m = num(rawDist[view], 1, 60);
+    if (m != null) distances[view] = m;
   }
   return {
     synced: v.synced !== false,
@@ -115,6 +155,7 @@ export function readLabMeta(raw: unknown, createdAt: string): LabMeta {
     ground: v.ground === 'flat' ? 'flat' : 'mound',
     heightCm: num(v.heightCm, 120, 230),
     distanceM: num(v.distanceM, 1, 60),
+    distances,
     memo: text(v.memo, 500),
     files,
     kind: v.kind === 'marker' ? 'marker' : 'sample',
@@ -122,16 +163,22 @@ export function readLabMeta(raw: unknown, createdAt: string): LabMeta {
   };
 }
 
-/** 카드의 작은 표시들 — '동시 촬영 · 슬로모 240 · 오른손 · 화면 녹화' */
+/**
+ * 카드의 작은 표시들 — '마운드 · 슬로모 240 · 오른손 · 키 182cm · 옆 5m · 뒤 4.5m'.
+ * 동시 촬영 · 원본은 이제 늘 그래서(2026-10-15) 안 적고, 그렇지 않은 옛 샘플에만 '한 대로 나눠 찍음' · '화면 녹화'를 단다.
+ */
 export function labMetaChips(meta: LabMeta): string[] {
+  const dist = LAB_VIEWS.filter((v) => meta.distances[v] != null).map(
+    (v) => `${v === 'side' ? '옆' : '뒤'} ${meta.distances[v]}m`
+  );
   return [
     ...(meta.kind === 'marker' ? ['마커'] : []),
     meta.ground === 'flat' ? '평지' : '마운드',
-    meta.synced ? '동시 촬영' : '한 대로 나눠 찍음',
+    ...(meta.synced ? [] : ['한 대로 나눠 찍음']),
     meta.slowmoFps ? `슬로모 ${meta.slowmoFps}` : '슬로모 모름',
     meta.hand === 'L' ? '왼손' : '오른손',
-    meta.screenRecorded ? '화면 녹화' : '원본',
+    ...(meta.screenRecorded ? ['화면 녹화'] : []),
     ...(meta.heightCm ? [`키 ${meta.heightCm}cm`] : []),
-    ...(meta.distanceM ? [`거리 ${meta.distanceM}m`] : []),
+    ...(dist.length ? dist : meta.distanceM ? [`거리 ${meta.distanceM}m`] : []),
   ];
 }

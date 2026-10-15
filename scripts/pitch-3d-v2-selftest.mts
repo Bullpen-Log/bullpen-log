@@ -40,11 +40,15 @@ import {
   DAILY_FAIL_LIMIT,
   fileFingerprint,
   guardBlock,
+  labMetaBlock,
+  labPairBlock,
   labVideoBlock,
   readLabGuard,
   recordFail,
   seoulDay,
 } from '../lib/pitch-lab-guard.ts';
+import { parseAppleDate, readLabFileFacts } from '../lib/pitch-lab-file.ts';
+import { readLabMeta } from '../lib/pitch-lab-meta.ts';
 import {
   base,
   cameras,
@@ -3015,6 +3019,106 @@ console.log('■ 점검 카드 드릴 고르기(drillPicksFor) — 쉬운 단계
     '지문: 같은 파일 같음 · 끝 1바이트가 다르면 다름 · 64자',
     f1 === (await fileFingerprint(new Blob([big]))) && f1 !== (await fileFingerprint(new Blob([big2]))) && f1.length === 64
   );
+}
+
+{
+  console.log('■ 화면 녹화 · 따로 찍은 짝 막기(2026-10-15) — labVideoBlock · labPairBlock · labMetaBlock · 파일 머리 읽기');
+  const cam = { name: 'IMG_0412.MOV', fps: 240, shortSide: 1080, durationSec: 6, focal35: 24, aspect: 16 / 9, hasLens: true };
+  const screen = { name: 'IMG_0413.MP4', fps: 59.8, shortSide: 886, durationSec: 9, focal35: null, aspect: 1920 / 886, hasLens: false };
+  check('이름을 바꾼 아이폰 화면 녹화(렌즈 없음 · 2.17 · 60fps) → 막음', labVideoBlock(screen) !== null);
+  check('렌즈 정보가 있는 카메라 영상 → 통과', labVideoBlock(cam) === null && labVideoBlock({ ...screen, hasLens: true }) === null);
+  check('안드로이드 카메라(렌즈 정보 없음 · 16:9 · 60fps) → 통과', labVideoBlock({ ...screen, aspect: 16 / 9, shortSide: 1080 }) === null);
+  check('화면 모양이어도 슬로모(240fps)면 통과', labVideoBlock({ ...screen, fps: 240, shortSide: 1080 }) === null);
+  check('파일 머리를 못 읽었으면(hasLens 모름) 통과', labVideoBlock({ ...screen, hasLens: null }) === null);
+  check('아이패드 화면 녹화(1.44) → 막음', labVideoBlock({ ...screen, aspect: 2360 / 1640, shortSide: 1640 }) !== null);
+
+  const t = Date.parse('2026-10-15T05:00:00Z');
+  const A = (startMs: number | null, durationSec = 6, timeSource: 'apple' | 'mvhd' | null = 'apple', fp?: string) => ({
+    startMs,
+    durationSec,
+    timeSource,
+    fp,
+  });
+  check('같은 파일을 두 칸에 → 막음', labPairBlock(A(t, 6, 'apple', 'f'.repeat(64)), A(t, 6, 'apple', 'f'.repeat(64))) !== null);
+  check('두 폰 녹화 시작이 2초 차 → 통과', labPairBlock(A(t), A(t + 2000)) === null);
+  const split = labPairBlock(A(t), A(t + 40_000));
+  check('40초 뒤에 따로 찍음 → 막음(40초)', split !== null && split.includes('40초'), split ?? '');
+  check('한쪽은 끝 시각(mvhd = 시작 + 6초) → 통과', labPairBlock(A(t, 6, 'apple'), A(t + 7000, 6, 'mvhd')) === null);
+  check('시간대를 잘못 적은 기기(9시간 · 출처 다름) → 통과', labPairBlock(A(t, 6, 'apple'), A(t + 9 * 3600_000 + 1500, 6, 'mvhd')) === null);
+  check('출처가 같은데 9시간 차 → 막음', labPairBlock(A(t), A(t + 9 * 3600_000)) !== null);
+  check('시각을 못 읽으면 막지 않음', labPairBlock(A(null), A(t + 40_000)) === null);
+  const days = labPairBlock(A(t), A(t + 3 * 86400_000));
+  check('며칠 차는 일로', days !== null && days.includes('3일'), days ?? '');
+
+  const at = (ms: number) => new Date(ms).toISOString();
+  const okRaw = {
+    synced: true,
+    screenRecorded: false,
+    files: {
+      side: { name: 'IMG_1.MOV', size: 1, at: at(t), src: 'apple', dur: 6 },
+      back: { name: 'IMG_2.MOV', size: 1, at: at(t + 1500), src: 'apple', dur: 6 },
+    },
+  };
+  const metaOf = (raw: unknown) => readLabMeta(raw, at(t));
+  check('서버: 동시 촬영 · 원본 · 2초 차 → 저장', labMetaBlock(okRaw, metaOf(okRaw)) === null);
+  check('서버: 한 대로 나눠(synced false) → 막음', labMetaBlock({ ...okRaw, synced: false }, metaOf({ ...okRaw, synced: false })) !== null);
+  const oldClient = { ...okRaw, screenRecorded: undefined };
+  check('서버: 화면 녹화 고르기가 없거나 true(옛 화면) → 막음', labMetaBlock(oldClient, metaOf(oldClient)) !== null && labMetaBlock({ ...okRaw, screenRecorded: true }, metaOf(okRaw)) !== null);
+  const named = { ...okRaw, files: { ...okRaw.files, back: { ...okRaw.files.back, name: 'ScreenRecording_1.MP4' } } };
+  check('서버: 화면 녹화 이름 → 막음', labMetaBlock(named, metaOf(named)) !== null);
+  const far = { ...okRaw, files: { ...okRaw.files, back: { ...okRaw.files.back, at: at(t + 60_000) } } };
+  check('서버: 찍은 시각 1분 차 → 막음', labMetaBlock(far, metaOf(far)) !== null);
+  check('정보에 찍은 시각 · 출처 · 길이가 남음', metaOf(okRaw).files.back?.src === 'apple' && metaOf(okRaw).files.back?.dur === 6 && metaOf(okRaw).files.back?.at === at(t + 1500));
+
+  check('아이폰 시각 글(+0900 · 쌍점 없음)', parseAppleDate('2026-10-15T14:00:00+0900') === t && parseAppleDate('xx') === null);
+
+  /* 가짜 mov — ftyp · mdat(앞) · moov(뒤: mvhd + meta(hdlr · keys · ilst)) */
+  const enc = new TextEncoder();
+  const be = (n: number, len = 4) => Array.from({ length: len }, (_, i) => (n / 2 ** (8 * (len - 1 - i))) & 255);
+  const box = (type: string, ...parts: (number[] | Uint8Array)[]) => {
+    const body = parts.flatMap((p) => Array.from(p));
+    return [...be(8 + body.length), ...enc.encode(type), ...body];
+  };
+  const MAC = 2082844800;
+  const mvhd = (createdSec: number) =>
+    box('mvhd', [0, 0, 0, 0], be(createdSec + MAC), be(createdSec + MAC), be(600), be(600 * 6), new Array(80).fill(0));
+  const keys = ['com.apple.quicktime.creationdate', 'com.apple.quicktime.camera.lens_model', 'com.apple.quicktime.camera.focal_length.35mm_equivalent'];
+  const meta = box(
+    'meta',
+    box('hdlr', new Array(8).fill(0), enc.encode('mdta'), new Array(13).fill(0)),
+    box('keys', [0, 0, 0, 0], be(keys.length), ...keys.map((k) => box('mdta', enc.encode(k)))),
+    box(
+      'ilst',
+      [1, 2, 3].flatMap((i) => {
+        const value =
+          i === 1
+            ? box('data', be(1), be(0), enc.encode('2026-10-15T14:00:00+0900'))
+            : i === 2
+              ? box('data', be(1), be(0), enc.encode('iPhone 15 Pro Max back camera 6.765mm f/1.78'))
+              : box('data', be(21), be(0), be(24, 2));
+        return [...be(8 + value.length), ...be(i), ...value];
+      })
+    )
+  );
+  const movie = (withMeta: boolean) =>
+    new Blob([
+      new Uint8Array(box('ftyp', enc.encode('qt  '), be(0))),
+      new Uint8Array(box('mdat', new Uint8Array(5000))),
+      new Uint8Array(box('moov', mvhd(Math.floor((t + 9000) / 1000)), ...(withMeta ? [meta] : []))),
+    ]);
+  const f1 = await readLabFileFacts(movie(true));
+  check(
+    '파일 머리: 아이폰 녹화 시작 · 길이 6초 · 렌즈 있음',
+    f1 != null && f1.startMs === t && f1.timeSource === 'apple' && f1.durationSec === 6 && f1.hasLens,
+    JSON.stringify(f1)
+  );
+  const f2 = await readLabFileFacts(movie(false));
+  check(
+    '파일 머리: 아이폰 정보가 없으면 mvhd 시각 · 렌즈 없음',
+    f2 != null && f2.startMs === t + 9000 && f2.timeSource === 'mvhd' && !f2.hasLens,
+    JSON.stringify(f2)
+  );
+  check('파일 머리: moov 가 없으면 null', (await readLabFileFacts(new Blob([new Uint8Array(box('mdat', new Uint8Array(10)))]))) === null);
 }
 
 console.log(`\n통과 ${passed} · 실패 ${failed}`);

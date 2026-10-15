@@ -292,6 +292,19 @@ export async function listLabSamples(viewer: LabViewer): Promise<LabSample[]> {
 }
 
 /** 샘플 하나를 폴더째 지운다 */
+/**
+ * 정보(meta.json)를 아직 못 쓴 새 샘플의 영상만 지운다 — 올린 뒤 저장 전 검사에 막힌 짝(app/actions/pitch-lab.ts saveLabSample).
+ * 정보가 있는 샘플은 건드리지 않는다. 목록을 못 읽으면 던진다(아무것도 안 지움).
+ */
+export async function deleteUnsavedLabSample(userId: string, id: string) {
+  const { data: files, error } = await videoBucket().list(folder(userId, id), {
+    limit: FOLDER_LIMIT,
+  });
+  if (error) throw new Error(error.message);
+  if ((files ?? []).some((f) => f.name === 'meta.json')) return;
+  await deleteLabSample(userId, id);
+}
+
 export async function deleteLabSample(userId: string, id: string) {
   const bucket = videoBucket();
   const { data: files, error } = await bucket.list(folder(userId, id), {

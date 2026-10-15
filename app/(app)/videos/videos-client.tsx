@@ -2,18 +2,17 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Radar, Rotate3d } from '@/components/icon';
 import { PageHeading } from '@/components/ui';
 import { useTodayKey } from '@/components/use-today-key';
 import {
   PITCH_VIEW_OPTIONS,
+  PitchControls,
   PitchLogHeading,
   PitchViewSwitch,
   VELOCITY_ADMIN_OPTION,
   type PitchView,
 } from './pitch-log-heading';
 import { CompareView, type ClipOption } from './compare-view';
-import { AnalysisLink } from '@/components/analysis-link';
 import { VideoGallery } from './video-gallery';
 import { VideoCalendar } from './video-calendar';
 import { effortText } from '@/lib/pitch-effort';
@@ -42,9 +41,6 @@ export type VideoLog = {
  * 찍으러 가는 문 둘(구속 측정 · 3D 동작 분석) — 2026-10-14 사용자: 제목 옆 '분석'(보기)과 나눠, 고르개 밑에 같은 무게로.
  * 휴대폰은 반반 두 칸(글자가 보여야 처음 쓰는 사람도 찾는다), PC 는 고르개 줄 오른쪽에 글 단추.
  */
-const TOOL_BUTTON =
-  'flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-2xl bg-surface px-3 text-sm font-semibold text-ink transition-opacity active:opacity-60 pad:flex-none pad:px-5 desk:h-9 desk:min-h-0 desk:flex-none desk:rounded-lg desk:border desk:border-sky desk:bg-sky-tint desk:text-xs desk:text-sky-strong desk:hover:bg-sky-tint/70';
-
 /* 보기 칸 [캘린더 | 목록 | 구속 측정]은 투구 기록 머리와 같이 둔다(pitch-log-heading.tsx) */
 type View = PitchView;
 
@@ -169,7 +165,6 @@ export function VideosClient({
   /* 보기 고르개 줄 — 세로가 낮은 PC 에서는 제목 줄 오른쪽으로 올라간다(아래) */
   const viewControls = (
     <PitchViewSwitch
-      className="w-full pad:w-auto pad:min-w-80 desk:w-auto"
       value={view}
       onChange={(next) => {
         /* 관리자 웹의 세 번째 칸은 보기가 아니라 관리자 화면으로 가는 길 */
@@ -184,38 +179,11 @@ export function VideosClient({
     />
   );
 
-  /*
-   * 찍으러 가는 문 — 구속 측정(앱 안이면 누구나, 웹이면 관리자만 · canMeasure) · 3D 동작 분석(누구나). 링크가 아니라 push 라 뒤로 가기로
-   * 이 화면 · 이 보기로 돌아온다. 2분할 비교는 목록 보기 안 단추로(video-gallery.tsx — 영상 둘을 고르는 일이라).
-   */
-  const tools = (
-    <div className="flex items-center gap-2">
-      {canMeasure && (
-        <button type="button" onClick={() => router.push('/velocity')} className={TOOL_BUTTON}>
-          <Radar aria-hidden className="h-4 w-4 text-sky-strong" />
-          구속 측정
-        </button>
-      )}
-      <button type="button" onClick={() => router.push('/videos/lab')} className={TOOL_BUTTON}>
-        <Rotate3d aria-hidden className="h-4 w-4 text-sky-strong" />
-        3D 동작 분석
-      </button>
-    </div>
-  );
-
   return (
     <div className="stack-page">
       {/* 머리 — 제목 옆은 '분석'(보기) 하나, 고르개 밑(PC 는 고르개 줄 오른쪽)에 찍으러 가는 문 둘(2026-10-14) */}
       <PitchLogHeading
-        controls={
-          <>
-            {viewControls}
-            <div className="hidden desk:block">{tools}</div>
-            <div className="w-full desk:hidden">{tools}</div>
-          </>
-        }
-        inlineAction
-        action={<AnalysisLink view="pitch" />}
+        controls={<PitchControls switcher={viewControls} canMeasure={canMeasure} />}
       />
 
       {/* 오늘 — 계획 한 줄 · 던지는 일정(접힌 알약) · 기록 남기기 */}

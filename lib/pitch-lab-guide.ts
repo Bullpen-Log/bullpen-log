@@ -15,6 +15,9 @@ import type { V2FailCode } from '@/lib/pitch-3d/v2/contract';
  * 거리(옆 4~6m · 뒤 4~5m)는 아이폰 1배 가로 화면에서 키 1.8m 투수가 화면 높이의 절반쯤 되는 거리(세로 화각 약 39° — 손떨림 보정 자름 포함)다.
  * 마커 촬영(scripts/pitch-lab/markers/selfcal/README.md)의 폰 자리 3.8~6.7m · 높이 0.6~1.8m 도 이 범위였다.
  *
+ * 2026-10-15 사용자: "녹화 영상 금지 · 따로 촬영 금지 · 무조건 동시에", "AirDrop 으로 옮기면 프레임이 떨어진다 — 원본을 유지하며 옮기는 법도".
+ * 그래서 확인 목록에 '옮긴 영상도 초당 장수 그대로'를, 화면에 '영상 옮기기' 칸을 더했다(검사는 lib/pitch-lab-guard.ts labVideoBlock · labPairBlock).
+ *
  * 화면 글은 해요체 · 줄표 없음(scripts/pitch-lab-selftest.mts 가 본다).
  */
 
@@ -22,7 +25,7 @@ export const LAB_GUIDE_HREF = '/videos/lab/guide';
 
 /** 안내 화면의 칸(주소 # 로 바로 간다) */
 export type LabGuideSection =
-  'checklist' | 'place' | 'frame' | 'phone' | 'steps' | 'upload' | 'fail';
+  'checklist' | 'place' | 'frame' | 'phone' | 'steps' | 'move' | 'upload' | 'fail';
 
 export function labGuideHref(section?: LabGuideSection): string {
   return section ? `${LAB_GUIDE_HREF}#${section}` : LAB_GUIDE_HREF;
@@ -35,7 +38,7 @@ export const LAB_GUIDE_CHECKS: LabGuideCheck[] = [
   {
     id: 'two',
     title: '폰 두 대로 같은 공을 동시에',
-    why: '한 대로 옆 · 뒤를 나눠 찍으면 두 영상의 시간을 맞추지 못해요.',
+    why: '한 대로 옆 · 뒤를 나눠 찍은 영상은 올릴 수 없어요. 두 영상의 찍은 시각으로 알아봐요.',
   },
   {
     id: 'angle',
@@ -75,7 +78,12 @@ export const LAB_GUIDE_CHECKS: LabGuideCheck[] = [
   {
     id: 'original',
     title: '사진 앱의 원본 그대로 올리기',
-    why: '화면 녹화 · 자르기 · 내보낸 영상은 시간이 어긋나요.',
+    why: '화면 녹화한 영상은 올릴 수 없어요. 자르거나 내보낸 영상은 시간이 어긋나요.',
+  },
+  {
+    id: 'move',
+    title: '다른 폰에서 옮긴 영상도 초당 장수 그대로',
+    why: 'AirDrop 은 옵션에서 모든 사진 데이터를 켜고 보내요. 그냥 보내면 슬로 모션이 보통 영상으로 바뀔 수 있어요.',
   },
 ];
 

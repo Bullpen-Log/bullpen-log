@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowRight,
   Camera,
@@ -167,12 +167,27 @@ export function RunClient({
     haptic('light');
     setPickId(null);
     void set(current.exerciseId, 'later', {
-      label: `${current.no} 미룸 — 목록 끝 '미룬 것'에서 다시`,
+      label: `${current.no} 미룸 · 목록 끝 '미룬 것'에서 다시`,
     });
   }
 
   const laters = queue.filter((it) => stateOf(it, map) === 'later');
   const progress = count.total ? count.done / count.total : 0;
+
+  /*
+   * 아래 단추 막대의 높이 — 되돌리기 알림을 그 바로 위에 띄운다(2026-10-15 사용자: "되돌리기 바가 하단바와 겹친다").
+   * 예전에는 막대 높이를 6rem 으로 짐작했는데, 막대 위에 카메라 안내 줄 · 오류가 붙으면 막대가 높아져 알림이 겹쳤다.
+   * 막대는 운동이 바뀌고 다 찍으면 사라졌다 다시 생겨서 ref 콜백으로 붙을 때마다 잰다(정리는 React 19 ref 콜백이 돌려받는다).
+   */
+  const [barHeight, setBarHeight] = useState(0);
+  const barRef = useCallback((el: HTMLDivElement | null) => {
+    if (!el) return;
+    const read = () => setBarHeight(el.offsetHeight);
+    read();
+    const observer = new ResizeObserver(read);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
 
   return (
     <>
@@ -410,7 +425,10 @@ export function RunClient({
 
       {/* ── 아래 ── */}
       {current && (
-        <div className="shrink-0 border-t border-line bg-surface px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3">
+        <div
+          ref={barRef}
+          className="shrink-0 border-t border-line bg-surface px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3"
+        >
           {errorBox && <div className="mx-auto mb-2 w-full max-w-2xl">{errorBox}</div>}
           {(clips.cameraNotice || clips.cameraMissingText) && (
             <p
@@ -473,7 +491,9 @@ export function RunClient({
         toast={toast}
         onUndo={undo}
         onClose={closeToast}
-        className="bottom-[calc(max(0.75rem,env(safe-area-inset-bottom))+6rem)]"
+        /* 아래 막대가 있으면 그 위 8px, 다 찍어 막대가 없으면 홈 막대 위 */
+        className="bottom-[max(1rem,env(safe-area-inset-bottom))]"
+        style={current && barHeight > 0 ? { bottom: barHeight + 8 } : undefined}
       />
 
       {/* ── 번호판 — 카메라에 비춰 파일 이름 대신 ── */}
