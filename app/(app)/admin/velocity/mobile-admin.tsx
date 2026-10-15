@@ -60,7 +60,7 @@ export function MobileVelocityAdmin({
           녹화{recordings > 0 ? ` ${recordings}` : ''}
         </ButtonLink>
         <ButtonLink
-          href="/velocity/measure"
+          href="/velocity"
           variant="secondary"
           className="h-12 w-full px-3 text-sm"
         >

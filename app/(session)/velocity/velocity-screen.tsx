@@ -25,6 +25,7 @@ import {
   Film,
   FlaskConical,
   Focus,
+  History,
   Info,
   List,
   Loader2,
@@ -153,8 +154,8 @@ import { BottomSheet, PitchEditorFields } from '@/components/velocity/pitch-edit
 import {
   DistanceField,
   LevelBubble,
+  GuideCard,
   PrimaryButton,
-  StepShell,
   ZoneOverlay,
   type Choices,
 } from '@/components/velocity/setup-steps';
@@ -164,7 +165,7 @@ import {
   sessionTypeOptions,
   SetupSummaryRow,
 } from '@/components/velocity/setup-art';
-import { isTipsSkippedToday, TipsPopup } from '@/components/velocity/tips-popup';
+import { isTipsSkippedToday, TipsCard, tipsCount } from '@/components/velocity/tips-popup';
 import {
   TAPE_MODES,
   VelocitySettingsFields,
@@ -208,8 +209,11 @@ import type { TrailPoint } from '@/components/velocity/clip-player';
 import { AdminJump } from '@/components/velocity/admin-jump';
 import {
   type SessionPitch,
+  type VelocityHistoryItem,
   type VelocityScreenKey,
 } from '@/components/velocity/session-types';
+import { SessionHistory } from '@/components/velocity/session-history';
+import { previousUrl } from '@/lib/nav-state';
 
 /**
  * 구속 측정 화면 — Smart Scout · PitchLab 의 흐름을 우리 모양(아이폰 느낌)으로.
@@ -228,18 +232,36 @@ import {
  * 않는다. 잰 값은 '저장'을 누를 때 서버로 간다(app/actions/velocity.ts). 영상은 어디에도 안 올린다.
  */
 
-export type Step = 'type' | 'camera' | 'align' | 'zone' | 'measure' | 'lens';
+export type Step =
+  | 'home'
+  | 'type'
+  | 'camera'
+  | 'tips'
+  | 'align'
+  | 'zone'
+  | 'measure'
+  | 'lens';
 
-/** 카메라(뷰파인더)가 필요한 단계 — 들어오면 카메라를 켠다 */
+/**
+ * 카메라(뷰파인더)가 필요한 단계 — 들어오면 카메라를 켠다. 첫 화면부터 카메라다(2026-10-15 김민: "기본 홈화면을 카메라처럼, 측정 시작을
+ * 누르면 그 위로 안내창 · 밑의 촬영 단추는 가리지 않게") — 설정 단계(지난 설정 · 종류 · 카메라 위치 · 주의사항)는 뷰파인더 위 안내창.
+ */
 const CAMERA_STEPS: ReadonlySet<Step> = new Set<Step>([
+  'home',
+  'type',
+  'camera',
+  'tips',
   'align',
   'zone',
   'measure',
   'lens',
 ]);
+/** 측정 전 — 첫 화면과 안내창 단계. 셔터가 앞으로 가기를 맡고 스트라이크 존은 아직 안 그린다 */
+const PREP_STEPS: ReadonlySet<Step> = new Set<Step>(['home', 'type', 'camera', 'tips']);
 
 /* 내비게이션 바의 뒤로 — 어느 단계에서 어디로, 무슨 이름으로. 없으면 '투구 기록'(나가기) */
 const BACK_OF: Partial<Record<Step, { to: Step; label: string }>> = {
+  type: { to: 'home', label: '처음' },
   camera: { to: 'type', label: '종류' },
   align: { to: 'camera', label: '카메라 위치' },
   zone: { to: 'align', label: '수평' },
@@ -591,7 +613,8 @@ export function VelocityScreen({
   native,
   today,
   calibration,
-  initialStep = 'type',
+  history = [],
+  initialStep = 'home',
   resume = false,
 }: {
   isAdmin: boolean;
@@ -601,7 +624,9 @@ export function VelocityScreen({
   calibration: CalFit;
   /** 프로필의 던지는 손 — 회전축 그림을 뺀 뒤(엔진 2.0, 사용자 2026-10-06) 쓰지 않는다. 부르는 쪽 호환으로만 남긴다 */
   throwingHand?: string | null;
-  /** 처음 보일 단계 — 미리보기 · 시험용. 보통은 처음부터 */
+  /** 지난 세션들(날짜 · createdAt 오름차순) — 첫 화면 왼쪽 아래 기록 단추 · 기록 시트 */
+  history?: VelocityHistoryItem[];
+  /** 처음 보일 단계 — 미리보기 · 시험용. 보통은 첫 화면(카메라) */
   initialStep?: Step;
   /** 구속 측정 첫 화면의 '저장하지 않은 공 이어서 하기' — 폰에 맡겨 둔 공을 되살려 세션 요약부터 연다 */
   resume?: boolean;
@@ -635,7 +660,7 @@ export function VelocityScreen({
       });
   };
   /*
-   * 카메라를 켤 때 넣는 설정의 최신 값 — 아래 useLayoutEffect 가 그릴 때마다 맞춘다. enterCameraStep 은 누르기 전 그림의
+   * 카메라를 켤 때 넣는 설정의 최신 값 — 아래 useLayoutEffect 가 그릴 때마다 맞춘다. continueToCamera 는 누르기 전 그림의
    * startCamera 를 부르므로, 그 함수가 쥔 값을 쓰면 flushSync 로 막 넣은 설정('이 설정으로 시작'의 네트 · 포수 뒤 · 릴리스
    * 거리)이 카메라에 안 들어갔다(네트 없음인데 초점 고정 등 — 김민 17dbf60). 그리기(커밋) 안에서 맞추므로 flushSync 가 끝나면 새 값이다.
    */
@@ -656,13 +681,15 @@ export function VelocityScreen({
   });
   /* 카메라를 저절로 켠 단계 — 한 단계에 한 번만(아래 안전장치 효과) */
   const autoStartedFor = useRef<Step | null>(null);
+  /* 지금 카메라를 켤 때의 공 방향(멀어지는 · 다가오는) — 카메라 위치를 바꾸면 줌 · 엔진 방향이 달라 다시 켠다(continueToCamera) */
+  const startedApproachRef = useRef<string | null>(null);
   const pitchesRef = useRef<LocalPitch[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
 
   /* ── 설정 단계 ── */
   const storedRaw = useSyncExternalStore(subscribeStorage, readSetupRaw, () => null);
   const stored = useMemo(() => (storedRaw ? loadSetup() : null), [storedRaw]);
-  const [decided, setDecided] = useState(initialStep !== 'type');
+  const [decided, setDecided] = useState(initialStep !== 'type' && initialStep !== 'home');
   const [step, setStep] = useState<Step>(initialStep);
   const [choices, setChoices] = useState<Choices>({
     cameraPos: DEFAULT_SETUP.cameraPos,
@@ -719,8 +746,13 @@ export function VelocityScreen({
     },
     [fileReplay]
   );
-  /* 주의사항 팝업 — 설정이 끝나고 카메라 화면 위에 뜬다. '오늘은 보지 않기'면 그날은 안 뜬다 */
-  const [tipsOpen, setTipsOpen] = useState(false);
+  /*
+   * 주의사항 안내창 — 설정이 끝나면 카메라 위에 뜬다('오늘은 보지 않기'면 그날은 건너뜀). 몇 번째 장 · 다 보면 갈 단계(수평 · 첫 화면) ·
+   * 위 줄 ‹ 로 돌아갈 단계
+   */
+  const [tipIndex, setTipIndex] = useState(0);
+  const [tipsReturn, setTipsReturn] = useState<Step>('align');
+  const [tipsBack, setTipsBack] = useState<Step>('home');
   /* 목록에서 고른 공의 결과 화면('잰 직후처럼') */
   const [viewPitch, setViewPitch] = useState<number | null>(null);
   const [toast, setToast] = useState<string | null>(null);
@@ -735,7 +767,8 @@ export function VelocityScreen({
   /* 설정의 '사용 안내 다시 보기' — '다시 보지 않기'를 골랐어도 한 번 연다 */
   const [tutorialForce, setTutorialForce] = useState(false);
   const tutorialOpen = (tutorialHidden === false && !tutorialDone) || tutorialForce;
-  const showAsk = stored != null && !decided;
+  /* 지난 설정 묻기 — 첫 화면에서 셔터를 누르면 종류 단계 자리에 뜬다 */
+  const showAsk = stored != null && !decided && step === 'type';
   const approach = approachOf(choices);
 
   /* ── 카메라 · 측정 ── */
@@ -868,7 +901,9 @@ export function VelocityScreen({
   const shown = (raw: number) =>
     useCal && fit.n > 0 ? applyCalibration(raw, fit) : raw;
 
-  const [sheet, setSheet] = useState<'none' | 'settings' | 'save' | 'pitch'>('none');
+  const [sheet, setSheet] = useState<'none' | 'settings' | 'save' | 'pitch' | 'history'>(
+    'none'
+  );
   const [editing, setEditing] = useState<number | null>(null);
   /* 어떤 투구인가 — 첫 설정 단계에서 고르고, 저장할 때 투구 기록의 종류가 된다(저장 시트에서도 바꿀 수 있다) */
   const [sessionType, setSessionType] = useState<string>(DEFAULT_SETUP.sessionType);
@@ -882,6 +917,7 @@ export function VelocityScreen({
   const [saved, setSaved] = useState(false);
   /* 저장하지 않은 공이 있을 때 나가기 — 묻는 창(앱의 영어 시스템 창 대신) */
   const [askLeave, setAskLeave] = useState(false);
+  const [askClear, setAskClear] = useState(false);
   /* 결과 화면의 '스피드건 값 넣기'로 공 시트를 열었다 — 스피드건 칸부터 */
   const [focusGun, setFocusGun] = useState(false);
 
@@ -1204,7 +1240,7 @@ export function VelocityScreen({
     const video = videoRef.current;
     /*
      * 뷰파인더(<video>)는 카메라 단계(수평 · 존 · 측정 · 렌즈)에서만 그려진다. 단계를 바꾸는 누름 안에서 부를 때는
-     * flushSync 로 먼저 그린 뒤 부른다(enterCameraStep) — 예전에는 그리기 전에 불려 여기서 조용히 끝나, 카메라가
+     * flushSync 로 먼저 그린 뒤 부른다(continueToCamera) — 예전에는 그리기 전에 불려 여기서 조용히 끝나, 카메라가
      * 안 켜지고 '카메라 다시 켜기' 단추만 남았다(웹 · 앱 모두, 2026-09-30 사용자).
      */
     if (!video) return;
@@ -1278,6 +1314,7 @@ export function VelocityScreen({
             now.net
           );
     if (capture instanceof DualCapture) capture.setFocusPoint(now.focusAt);
+    startedApproachRef.current = now.approach;
     setAppCapture(capture instanceof DualCapture ? capture : null);
     capture.setFocalPerLongSide(now.focalRatio);
     capture.setReleaseDistance(
@@ -1343,23 +1380,46 @@ export function VelocityScreen({
   };
 
   /* 단계 옮기기 */
-  /* 설정이 끝나면 카메라 화면 위에 주의사항 팝업 — '오늘은 보지 않기'를 눌렀으면 그날은 건너뛴다 */
-  const openTips = () => {
-    if (!isTipsSkippedToday(today)) setTipsOpen(true);
-  };
   /*
-   * 카메라 단계로 들어가며 카메라를 켠다 — 상태 바꾸기를 flushSync 로 바로 그려 <video> 가 붙은 뒤, 같은 누름 안에서
-   * 켠다(아이폰은 카메라 권한 창 · 영상 재생을 사용자의 누름에 붙여 두는 편이 안전하다).
+   * 설정이 끝나면 — 그날 '오늘은 보지 않기'가 아니면 주의사항 안내창, 아니면 수평 맞추기. 카메라는 첫 화면부터 켜져 있고, 카메라 위치
+   * (멀어지는 공 · 다가오는 공)가 바뀌었을 때만 다시 켠다 — 줌(투수 뒤 2배)과 엔진의 공 방향이 켤 때 정해진다. 설정 바꾸기를 flushSync 로
+   * 바로 그려 cameraSettingsRef 가 새 값이 된 뒤 견준다(김민 17dbf60 — 옛 설정으로 켜지던 것).
    */
-  const enterCameraStep = (target: Step, apply: () => void) => {
-    /* 안전장치 효과가 같은 단계에서 한 번 더 켜지 않게 먼저 적어 둔다(flushSync 안에서 효과가 돌 수 있다) */
+  const continueToCamera = (apply?: () => void) => {
+    const tips = !isTipsSkippedToday(today);
+    const target: Step = tips ? 'tips' : 'align';
+    const from = step;
     autoStartedFor.current = target;
-    flushSync(apply);
-    void startCamera();
+    flushSync(() => {
+      apply?.();
+      if (tips) {
+        setTipIndex(0);
+        setTipsBack(from);
+        setTipsReturn('align');
+      }
+      setStep(target);
+    });
+    if (
+      !captureRef.current ||
+      startedApproachRef.current !== cameraSettingsRef.current.approach
+    )
+      void startCamera();
   };
-  const usePrevious = () => {
+  /* 주의사항만 다시 보기(첫 화면 · 수평의 ⓘ) — 다 보면 그 자리로 돌아간다 */
+  const openTips = () => {
+    setTipIndex(0);
+    setTipsBack(step);
+    setTipsReturn(step);
+    setStep('tips');
+  };
+  /* 수평계 허락(아이폰)도 이 누름에 — 카메라 허락 창과 한 누름에 겹치지 않게(아래 goZone 설명) */
+  const finishTips = () => {
+    void requestPermission();
+    setStep(tipsReturn);
+  };
+  const applyPrevious = () => {
     if (!stored) return;
-    enterCameraStep('align', () => {
+    continueToCamera(() => {
       setChoices({ cameraPos: stored.cameraPos, net: false });
       setSessionType(stored.sessionType);
       setZone(stored.zone);
@@ -1376,9 +1436,7 @@ export function VelocityScreen({
       setRecordMode(stored.recordMode);
       setDiagHud(stored.diagHud);
       setDecided(true);
-      setStep('align');
     });
-    openTips();
   };
   const startFresh = () => {
     /* 새 설정이어도 보기 취향(영상에 존 표시)은 이어 간다 — 안 그러면 저장할 때 켜짐으로 되돌아간다 */
@@ -1389,10 +1447,6 @@ export function VelocityScreen({
     }
     setDecided(true);
     setStep('type');
-  };
-  const goAlign = () => {
-    enterCameraStep('align', () => setStep('align'));
-    openTips();
   };
   /*
    * 수평계 허락(아이폰) — 카메라 허락 창과 한 누름에 겹치지 않게, 카메라를 켠 다음 누름들(주의사항 닫기 · 다음 · 측정 시작)에서
@@ -1446,6 +1500,8 @@ export function VelocityScreen({
      * 만들지 않으니 영상(2MB 남짓)이 메모리에 남지 않는다.
      */
     if (!acceptedIdsRef.current.has(id)) {
+      /* 클립이 올 때(카메라 알림)만 불린다 — React 컴파일러가 셔터 처리(onPrepShutter → startCamera)에서 이어진 길을 그리는 중으로 잘못 본다 */
+      // eslint-disable-next-line react-hooks/purity
       const now = performance.now();
       for (const [k, v] of earlyClipsRef.current)
         if (now - v.at > 10_000) earlyClipsRef.current.delete(k);
@@ -1650,7 +1706,32 @@ export function VelocityScreen({
   const nextPitch = () => {
     captureRef.current?.arm();
   };
-  /* 나가기 — 저장하지 않은 공이 있으면 한 번 묻는다(말없이 사라지지 않게) */
+  /* 첫 화면(카메라)으로 — 세션 · 안내를 접는다. 카메라는 켠 채로(첫 화면이 카메라다). 다음 셔터는 지난 설정부터 묻는다 */
+  const goHome = () => {
+    captureRef.current?.disarm();
+    setLive(false);
+    setShowCamera(false);
+    setSummaryOpen(false);
+    setSheet('none');
+    setViewPitch(null);
+    setDecided(false);
+    setStep('home');
+  };
+  /* 구속 측정을 떠난다 — 들어온 화면으로(홈에서 쓸어 왔으면 홈), 바로 열었으면 홈 */
+  const exit = () => {
+    if (previousUrl()) router.back();
+    else router.replace('/today');
+  };
+  /* 잰 공을 버린다 — 저장하지 않고 나가기 */
+  const discardPitches = () => {
+    for (const p of pitches) revokeClips(p);
+    setPitches([]);
+    setLast(null);
+    attemptIdsRef.current.clear();
+    sessionAttemptIdsRef.current = [];
+    void clearDraft();
+  };
+  /* 닫기 — 첫 화면이면 구속 측정을 떠나고, 그 밖이면 첫 화면으로. 저장하지 않은 공이 있으면 한 번 묻는다(말없이 사라지지 않게) */
   const leave = () => {
     if (recorderRef.current) {
       setToast('녹화를 먼저 멈춰 주세요');
@@ -1660,7 +1741,8 @@ export function VelocityScreen({
       setAskLeave(true);
       return;
     }
-    router.push('/velocity');
+    if (step === 'home') exit();
+    else goHome();
   };
   const refocus = async () => {
     const capture = captureRef.current;
@@ -1722,7 +1804,7 @@ export function VelocityScreen({
    * 켠다. 한 단계에 한 번뿐 — 권한을 거절했으면 되풀이하지 않고 '카메라 다시 켜기' 단추로 둔다.
    */
   useEffect(() => {
-    const needs = !showAsk && CAMERA_STEPS.has(step);
+    const needs = CAMERA_STEPS.has(step);
     if (!needs) {
       autoStartedFor.current = null;
       return;
@@ -2176,10 +2258,11 @@ export function VelocityScreen({
       setSheet('none');
       setSummaryOpen(false);
       /*
-       * 저장은 곧 측정의 끝(사용자 규칙: '세션 저장하기'로 끝내고, 더 재려면 '구속 측정하기').
-       * 구속 측정 메인(/velocity)으로 — 방금 세션이 구속 변화 그래프에 붙는다. 화면을 떠나면 카메라도 꺼진다.
+       * 저장은 곧 측정의 끝(사용자 규칙: '세션 저장하기'로 끝내고, 더 재려면 '구속 측정하기'). 첫 화면(카메라)으로 — 기록 단추 ·
+       * 기록 시트에 방금 세션이 붙게 서버 자료를 다시 받는다.
        */
-      router.push('/velocity');
+      goHome();
+      router.refresh();
     });
   };
 
@@ -2192,9 +2275,7 @@ export function VelocityScreen({
         ? live
           ? 'live'
           : 'measure'
-        : tipsOpen
-          ? 'tips'
-          : step;
+        : step;
   const jumpTo = (key: VelocityScreenKey) => {
     setSheet('none');
     setViewPitch(null);
@@ -2207,6 +2288,7 @@ export function VelocityScreen({
       setLive(false);
       setSummaryOpen(false);
       setDecided(false);
+      setStep('type');
       return;
     }
     setDecided(true);
@@ -2226,12 +2308,10 @@ export function VelocityScreen({
     setLive(false);
     setSummaryOpen(false);
     if (key === 'tips') {
-      /* 주의사항은 카메라 화면 위의 팝업 — 카메라는 켜지 않고 팝업만 */
-      setStep('align');
-      setTipsOpen(true);
-      return;
+      setTipIndex(0);
+      setTipsBack('home');
+      setTipsReturn('align');
     }
-    setTipsOpen(false);
     setStep(key);
   };
   const addSamplePitches = () => {
@@ -2272,7 +2352,8 @@ export function VelocityScreen({
     });
   };
 
-  const back = showAsk ? null : (BACK_OF[step] ?? null);
+  const back =
+    step === 'tips' ? { to: tipsBack, label: '이전' } : (BACK_OF[step] ?? null);
   /*
    * 던짐을 알아채고 결과를 내는 중인가(영상 담기 · 계산) — 크게 보인다. 앱 카메라는 날아가는 공이 확실할 때만 띄운다(움직임만 잡힌
    * 것은 조용히 재 본다). 담기에 걸리는 시간: 앱 카메라는 공이 보인 뒤 1.6초를 더 받고 읽어서
@@ -2286,9 +2367,35 @@ export function VelocityScreen({
     !fileBusy &&
     !(live && !showCamera) &&
     phase == null;
+  /* 첫 화면 기록 단추의 숫자 — 가장 최근 세션의 최고 구속 */
+  const latestMax = history.length ? shown(history[history.length - 1].maxKmh) : null;
+  /* 측정 전 셔터 — 첫 화면은 안내창을 연다(지난 설정이 있으면 그것부터), 안내창에서는 다음 장 */
+  const lastTip = tipIndex >= tipsCount(choices) - 1;
+  const prepLabel =
+    step === 'home'
+      ? '측정 시작'
+      : showAsk
+        ? '이 설정으로'
+        : step === 'tips' && lastTip
+          ? tipsReturn === 'align'
+            ? '카메라 맞추기'
+            : '닫기'
+          : '다음';
+  const onPrepShutter = () => {
+    if (step === 'home') setStep('type');
+    else if (showAsk) applyPrevious();
+    else if (step === 'type') setStep('camera');
+    else if (step === 'camera') {
+      persistSetup({ targetDistM, releaseDistM, distTape });
+      continueToCamera();
+    } else if (lastTip) finishTips();
+    else setTipIndex(tipIndex + 1);
+  };
   /* 카메라 무대 위 가운데 — 단계 이름(측정은 세션 중 상태가 대신) */
   const stageTitle =
-    step === 'align'
+    step === 'home'
+      ? { n: '', label: '구속 측정' }
+      : step === 'align'
       ? { n: '3/4', label: '수평 · 표적' }
       : step === 'zone'
         ? { n: '4/4', label: '스트라이크 존' }
@@ -2372,7 +2479,11 @@ export function VelocityScreen({
       {cameraOn && step === 'lens' && (
         <CircleOverlay value={circle} onChange={setCircle} />
       )}
-      {cameraOn && step !== 'align' && step !== 'lens' && !(live && !showCamera) && (
+      {cameraOn &&
+        step !== 'align' &&
+        step !== 'lens' &&
+        !PREP_STEPS.has(step) &&
+        !(live && !showCamera) && (
         <ZoneOverlay
           rect={viewZone}
           onChange={(next) =>
@@ -2622,145 +2733,13 @@ export function VelocityScreen({
        * 내비게이션 바 — 카메라 단계(수평 · 존 · 측정 · 렌즈)는 카메라 앱처럼 위 줄을 카메라 위에 그린다(아래 카메라 무대).
        * 높이는 48px + 시계 자리(box-content) — 앱이 시계 자리까지 그리게 된 뒤 h-12 안에 그 여백을 넣으면 찌그러졌다.
        */}
-      {/* 설정 단계의 머리 — 체크인 흐름처럼 흰 막대 없이 맨바탕 위에 '‹ 뒤로'와 작은 제목(components/checkin-flow/flow.tsx) */}
-      {(showAsk || !CAMERA_STEPS.has(step)) && (
-        <header className="flex shrink-0 items-center justify-between px-3 pt-[max(0.75rem,env(safe-area-inset-top))]">
-          {back ? (
-            <button
-              type="button"
-              onClick={() => setStep(back.to)}
-              className="inline-flex min-h-12 items-center gap-0.5 rounded-full px-2 text-base font-medium text-muted transition-colors hover:text-ink"
-            >
-              <ChevronLeft aria-hidden className="h-5 w-5" />
-              {back.label}
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={leave}
-              className="inline-flex min-h-12 items-center gap-0.5 rounded-full px-2 text-base font-medium text-muted transition-colors hover:text-ink"
-            >
-              <ChevronLeft aria-hidden className="h-5 w-5" />
-              구속 측정
-            </button>
-          )}
-          <span aria-hidden className="h-12 w-12" />
-        </header>
-      )}
-
-      {/* 지난 설정 → 1 어떤 투구 → 2 카메라 위치 → 3 네트 — 카메라 앞 단계(그림 카드) */}
-      {showAsk && stored && (
-        <PreviousSetupStep setup={stored} onUse={usePrevious} onFresh={startFresh} />
-      )}
-      {!showAsk && step === 'type' && (
-        <StepShell
-          step={1}
-          total={4}
-          title="어떤 투구인가요?"
-          subtitle="투구 기록에 이 종류로 남아요."
-          footer={
-            <PrimaryButton onClick={() => setStep('camera')}>
-              다음
-              <ChevronRight aria-hidden className="h-4 w-4" />
-            </PrimaryButton>
-          }
-        >
-          <OptionCards
-            label="어떤 투구"
-            options={sessionTypeOptions()}
-            value={sessionType}
-            onChange={setSessionType}
-          />
-        </StepShell>
-      )}
-      {!showAsk && step === 'camera' && (
-        <StepShell
-          step={2}
-          total={4}
-          title="폰은 투수 바로 뒤 1m 안에 둬요"
-          subtitle="던지는 방향을 정면으로 보게 둬요. 멀거나 옆이면 공을 놓쳐요."
-          footer={
-            <>
-              {/* 체크인 흐름처럼 [이전][다음] */}
-              <PrimaryButton tone="quiet" onClick={() => setStep('type')}>
-                이전
-              </PrimaryButton>
-              <PrimaryButton
-                onClick={() => {
-                  persistSetup({ targetDistM, releaseDistM, distTape });
-                  goAlign();
-                }}
-              >
-                카메라 켜기
-                <ChevronRight aria-hidden className="h-4 w-4" />
-              </PrimaryButton>
-            </>
-          }
-        >
-          <div className="space-y-5">
-            <OptionCards
-              label="카메라 위치"
-              options={cameraPosOptions()}
-              value={choices.cameraPos}
-              onChange={(cameraPos) => {
-                if (cameraPos !== choices.cameraPos) setZone(defaultZone(cameraPos));
-                setChoices({ ...choices, cameraPos });
-              }}
-              columns={1}
-            />
-            {choices.cameraPos === 'behind-pitcher' ? (
-              <div className="space-y-3">
-                {/* 기준 20m 로 재고 세션마다 공 크기로 맞춘다(2.4.0). 줄자로 쟀으면 그 값이 이긴다. 공마다 공 크기로 어림하는 관리자 칸은 뺐다(2026-10-15) */}
-                <SectionLabel>폰에서 포수 미트까지</SectionLabel>
-                <Segmented
-                  label="폰에서 미트까지"
-                  value={distTape ? 'tape' : 'standard'}
-                  onChange={(v) => {
-                    const tape = v === 'tape';
-                    setDistTape(tape);
-                    if (!tape) setTargetDistM(STANDARD_TARGET_DIST_M);
-                  }}
-                  options={TAPE_MODES}
-                  size="md"
-                />
-                {!distTape && (
-                  <p className="px-0.5 text-footnote leading-snug text-muted">
-                    {STANDARD_TARGET_DIST_M}m로 재고 세션마다 공 크기로 맞춰요. 줄자로 쟀으면 그
-                    값이 가장 정확해요.
-                  </p>
-                )}
-                {distTape && (
-                  <DistanceField
-                    label="줄자로 잰 거리"
-                    hint="5% 틀리면 구속도 5% 틀려요."
-                    value={targetDistM}
-                    min={TARGET_DIST_MIN}
-                    max={TARGET_DIST_MAX}
-                    onChange={setTargetDistM}
-                  />
-                )}
-              </div>
-            ) : (
-              <DistanceField
-                label="폰에서 투수가 공을 놓는 곳까지"
-                hint="줄자로 재서 넣으면 가장 정확해요. 정규 마운드에서 폰을 홈플레이트 1.8m 뒤에 두면 약 18.5m예요."
-                value={releaseDistM}
-                min={RELEASE_DIST_MIN}
-                max={RELEASE_DIST_MAX}
-                onChange={setReleaseDistM}
-              />
-            )}
-          </div>
-        </StepShell>
-      )}
-
       {/*
        * 카메라 무대 — 4 수평 · 5 존 · 6 측정 · 렌즈 보정이 같은 틀을 쓴다(카메라 앱처럼 위 줄 · 뷰파인더 · 아래 단추). 뷰파인더가
        * 늘 같은 자리에 있어야 <video> 가 새로 만들어지지 않는다 — 예전에는 존 단계와 측정 단계가 뷰파인더를 다른 자리에 그려,
        * 측정으로 넘어가면 새 <video> 에 카메라가 이어지지 않아 까맸다(2026-09-30 사용자: "측정 화면에서 카메라가 안 보인다").
        * 측정: 세션 전에는 카메라가 꽉 차고, 시작하면 정보 판이 밑에서 올라와 덮는다('카메라'로 내린다).
        */}
-      {!showAsk && CAMERA_STEPS.has(step) && (
+      {CAMERA_STEPS.has(step) && (
         <div className="relative flex min-h-0 flex-1 flex-col bg-black text-white">
           {/*
            * 뷰파인더 — 세션 중에도 제 크기로 재생해 둔다(프레임이 와야 잰다). 카메라를 숨길 때는 그 위를
@@ -2777,6 +2756,103 @@ export function VelocityScreen({
             }
           >
             {finder}
+            {/*
+             * 안내창 — 첫 화면에서 셔터를 누르면 뷰파인더 위에 뜬다(2026-10-15 김민: "그 위로 안내창, 밑의 촬영 단추는 가리지 않게").
+             * 뷰파인더 칸 안이라 밑의 셔터 줄은 늘 보이고, 앞으로 가기는 그 셔터가 맡는다. 위 줄(‹ · 이름)은 안 덮게 그 밑부터.
+             */}
+            {PREP_STEPS.has(step) && step !== 'home' && (
+              <div className="pointer-events-none absolute inset-x-3 bottom-3 top-[calc(max(0.5rem,env(safe-area-inset-top))+3.25rem)] z-20 flex flex-col justify-end">
+                {showAsk && stored ? (
+                  <PreviousSetupCard key="ask" setup={stored} onFresh={startFresh} />
+                ) : step === 'type' ? (
+                  <GuideCard
+                    key="type"
+                    step={1}
+                    total={4}
+                    title="어떤 투구인가요?"
+                    subtitle="투구 기록에 이 종류로 남아요."
+                  >
+                    <OptionCards
+                      label="어떤 투구"
+                      options={sessionTypeOptions()}
+                      value={sessionType}
+                      onChange={setSessionType}
+                    />
+                  </GuideCard>
+                ) : step === 'camera' ? (
+                  <GuideCard
+                    key="camera"
+                    step={2}
+                    total={4}
+                    title="폰은 투수 바로 뒤 1m 안에 둬요"
+                    subtitle="던지는 방향을 정면으로 보게 둬요. 멀거나 옆이면 공을 놓쳐요."
+                  >
+                <div className="space-y-5">
+                  <OptionCards
+                    label="카메라 위치"
+                    options={cameraPosOptions()}
+                    value={choices.cameraPos}
+                    onChange={(cameraPos) => {
+                      if (cameraPos !== choices.cameraPos) setZone(defaultZone(cameraPos));
+                      setChoices({ ...choices, cameraPos });
+                    }}
+                    columns={1}
+                  />
+                  {choices.cameraPos === 'behind-pitcher' ? (
+                    <div className="space-y-3">
+                      {/* 기준 20m 로 재고 세션마다 공 크기로 맞춘다(2.4.0). 줄자로 쟀으면 그 값이 이긴다. 공마다 공 크기로 어림하는 관리자 칸은 뺐다(2026-10-15) */}
+                      <SectionLabel>폰에서 포수 미트까지</SectionLabel>
+                      <Segmented
+                        label="폰에서 미트까지"
+                        value={distTape ? 'tape' : 'standard'}
+                        onChange={(v) => {
+                          const tape = v === 'tape';
+                          setDistTape(tape);
+                          if (!tape) setTargetDistM(STANDARD_TARGET_DIST_M);
+                        }}
+                        options={TAPE_MODES}
+                        size="md"
+                      />
+                      {!distTape && (
+                        <p className="px-0.5 text-footnote leading-snug text-muted">
+                          {STANDARD_TARGET_DIST_M}m로 재고 세션마다 공 크기로 맞춰요. 줄자로 쟀으면 그
+                          값이 가장 정확해요.
+                        </p>
+                      )}
+                      {distTape && (
+                        <DistanceField
+                          label="줄자로 잰 거리"
+                          hint="5% 틀리면 구속도 5% 틀려요."
+                          value={targetDistM}
+                          min={TARGET_DIST_MIN}
+                          max={TARGET_DIST_MAX}
+                          onChange={setTargetDistM}
+                        />
+                      )}
+                    </div>
+                  ) : (
+                    <DistanceField
+                      label="폰에서 투수가 공을 놓는 곳까지"
+                      hint="줄자로 재서 넣으면 가장 정확해요. 정규 마운드에서 폰을 홈플레이트 1.8m 뒤에 두면 약 18.5m예요."
+                      value={releaseDistM}
+                      min={RELEASE_DIST_MIN}
+                      max={RELEASE_DIST_MAX}
+                      onChange={setReleaseDistM}
+                    />
+                  )}
+                </div>
+                  </GuideCard>
+                ) : (
+                  <TipsCard
+                    choices={choices}
+                    index={tipIndex}
+                    onIndex={setTipIndex}
+                    today={today}
+                    onSkipToday={finishTips}
+                  />
+                )}
+              </div>
+            )}
             {/*
              * 세션 중 옆으로 넘기는 두 쪽(김민 2026-10-09: "옆으로 넘기면 이번 세션 공들의 정보를") — 왼쪽은 비어 있어 밑의 카메라가
              * 보이고, 왼쪽으로 밀면 오른쪽 쪽(이번 세션: 방금 공 · 숫자 · 구종별 · 구속 흐름 · 공 목록)이 손을 따라온다. 가로 굴림 +
@@ -3264,11 +3340,7 @@ export function VelocityScreen({
                 {step !== 'measure' && back ? (
                   <button
                     type="button"
-                    onClick={() => {
-                      /* 설정 단계로 돌아가면 카메라는 끈다 — 다시 오면 다시 켠다 */
-                      if (step === 'align') stopCamera();
-                      setStep(back.to);
-                    }}
+                    onClick={() => setStep(back.to)}
                     aria-label={`뒤로 · ${back.label}`}
                     className={CHROME_BTN}
                   >
@@ -3335,7 +3407,7 @@ export function VelocityScreen({
               )}
               <div className="pointer-events-auto flex items-center gap-1">
                 {/* 측정 화면은 아래 막대의 '초점' 단추가 맡는다 — 위 줄은 수평 · 존 · 렌즈 단계만 */}
-                {cameraOn && step !== 'measure' && (
+                {cameraOn && step !== 'measure' && !PREP_STEPS.has(step) && (
                   <button
                     type="button"
                     onClick={refocus}
@@ -3351,7 +3423,7 @@ export function VelocityScreen({
                     )}
                   </button>
                 )}
-                {step === 'measure' && (
+                {(step === 'measure' || step === 'home') && (
                   <button
                     type="button"
                     onClick={() => setSheet('settings')}
@@ -3393,14 +3465,79 @@ export function VelocityScreen({
                   e.target.value = '';
                 }}
               />
-              {step === 'align' || step === 'zone' ? (
+              {PREP_STEPS.has(step) ? (
+                <>
+                  {/* 첫 화면 왼쪽 — 지난 기록(카메라 앱의 사진첩 자리, 2026-10-15 김민이 고름). 최근 세션 최고 구속을 동그라미에 */}
+                  <div className="flex w-20 flex-col items-center">
+                    {step === 'home' && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => setSheet('history')}
+                          aria-label={
+                            pitches.length > 0
+                              ? `구속 기록 · 저장하지 않은 공 ${pitches.length}개`
+                              : '구속 기록'
+                          }
+                          className="relative flex h-12 w-12 items-center justify-center rounded-full bg-white/10 ring-2 ring-white/70 transition-[background-color,scale] hover:bg-white/15 active:scale-95"
+                        >
+                          {latestMax != null ? (
+                            <span className="text-numeric text-sm font-bold leading-none">
+                              {speedNum(latestMax)}
+                            </span>
+                          ) : (
+                            <History aria-hidden className="h-5 w-5" />
+                          )}
+                          {pitches.length > 0 && (
+                            <span
+                              aria-hidden
+                              className="absolute -right-0.5 -top-0.5 h-3 w-3 rounded-full bg-sky ring-2 ring-black"
+                            />
+                          )}
+                        </button>
+                        <span className={SIDE_LABEL}>기록</span>
+                      </>
+                    )}
+                  </div>
+                  {/* 셔터 — 첫 화면은 측정 시작(안내창을 연다), 안내창에서는 다음 장 */}
+                  <div className="flex flex-col items-center">
+                    <button
+                      type="button"
+                      onClick={onPrepShutter}
+                      disabled={fileBusy}
+                      aria-label={prepLabel}
+                      className="group flex h-[4.75rem] w-[4.75rem] items-center justify-center rounded-full border-4 border-white/90 disabled:opacity-40"
+                    >
+                      <span className="flex h-16 w-16 items-center justify-center rounded-full bg-white text-black transition-transform group-active:scale-90">
+                        {step !== 'home' && <ChevronRight aria-hidden className="h-7 w-7" />}
+                      </span>
+                    </button>
+                    <span className={SIDE_LABEL}>{prepLabel}</span>
+                  </div>
+                  <div className="flex w-20 flex-col items-center">
+                    {step === 'home' && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={openTips}
+                          aria-label="주의사항 보기"
+                          className={SIDE_BTN}
+                        >
+                          <Info aria-hidden className="h-5 w-5" />
+                        </button>
+                        <span className={SIDE_LABEL}>주의사항</span>
+                      </>
+                    )}
+                  </div>
+                </>
+              ) : step === 'align' || step === 'zone' ? (
                 <>
                   <div className="flex w-20 flex-col items-center">
                     {step === 'align' ? (
                       <>
                         <button
                           type="button"
-                          onClick={() => setTipsOpen(true)}
+                          onClick={openTips}
                           aria-label="주의사항 보기"
                           className={SIDE_BTN}
                         >
@@ -3640,14 +3777,57 @@ export function VelocityScreen({
         주의사항 — 설정이 끝나면 카메라 화면 위에 창처럼 뜬다(뒤 화면은 여백에서만 조금 보인다).
         '오늘은 보지 않기'를 누르면 그날은 안 뜬다. 관리자 점프의 '주의사항 창'으로도 연다.
       */}
-      <TipsPopup
-        open={tipsOpen}
-        choices={choices}
-        today={today}
-        onClose={() => {
-          void requestPermission();
-          setTipsOpen(false);
+      {/* 지난 기록 — 첫 화면 왼쪽 아래 기록 단추(카메라 앱의 사진첩 자리). 저장하지 않은 공이 있으면 맨 위에 */}
+      <BottomSheet
+        open={sheet === 'history'}
+        onClose={() => setSheet('none')}
+        title="구속 기록"
+      >
+        {pitches.length > 0 && !live && (
+          <section className="mb-4 rounded-2xl bg-sky-tint p-4">
+            <p className="text-base font-bold text-ink">
+              저장하지 않은 공 {pitches.length}개가 있어요
+            </p>
+            <p className="mt-1 text-sm text-muted">
+              {draftDate && draftDate !== today ? draftDate : '오늘'} 잰 공이에요. 이어서
+              저장하거나 더 잴 수 있어요.
+            </p>
+            <div className="mt-3 flex gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setSheet('none');
+                  setDecided(true);
+                  setStep('measure');
+                  setSummaryOpen(true);
+                }}
+                className="inline-flex h-12 flex-1 items-center justify-center rounded-2xl bg-sky text-base font-bold text-white transition-colors hover:bg-sky-strong"
+              >
+                이어서 하기
+              </button>
+              <button
+                type="button"
+                onClick={() => setAskClear(true)}
+                className="inline-flex h-12 items-center justify-center rounded-2xl px-5 text-base font-semibold text-danger transition-colors hover:bg-danger/10"
+              >
+                지우기
+              </button>
+            </div>
+          </section>
+        )}
+        <SessionHistory items={history} unit={unit} today={today} />
+      </BottomSheet>
+      <ConfirmDialog
+        open={askClear}
+        onClose={() => setAskClear(false)}
+        onConfirm={() => {
+          setAskClear(false);
+          discardPitches();
         }}
+        title="저장하지 않은 공을 지울까요?"
+        detail={`공 ${pitches.length}개와 영상이 폰에서 지워져요.`}
+        confirmLabel="지우기"
+        pending={false}
       />
 
       {/* 공 하나 — 구종 · 코스 · 결과 · 건 값 · 메모 · 자세한 값 */}
@@ -3962,8 +4142,9 @@ export function VelocityScreen({
         onClose={() => setAskLeave(false)}
         onConfirm={() => {
           setAskLeave(false);
-          void clearDraft();
-          router.push('/velocity');
+          discardPitches();
+          if (step === 'home') exit();
+          else goHome();
         }}
         title="저장하지 않고 나갈까요?"
         detail={`저장하지 않은 공 ${pitches.length}개가 사라져요. 남기려면 취소하고 세션 종료에서 저장해요.`}
@@ -3975,36 +4156,21 @@ export function VelocityScreen({
 }
 
 /**
- * 지난 설정으로 바로 시작할까 — 저장된 설정을 그림 네 칸으로 보이고, 맨 밑에 [새 설정 | 이 설정으로 시작].
+ * 지난 설정으로 바로 시작할까 — 카메라 위 안내창. 저장된 설정을 그림 칸으로 보이고, 셔터가 '이 설정으로', 카드 밑 '새로 설정하기'.
  * 사용자 요청: "전에 사용한 설정을 바로 사용할 수 있도록 하고 하단에 새 설정".
  */
-function PreviousSetupStep({
+function PreviousSetupCard({
   setup,
-  onUse,
   onFresh,
 }: {
   setup: VelocitySetup;
-  onUse: () => void;
   onFresh: () => void;
 }) {
   const when = setup.savedAt ? new Date(setup.savedAt) : null;
   return (
-    <StepShell
-      step={1}
-      total={4}
+    <GuideCard
       title="지난 설정으로 바로 시작할까요?"
-      subtitle="같은 자리에서 같은 방식으로 재면 카메라로 바로 가요."
-      footer={
-        <>
-          <PrimaryButton tone="quiet" onClick={onFresh}>
-            새 설정
-          </PrimaryButton>
-          <PrimaryButton onClick={onUse}>
-            이 설정으로 시작
-            <ChevronRight aria-hidden className="h-4 w-4" />
-          </PrimaryButton>
-        </>
-      }
+      subtitle="같은 자리에서 같은 방식이면 셔터를 눌러요."
     >
       <div className="overflow-hidden rounded-2xl bg-surface">
         <div className="p-(--block-pad)">
@@ -4019,7 +4185,14 @@ function PreviousSetupStep({
           {when && ` · ${when.getMonth() + 1}월 ${when.getDate()}일에 저장`}
         </p>
       </div>
-    </StepShell>
+      <button
+        type="button"
+        onClick={onFresh}
+        className="mt-3 inline-flex min-h-11 w-full items-center justify-center rounded-2xl bg-ink/6 text-sm font-semibold text-ink transition-colors hover:bg-ink/10"
+      >
+        새로 설정하기
+      </button>
+    </GuideCard>
   );
 }
 

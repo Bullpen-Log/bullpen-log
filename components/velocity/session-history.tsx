@@ -79,7 +79,7 @@ export function SessionHistory({
             <p className="text-footnote font-semibold text-muted">
               {dayLabel(last.date, today)} 최고
             </p>
-            <p className="mt-1 flex items-baseline gap-1.5">
+            <p className="mt-1 flex items-baseline gap-1.5 whitespace-nowrap">
               <span className="text-numeric text-5xl leading-none text-ink">
                 {speedNum(last.maxKmh)}
               </span>

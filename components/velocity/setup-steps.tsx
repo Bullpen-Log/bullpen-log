@@ -84,6 +84,45 @@ export function StepShell({
   );
 }
 
+/**
+ * 카메라 위 안내창 — 구속 측정 첫 화면이 카메라가 된 뒤(2026-10-15 김민: "카메라처럼, 측정 시작을 누르면 그 위로 안내창 · 밑의
+ * 촬영 단추는 가리지 않게") 설정 단계(지난 설정 · 종류 · 카메라 위치 · 주의사항)를 뷰파인더 위 카드로 띄운다. 앞으로 가기는 밑의
+ * 셔터가 맡아 카드에는 단추를 두지 않는다(돌아가기는 위 줄 ‹). 세로가 모자라면 카드 안에서만 굴린다.
+ */
+export function GuideCard({
+  step,
+  total,
+  title,
+  subtitle,
+  children,
+}: {
+  step?: number;
+  total?: number;
+  title: string;
+  subtitle?: string;
+  children?: React.ReactNode;
+}) {
+  return (
+    <div className="pointer-events-auto max-h-full overflow-y-auto overscroll-contain rounded-3xl bg-page px-5 pb-5 pt-4 text-ink shadow-2xl motion-safe:animate-sheet-up">
+      {step != null && total != null && (
+        <div className="flex items-center gap-3">
+          <div className="min-w-0 flex-1">
+            <StepBar step={step} total={total} />
+          </div>
+          <span className="shrink-0 text-xs tabular-nums text-muted" aria-hidden>
+            {step}/{total}
+          </span>
+        </div>
+      )}
+      <h2 className="text-heading mt-4 text-xl leading-tight text-ink">{title}</h2>
+      {subtitle && (
+        <p className="mt-1.5 text-subhead leading-snug text-muted">{subtitle}</p>
+      )}
+      {children && <div className="mt-4">{children}</div>}
+    </div>
+  );
+}
+
 export function PrimaryButton({
   children,
   onClick,
@@ -229,7 +268,7 @@ export type Tip = {
   art: React.ReactNode;
 };
 
-/** 고른 설정에 맞는 주의사항 카드들 — 팝업(components/velocity/tips-popup.tsx)이 그린다 */
+/** 고른 설정에 맞는 주의사항 카드들 — 카메라 위 안내창(components/velocity/tips-popup.tsx TipsCard)이 그린다 */
 export function tipsFor(c: Choices): Tip[] {
   const behind = c.cameraPos === 'behind-pitcher';
   return [

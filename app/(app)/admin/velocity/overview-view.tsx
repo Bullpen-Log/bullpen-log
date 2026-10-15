@@ -108,7 +108,7 @@ export function VelocityAdminView({
               엔진 개발용 녹화
             </ButtonLink>
             <ButtonLink
-              href="/velocity/measure"
+              href="/velocity"
               className="inline-flex w-full items-center gap-2 sm:w-auto"
             >
               <Camera aria-hidden className="h-4 w-4" />
