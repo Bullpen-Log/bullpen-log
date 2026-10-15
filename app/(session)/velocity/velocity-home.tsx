@@ -84,7 +84,9 @@ export function VelocityHome({
         {/* 쪽 머리 — 다른 탭의 큰 제목과 같은 굵기 · 자간(text-heading), 밑에 한 줄만 */}
         <div className="px-1">
           <h1 className="text-heading text-3xl leading-tight text-ink">구속 측정</h1>
-          <p className="mt-1 text-subhead text-muted">폰 카메라로 구속 · 릴리스 · 코스를 남겨요.</p>
+          <p className="mt-1 text-subhead text-muted">
+            폰 카메라로 구속 · 릴리스 · 코스를 남겨요.
+          </p>
         </div>
 
         {draft && (

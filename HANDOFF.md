@@ -75,6 +75,11 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
   PageHeading 대신 영양처럼 제목 · 달력 · 분석 한 줄(`training-home.tsx`). 그날 기록 화면은 달력 그림만.
 - (같은 날 더) 날짜 띠를 한 주 + 겹화살표 → 최근 6주를 옆으로 굴리는 한 줄로(사용자: "좌우로 긴 것 스크롤 가능하게"). 공용 `components/date-scroll-strip.tsx` ·
   범위 `lib/date-strip.ts stripDays`. 영양 `NutritionDay.strip` 이 7일 → 42일(`lib/nutrition/load.ts` — 식사 · 운동 읽는 범위도 그만큼 넓어짐), `loadTrainingWeek` → `loadTrainingStrip`.
+- (같은 날 더) **네 영역(구속 측정 화면)을 앱 모양으로 손봤다** — 사용자: "구속측정 인터페이스를 지금 우리 시스템에 맞게, 너무 조잡해". 엔진 · 저장 · 동작은 그대로, 그리기 · 글만.
+  첫 화면(`velocity-home.tsx` · `session-history.tsx` — 큰 제목, 마지막 세션 최고 큰 숫자 한 장 + 그래프, 최근 세션 5줄, 로고 카드 뺌) · 설정 단계(`setup-art.tsx` OptionCards 를
+  앱 고르기 카드 같은 한 줄로, '이럴 때' 줄 뺌, `setup-steps.tsx` StepShell 에 'n/5') · 카메라 화면(수평 · 존은 셔터 대신 파란 [다음 ›], 측정 셔터 글자 뺌) ·
+  세션 요약(숫자 넷 줄 → 큰 숫자 한 장) · 설정 시트(체크 상자 → `components/switch.tsx`, 아래 단추 둘 → 목록 줄, 제목 '구속 측정 설정'). 구속 숫자는 Bebas(`text-display`) → `text-numeric`.
+  실제 카메라 · 아이폰 앱으로는 못 봤다(미리보기는 가짜 카메라) — 폰에서 측정 한 번 봐 줘.
 
 ## 금윤호에게 — 2026-10-15 · 김민(Claude, 맥북) — 파워 운동 10개 더함 · 촬영 계획 2~5주 다시 짬 · 드릴 영상이 파워 복사본에도 붙음
 

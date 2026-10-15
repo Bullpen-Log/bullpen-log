@@ -115,7 +115,9 @@ export function SessionHistory({
             <p className="text-footnote font-semibold text-ink">
               구속 변화
               {items.length > GRAPH_POINTS && (
-                <span className="ml-1 font-normal text-muted">최근 {GRAPH_POINTS}세션</span>
+                <span className="ml-1 font-normal text-muted">
+                  최근 {GRAPH_POINTS}세션
+                </span>
               )}
             </p>
             <span className="flex items-center gap-2.5 text-caption text-muted">
@@ -166,7 +168,10 @@ export function SessionHistory({
                         평균 {speedNum(s.avgKmh)}
                       </span>
                     </span>
-                    <ChevronRight aria-hidden className="h-4 w-4 shrink-0 text-muted/60" />
+                    <ChevronRight
+                      aria-hidden
+                      className="h-4 w-4 shrink-0 text-muted/60"
+                    />
                   </a>
                 </li>
               );

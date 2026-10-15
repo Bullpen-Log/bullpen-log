@@ -73,7 +73,9 @@ export function StepShell({
           {title}
         </h2>
         {subtitle && (
-          <p className="mt-1.5 text-subhead leading-snug text-muted short:mt-1">{subtitle}</p>
+          <p className="mt-1.5 text-subhead leading-snug text-muted short:mt-1">
+            {subtitle}
+          </p>
         )}
         <div className="mt-6 short:mt-3">{children}</div>
       </div>

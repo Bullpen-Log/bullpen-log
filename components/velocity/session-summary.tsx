@@ -62,7 +62,9 @@ export function SessionSummary({
           <p className="mt-1.5 text-subhead text-muted">
             {formatDate(date)} · {setupText}
           </p>
-          <p className="mt-0.5 text-footnote text-muted">{calibrationText ?? '보정 없음'}</p>
+          <p className="mt-0.5 text-footnote text-muted">
+            {calibrationText ?? '보정 없음'}
+          </p>
         </header>
 
         {empty ? (
