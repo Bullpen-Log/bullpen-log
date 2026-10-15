@@ -53,7 +53,7 @@ const SLOP = 10;
  */
 const LOCK_RATIO = 1.2;
 /** 끝까지 미끄러지는 시간 */
-const SETTLE_MS = 260;
+const SETTLE_MS = 220;
 /** 놓은 뒤 새 화면을 이만큼 기다리고도 안 오면 자리표시를 끝까지 밀어 둔다(구속 측정 — zoom 전환만) */
 const WAIT_MS = 350;
 /** 탭을 연 뒤 이만큼 지나서 본문을 사본으로 떠 둔다 — 늦게 오는 조각(Suspense)까지 담기게 */

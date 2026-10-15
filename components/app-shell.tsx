@@ -22,6 +22,7 @@ import {
   currentUrl,
   sameScreen,
   serverBarSnapshot,
+  setNavDirection,
   subscribeBar,
 } from '@/lib/nav-state';
 import { NAV_ICONS, NAV_TINT } from '@/components/nav-icons';
@@ -2761,6 +2762,14 @@ function MobileTabs({
   const selectedIndex = selectedHref
     ? tabs.findIndex((t) => t.href === selectedHref)
     : -1;
+  /*
+   * 탭을 옮기면 본문이 그 방향으로 밀린다 — 오른쪽 탭이면 새 화면이 오른쪽에서, 왼쪽 탭이면 왼쪽에서(쓸기와 같은 몸짓,
+   * globals.css 'swipe-next · swipe-prev'). 2026-10-15 사용자 "전환 애니메이션이 필요 — 너무 딱딱해": 예전엔 0.1초 옅어지기뿐이었다.
+   * 지금 탭을 모르면(하위 화면이 아닌 다른 곳) 예전처럼 옅어지기.
+   */
+  const activeIndex = activeHref ? tabs.findIndex((t) => t.href === activeHref) : -1;
+  const slideTo = (i: number) =>
+    activeIndex < 0 || i === activeIndex ? undefined : i > activeIndex ? 'swipe-next' : 'swipe-prev';
   useEffect(() => {
     if (!chosen) return;
     const timer = window.setTimeout(() => setChosen(null), CHOSEN_TIMEOUT_MS);
@@ -2897,6 +2906,8 @@ function MobileTabs({
     lens.release(tabs.indexOf(tab));
     setChosen({ href: tab.href, from: pathname });
     haptic('light');
+    const dir = slideTo(tabs.indexOf(tab));
+    if (dir) setNavDirection(dir);
     router.push(tab.href);
   };
 
@@ -3013,6 +3024,7 @@ function MobileTabs({
               href={tab.href}
               data-tab-href={tab.href}
               draggable={false}
+              data-nav={slideTo(tabs.indexOf(tab))}
               aria-current={active ? 'page' : undefined}
               /* 잠긴 탭(첫 설정 전, lib/nav.ts applyLocks)은 흐리게 + 아이콘 오른쪽 아래 자물쇠. 링크는 산다 — 누르면 설정 화면 */
               aria-label={tab.locked ? `${tab.label}(설정 전)` : undefined}
