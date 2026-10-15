@@ -93,7 +93,7 @@ export function SwipeRow({
       </div>
       <div
         ref={front}
-        /* 탭 쓸기(components/tab-swipe.tsx)에 알린다 — 닫혀 있으면 왼쪽으로 미는 것만 이 줄 몫(오른쪽은 이전 탭으로), 열려 있으면 양쪽 다 */
+        /* 탭 쓸기(components/tab-pager.tsx)에 알린다 — 닫혀 있으면 왼쪽으로 미는 것만 이 줄 몫(오른쪽은 이전 탭으로), 열려 있으면 양쪽 다 */
         data-swipe-claim={open ? 'all' : 'left'}
         className="relative touch-pan-y"
         onPointerDown={(e) => {

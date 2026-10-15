@@ -23,7 +23,7 @@ function endNavMotion() {
   const main = document.querySelector('main');
   if (
     main &&
-    (nav === 'push' || nav === 'fade' || nav.startsWith('swipe')) &&
+    (nav === 'push' || nav === 'fade') &&
     main.getBoundingClientRect().top < 0
   ) {
     window.scrollTo(0, 0);
@@ -54,7 +54,12 @@ export function MainTransition({ children }: { children: ReactNode }) {
       share={{ [TAB_SWIPE]: 'none', default: 'page' }}
       enter={{ [TAB_SWIPE]: 'none', default: 'page' }}
       exit={{ [TAB_SWIPE]: 'none', default: 'page' }}
-      update={{ [QUIET_REFRESH]: 'none', [OPEN_POPUP]: 'none', [TAB_SWIPE]: 'none', default: 'auto' }}
+      update={{
+        [QUIET_REFRESH]: 'none',
+        [OPEN_POPUP]: 'none',
+        [TAB_SWIPE]: 'none',
+        default: 'auto',
+      }}
       onUpdate={endNavMotion}
       onShare={endNavMotion}
       onEnter={endNavMotion}

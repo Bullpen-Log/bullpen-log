@@ -43,6 +43,7 @@ import { CLOSE_SETTINGS_EVENT } from '@/components/settings-info';
 import { CheckinFlow } from '@/components/checkin-flow/flow';
 import type { CheckinFlowContext } from '@/components/checkin-flow/types';
 import { haptic } from '@/lib/haptics';
+import type { NavDirection } from '@/lib/nav-state';
 import {
   NoticeBellButton,
   NoticePanel,
@@ -2689,7 +2690,7 @@ function useBarHidden(enabled: boolean) {
  *
  * 누르면 렌즈(유리 캡슐, components/tab-lens.ts)가 곧바로 이 칸으로 미끄러져 와 누른 곳이 먼저 대답한다. 이름도 그 순간
  * 굵어진다 — 렌즈가 설 칸(selected)을 따르고 화면(주소)을 기다리지 않는다. 예전에는 링크의 pending(useLinkStatus)을 봤는데,
- * 탭을 누르면 본문을 밀며 링크 대신 직접 push 해서(tab-swipe.tsx slideToTab) pending 이 안 켜져 이름이 0.3초 뒤에야 굵어졌다
+ * 탭을 누르면 본문을 밀며 링크 대신 직접 push 해서(tab-pager.tsx slideToTab) pending 이 안 켜져 이름이 0.3초 뒤에야 굵어졌다
  * (2026-10-15 사용자 "선택되고 0.3초 뒤에 아이콘이 좀 움직여"). 2026-10-14 사용자가 고른 참고 영상(iOS 26 탭 막대)은 색 없이
  * 흰 아이콘 · 흰 글자에 캡슐만 움직인다.
  * pt-[2px] — 이름 글자의 아래 여백(줄 높이) 때문에 아이콘 + 이름이 렌즈 가운데보다 0.7px 위에 보였다. 화면은 1px 단위로
@@ -2773,18 +2774,15 @@ function MobileTabs({
    * 지금 탭을 모르면(하위 화면이 아닌 다른 곳) 예전처럼 옅어지기.
    */
   const activeIndex = activeHref ? tabs.findIndex((t) => t.href === activeHref) : -1;
-  const slideTo = (i: number) =>
-    activeIndex < 0 || i === activeIndex
-      ? undefined
-      : i > activeIndex
-        ? 'swipe-next'
-        : 'swipe-prev';
+  /* 판 넘기기(components/tab-pager.tsx)가 못 받는 곳(하위 화면)에서 탭을 누르면 — 옆으로 나란한 곳이라 옅어지며 바뀐다 */
+  const slideTo = (i: number): NavDirection | undefined =>
+    activeIndex < 0 || i === activeIndex ? undefined : 'fade';
   useEffect(() => {
     if (!chosen) return;
     const timer = window.setTimeout(() => setChosen(null), CHOSEN_TIMEOUT_MS);
     return () => window.clearTimeout(timer);
   }, [chosen]);
-  /* 본문 쓸기(components/tab-swipe.tsx)로 탭을 옮길 때도 누른 탭처럼 — 렌즈가 곧바로 그 칸으로 */
+  /* 본문 쓸기(components/tab-pager.tsx)로 탭을 옮길 때도 누른 탭처럼 — 렌즈가 곧바로 그 칸으로 */
   useEffect(() => {
     const onChosen = (e: Event) => {
       const href = (e as CustomEvent<unknown>).detail;
@@ -3049,7 +3047,7 @@ function MobileTabs({
                     /* 렌즈는 화면을 다시 그리기 전에 곧바로 — effect 를 기다리면 한두 장면 늦게 출발했다 */
                     lens.to(tabs.indexOf(tab));
                     setChosen({ href: tab.href, from: pathname });
-                    /* 탭 첫 화면이면 쓸기처럼 누르는 순간 본문이 밀리기 시작한다(components/tab-swipe.tsx slideToTab) — 링크는 안 따른다 */
+                    /* 탭 첫 화면이면 쓸기처럼 누르는 순간 본문이 밀리기 시작한다(components/tab-pager.tsx slideToTab) — 링크는 안 따른다 */
                     if (slideToTab(tab.href)) e.preventDefault();
                   }
                   return;
