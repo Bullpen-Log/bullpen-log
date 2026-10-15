@@ -3194,6 +3194,40 @@ html[data-splash] *::after {
   -webkit-mask-image: linear-gradient(to bottom, #000 0, transparent 45%);
   mask-image: linear-gradient(to bottom, #000 0, transparent 45%);
 }
+/*
+ * 위 막대가 보일 때(data-short 아님 — '‹ 뒤로'가 있는 하위 화면 · 홈에서 막대가 돌아왔을 때)는 막대 자리까지 단단한 바탕(구속 측정처럼 불투명)을 깐다.
+ * 같은 날 사용자: "3D 동작 분석에서 위 버튼 글씨랑 뒤 글씨가 겹친다 — 구속 측정처럼 막대를 둬야" — 투명한 막은 막대가 없는 시계 자리에만 맞았다.
+ * 막대 밑 3rem 에서만 바탕이 옅어지고 흐림이 줄어 선은 여전히 없다. 막대가 숨으면 위의 투명한 그라데이션으로 돌아간다.
+ */
+/* 단단한 바탕은 따로 한 겹(::before) — 막대가 숨고 나올 때 옅어지고 짙어지게(바탕 그라데이션은 바로 바뀌어 툭 깜빡였다) */
+[data-top-veil]::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to bottom,
+    var(--color-page) 0,
+    var(--color-page) calc(100% - var(--veil-fade)),
+    color-mix(in oklab, var(--color-page) 0%, transparent) 100%
+  );
+  transition: opacity 240ms ease-out;
+}
+[data-top-veil][data-short]::before {
+  opacity: 0;
+  transition-duration: 160ms;
+}
+[data-top-veil]:not([data-short]) > i:nth-child(1) {
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - var(--veil-fade)), transparent 100%);
+  mask-image: linear-gradient(to bottom, #000 calc(100% - var(--veil-fade)), transparent 100%);
+}
+[data-top-veil]:not([data-short]) > i:nth-child(2) {
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - var(--veil-fade)), transparent calc(100% - var(--veil-fade) * 0.35));
+  mask-image: linear-gradient(to bottom, #000 calc(100% - var(--veil-fade)), transparent calc(100% - var(--veil-fade) * 0.35));
+}
+[data-top-veil]:not([data-short]) > i:nth-child(3) {
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - var(--veil-fade)), transparent calc(100% - var(--veil-fade) * 0.65));
+  mask-image: linear-gradient(to bottom, #000 calc(100% - var(--veil-fade)), transparent calc(100% - var(--veil-fade) * 0.65));
+}
 [data-top-veil][data-short] {
   height: calc(env(safe-area-inset-top) + var(--veil-fade));
   transition-duration: 240ms;
@@ -3205,7 +3239,8 @@ html[data-splash] *::after {
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  [data-top-veil] {
+  [data-top-veil],
+  [data-top-veil]::before {
     transition: none;
   }
 }
