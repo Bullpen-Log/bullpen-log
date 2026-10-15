@@ -1556,13 +1556,15 @@ const VARIANT_RULES: Record<VariantKey, VariantRule> = {
    * 회전 던지기 — 이름에 회전 동작이 든 메디신볼 던지기(스쿱 · 사이드 · 로테이셔널)를 먼저. 2026-10-14 라이브러리에는 그런 던지기가 없고
    * 오버헤드 · 푸시 슬램이 '회전'으로 적혀 이 칸에 들어왔다(위아래로 던지는 것이라 회전이 아니다) — 그래서 이름도 본다. 없으면 돌리는 코어
    * (케이블 · 랜드마인 로테이션을 앉아서 비트는 러시안 트위스트보다 먼저).
+   * 2026-10-15 투구 드릴의 회전 던지기 6개를 파워로 복사했다(scripts/library-power-plyo-2026-10-15.mjs) — 이름이 '… 스로우 · 토스 · 숏풋'이라
+   * 그 낱말도 본다(슬램은 여전히 빠진다).
    */
   rotationalThrow: {
     match: (ex) =>
       (ex.category === '파워' &&
         ex.equipment.includes('메디신볼') &&
         ex.movementPattern === '회전' &&
-        /로테이션|로테이셔널|회전|스쿱|사이드|쉿/.test(ex.title)) ||
+        /로테이션|로테이셔널|회전|스쿱|사이드|쉿|스로우|토스|숏풋/.test(ex.title)) ||
       (ex.category === '코어' &&
         ROTATION_WORDS.some((w) => ex.title.includes(w)) &&
         !ANTI_ROTATION_WORDS.some((w) => ex.title.includes(w))),
