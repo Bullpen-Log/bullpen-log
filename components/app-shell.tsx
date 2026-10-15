@@ -298,8 +298,9 @@ export function AppNav({
   const [profileOpen, setProfileOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   /*
-   * 설정 · 내 정보를 더보기 폴더에서 열었나 — 그 창을 닫으면(막 누름 · 끌어내림 · Esc) 폴더로 돌아간다(2026-10-15 사용자
-   * "메뉴에 들어간 뒤 눌러 들어가니, 나갈 때 원래 메뉴로"). 위 막대 · PC 에서 연 것은 그냥 닫힌다.
+   * 설정 · 내 정보를 PC 더보기 팝업에서 열었나 — 그 창을 닫으면 팝업으로 돌아간다(2026-10-15 사용자 "메뉴에 들어간 뒤 눌러 들어가니,
+   * 나갈 때 원래 메뉴로"). 휴대폰은 폴더를 닫지 않고 그 위에 창을 띄우므로(DetailMenu) 돌아갈 일이 없다 — 닫았다 다시 띄우면 폴더가
+   * 새로 부풀어 떠 부자연스러웠다(같은 날 김민).
    */
   const backToMenu = useRef(false);
   const closeToMenu = (show: (on: boolean) => void) => {
@@ -1416,11 +1417,12 @@ export function AppNav({
           land('bar');
         }}
         onProfile={(el) => {
-          backToMenu.current = true;
+          /* 휴대폰은 폴더를 닫지 않고 그 위에 창을 띄운다(아래) — 닫으면 폴더가 그대로 있다. PC 는 팝업을 거두고 닫을 때 다시 연다 */
+          backToMenu.current = window.matchMedia(DESK_MEDIA).matches;
           openFrom(el, setProfileOpen);
         }}
         onSettings={(el) => {
-          backToMenu.current = true;
+          backToMenu.current = window.matchMedia(DESK_MEDIA).matches;
           openFrom(el, setSettingsOpen);
         }}
         anchor={anchor ?? DOCK_FALLBACK}
@@ -2417,7 +2419,10 @@ function DetailMenu({
                   aria-haspopup="dialog"
                   data-tile
                   onClick={(e) => {
-                    onNavigate();
+                    /*
+                     * 휴대폰은 폴더를 닫지 않는다 — 설정 창이 그 위에 뜨고, 닫으면 폴더가 그대로 있다(2026-10-15 김민 "설정 · 내 정보에서 나올 때
+                     * 더보기가 새로 뜨듯 다시 나와 부자연스럽다"). 설정 단추는 휴대폰에만 있다.
+                     */
                     onSettings(e.currentTarget);
                   }}
                   className="flex min-w-0 flex-col items-center gap-1.5 rounded-2xl px-0.5 py-0.5 text-center text-(--folder-fg) transition-[colors,transform] duration-75 motion-safe:active:scale-95"
@@ -2443,7 +2448,8 @@ function DetailMenu({
             <button
               type="button"
               onClick={(e) => {
-                onNavigate();
+                /* 휴대폰은 폴더를 그대로 두고 그 위에 내 정보 창(설정과 같다), PC 는 팝업을 거둔다 */
+                if (window.matchMedia(DESK_MEDIA).matches) onNavigate();
                 onProfile(e.currentTarget);
               }}
               className="mt-4 flex w-full shrink-0 items-center gap-3 rounded-2xl border-t border-(--folder-fg)/20 px-1 pt-3 pb-0 text-left transition-colors duration-75 hover:bg-(--folder-fg)/10 desk:mt-0 desk:rounded-none desk:rounded-b-2xl desk:border-line desk:px-3 desk:py-2 desk:pb-2 desk:hover:bg-ink/6"
