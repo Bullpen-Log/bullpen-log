@@ -51,6 +51,7 @@ import {
   prescriptionLine,
   programSignalsOf,
   readPinned,
+  BASICS_ROTATION,
   ROTATING_VARIANTS,
   rotatedPick,
   jumpFitsWeek,
@@ -452,8 +453,13 @@ export async function buildProgramDay(
   /* 보조 칸은 세션마다 다른 운동(program.ts ROTATING_VARIANTS) — 고정 운동을 첫째로 같은 칸 후보를 그 칸이 나온 차례대로 */
   const pinnedOf = (v: VariantKey, d = day): { ex: CachedExercise | null; repinned: boolean } => {
     const got = anchorOf(v);
-    if (audience !== 'adult' || !ROTATING_VARIANTS.includes(v) || !got.ex) return got;
-    const pool = variantCandidates(v, core.library, owned, user.trainingLevel, audience);
+    if (!got.ex) return got;
+    /* 성장기는 돌리는 후보에서도 매우 높음을 뺀다 — 고정 운동만 빼고 돌린 차례에는 들어오던 것 */
+    const pool = variantCandidates(v, core.library, owned, user.trainingLevel, audience, youth);
+    /* 기본기는 일곱 칸 모두, 셋을 돌린다(program.ts BASICS_ROTATION) */
+    if (audience === 'basics')
+      return { ex: rotatedPick(got.ex, pool, variantTurn(plan, d, v), BASICS_ROTATION), repinned: got.repinned };
+    if (!ROTATING_VARIANTS.includes(v)) return got;
     /* 점프는 주마다 단계(jumpFitsWeek) — 1~2주에 뎁스 · 바운드가 안 나오게. 맞는 것이 없으면 그대로 */
     if (v === 'jump') {
       const week = weekOfDay(plan, d);

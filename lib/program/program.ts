@@ -673,7 +673,8 @@ const LEGACY: ProgramDef = {
  *
  * 무게를 올려 주지 않는다 — 모두 mode 'none'(무게 추천 · '몇 개 더?' 없음). 청소년 웨이트는 감독 아래에서 안전하다는
  * 근거(Lloyd 2014, 설계 D10)와 부딪히지 않게 횟수 · 세트로만 올린다: 1주 2세트 × 8회 → 2주 세트 +1 → 3주 횟수 +2 → 4주 가볍게.
- * 날마다 같은 일곱(전신) — 처음 배우는 사람은 같은 동작을 자주 하는 편이 자세가 빨리 익는다(Faigenbaum 2009).
+ * 날마다 같은 일곱 칸(전신) — 칸마다 운동 셋을 세션마다 돌린다(BASICS_ROTATION, 2026-10-16 김민 '같은 운동 연속 반복 금지').
+ * 처음 배우는 사람은 같은 동작을 자주 하는 편이 자세가 빨리 익어(Faigenbaum 2009) 셋만 돌려 사흘마다 다시 만나게 했다.
  * 몸 상태 규칙(통증 멈춤 · 경기 앞뒤 쉼 · 회복 데이 가볍게)은 성인 프로그램과 같은 decideToday 를 탄다.
  */
 const BASICS_WEEKS: readonly { sets: number; count: number }[] = [
@@ -692,7 +693,7 @@ const BASICS: ProgramDef = {
   origin: '성장기 · 입문 투수용 맨몸 · 가벼운 저항',
   summary: '무게 없이 자세부터 익혀요. 횟수와 세트만 조금씩 늘려요',
   detail: [
-    '날마다 같은 일곱 가지를 해요. 던지기(메디신볼이 없으면 점프) · 스쿼트 · 밀기 · 힌지 · 당기기 · 한 다리 · 몸통 버티기예요.',
+    '날마다 일곱 가지를 해요. 던지기(메디신볼이 없으면 점프) · 스쿼트 · 밀기 · 힌지 · 당기기 · 한 다리 · 몸통 버티기예요. 세션마다 다른 운동으로 바꿔 가며 해요.',
     '2주차에 세트가 하나 늘고, 3주차에 횟수가 둘 늘어요. 4주는 가볍게 해요.',
     '무게는 추천하지 않아요. 덤벨이나 밴드를 쓰면 같은 자세가 끝까지 유지되는 가장 가벼운 것으로 해요.',
     '다 마치면 성인은 근력 · 파워 프로그램이 열려요. 만 18세 전이면 코치나 트레이너와 함께 무게를 시작해요.',
@@ -1645,7 +1646,7 @@ export type Pinned = Partial<Record<VariantKey, string>>;
 
 /**
  * 세션마다 돌리는 보조 칸(2026-10-14 김민: "4주 고정이면 안 돼 — 세션마다 다르게"). 본 운동(스쿼트 · 힌지 · 밀기)은 무게 흐름(TM · 직선 증량)
- * 때문에 그대로 두고, 나머지는 같은 칸의 후보를 그 칸이 나올 때마다 다음 것으로 바꾼다. 고정 운동(pinned)이 첫째, 기본기는 돌리지 않는다.
+ * 때문에 그대로 두고, 나머지는 같은 칸의 후보를 그 칸이 나올 때마다 다음 것으로 바꾼다. 고정 운동(pinned)이 첫째. 기본기는 일곱 칸 모두 돌린다(BASICS_ROTATION).
  */
 export const ROTATING_VARIANTS: readonly VariantKey[] = [
   /* 당기기(pull)는 뺀다 — 이제 스트롱리프트의 본운동(바벨 로우 5×5 직선 증량)뿐이라 돌리면 무게 흐름이 끊긴다. 보조 당기기는 hpull · vpull(accessoryPick) */
@@ -1657,6 +1658,12 @@ export const ROTATING_VARIANTS: readonly VariantKey[] = [
 ];
 /** 한 칸에서 돌리는 운동 수 — 후보 순서(변형 규칙)의 앞에서 이만큼 */
 export const ROTATION_MAX = 6;
+/**
+ * 기본기 4주는 일곱 칸 모두 세션마다 돌린다(2026-10-16 김민 "같은 운동을 연속으로 반복하지 말라고 했잖아" — 예전엔 12번이 같은
+ * 일곱이었다). 무게를 올리지 않으니 본 운동도 돌려도 끊길 흐름이 없다. 셋만 돌려 사흘에 한 번 같은 동작이 돌아온다 — 연달아는
+ * 안 하되 처음 배우는 동작을 자주 다시 만나게.
+ */
+export const BASICS_ROTATION = 3;
 
 /** 이 세션 앞에서 그 칸이 나온 세션 수 — 돌리는 차례 */
 export function variantTurn(plan: ProgramPlan, day: number, variant: VariantKey): number {
@@ -1669,11 +1676,12 @@ export function variantTurn(plan: ProgramPlan, day: number, variant: VariantKey)
 export function rotatedPick<T extends { id: string }>(
   anchor: T | null,
   candidates: readonly T[],
-  turn: number
+  turn: number,
+  max = ROTATION_MAX
 ): T | null {
   const list = [...(anchor ? [anchor] : []), ...candidates.filter((c) => c.id !== anchor?.id)].slice(
     0,
-    ROTATION_MAX
+    max
   );
   return list.length ? list[turn % list.length] : null;
 }
