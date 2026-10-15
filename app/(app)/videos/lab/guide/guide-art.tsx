@@ -161,10 +161,10 @@ export function PlacementArt({ hand }: { hand: 'R' | 'L' }) {
         <Phone x={side.x} y={side.y} angle={-90 * s} tone={SKY} />
       </svg>
       <Tag x={pct(back.x - 8, W)} y={pct(P.y - s * 28, H)} tone="ink" align="start">
-        뒤 폰 · 2루 쪽 4~5m
+        뒤 폰 · 2루 쪽 3~4m · 세로
       </Tag>
       <Tag x={pct(side.x + 18, W)} y={pct(side.y, H)} tone="sky" align="start">
-        옆 폰 · {hand === 'L' ? '1루' : '3루'} 쪽 4~6m
+        옆 폰 · {hand === 'L' ? '1루' : '3루'} 쪽 3.5~5m · 가로
       </Tag>
       <Tag x={pct(home.x, W)} y={pct(home.y - 22, H)}>
         홈

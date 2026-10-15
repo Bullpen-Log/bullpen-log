@@ -10,7 +10,7 @@ import {
 } from '@/components/icon';
 import { BackLink, ButtonLink, Card, PageHeading } from '@/components/ui';
 import { V2_FAIL_TEXT, type V2FailCode } from '@/lib/pitch-3d/v2/contract';
-import { LAB_FAIL_FIX, type LabGuideSection } from '@/lib/pitch-lab-guide';
+import { LAB_FAIL_FIX, LAB_LENS_DISTANCES, type LabGuideSection } from '@/lib/pitch-lab-guide';
 import { forHand, type LabHand } from '@/lib/pitch-lab-meta';
 import { LAB_MAX_VIDEO_MB } from '@/lib/pitch-lab-meta';
 import { FramingArt, PlacementArt } from './guide-art';
@@ -40,22 +40,54 @@ export function LabGuideView({ hand }: { hand: LabHand }) {
         <Points
           items={[
             forHand(
-              '옆 폰은 3루 쪽에서 투구 방향과 직각으로, 투구판과 내딛는 발 사이를 가운데에 두고 4~6m 떨어져요.',
+              '옆 폰은 3루 쪽에서 투구 방향과 직각으로, 투구판과 내딛는 발 사이를 가운데에 두고 3.5~5m 떨어져요.',
               hand
             ),
-            '뒤 폰은 투수 바로 뒤(2루 쪽) 4~5m 에서 홈을 똑바로 겨눠요. 분석이 이 폰이 보는 쪽을 홈 방향으로 잡아요.',
+            '뒤 폰은 투수 바로 뒤(2루 쪽) 3~4m 에서 홈을 똑바로 겨눠요. 분석이 이 폰이 보는 쪽을 홈 방향으로 잡아요. 3m 보다 가까우면 내딛는 동안 투수 크기가 크게 바뀌어 덜 정확해요.',
+            '거리는 참고예요. 폰마다 1배 렌즈가 조금 달라서, 아래 화면에 담기 기준에 맞춰 앞뒤로 옮겨요.',
             '두 폰 사이는 투수를 사이에 두고 90°쯤이 가장 좋아요. 60~120° 를 벗어나면 폰의 자리를 찾지 못해요.',
             '두 폰 모두 투수의 허리에서 가슴 높이(1~1.3m)에 두고, 옆으로 기울지 않게 수평을 맞춰요.',
           ]}
         />
+        <details className="group rounded-xl bg-surface-2 px-3 py-2.5">
+          <summary className="flex min-h-10 cursor-pointer list-none items-center justify-between text-sm font-semibold text-ink">
+            렌즈별 참고 거리
+            <span className="text-xs font-normal text-muted group-open:hidden">펼치기</span>
+          </summary>
+          <table className="mt-2 w-full text-sm">
+            <thead>
+              <tr className="text-left text-xs text-muted">
+                <th className="py-1 font-medium">1배 렌즈</th>
+                <th className="py-1 font-medium">옆(가로)</th>
+                <th className="py-1 font-medium">뒤(세로)</th>
+              </tr>
+            </thead>
+            <tbody>
+              {LAB_LENS_DISTANCES.map((r) => (
+                <tr key={r.lens} className="border-t border-line align-top">
+                  <td className="py-1.5 pr-2 break-keep">
+                    <span className="text-numeric font-semibold text-ink">{r.lens}</span>
+                    <span className="block text-xs text-muted">{r.phones}</span>
+                  </td>
+                  <td className="text-numeric py-1.5 text-ink">{r.side}</td>
+                  <td className="text-numeric py-1.5 text-ink">{r.back}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <p className="mt-2 text-xs leading-relaxed break-keep text-muted">
+            키 1.8m 투수 기준이에요. 키가 작으면 조금 가까이, 크면 조금 멀리 서요.
+          </p>
+        </details>
       </Section>
 
       <Section id="frame" icon={<Film />} title="화면에 담기">
         <FramingArt />
         <Points
           items={[
-            '폰을 가로로 눕혀 찍어요. 다리를 내딛고 팔을 뻗어도 잘 잘리지 않아요.',
-            '투수 키가 화면 높이의 절반쯤 되게 해요. 이보다 작으면 관절을 놓쳐요.',
+            '옆 폰은 가로로 눕혀 찍어요. 투수가 화면 옆으로 내딛어서 세로면 발이나 팔이 잘려요. 투수 키가 화면 높이의 절반~2/3 이 되게 해요.',
+            '뒤 폰은 세로로 세워 찍어요. 투수가 폰에서 멀어지는 쪽으로 던져 옆으로는 거의 안 움직이니, 세로가 투수를 더 크게 담아요. 투수 키가 화면 높이의 1/3~절반쯤이 알맞아요.',
+            '이보다 작으면 관절을 놓쳐요.',
             '다리를 들 때부터 팔로스루가 끝날 때까지 발끝, 머리, 공 놓는 손이 늘 화면 안에 있어야 해요. 던지는 쪽에 여유를 남겨요.',
             '찍는 동안 투수와 폰 사이를 아무도 지나가지 않게 해요. 분석이 그 사람을 따라갈 수 있어요.',
             '해를 등진 투수(역광)는 몸이 어두워져요. 해나 조명이 투수를 비추는 쪽에서 찍어요.',
@@ -72,7 +104,7 @@ export function LabGuideView({ hand }: { hand: LabHand }) {
               '설정 › 카메라 › 슬로 모션 녹화에서 1080p 240fps 를 골라요.',
               '설정 › 카메라 › 포맷에서 높은 효율성을 골라요. 파일이 작아 한 영상 150MB 안에 들어가요.',
               '설정 › 카메라에서 수평을 켜면 화면에 수평선이 떠서 폰을 똑바로 세우기 쉬워요.',
-              '카메라 앱을 슬로 모션으로 넘기고 아래 배율이 1× 인지 봐요. 0.5× 나 2× 는 안 돼요.',
+              '카메라 앱을 슬로 모션으로 넘기고 아래 배율이 1× 인지 봐요. 0.5× 나 2× 는 안 돼요. Pro 아이폰은 1× 를 누르면 1.2× · 1.5× 로 바뀌니 1× 로 돌려 둬요.',
               '찍기 전에 화면에서 투수를 길게 눌러 AE/AF 잠금을 켜요. 찍는 동안 초점과 밝기가 바뀌지 않아요.',
             ]}
           />
@@ -92,7 +124,7 @@ export function LabGuideView({ hand }: { hand: LabHand }) {
       <Section id="steps" icon={<ListOrdered />} title="찍는 순서">
         <ol className="space-y-2.5">
           {[
-            '두 폰을 삼각대에 세우고 가로로 눕혀 수평을 맞춰요.',
+            '두 폰을 삼각대에 세우고 옆 폰은 가로, 뒤 폰은 세로로 두고 수평을 맞춰요.',
             '투수가 한 번 섀도 피칭을 하며 두 폰 화면에 몸 전체가 다 들어오는지 봐요.',
             '던지기 2초쯤 전에 두 폰 모두 녹화를 켜요. 같은 공 하나를 두 폰이 같이 찍어야 해요.',
             '한 공을 던져요.',
