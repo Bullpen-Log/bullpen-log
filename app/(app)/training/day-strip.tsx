@@ -5,17 +5,10 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ChevronsLeft, ChevronsRight } from '@/components/icon';
 import { shiftDateKey } from '@/lib/pitch-stats';
-import { TRAINING_HOME_HREF } from '@/lib/training-part';
+import { TRAINING_CALENDAR_BACK_DAYS, trainingDayHref as hrefOf } from '@/lib/training-part';
 import type { TrainingStripDay } from '@/lib/training-week';
 
 const WEEKDAY_SHORT = ['일', '월', '화', '수', '목', '금', '토'];
-/** 얼마나 뒤까지 넘겨 볼 수 있나 — 그 앞은 홈 캘린더에서 */
-const BACK_DAYS = 365;
-
-/** 오늘은 트레이닝 홈, 지난날은 그날 운동 기록 */
-const hrefOf = (d: string, today: string) =>
-  d === today ? TRAINING_HOME_HREF : `/training/day/${d}`;
-
 /** 점 셋 — 앱 카드와 같은 색(globals.css --color-app-*) */
 const DOTS: { key: 'workout' | 'armcare' | 'drill'; name: string; color: string }[] = [
   { key: 'workout', name: '운동', color: 'bg-app-training' },
@@ -44,7 +37,7 @@ export function TrainingDayStrip({
   const swiped = useRef(false);
 
   const back = shiftDateKey(date, -7);
-  const prevWeek = back >= shiftDateKey(today, -BACK_DAYS) ? back : null;
+  const prevWeek = back >= shiftDateKey(today, -TRAINING_CALENDAR_BACK_DAYS) ? back : null;
   /* 다음 주가 아직 안 왔으면 오늘로 — 오늘이 이 띠에 없을 때만 */
   const ahead = shiftDateKey(date, 7);
   const nextWeek =
