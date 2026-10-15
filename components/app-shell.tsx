@@ -1179,7 +1179,11 @@ export function AppNav({
         와서, 굴리면 카드 · 글이 로고 '불펜로그' 글자 밑으로 지나가며 겹쳤다(휴대폰 위 막대와 같은 문제 — 사용자 "다른 곳도 봐줘").
         globals.css 'desk-veil'. 로고 · 줄(z-40)보다 밑, 본문보다 위.
       */}
-      <div aria-hidden data-desk-veil className="pointer-events-none fixed inset-x-0 top-0 z-39 hidden desk:block" />
+      <div
+        aria-hidden
+        data-desk-veil
+        className="pointer-events-none fixed inset-x-0 top-0 z-39 hidden desk:block"
+      />
       <Link
         href="/today"
         /*
@@ -1410,7 +1414,8 @@ export function AppNav({
         tabs={tabs}
         camera={
           /* 잠긴 사람(투구 첫 설정 전)은 설정 화면 주소라 구속 측정 전환(zoom)을 걸면 안 된다 */
-          groups.flatMap((g) => g.items).find((i) => i.icon === 'radar' && !i.locked) ?? null
+          groups.flatMap((g) => g.items).find((i) => i.icon === 'radar' && !i.locked) ??
+          null
         }
       />
 
@@ -2539,9 +2544,12 @@ function MobileTopBar({
    * 기록 · 트레이닝 · 영양 탭 첫 화면은 막대를 안 그린다(같은 날 김민: "앱 이름 · 프로필 설정 줄은 홈에만") — 그 탭의 큰 제목이 맨 위.
    * 하위 화면('‹ 뒤로'가 있는 곳)은 그대로. 시계 자리 칠과 그만큼의 빈칸은 남긴다.
    */
-  const bare = !back && ['/videos', '/nutrition', '/training'].includes(pathname);
+  /*
+   * 2026-10-15 판 넘기기(components/tab-pager.tsx): 막대는 네 탭 모두에 — 예전엔 투구 · 트레이닝 · 영양에서 막대를 안 그려(bare)
+   * 탭마다 제목 높이가 달랐다(사용자 "각 탭의 메인 제목 높이가 안 맞는다"). 가운데는 홈이면 로고, 아니면 작은 제목.
+   */
   /* 숨기기는 첫 화면들만 — '‹ 뒤로'가 있는 화면은 돌아갈 길을 늘 보인다. 알림 창이 열려 있으면 안 숨긴다 */
-  const hidden = useBarHidden(!back && !bare && panel == null);
+  const hidden = useBarHidden(!back && panel == null);
 
   return (
     <>
@@ -2565,7 +2573,7 @@ function MobileTopBar({
       <div
         aria-hidden
         data-top-veil
-        data-short={bare || hidden ? '' : undefined}
+        data-short={hidden ? '' : undefined}
         className="pointer-events-none fixed inset-x-0 top-0 z-39 desk:hidden pad:left-(--rail)"
       >
         {/* 흐림 세 겹 — 위로 갈수록 겹이 늘어 점점 흐려진다(globals.css 'top-veil' — 한 선을 넘는 순간 확 흐려지지 않게) */}
@@ -2578,12 +2586,13 @@ function MobileTopBar({
         aria-hidden
         className="pointer-events-none fixed inset-x-0 top-0 h-[env(safe-area-inset-top)] desk:hidden pad:left-(--rail)"
       />
-      {/* 막대는 화면에 붙어(fixed) 있으니 그만큼 비운다 — 시계 자리 + 막대(bare 면 시계 자리만) */}
+      {/* 막대는 화면에 붙어(fixed) 있으니 그만큼 비운다 — 시계 자리 + 막대. 판 넘기기(tabs)에서는 판이 스스로 비워 이건 숨는다 */}
       <div
         aria-hidden
-        className={`shrink-0 desk:hidden ${bare ? 'h-[env(safe-area-inset-top)]' : 'h-[calc(env(safe-area-inset-top)+3.5rem)]'}`}
+        data-bar-spacer
+        className="h-[calc(env(safe-area-inset-top)+3.5rem)] shrink-0 desk:hidden"
       />
-      {!bare && (
+      {
         <header
           /*
            * 아이폰 앱의 내비게이션 막대(2026-10-04 '앱 틀을 네이티브처럼') — 왼쪽 '‹ 뒤로', 가운데 화면 제목(큰 제목이 가려졌을
@@ -2644,7 +2653,7 @@ function MobileTopBar({
             {panel}
           </div>
         </header>
-      )}
+      }
     </>
   );
 }
@@ -2772,7 +2781,11 @@ function MobileTabs({
    */
   const activeIndex = activeHref ? tabs.findIndex((t) => t.href === activeHref) : -1;
   const slideTo = (i: number) =>
-    activeIndex < 0 || i === activeIndex ? undefined : i > activeIndex ? 'swipe-next' : 'swipe-prev';
+    activeIndex < 0 || i === activeIndex
+      ? undefined
+      : i > activeIndex
+        ? 'swipe-next'
+        : 'swipe-prev';
   useEffect(() => {
     if (!chosen) return;
     const timer = window.setTimeout(() => setChosen(null), CHOSEN_TIMEOUT_MS);
