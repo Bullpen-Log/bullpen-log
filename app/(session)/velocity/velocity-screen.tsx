@@ -539,6 +539,12 @@ const SIDE_BTN =
 const SIDE_LABEL = 'mt-1 text-caption font-medium text-white/80';
 
 /** 녹화 시간 — 분:초(한 시간이 넘으면 시:분:초) */
+/** '2026-10-15' → '10월 15일' */
+const monthDay = (date: string) => {
+  const [, m, d] = date.split('-').map(Number);
+  return m && d ? `${m}월 ${d}일` : date;
+};
+
 const formatClock = (sec: number) => {
   const t = Math.max(0, Math.floor(sec));
   const h = Math.floor(t / 3600);
@@ -3101,7 +3107,7 @@ export function VelocityScreen({
                   <div className="bg-gradient-to-t from-black/85 via-black/55 to-transparent px-5 pb-5 pt-10 text-white">
                     {last.measure.ok ? (
                       <div className="motion-safe:animate-fade-in">
-                        <p className="text-display text-6xl leading-none tabular-nums">
+                        <p className="text-numeric text-6xl leading-none">
                           {speedNum(shown(last.measure.kmh))}
                           <span className="ml-2 text-lg text-white/70">
                             {speedLabel(unit)}
@@ -3815,10 +3821,9 @@ export function VelocityScreen({
       >
         {stats && (
           <div className="space-y-4">
-            <p className="text-sm text-muted">
-              {draftDate ?? today} · {stats.n}구 · 최고 {formatSpeed(stats.max, unit)} ·
-              평균 {formatSpeed(stats.avg, unit)}
-              {useCal && fit.n > 0 ? ` · 보정 ${calibrationText(fit)}` : ' · 보정 없음'}
+            <p className="text-subhead text-muted">
+              {monthDay(draftDate ?? today)} · {stats.n}구 · 최고{' '}
+              {formatSpeed(stats.max, unit)} · 평균 {formatSpeed(stats.avg, unit)}
             </p>
             <div>
               <p className="mb-1.5 text-sm font-semibold">종류</p>
@@ -3870,15 +3875,12 @@ export function VelocityScreen({
                   : '저장'}
             </button>
             {calibOn && (
-              <p className="text-xs leading-relaxed text-warn">
-                정확도 보정용 저장이 켜져 있어요 — 이 세션이 구속 측정 관리자에서 보정
-                자료로 표시돼요.
+              <p className="text-footnote leading-snug text-warn">
+                정확도 보정용 저장이 켜져 있어요. 구속 측정 관리자에서 보정 자료로 보여요.
               </p>
             )}
-            <p className="text-xs leading-relaxed text-muted">
-              투구 기록 한 건(투구수 {stats.n} · 최고 · 평균)과 공마다 한 줄이 남아요.
-              그날 화면에서 공마다 고치고 지울 수 있어요. 스피드건 값을 적은 공은 보정
-              자료로도 쓰여요.
+            <p className="text-footnote leading-snug text-muted">
+              공마다 고치고 지우는 건 그날 투구 기록에서 할 수 있어요.
             </p>
           </div>
         )}

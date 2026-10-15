@@ -4,7 +4,7 @@ import { useMemo } from 'react';
 import { Loader2, Play, Target, Trash2 } from 'lucide-react';
 import { speedLabel, toSpeed, type SpeedUnit } from '@/lib/units';
 import { PITCH_TYPES, pitchTypeLabel, summarize, zoneLabel } from '@/lib/velocity-meta';
-import { Panel, SectionLabel, StatRow } from './kit';
+import { Panel, SectionLabel } from './kit';
 import { ZoneGrid } from './pitch-editor';
 import { PrimaryButton } from './setup-steps';
 import type { SessionPitch } from './session-types';
@@ -58,11 +58,11 @@ export function SessionSummary({
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pb-6 pt-4 short:pt-3">
         {/* (1) 머리 */}
         <header>
-          <h2 className="text-2xl font-bold leading-tight text-ink">세션 요약</h2>
-          <p className="mt-1.5 text-sm leading-relaxed text-muted">
-            {formatDate(date)} · {setupText} · {pitches.length}구
+          <h2 className="text-heading text-2xl leading-tight text-ink">세션 요약</h2>
+          <p className="mt-1.5 text-subhead text-muted">
+            {formatDate(date)} · {setupText}
           </p>
-          <p className="mt-0.5 text-xs text-muted">{calibrationText ?? '보정 없음'}</p>
+          <p className="mt-0.5 text-footnote text-muted">{calibrationText ?? '보정 없음'}</p>
         </header>
 
         {empty ? (
@@ -129,20 +129,32 @@ export function SessionDetails({
 
   return (
     <div className={`space-y-5 ${className}`}>
-      {/* (2) 숫자 줄 */}
-      <Panel>
-        <StatRow
-          items={[
-            { label: '최고', value: speedNum(stats.max), unit: unitText },
-            { label: '평균', value: speedNum(stats.avg), unit: unitText },
-            { label: '공', value: stats.n, unit: '구' },
+      {/* (2) 큰 숫자 한 장 — 첫 화면(session-history.tsx)과 같은 모양: 최고 하나를 크게, 나머지는 밑 한 줄 */}
+      <Panel className="p-(--block-pad)">
+        <p className="text-footnote font-semibold text-muted">최고</p>
+        <p className="mt-1 flex items-baseline gap-1.5">
+          <span className="text-numeric text-5xl leading-none text-ink">
+            {speedNum(stats.max)}
+          </span>
+          <span className="text-subhead font-semibold text-muted">{unitText}</span>
+        </p>
+        <dl className="mt-4 grid grid-cols-3 gap-2 border-t border-line pt-3">
+          {[
+            { label: '평균', value: speedNum(stats.avg) },
+            { label: '공', value: `${stats.n}구` },
             {
               label: '스트라이크',
-              value: stats.strikeRate == null ? '—' : stats.strikeRate,
-              unit: stats.strikeRate == null ? undefined : '%',
+              value: stats.strikeRate == null ? '없음' : `${stats.strikeRate}%`,
             },
-          ]}
-        />
+          ].map((it) => (
+            <div key={it.label}>
+              <dt className="text-footnote text-muted">{it.label}</dt>
+              <dd className="text-numeric mt-0.5 text-lg leading-tight text-ink">
+                {it.value}
+              </dd>
+            </div>
+          ))}
+        </dl>
       </Panel>
 
       {/* (3) 구종별 */}
@@ -162,13 +174,13 @@ export function SessionDetails({
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-sm font-semibold">
                     {pitchTypeLabel(g.key) ?? (
-                      <span className="text-muted">구종 —</span>
+                      <span className="text-muted">구종 없음</span>
                     )}
                   </span>
                   <span className="block text-xs text-muted">{g.n}구</span>
                 </span>
                 <span className="text-right">
-                  <span className="text-display block text-xl leading-none tabular-nums">
+                  <span className="text-numeric block text-xl leading-none">
                     {speedNum(g.avg)}
                     <span className="ml-0.5 font-sans text-xs text-muted">
                       {unitText}
@@ -195,7 +207,7 @@ export function SessionDetails({
           <SpeedBars
             pitches={pitches}
             max={stats.max}
-            label={`구속 흐름 — ${pitches.length}구, 최고 ${speedNum(stats.max)} ${unitText}, 평균 ${speedNum(stats.avg)} ${unitText}`}
+            label={`구속 흐름 ${pitches.length}구, 최고 ${speedNum(stats.max)} ${unitText}, 평균 ${speedNum(stats.avg)} ${unitText}`}
           />
           <div className="mt-2 flex justify-between text-xs tabular-nums text-muted">
             <span>{speedNum(pitches[0].kmh)}</span>
@@ -211,13 +223,13 @@ export function SessionDetails({
           <Panel className="flex items-center gap-4 px-4 py-3">
             <ReleaseScatter pitches={pitches} spreadCm={stats.spreadCm} />
             <div className="min-w-0 flex-1">
-              <p className="text-display text-2xl leading-none tabular-nums">
+              <p className="text-numeric text-2xl leading-none">
                 {stats.spreadCm}
                 <span className="ml-0.5 font-sans text-xs text-muted">cm</span>
               </p>
               <p className="mt-1 text-sm font-semibold">릴리스 흩어짐</p>
               <p className="mt-0.5 text-xs leading-relaxed text-muted">
-                표적 십자 기준, 공마다 놓는 자리. 모일수록 같은 팔 위치에서 던진 거예요.
+                공을 놓는 자리가 모일수록 같은 팔 위치에서 던진 거예요.
               </p>
             </div>
           </Panel>
@@ -243,13 +255,13 @@ export function SessionDetails({
                   className="flex min-w-0 flex-1 items-center gap-3 py-2 text-left transition-opacity active:opacity-60"
                 >
                   <span className="w-5 text-xs tabular-nums text-muted">{p.seq}</span>
-                  <span className="text-display w-16 text-2xl leading-none tabular-nums text-ink">
+                  <span className="text-numeric w-16 text-xl leading-none text-ink">
                     {speedNum(p.kmh)}
                   </span>
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-sm font-semibold text-ink">
                       {pitchTypeLabel(p.pitchType) ?? (
-                        <span className="text-muted">구종 —</span>
+                        <span className="text-muted">구종 없음</span>
                       )}
                       {p.result === 'strike' && (
                         <span className="ml-1.5 text-ok">S</span>
@@ -259,7 +271,7 @@ export function SessionDetails({
                       )}
                     </span>
                     <span className="block truncate text-xs text-muted">
-                      {zoneLabel(p.zone) ?? '코스 —'}
+                      {zoneLabel(p.zone) ?? '코스 없음'}
                       {p.releaseKmh != null && ` · 릴리스 ${speedNum(p.releaseKmh)}`}
                       {p.gunKmh != null && ` · 건 ${speedNum(p.gunKmh)}`}
                       {p.source === 'file' && ' · 파일'}
