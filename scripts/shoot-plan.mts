@@ -31,6 +31,9 @@ const old = JSON.parse(readFileSync(new URL('../lib/shoot/plan-data.json', impor
 const sessionsArg = process.argv.find((a) => a.startsWith('--sessions='));
 const forcedSessions = sessionsArg ? Number(sessionsArg.slice(11)) : null;
 const plannedOnly = process.argv.includes('--planned');
+/* --add=id,id — --planned 와 함께 새로 넣을 운동(2026-10-15 김민: 파워에 더한 한 발 점프 · 상체 플라이오 넷을 촬영 일정에) */
+const addArg = process.argv.find((a) => a.startsWith('--add='));
+const added = new Set(addArg ? addArg.slice(6).split(',') : []);
 const kept = old.weeks.filter((w) => !w.outdoor && w.week < from);
 const outdoor = old.weeks.filter((w) => w.outdoor);
 const keptIds = new Set(kept.flatMap((w) => w.stations.flatMap((s) => s.items.map((i) => i.exerciseId))));
@@ -57,7 +60,7 @@ const plannedIds = new Set(
   old.weeks.filter((w) => !w.outdoor && w.week >= from).flatMap((w) => w.stations.flatMap((s) => s.items.map((i) => i.exerciseId)))
 );
 const rows = found
-  .filter((x) => !keptIds.has(x.id) && (!plannedOnly || plannedIds.has(x.id)))
+  .filter((x) => !keptIds.has(x.id) && (!plannedOnly || plannedIds.has(x.id) || added.has(x.id)))
   .map(({ source, videoPath, ...x }) => ({ ...x, oldVideo: source === 'OWN' ? videoPath : null }));
 
 const today = new Date().toISOString().slice(0, 10);

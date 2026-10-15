@@ -137,7 +137,7 @@ export async function attachShootClip(
     referenceVideoId: null,
   };
 
-  const select = { videoPath: true, thumbPath: true } as const;
+  const select = { videoPath: true, thumbPath: true, referenceVideoId: true } as const;
   let before: { videoPath: string | null; thumbPath: string | null };
   let libraryPath: string;
   const warmup = isWarmupId(exerciseId) ? warmupOf(exerciseId) : null;
@@ -193,7 +193,16 @@ export async function attachShootClip(
     if (!found) return { ok: false, error: '라이브러리에서 이 운동을 찾지 못했어요.' };
     before = found;
     if (exercise) await prisma.exerciseVideo.update({ where: { id: exerciseId }, data });
-    else await prisma.mechanicsGuide.update({ where: { id: exerciseId }, data });
+    else {
+      await prisma.mechanicsGuide.update({ where: { id: exerciseId }, data });
+      // 파워에 복사해 둔 같은 드릴(scripts/library-power-plyo-2026-10-15.mjs — 같은 참고 영상, 다시 찍으면 같은 영상 경로)도 같은 영상으로
+      const same = [
+        ...(guide?.referenceVideoId ? [{ referenceVideoId: guide.referenceVideoId }] : []),
+        ...(guide?.videoPath ? [{ videoPath: guide.videoPath }] : []),
+      ];
+      if (same.length)
+        await prisma.exerciseVideo.updateMany({ where: { category: '파워', OR: same }, data });
+    }
     libraryPath = exercise ? '/library/training' : '/library/mechanics';
   }
 

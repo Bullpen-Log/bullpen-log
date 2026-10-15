@@ -86,10 +86,13 @@ function invariants(p: ShootPlan, label: string) {
     );
   });
   check(`${label} — 계획 시각이 앞 운동이 끝난 뒤`, clockOk);
-  /* 2026-10-14 사용자: "한 세션에 3시간 정도로" — 실내 4회를 꽉 채워 2:49~2:56 에 끝난다. 촬영은 3시간 안, 정리(WRAP)는 조금 넘을 수 있다 */
-  const endOk = p.weeks.every((w) => w.end <= SESSION_MINUTES);
+  /*
+   * 2026-10-14 사용자: "한 세션에 3시간 정도로" — 실내 4회를 꽉 채워 2:49~2:56 에 끝난다. 촬영은 3시간쯤, 정리(WRAP)는 조금 넘을 수 있다.
+   * 2026-10-15 파워 운동 넷을 더해 3주차가 3:02 — 3시간 안에 드는 나눔은 한 주에 하체가 36.5 로 몰려(다른 주 26~30), 5분까지 둔다.
+   */
+  const endOk = p.weeks.every((w) => w.end <= SESSION_MINUTES + 5);
   check(
-    `${label} — 매주 3시간 안에 촬영이 끝남`,
+    `${label} — 매주 3시간쯤(5분 안 넘김)에 촬영이 끝남`,
     endOk,
     p.weeks.map((w) => clockText(w.end)).join(' · ')
   );
@@ -218,9 +221,9 @@ const indoorPlan: ShootPlan = { ...plan, weeks: plan.weeks.filter((w) => !w.outd
 {
   const items = indoorPlan.weeks.flatMap(weekItems);
   check(
-    '실내 5주 · 327개(야외를 붙여도 그대로 — 2026-10-14 사용자가 14개 지우고 토 워크 둘 · 나중에 촬영 60개를 뺌, 403 → 327 · 한 회 3시간쯤으로 7 → 5주)',
+    '실내 5주 · 331개(야외를 붙여도 그대로 — 2026-10-14 사용자가 14개 지우고 토 워크 둘 · 나중에 촬영 60개를 뺌, 403 → 327 · 한 회 3시간쯤으로 7 → 5주 · 10-15 파워 넷 더함 → 331)',
     indoorPlan.weeks.length === 5 &&
-      items.length === 327 &&
+      items.length === 331 &&
       indoorPlan.weeks.every((w, i) => w.week === i + 1),
     `${indoorPlan.weeks.length}주 · ${items.length}개`
   );
