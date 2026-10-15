@@ -179,13 +179,19 @@ export function CheckinGate({
 
   /* 이 화면에서 방금 한 일 — 서버가 새 목록을 주기 전에도 바로 닫히게 */
   const [skippedHere, setSkippedHere] = useState<string | null>(null);
+  /*
+   * 흐름의 완료 화면이 끝난 날 — 서버의 새 목록(checkedDays)이 그 전에 안 오면 needed 가 그대로라 창이 단추 없는 완료 화면으로
+   * 남았다(2026-10-16). 흐름이 끝났다고 하면 목록을 기다리지 않고 닫는다.
+   */
+  const [doneHere, setDoneHere] = useState<string | null>(null);
   const [showDone, setShowDone] = useState(false);
 
   const needed =
     today !== null &&
     !checkedDays.includes(today) &&
     skippedDay !== today &&
-    skippedHere !== today;
+    skippedHere !== today &&
+    doneHere !== today;
   /*
    * 방금 체크인했나 — 서버가 오늘이 든 새 목록을 준 그 순간에 안다. 그때 needed 가 false 가 되어 창이 닫히기 시작하면
    * 흐름의 완료 화면이 보이기도 전에 사라진다. '찾던 것이 목록에 들어왔다'를 여기서 보고 잠깐 더 열어 둔다(showDone).
@@ -298,7 +304,10 @@ export function CheckinGate({
           <CheckinFlow
             variant="popup"
             ctx={flow}
-            onDone={() => setShowDone(false)}
+            onDone={() => {
+              setDoneHere(today);
+              setShowDone(false);
+            }}
             onSkip={skip}
           />
         )}
