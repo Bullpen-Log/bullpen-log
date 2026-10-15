@@ -886,8 +886,9 @@ console.log('■ node 실행기(segment · fit)');
     }
     const seg5 = pickSegment({ side: s5.track, back: b5.track });
     check(
-      '착지 뒤에도 내려오는 앞발 — 착지를 발이 땅 가까이 온 때로(0.06 ~ 0.14초 늦게)',
-      seg5.ok && seg5.events.footPlant - fp0 > 0.06 && seg5.events.footPlant - fp0 < 0.14,
+      /* 발은 LIFT(0.12초) 뒤 땅 — 디딘 높이 몸통의 3% 안(2026-10-15)이라 2D 흔들림에 두 장면쯤 더 늦을 수 있다 */
+      '착지 뒤에도 내려오는 앞발 — 착지를 발이 땅에 닿은 때로(0.06 ~ 0.18초 늦게)',
+      seg5.ok && seg5.events.footPlant - fp0 > 0.06 && seg5.events.footPlant - fp0 < 0.18,
       seg5.ok ? `${(seg5.events.footPlant - fp0).toFixed(3)}초` : seg5.code
     );
   }

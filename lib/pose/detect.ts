@@ -65,8 +65,13 @@ const RELEASE_EXT_RATIO = 0.8;
  * (발끝이 지면에 닿는 프레임과 대조해 맞춘 값)
  */
 const PLANT_SPEED_RATIO = 0.2;
-/** 착지 = 디딘 높이에서 이만큼(몸통 길이 배수) 안으로 발목이 내려온 첫 순간 — 화면 아래로 +, 키의 약 3% */
-const PLANT_Y_TOL = 0.1;
+/** 착지 = 디딘 높이에서 이만큼(몸통 길이 배수) 안으로 발목이 내려온 첫 순간 — 화면 아래로 + */
+const PLANT_Y_TOL = 0.03;
+/**
+ * 속도로 찾은 착지에서 발목이 디딘 높이보다 이만큼(몸통 길이 배수) 넘게 위일 때만 옮긴다 — 이미 디딘 발은 2D 점이 몇 px 흔들려도 그대로.
+ * 실험실 8샘플: 늦게 잡히던 다섯은 0.11 ~ 1.1, 제대로 잡히던 셋은 0 밑.
+ */
+const PLANT_AIR_GATE = 0.08;
 
 /** 투구로 인정할 최소 팔 전방 신전 (몸통 길이 배수) */
 const MIN_THROW_EXT = 0.4;
@@ -451,12 +456,14 @@ export function detectPitchEvents(
       .filter((v): v is number => v != null)
       .sort((a, b) => a - b);
     const planted = win.length >= 3 ? win[Math.floor((win.length - 1) * 0.75)] : null;
-    const y0 = ys[plantIdx];
     /*
-     * 분명히 공중일 때만(디딘 높이보다 PLANT_Y_TOL 의 2.5배 넘게 위) 옮긴다 — 거의 닿은 발을 한두 장면 옮기면 화면 녹화(확대 정도 모름)에서는
-     * 카메라 맞추기가 흔들려 결과가 통째로 달라졌다(2026-10-09 샘플 4: 한 장면 옮겨 초점 1872 → 1817).
+     * 속도로 찾은 순간 발이 아직 떠 있으면(PLANT_AIR_GATE) 디딘 높이(착지 ~ 릴리스 발목 높이의 아래쪽 4분위)에서 몸통 길이의 PLANT_Y_TOL 안으로 내려온 첫 장면.
+     * 2026-10-15 김민: "샘플 4 · 2 착지 판정 순간에 왼발이 한참 떠 있다" — 앞으로 가기를 멈춘 뒤에도 발이 0.3~0.4초 더 내려왔는데
+     * (샘플 4 몸통의 약 16%), 예전엔 '분명히 공중'(몸통의 25% 넘게 위)일 때만 옮겨 그대로 묶였다. 그 문턱은 10-09 에 한 장면 옮김이
+     * 화면 녹화의 카메라 맞추기를 흔든다고 둔 것인데, 착지가 실제보다 0.3초 이르면 그쪽이 더 크게 틀린다.
      */
-    if (planted != null && y0 != null && y0 < planted - 2.5 * PLANT_Y_TOL * trunk) {
+    const y0 = ys[plantIdx];
+    if (planted != null && y0 != null && y0 < planted - PLANT_AIR_GATE * trunk) {
       for (let i = plantIdx; i <= releaseIdx; i++) {
         const y = ys[i];
         if (y != null && y >= planted - PLANT_Y_TOL * trunk) {
