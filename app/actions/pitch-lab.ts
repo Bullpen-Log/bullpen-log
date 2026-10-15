@@ -5,6 +5,7 @@ import { requireUser } from '@/lib/dal';
 import {
   createV2ResultUploadUrl,
   deleteLabSample,
+  deleteUnsavedLabSample,
   findLabOwner,
   labVideoUrls,
   loadLabGuard,
@@ -15,7 +16,7 @@ import {
   saveLabJob,
   saveLabMeta,
 } from '@/lib/pitch-lab';
-import { guardBlock, readLabGuard, recordFail } from '@/lib/pitch-lab-guard';
+import { guardBlock, labMetaBlock, readLabGuard, recordFail } from '@/lib/pitch-lab-guard';
 import {
   applyGpuStatus,
   canRequestV2,
@@ -65,14 +66,27 @@ export async function saveLabSample(input: {
 }): Promise<Result> {
   const user = await requireUser();
   if (!isLabId(input.id)) return { error: '샘플 번호를 확인할 수 없어요.' };
+  const meta = readLabMeta(input.meta, new Date().toISOString());
+  /* 화면 녹화 · 따로 찍은 짝은 받지 않는다(2026-10-15 사용자 — 화면도 막지만 옛 화면 · 직접 부름까지) */
+  const block = labMetaBlock(input.meta, meta);
+  if (block) {
+    /*
+     * 영상은 화면이 이미 올렸다 — 정보가 없는 새 폴더면 지워 목록에 빈 샘플로 남지 않게(정보가 있는 옛 샘플은 그대로).
+     * 지우다 실패해도 막은 까닭은 그대로 알린다.
+     */
+    try {
+      await deleteUnsavedLabSample((await findLabOwner(input.id, user)) ?? user.id, input.id);
+    } catch {
+      /* 남은 폴더는 목록에서 지울 수 있다 */
+    }
+    return { error: block };
+  }
   try {
     await saveLabMeta(
       (await findLabOwner(input.id, user)) ?? user.id,
       input.id,
       /* 마커 샘플은 관리자 스크립트만 — 일반 사용자가 보낸 kind 는 늘 sample */
-      ((m) => (user.role === 'ADMIN' ? m : { ...m, kind: 'sample' as const }))(
-        readLabMeta(input.meta, new Date().toISOString())
-      )
+      user.role === 'ADMIN' ? meta : { ...meta, kind: 'sample' as const }
     );
   } catch {
     return { error: '정보를 저장하지 못했어요. 다시 해 주세요.' };

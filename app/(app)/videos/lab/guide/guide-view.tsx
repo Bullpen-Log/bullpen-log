@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import {
+  ArrowLeftRight,
   Camera,
   Film,
   ListOrdered,
@@ -91,6 +92,7 @@ export function LabGuideView() {
             '한 공을 던져요.',
             '팔로스루가 끝나고 1초쯤 뒤에 두 폰 모두 멈춰요. 5~6초면 충분해요.',
             '다음 공은 새로 녹화해요. 한 영상에 한 공이에요.',
+            '한쪽 폰의 영상을 올릴 폰이나 PC 로 옮겨요. 원본이 바뀌지 않게 옮기는 법은 아래 영상 옮기기에 있어요.',
           ].map((text, i) => (
             <li key={text} className="flex gap-3">
               <span className="text-numeric grid h-6 w-6 shrink-0 place-items-center rounded-full bg-sky text-xs font-bold text-white">
@@ -104,12 +106,40 @@ export function LabGuideView() {
         </ol>
       </Section>
 
+      <Section id="move" icon={<ArrowLeftRight />} title="영상 옮기기(원본 그대로)">
+        <p className="text-sm leading-relaxed break-keep text-muted">
+          폰 두 대로 찍으니 한쪽 영상을 올릴 폰(또는 PC)으로 옮겨야 해요. 옮기는 방법에 따라 슬로 모션이 보통 영상(초당 30장)으로
+          바뀌거나 화질이 줄어요. 그러면 3D 가 정확하지 않아요.
+        </p>
+        <SubHead>이렇게 옮겨요</SubHead>
+        <Points
+          items={[
+            '아이폰끼리는 AirDrop: 사진 앱에서 영상을 열고 공유를 누른 뒤, 위쪽 옵션에서 모든 사진 데이터를 켜고 보내요. 끄고 보내면 슬로 모션이 보통 영상으로 바뀔 수 있어요.',
+            '두 아이폰이 같은 Apple ID 로 iCloud 사진을 쓰면 옮기지 않아도 올릴 폰의 사진 앱에 원본이 와요.',
+            '갤럭시끼리는 퀵 셰어(Quick Share)로 보내요.',
+            '아이폰과 갤럭시처럼 기기가 다르면 두 폰의 영상을 케이블로 컴퓨터에 옮겨 PC 에서 올려요. 3D 동작 분석은 PC 에서도 열려요.',
+          ]}
+        />
+        <SubHead>이렇게는 옮기지 않아요</SubHead>
+        <Points
+          items={[
+            '카카오톡 같은 메신저, 메일, 문자로 보내기. 화질과 초당 장수가 줄어요.',
+            '화면 녹화로 다시 찍기. 화면 녹화는 올릴 수 없어요.',
+            '사진 앱에서 자르거나 슬로 모션 구간을 바꾼 뒤 보내기. 두 영상의 시간이 어긋나요.',
+          ]}
+        />
+        <p className="rounded-xl bg-sky-tint px-3 py-2.5 text-sm leading-relaxed break-keep text-ink">
+          올리기 칸에서 영상을 고르면 밑에 초당 장수가 떠요. 240fps 로 찍었는데 30 이나 60 이 보이면 옮기며 원본이 바뀐 거예요.
+          위 방법으로 다시 옮겨 주세요.
+        </p>
+      </Section>
+
       <Section id="upload" icon={<Upload />} title="올리기">
         <Points
           items={[
             '3D 동작 분석의 영상 올리기에서 옆 칸에 옆 폰 영상, 뒤 칸에 뒤 폰 영상을 골라요.',
-            '사진 앱의 원본을 그대로 골라요. 자르기, 슬로 모션 구간 바꾸기, 내보내기, 화면 녹화를 한 영상은 시간이 어긋나요.',
-            '메신저로 받은 영상은 화질이 줄어 있어요. 다른 폰으로 찍었다면 AirDrop 에서 옵션 › 모든 사진 데이터를 켜고 원본을 옮겨요.',
+            '두 영상의 찍은 시각을 봐서 같은 공을 동시에 찍은 짝이 아니면 올리지 않아요. 같은 영상을 두 칸에 골라도 안 돼요.',
+            '화면 녹화한 영상은 올릴 수 없어요. 자르기, 슬로 모션 구간 바꾸기, 내보내기를 한 영상은 시간이 어긋나요.',
             `영상 하나에 ${LAB_MAX_VIDEO_MB}MB 까지예요. 240fps 1080p 높은 효율성 6초면 20MB 남짓이에요.`,
           ]}
         />
@@ -150,6 +180,7 @@ const SECTION_NAME: Record<LabGuideSection, string> = {
   frame: '화면에 담기',
   phone: '폰 설정',
   steps: '찍는 순서',
+  move: '영상 옮기기',
   upload: '올리기',
   fail: '분석이 안 됐다면',
 };
