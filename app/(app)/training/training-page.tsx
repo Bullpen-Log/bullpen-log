@@ -125,7 +125,11 @@ function AppHead({
   return (
     <div className="space-y-1">
       <RememberTrainingApp part={app} />
-      <div className="flex min-h-11 items-center gap-3">
+      {/*
+        '‹ 트레이닝'은 휴대폰에서 위 막대에 선다(BackLink) — 이 줄은 PC 에서만. 예전엔 휴대폰에서 이 줄에 설정 단추만 남아 제목 위에 홀로
+        떠 있었다(2026-10-15 김민 "상단이 부자연스럽다") → 휴대폰은 설정을 제목 오른쪽 알약으로(투구의 '분석'처럼).
+      */}
+      <div className="hidden min-h-11 items-center gap-3 desk:flex">
         <BackLink href={TRAINING_HOME_HREF}>트레이닝</BackLink>
         {settings && (
           <div className="ml-auto">
@@ -137,7 +141,23 @@ function AppHead({
           </div>
         )}
       </div>
-      <PageHeading eyebrow="Training" title={title} />
+      <PageHeading
+        eyebrow="Training"
+        title={title}
+        inlineAction
+        action={
+          settings && (
+            <div className="desk:hidden">
+              <TrainingSettingsButton
+                trainingLevel={settings.trainingLevel}
+                ownedEquipment={settings.ownedEquipment}
+                returnTo={returnTo}
+                pill
+              />
+            </div>
+          )
+        }
+      />
     </div>
   );
 }

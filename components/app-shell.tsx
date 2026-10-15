@@ -2546,6 +2546,13 @@ function MobileTopBar({
   const bare = !back && ['/videos', '/nutrition', '/training', '/admin/velocity'].includes(pathname);
   /* 숨기기는 첫 화면들만 — '‹ 뒤로'가 있는 화면은 돌아갈 길을 늘 보인다. 알림 창이 열려 있으면 안 숨긴다 */
   const hidden = useBarHidden(!back && !bare && panel == null);
+  /*
+   * '‹ 뒤로'가 선 막대를 판 넘기기가 알게 — 탭 판 안의 하위 화면(트레이닝의 암케어 · 오늘 운동 · 메커니즘, 주소는 /training)은 판의 위 여백이
+   * 막대 없는 탭 값이라 본문이 막대 밑으로 들어갔다(2026-10-15 김민 "상단바가 부자연스럽다", globals.css [data-panel]).
+   */
+  useLayoutEffect(() => {
+    document.documentElement.toggleAttribute('data-bar-back', back != null);
+  }, [back]);
 
   return (
     <>
