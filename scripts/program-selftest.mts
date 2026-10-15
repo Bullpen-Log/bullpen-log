@@ -47,6 +47,7 @@ import {
   topSetIndex,
   usedVariants,
   variantCandidates,
+  basicsPool,
   warmupLine,
   weekOfDay,
   ARM_DEFER_REASON,
@@ -442,7 +443,17 @@ console.log('\n1-1) 기본기 4주');
     '쓰는 변형 일곱',
     eq(usedVariants(b.def), ['squat', 'hinge', 'push', 'pull', 'singleLeg', 'medball', 'antiRotation'])
   );
-  check('처방 한 줄', prescriptionLine(sq(1)) === '2세트 × 8회' && prescriptionLine(rxOf(b, 1, 'medball')) === '2세트 × 5회 · 최대 속도 · 충분히 쉬고', prescriptionLine(rxOf(b, 1, 'medball')));
+  check('처방 한 줄 — 기본기도 여유는 알려 줌(2개 남기고)', prescriptionLine(sq(1)) === '2세트 × 8회 · 2개 남기고' && prescriptionLine(rxOf(b, 1, 'medball')) === '2세트 × 5회 · 최대 속도 · 충분히 쉬고', prescriptionLine(sq(1)));
+  /* 4주 마지막(12번)은 점검 — 스쿼트 · 밀기 마지막 세트는 자세가 무너지기 전까지, 나머지 칸 · 다른 날은 그대로(2026-10-16) */
+  check(
+    '12번은 점검 — 스쿼트 · 밀기 마지막 세트만 끝까지',
+    dayPlan(b, 12).label === '점검' &&
+      prescriptionLine(sq(12)) === '1세트 × 8회 · 마지막 세트는 자세가 무너지기 전까지' &&
+      prescriptionLine(rxOf(b, 12, 'push')).includes('무너지기 전까지') &&
+      !prescriptionLine(rxOf(b, 12, 'hinge')).includes('무너지기') &&
+      dayPlan(b, 11).label == null,
+    prescriptionLine(sq(12))
+  );
   check('칸 이름 — 기본기 첫 칸은 던지기 · 점프', variantLabel('medball', 'basics') === '던지기 · 점프' && variantLabel('medball') === '메디신볼');
   const c = programChoiceList().find((x) => x.id === 'basics-4w');
   check('고르기: 기본기 · 꼭 있을 장비 없음 · % 안 씀', c?.audience === 'basics' && c.required.length === 0 && c.usesPct === false && c.weeks[0].startsWith('1주 · 스쿼트'), c?.weeks[0] ?? '');
@@ -559,7 +570,7 @@ check('다 맞으면 시작', checkEligibility(base).ok);
   check('성장기: % 방식 + 세트도 3개 남기고', pctRx != null && youthRx(pctRx).reserve === YOUTH_RESERVE && prescriptionLine(youthRx(pctRx)).includes(`+는 ${YOUTH_RESERVE}개 남기고`), pctRx ? prescriptionLine(youthRx(pctRx)) : 'no pct');
   check('나이 모르면 고르기 화면은 막지 않음', profileBlock({ age: null, trainingLevel: '초급' }) === null && profileBlock({ audience: 'basics', age: null, trainingLevel: '입문' }) === null);
   const bplan = plan('basics-4w');
-  check('기본기 마침: 다 건너뛰면 안 셈 · 6번 하면 셈', !basicsDoneEnough(bplan, 13, 12) && !basicsDoneEnough(bplan, 13, 7) && basicsDoneEnough(bplan, 13, 6) && basicsDoneEnough(bplan, 13, 0));
+  check('기본기 마침: 12번 중 10번 해야 셈(2026-10-16)', !basicsDoneEnough(bplan, 13, 12) && !basicsDoneEnough(bplan, 13, 3) && basicsDoneEnough(bplan, 13, 2) && basicsDoneEnough(bplan, 13, 0));
   check('장비 막힘: 성인은 바벨 · 덤벨, 기본기는 없음', equipmentBlock(['맨몸'])?.reason.startsWith('바벨, 덤벨이') === true && equipmentBlock(['맨몸'], []) === null);
 }
 
@@ -632,6 +643,30 @@ const lib: PinnableExercise[] = [
   ex('carry', '싱글암 파머스 캐리', '코어', null, ['덤벨'], '중간', '초급', true),
   ex('bug', '데드버그', '코어', null, ['맨몸'], '낮음', '초급'),
 ];
+{
+  /* 기본기(2026-10-16 검토): 맨몸뿐이면 당기기는 맨몸 견갑 운동 · 캐리는 안 고름 · 1~2주는 쉬운 동작부터 · 3~4주 던지기는 회전 먼저 */
+  const yRaise = ex('yr', '쿼드러펫 Y 레이즈', '암케어', null, ['맨몸'], '낮음', '초급');
+  const pushup = ex('pu', '푸시업', '상체 스트렝스', '밀기', ['맨몸'], '중간', '초급');
+  const incline = ex('ipu', '인클라인 푸시업', '상체 스트렝스', '밀기', ['맨몸'], '낮음', '초급');
+  const pike = ex('pk', '파이크 푸시업', '상체 스트렝스', '밀기', ['맨몸'], '중간', '중급');
+  const rot = ex('rt', '메디신볼 로테이셔널 스로우', '파워', '회전', ['메디신볼'], '중간', '초급');
+  const libB = [...lib, yRaise, pushup, incline, pike, rot];
+  const pullBody = variantCandidates('pull', libB, ['맨몸'], '입문', 'basics').map((e) => e.id);
+  const core = variantCandidates('antiRotation', libB, ['맨몸', '덤벨', '밴드'], '입문', 'basics').map((e) => e.id);
+  const push = variantCandidates('push', libB, ['맨몸'], '입문', 'basics');
+  const ball = variantCandidates('medball', libB, ['메디신볼'], '입문', 'basics');
+  check(
+    '기본기: 맨몸 당기기 = 쿼드러펫 Y 레이즈 · 캐리 안 고름 · 1~2주 인클라인 푸시업 먼저 · 파이크(중급)는 1~2주에 없음 · 3~4주 던지기는 회전 먼저',
+    pullBody.join() === 'yr' &&
+      !core.includes('carry') &&
+      core.length > 0 &&
+      basicsPool(push, 'push', 1)[0].id === 'ipu' &&
+      !basicsPool(push, 'push', 2).some((e) => e.id === 'pk') &&
+      basicsPool(push, 'push', 3)[0].id === 'pu' &&
+      basicsPool(ball, 'medball', 3)[0].id === 'rt',
+    `${pullBody} | ${core} | ${basicsPool(push, 'push', 1).map((e) => e.id)} | ${basicsPool(push, 'push', 3).map((e) => e.id)} | ${basicsPool(ball, 'medball', 3).map((e) => e.id)}`
+  );
+}
 {
   /* 메디신볼이 없으면 메디신볼 칸은 인클라인 플라이오 푸시업(박스) — 있으면 메디신볼 그대로, 박스도 없으면 빈 칸(2026-10-16) */
   const ipp = ex('ipp', '인클라인 플라이오 푸시업', '파워', '밀기', ['박스'], '중간', '초급');

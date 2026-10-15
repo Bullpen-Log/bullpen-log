@@ -694,23 +694,32 @@ const BASICS: ProgramDef = {
   summary: '무게 없이 자세부터 익혀요. 횟수와 세트만 조금씩 늘려요',
   detail: [
     '날마다 일곱 가지를 해요. 던지기(메디신볼이 없으면 점프) · 스쿼트 · 밀기 · 힌지 · 당기기 · 한 다리 · 몸통 버티기예요. 세션마다 다른 운동으로 바꿔 가며 해요.',
-    '2주차에 세트가 하나 늘고, 3주차에 횟수가 둘 늘어요. 4주는 가볍게 해요.',
+    '1~2주는 쉬운 동작으로 자세를 익히고, 3~4주에 기본 동작으로 올라가요. 2주차에 세트가 하나 늘고, 3주차에 횟수가 둘 늘어요.',
+    '4주는 가볍게 하고, 마지막 세션에 스쿼트 · 밀기를 자세가 무너지기 전까지 해 봐요.',
     '무게는 추천하지 않아요. 덤벨이나 밴드를 쓰면 같은 자세가 끝까지 유지되는 가장 가벼운 것으로 해요.',
-    '다 마치면 성인은 근력 · 파워 프로그램이 열려요. 만 18세 전이면 코치나 트레이너와 함께 무게를 시작해요.',
+    '12번 중 10번 넘게 하면 성인은 근력 · 파워 프로그램이 열려요. 만 18세 전이면 코치나 트레이너와 함께 무게를 시작해요.',
   ],
   weeks: 4,
   perWeek: [3],
   lightWeeks: [4],
-  build: (_day, week) => {
+  build: (day, week) => {
     const w = BASICS_WEEKS[week - 1];
-    const lift = (v: VariantKey) => item(v, 'none', reps(w.sets, w.count), 60);
+    /* 무게는 추천하지 않되 얼마나 힘들게는 알려 준다 — 2개 남기고(2026-10-16 검토 ⑤) */
+    const lift = (v: VariantKey) => item(v, 'none', reps(w.sets, w.count, 2), 60);
+    /*
+     * 마지막 세션(4주 셋째)은 점검 — 스쿼트 · 밀기 한 세트를 자세가 무너지기 전까지(2026-10-16 검토 ④). 4주차가 1주차와 같은 2×8 로만
+     * 끝나 넘어갈 준비가 됐는지 알 길이 없었다. 적은 횟수는 세트 기록에 남는다.
+     */
+    const check = week === 4 && day % 3 === 0;
+    const tested = (v: VariantKey) =>
+      check ? item(v, 'none', [...reps(w.sets - 1, w.count, 2), { reps: w.count, plus: true }], 90) : lift(v);
     return {
-      label: null,
+      label: check ? '점검' : null,
       items: [
         /* 던지기 · 점프는 지치기 전에 맨 앞 */
         item('medball', 'none', reps(w.sets, 5), 90),
-        lift('squat'),
-        lift('push'),
+        tested('squat'),
+        tested('push'),
         lift('hinge'),
         lift('pull'),
         lift('singleLeg'),
@@ -983,8 +992,16 @@ export function prescriptionLine(
   const side = opts.perSide ? ' (좌우 각각)' : '';
   const n = rx.sets.length;
   if (rx.mode === 'none') {
+    /* 기본기 점검 세트('+') — 앞 세트는 그대로, 마지막은 자세가 무너지기 전까지 */
+    if (rx.sets[n - 1].plus) {
+      return n > 1
+        ? `${n - 1}세트 × ${rx.sets[0].reps}회 · 마지막 세트는 자세가 무너지기 전까지${side}`
+        : `1세트 · 자세가 무너지기 전까지${side}`;
+    }
     const base = `${n}세트 × ${rx.sets[0].reps}회${side}`;
-    return rx.slot === 'power' ? `${base} · 최대 속도 · 충분히 쉬고` : base;
+    if (rx.slot === 'power') return `${base} · 최대 속도 · 충분히 쉬고`;
+    /* 무게 없이도 여유는 알려 준다(기본기, SetRx.reserve) */
+    return rx.sets[0].reserve != null ? `${base} · ${rx.sets[0].reserve}개 남기고` : base;
   }
   if (rx.top) {
     return `준비 세트로 올려 ${rx.reps}회 1세트${side} · ${rx.reserve ?? 1}개 남기고`;
@@ -1224,7 +1241,8 @@ export function equipmentBlock(
  */
 export function basicsDoneEnough(plan: ProgramPlan, nextDay: number, skippedDays: number): boolean {
   const did = Math.min(plan.totalDays, nextDay - 1) - skippedDays;
-  return did >= Math.ceil(plan.totalDays / 2);
+  /* 12번 중 10번(2026-10-16 검토 ③ — 예전 절반 6번은 화면 글 '다 마치면'과 어긋났다) */
+  return did >= plan.totalDays - 2;
 }
 
 /* ─────────────────────────── 운동 고정(§3 · U6) ─────────────────────────── */
@@ -1583,8 +1601,9 @@ const BASICS_RULES: Record<VariantKey, VariantRule> = {
       wordRank(ex.title, ['포고', '버티컬 점프', '브로드 점프']),
     ],
   },
+  /* 캐리는 뺀다 — 처방이 '세트 × 회'라 '파머스 캐리 8회'가 됐다(거리 · 시간이 맞다, 2026-10-16 검토 ⑥) */
   antiRotation: {
-    match: (ex) => VARIANT_RULES.antiRotation.match(ex) && basicFit(ex),
+    match: (ex) => VARIANT_RULES.antiRotation.match(ex) && basicFit(ex) && !ex.title.includes('캐리'),
     rank: VARIANT_RULES.antiRotation.rank,
   },
 };
@@ -1624,6 +1643,18 @@ export function variantCandidates<T extends PinnableExercise>(
    * 메디신볼이 없어 메디신볼 칸 후보가 하나도 없으면 인클라인 플라이오 푸시업(박스 · 벤치) — 같은 '상체를 빠르게 미는' 동작이라 그날 목적에
    * 맞는다(2026-10-16 김민). 박스도 없으면 예전처럼 칸이 빠진다(load.ts '메디신볼이 없어 빼요'). 기본기는 제 규칙(맨몸 점프)이 있다.
    */
+  /*
+   * 기본기 당기기 — 맨몸뿐이면 당기기 후보가 없어 4주 내내 당기기 0번(푸시업만)이었다(2026-10-16 검토 ①). 등 · 견갑을 맨몸으로 끄는
+   * 암케어 운동으로 채운다.
+   */
+  if (usable.length === 0 && variant === 'pull' && audience === 'basics') {
+    usable.push(
+      ...library.filter(
+        (ex) =>
+          inCategory(ex, '암케어') && /쿼드러펫 [YT] 레이즈|프론 슈퍼맨/.test(ex.title) && canDo(ex, ownedSet)
+      )
+    );
+  }
   if (usable.length === 0 && variant === 'medball' && audience !== 'basics') {
     usable.push(
       ...library.filter(
@@ -1664,6 +1695,37 @@ export const ROTATION_MAX = 6;
  * 안 하되 처음 배우는 동작을 자주 다시 만나게.
  */
 export const BASICS_ROTATION = 3;
+
+/**
+ * 기본기의 주차별 돌리는 후보(2026-10-16 검토 ② — 예전엔 처음 고정된 운동이 4주 내내였고, 돌리기를 넣은 뒤에는 쉬운 것과 어려운 것이
+ * 섞여 돌았다). 1~2주는 쉬운 동작(난이도 초급 · 강도 중간 이하 — 인클라인 푸시업 · 글루트 브리지 · 맨몸 스쿼트)을 쉬운 것부터, 맞는 것이
+ * 없으면 후보 그대로. 3~4주는 강도 중간까지에서 변형 규칙의 차례(푸시업 · RDL · 고블렛). 던지기 칸은 3~4주에 돌려 던지기를 앞으로 — 투구는 회전이라.
+ * 돌리는 차례의 첫째(고정 운동)는 3~4주에만 앞에 둔다(load.ts pinnedOf).
+ */
+export function basicsPool<T extends PinnableExercise>(pool: readonly T[], variant: VariantKey, week: number): T[] {
+  if (week <= 2) {
+    const easy = pool.filter(
+      (ex) => ex.difficulty === '초급' && intensityLevel(ex.intensity) <= intensityLevel('중간')
+    );
+    const list = easy.length > 0 ? easy : [...pool];
+    return list
+      .map((ex, i) => ({ ex, i }))
+      .sort((a, b) => intensityLevel(a.ex.intensity) - intensityLevel(b.ex.intensity) || a.i - b.i)
+      .map((x) => x.ex);
+  }
+  /*
+   * 3~4주도 강도 '중간'까지 — 돌리기에 덤벨 프론트 스쿼트 · 불가리안 스플릿 스쿼트 · 브로드 점프(높음)가 들어와 입문자의 12번 점검(끝까지
+   * 하는 세트)에까지 걸렸다. 맞는 것이 없으면 후보 그대로.
+   */
+  const mid = pool.filter((ex) => intensityLevel(ex.intensity) <= intensityLevel('중간'));
+  pool = mid.length > 0 ? mid : pool;
+  if (variant === 'medball') {
+    /* 슬램은 '회전'으로 적혀 있어도 위아래로 던지는 것이라 빼고 센다(rotationalThrow 규칙과 같은 까닭) */
+    const spins = (ex: T) => Number(ex.movementPattern === '회전' && !ex.title.includes('슬램'));
+    return [...pool].sort((a, b) => spins(b) - spins(a));
+  }
+  return [...pool];
+}
 
 /** 이 세션 앞에서 그 칸이 나온 세션 수 — 돌리는 차례 */
 export function variantTurn(plan: ProgramPlan, day: number, variant: VariantKey): number {

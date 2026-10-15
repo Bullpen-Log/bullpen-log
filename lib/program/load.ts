@@ -52,6 +52,7 @@ import {
   programSignalsOf,
   readPinned,
   BASICS_ROTATION,
+  basicsPool,
   ROTATING_VARIANTS,
   rotatedPick,
   jumpFitsWeek,
@@ -456,9 +457,18 @@ export async function buildProgramDay(
     if (!got.ex) return got;
     /* 성장기는 돌리는 후보에서도 매우 높음을 뺀다 — 고정 운동만 빼고 돌린 차례에는 들어오던 것 */
     const pool = variantCandidates(v, core.library, owned, user.trainingLevel, audience, youth);
-    /* 기본기는 일곱 칸 모두, 셋을 돌린다(program.ts BASICS_ROTATION) */
-    if (audience === 'basics')
-      return { ex: rotatedPick(got.ex, pool, variantTurn(plan, d, v), BASICS_ROTATION), repinned: got.repinned };
+    /* 기본기는 일곱 칸 모두, 셋을 돌린다(program.ts BASICS_ROTATION) — 1~2주는 쉬운 동작에서, 3~4주는 기본 동작에서(basicsPool) */
+    if (audience === 'basics') {
+      const week = weekOfDay(plan, d);
+      const list = basicsPool(pool, v, week);
+      /* 점검 세션(12번)의 스쿼트 · 밀기는 돌리지 않고 기본 동작 하나로 — 끝까지 하는 세트라 월 싯 같은 버티기가 걸리지 않게, 다음에도 견줄 수 있게 */
+      if ((v === 'squat' || v === 'push') && dayPlan(plan, d).label === '점검')
+        return { ex: list[0] ?? got.ex, repinned: got.repinned };
+      return {
+        ex: rotatedPick(week <= 2 || !list.some((e) => e.id === got.ex!.id) ? null : got.ex, list, variantTurn(plan, d, v), BASICS_ROTATION) ?? got.ex,
+        repinned: got.repinned,
+      };
+    }
     if (!ROTATING_VARIANTS.includes(v)) return got;
     /* 점프는 주마다 단계(jumpFitsWeek) — 1~2주에 뎁스 · 바운드가 안 나오게. 맞는 것이 없으면 그대로 */
     if (v === 'jump') {
