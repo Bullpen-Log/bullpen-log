@@ -102,22 +102,28 @@ export default async function HomePage({
       {/*
         오늘 — 체크인 · 투구 · 운동 · 영양 링(아이폰 피트니스처럼). 그 밑 '오늘(내일) N구까지' 한 줄은 뺐다(2026-10-13 김민).
       */}
-      <Suspense
-        fallback={<Skeleton className="h-[13.5rem] rounded-2xl desk:h-[10.5rem]" />}
-      >
-        <TodayRings user={user} today={today} pitchLocked={locks.pitch} />
-      </Suspense>
-
       {/*
-        요약 칸(우리끼리 '뉴스' — 화면에는 그 말이 없다, feed.tsx · feed-card.tsx, 2026-10-13). 예전 영양 카드 자리다.
-        하이라이트(평소와 달라진 것 — 투구 · 운동 · 홈 몫 모두) · 부하 지수 · 오늘 운동 · 영양 한 줄을 3초마다 한 장씩 돌려 보이고,
-        누르면 그 탭으로 간다. 예전 영양 카드(10.5rem)보다 조금 길다(사용자 "하단 길이를 조금만 늘려줘").
+        링 · 요약 칸 — 휴대폰은 위아래로(예전과 같은 간격), 패드는 나란히 같은 높이로(2026-10-15 김민 "아이패드에 맞게" — 폭 끝까지 늘어난
+        두 카드가 가운데가 텅 비어 보였다).
       */}
-      <Suspense
-        fallback={<Skeleton className="h-[11.25rem] rounded-2xl desk:h-[9rem]" />}
-      >
-        <Feed user={user} today={today} />
-      </Suspense>
+      <div className="flex flex-col gap-(--gap-page) pad:grid pad:grid-cols-2 pad:gap-(--gap-block) pad:[&>*]:h-full">
+        <Suspense
+          fallback={<Skeleton className="h-[13.5rem] rounded-2xl desk:h-[10.5rem]" />}
+        >
+          <TodayRings user={user} today={today} pitchLocked={locks.pitch} />
+        </Suspense>
+
+        {/*
+          요약 칸(우리끼리 '뉴스' — 화면에는 그 말이 없다, feed.tsx · feed-card.tsx, 2026-10-13). 예전 영양 카드 자리다.
+          하이라이트(평소와 달라진 것 — 투구 · 운동 · 홈 몫 모두) · 부하 지수 · 오늘 운동 · 영양 한 줄을 3초마다 한 장씩 돌려 보이고,
+          누르면 그 탭으로 간다. 예전 영양 카드(10.5rem)보다 조금 길다(사용자 "하단 길이를 조금만 늘려줘").
+        */}
+        <Suspense
+          fallback={<Skeleton className="h-[11.25rem] rounded-2xl desk:h-[9rem]" />}
+        >
+          <Feed user={user} today={today} />
+        </Suspense>
+      </div>
 
       {/*
         달력. 아래 하이라이트와 울타리를 따로 둔다 — 달력은 기록만 읽으면 그려지지만 아래는 오늘 계획 · 부하를

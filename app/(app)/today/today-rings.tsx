@@ -156,7 +156,7 @@ export function RingsCard({
   day?: string;
 }) {
   return (
-    <Card className="px-2 desk:px-(--block-pad)">
+    <Card className="px-2 desk:px-(--block-pad) pad:flex pad:flex-col pad:justify-center">
       {/* 넷이 다 차면 축하(웹은 카드 안에서 링이 위로 빠지고 체크, 앱은 화면 가운데) — all-done.tsx */}
       <RingsStage
         allDone={day != null && items.every((it) => it.value >= 1)}

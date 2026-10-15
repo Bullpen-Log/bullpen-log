@@ -97,7 +97,7 @@ export function TrainingHome({
       <Suspense fallback={<div className="h-15 desk:h-[3.375rem]" />}>
         <DayStripLoad userId={user.id} today={toDateKey(today)} />
       </Suspense>
-      <div className="stack-block">{order.map((app) => cards[app])}</div>
+      <div className="stack-block pad:grid pad:grid-cols-2 pad:min-[60rem]:grid-cols-3 pad:items-stretch pad:gap-(--gap-block) pad:[&>*]:mb-0!">{order.map((app) => cards[app])}</div>
       <Suspense fallback={<div className="h-12" />}>
         <WeekStrip userId={user.id} today={today} />
       </Suspense>

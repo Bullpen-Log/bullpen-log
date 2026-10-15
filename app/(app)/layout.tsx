@@ -233,7 +233,7 @@ export default async function AppLayout({
           data-ptr-target
           /* touch-pan-y — 세로는 브라우저가 굴리고, 가로는 탭 쓸기(components/tab-pager.tsx)가 받는다. pinch-zoom 을 같이 둬야
              사파리에서 두 손가락 확대가 된다(pan-y 만이면 막혔다) */
-          className="mx-auto w-full max-w-5xl flex-1 touch-pan-y touch-pinch-zoom py-6 pb-10 pl-[max(calc(var(--spacing)*4),env(safe-area-inset-left))] pr-[max(calc(var(--spacing)*4),env(safe-area-inset-right))] sm:pl-[max(calc(var(--spacing)*6),env(safe-area-inset-left))] sm:pr-[max(calc(var(--spacing)*6),env(safe-area-inset-right))] sm:pt-6 xl:max-w-6xl 2xl:max-w-7xl desk:pt-(--page-top) desk:pb-32"
+          className="mx-auto w-full max-w-5xl flex-1 touch-pan-y touch-pinch-zoom py-6 pb-10 pl-[max(calc(var(--spacing)*4),env(safe-area-inset-left))] pr-[max(calc(var(--spacing)*4),env(safe-area-inset-right))] sm:pl-[max(calc(var(--spacing)*6),env(safe-area-inset-left))] sm:pr-[max(calc(var(--spacing)*6),env(safe-area-inset-right))] sm:pt-6 xl:max-w-6xl 2xl:max-w-7xl desk:pt-(--page-top) desk:pb-32 pad:max-w-5xl pad:pl-8 pad:pr-[max(2rem,env(safe-area-inset-right))]"
         >
           {/*
            * 탭을 옮길 때 본문만 바뀐다. 틀(사이드바 · 상단바 · 탭바)은 components/app-shell.tsx 에서 각자 이름표를 달아
