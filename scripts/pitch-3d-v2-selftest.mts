@@ -58,6 +58,7 @@ import {
   type Scenario,
 } from './pitch-lab/synth.mts';
 import { makeV2Track } from './pitch-lab/synth-v2.mts';
+import { fixShoulderSwaps } from '../lib/pitch-3d/v2/clean2d.ts';
 import { footJump, footSway, gapWristError, hipSnap, junkGloveError, leadGapJump } from './pitch-lab/gap-check.mts';
 import { blendAi, despike, displayTrack, readAiGate, readAiJoints, readAiMiss } from '../lib/pitch-3d/v2/display.ts';
 import { mannequinTrack, smoothForMannequin, type MannequinJoints, type MannequinTrack } from '../lib/pitch-3d/v2/mannequin-prep.ts';
@@ -3120,6 +3121,48 @@ console.log('■ 점검 카드 드릴 고르기(drillPicksFor) — 쉬운 단계
     JSON.stringify(f2)
   );
   check('파일 머리: moov 가 없으면 null', (await readLabFileFacts(new Blob([new Uint8Array(box('mdat', new Uint8Array(10)))]))) === null);
+}
+
+/* 어깨 이름 뒤바뀜 — 떨어진 두 어깨의 이름이 미리 바뀌면 엇갈릴 때까지 그 영상 팔 이름을 바로잡음, 실제 엇갈림 · 가까운 어깨 · 갈라진 손목은 그대로 */
+{
+  const body = (lx: number, rx: number, extra: Record<number, [number, number]> = {}) => {
+    const p = Array.from({ length: 25 }, () => [500, 500, 0.9] as [number, number, number]);
+    p[V2J.nose] = [450, 100, 0.9];
+    p[V2J.lAn] = [430, 800, 0.9];
+    p[V2J.rAn] = [470, 800, 0.9];
+    p[V2J.lSh] = [lx, 300, 0.9];
+    p[V2J.rSh] = [rx, 300, 0.9];
+    for (const [j, xy] of Object.entries(extra)) p[Number(j)] = [xy[0], xy[1], 0.9];
+    return p;
+  };
+  /* 두 손목은 공 위에 겹침(샘플 1) — merged 가 false 면 갈라진 손목(엔진 좌우 고침이 맡는 꼴) */
+  const tr = (xs: [number, number][], merged = true) => ({
+    W: 1000,
+    H: 1000,
+    fps: 60,
+    frames: xs.map(([l, r], k) => ({ t: k / 60, p: body(l, r, merged ? { [V2J.lWr]: [380, 200], [V2J.rWr]: [384, 202] } : { [V2J.lWr]: [600, 300], [V2J.rWr]: [300, 300] }) })),
+  });
+  /* 사람 키 700px — 두 어깨 130px(19%) 떨어진 채 왼 이름이 오른 어깨 자리로 뛰고, 4장면 뒤 실제로 엇갈림(두 점 20px) */
+  const swapped = fixShoulderSwaps(tr([[520, 390], [520, 390], [395, 515], [400, 512], [410, 500], [440, 460], [450, 470], [455, 480]]));
+  const rx = swapped.track.frames.map((f) => f.p[V2J.rSh][0]);
+  const lWrHid = swapped.track.frames.map((f) => f.p[V2J.lWr][2] < 0.3);
+  const rWrSeen = swapped.track.frames.every((f) => f.p[V2J.rWr][2] >= 0.3);
+  check(
+    '어깨 이름 뒤바뀜: 미리 바뀐 장면부터 엇갈림 전까지 이름을 바로잡고 겹친 가짜 손목만 안 보임',
+    swapped.dropped === 3 &&
+      rx.join() === [390, 390, 395, 400, 410, 460, 470, 480].join() &&
+      lWrHid.join() === [false, false, true, true, true, false, false, false].join() &&
+      rWrSeen,
+    `${swapped.dropped} · 오른 어깨 x ${rx.join()} · 왼 손목 숨김 ${lWrHid.join()}`
+  );
+  /* 실제 엇갈림 — 두 어깨가 60px(9%)로 가까울 때 이름이 자리를 바꿈 */
+  const real = fixShoulderSwaps(tr([[490, 430], [490, 430], [432, 488], [430, 492]]));
+  check('어깨 이름 뒤바뀜: 가까운 두 어깨의 실제 엇갈림은 그대로', real.dropped === 0, String(real.dropped));
+  /* 한 장면만 겹쳤다 돌아옴 — 그 장면만 */
+  const blip = fixShoulderSwaps(tr([[520, 390], [520, 390], [392, 392], [518, 391], [519, 390]]));
+  check('어깨 이름 뒤바뀜: 한 장면 겹침은 그 장면만', blip.dropped === 1, String(blip.dropped));
+  const split = fixShoulderSwaps(tr([[520, 390], [520, 390], [395, 515], [400, 512]], false));
+  check('어깨 이름 뒤바뀜: 손목이 갈라져 있으면 엔진 좌우 고침에 맡김', split.dropped === 0, String(split.dropped));
 }
 
 console.log(`\n통과 ${passed} · 실패 ${failed}`);

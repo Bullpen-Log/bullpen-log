@@ -45,7 +45,7 @@ import {
   type V2Input,
   type V2Obs,
 } from '@/lib/pitch-3d/v2/contract';
-import { dropLegOverlaps } from '@/lib/pitch-3d/v2/clean2d';
+import { dropLegOverlaps, fixShoulderSwaps } from '@/lib/pitch-3d/v2/clean2d';
 import { phaseOf, templateFill } from '@/lib/pitch-3d/v2/motion-template';
 import { byTime, medianStepOf, obsAt, toPoseTrack } from '@/lib/pitch-3d/v2/track';
 
@@ -457,9 +457,14 @@ function fitOnce(raw: V2Input): {
   result: Pitch3dV2Result;
   debug?: FitDebug;
 } {
-  /* 2D 모델 버릇 걷기(clean2d.ts) — 한 영상 안에서 겹쳐 찍힌 다리 */
-  const cleanSide = dropLegOverlaps(raw.side);
-  const cleanBack = dropLegOverlaps(raw.back);
+  /* 2D 모델 버릇 걷기(clean2d.ts) — 한 영상 안에서 겹쳐 찍힌 다리 · 미리 바꿔 찍힌 어깨 이름 */
+  /* dropped 는 다리만 센다(결과 품질 legOverlaps) */
+  const clean = (t: V2Input['side']) => {
+    const legs = dropLegOverlaps(t);
+    return { track: fixShoulderSwaps(legs.track).track, dropped: legs.dropped };
+  };
+  const cleanSide = clean(raw.side);
+  const cleanBack = clean(raw.back);
   const input: V2Input = { ...raw, side: cleanSide.track, back: cleanBack.track };
   const jobId = input.jobId;
   const core = analyzePitch3dCore({
@@ -1336,7 +1341,7 @@ function fitOnce(raw: V2Input): {
   const metrics = computeMetrics(
     fitted17,
     { ...core.axes, hand: core.hand, height: H },
-    { ...core.evIdx, footPlant: core.evIdx.footFlat },
+    core.evIdx,
     core.factors,
     core.plantMs
   );
@@ -1345,7 +1350,6 @@ function fitOnce(raw: V2Input): {
   const { origin, ground, R3, axes } = core;
   const keep = decimate(n, MAX_V2_FRAMES, [
     core.evIdx.footPlant,
-    core.evIdx.footFlat,
     core.evIdx.release,
     core.evIdx.kneeUp,
   ]);
@@ -1399,7 +1403,6 @@ function fitOnce(raw: V2Input): {
     events: {
       kneeUp: remap(core.evIdx.kneeUp),
       footPlant: remap(core.evIdx.footPlant)!,
-      footFlat: remap(core.evIdx.footFlat)!,
       release: remap(core.evIdx.release)!,
     },
     metrics,
