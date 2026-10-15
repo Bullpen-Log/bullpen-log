@@ -2991,80 +2991,7 @@ html[data-splash] *::after {
   }
 }
 
-/*
- * 하단 탭을 눌러 옮길 때의 화면 전환(components/app-shell.tsx MobileTabs 의 data-nav, 2026-10-15 사용자 "너무 딱딱해") — 옛 본문은
- * 밖으로, 새 본문은 그 옆(한 화면 너비 너머)에서 제자리로. swipe-next 는 왼쪽으로(오른쪽 탭), swipe-prev 는 오른쪽으로(왼쪽 탭) —
- * 손가락 쓸기(components/tab-swipe.tsx, 화면 전환 없이 본문을 직접 민다)와 같은 몸짓이다. 거리는 화면 폭(100vw) — 그림은 본문 칸
- * (여백 안쪽)만이라 100% 면 여백만큼 비쳤다. --swipe-x 는 예전 쓸기 2판의 손 뗀 자리(지금은 안 씀, 0). 이름 규칙과 딱지 규칙은 따로(사파리 18.0~18.1).
- */
-@keyframes swipe-old-next {
-  from {
-    transform: translateX(var(--swipe-x, 0px));
-  }
-  to {
-    transform: translateX(-100vw);
-  }
-}
-@keyframes swipe-new-next {
-  from {
-    transform: translateX(calc(var(--swipe-x, 0px) + 100vw));
-  }
-  to {
-    transform: none;
-  }
-}
-@keyframes swipe-old-prev {
-  from {
-    transform: translateX(var(--swipe-x, 0px));
-  }
-  to {
-    transform: translateX(100vw);
-  }
-}
-@keyframes swipe-new-prev {
-  from {
-    transform: translateX(calc(var(--swipe-x, 0px) - 100vw));
-  }
-  to {
-    transform: none;
-  }
-}
 @media (prefers-reduced-motion: no-preference) {
-  html[data-nav^='swipe']::view-transition-old(app-main),
-  html[data-nav^='swipe']::view-transition-new(app-main) {
-    mix-blend-mode: normal;
-    background-color: var(--color-page);
-  }
-  html[data-nav^='swipe']::view-transition-old(.page),
-  html[data-nav^='swipe']::view-transition-new(.page) {
-    mix-blend-mode: normal;
-    background-color: var(--color-page);
-  }
-  html[data-nav='swipe-next']::view-transition-old(app-main) {
-    animation: 240ms cubic-bezier(0.32, 0.72, 0, 1) both swipe-old-next;
-  }
-  html[data-nav='swipe-next']::view-transition-old(.page) {
-    animation: 240ms cubic-bezier(0.32, 0.72, 0, 1) both swipe-old-next;
-  }
-  html[data-nav='swipe-next']::view-transition-new(app-main) {
-    animation: 240ms cubic-bezier(0.32, 0.72, 0, 1) both swipe-new-next;
-  }
-  html[data-nav='swipe-next']::view-transition-new(.page) {
-    animation: 240ms cubic-bezier(0.32, 0.72, 0, 1) both swipe-new-next;
-  }
-  html[data-nav='swipe-prev']::view-transition-old(app-main) {
-    animation: 240ms cubic-bezier(0.32, 0.72, 0, 1) both swipe-old-prev;
-  }
-  html[data-nav='swipe-prev']::view-transition-old(.page) {
-    animation: 240ms cubic-bezier(0.32, 0.72, 0, 1) both swipe-old-prev;
-  }
-  html[data-nav='swipe-prev']::view-transition-new(app-main) {
-    animation: 240ms cubic-bezier(0.32, 0.72, 0, 1) both swipe-new-prev;
-  }
-  html[data-nav='swipe-prev']::view-transition-new(.page) {
-    animation: 240ms cubic-bezier(0.32, 0.72, 0, 1) both swipe-new-prev;
-  }
-
   /*
    * 홈 → 구속 측정(zoom) — 아이폰 카메라처럼 멀리서 튀어나온다(2026-10-15 사용자). 구속 측정은 다른 틀(app/(session))이라 본문 이름이
    * 없고 화면 전체(root)가 바뀐다 — 옛 화면은 살짝 줄며 어두워지고, 새 화면은 작게(0.55) 흐리게 시작해 제자리로 커진다.
@@ -3093,24 +3020,6 @@ html[data-splash] *::after {
   to {
     transform: scale(0.96);
     opacity: 0.35;
-  }
-}
-
-/*
- * 탭 쓸기의 자리표시(components/tab-swipe.tsx) — 새 화면이 그려지면(data-done) 옅어지며 걷힌다. 본문(main)의 밀림은 인라인 transform.
- */
-[data-tab-ghost][data-done] {
-  opacity: 0;
-  transition: opacity 100ms ease-out;
-}
-/* 자리표시가 본문 사본일 때(components/tab-swipe.tsx shots) — 사본 안의 들어오는 움직임 · 전환이 다시 돌지 않게 */
-[data-tab-ghost] * {
-  animation: none !important;
-  transition: none !important;
-}
-@media (prefers-reduced-motion: reduce) {
-  [data-tab-ghost][data-done] {
-    transition: none;
   }
 }
 
@@ -3241,16 +3150,40 @@ html[data-splash] *::after {
   transition-duration: 160ms;
 }
 [data-top-veil]:not([data-short]) > i:nth-child(1) {
-  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - var(--veil-fade)), transparent 100%);
-  mask-image: linear-gradient(to bottom, #000 calc(100% - var(--veil-fade)), transparent 100%);
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    #000 calc(100% - var(--veil-fade)),
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    #000 calc(100% - var(--veil-fade)),
+    transparent 100%
+  );
 }
 [data-top-veil]:not([data-short]) > i:nth-child(2) {
-  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - var(--veil-fade)), transparent calc(100% - var(--veil-fade) * 0.35));
-  mask-image: linear-gradient(to bottom, #000 calc(100% - var(--veil-fade)), transparent calc(100% - var(--veil-fade) * 0.35));
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    #000 calc(100% - var(--veil-fade)),
+    transparent calc(100% - var(--veil-fade) * 0.35)
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    #000 calc(100% - var(--veil-fade)),
+    transparent calc(100% - var(--veil-fade) * 0.35)
+  );
 }
 [data-top-veil]:not([data-short]) > i:nth-child(3) {
-  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - var(--veil-fade)), transparent calc(100% - var(--veil-fade) * 0.65));
-  mask-image: linear-gradient(to bottom, #000 calc(100% - var(--veil-fade)), transparent calc(100% - var(--veil-fade) * 0.65));
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    #000 calc(100% - var(--veil-fade)),
+    transparent calc(100% - var(--veil-fade) * 0.65)
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    #000 calc(100% - var(--veil-fade)),
+    transparent calc(100% - var(--veil-fade) * 0.65)
+  );
 }
 [data-top-veil][data-short] {
   height: calc(env(safe-area-inset-top) + var(--veil-fade));
@@ -3745,5 +3678,62 @@ html[data-dualcam] [data-finder] > video {
 @keyframes celebrate-in {
   from {
     opacity: 0;
+  }
+}
+
+/*
+ * 판 넘기기(components/tab-pager.tsx, 2026-10-15) — 휴대폰 · 패드에서 탭 넷이 한 트랙에 나란히 있고 옆으로 민다. 판마다 제 스크롤.
+ * 탭 첫 화면(html[data-pager='tabs'])에서는 창이 안 굴러가고 본문 여백 · 막대 비우개 · 하단 탭 비우개는 판이 스스로 가진다.
+ * 하위 화면(page)에서는 트랙이 숨고 children 이 예전처럼 창에서 굴러간다. PC(desk)는 지금 판만 보이고 창이 굴러간다.
+ */
+@media not all and (min-width: 36rem) and (hover: hover) and (pointer: fine) {
+  [data-pager-track] {
+    display: flex;
+    width: 400%;
+    transform: translateX(calc(var(--i, 0) * -25% + var(--dx, 0px)));
+    touch-action: pan-y pinch-zoom;
+  }
+  [data-panel] {
+    width: 25%;
+    flex: none;
+    height: 100dvh;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    padding: calc(env(safe-area-inset-top) + 3.5rem + 1.5rem)
+      max(1rem, env(safe-area-inset-right)) calc(var(--tab-bar-top) + 1rem)
+      max(1rem, env(safe-area-inset-left));
+  }
+  [data-panel]::-webkit-scrollbar {
+    display: none;
+  }
+  html[data-pager='tabs'] body {
+    height: 100dvh;
+    overflow: hidden;
+  }
+  html[data-pager='tabs'] main {
+    padding: 0;
+    max-width: none;
+  }
+  html[data-pager='tabs'] [data-bar-spacer],
+  html[data-pager='tabs'] [data-tab-gap],
+  html[data-pager='tabs'] [data-pager-page] {
+    display: none;
+  }
+  html[data-pager='page'] [data-pager-track] {
+    display: none;
+  }
+}
+@media (min-width: 36rem) and (hover: hover) and (pointer: fine) {
+  [data-panel]:not([data-active]) {
+    display: none;
+  }
+  html[data-pager='page'] [data-pager-track] {
+    display: none;
+  }
+  html[data-pager='tabs'] [data-pager-page] {
+    display: none;
   }
 }
