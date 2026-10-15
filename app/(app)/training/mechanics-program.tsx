@@ -150,7 +150,7 @@ function SessionCard({
   /* 접은 날 할 수 있는 드릴을 다 했다 — 무브먼트만 하고 마친 뒤(세션 수는 그대로라 같은 세션이 남는다) */
   const openDone = folding && open.length > 0 && open.every((s) => done.has(s.guideId));
   const startClass =
-    'flex min-h-12 w-full items-center justify-center gap-1.5 rounded-full bg-sky text-base font-bold text-white transition-colors hover:bg-sky-strong';
+    'flex min-h-12 w-full items-center justify-center gap-1.5 rounded-full bg-sky text-base font-bold text-white transition-colors hover:bg-sky-strong pad:inline-flex pad:w-auto pad:px-8';
   return (
     <Card className="space-y-4">
       <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">

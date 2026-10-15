@@ -790,7 +790,7 @@ export function TabSwipe({
         aria-hidden
         data-tab-ghost
         data-done={done}
-        className="pointer-events-none fixed inset-y-0 z-30 grid w-screen place-items-center bg-black text-white desk:hidden"
+        className="pointer-events-none fixed inset-y-0 z-30 grid w-screen place-items-center bg-black text-white desk:hidden pad:pl-(--rail)"
         style={style}
       >
         <div className="flex flex-col items-center gap-3">

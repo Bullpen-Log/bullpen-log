@@ -114,7 +114,7 @@ export function ProgramCard({ props }: { props: ProgramCardProps }) {
         <SafeForm action={startProgramWorkout}>
           <button
             type="submit"
-            className="flex w-full items-center justify-center gap-2 rounded-2xl bg-sky py-4 text-base font-bold text-white transition-transform motion-safe:active:scale-[0.98]"
+            className="flex w-full items-center justify-center gap-2 rounded-2xl bg-sky py-4 text-base font-bold text-white transition-transform motion-safe:active:scale-[0.98] pad:inline-flex pad:w-auto pad:px-8"
           >
             <Play aria-hidden className="h-5 w-5" />
             {p.todayState === 'active' ? '운동 이어서 하기' : '운동 시작'}
@@ -123,7 +123,7 @@ export function ProgramCard({ props }: { props: ProgramCardProps }) {
       )}
 
       {p.kind === 'needCheckin' && (
-        <OpenCheckinButton className="min-h-11 w-full rounded-2xl bg-sky py-3 text-base font-bold text-white">
+        <OpenCheckinButton className="min-h-11 w-full rounded-2xl bg-sky py-3 text-base font-bold text-white pad:w-auto pad:px-8">
           체크인 하기
         </OpenCheckinButton>
       )}

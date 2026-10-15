@@ -85,6 +85,10 @@ export const LAB_FAIL_FIX: Partial<
     fix: '옆 폰은 3루 쪽에서 투구 방향과 직각으로, 내딛는 발과 공 놓는 손이 다 보이게 세워 주세요.',
     section: 'place',
   },
+  pair: {
+    fix: '두 폰 모두 던지기 전에 녹화를 켜고, 같은 공의 옆 영상과 뒤 영상을 짝으로 올려 주세요.',
+    section: 'steps',
+  },
   sync: {
     fix: '두 폰 모두 던지기 전에 녹화를 켜고, 같은 공 하나를 같이 찍어 주세요.',
     section: 'steps',

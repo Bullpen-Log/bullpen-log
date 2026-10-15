@@ -2617,6 +2617,21 @@ dialog[open]::backdrop {
     max-width: 30rem;
   }
 }
+/*
+ * 패드의 고르는 칩 줄(.chip-grid[data-cols] — 아래 휴대폰 규칙) — 칸 수를 고정한 줄이 넓은 카드 끝까지 늘면 칩 하나가 240~480px 이었다
+ * (2026-10-15). 칸 수는 그대로 두고 줄 폭에 한도를 둔다. 칸 수를 안 정한 줄(auto-fill)은 넓어지면 칸이 늘어 그대로 둔다.
+ */
+@media (min-width: 46.5rem) and (min-height: 37.5rem) and (pointer: coarse) {
+  .chip-grid[data-cols='2'] {
+    max-width: 24rem;
+  }
+  .chip-grid[data-cols='3'] {
+    max-width: 33rem;
+  }
+  .chip-grid[data-cols='4'] {
+    max-width: 40rem;
+  }
+}
 
 /*
  * 체크인 관문 (components/checkin-gate.tsx) — 그날 첫 접속 때 뜨는 창.
@@ -3427,6 +3442,12 @@ html[data-app='native'] body:not(:has([data-safe-area]))::before {
   animation: popup-loading 900ms ease-in-out infinite;
   pointer-events: none;
 }
+/* 패드는 왼쪽 탭 막대 위를 가로지르지 않게 본문 쪽에서만 */
+@media (min-width: 46.5rem) and (min-height: 37.5rem) and (pointer: coarse) {
+  .popup-slot:has(> [aria-busy])::before {
+    left: var(--rail);
+  }
+}
 @keyframes popup-loading {
   from {
     background-position: -40% 0;
@@ -3604,8 +3625,8 @@ html:has(dialog:modal) {
 }
 
 /* 손가락 화면에서 글자를 치는 동안 하단 탭을 숨긴다 — 아이폰은 자판이 올라와도 화면 높이가 그대로라
-   탭이 자판 위 · 화면 가운데에 떠서 입력칸을 가렸다 */
-@media (pointer: coarse) {
+   탭이 자판 위 · 화면 가운데에 떠서 입력칸을 가렸다. 패드(왼쪽 세로 막대)는 빼다 — 막대가 사라지면 본문 왼쪽에 빈 띠만 남았다(2026-10-15) */
+@media (pointer: coarse) and (max-width: 46.49rem), (pointer: coarse) and (max-height: 37.49rem) {
   html:has(
       :is(
         input:not(
