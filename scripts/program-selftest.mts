@@ -633,6 +633,19 @@ const lib: PinnableExercise[] = [
   ex('bug', '데드버그', '코어', null, ['맨몸'], '낮음', '초급'),
 ];
 {
+  /* 메디신볼이 없으면 메디신볼 칸은 인클라인 플라이오 푸시업(박스) — 있으면 메디신볼 그대로, 박스도 없으면 빈 칸(2026-10-16) */
+  const ipp = ex('ipp', '인클라인 플라이오 푸시업', '파워', '밀기', ['박스'], '중간', '초급');
+  const libP = [...lib, ipp];
+  const noBall = variantCandidates('medball', libP, ['덤벨', '박스'], '중급').map((e) => e.id);
+  const withBall = variantCandidates('medball', libP, ['메디신볼', '박스'], '중급').map((e) => e.id);
+  const neither = variantCandidates('medball', libP, ['덤벨'], '중급').map((e) => e.id);
+  check(
+    '메디신볼 없음 → 인클라인 플라이오 푸시업 · 있으면 메디신볼만 · 박스도 없으면 빈 칸',
+    noBall.join() === 'ipp' && !withBall.includes('ipp') && withBall.includes('chest') && neither.length === 0,
+    `${noBall} | ${withBall} | ${neither}`
+  );
+}
+{
   const sq = variantCandidates('squat', lib, full, '중급').map((e) => e.id);
   check(
     '스쿼트: 바벨 먼저, 한쪽 · 중간 강도 빠짐',

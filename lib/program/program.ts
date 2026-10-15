@@ -1619,6 +1619,18 @@ export function variantCandidates<T extends PinnableExercise>(
       canDo(ex, ownedSet) &&
       (!youth || intensityLevel(ex.intensity) < intensityLevel('매우 높음'))
   );
+  /*
+   * 메디신볼이 없어 메디신볼 칸 후보가 하나도 없으면 인클라인 플라이오 푸시업(박스 · 벤치) — 같은 '상체를 빠르게 미는' 동작이라 그날 목적에
+   * 맞는다(2026-10-16 김민). 박스도 없으면 예전처럼 칸이 빠진다(load.ts '메디신볼이 없어 빼요'). 기본기는 제 규칙(맨몸 점프)이 있다.
+   */
+  if (usable.length === 0 && variant === 'medball' && audience !== 'basics') {
+    usable.push(
+      ...library.filter(
+        (ex) =>
+          inCategory(ex, '파워') && ex.title.includes('인클라인 플라이오 푸시업') && canDo(ex, ownedSet)
+      )
+    );
+  }
   const leveled = filterByLevel(usable, trainingLevel).pool;
   /* filterByLevel 이 경력 순으로 세운 것을 지키며, 같은 경력 안에서 변형 규칙의 차례로 */
   const levelRank = new Map(leveled.map((ex, i) => [ex.id, i]));
