@@ -1,6 +1,10 @@
 'use client';
 
 import { ViewTransition, type ReactNode } from 'react';
+import { TAB_SWIPE } from '@/lib/transition-types';
+
+/* 탭 쓸기(TAB_SWIPE)로 오갈 때는 화면 전환을 걸지 않는다(lib/transition-types.ts) */
+const SWIPE_OFF = { [TAB_SWIPE]: 'none', default: 'auto' };
 import { useRouter } from 'next/navigation';
 import { PageHeading } from '@/components/ui';
 import { Segmented } from '@/components/segmented';
@@ -88,7 +92,7 @@ export function PitchLogHeading({
 }) {
   return (
     <>
-      <ViewTransition name="pitch-log-heading">
+      <ViewTransition name="pitch-log-heading" default={SWIPE_OFF}>
         <PageHeading
           eyebrow="Pitch log"
           title="투구"
@@ -101,7 +105,7 @@ export function PitchLogHeading({
           }
         />
       </ViewTransition>
-      <ViewTransition name="pitch-log-controls">
+      <ViewTransition name="pitch-log-controls" default={SWIPE_OFF}>
         <div className="flex flex-wrap items-center justify-between gap-2 desk-low:hidden">
           {controls}
         </div>

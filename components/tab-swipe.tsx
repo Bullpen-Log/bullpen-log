@@ -14,6 +14,7 @@ import { TRAINING_HOME_HREF } from '@/lib/training-part';
 import { barSnapshot, setNavDirection } from '@/lib/nav-state';
 import { haptic } from '@/lib/haptics';
 import { TAB_CHOSEN_EVENT } from '@/components/tab-lens';
+import { TAB_SWIPE_TYPES } from '@/lib/transition-types';
 
 /**
  * 휴대폰 탭 쓸기(2026-10-14 사용자 "인스타처럼 — 터치한 만큼만 옆으로 따라오고, 빠르게 움직이면 바로 넘어가게").
@@ -25,10 +26,12 @@ import { TAB_CHOSEN_EVENT } from '@/components/tab-lens';
  *   미리 받기    틀이 뜰 때 탭 넷 · 구속 측정을 미리 받아 두고(router.prefetch, next.config 의 staleTimes 30초), 끌기 시작할 때 옆 탭을 또
  *                받는다 — 놓는 순간 새 화면이 바로 있다(2026-10-15 사용자 "넘기고 나서 로딩되는 화면을 절대 보여주지 마").
  *   끄는 동안    본문(main)이 손가락을 따라 밀리고, 옆에서 다음 탭의 자리표시(바탕색 판 + 아이콘 · 이름)가 같이 들어온다.
- *   놓으면       폭의 1/4 을 넘었거나 빠르게 튕겼으면(0.45px/ms) 바로 그 탭으로 간다(router.push). 새 화면이 오면 화면 전환
- *                (globals.css 의 html[data-nav^='swipe'] — 옛 본문은 그 자리(--swipe-x)에서 밖으로, 새 본문은 그 옆에서 제자리로)이
- *                밀어 넣는다 — 실제 화면이 미끄러져 들어온다. 350ms 안에 안 오면(미리 못 받았을 때) 자리표시가 끝까지 밀려 기다린다.
- *                덜 끌었으면 제자리로.
+ *   놓으면       폭의 1/4 을 넘었거나 빠르게 튕겼으면(0.45px/ms) 브라우저가 곧바로 끝까지 민다(CSS transition — GPU 가 돌려 메인
+ *                스레드가 바빠도 안 끊김). 다 밀린 뒤 그 탭으로 가고(router.push, 화면 전환 없이 — TAB_SWIPE), 새 화면이 그려지면 자리표시가
+ *                옅어지며 걷힌다. 덜 끌었으면 제자리로.
+ *   자리표시     그 탭을 마지막으로 봤을 때의 본문 사본(DOM 복사, 아래 shots). 미리 받아 둔 새 화면과 거의 같아서 바뀌는 순간이 안 보인다.
+ *                (2026-10-15 3판 — 2판은 손을 떼면 새 화면을 그리고 옛 · 새 본문을 사진으로 찍는 화면 전환을 걸어, 아이폰에서 손 뗀 뒤
+ *                0.1~0.3초 멈췄다가 움직였다: 김민 "아직도 버벅인다".) 처음 가는 탭은 사본이 없어 아이콘 · 이름 · 뼈대.
  *   끝 탭        옆이 없으면 고무줄처럼 1/4 만 따라오고 돌아간다.
  *
  * 본문 안의 가로 스크롤 칸(overflow-x) · 가로로 쓰는 부품(data-no-swipe — 홈 요약 칸) · 입력칸 위에서 시작한 손가락은 안 받는다.
@@ -46,8 +49,10 @@ const SLOP = 12;
 const LOCK_RATIO = 1.4;
 /** 끝까지 미끄러지는 시간 */
 const SETTLE_MS = 260;
-/** 놓은 뒤 새 화면을 이만큼 기다리고도 안 오면 자리표시를 끝까지 밀어 둔다 */
+/** 놓은 뒤 새 화면을 이만큼 기다리고도 안 오면 자리표시를 끝까지 밀어 둔다(구속 측정 — zoom 전환만) */
 const WAIT_MS = 350;
+/** 탭을 연 뒤 이만큼 지나서 본문을 사본으로 떠 둔다 — 늦게 오는 조각(Suspense)까지 담기게 */
+const SHOT_AFTER_MS = 1500;
 /** 넘어간 화면이 이만큼 안 오면(신호 끊김 · 오류) 제자리로 — 본문이 화면 밖에 남아 빈 화면이던 것 */
 const GIVE_UP_MS = 8000;
 
@@ -58,7 +63,33 @@ const TOUCH_OWNER =
 /** 주소에서 물음표 뒤를 뺀 것 — 트레이닝은 /training?view=home 이라 pathname 과 그대로 비교하면 안 맞았다(2026-10-15 버그) */
 const base = (href: string) => href.split('?')[0];
 
-type Ghost = { dir: 1 | -1; item: NavItem; camera: boolean };
+type Ghost = { dir: 1 | -1; item: NavItem; camera: boolean; done?: boolean };
+
+/**
+ * 탭마다 마지막으로 본 본문의 사본 — 쓸 때 옆에 진짜처럼 보인다. 문서 밖(떼어 둔) DOM 이라 그리지 않는다.
+ * 자리(left · width · top)는 뜰 때 잰 본문 자리(맨 위로 굴렸을 때 기준) — 새 화면도 맨 위부터 보인다.
+ */
+type Shot = { node: HTMLElement; left: number; width: number; top: number };
+const shots = new Map<string, Shot>();
+
+/** 본문을 사본으로 뜬다 — 영상은 받지 않게, id 는 겹치지 않게, 창 · 화면 전환 이름은 빼고 */
+function takeShot(main: HTMLElement): Shot {
+  const r = main.getBoundingClientRect();
+  const node = main.cloneNode(true) as HTMLElement;
+  node.removeAttribute('style');
+  node.querySelectorAll('[id]').forEach((e) => e.removeAttribute('id'));
+  node.querySelectorAll('dialog, iframe, script').forEach((e) => e.remove());
+  node.querySelectorAll('video').forEach((v) => {
+    v.removeAttribute('src');
+    v.removeAttribute('autoplay');
+    v.preload = 'none';
+    v.querySelectorAll('source').forEach((x) => x.remove());
+  });
+  node
+    .querySelectorAll<HTMLElement>('[style*="view-transition"]')
+    .forEach((e) => (e.style.viewTransitionName = ''));
+  return { node, left: r.left, width: r.width, top: r.top + window.scrollY };
+}
 
 export function TabSwipe({
   tabs,
@@ -89,6 +120,7 @@ export function TabSwipe({
   const target = useRef<string | null>(null);
   const waitTimer = useRef(0);
   const giveUp = useRef(0);
+  const navTimer = useRef(0);
   /* 제자리로 돌아가는 움직임이 끝난 뒤 정리 — 그 사이 다시 끌면 걷는다(예전엔 끄는 중에 자리표시가 사라져 옆이 비었다) */
   const settleTimer = useRef(0);
   /* 지금 밀린 거리 — 자리표시가 한 장면 늦게 생겨도 그 자리에서 시작하게 */
@@ -102,6 +134,19 @@ export function TabSwipe({
   useEffect(() => {
     latest.current = { pathname, tabs, order, camera };
   }, [pathname, tabs, order, camera]);
+
+  /* 이 탭의 본문을 사본으로 떠 둔다 — 다음에 옆 탭에서 이쪽으로 쓸 때 진짜 화면처럼 보이게 */
+  useEffect(() => {
+    if (!order.some((h) => base(h) === pathname)) return;
+    const take = () => {
+      const main = document.querySelector<HTMLElement>('main');
+      if (!main || target.current || drag.current?.on || barSnapshot().back) return;
+      if (main.style.transform) return;
+      shots.set(pathname, takeShot(main));
+    };
+    const t = window.setTimeout(take, SHOT_AFTER_MS);
+    return () => window.clearTimeout(t);
+  }, [pathname, order]);
 
   /*
    * 미리 받기 — 지금 탭을 뺀 탭들을 '통째로'(kind: full — 화면 자료까지). 기본(auto)은 동적 화면을 로딩 화면(loading.tsx)까지만 받아,
@@ -140,14 +185,16 @@ export function TabSwipe({
   }, [router, tabs, camera, pathname]);
 
   /*
-   * 새 화면이 그려지는 순간(그리기 직후 · 전환이 찍기 전) — 본문을 제자리로, 자리표시를 걷는다. 옛 본문이 어디까지 밀려 있었나(--swipe-x)는
-   * 끄는 동안 html 에 계속 적어 두어서 전환(globals.css)이 거기서 이어 민다.
+   * 새 화면이 그려지는 순간(그리기 직후, 칠하기 전) — 본문을 제자리 · 맨 위로, 자리표시(사본)는 옅어지며 걷힌다. 본문이 바뀐 것은
+   * 위를 덮은 사본 뒤에서라 안 보이고, 사본과 새 화면이 거의 같아 걷히는 순간도 안 보인다.
    */
   useLayoutEffect(() => {
     if (!target.current) return;
+    const zoom = document.documentElement.dataset.nav === 'zoom';
     target.current = null;
     window.clearTimeout(waitTimer.current);
     window.clearTimeout(giveUp.current);
+    window.clearTimeout(navTimer.current);
     const main = document.querySelector<HTMLElement>('main');
     if (main) {
       main.style.transition = 'none';
@@ -156,7 +203,21 @@ export function TabSwipe({
       void main.offsetWidth;
       main.style.transition = '';
     }
-    setGhost(null);
+    if (zoom) {
+      queueMicrotask(() => setGhost(null));
+      return;
+    }
+    window.scrollTo(0, 0);
+    /* 옅어지며 걷는다 — 칠하기 전에 DOM 에 바로(상태를 거치면 한 장면 늦다). 끝까지 밀 때 단 transform 전환이 남아 있으면
+       옅어지기(globals.css [data-tab-ghost][data-done])가 안 걸려 걷는다 */
+    const gEl = ghostEl.current;
+    if (gEl) {
+      gEl.style.transition = '';
+      gEl.setAttribute('data-done', '');
+    }
+    /* 같은 정리 타이머 — 0.2초 안에 다시 끌면 걷는다 */
+    window.clearTimeout(settleTimer.current);
+    settleTimer.current = window.setTimeout(() => setGhost(null), 200);
   }, [pathname]);
 
   useEffect(() => {
@@ -206,14 +267,10 @@ export function TabSwipe({
       return false;
     };
 
-    /*
-     * --swipe-x(화면 전환이 이어 밀 자리)는 <html> 에 적어서, 손가락이 움직일 때마다 적으면 문서 전체 스타일을 다시 셈했다(120Hz 화면이면
-     * 초당 120번). 끄는 동안엔 본문 · 자리표시만 옮기고, 놓거나 밀어 둘 때(commit)만 적는다.
-     */
-    const setX = (dx: number, commit = true) => {
+    /* 본문 · 자리표시만 옮긴다 — <html> 은 안 건드린다(문서 전체 스타일을 다시 셈하게 된다) */
+    const setX = (dx: number) => {
       xRef.current = dx;
       main.style.transform = dx ? `translateX(${dx}px)` : '';
-      if (commit) html.style.setProperty('--swipe-x', `${dx}px`);
       const g = ghostEl.current;
       if (g) g.style.transform = `translateX(${dx}px)`;
     };
@@ -260,7 +317,11 @@ export function TabSwipe({
         window.clearTimeout(settleTimer.current);
         main.style.transition = 'none';
         main.style.willChange = 'transform';
-        if (ghostEl.current) ghostEl.current.style.transition = 'none';
+        if (ghostEl.current) {
+          ghostEl.current.style.transition = 'none';
+          /* 걷히던 중이면(DOM 에 바로 단 옅어짐) 다시 보이게 */
+          ghostEl.current.removeAttribute('data-done');
+        }
         /* 옆 탭을 미리 받아 둔다 — 쓸기로 정해진 뒤에만(예전엔 누르거나 굴리기 시작할 때마다 받았다) */
         const i0 = indexOf(latest.current.pathname);
         for (const dir of [1, -1] as const) {
@@ -281,7 +342,7 @@ export function TabSwipe({
       }
       /* 옆 탭이 없으면 고무줄 */
       d.dx = n ? mdx : mdx * 0.25;
-      setX(d.dx, false);
+      setX(d.dx);
     };
     const onEnd = (e: PointerEvent) => {
       const d = drag.current;
@@ -296,31 +357,16 @@ export function TabSwipe({
       const g = ghostEl.current;
       if (n && far && e.type !== 'pointercancel') {
         haptic('selection');
-        /* 화면 전환이 이어 밀 자리 — 끄는 동안엔 안 적었으니 지금 */
-        html.style.setProperty('--swipe-x', `${d.dx}px`);
-        target.current = n.item.href;
-        /* 바로 간다 — 화면 전환이 지금 자리(--swipe-x)에서 이어 민다. 구속 측정은 멀리서 튀어나오는 전환(zoom) */
-        setNavDirection(n.camera ? 'zoom' : d.dir === 1 ? 'swipe-next' : 'swipe-prev');
-        if (!n.camera)
-          window.dispatchEvent(
-            new CustomEvent(TAB_CHOSEN_EVENT, { detail: n.item.href })
-          );
-        router.push(n.item.href);
-        /* 미리 못 받아 늦으면 — 자리표시를 끝까지 밀어 두고 기다린다(그 자리에서 전환이 이어진다) */
-        waitTimer.current = window.setTimeout(() => {
-          if (!target.current) return;
-          main.style.transition = ease;
-          if (g) g.style.transition = ease;
-          setX(-d.dir * d.w);
-        }, WAIT_MS);
-        /* 끝내 안 오면(신호 끊김 · 오류) 제자리로 — 본문이 화면 밖에 남아 빈 화면이던 것 */
         const href = n.item.href;
+        target.current = href;
         window.clearTimeout(giveUp.current);
+        /* 끝내 안 오면(신호 끊김 · 오류) 제자리로 — 본문이 화면 밖에 남아 빈 화면이던 것 */
         giveUp.current = window.setTimeout(() => {
           if (target.current !== href) return;
           target.current = null;
           window.clearTimeout(waitTimer.current);
-          if (html.dataset.nav?.startsWith('swipe') || html.dataset.nav === 'zoom') html.removeAttribute('data-nav');
+          window.clearTimeout(navTimer.current);
+          if (html.dataset.nav === 'zoom') html.removeAttribute('data-nav');
           main.style.transition = ease;
           if (g) g.style.transition = ease;
           setX(0);
@@ -330,11 +376,32 @@ export function TabSwipe({
             setGhost(null);
           }, SETTLE_MS);
         }, GIVE_UP_MS);
-        if (n.camera)
+        if (n.camera) {
+          /* 구속 측정 — 다른 틀이라 멀리서 튀어나오는 화면 전환(zoom)으로 바로 간다 */
+          setNavDirection('zoom');
+          router.push(href);
+          waitTimer.current = window.setTimeout(() => {
+            if (!target.current) return;
+            main.style.transition = ease;
+            if (g) g.style.transition = ease;
+            setX(-d.dir * d.w);
+          }, WAIT_MS);
           window.setTimeout(() => {
             /* 구속 측정 화면(다른 틀)에는 전환을 끝내는 부품이 없어 표시를 직접 걷는다 */
             if (html.dataset.nav === 'zoom') html.removeAttribute('data-nav');
           }, 900);
+          return;
+        }
+        /* 하단 탭의 렌즈도 지금 그 칸으로 — 본문과 같이 미끄러진다 */
+        window.dispatchEvent(new CustomEvent(TAB_CHOSEN_EVENT, { detail: href }));
+        /* 곧바로 끝까지 민다(GPU) — 다 밀린 뒤 화면을 바꾼다(같은 본문 칸이라, 미는 중에 바꾸면 새 화면이 밀려 나간다) */
+        main.style.transition = ease;
+        if (g) g.style.transition = ease;
+        setX(-d.dir * d.w);
+        navTimer.current = window.setTimeout(() => {
+          if (target.current !== href) return;
+          router.push(href, { transitionTypes: TAB_SWIPE_TYPES });
+        }, SETTLE_MS);
         return;
       }
       main.style.transition = ease;
@@ -363,6 +430,7 @@ export function TabSwipe({
       window.clearTimeout(giveUp.current);
       window.clearTimeout(waitTimer.current);
       window.clearTimeout(settleTimer.current);
+      window.clearTimeout(navTimer.current);
     };
   }, [router]);
 
@@ -370,6 +438,30 @@ export function TabSwipe({
   const Icon = NAV_ICONS[ghost.item.icon];
   /* 자리표시는 옆에서 들어온다 — 본문과 같은 거리만큼 밀리며(setX), 넘어가면 새 화면이 그 자리에서 이어 들어온다 */
   const style: CSSProperties = { left: `${ghost.dir * 100}%` };
+  const done = ghost.done ? '' : undefined;
+  const shot = ghost.camera ? undefined : shots.get(base(ghost.item.href));
+  if (shot) {
+    /* 그 탭을 마지막으로 봤을 때의 본문 사본 — 본문이 있던 자리 그대로(맨 위 기준) */
+    return (
+      <div
+        ref={ghostEl}
+        aria-hidden
+        inert
+        data-tab-ghost
+        data-done={done}
+        className="pointer-events-none fixed inset-y-0 z-30 w-screen overflow-hidden bg-page desk:hidden"
+        style={style}
+      >
+        <div
+          className="absolute"
+          style={{ left: shot.left, width: shot.width, top: shot.top }}
+          ref={(el) => {
+            if (el && el.firstChild !== shot.node) el.replaceChildren(shot.node);
+          }}
+        />
+      </div>
+    );
+  }
   if (ghost.camera) {
     /* 구속 측정 — 카메라 화면처럼 검은 판 가운데 아이콘 */
     return (
@@ -377,6 +469,7 @@ export function TabSwipe({
         ref={ghostEl}
         aria-hidden
         data-tab-ghost
+        data-done={done}
         className="pointer-events-none fixed inset-y-0 z-30 grid w-screen place-items-center bg-black text-white desk:hidden"
         style={style}
       >
@@ -394,6 +487,7 @@ export function TabSwipe({
       ref={ghostEl}
       aria-hidden
       data-tab-ghost
+      data-done={done}
       className="pointer-events-none fixed inset-y-0 z-30 w-screen bg-page pt-[calc(env(safe-area-inset-top)+3.5rem+1.5rem)] pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] desk:hidden"
       style={style}
     >
