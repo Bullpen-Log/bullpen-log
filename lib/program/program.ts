@@ -1231,6 +1231,14 @@ type VariantRule = {
 
 const isWeighted = (ex: PinnableExercise) =>
   ex.equipment.some((e) => ['바벨', '덤벨', '케틀벨', '원판', '케이블'].includes(e));
+/*
+ * 근력 보조(당기기 · 보조 밀기 · 햄스트링) — 무게를 올려 갈 수 있는 것만. 풀업 · 친업은 맨몸이라도 든다. 2026-10-16 김민: 밴드 · 튜빙 ·
+ * 맨몸 회복형(하프닐링 밴드 풀다운 · 인클라인 푸시업 · 햄스트링 다이버 · 보수볼 RDL)이 근력 프로그램 보조로 나왔다 — 그건 암케어 · 회복 몫.
+ */
+const loadableAccessory = (ex: PinnableExercise) =>
+  (isWeighted(ex) || /풀업|친업/.test(ex.title)) &&
+  intensityLevel(ex.intensity) >= 3 &&
+  !/보수볼/.test(ex.title);
 
 const VARIANT_RULES: Record<VariantKey, VariantRule> = {
   /* 큰 하체는 두 발로, 무게를 들고, 강도 '높음' 이상 — 바벨을 먼저 */
@@ -1304,9 +1312,8 @@ const VARIANT_RULES: Record<VariantKey, VariantRule> = {
     match: (ex) =>
       inCategory(ex, '하체 스트렝스') &&
       ex.movementPattern === '런지' &&
-      isWeighted(ex) &&
-      intensityLevel(ex.intensity) >= 3,
-    /* 스플릿 스쿼트 · 리버스 런지가 무게를 올려 가기 좋은 한쪽 하체다. 불안정 지면(보수볼)은 맨 뒤 */
+      loadableAccessory(ex),
+    /* 스플릿 스쿼트 · 리버스 런지가 무게를 올려 가기 좋은 한쪽 하체다. 불안정 지면(보수볼)은 빠진다(보조 칸은 차례를 섞어 rank 가 안 막는다) */
     rank: (ex) => [
       /보수볼/.test(ex.title) ? 1 : 0,
       /스플릿 스쿼트|리버스 런지/.test(ex.title) ? 0 : 1,
@@ -1369,20 +1376,27 @@ const VARIANT_RULES: Record<VariantKey, VariantRule> = {
    */
   hpull: {
     match: (ex) =>
-      inCategory(ex, '상체 스트렝스') && ex.movementPattern === '당기기' && !VERTICAL_PULL.test(ex.title) && !ex.title.includes('풀오버'),
+      inCategory(ex, '상체 스트렝스') &&
+      ex.movementPattern === '당기기' &&
+      !VERTICAL_PULL.test(ex.title) &&
+      !ex.title.includes('풀오버') &&
+      loadableAccessory(ex),
     rank: () => [],
   },
   vpull: {
-    match: (ex) => inCategory(ex, '상체 스트렝스') && ex.movementPattern === '당기기' && VERTICAL_PULL.test(ex.title),
+    match: (ex) =>
+      inCategory(ex, '상체 스트렝스') && ex.movementPattern === '당기기' && VERTICAL_PULL.test(ex.title) && loadableAccessory(ex),
     rank: () => [],
   },
   /* 보조 밀기 — 덤벨 · 케이블 · 푸시업 종류(바벨은 본운동 몫). 머리 위 프레스도 든다(2026-10-14 사용자: 투수도 머리 위 운동을 한다) */
   pushAcc: {
-    match: (ex) => inCategory(ex, '상체 스트렝스') && ex.movementPattern === '밀기' && !ex.equipment.includes('바벨'),
+    match: (ex) =>
+      inCategory(ex, '상체 스트렝스') && ex.movementPattern === '밀기' && !ex.equipment.includes('바벨') && loadableAccessory(ex),
     rank: () => [],
   },
   hamstring: {
-    match: (ex) => inCategory(ex, '하체 스트렝스') && ex.movementPattern === '힌지' && !ex.equipment.includes('바벨'),
+    match: (ex) =>
+      inCategory(ex, '하체 스트렝스') && ex.movementPattern === '힌지' && !ex.equipment.includes('바벨') && loadableAccessory(ex),
     rank: () => [],
   },
   scap: {
@@ -1679,12 +1693,30 @@ export function accessoryWithFallback<T extends PinnableExercise>(
   return { ex: null, substituted: false };
 }
 
-/** 이 칸(variant)이 보조로 몇 번 나왔나 — 1일차부터 day 앞날까지(그날 운동을 고르는 차례 accessoryPick 의 occurrence) */
+/**
+ * 보조를 같은 운동으로 이어 가는 주 수 — 2주 동안 같은 운동으로 무게를 올리고, 다음 2주에 그 칸 다음 운동으로 바꾼다(2026-10-16 김민 —
+ * 세션마다 바꾸면 무게를 못 올린다).
+ */
+export const ACCESSORY_BLOCK_WEEKS = 2;
+
+/**
+ * 그날 그 칸의 차례(accessoryPick 의 occurrence). 2주 묶음마다 하나씩 나아가고, 같은 묶음 안에서도 본운동이 다른 날(5/3/1 의 스쿼트 날 ·
+ * 데드 날 가로 당기기)은 다른 차례라 다른 운동이 나온다 — 같은 날 종류는 2주 동안 같은 운동.
+ */
 export function accessoryOccurrence(plan: ProgramPlan, day: number, variant: VariantKey): number {
-  let n = 0;
-  for (let d = 1; d < day; d++)
-    n += dayPlan(plan, d).items.filter((x) => x.assist && x.variant === variant).length;
-  return n;
+  const mainsOf = (d: number) =>
+    dayPlan(plan, d)
+      .items.filter((x) => !x.assist)
+      .map((x) => x.variant)
+      .join();
+  const kinds: string[] = [];
+  for (let d = 1; d <= plan.totalDays; d++) {
+    if (!dayPlan(plan, d).items.some((x) => x.assist && x.variant === variant)) continue;
+    const k = mainsOf(d);
+    if (!kinds.includes(k)) kinds.push(k);
+  }
+  const block = Math.floor((weekOfDay(plan, day) - 1) / ACCESSORY_BLOCK_WEEKS);
+  return block * kinds.length + Math.max(0, kinds.indexOf(mainsOf(day)));
 }
 
 /** 저장된 pinned 를 읽는다(Json). 모르는 키 · 문자열이 아닌 값은 버린다. */

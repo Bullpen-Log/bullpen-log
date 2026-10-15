@@ -519,7 +519,9 @@ check('다 맞으면 시작', checkEligibility(base).ok);
     const kinds = (d: number) => dayPlan(p531, d).items.filter((x) => x.assist).map((x) => x.variant).join();
     check('5/3/1 메뉴: 스쿼트 날 · 벤치 날 · 힌지 날', kinds(1) === 'hpull,pushAcc,hamstring,antiRotation' && kinds(2) === 'vpull,scap,triceps,antiRotation' && kinds(3) === 'hpull,pushAcc,singleLeg,forearm', `${kinds(1)} / ${kinds(2)} / ${kinds(3)}`);
     check('5/3/1 메뉴: 본운동(스쿼트)은 보조가 아니고 보조는 3세트', dayPlan(p531, 1).items.some((x) => x.variant === 'squat' && !x.assist) && dayPlan(p531, 1).items.filter((x) => x.assist && x.mode === 'reserve').every((x) => x.sets.length === 3));
-    check('보조 칸 몇 번째: 5/3/1 4일차 가로 당기기는 앞에 2번(1 · 3일차)', accessoryOccurrence(p531, 4, 'hpull') === 2);
+    /* 2주 묶음(2026-10-16) — 1~2주 스쿼트 날 0 · 데드 날 1, 3~4주 스쿼트 날 2 · 데드 날 3 */
+    const occ = [1, 3, 4, 6, 7, 9, 10, 12].map((d) => accessoryOccurrence(p531, d, 'hpull'));
+    check('보조 칸 차례: 2주 동안 같은 날 종류는 같은 운동, 3주차에 다음 운동, 스쿼트 날 · 데드 날은 서로 다름', eq(occ, [0, 1, 0, 1, 2, 3, 2, 3]), occ.join());
     check('보조 칸은 고르기 화면 · 고정에 안 든다', usedVariants(p531.def).every((v) => !ACCESSORY_KEYS.includes(v)));
   }
   /* 장비가 없는 보조 칸은 비슷한 칸에서 대신(2026-10-15) — 바벨 · 덤벨만이면 세로 당기기 · 삼두가 빈다 */
@@ -530,10 +532,10 @@ check('다 맞으면 시작', checkEligibility(base).ok);
       mk('row1', '고릴라 로우', '당기기', ['덤벨']),
       mk('row2', '바벨 로우', '당기기', ['바벨']),
       mk('pd', '싱글암 케이블 풀다운', '당기기', ['케이블']),
-      mk('pu', '푸시업', '밀기', ['맨몸']),
+      mk('pu', '중량 푸시업', '밀기', ['원판']),
       mk('tri', '케이블 트라이셉스 푸시다운', '밀기', ['케이블']),
     ];
-    const owned = ['맨몸', '바벨', '덤벨'];
+    const owned = ['맨몸', '바벨', '덤벨', '원판'];
     const of = (v: VariantKey) => variantCandidates(v, lib2, owned, '중급');
     const used = new Set<string>(['row2']);
     const vp = accessoryWithFallback('vpull', of, 's', 0, used);
