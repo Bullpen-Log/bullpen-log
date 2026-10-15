@@ -3764,6 +3764,8 @@ html[data-dualcam] [data-finder] > video {
   html[data-pager='tabs'] main {
     padding: 0;
     max-width: none;
+    /* 옆 탭 판이 본문 밖으로 비치지 않게 — 패드는 본문이 왼쪽 탭 막대(--rail)만큼 비켜 있어 왼쪽 판이 막대 밑으로 보였다(2026-10-15) */
+    overflow-x: clip;
   }
   html[data-pager='tabs'] [data-bar-spacer],
   html[data-pager='tabs'] [data-tab-gap],
