@@ -26,6 +26,9 @@ import { createFigure } from './mannequin/figure';
 import { createOverlay, measureHex } from './mannequin/overlay';
 import { buildStage } from './stage';
 
+/** 3D 화면의 기준 키(m) — 이 키 사람이 화면을 꽉 채우고, 작은 사람은 그만큼 작게 보인다 */
+const REF_HEIGHT_M = 2.0;
+
 /**
  * 투구 3D 보기(설계 pitch-3d-quality.md 0절 · 화면 결정 9~16 · 데생 인형 pitch-3d-mannequin.md §6) — 데생 인형(몸통 · 팔다리 · 신발 · 글러브 · 공)을
  * 맞춘 관절에 맞춰 움직인다. 무대(바탕 · 조명 · 바닥 · 마운드 · 축 화살표)는 stage.ts(김민 몫 — 여기서 다시 쓰지 않는다).
@@ -336,7 +339,12 @@ export const Body3D = forwardRef<
       let tween: { t: number; from: Three.Vector3; to: Three.Vector3 } | null = null;
       const moveTo = (name: ViewName, animate: boolean) => {
         const dir = viewDir(name).normalize();
-        const dist = fitDist(dir);
+        /*
+         * 키만큼 크게 · 작게(2026-10-15 김민: "사용자 키에 맞게 — 지금은 전부 똑같다"). 장면은 '키 = 1'이라 몸에 맞춘 거리면 누구든
+         * 같은 크기로 보였다 — 기준 키(REF_HEIGHT_M) 사람에게 맞춘 거리로 두면 몸은 키에 비례해 보이고 마운드 · 격자(실제 크기 ÷ 키)는
+         * 늘 같은 크기다. 기준을 넉넉히(2m) 잡아 키 큰 사람도 화면 밖으로 안 나간다.
+         */
+        const dist = fitDist(dir) * (REF_HEIGHT_M / mann.H);
         controls.minDistance = dist * 0.35;
         controls.maxDistance = dist * 3;
         const to = target.clone().addScaledVector(dir, dist);
