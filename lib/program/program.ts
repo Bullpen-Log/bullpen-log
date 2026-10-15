@@ -532,13 +532,14 @@ const WS4SB: ProgramDef = {
 /*
  * 투수 파워(2026-10-16 김민 — 컨트라스트 대신). 투구 구속 트레이닝에서 흔히 쓰는 차례: 던지기(면마다 가볍게 · 많이) → 점프 → 근력(유지,
  * 몇 개 남기고) → 보조. 회전 던지기는 날마다(투구는 회전), 큰 하체는 주 2번(스쿼트 날 · 힌지 날), 셋째 날은 큰 하체 없이 밀기 · 한 다리.
- * 주마다 던지기 · 점프 세트 3 → 4 → 4, 근력 5 → 4 → 3회(2개 남기고), 4주는 가볍게(세트 줄이고 4개 남기고).
+ * 주마다 던지기 2 → 3 → 3세트(한 번에 22 → 33개) · 점프 3 → 4 → 4세트, 근력 5 → 4 → 3회(2개 남기고), 4주는 가볍게(세트 줄이고 4개 남기고).
  */
+/* sets = 점프 세트, throws = 던지기 세트(회전 좌우 3회씩 + 앞 · 위로 5회 — 한 번에 22 → 33 → 33 → 22개, 2026-10-16 김민: "60개는 많다, 30개쯤") */
 const POWER_WEEKS = [
-  { sets: 3, lift: 5 },
-  { sets: 4, lift: 4 },
-  { sets: 4, lift: 3 },
-  { sets: 2, lift: 5 },
+  { sets: 3, throws: 2, lift: 5 },
+  { sets: 4, throws: 3, lift: 4 },
+  { sets: 4, throws: 3, lift: 3 },
+  { sets: 2, throws: 2, lift: 5 },
 ];
 
 const PITCHER_POWER: ProgramDef = {
@@ -548,7 +549,7 @@ const PITCHER_POWER: ProgramDef = {
   origin: '투구 구속 트레이닝 원칙 · 메디신볼 · 점프 · 근력 유지',
   summary: '메디신볼을 여러 방향으로 던지고 뛴 뒤, 근력은 유지해요',
   detail: [
-    '날마다 메디신볼 던지기로 시작해요. 돌려 던지기는 좌우 각각, 앞 · 위로 던지기까지 한 번에 40~60개를 가볍게, 매번 최대 속도로 던져요.',
+    '날마다 메디신볼 던지기로 시작해요. 돌려 던지기는 좌우 각각, 앞 · 위로 던지기까지 한 번에 30개쯤을 가볍게, 매번 최대 속도로 던져요.',
     '점프는 스쿼트 날에 해요. 1~2주는 박스 · 브로드 점프, 3주부터 바운드 · 뎁스 점프까지 올려요. 큰 운동은 2개 남기고 3세트만 해서 근력을 지켜요.',
     '당기기를 밀기보다 많이 해요(투수 어깨).',
     '주마다 던지기 세트가 늘고 근력 횟수는 5회에서 3회로 줄어요. 4주는 가볍게 해요.',
@@ -559,9 +560,9 @@ const PITCHER_POWER: ProgramDef = {
   build: (day, week, perWeek, light) => {
     const w = POWER_WEEKS[week - 1];
     const lift = (v: VariantKey): Item => item(v, 'reserve', reps(light ? 2 : 3, w.lift, light ? 4 : 2), 150);
-    /* 회전 던지기는 좌우 각각(라이브러리 perSide) — 앞 · 위로 던지기와 합쳐 한 번에 40~60개 */
-    const throwRot = item('rotationalThrow', 'none', reps(w.sets, 5), 60);
-    const throwFront = item('medball', 'none', reps(w.sets, 5), 60);
+    /* 회전 던지기는 좌우 각각(라이브러리 perSide) — 앞 · 위로 던지기와 합쳐 한 번에 30개 안팎 */
+    const throwRot = item('rotationalThrow', 'none', reps(w.throws, 3), 60);
+    const throwFront = item('medball', 'none', reps(w.throws, 5), 60);
     /* 당기기 ≥ 밀기(투수 어깨) — 스쿼트 날 보조 밀기는 세로 당기기로 */
     const pullForPush = (xs: Item[]): Item[] =>
       xs.map((x) => (x.variant === 'pushAcc' ? { ...x, variant: 'vpull', sets: reps(x.sets.length, ACC_REPS.vpull ?? 8, x.sets[0].reserve) } : x));
