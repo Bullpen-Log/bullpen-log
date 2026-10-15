@@ -187,7 +187,9 @@ export function TabPager({
 
     const onDown = (e: TouchEvent) => {
       const old = drag.current;
-      if (old && (!old.on || e.timeStamp - old.t > 3000)) {
+      /* 끌던 손가락이 이미 떨어졌으면(끝 알림을 놓침 — 손가락 밑 노드가 다시 그려지면 track 까지 안 온다) 3초를 기다리지 않고 푼다 */
+      const lost = old != null && !Array.from(e.touches).some((t) => t.identifier === old.id);
+      if (old && (!old.on || lost || e.timeStamp - old.t > 3000)) {
         drag.current = null;
         if (old.on) {
           trans('');
@@ -309,6 +311,16 @@ export function TabPager({
               if (html.dataset.nav === 'zoom') html.removeAttribute('data-nav');
               leaving.current = false;
             }, 900);
+            /*
+             * 이동이 끊겨(취소 · 실패 · 하단 탭이 끼어듦) 이 틀을 못 떠났으면 밀어 둔 판 · 검은 자리표시를 걷는다 — 걷는 곳이 새
+             * 손가락뿐이라 검은 판이 화면을 덮은 채 남았다(2026-10-16). 넘어갔으면 이 틀이 사라져 아무 일도 없다.
+             */
+            window.setTimeout(() => {
+              if (!el.isConnected || location.pathname === new URL(cam.href, location.href).pathname) return;
+              trans('');
+              setDx(0);
+              setGhost(null);
+            }, 4000);
           }, go.ms);
           return;
         }

@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ChevronLeft } from '@/components/icon';
 import {
+  backTooSoon,
   clearBarBack,
   markBackPressed,
   previousUrl,
@@ -23,6 +24,7 @@ type Router = ReturnType<typeof useRouter>;
  * 화면을 목적지로 갈아 끼운다 — 아이폰의 '위로 가기'처럼 기록이 쌓이지 않는다. 어느 쪽이든 밀려 나가며 바뀐다(pop).
  */
 export function goBack(router: Router, href: string) {
+  if (backTooSoon()) return;
   const prev = previousUrl();
   setNavDirection('pop');
   if (prev && sameScreen(prev, href)) {

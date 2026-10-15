@@ -213,13 +213,28 @@ export function MonthCalendar({
     stage.getBoundingClientRect();
     stage.style.height = `${to}px`;
 
-    const done = (e: TransitionEvent) => {
-      if (e.target !== stage || e.propertyName !== 'height') return;
+    const release = () => {
       stage.style.height = '';
       stage.removeEventListener('transitionend', done);
+      stage.removeEventListener('transitioncancel', done);
+      window.clearTimeout(fallback);
+    };
+    const done = (e: TransitionEvent) => {
+      if (e.target !== stage || e.propertyName !== 'height') return;
+      release();
     };
     stage.addEventListener('transitionend', done);
-    return () => stage.removeEventListener('transitionend', done);
+    /*
+     * 끝 알림만 믿으면 안 된다 — 넘긴 직후 다른 화면으로 가 판이 숨으면 전환이 취소돼 transitionend 가 안 오고, 박아 둔 높이가
+     * 그대로 남아 돌아와도 달력이 굳어 있었다(2026-10-16). 취소 알림 · 늦은 시계로도 푼다.
+     */
+    stage.addEventListener('transitioncancel', done);
+    const fallback = window.setTimeout(release, 1000);
+    return () => {
+      stage.removeEventListener('transitionend', done);
+      stage.removeEventListener('transitioncancel', done);
+      window.clearTimeout(fallback);
+    };
   }, [monthTime]);
 
   const grid = {

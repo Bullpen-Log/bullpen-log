@@ -212,7 +212,7 @@ import {
   type VelocityScreenKey,
 } from '@/components/velocity/session-types';
 import { SessionHistory } from '@/components/velocity/session-history';
-import { previousUrl } from '@/lib/nav-state';
+import { backTooSoon, previousUrl } from '@/lib/nav-state';
 
 /**
  * 구속 측정 화면 — Smart Scout · PitchLab 의 흐름을 우리 모양(아이폰 느낌)으로.
@@ -1722,6 +1722,7 @@ export function VelocityScreen({
   };
   /* 구속 측정을 떠난다 — 들어온 화면으로(홈에서 쓸어 왔으면 홈), 바로 열었으면 홈 */
   const exit = () => {
+    if (backTooSoon()) return;
     if (previousUrl()) router.back();
     else router.replace('/today');
   };

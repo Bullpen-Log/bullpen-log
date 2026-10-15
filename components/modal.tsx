@@ -207,6 +207,8 @@ export function Modal({
       (e.target as HTMLElement).closest('button, a, input, textarea, select')
     )
       return;
+    /* 끄는 중의 둘째 손가락은 무시한다 — 덮어쓰면 첫 손가락을 뗄 때 아무도 안 받아 시트가 내려간 채 남는다 */
+    if (drag.current) return;
     drag.current = { id: e.pointerId, y: e.clientY, t: performance.now(), dy: 0 };
     /* 끄는 동안 폴더 흐림을 끈다(globals.css [data-dragging]) — 흐린 폴더를 움직이면 아이폰이 버벅였다 */
     ref.current?.setAttribute('data-dragging', '');

@@ -307,8 +307,19 @@ export function AppNav({
     show(false);
     if (!backToMenu.current) return;
     backToMenu.current = false;
-    /* 창이 내려가기 시작한 뒤 폴더가 부풀어 뜬다 */
-    window.setTimeout(() => go('sheet'), 120);
+    /*
+     * 창이 내려가기 시작한 뒤 폴더가 부풀어 뜬다. 그 사이에 다른 것을 눌렀으면(링크 등) 띄우지 않는다 — 새 화면에서 메뉴가
+     * 불쑥 열렸다(2026-10-16).
+     */
+    let touched = false;
+    const mark = () => {
+      touched = true;
+    };
+    window.addEventListener('pointerdown', mark, { capture: true, once: true });
+    window.setTimeout(() => {
+      window.removeEventListener('pointerdown', mark, { capture: true });
+      if (!touched) go('sheet');
+    }, 120);
   };
   /* 알림(종)의 작은 창, 그리고 거기서 여는 오늘 체크인 창 */
   const [bellOpen, setBellOpen] = useState(false);
@@ -2135,6 +2146,11 @@ function DetailMenu({
   const startDrag = (e: React.PointerEvent<HTMLDialogElement>) => {
     if (window.matchMedia(DESK_MEDIA).matches) return;
     if (e.pointerType === 'mouse' && e.button !== 0) return;
+    /*
+     * 끄는 중에 둘째 손가락이 닿으면 무시한다 — 덮어쓰면 첫 손가락을 뗄 때 아무도 안 받아 폴더가 내려간 채 남았다(2026-10-16).
+     * 끄는 손가락은 붙들어(setPointerCapture) 떼거나 취소될 때 꼭 끝 알림이 온다.
+     */
+    if (drag.current?.on) return;
     drag.current = {
       id: e.pointerId,
       x: e.clientX,

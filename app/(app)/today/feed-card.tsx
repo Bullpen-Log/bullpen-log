@@ -197,6 +197,8 @@ export function FeedCard({ items }: { items: FeedItem[] }) {
   }, [n, paused, drag, moving, go, index, items]);
 
   const onPointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
+    /* 새로 누르면 지난 쓸기 표시부터 지운다 — 미끄러지는 동안 일찍 돌아가 남은 표시가 그 탭의 click 을 막았다(2026-10-16) */
+    swiped.current = false;
     if (n < 2 || moving != null) return;
     /* 마우스 왼쪽 단추 · 손가락 · 펜만 */
     if (e.pointerType === 'mouse' && e.button !== 0) return;

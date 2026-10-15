@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, type ReactNode } from 'react';
+import { useFormStatus } from 'react-dom';
 import { OFFLINE_MESSAGE, orOffline } from '@/lib/action-offline';
 import { toast } from '@/components/toast';
 
@@ -48,12 +49,29 @@ export function SafeForm({
         else if (doneToast) toast(doneToast);
       }}
     >
-      {children}
+      <WhileSending>{children}</WhileSending>
       {error && (
         <p role="alert" className="mt-2 text-center text-xs text-danger">
           {error}
         </p>
       )}
     </form>
+  );
+}
+
+/**
+ * 보내는 동안 안의 단추 · 칸을 잠근다 — 신호가 약하면 [운동 시작]이 몇 초 동안 반응이 없어 여러 번 눌렸고, 누를 때마다 서버
+ * 동작이 따로 돌았다(2026-10-16). fieldset 의 disabled 가 안의 모든 단추를 한 번에 막는다(display: contents 라 모양은 그대로).
+ */
+function WhileSending({ children }: { children: ReactNode }) {
+  const { pending } = useFormStatus();
+  return (
+    <fieldset
+      disabled={pending}
+      aria-busy={pending || undefined}
+      className="contents [&:disabled_button]:opacity-60"
+    >
+      {children}
+    </fieldset>
   );
 }

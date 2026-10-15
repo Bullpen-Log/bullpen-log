@@ -209,6 +209,17 @@ export function ArmcarePlayer({
     items,
     initState
   );
+  /*
+   * 큰 단추는 운동이 바뀌어도 같은 자리라, 마지막 '세트 끝'을 두 번 누르면 둘째 탭이 다음 운동의 1세트로 들어갔다
+   * (2026-10-16). 0.45초 안의 둘째 탭은 버린다 — 한 세트를 그보다 빨리 하는 일은 없다.
+   */
+  const lastTap = useRef(0);
+  const tap = (a: Action) => {
+    const now = Date.now();
+    if (now - lastTap.current < 450) return;
+    lastTap.current = now;
+    dispatch(a);
+  };
   const { arm, ring } = useAlarm();
 
   /* 10분 동안 안 누르면 화면 잠금을 놓는다 */
@@ -556,7 +567,7 @@ export function ArmcarePlayer({
               />
               <button
                 type="button"
-                onClick={() => dispatch({ type: 'clock-end', clock, at: Date.now() })}
+                onClick={() => tap({ type: 'clock-end', clock, at: Date.now() })}
                 className="w-full rounded-xl border border-line-strong py-3 text-sm font-semibold text-ink hover:border-sky"
               >
                 {clock.kind === 'hold' ? '다 버텼어요' : '쉬기 건너뛰기'}
@@ -569,7 +580,7 @@ export function ArmcarePlayer({
           ) : it.holdSeconds != null ? (
             <button
               type="button"
-              onClick={() => dispatch({ type: 'hold', at: Date.now() })}
+              onClick={() => tap({ type: 'hold', at: Date.now() })}
               className="flex w-full items-center justify-center gap-2 rounded-xl bg-sky py-4 text-base font-bold text-white hover:bg-sky-strong"
             >
               <Play className="h-5 w-5" /> {sideLabel}
@@ -578,7 +589,7 @@ export function ArmcarePlayer({
           ) : (
             <button
               type="button"
-              onClick={() => dispatch({ type: 'set', at: Date.now() })}
+              onClick={() => tap({ type: 'set', at: Date.now() })}
               className="flex w-full items-center justify-center gap-2 rounded-xl bg-sky py-4 text-base font-bold text-white hover:bg-sky-strong"
             >
               <Check className="h-5 w-5" /> 세트 끝 ({doneSets + 1}/

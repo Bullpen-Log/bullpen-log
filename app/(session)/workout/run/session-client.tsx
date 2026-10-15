@@ -768,6 +768,18 @@ export function SessionClient({
     setPad(false);
   };
 
+  /*
+   * 큰 단추 연타 — 모빌리티 · 워밍업은 칸 없이 처방 양으로 담아 빈 칸에 걸리지 않아, 빠른 두 탭이 세트 둘이 되고 마지막
+   * 세트면 둘째 탭이 '운동 종료' 시트를 열었다(2026-10-16). 0.45초 안의 둘째 탭은 버린다.
+   */
+  const lastTap = useRef(0);
+  const tapOnce = (fn: () => void) => () => {
+    const now = Date.now();
+    if (now - lastTap.current < 450) return;
+    lastTap.current = now;
+    fn();
+  };
+
   const save = () => {
     setError(null);
     /*
@@ -1597,7 +1609,7 @@ export function SessionClient({
         */}
             <button
               type="button"
-              onClick={allDone ? openFinish : save}
+              onClick={tapOnce(allDone ? openFinish : save)}
               disabled={allDone && ending}
               /* 낮은 화면에서 숫자판을 연 동안만 64px — 판과 같이 한 화면에 들어오게 */
               className={`flex h-[72px] w-full shrink-0 items-center justify-center gap-2 rounded-full bg-sky text-lg font-bold text-white transition-transform motion-safe:active:scale-[0.98] ${
