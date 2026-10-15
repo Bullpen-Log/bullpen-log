@@ -104,7 +104,26 @@ type Ghost = { dir: 1 | -1; item: NavItem; camera: boolean; done?: boolean };
  * vw — 뜰 때의 화면 폭. 아이패드를 돌리면(세로 ↔ 가로) 본문 자리 · 줄바꿈이 달라져 옛 사본이 엉뚱한 자리에 보였다가 새 화면
  * 위에서 옅어지며 걷혔다(2026-10-15 '아이패드에서 잔상'). 폭이 다르면 사본을 안 쓴다(shotFor).
  */
-type Shot = { node: HTMLElement; left: number; width: number; top: number; vw: number };
+type Shot = {
+  node: HTMLElement;
+  left: number;
+  width: number;
+  top: number;
+  vw: number;
+  /** 그 탭의 위 막대(홈만 — 로고 · 종) 사본과 자리. 막대가 없거나 숨어 있었으면 없다 */
+  bar?: { node: HTMLElement; left: number; top: number; width: number; height: number };
+};
+
+/*
+ * 위 막대(홈만 — 로고 · 종)와 그 뒤의 판(top-veil, 막대 자리를 바탕색으로 덮는다). 막대가 보일 때만 — 없는 탭(투구 · 트레이닝 · 영양)이거나
+ * 숨어 있으면 빈 배열. 2026-10-15 사용자 "쓸 때 위 제목 부분이 밑 내용보다 한 타이밍 늦게 바뀐다": 홈에서 쓸면 막대와 판이 제자리에 남아
+ * 들어오는 화면의 큰 제목을 가리고 있다가, 화면이 바뀐 뒤에야 0.28초 걸려 줄어들었다. 이제 막대 · 판도 본문과 같이 밀린다.
+ */
+function chromeNow(): HTMLElement[] {
+  const bar = document.querySelector<HTMLElement>('[data-mobile-topbar]:not([data-hidden])');
+  const veil = document.querySelector<HTMLElement>('[data-top-veil]:not([data-short])');
+  return bar && veil ? [bar, veil] : [];
+}
 const shots = new Map<string, Shot>();
 const shotFor = (href: string) => {
   const s = shots.get(href);
@@ -133,7 +152,26 @@ function takeShot(main: HTMLElement): Shot {
   node
     .querySelectorAll<HTMLElement>('[style*="view-transition"]')
     .forEach((e) => (e.style.viewTransitionName = ''));
-  return { node, left: r.left, width: r.width, top: r.top + window.scrollY, vw: window.innerWidth };
+  /* 위 막대가 보이는 탭(홈)이면 막대도 떠 둔다 — 그 탭으로 쓸 때 자리표시 위에 막대째 들어오게 */
+  const barEl = chromeNow()[0];
+  let bar: Shot['bar'];
+  if (barEl) {
+    const b = barEl.getBoundingClientRect();
+    const copy = barEl.cloneNode(true) as HTMLElement;
+    copy.removeAttribute('data-mobile-topbar');
+    /* 모양(여백 · 줄 맞춤)은 그대로, 자리만 띠 안에 — 화면에 붙은(fixed) 막대를 띠 안의 자리로 */
+    copy.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;transform:none;view-transition-name:none';
+    copy.querySelectorAll('[id]').forEach((e) => e.removeAttribute('id'));
+    bar = { node: copy, left: b.left, top: b.top, width: b.width, height: b.height };
+  }
+  return {
+    node,
+    left: r.left,
+    width: r.width,
+    top: r.top + window.scrollY,
+    vw: window.innerWidth,
+    bar,
+  };
 }
 
 export function TabSwipe({
@@ -177,6 +215,8 @@ export function TabSwipe({
   const slideDir = useRef<1 | -1>(1);
   /* 손 뗀 뒤 미끄러짐이 끝나는 때(performance.now) — 미는 중에 새 화면이 오면 남은 시간만 이어 간다 */
   const slideEnd = useRef(0);
+  /* 지금 본문과 같이 밀리는 위 막대 · 판(chromeNow) */
+  const chrome = useRef<HTMLElement[]>([]);
   /* 제자리로 돌아가는 움직임이 끝난 뒤 정리 — 그 사이 다시 끌면 걷는다(예전엔 끄는 중에 자리표시가 사라져 옆이 비었다) */
   const settleTimer = useRef(0);
   /* 지금 밀린 거리 — 자리표시가 한 장면 늦게 생겨도 그 자리에서 시작하게 */
@@ -274,20 +314,43 @@ export function TabSwipe({
     const sliding = Math.abs(from) > 1;
     main.style.transition = 'none';
     main.style.transform = sliding ? `translateX(${from}px)` : '';
+    /*
+     * 위 막대 · 판 — 떠나는 화면의 것(같이 밀려 나갔다)은 제자리로, 새 화면의 것(홈이면 막대가 생기고 판이 늘어난다)은 본문과 같은 자리에서
+     * 같이 이어 들어온다. 판의 높이 바뀜(0.28초)은 끄고 곧바로 — 자리표시가 같은 막대를 이미 보였다.
+     */
+    const left = chrome.current;
+    const next = zoom ? [] : chromeNow();
+    chrome.current = next;
+    for (const el of left) {
+      el.style.transition = 'none';
+      el.style.transform = '';
+    }
+    for (const el of next) {
+      el.style.transition = 'none';
+      el.style.transform = sliding ? `translateX(${from}px)` : '';
+    }
     void main.offsetWidth;
+    for (const el of left) el.style.transition = '';
     window.clearTimeout(mainTimer.current);
     if (sliding) {
       /* 남은 시간 동안 — 자리표시가 가던 대로 끝나게(손 뗄 때 정한 끝 시각까지), 짧아도 0.1초 */
       const ms = Math.round(Math.min(320, Math.max(100, slideEnd.current - performance.now())));
-      main.style.transition = `transform ${ms}ms cubic-bezier(0.25, 0.6, 0.35, 1)`;
+      const t = `transform ${ms}ms cubic-bezier(0.25, 0.6, 0.35, 1)`;
+      main.style.transition = t;
       main.style.transform = '';
+      for (const el of next) {
+        el.style.transition = t;
+        el.style.transform = '';
+      }
       mainTimer.current = window.setTimeout(() => {
         main.style.transition = '';
         main.style.willChange = '';
+        for (const el of next) el.style.transition = '';
       }, ms);
     } else {
       main.style.transition = '';
       main.style.willChange = '';
+      for (const el of next) el.style.transition = '';
     }
     if (zoom) {
       queueMicrotask(() => setGhost(null));
@@ -366,8 +429,14 @@ export function TabSwipe({
     const setX = (dx: number) => {
       xRef.current = dx;
       main.style.transform = dx ? `translateX(${dx}px)` : '';
+      for (const el of chrome.current) el.style.transform = dx ? `translateX(${dx}px)` : '';
       const g = ghostEl.current;
       if (g) g.style.transform = `translateX(${dx}px)`;
+    };
+    /* 본문과 같이 밀리는 위 막대 · 판에도 같은 움직임 */
+    const trans = (t: string) => {
+      main.style.transition = t;
+      for (const el of chrome.current) el.style.transition = t;
     };
 
     /*
@@ -382,18 +451,18 @@ export function TabSwipe({
         if (target.current !== href) return;
         target.current = null;
         const ease = `transform ${SETTLE_MS}ms cubic-bezier(0.32, 0.72, 0, 1)`;
-        main.style.transition = ease;
+        trans(ease);
         if (ghostEl.current) ghostEl.current.style.transition = ease;
         setX(0);
         window.setTimeout(() => {
-          main.style.transition = '';
+          trans('');
           main.style.willChange = '';
           setGhost(null);
         }, SETTLE_MS);
       }, GIVE_UP_MS);
       /* 하단 탭의 렌즈도 지금 그 칸으로 — 본문과 같이 미끄러진다 */
       window.dispatchEvent(new CustomEvent(TAB_CHOSEN_EVENT, { detail: href }));
-      main.style.transition = go.ease;
+      trans(go.ease);
       if (ghostEl.current) ghostEl.current.style.transition = go.ease;
       setX(-dir * window.innerWidth);
       slideDir.current = dir;
@@ -416,6 +485,7 @@ export function TabSwipe({
       drag.current = null;
       window.clearTimeout(settleTimer.current);
       window.clearTimeout(mainTimer.current);
+      chrome.current = chromeNow();
       xRef.current = 0;
       flushSync(() => setGhost({ dir, item, camera: false }));
       const g = ghostEl.current;
@@ -425,7 +495,7 @@ export function TabSwipe({
         g.style.visibility = '';
         g.removeAttribute('data-done');
       }
-      main.style.transition = 'none';
+      trans('none');
       main.style.transform = '';
       main.style.willChange = 'transform';
       /* 지금 자리를 칠한 뒤 미끄러지기 시작하게 */
@@ -460,7 +530,7 @@ export function TabSwipe({
       if (old && (!old.on || e.timeStamp - old.t > 3000)) {
         drag.current = null;
         if (old.on) {
-          main.style.transition = '';
+          trans('');
           main.style.willChange = '';
           setX(0);
           setGhost(null);
@@ -523,9 +593,10 @@ export function TabSwipe({
           return;
         }
         d.on = true;
+        chrome.current = chromeNow();
         window.clearTimeout(settleTimer.current);
         window.clearTimeout(mainTimer.current);
-        main.style.transition = 'none';
+        trans('none');
         main.style.willChange = 'transform';
         if (ghostEl.current) {
           ghostEl.current.style.transition = 'none';
@@ -592,11 +663,11 @@ export function TabSwipe({
           target.current = null;
           window.clearTimeout(waitTimer.current);
           if (html.dataset.nav === 'zoom') html.removeAttribute('data-nav');
-          main.style.transition = ease;
+          trans(ease);
           if (g) g.style.transition = ease;
           setX(0);
           window.setTimeout(() => {
-            main.style.transition = '';
+            trans('');
             main.style.willChange = '';
             setGhost(null);
           }, SETTLE_MS);
@@ -607,7 +678,7 @@ export function TabSwipe({
           router.push(href);
           waitTimer.current = window.setTimeout(() => {
             if (!target.current) return;
-            main.style.transition = ease;
+            trans(ease);
             if (g) g.style.transition = ease;
             setX(-d.dir * d.w);
           }, WAIT_MS);
@@ -622,12 +693,12 @@ export function TabSwipe({
       }
       /* 제자리로 — 되돌리는 쪽으로의 빠르기를 이어받는다 */
       const home = settleFor(d.dx, Math.sign(v) === -Math.sign(d.dx) ? Math.abs(v) : 0);
-      main.style.transition = home.ease;
+      trans(home.ease);
       if (g) g.style.transition = home.ease;
       setX(0);
       window.clearTimeout(settleTimer.current);
       settleTimer.current = window.setTimeout(() => {
-        main.style.transition = '';
+        trans('');
         main.style.willChange = '';
         setGhost(null);
       }, home.ms);
@@ -644,7 +715,8 @@ export function TabSwipe({
       main.removeEventListener('touchend', onEnd);
       main.removeEventListener('touchcancel', onEnd);
       main.style.transform = '';
-      main.style.transition = '';
+      trans('');
+      for (const el of chrome.current) el.style.transform = '';
       main.style.willChange = '';
       window.clearTimeout(giveUp.current);
       window.clearTimeout(waitTimer.current);
@@ -679,6 +751,34 @@ export function TabSwipe({
             if (el && el.firstChild !== shot.node) el.replaceChildren(shot.node);
           }}
         />
+        {shot.bar && (
+          /*
+           * 그 탭의 위 막대(홈 — 로고 · 종)와 그 뒤 판 — 진짜 판(globals.css [data-top-veil])처럼 막대 자리까지 바탕색, 밑 3rem 동안 옅어진다.
+           * 막대가 늦게 생겨 보이지 않게 자리표시와 같이 들어온다(2026-10-15 "위 제목 부분이 한 타이밍 늦다").
+           */
+          <div
+            className="absolute inset-x-0 top-0"
+            style={{
+              height: shot.bar.top + shot.bar.height + 48,
+              background:
+                'linear-gradient(to bottom, var(--color-page) 0, var(--color-page) calc(100% - 3rem), color-mix(in oklab, var(--color-page) 0%, transparent) 100%)',
+            }}
+          >
+            <div
+              className="absolute"
+              style={{
+                left: shot.bar.left,
+                top: shot.bar.top,
+                width: shot.bar.width,
+                height: shot.bar.height,
+              }}
+              ref={(el) => {
+                const bar = shot.bar;
+                if (el && bar && el.firstChild !== bar.node) el.replaceChildren(bar.node);
+              }}
+            />
+          </div>
+        )}
       </div>
     );
   }
