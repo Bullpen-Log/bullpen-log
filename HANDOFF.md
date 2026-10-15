@@ -23,6 +23,43 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
   숨기기만 하면 팔꿈치 10px 나아지고 어깨 15px 나빠졌고, 앞단(core)에서 숨기면 카메라가 흔들려 좌우 고침이 엉뚱한 곳에서 14번 걸렸다 — 그래서 바로잡기.
 - 시험 v2 314(새 4). 떨림 검사는 끔 · 켬이 같다.
 
+## 김민(맥북 · 데스크톱)에게 · 금윤호에게도 알림 — 2026-10-15 · 김민(Claude, 클라우드) — 할 일: 투구 기록 · 운동 기록 표에 색인 둘 더하기(DB 구조 바꿈)
+
+**받은 뒤 할 일(김민 허락을 받고)** — 클라우드엔 `.env` 가 없어 못 했다. 사용자: "색인 추가 전달해줘". 탭 전환 속도 조사에서 나온 것이다
+(바로 아래 금윤호에게 메모). **AGENTS.md 2번 — DB 구조 바꿈이라 금윤호에게 먼저 알리고, 둘이 동시에 구조를 바꾸지 않을 때 한다.**
+- 왜: `PitchLog` 에 색인이 하나도 없다(다른 사용자 표는 다 `[userId, date]` 가 있다) — 홈 · 투구 · 트레이닝이 화면마다 투구 조회 십여 개를
+  내는데 모두 표 전체를 훑는다(사용자가 늘수록 느려짐). `UserExerciseLog` 는 기본 키 `(userId, exerciseId, date)` 뿐이라 날짜 범위
+  조회(지난 운동 · 부하 · 암케어)가 날짜로 못 좁힌다. 둘 다 **더하기만**이라 지금 코드를 깨뜨리지 않는다.
+1. `git pull` → `npm run backup`
+2. `prisma/schema.prisma` — `model PitchLog` 끝에 `@@index([userId, date])`, `model UserExerciseLog` 의 `@@id([userId, exerciseId, date])` 밑에
+   `@@index([userId, date])`
+3. `npx prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --script` — 아래 두 줄만 나와야 한다(다른 줄이 나오면 멈추고 김민에게):
+   ```sql
+   CREATE INDEX "PitchLog_userId_date_idx" ON "PitchLog"("userId", "date");
+   CREATE INDEX "UserExerciseLog_userId_date_idx" ON "UserExerciseLog"("userId", "date");
+   ```
+   → `prisma/migrations/20261015120000_pitchlog_exerciselog_user_date_idx/migration.sql` 로 저장
+4. `npx prisma migrate deploy` → `npx prisma generate` (표가 작아 몇 초 — 만드는 동안 그 표 쓰기가 잠깐 막힌다)
+5. 확인(선택): 빌드한 서버(`npx next build && PRISMA_TIMING=1 npx next start`)로 `npm run tabs:timing -- --email=<이메일>` 를 색인 전후로 —
+   서버 창의 `[db] PitchLog.findMany` 시간이 줄었는지.
+6. 스키마 · 마이그레이션 폴더를 한 커밋으로 올리고 이 메모를 지운다. 금윤호에게 '받아서 `npx prisma generate`' 메모를 남긴다(AGENTS 2번).
+
+## 금윤호에게 — 2026-10-15 · 김민(Claude, 클라우드) — 탭 전환 빠르게: 서버 조회 차례 기다림 줄임 · DB 연결 20 · 탭 쓸기 · 탭 누름
+
+받은 뒤 할 일 없음(DB 구조 · 패키지 그대로). 사용자: "탭 전환을 더 빠르게 — 서버 시간을 재서 줄이자". **네 영역(홈 · 트레이닝 · 영양 · 앱 틀)을 고쳤다.**
+- 조회 차례 기다림(앞 조회가 끝나야 다음을 시작)을 같이 돌게: `loadTodayCore` 의 지난 판 닫기(닫기가 쓰는 표를 같이 읽지 않음 — 주석),
+  홈 요약 칸(`feed.tsx` — 오늘 셈과 하이라이트 · 영양 · 그날 요약을 같이, `loadHighlights` 가 부하 지수를 약속으로 받음), 운동 소모 세트
+  (`burnMixesInRange` — 판을 기다리지 않고 날짜로, `sessionBurnMixes` 지움), 날짜별 구속(`loadVelocityByDate` 왕복 2 → 1), 트레이닝 홈
+  카드(오늘 판 · 프로그램 · 내 팔 지도를 같이 — 지난 판을 닫았으면 프로그램만 다시 읽음, `loadTodayCore` 가 `closedSessions` 를 돌려줌),
+  사용자 읽기(`lib/dal.ts` — 시험 계정 날짜 ensureSim 과 사용자 조회를 같이, 둘 다 끝난 뒤 돌려줌 · `lib/session.ts readSession`).
+- 영양 탭은 지난 날짜를 볼 때 조언을 셈하지 않는다(`advice` null).
+- `lib/prisma.ts`: pg 연결 10 → 20(화면 하나가 조회 14~50개를 한꺼번에 내 줄을 섰다). 풀러(6543) 손님 한도 안. 'too many clients' 가 보이면 이것부터 내려 줘.
+  `PRISMA_TIMING=1` 이면 조회마다 걸린 시간을 찍는다. 재는 도구 `npm run tabs:timing -- --email=<이메일>`(빌드한 서버에 RSC 요청, 사용법은 그 파일 머리).
+- 남긴 것(DB 구조 바꿈이라 너와 맞춘 뒤): `PitchLog` 에 색인이 하나도 없다 — `@@index([userId, date])` 하나로 투구 조회 십여 개가 표 전체를
+  안 훑게 된다. `UserExerciseLog` 도 날짜 범위 조회에 `[userId, date]` 색인이 없다. 둘 다 더하기라 안전하지만 백업 · 알림 뒤에.
+- 탭 쓸기(`components/tab-swipe.tsx`)는 손가락을 터치 이벤트로(아이폰이 세로 스크롤로 빼앗던 것) · 사본 껍데기 div(연달아 쓸면 빈 화면이던 것) ·
+  손 떼자마자 새 화면을 부르고 빠르기를 이어받음. 하단 탭을 누르면(`slideToTab`) 쓸기처럼 누르는 순간 밀린다.
+
 ## 금윤호에게 — 2026-10-15 · 김민(Claude, 맥북) — 파워 운동 10개 더함 · 촬영 계획 2~5주 다시 짬 · 드릴 영상이 파워 복사본에도 붙음
 
 받은 뒤 할 일 없음(DB 구조 · 패키지 그대로, 운동 줄만 더함 — 운동 캐시 v30). **네 영역(촬영 관리자)을 고쳤다.**

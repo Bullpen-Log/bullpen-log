@@ -2,7 +2,7 @@ import 'server-only';
 import { appNow } from '@/lib/clock';
 import { prisma } from '@/lib/prisma';
 import { isShortSleep } from '@/lib/checkin';
-import { sessionBurnMixes } from '@/lib/nutrition/burn-load';
+import { burnMixesInRange } from '@/lib/nutrition/burn-load';
 import { shiftDateKey, toDateKey } from '@/lib/pitch-stats';
 import { NUTRITION_BACK_DAYS, dbDate, keyOfDbDate } from '@/lib/nutrition/days';
 import {
@@ -284,6 +284,7 @@ export async function loadNutritionDay(
     planRows,
     mealPlanRow,
     nutritionToday,
+    mixes,
   ] = await Promise.all([
     prisma.nutritionProfile.findUnique({ where: { userId } }),
     prisma.mealEntry.findMany({
@@ -385,6 +386,8 @@ export async function loadNutritionDay(
           },
         })
       : null,
+    /* 판마다 운동 강도 · 세트 — 판 조회와 같이(판을 기다렸다 읽으면 왕복이 하나 더 쌓였다) */
+    burnMixesInRange(userId, dbDate(burnStart), dbDate(rangeEnd)),
   ]);
 
   const calendar: Record<string, number> = {};
@@ -420,8 +423,7 @@ export async function loadNutritionDay(
     if (!item) return;
     burnByDay.set(day, [...(burnByDay.get(day) ?? []), item]);
   };
-  /* 운동마다의 강도 · 세트로 셈한다(lib/nutrition/burn.ts trainingBurn) */
-  const mixes = await sessionBurnMixes(sessions.map((s) => s.id));
+  /* 운동마다의 강도 · 세트로 셈한다(lib/nutrition/burn.ts trainingBurn, mixes 는 위 조회) */
   for (const s of sessions)
     pushBurn(
       keyOfDbDate(s.date),

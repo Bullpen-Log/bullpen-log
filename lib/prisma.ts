@@ -1,7 +1,13 @@
 import { PrismaClient } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 
-const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
+/*
+ * 연결은 20개까지(pg 기본 10) — 화면 하나가 조회 20~50개를 한꺼번에 내는데 10개뿐이면 나머지가 줄을 서 왕복이 몇 번씩 더 쌓였다
+ * (2026-10-15 탭 전환 속도 조사: 홈 약 50 · 영양 약 34 · 트레이닝 약 23 · 투구 약 14). DATABASE_URL 은 Supabase 풀러(6543,
+ * 트랜잭션 모드)라 연결 하나가 DB 연결을 붙잡지 않는다 — 풀러의 손님 연결 한도(작은 요금제도 수백)에 비해 넉넉히 작다.
+ * 'too many clients' 같은 오류가 보이면 이 숫자부터 내린다.
+ */
+const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL, max: 20 });
 
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
 
@@ -47,6 +53,11 @@ const TIME_FIELDS: Record<string, string[]> = {
   velocitySession: ['createdAt'],
 };
 
+/*
+ * 조회마다 걸린 시간을 서버 창에 찍는다 — PRISMA_TIMING=1 일 때만(scripts/tab-timing.mjs 와 같이, 2026-10-15 탭 전환 속도 재기).
+ */
+const TIMING = process.env.PRISMA_TIMING === '1';
+
 function simNow(): Date | null {
   const f = (globalThis as { __bpNow?: () => number }).__bpNow;
   if (typeof window !== 'undefined' || !f) return null;
@@ -81,7 +92,13 @@ function withSimTime(base: PrismaClient): PrismaClient {
               fill(key, a.update, now, true);
             }
           }
-          return query(args);
+          if (!TIMING) return query(args);
+          const t0 = performance.now();
+          try {
+            return await query(args);
+          } finally {
+            console.log(`[db] ${model}.${operation} ${Math.round(performance.now() - t0)} ms`);
+          }
         },
       },
     },

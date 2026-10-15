@@ -202,22 +202,35 @@ export async function loadVelocityByDate(
   userId: string,
   from?: Date
 ): Promise<Record<string, VelocityDayFact>> {
-  const rows = await prisma.velocityPitch.findMany({
-    where: { userId, ...(from ? { session: { date: { gte: from } } } : {}) },
-    select: {
-      id: true,
-      kmh: true,
-      pitchType: true,
-      zone: true,
-      clipPath: true,
-      session: { select: { date: true } },
-    },
-    orderBy: { id: 'asc' },
-  });
+  /*
+   * 공과 세션 날짜를 같이 읽는다 — 공 조회 안에 세션을 끼워(select session) 읽으면 Prisma 가 공을 다 읽은 뒤에 세션을 또
+   * 물어 왕복이 둘이었다(2026-10-15 탭 전환 속도 — 투구 탭 · 홈 캘린더의 가장 긴 조회).
+   */
+  const [rows, sessions] = await Promise.all([
+    prisma.velocityPitch.findMany({
+      where: { userId, ...(from ? { session: { date: { gte: from } } } : {}) },
+      select: {
+        id: true,
+        kmh: true,
+        pitchType: true,
+        zone: true,
+        clipPath: true,
+        sessionId: true,
+      },
+      orderBy: { id: 'asc' },
+    }),
+    prisma.velocitySession.findMany({
+      where: { userId, ...(from ? { date: { gte: from } } : {}) },
+      select: { id: true, date: true },
+    }),
+  ]);
+  const dateOf = new Map(sessions.map((s) => [s.id, s.date]));
   const out: Record<string, VelocityDayFact> = {};
   const hash: Record<string, number> = {};
   for (const r of rows) {
-    const key = r.session.date.toISOString().slice(0, 10);
+    const date = dateOf.get(r.sessionId);
+    if (!date) continue;
+    const key = date.toISOString().slice(0, 10);
     const cur = out[key] ?? { n: 0, max: 0, clips: 0, sig: '' };
     cur.n += 1;
     cur.max = Math.max(cur.max, r.kmh);

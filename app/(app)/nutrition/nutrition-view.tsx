@@ -216,8 +216,8 @@ export function NutritionView({
 }: {
   day: NutritionDay;
   today: string;
-  /** 오늘 영양 조언(lib/nutrition/advice.ts) — 홈 카드와 같은 셈. 지난 날은 할 일이 없어 카드를 안 그린다 */
-  advice: Advice;
+  /** 오늘 영양 조언(lib/nutrition/advice.ts) — 홈 카드와 같은 셈. 지난 날은 할 일이 없어 안 셈한다(null) */
+  advice: Advice | null;
   /** 영양 추세 카드 글(lib/nutrition/fuel-check.ts fuelCardOf, 2판 P6-7) — 오늘을 볼 때 깃발이 섰을 때만 */
   fuel?: FuelCard | null;
 }) {
@@ -1233,8 +1233,8 @@ function TodayCard({
   gaps: MacroGaps;
   day: NutritionDay;
   today: string;
-  /** 오늘 영양 조언(lib/nutrition/advice.ts) — 할 일 한 줄 · 균형 점수. 지난 날은 쓰지 않는다 */
-  advice: Advice;
+  /** 오늘 영양 조언(lib/nutrition/advice.ts) — 할 일 한 줄 · 균형 점수. 지난 날은 셈하지 않는다(null) */
+  advice: Advice | null;
   /** 던지는 날 가이드(GuideCard bare) — 그날은 할 일 한 줄 대신 이것이 선다 */
   guide?: React.ReactNode;
   /** 휴대폰에서 체중 카드로 가려면 통계 쪽을 먼저 펴야 한다 */
@@ -1253,7 +1253,7 @@ function TodayCard({
   /* 먹은 만큼 차는 링 — 0~100. 넘치면 링은 한 바퀴, 색은 경고 */
   const share = t.kcal > 0 ? Math.round((eaten.kcal / t.kcal) * 100) : 0;
   const ring = Math.min(100, share);
-  const headline = isToday && !guide ? advice.headline : null;
+  const headline = isToday && !guide ? (advice?.headline ?? null) : null;
 
   return (
     <section
@@ -1310,7 +1310,7 @@ function TodayCard({
             )}
           </p>
         </div>
-        {isToday && advice.score !== null && (
+        {isToday && advice && advice.score !== null && (
           <div className="shrink-0 text-right">
             <p className="text-numeric text-xl leading-none text-ink">{advice.score}</p>
             <p className="mt-1 text-caption text-muted">균형</p>
@@ -1353,7 +1353,7 @@ function TodayCard({
       {headline && (
         <p
           className={`border-t border-line pt-3 text-subhead leading-snug font-semibold ${
-            advice.highlight ? 'text-sky-strong' : 'text-ink'
+            advice?.highlight ? 'text-sky-strong' : 'text-ink'
           }`}
         >
           {headline}

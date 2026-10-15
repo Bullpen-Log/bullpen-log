@@ -54,6 +54,15 @@ export function passwordFingerprint(passwordHash: string) {
   return createHash('sha256').update(passwordHash).digest('base64url').slice(0, 16);
 }
 
+/**
+ * 쿠키의 로그인 표만 읽는다 — 시험 계정 날짜(ensureSim)를 기다리지 않는다. 사용자 읽기(lib/dal.ts)가 날짜 읽기와 사용자 조회를
+ * 같이 돌리려고 쓴다(2026-10-15 탭 전환 속도 — 30초 지난 첫 요청마다 왕복이 하나 더 쌓였다). 날짜가 필요한 곳은 getSession.
+ */
+export async function readSession(): Promise<SessionInfo | null> {
+  const cookieStore = await cookies();
+  return decrypt(cookieStore.get(SESSION_COOKIE)?.value);
+}
+
 export async function getSession(): Promise<SessionInfo | null> {
   /* 시험 계정의 시뮬레이션 날짜를 '지금'(lib/clock.ts)보다 먼저 읽어 둔다 */
   await ensureSim();

@@ -1162,9 +1162,14 @@ html[data-nav]::view-transition-new(.page) {
  * 비슷하게(340ms, 빠르게 출발해 부드럽게 멈춤). 겹쳐 빛나지 않게 섞기는 normal. 이름 규칙과 딱지 규칙을 따로 적는다
  * (사파리 18.0~18.1 은 딱지를 몰라 한 목록이면 통째로 버린다 — 위 '이름 규칙과 딱지 규칙' 참고).
  */
+/*
+ * 화면 폭(100vw)만큼 민다 — 그림은 본문 칸(여백 안쪽)만 해서 100% 면 오른쪽 여백만큼 덜 비켰다. 들어오는 화면이 처음부터
+ * 오른쪽 끝에 비쳐 있고, 뒤로 가면 빠지는 화면이 오른쪽 끝에 남았다가 툭 사라졌다(아이패드는 여백이 24~54px 라 잘 보였다 —
+ * 2026-10-15 '아이패드에서 잔상').
+ */
 @keyframes nav-in-right {
   from {
-    transform: translateX(100%);
+    transform: translateX(100vw);
   }
 }
 /*
@@ -1190,7 +1195,7 @@ html[data-nav]::view-transition-new(.page) {
 }
 @keyframes nav-out-right {
   to {
-    transform: translateX(100%);
+    transform: translateX(100vw);
   }
 }
 @media (prefers-reduced-motion: no-preference) {
@@ -2987,21 +2992,22 @@ html[data-splash] *::after {
 }
 
 /*
- * 탭 쓸기의 화면 전환(components/tab-swipe.tsx, 2026-10-15) — 손을 뗀 자리(--swipe-x, 끄는 동안 html 에 적힌다)에서 옛 본문은 밖으로,
- * 새 본문은 그 옆(한 화면 너비 너머)에서 제자리로. swipe-next 는 왼쪽으로(다음 탭), swipe-prev 는 오른쪽으로. 그래서 자리표시 대신
- * 실제 새 화면이 미끄러져 들어온다. 이름 규칙과 딱지 규칙은 따로(사파리 18.0~18.1).
+ * 하단 탭을 눌러 옮길 때의 화면 전환(components/app-shell.tsx MobileTabs 의 data-nav, 2026-10-15 사용자 "너무 딱딱해") — 옛 본문은
+ * 밖으로, 새 본문은 그 옆(한 화면 너비 너머)에서 제자리로. swipe-next 는 왼쪽으로(오른쪽 탭), swipe-prev 는 오른쪽으로(왼쪽 탭) —
+ * 손가락 쓸기(components/tab-swipe.tsx, 화면 전환 없이 본문을 직접 민다)와 같은 몸짓이다. 거리는 화면 폭(100vw) — 그림은 본문 칸
+ * (여백 안쪽)만이라 100% 면 여백만큼 비쳤다. --swipe-x 는 예전 쓸기 2판의 손 뗀 자리(지금은 안 씀, 0). 이름 규칙과 딱지 규칙은 따로(사파리 18.0~18.1).
  */
 @keyframes swipe-old-next {
   from {
     transform: translateX(var(--swipe-x, 0px));
   }
   to {
-    transform: translateX(-100%);
+    transform: translateX(-100vw);
   }
 }
 @keyframes swipe-new-next {
   from {
-    transform: translateX(calc(var(--swipe-x, 0px) + 100%));
+    transform: translateX(calc(var(--swipe-x, 0px) + 100vw));
   }
   to {
     transform: none;
@@ -3012,12 +3018,12 @@ html[data-splash] *::after {
     transform: translateX(var(--swipe-x, 0px));
   }
   to {
-    transform: translateX(100%);
+    transform: translateX(100vw);
   }
 }
 @keyframes swipe-new-prev {
   from {
-    transform: translateX(calc(var(--swipe-x, 0px) - 100%));
+    transform: translateX(calc(var(--swipe-x, 0px) - 100vw));
   }
   to {
     transform: none;
@@ -3035,28 +3041,28 @@ html[data-splash] *::after {
     background-color: var(--color-page);
   }
   html[data-nav='swipe-next']::view-transition-old(app-main) {
-    animation: 300ms cubic-bezier(0.32, 0.72, 0, 1) both swipe-old-next;
+    animation: 240ms cubic-bezier(0.32, 0.72, 0, 1) both swipe-old-next;
   }
   html[data-nav='swipe-next']::view-transition-old(.page) {
-    animation: 300ms cubic-bezier(0.32, 0.72, 0, 1) both swipe-old-next;
+    animation: 240ms cubic-bezier(0.32, 0.72, 0, 1) both swipe-old-next;
   }
   html[data-nav='swipe-next']::view-transition-new(app-main) {
-    animation: 300ms cubic-bezier(0.32, 0.72, 0, 1) both swipe-new-next;
+    animation: 240ms cubic-bezier(0.32, 0.72, 0, 1) both swipe-new-next;
   }
   html[data-nav='swipe-next']::view-transition-new(.page) {
-    animation: 300ms cubic-bezier(0.32, 0.72, 0, 1) both swipe-new-next;
+    animation: 240ms cubic-bezier(0.32, 0.72, 0, 1) both swipe-new-next;
   }
   html[data-nav='swipe-prev']::view-transition-old(app-main) {
-    animation: 300ms cubic-bezier(0.32, 0.72, 0, 1) both swipe-old-prev;
+    animation: 240ms cubic-bezier(0.32, 0.72, 0, 1) both swipe-old-prev;
   }
   html[data-nav='swipe-prev']::view-transition-old(.page) {
-    animation: 300ms cubic-bezier(0.32, 0.72, 0, 1) both swipe-old-prev;
+    animation: 240ms cubic-bezier(0.32, 0.72, 0, 1) both swipe-old-prev;
   }
   html[data-nav='swipe-prev']::view-transition-new(app-main) {
-    animation: 300ms cubic-bezier(0.32, 0.72, 0, 1) both swipe-new-prev;
+    animation: 240ms cubic-bezier(0.32, 0.72, 0, 1) both swipe-new-prev;
   }
   html[data-nav='swipe-prev']::view-transition-new(.page) {
-    animation: 300ms cubic-bezier(0.32, 0.72, 0, 1) both swipe-new-prev;
+    animation: 240ms cubic-bezier(0.32, 0.72, 0, 1) both swipe-new-prev;
   }
 
   /*
@@ -3095,7 +3101,7 @@ html[data-splash] *::after {
  */
 [data-tab-ghost][data-done] {
   opacity: 0;
-  transition: opacity 180ms ease-out;
+  transition: opacity 100ms ease-out;
 }
 /* 자리표시가 본문 사본일 때(components/tab-swipe.tsx shots) — 사본 안의 들어오는 움직임 · 전환이 다시 돌지 않게 */
 [data-tab-ghost] * {

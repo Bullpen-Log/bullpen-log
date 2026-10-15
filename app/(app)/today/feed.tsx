@@ -26,11 +26,19 @@ type HomeUser = Awaited<ReturnType<typeof requireUser>>;
  */
 
 export async function Feed({ user, today }: { user: HomeUser; today: string }) {
-  const core = await loadTodayCoreCached(user);
-  const load = { zone: core.facts.load.zone, ratio: core.facts.load.ratio };
-  const [{ items: highlights, input, extra }, advice, detail, weekMeals] =
+  /*
+   * 오늘 셈(무겁다)과 나머지 재료를 같이 읽는다 — 예전엔 오늘 셈을 다 기다린 뒤에야 하이라이트 · 영양 · 그날 요약을 읽어 왕복이
+   * 둘 더 쌓였다(2026-10-15 탭 전환 속도). 하이라이트는 부하 지수만 오늘 셈에서 받고, 재료는 먼저 읽어 둔다.
+   */
+  const corePending = loadTodayCoreCached(user);
+  const [core, { items: highlights, input, extra }, advice, detail, weekMeals] =
     await Promise.all([
-      loadHighlights(user.id, today, load),
+      corePending,
+      loadHighlights(
+        user.id,
+        today,
+        corePending.then((c) => ({ zone: c.facts.load.zone, ratio: c.facts.load.ratio }))
+      ),
       loadAdvice(user, today, today, serviceHour(now())),
       /* 오늘 먹은 kcal · 목표 — 홈 링과 같은 그날 요약(한 요청에 한 번) */
       loadDayDetailCached(user, today),
