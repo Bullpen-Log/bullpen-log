@@ -15,10 +15,13 @@ const TONE = {
 export function ArmStatusNote({
   status,
   bare = false,
+  compact = false,
 }: {
   status: ArmStatus;
   /** 카드 안에 넣을 때 — 테두리 · 바탕 없이 */
   bare?: boolean;
+  /** 머리 한 줄만(까닭 줄 없이) — 그날 화면처럼 투구 탭 '오늘' 카드가 이미 다 말한 곳 */
+  compact?: boolean;
 }) {
   const tone = TONE[status.level];
   return (
@@ -32,7 +35,7 @@ export function ArmStatusNote({
         <span className={`font-bold ${tone.label}`}>{ARM_LEVEL_LABEL[status.level]}</span>
       </p>
       <p className="text-sm font-semibold text-ink break-keep">{status.headline}</p>
-      {status.details.length > 0 && (
+      {!compact && status.details.length > 0 && (
         <ul className="space-y-0.5 text-xs leading-relaxed text-muted break-keep">
           {status.details.map((d) => (
             <li key={d}>{d}</li>

@@ -154,14 +154,17 @@ export function DayClient({
         돌아갈 곳을 맨 위에 둔다 — 홈 달력과 투구 기록 둘 다. 예전에는 홈 달력 하나라,
         투구 기록 탭에서 들어온 사람도 홈으로 떨어졌다. 팝업이면 연 화면 쪽이 '돌아가기'다.
       */}
-      <nav aria-label="돌아갈 곳" className="flex flex-wrap items-center gap-2">
-        <BackLink href={`/today?date=${date}`} from="/today" icon={House}>
-          홈 달력
-        </BackLink>
-        <BackLink href={`/videos?date=${date}`} from="/videos" icon={Baseball}>
-          투구 기록
-        </BackLink>
-      </nav>
+      {/* 팝업이면 창의 닫기가 '돌아가기'라 두지 않는다(2026-10-15 — 창 머리 밑 칩 줄이 한 줄을 차지했다). 주소로 곧장 들어온 쪽만 */}
+      {!modal && (
+        <nav aria-label="돌아갈 곳" className="flex flex-wrap items-center gap-2">
+          <BackLink href={`/today?date=${date}`} from="/today" icon={House}>
+            홈 달력
+          </BackLink>
+          <BackLink href={`/videos?date=${date}`} from="/videos" icon={Baseball}>
+            투구 기록
+          </BackLink>
+        </nav>
+      )}
 
       <div className={modal ? '' : 'border-b border-line pb-6'}>
         {/* 팝업이면 날짜는 창 머리가 보여 준다 — 두 번 적지 않는다 */}
@@ -187,7 +190,9 @@ export function DayClient({
         </p>
       )}
 
-      {date === todayKey && todayStatus && <ArmStatusNote status={todayStatus} />}
+      {date === todayKey && todayStatus && (
+        <ArmStatusNote status={todayStatus} compact />
+      )}
 
       {/* 카메라 구속 측정 — 공마다 구종 · 코스 · 결과를 고치고 지운다 */}
       <VelocitySection sessions={velocity} isAdmin={isAdmin} />
@@ -255,7 +260,7 @@ export function DayClient({
           <button
             type="button"
             onClick={() => setFormOpen(true)}
-            className="flex w-full items-center justify-center gap-2 rounded-2xl bg-sky-tint desk:border desk:border-dashed desk:border-sky-soft px-4 py-3.5 text-sm font-medium text-sky-strong transition-colors hover:bg-sky-tint/70"
+            className="flex w-full items-center justify-center gap-2 rounded-full bg-sky-tint desk:rounded-xl desk:border desk:border-dashed desk:border-sky-soft px-4 py-3.5 text-sm font-medium text-sky-strong transition-colors hover:bg-sky-tint/70"
           >
             <Plus className="h-4 w-4" />이 날짜에 기록 추가
           </button>

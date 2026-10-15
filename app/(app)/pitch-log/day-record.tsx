@@ -3,13 +3,14 @@
 import { isPhoneVideoPath, phoneVideoElsewhereText } from '@/lib/local-video';
 import { formatSpeed } from '@/lib/units';
 import { useSpeedUnit } from '@/components/use-units';
-import { Pencil, Trash2, VideoOff } from '@/components/icon';
-import { IconCircle } from '@/components/icon-circle';
+import { useState } from 'react';
+import { Ellipsis, Pencil, Trash2 } from '@/components/icon';
 import { Badge, Card } from '@/components/ui';
+import { Modal } from '@/components/modal';
 import { PitchVideoPlayer } from '@/components/pitch-video-player';
 import { REST_SESSION_TYPE } from '@/lib/session-type';
 import { effortText } from '@/lib/pitch-effort';
-import { ConfirmDelete } from '@/components/confirm-delete';
+import { ConfirmDialog } from '@/components/confirm-delete';
 import type { Log } from './types';
 
 /**
@@ -40,7 +41,7 @@ export function DayRecord({
   /** 재생 주소를 아직 받아오는 중인가 */
   urlsPending: boolean;
   onEdit: (log: Log) => void;
-  onDelete: (id: string) => void;
+  onDelete: (id: string) => void | Promise<void>;
 }) {
   /* 구속을 보여줄 단위. 저장은 늘 km/h 다(lib/units.ts). */
   const speedUnit = useSpeedUnit();
@@ -58,8 +59,19 @@ export function DayRecord({
    * 보려면 굴려야 했다. 나란히 두면 한 화면에 다 들어온다.
    */
   const split = log.videoPaths.length > 0;
+  /* 고치기 · 지우기는 ⋯ 한 단추 → 동작 시트(2026-10-15 사용자 "투구 파트도 우리 시스템에 맞게") — 예전 연필 · 휴지통 원 둘이 카드 머리를 차지했다 */
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [askDelete, setAskDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const cues = (
+    [
+      ['좋았던 것', log.cuesGood],
+      ['아쉬웠던 것', log.cuesBad],
+    ] as const
+  ).filter(([, c]) => c.length > 0);
 
   return (
+    <>
     <Card
       className={
         split
@@ -109,51 +121,14 @@ export function DayRecord({
               )}
             </div>
           </div>
-          {/* 휴대폰은 두 단추를 44px 로 키우고 사이를 띄운다 — 32px 가 붙어 있어 연필을 누르려다 휴지통을 눌렀다(PC 는 그대로, 2026-10-03) */}
-          {/* 휴대폰은 색 원(아이폰 전화 앱 목록의 ⓘ 처럼, components/icon-circle.tsx) — PC 는 예전 작은 아이콘(2026-10-14 아이콘 체계) */}
-          <div className="flex shrink-0 items-center gap-2 desk:gap-1">
-            <button
-              type="button"
-              onClick={() => onEdit(log)}
-              aria-label="기록 수정"
-              className="flex items-center justify-center rounded-full transition-[opacity,transform] active:opacity-80 motion-safe:active:scale-95 desk:h-8 desk:w-8 desk:rounded-lg desk:text-muted desk:hover:bg-surface-2 desk:hover:text-sky"
-            >
-              <IconCircle Icon={Pencil} className="desk:hidden" />
-              <Pencil className="hidden h-4 w-4 desk:block" />
-            </button>
-            {/*
-            휴지통이 연필 바로 옆이라 잘못 누르기 쉽다. 게다가 기록만이 아니라
-            올려둔 영상까지 저장소에서 영구히 사라진다. 무엇이 없어지는지
-            이름을 대고 한 번 묻는다.
-          */}
-            <ConfirmDelete
-              onConfirm={() => onDelete(log.id)}
-              ariaLabel="기록 삭제"
-              title="이 기록을 지울까요?"
-              detail={
-                <div className="space-y-2">
-                  <p>
-                    <strong className="text-ink">
-                      {spokenDate(date)} ·{' '}
-                      {rested ? '쉬는 날' : `${log.sessionType} ${log.pitchCount}구`}
-                    </strong>
-                  </p>
-                  {log.videoPaths.length > 0 && (
-                    <p className="text-warn">
-                      올려둔 영상 {log.videoPaths.length}개도 함께 지워져요.
-                    </p>
-                  )}
-                  <p className="text-muted">
-                    되돌릴 수 없어요. 수치만 고치실 거라면 옆의 연필을 눌러주세요.
-                  </p>
-                </div>
-              }
-              className="flex items-center justify-center rounded-full transition-[opacity,transform] active:opacity-80 motion-safe:active:scale-95 desk:h-8 desk:w-8 desk:rounded-lg desk:text-muted desk:hover:bg-danger-bg desk:hover:text-danger"
-            >
-              <IconCircle Icon={Trash2} tone="danger" className="desk:hidden" />
-              <Trash2 className="hidden h-4 w-4 desk:block" />
-            </ConfirmDelete>
-          </div>
+          <button
+            type="button"
+            onClick={() => setMenuOpen(true)}
+            aria-label="기록 고치기 · 지우기"
+            className="-mr-1 -mt-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-muted transition-colors hover:bg-ink/6 hover:text-ink active:bg-ink/10 desk:h-8 desk:w-8 desk:rounded-lg"
+          >
+            <Ellipsis aria-hidden className="h-5 w-5 desk:h-4 desk:w-4" />
+          </button>
         </div>
 
         {/*
@@ -163,34 +138,23 @@ export function DayRecord({
         영상을 다시 보려는 것이 아니다. 그런데 영상이 사이에 있어
         화면을 세 판쯤 내려야 닿았다.
       */}
-        <div
-          className={`rounded-xl border p-4 ${
-            log.memo ? 'border-sky-soft/40 bg-sky/[0.04]' : 'border-line bg-surface-2'
-          }`}
-        >
-          <p className="text-xs font-medium tracking-normal text-sky">그날의 느낀점</p>
-          {log.memo ? (
-            <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-ink/90">
-              {log.memo}
-            </p>
-          ) : (
-            <p className="mt-2 text-sm text-muted">남긴 메모가 없어요.</p>
-          )}
-          {/* 투구 만족도와 같이 고른 감각(lib/pitch-satisfaction.ts) */}
-          {(
-            [
-              ['좋았던 것', log.cuesGood],
-              ['아쉬웠던 것', log.cuesBad],
-            ] as const
-          ).map(
-            ([title, cues]) =>
-              cues.length > 0 && (
-                <p key={title} className="mt-2 text-xs text-muted">
-                  {title} <span className="text-ink/80">{cues.join(' · ')}</span>
-                </p>
-              )
-          )}
-        </div>
+        {/* 남긴 것이 없으면 빈 상자를 그리지 않는다 — 예전 '남긴 메모가 없어요' 상자가 기록마다 한 칸을 썼다 */}
+        {(log.memo || cues.length > 0) && (
+          <div className="rounded-xl bg-sky/[0.05] p-4 desk:border desk:border-sky-soft/40">
+            <p className="text-xs font-medium tracking-normal text-sky">그날의 느낀점</p>
+            {log.memo && (
+              <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-ink/90">
+                {log.memo}
+              </p>
+            )}
+            {/* 투구 만족도와 같이 고른 감각(lib/pitch-satisfaction.ts) */}
+            {cues.map(([title, list]) => (
+              <p key={title} className="mt-2 text-xs text-muted">
+                {title} <span className="text-ink/80">{list.join(' · ')}</span>
+              </p>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* 영상 */}
@@ -218,12 +182,72 @@ export function DayRecord({
             </div>
           ))}
         </div>
-      ) : rested ? null : (
-        <p className="flex items-center gap-2 rounded-xl empty-well px-4 py-5 text-sm text-muted">
-          <VideoOff className="h-4 w-4" />이 기록에는 영상이 없어요
-        </p>
-      )}
+      ) : null}
     </Card>
+
+      <Modal open={menuOpen} onClose={() => setMenuOpen(false)} title={rested ? '쉬는 날' : `${log.sessionType} ${log.pitchCount}구`}>
+        <div className="overflow-hidden rounded-2xl bg-ink/5 desk:border desk:border-line desk:bg-transparent">
+          <button
+            type="button"
+            onClick={() => {
+              setMenuOpen(false);
+              onEdit(log);
+            }}
+            className="flex min-h-14 w-full items-center gap-3 px-4 text-left text-base font-medium text-ink transition-colors active:bg-ink/8 desk:min-h-11 desk:text-sm desk:hover:bg-surface-2"
+          >
+            <Pencil aria-hidden className="h-5 w-5 text-sky desk:h-4 desk:w-4" />
+            기록 고치기
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setMenuOpen(false);
+              setAskDelete(true);
+            }}
+            className="flex min-h-14 w-full items-center gap-3 border-t border-line px-4 text-left text-base font-medium text-danger transition-colors active:bg-ink/8 desk:min-h-11 desk:text-sm desk:hover:bg-danger-bg"
+          >
+            <Trash2 aria-hidden className="h-5 w-5 desk:h-4 desk:w-4" />
+            기록 지우기
+          </button>
+        </div>
+      </Modal>
+
+      {/*
+        올려둔 영상까지 저장소에서 영구히 사라진다. 무엇이 없어지는지 이름을 대고 한 번 묻는다.
+      */}
+      <ConfirmDialog
+        open={askDelete}
+        onClose={() => setAskDelete(false)}
+        onConfirm={async () => {
+          setDeleting(true);
+          try {
+            await onDelete(log.id);
+            setAskDelete(false);
+          } finally {
+            setDeleting(false);
+          }
+        }}
+        title="이 기록을 지울까요?"
+        detail={
+          <div className="space-y-2">
+            <p>
+              <strong className="text-ink">
+                {spokenDate(date)} ·{' '}
+                {rested ? '쉬는 날' : `${log.sessionType} ${log.pitchCount}구`}
+              </strong>
+            </p>
+            {log.videoPaths.length > 0 && (
+              <p className="text-warn">
+                올려둔 영상 {log.videoPaths.length}개도 함께 지워져요.
+              </p>
+            )}
+            <p className="text-muted">되돌릴 수 없어요. 수치만 고치려면 기록 고치기를 눌러주세요.</p>
+          </div>
+        }
+        confirmLabel="지우기"
+        pending={deleting}
+      />
+    </>
   );
 }
 
