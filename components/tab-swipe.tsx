@@ -26,7 +26,7 @@ import { TAB_SWIPE_TYPES } from '@/lib/transition-types';
  *   미리 받기    틀이 뜰 때 탭 넷 · 구속 측정을 미리 받아 두고(router.prefetch, next.config 의 staleTimes 30초), 끌기 시작할 때 옆 탭을 또
  *                받는다 — 놓는 순간 새 화면이 바로 있다(2026-10-15 사용자 "넘기고 나서 로딩되는 화면을 절대 보여주지 마").
  *   끄는 동안    본문(main)이 손가락을 따라 밀리고, 옆에서 다음 탭의 자리표시(바탕색 판 + 아이콘 · 이름)가 같이 들어온다.
- *   놓으면       폭의 1/4 을 넘었거나 빠르게 튕겼으면(0.45px/ms) 브라우저가 곧바로 끝까지 민다(CSS transition — GPU 가 돌려 메인
+ *   놓으면       폭의 1/4 을 넘었거나 손 떼기 직전 빠르게 튕겼으면(0.35px/ms) 브라우저가 곧바로 끝까지 민다(CSS transition — GPU 가 돌려 메인
  *                스레드가 바빠도 안 끊김). 다 밀린 뒤 그 탭으로 가고(router.push, 화면 전환 없이 — TAB_SWIPE), 새 화면이 그려지면 자리표시가
  *                옅어지며 걷힌다. 덜 끌었으면 제자리로.
  *   자리표시     그 탭을 마지막으로 봤을 때의 본문 사본(DOM 복사, 아래 shots). 미리 받아 둔 새 화면과 거의 같아서 바뀌는 순간이 안 보인다.
@@ -35,16 +35,18 @@ import { TAB_SWIPE_TYPES } from '@/lib/transition-types';
  *   끝 탭        옆이 없으면 고무줄처럼 1/4 만 따라오고 돌아간다.
  *
  * 본문 안의 가로 스크롤 칸(overflow-x) · 가로로 쓰는 부품(data-no-swipe — 홈 요약 칸) · 입력칸 위에서 시작한 손가락은 안 받는다.
- * 세로로 먼저 움직이면(touch-action: pan-y 가 브라우저에 넘긴다) 브라우저가 굴리고 우리는 pointercancel 을 받는다.
+ * 세로로 먼저 움직이면 브라우저가 굴리고, 옆으로 먼저 움직이면 우리가 세로 스크롤을 막는다(아래 onDown 위 설명).
  * 왼쪽 끝 16px 은 아이폰의 '뒤로' 제스처 자리라 안 받는다.
  */
 const TAB_ORDER = ['/today', '/videos', TRAINING_HOME_HREF, '/nutrition'];
 /** 놓았을 때 넘어가는 기준 — 폭의 이만큼 */
 const SNAP_RATIO = 0.25;
-/** 빠르게 튕기면 짧게 밀어도 넘어간다(px/ms) */
-const FLICK_SPEED = 0.45;
-/** 이보다 움직여야 쓸기 — 그 전엔 누름 */
-const SLOP = 12;
+/** 빠르게 튕기면 짧게 밀어도 넘어간다(px/ms) — 손 떼기 직전의 빠르기로 본다 */
+const FLICK_SPEED = 0.35;
+/** 손 떼기 직전 이만큼 안에 움직였을 때만 그 빠르기를 튕김으로 본다(멈췄다 뗀 것은 튕김이 아니다) */
+const FLICK_FRESH_MS = 100;
+/** 이보다 움직여야 쓸기인지 세로 스크롤인지 정한다 — 그 전엔 누름 */
+const SLOP = 10;
 /**
  * 옆으로가 세로보다 이만큼 커야 쓸기(약 40° 안). 1.4(35°)로 했더니 엄지로 둥글게 쓴 것이 자주 세로로 읽혀 안 넘어갔다
  * (2026-10-15 김민 "스와이프를 해도 인식이 안 될 때가 있다").
@@ -127,6 +129,10 @@ export function TabSwipe({
     dir: 0 | 1 | -1;
     /* 손가락 밑 부품이 먼저 받는 쪽(그쪽으로 밀면 양보) */
     claim: 'left' | 'right' | null;
+    /* 손 떼기 직전의 빠르기(px/ms) — 바로 앞 움직임 자리 · 때로 잰다 */
+    vx: number;
+    px: number;
+    pt: number;
   } | null>(null);
   const target = useRef<string | null>(null);
   const waitTimer = useRef(0);
@@ -142,6 +148,8 @@ export function TabSwipe({
   }, [ghost]);
   /* 문서 듣기(아래 effect)가 최신 경로 · 탭을 읽도록 — 그릴 때가 아니라 effect 에서 적는다 */
   const latest = useRef({ pathname, tabs, order, camera });
+  /* 쓸리는 화면(탭 첫 화면)에서만 손가락을 듣는다 — 막는 듣기(touchmove)를 다른 화면의 스크롤에 걸지 않게 */
+  const swipeable = order.some((h) => base(h) === pathname);
   useEffect(() => {
     latest.current = { pathname, tabs, order, camera };
   }, [pathname, tabs, order, camera]);
@@ -242,7 +250,7 @@ export function TabSwipe({
 
   useEffect(() => {
     const main = document.querySelector<HTMLElement>('main');
-    if (!main) return;
+    if (!main || !swipeable) return;
     const html = document.documentElement;
 
     const swipeTabs = () => latest.current.tabs.filter((t) => t.href !== MORE_HREF);
@@ -302,10 +310,24 @@ export function TabSwipe({
       if (g) g.style.transform = `translateX(${dx}px)`;
     };
 
-    const onDown = (e: PointerEvent) => {
+    /* 지금 끄는 손가락 — 끌기를 시작한 그 손가락만 본다 */
+    const touchOf = (e: TouchEvent, id: number) => {
+      for (let k = 0; k < e.changedTouches.length; k++)
+        if (e.changedTouches[k].identifier === id) return e.changedTouches[k];
+      return null;
+    };
+
+    /*
+     * 손가락은 터치 이벤트로 받는다(2026-10-15 사용자 "앱에서 스와이프 인식이 거의 안 되고 전혀 부드럽지 않다").
+     * 예전엔 포인터 이벤트(passive)로 받았는데, 아이폰 웹뷰는 손가락이 조금이라도 위아래로 움직이면 세로 스크롤을 시작하며
+     * pointercancel 을 보내 쓸기를 빼앗았다 — 본문이 따라오다 제자리로 튕기고, 동시에 화면이 비스듬히 굴렀다. 이제 옆으로 정해진
+     * 순간부터 touchmove 를 막아(preventDefault — 그래서 이 듣기 하나만 passive 가 아니다) 아이폰이 스크롤을 시작하지 못한다.
+     * 정하기 전에도 옆으로 기운 움직임은 미리 막는다 — 스크롤이 먼저 시작되면 그 뒤로는 막을 수 없다.
+     */
+    const onDown = (e: TouchEvent) => {
       /*
-       * 묵은 끌기 — 손가락 뗌(pointerup · pointercancel)을 놓치면(다른 부품이 포인터를 붙잡았다 놓는 등) 끄는 중 상태가 남아 그 뒤
-       * 쓸기가 계속 안 먹었다. 새 손가락이 닿았는데 아직 쓸기로 정해지지 않았거나 3초 넘게 지난 끌기는 끝난 것으로 본다.
+       * 묵은 끌기 — 손가락 뗌(touchend · touchcancel)을 놓치면 끄는 중 상태가 남아 그 뒤 쓸기가 계속 안 먹었다. 새 손가락이
+       * 닿았는데 아직 쓸기로 정해지지 않았거나 3초 넘게 지난 끌기는 끝난 것으로 본다.
        */
       const old = drag.current;
       if (old && (!old.on || e.timeStamp - old.t > 3000)) {
@@ -317,11 +339,15 @@ export function TabSwipe({
           setGhost(null);
         }
       }
+      /* 두 손가락(확대)은 쓸기가 아니다 */
+      if (e.touches.length !== 1) return;
       if (target.current || drag.current) return;
-      if (e.pointerType === 'mouse' || window.matchMedia(DESK_MEDIA).matches) return;
+      if (window.matchMedia(DESK_MEDIA).matches) return;
       const i = indexOf(latest.current.pathname);
       if (i < 0) return;
-      if (e.clientX < 16) return;
+      const p = e.touches[0];
+      /* 왼쪽 끝은 아이폰(앱 웹뷰 포함)의 '뒤로' 제스처 자리 */
+      if (p.clientX < 16) return;
       /* 당겨서 새로고침이 걸려 있으면(components/pull-to-refresh.tsx) */
       if (document.documentElement.dataset.ptr) return;
       /* 탭의 첫 화면에서만 — 트레이닝 하위 화면(메커니즘 · 암케어, '‹ 뒤로'가 있음)도 주소는 /training 이라 걸렸다 */
@@ -331,24 +357,41 @@ export function TabSwipe({
       if (claim === 'all') return;
       drag.current = {
         claim,
-        id: e.pointerId,
-        x: e.clientX,
-        y: e.clientY,
+        id: p.identifier,
+        x: p.clientX,
+        y: p.clientY,
         t: e.timeStamp,
         w: window.innerWidth,
         on: false,
         dx: 0,
         dir: 0,
+        vx: 0,
+        px: p.clientX,
+        pt: e.timeStamp,
       };
     };
-    const onMove = (e: PointerEvent) => {
+    const onMove = (e: TouchEvent) => {
       const d = drag.current;
-      if (!d || e.pointerId !== d.id) return;
-      const dx = e.clientX - d.x;
-      const dy = e.clientY - d.y;
+      if (!d) return;
+      const p = touchOf(e, d.id);
+      if (!p) return;
+      const dx = p.clientX - d.x;
+      const dy = p.clientY - d.y;
       if (!d.on) {
-        if (Math.abs(dx) < SLOP && Math.abs(dy) < SLOP) return;
-        if (Math.abs(dx) < Math.abs(dy) * LOCK_RATIO || d.claim === (dx < 0 ? 'left' : 'right')) {
+        /* 끄는 도중 두 번째 손가락 — 확대로 본다 */
+        if (e.touches.length > 1) {
+          drag.current = null;
+          return;
+        }
+        const ax = Math.abs(dx);
+        const ay = Math.abs(dy);
+        const yields = d.claim === (dx < 0 ? 'left' : 'right');
+        if (ax < SLOP && ay < SLOP) {
+          /* 아직 모름 — 옆으로 기운 움직임이면 아이폰이 세로 스크롤을 먼저 시작하지 않게 막아 둔다 */
+          if (ax > ay && !yields && e.cancelable) e.preventDefault();
+          return;
+        }
+        if (ax < ay * LOCK_RATIO || yields) {
           drag.current = null;
           return;
         }
@@ -371,7 +414,13 @@ export function TabSwipe({
         /* 잡은 자리부터 따라오게 — 문턱(SLOP)만큼 튀지 않게 */
         d.x += dx > 0 ? SLOP : -SLOP;
       }
-      const mdx = e.clientX - d.x;
+      /* 쓸기로 정해졌으니 세로 스크롤은 막는다 — 본문이 옆으로만 움직인다 */
+      if (e.cancelable) e.preventDefault();
+      const dt = e.timeStamp - d.pt;
+      if (dt > 0) d.vx = 0.7 * ((p.clientX - d.px) / dt) + 0.3 * d.vx;
+      d.px = p.clientX;
+      d.pt = e.timeStamp;
+      const mdx = p.clientX - d.x;
       const dir: 1 | -1 = mdx < 0 ? 1 : -1;
       const i = indexOf(latest.current.pathname);
       const n = neighbor(i, dir);
@@ -383,18 +432,25 @@ export function TabSwipe({
       d.dx = n ? mdx : mdx * 0.25;
       setX(d.dx);
     };
-    const onEnd = (e: PointerEvent) => {
+    const onEnd = (e: TouchEvent) => {
       const d = drag.current;
-      if (!d || e.pointerId !== d.id) return;
+      if (!d) return;
+      if (!touchOf(e, d.id)) return;
       drag.current = null;
       if (!d.on) return;
       const i = indexOf(latest.current.pathname);
       const n = d.dir === 0 ? null : neighbor(i, d.dir);
-      const speed = Math.abs(d.dx) / Math.max(1, e.timeStamp - d.t);
-      const far = Math.abs(d.dx) > d.w * SNAP_RATIO || speed > FLICK_SPEED;
+      /*
+       * 튕김 — 손 떼기 직전의 빠르기로 본다(예전엔 처음부터 뗄 때까지의 평균이라, 천천히 끌다 휙 튕겨도 안 넘어갔다).
+       * 넘어가는 쪽으로 빠르면 짧게 끌어도 넘어가고, 되돌리는 쪽으로 빠르면 많이 끌었어도 제자리로.
+       */
+      const v = e.timeStamp - d.pt < FLICK_FRESH_MS ? d.vx : 0;
+      const toward = Math.sign(v) === Math.sign(d.dx) && Math.abs(v) > FLICK_SPEED;
+      const back = Math.sign(v) === -Math.sign(d.dx) && Math.abs(v) > FLICK_SPEED;
+      const far = !back && (Math.abs(d.dx) > d.w * SNAP_RATIO || toward);
       const ease = `transform ${SETTLE_MS}ms cubic-bezier(0.32, 0.72, 0, 1)`;
       const g = ghostEl.current;
-      if (n && far && e.type !== 'pointercancel') {
+      if (n && far && e.type !== 'touchcancel') {
         haptic('selection');
         const href = n.item.href;
         target.current = href;
@@ -454,15 +510,16 @@ export function TabSwipe({
       }, SETTLE_MS);
     };
 
-    document.addEventListener('pointerdown', onDown, { passive: true });
-    document.addEventListener('pointermove', onMove, { passive: true });
-    document.addEventListener('pointerup', onEnd, { passive: true });
-    document.addEventListener('pointercancel', onEnd, { passive: true });
+    /* 본문(main)에만 단다 — 막는 듣기(touchmove)가 본문 밖(하단 탭 · 창)의 스크롤을 기다리게 하지 않게 */
+    main.addEventListener('touchstart', onDown, { passive: true });
+    main.addEventListener('touchmove', onMove, { passive: false });
+    main.addEventListener('touchend', onEnd, { passive: true });
+    main.addEventListener('touchcancel', onEnd, { passive: true });
     return () => {
-      document.removeEventListener('pointerdown', onDown);
-      document.removeEventListener('pointermove', onMove);
-      document.removeEventListener('pointerup', onEnd);
-      document.removeEventListener('pointercancel', onEnd);
+      main.removeEventListener('touchstart', onDown);
+      main.removeEventListener('touchmove', onMove);
+      main.removeEventListener('touchend', onEnd);
+      main.removeEventListener('touchcancel', onEnd);
       main.style.transform = '';
       main.style.transition = '';
       main.style.willChange = '';
@@ -471,7 +528,7 @@ export function TabSwipe({
       window.clearTimeout(settleTimer.current);
       window.clearTimeout(navTimer.current);
     };
-  }, [router]);
+  }, [router, swipeable]);
 
   if (!ghost) return null;
   const Icon = NAV_ICONS[ghost.item.icon];
