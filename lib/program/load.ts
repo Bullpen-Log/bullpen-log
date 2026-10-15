@@ -53,6 +53,8 @@ import {
   readPinned,
   ROTATING_VARIANTS,
   rotatedPick,
+  jumpFitsWeek,
+  weekOfDay,
   variantTurn,
   restTextOf,
   usedVariants,
@@ -452,6 +454,15 @@ export async function buildProgramDay(
     const got = anchorOf(v);
     if (audience !== 'adult' || !ROTATING_VARIANTS.includes(v) || !got.ex) return got;
     const pool = variantCandidates(v, core.library, owned, user.trainingLevel, audience);
+    /* 점프는 주마다 단계(jumpFitsWeek) — 1~2주에 뎁스 · 바운드가 안 나오게. 맞는 것이 없으면 그대로 */
+    if (v === 'jump') {
+      const week = weekOfDay(plan, d);
+      const fit = pool.filter((e) => jumpFitsWeek(e, week));
+      if (fit.length > 0) {
+        const anchor = jumpFitsWeek(got.ex, week) ? got.ex : null;
+        return { ex: rotatedPick(anchor, fit, variantTurn(plan, d, v)), repinned: got.repinned };
+      }
+    }
     return { ex: rotatedPick(got.ex, pool, variantTurn(plan, d, v)), repinned: got.repinned };
   };
   const repin: Pinned = {};

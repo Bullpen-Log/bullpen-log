@@ -42,6 +42,7 @@ import {
   readSessionProgram,
   shouldAdvance,
   programDef,
+  jumpFitsWeek,
   startProgramKey,
   topSetIndex,
   usedVariants,
@@ -319,7 +320,19 @@ check(
     rxOf(pp, 10, 'squat').reserve === 4 &&
     isLightWeek(pp, 4) &&
     rxOf(plan('pitcher-power:2'), 2, 'push') != null &&
-    plans.every((p) => allDays(p).every((dp) => dp.items.every((x) => !x.group)))
+    plans.every((p) => allDays(p).every((dp) => dp.items.every((x) => !x.group))) &&
+    /* 날마다 던지기 둘 · 점프는 스쿼트 날만 · 스쿼트 날 보조 밀기는 세로 당기기(당기기 ≥ 밀기) */
+    [1, 2, 3].every((d) => ['rotationalThrow', 'medball'].every((v) => dayPlan(pp, d).items.some((x) => x.variant === v))) &&
+    eq([1, 2, 3].map((d) => dayPlan(pp, d).items.some((x) => x.variant === 'jump')), [true, false, false]) &&
+    !dayPlan(pp, 1).items.some((x) => x.variant === 'pushAcc') &&
+    dayPlan(pp, 1).items.some((x) => x.variant === 'vpull')
+);
+check(
+  '점프 단계 — 1~2주는 뎁스 · 바운드 · 매우 높음 빼고, 3주부터 다',
+  jumpFitsWeek({ title: '박스 점프', intensity: '높음' }, 1) &&
+    !jumpFitsWeek({ title: '뎁스 점프 투 박스', intensity: '매우 높음' }, 2) &&
+    !jumpFitsWeek({ title: '연속 레터럴 바운드', intensity: '높음' }, 1) &&
+    jumpFitsWeek({ title: '뎁스 점프 투 박스', intensity: '매우 높음' }, 3)
 );
 {
   /* 2026-10-14 김민 — 파워가 든 프로그램은 매주 회전 던지기 */

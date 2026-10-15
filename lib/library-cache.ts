@@ -90,7 +90,8 @@ export const allExercises = unstable_cache(
    * 풀리는데, 그것을 기다릴 일이 아니다.
    */
   /* :v30 — 2026-10-15 파워에 회전 메디신볼 던지기 6 · 한 발 점프 2 · 상체 플라이오 2(scripts/library-power-plyo-2026-10-15.mjs). */
-  ['library:exercises:v31'],
+  /* :v32 — 2026-10-16 회전 메디신볼 던지기 6개를 좌우 각각(perSide)으로 — 투수 파워의 던지기 양 */
+  ['library:exercises:v32'],
   { tags: [LIBRARY_TAG] }
 );
 

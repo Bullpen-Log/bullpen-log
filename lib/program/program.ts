@@ -548,8 +548,9 @@ const PITCHER_POWER: ProgramDef = {
   origin: '투구 구속 트레이닝 원칙 · 메디신볼 · 점프 · 근력 유지',
   summary: '메디신볼을 여러 방향으로 던지고 뛴 뒤, 근력은 유지해요',
   detail: [
-    '날마다 회전 메디신볼 던지기로 시작해요. 가볍게, 매번 최대 속도로 던져요.',
-    '점프와 앞 · 위로 던지기를 번갈아 하고, 큰 운동은 2개 남기고 3세트만 해서 근력을 지켜요.',
+    '날마다 메디신볼 던지기로 시작해요. 돌려 던지기는 좌우 각각, 앞 · 위로 던지기까지 한 번에 40~60개를 가볍게, 매번 최대 속도로 던져요.',
+    '점프는 스쿼트 날에 해요. 1~2주는 박스 · 브로드 점프, 3주부터 바운드 · 뎁스 점프까지 올려요. 큰 운동은 2개 남기고 3세트만 해서 근력을 지켜요.',
+    '당기기를 밀기보다 많이 해요(투수 어깨).',
     '주마다 던지기 세트가 늘고 근력 횟수는 5회에서 3회로 줄어요. 4주는 가볍게 해요.',
   ],
   weeks: 4,
@@ -558,17 +559,28 @@ const PITCHER_POWER: ProgramDef = {
   build: (day, week, perWeek, light) => {
     const w = POWER_WEEKS[week - 1];
     const lift = (v: VariantKey): Item => item(v, 'reserve', reps(light ? 2 : 3, w.lift, light ? 4 : 2), 150);
+    /* 회전 던지기는 좌우 각각(라이브러리 perSide) — 앞 · 위로 던지기와 합쳐 한 번에 40~60개 */
     const throwRot = item('rotationalThrow', 'none', reps(w.sets, 5), 60);
+    const throwFront = item('medball', 'none', reps(w.sets, 5), 60);
+    /* 당기기 ≥ 밀기(투수 어깨) — 스쿼트 날 보조 밀기는 세로 당기기로 */
+    const pullForPush = (xs: Item[]): Item[] =>
+      xs.map((x) => (x.variant === 'pushAcc' ? { ...x, variant: 'vpull', sets: reps(x.sets.length, ACC_REPS.vpull ?? 8, x.sets[0].reserve) } : x));
     const squatDay: DayBuild = {
       label: '스쿼트 날',
-      items: [throwRot, item('jump', 'none', reps(w.sets, 3), 75), lift('squat'), ...accessoryMenu(['squat'], 2, light, true)],
+      items: [
+        throwRot,
+        throwFront,
+        item('jump', 'none', reps(w.sets, 3), 75),
+        lift('squat'),
+        ...pullForPush(accessoryMenu(['squat'], 2, light, true)),
+      ],
     };
     /* 힌지 날 — 앞 · 위로 던지기. 주 2번이면 밀기도 여기서(밀기를 주 1번은 하게) */
     const hingeDay: DayBuild = {
       label: '힌지 날',
       items: [
         throwRot,
-        item('medball', 'none', reps(w.sets, 5), 60),
+        throwFront,
         lift('hinge'),
         ...(perWeek === 2 ? [lift('push')] : []),
         ...accessoryMenu(['hinge'], 2, light, true),
@@ -576,10 +588,10 @@ const PITCHER_POWER: ProgramDef = {
     };
     const upperDay: DayBuild = {
       label: '밀기 · 한 다리 날',
+      /* 점프는 스쿼트 날만 — 다리를 매일 뛰지 않게, 한 시간 안 */
       items: [
         throwRot,
-        item('medball', 'none', reps(w.sets, 5), 60),
-        item('jump', 'none', reps(w.sets, 3), 75),
+        throwFront,
         lift('push'),
         item('singleLeg', 'reserve', reps(2, 6, light ? 4 : 2), 90),
         ...accessoryMenu(['push'], 2, light, true),
@@ -1348,7 +1360,11 @@ const VARIANT_RULES: Record<VariantKey, VariantRule> = {
   },
   medball: {
     /* 앞 · 위로 던지기 — 돌려 던지기(회전)는 회전 던지기 칸 몫이라 뺀다(2026-10-16: 투수 파워에서 두 칸이 같은 회전 토스를 고르던 것) */
-    match: (ex) => inCategory(ex, '파워') && ex.equipment.includes('메디신볼') && ex.movementPattern !== '회전',
+    match: (ex) =>
+      inCategory(ex, '파워') &&
+      ex.equipment.includes('메디신볼') &&
+      /* 뛰며 던지는 것(바운드 + 슬램)도 뺀다 — 점프는 점프 칸 몫(투수 파워 밀기 날에 다리를 또 뛰던 것) */
+      (ex.movementPattern === '밀기' || ex.movementPattern === '당기기'),
     /* 던지기(밀기 · 당기기 계열)를 먼저, 뛰며 던지는 것은 맨 뒤 */
     rank: (ex) => [
       ex.movementPattern === '밀기' || ex.movementPattern === '당기기'
@@ -1647,6 +1663,14 @@ export function rotatedPick<T extends { id: string }>(
     ROTATION_MAX
   );
   return list.length ? list[turn % list.length] : null;
+}
+
+/**
+ * 점프 단계(2026-10-16) — 1~2주는 착지 충격이 작은 점프만(뎁스 · 드롭 · 바운드 · 강도 '매우 높음' 빼고), 3주부터 다. 돌리는 점프 칸(load.ts pinnedOf)이 본다.
+ */
+const ADVANCED_JUMP = /뎁스|드롭|바운드/;
+export function jumpFitsWeek(ex: { title: string; intensity: string }, week: number): boolean {
+  return week >= 3 || (!ADVANCED_JUMP.test(ex.title) && intensityLevel(ex.intensity) < 5);
 }
 
 /** 시작할 때 9개를 고른다. 후보가 없는 변형은 비워 둔다 — 그 칸은 그날 대체 규칙으로 간다. */
