@@ -373,8 +373,25 @@ check(
 );
 check(
   '최고까지 올리기 한 줄',
-  prescriptionLine(dayPlan(ws, 1).items[1]) === '준비 세트로 올려 5회 1세트 · 1개 남기고'
+  prescriptionLine(rxOf(ws, 1, 'squat')) === '준비 세트로 올려 5회 1세트 · 1개 남기고'
 );
+{
+  /* 웨스트사이드 파워 파워 비중(2026-10-16) — 세 날 모두 빠르게 하는 동작이 둘 넘게, 점프 날 던지기는 늘 28개, 2 · 3주 +1 · 4주 -1 */
+  const power = (d: number) => dayPlan(ws, d).items.filter((x) => x.slot === 'power' || x.variant === 'rotationalThrow');
+  const throwsOn = (d: number) =>
+    dayPlan(ws, d).items.reduce(
+      (n, x) => n + (x.variant === 'rotationalThrow' ? 2 : x.variant === 'medball' ? 1 : 0) * x.sets.length * x.reps,
+      0
+    );
+  check(
+    '웨스트사이드 파워: 날마다 파워 둘 넘게 · 점프 날 던지기 28개 · 점프 세트 3 → 4 → 4 → 2',
+    [1, 2, 3].every((d) => power(d).length >= 2) &&
+      [2, 5, 8, 11].every((d) => throwsOn(d) === 28) &&
+      [1, 4, 7, 10].map((d) => rxOf(ws, d, 'jump').sets.length).join() === '3,4,4,2' &&
+      rxOf(ws, 3, 'plyoPush').sets.length === 3,
+    [1, 4, 7, 10].map((d) => rxOf(ws, d, 'jump').sets.length).join()
+  );
+}
 check(
   '스트롱리프트 한 줄',
   prescriptionLine(rxOf(sl, 1, 'squat')) === '5세트 × 5회 · 다 채우면 다음에 올려요'

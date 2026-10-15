@@ -45,6 +45,8 @@ export type VariantKey =
   | 'medball'
   | 'antiRotation'
   | 'rotationalThrow'
+  /* 플라이오 푸시업 — 상체를 빠르게 미는 맨몸 파워(웨스트사이드 파워 상체 반복 날, 2026-10-16 김민 '파워 비중 늘리기') */
+  | 'plyoPush'
   /* 보조 메뉴 칸(ACCESSORY_KEYS) — 고정하지 않고 세션마다 후보를 돌며 고른다(accessoryPick) */
   /* 몸통 안정(플랭크 · 데드버그 · 버드독 · 캐리) — 몸통 버티기(돌지 않게)와 한 쌍으로 날마다 둘(2026-10-16 김민) */
   | 'coreStab'
@@ -68,6 +70,7 @@ export const VARIANT_KEYS: readonly VariantKey[] = [
   'medball',
   'antiRotation',
   'rotationalThrow',
+  'plyoPush',
 ];
 
 export const VARIANT_LABELS: Record<VariantKey, string> = {
@@ -82,6 +85,7 @@ export const VARIANT_LABELS: Record<VariantKey, string> = {
   antiRotation: '몸통 버티기',
   coreStab: '몸통 안정',
   rotationalThrow: '회전 던지기',
+  plyoPush: '플라이오 푸시업',
   hpull: '가로 당기기',
   vpull: '세로 당기기',
   pushAcc: '보조 밀기',
@@ -122,6 +126,7 @@ export const SLOT_OF: Record<VariantKey, SlotKind> = {
   antiRotation: 'core',
   coreStab: 'core',
   rotationalThrow: 'core',
+  plyoPush: 'power',
   /* 팔 · 어깨 보조도 상체 칸 — 그날 조정(팔 피로 · 통증으로 가볍게 · 빼기)을 같이 받는다 */
   hpull: 'pushPull',
   vpull: 'pushPull',
@@ -511,55 +516,66 @@ const WS4SB: ProgramDef = {
   name: '웨스트사이드 파워',
   origin: 'Westside for Skinny Bastards · 조 디프랑코',
   summary: '최고 기록 날과 점프 날로 힘과 탄력을 같이 길러요',
-  how: '무거운 날은 3~5회 최고 무게까지, 다른 날은 점프와 상체 반복. 스쿼트 · 힌지 동작은 매주 바꿔요',
+  how: '무거운 날은 점프 · 던지기 뒤 3~5회 최고 무게, 점프 날은 점프 · 던지기 중심, 상체 날은 플라이오 푸시업부터. 스쿼트 · 힌지는 매주 바꿔요',
   why: '무거운 무게를 드는 힘과 그 힘을 한순간에 터뜨리는 탄력을 같이 키워요. 투구는 착지부터 공을 놓기까지 0.2초쯤이라, 같은 힘이라도 빨리 낼수록 구속에 도움이 돼요',
   fit: '근력 바탕이 있고 폭발력을 더 키우고 싶은 분',
   detail: [
     '웨스트사이드를 운동선수용으로 바꾼 프로그램이에요. 1회 최대 대신 3~5회 최대, 속도 스쿼트 대신 점프를 해요.',
-    '무거운 날은 준비 세트로 올라가 본 세트 하나를 1개 남기고 해요. 운동은 매주 스쿼트와 힌지를 바꿔요.',
-    '주 3번이면 상체를 여러 번 하는 날이 더해져요.',
+    '무거운 날은 점프 · 던지기 뒤에 준비 세트로 올라가 본 세트 하나를 1개 남기고 해요. 운동은 매주 스쿼트와 힌지를 바꿔요.',
+    '점프 날은 점프 · 회전 던지기 · 앞으로 던지기가 중심이에요. 주 3번이면 상체를 여러 번 하는 날이 더해지고, 플라이오 푸시업으로 시작해요.',
+    '빠르게 하는 동작은 2 · 3주에 한 세트 늘고 4주에 줄어요.',
   ],
   weeks: 4,
   perWeek: [2, 3],
   lightWeeks: [],
   build: (day, week, perWeek) => {
+    /*
+     * 파워 비중(2026-10-16 김민 "파워 비중이 너무 낮다" — 세트로 무거운 날 18% · 점프 날 50% · 상체 날 15%, 한 주 27%). 보조를 덜어 낸 자리에
+     * 던지기 · 점프 · 플라이오 푸시업을 넣어 한 주 40%쯤, 세션 길이는 그대로. 주마다: 2 · 3주 파워 세트 +1, 4주 -1(점프 단계는 jumpFitsWeek).
+     * 점프 날 던지기는 늘리지 않는다 — 한 번에 28개(회전 좌우 3 × 3 + 앞으로 2 × 5), 투수 파워의 '30개 안팎'(10-16) 안.
+     */
+    const plus = [0, 1, 1, -1][week - 1];
+    const pw = (n: number) => Math.max(2, n + plus);
+    const main = (['squat', 'hinge', 'squat', 'hinge'] as const)[week - 1];
     const heavy: DayBuild = {
       label: '무거운 날',
       items: [
-        item('jump', 'none', reps(3, 3), 90),
-        item(
-          (['squat', 'hinge', 'squat', 'hinge'] as const)[week - 1],
-          'reserve',
-          [{ reps: week <= 2 ? 5 : 3, reserve: 1 }],
-          180,
-          { top: true }
-        ),
-        ...accessoryMenu([(['squat', 'hinge', 'squat', 'hinge'] as const)[week - 1]], 3, false),
+        item('jump', 'none', reps(pw(3), 3), 90),
+        /* 들기 전에 던지기 — 무거운 날도 빠르게 하는 동작을 둘 */
+        item('medball', 'none', reps(pw(3), 3), 90),
+        item(main, 'reserve', [{ reps: week <= 2 ? 5 : 3, reserve: 1 }], 180, { top: true }),
+        /* 보조 셋 + 몸통 하나(예전 넷 + 몸통 둘 · 전완에서 줄임) */
+        item('hpull', 'reserve', reps(3, ACC_REPS.hpull ?? 10, 2), 75, { assist: true }),
+        item('pushAcc', 'reserve', reps(3, ACC_REPS.pushAcc ?? 10, 2), 75, { assist: true }),
+        main === 'squat'
+          ? item('hamstring', 'reserve', reps(3, ACC_REPS.hamstring ?? 8, 2), 75, { assist: true })
+          : item('singleLeg', 'reserve', reps(3, ACC_REPS.singleLeg ?? 8, 2), 75, { assist: true }),
+        coreItems()[0],
       ],
     };
     const jumps: DayBuild = {
       label: '점프 날',
       items: [
-        item('jump', 'none', reps(5, 3), 90),
-        /* 회전 던지기 — 투구는 회전이라 주 1번 이상(2026-10-14). 앞으로 던지기는 상체 반복 날에 */
-        item('rotationalThrow', 'none', reps(4, 3), 90),
-        /* 점프 날 보조 — 한 다리 · 보조 밀기 · 세로 당기기(회전 던지기가 몸통 칸) */
+        item('jump', 'none', reps(pw(5), 3), 90),
+        /* 회전 던지기 — 투구는 회전이라 주 1번 이상(2026-10-14). 회전 던지기가 이날의 몸통 칸 */
+        item('rotationalThrow', 'none', reps(3, 3), 90),
+        item('medball', 'none', reps(2, 5), 90),
+        /* 점프 날 보조 둘 — 한 다리 · 세로 당기기 */
         item('singleLeg', 'reserve', reps(3, 10, 2), 75, { assist: true }),
-        item('pushAcc', 'reserve', reps(3, 10, 2), 75, { assist: true }),
         item('vpull', 'reserve', reps(3, 8, 2), 75, { assist: true }),
       ],
     };
     const upper: DayBuild = {
       label: '상체 반복 날',
       items: [
-        item('medball', 'none', reps(3, 5), 90),
-        /* 상체 반복 날 — 당기기를 밀기보다 많이(가로 · 세로 둘), 팔 둘 */
+        item('medball', 'none', reps(pw(3), 5), 90),
+        item('plyoPush', 'none', reps(pw(3), 5), 90),
+        /* 당기기를 밀기보다 많이(가로 · 세로 둘), 팔은 주마다 삼두 · 이두 번갈아 하나, 몸통 하나 */
         item('pushAcc', 'reserve', reps(3, 12, 2), 75, { assist: true }),
         item('hpull', 'reserve', reps(3, 10, 2), 75, { assist: true }),
         item('vpull', 'reserve', reps(3, 8, 2), 75, { assist: true }),
-        item('triceps', 'reserve', reps(2, 12, 2), 60, { assist: true }),
-        item('biceps', 'reserve', reps(2, 12, 2), 60, { assist: true }),
-        ...coreItems(),
+        item(week % 2 === 1 ? 'triceps' : 'biceps', 'reserve', reps(2, 12, 2), 60, { assist: true }),
+        coreItems()[0],
       ],
     };
     return cycle(perWeek === 3 ? [heavy, jumps, upper] : [heavy, jumps], day);
@@ -917,6 +933,8 @@ export const VARIANT_MOVEMENT_KEY: Record<VariantKey, string | null> = {
   antiRotation: null,
   coreStab: null,
   rotationalThrow: UPPER_POWER_KEY,
+  /* 플라이오 푸시업도 팔 플라이오(isArmPlyo — 파워 · 밀기) — 팔을 다 쓴 날 던지기와 같이 미룬다(ARM_THROW_VARIANTS) */
+  plyoPush: UPPER_POWER_KEY,
   hpull: '당기기',
   vpull: '당기기',
   pushAcc: '밀기',
@@ -1462,6 +1480,15 @@ const VARIANT_RULES: Record<VariantKey, VariantRule> = {
    * 2026-10-15 투구 드릴의 회전 던지기 6개를 파워로 복사했다(scripts/library-power-plyo-2026-10-15.mjs) — 이름이 '… 스로우 · 토스 · 숏풋'이라
    * 그 낱말도 본다(슬램은 여전히 빠진다).
    */
+  /* 플라이오 푸시업 — 바닥(맨몸)을 먼저, 없으면 인클라인(박스). 밴드 보조(매우 높음)는 뺀다 */
+  plyoPush: {
+    match: (ex) =>
+      inCategory(ex, '파워') &&
+      ex.movementPattern === '밀기' &&
+      ex.title.includes('플라이오 푸시업') &&
+      intensityLevel(ex.intensity) <= intensityLevel('높음'),
+    rank: (ex) => [ex.title.includes('인클라인') ? 1 : 0],
+  },
   rotationalThrow: {
     match: (ex) =>
       (inCategory(ex, '파워') &&
@@ -2012,7 +2039,7 @@ export type TodaySignals = {
 /** 팔 보조 — 팔을 아끼는 날(deferVariants 가 있는 날) 같이 빠진다 */
 export const ARM_ACCESSORIES: readonly VariantKey[] = ['triceps', 'biceps', 'forearm'];
 
-export const ARM_THROW_VARIANTS: readonly VariantKey[] = ['medball', 'rotationalThrow'];
+export const ARM_THROW_VARIANTS: readonly VariantKey[] = ['medball', 'rotationalThrow', 'plyoPush'];
 
 /** 팔을 아끼는 날 뺀 변형의 줄 표시 — 카드의 '오늘 뺌: 메디신볼 체스트 패스 · 팔 아끼는 날' */
 export const ARM_DEFER_REASON = '팔 아끼는 날';

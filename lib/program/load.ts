@@ -691,6 +691,11 @@ export async function buildProgramDay(
       });
       continue;
     }
+    /* 같은 날 같은 운동은 한 번 — 메디신볼이 없어 메디신볼 칸이 플라이오 푸시업이 되면 플라이오 푸시업 칸과 겹친다(2026-10-16) */
+    if (chosen.some((c) => c.ex.id === pinnedEx.id)) {
+      view.dropped.push({ slot, title: pinnedEx.title, reason: '같은 운동을 이미 해요' });
+      continue;
+    }
     if (a?.kind === 'drop') {
       view.dropped.push({ slot, title: pinnedEx.title, reason: a.reason });
       continue;
