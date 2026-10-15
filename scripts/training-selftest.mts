@@ -177,7 +177,7 @@ import {
   movementKeyOf,
   type ClassifiableExercise,
 } from '../lib/engine/exercise-class.ts';
-import { TRAINING_CATEGORY_NAMES } from '../lib/categories.ts';
+import { ALSO_IN, TRAINING_CATEGORY_NAMES } from '../lib/categories.ts';
 import {
   ESTIMATE_LOOKBACK_DAYS,
   ESTIMATE_MIN_GAMES,
@@ -20784,7 +20784,11 @@ console.log(
      * 회전으로 고르던 것을 고침). 코어는 열쇠가 없고(null), 그 날은 exerciseOf 로 그 운동의 열쇠를 쓴다(아래).
      */
     const wrong = looked.filter(
-      (e) => movementKeyOf(e) !== want && !(v === 'rotationalThrow' && e.category === '코어')
+      (e) =>
+        movementKeyOf(e) !== want &&
+        !(v === 'rotationalThrow' && e.category === '코어') &&
+        /* 두 분류에 드는 운동(박스 스쿼트)은 patternsOfProgramDay 가 칸의 열쇠로 본다 */
+        !ALSO_IN[e.title]
     );
     variantSeen.push(`${v} ${looked.length}`);
     if (wrong.length > 0)

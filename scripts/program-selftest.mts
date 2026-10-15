@@ -44,6 +44,7 @@ import {
   readPinned,
   readSessionProgram,
   shouldAdvance,
+  programDef,
   startProgramKey,
   topSetIndex,
   usedVariants,
@@ -163,16 +164,19 @@ const plans = PROGRAMS.flatMap((def) =>
 const allDays = (p: ProgramPlan) =>
   Array.from({ length: p.totalDays }, (_, d) => dayPlan(p, d + 1));
 check(
-  '프로그램 9개(성인 8 + 기본기 1) · 모두 4주 · 옛 프로그램은 목록에 없음',
-  PROGRAMS.length === 9 &&
-    PROGRAMS.filter((p) => audienceOf(p) === 'adult').length === 8 &&
+  '프로그램 8개(성인 7 + 기본기 1) · 모두 4주 · 옛 프로그램 · 5/3/1 BBB(2026-10-16 뺌)는 목록에 없음',
+  PROGRAMS.length === 8 &&
+    PROGRAMS.filter((p) => audienceOf(p) === 'adult').length === 7 &&
     PROGRAMS.filter((p) => audienceOf(p) === 'basics').length === 1 &&
     PROGRAMS.every((p) => p.weeks === 4) &&
-    !PROGRAMS.some((p) => p.id === 'offseason-strength-power')
+    !PROGRAMS.some((p) => p.id === 'offseason-strength-power' || p.id === '531-bbb') &&
+    programDef('531-bbb') === null &&
+    startProgramKey('531-bbb', 3) === null &&
+    parseProgram('531-bbb')?.totalDays === 12
 );
 check(
   '주 3번 12회 · 주 2번 8회',
-  plans.every((p) => p.totalDays === p.perWeek * 4) && plans.length === 14
+  plans.every((p) => p.totalDays === p.perWeek * 4) && plans.length === 12
 );
 check(
   '스트롱리프트는 주 3번만 · 텍사스 메소드는 지움(2026-10-14)',
@@ -415,8 +419,8 @@ check(
 {
   const list = programChoiceList();
   check(
-    '고르기 목록 9개, 주마다 4줄',
-    list.length === 9 && list.every((c) => c.weeks.length === 4)
+    '고르기 목록 8개, 주마다 4줄',
+    list.length === 8 && list.every((c) => c.weeks.length === 4)
   );
   check(
     '스트롱리프트는 % 안 씀, 5/3/1 은 씀',

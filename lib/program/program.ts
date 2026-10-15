@@ -7,7 +7,7 @@ import {
   movementKeyOf,
   type ClassifiableExercise,
 } from '@/lib/engine/exercise-class';
-import { inCategory } from '@/lib/categories';
+import { ALSO_IN, inCategory } from '@/lib/categories';
 import { intensityLevel } from '@/lib/exercise-meta';
 import { canDo } from '@/lib/report/equipment';
 import { filterByLevel } from '@/lib/report/personalize';
@@ -895,7 +895,6 @@ const INSEASON_RELIEVER: ProgramDef = {
 /** 고르기 화면의 차례 — 기본기는 화면이 따로 맨 위에 둔다(audience) */
 export const PROGRAMS: readonly ProgramDef[] = [
   STRONGLIFTS,
-  BBB_531,
   W531,
   JUGGERNAUT,
   WS4SB,
@@ -904,7 +903,8 @@ export const PROGRAMS: readonly ProgramDef[] = [
   INSEASON_RELIEVER,
   BASICS,
 ];
-const ALL_PROGRAMS: readonly ProgramDef[] = [...PROGRAMS, LEGACY];
+/* 목록에서 뺀 것 — 진행 중인 줄만 이어 간다. 5/3/1 BBB 는 2026-10-16 김민: "제거하자" */
+const ALL_PROGRAMS: readonly ProgramDef[] = [...PROGRAMS, BBB_531, LEGACY];
 
 /* ─────────────────────────── 키 · 하루 만들기 ─────────────────────────── */
 
@@ -1061,13 +1061,14 @@ export const VARIANT_MOVEMENT_KEY: Record<VariantKey, string | null> = {
 export function patternsOfProgramDay(
   plan: ProgramPlan | null,
   day: number,
-  exerciseOf?: (variant: VariantKey) => ClassifiableExercise | null | undefined
+  exerciseOf?: (variant: VariantKey) => (ClassifiableExercise & { title?: string }) | null | undefined
 ): Set<string> {
   const out = new Set<string>();
   if (!plan) return out;
   for (const x of dayPlan(plan, day).items) {
     const ex = exerciseOf?.(x.variant);
-    const key = ex ? movementKeyOf(ex) : VARIANT_MOVEMENT_KEY[x.variant];
+    /* 두 분류에 드는 운동(박스 스쿼트 — 파워)은 그 칸의 열쇠로 — 본운동 칸에서는 스트렝스 계열이다 */
+    const key = ex && !(ex.title && ALSO_IN[ex.title]) ? movementKeyOf(ex) : VARIANT_MOVEMENT_KEY[x.variant];
     if (key != null) out.add(key);
   }
   return out;
