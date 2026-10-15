@@ -149,7 +149,7 @@ function GramRow({
               setFocused(false);
               setText(String(Math.round(value)));
             }}
-            className={`${INPUT_LARGE} pr-10 text-lg tabular-nums`}
+            className={`${INPUT_LARGE} pr-10 tabular-nums`}
             {...invalidProps(invalid)}
           />
           <span

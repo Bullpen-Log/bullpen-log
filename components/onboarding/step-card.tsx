@@ -145,7 +145,13 @@ export function TextButton({
   );
 }
 
-/** 글을 치는 큰 칸 — 가입 · 온보딩의 입력칸에 덧붙인다(components/ui Input) */
+/**
+ * 글을 치는 큰 칸 — 가입 · 온보딩의 입력칸에 덧붙인다(components/ui Input).
+ *
+ * 여기에 text-lg 같은 큰 글자 클래스를 더하지 않는다. cn 은 합치기만 해서 CSS 차례상 text-subhead · text-sm 이 이기고(실제로는 15px),
+ * globals.css 의 '손가락 화면 입력칸 16px' 규칙은 text-lg 가 붙은 칸을 건너뛴다 → 아이폰이 칸을 누를 때 화면을 확대하고,
+ * 앱(확대 막힘)에서는 되돌릴 수도 없었다(2026-10-16 영양 첫 설정 키 · 몸무게 칸).
+ */
 export const INPUT_LARGE = 'py-3.5 text-subhead aria-invalid:border-danger';
 
 /** 막힌 까닭을 적는 줄의 id — 문제의 칸이 aria-describedby 로 가리킨다 */

@@ -214,7 +214,7 @@ function KcalEditor({
               onFocus={() => setFocused(true)}
               onBlur={() => setFocused(false)}
               placeholder={String(p.auto.base)}
-              className={`${INPUT_LARGE} pr-14 text-lg tabular-nums`}
+              className={`${INPUT_LARGE} pr-14 tabular-nums`}
               {...invalidProps(invalid)}
             />
             <span
