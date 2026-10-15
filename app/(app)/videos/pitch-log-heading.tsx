@@ -19,11 +19,9 @@ import { AnalysisLink } from '@/components/analysis-link';
  * 고르개가 사라졌다(2026-09-28 사용자 — "구속 측정 관리자도 투구 기록 기능의 하나라는 느낌으로").
  * 이제 두 화면이 같은 제목 · 같은 고르개를 달고, 고르개의 칸만 바뀐다.
  *
- * 제목 줄과 고르개 줄에 전환 이름표(ViewTransition name)를 단다. 투구 기록 ↔ 구속 측정 관리자는
- * 화면(주소)이 바뀌는 이동이라 본문 전체가 페이드하는데(app/(app)/layout.tsx 의 app-main), 이름표가
- * 같은 요소는 옛 화면과 새 화면에서 짝지어져 그 자리에 그대로 남는다 — 눌렀던 고르개가 사라졌다
- * 나타나지 않는다(2026-09-28 사용자: "어딘가로 멀리 이동하는 느낌 · 누르는 바가 사라지면 안 된다").
- * 불러오는 동안의 화면(admin/velocity/loading.tsx)도 같은 머리를 달아, 자료가 오기 전에도 머리는 제자리다.
+ * 두 화면의 머리가 같은 자리 · 같은 모양이라, 오갈 때 눌렀던 고르개가 사라졌다 나타나지 않는다(2026-09-28 사용자: "어딘가로 멀리
+ * 이동하는 느낌 · 누르는 바가 사라지면 안 된다"). 예전엔 전환 이름표로 짝지었는데, 판 넘기기가 투구 판을 늘 붙여 두면서 이름이 둘이 돼
+ * 뺐다(2026-10-15). 불러오는 동안의 화면(admin/velocity/loading.tsx)도 같은 머리를 달아, 자료가 오기 전에도 머리는 제자리다.
  */
 
 export type PitchView = 'calendar' | 'list' | 'velocity';
@@ -56,6 +54,11 @@ type ViewOption = { readonly value: PitchView; readonly label: string };
  * 세 칸) 칩 줄이 밑으로 내려간다 — 고르개는 제 글자 폭 밑으로 줄지 않는다.
  */
 const SWITCH_WIDTH = 'flex-1 pad:flex-none pad:min-w-80 desk:w-auto desk:flex-none';
+/*
+ * 칸이 셋(관리자의 '구속 측정 관리자')이면 휴대폰은 고르개가 한 줄을 다 쓰고 칩은 밑 줄로 — 칩 옆에 끼우면 고르개가 글자보다 좁아져
+ * '목록'과 '구속 측정 관리자'가 겹치며 틀 밖으로 나갔다(2026-10-15 김민). 패드 · PC 는 그대로.
+ */
+const SWITCH_WIDTH_WIDE = 'w-full pad:w-auto pad:flex-none pad:min-w-80 desk:w-auto desk:flex-none';
 
 /*
  * 찍으러 가는 문 — 고르개 옆 작은 칩(2026-10-15 사용자 "투구 파트도 우리 시스템에 맞게"). 예전엔 고르개 밑 흰 카드 단추 둘이
@@ -127,8 +130,8 @@ export function PitchViewSwitch({
       onChange={onChange}
       options={options}
       tone="raised"
-      className={className ?? SWITCH_WIDTH}
-      itemClassName="px-4 py-1.5"
+      className={className ?? (options.length > 2 ? SWITCH_WIDTH_WIDE : SWITCH_WIDTH)}
+      itemClassName="flex-1 px-4 py-1.5"
     />
   );
 }
@@ -150,7 +153,11 @@ export function PitchLogHeading({
 }) {
   return (
     <>
-      <ViewTransition name="pitch-log-heading" default={SWIPE_OFF}>
+      {/*
+        이름표(pitch-log-heading · pitch-log-controls)는 뺐다(2026-10-15) — 판 넘기기(tab-pager)가 투구 판을 늘 붙여 두어, 구속 측정
+        관리자를 열면 같은 이름이 둘 붙어 화면 전환이 깨졌다(InvalidStateError). 두 화면 사이 머리는 이제 같은 자리에 그대로라 짝지을 일이 없다.
+      */}
+      <ViewTransition default={SWIPE_OFF}>
         {/* 제목 옆 '분석'은 두 화면 모두 — 휴대폰도 제목 오른쪽(inlineAction), 그래서 머리 높이가 같다 */}
         <PageHeading
           eyebrow="Pitch log"
@@ -165,7 +172,7 @@ export function PitchLogHeading({
           }
         />
       </ViewTransition>
-      <ViewTransition name="pitch-log-controls" default={SWIPE_OFF}>
+      <ViewTransition default={SWIPE_OFF}>
         <div className="flex flex-wrap items-center gap-2 desk-low:hidden">
           {controls}
         </div>

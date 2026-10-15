@@ -2542,7 +2542,8 @@ function MobileTopBar({
    * 제목 · 오른쪽 알림이 떠 비율이 이상하다 — 싹 지우고 원래대로". 그래서 되살렸다. 탭마다 제목 높이는 판(tab-pager)의 위 여백으로 맞춘다
    * (globals.css [data-panel][data-bare]).
    */
-  const bare = !back && ['/videos', '/nutrition', '/training'].includes(pathname);
+  /* 구속 측정 관리자는 투구 탭의 한 보기(머리 · 고르개가 같다 — pitch-log-heading)라 투구처럼 막대 없이(2026-10-15 김민) */
+  const bare = !back && ['/videos', '/nutrition', '/training', '/admin/velocity'].includes(pathname);
   /* 숨기기는 첫 화면들만 — '‹ 뒤로'가 있는 화면은 돌아갈 길을 늘 보인다. 알림 창이 열려 있으면 안 숨긴다 */
   const hidden = useBarHidden(!back && !bare && panel == null);
 
