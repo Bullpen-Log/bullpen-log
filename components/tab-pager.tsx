@@ -368,6 +368,8 @@ export function TabPager({
           <section
             key={order[i]}
             data-panel
+            /* 홈 말고는 휴대폰 위 막대가 없다(app-shell MobileTopBar 의 bare) — 위 여백은 시계 자리만큼(globals.css) */
+            data-bare={base(order[i]) === '/today' ? undefined : ''}
             data-active={i === index ? '' : undefined}
             inert={i !== index || undefined}
             aria-hidden={i !== index || undefined}
