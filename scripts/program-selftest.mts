@@ -265,10 +265,10 @@ check(
     dayLabel(p531x2, 3) === '3번 세션'
 );
 check(
-  '5/3/1 은 들기 전에 워밍업 점프(2세트 × 3회), 밀기 날은 메디신볼',
+  '5/3/1 은 들기 전에 워밍업 점프(2세트 × 3회), 밀기 날은 준비 동작 없음(메디신볼 뺌)',
   dayPlan(p531, 1).items[0].variant === 'jump' &&
     dayPlan(p531, 1).items[0].sets.length === 2 &&
-    dayPlan(p531, 2).items[0].variant === 'medball'
+    dayPlan(p531, 2).items[0].variant === 'push'
 );
 check(
   '저거넛은 점프 · 메디신볼 · 회전 던지기 없음',
