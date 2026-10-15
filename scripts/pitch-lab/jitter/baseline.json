@@ -1,5 +1,5 @@
 {
- "savedAt": "2026-10-15T06:11:31.880Z",
+ "savedAt": "2026-10-15T06:32:48.351Z",
  "samples": {
   "6814c10f": {
    "prep": {
@@ -13,12 +13,12 @@
     "amp": []
    },
    "stride": {
-    "max": 2.02,
+    "max": 1.85,
     "med": 0.58,
     "amp": []
    },
    "follow": {
-    "max": 1.65,
+    "max": 1.46,
     "med": 0.62,
     "amp": []
    }
@@ -26,7 +26,7 @@
   "c4d81c82": {
    "prep": {
     "max": 2.58,
-    "med": 0.68,
+    "med": 0.59,
     "amp": []
    },
    "lift": {
@@ -62,33 +62,30 @@
     "amp": []
    },
    "follow": {
-    "max": 4.49,
+    "max": 4.56,
     "med": 0.34,
     "amp": []
    }
   },
   "s1": {
    "prep": {
-    "max": 0.21,
+    "max": 0.23,
     "med": 0.05,
     "amp": []
    },
    "lift": {
-    "max": 1.19,
-    "med": 0.17,
-    "amp": [
-     "lHandIdx",
-     "lHandMid"
-    ]
+    "max": 1.06,
+    "med": 0.22,
+    "amp": []
    },
    "stride": {
-    "max": 1.66,
-    "med": 0.3,
+    "max": 1.48,
+    "med": 0.34,
     "amp": []
    },
    "follow": {
-    "max": 1.77,
-    "med": 0.39,
+    "max": 1.66,
+    "med": 0.53,
     "amp": []
    }
   },
@@ -110,13 +107,13 @@
     ]
    },
    "stride": {
-    "max": 3.36,
+    "max": 2.75,
     "med": 0.74,
     "amp": []
    },
    "follow": {
-    "max": 4.03,
-    "med": 0.68,
+    "max": 2.98,
+    "med": 0.65,
     "amp": []
    }
   },
@@ -132,12 +129,12 @@
     "amp": []
    },
    "stride": {
-    "max": 2.07,
+    "max": 2.13,
     "med": 0.37,
     "amp": []
    },
    "follow": {
-    "max": 2.37,
+    "max": 1.81,
     "med": 0.44,
     "amp": []
    }
@@ -154,14 +151,14 @@
     "amp": []
    },
    "stride": {
-    "max": 2.59,
+    "max": 2.6,
     "med": 0.55,
     "amp": [
      "lHe"
     ]
    },
    "follow": {
-    "max": 2.26,
+    "max": 2.25,
     "med": 0.6,
     "amp": []
    }
@@ -178,16 +175,12 @@
     "amp": []
    },
    "stride": {
-    "max": 2.9,
+    "max": 2.13,
     "med": 0.26,
-    "amp": [
-     "lHandIdx",
-     "lHandMid",
-     "lHandPinky"
-    ]
+    "amp": []
    },
    "follow": {
-    "max": 1.9,
+    "max": 1.67,
     "med": 0.31,
     "amp": []
    }
@@ -253,17 +246,17 @@
     "pop": 0,
     "speed": 0,
     "knee": 0,
-    "sep": 13
+    "sep": 14
    },
    "raw": {
     "pop": 0,
     "speed": 0,
     "knee": 0,
-    "sep": 12
+    "sep": 13
    },
    "man": {
     "pop": 0,
-    "speed": 2
+    "speed": 3
    }
   },
   "s10": {

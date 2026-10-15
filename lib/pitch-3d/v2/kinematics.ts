@@ -1097,9 +1097,19 @@ export function kinematicTrack(
      * 손이 한 장면에 뒤집혔다(2026-10-09 샘플 4 글러브 손 한 장면 78°). 흐림은 손 확신 0.1 아래부터 — 글러브 손은 영상과 잘 맞아도 확신이
      * 0.3~0.5 라, 0.2 ~ 0.6 으로 깎으면 굽은 손목이 늘 곧게 펴져 글러브가 영상에서 4~9% 벗어났다(2026-10-10 좌투 샘플).
      */
+    /*
+     * 몸에 가려진 구간 — 앞뒤 HAND_HIDDEN_WIN 장면 손 확신의 가운데값이 낮으면 그 안에서 한두 장면 반짝 잡힌 손 점은 안 믿는다. 가려진 글러브 손이
+     * 한두 장면만 확신 0.3~0.4 로 잡히면 그 장면만 손목을 엔진 쪽으로 꺾었다 곧바로 펴, 화면 손가락이 원 결과보다 더 흔들렸다(2026-10-15 샘플 s9
+     * 착지 233~240장면 손가락 2.9% · 원 1.7%). 보이는 구간(가운데값이 높음)은 예전 그대로.
+     */
+    const handSeen = smooth1(
+      medianFilter(wHandOnly, HAND_HIDDEN_WIN).map((m) => clamp((m - 0.1) / 0.15, 0, 1)),
+      frames.map(() => 1)
+    );
     const handOk = flexW.map(
       (v, k) =>
         clamp((wHandOnly[k] - 0.1) / 0.25, 0, 1) *
+        handSeen[k] *
         clamp((rad(110) - Math.abs(v)) / rad(40), 0, 1) *
         clamp((rad(70) - Math.abs(devW[k])) / rad(30), 0, 1)
     );
@@ -1191,6 +1201,22 @@ export function kinematicTrack(
       refs[k][side === 'L' ? 'upperArmL' : 'upperArmR'] = nw;
       refs[k][side === 'L' ? 'forearmL' : 'forearmR'] = nw;
       refs[k][side === 'L' ? 'handL' : 'handR'] = hw;
+    }
+    /*
+     * 몸에 가려진 구간(handSeen 낮음)은 손 세 점의 손목 기준 자리 · 손바닥 폭 축을 앞뒤로 더 다듬는다 — 손이 안 보이면 손 각은 고정인데, 엔진 아래팔에
+     * 각도 모델의 굽는 축을 수직으로 붙이는 사이 두 축이 거의 나란해지면 손이 아래팔 둘레로 휙 돌았다(2026-10-15 s9 글러브 손가락). 보이는 구간은 그대로.
+     */
+    if (handSeen.some((v) => v < 1)) {
+      const hk = side === 'L' ? 'handL' : 'handR';
+      const rows = out.map((fr, k) => [Idx, Mid, Pk].flatMap((j) => sub(fr[j], fr[Wr])).concat(refs[k][hk] ?? [0, 0, 0]));
+      const sm = smoothMulti(rows, frames.map(() => 1), HAND_HIDDEN_SMOOTH, HAND_HIDDEN_SMOOTH);
+      for (let k = 0; k < n; k++) {
+        const h = 1 - handSeen[k];
+        if (!(h > 0)) continue;
+        const mix = (i: number): Vec3 => [0, 1, 2].map((d) => rows[k][i + d] * (1 - h) + sm[k][i + d] * h) as Vec3;
+        [Idx, Mid, Pk].forEach((j, i) => (out[k][j] = add(out[k][Wr], mix(i * 3))));
+        if (refs[k][hk]) refs[k][hk] = unit(mix(9), refs[k][hk]!);
+      }
     }
   }
 
@@ -1454,6 +1480,10 @@ export function kinematicTrack(
 }
 
 /** 땅에 묶인 구간 경계 앞뒤로 발 방향을 다듬는 장면 수 · 가우스 폭(장면) */
+/** 손이 몸에 가려졌는지 볼 때 앞뒤 장면 수(가운데값 창 반쪽) */
+const HAND_HIDDEN_WIN = 6;
+/** 가려진 손을 다듬는 가우스 폭(장면) */
+const HAND_HIDDEN_SMOOTH = 8;
 const FOOT_EASE = 6;
 /** 땅에 닿은 구간에서 [0] 장면 안은 원 발목을 그대로 따르고, 그 뒤 [1] 장면 동안 smoothstep 으로 풀린다 */
 const CONTACT_FOLLOW = [16, 12] as const;
