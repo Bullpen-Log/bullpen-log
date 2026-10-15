@@ -3108,11 +3108,12 @@ html[data-splash] *::after {
   dialog[data-look='folder'] [data-folder] [class*='text-muted'] {
     color: color-mix(in srgb, var(--folder-fg) 62%, transparent);
   }
+  /* 줄 입력칸(투명 — components/settings-list.tsx ROW_INPUT)은 빼야 한다 — 내 정보의 닉네임 · 키 · 몸무게 칸에 타일색 상자가 그려졌다(2026-10-15 김민) */
   dialog[data-look='folder']
     [data-folder]
     :is(input, select, textarea):not([type='checkbox']):not([type='radio']):not(
       [type='range']
-    ) {
+    ):not(.bg-transparent) {
     background-color: var(--tile-bg, rgba(255, 255, 255, 0.14));
     color: var(--folder-fg);
     border-color: color-mix(in srgb, var(--folder-fg) 18%, transparent);

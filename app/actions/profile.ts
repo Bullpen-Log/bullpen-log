@@ -1,21 +1,15 @@
 'use server';
 
-import { appNow } from '@/lib/clock';
 import { revalidatePath } from 'next/cache';
 import { prisma } from '@/lib/prisma';
 import { getCurrentUser } from '@/lib/dal';
 import {
   checkOptionalNumber,
   MAX_WEIGHT_KG,
-  MAX_WINGSPAN_CM,
   MIN_WEIGHT_KG,
-  MIN_WINGSPAN_CM,
   isSex,
   validateProfile,
 } from '@/lib/profile';
-import { levelAgeProblem, validateBaseline } from '@/lib/baseline';
-import { toDateKey } from '@/lib/pitch-stats';
-import { WORKOUT_MINUTES_CHOICES } from '@/lib/report/theme';
 import { withInput, type FormValues } from '@/lib/form-values';
 import { deleteVideos, forgetPlaybackUrls, isOwnAvatarPath } from '@/lib/storage';
 
@@ -52,31 +46,9 @@ async function tryUpdateProfile(formData: FormData): Promise<ProfileState> {
   );
   if ('error' in checked) return checked;
 
-  // 가입 문진 — 기존 회원이 나중에 채우는 경우가 있어 여기서도 받는다.
-  const rawBaseline = {
-    baselineFreq: String(formData.get('baselineFreq') ?? ''),
-    baselineVolume: String(formData.get('baselineVolume') ?? ''),
-    baselineIntensity: String(formData.get('baselineIntensity') ?? ''),
-    baselineWorkoutFreq: String(formData.get('baselineWorkoutFreq') ?? ''),
-    throwingHand: String(formData.get('throwingHand') ?? ''),
-    competitionLevel: String(formData.get('competitionLevel') ?? ''),
-  };
-  const anyBaseline = Object.values(rawBaseline).some((v) => v.trim() !== '');
-  let baselineValue = {};
-  if (anyBaseline) {
-    const baseline = validateBaseline(rawBaseline);
-    if ('error' in baseline) return baseline;
-    const levelProblem = levelAgeProblem(
-      baseline.value.competitionLevel,
-      String(formData.get('birthDate') ?? '').trim() || null,
-      toDateKey(appNow())
-    );
-    if (levelProblem) return { error: levelProblem };
-    baselineValue = baseline.value;
-  }
-
   /*
-   * 몸무게와 윙스팬 — 둘 다 비워둘 수 있다.
+   * 몸무게 — 비워둘 수 있다. 윙스팬 · 하루 운동 시간 · 던지는 손 · 평소 웨이트는 2026-10-15 내 정보에서 뺐다(김민) — 여기서 쓰지 않아
+   * 저장된 값은 그대로 남는다(던지는 손 · 운동 시간은 투구 · 트레이닝 첫 설정이 정한다).
    *
    * 화면이 파운드·인치로 보여주더라도 여기로는 언제나 kg·cm 가 온다(숨겨 둔
    * 칸이 바꿔 보낸다). 단위가 섞여 들어오면 나중에 어느 줄이 파운드인지
@@ -89,15 +61,6 @@ async function tryUpdateProfile(formData: FormData): Promise<ProfileState> {
     unit: 'kg',
   });
   if ('error' in weight) return weight;
-
-  const wingspan = checkOptionalNumber(String(formData.get('wingspanCm') ?? ''), {
-    label: '윙스팬',
-    min: MIN_WINGSPAN_CM,
-    max: MAX_WINGSPAN_CM,
-    unit: 'cm',
-  });
-  if ('error' in wingspan) return wingspan;
-
 
   /*
    * 성별 — 영양 목표의 기초대사량 계산에 쓴다.
@@ -112,20 +75,6 @@ async function tryUpdateProfile(formData: FormData): Promise<ProfileState> {
     sexValue = { sex: rawSex };
   }
 
-  /*
-   * 하루 운동 시간 — "45분" 형태로 오므로 숫자만 꺼내 허용 목록과 대조한다.
-   * 안 고르고 저장하면(기존 화면 등) 지금 값을 그대로 둔다.
-   */
-  const rawMinutes = String(formData.get('dailyWorkoutMinutes') ?? '').trim();
-  let minutesValue = {};
-  if (rawMinutes !== '') {
-    const minutes = Number.parseInt(rawMinutes, 10);
-    if (!(WORKOUT_MINUTES_CHOICES as readonly number[]).includes(minutes)) {
-      return { error: '하루 운동 시간을 다시 골라주세요.' };
-    }
-    minutesValue = { dailyWorkoutMinutes: minutes };
-  }
-
   await prisma.user.update({
     where: { id: user.id },
     data: {
@@ -133,9 +82,6 @@ async function tryUpdateProfile(formData: FormData): Promise<ProfileState> {
       ...checked.value,
       ...sexValue,
       weightKg: weight.value,
-      wingspanCm: wingspan.value,
-      ...baselineValue,
-      ...minutesValue,
       /* 목표 구속은 2026-10-10 부터 사용자가 적지 않는다 — 나중에 앱이 계산해 채운다 */
       /*
        * 경력·목표·장비는 여기서 건드리지 않는다. 트레이닝 화면에서 고르고

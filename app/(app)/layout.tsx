@@ -145,17 +145,7 @@ export default async function AppLayout({
           sex: isSex(user.sex) ? user.sex : null,
           heightCm: user.heightCm,
           weightKg: user.weightKg,
-          wingspanCm: user.wingspanCm,
           targetVelocity: user.targetVelocity,
-          dailyWorkoutMinutes: user.dailyWorkoutMinutes,
-          baseline: {
-            baselineFreq: user.baselineFreq,
-            baselineVolume: user.baselineVolume,
-            baselineIntensity: user.baselineIntensity,
-            baselineWorkoutFreq: user.baselineWorkoutFreq,
-            throwingHand: user.throwingHand,
-            competitionLevel: user.competitionLevel,
-          },
           isAdmin,
         }}
         today={todayKey()}
