@@ -5,6 +5,7 @@ import { isShortSleep } from '@/lib/checkin';
 import { burnMixesInRange } from '@/lib/nutrition/burn-load';
 import { shiftDateKey, toDateKey } from '@/lib/pitch-stats';
 import { NUTRITION_BACK_DAYS, dbDate, keyOfDbDate } from '@/lib/nutrition/days';
+import { stripDays } from '@/lib/date-strip';
 import {
   ENTRY_SOURCES,
   isActivityKey,
@@ -91,8 +92,7 @@ export type NutritionDay = {
   /** 고른 날까지 7일 — 아래 '최근 7일' 그래프 */
   week: DaySummary[];
   /**
-   * 고른 날이 든 한 주(일~토) — 위쪽 날짜 띠. 달력처럼 일요일부터라, 이 주 안에서
-   * 날짜를 옮겨도 띠가 흔들리지 않는다. 앞날도 칸은 있다(누를 수는 없다).
+   * 위쪽 날짜 띠 — 최근 6주(옛 날 → 오늘, lib/date-strip.ts). 옆으로 굴려 본다. 오늘 뒤의 날은 없다.
    */
   strip: DaySummary[];
   /** 고른 날까지 56일의 체중 — 그래프와 추세가 읽는다(목표 계산의 체중은 여전히 30일 안에서 고른다) */
@@ -257,9 +257,14 @@ export async function loadNutritionDay(
   /* 체중은 추세 창(56일)만큼 읽는다 — 목표 계산의 체중은 그 가운데 최근 30일에서 고른다(아래 recent30) */
   const trendStart = shiftDateKey(date, -(TREND_DAYS - 1));
   const recentStart = shiftDateKey(date, -RECENT_DAYS);
-  /* 날짜 띠(일~토)와 7일 그래프를 한 번에 읽도록 둘을 덮는 범위 */
-  const stripStart = shiftDateKey(date, -new Date(`${date}T00:00:00.000Z`).getUTCDay());
-  const stripEnd = shiftDateKey(stripStart, 6);
+  /*
+   * 날짜 띠(최근 6주를 옆으로 굴리는 한 줄, lib/date-strip.ts — 2026-10-15 사용자 "좌우로 긴 것 스크롤 가능하게")와 7일 그래프를
+   * 한 번에 읽도록 둘을 덮는 범위. 예전 띠는 고른 날이 든 한 주(일~토)였다.
+   */
+  const todayKey = toDateKey(appNow());
+  const stripKeys = stripDays(date, todayKey, shiftDateKey(todayKey, -NUTRITION_BACK_DAYS));
+  const stripStart = stripKeys[0];
+  const stripEnd = stripKeys[stripKeys.length - 1];
   const rangeStart = weekStart < stripStart ? weekStart : stripStart;
   const rangeEnd = date > stripEnd ? date : stripEnd;
   /* 운동 기록은 식사 확인의 14일까지 — 그날그날의 목표(운동한 만큼 더한 것)를 알아야 '목표만큼 먹었나'를 본다 */
@@ -267,7 +272,7 @@ export async function loadNutritionDay(
   const burnStart = intakeStart < rangeStart ? intakeStart : rangeStart;
   const userId = user.id;
   /* 던지는 날 가이드는 오늘에만 뜬다 — 지난 날을 볼 때는 그 몫의 체크인을 읽지 않는다 */
-  const isToday = date === toDateKey(appNow());
+  const isToday = date === todayKey;
 
   const [
     profileRow,
@@ -527,9 +532,7 @@ export async function loadNutritionDay(
   const week = Array.from({ length: WEEK_DAYS }, (_, i) =>
     summarize(shiftDateKey(weekStart, i))
   );
-  const strip = Array.from({ length: 7 }, (_, i) =>
-    summarize(shiftDateKey(stripStart, i))
-  );
+  const strip = stripKeys.map(summarize);
 
   /* ── 최근 먹은 것 — 같은 음식은 가장 최근 한 번만 ── */
   const seen = new Set<string>();

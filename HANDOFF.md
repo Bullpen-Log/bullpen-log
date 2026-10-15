@@ -69,6 +69,12 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
   손 떼자마자 새 화면을 부르고 빠르기를 이어받음. 하단 탭을 누르면(`slideToTab`) 쓸기처럼 누르는 순간 밀린다.
 - (같은 날 더) 하단 탭(`app-shell.tsx` TabFace): 이름 굵기를 렌즈가 선 칸(`selected`)으로 — `slideToTab` 이 링크를 안 따라 pending 이 안 켜져 0.3초 뒤에 굵어졌다.
   렌즈가 닿을 때 아이콘 8% 커짐(`tab-lens.ts` ICON_LIFT)은 0 으로(사용자: "선택되고 0.3초 뒤 아이콘이 움직여"). 아이콘 + 이름을 `pt-[2px]` 로 내려 렌즈 위아래 여백을 맞춤.
+- (같은 날 더) 제목 밑 날짜 띠(사용자: "영양 위 최근 날짜 보기를 트레이닝 · 영양 둘 다"): 영양은 휴대폰에서도 다시 보임(10-14 에 숨긴 것), 트레이닝 홈 ·
+  그날 기록(`/training/day/[date]`)에 같은 모양 띠(`training/day-strip.tsx` · `lib/training-week.ts` — 운동 · 암케어 · 메커니즘 한 날을 점으로, 오늘은 홈).
+- (같은 날 더) 트레이닝 제목 옆 간이 달력(`training/date-nav.tsx` — 영양 DateNav 와 같은 판, 점은 열 때 `app/actions/training-days.ts` 로 1년치). 트레이닝 홈 머리는
+  PageHeading 대신 영양처럼 제목 · 달력 · 분석 한 줄(`training-home.tsx`). 그날 기록 화면은 달력 그림만.
+- (같은 날 더) 날짜 띠를 한 주 + 겹화살표 → 최근 6주를 옆으로 굴리는 한 줄로(사용자: "좌우로 긴 것 스크롤 가능하게"). 공용 `components/date-scroll-strip.tsx` ·
+  범위 `lib/date-strip.ts stripDays`. 영양 `NutritionDay.strip` 이 7일 → 42일(`lib/nutrition/load.ts` — 식사 · 운동 읽는 범위도 그만큼 넓어짐), `loadTrainingWeek` → `loadTrainingStrip`.
 
 ## 금윤호에게 — 2026-10-15 · 김민(Claude, 맥북) — 파워 운동 10개 더함 · 촬영 계획 2~5주 다시 짬 · 드릴 영상이 파워 복사본에도 붙음
 

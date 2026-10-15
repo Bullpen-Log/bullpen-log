@@ -47,6 +47,13 @@ export const TRAINING_PART_HREF: Record<TrainingPart, string> = {
  */
 export const TRAINING_HOME_HREF = '/training?view=home';
 
+/** 트레이닝 날짜 띠 · 간이 달력으로 넘겨 볼 수 있는 날 수 — 그 앞은 홈 캘린더에서 */
+export const TRAINING_CALENDAR_BACK_DAYS = 365;
+
+/** 날짜 띠 · 간이 달력에서 고른 날 — 오늘은 트레이닝 홈, 지난날은 그날 운동 기록 */
+export const trainingDayHref = (date: string, today: string) =>
+  date === today ? TRAINING_HOME_HREF : `/training/day/${date}`;
+
 /** 주소나 쿠키에서 온 값 — 칸 이름이 아니면 null */
 export function readTrainingPart(
   value: string | null | undefined

@@ -3,7 +3,8 @@ import Link from 'next/link';
 import { unstable_rethrow } from 'next/navigation';
 import { Check, ChevronRight, Dumbbell, Play, ShieldPlus, Target, type LucideIcon } from '@/components/icon';
 import { prisma } from '@/lib/prisma';
-import { PageHeading } from '@/components/ui';
+import { PAGE_TITLE_LINE } from '@/components/ui';
+import { NavTitle } from '@/components/nav-title';
 import { AnalysisLink } from '@/components/analysis-link';
 import { OpenCheckinButton } from '@/components/notice-bell';
 import { loadTodayCore, type UserForToday } from '@/lib/report/today-data';
@@ -23,6 +24,9 @@ import { shiftDateKey, toDateKey } from '@/lib/pitch-stats';
 import { dbDate, keyOfDbDate } from '@/lib/nutrition/days';
 import { TRAINING_PART_HREF, type TrainingPart } from '@/lib/training-part';
 import { StartWorkout } from './start-workout';
+import { TrainingDayStrip } from './day-strip';
+import { TrainingDateNav } from './date-nav';
+import { loadTrainingStrip } from '@/lib/training-week';
 import { withJosa } from '@/lib/korean';
 
 type HomeUser = UserForToday & UserForArmcare & { id: string };
@@ -75,7 +79,24 @@ export function TrainingHome({
 
   return (
     <div className="stack-page">
-      <PageHeading eyebrow="Training" title="트레이닝" inlineAction action={<AnalysisLink view="training" />} />
+      {/*
+        제목 · 간이 달력 · 분석을 한 줄에 — 영양 탭 머리(nutrition-view.tsx)와 같은 모양(2026-10-15 사용자 "트레이닝 제목 옆에도
+        영양처럼 간이 캘린더"). 큰 제목이 가려지면 위 막대에 작은 제목(NavTitle) — PageHeading 과 같다.
+      */}
+      <header className="flex flex-wrap items-center gap-x-2 gap-y-3 pb-1 desk:items-end desk:pb-4 sm:gap-x-3">
+        <div className="space-y-1">
+          <h1 className={`text-heading page-title text-ink ${PAGE_TITLE_LINE}`}>트레이닝</h1>
+          <NavTitle title="트레이닝" />
+        </div>
+        <TrainingDateNav date={toDateKey(today)} today={toDateKey(today)} />
+        <div className="ml-auto">
+          <AnalysisLink view="training" />
+        </div>
+      </header>
+      {/* 제목 밑 날짜 띠(2026-10-15 사용자 — 영양과 같게). 칸 높이만큼 자리를 잡아 두어 카드가 밀려 내려가지 않는다 */}
+      <Suspense fallback={<div className="h-15 desk:h-[3.375rem]" />}>
+        <DayStripLoad userId={user.id} today={toDateKey(today)} />
+      </Suspense>
       <div className="stack-block">{order.map((app) => cards[app])}</div>
       <Suspense fallback={<div className="h-12" />}>
         <WeekStrip userId={user.id} today={today} />
@@ -495,6 +516,13 @@ async function MechanicsCard({ userId }: { userId: string }) {
       {bars}
     </AppCard>
   );
+}
+
+/* ─────────────────────────────── 날짜 띠 ─────────────────────────────── */
+
+async function DayStripLoad({ userId, today }: { userId: string; today: string }) {
+  const days = await loadTrainingStrip(userId, today, today);
+  return <TrainingDayStrip days={days} date={today} today={today} />;
 }
 
 /* ─────────────────────────────── 이번 주 ─────────────────────────────── */

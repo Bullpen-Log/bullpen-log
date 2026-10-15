@@ -6,6 +6,9 @@ import { requireUser } from '@/lib/dal';
 import { trainingDay } from '@/lib/report/training-history';
 import { toDateKey } from '@/lib/pitch-stats';
 import { DayExercises } from './day-exercises';
+import { TrainingDayStrip } from '../../day-strip';
+import { TrainingDateNav } from '../../date-nav';
+import { loadTrainingStrip } from '@/lib/training-week';
 
 /**
  * 그날의 운동 기록 — 한 페이지.
@@ -45,8 +48,11 @@ export default async function TrainingDayPage({
   }
 
   const user = await requireUser();
-  const detail = await trainingDay(user.id, date);
   const todayKey = toDateKey(appNow());
+  const [detail, week] = await Promise.all([
+    trainingDay(user.id, date),
+    loadTrainingStrip(user.id, date, todayKey),
+  ]);
 
   const count = detail.exercises.length;
   const empty = count === 0 && detail.intensity == null;
@@ -56,11 +62,18 @@ export default async function TrainingDayPage({
       <BackLink href={`/today?date=${date}`}>{spokenMonth(date)} 달력</BackLink>
 
       <div className="pb-1 desk:border-b desk:border-line desk:pb-6">
-        <h1 className="text-heading page-title text-ink">{spokenDate(date)}</h1>
+        <div className="flex items-center justify-between gap-3">
+          <h1 className="text-heading page-title text-ink">{spokenDate(date)}</h1>
+          {/* 트레이닝 홈 제목 옆과 같은 간이 달력 — 날짜가 이미 제목이라 그림만 */}
+          <TrainingDateNav date={date} today={todayKey} iconOnly />
+        </div>
         <p className="mt-2 text-sm text-muted">
           {empty ? '이 날은 운동 기록이 없어요' : `운동 ${count}개`}
         </p>
       </div>
+
+      {/* 트레이닝 홈과 같은 날짜 띠 — 옆 날로 바로 넘어간다 */}
+      <TrainingDayStrip days={week} date={date} today={todayKey} />
 
       {/* 그날 어땠는지 먼저 — 목록보다 이쪽을 다시 읽으러 온다 */}
       {detail.intensity != null && (
