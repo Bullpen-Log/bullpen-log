@@ -634,6 +634,18 @@ export function twoBoneIk(top: Vec3, midP: Vec3, end: Vec3, target: Vec3, hint?:
 export const kneePole = (hip: Vec3, knee: Vec3, axis: Vec3 | undefined): Vec3 | undefined =>
   axis ? cross(unit(sub(knee, hip), [0, -1, 0]), axis) : undefined;
 
+/**
+ * 발목 목표를 엉덩이에서 reach 안으로 — 다리를 엔진의 그 장면 엉덩이 → 발목 거리보다 더 펴지 않는다. 화면 골반이 엔진보다 늦게 돌거나(앞엉덩이가
+ * 30~45mm 어긋남) 땅에 묶을 자리가 멀면, 발목을 그 자리에 두려고 무릎을 펴고(엔진 47~50° → 화면 26~30°, 샘플 3) 닿지 않으면 정강이를 늘렸다
+ * (250 → 317mm, 샘플 4, 2026-10-15 김민 "앞무릎이 이상"). 발은 그 자리 쪽으로 닿는 만큼만 가고, 엉덩이가 따라오면 자리에 닿는다.
+ */
+const REACH_SLACK = 0.005;
+function reachCap(hip: Vec3, target: Vec3, reach: number): Vec3 {
+  const v = sub(target, hip);
+  const d = norm(v);
+  return d > reach && d > 1e-9 ? add(hip, scale(v, reach / d)) : target;
+}
+
 /** 무릎이 굽는 쪽이 발끝 방향에서 벗어날 수 있는 만큼 — 경첩이라 정강이 돌림 · 발끝 벌림만큼만 */
 const KNEE_TOE_MAX = 60;
 /**
@@ -1357,7 +1369,11 @@ export function kinematicTrack(
       let A = add(K, scale(sw, Ls));
       const wF = Math.max(wFollow[k], nearContact[k]);
       const ank = add(scale(A, 1 - wF), scale(anS[k], wF));
-      const target = add(scale(ank, 1 - wAnk[k]), scale(frames[k][An], wAnk[k]));
+      const target = reachCap(
+        Hpt,
+        add(scale(ank, 1 - wAnk[k]), scale(frames[k][An], wAnk[k])),
+        Math.min(norm(sub(frames[k][An], frames[k][Hp])) + REACH_SLACK, (Lt + Ls) * 0.999)
+      );
       K = twoBoneIk(Hpt, K, A, target, kneePole(Hpt, K, nw));
       A = target;
       const K2 = kneeTowardToes(Hpt, K, A, toeDir[k]);
@@ -1425,7 +1441,13 @@ export function kinematicTrack(
        * 한꺼번에 옮겨, 그 원본과 섞으면 무릎 · 발목이 한 장면에 튀었다(2026-10-10 샘플 다섯 중 무릎 · 발목 자리 튐 대부분이 묶음 경계).
        */
       const at = k < c.from ? c.from : k > c.to ? c.to : k;
-      const target = add(scale(out[k][An], 1 - w), scale(frames[at][An], w));
+      const hipK = out[k][Hp];
+      const legK = norm(sub(out[k][Kn], hipK)) + norm(sub(out[k][An], out[k][Kn]));
+      const target = reachCap(
+        hipK,
+        add(scale(out[k][An], 1 - w), scale(frames[at][An], w)),
+        Math.min(norm(sub(frames[k][An], frames[k][Hp])) + REACH_SLACK, legK * 0.999)
+      );
       const shift = sub(target, out[k][An]);
       out[k][Kn] = twoBoneIk(
         out[k][Hp],

@@ -2318,12 +2318,12 @@ function DetailMenu({
                      */
                     className={
                       group.title
-                        ? 'mt-3 grid grid-cols-[repeat(3,minmax(0,5.25rem))] justify-center gap-x-4 gap-y-3 desk:mt-2 desk:block desk:space-y-0.5 desk:border-t desk:border-line/70 desk:pt-2'
-                        : 'grid grid-cols-[repeat(3,minmax(0,5.25rem))] justify-center gap-x-4 gap-y-3 desk:block desk:space-y-0.5 desk:pt-0'
+                        ? 'mt-3 grid grid-cols-[repeat(3,minmax(0,5.25rem))] justify-center gap-x-4 gap-y-3 pad:grid-cols-[repeat(4,minmax(0,6.5rem))] pad:gap-x-6 pad:gap-y-5 desk:mt-2 desk:block desk:space-y-0.5 desk:border-t desk:border-line/70 desk:pt-2'
+                        : 'grid grid-cols-[repeat(3,minmax(0,5.25rem))] justify-center gap-x-4 gap-y-3 pad:grid-cols-[repeat(4,minmax(0,6.5rem))] pad:gap-x-6 pad:gap-y-5 desk:block desk:space-y-0.5 desk:pt-0'
                     }
                   >
                     {group.title && (
-                      <p className="col-span-3 -mb-1 px-1 text-[11px] font-semibold tracking-normal text-(--folder-fg)/60 desk:col-span-1 desk:mb-0 desk:px-3 desk:pb-1 desk:text-xs desk:text-ink/65">
+                      <p className="col-span-3 -mb-1 px-1 text-[11px] pad:col-span-4 pad:text-xs font-semibold tracking-normal text-(--folder-fg)/60 desk:col-span-1 desk:mb-0 desk:px-3 desk:pb-1 desk:text-xs desk:text-ink/65">
                         {group.title}
                       </p>
                     )}
@@ -2401,7 +2401,7 @@ function DetailMenu({
                             />
                           </span>
                           <span
-                            className={`min-w-0 max-w-full truncate text-[12px] leading-4 text-(--folder-fg)/92 desk:text-sm desk:leading-5 desk:text-inherit ${active ? 'font-semibold' : 'font-medium'} ${dim ? 'opacity-55' : ''}`}
+                            className={`min-w-0 max-w-full truncate text-[12px] leading-4 pad:text-footnote pad:leading-5 text-(--folder-fg)/92 desk:text-sm desk:leading-5 desk:text-inherit ${active ? 'font-semibold' : 'font-medium'} ${dim ? 'opacity-55' : ''}`}
                           >
                             {item.label}
                           </span>
@@ -2411,7 +2411,7 @@ function DetailMenu({
                   </div>
                 ))}
               {/* 설정 — 위 막대의 톱니가 폴더로 들어왔다(휴대폰만, 2026-10-14 사용자 "홈 우상단엔 알림만"). 창이라 링크가 아니라 단추 */}
-              <div className="mt-3 grid grid-cols-[repeat(3,minmax(0,5.25rem))] justify-center gap-x-4 gap-y-3 desk:hidden">
+              <div className="mt-3 grid grid-cols-[repeat(3,minmax(0,5.25rem))] justify-center gap-x-4 gap-y-3 pad:grid-cols-[repeat(4,minmax(0,6.5rem))] pad:gap-x-6 pad:gap-y-5 desk:hidden">
                 <button
                   type="button"
                   aria-haspopup="dialog"
@@ -2429,7 +2429,7 @@ function DetailMenu({
                     size="var(--tile)"
                     className="tile-icon"
                   />
-                  <span className="min-w-0 max-w-full truncate text-[12px] leading-4 font-medium text-(--folder-fg)/92">
+                  <span className="min-w-0 max-w-full truncate text-[12px] leading-4 pad:text-footnote pad:leading-5 font-medium text-(--folder-fg)/92">
                     설정
                   </span>
                 </button>
@@ -2924,6 +2924,8 @@ function MobileTabs({
       /* 본문이 바뀌는 동안 탭바는 움직이지 않는다. */
       style={{ viewTransitionName: 'shell-tabbar' }}
       data-mobile-tabs
+      /* 탭 막대를 누른 손가락은 당겨서 새로고침이 아니다 — 패드의 세로 막대는 렌즈를 위아래로 끄는데 그게 새로고침으로 잡혔다 */
+      data-no-ptr
       /*
        * 패드(아이패드 · 큰 태블릿 — globals.css 의 pad)에서는 같은 탭이 왼쪽 세로 막대가 된다(2026-10-12 사용자 "아이패드
        * 전용 인터페이스"). 넓은 화면 바닥 한가운데의 알약은 엄지가 멀고, 아이패드 앱은 탭을 왼쪽 막대에 둔다. 폭(--rail)은

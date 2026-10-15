@@ -175,7 +175,7 @@ export function PullToRefresh() {
     <div
       aria-hidden
       data-ptr-spinner
-      className="pointer-events-none fixed left-1/2 z-30 desk:hidden"
+      className="pointer-events-none fixed left-1/2 z-30 desk:hidden pad:ml-[calc(var(--rail)/2)]"
     >
       <Spinner />
     </div>

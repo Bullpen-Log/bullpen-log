@@ -2584,10 +2584,52 @@ dialog[open]::backdrop {
  */
 @media (min-width: 46.5rem) and (min-height: 37.5rem) and (pointer: coarse) {
   dialog[data-sheet],
-  dialog[data-gate],
-  dialog[data-drawer] {
+  dialog[data-gate] {
     width: min(40rem, 100%);
     margin-inline: auto;
+  }
+  /*
+   * 패드의 더보기 · 설정 · 내 정보 폴더(위 '휴대폰의 더보기' 규칙) — 휴대폰 값을 그대로 늘려 쓰면 부자연스러웠다(2026-10-15 김민):
+   * 흐린 막이 가운데 640px 띠만 덮고(더보기 dialog 가 시트 규칙을 탔다), 폴더는 하단 탭이 없는데 바닥을 비우고, 오른쪽 아래(휴대폰 '더보기' 자리)에서
+   * 부풀었다. 막은 화면 전체, 폴더는 왼쪽 탭 막대를 뺀 자리 가운데에서 탭 막대 쪽(왼쪽)으로부터 뜨고, 타일은 크게(64px · 한 줄에 넷 — app-shell).
+   */
+  dialog[data-drawer],
+  dialog[data-look='folder'] {
+    width: 100%;
+    margin: 0;
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) var(--rail);
+  }
+  dialog[data-drawer] [data-folder],
+  dialog[data-look='folder'] [data-folder] {
+    transform-origin: 0% 45%;
+  }
+  dialog[data-drawer] [data-folder] {
+    /*
+     * 64px, 화면이 낮으면(가로로 눕힌 아이패드 834px · 미니 744px) 굴리지 않고 한 장에 들게 줄인다 — 관리자 폴더(줄 다섯)가 64px 에서 약 716px,
+     * 폴더 높이 한도는 화면 − 124px(app-shell max-h). 타일 1px 마다 줄 다섯이라 5px.
+     */
+    --tile: clamp(44px, calc((100dvh - 32.5rem) / 5), 64px);
+    max-width: 34rem;
+    padding: 32px 32px 28px;
+    border-radius: 44px;
+  }
+  dialog[data-look='folder'] [data-folder] {
+    max-width: 30rem;
+  }
+}
+/*
+ * 패드의 고르는 칩 줄(.chip-grid[data-cols] — 아래 휴대폰 규칙) — 칸 수를 고정한 줄이 넓은 카드 끝까지 늘면 칩 하나가 240~480px 이었다
+ * (2026-10-15). 칸 수는 그대로 두고 줄 폭에 한도를 둔다. 칸 수를 안 정한 줄(auto-fill)은 넓어지면 칸이 늘어 그대로 둔다.
+ */
+@media (min-width: 46.5rem) and (min-height: 37.5rem) and (pointer: coarse) {
+  .chip-grid[data-cols='2'] {
+    max-width: 24rem;
+  }
+  .chip-grid[data-cols='3'] {
+    max-width: 33rem;
+  }
+  .chip-grid[data-cols='4'] {
+    max-width: 40rem;
   }
 }
 
@@ -3333,6 +3375,12 @@ html[data-app='native'] body:not(:has([data-safe-area]))::before {
   animation: popup-loading 900ms ease-in-out infinite;
   pointer-events: none;
 }
+/* 패드는 왼쪽 탭 막대 위를 가로지르지 않게 본문 쪽에서만 */
+@media (min-width: 46.5rem) and (min-height: 37.5rem) and (pointer: coarse) {
+  .popup-slot:has(> [aria-busy])::before {
+    left: var(--rail);
+  }
+}
 @keyframes popup-loading {
   from {
     background-position: -40% 0;
@@ -3510,8 +3558,8 @@ html:has(dialog:modal) {
 }
 
 /* 손가락 화면에서 글자를 치는 동안 하단 탭을 숨긴다 — 아이폰은 자판이 올라와도 화면 높이가 그대로라
-   탭이 자판 위 · 화면 가운데에 떠서 입력칸을 가렸다 */
-@media (pointer: coarse) {
+   탭이 자판 위 · 화면 가운데에 떠서 입력칸을 가렸다. 패드(왼쪽 세로 막대)는 빼다 — 막대가 사라지면 본문 왼쪽에 빈 띠만 남았다(2026-10-15) */
+@media (pointer: coarse) and (max-width: 46.49rem), (pointer: coarse) and (max-height: 37.49rem) {
   html:has(
       :is(
         input:not(
@@ -3716,6 +3764,8 @@ html[data-dualcam] [data-finder] > video {
   html[data-pager='tabs'] main {
     padding: 0;
     max-width: none;
+    /* 옆 탭 판이 본문 밖으로 비치지 않게 — 패드는 본문이 왼쪽 탭 막대(--rail)만큼 비켜 있어 왼쪽 판이 막대 밑으로 보였다(2026-10-15) */
+    overflow-x: clip;
   }
   html[data-pager='tabs'] [data-bar-spacer],
   html[data-pager='tabs'] [data-tab-gap],

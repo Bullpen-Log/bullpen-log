@@ -15,7 +15,8 @@ export function ShootUndoToast({
   toast,
   onUndo,
   onClose,
-  className = 'bottom-[calc(var(--tab-bar-top)+0.5rem)] desk:bottom-6',
+  /* 기본은 앱 틀 안(주차 화면) — 패드는 왼쪽 탭 막대만큼 비켜 본문 가운데에 */
+  className = 'bottom-[calc(var(--tab-bar-top)+0.5rem)] desk:bottom-6 pad:left-(--rail)',
   style,
 }: {
   toast: UndoToast | null;

@@ -1,4 +1,4 @@
-import { add, type Vec3 } from '@/lib/pitch-3d/linalg';
+import { add, norm, scale, sub, type Vec3 } from '@/lib/pitch-3d/linalg';
 import { V2J, type Pitch3dV2Ok, type V2Contact } from '@/lib/pitch-3d/v2/contract';
 import {
   kinematicTrack,
@@ -307,13 +307,27 @@ export function pinLeadEarly(
   for (let k = fp; k < c.from; k++) seen.push(Math.max(...foot.map((j) => conf[k]?.[j] ?? 0)));
   if (!seen.length || median(seen) >= LEAD_HIDDEN_CONF) return { raw, contacts };
   const out = raw.map((fr) => fr.slice());
-  for (let k = fp; k < c.from; k++) for (const j of foot) out[k][j] = [...raw[c.from][j]] as Vec3;
+  /*
+   * 묶일 자리가 그 장면 엉덩이에서 엔진 다리(엉덩이 → 발목 거리)보다 멀면 그쪽으로 닿는 만큼만 — 그대로 두면 화면이 정강이를 늘려 발을 닿게 해
+   * 무릎이 펴졌다(2026-10-15 김민 "샘플 4 왼무릎이 이상": 착지 무렵 정강이 250 → 317mm, 엔진 무릎 24~34° 가 화면 2~6°). 엉덩이가 나아가며 발이 자리에 닿는다.
+   */
+  const [an] = foot;
+  const hip = lead === 'L' ? V2J.lHip : V2J.rHip;
+  for (let k = fp; k < c.from; k++) {
+    const reach = norm(sub(raw[k][an], raw[k][hip])) + REACH_SLACK;
+    const to = sub(raw[c.from][an], raw[k][hip]);
+    const d = norm(to);
+    const shift: Vec3 = d > reach ? scale(to, reach / d - 1) : [0, 0, 0];
+    for (const j of foot) out[k][j] = add(raw[c.from][j], shift);
+  }
   const cs = contacts.slice();
   cs[i] = { ...c, from: fp };
   return { raw: out, contacts: cs };
 }
 /** 이 확신(0~100) 밑이면 메워 넣은 앞발로 본다 — 엔진이 관찰 없이 채운 관절은 30 */
 const LEAD_HIDDEN_CONF = 40;
+/** 다리를 엔진의 엉덩이 → 발목 거리보다 더 펴도 되는 몫(키 1 기준, 0.5%) */
+const REACH_SLACK = 0.005;
 
 /**
  * 보기용 관절 — 결과 하나와 던진 곳(마운드 · 평지) · 키(m).
