@@ -52,8 +52,23 @@ const SLOP = 10;
  * (2026-10-15 김민 "스와이프를 해도 인식이 안 될 때가 있다").
  */
 const LOCK_RATIO = 1.2;
-/** 끝까지 미끄러지는 시간 */
+/** 끝까지 미끄러지는 시간 — 손을 멈췄다 뗐을 때(빠르게 튕기면 짧아진다, settleFor) */
 const SETTLE_MS = 220;
+
+/**
+ * 손 뗀 뒤의 미끄러짐 — 손가락 빠르기를 그대로 이어받는다(2026-10-15 사용자 "쓸기가 너무 딱딱하다"). 예전엔 얼마나 빠르게
+ * 튕기든 늘 같은 시간 · 같은 곡선이라, 빠른 튕김은 손을 떼는 순간 느려지고 느린 끌기는 갑자기 빨라져 뚝 끊겨 보였다.
+ * 곡선 cubic-bezier(0.2, y1, 0.35, 1)의 처음 기울기는 y1/0.2 — 그 기울기 × 남은 거리 ÷ 시간이 손 뗀 빠르기와 같게 y1 을 고른다.
+ * 시간은 그 빠르기로 남은 거리를 2.2배 걸려 가는 만큼(빨리 튕길수록 짧게), 150~320ms 안.
+ */
+function settleFor(dist: number, speed: number) {
+  const d = Math.max(1, Math.abs(dist));
+  const v = Math.max(0, speed);
+  const ms =
+    v > 0.05 ? Math.round(Math.min(320, Math.max(150, (2.2 * d) / v))) : SETTLE_MS;
+  const y1 = Math.min(1, (0.2 * v * ms) / d);
+  return { ms, ease: `transform ${ms}ms cubic-bezier(0.2, ${y1.toFixed(3)}, 0.35, 1)` };
+}
 /** 놓은 뒤 새 화면을 이만큼 기다리고도 안 오면 자리표시를 끝까지 밀어 둔다(구속 측정 — zoom 전환만) */
 const WAIT_MS = 350;
 /** 탭을 연 뒤 이만큼 지나서 본문을 사본으로 떠 둔다 — 늦게 오는 조각(Suspense)까지 담기게 */
@@ -147,6 +162,8 @@ export function TabSwipe({
   const mainTimer = useRef(0);
   /* 넘어가는 쪽(1 = 다음 탭, −1 = 앞 탭) — 새 화면을 어디서 이어 들어오게 할지 */
   const slideDir = useRef<1 | -1>(1);
+  /* 손 뗀 뒤 미끄러짐이 끝나는 때(performance.now) — 미는 중에 새 화면이 오면 남은 시간만 이어 간다 */
+  const slideEnd = useRef(0);
   /* 제자리로 돌아가는 움직임이 끝난 뒤 정리 — 그 사이 다시 끌면 걷는다(예전엔 끄는 중에 자리표시가 사라져 옆이 비었다) */
   const settleTimer = useRef(0);
   /* 지금 밀린 거리 — 자리표시가 한 장면 늦게 생겨도 그 자리에서 시작하게 */
@@ -247,8 +264,9 @@ export function TabSwipe({
     void main.offsetWidth;
     window.clearTimeout(mainTimer.current);
     if (sliding) {
-      const ms = Math.max(120, Math.round((SETTLE_MS * Math.abs(from)) / window.innerWidth));
-      main.style.transition = `transform ${ms}ms cubic-bezier(0.32, 0.72, 0, 1)`;
+      /* 남은 시간 동안 — 자리표시가 가던 대로 끝나게(손 뗄 때 정한 끝 시각까지), 짧아도 0.1초 */
+      const ms = Math.round(Math.min(320, Math.max(100, slideEnd.current - performance.now())));
+      main.style.transition = `transform ${ms}ms cubic-bezier(0.25, 0.6, 0.35, 1)`;
       main.style.transform = '';
       mainTimer.current = window.setTimeout(() => {
         main.style.transition = '';
@@ -482,6 +500,8 @@ export function TabSwipe({
       const ease = `transform ${SETTLE_MS}ms cubic-bezier(0.32, 0.72, 0, 1)`;
       const g = ghostEl.current;
       if (n && far && e.type !== 'touchcancel') {
+        /* 넘어가는 쪽으로의 빠르기를 이어받아 끝까지 */
+        const go = settleFor(d.w - Math.abs(d.dx), Math.sign(v) === Math.sign(d.dx) ? Math.abs(v) : 0);
         haptic('selection');
         const href = n.item.href;
         target.current = href;
@@ -523,22 +543,25 @@ export function TabSwipe({
          * 곧바로 끝까지 밀고(GPU) 새 화면도 곧바로 부른다. 예전엔 다 밀린 뒤(0.26초) 불러 그만큼 늦게 떴다(2026-10-15 "로딩이 느리다").
          * 미는 중에 새 화면이 오면 위 useLayoutEffect 가 자리표시 자리에서 이어 들어오게 한다.
          */
-        main.style.transition = ease;
-        if (g) g.style.transition = ease;
+        main.style.transition = go.ease;
+        if (g) g.style.transition = go.ease;
         setX(-d.dir * d.w);
         slideDir.current = d.dir === 1 ? 1 : -1;
+        slideEnd.current = performance.now() + go.ms;
         router.push(href, { transitionTypes: TAB_SWIPE_TYPES });
         return;
       }
-      main.style.transition = ease;
-      if (g) g.style.transition = ease;
+      /* 제자리로 — 되돌리는 쪽으로의 빠르기를 이어받는다 */
+      const home = settleFor(d.dx, Math.sign(v) === -Math.sign(d.dx) ? Math.abs(v) : 0);
+      main.style.transition = home.ease;
+      if (g) g.style.transition = home.ease;
       setX(0);
       window.clearTimeout(settleTimer.current);
       settleTimer.current = window.setTimeout(() => {
         main.style.transition = '';
         main.style.willChange = '';
         setGhost(null);
-      }, SETTLE_MS);
+      }, home.ms);
     };
 
     /* 본문(main)에만 단다 — 막는 듣기(touchmove)가 본문 밖(하단 탭 · 창)의 스크롤을 기다리게 하지 않게 */
