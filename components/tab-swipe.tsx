@@ -45,8 +45,11 @@ const SNAP_RATIO = 0.25;
 const FLICK_SPEED = 0.45;
 /** 이보다 움직여야 쓸기 — 그 전엔 누름 */
 const SLOP = 12;
-/** 옆으로가 세로보다 이만큼 커야 쓸기(약 35° 안) — 비스듬한 스크롤이 화면을 옆으로 끌던 것 */
-const LOCK_RATIO = 1.4;
+/**
+ * 옆으로가 세로보다 이만큼 커야 쓸기(약 40° 안). 1.4(35°)로 했더니 엄지로 둥글게 쓴 것이 자주 세로로 읽혀 안 넘어갔다
+ * (2026-10-15 김민 "스와이프를 해도 인식이 안 될 때가 있다").
+ */
+const LOCK_RATIO = 1.2;
 /** 끝까지 미끄러지는 시간 */
 const SETTLE_MS = 260;
 /** 놓은 뒤 새 화면을 이만큼 기다리고도 안 오면 자리표시를 끝까지 밀어 둔다(구속 측정 — zoom 전환만) */
@@ -116,6 +119,8 @@ export function TabSwipe({
     on: boolean;
     dx: number;
     dir: 0 | 1 | -1;
+    /* 손가락 밑 부품이 먼저 받는 쪽(그쪽으로 밀면 양보) */
+    claim: 'left' | 'right' | null;
   } | null>(null);
   const target = useRef<string | null>(null);
   const waitTimer = useRef(0);
@@ -240,17 +245,24 @@ export function TabSwipe({
       return null;
     };
 
-    const blocked = (el: Element | null) => {
+    /*
+     * 손가락 밑에서 누가 옆으로 미는 것을 먼저 받나 — 'all' 이면 쓸기를 안 받고, 'left' · 'right' 면 그쪽으로 미는 것만 양보한다
+     * (data-swipe-claim — 밀어서 지우기 줄은 닫혀 있으면 왼쪽으로 미는 것만 쓴다. 예전엔 줄 위에서 시작하면 어느 쪽이든 막혀,
+     * 운동 목록이 화면을 채운 트레이닝 탭에서 쓸기가 자주 안 먹었다). 가장 가까운 것이 이긴다.
+     */
+    const ownerOf = (el: Element | null): 'all' | 'left' | 'right' | null => {
       /* 창 · 시트 안(본문 DOM 안에 있어도 위에 떠 있다) */
-      if (el?.closest('dialog, [data-sheet], [data-gate]')) return true;
+      if (el?.closest('dialog, [data-sheet], [data-gate]')) return 'all';
       for (let e = el; e && e !== main; e = e.parentElement) {
-        if (e.hasAttribute('data-no-swipe')) return true;
+        if (e.hasAttribute('data-no-swipe')) return 'all';
+        const claim = e.getAttribute('data-swipe-claim');
+        if (claim === 'left' || claim === 'right' || claim === 'all') return claim;
         /*
          * 손가락을 스스로 받는 부품 — touch-action 을 따로 둔 것(그래프 훑기 · 밀어서 지우기 · 3D 돌리기 · 영상 편집 등은 모두
          * touch-pan-y 또는 touch-none). 예전엔 그 위에서 옆으로 밀면 부품과 본문이 같이 움직여 탭이 넘어갔다. 클래스 · 인라인 스타일로
          * 가린다 — 누를 때마다 조상마다 getComputedStyle 을 부르면 스타일을 강제로 다시 셈했다.
          */
-        if (e.matches(TOUCH_OWNER)) return true;
+        if (e.matches(TOUCH_OWNER)) return 'all';
         const tag = e.tagName;
         if (
           tag === 'INPUT' ||
@@ -258,13 +270,13 @@ export function TabSwipe({
           tag === 'SELECT' ||
           e.getAttribute('role') === 'slider'
         )
-          return true;
+          return 'all';
         if (e.scrollWidth > e.clientWidth + 1) {
           const ov = getComputedStyle(e).overflowX;
-          if (ov === 'auto' || ov === 'scroll') return true;
+          if (ov === 'auto' || ov === 'scroll') return 'all';
         }
       }
-      return false;
+      return null;
     };
 
     /* 본문 · 자리표시만 옮긴다 — <html> 은 안 건드린다(문서 전체 스타일을 다시 셈하게 된다) */
@@ -276,6 +288,20 @@ export function TabSwipe({
     };
 
     const onDown = (e: PointerEvent) => {
+      /*
+       * 묵은 끌기 — 손가락 뗌(pointerup · pointercancel)을 놓치면(다른 부품이 포인터를 붙잡았다 놓는 등) 끄는 중 상태가 남아 그 뒤
+       * 쓸기가 계속 안 먹었다. 새 손가락이 닿았는데 아직 쓸기로 정해지지 않았거나 3초 넘게 지난 끌기는 끝난 것으로 본다.
+       */
+      const old = drag.current;
+      if (old && (!old.on || e.timeStamp - old.t > 3000)) {
+        drag.current = null;
+        if (old.on) {
+          main.style.transition = '';
+          main.style.willChange = '';
+          setX(0);
+          setGhost(null);
+        }
+      }
       if (target.current || drag.current) return;
       if (e.pointerType === 'mouse' || window.matchMedia(DESK_MEDIA).matches) return;
       const i = indexOf(latest.current.pathname);
@@ -285,13 +311,11 @@ export function TabSwipe({
       if (document.documentElement.dataset.ptr) return;
       /* 탭의 첫 화면에서만 — 트레이닝 하위 화면(메커니즘 · 암케어, '‹ 뒤로'가 있음)도 주소는 /training 이라 걸렸다 */
       if (barSnapshot().back) return;
-      if (
-        !(e.target instanceof Element) ||
-        !main.contains(e.target) ||
-        blocked(e.target)
-      )
-        return;
+      if (!(e.target instanceof Element) || !main.contains(e.target)) return;
+      const claim = ownerOf(e.target);
+      if (claim === 'all') return;
       drag.current = {
+        claim,
         id: e.pointerId,
         x: e.clientX,
         y: e.clientY,
@@ -309,7 +333,7 @@ export function TabSwipe({
       const dy = e.clientY - d.y;
       if (!d.on) {
         if (Math.abs(dx) < SLOP && Math.abs(dy) < SLOP) return;
-        if (Math.abs(dx) < Math.abs(dy) * LOCK_RATIO) {
+        if (Math.abs(dx) < Math.abs(dy) * LOCK_RATIO || d.claim === (dx < 0 ? 'left' : 'right')) {
           drag.current = null;
           return;
         }
