@@ -60,16 +60,24 @@ export function StepShell({
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pb-4 pt-2 short:pt-1">
-        <StepBar step={step} total={total} />
-        <h2 className="mt-5 text-2xl font-bold leading-tight text-ink short:mt-3 short:text-xl">
+        {/* 진행 띠 + 'n/전체' — 체크인 흐름의 머리와 같은 줄(components/checkin-flow/flow.tsx) */}
+        <div className="flex items-center gap-3">
+          <div className="min-w-0 flex-1">
+            <StepBar step={step} total={total} />
+          </div>
+          <span className="shrink-0 text-xs tabular-nums text-muted" aria-hidden>
+            {step}/{total}
+          </span>
+        </div>
+        <h2 className="text-heading mt-6 text-2xl leading-tight text-ink short:mt-3 short:text-xl">
           {title}
         </h2>
         {subtitle && (
-          <p className="mt-1.5 text-sm leading-relaxed text-muted short:mt-1 short:leading-snug">
+          <p className="mt-1.5 text-subhead leading-snug text-muted short:mt-1">
             {subtitle}
           </p>
         )}
-        <div className="mt-5 short:mt-3">{children}</div>
+        <div className="mt-6 short:mt-3">{children}</div>
       </div>
       {/* 아래 막대 — 체크인 흐름과 같이 테두리 없이 맨바탕 위에 */}
       <div className="flex shrink-0 items-center gap-2 px-5 pb-[max(1rem,env(safe-area-inset-bottom))] pt-2">

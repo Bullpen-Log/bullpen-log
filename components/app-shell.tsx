@@ -26,7 +26,8 @@ import {
   subscribeBar,
 } from '@/lib/nav-state';
 import { NAV_ICONS, NAV_TINT } from '@/components/nav-icons';
-import { TabSwipe, slideToTab } from '@/components/tab-swipe';
+import { slideToTab } from '@/components/tab-pager';
+import { onAnyScroll, scrollToTop, scrollTopNow } from '@/lib/scroller';
 import { AppIcon } from '@/components/app-icon';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { quietRefresh } from '@/lib/quiet-refresh';
@@ -42,6 +43,7 @@ import { CLOSE_SETTINGS_EVENT } from '@/components/settings-info';
 import { CheckinFlow } from '@/components/checkin-flow/flow';
 import type { CheckinFlowContext } from '@/components/checkin-flow/types';
 import { haptic } from '@/lib/haptics';
+import type { NavDirection } from '@/lib/nav-state';
 import {
   NoticeBellButton,
   NoticePanel,
@@ -1179,7 +1181,11 @@ export function AppNav({
         와서, 굴리면 카드 · 글이 로고 '불펜로그' 글자 밑으로 지나가며 겹쳤다(휴대폰 위 막대와 같은 문제 — 사용자 "다른 곳도 봐줘").
         globals.css 'desk-veil'. 로고 · 줄(z-40)보다 밑, 본문보다 위.
       */}
-      <div aria-hidden data-desk-veil className="pointer-events-none fixed inset-x-0 top-0 z-39 hidden desk:block" />
+      <div
+        aria-hidden
+        data-desk-veil
+        className="pointer-events-none fixed inset-x-0 top-0 z-39 hidden desk:block"
+      />
       <Link
         href="/today"
         /*
@@ -1405,14 +1411,6 @@ export function AppNav({
       </Modal>
 
       <MobileTabs tabs={tabs} menuOpen={open} onMenu={() => go('sheet')} />
-      {/* 휴대폰 탭 쓸기 — 본문을 옆으로 끌면 이웃 탭으로(components/tab-swipe.tsx) */}
-      <TabSwipe
-        tabs={tabs}
-        camera={
-          /* 잠긴 사람(투구 첫 설정 전)은 설정 화면 주소라 구속 측정 전환(zoom)을 걸면 안 된다 */
-          groups.flatMap((g) => g.items).find((i) => i.icon === 'radar' && !i.locked) ?? null
-        }
-      />
 
       <DetailMenu
         groups={groups}
@@ -2539,9 +2537,12 @@ function MobileTopBar({
    * 기록 · 트레이닝 · 영양 탭 첫 화면은 막대를 안 그린다(같은 날 김민: "앱 이름 · 프로필 설정 줄은 홈에만") — 그 탭의 큰 제목이 맨 위.
    * 하위 화면('‹ 뒤로'가 있는 곳)은 그대로. 시계 자리 칠과 그만큼의 빈칸은 남긴다.
    */
-  const bare = !back && ['/videos', '/nutrition', '/training'].includes(pathname);
+  /*
+   * 2026-10-15 판 넘기기(components/tab-pager.tsx): 막대는 네 탭 모두에 — 예전엔 투구 · 트레이닝 · 영양에서 막대를 안 그려(bare)
+   * 탭마다 제목 높이가 달랐다(사용자 "각 탭의 메인 제목 높이가 안 맞는다"). 가운데는 홈이면 로고, 아니면 작은 제목.
+   */
   /* 숨기기는 첫 화면들만 — '‹ 뒤로'가 있는 화면은 돌아갈 길을 늘 보인다. 알림 창이 열려 있으면 안 숨긴다 */
-  const hidden = useBarHidden(!back && !bare && panel == null);
+  const hidden = useBarHidden(!back && panel == null);
 
   return (
     <>
@@ -2565,7 +2566,7 @@ function MobileTopBar({
       <div
         aria-hidden
         data-top-veil
-        data-short={bare || hidden ? '' : undefined}
+        data-short={hidden ? '' : undefined}
         className="pointer-events-none fixed inset-x-0 top-0 z-39 desk:hidden pad:left-(--rail)"
       >
         {/* 흐림 세 겹 — 위로 갈수록 겹이 늘어 점점 흐려진다(globals.css 'top-veil' — 한 선을 넘는 순간 확 흐려지지 않게) */}
@@ -2578,12 +2579,13 @@ function MobileTopBar({
         aria-hidden
         className="pointer-events-none fixed inset-x-0 top-0 h-[env(safe-area-inset-top)] desk:hidden pad:left-(--rail)"
       />
-      {/* 막대는 화면에 붙어(fixed) 있으니 그만큼 비운다 — 시계 자리 + 막대(bare 면 시계 자리만) */}
+      {/* 막대는 화면에 붙어(fixed) 있으니 그만큼 비운다 — 시계 자리 + 막대. 판 넘기기(tabs)에서는 판이 스스로 비워 이건 숨는다 */}
       <div
         aria-hidden
-        className={`shrink-0 desk:hidden ${bare ? 'h-[env(safe-area-inset-top)]' : 'h-[calc(env(safe-area-inset-top)+3.5rem)]'}`}
+        data-bar-spacer
+        className="h-[calc(env(safe-area-inset-top)+3.5rem)] shrink-0 desk:hidden"
       />
-      {!bare && (
+      {
         <header
           /*
            * 아이폰 앱의 내비게이션 막대(2026-10-04 '앱 틀을 네이티브처럼') — 왼쪽 '‹ 뒤로', 가운데 화면 제목(큰 제목이 가려졌을
@@ -2644,7 +2646,7 @@ function MobileTopBar({
             {panel}
           </div>
         </header>
-      )}
+      }
     </>
   );
 }
@@ -2659,10 +2661,11 @@ function useBarHidden(enabled: boolean) {
   useEffect(() => {
     if (!enabled) return;
     let frame = 0;
-    let last = window.scrollY;
+    /* 창이 아니라 판이 굴러갈 수도 있다(판 넘기기, lib/scroller.ts) — 어느 쪽이든 같은 길 */
+    let last = scrollTopNow();
     const read = () => {
       frame = 0;
-      const y = window.scrollY;
+      const y = scrollTopNow();
       const dy = y - last;
       last = y;
       if (y < 8) setHidden(false);
@@ -2672,9 +2675,9 @@ function useBarHidden(enabled: boolean) {
     const onScroll = () => {
       if (!frame) frame = requestAnimationFrame(read);
     };
-    window.addEventListener('scroll', onScroll, { passive: true });
+    const off = onAnyScroll(onScroll);
     return () => {
-      window.removeEventListener('scroll', onScroll);
+      off();
       cancelAnimationFrame(frame);
     };
   }, [enabled]);
@@ -2687,7 +2690,7 @@ function useBarHidden(enabled: boolean) {
  *
  * 누르면 렌즈(유리 캡슐, components/tab-lens.ts)가 곧바로 이 칸으로 미끄러져 와 누른 곳이 먼저 대답한다. 이름도 그 순간
  * 굵어진다 — 렌즈가 설 칸(selected)을 따르고 화면(주소)을 기다리지 않는다. 예전에는 링크의 pending(useLinkStatus)을 봤는데,
- * 탭을 누르면 본문을 밀며 링크 대신 직접 push 해서(tab-swipe.tsx slideToTab) pending 이 안 켜져 이름이 0.3초 뒤에야 굵어졌다
+ * 탭을 누르면 본문을 밀며 링크 대신 직접 push 해서(tab-pager.tsx slideToTab) pending 이 안 켜져 이름이 0.3초 뒤에야 굵어졌다
  * (2026-10-15 사용자 "선택되고 0.3초 뒤에 아이콘이 좀 움직여"). 2026-10-14 사용자가 고른 참고 영상(iOS 26 탭 막대)은 색 없이
  * 흰 아이콘 · 흰 글자에 캡슐만 움직인다.
  * pt-[2px] — 이름 글자의 아래 여백(줄 높이) 때문에 아이콘 + 이름이 렌즈 가운데보다 0.7px 위에 보였다. 화면은 1px 단위로
@@ -2771,14 +2774,15 @@ function MobileTabs({
    * 지금 탭을 모르면(하위 화면이 아닌 다른 곳) 예전처럼 옅어지기.
    */
   const activeIndex = activeHref ? tabs.findIndex((t) => t.href === activeHref) : -1;
-  const slideTo = (i: number) =>
-    activeIndex < 0 || i === activeIndex ? undefined : i > activeIndex ? 'swipe-next' : 'swipe-prev';
+  /* 판 넘기기(components/tab-pager.tsx)가 못 받는 곳(하위 화면)에서 탭을 누르면 — 옆으로 나란한 곳이라 옅어지며 바뀐다 */
+  const slideTo = (i: number): NavDirection | undefined =>
+    activeIndex < 0 || i === activeIndex ? undefined : 'fade';
   useEffect(() => {
     if (!chosen) return;
     const timer = window.setTimeout(() => setChosen(null), CHOSEN_TIMEOUT_MS);
     return () => window.clearTimeout(timer);
   }, [chosen]);
-  /* 본문 쓸기(components/tab-swipe.tsx)로 탭을 옮길 때도 누른 탭처럼 — 렌즈가 곧바로 그 칸으로 */
+  /* 본문 쓸기(components/tab-pager.tsx)로 탭을 옮길 때도 누른 탭처럼 — 렌즈가 곧바로 그 칸으로 */
   useEffect(() => {
     const onChosen = (e: Event) => {
       const href = (e as CustomEvent<unknown>).detail;
@@ -3045,7 +3049,7 @@ function MobileTabs({
                     /* 렌즈는 화면을 다시 그리기 전에 곧바로 — effect 를 기다리면 한두 장면 늦게 출발했다 */
                     lens.to(tabs.indexOf(tab));
                     setChosen({ href: tab.href, from: pathname });
-                    /* 탭 첫 화면이면 쓸기처럼 누르는 순간 본문이 밀리기 시작한다(components/tab-swipe.tsx slideToTab) — 링크는 안 따른다 */
+                    /* 탭 첫 화면이면 쓸기처럼 누르는 순간 본문이 밀리기 시작한다(components/tab-pager.tsx slideToTab) — 링크는 안 따른다 */
                     if (slideToTab(tab.href)) e.preventDefault();
                   }
                   return;
@@ -3054,7 +3058,7 @@ function MobileTabs({
                 const reduce = window.matchMedia(
                   '(prefers-reduced-motion: reduce)'
                 ).matches;
-                window.scrollTo({ top: 0, behavior: reduce ? 'auto' : 'smooth' });
+                scrollToTop(!reduce);
               }}
               /*
                * 휴대폰에서 가장 많이 눌리는 자리다. 눌렀을 때 살짝 작아져 먼저 대답한다(렌즈도 부푼다).

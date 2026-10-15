@@ -536,9 +536,15 @@ const CHROME_BTN_ON_PANEL = CHROME_BTN.replace('bg-black/45', 'bg-white/10').rep
 );
 const SIDE_BTN =
   'inline-flex h-12 w-12 items-center justify-center rounded-full border border-white/25 bg-white/10 text-white transition-colors active:bg-white/25 disabled:opacity-40';
-const SIDE_LABEL = 'mt-1 text-xs text-white/70';
+const SIDE_LABEL = 'mt-1 text-caption font-medium text-white/80';
 
 /** 녹화 시간 — 분:초(한 시간이 넘으면 시:분:초) */
+/** '2026-10-15' → '10월 15일' */
+const monthDay = (date: string) => {
+  const [, m, d] = date.split('-').map(Number);
+  return m && d ? `${m}월 ${d}일` : date;
+};
+
 const formatClock = (sec: number) => {
   const t = Math.max(0, Math.floor(sec));
   const h = Math.floor(t / 3600);
@@ -552,7 +558,7 @@ const STATUS_TEXT: Record<LiveStatus, string> = {
   starting: '카메라 켜는 중…',
   ready: '준비됨',
   settling: '가만히 · 배경 잡는 중',
-  armed: '던지세요',
+  armed: '던져요',
   capturing: '영상 담는 중…',
   analyzing: '구속 계산 중…',
 };
@@ -1544,8 +1550,8 @@ export function VelocityScreen({
       capture.arm();
       speak(
         autoMode
-          ? '측정을 시작해요. 던지세요'
-          : '측정을 시작해요. 공마다 단추를 누르세요'
+          ? '측정을 시작해요. 던져요'
+          : '측정을 시작해요. 공마다 단추를 눌러요'
       );
     });
   };
@@ -1943,7 +1949,7 @@ export function VelocityScreen({
     const c = stdCorrection(pitches, 'camera');
     let note: string | null = null;
     if (c && distTape && Math.abs(c.m / targetDistM - 1) > TAPE_WARN)
-      note = `줄자 ${targetDistM}m · 공 크기 ${c.m}m. 폰이나 미트 자리를 확인하세요`;
+      note = `줄자 ${targetDistM}m · 공 크기 ${c.m}m. 폰이나 미트 자리를 확인해 봐요`;
     else if (c?.apply && !distTape)
       note = `공 ${c.n}개의 공 크기로 세션 거리를 ${c.m}m 로 맞추고 앞 공도 다시 셌어요`;
     if (note && note !== corrNoteRef.current) {
@@ -2659,7 +2665,7 @@ export function VelocityScreen({
           step={1}
           total={5}
           title="어떤 투구인가요?"
-          subtitle="투구 기록에 이 종류로 남아요. 나중에 돌아볼 때 무엇을 하다 던졌는지 갈려요."
+          subtitle="투구 기록에 이 종류로 남아요."
           footer={
             <PrimaryButton onClick={() => setStep('camera')}>
               다음
@@ -2679,8 +2685,8 @@ export function VelocityScreen({
         <StepShell
           step={2}
           total={5}
-          title="폰을 어디에 둘까요?"
-          subtitle="공이 날아가는 길과 그물까지 거리로 구속을 재요. 뒤에서 정면으로 보게 두는 두 자리 중 하나예요."
+          title="폰은 투수 바로 뒤에 둬요"
+          subtitle="삼각대에 세워 공이 날아가는 길을 뒤에서 봐요."
           footer={
             <>
               {/* 체크인 흐름처럼 [이전][다음] */}
@@ -2713,12 +2719,7 @@ export function VelocityScreen({
             {choices.cameraPos === 'behind-pitcher' && !isAdmin ? (
               <div className="space-y-3">
                 {/* 기준 20m 로 재고 세션마다 공 크기로 맞춘다(2.4.0). 줄자로 쟀으면 그 값이 이긴다 */}
-                <p className="px-0.5 text-sm leading-relaxed text-muted">
-                  폰에서 포수 미트까지 {STANDARD_TARGET_DIST_M}m로 재요(정식 마운드에서
-                  포수가 조금 뒤에서 받고, 폰을 투수 1m 뒤에 둔 거리). 실제 거리는 공
-                  크기로 세션마다 맞춰요. 줄자나 레이저로 쟀으면 그 값을 넣어요 — 그게
-                  가장 정확해요.
-                </p>
+                <SectionLabel>폰에서 포수 미트까지</SectionLabel>
                 <Segmented
                   label="폰에서 미트까지"
                   value={distTape ? 'tape' : 'standard'}
@@ -2730,6 +2731,12 @@ export function VelocityScreen({
                   options={TAPE_MODES}
                   size="md"
                 />
+                {!distTape && (
+                  <p className="px-0.5 text-footnote leading-snug text-muted">
+                    {STANDARD_TARGET_DIST_M}m로 재고 세션마다 공 크기로 맞춰요. 줄자로 쟀으면 그
+                    값이 가장 정확해요.
+                  </p>
+                )}
                 {distTape && (
                   <DistanceField
                     label="줄자로 잰 거리"
@@ -2798,7 +2805,7 @@ export function VelocityScreen({
           step={3}
           total={5}
           title="카메라 앞에 네트가 있나요?"
-          subtitle="그물이 있으면 초점을 고정해요. 자동초점은 눈앞의 그물코에 초점을 맞춰 공이 흐려져요."
+          subtitle="그물이 있으면 초점을 고정해야 공이 선명해요."
           footer={
             <>
               <PrimaryButton tone="quiet" onClick={() => setStep('camera')}>
@@ -2885,7 +2892,7 @@ export function VelocityScreen({
                             ? ` · ${pitchTypeLabel(lastPitch.pitchType)}`
                             : ''}
                         </p>
-                        <p className="text-display mt-1 text-7xl leading-none tabular-nums">
+                        <p className="text-numeric mt-1 text-7xl leading-none">
                           {speedNum(shown(lastPitch.rawKmh))}
                           <span className="ml-2 text-xl text-white/60">
                             {speedLabel(unit)}
@@ -2927,12 +2934,12 @@ export function VelocityScreen({
                     ) : (
                       <div className="py-6">
                         <p className="text-lg font-semibold">
-                          {status === 'armed' ? '던지세요' : STATUS_TEXT[status]}
+                          {STATUS_TEXT[status]}
                         </p>
                         <p className="mt-1 text-xs leading-relaxed text-white/60">
                           {autoMode
-                            ? '공마다 알아서 잡아요. 끝나면 아래 가운데 세션 종료.'
-                            : '아래 오른쪽 "다음 공"을 누르고 던지세요.'}
+                            ? '공마다 알아서 잡아요. 끝나면 아래 가운데 세션 종료를 눌러요.'
+                            : '아래 왼쪽 다음 공을 누르고 던져요.'}
                         </p>
                         {(fpsNote ?? cropNote) && (
                           <p className="mt-2 text-xs leading-snug text-warn-line">
@@ -3029,7 +3036,7 @@ export function VelocityScreen({
                       {step === 'align' && (
                         <p className="rounded-2xl bg-black/55 px-4 py-2.5 text-sm leading-snug text-white backdrop-blur motion-safe:animate-fade-in">
                           {withGa(targetText)} 가운데 표적에 오게 폰 높이와 방향을
-                          맞추세요.
+                          맞춰요.
                         </p>
                       )}
                       {step === 'align' && cameraOn && !levelOk && (
@@ -3100,7 +3107,7 @@ export function VelocityScreen({
                   <div className="bg-gradient-to-t from-black/85 via-black/55 to-transparent px-5 pb-5 pt-10 text-white">
                     {last.measure.ok ? (
                       <div className="motion-safe:animate-fade-in">
-                        <p className="text-display text-6xl leading-none tabular-nums">
+                        <p className="text-numeric text-6xl leading-none">
                           {speedNum(shown(last.measure.kmh))}
                           <span className="ml-2 text-lg text-white/70">
                             {speedLabel(unit)}
@@ -3155,7 +3162,7 @@ export function VelocityScreen({
               <h2 className="text-heading text-xl leading-tight">렌즈 보정</h2>
               <p className="mb-3 mt-1.5 text-sm leading-relaxed text-muted">
                 카메라 유리에서 공 앞면까지 줄자로 1m 를 재어 공을 두고, 화면의 원을
-                공에 대충 맞춘 뒤 &lsquo;재기&rsquo;를 누르세요. 초점거리를 직접 재면
+                공에 대충 맞춘 뒤 &lsquo;재기&rsquo;를 눌러요. 초점거리를 직접 재면
                 화각 가정의 오차(기종 · 크롭)가 사라져요.
               </p>
               {!cameraOn && (
@@ -3489,27 +3496,19 @@ export function VelocityScreen({
                       </>
                     )}
                   </div>
-                  <div className="flex flex-col items-center">
-                    <button
-                      type="button"
-                      onClick={step === 'align' ? goZone : goMeasure}
-                      disabled={!cameraOn}
-                      aria-label={
-                        step === 'align' ? '다음 · 스트라이크 존' : '완료 · 측정 화면'
-                      }
-                      className="group flex h-[4.75rem] w-[4.75rem] items-center justify-center rounded-full border-4 border-white/90 disabled:opacity-40"
-                    >
-                      <span className="flex h-16 w-16 items-center justify-center rounded-full bg-white text-black transition-transform group-active:scale-90">
-                        <span className="text-sm font-bold">
-                          {step === 'align' ? '다음' : '완료'}
-                        </span>
-                      </span>
-                    </button>
-                    <span className={SIDE_LABEL}>
-                      {step === 'align' ? '스트라이크 존으로' : '측정으로'}
-                    </span>
-                  </div>
-                  <div aria-hidden className="w-20" />
+                  {/*
+                    수평 · 존은 찍는 단계가 아니라 맞추는 단계라 셔터 대신 설정 단계와 같은 파란 단추(2026-10-15 "조잡해" —
+                    셔터 안에 '다음', 밑에 '스트라이크 존으로'가 겹쳐 적혀 있었다). 셔터는 측정에만 남긴다.
+                  */}
+                  <button
+                    type="button"
+                    onClick={step === 'align' ? goZone : goMeasure}
+                    disabled={!cameraOn}
+                    className="ml-2 inline-flex h-12 flex-1 items-center justify-center gap-1.5 rounded-2xl bg-sky text-lg font-bold text-white transition-[background-color,scale] hover:bg-sky-strong active:scale-[0.98] disabled:opacity-40"
+                  >
+                    {step === 'align' ? '다음' : '완료'}
+                    <ChevronRight aria-hidden className="h-5 w-5" />
+                  </button>
                 </>
               ) : !live && recOn ? (
                 /*
@@ -3618,9 +3617,7 @@ export function VelocityScreen({
                       <span className="flex h-16 w-16 items-center justify-center rounded-full bg-white text-black transition-transform group-active:scale-90">
                         {status === 'starting' ? (
                           <Loader2 aria-hidden className="h-6 w-6 animate-spin" />
-                        ) : cameraOn ? (
-                          <span className="text-sm font-bold">시작</span>
-                        ) : (
+                        ) : cameraOn ? null : (
                           <Camera aria-hidden className="h-6 w-6" />
                         )}
                       </span>
@@ -3824,10 +3821,9 @@ export function VelocityScreen({
       >
         {stats && (
           <div className="space-y-4">
-            <p className="text-sm text-muted">
-              {draftDate ?? today} · {stats.n}구 · 최고 {formatSpeed(stats.max, unit)} ·
-              평균 {formatSpeed(stats.avg, unit)}
-              {useCal && fit.n > 0 ? ` · 보정 ${calibrationText(fit)}` : ' · 보정 없음'}
+            <p className="text-subhead text-muted">
+              {monthDay(draftDate ?? today)} · {stats.n}구 · 최고{' '}
+              {formatSpeed(stats.max, unit)} · 평균 {formatSpeed(stats.avg, unit)}
             </p>
             <div>
               <p className="mb-1.5 text-sm font-semibold">종류</p>
@@ -3879,15 +3875,12 @@ export function VelocityScreen({
                   : '저장'}
             </button>
             {calibOn && (
-              <p className="text-xs leading-relaxed text-warn">
-                정확도 보정용 저장이 켜져 있어요 — 이 세션이 구속 측정 관리자에서 보정
-                자료로 표시돼요.
+              <p className="text-footnote leading-snug text-warn">
+                정확도 보정용 저장이 켜져 있어요. 구속 측정 관리자에서 보정 자료로 보여요.
               </p>
             )}
-            <p className="text-xs leading-relaxed text-muted">
-              투구 기록 한 건(투구수 {stats.n} · 최고 · 평균)과 공마다 한 줄이 남아요.
-              그날 화면에서 공마다 고치고 지울 수 있어요. 스피드건 값을 적은 공은 보정
-              자료로도 쓰여요.
+            <p className="text-footnote leading-snug text-muted">
+              공마다 고치고 지우는 건 그날 투구 기록에서 할 수 있어요.
             </p>
           </div>
         )}
@@ -3973,7 +3966,7 @@ export function VelocityScreen({
                       )}°`
                     : lens
                       ? '공으로 잰 값을 쓰는 중'
-                      : `아직 안 했어요. 화각 ${fov}° 가정으로 계산 중. 정확도를 위해 꼭 한 번 하세요.`}
+                      : `아직 안 했어요. 화각 ${fov}° 가정으로 계산 중. 정확도를 위해 꼭 한 번 해 주세요.`}
                   {lens && camera && !lensOk && (
                     <span className="block text-warn">
                       저장된 보정이 이 카메라(이름 · 비율 · 줌)와 달라요 — 지금은 화각
@@ -4056,7 +4049,7 @@ export function VelocityScreen({
           router.push('/velocity');
         }}
         title="저장하지 않고 나갈까요?"
-        detail={`저장하지 않은 공 ${pitches.length}개가 사라져요. 남기려면 취소하고 '측정 종료'에서 저장하세요.`}
+        detail={`저장하지 않은 공 ${pitches.length}개가 사라져요. 남기려면 취소하고 세션 종료에서 저장해요.`}
         confirmLabel="저장하지 않고 나가기"
         pending={false}
       />
@@ -4096,15 +4089,15 @@ function PreviousSetupStep({
         </>
       }
     >
-      <div className="overflow-hidden rounded-2xl border border-line bg-surface">
-        <div className="px-4 pb-4 pt-4">
+      <div className="overflow-hidden rounded-2xl bg-surface">
+        <div className="p-(--block-pad)">
           <SetupSummaryRow
             sessionType={setup.sessionType}
             cameraPos={setup.cameraPos}
             net={setup.net}
           />
         </div>
-        <p className="border-t border-line px-4 py-2.5 text-xs leading-relaxed text-muted">
+        <p className="border-t border-line px-(--block-pad) py-3 text-footnote leading-snug text-muted">
           스트라이크 존 자리 저장됨 · 소리 안내 {setup.voice ? '켬' : '끔'} · 자동 측정{' '}
           {setup.autoMode ? '켬' : '끔'}
           {when && ` · ${when.getMonth() + 1}월 ${when.getDate()}일에 저장`}

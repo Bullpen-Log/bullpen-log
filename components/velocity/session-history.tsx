@@ -1,10 +1,10 @@
 'use client';
 
 import { useLayoutEffect, useRef, useState, type RefObject } from 'react';
-import { Activity } from 'lucide-react';
+import { Activity, ChevronRight } from 'lucide-react';
 import { speedLabel, toSpeed, type SpeedUnit } from '@/lib/units';
 import { PITCH_TYPES, pitchTypeLabel } from '@/lib/velocity-meta';
-import { Panel, SectionLabel, StatRow } from './kit';
+import { Panel, SectionLabel } from './kit';
 import type { VelocityHistoryItem } from './session-types';
 
 /**
@@ -20,7 +20,7 @@ import type { VelocityHistoryItem } from './session-types';
 /** 그래프에 올리는 세션 수. 더 많으면 점이 뭉쳐 읽히지 않는다 */
 const GRAPH_POINTS = 20;
 /** 목록에 보이는 최근 세션 수 */
-const LIST_ROWS = 8;
+const LIST_ROWS = 5;
 /** 그래프 높이(px) — 폭은 칸에 맞추고 세로만 못박는다 */
 const GRAPH_H = 140;
 
@@ -42,7 +42,14 @@ export function SessionHistory({
   if (items.length === 0) return <EmptyState />;
 
   const last = items[items.length - 1];
+  const prev = items.length > 1 ? items[items.length - 2] : null;
   const best = Math.max(...items.map((s) => s.maxKmh));
+  /* 지난 세션보다 최고가 얼마나 달라졌나 — 0.1 밑은 같다고 본다 */
+  const change = prev ? speedNum(last.maxKmh) - speedNum(prev.maxKmh) : null;
+  const changeText =
+    change === null || Math.abs(change) < 0.05
+      ? null
+      : `${change > 0 ? '+' : '−'}${Math.abs(Math.round(change * 10) / 10)}`;
 
   const graph = items.slice(-GRAPH_POINTS).map((s) => ({
     id: s.id,
@@ -55,26 +62,65 @@ export function SessionHistory({
   /* 같은 날 세션이 여럿이면 시각을 붙여 가른다 */
   const dayCount = new Map<string, number>();
   for (const s of items) dayCount.set(s.date, (dayCount.get(s.date) ?? 0) + 1);
+  const whenOf = (s: VelocityHistoryItem) =>
+    (dayCount.get(s.date) ?? 0) > 1
+      ? `${dayLabel(s.date, today)} ${timeLabel(s.createdAt)}`
+      : dayLabel(s.date, today);
 
   return (
-    <div className="space-y-4 motion-safe:animate-fade-in">
-      {/* (1) 숫자 줄 */}
-      <Panel>
-        <StatRow
-          items={[
-            { label: '세션', value: items.length, unit: '번' },
-            { label: '전체 최고', value: speedNum(best), unit: unitText },
-            { label: '최근 최고', value: speedNum(last.maxKmh), unit: unitText },
-            { label: '최근 평균', value: speedNum(last.avgKmh), unit: unitText },
-          ]}
-        />
-      </Panel>
+    <div className="stack-block motion-safe:animate-fade-in">
+      {/*
+        (1) 마지막 세션 한 장 — 큰 숫자 하나(최고) + 그 밑 한 줄, 오른쪽에 전체 최고. 그 밑에 구속 변화 그래프.
+        예전에는 숫자 넷을 한 줄로 늘어놓아(세션 · 전체 최고 · 최근 최고 · 최근 평균) 어느 것을 봐야 할지 몰랐다.
+      */}
+      <Panel className="p-(--block-pad)">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-footnote font-semibold text-muted">
+              {dayLabel(last.date, today)} 최고
+            </p>
+            <p className="mt-1 flex items-baseline gap-1.5">
+              <span className="text-numeric text-5xl leading-none text-ink">
+                {speedNum(last.maxKmh)}
+              </span>
+              <span className="text-subhead font-semibold text-muted">{unitText}</span>
+              {changeText && (
+                <span
+                  className={`ml-1 rounded-full px-2 py-0.5 text-footnote font-semibold tabular-nums ${
+                    change! > 0 ? 'bg-sky-tint text-sky' : 'bg-ink/6 text-muted'
+                  }`}
+                >
+                  {changeText}
+                </span>
+              )}
+            </p>
+            <p className="mt-1.5 text-footnote tabular-nums text-muted">
+              평균 {speedNum(last.avgKmh)} · {last.n}구
+              {last.sessionType ? ` · ${last.sessionType}` : ''}
+            </p>
+          </div>
+          <div className="shrink-0 text-right">
+            <p className="text-footnote font-semibold text-muted">전체 최고</p>
+            <p className="text-numeric mt-1 text-2xl leading-none text-ink">
+              {speedNum(best)}
+            </p>
+            <p className="mt-1.5 text-footnote tabular-nums text-muted">
+              {items.length}세션
+            </p>
+          </div>
+        </div>
 
-      {/* (2) 구속 변화 그래프 */}
-      <section>
-        <SectionLabel
-          action={
-            <span className="flex items-center gap-2.5 text-xs text-muted">
+        <div className="mt-5 border-t border-line pt-4">
+          <div className="mb-2 flex items-center justify-between gap-2">
+            <p className="text-footnote font-semibold text-ink">
+              구속 변화
+              {items.length > GRAPH_POINTS && (
+                <span className="ml-1 font-normal text-muted">
+                  최근 {GRAPH_POINTS}세션
+                </span>
+              )}
+            </p>
+            <span className="flex items-center gap-2.5 text-caption text-muted">
               <span className="flex items-center gap-1">
                 <span aria-hidden className="h-2 w-2 rounded-full bg-sky" />
                 최고
@@ -84,33 +130,18 @@ export function SessionHistory({
                 평균
               </span>
             </span>
-          }
-        >
-          구속 변화
-          {items.length > GRAPH_POINTS && (
-            <span className="ml-1 font-normal">— 최근 {GRAPH_POINTS}세션</span>
-          )}
-        </SectionLabel>
-        <Panel className="px-3 pb-3 pt-3">
+          </div>
           <TrendChart points={graph} unitText={unitText} />
-        </Panel>
-      </section>
+        </div>
+      </Panel>
 
-      {/* (3) 최근 세션 목록 */}
+      {/* (2) 최근 세션 — 설정 목록(ListGroup)과 같은 줄: 왼쪽 날짜 · 종류, 오른쪽 최고 + › */}
       <section>
-        <SectionLabel
-          action={<span className="text-xs text-muted">누르면 그날 기록으로</span>}
-        >
-          최근 세션
-        </SectionLabel>
+        <SectionLabel>최근 세션</SectionLabel>
         <Panel>
           <ul className="divide-y divide-line">
             {recent.map((s) => {
               const types = typesText(s.byType);
-              const when =
-                (dayCount.get(s.date) ?? 0) > 1
-                  ? `${dayLabel(s.date, today)} ${timeLabel(s.createdAt)}`
-                  : dayLabel(s.date, today);
               return (
                 <li key={s.id}>
                   {/*
@@ -119,43 +150,39 @@ export function SessionHistory({
                   */}
                   <a
                     href={`/pitch-log/${s.date}`}
-                    className="flex min-h-14 items-center gap-3 px-4 py-2 transition-colors hover:bg-ink/4 active:bg-ink/6"
+                    className="flex min-h-14 items-center gap-3 py-2.5 pl-4 pr-2.5 transition-colors hover:bg-ink/4 active:bg-ink/6"
                   >
                     <span className="min-w-0 flex-1">
-                      <span className="flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5">
-                        <span className="text-sm font-semibold text-ink">{when}</span>
-                        <span className="text-xs text-muted">
-                          {s.sessionType ?? '종류 —'} · {s.n}구
-                        </span>
+                      <span className="block text-subhead font-semibold text-ink">
+                        {whenOf(s)}
                       </span>
-                      {types && (
-                        <span className="mt-0.5 block truncate text-xs text-muted">
-                          {types}
-                        </span>
-                      )}
+                      <span className="mt-0.5 block truncate text-footnote text-muted">
+                        {[s.sessionType, `${s.n}구`, types].filter(Boolean).join(' · ')}
+                      </span>
                     </span>
                     <span className="shrink-0 text-right">
-                      <span className="text-display block text-xl leading-none tabular-nums text-ink">
+                      <span className="text-numeric block text-xl leading-none text-ink">
                         {speedNum(s.maxKmh)}
-                        <span className="ml-0.5 font-sans text-xs text-muted">
-                          {unitText}
-                        </span>
                       </span>
-                      <span className="mt-0.5 block text-xs tabular-nums text-muted">
+                      <span className="mt-1 block text-caption tabular-nums text-muted">
                         평균 {speedNum(s.avgKmh)}
                       </span>
                     </span>
+                    <ChevronRight
+                      aria-hidden
+                      className="h-4 w-4 shrink-0 text-muted/60"
+                    />
                   </a>
                 </li>
               );
             })}
           </ul>
-          {items.length > LIST_ROWS && (
-            <p className="border-t border-line px-4 py-2.5 text-center text-xs text-muted">
-              더 있어요 — 투구 기록 캘린더에서
-            </p>
-          )}
         </Panel>
+        {items.length > LIST_ROWS && (
+          <p className="mt-2 px-1 text-footnote text-muted">
+            지난 세션은 투구 기록 캘린더에서 볼 수 있어요.
+          </p>
+        )}
       </section>
     </div>
   );
@@ -166,14 +193,12 @@ export function SessionHistory({
 /** 잰 세션이 없을 때 — 숫자 · 그래프 · 목록 대신 카드 하나 */
 function EmptyState() {
   return (
-    <Panel className="flex flex-col items-center px-5 py-8 text-center motion-safe:animate-fade-in">
+    <Panel className="flex flex-col items-center px-5 py-10 text-center motion-safe:animate-fade-in">
       <span className="inline-flex h-14 w-14 items-center justify-center rounded-full bg-sky-tint text-sky">
         <Activity aria-hidden className="h-6 w-6" />
       </span>
       <p className="mt-3 text-base font-bold text-ink">아직 잰 세션이 없어요</p>
-      <p className="mt-1 text-sm leading-relaxed text-muted">
-        아래 측정 시작을 누르면 여기에 구속 변화가 쌓여요
-      </p>
+      <p className="mt-1 text-sm text-muted">재고 나면 여기에 구속 변화가 쌓여요.</p>
     </Panel>
   );
 }
@@ -224,7 +249,7 @@ function TrendChart({ points, unitText }: { points: TrendPoint[]; unitText: stri
           height={H}
           className="block"
           role="img"
-          aria-label={`구속 변화 — ${n}세션, 첫 세션 최고 ${first.max} ${unitText}, 마지막 세션 최고 ${last.max} ${unitText}`}
+          aria-label={`구속 변화 ${n}세션, 첫 세션 최고 ${first.max} ${unitText}, 마지막 세션 최고 ${last.max} ${unitText}`}
         >
           {/* 가로 눈금 3줄 + 왼쪽 값 글자 */}
           {ticks.map((t) => (

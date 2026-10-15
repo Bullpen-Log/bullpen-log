@@ -24,6 +24,7 @@ import { MainTransition } from '@/components/main-transition';
 import { SiteFooter } from '@/components/site-footer';
 import { PullToRefresh } from '@/components/pull-to-refresh';
 import { AppSplash } from '@/components/app-splash';
+import { TabPager } from '@/components/tab-pager';
 
 /** 렌더 중에 현재 시각을 직접 읽지 않도록 함수로 감싼다. */
 function todayKey() {
@@ -48,10 +49,22 @@ function streakWindowStart() {
 export default async function AppLayout({
   children,
   modal,
+  home,
+  videos,
+  training,
+  nutrition,
 }: {
   children: React.ReactNode;
   /** 팝업 자리 — 앱 안에서 날짜 화면으로 가면 여기에 투구 기록 팝업이 뜬다(@modal) */
   modal: React.ReactNode;
+  /**
+   * 탭 판 넷(@home · @videos · @training · @nutrition, 2026-10-15 판 넘기기) — 주소가 그 탭이 아니어도 각 자리의 default.tsx 가
+   * 그 탭을 그려 늘 넷이 떠 있고, components/tab-pager.tsx 가 옆으로 민다. 탭 주소의 본문(children)은 빈 쪽이다.
+   */
+  home: React.ReactNode;
+  videos: React.ReactNode;
+  training: React.ReactNode;
+  nutrition: React.ReactNode;
 }) {
   // 이 레이아웃 아래의 모든 페이지는 로그인이 필요하다.
   const user = await requireUser();
@@ -218,7 +231,7 @@ export default async function AppLayout({
         {/* 양옆은 노치 자리와 견줘 큰 쪽 — 가로로 돌린 사파리에서 글이 노치 밑에 들어갔다(2026-10-03). 세로 · PC 는 그 값이 0 이라 예전 여백 그대로 */}
         <main
           data-ptr-target
-          /* touch-pan-y — 세로는 브라우저가 굴리고, 가로는 탭 쓸기(components/tab-swipe.tsx)가 받는다. pinch-zoom 을 같이 둬야
+          /* touch-pan-y — 세로는 브라우저가 굴리고, 가로는 탭 쓸기(components/tab-pager.tsx)가 받는다. pinch-zoom 을 같이 둬야
              사파리에서 두 손가락 확대가 된다(pan-y 만이면 막혔다) */
           className="mx-auto w-full max-w-5xl flex-1 touch-pan-y touch-pinch-zoom py-6 pb-10 pl-[max(calc(var(--spacing)*4),env(safe-area-inset-left))] pr-[max(calc(var(--spacing)*4),env(safe-area-inset-right))] sm:pl-[max(calc(var(--spacing)*6),env(safe-area-inset-left))] sm:pr-[max(calc(var(--spacing)*6),env(safe-area-inset-right))] sm:pt-6 xl:max-w-6xl 2xl:max-w-7xl desk:pt-(--page-top) desk:pb-32"
         >
@@ -226,7 +239,18 @@ export default async function AppLayout({
            * 탭을 옮길 때 본문만 바뀐다. 틀(사이드바 · 상단바 · 탭바)은 components/app-shell.tsx 에서 각자 이름표를 달아
            * 이 전환에서 빠진다 — 내용만 바뀌고 틀은 가만히 있는 것으로 읽힌다. 언제 · 어떻게 움직이는지는 MainTransition.
            */}
-          <MainTransition>{children}</MainTransition>
+          <TabPager
+            tabs={applyLocks(MOBILE_TABS, locks)}
+            camera={
+              /* 잠긴 사람(투구 첫 설정 전)은 설정 화면 주소라 구속 측정 전환(zoom)을 걸면 안 된다 */
+              applyLocksToGroups(visibleGroups(isAdmin, isNative), locks)
+                .flatMap((g) => g.items)
+                .find((i) => i.icon === 'radar' && !i.locked) ?? null
+            }
+            panels={[home, videos, training, nutrition]}
+          >
+            <MainTransition>{children}</MainTransition>
+          </TabPager>
         </main>
 
         <SiteFooter tabBar />

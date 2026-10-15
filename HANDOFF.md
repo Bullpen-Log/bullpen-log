@@ -11,6 +11,27 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 ---
 
+## 김민에게 — 2026-10-15 밤 · 금윤호(Claude) — 탭 쓸기를 '판 넘기기'로 갈아탔다(병렬 경로 — 탭 넷이 늘 떠 있다, 로딩 0) — 네 3판 tab-swipe.tsx 를 지웠다
+
+받은 뒤 할 일 없음(DB · 패키지 그대로). 사용자(인스타 영상 비교): "천천히 끌면 로딩이 다 보이고 제목 높이도 안 맞는다 — 인스타처럼 이질감 없이".
+네 3판(사본 가리개)까지 포함해 '이동을 빨리 하고 가리는' 방식으로는 천천히 끌 때 옆에 진짜 화면이 없는 게 드러나, **방식을 바꿨다**.
+- **틀**: `app/(app)/layout.tsx` 에 병렬 경로 자리 넷 `@home · @videos · @training · @nutrition`. 각 자리의 `default.tsx` 가 주소와 상관없이 그 탭을
+  그려 처음부터 넷이 다 떠 있고(잠긴 탭은 `components/tab-locked.tsx`), 한 번 그려진 판은 주소가 바뀌어도 그대로 산다(판마다 제 스크롤 자리).
+  탭 화면 파일은 `today/home-page.tsx` · `videos/videos-page.tsx` · `training/training-page.tsx` · `nutrition/nutrition-page.tsx` 로 이름이 바뀌었고
+  (같은 폴더의 부품 · import 는 그대로), 탭 주소의 `page.tsx` 는 빈 쪽이다 — **없애면 안 된다**(병렬 경로는 맞는 쪽이 없으면 지난 하위 화면을 그대로
+  둔다, 시험으로 확인). `@home/today/loading.tsx` · `@nutrition/nutrition/loading.tsx` 로 옮겼다.
+- **`components/tab-pager.tsx`**(새): 네 판을 가로 트랙에 두고 옆으로 민다. 놓으면 `history.replaceState(null, '', href)` 로 주소만 — Next 가
+  `usePathname` 에 반영하되 다시 받지 않는다(state 에 Next 것을 넘기면 안 바뀐다). 손가락 받기(touchmove 막기 · LOCK_RATIO · claim · settleFor)는 네
+  3판 그대로 옮겼다. 하단 탭 누름(`slideToTab`) · 렌즈 신호(`TAB_CHOSEN_EVENT`)도 그대로. 홈 → 오른쪽 구속 측정(zoom)도 그대로.
+- **스크롤이 창 → 판**(`lib/scroller.ts` — `activeScroller()` · `scrollTopNow()` · `scrollToTop()` · `onAnyScroll()`): 위 막대 숨기기 · 당겨서 새로고침 ·
+  탭 다시 눌러 맨 위가 이걸 본다. 창 스크롤을 직접 읽는 네 부품이 있으면 여기로 바꿔 줘. `html[data-pager]` = tabs(탭 첫 화면: 창 안 굴러감 ·
+  본문 여백 0 · 비우개 숨김) | page(하위 화면: 예전대로). PC(desk)는 지금 판만 보이고 창이 굴러간다.
+- 위 막대는 네 탭 모두에(예전 bare 걷음) — 탭마다 본문이 같은 높이에서 시작한다.
+- **값**: 홈을 열 때 네 탭의 조회가 같이 돈다(판마다 Suspense 라 홈이 먼저 뜬다). `npm run tabs:timing` 으로 첫 로드가 얼마나 늘었는지 한 번 재
+  보고 싶다 — 네가 줄여 둔 조회가 여기서 효과를 본다. 많이 늘면 default.tsx 를 '처음 갈 때 그리기'로 바꿀 수 있다.
+- 폰에서 봐 주면 좋은 것: 네 탭 쓸기(천천히 · 빠르게), 위 막대 숨기기, 당겨서 새로고침, 트레이닝 안 암케어 → ‹ 뒤로, 잠긴 계정의 판, 투구 기록
+  날짜 팝업 열고 닫기, 설정 창.
+
 ## 금윤호에게 — 2026-10-15 · 김민(Claude, 맥북) — 3D 결과의 '착지'를 앞발 전체가 닿은 순간으로(events.footFlat)
 
 받은 뒤 할 일 없음(DB · 패키지 그대로). **네 영역(3D 엔진 · 결과 화면)을 고쳤다**(14fef9ef · 120cdacb). 김민: "착지는 왼발이 완전히 착지했을 때".
@@ -75,6 +96,11 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
   PageHeading 대신 영양처럼 제목 · 달력 · 분석 한 줄(`training-home.tsx`). 그날 기록 화면은 달력 그림만.
 - (같은 날 더) 날짜 띠를 한 주 + 겹화살표 → 최근 6주를 옆으로 굴리는 한 줄로(사용자: "좌우로 긴 것 스크롤 가능하게"). 공용 `components/date-scroll-strip.tsx` ·
   범위 `lib/date-strip.ts stripDays`. 영양 `NutritionDay.strip` 이 7일 → 42일(`lib/nutrition/load.ts` — 식사 · 운동 읽는 범위도 그만큼 넓어짐), `loadTrainingWeek` → `loadTrainingStrip`.
+- (같은 날 더) **네 영역(구속 측정 화면)을 앱 모양으로 손봤다** — 사용자: "구속측정 인터페이스를 지금 우리 시스템에 맞게, 너무 조잡해". 엔진 · 저장 · 동작은 그대로, 그리기 · 글만.
+  첫 화면(`velocity-home.tsx` · `session-history.tsx` — 큰 제목, 마지막 세션 최고 큰 숫자 한 장 + 그래프, 최근 세션 5줄, 로고 카드 뺌) · 설정 단계(`setup-art.tsx` OptionCards 를
+  앱 고르기 카드 같은 한 줄로, '이럴 때' 줄 뺌, `setup-steps.tsx` StepShell 에 'n/5') · 카메라 화면(수평 · 존은 셔터 대신 파란 [다음 ›], 측정 셔터 글자 뺌) ·
+  세션 요약(숫자 넷 줄 → 큰 숫자 한 장) · 설정 시트(체크 상자 → `components/switch.tsx`, 아래 단추 둘 → 목록 줄, 제목 '구속 측정 설정'). 구속 숫자는 Bebas(`text-display`) → `text-numeric`.
+  실제 카메라 · 아이폰 앱으로는 못 봤다(미리보기는 가짜 카메라) — 폰에서 측정 한 번 봐 줘.
 
 ## 금윤호에게 — 2026-10-15 · 김민(Claude, 맥북) — 파워 운동 10개 더함 · 촬영 계획 2~5주 다시 짬 · 드릴 영상이 파워 복사본에도 붙음
 

@@ -5,6 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { QUIET_REFRESH } from '@/lib/transition-types';
 import { haptic } from '@/lib/haptics';
 import { barSnapshot } from '@/lib/nav-state';
+import { scrollTopNow } from '@/lib/scroller';
 
 /** 당겨서 새로고침이 되는 화면 — 하단 탭의 첫 화면들(자료가 바깥에서 바뀔 수 있는 곳) */
 const PATHS = new Set(['/today', '/videos', '/training', '/nutrition']);
@@ -59,11 +60,15 @@ export function PullToRefresh() {
     const onStart = (e: TouchEvent) => {
       tracking = false;
       if (busy || html.dataset.app !== 'native' || e.touches.length !== 1) return;
-      if (window.scrollY > 0 || document.querySelector('dialog[open]')) return;
+      if (scrollTopNow() > 0 || document.querySelector('dialog[open]')) return;
       /* 탭의 첫 화면에서만 — 트레이닝 하위 화면(메커니즘 · 암케어, '‹ 뒤로'가 있음)도 주소는 /training 이라 걸렸다 */
       if (barSnapshot().back) return;
       /* 손가락 밑의 칸이 굴러 내려가 있으면 그 칸을 올리는 것이다 */
-      for (let el = e.target as Element | null; el && el !== document.body; el = el.parentElement) {
+      for (
+        let el = e.target as Element | null;
+        el && el !== document.body;
+        el = el.parentElement
+      ) {
         if (el instanceof HTMLElement && el.scrollTop > 0) return;
         if (el.closest('[data-no-ptr]')) return;
       }
@@ -82,7 +87,7 @@ export function PullToRefresh() {
         /* 옆으로 미는 것(가로 목록 · 밀어서 뒤로)이면 손 뗄 때까지 끼지 않는다 */
         if (Math.abs(dx) > SLOP && Math.abs(dx) > Math.abs(dy)) tracking = false;
         if (dy < -SLOP) tracking = false;
-        if (!tracking || dy <= SLOP || window.scrollY > 0) return;
+        if (!tracking || dy <= SLOP || scrollTopNow() > 0) return;
         dragging = true;
         /*
          * 돌개 자리 — 당기기가 시작될 때 한 번만 잰다(예전엔 맨 위에서 누를 때마다 재고 <html> 에 적어 문서 전체를 다시 셈했다).
@@ -91,7 +96,10 @@ export function PullToRefresh() {
         const bar =
           document.querySelector('[data-mobile-topbar]') ??
           document.querySelector('[data-safe-area]');
-        html.style.setProperty('--ptr-top', `${bar ? bar.getBoundingClientRect().bottom : 0}px`);
+        html.style.setProperty(
+          '--ptr-top',
+          `${bar ? bar.getBoundingClientRect().bottom : 0}px`
+        );
         html.dataset.ptr = 'pull';
       }
       /* 고무줄처럼 — 처음엔 손가락을 거의 따라오고 갈수록 무거워진다 */
@@ -164,7 +172,11 @@ export function PullToRefresh() {
 
   if (!enabled) return null;
   return (
-    <div aria-hidden data-ptr-spinner className="pointer-events-none fixed left-1/2 z-30 desk:hidden pad:ml-[calc(var(--rail)/2)]">
+    <div
+      aria-hidden
+      data-ptr-spinner
+      className="pointer-events-none fixed left-1/2 z-30 desk:hidden pad:ml-[calc(var(--rail)/2)]"
+    >
       <Spinner />
     </div>
   );

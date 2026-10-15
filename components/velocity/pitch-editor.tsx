@@ -119,7 +119,7 @@ export function PitchEditorFields({
 
       <Field
         label="스피드건 값"
-        hint="같이 쟀으면 적어요 — 보정에 쓰여요"
+        hint="같이 쟀으면 적어요. 보정에 쓰여요."
         className={focusGun ? 'order-first' : ''}
       >
         <div className="relative">

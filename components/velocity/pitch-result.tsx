@@ -193,7 +193,7 @@ export function PitchResult({
       </div>
 
       <div className="shrink-0 px-5 pb-[max(1rem,env(safe-area-inset-bottom))] pt-4">
-        <p className="text-display text-7xl leading-none tabular-nums motion-safe:animate-fade-in">
+        <p className="text-numeric text-7xl leading-none motion-safe:animate-fade-in">
           {speed}
           <span className="ml-2 text-xl text-white/70">{unit}</span>
         </p>
