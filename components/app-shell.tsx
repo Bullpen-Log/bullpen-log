@@ -2520,11 +2520,6 @@ function MobileTopBar({
 }) {
   const router = useRouter();
   /*
-   * 맨 위에서는 막대가 바탕과 같은 색이고 밑 선이 없다 — 아이폰의 큰 제목 화면처럼 막대와 제목이 한 면이다.
-   * 굴리면 흰 막대와 가는 선이 나타나 본문과 갈린다(2026-10-01 사용자 '애플처럼').
-   */
-  const scrolled = useScrolledFromTop();
-  /*
    * 이 화면의 제목 · '‹ 뒤로' — 화면의 큰 제목(PageHeading → components/nav-title.tsx)과 '‹ 뒤로'(components/back-link.tsx)가
    * 적어 둔 것(lib/nav-state.ts). 큰 제목이 막대 밑으로 가려지면 가운데에 작은 제목이 나온다.
    */
@@ -2553,10 +2548,23 @@ function MobileTopBar({
         2026-10-14 2판(사용자 "인스타 홈처럼") — 시계 자리는 반투명 유리(바탕색 75% + 뒤 흐림). 막대가 숨어 본문이 시계 밑으로
         지나갈 때 그 부분이 자연스럽게 비쳐 흐려진다. 막대도 같은 유리라 둘이 한 면으로 보인다.
       */}
+      {/*
+        2026-10-15 3판(사용자: 예시 둘 — Claude · 인스타 앱 — "중간에 선이 그어져 있고 퀄리티가 떨어진다, 선 없애고 저렇게") —
+        시계 자리와 막대 밑에 딱 끊기는 선(92% 판의 끝 · 막대의 밑줄)이 생겼었다. 이제 막(top-veil) 한 장이 시계 자리 + 막대(보일 때)를
+        덮고, 그 밑 1.5rem 동안 흐림과 바탕색이 함께 옅어진다 — 본문이 위로 지나가며 흐려지고 선이 없다(globals.css 'top-veil').
+        막대가 숨으면 막이 시계 자리까지 줄어든다. 막대 · 단추는 막 위(z-40)에 그대로 또렷하다.
+        data-safe-area 는 높이를 재는 표시로만 남긴다(당겨서 새로고침 돌개 자리 · globals.css '아이폰 앱 안').
+      */}
+      <div
+        aria-hidden
+        data-top-veil
+        data-short={bare || hidden ? '' : undefined}
+        className="pointer-events-none fixed inset-x-0 top-0 z-39 desk:hidden pad:left-(--rail)"
+      />
       <div
         data-safe-area
         aria-hidden
-        className="pointer-events-none fixed inset-x-0 top-0 z-45 h-[env(safe-area-inset-top)] bg-page/92 desk:hidden pad:left-(--rail)"
+        className="pointer-events-none fixed inset-x-0 top-0 h-[env(safe-area-inset-top)] desk:hidden pad:left-(--rail)"
       />
       {/* 막대는 화면에 붙어(fixed) 있으니 그만큼 비운다 — 시계 자리 + 막대(bare 면 시계 자리만) */}
       <div
@@ -2587,9 +2595,8 @@ function MobileTopBar({
            * (2026-10-15) 뒤 흐림은 다시 뺐다 — 바탕이 85~92% 라 흐림은 거의 안 보이는데 굴릴 때 장면마다 다시 셈했다(시계 자리도 같이).
            * 아이패드는 왼쪽 탭 막대(--rail)만큼 비킨다 — 막대 밑에 깔려 '‹ 뒤로'를 누르면 홈 탭이 눌렸다.
            */
-          className={`fixed inset-x-0 top-[env(safe-area-inset-top)] z-40 flex h-14 items-center gap-2 border-b bg-page/92 pl-[max(0.5rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] transition-[border-color] pad:left-(--rail) duration-200 desk:hidden ${
-            scrolled ? 'border-line/70' : 'border-transparent'
-          }`}
+          /* 바탕 · 밑줄 없이 — 뒤의 막(top-veil)이 흐림과 옅어짐을 맡는다(2026-10-15 3판) */
+          className="fixed inset-x-0 top-[env(safe-area-inset-top)] z-40 flex h-14 items-center gap-2 pl-[max(0.5rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] pad:left-(--rail) desk:hidden"
         >
           <div className="flex min-w-0 flex-1 items-center">
             {back && (
@@ -2661,28 +2668,6 @@ function useBarHidden(enabled: boolean) {
   }, [enabled]);
   /* 꺼지면 값과 상관없이 보인다 — 다시 켜질 때 지난 값이 남지 않게 effect 가 아니라 여기서 */
   return enabled && hidden;
-}
-
-/** 화면을 조금이라도 굴렸는가 — 위 막대가 맨 위에서는 밑 선이 없고, 굴리면 가는 선이 본문과 가른다 */
-function useScrolledFromTop() {
-  const [scrolled, setScrolled] = useState(false);
-  useEffect(() => {
-    let frame = 0;
-    const read = () => {
-      frame = 0;
-      setScrolled(window.scrollY > 4);
-    };
-    const onScroll = () => {
-      if (!frame) frame = requestAnimationFrame(read);
-    };
-    read();
-    window.addEventListener('scroll', onScroll, { passive: true });
-    return () => {
-      window.removeEventListener('scroll', onScroll);
-      cancelAnimationFrame(frame);
-    };
-  }, []);
-  return scrolled;
 }
 
 /**

@@ -3154,6 +3154,43 @@ html[data-splash] *::after {
 }
 
 /*
+ * 휴대폰 위 막(components/app-shell.tsx MobileTopBar 의 data-top-veil, 2026-10-15 3판) — 시계 자리 + 위 막대(보일 때)를 덮고,
+ * 그 밑 1.5rem 동안 흐림과 바탕색이 같이 옅어진다. 예전에는 92% 판이 시계 자리 끝에서 딱 끊겨 본문 위에 선이 그어졌다
+ * (사용자: Claude · 인스타 앱 예시처럼 "선 없애고"). 막대가 숨으면(data-short) 시계 자리까지 줄어든다.
+ * 흐림은 mask 로 아래로 갈수록 옅게 — 판 하나라 굴릴 때 셈은 한 겹이다. 아이폰 앱(WKWebView)에서 흐림이 깜빡이면 blur 만 빼면 된다.
+ */
+[data-top-veil] {
+  --veil-fade: 1.5rem;
+  height: calc(env(safe-area-inset-top) + 3.5rem + var(--veil-fade));
+  background: linear-gradient(
+    to bottom,
+    color-mix(in oklab, var(--color-page) 82%, transparent) 0,
+    color-mix(in oklab, var(--color-page) 72%, transparent) calc(100% - var(--veil-fade)),
+    color-mix(in oklab, var(--color-page) 0%, transparent) 100%
+  );
+  -webkit-backdrop-filter: blur(14px) saturate(1.4);
+  backdrop-filter: blur(14px) saturate(1.4);
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - var(--veil-fade)), transparent);
+  mask-image: linear-gradient(to bottom, #000 calc(100% - var(--veil-fade)), transparent);
+  transition: height 280ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+[data-top-veil][data-short] {
+  height: calc(env(safe-area-inset-top) + var(--veil-fade));
+  transition-duration: 240ms;
+}
+/* 시계 자리가 없는 곳(사파리 세로 · PC 창 줄임)에서 막대가 없으면 막도 없다 — 본문 맨 위 글을 흐리지 않게 */
+@supports (height: env(safe-area-inset-top)) {
+  html:not([data-app='native']) [data-top-veil][data-short] {
+    display: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-top-veil] {
+    transition: none;
+  }
+}
+
+/*
  * 휴대폰 위 막대 숨기기(components/app-shell.tsx MobileTopBar · useBarHidden, 2026-10-14 "인스타 홈처럼") — 아래로 굴리면 위로
  * 미끄러지며 옅어져 시계 자리 밑으로 들어가고, 위로 굴리면 같은 길로 돌아온다. 시계 자리(data-safe-area)는 늘 그 위에 있다.
  * 곡선은 아이폰 밀기(빠르게 출발해 부드럽게 멈춤). 움직임 줄이기면 곧장 바뀐다.
