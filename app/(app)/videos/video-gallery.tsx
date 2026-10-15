@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import { formatSpeed } from '@/lib/units';
 import { useSpeedUnit } from '@/components/use-units';
 import Link from 'next/link';
-import { ChevronDown, Film, Star, X } from '@/components/icon';
+import { ChevronDown, ChevronRight, Film, Star, X } from '@/components/icon';
 import { usePlaybackUrls } from '@/components/use-playback-urls';
 import { fetchPitchThumbs } from '@/lib/pitch-thumbs';
 import { effortClass } from '@/components/month-calendar';
@@ -87,6 +87,8 @@ type Clip = Omit<ClipOption, 'path'> & {
   effortPct: number;
   maxVelocity: number | null;
   rest: boolean;
+  /** 영상 없는 줄의 요약(투구수 뺌) */
+  brief: string;
 };
 
 export function VideoGallery({
@@ -124,9 +126,15 @@ export function VideoGallery({
     () =>
       logs.flatMap((log): Clip[] => {
         const rest = log.sessionType === REST_SESSION_TYPE;
+        const velocity =
+          log.maxVelocity != null ? formatSpeed(log.maxVelocity, speedUnit) : null;
+        const effort = effortText(log) && `강도 ${effortText(log)}`;
+        const camera = log.memo?.startsWith(VELOCITY_MEMO_MARK) ? '카메라 측정' : null;
         const base = {
           logId: log.id,
           date: log.date.slice(0, 10),
+          /* 영상 없는 줄의 요약 — 투구수는 왼쪽 칸에 크게 있어 뺀다(2026-10-15 "49구를 두 번 썼다") */
+          brief: rest ? '' : [velocity, effort, camera].filter(Boolean).join(' · '),
           summary: rest
             ? '쉬는 날로 남김'
             : [
@@ -335,13 +343,56 @@ export function VideoGallery({
 
   return (
     <div className={selecting ? 'stack-block pb-24' : 'stack-block'}>
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-        <p className="text-sm font-bold text-ink">
+      {/*
+        머리 한 줄 + 거르기 한 줄(2026-10-15 사용자 "목록이 복잡해" — 정렬 칩 셋 · 종류 칩이 두세 줄로 쌓였다). 정렬은 오른쪽 작은 고르개,
+        종류 칩은 옆으로 굴리는 한 줄.
+      */}
+      <div className="flex items-center gap-x-3 gap-y-2">
+        <p className="min-w-0 text-sm font-bold text-ink">
           투구 기록 <span className="text-numeric text-base">{recordCount}</span>건
           <span className="font-normal text-muted">
             {' · '}영상 <span className="text-numeric text-base">{videoCount}</span>개
           </span>
         </p>
+        <label className="ml-auto shrink-0">
+          <span className="sr-only">정렬</span>
+          <select
+            value={sort}
+            onChange={(e) => setSort(e.target.value as Sort)}
+            className="min-h-9 rounded-full border-0 bg-ink/6 py-1 pl-3 pr-8 text-footnote font-medium text-ink desk:min-h-8 desk:rounded-lg desk:text-xs"
+          >
+            {SORTS.map((s) => (
+              <option key={s.key} value={s.key}>
+                {s.label}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+
+      <div className="flex items-center gap-2">
+        <div className="no-scrollbar -my-1 flex min-w-0 flex-1 gap-1.5 overflow-x-auto py-1">
+          {chips.map((c) => (
+            <button
+              key={c.key}
+              type="button"
+              onClick={() => setFilter(c.key)}
+              aria-pressed={filter === c.key}
+              className={`inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-full px-3.5 text-footnote font-medium transition-colors desk:min-h-8 desk:text-xs ${
+                filter === c.key ? 'bg-sky text-white' : 'bg-ink/6 text-ink/80 hover:bg-ink/10'
+              }`}
+            >
+              {c.label}
+              <span
+                className={`text-numeric text-footnote leading-none ${
+                  filter === c.key ? 'text-white/80' : 'text-muted'
+                }`}
+              >
+                {c.count}
+              </span>
+            </button>
+          ))}
+        </div>
         {videoCount >= 2 && (
           <button
             type="button"
@@ -349,59 +400,13 @@ export function VideoGallery({
               onSelectingChange(!selecting);
               setPicked([null, null]);
             }}
-            className={`rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors ${
-              selecting
-                ? 'border-line-strong text-muted hover:text-ink'
-                : 'border-sky bg-sky-tint text-sky-strong hover:bg-sky-tint/70'
+            className={`inline-flex min-h-9 shrink-0 items-center rounded-full px-3.5 text-footnote font-semibold transition-colors desk:min-h-8 desk:text-xs ${
+              selecting ? 'bg-ink/6 text-muted' : 'bg-sky-tint text-sky-strong'
             }`}
           >
-            {selecting ? '고르기 그만두기' : '2분할 비교'}
+            {selecting ? '그만두기' : '2분할 비교'}
           </button>
         )}
-
-        <span className="ml-auto flex flex-wrap gap-1.5">
-          {SORTS.map((s) => (
-            <button
-              key={s.key}
-              type="button"
-              onClick={() => setSort(s.key)}
-              aria-pressed={sort === s.key}
-              /* 휴대폰은 테두리 없는 알약, PC 는 예전 테두리 칩 */
-              className={`min-h-8 rounded-full border px-3 text-xs font-medium transition-colors desk:min-h-0 desk:rounded-lg desk:px-2.5 desk:py-1 desk:text-caption ${
-                sort === s.key
-                  ? 'border-sky bg-sky-tint text-sky-strong'
-                  : 'border-transparent bg-ink/6 text-ink/70 desk:border-line desk:bg-transparent desk:text-muted desk:hover:border-sky-soft'
-              }`}
-            >
-              {s.label}
-            </button>
-          ))}
-        </span>
-      </div>
-
-      <div className="flex flex-wrap gap-1.5">
-        {chips.map((c) => (
-          <button
-            key={c.key}
-            type="button"
-            onClick={() => setFilter(c.key)}
-            aria-pressed={filter === c.key}
-            className={`inline-flex min-h-9 items-center gap-1.5 rounded-full border px-3.5 text-footnote font-medium transition-colors desk:min-h-0 desk:rounded-lg desk:px-2.5 desk:py-1.5 desk:text-xs ${
-              filter === c.key
-                ? 'border-sky bg-sky-tint text-sky-strong'
-                : 'border-transparent bg-ink/6 text-ink/80 desk:border-line desk:bg-transparent desk:text-muted desk:hover:border-sky-soft'
-            }`}
-          >
-            {c.label}
-            <span
-              className={`text-numeric text-footnote leading-none ${
-                filter === c.key ? 'text-sky-strong' : 'text-line-strong'
-              }`}
-            >
-              {c.count}
-            </span>
-          </button>
-        ))}
       </div>
 
       {featureError && (
@@ -428,124 +433,110 @@ export function VideoGallery({
               aria-expanded={open}
               className="flex w-full items-center gap-2 px-(--block-pad) py-3 text-left transition-colors hover:bg-surface-2"
             >
-              <ChevronDown
-                aria-hidden
-                className={`h-4 w-4 shrink-0 text-muted transition-transform ${
-                  open ? '' : '-rotate-90'
-                }`}
-              />
               <span className="text-sm font-bold text-ink">
                 {spokenMonth(group.month)}
               </span>
               <span className="text-numeric text-sm leading-none text-muted">
                 {group.items.length}
               </span>
+              <ChevronDown
+                aria-hidden
+                className={`ml-auto h-4 w-4 shrink-0 text-muted transition-transform ${
+                  open ? '' : '-rotate-90'
+                }`}
+              />
             </button>
 
             {open && (
               /*
-                휴대폰은 두 칸씩 촘촘하게(아이폰 사진 앱처럼) — 한 줄에 하나면 영상 열 개를 보려고 화면 열 장을 굴렸다
-                (2026-10-01 '애플처럼'). PC 는 예전 그대로.
+                한 줄씩(2026-10-15 사용자 "목록이 복잡해") — 왼쪽 작은 그림(영상이면 장면, 없으면 강도 색 칸에 투구수) · 날짜 · 종류 · 요약 ›.
+                예전에는 두 칸 격자에 영상 없는 기록도 큰 파란 칸을 세워 '49구'를 크게 쓰고 밑에 또 썼다.
               */
-              <ul className="grid grid-cols-2 gap-2 border-t border-line p-2 sm:gap-3 sm:p-4 lg:grid-cols-3 2xl:grid-cols-4">
+              <ul className="divide-y divide-line border-t border-line">
                 {group.items.map((clip) => {
                   const slot = slotOf(clip.id);
                   const url = clip.path ? urls[clip.path] : undefined;
                   const thumb = clip.path ? thumbs[clip.path] : undefined;
 
-                  /* 썸네일과 설명 — 링크에도 단추에도 같은 속이 들어간다 */
                   const body = (
                     <>
-                      {!clip.path ? (
-                        /*
-                          영상 없이 남긴 기록 — 그림 자리에 투구수와 강도를 크게. 칸의 색은
-                          캘린더와 같은 강도 색이고, 쉬는 날은 점선이다.
-                        */
-                        <span
-                          className={`flex aspect-video w-full flex-col items-center justify-center gap-1 ${
-                            clip.rest
-                              ? 'border-b border-dashed border-line-strong bg-surface-2 text-muted'
-                              : effortClass(clip.effortPct)
-                          }`}
-                        >
-                          <span className="text-numeric text-3xl leading-none">
-                            {clip.rest ? '휴식' : `${clip.pitchCount}구`}
-                          </span>
-                          {!clip.rest && (
-                            <span className="text-caption font-medium opacity-80">
-                              {clip.effortPct > 0 && `강도 ${clip.effortPct}% · `}영상
-                              없음
+                      <span className="relative aspect-video w-24 shrink-0 overflow-hidden rounded-lg desk:w-28">
+                        {!clip.path ? (
+                          <span
+                            className={`flex h-full w-full items-center justify-center ${
+                              clip.rest
+                                ? 'border border-dashed border-line-strong bg-surface-2 text-muted'
+                                : effortClass(clip.effortPct)
+                            }`}
+                          >
+                            <span className="text-numeric text-base leading-none">
+                              {clip.rest ? '휴식' : `${clip.pitchCount}구`}
                             </span>
-                          )}
-                        </span>
-                      ) : thumb ? (
-                        // eslint-disable-next-line @next/next/no-img-element -- 저장소의 서명 주소라 next/image 최적화를 거치지 않는다
-                        <img
-                          src={thumb}
-                          alt=""
-                          loading="lazy"
-                          decoding="async"
-                          /* 주소가 낡았거나 지워졌으면 영상의 한 장면으로 */
-                          onError={() => {
-                            const p = clip.path;
-                            if (p) setThumbs((prev) => ({ ...prev, [p]: null }));
-                          }}
-                          className="aspect-video w-full bg-shade object-contain"
-                        />
-                      ) : url ? (
-                        /*
-                          미리보기 그림이 없는 영상만 — 영상의 한 프레임을 그대로 쓴다. preload="metadata" 라
-                          머리 부분만 받는다.
-                        */
-                        <video
-                          src={`${url}#t=0.5`}
-                          preload="metadata"
-                          muted
-                          playsInline
-                          className="aspect-video w-full bg-shade object-contain"
-                        />
-                      ) : (
-                        <span className="flex aspect-video w-full items-center justify-center bg-surface-2">
-                          <Film aria-hidden className="h-6 w-6 text-line-strong" />
-                        </span>
-                      )}
+                          </span>
+                        ) : thumb ? (
+                          // eslint-disable-next-line @next/next/no-img-element -- 저장소의 서명 주소라 next/image 최적화를 거치지 않는다
+                          <img
+                            src={thumb}
+                            alt=""
+                            loading="lazy"
+                            decoding="async"
+                            /* 주소가 낡았거나 지워졌으면 영상의 한 장면으로 */
+                            onError={() => {
+                              const p = clip.path;
+                              if (p) setThumbs((prev) => ({ ...prev, [p]: null }));
+                            }}
+                            className="h-full w-full bg-shade object-cover"
+                          />
+                        ) : url ? (
+                          /* 미리보기 그림이 없는 영상만 — 영상의 한 장면(머리만 받는다) */
+                          <video
+                            src={`${url}#t=0.5`}
+                            preload="metadata"
+                            muted
+                            playsInline
+                            className="h-full w-full bg-shade object-cover"
+                          />
+                        ) : (
+                          <span className="flex h-full w-full items-center justify-center bg-surface-2">
+                            <Film aria-hidden className="h-5 w-5 text-line-strong" />
+                          </span>
+                        )}
+                        {selecting && slot >= 0 && (
+                          <span className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-sky text-caption font-bold text-white shadow">
+                            {slot === 0 ? 'A' : 'B'}
+                          </span>
+                        )}
+                      </span>
 
-                      {selecting && slot >= 0 && (
-                        <span className="absolute top-2 right-2 flex h-6 w-6 items-center justify-center rounded-full bg-sky text-caption font-bold text-white shadow">
-                          {slot === 0 ? 'A' : 'B'}
-                        </span>
-                      )}
-
-                      <span className="block space-y-1 px-3 py-2.5 text-left">
+                      <span className="min-w-0 flex-1 text-left">
                         <span className="flex flex-wrap items-baseline gap-x-1.5">
-                          <span className="text-footnote font-semibold text-ink">
+                          <span className="text-subhead font-semibold text-ink">
                             {spokenDate(clip.date)}
                           </span>
-                          <span className="text-caption text-muted">
+                          <span className="text-footnote text-muted">
                             {clip.sessionType}
                             {clip.path && clip.label !== '영상' && ` · ${clip.label}`}
                           </span>
                         </span>
-                        <span className="block text-caption text-muted">
-                          {clip.summary}
-                        </span>
+                        {(clip.path ? clip.summary : clip.brief || clip.summary) && (
+                          <span className="mt-0.5 block truncate text-footnote text-muted">
+                            {clip.path ? clip.summary : clip.brief || clip.summary}
+                          </span>
+                        )}
                       </span>
+                      {!selecting && (
+                        <ChevronRight aria-hidden className="h-4 w-4 shrink-0 text-muted/60" />
+                      )}
                     </>
                   );
 
-                  /* 휴대폰은 테두리 없이 옅은 면(사진처럼), PC 는 예전 테두리 */
-                  const shell = `relative block overflow-hidden rounded-xl border transition-colors ${
-                    selecting && slot >= 0
-                      ? 'border-sky ring-1 ring-sky'
-                      : 'border-transparent bg-ink/4 desk:border-line desk:bg-transparent desk:hover:border-sky-soft'
+                  const shell = `flex min-h-16 w-full items-center gap-3 px-(--block-pad) py-2.5 transition-colors ${
+                    selecting && slot >= 0 ? 'bg-sky-tint' : 'hover:bg-ink/4 active:bg-ink/6'
                   }`;
 
                   /*
-                   * 대표 고르기 — 영상이 여럿인 날만. 비교할 둘을 고르는 동안에는
-                   * 감춘다(카드를 누르는 뜻이 둘로 갈리면 헷갈린다).
-                   *
-                   * 카드(링크) 안에 넣지 않고 옆에 겹쳐 둔다. 링크 안에 단추를 넣으면
-                   * 누를 때 둘 다 반응하고, 화면 낭독기도 어느 쪽인지 헷갈린다.
+                   * 대표 고르기 — 영상이 여럿인 날만, 줄 오른쪽 별. 비교할 둘을 고르는 동안에는 감춘다.
+                   * 줄(링크) 안에 넣지 않고 옆에 둔다 — 링크 안의 단추는 누를 때 둘 다 반응한다.
                    */
                   const choosable =
                     !selecting &&
@@ -554,7 +545,34 @@ export function VideoGallery({
                   const isFeatured = featuredOf(clip.date) === clip.path;
 
                   return (
-                    <li key={clip.id} className="relative">
+                    <li key={clip.id} className="flex items-center">
+                      <div className="min-w-0 flex-1">
+                        {selecting && !clip.path ? (
+                          /* 영상이 없는 기록은 견줄 수 없다 — 고르는 동안에는 흐리게 둔다 */
+                          <div aria-disabled className={`opacity-40 ${shell}`}>
+                            {body}
+                          </div>
+                        ) : selecting ? (
+                          <button
+                            type="button"
+                            onClick={() => pick(clip)}
+                            aria-pressed={slot >= 0}
+                            aria-label={`${spokenDate(clip.date)} 영상 고르기`}
+                            disabled={!url && !thumb}
+                            className={shell}
+                          >
+                            {body}
+                          </button>
+                        ) : (
+                          <Link
+                            href={`/pitch-log/${clip.date}`}
+                            transitionTypes={OPEN_POPUP_TYPES}
+                            className={shell}
+                          >
+                            {body}
+                          </Link>
+                        )}
+                      </div>
                       {choosable && (
                         <button
                           type="button"
@@ -570,43 +588,12 @@ export function VideoGallery({
                               ? '캘린더에서 이 날을 누르면 이 영상이 떠요'
                               : '이 날의 대표 영상으로 고르기'
                           }
-                          className={`absolute left-2 top-2 z-10 inline-flex items-center gap-1 rounded-full px-2 py-1 text-caption font-semibold shadow transition-colors ${
-                            isFeatured
-                              ? 'bg-sky text-white'
-                              : 'bg-shade/60 text-white/90 hover:bg-shade/80 hover:text-white'
+                          className={`mr-2 inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition-colors ${
+                            isFeatured ? 'text-sky' : 'text-muted hover:bg-ink/6 hover:text-ink'
                           }`}
                         >
-                          <Star
-                            aria-hidden
-                            className={`h-3 w-3 ${isFeatured ? 'fill-current' : ''}`}
-                          />
-                          {isFeatured ? '대표' : '대표로'}
+                          <Star aria-hidden className={`h-4 w-4 ${isFeatured ? 'fill-current' : ''}`} />
                         </button>
-                      )}
-                      {selecting && !clip.path ? (
-                        /* 영상이 없는 기록은 견줄 수 없다 — 고르는 동안에는 흐리게 둔다 */
-                        <div aria-disabled className={`opacity-40 ${shell}`}>
-                          {body}
-                        </div>
-                      ) : selecting ? (
-                        <button
-                          type="button"
-                          onClick={() => pick(clip)}
-                          aria-pressed={slot >= 0}
-                          aria-label={`${spokenDate(clip.date)} 영상 고르기`}
-                          disabled={!url}
-                          className={`w-full ${shell}`}
-                        >
-                          {body}
-                        </button>
-                      ) : (
-                        <Link
-                          href={`/pitch-log/${clip.date}`}
-                          transitionTypes={OPEN_POPUP_TYPES}
-                          className={shell}
-                        >
-                          {body}
-                        </Link>
                       )}
                     </li>
                   );

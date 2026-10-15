@@ -51,37 +51,48 @@ export const VELOCITY_ADMIN_OPTION = { value: 'velocity', label: '구속 측정 
 type ViewOption = { readonly value: PitchView; readonly label: string };
 
 /**
- * 고르개 폭 — 휴대폰은 꽉 차게, 패드 · PC 는 칸 크기대로. 투구 기록과 구속 측정 관리자가 같은 값을 써야 머리 비율이 같다
- * (2026-10-15 사용자: "캘린더 · 목록은 상단 화면 비율이 같은데 구속 측정 관리자만 다르다").
+ * 고르개 폭 — 휴대폰은 남는 폭을 채우고(옆에 작은 칩 둘), 패드 · PC 는 칸 크기대로. 투구 기록과 구속 측정 관리자가 같은 값을 써야
+ * 머리 비율이 같다(2026-10-15 사용자: "캘린더 · 목록은 상단 화면 비율이 같은데 구속 측정 관리자만 다르다"). 칩이 못 들어오면(관리자의
+ * 세 칸) 칩 줄이 밑으로 내려간다 — 고르개는 제 글자 폭 밑으로 줄지 않는다.
  */
-const SWITCH_WIDTH = 'w-full pad:w-auto pad:min-w-80 desk:w-auto';
+const SWITCH_WIDTH = 'flex-1 pad:flex-none pad:min-w-80 desk:w-auto desk:flex-none';
 
-const TOOL_BUTTON =
-  'flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-2xl bg-surface px-3 text-sm font-semibold text-ink transition-opacity active:opacity-60 pad:flex-none pad:px-5 desk:h-9 desk:min-h-0 desk:flex-none desk:rounded-lg desk:border desk:border-sky desk:bg-sky-tint desk:text-xs desk:text-sky-strong desk:hover:bg-sky-tint/70';
+/*
+ * 찍으러 가는 문 — 고르개 옆 작은 칩(2026-10-15 사용자 "투구 파트도 우리 시스템에 맞게"). 예전엔 고르개 밑 흰 카드 단추 둘이
+ * 한 줄(44px)을 통째로 썼다. 휴대폰 40px 알약(누르는 자리 규칙) · PC 는 예전 하늘색 작은 단추.
+ */
+const TOOL_CHIP =
+  'inline-flex h-10 shrink-0 items-center gap-1 rounded-full bg-ink/6 px-3 text-footnote font-semibold text-ink transition-opacity active:opacity-60 desk:h-9 desk:rounded-lg desk:border desk:border-sky desk:bg-sky-tint desk:px-3 desk:text-xs desk:text-sky-strong desk:hover:bg-sky-tint/70';
 
 /**
- * 찍으러 가는 문 — 구속 측정(앱 안이면 누구나, 웹이면 관리자만 · canMeasure) · 3D 동작 분석(누구나). 링크가 아니라 push 라 뒤로 가기로
- * 그 화면 · 그 보기로 돌아온다. 휴대폰은 고르개 밑 한 줄(반반), PC 는 고르개 줄 오른쪽.
+ * 구속 측정(앱 안이면 누구나, 웹이면 관리자만 · canMeasure) · 3D 동작 분석(누구나). 링크가 아니라 push 라 뒤로 가기로 그 화면 ·
+ * 그 보기로 돌아온다. 휴대폰은 칩 글을 줄이고('3D 분석'), 패드 · PC 는 온 이름.
  */
 function PitchTools({ canMeasure }: { canMeasure: boolean }) {
   const router = useRouter();
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex shrink-0 items-center gap-1.5">
       {canMeasure && (
-        <button type="button" onClick={() => router.push('/velocity')} className={TOOL_BUTTON}>
+        <button type="button" onClick={() => router.push('/velocity')} className={TOOL_CHIP}>
           <Radar aria-hidden className="h-4 w-4 text-sky-strong" />
           구속 측정
         </button>
       )}
-      <button type="button" onClick={() => router.push('/videos/lab')} className={TOOL_BUTTON}>
+      <button
+        type="button"
+        onClick={() => router.push('/videos/lab')}
+        aria-label="3D 동작 분석"
+        className={TOOL_CHIP}
+      >
         <Rotate3d aria-hidden className="h-4 w-4 text-sky-strong" />
-        3D 동작 분석
+        <span aria-hidden className="pad:hidden desk:hidden">3D 분석</span>
+        <span aria-hidden className="hidden pad:inline desk:inline">3D 동작 분석</span>
       </button>
     </div>
   );
 }
 
-/** 고르개 줄 — 고르개(왼쪽) + 찍으러 가는 문. 두 화면이 같은 조각을 쓴다 */
+/** 고르개 줄 — 고르개(왼쪽) + 찍으러 가는 칩. 두 화면이 같은 조각을 쓴다 */
 export function PitchControls({
   switcher,
   canMeasure,
@@ -92,12 +103,7 @@ export function PitchControls({
   return (
     <>
       {switcher}
-      <div className="hidden desk:block">
-        <PitchTools canMeasure={canMeasure} />
-      </div>
-      <div className="w-full desk:hidden">
-        <PitchTools canMeasure={canMeasure} />
-      </div>
+      <PitchTools canMeasure={canMeasure} />
     </>
   );
 }
@@ -160,7 +166,7 @@ export function PitchLogHeading({
         />
       </ViewTransition>
       <ViewTransition name="pitch-log-controls" default={SWIPE_OFF}>
-        <div className="flex flex-wrap items-center justify-between gap-2 desk-low:hidden">
+        <div className="flex flex-wrap items-center gap-2 desk-low:hidden">
           {controls}
         </div>
       </ViewTransition>

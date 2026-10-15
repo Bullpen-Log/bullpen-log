@@ -303,6 +303,21 @@ export function EntryForm({
     (initial?.videoPaths ?? []).map((path) => ({ path, name: fileNameOf(path) }))
   );
   const [saving, setSaving] = useState(false);
+  /*
+   * '더 적기' — 구속 · 영상 · 만족도 · 메모(2026-10-15 사용자 "투구 파트도 우리 시스템에 맞게"). 꼭 적을 것(종류 · 투구수 · 체감 강도)만
+   * 펴 두고 나머지는 접는다 — 예전엔 칸 열 개가 한꺼번에 떠 저장 단추까지 한참 굴렸다. 고칠 때 이미 적은 것이 있으면 펴서 연다.
+   * 접어도 내용은 그대로 둔다(hidden) — 올리던 영상 · 적던 글이 사라지지 않게.
+   */
+  const [more, setMore] = useState(
+    () =>
+      !!initial &&
+      (initial.maxVelocity != null ||
+        initial.avgVelocity != null ||
+        initial.videoPaths.length > 0 ||
+        !!initial.memo ||
+        initial.satisfaction != null ||
+        (initial.cuesGood?.length ?? 0) + (initial.cuesBad?.length ?? 0) > 0)
+  );
   /* 체감 강도를 안 고른 채 저장을 눌렀다 — 칩 밑에 한 줄, 고르면 걷는다 */
   const [effortMissing, setEffortMissing] = useState(false);
   const effortId = useId();
@@ -455,12 +470,7 @@ export function EntryForm({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
-      {/*
-        넓은 화면에서는 두 칸 — 왼쪽에 종류 · 투구수 · 강도 · 구속, 오른쪽에 영상 · 메모.
-        한 줄로 쌓으면 팝업 안에서도 저장 단추까지 한참 굴려야 했다. 휴대폰은 그대로 한 줄.
-      */}
-      <div className="space-y-5 lg:grid lg:grid-cols-2 lg:items-start lg:gap-x-8 lg:space-y-0">
-        <div className="space-y-5">
+      <div className="space-y-5">
           <Field
             label="투구 종류"
             hint={SESSION_TYPES.find((t) => t.name === form.sessionType)?.hint}
@@ -484,8 +494,8 @@ export function EntryForm({
           </Field>
 
           {/*
-        쉰 날에는 투구수·강도·구속 칸을 감춘다.
-        안 던졌는데 "투구수를 입력하세요"라고 하면 남길 수가 없다.
+        쉰 날에는 투구수 · 강도 칸을 감춘다. 안 던졌는데 "투구수를 입력하세요"라고 하면 남길 수가 없다.
+        쉰 날은 메모가 전부라 접지 않고 바로 둔다(이미 붙은 영상이 있으면 뺄 수 있게 같이).
       */}
           {!resting && (
             <>
@@ -527,35 +537,10 @@ export function EntryForm({
                 <IntensityGuide kind="pitch" />
               </div>
 
-              {/*
-        구속은 둘 다 선택 항목이다.
-
-        예전에는 최고 구속이 필수였는데, 스피드건이 없는 선수는 그것 때문에
-        기록을 아예 못 남겼다. 기록이 없으면 부하 지수도 트레이닝도 돌지
-        않으니 앱이 통째로 멈추는 셈이었다. 부하는 투구수 × 강도로 내므로
-        구속이 없어도 계산은 그대로 된다.
-      */}
-              <div className="grid gap-5 sm:grid-cols-2">
-                <SpeedInput
-                  label="최고 구속"
-                  hint="스피드건이 없으면 비워두세요."
-                  kmh={form.maxVelocity}
-                  onKmh={(v) => setForm({ ...form, maxVelocity: v })}
-                  sample={138}
-                />
-                <SpeedInput
-                  label="평균 구속"
-                  hint="비워두셔도 돼요."
-                  kmh={form.avgVelocity}
-                  onKmh={(v) => setForm({ ...form, avgVelocity: v })}
-                  sample={132}
-                />
-              </div>
             </>
           )}
-        </div>
-
-        <div className="space-y-5">
+          {resting ? (
+            <>
           {/*
         고칠 때도 영상을 바꿀 수 있다.
 
@@ -596,6 +581,76 @@ export function EntryForm({
             </Field>
           )}
 
+          <Field
+            label={resting ? '메모' : '특이사항 · 느낀점'}
+            hint={
+              rated && Number(form.satisfaction) >= GOOD_DAY_MIN && !form.memo.trim()
+                ? '잘 던진 날 남긴 메모는 다음에 던지는 날 홈에 다시 띄워 드려요.'
+                : undefined
+            }
+          >
+            <Textarea
+              rows={4}
+              value={form.memo}
+              onChange={(e) => setForm({ ...form, memo: e.target.value })}
+              placeholder={
+                resting
+                  ? '어깨가 뻐근해서 쉼'
+                  : '릴리즈 포인트가 일정했고 5회부터 팔이 무거워짐'
+              }
+            />
+          </Field>
+            </>
+          ) : (
+            <>
+              <button
+                type="button"
+                onClick={() => setMore((o) => !o)}
+                aria-expanded={more}
+                className="flex min-h-12 w-full items-center justify-between gap-3 rounded-xl bg-ink/5 px-4 text-left transition-colors active:bg-ink/8 desk:min-h-10 desk:border desk:border-line desk:bg-transparent desk:hover:border-sky-soft"
+              >
+                <span className="text-subhead font-semibold text-sky-strong">더 적기</span>
+                <span className="flex min-w-0 items-center gap-1 text-footnote text-muted">
+                  <span className="truncate">구속 · 영상 · 만족도 · 메모</span>
+                  <ChevronDown
+                    aria-hidden
+                    className={`h-4 w-4 shrink-0 transition-transform ${more ? 'rotate-180' : ''}`}
+                  />
+                </span>
+              </button>
+              {/* 넓은 화면에서는 두 칸 — 왼쪽 구속 · 만족도, 오른쪽 영상 · 메모 */}
+              <div
+                className={
+                  more
+                    ? 'space-y-5 motion-safe:animate-fade-in lg:grid lg:grid-cols-2 lg:items-start lg:gap-x-8 lg:space-y-0'
+                    : 'hidden'
+                }
+              >
+                <div className="space-y-5">
+              {/*
+        구속은 둘 다 선택 항목이다.
+
+        예전에는 최고 구속이 필수였는데, 스피드건이 없는 선수는 그것 때문에
+        기록을 아예 못 남겼다. 기록이 없으면 부하 지수도 트레이닝도 돌지
+        않으니 앱이 통째로 멈추는 셈이었다. 부하는 투구수 × 강도로 내므로
+        구속이 없어도 계산은 그대로 된다.
+      */}
+              <div className="grid gap-5 sm:grid-cols-2">
+                <SpeedInput
+                  label="최고 구속"
+                  hint="스피드건이 없으면 비워두세요."
+                  kmh={form.maxVelocity}
+                  onKmh={(v) => setForm({ ...form, maxVelocity: v })}
+                  sample={138}
+                />
+                <SpeedInput
+                  label="평균 구속"
+                  hint="비워두셔도 돼요."
+                  kmh={form.avgVelocity}
+                  onKmh={(v) => setForm({ ...form, avgVelocity: v })}
+                  sample={132}
+                />
+              </div>
           {/* 불펜 · 라이브 · 경기만 — 캐치볼은 가볍게 주고받는 날이라 '잘 던진 날 찾기'를 흐린다 */}
           {rated && (
             <SatisfactionFields
@@ -604,6 +659,48 @@ export function EntryForm({
               bad={form.cuesBad}
               onChange={(next) => setForm({ ...form, ...next })}
             />
+          )}
+
+                </div>
+                <div className="space-y-5">
+          {/*
+        고칠 때도 영상을 바꿀 수 있다.
+
+        예전에는 새로 남길 때만 열어두었다 — 영상을 빼면 거기 붙은 폼 분석이
+        주인 없이 남기 때문이다. 그래서 영상 하나 바꾸려면 기록을 통째로 지우고
+        다시 써야 했다. 지금은 뺀 영상의 분석을 서버가 함께 지우므로 열어둔다.
+
+        쉰 날에도 이미 붙어 있는 영상은 보여준다. 안 보이면 뺄 수가 없다.
+      */}
+          {(!resting || videos.length > 0) && (
+            <Field
+              label="투구 영상"
+              hint={
+                resting
+                  ? '쉰 날에는 새로 올릴 수 없어요. 이미 붙어 있는 영상은 뺄 수 있어요.'
+                  : '폰이나 컴퓨터에 있는 영상을 바로 올릴 수 있어요.'
+              }
+            >
+              <div className="space-y-3">
+                {/* 올리기 전에 촬영 조건을 한 번 보고 가도록 바로 위에 둔다. */}
+                {!resting && <FilmingGuide />}
+                <VideoUpload
+                  videos={shownVideos}
+                  onChange={changeVideos}
+                  max={2}
+                  disabled={resting}
+                  confirmRemove={removeNote}
+                  onUploadingChange={setUploading}
+                  compress
+                  toPhone
+                  /* 영상 캘린더의 썸네일 — 손에 든 파일에서 바로 뜬다(기다리지 않는다) */
+                  onUploaded={(path, file) => {
+                    freshRef.current.add(path);
+                    void makePitchThumb(path, file);
+                  }}
+                />
+              </div>
+            </Field>
           )}
 
           <Field
@@ -625,7 +722,10 @@ export function EntryForm({
               }
             />
           </Field>
-        </div>
+                </div>
+              </div>
+            </>
+          )}
       </div>
 
       <div className="flex flex-wrap items-center gap-3">
