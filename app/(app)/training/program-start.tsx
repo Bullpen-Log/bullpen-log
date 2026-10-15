@@ -61,6 +61,14 @@ export type ProgramStartProps = {
 };
 
 /** 'YYYY-MM-DD' → 오늘 만 나이. 모양이 아니면 null */
+/**
+ * 기본기 4주를 보이나 — 웨이트 경력 입문, 또는 나이로 성인 프로그램이 막힌 사람(그때는 기본기가 고를 수 있는 유일한 프로그램이다 —
+ * 막힘 글도 '기본기 4주로 자세부터 익혀요'라 가리면 갈 곳이 없다).
+ */
+function offersBasics(props: ProgramStartProps) {
+  return props.level === '입문' || props.blocked != null;
+}
+
 function ageOf(birth: string): number | null {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(birth)) return null;
   const [by, bm, bd] = birth.split('-').map(Number);
@@ -84,12 +92,10 @@ export function ProgramStart({ props }: { props: ProgramStartProps }) {
   const adultCount = props.programs.filter((p) => p.audience === 'adult').length;
   /*
    * 만 12세 이하는 기본기도 못 한다 — 카드를 안 그린다(시트 목록에는 남아 누르면 까닭을 본다).
-   * 웨이트 경력이 입문 · 초급인 사람에게만 카드를 보인다(2026-10-12 사용자) — 그 위는 시트 목록에서만 고른다.
+   * 기본기는 웨이트 경력이 입문인 사람에게만 권한다(2026-10-16 김민 — 10-12 의 '입문 · 초급'에서 줄임). 카드 · 시트 목록 둘 다.
    */
   const showBasics =
-    basicsChoice != null &&
-    props.basicsBlocked == null &&
-    (props.level === '입문' || props.level === '초급');
+    basicsChoice != null && props.basicsBlocked == null && offersBasics(props);
   /* 성인 프로그램이 막힌 사람에게는 기본기가 먼저다 */
   const recommend = showBasics && props.blocked != null;
 
@@ -302,7 +308,9 @@ function StartSheet({
             ? pins != null && changing == null
             : true;
 
-  const basicsChoices = props.programs.filter((p) => p.audience === 'basics');
+  const basicsChoices = offersBasics(props)
+    ? props.programs.filter((p) => p.audience === 'basics')
+    : [];
   const shown = props.programs.filter((p) => p.audience === 'adult' && p.goal === goal);
   const changingLabel = pins?.find((x) => x.variant === changing)?.label ?? '';
 
