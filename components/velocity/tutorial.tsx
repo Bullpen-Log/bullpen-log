@@ -69,35 +69,27 @@ const SLIDES: Slide[] = [
     key: 'what',
     title: '폰 카메라로 구속을 재요',
     body: '공이 날아가는 길을 장면마다 찾아 물리 궤적에 맞추고, 폰에서 그물(미트)까지 거리로 크기를 정해 구속을 내요.',
-    note: '스피드건 없이, 삼각대에 올린 폰 하나면 돼요.',
+    note: '스피드건 없이 폰 하나면 돼요.',
     art: <ArtShrink />,
-  },
-  {
-    key: 'prep',
-    title: '먼저 준비할 것',
-    body: '삼각대에 폰을 고정하고, 투수 바로 뒤 1m(또는 포수 뒤)에 두세요. 릴리스가 화면 안에 보이게 맞춰요.',
-    note: '그물(미트)까지 거리는 공 크기로 어림해요. 줄자로 재서 넣으면 더 정확해요. 카메라는 2배 줌으로 찍어요.',
-    art: <ArtPrep />,
   },
   {
     key: 'setup',
     title: '설정 → 카메라 → 존',
-    body: '어떤 투구 · 카메라 위치 · 네트 · 거리를 고르고, 수평계와 표적을 맞춘 뒤 표적 바로 밑에 놓인 스트라이크 존의 크기를 맞추세요.',
+    body: '투구 종류와 폰 자리를 고르고, 카메라에서 수평과 표적을 맞춘 뒤 스트라이크 존 크기를 맞춰요.',
     note: '다음부터는 "이 설정으로 시작" 한 번이면 카메라로 바로 가요.',
     art: <ArtZone />,
   },
   {
     key: 'measure',
     title: '측정은 켜 두면 알아서',
-    body: '자동 모드는 시작을 누르고 던지기만 하면 공마다 잡아 줘요. 화면은 카메라 대신 구속 · 구종 · 목록을 보여 줘요. 수동 모드는 공마다 단추를 눌러요.',
-    note: '아래 가운데 "세션 종료"로 끝내면 투구 기록에 정리돼요. 위쪽에 설정 · 재초점 · 뒤로가기가 있어요.',
+    body: '시작을 누르고 던지기만 하면 공마다 잡아 줘요. 화면은 카메라 대신 구속 · 구종 · 목록을 보여 줘요.',
+    note: '공이 흐리게 보이면 아래 초점 단추를 눌러요.',
     art: <ArtLive />,
   },
   {
     key: 'after',
     title: '잰 뒤에',
-    body: '목록에서 공을 누르면 구종 · 코스 · 스피드건 값을 적고 영상 클립을 볼 수 있어요.',
-    note: '투구 기록에는 [구속 측정] 표시로 남고, 거기서도 고칠 수 있어요.',
+    body: '목록에서 공을 누르면 구종 · 코스를 고치고 영상 클립을 볼 수 있어요.',
     art: <ArtAfter />,
   },
 ];
@@ -302,45 +294,6 @@ function ArtShrink() {
       <circle cx="176" cy="75" r="3" fill="currentColor" stroke="none" />
       {/* 속도 화살 */}
       <path d="M62 128h110M164 120l8 8-8 8" />
-    </svg>
-  );
-}
-
-/** 2. 삼각대 위 폰 · 투수 뒤 1m · 해 */
-function ArtPrep() {
-  return (
-    <svg
-      viewBox="0 0 200 150"
-      className={ART}
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="4"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden
-    >
-      {/* 해 */}
-      <circle cx="170" cy="28" r="10" stroke="#b45309" />
-      <path d="M170 8v6M170 42v6M150 28h6M184 28h6" stroke="#b45309" />
-      {/* 삼각대 + 폰 */}
-      <rect x="30" y="40" width="26" height="46" rx="5" fill="white" />
-      <circle cx="43" cy="58" r="5" />
-      <path d="M43 86v12M43 98L22 136M43 98l21 38M43 98v38" />
-      {/* 1m 표시 */}
-      <path d="M70 128h40M70 122v12M110 122v12" stroke="#94a3b8" />
-      <text
-        x="90"
-        y="116"
-        textAnchor="middle"
-        fontSize="12"
-        fill="#64748b"
-        stroke="none"
-      >
-        1m
-      </text>
-      {/* 투수 */}
-      <circle cx="140" cy="62" r="10" />
-      <path d="M140 72v34M140 84l-16 10M140 84l18-14M140 106l-12 30M140 106l12 30" />
     </svg>
   );
 }

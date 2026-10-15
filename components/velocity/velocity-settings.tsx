@@ -58,21 +58,10 @@ export type SettingsValues = Pick<
   | 'clipZone'
 > & { fovDeg: number };
 
-const NET_VALUES = [
-  { value: 'yes', label: '네트 있음' },
-  { value: 'no', label: '네트 없음' },
-] as const;
-
 /** 그물까지 거리 — 공 크기로 어림(기본) · 줄자로 잰 값(측정 2단계와 같은 칸) */
 export const DIST_MODES = [
   { value: 'auto', label: '자동' },
   { value: 'manual', label: '직접 넣기' },
-] as const;
-/** 측정의 폰 자리 단계 — 관리자(기준 20m · 줄자 · 공마다 공 크기)와 일반(기준 20m · 줄자). 기준 20m 는 세션마다 공 크기로 맞춘다(엔진 2.4 1단계) */
-export const DIST_MODES_ADMIN = [
-  { value: 'standard', label: '기준 20m' },
-  { value: 'manual', label: '줄자' },
-  { value: 'auto', label: '공마다 공 크기' },
 ] as const;
 export const TAPE_MODES = [
   { value: 'standard', label: '기준 20m' },
@@ -128,12 +117,7 @@ export function VelocitySettingsFields({
               }
             }}
           />
-          <ToggleRow
-            title="자동 측정"
-            hint="끄면 공마다 '다음 공'을 눌러요."
-            checked={values.autoMode}
-            onChange={(autoMode) => onChange({ autoMode })}
-          />
+          {/* 자동 측정 줄은 뺐다 — 측정은 늘 자동(2026-10-15 사용자) */}
           {/* 관리자 스위치(정확도 보정용 저장 · 엔진 개발용 녹화)는 측정 화면 왼쪽 관리자 단추의 '관리자 설정'으로 옮겼다(2026-10-03) */}
           <ToggleRow
             title="영상에 스트라이크 존 표시"
@@ -193,37 +177,20 @@ export function VelocitySettingsFields({
         </Panel>
       </div>
 
-      {showChoices && (
+      {/* 촬영 칸 — 카메라 위치가 하나뿐이고 네트는 더 묻지 않아(2026-10-15) 고를 것이 있을 때만 */}
+      {showChoices && CAMERA_OPTIONS.length > 1 && (
         <div>
           <SectionLabel>촬영</SectionLabel>
           <Panel className="divide-y divide-line">
-            {CAMERA_OPTIONS.length > 1 && (
-              <ChoiceRow title="카메라 위치">
-                <Segmented
-                  label="카메라 위치"
-                  value={values.cameraPos}
-                  onChange={(cameraPos) => onChange({ cameraPos })}
-                  options={CAMERA_OPTIONS.map((o) => ({
-                    value: o.key,
-                    label: o.label,
-                  }))}
-                  size="sm"
-                />
-              </ChoiceRow>
-            )}
-            <ChoiceRow
-              title="네트"
-              hint={
-                values.net
-                  ? '초점을 고정해 그물코에 안 잡히게 해요.'
-                  : '자동초점으로 공을 따라가요.'
-              }
-            >
+            <ChoiceRow title="카메라 위치">
               <Segmented
-                label="네트"
-                value={values.net ? 'yes' : 'no'}
-                onChange={(v) => onChange({ net: v === 'yes' })}
-                options={NET_VALUES}
+                label="카메라 위치"
+                value={values.cameraPos}
+                onChange={(cameraPos) => onChange({ cameraPos })}
+                options={CAMERA_OPTIONS.map((o) => ({
+                  value: o.key,
+                  label: o.label,
+                }))}
                 size="sm"
               />
             </ChoiceRow>

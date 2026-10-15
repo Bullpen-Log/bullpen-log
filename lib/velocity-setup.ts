@@ -173,7 +173,9 @@ export const ZONE_CENTER = { x: 0.5, y: 0.54 } as const;
 export function centerZone(rect: ZoneRect): ZoneRect {
   const x = ZONE_CENTER.x - rect.w / 2;
   const y = ZONE_CENTER.y - rect.h / 2;
-  return Math.abs(x - rect.x) < 1e-6 && Math.abs(y - rect.y) < 1e-6 ? rect : { ...rect, x, y };
+  return Math.abs(x - rect.x) < 1e-6 && Math.abs(y - rect.y) < 1e-6
+    ? rect
+    : { ...rect, x, y };
 }
 
 /** 카메라 위치별 처음 존 — 가운데(ZONE_CENTER) */
@@ -213,7 +215,8 @@ export const STANDARD_TARGET_DIST_M = 20;
 export const DEFAULT_SETUP: Omit<VelocitySetup, 'savedAt'> = {
   sessionType: DEFAULT_SESSION_TYPE,
   cameraPos: 'behind-pitcher',
-  net: true,
+  /* 네트는 더 묻지 않는다(2026-10-15 사용자: "네트 있음도 없애고 묻지도 마") — 늘 없음(자동초점) */
+  net: false,
   zone: DEFAULT_ZONE,
   voice: false,
   useCal: true,
@@ -257,9 +260,12 @@ export function loadSetup(): VelocitySetup | null {
           ? p.sessionType
           : DEFAULT_SESSION_TYPE,
       cameraPos: p.cameraPos,
-      net: p.net !== false,
+      net: false,
       /* 예전(모양 · 크기가 자유롭던 때)에 놓은 존도 규격에 맞춘다 */
-      zone: fitZone(isRect(p.zone) ? centerZone(p.zone) : defaultZone(p.cameraPos), p.cameraPos),
+      zone: fitZone(
+        isRect(p.zone) ? centerZone(p.zone) : defaultZone(p.cameraPos),
+        p.cameraPos
+      ),
       voice: p.voice === true,
       useCal: p.useCal !== false,
       releaseDistM:
@@ -274,16 +280,11 @@ export function loadSetup(): VelocitySetup | null {
         p.targetDistM <= TARGET_DIST_MAX
           ? p.targetDistM
           : DEFAULT_SETUP.targetDistM,
-      /* 이 칸이 생기기 전 설정 — 기본 20m 를 그대로 둔 사람은 자동으로, 바꾼 사람은 넣은 거리로 */
-      distAuto:
-        typeof p.distAuto === 'boolean'
-          ? p.distAuto
-          : !(
-              typeof p.targetDistM === 'number' &&
-              p.targetDistM !== DEFAULT_SETUP.targetDistM
-            ),
+      /* 공마다 공 크기로 거리 어림은 뺐다(2026-10-15 사용자: "기준 20m · 줄자만") — 옛 설정에 켜져 있어도 끔 */
+      distAuto: false,
       distTape: p.distTape === true,
-      autoMode: p.autoMode !== false,
+      /* 측정은 늘 자동(2026-10-15 사용자: "항상 자동으로") — 옛 설정의 수동도 자동으로 */
+      autoMode: true,
       calibSave: p.calibSave === true,
       clipZone: p.clipZone !== false,
       recordMode: p.recordMode === true,
@@ -342,11 +343,8 @@ export function approachOf(setup: Pick<VelocitySetup, 'cameraPos'>): Approach {
   return setup.cameraPos === 'behind-pitcher' ? 'receding' : 'approaching';
 }
 
-export function setupSummary(s: Pick<VelocitySetup, 'cameraPos' | 'net'>) {
-  return [
-    CAMERA_OPTIONS.find((o) => o.key === s.cameraPos)?.label,
-    s.net ? '네트 있음' : '네트 없음',
-  ].join(' · ');
+export function setupSummary(s: Pick<VelocitySetup, 'cameraPos'>) {
+  return CAMERA_OPTIONS.find((o) => o.key === s.cameraPos)?.label ?? '';
 }
 
 /**

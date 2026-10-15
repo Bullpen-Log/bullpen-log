@@ -52,8 +52,7 @@ export function throwingHandOf(profile: string | null | undefined): ThrowingHand
 export const VELOCITY_SCREENS = [
   { key: 'ask', label: '지난 설정 묻기', hint: '저장된 설정이 있을 때 첫 화면' },
   { key: 'type', label: '어떤 투구', hint: '불펜 · 라이브 · 경기 · 캐치볼' },
-  { key: 'camera', label: '카메라 위치', hint: '투수 뒤 · 포수 뒤' },
-  { key: 'net', label: '네트', hint: '있음 · 없음' },
+  { key: 'camera', label: '카메라 위치', hint: '투수 뒤 · 거리' },
   { key: 'tips', label: '주의사항 창', hint: '카메라 화면 위 팝업' },
   { key: 'align', label: '수평 · 표적', hint: '카메라 맞추기' },
   { key: 'zone', label: '스트라이크 존', hint: '존 놓기' },

@@ -25,12 +25,9 @@ import {
   Film,
   FlaskConical,
   Focus,
-  Hand,
   Info,
   List,
   Loader2,
-  Play,
-  RefreshCw,
   RotateCcw,
   Settings2,
   Square,
@@ -163,14 +160,12 @@ import {
 } from '@/components/velocity/setup-steps';
 import {
   cameraPosOptions,
-  netOptions,
   OptionCards,
   sessionTypeOptions,
   SetupSummaryRow,
 } from '@/components/velocity/setup-art';
 import { isTipsSkippedToday, TipsPopup } from '@/components/velocity/tips-popup';
 import {
-  DIST_MODES_ADMIN,
   TAPE_MODES,
   VelocitySettingsFields,
 } from '@/components/velocity/velocity-settings';
@@ -233,7 +228,7 @@ import {
  * 않는다. 잰 값은 '저장'을 누를 때 서버로 간다(app/actions/velocity.ts). 영상은 어디에도 안 올린다.
  */
 
-export type Step = 'type' | 'camera' | 'net' | 'align' | 'zone' | 'measure' | 'lens';
+export type Step = 'type' | 'camera' | 'align' | 'zone' | 'measure' | 'lens';
 
 /** 카메라(뷰파인더)가 필요한 단계 — 들어오면 카메라를 켠다 */
 const CAMERA_STEPS: ReadonlySet<Step> = new Set<Step>([
@@ -246,8 +241,7 @@ const CAMERA_STEPS: ReadonlySet<Step> = new Set<Step>([
 /* 내비게이션 바의 뒤로 — 어느 단계에서 어디로, 무슨 이름으로. 없으면 '투구 기록'(나가기) */
 const BACK_OF: Partial<Record<Step, { to: Step; label: string }>> = {
   camera: { to: 'type', label: '종류' },
-  net: { to: 'camera', label: '카메라 위치' },
-  align: { to: 'net', label: '네트' },
+  align: { to: 'camera', label: '카메라 위치' },
   zone: { to: 'align', label: '수평' },
   lens: { to: 'measure', label: '측정' },
 };
@@ -1366,7 +1360,7 @@ export function VelocityScreen({
   const usePrevious = () => {
     if (!stored) return;
     enterCameraStep('align', () => {
-      setChoices({ cameraPos: stored.cameraPos, net: stored.net });
+      setChoices({ cameraPos: stored.cameraPos, net: false });
       setSessionType(stored.sessionType);
       setZone(stored.zone);
       setVoice(stored.voice);
@@ -1374,11 +1368,9 @@ export function VelocityScreen({
       setReleaseDistM(stored.releaseDistM);
       /* 거리는 기준 20m — 줄자로 쟀으면(distTape) 그 값, 관리자는 저장한 거리(특수 시험). 기준이면 세션마다 공 크기로 맞춘다(2.4.0) */
       setDistTape(stored.distTape);
-      setTargetDistM(
-        isAdmin || stored.distTape ? stored.targetDistM : STANDARD_TARGET_DIST_M
-      );
-      setDistAuto(isAdmin ? stored.distAuto : false);
-      setAutoMode(stored.autoMode);
+      setTargetDistM(stored.distTape ? stored.targetDistM : STANDARD_TARGET_DIST_M);
+      setDistAuto(false);
+      setAutoMode(true);
       setCalibSave(stored.calibSave);
       setClipZone(stored.clipZone);
       setRecordMode(stored.recordMode);
@@ -2297,9 +2289,9 @@ export function VelocityScreen({
   /* 카메라 무대 위 가운데 — 단계 이름(측정은 세션 중 상태가 대신) */
   const stageTitle =
     step === 'align'
-      ? { n: '4/5', label: '수평 · 표적' }
+      ? { n: '3/4', label: '수평 · 표적' }
       : step === 'zone'
-        ? { n: '5/5', label: '스트라이크 존' }
+        ? { n: '4/4', label: '스트라이크 존' }
         : null;
   const fpsNote = liveFpsNote(fps);
   /*
@@ -2663,7 +2655,7 @@ export function VelocityScreen({
       {!showAsk && step === 'type' && (
         <StepShell
           step={1}
-          total={5}
+          total={4}
           title="어떤 투구인가요?"
           subtitle="투구 기록에 이 종류로 남아요."
           footer={
@@ -2684,9 +2676,9 @@ export function VelocityScreen({
       {!showAsk && step === 'camera' && (
         <StepShell
           step={2}
-          total={5}
-          title="폰은 투수 바로 뒤에 둬요"
-          subtitle="삼각대에 세워 공이 날아가는 길을 뒤에서 봐요."
+          total={4}
+          title="폰은 투수 바로 뒤 1m 안에 둬요"
+          subtitle="던지는 방향을 정면으로 보게 둬요. 멀거나 옆이면 공을 놓쳐요."
           footer={
             <>
               {/* 체크인 흐름처럼 [이전][다음] */}
@@ -2696,10 +2688,10 @@ export function VelocityScreen({
               <PrimaryButton
                 onClick={() => {
                   persistSetup({ targetDistM, releaseDistM, distTape });
-                  setStep('net');
+                  goAlign();
                 }}
               >
-                다음
+                카메라 켜기
                 <ChevronRight aria-hidden className="h-4 w-4" />
               </PrimaryButton>
             </>
@@ -2716,9 +2708,9 @@ export function VelocityScreen({
               }}
               columns={1}
             />
-            {choices.cameraPos === 'behind-pitcher' && !isAdmin ? (
+            {choices.cameraPos === 'behind-pitcher' ? (
               <div className="space-y-3">
-                {/* 기준 20m 로 재고 세션마다 공 크기로 맞춘다(2.4.0). 줄자로 쟀으면 그 값이 이긴다 */}
+                {/* 기준 20m 로 재고 세션마다 공 크기로 맞춘다(2.4.0). 줄자로 쟀으면 그 값이 이긴다. 공마다 공 크기로 어림하는 관리자 칸은 뺐다(2026-10-15) */}
                 <SectionLabel>폰에서 포수 미트까지</SectionLabel>
                 <Segmented
                   label="폰에서 미트까지"
@@ -2740,46 +2732,7 @@ export function VelocityScreen({
                 {distTape && (
                   <DistanceField
                     label="줄자로 잰 거리"
-                    hint="폰에서 포수 미트까지예요. 5% 틀리면 구속도 5% 틀려요. 정규 마운드에서 폰을 투수판 1m 뒤에 두면 약 19.5m예요."
-                    value={targetDistM}
-                    min={TARGET_DIST_MIN}
-                    max={TARGET_DIST_MAX}
-                    onChange={setTargetDistM}
-                  />
-                )}
-              </div>
-            ) : choices.cameraPos === 'behind-pitcher' ? (
-              <div className="space-y-4">
-                {/* 관리자 — 기준 20m(세션마다 공 크기로 맞춤) · 줄자로 잰 값 · 공마다 공 크기(특수 시험) */}
-                <div>
-                  <SectionLabel>폰에서 공이 닿는 곳까지</SectionLabel>
-                  <Segmented
-                    label="폰에서 공이 닿는 곳까지"
-                    value={distAuto ? 'auto' : distTape ? 'manual' : 'standard'}
-                    onChange={(v) => {
-                      setDistAuto(v === 'auto');
-                      setDistTape(v === 'manual');
-                      if (v === 'standard') setTargetDistM(STANDARD_TARGET_DIST_M);
-                    }}
-                    options={DIST_MODES_ADMIN}
-                    size="md"
-                  />
-                  {distAuto && (
-                    <p className="mt-2 px-0.5 text-xs leading-relaxed text-muted">
-                      공마다 공 크기로 거리를 어림해요. 줄자로 재서 넣으면 더 정확해요.
-                    </p>
-                  )}
-                  {!distAuto && !distTape && (
-                    <p className="mt-2 px-0.5 text-xs leading-relaxed text-muted">
-                      기준 {STANDARD_TARGET_DIST_M}m로 재고, 깨끗한 공 셋부터 공 크기
-                      가운데 값으로 세션 거리를 맞춰요.
-                    </p>
-                  )}
-                </div>
-                {!distAuto && distTape && (
-                  <DistanceField
-                    label="줄자로 잰 거리"
-                    hint="그물이나 포수 미트까지예요. 5% 틀리면 구속도 5% 틀려요. 정규 마운드에서 폰을 투수판 1m 뒤에 두면 약 19.5m예요."
+                    hint="5% 틀리면 구속도 5% 틀려요."
                     value={targetDistM}
                     min={TARGET_DIST_MIN}
                     max={TARGET_DIST_MAX}
@@ -2798,32 +2751,6 @@ export function VelocityScreen({
               />
             )}
           </div>
-        </StepShell>
-      )}
-      {!showAsk && step === 'net' && (
-        <StepShell
-          step={3}
-          total={5}
-          title="카메라 앞에 네트가 있나요?"
-          subtitle="그물이 있으면 초점을 고정해야 공이 선명해요."
-          footer={
-            <>
-              <PrimaryButton tone="quiet" onClick={() => setStep('camera')}>
-                이전
-              </PrimaryButton>
-              <PrimaryButton onClick={goAlign}>
-                카메라 켜기
-                <ChevronRight aria-hidden className="h-4 w-4" />
-              </PrimaryButton>
-            </>
-          }
-        >
-          <OptionCards
-            label="네트"
-            options={netOptions()}
-            value={choices.net ? 'yes' : 'no'}
-            onChange={(v) => setChoices({ ...choices, net: v === 'yes' })}
-          />
         </StepShell>
       )}
 
@@ -2937,9 +2864,7 @@ export function VelocityScreen({
                           {STATUS_TEXT[status]}
                         </p>
                         <p className="mt-1 text-xs leading-relaxed text-white/60">
-                          {autoMode
-                            ? '공마다 알아서 잡아요. 끝나면 아래 가운데 세션 종료를 눌러요.'
-                            : '아래 왼쪽 다음 공을 누르고 던져요.'}
+                          공마다 알아서 잡아요. 끝나면 아래 가운데 세션 종료를 눌러요.
                         </p>
                         {(fpsNote ?? cropNote) && (
                           <p className="mt-2 text-xs leading-snug text-warn-line">
@@ -3405,7 +3330,8 @@ export function VelocityScreen({
                 </span>
               )}
               <div className="pointer-events-auto flex items-center gap-1">
-                {cameraOn && (!live || showCamera) && (
+                {/* 측정 화면은 아래 막대의 '초점' 단추가 맡는다 — 위 줄은 수평 · 존 · 렌즈 단계만 */}
+                {cameraOn && step !== 'measure' && (
                   <button
                     type="button"
                     onClick={refocus}
@@ -3594,17 +3520,22 @@ export function VelocityScreen({
                 </>
               ) : !live ? (
                 <>
+                  {/* 영상 파일로 재기는 관리자만(2026-10-15 사용자: "파일 측정은 관리자만, 일반 사용자는 제거") */}
                   <div className="flex w-20 flex-col items-center">
-                    <button
-                      type="button"
-                      onClick={() => fileRef.current?.click()}
-                      disabled={fileBusy}
-                      aria-label="슬로모션 영상 파일로 재기"
-                      className={SIDE_BTN}
-                    >
-                      <Film aria-hidden className="h-5 w-5" />
-                    </button>
-                    <span className={SIDE_LABEL}>파일</span>
+                    {isAdmin && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => fileRef.current?.click()}
+                          disabled={fileBusy}
+                          aria-label="영상 파일로 재기"
+                          className={SIDE_BTN}
+                        >
+                          <Film aria-hidden className="h-5 w-5" />
+                        </button>
+                        <span className={SIDE_LABEL}>파일</span>
+                      </>
+                    )}
                   </div>
                   <div className="flex flex-col items-center">
                     <button
@@ -3626,61 +3557,41 @@ export function VelocityScreen({
                       {cameraOn ? '측정 시작' : '카메라 켜기'}
                     </span>
                   </div>
+                  {/* 측정은 늘 자동(2026-10-15 사용자) — 자동 · 수동 단추 자리에 초점 단추 */}
                   <div className="flex w-20 flex-col items-center">
                     <button
                       type="button"
-                      onClick={() => {
-                        const next = !autoMode;
-                        setAutoMode(next);
-                        persistSetup({ autoMode: next });
-                      }}
-                      aria-pressed={autoMode}
-                      aria-label="자동 · 수동 모드"
+                      onClick={refocus}
+                      disabled={!cameraOn || focusBusy}
+                      aria-label="초점 다시 맞추기"
                       className={SIDE_BTN}
                     >
-                      {autoMode ? (
-                        <RefreshCw aria-hidden className="h-5 w-5" />
+                      {focusBusy ? (
+                        <Loader2 aria-hidden className="h-5 w-5 animate-spin" />
                       ) : (
-                        <Hand aria-hidden className="h-5 w-5" />
+                        <Focus aria-hidden className="h-5 w-5" />
                       )}
                     </button>
-                    <span className={SIDE_LABEL}>{autoMode ? '자동' : '수동'}</span>
+                    <span className={SIDE_LABEL}>초점</span>
                   </div>
                 </>
               ) : (
                 <>
                   <div className="flex w-20 flex-col items-center">
-                    {autoMode ? (
-                      <>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setAutoMode(false);
-                            persistSetup({ autoMode: false });
-                          }}
-                          aria-label="수동 측정으로 바꾸기"
-                          className={SIDE_BTN}
-                        >
-                          <RefreshCw aria-hidden className="h-5 w-5" />
-                        </button>
-                        <span className={SIDE_LABEL}>자동</span>
-                      </>
-                    ) : (
-                      <>
-                        <button
-                          type="button"
-                          onClick={nextPitch}
-                          disabled={status !== 'ready'}
-                          aria-label="다음 공 준비"
-                          className={`${SIDE_BTN} ${status === 'ready' ? 'border-sky bg-sky' : ''}`}
-                        >
-                          <Play aria-hidden className="h-5 w-5 fill-current" />
-                        </button>
-                        <span className={SIDE_LABEL}>
-                          {status === 'ready' ? '다음 공' : '대기 중'}
-                        </span>
-                      </>
-                    )}
+                    <button
+                      type="button"
+                      onClick={refocus}
+                      disabled={!cameraOn || focusBusy}
+                      aria-label="초점 다시 맞추기"
+                      className={SIDE_BTN}
+                    >
+                      {focusBusy ? (
+                        <Loader2 aria-hidden className="h-5 w-5 animate-spin" />
+                      ) : (
+                        <Focus aria-hidden className="h-5 w-5" />
+                      )}
+                    </button>
+                    <span className={SIDE_LABEL}>초점</span>
                   </div>
                   <div className="flex flex-col items-center">
                     <button
@@ -4074,7 +3985,7 @@ function PreviousSetupStep({
   return (
     <StepShell
       step={1}
-      total={5}
+      total={4}
       title="지난 설정으로 바로 시작할까요?"
       subtitle="같은 자리에서 같은 방식으로 재면 카메라로 바로 가요."
       footer={
@@ -4098,8 +4009,7 @@ function PreviousSetupStep({
           />
         </div>
         <p className="border-t border-line px-(--block-pad) py-3 text-footnote leading-snug text-muted">
-          스트라이크 존 자리 저장됨 · 소리 안내 {setup.voice ? '켬' : '끔'} · 자동 측정{' '}
-          {setup.autoMode ? '켬' : '끔'}
+          스트라이크 존 자리 저장됨 · 소리 안내 {setup.voice ? '켬' : '끔'}
           {when && ` · ${when.getMonth() + 1}월 ${when.getDate()}일에 저장`}
         </p>
       </div>

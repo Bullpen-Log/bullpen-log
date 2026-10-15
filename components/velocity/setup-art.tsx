@@ -3,7 +3,7 @@
 import type { ReactNode } from 'react';
 import { Check } from 'lucide-react';
 import { isRestSession, SESSION_TYPES } from '@/lib/session-type';
-import { CAMERA_OPTIONS, NET_OPTIONS, type CameraPos } from '@/lib/velocity-setup';
+import { CAMERA_OPTIONS, type CameraPos } from '@/lib/velocity-setup';
 
 /**
  * 구속 측정 앞 설정의 그림 카드 — 어떤 투구 → 카메라 위치 → 네트.
@@ -55,7 +55,7 @@ export function sessionTypeOptions(): SetupOption<string>[] {
 /** 카메라 위치 — 지금은 투수 뒤 하나(lib/velocity-setup.ts CAMERA_OPTIONS). 그림의 공은 투수 → 포수 */
 export function cameraPosOptions(): SetupOption<CameraPos>[] {
   const hint: Record<CameraPos, string> = {
-    'behind-pitcher': '투수 바로 뒤 1m 안, 폰에서 미트까지 약 20m',
+    'behind-pitcher': '던지는 팔 쪽으로 30cm쯤 비키면 릴리스가 가운데 와요',
     'behind-catcher': '포수 · 네트 뒤 1~3m',
   };
   return CAMERA_OPTIONS.map((o) => ({
@@ -64,18 +64,6 @@ export function cameraPosOptions(): SetupOption<CameraPos>[] {
     hint: hint[o.key],
     art: <ArtCameraPos behind={o.key === 'behind-pitcher'} />,
   }));
-}
-
-/** 네트 — 있음 · 없음. boolean 은 라디오 값이 못 되니 'yes' · 'no' 로 */
-export function netOptions(): SetupOption<'yes' | 'no'>[] {
-  const hint = {
-    yes: '초점을 고정해 그물코에 안 잡히게 해요',
-    no: '트인 곳이라 자동초점으로 공을 따라가요',
-  };
-  return NET_OPTIONS.map((o) => {
-    const value = o.key ? 'yes' : 'no';
-    return { value, label: o.label, hint: hint[value], art: <ArtNet net={o.key} /> };
-  });
 }
 
 function cameraName(cameraPos: string) {
@@ -166,13 +154,13 @@ export function OptionCards<V extends string>({
 export function SetupSummaryRow({
   sessionType,
   cameraPos,
-  net,
   tone = 'light',
 }: {
   sessionType: string | null;
   /** 'behind-pitcher' · 'behind-catcher' */
   cameraPos: string;
-  net: boolean;
+  /** 옛 부르는 곳이 넘기는 값 — 네트는 더 묻지 않아 안 보인다(2026-10-15) */
+  net?: boolean;
   tone?: 'light' | 'dark';
 }) {
   const dark = tone === 'dark';
@@ -190,15 +178,9 @@ export function SetupSummaryRow({
         value: cameraPos,
         label: cameraName(cameraPos),
       },
-      {
-        kind: 'net',
-        title: '네트',
-        value: net ? 'yes' : 'no',
-        label: net ? '네트 있음' : '네트 없음',
-      },
     ];
   return (
-    <ul className="grid grid-cols-3 gap-2">
+    <ul className="grid grid-cols-2 gap-2">
       {cells.map((c) => (
         <li
           key={c.kind}
@@ -225,7 +207,7 @@ export function SetupSummaryRow({
 
 /* ───────────────────────── 작은 아이콘 ───────────────────────── */
 
-export type SetupIconKind = 'type' | 'camera' | 'net';
+export type SetupIconKind = 'type' | 'camera';
 
 /** 큰 그림의 작은 단색판(currentColor · 선 1.75 · 32×32). 모르는 값이면 빈 원 */
 export function SetupIcon({
@@ -328,23 +310,6 @@ function iconShape(kind: SetupIconKind, value: string): ReactNode {
             stroke="none"
           />
           <path d="M25 16l-11-7M25 16l-11 7" strokeDasharray="2 2" />
-        </>
-      );
-    /* 네트 있음 — 그물 뒤의 공 */
-    case 'net:yes':
-      return (
-        <>
-          <circle cx="16" cy="16" r="5" fill={FILL} />
-          <rect x="4" y="4" width="24" height="24" rx="2" />
-          <path d="M12 4v24M20 4v24M4 12h24M4 20h24" strokeWidth="1" opacity="0.8" />
-        </>
-      );
-    /* 네트 없음 — 초점 틀 안의 공 */
-    case 'net:no':
-      return (
-        <>
-          <circle cx="16" cy="16" r="6" fill={FILL} />
-          <path d="M4 10V5a1 1 0 0 1 1-1h5M22 4h5a1 1 0 0 1 1 1v5M28 22v5a1 1 0 0 1-1 1h-5M10 28H5a1 1 0 0 1-1-1v-5" />
         </>
       );
     default:
@@ -572,43 +537,6 @@ function ArtCameraPos({ behind }: { behind: boolean }) {
       <path d="M74 60h32" />
       <path d="M100 54l7 6-7 6" />
       <Ball cx={88} cy={60} r={4} />
-    </Art>
-  );
-}
-
-/** 네트 — 카메라 앞의 그물(있음) 또는 트인 공간(없음), 그 너머의 공과 초점 틀 */
-function ArtNet({ net }: { net: boolean }) {
-  const bx = net ? 124 : 110;
-  return (
-    <Art>
-      {/* 폰(카메라) */}
-      <rect x="12" y="40" width="22" height="40" rx="4" fill={FILL} />
-      <circle cx="23" cy="52" r="4" />
-      <path d={`M34 60H${bx - 14}`} strokeDasharray="3 5" opacity="0.6" />
-      {net ? (
-        <>
-          <rect x="58" y="14" width="40" height="92" rx="2" />
-          <path
-            d="M68 14v92M78 14v92M88 14v92M58 26h40M58 38h40M58 50h40M58 62h40M58 74h40M58 86h40M58 98h40"
-            strokeWidth="1"
-            opacity="0.7"
-          />
-        </>
-      ) : (
-        <path d="M44 100h108" opacity="0.5" />
-      )}
-      {/* 공 + 초점 틀 */}
-      <Ball cx={bx} cy={60} r={9} />
-      <path
-        d={`M${bx - 18} 49v-7h7M${bx + 11} 42h7v7M${bx + 18} 71v7h-7M${bx - 11} 78h-7v-7`}
-      />
-      {net && (
-        <>
-          {/* 자물쇠 — 초점 고정 */}
-          <rect x={bx + 12} y="26" width="12" height="9" rx="2" fill={FILL} />
-          <path d={`M${bx + 15} 26v-3a3 3 0 0 1 6 0v3`} />
-        </>
-      )}
     </Art>
   );
 }
