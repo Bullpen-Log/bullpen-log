@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState, useTransition, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, useTransition, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { Check, ChevronLeft, X } from '@/components/icon';
 import { saveCheckin } from '@/app/actions/checkin';
@@ -257,7 +257,11 @@ export function CheckinFlow({
     go('sleep', 1);
   };
 
+  /* 한 번만 — 완료 화면을 연달아 누르면 홈 이동 · 창 닫기가 여러 번 불렸다 */
+  const left = useRef(false);
   const finish = () => {
+    if (left.current) return;
+    left.current = true;
     if (variant === 'page') router.replace('/');
     else onDone?.();
   };
@@ -267,16 +271,18 @@ export function CheckinFlow({
     else onSkip?.();
   };
 
-  /* 완료 화면 — 1.5초 뒤 홈으로. 손대면 멈춘다. 가만히도 아픈 날(정도 3)은 쉬라는 카드라 저절로 안 넘어간다 */
+  /*
+   * 완료 화면 — 1.5초 뒤 홈으로, 누르면 바로 홈으로. 가만히도 아픈 날(정도 3)은 쉬라는 카드라 저절로 안 넘어간다.
+   * 예전에는 손대면 멈췄는데(hold) 완료 화면엔 단추가 없어, 누르는 순간 그 화면에 갇혀 멈춘 것처럼 보였다(2026-10-16 김민).
+   */
   const restCard = painOn && answers?.armLevel === 3;
-  const [hold, setHold] = useState(false);
   useEffect(() => {
-    if (view.cur !== 'done' || restCard || hold) return;
+    if (view.cur !== 'done' || restCard) return;
     const t = window.setTimeout(finish, DONE_MS);
     return () => window.clearTimeout(t);
     // finish 는 변수 둘(variant · onDone)만 보는 함수라 매번 새로 만들어도 같은 일을 한다
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [view.cur, restCard, hold]);
+  }, [view.cur, restCard]);
 
   if (!today || !answers) {
     return <div className={variant === 'page' ? 'flex-1' : 'h-[min(78dvh,42rem)]'} />;
@@ -332,7 +338,6 @@ export function CheckinFlow({
             edit={saved ? saved === 'edit' : existing != null}
             rest={restCard}
             onHome={finish}
-            onHold={() => setHold(true)}
           />
         );
     }
@@ -569,20 +574,19 @@ function Done({
   edit,
   rest,
   onHome,
-  onHold,
 }: {
   today: string;
   days: string[];
   edit: boolean;
   rest: boolean;
   onHome: () => void;
-  onHold: () => void;
 }) {
   const streak = streakOf(days, today);
   return (
     <div
       className="flex h-full flex-col items-center justify-center text-center"
-      onPointerDown={onHold}
+      /* 쉬라는 카드는 단추로 나간다 — 카드 글을 읽으려고 누른 손에 넘어가지 않게 */
+      onClick={rest ? undefined : onHome}
     >
       <div className="relative h-24 w-24">
         <svg aria-hidden viewBox="0 0 100 100" className="absolute inset-0 -rotate-90">
