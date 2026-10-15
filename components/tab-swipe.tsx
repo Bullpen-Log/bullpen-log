@@ -71,9 +71,15 @@ type Ghost = { dir: 1 | -1; item: NavItem; camera: boolean; done?: boolean };
 /**
  * 탭마다 마지막으로 본 본문의 사본 — 쓸 때 옆에 진짜처럼 보인다. 문서 밖(떼어 둔) DOM 이라 그리지 않는다.
  * 자리(left · width · top)는 뜰 때 잰 본문 자리(맨 위로 굴렸을 때 기준) — 새 화면도 맨 위부터 보인다.
+ * vw — 뜰 때의 화면 폭. 아이패드를 돌리면(세로 ↔ 가로) 본문 자리 · 줄바꿈이 달라져 옛 사본이 엉뚱한 자리에 보였다가 새 화면
+ * 위에서 옅어지며 걷혔다(2026-10-15 '아이패드에서 잔상'). 폭이 다르면 사본을 안 쓴다(shotFor).
  */
-type Shot = { node: HTMLElement; left: number; width: number; top: number };
+type Shot = { node: HTMLElement; left: number; width: number; top: number; vw: number };
 const shots = new Map<string, Shot>();
+const shotFor = (href: string) => {
+  const s = shots.get(href);
+  return s && s.vw === window.innerWidth ? s : undefined;
+};
 
 /** 본문을 사본으로 뜬다 — 영상은 받지 않게, id 는 겹치지 않게, 창 · 화면 전환 이름은 빼고 */
 function takeShot(main: HTMLElement): Shot {
@@ -91,7 +97,7 @@ function takeShot(main: HTMLElement): Shot {
   node
     .querySelectorAll<HTMLElement>('[style*="view-transition"]')
     .forEach((e) => (e.style.viewTransitionName = ''));
-  return { node, left: r.left, width: r.width, top: r.top + window.scrollY };
+  return { node, left: r.left, width: r.width, top: r.top + window.scrollY, vw: window.innerWidth };
 }
 
 export function TabSwipe({
@@ -149,8 +155,17 @@ export function TabSwipe({
       if (main.style.transform) return;
       shots.set(pathname, takeShot(main));
     };
-    const t = window.setTimeout(take, SHOT_AFTER_MS);
-    return () => window.clearTimeout(t);
+    let t = window.setTimeout(take, SHOT_AFTER_MS);
+    /* 화면을 돌리거나 창 크기가 바뀌면 다시 뜬다 — 지금 폭의 사본이 있게 */
+    const onResize = () => {
+      window.clearTimeout(t);
+      t = window.setTimeout(take, SHOT_AFTER_MS);
+    };
+    window.addEventListener('resize', onResize);
+    return () => {
+      window.clearTimeout(t);
+      window.removeEventListener('resize', onResize);
+    };
   }, [pathname, order]);
 
   /*
@@ -463,7 +478,7 @@ export function TabSwipe({
   /* 자리표시는 옆에서 들어온다 — 본문과 같은 거리만큼 밀리며(setX), 넘어가면 새 화면이 그 자리에서 이어 들어온다 */
   const style: CSSProperties = { left: `${ghost.dir * 100}%` };
   const done = ghost.done ? '' : undefined;
-  const shot = ghost.camera ? undefined : shots.get(base(ghost.item.href));
+  const shot = ghost.camera ? undefined : shotFor(base(ghost.item.href));
   if (shot) {
     /* 그 탭을 마지막으로 봤을 때의 본문 사본 — 본문이 있던 자리 그대로(맨 위 기준) */
     return (
@@ -512,19 +527,23 @@ export function TabSwipe({
       aria-hidden
       data-tab-ghost
       data-done={done}
-      className="pointer-events-none fixed inset-y-0 z-30 w-screen bg-page pt-[calc(env(safe-area-inset-top)+3.5rem+1.5rem)] pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] desk:hidden"
+      /* 패드는 왼쪽 탭 막대(--rail)만큼 비키고 본문과 같은 폭 · 여백 안에 — 예전엔 화면 왼쪽 끝부터 그려 제목이 막대 밑에
+         가려졌다가, 새 화면(막대 오른쪽)이 오면 자리가 툭 바뀌었다(2026-10-15 '아이패드에서 잔상') */
+      className="pointer-events-none fixed inset-y-0 z-30 w-screen bg-page pt-[calc(env(safe-area-inset-top)+3.5rem+1.5rem)] desk:hidden pad:pl-(--rail)"
       style={style}
     >
-      <div className="flex items-center gap-2 text-sky">
-        <Icon aria-hidden className="h-7 w-7" />
-        <span className="text-3xl font-bold tracking-tight text-ink">
-          {ghost.item.label}
-        </span>
-      </div>
-      <div className="mt-6 space-y-3">
-        <div className="h-28 rounded-2xl bg-surface" />
-        <div className="h-20 rounded-2xl bg-surface" />
-        <div className="h-20 rounded-2xl bg-surface" />
+      <div className="mx-auto w-full max-w-5xl pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] sm:pl-[max(1.5rem,env(safe-area-inset-left))] sm:pr-[max(1.5rem,env(safe-area-inset-right))] xl:max-w-6xl">
+        <div className="flex items-center gap-2 text-sky">
+          <Icon aria-hidden className="h-7 w-7" />
+          <span className="text-3xl font-bold tracking-tight text-ink">
+            {ghost.item.label}
+          </span>
+        </div>
+        <div className="mt-6 space-y-3">
+          <div className="h-28 rounded-2xl bg-surface" />
+          <div className="h-20 rounded-2xl bg-surface" />
+          <div className="h-20 rounded-2xl bg-surface" />
+        </div>
       </div>
     </div>
   );

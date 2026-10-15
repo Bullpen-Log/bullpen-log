@@ -1162,9 +1162,14 @@ html[data-nav]::view-transition-new(.page) {
  * 비슷하게(340ms, 빠르게 출발해 부드럽게 멈춤). 겹쳐 빛나지 않게 섞기는 normal. 이름 규칙과 딱지 규칙을 따로 적는다
  * (사파리 18.0~18.1 은 딱지를 몰라 한 목록이면 통째로 버린다 — 위 '이름 규칙과 딱지 규칙' 참고).
  */
+/*
+ * 화면 폭(100vw)만큼 민다 — 그림은 본문 칸(여백 안쪽)만 해서 100% 면 오른쪽 여백만큼 덜 비켰다. 들어오는 화면이 처음부터
+ * 오른쪽 끝에 비쳐 있고, 뒤로 가면 빠지는 화면이 오른쪽 끝에 남았다가 툭 사라졌다(아이패드는 여백이 24~54px 라 잘 보였다 —
+ * 2026-10-15 '아이패드에서 잔상').
+ */
 @keyframes nav-in-right {
   from {
-    transform: translateX(100%);
+    transform: translateX(100vw);
   }
 }
 /*
@@ -1190,7 +1195,7 @@ html[data-nav]::view-transition-new(.page) {
 }
 @keyframes nav-out-right {
   to {
-    transform: translateX(100%);
+    transform: translateX(100vw);
   }
 }
 @media (prefers-reduced-motion: no-preference) {
