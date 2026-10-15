@@ -549,8 +549,9 @@ const CHROME_BTN_ON_PANEL = CHROME_BTN.replace('bg-black/45', 'bg-white/10').rep
   'hover:bg-black/60',
   'hover:bg-white/15'
 );
+/* 셔터 옆 둥근 단추 — 위아래 14px 로 셔터(76px) 가운데에 맞추고, 밑 글자도 셔터 글자와 같은 높이(2026-10-15 김민: "셔터와 수평으로") */
 const SIDE_BTN =
-  'inline-flex h-12 w-12 items-center justify-center rounded-full border border-white/25 bg-white/10 text-white transition-colors active:bg-white/25 disabled:opacity-40';
+  'my-3.5 inline-flex h-12 w-12 items-center justify-center rounded-full border border-white/25 bg-white/10 text-white transition-colors active:bg-white/25 disabled:opacity-40';
 const SIDE_LABEL = 'mt-1 text-caption font-medium text-white/80';
 /* 카메라 위 알림 창 — 안내창(GuideCard)과 같은 흰 창 모양(2026-10-15 김민: "안내 문구는 전부 카메라 위에 창처럼") */
 const NOTE_WIN =
@@ -3531,7 +3532,7 @@ export function VelocityScreen({
                               ? `구속 기록 · 저장하지 않은 공 ${pitches.length}개`
                               : '구속 기록'
                           }
-                          className="relative flex h-12 w-12 items-center justify-center rounded-full bg-white/10 ring-2 ring-white/70 transition-[background-color,scale] hover:bg-white/15 active:scale-95"
+                          className="relative my-3.5 flex h-12 w-12 items-center justify-center rounded-full bg-white/10 ring-2 ring-white/70 transition-[background-color,scale] hover:bg-white/15 active:scale-95"
                         >
                           {latestMax != null ? (
                             <span className="text-numeric text-sm font-bold leading-none">
