@@ -1299,6 +1299,16 @@ export function kinematicTrack(
       frames.map(() => 1)
     );
     const toeDir = toeDirOf[side];
+    /*
+     * 땅에 닿기 앞뒤 CONTACT_FOLLOW 장면은(풀리는 몫 포함) 엉덩이 돌림 한계가 손을 써도 원 발목을 따른다 — 묶인 동안은 어차피 엔진 자리에 못 박히는데, 그 바로 앞에서
+     * 각도 모델로 바꾸면 발이 9cm 비켰다가 묶일 때 되돌아와 착지 직전에 걸렸다(2026-10-15 샘플 4: 앞무릎이 착지 무렵 뒤를 봄 · 비틀림 −177°).
+     */
+    const nearContact = frames.map((_, k) => {
+      let d = Infinity;
+      for (const c of contacts) if (c.side === side) d = Math.min(d, k < c.from ? c.from - k : k > c.to ? k - c.to : 0);
+      const t = clamp((d - CONTACT_FOLLOW[0]) / CONTACT_FOLLOW[1], 0, 1);
+      return 1 - t * t * (3 - 2 * t);
+    });
     /* 발목 자리 — 팔의 손목처럼 원 발목을 다듬은 세상 자리(무릎은 각에서 굽은 쪽만) — 골반 틀 안 자리면 땅에 선 발이 화면 골반을 따라 흔들렸다 */
     const anS = smoothMulti(
       frames.map((fr) => fr[An]),
@@ -1319,7 +1329,8 @@ export function kinematicTrack(
       let sw = toWorld(M, s);
       let K = add(Hpt, scale(uw, Lt));
       let A = add(K, scale(sw, Ls));
-      const ank = add(scale(A, 1 - wFollow[k]), scale(anS[k], wFollow[k]));
+      const wF = Math.max(wFollow[k], nearContact[k]);
+      const ank = add(scale(A, 1 - wF), scale(anS[k], wF));
       const target = add(scale(ank, 1 - wAnk[k]), scale(frames[k][An], wAnk[k]));
       K = twoBoneIk(Hpt, K, A, target, kneePole(Hpt, K, nw));
       A = target;
@@ -1444,4 +1455,6 @@ export function kinematicTrack(
 
 /** 땅에 묶인 구간 경계 앞뒤로 발 방향을 다듬는 장면 수 · 가우스 폭(장면) */
 const FOOT_EASE = 6;
+/** 땅에 닿은 구간에서 [0] 장면 안은 원 발목을 그대로 따르고, 그 뒤 [1] 장면 동안 smoothstep 으로 풀린다 */
+const CONTACT_FOLLOW = [16, 12] as const;
 const FOOT_SIGMA = 2;
