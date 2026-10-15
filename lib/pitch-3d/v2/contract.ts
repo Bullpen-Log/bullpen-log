@@ -134,6 +134,7 @@ export type V2FailCode =
   | 'range'
   | 'calibration'
   | 'fit'
+  | 'pair'
   | 'gpu'
   | 'gpu-auth'
   | 'upload'
@@ -153,6 +154,7 @@ export const V2_FAIL_TEXT: Record<V2FailCode, string> = {
   range: FAIL_TEXT.range,
   calibration: FAIL_TEXT.calibration,
   fit: '몸을 맞추지 못했어요. 영상을 바꿔 다시 해 주세요.',
+  pair: '옆과 뒤 영상이 같은 공을 찍은 것 같지 않아요. 두 폰으로 같은 공을 동시에 찍은 영상을 올려 주세요.',
   gpu: '분석 서버가 응답하지 않아요. 잠시 뒤 다시 해 주세요.',
   'gpu-auth': '서버 키 설정을 확인해 주세요.',
   upload: '결과를 저장하지 못했어요. 다시 분석해 주세요.',
@@ -170,7 +172,21 @@ export const V2_VIDEO_FAULT: ReadonlySet<V2FailCode> = new Set<V2FailCode>([
   'range',
   'calibration',
   'fit',
+  'pair',
 ]);
+
+/**
+ * 옆 · 뒤가 같은 공이 아닌 짝(따로 찍음)을 '측정 불가'로 — 맞춘 뒤 숫자 셋 중 하나라도 넘으면(2026-10-15 김민: "동일 투구가 아니면 측정 불가").
+ * 다른 공끼리면 3D 가 두 영상에 같이 맞지 않아 다시 비춤 오차가 커지고, 시간 맞추기도 덜 맞는다.
+ * 잰 것: 마커 샘플(같은 투수 · 4대 동시 촬영) 16구로 옆 i + 뒤 j 짝 256개 — 진짜 짝 15 · 다른 공 짝 210(+15 는 원래 실패),
+ * 실험실 진짜 짝 8. 진짜 짝 최대 = 다시 비춤 2.0% · 시간 맞추기 0.009 · 맞춘 뒤 다시 비춤 2.0% → 여유를 두고 2.4 · 0.011 · 2.4.
+ * 같은 투수의 다른 공 210 중 131(62%)을 잡는다(원래 실패 15 를 더하면 225 중 146) — 나머지는 동작이 거의 같아 숫자로 못 가른다.
+ * 올리기 전 촬영 시각 검사(lib/pitch-lab-guard.ts labPairBlock)가 앞에서 대부분을 막고, 이것은 시각이 지워진 영상의 뒷문이다.
+ */
+export const PAIR_LIMIT = { reprojPct: 2.4, syncCost: 0.011, fitReprojPct: 2.4 } as const;
+export function pairMismatch(q: { reprojPct: number; syncCost: number }, fit: { reprojPct: number }): boolean {
+  return q.reprojPct > PAIR_LIMIT.reprojPct || q.syncCost > PAIR_LIMIT.syncCost || fit.reprojPct > PAIR_LIMIT.fitReprojPct;
+}
 
 export type V2FitQuality = {
   /** 맞춘 뒤 뼈 길이 흔들림(%) — 고정 뼈 길이라 0 에 가깝다(핵심 합격 1% 밑) */
