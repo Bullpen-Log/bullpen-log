@@ -330,7 +330,7 @@ const coreItem = (light = false): Item =>
 const STRONGLIFTS: ProgramDef = {
   id: 'stronglifts-5x5',
   goal: 'base',
-  name: '스트롱리프트 5×5',
+  name: '5×5 기초 근력',
   origin: 'StrongLifts 5×5 · 메흐디 하딤',
   summary: '매번 5회 5세트, 다 채우면 다음에 무게를 올려요',
   detail: [
@@ -434,7 +434,7 @@ function waveDay(
 const W531: ProgramDef = {
   id: '531',
   goal: 'strength',
-  name: '5/3/1',
+  name: '5/3/1 근력',
   origin: '5/3/1 · 짐 웬들러',
   summary: '1주 5회, 2주 3회, 3주 5·3·1회, 4주는 가볍게 해요',
   detail: [
@@ -451,7 +451,7 @@ const W531: ProgramDef = {
 const JUGGERNAUT: ProgramDef = {
   id: 'juggernaut-5s',
   goal: 'strength',
-  name: '저거넛 5회 파도',
+  name: '저거넛 근력',
   origin: 'Juggernaut Method 5s wave · 채드 웨슬리 스미스',
   summary: '쌓기, 세게, 기록 내기, 가볍게 순서로 4주를 가요',
   detail: [
@@ -470,7 +470,7 @@ const JUGGERNAUT: ProgramDef = {
 const WS4SB: ProgramDef = {
   id: 'ws4sb',
   goal: 'power',
-  name: '웨스트사이드 포 스키니 배스터즈',
+  name: '웨스트사이드 파워',
   origin: 'Westside for Skinny Bastards · 조 디프랑코',
   summary: '최고 기록 날과 점프 날로 힘과 탄력을 같이 길러요',
   detail: [
@@ -536,7 +536,7 @@ const CONTRAST_WEEKS = [
 const FRENCH_CONTRAST: ProgramDef = {
   id: 'french-contrast',
   goal: 'power',
-  name: '프렌치 컨트라스트',
+  name: '컨트라스트 파워',
   origin: 'French Contrast · 칼 디츠',
   summary: '무겁게 들고 바로 점프, 메디신볼까지 한 묶음으로 해요',
   detail: [
