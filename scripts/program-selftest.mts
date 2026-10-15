@@ -285,15 +285,18 @@ check(
   '스트롱리프트 A · B(B 날 오버헤드 프레스 · 스쿼트는 A 날만 · B 날 데드리프트 3세트 · 보조 2세트)',
   eq(
     dayPlan(sl, 1).items.map((x) => x.variant),
-    ['squat', 'push', 'pull', 'vpull', 'triceps', 'antiRotation']
+    ['squat', 'push', 'pull', 'vpull', 'triceps', 'antiRotation', 'coreStab']
   ) &&
     eq(
       dayPlan(sl, 2).items.map((x) => x.variant),
-      ['hinge', 'ohp', 'hpull', 'biceps', 'antiRotation']
+      ['hinge', 'ohp', 'hpull', 'biceps', 'antiRotation', 'coreStab']
     ) &&
     rxOf(sl, 2, 'ohp').mode === 'linear' &&
     rxOf(sl, 2, 'hinge').sets.length === 3 &&
-    rxOf(sl, 1, 'squat').mode === 'linear'
+    rxOf(sl, 1, 'squat').mode === 'linear' &&
+    /* 몸통 둘 · 각 2세트(2026-10-16) */
+    rxOf(sl, 1, 'antiRotation').sets.length === 2 &&
+    rxOf(sl, 1, 'coreStab').sets.length === 2
 );
 check('스트롱리프트 가벼운 주 없음', !isLightWeek(sl, 4));
 check(
@@ -517,7 +520,7 @@ check('다 맞으면 시작', checkEligibility(base).ok);
     check('보조: 사람마다 차례가 다르다', [0, 1, 2, 3, 4].map((n) => accessoryPick('hpull', pool, 'u2|hpull', n)?.id).join() !== firstLap.join());
     check('보조: 그날 본운동은 안 고른다', accessoryPick('hpull', [px('m', '바벨 로우')], 'u1', 0, new Set(['m'])) === null);
     const kinds = (d: number) => dayPlan(p531, d).items.filter((x) => x.assist).map((x) => x.variant).join();
-    check('5/3/1 메뉴: 스쿼트 날 · 벤치 날 · 힌지 날', kinds(1) === 'hpull,pushAcc,hamstring,antiRotation' && kinds(2) === 'vpull,scap,triceps,antiRotation' && kinds(3) === 'hpull,pushAcc,singleLeg,forearm', `${kinds(1)} / ${kinds(2)} / ${kinds(3)}`);
+    check('5/3/1 메뉴: 스쿼트 날 · 벤치 날 · 힌지 날', kinds(1) === 'hpull,pushAcc,hamstring,antiRotation,coreStab' && kinds(2) === 'vpull,scap,triceps,antiRotation,coreStab' && kinds(3) === 'hpull,pushAcc,singleLeg,forearm', `${kinds(1)} / ${kinds(2)} / ${kinds(3)}`);
     check('5/3/1 메뉴: 본운동(스쿼트)은 보조가 아니고 보조는 3세트', dayPlan(p531, 1).items.some((x) => x.variant === 'squat' && !x.assist) && dayPlan(p531, 1).items.filter((x) => x.assist && x.mode === 'reserve').every((x) => x.sets.length === 3));
     /* 2주 묶음(2026-10-16) — 1~2주 스쿼트 날 0 · 데드 날 1, 3~4주 스쿼트 날 2 · 데드 날 3 */
     const occ = [1, 3, 4, 6, 7, 9, 10, 12].map((d) => accessoryOccurrence(p531, d, 'hpull'));

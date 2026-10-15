@@ -46,6 +46,8 @@ export type VariantKey =
   | 'antiRotation'
   | 'rotationalThrow'
   /* 보조 메뉴 칸(ACCESSORY_KEYS) — 고정하지 않고 세션마다 후보를 돌며 고른다(accessoryPick) */
+  /* 몸통 안정(플랭크 · 데드버그 · 버드독 · 캐리) — 몸통 버티기(돌지 않게)와 한 쌍으로 날마다 둘(2026-10-16 김민) */
+  | 'coreStab'
   | 'hpull'
   | 'vpull'
   | 'pushAcc'
@@ -78,6 +80,7 @@ export const VARIANT_LABELS: Record<VariantKey, string> = {
   jump: '점프',
   medball: '메디신볼',
   antiRotation: '몸통 버티기',
+  coreStab: '몸통 안정',
   rotationalThrow: '회전 던지기',
   hpull: '가로 당기기',
   vpull: '세로 당기기',
@@ -95,6 +98,7 @@ export const VARIANT_LABELS: Record<VariantKey, string> = {
  * 다른 걸로 · 바벨 로우만 나오면 안 된다".
  */
 export const ACCESSORY_KEYS: readonly VariantKey[] = [
+  'coreStab',
   'hpull',
   'vpull',
   'pushAcc',
@@ -116,6 +120,7 @@ export const SLOT_OF: Record<VariantKey, SlotKind> = {
   jump: 'power',
   medball: 'power',
   antiRotation: 'core',
+  coreStab: 'core',
   rotationalThrow: 'core',
   /* 팔 · 어깨 보조도 상체 칸 — 그날 조정(팔 피로 · 통증으로 가볍게 · 빼기)을 같이 받는다 */
   hpull: 'pushPull',
@@ -312,18 +317,22 @@ function accessoryMenu(
         : ['hpull', 'pushAcc', 'hamstring', 'antiRotation'];
   if (first !== 'push' && lifts.includes('push')) keys = keys.map((k) => (k === 'pushAcc' ? 'biceps' : k));
   if (hasThrow) keys = keys.filter((k) => k !== 'antiRotation');
-  return keys.map((k) =>
+  return keys.flatMap((k) =>
     k === 'antiRotation'
-      ? coreItem(light)
-      : item(k, 'reserve', light ? reps(2, ACC_REPS[k] ?? 10, 4) : reps(sets, ACC_REPS[k] ?? 10, 2), 75, {
-          assist: true,
-        })
+      ? coreItems()
+      : [
+          item(k, 'reserve', light ? reps(2, ACC_REPS[k] ?? 10, 4) : reps(sets, ACC_REPS[k] ?? 10, 2), 75, {
+            assist: true,
+          }),
+        ]
   );
 }
 
-/* 투수 맞춤: 날마다 끝에 몸통 버티기 하나(원본의 보조 운동 자리) */
-const coreItem = (light = false): Item =>
-  item('antiRotation', 'none', light ? reps(2, 10) : reps(3, 10), 60, { assist: true });
+/* 투수 맞춤: 날마다 끝에 몸통 둘(원본의 보조 운동 자리) — 돌지 않게 버티기 + 몸통 안정, 각 2세트(2026-10-16 김민: 3세트 하나 → 2세트 둘) */
+const coreItems = (): Item[] => [
+  item('antiRotation', 'none', reps(2, 10), 60, { assist: true }),
+  item('coreStab', 'none', reps(2, 10), 60, { assist: true }),
+];
 
 /* ─────────────────────────────── 기초 ─────────────────────────────── */
 
@@ -357,14 +366,14 @@ const STRONGLIFTS: ProgramDef = {
             item('pull', 'linear', reps(5, 5), 120),
             item('vpull', 'reserve', reps(2, 8, 2), 75, { assist: true }),
             item('triceps', 'reserve', reps(2, 12, 2), 60, { assist: true }),
-            coreItem(),
+            ...coreItems(),
           ]
         : [
             item('hinge', 'linear', reps(3, 5), 180),
             item('ohp', 'linear', reps(5, 5), 120),
             item('hpull', 'reserve', reps(2, 10, 2), 75, { assist: true }),
             item('biceps', 'reserve', reps(2, 12, 2), 60, { assist: true }),
-            coreItem(),
+            ...coreItems(),
           ],
     };
   },
@@ -513,7 +522,7 @@ const WS4SB: ProgramDef = {
         item('vpull', 'reserve', reps(3, 8, 2), 75, { assist: true }),
         item('triceps', 'reserve', reps(2, 12, 2), 60, { assist: true }),
         item('biceps', 'reserve', reps(2, 12, 2), 60, { assist: true }),
-        coreItem(),
+        ...coreItems(),
       ],
     };
     return cycle(perWeek === 3 ? [heavy, jumps, upper] : [heavy, jumps], day);
@@ -828,6 +837,7 @@ export const VARIANT_MOVEMENT_KEY: Record<VariantKey, string | null> = {
   jump: LOWER_POWER_KEY,
   medball: UPPER_POWER_KEY,
   antiRotation: null,
+  coreStab: null,
   rotationalThrow: UPPER_POWER_KEY,
   hpull: '당기기',
   vpull: '당기기',
@@ -1369,6 +1379,15 @@ const VARIANT_RULES: Record<VariantKey, VariantRule> = {
    * 보조 메뉴 칸(ACCESSORY_KEYS) — 고르기 차례(rank)는 쓰지 않는다(accessoryPick 이 사람마다 섞는다). 버티기(아이소 · 홀드)는 처방이
    * '세트 × 회'라 빠진다. 팔 · 어깨 뒤쪽은 암케어 운동도 쓴다 — 무게 · 횟수로 하는 것만(에센트릭 오버로드 · 아이소메트릭 프레스는 암케어 몫).
    */
+  /* 몸통 안정 — 앞 · 옆으로 버티는 것(플랭크 · 데드버그 · 버드독 · 캐리 · 베어). 돌거나 돌지 않게 버티는 것(몸통 버티기 칸)은 뺀다 */
+  coreStab: {
+    match: (ex) =>
+      inCategory(ex, '코어') &&
+      /플랭크|데드버그|버드독|캐리|베어|바디 소|겟업|레그 드롭|스터 더 팟/.test(ex.title) &&
+      !ANTI_ROTATION_WORDS.some((w) => ex.title.includes(w)) &&
+      !ROTATION_WORDS.some((w) => ex.title.includes(w)),
+    rank: () => [],
+  },
   hpull: {
     match: (ex) =>
       inCategory(ex, '상체 스트렝스') &&
@@ -1402,7 +1421,9 @@ const VARIANT_RULES: Record<VariantKey, VariantRule> = {
     match: (ex) =>
       ARM_ACCESSORY_CATEGORIES.includes(ex.category) &&
       /트라이셉스|푸시다운|킥백/.test(ex.title) &&
-      !/리스트|힙|레그/.test(ex.title),
+      !/리스트|힙|레그/.test(ex.title) &&
+      /* 강도 '낮음'(덤벨 킥백 · 밴드 푸시다운)은 프로그램에 안 넣는다 — 2026-10-16 김민 */
+      intensityLevel(ex.intensity) >= 3,
     rank: () => [],
   },
   biceps: {
@@ -1676,7 +1697,7 @@ export function accessoryWithFallback<T extends PinnableExercise>(
   occurrence: number,
   used: Set<string>
 ): { ex: T | null; substituted: boolean } {
-  const tries = [{ variant, only: undefined as RegExp | undefined }, ...(ACCESSORY_FALLBACK[variant] ?? [])];
+  const tries = [{ variant, only: ACCESSORY_ONLY[variant] }, ...(ACCESSORY_FALLBACK[variant] ?? [])];
   for (const [i, { variant: v, only }] of tries.entries()) {
     const pool = candidatesOf(v).filter((c) => !only || only.test(c.title));
     const ex = accessoryPick(v, pool, seed, occurrence, used);
@@ -1835,6 +1856,11 @@ export const SUBSTITUTE_REASON = { pain: '통증 부위', armFatigue: '팔 피�
  * 되게, 보조는 장비가 없으면 비슷한 걸로"). 바벨 · 덤벨만 있으면 세로 당기기(철봉 · 케이블 · 밴드)와 삼두(케이블 · 벤치 · 밴드)가 빈다.
  * 화면에는 '대체 · 장비'와 '오늘은 세로 당기기 대신이에요'가 붙는다.
  */
+/* 보조 칸에서 먼저 고르는 것 — 몸통 버티기는 팔로프 · 찹 · 리프트(밴드 · 케이블)를 먼저, 없으면 대신(ACCESSORY_FALLBACK) */
+const ACCESSORY_ONLY: Partial<Record<VariantKey, RegExp>> = {
+  antiRotation: new RegExp(ANTI_ROTATION_WORDS.join('|')),
+};
+
 export const ACCESSORY_FALLBACK: Partial<
   Record<VariantKey, readonly { variant: VariantKey; only?: RegExp }[]>
 > = {
@@ -1848,6 +1874,9 @@ export const ACCESSORY_FALLBACK: Partial<
   forearm: [{ variant: 'biceps' }],
   pushAcc: [{ variant: 'triceps' }],
   hamstring: [{ variant: 'singleLeg' }],
+  /* 밴드 · 케이블이 없으면 캐리 · 사이드 플랭크 같은 몸통 버티기 대신(같은 날 몸통 안정과 겹치지 않는 것) */
+  antiRotation: [{ variant: 'antiRotation' }],
+  coreStab: [{ variant: 'antiRotation' }],
   singleLeg: [{ variant: 'hamstring' }],
 };
 
