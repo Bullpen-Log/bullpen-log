@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useTransition } from 'react';
-import { AlertCircle, Play } from '@/components/icon';
+import { AlertCircle, ChevronDown, Play } from '@/components/icon';
 import { Card } from '@/components/ui';
 import { Modal, useModalState } from '@/components/modal';
 import { ConfirmDialog } from '@/components/confirm-delete';
@@ -223,23 +223,7 @@ export function ProgramCard({ props }: { props: ProgramCardProps }) {
             onClick={() => setAhead((v) => !v)}
             label={`앞으로 할 세션 · ${p.upcoming.length}회`}
           />
-          {ahead && (
-            <ol className="space-y-3 px-(--block-pad) pb-3">
-              {p.upcoming.map((u) => (
-                <li key={u.day}>
-                  <p className="text-sm font-semibold text-ink">{u.label}</p>
-                  <ul className="mt-1 space-y-0.5">
-                    {u.items.map((it, i) => (
-                      <li key={i} className="flex gap-2 text-sm">
-                        <span className="min-w-0 flex-1 truncate text-ink">{it.title}</span>
-                        <span className="shrink-0 text-xs text-muted">{it.line}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </li>
-              ))}
-            </ol>
-          )}
+          {ahead && <UpcomingSessions sessions={p.upcoming} />}
         </div>
       )}
 
@@ -455,5 +439,86 @@ function RepinSheet({
       )}
       {error && <ErrorLine>{error}</ErrorLine>}
     </Modal>
+  );
+}
+
+/**
+ * 앞으로 할 세션 — 세션마다 한 줄(이름 + 운동 몇 개 요약)을 눌러 펴면 운동마다 썸네일 · 이름 · 칸 · 양. 처방 한 줄은 운동을 누르면
+ * 보인다(2026-10-15 김민: "남은 세션이 글자로 쫙 써져 무슨 운동인지 알 수가 없다"). 바로 다음 세션만 펴서 시작한다.
+ */
+function UpcomingSessions({ sessions }: { sessions: ProgramCardProps['upcoming'] }) {
+  const [open, setOpen] = useState<number | null>(sessions[0]?.day ?? null);
+  const [line, setLine] = useState<string | null>(null);
+  return (
+    <ol className="divide-y divide-line border-t border-line">
+      {sessions.map((u) => {
+        const shown = open === u.day;
+        const names = u.items.map((it) => it.title);
+        return (
+          <li key={u.day}>
+            <button
+              type="button"
+              aria-expanded={shown}
+              onClick={() => setOpen(shown ? null : u.day)}
+              className="flex min-h-12 w-full items-center gap-3 px-(--block-pad) py-2 text-left"
+            >
+              <span className="min-w-0 flex-1">
+                <span className="block text-subhead font-semibold text-ink">{u.label}</span>
+                {!shown && (
+                  <span className="block truncate text-xs text-muted">
+                    {names.slice(0, 3).join(' · ')}
+                    {names.length > 3 ? ` 외 ${names.length - 3}` : ''}
+                  </span>
+                )}
+              </span>
+              <span className="shrink-0 text-xs text-muted">{u.items.length}개</span>
+              <ChevronDown
+                aria-hidden
+                className={`h-4 w-4 shrink-0 text-muted transition-transform motion-safe:duration-200 ${shown ? 'rotate-180' : ''}`}
+              />
+            </button>
+            {shown && (
+              <ul className="space-y-1 px-(--block-pad) pb-3 motion-safe:animate-fade-in">
+                {u.items.map((it, i) => {
+                  const key = `${u.day}-${i}`;
+                  return (
+                    <li key={key}>
+                      <button
+                        type="button"
+                        aria-expanded={line === key}
+                        onClick={() => setLine(line === key ? null : key)}
+                        className="flex min-h-14 w-full items-center gap-3 rounded-xl py-1 text-left"
+                      >
+                        {it.thumbUrl ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={it.thumbUrl}
+                            alt=""
+                            loading="lazy"
+                            className="h-12 w-16 shrink-0 rounded-xl object-cover ring-1 ring-line"
+                          />
+                        ) : (
+                          <span aria-hidden className="h-12 w-16 shrink-0 rounded-xl bg-ink/6" />
+                        )}
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-subhead text-ink">{it.title}</span>
+                          {it.title !== it.slotLabel && (
+                            <span className="block truncate text-caption text-muted">{it.slotLabel}</span>
+                          )}
+                        </span>
+                        <span className="shrink-0 text-numeric text-sm font-semibold text-ink">{it.amount}</span>
+                      </button>
+                      {line === key && (
+                        <p className="pb-1 pl-19 text-xs text-muted motion-safe:animate-fade-in">{it.line}</p>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </li>
+        );
+      })}
+    </ol>
   );
 }

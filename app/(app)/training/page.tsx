@@ -387,7 +387,11 @@ export default async function TrainingPage({
     .filter((p): p is typeof p & { ex: NonNullable<(typeof p)['ex']> } => p.ex != null);
 
   const [thumbUrls, pastAmounts, doneSets] = await Promise.all([
-    createPlaybackUrls(full.map((p) => p.ex.thumbPath).filter((p): p is string => !!p)),
+    createPlaybackUrls([
+      ...full.map((p) => p.ex.thumbPath),
+      /* 근력 프로그램 '앞으로 할 세션'의 썸네일도 같은 한 번에 */
+      ...(programCard?.upcoming.flatMap((u) => u.items.map((it) => it.thumbPath)) ?? []),
+    ].filter((p): p is string => !!p)),
     /*
      * 이 운동을 지난번에 얼마나 했는가.
      *
@@ -406,6 +410,9 @@ export default async function TrainingPage({
         })
       : Promise.resolve([]),
   ]);
+  for (const it of programCard?.upcoming.flatMap((u) => u.items) ?? []) {
+    if (it.thumbPath) it.thumbUrl = thumbUrls[it.thumbPath] ?? null;
+  }
 
   /*
    * 완료 카드에 쓸 것. 종료 요약과 같은 함수로 접는다 — 방금 본 요약과

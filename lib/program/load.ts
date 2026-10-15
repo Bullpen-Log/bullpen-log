@@ -1,4 +1,5 @@
 import 'server-only';
+import { referenceThumbUrl } from '@/lib/reference-video';
 import { appNow } from '@/lib/clock';
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
@@ -359,6 +360,8 @@ export type ProgramDayView = {
   session: (ProgramSessionToday & { exercises: ProgramTodayExercise[] }) | null;
   /** 시즌 중 선발인데 마지막 등판 날을 모른다 — 카드가 물어본다(오늘 날짜 키). 그 밖엔 null */
   askLastOuting: string | null;
+  /** 오늘 일차부터 끝까지 그날 칸마다 고른 운동(dayPlan(plan, day).items 차례) — '앞으로 할 세션' 미리보기. 시즌 중은 빈 칸 */
+  ahead: { day: number; exercises: (CachedExercise | null)[] }[];
 };
 
 export function progressOf(
@@ -456,11 +459,11 @@ export async function buildProgramDay(
     return { ex: next, repinned: next != null };
   };
   /* 보조 칸은 세션마다 다른 운동(program.ts ROTATING_VARIANTS) — 고정 운동을 첫째로 같은 칸 후보를 그 칸이 나온 차례대로 */
-  const pinnedOf = (v: VariantKey): { ex: CachedExercise | null; repinned: boolean } => {
+  const pinnedOf = (v: VariantKey, d = day): { ex: CachedExercise | null; repinned: boolean } => {
     const got = anchorOf(v);
     if (audience !== 'adult' || !ROTATING_VARIANTS.includes(v) || !got.ex) return got;
     const pool = variantCandidates(v, core.library, owned, user.trainingLevel, audience);
-    return { ex: rotatedPick(got.ex, pool, variantTurn(plan, day, v)), repinned: got.repinned };
+    return { ex: rotatedPick(got.ex, pool, variantTurn(plan, d, v)), repinned: got.repinned };
   };
   const repin: Pinned = {};
   const pinnedFor = (
@@ -477,30 +480,51 @@ export async function buildProgramDay(
    * 보조 메뉴 칸 — 고정이 아니라 그 칸 후보를 사람 · 프로그램마다 섞은 차례로 세션마다 다음 것(program.ts accessoryPick, 2026-10-14 사용자:
    * "보조운동은 다양하고 세션마다 다른 걸로"). 그날 본운동과 같은 운동은 안 고른다.
    */
-  const mainIds = new Set(
-    items.filter((x) => !x.assist).flatMap((x) => {
-      const ex = pinnedOf(x.variant).ex;
-      return ex ? [ex.id] : [];
-    })
-  );
-  const accessoryOf = new Map<VariantKey, CachedExercise | null>();
-  /* 장비가 없어 비슷한 칸에서 대신 고른 칸(ACCESSORY_FALLBACK) — 화면에 '대체 · 장비' */
-  const gearSubstituted = new Set<VariantKey>();
-  /* 같은 날 같은 운동이 두 칸에 안 나오게 — 본운동 · 앞 칸에서 고른 것 */
-  const usedToday = new Set(mainIds);
-  for (const x of items) {
-    if (!x.assist || accessoryOf.has(x.variant)) continue;
-    const { ex, substituted } = accessoryWithFallback(
-      x.variant,
-      (v) => variantCandidates(v, core.library, owned, user.trainingLevel, audience, youth),
-      `${user.id}|${row.startedAt.toISOString()}|${x.variant}`,
-      accessoryOccurrence(plan, day, x.variant),
-      usedToday
+  /* 그날(d) 보조 메뉴 칸에서 고른 운동 — 오늘 판과 '앞으로 할 세션' 미리보기가 같은 고르기를 쓴다 */
+  const accessoriesOn = (d: number, dayItems: typeof items) => {
+    const mainIds = new Set(
+      dayItems.filter((x) => !x.assist).flatMap((x) => {
+        const ex = pinnedOf(x.variant, d).ex;
+        return ex ? [ex.id] : [];
+      })
     );
-    accessoryOf.set(x.variant, ex);
-    if (substituted) gearSubstituted.add(x.variant);
-  }
+    const accessoryOf = new Map<VariantKey, CachedExercise | null>();
+    /* 장비가 없어 비슷한 칸에서 대신 고른 칸(ACCESSORY_FALLBACK) — 화면에 '대체 · 장비' */
+    const gearSubstituted = new Set<VariantKey>();
+    /* 같은 날 같은 운동이 두 칸에 안 나오게 — 본운동 · 앞 칸에서 고른 것 */
+    const usedToday = new Set(mainIds);
+    for (const x of dayItems) {
+      if (!x.assist || accessoryOf.has(x.variant)) continue;
+      const { ex, substituted } = accessoryWithFallback(
+        x.variant,
+        (v) => variantCandidates(v, core.library, owned, user.trainingLevel, audience, youth),
+        `${user.id}|${row.startedAt.toISOString()}|${x.variant}`,
+        accessoryOccurrence(plan, d, x.variant),
+        usedToday
+      );
+      accessoryOf.set(x.variant, ex);
+      if (substituted) gearSubstituted.add(x.variant);
+    }
+    return { accessoryOf, gearSubstituted };
+  };
+  const { accessoryOf, gearSubstituted } = accessoriesOn(day, items);
   const exOf = (v: VariantKey) => (accessoryOf.has(v) ? (accessoryOf.get(v) ?? null) : pinnedFor(v).ex);
+  /*
+   * 앞으로 할 세션의 운동 — 오늘 판과 같은 고르기(고정 · 돌리는 보조 · 보조 메뉴)로 미리 이름을 정한다(2026-10-15 김민: "남은 세션이
+   * 글자로 쫙 써져 무슨 운동인지 모른다"). 그날 몸 상태로 빼거나 바꾸는 것은 그날 가서 정해지니 여기엔 없다. 시즌 중은 앞날 종류를 몰라 빈 칸.
+   */
+  const ahead = basePlan.def.inSeason
+    ? []
+    : Array.from({ length: Math.max(0, plan.totalDays - day + 1) }, (_, k) => day + k).map((d) => {
+        const dayItems = dayPlan(plan, d).items;
+        const acc = accessoriesOn(d, dayItems);
+        return {
+          day: d,
+          exercises: dayItems.map((x) =>
+            acc.accessoryOf.has(x.variant) ? (acc.accessoryOf.get(x.variant) ?? null) : pinnedOf(x.variant, d).ex
+          ),
+        };
+      });
 
   /* 대체할 칸과 그 까닭 — 자체 시험 엇갈림 표와 같은 함수(program.ts painSlotsOf) */
   const { painSlots, slotReasons } = painSlotsOf(
@@ -610,6 +634,7 @@ export async function buildProgramDay(
     dropped: [],
     repin,
     arbitration,
+    ahead,
     askLastOuting:
       basePlan.def.inSeason === 'starter' && decision.kind !== 'done' && lastOutingDateOf(facts) == null
         ? todayKey
@@ -858,8 +883,33 @@ export type ProgramCardProps = {
    * 앞으로 할 세션 — 다음 일차부터 끝까지, 그날 운동(고정 운동 이름 · 없으면 칸 이름)과 처방 한 줄(2026-10-14 김민: "현재 세션밖에 안
    * 나와 추후에 어떤 세션을 하는지 모른다"). 무게는 그날 기록으로 정해지니 넣지 않는다.
    */
-  upcoming: { day: number; label: string; items: { title: string; line: string }[] }[];
+  upcoming: {
+    day: number;
+    label: string;
+    items: {
+      /** 운동 id — 운동을 못 고른 칸(장비 없음)은 null, 이름 자리에 칸 이름 */
+      id: string | null;
+      title: string;
+      /** 칸 이름(스쿼트 · 보조 밀기 …) */
+      slotLabel: string;
+      /** 짧은 양 — '3 × 5' 또는 '4세트' */
+      amount: string;
+      /** 처방 한 줄(누르면 보임) */
+      line: string;
+      /** 썸네일 저장소 경로 — 페이지가 서명해 thumbUrl 을 채운다 */
+      thumbPath: string | null;
+      /** 썸네일 주소 — 참고 영상이면 그 그림, 저장소 그림은 페이지가 채움 */
+      thumbUrl: string | null;
+    }[];
+  }[];
 };
+
+/** 오늘 줄과 같은 짧은 양 — 세트가 다 같으면 '3 × 5', 다르면 '4세트' */
+function amountOf(rx: ItemRx): string {
+  const n = rx.sets.length;
+  const same = rx.sets.every((x) => x.reps === rx.sets[0].reps && x.pct === rx.sets[0].pct && !x.plus);
+  return same ? `${n} × ${rx.reps}` : `${n}세트`;
+}
 
 export function programCardProps(
   view: ProgramDayView,
@@ -915,19 +965,24 @@ export function programCardProps(
       title: pinned[v] ? (byId.get(pinned[v] as string) ?? null) : null,
     })),
     /* 시즌 중은 세션 종류를 그날 상태(등판 며칠 뒤 · 어제 몇 구)로 정해 앞날을 모른다 — 오늘 종류로 앞날을 다 그리면 틀린다 */
-    upcoming: (plan.def.inSeason ? [] : Array.from({ length: Math.max(0, plan.totalDays - nextDay + 1) }, (_, k) => nextDay + k)).map((d) => ({
-      day: d,
-      label: dayLabel(plan, d),
-      items: dayPlan(plan, d).items.map((rx) => ({
-        /* 보조 칸은 세션마다 바뀌어 미리 이름을 못 박는다 — 칸 이름으로 */
-        title:
-          (!ROTATING_VARIANTS.includes(rx.variant) &&
-            pinned[rx.variant] &&
-            byId.get(pinned[rx.variant] as string)) ||
-          variantLabel(rx.variant, audience),
-        line: prescriptionLine(rx),
+    upcoming: view.ahead
+      .filter((a) => a.day >= nextDay)
+      .map((a) => ({
+        day: a.day,
+        label: dayLabel(plan, a.day),
+        items: dayPlan(plan, a.day).items.map((rx, i) => {
+          const ex = a.exercises[i] ?? null;
+          return {
+            id: ex?.id ?? null,
+            title: ex?.title ?? variantLabel(rx.variant, audience),
+            slotLabel: variantLabel(rx.variant, audience),
+            amount: amountOf(rx),
+            line: prescriptionLine(rx),
+            thumbPath: ex?.referenceVideoId ? null : (ex?.thumbPath ?? null),
+            thumbUrl: ex?.referenceVideoId ? referenceThumbUrl(ex.referenceVideoId) : null,
+          };
+        }),
       })),
-    })),
   };
 }
 
