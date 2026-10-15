@@ -22,7 +22,9 @@ import {
   LAB_MAX_VIDEO_BYTES,
   LAB_MAX_VIDEO_MB,
   LAB_VIEWS,
-  LAB_VIEW_LABELS,
+  labSideBase,
+  labViewLabel,
+  type LabHand,
   labMetaChips,
   type LabGround,
   type LabMeta,
@@ -102,9 +104,12 @@ const WHEN = new Intl.DateTimeFormat('ko-KR', {
 export function LabClient({
   samples,
   defaultHeightCm,
+  defaultHand,
 }: {
   samples: LabSample[];
   defaultHeightCm: number | null;
+  /** 가입 때 고른 던지는 손 — 올리기 칸의 처음 값 · 옆 폰 자리(우투 3루 · 좌투 1루) */
+  defaultHand: LabHand;
 }) {
   const [tab, setTab] = useState<'sample' | 'marker'>('sample');
   const normal = samples.filter((s) => s.meta?.kind !== 'marker');
@@ -135,12 +140,14 @@ export function LabClient({
           ]}
         />
       )}
-      {tab === 'sample' && <UploadCard defaultHeightCm={defaultHeightCm} />}
+      {tab === 'sample' && (
+        <UploadCard defaultHeightCm={defaultHeightCm} defaultHand={defaultHand} />
+      )}
       {shown.length === 0 ? (
         <EmptyState
           icon={<Rotate3d />}
           title="아직 올린 영상이 없어요"
-          description="같은 공을 옆(3루 쪽)과 뒤(2루 쪽)에서 찍은 영상을 짝으로 올려 주세요."
+          description={`같은 공을 옆(${labSideBase(defaultHand)} 쪽)과 뒤(2루 쪽)에서 찍은 영상을 짝으로 올려 주세요.`}
           action={
             tab === 'sample' ? (
               <ButtonLink href={LAB_GUIDE_HREF} variant="secondary">
@@ -167,14 +174,20 @@ export function LabClient({
 
 /* ─────────────────────────── 올리기 ─────────────────────────── */
 
-function UploadCard({ defaultHeightCm }: { defaultHeightCm: number | null }) {
+function UploadCard({
+  defaultHeightCm,
+  defaultHand,
+}: {
+  defaultHeightCm: number | null;
+  defaultHand: LabHand;
+}) {
   const router = useRouter();
   const [files, setFiles] = useState<Partial<Record<LabView, File>>>({});
   const [infoOpen, setInfoOpen] = useState(false);
   const [synced, setSynced] = useState<'yes' | 'no'>('yes');
   const [fps, setFps] = useState<'unknown' | '120' | '240'>('unknown');
   const [source, setSource] = useState<'screen' | 'original'>('screen');
-  const [hand, setHand] = useState<'R' | 'L'>('R');
+  const [hand, setHand] = useState<LabHand>(defaultHand);
   const [ground, setGround] = useState<LabGround>('mound');
   const [height, setHeight] = useState(defaultHeightCm ? String(defaultHeightCm) : '');
   const [distance, setDistance] = useState('');
@@ -213,7 +226,7 @@ function UploadCard({ defaultHeightCm }: { defaultHeightCm: number | null }) {
       const block = labVideoBlock(info);
       if (block) {
         setFiles((f) => (f[view] === file ? { ...f, [view]: undefined } : f));
-        setError(`${LAB_VIEW_LABELS[view]} 영상: ${block}`);
+        setError(`${labViewLabel(view, hand)} 영상: ${block}`);
         setBlocked(true);
         return;
       }
@@ -320,7 +333,7 @@ function UploadCard({ defaultHeightCm }: { defaultHeightCm: number | null }) {
         {LAB_VIEWS.map((view) => (
           <FilePick
             key={view}
-            label={LAB_VIEW_LABELS[view]}
+            label={labViewLabel(view, hand)}
             file={files[view]}
             disabled={busy}
             percent={progress?.view === view ? progress.percent : null}
@@ -565,7 +578,7 @@ function SampleCard({
   const cells = [
     ...LAB_VIEWS.map((view) => ({
       key: view,
-      label: (marker ? (view === 'side' ? '① ' : '② ') : '') + LAB_VIEW_LABELS[view],
+      label: (marker ? (view === 'side' ? '① ' : '② ') : '') + labViewLabel(view, meta?.hand ?? 'R'),
       url: sample.videos[view]?.url ?? null,
     })),
     ...sample.extras.map((x) => ({

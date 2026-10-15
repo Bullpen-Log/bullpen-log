@@ -10,12 +10,14 @@ import {
 import { BackLink, ButtonLink, Card, PageHeading } from '@/components/ui';
 import { V2_FAIL_TEXT, type V2FailCode } from '@/lib/pitch-3d/v2/contract';
 import { LAB_FAIL_FIX, type LabGuideSection } from '@/lib/pitch-lab-guide';
+import { forHand, type LabHand } from '@/lib/pitch-lab-meta';
 import { LAB_MAX_VIDEO_MB } from '@/lib/pitch-lab-meta';
 import { FramingArt, PlacementArt } from './guide-art';
 import { GuideChecklist } from './guide-checklist';
 
 /** 촬영 안내 본문(page.tsx 가 로그인을 확인하고 그린다) — 글 · 근거는 lib/pitch-lab-guide.ts */
-export function LabGuideView() {
+/** hand — 가입 때 고른 던지는 손. 옆 폰 자리가 우투는 3루, 좌투는 1루(글은 우투 기준으로 적고 forHand 로 바꾼다) */
+export function LabGuideView({ hand }: { hand: LabHand }) {
   return (
     <div className="stack-page">
       <div className="space-y-2">
@@ -28,14 +30,17 @@ export function LabGuideView() {
       </div>
 
       <Section id="checklist" icon={<Camera />} title="찍기 전 확인">
-        <GuideChecklist />
+        <GuideChecklist hand={hand} />
       </Section>
 
       <Section id="place" icon={<Smartphone />} title="폰 두 대 놓는 자리">
-        <PlacementArt />
+        <PlacementArt hand={hand} />
         <Points
           items={[
-            '옆 폰은 3루 쪽에서 투구 방향과 직각으로, 투구판과 내딛는 발 사이를 가운데에 두고 4~6m 떨어져요.',
+            forHand(
+              '옆 폰은 3루 쪽에서 투구 방향과 직각으로, 투구판과 내딛는 발 사이를 가운데에 두고 4~6m 떨어져요.',
+              hand
+            ),
             '뒤 폰은 투수 바로 뒤(2루 쪽) 4~5m 에서 홈을 똑바로 겨눠요. 분석이 이 폰이 보는 쪽을 홈 방향으로 잡아요.',
             '두 폰 사이는 투수를 사이에 두고 90°쯤이 가장 좋아요. 60~120° 를 벗어나면 폰의 자리를 찾지 못해요.',
             '두 폰 모두 투수의 허리에서 가슴 높이(1~1.3m)에 두고, 옆으로 기울지 않게 수평을 맞춰요.',
@@ -126,7 +131,7 @@ export function LabGuideView() {
                   {V2_FAIL_TEXT[code]}
                 </p>
                 <p className="text-xs leading-relaxed break-keep text-muted">
-                  {fix.fix}{' '}
+                  {forHand(fix.fix, hand)}{' '}
                   <a href={`#${fix.section}`} className="font-medium text-sky">
                     {SECTION_NAME[fix.section]} ›
                   </a>

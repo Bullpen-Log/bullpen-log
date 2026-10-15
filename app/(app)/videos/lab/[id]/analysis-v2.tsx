@@ -12,6 +12,7 @@ import {
   type Pitch3dV2Job,
 } from '@/lib/pitch-3d/v2/contract';
 import { LAB_FAIL_FIX, labGuideHref } from '@/lib/pitch-lab-guide';
+import { forHand, type LabHand } from '@/lib/pitch-lab-meta';
 
 /**
  * v2 분석의 상태 조각들(화면 결정 4~8) — 결과 화면(lab-detail.tsx)과 목록 카드(lab-client.tsx)가 쓴다.
@@ -64,12 +65,15 @@ export function V2EmptyWell({
   loading,
   v2Enabled,
   hasVideos,
+  hand,
 }: {
   job: Pitch3dV2Job | null;
   now: number;
   loading: boolean;
   v2Enabled: boolean;
   hasVideos: boolean;
+  /** 던지는 손 — 고칠 안내의 옆 폰 자리(우투 3루 · 좌투 1루) */
+  hand: LabHand;
 }) {
   let title: string;
   let line: string | null = null;
@@ -85,7 +89,7 @@ export function V2EmptyWell({
     const fix = LAB_FAIL_FIX[job.fail.code];
     if (V2_VIDEO_FAULT.has(job.fail.code)) {
       line =
-        fix?.fix ?? '영상 탓일 수 있어요. 밝은 곳 · 원본 파일 · 삼각대 · 두 폰 60~120° 로 다시 찍어 올려 주세요.';
+        (fix ? forHand(fix.fix, hand) : null) ?? '영상 탓일 수 있어요. 밝은 곳 · 원본 파일 · 삼각대 · 두 폰 60~120° 로 다시 찍어 올려 주세요.';
       guide = labGuideHref(fix?.section ?? 'checklist');
     } else {
       line = '서버 쪽 문제예요. 아래에서 다시 분석할 수 있어요.';

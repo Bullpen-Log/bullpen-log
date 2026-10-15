@@ -69,13 +69,16 @@ const H = 210;
 const pct = (v: number, of: number) => (v / of) * 100;
 
 /**
- * 폰 두 대 자리 — 위에서 본 마운드. 투수는 오른쪽 홈을 보고 던진다. 3루는 그림 아래(홈에서 마운드를 볼 때 왼쪽),
- * 2루는 투수 뒤(왼쪽). 옆 폰은 투구 방향과 직각, 뒤 폰은 투구 방향 그대로 — 두 시선이 투수에서 90°로 만난다.
+ * 폰 두 대 자리 — 위에서 본 마운드. 투수는 오른쪽 홈을 보고 던진다. 3루는 그림 아래(홈에서 마운드를 볼 때 왼쪽), 1루는 위,
+ * 2루는 투수 뒤(왼쪽). 옆 폰은 던지는 손의 가슴 쪽(우투 3루 · 좌투 1루)에서 투구 방향과 직각, 뒤 폰은 투구 방향 그대로 —
+ * 두 시선이 투수에서 90°로 만난다. 좌투면 그림을 위아래로 뒤집어 옆 폰이 위(1루)에 선다.
  */
-export function PlacementArt() {
-  const P = { x: 140, y: 88 }; /* 투수(투구판 앞) */
+export function PlacementArt({ hand }: { hand: 'R' | 'L' }) {
+  /* s — 옆 폰이 투수의 아래(+1, 3루)인가 위(−1, 1루)인가 */
+  const s = hand === 'L' ? -1 : 1;
+  const P = { x: 140, y: s === 1 ? 88 : H - 88 }; /* 투수(투구판 앞) */
   const home = { x: 298, y: P.y };
-  const side = { x: P.x, y: 184 };
+  const side = { x: P.x, y: P.y + s * 96 };
   const back = { x: 30, y: P.y };
   const corner = 16; /* 90° 표시 크기 */
   const SKY = 'var(--color-sky)';
@@ -130,14 +133,14 @@ export function PlacementArt() {
           strokeLinecap="round"
         />
         <path
-          d={`M${P.x} ${side.y - 9} V${P.y + corner}`}
+          d={`M${P.x} ${side.y - s * 9} V${P.y + s * corner}`}
           stroke={SKY}
           strokeWidth={2}
           strokeLinecap="round"
         />
         {/* 90° */}
         <path
-          d={`M${P.x - corner} ${P.y} V${P.y + corner} H${P.x}`}
+          d={`M${P.x - corner} ${P.y} V${P.y + s * corner} H${P.x}`}
           fill="none"
           stroke="var(--color-muted)"
           strokeWidth={1.5}
@@ -155,18 +158,18 @@ export function PlacementArt() {
         />
         <circle cx={P.x + 1} cy={P.y} r={4} fill={INK} />
         <Phone x={back.x} y={back.y} angle={0} tone={INK} />
-        <Phone x={side.x} y={side.y} angle={-90} tone={SKY} />
+        <Phone x={side.x} y={side.y} angle={-90 * s} tone={SKY} />
       </svg>
-      <Tag x={pct(back.x - 8, W)} y={pct(P.y - 28, H)} tone="ink" align="start">
+      <Tag x={pct(back.x - 8, W)} y={pct(P.y - s * 28, H)} tone="ink" align="start">
         뒤 폰 · 2루 쪽 4~5m
       </Tag>
       <Tag x={pct(side.x + 18, W)} y={pct(side.y, H)} tone="sky" align="start">
-        옆 폰 · 3루 쪽 4~6m
+        옆 폰 · {hand === 'L' ? '1루' : '3루'} 쪽 4~6m
       </Tag>
       <Tag x={pct(home.x, W)} y={pct(home.y - 22, H)}>
         홈
       </Tag>
-      <Tag x={pct(P.x - corner - 6, W)} y={pct(P.y + corner + 12, H)} align="end">
+      <Tag x={pct(P.x - corner - 6, W)} y={pct(P.y + s * (corner + 12), H)} align="end">
         90°
       </Tag>
     </div>

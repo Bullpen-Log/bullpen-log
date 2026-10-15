@@ -4,6 +4,7 @@ import { useSyncExternalStore } from 'react';
 import { CheckCircle2, RotateCcw } from '@/components/icon';
 import { ButtonLink } from '@/components/ui';
 import { LAB_GUIDE_CHECKS } from '@/lib/pitch-lab-guide';
+import { forHand, type LabHand } from '@/lib/pitch-lab-meta';
 
 /**
  * 찍기 전 확인 — 현장에서 폰을 세우며 하나씩 누른다. 다 누르면 '영상 올리러 가기'.
@@ -61,7 +62,7 @@ function parse(raw: string | null): Set<string> {
   }
 }
 
-export function GuideChecklist() {
+export function GuideChecklist({ hand }: { hand: LabHand }) {
   /* 서버 그림 · 첫 그림은 빈 체크(서버는 폰 저장소를 모른다) — 붙은 뒤 저장한 체크로 바뀐다 */
   const raw = useSyncExternalStore(subscribe, snapshot, () => null);
   const done = parse(raw);
@@ -109,10 +110,10 @@ export function GuideChecklist() {
                   <span
                     className={`block text-sm font-semibold break-keep transition-colors ${on ? 'text-muted' : 'text-ink'}`}
                   >
-                    {c.title}
+                    {forHand(c.title, hand)}
                   </span>
                   <span className="block text-xs leading-relaxed break-keep text-muted">
-                    {c.why}
+                    {forHand(c.why, hand)}
                   </span>
                 </span>
               </label>
