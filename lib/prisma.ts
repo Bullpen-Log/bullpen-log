@@ -47,6 +47,11 @@ const TIME_FIELDS: Record<string, string[]> = {
   velocitySession: ['createdAt'],
 };
 
+/*
+ * 조회마다 걸린 시간을 서버 창에 찍는다 — PRISMA_TIMING=1 일 때만(scripts/tab-timing.mjs 와 같이, 2026-10-15 탭 전환 속도 재기).
+ */
+const TIMING = process.env.PRISMA_TIMING === '1';
+
 function simNow(): Date | null {
   const f = (globalThis as { __bpNow?: () => number }).__bpNow;
   if (typeof window !== 'undefined' || !f) return null;
@@ -81,7 +86,13 @@ function withSimTime(base: PrismaClient): PrismaClient {
               fill(key, a.update, now, true);
             }
           }
-          return query(args);
+          if (!TIMING) return query(args);
+          const t0 = performance.now();
+          try {
+            return await query(args);
+          } finally {
+            console.log(`[db] ${model}.${operation} ${Math.round(performance.now() - t0)} ms`);
+          }
         },
       },
     },
