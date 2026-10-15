@@ -3165,5 +3165,17 @@ console.log('■ 점검 카드 드릴 고르기(drillPicksFor) — 쉬운 단계
   check('어깨 이름 뒤바뀜: 손목이 갈라져 있으면 엔진 좌우 고침에 맡김', split.dropped === 0, String(split.dropped));
 }
 
+{
+  /* 옆 · 뒤가 같은 공이 아니면 측정 불가(contract.ts pairMismatch, 2026-10-15) — 잰 진짜 짝 가장 큰 값은 통과, 다른 공 짝 예는 걸림 */
+  const { pairMismatch, readPitch3dV2Result, v2Fail, V2_VIDEO_FAULT } = await import('@/lib/pitch-3d/v2/contract');
+  check('같은 공 판정: 진짜 짝 가장 큰 값(2.0% · 0.009 · 2.0%)은 통과', !pairMismatch({ reprojPct: 2.0, syncCost: 0.009 }, { reprojPct: 2.0 }));
+  check('같은 공 판정: 다른 공 짝(5.1% · 0.02 · 2.7%)은 측정 불가', pairMismatch({ reprojPct: 5.1, syncCost: 0.02 }, { reprojPct: 2.7 }));
+  const failed = readPitch3dV2Result(JSON.parse(JSON.stringify(v2Fail('00000000-0000-4000-8000-000000000000', 'pair', 'fit'))));
+  check(
+    "같은 공 판정: 'pair' 실패를 읽고 영상 탓으로 본다",
+    failed?.ok === false && failed.code === 'pair' && V2_VIDEO_FAULT.has('pair')
+  );
+}
+
 console.log(`\n통과 ${passed} · 실패 ${failed}`);
 if (failed > 0) process.exit(1);

@@ -4,6 +4,7 @@ import { medianStep, prepareView, syncViews } from '@/lib/pitch-3d/motion';
 import { cross, dot, norm, normalize, sub, type Vec3 } from '@/lib/pitch-3d/linalg';
 import {
   MAX_V2_FRAMES,
+  pairMismatch,
   storedV2ResultJson,
   V2J,
   v2Fail,
@@ -364,6 +365,11 @@ export function runFit(raw: unknown): string {
   let result;
   try {
     result = fitPitch3dV2(input).result;
+    /* 옆 · 뒤가 같은 공이 아니면 측정 불가(pairMismatch) */
+    if (result.ok && pairMismatch(result.quality, result.fit)) {
+      console.error('[pitch3d pair] ' + JSON.stringify({ reprojPct: result.quality.reprojPct, syncCost: result.quality.syncCost, fitReprojPct: result.fit.reprojPct }));
+      result = v2Fail(jobId, 'pair', 'fit', result.quality);
+    }
     /* 진단은 실패해도 분석을 망치지 않게 따로 */
     if (result.ok)
       try {
