@@ -199,6 +199,8 @@ export function Modal({
    * 튕기면 닫힌다. 덜 내리면 제자리로 돌아간다. 아이폰 시트처럼(2026-10-01 '애플처럼'). 단추를 잡은 것은 끌기가 아니다.
    */
   const drag = useRef<{ id: number; y: number; t: number; dy: number } | null>(null);
+  /* 손가락 자리는 장면마다 한 번만 그린다 */
+  const dragFrame = useRef(0);
   const startDrag = (e: React.PointerEvent<HTMLDivElement>) => {
     if (
       !isPhone() ||
@@ -206,6 +208,8 @@ export function Modal({
     )
       return;
     drag.current = { id: e.pointerId, y: e.clientY, t: performance.now(), dy: 0 };
+    /* 끄는 동안 폴더 흐림을 끈다(globals.css [data-dragging]) — 흐린 폴더를 움직이면 아이폰이 버벅였다 */
+    ref.current?.setAttribute('data-dragging', '');
     e.currentTarget.setPointerCapture(e.pointerId);
   };
   const moveDrag = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -213,13 +217,20 @@ export function Modal({
     const el = folderRef.current ?? ref.current;
     if (!d || !el || e.pointerId !== d.id) return;
     d.dy = Math.max(0, e.clientY - d.y);
-    el.style.transform = `translateY(${d.dy}px)`;
+    if (!dragFrame.current)
+      dragFrame.current = requestAnimationFrame(() => {
+        dragFrame.current = 0;
+        if (drag.current) el.style.transform = `translate3d(0, ${drag.current.dy}px, 0)`;
+      });
   };
   const endDrag = (e: React.PointerEvent<HTMLDivElement>) => {
     const d = drag.current;
     const el = folderRef.current ?? ref.current;
     if (!d || !el || e.pointerId !== d.id) return;
     drag.current = null;
+    cancelAnimationFrame(dragFrame.current);
+    dragFrame.current = 0;
+    ref.current?.removeAttribute('data-dragging');
     const speed = d.dy / Math.max(1, performance.now() - d.t);
     if (d.dy > 110 || (d.dy > 30 && speed > 0.6)) {
       /* 폴더는 아래로 미끄러져 닫힌다(globals.css [data-dismiss='down']) — 인라인 자리는 닫는 순간 지운다 */

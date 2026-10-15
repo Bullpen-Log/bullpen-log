@@ -2126,6 +2126,8 @@ function DetailMenu({
     outside: boolean;
   } | null>(null);
   const swiped = useRef(false);
+  /* 손가락 자리는 장면마다 한 번만 그린다(포인터 알림이 한 장면에 여러 번 와도) */
+  const dragFrame = useRef(0);
   const inFolder = (t: EventTarget | null) =>
     t instanceof Element && t.closest('[data-folder]') != null;
   const startDrag = (e: React.PointerEvent<HTMLDialogElement>) => {
@@ -2156,6 +2158,8 @@ function DetailMenu({
       }
       d.on = true;
       swiped.current = true;
+      /* 끄는 동안 폴더 흐림을 끈다(globals.css [data-dragging]) — 흐린 폴더를 움직이면 아이폰이 장면마다 흐림을 다시 셈해 10장면/초쯤으로 버벅였다 */
+      ref.current?.setAttribute('data-dragging', '');
       try {
         e.currentTarget.setPointerCapture(e.pointerId);
       } catch {
@@ -2163,13 +2167,20 @@ function DetailMenu({
       }
     }
     d.dy = Math.max(0, dy);
-    f.style.setProperty('transform', `translateY(${d.dy}px)`);
+    if (!dragFrame.current)
+      dragFrame.current = requestAnimationFrame(() => {
+        dragFrame.current = 0;
+        if (drag.current) f.style.setProperty('transform', `translate3d(0, ${drag.current.dy}px, 0)`);
+      });
   };
   const endDrag = (e: React.PointerEvent<HTMLDialogElement>) => {
     const d = drag.current;
     const f = folder.current;
     if (!d || !f || e.pointerId !== d.id) return;
     drag.current = null;
+    cancelAnimationFrame(dragFrame.current);
+    dragFrame.current = 0;
+    ref.current?.removeAttribute('data-dragging');
     if (!d.on) {
       /* 그냥 누름 — 누른 곳도 뗀 곳도 폴더 밖이면 닫는다(아이폰 폴더처럼) */
       if (e.type === 'pointerup' && d.outside && !inFolder(e.target)) onClose();

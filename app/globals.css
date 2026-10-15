@@ -2029,6 +2029,21 @@ dialog[data-drawer]::backdrop {
     transform: translateY(110vh) !important;
     transition: transform 280ms cubic-bezier(0.32, 0.72, 0, 1);
   }
+  /*
+   * 끄는 동안 · 끌어내려 닫히는 동안은 폴더 흐림을 끈다(2026-10-15 김민 "스와이프가 거의 10프레임") — 흐림을 건 폴더를 움직이면 아이폰
+   * WebKit 이 장면마다 뒤를 다시 흐렸다. 폴더 뒤는 이미 흐린 막(dialog)이라 흐림을 꺼도 겉모습은 거의 같다. 폴더는 처음부터 제 층에 둔다.
+   */
+  dialog[data-drawer] [data-folder],
+  dialog[data-look='folder'] [data-folder] {
+    will-change: transform;
+  }
+  dialog[data-drawer][data-dragging] [data-folder],
+  dialog[data-look='folder'][data-dragging] [data-folder],
+  dialog[data-drawer][data-dismiss='down'] [data-folder],
+  dialog[data-look='folder'][data-dismiss='down'] [data-folder] {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
 }
 
 /* ── 메뉴가 막대 · 도크 · 판 사이를 오가는 연출 (PC) ───────────── */
