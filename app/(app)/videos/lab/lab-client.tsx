@@ -3,8 +3,8 @@
 import { useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Film, Play, Rotate3d, Trash2, Upload } from '@/components/icon';
-import { BackLink, Card, EmptyState, PageHeading } from '@/components/ui';
+import { Camera, ChevronRight, Film, Play, Rotate3d, Trash2, Upload } from '@/components/icon';
+import { BackLink, ButtonLink, Card, EmptyState, PageHeading } from '@/components/ui';
 import { Segmented } from '@/components/segmented';
 import { DisclosureButton } from '@/components/disclosure';
 import { ErrorLine } from '@/components/error-line';
@@ -13,6 +13,7 @@ import { uploadToStorage } from '@/components/video-upload';
 import { readVideoFps } from '@/lib/velocity-engine/video-fps';
 import { readVideoLens } from '@/lib/velocity-engine/video-lens';
 import { fileFingerprint, labVideoBlock, type LabVideoInfo } from '@/lib/pitch-lab-guard';
+import { LAB_GUIDE_HREF, labGuideHref } from '@/lib/pitch-lab-guide';
 import { OFFLINE_MESSAGE, orOffline } from '@/lib/action-offline';
 import { quietRefresh } from '@/lib/quiet-refresh';
 import { removeLabSample, saveLabSample } from '@/app/actions/pitch-lab';
@@ -140,6 +141,13 @@ export function LabClient({
           icon={<Rotate3d />}
           title="아직 올린 영상이 없어요"
           description="같은 공을 옆(3루 쪽)과 뒤(2루 쪽)에서 찍은 영상을 짝으로 올려 주세요."
+          action={
+            tab === 'sample' ? (
+              <ButtonLink href={LAB_GUIDE_HREF} variant="secondary">
+                촬영 안내 보기
+              </ButtonLink>
+            ) : undefined
+          }
         />
       ) : (
         <div className="space-y-2">
@@ -179,6 +187,8 @@ function UploadCard({ defaultHeightCm }: { defaultHeightCm: number | null }) {
   /* 고른 영상의 지문(같은 영상 다시 막기) — 검사가 끝나야 생긴다 */
   const [fpOf, setFpOf] = useState<Partial<Record<LabView, string>>>({});
   const [error, setError] = useState<string>();
+  /* 고른 영상이 올리기 전 검사에 걸렸나 — 오류 밑에 촬영 안내로 가는 길을 붙인다 */
+  const [blocked, setBlocked] = useState(false);
   const [, start] = useTransition();
 
   const busy = progress != null;
@@ -186,6 +196,7 @@ function UploadCard({ defaultHeightCm }: { defaultHeightCm: number | null }) {
 
   const pick = (view: LabView, file: File | undefined) => {
     setError(undefined);
+    setBlocked(false);
     if (!file) return;
     if (file.size > LAB_MAX_VIDEO_BYTES) {
       setError(`영상은 ${LAB_MAX_VIDEO_MB}MB 이하만 올릴 수 있어요.`);
@@ -203,6 +214,7 @@ function UploadCard({ defaultHeightCm }: { defaultHeightCm: number | null }) {
       if (block) {
         setFiles((f) => (f[view] === file ? { ...f, [view]: undefined } : f));
         setError(`${LAB_VIEW_LABELS[view]} 영상: ${block}`);
+        setBlocked(true);
         return;
       }
       setFpOf((m) => ({ ...m, [view]: fp }));
@@ -231,6 +243,7 @@ function UploadCard({ defaultHeightCm }: { defaultHeightCm: number | null }) {
 
   const upload = async () => {
     setError(undefined);
+    setBlocked(false);
     const id = crypto.randomUUID();
     try {
       for (const view of LAB_VIEWS) {
@@ -282,13 +295,26 @@ function UploadCard({ defaultHeightCm }: { defaultHeightCm: number | null }) {
     <Card className="space-y-4">
       <div className="space-y-1">
         <p className="text-base font-semibold text-ink">영상 올리기</p>
-        <p className="text-xs text-muted">
-          영상 하나에 {LAB_MAX_VIDEO_MB}MB까지예요. 카메라는 1배(기본 렌즈)로 찍어 주세요. 분석이 1배로 계산해요.
-        </p>
-        <p className="text-xs text-muted">
-          240fps 슬로모로 찍어, 내보내거나 화면 녹화하지 말고 원본 그대로 올리면 가장 정확해요.
-        </p>
+        <p className="text-xs text-muted">영상 하나에 {LAB_MAX_VIDEO_MB}MB까지예요.</p>
       </div>
+
+      {/*
+        촬영 안내(2026-10-15 사용자: "우리가 가장 잘 인식할 수 있는 조건을 참고해서 촬영할 수 있게") — 예전 두 줄 안내(1배 · 240fps 원본)를
+        한 화면(/videos/lab/guide)으로 늘렸다. 요점 다섯을 한 줄로 보이고 누르면 그 화면.
+      */}
+      <Link
+        href={LAB_GUIDE_HREF}
+        className="flex min-h-14 items-center gap-3 rounded-2xl bg-sky-tint px-3 py-2.5 text-left"
+      >
+        <Camera aria-hidden className="h-5 w-5 shrink-0 text-sky" />
+        <span className="min-w-0 flex-1 space-y-0.5">
+          <span className="block text-sm font-semibold text-ink">촬영 안내</span>
+          <span className="block text-xs break-keep text-muted">
+            두 대 동시에 · 240fps 슬로 모션 · 1배 · 삼각대 · 원본 그대로
+          </span>
+        </span>
+        <ChevronRight aria-hidden className="h-4 w-4 shrink-0 text-muted" />
+      </Link>
 
       <div className="grid grid-cols-2 gap-2">
         {LAB_VIEWS.map((view) => (
@@ -386,6 +412,11 @@ function UploadCard({ defaultHeightCm }: { defaultHeightCm: number | null }) {
       )}
 
       {error && <ErrorLine>{error}</ErrorLine>}
+      {error && blocked && (
+        <Link href={labGuideHref('checklist')} className="-mt-2 block text-sm font-medium text-sky">
+          어떻게 찍으면 되는지 촬영 안내 보기 ›
+        </Link>
+      )}
 
       <button
         type="button"
