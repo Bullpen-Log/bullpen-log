@@ -165,7 +165,7 @@ export function LabDetail({
       </div>
 
       <div className="desk:grid desk:grid-cols-[3fr_2fr] desk:items-start desk:gap-8">
-        <div ref={stage} className="stack-block desk:sticky desk:top-4">
+        <div ref={stage} className="stack-block desk:sticky desk:top-(--desk-veil-solid)">
           {result && meta && result.hand !== meta.hand && (
             <p className="text-xs text-muted break-keep">
               영상으로 보면 {result.hand === 'L' ? '왼손' : '오른손'} 투수라{' '}
