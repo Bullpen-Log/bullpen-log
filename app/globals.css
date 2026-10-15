@@ -2584,10 +2584,37 @@ dialog[open]::backdrop {
  */
 @media (min-width: 46.5rem) and (min-height: 37.5rem) and (pointer: coarse) {
   dialog[data-sheet],
-  dialog[data-gate],
-  dialog[data-drawer] {
+  dialog[data-gate] {
     width: min(40rem, 100%);
     margin-inline: auto;
+  }
+  /*
+   * 패드의 더보기 · 설정 · 내 정보 폴더(위 '휴대폰의 더보기' 규칙) — 휴대폰 값을 그대로 늘려 쓰면 부자연스러웠다(2026-10-15 김민):
+   * 흐린 막이 가운데 640px 띠만 덮고(더보기 dialog 가 시트 규칙을 탔다), 폴더는 하단 탭이 없는데 바닥을 비우고, 오른쪽 아래(휴대폰 '더보기' 자리)에서
+   * 부풀었다. 막은 화면 전체, 폴더는 왼쪽 탭 막대를 뺀 자리 가운데에서 탭 막대 쪽(왼쪽)으로부터 뜨고, 타일은 크게(64px · 한 줄에 넷 — app-shell).
+   */
+  dialog[data-drawer],
+  dialog[data-look='folder'] {
+    width: 100%;
+    margin: 0;
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) var(--rail);
+  }
+  dialog[data-drawer] [data-folder],
+  dialog[data-look='folder'] [data-folder] {
+    transform-origin: 0% 45%;
+  }
+  dialog[data-drawer] [data-folder] {
+    /*
+     * 64px, 화면이 낮으면(가로로 눕힌 아이패드 834px · 미니 744px) 굴리지 않고 한 장에 들게 줄인다 — 관리자 폴더(줄 다섯)가 64px 에서 약 716px,
+     * 폴더 높이 한도는 화면 − 124px(app-shell max-h). 타일 1px 마다 줄 다섯이라 5px.
+     */
+    --tile: clamp(44px, calc((100dvh - 32.5rem) / 5), 64px);
+    max-width: 34rem;
+    padding: 32px 32px 28px;
+    border-radius: 44px;
+  }
+  dialog[data-look='folder'] [data-folder] {
+    max-width: 30rem;
   }
 }
 
