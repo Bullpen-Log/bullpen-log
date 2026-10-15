@@ -22,7 +22,6 @@ import { prisma } from '@/lib/prisma';
 import { contextFrom } from '@/lib/checkin-flow-load';
 import { MainTransition } from '@/components/main-transition';
 import { SiteFooter } from '@/components/site-footer';
-import { PullToRefresh } from '@/components/pull-to-refresh';
 import { AppSplash } from '@/components/app-splash';
 import { TabPager } from '@/components/tab-pager';
 
@@ -190,9 +189,6 @@ export default async function AppLayout({
       {/* 오래 비워 둔 탭으로 돌아오면 새로 받는다 — 다른 기기에서 바꾼 사진·정보가 보이게 */}
       <RefreshOnReturn />
 
-      {/* 탭 첫 화면에서 아래로 당기면 새로 받는다 — 아이폰 앱만(components/pull-to-refresh.tsx) */}
-      <PullToRefresh />
-
       {/* 신호 없이 남겨 폰에 담긴 운동 세트를 어느 화면에서든 이어서 보낸다 */}
       <SendPendingSets />
       {isNative && <LibrarySync />}
@@ -230,7 +226,6 @@ export default async function AppLayout({
         {/* 밑 여백은 본문과 맨 밑 정보 사이의 틈이다. 휴대폰 하단 탭만큼 비우는 일은 SiteFooter 가 한다. */}
         {/* 양옆은 노치 자리와 견줘 큰 쪽 — 가로로 돌린 사파리에서 글이 노치 밑에 들어갔다(2026-10-03). 세로 · PC 는 그 값이 0 이라 예전 여백 그대로 */}
         <main
-          data-ptr-target
           /* touch-pan-y — 세로는 브라우저가 굴리고, 가로는 탭 쓸기(components/tab-pager.tsx)가 받는다. pinch-zoom 을 같이 둬야
              사파리에서 두 손가락 확대가 된다(pan-y 만이면 막혔다) */
           className="mx-auto w-full max-w-5xl flex-1 touch-pan-y touch-pinch-zoom py-6 pb-10 pl-[max(calc(var(--spacing)*4),env(safe-area-inset-left))] pr-[max(calc(var(--spacing)*4),env(safe-area-inset-right))] sm:pl-[max(calc(var(--spacing)*6),env(safe-area-inset-left))] sm:pr-[max(calc(var(--spacing)*6),env(safe-area-inset-right))] sm:pt-6 xl:max-w-6xl 2xl:max-w-7xl desk:pt-(--page-top) desk:pb-32 pad:max-w-5xl pad:pl-8 pad:pr-[max(2rem,env(safe-area-inset-right))]"

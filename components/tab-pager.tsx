@@ -203,7 +203,6 @@ export function TabPager({
       if (i < 0) return;
       const p = e.touches[0];
       if (p.clientX < 16) return;
-      if (html.dataset.ptr) return;
       /* 탭의 첫 화면에서만 — 트레이닝 하위 화면(메커니즘 · 암케어, '‹ 뒤로')도 주소는 /training */
       if (barSnapshot().back) return;
       if (!(e.target instanceof Element) || !el.contains(e.target)) return;
