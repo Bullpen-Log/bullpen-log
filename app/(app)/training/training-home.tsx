@@ -23,6 +23,8 @@ import { shiftDateKey, toDateKey } from '@/lib/pitch-stats';
 import { dbDate, keyOfDbDate } from '@/lib/nutrition/days';
 import { TRAINING_PART_HREF, type TrainingPart } from '@/lib/training-part';
 import { StartWorkout } from './start-workout';
+import { TrainingDayStrip } from './day-strip';
+import { loadTrainingWeek } from '@/lib/training-week';
 import { withJosa } from '@/lib/korean';
 
 type HomeUser = UserForToday & UserForArmcare & { id: string };
@@ -76,6 +78,10 @@ export function TrainingHome({
   return (
     <div className="stack-page">
       <PageHeading eyebrow="Training" title="트레이닝" inlineAction action={<AnalysisLink view="training" />} />
+      {/* 제목 밑 날짜 띠(2026-10-15 사용자 — 영양과 같게). 칸 높이만큼 자리를 잡아 두어 카드가 밀려 내려가지 않는다 */}
+      <Suspense fallback={<div className="h-15 desk:h-[3.375rem]" />}>
+        <DayStripLoad userId={user.id} today={toDateKey(today)} />
+      </Suspense>
       <div className="stack-block">{order.map((app) => cards[app])}</div>
       <Suspense fallback={<div className="h-12" />}>
         <WeekStrip userId={user.id} today={today} />
@@ -495,6 +501,13 @@ async function MechanicsCard({ userId }: { userId: string }) {
       {bars}
     </AppCard>
   );
+}
+
+/* ─────────────────────────────── 날짜 띠 ─────────────────────────────── */
+
+async function DayStripLoad({ userId, today }: { userId: string; today: string }) {
+  const days = await loadTrainingWeek(userId, today);
+  return <TrainingDayStrip days={days} date={today} today={today} />;
 }
 
 /* ─────────────────────────────── 이번 주 ─────────────────────────────── */

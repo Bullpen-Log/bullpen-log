@@ -411,6 +411,8 @@ export function NutritionView({
         휴대폰에서는 제목 · 날짜 · 목표가 한 줄이고(목표 단추는 그림만), 날짜 띠는 맨 뒤로
         보내 밑줄을 통째로 쓴다(order-last). 넓은 화면(lg)에서는 띠가 제자리로 돌아와 같은
         줄에 선다 — 예전에는 띠가 따로 한 줄(57px + 간격)을 차지해 오른쪽 절반이 비었다.
+        2026-10-14 휴대폰에서 띠를 숨겼다가 2026-10-15 사용자 "제목 밑 최근 날짜 보기를 다시" — 휴대폰도 제목 밑에 보인다
+        (트레이닝 홈도 같은 띠, training/day-strip.tsx).
       */}
       <header className="flex flex-wrap items-center desk:items-end gap-x-3 gap-y-3 pb-1 sm:gap-x-4 desk:pb-4">
         {/* 머리글은 휴대폰에서 뺀다 — 제목 줄에 날짜 · 목표가 같이 서서, 넣으면 목표 단추가 밑줄로 밀린다 */}
@@ -424,7 +426,7 @@ export function NutritionView({
           strip={day.strip}
           date={day.date}
           today={today}
-          className="order-last w-full max-lg:hidden sm:max-w-xl lg:order-none lg:w-auto lg:flex-1"
+          className="order-last w-full sm:max-w-xl lg:order-none lg:w-auto lg:flex-1"
         />
         <button
           type="button"
