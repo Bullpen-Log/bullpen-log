@@ -40,6 +40,7 @@ const m = readLabMeta(
     hand: 'L',
     heightCm: 182,
     distanceM: 6.5,
+    distances: { side: 5, back: 4.5, front: 3 },
     memo: '  직구, 세게  ',
     files: { side: { name: 'a.mp4', size: 1000 }, back: { name: 'b.mp4', size: 2000 } },
   },
@@ -53,6 +54,9 @@ check(
     m.hand === 'L' &&
     m.heightCm === 182 &&
     m.distanceM === 6.5 &&
+    m.distances.side === 5 &&
+    m.distances.back === 4.5 &&
+    !('front' in m.distances) &&
     m.memo === '직구, 세게' &&
     m.files.side?.name === 'a.mp4' &&
     m.files.back?.size === 2000
@@ -64,6 +68,7 @@ const bad = readLabMeta(
     hand: 'X',
     heightCm: 900,
     distanceM: -1,
+    distances: { side: 0, back: 'x' },
     memo: 'x'.repeat(900),
     files: { side: { name: '', size: 5 }, front: { name: 'c', size: 1 } },
     createdAt: 7,
@@ -76,6 +81,7 @@ check(
     bad.hand === 'R' &&
     bad.heightCm === null &&
     bad.distanceM === null &&
+    Object.keys(bad.distances).length === 0 &&
     (bad.memo?.length ?? 0) === 500 &&
     Object.keys(bad.files).length === 0 &&
     bad.createdAt === NOW
@@ -85,13 +91,18 @@ check('null · 문자열도 받음', readLabMeta(null, NOW).hand === 'R' && read
 check(
   '카드 표시',
   labMetaChips(m).join(' · ') ===
-    '마운드 · 한 대로 나눠 찍음 · 슬로모 240 · 왼손 · 원본 · 키 182cm · 거리 6.5m',
+    '마운드 · 한 대로 나눠 찍음 · 슬로모 240 · 왼손 · 키 182cm · 옆 5m · 뒤 4.5m',
   labMetaChips(m).join(' · ')
 );
 /* 마커 샘플(2026-10-12) — 종류를 읽고 표시 맨 앞에 '마커' */
 check('종류 — 없으면 일반 샘플', readLabMeta({}, NOW).kind === 'sample');
 check('종류 — 마커', readLabMeta({ kind: 'marker' }, NOW).kind === 'marker');
 check('마커 표시가 맨 앞', labMetaChips(readLabMeta({ kind: 'marker' }, NOW))[0] === '마커');
+check(
+  '카드 표시 — 동시 촬영 · 원본은 안 적고, 폰마다 거리가 없으면 옛 한 칸 거리',
+  labMetaChips(readLabMeta({ synced: true, screenRecorded: false, distanceM: 6 }, NOW)).join(' · ') ===
+    '마운드 · 슬로모 모름 · 오른손 · 거리 6m'
+);
 check('표시 글에 줄표 없음', !labMetaChips(d).some((t) => t.includes('—')));
 
 /* 촬영 안내(2026-10-15) — lib/pitch-lab-guide.ts */

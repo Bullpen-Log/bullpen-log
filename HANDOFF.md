@@ -40,6 +40,8 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
   `lib/pitch-lab-guard.ts`: 이름 바꾼 화면 녹화(렌즈 없음 + 화면 비율 + 100fps 밑) 막기, `labPairBlock`(같은 파일 · 찍은 시각 차가 긴 영상 길이 + 3초 넘으면 막음,
   출처가 다르면 30분 배수 시간대 어긋남은 봐줌), `labMetaBlock`(서버 `saveLabSample` 이 다시 봄 — 막히면 정보 없는 새 폴더를 `deleteUnsavedLabSample` 로 지움).
 - 고른 영상 밑에 초당 장수 표시, 30fps 막기 · 60fps 알림에 'AirDrop 은 옵션에서 모든 사진 데이터'. 촬영 안내에 '영상 옮기기' 칸 · 확인 목록 10번째.
+- (같은 날 더) 촬영 정보의 '폰까지 거리'를 폰마다 두 칸으로(`LabMeta.distances` { side · back } — 사용자: "1배여도 폰마다 크기가 다름"). 옛 한 칸 `distanceM` 은 읽기만.
+  기록 · 표시만 하고 3D 계산에는 아직 안 넘긴다. 카드 표시에서 늘 같은 '동시 촬영' · '원본'은 뺐다(옛 샘플의 '한 대로 나눠 찍음' · '화면 녹화'만 남음).
 - 촬영 모드(`run-client.tsx`) 되돌리기 알림을 아래 막대 높이를 재서 그 위 8px 에, 주차 화면은 하단 탭 위(`undo-toast.tsx` 기본 자리).
 - 시험 `pitch3d:v2-test` 310(새 27 — 가짜 mov 머리 읽기 포함) · `pitch-lab:test` 16. 실제 아이폰 화면 녹화 · AirDrop 받은 파일로는 못 봤다.
 

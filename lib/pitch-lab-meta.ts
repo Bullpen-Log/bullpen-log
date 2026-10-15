@@ -52,8 +52,15 @@ export type LabMeta = {
    */
   ground: LabGround;
   heightCm: number | null;
-  /** 폰에서 투수까지(m) — 모르면 null */
+  /**
+   * 폰에서 투수까지(m) — 옛 샘플의 한 칸(어느 폰인지 모른다). 2026-10-15 부터는 폰마다 distances 에 적고 이 칸은 null.
+   */
   distanceM: number | null;
+  /**
+   * 폰마다 투수까지(m) — 적은 폰만(2026-10-15 사용자: "폰까지의 거리는 카메라 2대마다 — 1배 줌이어도 폰마다 크기가 다름").
+   * 지금은 기록 · 표시만 한다(3D 계산은 두 영상으로 카메라 자리를 스스로 찾는다).
+   */
+  distances: Partial<Record<LabView, number>>;
   memo: string | null;
   /**
    * 올린 파일 이름 · 크기(분석 때 원본을 가려내려고) · 지문(lib/pitch-lab-guard.ts — 영상 탓으로 실패한 파일을 다시 안 돌리려고, 옛 샘플은 없다) ·
@@ -115,6 +122,15 @@ export function readLabMeta(raw: unknown, createdAt: string): LabMeta {
         ...(dur != null ? { dur } : {}),
       };
   }
+  const distances: LabMeta['distances'] = {};
+  const rawDist = (v.distances && typeof v.distances === 'object' ? v.distances : {}) as Record<
+    string,
+    unknown
+  >;
+  for (const view of LAB_VIEWS) {
+    const m = num(rawDist[view], 1, 60);
+    if (m != null) distances[view] = m;
+  }
   return {
     synced: v.synced !== false,
     slowmoFps: v.slowmoFps === 120 || v.slowmoFps === 240 ? v.slowmoFps : null,
@@ -123,6 +139,7 @@ export function readLabMeta(raw: unknown, createdAt: string): LabMeta {
     ground: v.ground === 'flat' ? 'flat' : 'mound',
     heightCm: num(v.heightCm, 120, 230),
     distanceM: num(v.distanceM, 1, 60),
+    distances,
     memo: text(v.memo, 500),
     files,
     kind: v.kind === 'marker' ? 'marker' : 'sample',
@@ -130,16 +147,22 @@ export function readLabMeta(raw: unknown, createdAt: string): LabMeta {
   };
 }
 
-/** 카드의 작은 표시들 — '동시 촬영 · 슬로모 240 · 오른손 · 화면 녹화' */
+/**
+ * 카드의 작은 표시들 — '마운드 · 슬로모 240 · 오른손 · 키 182cm · 옆 5m · 뒤 4.5m'.
+ * 동시 촬영 · 원본은 이제 늘 그래서(2026-10-15) 안 적고, 그렇지 않은 옛 샘플에만 '한 대로 나눠 찍음' · '화면 녹화'를 단다.
+ */
 export function labMetaChips(meta: LabMeta): string[] {
+  const dist = LAB_VIEWS.filter((v) => meta.distances[v] != null).map(
+    (v) => `${v === 'side' ? '옆' : '뒤'} ${meta.distances[v]}m`
+  );
   return [
     ...(meta.kind === 'marker' ? ['마커'] : []),
     meta.ground === 'flat' ? '평지' : '마운드',
-    meta.synced ? '동시 촬영' : '한 대로 나눠 찍음',
+    ...(meta.synced ? [] : ['한 대로 나눠 찍음']),
     meta.slowmoFps ? `슬로모 ${meta.slowmoFps}` : '슬로모 모름',
     meta.hand === 'L' ? '왼손' : '오른손',
-    meta.screenRecorded ? '화면 녹화' : '원본',
+    ...(meta.screenRecorded ? ['화면 녹화'] : []),
     ...(meta.heightCm ? [`키 ${meta.heightCm}cm`] : []),
-    ...(meta.distanceM ? [`거리 ${meta.distanceM}m`] : []),
+    ...(dist.length ? dist : meta.distanceM ? [`거리 ${meta.distanceM}m`] : []),
   ];
 }

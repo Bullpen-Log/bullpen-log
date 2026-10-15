@@ -207,7 +207,8 @@ function UploadCard({ defaultHeightCm }: { defaultHeightCm: number | null }) {
   const [hand, setHand] = useState<'R' | 'L'>('R');
   const [ground, setGround] = useState<LabGround>('mound');
   const [height, setHeight] = useState(defaultHeightCm ? String(defaultHeightCm) : '');
-  const [distance, setDistance] = useState('');
+  /* 폰마다 투수까지(m) — 1배여도 폰마다 화각이 달라 두 대를 따로 적는다 */
+  const [distance, setDistance] = useState<Record<LabView, string>>({ side: '', back: '' });
   const [memo, setMemo] = useState('');
   const [progress, setProgress] = useState<{ view: LabView; percent: number } | null>(
     null
@@ -301,7 +302,10 @@ function UploadCard({ defaultHeightCm }: { defaultHeightCm: number | null }) {
         hand,
         ground,
         heightCm: height ? Number(height) : null,
-        distanceM: distance ? Number(distance) : null,
+        distanceM: null,
+        distances: Object.fromEntries(
+          LAB_VIEWS.filter((v) => distance[v]).map((v) => [v, Number(distance[v])])
+        ),
         memo: memo.trim() || null,
         /* 화면에서 올리는 것은 늘 일반 샘플 — 마커 샘플은 3~4대 영상이라 스크립트로 올린다 */
         kind: 'sample',
@@ -422,12 +426,22 @@ function UploadCard({ defaultHeightCm }: { defaultHeightCm: number | null }) {
                 onChange={setHeight}
                 placeholder="175"
               />
-              <NumberField
-                label="폰까지 거리(m)"
-                value={distance}
-                onChange={setDistance}
-                placeholder="모름"
-              />
+            </div>
+            <div className="space-y-1">
+              <div className="grid grid-cols-2 gap-2">
+                {LAB_VIEWS.map((v) => (
+                  <NumberField
+                    key={v}
+                    label={`${v === 'side' ? '옆 폰' : '뒤 폰'}까지 거리(m)`}
+                    value={distance[v]}
+                    onChange={(x) => setDistance((d) => ({ ...d, [v]: x }))}
+                    placeholder="모름"
+                  />
+                ))}
+              </div>
+              <p className="text-xs break-keep text-muted">
+                폰마다 투수까지 따로 재서 적어 주세요. 같은 1배여도 폰마다 찍히는 크기가 달라요.
+              </p>
             </div>
             <label className="block space-y-1">
               <span className="text-xs text-muted">메모</span>
