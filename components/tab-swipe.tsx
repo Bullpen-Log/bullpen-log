@@ -83,11 +83,17 @@ const shotFor = (href: string) => {
   return s && s.vw === window.innerWidth ? s : undefined;
 };
 
-/** 본문을 사본으로 뜬다 — 영상은 받지 않게, id 는 겹치지 않게, 창 · 화면 전환 이름은 빼고 */
+/**
+ * 본문을 사본으로 뜬다 — 영상은 받지 않게, id 는 겹치지 않게, 창 · 화면 전환 이름은 빼고.
+ * 껍데기는 <main> 이 아니라 <div> 다(2026-10-15 사용자 "스와이프를 여러 번 연속으로 하면 화면에 아무것도 안 나온다"): 사본이
+ * <main> 이면 자리표시가 떠 있는 동안 document.querySelector('main') 이 진짜 본문 대신 사본을 잡았다 — 새 화면이 와도 사본만
+ * 제자리로 돌리고 진짜 본문은 화면 밖에 둔 채 자리표시가 걷혀 빈 화면이 됐다(전환 · 당겨서 새로고침도 같은 식으로 본문을 찾는다).
+ */
 function takeShot(main: HTMLElement): Shot {
   const r = main.getBoundingClientRect();
-  const node = main.cloneNode(true) as HTMLElement;
-  node.removeAttribute('style');
+  const node = document.createElement('div');
+  node.className = main.className;
+  for (const child of main.childNodes) node.appendChild(child.cloneNode(true));
   node.querySelectorAll('[id]').forEach((e) => e.removeAttribute('id'));
   node.querySelectorAll('dialog, iframe, script').forEach((e) => e.remove());
   node.querySelectorAll('video').forEach((v) => {
@@ -137,7 +143,10 @@ export function TabSwipe({
   const target = useRef<string | null>(null);
   const waitTimer = useRef(0);
   const giveUp = useRef(0);
-  const navTimer = useRef(0);
+  /* 새 화면이 이어 들어오는 움직임이 끝난 뒤 정리 */
+  const mainTimer = useRef(0);
+  /* 넘어가는 쪽(1 = 다음 탭, −1 = 앞 탭) — 새 화면을 어디서 이어 들어오게 할지 */
+  const slideDir = useRef<1 | -1>(1);
   /* 제자리로 돌아가는 움직임이 끝난 뒤 정리 — 그 사이 다시 끌면 걷는다(예전엔 끄는 중에 자리표시가 사라져 옆이 비었다) */
   const settleTimer = useRef(0);
   /* 지금 밀린 거리 — 자리표시가 한 장면 늦게 생겨도 그 자리에서 시작하게 */
@@ -222,20 +231,40 @@ export function TabSwipe({
     target.current = null;
     window.clearTimeout(waitTimer.current);
     window.clearTimeout(giveUp.current);
-    window.clearTimeout(navTimer.current);
     const main = document.querySelector<HTMLElement>('main');
-    if (main) {
-      main.style.transition = 'none';
+    if (!main) return;
+    /*
+     * 손을 떼자마자 새 화면을 부르므로(onEnd) 새 화면이 아직 미끄러지는 중에 올 수 있다 — 그때는 본문(이제 새 화면)을 자리표시가
+     * 있던 자리에 옮겨 놓고 거기서 남은 거리만 이어 들어오게 한다. 자리표시는 본문과 같은 거리만큼 밀려 있으니(setX) 그 자리 =
+     * 방향 × 폭 + 지금 밀린 거리. 다 밀린 뒤에 왔으면 0 — 예전처럼 제자리에서 자리표시만 옅어진다.
+     */
+    const now = getComputedStyle(main).transform;
+    const cur = !now || now === 'none' ? 0 : new DOMMatrixReadOnly(now).m41;
+    const from = zoom ? 0 : slideDir.current * window.innerWidth + cur;
+    const sliding = Math.abs(from) > 1;
+    main.style.transition = 'none';
+    main.style.transform = sliding ? `translateX(${from}px)` : '';
+    void main.offsetWidth;
+    window.clearTimeout(mainTimer.current);
+    if (sliding) {
+      const ms = Math.max(120, Math.round((SETTLE_MS * Math.abs(from)) / window.innerWidth));
+      main.style.transition = `transform ${ms}ms cubic-bezier(0.32, 0.72, 0, 1)`;
       main.style.transform = '';
-      main.style.willChange = '';
-      void main.offsetWidth;
+      mainTimer.current = window.setTimeout(() => {
+        main.style.transition = '';
+        main.style.willChange = '';
+      }, ms);
+    } else {
       main.style.transition = '';
+      main.style.willChange = '';
     }
     if (zoom) {
       queueMicrotask(() => setGhost(null));
       return;
     }
     window.scrollTo(0, 0);
+    /* 미끄러지는 중이면 본문이 그 자리를 이어받았으니 자리표시는 바로 감춘다(두 겹이 비치지 않게) */
+    if (sliding && ghostEl.current) ghostEl.current.style.visibility = 'hidden';
     /* 옅어지며 걷는다 — 칠하기 전에 DOM 에 바로(상태를 거치면 한 장면 늦다). 끝까지 밀 때 단 transform 전환이 남아 있으면
        옅어지기(globals.css [data-tab-ghost][data-done])가 안 걸려 걷는다 */
     const gEl = ghostEl.current;
@@ -397,12 +426,14 @@ export function TabSwipe({
         }
         d.on = true;
         window.clearTimeout(settleTimer.current);
+        window.clearTimeout(mainTimer.current);
         main.style.transition = 'none';
         main.style.willChange = 'transform';
         if (ghostEl.current) {
           ghostEl.current.style.transition = 'none';
-          /* 걷히던 중이면(DOM 에 바로 단 옅어짐) 다시 보이게 */
+          /* 걷히던 중이면(DOM 에 바로 단 옅어짐 · 감춤) 다시 보이게 */
           ghostEl.current.removeAttribute('data-done');
+          ghostEl.current.style.visibility = '';
         }
         /* 옆 탭을 미리 받아 둔다 — 쓸기로 정해진 뒤에만(예전엔 누르거나 굴리기 시작할 때마다 받았다) */
         const i0 = indexOf(latest.current.pathname);
@@ -460,7 +491,6 @@ export function TabSwipe({
           if (target.current !== href) return;
           target.current = null;
           window.clearTimeout(waitTimer.current);
-          window.clearTimeout(navTimer.current);
           if (html.dataset.nav === 'zoom') html.removeAttribute('data-nav');
           main.style.transition = ease;
           if (g) g.style.transition = ease;
@@ -489,14 +519,15 @@ export function TabSwipe({
         }
         /* 하단 탭의 렌즈도 지금 그 칸으로 — 본문과 같이 미끄러진다 */
         window.dispatchEvent(new CustomEvent(TAB_CHOSEN_EVENT, { detail: href }));
-        /* 곧바로 끝까지 민다(GPU) — 다 밀린 뒤 화면을 바꾼다(같은 본문 칸이라, 미는 중에 바꾸면 새 화면이 밀려 나간다) */
+        /*
+         * 곧바로 끝까지 밀고(GPU) 새 화면도 곧바로 부른다. 예전엔 다 밀린 뒤(0.26초) 불러 그만큼 늦게 떴다(2026-10-15 "로딩이 느리다").
+         * 미는 중에 새 화면이 오면 위 useLayoutEffect 가 자리표시 자리에서 이어 들어오게 한다.
+         */
         main.style.transition = ease;
         if (g) g.style.transition = ease;
         setX(-d.dir * d.w);
-        navTimer.current = window.setTimeout(() => {
-          if (target.current !== href) return;
-          router.push(href, { transitionTypes: TAB_SWIPE_TYPES });
-        }, SETTLE_MS);
+        slideDir.current = d.dir === 1 ? 1 : -1;
+        router.push(href, { transitionTypes: TAB_SWIPE_TYPES });
         return;
       }
       main.style.transition = ease;
@@ -526,7 +557,7 @@ export function TabSwipe({
       window.clearTimeout(giveUp.current);
       window.clearTimeout(waitTimer.current);
       window.clearTimeout(settleTimer.current);
-      window.clearTimeout(navTimer.current);
+      window.clearTimeout(mainTimer.current);
     };
   }, [router, swipeable]);
 
