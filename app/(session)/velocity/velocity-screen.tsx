@@ -2134,8 +2134,11 @@ export function VelocityScreen({
           let failed = 0;
           for (let i = 0; i < targets.length; i++) {
             const { id, clip, kind } = targets[i];
-            /* 회원 클립은 폰의 앱 안에, 관리자 보정용 저장만 서버에 */
-            const phone = !calibOn;
+            /*
+             * 회원 클립은 폰의 앱 안에, 관리자 클립은 늘 서버에 — 2026-10-15 김민: 10-12 클립 22개가 앱을 다시 깔며 폰에서 통째로
+             * 지워졌다(앱 안 폴더는 백업에서도 뺀다). 관리자 클립은 엔진 확인 자료라 잃으면 안 된다.
+             */
+            const phone = !isAdmin;
             const r = await uploadClip(
               id,
               clip.blob,
