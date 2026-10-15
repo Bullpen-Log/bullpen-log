@@ -1,4 +1,3 @@
-import { appNow } from '@/lib/clock';
 import Link from 'next/link';
 import { NavTitle } from './nav-title';
 import type { ComponentProps, ReactNode } from 'react';
@@ -37,15 +36,12 @@ export function Eyebrow({ children }: { children: ReactNode }) {
  */
 export { BackLink } from './back-link';
 
-/** 휴대폰 큰 제목 위에 다는 오늘 날짜 — '10월 1일 수요일'(서울 시각) */
-export function todayKicker(now: Date = appNow()): string {
-  return new Intl.DateTimeFormat('ko-KR', {
-    month: 'long',
-    day: 'numeric',
-    weekday: 'long',
-    timeZone: 'Asia/Seoul',
-  }).format(now);
-}
+/**
+ * 쪽 제목 줄 — 휴대폰은 높이 44px 줄 가운데에 제목(옆 '분석' 단추 44px · 영양 날짜 단추 40px 와 같은 줄). 예전엔 줄 높이가 제목(39px) ·
+ * 단추 · 날짜 머리말에 따라 달라 탭마다 제목 자리가 0~24px 어긋났다(2026-10-15 김민 "카테고리마다 제목 위치가 다 달라"). PC 는 그대로.
+ * 쪽 머리를 PageHeading 없이 그리는 곳(영양)도 이것을 쓴다.
+ */
+export const PAGE_TITLE_LINE = 'flex min-h-11 items-center desk:block desk:min-h-0';
 
 export function PageHeading({
   kicker,
@@ -92,7 +88,7 @@ export function PageHeading({
     >
       <div className="space-y-1">
         {kicker && <p className="text-sm font-medium text-muted desk:hidden">{kicker}</p>}
-        <h1 className="text-heading page-title text-ink">
+        <h1 className={`text-heading page-title text-ink ${PAGE_TITLE_LINE}`}>
           {titleArt ? (
             <>
               <span aria-hidden className="block desk:hidden">{titleArt}</span>
