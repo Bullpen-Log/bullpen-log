@@ -28782,7 +28782,7 @@ console.log(
     for (const key of [
       '531',
       'stronglifts-5x5',
-      'french-contrast',
+      'pitcher-power',
       'basics-4w',
       'offseason-strength-power',
     ]) {
@@ -29666,7 +29666,7 @@ console.log(
     const HARD_PEN = '어제 불펜 40구 90%';
     const hardPen = { days: 0, recovery: 0, program: 0 };
     const runs: { key: string; nextDay: number; lastDoneDate: string | null }[] = [];
-    for (const key of ['531', 'stronglifts-5x5', 'french-contrast', 'basics-4w']) {
+    for (const key of ['531', 'stronglifts-5x5', 'pitcher-power', 'basics-4w']) {
       const program = parseProgram(key);
       if (!program) continue;
       for (const d of [1, 2, 3, Math.ceil(program.totalDays / 2)])

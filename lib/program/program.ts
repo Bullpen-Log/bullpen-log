@@ -19,7 +19,7 @@ import { withJosa } from '@/lib/korean';
  *
  * 안전 · 화면 규칙: docs/designs/pitcher-strength-power-programs.md. 프로그램 목록은 이 파일의 PROGRAMS.
  * 2026-10-07 사용자: "실제 있는 프로그램을 기반으로" — 스트롱리프트 5×5 · 5/3/1 · (텍사스 메소드 — 2026-10-14 지움: 주 3번 무거운 스쿼트라 투구 일정과 부딪힘) ·
- * 저거넛 5회 파도 · WS4SB · 프렌치 컨트라스트. 모두 원본의 첫 4주. 투수라서 원본과 다르게 한 곳에는 '투수 맞춤' 주석을 단다.
+ * 저거넛 5회 파도 · WS4SB · 투수 파워(2026-10-16 프렌치 컨트라스트 대신). 모두 4주. 투수라서 원본과 다르게 한 곳에는 '투수 맞춤' 주석을 단다.
  * 옛 '비시즌 근력 → 파워'(8주)는 목록에서 숨기고, 진행 중인 줄만 같은 모양(LEGACY)으로 이어 간다.
  * 2026-10-09 기본기 4주(BASICS) — 성장기 · 입문용, 무게 추천 없이 횟수 · 세트로만(docs/designs/youth-beginner-path.md).
  *
@@ -183,7 +183,7 @@ export type ProgramId =
   | '531'
   | 'juggernaut-5s'
   | 'ws4sb'
-  | 'french-contrast'
+  | 'pitcher-power'
   | 'offseason-strength-power'
   | 'basics-4w';
 export type ProgramGoal = 'base' | 'strength' | 'power';
@@ -202,7 +202,7 @@ export const GOAL_LABELS: Record<ProgramGoal, string> = {
 
 /**
  * 무게를 정하는 방식(lib/program/next-weight.ts).
- *   pct     — 기준 무게(TM)의 몇 %. TM 은 시작 전 기록으로 정해 4주 동안 그대로(5/3/1 · 저거넛 · 프렌치 컨트라스트)
+ *   pct     — 기준 무게(TM)의 몇 %. TM 은 시작 전 기록으로 정해 4주 동안 그대로(5/3/1 · 저거넛)
  *   linear  — 다 채우면 다음 회차 한 칸(스트롱리프트)
  *   reserve — '몇 개 남기고' + 지난 기록(보조 운동 · 최고까지 올리기 · 옛 프로그램)
  *   none    — 무게 없음(점프 · 메디신볼 · 몸통)
@@ -225,7 +225,7 @@ type Item = {
   sets: readonly SetRx[];
   /** 세트 사이 쉬는 시간(초) */
   rest: number;
-  /** 앞 운동과 묶음 — 한 세트씩 번갈아 바로 이어서(대비 · 프렌치 컨트라스트) */
+  /** 앞 운동과 묶음 — 한 세트씩 번갈아 바로 이어서(지금 쓰는 프로그램은 없다 — 2026-10-16 프렌치 컨트라스트를 지움) */
   group?: boolean;
   /** 준비 세트로 올라가 본 세트 하나(WS4SB 최대 노력) */
   top?: boolean;
@@ -316,10 +316,10 @@ function accessoryMenu(
         ? ['hpull', 'pushAcc', 'singleLeg', 'forearm']
         : ['hpull', 'pushAcc', 'hamstring', 'antiRotation'];
   if (first !== 'push' && lifts.includes('push')) keys = keys.map((k) => (k === 'pushAcc' ? 'biceps' : k));
-  if (hasThrow) keys = keys.filter((k) => k !== 'antiRotation');
   return keys.flatMap((k) =>
     k === 'antiRotation'
-      ? coreItems()
+      ? /* 회전 던지기를 한 날은 그것이 돌리는 몸통 — 몸통 안정만 */
+        coreItems().slice(hasThrow ? 1 : 0)
       : [
           item(k, 'reserve', light ? reps(2, ACC_REPS[k] ?? 10, 4) : reps(sets, ACC_REPS[k] ?? 10, 2), 75, {
             assist: true,
@@ -529,51 +529,63 @@ const WS4SB: ProgramDef = {
   },
 };
 
-/** 프렌치 컨트라스트 — 무겁게(추정 최대의 %) · 횟수 · 묶음 수, 주마다 */
-const CONTRAST_WEEKS = [
-  { max: 0.8, count: 3, rounds: 3 },
-  { max: 0.85, count: 3, rounds: 4 },
-  { max: 0.88, count: 2, rounds: 4 },
-  { max: 0.7, count: 3, rounds: 2 },
+/*
+ * 투수 파워(2026-10-16 김민 — 컨트라스트 대신). 투구 구속 트레이닝에서 흔히 쓰는 차례: 던지기(면마다 가볍게 · 많이) → 점프 → 근력(유지,
+ * 몇 개 남기고) → 보조. 회전 던지기는 날마다(투구는 회전), 큰 하체는 주 2번(스쿼트 날 · 힌지 날), 셋째 날은 큰 하체 없이 밀기 · 한 다리.
+ * 주마다 던지기 · 점프 세트 3 → 4 → 4, 근력 5 → 4 → 3회(2개 남기고), 4주는 가볍게(세트 줄이고 4개 남기고).
+ */
+const POWER_WEEKS = [
+  { sets: 3, lift: 5 },
+  { sets: 4, lift: 4 },
+  { sets: 4, lift: 3 },
+  { sets: 2, lift: 5 },
 ];
 
-const FRENCH_CONTRAST: ProgramDef = {
-  id: 'french-contrast',
+const PITCHER_POWER: ProgramDef = {
+  id: 'pitcher-power',
   goal: 'power',
-  name: '컨트라스트 파워',
-  origin: 'French Contrast · 칼 디츠',
-  summary: '무겁게 들고 바로 점프, 메디신볼까지 한 묶음으로 해요',
+  name: '투수 파워',
+  origin: '투구 구속 트레이닝 원칙 · 메디신볼 · 점프 · 근력 유지',
+  summary: '메디신볼을 여러 방향으로 던지고 뛴 뒤, 근력은 유지해요',
   detail: [
-    '무겁게(추정 최대의 80~88%, 기준 무게로는 89~98%) → 20초 → 점프 5회 → 20초 → 메디신볼 5회가 한 묶음이에요. 묶음 사이는 3분 쉬어요.',
-    '원본의 넷째 · 다섯째 동작(무게 들고 점프, 도움 받는 점프)은 우리 장비에 맞춰 메디신볼 하나로 합쳤어요. 힌지 날은 회전 던지기예요.',
-    '4주는 가볍게 해요.',
+    '날마다 회전 메디신볼 던지기로 시작해요. 가볍게, 매번 최대 속도로 던져요.',
+    '점프와 앞 · 위로 던지기를 번갈아 하고, 큰 운동은 2개 남기고 3세트만 해서 근력을 지켜요.',
+    '주마다 던지기 세트가 늘고 근력 횟수는 5회에서 3회로 줄어요. 4주는 가볍게 해요.',
   ],
   weeks: 4,
   perWeek: [2, 3],
   lightWeeks: [4],
-  build: (day, week, _perWeek, light) => {
-    const w = CONTRAST_WEEKS[week - 1];
-    /* 힌지 묶음의 끝은 회전 던지기 — 투구는 회전이라 주 1번 이상(2026-10-14) */
-    const bundle = (v: VariantKey): Item[] => [
-      item(v, 'pct', pctSets(w.rounds, w.count, w.max / TM_RATIO), 20),
-      item('jump', 'none', reps(w.rounds, 5), 20, { group: true }),
-      item(v === 'hinge' ? 'rotationalThrow' : 'medball', 'none', reps(w.rounds, 5), 180, {
-        group: true,
-      }),
-    ];
-    return day % 2 === 1
-      ? {
-          label: 'A 날',
-          items: [
-            ...bundle('squat'),
-            ...accessoryMenu(['squat'], 2, light),
-          ],
-        }
-      : {
-          label: 'B 날',
-          /* 몸통 칸은 하루 하나 — 회전 던지기가 몸통 운동 */
-          items: [...bundle('hinge'), ...accessoryMenu(['hinge'], 2, light, true)],
-        };
+  build: (day, week, perWeek, light) => {
+    const w = POWER_WEEKS[week - 1];
+    const lift = (v: VariantKey): Item => item(v, 'reserve', reps(light ? 2 : 3, w.lift, light ? 4 : 2), 150);
+    const throwRot = item('rotationalThrow', 'none', reps(w.sets, 5), 60);
+    const squatDay: DayBuild = {
+      label: '스쿼트 날',
+      items: [throwRot, item('jump', 'none', reps(w.sets, 3), 75), lift('squat'), ...accessoryMenu(['squat'], 2, light, true)],
+    };
+    /* 힌지 날 — 앞 · 위로 던지기. 주 2번이면 밀기도 여기서(밀기를 주 1번은 하게) */
+    const hingeDay: DayBuild = {
+      label: '힌지 날',
+      items: [
+        throwRot,
+        item('medball', 'none', reps(w.sets, 5), 60),
+        lift('hinge'),
+        ...(perWeek === 2 ? [lift('push')] : []),
+        ...accessoryMenu(['hinge'], 2, light, true),
+      ],
+    };
+    const upperDay: DayBuild = {
+      label: '밀기 · 한 다리 날',
+      items: [
+        throwRot,
+        item('medball', 'none', reps(w.sets, 5), 60),
+        item('jump', 'none', reps(w.sets, 3), 75),
+        lift('push'),
+        item('singleLeg', 'reserve', reps(2, 6, light ? 4 : 2), 90),
+        ...accessoryMenu(['push'], 2, light, true),
+      ],
+    };
+    return cycle(perWeek === 3 ? [squatDay, hingeDay, upperDay] : [squatDay, hingeDay], day);
   },
 };
 
@@ -702,7 +714,7 @@ export const PROGRAMS: readonly ProgramDef[] = [
   W531,
   JUGGERNAUT,
   WS4SB,
-  FRENCH_CONTRAST,
+  PITCHER_POWER,
   BASICS,
 ];
 const ALL_PROGRAMS: readonly ProgramDef[] = [...PROGRAMS, LEGACY];
@@ -1335,8 +1347,9 @@ const VARIANT_RULES: Record<VariantKey, VariantRule> = {
     rank: (ex) => [ex.perSide ? 1 : 0, ex.title.includes('점프') ? 0 : 1],
   },
   medball: {
-    match: (ex) => inCategory(ex, '파워') && ex.equipment.includes('메디신볼'),
-    /* 던지기(밀기 · 당기기 계열)를 먼저, 회전은 5~8주 몸통 칸이 쓰므로 뒤로, 뛰며 던지는 것은 맨 뒤 */
+    /* 앞 · 위로 던지기 — 돌려 던지기(회전)는 회전 던지기 칸 몫이라 뺀다(2026-10-16: 투수 파워에서 두 칸이 같은 회전 토스를 고르던 것) */
+    match: (ex) => inCategory(ex, '파워') && ex.equipment.includes('메디신볼') && ex.movementPattern !== '회전',
+    /* 던지기(밀기 · 당기기 계열)를 먼저, 뛰며 던지는 것은 맨 뒤 */
     rank: (ex) => [
       ex.movementPattern === '밀기' || ex.movementPattern === '당기기'
         ? 0

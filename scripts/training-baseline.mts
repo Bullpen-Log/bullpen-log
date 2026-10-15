@@ -50,7 +50,7 @@
  * 안 바꾸니 ①~⑯ 은 meta · buildCalls 를 빼면 P4 끝 JSON 과 글자까지 같다(--compare 로 확인). 힘듦을 그날 테마로 만들지 않은 까닭은
  * 되먹임(일정 → 힘듦 → 급증 → 일정)이 생겨 바뀐 숫자가 규칙 탓인지 대본 탓인지 못 가르기 때문이다(검토 비판 3 의 29번).
  * ③ 추가 묶음(cohorts.extra, 분모 따로 — ①~⑯ 에 안 섞는다): 근력 프로그램 넷(lib/program 의 실제 키 '531' · 'stronglifts-5x5' ·
- * 'french-contrast' · 'ws4sb:2' — 앱의 판정 길 lib/program/load.ts 를 순수 함수로 그대로 밟는다), 팔 피로가 며칠 이어지는 선수, 힘듦이
+ * 'pitcher-power' · 'ws4sb:2' — 앱의 판정 길 lib/program/load.ts 를 순수 함수로 그대로 밟는다), 팔 피로가 며칠 이어지는 선수, 힘듦이
  * 치솟는 구원, 같은 운동을 늘 빼는 선수, 센 불펜 · 연전 · 비로 밀린 주말 선발. 무작위가 없어 추가 묶음도 돌릴 때마다 같다.
  */
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -1836,7 +1836,7 @@ const EXTRA_SPECS: Omit<Player, 'id'>[] = [
   },
   {
     name: '프로그램C',
-    purpose: "근력 프로그램 'french-contrast'(주 3) · 비시즌",
+    purpose: "근력 프로그램 'pitcher-power'(주 3) · 비시즌",
     age: 28,
     level: '상급',
     kit: 'gym',
@@ -1846,7 +1846,7 @@ const EXTRA_SPECS: Omit<Player, 'id'>[] = [
     checkin: 'simple-daily',
     condition: 'high',
     done: 'always',
-    program: 'french-contrast',
+    program: 'pitcher-power',
   },
   {
     name: '프로그램D',

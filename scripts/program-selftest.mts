@@ -220,7 +220,7 @@ const p531x2 = plan('531:2');
 const jug = plan('juggernaut-5s');
 const sl = plan('stronglifts-5x5');
 const ws = plan('ws4sb');
-const fc = plan('french-contrast');
+const pp = plan('pitcher-power');
 check(
   '5/3/1 1주 = 65 · 75 · 85%+',
   eq(
@@ -310,26 +310,17 @@ check(
   'WS4SB 주 3번만 상체 반복 날',
   dayPlan(ws, 3).label === '상체 반복 날' && dayPlan(plan('ws4sb:2'), 3).label === '무거운 날'
 );
-{
-  const items = dayPlan(fc, 1).items;
-  check(
-    '프렌치 컨트라스트 = 무겁게 → 점프 → 메디신볼 묶음, 무겁게 뒤 20초',
-    eq(
-      items.slice(0, 3).map((x) => [x.variant, x.group]),
-      [
-        ['squat', false],
-        ['jump', true],
-        ['medball', true],
-      ]
-    ) && items[0].restSeconds === 20
-  );
-  check(
-    '묶음은 프렌치 컨트라스트에만',
-    plans
-      .filter((p) => p.def.id !== 'french-contrast')
-      .every((p) => allDays(p).every((dp) => dp.items.every((x) => !x.group)))
-  );
-}
+check(
+  '투수 파워(2026-10-16) — 날마다 회전 던지기가 처음, 큰 하체는 주 2번(스쿼트 날 · 힌지 날), 근력 5 → 4 → 3회 2개 남기고, 4주는 가볍게',
+  [1, 2, 3].every((d) => dayPlan(pp, d).items[0].variant === 'rotationalThrow') &&
+    eq([1, 2, 3].map((d) => dayPlan(pp, d).label), ['스쿼트 날', '힌지 날', '밀기 · 한 다리 날']) &&
+    eq([1, 4, 7].map((d) => rxOf(pp, d, 'squat').reps), [5, 4, 3]) &&
+    rxOf(pp, 1, 'squat').reserve === 2 &&
+    rxOf(pp, 10, 'squat').reserve === 4 &&
+    isLightWeek(pp, 4) &&
+    rxOf(plan('pitcher-power:2'), 2, 'push') != null &&
+    plans.every((p) => allDays(p).every((dp) => dp.items.every((x) => !x.group)))
+);
 {
   /* 2026-10-14 김민 — 파워가 든 프로그램은 매주 회전 던지기 */
   const weekly = (key: string, v: string) => {
@@ -343,7 +334,7 @@ check(
     }
     return out;
   };
-  const rotKeys = ['531', '531:2', 'ws4sb', 'ws4sb:2', 'french-contrast', 'french-contrast:2'];
+  const rotKeys = ['531', '531:2', 'ws4sb', 'ws4sb:2', 'pitcher-power', 'pitcher-power:2'];
   const noRot = rotKeys.filter((k) => weekly(k, 'rotationalThrow').some((n) => n === 0));
   check('파워가 든 프로그램은 매주 회전 던지기', noRot.length === 0, noRot.join(','));
 }
