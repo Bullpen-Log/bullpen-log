@@ -178,8 +178,12 @@ export function TabPager({
         if (e.changedTouches[k].identifier === id) return e.changedTouches[k];
       return null;
     };
-    /* 옆 판 — 홈(첫 칸)에서 오른쪽은 구속 측정 */
+    /*
+     * 옆 판 — 홈(첫 칸)에서 오른쪽은 구속 측정. 홈에서 왼쪽(다음 탭 — 투구 · 트레이닝 · 영양 쪽)으로는 안 넘어가고 고무줄(2026-10-15 김민
+     * "홈에서는 구속 측정 말고 다른 탭으로 쓸리는 건 막아"). 다른 탭끼리 · 다른 탭에서 홈으로 돌아오는 쓸기는 그대로.
+     */
     const neighbor = (i: number, dir: 1 | -1): 'tab' | 'camera' | null => {
+      if (i === 0 && dir === 1) return null;
       const j = i + dir;
       if (j >= 0 && j < n) return 'tab';
       if (i === 0 && dir === -1 && latest.current.camera) return 'camera';
