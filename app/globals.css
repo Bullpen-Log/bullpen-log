@@ -3154,25 +3154,45 @@ html[data-splash] *::after {
 }
 
 /*
- * 휴대폰 위 막(components/app-shell.tsx MobileTopBar 의 data-top-veil, 2026-10-15 3판) — 시계 자리 + 위 막대(보일 때)를 덮고,
- * 그 밑 1.5rem 동안 흐림과 바탕색이 같이 옅어진다. 바탕은 22 → 12% · 흐림 2px(같은 날 두 번 — "훨씬 투명하게" · 그 앞 50 → 35% · 6px · 사용자 "너무 불투명해서 노치 쪽 내용이 안 보여" — 82 → 72% · 14px 에서 내림). 예전에는 92% 판이 시계 자리 끝에서 딱 끊겨 본문 위에 선이 그어졌다
- * (사용자: Claude · 인스타 앱 예시처럼 "선 없애고"). 막대가 숨으면(data-short) 시계 자리까지 줄어든다.
- * 흐림은 mask 로 아래로 갈수록 옅게 — 판 하나라 굴릴 때 셈은 한 겹이다. 아이폰 앱(WKWebView)에서 흐림이 깜빡이면 blur 만 빼면 된다.
+ * 휴대폰 위 막(components/app-shell.tsx MobileTopBar 의 data-top-veil, 2026-10-15 3판) — 시계 자리 + 위 막대(보일 때)를 덮는다.
+ * 예전에는 92% 판이 시계 자리 끝에서 딱 끊겨 본문 위에 선이 그어졌다(사용자: Claude · 인스타 앱 예시처럼 "선 없애고").
+ * 같은 날 사용자: "너무 불투명해" → "훨씬 투명하게" → "기준선을 넘으면 확 흐려지지 말고 그라데이션처럼".
+ * 그래서 한 판에 같은 흐림을 거는 대신 — 바탕색은 맨 위 22% 에서 막 끝 0 까지 막 전체에 걸쳐 고르게 옅어지고, 흐림은 세 겹(<i>)이
+ * 위쪽일수록 많이 겹치게 했다(아래 끝은 흐림 0 → 위로 갈수록 0.6 · 1.4 · 2.4px 가 하나씩 더해짐). 본문은 막에 들어서며 아주 조금씩 흐려진다.
+ * 막대가 숨으면(data-short) 시계 자리까지 줄어든다. 아이폰 앱(WKWebView)에서 흐림이 깜빡이면 세 겹의 backdrop-filter 만 빼면 된다.
  */
 [data-top-veil] {
-  --veil-fade: 1.5rem;
+  --veil-fade: 3rem;
   height: calc(env(safe-area-inset-top) + 3.5rem + var(--veil-fade));
   background: linear-gradient(
     to bottom,
     color-mix(in oklab, var(--color-page) 22%, transparent) 0,
-    color-mix(in oklab, var(--color-page) 12%, transparent) calc(100% - var(--veil-fade)),
+    color-mix(in oklab, var(--color-page) 10%, transparent) 55%,
     color-mix(in oklab, var(--color-page) 0%, transparent) 100%
   );
-  -webkit-backdrop-filter: blur(2px) saturate(1.2);
-  backdrop-filter: blur(2px) saturate(1.2);
-  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - var(--veil-fade)), transparent);
-  mask-image: linear-gradient(to bottom, #000 calc(100% - var(--veil-fade)), transparent);
   transition: height 280ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+[data-top-veil] > i {
+  position: absolute;
+  inset: 0;
+}
+[data-top-veil] > i:nth-child(1) {
+  -webkit-backdrop-filter: blur(0.6px);
+  backdrop-filter: blur(0.6px);
+  -webkit-mask-image: linear-gradient(to bottom, #000 40%, transparent 100%);
+  mask-image: linear-gradient(to bottom, #000 40%, transparent 100%);
+}
+[data-top-veil] > i:nth-child(2) {
+  -webkit-backdrop-filter: blur(1.4px);
+  backdrop-filter: blur(1.4px);
+  -webkit-mask-image: linear-gradient(to bottom, #000 20%, transparent 70%);
+  mask-image: linear-gradient(to bottom, #000 20%, transparent 70%);
+}
+[data-top-veil] > i:nth-child(3) {
+  -webkit-backdrop-filter: blur(2.4px);
+  backdrop-filter: blur(2.4px);
+  -webkit-mask-image: linear-gradient(to bottom, #000 0, transparent 45%);
+  mask-image: linear-gradient(to bottom, #000 0, transparent 45%);
 }
 [data-top-veil][data-short] {
   height: calc(env(safe-area-inset-top) + var(--veil-fade));

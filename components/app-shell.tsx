@@ -2560,7 +2560,12 @@ function MobileTopBar({
         data-top-veil
         data-short={bare || hidden ? '' : undefined}
         className="pointer-events-none fixed inset-x-0 top-0 z-39 desk:hidden pad:left-(--rail)"
-      />
+      >
+        {/* 흐림 세 겹 — 위로 갈수록 겹이 늘어 점점 흐려진다(globals.css 'top-veil' — 한 선을 넘는 순간 확 흐려지지 않게) */}
+        <i />
+        <i />
+        <i />
+      </div>
       <div
         data-safe-area
         aria-hidden
