@@ -77,13 +77,14 @@ function perWeekText(p: ProgramChoice) {
 }
 
 /**
- * 고르기 목록의 핵심 세 줄 — 무엇을(summary) · 왜(why) · 이런 분께(fit). 2026-10-16 김민: "고를 때 이게 뭔지 알기 쉽지 않다 — 길게 말고
+ * 고르기 목록의 핵심 네 줄 — 무엇을(summary) · 하루 짜임(how) · 왜(why) · 이런 분께(fit). 2026-10-16 김민: "고를 때 이게 뭔지 알기 쉽지 않다 — 길게 말고
  * 핵심만, 뭘 왜 하는 건지". 자세한 차례 · 주마다 처방은 고른 뒤 '자세히 보기'에 그대로 있다.
  */
 function ProgramGist({ p }: { p: ProgramChoice }) {
   return (
     <span className="mt-0.5 block space-y-0.5 text-xs break-keep">
       <span className="block text-ink/80">{p.summary}</span>
+      {p.how && <span className="block text-muted">{p.how}</span>}
       {p.why && <span className="block text-muted">{p.why}</span>}
       {p.fit && <span className="block text-muted">이런 분께 · {p.fit}</span>}
     </span>
@@ -425,6 +426,7 @@ function StartSheet({
           <div className="space-y-3">
             <div className="space-y-1">
               <p className="text-sm text-ink break-keep">{choice.summary}</p>
+              {choice.how && <p className="text-sm text-muted break-keep">{choice.how}</p>}
               {choice.why && <p className="text-sm text-muted break-keep">{choice.why}</p>}
               {choice.fit && (
                 <p className="text-sm text-muted break-keep">이런 분께 · {choice.fit}</p>
