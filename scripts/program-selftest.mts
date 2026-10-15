@@ -164,15 +164,15 @@ const plans = PROGRAMS.flatMap((def) =>
 const allDays = (p: ProgramPlan) =>
   Array.from({ length: p.totalDays }, (_, d) => dayPlan(p, d + 1));
 check(
-  '프로그램 8개(성인 7 + 기본기 1) · 모두 4주 · 옛 프로그램 · 5/3/1 BBB(2026-10-16 뺌)는 목록에 없음',
+  '프로그램 8개(성인 7 + 기본기 1) · 모두 4주 · 옛 프로그램은 목록에 없음 · 5/3/1 BBB 는 지움(2026-10-16)',
   PROGRAMS.length === 8 &&
     PROGRAMS.filter((p) => audienceOf(p) === 'adult').length === 7 &&
     PROGRAMS.filter((p) => audienceOf(p) === 'basics').length === 1 &&
     PROGRAMS.every((p) => p.weeks === 4) &&
-    !PROGRAMS.some((p) => p.id === 'offseason-strength-power' || p.id === '531-bbb') &&
+    !PROGRAMS.some((p) => p.id === 'offseason-strength-power') &&
     programDef('531-bbb') === null &&
     startProgramKey('531-bbb', 3) === null &&
-    parseProgram('531-bbb')?.totalDays === 12
+    parseProgram('531-bbb') === null
 );
 check(
   '주 3번 12회 · 주 2번 8회',
@@ -220,7 +220,6 @@ check(
 }
 const p531 = plan('531');
 const p531x2 = plan('531:2');
-const bbb = plan('531-bbb');
 const jug = plan('juggernaut-5s');
 const sl = plan('stronglifts-5x5');
 const ws = plan('ws4sb');
@@ -277,18 +276,6 @@ check(
 check(
   '저거넛은 점프 · 메디신볼 · 회전 던지기 없음',
   allDays(jug).every((dp) => !dp.items.some((x) => ['jump', 'medball', 'rotationalThrow'].includes(x.variant)))
-);
-check(
-  'BBB = 5/3/1 + 같은 운동 10회 5세트(4주는 없음)',
-  rxOf(bbb, 1, 'squat').sets.length === 8 &&
-    rxOf(bbb, 1, 'squat')
-      .sets.slice(3)
-      .every((x) => x.reps === 10 && x.pct === 0.5) &&
-    rxOf(bbb, 10, 'squat').sets.length === 3
-);
-check(
-  'BBB 본 세트 = + 세트(85%)',
-  rxOf(bbb, 1, 'squat').reps === 5 && topSetIndex(rxOf(bbb, 1, 'squat').sets) === 2
 );
 check(
   '저거넛 3주 = 85% 5회+',
@@ -356,7 +343,7 @@ check(
     }
     return out;
   };
-  const rotKeys = ['531', '531:2', '531-bbb', '531-bbb:2', 'ws4sb', 'ws4sb:2', 'french-contrast', 'french-contrast:2'];
+  const rotKeys = ['531', '531:2', 'ws4sb', 'ws4sb:2', 'french-contrast', 'french-contrast:2'];
   const noRot = rotKeys.filter((k) => weekly(k, 'rotationalThrow').some((n) => n === 0));
   check('파워가 든 프로그램은 매주 회전 던지기', noRot.length === 0, noRot.join(','));
 }
@@ -586,11 +573,11 @@ check('다 맞으면 시작', checkEligibility(base).ok);
     check('보조: 여섯째는 다시 처음 · 같은 입력 같은 답', accessoryPick('hpull', pool, 'u1|hpull', 5)?.id === firstLap[0] && accessoryPick('hpull', pool, 'u1|hpull', 2)?.id === firstLap[2]);
     check('보조: 사람마다 차례가 다르다', [0, 1, 2, 3, 4].map((n) => accessoryPick('hpull', pool, 'u2|hpull', n)?.id).join() !== firstLap.join());
     check('보조: 그날 본운동은 안 고른다', accessoryPick('hpull', [px('m', '바벨 로우')], 'u1', 0, new Set(['m'])) === null);
-    const kinds = (d: number) => dayPlan(bbb, d).items.filter((x) => x.assist).map((x) => x.variant).join();
-    check('BBB 메뉴: 스쿼트 날 · 벤치 날 · 힌지 날', kinds(1) === 'hpull,pushAcc,hamstring,antiRotation' && kinds(2) === 'vpull,scap,triceps,antiRotation' && kinds(3) === 'hpull,pushAcc,singleLeg,forearm', `${kinds(1)} / ${kinds(2)} / ${kinds(3)}`);
-    check('BBB 메뉴: 본운동(스쿼트)은 보조가 아니고 보조는 2세트', dayPlan(bbb, 1).items.some((x) => x.variant === 'squat' && !x.assist) && dayPlan(bbb, 1).items.filter((x) => x.assist && x.mode === 'reserve').every((x) => x.sets.length === 2));
-    check('보조 칸 몇 번째: BBB 4일차 가로 당기기는 앞에 2번(1 · 3일차)', accessoryOccurrence(bbb, 4, 'hpull') === 2);
-    check('보조 칸은 고르기 화면 · 고정에 안 든다', usedVariants(bbb.def).every((v) => !ACCESSORY_KEYS.includes(v)));
+    const kinds = (d: number) => dayPlan(p531, d).items.filter((x) => x.assist).map((x) => x.variant).join();
+    check('5/3/1 메뉴: 스쿼트 날 · 벤치 날 · 힌지 날', kinds(1) === 'hpull,pushAcc,hamstring,antiRotation' && kinds(2) === 'vpull,scap,triceps,antiRotation' && kinds(3) === 'hpull,pushAcc,singleLeg,forearm', `${kinds(1)} / ${kinds(2)} / ${kinds(3)}`);
+    check('5/3/1 메뉴: 본운동(스쿼트)은 보조가 아니고 보조는 3세트', dayPlan(p531, 1).items.some((x) => x.variant === 'squat' && !x.assist) && dayPlan(p531, 1).items.filter((x) => x.assist && x.mode === 'reserve').every((x) => x.sets.length === 3));
+    check('보조 칸 몇 번째: 5/3/1 4일차 가로 당기기는 앞에 2번(1 · 3일차)', accessoryOccurrence(p531, 4, 'hpull') === 2);
+    check('보조 칸은 고르기 화면 · 고정에 안 든다', usedVariants(p531.def).every((v) => !ACCESSORY_KEYS.includes(v)));
   }
   /* 장비가 없는 보조 칸은 비슷한 칸에서 대신(2026-10-15) — 바벨 · 덤벨만이면 세로 당기기 · 삼두가 빈다 */
   {
@@ -2142,34 +2129,18 @@ const oldJson = {
       eq(adjSwap.entry.setTargets, [{ reps: 5, kg: 70 }]) &&
       adjSwap.entry.programSlot?.adjusted === true
   );
-  const bbbRx = rxOf(bbb, 1, 'squat');
-  const bbbFe = freezeProgramExercise(src(), bbbRx, {
+  const pctRx = rxOf(p531, 1, 'squat');
+  const pctFe = freezeProgramExercise(src(), pctRx, {
     suggestedKg: 85,
-    kgs: bbbRx.sets.map(() => 50),
+    kgs: pctRx.sets.map(() => 50),
   });
-  const bbbSwap = programSwapEntry(
-    { ...plan531, program: { key: '531-bbb', day: 1, week: 1 }, exercises: [bbbFe] },
-    bbbFe,
-    src({ id: 'w' }),
-    3,
-    (r) => ({ suggestedKg: 50, kgs: r.sets.map(() => 50) })
-  );
-  check(
-    'BBB 에서 3세트 뒤 바꾸기 = 남은 10회 5세트, 처방 횟수도 10',
-    bbbSwap != null && bbbSwap.entry.plannedSets === 5 && bbbSwap.entry.plannedReps === 10
-  );
   /* 판 하나의 기록 — % 날은 + 세트가 기준, 여유 2, 세트마다 처방 횟수로 채움 판정 */
   const logged = [
     [65, 5],
     [75, 5],
     [85, 8],
-    [50, 10],
-    [50, 10],
-    [50, 10],
-    [50, 10],
-    [50, 10],
   ].map(([w, r], i) => ({ setNo: i + 1, weightKg: w, reps: r, rir: null }));
-  const e = historyEntry('2026-10-01', bbbFe, logged);
+  const e = historyEntry('2026-10-01', pctFe, logged);
   check(
     '% 판 기록 — 기준은 + 세트, 여유 2, 세트마다 채움 판정, 방식 실음',
     e.lastWeightKg === 85 &&

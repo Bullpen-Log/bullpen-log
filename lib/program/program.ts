@@ -18,7 +18,7 @@ import { withJosa } from '@/lib/korean';
  * 근력 · 파워 프로그램 — 프로그램 목록 · 시작 자격 · 운동 고정 · 오늘 판정 · 일차 넘기기. 순수 함수만(DB 를 모른다).
  *
  * 안전 · 화면 규칙: docs/designs/pitcher-strength-power-programs.md. 프로그램 목록은 이 파일의 PROGRAMS.
- * 2026-10-07 사용자: "실제 있는 프로그램을 기반으로" — 스트롱리프트 5×5 · 5/3/1 BBB · 5/3/1 · (텍사스 메소드 — 2026-10-14 지움: 주 3번 무거운 스쿼트라 투구 일정과 부딪힘) ·
+ * 2026-10-07 사용자: "실제 있는 프로그램을 기반으로" — 스트롱리프트 5×5 · 5/3/1 · (텍사스 메소드 — 2026-10-14 지움: 주 3번 무거운 스쿼트라 투구 일정과 부딪힘) ·
  * 저거넛 5회 파도 · WS4SB · 프렌치 컨트라스트. 모두 원본의 첫 4주. 투수라서 원본과 다르게 한 곳에는 '투수 맞춤' 주석을 단다.
  * 옛 '비시즌 근력 → 파워'(8주)는 목록에서 숨기고, 진행 중인 줄만 같은 모양(LEGACY)으로 이어 간다.
  * 2026-10-09 기본기 4주(BASICS) — 성장기 · 입문용, 무게 추천 없이 횟수 · 세트로만(docs/designs/youth-beginner-path.md).
@@ -175,7 +175,6 @@ export const TM_LOOKBACK_DAYS = 42;
 
 export type ProgramId =
   | 'stronglifts-5x5'
-  | '531-bbb'
   | '531'
   | 'juggernaut-5s'
   | 'ws4sb'
@@ -471,12 +470,9 @@ const WAVE_JUGGERNAUT_5S: readonly (readonly SetRx[])[] = [
   [at(5, 0.4), at(5, 0.5), at(5, 0.6)],
 ];
 
-/** BBB 5×10 의 TM % — 4주(가볍게)는 하지 않는다 */
-const BBB_PCT = [0.5, 0.6, 0.6];
 
 function waveDay(
   wave: readonly (readonly SetRx[])[],
-  bbb: boolean,
   primer: boolean
 ): ProgramDef['build'] {
   return (day, week, perWeek, light) => {
@@ -496,36 +492,17 @@ function waveDay(
           ),
         ]
       : [];
-    lifts.forEach((v, i) => {
-      const extra = bbb && i === 0 && !light ? pctSets(5, 10, BBB_PCT[week - 1]) : [];
-      items.push(item(v, 'pct', [...wave[week - 1], ...extra], v === 'push' ? 150 : 180));
+    lifts.forEach((v) => {
+      items.push(item(v, 'pct', wave[week - 1], v === 'push' ? 150 : 180));
     });
     /*
-     * 보조 메뉴(accessoryMenu) — BBB 는 5 × 10 을 한 뒤라 칸마다 2세트, 나머지는 3세트. 몸통 칸은 하루 하나 — 회전 던지기를 한 날은 그것이
+     * 보조 메뉴(accessoryMenu) — 칸마다 3세트. 몸통 칸은 하루 하나 — 회전 던지기를 한 날은 그것이
      * 몸통 운동(옛 프로그램의 파워 블록과 같다).
      */
-    items.push(...accessoryMenu(lifts, bbb ? 2 : 3, light, items[0]?.variant === 'rotationalThrow'));
+    items.push(...accessoryMenu(lifts, 3, light, items[0]?.variant === 'rotationalThrow'));
     return { label: null, items };
   };
 }
-
-const BBB_531: ProgramDef = {
-  id: '531-bbb',
-  goal: 'base',
-  name: '5/3/1 BBB',
-  origin: "5/3/1 Boring But Big · 짐 웬들러",
-  summary: '5/3/1 뒤에 같은 운동을 10회씩 5세트 더 해 근육을 키워요',
-  detail: [
-    '본 운동은 5/3/1 과 같고, 그 뒤에 같은 운동을 가볍게(기준 무게의 50~60%) 10회씩 5세트 더 해요.',
-    '%는 기준 무게(추정 최대의 90%)의 비율이에요. 기준 무게는 시작 전 기록으로 정하고 4주 동안 그대로예요.',
-    '4주는 가볍게 해요. 투수에 맞춰 + 세트는 2개 남기고 멈춰요.',
-    '보조는 그날 본운동에 맞춘 넷을 2세트씩(당기기는 날마다 · 보조 밀기나 삼두 · 다리나 전완 · 몸통)이고, 세션마다 다른 운동이 나와요.',
-  ],
-  weeks: 4,
-  perWeek: [2, 3],
-  lightWeeks: [4],
-  build: waveDay(WAVE_531, true, true),
-};
 
 /* ─────────────────────────────── 근력 ─────────────────────────────── */
 
@@ -543,7 +520,7 @@ const W531: ProgramDef = {
   weeks: 4,
   perWeek: [2, 3],
   lightWeeks: [4],
-  build: waveDay(WAVE_531, false, true),
+  build: waveDay(WAVE_531, true),
 };
 
 const JUGGERNAUT: ProgramDef = {
@@ -560,7 +537,7 @@ const JUGGERNAUT: ProgramDef = {
   weeks: 4,
   perWeek: [2, 3],
   lightWeeks: [4],
-  build: waveDay(WAVE_JUGGERNAUT_5S, false, false),
+  build: waveDay(WAVE_JUGGERNAUT_5S, false),
 };
 
 /* ─────────────────────────────── 파워 ─────────────────────────────── */
@@ -903,8 +880,7 @@ export const PROGRAMS: readonly ProgramDef[] = [
   INSEASON_RELIEVER,
   BASICS,
 ];
-/* 목록에서 뺀 것 — 진행 중인 줄만 이어 간다. 5/3/1 BBB 는 2026-10-16 김민: "제거하자" */
-const ALL_PROGRAMS: readonly ProgramDef[] = [...PROGRAMS, BBB_531, LEGACY];
+const ALL_PROGRAMS: readonly ProgramDef[] = [...PROGRAMS, LEGACY];
 
 /* ─────────────────────────── 키 · 하루 만들기 ─────────────────────────── */
 
