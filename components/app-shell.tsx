@@ -13,7 +13,7 @@ import {
   type RefObject,
 } from 'react';
 import { flushSync } from 'react-dom';
-import Link, { useLinkStatus } from 'next/link';
+import Link from 'next/link';
 import { ChevronLeft, Lock } from '@/components/icon';
 import { goBack } from '@/components/back-link';
 import { TAB_CHOSEN_EVENT, useTabLens } from '@/components/tab-lens';
@@ -2685,29 +2685,32 @@ function useBarHidden(enabled: boolean) {
 /**
  * 하단 탭의 얼굴 — 아이콘 위, 이름 아래.
  *
- * 누르면 렌즈(유리 캡슐, components/tab-lens.ts)가 곧바로 이 칸으로 미끄러져 와 누른 곳이 먼저 대답한다. 화면이 실제로
- * 바뀌는 것은 서버가 새 화면을 보내 준 뒤라, 그사이 이름만 먼저 굵게 한다(useLinkStatus 의 pending). 예전에는 하늘색으로
- * 바꿨는데, 2026-10-14 사용자가 고른 참고 영상(iOS 26 탭 막대)은 색 없이 흰 아이콘 · 흰 글자에 캡슐만 움직인다.
- * data-tab-face — 렌즈가 지나갈 때 아이콘이 살짝 커지는 자리(tab-lens.ts 가 transform 을 쓴다).
+ * 누르면 렌즈(유리 캡슐, components/tab-lens.ts)가 곧바로 이 칸으로 미끄러져 와 누른 곳이 먼저 대답한다. 이름도 그 순간
+ * 굵어진다 — 렌즈가 설 칸(selected)을 따르고 화면(주소)을 기다리지 않는다. 예전에는 링크의 pending(useLinkStatus)을 봤는데,
+ * 탭을 누르면 본문을 밀며 링크 대신 직접 push 해서(tab-swipe.tsx slideToTab) pending 이 안 켜져 이름이 0.3초 뒤에야 굵어졌다
+ * (2026-10-15 사용자 "선택되고 0.3초 뒤에 아이콘이 좀 움직여"). 2026-10-14 사용자가 고른 참고 영상(iOS 26 탭 막대)은 색 없이
+ * 흰 아이콘 · 흰 글자에 캡슐만 움직인다.
+ * pt-[2px] — 이름 글자의 아래 여백(줄 높이) 때문에 아이콘 + 이름이 렌즈 가운데보다 0.7px 위에 보였다. 화면은 1px 단위로
+ * 그려져 1.5px 는 효과가 없었다 — 픽셀로 재 보니 2px 에서 위아래 차가 0.3px 안(패드는 0).
  */
 function TabFace({
   Icon,
-  active,
+  selected,
   label,
   locked = false,
 }: {
   Icon: (typeof NAV_ICONS)[keyof typeof NAV_ICONS];
-  active: boolean;
+  /** 렌즈가 선 칸 — 누른 순간부터(화면이 오기 전에도) */
+  selected: boolean;
   label: string;
   /** 잠긴 탭 — 아이콘 귀퉁이에 자물쇠. 흐림은 탭(링크)이 통째로 맡는다(이 탭은 날아가는 연출이 없다) */
   locked?: boolean;
 }) {
-  const { pending } = useLinkStatus();
   return (
     <span
       data-tab-face
-      className={`relative flex flex-col items-center gap-0.5 ${
-        pending || active ? 'font-semibold' : ''
+      className={`relative flex flex-col items-center gap-0.5 pt-[2px] ${
+        selected ? 'font-semibold' : ''
       }`}
     >
       <NavGlyph Icon={Icon} locked={locked} dim={false} className="h-[26px] w-[26px]" />
@@ -3002,7 +3005,7 @@ function MobileTabs({
               >
                 <span
                   data-tab-face
-                  className={`flex flex-col items-center gap-0.5 ${menuOpen ? 'font-semibold' : ''}`}
+                  className={`flex flex-col items-center gap-0.5 pt-[2px] ${menuOpen ? 'font-semibold' : ''}`}
                 >
                   <span className="flex h-[26px] w-[26px] items-center justify-center">
                     <Squares
@@ -3061,7 +3064,7 @@ function MobileTabs({
             >
               <TabFace
                 Icon={Icon}
-                active={active}
+                selected={tab.href === selectedHref}
                 label={tab.short ?? tab.label}
                 locked={tab.locked}
               />
