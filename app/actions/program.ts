@@ -282,7 +282,6 @@ export async function startProgramWorkout() {
       day: view.day,
       week: weekOfDay(view.plan, view.day),
       gapDays: view.decision.gapDays,
-      ...(view.plan.kind ? { kind: view.plan.kind } : {}),
     },
     exercises: view.rows.map((r) =>
       freezeProgramExercise(r.exercise, r.rx, {

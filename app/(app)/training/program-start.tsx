@@ -38,11 +38,11 @@ import {
  */
 
 const GOALS: { value: ProgramGoal; label: string }[] = (
-  ['base', 'strength', 'power', 'inSeason'] as const
+  ['base', 'strength', 'power'] as const
 ).map((g) => ({ value: g, label: GOAL_LABELS[g] }));
 
 export type ProgramStartProps = {
-  /** 고를 수 있는 프로그램(lib/program/program.ts 의 programChoiceList) — 성인 일곱 + 기본기 */
+  /** 고를 수 있는 프로그램(lib/program/program.ts 의 programChoiceList) — 성인 다섯 + 기본기 */
   programs: ProgramChoice[];
   /** 생년월일이 없는가(가입 때 받지만 옛 계정에는 없을 수 있다) */
   needBirth: boolean;

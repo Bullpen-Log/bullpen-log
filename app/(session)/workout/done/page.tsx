@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
 import { requireUser } from '@/lib/dal';
 import { readFrozenPlan } from '@/lib/workout/session-plan';
-import { dayLabel, isLightWeek, parseProgram, weekOfDay, withKind } from '@/lib/program/program';
+import { dayLabel, isLightWeek, parseProgram, weekOfDay } from '@/lib/program/program';
 import { withJosa } from '@/lib/korean';
 import { summarizeSets, totalVolumeKg } from '@/lib/workout/summarize';
 import { priorBests } from '@/lib/workout/prior-bests';
@@ -111,9 +111,7 @@ export default async function WorkoutDonePage({
    * 근력 · 파워 프로그램 날이면 — 일차를 넘겼는지, 다음 일차, 운동별 '추천 → 실제 · 여유'(설계 §13-9).
    * 넘기기는 [종료]가 이미 했다(lib/program/advance.ts). 여기서는 결과를 읽기만 한다.
    */
-  const parsedPlan = plan?.program ? parseProgram(plan.program.key) : null;
-  /* 시즌 중이면 운동 시작 때 고른 세션 종류로 — 다음 세션 종류는 그날 상태로 정해서 아직 모르니 번호만 */
-  const programPlan = parsedPlan && plan?.program ? withKind(parsedPlan, plan.program.kind) : null;
+  const programPlan = plan?.program ? parseProgram(plan.program.key) : null;
   const program = plan?.program && programPlan
     ? await (async () => {
         const tag = plan.program as NonNullable<typeof plan.program>;
@@ -154,7 +152,7 @@ export default async function WorkoutDonePage({
             last && advanced
               ? '프로그램을 다 마쳤어요'
               : advanced
-                ? `${dayLabel(pp, tag.day)} 완료 · 다음 ${pp.def.inSeason ? `${tag.day + 1}번 세션` : dayLabel(pp, tag.day + 1)}`
+                ? `${dayLabel(pp, tag.day)} 완료 · 다음 ${dayLabel(pp, tag.day + 1)}`
                 : `절반이 안 돼 ${withJosa(dayLabel(pp, tag.day), '을/를')} 다시 해요`,
           note: !advanced
             ? null

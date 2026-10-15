@@ -11,7 +11,6 @@ import { SafeForm } from '@/components/safe-form';
 import { OpenCheckinButton } from '@/components/notice-bell';
 import { OFFLINE_MESSAGE, orOffline } from '@/lib/action-offline';
 import { withJosa } from '@/lib/korean';
-import { LastOutingAsk } from './last-outing-ask';
 import {
   overrideProgramRest,
   programChoices,
@@ -89,7 +88,7 @@ export function ProgramCard({ props }: { props: ProgramCardProps }) {
     <Card className="space-y-3">
       <div className="space-y-1">
         <p className="text-xs font-semibold text-muted">
-          {p.basics ? '기본기 프로그램' : p.inSeason ? '시즌 중 프로그램' : '근력 · 파워 프로그램'}
+          {p.basics ? '기본기 프로그램' : '근력 · 파워 프로그램'}
         </p>
         <p className="text-heading text-xl text-ink">{title}</p>
         {sub && <p className="text-sm text-muted">{sub}</p>}
@@ -100,8 +99,6 @@ export function ProgramCard({ props }: { props: ProgramCardProps }) {
             </p>
           )}
       </div>
-
-      {p.askLastOuting && !finishedToday && <LastOutingAsk today={p.askLastOuting} />}
 
       {going && !finishedToday && p.caution && (
         <p className="flex items-start gap-1.5 text-sm text-ink">

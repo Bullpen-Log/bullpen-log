@@ -9,7 +9,6 @@ import {
   itemRx,
   lighterRx,
   parseProgram,
-  withKind,
   withSets,
   prescriptionLine,
   readSessionProgram,
@@ -356,8 +355,7 @@ export function programSwapRx(
   loggedFromSets: number
 ): { rx: ItemRx; fromPlannedSets: number | null } | null {
   if (!plan.program || !from.programSlot) return null;
-  const parsed = parseProgram(plan.program.key);
-  const program = parsed && withKind(parsed, plan.program.kind);
+  const program = parseProgram(plan.program.key);
   const base = program ? itemRx(program, plan.program.day, from.programSlot.variant) : null;
   if (!base) return null;
   const lighter = from.programSlot.adjusted ? lighterRx(base) : base;

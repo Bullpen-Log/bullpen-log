@@ -162,7 +162,7 @@ export function outingAnswersOf(facts: ReportFacts): {
 }
 
 /**
- * 최근 4주(어제까지) 마지막 등판 날 — 시즌 중 선발 프로그램이 '등판 며칠 뒤'를 센다(lib/program/load.ts inSeasonKindOf). 경기 기록 ·
+ * 최근 4주(어제까지) 마지막 등판 날 — 경기 기록 ·
  * 체크인 '오늘 등판' 답 · 달력 등판 일정을 합친 facts.patterns.lastOutingDate, 그 칸이 없는 옛 facts 는 경기 기록만. 없으면 null
  */
 export function lastOutingDateOf(facts: ReportFacts): string | null {
