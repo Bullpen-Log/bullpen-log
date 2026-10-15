@@ -11,6 +11,27 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 ---
 
+## 김민(맥북 · 데스크톱)에게 · 금윤호에게도 알림 — 2026-10-15 · 김민(Claude, 클라우드) — 할 일: 투구 기록 · 운동 기록 표에 색인 둘 더하기(DB 구조 바꿈)
+
+**받은 뒤 할 일(김민 허락을 받고)** — 클라우드엔 `.env` 가 없어 못 했다. 사용자: "색인 추가 전달해줘". 탭 전환 속도 조사에서 나온 것이다
+(바로 아래 금윤호에게 메모). **AGENTS.md 2번 — DB 구조 바꿈이라 금윤호에게 먼저 알리고, 둘이 동시에 구조를 바꾸지 않을 때 한다.**
+- 왜: `PitchLog` 에 색인이 하나도 없다(다른 사용자 표는 다 `[userId, date]` 가 있다) — 홈 · 투구 · 트레이닝이 화면마다 투구 조회 십여 개를
+  내는데 모두 표 전체를 훑는다(사용자가 늘수록 느려짐). `UserExerciseLog` 는 기본 키 `(userId, exerciseId, date)` 뿐이라 날짜 범위
+  조회(지난 운동 · 부하 · 암케어)가 날짜로 못 좁힌다. 둘 다 **더하기만**이라 지금 코드를 깨뜨리지 않는다.
+1. `git pull` → `npm run backup`
+2. `prisma/schema.prisma` — `model PitchLog` 끝에 `@@index([userId, date])`, `model UserExerciseLog` 의 `@@id([userId, exerciseId, date])` 밑에
+   `@@index([userId, date])`
+3. `npx prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --script` — 아래 두 줄만 나와야 한다(다른 줄이 나오면 멈추고 김민에게):
+   ```sql
+   CREATE INDEX "PitchLog_userId_date_idx" ON "PitchLog"("userId", "date");
+   CREATE INDEX "UserExerciseLog_userId_date_idx" ON "UserExerciseLog"("userId", "date");
+   ```
+   → `prisma/migrations/20261015120000_pitchlog_exerciselog_user_date_idx/migration.sql` 로 저장
+4. `npx prisma migrate deploy` → `npx prisma generate` (표가 작아 몇 초 — 만드는 동안 그 표 쓰기가 잠깐 막힌다)
+5. 확인(선택): 빌드한 서버(`npx next build && PRISMA_TIMING=1 npx next start`)로 `npm run tabs:timing -- --email=<이메일>` 를 색인 전후로 —
+   서버 창의 `[db] PitchLog.findMany` 시간이 줄었는지.
+6. 스키마 · 마이그레이션 폴더를 한 커밋으로 올리고 이 메모를 지운다. 금윤호에게 '받아서 `npx prisma generate`' 메모를 남긴다(AGENTS 2번).
+
 ## 금윤호에게 — 2026-10-15 · 김민(Claude, 클라우드) — 탭 전환 빠르게: 서버 조회 차례 기다림 줄임 · DB 연결 20 · 탭 쓸기 · 탭 누름
 
 받은 뒤 할 일 없음(DB 구조 · 패키지 그대로). 사용자: "탭 전환을 더 빠르게 — 서버 시간을 재서 줄이자". **네 영역(홈 · 트레이닝 · 영양 · 앱 틀)을 고쳤다.**
