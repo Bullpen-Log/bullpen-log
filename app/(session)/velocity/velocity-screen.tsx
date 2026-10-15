@@ -553,6 +553,9 @@ const CHROME_BTN_ON_PANEL = CHROME_BTN.replace('bg-black/45', 'bg-white/10').rep
 const SIDE_BTN =
   'inline-flex h-12 w-12 items-center justify-center rounded-full border border-white/25 bg-white/10 text-white transition-colors active:bg-white/25 disabled:opacity-40';
 const SIDE_LABEL = 'mt-1 text-caption font-medium text-white/80';
+/* 카메라 위 알림 창 — 안내창(GuideCard)과 같은 흰 창 모양(2026-10-15 김민: "안내 문구는 전부 카메라 위에 창처럼") */
+const NOTE_WIN =
+  'rounded-2xl bg-page/95 px-4 py-3 text-sm leading-snug text-ink shadow-lg backdrop-blur motion-safe:animate-fade-in';
 
 /** 녹화 시간 — 분:초(한 시간이 넘으면 시:분:초) */
 /** '2026-10-15' → '10월 15일' */
@@ -1842,7 +1845,8 @@ export function VelocityScreen({
     const gotFps = Math.round(info.frameRate);
     const gotShort = Math.min(info.width, info.height);
     const low = !fpsGood(gotFps);
-    if (Math.abs(gotShort - asked.short) > 8 || Math.abs(gotFps - asked.fps) > 2) {
+    /* 모자랄 때만 알린다 — 앱 카메라는 되면 일부러 120fps 로 켠다(엔진 2.4.2 preferFps). 예전엔 '60 이 아니면' 못 냈다고 알렸다 */
+    if (gotShort < asked.short - 8 || gotFps < asked.fps - 2) {
       setToast(
         `이 카메라는 ${camModeLabel(asked)} 를 못 내 ${gotShort}p · ${gotFps}fps 로 켰어요${
           low ? ' · 60fps 아래라 측정이 잘 안 돼요' : ''
@@ -2369,21 +2373,17 @@ export function VelocityScreen({
     phase == null;
   /* 첫 화면 기록 단추의 숫자 — 가장 최근 세션의 최고 구속 */
   const latestMax = history.length ? shown(history[history.length - 1].maxKmh) : null;
-  /* 측정 전 셔터 — 첫 화면은 안내창을 연다(지난 설정이 있으면 그것부터), 안내창에서는 다음 장 */
   const lastTip = tipIndex >= tipsCount(choices) - 1;
-  const prepLabel =
-    step === 'home'
-      ? '측정 시작'
-      : showAsk
-        ? '이 설정으로'
-        : step === 'tips' && lastTip
-          ? tipsReturn === 'align'
-            ? '카메라 맞추기'
-            : '닫기'
-          : '다음';
-  const onPrepShutter = () => {
-    if (step === 'home') setStep('type');
-    else if (showAsk) applyPrevious();
+  /* 안내창 카드 밑 단추(김민: "다음 버튼은 창에다가, 셔터로 하니까 헷갈려") — 셔터는 첫 화면의 측정 시작과 측정에만 */
+  const guideLabel = showAsk
+    ? '이 설정으로 시작'
+    : step === 'tips' && lastTip
+      ? tipsReturn === 'align'
+        ? '카메라 맞추기'
+        : '닫기'
+      : '다음';
+  const onGuideNext = () => {
+    if (showAsk) applyPrevious();
     else if (step === 'type') setStep('camera');
     else if (step === 'camera') {
       persistSetup({ targetDistM, releaseDistM, distTape });
@@ -2392,14 +2392,30 @@ export function VelocityScreen({
     else setTipIndex(tipIndex + 1);
   };
   /* 카메라 무대 위 가운데 — 단계 이름(측정은 세션 중 상태가 대신) */
-  const stageTitle =
-    step === 'home'
-      ? { n: '', label: '구속 측정' }
-      : step === 'align'
-      ? { n: '3/4', label: '수평 · 표적' }
-      : step === 'zone'
-        ? { n: '4/4', label: '스트라이크 존' }
-        : null;
+  const stageTitle = step === 'home' ? { n: '', label: '구속 측정' } : null;
+  /*
+   * 셔터 — 첫 화면은 '측정 시작'(안내창을 연다). 안내창 · 수평 · 존 동안은 흐리게 자리만 지킨다(앞으로 가기는 카드 안 단추 — 김민:
+   * "다음 버튼은 창에다가, 셔터로 하니까 헷갈려"). 측정 단계의 셔터는 아래 막대의 다른 갈래가 그린다.
+   */
+  const waitShutter = (
+    <div className="flex flex-col items-center">
+      <button
+        type="button"
+        onClick={() => setStep('type')}
+        disabled={step !== 'home' || fileBusy}
+        aria-label="측정 시작"
+        className="group flex h-[4.75rem] w-[4.75rem] items-center justify-center rounded-full border-4 border-white/90 transition-opacity disabled:opacity-35"
+      >
+        <span className="h-16 w-16 rounded-full bg-white transition-transform group-active:scale-90" />
+      </button>
+      <span className={`${SIDE_LABEL} transition-opacity ${step === 'home' ? '' : 'opacity-35'}`}>
+        측정 시작
+      </span>
+    </div>
+  );
+  /* 안내창(카드)이 뷰파인더 밑에 떠 있나 — 알림은 그때 위쪽으로 */
+  const cardUp =
+    (PREP_STEPS.has(step) && step !== 'home') || step === 'align' || step === 'zone';
   const fpsNote = liveFpsNote(fps);
   /*
    * 기준 조건(1080p · 60fps · 2배가 진짜 줌 · 손떨림 보정)을 못 맞춘 카메라 — 모든 사용자가 같은 조건이어야 값을 견줄 수 있다(2026-10-08
@@ -2760,10 +2776,51 @@ export function VelocityScreen({
              * 안내창 — 첫 화면에서 셔터를 누르면 뷰파인더 위에 뜬다(2026-10-15 김민: "그 위로 안내창, 밑의 촬영 단추는 가리지 않게").
              * 뷰파인더 칸 안이라 밑의 셔터 줄은 늘 보이고, 앞으로 가기는 그 셔터가 맡는다. 위 줄(‹ · 이름)은 안 덮게 그 밑부터.
              */}
-            {PREP_STEPS.has(step) && step !== 'home' && (
+            {((PREP_STEPS.has(step) && step !== 'home') ||
+              step === 'align' ||
+              step === 'zone') && (
               <div className="pointer-events-none absolute inset-x-3 bottom-3 top-[calc(max(0.5rem,env(safe-area-inset-top))+3.25rem)] z-20 flex flex-col justify-end">
                 {showAsk && stored ? (
-                  <PreviousSetupCard key="ask" setup={stored} onFresh={startFresh} />
+                  <PreviousSetupCard
+                    key="ask"
+                    setup={stored}
+                    onFresh={startFresh}
+                    onUse={onGuideNext}
+                  />
+                ) : step === 'align' ? (
+                  <GuideCard
+                    key="align"
+                    step={3}
+                    total={4}
+                    title="수평 · 표적 맞추기"
+                    subtitle={`${withGa(targetText)} 가운데 표적에 오게 폰 높이와 방향을 맞춰요.`}
+                    footer={
+                      <PrimaryButton onClick={goZone} disabled={!cameraOn}>
+                        다음
+                        <ChevronRight aria-hidden className="h-4 w-4" />
+                      </PrimaryButton>
+                    }
+                  >
+                    {cameraOn && !levelOk && (
+                      <p className="rounded-2xl bg-warn-bg px-4 py-2.5 text-sm leading-snug text-warn">
+                        아직 기울어 있어요. 그대로 가도 되지만 코스와 궤적이 비뚤게 보여요.
+                      </p>
+                    )}
+                  </GuideCard>
+                ) : step === 'zone' ? (
+                  <GuideCard
+                    key="zone"
+                    step={4}
+                    total={4}
+                    title="스트라이크 존"
+                    subtitle="자리는 릴리스 표적 바로 밑에 고정돼요. 두 손가락으로 벌리거나 모서리 손잡이로 크기만 맞춰요."
+                    footer={
+                      <PrimaryButton onClick={goMeasure} disabled={!cameraOn}>
+                        완료
+                        <ChevronRight aria-hidden className="h-4 w-4" />
+                      </PrimaryButton>
+                    }
+                  />
                 ) : step === 'type' ? (
                   <GuideCard
                     key="type"
@@ -2771,6 +2828,12 @@ export function VelocityScreen({
                     total={4}
                     title="어떤 투구인가요?"
                     subtitle="투구 기록에 이 종류로 남아요."
+                    footer={
+                      <PrimaryButton onClick={onGuideNext}>
+                        {guideLabel}
+                        <ChevronRight aria-hidden className="h-4 w-4" />
+                      </PrimaryButton>
+                    }
                   >
                     <OptionCards
                       label="어떤 투구"
@@ -2786,6 +2849,12 @@ export function VelocityScreen({
                     total={4}
                     title="폰은 투수 바로 뒤 1m 안에 둬요"
                     subtitle="던지는 방향을 정면으로 보게 둬요. 멀거나 옆이면 공을 놓쳐요."
+                    footer={
+                      <PrimaryButton onClick={onGuideNext}>
+                        {guideLabel}
+                        <ChevronRight aria-hidden className="h-4 w-4" />
+                      </PrimaryButton>
+                    }
                   >
                 <div className="space-y-5">
                   <OptionCards
@@ -2849,6 +2918,7 @@ export function VelocityScreen({
                     onIndex={setTipIndex}
                     today={today}
                     onSkipToday={finishTips}
+                    action={{ label: guideLabel, onClick: onGuideNext }}
                   />
                 )}
               </div>
@@ -3013,7 +3083,14 @@ export function VelocityScreen({
               />
             )}
             {step !== 'lens' && (
-              <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 flex flex-col gap-2">
+              /* 안내창(카드)이 밑에 떠 있는 단계는 알림을 위쪽(수평계 줄 밑)에 — 카드와 겹치지 않게 */
+              <div
+                className={`pointer-events-none absolute inset-x-0 flex flex-col gap-2 ${
+                  cardUp
+                    ? 'top-[calc(5.25rem+env(safe-area-inset-top))] z-30'
+                    : 'bottom-0 z-10'
+                }`}
+              >
                 {phase && (!live || showCamera) && (
                   <div className="px-4 pb-3">
                     <MeasureProgress
@@ -3024,46 +3101,26 @@ export function VelocityScreen({
                   </div>
                 )}
                 {(!live || showCamera) &&
-                  (step === 'align' ||
-                    step === 'zone' ||
-                    error ||
+                  (error ||
                     saved ||
                     toast ||
                     fpsNote ||
                     standardNote ||
                     cropNote ||
                     (isAdmin && !native)) && (
-                    <div className={`space-y-2 px-4 ${resultShown ? '' : 'pb-3'}`}>
-                      {step === 'align' && (
-                        <p className="rounded-2xl bg-black/55 px-4 py-2.5 text-sm leading-snug text-white backdrop-blur motion-safe:animate-fade-in">
-                          {withGa(targetText)} 가운데 표적에 오게 폰 높이와 방향을
-                          맞춰요.
-                        </p>
-                      )}
-                      {step === 'align' && cameraOn && !levelOk && (
-                        <p className="rounded-2xl bg-amber-600/90 px-4 py-2.5 text-sm leading-snug text-white">
-                          아직 기울어 있어요. 그대로 가도 되지만 코스와 궤적이 비뚤게
-                          보여요.
-                        </p>
-                      )}
-                      {step === 'zone' && (
-                        <p className="rounded-2xl bg-black/55 px-4 py-2.5 text-sm leading-snug text-white backdrop-blur motion-safe:animate-fade-in">
-                          존 자리는 릴리스 표적 바로 밑에 고정돼요. 두 손가락으로
-                          벌리거나 모서리 손잡이로 크기만 맞춰요.
-                        </p>
-                      )}
+                    <div className={`space-y-2 px-4 ${resultShown || cardUp ? '' : 'pb-3'}`}>
                       {/* 초당 장면 · 잘림 — 측정 화면에서만(수평 · 존은 오른쪽 위 주황 표시로 충분), 결과가 떠 있으면 결과의 알림이 말한다 */}
                       {step === 'measure' &&
                         !resultShown &&
                         phase == null &&
                         (fpsNote ?? standardNote ?? cropNote) &&
                         !error && (
-                          <p className="rounded-2xl bg-warn/90 px-4 py-2.5 text-sm leading-snug text-white">
+                          <p className={`${NOTE_WIN} border-l-4 border-warn`}>
                             {fpsNote ?? standardNote ?? cropNote}
                           </p>
                         )}
                       {step === 'measure' && isAdmin && !native && !error && !saved && (
-                        <p className="rounded-2xl bg-black/55 px-4 py-2 text-xs leading-snug text-white/85 backdrop-blur">
+                        <p className={`${NOTE_WIN} text-xs text-muted`}>
                           웹 시험 모드(관리자) — 브라우저 카메라는 대개 초당 30장이라
                           값은 참고용이에요.
                         </p>
@@ -3071,13 +3128,13 @@ export function VelocityScreen({
                       {error && (
                         <p
                           role="alert"
-                          className="rounded-2xl bg-danger/90 px-4 py-2.5 text-sm leading-relaxed text-white"
+                          className={`${NOTE_WIN} border-l-4 border-danger`}
                         >
                           {error}
                         </p>
                       )}
                       {saved && (
-                        <p className="pointer-events-auto flex items-center gap-2 rounded-2xl bg-black/70 px-4 py-2.5 text-sm text-white backdrop-blur">
+                        <p className={`${NOTE_WIN} pointer-events-auto flex items-center gap-2`}>
                           <Check aria-hidden className="h-4 w-4 text-ok" />
                           오늘 투구 기록에 남겼어요.
                           {/*
@@ -3086,14 +3143,14 @@ export function VelocityScreen({
                           */}
                           <a
                             href={`/pitch-log/${today}`}
-                            className="ml-auto font-semibold text-sky-soft"
+                            className="ml-auto font-semibold text-sky"
                           >
                             기록 보기
                           </a>
                         </p>
                       )}
                       {toast && (
-                        <p className="rounded-2xl bg-black/70 px-4 py-2.5 text-center text-sm text-white backdrop-blur motion-safe:animate-fade-in">
+                        <p className={`${NOTE_WIN} text-center`}>
                           {toast}
                         </p>
                       )}
@@ -3499,21 +3556,7 @@ export function VelocityScreen({
                       </>
                     )}
                   </div>
-                  {/* 셔터 — 첫 화면은 측정 시작(안내창을 연다), 안내창에서는 다음 장 */}
-                  <div className="flex flex-col items-center">
-                    <button
-                      type="button"
-                      onClick={onPrepShutter}
-                      disabled={fileBusy}
-                      aria-label={prepLabel}
-                      className="group flex h-[4.75rem] w-[4.75rem] items-center justify-center rounded-full border-4 border-white/90 disabled:opacity-40"
-                    >
-                      <span className="flex h-16 w-16 items-center justify-center rounded-full bg-white text-black transition-transform group-active:scale-90">
-                        {step !== 'home' && <ChevronRight aria-hidden className="h-7 w-7" />}
-                      </span>
-                    </button>
-                    <span className={SIDE_LABEL}>{prepLabel}</span>
-                  </div>
+                  {waitShutter}
                   <div className="flex w-20 flex-col items-center">
                     {step === 'home' && (
                       <>
@@ -3563,19 +3606,9 @@ export function VelocityScreen({
                       </>
                     )}
                   </div>
-                  {/*
-                    수평 · 존은 찍는 단계가 아니라 맞추는 단계라 셔터 대신 설정 단계와 같은 파란 단추(2026-10-15 "조잡해" —
-                    셔터 안에 '다음', 밑에 '스트라이크 존으로'가 겹쳐 적혀 있었다). 셔터는 측정에만 남긴다.
-                  */}
-                  <button
-                    type="button"
-                    onClick={step === 'align' ? goZone : goMeasure}
-                    disabled={!cameraOn}
-                    className="ml-2 inline-flex h-12 flex-1 items-center justify-center gap-1.5 rounded-2xl bg-sky text-lg font-bold text-white transition-[background-color,scale] hover:bg-sky-strong active:scale-[0.98] disabled:opacity-40"
-                  >
-                    {step === 'align' ? '다음' : '완료'}
-                    <ChevronRight aria-hidden className="h-5 w-5" />
-                  </button>
+                  {/* 다음 · 완료는 카메라 위 안내창 안(김민: "셔터로 하니까 헷갈려") — 셔터는 흐리게 자리만 */}
+                  {waitShutter}
+                  <div className="w-20" />
                 </>
               ) : !live && recOn ? (
                 /*
@@ -4156,21 +4189,34 @@ export function VelocityScreen({
 }
 
 /**
- * 지난 설정으로 바로 시작할까 — 카메라 위 안내창. 저장된 설정을 그림 칸으로 보이고, 셔터가 '이 설정으로', 카드 밑 '새로 설정하기'.
+ * 지난 설정으로 바로 시작할까 — 카메라 위 안내창. 저장된 설정을 그림 칸으로 보이고, 카드 밑 [새 설정 | 이 설정으로 시작].
  * 사용자 요청: "전에 사용한 설정을 바로 사용할 수 있도록 하고 하단에 새 설정".
  */
 function PreviousSetupCard({
   setup,
   onFresh,
+  onUse,
 }: {
   setup: VelocitySetup;
   onFresh: () => void;
+  onUse: () => void;
 }) {
   const when = setup.savedAt ? new Date(setup.savedAt) : null;
   return (
     <GuideCard
       title="지난 설정으로 바로 시작할까요?"
-      subtitle="같은 자리에서 같은 방식이면 셔터를 눌러요."
+      subtitle="같은 자리에서 같은 방식으로 재면 카메라로 바로 가요."
+      footer={
+        <>
+          <PrimaryButton tone="quiet" onClick={onFresh}>
+            새 설정
+          </PrimaryButton>
+          <PrimaryButton onClick={onUse}>
+            이 설정으로 시작
+            <ChevronRight aria-hidden className="h-4 w-4" />
+          </PrimaryButton>
+        </>
+      }
     >
       <div className="overflow-hidden rounded-2xl bg-surface">
         <div className="p-(--block-pad)">
@@ -4185,13 +4231,6 @@ function PreviousSetupCard({
           {when && ` · ${when.getMonth() + 1}월 ${when.getDate()}일에 저장`}
         </p>
       </div>
-      <button
-        type="button"
-        onClick={onFresh}
-        className="mt-3 inline-flex min-h-11 w-full items-center justify-center rounded-2xl bg-ink/6 text-sm font-semibold text-ink transition-colors hover:bg-ink/10"
-      >
-        새로 설정하기
-      </button>
     </GuideCard>
   );
 }

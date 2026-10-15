@@ -1,8 +1,8 @@
 'use client';
 
 import { useId, useState } from 'react';
-import { ChevronDown, Info } from '@/components/icon';
-import { tipsFor, type Choices } from './setup-steps';
+import { ChevronDown, ChevronRight, Info } from '@/components/icon';
+import { PrimaryButton, tipsFor, type Choices } from './setup-steps';
 
 /**
  * 주의사항 — 설정이 끝나고 카메라 위 안내창으로 뜬다(아래 TipsCard). 카드 자료는 setup-steps.tsx 의 tipsFor(choices).
@@ -33,7 +33,7 @@ export function skipTipsToday(today: string): void {
 }
 
 /**
- * 주의사항 한 장 — 카메라 위 안내창(구속 측정 첫 화면이 카메라가 된 뒤, 2026-10-15)에 뜬다. 넘기기는 밑의 셔터가(부르는 쪽이
+ * 주의사항 한 장 — 카메라 위 안내창(구속 측정 첫 화면이 카메라가 된 뒤, 2026-10-15)에 뜬다. 넘기기는 카드 밑 단추(부르는 쪽이
  * index 를 쥔다), 점을 눌러 바로 갈 수도 있다. 예전 창(<dialog>)은 화면 전체를 덮어 셔터까지 가려 걷었다.
  */
 export function TipsCard({
@@ -42,10 +42,13 @@ export function TipsCard({
   onIndex,
   today,
   onSkipToday,
+  action,
 }: {
   choices: Choices;
   index: number;
   onIndex: (i: number) => void;
+  /** 카드 밑 단추 — 다음 장 · 마지막 장이면 카메라 맞추기(부르는 쪽이 정한다) */
+  action: { label: string; onClick: () => void };
   /** YYYY-MM-DD — '오늘은 보지 않기'가 적는 날짜 */
   today: string;
   /** '오늘은 보지 않기' 뒤 — 주의사항을 건너뛴다 */
@@ -125,6 +128,12 @@ export function TipsCard({
         >
           오늘은 보지 않기
         </button>
+      </div>
+      <div className="flex px-5 pb-5">
+        <PrimaryButton onClick={action.onClick}>
+          {action.label}
+          <ChevronRight aria-hidden className="h-4 w-4" />
+        </PrimaryButton>
       </div>
     </div>
   );

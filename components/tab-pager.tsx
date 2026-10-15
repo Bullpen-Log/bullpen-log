@@ -395,7 +395,7 @@ export function TabPager({
           ref={ghostEl}
           aria-hidden
           data-tab-ghost
-          className="pointer-events-none fixed inset-y-0 left-[-100%] z-30 grid w-screen place-items-center bg-black text-white desk:hidden"
+          className="pointer-events-none fixed inset-y-0 left-[-100%] z-60 grid w-screen place-items-center bg-black text-white desk:hidden"
         >
           <div className="flex flex-col items-center gap-3">
             <span className="grid h-20 w-20 place-items-center rounded-full bg-white/12">
