@@ -14,6 +14,7 @@ import {
   basicsDoneEnough,
   checkEligibility,
   equipmentBlock,
+  BASICS_REQUIRED_EQUIPMENT,
   profileBlock,
   variantLabel,
   dayLabel,
@@ -456,7 +457,7 @@ console.log('\n1-1) 기본기 4주');
   );
   check('칸 이름 — 기본기 첫 칸은 던지기 · 점프', variantLabel('medball', 'basics') === '던지기 · 점프' && variantLabel('medball') === '메디신볼');
   const c = programChoiceList().find((x) => x.id === 'basics-4w');
-  check('고르기: 기본기 · 꼭 있을 장비 없음 · % 안 씀', c?.audience === 'basics' && c.required.length === 0 && c.usesPct === false && c.weeks[0].startsWith('1주 · 스쿼트'), c?.weeks[0] ?? '');
+  check('고르기: 기본기 · 꼭 있을 장비 덤벨 · 밴드 · % 안 씀', c?.audience === 'basics' && c.required.join() === '덤벨,밴드' && c.usesPct === false && c.weeks[0].startsWith('1주 · 스쿼트'), c?.weeks[0] ?? '');
   /* 하루 약 35분 — 세트마다 30초 하고 쉬는 시간, 운동 바꿀 때 30초 */
   const minutes = (d: (typeof days)[number]) =>
     d.items.reduce((m, x) => m + x.sets.length * (30 + x.restSeconds) / 60 + 0.5, 0);
@@ -466,7 +467,9 @@ console.log('\n1-1) 기본기 4주');
 
 /* ── 2) 시작 자격 ─────────────────────────────── */
 console.log('\n2) 시작 자격');
-const full = ['바벨', '덤벨', '메디신볼', '박스', '벤치'];
+/* 2026-10-16 필수 장비 일곱(바벨 · 원판 · 덤벨 · 벤치 · 철봉 · 밴드 · 케이블) + 권장 둘 */
+const gym = ['바벨', '원판', '덤벨', '벤치', '철봉', '밴드', '케이블'];
+const full = [...gym, '메디신볼', '박스'];
 const base = {
   age: 24,
   trainingLevel: '중급',
@@ -487,12 +490,12 @@ check('다 맞으면 시작', checkEligibility(base).ok);
     '장비 안 고름 → 물음(모두로 보지 않음)',
     !rE.ok && rE.kind === 'ask' && rE.step === 'equipment'
   );
-  const rM = checkEligibility({ ...base, ownedEquipment: ['바벨', '덤벨'] });
-  check('메디신볼 없음 → 시작(2026-10-14 필수 장비에서 뺌)', rM.ok);
-  const rD = checkEligibility({ ...base, ownedEquipment: ['바벨'] });
+  const rM = checkEligibility({ ...base, ownedEquipment: gym });
+  check('메디신볼 · 박스 없음 → 시작(필수 아님)', rM.ok);
+  const rD = checkEligibility({ ...base, ownedEquipment: gym.filter((e) => e !== '케이블') });
   check(
-    '덤벨 없음 → 막힘, 조사',
-    !rD.ok && rD.kind === 'blocked' && rD.reason.startsWith('덤벨이'),
+    '케이블 없음 → 막힘, 조사',
+    !rD.ok && rD.kind === 'blocked' && rD.reason.startsWith('케이블이'),
     !rD.ok && rD.kind === 'blocked' ? rD.reason : ''
   );
   check(
@@ -508,8 +511,10 @@ check('다 맞으면 시작', checkEligibility(base).ok);
 
 {
   /* 기본기 · 성인 입문(2026-10-09) */
-  const kid = { ...base, audience: 'basics' as const, age: 15, trainingLevel: '입문', ownedEquipment: ['맨몸'] };
-  check('기본기: 만 15세 입문 · 맨몸만 → 시작', checkEligibility(kid).ok);
+  const kid = { ...base, audience: 'basics' as const, age: 15, trainingLevel: '입문', ownedEquipment: ['맨몸', '덤벨', '밴드'] };
+  check('기본기: 만 15세 입문 · 덤벨 · 밴드 → 시작', checkEligibility(kid).ok);
+  const rBm = checkEligibility({ ...kid, ownedEquipment: ['맨몸'] });
+  check('기본기: 맨몸만 → 막힘(덤벨 · 밴드 필수, 2026-10-16)', !rBm.ok && rBm.kind === 'blocked' && rBm.reason.startsWith('덤벨, 밴드가'), !rBm.ok && rBm.kind === 'blocked' ? rBm.reason : '');
   const r12 = checkEligibility({ ...kid, age: 12 });
   check('기본기: 만 12세 → 막힘', !r12.ok && r12.kind === 'blocked' && r12.reason.includes('13세'));
   check('기본기: 만 13세 → 시작', checkEligibility({ ...kid, age: 13 }).ok);
@@ -571,7 +576,7 @@ check('다 맞으면 시작', checkEligibility(base).ok);
   check('나이 모르면 고르기 화면은 막지 않음', profileBlock({ age: null, trainingLevel: '초급' }) === null && profileBlock({ audience: 'basics', age: null, trainingLevel: '입문' }) === null);
   const bplan = plan('basics-4w');
   check('기본기 마침: 12번 중 10번 해야 셈(2026-10-16)', !basicsDoneEnough(bplan, 13, 12) && !basicsDoneEnough(bplan, 13, 3) && basicsDoneEnough(bplan, 13, 2) && basicsDoneEnough(bplan, 13, 0));
-  check('장비 막힘: 성인은 바벨 · 덤벨, 기본기는 없음', equipmentBlock(['맨몸'])?.reason.startsWith('바벨, 덤벨이') === true && equipmentBlock(['맨몸'], []) === null);
+  check('장비 막힘: 성인은 헬스장 일곱, 기본기는 덤벨 · 밴드', equipmentBlock(['맨몸'])?.reason.startsWith('바벨, 원판, 덤벨, 벤치, 철봉, 밴드, 케이블이') === true && equipmentBlock(['맨몸', '덤벨', '밴드'], BASICS_REQUIRED_EQUIPMENT) === null);
 }
 
 /* ── 3) 운동 고정 ─────────────────────────────── */
@@ -668,15 +673,19 @@ const lib: PinnableExercise[] = [
   );
 }
 {
-  /* 메디신볼이 없으면 메디신볼 칸은 인클라인 플라이오 푸시업(박스) — 있으면 메디신볼 그대로, 박스도 없으면 빈 칸(2026-10-16) */
+  /*
+   * 메디신볼이 없으면 메디신볼 칸은 플라이오 푸시업 둘(인클라인 · 바닥) — 하나뿐이면 세션마다 같은 운동이라 둘을 돌린다. 있으면 메디신볼 그대로,
+   * 박스가 없으면 바닥 플라이오 푸시업만(2026-10-16)
+   */
   const ipp = ex('ipp', '인클라인 플라이오 푸시업', '파워', '밀기', ['박스'], '중간', '초급');
-  const libP = [...lib, ipp];
+  const fpp = ex('fpp', '플라이오 푸시업', '파워', '밀기', ['맨몸'], '높음', '초급');
+  const libP = [...lib, ipp, fpp];
   const noBall = variantCandidates('medball', libP, ['덤벨', '박스'], '중급').map((e) => e.id);
   const withBall = variantCandidates('medball', libP, ['메디신볼', '박스'], '중급').map((e) => e.id);
   const neither = variantCandidates('medball', libP, ['덤벨'], '중급').map((e) => e.id);
   check(
-    '메디신볼 없음 → 인클라인 플라이오 푸시업 · 있으면 메디신볼만 · 박스도 없으면 빈 칸',
-    noBall.join() === 'ipp' && !withBall.includes('ipp') && withBall.includes('chest') && neither.length === 0,
+    '메디신볼 없음 → 플라이오 푸시업 둘 · 있으면 메디신볼만 · 박스도 없으면 바닥 플라이오 푸시업',
+    [...noBall].sort().join() === 'fpp,ipp' && !withBall.includes('ipp') && !withBall.includes('fpp') && withBall.includes('chest') && neither.join() === 'fpp',
     `${noBall} | ${withBall} | ${neither}`
   );
 }
@@ -738,8 +747,8 @@ const lib: PinnableExercise[] = [
   );
   check(
     '밴드가 없으면 항회전은 한쪽 캐리로',
-    pins.antiRotation === 'carry',
-    String(pins.antiRotation)
+    pickPinned(lib, full.filter((e) => e !== '밴드'), '중급').antiRotation === 'carry',
+    String(pickPinned(lib, full.filter((e) => e !== '밴드'), '중급').antiRotation)
   );
   check(
     '밴드가 있으면 팔로프 먼저',

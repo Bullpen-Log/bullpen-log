@@ -141,16 +141,33 @@ export const WEIGHTED_SLOTS: readonly SlotKind[] = [
 ];
 
 /**
- * 시작에 꼭 있어야 하는 장비(§1) — 모든 프로그램이 같다. 트랩바는 '바벨'에 들어간다(§13-21).
- * 메디신볼은 2026-10-14 에 뺐다(김민 — 못 던지는 환경일 수 있다). 없으면 메디신볼 칸은 빠지고, 있어도 선택 운동이다(isOptionalProgramExercise).
+ * 시작에 꼭 있어야 하는 장비(§1) — 모든 성인 프로그램이 같다. 트랩바는 '바벨'에 들어간다(§13-21).
+ * 2026-10-16 김민: 바벨 · 덤벨만으로는 너무 적다 → 일반 헬스장 장비(바벨 · 원판 · 덤벨 · 벤치 · 철봉 · 밴드 · 케이블). 실제 운동 표로 세니
+ * 바벨 · 덤벨만이면 세로 당기기 · 삼두 후보가 0, 회전 던지기가 1(세션마다 같은 운동)이었고, 이 일곱이면 모든 칸이 둘 넘게(햄스트링 2 ·
+ * 메디신볼 칸은 아래 대체) 되어 같은 운동이 연달아 안 나온다. 박스 · 메디신볼은 헬스장에 없는 곳이 많아 넣지 않았다.
+ * 메디신볼은 2026-10-14 에 뺐다(김민 — 못 던지는 환경일 수 있다). 없으면 메디신볼 칸은 플라이오 푸시업으로, 있어도 선택 운동이다(isOptionalProgramExercise).
+ * 이미 진행 중인 프로그램은 막지 않는다 — 시작할 때만 본다(checkEligibility).
  */
-export const REQUIRED_EQUIPMENT: readonly string[] = ['바벨', '덤벨'];
+export const REQUIRED_EQUIPMENT: readonly string[] = [
+  '바벨',
+  '원판',
+  '덤벨',
+  '벤치',
+  '철봉',
+  '밴드',
+  '케이블',
+];
+/**
+ * 기본기 4주의 필수 장비 — 기본 근력 운동(스쿼트 · 힌지 · 밀기 · 당기기 · 한 다리)이 되게(2026-10-16 김민). 맨몸만이면 당기기 후보가 0,
+ * 힌지가 1이었다. 밴드 · 덤벨이면 일곱 칸 모두 셋 넘게. 메디신볼은 못 던지는 곳이 많아 넣지 않는다(없으면 던지기 칸은 점프).
+ */
+export const BASICS_REQUIRED_EQUIPMENT: readonly string[] = ['덤벨', '밴드'];
 
 /**
- * 있으면 좋은 장비(필수 아님, 2026-10-15 사용자) — 바벨 · 덤벨만이어도 보조 칸은 비지 않지만(ACCESSORY_FALLBACK), 벤치가 있으면 덤벨 로우 ·
- * 프레스가, 밴드가 있으면 풀다운 · 삼두 · 풀어파트가 생겨 대체가 거의 없다. 시작 시트가 '권장'으로 보여 준다.
+ * 있으면 좋은 장비(필수 아님) — 메디신볼이 있으면 메디신볼 · 회전 던지기 칸이 실제 던지기로, 박스가 있으면 점프가 다양해진다(2026-10-16,
+ * 벤치 · 밴드는 필수로 올림). 시작 시트가 '권장'으로 보여 준다.
  */
-export const RECOMMENDED_EQUIPMENT: readonly string[] = ['벤치', '밴드'];
+export const RECOMMENDED_EQUIPMENT: readonly string[] = ['메디신볼', '박스'];
 
 /**
  * 선택 운동 — 메디신볼을 던지는 칸(메디신볼 · 회전 던지기)은 건너뛰어도 된다(2026-10-14 김민: 못 던지는 환경일 수 있다).
@@ -688,7 +705,7 @@ const BASICS: ProgramDef = {
   id: 'basics-4w',
   goal: 'base',
   audience: 'basics',
-  required: [],
+  required: BASICS_REQUIRED_EQUIPMENT,
   name: '기본기 4주',
   origin: '성장기 · 입문 투수용 맨몸 · 가벼운 저항',
   summary: '무게 없이 자세부터 익혀요. 횟수와 세트만 조금씩 늘려요',
@@ -1177,7 +1194,7 @@ export function profileBlock(input: {
  * 시작할 수 있는가. 묻는 차례는 시작 시트의 차례(§13-12)와 같다 — 생년월일 · 경력 · 장비.
  * 시즌은 2026-10-10 에 묻지 않기로 했다(사용자: "시즌 정하는 건 다 빼").
  * 고르기 카드는 프로필로 이미 아는 막힘만 보고(나이 · 경력 — profileBlock), 나머지는 시트에서 받는다.
- * 기본기는 꼭 있어야 하는 장비가 없다(맨몸).
+ * 기본기는 덤벨 · 밴드(BASICS_REQUIRED_EQUIPMENT).
  */
 export function checkEligibility(input: EligibilityInput): Eligibility {
   const audience = input.audience ?? 'adult';
@@ -1204,7 +1221,7 @@ export function checkEligibility(input: EligibilityInput): Eligibility {
   }
   const gear = equipmentBlock(
     input.ownedEquipment,
-    audience === 'basics' ? [] : REQUIRED_EQUIPMENT
+    audience === 'basics' ? BASICS_REQUIRED_EQUIPMENT : REQUIRED_EQUIPMENT
   );
   if (gear) return { ok: false, kind: 'blocked', ...gear };
   return { ok: true };
@@ -1640,8 +1657,8 @@ export function variantCandidates<T extends PinnableExercise>(
       (!youth || intensityLevel(ex.intensity) < intensityLevel('매우 높음'))
   );
   /*
-   * 메디신볼이 없어 메디신볼 칸 후보가 하나도 없으면 인클라인 플라이오 푸시업(박스 · 벤치) — 같은 '상체를 빠르게 미는' 동작이라 그날 목적에
-   * 맞는다(2026-10-16 김민). 박스도 없으면 예전처럼 칸이 빠진다(load.ts '메디신볼이 없어 빼요'). 기본기는 제 규칙(맨몸 점프)이 있다.
+   * 메디신볼이 없어 메디신볼 칸 후보가 하나도 없으면 플라이오 푸시업 둘(인클라인 · 바닥) — 같은 '상체를 빠르게 미는' 동작이라 그날 목적에
+   * 맞는다(2026-10-16 김민). 하나뿐이면 세션마다 같은 운동이라 둘을 돌린다. 기본기는 제 규칙(맨몸 점프)이 있다.
    */
   /*
    * 기본기 당기기 — 맨몸뿐이면 당기기 후보가 없어 4주 내내 당기기 0번(푸시업만)이었다(2026-10-16 검토 ①). 등 · 견갑을 맨몸으로 끄는
@@ -1659,7 +1676,7 @@ export function variantCandidates<T extends PinnableExercise>(
     usable.push(
       ...library.filter(
         (ex) =>
-          inCategory(ex, '파워') && ex.title.includes('인클라인 플라이오 푸시업') && canDo(ex, ownedSet)
+          inCategory(ex, '파워') && ex.title.includes('플라이오 푸시업') && canDo(ex, ownedSet)
       )
     );
   }

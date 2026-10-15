@@ -648,7 +648,7 @@ function StartSheet({
                   ? `기준 무게는 시작 전 ${TM_LOOKBACK_DAYS / 7}주 기록으로 정해요. 기록이 없으면 첫날 ${PLUS_RESERVE}개 남는 무게로 정해요.`
                   : '기록이 없으면 처음엔 몇 개 남는 무게로 맞추고, 그 뒤부터 추천해요.'}
             </p>
-            {/* 권장 장비(벤치 · 밴드)가 빠졌으면 — 막지는 않고, 보조는 비슷한 운동으로 바꿔 넣는다(program.ts ACCESSORY_FALLBACK) */}
+            {/* 권장 장비(메디신볼 · 박스)가 빠졌으면 — 막지는 않고, 비슷한 운동으로 바꿔 넣는다 */}
             {!basics &&
               RECOMMENDED_EQUIPMENT.some((e) => !(props.owned.length > 0 ? props.owned : owned).includes(e)) && (
                 <p className="text-muted break-keep">
