@@ -111,7 +111,6 @@ export function TabPager({
     const html = document.documentElement;
     const tabList = () => latest.current.tabs.filter((t) => t.href !== MORE_HREF);
     const hrefOf = (i: number) => tabList()[i]?.href ?? latest.current.order[i];
-    const n = latest.current.order.length;
 
     const setDx = (dx: number) => el.style.setProperty('--dx', `${dx}px`);
     const trans = (v: string) => {
@@ -179,16 +178,11 @@ export function TabPager({
       return null;
     };
     /*
-     * 옆 판 — 홈(첫 칸)에서 오른쪽은 구속 측정. 홈에서 왼쪽(다음 탭 — 투구 · 트레이닝 · 영양 쪽)으로는 안 넘어가고 고무줄(2026-10-15 김민
-     * "홈에서는 구속 측정 말고 다른 탭으로 쓸리는 건 막아"). 다른 탭끼리 · 다른 탭에서 홈으로 돌아오는 쓸기는 그대로.
+     * 옆 판 — 쓸어서 가는 곳은 홈(첫 칸)에서 오른쪽의 구속 측정 하나뿐(2026-10-15 김민 "홈에서 구속 측정 쪽으로 쓸기 빼고 나머지 쓸기는 다
+     * 없애 줘"). 탭끼리는 하단 탭으로만 옮긴다. 'tab' 갈래(옆 탭으로 넘기기)는 남겨 두었지만 지금은 오지 않는다.
      */
-    const neighbor = (i: number, dir: 1 | -1): 'tab' | 'camera' | null => {
-      if (i === 0 && dir === 1) return null;
-      const j = i + dir;
-      if (j >= 0 && j < n) return 'tab';
-      if (i === 0 && dir === -1 && latest.current.camera) return 'camera';
-      return null;
-    };
+    const neighbor = (i: number, dir: 1 | -1): 'tab' | 'camera' | null =>
+      i === 0 && dir === -1 && latest.current.camera ? 'camera' : null;
 
     const onDown = (e: TouchEvent) => {
       const old = drag.current;
@@ -204,7 +198,8 @@ export function TabPager({
       if (drag.current || leaving.current) return;
       if (window.matchMedia(DESK_MEDIA).matches) return;
       const i = latest.current.index;
-      if (i < 0) return;
+      /* 홈에서만(구속 측정 쪽) — 다른 탭은 손가락을 아예 안 받는다. 트레이닝 · 영양의 날짜 띠 같은 가로 칸은 제 스스로 굴러간다 */
+      if (i !== 0 || !latest.current.camera) return;
       const p = e.touches[0];
       if (p.clientX < 16) return;
       /* 탭의 첫 화면에서만 — 트레이닝 하위 화면(메커니즘 · 암케어, '‹ 뒤로')도 주소는 /training */
@@ -242,11 +237,13 @@ export function TabPager({
         const ax = Math.abs(dx);
         const ay = Math.abs(dy);
         const yields = d.claim === (dx < 0 ? 'left' : 'right');
+        /* 왼쪽(다음 탭 쪽)으로 미는 손가락은 받지 않는다 — 구속 측정은 오른쪽으로 쓸 때만 */
+        const away = dx < 0;
         if (ax < SLOP && ay < SLOP) {
-          if (ax > ay && !yields && e.cancelable) e.preventDefault();
+          if (ax > ay && !yields && !away && e.cancelable) e.preventDefault();
           return;
         }
-        if (ax < ay * LOCK_RATIO || yields) {
+        if (ax < ay * LOCK_RATIO || yields || away) {
           drag.current = null;
           return;
         }
@@ -269,7 +266,8 @@ export function TabPager({
         const cam = latest.current.camera;
         setGhost(nb === 'camera' && cam ? { item: cam } : null);
       }
-      d.dx = nb ? mdx : mdx * 0.25;
+      /* 갈 곳이 없는 쪽(쓸다가 되돌린 왼쪽)은 따라가지 않는다 — 고무줄도 없이 제자리 */
+      d.dx = nb ? mdx : 0;
       setDx(d.dx);
       const g = ghostEl.current;
       if (g) g.style.transform = `translateX(${d.dx}px)`;
