@@ -2615,7 +2615,8 @@ export function VelocityScreen({
         실제로 들어오는 fps · 측정 워커가 장면 하나에 쓴 시간(16.7ms 를 넘으면 60fps 를 못 따라간다) · 계산이 밀려 버린 공 ·
         알아챈 수 · 잰 수 · 거부 수와 마지막 결과. 정보 판이 올라와 있어도 보이게 위에 둔다.
       */}
-      {isAdmin && diagHud && cameraOn && (
+      {/* 진단 표시(관리자 설정)는 측정 단계에서만 — 첫 화면이 카메라가 된 뒤 첫 화면 · 안내 단계에도 떴다(2026-10-15 김민) */}
+      {isAdmin && diagHud && cameraOn && step === 'measure' && (
         <div
           aria-hidden
           className="pointer-events-none absolute left-3 top-[calc(6.25rem+env(safe-area-inset-top))] z-30 max-w-[15rem] rounded-lg bg-black/70 px-2.5 py-1.5 text-xs leading-snug text-white/90 tabular-nums backdrop-blur"
