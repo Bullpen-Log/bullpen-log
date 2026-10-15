@@ -36,60 +36,20 @@ export function labGuideHref(section?: LabGuideSection): string {
   return section ? `${LAB_GUIDE_HREF}#${section}` : LAB_GUIDE_HREF;
 }
 
-export type LabGuideCheck = { id: string; title: string; why: string };
+export type LabGuideCheck = { id: string; title: string };
 
-/** 찍기 전 확인 — 현장에서 하나씩 체크한다(체크는 그 폰에만 남는다) */
+/**
+ * 찍기 전 확인 — 현장에서 하나씩 체크한다(체크는 그 폰에만 남는다). 2026-10-15 김민: "글이 너무 많아 조잡하다" → 제목 한 줄씩,
+ * 까닭은 아래 칸들이 말한다.
+ */
 export const LAB_GUIDE_CHECKS: LabGuideCheck[] = [
-  {
-    id: 'two',
-    title: '폰 두 대로 같은 공을 동시에',
-    why: '한 대로 옆 · 뒤를 나눠 찍은 영상은 올릴 수 없어요. 두 영상의 찍은 시각으로 알아봐요.',
-  },
-  {
-    id: 'angle',
-    title: '옆(3루 쪽)과 뒤(2루 쪽), 두 폰 사이 90°쯤',
-    why: '두 폰 사이가 60° 보다 좁거나 120° 보다 넓으면 폰의 자리를 찾지 못해요.',
-  },
-  {
-    id: 'slowmo',
-    title: '슬로 모션 240fps',
-    why: '보통 동영상(30fps)은 공을 놓는 순간 팔이 번져서 올릴 수 없어요.',
-  },
-  {
-    id: 'lens',
-    title: '1배 렌즈 그대로',
-    why: '분석이 1배 렌즈로 계산해요. 줌이나 광각(0.5배)은 올릴 수 없어요.',
-  },
-  {
-    id: 'tripod',
-    title: '삼각대에 세우고 수평으로',
-    why: '손에 들면 흔들리고, 폰이 옆으로 기울면 위아래를 잘못 잡아요.',
-  },
-  {
-    id: 'frame',
-    title: '옆 폰은 가로, 뒤 폰은 세로로 몸 전체가 끝까지',
-    why: '옆은 투수가 화면 높이의 절반~2/3, 뒤는 1/3~절반쯤이 알맞아요. 작게 찍히거나 발 · 손이 화면 밖으로 나가면 관절을 놓쳐요.',
-  },
-  {
-    id: 'light',
-    title: '밝은 곳에서',
-    why: '어두우면 셔터가 느려져 팔이 번져요. 낮 야외가 가장 좋아요.',
-  },
-  {
-    id: 'length',
-    title: '다리 들기 전부터 팔로스루 뒤까지, 한 영상에 한 공',
-    why: '5~6초면 충분해요. 2초보다 짧으면 올릴 수 없어요.',
-  },
-  {
-    id: 'original',
-    title: '사진 앱의 원본 그대로 올리기',
-    why: '화면 녹화한 영상은 올릴 수 없어요. 자르거나 내보낸 영상은 시간이 어긋나요.',
-  },
-  {
-    id: 'move',
-    title: '다른 폰에서 옮긴 영상도 초당 장수 그대로',
-    why: 'AirDrop 은 옵션에서 모든 사진 데이터를 켜고 보내요. 그냥 보내면 슬로 모션이 보통 영상으로 바뀔 수 있어요.',
-  },
+  { id: 'two', title: '폰 두 대로 같은 공을 동시에' },
+  { id: 'angle', title: '옆 폰(3루 쪽)은 가로, 뒤 폰(2루 쪽)은 세로' },
+  { id: 'slowmo', title: '슬로 모션 240fps, 배율 1×' },
+  { id: 'tripod', title: '삼각대에 세우고 수평으로' },
+  { id: 'frame', title: '발끝부터 머리, 손까지 화면 안에' },
+  { id: 'light', title: '밝은 곳에서' },
+  { id: 'original', title: '원본 그대로 옮기고 올리기' },
 ];
 
 /**
@@ -118,7 +78,7 @@ export const LAB_FAIL_FIX: Partial<
     section: 'frame',
   },
   framing: {
-    fix: '옆 폰은 가로로 3.5~5m, 뒤 폰은 세로로 3~4m 에서 찍으면 대개 알맞아요. 투수 앞을 아무도 지나가지 않게 해 주세요.',
+    fix: '옆 폰은 가로로 3.5~5m, 뒤 폰은 세로로 3~4m 에서 찍어 주세요. 투수 앞을 아무도 지나가지 않게 해요.',
     section: 'frame',
   },
   events: {

@@ -116,7 +116,7 @@ check(
   new Set(LAB_GUIDE_CHECKS.map((c) => c.id)).size === LAB_GUIDE_CHECKS.length
 );
 const guideTexts = [
-  ...LAB_GUIDE_CHECKS.flatMap((c) => [c.title, c.why]),
+  ...LAB_GUIDE_CHECKS.map((c) => c.title),
   ...Object.values(LAB_FAIL_FIX).map((f) => f?.fix ?? ''),
 ];
 check('촬영 안내 — 글에 줄표 없음', !guideTexts.some((t) => t.includes('—')));

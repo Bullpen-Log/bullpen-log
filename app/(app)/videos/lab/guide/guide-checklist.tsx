@@ -99,22 +99,17 @@ export function GuideChecklist({ hand }: { hand: LabHand }) {
           const on = done.has(c.id);
           return (
             <li key={c.id}>
-              <label className="flex min-h-14 cursor-pointer items-start gap-3 px-3 py-3">
+              <label className="flex min-h-12 cursor-pointer items-center gap-3 px-3 py-2.5">
                 <input
                   type="checkbox"
                   checked={on}
                   onChange={(e) => toggle(c.id, e.target.checked)}
-                  className="mt-0.5 h-5 w-5 shrink-0 rounded accent-sky"
+                  className="h-5 w-5 shrink-0 rounded accent-sky"
                 />
-                <span className="min-w-0 space-y-0.5">
-                  <span
-                    className={`block text-sm font-semibold break-keep transition-colors ${on ? 'text-muted' : 'text-ink'}`}
-                  >
-                    {forHand(c.title, hand)}
-                  </span>
-                  <span className="block text-xs leading-relaxed break-keep text-muted">
-                    {forHand(c.why, hand)}
-                  </span>
+                <span
+                  className={`min-w-0 text-sm font-semibold break-keep transition-colors ${on ? 'text-muted line-through decoration-muted/50' : 'text-ink'}`}
+                >
+                  {forHand(c.title, hand)}
                 </span>
               </label>
             </li>
