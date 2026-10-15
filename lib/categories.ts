@@ -70,3 +70,15 @@ export const TRAINING_CATEGORY_NAMES: readonly string[] = TRAINING_CATEGORIES.ma
 export const MECHANICS_CATEGORY_NAMES: readonly string[] = MECHANICS_CATEGORIES.map(
   (c) => c.name
 );
+
+/**
+ * 두 분류에 함께 드는 운동 — DB 의 분류(category)는 하나라 더 드는 분류를 여기 적는다(2026-10-16 김민: "박스 스쿼트는 스트렝스 · 파워 공통").
+ * 근력 프로그램의 본운동 칸(lib/program/program.ts VARIANT_RULES)이 inCategory 로 본다. 매일 일정(lib/report/theme.ts)은 아직 DB 분류만 본다.
+ */
+export const ALSO_IN: Readonly<Record<string, readonly string[]>> = {
+  '박스 스쿼트': ['하체 스트렝스'],
+};
+
+export function inCategory(ex: { title: string; category: string }, category: string): boolean {
+  return ex.category === category || (ALSO_IN[ex.title]?.includes(category) ?? false);
+}

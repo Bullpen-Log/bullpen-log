@@ -7,6 +7,7 @@ import {
   movementKeyOf,
   type ClassifiableExercise,
 } from '@/lib/engine/exercise-class';
+import { inCategory } from '@/lib/categories';
 import { intensityLevel } from '@/lib/exercise-meta';
 import { canDo } from '@/lib/report/equipment';
 import { filterByLevel } from '@/lib/report/personalize';
@@ -1443,7 +1444,7 @@ const VARIANT_RULES: Record<VariantKey, VariantRule> = {
   /* 큰 하체는 두 발로, 무게를 들고, 강도 '높음' 이상 — 바벨을 먼저 */
   squat: {
     match: (ex) =>
-      ex.category === '하체 스트렝스' &&
+      inCategory(ex, '하체 스트렝스') &&
       ex.movementPattern === '스쿼트' &&
       !ex.perSide &&
       isWeighted(ex) &&
@@ -1452,7 +1453,7 @@ const VARIANT_RULES: Record<VariantKey, VariantRule> = {
   },
   hinge: {
     match: (ex) =>
-      ex.category === '하체 스트렝스' &&
+      inCategory(ex, '하체 스트렝스') &&
       ex.movementPattern === '힌지' &&
       !ex.perSide &&
       isWeighted(ex) &&
@@ -1468,7 +1469,7 @@ const VARIANT_RULES: Record<VariantKey, VariantRule> = {
    */
   push: {
     match: (ex) =>
-      ex.category === '상체 스트렝스' &&
+      inCategory(ex, '상체 스트렝스') &&
       ex.movementPattern === '밀기' &&
       !ex.perSide &&
       isWeighted(ex) &&
@@ -1483,7 +1484,7 @@ const VARIANT_RULES: Record<VariantKey, VariantRule> = {
   /* 머리 위 밀기 — 바벨(밀리터리 프레스)을 먼저, 없으면 덤벨 숄더 프레스 */
   ohp: {
     match: (ex) =>
-      ex.category === '상체 스트렝스' &&
+      inCategory(ex, '상체 스트렝스') &&
       ex.movementPattern === '밀기' &&
       OVERHEAD_PRESS.test(ex.title) &&
       isWeighted(ex) &&
@@ -1496,7 +1497,7 @@ const VARIANT_RULES: Record<VariantKey, VariantRule> = {
    */
   pull: {
     match: (ex) =>
-      ex.category === '상체 스트렝스' &&
+      inCategory(ex, '상체 스트렝스') &&
       ex.movementPattern === '당기기' &&
       isWeighted(ex) &&
       intensityLevel(ex.intensity) >= 3,
@@ -1509,7 +1510,7 @@ const VARIANT_RULES: Record<VariantKey, VariantRule> = {
   },
   singleLeg: {
     match: (ex) =>
-      ex.category === '하체 스트렝스' &&
+      inCategory(ex, '하체 스트렝스') &&
       ex.movementPattern === '런지' &&
       isWeighted(ex) &&
       intensityLevel(ex.intensity) >= 3,
@@ -1524,13 +1525,13 @@ const VARIANT_RULES: Record<VariantKey, VariantRule> = {
   /* 파워 점프는 맨몸 · 박스로 뛰는 것 — 두 발 점프를 먼저 */
   jump: {
     match: (ex) =>
-      ex.category === '파워' &&
+      inCategory(ex, '파워') &&
       (ex.movementPattern === '스쿼트' || ex.movementPattern === '런지') &&
       ex.equipment.every((e) => e === '맨몸' || e === '박스'),
     rank: (ex) => [ex.perSide ? 1 : 0, ex.title.includes('점프') ? 0 : 1],
   },
   medball: {
-    match: (ex) => ex.category === '파워' && ex.equipment.includes('메디신볼'),
+    match: (ex) => inCategory(ex, '파워') && ex.equipment.includes('메디신볼'),
     /* 던지기(밀기 · 당기기 계열)를 먼저, 회전은 5~8주 몸통 칸이 쓰므로 뒤로, 뛰며 던지는 것은 맨 뒤 */
     rank: (ex) => [
       ex.movementPattern === '밀기' || ex.movementPattern === '당기기'
@@ -1542,7 +1543,7 @@ const VARIANT_RULES: Record<VariantKey, VariantRule> = {
   },
   antiRotation: {
     match: (ex) =>
-      ex.category === '코어' &&
+      inCategory(ex, '코어') &&
       [...ANTI_ROTATION_WORDS, ...ANTI_ROTATION_FALLBACK_WORDS].some((w) =>
         ex.title.includes(w)
       ),
@@ -1561,14 +1562,14 @@ const VARIANT_RULES: Record<VariantKey, VariantRule> = {
    */
   rotationalThrow: {
     match: (ex) =>
-      (ex.category === '파워' &&
+      (inCategory(ex, '파워') &&
         ex.equipment.includes('메디신볼') &&
         ex.movementPattern === '회전' &&
         /로테이션|로테이셔널|회전|스쿱|사이드|쉿|스로우|토스|숏풋/.test(ex.title)) ||
-      (ex.category === '코어' &&
+      (inCategory(ex, '코어') &&
         ROTATION_WORDS.some((w) => ex.title.includes(w)) &&
         !ANTI_ROTATION_WORDS.some((w) => ex.title.includes(w))),
-    rank: (ex) => [ex.category === '파워' ? 0 : 1, /트위스트/.test(ex.title) ? 1 : 0],
+    rank: (ex) => [inCategory(ex, '파워') ? 0 : 1, /트위스트/.test(ex.title) ? 1 : 0],
   },
   /*
    * 보조 메뉴 칸(ACCESSORY_KEYS) — 고르기 차례(rank)는 쓰지 않는다(accessoryPick 이 사람마다 섞는다). 버티기(아이소 · 홀드)는 처방이
@@ -1576,20 +1577,20 @@ const VARIANT_RULES: Record<VariantKey, VariantRule> = {
    */
   hpull: {
     match: (ex) =>
-      ex.category === '상체 스트렝스' && ex.movementPattern === '당기기' && !VERTICAL_PULL.test(ex.title) && !ex.title.includes('풀오버'),
+      inCategory(ex, '상체 스트렝스') && ex.movementPattern === '당기기' && !VERTICAL_PULL.test(ex.title) && !ex.title.includes('풀오버'),
     rank: () => [],
   },
   vpull: {
-    match: (ex) => ex.category === '상체 스트렝스' && ex.movementPattern === '당기기' && VERTICAL_PULL.test(ex.title),
+    match: (ex) => inCategory(ex, '상체 스트렝스') && ex.movementPattern === '당기기' && VERTICAL_PULL.test(ex.title),
     rank: () => [],
   },
   /* 보조 밀기 — 덤벨 · 케이블 · 푸시업 종류(바벨은 본운동 몫). 머리 위 프레스도 든다(2026-10-14 사용자: 투수도 머리 위 운동을 한다) */
   pushAcc: {
-    match: (ex) => ex.category === '상체 스트렝스' && ex.movementPattern === '밀기' && !ex.equipment.includes('바벨'),
+    match: (ex) => inCategory(ex, '상체 스트렝스') && ex.movementPattern === '밀기' && !ex.equipment.includes('바벨'),
     rank: () => [],
   },
   hamstring: {
-    match: (ex) => ex.category === '하체 스트렝스' && ex.movementPattern === '힌지' && !ex.equipment.includes('바벨'),
+    match: (ex) => inCategory(ex, '하체 스트렝스') && ex.movementPattern === '힌지' && !ex.equipment.includes('바벨'),
     rank: () => [],
   },
   scap: {
