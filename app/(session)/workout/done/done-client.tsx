@@ -10,6 +10,8 @@ import { formatWeight, type WeightUnit } from '@/lib/units';
 import { formatSummary, volumeIn, type ExerciseSummary } from '@/lib/workout/summarize';
 import type { NewRecord } from '@/lib/workout/bests';
 import { EffortCard } from './effort-card';
+import { NutritionLineNote } from '@/components/nutrition-line';
+import type { NutritionLine } from '@/lib/nutrition/nudge';
 
 export type DoneRow = {
   id: string;
@@ -44,7 +46,10 @@ export function DoneClient({
   rows,
   program = null,
   askEffort = null,
+  nutritionLine = null,
 }: {
+  /** 운동 뒤 단백질 한 줄 — 웨이트 · 파워를 한 오늘 판일 때만(lib/nutrition/nudge.ts) */
+  nutritionLine?: NutritionLine | null;
   /** 힘듦 칩을 보일 판 — null 이면 그날 강도를 이미 남겨 묻지 않는다(page.tsx 가 DailyTrainingNote 유무로 정한다) */
   askEffort?: { sessionId: string } | null;
   /** 근력 · 파워 프로그램 날이면 — 일차 넘김 · 고비 한 줄 · 운동별 추천 → 실제(설계 §13-9) */
@@ -223,6 +228,11 @@ export function DoneClient({
       </div>
 
       <div className="shrink-0 px-5 pt-3 pb-[max(1rem,env(safe-area-inset-bottom))]">
+        {nutritionLine && (
+          <div className="mx-auto mb-3 max-w-md">
+            <NutritionLineNote line={nutritionLine} />
+          </div>
+        )}
         {askEffort && <EffortCard sessionId={askEffort.sessionId} />}
         <Link
           href="/training"

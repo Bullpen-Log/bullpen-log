@@ -7,6 +7,7 @@ import { gatherFactsAndPlan } from '@/lib/report/gather';
 import { toDateKey } from '@/lib/pitch-stats';
 import { armStatusOf } from '@/lib/report/arm-status';
 import { loadVelocityDay } from '@/lib/velocity-load';
+import { pitchNutritionLine } from '@/lib/nutrition/nudge';
 import type { DayClient } from './day-client';
 
 /**
@@ -37,7 +38,7 @@ export async function loadPitchDay(date: string): Promise<PitchDayData | null> {
   const now = appNow();
   const todayKey = toDateKey(now);
 
-  const [logs, gathered, velocity] = await Promise.all([
+  const [logs, gathered, velocity, nutritionLine] = await Promise.all([
     prisma.pitchLog.findMany({
       where: { userId: user.id, date: at },
       orderBy: { createdAt: 'asc' },
@@ -51,6 +52,8 @@ export async function loadPitchDay(date: string): Promise<PitchDayData | null> {
     date === todayKey ? gatherFactsAndPlan(user, now) : null,
     /* 카메라로 잰 구속 — 세션과 공 하나하나(그날 화면의 '구속 측정' 칸) */
     loadVelocityDay(user.id, at),
+    /* 던진 뒤 회복식 한 줄 — 오늘 불펜 · 라이브 · 경기 기록이 있을 때만(lib/nutrition/nudge.ts). 저장 뒤 quietRefresh 로 곧바로 뜬다 */
+    pitchNutritionLine(user, date, todayKey),
   ]);
 
   const todayStatus = gathered ? armStatusOf(gathered.facts) : null;
@@ -59,6 +62,7 @@ export async function loadPitchDay(date: string): Promise<PitchDayData | null> {
     date,
     todayKey,
     todayStatus,
+    nutritionLine,
     initialLogs: logs.map((log) => ({ ...log, date: log.date.toISOString() })),
     velocity,
     /* 스피드건 값 칸은 관리자만(2026-10-15 사용자) */

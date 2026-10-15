@@ -310,6 +310,24 @@ const AFTER_SNACK = '우유 2컵 + 바나나';
 const LATE_PROTEIN = '자기 전 우유 · 요거트';
 
 /**
+ * 웨이트 · 파워 운동 뒤 단백질 한 줄 — 홈 조언('strength' 규칙)과 운동 끝 축하 화면(lib/nutrition/nudge.ts)이 같이 쓴다.
+ * 두 곳의 글이 어긋나지 않게 한 곳에 둔다.
+ */
+export function afterWorkoutProtein(after: MacroRange, late: boolean, power: boolean) {
+  return late
+    ? {
+        headline: `${LATE_PROTEIN}로 단백질 ${fmtRange(after)}`,
+        why: power
+          ? '파워 운동 뒤 단백질이 근육을 지켜요. 늦었으면 자기 전에.'
+          : '웨이트 뒤 단백질이 근육을 키워요. 늦었으면 자기 전에.',
+      }
+    : {
+        headline: `운동 뒤 1시간 안에 단백질 ${fmtRange(after)} · 달걀 2개 + 우유`,
+        why: power ? '파워 운동 뒤 단백질이 근육을 지켜요.' : '웨이트 뒤 단백질이 근육을 키워요.',
+      };
+}
+
+/**
  * 할 일 상황표 — 위가 이긴다. 던진 뒤 회복식 → 던지는 날(오전 던지기 전 · 오후 던진 뒤) → 등판 전날 → 운동 뒤 단백질(파워 ·
  * 웨이트) → 긴 유산소 → 걸른 끼니(지금 채우기) → 입맛 없음 → 근육통 → 더 먹을 양(단백질 → 탄수화물) → 많이 먹음(성인만) →
  * 목표별 기본. 20시 뒤(late)에는 '1시간 안' 대신 '자기 전 …'.
@@ -369,22 +387,12 @@ export const HEADLINE_RULES: readonly HeadlineRule[] = [
     key: 'strength',
     when: (s) =>
       s.input.training.some((t) => t.kind === 'strength' || t.kind === 'power'),
-    say: (s) => {
-      const power = s.input.training.some((t) => t.kind === 'power');
-      return s.late
-        ? {
-            headline: `${LATE_PROTEIN}로 단백질 ${fmtRange(s.after)}`,
-            why: power
-              ? '파워 운동 뒤 단백질이 근육을 지켜요. 늦었으면 자기 전에.'
-              : '웨이트 뒤 단백질이 근육을 키워요. 늦었으면 자기 전에.',
-          }
-        : {
-            headline: `운동 뒤 1시간 안에 단백질 ${fmtRange(s.after)} · 달걀 2개 + 우유`,
-            why: power
-              ? '파워 운동 뒤 단백질이 근육을 지켜요.'
-              : '웨이트 뒤 단백질이 근육을 키워요.',
-          };
-    },
+    say: (s) =>
+      afterWorkoutProtein(
+        s.after,
+        s.late,
+        s.input.training.some((t) => t.kind === 'power')
+      ),
   },
   {
     key: 'aerobic',

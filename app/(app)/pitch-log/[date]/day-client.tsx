@@ -10,6 +10,8 @@ import { FormError } from '@/components/ui';
 import { usePlaybackUrls } from '@/components/use-playback-urls';
 import { isFutureDateKey } from '@/lib/pitch-stats';
 import { ArmStatusNote } from '@/components/arm-status-note';
+import { NutritionLineNote } from '@/components/nutrition-line';
+import type { NutritionLine } from '@/lib/nutrition/nudge';
 import type { ArmStatus } from '@/lib/report/arm-status';
 import { EntryForm } from '../entry-form';
 import { DayRecord } from '../day-record';
@@ -84,6 +86,7 @@ export function DayClient({
   date,
   todayKey,
   todayStatus,
+  nutritionLine = null,
   initialLogs,
   velocity,
   isAdmin = false,
@@ -92,6 +95,8 @@ export function DayClient({
   todayKey: string;
   /** 지금 팔 상태(위험 · 주의 · 안전) — 오늘 날짜일 때만 들어온다 */
   todayStatus: ArmStatus | null;
+  /** 던진 뒤 회복식 한 줄 — 오늘 던진 기록이 있을 때만 */
+  nutritionLine?: NutritionLine | null;
   initialLogs: Log[];
   /** 카메라로 잰 구속 — 세션과 공 하나하나. 없으면 빈 배열 */
   velocity: VelocitySessionView[];
@@ -193,6 +198,8 @@ export function DayClient({
       {date === todayKey && todayStatus && (
         <ArmStatusNote status={todayStatus} compact />
       )}
+
+      {date === todayKey && nutritionLine && <NutritionLineNote line={nutritionLine} />}
 
       {/* 카메라 구속 측정 — 공마다 구종 · 코스 · 결과를 고치고 지운다 */}
       <VelocitySection sessions={velocity} isAdmin={isAdmin} />

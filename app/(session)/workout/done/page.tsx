@@ -8,6 +8,8 @@ import { summarizeSets, totalVolumeKg } from '@/lib/workout/summarize';
 import { priorBests } from '@/lib/workout/prior-bests';
 import { newRecord } from '@/lib/workout/bests';
 import { toDateKey } from '@/lib/pitch-stats';
+import { appNow } from '@/lib/clock';
+import { workoutNutritionLine } from '@/lib/nutrition/nudge';
 import { DoneClient, type DoneRow } from './done-client';
 
 /**
@@ -168,9 +170,19 @@ export default async function WorkoutDonePage({
       })()
     : null;
 
+  /* 운동 뒤 단백질 한 줄 — 오늘 마친 웨이트 · 파워 세션일 때만(lib/nutrition/nudge.ts). 세트를 남긴 운동의 분류로 본다 */
+  const now = appNow();
+  const nutritionLine = await workoutNutritionLine(user, {
+    date: toDateKey(session.date),
+    today: toDateKey(now),
+    now,
+    categories: [...new Set(sets.map((s) => byId.get(s.exerciseId)?.category ?? ''))],
+  });
+
   return (
     <DoneClient
       program={program}
+      nutritionLine={nutritionLine}
       themeLabel={plan?.themeLabel ?? '오늘의 운동'}
       dateLabel={new Intl.DateTimeFormat('ko-KR', {
         month: 'long',
