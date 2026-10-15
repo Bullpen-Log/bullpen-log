@@ -3154,6 +3154,24 @@ html[data-splash] *::after {
 }
 
 /*
+ * PC 위 막(components/app-shell.tsx 의 data-desk-veil, 2026-10-15) — 로고(top 24 ~ 48px) · 오른쪽 위 줄 밑을 바탕색으로 덮고 그 밑 1.5rem 동안 옅어진다.
+ * 본문은 --page-top(100px) 에서 시작하니 맨 위에서는 아무것도 안 가리고, 굴려 올라간 본문만 로고 밑에서 사라진다. 선은 없다.
+ * PC 에서 위에 붙는 칸(sticky)은 이 막 밑에 붙게 top 을 --desk-veil-solid 로(3D 동작 분석 결과의 3D 칸).
+ */
+:root {
+  --desk-veil-solid: 3.75rem;
+}
+[data-desk-veil] {
+  height: calc(var(--desk-veil-solid) + 1.5rem);
+  background: linear-gradient(
+    to bottom,
+    var(--color-page) 0,
+    var(--color-page) var(--desk-veil-solid),
+    color-mix(in oklab, var(--color-page) 0%, transparent) 100%
+  );
+}
+
+/*
  * 휴대폰 위 막(components/app-shell.tsx MobileTopBar 의 data-top-veil, 2026-10-15 3판) — 시계 자리 + 위 막대(보일 때)를 덮는다.
  * 예전에는 92% 판이 시계 자리 끝에서 딱 끊겨 본문 위에 선이 그어졌다(사용자: Claude · 인스타 앱 예시처럼 "선 없애고").
  * 같은 날 사용자: "너무 불투명해" → "훨씬 투명하게" → "기준선을 넘으면 확 흐려지지 말고 그라데이션처럼".

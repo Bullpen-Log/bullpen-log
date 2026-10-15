@@ -1173,6 +1173,12 @@ export function AppNav({
 
         본문 위쪽 여백(desk:pt-16)이 이 높이만큼 비워져 있어 글과 겹치지 않는다.
       */}
+      {/*
+        PC 위 막(2026-10-15) — 로고 · 오른쪽 위 줄 밑을 바탕색으로 덮고 밑에서 옅어진다. 1366px 보다 좁은 PC 창에서는 본문 칸이 로고 자리까지
+        와서, 굴리면 카드 · 글이 로고 '불펜로그' 글자 밑으로 지나가며 겹쳤다(휴대폰 위 막대와 같은 문제 — 사용자 "다른 곳도 봐줘").
+        globals.css 'desk-veil'. 로고 · 줄(z-40)보다 밑, 본문보다 위.
+      */}
+      <div aria-hidden data-desk-veil className="pointer-events-none fixed inset-x-0 top-0 z-39 hidden desk:block" />
       <Link
         href="/today"
         /*
