@@ -9,7 +9,8 @@ from scipy.optimize import least_squares
 from scipy.sparse import lil_matrix
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from kpcal import load_kp, sample, sync_pair, CAMS
+from kpcal import load_kp, sample, sync_pair
+from cams import CAMS, FREE, PAIRS
 
 F0 = 1600.0
 
@@ -153,7 +154,7 @@ def refine_offsets(cams, ds, offs, span=0.012, step=0.001):
     for p, d in ds.items():
         tq = d["1"]["t"][::2]
         base = {c: sample(d[c], tq + offs[p][c]) for c in CAMS}
-        for c in "234":
+        for c in CAMS[1:]:
             others = [k for k in CAMS if k != c]
             # 다른 카메라로 교차(그대로)
             X = {}
@@ -183,13 +184,13 @@ def solve_offsets(pair):
     """짝 어긋남 o_ab = o_b - o_a → 카메라별(1 = 0) 최소제곱."""
     A, b = [], []
     for ab, o in pair.items():
-        row = np.zeros(3)
+        row = np.zeros(len(FREE))
         a, c = ab[0], ab[1]
-        if c != "1": row["234".index(c)] += 1
-        if a != "1": row["234".index(a)] -= 1
+        if c != "1": row[FREE.index(c)] += 1
+        if a != "1": row[FREE.index(a)] -= 1
         A.append(row); b.append(o)
     x = np.linalg.lstsq(np.array(A), np.array(b), rcond=None)[0]
-    return {"1": 0.0, "2": float(x[0]), "3": float(x[1]), "4": float(x[2])}
+    return {"1": 0.0, **{c: float(x[i]) for i, c in enumerate(FREE)}}
 
 
 if __name__ == "__main__":
@@ -199,7 +200,7 @@ if __name__ == "__main__":
     offs = {}
     for p in pitches:
         pr = {}
-        for a, b in [("1", "2"), ("1", "3"), ("1", "4"), ("2", "3"), ("2", "4"), ("3", "4")]:
+        for a, b in PAIRS:
             pr[a + b] = sync_pair(ds[p][a], ds[p][b], lo=-1.2, hi=1.2, coarse=1 / 60)[0]
         offs[p] = solve_offsets(pr)
         print(f"투구 {p} 짝 어긋남 → {json.dumps({k: round(v, 4) for k, v in offs[p].items()})}", flush=True)

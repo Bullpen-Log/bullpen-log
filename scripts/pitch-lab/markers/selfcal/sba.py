@@ -10,7 +10,8 @@ from scipy.sparse import lil_matrix
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from tracks import build, at
-from match import track_edges, points, CAMS
+from match import track_edges, points
+from cams import CAMS, FREE
 
 
 def proj_k(cam, X):
@@ -41,7 +42,7 @@ def collect(pitches, cams, offs, tol, step):
                 h = 0.5 / 240
                 a, b = at(tr, np.array([tt - h, tt + h]))
                 vel = (b - a) / (2 * h) if not (np.isnan(a[0]) or np.isnan(b[0])) else np.zeros(2)
-                rows.append((k, "1234".index(c), p, u, v, vel[0], vel[1], tid))
+                rows.append((k, CAMS.index(c), p, u, v, vel[0], vel[1], tid))
         print(f"  투구 {p}: 짝 {len(E)} · 점 {len(P)}", flush=True)
     return np.array(rows), np.array(X0), meta
 
@@ -50,10 +51,10 @@ def run(pitches, cams, offs, tol=6.0, step=2 / 240, use_k1=True, nfev=150):
     rows, X0, meta = collect(pitches, cams, offs, tol, step)
     pk, pc, pp = rows[:, 0].astype(int), rows[:, 1].astype(int), rows[:, 2].astype(int)
     uv0, vel = rows[:, 3:5], rows[:, 5:7]
-    free = ["2", "3", "4"]
-    NC = 3 * 6 + 4 * 2  # 2~4 의 r · t, 넷의 f(÷1000) · k1
-    oidx = {(p, c): NC + i * 3 + "234".index(c) for i, p in enumerate(pitches) for c in "234"}
-    NO = NC + 3 * len(pitches)
+    free, NF = FREE, len(FREE)
+    NC = 6 * NF + 2 * len(CAMS)  # 1 을 뺀 카메라의 r · t, 모두의 f(÷1000) · k1
+    oidx = {(p, c): NC + i * NF + free.index(c) for i, p in enumerate(pitches) for c in free}
+    NO = NC + NF * len(pitches)
     o0 = np.array([offs[p][CAMS[c]] for p, c in zip(pp, pc)])
     oi = np.array([oidx[(p, CAMS[c])] if c > 0 else -1 for p, c in zip(pp, pc)])
     C1 = -cv2.Rodrigues(np.asarray(cams["1"]["r"], float))[0].T @ np.asarray(cams["1"]["t"], float)
@@ -67,10 +68,10 @@ def run(pitches, cams, offs, tol=6.0, step=2 / 240, use_k1=True, nfev=150):
             if c in free:
                 j = free.index(c) * 6
                 cam["r"], cam["t"] = x[j:j + 3], x[j + 3:j + 6]
-            q = 18 + "1234".index(c) * 2
+            q = 6 * NF + CAMS.index(c) * 2
             cam["f"], cam["k1"] = 1000.0 * x[q], (x[q + 1] if use_k1 else 0.0)
             cs[c] = cam
-        o = {(p, c): x[oidx[(p, c)]] for p in pitches for c in "234"}
+        o = {(p, c): x[oidx[(p, c)]] for p in pitches for c in free}
         return cs, o, x[NO:].reshape(-1, 3)
 
     def fun(x):
@@ -89,7 +90,7 @@ def run(pitches, cams, offs, tol=6.0, step=2 / 240, use_k1=True, nfev=150):
         j = free.index(c) * 6
         x0[j:j + 3], x0[j + 3:j + 6] = cams[c]["r"], cams[c]["t"]
     for c in CAMS:
-        q = 18 + "1234".index(c) * 2
+        q = 6 * NF + CAMS.index(c) * 2
         x0[q], x0[q + 1] = cams[c]["f"] / 1000.0, cams[c].get("k1", 0.0)
     for (p, c), j in oidx.items():
         x0[j] = offs[p][c]
@@ -99,14 +100,14 @@ def run(pitches, cams, offs, tol=6.0, step=2 / 240, use_k1=True, nfev=150):
     idx = np.arange(n)
     for i, c in enumerate(CAMS):
         m = idx[pc == i]
-        cols = ([free.index(c) * 6 + q for q in range(6)] if c in free else []) + [18 + i * 2, 18 + i * 2 + 1]
+        cols = ([free.index(c) * 6 + q for q in range(6)] if c in free else []) + [6 * NF + i * 2, 6 * NF + i * 2 + 1]
         for q in cols:
             A[2 * m, q] = 1; A[2 * m + 1, q] = 1
     m = idx[oi >= 0]
     A[2 * m, oi[m]] = 1; A[2 * m + 1, oi[m]] = 1
     for q in range(3):
         A[2 * idx, NO + pk * 3 + q] = 1; A[2 * idx + 1, NO + pk * 3 + q] = 1
-    A[2 * n, :18] = 1
+    A[2 * n, :6 * NF] = 1
     t0 = time.time()
     r = least_squares(fun, x0, jac_sparsity=A, x_scale="jac", loss="huber", f_scale=2.0, method="trf", tr_solver="lsmr",
                       max_nfev=nfev, xtol=1e-12, ftol=1e-12, verbose=0)
@@ -115,9 +116,9 @@ def run(pitches, cams, offs, tol=6.0, step=2 / 240, use_k1=True, nfev=150):
     print(f"  BA {time.time() - t0:.0f}초 nfev {r.nfev} · 관측 {n} · 다시 비춤 가운데값 {np.median(e):.2f}px p90 {np.percentile(e, 90):.2f} · "
           + " ".join(f"c{c}:{np.median(e[pc == i]):.2f}" for i, c in enumerate(CAMS)), flush=True)
     print("  초점", {c: round(cs[c]["f"], 1) for c in CAMS}, " k1", {c: round(cs[c]["k1"], 4) for c in CAMS})
-    offs2 = {p: {"1": 0.0, **{c: float(o[(p, c)]) for c in "234"}} for p in pitches}
+    offs2 = {p: {"1": 0.0, **{c: float(o[(p, c)]) for c in free}} for p in pitches}
     for p in pitches:
-        print(f"  어긋남 {p}: " + " ".join(f"{c}:{offs2[p][c]:+.4f}({(offs2[p][c] - offs[p][c]) * 1000:+.1f}ms)" for c in "234"))
+        print(f"  어긋남 {p}: " + " ".join(f"{c}:{offs2[p][c]:+.4f}({(offs2[p][c] - offs[p][c]) * 1000:+.1f}ms)" for c in free))
     return cs, offs2, X, e, rows, meta
 
 

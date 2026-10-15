@@ -9,7 +9,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from tracks import build, at
 from kpba import proj, tri, Pmat
 
-CAMS = "1234"
+from cams import CAMS
 
 
 def K_of(cam):

@@ -10,7 +10,7 @@ rows, _, meta = collect(pitches, cb, ob, 2.0, 2 / 240)
 Xs = []
 for cams, offs in ((ca, oa), (cb, ob)):
     vp = VP(rows, pitches, cams, {p: ob[p] for p in pitches}, True)
-    vp.o0 = np.array([ob[p]["1234"[c]] for p, c in zip(vp.pp, vp.pc)])  # 같은 관측 자리에서 시작
+    vp.o0 = np.array([ob[p][CAMS[c]] for p, c in zip(vp.pp, vp.pc)])  # 같은 관측 자리에서 시작
     Xs.append(vp.resid(vp.x0, want_X=True)[1])
 A, B = Xs
 ma, mb = A.mean(0), B.mean(0); a, b = A - ma, B - mb

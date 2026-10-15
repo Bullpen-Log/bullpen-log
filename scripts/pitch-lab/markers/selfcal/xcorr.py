@@ -1,4 +1,5 @@
 import sys, os, numpy as np
+from cams import CAMS, PAIRS
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from sig import load, energy2
 from scipy.ndimage import gaussian_filter1d
@@ -24,8 +25,8 @@ def lag(ya, yb, maxlag=1.2):
 
 if __name__ == "__main__":
     for p in [int(x) for x in sys.argv[1:]]:
-        ys = {c: sig(p, c)[1] for c in "1234"}
+        ys = {c: sig(p, c)[1] for c in CAMS}
         out = []
-        for a, b in [("1", "2"), ("1", "3"), ("1", "4"), ("2", "3"), ("2", "4"), ("3", "4")]:
+        for a, b in PAIRS:
             l, r = lag(ys[a], ys[b]); out.append(f"{a}{b}:{l:+.3f}({r:.2f})")
         print(p, " ".join(out))

@@ -8,9 +8,9 @@ from scipy.optimize import least_squares
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from sba import collect
-from match import CAMS
+from cams import CAMS, FREE
 
-FREE = ["2", "3", "4"]
+NF = len(FREE)
 
 
 def rmat(r):
@@ -28,15 +28,15 @@ class VP:
         C1 = -rmat(cams0["1"]["r"]).T @ np.asarray(cams0["1"]["t"], float)
         C2 = -rmat(cams0["2"]["r"]).T @ np.asarray(cams0["2"]["t"], float)
         self.C1, self.d12 = C1, np.linalg.norm(C2 - C1)
-        self.NC = 18 + 8
-        x0 = np.zeros(self.NC + 3 * len(pitches))
+        self.NC = 6 * NF + 2 * len(CAMS)
+        x0 = np.zeros(self.NC + NF * len(pitches))
         for i, c in enumerate(FREE):
             x0[i * 6:i * 6 + 3], x0[i * 6 + 3:i * 6 + 6] = cams0[c]["r"], cams0[c]["t"]
         for i, c in enumerate(CAMS):
-            x0[18 + 2 * i], x0[19 + 2 * i] = cams0[c]["f"] / 1000.0, cams0[c].get("k1", 0.0) if use_k1 else 0.0
+            x0[6 * NF + 2 * i], x0[6 * NF + 1 + 2 * i] = cams0[c]["f"] / 1000.0, cams0[c].get("k1", 0.0) if use_k1 else 0.0
         for j, p in enumerate(pitches):
-            for i, c in enumerate("234"):
-                x0[self.NC + 3 * j + i] = offs0[p][c]
+            for i, c in enumerate(FREE):
+                x0[self.NC + NF * j + i] = offs0[p][c]
         self.x0 = x0
 
     def cams(self, x):
@@ -48,18 +48,18 @@ class VP:
                 cam["r"], cam["t"] = x[k:k + 3], x[k + 3:k + 6]
                 if c == "2":  # 크기 기준: 카메라1(원점)~2 거리를 늘 처음 값으로
                     cam["t"] = cam["t"] * (self.d12 / max(np.linalg.norm(cam["t"]), 1e-12))
-            cam["f"], cam["k1"] = 1000.0 * x[18 + 2 * i], (x[19 + 2 * i] if self.use_k1 else 0.0)
+            cam["f"], cam["k1"] = 1000.0 * x[6 * NF + 2 * i], (x[6 * NF + 1 + 2 * i] if self.use_k1 else 0.0)
             cs[c] = cam
         return cs
 
     def offsets(self, x):
-        return {p: {"1": 0.0, **{c: float(x[self.NC + 3 * j + i]) for i, c in enumerate("234")}} for j, p in enumerate(self.pitches)}
+        return {p: {"1": 0.0, **{c: float(x[self.NC + NF * j + i]) for i, c in enumerate(FREE)}} for j, p in enumerate(self.pitches)}
 
     def resid(self, x, want_X=False):
         cs = self.cams(x)
         oo = np.zeros(len(self.pc))
         m = self.pc > 0
-        oo[m] = x[self.NC + 3 * self.pi[m] + self.pc[m] - 1]
+        oo[m] = x[self.NC + NF * self.pi[m] + self.pc[m] - 1]
         oo[~m] = 0.0
         uv = self.uv0 + self.vel * (oo - self.o0)[:, None]
         # 정규 좌표(렌즈 휨은 두 번 되돌려 근사)
@@ -74,7 +74,7 @@ class VP:
             xn, yn = xd / d, yd / d
         Rs = np.stack([rmat(cs[c]["r"]) for c in CAMS]); ts = np.stack([np.asarray(cs[c]["t"], float) for c in CAMS])
         P = np.concatenate([Rs, ts[:, :, None]], 2)[self.pc]  # (n,3,4)
-        A = np.zeros((self.N, 8, 4))
+        A = np.zeros((self.N, 2 * len(CAMS), 4))
         A[self.pk, 2 * self.pc] = xn[:, None] * P[:, 2] - P[:, 0]
         A[self.pk, 2 * self.pc + 1] = yn[:, None] * P[:, 2] - P[:, 1]
         V = np.linalg.svd(A)[2][:, -1]
@@ -96,14 +96,14 @@ class VP:
     def jac(self, x):
         r0 = self.resid(x)
         J = np.zeros((len(r0), len(x)))
-        cols = list(range(self.NC)) if self.use_k1 else [i for i in range(self.NC) if not (i >= 18 and (i - 18) % 2 == 1)]
+        cols = list(range(self.NC)) if self.use_k1 else [i for i in range(self.NC) if not (i >= 6 * NF and (i - 6 * NF) % 2 == 1)]
         for k in cols:
             h = 1e-6 * max(1.0, abs(x[k]))
             xp = x.copy(); xp[k] += h
             J[:, k] = (self.resid(xp) - r0) / h
         # 어긋남: 카메라마다 모든 투구를 한 번에(투구끼리 줄이 겹치지 않음)
-        for i in range(3):
-            ks = [self.NC + 3 * j + i for j in range(len(self.pitches))]
+        for i in range(NF):
+            ks = [self.NC + NF * j + i for j in range(len(self.pitches))]
             h = 2e-5
             xp = x.copy(); xp[ks] += h
             d = (self.resid(xp) - r0) / h
@@ -118,7 +118,7 @@ class VP:
 def setup_rigid(vp, rows, meta, pitches, w, groups=("knee", "elbow", "foot", "wrist"), min_n=20, max_cv=0.03):
     """같은 투구 · 색 · 무리의 3D 궤적 짝 중 지금 보정에서 거리 변동이 max_cv 밑인 것 — 거리 일정 조건."""
     from rigid import tracks3d, group_info
-    obs = [(int(r[0]), "1234"[int(r[1])], int(r[2]), int(r[7])) for r in rows]
+    obs = [(int(r[0]), CAMS[int(r[1])], int(r[2]), int(r[7])) for r in rows]
     k2trk = tracks3d(pitches, obs)
     gi = group_info(pitches)
     k2grp = {k: gi[(p, c, tid)] for k, c, p, tid in obs}
@@ -145,7 +145,7 @@ def setup_rigid(vp, rows, meta, pitches, w, groups=("knee", "elbow", "foot", "wr
         for a, b in lst:
             pid.append(keep); ka.append(a); kb.append(b); pp.append(pitches.index(key[0]))
         keep += 1
-    vp.rig = (np.array(pid), np.array(ka), np.array(kb), w)
+    vp.rig = (np.array(pid), np.array(ka), np.array(kb), w) if keep else None  # 짝이 없으면 조건 없이
     vp.rig_p = np.array(pp)
     print(f"  거리 일정 짝 {keep}개 · 조건 {len(pid)}줄 · 무게 {w:g}", flush=True)
 
@@ -158,7 +158,7 @@ def setup_rigid_labeled(vp, rows, meta, pitches, w, labels):
     """이름 붙은 스티커 짝: 모든 투구 · 시각에서 거리가 같다(짝마다 길이 하나)."""
     lab = {}
     for r in rows:
-        k, c, p, tid = int(r[0]), "1234"[int(r[1])], int(r[2]), int(r[7])
+        k, c, p, tid = int(r[0]), CAMS[int(r[1])], int(r[2]), int(r[7])
         nm = labels.get(str(p), {}).get(f"{c}:{tid}")
         if nm:
             lab.setdefault(k, []).append(nm)
