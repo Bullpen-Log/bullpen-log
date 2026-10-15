@@ -28,3 +28,12 @@ export const QUIET_REFRESH = 'quiet-refresh';
  */
 export const OPEN_POPUP = 'open-popup';
 export const OPEN_POPUP_TYPES = [OPEN_POPUP];
+
+/**
+ * 탭 쓸기로 옮기는 이동 — 화면 전환을 아예 걸지 않는다(components/tab-swipe.tsx, 2026-10-15).
+ *
+ * 쓸기는 손 뗀 자리에서 브라우저가 끝까지 밀고(본문 · 옆 탭 사본), 다 밀린 뒤에 화면을 바꾼다. 여기에 화면 전환까지 걸면
+ * 옛 · 새 본문 전체를 사진으로 찍느라 아이폰에서 0.1~0.3초 멈췄다(김민: "스와이프가 버벅인다").
+ */
+export const TAB_SWIPE = 'tab-swipe';
+export const TAB_SWIPE_TYPES = [TAB_SWIPE];

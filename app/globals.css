@@ -3097,6 +3097,11 @@ html[data-splash] *::after {
   opacity: 0;
   transition: opacity 180ms ease-out;
 }
+/* 자리표시가 본문 사본일 때(components/tab-swipe.tsx shots) — 사본 안의 들어오는 움직임 · 전환이 다시 돌지 않게 */
+[data-tab-ghost] * {
+  animation: none !important;
+  transition: none !important;
+}
 @media (prefers-reduced-motion: reduce) {
   [data-tab-ghost][data-done] {
     transition: none;
