@@ -4,6 +4,8 @@
  *   npm run pitch-lab:test
  */
 import { isLabId, isLabView, labMetaChips, readLabMeta } from '../lib/pitch-lab-meta.ts';
+import { LAB_FAIL_FIX, LAB_GUIDE_CHECKS, labGuideHref } from '../lib/pitch-lab-guide.ts';
+import { V2_VIDEO_FAULT } from '../lib/pitch-3d/v2/contract.ts';
 
 let passed = 0;
 let failed = 0;
@@ -91,6 +93,28 @@ check('종류 — 없으면 일반 샘플', readLabMeta({}, NOW).kind === 'sampl
 check('종류 — 마커', readLabMeta({ kind: 'marker' }, NOW).kind === 'marker');
 check('마커 표시가 맨 앞', labMetaChips(readLabMeta({ kind: 'marker' }, NOW))[0] === '마커');
 check('표시 글에 줄표 없음', !labMetaChips(d).some((t) => t.includes('—')));
+
+/* 촬영 안내(2026-10-15) — lib/pitch-lab-guide.ts */
+check(
+  '촬영 안내 — 영상 탓 실패마다 고칠 것이 있음',
+  [...V2_VIDEO_FAULT].every((code) => LAB_FAIL_FIX[code]?.fix),
+  [...V2_VIDEO_FAULT].filter((code) => !LAB_FAIL_FIX[code]).join(', ')
+);
+check(
+  '촬영 안내 — 확인 목록 열쇠가 겹치지 않음',
+  new Set(LAB_GUIDE_CHECKS.map((c) => c.id)).size === LAB_GUIDE_CHECKS.length
+);
+const guideTexts = [
+  ...LAB_GUIDE_CHECKS.flatMap((c) => [c.title, c.why]),
+  ...Object.values(LAB_FAIL_FIX).map((f) => f?.fix ?? ''),
+];
+check('촬영 안내 — 글에 줄표 없음', !guideTexts.some((t) => t.includes('—')));
+check(
+  '촬영 안내 — 해요체로 끝남',
+  guideTexts.filter((t) => t.endsWith('.')).every((t) => /요\.$/.test(t)),
+  guideTexts.filter((t) => t.endsWith('.') && !/요\.$/.test(t)).join(' / ')
+);
+check('촬영 안내 주소', labGuideHref() === '/videos/lab/guide' && labGuideHref('frame') === '/videos/lab/guide#frame');
 
 console.log(`\n통과 ${passed} · 실패 ${failed}`);
 if (failed > 0) process.exit(1);

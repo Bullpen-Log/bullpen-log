@@ -11,6 +11,7 @@ import {
   v2WaitingText,
   type Pitch3dV2Job,
 } from '@/lib/pitch-3d/v2/contract';
+import { LAB_FAIL_FIX, labGuideHref } from '@/lib/pitch-lab-guide';
 
 /**
  * v2 분석의 상태 조각들(화면 결정 4~8) — 결과 화면(lab-detail.tsx)과 목록 카드(lab-client.tsx)가 쓴다.
@@ -72,6 +73,8 @@ export function V2EmptyWell({
 }) {
   let title: string;
   let line: string | null = null;
+  /* 영상 탓 실패면 촬영 안내의 그 칸으로(lib/pitch-lab-guide.ts LAB_FAIL_FIX) */
+  let guide: string | null = null;
   if (loading) {
     title = '결과를 불러오는 중이에요';
   } else if (job && isV2JobActive(job, now)) {
@@ -79,9 +82,14 @@ export function V2EmptyWell({
     line = '화면을 떠나도 분석은 계속돼요. 돌아오면 이어서 보여요.';
   } else if (job?.status === 'failed' && job.fail) {
     title = job.fail.reason;
-    line = V2_VIDEO_FAULT.has(job.fail.code)
-      ? '영상 탓일 수 있어요. 밝은 곳 · 원본 파일 · 삼각대 · 두 폰 60~120° 로 다시 찍어 올려 주세요.'
-      : '서버 쪽 문제예요. 아래에서 다시 분석할 수 있어요.';
+    const fix = LAB_FAIL_FIX[job.fail.code];
+    if (V2_VIDEO_FAULT.has(job.fail.code)) {
+      line =
+        fix?.fix ?? '영상 탓일 수 있어요. 밝은 곳 · 원본 파일 · 삼각대 · 두 폰 60~120° 로 다시 찍어 올려 주세요.';
+      guide = labGuideHref(fix?.section ?? 'checklist');
+    } else {
+      line = '서버 쪽 문제예요. 아래에서 다시 분석할 수 있어요.';
+    }
   } else if (!v2Enabled) {
     /* 서버 설정(PITCH3D_GPU_*)이 없는 곳 — 일반 사용자도 보므로 설정 이름은 안 쓴다 */
     title = '지금은 3D 분석을 쓸 수 없어요';
@@ -103,6 +111,14 @@ export function V2EmptyWell({
         <p className="max-w-sm text-xs leading-relaxed text-[#9aa3b8] break-keep">
           {line}
         </p>
+      )}
+      {guide && (
+        <Link
+          href={guide}
+          className="mt-1 flex min-h-10 items-center rounded-full bg-white/10 px-4 text-sm font-semibold text-[#e8eef7]"
+        >
+          촬영 안내 보기
+        </Link>
       )}
     </div>
   );
