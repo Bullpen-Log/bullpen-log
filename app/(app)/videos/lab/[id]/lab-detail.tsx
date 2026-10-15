@@ -79,6 +79,7 @@ export function LabDetail({
   engineBuild = null,
   drillPicks = {},
   preview,
+  ownerHeightCm = null,
 }: {
   sample: LabSample;
   v2Enabled: boolean;
@@ -88,6 +89,8 @@ export function LabDetail({
   drillPicks?: DrillPicks;
   /** 개발 확인용 결과(서버를 안 부른다) */
   preview?: Pitch3dV2Ok | null;
+  /** 샘플에 키가 없을 때 쓸 올린 사람의 키(내 샘플일 때만, page.tsx) */
+  ownerHeightCm?: number | null;
 }) {
   const v2 = useV2Analysis(sample.id, sample.v2.job, preview);
   const [now, setNow] = useState(() => Date.now());
@@ -175,7 +178,7 @@ export function LabDetail({
               result={result}
               onTransport={onTransport}
               ground={ground}
-              heightCm={meta?.heightCm ?? null}
+              heightCm={meta?.heightCm ?? ownerHeightCm}
             />
           ) : (
             <V2EmptyWell
@@ -242,7 +245,7 @@ export function LabDetail({
           {result && (
             <MechCard
               result={result}
-              heightCm={meta?.heightCm ?? null}
+              heightCm={meta?.heightCm ?? ownerHeightCm}
               drillPicks={drillPicks}
               onJump={jump}
             />

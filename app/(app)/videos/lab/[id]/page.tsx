@@ -36,6 +36,8 @@ export default async function LabSamplePage({
       v2Enabled={isPitch3dV2Configured()}
       engineBuild={engineBuild}
       drillPicks={drillPicks}
+      /* 샘플에 키가 비어 있으면(예전 샘플) 내 샘플일 때만 가입 때 적은 키로 — 3D 인형 크기 · 점검 cm */
+      ownerHeightCm={sample.ownerId === user.id ? (user.heightCm ?? null) : null}
     />
   );
 }
