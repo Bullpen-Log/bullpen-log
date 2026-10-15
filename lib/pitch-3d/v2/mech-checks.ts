@@ -6,7 +6,7 @@
  * 결과 좌표는 [앞, 위, 옆] · 키 = 1000mm(contract.ts) — 앞 = 니업 → 착지 사이 골반이 나아간 쪽(수평)이라 맞춤 스크립트의 F 와 같다.
  * 길이는 키 비율로 내고, 키(cm)를 알면 cm 도 함께 낸다. 판정 · 문턱은 이 파일 밖(3단계).
  */
-import { V2J, type Pitch3dV2Ok, type V2JointName } from '@/lib/pitch-3d/v2/contract';
+import { V2J, plantFrame, type Pitch3dV2Ok, type V2JointName } from '@/lib/pitch-3d/v2/contract';
 import { angleDeg, mid, sub, type Vec3 } from '@/lib/pitch-3d/linalg';
 
 /** 최대 분리를 찾는 구간의 시작 — 착지 이만큼 전부터 릴리스까지(sep_timing.py '좁힘': 니업부터 찾으면 다리 들 때 평평한 투구가 튄다) */
@@ -86,7 +86,9 @@ const yaw = (v: Vec3) => (Math.atan2(v[2], v[0]) * 180) / Math.PI;
 
 export function mechChecks(r: MechChecksInput, heightCm?: number | null): MechChecks {
   const n = r.joints.length;
-  const { footPlant: fp, release: rl } = r.events;
+  /* 착지 = 앞발 전체가 닿은 장면(2026-10-15 김민) — 옛 결과는 발목이 닿은 장면 */
+  const fp = plantFrame(r.events);
+  const rl = r.events.release;
   const ku = r.events.kneeUp;
   const P = (k: number, name: V2JointName): Vec3 => r.joints[k][V2J[name]] as Vec3;
   const hip = (k: number) => mid(P(k, 'lHip'), P(k, 'rHip'));

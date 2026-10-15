@@ -31,7 +31,7 @@ type SegmentOut =
       ok: true;
       side: { fromSec: number; toSec: number };
       back: { fromSec: number; toSec: number };
-      events: { kneeUp: number | null; footPlant: number; release: number };
+      events: { kneeUp: number | null; footPlant: number; footFlat?: number; release: number };
       /** 구간을 고운 fps(min(120, 영상 fps))로 풀면 몇 장인지(상한 600 안으로 잘랐다) */
       frames: number;
       /** 진단(로그용) — 진행 방향 · 던진 손목 · 앞다리 · 순간 · 영상 처음과 끝 */
@@ -88,6 +88,7 @@ export function pickSegment(input: {
     lead: ev.leadSide,
     kneeUp: ev.kneeUp?.t ?? null,
     footPlant: ev.footPlant?.t ?? null,
+    footFlat: ev.footFlat?.t ?? null,
     release: ev.release?.t ?? null,
     first: sideT.frames[0]?.t ?? null,
     last: sideT.frames[sideT.frames.length - 1]?.t ?? null,
@@ -157,7 +158,12 @@ export function pickSegment(input: {
       fromSec: r3(Math.max(bFirst, Math.min(...bts) - margin)),
       toSec: r3(Math.min(bLast, Math.max(...bts) + margin)),
     },
-    events: { kneeUp, footPlant: fp, release: rel },
+    events: {
+      kneeUp,
+      footPlant: fp,
+      ...(ev.footFlat && ev.footFlat.t >= fp && ev.footFlat.t < rel ? { footFlat: ev.footFlat.t } : {}),
+      release: rel,
+    },
     frames: Math.round((to - from) * fineFps),
     diag,
   };
@@ -300,7 +306,13 @@ export function readV2Events(raw: unknown): V2Input['events'] {
   const footPlant = num(r.footPlant);
   const release = num(r.release);
   if (footPlant == null || release == null || !(release > footPlant)) return undefined;
-  return { kneeUp: num(r.kneeUp), footPlant, release };
+  const footFlat = num(r.footFlat);
+  return {
+    kneeUp: num(r.kneeUp),
+    footPlant,
+    ...(footFlat != null && footFlat >= footPlant && footFlat < release ? { footFlat } : {}),
+    release,
+  };
 }
 
 /**

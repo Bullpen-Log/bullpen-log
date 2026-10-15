@@ -6,7 +6,7 @@ import { ChevronDown, ChevronRight } from '@/components/icon';
 import { Expand } from '@/components/expand';
 import { mechanicsElement } from '@/lib/mechanics/elements';
 import type { DrillPick } from '@/lib/mechanics/drills';
-import type { Pitch3dV2Ok } from '@/lib/pitch-3d/v2/contract';
+import { plantFrame, type Pitch3dV2Ok } from '@/lib/pitch-3d/v2/contract';
 import { mechChecks } from '@/lib/pitch-3d/v2/mech-checks';
 import {
   judgeMechanics,
@@ -49,9 +49,9 @@ export function MechCard({
         drift: result.events.kneeUp,
         separation: m.separation.frame,
         trunkTiming: m.separation.trunkHalfFrame,
-        trunkAtPlant: result.events.footPlant,
+        trunkAtPlant: plantFrame(result.events),
         block: result.events.release,
-        pelvisLevel: result.events.footPlant,
+        pelvisLevel: plantFrame(result.events),
       } as Record<MechVerdict['key'], number | null>,
     };
   }, [result, heightCm]);

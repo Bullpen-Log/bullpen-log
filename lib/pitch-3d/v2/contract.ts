@@ -116,7 +116,7 @@ export type V2Input = {
   /** 시험용(합성 투수) — 화면 녹화 · 슬로모 · 아는 순간. GPU 는 원본 영상이라 안 준다 */
   screenRecorded?: boolean;
   slowmoFps?: number | null;
-  events?: { kneeUp?: number | null; footPlant: number; release: number };
+  events?: { kneeUp?: number | null; footPlant: number; footFlat?: number; release: number };
   /** 통계 움직임 틀(motion-template.ts) — 두 영상 다 안 보인 관절 짐작. 없으면 예전 채우기 */
   motionTemplate?: MotionTemplate;
   /** 초점 사전(선택) — '1배로 찍음'처럼 렌즈를 알 때만(lib/pitch-3d/camera.ts FOCAL_PRIOR_1X). 없으면 예전과 같다 */
@@ -210,7 +210,11 @@ export type Pitch3dV2Ok = {
   conf: number[][];
   /** 확신 낮은 장면 구간 [시작, 끝](끝 포함) — 재생 막대에 엷은 회색(화면 결정 13) */
   lowConf: [number, number][];
-  events: { kneeUp: number | null; footPlant: number; release: number };
+  /**
+   * footPlant = 앞발 발목이 닿은 장면(엔진 · 화면 모델이 발을 묶는 기준), footFlat = 앞발 전체가 닿은 장면(사용자에게 보이는 '착지' ·
+   * 착지 지표 · 점검). footFlat 이 없는 옛 결과는 footPlant 로 본다(plantFrame).
+   */
+  events: { kneeUp: number | null; footPlant: number; footFlat?: number; release: number };
   /** v1 정의 그대로(0-3절 결정 ④ 대기) */
   metrics: Metric[];
   quality: Pitch3dQuality;
@@ -343,6 +347,7 @@ export function readPitch3dV2Result(raw: unknown): Pitch3dV2Result | null {
   if (
     !e ||
     !okIdx(e.footPlant) ||
+    !(e.footFlat === undefined || okIdx(e.footFlat)) ||
     !okIdx(e.release) ||
     !(e.kneeUp === null || okIdx(e.kneeUp))
   )
@@ -603,3 +608,8 @@ export function v2WaitingText(job: Pitch3dV2Job, nowMs: number): string {
   if (min < 10) return '조금 더 걸리고 있어요. 화면을 떠나도 분석은 계속돼요.';
   return '15분이 지나면 멈추고 다시 할 수 있어요.';
 }
+
+/** 사용자에게 보이는 '착지' 장면 — 앞발 전체가 닿은 장면(옛 결과는 발목이 닿은 장면) */
+export const plantFrame = (e: { footPlant: number; footFlat?: number }): number => e.footFlat ?? e.footPlant;
+/** 화면에 보이는 순간 — '착지'만 앞발 전체가 닿은 장면으로 */
+export const shownEvents = <E extends { footPlant: number; footFlat?: number }>(e: E): E => ({ ...e, footPlant: plantFrame(e) });

@@ -12,7 +12,7 @@ import {
   type LabGround,
   type LabView,
 } from '@/lib/pitch-lab-meta';
-import type { Pitch3dV2Ok } from '@/lib/pitch-3d/v2/contract';
+import { shownEvents, type Pitch3dV2Ok } from '@/lib/pitch-3d/v2/contract';
 import type { Metric, MetricKey } from '@/lib/pitch-3d/metrics';
 import { V2EmptyWell, V2RequestRow, V2StatusBadge } from './analysis-v2';
 import { MechCard, type DrillPicks } from './mech-card';
@@ -271,7 +271,7 @@ export function LabDetail({
                     <MetricRow
                       key={m.key}
                       m={m}
-                      onClick={() => jump(result.events[MOMENT[m.key]])}
+                      onClick={() => jump(shownEvents(result.events)[MOMENT[m.key]])}
                     />
                   ))}
                 </ul>
