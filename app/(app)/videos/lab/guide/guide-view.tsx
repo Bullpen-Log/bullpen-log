@@ -14,6 +14,7 @@ import { LAB_FAIL_FIX, type LabGuideSection } from '@/lib/pitch-lab-guide';
 import { LAB_MAX_VIDEO_MB } from '@/lib/pitch-lab-meta';
 import { FramingArt, PlacementArt } from './guide-art';
 import { GuideChecklist } from './guide-checklist';
+import { GuideJump } from './guide-jump';
 
 /** 촬영 안내 본문(page.tsx 가 로그인을 확인하고 그린다) — 글 · 근거는 lib/pitch-lab-guide.ts */
 export function LabGuideView() {
@@ -157,9 +158,7 @@ export function LabGuideView() {
                 </p>
                 <p className="text-xs leading-relaxed break-keep text-muted">
                   {fix.fix}{' '}
-                  <a href={`#${fix.section}`} className="font-medium text-sky">
-                    {SECTION_NAME[fix.section]} ›
-                  </a>
+                  <GuideJump section={fix.section}>{SECTION_NAME[fix.section]} ›</GuideJump>
                 </p>
               </li>
             );
