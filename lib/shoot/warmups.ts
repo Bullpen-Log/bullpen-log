@@ -14,7 +14,7 @@
 export type WarmupRoutineKind = 'COMMON' | 'LOWER' | 'UPPER_PUSH' | 'UPPER_PULL';
 
 export const WARMUP_ROUTINE_LABEL: Record<WarmupRoutineKind, string> = {
-  COMMON: '전신 워밍업',
+  COMMON: '공통 워밍업',
   LOWER: '하체 워밍업',
   UPPER_PUSH: '상체 밀기 워밍업',
   UPPER_PULL: '상체 당기기 워밍업',

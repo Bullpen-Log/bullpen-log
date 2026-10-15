@@ -86,6 +86,7 @@ export const Flag = weighted(L.Flag);
 export const Flame = weighted(L.Flame);
 export const FlaskConical = weighted(L.FlaskConical);
 export const Focus = weighted(L.Focus);
+export const Folder = weighted(L.Folder);
 export const Footprints = weighted(L.Footprints);
 export const Gauge = weighted(L.Gauge);
 export const GitCommitHorizontal = weighted(L.GitCommitHorizontal);

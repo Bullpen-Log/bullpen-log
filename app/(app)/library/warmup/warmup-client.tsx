@@ -343,8 +343,8 @@ export function WarmupClient({
       <div className="rounded-2xl border border-sky-soft/50 bg-sky-tint p-(--block-pad)">
         <p className="text-sm font-bold text-sky-strong">워밍업은 고정이에요</p>
         <p className="mt-1.5 text-xs leading-relaxed text-ink/80">
-          날마다 새로 뽑지 않아요. 운동을 시작하면 본운동 전에 오늘 목적에 맞는 루틴
-          하나와 전신 루틴이 떠요. 체크만 하고, 운동 시간과 운동량에는 안 들어가요.
+          날마다 새로 뽑지 않아요. 운동을 시작하면 본운동 전에 공통 루틴(몸 데우기 · 동적
+          가동)과 오늘 목적에 맞는 루틴 하나가 차례로 떠요. 체크만 하고, 운동 시간과 운동량에는 안 들어가요.
         </p>
         <p className="mt-2 text-xs leading-relaxed text-muted">
           회복하는 날에는 워밍업이 아예 나오지 않아요.

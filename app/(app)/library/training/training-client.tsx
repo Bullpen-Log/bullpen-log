@@ -2,8 +2,10 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import {
+  ChevronDown,
   Eye,
   EyeOff,
+  Folder,
   NotebookPen,
   Pencil,
   Search,
@@ -401,12 +403,63 @@ function ExerciseGrid({ items, isAdmin }: { items: ExerciseItem[]; isAdmin: bool
   );
 }
 
+/** 워밍업 칸의 루틴 폴더 — 공통 운동 + 그날 운동, 차례대로(page.tsx) */
+export type WarmupFolder = {
+  kind: string;
+  name: string;
+  description: string;
+  exerciseIds: string[];
+};
+
+/** 루틴 폴더 하나 — 누르면 펼쳐져 루틴 차례대로 운동이 나온다 */
+function WarmupFolderRow({
+  folder,
+  items,
+  isAdmin,
+}: {
+  folder: WarmupFolder;
+  items: ExerciseItem[];
+  isAdmin: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <section className="overflow-hidden rounded-xl bg-surface-2">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        className="flex min-h-14 w-full items-center gap-3 px-4 py-3 text-left"
+      >
+        <Folder aria-hidden className="h-5 w-5 shrink-0 text-sky" />
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm font-semibold text-ink">{folder.name}</span>
+          {folder.description && (
+            <span className="mt-0.5 block truncate text-xs text-muted">{folder.description}</span>
+          )}
+        </span>
+        <span className="shrink-0 text-xs text-muted">{items.length}개</span>
+        <ChevronDown
+          aria-hidden
+          className={`h-4 w-4 shrink-0 text-muted transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
+        />
+      </button>
+      {open && (
+        <div className="p-4 pt-1">
+          <ExerciseGrid items={items} isAdmin={isAdmin} />
+        </div>
+      )}
+    </section>
+  );
+}
+
 export function TrainingClient({
   exercises,
   isAdmin,
+  warmupFolders = [],
 }: {
   exercises: ExerciseItem[];
   isAdmin: boolean;
+  warmupFolders?: WarmupFolder[];
 }) {
   const [filter, setFilter] = useState<FilterState>({});
   /*
@@ -633,6 +686,36 @@ export function TrainingClient({
         <div className="space-y-4">
           {TRAINING_CATEGORIES.map((category) => {
             const items = byCategory[category.name] ?? [];
+            if (category.name === '워밍업' && warmupFolders.length > 0) {
+              const byId = new Map(visible.map((ex) => [ex.id, ex]));
+              const folders = warmupFolders.map((f) => ({
+                folder: f,
+                items: f.exerciseIds.flatMap((id) => byId.get(id) ?? []),
+              }));
+              const inFolder = new Set(warmupFolders.flatMap((f) => f.exerciseIds));
+              /* 루틴에 안 담긴 워밍업 영상 — 폴더 밑에 그대로 */
+              const loose = items.filter((ex) => !inFolder.has(ex.id));
+              return (
+                <CategorySection
+                  key={category.name}
+                  name={category.name}
+                  count={new Set([...inFolder].filter((id) => byId.has(id))).size + loose.length}
+                  isAdmin={isAdmin}
+                  form={<ExerciseForm category={category.name} />}
+                >
+                  <div className="space-y-2">
+                    {folders.map(({ folder, items: fx }) => (
+                      <WarmupFolderRow key={folder.kind} folder={folder} items={fx} isAdmin={isAdmin} />
+                    ))}
+                  </div>
+                  {loose.length > 0 && (
+                    <div className="mt-6">
+                      <ExerciseGrid items={loose} isAdmin={isAdmin} />
+                    </div>
+                  )}
+                </CategorySection>
+              );
+            }
 
             return (
               <CategorySection

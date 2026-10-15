@@ -19,8 +19,14 @@ const KIND_BY_PATTERN: Record<string, string> = {
   당기기: 'UPPER_PULL',
 };
 
-/** 언제나 함께 뜨는 전신 루틴 */
+/** 언제나 함께 뜨는 공통 루틴(몸 데우기 · 동적 가동) */
 export const COMMON_WARMUP_KIND = 'COMMON';
+
+/**
+ * 하체와 상체(밀기 · 당기기)가 함께 있는 날 — 전신 루틴(2026-10-16 김민: "전신을 쓰는 프로그램에는 전신 워밍업").
+ * ponytail: 하나씩만 섞여도 전신으로 본다. 프로그램 판은 보조까지 'main' 이라 근력 프로그램 날은 대개 전신 — 너무 잦으면 본운동 첫 줄로 가린다.
+ */
+export const FULL_WARMUP_KIND = 'FULL';
 
 type Countable = { slot: string; movementPattern: string | null };
 
@@ -48,6 +54,8 @@ export function warmupKindFor(
     const kind = e.movementPattern ? KIND_BY_PATTERN[e.movementPattern] : undefined;
     if (kind) count.set(kind, (count.get(kind) ?? 0) + 1);
   }
+
+  if (count.has('LOWER') && (count.has('UPPER_PUSH') || count.has('UPPER_PULL'))) return FULL_WARMUP_KIND;
 
   let best: string | null = null;
   let most = 0;

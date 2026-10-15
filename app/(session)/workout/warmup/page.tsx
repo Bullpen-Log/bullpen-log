@@ -77,8 +77,11 @@ export default async function WarmupPage() {
     }))
   );
 
-  /* 전신 루틴은 언제나 함께 뜬다. 목적 루틴이 앞이다 — 그쪽이 오늘의 본론이다. */
-  const kinds = todayKind ? [todayKind, COMMON_WARMUP_KIND] : [COMMON_WARMUP_KIND];
+  /*
+   * 공통 루틴은 언제나 함께 뜬다. 공통이 앞이다 — 몸 데우기 · 동적 가동(공통) 뒤에 그날 근육 깨우기 · 터뜨리기(그날)가
+   * 이어지는 차례라서(2026-10-16 워밍업 루틴 네 단계).
+   */
+  const kinds = todayKind ? [COMMON_WARMUP_KIND, todayKind] : [COMMON_WARMUP_KIND];
 
   const routines = await prisma.warmupRoutine.findMany({
     where: { kind: { in: kinds }, hiddenAt: null },

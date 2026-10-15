@@ -24,7 +24,7 @@ export type WarmupCard = {
   id: string;
   name: string;
   description: string;
-  /** 오늘 목적에 맞춰 붙은 루틴인가. 아니면 전신 루틴이다. */
+  /** 오늘 목적에 맞춰 붙은 루틴인가. 아니면 날마다 같은 공통 루틴이다. */
   forToday: boolean;
   items: WarmupItem[];
 };
@@ -116,7 +116,7 @@ export function WarmupClient({
                     오늘 맞춤
                   </span>
                 ) : (
-                  <span className="text-[10px] font-medium text-muted">전신</span>
+                  <span className="text-[10px] font-medium text-muted">공통</span>
                 )}
               </div>
               {card.description && (

@@ -6,7 +6,7 @@ import { favoriteExerciseIds } from '@/lib/favorites';
 import { exerciseNotes } from '@/lib/exercise-notes';
 import { createPlaybackUrls } from '@/lib/storage';
 import { referenceThumbUrl } from '@/lib/reference-video';
-import { TrainingClient, type ExerciseItem } from './training-client';
+import { TrainingClient, type ExerciseItem, type WarmupFolder } from './training-client';
 import { BodyPartsProvider } from '@/components/body-parts';
 import { throwingSide } from '@/lib/armcare/muscle-map';
 import { ArmcareInfoProvider } from '@/app/(app)/training/armcare-info';
@@ -54,10 +54,34 @@ export default async function TrainingPage() {
    * 별과 내 메모는 사람마다 다르다 — 캐시에 넣지 않고 여기서 읽는다.
    * 메모는 운동 중에 쓴 것이다(app/(session)/workout/run/exercise-note.tsx).
    */
-  const [favoriteIds, notes] = await Promise.all([
+  const [favoriteIds, notes, routines] = await Promise.all([
     favoriteExerciseIds(user.id),
     exerciseNotes(user.id),
+    prisma.warmupRoutine.findMany({
+      where: { hiddenAt: null },
+      orderBy: { sortOrder: 'asc' },
+      select: {
+        kind: true,
+        name: true,
+        description: true,
+        items: { orderBy: { sortOrder: 'asc' }, select: { exerciseId: true } },
+      },
+    }),
   ]);
+
+  /*
+   * 워밍업 칸은 루틴 폴더로 — 그날 루틴마다 하나, 안에는 공통(몸 데우기 · 동적 가동) 뒤에 그날 것(2026-10-16 김민: "워밍업 영상 안에
+   * 폴더 넷"). 담긴 운동은 제 분류(모빌리티 · 파워 …)에 그대로 있고 여기서는 모아 보이기만 한다.
+   */
+  const common = routines.find((r) => r.kind === 'COMMON')?.items.map((i) => i.exerciseId) ?? [];
+  const warmupFolders: WarmupFolder[] = routines
+    .filter((r) => r.kind !== 'COMMON')
+    .map((r) => ({
+      kind: r.kind,
+      name: r.name,
+      description: r.description,
+      exerciseIds: [...common, ...r.items.map((i) => i.exerciseId)],
+    }));
 
   // 미리보기 이미지 주소는 한 번의 요청으로 모아서 받는다.
   const thumbUrls = await createPlaybackUrls(
@@ -110,7 +134,7 @@ export default async function TrainingPage() {
   return (
     <BodyPartsProvider>
       <ArmcareInfoProvider side={throwingSide(user.throwingHand)}>
-        <TrainingClient exercises={items} isAdmin={isAdmin} />
+        <TrainingClient exercises={items} isAdmin={isAdmin} warmupFolders={warmupFolders} />
       </ArmcareInfoProvider>
     </BodyPartsProvider>
   );
