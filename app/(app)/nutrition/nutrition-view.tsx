@@ -20,8 +20,6 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
-  ChevronsLeft,
-  ChevronsRight,
   Minus,
   Plus,
   Settings2,
@@ -29,6 +27,7 @@ import {
   X,
 } from '@/components/icon';
 import { MiniCalendar } from '@/components/mini-calendar';
+import { DateScrollStrip } from '@/components/date-scroll-strip';
 import { useWeightUnit } from '@/components/use-units';
 import { Segmented } from '@/components/segmented';
 import { PAGE_TITLE_LINE } from '@/components/ui';
@@ -676,8 +675,7 @@ export function NutritionView({
  * 날짜를 옮기는 길은 넷이다 — 멀리 갈수록 쓰는 길이 다르다.
  *
  *   하루      제목 옆 화살표 · PC 는 키보드 ← →
- *   이번 주   날짜 띠의 칸을 누른다
- *   몇 주     띠 양끝의 겹화살표, 휴대폰은 띠를 옆으로 민다
+ *   몇 주     날짜 띠(최근 6주)를 옆으로 굴려 칸을 누른다
  *   먼 날     날짜 제목을 누르면 작은 달력이 뜬다 — 적은 날에 점이 찍혀 있다
  *
  * 예전에는 화살표 하나라, 지난달 것을 보려면 서른 번을 눌러야 했다.
@@ -855,13 +853,11 @@ function DateNav({
   );
 }
 
-const WEEKDAY_SHORT = ['일', '월', '화', '수', '목', '금', '토'];
-
 /**
- * 날짜 띠 — 고른 날이 든 한 주(일~토).
+ * 날짜 띠 — 최근 6주를 옆으로 굴리는 한 줄(components/date-scroll-strip.tsx, 트레이닝과 같은 띠).
  *
  * 칸마다 그날 먹은 양이 목표의 얼마인지 가는 막대로 보여 준다. 어느 날을 비웠는지가
- * 한눈에 보여, 빠뜨린 날로 곧장 간다. 휴대폰은 띠를 옆으로 밀면 한 주씩 넘어간다.
+ * 한눈에 보여, 빠뜨린 날로 곧장 간다. 2026-10-15 사용자 "좌우로 긴 것 스크롤 가능하게" — 예전에는 한 주(일~토)와 겹화살표였다.
  */
 function WeekStrip({
   strip,
@@ -875,154 +871,37 @@ function WeekStrip({
   /** 놓일 자리(머리 줄 안에서의 순서 · 폭) */
   className?: string;
 }) {
-  const router = useRouter();
-  const start = useRef<{ x: number; y: number } | null>(null);
-  const swiped = useRef(false);
-
-  const back = shiftDateKey(date, -7);
-  const prevWeek = back >= oldest(today) ? back : null;
-  /* 다음 주가 아직 안 왔으면 오늘로 — 오늘이 이 띠에 없을 때만 */
-  const ahead = shiftDateKey(date, 7);
-  const nextWeek =
-    ahead <= today ? ahead : strip.some((d) => d.date === today) ? null : today;
-
-  const go = (d: string | null) => {
-    if (d) router.push(hrefOf(d, today), { scroll: false });
-  };
-  const edge =
-    'flex w-8 shrink-0 items-center justify-center rounded-lg text-muted transition-colors hover:bg-surface-2 hover:text-ink';
-
+  const byDate = new Map(strip.map((d) => [d.date, d]));
   return (
-    <div
-      className={`flex touch-pan-y items-stretch gap-1 ${className}`}
-      onPointerDown={(e) => {
-        swiped.current = false;
-        start.current =
-          e.pointerType === 'mouse' ? null : { x: e.clientX, y: e.clientY };
+    <DateScrollStrip
+      days={strip.map((d) => d.date)}
+      date={date}
+      today={today}
+      hrefOf={(d) => hrefOf(d, today)}
+      labelOf={(d) => {
+        const kcal = byDate.get(d)?.kcal ?? 0;
+        return kcal > 0 ? `${kcalText(kcal)}kcal 먹음` : '기록 없음';
       }}
-      onPointerUp={(e) => {
-        const s = start.current;
-        start.current = null;
-        if (!s) return;
-        const dx = e.clientX - s.x;
-        if (Math.abs(dx) > 50 && Math.abs(e.clientY - s.y) < 40) {
-          swiped.current = true;
-          go(dx > 0 ? prevWeek : nextWeek);
-        }
+      mark={(d, selected) => {
+        const s = byDate.get(d);
+        const pct = s && s.target > 0 ? Math.min(100, (s.kcal / s.target) * 100) : 0;
+        const over = !!s && s.kcal > s.target;
+        return (
+          <span
+            aria-hidden
+            className={`mt-1 h-1 w-6 overflow-hidden rounded-full ${selected ? 'bg-white/30' : 'bg-line'}`}
+          >
+            <span
+              className={`block h-full rounded-full transition-[width] duration-500 ${EASE} ${
+                selected ? 'bg-white' : over ? 'bg-warn' : 'bg-sky'
+              }`}
+              style={{ width: `${pct}%` }}
+            />
+          </span>
+        );
       }}
-      /* 밀었을 때는 손가락이 떨어진 칸이 눌린 것으로 치지 않는다 */
-      onClickCapture={(e) => {
-        if (swiped.current) {
-          e.preventDefault();
-          e.stopPropagation();
-          swiped.current = false;
-        }
-      }}
-    >
-      {prevWeek ? (
-        <Link
-          href={hrefOf(prevWeek, today)}
-          scroll={false}
-          data-nav="none"
-          aria-label="한 주 전"
-          className={edge}
-        >
-          <ChevronsLeft aria-hidden className="h-4 w-4" />
-        </Link>
-      ) : (
-        <span aria-hidden className={`${edge} opacity-30`}>
-          <ChevronsLeft className="h-4 w-4" />
-        </span>
-      )}
-
-      <ol className="grid flex-1 grid-cols-7 gap-1">
-        {strip.map((d) => {
-          const future = d.date > today;
-          const selected = d.date === date;
-          const isToday = d.date === today;
-          const pct = d.target > 0 ? Math.min(100, (d.kcal / d.target) * 100) : 0;
-          const over = d.kcal > d.target;
-          const dayNo = Number(d.date.slice(8));
-          const weekday =
-            WEEKDAY_SHORT[new Date(`${d.date}T00:00:00.000Z`).getUTCDay()];
-          const face = (
-            <>
-              <span
-                className={`text-caption ${selected ? 'text-white/80' : 'text-muted'}`}
-              >
-                {weekday}
-              </span>
-              <span
-                className={`text-sm font-semibold tabular-nums ${
-                  selected ? 'text-white' : isToday ? 'text-sky' : 'text-ink'
-                }`}
-              >
-                {dayNo}
-              </span>
-              <span
-                aria-hidden
-                className={`mt-1 h-1 w-6 overflow-hidden rounded-full ${
-                  selected ? 'bg-white/30' : 'bg-line'
-                }`}
-              >
-                <span
-                  className={`block h-full rounded-full transition-[width] duration-500 ${EASE} ${
-                    selected ? 'bg-white' : over ? 'bg-warn' : 'bg-sky'
-                  }`}
-                  style={{ width: `${pct}%` }}
-                />
-              </span>
-            </>
-          );
-          const cell =
-            'flex flex-col items-center rounded-xl py-1.5 transition-[background-color,transform] duration-200 motion-safe:active:scale-95';
-          return (
-            <li key={d.date}>
-              {future ? (
-                <span aria-disabled className={`${cell} opacity-35`}>
-                  {face}
-                </span>
-              ) : (
-                <Link
-                  href={hrefOf(d.date, today)}
-                  scroll={false}
-                  data-nav="none"
-                  aria-current={selected ? 'date' : undefined}
-                  aria-label={`${dayTitle(d.date)}, ${
-                    d.kcal > 0 ? `${kcalText(d.kcal)}kcal 먹음` : '기록 없음'
-                  }`}
-                  className={`${cell} ${
-                    selected
-                      ? 'bg-sky shadow-sm'
-                      : isToday
-                        ? 'ring-1 ring-sky/40 hover:bg-surface-2'
-                        : 'hover:bg-surface-2'
-                  }`}
-                >
-                  {face}
-                </Link>
-              )}
-            </li>
-          );
-        })}
-      </ol>
-
-      {nextWeek ? (
-        <Link
-          href={hrefOf(nextWeek, today)}
-          scroll={false}
-          data-nav="none"
-          aria-label={nextWeek === today ? '오늘로' : '한 주 뒤'}
-          className={edge}
-        >
-          <ChevronsRight aria-hidden className="h-4 w-4" />
-        </Link>
-      ) : (
-        <span aria-hidden className={`${edge} opacity-30`}>
-          <ChevronsRight className="h-4 w-4" />
-        </span>
-      )}
-    </div>
+      className={className}
+    />
   );
 }
 

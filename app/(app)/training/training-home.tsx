@@ -26,7 +26,7 @@ import { TRAINING_PART_HREF, type TrainingPart } from '@/lib/training-part';
 import { StartWorkout } from './start-workout';
 import { TrainingDayStrip } from './day-strip';
 import { TrainingDateNav } from './date-nav';
-import { loadTrainingWeek } from '@/lib/training-week';
+import { loadTrainingStrip } from '@/lib/training-week';
 import { withJosa } from '@/lib/korean';
 
 type HomeUser = UserForToday & UserForArmcare & { id: string };
@@ -521,7 +521,7 @@ async function MechanicsCard({ userId }: { userId: string }) {
 /* ─────────────────────────────── 날짜 띠 ─────────────────────────────── */
 
 async function DayStripLoad({ userId, today }: { userId: string; today: string }) {
-  const days = await loadTrainingWeek(userId, today);
+  const days = await loadTrainingStrip(userId, today, today);
   return <TrainingDayStrip days={days} date={today} today={today} />;
 }
 

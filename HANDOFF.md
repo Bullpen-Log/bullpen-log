@@ -73,6 +73,8 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
   그날 기록(`/training/day/[date]`)에 같은 모양 띠(`training/day-strip.tsx` · `lib/training-week.ts` — 운동 · 암케어 · 메커니즘 한 날을 점으로, 오늘은 홈).
 - (같은 날 더) 트레이닝 제목 옆 간이 달력(`training/date-nav.tsx` — 영양 DateNav 와 같은 판, 점은 열 때 `app/actions/training-days.ts` 로 1년치). 트레이닝 홈 머리는
   PageHeading 대신 영양처럼 제목 · 달력 · 분석 한 줄(`training-home.tsx`). 그날 기록 화면은 달력 그림만.
+- (같은 날 더) 날짜 띠를 한 주 + 겹화살표 → 최근 6주를 옆으로 굴리는 한 줄로(사용자: "좌우로 긴 것 스크롤 가능하게"). 공용 `components/date-scroll-strip.tsx` ·
+  범위 `lib/date-strip.ts stripDays`. 영양 `NutritionDay.strip` 이 7일 → 42일(`lib/nutrition/load.ts` — 식사 · 운동 읽는 범위도 그만큼 넓어짐), `loadTrainingWeek` → `loadTrainingStrip`.
 
 ## 금윤호에게 — 2026-10-15 · 김민(Claude, 맥북) — 파워 운동 10개 더함 · 촬영 계획 2~5주 다시 짬 · 드릴 영상이 파워 복사본에도 붙음
 

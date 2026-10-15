@@ -4,6 +4,8 @@ import { visibleExercises } from '@/lib/library-cache';
 import { ARMCARE_CATEGORY } from '@/lib/armcare/anatomy';
 import { shiftDateKey } from '@/lib/pitch-stats';
 import { dbDate, keyOfDbDate } from '@/lib/nutrition/days';
+import { stripDays } from '@/lib/date-strip';
+import { TRAINING_CALENDAR_BACK_DAYS } from '@/lib/training-part';
 
 /** 날짜 띠의 한 칸 — 그날 무엇을 했나(앱마다 점 하나) */
 export type TrainingStripDay = {
@@ -41,19 +43,18 @@ async function doneByDate(userId: string, from: string, to: string) {
 }
 
 /**
- * 트레이닝 날짜 띠 — 고른 날이 든 한 주(일~토, 영양 탭의 날짜 띠와 같은 칸).
+ * 트레이닝 날짜 띠 — 최근 6주를 옆으로 굴리는 한 줄(영양 탭의 날짜 띠와 같은 칸, lib/date-strip.ts).
  *
- * 2026-10-15 사용자: "영양 위에 있던 최근 날짜 보기를 트레이닝에도". 칸마다 운동 · 암케어 · 메커니즘을 한 날을 점으로 —
- * 어느 날 쉬었는지가 한눈에 보이고, 누르면 그날 기록(/training/day/날짜)으로 간다.
+ * 2026-10-15 사용자: "영양 위에 있던 최근 날짜 보기를 트레이닝에도" · "좌우로 긴 것 스크롤 가능하게". 칸마다 운동 · 암케어 ·
+ * 메커니즘을 한 날을 점으로 — 어느 날 쉬었는지가 한눈에 보이고, 누르면 그날 기록(/training/day/날짜)으로 간다.
  */
-export async function loadTrainingWeek(
+export async function loadTrainingStrip(
   userId: string,
-  dateKey: string
+  dateKey: string,
+  todayKey: string
 ): Promise<TrainingStripDay[]> {
-  const dow = new Date(`${dateKey}T00:00:00Z`).getUTCDay();
-  const first = shiftDateKey(dateKey, -dow);
-  const keys = Array.from({ length: 7 }, (_, i) => shiftDateKey(first, i));
-  const done = await doneByDate(userId, first, keys[6]);
+  const keys = stripDays(dateKey, todayKey, shiftDateKey(todayKey, -TRAINING_CALENDAR_BACK_DAYS));
+  const done = await doneByDate(userId, keys[0], keys[keys.length - 1]);
   return keys.map((date) => ({
     date,
     workout: done.workout.has(date),

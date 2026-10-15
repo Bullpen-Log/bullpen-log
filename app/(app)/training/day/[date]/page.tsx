@@ -8,7 +8,7 @@ import { toDateKey } from '@/lib/pitch-stats';
 import { DayExercises } from './day-exercises';
 import { TrainingDayStrip } from '../../day-strip';
 import { TrainingDateNav } from '../../date-nav';
-import { loadTrainingWeek } from '@/lib/training-week';
+import { loadTrainingStrip } from '@/lib/training-week';
 
 /**
  * 그날의 운동 기록 — 한 페이지.
@@ -51,7 +51,7 @@ export default async function TrainingDayPage({
   const todayKey = toDateKey(appNow());
   const [detail, week] = await Promise.all([
     trainingDay(user.id, date),
-    loadTrainingWeek(user.id, date),
+    loadTrainingStrip(user.id, date, todayKey),
   ]);
 
   const count = detail.exercises.length;
