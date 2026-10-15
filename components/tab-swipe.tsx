@@ -103,11 +103,41 @@ export function TabSwipe({
     latest.current = { pathname, tabs, order, camera };
   }, [pathname, tabs, order, camera]);
 
-  /* 미리 받기 — 틀이 뜰 때 탭 넷 · 구속 측정. 30초 지나면(staleTimes) 끌기 시작할 때 또 받는다 */
+  /*
+   * 미리 받기 — 지금 탭을 뺀 탭들을 '통째로'(kind: full — 화면 자료까지). 기본(auto)은 동적 화면을 로딩 화면(loading.tsx)까지만 받아,
+   * 쓸어 넘기면 뼈대가 뜨고 서버를 기다렸다(2026-10-15 김민: "스와이프하면 로딩 · 버벅임"). 통째로 받아 두면 놓는 순간 서버를 안 거치고
+   * 그려진다. 받아 둔 것이 오래되면(staleTimes 30초 — onInvalidate) 다시 받되, 화면이 안 보일 때(앱이 뒤에 있음)는 미뤘다가 돌아오면.
+   * 구속 측정은 다른 틀이라 예전처럼 가볍게.
+   */
   useEffect(() => {
-    for (const t of tabs) if (t.href !== MORE_HREF) router.prefetch(t.href);
+    let alive = true;
+    const later = new Set<string>();
+    const warm = (href: string) => {
+      if (!alive) return;
+      if (document.visibilityState !== 'visible') {
+        later.add(href);
+        return;
+      }
+      router.prefetch(href, {
+        kind: 'full',
+        onInvalidate: () => warm(href),
+      } as Parameters<typeof router.prefetch>[1]);
+    };
+    for (const t of tabs)
+      if (t.href !== MORE_HREF && base(t.href) !== pathname) warm(t.href);
     if (camera) router.prefetch(camera.href);
-  }, [router, tabs, camera]);
+    const onVisible = () => {
+      if (document.visibilityState !== 'visible') return;
+      const hrefs = [...later];
+      later.clear();
+      hrefs.forEach(warm);
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      alive = false;
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [router, tabs, camera, pathname]);
 
   /*
    * 새 화면이 그려지는 순간(그리기 직후 · 전환이 찍기 전) — 본문을 제자리로, 자리표시를 걷는다. 옛 본문이 어디까지 밀려 있었나(--swipe-x)는
@@ -235,7 +265,8 @@ export function TabSwipe({
         const i0 = indexOf(latest.current.pathname);
         for (const dir of [1, -1] as const) {
           const n0 = neighbor(i0, dir);
-          if (n0) router.prefetch(n0.item.href);
+          if (n0 && !n0.camera)
+            router.prefetch(n0.item.href, { kind: 'full' } as Parameters<typeof router.prefetch>[1]);
         }
         /* 잡은 자리부터 따라오게 — 문턱(SLOP)만큼 튀지 않게 */
         d.x += dx > 0 ? SLOP : -SLOP;
