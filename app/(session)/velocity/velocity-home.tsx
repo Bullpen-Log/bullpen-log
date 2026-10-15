@@ -31,10 +31,13 @@ export function VelocityHome({
   history,
   calibration,
   today,
+  isAdmin = false,
 }: {
   history: VelocityHistoryItem[];
   calibration: CalFit;
   today: string;
+  /** 관리자 — 설정의 '스피드건 보정 적용' 줄 */
+  isAdmin?: boolean;
 }) {
   const unit = useSpeedUnit();
   const stored = useStoredSetup();
@@ -75,6 +78,7 @@ export function VelocityHome({
         </Link>
         <VelocitySettingsButton
           calibration={calibration}
+          isAdmin={isAdmin}
           label="구속 측정 설정"
           className="inline-flex h-12 w-12 items-center justify-center rounded-full text-muted transition-colors hover:bg-ink/6 hover:text-ink [&>svg]:h-6 [&>svg]:w-6"
         />

@@ -61,5 +61,7 @@ export async function loadPitchDay(date: string): Promise<PitchDayData | null> {
     todayStatus,
     initialLogs: logs.map((log) => ({ ...log, date: log.date.toISOString() })),
     velocity,
+    /* 스피드건 값 칸은 관리자만(2026-10-15 사용자) */
+    isAdmin: user.role === 'ADMIN',
   };
 }

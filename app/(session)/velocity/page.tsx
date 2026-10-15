@@ -19,7 +19,7 @@ import { VelocityHome } from './velocity-home';
  * 위 막대 · 하단 탭 없이 화면 전체를 쓰고, PC 에서는 폰 크기 틀 안에 띄운다.
  */
 export default async function VelocityPage() {
-  const { user, allowed, pitchLocked } = await velocityAccess();
+  const { user, allowed, pitchLocked, isAdmin } = await velocityAccess();
   /* 처음 가입한 사람은 첫 설정(2026-10-09, lib/feature-locks.ts)을 마쳐야 연다 */
   if (pitchLocked) redirect(SETUP_PATH.pitch);
   if (!allowed) return <AppOnly />;
@@ -30,6 +30,11 @@ export default async function VelocityPage() {
   ]);
 
   return (
-    <VelocityHome history={history} calibration={fit} today={toDateKey(appNow())} />
+    <VelocityHome
+      history={history}
+      calibration={fit}
+      today={toDateKey(appNow())}
+      isAdmin={isAdmin}
+    />
   );
 }

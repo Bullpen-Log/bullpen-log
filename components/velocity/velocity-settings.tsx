@@ -73,12 +73,15 @@ export function VelocitySettingsFields({
   onChange,
   calibration,
   showChoices = true,
+  isAdmin = false,
 }: {
   values: SettingsValues;
   onChange: (patch: Partial<SettingsValues>) => void;
   calibration: CalFit;
   /** 녹화 종류 · 카메라 위치 · 네트도 여기서 바꿀까 — 측정 중에는 숨긴다 */
   showChoices?: boolean;
+  /** 관리자 — '스피드건 보정 적용' 줄(일반 사용자는 스피드건 짝을 안 쓴다, 2026-10-15) */
+  isAdmin?: boolean;
 }) {
   /* 구속 단위 — 앱 전체의 단위 설정(내 정보 · 투구 기록)과 같은 값. 여기서 바꾸면 거기도 바뀐다 */
   const speedUnit = useSpeedUnit();
@@ -126,17 +129,19 @@ export function VelocitySettingsFields({
             onChange={(clipZone) => onChange({ clipZone })}
           />
           {/* 광각 영상도 같이 저장은 없앴다 — 늘 끔(2026-10-08 사용자: 광각과 함께면 측정 카메라가 720p 로 떨어진다) */}
-          <ToggleRow
-            title="스피드건 보정 적용"
-            hint={
-              calibration.n > 0
-                ? `스피드건 짝 ${calibration.n}개 · ${calibrationText(calibration)}`
-                : '공에 스피드건 값을 적고 저장하면 쌓여요.'
-            }
-            checked={values.useCal && calibration.n > 0}
-            disabled={calibration.n === 0}
-            onChange={(useCal) => onChange({ useCal })}
-          />
+          {isAdmin && (
+            <ToggleRow
+              title="스피드건 보정 적용"
+              hint={
+                calibration.n > 0
+                  ? `스피드건 짝 ${calibration.n}개 · ${calibrationText(calibration)}`
+                  : '공에 스피드건 값을 적고 저장하면 쌓여요.'
+              }
+              checked={values.useCal && calibration.n > 0}
+              disabled={calibration.n === 0}
+              onChange={(useCal) => onChange({ useCal })}
+            />
+          )}
           {/* 투수 뒤 거리는 기준 20m 고정(lib/velocity-setup.ts STANDARD_TARGET_DIST_M) — 관리자는 측정의 '폰 자리' 단계에서 바꾼다 */}
           <label className="flex min-h-14 items-center justify-between gap-3 px-4 py-3">
             <span className="min-w-0">
@@ -358,10 +363,13 @@ export function useStoredSetup(): VelocitySetup | null {
  */
 export function VelocitySettingsButton({
   calibration,
+  isAdmin = false,
   className = '',
   label = '불펜 벨로시티 설정',
 }: {
   calibration: CalFit;
+  /** 관리자 — '스피드건 보정 적용' 줄 */
+  isAdmin?: boolean;
   className?: string;
   label?: string;
 }) {
@@ -432,6 +440,7 @@ export function VelocitySettingsButton({
             values={values}
             onChange={change}
             calibration={calibration}
+            isAdmin={isAdmin}
           />
           <div>
             <SectionLabel>이 기기</SectionLabel>

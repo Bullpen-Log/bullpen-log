@@ -3158,11 +3158,15 @@ export function VelocityScreen({
                     ? `${speedNum(shownPitch.gunKmh)} ${speedLabel(unit)}`
                     : null
                 }
-                onGun={() => {
-                  setEditing(shownPitch.id);
-                  setFocusGun(true);
-                  setSheet('pitch');
-                }}
+                onGun={
+                  isAdmin
+                    ? () => {
+                        setEditing(shownPitch.id);
+                        setFocusGun(true);
+                        setSheet('pitch');
+                      }
+                    : undefined
+                }
                 onAligned={(clipOffset) =>
                   setPitches((prev) =>
                     prev.map((q) => (q.id === shownPitch.id ? { ...q, clipOffset } : q))
@@ -3666,6 +3670,7 @@ export function VelocityScreen({
               value={editingPitch}
               onChange={(next) => patch(editingPitch.id, next)}
               focusGun={focusGun}
+              showGun={isAdmin}
             />
             <dl className="grid grid-cols-2 gap-x-4 gap-y-1.5 rounded-2xl bg-surface-2 px-4 py-3 text-xs">
               <Detail
@@ -3819,6 +3824,7 @@ export function VelocityScreen({
             }}
             showChoices={false}
             calibration={fit}
+            isAdmin={isAdmin}
             onChange={(patch) => {
               if (patch.fovDeg != null) changeFov(patch.fovDeg);
               if (patch.voice != null) {

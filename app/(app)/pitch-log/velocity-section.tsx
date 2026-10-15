@@ -57,7 +57,14 @@ const TIME_KST = new Intl.DateTimeFormat('ko-KR', {
   hourCycle: 'h23',
 });
 
-export function VelocitySection({ sessions }: { sessions: VelocitySessionView[] }) {
+export function VelocitySection({
+  sessions,
+  isAdmin = false,
+}: {
+  sessions: VelocitySessionView[];
+  /** 관리자 — 스피드건 값 칸(일반 사용자는 스피드건 짝을 안 쓴다, 2026-10-15) */
+  isAdmin?: boolean;
+}) {
   const router = useRouter();
   const unit = useSpeedUnit();
   const [editing, setEditing] = useState<VelocityPitchView | null>(null);
@@ -442,7 +449,7 @@ export function VelocitySection({ sessions }: { sessions: VelocitySessionView[] 
                 autoPlay,
                 maxHeight: '40dvh',
               })}
-            <PitchEditorFields value={draft} onChange={setDraft} />
+            <PitchEditorFields value={draft} onChange={setDraft} showGun={isAdmin} />
             {/* 저장 · 지우기 실패 — 시트가 위의 오류 줄을 덮으니 여기에도 */}
             {error && (
               <p

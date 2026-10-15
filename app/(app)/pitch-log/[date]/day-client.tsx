@@ -86,6 +86,7 @@ export function DayClient({
   todayStatus,
   initialLogs,
   velocity,
+  isAdmin = false,
 }: {
   date: string;
   todayKey: string;
@@ -94,6 +95,8 @@ export function DayClient({
   initialLogs: Log[];
   /** 카메라로 잰 구속 — 세션과 공 하나하나. 없으면 빈 배열 */
   velocity: VelocitySessionView[];
+  /** 관리자 — 구속 공 고치기에 스피드건 값 칸 */
+  isAdmin?: boolean;
 }) {
   const router = useRouter();
   const modal = useDayModal();
@@ -187,7 +190,7 @@ export function DayClient({
       {date === todayKey && todayStatus && <ArmStatusNote status={todayStatus} />}
 
       {/* 카메라 구속 측정 — 공마다 구종 · 코스 · 결과를 고치고 지운다 */}
-      <VelocitySection sessions={velocity} />
+      <VelocitySection sessions={velocity} isAdmin={isAdmin} />
 
       {logs.map((log) =>
         editingId === log.id ? (
