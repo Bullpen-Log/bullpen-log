@@ -24,6 +24,7 @@ import { MainTransition } from '@/components/main-transition';
 import { SiteFooter } from '@/components/site-footer';
 import { PullToRefresh } from '@/components/pull-to-refresh';
 import { AppSplash } from '@/components/app-splash';
+import { TabPager } from '@/components/tab-pager';
 
 /** 렌더 중에 현재 시각을 직접 읽지 않도록 함수로 감싼다. */
 function todayKey() {
@@ -48,10 +49,22 @@ function streakWindowStart() {
 export default async function AppLayout({
   children,
   modal,
+  home,
+  videos,
+  training,
+  nutrition,
 }: {
   children: React.ReactNode;
   /** 팝업 자리 — 앱 안에서 날짜 화면으로 가면 여기에 투구 기록 팝업이 뜬다(@modal) */
   modal: React.ReactNode;
+  /**
+   * 탭 판 넷(@home · @videos · @training · @nutrition, 2026-10-15 판 넘기기) — 주소가 그 탭이 아니어도 각 자리의 default.tsx 가
+   * 그 탭을 그려 늘 넷이 떠 있고, components/tab-pager.tsx 가 옆으로 민다. 탭 주소의 본문(children)은 빈 쪽이다.
+   */
+  home: React.ReactNode;
+  videos: React.ReactNode;
+  training: React.ReactNode;
+  nutrition: React.ReactNode;
 }) {
   // 이 레이아웃 아래의 모든 페이지는 로그인이 필요하다.
   const user = await requireUser();
@@ -226,7 +239,18 @@ export default async function AppLayout({
            * 탭을 옮길 때 본문만 바뀐다. 틀(사이드바 · 상단바 · 탭바)은 components/app-shell.tsx 에서 각자 이름표를 달아
            * 이 전환에서 빠진다 — 내용만 바뀌고 틀은 가만히 있는 것으로 읽힌다. 언제 · 어떻게 움직이는지는 MainTransition.
            */}
-          <MainTransition>{children}</MainTransition>
+          <TabPager
+            tabs={applyLocks(MOBILE_TABS, locks)}
+            camera={
+              /* 잠긴 사람(투구 첫 설정 전)은 설정 화면 주소라 구속 측정 전환(zoom)을 걸면 안 된다 */
+              applyLocksToGroups(visibleGroups(isAdmin, isNative), locks)
+                .flatMap((g) => g.items)
+                .find((i) => i.icon === 'radar' && !i.locked) ?? null
+            }
+            panels={[home, videos, training, nutrition]}
+          >
+            <MainTransition>{children}</MainTransition>
+          </TabPager>
         </main>
 
         <SiteFooter tabBar />

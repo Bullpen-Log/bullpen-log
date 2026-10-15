@@ -36,6 +36,7 @@ export function SiteFooter({
       {tabBar && (
         <div
           aria-hidden
+          data-tab-gap
           className="h-[calc(var(--tab-bar-top)+1rem)] shrink-0 desk:hidden"
         />
       )}

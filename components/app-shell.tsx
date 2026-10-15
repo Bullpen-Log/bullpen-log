@@ -26,7 +26,8 @@ import {
   subscribeBar,
 } from '@/lib/nav-state';
 import { NAV_ICONS, NAV_TINT } from '@/components/nav-icons';
-import { TabSwipe, slideToTab } from '@/components/tab-swipe';
+import { slideToTab } from '@/components/tab-pager';
+import { onAnyScroll, scrollToTop, scrollTopNow } from '@/lib/scroller';
 import { AppIcon } from '@/components/app-icon';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { quietRefresh } from '@/lib/quiet-refresh';
@@ -1409,15 +1410,6 @@ export function AppNav({
       </Modal>
 
       <MobileTabs tabs={tabs} menuOpen={open} onMenu={() => go('sheet')} />
-      {/* 휴대폰 탭 쓸기 — 본문을 옆으로 끌면 이웃 탭으로(components/tab-swipe.tsx) */}
-      <TabSwipe
-        tabs={tabs}
-        camera={
-          /* 잠긴 사람(투구 첫 설정 전)은 설정 화면 주소라 구속 측정 전환(zoom)을 걸면 안 된다 */
-          groups.flatMap((g) => g.items).find((i) => i.icon === 'radar' && !i.locked) ??
-          null
-        }
-      />
 
       <DetailMenu
         groups={groups}
@@ -2668,10 +2660,11 @@ function useBarHidden(enabled: boolean) {
   useEffect(() => {
     if (!enabled) return;
     let frame = 0;
-    let last = window.scrollY;
+    /* 창이 아니라 판이 굴러갈 수도 있다(판 넘기기, lib/scroller.ts) — 어느 쪽이든 같은 길 */
+    let last = scrollTopNow();
     const read = () => {
       frame = 0;
-      const y = window.scrollY;
+      const y = scrollTopNow();
       const dy = y - last;
       last = y;
       if (y < 8) setHidden(false);
@@ -2681,9 +2674,9 @@ function useBarHidden(enabled: boolean) {
     const onScroll = () => {
       if (!frame) frame = requestAnimationFrame(read);
     };
-    window.addEventListener('scroll', onScroll, { passive: true });
+    const off = onAnyScroll(onScroll);
     return () => {
-      window.removeEventListener('scroll', onScroll);
+      off();
       cancelAnimationFrame(frame);
     };
   }, [enabled]);
@@ -3065,7 +3058,7 @@ function MobileTabs({
                 const reduce = window.matchMedia(
                   '(prefers-reduced-motion: reduce)'
                 ).matches;
-                window.scrollTo({ top: 0, behavior: reduce ? 'auto' : 'smooth' });
+                scrollToTop(!reduce);
               }}
               /*
                * 휴대폰에서 가장 많이 눌리는 자리다. 눌렀을 때 살짝 작아져 먼저 대답한다(렌즈도 부푼다).
