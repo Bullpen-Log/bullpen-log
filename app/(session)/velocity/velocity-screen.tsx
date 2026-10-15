@@ -4165,6 +4165,7 @@ export function VelocityScreen({
  */
 /**
  * 셔터 — 빨간 원 하나(2026-10-15 김민: "기본 사진 버튼 느낌 말고 빨간색" → "베젤 없애" — 흰 고리를 뺐다).
+ * 같은 날 더: 폰 카메라 앱의 동영상 셔터처럼 — 짙은 회색 테 + 좁은 검은 틈 + 반짝임 없는 평평한 빨간 원(김민이 보낸 화면, "지금은 좀 저 퀄리티").
  * 측정 중(세션 · 녹화)에는 빨간 원이 둥근 네모로 줄어든다(멈춤). 켜는 중은 도는 표시, 카메라가 꺼져 있으면 카메라 그림.
  */
 function Shutter({
@@ -4185,11 +4186,11 @@ function Shutter({
       onClick={onClick}
       disabled={disabled}
       aria-label={label}
-      className="group relative flex h-[4.75rem] w-[4.75rem] items-center justify-center rounded-full transition-opacity disabled:opacity-35"
+      className="group relative flex h-[4.75rem] w-[4.75rem] items-center justify-center rounded-full bg-[#3a3a3c] transition-opacity disabled:opacity-35"
     >
       <span
-        className={`flex items-center justify-center bg-[radial-gradient(circle_at_50%_30%,#ff7a6e_0%,#ff3b30_52%,#d9201a_100%)] text-white shadow-[inset_0_1px_1.5px_rgba(255,255,255,0.45),inset_0_-2px_5px_rgba(120,0,0,0.35),0_1px_3px_rgba(0,0,0,0.35)] transition-[width,height,border-radius,scale] duration-300 ease-[cubic-bezier(0.2,0.9,0.3,1)] group-active:scale-90 ${
-          stop ? 'h-9 w-9 rounded-[0.65rem]' : 'h-[4.5rem] w-[4.5rem] rounded-full'
+        className={`flex items-center justify-center bg-[#ff3b30] text-white shadow-[0_0_0_3px_#1c1c1e] transition-[width,height,border-radius,scale] duration-300 ease-[cubic-bezier(0.2,0.9,0.3,1)] group-active:scale-90 ${
+          stop ? 'h-9 w-9 rounded-[0.65rem]' : 'h-[3.9rem] w-[3.9rem] rounded-full'
         }`}
       >
         {state === 'busy' ? (
