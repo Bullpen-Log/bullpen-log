@@ -69,6 +69,27 @@ function offersBasics(props: ProgramStartProps) {
   return props.level === '입문' || props.blocked != null;
 }
 
+/** '4주 · 주 2~3번' — 목록 · 소개가 같이 쓴다 */
+function perWeekText(p: ProgramChoice) {
+  const n =
+    p.perWeek.length > 1 ? `${Math.min(...p.perWeek)}~${Math.max(...p.perWeek)}` : p.perWeek[0];
+  return `${p.weeks.length}주 · 주 ${n}번`;
+}
+
+/**
+ * 고르기 목록의 핵심 세 줄 — 무엇을(summary) · 왜(why) · 이런 분께(fit). 2026-10-16 김민: "고를 때 이게 뭔지 알기 쉽지 않다 — 길게 말고
+ * 핵심만, 뭘 왜 하는 건지". 자세한 차례 · 주마다 처방은 고른 뒤 '자세히 보기'에 그대로 있다.
+ */
+function ProgramGist({ p }: { p: ProgramChoice }) {
+  return (
+    <span className="mt-0.5 block space-y-0.5 text-xs break-keep">
+      <span className="block text-ink/80">{p.summary}</span>
+      {p.why && <span className="block text-muted">{p.why}</span>}
+      {p.fit && <span className="block text-muted">이런 분께 · {p.fit}</span>}
+    </span>
+  );
+}
+
 function ageOf(birth: string): number | null {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(birth)) return null;
   const [by, bm, bd] = birth.split('-').map(Number);
@@ -360,9 +381,7 @@ function StartSheet({
                       </span>
                     )}
                   </span>
-                  <span className="block text-xs text-muted break-keep">
-                    웨이트가 처음이면 · {p.summary}
-                  </span>
+                  <ProgramGist p={p} />
                 </span>
                 <ChevronRight aria-hidden className="h-4 w-4 shrink-0 text-muted" />
               </button>
@@ -388,12 +407,11 @@ function StartSheet({
                     className="flex min-h-14 w-full items-center gap-3 py-2 text-left"
                   >
                     <span className="min-w-0 flex-1">
-                      <span className="block text-subhead font-semibold text-ink">
-                        {p.name}
+                      <span className="flex items-baseline justify-between gap-2">
+                        <span className="text-subhead font-semibold text-ink">{p.name}</span>
+                        <span className="shrink-0 text-caption text-muted">{perWeekText(p)}</span>
                       </span>
-                      <span className="block text-xs text-muted break-keep">
-                        {p.summary}
-                      </span>
+                      <ProgramGist p={p} />
                     </span>
                     <ChevronRight aria-hidden className="h-4 w-4 shrink-0 text-muted" />
                   </button>
@@ -407,12 +425,12 @@ function StartSheet({
           <div className="space-y-3">
             <div className="space-y-1">
               <p className="text-sm text-ink break-keep">{choice.summary}</p>
+              {choice.why && <p className="text-sm text-muted break-keep">{choice.why}</p>}
+              {choice.fit && (
+                <p className="text-sm text-muted break-keep">이런 분께 · {choice.fit}</p>
+              )}
               <p className="text-xs text-muted">
-                {choice.weeks.length}주 · 주{' '}
-                {choice.perWeek.length > 1
-                  ? `${Math.min(...choice.perWeek)}~${Math.max(...choice.perWeek)}`
-                  : choice.perWeek[0]}
-                번 · {choice.origin}
+                {perWeekText(choice)} · {choice.origin}
               </p>
             </div>
             <div className="-mx-1 rounded-xl bg-ink/4">
