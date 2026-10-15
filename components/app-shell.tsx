@@ -38,7 +38,7 @@ import { DESK_MEDIA, MORE_HREF, NAV_ALSO, NAV_GROUPS, isLockSideHref } from '@/l
 import { Wordmark } from '@/components/logo';
 import { Modal } from '@/components/modal';
 import { ProfilePanel, type ProfileData } from '@/components/profile-panel';
-import { SettingsPanel, type SettingsData } from '@/components/settings-panel';
+import { SettingsPanel } from '@/components/settings-panel';
 import { CLOSE_SETTINGS_EVENT } from '@/components/settings-info';
 import { CheckinFlow } from '@/components/checkin-flow/flow';
 import type { CheckinFlowContext } from '@/components/checkin-flow/types';
@@ -224,7 +224,6 @@ export function AppNav({
   avatarUrl,
   isAdmin,
   profile,
-  settings,
   today,
   todo,
 }: {
@@ -244,8 +243,6 @@ export function AppNav({
   isAdmin: boolean;
   /** '내 정보' 창에서 고칠 값들 */
   profile: ProfileData;
-  /** '설정' 창에서 고칠 값들 */
-  settings: SettingsData;
   /** 오늘 날짜(YYYY-MM-DD) — 생년월일에서 앞날을 못 고르게 막는 데 쓴다 */
   today: string;
   /**
@@ -917,15 +914,6 @@ export function AppNav({
         : undefined;
 
   /*
-   * 저장하고 나면 서버가 어딘가로 보내는데, 그 '어딘가'를 지금 보던 화면으로
-   * 둔다. 창은 어느 화면 위에서나 열리므로, 고정해 두면 설정 하나 바꿨다고
-   * 엉뚱한 화면으로 끌려간다. 주소의 ?뒤(보기 · 날짜)까지 — 경로만 넘겼더니 암케어 보기 · 목록 보기 · 고른 날에서
-   * 저장하면 기본 보기 · 오늘로 돌아갔다.
-   */
-  const search = useSearchParams().toString();
-  const here = search ? `${pathname}?${search}` : pathname;
-
-  /*
    * 창이 어디서 튀어나올지 — 방금 누른 버튼의 한가운데.
    *
    * 누른 버튼은 이벤트가 알려준다(currentTarget). PC 와 모바일에 같은 버튼이
@@ -1398,7 +1386,7 @@ export function AppNav({
         origin={popFrom}
         look="folder"
       >
-        <SettingsPanel data={settings} returnTo={here} />
+        <SettingsPanel />
       </Modal>
 
       <Modal

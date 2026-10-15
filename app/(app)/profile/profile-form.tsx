@@ -342,7 +342,7 @@ export function ProfileForm({
 
       <ListGroup
         title="운동"
-        footer="하루 운동 시간에 맞춰 운동 개수를 정해요. 웨이트 경력 · 장비는 설정 › 트레이닝에서 골라요."
+        footer="하루 운동 시간에 맞춰 운동 개수를 정해요. 웨이트 경력 · 장비는 트레이닝 탭의 트레이닝 설정에서 골라요."
       >
         <SelectRow
           label="하루 운동 시간"

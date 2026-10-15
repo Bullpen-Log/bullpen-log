@@ -158,11 +158,6 @@ export default async function AppLayout({
           },
           isAdmin,
         }}
-        /* '설정' 창에서 고칠 값들. 여기서 이미 읽은 사용자라 조회가 늘지 않는다. */
-        settings={{
-          trainingLevel: user.trainingLevel,
-          ownedEquipment: user.ownedEquipment,
-        }}
         today={todayKey()}
         /*
          * 알림(종) — 오늘 체크인·투구 기록을 했나. '오늘'은 화면이 사용자 시계로 정하므로
