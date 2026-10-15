@@ -1,7 +1,7 @@
 import 'server-only';
 import { cache } from 'react';
 import { prisma } from '@/lib/prisma';
-import { sessionBurnMixes } from '@/lib/nutrition/burn-load';
+import { burnMixesInRange } from '@/lib/nutrition/burn-load';
 import type { AgeBand } from '@/lib/nutrition/age';
 import { trainingDay, type TrainingDayDetail } from '@/lib/report/training-history';
 import {
@@ -120,6 +120,7 @@ export async function loadDayDetail(
     recentKg,
     clips,
     mealRow,
+    mixes,
   ] = await Promise.all([
     trainingDay(user.id, date),
     prisma.mealEntry.findMany({ where, orderBy: { createdAt: 'asc' } }),
@@ -148,13 +149,14 @@ export async function loadDayDetail(
         answeredAt: true,
       },
     }),
+    /* 운동마다의 강도 · 세트 — 판 조회와 같이(판을 기다렸다 읽으면 왕복이 하나 더 쌓였다) */
+    burnMixesInRange(user.id, day, day),
   ]);
 
   /* ── 영양: 합과 그날 목표 ── */
   const weightKg = recentKg ?? user.weightKg;
   const burnKg = weightKg ?? 75;
-  /* 운동마다의 강도 · 세트로 셈한다(lib/nutrition/burn.ts trainingBurn) */
-  const mixes = await sessionBurnMixes(sessions.map((s) => s.id));
+  /* 운동마다의 강도 · 세트로 셈한다(lib/nutrition/burn.ts trainingBurn, mixes 는 위 조회) */
   const burn = totalBurn(
     [
       ...sessions.map((s) => trainingBurn(s.activeSeconds, burnKg, mixes.get(s.id))),

@@ -40,7 +40,8 @@ export default async function NutritionPage({
    */
   const [day, advice, fuel] = await Promise.all([
     loadNutritionDay(user, date),
-    loadAdvice(user, date, today, serviceHour(now())),
+    /* 조언은 오늘만 그린다 — 지난 날을 볼 때 열댓 번의 조회를 헛되이 하지 않게(2026-10-15 탭 전환 속도) */
+    date === today ? loadAdvice(user, date, today, serviceHour(now())) : null,
     date === today ? loadFuelState(user.id, today) : null,
   ]);
   return (

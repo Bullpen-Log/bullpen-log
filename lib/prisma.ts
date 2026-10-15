@@ -1,7 +1,13 @@
 import { PrismaClient } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 
-const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
+/*
+ * 연결은 20개까지(pg 기본 10) — 화면 하나가 조회 20~50개를 한꺼번에 내는데 10개뿐이면 나머지가 줄을 서 왕복이 몇 번씩 더 쌓였다
+ * (2026-10-15 탭 전환 속도 조사: 홈 약 50 · 영양 약 34 · 트레이닝 약 23 · 투구 약 14). DATABASE_URL 은 Supabase 풀러(6543,
+ * 트랜잭션 모드)라 연결 하나가 DB 연결을 붙잡지 않는다 — 풀러의 손님 연결 한도(작은 요금제도 수백)에 비해 넉넉히 작다.
+ * 'too many clients' 같은 오류가 보이면 이 숫자부터 내린다.
+ */
+const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL, max: 20 });
 
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
 

@@ -70,13 +70,17 @@ export async function loadTodayCore(user: UserForToday, today: Date) {
   const midnight = new Date(`${todayKey}T00:00:00.000Z`);
 
   /*
-   * 종료를 안 누르고 떠난 지난 판을 먼저 닫는다(lib/workout/close-stale.ts).
+   * 종료를 안 누르고 떠난 지난 판을 닫는다(lib/workout/close-stale.ts).
    *
-   * 그래야 그 판의 세트가 운동 기록으로 접혀, 아래에서 셈하는 운동 부하와 홈·
-   * 트레이닝 화면에 어제 한 것이 들어간다. 홈·트레이닝·[운동 시작]이 모두 여기를
-   * 지난다. 지난 날짜의 열린 판이 없으면 조회 한 번으로 끝난다.
+   * 그래야 그 판의 세트가 운동 기록으로 접혀, 운동 부하와 홈·트레이닝 화면에 어제 한 것이 들어간다. 홈·트레이닝·[운동 시작]이
+   * 모두 여기를 지난다. 지난 날짜의 열린 판이 없으면 조회 한 번으로 끝난다.
+   *
+   * 아래 조회와 같이 돌리고, 닫기가 끝나야 이 함수가 끝난다(2026-10-15 탭 전환 속도 — 예전엔 닫기를 먼저 기다려 왕복이 하나
+   * 더 쌓였다). 같이 돌려도 되는 까닭: 닫기가 쓰는 것은 지난 날짜의 운동 기록(UserExerciseLog) · 판(TrainingSession) · 프로그램
+   * 차례인데, 아래 조회는 그것을 읽지 않는다(투구 · 체크인 · 메모 · 달력 · 일정 카드 · 재활 · 오늘 날짜의 운동 기록 · 암케어).
+   * 지난 운동 기록을 읽는 부하 · 프로그램은 이 함수가 끝난 뒤에 읽는다.
    */
-  await closeAbandonedSessions(user.id, today);
+  const closing = closeAbandonedSessions(user.id, today);
 
   /*
    * 닫은 뒤의 조회는 서로 기다리지 않는다 — facts 를 쓰는 것은 아래 계산뿐이라, 투구 계획 · 기록 유무 · 오늘 자료를 한꺼번에
@@ -90,6 +94,7 @@ export async function loadTodayCore(user: UserForToday, today: Date) {
     todaySetup,
     armcareToday,
     myRoutines,
+    closedSessions,
   ] = await Promise.all([
     gatherFactsAndPlan(user, today),
     /*
@@ -148,6 +153,7 @@ export async function loadTodayCore(user: UserForToday, today: Date) {
       where: { userId: user.id },
       select: { items: true },
     }),
+    closing,
   ]);
   const everLogged = hasLogs || anyLog !== null;
 
@@ -331,6 +337,8 @@ export async function loadTodayCore(user: UserForToday, today: Date) {
   return {
     todayKey,
     midnight,
+    /** 이번에 닫은 지난 판 수 — 0 이 아니면 그 판이 넘긴 프로그램 차례를 다시 읽어야 한다(트레이닝 홈 WorkoutCard) */
+    closedSessions,
     facts,
     plan,
     /**

@@ -237,14 +237,23 @@ async function SafeCard({
  * (사용자 결정 D6). 마침 · 멈춤이 먼저인 까닭: 마친 날은 무엇이든 마친 것이고, 멈춘 날은 프로그램도 기다린다(painWait).
  */
 async function WorkoutCard({ user, today }: { user: HomeUser; today: Date }) {
-  const core = await loadTodayCore(user, today);
-  const [session, programRow] = await Promise.all([
+  /*
+   * 오늘 판 · 진행 중인 프로그램을 오늘 셈과 같이 읽는다 — 예전엔 오늘 셈을 기다린 뒤에 읽어 왕복이 하나 더 쌓였다(2026-10-15 탭 전환
+   * 속도). 오늘 판은 지난 판 닫기와 상관없는 오늘 줄이다. 프로그램은 오늘 셈이 지난 판을 닫으며 차례를 넘겼을 수 있어, 닫은 판이
+   * 있었으면(드묾) 한 번 더 읽는다.
+   */
+  const [core, session, programFirst] = await Promise.all([
+    loadTodayCore(user, today),
     prisma.trainingSession.findUnique({
-      where: { userId_date: { userId: user.id, date: core.midnight } },
+      where: {
+        userId_date: { userId: user.id, date: new Date(`${toDateKey(today)}T00:00:00.000Z`) },
+      },
       select: { status: true },
     }),
     PROGRAMS_ENABLED ? activeProgram(user.id) : Promise.resolve(null),
   ]);
+  const programRow =
+    PROGRAMS_ENABLED && core.closedSessions > 0 ? await activeProgram(user.id) : programFirst;
   const count = core.shownPicks.length;
 
   if (session?.status === 'FINISHED') {
@@ -330,8 +339,11 @@ async function WorkoutCard({ user, today }: { user: HomeUser; today: Date }) {
  * 띄우고 누르면 부위별 보강(내 팔 지도)으로 간다(lib/armcare/coverage-load.ts — 아픈 곳은 뺀다).
  */
 async function ArmcareCard({ user, today }: { user: HomeUser; today: Date }) {
-  const data = await loadArmcareToday(user, today);
-  const map = await loadArmcareCoverage(user.id, data.todayKey, await visibleExercises());
+  /* 오늘 루틴과 내 팔 지도를 같이 읽는다(예전엔 루틴을 기다린 뒤 지도를 읽었다 — 2026-10-15 탭 전환 속도) */
+  const [data, map] = await Promise.all([
+    loadArmcareToday(user, today),
+    visibleExercises().then((lib) => loadArmcareCoverage(user.id, toDateKey(today), lib)),
+  ]);
   const gapLine =
     map.gaps.length > 0 && data.decision.kind !== 'rest' ? (
       <Link
