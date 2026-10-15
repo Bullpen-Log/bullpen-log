@@ -43,6 +43,7 @@ import { CLOSE_SETTINGS_EVENT } from '@/components/settings-info';
 import { CheckinFlow } from '@/components/checkin-flow/flow';
 import type { CheckinFlowContext } from '@/components/checkin-flow/types';
 import { haptic } from '@/lib/haptics';
+import { TRAINING_HOME_HREF, isTrainingSubView } from '@/lib/training-part';
 import type { NavDirection } from '@/lib/nav-state';
 import {
   NoticeBellButton,
@@ -2529,9 +2530,15 @@ function MobileTopBar({
    * 적어 둔 것(lib/nav-state.ts). 큰 제목이 막대 밑으로 가려지면 가운데에 작은 제목이 나온다.
    */
   const bar = useSyncExternalStore(subscribeBar, barSnapshot, serverBarSnapshot);
-  const back = bar.back;
   /* 홈은 앱 이름을 막대 왼쪽에 — 큰 제목 자리에 두면 날짜 위로 한 줄을 통째로 차지했다(2026-10-13 김민) */
   const pathname = usePathname();
+  const searchParams = useSearchParams();
+  /* 트레이닝 하위 화면은 '‹ 트레이닝'을 주소로 처음부터 — 서버가 그린 첫 화면부터 막대가 서서 본문이 밀리지 않는다(lib/training-part.ts) */
+  const back =
+    bar.back ??
+    (isTrainingSubView(pathname, searchParams.get('view'))
+      ? { href: TRAINING_HOME_HREF, label: '트레이닝' }
+      : null);
   const home = pathname === '/today';
   /*
    * 기록 · 트레이닝 · 영양 탭 첫 화면은 막대를 안 그린다(같은 날 김민: "앱 이름 · 프로필 설정 줄은 홈에만") — 그 탭의 큰 제목이 맨 위.
@@ -2550,9 +2557,10 @@ function MobileTopBar({
    * '‹ 뒤로'가 선 막대를 판 넘기기가 알게 — 탭 판 안의 하위 화면(트레이닝의 암케어 · 오늘 운동 · 메커니즘, 주소는 /training)은 판의 위 여백이
    * 막대 없는 탭 값이라 본문이 막대 밑으로 들어갔다(2026-10-15 김민 "상단바가 부자연스럽다", globals.css [data-panel]).
    */
+  const hasBack = back != null;
   useLayoutEffect(() => {
-    document.documentElement.toggleAttribute('data-bar-back', back != null);
-  }, [back]);
+    document.documentElement.toggleAttribute('data-bar-back', hasBack);
+  }, [hasBack]);
 
   return (
     <>

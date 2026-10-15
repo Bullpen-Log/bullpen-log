@@ -8,10 +8,10 @@ import {
   type CSSProperties,
   type ReactNode,
 } from 'react';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { NAV_ICONS } from '@/components/nav-icons';
 import { DESK_MEDIA, MORE_HREF, type NavItem } from '@/lib/nav';
-import { TRAINING_HOME_HREF } from '@/lib/training-part';
+import { TRAINING_HOME_HREF, isTrainingSubView } from '@/lib/training-part';
 import { barSnapshot, setNavDirection } from '@/lib/nav-state';
 import { haptic } from '@/lib/haptics';
 import { TAB_CHOSEN_EVENT } from '@/components/tab-lens';
@@ -87,6 +87,7 @@ export function TabPager({
 }) {
   const router = useRouter();
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const index = order.findIndex((h) => base(h) === pathname);
   const tabMode = index >= 0;
   const track = useRef<HTMLDivElement>(null);
@@ -369,8 +370,16 @@ export function TabPager({
           <section
             key={order[i]}
             data-panel
-            /* 홈 말고는 휴대폰 위 막대가 없다(app-shell MobileTopBar 의 bare) — 위 여백은 시계 자리만큼(globals.css) */
-            data-bare={base(order[i]) === '/today' ? undefined : ''}
+            /*
+             * 홈 말고는 휴대폰 위 막대가 없다(app-shell MobileTopBar 의 bare) — 위 여백은 시계 자리만큼(globals.css). 트레이닝 하위 화면은
+             * '‹ 트레이닝' 막대가 서므로 막대만큼(서버가 그린 첫 화면부터 — 본문이 밀리지 않게)
+             */
+            data-bare={
+              base(order[i]) === '/today' ||
+              (i === index && isTrainingSubView(pathname, searchParams.get('view')))
+                ? undefined
+                : ''
+            }
             data-active={i === index ? '' : undefined}
             inert={i !== index || undefined}
             aria-hidden={i !== index || undefined}
