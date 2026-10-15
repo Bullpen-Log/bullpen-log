@@ -92,17 +92,8 @@ export const CAMERA_OPTIONS: { key: CameraPos; label: string; hint: string }[] =
   {
     key: 'behind-pitcher',
     label: '투수 뒤',
-    hint: '투수 바로 뒤 1m 안 · 폰에서 미트까지 약 20m · 포수 뒤에서는 잴 수 없어요',
+    hint: '공이 날아가는 길을 뒤에서 봐요',
   },
-];
-
-export const NET_OPTIONS: { key: boolean; label: string; hint: string }[] = [
-  {
-    key: true,
-    label: '네트 있음',
-    hint: '초점을 고정해요(수동초점) — 그물코에 초점이 안 잡히게',
-  },
-  { key: false, label: '네트 없음', hint: '자동초점 · 포수나 벽까지 잰다' },
 ];
 
 /**
