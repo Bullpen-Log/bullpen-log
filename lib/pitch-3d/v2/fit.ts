@@ -245,6 +245,71 @@ export function fixHingeFlips(X: Vec3[][], U: Vec3): number {
   return fixed;
 }
 
+/** 무릎을 '안 보임'으로 보는 확신(0~100) · 이을 수 있는 가장 긴 안 보인 구간(장면) */
+const KNEE_SEEN_CONF = 15;
+const KNEE_GAP_MAX = 40;
+/**
+ * 안 보인 장면의 무릎이 굽는 쪽 잇기 — 무릎이 두 영상 모두에서 안 보이고(확신 KNEE_SEEN_CONF 밑) 다리가 거의 펴지면 무릎이 엉덩이 → 발목 축
+ * 둘레 어느 쪽에 있어도 관찰과 뼈 길이가 맞아, 맞추기가 무릎을 축 둘레로 크게 돌렸다(2026-10-15 김민 "샘플 4 왼무릎 · 샘플 3 오른무릎이 이상":
+ * 샘플 4 착지 직전 4장면에 30 → −32 → +126 → +106 → −79°, 샘플 3 착지 뒤 한 장면 −147°). 화면은 뒤로 간 무릎을 접고 굽힘을 다듬다 다리를
+ * 거의 편 모양(엔진 24~34° → 화면 2~6°)으로 그렸다. 그래서 안 보인 구간은 앞뒤 보인 장면의 굽는 쪽(골반 앞 방향에서 잰 각)을 이어 채운다 —
+ * 굽힘 · 엉덩이 → 무릎 · 무릎 → 발목 길이는 그대로(축 둘레로만 돌림). 구간 양 끝이 다 보여야 하고 KNEE_GAP_MAX 장면까지만(긴 가림은 틀 채우기 그대로).
+ * fixHingeFlips 의 무릎 뒤집기는 골반 앞에서 많이 뒤(−0.3)이고 덜 굽었을 때만이라 이것(옆으로 · 비스듬히 뒤로 도는 것)을 못 잡았다.
+ */
+export function fixUnseenKneeTwist(X: Vec3[][], U: Vec3, conf: number[][]): number {
+  let fixed = 0;
+  const n = X.length;
+  const wrap = (a: number) => Math.atan2(Math.sin(a), Math.cos(a));
+  for (const [Hp, K, An] of [
+    [V2J.lHip, V2J.lKn, V2J.lAn],
+    [V2J.rHip, V2J.rKn, V2J.rAn],
+  ] as const) {
+    const geo = X.map((fr) => {
+      const ha = sub(fr[An], fr[Hp]);
+      const len = norm(ha);
+      if (len < 1e-9) return null;
+      const e = scale(ha, 1 / len);
+      const v = sub(fr[K], fr[Hp]);
+      const along = dot(v, e);
+      const off = sub(v, scale(e, along));
+      const r = norm(off);
+      const fwd0 = cross(sub(fr[V2J.lHip], fr[V2J.rHip]), U);
+      const fwd = sub(fwd0, scale(e, dot(fwd0, e)));
+      if (r < 1e-9 || norm(fwd) < 1e-9) return null;
+      const f = normalize(fwd);
+      const s = cross(e, f);
+      return { e, along, r, f, s, a: Math.atan2(dot(off, s), dot(off, f)) };
+    });
+    const seen = (k: number) => geo[k] != null && conf[k][K] >= KNEE_SEEN_CONF;
+    let k = 0;
+    while (k < n) {
+      if (seen(k)) {
+        k++;
+        continue;
+      }
+      let end = k;
+      while (end + 1 < n && !seen(end + 1)) end++;
+      const before = k - 1;
+      const after = end + 1;
+      if (before >= 0 && after < n && end - k + 1 <= KNEE_GAP_MAX) {
+        const a0 = geo[before]!.a;
+        const d = wrap(geo[after]!.a - a0);
+        for (let q = k; q <= end; q++) {
+          const g = geo[q];
+          if (!g) continue;
+          const want = a0 + (d * (q - before)) / (after - before);
+          if (Math.abs(wrap(want - g.a)) < 1e-6) continue;
+          const dir = add(scale(g.f, Math.cos(want)), scale(g.s, Math.sin(want)));
+          X[q][K] = add(add(X[q][Hp], scale(g.e, g.along)), scale(dir, g.r));
+          fixed++;
+        }
+      }
+      k = end + 1;
+    }
+  }
+  return fixed;
+}
+
 /** 두 단위 방향 사이 구면 보간 */
 function slerp(a: Vec3, b: Vec3, t: number): Vec3 {
   const th = Math.acos(Math.max(-1, Math.min(1, dot(a, b))));
@@ -1284,6 +1349,8 @@ function fitOnce(raw: V2Input): {
     }
     conf.push(row);
   }
+  /* 안 보인 무릎이 축 둘레로 돈 것 잇기(fixUnseenKneeTwist) — 확신은 그대로(안 보인 건 안 보인 것) */
+  fixUnseenKneeTwist(X, U, conf);
   /*
    * 장면 확신 = min(몸 17관절 평균, 던지는 팔 셋(어깨 · 팔꿈치 · 손목) 평균) — 릴리스 근처 팔 흐림은 드러나고, 닫힌 자세에서 먼 쪽 관절
    * 몇 개가 가려진 것만으로는 엷어지지 않게(가장 낮은 다섯의 평균으로 하면 합성 '실제처럼'에서 거의 전 구간이 엷어졌다).
