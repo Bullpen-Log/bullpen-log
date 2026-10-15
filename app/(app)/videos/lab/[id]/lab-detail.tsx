@@ -7,7 +7,7 @@ import { ErrorLine } from '@/components/error-line';
 import type { LabSample } from '@/lib/pitch-lab';
 import {
   LAB_VIEWS,
-  LAB_VIEW_LABELS,
+  labViewLabel,
   labMetaChips,
   type LabGround,
   type LabView,
@@ -184,6 +184,7 @@ export function LabDetail({
               loading={v2.loading}
               v2Enabled={v2Enabled}
               hasVideos={hasVideos}
+              hand={meta?.hand ?? 'R'}
             />
           )}
           <V2RequestRow
@@ -210,7 +211,7 @@ export function LabDetail({
                 const v = sample.videos[view];
                 return (
                   <div key={view} className="space-y-1">
-                    <p className="text-xs text-muted">{LAB_VIEW_LABELS[view]}</p>
+                    <p className="text-xs text-muted">{labViewLabel(view, meta?.hand ?? 'R')}</p>
                     {v?.url ? (
                       <video
                         ref={(el) => {

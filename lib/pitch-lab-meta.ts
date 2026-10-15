@@ -20,6 +20,22 @@ export const LAB_VIEW_LABELS: Record<LabView, string> = {
   back: '뒤 · 2루 쪽',
 };
 
+/**
+ * 옆 폰을 놓는 쪽 — 던지는 손의 앞(가슴 쪽)이 보이는 자리. 우투는 3루, 좌투는 1루(2026-10-15 김민: "좌투면 1루 · 2루에서").
+ * 엔진은 폰 자리를 가정하지 않는다 — 앞은 골반이 나아간 길, 좌우는 던지는 손으로 잡는다(lib/pitch-3d/metrics.ts worldAxes).
+ */
+export type LabHand = 'R' | 'L';
+export const labSideBase = (hand: LabHand) => (hand === 'L' ? '1루' : '3루');
+/** 영상 칸 이름 — 옆은 던지는 손에 맞춘 쪽 */
+export const labViewLabel = (view: LabView, hand: LabHand) =>
+  view === 'side' ? `옆 · ${labSideBase(hand)} 쪽` : LAB_VIEW_LABELS.back;
+/** 안내 글의 '3루'를 던지는 손에 맞춘다(안내 글은 우투 기준으로 적혀 있다 — lib/pitch-lab-guide.ts) */
+export const forHand = (text: string, hand: LabHand) =>
+  hand === 'L' ? text.replaceAll('3루', '1루') : text;
+/** 가입 때 고른 던지는 손(User.throwingHand '우투' · '좌투' · '양투') → 실험실의 손. 모르면 우투 */
+export const labHandOf = (throwingHand: string | null | undefined): LabHand =>
+  throwingHand === '좌투' ? 'L' : 'R';
+
 export type LabGround = 'mound' | 'flat';
 export const LAB_GROUND_OPTIONS = [
   { value: 'mound', label: '마운드' },

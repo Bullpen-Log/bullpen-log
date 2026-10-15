@@ -89,7 +89,8 @@ export const allExercises = unstable_cache(
    * 오늘의 암케어가 루틴을 못 짠다. 관리자가 운동을 하나 저장해야(clearLibraryCache)
    * 풀리는데, 그것을 기다릴 일이 아니다.
    */
-  ['library:exercises:v29'],
+  /* :v30 — 2026-10-15 파워에 회전 메디신볼 던지기 6 · 한 발 점프 2 · 상체 플라이오 2(scripts/library-power-plyo-2026-10-15.mjs). */
+  ['library:exercises:v30'],
   { tags: [LIBRARY_TAG] }
 );
 

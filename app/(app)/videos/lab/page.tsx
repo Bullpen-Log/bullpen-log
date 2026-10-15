@@ -1,5 +1,6 @@
 import { requireUser } from '@/lib/dal';
 import { listLabSamples } from '@/lib/pitch-lab';
+import { labHandOf } from '@/lib/pitch-lab-meta';
 import { LabClient } from './lab-client';
 
 /**
@@ -13,5 +14,11 @@ import { LabClient } from './lab-client';
 export default async function PitchLabPage() {
   const user = await requireUser();
   const samples = await listLabSamples(user);
-  return <LabClient samples={samples} defaultHeightCm={user.heightCm ?? null} />;
+  return (
+    <LabClient
+      samples={samples}
+      defaultHeightCm={user.heightCm ?? null}
+      defaultHand={labHandOf(user.throwingHand)}
+    />
+  );
 }
