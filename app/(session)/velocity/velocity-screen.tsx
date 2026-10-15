@@ -2659,7 +2659,7 @@ export function VelocityScreen({
           step={1}
           total={5}
           title="어떤 투구인가요?"
-          subtitle="투구 기록에 이 종류로 남아요. 나중에 돌아볼 때 무엇을 하다 던졌는지 갈려요."
+          subtitle="투구 기록에 이 종류로 남아요."
           footer={
             <PrimaryButton onClick={() => setStep('camera')}>
               다음
@@ -2679,8 +2679,8 @@ export function VelocityScreen({
         <StepShell
           step={2}
           total={5}
-          title="폰을 어디에 둘까요?"
-          subtitle="공이 날아가는 길과 그물까지 거리로 구속을 재요. 뒤에서 정면으로 보게 두는 두 자리 중 하나예요."
+          title="폰은 투수 바로 뒤에 둬요"
+          subtitle="삼각대에 세워 공이 날아가는 길을 뒤에서 봐요."
           footer={
             <>
               {/* 체크인 흐름처럼 [이전][다음] */}
@@ -2713,12 +2713,7 @@ export function VelocityScreen({
             {choices.cameraPos === 'behind-pitcher' && !isAdmin ? (
               <div className="space-y-3">
                 {/* 기준 20m 로 재고 세션마다 공 크기로 맞춘다(2.4.0). 줄자로 쟀으면 그 값이 이긴다 */}
-                <p className="px-0.5 text-sm leading-relaxed text-muted">
-                  폰에서 포수 미트까지 {STANDARD_TARGET_DIST_M}m로 재요(정식 마운드에서
-                  포수가 조금 뒤에서 받고, 폰을 투수 1m 뒤에 둔 거리). 실제 거리는 공
-                  크기로 세션마다 맞춰요. 줄자나 레이저로 쟀으면 그 값을 넣어요 — 그게
-                  가장 정확해요.
-                </p>
+                <SectionLabel>폰에서 포수 미트까지</SectionLabel>
                 <Segmented
                   label="폰에서 미트까지"
                   value={distTape ? 'tape' : 'standard'}
@@ -2730,6 +2725,12 @@ export function VelocityScreen({
                   options={TAPE_MODES}
                   size="md"
                 />
+                {!distTape && (
+                  <p className="px-0.5 text-footnote leading-snug text-muted">
+                    {STANDARD_TARGET_DIST_M}m로 재고 세션마다 공 크기로 맞춰요. 줄자로 쟀으면 그
+                    값이 가장 정확해요.
+                  </p>
+                )}
                 {distTape && (
                   <DistanceField
                     label="줄자로 잰 거리"
@@ -2798,7 +2799,7 @@ export function VelocityScreen({
           step={3}
           total={5}
           title="카메라 앞에 네트가 있나요?"
-          subtitle="그물이 있으면 초점을 고정해요. 자동초점은 눈앞의 그물코에 초점을 맞춰 공이 흐려져요."
+          subtitle="그물이 있으면 초점을 고정해야 공이 선명해요."
           footer={
             <>
               <PrimaryButton tone="quiet" onClick={() => setStep('camera')}>
@@ -4096,15 +4097,15 @@ function PreviousSetupStep({
         </>
       }
     >
-      <div className="overflow-hidden rounded-2xl border border-line bg-surface">
-        <div className="px-4 pb-4 pt-4">
+      <div className="overflow-hidden rounded-2xl bg-surface">
+        <div className="p-(--block-pad)">
           <SetupSummaryRow
             sessionType={setup.sessionType}
             cameraPos={setup.cameraPos}
             net={setup.net}
           />
         </div>
-        <p className="border-t border-line px-4 py-2.5 text-xs leading-relaxed text-muted">
+        <p className="border-t border-line px-(--block-pad) py-3 text-footnote leading-snug text-muted">
           스트라이크 존 자리 저장됨 · 소리 안내 {setup.voice ? '켬' : '끔'} · 자동 측정{' '}
           {setup.autoMode ? '켬' : '끔'}
           {when && ` · ${when.getMonth() + 1}월 ${when.getDate()}일에 저장`}

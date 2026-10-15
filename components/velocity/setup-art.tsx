@@ -1,6 +1,7 @@
 'use client';
 
 import type { ReactNode } from 'react';
+import { Check } from 'lucide-react';
 import { isRestSession, SESSION_TYPES } from '@/lib/session-type';
 import { CAMERA_OPTIONS, NET_OPTIONS, type CameraPos } from '@/lib/velocity-setup';
 
@@ -20,7 +21,7 @@ import { CAMERA_OPTIONS, NET_OPTIONS, type CameraPos } from '@/lib/velocity-setu
  */
 
 /* 그림 크기 · 채움 — 카드 그림 칸(h-full max-h-24)에 맞춘다. 채움은 테마 토큰이라 어두운 테마도 맞는다 */
-const ART = 'h-full max-h-24 w-auto';
+const ART = 'h-full max-h-24 w-auto max-w-full';
 const FILL = 'var(--color-surface)';
 
 export type SetupOption<V extends string> = {
@@ -28,8 +29,8 @@ export type SetupOption<V extends string> = {
   label: string;
   /** 무엇인지 한 줄 */
   hint: string;
-  /** 어떤 상황에서 이걸 고르는지 한 줄 — 카드에 "이럴 때 · " 를 붙여 보인다 */
-  when: string;
+  /** 어떤 상황에서 이걸 고르는지 — 지금은 화면에 안 보인다(2026-10-15 "너무 조잡해" — 카드마다 세 줄이던 것을 한 줄로) */
+  when?: string;
   art: ReactNode;
 };
 
@@ -37,12 +38,6 @@ export type SetupOption<V extends string> = {
 
 /** 투구 종류 — 투구 기록의 SESSION_TYPES 에서 휴식을 뺀 넷. value 는 이름 그대로(기록에 같이 저장된다) */
 export function sessionTypeOptions(): SetupOption<string>[] {
-  const when: Record<string, string> = {
-    불펜: '마운드 · 불펜에서 포수를 앉히고 던질 때',
-    라이브: '타자를 세워 두고 실전처럼 던질 때',
-    경기: '실제 시합 중 — 강도가 높아요',
-    캐치볼: '가볍게 주고받으며 몸을 풀 때',
-  };
   const art: Record<string, ReactNode> = {
     불펜: <ArtBullpen />,
     라이브: <ArtLive />,
@@ -53,75 +48,63 @@ export function sessionTypeOptions(): SetupOption<string>[] {
     value: t.name,
     label: t.name,
     hint: t.hint,
-    when: when[t.name] ?? '',
     art: art[t.name] ?? <ArtEmpty />,
   }));
 }
 
-/** 카메라 위치 — 투수 뒤 · 포수 뒤. 그림의 공은 투수 → 포수 */
+/** 카메라 위치 — 지금은 투수 뒤 하나(lib/velocity-setup.ts CAMERA_OPTIONS). 그림의 공은 투수 → 포수 */
 export function cameraPosOptions(): SetupOption<CameraPos>[] {
-  const when: Record<CameraPos, string> = {
-    'behind-pitcher': '폰을 투수 바로 뒤 1m 안에 — 릴리스 포인트까지 잡혀요(가장 정확)',
-    'behind-catcher':
-      '폰을 포수 · 네트 뒤 1~3m 에 — 코스가 잘 보여요, 릴리스까지 거리를 적어요',
+  const hint: Record<CameraPos, string> = {
+    'behind-pitcher': '투수 바로 뒤 1m 안, 폰에서 미트까지 약 20m',
+    'behind-catcher': '포수 · 네트 뒤 1~3m',
   };
   return CAMERA_OPTIONS.map((o) => ({
     value: o.key,
     label: o.label,
-    hint: o.hint,
-    when: when[o.key],
+    hint: hint[o.key],
     art: <ArtCameraPos behind={o.key === 'behind-pitcher'} />,
   }));
 }
 
 /** 네트 — 있음 · 없음. boolean 은 라디오 값이 못 되니 'yes' · 'no' 로 */
 export function netOptions(): SetupOption<'yes' | 'no'>[] {
-  const when = {
-    yes: '카메라와 공 사이에 그물이 있을 때 — 초점을 고정해요(자동초점이면 그물코에 초점이 잡혀요)',
-    no: '그물 없이 트인 곳 — 자동초점',
+  const hint = {
+    yes: '초점을 고정해 그물코에 안 잡히게 해요',
+    no: '트인 곳이라 자동초점으로 공을 따라가요',
   };
   return NET_OPTIONS.map((o) => {
     const value = o.key ? 'yes' : 'no';
-    return {
-      value,
-      label: o.label,
-      hint: o.hint,
-      when: when[value],
-      art: <ArtNet net={o.key} />,
-    };
+    return { value, label: o.label, hint: hint[value], art: <ArtNet net={o.key} /> };
   });
 }
 
 function cameraName(cameraPos: string) {
-  return CAMERA_OPTIONS.find((o) => o.key === cameraPos)?.label ?? '—';
+  return CAMERA_OPTIONS.find((o) => o.key === cameraPos)?.label ?? '';
 }
 
 /* ───────────────────────── 카드 ───────────────────────── */
 
 /**
- * 그림 카드로 하나 고르기 — 라디오 묶음. 두 칸(기본) 또는 한 칸.
- * 그림 칸은 4:3(한 칸이면 높이 112px), 낮은 화면(short:)에서는 낮춘다 — 카드 둘이 한 화면에 들어오게.
+ * 그림 카드로 하나 고르기 — 라디오 묶음. 앱의 고르기 카드(components/onboarding/choices.tsx OptionCards)와 같은 줄:
+ * 왼쪽 그림 칸 · 이름 + 한 줄 · 오른쪽 동그라미 체크. 예전에는 위에 큰 그림 · 밑에 설명 두 줄 + '이럴 때' 한 줄이라
+ * 카드마다 글이 세 줄씩 쌓였다(2026-10-15 사용자 "구속측정이 너무 조잡해").
  */
 export function OptionCards<V extends string>({
   label,
   options,
   value,
   onChange,
-  columns = 2,
 }: {
   label: string;
   options: readonly SetupOption<V>[];
   value: V | null;
   onChange: (v: V) => void;
+  /** 예전 두 칸 · 한 칸 고르기 — 이제 늘 한 줄에 하나라 쓰지 않는다 */
   columns?: 1 | 2;
 }) {
   return (
-    <div
-      role="radiogroup"
-      aria-label={label}
-      className={`grid gap-3 motion-safe:animate-fade-in ${columns === 1 ? 'grid-cols-1' : 'grid-cols-2'}`}
-    >
-      {options.map((o) => {
+    <div role="radiogroup" aria-label={label} className="grid grid-cols-1 gap-2.5">
+      {options.map((o, i) => {
         const on = value === o.value;
         return (
           <button
@@ -130,28 +113,42 @@ export function OptionCards<V extends string>({
             role="radio"
             aria-checked={on}
             onClick={() => onChange(o.value)}
-            className={`flex w-full flex-col overflow-hidden rounded-2xl border-2 text-left transition-[border-color,background-color] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky ${
-              on ? 'border-sky bg-sky-tint' : 'border-transparent bg-surface'
+            style={{ '--row': i } as React.CSSProperties}
+            className={`motion-safe:animate-row-in flex min-h-16 w-full items-center gap-3 rounded-2xl border py-2.5 pl-2.5 pr-4 text-left transition-[border-color,background-color,box-shadow] duration-200 select-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-strong ${
+              on
+                ? 'border-sky bg-sky/10 shadow-[inset_0_0_0_1px_var(--color-sky)]'
+                : 'border-line bg-surface hover:border-sky-soft'
             }`}
           >
             <span
-              className={`flex w-full items-center justify-center bg-sky-tint/60 px-4 py-2 text-sky ${
-                columns === 1
-                  ? 'h-28 short:h-20'
-                  : 'aspect-[4/3] short:aspect-auto short:h-20'
+              aria-hidden
+              className={`flex h-14 w-16 shrink-0 items-center justify-center rounded-xl px-1.5 py-2 text-sky transition-colors ${
+                on ? 'bg-surface' : 'bg-sky-tint/60'
               }`}
             >
               {o.art}
             </span>
-            <span className="flex flex-1 flex-col px-3.5 py-3">
-              <span className="text-base font-bold text-ink">{o.label}</span>
-              <span className="mt-0.5 text-xs leading-relaxed text-muted">
+            <span className="min-w-0 flex-1">
+              <span
+                className={`block text-base font-semibold break-keep ${on ? 'text-sky-strong' : 'text-ink'}`}
+              >
+                {o.label}
+              </span>
+              <span
+                className={`mt-0.5 block text-footnote leading-snug break-keep ${on ? 'text-sky-strong/80' : 'text-muted'}`}
+              >
                 {o.hint}
               </span>
-              <span className="mt-1.5 text-xs leading-relaxed text-ink">
-                <span className="font-medium text-sky">이럴 때 · </span>
-                {o.when}
-              </span>
+            </span>
+            <span
+              aria-hidden
+              className={`grid h-6 w-6 shrink-0 place-items-center rounded-full border transition-[background-color,border-color,transform] duration-200 ${
+                on
+                  ? 'scale-100 border-sky bg-sky text-white'
+                  : 'scale-90 border-line-strong bg-surface text-transparent'
+              }`}
+            >
+              <Check className="h-3.5 w-3.5" />
             </span>
           </button>
         );
@@ -185,7 +182,7 @@ export function SetupSummaryRow({
         kind: 'type',
         title: '종류',
         value: sessionType ?? '',
-        label: sessionType ?? '종류 —',
+        label: sessionType ?? '종류 없음',
       },
       {
         kind: 'camera',

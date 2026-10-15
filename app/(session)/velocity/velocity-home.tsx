@@ -97,14 +97,14 @@ export function VelocityHome({
             <div className="mt-3 flex gap-2">
               <Link
                 href="/velocity/measure?resume=1"
-                className="inline-flex h-12 flex-1 items-center justify-center rounded-full bg-sky text-base font-bold text-white transition-colors hover:bg-sky-strong"
+                className="inline-flex h-12 flex-1 items-center justify-center rounded-2xl bg-sky text-base font-bold text-white transition-colors hover:bg-sky-strong"
               >
                 이어서 하기
               </Link>
               <button
                 type="button"
                 onClick={() => setAskClear(true)}
-                className="inline-flex h-12 items-center justify-center rounded-full px-5 text-base font-semibold text-danger transition-colors hover:bg-danger/10"
+                className="inline-flex h-12 items-center justify-center rounded-2xl px-5 text-base font-semibold text-danger transition-colors hover:bg-danger/10"
               >
                 지우기
               </button>
@@ -142,7 +142,7 @@ export function VelocityHome({
       <div className="flex shrink-0 items-center gap-2 px-5 pb-[max(1rem,env(safe-area-inset-bottom))] pt-2">
         <Link
           href="/velocity/measure"
-          className="inline-flex h-14 flex-1 items-center justify-center gap-2 rounded-full bg-sky text-lg font-bold text-white shadow-sm transition-colors hover:bg-sky-strong"
+          className="inline-flex h-14 flex-1 items-center justify-center gap-2 rounded-2xl bg-sky text-lg font-bold text-white transition-colors hover:bg-sky-strong"
         >
           <Camera aria-hidden className="h-5 w-5" />
           측정 시작
