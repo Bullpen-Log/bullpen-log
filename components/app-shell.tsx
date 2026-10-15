@@ -26,7 +26,7 @@ import {
   subscribeBar,
 } from '@/lib/nav-state';
 import { NAV_ICONS, NAV_TINT } from '@/components/nav-icons';
-import { TabSwipe } from '@/components/tab-swipe';
+import { TabSwipe, slideToTab } from '@/components/tab-swipe';
 import { AppIcon } from '@/components/app-icon';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { quietRefresh } from '@/lib/quiet-refresh';
@@ -2906,6 +2906,7 @@ function MobileTabs({
     lens.release(tabs.indexOf(tab));
     setChosen({ href: tab.href, from: pathname });
     haptic('light');
+    if (slideToTab(tab.href)) return;
     const dir = slideTo(tabs.indexOf(tab));
     if (dir) setNavDirection(dir);
     router.push(tab.href);
@@ -3039,6 +3040,8 @@ function MobileTabs({
                     /* 렌즈는 화면을 다시 그리기 전에 곧바로 — effect 를 기다리면 한두 장면 늦게 출발했다 */
                     lens.to(tabs.indexOf(tab));
                     setChosen({ href: tab.href, from: pathname });
+                    /* 탭 첫 화면이면 쓸기처럼 누르는 순간 본문이 밀리기 시작한다(components/tab-swipe.tsx slideToTab) — 링크는 안 따른다 */
+                    if (slideToTab(tab.href)) e.preventDefault();
                   }
                   return;
                 }

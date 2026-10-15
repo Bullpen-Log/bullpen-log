@@ -3041,28 +3041,28 @@ html[data-splash] *::after {
     background-color: var(--color-page);
   }
   html[data-nav='swipe-next']::view-transition-old(app-main) {
-    animation: 280ms cubic-bezier(0.32, 0.72, 0, 1) both swipe-old-next;
+    animation: 240ms cubic-bezier(0.32, 0.72, 0, 1) both swipe-old-next;
   }
   html[data-nav='swipe-next']::view-transition-old(.page) {
-    animation: 280ms cubic-bezier(0.32, 0.72, 0, 1) both swipe-old-next;
+    animation: 240ms cubic-bezier(0.32, 0.72, 0, 1) both swipe-old-next;
   }
   html[data-nav='swipe-next']::view-transition-new(app-main) {
-    animation: 280ms cubic-bezier(0.32, 0.72, 0, 1) both swipe-new-next;
+    animation: 240ms cubic-bezier(0.32, 0.72, 0, 1) both swipe-new-next;
   }
   html[data-nav='swipe-next']::view-transition-new(.page) {
-    animation: 280ms cubic-bezier(0.32, 0.72, 0, 1) both swipe-new-next;
+    animation: 240ms cubic-bezier(0.32, 0.72, 0, 1) both swipe-new-next;
   }
   html[data-nav='swipe-prev']::view-transition-old(app-main) {
-    animation: 280ms cubic-bezier(0.32, 0.72, 0, 1) both swipe-old-prev;
+    animation: 240ms cubic-bezier(0.32, 0.72, 0, 1) both swipe-old-prev;
   }
   html[data-nav='swipe-prev']::view-transition-old(.page) {
-    animation: 280ms cubic-bezier(0.32, 0.72, 0, 1) both swipe-old-prev;
+    animation: 240ms cubic-bezier(0.32, 0.72, 0, 1) both swipe-old-prev;
   }
   html[data-nav='swipe-prev']::view-transition-new(app-main) {
-    animation: 280ms cubic-bezier(0.32, 0.72, 0, 1) both swipe-new-prev;
+    animation: 240ms cubic-bezier(0.32, 0.72, 0, 1) both swipe-new-prev;
   }
   html[data-nav='swipe-prev']::view-transition-new(.page) {
-    animation: 280ms cubic-bezier(0.32, 0.72, 0, 1) both swipe-new-prev;
+    animation: 240ms cubic-bezier(0.32, 0.72, 0, 1) both swipe-new-prev;
   }
 
   /*
@@ -3101,7 +3101,7 @@ html[data-splash] *::after {
  */
 [data-tab-ghost][data-done] {
   opacity: 0;
-  transition: opacity 120ms ease-out;
+  transition: opacity 100ms ease-out;
 }
 /* 자리표시가 본문 사본일 때(components/tab-swipe.tsx shots) — 사본 안의 들어오는 움직임 · 전환이 다시 돌지 않게 */
 [data-tab-ghost] * {

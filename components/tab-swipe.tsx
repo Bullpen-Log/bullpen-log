@@ -7,6 +7,7 @@ import {
   useState,
   type CSSProperties,
 } from 'react';
+import { flushSync } from 'react-dom';
 import { usePathname, useRouter } from 'next/navigation';
 import { NAV_ICONS } from '@/components/nav-icons';
 import { DESK_MEDIA, MORE_HREF, type NavItem } from '@/lib/nav';
@@ -53,19 +54,21 @@ const SLOP = 10;
  */
 const LOCK_RATIO = 1.2;
 /** 끝까지 미끄러지는 시간 — 손을 멈췄다 뗐을 때(빠르게 튕기면 짧아진다, settleFor) */
-const SETTLE_MS = 220;
+const SETTLE_MS = 200;
+/** 하단 탭을 눌러 옮길 때 미끄러지는 시간(slideToTab) */
+const TAP_MS = 240;
 
 /**
  * 손 뗀 뒤의 미끄러짐 — 손가락 빠르기를 그대로 이어받는다(2026-10-15 사용자 "쓸기가 너무 딱딱하다"). 예전엔 얼마나 빠르게
  * 튕기든 늘 같은 시간 · 같은 곡선이라, 빠른 튕김은 손을 떼는 순간 느려지고 느린 끌기는 갑자기 빨라져 뚝 끊겨 보였다.
  * 곡선 cubic-bezier(0.2, y1, 0.35, 1)의 처음 기울기는 y1/0.2 — 그 기울기 × 남은 거리 ÷ 시간이 손 뗀 빠르기와 같게 y1 을 고른다.
- * 시간은 그 빠르기로 남은 거리를 2.2배 걸려 가는 만큼(빨리 튕길수록 짧게), 150~320ms 안.
+ * 시간은 그 빠르기로 남은 거리를 2.2배 걸려 가는 만큼(빨리 튕길수록 짧게), 130~280ms 안.
  */
 function settleFor(dist: number, speed: number) {
   const d = Math.max(1, Math.abs(dist));
   const v = Math.max(0, speed);
   const ms =
-    v > 0.05 ? Math.round(Math.min(320, Math.max(150, (2.2 * d) / v))) : SETTLE_MS;
+    v > 0.05 ? Math.round(Math.min(280, Math.max(130, (2.2 * d) / v))) : SETTLE_MS;
   const y1 = Math.min(1, (0.2 * v * ms) / d);
   return { ms, ease: `transform ${ms}ms cubic-bezier(0.2, ${y1.toFixed(3)}, 0.35, 1)` };
 }
@@ -79,6 +82,16 @@ const GIVE_UP_MS = 8000;
 /** 손가락을 스스로 받는 부품(touch-action 을 따로 둔 것) — 클래스 · 인라인 스타일로 가린다 */
 const TOUCH_OWNER =
   '.touch-none, .touch-pan-y, .touch-pan-x, .touch-pinch-zoom, [style*="touch-action"]';
+
+/*
+ * 하단 탭을 누를 때도 쓸기처럼 — 누르는 순간 본문이 밀리기 시작하고 새 화면은 곧바로 부른다(2026-10-15 사용자 "좀 더 빠르게").
+ * 예전엔 누르면 서버가 새 화면을 보낼 때까지 아무것도 안 움직이다가 화면 전환(globals.css swipe-next · swipe-prev)이 돌아 느리게 느껴졌다.
+ * 쓸리는 화면(탭 첫 화면)에 TabSwipe 가 떠 있을 때만 받는다 — 못 받으면 false, 그때는 예전 길(Link + 화면 전환).
+ */
+let slideHandler: ((href: string) => boolean) | null = null;
+export function slideToTab(href: string): boolean {
+  return slideHandler?.(href) ?? false;
+}
 
 /** 주소에서 물음표 뒤를 뺀 것 — 트레이닝은 /training?view=home 이라 pathname 과 그대로 비교하면 안 맞았다(2026-10-15 버그) */
 const base = (href: string) => href.split('?')[0];
@@ -357,6 +370,73 @@ export function TabSwipe({
       if (g) g.style.transform = `translateX(${dx}px)`;
     };
 
+    /*
+     * 넘어가기 — 본문 · 자리표시를 끝까지 밀고(GPU) 새 화면도 곧바로 부른다(쓸기에서 손 뗄 때 · 하단 탭을 누를 때). 예전엔 다 밀린 뒤
+     * (0.26초) 불러 그만큼 늦게 떴다(2026-10-15 "로딩이 느리다"). 미는 중에 새 화면이 오면 위 useLayoutEffect 가 자리표시 자리에서
+     * 이어 들어오게 한다. 끝내 안 오면(신호 끊김 · 오류) 제자리로 — 본문이 화면 밖에 남아 빈 화면이던 것.
+     */
+    const slideAway = (href: string, dir: 1 | -1, go: { ms: number; ease: string }) => {
+      target.current = href;
+      window.clearTimeout(giveUp.current);
+      giveUp.current = window.setTimeout(() => {
+        if (target.current !== href) return;
+        target.current = null;
+        const ease = `transform ${SETTLE_MS}ms cubic-bezier(0.32, 0.72, 0, 1)`;
+        main.style.transition = ease;
+        if (ghostEl.current) ghostEl.current.style.transition = ease;
+        setX(0);
+        window.setTimeout(() => {
+          main.style.transition = '';
+          main.style.willChange = '';
+          setGhost(null);
+        }, SETTLE_MS);
+      }, GIVE_UP_MS);
+      /* 하단 탭의 렌즈도 지금 그 칸으로 — 본문과 같이 미끄러진다 */
+      window.dispatchEvent(new CustomEvent(TAB_CHOSEN_EVENT, { detail: href }));
+      main.style.transition = go.ease;
+      if (ghostEl.current) ghostEl.current.style.transition = go.ease;
+      setX(-dir * window.innerWidth);
+      slideDir.current = dir;
+      slideEnd.current = performance.now() + go.ms;
+      router.push(href, { transitionTypes: TAB_SWIPE_TYPES });
+    };
+
+    /* 하단 탭을 눌렀을 때(slideToTab) — 그 탭의 자리표시를 옆에 세우고 곧바로 넘어간다. 떨어진 탭(홈 → 영양)도 한 칸처럼 */
+    slideHandler = (href) => {
+      if (target.current || drag.current?.on || html.dataset.ptr) return false;
+      if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return false;
+      const i = indexOf(latest.current.pathname);
+      const j = latest.current.order.findIndex((h) => base(h) === base(href));
+      if (i < 0 || j < 0 || i === j) return false;
+      const item = latest.current.tabs.find((t) => base(t.href) === base(href));
+      if (!item) return false;
+      const dir: 1 | -1 = j > i ? 1 : -1;
+      /* NavMotion 이 링크를 보고 단 화면 전환 표시는 걷는다 — 이 길은 화면 전환 없이 본문을 직접 민다 */
+      html.removeAttribute('data-nav');
+      drag.current = null;
+      window.clearTimeout(settleTimer.current);
+      window.clearTimeout(mainTimer.current);
+      xRef.current = 0;
+      flushSync(() => setGhost({ dir, item, camera: false }));
+      const g = ghostEl.current;
+      if (g) {
+        g.style.transition = 'none';
+        g.style.transform = '';
+        g.style.visibility = '';
+        g.removeAttribute('data-done');
+      }
+      main.style.transition = 'none';
+      main.style.transform = '';
+      main.style.willChange = 'transform';
+      /* 지금 자리를 칠한 뒤 미끄러지기 시작하게 */
+      void main.offsetWidth;
+      slideAway(href, dir, {
+        ms: TAP_MS,
+        ease: `transform ${TAP_MS}ms cubic-bezier(0.32, 0.72, 0, 1)`,
+      });
+      return true;
+    };
+
     /* 지금 끄는 손가락 — 끌기를 시작한 그 손가락만 본다 */
     const touchOf = (e: TouchEvent, id: number) => {
       for (let k = 0; k < e.changedTouches.length; k++)
@@ -537,18 +617,7 @@ export function TabSwipe({
           }, 900);
           return;
         }
-        /* 하단 탭의 렌즈도 지금 그 칸으로 — 본문과 같이 미끄러진다 */
-        window.dispatchEvent(new CustomEvent(TAB_CHOSEN_EVENT, { detail: href }));
-        /*
-         * 곧바로 끝까지 밀고(GPU) 새 화면도 곧바로 부른다. 예전엔 다 밀린 뒤(0.26초) 불러 그만큼 늦게 떴다(2026-10-15 "로딩이 느리다").
-         * 미는 중에 새 화면이 오면 위 useLayoutEffect 가 자리표시 자리에서 이어 들어오게 한다.
-         */
-        main.style.transition = go.ease;
-        if (g) g.style.transition = go.ease;
-        setX(-d.dir * d.w);
-        slideDir.current = d.dir === 1 ? 1 : -1;
-        slideEnd.current = performance.now() + go.ms;
-        router.push(href, { transitionTypes: TAB_SWIPE_TYPES });
+        slideAway(href, d.dir === 1 ? 1 : -1, go);
         return;
       }
       /* 제자리로 — 되돌리는 쪽으로의 빠르기를 이어받는다 */
@@ -581,6 +650,7 @@ export function TabSwipe({
       window.clearTimeout(waitTimer.current);
       window.clearTimeout(settleTimer.current);
       window.clearTimeout(mainTimer.current);
+      slideHandler = null;
     };
   }, [router, swipeable]);
 
