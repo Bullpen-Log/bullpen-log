@@ -16,6 +16,7 @@ import {
 import {
   MonthCalendar,
   effortClass,
+  todayMarkClass,
   type DayCell,
   type DayMark,
 } from '@/components/month-calendar';
@@ -340,12 +341,12 @@ export function VideoCalendar({
             <span aria-hidden className="absolute inset-0 bg-surface-2/70" />
           )}
           <span
-            className={`absolute left-1.5 top-1 text-xs ${
+            className={`absolute text-xs ${
               cell.isFuture
-                ? 'text-muted/35'
+                ? 'left-1.5 top-1 text-muted/35'
                 : cell.isToday
-                  ? 'font-bold text-sky'
-                  : 'font-medium text-muted'
+                  ? `left-0.5 top-0.5 ${todayMarkClass()}`
+                  : 'left-1.5 top-1 font-medium text-muted'
             }`}
           >
             {cell.day}
@@ -361,16 +362,18 @@ export function VideoCalendar({
             aria-hidden
             className={`absolute inset-0 ${
               day.rest
-                ? 'm-1 rounded-md border border-dashed border-line-strong bg-surface-2'
+                ? 'm-1 rounded-md border border-dashed border-line-strong'
                 : effortClass(day.effortPct)
             }`}
           />
           <span
-            className={`absolute left-1.5 top-1 text-xs font-medium ${
-              !day.rest && day.effortPct >= STRONG_EFFORT_PCT
-                ? 'text-white'
-                : 'text-ink'
-            } ${cell.isToday ? 'font-bold underline underline-offset-2' : ''}`}
+            className={`absolute text-xs ${
+              cell.isToday
+                ? `left-0.5 top-0.5 ${todayMarkClass(!day.rest && day.effortPct >= STRONG_EFFORT_PCT)}`
+                : `left-1.5 top-1 font-medium ${
+                    !day.rest && day.effortPct >= STRONG_EFFORT_PCT ? 'text-white' : 'text-ink'
+                  }`
+            }`}
           >
             {cell.day}
           </span>
@@ -405,8 +408,8 @@ export function VideoCalendar({
           className="pointer-events-none absolute inset-x-0 bottom-0 h-8 bg-gradient-to-t from-black/60 to-transparent"
         />
         <span
-          className={`absolute left-1.5 top-1 text-xs font-bold text-white drop-shadow ${
-            cell.isToday ? 'underline underline-offset-2' : ''
+          className={`absolute text-xs text-white drop-shadow ${
+            cell.isToday ? `left-0.5 top-0.5 ${todayMarkClass(true)}` : 'left-1.5 top-1 font-bold'
           }`}
         >
           {cell.day}

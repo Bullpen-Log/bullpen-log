@@ -18,6 +18,8 @@ const GAP = 4;
  * 가로로 넘치는 칸이라 탭 쓸기(components/tab-pager.tsx)는 이 위에서 시작한 손가락을 안 받는다.
  *
  * 칸 얼굴의 밑줄(막대 · 점)은 부르는 쪽이 그린다(mark) — 영양은 먹은 양 막대, 트레이닝은 한 것 점.
+ * 오늘은 파란 테두리 + 굵은 숫자, 고른 날은 파란 채움(달력 둘과 같은 말, month-calendar todayMarkClass).
+ * end = 띠 오른쪽 끝에 붙는 것(2026-10-16 — 제목 옆 달력을 여기 작은 아이콘으로 옮김).
  */
 export function DateScrollStrip({
   days,
@@ -26,6 +28,7 @@ export function DateScrollStrip({
   hrefOf,
   labelOf,
   mark,
+  end,
   className = '',
 }: {
   /** 띠의 날들(오래된 → 최근, lib/date-strip.ts stripDays) */
@@ -38,6 +41,7 @@ export function DateScrollStrip({
   labelOf: (day: string) => string;
   /** 칸 밑 표시 — 고른 칸이면 흰색으로 그려 달라고 selected 를 준다 */
   mark: (day: string, selected: boolean) => ReactNode;
+  end?: ReactNode;
   className?: string;
 }) {
   const scroller = useRef<HTMLOListElement>(null);
@@ -48,7 +52,9 @@ export function DateScrollStrip({
     const el = scroller.current;
     const cell = el?.querySelector<HTMLElement>('[aria-current="date"]');
     if (!el || !cell) return;
-    el.scrollLeft = cell.offsetLeft - (el.clientWidth - cell.offsetWidth) / 2;
+    /* 띠 안 자리는 화면 자리 차로 잰다 — offsetLeft 는 판 넘기기 트랙 기준이라 옆 판에서는 판 폭만큼 어긋났다 */
+    const left = cell.getBoundingClientRect().left - el.getBoundingClientRect().left + el.scrollLeft;
+    el.scrollLeft = left - (el.clientWidth - cell.offsetWidth) / 2;
   }, [date, first]);
 
   const page = (dir: 1 | -1) =>
@@ -85,7 +91,7 @@ export function DateScrollStrip({
                   selected
                     ? 'bg-sky shadow-sm'
                     : isToday
-                      ? 'ring-1 ring-inset ring-sky/40 hover:bg-surface-2'
+                      ? 'ring-[1.5px] ring-inset ring-sky hover:bg-surface-2'
                       : 'hover:bg-surface-2'
                 }`}
               >
@@ -98,7 +104,7 @@ export function DateScrollStrip({
                 </span>
                 <span
                   className={`text-sm font-semibold tabular-nums ${
-                    selected ? 'text-white' : isToday ? 'text-sky' : 'text-ink'
+                    selected ? 'text-white' : isToday ? 'font-bold text-sky' : 'text-ink'
                   }`}
                 >
                   {dayNo}
@@ -112,6 +118,7 @@ export function DateScrollStrip({
       <button type="button" aria-label="다음 날들" onClick={() => page(1)} className={edge}>
         <ChevronRight aria-hidden className="h-4 w-4" />
       </button>
+      {end && <div className="flex shrink-0 items-center">{end}</div>}
     </nav>
   );
 }

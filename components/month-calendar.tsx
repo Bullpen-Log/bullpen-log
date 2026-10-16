@@ -59,6 +59,16 @@ export function effortClass(effortPct: number) {
   return 'bg-sky/15 text-ink';
 }
 
+/**
+ * 오늘 표시 — 숫자에 파란 테두리 원 + 굵게(2026-10-16 사용자: 홈 · 투구 달력 · 날짜 띠 세 곳을 같게). 고른 날은 칸 테두리(달력) · 파란 채움(날짜 띠).
+ * light = 진한 칸 · 영상 위라 흰 글자일 때.
+ */
+export function todayMarkClass(light = false) {
+  return `grid h-6 w-6 place-items-center rounded-full font-bold ring-[1.5px] ring-inset ${
+    light ? 'text-white ring-white' : 'text-sky ring-sky'
+  }`;
+}
+
 /** 색을 안 채우는 날 — 남긴 것은 있다는 뜻으로 점선만 준다(휴대폰은 바탕 없이, PC 는 회색 칸). */
 const OUTLINE_CLASS = 'border-dashed border-line-strong text-muted desk:bg-surface-2';
 
@@ -535,18 +545,13 @@ function DayGrid({
                       : 'text-ink desk:bg-surface-2 desk:text-muted desk:hover:text-ink'
             }`}
           >
-            {/*
-              오늘은 숫자를 파란 동그라미에 — 아이폰 달력처럼(예전 굵은 밑줄). 진한 칸(흰 글자) 위에서는
-              흰 동그라미에 파란 숫자로 뒤집어 보이게.
-            */}
+            {/* 오늘은 숫자에 파란 테두리 원 — 진한 칸(흰 글자) 위에서는 흰 테두리(todayMarkClass) */}
             <span
               className={
                 isToday
-                  ? `grid h-6 w-6 place-items-center rounded-full text-footnote font-bold ${
-                      mark?.effortPct != null && mark.effortPct >= STRONG_EFFORT_PCT
-                        ? 'bg-surface text-sky'
-                        : 'bg-sky text-white'
-                    }`
+                  ? `text-footnote ${todayMarkClass(
+                      mark?.effortPct != null && mark.effortPct >= STRONG_EFFORT_PCT,
+                    )}`
                   : 'font-medium'
               }
             >

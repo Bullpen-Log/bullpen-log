@@ -18,8 +18,6 @@ import {
   CalendarDays,
   Check,
   ChevronDown,
-  ChevronLeft,
-  ChevronRight,
   Minus,
   Plus,
   Settings2,
@@ -420,11 +418,11 @@ export function NutritionView({
           {/* 다른 탭(PageHeading)처럼 큰 제목이 가려지면 위 막대에 작은 제목 */}
           <NavTitle title="영양" />
         </div>
-        <DateNav date={day.date} today={today} calendar={day.calendar} />
         <WeekStrip
           strip={day.strip}
           date={day.date}
           today={today}
+          end={<DateNav date={day.date} today={today} calendar={day.calendar} />}
           className="order-last w-full sm:max-w-xl lg:order-none lg:w-auto lg:flex-1"
         />
         <button
@@ -734,10 +732,6 @@ function DateNav({
   calendar: Record<string, number>;
 }) {
   const router = useRouter();
-  const prev = shiftDateKey(date, -1);
-  const next = shiftDateKey(date, 1);
-  const arrow =
-    'flex h-10 w-10 items-center justify-center rounded-lg text-muted transition-colors hover:bg-surface-2 hover:text-ink';
 
   /*
    * 작은 달력 판.
@@ -777,90 +771,48 @@ function DateNav({
   }, [picker]);
 
   return (
-    <nav aria-label="날짜" className="flex items-center gap-1">
-      {prev >= oldest(today) ? (
-        <Link
-          href={hrefOf(prev, today)}
-          scroll={false}
-          data-nav="none"
-          aria-label="전날"
-          className={arrow}
-        >
-          <ChevronLeft aria-hidden className="h-5 w-5" />
-        </Link>
-      ) : (
-        <span aria-hidden className={`${arrow} opacity-30`}>
-          <ChevronLeft className="h-5 w-5" />
-        </span>
-      )}
-      <span ref={box} className="relative">
-        <button
-          type="button"
-          onClick={() => (picker === 'open' ? close() : setPicker('open'))}
-          aria-expanded={picker === 'open'}
-          aria-haspopup="dialog"
-          aria-label={`${dayTitle(date)}, 다른 날짜 고르기`}
-          className={`inline-flex min-w-[7.5rem] items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-sm font-semibold text-ink tabular-nums transition-colors sm:min-w-[8.5rem] ${
-            picker === 'open' ? 'bg-surface-2' : 'hover:bg-surface-2'
+    <span ref={box} className="relative">
+      <button
+        type="button"
+        onClick={() => (picker === 'open' ? close() : setPicker('open'))}
+        aria-expanded={picker === 'open'}
+        aria-haspopup="dialog"
+        aria-label={`${dayTitle(date)}, 다른 날짜 고르기`}
+        className={`flex h-10 w-10 items-center justify-center rounded-lg transition-colors ${
+          picker === 'open' ? 'bg-surface-2' : 'hover:bg-surface-2'
+        }`}
+      >
+        <CalendarDays
+          aria-hidden
+          className={`h-5 w-5 transition-colors ${picker === 'open' ? 'text-sky' : 'text-muted'}`}
+        />
+      </button>
+      {picker !== 'closed' && (
+        <div
+          role="dialog"
+          aria-label="날짜 고르기"
+          data-mini-calendar
+          data-no-swipe
+          className={`absolute right-0 top-full z-30 mt-2 w-[18.5rem] origin-top-right rounded-2xl border border-line bg-surface p-3 shadow-lg ${
+            picker === 'closing'
+              ? 'pointer-events-none motion-safe:animate-[month-fade-out_120ms_ease-in_both]'
+              : 'motion-safe:animate-fade-in'
           }`}
         >
-          <CalendarDays
-            aria-hidden
-            className={`h-4 w-4 transition-colors ${picker === 'open' ? 'text-sky' : 'text-muted'}`}
+          <MiniCalendar
+            value={date}
+            today={today}
+            min={oldest(today)}
+            max={today}
+            marked={(d) => (calendar[d] ?? 0) > 0}
+            onPick={(d) => {
+              close();
+              if (d !== date) router.push(hrefOf(d, today), { scroll: false });
+            }}
           />
-          {dayTitle(date)}
-        </button>
-        {picker !== 'closed' && (
-          <div
-            role="dialog"
-            aria-label="날짜 고르기"
-            data-mini-calendar
-            className={`absolute left-1/2 top-full z-30 mt-2 w-[18.5rem] -translate-x-1/2 origin-top rounded-2xl border border-line bg-surface p-3 shadow-lg ${
-              picker === 'closing'
-                ? 'pointer-events-none motion-safe:animate-[month-fade-out_120ms_ease-in_both]'
-                : 'motion-safe:animate-fade-in'
-            }`}
-          >
-            <MiniCalendar
-              value={date}
-              today={today}
-              min={oldest(today)}
-              max={today}
-              marked={(d) => (calendar[d] ?? 0) > 0}
-              onPick={(d) => {
-                close();
-                if (d !== date) router.push(hrefOf(d, today), { scroll: false });
-              }}
-            />
-          </div>
-        )}
-      </span>
-      {date < today ? (
-        <Link
-          href={hrefOf(next, today)}
-          scroll={false}
-          data-nav="none"
-          aria-label="다음날"
-          className={arrow}
-        >
-          <ChevronRight aria-hidden className="h-5 w-5" />
-        </Link>
-      ) : (
-        <span aria-hidden className={`${arrow} opacity-30`}>
-          <ChevronRight className="h-5 w-5" />
-        </span>
+        </div>
       )}
-      {date !== today && (
-        <Link
-          href="/nutrition"
-          scroll={false}
-          data-nav="none"
-          className="ml-1 rounded-lg px-2 py-1 text-xs font-medium text-sky transition-colors hover:bg-sky-tint"
-        >
-          오늘로
-        </Link>
-      )}
-    </nav>
+    </span>
   );
 }
 
@@ -875,12 +827,15 @@ function WeekStrip({
   date,
   today,
   className = '',
+  end,
 }: {
   strip: DaySummary[];
   date: string;
   today: string;
   /** 놓일 자리(머리 줄 안에서의 순서 · 폭) */
   className?: string;
+  /** 띠 끝 — 더 옛날을 고르는 달력 그림(DateNav) */
+  end?: React.ReactNode;
 }) {
   const byDate = new Map(strip.map((d) => [d.date, d]));
   return (
@@ -888,6 +843,7 @@ function WeekStrip({
       days={strip.map((d) => d.date)}
       date={date}
       today={today}
+      end={end}
       hrefOf={(d) => hrefOf(d, today)}
       labelOf={(d) => {
         const kcal = byDate.get(d)?.kcal ?? 0;

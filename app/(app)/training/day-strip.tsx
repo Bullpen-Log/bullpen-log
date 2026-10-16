@@ -1,6 +1,7 @@
 'use client';
 
 import { DateScrollStrip } from '@/components/date-scroll-strip';
+import { TrainingDateNav } from './date-nav';
 import { trainingDayHref } from '@/lib/training-part';
 import type { TrainingStripDay } from '@/lib/training-week';
 
@@ -15,6 +16,7 @@ const DOTS: { key: 'workout' | 'armcare' | 'drill'; name: string; color: string 
  * 트레이닝 날짜 띠 — 영양 탭 제목 밑의 날짜 띠와 같은 한 줄(components/date-scroll-strip.tsx, 2026-10-15 사용자 "둘 다").
  *
  * 최근 6주를 옆으로 굴린다. 칸 밑의 점은 그날 한 것(운동 · 암케어 · 메커니즘). 칸을 누르면 그날 기록, 오늘은 트레이닝 홈.
+ * 더 옛날은 띠 끝 달력 그림(2026-10-16 — 제목 옆에 따로 있던 달력을 여기로).
  */
 export function TrainingDayStrip({
   days,
@@ -36,6 +38,7 @@ export function TrainingDayStrip({
       days={days.map((d) => d.date)}
       date={date}
       today={today}
+      end={<TrainingDateNav date={date} today={today} iconOnly />}
       hrefOf={(d) => trainingDayHref(d, today)}
       labelOf={(d) => {
         const done = doneOf(d);

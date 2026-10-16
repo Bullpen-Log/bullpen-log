@@ -26,7 +26,6 @@ import { dbDate, keyOfDbDate } from '@/lib/nutrition/days';
 import { TRAINING_PART_HREF, type TrainingPart } from '@/lib/training-part';
 import { StartWorkout } from './start-workout';
 import { TrainingDayStrip } from './day-strip';
-import { TrainingDateNav } from './date-nav';
 import { loadTrainingStrip } from '@/lib/training-week';
 import { withJosa } from '@/lib/korean';
 
@@ -81,15 +80,14 @@ export function TrainingHome({
   return (
     <div className="stack-page">
       {/*
-        제목 · 간이 달력 · 분석을 한 줄에 — 영양 탭 머리(nutrition-view.tsx)와 같은 모양(2026-10-15 사용자 "트레이닝 제목 옆에도
-        영양처럼 간이 캘린더"). 큰 제목이 가려지면 위 막대에 작은 제목(NavTitle) — PageHeading 과 같다.
+        제목 · 분석을 한 줄에 — 영양 탭 머리(nutrition-view.tsx)와 같은 모양. 간이 달력은 밑 날짜 띠 끝 그림으로 옮겼다(2026-10-16).
+        큰 제목이 가려지면 위 막대에 작은 제목(NavTitle) — PageHeading 과 같다.
       */}
       <header className="flex flex-wrap items-center gap-x-2 gap-y-3 pb-1 desk:items-end desk:pb-4 sm:gap-x-3">
         <div className="space-y-1">
           <h1 className={`text-heading page-title text-ink ${PAGE_TITLE_LINE}`}>트레이닝</h1>
           <NavTitle title="트레이닝" />
         </div>
-        <TrainingDateNav date={toDateKey(today)} today={toDateKey(today)} />
         <div className="ml-auto">
           <AnalysisLink view="training" />
         </div>
@@ -113,7 +111,7 @@ const APPS: Record<
   { name: string; icon: LucideIcon; tile: string; ink: string; button: string; bar: string; barSoft: string }
 > = {
   today: {
-    name: '트레이닝',
+    name: '오늘 운동',
     icon: Dumbbell,
     tile: 'bg-app-training/12',
     ink: 'text-app-training',
@@ -577,7 +575,8 @@ async function WeekStrip({ userId, today }: { userId: string; today: Date }) {
           <span className="font-semibold text-ink">이번 주</span>
           {cells.map((c) => (
             <span key={c.app}>
-              {APPS[c.app].name}{' '}
+              {/* 카드 이름 '오늘 운동'은 한 주 줄에 안 맞아 '운동'으로 */}
+              {c.app === 'today' ? '운동' : APPS[c.app].name}{' '}
               <span className="font-semibold tabular-nums text-ink">
                 {c.value}
                 {c.unit}

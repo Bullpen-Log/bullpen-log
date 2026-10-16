@@ -34,7 +34,7 @@ import { quietRefresh } from '@/lib/quiet-refresh';
 import { forgetPage, rememberPage } from '@/lib/last-page';
 import { REST_SESSION_TYPE } from '@/lib/session-type';
 import type { NavGroup, NavItem } from '@/lib/nav';
-import { DESK_MEDIA, MORE_HREF, NAV_ALSO, NAV_GROUPS, isLockSideHref } from '@/lib/nav';
+import { DESK_MEDIA, MOBILE_TABS, MORE_HREF, NAV_ALSO, NAV_GROUPS, isLockSideHref } from '@/lib/nav';
 import { Wordmark } from '@/components/logo';
 import { Modal } from '@/components/modal';
 import { ProfilePanel, type ProfileData } from '@/components/profile-panel';
@@ -1993,6 +1993,10 @@ function Tip({ children }: { children: React.ReactNode }) {
  * 테마 고르기는 여기 두지 않았다. 하루에 한 번 누를까 말까 한 것이 메뉴를 열
  * 때마다 눈에 들어올 이유가 없다. 설정 화면에 있다.
  */
+/** 하단 탭에도 있는 메뉴 항목 — 휴대폰 더보기 폴더에서 뺀다 */
+const inTabBar = (item: NavItem) =>
+  MOBILE_TABS.some((t) => t.label === item.label && t.icon === item.icon);
+
 function DetailMenu({
   groups,
   nickname,
@@ -2372,8 +2376,11 @@ function DetailMenu({
                           /*
                       누르는 칸은 44px 이상 — 예전에는 32px 남짓이라 옆 항목을 잘못 누르곤 했다.
                     */
-                          /* 휴대폰 폴더에는 홈이 없다(2026-10-14 사용자 — 홈은 하단 탭에 있다). PC 팝업에는 그대로 */
-                          className={`${item.href === '/today' ? 'hidden desk:flex' : 'flex'} min-w-0 flex-col items-center gap-1.5 rounded-2xl px-0.5 py-0.5 text-center text-(--folder-fg) transition-[colors,transform] duration-75 motion-safe:active:scale-95 desk:min-h-10 desk:flex-row desk:gap-3 desk:rounded-lg desk:px-3 desk:py-1.5 desk:text-left desk:text-ink desk:active:scale-100 ${
+                          /*
+                           * 휴대폰 폴더에는 하단 탭에 있는 넷(홈 · 투구 · 트레이닝 · 영양)이 없다(2026-10-14 홈, 2026-10-16 나머지 셋 — 같은 길이 두 번).
+                           * 잠긴 탭은 주소가 설정 화면으로 바뀌어 이름 · 그림으로 견준다. PC 팝업에는 그대로
+                           */
+                          className={`${inTabBar(item) ? 'hidden desk:flex' : 'flex'} min-w-0 flex-col items-center gap-1.5 rounded-2xl px-0.5 py-0.5 text-center text-(--folder-fg) transition-[colors,transform] duration-75 motion-safe:active:scale-95 desk:min-h-10 desk:flex-row desk:gap-3 desk:rounded-lg desk:px-3 desk:py-1.5 desk:text-left desk:text-ink desk:active:scale-100 ${
                             active
                               ? 'desk:bg-sky desk:text-white'
                               : 'desk:hover:bg-ink/6 desk:active:bg-ink/6'
