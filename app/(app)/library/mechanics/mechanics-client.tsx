@@ -5,9 +5,10 @@ import { Pencil, Star, Trash2, X } from '@/components/icon';
 import { deleteGuide, setGuideThumbnail } from '@/app/actions/content';
 import { toggleDrillFavorite } from '@/app/actions/favorite';
 import { FavoriteButton } from '@/components/favorite-button';
-import { LATER_CATEGORY, MECHANICS_CATEGORIES } from '@/lib/categories';
+import { LATER_CATEGORY, MECHANICS_CATEGORY_NAMES } from '@/lib/categories';
 import { DRILL_EQUIPMENT, DRILL_STAGE_NAMES, FOCUS_POINTS } from '@/lib/exercise-meta';
 import { CategorySection } from '@/components/category-section';
+import { CategoryBadge } from '@/components/category-badge';
 import { LibraryVideo } from '@/components/library-video';
 import { LibraryTile } from '@/components/exercise-tile';
 import { DrillBadges } from '@/components/meta-badges';
@@ -48,8 +49,24 @@ export type GuideItem = {
 const FILTER_GROUPS = [
   { key: 'focusPoints', label: '요소', options: FOCUS_POINTS },
   { key: 'stage', label: '단계', options: DRILL_STAGE_NAMES },
+  { key: 'category', label: '종류', options: MECHANICS_CATEGORY_NAMES.filter((c) => c !== LATER_CATEGORY) },
   { key: 'equipment', label: '장비', options: DRILL_EQUIPMENT },
 ];
+
+/** 근력 · 안정 — 요소 칸이 아니라 따로 한 칸(2026-10-16 사용자) */
+const STRENGTH_CATEGORY = '근력 · 안정 드릴';
+/** 요소를 아직 안 정한 드릴 — 요소 칸에 못 넣는다. 있을 때만 보인다 */
+const NO_FOCUS = '요소 미정';
+
+/**
+ * 목록의 칸 — 투구 차례의 여섯 요소(주 요소 기준, 2026-10-16 사용자: "요소 6칸") → 근력 · 안정 → 나중에 촬영.
+ * 드릴의 종류(스로잉 · 메디신볼 · 무브먼트 · 근력 · 안정)는 칸이 아니라 필터의 '종류'와 펼친 카드에서 본다.
+ */
+function sectionOf(g: GuideItem): string {
+  if (g.category === LATER_CATEGORY || g.category === STRENGTH_CATEGORY) return g.category;
+  return g.focusPoints[0] ?? NO_FOCUS;
+}
+const SECTIONS = [...FOCUS_POINTS, STRENGTH_CATEGORY, NO_FOCUS, LATER_CATEGORY];
 
 /** 펼쳤을 때 보이는 전체 내용 */
 function GuideDetail({
@@ -168,7 +185,9 @@ function GuideDetail({
           </div>
         </div>
 
-        <div className="mt-3">
+        <div className="mt-3 space-y-2">
+          {/* 목록이 요소로 칸을 나눠 종류(스로잉 · 메디신볼 …)는 여기서 본다 */}
+          <CategoryBadge name={item.category} />
           <DrillBadges
             focusPoints={item.focusPoints}
             equipment={item.equipment}
@@ -263,6 +282,7 @@ export function MechanicsClient({
         matchesFilter(filter, {
           focusPoints: g.focusPoints,
           stage: g.stage ? [g.stage] : [],
+          category: [g.category],
           equipment: g.equipment,
         })
     );
@@ -277,10 +297,10 @@ export function MechanicsClient({
       .map(({ g }) => g);
   }, [guides, filter, onlyFavorites]);
 
-  const byCategory = useMemo(
+  const bySection = useMemo(
     () =>
       guides.reduce<Record<string, GuideItem[]>>((acc, g) => {
-        (acc[g.category] ??= []).push(g);
+        (acc[sectionOf(g)] ??= []).push(g);
         return acc;
       }, {}),
     [guides]
@@ -357,18 +377,24 @@ export function MechanicsClient({
         )
       ) : (
         <div className="space-y-4">
-          {MECHANICS_CATEGORIES.map((category) => {
-            const items = byCategory[category.name] ?? [];
-            /* '나중에 촬영'은 미뤄 둔 드릴이 있을 때만 — 빈 칸에 '첫 드릴을 등록해보세요'를 띄울 자리가 아니다 */
-            if (category.name === LATER_CATEGORY && items.length === 0) return null;
+          {SECTIONS.map((section) => {
+            const items = bySection[section] ?? [];
+            /* '나중에 촬영' · '요소 미정'은 든 드릴이 있을 때만 — 빈 칸에 '첫 드릴을 등록해보세요'를 띄울 자리가 아니다 */
+            if ((section === LATER_CATEGORY || section === NO_FOCUS) && items.length === 0) return null;
+            const isFocus = (FOCUS_POINTS as readonly string[]).includes(section);
 
             return (
               <CategorySection
-                key={category.name}
-                name={category.name}
+                key={section}
+                name={section}
                 count={items.length}
                 isAdmin={isAdmin}
-                form={<GuideForm category={category.name} />}
+                form={
+                  <GuideForm
+                    category={isFocus ? '' : section}
+                    focus={isFocus ? section : undefined}
+                  />
+                }
               >
                 {items.length === 0 ? (
                   <p className="rounded-xl empty-well px-5 py-10 text-center text-sm text-muted">

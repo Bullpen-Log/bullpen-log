@@ -57,6 +57,11 @@ export const MECHANICS_CATEGORIES = [
   { name: '메디신볼 드릴', tone: 'core' },
   { name: '무브먼트 패턴 드릴', tone: 'mobility' },
   /*
+   * 근력 · 안정 — 동작을 익히는 드릴이 아니라 그 자세를 버티는 힘(TKE 버티기 · 아이소메트릭 · 밴드 저항 · 워터백/워터볼). 2026-10-16 사용자가
+   * '메커니즘에 새 칸'으로 정했다(docs/mechanics/drill-review-2026-10-16.md). 팔에 싣지 않는다(lib/mechanics/program.ts isArmLoaded).
+   */
+  { name: '근력 · 안정 드릴', tone: 'lower' },
+  /*
    * 나중에 촬영 — 영상이 아직 없어 뒤로 미룬 드릴(2026-10-14 사용자, 운동의 같은 칸과 같은 뜻). 드릴 영상 화면에는 이 칸으로 보이고,
    * 트레이닝(메커니즘 프로그램 · 요소별 드릴 · 3D 결과 화면의 드릴)이 보는 trainingGuides(lib/library-cache.ts)에서는 빠진다.
    * 원래 분류는 lib/shoot/later-drills.json — 찍으면 scripts/drills-later-2026-10-14.mjs --restore 로 되돌린다.

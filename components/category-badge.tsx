@@ -1,10 +1,14 @@
 import {
   Activity,
+  ArrowDownRight,
+  ArrowLeftRight,
+  ArrowRight,
   Dumbbell,
   Footprints,
   HeartPulse,
   Leaf,
   Move,
+  RotateCw,
   Shield,
   Target,
   Waves,
@@ -38,6 +42,14 @@ const ICON_BY_NAME: Record<string, LucideIcon> = {
   '스로잉 드릴': Target,
   '메디신볼 드릴': Activity,
   '무브먼트 패턴 드릴': Move,
+  '근력 · 안정 드릴': Dumbbell,
+  /* 투구 드릴 영상은 요소(주 요소)로 칸을 나눈다(2026-10-16) — 칸 머리 아이콘 */
+  드리프트: ArrowRight,
+  드롭: ArrowDownRight,
+  '상하체 분리': ArrowLeftRight,
+  브레이크: Footprints,
+  '몸통 회전': RotateCw,
+  스로잉: Target,
 };
 
 /* 모든 카테고리가 같은 회색 — 옅은 회색 바탕(글자색 6%) 위 보조 글자색 */

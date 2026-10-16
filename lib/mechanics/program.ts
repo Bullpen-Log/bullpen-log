@@ -261,6 +261,7 @@ export type SessionItem = {
 const MOVEMENT = '무브먼트 패턴 드릴';
 const MEDBALL = '메디신볼 드릴';
 const THROWING = '스로잉 드릴';
+const STRENGTH = '근력 · 안정 드릴';
 
 export type Dose = { sets: number; reps: number };
 
@@ -281,6 +282,8 @@ const DOSES: Record<string, Record<DrillStage, Dose>> = {
   [MOVEMENT]: { 기초: MOVEMENT_DOSE, 연결: MOVEMENT_DOSE, 통합: MOVEMENT_DOSE },
   [MEDBALL]: { 기초: MEDBALL_DOSE, 연결: MEDBALL_DOSE, 통합: MEDBALL_DOSE },
   [THROWING]: { 기초: THROWING_DOSE, 연결: THROWING_DOSE, 통합: THROWING_DOSE },
+  /* 근력 · 안정은 무브먼트와 같은 양 — 버티는 드릴은 '회'를 '초'로 읽게 설명에 적혀 있다 */
+  [STRENGTH]: { 기초: MOVEMENT_DOSE, 연결: MOVEMENT_DOSE, 통합: MOVEMENT_DOSE },
 };
 
 /** 단계마다 어떻게 할지 — 따라 하기의 처방 밑 한 줄. 스로잉은 [T7] 의 세 걸음 */
@@ -298,6 +301,7 @@ export const STAGE_TEMPO: Record<DrillStage, string> = {
 const CATEGORY_TEMPO: Record<string, string> = {
   [MEDBALL]: '처음 몇 번은 동작을 익히고, 몸에 익으면 빠르게 던져요',
   [MOVEMENT]: '처음에는 천천히 정확하게, 익숙해지면 속도를 올려요',
+  [STRENGTH]: '자세를 정확히 잡고, 버티는 동안 흔들리지 않게 해요',
 };
 
 /** 이만큼 세션마다 영상을 찍어 처음과 견주게 한다(2분할 비교) */
@@ -395,12 +399,15 @@ export function buildLevelSession({
       picks.push({ drill, variant: own, replaced: null, need: [] });
       continue;
     }
-    /* 이 드릴을 할 장비가 없다 — 같은 요소 · 같은 단계의 할 수 있는 드릴로 */
+    /*
+     * 이 드릴을 할 장비가 없다 — 같은 주 요소 · 같은 단계의 할 수 있는 드릴로. 보조로만 그 요소를 쓰는 드릴은 넣지 않는다 — 주 요소가 달라져
+     * 세션의 투구 차례(하체 → 상체)가 깨지고 그 요소가 빠졌다(2026-10-16, 맨몸 · 야구공만인 고급 9 · 12번째). 없으면 그대로 두고 알린다.
+     */
     const need = missingGear(drill.variants[0], owned);
     const alt = isElementName(element)
-      ? candidates(drills, element, stageOf(drill))
-          .flat()
-          .find((d) => !used.has(d.title) && usableVariant(d, owned))
+      ? candidates(drills, element, stageOf(drill))[0].find(
+          (d) => !used.has(d.title) && usableVariant(d, owned)
+        )
       : undefined;
     const altVariant = alt ? usableVariant(alt, owned) : null;
     if (alt && altVariant) {
@@ -436,13 +443,13 @@ export function buildLevelSession({
 /* -------------------------- 팔이 아픈 날 접기(D5) -------------------------- */
 
 /**
- * 팔에 싣는 드릴인가 — 고른 도구의 분류(MechanicsGuide.category)가 무브먼트 패턴 드릴이 아니면 다 그렇다고 본다.
+ * 팔에 싣는 드릴인가 — 고른 도구의 분류(MechanicsGuide.category)가 무브먼트 패턴 · 근력 · 안정 드릴이 아니면 다 그렇다고 본다.
  * 스로잉 드릴은 공을 던지고, 메디신볼 드릴은 공을 던지거나 내리친다. 분류 이름은 DB 글자라 모르는 분류(새 분류 · 오타)가
  * 오면 접는 쪽이 안전하다. 이름(P1~P5)이나 동작 묶음으로 가르지 않는다 — 한 묶음에 스로잉 · 메디신볼 도구가 섞여 있다
  * (운영 DB 98묶음 중 11). 메커니즘 화면 · 따라 하기 · 시험이 모두 이 하나를 쓴다.
  */
 export function isArmLoaded(category: string): boolean {
-  return category !== MOVEMENT;
+  return category !== MOVEMENT && category !== STRENGTH;
 }
 
 /**

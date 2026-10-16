@@ -114,8 +114,9 @@ export const allGuides = unstable_cache(
    * :v8 — 2026-10-09 겹치는 메디신볼 드릴 13개를 숨겼다(51 → 38).
    * :v9 — 같은 날 '스플릿 스탠스 발목 등척 밀기'를 운동 라이브러리 파워로 옮기고 '등척'을 '아이소메트릭'으로.
    * :v10 — 2026-10-14 드릴 37개를 '나중에 촬영'으로(scripts/drills-later-2026-10-14.mjs).
+   * :v12 — 2026-10-16 주 요소 19묶음 · 새 분류 '근력 · 안정 드릴'(scripts/mechanics-reclass-2026-10-16.mjs).
    */
-  ['library:guides:v11'],
+  ['library:guides:v12'],
   { tags: [LIBRARY_TAG] }
 );
 

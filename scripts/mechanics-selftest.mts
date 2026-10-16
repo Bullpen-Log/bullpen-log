@@ -129,13 +129,20 @@ for (const lv of MECHANICS_LEVELS) {
     ok(mains.size === 6, `${lv.name} ${weeks}주차: 여섯 요소가 다 나옴`, [...mains].join());
   });
 }
-/* 입문은 맨몸 · 야구공만으로 다 할 수 있어야 한다 */
+/*
+ * 입문은 맨몸 · 야구공 · 밴드로 다 할 수 있어야 한다 — 밴드는 2026-10-16 부터(브레이크 기초 드릴이 맨몸으로는 없어 '지지 홀드 TKE', 사용자 결정)
+ */
+const INTRO_GEAR = new Set(['밴드']);
 for (const titles of MECHANICS_LEVELS[0].blocks.flat()) {
   for (const t of titles) {
     const d = byTitle.get(t);
-    ok(d != null && d.variants.some((v) => canUseVariant(v, FREE)), `입문은 맨몸 · 야구공으로: ${t}`);
+    ok(d != null && d.variants.some((v) => canUseVariant(v, INTRO_GEAR)), `입문은 맨몸 · 야구공 · 밴드로: ${t}`);
   }
 }
+ok(
+  !isArmLoaded('근력 · 안정 드릴') && !isArmLoaded('무브먼트 패턴 드릴') && isArmLoaded('스로잉 드릴') && isArmLoaded('모르는 분류'),
+  '팔에 싣는 분류 — 근력 · 안정 · 무브먼트는 아님, 모르는 분류는 싣는 쪽'
+);
 /* 단계 구성 — 입문은 기초만, 고급은 통합이 가장 많다 */
 const stageCount = (key: string, stage: string) =>
   (MECHANICS_LEVELS.find((l) => l.key === key)?.blocks.flat(2) ?? []).filter(
@@ -231,21 +238,34 @@ for (const [gearLabel, owned] of gearSets) {
 }
 console.log(`세션 ${built}개 — 장비 때문에 바꿔 넣은 칸 ${replaced} · 못 하는 도구로 남은 칸 ${lacking}`);
 ok(buildLevelSession({ drills, level: 'intro', index: 12 }).length === 0, '다 마친 뒤에는 빈 세션');
-/* 맨몸 · 야구공만 가진 사람도 모든 수준을 할 수 있어야 한다(바꿔 넣기 포함) */
+/*
+ * 맨몸 · 야구공(+ 밴드)만 가진 사람도 모든 수준을 할 수 있어야 한다(바꿔 넣기 포함). 바꿔 넣기는 같은 주 요소에서만이라(2026-10-16) 세션에는
+ * 그렇게 바꿀 드릴이 있는 것만 둔다. 밴드는 입문 브레이크 칸(지지 홀드 TKE) 때문 — 밴드가 없으면 그 칸만 알림이 뜬다.
+ */
 {
   let total = 0;
   let can = 0;
+  const bandOnly: string[] = [];
   for (const lv of MECHANICS_LEVELS) {
     for (let i = 0; i < SESSIONS_PER_LEVEL; i++) {
-      for (const it of buildLevelSession({ drills, level: lv.key, index: i, owned: FREE })) {
+      for (const it of buildLevelSession({ drills, level: lv.key, index: i, owned: INTRO_GEAR })) {
         total += 1;
         const v = variantOf(it.guideId);
-        if (v && canUseVariant(v, FREE)) can += 1;
+        if (v && canUseVariant(v, INTRO_GEAR)) can += 1;
+      }
+      for (const it of buildLevelSession({ drills, level: lv.key, index: i, owned: FREE })) {
+        const v = variantOf(it.guideId);
+        if (!(v && canUseVariant(v, FREE))) bandOnly.push(`${lv.name} ${i + 1}: ${it.title}`);
       }
     }
   }
-  console.log(`맨몸 · 야구공만: 할 수 있는 칸 ${can}/${total}`);
-  ok(can === total, '맨몸 · 야구공만 가져도 모든 칸을 할 수 있음', `${can}/${total}`);
+  console.log(`맨몸 · 야구공 · 밴드: 할 수 있는 칸 ${can}/${total}`);
+  ok(can === total, '맨몸 · 야구공 · 밴드만 가져도 모든 칸을 할 수 있음', `${can}/${total}`);
+  ok(
+    bandOnly.every((x) => x.endsWith('지지 홀드 TKE') && x.startsWith('입문')),
+    '밴드도 없으면 못 하는 칸은 입문의 지지 홀드 TKE 뿐',
+    bandOnly.filter((x) => !x.endsWith('지지 홀드 TKE')).join(' / ')
+  );
 }
 
 /* ── 진행 읽기 · 쓰기 ── */
@@ -339,8 +359,8 @@ console.log('\n[2판 P6-5] 어깨 · 팔꿈치 통증 날 접기 · 펼치기 ·
   ok(
     drills
       .flatMap((d) => d.variants)
-      .every((v) => [MOVE, THROW, MED].includes(v.category)),
-    '라이브러리 드릴 분류는 셋 중 하나(새 분류가 생기면 다 접힌다 — 알아채려고)',
+      .every((v) => [MOVE, THROW, MED, '근력 · 안정 드릴'].includes(v.category)),
+    '라이브러리 드릴 분류는 넷 중 하나(새 분류가 생기면 다 접힌다 — 알아채려고, 근력 · 안정은 2026-10-16)',
     [...new Set(drills.flatMap((d) => d.variants.map((v) => v.category)))].join(' · ')
   );
 
