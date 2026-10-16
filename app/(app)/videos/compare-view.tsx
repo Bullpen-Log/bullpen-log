@@ -1,6 +1,14 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from 'react';
+import { createPortal } from 'react-dom';
 import {
   ChevronLeft,
   ChevronRight,
@@ -46,6 +54,8 @@ function firstFrameSrc(url: string | undefined) {
  * 한 번도 재생하지 않은 영상의 자리 옮기기. 길이(메타데이터)를 받기 전에 currentTime 을 주면
  * 아이폰은 그냥 버려서, 재생 전 프레임 이동 · 기준점 되돌리기가 안 먹었다 — 받은 뒤에 옮긴다(2026-10-03).
  */
+const noopSubscribe = () => () => {};
+
 function seekTo(video: HTMLVideoElement, time: number) {
   if (video.readyState >= HTMLMediaElement.HAVE_METADATA) {
     video.currentTime = time;
@@ -309,6 +319,24 @@ export function CompareView({
     };
   }, [expanded]);
 
+  /*
+   * 재생기는 늘 따로 만든 상자(host)에 그리고, 크게 볼 때는 그 상자만 body 로 옮긴다(작게 보면 제자리 slot 으로).
+   * 판 넘기기(tab-pager) 트랙은 transform 이 있어 그 안의 fixed 가 화면이 아니라 4판 폭 트랙에 붙고(검은 화면이 트랙 전체로
+   * 퍼져 A 칸이 반만 보였다), 트랙 층에 갇혀 위 · 아래 막대가 그 위를 덮었다(2026-10-16). 상자째 옮기므로 React 는 다시 그리지
+   * 않는다 — portal 을 켰다 껐다 하면 영상이 새로 붙어 보던 장면 · 프레임 재기가 끊긴다. 트랙의 transform 을 끄면 휴대폰 화면이 넓어졌다.
+   */
+  const mounted = useSyncExternalStore(noopSubscribe, () => true, () => false);
+  const [host] = useState(() =>
+    typeof document === 'undefined' ? null : document.createElement('div')
+  );
+  const slotRef = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    if (!host || !mounted) return;
+    const to = expanded ? document.body : slotRef.current;
+    if (to && host.parentElement !== to) to.appendChild(host);
+  }, [host, mounted, expanded]);
+  useEffect(() => () => host?.remove(), [host]);
+
   // 영상을 바꾸면 기준점도 함께 처음으로 되돌린다.
   const selectA = (id: string) => {
     setIdA(id);
@@ -393,7 +421,8 @@ export function CompareView({
     );
   }
 
-  return (
+  /* 서버 그림에는 문서가 없어 slot 만 — 붙은 뒤에 재생기를 그린다 */
+  const player = (
     <div
       className={
         expanded
@@ -615,4 +644,6 @@ export function CompareView({
       </details>
     </div>
   );
+
+  return <div ref={slotRef}>{mounted && host && createPortal(player, host)}</div>;
 }

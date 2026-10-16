@@ -143,14 +143,30 @@ export function DayClient({
     ready: urlsReady,
   } = usePlaybackUrls(videoPaths);
 
-  const handleSaved = useCallback(() => {
+  /*
+   * 저장한 폼만 닫는다. 하나로 묶었더니 다른 기록을 고쳐 저장할 때 적던 '기록 추가' 폼까지 닫혀, 적던 값 · 올리던 영상이
+   * 사라졌다(2026-10-16).
+   */
+  const afterSave = () => {
+    setError(undefined);
+    quietRefresh(router);
+  };
+  const handleEditSaved = () => {
     setEditingId(null);
+    afterSave();
+  };
+  /* 드릴 공을 캐치볼 기록에 더해 저장 */
+  const handleDrillAddSaved = () => {
+    setDrillDone(true);
+    setDrillMode(null);
+    afterSave();
+  };
+  const handleAddSaved = () => {
     setFormOpen(false);
     setDrillDone(true);
     setDrillMode(null);
-    setError(undefined);
-    quietRefresh(router);
-  }, [router]);
+    afterSave();
+  };
 
   const handleDelete = useCallback(
     async (id: string) => {
@@ -249,7 +265,7 @@ export function DayClient({
                 pitchCount: log.pitchCount + drillPrefill.pitchCount,
                 memo: log.memo ? `${log.memo} · ${drillPrefill.memo}` : drillPrefill.memo,
               }}
-              onSaved={handleSaved}
+              onSaved={handleDrillAddSaved}
               onError={setError}
               onCancel={() => setDrillMode(null)}
             />
@@ -267,7 +283,7 @@ export function DayClient({
               isAdmin={isAdmin}
               date={date}
               initial={log}
-              onSaved={handleSaved}
+              onSaved={handleEditSaved}
               onError={setError}
               onCancel={() => setEditingId(null)}
             />
@@ -343,7 +359,7 @@ export function DayClient({
               date={date}
               prefill={fromVelocity ? velocityPrefill : null}
               drillPrefill={drillNew ? drillPrefill : null}
-              onSaved={handleSaved}
+              onSaved={handleAddSaved}
               onError={setError}
             />
           </div>

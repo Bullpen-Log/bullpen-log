@@ -439,6 +439,20 @@ export function EntryForm({
     e.preventDefault();
     /* 단추는 막혀 있지만 Enter 로도 제출된다 */
     if (uploading) return;
+    /*
+     * 구속이 범위 밖 — 폼이 noValidate 라 여기서 본다. 예전에는 브라우저 검사가 접힌 '더 적기' 안의 칸을 보여 주지 못해
+     * 저장을 눌러도 아무 말 없이 멈췄다(2026-10-16). 펴서 칸이 보이게 하고 알린다(서버도 같은 선으로 막는다).
+     */
+    const outOfRange = (kmh: string) =>
+      kmh !== '' && !(Number(kmh) >= SPEED_MIN_KMH && Number(kmh) <= SPEED_MAX_KMH);
+    if (!isRestSession(form.sessionType) && [form.maxVelocity, form.avgVelocity].some(outOfRange)) {
+      const unit = readSpeedUnit();
+      setMore(true);
+      onError(
+        `구속은 ${round1(toSpeed(SPEED_MIN_KMH, unit))}~${round1(toSpeed(SPEED_MAX_KMH, unit))} ${speedLabel(unit)} 사이로 적어 주세요.`
+      );
+      return;
+    }
     /* 던진 날인데 체감 강도를 안 골랐다 — 서버까지 가지 않고 그 칸으로 보낸다(서버도 같은 말로 막는다) */
     if (!isRestSession(form.sessionType) && form.effortPct == null) {
       onError(undefined);
@@ -511,7 +525,8 @@ export function EntryForm({
   const rated = isRatedSession(form.sessionType);
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-5">
+    /* noValidate — 브라우저 검사는 접힌 칸을 못 보여 줘 말없이 막는다. 검사는 handleSubmit · 서버가 한국어로 한다 */
+    <form noValidate onSubmit={handleSubmit} className="space-y-5">
       <div className="space-y-5">
           <Field
             label="투구 종류"

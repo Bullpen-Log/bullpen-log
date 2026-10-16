@@ -1,6 +1,14 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  useTransition,
+} from 'react';
+import { createPortal } from 'react-dom';
 import { formatSpeed } from '@/lib/units';
 import { useSpeedUnit } from '@/components/use-units';
 import Link from 'next/link';
@@ -91,6 +99,8 @@ type Clip = Omit<ClipOption, 'path'> & {
   brief: string;
 };
 
+const noopSubscribe = () => () => {};
+
 export function VideoGallery({
   logs,
   featured,
@@ -121,6 +131,8 @@ export function VideoGallery({
   const [sort, setSort] = useState<Sort>('recent');
   const [picked, setPicked] = useState<(Clip | null)[]>([null, null]);
   const [toggled, setToggled] = useState<Record<string, boolean>>({});
+  /* 고른 둘 막대는 화면 맨 위(body)에 낸다 — 서버 그림에는 문서가 없어 붙은 뒤에만 */
+  const mounted = useSyncExternalStore(noopSubscribe, () => true, () => false);
 
   const clips = useMemo<Clip[]>(
     () =>
@@ -613,8 +625,13 @@ export function VideoGallery({
         sm(640px)부터 붙였더니 아이폰 가로·아이패드 세로(손가락, 640~1023px)에서 이 막대가
         탭바 밑에 깔렸다 — [비교하기]가 거의 안 보이고, 누르면 그 아래 탭이 눌려 화면이
         바뀌며 고른 것이 사라졌다.
+
+        body 로 낸다 — 판 넘기기(tab-pager) 트랙의 transform 안에서는 fixed 가 화면이 아니라 4판 폭 트랙에 붙어, 막대가
+        트랙 가운데(화면 밖)에 섰다(2026-10-16).
       */}
-      {selecting && (
+      {selecting &&
+        mounted &&
+        createPortal(
         <div className="fixed inset-x-0 bottom-[calc(var(--tab-bar-top)+0.75rem)] z-30 px-4 desk:bottom-4 pad:left-(--rail)">
           <div className="mx-auto flex max-w-3xl flex-wrap items-center gap-2 rounded-2xl border border-line-strong bg-surface px-(--block-pad) py-3 shadow-2xl">
             {[0, 1].map((i) => {
@@ -660,8 +677,9 @@ export function VideoGallery({
               {ready ? '비교하기' : '두 개를 고르세요'}
             </button>
           </div>
-        </div>
-      )}
+        </div>,
+          document.body
+        )}
     </div>
   );
 }

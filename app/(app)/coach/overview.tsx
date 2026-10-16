@@ -138,7 +138,12 @@ export function StatsOverview({
   const fatigue = findFatigueWindows(byDay, last28);
   const streak = longestThrowStreak(byDay, last28);
 
-  const lastThrowKey = [...byDay.keys()].sort().at(-1);
+  /* 쉰 날(0구) 기록은 던진 날이 아니다 — 예전에는 오늘 '휴식'을 남기면 마지막 투구가 '오늘'로 떴다 */
+  const lastThrowKey = [...byDay.values()]
+    .filter((d) => d.pitchCount > 0)
+    .map((d) => d.dateKey)
+    .sort()
+    .at(-1);
   const restDays = lastThrowKey ? daysSince(lastThrowKey, todayKey) : null;
 
   const hasRecords = totalRecords > 0;

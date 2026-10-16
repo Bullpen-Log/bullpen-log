@@ -189,31 +189,27 @@ export function PitchLogPanel({
    * 오면(그리는 도중에 앞 값과 견주는 방법) 달라진 날만 골라 버린다 — 다른 날 요약은
    * 그대로 두어 괜히 다시 받느라 깜빡이지 않게.
    */
-  const [seenCheckins, setSeenCheckins] = useState(checkinByDay);
-  if (seenCheckins !== checkinByDay) {
-    setSeenCheckins(checkinByDay);
-    const changed = new Set(
-      [...Object.keys(seenCheckins), ...Object.keys(checkinByDay)].filter(
-        (d) => JSON.stringify(seenCheckins[d]) !== JSON.stringify(checkinByDay[d])
-      )
-    );
-    if (changed.size > 0) {
-      setDetails((prev) =>
-        Object.fromEntries(Object.entries(prev).filter(([d]) => !changed.has(d)))
-      );
-    }
-  }
-
   /*
    * 구속 측정이 바뀐 날도 그렇다 — 그날 화면(팝업)에서 공을 지우면 홈 영상 칸의 칩이 지운 공을 그대로 보였다. 그날 요약의
    * 지문(sig — 구종 · 코스 · 구속 · 클립)이 달라진 날만 버린다. 구종만 고쳐도 바뀐다.
+   *
+   * 운동 · 일정 · 영양도 같다(2026-10-16) — 판 넘기기로 홈이 내내 살아 있어, 영양 탭에서 점심을 담고 홈으로 오면 위 아이콘은
+   * 새 kcal 인데 밑 칸 끼니 목록은 옛것이었다.
    */
-  const [seenVelocity, setSeenVelocity] = useState(velocityByDay);
-  if (seenVelocity !== velocityByDay) {
-    setSeenVelocity(velocityByDay);
+  const dayMaps: Record<string, unknown>[] = [
+    checkinByDay,
+    velocityByDay,
+    trainingByDay,
+    planByDay,
+    nutritionByDay,
+  ];
+  const [seenMaps, setSeenMaps] = useState(dayMaps);
+  if (dayMaps.some((m, i) => m !== seenMaps[i])) {
+    setSeenMaps(dayMaps);
+    const days = new Set([...dayMaps, ...seenMaps].flatMap((m) => Object.keys(m)));
     const changed = new Set(
-      [...Object.keys(seenVelocity), ...Object.keys(velocityByDay)].filter(
-        (d) => JSON.stringify(seenVelocity[d]) !== JSON.stringify(velocityByDay[d])
+      [...days].filter((d) =>
+        dayMaps.some((m, i) => JSON.stringify(m[d]) !== JSON.stringify(seenMaps[i][d]))
       )
     );
     if (changed.size > 0) {
@@ -341,7 +337,16 @@ export function PitchLogPanel({
    * 처음 받아 온 범위보다 옛날 달로 넘어가면 그 달만 따로 받아 온다.
    * 한 번 받은 달은 다시 받지 않는다.
    */
+  /*
+   * 서버가 새 기록을 보내면(저장 · 지우기 뒤) 받아 둔 옛 달도 다시 받는다 — 예전에는 옛 달에서 고치거나 지운 기록이
+   * 달력에 그대로 남았다(2026-10-16). 보고 있는 달은 곧바로, 다른 달은 다시 넘겨 올 때.
+   */
+  const seenInitialLogs = useRef(initialLogs);
   useEffect(() => {
+    if (seenInitialLogs.current !== initialLogs) {
+      seenInitialLogs.current = initialLogs;
+      loadedMonths.current.clear();
+    }
     if (monthKey >= loadedFrom || loadedMonths.current.has(monthKey)) return;
     loadedMonths.current.add(monthKey);
     let cancelled = false;
@@ -350,11 +355,11 @@ export function PitchLogPanel({
       .then((res) => (res.ok ? res.json() : Promise.reject(new Error())))
       .then((older: Log[]) => {
         if (cancelled) return;
-        // 이미 가진 것과 겹칠 수 있어(영상 있는 기록) id 로 합친다.
-        setOlderLogs((prev) => {
-          const seen = new Set(prev.map((l) => l.id));
-          return [...prev, ...older.filter((l) => !seen.has(l.id))];
-        });
+        // 그 달 것은 새로 받은 것으로 갈아 끼운다(지운 기록이 남지 않게). 처음 범위와 겹치는 것은 logs 가 id 로 거른다.
+        setOlderLogs((prev) => [
+          ...prev.filter((l) => !l.date.startsWith(monthKey)),
+          ...older,
+        ]);
       })
       .catch(() => {
         if (cancelled) return;
@@ -366,7 +371,7 @@ export function PitchLogPanel({
     return () => {
       cancelled = true;
     };
-  }, [monthKey, loadedFrom]);
+  }, [monthKey, loadedFrom, initialLogs]);
 
   /**
    * 달력에 칠할 것.
