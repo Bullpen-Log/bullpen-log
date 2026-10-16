@@ -6,14 +6,14 @@ import { useRouter } from 'next/navigation';
 import { quietRefresh } from '@/lib/quiet-refresh';
 import { ArrowLeft, House, Plus, type LucideIcon } from '@/components/icon';
 import { Baseball } from '@/components/baseball-icon';
-import { FormError } from '@/components/ui';
+import { Button, FormError } from '@/components/ui';
 import { usePlaybackUrls } from '@/components/use-playback-urls';
 import { isFutureDateKey } from '@/lib/pitch-stats';
 import { ArmStatusNote } from '@/components/arm-status-note';
 import { NutritionLineNote } from '@/components/nutrition-line';
 import type { NutritionLine } from '@/lib/nutrition/nudge';
 import type { ArmStatus } from '@/lib/report/arm-status';
-import { EntryForm } from '../entry-form';
+import { EntryForm, type DrillPrefill } from '../entry-form';
 import { DayRecord } from '../day-record';
 import type { Log } from '../types';
 import { VelocitySection } from '../velocity-section';
@@ -90,6 +90,7 @@ export function DayClient({
   initialLogs,
   velocity,
   velocityPrefill = null,
+  drillPrefill = null,
   isAdmin = false,
 }: {
   date: string;
@@ -103,6 +104,11 @@ export function DayClient({
   velocity: VelocitySessionView[];
   /** 아직 투구 기록으로 안 남긴 구속 측정 값 — 있으면 새 기록 폼이 이 값으로 채워져 열린다 */
   velocityPrefill?: LogPrefill | null;
+  /**
+   * 메커니즘 드릴로 던진 공(트레이닝의 '드릴로 공 N회 던졌어요' 카드에서 왔을 때) — 오늘 캐치볼 기록이 있으면 더할지 새로 남길지
+   * 묻고, 없으면 새 기록 폼을 그 값으로 채워 연다. 구속 측정 값이 있으면 그쪽이 먼저.
+   */
+  drillPrefill?: DrillPrefill | null;
   /** 관리자 — 구속 공 고치기에 스피드건 값 칸 */
   isAdmin?: boolean;
 }) {
@@ -118,6 +124,18 @@ export function DayClient({
   const fromVelocity = !future && velocityPrefill != null;
   const logs = initialLogs;
 
+  /*
+   * 드릴 공: 저장하면(drillDone) 다시 권하지 않는다 — 새로 읽어도 서버가 카드가 닫혔으면 안 보내지만, 그 전에 두 번 남기지 않게.
+   * 오늘 캐치볼 기록이 있으면 먼저 고르게 한다(같은 캐치볼을 두 줄로 나누지 않게) — 'add' 는 그 기록의 수정 폼에 공 수 · 메모를 더해 연다.
+   */
+  const [drillDone, setDrillDone] = useState(false);
+  const [drillMode, setDrillMode] = useState<'new' | 'add' | null>(null);
+  const fromDrill = !future && drillPrefill != null && !drillDone && !fromVelocity;
+  const catchLog = logs.find((l) => l.sessionType === '캐치볼') ?? null;
+  const drillChoosing = fromDrill && catchLog != null && drillMode == null;
+  const drillNew = fromDrill && (catchLog == null || drillMode === 'new');
+  const drillAddId = fromDrill && drillMode === 'add' ? (catchLog?.id ?? null) : null;
+
   const videoPaths = useMemo(() => logs.flatMap((l) => l.videoPaths), [logs]);
   const {
     urls: playbackUrls,
@@ -128,6 +146,8 @@ export function DayClient({
   const handleSaved = useCallback(() => {
     setEditingId(null);
     setFormOpen(false);
+    setDrillDone(true);
+    setDrillMode(null);
     setError(undefined);
     quietRefresh(router);
   }, [router]);
@@ -210,7 +230,30 @@ export function DayClient({
       <VelocitySection sessions={velocity} isAdmin={isAdmin} />
 
       {logs.map((log) =>
-        editingId === log.id ? (
+        drillAddId === log.id && drillPrefill ? (
+          <div
+            key={log.id}
+            className="space-y-4 rounded-2xl border border-line bg-surface-2 p-(--block-pad)"
+          >
+            <div>
+              <h2 className="font-bold text-ink">캐치볼 기록에 드릴 공 더하기</h2>
+              <p className="mt-1 text-sm text-muted">
+                {`투구수 ${log.pitchCount} → ${log.pitchCount + drillPrefill.pitchCount}구로 채웠어요`}
+              </p>
+            </div>
+            <EntryForm
+              date={date}
+              initial={{
+                ...log,
+                pitchCount: log.pitchCount + drillPrefill.pitchCount,
+                memo: log.memo ? `${log.memo} · ${drillPrefill.memo}` : drillPrefill.memo,
+              }}
+              onSaved={handleSaved}
+              onError={setError}
+              onCancel={() => setDrillMode(null)}
+            />
+          </div>
+        ) : editingId === log.id ? (
           <div
             key={log.id}
             className="space-y-4 rounded-2xl border border-line bg-surface-2 p-(--block-pad)"
@@ -245,20 +288,46 @@ export function DayClient({
 
       {/* 기록 추가 — 기록이 없는 날은 처음부터 열려 있다 */}
       {!future &&
-        (formOpen || fromVelocity ? (
+        (drillChoosing && drillPrefill ? (
+          <div className="space-y-3 rounded-2xl border border-line bg-surface-2 p-(--block-pad)">
+            <div>
+              <h2 className="font-bold text-ink">
+                {`메커니즘 드릴 공 ${drillPrefill.pitchCount}회`}
+              </h2>
+              <p className="mt-1 text-sm text-muted">오늘 캐치볼 기록이 있어요. 어떻게 남길까요?</p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button type="button" onClick={() => setDrillMode('add')}>
+                캐치볼 기록에 더하기
+              </Button>
+              <Button type="button" variant="secondary" onClick={() => setDrillMode('new')}>
+                새 기록으로
+              </Button>
+            </div>
+          </div>
+        ) : formOpen || fromVelocity || drillNew ? (
           <div className="space-y-4 rounded-2xl border border-line bg-surface-2 p-(--block-pad)">
             <div className="flex items-start justify-between gap-3">
               <h2 className="font-bold text-ink">
                 {fromVelocity
                   ? `구속 측정 ${velocityPrefill.pitchCount}구 기록하기`
-                  : logs.length > 0
+                  : drillNew && drillPrefill
+                    ? `드릴 공 ${drillPrefill.pitchCount}회 기록하기`
+                    : logs.length > 0
                     ? '기록 추가'
                     : '이날 기록하기'}
               </h2>
               {logs.length > 0 && !fromVelocity && (
                 <button
                   type="button"
-                  onClick={() => setFormOpen(false)}
+                  onClick={() => {
+                    /* 드릴 공 폼을 닫으면: 캐치볼이 있으면 고르기로 돌아가고, 없으면 이번엔 안 남기는 것 */
+                    if (drillNew) {
+                      if (catchLog) setDrillMode(null);
+                      else setDrillDone(true);
+                    }
+                    setFormOpen(false);
+                  }}
                   className="-my-2 inline-flex min-h-10 items-center px-3 text-xs text-muted transition-colors hover:text-ink"
                 >
                   취소
@@ -267,9 +336,10 @@ export function DayClient({
             </div>
             <EntryForm
               /* 측정을 남기면 채울 값이 바뀌어(없어져) 폼을 새로 연다 */
-              key={`${date}:${velocityPrefill?.sessionIds.join(',') ?? ''}`}
+              key={`${date}:${velocityPrefill?.sessionIds.join(',') ?? ''}:${drillNew ? 'drill' : ''}`}
               date={date}
               prefill={fromVelocity ? velocityPrefill : null}
+              drillPrefill={drillNew ? drillPrefill : null}
               onSaved={handleSaved}
               onError={setError}
             />

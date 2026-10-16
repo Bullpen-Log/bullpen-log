@@ -8,11 +8,14 @@ import { loadPitchDay } from '@/app/(app)/pitch-log/[date]/load';
  */
 export default async function PitchDayModalPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ date: string }>;
+  /** ?drill=40&pct=70 — 트레이닝의 드릴 공 카드가 붙여 온다(load.ts drillPrefillOf) */
+  searchParams: Promise<{ drill?: string | string[]; pct?: string | string[] }>;
 }) {
   const { date } = await params;
-  const data = await loadPitchDay(date);
+  const data = await loadPitchDay(date, await searchParams);
   if (!data) notFound();
   return <DayClient {...data} />;
 }

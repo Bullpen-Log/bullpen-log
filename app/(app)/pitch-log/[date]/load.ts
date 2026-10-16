@@ -9,6 +9,8 @@ import { armStatusOf } from '@/lib/report/arm-status';
 import { loadVelocityDay } from '@/lib/velocity-load';
 import { logPrefillOf, unloggedSessions } from '@/lib/velocity-meta';
 import { pitchNutritionLine } from '@/lib/nutrition/nudge';
+import { DRILL_THROW_TEXT, readProgramState } from '@/lib/mechanics/program';
+import { loadDrillThrowNote } from '@/lib/mechanics/load';
 import type { DayClient } from './day-client';
 
 /**
@@ -21,7 +23,36 @@ const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 export type PitchDayData = Parameters<typeof DayClient>[0];
 
-export async function loadPitchDay(date: string): Promise<PitchDayData | null> {
+/**
+ * 트레이닝의 '드릴로 공 N회 던졌어요' 카드가 붙여 오는 ?drill= → 새 기록 칸에 채울 값(2026-10-16). 오늘 날짜일 때만.
+ * 숫자는 주소가 아니라 카드와 같은 판정(loadDrillThrowNote)에서 다시 읽는다 — 주소는 아무나 고칠 수 있고, 저장한 뒤
+ * 다시 열거나 새로고침해도 카드가 닫혔으면(오늘 투구가 기준보다 늘었으면) 채우지 않는다.
+ */
+async function drillPrefillOf(
+  userId: string,
+  search: { drill?: string | string[] } | undefined,
+  date: string,
+  todayKey: string
+) {
+  if (!search?.drill || date !== todayKey) return null;
+  const program = await prisma.mechanicsProgram.findUnique({
+    where: { userId },
+    select: { progress: true },
+  });
+  if (!program) return null;
+  const note = await loadDrillThrowNote(userId, readProgramState(program.progress), todayKey);
+  if (!note) return null;
+  return {
+    pitchCount: note.throws,
+    effortPct: note.effortPct,
+    memo: DRILL_THROW_TEXT.memo(note.throws),
+  };
+}
+
+export async function loadPitchDay(
+  date: string,
+  search?: { drill?: string | string[] }
+): Promise<PitchDayData | null> {
   if (!DATE_RE.test(date)) return null;
 
   /*
@@ -39,7 +70,7 @@ export async function loadPitchDay(date: string): Promise<PitchDayData | null> {
   const now = appNow();
   const todayKey = toDateKey(now);
 
-  const [logs, gathered, velocity, nutritionLine] = await Promise.all([
+  const [logs, gathered, velocity, nutritionLine, drillPrefill] = await Promise.all([
     prisma.pitchLog.findMany({
       where: { userId: user.id, date: at },
       orderBy: { createdAt: 'asc' },
@@ -55,6 +86,8 @@ export async function loadPitchDay(date: string): Promise<PitchDayData | null> {
     loadVelocityDay(user.id, at),
     /* 던진 뒤 회복식 한 줄 — 오늘 불펜 · 라이브 · 경기 기록이 있을 때만(lib/nutrition/nudge.ts). 저장 뒤 quietRefresh 로 곧바로 뜬다 */
     pitchNutritionLine(user, date, todayKey),
+    /* 메커니즘 드릴로 던진 공 — 트레이닝 카드에서 왔고 그 카드가 아직 살아 있을 때만 */
+    drillPrefillOf(user.id, search, date, todayKey),
   ]);
 
   const todayStatus = gathered ? armStatusOf(gathered.facts) : null;
@@ -75,5 +108,6 @@ export async function loadPitchDay(date: string): Promise<PitchDayData | null> {
     ),
     /* 스피드건 값 칸은 관리자만(2026-10-15 사용자) */
     isAdmin: user.role === 'ADMIN',
+    drillPrefill,
   };
 }

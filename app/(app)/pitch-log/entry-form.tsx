@@ -78,6 +78,9 @@ const EMPTY_FORM = {
 };
 
 /** 고칠 기록. 주어지면 수정 모드가 된다. */
+/** 메커니즘 드릴로 던진 공 — 새 기록 칸에 채울 값(pitch-log/[date]/load.ts drillPrefillOf) */
+export type DrillPrefill = { pitchCount: number; effortPct: number; memo: string };
+
 export type EntryDraft = {
   id: string;
   sessionType: string;
@@ -268,6 +271,7 @@ export function EntryForm({
   date,
   initial,
   prefill,
+  drillPrefill,
   onSaved,
   onError,
   onCancel,
@@ -280,6 +284,11 @@ export function EntryForm({
    * 이 기록에 잇는다(app/api/pitch-log POST). 수정 폼에서는 안 쓴다.
    */
   prefill?: LogPrefill | null;
+  /**
+   * 새 기록을 메커니즘 드릴로 던진 공으로 채워 연다(2026-10-16 — 트레이닝의 '드릴로 공 N회 던졌어요' 카드가 데려온다).
+   * 캐치볼 · 투구수 · 체감 강도 · 메모만 채우고 선수가 고쳐 저장한다. 구속 측정 prefill 이 있으면 그쪽이 먼저. 수정 폼에서는 안 쓴다.
+   */
+  drillPrefill?: DrillPrefill | null;
   onSaved: () => Promise<void> | void;
   onError: (message?: string) => void;
   onCancel?: () => void;
@@ -314,7 +323,15 @@ export function EntryForm({
             maxVelocity: String(prefill.maxVelocity),
             avgVelocity: String(prefill.avgVelocity),
           }
-        : EMPTY_FORM
+        : drillPrefill
+          ? {
+              ...EMPTY_FORM,
+              sessionType: '캐치볼',
+              pitchCount: String(drillPrefill.pitchCount),
+              effortPct: drillPrefill.effortPct,
+              memo: drillPrefill.memo,
+            }
+          : EMPTY_FORM
   );
   const [videos, setVideos] = useState<UploadedVideo[]>(() =>
     (initial?.videoPaths ?? []).map((path) => ({ path, name: fileNameOf(path) }))
@@ -329,6 +346,8 @@ export function EntryForm({
     () =>
       /* 구속 측정으로 채웠으면 구속 칸이 보이게 편다 */
       (!initial && !!prefill) ||
+      /* 드릴로 채웠으면 메모가 보이게 편다 */
+      (!initial && !!drillPrefill) ||
       (!!initial &&
       (initial.maxVelocity != null ||
         initial.avgVelocity != null ||
