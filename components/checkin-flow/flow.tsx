@@ -9,7 +9,7 @@ import { OFFLINE_MESSAGE, orOffline } from '@/lib/action-offline';
 import { PAIN_FORCED_CONDITION } from '@/lib/checkin';
 import { partsFromSpots, type BodySpots } from '@/lib/body-spots';
 import { shiftDateKey } from '@/lib/pitch-stats';
-import { buzz } from '@/lib/haptics';
+import { buzz, haptic } from '@/lib/haptics';
 import { useTodayKey } from '@/components/use-today-key';
 import { writeCheckinSkip } from '@/components/checkin-skip';
 import { ConditionStep, MemoStep, PainStep, SleepStep } from './steps';
@@ -231,7 +231,7 @@ export function CheckinFlow({
       }
       clearDraft(today);
       setSaved(wasEdit ? 'edit' : 'new');
-      buzz(30);
+      haptic('success');
       go('done', 1);
     });
   };

@@ -17,6 +17,7 @@ import {
   type Prescription,
 } from '@/lib/exercise-meta';
 import { MoreButton } from '@/components/disclosure';
+import { haptic } from '@/lib/haptics';
 
 /**
  * 목록에 운동을 더하는 창.
@@ -134,7 +135,7 @@ export function AddExercise({
       if ('error' in res) {
         setAdded((prev) => prev.filter((x) => x !== id));
         setError(res.error);
-      }
+      } else haptic('success');
     });
   };
 

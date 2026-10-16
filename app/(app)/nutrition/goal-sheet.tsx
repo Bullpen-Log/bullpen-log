@@ -66,6 +66,7 @@ import { shiftDateKey } from '@/lib/pitch-stats';
 import { saveDietPrefs, saveNutritionProfile } from '@/app/actions/nutrition';
 import { OFFLINE_MESSAGE, orOffline } from '@/lib/action-offline';
 import type { Origin } from './shared';
+import { haptic } from '@/lib/haptics';
 
 /**
  * 영양 목표 정하기.
@@ -360,8 +361,10 @@ export function GoalSheet({
         }),
         { ok: false as const, error: OFFLINE_MESSAGE }
       );
-      if (prefsRes.ok) onClose();
-      else {
+      if (prefsRes.ok) {
+        haptic('success');
+        onClose();
+      } else {
         setTab('diet');
         setError(prefsRes.error);
       }

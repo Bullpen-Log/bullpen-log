@@ -32,7 +32,7 @@ import { LibraryVideo } from '@/components/library-video';
 import { ExerciseHistoryPanel } from '@/components/exercise-history';
 import { useWakeLock } from '@/components/use-wake-lock';
 import { useAlarm } from '@/components/use-alarm';
-import { buzz } from '@/lib/haptics';
+import { buzz, haptic } from '@/lib/haptics';
 import { newRecord } from '@/lib/workout/bests';
 import {
   deleteSet,
@@ -866,7 +866,9 @@ export function SessionClient({
       after != null &&
       after.setNo === setNo &&
       (before == null || after.value > before.value);
-    buzz(beatNow ? [15, 120, 15] : 12);
+    /* 새 기록이면 아이폰 알림 떨림(성공) — 예전 [15, 120, 15] 는 아이폰 앱에서 0.5초 띄운 톡 둘로 갈렸다 */
+    if (beatNow) haptic('success');
+    else buzz(12);
 
     /* 폰에 먼저 담는다 — 신호가 없어도 여기서 끝나고, 보내기는 뒤에서 한다 */
     outbox.add({

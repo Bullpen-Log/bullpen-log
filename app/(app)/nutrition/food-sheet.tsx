@@ -89,6 +89,7 @@ import { BarcodePanel } from './barcode-panel';
 import { subcategoriesOf, subcategoryOf } from '@/lib/nutrition/food-subcategory';
 import { ErrorLine } from '@/components/error-line';
 import { SwitchRow } from '@/components/switch';
+import { haptic } from '@/lib/haptics';
 
 /*
  * 서버에 닿지 못했을 때(신호 끊김) — 부르기가 던지면 전환 안의 오류가 오류 화면으로 넘어가 영양 화면(열어 둔 음식 창까지)이
@@ -358,7 +359,10 @@ export function FoodSheet({
     setError(null);
     setAdded((a) => [...a, label]);
     done.then((res) => {
-      if (res.ok) return;
+      if (res.ok) {
+        haptic('success');
+        return;
+      }
       setAdded((a) => a.filter((x) => x !== label));
       setError(`${label} 담지 못했어요. ${res.error}`);
     });
@@ -376,8 +380,10 @@ export function FoodSheet({
     return onReplace(food, amount).then((res) => {
       replaceLock.current = false;
       setReplaceBusy(false);
-      if (res.ok) onClose();
-      else setError(`${food.name} 바꾸지 못했어요. ${res.error}`);
+      if (res.ok) {
+        haptic('success');
+        onClose();
+      } else setError(`${food.name} 바꾸지 못했어요. ${res.error}`);
       return res.ok;
     });
   }

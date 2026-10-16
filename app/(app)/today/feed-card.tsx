@@ -78,6 +78,11 @@ export function FeedCard({ items }: { items: FeedItem[] }) {
   const [moving, setMoving] = useState<1 | -1 | null>(null);
   const [paused, setPaused] = useState(false);
   /*
+   * 다른 탭을 보는 동안 쉰다 — 홈 판은 판 넘기기(tab-pager)로 늘 붙어 있어, 투구 · 영양을 보는 내내 3초마다 넘어가며 다시 그렸다
+   * (2026-10-16). 판의 data-active 가 빠지면 멈추고 돌아오면 이어서.
+   */
+  const [offPanel, setOffPanel] = useState(false);
+  /*
    * 넘어간 직후 한두 장면 — 트랙을 제자리로 돌릴 때 움직임을 끈다. 예전엔 돌아오는 것도 미끄러져 다음 다음 장이 비쳤다가
    * 되돌아와(2026-10-13 김민 "오류가 있고 ‹ › 를 눌러도 안 넘어간다") 넘어가지 않은 것처럼 보였다.
    */
@@ -184,7 +189,17 @@ export function FeedCard({ items }: { items: FeedItem[] }) {
    * 장이 바뀔 때마다 타이머를 새로 건다(index 의존) — 직접 넘겨도 그 장을 꽉 채워 본다.
    */
   useEffect(() => {
-    if (n < 2 || paused || drag != null || moving != null) return;
+    const panel = frame.current?.closest('[data-panel]');
+    if (!panel) return;
+    const sync = () => setOffPanel(!panel.hasAttribute('data-active'));
+    sync();
+    const mo = new MutationObserver(sync);
+    mo.observe(panel, { attributes: true, attributeFilter: ['data-active'] });
+    return () => mo.disconnect();
+  }, [n]);
+
+  useEffect(() => {
+    if (n < 2 || paused || offPanel || drag != null || moving != null) return;
     const dwell = items[index]?.tone === 'none' ? DWELL_NONE_MS : DWELL_MS;
     const rest = Math.max(0, manualAt.current + MANUAL_REST_MS - performance.now());
     const id = window.setTimeout(
@@ -194,7 +209,7 @@ export function FeedCard({ items }: { items: FeedItem[] }) {
       Math.max(dwell, rest)
     );
     return () => window.clearTimeout(id);
-  }, [n, paused, drag, moving, go, index, items]);
+  }, [n, paused, offPanel, drag, moving, go, index, items]);
 
   const onPointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
     /* 새로 누르면 지난 쓸기 표시부터 지운다 — 미끄러지는 동안 일찍 돌아가 남은 표시가 그 탭의 click 을 막았다(2026-10-16) */

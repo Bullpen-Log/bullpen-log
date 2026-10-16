@@ -5,6 +5,7 @@ import { Check, Pencil } from '@/components/icon';
 import { saveTrainingNote } from '@/app/actions/exercise-log';
 import { OFFLINE_MESSAGE, orOffline } from '@/lib/action-offline';
 import { IntensityGuide } from '@/components/intensity-guide';
+import { haptic } from '@/lib/haptics';
 
 /**
  * 오늘 운동이 어땠는지 — 하루에 하나.
@@ -56,7 +57,10 @@ export function TrainingNote({
         error: OFFLINE_MESSAGE,
       });
       if ('error' in res) setError(res.error);
-      else setEditing(false);
+      else {
+        haptic('success');
+        setEditing(false);
+      }
     });
   };
 

@@ -2998,6 +2998,8 @@ function MobileTabs({
         }}
         style={{ '--tab-count': tabs.length } as CSSProperties}
         data-tab-bar
+        /* 누름 표시는 렌즈 · 살짝 작아짐으로 충분하다 — 공용 옅어짐(press-feedback)까지 겹쳐 세 겹이었다(2026-10-16) */
+        data-press-none
         /* 가로 알약의 유리(바탕 · 테두리 · 빛 · 그림자)는 globals.css '하단 탭의 유리 알약' — 가만히 있을 때도 유리로 보이게 */
         className="pointer-events-auto relative mx-auto flex max-w-md touch-none rounded-full p-1 text-(--tab-fg) pad:h-full pad:max-w-none pad:flex-col pad:gap-1 pad:rounded-none pad:pt-[calc(env(safe-area-inset-top)+0.75rem)] pad:pr-2 pad:pl-[calc(env(safe-area-inset-left)+0.5rem)] pad:text-ink"
       >
@@ -3083,6 +3085,8 @@ function MobileTabs({
               onClick={(e) => {
                 if (!active || !sameScreen(currentUrl(), tab.href)) {
                   if (!active) {
+                    /* 아이폰 탭 막대처럼 고를 때 가장 가벼운 톡(2026-10-16 — 짧게 누르면 떨림이 없었다, 길게 끌기만 떨렸다) */
+                    haptic('selection');
                     /* 렌즈는 화면을 다시 그리기 전에 곧바로 — effect 를 기다리면 한두 장면 늦게 출발했다 */
                     lens.to(tabs.indexOf(tab));
                     setChosen({ href: tab.href, from: pathname });

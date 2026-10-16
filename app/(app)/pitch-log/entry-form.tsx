@@ -36,6 +36,7 @@ import {
   subscribeUnits,
   toSpeed,
 } from '@/lib/units';
+import { haptic } from '@/lib/haptics';
 
 /**
  * 하루치 투구를 남기는 입력 폼. 새로 남길 때와 고칠 때 모두 쓴다.
@@ -455,6 +456,7 @@ export function EntryForm({
         });
         setVideos([]);
       }
+      haptic('success');
       await onSaved();
     } catch (err) {
       const fallback = editing ? '수정에 실패했어요.' : '저장에 실패했어요.';

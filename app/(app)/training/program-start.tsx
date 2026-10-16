@@ -23,6 +23,7 @@ import {
   type ProgramGoal,
   type VariantKey,
 } from '@/lib/program/program';
+import { haptic } from '@/lib/haptics';
 
 /**
  * 근력 · 파워 프로그램 입구 한 줄 + 고르기 · 시작 시트(설계 §13-12 · 18).
@@ -296,7 +297,10 @@ function StartSheet({
         { error: OFFLINE_MESSAGE }
       );
       if ('error' in r) setError(r.error);
-      else onClose();
+      else {
+        haptic('success');
+        onClose();
+      }
     });
 
   /*
