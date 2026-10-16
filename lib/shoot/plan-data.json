@@ -2204,23 +2204,6 @@
        "breakAfter": false
       },
       {
-       "exerciseId": "6c120966-4c02-44cf-87d8-5af3c8799192",
-       "no": "3-14",
-       "title": "불안정 지면 스냅다운",
-       "station": "넓은 바닥(이동)",
-       "bucket": "하체 파워",
-       "equipment": [
-        "맨몸"
-       ],
-       "at": 40.7,
-       "minutes": 1.7,
-       "load": 1,
-       "cue": "3회",
-       "perSide": false,
-       "breakAfter": false,
-       "oldVideo": "library/26cb6e5a-2fd1-4437-8d6a-eb284b33325f.mov"
-      },
-      {
        "exerciseId": "7130118f-1f0d-46de-a44b-856425d28836",
        "no": "3-15",
        "title": "브로드 점프",

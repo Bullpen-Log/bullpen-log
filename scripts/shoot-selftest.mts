@@ -221,9 +221,9 @@ const indoorPlan: ShootPlan = { ...plan, weeks: plan.weeks.filter((w) => !w.outd
 {
   const items = indoorPlan.weeks.flatMap(weekItems);
   check(
-    '실내 5주 · 331개(야외를 붙여도 그대로 — 2026-10-14 사용자가 14개 지우고 토 워크 둘 · 나중에 촬영 60개를 뺌, 403 → 327 · 한 회 3시간쯤으로 7 → 5주 · 10-15 파워 넷 더함 → 331)',
+    '실내 5주 · 330개(야외를 붙여도 그대로 — 2026-10-14 사용자가 14개 지우고 토 워크 둘 · 나중에 촬영 60개를 뺌, 403 → 327 · 한 회 3시간쯤으로 7 → 5주 · 10-15 파워 넷 더함 → 331 · 10-16 불안정 지면 스냅다운을 나중에 촬영으로 → 330)',
     indoorPlan.weeks.length === 5 &&
-      items.length === 331 &&
+      items.length === 330 &&
       indoorPlan.weeks.every((w, i) => w.week === i + 1),
     `${indoorPlan.weeks.length}주 · ${items.length}개`
   );
