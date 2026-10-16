@@ -13,6 +13,7 @@ import {
   Video,
 } from '@/components/icon';
 import { Button, ButtonLink, Card } from '@/components/ui';
+import { FoldNote } from '@/components/fold-note';
 import { ConfirmDialog } from '@/components/confirm-delete';
 import { ErrorLine } from '@/components/error-line';
 import { OFFLINE_MESSAGE, orOffline } from '@/lib/action-offline';
@@ -291,10 +292,13 @@ function SessionCard({
               : '세션 시작'}
         </Link>
       )}
-      <p className="text-xs leading-relaxed break-keep text-muted">
-        드릴마다 느낌을 눌러요. 쉬움이 여러 요소에서 쌓이면 다음 수준을 권해 드려요.
-        던지는 날 몸을 푼 뒤, 캐치볼 전에 하면 알맞아요.
-      </p>
+      {/* 하는 법은 접어 둔다(2026-10-16 UI 검토 — 세션 단추 밑에 늘 두 문장이 떠 있었다) */}
+      <FoldNote tone="muted" label="하는 법">
+        <p className="text-xs leading-relaxed break-keep text-muted">
+          드릴마다 느낌을 눌러요. 쉬움이 여러 요소에서 쌓이면 다음 수준을 권해 드려요.
+          던지는 날 몸을 푼 뒤, 캐치볼 전에 하면 알맞아요.
+        </p>
+      </FoldNote>
     </Card>
   );
 }
@@ -574,11 +578,19 @@ function FilmCard({ sessionsDone, films }: { sessionsDone: number; films: FilmNo
           <h3 className="text-base font-bold break-keep text-ink">
             {kind === 'baseline' ? '시작 전에 한 번 찍어 두세요' : '찍어서 처음과 견줘 볼 때예요'}
           </h3>
+          {/* 한 줄 + 하는 법은 접기(2026-10-16 UI 검토 — 견줘 볼 때 글이 세 문장 180자였다) */}
           <p className="text-sm leading-relaxed break-keep text-muted">
             {kind === 'baseline'
-              ? `옆에서 평소처럼 몇 개 던지는 모습을 찍어 투구 기록에 남겨요. 세션 ${FILM_EVERY}번 뒤에 그 영상과 나란히 견줘 봐요.`
-              : `세션 ${sessionsDone}번을 했어요. 같은 자리에서 다시 찍어 처음 영상과 나란히 놓고 앞발이 닿는 장면을 멈춰 보세요. 구속도 같이 재 두면 바뀐 것이 효과가 있었는지 알 수 있어요.`}
+              ? `세션 ${FILM_EVERY}번 뒤에 이 영상과 견줘 봐요.`
+              : `세션 ${sessionsDone}번을 했어요. 처음 영상과 견줘 봐요.`}
           </p>
+          <FoldNote tone="muted" label="어떻게 찍나요">
+            <p className="text-footnote leading-relaxed break-keep text-muted">
+              {kind === 'baseline'
+                ? '옆에서 평소처럼 몇 개 던지는 모습을 찍어 투구 기록에 남겨요.'
+                : '같은 자리에서 다시 찍어 처음 영상과 나란히 놓고 앞발이 닿는 장면을 멈춰 보세요. 구속도 같이 재 두면 바뀐 것이 효과가 있었는지 알 수 있어요.'}
+            </p>
+          </FoldNote>
         </div>
       </div>
       <ButtonLink

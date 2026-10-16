@@ -722,15 +722,11 @@ export default async function TrainingPage({
         */
           <Card className="space-y-4">
             <div className="space-y-1">
-              <p className="text-lg font-bold text-ink">
-                오늘 운동 일정을 만들어보세요
-              </p>
-              <p className="text-sm text-muted">
-                {/* 프로그램 날로 짜였는데 지금은 프로그램이 쉬는 일정이면 그 까닭을(2판 P6-4) */}
-                {screen.stalePlan
-                  ? TRAINING_SCREEN_TEXT.stalePlan
-                  : '투구량과 몸 상태에 맞춰 골라요.'}
-              </p>
+              <p className="text-lg font-bold text-ink">오늘 운동 만들기</p>
+              {/* 프로그램 날로 짜였는데 지금은 프로그램이 쉬는 일정이면 그 까닭을(2판 P6-4) — 보통 날의 '투구량과 몸 상태에 맞춰 골라요.'는 뺐다(2026-10-16, 밑의 고르개가 같은 말을 한다) */}
+              {screen.stalePlan && (
+                <p className="text-sm text-muted">{TRAINING_SCREEN_TEXT.stalePlan}</p>
+              )}
             </div>
             {planBlock(false, savedMinutes)}
           </Card>

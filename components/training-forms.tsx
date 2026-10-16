@@ -260,8 +260,7 @@ export function PlanForm({
       <div className="space-y-2 rounded-xl border border-line bg-surface-2 px-4 py-3">
         <p className="text-sm font-bold text-ink">오늘 체크인을 먼저 남겨주세요</p>
         <p className="text-footnote leading-relaxed text-muted">
-          운동 일정은 오늘 몸 상태를 보고 짜요. 체크인이 없으면 통증이나 뻐근한 곳을
-          모른 채 짜게 돼요. 30초면 돼요.
+          오늘 몸 상태를 보고 짜요. 30초면 돼요.
         </p>
         {/*
           체크인할 길.
@@ -315,7 +314,7 @@ export function PlanForm({
       <CheckboxGroup
         name="availableEquipment"
         label="오늘 쓸 수 있는 장비"
-        hint="오늘 실제로 쓸 수 있는 것만 켜주세요. 아무것도 안 켜면 맨몸 운동만 나와요."
+        hint="안 켜면 맨몸 운동만 나와요."
         options={choices}
         selected={equipmentSelected}
       />
@@ -352,10 +351,7 @@ export function PlanForm({
 
       {mode === 'auto' ? (
         <>
-          <p className="text-footnote leading-relaxed text-muted">
-            오늘 체크인 · 최근 투구 · 운동 기록을 보고 목표와 시간을 정해요. 장비만
-            골라주세요.
-          </p>
+          <p className="text-footnote leading-relaxed text-muted">목표 · 시간은 앱이 정해요.</p>
 
           {/*
             체크인에서 고른 운동이 몸 상태와 부딪히는 날.
@@ -410,7 +406,7 @@ export function PlanForm({
             key="goal"
             name="trainingGoal"
             label="오늘 훈련 목표"
-            hint="같은 시간을 어디에 더 쓸지 정해요. 몸 상태가 안 좋은 날에는 목표와 상관없이 회복이 먼저예요."
+            hint="몸 상태가 안 좋은 날은 회복이 먼저예요."
             options={TRAINING_GOALS.map((g) => ({ name: g.name, desc: g.desc }))}
             selected={pickedGoal}
             onChange={setPickedGoal}
@@ -429,7 +425,7 @@ export function PlanForm({
               key={`focus-${pickedGoal}`}
               name="trainingFocus"
               label="오늘 할 부위"
-              hint="안 고르면 최근 기록을 보고 상체·하체를 번갈아 골라요. 몸 상태가 안 좋은 날은 회복이 먼저예요."
+              hint="안 고르면 상체 · 하체를 번갈아 골라요."
               options={focusChoices.map((f) => ({
                 name: f.label,
                 value: f.key,
