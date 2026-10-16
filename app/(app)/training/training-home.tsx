@@ -531,7 +531,7 @@ async function DayStripLoad({ userId, today }: { userId: string; today: string }
 
 /* ─────────────────────────────── 이번 주 ─────────────────────────────── */
 
-/** 이번 주(월요일부터) 앱마다 한 날 · 번 수 */
+/** 이번 주(월요일부터) 앱마다 한 날 수 — 셋 다 '일'(2026-10-16 디자인 점검 — 운동만 '번'이라 단위가 섞였다) */
 async function WeekStrip({ userId, today }: { userId: string; today: Date }) {
   const todayKey = toDateKey(today);
   const dow = new Date(`${todayKey}T00:00:00Z`).getUTCDay();
@@ -541,8 +541,9 @@ async function WeekStrip({ userId, today }: { userId: string; today: Date }) {
     .filter((ex) => ex.category === ARMCARE_CATEGORY)
     .map((ex) => ex.id);
   const [workouts, armcareLogs, drillLogs] = await Promise.all([
-    prisma.trainingSession.count({
+    prisma.trainingSession.findMany({
       where: { userId, status: 'FINISHED', date: { gte: monday } },
+      select: { date: true },
     }),
     prisma.userExerciseLog.findMany({
       where: { userId, completed: true, date: { gte: monday }, exerciseId: { in: armcareIds } },
@@ -556,7 +557,7 @@ async function WeekStrip({ userId, today }: { userId: string; today: Date }) {
   const days = (rows: { date: Date }[]) => new Set(rows.map((r) => keyOfDbDate(r.date))).size;
 
   const cells: { app: TrainingPart; value: number; unit: string }[] = [
-    { app: 'today', value: workouts, unit: '번' },
+    { app: 'today', value: days(workouts), unit: '일' },
     { app: 'armcare', value: days(armcareLogs), unit: '일' },
     { app: 'mechanics', value: days(drillLogs), unit: '일' },
   ];
