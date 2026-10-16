@@ -31,6 +31,7 @@ import {
 import { LibraryVideo } from '@/components/library-video';
 import { ExerciseHistoryPanel } from '@/components/exercise-history';
 import { useWakeLock } from '@/components/use-wake-lock';
+import { useLinger } from '@/components/modal';
 import { useAlarm } from '@/components/use-alarm';
 import { buzz, haptic } from '@/lib/haptics';
 import { newRecord } from '@/lib/workout/bests';
@@ -387,6 +388,9 @@ export function SessionClient({
   const [swap, setSwap] = useState(false);
 
   const [sheet, setSheet] = useState(false);
+  /* 닫힌 뒤에도 잠시 붙들어 시트가 내려가는 움직임을 보인다(components/modal.tsx useLinger) */
+  const sheetShown = useLinger(sheet);
+  const swapShown = useLinger(swap);
   /*
    * 종료 요약.
    *
@@ -394,6 +398,7 @@ export function SessionClient({
    * 표시뿐이면 그 한 시간이 숫자로 안 남고, 체감 강도를 받을 자리도 사라진다.
    */
   const [finish, setFinish] = useState(false);
+  const finishShown = useLinger(finish);
   const [finishError, setFinishError] = useState<string | null>(null);
   /*
    * 숫자판은 누를 때만 올린다.
@@ -1677,8 +1682,9 @@ export function SessionClient({
         )}
       </div>
 
-      {finish && (
+      {finishShown && (
         <FinishSheet
+          open={finish}
           sets={sets}
           startedAt={openedAt}
           priorSeconds={priorSeconds}
@@ -1709,8 +1715,9 @@ export function SessionClient({
         />
       )}
 
-      {swap && (
+      {swapShown && (
         <SwapSheet
+          open={swap}
           sessionId={sessionId}
           current={ex}
           /* 폰에만 있는 세트까지 센다 — 서버는 아직 모르는 세트다 */
@@ -1721,8 +1728,9 @@ export function SessionClient({
         />
       )}
 
-      {sheet && (
+      {sheetShown && (
         <ExerciseSheet
+          open={sheet}
           exercises={list}
           sets={sets}
           at={at}

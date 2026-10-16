@@ -351,7 +351,9 @@ export function PlanForm({
 
       {mode === 'auto' ? (
         <>
-          <p className="text-footnote leading-relaxed text-muted">목표 · 시간은 앱이 정해요.</p>
+          <p className="text-footnote leading-relaxed text-muted">
+            목표 · 시간은 앱이 정해요.
+          </p>
 
           {/*
             체크인에서 고른 운동이 몸 상태와 부딪히는 날.

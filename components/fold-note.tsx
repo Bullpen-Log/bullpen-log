@@ -18,7 +18,8 @@ export function FoldNote({
   tone?: 'sky' | 'warn' | 'muted';
 }) {
   const [open, setOpen] = useState(false);
-  const color = tone === 'warn' ? 'text-warn' : tone === 'muted' ? 'text-muted' : 'text-sky-strong';
+  const color =
+    tone === 'warn' ? 'text-warn' : tone === 'muted' ? 'text-muted' : 'text-sky-strong';
   return (
     <div>
       <button

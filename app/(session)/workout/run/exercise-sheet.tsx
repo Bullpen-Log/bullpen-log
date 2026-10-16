@@ -1,6 +1,7 @@
 'use client';
 
 import { ChevronDown, ChevronUp, X } from '@/components/icon';
+import { Modal } from '@/components/modal';
 import type { RunExercise, RunSet } from './session-client';
 
 /**
@@ -15,6 +16,7 @@ import type { RunExercise, RunSet } from './session-client';
  * 없다.
  */
 export function ExerciseSheet({
+  open,
   exercises,
   sets,
   at,
@@ -24,6 +26,8 @@ export function ExerciseSheet({
   busy,
   error,
 }: {
+  /** 열림 — 닫힐 때 시트가 내려가도록 부모가 잠시 붙들어 둔다(components/modal.tsx useLinger) */
+  open: boolean;
   exercises: RunExercise[];
   sets: RunSet[];
   at: number;
@@ -48,134 +52,105 @@ export function ExerciseSheet({
     onApply(exercises.filter((_, k) => k !== i).map((e) => e.id));
   };
 
+  /*
+   * 앱의 다른 창과 같은 시트(components/modal.tsx) — 끌어내려 닫기 · ESC · 뒤 화면 막기 · 닫힐 때 내려가는 움직임이 같이 온다.
+   * 예전엔 손으로 만든 div 시트라 이것들이 없었다(2026-10-16 UI 검토).
+   */
   return (
-    <div className="fixed inset-0 z-50 flex flex-col justify-end">
-      {/* 바깥을 눌러도 닫힌다 */}
-      <button
-        type="button"
-        aria-label="닫기"
-        onClick={onClose}
-        data-press-none
-        className="absolute inset-0 bg-black/40 motion-safe:animate-[backdrop-in_260ms_ease-out]"
-      />
+    <Modal open={open} onClose={onClose} title={`오늘 운동 ${exercises.length}개`}>
+      {error && (
+        <p className="mb-3 rounded-lg bg-warn-bg px-3 py-2 text-xs text-warn">
+          {error}
+        </p>
+      )}
 
-      <div className="relative max-h-[80%] overflow-y-auto rounded-t-[28px] bg-surface pb-[max(1rem,env(safe-area-inset-bottom))] shadow-2xl motion-safe:animate-[sheet-in_380ms_cubic-bezier(0.32,0.72,0,1)]">
-        <div className="sticky top-0 z-10 border-b border-line bg-surface px-4 pb-2">
-          <div
-            aria-hidden
-            className="mx-auto mt-2 mb-1 h-[5px] w-9 rounded-full bg-ink/15"
-          />
-          <div className="flex items-center justify-between gap-3">
-            <p className="text-base font-bold text-ink">
-              오늘 운동 {exercises.length}개
-            </p>
-            <button
-              type="button"
-              onClick={onClose}
-              aria-label="목록 닫기"
-              className="-mr-2 grid h-11 w-11 shrink-0 place-items-center text-muted transition-colors hover:text-ink"
+      <ol className="-mx-2 space-y-1.5">
+        {exercises.map((ex, i) => {
+          const done = countOf(ex.id);
+          const here = i === at;
+          return (
+            <li
+              key={ex.id}
+              className={`flex items-center gap-2 rounded-xl border px-2 py-2 ${
+                here ? 'border-sky bg-sky/5' : 'border-line'
+              }`}
             >
-              <span className="grid h-8 w-8 place-items-center rounded-full bg-ink/6">
-                <X className="h-4 w-4" />
-              </span>
-            </button>
-          </div>
-        </div>
-
-        {error && (
-          <p className="mx-4 mt-3 rounded-lg bg-warn-bg px-3 py-2 text-xs text-warn">
-            {error}
-          </p>
-        )}
-
-        <ol className="space-y-1.5 p-3">
-          {exercises.map((ex, i) => {
-            const done = countOf(ex.id);
-            const here = i === at;
-            return (
-              <li
-                key={ex.id}
-                className={`flex items-center gap-2 rounded-xl border px-2 py-2 ${
-                  here ? 'border-sky bg-sky/5' : 'border-line'
-                }`}
+              {/* 누르면 그 운동으로 바로 간다 */}
+              <button
+                type="button"
+                onClick={() => onJump(i)}
+                className="flex min-w-0 flex-1 items-center gap-2.5 text-left"
               >
-                {/* 누르면 그 운동으로 바로 간다 */}
-                <button
-                  type="button"
-                  onClick={() => onJump(i)}
-                  className="flex min-w-0 flex-1 items-center gap-2.5 text-left"
+                <span
+                  className={`w-5 shrink-0 text-center text-xs tabular-nums ${
+                    here ? 'font-bold text-sky' : 'text-muted'
+                  }`}
                 >
+                  {i + 1}
+                </span>
+                <span className="min-w-0 flex-1">
                   <span
-                    className={`w-5 shrink-0 text-center text-xs tabular-nums ${
-                      here ? 'font-bold text-sky' : 'text-muted'
+                    className={`block truncate text-sm ${
+                      here ? 'font-bold text-sky' : 'text-ink'
                     }`}
                   >
-                    {i + 1}
+                    {ex.title}
                   </span>
-                  <span className="min-w-0 flex-1">
-                    <span
-                      className={`block truncate text-sm ${
-                        here ? 'font-bold text-sky' : 'text-ink'
-                      }`}
-                    >
-                      {ex.title}
-                    </span>
-                    <span className="block truncate text-caption text-muted">
-                      {/* 뺄 수 없는 까닭을 글로 — title(마우스 올리기)은 폰에서 안 보인다 */}
-                      {done > 0
-                        ? `${done}세트 남김 · 기록이 있어 못 빼요`
-                        : (ex.prescription ?? '아직')}
-                    </span>
+                  <span className="block truncate text-caption text-muted">
+                    {/* 뺄 수 없는 까닭을 글로 — title(마우스 올리기)은 폰에서 안 보인다 */}
+                    {done > 0
+                      ? `${done}세트 남김 · 기록이 있어 못 빼요`
+                      : (ex.prescription ?? '아직')}
                   </span>
-                </button>
+                </span>
+              </button>
 
-                {/*
+              {/*
                   손가락 크기(44px)로 — 28px 단추 셋이 2px 사이로 붙어 있어 ↓ 를 누르려다 ✕ 를 눌러 운동이 빠졌다.
                   ✕ 는 조금 떨어뜨린다.
                 */}
-                <span className="flex shrink-0 items-center gap-1">
-                  <button
-                    type="button"
-                    onClick={() => move(i, -1)}
-                    disabled={busy || i === 0}
-                    aria-label={`${ex.title} 위로`}
-                    className="grid h-11 w-11 place-items-center rounded-lg text-muted transition-colors active:text-sky disabled:opacity-25"
-                  >
-                    <ChevronUp className="h-5 w-5" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => move(i, 1)}
-                    disabled={busy || i === exercises.length - 1}
-                    aria-label={`${ex.title} 아래로`}
-                    className="grid h-11 w-11 place-items-center rounded-lg text-muted transition-colors active:text-sky disabled:opacity-25"
-                  >
-                    <ChevronDown className="h-5 w-5" />
-                  </button>
-                  {/*
+              <span className="flex shrink-0 items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => move(i, -1)}
+                  disabled={busy || i === 0}
+                  aria-label={`${ex.title} 위로`}
+                  className="grid h-11 w-11 place-items-center rounded-lg text-muted transition-colors active:text-sky disabled:opacity-25"
+                >
+                  <ChevronUp className="h-5 w-5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => move(i, 1)}
+                  disabled={busy || i === exercises.length - 1}
+                  aria-label={`${ex.title} 아래로`}
+                  className="grid h-11 w-11 place-items-center rounded-lg text-muted transition-colors active:text-sky disabled:opacity-25"
+                >
+                  <ChevronDown className="h-5 w-5" />
+                </button>
+                {/*
                     세트를 남긴 운동은 못 뺀다. 빼면 목록에는 없는데 기록은
                     남아, 종료할 때 그것까지 접힌다.
                   */}
-                  <button
-                    type="button"
-                    onClick={() => drop(i)}
-                    disabled={busy || done > 0 || exercises.length === 1}
-                    aria-label={`${ex.title} 오늘 빼기`}
-                    title={done > 0 ? '기록을 남긴 운동은 뺄 수 없어요' : undefined}
-                    className="ml-2 grid h-11 w-11 place-items-center rounded-lg text-muted transition-colors active:text-warn disabled:opacity-25"
-                  >
-                    <X className="h-5 w-5" />
-                  </button>
-                </span>
-              </li>
-            );
-          })}
-        </ol>
+                <button
+                  type="button"
+                  onClick={() => drop(i)}
+                  disabled={busy || done > 0 || exercises.length === 1}
+                  aria-label={`${ex.title} 오늘 빼기`}
+                  title={done > 0 ? '기록을 남긴 운동은 뺄 수 없어요' : undefined}
+                  className="ml-2 grid h-11 w-11 place-items-center rounded-lg text-muted transition-colors active:text-warn disabled:opacity-25"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </span>
+            </li>
+          );
+        })}
+      </ol>
 
-        <p className="px-4 pb-3 text-center text-caption leading-relaxed text-muted/80">
-          뺀 운동은 오늘만 빠져요. 트레이닝 화면의 일정은 그대로 남아요.
-        </p>
-      </div>
-    </div>
+      <p className="mt-3 px-2 text-center text-caption leading-relaxed text-muted/80">
+        뺀 운동은 오늘만 빠져요. 트레이닝 화면의 일정은 그대로 남아요.
+      </p>
+    </Modal>
   );
 }

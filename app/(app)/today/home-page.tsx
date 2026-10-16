@@ -270,9 +270,10 @@ async function TodayBody({
           <div className="flex flex-wrap items-center justify-between gap-x-3">
             <FoldNote tone="warn" label="왜 물어보나요">
               <p className="text-footnote leading-relaxed text-warn">
-                최근 투구 일지 메모에 {`‘${facts.condition.painWordsInMemo.join(', ')}’`}{' '}
-                같은 말이 있었어요. 통증인지 알 수 없어서, 확인될 때까지 투구는 쉬고 운동은
-                회복 · 가동성만 골랐어요. 체크인을 남기면 바로 평소 계획으로 돌아가요.
+                최근 투구 일지 메모에{' '}
+                {`‘${facts.condition.painWordsInMemo.join(', ')}’`} 같은 말이 있었어요.
+                통증인지 알 수 없어서, 확인될 때까지 투구는 쉬고 운동은 회복 · 가동성만
+                골랐어요. 체크인을 남기면 바로 평소 계획으로 돌아가요.
               </p>
             </FoldNote>
             <OpenCheckinButton className="min-h-11 rounded-full border border-warn px-4 text-sm font-semibold text-warn">

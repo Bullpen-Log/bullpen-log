@@ -64,6 +64,21 @@ export function useModalState<T>() {
 }
 
 /**
+ * 열림이 꺼진 뒤에도 CLOSE_MS 동안 붙들어 둔다 — `{open && <창/>}` 으로 그리는 곳이 닫히는 움직임을 보이게
+ * (`{shown && <창 open={open}/>}`). 꺼지자마자 떼면 시트가 내려가지 않고 뚝 사라진다(운동 중 시트 셋, 2026-10-16).
+ */
+export function useLinger(open: boolean) {
+  const [shown, setShown] = useState(open);
+  if (open && !shown) setShown(true);
+  useEffect(() => {
+    if (open || !shown) return;
+    const id = setTimeout(() => setShown(false), CLOSE_MS);
+    return () => clearTimeout(id);
+  }, [open, shown]);
+  return shown;
+}
+
+/**
  * 가운데에 뜨는 작은 창.
  *
  * 브라우저가 원래 가진 <dialog> 를 쓴다. 직접 만들면 다음을 전부 손으로 해야
@@ -83,6 +98,8 @@ export function Modal({
   origin,
   bigClose = false,
   look = 'sheet',
+  toolbar,
+  footer,
   children,
 }: {
   open: boolean;
@@ -122,6 +139,10 @@ export function Modal({
   origin?: { x: number; y: number } | null;
   /** 닫기(X)를 크게 — 체크인 창(2026-10-13 사용자: "체크인의 x 를 키워줘"). 휴대폰 48px · PC 40px */
   bigClose?: boolean;
+  /** 제목 밑에 붙어 굴러가지 않는 칸(고르개 · 찾기 칸) — 본문만 굴러간다. 운동 교체 창이 쓴다(2026-10-16) */
+  toolbar?: ReactNode;
+  /** 바닥에 붙어 굴러가지 않는 칸(마치기 같은 큰 단추) — 자판이 뜨면 자판 위로. 운동 마치기 창이 쓴다(2026-10-16) */
+  footer?: ReactNode;
   children: ReactNode;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
@@ -198,7 +219,15 @@ export function Modal({
    * 휴대폰 시트를 끌어내려 닫기 — 손잡이 · 제목 줄을 잡고 아래로 끌면 따라 내려오고, 충분히(110px) 내리거나 빠르게
    * 튕기면 닫힌다. 덜 내리면 제자리로 돌아간다. 아이폰 시트처럼(2026-10-01 '애플처럼'). 단추를 잡은 것은 끌기가 아니다.
    */
-  const drag = useRef<{ id: number; y: number; t: number; dy: number } | null>(null);
+  const drag = useRef<{
+    id: number;
+    y: number;
+    dy: number;
+    /* 손 떼기 직전의 빠르기(px/ms) — 처음부터 평균 내면 천천히 끌다 휙 튕긴 것을 못 알아챘다(2026-10-16) */
+    vy: number;
+    py: number;
+    pt: number;
+  } | null>(null);
   /* 손가락 자리는 장면마다 한 번만 그린다 */
   const dragFrame = useRef(0);
   const startDrag = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -209,7 +238,14 @@ export function Modal({
       return;
     /* 끄는 중의 둘째 손가락은 무시한다 — 덮어쓰면 첫 손가락을 뗄 때 아무도 안 받아 시트가 내려간 채 남는다 */
     if (drag.current) return;
-    drag.current = { id: e.pointerId, y: e.clientY, t: performance.now(), dy: 0 };
+    drag.current = {
+      id: e.pointerId,
+      y: e.clientY,
+      dy: 0,
+      vy: 0,
+      py: e.clientY,
+      pt: e.timeStamp,
+    };
     /* 끄는 동안 폴더 흐림을 끈다(globals.css [data-dragging]) — 흐린 폴더를 움직이면 아이폰이 버벅였다 */
     ref.current?.setAttribute('data-dragging', '');
     e.currentTarget.setPointerCapture(e.pointerId);
@@ -218,7 +254,13 @@ export function Modal({
     const d = drag.current;
     const el = folderRef.current ?? ref.current;
     if (!d || !el || e.pointerId !== d.id) return;
-    d.dy = Math.max(0, e.clientY - d.y);
+    const raw = e.clientY - d.y;
+    /* 위로 끌면 고무줄처럼 조금만 따라온다(아이폰 시트) — 예전엔 꿈쩍도 안 해 끌리는 줄을 몰랐다 */
+    d.dy = raw >= 0 ? raw : -Math.min(24, -raw * 0.25);
+    const dt = e.timeStamp - d.pt;
+    if (dt > 0) d.vy = 0.7 * ((e.clientY - d.py) / dt) + 0.3 * d.vy;
+    d.py = e.clientY;
+    d.pt = e.timeStamp;
     if (!dragFrame.current)
       dragFrame.current = requestAnimationFrame(() => {
         dragFrame.current = 0;
@@ -233,14 +275,14 @@ export function Modal({
     cancelAnimationFrame(dragFrame.current);
     dragFrame.current = 0;
     ref.current?.removeAttribute('data-dragging');
-    const speed = d.dy / Math.max(1, performance.now() - d.t);
-    if (d.dy > 110 || (d.dy > 30 && speed > 0.6)) {
+    const speed = e.timeStamp - d.pt < 100 ? d.vy : 0;
+    if (d.dy > 110 || (d.dy > 30 && speed > 0.5)) {
       /* 폴더는 아래로 미끄러져 닫힌다(globals.css [data-dismiss='down']) — 인라인 자리는 닫는 순간 지운다 */
       if (folderRef.current) ref.current?.setAttribute('data-dismiss', 'down');
       onClose();
       return;
     }
-    if (d.dy > 0) {
+    if (d.dy !== 0) {
       el.animate(
         [{ transform: `translateY(${d.dy}px)` }, { transform: 'translateY(0)' }],
         {
@@ -437,6 +479,8 @@ export function Modal({
           {look === 'folder' && <div aria-hidden className="h-4 desk:hidden" />}
         </div>
 
+        {toolbar && <div className="shrink-0 px-5 pb-3 desk:pt-4">{toolbar}</div>}
+
         {/*
         내용이 길면 여기서만 굴러간다.
 
@@ -464,11 +508,16 @@ export function Modal({
         아이폰 점검).
       */}
         <div
-          className={`no-scrollbar relative min-h-0 flex-auto overflow-y-auto overscroll-contain px-5 pt-3 desk:py-5 ${look === 'folder' ? 'pb-5' : 'pb-[calc(1.25rem+env(safe-area-inset-bottom))]'}`}
+          className={`no-scrollbar relative min-h-0 flex-auto overflow-y-auto overscroll-contain px-5 pt-3 desk:py-5 ${look === 'folder' ? 'pb-5' : footer ? 'pb-3' : 'pb-[calc(1.25rem+env(safe-area-inset-bottom))]'}`}
         >
           {/* 내용의 제 높이를 재는 자리(위 'page' 창의 높이 잇기) */}
           <div ref={contentRef}>{children}</div>
         </div>
+        {footer && (
+          <div className="shrink-0 px-4 pt-2 pb-[calc(0.75rem+env(safe-area-inset-bottom))] desk:px-5 desk:pb-5">
+            {footer}
+          </div>
+        )}
       </FolderFrame>
     </dialog>
   );
