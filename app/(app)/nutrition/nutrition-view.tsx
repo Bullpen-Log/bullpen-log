@@ -1,6 +1,5 @@
 'use client';
 
-import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
   useEffect,
@@ -29,7 +28,7 @@ import { CountUp } from '@/components/onboarding/count-up';
 import { DateScrollStrip } from '@/components/date-scroll-strip';
 import { useWeightUnit } from '@/components/use-units';
 import { Segmented } from '@/components/segmented';
-import { PAGE_TITLE_LINE } from '@/components/ui';
+import { PAGE_TITLE_LINE, Button, ButtonLink } from '@/components/ui';
 import { NavTitle } from '@/components/nav-title';
 import { MyPlanCard } from '@/components/nutrition/my-plan-card';
 import { useLocalChoice } from '@/components/nutrition/use-local-choice';
@@ -481,12 +480,12 @@ export function NutritionView({
             {day.hasProfile ? '새 계획 화면으로 목표를 다시 정해 볼까요?' : '열 가지 질문으로 내 계획을 만들어요.'}
           </p>
           <div className="flex shrink-0 items-center">
-            <Link
+            <ButtonLink
               href="/nutrition/setup"
-              className="inline-flex min-h-10 items-center rounded-full bg-sky px-4 text-sm font-semibold text-white transition-colors hover:bg-sky-strong desk:rounded-xl"
+              size="sm"
             >
               시작하기
-            </Link>
+            </ButtonLink>
           </div>
         </div>
       )}
@@ -2013,13 +2012,13 @@ function WeightCard({
             {unit}
           </span>
         </label>
-        <button
+        <Button
           type="submit"
           disabled={!changed || pending}
-          className="rounded-xl bg-sky px-4 py-2.5 text-sm font-semibold text-white transition-[background-color,opacity] hover:bg-sky-strong disabled:opacity-40"
+          size="sm"
         >
           {pending ? '저장 중…' : '저장'}
-        </button>
+        </Button>
       </form>
       {error && (
         <p role="alert" className="text-xs text-danger">
@@ -2070,14 +2069,14 @@ function WeightCard({
                 key="actions"
                 className="motion-safe:animate-fade-in space-y-1.5 pt-1.5"
               >
-                <button
+                <Button
                   type="button"
                   onClick={act}
                   disabled={stepping}
-                  className="min-h-11 w-full rounded-xl bg-sky px-4 py-2.5 text-sm font-semibold text-white transition-[background-color,opacity] hover:bg-sky-strong disabled:opacity-60"
+                  className="w-full"
                 >
                   {stepping ? '바꾸는 중…' : STEP_LABEL[copy.action]}
-                </button>
+                </Button>
                 {copy.action === 'maintain' && keepBase !== t.base && (
                   <p className="text-center text-xs text-muted tabular-nums">
                     하루 목표가 {kcalText(t.base)} → {kcalText(keepBase)}kcal로 바뀌어요

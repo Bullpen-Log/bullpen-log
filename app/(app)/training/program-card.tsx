@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react';
 import { AlertCircle, ChevronDown, Play } from '@/components/icon';
-import { Card } from '@/components/ui';
+import { Card, Button } from '@/components/ui';
 import { Modal, useModalState } from '@/components/modal';
 import { ConfirmDialog } from '@/components/confirm-delete';
 import { DisclosureButton } from '@/components/disclosure';
@@ -111,13 +111,14 @@ export function ProgramCard({ props }: { props: ProgramCardProps }) {
       )}
       {going && !finishedToday && p.canStart && (
         <SafeForm action={startProgramWorkout}>
-          <button
+          <Button
             type="submit"
-            className="flex w-full items-center justify-center gap-2 rounded-2xl bg-sky py-4 text-base font-bold text-white transition-transform motion-safe:active:scale-[0.98] pad:inline-flex pad:w-auto pad:px-8"
+            size="lg"
+            className="w-full pad:w-auto pad:px-8"
           >
             <Play aria-hidden className="h-5 w-5" />
             {p.todayState === 'active' ? '운동 이어서 하기' : '운동 시작'}
-          </button>
+          </Button>
         </SafeForm>
       )}
 

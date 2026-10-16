@@ -2,6 +2,7 @@ import { Play } from '@/components/icon';
 import { startWorkout } from '@/app/actions/workout';
 import { startProgramWorkout } from '@/app/actions/program';
 import { SafeForm } from '@/components/safe-form';
+import { Button } from '@/components/ui';
 
 /**
  * 운동을 시작하는 단추.
@@ -45,13 +46,14 @@ export function StartWorkout({
           {resume ? '이어서' : '시작'}
         </button>
       ) : (
-        <button
+        <Button
           type="submit"
-          className="flex w-full items-center justify-center gap-2 rounded-2xl bg-sky py-4 text-base font-bold text-white transition-transform motion-safe:active:scale-[0.98] pad:inline-flex pad:w-auto pad:px-8"
+          size="lg"
+          className="w-full pad:w-auto pad:px-8"
         >
           <Play className="h-5 w-5" />
           {resume ? '운동 이어서 하기' : '운동 시작'}
-        </button>
+        </Button>
       )}
     </SafeForm>
   );

@@ -6,6 +6,7 @@ import { saveTrainingNote } from '@/app/actions/exercise-log';
 import { OFFLINE_MESSAGE, orOffline } from '@/lib/action-offline';
 import { IntensityGuide } from '@/components/intensity-guide';
 import { haptic } from '@/lib/haptics';
+import { Button } from '@/components/ui';
 
 /**
  * 오늘 운동이 어땠는지 — 하루에 하나.
@@ -155,14 +156,14 @@ export function TrainingNote({
       </label>
 
       <div className="flex flex-wrap items-center gap-3">
-        <button
+        <Button
           type="button"
           onClick={save}
           disabled={pending}
-          className="rounded-xl bg-sky px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-sky-strong disabled:opacity-60"
+          size="sm"
         >
           {pending ? '저장 중…' : saved ? '고쳐서 저장' : '오늘 운동 기록 저장'}
-        </button>
+        </Button>
         {saved && (
           <button
             type="button"

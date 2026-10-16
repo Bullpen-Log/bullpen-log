@@ -389,7 +389,7 @@ export function FeedCard({ items }: { items: FeedItem[] }) {
         <div
           role="tablist"
           aria-label={`${n}장 중 ${index + 1}번째`}
-          className="absolute right-(--block-pad) bottom-2 flex items-center"
+          className="absolute right-(--block-pad) bottom-0.5 flex items-center"
         >
           {items.map((it, i) => {
             const on = i === (moving != null ? at(index + moving) : index);
@@ -401,7 +401,7 @@ export function FeedCard({ items }: { items: FeedItem[] }) {
                 aria-selected={on}
                 aria-label={`${i + 1}번째 장 · ${it.label}`}
                 onClick={(e) => jumpTo(i, e.timeStamp)}
-                className="flex h-8 w-6 items-center justify-center"
+                className="flex h-11 w-7 items-center justify-center"
               >
                 <span
                   className={`block h-2 rounded-full motion-safe:transition-[width,background-color] duration-300 ease-out ${

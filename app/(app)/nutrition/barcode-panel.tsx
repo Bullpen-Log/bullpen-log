@@ -7,6 +7,7 @@ import { haptic } from '@/lib/haptics';
 import { cleanBarcode, expandUpcE } from '@/lib/nutrition/barcode';
 import { canUseCamera, makeBarcodeReader } from '@/lib/nutrition/barcode-reader';
 import type { Food } from '@/lib/nutrition/meta';
+import { Button } from '@/components/ui';
 
 /**
  * 바코드로 담기(영양 로드맵 8번) — 음식 창의 찾는 칸 옆 단추로 연다.
@@ -296,13 +297,14 @@ export function BarcodePanel({
             className="w-full rounded-xl border border-line bg-surface-2 px-3 py-2.5 text-sm tabular-nums text-ink placeholder:text-muted/60 transition-colors focus:border-sky focus:outline-none"
           />
         </label>
-        <button
+        <Button
           type="submit"
           disabled={look.kind === 'loading'}
-          className="shrink-0 rounded-xl bg-sky px-4 text-sm font-semibold text-white transition-[background-color,opacity] hover:bg-sky-strong disabled:opacity-60"
+          size="sm"
+          className="shrink-0"
         >
           찾기
-        </button>
+        </Button>
       </form>
 
       {look.kind === 'loading' && (

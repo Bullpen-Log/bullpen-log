@@ -142,27 +142,46 @@ const buttonStyles: Record<ButtonVariant, string> = {
     'border border-transparent bg-danger-bg text-danger focus-visible:outline-danger desk:border-danger-line desk:hover:border-danger',
 };
 
+/*
+ * 크기 셋(2026-10-16 디자인 점검 — 화면마다 손으로 만든 파란 단추가 알약 · 둥근 상자 · 큰 상자로 제각각이었다).
+ * sm 40px(카드 안 작은 동작) · md 44px 넘게(기본) · lg 48px 넘게(화면의 큰 동작 하나). 높이는 휴대폰 기준.
+ */
+type ButtonSize = 'sm' | 'md' | 'lg';
+const buttonSizes: Record<ButtonSize, string> = {
+  sm: 'min-h-10 px-4 py-2 text-sm',
+  md: 'px-5 py-3 text-sm',
+  lg: 'min-h-12 px-5 py-3 text-base',
+};
+
 /* 휴대폰은 알약 모양(아이폰 iOS 26 의 단추처럼, 2026-10-01 사용자 "동글동글") · PC 는 예전 모서리 */
 const buttonBase =
-  'inline-flex items-center justify-center gap-2 rounded-full desk:rounded-xl px-5 py-3 text-sm transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-50';
+  'inline-flex items-center justify-center gap-2 rounded-full desk:rounded-xl transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-50';
 
 export function Button({
   variant = 'primary',
+  size = 'md',
   className,
   ...props
-}: ComponentProps<'button'> & { variant?: ButtonVariant }) {
+}: ComponentProps<'button'> & { variant?: ButtonVariant; size?: ButtonSize }) {
   return (
-    <button className={cn(buttonBase, buttonStyles[variant], className)} {...props} />
+    <button
+      className={cn(buttonBase, buttonSizes[size], buttonStyles[variant], className)}
+      {...props}
+    />
   );
 }
 
 export function ButtonLink({
   variant = 'primary',
+  size = 'md',
   className,
   ...props
-}: ComponentProps<typeof Link> & { variant?: ButtonVariant }) {
+}: ComponentProps<typeof Link> & { variant?: ButtonVariant; size?: ButtonSize }) {
   return (
-    <Link className={cn(buttonBase, buttonStyles[variant], className)} {...props} />
+    <Link
+      className={cn(buttonBase, buttonSizes[size], buttonStyles[variant], className)}
+      {...props}
+    />
   );
 }
 

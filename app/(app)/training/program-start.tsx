@@ -24,6 +24,7 @@ import {
   type VariantKey,
 } from '@/lib/program/program';
 import { haptic } from '@/lib/haptics';
+import { Button } from '@/components/ui';
 
 /**
  * 근력 · 파워 프로그램 입구 한 줄 + 고르기 · 시작 시트(설계 §13-12 · 18).
@@ -478,13 +479,14 @@ function StartSheet({
             {choiceBlocked ? (
               <Blocked {...choiceBlocked} />
             ) : (
-              <button
+              <Button
                 type="button"
                 onClick={next}
-                className="min-h-12 w-full rounded-2xl bg-sky text-base font-bold text-white"
+                size="lg"
+                className="w-full"
               >
                 이걸로 할래요
-              </button>
+              </Button>
             )}
             <button
               type="button"
@@ -688,21 +690,24 @@ function StartSheet({
 
         {step !== 'list' && step !== 'intro' && (
           <div className="flex gap-2">
-            <button
+            <Button
               type="button"
+              variant="secondary"
+              size="lg"
               onClick={() => (changing ? setChanging(null) : back())}
-              className="min-h-12 flex-1 rounded-2xl bg-ink/6 text-base font-medium text-ink"
+              className="flex-1"
             >
               뒤로
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
               disabled={!canNext || pending}
               onClick={step === 'summary' ? submit : next}
-              className="min-h-12 flex-[2] rounded-2xl bg-sky text-base font-bold text-white disabled:opacity-40"
+              size="lg"
+              className="flex-[2]"
             >
               {step === 'summary' ? (pending ? '시작하는 중…' : '시작') : '다음'}
-            </button>
+            </Button>
           </div>
         )}
       </div>

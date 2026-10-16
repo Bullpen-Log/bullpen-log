@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useTransition } from 'react';
-import Link from 'next/link';
 import { unstable_rethrow } from 'next/navigation';
 import { Check, ChevronRight, Play, RefreshCw } from '@/components/icon';
 import { setExerciseDone } from '@/app/actions/exercise-log';
@@ -19,6 +18,7 @@ import { ExerciseMedia, type ArmcareExerciseView } from './armcare-media';
 import { ArmPainGuideButton, type ArmPainView } from './arm-pain-guide';
 import { CheckRow } from './check-row';
 import { buzz } from '@/lib/haptics';
+import { Button, ButtonLink } from '@/components/ui';
 
 export type ArmcareTodayItem = {
   area: ArmcareAreaKey;
@@ -115,14 +115,14 @@ export function ArmcareToday({
           </p>
           {afterThrowing}
           {guide}
-          <button
+          <Button
             type="button"
             onClick={make}
             disabled={making}
-            className="rounded-xl bg-sky px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-sky-strong disabled:opacity-60"
+            size="sm"
           >
             {making ? '만드는 중…' : '맞춤 루틴 만들기'}
-          </button>
+          </Button>
           {error && <p className="text-sm text-danger">{error}</p>}
         </section>
       </div>
@@ -189,13 +189,13 @@ export function ArmcareToday({
         )}
         <div className="flex flex-wrap items-center gap-3 border-t border-sky-soft/30 pt-3">
           {/* 한 운동씩 크게 따라 하기 — 목록을 읽지 않아도 된다 (armcare/play) */}
-          <Link
+          <ButtonLink
             href={`/armcare/play/today?d=${dateKey}`}
-            className="inline-flex min-h-10 items-center gap-1.5 rounded-lg bg-sky px-3.5 text-sm font-semibold text-white transition-colors hover:bg-sky-strong"
+            size="sm"
           >
             <Play aria-hidden className="h-4 w-4" />
             따라하기
-          </Link>
+          </ButtonLink>
           <button
             type="button"
             onClick={make}

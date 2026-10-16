@@ -37,6 +37,7 @@ import {
 } from './rehab-throwing';
 import { WeeklyFlow } from './rehab-weekly';
 import { DisclosureButton } from '@/components/disclosure';
+import { ButtonLink } from '@/components/ui';
 
 /** 재활 카드가 그리는 것 — 서버(armcare-section.tsx)가 규칙(lib/armcare/rehab.ts)으로 만들어 넘긴다 */
 export type RehabCardView = {
@@ -187,13 +188,13 @@ export function RehabCard({ view }: { view: RehabCardView }) {
               </span>
               분{doneCount > 0 && ` · ${doneCount}개 함`}
             </p>
-            <Link
+            <ButtonLink
               href={playHref}
-              className="inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-full bg-sky px-5 text-sm font-semibold text-white transition-colors hover:bg-sky-strong"
+              className="shrink-0"
             >
               <Play aria-hidden className="h-4 w-4" />
               시작
-            </Link>
+            </ButtonLink>
           </div>
         )
       )}

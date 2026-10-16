@@ -29,6 +29,7 @@ import {
 import { deleteMyArmcareRoutine, saveMyArmcareRoutine } from '@/app/actions/armcare';
 import { CHECK_CONNECTION } from '@/lib/offline';
 import { ExerciseMedia, type ArmcareExerciseView } from '../../armcare-media';
+import { Button } from '@/components/ui';
 
 /** 고르는 목록의 운동 하나 — 서버(page.tsx)가 만들어 넘긴다 */
 export type BuilderExercise = {
@@ -440,14 +441,15 @@ export function RoutineBuilder({
               ? '운동을 담아 주세요'
               : `${items.length}개 · 약 ${Math.max(1, minutes)}분`}
           </p>
-          <button
+          <Button
             type="button"
             onClick={save}
             disabled={saving}
-            className="shrink-0 rounded-xl bg-sky px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-sky-strong disabled:opacity-60"
+            size="sm"
+            className="shrink-0"
           >
             {saving ? '저장하는 중…' : id ? '고친 것 저장' : '루틴 저장'}
-          </button>
+          </Button>
         </div>
       </div>
     </div>

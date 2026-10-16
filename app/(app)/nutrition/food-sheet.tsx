@@ -90,6 +90,7 @@ import { subcategoriesOf, subcategoryOf } from '@/lib/nutrition/food-subcategory
 import { ErrorLine } from '@/components/error-line';
 import { SwitchRow } from '@/components/switch';
 import { haptic } from '@/lib/haptics';
+import { Button } from '@/components/ui';
 
 /*
  * 서버에 닿지 못했을 때(신호 끊김) — 부르기가 던지면 전환 안의 오류가 오류 화면으로 넘어가 영양 화면(열어 둔 음식 창까지)이
@@ -800,13 +801,14 @@ export function FoodSheet({
                   조합 저장
                 </button>
               )}
-              <button
+              <Button
                 type="button"
                 onClick={onClose}
-                className="shrink-0 rounded-xl bg-sky px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-sky-strong"
+                size="sm"
+                className="shrink-0"
               >
                 다 했어요
-              </button>
+              </Button>
             </div>
           )}
         </div>
@@ -1017,13 +1019,14 @@ function SaveCombo({
               className="h-10 w-full rounded-xl border border-line bg-surface-2 px-3 text-sm text-ink transition-colors focus:border-sky focus:outline-none"
             />
           </label>
-          <button
+          <Button
             type="submit"
             disabled={pending || !name.trim()}
-            className="h-10 shrink-0 rounded-xl bg-sky px-4 text-sm font-semibold text-white transition-[background-color,opacity] hover:bg-sky-strong disabled:opacity-60"
+            size="sm"
+            className="shrink-0"
           >
             {pending ? '저장 중' : '저장'}
-          </button>
+          </Button>
         </form>
       </Expand>
     </div>
@@ -1801,18 +1804,18 @@ function PickFood({ food, onAdd }: { food: Food; onAdd: (amount: number) => void
         </div>
       </dl>
 
-      <button
+      <Button
         type="button"
         onClick={() => onAdd(amount)}
         disabled={replacing && busy}
-        className="w-full rounded-xl bg-sky py-3 text-sm font-semibold text-white transition-[background-color,opacity] hover:bg-sky-strong disabled:opacity-60"
+        className="w-full"
       >
         {replacing
           ? busy
             ? '바꾸는 중…'
             : `${withTo(food.name)} 바꾸기`
           : `${mealLabel(meal)}에 담기`}
-      </button>
+      </Button>
     </div>
   );
 }
@@ -1951,12 +1954,12 @@ function CustomFood({
         </p>
       )}
 
-      <button
+      <Button
         type="submit"
-        className="w-full rounded-xl bg-sky py-3 text-sm font-semibold text-white transition-colors hover:bg-sky-strong"
+        className="w-full"
       >
         {replacing ? '이 음식으로 바꾸기' : `${mealLabel(meal)}에 담기`}
-      </button>
+      </Button>
     </form>
   );
 }

@@ -1,8 +1,7 @@
 'use client';
 
-import Link from 'next/link';
 import { Plus } from '@/components/icon';
-import { Card } from '@/components/ui';
+import { Card, ButtonLink } from '@/components/ui';
 import { LinkPending } from '@/components/link-pending';
 import { OPEN_POPUP_TYPES } from '@/lib/transition-types';
 import { ArmStatusNote } from '@/components/arm-status-note';
@@ -40,10 +39,11 @@ export function TodayCard({
           구속 측정 {data.unloggedVelocity}구가 아직 투구 기록에 없어요. 남겨야 팔 부하에 들어가요.
         </p>
       ) : null}
-      <Link
+      <ButtonLink
         href={`/pitch-log/${today}`}
         transitionTypes={OPEN_POPUP_TYPES}
-        className="flex min-h-12 w-full items-center justify-center gap-1.5 rounded-full bg-sky text-subhead font-semibold text-white transition-opacity active:opacity-60 pad:inline-flex pad:w-auto pad:px-6 desk:inline-flex desk:min-h-10 desk:w-auto desk:rounded-xl desk:px-5 desk:text-sm"
+        size="lg"
+        className="w-full pad:w-auto pad:px-6 desk:min-h-10 desk:w-auto desk:px-5 desk:text-sm"
       >
         <LinkPending className="h-4 w-4">
           <Plus aria-hidden className="h-4 w-4" />
@@ -53,7 +53,7 @@ export function TodayCard({
           : data.logged
             ? `오늘 ${data.logged.pitches}구 · 기록 더하기`
             : '오늘 기록 남기기'}
-      </Link>
+      </ButtonLink>
     </Card>
   );
 }

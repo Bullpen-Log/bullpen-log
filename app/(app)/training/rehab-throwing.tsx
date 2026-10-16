@@ -338,13 +338,13 @@ export function ThrowingProgram({
       </ol>
       {next && (
         <div className="space-y-2">
-          <button
+          <Button
             type="button"
             onClick={onLog}
-            className="flex min-h-11 w-full items-center justify-center rounded-full bg-sky text-sm font-bold text-white"
+            className="w-full"
           >
             오늘 던진 것 남기기
-          </button>
+          </Button>
           {lastRecent && <LaterPainButton />}
         </div>
       )}

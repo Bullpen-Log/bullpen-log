@@ -68,6 +68,7 @@ import { saveDietPrefs, saveNutritionProfile } from '@/app/actions/nutrition';
 import { OFFLINE_MESSAGE, orOffline } from '@/lib/action-offline';
 import type { Origin } from './shared';
 import { haptic } from '@/lib/haptics';
+import { Button } from '@/components/ui';
 
 /**
  * 영양 목표 정하기.
@@ -867,14 +868,15 @@ export function GoalSheet({
           </p>
         )}
 
-        <button
+        <Button
           type="button"
           onClick={save}
           disabled={pending}
-          className="min-h-12 w-full rounded-xl bg-sky py-3.5 text-base font-semibold text-white transition-[background-color,opacity] hover:bg-sky-strong disabled:opacity-60"
+          size="lg"
+          className="w-full"
         >
           {pending ? '저장 중…' : '저장'}
-        </button>
+        </Button>
       </div>
     </Modal>
   );
