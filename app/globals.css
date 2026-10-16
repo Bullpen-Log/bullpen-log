@@ -3160,43 +3160,37 @@ html[data-nav='zoom'] * {
  * 막대가 숨으면(data-short) 막째 막대 몫만큼 위로 민다(높이를 안 바꿈). 아이폰 앱(WKWebView)에서 흐림이 깜빡이면 <i> 의 backdrop-filter 만 빼면 된다.
  */
 [data-top-veil] {
-  --veil-fade: 3rem;
+  /*
+   * 2026-10-16 사용자: "흐려지는 부분이 너무 낮은 데서 시작해 — 노치부터 흐려졌으면". 예전엔 시계 자리 밑 3rem 동안 옅어져 흐림 띠가
+   * 노치 아래로 길게 내려왔다. 이제 꼬리는 1rem, 흐림 · 바탕은 화면 맨 위(노치)가 가장 진하고 시계 자리 끝으로 갈수록 옅어진다.
+   */
+  --veil-fade: 1rem;
   --veil-bar: 3.5rem;
   height: calc(env(safe-area-inset-top) + var(--veil-bar) + var(--veil-fade));
   background: linear-gradient(
     to bottom,
-    color-mix(in oklab, var(--color-page) 22%, transparent) 0,
-    color-mix(in oklab, var(--color-page) 10%, transparent) calc(100% - var(--veil-fade)),
+    color-mix(in oklab, var(--color-page) 30%, transparent) 0,
+    color-mix(in oklab, var(--color-page) 30%, transparent) var(--veil-bar),
     color-mix(in oklab, var(--color-page) 0%, transparent) 100%
   );
   /*
    * 막대가 숨고 나올 때 높이를 바꾸지 않고 막째 위로 민다(2026-10-16 — 높이를 바꾸면 장면마다 배치를 다시 셈하고 흐림도 새로 칠해
-   * 아이폰에서 버벅이고 깜빡일 수 있었다). 막대 몫(--veil-bar)만큼 올리면 화면 밖으로 나간 윗부분은 안 보이고, 시계 자리 + 옅어지는 띠가 남는다.
+   * 아이폰에서 버벅이고 깜빡일 수 있었다). 막대 몫(--veil-bar)만큼 올리면 화면 밖으로 나간 윗부분은 안 보이고, 시계 자리 + 꼬리가 남는다.
    */
   transform: translate3d(0, 0, 0);
   transition: transform 280ms cubic-bezier(0.32, 0.72, 0, 1);
 }
 /*
- * 흐림은 한 겹(2026-10-16, 예전 세 겹) — 위쪽은 다 흐리고 아래 끝 --veil-fade 동안 마스크로 옅어진다. 흐린 그림이 선명한 본문으로
- * 서서히 섞여 '위로 갈수록 흐려지는' 모양은 같고, 흐림 계산은 셋에서 하나로 준다.
+ * 흐림은 한 겹 — 막대가 숨은 상태에서 화면 맨 위(막의 --veil-bar 자리)가 다 흐리고, 거기서 막 끝까지 마스크로 고르게 옅어진다.
+ * 흐린 그림이 선명한 본문으로 서서히 섞여 '위로 갈수록 흐려지는' 모양이 노치 안에서 끝난다.
  */
 [data-top-veil] > i {
   position: absolute;
   inset: 0;
-  -webkit-backdrop-filter: blur(3px);
-  backdrop-filter: blur(3px);
-  -webkit-mask-image: linear-gradient(
-    to bottom,
-    #000 0,
-    #000 calc(100% - var(--veil-fade)),
-    transparent 100%
-  );
-  mask-image: linear-gradient(
-    to bottom,
-    #000 0,
-    #000 calc(100% - var(--veil-fade)),
-    transparent 100%
-  );
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+  -webkit-mask-image: linear-gradient(to bottom, #000 0, #000 var(--veil-bar), transparent 100%);
+  mask-image: linear-gradient(to bottom, #000 0, #000 var(--veil-bar), transparent 100%);
 }
 /*
  * 위 막대가 보일 때(data-short 아님 — '‹ 뒤로'가 있는 하위 화면 · 홈에서 막대가 돌아왔을 때)는 막대 자리까지 단단한 바탕(구속 측정처럼 불투명)을 깐다.
