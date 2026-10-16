@@ -25,6 +25,7 @@ import {
   X,
 } from '@/components/icon';
 import { MiniCalendar } from '@/components/mini-calendar';
+import { CountUp } from '@/components/onboarding/count-up';
 import { DateScrollStrip } from '@/components/date-scroll-strip';
 import { useWeightUnit } from '@/components/use-units';
 import { Segmented } from '@/components/segmented';
@@ -1145,7 +1146,7 @@ function TodayCard({
           </h2>
           <p className="text-numeric text-3xl leading-tight text-ink">
             <span className={`transition-colors ${over ? 'text-warn' : ''}`}>
-              {kcalText(isToday ? Math.abs(left) : eaten.kcal)}
+              <CountUp value={isToday ? Math.abs(left) : eaten.kcal} format={kcalText} />
             </span>
             <span className="ml-1 text-sm font-semibold text-muted">kcal</span>
           </p>

@@ -85,6 +85,7 @@ export function MonthCalendar({
   flags,
   allowFuture = false,
   events,
+  headerAction,
   children,
 }: {
   month: Date;
@@ -130,6 +131,8 @@ export function MonthCalendar({
   allowFuture?: boolean;
   /** 날짜마다 일정 수 — 칸 밑에 짧은 막대(홈 캘린더만) */
   events?: Record<string, number>;
+  /** 머리 줄 화살표 앞에 붙는 것(홈 — 목록 보기 단추) */
+  headerAction?: ReactNode;
   /** 달력 아래 범례 */
   children?: ReactNode;
 }) {
@@ -284,6 +287,7 @@ export function MonthCalendar({
           onPick={(next) => onMonthChange(() => next)}
         />
         <div className="flex gap-1">
+          {headerAction}
           <button
             type="button"
             aria-label="이전 달"

@@ -101,6 +101,10 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
   (`month-calendar.tsx todayMarkClass`, 투구 달력 쉬는 날 칸은 회색 바탕을 빼고 점선만). 트레이닝 홈 · 그날 기록 · 영양 머리의 날짜 달력을 날짜 띠 끝 작은 그림으로
   (`DateScrollStrip end`, 영양 DateNav 는 그림만 — 날짜 글 · ‹ › · '오늘로' 뺌). 그날 화면 팔 상태는 한 줄 칩(`ArmStatusNote compact`, 누르면 머리 · 까닭),
   휴대폰 더보기 폴더에서 하단 탭 넷 타일 뺌(`app-shell.tsx inTabBar`), 트레이닝 홈 '트레이닝' 카드 → '오늘 운동'. 날짜 띠가 옆 판에서 고른 날을 못 맞추던 것도 고침.
+- (같은 날 더) 색 줄이기: 트레이닝 앱 얼굴색 셋(`--color-app-*`)을 sky 하나로, 영양 탄 · 단 · 끼니 단백질 막대 sky, 작은 달력 요일 회색. 큰 숫자 올라가기:
+  `components/onboarding/count-up.tsx` 가 화면에 들어온 뒤 시작(IntersectionObserver) — 영양 남은 열량 · 운동 끝 세 숫자(`done-client.tsx`, 떠오른 뒤) ·
+  구속 결과(`components/velocity/pitch-result.tsx`). 홈 달력: [캘린더 | 목록] 고르개를 달력 머리 목록 그림으로(`MonthCalendar headerAction`, 목록 보기는 '최근 기록' + 달력 그림),
+  날짜를 누르면 그날 칸이 하단 탭 위까지 보이게(`pitch-log-panel.tsx` — 칸이 자라는 동안 다시 잼, scroll-mb = `--tab-bar-top`).
 
 ## 금윤호에게 — 2026-10-16 · 김민(Claude, 데스크톱 · 3D 담당) — 3D 결과의 '착지'를 앞발이 처음 닿은 순간으로(events.footContact) · footFlat 지움
 

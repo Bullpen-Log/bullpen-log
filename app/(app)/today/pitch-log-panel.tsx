@@ -1,13 +1,12 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ChartLine } from '@/components/icon';
+import { CalendarDays, ChartLine, List } from '@/components/icon';
 import { Card, FormError } from '@/components/ui';
 import { toDateKey } from '@/lib/pitch-stats';
 import { readEffort } from '@/lib/pitch-effort';
 import { REST_SESSION_TYPE } from '@/lib/session-type';
 import { LegendSwatch, MonthCalendar, type DayMark } from '@/components/month-calendar';
-import { Segmented } from '@/components/segmented';
 import { LogList } from '@/app/(app)/pitch-log/log-list';
 import type { Log } from '@/app/(app)/pitch-log/types';
 import type { PlanDaySummary, TrainingDaySummary } from '@/lib/report/training-history';
@@ -25,11 +24,9 @@ import {
 import { DayDetailBlock } from './day-detail';
 import { useEventAlarms } from './event-alarms';
 
-/** [캘린더 | 목록] — 같은 기록을 다르게 보는 두 방식 */
-const VIEW_OPTIONS = [
-  { value: 'calendar', label: '캘린더' },
-  { value: 'list', label: '목록' },
-] as const;
+/** 캘린더 ↔ 목록 그림 단추 — 달 화살표와 같은 크기 · 모양 */
+const VIEW_BUTTON =
+  'grid h-10 w-10 place-items-center rounded-full text-sky transition-colors desk:h-8 desk:w-8 desk:rounded-lg desk:border desk:border-line desk:text-muted desk:hover:border-sky desk:hover:text-sky';
 
 /**
  * 투구 일지 — 홈의 가운데 자리.
@@ -245,19 +242,34 @@ export function PitchLogPanel({
   /*
    * 좁은 화면에서는 그날 칸이 달력 밑에서 펴진다. 달력이 화면을 거의 채우고 있어서,
    * 펴진 칸이 화면 밖이면 거기까지만 살짝 굴려 보여 준다(이미 보이면 가만히 둔다).
-   * 하단 탭이 덮는 자리(칸의 scroll-mb — 아이폰 앱은 홈 막대 자리까지)도 화면 밖으로 친다.
+   * 하단 탭이 덮는 자리(칸의 scroll-mb = --tab-bar-top + 0.5rem)도 화면 밖으로 친다.
+   * 그날 칸은 펴지는 움직임(0.3초) · 그날 자세히를 받아 온 뒤에 더 길어지므로, 1.5초 동안 크기가 바뀔 때마다 다시 본다
+   * (2026-10-16 — 예전엔 0.32초에 한 번만 재서 칸이 하단 탭 밑에 숨었다).
    */
   useEffect(() => {
     if (!selectedDate || window.matchMedia('(min-width: 1024px)').matches) return;
+    const el = panelRef.current;
+    if (!el) return;
     const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    const timer = window.setTimeout(() => {
-      const el = panelRef.current;
-      const covered = el ? parseFloat(getComputedStyle(el).scrollMarginBottom) || 0 : 0;
-      if (el && el.getBoundingClientRect().bottom + covered > window.innerHeight) {
+    const check = () => {
+      const covered = parseFloat(getComputedStyle(el).scrollMarginBottom) || 0;
+      if (el.getBoundingClientRect().bottom + covered > window.innerHeight + 1) {
         el.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'nearest' });
       }
-    }, 320);
-    return () => window.clearTimeout(timer);
+    };
+    /* 크기가 멈춘 뒤 한 번만(펴지는 동안 장면마다 부드러운 굴림을 새로 걸면 덜컹인다) */
+    let timer = window.setTimeout(check, 320);
+    const grow = new ResizeObserver(() => {
+      window.clearTimeout(timer);
+      timer = window.setTimeout(check, 120);
+    });
+    grow.observe(el);
+    const stop = window.setTimeout(() => grow.disconnect(), 1500);
+    return () => {
+      window.clearTimeout(timer);
+      window.clearTimeout(stop);
+      grow.disconnect();
+    };
   }, [selectedDate]);
 
   // 넘어온 날짜가 지난달이면 달력도 그 달을 펴야 한다.
@@ -446,20 +458,27 @@ export function PitchLogPanel({
         미끄러진다. 예전에는 버튼 색만 켜고 꺼서, 같은 모양의 상자인데 여기만
         움직임이 달랐다.
       */}
-      <div className="flex justify-end px-1">
-        <Segmented
-          label="기록 보기 방식"
-          value={view}
-          onChange={setView}
-          options={VIEW_OPTIONS}
-          tone="raised"
-          itemClassName="px-4 py-1.5"
-        />
-      </div>
-
       <FormError>{error}</FormError>
 
-      {view === 'list' && <LogList logs={logs} />}
+      {/*
+        보기 전환은 달력 머리의 목록 그림 · 목록 머리의 달력 그림으로(2026-10-16 — 예전 [캘린더 | 목록] 고르개가 카드 위에 제목 없이 혼자 떠 있었다)
+      */}
+      {view === 'list' && (
+        <>
+          <div className="flex items-center justify-between px-1">
+            <h2 className="text-subhead font-semibold text-ink">최근 기록</h2>
+            <button
+              type="button"
+              aria-label="캘린더로 보기"
+              onClick={() => setView('calendar')}
+              className={VIEW_BUTTON}
+            >
+              <CalendarDays aria-hidden className="h-5 w-5 desk:h-4 desk:w-4" />
+            </button>
+          </div>
+          <LogList logs={logs} />
+        </>
+      )}
 
       {/*
         옛날 달을 받아 오는 동안 '지난 기록 불러오는 중…'을 띄웠었는데 뺐다.
@@ -487,6 +506,16 @@ export function PitchLogPanel({
                 compact={panelOpen}
                 allowFuture
                 events={eventCounts}
+                headerAction={
+                  <button
+                    type="button"
+                    aria-label="목록으로 보기"
+                    onClick={() => setView('list')}
+                    className={VIEW_BUTTON}
+                  >
+                    <List aria-hidden className="h-5 w-5 desk:h-4 desk:w-4" />
+                  </button>
+                }
               >
                 <span>강도</span>
                 <LegendSwatch className="h-3 w-5 rounded bg-sky/15">낮음</LegendSwatch>
@@ -523,7 +552,7 @@ export function PitchLogPanel({
               ref={panelRef}
               aria-hidden={!panelOpen}
               inert={!panelOpen}
-              className={`grid scroll-mb-[calc(3.5rem+env(safe-area-inset-bottom))] overflow-hidden transition-[grid-template-rows,width,margin,opacity] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] lg:block lg:shrink-0 ${
+              className={`grid scroll-mb-[calc(var(--tab-bar-top)+0.5rem)] overflow-hidden transition-[grid-template-rows,width,margin,opacity] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] lg:block lg:shrink-0 ${
                 panelOpen
                   ? 'mt-4 grid-rows-[1fr] opacity-100 lg:ml-4 lg:mt-0 lg:w-[20rem]'
                   : 'mt-0 grid-rows-[0fr] opacity-0 lg:ml-0 lg:w-0'

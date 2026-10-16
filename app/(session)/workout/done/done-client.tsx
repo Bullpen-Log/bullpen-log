@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Check, Trophy } from '@/components/icon';
 import { haptic } from '@/lib/haptics';
@@ -10,6 +10,7 @@ import { formatWeight, type WeightUnit } from '@/lib/units';
 import { formatSummary, volumeIn, type ExerciseSummary } from '@/lib/workout/summarize';
 import type { NewRecord } from '@/lib/workout/bests';
 import { EffortCard } from './effort-card';
+import { CountUp } from '@/components/onboarding/count-up';
 import { NutritionLineNote } from '@/components/nutrition-line';
 import type { NutritionLine } from '@/lib/nutrition/nudge';
 
@@ -73,18 +74,23 @@ export function DoneClient({
   const unit = useWeightUnit();
   const records = rows.filter((r) => r.record);
 
-  /* 체크가 뜨는 순간에 맞춰 떤다 — 축하는 손으로도 */
+  /* 체크가 뜨는 순간에 맞춰 떤다 — 축하는 손으로도. 세 숫자는 그 줄이 떠오를 때(rise-in 750ms) 0 에서 올라간다 */
+  const [counting, startCount] = useState(false);
   useEffect(() => {
     const t = window.setTimeout(() => haptic('success'), 550);
-    return () => window.clearTimeout(t);
+    const c = window.setTimeout(() => startCount(true), 750);
+    return () => {
+      window.clearTimeout(t);
+      window.clearTimeout(c);
+    };
   }, []);
 
   const numbers = [
-    { label: '운동 시간', value: `${minutes}`, unit: '분' },
-    { label: '세트', value: `${setCount}`, unit: '세트' },
+    { label: '운동 시간', value: minutes, unit: '분' },
+    { label: '세트', value: setCount, unit: '세트' },
     {
       label: '볼륨',
-      value: volumeKg > 0 ? volumeIn(volumeKg, unit).toLocaleString('ko-KR') : '—',
+      value: volumeKg > 0 ? volumeIn(volumeKg, unit) : null,
       unit: volumeKg > 0 ? unit : '',
     },
   ];
@@ -140,7 +146,7 @@ export function DoneClient({
               <div key={n.label} className="px-1 text-center">
                 <dt className="text-xs text-muted">{n.label}</dt>
                 <dd className="text-numeric mt-1.5 text-2xl leading-none text-ink">
-                  {n.value}
+                  {n.value == null ? '—' : <CountUp value={n.value} active={counting} duration={900} />}
                   <span className="ml-0.5 font-sans text-xs font-medium text-muted">
                     {n.unit}
                   </span>
