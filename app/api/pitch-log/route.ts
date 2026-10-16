@@ -242,6 +242,23 @@ function nextMonthStart(month: string) {
   return new Date(Date.UTC(y, m, 1));
 }
 
+/**
+ * 구속 측정으로 채운 기록이면 그 세션들을 이 기록에 잇는다(2026-10-16 — 측정은 투구 기록을 만들지 않고, 투구 탭 카드가 '아직 안 남긴
+ * 측정'을 알린다. 이으면 그 알림이 사라진다). 본인 것 · 같은 날 · 아직 안 이어진 세션만 — 못 이어도 기록 저장은 끝났다.
+ */
+async function linkVelocitySessions(raw: unknown, userId: string, date: Date, logId: string) {
+  const ids = Array.isArray(raw)
+    ? raw.filter((x): x is string => typeof x === 'string').slice(0, 20)
+    : [];
+  if (ids.length === 0) return;
+  await prisma.velocitySession
+    .updateMany({
+      where: { id: { in: ids }, userId, date, pitchLogId: null },
+      data: { pitchLogId: logId },
+    })
+    .catch((err: unknown) => console.error('[POST /api/pitch-log] 구속 세션 잇기 실패', err));
+}
+
 export async function POST(req: Request) {
   const user = await getCurrentUser();
   if (!user) {
@@ -309,7 +326,10 @@ export async function POST(req: Request) {
       },
       orderBy: { createdAt: 'desc' },
     });
-    if (duplicate) return NextResponse.json(duplicate, { status: 200 });
+    if (duplicate) {
+      await linkVelocitySessions(body.velocitySessionIds, user.id, parsedDate, duplicate.id);
+      return NextResponse.json(duplicate, { status: 200 });
+    }
 
     const log = await prisma.pitchLog.create({
       data: {
@@ -320,6 +340,7 @@ export async function POST(req: Request) {
         videoPaths: paths,
       },
     });
+    await linkVelocitySessions(body.velocitySessionIds, user.id, parsedDate, log.id);
 
     return NextResponse.json(log, { status: 201 });
   } catch (error) {

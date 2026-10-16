@@ -20,6 +20,7 @@ import { makePitchThumb } from '@/lib/pitch-thumbs';
 import { dateKeyLabel } from '@/lib/pitch-stats';
 import { derivedEffortText, readEffort } from '@/lib/pitch-effort';
 import { DEFAULT_SESSION_TYPE, SESSION_TYPES, isRestSession } from '@/lib/session-type';
+import type { LogPrefill } from '@/lib/velocity-meta';
 import {
   GOOD_DAY_MIN,
   PITCH_CUES,
@@ -265,6 +266,7 @@ function SpeedInput({
 export function EntryForm({
   date,
   initial,
+  prefill,
   onSaved,
   onError,
   onCancel,
@@ -272,6 +274,11 @@ export function EntryForm({
   date: string;
   /** 주어지면 등록이 아니라 수정 폼이 된다. */
   initial?: EntryDraft;
+  /**
+   * 새 기록을 구속 측정 값으로 채워 연다(2026-10-16 — 측정은 별개 기록, 그날 화면이 아직 안 남긴 측정을 권한다). 저장하면 그 세션들을
+   * 이 기록에 잇는다(app/api/pitch-log POST). 수정 폼에서는 안 쓴다.
+   */
+  prefill?: LogPrefill | null;
   onSaved: () => Promise<void> | void;
   onError: (message?: string) => void;
   onCancel?: () => void;
@@ -297,7 +304,16 @@ export function EntryForm({
           cuesGood: initial.cuesGood ?? [],
           cuesBad: initial.cuesBad ?? [],
         }
-      : EMPTY_FORM
+      : prefill
+        ? {
+            ...EMPTY_FORM,
+            sessionType: prefill.sessionType ?? EMPTY_FORM.sessionType,
+            pitchCount: String(prefill.pitchCount),
+            effortPct: prefill.effortPct,
+            maxVelocity: String(prefill.maxVelocity),
+            avgVelocity: String(prefill.avgVelocity),
+          }
+        : EMPTY_FORM
   );
   const [videos, setVideos] = useState<UploadedVideo[]>(() =>
     (initial?.videoPaths ?? []).map((path) => ({ path, name: fileNameOf(path) }))
@@ -310,13 +326,15 @@ export function EntryForm({
    */
   const [more, setMore] = useState(
     () =>
-      !!initial &&
+      /* 구속 측정으로 채웠으면 구속 칸이 보이게 편다 */
+      (!initial && !!prefill) ||
+      (!!initial &&
       (initial.maxVelocity != null ||
         initial.avgVelocity != null ||
         initial.videoPaths.length > 0 ||
         !!initial.memo ||
         initial.satisfaction != null ||
-        (initial.cuesGood?.length ?? 0) + (initial.cuesBad?.length ?? 0) > 0)
+        (initial.cuesGood?.length ?? 0) + (initial.cuesBad?.length ?? 0) > 0))
   );
   /* 체감 강도를 안 고른 채 저장을 눌렀다 — 칩 밑에 한 줄, 고르면 걷는다 */
   const [effortMissing, setEffortMissing] = useState(false);
@@ -417,7 +435,7 @@ export function EntryForm({
           /* 고칠 때는 열 때의 영상 목록도 — 서버가 이 폼에서 뺀 것만 지운다(다른 기기에서 더한 것은 남김) */
           ...(editing
             ? { id: initial!.id, baseVideoPaths: initial!.videoPaths }
-            : { date }),
+            : { date, ...(prefill ? { velocitySessionIds: prefill.sessionIds } : {}) }),
           videoPaths: videos.map((v) => v.path),
           sessionType: form.sessionType,
           pitchCount: form.pitchCount,

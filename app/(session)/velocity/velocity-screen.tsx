@@ -2825,7 +2825,7 @@ export function VelocityScreen({
                     step={1}
                     total={4}
                     title="어떤 투구인가요?"
-                    subtitle="투구 기록에 이 종류로 남아요."
+                    subtitle="투구 기록을 남길 때 이 종류로 채워요."
                     footer={
                       <PrimaryButton onClick={onGuideNext}>
                         {guideLabel}
@@ -3134,7 +3134,8 @@ export function VelocityScreen({
                       {saved && (
                         <p className={`${NOTE_WIN} pointer-events-auto flex items-center gap-2`}>
                           <Check aria-hidden className="h-4 w-4 text-ok" />
-                          오늘 투구 기록에 남겼어요.
+                          {/* 2026-10-16 부터 측정은 투구 기록을 만들지 않는다 — 그날 화면이 이 값으로 채운 기록을 권한다 */}
+                          저장했어요. 투구 기록으로도 남겨 주세요.
                           {/*
                             일반 이동 — 앱 안의 링크로 가면 (app) 의 팝업 경로(@modal/(.)pitch-log)가 가로채 빈 화면 위에 팝업이
                             떴다(측정 화면은 (app) 밖이다). 주소로 곧장 가면 팝업 없이 그날 화면이 뜬다.
@@ -3143,7 +3144,7 @@ export function VelocityScreen({
                             href={`/pitch-log/${today}`}
                             className="ml-auto font-semibold text-sky"
                           >
-                            기록 보기
+                            기록 남기기
                           </a>
                         </p>
                       )}

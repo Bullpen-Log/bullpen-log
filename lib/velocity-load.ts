@@ -68,6 +68,8 @@ export async function loadVelocityDay(
     net: s.net,
     device: s.device,
     createdAt: s.createdAt.toISOString(),
+    sessionType: s.sessionType,
+    effortPct: s.effortPct,
     pitches: s.pitches.map((p) => ({
       id: p.id,
       seq: p.seq,
@@ -168,6 +170,7 @@ export async function loadVelocityHistory(userId: string): Promise<VelocityHisto
       mode: true,
       cameraPos: true,
       net: true,
+      sessionType: true,
       pitchLog: { select: { sessionType: true } },
       pitches: { select: { kmh: true, pitchType: true } },
     },
@@ -182,7 +185,8 @@ export async function loadVelocityHistory(userId: string): Promise<VelocityHisto
         id: s.id,
         date: s.date.toISOString().slice(0, 10),
         createdAt: s.createdAt.toISOString(),
-        sessionType: s.pitchLog?.sessionType ?? null,
+        /* 2026-10-16 부터 세션에 — 옛 세션은 같이 만든 투구 기록의 칸 */
+        sessionType: s.sessionType ?? s.pitchLog?.sessionType ?? null,
         mode: s.mode,
         cameraPos: s.cameraPos,
         net: s.net,

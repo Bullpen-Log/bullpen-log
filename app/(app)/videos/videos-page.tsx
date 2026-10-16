@@ -6,6 +6,7 @@ import { requireUser } from '@/lib/dal';
 import { isNativeUserAgent } from '@/lib/app-env';
 import { featureLocks, SETUP_PATH } from '@/lib/feature-locks';
 import { loadVelocityByDate } from '@/lib/velocity-load';
+import { unloggedSessions } from '@/lib/velocity-meta';
 import { shiftDateKey, toDateKey } from '@/lib/pitch-stats';
 import { isOutingTitle } from '@/lib/calendar-event';
 import { gatherFactsAndPlan } from '@/lib/report/gather';
@@ -57,8 +58,18 @@ export default async function VideosPage({
    * 남겨도 천 줄 남짓이다.
    */
   const todayKey = toDateKey(now());
-  const [logs, featured, measured, checkinToday, calendarRows, noteRows, { facts }] =
-    await Promise.all([
+  const todayAt = new Date(`${todayKey}T00:00:00.000Z`);
+  const [
+    logs,
+    featured,
+    measured,
+    checkinToday,
+    calendarRows,
+    noteRows,
+    { facts },
+    velocityToday,
+    todayLogTimes,
+  ] = await Promise.all([
       prisma.pitchLog.findMany({
         where: { userId: user.id },
         /*
@@ -110,6 +121,18 @@ export default async function VideosPage({
       }),
       /* '오늘' 카드의 지금 팔 상태 — 오늘 던진 기록까지 넣어 센다(던지고 나면 곧바로 바뀐다, lib/report/arm-status.ts) */
       gatherFactsAndPlan(user, now()),
+      /*
+       * 오늘 구속 측정 중 아직 투구 기록으로 안 남긴 것 — '오늘' 카드가 알린다(2026-10-16 사용자 결정: 측정은 별개 기록, 기록을 남길 때
+       * 참고만). 남기기 전에는 그 공이 팔 부하에 안 들어서 카드에서 계속 보인다.
+       */
+      prisma.velocitySession.findMany({
+        where: { userId: user.id, date: todayAt, pitchLogId: null },
+        select: { createdAt: true, _count: { select: { pitches: true } } },
+      }),
+      prisma.pitchLog.findMany({
+        where: { userId: user.id, date: todayAt },
+        select: { createdAt: true },
+      }),
     ]);
   const noteDays = noteRows.filter((r) => r.note?.trim()).map((r) => toDateKey(r.date));
   const outingOn = (day: string) =>
@@ -132,6 +155,15 @@ export default async function VideosPage({
   const todayCard = {
     status: armStatusOf(facts),
     logged: todayLogs.length > 0 ? { pitches: todayLogs.reduce((n, l) => n + l.pitchCount, 0) } : null,
+    unloggedVelocity:
+      unloggedSessions(
+        velocityToday.map((s) => ({
+          pitchLogId: null,
+          createdAt: s.createdAt.toISOString(),
+          n: s._count.pitches,
+        })),
+        todayLogTimes.map((l) => l.createdAt.toISOString())
+      ).reduce((n, s) => n + s.n, 0) || null,
   };
 
   // Date 객체는 클라이언트로 그대로 넘길 수 없어 문자열로 바꿔 전달한다.

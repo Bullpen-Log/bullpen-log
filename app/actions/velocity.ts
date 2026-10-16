@@ -18,7 +18,6 @@ import {
   sanitizeAnalysis,
   sanitizeDistance,
   syncVelocitySession,
-  velocityLogMemo,
 } from '@/lib/velocity-sync';
 import { isRestSession, validateSessionType } from '@/lib/session-type';
 import { readEffortInput } from '@/lib/pitch-effort';
@@ -316,31 +315,18 @@ export async function saveVelocitySession(
     });
   }
 
-  const kmhs = pitches.map((p) => p.kmh);
-  const maxVelocity = Math.max(...kmhs);
-  const avgVelocity =
-    Math.round((kmhs.reduce((s, v) => s + v, 0) / kmhs.length) * 10) / 10;
-
-  const session = await prisma.$transaction(async (tx) => {
-    const log = await tx.pitchLog.create({
+  /*
+   * 2026-10-16 사용자 결정: 구속 측정은 별개 기록 — 투구 기록을 만들지 않는다(예전엔 저장마다 새 투구 기록을 만들어, 같은 불펜을 손으로도
+   * 적으면 투구 수 · 부하가 두 번 셌다). 고른 종류 · 체감 강도는 세션에 두고, 투구 탭 '오늘' 카드 → 그날 화면이 이 값으로 채운 기록을 권한다
+   * (lib/velocity-meta.ts unloggedSessions · logPrefillOf). 기록을 남기면 그 기록이 이 세션을 잇는다(app/api/pitch-log POST).
+   */
+  const session = await prisma.velocitySession.create({
       data: {
         userId: user.id,
         date: at,
         sessionType: type.value,
-        pitchCount: pitches.length,
-        intensity: effort.intensity,
+        /* 옛 화면이 1~10 만 보내면 % 는 비운다 — 기록 폼이 그때 고르게 한다 */
         effortPct: effort.effortPct,
-        maxVelocity,
-        avgVelocity,
-        memo: velocityLogMemo(pitches.length),
-        videoPaths: [],
-      },
-    });
-    return tx.velocitySession.create({
-      data: {
-        userId: user.id,
-        date: at,
-        pitchLogId: log.id,
         fovDeg,
         calScale: fit.scale,
         calOffset: fit.offset,
@@ -375,7 +361,6 @@ export async function saveVelocitySession(
         id: true,
         pitches: { select: { id: true }, orderBy: { seq: 'asc' } },
       },
-    });
   });
 
   /*

@@ -14,6 +14,8 @@ export type TodayCardData = {
   status: ArmStatus;
   /** 오늘 남긴 기록 — 없으면 null */
   logged: { pitches: number } | null;
+  /** 오늘 구속 측정 중 아직 투구 기록으로 안 남긴 공 수 — 없으면 null(2026-10-16, 측정은 별개 기록) */
+  unloggedVelocity?: number | null;
 };
 
 /**
@@ -33,6 +35,11 @@ export function TodayCard({
     <Card className="space-y-3">
       <ArmStatusNote status={data.status} bare />
       <ThrowPlanCard day={today} data={throwCard} folded />
+      {data.unloggedVelocity ? (
+        <p className="text-footnote text-muted">
+          구속 측정 {data.unloggedVelocity}구가 아직 투구 기록에 없어요. 남겨야 팔 부하에 들어가요.
+        </p>
+      ) : null}
       <Link
         href={`/pitch-log/${today}`}
         transitionTypes={OPEN_POPUP_TYPES}
@@ -41,7 +48,11 @@ export function TodayCard({
         <LinkPending className="h-4 w-4">
           <Plus aria-hidden className="h-4 w-4" />
         </LinkPending>
-        {data.logged ? `오늘 ${data.logged.pitches}구 · 기록 더하기` : '오늘 기록 남기기'}
+        {data.unloggedVelocity
+          ? `측정한 ${data.unloggedVelocity}구 기록 남기기`
+          : data.logged
+            ? `오늘 ${data.logged.pitches}구 · 기록 더하기`
+            : '오늘 기록 남기기'}
       </Link>
     </Card>
   );

@@ -17,7 +17,7 @@ import { EntryForm } from '../entry-form';
 import { DayRecord } from '../day-record';
 import type { Log } from '../types';
 import { VelocitySection } from '../velocity-section';
-import type { VelocitySessionView } from '@/lib/velocity-meta';
+import type { LogPrefill, VelocitySessionView } from '@/lib/velocity-meta';
 import { useDayModal } from './day-modal';
 
 const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'];
@@ -89,6 +89,7 @@ export function DayClient({
   nutritionLine = null,
   initialLogs,
   velocity,
+  velocityPrefill = null,
   isAdmin = false,
 }: {
   date: string;
@@ -100,6 +101,8 @@ export function DayClient({
   initialLogs: Log[];
   /** 카메라로 잰 구속 — 세션과 공 하나하나. 없으면 빈 배열 */
   velocity: VelocitySessionView[];
+  /** 아직 투구 기록으로 안 남긴 구속 측정 값 — 있으면 새 기록 폼이 이 값으로 채워져 열린다 */
+  velocityPrefill?: LogPrefill | null;
   /** 관리자 — 구속 공 고치기에 스피드건 값 칸 */
   isAdmin?: boolean;
 }) {
@@ -111,6 +114,8 @@ export function DayClient({
   const [formOpen, setFormOpen] = useState(initialLogs.length === 0);
 
   const future = isFutureDateKey(date);
+  /* 아직 안 남긴 구속 측정이 있으면 폼을 그 값으로 펴 둔다(그러려고 들어온 것이다) */
+  const fromVelocity = !future && velocityPrefill != null;
   const logs = initialLogs;
 
   const videoPaths = useMemo(() => logs.flatMap((l) => l.videoPaths), [logs]);
@@ -240,13 +245,17 @@ export function DayClient({
 
       {/* 기록 추가 — 기록이 없는 날은 처음부터 열려 있다 */}
       {!future &&
-        (formOpen ? (
+        (formOpen || fromVelocity ? (
           <div className="space-y-4 rounded-2xl border border-line bg-surface-2 p-(--block-pad)">
             <div className="flex items-start justify-between gap-3">
               <h2 className="font-bold text-ink">
-                {logs.length > 0 ? '기록 추가' : '이날 기록하기'}
+                {fromVelocity
+                  ? `구속 측정 ${velocityPrefill.pitchCount}구 기록하기`
+                  : logs.length > 0
+                    ? '기록 추가'
+                    : '이날 기록하기'}
               </h2>
-              {logs.length > 0 && (
+              {logs.length > 0 && !fromVelocity && (
                 <button
                   type="button"
                   onClick={() => setFormOpen(false)}
@@ -257,8 +266,10 @@ export function DayClient({
               )}
             </div>
             <EntryForm
-              key={date}
+              /* 측정을 남기면 채울 값이 바뀌어(없어져) 폼을 새로 연다 */
+              key={`${date}:${velocityPrefill?.sessionIds.join(',') ?? ''}`}
               date={date}
+              prefill={fromVelocity ? velocityPrefill : null}
               onSaved={handleSaved}
               onError={setError}
             />

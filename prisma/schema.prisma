@@ -668,6 +668,10 @@ model VelocitySession {
   /// 원본 프레임 크기
   frameW         Int?
   frameH         Int?
+  // 측정 때 고른 투구 종류 · 체감 강도(5~100%) — 2026-10-16 부터 측정은 투구 기록을 만들지 않고, 투구 탭 카드가 이 값으로 기록을 채운다
+  // (사용자 결정: 구속 측정은 별개 기록, 투구 기록을 남길 때 참고만). 옛 세션은 null — 이어진 투구 기록의 칸을 본다
+  sessionType    String?
+  effortPct      Int?
   createdAt  DateTime @default(now())
 
   user     User           @relation(fields: [userId], references: [id], onDelete: Cascade)

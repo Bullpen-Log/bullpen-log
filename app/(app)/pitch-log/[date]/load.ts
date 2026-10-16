@@ -7,6 +7,7 @@ import { gatherFactsAndPlan } from '@/lib/report/gather';
 import { toDateKey } from '@/lib/pitch-stats';
 import { armStatusOf } from '@/lib/report/arm-status';
 import { loadVelocityDay } from '@/lib/velocity-load';
+import { logPrefillOf, unloggedSessions } from '@/lib/velocity-meta';
 import { pitchNutritionLine } from '@/lib/nutrition/nudge';
 import type { DayClient } from './day-client';
 
@@ -65,6 +66,13 @@ export async function loadPitchDay(date: string): Promise<PitchDayData | null> {
     nutritionLine,
     initialLogs: logs.map((log) => ({ ...log, date: log.date.toISOString() })),
     velocity,
+    /* 아직 투구 기록으로 안 남긴 구속 측정 — 새 기록 폼을 그 값으로 채워 연다(2026-10-16, 투구 탭 '오늘' 카드가 여기로 데려온다) */
+    velocityPrefill: logPrefillOf(
+      unloggedSessions(
+        velocity,
+        logs.map((l) => l.createdAt.toISOString())
+      )
+    ),
     /* 스피드건 값 칸은 관리자만(2026-10-15 사용자) */
     isAdmin: user.role === 'ADMIN',
   };
