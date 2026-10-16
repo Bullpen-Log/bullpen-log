@@ -11,6 +11,16 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 ---
 
+## 금윤호에게 — 2026-10-16 밤(3) · 김민(Claude, 데스크톱 · 구속측정 엔진) — 엔진 2.7.1: 조용할 때 훑기가 학습 모델로 공을 찾는다
+
+받은 뒤 할 일 없음(DB · 패키지 · Swift 그대로 — onnxruntime-web 은 npm 에 안 넣고 jsDelivr 판 고정 주소에서 받는다, `lib/velocity-engine/ball-net.ts`).
+**네 영역(구속 측정 — 앱 카메라 길)의 `dual-capture.ts` 두 줄(arm 때 모델 미리 받기 · 로그에 via)과 `analyze-video.ts locateThrow` 를 고쳤다.**
+- 훑기(sweep)가 공을 알아채는 눈이 밝기 차 거친 훑기 → 학습 모델(MobileNetV3-small 열지도, 입력 긴 변 736 · 연속 세 장면). 모델 · 런타임을 못 받으면 예전 길(via 'coarse').
+  실제 클립 43개에서 모델 43/43 · 알림 시각 0.9초 안 24/24(거친 훑기 37/43 · 20/24). 알림 길 · 파일 길의 계산은 안 바뀌어 값 · 보정 짝 그대로(2.7.1).
+- 모델 파일 `public/velocity-detector/ball-v1.onnx`(177KB) — 사이트 배포에 실린다. WASM 런타임 14MB 는 첫 arm 때 받고 브라우저가 캐시한다(LTE 면 10초쯤).
+- **폰에서 봐 줄 것**: 콘솔 `[velo] sweep … (net)` 이 찍히나(안 찍히고 coarse 면 런타임을 못 받은 것) · 훑기 한 번이 몇 초인가(2.5초 넘으면 다음 하나를 쉬는 규칙이 있다).
+  자세한 것은 `docs/velocity/engine-2.7-plan.md` '5단계 2판 ①'. 알림(MotionTrigger)을 모델로 바꾸는 CoreML 길은 네 몫(맥) — 같은 ONNX 에서.
+
 ## 금윤호에게 — 2026-10-16 밤 · 김민(Claude, 데스크톱 · 3D 담당) — 3D 엔진 착지 무렵 앞다리(앞무릎) 고침 · 분석 서버에도 올림
 
 받은 뒤 할 일 없음(DB · 패키지 그대로). **네 영역(3D 엔진)을 고쳤다** — `lib/pitch-3d/analyze.ts` · `camera.ts` · `v2/fit.ts`. 김민: "앞다리(착지 뒤 무릎) 엔진 오류부터".

@@ -301,6 +301,26 @@ def train(epochs: int = 30, limit: int = 0, batch: int = 16, lr: float = 1e-3, t
     return rep
 
 
+@app.function(gpu=None, volumes={DATA: vol}, timeout=600)
+def export_onnx(tag: str = "v1"):
+    """저장한 무게 → 크기가 자유로운 ONNX(세로 · 가로 동적, 둘 다 32 의 배수여야 한다). 사이트(onnxruntime-web)가 이것을 쓴다"""
+    import torch
+
+    _, Net, _, _ = make_torch_bits()
+    out_dir = os.path.join(DATA, "out", tag)
+    model = Net()
+    model.load_state_dict(torch.load(os.path.join(out_dir, "model.pt"), map_location="cpu"))
+    model.eval()
+    dummy = torch.zeros(1, 3, 960, 544)
+    path = os.path.join(out_dir, "model-dyn.onnx")
+    torch.onnx.export(
+        model, dummy, path, input_names=["frames"], output_names=["heat_size"], opset_version=17, dynamo=False,
+        dynamic_axes={"frames": {2: "h", 3: "w"}, "heat_size": {2: "h4", 3: "w4"}},
+    )
+    vol.commit()
+    return os.path.getsize(path)
+
+
 @app.local_entrypoint()
 def main(epochs: int = 30, limit: int = 0, batch: int = 16, lr: float = 1e-3, tag: str = "v1", dataset: str = "detector-v1"):
     rep = train.remote(epochs=epochs, limit=limit, batch=batch, lr=lr, tag=tag, dataset=dataset)

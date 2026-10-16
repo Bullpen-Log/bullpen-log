@@ -8,6 +8,7 @@ import {
 } from '@/lib/dual-camera';
 import { DEFAULT_CAM_MODE } from '@/lib/velocity-camera-mode';
 import { analyzeVideo, locateThrow, warmDecoder, type VideoAnalyzeResult } from './analyze-video';
+import { loadBallNet } from './ball-net';
 import type { DistanceReport } from './analyze-distance';
 import {
   cameraNowOf,
@@ -734,6 +735,8 @@ export class DualCapture {
     this.sweptUntil = null;
     this.sweepSkip = 0;
     void this.anchorClock();
+    /* 공 감지 모델(2.7.1)을 미리 받아 둔다 — 첫 훑기가 14MB 런타임을 기다리지 않게. 못 받으면 훑기가 거친 길로 돈다 */
+    void loadBallNet();
     this.sweepTimer = setInterval(() => void this.sweep(), SWEEP_EVERY_SEC * 1000);
   }
 
@@ -783,7 +786,7 @@ export class DualCapture {
         ];
         /* 겹침 안에서 찾은 공은 지난 훑기 · 알림이 이미 쟀을 수 있다 — 재는 중 · 최근 창에 없을 때만 */
         if (!coveredBy(t, busy)) {
-          console.info(`[velo] sweep ${win.from.toFixed(2)}~${win.to.toFixed(2)} → 공 ${t.toFixed(2)}`);
+          console.info(`[velo] sweep ${win.from.toFixed(2)}~${win.to.toFixed(2)} → 공 ${t.toFixed(2)} (${found.via})`);
           this.onThrow(t, 'sweep');
         }
       }

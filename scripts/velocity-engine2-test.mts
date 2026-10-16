@@ -14,6 +14,7 @@ import {
 } from '../lib/velocity-engine/analyze-distance.ts';
 import { DRAG_K } from '../lib/velocity-engine/trajectory-fit.ts';
 import { cameraNowOf, clipSpanOf, coveredBy, nextSweepWindow } from '../lib/velocity-engine/sweep.ts';
+import { findThrowRun, netInputSize } from '../lib/velocity-engine/ball-net.ts';
 import { alignTrail, type TrailPoint } from '../lib/velocity-tracer.ts';
 import {
   cleanSize,
@@ -567,6 +568,36 @@ if (!only || 'sweep'.includes(only)) {
     coveredBy(5, [{ start: 4.4, end: 6.6 }]) && !coveredBy(7, [{ start: 4.4, end: 6.6 }]),
     '찾은 공이 재는 중 · 최근 창 안이면 겹침'
   );
+}
+
+console.log('\n▶ 학습 공 감지 모델의 순수 셈(2.7.1 — lib/velocity-engine/ball-net.ts)');
+if (!only || 'ballnet'.includes(only)) {
+  const sz = netInputSize(1080, 1920);
+  check(sz.h === 736 && sz.w === 416 && sz.w % 32 === 0, `세로 1080×1920 → 입력 ${sz.w}×${sz.h}(긴 변 736 · 32 의 배수)`);
+  const szL = netInputSize(1920, 1080);
+  check(szL.w === 736 && szL.h === 416, '가로 영상도 같은 규칙');
+  /* 날아가는 공: 0.2초마다 자리가 움직이고 지름이 줄어드는 표본 넷 */
+  const fly = [0, 0.2, 0.4, 0.6].map((t, i) => ({ t: 1 + t, x: 200 - 30 * i, y: 300 - 10 * i, d: 30 - 6 * i, score: 0.8 }));
+  const run = findThrowRun(fly);
+  check(run != null && run.t === 1 && run.n === 4, '0.2초마다 움직이며 작아지는 표본 넷 → 공, 첫 표본 시각');
+  /* 제자리 밝기 변화(그물 흔들림 · 노출) — 자리가 안 움직이면 공이 아니다 */
+  const still = [0, 0.2, 0.4, 0.6].map((t) => ({ t: 1 + t, x: 200, y: 300, d: 12, score: 0.9 }));
+  check(findThrowRun(still) == null, '제자리에서 점수만 높은 표본은 공이 아님');
+  /* 점수가 문턱 밑이면 안 셈 · 둘뿐이면 안 셈 */
+  check(findThrowRun(fly.map((h) => ({ ...h, score: 0.3 }))) == null, '문턱(0.5) 밑 점수는 안 셈');
+  check(findThrowRun(fly.slice(0, 2)) == null, '표본 둘로는 공이라 하지 않음');
+  /* 커지는 덩어리(다가오는 몸 · 손)는 안 잇는다 — 지름 1.35배 넘게 커지면 끊김 */
+  const grow = [0, 0.2, 0.4, 0.6].map((t, i) => ({ t: 1 + t, x: 200 + 30 * i, y: 300, d: 10 * (i + 1), score: 0.8 }));
+  check(findThrowRun(grow) == null, '표본마다 커지는 덩어리는 공이 아님');
+  /* 앞의 헛 표본 하나 뒤에 진짜 공 — 공 묶음을 돌려준다 */
+  const noisy = [{ t: 0.3, x: 50, y: 50, d: 8, score: 0.7 }, ...fly];
+  const run2 = findThrowRun(noisy);
+  check(run2 != null && run2.t === 1, '앞의 헛 표본 하나는 건너뛰고 뒤의 공 묶음');
+  /* 촘촘한 2차 표본(1/15초) — 먼 공은 한 표본에 2~3px 만 움직인다: 최소 거리가 간격에 비례(바닥 2px) */
+  const far = [0, 1, 2, 3, 4].map((i) => ({ t: 2 + i / 15, x: 100 - 2.5 * i, y: 150 - 0.5 * i, d: 6, score: 0.7 }));
+  check(findThrowRun(far) != null, '1/15초 간격 · 2.5px 씩 움직이는 먼 공 묶음도 공');
+  const dup = [...fly, { ...fly[1] }];
+  check(findThrowRun(dup)?.n === 4, '같은 시각 표본이 두 번 들어와도 하나로 셈');
 }
 
 console.log('\n▶ 세션 거리로 공 크기 다시 판정(2.5.3 — analyze-distance.ts rejudgeSize)');

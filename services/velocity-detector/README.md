@@ -26,6 +26,12 @@ SmartScout · PitchLab 처럼 **학습한 모델로 공을 찾는다.** 지금 �
   크기 구간(지름 <8 · 8~15 · 15+ px)별 재현율도.
 - 라벨의 한계: 엔진이 잰 클립만(엔진이 못 잰 클립 — 진짜 어려운 장면 — 은 1판에 없다). 2판은 세션 녹화(2.7.0)가 모은 영상에서 사람이 라벨.
 
+## 사이트에 붙인 것(2026-10-16, 엔진 2.7.1)
+
+`modal run train.py::export_onnx` 가 만드는 크기 자유 ONNX(`/out/v1/model-dyn.onnx`)를 `public/velocity-detector/ball-v1.onnx` 로 복사해 두었다.
+`lib/velocity-engine/ball-net.ts` 가 onnxruntime-web(WASM, jsDelivr 판 고정)으로 돌리고, 조용할 때 훑기(`analyze-video.ts locateThrow`)가 이것으로 날아간 공을
+찾는다(긴 변 736 · 0.2초마다 세 장면 · 데스크톱 59ms/장면). 모델을 새로 학습하면 ONNX 를 다시 내보내 같은 자리에 덮고 `ball-net.ts` 머리말의 수치를 고친다.
+
 ## 비용
 
 T4 시간당 약 0.6달러 — 1판 학습 한 번 15분 = 150원쯤. 자료 올리기 · 보관은 무료 한도 안.

@@ -305,8 +305,13 @@
  *                      ② 세션 통째 녹화(관리자 · 보정용 저장 · 앱 카메라, lib/velocity-dual-recorder.ts): 앱이 쥔 영상을 6초마다 잘라 서버 녹화로.
  *                      앱 카메라 시계는 알림 atSec 으로 짝짓고, 알림 전엔 clip({ atSec: 1e9, beforeSec: 1e9 }) 한 번으로 역산(sweep.ts clipSpanOf).
  *                      Swift 는 안 고쳤다(빌드 없이 배포 — 김민). 실제 폰에서는 아직 안 봤다.
+ *   2.7.1  2026-10-16  작은 자리(값은 그대로 — 훑기가 공을 알아채는 눈만 바뀜): 조용할 때 훑기(locateThrow)가 밝기 차 거친 훑기 대신 **학습한 공
+ *                      감지 모델**(ball-net.ts — services/velocity-detector 1판, MobileNetV3-small 열지도, onnxruntime-web WASM · 긴 변 736 ·
+ *                      0.2초마다 연속 세 장면)로 날아간 공을 찾는다. 시험 클립 재현율 90%(지름 8px 넘으면 95~97%) · 헛 알림 2.9%(모두 실제
+ *                      공). 모델 · 런타임을 못 받으면(오프라인) 예전 거친 훑기(via 'coarse'). 알림 · 파일 길의 공 찾기 · 계산은 안 바뀌어 보정
+ *                      짝 묶음(2.7.) 그대로. 데스크톱 크롬 WASM 1스레드 장면당 59ms. 실제 폰에서는 아직 안 봤다.
  */
-export const VELOCITY_ENGINE_VERSION = '2.7.0';
+export const VELOCITY_ENGINE_VERSION = '2.7.1';
 
 /**
  * 스피드건 보정 짝이 이어지는 묶음 — 작은 자리(0.0.X)는 재는 방법이 같아 짝을 그대로 쓴다(가운데 자리까지 같은 공 모두 — 지금은 '1.9.').
