@@ -144,6 +144,12 @@ User 관계가 없는 표: `VelocityRecording`(조각 · 표시 딸림)은 지�
 - (같은 날 더) **움직임 줄이기 안전망**(`app/globals.css` 끝): 기기에서 움직임 줄이기를 켜면 CSS transition · animation 을 곧바로 끝 모습으로(0.01ms — transitionend 는 그대로 옴),
   로딩 돌개(`.animate-spin`)만 뺀다. 진행 막대의 폭 · 높이 움직임 27곳 · 로딩 반짝임(`animate-pulse`) 7곳에 `motion-safe:`, `transition-all` 5곳 → 바뀌는 속성만.
   **새 움직임을 넣을 때도 `motion-safe:` 를 붙여 줘** — 안전망은 빠뜨린 곳을 위한 것이다. 막대는 끝이 둥글어 폭 그대로(늘이기면 끝이 찌그러짐).
+- (같은 날 더) **디자인 점검 남은 여섯 고침**(김민: "다 고쳐줘"): 부하 지수 큰 숫자 검정(`coach/load-panel.tsx` — 상태 색은 배지 · 한 줄) · 체크인 첫 화면 체크 원 빛 번짐 뺌 ·
+  트레이닝 홈 '이번 주' 운동을 한 날 수로(`training-home.tsx`, 단위 '일' 하나) · **투구 탭 머리**: 구속 측정 · 3D 를 제목 줄 오른쪽('분석' 앞)으로, 휴대폰은 그림만 있는
+  40px 동그라미(`pitch-log-heading.tsx` — `PitchControls` 지움, `PitchLogHeading` 이 `canMeasure` 를 받음 · 구속 측정 관리자 두 곳도 같이) ·
+  **모서리**: `rounded-md` → `lg`(작은 배지는 알약 모양이 됨), 카드인데 3xl 이던 셋 → 2xl, 시트 · 창 · 고르개의 3xl 은 그대로 ·
+  **단추**: 공용 `Button` · `ButtonLink` 에 `size`(sm 40 · md 44 · lg 48px, 기본 md 는 예전과 같음) — 네 탭의 손으로 만든 파란 단추 28개를 옮겼다(휴대폰 알약 · PC 둥근 모서리).
+  **새 파란 단추는 손으로 만들지 말고 `Button size=…` 을 써 줘.** 홈 요약 칸 점 28×44 · 바코드 닫기 · 식단 줄 단추 40px. 커밋 4811a42e ~ 18026ab1.
 
 ## 금윤호에게 — 2026-10-16 · 김민(Claude, 데스크톱 · 3D 담당) — 3D 결과의 '착지'를 앞발이 처음 닿은 순간으로(events.footContact) · footFlat 지움
 
