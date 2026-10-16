@@ -40,8 +40,6 @@ export type { FeedItem } from '@/lib/report/feed-items';
 /** 한 장을 보이는 시간 — 기록 없음 장은 짧게 */
 const DWELL_MS = 3000;
 const DWELL_NONE_MS = 2000;
-/** ‹ › · 점 · 쓸기로 직접 넘긴 뒤 자동 넘김을 쉬는 시간(2026-10-14 사용자 계획) */
-const MANUAL_REST_MS = 10_000;
 /** 넘어가는 시간 */
 const SLIDE_MS = 320;
 /**
@@ -91,8 +89,13 @@ export function FeedCard({ items }: { items: FeedItem[] }) {
   const press = useRef<{ x: number; t: number; w: number; id: number } | null>(null);
   const swiped = useRef(false);
   const reduce = useReducedMotion();
-  /* 직접 넘긴 때(이벤트 timeStamp — performance.now 기준) — 그 뒤 MANUAL_REST_MS 동안 자동 넘김을 쉰다 */
+  /*
+   * 직접 넘긴 때(이벤트 timeStamp) — 한 번이라도 직접 넘기면(0 아님) 자동 넘김을 아예 멈춘다(2026-10-16 움직임 점검 — 예전엔 10초 쉬고
+   * 다시 넘어가, 읽던 장이 바뀌었다. 스스로 바뀌는 것은 멈출 수 있어야 한다 WCAG 2.2.2)
+   */
   const manualAt = useRef(0);
+  /* 손가락 · 펜으로 칸을 누르고 있는 동안 — 자동 넘김을 멈춘다(마우스는 커서를 얹으면 paused) */
+  const [held, setHeld] = useState(false);
   /*
    * 장마다 어떤 말을 보일지 — orders[i] 는 i번째 장의 후보 차례, round 는 지금 라운드(넘어간 횟수 ÷ ROUND_EVERY).
    * 보고 있는 장은 그 장에 들어올 때의 라운드(seen)를 쓴다 — 라운드가 바뀌어도 눈앞의 글은 안 바뀌고, 다음에 들어오는 장부터 새 말.
@@ -199,21 +202,20 @@ export function FeedCard({ items }: { items: FeedItem[] }) {
   }, [n]);
 
   useEffect(() => {
-    if (n < 2 || paused || offPanel || drag != null || moving != null) return;
+    /* 움직임 줄이기면 저절로 넘기지 않는다 — 미끄러짐만 빼면 내용이 3초마다 바뀌는 건 그대로였다 */
+    if (n < 2 || reduce || paused || held || offPanel || drag != null || moving != null) return;
+    if (manualAt.current > 0) return;
     const dwell = items[index]?.tone === 'none' ? DWELL_NONE_MS : DWELL_MS;
-    const rest = Math.max(0, manualAt.current + MANUAL_REST_MS - performance.now());
-    const id = window.setTimeout(
-      () => {
-        if (document.visibilityState === 'visible') go(1);
-      },
-      Math.max(dwell, rest)
-    );
+    const id = window.setTimeout(() => {
+      if (document.visibilityState === 'visible') go(1);
+    }, dwell);
     return () => window.clearTimeout(id);
-  }, [n, paused, offPanel, drag, moving, go, index, items]);
+  }, [n, reduce, paused, held, offPanel, drag, moving, go, index, items]);
 
   const onPointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
     /* 새로 누르면 지난 쓸기 표시부터 지운다 — 미끄러지는 동안 일찍 돌아가 남은 표시가 그 탭의 click 을 막았다(2026-10-16) */
     swiped.current = false;
+    if (e.pointerType !== 'mouse') setHeld(true);
     if (n < 2 || moving != null) return;
     /* 마우스 왼쪽 단추 · 손가락 · 펜만 */
     if (e.pointerType === 'mouse' && e.button !== 0) return;
@@ -239,6 +241,7 @@ export function FeedCard({ items }: { items: FeedItem[] }) {
     setDrag(Math.max(-p.w, Math.min(p.w, dx)));
   };
   const onPointerEnd = (e: ReactPointerEvent<HTMLDivElement>) => {
+    setHeld(false);
     const p = press.current;
     if (!p || p.id !== e.pointerId) return;
     press.current = null;
@@ -284,7 +287,7 @@ export function FeedCard({ items }: { items: FeedItem[] }) {
        * ‹ › 를 한 번 누르면 자동 넘김이 영영 멈췄다.
        */
       onPointerEnter={(e) => e.pointerType === 'mouse' && setPaused(true)}
-      onPointerLeave={(e) => e.pointerType === 'mouse' && setPaused(false)}
+      onPointerLeave={(e) => (e.pointerType === 'mouse' ? setPaused(false) : setHeld(false))}
     >
       {/*
        * 위 줄 — 왼쪽 이름표(장마다 바뀜), 오른쪽 ‹ ›. 장이 하나면 단추를 안 낸다.

@@ -127,6 +127,10 @@ User 관계가 없는 표: `VelocityRecording`(조각 · 표시 딸림)은 지�
   `components/onboarding/count-up.tsx` 가 화면에 들어온 뒤 시작(IntersectionObserver) — 영양 남은 열량 · 운동 끝 세 숫자(`done-client.tsx`, 떠오른 뒤) ·
   구속 결과(`components/velocity/pitch-result.tsx`). 홈 달력: [캘린더 | 목록] 고르개를 달력 머리 목록 그림으로(`MonthCalendar headerAction`, 목록 보기는 '최근 기록' + 달력 그림),
   날짜를 누르면 그날 칸이 하단 탭 위까지 보이게(`pitch-log-panel.tsx` — 칸이 자라는 동안 다시 잼, scroll-mb = `--tab-bar-top`).
+- (같은 날 더) 움직임 점검(design-motion-principles) 뒤 고침: 홈 그날 칸은 높이를 움직이지 않고 안 칸만 옅어짐 + 올라오기(220ms, `motion-safe`) · 달력 칸 높이 변화도
+  `motion-safe` · 달력 ↔ 목록은 바꿀 때만 `view-swap`(globals.css) · 팔 상태 칩은 `<details>` → `Expand` · **요약 칸(`feed-card.tsx`) 자동 넘김: 움직임 줄이기면 안 넘김,
+  손가락으로 누르는 동안 멈춤, 직접 한 번 넘기면 그 뒤로 안 넘김**(10-14 의 '10초 쉬기'를 바꿈 — 김민 승인) · `CountUp` 은 움직이는 숫자를 화면 읽기에서 숨기고 끝값만,
+  `from` 비율(영양 · 구속 0.7, 운동 끝 0).
 
 ## 금윤호에게 — 2026-10-16 · 김민(Claude, 데스크톱 · 3D 담당) — 3D 결과의 '착지'를 앞발이 처음 닿은 순간으로(events.footContact) · footFlat 지움
 

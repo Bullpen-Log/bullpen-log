@@ -199,6 +199,7 @@ export function PitchResult({
           <CountUp
             value={speed}
             duration={600}
+            from={0.7}
             format={(n) => n.toFixed(String(speed).split('.')[1]?.length ?? 0)}
           />
           <span className="ml-2 text-xl text-white/70">{unit}</span>

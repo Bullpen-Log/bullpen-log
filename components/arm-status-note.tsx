@@ -1,4 +1,8 @@
+'use client';
+
+import { useState } from 'react';
 import { ChevronDown } from '@/components/icon';
+import { Expand } from '@/components/expand';
 import { ARM_LEVEL_LABEL, type ArmStatus } from '@/lib/report/arm-status';
 
 /**
@@ -25,30 +29,7 @@ export function ArmStatusNote({
   compact?: boolean;
 }) {
   const tone = TONE[status.level];
-  if (compact) {
-    const short = status.headline.replace(/\s*\(부하 지수 [\d.]+\)/, '');
-    return (
-      <details className="group">
-        <summary
-          className={`flex min-h-10 cursor-pointer list-none items-center gap-1.5 rounded-full border px-3 text-xs [&::-webkit-details-marker]:hidden ${tone.box}`}
-        >
-          <span aria-hidden className={`h-2 w-2 shrink-0 rounded-full ${tone.dot}`} />
-          <span className={`shrink-0 font-bold ${tone.label}`}>팔 {ARM_LEVEL_LABEL[status.level]}</span>
-          <span className="min-w-0 truncate text-ink">{short}</span>
-          <ChevronDown
-            aria-hidden
-            className="ml-auto h-3.5 w-3.5 shrink-0 text-muted transition-transform group-open:rotate-180"
-          />
-        </summary>
-        <div className="mt-2 space-y-0.5 px-3 text-xs leading-relaxed text-muted break-keep">
-          <p className="font-semibold text-ink">{status.headline}</p>
-          {status.details.map((d) => (
-            <p key={d}>{d}</p>
-          ))}
-        </div>
-      </details>
-    );
-  }
+  if (compact) return <ArmStatusChip status={status} />;
   return (
     <div
       className={bare ? 'space-y-1' : `space-y-1 rounded-xl border px-4 py-3 ${tone.box}`}
@@ -67,6 +48,42 @@ export function ArmStatusNote({
           ))}
         </ul>
       )}
+    </div>
+  );
+}
+
+/**
+ * 한 줄 칩 — 누르면 머리 · 까닭이 펴진다. 펼침은 '자세히'(FoldNote)와 같은 Expand(높이 · 옅어짐 300ms, 움직임 줄이기면 바로) —
+ * 예전 <details> 는 툭 펴졌다(2026-10-16 움직임 점검).
+ */
+function ArmStatusChip({ status }: { status: ArmStatus }) {
+  const [open, setOpen] = useState(false);
+  const tone = TONE[status.level];
+  const short = status.headline.replace(/\s*\(부하 지수 [\d.]+\)/, '');
+  return (
+    <div role="status">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        className={`flex min-h-10 w-full items-center gap-1.5 rounded-full border px-3 text-left text-xs ${tone.box}`}
+      >
+        <span aria-hidden className={`h-2 w-2 shrink-0 rounded-full ${tone.dot}`} />
+        <span className={`shrink-0 font-bold ${tone.label}`}>팔 {ARM_LEVEL_LABEL[status.level]}</span>
+        <span className="min-w-0 truncate text-ink">{short}</span>
+        <ChevronDown
+          aria-hidden
+          className={`ml-auto h-3.5 w-3.5 shrink-0 text-muted motion-safe:transition-transform motion-safe:duration-300 ${open ? 'rotate-180' : ''}`}
+        />
+      </button>
+      <Expand open={open}>
+        <div className="space-y-0.5 px-3 pt-2 text-xs leading-relaxed text-muted break-keep">
+          <p className="font-semibold text-ink">{status.headline}</p>
+          {status.details.map((d) => (
+            <p key={d}>{d}</p>
+          ))}
+        </div>
+      </Expand>
     </div>
   );
 }
