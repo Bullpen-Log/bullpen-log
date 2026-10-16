@@ -75,6 +75,7 @@ import {
 } from '@/lib/velocity-analysis';
 import {
   SPEED_DISTANCE_EXPONENT,
+  rejudgeSize,
   type DistanceReport,
 } from '@/lib/velocity-engine/analyze-distance';
 import {
@@ -378,6 +379,21 @@ function stdCorrection(list: LocalPitch[], source: LocalPitch['source']) {
     STANDARD_TARGET_DIST_M,
     SPEED_DISTANCE_EXPONENT
   );
+}
+/**
+ * 세션 거리 보정이 걸렸으면(위 stdCorrection apply) 공 크기 판정을 그 거리로 다시 한다(엔진 2.5.3 rejudgeSize). 기준 20m 와 견주면 실제 22.5m
+ * 자리의 빠른 공이 '15% 넘게 다름'으로 '낮음'이 돼 빠졌다(10-03 밖 121 · 124 · 132 — 세션 거리로 옮긴 값은 스피드건과 2.5km/h 안).
+ * 값은 이 거리로 옮겨 보이므로(withSessionDistance) 판정 거리 = 값을 낸 거리다. 줄자 세션은 넣은 거리가 곧 기준이라 그대로.
+ */
+function judgeBySession<T extends ScreenResult>(
+  result: T,
+  list: LocalPitch[],
+  source: LocalPitch['source'],
+  tape: boolean
+): T {
+  if (tape) return result;
+  const c = stdCorrection(list, source);
+  return c?.apply ? rejudgeSize(result, c.m) : result;
 }
 /** 저장할 세션의 거리 · 출처 — 줄자가 이기고, 기준 20m 세션은 보정이 걸렸으면 그 가운데 값(엔진 2.4 1단계) */
 function sessionDistanceOf(
@@ -985,10 +1001,11 @@ export function VelocityScreen({
   };
 
   const addResult = (
-    result: ScreenResult,
+    raw: ScreenResult,
     source: LocalPitch['source'],
     meta?: ResultMeta
   ) => {
+    const result = judgeBySession(raw, pitches, source, distTape);
     if (!result.measure.ok) {
       /*
        * 자동 모드에서 공 궤적이 세 장도 안 된 거부는 던진 공이 아니라 잡음일 때가 많다 — 튄 공 · 몸짓(장면 부족 · 너무 멂 ·
@@ -1086,6 +1103,7 @@ export function VelocityScreen({
     const dist = (result as { distance?: DistanceReport }).distance ?? null;
     const distNotes: string[] = [];
     const mismatch = dist ? distanceMismatch({ distance: dist }) : null;
+    const bySession = dist?.sizeRefM != null && dist.sizeRefM !== dist.inputDistM;
     if (
       dist &&
       distanceAutoOf({ cameraPos: choices.cameraPos, distAuto }) &&
@@ -1096,16 +1114,17 @@ export function VelocityScreen({
       );
     else if (mismatch)
       distNotes.push(
-        `공을 미트까지 따라가지 못한 것 같아요(넣은 거리 ${mismatch.input}m · 공 크기로 본 거리 ${mismatch.size}m). 값이 틀릴 수 있어 최고 · 평균에서 뺐어요.`
+        `공을 미트까지 따라가지 못한 것 같아요(${bySession ? '세션 거리' : '넣은 거리'} ${mismatch.input}m · 공 크기로 본 거리 ${mismatch.size}m). 값이 틀릴 수 있어 최고 · 평균에서 뺐어요.`
       );
+    /* 세션 거리로 다시 판정한 공은 그 거리와 견준다 — 세션 거리 알림이 이미 거리를 말했다 */
     else if (
       dist &&
       dist.distanceSource === 'input' &&
       dist.sizeDistM != null &&
-      Math.abs(dist.sizeDistM / dist.inputDistM - 1) > DIST_MISMATCH
+      Math.abs(dist.sizeDistM / (dist.sizeRefM ?? dist.inputDistM) - 1) > DIST_MISMATCH
     )
       distNotes.push(
-        `넣은 거리 ${dist.inputDistM}m와 공 크기로 본 거리 ${dist.sizeDistM}m가 달라요. 줄자로 다시 재 보세요.`
+        `${bySession ? '세션 거리' : '넣은 거리'} ${dist.sizeRefM ?? dist.inputDistM}m와 공 크기로 본 거리 ${dist.sizeDistM}m가 달라요. 줄자로 다시 재 보세요.`
       );
 
     /*

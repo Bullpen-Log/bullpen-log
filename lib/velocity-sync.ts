@@ -180,6 +180,7 @@ export function sanitizeDistance(raw: unknown): Record<string, unknown> | null {
     calibEligible: typeof d.calibEligible === 'boolean' ? d.calibEligible : null,
     inputDistM: n(d.inputDistM),
     sizeDistM: n(d.sizeDistM),
+    sizeRefM: n(d.sizeRefM),
     distanceSource: d.distanceSource === 'ball' ? 'ball' : 'input',
     tiltRad: n(d.tiltRad),
     impact: d.impact === 'rebound' ? 'rebound' : 'end',

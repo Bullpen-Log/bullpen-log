@@ -9,6 +9,7 @@
  */
 import {
   analyzeByDistance,
+  rejudgeSize,
   SPEED_DISTANCE_EXPONENT,
 } from '../lib/velocity-engine/analyze-distance.ts';
 import { DRAG_K } from '../lib/velocity-engine/trajectory-fit.ts';
@@ -536,6 +537,65 @@ console.log(
     cleanSize(clean(21, { sizeDistM: null })) == null,
     '공 크기 거리가 없으면 깨끗한 공이 아님'
   );
+}
+
+console.log('\n▶ 세션 거리로 공 크기 다시 판정(2.5.3 — analyze-distance.ts rejudgeSize)');
+if (!only || 'rejudge'.includes(only)) {
+  /* 그물이 24m 인데 기준 20m 로 잰 공 — 공 크기 거리가 기준과 15% 넘게 달라 '낮음'. 세션 거리(공 크기 가운데 값)로 다시 판정하면 '높음' */
+  const { frames } = render({ kmh: 125, launchDeg: 1, sideDeg: -0.6, D: 24, tiltDeg: 0, seed: 41 });
+  const r20 = analyzeByDistance({
+    frames,
+    width: W,
+    height: H,
+    sourceWidth: 1080,
+    sourceHeight: 1920,
+    focalPx: (F * 1080) / W,
+    distanceM: 20,
+    fps: FPS,
+  });
+  const d = r20.distance;
+  const size = d.sizeDistM ?? 0;
+  check(
+    r20.measure.ok && r20.measure.confidence === 'low' && d.why === 'size-mismatch' && size / 20 > 1.15,
+    `기준 20m — 공 크기 ${size}m · 믿음 ${r20.measure.ok ? r20.measure.confidence : r20.measure.code} · ${d.why}`
+  );
+  check(
+    d.preSize?.confidence === 'high' && d.sizeRefM === 20 && d.calibEligible === false,
+    `판정 전 믿음 '${d.preSize?.confidence}' · 기준 거리 ${d.sizeRefM}m 를 남긴다`
+  );
+  const ref = Math.round(size * 10) / 10;
+  const re = rejudgeSize(r20, ref);
+  check(
+    re.measure.ok &&
+      r20.measure.ok &&
+      re.measure.confidence === 'high' &&
+      re.distance.why == null &&
+      re.distance.sizeRefM === ref &&
+      re.distance.calibEligible === true &&
+      re.measure.kmh === r20.measure.kmh &&
+      re.measure.errorKmh === d.preSize?.errorKmh,
+    `세션 거리 ${ref}m 로 다시 — 믿음 '${re.measure.ok ? re.measure.confidence : '-'}' · 값 그대로 ${re.measure.ok ? re.measure.kmh : '-'} · ± ${re.measure.ok ? re.measure.errorKmh : '-'}`
+  );
+  check(
+    r20.measure.ok && r20.measure.confidence === 'low' && d.sizeRefM === 20,
+    '다시 판정해도 처음 결과는 그대로(새 결과를 돌려줌)'
+  );
+  const back = rejudgeSize(re, 20);
+  check(
+    back.measure.ok &&
+      r20.measure.ok &&
+      back.measure.confidence === 'low' &&
+      back.measure.errorKmh === r20.measure.errorKmh &&
+      back.distance.why === 'size-mismatch',
+    '20m 로 되돌려 판정하면 처음과 같다(판정 전 값에서 시작)'
+  );
+  const far = rejudgeSize(re, ref * 0.8).measure;
+  check(
+    far.ok && far.confidence === 'low',
+    `세션 거리와도 15% 넘게 다르면(${(ref * 0.8).toFixed(1)}m) 그대로 '낮음'`
+  );
+  const failed = rejudgeSize({ ...r20, measure: { ok: false, code: 'NOT_ENOUGH_FRAMES', message: '' } } as typeof r20, ref);
+  check(!failed.measure.ok, '못 잰 공은 그대로');
 }
 
 console.log(

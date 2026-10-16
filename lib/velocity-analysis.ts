@@ -79,20 +79,24 @@ export type AnalysisJson = {
    * 모델 2.0(거리 자, lib/velocity-engine/analyze-distance.ts) — 넣은 거리 · 숙임 · 비행 끝을 무엇으로 정했나 · 3차원/수평 속력 ·
    * 위로 던진 각. 관리자가 다시 잴 때 거리를 여기서 꺼낸다. 1.x 로 잰 공은 없음.
    */
-  distance?: Omit<DistanceReport, 'seeds' | 'seedFrame' | 'timingMs' | 'shaky' | 'path'> | null;
+  distance?: Omit<DistanceReport, 'seeds' | 'seedFrame' | 'timingMs' | 'shaky' | 'path' | 'preSize'> | null;
 };
 
 /**
  * 넣은 거리로 쟀는데 공 크기로 본 끝 거리가 15% 넘게 다른가(INPUT_SIZE_MISMATCH) — 공을 미트까지 따라가지 못해 값이 크게 틀릴 수 있다.
- * 세션 최고 · 평균에서 빼고 알린다. 다르면 두 거리, 아니면 null(거리 자동 · 1.x 공도 null)
+ * 세션 최고 · 평균에서 빼고 알린다. 다르면 두 거리, 아니면 null(거리 자동 · 1.x 공도 null). 세션 거리로 다시 판정한 공(sizeRefM, 2.5.3)은
+ * 그 거리와 견준다.
  */
 export function distanceMismatch(
   analysis: unknown
 ): { input: number; size: number } | null {
-  const d = (analysis as { distance?: { distanceSource?: unknown; inputDistM?: unknown; sizeDistM?: unknown } } | null)
-    ?.distance;
+  const d = (
+    analysis as {
+      distance?: { distanceSource?: unknown; inputDistM?: unknown; sizeDistM?: unknown; sizeRefM?: unknown };
+    } | null
+  )?.distance;
   if (!d || d.distanceSource !== 'input') return null;
-  const input = Number(d.inputDistM);
+  const input = Number(d.sizeRefM ?? d.inputDistM);
   const size = Number(d.sizeDistM);
   if (!(input > 0) || !(size > 0) || d.sizeDistM == null) return null;
   return Math.abs(size / input - 1) > INPUT_SIZE_MISMATCH ? { input, size } : null;
@@ -115,6 +119,7 @@ export function analysisOf(
           distanceM: dist.distanceM,
           inputDistM: dist.inputDistM,
           sizeDistM: dist.sizeDistM,
+          sizeRefM: dist.sizeRefM,
           distanceSource: dist.distanceSource,
           tiltRad: Math.round(dist.tiltRad * 10000) / 10000,
           impact: dist.impact,
