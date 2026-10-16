@@ -50,9 +50,9 @@ function Art({ icon: Icon }: { icon: LucideIcon }) {
 export const tourWebSlides: TutorialSlide[] = [
   {
     key: 'welcome',
-    title: '불펜로그에 오신 걸 환영해요',
-    body: '투구 · 트레이닝 · 영양을 한곳에 적고, 그날 몸 상태에 맞춘 운동과 조언을 받아요. 어디에 무엇이 있는지 짧게 알려 드릴게요.',
-    note: '오른쪽 위 X 로 언제든 건너뛸 수 있어요.',
+    title: '불펜로그 둘러보기',
+    body: '투구 · 트레이닝 · 영양을 한곳에 적고, 그날 몸 상태로 운동과 조언을 받아요.',
+    note: '오른쪽 위 X 로 건너뛸 수 있어요.',
     art: <Art icon={Sparkles} />,
   },
   {
@@ -71,8 +71,8 @@ export const tourWebSlides: TutorialSlide[] = [
   {
     key: 'checkin',
     title: '매일 체크인부터',
-    body: '들어오면 오늘 몸 상태를 먼저 물어요. 컨디션 · 수면 · 통증을 적으면 그날 운동과 조언이 거기에 맞춰져요. 몇 초면 끝나요.',
-    note: '건너뛰어도 오른쪽 위 알림(종)에서 언제든 할 수 있어요.',
+    body: '들어오면 오늘 몸 상태를 먼저 물어요. 컨디션 · 수면 · 통증을 적으면 그날 운동과 조언이 바뀌어요.',
+    note: '건너뛰어도 오른쪽 위 종에서 할 수 있어요.',
     art: <Art icon={ClipboardCheck} />,
   },
   {
@@ -89,9 +89,9 @@ export const tourWebSlides: TutorialSlide[] = [
 export const tourAppSlides: TutorialSlide[] = [
   {
     key: 'welcome',
-    title: '불펜로그에 오신 걸 환영해요',
-    body: '투구 · 트레이닝 · 영양을 한곳에 적고, 그날 몸 상태에 맞춘 운동과 조언을 받아요. 어디에 무엇이 있는지 짧게 알려 드릴게요.',
-    note: '오른쪽 위 X 로 언제든 건너뛸 수 있어요.',
+    title: '불펜로그 둘러보기',
+    body: '투구 · 트레이닝 · 영양을 한곳에 적고, 그날 몸 상태로 운동과 조언을 받아요.',
+    note: '오른쪽 위 X 로 건너뛸 수 있어요.',
     art: <Art icon={Sparkles} />,
   },
   {
@@ -110,8 +110,8 @@ export const tourAppSlides: TutorialSlide[] = [
   {
     key: 'checkin',
     title: '매일 체크인부터',
-    body: '들어오면 오늘 몸 상태를 먼저 물어요. 컨디션 · 수면 · 통증을 적으면 그날 운동과 조언이 거기에 맞춰져요. 몇 초면 끝나요.',
-    note: '건너뛰어도 종에서 언제든 할 수 있어요.',
+    body: '들어오면 오늘 몸 상태를 먼저 물어요. 컨디션 · 수면 · 통증을 적으면 그날 운동과 조언이 바뀌어요.',
+    note: '건너뛰어도 종에서 할 수 있어요.',
     art: <Art icon={ClipboardCheck} />,
   },
   {
@@ -167,7 +167,7 @@ export const trainingSlides: TutorialSlide[] = [
     key: 'checkin',
     title: '체크인을 먼저 하면 일정이 나와요',
     body: '오늘 몸 상태를 적으면 거기에 맞춘 오늘 운동 일정을 만들어요. 통증이 있거나 기록이 모자란 날은 가볍게 가거나 쉬라고 해요.',
-    note: '체크인은 오른쪽 위 알림(종)에서 언제든 해요.',
+    note: '체크인은 오른쪽 위 종에서 해요.',
     art: <Art icon={ClipboardCheck} />,
   },
   {
@@ -210,7 +210,7 @@ export const nutritionSlides: TutorialSlide[] = [
   {
     key: 'goal',
     title: '내 계획과 목표 창',
-    body: '통계에서 내 계획을 보면 목표 · 탄단지 나누기 · 예상 체중이 있어요. 제목 옆 목표 단추로 언제든 목표를 다시 정해요.',
+    body: '통계에서 내 계획을 보면 목표 · 탄단지 나누기 · 예상 체중이 있어요. 제목 옆 목표 단추로 다시 정해요.',
     art: <Art icon={Target} />,
   },
 ];

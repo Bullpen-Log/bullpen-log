@@ -679,7 +679,7 @@ export default async function TrainingPage({
             </p>
             {/*
             까닭과 할 일을 한 번씩만 말한다. 예전에는 haltReason 안에 이미
-            "체크인을 다시 저장해주세요"가 들어 있는데 뒤에서 또 "체크인에서
+            "체크인을 다시 저장해 주세요"가 들어 있는데 뒤에서 또 "체크인에서
             상태를 고쳐주세요"라고 해, 같은 말을 두 번 하는 문단이 됐다.
           */}
             <p className="text-sm leading-relaxed text-warn">

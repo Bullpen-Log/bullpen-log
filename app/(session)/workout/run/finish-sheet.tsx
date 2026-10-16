@@ -162,8 +162,7 @@ export function FinishSheet({
         <span className="ml-1.5 text-xs font-semibold text-muted">선택</span>
       </p>
       <p className="mt-0.5 text-xs leading-relaxed text-muted">
-        운동 전체가 얼마나 힘들었는지 골라요. 이 숫자로 운동 부하를 계산해요. 안 골라도
-        마친 뒤 화면에서 한 번만 누르면 돼요.
+        얼마나 힘들었는지 골라요. 운동 부하를 이 숫자로 셈해요(나중에 골라도 돼요).
       </p>
 
       {/*

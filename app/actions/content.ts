@@ -105,7 +105,7 @@ async function tryCreateExercise(formData: FormData): Promise<ActionState> {
   const thumbPath = rawThumb && isLibraryPath(rawThumb) ? rawThumb : null;
 
   if (!title || !description) {
-    return { error: '모든 필수 항목을 입력해주세요.' };
+    return { error: '모든 필수 항목을 입력해 주세요.' };
   }
   if (!TRAINING_CATEGORY_NAMES.includes(category)) {
     return { error: '알 수 없는 카테고리입니다.' };
@@ -118,12 +118,12 @@ async function tryCreateExercise(formData: FormData): Promise<ActionState> {
   // 목록에 없는 값이 섞여 들어오지 않도록 서버에서 다시 거른다.
   const bodyParts = pickMany(formData.getAll('bodyParts').map(String), BODY_PARTS);
   if (bodyParts.length === 0) {
-    return { error: '목표 부위를 하나 이상 선택해주세요.' };
+    return { error: '목표 부위를 하나 이상 선택해 주세요.' };
   }
 
   const intensity = pickOne(String(formData.get('intensity') ?? ''), INTENSITY_NAMES);
   if (!intensity) {
-    return { error: '운동 강도를 선택해주세요.' };
+    return { error: '운동 강도를 선택해 주세요.' };
   }
 
   const difficulty = pickOne(
@@ -251,7 +251,7 @@ async function tryUpdateExercise(formData: FormData): Promise<ActionState> {
   const description = String(formData.get('description') ?? '').trim();
 
   if (!title || !description) {
-    return { error: '모든 필수 항목을 입력해주세요.' };
+    return { error: '모든 필수 항목을 입력해 주세요.' };
   }
   if (!TRAINING_CATEGORY_NAMES.includes(category)) {
     return { error: '알 수 없는 카테고리입니다.' };
@@ -273,12 +273,12 @@ async function tryUpdateExercise(formData: FormData): Promise<ActionState> {
 
   const bodyParts = pickMany(formData.getAll('bodyParts').map(String), BODY_PARTS);
   if (bodyParts.length === 0) {
-    return { error: '목표 부위를 하나 이상 선택해주세요.' };
+    return { error: '목표 부위를 하나 이상 선택해 주세요.' };
   }
 
   const intensity = pickOne(String(formData.get('intensity') ?? ''), INTENSITY_NAMES);
   if (!intensity) {
-    return { error: '운동 강도를 선택해주세요.' };
+    return { error: '운동 강도를 선택해 주세요.' };
   }
 
   const difficulty = pickOne(
@@ -349,7 +349,7 @@ async function tryCreateGuide(formData: FormData): Promise<ActionState> {
   const sortOrderRaw = String(formData.get('sortOrder') ?? '').trim();
 
   if (!title || !description) {
-    return { error: '모든 필수 항목을 입력해주세요.' };
+    return { error: '모든 필수 항목을 입력해 주세요.' };
   }
   if (!MECHANICS_CATEGORY_NAMES.includes(category)) {
     return { error: '알 수 없는 카테고리입니다.' };
@@ -360,12 +360,12 @@ async function tryCreateGuide(formData: FormData): Promise<ActionState> {
 
   const sortOrder = sortOrderRaw ? Number.parseInt(sortOrderRaw, 10) : 0;
   if (Number.isNaN(sortOrder)) {
-    return { error: '순서는 숫자로 입력해주세요.' };
+    return { error: '순서는 숫자로 입력해 주세요.' };
   }
 
   const focusPoints = readFocusPoints(formData);
   if (focusPoints.length === 0) {
-    return { error: '주 요소를 선택해주세요.' };
+    return { error: '주 요소를 선택해 주세요.' };
   }
   const stage = pickOne(String(formData.get('stage') ?? ''), DRILL_STAGE_NAMES);
 
@@ -441,7 +441,7 @@ async function tryUpdateGuide(formData: FormData): Promise<ActionState> {
   const sortOrderRaw = String(formData.get('sortOrder') ?? '').trim();
 
   if (!title || !description) {
-    return { error: '모든 필수 항목을 입력해주세요.' };
+    return { error: '모든 필수 항목을 입력해 주세요.' };
   }
   if (!MECHANICS_CATEGORY_NAMES.includes(category)) {
     return { error: '알 수 없는 카테고리입니다.' };
@@ -462,12 +462,12 @@ async function tryUpdateGuide(formData: FormData): Promise<ActionState> {
 
   const sortOrder = sortOrderRaw ? Number.parseInt(sortOrderRaw, 10) : 0;
   if (Number.isNaN(sortOrder)) {
-    return { error: '순서는 숫자로 입력해주세요.' };
+    return { error: '순서는 숫자로 입력해 주세요.' };
   }
 
   const focusPoints = readFocusPoints(formData);
   if (focusPoints.length === 0) {
-    return { error: '주 요소를 선택해주세요.' };
+    return { error: '주 요소를 선택해 주세요.' };
   }
   const stage = pickOne(String(formData.get('stage') ?? ''), DRILL_STAGE_NAMES);
 

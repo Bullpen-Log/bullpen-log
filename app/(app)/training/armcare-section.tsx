@@ -277,7 +277,7 @@ export async function ArmcareSection({
               desc="아픈 곳에 맞춰 단계별로 · 맞춤 루틴 대신"
             />
           ) : (
-            <SectionHead title="맞춤 루틴" desc="몸 상태에 맞춰 앱이 짜 줘요" />
+            <SectionHead title="맞춤 루틴" desc="오늘 몸 상태로 짜요" />
           )}
           {custom}
           {/* 들어가는 작은 줄 — 재활 중이 아닐 때만(재활 2편). 오늘 체크인의 아픈 자리 · 정도를 미리 골라 둔다 */}

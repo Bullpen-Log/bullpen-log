@@ -149,7 +149,7 @@ export function validateCheckin(
   for (const part of CHECKIN_PARTS) {
     const value = (raw[part.key] ?? '').trim();
     if (!(BODY_FEELINGS as readonly string[]).includes(value)) {
-      return { error: `${part.label} 상태를 선택해주세요.` };
+      return { error: `${part.label} 상태를 선택해 주세요.` };
     }
     parts[part.key] = value;
   }
@@ -172,7 +172,7 @@ export function validateCheckin(
   const sleepRaw = raw.sleep.trim();
   const sleep = sleepRaw === '' ? '보통' : sleepRaw;
   if (!(SLEEP_LEVELS as readonly string[]).includes(sleep)) {
-    return { error: '수면 상태를 선택해주세요.' };
+    return { error: '수면 상태를 선택해 주세요.' };
   }
 
   return {
@@ -848,7 +848,7 @@ export function parseCheckinDetail(
       bodyWeightKg < CHECKIN_WEIGHT_MIN_KG ||
       bodyWeightKg > CHECKIN_WEIGHT_MAX_KG)
   ) {
-    return { error: '몸무게를 다시 확인해주세요.' };
+    return { error: '몸무게를 다시 확인해 주세요.' };
   }
 
   const appetiteNum = Number(get('appetite'));

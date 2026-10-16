@@ -187,7 +187,7 @@ export function VideoCalendar({
         }
       } catch {
         undo();
-        setError('대표 영상을 저장하지 못했어요. 잠시 후 다시 시도해주세요.');
+        setError('대표 영상을 저장하지 못했어요. 잠시 후 다시 시도해 주세요.');
       }
     });
   };

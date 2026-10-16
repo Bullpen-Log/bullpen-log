@@ -119,7 +119,7 @@ export function ExerciseNote({
           onChange={(e) => setDraft({ exerciseId, text: e.target.value })}
           maxLength={EXERCISE_NOTE_MAX}
           rows={3}
-          aria-label="이 운동에 대한 내 메모"
+          aria-label="이 운동 메모"
           placeholder="예: 그립 한 칸 넓게, 벤치 등받이 3칸"
           className="mt-2 w-full resize-y rounded-lg border border-line bg-surface px-3 py-2 text-sm leading-relaxed text-ink outline-none transition-colors placeholder:text-muted focus:border-sky"
         />

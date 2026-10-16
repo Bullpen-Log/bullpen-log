@@ -332,7 +332,7 @@ export function toLuma(
  * 가장 어두운 값 하나만 쓰면 잡티 하나에 휘둘리므로 두 번째로 어두운 값을 쓴다.
  */
 export function buildBackground(samples: ArrayLike<number>[]): Float32Array {
-  if (samples.length === 0) throw new Error('배경을 만들 프레임이 없습니다.');
+  if (samples.length === 0) throw new Error('배경을 만들 프레임이 없어요.');
   const size = samples[0].length;
   const rank = samples.length >= 4 ? 1 : 0;
   /*
@@ -501,7 +501,7 @@ export function buildDarkBackground(samples: ArrayLike<number>[]): {
   background: Float32Array;
   spread: Float32Array;
 } {
-  if (samples.length === 0) throw new Error('배경을 만들 프레임이 없습니다.');
+  if (samples.length === 0) throw new Error('배경을 만들 프레임이 없어요.');
   const size = samples[0].length;
   const m = samples.length;
   const background = new Float32Array(size);

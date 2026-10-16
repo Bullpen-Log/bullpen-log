@@ -1217,7 +1217,7 @@ export function analyzeFrames(input: AnalyzeFramesInput): AnalyzeResult {
     frames.push(f);
   }
 
-  if (frames.length < 3) throw new Error('영상에서 프레임을 충분히 읽지 못했습니다.');
+  if (frames.length < 3) throw new Error('영상에서 프레임을 충분히 읽지 못했어요.');
 
   const times = frames.map((f) => f.t);
   /*

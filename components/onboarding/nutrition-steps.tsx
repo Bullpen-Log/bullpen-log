@@ -347,7 +347,7 @@ function TargetWeightStep({ ctx }: { ctx: StepCtx }) {
         </TextButton>
         {a.targetSkipped && (
           <span className="motion-safe:animate-fade-in text-xs text-muted">
-            속도만으로 계획해요. 영양 탭에서 언제든 정할 수 있어요.
+            속도만으로 계획해요. 영양 탭에서 정할 수 있어요.
           </span>
         )}
       </div>
@@ -406,8 +406,8 @@ function PaceStep({ ctx }: { ctx: StepCtx }) {
         current !== null && (
           <p className="rounded-2xl border border-line bg-surface-2/60 px-4 py-3 text-sm leading-relaxed break-keep text-ink">
             {p.targets.ageBand === 'teen' ? '성장기라 ' : ''}
-            {pace(current)} 한 가지예요 — 하루 {sign}
-            {kcalText(Math.abs(paceDelta(p.age, p.goal, current)))}kcal. 자라는 몸에
+            {pace(current)} 한 가지예요. 하루 {sign}
+            {kcalText(Math.abs(paceDelta(p.age, p.goal, current)))}kcal 로, 자라는 몸에
             맞춘 속도예요.
           </p>
         )
@@ -571,7 +571,7 @@ function AvoidStep({ ctx }: { ctx: StepCtx }) {
         </label>
       ) : (
         <p className="text-xs leading-relaxed break-keep text-muted">
-          성장기는 보충식품 없이 음식으로 채워요 — 식단에 쉐이크 · 바는 넣지 않아요.
+          성장기는 보충식품 없이 음식으로 채워요. 식단에 쉐이크 · 바는 넣지 않아요.
         </p>
       )}
     </div>

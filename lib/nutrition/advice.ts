@@ -532,7 +532,7 @@ export const HEADLINE_RULES: readonly HeadlineRule[] = [
           }
         : {
             headline: `끼니마다 밥 반 공기 더 · 자기 전 ${s.w.milk}`,
-            why: '증량 중이라 끼니 사이를 채우는 게 핵심이에요.',
+            why: '증량 중이라 끼니 사이도 채워야 해요.',
           },
   },
   {

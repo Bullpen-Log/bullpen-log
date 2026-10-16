@@ -66,11 +66,11 @@ function checkEntry(
 
   if (!resting) {
     if (Number.isNaN(pitchCount)) {
-      return { error: '투구수를 올바르게 입력해주세요' };
+      return { error: '투구수를 올바르게 입력해 주세요' };
     }
     if (pitchCount < 1) {
       return {
-        error: '투구수는 1개 이상이어야 합니다. 안 던진 날은 종류에서 휴식을 고르세요',
+        error: '투구수는 1개 이상이어야 해요. 안 던진 날은 종류에서 휴식을 고르세요',
       };
     }
     if (pitchCount > MAX_PITCH_COUNT) {
@@ -101,11 +101,11 @@ function checkEntry(
     if (raw === '' || raw == null) return { value: null };
     const value = Number.parseFloat(String(raw));
     if (Number.isNaN(value) || value <= 0) {
-      return { error: `${label}을 숫자로 입력해주세요` };
+      return { error: `${label}을 숫자로 입력해 주세요` };
     }
     if (value < MIN_VELOCITY || value > MAX_VELOCITY) {
       return {
-        error: `${label}은 ${MIN_VELOCITY}~${MAX_VELOCITY} km/h 사이로 입력해주세요. 단위가 mph 라면 km/h 로 바꿔서 넣어주세요`,
+        error: `${label}은 ${MIN_VELOCITY}~${MAX_VELOCITY} km/h 사이로 입력해 주세요. 단위가 mph 라면 km/h 로 바꿔서 넣어주세요`,
       };
     }
     return { value };
@@ -204,7 +204,7 @@ export async function GET(req: Request) {
   const month = new URL(req.url).searchParams.get('month');
   if (month != null && !/^\d{4}-\d{2}$/.test(month)) {
     return NextResponse.json(
-      { error: '달은 2026-08 형식이어야 합니다' },
+      { error: '달은 2026-08 형식이어야 해요' },
       { status: 400 }
     );
   }

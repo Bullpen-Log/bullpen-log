@@ -695,7 +695,7 @@ export function sessionResultText(
   const after = afterBadSession(s);
   switch (s.result) {
     case 'green':
-      return '초록이에요. 잘했어요. 다음에도 이대로 해요.';
+      return '초록이에요. 다음에도 이 강도로 해요.';
     case 'yellow':
       return '노랑이에요. 다음에도 같은 운동을 다시 해요. 아직 올리지 않아요.';
     case 'refer':

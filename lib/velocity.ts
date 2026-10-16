@@ -20,10 +20,10 @@ export function validateTargetVelocity(
   if (!trimmed) return { value: null };
 
   const n = Number(trimmed);
-  if (!Number.isInteger(n)) return { error: '목표 구속은 정수로 입력해주세요.' };
+  if (!Number.isInteger(n)) return { error: '목표 구속은 정수로 입력해 주세요.' };
   if (n < TARGET_VELOCITY_MIN || n > TARGET_VELOCITY_MAX) {
     return {
-      error: `목표 구속은 ${TARGET_VELOCITY_MIN}~${TARGET_VELOCITY_MAX}km/h 사이로 입력해주세요.`,
+      error: `목표 구속은 ${TARGET_VELOCITY_MIN}~${TARGET_VELOCITY_MAX}km/h 사이로 입력해 주세요.`,
     };
   }
   return { value: n };

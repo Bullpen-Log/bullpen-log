@@ -252,7 +252,7 @@ export function NoticePanel({
                 오늘 체크인을 아직 안 했어요
               </p>
               <p className="mt-1 text-xs leading-relaxed text-muted">
-                몇 초면 끝나요. 오늘 운동 추천과 리포트가 이걸로 맞춰져요.
+                몇 초면 끝나요. 오늘 운동 추천에 바로 반영해요.
               </p>
               <button
                 type="button"

@@ -277,7 +277,7 @@ export function buildHighlights(input: HighlightInput, part?: HighlightPart): Hi
         key: 'away',
         warn: false,
         label: '투구 기록',
-        text: '오랜만이에요. 오늘 기록부터 남겨 볼까요?',
+        text: '며칠 기록이 비었어요. 오늘 것부터 남겨요.',
         href: `/pitch-log/${today}`,
         chart: null,
       },

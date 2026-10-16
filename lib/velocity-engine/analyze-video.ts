@@ -207,7 +207,7 @@ export type VideoAnalyzeResult = AnalyzeResult & { video: VideoAnalysisInfo; dis
  * 설정이라 막으면 대부분 못 잰다) 신뢰도를 '중간' 밑으로 두고 SDR 로 찍기를 권한다.
  */
 const HDR_NOTE =
-  'HDR 영상이라 값이 조금 어긋날 수 있어요. 설정 › 카메라 › 비디오 녹화에서 HDR 비디오를 끄고 찍으면 더 정확합니다.';
+  'HDR 영상이라 값이 조금 어긋날 수 있어요. 설정 › 카메라 › 비디오 녹화에서 HDR 비디오를 끄고 찍으면 더 정확해요.';
 
 /** 보정한 조건의 초당 장면 수 — 60fps 영상(59.94 · 가변 60 포함). 240fps 는 노출 번짐이 달라 합성 시험에서 +3% */
 /* 2.4.2 ~ 2.5.1 의 앱 카메라는 되면 120fps 로 찍었다(2.5.2 부터 60) — 그 영상 · 파일로 재는 120 도 60 과 같은 노출 셈이라 보정 안으로. 240 은 그대로 밖 */
@@ -321,14 +321,14 @@ export async function analyzeVideo(options: AnalyzeOptions): Promise<VideoAnalyz
     prepareDetachedVideo(v);
     v.src = url;
     video = v;
-    if ((await waitForFirstFrame(v, 30_000)) !== 'ok') throw new Error('영상을 열지 못했습니다.');
+    if ((await waitForFirstFrame(v, 30_000)) !== 'ok') throw new Error('영상을 열지 못했어요.');
     return v;
   };
 
   try {
     const sourceW = dec?.width ?? (await getVideo()).videoWidth;
     const sourceH = dec?.height ?? (await getVideo()).videoHeight;
-    if (!sourceW || !sourceH) throw new Error('영상 크기를 읽지 못했습니다.');
+    if (!sourceW || !sourceH) throw new Error('영상 크기를 읽지 못했어요.');
 
     const scale = analyzeScale(sourceW, sourceH);
     const width = Math.round(sourceW * scale);
@@ -338,7 +338,7 @@ export async function analyzeVideo(options: AnalyzeOptions): Promise<VideoAnalyz
     canvas.width = width;
     canvas.height = height;
     const ctx = canvas.getContext('2d', { willReadFrequently: true });
-    if (!ctx) throw new Error('화면을 준비하지 못했습니다.');
+    if (!ctx) throw new Error('화면을 준비하지 못했어요.');
 
     /* 되감아 그린다. 표가 있으면 늘 그 장면의 한가운데를 짚는다(경계에 걸려 앞 · 뒤 장면을 오가지 않게) */
     const seekTo = async (t: number) => {
@@ -600,7 +600,7 @@ export async function analyzeVideo(options: AnalyzeOptions): Promise<VideoAnalyz
       }
     }
     onProgress?.(1);
-    if (!first) throw firstError instanceof Error ? firstError : new Error('영상을 재지 못했습니다.');
+    if (!first) throw firstError instanceof Error ? firstError : new Error('영상을 재지 못했어요.');
 
     const { result, window } = first;
     const notes: string[] = [];

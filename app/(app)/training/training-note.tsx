@@ -149,7 +149,7 @@ export function TrainingNote({
           value={text}
           onChange={(e) => setText(e.target.value)}
           rows={3}
-          placeholder="안 적어도 돼요. 무거웠던 곳, 잘 된 것 같은 동작 같은 걸 남겨두면 나중에 도움이 돼요."
+          placeholder="무거웠던 곳, 잘 된 동작 (안 적어도 돼요)"
           className="w-full resize-y rounded-xl border border-line bg-surface-2 px-3.5 py-2.5 text-sm text-ink outline-none transition-colors placeholder:text-muted focus:border-sky"
         />
       </label>

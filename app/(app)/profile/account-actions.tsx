@@ -159,7 +159,7 @@ function PasswordForm({ onDone }: { onDone: () => void }) {
               required
             />
           </Field>
-          <Field label="새 비밀번호" hint="8자 이상 입력해주세요.">
+          <Field label="새 비밀번호" hint="8자 이상 입력해 주세요.">
             <Input
               name="newPassword"
               type="password"

@@ -68,8 +68,8 @@ export function MechanicsProgram({
         <Card className="space-y-2">
           <h2 className="text-heading text-lg text-ink">투구 메커니즘 향상 프로그램</h2>
           <p className="text-sm leading-relaxed break-keep text-ink/85">
-            수준을 하나 고르면 4주 동안 주 {PER_WEEK}번, 정해진 드릴 세 개씩(중급 · 고급은 네 개) 투구 차례대로 해요. 한 번에 15~25분이고,
-            던지는 날 몸을 푼 뒤 캐치볼 전에 하면 알맞아요. 처음이면 입문부터 시작하세요.
+            4주 동안 주 {PER_WEEK}번, 드릴 3~4개를 투구 차례대로 해요. 한 번에 15~25분, 던지는 날 캐치볼 전에
+            하면 알맞아요. 처음이면 입문부터.
           </p>
         </Card>
         <LevelPicker current={null} index={0} />
@@ -295,7 +295,7 @@ function SessionCard({
       {/* 하는 법은 접어 둔다(2026-10-16 UI 검토 — 세션 단추 밑에 늘 두 문장이 떠 있었다) */}
       <FoldNote tone="muted" label="하는 법">
         <p className="text-xs leading-relaxed break-keep text-muted">
-          드릴마다 느낌을 눌러요. 쉬움이 여러 요소에서 쌓이면 다음 수준을 권해 드려요.
+          드릴마다 느낌을 눌러요. 쉬움이 여러 요소에서 쌓이면 다음 수준을 권해요.
           던지는 날 몸을 푼 뒤, 캐치볼 전에 하면 알맞아요.
         </p>
       </FoldNote>
@@ -588,7 +588,7 @@ function FilmCard({ sessionsDone, films }: { sessionsDone: number; films: FilmNo
             <p className="text-footnote leading-relaxed break-keep text-muted">
               {kind === 'baseline'
                 ? '옆에서 평소처럼 몇 개 던지는 모습을 찍어 투구 기록에 남겨요.'
-                : '같은 자리에서 다시 찍어 처음 영상과 나란히 놓고 앞발이 닿는 장면을 멈춰 보세요. 구속도 같이 재 두면 바뀐 것이 효과가 있었는지 알 수 있어요.'}
+                : '같은 자리에서 다시 찍어 처음 영상과 나란히 보세요. 구속도 재 두면 효과를 알 수 있어요.'}
             </p>
           </FoldNote>
         </div>

@@ -193,7 +193,7 @@ function LoginForm({
       <StepCard
         titleKey="login"
         title="로그인"
-        desc="다시 오신 걸 환영해요. 기록을 이어서 관리하려면 로그인하세요."
+        desc="기록을 이어서 보려면 로그인해 주세요."
         focusHeading={focusHeading}
         footer={
           <>
@@ -782,7 +782,7 @@ function SignupWizard({
       case 'terms':
         return {
           title: '약관을 확인해 주세요',
-          desc: '두 가지 모두 동의해야 시작할 수 있어요. 눌러서 내용을 볼 수 있어요.',
+          desc: '둘 다 동의하면 시작해요. 누르면 내용을 볼 수 있어요.',
         };
     }
   }

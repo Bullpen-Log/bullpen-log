@@ -223,7 +223,7 @@ async function tryLogin(formData: FormData): Promise<AuthState> {
   const password = String(formData.get('password') ?? '');
 
   if (!email || !password) {
-    return { error: '이메일과 비밀번호를 입력해주세요.' };
+    return { error: '이메일과 비밀번호를 입력해 주세요.' };
   }
 
   const user = await prisma.user.findUnique({
@@ -288,7 +288,7 @@ export async function changePassword(
   const confirm = String(formData.get('newPasswordConfirm') ?? '');
 
   if (!current || !next) {
-    return { error: '지금 비밀번호와 새 비밀번호를 모두 입력해주세요.' };
+    return { error: '지금 비밀번호와 새 비밀번호를 모두 입력해 주세요.' };
   }
   if (next.length < MIN_PASSWORD) {
     return { error: `새 비밀번호는 ${MIN_PASSWORD}자 이상이어야 해요.` };
@@ -351,7 +351,7 @@ export async function deleteAccount(
     return { error: '확인란에 탈퇴 두 글자를 그대로 적어주세요.' };
   }
   if (!password) {
-    return { error: '비밀번호를 입력해주세요.' };
+    return { error: '비밀번호를 입력해 주세요.' };
   }
 
   const row = await prisma.user.findUnique({

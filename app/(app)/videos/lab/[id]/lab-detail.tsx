@@ -237,7 +237,7 @@ export function LabDetail({
             </div>
             {result && (
               <p className="text-xs text-muted">
-                영상은 3D 를 따라가요 — 멈추거나 끌면 같은 장면, 재생하면 같은 속도.
+                영상은 3D 를 따라가요. 멈추거나 끌면 같은 장면에 서요.
               </p>
             )}
           </section>

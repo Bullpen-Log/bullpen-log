@@ -83,7 +83,7 @@ export function PitchCapInsert({
         icon={<ShieldCheck aria-hidden />}
         headline={<>지금 팔 상태를 알려 드려요</>}
         lines={[
-          '평소 던지던 양과 최근 몇 주의 부하를 견줘, 지금이 위험한지 안전한지 알려 드려요.',
+          '평소 던지던 양과 최근 몇 주의 부하를 견줘 지금 팔 상태를 보여 줘요.',
           restLine,
           '팀 · 지도자의 지침이 먼저예요.',
         ]}
@@ -104,7 +104,7 @@ export function PitchCapInsert({
       }
       lines={[
         restLine,
-        '투구를 적으면 지금 팔이 위험한지 안전한지 매일 알려 드려요.',
+        '투구를 적으면 매일 팔 상태를 보여 줘요.',
         '기준은 유소년 투구수 가이드(Pitch Smart)예요. 팀 · 지도자의 지침이 먼저예요.',
       ]}
     />
@@ -150,7 +150,7 @@ export function BurnInsert({
             <CountUp value={total} active={active} />
             kcal
           </strong>
-          이 더해져요. 따로 적을 것은 없어요 — 트레이닝 · 투구 기록에서 가져와요.
+          이 더해져요. 따로 적을 건 없어요. 트레이닝 · 투구 기록에서 가져와요.
         </>,
         '던지는 날 앞뒤 끼니는 거르지 않는 것이 먼저예요. 영양 탭이 그날 가이드를 줘요.',
       ]}

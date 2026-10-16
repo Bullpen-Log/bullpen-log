@@ -18,14 +18,14 @@ export async function createArticle(
 
 async function tryCreateArticle(formData: FormData): Promise<BoardState> {
   const user = await getCurrentUser();
-  if (!user) return { error: '로그인이 필요합니다.' };
+  if (!user) return { error: '로그인이 필요해요.' };
   /*
    * 자료실은 운영자가 투구 역학·트레이닝 자료를 올리는 곳이다. 누구나 쓸 수
    * 있게 열어두면 신고·차단 같은 것이 곧 필요해지는데, 지금 그것을 감당할
    * 준비가 안 되어 있다. 커뮤니티가 필요해지면 그때 연다.
    */
   if (user.role !== 'ADMIN') {
-    return { error: '자료실 글은 관리자만 올릴 수 있습니다.' };
+    return { error: '자료실 글은 관리자만 올릴 수 있어요.' };
   }
 
   const title = String(formData.get('title') ?? '').trim();
@@ -38,13 +38,13 @@ async function tryCreateArticle(formData: FormData): Promise<BoardState> {
     .slice(0, 5);
 
   if (!title || !content) {
-    return { error: '제목과 내용을 입력해주세요.' };
+    return { error: '제목과 내용을 입력해 주세요.' };
   }
   if (title.length > 150) {
-    return { error: '제목은 150자 이내로 입력해주세요.' };
+    return { error: '제목은 150자 이내로 입력해 주세요.' };
   }
   if (attachmentUrl && !/^https?:\/\//i.test(attachmentUrl)) {
-    return { error: '자료 링크는 http:// 또는 https:// 로 시작해야 합니다.' };
+    return { error: '자료 링크는 http:// 또는 https:// 로 시작해야 해요.' };
   }
 
   const article = await prisma.article.create({

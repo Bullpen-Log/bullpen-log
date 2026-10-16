@@ -2237,7 +2237,7 @@ function preConditions(
     out.push({
       code: 'CROPPED',
       sigma: LIVE_CROP_SIGMA_REL,
-      text: `카메라 화면이 잘려 와서(${camera.sourceWidth}×${camera.sourceHeight}) 화각을 짐작했어요 — 값이 크게 틀릴 수 있어요.`,
+      text: `카메라 화면이 잘려 와서(${camera.sourceWidth}×${camera.sourceHeight}) 화각을 짐작했어요. 값이 크게 틀릴 수 있어요.`,
     });
   }
   if (fromFov && camera.zoom != null && Math.abs(camera.zoom - 1) > ZOOM_TOL) {

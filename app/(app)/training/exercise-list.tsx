@@ -186,7 +186,7 @@ export function ExerciseChecklist({
             <span className="text-muted">/{items.length}</span> 완료
           </p>
           {allDone && (
-            <span className="text-sm font-semibold text-sky">전부 마쳤어요 👏</span>
+            <span className="text-sm font-semibold text-sky">전부 마쳤어요</span>
           )}
         </div>
         <div className="mt-3 h-2 overflow-hidden rounded-full bg-surface-2">
@@ -208,8 +208,7 @@ export function ExerciseChecklist({
         */}
         {doneCount === 0 && items.length > 0 && (
           <p className="mt-3 text-caption leading-relaxed text-muted">
-            마친 운동은 눌러서 표시해주세요. 표시해야 운동 부하에 들어가고 다음 일정에서
-            같은 부위가 겹치지 않아요.
+            마친 운동을 눌러 표시해 주세요. 운동 부하와 다음 일정에 들어가요.
           </p>
         )}
       </div>

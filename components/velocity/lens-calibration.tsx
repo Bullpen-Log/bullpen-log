@@ -336,13 +336,13 @@ export function LensCalibrationPanel({
       const mid = median(diameters);
       const spread = (Math.max(...diameters) - Math.min(...diameters)) / mid;
       if (spread > SPREAD_LIMIT) {
-        setError('손이 흔들려요 — 공을 고정하고 다시 재세요.');
+        setError('손이 흔들렸어요. 공을 고정하고 다시 재 주세요.');
         return;
       }
       const longSide = Math.max(camera.width, camera.height);
       const fov = fovDegFromFocal(focalOf(mid, Number(distance)) / zoom, longSide);
       if (fov < FOV_SANITY_DEG[0] || fov > FOV_SANITY_DEG[1]) {
-        setError('잘못 잰 것 같아요 — 거리나 원 위치를 확인하세요.');
+        setError('잘못 잰 것 같아요. 거리와 원 위치를 봐 주세요.');
         return;
       }
       setMeasured({
@@ -398,9 +398,8 @@ export function LensCalibrationPanel({
           allowNone={false}
         />
         <p className="mt-2 text-xs leading-relaxed text-muted">
-          권장 {RECOMMENDED_DISTANCE_M.toFixed(1)}m — 줄자 1cm 오차의 몫이 0.5m 에서는
-          두 배가 돼요. 폰의 카메라 유리 면에서 공의 가장 앞면까지 재세요. 공은 렌즈
-          정면, 배경은 어둡고 단순하게.
+          권장 {RECOMMENDED_DISTANCE_M.toFixed(1)}m. 카메라 유리에서 공 앞면까지 재고,
+          공은 렌즈 정면 · 배경은 어둡게 두세요.
         </p>
       </div>
 

@@ -925,7 +925,7 @@ export const SLOT_LABELS: Record<SlotKey, { label: string; hint: string }> = {
    */
   cardio: { label: '유산소', hint: '회복날은 가볍게, 컨디셔닝 날은 숨이 찰 만큼' },
   mobility: { label: '가동성', hint: '천천히 관절을 열어주세요' },
-  main: { label: '본운동', hint: '오늘 테마의 핵심이에요' },
+  main: { label: '본운동', hint: '오늘 주로 할 운동이에요' },
   core: { label: '코어', hint: '몸통을 단단하게' },
   /*
    * 보강.

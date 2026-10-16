@@ -294,8 +294,10 @@
  *                      공('ball')은 예전과 같다 — 받아 둔 영상 · 10-08 현장 기록에서 새 '공' 알림 0. 원본 7구: 공 4 → 공 4 + 후보 3(7/7), 앱
  *                      조건으로 재면 '높음' 3 → 5. ③ 폰이 '뜨거움'일 때 움직임 알림을 끄던 것을 '아주 뜨거움'에서만(첫 세션 기록 6구 중 4구가
  *                      움직임 알림) ④ 시도 기록에 발열 상태(analysis.thermal) · 공 못 찾은 움직임(why no-ball) · 발열로 쉼(heat-skip) · 후보(kind seed).
+ *   2.6.2  2026-10-16  작은 자리(값 그대로 — 글만): 화면에 뜨는 거부 · 고칠 것 · 카메라 오류 글을 '~습니다' → 해요체로, 줄표(—)는 두 문장으로
+ *                      (validate · live-capture · analyze-video · analyze-frames · detect · live-meter). 측정 화면의 다른 글과 말투를 맞춤(UI 세션).
  */
-export const VELOCITY_ENGINE_VERSION = '2.6.1';
+export const VELOCITY_ENGINE_VERSION = '2.6.2';
 
 /**
  * 스피드건 보정 짝이 이어지는 묶음 — 작은 자리(0.0.X)는 재는 방법이 같아 짝을 그대로 쓴다(가운데 자리까지 같은 공 모두 — 지금은 '1.9.').

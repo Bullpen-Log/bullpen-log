@@ -555,7 +555,7 @@ function Welcome({ nickname, edit }: { nickname: string; edit: boolean }) {
         <Check aria-hidden className="h-12 w-12" />
       </div>
       <h1 className="mt-7 text-2xl font-bold text-ink">
-        {edit ? '오늘 체크인을 고칠게요' : `다시 돌아오신 걸 환영해요 ${nickname}`}
+        {edit ? '오늘 체크인을 고칠게요' : `${nickname}님, 오늘 몸은 어때요?`}
       </h1>
       <p className="mt-2 text-base text-muted">
         {edit ? '바꿀 것만 고치고 끝까지 가면 돼요' : '오늘 몸 상태를 20초만 적어요'}
@@ -618,7 +618,7 @@ function Done({
         </span>
       </div>
       <p className="mt-6 text-2xl font-bold text-ink">
-        {edit ? '고쳤어요' : '체크인 완료!'}
+        {edit ? '고쳤어요' : '체크인했어요'}
       </p>
       {streak >= 1 && (
         <p className="rise-in mt-1 text-base font-semibold text-sky [--rise-delay:600ms]">
@@ -629,8 +629,8 @@ function Done({
         <div className="rise-in mt-6 w-full max-w-sm space-y-3 rounded-2xl border border-warn-line bg-warn-bg p-4 text-left [--rise-delay:700ms]">
           <p className="text-sm font-bold text-warn">오늘은 던지지 말고 쉬어요</p>
           <p className="text-sm leading-relaxed text-ink/80">
-            가만히 있어도 아픈 날이에요. 던지는 것은 미루고, 트레이닝 탭의 암케어에서
-            오늘 할 것을 봐요. 며칠 이어지면 진료를 받아요.
+            가만히 있어도 아픈 날이에요. 트레이닝 탭 암케어만 하고,
+            며칠 이어지면 진료를 받아요.
           </p>
           <div className="flex flex-wrap gap-2">
             <a
@@ -650,7 +650,7 @@ function Done({
         </div>
       ) : (
         <p className="rise-in mt-4 text-sm text-muted [--rise-delay:700ms]">
-          오늘 기록에 맞춰 준비할게요
+          오늘 운동과 조언에 바로 반영해요
         </p>
       )}
     </div>

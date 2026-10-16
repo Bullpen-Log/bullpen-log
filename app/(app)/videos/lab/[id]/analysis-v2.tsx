@@ -169,7 +169,7 @@ export function V2RequestRow({
     <div className="space-y-3">
       {active && hasResult && (
         <p className="rounded-xl bg-sky-tint px-3 py-2 text-xs text-sky break-keep">
-          다시 분석 중이에요 — 끝날 때까지 이전 결과를 보고 있어요.
+          다시 분석 중이에요. 끝날 때까지 이전 결과를 보여 줘요.
         </p>
       )}
       {stale && !active && (

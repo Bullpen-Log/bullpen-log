@@ -156,9 +156,8 @@ export function IntensityGuide({ kind }: { kind: IntensityKind }) {
               "살살 던졌다"고 낮춰 적으면 덜 쉬라는 답이 돌아온다.
             */
             <p className="rounded-lg border border-warn-line bg-warn-bg px-3 py-2 text-caption leading-relaxed text-warn">
-              <strong>느낌보다 팔에 가는 부담은 커요.</strong> 연구에 따르면 절반 힘으로
-              던져도 구속은 최고의 80%가 나오고, 팔꿈치에 걸리는 힘은 75%나 돼요. 가볍게
-              느껴져도 실제로 던진 만큼 적어주세요.
+              <strong>느낌보다 팔에 가는 부담은 커요.</strong> 절반 힘으로 던져도 팔꿈치에는
+              최고의 75% 가 걸려요. 가볍게 느껴져도 던진 만큼 적어 주세요.
             </p>
           ) : (
             /*

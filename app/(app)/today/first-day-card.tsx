@@ -78,8 +78,8 @@ export function FirstDayCard({
       {pitchLocked ? (
         <>
           <p className="text-sm leading-relaxed text-ink/80">
-            몇 가지만 알려 주면 투구 기록을 시작할 수 있어요. 던지는 손과 평소
-            투구량으로 지금 팔이 위험한지 안전한지 알려 드려요.
+            세 가지만 알려 주면 투구 기록을 시작해요. 그다음부터 지금 팔 상태를
+            보여 줘요.
           </p>
           <div className="flex flex-wrap gap-2">
             <Link href={SETUP_PATH.pitch} className={primary}>

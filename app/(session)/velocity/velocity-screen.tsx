@@ -1377,7 +1377,7 @@ export function VelocityScreen({
         void startCamera();
         return;
       }
-      const message = e instanceof Error ? e.message : '카메라를 켜지 못했습니다.';
+      const message = e instanceof Error ? e.message : '카메라를 켜지 못했어요.';
       /*
        * 앱에는 주소창이 없다 — 앱에서 막혔으면 아이폰이 카메라를 거절한 것이고, 아이폰은 앱 안에서 다시 묻지 않는다.
        * 엔진의 거절 문구('허용해 주세요 … 자물쇠')를 앱에서는 설정 길로 바꾼다.
@@ -1814,7 +1814,7 @@ export function VelocityScreen({
       /* 영상의 알림(HDR · 보정 조건 밖 · 화각 짐작)은 결과 화면에 공의 알림으로 뜬다(addResult) */
       addResult(result, 'file');
     } catch (e) {
-      setError(e instanceof Error ? e.message : '영상을 분석하지 못했습니다.');
+      setError(e instanceof Error ? e.message : '영상을 분석하지 못했어요.');
     } finally {
       setFileBusy(false);
     }
@@ -4089,11 +4089,11 @@ export function VelocityScreen({
                       )}°`
                     : lens
                       ? '공으로 잰 값을 쓰는 중'
-                      : `아직 안 했어요. 화각 ${fov}° 가정으로 계산 중. 정확도를 위해 꼭 한 번 해 주세요.`}
+                      : `아직 안 했어요. 지금은 화각 ${fov}° 로 어림해 재요. 한 번 해 두면 더 정확해요.`}
                   {lens && camera && !lensOk && (
                     <span className="block text-warn">
-                      저장된 보정이 이 카메라(이름 · 비율 · 줌)와 달라요 — 지금은 화각
-                      가정으로 계산 중. 다시 재세요.
+                      저장된 보정이 이 카메라(이름 · 비율 · 줌)와 달라요. 지금은 화각을
+                      어림해 재고 있어요. 다시 재 주세요.
                     </span>
                   )}
                 </span>

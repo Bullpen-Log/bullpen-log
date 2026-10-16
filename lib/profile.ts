@@ -39,10 +39,10 @@ export function checkOptionalNumber(
 
   const parsed = Number(text);
   if (!Number.isFinite(parsed)) {
-    return { error: `${label}은(는) 숫자로 입력해주세요.` };
+    return { error: `${label}은(는) 숫자로 입력해 주세요.` };
   }
   if (parsed < min || parsed > max) {
-    return { error: `${label}은(는) ${min}~${max}${unit} 사이로 입력해주세요.` };
+    return { error: `${label}은(는) ${min}~${max}${unit} 사이로 입력해 주세요.` };
   }
   /* 소수 한 자리까지만 남긴다. 저장 단위는 언제나 kg·cm 다. */
   return { value: Number(parsed.toFixed(1)) };
@@ -120,15 +120,15 @@ export function validateProfile(
   if (trimmedBirth) {
     birthDate = parseBirthDate(trimmedBirth);
     if (!birthDate) {
-      return { error: '생년월일을 올바르게 입력해주세요.', field: 'birthDate' };
+      return { error: '생년월일을 올바르게 입력해 주세요.', field: 'birthDate' };
     }
 
     const age = ageFromBirthDate(birthDate);
     if (age < MIN_AGE || age > MAX_AGE) {
-      return { error: '생년월일을 다시 확인해주세요.', field: 'birthDate' };
+      return { error: '생년월일을 다시 확인해 주세요.', field: 'birthDate' };
     }
   } else if (requireBirthDate) {
-    return { error: '생년월일을 입력해주세요.', field: 'birthDate' };
+    return { error: '생년월일을 입력해 주세요.', field: 'birthDate' };
   }
 
   const trimmedHeight = rawHeight.trim();
@@ -136,11 +136,11 @@ export function validateProfile(
   if (trimmedHeight) {
     const parsed = Number(trimmedHeight);
     if (!Number.isFinite(parsed) || !Number.isInteger(parsed)) {
-      return { error: '키는 정수로 입력해주세요.', field: 'heightCm' };
+      return { error: '키는 정수로 입력해 주세요.', field: 'heightCm' };
     }
     if (parsed < MIN_HEIGHT_CM || parsed > MAX_HEIGHT_CM) {
       return {
-        error: `키는 ${MIN_HEIGHT_CM}~${MAX_HEIGHT_CM}cm 사이로 입력해주세요.`,
+        error: `키는 ${MIN_HEIGHT_CM}~${MAX_HEIGHT_CM}cm 사이로 입력해 주세요.`,
         field: 'heightCm',
       };
     }

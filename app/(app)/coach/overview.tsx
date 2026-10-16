@@ -183,7 +183,7 @@ export function StatsOverview({
     hasRecords,
     emptyHint: hasRecords
       ? '지수는 최근 부하를 평소 부하와 견주는 값이에요. 비교할 기준이 아직 없어요.'
-      : '투구를 기록하면 이곳에 부하 지수가 표시돼요.',
+      : '투구를 남기면 부하 지수가 나와요.',
   };
   const trainingView: LoadView = {
     name: '운동',

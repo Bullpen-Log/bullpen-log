@@ -391,7 +391,7 @@ function ReleaseScatter({
       width={120}
       height={120}
       role="img"
-      aria-label={`릴리스 포인트 — ${points.length}구, 흩어짐 ${spreadCm}cm`}
+      aria-label={`릴리스 포인트 ${points.length}구, 흩어짐 ${spreadCm}cm`}
       className="shrink-0"
     >
       <circle

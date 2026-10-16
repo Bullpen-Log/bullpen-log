@@ -208,7 +208,7 @@ export function ReportClient({
     return (
       <EmptyState
         title="아직 돌아볼 기록이 없어요"
-        description="투구 기록에서 며칠치를 남기면 이곳에 기간별 정리가 만들어져요."
+        description="며칠치 투구를 남기면 기간별로 모아 보여 줘요."
       />
     );
   }

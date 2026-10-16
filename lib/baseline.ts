@@ -244,7 +244,7 @@ export function validateBaseline(raw: {
   /* 평소 투구량은 투구 기록 첫 설정(종류별 횟수)에서만 고친다(2026-10-11) — 여기서는 던지는 손만 */
   const throwingHand = raw.throwingHand.trim();
   if (!(THROWING_HANDS as readonly string[]).includes(throwingHand)) {
-    return { error: '던지는 손을 선택해주세요.', field: 'throwingHand' };
+    return { error: '던지는 손을 선택해 주세요.', field: 'throwingHand' };
   }
   const workout = validateWorkoutBaseline(raw);
   if ('error' in workout) return workout;
@@ -254,7 +254,7 @@ export function validateBaseline(raw: {
     !(COMPETITION_LEVELS as readonly string[]).includes(competitionLevel)
   ) {
     return {
-      error: '어디서 야구를 하시는지 다시 선택해주세요.',
+      error: '어디서 야구를 하시는지 다시 선택해 주세요.',
       field: 'competitionLevel',
     };
   }
@@ -335,7 +335,7 @@ export function validatePitchSetup(raw: {
   | { value: PitchBaselineAnswers & { baselineMix: BaselineMix } } {
   const throwingHand = raw.throwingHand.trim();
   if (!(THROWING_HANDS as readonly string[]).includes(throwingHand)) {
-    return { error: '던지는 손을 선택해주세요.', field: 'throwingHand' };
+    return { error: '던지는 손을 선택해 주세요.', field: 'throwingHand' };
   }
   const num = (s: string) => (/^[0-7]$/.test(s.trim()) ? Number(s.trim()) : null);
   const mix = { catch: num(raw.mixCatch), bullpen: num(raw.mixBullpen), game: num(raw.mixGame) };
@@ -358,7 +358,7 @@ export function validateWorkoutBaseline(raw: {
   | { value: { baselineWorkoutFreq: string } } {
   const baselineWorkoutFreq = raw.baselineWorkoutFreq.trim();
   if (!BASELINE_WORKOUT_FREQ_NAMES.includes(baselineWorkoutFreq)) {
-    return { error: '평소 웨이트 횟수를 선택해주세요.', field: 'baselineWorkoutFreq' };
+    return { error: '평소 웨이트 횟수를 선택해 주세요.', field: 'baselineWorkoutFreq' };
   }
   return { value: { baselineWorkoutFreq } };
 }

@@ -273,7 +273,7 @@ export function SetupWizard({
       case 'summary':
         return {
           title: `${name ? `${name} 님의 ` : ''}계획이에요`,
-          desc: '저장하면 영양 탭과 홈이 이 숫자로 바뀌어요. 언제든 영양 탭의 목표 창에서 고칠 수 있어요.',
+          desc: '저장하면 영양 탭과 홈이 이 숫자로 바뀌어요. 목표 창에서 고칠 수 있어요.',
         };
       default:
         return nutritionStepTitle(key.slice(2) as NutritionStepKey, ctx);
