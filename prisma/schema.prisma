@@ -492,6 +492,8 @@ model UserDrillLog {
 
   @@id([userId, guideId, date])
   @@index([userId, date])
+  // 2026-10-16 통합 검토 — 드릴을 지울 때 이어 지우기가 찾는 칸
+  @@index([guideId])
 }
 
 /**
@@ -537,6 +539,8 @@ model UserExerciseFavorite {
 
   @@id([userId, exerciseId])
   @@index([userId])
+  // 2026-10-16 통합 검토 — 운동을 지울 때 이어 지우기가 찾는 칸
+  @@index([exerciseId])
 }
 
 /**
@@ -582,6 +586,8 @@ model UserDrillFavorite {
 
   @@id([userId, guideId])
   @@index([userId])
+  // 2026-10-16 통합 검토 — 드릴을 지울 때 이어 지우기가 찾는 칸
+  @@index([guideId])
 }
 
 model PitchLog {
@@ -617,6 +623,9 @@ model PitchLog {
   user             User              @relation(fields: [userId], references: [id], onDelete: Cascade)
   poseAnalyses     PoseAnalysis[]
   velocitySessions VelocitySession[]
+
+  // 2026-10-16 통합 검토 — 홈 · 투구 · 트레이닝이 화면마다 [userId, date] 로 십여 번 읽는데 색인이 하나도 없어 표 전체를 훑었다
+  @@index([userId, date])
 }
 
 /**
@@ -680,6 +689,8 @@ model VelocitySession {
   attempts VelocityAttempt[]
 
   @@index([userId, date])
+  // 2026-10-16 통합 검토 — 투구 기록을 지울 때 이어진 세션의 pitchLogId 를 비우는(SetNull) 찾기 · 측정 → 기록 잇기
+  @@index([pitchLogId])
 }
 
 /**
@@ -994,6 +1005,10 @@ model UserExerciseLog {
   exercise ExerciseVideo @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
 
   @@id([userId, exerciseId, date])
+  // 2026-10-16 통합 검토 — 날짜 범위 조회(지난 운동 · 부하 · 암케어)는 기본 키(userId, exerciseId, date)로 못 좁힌다. exerciseId 는 운동을 지울 때
+  // 이어 지우기(relationMode prisma — DB 외래키가 없어 Prisma 가 찾아 지운다)가 표 전체를 훑지 않게
+  @@index([userId, date])
+  @@index([exerciseId])
 }
 
 /**
@@ -1200,6 +1215,9 @@ model Article {
   createdAt     DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // 2026-10-16 통합 검토 — 탈퇴 때 이어 지우기가 찾는 칸
+  @@index([userId])
 }
 
 /// 관리자가 공용 내용을 바꿀 때마다 한 줄씩 쌓이는 기록 — '패치노트'.
