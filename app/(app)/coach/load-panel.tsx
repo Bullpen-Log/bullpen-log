@@ -180,8 +180,7 @@ export function LoadPanel({
         missingWarningAt != null &&
         missingDays >= missingWarningAt && (
           <p className="border-t border-warn-line bg-warn-bg px-(--block-pad) py-3 text-xs leading-relaxed text-warn">
-            최근 {CHRONIC_WINDOW_DAYS}일 중 {missingDays}일은 기록이 없어 안 던진 날로
-            셌어요. 그래서 지수가 낮게 나올 수 있어요. 던진 날이 있으면{' '}
+            기록 없는 날이 {missingDays}일이라 지수가 낮게 나올 수 있어요.{' '}
             <Link href="/today" className="font-semibold text-sky-strong">
               투구 일지
             </Link>
