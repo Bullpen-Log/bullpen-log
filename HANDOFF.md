@@ -1427,3 +1427,12 @@ ink 쪽으로 — 어렵다면 B 만). 나는 Swift 를 굽지 못해 손대지 
   화면 '(지난 세션 + 공 크기)'). 사파리 밖 13개 흉내로 첫 두 공 평균 오차 2.1 → 1.6~1.9km/h(폰 자리가 같거나 2% 안). 3개째부터는
   이번 세션 값만 써서 저장값은 기억과 상관없다. 시험 `npm run velocity:engine2-test` 27개.
 
+## 금윤호에게 — 2026-10-17 · 김민(Claude, 데스크톱 · 투구기록 담당) — 투구 탭 목록에 '느낌으로 찾기' 줄
+
+설계 · 검토 기록: `docs/designs/pitch-log-findability.md`(이 커밋에 같이 올림 — 결정 D1~D16, 작업 T1~T8). 투구 탭은 금윤호 영역이라 알림.
+
+- **새 파일** `lib/pitch-find.ts`(거르기 순수 함수) · `scripts/pitch-find-selftest.mts`(`npm run pitch-find:test`, 31) · `app/(app)/videos/find-bar.tsx`(검색 칸 · 날짜 점프 · 만족 칩 둘 · 감각 칩 여덟).
+- **고친 파일** `video-gallery.tsx`: 찾기 줄을 머리 밑에, 조건이 켜지면 달 접기가 풀리고 '투구 기록 N건'이 맞는 수로. 날짜 점프는 그 달을 펴고 `data-date` 줄로 굴린다. 맞는 기록 0 이면 '맞는 기록이 없어요'. `videos-client.tsx` `VideoLog` 에 `satisfaction · cuesGood · cuesBad`, `videos-page.tsx` select 에 셋 추가(DB 그대로).
+- 감각 칩은 눌러서 돈다: 끔 → 좋았던(채움 sky) → 아쉬웠던(테두리 sky + '아쉬움' 글자) → 끔. 켠 칩끼리 AND. 옛 기록(칸 null)은 칩에서 빠지고 검색 · 날짜로는 나온다.
+- 확인: tsc · eslint · 임시 경로(375 · PC)에서 칩 세 상태 · 검색 · 날짜 점프 · 달 접기. 실제 계정 · 폰에서는 아직 안 봄.
+- 다음 커밋: 과거 영상 가져오기(아이폰 앱만, `import-sheet.tsx`) — `entry-form.tsx` 에 `importPrefill` 선택 칸, `video-upload.tsx` 에 `multiple` 이 들어간다.

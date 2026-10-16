@@ -23,6 +23,8 @@ import { setFeaturedVideo } from '@/app/actions/featured-video';
 import type { ClipOption } from './compare-view';
 import type { VideoLog } from './videos-client';
 import { OPEN_POPUP_TYPES } from '@/lib/transition-types';
+import { EMPTY_FIND, filterLogs, isFindActive, type FindQuery } from '@/lib/pitch-find';
+import { FindBar } from './find-bar';
 
 /**
  * 투구 기록을 달별로 모아 보는 곳 — 영상이 있는 기록은 영상 한 장면과 함께.
@@ -129,6 +131,13 @@ export function VideoGallery({
   const speedUnit = useSpeedUnit();
   const [filter, setFilter] = useState<string>('all');
   const [sort, setSort] = useState<Sort>('recent');
+  /*
+   * 느낌으로 찾기(2026-10-16, docs/designs/pitch-log-findability.md) — 검색 칸 · 감각 칩 · 만족 칩은 find-bar.tsx 가 그리고
+   * 거르기는 lib/pitch-find.ts. 조건이 하나라도 켜지면 달 접기를 풀어 맞는 기록을 한 줄로 다 보인다.
+   */
+  const [find, setFind] = useState<FindQuery>(EMPTY_FIND);
+  const finding = isFindActive(find);
+  const shown = useMemo(() => filterLogs(logs, find), [logs, find]);
   const [picked, setPicked] = useState<(Clip | null)[]>([null, null]);
   const [toggled, setToggled] = useState<Record<string, boolean>>({});
   /* 고른 둘 막대는 화면 맨 위(body)에 낸다 — 서버 그림에는 문서가 없어 붙은 뒤에만 */
@@ -136,7 +145,7 @@ export function VideoGallery({
 
   const clips = useMemo<Clip[]>(
     () =>
-      logs.flatMap((log): Clip[] => {
+      shown.flatMap((log): Clip[] => {
         const rest = log.sessionType === REST_SESSION_TYPE;
         const velocity =
           log.maxVelocity != null ? formatSpeed(log.maxVelocity, speedUnit) : null;
@@ -178,12 +187,12 @@ export function VideoGallery({
         }));
       }),
     /* 단위를 바꾸면 요약 글도 다시 만들어야 한다 — 빼면 목록만 km/h 로 남는다 */
-    [logs, speedUnit]
+    [shown, speedUnit]
   );
   /* 영상이 있는 카드 — 2분할 비교는 이것만 고른다 */
   const videoCount = useMemo(() => clips.filter((c) => c.path).length, [clips]);
-  /* 기록 수(카드 수가 아니라) — 영상이 둘인 기록도 한 건 */
-  const recordCount = logs.length;
+  /* 기록 수(카드 수가 아니라) — 영상이 둘인 기록도 한 건. 찾는 중이면 맞는 기록만 */
+  const recordCount = shown.length;
 
   /* 종류별 기록 수 — 카드 수가 아니라 기록 수(위의 '투구 기록 N건'과 같게) */
   const counts = useMemo(() => {
@@ -228,7 +237,8 @@ export function VideoGallery({
         : months[0]?.month;
     return new Set(wanted ? [wanted] : []);
   }, [months, initialMonth]);
-  const isOpen = (month: string) => toggled[month] ?? openByDefault.has(month);
+  /* 찾는 중에는 모든 달이 펴진다 — 접힌 달 속의 맞는 기록을 못 보고 지나치지 않게 */
+  const isOpen = (month: string) => finding || (toggled[month] ?? openByDefault.has(month));
 
   /* 캘린더에서 들어왔으면 그 달까지 내려 준다 — 펴 두기만 하면 아래에 있어 안 보인다 */
   useEffect(() => {
@@ -237,6 +247,18 @@ export function VideoGallery({
       .getElementById(`month-${initialMonth}`)
       ?.scrollIntoView({ block: 'start', behavior: 'smooth' });
   }, [initialMonth]);
+
+  /* 날짜 점프 — 그 달을 펴고 그 날짜 줄(없으면 그 달 머리)로 내려 준다. 펴는 그리기가 끝난 다음 장면에 굴린다 */
+  const jumpTo = (date: string) => {
+    const month = date.slice(0, 7);
+    setToggled((prev) => ({ ...prev, [month]: true }));
+    requestAnimationFrame(() => {
+      const el =
+        document.querySelector(`[data-date="${date}"]`) ??
+        document.getElementById(`month-${month}`);
+      el?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    });
+  };
 
   /*
    * 날짜별 영상 — 남긴 차례대로(서버가 그 차례로 준다). 대표를 안 고른 날은 이 첫
@@ -300,7 +322,7 @@ export function VideoGallery({
         .filter((g) => isOpen(g.month))
         .flatMap((g) => g.items.flatMap((c) => (c.path ? [c.path] : []))),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [months, toggled, openByDefault]
+    [months, toggled, openByDefault, finding]
   );
   /*
    * 칸의 그림은 저장해 둔 미리보기(JPEG, lib/pitch-thumbs.ts)부터 — 칸마다 <video> 를 두면 영상 머리를 여럿 받아
@@ -343,7 +365,7 @@ export function VideoGallery({
   const slotOf = (id: string) => picked.findIndex((p) => p?.id === id);
   const ready = picked[0] != null && picked[1] != null;
 
-  if (clips.length === 0) {
+  if (logs.length === 0) {
     return (
       <p className="rounded-2xl empty-well px-4 py-10 text-center text-sm leading-relaxed text-muted">
         아직 남긴 투구 기록이 없어요.
@@ -381,6 +403,8 @@ export function VideoGallery({
           </select>
         </label>
       </div>
+
+      <FindBar value={find} onChange={setFind} onJump={jumpTo} />
 
       <div className="flex items-center gap-2">
         <div className="no-scrollbar -my-1 flex min-w-0 flex-1 gap-1.5 overflow-x-auto py-1">
@@ -427,6 +451,12 @@ export function VideoGallery({
           className="rounded-2xl border border-danger-line bg-danger-bg p-(--block-pad) text-xs text-danger"
         >
           {featureError}
+        </p>
+      )}
+
+      {months.length === 0 && (
+        <p className="rounded-2xl empty-well px-4 py-8 text-center text-sm text-muted">
+          맞는 기록이 없어요. 조건을 줄여 보세요.
         </p>
       )}
 
@@ -557,7 +587,7 @@ export function VideoGallery({
                   const isFeatured = featuredOf(clip.date) === clip.path;
 
                   return (
-                    <li key={clip.id} className="flex items-center">
+                    <li key={clip.id} data-date={clip.date} className="flex scroll-mt-20 items-center">
                       <div className="min-w-0 flex-1">
                         {selecting && !clip.path ? (
                           /* 영상이 없는 기록은 견줄 수 없다 — 고르는 동안에는 흐리게 둔다 */

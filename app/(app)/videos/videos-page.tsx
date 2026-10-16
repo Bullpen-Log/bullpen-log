@@ -89,6 +89,10 @@ export default async function VideosPage({
           maxVelocity: true,
           memo: true,
           videoPaths: true,
+          /* 느낌으로 찾기(목록의 감각 칩 · 만족 칩, lib/pitch-find.ts) */
+          satisfaction: true,
+          cuesGood: true,
+          cuesBad: true,
         },
       }),
       prisma.dailyFeaturedVideo.findMany({

@@ -36,6 +36,10 @@ export type VideoLog = {
   maxVelocity: number | null;
   memo: string | null;
   videoPaths: string[];
+  /** 만족도 1~5 · 좋았던 것 · 아쉬웠던 것(lib/pitch-satisfaction.ts) — 목록의 느낌으로 찾기(lib/pitch-find.ts). 옛 기록은 null · [] */
+  satisfaction: number | null;
+  cuesGood: string[];
+  cuesBad: string[];
 };
 
 /*
