@@ -76,7 +76,7 @@ export type Pitch3dInput = {
   slowmoFps?: number | null;
   screenRecorded?: boolean;
   /** 시험용 — 옆 영상 시각(초)으로 준 순간. 없으면 옆 영상 규칙(detectPitchEvents) */
-  events?: { kneeUp?: number | null; footPlant: number; footFlat?: number; release: number };
+  events?: { kneeUp?: number | null; footPlant: number; footContact?: number; release: number };
   /** 초점 사전(선택) — 렌즈를 알 때만(camera.ts FOCAL_PRIOR_1X). 없으면 예전과 같다 */
   focalPrior?: FocalPrior;
 };
@@ -227,8 +227,8 @@ export type Pitch3dCore = {
   backTime: (number | null)[];
   /** 다듬은 3D(synced 차례, 보정 좌표계) */
   smooth: Frame3[];
-  /** footFlat = 앞발 전체가 닿은 장면(지표 · 화면의 '착지', 없으면 footPlant) — footPlant 는 엔진이 발을 묶는 기준 */
-  evIdx: { kneeUp: number | null; footPlant: number; footFlat: number; release: number };
+  /** footContact = 앞발이 처음 닿은 장면(지표 · 화면의 '착지', 없으면 footPlant) — footPlant 는 엔진이 발을 묶는 기준 */
+  evIdx: { kneeUp: number | null; footPlant: number; footContact: number; release: number };
   axes: WorldAxes;
   /** 키(보정 좌표계 단위) */
   H: number;
@@ -249,7 +249,7 @@ export function analyzePitch3dCore(input: Pitch3dInput): Pitch3dCore | Pitch3dFa
   const ev = input.events ?? {
     kneeUp: sideEv.kneeUp?.t ?? null,
     footPlant: sideEv.footPlant?.t ?? NaN,
-    footFlat: sideEv.footFlat?.t,
+    footContact: sideEv.footContact?.t,
     release: sideEv.release?.t ?? NaN,
   };
   if (
@@ -491,11 +491,11 @@ export function analyzePitch3dCore(input: Pitch3dInput): Pitch3dCore | Pitch3dFa
   const evIdx = {
     kneeUp: ev.kneeUp != null && ev.kneeUp >= synced[0].t ? nearest(ev.kneeUp) : null,
     footPlant: nearest(ev.footPlant),
-    footFlat: nearest(ev.footPlant),
+    footContact: nearest(ev.footPlant),
     release: nearest(ev.release),
   };
-  if (ev.footFlat != null && ev.footFlat >= ev.footPlant && ev.footFlat < ev.release)
-    evIdx.footFlat = Math.min(nearest(ev.footFlat), evIdx.release - 1);
+  if (ev.footContact != null && ev.footContact <= ev.footPlant)
+    evIdx.footContact = Math.min(evIdx.footPlant, Math.max(nearest(ev.footContact), (evIdx.kneeUp ?? -1) + 1));
 
   /* 품질 */
   const boneCv = { trunk: 0, legs: 0, upperArm: 0, forearm: 0 };
@@ -557,7 +557,7 @@ export function analyzePitch3dCore(input: Pitch3dInput): Pitch3dCore | Pitch3dFa
 
   /* 착지 → 릴리스 시간: 원본이면 영상 시간 그대로(장면이 촘촘할 때), 화면 녹화면 슬로모 fps 를 알 때만(재생 30fps 가정) */
   let plantMs: number | null = null;
-  const dtMedia = synced[evIdx.release].t - synced[evIdx.footFlat].t;
+  const dtMedia = synced[evIdx.release].t - synced[evIdx.footContact].t;
   if (input.screenRecorded !== false) {
     if (input.slowmoFps) plantMs = dtMedia * (30 / input.slowmoFps) * 1000;
     else warnings.add('screen');
@@ -587,7 +587,7 @@ export function analyzePitch3dCore(input: Pitch3dInput): Pitch3dCore | Pitch3dFa
   const metrics = computeMetrics(
     smooth,
     { ...axes, hand, height: H },
-    { ...evIdx, footPlant: evIdx.footFlat },
+    { ...evIdx, footPlant: evIdx.footContact },
     factors,
     plantMs
   );

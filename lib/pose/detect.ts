@@ -44,11 +44,10 @@ export type PitchEvents = {
   kneeUp: PitchEvent | null;
   footPlant: PitchEvent | null;
   /**
-   * 앞발 전체(뒤꿈치 · 발끝)가 닿은 순간 — 화면 · 지표가 '착지'로 쓴다(2026-10-15 김민: "처음 한 부분이 닿는 때가 아니라 완전히 착지했을 때").
-   * footPlant(발목이 닿은 순간)는 3D 엔진이 앞발을 땅에 묶는 데 그대로 쓴다 — 늦추면 발끝이 내려오는 동안 다리가 덜 묶여 떨었다.
-   * 발끝을 못 보면 footPlant 와 같다.
+   * 앞발이 처음 땅에 닿은 순간 — 화면 · 지표가 '착지'로 쓴다(2026-10-16 김민: 드라이브라인 · 트레드처럼 '지면에 닿는 순간').
+   * footPlant(발목이 디딘 높이로 내려온 순간)는 3D 엔진이 앞발을 땅에 묶는 데 그대로 쓴다. 늘 footPlant 와 같거나 앞이다.
    */
-  footFlat: PitchEvent | null;
+  footContact: PitchEvent | null;
   release: PitchEvent | null;
 };
 
@@ -79,13 +78,12 @@ const PLANT_Y_TOL = 0.03;
  */
 const PLANT_AIR_GATE = 0.08;
 /**
- * 앞발 전체가 닿은 순간(footFlat) — 발목 기준 착지 뒤 발끝도 디딘 높이에서 몸통의 PLANT_Y_TOL 안으로 내려와 PLANT_TOE_HOLD 장면 머무는 첫 장면.
- * 발목 기준 착지에서 발끝은 몸통의 5~17% 위였고 0.05~0.1초 뒤 닿았다(실험실 샘플 2 · 4 · s9 · s10). PLANT_TOE_MAX_S 안에 안 닿으면(발끝 점이
- * 흔들리는 화면 녹화) 발목 기준 그대로. 발끝 = MediaPipe 31 · 32(foot index, v2 의 lTo · rTo).
+ * 첫 닿음(footContact) = 앞발이 내딛기 최고 속도의 이 비율까지 느려지는 순간(두 장면 사이는 선으로 나눔) — 닿으면 땅이 발을 붙잡아 앞으로 가기가 확 준다.
+ * 마커 촬영 15구(2026-10-12, 네 대 교차 뒤꿈치 · 발끝 높이가 정답, 거친 30fps): 발목 기준 착지(footPlant)는 첫 닿음보다 가운데 93ms 늦었고(평균 절대 99),
+ * 이 비율로 가운데 +21ms · 평균 절대 26ms. 2D 발 점 높이로는 못 잡는다 — 발이 땅 위 몇 cm 로 미끄러져 들어와 옆 영상에서 몇 px 차이다(평균 절대 65).
+ * 비율은 장면 수로 다듬은 속도라 fps 가 오르면 이르게 잡힌다(60fps −6 · 120fps −22ms) — 서버의 순간 찾기는 늘 거친 30fps.
  */
-const PLANT_TOE_HOLD = 2;
-const PLANT_TOE_MAX_S = 0.2;
-const TOE = { left: 31, right: 32 } as const;
+const CONTACT_SPEED_RATIO = 0.5;
 
 /** 투구로 인정할 최소 팔 전방 신전 (몸통 길이 배수) */
 const MIN_THROW_EXT = 0.4;
@@ -153,7 +151,7 @@ export function detectPitchEvents(
     direction: 1,
     kneeUp: null,
     footPlant: null,
-    footFlat: null,
+    footContact: null,
     release: null,
   });
 
@@ -449,7 +447,7 @@ export function detectPitchEvents(
   }
 
   let footPlant: PitchEvent | null = null;
-  let footFlat: PitchEvent | null = null;
+  let footContact: PitchEvent | null = null;
   let plantIdx = -1;
   if (peakIdx >= 0 && peakV > 0) {
     for (let i = peakIdx + 1; i <= releaseIdx; i++) {
@@ -490,36 +488,19 @@ export function detectPitchEvents(
     }
     footPlant = { t: frames[plantIdx].t, confidence: px(plantIdx, leadAnkleIdx)?.v ?? 0 };
 
-    /* 앞발 전체가 닿은 순간(PLANT_TOE_HOLD) */
-    const toeY = smooth(
-      frames.map((_, i) => {
-        const p = px(i, TOE[leadSide]);
-        return p && p.v >= VIS_OK ? p.y : null;
-      }),
-      5
-    );
-    const toeWin = toeY
-      .slice(plantIdx, releaseIdx + 1)
-      .filter((v): v is number => v != null)
-      .sort((a, b) => a - b);
-    const toeGround = toeWin.length >= 3 ? toeWin[Math.floor((toeWin.length - 1) * 0.75)] : null;
-    let flatIdx = plantIdx;
-    if (toeGround != null) {
-      const down = (i: number) => {
-        const y = toeY[i];
-        return y != null && y >= toeGround - PLANT_Y_TOL * trunk;
+    /* 첫 닿음(CONTACT_SPEED_RATIO) — 내딛기 최고 속도 뒤 ~ 발목 기준 착지 사이 */
+    footContact = footPlant;
+    for (let i = peakIdx + 1; i <= plantIdx; i++) {
+      const v = forwardV[i];
+      if (v == null || v > peakV * CONTACT_SPEED_RATIO) continue;
+      const v0 = forwardV[i - 1];
+      const a = v0 != null && v0 > v ? (v0 - peakV * CONTACT_SPEED_RATIO) / (v0 - v) : 1;
+      footContact = {
+        t: frames[i - 1].t + Math.min(1, Math.max(0, a)) * (frames[i].t - frames[i - 1].t),
+        confidence: px(i, leadAnkleIdx)?.v ?? 0,
       };
-      const until = frames[plantIdx].t + PLANT_TOE_MAX_S;
-      for (let i = plantIdx; i <= releaseIdx && frames[i].t <= until; i++) {
-        let hold = true;
-        for (let k = 0; k < PLANT_TOE_HOLD; k++) if (i + k > releaseIdx || !down(i + k)) hold = false;
-        if (hold) {
-          flatIdx = i;
-          break;
-        }
-      }
+      break;
     }
-    footFlat = { t: frames[flatIdx].t, confidence: px(flatIdx, TOE[leadSide])?.v ?? footPlant.confidence };
   }
 
   // 6) 니업 — 착지 전 구간에서 리드 무릎이 골반보다 가장 높이 올라간 순간.
@@ -563,7 +544,7 @@ export function detectPitchEvents(
     direction,
     kneeUp,
     footPlant,
-    footFlat,
+    footContact,
     release,
   };
 }

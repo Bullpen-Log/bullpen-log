@@ -22,8 +22,8 @@ for p in range(2, 17):
     te = np.array(r["t"]) - cal["offsets"][str(p)]["1"]; n = len(te)
     K = {nm: np.array([[np.interp(tt, tq, toW(rec[f"K_{kn}_{sd}"])[:, a], left=np.nan, right=np.nan) for a in range(3)] for tt in te])
          for nm, (kn, sd) in B.K4_OF.items()}
-    # 착지 = 앱 점검과 같은 장면(앞발 전체가 닿은 footFlat, 옛 결과는 footPlant) — 다른 장면끼리 견주면 앞무릎 착지 상관이 0.75 → 0.69 로 보였다(2026-10-15)
-    ev = r["events"]; ku, fp, rl = ev["kneeUp"], ev.get("footFlat", ev["footPlant"]), ev["release"]
+    # 착지 = 앱 점검과 같은 장면(앞발이 처음 닿은 footContact, 옛 결과는 footPlant) — 다른 장면끼리 견주면 앞무릎 착지 상관이 0.75 → 0.69 로 보였다(2026-10-15)
+    ev = r["events"]; ku, fp, rl = ev["kneeUp"], ev.get("footContact", ev["footPlant"]), ev["release"]
     hm = (K["lHip"] + K["rHip"]) / 2
     F = hz(hm[fp] - hm[ku]); F /= np.linalg.norm(F)
     ahead = lambda k: float((hm[k] - K["rAn"][k]) @ F * 100)

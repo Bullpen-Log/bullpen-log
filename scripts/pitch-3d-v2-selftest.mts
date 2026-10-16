@@ -777,6 +777,13 @@ console.log('■ node 실행기(segment · fit)');
       JSON.stringify(seg.back)
     );
     check('순간을 찾았다(착지 < 릴리스)', seg.events.footPlant < seg.events.release);
+    /* 화면 · 지표의 '착지' = 첫 닿음(2026-10-16) — 발목 기준 착지와 같거나 앞, 마커 15구에서 앞선 몫은 0.15초 안 */
+    const fc = seg.events.footContact;
+    check(
+      '첫 닿음: 발목 기준 착지와 같거나 0.15초 안으로 앞',
+      fc != null && fc <= seg.events.footPlant && seg.events.footPlant - fc < 0.15,
+      `${fc} · ${seg.events.footPlant}`
+    );
   }
   check('segment: 입력 모양이 틀리면 video', !pickSegment({ side: null, back: {} }).ok);
   {
@@ -921,6 +928,11 @@ console.log('■ node 실행기(segment · fit)');
   /* segment 가 찾은 순간을 fit 이 넘겨받는다 — 잘라 낸 구간에서 다시 찾다 실패한 2026-10-08 샘플 1 · 3 */
   check('fit 입력 순간: 착지 < 릴리스면 그대로', readV2Events({ kneeUp: 1, footPlant: 2, release: 2.5 })?.release === 2.5);
   check('fit 입력 순간: 뒤바뀌거나 없으면 버림(다시 찾기)', !readV2Events({ footPlant: 2, release: 1 }) && !readV2Events(null));
+  check(
+    'fit 입력 순간: 첫 닿음은 착지와 같거나 앞일 때만',
+    readV2Events({ footPlant: 2, footContact: 1.9, release: 2.5 })?.footContact === 1.9 &&
+      readV2Events({ footPlant: 2, footContact: 2.1, release: 2.5 })?.footContact === undefined
+  );
   if (seg.ok) {
     const withEv = JSON.parse(
       runFit({ side: s.track, back: b.track, hand: 'R', jobId: JOB_ID, poseModel: 'synth', screenRecorded: true, slowmoFps: 240, events: seg.events })

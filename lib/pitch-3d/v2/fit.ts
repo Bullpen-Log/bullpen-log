@@ -1408,7 +1408,7 @@ function fitOnce(raw: V2Input): {
   const metrics = computeMetrics(
     fitted17,
     { ...core.axes, hand: core.hand, height: H },
-    { ...core.evIdx, footPlant: core.evIdx.footFlat },
+    { ...core.evIdx, footPlant: core.evIdx.footContact },
     core.factors,
     core.plantMs
   );
@@ -1417,7 +1417,7 @@ function fitOnce(raw: V2Input): {
   const { origin, ground, R3, axes } = core;
   const keep = decimate(n, MAX_V2_FRAMES, [
     core.evIdx.footPlant,
-    core.evIdx.footFlat,
+    core.evIdx.footContact,
     core.evIdx.release,
     core.evIdx.kneeUp,
   ]);
@@ -1471,7 +1471,7 @@ function fitOnce(raw: V2Input): {
     events: {
       kneeUp: remap(core.evIdx.kneeUp),
       footPlant: remap(core.evIdx.footPlant)!,
-      footFlat: remap(core.evIdx.footFlat)!,
+      footContact: remap(core.evIdx.footContact)!,
       release: remap(core.evIdx.release)!,
     },
     metrics,

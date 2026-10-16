@@ -86,7 +86,7 @@ const yaw = (v: Vec3) => (Math.atan2(v[2], v[0]) * 180) / Math.PI;
 
 export function mechChecks(r: MechChecksInput, heightCm?: number | null): MechChecks {
   const n = r.joints.length;
-  /* 착지 = 앞발 전체가 닿은 장면(2026-10-15 김민) — 옛 결과는 발목이 닿은 장면 */
+  /* 착지 = 앞발이 처음 닿은 장면(2026-10-16 김민 — 기준표 fp_10 과 같은 순간) — 옛 결과는 발목이 닿은 장면 */
   const fp = plantFrame(r.events);
   const rl = r.events.release;
   const ku = r.events.kneeUp;
