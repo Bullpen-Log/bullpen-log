@@ -116,7 +116,6 @@ model User {
   workoutSessions   TrainingSession[]
   articles          Article[]
   checkins          DailyCheckin[]
-  aiReports         AiReport[]
   trainingSetups    DailyTrainingSetup[]
   armcareRoutines   DailyArmcare[]
   myArmcareRoutines UserArmcareRoutine[]
@@ -131,33 +130,6 @@ model User {
   calendarEvents    CalendarEvent[]
   mealPlans         MealPlan[]
   dailyNutrition    DailyNutrition[]
-}
-
-/**
- * 생성된 AI 리포트. 한 번 만든 리포트는 그대로 보관해
- * 다시 열어도 같은 내용과 같은 근거가 보이게 한다.
- */
-model AiReport {
-  id           String   @id @default(uuid())
-  userId       String
-  /// 리포트 기준일
-  asOf         DateTime @db.Date
-  /// 통증 등으로 투구 계획을 내지 않은 리포트인가
-  halted       Boolean  @default(false)
-  haltReason   String?  @db.Text
-  /// AI가 쓴 본문. 계획이 멈춘 리포트에는 없다(AI를 부르지 않음).
-  body         Json?
-  /// 생성 시점의 수치와 계획. 근거를 나중에도 그대로 보여주기 위해 함께 저장한다.
-  facts        Json
-  plan         Json
-  model        String
-  inputTokens  Int      @default(0)
-  outputTokens Int      @default(0)
-  createdAt    DateTime @default(now())
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, asOf])
-  @@index([userId, asOf])
 }
 
 /// 하루 한 번 남기는 몸상태 체크인. 운동 처방과 리포트의 입력이 된다.
@@ -387,26 +359,15 @@ model DailyCheckin {
   /// 전부 고르지 않아도 된다(비어 있으면 안 적은 것). 간편 체크인은 위의 몸 상태·
   /// 컨디션·수면만 받고, 여기는 더 적고 싶은 날에만 채운다.
   /// 1~5 척도는 모두 '클수록 그 느낌이 강하다'로 읽는다(피로 5 = 몹시 피곤).
-  /// 기분만 반대로 클수록 좋다 — 화면에 말로 적어 두어 헷갈리지 않게 한다.
 
   /// 잔 시간(시간). 0.5 단위. 3판(2026-10-13)부터 안 씀 — sleepQuality 로
   sleepHours   Float?
-  /// 전신 피로 1~5 — 3판부터 안 씀(읽지도 쓰지도 않음)
-  fatigue      Int?
   /// 전신 근육통 1~5 — 3판부터 안 씀(통증 · 수면 신호로 대신)
   soreness     Int?
   /// 던지는 팔의 피로 1~5 — 3판부터 묻지 않음(팔 통증 정도에서 어림, lib/checkin.ts armFatigueFromPain)
   armFatigue   Int?
-  /// 스트레스 1~5
-  stress       Int?
-  /// 기분 1(나쁨)~5(좋음)
-  mood         Int?
   /// 오늘 잰 몸무게. 저장은 늘 kg
   bodyWeightKg Float?
-  /// 아침 안정시 심박수(bpm)
-  restingHr    Int?
-  /// 물을 얼마나 마셨나: 충분 / 보통 / 부족
-  hydration    String?
   /// 끼니를 얼마나 챙겼나: 잘 먹음 / 보통 / 부족. 2026-09-30 화면에서 뺐다가 2026-10-07 간편 체크인에 되살림 —
   /// 영양 조언(lib/nutrition/advice.ts, 홈 카드)이 음식 기록 없이도 오늘 몇 g 더 먹을지 어림하는 데 쓴다.
   nutrition    String?
@@ -621,7 +582,6 @@ model PitchLog {
   createdAt   DateTime @default(now())
 
   user             User              @relation(fields: [userId], references: [id], onDelete: Cascade)
-  poseAnalyses     PoseAnalysis[]
   velocitySessions VelocitySession[]
 
   // 2026-10-16 통합 검토 — 홈 · 투구 · 트레이닝이 화면마다 [userId, date] 로 십여 번 읽는데 색인이 하나도 없어 표 전체를 훑었다
@@ -809,43 +769,6 @@ model VelocityAttempt {
   @@index([userId, date])
   @@index([date])
   @@index([sessionId])
-}
-
-/**
- * 폼 분석 결과. 영상 하나당 최신 분석 1개를 보관해 다시 열 때
- * 재분석 없이 바로 보여주고, 지난 세션과의 변화 비교에 쓴다.
- * 측면 촬영이 아니거나 인식이 나쁜 분석은 저장하지 않는다(비교 오염 방지).
- */
-model PoseAnalysis {
-  id               String   @id @default(uuid())
-  userId           String
-  pitchLogId       String
-  /// PitchLog.videoPaths 중 어떤 영상의 분석인지
-  videoPath        String   @unique
-  /// 화면 표기용 좌/우투 (사용자가 전환 버튼으로 고칠 수 있음)
-  throwingSide     String
-  /// 실제 측정에 쓴 팔 (인식 라벨 기준)
-  wristSide        String
-  leadSide         String
-  direction        Int
-  quality          Float
-  coverage         Float
-  /// 자동 감지된 구간 (초)
-  kneeUpT          Float?
-  footPlantT       Float?
-  releaseT         Float?
-  /// 사용자가 프레임으로 직접 보정한 구간 (초)
-  kneeUpManualT    Float?
-  footPlantManualT Float?
-  releaseManualT   Float?
-  /// 지표 배열 [{key,label,phase,value,display,reason,confidence}]
-  metrics          Json
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
-
-  pitchLog PitchLog @relation(fields: [pitchLogId], references: [id], onDelete: Cascade)
-
-  @@index([userId])
 }
 
 /// 영상 탭에서 고른 그날의 대표 투구 영상. 홈 캘린더에서 날짜를 누르면 이 영상을 띄운다.
@@ -1460,8 +1383,6 @@ model DailyNutrition {
   skippedMeals String[] @default([])
   /// 영양 탭 카드에 답한 때 — null 이면 아직 안 물었다(아무것도 안 고른 답과 가른다). 서버가 appNow() 로 적는다
   answeredAt DateTime?
-  /// 그날 사진으로 음식을 알아본 횟수(영양 로드맵 7번 — AI 를 부르므로 하루 상한을 센다). 이 칸만 있는 줄은 체중이 비어 있다 — 체중을 읽는 곳은 모두 weightKg 가 있는 줄만 본다.
-  photoCalls Int     @default(0)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)

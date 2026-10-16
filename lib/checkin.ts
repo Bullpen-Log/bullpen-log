@@ -584,7 +584,7 @@ export function canDoPainRoutine({
  * 2026-09-30 에 뺐다(사용자: "사용하지 않는 굳이 필요없는 건 빼줘") — 전신 피로 · 스트레스 · 기분 ·
  * 아침 심박 · 수분 · 식사. 어느 계산도 읽지 않고 홈 달력에 보이기만 하던 칸들이다(먹은 것은 영양 탭이
  * 끼니별로 받는다). 잔 시간 · 근육통도 같이 뺐다가 같은 날 되살렸다 — 트레이닝 추천이 읽게 연결해서
- * (위 구간). DB 칸(DailyCheckin 의 fatigue · stress · mood · restingHr · hydration · nutrition)과 그동안
+ * (위 구간). DB 칸(DailyCheckin 의 nutrition — fatigue · stress · mood · restingHr · hydration 은 2026-10-16 에 지웠다)과 그동안
  * 적은 값은 그대로 있다 — 여기서 읽지도 쓰지도 않을 뿐이라, 저장해도 예전 값이 지워지지 않는다.
  * 다시 쓰려면 아래 목록과 폼(components/checkin-form.tsx)에 칸을 되살리면 된다.
  */
