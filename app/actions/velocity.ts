@@ -596,7 +596,8 @@ export async function attachClip(
 export type AttemptInput = {
   /** YYYY-MM-DD */
   date: string;
-  kind: 'ball' | 'motion';
+  /** 'seed' = 앱의 공 후보(2026-10-16) */
+  kind: 'ball' | 'motion' | 'seed';
   /** 알림 시각(앱 카메라 시계 초) · 세기 */
   atSec: number | null;
   strength: number | null;
@@ -609,6 +610,8 @@ export type AttemptInput = {
   confidence: string | null;
   /** 엔진의 거리 보고(DistanceReport) — 못 잰 까닭을 되짚는 숫자들만 남긴다(sanitizeDistance) */
   distance?: unknown;
+  /** 알림 때 폰 발열 상태(0 보통 ~ 3 아주 뜨거움, 옛 앱은 없음) — analysis.thermal 로 */
+  thermal?: number | null;
 };
 
 /**
@@ -631,7 +634,7 @@ export async function recordVelocityAttempt(
     data: {
       userId: user.id,
       date: at,
-      kind: input.kind === 'ball' ? 'ball' : 'motion',
+      kind: input.kind === 'ball' || input.kind === 'seed' ? input.kind : 'motion',
       atSec: optional(input.atSec, 0, 1_000_000),
       strength: optional(input.strength, 0, 1_000_000),
       ok,
@@ -640,7 +643,14 @@ export async function recordVelocityAttempt(
       trackFrames: Math.round(num(input.trackFrames, 0, 10_000) ?? 0),
       rawKmh: optional(input.rawKmh, 0, 300),
       confidence: ['high', 'medium', 'low'].includes(confidence) ? confidence : null,
-      analysis: distance ? ({ distance } as Prisma.InputJsonValue) : undefined,
+      analysis: (() => {
+        const thermal = optional(input.thermal, 0, 3);
+        if (!distance && thermal == null) return undefined;
+        return {
+          ...(distance ? { distance } : {}),
+          ...(thermal != null ? { thermal: Math.round(thermal) } : {}),
+        } as Prisma.InputJsonValue;
+      })(),
       engineVersion: VELOCITY_ENGINE_VERSION,
     },
     select: { id: true },

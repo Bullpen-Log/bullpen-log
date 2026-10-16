@@ -55,7 +55,8 @@ export type DualCaptureHandlers = {
 export type AttemptInfo = {
   /** 결과 번호(ResultMeta.id 와 같다) — 화면이 공과 짝을 맞춘다 */
   id: number;
-  kind: 'ball' | 'motion';
+  /** 'seed' = 앱의 공 후보(2026-10-16) — 화면에 안 띄우고 그 시각으로 재 본 것 */
+  kind: 'ball' | 'motion' | 'seed';
   /** 알림 시각(앱 카메라 시계 초) · 세기(MotionTrigger strength) */
   atSec: number;
   strength: number;
@@ -70,6 +71,11 @@ export type AttemptInfo = {
   distance: DistanceReport | null;
   /** 못 잰 공의 클립 — 보정용 저장이면 화면이 서버에 올린다 */
   clip: PitchClip | null;
+  /**
+   * 알림 때 폰 발열 상태(ProcessInfo.ThermalState — 0 보통 · 1 따뜻 · 2 뜨거움 · 3 아주 뜨거움). 옛 앱은 없다(null).
+   * 2026-10-16: 저장하고 이어서 재니 거의 안 잡혔는데, 발열로 움직임 알림을 쉬었는지 기록이 없어 가를 수 없었다.
+   */
+  thermal: number | null;
 };
 
 type Bridge = {
@@ -138,10 +144,14 @@ type Job = {
   visible: boolean;
   /** 공 알림으로 만든 작업 — at 이 공이 처음 보인 때다(움직임 작업이 공 알림으로 '보이게' 바뀐 것은 아님) */
   ball: boolean;
+  /** 앱의 공 후보로 만든 작업 — 안 보이게 시작해 그 시각(ballAt)으로 잰다 */
+  seed?: boolean;
   /** 움직임 작업의 클립 창 안에 공 알림이 왔으면 그 시각(카메라 시계) — 그 공 시각으로 잰다 */
   ballAt?: number;
   /** 앱 알림의 세기(MotionTrigger strength) — 시도 기록에 남긴다 */
   strength: number;
+  /** 알림 때 폰 발열 상태(AttemptInfo.thermal) */
+  thermal: number | null;
   analyzing: boolean;
 };
 
@@ -294,13 +304,17 @@ export class DualCapture {
     this.unlisten.push(
       listen('throw', (d) => {
         const at = Number(d.atSec);
+        const heat = Number(d.thermal);
+        const thermal = Number.isFinite(heat) ? heat : null;
+        if (!Number.isFinite(at)) return;
+        /* 앱이 발열로 움직임 재기를 쉬었다 — 재지 않고 시도 기록에만 남긴다 */
+        if (d.kind === 'skip') {
+          this.reportSkip(at, Number(d.strength) || 0, thermal);
+          return;
+        }
         /* 옛 앱은 kind 가 없다 — 움직임으로 본다 */
-        if (Number.isFinite(at))
-          this.onThrow(
-            at,
-            d.kind === 'ball' ? 'ball' : 'motion',
-            Number(d.strength) || 0
-          );
+        const kind = d.kind === 'ball' || d.kind === 'seed' ? d.kind : 'motion';
+        this.onThrow(at, kind, Number(d.strength) || 0, thermal);
       }),
       listen('error', (d) => this.handlers.onError(String(d.message ?? '카메라 오류'))),
       /* 실제로 받은 장면 수(1초마다) — 처리가 밀려 장면을 버리면 약속한 60 보다 낮다. 옛 앱은 이 알림이 없다 */
@@ -350,9 +364,19 @@ export class DualCapture {
     );
   }
 
-  private onThrow(atSec: number, kind: 'ball' | 'motion', strength = 0) {
+  private onThrow(
+    atSec: number,
+    kind: 'ball' | 'motion' | 'seed',
+    strength = 0,
+    thermal: number | null = null
+  ) {
     if (!this.running || !this.armed) return;
     const ball = kind === 'ball';
+    /*
+     * 공 후보(seed, 2026-10-16) — 앱이 0.2초 전 장면과 견줘 본 공 · 손 덩어리를 뗀 공. 진짜 공을 더 잡지만 헛것도 섞여, 화면에 띄우지 않고
+     * 그 시각으로 재 본다(공 길이 나오면 그때 보인다 · 없으면 조용히 'no-ball').
+     */
+    const seed = kind === 'seed';
     /* 재고 있는 클립 창 안이면 그 클립이 이 공을 담는다 — 공이 확실하면 화면에만 띄운다 */
     const covering = this.jobs.find((j) => atSec >= j.start && atSec <= j.end);
     if (covering) {
@@ -360,7 +384,7 @@ export class DualCapture {
        * 움직임 클립(와인드업에서 알림) 안에 공 알림이 왔다 — 그 공 시각으로 잰다(거친 훑기는 와인드업 몸 움직임을 공으로 골라 진짜 공 구간을
        * 놓치곤 했다: 2026-10-09 실내 41.3초 움직임 길 59.2 · 공 길 64.5km/h, 99.5초 움직임 길 못 잼 · 공 길 65.6)
        */
-      if (ball && !covering.ball && covering.ballAt == null) covering.ballAt = atSec;
+      if ((ball || seed) && !covering.ball && covering.ballAt == null) covering.ballAt = atSec;
       if (ball && !covering.visible) {
         covering.visible = true;
         this.syncStatus();
@@ -374,7 +398,9 @@ export class DualCapture {
       if (ball) this.handlers.onNotice?.('계산이 밀려 공 하나를 건너뛰었어요');
       return;
     }
-    const [before, after] = ball ? BALL_CLIP : MOTION_CLIP;
+    /* 후보는 비어 있을 때만 — 헛 후보가 자리를 차지해 뒤따르는 확실한 공을 건너뛰지 않게 */
+    if (seed && this.jobs.length > 0) return;
+    const [before, after] = ball || seed ? BALL_CLIP : MOTION_CLIP;
     const job: Job = {
       id: ++this.nextId,
       at: atSec,
@@ -382,7 +408,9 @@ export class DualCapture {
       end: atSec + after,
       visible: ball,
       ball,
+      ...(seed ? { seed: true, ballAt: atSec } : {}),
       strength,
+      thermal,
       analyzing: false,
     };
     this.jobs.push(job);
@@ -535,8 +563,9 @@ export class DualCapture {
   }
 
   /**
-   * 시도 기록 — 계산이 끝난 작업마다 화면에 알린다(쟀든 못 쟀든). 움직임 클립에서 공 길이 거의 없으면(헛알림: 와인드업 · 사람 · 폰을
-   * 만짐) 세지 않는다. 못 잰 공의 클립은 같이 넘긴다 — 보정용 저장이면 화면이 서버에 올린다.
+   * 시도 기록 — 계산이 끝난 작업마다 화면에 알린다(쟀든 못 쟀든). 움직임 클립에서 공 길이 거의 없으면(와인드업 · 사람 · 폰을 만짐,
+   * 또는 공을 놓침) why 'no-ball' 로 남긴다 — 2026-10-16 까지는 세지 않아, 공을 놓친 움직임 알림과 발열로 쉰 것을 가를 수 없었다.
+   * 못 잰 공의 클립은 같이 넘긴다(공 길이 없는 것은 빼고) — 보정용 저장이면 화면이 서버에 올린다.
    */
   private reportAttempt(
     job: Job,
@@ -546,20 +575,23 @@ export class DualCapture {
   ) {
     const track = result.track.length;
     const ok = result.measure.ok;
-    if (!ok && !job.ball && job.ballAt == null && track < 4) return;
+    /* 공 길이 거의 없다 — 움직임 · 공 후보 작업이면 헛알림(클립은 안 넘긴다) */
+    const noBall = !ok && !job.ball && track < 4 && (job.ballAt == null || job.seed === true);
     this.handlers.onAttempt?.({
       id: job.id,
-      kind: job.ball ? 'ball' : 'motion',
+      kind: job.ball ? 'ball' : job.seed ? 'seed' : 'motion',
       atSec: job.at,
       strength: job.strength,
       ok,
       code: result.measure.ok ? null : result.measure.code,
-      why: result.distance?.why ?? null,
+      why: noBall ? 'no-ball' : (result.distance?.why ?? null),
+      thermal: job.thermal,
       trackFrames: track,
       rawKmh: result.measure.ok ? result.measure.kmh : null,
       confidence: result.measure.ok ? result.measure.confidence : null,
       distance: result.distance ?? null,
-      clip: ok
+      clip:
+        ok || noBall
         ? null
         : {
             blob,
@@ -567,6 +599,26 @@ export class DualCapture {
             durationSec: main.durationSec,
             eventSec: main.eventSec,
           },
+    });
+  }
+
+  /** 앱이 발열로 쉰 움직임 알림 — 재지 않고 시도 기록에만(why 'heat-skip') */
+  private reportSkip(atSec: number, strength: number, thermal: number | null) {
+    if (!this.running || !this.armed) return;
+    this.handlers.onAttempt?.({
+      id: ++this.nextId,
+      kind: 'motion',
+      atSec,
+      strength,
+      ok: false,
+      code: null,
+      why: 'heat-skip',
+      trackFrames: 0,
+      rawKmh: null,
+      confidence: null,
+      distance: null,
+      clip: null,
+      thermal,
     });
   }
 

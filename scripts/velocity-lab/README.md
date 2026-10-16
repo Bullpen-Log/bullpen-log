@@ -64,6 +64,10 @@ xcrun devicectl device process launch --device <폰 UDID> --console --terminate-
 
 ## 함정
 
+- **장면은 앱과 같은 디코더 길(mediabunny)로 푼다**(2026-10-16 부터 — cdp.mjs 가 mediabunny 를 쪽에 같이 올린다). 그 전에는 늘 되감기 길이라
+  공 크기 거리가 2% 남짓 짧게 나왔다. 예전 길로 견주려면 `LAB_FRAMES=seek`. 결과의 `video.timing.decoded`(푼 장면 수)가 0 이면 되감기 길이다.
+- ball-trigger 출력의 `seed` 는 공 후보(2.6.1) — 앱은 화면에 안 띄우고 그 시각으로 재 본다. `ball` 만 바로 보이는 알림이다.
+
 - **크롬을 여러 개 같이 돌리면 값이 흔들린다.** 되감기가 앞 장면을 다시 내줘 장면이 겹친다(같은 엔진인데 실내 18개 중 7개가
   다르게 나왔다). 차례로 돌리고, 줄 끝에 `겹친 장면 N` 이 찍히면 그 값은 버리고 다시 돌린다. 꼭 같이 돌려야 하면 `--port` 를 달리.
 - 노드 24 가 필요하다(타입 벗기기 `stripTypeScriptTypes`). 크롬 자리가 다르면 `CHROME_PATH`.

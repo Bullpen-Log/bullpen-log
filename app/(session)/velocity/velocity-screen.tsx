@@ -1580,6 +1580,7 @@ export function VelocityScreen({
             rawKmh: a.rawKmh,
             confidence: a.confidence,
             distance: a.distance,
+            thermal: a.thermal,
           });
         } catch (err) {
           unstable_rethrow(err);

@@ -835,6 +835,8 @@ export type AdminAttemptRow = {
   sizeDistM: number | null;
   sizeSlope: number | null;
   extended: number | null;
+  /** 알림 때 폰 발열 상태(0 보통 · 1 따뜻 · 2 뜨거움 · 3 아주 뜨거움) — 2026-10-16 부터, 옛 시도는 null */
+  thermal: number | null;
 };
 
 /** 그날의 시도 전부(모든 계정) — 클립이 있으면 서명 재생 주소까지 */
@@ -879,6 +881,7 @@ async function attemptRowsOf(at: Date): Promise<AdminAttemptRow[]> {
       sizeDistM: n(d?.sizeDistM),
       sizeSlope: n(d?.sizeSlope),
       extended: n(d?.extended),
+      thermal: n((r.analysis as { thermal?: unknown } | null)?.thermal),
     };
   });
 }
