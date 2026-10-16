@@ -5522,6 +5522,45 @@ console.log('\n[암케어] 부위·근육 · 오늘의 루틴 · 부하');
   );
   const calm = decide({ condition: 8, pitches: rested });
   check('일주일 넘게 안 던짐 → 강화', calm.kind === 'strength', calm.reason);
+  /* 강화는 7일에 3번까지 · 이틀 연속 안 함(2026-10-16 김민) — 나머지 날은 회복 */
+  const withStrength = (yesterday: boolean, last7: number) => {
+    const f = factsFor({ condition: 8, pitches: rested });
+    return decideArmcare({
+      facts: f,
+      plan: buildPitchPlan(f),
+      armFatigue: null,
+      recentStrength: { yesterday, last7 },
+    });
+  };
+  const afterStrength = withStrength(true, 1);
+  check(
+    '어제 강화 루틴 → 오늘은 회복',
+    afterStrength.kind === 'recovery' && afterStrength.reason === '어제 강화 루틴 → 회복 루틴',
+    afterStrength.reason
+  );
+  const weekFull = withStrength(false, 3);
+  check(
+    '최근 7일 강화 3번 → 회복',
+    weekFull.kind === 'recovery' && weekFull.reason.includes('최근 7일 강화 3번'),
+    weekFull.reason
+  );
+  check(
+    '최근 7일 강화 2번 · 어제는 안 함 → 강화',
+    withStrength(false, 2).kind === 'strength'
+  );
+  check(
+    '강화 횟수보다 몸 상태 까닭이 먼저 읽힌다',
+    (() => {
+      const f = factsFor({ condition: 8, pitches: rested });
+      const d = decideArmcare({
+        facts: f,
+        plan: buildPitchPlan(f),
+        armFatigue: 4,
+        recentStrength: { yesterday: true, last7: 3 },
+      });
+      return d.kind === 'recovery' && d.reason.startsWith("팔 피로");
+    })()
+  );
   const threeDays = decide({ condition: 8, pitches: [0, 0, 40, 0, 0, 0, 0] });
   check(
     '사흘 전 40구 → 강화',
