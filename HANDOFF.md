@@ -51,6 +51,15 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
   옛 달 기록은 서버가 새 기록을 보내면 그 달을 다시 받아 갈아 끼운다(고치거나 지운 것이 남았다).
 - 확인: tsc · eslint, 1 · 2번은 임시 경로로 휴대폰 375 에서 잼(크게 보기 375×812 · 위아래 막대 위 · 같은 영상 그대로). 3~5번은 로그인이 필요해 화면은 못 봤다 — 폰에서 한 번 봐 줘.
 
+## 금윤호에게 · 김민(맥북)에게도 — 2026-10-16 · 김민(Claude, 데스크톱 · 통합 세션) — 앱 틀 app-shell.tsx 를 components/app-shell/ 여섯 파일로 나눴다
+
+받은 뒤 할 일 없음(DB · 패키지 그대로). **네가 앱 틀을 고치던 중이면 받기 전에 알려 줘** — 합칠 때 크게 부딪힌다(내용은 그대로라 옮긴 파일에 같은 줄로 다시 넣으면 된다).
+커밋 8c705920 — 옮기기만(원래 본문 줄이 한 번씩 그대로 · tsc 0 · eslint 0 · next build 통과). 바깥에서 부르는 것은 `AppNav` 하나라 import 는 그대로.
+- `components/app-shell.tsx`(1,362줄): AppNav 와 그 혼자 쓰는 것(DOCK_OPEN_MS · DOCK_CLOSE_MS · HURRY_RATE · Place · Choreo · TimerName · REST_THUMB · DOCK_FALLBACK · within)
+- `components/app-shell/`: `mobile-tabs.tsx`(MobileTabs · TabFace · CHOSEN_TIMEOUT_MS) · `mobile-top-bar.tsx`(MobileTopBar · useBarHidden) · `detail-menu.tsx`(DetailMenu · inTabBar) ·
+  `dock.tsx`(QuickBar · MenuSquares · DockGrid) · `glyphs.tsx`(NavGlyph · TopIcon · Tip · Squares · SettingsCog · Avatar) · `shared.tsx`(useIsActive · MENU_PATHS · DOCK_HOVER_MS · FlyKind · Anchor · flyStyle · growStyle)
+- 앞으로 앱 틀에 새 부품을 더할 때는 이 폴더에 새 파일로(`docs/architecture/05-dependencies-and-order.md` 5-5). 브라우저 · 폰 화면은 못 봤다 — 하단 탭 끌기 · 도크 팝업 · 휴대폰 위 막대 한 번 봐 줘.
+
 ## 금윤호에게 — 2026-10-16 · 김민(Claude, 데스크톱 · 통합 세션) — 안 쓰는 표 둘 · 칸 여섯 지움(2단계) · 받으면 `npx prisma generate`
 
 **받은 뒤 할 일: `npx prisma generate`** — 스키마에서 `AiReport` · `PoseAnalysis` 표와 `DailyCheckin.fatigue · stress · mood · restingHr · hydration` ·
