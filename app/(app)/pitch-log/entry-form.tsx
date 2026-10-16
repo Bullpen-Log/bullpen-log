@@ -42,6 +42,7 @@ import {
 } from '@/lib/units';
 import { haptic } from '@/lib/haptics';
 import { CHECK_CONNECTION } from '@/lib/offline';
+import { isPhoneVideoPath, removePhoneVideos } from '@/lib/local-video';
 
 /**
  * 하루치 투구를 남기는 입력 폼. 새로 남길 때와 고칠 때 모두 쓴다.
@@ -134,6 +135,12 @@ function isNetworkError(err: unknown) {
 /** 고칠 기록. 주어지면 수정 모드가 된다. */
 /** 메커니즘 드릴로 던진 공 — 새 기록 칸에 채울 값(pitch-log/[date]/load.ts drillPrefillOf) */
 export type DrillPrefill = { pitchCount: number; effortPct: number; memo: string };
+
+/**
+ * 과거 영상 가져오기(app/(app)/videos/import-sheet.tsx)가 폰에 넣어 둔 영상으로 새 기록 폼을 연다 — 영상 경로와 미리보기 주소(blob:).
+ * 폰 정리는 시트가 맡는다(저장 안 하고 닫으면 시트가 지움). 이 폼에서 빼면 그 영상만 폰에서 지운다.
+ */
+export type ImportPrefill = { videoPaths: string[]; previewUrls: Record<string, string> };
 
 export type EntryDraft = {
   id: string;
@@ -346,6 +353,7 @@ export function EntryForm({
   initial,
   prefill,
   drillPrefill,
+  importPrefill,
   onSaved,
   onError,
   onCancel,
@@ -364,6 +372,8 @@ export function EntryForm({
    * 캐치볼 · 투구수 · 체감 강도 · 메모만 채우고 선수가 고쳐 저장한다. 구속 측정 prefill 이 있으면 그쪽이 먼저. 수정 폼에서는 안 쓴다.
    */
   drillPrefill?: DrillPrefill | null;
+  /** 과거 영상 가져오기 — 폰에 넣어 둔 영상을 붙인 채 연다(2026-10-17). 날짜는 date. 수정 폼에서는 안 쓴다 */
+  importPrefill?: ImportPrefill | null;
   onSaved: () => Promise<void> | void;
   onError: (message?: string) => void;
   onCancel?: () => void;
@@ -415,7 +425,13 @@ export function EntryForm({
   /* 폰에 맡겨 둔(신호가 약해 못 보낸) 기록으로 채웠다 — 폼 위에 한 줄 + 지우기 */
   const [restored, setRestored] = useState(false);
   const [videos, setVideos] = useState<UploadedVideo[]>(() =>
-    (initial?.videoPaths ?? []).map((path) => ({ path, name: fileNameOf(path) }))
+    initial
+      ? initial.videoPaths.map((path) => ({ path, name: fileNameOf(path) }))
+      : (importPrefill?.videoPaths ?? []).map((path) => ({
+          path,
+          name: fileNameOf(path),
+          previewUrl: importPrefill?.previewUrls[path],
+        }))
   );
   const [saving, setSaving] = useState(false);
   /*
@@ -429,6 +445,8 @@ export function EntryForm({
       (!initial && !!prefill) ||
       /* 드릴로 채웠으면 메모가 보이게 편다 */
       (!initial && !!drillPrefill) ||
+      /* 가져온 영상이 보이게 편다 */
+      (!initial && !!importPrefill) ||
       (!!initial &&
       (initial.maxVelocity != null ||
         initial.avgVelocity != null ||
@@ -438,8 +456,8 @@ export function EntryForm({
         (initial.cuesGood?.length ?? 0) + (initial.cuesBad?.length ?? 0) > 0))
   );
   useEffect(() => {
-    /* 측정 · 드릴 값으로 채워 여는 폼은 그 값이 먼저다 */
-    if (prefill || drillPrefill) return;
+    /* 측정 · 드릴 · 가져온 영상으로 채워 여는 폼은 그 값이 먼저다 */
+    if (prefill || drillPrefill || importPrefill) return;
     const draft = readDraft(draftKey);
     if (!draft) return;
     // eslint-disable-next-line react-hooks/set-state-in-effect -- 붙은 뒤 한 번, 폰에 맡겨 둔 기록을 되찾는다(서버 그림과 어긋나지 않게 효과에서)
@@ -481,6 +499,11 @@ export function EntryForm({
     const gone = [...freshRef.current].filter((p) => !kept.has(p));
     gone.forEach((p) => freshRef.current.delete(p));
     discardUploads(gone);
+    /* 가져온 영상(폰)을 뺐으면 폰에서도 지운다 — 시트는 저장 안 한 묶음만 정리해서, 여기서 뺀 것은 여기서 */
+    const goneImport = (importPrefill?.videoPaths ?? []).filter(
+      (p) => !kept.has(p) && isPhoneVideoPath(p) && videos.some((v) => v.path === p)
+    );
+    if (goneImport.length > 0) void removePhoneVideos(goneImport).catch(() => undefined);
     setVideos(next);
   };
   /*

@@ -19,6 +19,7 @@ import { formatSpeed } from '@/lib/units';
 import { useSpeedUnit } from '@/components/use-units';
 import { type ThrowCardData } from './throw-plan-card';
 import { TodayCard, type TodayCardData } from './today-card';
+import { ImportEntry } from './import-sheet';
 
 /**
  * 투구 기록 한 건 — 캘린더 · 목록에 필요한 만큼만. 평균 구속 · 자세 분석 같은 것은 그날
@@ -196,6 +197,8 @@ export function VideosClient({
 
       {/* 오늘 — 계획 한 줄 · 던지는 일정(접힌 알약) · 기록 남기기 */}
       <TodayCard today={todayKey} data={todayCard} throwCard={throwCard} />
+      {/* 과거 영상 가져오기 — 아이폰 앱(폰 저장 가능)에서만 보인다(import-sheet.tsx) */}
+      <ImportEntry />
 
       {/* 두 방식을 오갈 때 살짝 떠오르며 바뀐다 */}
       <div key={view} className="motion-safe:animate-fade-in">

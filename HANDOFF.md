@@ -1435,4 +1435,15 @@ ink 쪽으로 — 어렵다면 B 만). 나는 Swift 를 굽지 못해 손대지 
 - **고친 파일** `video-gallery.tsx`: 찾기 줄을 머리 밑에, 조건이 켜지면 달 접기가 풀리고 '투구 기록 N건'이 맞는 수로. 날짜 점프는 그 달을 펴고 `data-date` 줄로 굴린다. 맞는 기록 0 이면 '맞는 기록이 없어요'. `videos-client.tsx` `VideoLog` 에 `satisfaction · cuesGood · cuesBad`, `videos-page.tsx` select 에 셋 추가(DB 그대로).
 - 감각 칩은 눌러서 돈다: 끔 → 좋았던(채움 sky) → 아쉬웠던(테두리 sky + '아쉬움' 글자) → 끔. 켠 칩끼리 AND. 옛 기록(칸 null)은 칩에서 빠지고 검색 · 날짜로는 나온다.
 - 확인: tsc · eslint · 임시 경로(375 · PC)에서 칩 세 상태 · 검색 · 날짜 점프 · 달 접기. 실제 계정 · 폰에서는 아직 안 봄.
-- 다음 커밋: 과거 영상 가져오기(아이폰 앱만, `import-sheet.tsx`) — `entry-form.tsx` 에 `importPrefill` 선택 칸, `video-upload.tsx` 에 `multiple` 이 들어간다.
+- 다음 커밋(같은 날 두 번째): 과거 영상 가져오기 — 아래.
+
+## 금윤호에게 — 2026-10-17 · 김민(Claude, 데스크톱 · 투구기록 담당) — 과거 영상 가져오기(아이폰 앱만)
+
+- **새 파일** `app/(app)/videos/import-sheet.tsx`(`ImportEntry` 단추 + 시트: 영상 여러 개 고르기 → 찍은 날짜로 묶음 미리보기([따로] · 날짜 고치기) → 묶음마다 기존 폼 → 저장 · [이 묶음 건너뛰기] → 'N개 묶음 중 M개를 남겼어요') ·
+  `lib/pitch-import.ts`(묶기 순수 함수) · `scripts/pitch-import-selftest.mts`(`npm run pitch-import:test`, 28 — 가짜 mov 바이트로 `readLabFileFacts` 날짜까지).
+- **고친 파일** `entry-form.tsx`: 선택 칸 `importPrefill`(영상 경로 · 미리보기 주소) — 있으면 영상을 붙인 채 '더 적기'를 펴고 폰 초안을 안 읽는다(prefill 과 같은 규칙). 가져온 영상을 폼에서 빼면 `removePhoneVideos` 로 폰에서도 지운다.
+  `videos-client.tsx`: '오늘' 카드 밑에 `<ImportEntry />`(앱 안 · LocalVideo 부품 있을 때만 보임, 웹은 안 보임). `video-upload.tsx` 는 안 건드렸다(시트가 제 입력칸을 씀).
+- 규칙: 폰에 넣는 때는 그 묶음 폼이 열릴 때 · 저장 안 하고 닫으면 그 묶음 영상만 지움 · 화면 다시 받기(quietRefresh)는 시트가 닫힐 때 한 번 · 폰에 넣기 전 영상 번호를 localStorage `bullpen-import-pending` 에 적고
+  저장 · 건너뛰기 · 그만두기 때 지움 — 앱이 죽어 남은 번호는 다음에 시트를 열 때 지우고 '지난번 가져오다 만 영상 N개를 정리했어요'. 가져오는 영상은 줄이지 않는다(shrinkVideo 안 탐). 날짜는 creationdate → mvhd → 파일 시각(오늘이면 못 믿음) → 없음(적어야 함).
+- 확인: tsc · eslint · 두 셀프테스트 · 브라우저 임시 경로(가짜 LocalVideo 부품)로 고르기 → 묶음(1 · 2 · 1 · 날짜 없음) → [따로] → 날짜 넣기 → 폼 단계(영상 붙음 · 건너뛰기 단추)까지. **저장은 안 눌렀다**(운영 DB). 실제 아이폰 앱에서 끝까지(저장 · 건너뛰기 · 그만두기 · 앱 죽인 뒤 정리) 봐야 한다 — 시험 계획 `~/.gstack/projects/Bullpen-Log-bullpen-log/PC-main-eng-review-test-plan-20261016-233505.md`(김민 PC).
+- 기존 폼 회귀(구속 범위 · 저장 콜백 · 신호 끊김 · 2분 중복)는 코드만 읽어 확인(폼 저장은 운영 DB 라 안 눌렀다). 이상하면 `importPrefill` 가지만 보면 된다.

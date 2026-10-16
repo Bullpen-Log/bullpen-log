@@ -802,39 +802,41 @@ Parallel lanes: Lane A: T1 → T2 → T3 (찾기). Lane B: T4 · T5 · T7 → T6
 Synthesized from this review's findings. Each task derives from a specific
 finding above. Run with Claude Code or Codex; checkbox as you ship.
 
-- [ ] **T1 (P1, human: ~1d / CC: ~20min)** — lib/pitch-find.ts — 거르기 순수 함수 + 셀프테스트
+- [x] **T1 (P1, human: ~1d / CC: ~20min)** — lib/pitch-find.ts — 거르기 순수 함수 + 셀프테스트
   - Surfaced by: Test review — GAP lib/pitch-find.ts(검색어 부분 일치 · 감각 칩 3상태 AND · 만족 칩 · 빈 조건 = 전체 · null 칸)
   - Files: lib/pitch-find.ts, scripts/pitch-find-selftest.mts, package.json(`pitch-find:test`)
   - Verify: `npm run pitch-find:test`
-- [ ] **T2 (P1, human: ~1d / CC: ~25min)** — app/(app)/videos/find-bar.tsx — 검색 칸 · 감각 칩(끔→채움→테두리) · 만족 칩 · 날짜 점프 부품
+- [x] **T2 (P1, human: ~1d / CC: ~25min)** — app/(app)/videos/find-bar.tsx — 검색 칸 · 감각 칩(끔→채움→테두리) · 만족 칩 · 날짜 점프 부품
   - Surfaced by: Code quality #1 (D7 A) · #2 (D8 A)
   - Files: app/(app)/videos/find-bar.tsx
   - Verify: 임시 경로 375 · 1536 — 칩 세 상태 · 색 sky 하나 · `impeccable detect`
-- [ ] **T3 (P1, human: ~1d / CC: ~25min)** — app/(app)/videos — 목록에 find-bar 연결 · 거르기 · 달 접기 풀기 · select 에 satisfaction · cues
+- [x] **T3 (P1, human: ~1d / CC: ~25min)** — app/(app)/videos — 목록에 find-bar 연결 · 거르기 · 달 접기 풀기 · select 에 satisfaction · cues
   - Surfaced by: Scope Challenge 2 (목록 = video-gallery.tsx) · Architecture(데이터 흐름)
   - Files: app/(app)/videos/video-gallery.tsx, app/(app)/videos/videos-page.tsx
   - Verify: 임시 경로 — 회귀 ⑤⑥⑦⑧ + 찾기 30초 시나리오
-- [ ] **T4 (P1, human: ~2h / CC: ~10min)** — components/video-upload.tsx — `<input multiple>` + handlePick 이 FileList 전체
+- [~] **T4 (P1, human: ~2h / CC: ~10min)** — components/video-upload.tsx — `<input multiple>` + handlePick 이 FileList 전체
   - Surfaced by: Scope Challenge 1
   - Files: components/video-upload.tsx
   - Verify: 그날 화면 기존 올리기(1개)가 그대로 · 여러 개 고르면 다 들어옴(임시 경로)
-- [ ] **T5 (P1, human: ~1d / CC: ~30min)** — lib/pitch-import.ts — 날짜 읽기 차례 · 2개씩 묶기 · 없음 = 제 묶음 · [따로] 순수 함수 + 셀프테스트(가짜 moov 바이트)
+- [x] **T5 (P1, human: ~1d / CC: ~30min)** — lib/pitch-import.ts — 날짜 읽기 차례 · 2개씩 묶기 · 없음 = 제 묶음 · [따로] 순수 함수 + 셀프테스트(가짜 moov 바이트)
   - Surfaced by: Test review — GAP lib/pitch-import.ts · readLabFileFacts · R5(D9 A)
   - Files: lib/pitch-import.ts, scripts/pitch-import-selftest.mts, package.json(`pitch-import:test`)
   - Verify: `npm run pitch-import:test`
-- [ ] **T6 (P1, human: ~3d / CC: ~60min)** — app/(app)/videos/import-sheet.tsx — 시트(고르기 → 묶음 미리보기 [따로] → 묶음마다 EntryForm → [다시 저장][건너뛰기] → 끝 'N개 중 M개') + today-card 입구(앱만)
+- [x] **T6 (P1, human: ~3d / CC: ~60min)** — app/(app)/videos/import-sheet.tsx — 시트(고르기 → 묶음 미리보기 [따로] → 묶음마다 EntryForm → [다시 저장][건너뛰기] → 끝 'N개 중 M개') + today-card 입구(앱만)
   - Surfaced by: Architecture R1(D5 A 정리) · R2(D6 A quietRefresh 1번) · Code quality #3 (D9) · #4 (D10) · Failure F6(D15 A pending 목록)
   - Files: app/(app)/videos/import-sheet.tsx, app/(app)/videos/today-card.tsx
   - Verify: TestFlight — 시험 계획 Critical Paths 2 · 3, Edge Cases
-- [ ] **T7 (P1, human: ~2h / CC: ~10min)** — app/(app)/pitch-log/entry-form.tsx — `importPrefill` 선택 칸(날짜 · 영상 경로 미리 채움, prefill 처럼 초안 안 읽음)
+- [x] **T7 (P1, human: ~2h / CC: ~10min)** — app/(app)/pitch-log/entry-form.tsx — `importPrefill` 선택 칸(날짜 · 영상 경로 미리 채움, prefill 처럼 초안 안 읽음)
   - Surfaced by: Code quality #5 (entry-form.tsx:442)
   - Files: app/(app)/pitch-log/entry-form.tsx
   - Verify: 임시 경로 — 회귀 ①②③④ 그대로 · importPrefill 로 열면 초안이 안 덮음
-- [ ] **T8 (P2, human: ~2h / CC: ~10min)** — HANDOFF.md — 금윤호에게 단계마다 알림 + 회귀 ①~⑧ 임시 경로 확인 기록
+- [x] **T8 (P2, human: ~2h / CC: ~10min)** — HANDOFF.md — 금윤호에게 단계마다 알림 + 회귀 ①~⑧ 임시 경로 확인 기록
   - Surfaced by: Test review R7(D11 A) · Dependencies(투구 탭 = 금윤호 영역)
   - Files: HANDOFF.md
   - Verify: 커밋 전 HANDOFF 에 한 절
 - _No new tasks from Performance review._
+
+**진행(2026-10-17)**: T1~T3 커밋 b05c46aa, T5~T8 다음 커밋. T4 는 안 함 — 시트가 제 `<input multiple>` 을 써 video-upload.tsx 를 안 건드렸다. 실제 아이폰 앱 확인(시험 계획 Critical Paths 2 · 3)은 남음.
 
 Effort assumption: feature ~30x, tests ~50x, bug-fix-size edits ~20x. 합계 CC ≈ 3시간 10분(설계 추정 4시간 안).
 JSONL(tasks-eng-review-*.jsonl): **쓰지 않음** — 이 PC 에 `jq` 가 없다(autoplan 집계가 필요하면 jq 설치).
