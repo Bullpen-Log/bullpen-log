@@ -32,7 +32,7 @@ import {
   labSideBase,
   labViewLabel,
   type LabHand,
-  labMetaChips,
+  labCardChips,
   type LabGround,
   type LabMeta,
   type LabView,
@@ -677,11 +677,14 @@ function SampleCard({
               </span>
             )}
           </p>
-          {/* 마커 샘플은 표시가 모두 같아 메모(투구 번호)만 — 한 줄이라도 짧게 */}
-          {meta?.kind !== 'marker' && (
-            <p className="truncate text-xs text-muted">
-              {meta ? labMetaChips(meta).join(' · ') : '올리다 멈췄어요'}
-            </p>
+          {/* 마커 샘플은 표시가 모두 같아 메모(투구 번호)만. 일반 샘플도 기본값과 다른 것만(전부는 결과 화면 머리) */}
+          {!meta ? (
+            <p className="truncate text-xs text-muted">올리다 멈췄어요</p>
+          ) : (
+            meta.kind !== 'marker' &&
+            labCardChips(meta).length > 0 && (
+              <p className="truncate text-xs text-muted">{labCardChips(meta).join(' · ')}</p>
+            )
           )}
           {meta?.memo && <p className="truncate text-xs text-ink/80">{meta.memo}</p>}
           <V2StatusBadge job={sample.v2.job} now={now} />

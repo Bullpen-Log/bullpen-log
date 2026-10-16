@@ -3,7 +3,7 @@
  *
  *   npm run pitch-lab:test
  */
-import { isLabId, isLabView, labMetaChips, readLabMeta } from '../lib/pitch-lab-meta.ts';
+import { isLabId, isLabView, labCardChips, labMetaChips, readLabMeta } from '../lib/pitch-lab-meta.ts';
 import { LAB_FAIL_FIX, LAB_GUIDE_CHECKS, labGuideHref } from '../lib/pitch-lab-guide.ts';
 import { V2_VIDEO_FAULT } from '../lib/pitch-3d/v2/contract.ts';
 
@@ -104,6 +104,12 @@ check(
     '마운드 · 슬로모 모름 · 오른손 · 거리 6m'
 );
 check('표시 글에 줄표 없음', !labMetaChips(d).some((t) => t.includes('—')));
+check(
+  '목록 카드 — 기본값 · 모름 · 키 · 거리는 빼고 다를 때만',
+  labCardChips(m).join(' · ') === '한 대로 나눠 찍음 · 왼손' &&
+    labCardChips(readLabMeta({ synced: true, screenRecorded: false, distanceM: 6 }, NOW)).length === 0,
+  labCardChips(m).join(' · ')
+);
 
 /* 촬영 안내(2026-10-15) — lib/pitch-lab-guide.ts */
 check(

@@ -182,3 +182,16 @@ export function labMetaChips(meta: LabMeta): string[] {
     ...(dist.length ? dist : meta.distanceM ? [`거리 ${meta.distanceM}m`] : []),
   ];
 }
+
+/**
+ * 목록 카드의 한 줄 — 기본값(마운드 · 오른손)과 모름 · 키 · 거리는 빼고 다를 때만(2026-10-16 김민 "화면 글 많은 곳 줄여줘" —
+ * 카드마다 '마운드 · 슬로모 모름 · 오른손 · 화면 녹화 · 키 180cm'가 똑같이 되풀이됐다). 전부는 결과 화면 머리(labMetaChips)에.
+ */
+export function labCardChips(meta: LabMeta): string[] {
+  return [
+    ...(meta.ground === 'flat' ? ['평지'] : []),
+    ...(meta.synced ? [] : ['한 대로 나눠 찍음']),
+    ...(meta.hand === 'L' ? ['왼손'] : []),
+    ...(meta.screenRecorded ? ['화면 녹화'] : []),
+  ];
+}
