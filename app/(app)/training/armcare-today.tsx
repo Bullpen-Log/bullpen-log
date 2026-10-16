@@ -119,7 +119,6 @@ export function ArmcareToday({
             type="button"
             onClick={make}
             disabled={making}
-            size="sm"
           >
             {making ? '만드는 중…' : '맞춤 루틴 만들기'}
           </Button>
