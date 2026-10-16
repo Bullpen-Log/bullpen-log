@@ -1146,7 +1146,7 @@ function TodayCard({
           </h2>
           <p className="text-numeric text-3xl leading-tight text-ink">
             <span className={`transition-colors ${over ? 'text-warn' : ''}`}>
-              <CountUp value={isToday ? Math.abs(left) : eaten.kcal} format={kcalText} />
+              <CountUp value={isToday ? Math.abs(left) : eaten.kcal} format={kcalText} from={0.7} />
             </span>
             <span className="ml-1 text-sm font-semibold text-muted">kcal</span>
           </p>

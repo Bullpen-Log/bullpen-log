@@ -2847,6 +2847,22 @@ html[data-splash] *::after {
   }
 }
 
+/*
+ * 같은 기록을 다른 보기로 바꿀 때(홈 [달력 ↔ 목록], app/(app)/today/pitch-log-panel.tsx) — 들어오는 쪽만 옅어짐 + 4px 올라오기.
+ * 나가는 쪽은 바로 빠진다(나가는 것은 조용히). 처음 그릴 때는 안 붙인다 — 바꿀 때만(2026-10-16 움직임 점검).
+ */
+@media (prefers-reduced-motion: no-preference) {
+  .view-swap {
+    animation: view-swap 180ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+}
+@keyframes view-swap {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+
 /* 홈 '오늘' 링(app/(app)/today/today-rings.tsx) — 처음 보일 때 0 에서 오늘 한 만큼까지 차오른다 */
 @media (prefers-reduced-motion: no-preference) {
   .ring-grow {

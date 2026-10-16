@@ -54,7 +54,7 @@
 14. ◻ **[고침 — 두 입구를 lib/delete-user.ts 하나로, 녹화는 지우고 보정 · 촬영 체크는 팀 자료라 남김, 통합 시험이 새 표를 지킴]** 탈퇴 때 User 관계가 없는 표(`VelocityRecording*` · `VelocityCalibRun` · `ShootCheck`)가 남고, 파일을 먼저 지워 DB 삭제가 실패하면 파일만 사라진다.
 15. ◻ 오프라인 저장이 셋(localStorage outbox · IndexedDB 촬영 · IndexedDB 구속)으로 약속이 다르다.
 16. ◻ 관리자 확인이 다섯 벌(`assertAdmin` ×3 · `requireAdminUser` · 인라인), `lib/dal.ts requireAdmin` 은 아무도 안 씀.
-17. ◻ **[맥북에 넘김 — HANDOFF 10-16, 앱스토어 출시 전]** 아이폰 앱은 원격 사이트를 띄운다 — 웹 배포가 설치된 모든 앱 판의 네이티브 부품과 맞아야 하는데 부품 약속에 판 번호가 없다.
+17. ◻ **[고침 — 2026-10-16 맥북, `BullpenNative.info` · `lib/native-api.ts`]** 아이폰 앱은 원격 사이트를 띄운다 — 웹 배포가 설치된 모든 앱 판의 네이티브 부품과 맞아야 하는데 부품 약속에 판 번호가 없다.
 18. ◻ **[고침 — 색인 8개, 마이그레이션 20261016130000]** `PitchLog` 인덱스 0개 + 외래키 인덱스 빠진 표 8개(`relationMode = "prisma"` 라 지울 때 전체 훑기).
 19. ◻ 구속 공 · 세션의 `engineVersion` 은 서버 상수 — 옛 탭 · 옛 앱이 잰 공이 새 판으로 찍혀 보정 짝에 섞인다.
 20. ◻ 두 사람이 함께 자주 고치는 큰 파일: `velocity-screen.tsx` 4,269줄 · `app-shell.tsx` 3,120줄 · `globals.css` · `HANDOFF.md` 1,154줄.

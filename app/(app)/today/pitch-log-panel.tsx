@@ -24,9 +24,12 @@ import {
 import { DayDetailBlock } from './day-detail';
 import { useEventAlarms } from './event-alarms';
 
-/** 캘린더 ↔ 목록 그림 단추 — 달 화살표와 같은 크기 · 모양 */
+/**
+ * 캘린더 ↔ 목록 그림 단추 — 달 화살표와 같은 크기 · 모양이되 회색(보기 바꾸기는 달 넘기기보다 덜 쓰는 일이라, 같은 파랑이면
+ * 세 번째 화살표처럼 읽혔다 — 2026-10-16 디자인 점검)
+ */
 const VIEW_BUTTON =
-  'grid h-10 w-10 place-items-center rounded-full text-sky transition-colors desk:h-8 desk:w-8 desk:rounded-lg desk:border desk:border-line desk:text-muted desk:hover:border-sky desk:hover:text-sky';
+  'grid h-10 w-10 place-items-center rounded-full text-muted transition-colors hover:text-ink desk:h-8 desk:w-8 desk:rounded-lg desk:border desk:border-line desk:hover:border-sky desk:hover:text-sky';
 
 /**
  * 투구 일지 — 홈의 가운데 자리.
@@ -139,6 +142,12 @@ export function PitchLogPanel({
     return [...initialLogs, ...olderLogs.filter((l) => !seen.has(l.id))];
   }, [initialLogs, olderLogs]);
   const [view, setView] = useState<'calendar' | 'list'>('calendar');
+  /* 한 번이라도 보기를 바꿨나 — 바꾼 뒤에만 들어오는 보기에 옅게 바꾸기(view-swap)를 붙인다(처음 그릴 땐 안 움직임) */
+  const [swapped, setSwapped] = useState(false);
+  const swapTo = (next: 'calendar' | 'list') => {
+    setSwapped(true);
+    setView(next);
+  };
   const [error, setError] = useState<string>();
 
   /*
@@ -464,20 +473,20 @@ export function PitchLogPanel({
         보기 전환은 달력 머리의 목록 그림 · 목록 머리의 달력 그림으로(2026-10-16 — 예전 [캘린더 | 목록] 고르개가 카드 위에 제목 없이 혼자 떠 있었다)
       */}
       {view === 'list' && (
-        <>
+        <div className={`stack-block ${swapped ? 'view-swap' : ''}`}>
           <div className="flex items-center justify-between px-1">
             <h2 className="text-subhead font-semibold text-ink">최근 기록</h2>
             <button
               type="button"
               aria-label="캘린더로 보기"
-              onClick={() => setView('calendar')}
+              onClick={() => swapTo('calendar')}
               className={VIEW_BUTTON}
             >
               <CalendarDays aria-hidden className="h-5 w-5 desk:h-4 desk:w-4" />
             </button>
           </div>
           <LogList logs={logs} />
-        </>
+        </div>
       )}
 
       {/*
@@ -486,7 +495,7 @@ export function PitchLogPanel({
         가렸다. 기록은 받아지는 대로 칸에 채워진다.
       */}
       {view === 'calendar' && (
-        <div>
+        <div className={swapped ? 'view-swap' : undefined}>
           {/*
             lg:items-stretch — 캘린더와 옆 그날 칸의 위아래 끝을 맞춘다. 캘린더가 줄어들면
             (compact) 그날 칸도 함께 줄어든다.
@@ -510,8 +519,8 @@ export function PitchLogPanel({
                   <button
                     type="button"
                     aria-label="목록으로 보기"
-                    onClick={() => setView('list')}
-                    className={VIEW_BUTTON}
+                    onClick={() => swapTo('list')}
+                    className={`${VIEW_BUTTON} mr-1`}
                   >
                     <List aria-hidden className="h-5 w-5 desk:h-4 desk:w-4" />
                   </button>
@@ -545,23 +554,27 @@ export function PitchLogPanel({
               들어오는 것으로 보인다. 칸 안의 글은 처음부터 제 폭(20rem)으로 그려 두고
               바깥 틀만 넓어지게 해서, 들어오는 동안 글이 접혔다 펴지며 흔들리지 않는다.
 
-              좁은 화면: 달력 밑에서 높이가 펴진다(grid-rows 0fr → 1fr). 위에 두면
-              달력이 아래로 밀려 내려가, 방금 누른 칸이 화면 밖으로 나간다.
+              좁은 화면: 달력 밑에 자리가 바로 생기고, 안의 칸만 옅어짐 + 10px 올라오며(220ms) 들어온다.
+              위에 두면 달력이 아래로 밀려 내려가, 방금 누른 칸이 화면 밖으로 나간다.
+              예전엔 높이(grid-rows)를 300ms 움직였는데 장면마다 배치를 다시 셈하고 '움직임 줄이기'도 안 봤다(2026-10-16 움직임 점검).
+              움직임 줄이기면 넓은 화면의 폭도 바로 바뀐다.
             */}
             <div
               ref={panelRef}
               aria-hidden={!panelOpen}
               inert={!panelOpen}
-              className={`grid scroll-mb-[calc(var(--tab-bar-top)+0.5rem)] overflow-hidden transition-[grid-template-rows,width,margin,opacity] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] lg:block lg:shrink-0 ${
+              className={`grid scroll-mb-[calc(var(--tab-bar-top)+0.5rem)] overflow-hidden lg:block lg:shrink-0 motion-safe:lg:transition-[width,margin] motion-safe:lg:duration-300 motion-safe:lg:ease-[cubic-bezier(0.22,1,0.36,1)] ${
                 panelOpen
-                  ? 'mt-4 grid-rows-[1fr] opacity-100 lg:ml-4 lg:mt-0 lg:w-[20rem]'
-                  : 'mt-0 grid-rows-[0fr] opacity-0 lg:ml-0 lg:w-0'
+                  ? 'mt-4 grid-rows-[1fr] lg:ml-4 lg:mt-0 lg:w-[20rem]'
+                  : 'mt-0 grid-rows-[0fr] lg:ml-0 lg:w-0'
               }`}
             >
               <div className="min-h-0 lg:h-full lg:w-[20rem]">
                 <div
-                  className={`transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] lg:h-full ${
-                    panelOpen ? 'translate-x-0' : 'lg:translate-x-8'
+                  className={`motion-safe:transition-[opacity,translate] motion-safe:duration-[220ms] motion-safe:ease-[cubic-bezier(0.22,1,0.36,1)] lg:h-full ${
+                    panelOpen
+                      ? 'translate-y-0 opacity-100 lg:translate-x-0'
+                      : 'translate-y-2.5 opacity-0 lg:translate-x-8 lg:translate-y-0'
                   }`}
                 >
                   <DaySummary
