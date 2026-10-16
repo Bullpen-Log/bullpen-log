@@ -92,9 +92,8 @@ function Primary({ view }: { view: LoadView }) {
         <>
           <div>
             <p className="flex items-baseline gap-2">
-              <span
-                className={`text-numeric text-5xl leading-none tabular-nums sm:text-6xl ${TONE[zone.tone].text}`}
-              >
+              {/* 큰 숫자는 검정 — 상태 색은 위 배지 · 밑 한 줄이 말한다(2026-10-16 디자인 점검 '색 줄이기') */}
+              <span className="text-numeric text-5xl leading-none tabular-nums text-ink sm:text-6xl">
                 {view.ratio.toFixed(2)}
               </span>
             </p>
