@@ -27,6 +27,8 @@ import {
 } from '@/app/actions/mechanics';
 import { guideDescription } from '@/app/actions/content';
 import { FilmVerdictButtons } from '@/app/(app)/training/film-verdict';
+import { DrillThrowNoteCard } from '@/app/(app)/training/drill-throw-note';
+import type { DrillThrowNote } from '@/lib/mechanics/program';
 import { josa } from '@/lib/korean';
 
 /**
@@ -66,6 +68,8 @@ export function MechanicsPlayer({
   const [done, setDone] = useState<boolean[]>(() => items.map((_, i) => i < startAt));
   /* 세션을 마친 뒤 서버가 돌려준 권하기 — 끝 화면이 단추와 함께 보인다 */
   const [advice, setAdvice] = useState<ReturnType<typeof levelAdvice>>(null);
+  /* 드릴로 던진 공을 투구 기록에 남기라는 카드(2026-10-16) — 마친 뒤 서버가 셈한다 */
+  const [throwNote, setThrowNote] = useState<DrillThrowNote | null>(null);
   const [finished, setFinished] = useState(false);
   /* 마치기 저장이 실패했나 — 끝 화면 대신 다시 저장 단추를 둔다(안 그러면 세션 수가 안 올라 같은 세션이 또 나왔다) */
   const [finishFailed, setFinishFailed] = useState(false);
@@ -117,6 +121,7 @@ export function MechanicsPlayer({
     }
     setFinishFailed(false);
     setAdvice(res.advice);
+    setThrowNote(res.throwNote);
     setFinished(true);
   };
 
@@ -167,6 +172,7 @@ export function MechanicsPlayer({
       {finished ? (
         <FinishView
           advice={advice}
+          throwNote={throwNote}
           sessionNumber={sessionNumber}
           backHref={backHref}
           count={done.filter(Boolean).length}
@@ -482,12 +488,15 @@ function Description({ guideId }: { guideId: string }) {
 /** 세션 끝 — 권할 것이 있으면 다음 · 아래 수준 카드, 여섯 번째마다 찍어서 견주기 */
 function FinishView({
   advice,
+  throwNote,
   sessionNumber,
   backHref,
   count,
   partial,
 }: {
   advice: ReturnType<typeof levelAdvice>;
+  /** 드릴로 던진 공 — 투구 기록에 남기라는 카드(없으면 null) */
+  throwNote: DrillThrowNote | null;
   /** 방금 마친 세션이 몇 번째인가(수준과 상관없이) — 여섯 번째마다 찍어서 견주라고 한다 */
   sessionNumber: number;
   backHref: string;
@@ -514,6 +523,8 @@ function FinishView({
             </p>
           )}
         </div>
+
+        {throwNote && <DrillThrowNoteCard note={throwNote} plainLink />}
 
         {!partial && advice?.to && <LevelOffer kind={advice.kind} to={advice.to} />}
 

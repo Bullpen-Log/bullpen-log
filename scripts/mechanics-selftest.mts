@@ -38,7 +38,9 @@ import {
   foldSession,
   freshState,
   isArmLoaded,
+  drillThrowNote,
   levelAdvice,
+  withThrowLog,
   mechanicsPainFold,
   playItemsFor,
   programStateJson,
@@ -266,6 +268,34 @@ ok(buildLevelSession({ drills, level: 'intro', index: 12 }).length === 0, '다 �
     '밴드도 없으면 못 하는 칸은 입문의 지지 홀드 TKE 뿐',
     bandOnly.filter((x) => !x.endsWith('지지 홀드 TKE')).join(' / ')
   );
+}
+
+/* ── 드릴로 던진 공 알림(2026-10-16) — 투구 기록에 바로 넣지 않고 카드로, 투구 기록의 합이 늘면 사라짐 ── */
+{
+  const T = '2026-10-16';
+  const throwing = { category: '스로잉 드릴', stage: '연결' };
+  const s0 = freshState('intermediate');
+  const s1 = withThrowLog(s0, T, 30);
+  ok(s1.throwLog?.on === T && s1.throwLog.base === 30 && !s1.throwLog.closed, '그날 처음 스로잉 드릴 — 그때 투구 합을 기억');
+  ok(withThrowLog(s1, T, 80).throwLog?.base === 30, '같은 날 두 번째부터는 처음 합 그대로');
+  ok(withThrowLog(s1, '2026-10-17', 0).throwLog?.on === '2026-10-17', '다음 날은 새로');
+  const back = readProgramState(programStateJson(s1));
+  ok(JSON.stringify(back.throwLog) === JSON.stringify(s1.throwLog), '진행 Json 을 지나도 그대로');
+  ok(readProgramState({ v: 2, level: 'intro', index: 0, feels: {}, films: [] }).throwLog === null, '옛 줄은 알림 없음');
+  const note = (over: Partial<Parameters<typeof drillThrowNote>[0]>) =>
+    drillThrowNote({ throwLog: s1.throwLog, todayKey: T, doneToday: [throwing, throwing], pitchedToday: 30, ...over });
+  const n = note({});
+  ok(n?.throws === 40 && n.effortPct === 70 && n.href === `/pitch-log/${T}?drill=40&pct=70`, '스로잉 드릴 둘 × 2세트 × 10회 = 40회 · 연결 70%', JSON.stringify(n));
+  ok(
+    note({ doneToday: [throwing, { category: '스로잉 드릴', stage: '통합' }, { category: '메디신볼 드릴', stage: '통합' }] })?.effortPct === 75,
+    '체감 강도는 가장 높은 단계의 위쪽 끝 · 메디신볼은 안 셈'
+  );
+  ok(note({ doneToday: [{ category: '메디신볼 드릴', stage: '기초' }, { category: '무브먼트 패턴 드릴', stage: '기초' }] }) === null, '스로잉 드릴이 없으면 알림 없음');
+  ok(note({ pitchedToday: 70 }) === null, '드릴 뒤 투구 기록의 합이 늘면 사라짐(새 기록 · 더하기)');
+  ok(note({ pitchedToday: 30 }) != null, '아침에 적어 둔 불펜(합 그대로)이면 그대로 뜸');
+  ok(note({ throwLog: { ...s1.throwLog!, closed: true } }) === null, '닫았으면 사라짐');
+  ok(note({ todayKey: '2026-10-17' }) === null, '다른 날 기억이면 알림 없음');
+  ok(note({ throwLog: null }) === null, '스로잉 드릴을 한 기억이 없으면 알림 없음');
 }
 
 /* ── 진행 읽기 · 쓰기 ── */
