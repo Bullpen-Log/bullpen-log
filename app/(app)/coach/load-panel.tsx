@@ -104,7 +104,7 @@ function Primary({ view }: { view: LoadView }) {
             {/* 문진 추정치가 섞여 있는 동안에는 그 사실을 숨기지 않는다 — 단정하지 않게 한 줄로 */}
             {view.estimated && (
               <p className="mt-2 text-xs text-muted">
-                아직 기록이 적어 숫자가 크게 흔들려요. 며칠만 더 남기면 자리를 잡아요.
+                아직 기록이 적어 숫자가 크게 흔들려요. 한 달쯤 기록이 쌓이면 자리를 잡아요.
               </p>
             )}
           </div>

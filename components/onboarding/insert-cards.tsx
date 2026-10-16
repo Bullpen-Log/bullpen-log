@@ -5,7 +5,12 @@ import { Flame, ShieldCheck } from '@/components/icon';
 import { CountUp } from '@/components/onboarding/count-up';
 import { pitchingBurn, trainingBurn } from '@/lib/nutrition/burn';
 import { kcalText } from '@/lib/nutrition/meta';
-import { REST_REQUIREMENTS, dailyPitchCap } from '@/lib/report/plan';
+import {
+  REST_REQUIREMENTS,
+  REST_REQUIREMENTS_YOUTH,
+  YOUTH_REST_TABLE_THROUGH_AGE,
+  dailyPitchCap,
+} from '@/lib/report/plan';
 
 /**
  * 끼움 화면 — 질문 사이에 앱이 답으로 셈한 숫자를 보여 준다(인아웃의 '격려 화면' 자리에, 글 대신 실제 함수값).
@@ -73,10 +78,17 @@ export function PitchCapInsert({
   active: boolean;
 }) {
   const cap = dailyPitchCap(age);
-  const rests = REST_REQUIREMENTS.filter((r) => r.restDays > 0)
+  /*
+   * 휴식표는 팔 상태가 실제로 쓰는 표와 같게 — 만 14세 이하는 어린 표(21구부터 1일), 그 밖은 15~18세 표(31구부터 1일). 표의 minPitches 는
+   * '이만큼부터'라 '넘게'가 아니라 '부터'. 성인은 팔 상태가 휴식표를 안 봐(2026-10-16 사용자 결정) 이 줄을 안 보인다.
+   */
+  const table =
+    age != null && age <= YOUTH_REST_TABLE_THROUGH_AGE ? REST_REQUIREMENTS_YOUTH : REST_REQUIREMENTS;
+  const rests = table
+    .filter((r) => r.restDays > 0)
     .slice()
     .sort((a, b) => a.minPitches - b.minPitches);
-  const restLine = `한 번에 ${rests[0].minPitches}구 넘게 던지면 ${rests[0].restDays}일, ${rests[rests.length - 1].minPitches}구 넘게 던지면 ${rests[rests.length - 1].restDays}일은 전력으로 던지지 않아요.`;
+  const restLine = `한 번에 ${rests[0].minPitches}구부터 ${rests[0].restDays}일, ${rests[rests.length - 1].minPitches}구부터 ${rests[rests.length - 1].restDays}일은 전력으로 던지지 않아요.`;
   if (cap == null) {
     return (
       <InsertCard
@@ -84,7 +96,7 @@ export function PitchCapInsert({
         headline={<>지금 팔 상태를 알려 드려요</>}
         lines={[
           '평소 던지던 양과 최근 몇 주의 부하를 견줘 지금 팔 상태를 보여 줘요.',
-          restLine,
+          '세게 던진 날 · 갑자기 늘어난 날을 알려 줘요.',
           '팀 · 지도자의 지침이 먼저예요.',
         ]}
       />

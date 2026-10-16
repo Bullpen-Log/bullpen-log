@@ -107,7 +107,7 @@ async function LoadView({
      */
     date === today
       ? loadTodayCore(user, appNow()).then((core) =>
-          loadHighlights(user.id, today, { zone: core.facts.load.zone, ratio: core.facts.load.ratio }, tab)
+          loadHighlights(user.id, today, core.facts, tab)
         )
       : null,
   ]);

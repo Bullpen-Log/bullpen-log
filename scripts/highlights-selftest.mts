@@ -111,21 +111,21 @@ check(
 );
 
 {
-  const out = buildHighlights(
-    base({ lastLogDate: d(-5), pitchesByDay: { [d(-5)]: 30 } })
-  );
+  const out = buildHighlights(base({ claimedYesterdayNoLog: true }));
   check(
-    '투구 기록 5일째 비었음 — 오늘 기록 창으로',
+    '어제 등판이라 했는데 어제 기록이 없으면 — 어제 기록 창으로',
     out[0]?.key === 'gap' &&
-      out[0].text.includes('5일째') &&
-      out[0].href === `/pitch-log/${TODAY}`,
+      out[0].text.includes('어제 등판') &&
+      out[0].href === `/pitch-log/${d(-1)}`,
     out[0]?.text
   );
 }
 
+/* 2026-10-16 베타 100명: 주 1회 경기만 던지는 사람이 안 던지는 날마다 '3일째 기록이 없어요'를 들었다 */
 check(
-  '이틀 빈 것은 말하지 않는다',
-  !keys(base({ lastLogDate: d(-2) })).includes('gap')
+  '기록이 며칠 비어도 그것만으로는 말하지 않는다',
+  !keys(base({ lastLogDate: d(-5), pitchesByDay: { [d(-5)]: 30 } })).includes('gap') &&
+    !keys(base({ lastLogDate: d(-12), pitchesByDay: { [d(-12)]: 60 } })).includes('gap')
 );
 
 {
@@ -211,7 +211,7 @@ check(
     base({
       load: { zone: 'caution', ratio: 1.4 },
       conditionByDay: { [TODAY]: 2, [d(-1)]: 3 },
-      lastLogDate: d(-4),
+      claimedYesterdayNoLog: true,
       velocityByDay: { [d(-1)]: 131 },
       bestBefore: 128,
       workoutDays: [d(0), d(-1), d(-3)],
@@ -225,10 +225,19 @@ check(
 }
 
 check(
-  '부하 낮음은 조금씩 올리라고(경고색 아님)',
+  '부하 낮음은 적다고만(늘리라고 안 함 · 경고색 아님 — 주 1회 투수는 경기 전날마다 낮다, 2026-10-16 베타 100명)',
   buildHighlights(base({ load: { zone: 'low', ratio: 0.6 } })).some(
-    (h) => h.key === 'load' && !h.warn && h.text.includes('조금씩')
+    (h) => h.key === 'load' && !h.warn && h.text.includes('적어요') && !h.text.includes('늘')
   )
+);
+/* 판정은 팔 상태와 같은 loadSignalOf — 평소 양이 적으면 안 띄우고, 문진 추정 중의 위험은 주의 글 */
+check(
+  '평소 양이 적어 지수가 흔들리는 사람(복귀자 캐치볼 20구, 지수 3.6)은 부하 하이라이트 없음',
+  !buildHighlights(base({ load: { zone: 'danger', ratio: 3.6, chronic: 200, acute: 500 } })).some((h) => h.key === 'load')
+);
+check(
+  '문진 추정 중 위험(1.6)은 쉬라고 하지 않고 가볍게',
+  buildHighlights(base({ load: { zone: 'danger', ratio: 1.6, chronic: 1200, acute: 1900, estimated: true } }))[0].text.includes('가볍게')
 );
 
 {

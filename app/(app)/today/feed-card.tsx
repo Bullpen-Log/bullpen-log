@@ -453,7 +453,10 @@ function FeedSlide({
   const warn = !!v.warn;
   const text = v.text
     .replace('{speed}', formatSpeed(v.speed, unit) ?? '')
-    .replace('{diff}', formatSpeed(v.diff, unit) ?? '');
+    .replace('{diff}', formatSpeed(v.diff, unit) ?? '')
+    .replace('{best}', formatSpeed(v.best, unit) ?? '');
+  /* 밑줄의 구속({best} — 역대 최고 · 평균)도 이 기기 단위로 */
+  const sub = v.sub?.replace('{best}', formatSpeed(v.best, unit) ?? '');
   const face = (
     <>
       <span className="min-w-0 flex-1">
@@ -465,14 +468,14 @@ function FeedSlide({
           {text}
         </span>
         {/* 기록 없음 장의 밑줄은 '남기러 가기' 알약 — 무엇을 적을 수 있는지 알려 주는 안내 */}
-        {v.sub && item.tone === 'none' ? (
+        {sub && item.tone === 'none' ? (
           <span className="mt-2 inline-flex min-h-7 items-center rounded-full border border-dashed border-line-strong px-2.5 text-xs font-medium text-sky">
-            {v.sub}
+            {sub}
           </span>
         ) : (
-          v.sub && (
+          sub && (
             <span className="mt-1.5 block text-footnote leading-snug text-muted break-keep">
-              {v.sub}
+              {sub}
             </span>
           )
         )}

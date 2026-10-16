@@ -552,8 +552,14 @@ export const HEADLINE_RULES: readonly HeadlineRule[] = [
   {
     key: 'default',
     when: () => true,
+    /* 늦은 시각이라도 자료가 없으면(기록 · 끼니 답 둘 다 없음) '다 챙겼어요'라고 하지 않는다 — 안 먹은 날에도 칭찬했다(2026-10-16 베타 100명) */
     say: (s) =>
-      s.late
+      s.late && s.more === null
+        ? {
+            headline: '오늘 먹은 걸 한 번 적어 볼까요',
+            why: '먹은 걸 적으면 남은 양을 알려 드려요.',
+          }
+        : s.late
         ? {
             headline: `오늘 몫은 다 챙겼어요 · 자기 전 ${s.w.milk} 한 컵`,
             why: '오늘은 특별히 더할 게 없어요.',

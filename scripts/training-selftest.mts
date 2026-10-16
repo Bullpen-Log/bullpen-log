@@ -2960,8 +2960,18 @@ console.log('\n[투구일지] 기록 방식이 부하를 왜곡하지 않는가'
    */
   const week = ['2026-06-08', '2026-06-09', '2026-06-10'];
   check(
-    '기록이 없는 날을 센다',
-    countMissingDays(groupByDay([log(30, 7)]), week) === 2
+    '기록이 없는 날을 센다(첫 기록 뒤의 빈 날)',
+    countMissingDays(
+      groupByDay([{ ...log(30, 7), date: '2026-06-01' }, log(30, 7)]),
+      week
+    ) === 2
+  );
+  /* 2026-10-16 베타 100명: 가입 2주차에게 '28일 중 14일 기록이 없어요' — 첫 기록 앞은 아직 안 쓴 날 */
+  check(
+    '첫 기록 앞의 날은 빠진 날이 아니다(6월 9일 첫 기록이면 8일은 안 세고 10일만) · 기록이 없으면 0',
+    countMissingDays(groupByDay([log(30, 7)]), week) === 0 &&
+      countMissingDays(groupByDay([{ ...log(30, 7), date: '2026-06-09' }]), week) === 1 &&
+      countMissingDays(groupByDay([]), week) === 0
   );
   check(
     '쉰 날을 적어두면 빠진 날이 아니다',
@@ -32317,7 +32327,6 @@ console.log(
     bestBeforeDate: null,
     lastOutingAdjusted: null,
     missingDays: 0,
-    acuteChronic: null,
     conditionByDay: {},
     usualCondition: null,
     checkinDays: [],
@@ -32354,6 +32363,33 @@ console.log(
       empty[0].href === `/pitch-log/${T}` &&
       empty[4].href === '/training' &&
       empty[5].href === '/nutrition'
+  );
+  /* 2026-10-16 베타 100명: 영양을 안 적는 사람도 오늘 할 일 한 줄은 본다(점수 없이) */
+  const nutriOnly = buildFeedItems({
+    ...base(),
+    nutrition: { ...base().nutrition, headline: '끼니마다 단백질 한 가지 · 밥은 평소대로' },
+  })[5];
+  check(
+    '홈 요약 (영양 · 기록 없음) 오늘 조언 한 줄이 있으면 기록 없음 대신 그 줄 — 점수 없이 "적으면 더 맞춰 드려요"',
+    nutriOnly.tone === 'today' &&
+      nutriOnly.label === '영양' &&
+      nutriOnly.text === '끼니마다 단백질 한 가지 · 밥은 평소대로' &&
+      nutriOnly.sub === '적으면 더 맞춰 드려요',
+    `${nutriOnly.label} · ${nutriOnly.text} · ${nutriOnly.sub}`
+  );
+  const nutriWeek = buildFeedItems({
+    ...base(),
+    nutrition: {
+      ...base().nutrition,
+      headline: '끼니마다 단백질 한 가지 · 밥은 평소대로',
+      week: { avgKcal: 2400, days: 3 },
+    },
+  })[5];
+  check(
+    '홈 요약 (영양 · 오늘 기록 없음 · 지난 7일 있음) 오늘 조언이 장의 글, 7일 평균은 다음 후보로',
+    nutriWeek.text === '끼니마다 단백질 한 가지 · 밥은 평소대로' &&
+      nutriWeek.variants.some((v) => v.id === 'week-avg' && v.text === '최근 7일 평균 2,400kcal'),
+    nutriWeek.variants.map((v) => `${v.id}:${v.text}`).join(' | ')
   );
 
   const full = buildFeedItems({
@@ -32399,7 +32435,8 @@ console.log(
       full[1].speed === 131.2 &&
       full[1].diff === 3.2 &&
       full[1].text.includes('+{diff}') &&
-      full[1].sub === '역대 최고 133km/h' &&
+      full[1].sub === '역대 최고 {best}' &&
+      full[1].best === 133 &&
       full[2].text === '1.02 · 적정' &&
       full[3].text === '오늘 컨디션 8/10' &&
       full[3].sub === '평소 7보다 좋아요 · 체크인 3일째' &&
@@ -32440,7 +32477,8 @@ console.log(
       past[0].href === '/coach' &&
       past[1].text === '최근 6주 최고 {speed}' &&
       past[1].speed === 127.5 &&
-      past[1].sub === '역대 최고 130km/h' &&
+      past[1].sub === '역대 최고 {best}' &&
+      past[1].best === 130 &&
       past[2].text === '0.60 · 부하 낮음' &&
       past[3].text === '최근 7일 평균 7/10' &&
       past[3].sub === '체크인 2일 연속 · 오늘은 아직' &&
@@ -32497,6 +32535,18 @@ console.log(
       hl[0].tone === 'today' &&
       hl[0].text === '오늘 60구 던졌어요.'
   );
+  /* 2026-10-16 베타 100명: 하이라이트가 덮은 뒤 기본 글을 떠서 같은 글이 두 번 돌고 원래 숫자 줄이 사라졌다 */
+  check(
+    '홈 요약 (하이라이트 후보) 둘째 후보는 원래 숫자 줄 — 부하 장 [하이라이트, 1.60 · …], 투구량 장(past) [하이라이트, 마지막 투구 …], 기록 없던 구속 장은 \'기록 없음\'을 안 돌림',
+    hl[2].variants[0].text === hl[2].text &&
+      hl[2].variants[1]?.id === 'base' &&
+      hl[2].variants[1].text.startsWith('1.60 · ') &&
+      past[0].variants[1]?.id === 'base' &&
+      past[0].variants[1].text !== past[0].variants[0].text &&
+      past[0].variants[1].text.includes('30구') &&
+      hl[1].variants.every((v) => v.id !== 'base'),
+    `${hl[2].variants.map((v) => v.text).join(' | ')} / ${past[0].variants.map((v) => v.text).join(' | ')} / ${hl[1].variants.map((v) => v.id).join(',')}`
+  );
 
   /* 구속 — 오늘이 역대 최고 · 3주 전보다 떨어진 날 · 최근 6주는 없고 옛 최고만 */
   const bestToday = buildFeedItems({
@@ -32511,7 +32561,8 @@ console.log(
     '홈 요약 (구속 셋) 3주 전 136.5 보다 낮으면 −{diff} 1.5 · 역대 136.5, 최근 6주가 비고 옛 최고만 있으면 past 글 한 줄(그래프 없음)',
     bestToday[1].text.includes('−{diff}') &&
       bestToday[1].diff === 1.5 &&
-      bestToday[1].sub === '역대 최고 136.5km/h' &&
+      bestToday[1].sub === '역대 최고 {best}' &&
+      bestToday[1].best === 136.5 &&
       onlyOld[1].tone === 'past' &&
       onlyOld[1].speed === 128 &&
       onlyOld[1].chart === null &&
@@ -32607,25 +32658,45 @@ console.log(
       vel[1].variants.find((v) => v.id === 'best-day')?.speed === 133 &&
       vel[1].variants.find((v) => v.id === 'best-day')?.sub === '8월 20일에 세웠어요' &&
       vel[1].variants.find((v) => v.id === 'measured')?.sub ===
-        '날 최고의 평균 129.3km/h' &&
-      vel[1].variants.find((v) => v.id === 'over-130')?.text === '130 넘긴 날 1일'
+        '날 최고의 평균 {best}' &&
+      vel[1].variants.find((v) => v.id === 'measured')?.best === 129.3 &&
+      vel[1].variants.find((v) => v.id === 'over-130')?.text === '{best} 넘긴 날 1일' &&
+      vel[1].variants.find((v) => v.id === 'over-130')?.best === 130
   );
   const ld = buildFeedItems({
     ...base(),
     load: { zone: 'optimal', ratio: 1.0 },
-    acuteChronic: { acute: 120, chronic: 120 },
-    missingDays: 9,
+    missingDays: 12,
     pitchesByDay: { [T]: 10 },
     lastLogDate: T,
   });
   check(
-    '홈 요약 (후보 · 부하) 주 120구 · 평소 120구, 적정 상한(1.3)까지 +30%, 28일 중 9일 빈 날 안내 — 위험 구간(1.6)은 여유 후보 없음',
-    ld[2].variants.find((v) => v.id === 'acute-chronic')?.text ===
-      '주 120구 · 평소 120구' &&
-      ld[2].variants.find((v) => v.id === 'room')?.text === '적정 상한까지 +30%' &&
+    '홈 요약 (후보 · 부하) 실제 공 수 — 최근 7일 10구 · 4주 평균 주 3구(부하 단위 아님, 2026-10-16 베타 100명), 28일 중 12일 빈 날 안내(열흘부터 — 분석 화면과 같은 문턱) — 빈 날이 많으면 늘릴 몫(room) 없음, 위험 구간(1.6)도 없음',
+    ld[2].variants.find((v) => v.id === 'acute-chronic')?.text === '최근 7일 10구' &&
+      ld[2].variants.find((v) => v.id === 'acute-chronic')?.sub === '4주 평균 주 3구' &&
+      !ids(ld[2]).includes('room') &&
       ld[2].variants.find((v) => v.id === 'missing')?.text ===
-        '28일 중 9일 기록이 없어요' &&
-      !ids(hl[2]).includes('room')
+        '28일 중 12일 기록이 없어요' &&
+      !ids(hl[2]).includes('room') &&
+      !ids(buildFeedItems({ ...base(), load: { zone: 'optimal', ratio: 1.0 }, missingDays: 9, pitchesByDay: { [T]: 10 }, lastLogDate: T })[2]).includes('missing')
+  );
+  /* 2026-10-16 베타 시뮬 뒤 — '적정 상한까지 +N%'는 지수 적정 · 성인 · 빈 날 7일 밑일 때만(기록을 빼먹어 낮은 지수 · 성장기에 '늘려도 돼요' 금지) */
+  const roomOf = (o: { age?: number | null; zone?: 'low' | 'optimal'; ratio?: number; missingDays?: number }) =>
+    buildFeedItems({
+      ...base(),
+      age: o.age === undefined ? 25 : o.age,
+      load: { zone: o.zone ?? 'optimal', ratio: o.ratio ?? 1.0 },
+      missingDays: o.missingDays ?? 2,
+      pitchesByDay: { [T]: 10 },
+      lastLogDate: T,
+    })[2].variants.find((v) => v.id === 'room')?.text;
+  check(
+    '홈 요약 (후보 · 부하) 성인 · 적정 1.0 · 빈 날 2일 → 적정 상한까지 +30%, 15세 · 나이 모름 · 지수 낮음(0.4) · 빈 날 9일은 없음',
+    roomOf({}) === '적정 상한까지 +30%' &&
+      roomOf({ age: 15 }) === undefined &&
+      roomOf({ age: null }) === undefined &&
+      roomOf({ zone: 'low', ratio: 0.4 }) === undefined &&
+      roomOf({ missingDays: 9 }) === undefined
   );
   const cond = buildFeedItems({
     ...base(),

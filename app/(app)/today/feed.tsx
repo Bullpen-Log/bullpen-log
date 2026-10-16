@@ -28,7 +28,7 @@ type HomeUser = Awaited<ReturnType<typeof requireUser>>;
 export async function Feed({ user, today }: { user: HomeUser; today: string }) {
   /*
    * 오늘 셈(무겁다)과 나머지 재료를 같이 읽는다 — 예전엔 오늘 셈을 다 기다린 뒤에야 하이라이트 · 영양 · 그날 요약을 읽어 왕복이
-   * 둘 더 쌓였다(2026-10-15 탭 전환 속도). 하이라이트는 부하 지수만 오늘 셈에서 받고, 재료는 먼저 읽어 둔다.
+   * 둘 더 쌓였다(2026-10-15 탭 전환 속도). 하이라이트는 부하 지수 · 어제 등판 기록만 오늘 셈에서 받고, 재료는 먼저 읽어 둔다.
    */
   const corePending = loadTodayCoreCached(user);
   const [core, { items: highlights, input, extra }, advice, detail, weekMeals] =
@@ -37,7 +37,7 @@ export async function Feed({ user, today }: { user: HomeUser; today: string }) {
       loadHighlights(
         user.id,
         today,
-        corePending.then((c) => ({ zone: c.facts.load.zone, ratio: c.facts.load.ratio }))
+        corePending.then((c) => c.facts)
       ),
       loadAdvice(user, today, today, serviceHour(now())),
       /* 오늘 먹은 kcal · 목표 — 홈 링과 같은 그날 요약(한 요청에 한 번) */
@@ -48,20 +48,27 @@ export async function Feed({ user, today }: { user: HomeUser; today: string }) {
           userId: user.id,
           date: { gte: dbDate(shiftDateKey(today, -7)), lt: dbDate(today) },
         },
-        select: { date: true, kcal: true },
+        select: { date: true, kcal: true, meal: true },
       }),
     ]);
 
-  const byDay = new Map<string, number>();
+  /*
+   * 평균은 두 끼 이상 적은 날만 — 간식 하나만 적은 날까지 넣으면 '7일 평균 400kcal · 목표의 15%'가 떴다(2026-10-16 베타 100명).
+   */
+  const byDay = new Map<string, { kcal: number; meals: Set<string> }>();
   for (const m of weekMeals) {
     const k = toDateKey(m.date);
-    byDay.set(k, (byDay.get(k) ?? 0) + m.kcal);
+    const d = byDay.get(k) ?? { kcal: 0, meals: new Set<string>() };
+    d.kcal += m.kcal;
+    d.meals.add(m.meal);
+    byDay.set(k, d);
   }
+  const fullDays = [...byDay.values()].filter((d) => d.meals.size >= 2);
   const week =
-    byDay.size > 0
+    fullDays.length > 0
       ? {
-          avgKcal: [...byDay.values()].reduce((a, b) => a + b, 0) / byDay.size,
-          days: byDay.size,
+          avgKcal: fullDays.reduce((a, d) => a + d.kcal, 0) / fullDays.length,
+          days: fullDays.length,
         }
       : null;
 
@@ -73,10 +80,7 @@ export async function Feed({ user, today }: { user: HomeUser; today: string }) {
     ...extra,
     lastOutingAdjusted: facts.patterns.lastOutingAdjusted,
     missingDays: facts.patterns.missingDays,
-    acuteChronic:
-      facts.load.ratio != null
-        ? { acute: facts.load.acute, chronic: facts.load.chronic }
-        : null,
+    age: facts.profile.age,
     usualCondition: facts.condition.usualCondition?.median ?? null,
     painRecentParts: (facts.condition.painRecentParts ?? [])
       .map((k) => partLabel.get(k))

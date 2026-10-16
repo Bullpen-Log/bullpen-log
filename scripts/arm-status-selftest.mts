@@ -30,16 +30,35 @@ function facts(o: {
   checkinToday?: boolean;
   memo?: string[];
   rehab?: boolean;
+  /** 주당 전력 환산 — 평소(만성) · 최근 1주(급성). 안 주면 칸 없음(옛 시험과 같다) */
+  chronic?: number;
+  acute?: number;
+  estimated?: boolean;
+  throwPlanToday?: string | null;
+  /** 최근 4주 마지막 등판 날(null = 4주 동안 없음) — 안 주면 칸 없음(옛 facts) */
+  lastOutingDate?: string | null;
 }): ReportFacts {
   return {
     profile: { age: o.age === undefined ? 25 : o.age },
-    load: { zone: o.zone === undefined ? 'optimal' : o.zone, ratio: o.ratio ?? 1.05 },
-    patterns: { recentOutings: o.outings ?? [], hardOutings: o.hard ?? [] },
+    load: {
+      zone: o.zone === undefined ? 'optimal' : o.zone,
+      ratio: o.ratio ?? 1.05,
+      chronic: o.chronic,
+      acute: o.acute,
+      estimated: o.estimated ?? false,
+    },
+    patterns: {
+      recentOutings: o.outings ?? [],
+      hardOutings: o.hard ?? [],
+      ...(o.lastOutingDate !== undefined ? { lastOutingDate: o.lastOutingDate } : {}),
+    },
     condition: {
       painToday: o.painToday ?? false,
       painRecently: o.painRecently ?? false,
       today: o.checkinToday === false ? null : {},
       painWordsInMemo: o.memo ?? [],
+      throwPlanToday: o.throwPlanToday ?? null,
+      throwPlanYesterday: null,
       rehab: o.rehab
         ? { area: 'elbow', label: '팔꿈치 안쪽', stage: 2, throwing: 'none', firstWeekNoThrow: true }
         : null,
@@ -80,7 +99,66 @@ const NUM_PITCH = /\d+\s*~\s*\d+\s*구|구 이하|강도 \d/;
 }
 {
   const s = armStatusOf(facts({ hard: [{ daysAgo: 0, pitches: 85, load: 7650, nearMaxPitches: 85 }] }));
-  check('오늘 세게 85구 → 위험 · 더 던지지 않음', s.level === 'danger' && s.headline.includes('오늘 85구'), s.headline);
+  check('오늘 세게 85구(성인) → 주의 · 더 던지지 않음(할 만큼 던진 날, 위험 아님 — 2026-10-16 베타)', s.level === 'caution' && s.headline.includes('오늘 85구'), s.headline);
+}
+/* 2026-10-16 베타 시뮬 뒤 고침 — 성장기 휴식표 되살림 · '세게'는 평균 70% 부터 · 평소 양이 적으면 지수로 빨강 안 냄 · 오래 쉰 등판 */
+{
+  const s = armStatusOf(facts({ age: 12, outings: [{ daysAgo: 1, pitches: 62, adjusted: 62 }] }));
+  check('만 12세 어제 62구 → 위험 · 오늘은 전력 투구 쉬는 날', s.level === 'danger' && s.headline.includes('쉬는 날'), s.headline);
+}
+{
+  const s = armStatusOf(facts({ age: 14, outings: [{ daysAgo: 3, pitches: 71, adjusted: 71 }] }));
+  check('만 14세 사흘 전 71구 → 주의 · 전력 투구는 1일 뒤', s.level === 'caution' && s.headline.includes('1일 뒤부터'), s.headline);
+}
+{
+  const s = armStatusOf(facts({ age: 17, outings: [{ daysAgo: 0, pitches: 40, adjusted: 40 }] }));
+  check('만 17세 오늘 40구 → 주의 · 1일 쉼(15~18세 표)', s.level === 'caution' && s.headline.includes('1일은 전력 투구를 쉬어요'), s.headline);
+}
+{
+  const s = armStatusOf(facts({ age: 25, outings: [{ daysAgo: 1, pitches: 90, adjusted: 90 }] }));
+  check('성인 어제 90구(세게 던진 날 기록 없음) → 휴식표 안 봄 · 안전', s.level === 'safe', `${s.level} ${s.headline}`);
+}
+{
+  const s = armStatusOf(
+    facts({ age: 12, outings: [{ daysAgo: 1, pitches: 62, adjusted: 62 }], hard: [{ daysAgo: 1, pitches: 62, load: 6200, nearMaxPitches: 62 }] })
+  );
+  check('성장기는 휴식 신호와 세게 던진 날을 겹쳐 적지 않음', ![s.headline, ...s.details].some((t) => t.includes('세게')), [s.headline, ...s.details].join(' / '));
+}
+{
+  const s = armStatusOf(facts({ hard: [{ daysAgo: 0, pitches: 50, load: 3250, nearMaxPitches: 0 }] }));
+  check('롱토스 50구 · 65%(곱 2,700 넘음) → 세게 던진 날로 안 띄움 · 안전', s.level === 'safe', `${s.level} ${s.headline}`);
+}
+{
+  const s = armStatusOf(facts({ hard: [{ daysAgo: 0, pitches: 35, load: 2800, nearMaxPitches: 0 }] }));
+  check('불펜 35구 · 80% → 주의', s.level === 'caution' && s.headline.includes('세게'), `${s.level} ${s.headline}`);
+}
+{
+  const s = armStatusOf(facts({ zone: 'danger', ratio: 3.62, chronic: 200, acute: 500 }));
+  check('평소 양이 적은데 늘었음(지수 3.62) → 위험 아님 · 주의 · 흔들림', s.level === 'caution' && s.headline.includes('흔들려요'), `${s.level} ${s.headline}`);
+}
+{
+  const s = armStatusOf(facts({ zone: 'danger', ratio: 1.64, chronic: 150, acute: 240 }));
+  check('평소도 최근도 적음(캐치볼 20구 한 번) → 안전', s.level === 'safe', `${s.level} ${s.headline}`);
+}
+{
+  const s = armStatusOf(facts({ zone: 'danger', ratio: 1.6, chronic: 1200, acute: 1900 }));
+  check('평소 양이 충분하고 크게 늘었음 → 위험 그대로', s.level === 'danger', `${s.level} ${s.headline}`);
+}
+{
+  const s = armStatusOf(facts({ zone: 'danger', ratio: 1.6, chronic: 1200, acute: 1900, estimated: true }));
+  check('문진 추정이 섞여 흔들리는 동안 → 위험을 주의로', s.level === 'caution' && s.headline.includes('흔들려요'), `${s.level} ${s.headline}`);
+}
+{
+  const s = armStatusOf(facts({ throwPlanToday: '오늘 등판', lastOutingDate: null }));
+  check('최근 4주 등판 없이 오늘 등판 → 주의 · 짧게', s.level === 'caution' && s.headline.includes('등판 기록이 없어요'), `${s.level} ${s.headline}`);
+}
+{
+  const s = armStatusOf(facts({ throwPlanToday: '오늘 등판', lastOutingDate: '2026-10-10' }));
+  check('최근 등판이 있으면 등판 주의 없음', s.level === 'safe', `${s.level} ${s.headline}`);
+}
+{
+  const s = armStatusOf(facts({ throwPlanToday: '오늘 등판' }));
+  check('마지막 등판 칸이 없는 옛 facts 는 등판 주의 안 띄움', s.level === 'safe', `${s.level} ${s.headline}`);
 }
 {
   const s = armStatusOf(facts({ outings: [{ daysAgo: 0, pitches: 35, adjusted: 33 }] }));

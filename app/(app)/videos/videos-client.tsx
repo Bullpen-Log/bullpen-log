@@ -15,6 +15,8 @@ import { CompareView, type ClipOption } from './compare-view';
 import { VideoGallery } from './video-gallery';
 import { VideoCalendar } from './video-calendar';
 import { effortText } from '@/lib/pitch-effort';
+import { formatSpeed } from '@/lib/units';
+import { useSpeedUnit } from '@/components/use-units';
 import { type ThrowCardData } from './throw-plan-card';
 import { TodayCard, type TodayCardData } from './today-card';
 
@@ -112,6 +114,8 @@ export function VideosClient({
     if (canMeasure) router.prefetch('/velocity');
   }, [router, velocityHref, canMeasure]);
   const [comparing, setComparing] = useState(false);
+  /* 2분할 비교 영상 요약의 구속도 고른 단위로(2026-10-16 베타: mph 를 골라도 km/h 였다) */
+  const speedUnit = useSpeedUnit();
   /* 목록에서 고른 둘. 비교 화면이 이 둘로 열린다. */
   const [preset, setPreset] = useState<{ a: string; b: string } | null>(null);
   /* 목록에서 비교할 둘을 고르는 중인가 */
@@ -129,7 +133,7 @@ export function VideosClient({
           path,
           label: log.videoPaths.length > 1 ? `영상 ${i + 1}` : '영상',
           summary: [
-            log.maxVelocity != null ? `${log.maxVelocity}km/h` : null,
+            formatSpeed(log.maxVelocity, speedUnit),
             `${log.pitchCount}구`,
             effortText(log) && `강도 ${effortText(log)}`,
           ]
@@ -137,7 +141,7 @@ export function VideosClient({
             .join(' · '),
         }))
       ),
-    [logs]
+    [logs, speedUnit]
   );
 
   if (comparing) {

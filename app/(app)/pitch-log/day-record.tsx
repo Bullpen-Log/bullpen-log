@@ -1,7 +1,7 @@
 'use client';
 
 import { isPhoneVideoPath, phoneVideoElsewhereText } from '@/lib/local-video';
-import { formatSpeed } from '@/lib/units';
+import { formatSpeed, round1, speedLabel, toSpeed } from '@/lib/units';
 import { useSpeedUnit } from '@/components/use-units';
 import { useState } from 'react';
 import { Ellipsis, Pencil, Trash2 } from '@/components/icon';
@@ -93,8 +93,8 @@ export function DayRecord({
                 <span className="text-muted">쉬는 날</span>
               ) : log.maxVelocity != null ? (
                 <>
-                  {log.maxVelocity}
-                  <span className="ml-1 text-sm text-muted">km/h 최고</span>
+                  {round1(toSpeed(log.maxVelocity, speedUnit))}
+                  <span className="ml-1 text-sm text-muted">{speedLabel(speedUnit)} 최고</span>
                 </>
               ) : (
                 <>

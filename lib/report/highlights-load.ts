@@ -3,6 +3,8 @@ import { prisma } from '@/lib/prisma';
 import { shiftDateKey, toDateKey } from '@/lib/pitch-stats';
 import { REST_SESSION_TYPE } from '@/lib/session-type';
 import { dbDate } from '@/lib/nutrition/days';
+import { outingOf } from '@/lib/engine/outing';
+import type { ReportFacts } from '@/lib/report/facts';
 import {
   buildHighlights,
   type HighlightInput,
@@ -12,13 +14,13 @@ import {
 /**
  * 하이라이트 재료를 읽어 그 칸(홈 · 분석 › 투구 · 분석 › 트레이닝)의 것만 — 홈(app/(app)/today/page.tsx)과 분석(analysis-view.tsx)이 같이 쓴다.
  * 모두 하루 한 줄로 가볍게 읽는다: 투구 6주(구속 선 · 투구 막대), 체크인 두 달(연속 일수), 운동 2주(지난주와 견줌).
- * load 는 오늘의 투구 부하 지수(loadTodayCore 의 facts.load). 아직 셈하는 중이면 약속(Promise)으로 넘겨도 된다 — 재료를 다 읽은
+ * facts 는 오늘 셈(loadTodayCore 의 facts) — 부하 지수 · 어제 등판 기록 없음을 읽는다. 아직 셈하는 중이면 약속(Promise)으로 넘겨도 된다 — 재료를 다 읽은
  * 뒤에야 쓰므로, 무거운 오늘 셈을 기다리지 않고 같이 읽는다(2026-10-15 탭 전환 속도, 홈 요약 칸). part 를 안 주면 모든 몫(홈 요약 칸).
  */
 export async function loadHighlights(
   userId: string,
   today: string,
-  loadOrPending: HighlightInput['load'] | Promise<HighlightInput['load']>,
+  factsOrPending: ReportFacts | Promise<ReportFacts>,
   part?: HighlightPart
 ) {
   const [logs, before, checkins, workouts, lastLog] = await Promise.all([
@@ -73,11 +75,11 @@ export async function loadHighlights(
     if (c.sleepQuality != null) sleepByDay[key] = c.sleepQuality;
   }
   const lastLogDate = lastLog ? toDateKey(lastLog.date) : null;
-  const load = await loadOrPending;
+  const facts = await factsOrPending;
   /* 홈 요약 칸(lib/report/feed-items.ts)이 같은 재료로 여섯 장을 만든다 — 그대로 돌려준다 */
   const input: HighlightInput = {
     today,
-    load,
+    load: facts.load,
     pitchesByDay,
     lastLogDate,
     velocityByDay,
@@ -85,6 +87,7 @@ export async function loadHighlights(
     conditionByDay,
     checkinDays: checkins.map((c) => toDateKey(c.date)),
     workoutDays: workouts.map((w) => toDateKey(w.date)),
+    claimedYesterdayNoLog: outingOf(facts).claimedYesterdayNoLog,
   };
   const items = buildHighlights(input, part);
   /* 홈 요약 칸만 쓰는 재료 — 역대 최고를 낸 날 · 어젯밤 수면(체크인 3판 sleepQuality 1~5) */

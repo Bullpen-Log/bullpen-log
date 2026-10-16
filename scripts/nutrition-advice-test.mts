@@ -160,6 +160,20 @@ check(
   lateAfter.headline?.includes('자기 전') === true,
   lateAfter.headline ?? ''
 );
+/* 2026-10-16 베타 100명: 아무것도 안 적은 밤에도 '오늘 몫은 다 챙겼어요'라고 칭찬했다 */
+const lateBlank = buildAdvice({ ...base, hour: 22 });
+const lateFull = buildAdvice({
+  ...base,
+  hour: 22,
+  eaten: { kcal: 3000, carbs: 400, protein: 150, fat: 85 },
+});
+check(
+  '밤에 기록 · 끼니 답이 없으면 칭찬 대신 적어 보자고 · 다 먹었으면 그대로 칭찬',
+  lateBlank.headline?.includes('다 챙겼어요') === false &&
+    lateBlank.headline?.includes('적어') === true &&
+    lateFull.headline?.includes('다 챙겼어요') === true,
+  `${lateBlank.headline} / ${lateFull.headline}`
+);
 const lateGain = buildAdvice({
   ...base,
   hour: 23,

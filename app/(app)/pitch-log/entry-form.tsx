@@ -29,15 +29,19 @@ import {
   isRatedSession,
 } from '@/lib/pitch-satisfaction';
 import {
+  applySpeedUnit,
   fromSpeed,
   readSpeedUnit,
   round1,
   serverSpeedUnit,
+  SPEED_UNITS,
   speedLabel,
   subscribeUnits,
   toSpeed,
+  type SpeedUnit,
 } from '@/lib/units';
 import { haptic } from '@/lib/haptics';
+import { CHECK_CONNECTION } from '@/lib/offline';
 
 /**
  * 하루치 투구를 남기는 입력 폼. 새로 남길 때와 고칠 때 모두 쓴다.
@@ -76,6 +80,56 @@ const EMPTY_FORM = {
   cuesGood: [] as string[],
   cuesBad: [] as string[],
 };
+
+type FormState = typeof EMPTY_FORM;
+
+/*
+ * 신호가 약해 못 보낸 기록을 폰에 맡겨 둔다 — 날짜 · 기록마다 하나(2026-10-16 베타 시뮬: 저장이 실패하면 영어 'Load failed'가 뜨고,
+ * 창을 닫으면 적은 것이 통째로 사라졌다). 다시 열면 채워 주고, 저장에 성공하거나 '지우기'를 누르면 걷는다. 영상은 담지 않는다.
+ * 저절로 다시 보내지는 않는다 — 응답만 끊기고 서버엔 들어간 경우 같은 기록이 둘 생길 수 있어서, 사람이 저장을 다시 누른다.
+ */
+const DRAFT_PREFIX = 'bullpen-pitch-log-draft:';
+const DRAFT_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+
+function readDraft(key: string): FormState | null {
+  try {
+    const raw = window.localStorage.getItem(key);
+    if (!raw) return null;
+    const d = JSON.parse(raw) as { savedAt?: unknown; form?: Partial<FormState> };
+    if (
+      typeof d.savedAt !== 'number' ||
+      Date.now() - d.savedAt > DRAFT_MAX_AGE_MS ||
+      typeof d.form?.sessionType !== 'string'
+    ) {
+      window.localStorage.removeItem(key);
+      return null;
+    }
+    return { ...EMPTY_FORM, ...d.form };
+  } catch {
+    return null;
+  }
+}
+
+function writeDraft(key: string, form: FormState) {
+  try {
+    window.localStorage.setItem(key, JSON.stringify({ savedAt: Date.now(), form }));
+  } catch {
+    /* 사생활 보호 모드 등 — 맡길 곳이 없으면 그냥 지나간다(폼은 열린 채 남는다) */
+  }
+}
+
+function clearDraft(key: string) {
+  try {
+    window.localStorage.removeItem(key);
+  } catch {
+    /* 위와 같다 */
+  }
+}
+
+/** fetch 가 서버에 닿지 못했나 — 브라우저마다 글이 달라('Failed to fetch' · 'Load failed') 글이 아니라 모양으로 본다 */
+function isNetworkError(err: unknown) {
+  return err instanceof TypeError || (typeof navigator !== 'undefined' && navigator.onLine === false);
+}
 
 /** 고칠 기록. 주어지면 수정 모드가 된다. */
 /** 메커니즘 드릴로 던진 공 — 새 기록 칸에 채울 값(pitch-log/[date]/load.ts drillPrefillOf) */
@@ -267,6 +321,26 @@ function SpeedInput({
   );
 }
 
+/**
+ * 구속 단위를 칸 바로 밑에서 고른다(2026-10-16 베타 시뮬: 미국에서 쓰는 사람이 mph 86 을 km/h 칸에 그대로 적어 '역대 최고 88km/h'가
+ * 쌓였다 — 단위 설정이 설정 깊숙이에만 있었다). 바꾸면 앱 전체 표시 단위가 바뀌고(설정의 단위와 같은 값), 적은 값은 그대로 km/h 로 들고 있다.
+ */
+function SpeedUnitSwitch() {
+  const unit = useSyncExternalStore(subscribeUnits, readSpeedUnit, serverSpeedUnit);
+  return (
+    <div className="flex items-center justify-between gap-3">
+      <span className="text-xs text-muted">스피드건이 mph 면 단위를 바꿔 적어요</span>
+      <Segmented
+        label="구속 단위"
+        value={unit}
+        onChange={(v) => applySpeedUnit(v as SpeedUnit)}
+        options={SPEED_UNITS.map((u) => ({ value: u.value, label: u.label }))}
+        layout="flow"
+      />
+    </div>
+  );
+}
+
 export function EntryForm({
   date,
   initial,
@@ -303,7 +377,8 @@ export function EntryForm({
    * 들어가 저장이 막힌다 — 쉰 날이면 비운 채(새 기록처럼) 시작한다. 체감 강도(%)가 없는 옛 기록은 1~10 × 10 으로 채운다.
    */
   const initialEffort = initial ? readEffort(initial) : null;
-  const [form, setForm] = useState(() =>
+  /* 처음 채울 값 — 폰에 맡겨 둔 기록을 '지우기' 하면 여기로 되돌린다 */
+  const startForm = (): FormState =>
     initial
       ? {
           sessionType: initial.sessionType,
@@ -334,8 +409,11 @@ export function EntryForm({
               effortPct: drillPrefill.effortPct,
               memo: drillPrefill.memo,
             }
-          : EMPTY_FORM
-  );
+          : EMPTY_FORM;
+  const [form, setForm] = useState(startForm);
+  const draftKey = `${DRAFT_PREFIX}${date}:${initial?.id ?? 'new'}`;
+  /* 폰에 맡겨 둔(신호가 약해 못 보낸) 기록으로 채웠다 — 폼 위에 한 줄 + 지우기 */
+  const [restored, setRestored] = useState(false);
   const [videos, setVideos] = useState<UploadedVideo[]>(() =>
     (initial?.videoPaths ?? []).map((path) => ({ path, name: fileNameOf(path) }))
   );
@@ -359,6 +437,17 @@ export function EntryForm({
         initial.satisfaction != null ||
         (initial.cuesGood?.length ?? 0) + (initial.cuesBad?.length ?? 0) > 0))
   );
+  useEffect(() => {
+    /* 측정 · 드릴 값으로 채워 여는 폼은 그 값이 먼저다 */
+    if (prefill || drillPrefill) return;
+    const draft = readDraft(draftKey);
+    if (!draft) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- 붙은 뒤 한 번, 폰에 맡겨 둔 기록을 되찾는다(서버 그림과 어긋나지 않게 효과에서)
+    setForm(draft);
+    setRestored(true);
+    if (draft.maxVelocity || draft.avgVelocity || draft.memo || draft.satisfaction) setMore(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 처음 붙을 때 한 번만
+  }, []);
   /* 체감 강도를 안 고른 채 저장을 눌렀다 — 칩 밑에 한 줄, 고르면 걷는다 */
   const [effortMissing, setEffortMissing] = useState(false);
   const effortId = useId();
@@ -500,6 +589,8 @@ export function EntryForm({
       }
       /* 새로 올린 영상은 이제 기록에 붙었다 — 폼을 닫아도 지우지 않는다 */
       freshRef.current.clear();
+      clearDraft(draftKey);
+      setRestored(false);
 
       // 수정은 폼을 비우지 않는다. 저장하면 폼 자체가 닫히기 때문이다.
       if (!editing) {
@@ -513,8 +604,14 @@ export function EntryForm({
       haptic('success');
       await onSaved();
     } catch (err) {
-      const fallback = editing ? '수정에 실패했어요.' : '저장에 실패했어요.';
-      onError(err instanceof Error ? err.message : fallback);
+      if (isNetworkError(err)) {
+        /* 신호가 약해 서버에 못 닿았다 — 브라우저 영어 글('Load failed') 대신 한국어로, 적은 것은 폰에 맡긴다(창을 닫아도 다시 채움) */
+        writeDraft(draftKey, form);
+        onError(`저장하지 못했어요. ${CHECK_CONNECTION} 적은 내용은 이 폰에 남겨 뒀어요.`);
+      } else {
+        const fallback = editing ? '수정에 실패했어요.' : '저장에 실패했어요.';
+        onError(err instanceof Error ? err.message : fallback);
+      }
     } finally {
       setSaving(false);
       savingRef.current = false;
@@ -527,6 +624,22 @@ export function EntryForm({
   return (
     /* noValidate — 브라우저 검사는 접힌 칸을 못 보여 줘 말없이 막는다. 검사는 handleSubmit · 서버가 한국어로 한다 */
     <form noValidate onSubmit={handleSubmit} className="space-y-5">
+      {restored && (
+        <p className="flex flex-wrap items-center gap-x-2 rounded-xl bg-sky/10 px-3 py-2 text-footnote text-ink/80">
+          저장하지 못했던 기록을 다시 채웠어요. 저장을 눌러 주세요.
+          <button
+            type="button"
+            onClick={() => {
+              clearDraft(draftKey);
+              setRestored(false);
+              setForm(startForm());
+            }}
+            className="min-h-10 font-medium text-sky desk:min-h-0"
+          >
+            지우기
+          </button>
+        </p>
+      )}
       <div className="space-y-5">
           <Field
             label="투구 종류"
@@ -708,6 +821,7 @@ export function EntryForm({
                   sample={132}
                 />
               </div>
+              <SpeedUnitSwitch />
           {/* 불펜 · 라이브 · 경기만 — 캐치볼은 가볍게 주고받는 날이라 '잘 던진 날 찾기'를 흐린다 */}
           {rated && (
             <SatisfactionFields

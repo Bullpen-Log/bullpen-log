@@ -1,6 +1,8 @@
 import { shiftDateKey } from '@/lib/pitch-stats';
-import { ACWR_TARGET_MAX, ACWR_ZONES, type AcwrZone } from '@/lib/pitch-stats';
+import { ACWR_TARGET_MAX, MISSING_DAYS_WARNING } from '@/lib/pitch-stats';
+import { loadSignalOf, type LoadLike } from '@/lib/report/arm-status';
 import { SLEEP_QUALITY_LEVELS } from '@/lib/checkin';
+import { ADULT_AGE } from '@/lib/report/plan';
 import type { Highlight, HighlightChart } from '@/lib/report/highlights';
 
 /**
@@ -29,6 +31,8 @@ export type FeedVariant = {
   detail?: string;
   speed?: number;
   diff?: number;
+  /** text · sub 의 {best} 자리 구속(km/h) — 화면이 이 기기 단위로 바꿔 넣는다(sub 에 단위를 박지 않게) */
+  best?: number;
   warn?: boolean;
   chart?: HighlightChart | null;
 };
@@ -43,6 +47,8 @@ export type FeedItem = {
   sub?: string;
   speed?: number;
   diff?: number;
+  /** text · sub 의 {best} 자리 구속(km/h) */
+  best?: number;
   /** 누르면 갈 곳. 없으면 누르지 않는 장(checkin 이면 체크인 흐름을 연다) */
   href: string | null;
   /** 체크인 흐름을 여는 장(OpenCheckinButton) */
@@ -60,7 +66,8 @@ export type FeedItem = {
 export type FeedInput = {
   /** 오늘 YYYY-MM-DD(한국 시각) */
   today: string;
-  load: { zone: AcwrZone | null; ratio: number | null };
+  /** 투구 부하 지수(facts.load) — 색 · 글은 arm-status.ts loadSignalOf(팔 상태와 같은 판정) */
+  load: LoadLike;
   /** 날짜별 던진 공 수 — 최근 42일 */
   pitchesByDay: Record<string, number>;
   /** 마지막으로 남긴 투구 기록 날(쉬는 날 포함). 없으면 null */
@@ -75,8 +82,8 @@ export type FeedInput = {
   lastOutingAdjusted: number | null;
   /** 최근 4주 가운데 기록이 아예 없는 날 수(facts.patterns.missingDays) */
   missingDays: number;
-  /** 급성(7일) · 만성(28일) 부하 — 주당 환산(facts.load). 지수가 없으면 null */
-  acuteChronic: { acute: number; chronic: number } | null;
+  /** 만 나이(facts.profile.age) — 성장기 · 모름이면 '더 늘려도 되는 몫' 장을 안 보인다. 안 주면 모름 */
+  age?: number | null;
   /** 날짜별 컨디션(1~10) — 최근 두 달 */
   conditionByDay: Record<string, number>;
   /** 평소 컨디션(28일 중앙값, lib/report/facts.ts). 모르면 null */
@@ -258,11 +265,10 @@ export function buildFeedItems(input: FeedInput): FeedItem[] {
       tone: 'today',
       variants: [],
     };
-    /* 역대 최고는 문장에 {speed} 가 하나뿐이라 숫자로 적는다(단위는 화면이 붙인다 — sub 는 단위 자리가 없어 km/h 그대로) */
+    /* 역대 최고는 {best} 자리로 — 단위(km/h · mph)는 화면이 이 기기 설정으로 붙인다(2026-10-16 베타: mph 를 골라도 km/h 였다) */
     velocity.sub =
-      bestEver != null && bestEver > v
-        ? `역대 최고 ${round1(bestEver)}km/h`
-        : '오늘이 역대 최고예요';
+      bestEver != null && bestEver > v ? '역대 최고 {best}' : '오늘이 역대 최고예요';
+    if (bestEver != null && bestEver > v) velocity.best = round1(bestEver);
   } else if (recentBest != null) {
     velocity = {
       key: 'velocity',
@@ -270,7 +276,8 @@ export function buildFeedItems(input: FeedInput): FeedItem[] {
       icon: 'baseball',
       text: '최근 6주 최고 {speed}',
       speed: recentBest,
-      sub: bestEver != null ? `역대 최고 ${round1(bestEver)}km/h` : undefined,
+      sub: bestEver != null ? '역대 최고 {best}' : undefined,
+      best: bestEver != null ? round1(bestEver) : undefined,
       href: ANALYSIS,
       chart: velocityLine,
       tone: 'past',
@@ -295,15 +302,16 @@ export function buildFeedItems(input: FeedInput): FeedItem[] {
   /* ── 3. 부하 지수 ── */
   let loadItem: FeedItem;
   if (load.ratio != null && load.zone != null) {
-    const z = ACWR_ZONES[load.zone];
+    /* 판정은 팔 상태와 같은 함수 — 홈이 '위험', 투구 탭이 '안전'으로 서로 다른 말을 하던 것(2026-10-16 베타 100명, 42명) */
+    const ls = loadSignalOf(load);
     loadItem = {
       key: 'load',
       label: '부하 지수',
       icon: 'gauge',
-      text: `${load.ratio.toFixed(2)} · ${z.label}`,
-      sub: z.meaning,
+      text: `${load.ratio.toFixed(2)} · ${ls.label}`,
+      sub: ls.plain,
       href: `${ANALYSIS}?view=pitch`,
-      warn: z.tone === 'warn' || z.tone === 'bad',
+      warn: ls.level !== 'safe',
       chart: null,
       tone: (pitchesByDay[today] ?? 0) > 0 ? 'today' : 'past',
       variants: [],
@@ -432,6 +440,19 @@ export function buildFeedItems(input: FeedInput): FeedItem[] {
       tone: 'today',
       variants: [],
     };
+  } else if (n.headline) {
+    /* 아무것도 안 적어도 오늘 할 일 한 줄은 보인다 — 기록 없는 사람 대부분이 '기록 없음' · '최근 7일 평균'만 보고 조언은 숨었다(2026-10-16 베타 100명). 7일 평균은 다음 후보로 돈다, 점수는 자료가 있을 때만 */
+    nutrition = {
+      key: 'nutrition',
+      label: '영양',
+      icon: 'utensils',
+      text: n.headline,
+      sub: '적으면 더 맞춰 드려요',
+      href: '/nutrition',
+      chart: null,
+      tone: 'today',
+      variants: [],
+    };
   } else if (n.week) {
     const pct =
       n.targetKcal > 0 ? Math.round((n.week.avgKcal / n.targetKcal) * 100) : null;
@@ -472,7 +493,13 @@ export function buildFeedItems(input: FeedInput): FeedItem[] {
     nutrition,
   ];
 
-  /* 하이라이트 — 장을 더하지 않고 그 장의 말을 바꾼다(한 장에 둘이면 먼저 온 것, 안전 → 성장 → 꾸준함) */
+  /*
+   * 하이라이트 — 장을 더하지 않고 그 장의 말을 바꾼다(한 장에 둘이면 먼저 온 것, 안전 → 성장 → 꾸준함). 바꾸기 전에 장의 기본 글을 떠 둔다 —
+   * 예전엔 덮은 뒤에 기본 글을 만들어 하이라이트 글이 두 번 돌고 원래 숫자 줄('1.62 · 위험' · '마지막 투구 80구')이 사라졌다(2026-10-16 베타 100명, 94명).
+   */
+  const bases = new Map(items.map((it) => [it.key, baseVariant(it, 'base')]));
+  /* 기록 없던 장을 하이라이트가 채웠으면 '기록 없음' 기본 글은 돌리지 않는다(첫 구속 기록 뒤에 '기록 없음'이 따라 나오게 된다) */
+  const wasNone = new Set(items.filter((it) => it.tone === 'none').map((it) => it.key));
   const taken = new Set<FeedItem['key']>();
   for (const h of input.highlights) {
     const slot = SLOT_OF[h.key];
@@ -495,11 +522,11 @@ export function buildFeedItems(input: FeedInput): FeedItem[] {
 
   /* 후보 — 자료가 있는 것만. 기본 글(지금 fields)이 [0](하이라이트가 있으면 그 뒤), 통증은 맨 앞 */
   for (const it of items) {
-    const base = baseVariant(it, 'base');
+    const base = wasNone.has(it.key) && it.variants.length ? [] : [bases.get(it.key)!];
     const more = it.tone === 'none' ? [] : extraVariants(it.key, input, ctx);
     const pain =
       it.key === 'condition' && it.tone !== 'none' ? painVariant(input) : null;
-    const list = [...it.variants, base, ...more];
+    const list = [...it.variants, ...base, ...more];
     if (pain) {
       list.splice(it.variants.length ? 1 : 0, 0, pain);
       /* 통증이 첫 라운드 — 장의 글도 그것으로 */
@@ -523,6 +550,7 @@ function baseVariant(it: FeedItem, id: string): FeedVariant {
     sub: it.sub,
     speed: it.speed,
     diff: it.diff,
+    best: it.best,
     warn: it.warn,
     chart: it.chart,
   };
@@ -666,7 +694,8 @@ function extraVariants(key: FeedItem['key'], input: FeedInput, c: Ctx): FeedVari
       push({
         id: 'measured',
         text: `6주 동안 ${measured.length}번 쟀어요`,
-        sub: `날 최고의 평균 ${avg}km/h`,
+        sub: '날 최고의 평균 {best}',
+        best: avg,
         chart: c.velocityLine,
       });
     }
@@ -674,26 +703,37 @@ function extraVariants(key: FeedItem['key'], input: FeedInput, c: Ctx): FeedVari
     if (over > 0)
       push({
         id: 'over-130',
-        text: `130 넘긴 날 ${over}일`,
+        text: `{best} 넘긴 날 ${over}일`,
+        best: 130,
         sub: '최근 6주',
         chart: c.velocityLine,
       });
   }
 
   if (key === 'load') {
-    const ac = input.acuteChronic;
-    if (ac && ac.chronic > 0)
+    /*
+     * 실제 던진 공 수로 — 예전엔 부하 단위(투구수 × 강도)를 '주 2,400구'처럼 공 수로 적어, 주 60구 던진 사람이 제 기록과 못 맞췄다
+     * (2026-10-16 베타 100명). 지수의 비율은 강도까지 곱한 값이라 이 두 숫자의 비와 다를 수 있다 — 밑줄이 그렇게 말한다.
+     */
+    if (input.load.ratio != null && c.monthPitches > 0)
       push({
         id: 'acute-chronic',
-        text: `주 ${fmt(ac.acute)}구 · 평소 ${fmt(ac.chronic)}구`,
-        sub: '최근 7일 · 28일 평균(주당 환산)',
-        detail: '둘의 비율이 부하 지수예요',
+        text: `최근 7일 ${fmt(c.weekBars.values[3])}구`,
+        sub: `4주 평균 주 ${fmt(c.monthPitches / 4)}구`,
+        detail: '부하 지수는 강도까지 곱해 셈해요',
         chart: null,
       });
+    /*
+     * '적정 상한까지 +N%' — 지수가 적정(0.8~1.3)이고 성인이고 기록이 고를 때만. 지수가 낮은 것은 대개 기록을 빼먹어서라
+     * '+222% · 늘리면 몸이 따라와요'가 10세 · 15세에게도 떴다(2026-10-16 베타 시뮬). 성장기는 늘리는 몫을 권하지 않는다.
+     */
     if (
       input.load.ratio != null &&
-      input.load.ratio > 0 &&
-      input.load.ratio < ACWR_TARGET_MAX
+      input.load.zone === 'optimal' &&
+      input.load.ratio < ACWR_TARGET_MAX &&
+      input.age != null &&
+      input.age >= ADULT_AGE &&
+      input.missingDays < 7
     ) {
       const room = Math.round(
         ((ACWR_TARGET_MAX - input.load.ratio) / input.load.ratio) * 100
@@ -706,7 +746,8 @@ function extraVariants(key: FeedItem['key'], input: FeedInput, c: Ctx): FeedVari
         chart: null,
       });
     }
-    if (input.missingDays >= 7)
+    /* 분석 화면 경고와 같은 문턱(열흘) — 일주일쯤 빠뜨린 것까지 말하면 잔소리가 된다(2026-10-16 베타 100명) */
+    if (input.missingDays >= MISSING_DAYS_WARNING)
       push({
         id: 'missing',
         text: `28일 중 ${input.missingDays}일 기록이 없어요`,
@@ -833,7 +874,7 @@ function extraVariants(key: FeedItem['key'], input: FeedInput, c: Ctx): FeedVari
             : `${fmt(n.targetProtein - n.protein)}g 더 먹어요`,
         chart: null,
       });
-    if (n.week && n.todayKcal > 0) {
+    if (n.week && (n.todayKcal > 0 || n.headline)) {
       const pct =
         n.targetKcal > 0 ? Math.round((n.week.avgKcal / n.targetKcal) * 100) : null;
       push({

@@ -436,12 +436,18 @@ export const MISSING_DAYS_WARNING = 10;
  * 보여주면 "더 던져도 된다"는 뜻으로 읽힌다.
  *
  * 쉰 날을 적어 둔 것은 빠진 날이 아니다. 그건 진짜 0이다.
+ *
+ * 첫 기록 앞의 날은 빠진 날이 아니라 아직 안 쓴 날이다 — 가입 2주차 사람에게 '28일 중 14일 기록이 없어요'가 떴다(2026-10-16 베타 100명).
+ * byDay 는 창(dateKeys)보다 길게 넘겨야 창 앞머리의 진짜 빈 날을 센다(facts · 분석 화면 모두 그렇다).
  */
 export function countMissingDays(
   byDay: Map<string, DayTotals>,
   dateKeys: string[]
 ): number {
-  return dateKeys.filter((key) => !byDay.has(key)).length;
+  let first: string | null = null;
+  for (const key of byDay.keys()) if (first == null || key < first) first = key;
+  if (first == null) return 0;
+  return dateKeys.filter((key) => key >= first && !byDay.has(key)).length;
 }
 
 export function findFatigueWindows(
