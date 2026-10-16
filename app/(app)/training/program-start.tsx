@@ -429,9 +429,8 @@ function StartSheet({
         {step === 'intro' && choice && (
           <div className="space-y-3">
             <div className="space-y-1">
+              {/* 겉은 무엇 · 이런 분께만, 하루 짜임(how) · 왜(why)는 '자세히 보기' 안으로(2026-10-16 — 설명이 4줄이었다) */}
               <p className="text-sm text-ink break-keep">{choice.summary}</p>
-              {choice.how && <p className="text-sm text-muted break-keep">{choice.how}</p>}
-              {choice.why && <p className="text-sm text-muted break-keep">{choice.why}</p>}
               {choice.fit && (
                 <p className="text-sm text-muted break-keep">이런 분께 · {choice.fit}</p>
               )}
@@ -447,6 +446,12 @@ function StartSheet({
               />
               {weeksOpen && (
                 <div className="space-y-2 px-3 pb-3 text-xs leading-relaxed break-keep">
+                  {(choice.how || choice.why) && (
+                    <div className="space-y-1 text-ink/85">
+                      {choice.how && <p>{choice.how}</p>}
+                      {choice.why && <p>{choice.why}</p>}
+                    </div>
+                  )}
                   <ul className="space-y-1 text-muted">
                     {choice.detail.map((d) => (
                       <li key={d}>{d}</li>
