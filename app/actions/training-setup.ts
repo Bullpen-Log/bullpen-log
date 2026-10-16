@@ -325,6 +325,8 @@ export async function generateTodayPlan(formData: FormData) {
             library,
             hasCheckinToday: facts.condition.today != null,
             picked: { halted: painStateUnknown(facts) },
+            /* 오늘 고른 장비 — 프로그램 날도 오늘 쓸 수 있는 장비로 짠다(2026-10-16 점검 15번, 카드 · 운동 시작과 같은 값) */
+            todaySetup: { availableEquipment },
           },
           programRow,
           user

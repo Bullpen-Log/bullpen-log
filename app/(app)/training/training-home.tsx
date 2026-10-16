@@ -7,7 +7,7 @@ import { PAGE_TITLE_LINE } from '@/components/ui';
 import { NavTitle } from '@/components/nav-title';
 import { AnalysisLink } from '@/components/analysis-link';
 import { OpenCheckinButton } from '@/components/notice-bell';
-import { loadTodayCore, type UserForToday } from '@/lib/report/today-data';
+import { loadTodayCoreCached, type UserForToday } from '@/lib/report/today-data';
 import { TRAINING_SCREEN_TEXT, trainingScreenOf } from '@/lib/report/training-screen';
 import { STATE_NOTICE_TEXT, stateNoticeOf } from '@/lib/report/state-notice';
 import { PROGRAMS_ENABLED } from '@/lib/program/program';
@@ -20,6 +20,7 @@ import { visibleExercises } from '@/lib/library-cache';
 import { loadMechanicsProgram } from '@/lib/mechanics/load';
 import { mechanicsLevel } from '@/lib/mechanics/levels';
 import { MECHANICS_FOLD_TEXT, foldSession } from '@/lib/mechanics/program';
+import { DrillThrowNoteCard } from './drill-throw-note';
 import { shiftDateKey, toDateKey } from '@/lib/pitch-stats';
 import { dbDate, keyOfDbDate } from '@/lib/nutrition/days';
 import { TRAINING_PART_HREF, type TrainingPart } from '@/lib/training-part';
@@ -264,7 +265,8 @@ async function WorkoutCard({ user, today }: { user: HomeUser; today: Date }) {
    * 있었으면(드묾) 한 번 더 읽는다.
    */
   const [core, session, programFirst] = await Promise.all([
-    loadTodayCore(user, today),
+    /* 홈 탭(@home)과 같은 요청에서 같은 셈이 두 번 돌지 않게 캐시 함수로(2026-10-16 점검 13번 — 탭 판 넷이 늘 함께 그려진다) */
+    loadTodayCoreCached(user),
     prisma.trainingSession.findUnique({
       where: {
         userId_date: { userId: user.id, date: new Date(`${toDateKey(today)}T00:00:00.000Z`) },
@@ -436,7 +438,9 @@ async function ArmcareCard({ user, today }: { user: HomeUser; today: Date }) {
 
 /** 메커니즘 — 고른 수준의 다음 세션과 12칸 진행(수준을 안 골랐으면 고르라고) */
 async function MechanicsCard({ userId }: { userId: string }) {
-  const { program, session, doneToday, painFold } = await loadMechanicsProgram(userId);
+  const { program, session, doneToday, painFold, throwNote } = await loadMechanicsProgram(userId);
+  /* 드릴로 던진 공을 투구 기록에 남기라는 한 줄(2026-10-16) — 남기거나 닫으면 사라진다 */
+  const throwLine = throwNote ? <DrillThrowNoteCard note={throwNote} className="mt-3" /> : null;
   if (!program?.level) {
     return <AppCard app="mechanics" status="수준을 골라 투구 메커니즘 프로그램을 시작해 보세요" />;
   }
@@ -488,6 +492,7 @@ async function MechanicsCard({ userId }: { userId: string }) {
         }
       >
         {bars}
+        {throwLine}
       </AppCard>
     );
   }
@@ -514,6 +519,7 @@ async function MechanicsCard({ userId }: { userId: string }) {
       }
     >
       {bars}
+      {throwLine}
     </AppCard>
   );
 }

@@ -1,5 +1,6 @@
 import type { ReportFacts } from '@/lib/report/facts';
-import { dailyPitchCap, pendingOuting } from '@/lib/report/plan';
+import { dailyPitchCap } from '@/lib/report/plan';
+import { hardOuting } from '@/lib/report/theme';
 
 /**
  * 지금 팔 상태 — 위험 · 주의 · 안전(2026-10-14 사용자: "몇 구를 던져라 이런 식이 아니라 지금이 위험한 상태인지 안전한
@@ -38,9 +39,6 @@ const RANK: Record<ArmLevel, number> = { danger: 2, caution: 1, safe: 0 };
 
 /** 이만큼 이어 던졌으면 '주의'(오늘 또는 어제까지 이어진 연투만 센다 — 넉 주 전 연투로 오늘을 막지 않는다) */
 export const STREAK_CAUTION_DAYS = 3;
-
-/** 큰 등판 직후(오늘 · 어제) 이만큼 넘게 쉬어야 하는 등판이면 '위험', 아니면 '주의' */
-export const DANGER_REST_DAYS = 2;
 
 /** 오늘(daysAgo 0) 또는 어제부터 거꾸로 이어 던진 날 수 */
 function currentStreak(outings: { daysAgo: number; pitches: number }[]): number {
@@ -94,27 +92,19 @@ export function armStatusOf(facts: ReportFacts): ArmStatus {
     });
   }
 
-  /* 2) 큰 등판의 여파 — 휴식표(lib/report/plan.ts REST_REQUIREMENTS)가 아직 끝나지 않은 등판 */
-  const owed = pendingOuting(patterns, 0, age);
-  if (owed) {
-    const need = owed.left + owed.elapsed;
-    const heavy = need >= DANGER_REST_DAYS;
-    if (owed.elapsed === 0) {
-      signals.push({
-        level: heavy ? 'danger' : 'caution',
-        text: `오늘 ${owed.pitches}구 던졌어요. ${need}일은 전력으로 던지지 않는 게 좋아요.`,
-      });
-    } else if (owed.elapsed === 1) {
-      signals.push({
-        level: heavy ? 'danger' : 'caution',
-        text: `어제 ${owed.pitches}구 던져 팔이 가장 지친 날이에요.`,
-      });
-    } else {
-      signals.push({
-        level: 'caution',
-        text: `${owed.elapsed}일 전 ${owed.pitches}구 던진 뒤 회복 중이에요. 전력 투구는 ${owed.left}일 뒤부터예요.`,
-      });
-    }
+  /*
+   * 2) (뺌 — 2026-10-16 사용자 결정) 투구수 휴식표(plan.ts REST_REQUIREMENTS)로 '전력 투구는 N일 뒤' 를 말하던 신호. 팔 상태는 이제
+   * 통증 · 재활 · 부하 지수 · 세게 던진 날 · 연투 · 성장기 하루 한도만으로 정한다. 휴식표 자체는 성장기 투구 계획(buildPitchPlan)에 남는다.
+   */
+
+  /* 2') 세게 던진 날(오늘 · 어제 — theme.ts hardOuting, 투구수 × 체감 강도 ≥ 2,700 또는 경기 · 강도 9~10 으로 30구) */
+  const hard = hardOuting(facts);
+  if (hard) {
+    signals.push(
+      hard.daysAgo === 0
+        ? { level: 'danger', text: `오늘 ${hard.pitches}구를 세게 던졌어요. 오늘은 더 던지지 않아요.` }
+        : { level: 'caution', text: `어제 ${hard.pitches}구를 세게 던져 팔이 가장 지친 날이에요.` }
+    );
   }
 
   /* 3) 성장기 하루 한도 — 오늘 던진 양이 넘었을 때만(성인은 한도가 없다) */

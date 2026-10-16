@@ -1,9 +1,10 @@
 import { redirect } from 'next/navigation';
+import { appNow } from '@/lib/clock';
 import { prisma } from '@/lib/prisma';
 import { requireUser } from '@/lib/dal';
 import { featureLocks, SETUP_PATH } from '@/lib/feature-locks';
 import { readFrozenPlan } from '@/lib/workout/session-plan';
-import { closeAbandonedSessions } from '@/lib/workout/close-stale';
+import { closeAbandoned, closeAbandonedSessions, lastSetAt } from '@/lib/workout/close-stale';
 import { runExercises } from '@/lib/workout/run-exercises';
 import { SessionClient, type RunSet } from './session-client';
 
@@ -34,15 +35,25 @@ export default async function RunPage() {
   if (!session) redirect('/training');
 
   /*
+   * 찍어 둔 목록을 못 읽거나 비어 있는 판은 여기서 닫는다(ABANDONED — 세트가 있으면 기록으로 접는다, lib/workout/close-stale.ts).
+   *
+   * 예전에는 트레이닝으로만 돌려보냈는데, [운동 시작]은 ACTIVE 판이 있으면 이 화면으로 보내서 둘 사이를 맴돌았다
+   * (2026-10-16 점검 12). 닫아 두면 다음 [운동 시작]이 새 목록으로 다시 연다. 워밍업 판정보다 먼저 본다 — 워밍업 화면도
+   * 목록이 없으면 트레이닝으로 보내기 때문이다. 트레이닝 화면은 이 꼬리(?closed=1)를 읽지 않는다.
+   */
+  const plan = readFrozenPlan(session.plan);
+  if (!plan || plan.exercises.length === 0) {
+    await closeAbandoned(user.id, session, await lastSetAt(session.id), appNow());
+    redirect('/training?closed=1');
+  }
+
+  /*
    * 워밍업 창을 아직 안 지났다.
    *
    * mainStartedAt 은 그 창을 나갈 때 찍힌다. 비어 있다는 것은 [운동 시작]만
    * 누르고 주소를 직접 쳐서 들어왔다는 뜻이라, 창으로 돌려보낸다.
    */
   if (!session.mainStartedAt) redirect('/workout/warmup');
-
-  const plan = readFrozenPlan(session.plan);
-  if (!plan || plan.exercises.length === 0) redirect('/training');
 
   const [sets, exercises] = await Promise.all([
     prisma.userExerciseSet.findMany({

@@ -17,11 +17,14 @@ function check(name: string, ok: boolean, detail = '') {
 }
 
 type Outing = { daysAgo: number; pitches: number; adjusted: number };
+type Hard = { daysAgo: number; pitches: number; load?: number; nearMaxPitches?: number };
 function facts(o: {
   age?: number | null;
   zone?: 'danger' | 'caution' | 'optimal' | 'low' | null;
   ratio?: number | null;
   outings?: Outing[];
+  /** 세게 던진 날(facts.patterns.hardOutings — theme.ts hardOuting 이 오늘 · 어제 것을 읽는다) */
+  hard?: Hard[];
   painToday?: boolean;
   painRecently?: boolean;
   checkinToday?: boolean;
@@ -31,7 +34,7 @@ function facts(o: {
   return {
     profile: { age: o.age === undefined ? 25 : o.age },
     load: { zone: o.zone === undefined ? 'optimal' : o.zone, ratio: o.ratio ?? 1.05 },
-    patterns: { recentOutings: o.outings ?? [] },
+    patterns: { recentOutings: o.outings ?? [], hardOutings: o.hard ?? [] },
     condition: {
       painToday: o.painToday ?? false,
       painRecently: o.painRecently ?? false,
@@ -67,25 +70,29 @@ const NUM_PITCH = /\d+\s*~\s*\d+\s*구|구 이하|강도 \d/;
   const s = armStatusOf(facts({ memo: ['결림'], checkinToday: false }));
   check('메모 통증 표현 · 체크인 없음 → 주의', s.level === 'caution' && s.headline.includes('결림'));
 }
+/*
+ * 2026-10-16 사용자 결정: 투구수 휴식표(전력 투구는 N일 뒤)는 팔 상태에서 뺐다. 이제 큰 등판은 '세게 던진 날'(투구수 × 체감 강도 ≥ 2,700
+ * 또는 거의 전력 30구)만 신호다 — 오늘이면 위험, 어제면 주의. 양만 많고 가볍게 던진 날(90구 · 강도 5)은 부하 지수가 말한다.
+ */
 {
-  const s = armStatusOf(facts({ outings: [{ daysAgo: 1, pitches: 90, adjusted: 90 }] }));
-  check('어제 90구 → 위험', s.level === 'danger' && s.headline.includes('어제 90구'), s.headline);
+  const s = armStatusOf(facts({ hard: [{ daysAgo: 1, pitches: 90, load: 7200, nearMaxPitches: 90 }] }));
+  check('어제 세게 90구 → 주의 · 가장 지친 날', s.level === 'caution' && s.headline.includes('어제 90구'), s.headline);
 }
 {
-  const s = armStatusOf(facts({ outings: [{ daysAgo: 0, pitches: 85, adjusted: 85 }] }));
-  check('오늘 85구 → 위험 · 4일', s.level === 'danger' && s.headline.includes('4일'), s.headline);
+  const s = armStatusOf(facts({ hard: [{ daysAgo: 0, pitches: 85, load: 7650, nearMaxPitches: 85 }] }));
+  check('오늘 세게 85구 → 위험 · 더 던지지 않음', s.level === 'danger' && s.headline.includes('오늘 85구'), s.headline);
 }
 {
   const s = armStatusOf(facts({ outings: [{ daysAgo: 0, pitches: 35, adjusted: 33 }] }));
-  check('오늘 가벼운 35구(하루 쉼) → 주의', s.level === 'caution', `${s.level} ${s.headline}`);
+  check('오늘 가벼운 35구(세게 던진 날 아님) → 안전', s.level === 'safe', `${s.level} ${s.headline}`);
 }
 {
-  const s = armStatusOf(facts({ outings: [{ daysAgo: 2, pitches: 80, adjusted: 80 }] }));
-  check(
-    '이틀 전 80구 → 주의 · 회복 중',
-    s.level === 'caution' && s.headline.includes('회복 중') && s.headline.includes('2일 뒤'),
-    s.headline
-  );
+  const s = armStatusOf(facts({ outings: [{ daysAgo: 1, pitches: 90, adjusted: 45 }] }));
+  check('어제 90구인데 가볍게(세게 던진 날 아님) → 휴식표를 안 읽어 안전', s.level === 'safe', `${s.level} ${s.headline}`);
+}
+{
+  const s = armStatusOf(facts({ hard: [{ daysAgo: 2, pitches: 80, load: 7000 }] }));
+  check('이틀 전 세게 던진 날 → 오늘 · 어제가 아니라 신호 없음', s.level === 'safe', `${s.level} ${s.headline}`);
 }
 {
   const s = armStatusOf(facts({ outings: [{ daysAgo: 5, pitches: 80, adjusted: 80 }] }));

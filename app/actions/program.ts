@@ -18,7 +18,7 @@ import {
   readFrozenPlan,
   type FrozenPlan,
 } from '@/lib/workout/session-plan';
-import { openSession } from '@/lib/workout/open-session';
+import { isOpenSession, openSession } from '@/lib/workout/open-session';
 import {
   PROGRAMS_ENABLED,
   VARIANT_KEYS,
@@ -253,7 +253,8 @@ export async function startProgramWorkout() {
   const open = await prisma.trainingSession.findUnique({
     where: { userId_date: { userId: user.id, date: core.midnight } },
   });
-  if (open?.status === 'ACTIVE') redirect('/workout/run');
+  /* 목록을 못 읽는 판은 열린 판으로 보지 않는다 — 운동 화면이 닫고 새로 연다(2026-10-16 점검 12번, lib/workout/open-session.ts) */
+  if (isOpenSession(open)) redirect('/workout/run');
 
   /* 오늘 이미 마친 이 프로그램 판을 다시 열면 그 판의 목록 그대로(다음 일차 목록을 섞지 않는다). 다른 프로그램 판이면 아래 판정이 '기다림'으로 막는다 */
   const kept = open ? readFrozenPlan(open.plan) : null;

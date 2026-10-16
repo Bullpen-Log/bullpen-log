@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useEffect, useRef, useState, useTransition } from 'react';
 import { unstable_rethrow } from 'next/navigation';
 import { ChevronDown, Play, X } from '@/components/icon';
 import { setExerciseDone } from '@/app/actions/exercise-log';
@@ -127,6 +127,14 @@ export function ExerciseChecklist({
    * 부모가 새 목록을 주면(운동을 더했거나 일정을 다시 만들었을 때) 그것을 따른다.
    * 안 그러면 방금 더한 운동이 목록에 안 나타난다.
    */
+  /*
+   * 서버가 마지막으로 확인해 준 체크 상태(운동 id → done). 저장이 실패해 되돌릴 때 '누르기 전 값'이 아니라 이 값으로 돌린다 —
+   * 그사이 부모가 새 목록을 줬으면(다른 기기에서 체크 · 일정 다시 만들기) 누르기 전 값은 이미 옛것이다(2026-10-16 점검 14).
+   */
+  const serverDone = useRef(new Map(exercises.map((e) => [e.id, e.done])));
+  useEffect(() => {
+    serverDone.current = new Map(exercises.map((e) => [e.id, e.done]));
+  }, [exercises]);
   const [seen, setSeen] = useState(exercises);
   if (seen !== exercises) {
     setSeen(exercises);
@@ -136,25 +144,34 @@ export function ExerciseChecklist({
   const doneCount = items.filter((e) => e.done).length;
   const allDone = items.length > 0 && doneCount === items.length;
 
+  /* 저장이 가는 중인 줄. 빨리 두 번 누르면 두 요청이 엇갈려 화면과 서버가 반대가 됐다 — 그 줄은 답이 올 때까지 안 받는다 */
+  const pending = useRef(new Set<string>());
+
   const toggle = (id: string) => {
+    if (pending.current.has(id)) return;
     const target = items.find((e) => e.id === id);
     if (!target) return;
     const next = !target.done;
 
+    pending.current.add(id);
     setItems((prev) => prev.map((e) => (e.id === id ? { ...e, done: next } : e)));
     setError(undefined);
 
     const undo = (message: string) => {
-      setItems((prev) => prev.map((e) => (e.id === id ? { ...e, done: !next } : e)));
+      const back = serverDone.current.get(id) ?? !next;
+      setItems((prev) => prev.map((e) => (e.id === id ? { ...e, done: back } : e)));
       setError(message);
     };
     startTransition(async () => {
       try {
         const res = await setExerciseDone(id, next, dateKey);
         if ('error' in res) undo(res.error);
+        else serverDone.current.set(id, next);
       } catch (err) {
         unstable_rethrow(err);
         undo(OFFLINE);
+      } finally {
+        pending.current.delete(id);
       }
     });
   };

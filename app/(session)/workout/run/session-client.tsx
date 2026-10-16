@@ -72,7 +72,7 @@ import {
   setsNeeded,
   warmupLine,
 } from '@/lib/program/program';
-import { UNIT_KG, roundForDisplay, weightKindOf } from '@/lib/program/next-weight';
+import { UNIT_KG, UNIT_LB, roundForDisplay, weightKindOf } from '@/lib/program/next-weight';
 
 /**
  * 운동하는 동안의 화면.
@@ -931,7 +931,11 @@ export function SessionClient({
    */
   const fillSuggested = () => {
     if (suggestKg == null) return;
-    setWeight(String(wUnit === 'lb' ? roundForDisplay(suggestKg, 'lb') : suggestKg));
+    setWeight(
+      String(
+        wUnit === 'lb' ? roundForDisplay(suggestKg, 'lb', weightKindOf(ex.equipment)) : suggestKg
+      )
+    );
     if (target && !target.plus) setCount(String(target.reps));
     setError(null);
   };
@@ -987,10 +991,15 @@ export function SessionClient({
        * 원판이 그렇게 생겼다. lb 에서 2.5씩 올리면 있지도 않은 무게가 된다.
        */
       /* 추천이 있는 날의 덤벨 · 케틀벨은 한 손 2kg 씩 — 추천 무게와 같은 단위(설계 §13-20, 자유 운동 추천도 같다) */
+      /* lb 도 덤벨은 2.5lb 씩 — 2kg 한 칸이 5lb 반올림에 겹치지 않게(2026-10-16 점검 10번, next-weight.ts UNIT_LB) */
+      const dumbbell =
+        (ex.programSlot || ex.suggestedKg != null) && weightKindOf(ex.equipment) === 'dumbbell';
       const step =
         wUnit === 'lb'
-          ? 5
-          : (ex.programSlot || ex.suggestedKg != null) && weightKindOf(ex.equipment) === 'dumbbell'
+          ? dumbbell
+            ? UNIT_LB.dumbbell
+            : UNIT_LB.barbell
+          : dumbbell
             ? UNIT_KG.dumbbell
             : WEIGHT_STEP;
       const next = Math.max(0, (Number(weight) || 0) + delta * step);
@@ -1222,7 +1231,7 @@ export function SessionClient({
           <p className="mt-1 text-sm font-semibold text-ink">
             이번 세트 · {target.reps}회{target.plus ? '+' : ''}
             {target.kg != null &&
-              ` · ${wUnit === 'lb' ? roundForDisplay(target.kg, 'lb') : target.kg}${wUnit}`}
+              ` · ${wUnit === 'lb' ? roundForDisplay(target.kg, 'lb', weightKindOf(ex.equipment)) : target.kg}${wUnit}`}
           </p>
         )}
         {ex.plannedSets != null && ex.plannedSets > 0 && (
@@ -1579,7 +1588,9 @@ export function SessionClient({
                   >
                     <RotateCcw aria-hidden className="h-3.5 w-3.5" />
                     추천{' '}
-                    {wUnit === 'lb' ? roundForDisplay(suggestKg, 'lb') : suggestKg}
+                    {wUnit === 'lb'
+                      ? roundForDisplay(suggestKg, 'lb', weightKindOf(ex.equipment))
+                      : suggestKg}
                     {wUnit} 담기
                   </button>
                   {/* 자유 운동의 추천은 까닭 한 줄을 붙인다 — 왜 올랐는지(안 올랐는지) 보여야 믿고 담는다(free-weight.ts) */}

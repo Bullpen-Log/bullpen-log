@@ -3,7 +3,8 @@ import { appNow } from '@/lib/clock';
 import { prisma } from '@/lib/prisma';
 import { shiftDateKey, toDateKey } from '@/lib/pitch-stats';
 import { formatPrescription } from '@/lib/exercise-meta';
-import { exercisesByIds } from '@/lib/library-cache';
+import { exercisesByIds, visibleExercises } from '@/lib/library-cache';
+import { loadRehabExerciseIds } from '@/lib/armcare/rehab-store';
 import { readDailyPlan } from '@/lib/report/daily-plan';
 import { planPrescription } from '@/lib/report/volume';
 import { SLOT_LABELS, SLOT_ORDER } from '@/lib/report/theme';
@@ -211,7 +212,7 @@ export async function trainingDay(
 ): Promise<TrainingDayDetail> {
   const date = new Date(`${dateKey}T00:00:00.000Z`);
 
-  const [logs, note, setup, session] = await Promise.all([
+  const [allLogs, note, setup, session] = await Promise.all([
     prisma.userExerciseLog.findMany({
       where: { userId, date, completed: true },
       select: {
@@ -253,6 +254,19 @@ export async function trainingDay(
       select: { plan: true },
     }),
   ]);
+
+  /*
+   * 운동으로 세는 기록만 — 암케어 · 재활에서 한 체크는 그날 상세의 '운동 N개'에서 뺀다(2026-10-16 점검 6번). 트레이닝 탭의
+   * 'N종목'(lib/report/today-data.ts strays)과 같은 기준이라 홈 · 달력 · 그날 상세가 같은 수를 말한다.
+   */
+  const [owner, library] = await Promise.all([
+    prisma.user.findUnique({ where: { id: userId }, select: { ownedEquipment: true } }),
+    visibleExercises(),
+  ]);
+  const rehabIds = await loadRehabExerciseIds(userId, library, owner?.ownedEquipment ?? []);
+  const logs = allLogs.filter(
+    (l) => l.exercise.category !== '암케어' && !rehabIds.has(l.exerciseId)
+  );
 
   const doneIds = new Set(logs.map((l) => l.exerciseId));
   /*

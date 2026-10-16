@@ -263,8 +263,8 @@ export type ExerciseScore = {
  * 다음 근력 프로그램 날 — 진행 중인 프로그램(오늘 상태 한 장의 commitments.program)과 다음 일차의 동작 열쇠로.
  *
  *   다 마쳤거나 · 마친 날을 모르거나 · 10일(PROGRAM_FOLLOW_DAYS) 넘게 안 했으면 null(안 따르는 프로그램)
- *   오늘 프로그램 날을 마쳤으면 다음은 이르면 모레(어제가 프로그램 날이면 쉬는 규칙 — program.ts decideToday 'spacing')
- *   그 밖에는 이르면 내일 — 어제 했으면 오늘이 쉬는 칸이라 내일이고, 그 전이면 오늘도 될 수 있지만 오늘은 매일 일정을 만드는 날이다
+ *   다음은 이르면 내일 — 2026-10-16 부터 프로그램에 '간격' 쉬는 날이 없다(어제 했어도 오늘 다음 세션). 오늘은 매일 일정을 만드는 날이라
+ *   오늘 마쳤든 그 전에 마쳤든 다음 프로그램 날은 내일로 본다
  * 일차의 동작 열쇠는 부르는 쪽이 patternsOfProgramDay(parseProgram(key), nextDay, 고정 운동)로 낸다 — 이 파일이 program.ts 를 안
  * 부르게(프로그램 정의가 크다). 열쇠가 없으면 null.
  */
@@ -279,7 +279,7 @@ export function programNextOf({
   const since = commitment.daysSinceLastDone;
   if (since == null || since < 0 || since > PROGRAM_FOLLOW_DAYS) return null;
   if (patterns.size === 0) return null;
-  return { patterns: new Set(patterns), inDays: since === 0 ? 2 : 1 };
+  return { patterns: new Set(patterns), inDays: 1 };
 }
 
 /**

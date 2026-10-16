@@ -865,7 +865,8 @@ export default async function TrainingPage({
               */}
                 <AddExercise
                   library={pickable}
-                  inPlanIds={savedPlan.picks.map((p) => p.exerciseId)}
+                  /* 보이는 목록 기준 — 안전 재확인으로 뺀 운동은 '넣음'으로 잠기지 않고 다시 넣을 수 있다(2026-10-16 점검 5번) */
+                  inPlanIds={shownPicks.map((p) => p.exerciseId)}
                   /* 몸 상태로만 가른 안전 — 장비 · 경력은 창이 따로 표시한다(lib/report/today-data.ts) */
                   safeIds={core.safeIds}
                   ownedEquipment={user.ownedEquipment}

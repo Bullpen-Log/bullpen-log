@@ -15868,8 +15868,8 @@ console.log(
     json([fpNone.checkin, fpSev.checkin])
   );
   check(
-    'P4 팔 피로 규칙 (라) 지문 — FINGERPRINT_KEYS 는 그대로(안쪽 칸이라) — 바깥 칸 10개',
-    FINGERPRINT_KEYS.length === 10 &&
+    'P4 팔 피로 규칙 (라) 지문 — FINGERPRINT_KEYS 는 그대로(안쪽 칸이라) — 바깥 칸 12개(10-16 나이 구간 · 경력 더함)',
+    FINGERPRINT_KEYS.length === 12 &&
       !(FINGERPRINT_KEYS as readonly string[]).includes('armFatigue')
   );
   const words = (a: ReturnType<typeof fpOf>, b: ReturnType<typeof fpOf>) =>
@@ -16380,8 +16380,8 @@ console.log(
     ["'2~3일 뒤' → '없음'", { throwPlan: '2~3일 뒤' }, { throwPlan: '없음' }],
   ];
   check(
-    'P4 등판 창 (바) 지문 — 창이 열리거나 닫히는 답 바뀜은 모두 바뀐 줄을 낸다(지문 칸 throwPlan 그대로 — FINGERPRINT_KEYS 10개)',
-    FINGERPRINT_KEYS.length === 10 &&
+    'P4 등판 창 (바) 지문 — 창이 열리거나 닫히는 답 바뀜은 모두 바뀐 줄을 낸다(지문 칸 throwPlan 그대로 — FINGERPRINT_KEYS 12개)',
+    FINGERPRINT_KEYS.length === 12 &&
       fpPairs.every(
         ([, a, b]) =>
           diffFingerprintChanges(fpOf({ today: a }), fpOf({ today: b })).length > 0
@@ -24792,9 +24792,10 @@ console.log(
         { patterns: ['스쿼트', '밀기'], inDays: 1 },
       ],
       [
-        '오늘 마침 → 모레',
+        '오늘 마침 → 내일(간격 없음)',
         nx({ daysSinceLastDone: 0 }),
-        { patterns: ['스쿼트', '밀기'], inDays: 2 },
+        /* 10-16 부터 프로그램에 간격 쉬는 날이 없다 — 오늘 마쳤어도 다음은 내일 */
+        { patterns: ['스쿼트', '밀기'], inDays: 1 },
       ],
       ['열쇠 없음', nx({}, new Set()), null],
     ];
@@ -28983,7 +28984,7 @@ console.log(
       run({ key: 'stronglifts-5x5', lastLowerKey: Y, lastDoneDate: Y })
     );
     check(
-      "P6-2 (다) C 어제 매일 일정이 하체 날 + 스트롱리프트(매일 스쿼트) — 카드는 큰 하체를 빼지 않고 가볍게 + 주의 '어제 하체'(중재와 같은 글), 어제가 프로그램 날이면 간격(하체 신호 없음)",
+      "P6-2 (다) C 어제 매일 일정이 하체 날 + 스트롱리프트(매일 스쿼트) — 카드는 큰 하체를 빼지 않고 가볍게 + 주의 '어제 하체'(중재와 같은 글), 어제가 프로그램 날이어도 간격 없이 하는 날(10-16 — 하체 신호는 없음)",
       c.made.signals.heavyLowerYesterday &&
         c.decision.kind === 'go' &&
         c.decision.adjust.bigLower?.kind === 'lighter' &&
@@ -28992,7 +28993,7 @@ console.log(
         c.r.programAdjust.lighterBigLower &&
         c.r.why.includes(CAUTION_TEXT.lowerBudget) &&
         !d.made.signals.heavyLowerYesterday &&
-        d.decision.kind === 'spacing',
+        d.decision.kind === 'go',
       json({ c: c.decision, d: d.decision.kind })
     );
     const e = cardAndArbiter(
@@ -29882,12 +29883,8 @@ console.log(
     }
     check(
       `P6-3 (아) 중재 → 매일 일정 격자 ${seen.combos}가지(사람 ${people.length} × 프로그램 · 일차 ${runs.length} × 어제 하체 × 넘김) — 프로그램 날(${seen.program}, 넘긴 날 ${seen.forcedProgram})은 일정 운동이 모두 그날 프로그램 운동, 멈춤(${seen.off})은 멈춤, 하체가 막힌 날 무거운 하체 0(예산이 없었으면 들던 ${seen.lowerBit}가지), 팔을 다 쓴 날은 넘겨도 팔 플라이오 0(예산이 없었으면 들던 ${seen.armBit}가지)`,
-      bad.length === 0 &&
-        seen.program > 0 &&
-        seen.forcedProgram > 0 &&
-        seen.off > 0 &&
-        seen.lowerBit > 0 &&
-        seen.armBit > 0,
+      /* lowerBit · armBit 는 10-16 간격 쉬는 날을 없앤 뒤 이 격자에서 0 — 어제 프로그램 날이 이제 프로그램 날이라 매일 일정 길로 안 간다(세기만) */
+      bad.length === 0 && seen.program > 0 && seen.forcedProgram > 0 && seen.off > 0,
       bad.slice(0, 4).join(' ‖ ')
     );
     check(

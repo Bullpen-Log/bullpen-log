@@ -57,7 +57,9 @@ import {
   REST_TEXT,
   SUBSTITUTE_REASON,
   painSlotsOf,
+  pickSubstitute,
   restTextOf,
+  VARIANT_MOVEMENT_KEY,
   type ItemRx,
   type PinnableExercise,
   type ProgramPlan,
@@ -93,6 +95,8 @@ import { lastOutingDateOf } from '../lib/engine/outing.ts';
 import { buildFacts, type CheckinLike } from '../lib/report/facts.ts';
 /* 2판 P6-7 — 올림 멈춤 글(영양 추세 깃발이 선 주에 무게 추천이 받는 글) */
 import { FUEL_HOLD_TEXT } from '../lib/nutrition/fuel-check.ts';
+/* 2026-10-16 검토 15a — 오늘 고른 장비로 프로그램 운동을 고른다(load.ts 가 같은 함수를 부른다) */
+import { equipmentForToday } from '../lib/report/equipment.ts';
 
 let passed = 0;
 let failed = 0;
@@ -329,6 +333,18 @@ check(
     !dayPlan(pp, 1).items.some((x) => x.variant === 'pushAcc') &&
     dayPlan(pp, 1).items.some((x) => x.variant === 'vpull')
 );
+{
+  /* 2026-10-16 검토 7 — 투수 파워는 모든 날 당기기 ≥ 밀기(주 2번 힌지 날의 밀기 본운동 + 보조 밀기가 당기기 하나를 넘던 것) */
+  const unbalanced: string[] = [];
+  for (const key of ['pitcher-power', 'pitcher-power:2']) {
+    const p = plan(key);
+    allDays(p).forEach((dp, i) => {
+      const n = (k: string) => dp.items.filter((x) => VARIANT_MOVEMENT_KEY[x.variant] === k).length;
+      if (n('당기기') < n('밀기')) unbalanced.push(`${key} ${i + 1}일차 당기기 ${n('당기기')} < 밀기 ${n('밀기')}`);
+    });
+  }
+  check('투수 파워: 모든 날 당기기 ≥ 밀기(주 3번 · 주 2번)', unbalanced.length === 0, unbalanced.join(' · '));
+}
 check(
   '점프 단계 — 1~2주는 뎁스 · 바운드 · 매우 높음 빼고, 3주부터 다',
   jumpFitsWeek({ title: '박스 점프', intensity: '높음' }, 1) &&
@@ -585,6 +601,22 @@ check('다 맞으면 시작', checkEligibility(base).ok);
     const hp = accessoryWithFallback('hpull', of, 's', 0, new Set());
     check('장비 대체: 할 수 있으면 그 칸 그대로(대체 아님)', hp.ex != null && !hp.substituted);
     check('장비 대체: 다 쓰면 null', accessoryWithFallback('vpull', of, 's', 0, new Set(['row1', 'row2'])).ex === null);
+    /* 2026-10-16 검토 8 — 그날 대체(load.ts)는 고정 운동 · 같은 날 이미 고른 운동을 건너뛴다. 칸마다 고른 것을 쌓아 가며 고르면 한 날에 같은 운동이 없다 */
+    const cands = [mk('s1', '로우 1', '당기기', ['덤벨']), mk('s2', '로우 2', '당기기', ['덤벨']), mk('s3', '로우 3', '당기기', ['덤벨'])];
+    const safe = new Set(['s1', 's2', 's3']);
+    const chosen: string[] = ['s1'];
+    for (const pinnedId of ['s2', 's2', 's1']) {
+      const sub = pickSubstitute(cands, new Set([pinnedId, ...chosen]), safe);
+      if (sub) chosen.push(sub.id);
+    }
+    check(
+      '그날 대체: 고정 운동 · 같은 날 이미 고른 운동을 건너뛰어 한 날에 같은 운동이 두 번 없음, 다 쓰면 null · 오늘 못 하는 것은 안 고름',
+      new Set(chosen).size === chosen.length &&
+        chosen.join() === 's1,s3,s2' &&
+        pickSubstitute(cands, new Set(['s1', 's2', 's3']), safe) === null &&
+        pickSubstitute(cands, new Set(['s1']), new Set(['s1', 's3']))?.id === 's3',
+      chosen.join()
+    );
   }
   /* 성장기 처방 — 무게 칸은 3개 남기고, 매우 높음은 후보에서 빠진다 */
   check('성장기: 15세는 성장기 · 16세 · 나이 모름은 아님', isYouthAge(15) && !isYouthAge(16) && !isYouthAge(null));
@@ -741,6 +773,13 @@ const lib: PinnableExercise[] = [
     push[0] === 'bp' && pushNoBar[0] === 'dbp',
     `${push.join(',')} / ${pushNoBar.join(',')}`
   );
+  check(
+    '오늘 고른 장비로 고름(2026-10-16 검토 15a): 바벨을 가져도 오늘 덤벨 · 벤치만이면 덤벨 벤치 프레스, 오늘 장비를 안 골랐으면 가진 것 그대로',
+    variantCandidates('push', lib, equipmentForToday(full, ['덤벨', '벤치']), '중급')[0]?.id === 'dbp' &&
+      !variantCandidates('push', lib, equipmentForToday(full, ['덤벨', '벤치']), '중급').some((e) => e.id === 'bp') &&
+      eq(variantCandidates('push', lib, equipmentForToday(full, []), '중급').map((e) => e.id), push) &&
+      eq(variantCandidates('push', lib, equipmentForToday(full, null), '중급').map((e) => e.id), push)
+  );
   const pins = pickPinned(lib, full, '중급');
   check(
     '9개 중 라이브러리로 채울 수 있는 것은 다 채움',
@@ -869,10 +908,13 @@ check(
   '다른 방식으로 이미 시작',
   decideToday(LEGACY, sig({ otherWorkoutStarted: true })).kind === 'otherMode'
 );
-check(
-  '어제 프로그램 날 = 간격',
-  decideToday(LEGACY, sig({ lastProgramDate: '2026-10-09' })).kind === 'spacing'
-);
+{
+  const next = decideToday(LEGACY, sig({ lastProgramDate: '2026-10-09' }));
+  check(
+    '어제 프로그램 날이어도 오늘 다음 세션을 함(2026-10-16 검토 4 — 간격 쉬기 없음), 쉰 날 수는 무게 추천에 1로',
+    next.kind === 'go' && next.gapDays === 1
+  );
+}
 {
   const d = decideToday(LEGACY, sig({ gameYesterday: true }));
   check(
@@ -1379,13 +1421,13 @@ console.log('\n4-3) 중재 신호(2판 P6-2)');
     [{ gameYesterday: true, hardToday: true }, 'rest:gameYesterday'],
     [{ gameTomorrow: true, choseRecovery: true }, 'rest:gameTomorrow'],
     [{ hardToday: true, choseRecovery: true }, 'rest:hardToday'],
-    [{ hardToday: true, lastProgramDate: '2026-10-09' }, 'spacing'],
+    [{ hardToday: true, lastProgramDate: '2026-10-09' }, 'rest:hardToday'],
     [{ choseRecovery: true, checkedIn: false }, 'needCheckin'],
     [{ hardToday: true, halted: true }, 'painWait'],
   ];
   const wrongOrder = order.filter(([o, want]) => kindOf(o) !== want);
   check(
-    `4-3 (바) 쉬는 까닭 차례 ${order.length}가지 — 경기 날 · 전날 · 어제 팔 부담 > 오늘 세게 던짐 > '회복' 고름, 간격 · 체크인 · 통증 멈춤은 그보다 먼저`,
+    `4-3 (바) 쉬는 까닭 차례 ${order.length}가지 — 경기 날 · 전날 · 어제 팔 부담 > 오늘 세게 던짐 > '회복' 고름, 체크인 · 통증 멈춤은 그보다 먼저, 어제 프로그램 날은 안 막음(2026-10-16)`,
     wrongOrder.length === 0,
     wrongOrder.map(([o]) => `${JSON.stringify(o)} → ${kindOf(o)}`).join(' · ')
   );
@@ -1851,10 +1893,24 @@ check(
   '겹치면 곱함(가벼운 주 + 20일 쉼)',
   suggestWeight(wi({ light: true, gapDays: 20, history: [h({})] })).kg === 77.5
 );
-check(
-  'lb 화면 반올림',
-  roundForDisplay(100, 'lb') === 220 && roundForDisplay(100, 'kg') === 100
-);
+{
+  const rising = (xs: number[]) => xs.every((x, i) => i === 0 || x > xs[i - 1]);
+  const dumbbell = Array.from({ length: 30 }, (_, i) => roundForDisplay(2 * (i + 1), 'lb', 'dumbbell'));
+  const barbell = Array.from({ length: 40 }, (_, i) => roundForDisplay(2.5 * (i + 1), 'lb', 'barbell'));
+  check(
+    'lb 화면 반올림(2026-10-16 검토 10) — 원판 5lb(기본) · 덤벨 2.5lb, 덤벨 2kg · 원판 2.5kg 한 걸음마다 lb 값이 다름(24kg 52.5 · 26kg 57.5, 5lb 면 둘 다 55)',
+    roundForDisplay(100, 'lb') === 220 &&
+      roundForDisplay(100, 'kg') === 100 &&
+      roundForDisplay(24, 'lb', 'dumbbell') === 52.5 &&
+      roundForDisplay(26, 'lb', 'dumbbell') === 57.5 &&
+      roundForDisplay(24, 'lb') === 55 &&
+      roundForDisplay(26, 'lb') === 55 &&
+      rising(dumbbell) &&
+      rising(barbell) &&
+      dumbbell.every((x) => Number.isInteger(x * 2)),
+    `${dumbbell.slice(10, 14).join(',')}`
+  );
+}
 
 /* ── 7) 문구 ─────────────────────────────── */
 console.log('\n7) 문구 — 해요체 · 줄표 없음');

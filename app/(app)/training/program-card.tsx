@@ -56,7 +56,7 @@ export function ProgramCard({ props }: { props: ProgramCardProps }) {
 
   const going = p.kind === 'go';
   const finishedToday = p.todayState === 'finished';
-  const resting = p.kind === 'rest' || p.kind === 'spacing' || p.kind === 'painWait';
+  const resting = p.kind === 'rest' || p.kind === 'painWait';
   const preview = !going || finishedToday;
 
   const title = finishedToday
@@ -74,15 +74,13 @@ export function ProgramCard({ props }: { props: ProgramCardProps }) {
   const sub =
     p.kind === 'rest'
       ? p.restText
-      : p.kind === 'spacing'
-        ? '어제 프로그램을 했어요. 하루 쉬고 이어 가요.'
-        : p.kind === 'painWait'
-          ? `통증 기록이 있어 ${withJosa(p.dayLabel, '은/는')} 기다려요.`
-          : p.kind === 'otherMode'
-            ? `${withJosa(p.dayLabel, '은/는')} 다음에 해요.`
-            : p.kind === 'needCheckin'
-              ? '체크인을 남기면 오늘 몸 상태에 맞춰 정해요.'
-              : null;
+      : p.kind === 'painWait'
+        ? `통증 기록이 있어 ${withJosa(p.dayLabel, '은/는')} 기다려요.`
+        : p.kind === 'otherMode'
+          ? `${withJosa(p.dayLabel, '은/는')} 다음에 해요.`
+          : p.kind === 'needCheckin'
+            ? '체크인을 남기면 오늘 몸 상태에 맞춰 정해요.'
+            : null;
 
   return (
     <Card className="space-y-3">
@@ -107,7 +105,11 @@ export function ProgramCard({ props }: { props: ProgramCardProps }) {
         </p>
       )}
 
-      {going && !finishedToday && (
+      {/* 하는 날인데 할 운동이 다 빠지면 단추 대신 한 줄 — 서버(startProgramWorkout)가 어차피 트레이닝으로 돌려보낸다(2026-10-16 검토 9) */}
+      {going && !finishedToday && !p.canStart && (
+        <p className="text-sm text-muted">오늘은 할 수 있는 운동이 없어요. 뺀 까닭은 아래에 있어요.</p>
+      )}
+      {going && !finishedToday && p.canStart && (
         <SafeForm action={startProgramWorkout}>
           <button
             type="submit"

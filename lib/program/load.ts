@@ -17,6 +17,7 @@ import { lastStrengthDates } from '@/lib/report/gather';
 import { loadHoldProgress } from '@/lib/nutrition/fuel-load';
 import { droppedOnlyForArmFatigue, selectCandidates } from '@/lib/report/prescription';
 import { LOW_CONDITION_THRESHOLD, painRecoveryReason } from '@/lib/report/theme';
+import { equipmentForToday } from '@/lib/report/equipment';
 import type { loadTodayCore } from '@/lib/report/today-data';
 import type { CachedExercise } from '@/lib/library-cache';
 import { readFrozenPlan } from '@/lib/workout/session-plan';
@@ -46,6 +47,7 @@ import {
   accessoryWithFallback,
   lighterRx,
   painSlotsOf,
+  pickSubstitute,
   parseProgram,
   planSubtitle,
   prescriptionLine,
@@ -101,7 +103,11 @@ type TodayCore = Awaited<ReturnType<typeof loadTodayCore>>;
 export type ProgramDayCore = Pick<
   TodayCore,
   'todayKey' | 'midnight' | 'facts' | 'plan' | 'state' | 'library' | 'hasCheckinToday'
-> & { picked: Pick<TodayCore['picked'], 'halted'> };
+> & {
+  picked: Pick<TodayCore['picked'], 'halted'>;
+  /** 오늘 고른 장비(DailyTrainingSetup) — 없으면 가진 장비 그대로(2026-10-16 검토 15a). 안 넘기는 곳(training-setup.ts)은 예전과 같다 */
+  todaySetup?: Pick<NonNullable<TodayCore['todaySetup']>, 'availableEquipment'> | null;
+};
 
 /** 진행 중인 프로그램(한 사람 하나) */
 export async function activeProgram(userId: string): Promise<ProgramRow | null> {
@@ -434,7 +440,8 @@ export async function buildProgramDay(
   const pinned = readPinned(row.pinned);
   /* 다 끝났으면 마지막 날 목록(그리지는 않는다) */
   const items = dayPlan(plan, day).items;
-  const owned = user.ownedEquipment;
+  /* 오늘 고른 장비가 있으면 그것으로 — 헬스장에서만 되는 운동은 가진 장비가 없을 때처럼 대체된다(lib/report/equipment.ts 와 같은 규칙) */
+  const owned = equipmentForToday(user.ownedEquipment, core.todaySetup?.availableEquipment);
   /* 기본기는 고르는 규칙이 다르다(바벨 없이) — 다시 고정 · 그날 대체도 같은 규칙으로 */
   const audience = audienceOf(plan.def);
   /* 성장기(만 16세 미만) — 매우 높음 빼고 고르고, 남기는 개수를 늘린다 */
@@ -708,14 +715,12 @@ export async function buildProgramDay(
     }
     /* 대체는 그 운동이 통증 부위에 걸릴 때만 — 같은 칸의 다른 운동(스쿼트 · 힌지처럼 한 날 둘)은 그대로 */
     if (a?.kind === 'substitute' && !safeIds.has(pinnedEx.id)) {
-      const sub = variantCandidates(
-        variant,
-        core.library,
-        owned,
-        user.trainingLevel,
-        audience,
-        youth
-      ).find((c) => c.id !== pinnedEx.id && safeIds.has(c.id));
+      /* 고정 운동 · 같은 날 다른 칸이 이미 고른 운동은 건너뛴다(2026-10-16 검토 8) */
+      const sub = pickSubstitute(
+        variantCandidates(variant, core.library, owned, user.trainingLevel, audience, youth),
+        new Set([pinnedEx.id, ...chosen.map((c) => c.ex.id)]),
+        safeIds
+      );
       if (!sub) {
         view.dropped.push({ slot, title: pinnedEx.title, reason: '오늘 몸 상태' });
         continue;
@@ -866,6 +871,8 @@ export type ProgramCardProps = {
   total: number;
   caution: string | null;
   restText: string | null;
+  /** [운동 시작]을 둘 수 있나 — 매일 일정이 프로그램 날로 보는 조건과 같다(programTodayOf). 하는 날인데 할 운동이 다 빠지면 false */
+  canStart: boolean;
   rows: {
     id: string;
     title: string;
@@ -943,6 +950,7 @@ export function programCardProps(
     total: plan.totalDays,
     caution: view.caution,
     restText: view.restText,
+    canStart: programTodayOf(view) != null,
     rows: view.rows.map((r) => ({
       id: r.exercise.id,
       title: r.exercise.title,

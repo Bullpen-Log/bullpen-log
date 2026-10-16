@@ -632,15 +632,15 @@ const PITCHER_POWER: ProgramDef = {
         ...pullForPush(accessoryMenu(['squat'], 2, light, true)),
       ],
     };
-    /* 힌지 날 — 앞 · 위로 던지기. 주 2번이면 밀기도 여기서(밀기를 주 1번은 하게) */
+    /* 힌지 날 — 앞 · 위로 던지기. 주 2번이면 밀기도 여기서(밀기를 주 1번은 하게) — 그때 보조 밀기는 세로 당기기로(당기기 ≥ 밀기) */
+    const hingeAcc = accessoryMenu(['hinge'], 2, light, true);
     const hingeDay: DayBuild = {
       label: '힌지 날',
       items: [
         throwRot,
         throwFront,
         lift('hinge'),
-        ...(perWeek === 2 ? [lift('push')] : []),
-        ...accessoryMenu(['hinge'], 2, light, true),
+        ...(perWeek === 2 ? [lift('push'), ...pullForPush(hingeAcc)] : hingeAcc),
       ],
     };
     const upperDay: DayBuild = {
@@ -990,7 +990,7 @@ export function usedVariants(def: ProgramDef): VariantKey[] {
 
 /*
  * 이름표 — 'N번 세션'(2026-10-14 김민: 'N주차 · M일차' 대신 세션으로). 프로그램은 달력이 아니라 차례로 나아간다 — 마친 세션만큼 넘어가고,
- * 막는 것은 '이틀 연달아'뿐이라(decideToday spacing) 몸 상태에 따라 당겨 하거나 미뤄 4주 앞뒤로 맞출 수 있다. 주차는 이름표에서 빼고
+ * 막는 날은 통증 · 경기 앞뒤뿐이라(decideToday) 몸 상태에 따라 날마다 이어 하거나 미뤄 4주 앞뒤로 맞출 수 있다. 주차는 이름표에서 빼고
  * 가벼운 주(lightWeeks) · 처방에만 쓴다(세션 차례로 셈 — weekOfDay).
  */
 export function dayLabel(plan: ProgramPlan, day: number): string {
@@ -1749,6 +1749,18 @@ export function variantCandidates<T extends PinnableExercise>(
   );
 }
 
+/**
+ * 그날 대체 운동 — 같은 칸 후보에서 고정 운동 · 같은 날 다른 칸이 이미 고른 운동을 빼고 오늘 할 수 있는 첫 것(2026-10-16 검토 8:
+ * 대체가 다른 칸의 운동과 겹쳐 한 날에 같은 운동이 두 번 나왔다). 없으면 null.
+ */
+export function pickSubstitute<T extends { id: string }>(
+  candidates: readonly T[],
+  skipIds: ReadonlySet<string>,
+  safeIds: ReadonlySet<string>
+): T | null {
+  return candidates.find((c) => !skipIds.has(c.id) && safeIds.has(c.id)) ?? null;
+}
+
 export type Pinned = Partial<Record<VariantKey, string>>;
 
 /**
@@ -2196,6 +2208,7 @@ export type TodayDecision =
   | { kind: 'needCheckin'; day: number }
   | { kind: 'painWait'; day: number }
   | { kind: 'otherMode'; day: number }
+  /** 더는 내지 않는다(2026-10-16 검토 4 — 어제 했어도 오늘 할 수 있다). 중재(lib/engine/arbiter.ts)가 읽는 이름이라 남긴다 */
   | { kind: 'spacing'; day: number }
   | { kind: 'rest'; day: number; reason: RestReason; canOverride: true }
   | {
@@ -2222,7 +2235,7 @@ export function daysBetween(fromKey: string, toKey: string): number {
 /**
  * 오늘 프로그램 날인가, 무엇을 바꾸는가.
  *
- * 프로그램은 스스로 진행한다(D22). 기다리는 것은 통증 멈춤 · 경기 앞뒤(넘길 수 있음) · 어제 프로그램 날뿐이고,
+ * 프로그램은 스스로 진행한다(D22). 기다리는 것은 통증 멈춤 · 경기 앞뒤(넘길 수 있음)뿐이고,
  * 나머지 나쁜 날은 진행하되 주의 한 줄과 칸 조정으로 알린다(§4 · §5 · §6).
  *
  * 2판 P6-2(2026-10-13) — 중재(lib/engine/arbiter.ts)가 정한 하루를 프로그램 카드도 같은 말로 하게 신호 다섯을 더 받는다(모두 선택 칸,
@@ -2238,9 +2251,8 @@ export function decideToday(plan: ProgramPlan, s: TodaySignals): TodayDecision {
   if (!s.checkedIn) return { kind: 'needCheckin', day };
   if (s.otherWorkoutStarted) return { kind: 'otherMode', day };
 
+  /* 쉰 날 수는 무게 추천(쉰 기간)에만 — 어제 했어도 오늘 다음 세션을 할 수 있다(2026-10-16 검토 4). 오늘 이미 했으면 여기 오지 않는다. */
   const gapDays = s.lastProgramDate ? daysBetween(s.lastProgramDate, s.today) : null;
-  /* 프로그램 날은 하루 한 번, 어제가 프로그램 날이면 오늘은 아님(§6). 오늘 이미 했으면 여기 오지 않는다. */
-  if (gapDays === 1) return { kind: 'spacing', day };
 
   const restReason: RestReason | null = s.gameToday
     ? 'gameToday'

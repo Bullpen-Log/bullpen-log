@@ -51,8 +51,15 @@ export const UNIT_KG: Record<Exclude<WeightKind, 'none'>, number> = {
   machine: 2.5,
 };
 
-/** 화면 단위가 lb 일 때의 한 단위 — 원판 · 덤벨 모두 5lb */
-export const UNIT_LB = 5;
+/**
+ * 화면 단위가 lb 일 때의 한 단위 — 원판 5lb, 덤벨 · 케틀벨 2.5lb. 덤벨 2kg 걸음(4.4lb)을 5lb 로 반올림하면 24kg · 26kg 이 둘 다 55lb 로
+ * 보여 한 걸음이 사라진다(2026-10-16 검토 10).
+ */
+export const UNIT_LB: Record<Exclude<WeightKind, 'none'>, number> = {
+  barbell: 5,
+  dumbbell: 2.5,
+  machine: 5,
+};
 
 export type HistoryEntry = {
   /** 'YYYY-MM-DD' */
@@ -481,10 +488,11 @@ export function weighItem(
   };
 }
 
-/** lb 로 보는 사람의 화면 값 — kg 추천을 lb 로 바꿔 5lb 단위로 */
-export function roundForDisplay(kg: number, unit: 'kg' | 'lb'): number {
+/** lb 로 보는 사람의 화면 값 — kg 추천을 lb 로 바꿔 장비 단위(UNIT_LB)로. 장비를 안 주면 원판(5lb) */
+export function roundForDisplay(kg: number, unit: 'kg' | 'lb', kind: WeightKind = 'barbell'): number {
   if (unit === 'kg') return kg;
-  return Math.round((kg * 2.20462) / UNIT_LB) * UNIT_LB;
+  const step = kind === 'none' ? UNIT_LB.barbell : UNIT_LB[kind];
+  return Math.round((kg * 2.20462) / step) * step;
 }
 
 /* ─────────────────────────── 까닭 문구(§13-10) ─────────────────────────── */

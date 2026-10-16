@@ -80,7 +80,10 @@ export const KEY_RANK: Record<FingerprintKey, number> = {
   sleep: 14,
   effortSpike: 15,
   zone: 16,
-  preferredWorkout: 17,
+  /* 나이 구간 · 경력 — 규칙 전체가 바뀌는 입력이지만 드물다. 몸 신호 뒤, 고른 것 앞(2026-10-16 점검 2번) */
+  ageBand: 17,
+  trainingLevel: 18,
+  preferredWorkout: 19,
 };
 
 /** 화면 글(해요체 · 줄표 없음 · 60자 안 — 자체 시험이 본다) */

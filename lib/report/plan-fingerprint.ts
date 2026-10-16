@@ -1,5 +1,6 @@
 import { isNearMaxOuting, type ReportFacts } from '@/lib/report/facts';
 import { hardOuting } from '@/lib/report/theme';
+import { ADULT_AGE, YOUTH_AGE_THRESHOLD, YOUTH_REST_TABLE_THROUGH_AGE } from '@/lib/report/plan';
 import { outingAnswersOf, outingGuessInputsOf } from '@/lib/engine/outing';
 import {
   CHECKIN_PARTS,
@@ -111,7 +112,26 @@ export type PlanFingerprint = {
    * 늘 만든다)에서만 나오고, 칸이 생기기 전의 지문 · 옛 저장 facts 로 찍은 지문에는 없다. 견줄 때는 둘 다 있을 때만 본다(v 는 1 그대로).
    */
   loggedYesterday?: boolean;
+  /**
+   * 나이 구간(2026-10-16 점검 2번) — 판단이 나이를 읽는 경계는 셋뿐이다: 만 14세 이하(어린 휴식표) · 16세 미만(성장기 규칙) · 19세 미만(투구
+   * 한도). 생일로 경계를 넘어도 저장한 일정은 옛 규칙 그대로였다. 나이를 모르면 null. 새 지문에는 늘 있고(FINGERPRINT_KEYS), 칸이 생기기
+   * 전에 저장된 지문에는 없다 — 그래서 타입은 선택이고 견줄 때는 둘 다 있을 때만 본다.
+   */
+  ageBand?: AgeBand | null;
+  /** 웨이트 경력(personalize.ts TRAINING_LEVELS 이름) — 설정에서 바꾸면 거르기 · 처방이 달라진다. 안 골랐으면 null. 선택 칸 */
+  trainingLevel?: string | null;
 };
+
+/** 나이 구간 — 판단이 읽는 경계(plan.ts 의 YOUTH_REST_TABLE_THROUGH_AGE · YOUTH_AGE_THRESHOLD · ADULT_AGE)로만 가른다 */
+export type AgeBand = 'child' | 'youth' | 'teen' | 'adult';
+
+export function ageBandOf(age: number | null): AgeBand | null {
+  if (age == null) return null;
+  if (age <= YOUTH_REST_TABLE_THROUGH_AGE) return 'child';
+  if (age < YOUTH_AGE_THRESHOLD) return 'youth';
+  if (age < ADULT_AGE) return 'teen';
+  return 'adult';
+}
 
 /** 지문의 칸 목록(순서까지) — 칸을 더하거나 빼면 자체 시험이 이 목록과 견줘 알린다 */
 export const FINGERPRINT_KEYS = [
@@ -125,6 +145,8 @@ export const FINGERPRINT_KEYS = [
   'zone',
   'lastThrow',
   'hardOuting',
+  'ageBand',
+  'trainingLevel',
 ] as const satisfies readonly (keyof PlanFingerprint)[];
 
 /**
@@ -220,6 +242,9 @@ export function fingerprintOf(facts: ReportFacts): PlanFingerprint {
         }
       : null,
     /* 칸이 있는 facts 에서만 — 없는 facts 의 지문은 예전과 글자까지 같다(FINGERPRINT_OPTIONAL_KEYS) */
+    /* 나이 구간 · 경력 — 늘 담는다(모르면 null, 2026-10-16 점검 2번). 칸이 생기기 전에 저장된 지문과는 둘 다 있을 때만 견준다 */
+    ageBand: ageBandOf(facts.profile?.age ?? null),
+    trainingLevel: facts.profile?.trainingLevel ?? null,
     ...(effort ? { effortSpike: effort.spikeFlag } : {}),
     ...(guess
       ? { outingGuess: { calendar: guess.calendar, estimate: [...guess.estimate] } }
@@ -350,6 +375,15 @@ export function readPlanFingerprint(value: unknown): PlanFingerprint | null {
   if (v.loggedYesterday !== undefined && typeof v.loggedYesterday !== 'boolean')
     return null;
 
+  /* 나이 구간 · 경력도 선택 칸 — 없으면(옛 지문) 통과, 있는데 모양이 틀리면 깨진 지문 */
+  const AGE_BANDS: readonly string[] = ['child', 'youth', 'teen', 'adult'];
+  if (
+    v.ageBand !== undefined &&
+    !(v.ageBand === null || (isStr(v.ageBand) && AGE_BANDS.includes(v.ageBand)))
+  )
+    return null;
+  if (v.trainingLevel !== undefined && !isStrOrNull(v.trainingLevel)) return null;
+
   return {
     v: 1,
     asOf: v.asOf,
@@ -361,6 +395,8 @@ export function readPlanFingerprint(value: unknown): PlanFingerprint | null {
     zone: v.zone as AcwrZone | null,
     lastThrow,
     hardOuting: outing,
+    ...(v.ageBand !== undefined ? { ageBand: v.ageBand as AgeBand | null } : {}),
+    ...(v.trainingLevel !== undefined ? { trainingLevel: v.trainingLevel } : {}),
     ...(typeof v.effortSpike === 'boolean' ? { effortSpike: v.effortSpike } : {}),
     ...(outingGuess ? { outingGuess } : {}),
     ...(typeof v.loggedYesterday === 'boolean'
@@ -389,7 +425,9 @@ export type FingerprintKey =
   | 'hardOuting'
   | 'effortSpike'
   | 'outingGuess'
-  | 'loggedYesterday';
+  | 'loggedYesterday'
+  | 'ageBand'
+  | 'trainingLevel';
 
 /** 바뀐 항목 하나 — key 는 화면이 가르는 데(onlyPainPartChanges), text 는 그대로 띄우는 데 쓴다 */
 export type FingerprintChange = { key: FingerprintKey; text: string };
@@ -726,6 +764,30 @@ export function diffFingerprintChanges(
     push(
       'loggedYesterday',
       now.loggedYesterday ? '어제 투구 기록을 남겼어요' : '어제 투구 기록이 지워졌어요'
+    );
+  }
+
+  /* 나이 구간 · 경력 — 둘 다 칸이 있을 때만(2026-10-16 점검 2번). 생일이 지나 규칙 경계를 넘었거나 설정에서 경력을 바꾼 날 */
+  if (
+    saved.ageBand !== undefined &&
+    now.ageBand !== undefined &&
+    saved.ageBand !== now.ageBand
+  ) {
+    push(
+      'ageBand',
+      now.ageBand == null ? '생년월일이 지워졌어요' : '나이가 바뀌어 적용되는 규칙이 달라졌어요'
+    );
+  }
+  if (
+    saved.trainingLevel !== undefined &&
+    now.trainingLevel !== undefined &&
+    saved.trainingLevel !== now.trainingLevel
+  ) {
+    push(
+      'trainingLevel',
+      now.trainingLevel == null
+        ? '웨이트 경력 설정이 지워졌어요'
+        : `웨이트 경력을 ${quotedRo(now.trainingLevel)} 바꿨어요`
     );
   }
 

@@ -1,6 +1,8 @@
 import 'server-only';
 import { prisma } from '@/lib/prisma';
 import { toDateKey } from '@/lib/pitch-stats';
+import { exercisesByIds } from '@/lib/library-cache';
+import { ARMCARE_CATEGORY } from '@/lib/armcare/anatomy';
 import type { DoneAmount } from '@/lib/exercise-meta';
 
 /**
@@ -97,6 +99,10 @@ export async function recentAmounts(
  * 400개를 찾아 넘기는 것보다, 지난주에 한 것을 다시 고르는 일이 훨씬 잦다.
  *
  * 오늘 것은 뺀다. 오늘 한 것은 이미 오늘 목록에 있다.
+ *
+ * 트레이닝 운동만 센다. 기록 표(UserExerciseLog)에는 암케어 루틴 · 재활 체크(둘 다 분류 '암케어')도 같은 모양으로 쌓이는데,
+ * 그것이 '최근 한 운동'으로 교체 창에 올라왔다(2026-10-16 점검 11). 매일 일정은 암케어를 넣지 않으니(lib/report/theme.ts)
+ * 일정 만들기 쪽 차례에는 영향이 없다. 운동 표에 없는 id(지운 운동)도 함께 빠진다.
  */
 export async function recentExerciseIds(
   userId: string,
@@ -105,21 +111,26 @@ export async function recentExerciseIds(
 ): Promise<string[]> {
   const midnight = new Date(`${toDateKey(today)}T00:00:00.000Z`);
   const from = new Date(midnight);
-  /* 두 달이면 '요즘 하는 운동'으로 충분하다 */
+  /* 두 달이면 '요즘 하는 운동'으로 충분하다 — 날짜로만 자른다(하루 열 줄 남짓이라 6백 줄 안, id 한 칸만 읽는다) */
   from.setUTCDate(from.getUTCDate() - 60);
 
   const logs = await prisma.userExerciseLog.findMany({
     where: { userId, completed: true, date: { gte: from, lt: midnight } },
     orderBy: { date: 'desc' },
     select: { exerciseId: true },
-    /* 하루에 열 개 남짓이라, 이만큼이면 서로 다른 운동을 limit 개 넘게 모은다 */
-    take: 300,
   });
+
+  /* 분류는 캐시에서(lib/library-cache.ts) — DB 를 다시 가지 않는다 */
+  const training = new Set(
+    (await exercisesByIds([...new Set(logs.map((l) => l.exerciseId))]))
+      .filter((ex) => ex.category !== ARMCARE_CATEGORY)
+      .map((ex) => ex.id)
+  );
 
   const ids: string[] = [];
   const seen = new Set<string>();
   for (const { exerciseId } of logs) {
-    if (seen.has(exerciseId)) continue;
+    if (seen.has(exerciseId) || !training.has(exerciseId)) continue;
     seen.add(exerciseId);
     ids.push(exerciseId);
     if (ids.length >= limit) break;

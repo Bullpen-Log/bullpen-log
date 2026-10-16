@@ -32,7 +32,7 @@ import {
 import { activeProgram, programHistory, trainingMaxes } from '@/lib/program/load';
 import { weighItem } from '@/lib/program/next-weight';
 import type { ItemRx } from '@/lib/program/program';
-import { openSession } from '@/lib/workout/open-session';
+import { isOpenSession, openSession } from '@/lib/workout/open-session';
 import { withFreeWeights } from '@/lib/workout/free-weight-load';
 import { loadHoldProgress } from '@/lib/nutrition/fuel-load';
 import { liftCautious } from '@/lib/workout/free-weight';
@@ -61,8 +61,9 @@ import { startProgramWorkout } from '@/app/actions/program';
  * 그린다. 그보다 나쁜 것은, 서버가 다시 그릴 때마다 화면이 서버 값을 받아
  * 입력 중이던 숫자를 덮어쓸 수 있다는 것이다.
  *
- * 그래서 세트 저장은 바뀐 줄만 돌려주고, 다시 그리기는 종료할 때 한 번만
- * 한다.
+ * 그래서 세트 저장 · 지우기는 바뀐 줄만 돌려주고, 다시 그리기는 종료(finishWorkout)와 힘듦 칩(rateWorkoutEffort)에서
+ * 한 번만 — 홈 · 트레이닝 · 영양(소모) · 분석이 다 읽으므로 레이아웃째 revalidatePath('/', 'layout')
+ * (docs/architecture/04-interfaces.md). 안 부르는 쓰기는 staleTimes 30초 동안 다른 화면이 옛 값을 보인다 — 세트는 그래도 된다.
  */
 
 /* ------------------------------ 시작 ------------------------------ */
@@ -86,7 +87,8 @@ export async function startWorkout() {
   const open = await prisma.trainingSession.findUnique({
     where: { userId_date: { userId: user.id, date: core.midnight } },
   });
-  if (open && open.status === 'ACTIVE') redirect('/workout/run');
+  /* 목록을 못 읽는 ACTIVE 판은 열린 판이 아니다 — 아래 openSession 이 새 목록으로 다시 연다(isOpenSession 주석) */
+  if (isOpenSession(open)) redirect('/workout/run');
 
   /*
    * 근력 프로그램 날의 일정(2판 P6-3, 사용자 결정 D6 — 그날 일정 = 프로그램 운동 그대로)이면 매일 판으로 열지 않고 프로그램 시작에 맡긴다.
@@ -455,6 +457,7 @@ export async function deleteSet(input: {
       setNo: input.setNo,
     },
   });
+  /* 세트 저장과 같은 까닭으로 revalidatePath 를 안 부른다 (맨 위 설명 참고) */
   return { sets: await setsOf(session.id) };
 }
 
@@ -500,10 +503,15 @@ export async function finishWorkout(input: {
     appNow()
   );
 
-  await prisma.$transaction([
+  /*
+   * 상태를 바꾸는 쓰기는 아직 ACTIVE 일 때만 걸린다(updateMany). [종료]를 거의 동시에 두 번 보내면(두 탭 · 끊긴 응답에 다시 누름)
+   * 예전에는 둘 다 activeSeconds 를 더해 운동 시간이 두 배가 됐다(2026-10-16 점검 15b). 요약 쓰기는 같은 값을 다시 쓰는 것이라
+   * 두 번 돌아도 달라지지 않는다(close-stale.ts 와 같은 규칙). 0 건이면 다른 쪽이 이미 마친 것 — 더 쓰지 않고 축하 화면으로.
+   */
+  const results = await prisma.$transaction([
     ...(await summaryWrites(user.id, session)),
-    prisma.trainingSession.update({
-      where: { id: session.id },
+    prisma.trainingSession.updateMany({
+      where: { id: session.id, status: 'ACTIVE' },
       data: {
         status: 'FINISHED',
         endedAt,
@@ -515,6 +523,10 @@ export async function finishWorkout(input: {
       },
     }),
   ]);
+  const finished = (results[results.length - 1] as Prisma.BatchPayload).count > 0;
+  if (!finished) {
+    redirect(`/workout/done?id=${encodeURIComponent(session.id)}`, RedirectType.replace);
+  }
 
   /* 프로그램 날이면 일차를 넘긴다(처방 세트 절반 이상일 때만, 한 번만 — lib/program/advance.ts) */
   await advanceProgramDay(session.id);
@@ -528,8 +540,8 @@ export async function finishWorkout(input: {
     await saveTrainingNote(input.intensity, input.memo ?? '', toDateKey(session.date));
   }
 
-  revalidatePath('/today');
-  revalidatePath('/training');
+  /* 홈 · 트레이닝 · 영양(소모) · 분석이 다 읽는다 — 레이아웃째 한 번(맨 위 설명) */
+  revalidatePath('/', 'layout');
   /*
    * 축하 화면으로 — 링 · 세 숫자 · 새 최고를 보이고 [완료]로 트레이닝에 간다(app/(session)/workout/done,
    * 2026-10-01 '감성'). 예전에는 곧장 트레이닝 목록이라 한 시간 운동의 끝이 화면 바뀜뿐이었다.
@@ -578,6 +590,8 @@ export async function rateWorkoutEffort(input: {
 
   const res = await saveTrainingNote(intensity, '', dateKey);
   if ('error' in res) return res;
+  /* 힘듦은 날 종류(R2) · 홈 요약이 읽는다 — 다른 탭이 30초 옛 값을 보이지 않게 레이아웃째(맨 위 설명) */
+  revalidatePath('/', 'layout');
   return { ok: true, intensity };
 }
 
