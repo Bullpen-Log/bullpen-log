@@ -9,7 +9,11 @@ import { makeArmcareRoutine } from '@/app/actions/armcare';
 import { CHECK_CONNECTION } from '@/lib/offline';
 import { ExerciseBadges } from '@/components/meta-badges';
 import { findArmcareArea, type ArmcareAreaKey } from '@/lib/armcare/anatomy';
-import { ARMCARE_KIND_TEXT, type ArmcareKind } from '@/lib/armcare/routine';
+import {
+  AFTER_THROWING_TEXT,
+  ARMCARE_KIND_TEXT,
+  type ArmcareKind,
+} from '@/lib/armcare/routine';
 import { MuscleChips } from '@/components/muscle-chips';
 import { ExerciseMedia, type ArmcareExerciseView } from './armcare-media';
 import { ArmPainGuideButton, type ArmPainView } from './arm-pain-guide';
@@ -46,7 +50,7 @@ export function ArmcareToday({
   /** 이 화면이 보여 주는 날(YYYY-MM-DD) — 체크와 따라하기가 이 날에 남긴다 */
   dateKey: string;
   /** 지금 몸 상태로 권하는 루틴과 그 까닭 */
-  decision: { kind: ArmcareKind; reason: string };
+  decision: { kind: ArmcareKind; reason: string; afterThrowing?: true };
   /** 오늘 만들어 둔 루틴. 없으면 아직 안 만든 날 */
   routine: {
     kind: ArmcareKind;
@@ -78,6 +82,11 @@ export function ArmcareToday({
       </div>
     ) : null;
 
+  /* 등판 날(아직 안 던짐) — 루틴은 그대로, 던진 뒤에 하라고 한 줄 */
+  const afterThrowing = decision.afterThrowing ? (
+    <p className="text-sm font-semibold break-keep text-ink">{AFTER_THROWING_TEXT}</p>
+  ) : null;
+
   const make = () => {
     setError(undefined);
     startMaking(async () => {
@@ -104,6 +113,7 @@ export function ArmcareToday({
           <p className="text-sm font-semibold break-keep text-sky-strong">
             {decision.reason}
           </p>
+          {afterThrowing}
           {guide}
           <button
             type="button"
@@ -148,6 +158,7 @@ export function ArmcareToday({
         <p className="text-sm font-semibold break-keep text-sky-strong">
           {routine.reason}
         </p>
+        {afterThrowing}
         {guide}
         {/* 빠진 부위 같은 안내는 접어 둔다 — 늘 보일 만큼 급하지 않다 */}
         {routine.notes.length > 0 && (

@@ -9,7 +9,7 @@ import { ARMCARE_AREAS, ARMCARE_CATEGORY } from '@/lib/armcare/anatomy';
 import { buildFocusRoutine, parseAreas } from '@/lib/armcare/coverage';
 import { filterByEquipment } from '@/lib/report/equipment';
 import { prisma } from '@/lib/prisma';
-import { ARMCARE_KIND_TEXT } from '@/lib/armcare/routine';
+import { AFTER_THROWING_TEXT, ARMCARE_KIND_TEXT } from '@/lib/armcare/routine';
 import { REHAB_STAGES } from '@/lib/armcare/rehab';
 import { loadArmcareToday, notAdvised } from '@/lib/armcare/today';
 import { isRoutineId } from '@/lib/armcare/my-routines';
@@ -168,6 +168,10 @@ export default async function ArmcarePlayPage({
     picks = routine.items;
     /* 내 루틴은 막지 않는다 — 내가 짠 루틴이다. 목록처럼 위에 한 번 알린다 */
     if (data.decision.kind === 'rest') notice = '오늘 통증을 남기셨어요. 쉬는 걸 권해요.';
+  }
+  /* 등판 날(아직 안 던짐) — 루틴은 그대로, 던진 뒤에 하라고 한 줄(재활은 제 알림이 있다) */
+  if (!rehabPlay && data.decision.kind !== 'rest' && data.decision.afterThrowing) {
+    notice = notice ? `${notice} ${AFTER_THROWING_TEXT}` : AFTER_THROWING_TEXT;
   }
 
   const byId = new Map(library.map((ex) => [ex.id, ex]));

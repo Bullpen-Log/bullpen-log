@@ -64,7 +64,15 @@ export type ArmcareDecision =
       kind: ArmcareKind;
       /** 화면 맨 위의 한 줄 — '어제 85구 · 팔 피로 많이 → 회복 루틴' */
       reason: string;
+      /** 오늘 등판인데 아직 안 던진 날 — 루틴은 그대로, 화면에 AFTER_THROWING_TEXT 한 줄 */
+      afterThrowing?: true;
     };
+
+/**
+ * 등판 날 안내 — 2026-10-16 김민: 등판 날은 루틴을 바꾸지 않고 '던진 뒤에 하세요' 한 줄만(던지기 전 루틴은 만들지 않는다).
+ * 경기 전에 회전근개를 지치게 하지 않으려는 것이다.
+ */
+export const AFTER_THROWING_TEXT = '오늘은 던진 뒤에 하세요.';
 
 /**
  * 팔 피로가 이 값 이상이면 회복으로 간다 — '많이'(4)·'심함'(5). 값과 까닭은 lib/checkin.ts 한 곳(2026-10-12, 2판 P3 에서 옮김 —
@@ -153,9 +161,9 @@ export function decideArmcare({
    * 오늘 등판(체크인 '오늘 등판', 또는 어제 '내일 등판' + 오늘 답 없음 — 2판 P3). 기록이 아직 없어도 던질 날이라 등판 날 아침에
    * 강화 루틴을 내지 않는다. 오늘 던진 기록이 이미 있으면 그 기록(아래 '오늘 N구')이 같은 말을 하니 두 번 적지 않는다.
    */
-  if (state?.outing.role === 'game' && !(pitches > 0 && p.restDays === 0)) {
-    signals.push('오늘 등판');
-  }
+  const afterThrowing =
+    state?.outing.role === 'game' && !(pitches > 0 && p.restDays === 0);
+  if (afterThrowing) signals.push('오늘 등판');
   /*
    * 어제 팔 부담 — 근력 프로그램의 '경기 다음 날' · 매일 일정의 날 종류(R1 의 어제 쪽 · R2 · R3')와 같은 함수(2판 P4 커밋 F, D3).
    * 어제 던졌어도 가볍게만 던졌으면(캐치볼 20구 · 경기 15구) 여기서는 회복으로 안 간다 — 아래 휴식표가 아직 쉬라고 할 때만.
@@ -223,6 +231,7 @@ export function decideArmcare({
     return {
       kind: 'recovery',
       reason: `${signals.slice(0, 2).join(' · ')} → 회복 루틴`,
+      ...(afterThrowing ? { afterThrowing: true as const } : {}),
     };
   }
   return {

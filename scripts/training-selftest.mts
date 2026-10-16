@@ -13858,6 +13858,18 @@ console.log(
       armTired.reason === "오늘 등판 · 팔 피로 '심함' → 회복 루틴",
     `${armThrew.reason} | ${armTired.reason}`
   );
+  /* 등판 날(아직 안 던짐)만 '던진 뒤에 하세요' — 루틴 종류 · 까닭은 그대로(2026-10-16 김민) */
+  check(
+    "암케어 등판 날 — 아직 안 던졌으면 afterThrowing, 던진 기록이 있거나 불펜 · 평소 날이면 없음",
+    armC1.kind !== 'rest' &&
+      armC1.afterThrowing === true &&
+      armThrew.kind !== 'rest' &&
+      armThrew.afterThrowing === undefined &&
+      (() => {
+        const pen = armOf({ today: { throwPlan: '오늘 불펜' } });
+        return pen.kind !== 'rest' && pen.afterThrowing === undefined;
+      })()
+  );
   const armPen = armOf({ today: { throwPlan: '오늘 불펜' } });
   const armPain = armOf({ today: { throwPlan: '오늘 등판', shoulder: '통증' } });
   check(
