@@ -27,6 +27,7 @@ import {
 } from '@/lib/report/theme';
 import { SafeForm } from '@/components/safe-form';
 import { SwitchRow } from '@/components/switch';
+import { Button } from '@/components/ui';
 
 /**
  * 트레이닝 설정과 일정 만들기 폼.
@@ -59,13 +60,9 @@ function SubmitButton({
 }) {
   const { pending } = useFormStatus();
   return (
-    <button
-      type="submit"
-      disabled={pending}
-      className="rounded-xl bg-sky px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-sky-strong disabled:opacity-60"
-    >
+    <Button type="submit" disabled={pending}>
       {pending ? busy : label}
-    </button>
+    </Button>
   );
 }
 
@@ -274,7 +271,7 @@ export function PlanForm({
           옮겨 가면서 말할 자리가 없어졌다 — 창은 어디서나 같은 것이 뜬다.
         */}
         {checkinAction ?? (
-          <OpenCheckinButton className="min-h-10 rounded-xl bg-sky px-4 text-sm font-semibold text-white transition-colors hover:bg-sky-strong">
+          <OpenCheckinButton className="min-h-10 rounded-full bg-sky px-4 text-sm font-semibold text-white transition-colors hover:bg-sky-strong desk:rounded-xl">
             오늘 체크인하기
           </OpenCheckinButton>
         )}
