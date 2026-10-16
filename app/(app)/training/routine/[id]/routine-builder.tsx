@@ -358,25 +358,27 @@ export function RoutineBuilder({
                         <span className="text-sm font-bold break-keep text-ink">
                           {e.view.title}
                         </span>
-                        {e.view.method && (
-                          <span className="text-caption font-semibold text-sky-strong">
-                            {methodByKey(e.view.method).label}
-                          </span>
-                        )}
+                        {/* 방식 이름은 운동 이름에 이미 들어 있으면 빼요('… 아이소메트릭 프레스' 밑에 '아이소메트릭 프레스'가 또 붙었다) */}
+                        {e.view.method &&
+                          !e.view.title.includes(methodByKey(e.view.method).label) && (
+                            <span className="text-caption font-semibold text-sky-strong">
+                              {methodByKey(e.view.method).label}
+                            </span>
+                          )}
                       </span>
-                      {e.view.prescription && (
+                      {(e.view.prescription || e.view.equipment.length > 0) && (
                         <span className="block text-xs text-muted">
-                          {e.view.prescription}
+                          {/* 쉬는 시간은 고를 때 필요 없어 목록에서만 뺀다(따라 할 때는 그대로 보인다) */}
+                          {[
+                            e.view.prescription?.replace(/\s*·\s*세트 사이 [^·]+ 휴식/, ''),
+                            e.view.equipment.join(' · '),
+                          ]
+                            .filter(Boolean)
+                            .join(' · ')}
                         </span>
                       )}
                       {/* 근육 칩을 누르면 그 근육의 3D 그림·설명 창(armcare-info.tsx) */}
                       <MuscleChips muscles={e.view.targetMuscles} max={2} />
-                      <ExerciseBadges
-                        bodyParts={[]}
-                        intensity={e.view.intensity}
-                        difficulty={e.view.difficulty}
-                        equipment={e.view.equipment}
-                      />
                     </span>
                     <button
                       type="button"
@@ -398,7 +400,18 @@ export function RoutineBuilder({
                       {inside ? '담김' : '담기'}
                     </button>
                   </div>
-                  <ExerciseMedia exercise={e.view} />
+                  {/* 강도 · 수준 · 장비는 '자세·영상 보기' 안으로(2026-10-16 — 운동 100개가 한 줄에 5줄씩이었다) */}
+                  <ExerciseMedia
+                    exercise={e.view}
+                    extra={
+                      <ExerciseBadges
+                        bodyParts={[]}
+                        intensity={e.view.intensity}
+                        difficulty={e.view.difficulty}
+                        equipment={[]}
+                      />
+                    }
+                  />
                 </li>
               );
             })}

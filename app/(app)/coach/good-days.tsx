@@ -37,12 +37,8 @@ export function GoodDaysCard({ result }: { result: GoodDayResult }) {
         </div>
       )}
 
-      {all.length > 0 && <Details rows={all} />}
-
-      <p className="mt-3 text-caption leading-relaxed text-muted/70">
-        최근 180일, 매긴 날 {rated}일. 하루에 여러 번 매기면 평균 하나로 보고, 시즌 내내 같이 오르내린 흐름은 빼고
-        견줘요. 우연으로 생기기 어려운 차이만 말해요.
-      </p>
+      {/* 찾는 법 · 견줘 본 항목은 '자세히' 하나 안으로(2026-10-16 — 카드 밑에 세 줄이 늘 펼쳐져 있었다) */}
+      <Details rows={all} rated={rated} />
     </section>
   );
 }
@@ -51,8 +47,7 @@ function NotYet({ rated, needed }: { rated: number; needed: number }) {
   return (
     <div className="mt-4 space-y-2">
       <p className="text-sm leading-relaxed text-ink/85">
-        만족도를 매긴 날이 <span className="tabular-nums">{rated}</span>일이에요. {needed}일이 되면 어떤 날 잘
-        던지는지 찾아 드려요.
+        만족도 매긴 날 <span className="tabular-nums">{rated}/{needed}</span>일 · 다 차면 찾아 드려요.
       </p>
       <div className="h-2 overflow-hidden rounded-full bg-surface-2" aria-hidden>
         <div
@@ -60,7 +55,6 @@ function NotYet({ rated, needed }: { rated: number; needed: number }) {
           style={{ width: `${Math.min(100, (rated / needed) * 100)}%` }}
         />
       </div>
-      <p className="text-caption text-muted">불펜 · 라이브 · 경기를 적을 때 만족도를 매기면 쌓여요.</p>
     </div>
   );
 }
@@ -83,28 +77,36 @@ function PatternList({ title, items }: { title: string; items: string[] }) {
   );
 }
 
-/** 걸러지기 전의 항목들 — 차이 큰 순(good-days.ts 의 all), 많아야 여덟 */
-function Details({ rows }: { rows: FactorResult[] }) {
+/** 찾는 법 + 걸러지기 전의 항목들 — 차이 큰 순(good-days.ts 의 all), 많아야 여덟 */
+function Details({ rows, rated }: { rows: FactorResult[]; rated: number }) {
   const shown = rows.slice(0, 8);
   return (
     <details className="group mt-4 border-t border-line pt-3">
       <summary className="flex min-h-10 cursor-pointer list-none items-center gap-1.5 text-xs text-muted transition-colors hover:text-sky">
         <ChevronDown className="h-3.5 w-3.5 transition-transform group-open:rotate-180" />
-        자세히 · 견줘 본 항목
+        {rows.length > 0 ? '자세히 · 견줘 본 항목' : '어떻게 찾나요'}
       </summary>
-      <ul className="mt-3 space-y-2">
-        {shown.map((r) => (
-          <li key={r.key} className="flex items-baseline justify-between gap-3 text-xs">
-            <span className="min-w-0 break-keep text-ink/85">{r.label}</span>
-            <span className="shrink-0 text-muted tabular-nums">
-              {r.meanHigh.toFixed(1)} vs {r.meanLow.toFixed(1)} · {r.nHigh}일 / {r.nLow}일
-            </span>
-          </li>
-        ))}
-      </ul>
-      <p className="mt-2 text-caption leading-relaxed text-muted/70">
-        만족도 평균(1~5) 높은 쪽 vs 낮은 쪽, 그 날 수. 날 수가 적거나 차이가 0.7점 안이면 위에는 안 올려요.
+      <p className="mt-3 text-caption leading-relaxed text-muted">
+        최근 180일, 매긴 날 {rated}일. 하루에 여러 번 매기면 평균 하나로 보고, 시즌 내내 같이 오르내린 흐름은 빼고
+        견줘요. 우연으로 생기기 어려운 차이만 말해요.
       </p>
+      {rows.length > 0 && (
+        <ul className="mt-3 space-y-2">
+          {shown.map((r) => (
+            <li key={r.key} className="flex items-baseline justify-between gap-3 text-xs">
+              <span className="min-w-0 break-keep text-ink/85">{r.label}</span>
+              <span className="shrink-0 text-muted tabular-nums">
+                {r.meanHigh.toFixed(1)} vs {r.meanLow.toFixed(1)} · {r.nHigh}일 / {r.nLow}일
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+      {rows.length > 0 && (
+        <p className="mt-2 text-caption leading-relaxed text-muted/70">
+          만족도 평균(1~5) 높은 쪽 vs 낮은 쪽, 그 날 수. 날 수가 적거나 차이가 0.7점 안이면 위에는 안 올려요.
+        </p>
+      )}
     </details>
   );
 }

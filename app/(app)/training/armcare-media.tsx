@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useState, useTransition, type ReactNode } from 'react';
 import { unstable_rethrow } from 'next/navigation';
 import { Info, Scan } from '@/components/icon';
 import { LibraryVideo } from '@/components/library-video';
@@ -107,8 +107,11 @@ export function DescriptionText({
 export function ExerciseMedia({
   exercise,
   showMuscleButton = false,
+  extra,
 }: {
   exercise: ArmcareExerciseView;
+  /** 펼친 칸 맨 위에 더 보일 것 — 목록 줄에서 뺀 강도 · 수준 · 장비 같은 곁 정보(루틴 만들기) */
+  extra?: ReactNode;
   /**
    * 옆에 '근육 위치' 단추 — 누르면 이 운동이 쓰는 근육 모두가 3D 그림·설명 창으로 뜬다
    * (armcare-info.tsx, 2026-09-26 사용자분: 간편하게). 루틴의 체크 목록에서만 켠다 —
@@ -168,6 +171,7 @@ export function ExerciseMedia({
       </div>
       {open && (
         <div className="space-y-3 px-4 pb-4">
+          {extra}
           {(exercise.videoPath || exercise.referenceVideoId) && (
             <LibraryVideo
               path={exercise.videoPath}

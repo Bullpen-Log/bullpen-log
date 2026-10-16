@@ -65,18 +65,18 @@ export function MechanicsProgram({
   if (!program?.level) {
     return (
       <div className="stack-block">
-        <Card className="space-y-2">
+        {/* 글은 한 줄만, 나머지는 '자세히' 뒤로(2026-10-16 김민 "화면 글 많은 곳 줄여줘" — 이 화면이 1,500자 · 화면 3장 길이였다) */}
+        <Card className="space-y-1">
           <h2 className="text-heading text-lg text-ink">투구 메커니즘 향상 프로그램</h2>
-          <p className="text-sm leading-relaxed break-keep text-ink/85">
-            4주 동안 주 {PER_WEEK}번, 드릴 3~4개를 투구 차례대로 해요. 한 번에 15~25분, 던지는 날 캐치볼 전에
-            하면 알맞아요. 처음이면 입문부터.
-          </p>
+          <p className="text-sm break-keep text-ink/85">4주 · 주 {PER_WEEK}번 · 한 번에 15~25분이에요.</p>
+          <FoldNote tone="muted">
+            <p className="text-sm leading-relaxed break-keep text-muted">
+              드릴 3~4개를 투구 차례대로 해요. 던지는 날 캐치볼 전에 하면 알맞아요. 처음이면 입문부터.
+            </p>
+          </FoldNote>
         </Card>
         <LevelPicker current={null} index={0} />
-        <Card className="space-y-4">
-          <h2 className="text-heading text-lg text-ink">투구의 흐름</h2>
-          <OverviewDetail />
-        </Card>
+        <OverviewFold />
       </div>
     );
   }
@@ -108,16 +108,23 @@ export function MechanicsProgram({
 
       <LevelSettings current={level.key} index={program.index} />
 
-      <details className="group rounded-2xl bg-surface">
-        <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 px-(--block-pad) text-sm font-bold text-ink [&::-webkit-details-marker]:hidden">
-          투구의 흐름 · 왜 순서가 중요한가요
-          <ChevronDown aria-hidden className="h-4 w-4 text-muted transition-transform group-open:rotate-180" />
-        </summary>
-        <div className="px-(--block-pad) pb-(--block-pad)">
-          <OverviewDetail />
-        </div>
-      </details>
+      <OverviewFold />
     </div>
+  );
+}
+
+/** 투구의 흐름 · 왜 순서가 중요한가 · 이렇게 써 보세요 — 늘 접어 둔다(수준을 고르기 전 화면에서도) */
+function OverviewFold() {
+  return (
+    <details className="group rounded-2xl bg-surface">
+      <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 px-(--block-pad) text-sm font-bold text-ink [&::-webkit-details-marker]:hidden">
+        투구의 흐름 · 왜 순서가 중요한가요
+        <ChevronDown aria-hidden className="h-4 w-4 text-muted transition-transform group-open:rotate-180" />
+      </summary>
+      <div className="px-(--block-pad) pb-(--block-pad)">
+        <OverviewDetail />
+      </div>
+    </details>
   );
 }
 
@@ -457,10 +464,13 @@ function LevelPicker({ current, index }: { current: LevelKey | null; index: numb
                     <span className="text-sm break-keep text-muted">{lv.line}</span>
                   </p>
                   <p className="text-xs leading-relaxed break-keep text-ink/80">{lv.who}</p>
-                  <p className="text-xs leading-relaxed break-keep text-muted">{lv.what}</p>
-                  <p className="text-xs break-keep text-muted">
-                    첫 세션: {lv.blocks[0][0].join(' · ')}
-                  </p>
+                  {/* 하는 법 · 첫 세션 드릴은 눌러서(카드 넷이 4~5줄씩이었다) */}
+                  <FoldNote tone="muted">
+                    <p className="text-xs leading-relaxed break-keep text-muted">{lv.what}</p>
+                    <p className="text-xs break-keep text-muted">
+                      첫 세션: {lv.blocks[0][0].join(' · ')}
+                    </p>
+                  </FoldNote>
                 </div>
               </div>
               {on ? (

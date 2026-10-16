@@ -231,6 +231,10 @@ User 관계가 없는 표: `VelocityRecording`(조각 · 표시 딸림)은 지�
   **모서리**: `rounded-md` → `lg`(작은 배지는 알약 모양이 됨), 카드인데 3xl 이던 셋 → 2xl, 시트 · 창 · 고르개의 3xl 은 그대로 ·
   **단추**: 공용 `Button` · `ButtonLink` 에 `size`(sm 40 · md 44 · lg 48px, 기본 md 는 예전과 같음) — 네 탭의 손으로 만든 파란 단추 28개를 옮겼다(휴대폰 알약 · PC 둥근 모서리).
   **새 파란 단추는 손으로 만들지 말고 `Button size=…` 을 써 줘.** 홈 요약 칸 점 28×44 · 바코드 닫기 · 식단 줄 단추 40px. 커밋 4811a42e ~ 18026ab1.
+- (같은 날 더) **화면 글 많은 곳 다섯 줄임**(김민: "찾은 다섯 개 다 줄여줘" — 휴대폰 375 로 화면마다 보이는 글을 잰 뒤, 글은 지우지 않고 '자세히' 뒤로):
+  투구 분석 아래(`coach/good-days.tsx` 찾는 법을 '어떻게 찾나요' 안으로 · `load-panel.tsx` 기록 빠짐 알림 한 문장 · `load-trend.tsx` 흐름 설명 한 문장, 643 → 410자) ·
+  3D 동작 분석 목록 카드(`lib/pitch-lab-meta.ts` 새 `labCardChips` — 기본값과 다른 것만, 결과 화면 머리는 `labMetaChips` 그대로, 609 → 429자) ·
+  메커니즘 첫 화면 · 내 루틴 만들기 목록(`armcare-media.tsx` ExerciseMedia 에 선택 칸 `extra`) · 근력 프로그램 상세 창(트레이닝 쪽). 커밋 0c88b8a4 ~ (이 커밋).
 
 ## 금윤호에게 — 2026-10-16 · 김민(Claude, 데스크톱 · 3D 담당) — 3D 결과의 '착지'를 앞발이 처음 닿은 순간으로(events.footContact) · footFlat 지움
 

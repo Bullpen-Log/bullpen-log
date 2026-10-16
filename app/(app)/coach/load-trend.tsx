@@ -225,8 +225,7 @@ export function LoadTrend({ trend }: { trend: AcwrTrendPoint[] }) {
       </div>
 
       <p className="mt-2 text-xs leading-relaxed break-keep text-muted">
-        파란 띠가 적정 구간(0.8~1.3)이에요. 던진 다음 날은 오르고 쉰 날은 내려가니 하루
-        값보다 흐름을 보세요.
+        파란 띠가 적정(0.8~1.3)이에요. 하루 값보다 흐름을 보세요.
       </p>
     </div>
   );
