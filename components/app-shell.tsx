@@ -2608,9 +2608,7 @@ function MobileTopBar({
         data-short={bare || hidden ? '' : undefined}
         className="pointer-events-none fixed inset-x-0 top-0 z-39 desk:hidden pad:left-(--rail)"
       >
-        {/* 흐림 세 겹 — 위로 갈수록 겹이 늘어 점점 흐려진다(globals.css 'top-veil' — 한 선을 넘는 순간 확 흐려지지 않게) */}
-        <i />
-        <i />
+        {/* 흐림 한 겹 — 아래 끝에서 마스크로 옅어져 위로 갈수록 흐려진다(globals.css 'top-veil', 2026-10-16 세 겹 → 한 겹) */}
         <i />
       </div>
       <div
