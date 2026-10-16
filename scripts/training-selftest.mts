@@ -32208,10 +32208,10 @@ console.log(
 );
 {
   check(
-    '3판 (띠) 1~3 아파요 · 4~7 보통이에요 · 8~10 좋아요 — 띠 셋이 1~10 을 빈틈없이 나눈다',
+    '3판 (띠) 1~4 아파요 · 5~7 보통이에요 · 8~10 좋아요 — 띠 셋이 1~10 을 빈틈없이 나눈다(아파요 끝 = 낮은 날 문턱, 2026-10-16 D4)',
     CONDITION_BANDS.length === 3 &&
-      [1, 2, 3].every((n) => conditionBand(n) === 'sick') &&
-      [4, 5, 6, 7].every((n) => conditionBand(n) === 'normal') &&
+      [1, 2, 3, 4].every((n) => conditionBand(n) === 'sick') &&
+      [5, 6, 7].every((n) => conditionBand(n) === 'normal') &&
       [8, 9, 10].every((n) => conditionBand(n) === 'good') &&
       PAIN_FORCED_CONDITION === 3 &&
       LOW_CONDITION_THRESHOLD === 4

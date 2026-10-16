@@ -8,6 +8,7 @@ import { Button, Input } from '@/components/ui';
 import { ErrorLine } from '@/components/error-line';
 import { OFFLINE_MESSAGE, orOffline } from '@/lib/action-offline';
 import { ARM_PAIN_LEVELS } from '@/lib/checkin';
+import { toDateKey } from '@/lib/pitch-stats';
 import type { ArmcareAreaKey } from '@/lib/armcare/anatomy';
 import {
   REHAB_ACTIVITY_MAX_LENGTH,
@@ -390,7 +391,8 @@ function Summary({
   const block = rehabStartBlock({ age, area, condition });
   const severity = rehabSeverity({ level, worst, condition });
   const stage = startStage(severity);
-  const today = new Date().toISOString().slice(0, 10);
+  /* 한국 날짜 — toISOString 은 UTC 라 한국 0~9시에 어제가 됐다(2026-10-16 통합 시험) */
+  const today = toDateKey(new Date());
   const throwing = rehabFacts(
     {
       area,

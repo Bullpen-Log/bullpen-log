@@ -5,8 +5,8 @@
  * 근육통을 안 묻게 된 뒤 엔진 규칙이 조용히 꺼졌던 것(2026-10-16 통합 검토)이 이런 틈에서 났다.
  *
  * 운영 DB 에 쓰지도 읽지도 않는다(개발 DB = 운영 DB). 순수 계산을 가짜 기록으로 돌리고, 코드 모양은 소스를 읽어 본다.
- * check = 깨지면 실패(끝 코드 1). gap = 알려진 빈틈(사용자 결정 · 고칠 차례 대기) — 보여 주기만 하고 실패로 세지 않는다.
- * 빈틈을 고치면 gap 이 '고쳐짐'을 알린다 — 그때 check 로 옮긴다.
+ * check = 깨지면 실패(끝 코드 1). 처음(2026-10-16)엔 결정 · 고칠 차례를 기다리는 '알려진 빈틈' 다섯을 따로 보였는데, 같은 날 모두
+ * 고치거나 정해 check 로 옮겼다 — 새 빈틈이 생기면 그때 보여 주기만 하는 도우미를 다시 둔다.
  *
  *   npm run integration:test
  */
@@ -31,18 +31,11 @@ import { MOBILE_TABS, NAV_GROUPS, applyLocks } from '../lib/nav.ts';
 
 let passed = 0;
 let failed = 0;
-let gaps = 0;
 
 function check(name: string, ok: boolean, detail = '') {
   if (ok) passed++;
   else failed++;
   console.log(`  ${ok ? 'OK  ' : '실패'} ${name}${!ok && detail ? ` — ${detail}` : ''}`);
-}
-
-/** 알려진 빈틈 — still 이 참이면 아직 남음(실패로 안 셈), 거짓이면 고쳐졌다고 알린다 */
-function gap(name: string, still: boolean, detail = '') {
-  if (still) gaps++;
-  console.log(`  ${still ? '빈틈' : '고쳐짐 → check 로 옮길 것'} ${name}${still && detail ? ` — ${detail}` : ''}`);
 }
 
 const src = (f: string) => readFileSync(new URL(`../${f}`, import.meta.url), 'utf-8');
@@ -140,7 +133,7 @@ console.log('\n[5] 날짜 — 모든 카테고리의 \'오늘\'이 한국 날짜
     .flatMap((dir) => walk(dir))
     .filter((f) => /\.(ts|tsx)$/.test(f))
     .filter((f) => /new Date\(\)\.toISOString\(\)\.slice\(0, 10\)/.test(src(f)));
-  gap('화면에서 오늘을 UTC 로 셈(한국 0~9시에 어제가 됨)', utcToday.length > 0, utcToday.join(', '));
+  check('화면이 오늘을 UTC 로 세지 않는다(한국 0~9시에 어제가 됨 — toDateKey 로)', utcToday.length === 0, utcToday.join(', '));
 }
 
 /* ─────────────────────── 6. 기능 잠금 ↔ 메뉴 ─────────────────────── */
@@ -198,16 +191,27 @@ console.log('\n[8] 쓰기 뒤 다시 그리기 — 기록을 바꾸는 입구가
 {
   const WRITE = /prisma\.\w+\.(create|createMany|update|updateMany|upsert|delete|deleteMany)\(|\$transaction\(/;
   const REFRESH = /\b(revalidatePath|revalidateTag|updateTag|refresh)\(/;
-  const files = [
-    ...readdirSync(new URL('../app/actions/', import.meta.url)).map((f) => `app/actions/${f}`),
-    ...walk('app/api').filter((f) => f.endsWith('route.ts')),
-  ].filter((f) => /\.tsx?$/.test(f));
-  const silent = files.filter((f) => WRITE.test(src(f)) && !REFRESH.test(src(f)));
-  gap('기록을 바꾸는데 다시 그리기를 안 부르는 파일(다른 탭 · /coach 가 30초 옛 값)', silent.length > 0, silent.join(', '));
+  /*
+   * 서버 동작만 본다 — API 경로(app/api)는 부르는 화면이 router.refresh(lib/quiet-refresh.ts)로 다시 그리고, 그것이 브라우저의 화면 캐시
+   * 전체를 비운다(경로 쪽 revalidate 는 브라우저 캐시에 안 닿는다). 다시 그리기가 없어도 되는 파일은 까닭과 함께 여기 둔다.
+   */
+  const NO_REFRESH: Record<string, string> = {
+    'app/actions/auth.ts': '가입 · 로그인 · 로그아웃 · 탈퇴는 redirect 로 새 화면을 연다, 비밀번호는 화면에 안 보인다',
+    'app/actions/exercise-note.ts': '운동 중 화면이 받은 메모로 바로 고친다(onSaved) — 다시 그리면 진행 중인 판이 흔들린다',
+  };
+  const files = readdirSync(new URL('../app/actions/', import.meta.url))
+    .map((f) => `app/actions/${f}`)
+    .filter((f) => /\.tsx?$/.test(f));
+  const silent = files.filter((f) => WRITE.test(src(f)) && !REFRESH.test(src(f)) && !(f in NO_REFRESH));
+  check(
+    `기록을 바꾸는 서버 동작 파일은 다시 그리기를 부르거나 까닭이 적혀 있다(읽은 파일 ${files.length}개)`,
+    files.length > 20 && silent.length === 0,
+    silent.join(', ')
+  );
 }
 
 /* ─────────────────────── 9. 결정 대기 — 나이 · 컨디션 ─────────────────────── */
-console.log('\n[9] 결정 대기 — 카테고리마다 다른 기준(docs/architecture README D3 · D4)');
+console.log('\n[9] 정한 기준 — 나이 띠(D3 그대로) · 컨디션 4(D4) · 체중(D5)');
 {
   const rows = [12, 13, 14, 15, 16, 17, 18, 19, 20].map((age) => ({
     age,
@@ -228,20 +232,35 @@ console.log('\n[9] 결정 대기 — 카테고리마다 다른 기준(docs/archi
       once(rows.map((r) => r.nutrition !== 'adult'))
   );
   const mixed = rows.filter((r) => (r.training === '성인') !== (r.nutrition === 'adult')).map((r) => r.age);
-  gap('트레이닝은 성인인데 영양은 청소년인 나이(D3 — 근거가 달라 일부러일 수 있음)', mixed.length > 0, mixed.join(' · ') + '세');
-  gap(
-    "컨디션 4 — 화면 띠는 '보통'인데 엔진은 낮은 날(D4)",
-    conditionBand(4) === 'normal' && 4 <= LOW_CONDITION_THRESHOLD,
-    `LOW_CONDITION_THRESHOLD ${LOW_CONDITION_THRESHOLD}`
+  /*
+   * D3 — 2026-10-16 사용자: 트레이닝 성장기 선(16)은 그대로. 영양은 국내 섭취기준의 청소년(만 17세까지), 투구 한도는 공식 투구 지침의 고교 구간이라
+   * 근거가 달라 일부러 다르다. 어긋나는 나이가 16 · 17세에서 늘거나 줄면(기준 하나를 바꿈) 여기서 알린다 — 그때 다시 정한다.
+   */
+  check(
+    '트레이닝은 성인 · 영양은 청소년인 나이는 16 · 17세뿐(일부러 다름 — D3 그대로)',
+    mixed.join() === '16,17',
+    mixed.join(' · ') + '세'
   );
-  gap(
-    '체중 — 프로필 수정은 User 만, 영양 탭은 DailyNutrition 만 쓴다(D5, DB 를 거쳐 순수 시험 밖)',
-    !/dailyNutrition/.test(src('app/actions/profile.ts')),
-    'app/actions/profile.ts'
+  /* D4 — 화면 띠 '아파요'의 끝 = 엔진의 낮은 날 문턱. 4 를 고르면 화면도 '아파요'다 */
+  check(
+    `컨디션 1~10 에서 화면 '아파요' 띠와 엔진의 낮은 날(${LOW_CONDITION_THRESHOLD} 이하)이 같다(D4)`,
+    Array.from({ length: 10 }, (_, i) => i + 1).every(
+      (n) => (conditionBand(n) === 'sick') === (n <= LOW_CONDITION_THRESHOLD)
+    )
+  );
+  /* D5 — 가장 최근 기록 하나: 프로필에서 고치면 오늘 체중 기록에도, 영양 탭에서 오늘 적으면 프로필 몸무게에도(DB 를 거쳐 소스로 본다) */
+  const nutritionSrc = src('app/actions/nutrition.ts');
+  const setWeightSrc = nutritionSrc.slice(nutritionSrc.indexOf('export async function setWeight'));
+  check(
+    '체중 — 프로필 수정이 오늘 체중 기록을, 영양 탭의 오늘 체중이 프로필 몸무게를 같이 쓴다(D5)',
+    /dailyNutrition\.upsert/.test(src('app/actions/profile.ts')) &&
+      setWeightSrc
+        .slice(0, setWeightSrc.indexOf('\nexport '))
+        .includes('prisma.user.update({ where: { id: user.id }, data: { weightKg } })')
   );
 }
 
-console.log(`\n${passed}개 통과, ${failed}개 실패, 알려진 빈틈 ${gaps}개`);
+console.log(`\n${passed}개 통과, ${failed}개 실패`);
 process.exit(failed === 0 ? 0 : 1);
 
 /** 폴더 안 파일 경로(저장소 기준, / 구분) */
