@@ -29,7 +29,8 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 **받은 뒤 할 일: `npx prisma generate`** — 스키마에서 `AiReport` · `PoseAnalysis` 표와 `DailyCheckin.fatigue · stress · mood · restingHr · hydration` ·
 `DailyNutrition.photoCalls` 를 뺐다(김민 결정 — 코드에서 읽는 곳 0, 값은 AI 리포트 8줄 · 체크인 옛 값 몇 개뿐). AGENTS 2번대로 2단계:
-① 이 커밋은 스키마 · 코드에서만 뺐다(DB 칸은 그대로 — 옛 배포가 없는 칸을 읽다 넘어지지 않게) ② 배포가 끝나면 백업 뒤 DB 에서 지우는 마이그레이션을 올린다.
+① 776fcbbc 가 스키마 · 코드에서 빼고 배포됨 ② **같은 날 DB 에서도 지웠다**(마이그레이션 `20261016140000_drop_unused_tables_columns`, 적용함).
+지운 값은 `~/bullpen-log-backups/dropped-2026-10-16.json`(AI 리포트 8줄 · 체크인 옛 값 3줄 — 일반 백업은 Prisma 클라이언트 기준이라 스키마에서 뺀 표가 안 들어가서 따로 떴다).
 **네 가지(브랜치)에서 이 표 · 칸을 쓰고 있으면** 받은 뒤 지워 줘 — 2단계 뒤에는 DB 에 없다. 투구 기록 영상 빼기(`app/api/pitch-log` PATCH)가 지우던 옛 폼 분석 줄도 걷었다.
 
 ## 금윤호에게 — 2026-10-16 · 김민(Claude, 데스크톱 · 통합 세션) — 탈퇴 · 회원 지우기를 한 함수로(lib/delete-user.ts)
