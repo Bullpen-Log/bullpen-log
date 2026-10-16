@@ -34,13 +34,22 @@ export function TrainingNote({
 }) {
   const saved = intensity != null;
   const [editing, setEditing] = useState(!saved);
-  const [value, setValue] = useState(intensity ?? 5);
+  /*
+   * 고른 적 없으면 null — 예전엔 기본 5 가 메모만 적어도 '강도 5' 로 저장돼, 힘듦 급증 규칙(2판 P2 · P4)의 입력이
+   * 고르지 않은 값으로 채워졌다(2026-10-16 점검 A2). 슬라이더는 가운데(5)에 두고 보이되, 움직여야 값이 된다.
+   */
+  const [value, setValue] = useState<number | null>(intensity);
+  const shown = value ?? 5;
   const [text, setText] = useState(memo ?? '');
   const [error, setError] = useState<string>();
   const [pending, startTransition] = useTransition();
 
   const save = () => {
     setError(undefined);
+    if (value == null) {
+      setError('운동 강도를 먼저 골라 주세요. 슬라이더를 움직이면 돼요.');
+      return;
+    }
     startTransition(async () => {
       /* 신호가 끊겨도 적던 메모는 남기고 한 줄로 알린다(lib/action-offline.ts) */
       const res = await orOffline(saveTrainingNote(value, text, dateKey), {
@@ -102,7 +111,7 @@ export function TrainingNote({
 
       <div className="space-y-2">
         <label htmlFor="training-intensity" className="text-sm font-medium text-ink">
-          운동 강도 · {value} / 10
+          운동 강도 · {value == null ? '아직 안 골랐어요' : `${value} / 10`}
         </label>
         <input
           id="training-intensity"
@@ -110,10 +119,10 @@ export function TrainingNote({
           min={1}
           max={10}
           step={1}
-          value={value}
+          value={shown}
           onChange={(e) => setValue(Number(e.target.value))}
           style={
-            { '--range-pct': `${((value - 1) / 9) * 100}%` } as React.CSSProperties
+            { '--range-pct': `${((shown - 1) / 9) * 100}%` } as React.CSSProperties
           }
           className="range"
         />

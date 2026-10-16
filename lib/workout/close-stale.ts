@@ -2,6 +2,7 @@ import 'server-only';
 import { appNow } from '@/lib/clock';
 import { prisma } from '@/lib/prisma';
 import { summarizeSets } from '@/lib/workout/summarize';
+import { readFrozenPlan } from '@/lib/workout/session-plan';
 import { dayStart, isAbandoned, sessionEnd } from '@/lib/workout/stale';
 import { advanceProgramDay } from '@/lib/program/advance';
 
@@ -23,35 +24,71 @@ type SessionRef = { id: string; date: Date };
  * 없다. 트랜잭션에 넣을 수 있게 실행하지 않은 채로 돌려준다.
  */
 export async function summaryWrites(userId: string, session: SessionRef) {
-  const rows = await prisma.userExerciseSet.findMany({
-    where: { sessionId: session.id },
-    select: { exerciseId: true, weightKg: true, reps: true, holdSeconds: true },
-  });
+  const [rows, row] = await Promise.all([
+    prisma.userExerciseSet.findMany({
+      where: { sessionId: session.id },
+      select: { exerciseId: true, weightKg: true, reps: true, holdSeconds: true },
+    }),
+    prisma.trainingSession.findUnique({
+      where: { id: session.id },
+      select: { plan: true },
+    }),
+  ]);
 
-  return summarizeSets(rows).map((s) =>
-    prisma.userExerciseLog.upsert({
-      where: {
-        userId_exerciseId_date: { userId, exerciseId: s.exerciseId, date: session.date },
-      },
-      create: {
-        userId,
-        exerciseId: s.exerciseId,
-        date: session.date,
-        completed: true,
-        setsDone: s.setsDone,
-        repsDone: s.repsDone,
-        holdSecondsDone: s.holdSecondsDone,
-        weightKg: s.weightKg,
-      },
-      update: {
-        completed: true,
-        setsDone: s.setsDone,
-        repsDone: s.repsDone,
-        holdSecondsDone: s.holdSecondsDone,
-        weightKg: s.weightKg,
-      },
-    })
-  );
+  /*
+   * 앞서 접었다가(마침 · 저절로 닫힘) 다시 연 판에서 한 운동의 세트를 모두 지웠으면, 그 운동의 기록 줄도 지운다 — 남겨 두면
+   * 부하 · 달력 · '최근'이 안 한 운동을 계속 셈했다(2026-10-16 점검 A6). 판의 운동 가운데 세트가 0 이고 세트 요약(setsDone)이
+   * 적힌 줄만 — 체크 목록(saveDone)이 남긴 줄은 setsDone 이 없어 그대로 둔다.
+   */
+  const withSets = new Set(rows.map((r) => r.exerciseId));
+  const emptied = (readFrozenPlan(row?.plan)?.exercises ?? [])
+    .map((e) => e.id)
+    .filter((id) => !withSets.has(id));
+  const cleanup =
+    emptied.length > 0
+      ? [
+          prisma.userExerciseLog.deleteMany({
+            where: {
+              userId,
+              date: session.date,
+              exerciseId: { in: emptied },
+              setsDone: { not: null },
+            },
+          }),
+        ]
+      : [];
+
+  return [
+    ...cleanup,
+    ...summarizeSets(rows).map((s) =>
+      prisma.userExerciseLog.upsert({
+        where: {
+          userId_exerciseId_date: {
+            userId,
+            exerciseId: s.exerciseId,
+            date: session.date,
+          },
+        },
+        create: {
+          userId,
+          exerciseId: s.exerciseId,
+          date: session.date,
+          completed: true,
+          setsDone: s.setsDone,
+          repsDone: s.repsDone,
+          holdSecondsDone: s.holdSecondsDone,
+          weightKg: s.weightKg,
+        },
+        update: {
+          completed: true,
+          setsDone: s.setsDone,
+          repsDone: s.repsDone,
+          holdSecondsDone: s.holdSecondsDone,
+          weightKg: s.weightKg,
+        },
+      })
+    ),
+  ];
 }
 
 /** 그 판에 마지막으로 남긴 세트의 시각. 세트가 없으면 null */

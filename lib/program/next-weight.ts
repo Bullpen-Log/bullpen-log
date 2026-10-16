@@ -267,7 +267,15 @@ export function suggestWeight(input: WeightInput): WeightSuggestion {
   }
 
   /* ⑦ 단위 반올림 — 올림이 반올림으로 사라지지 않게 위에서 이미 한 단위를 보장했다 */
-  return { kg: roundToUnit(kg, input.kind), reason, notes };
+  let rounded = roundToUnit(kg, input.kind);
+  /*
+   * 내림도 한 단위는 보장한다 — 덤벨 20kg · 바벨 25kg 이하는 ×0.95 가 반올림에서 원래 무게로 돌아와, 줄에는 '−5%' 가
+   * 뜨는데 숫자는 그대로였다(2026-10-16 점검 A3). 가벼운 주 · 컨디션 −10% 가 함께 걸려 이미 내려갔으면 더 안 내린다.
+   */
+  if (reason.code === 'missTwice' && rounded >= W && notes.length === 0) {
+    rounded = Math.max(unit, roundToUnit(W, input.kind) - unit);
+  }
+  return { kg: rounded, reason, notes };
 }
 
 /* ─────────────────────────── % 방식(5/3/1 · 저거넛 · 텍사스 · 프렌치 컨트라스트) ─────────────────────────── */

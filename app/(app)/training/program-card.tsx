@@ -235,7 +235,8 @@ export function ProgramCard({ props }: { props: ProgramCardProps }) {
             <p className="text-sm text-muted">
               {p.name} · {p.subtitle}
             </p>
-            {going && !finishedToday && (
+            {/* 운동 중인 날은 숨긴다 — 서버(skipProgramDay)도 거절한다(2026-10-16 점검 A4) */}
+            {going && !finishedToday && p.todayState !== 'active' && (
               <MoreRow onClick={() => setConfirm('skip')}>이 날 건너뛰기</MoreRow>
             )}
             <MoreRow onClick={() => setRepin(true)}>고정 운동 바꾸기</MoreRow>

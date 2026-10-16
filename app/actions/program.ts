@@ -318,6 +318,18 @@ export async function skipProgramDay(input: { day: number }): Promise<Result> {
   if (!row) return { error: '진행 중인 프로그램이 없어요.' };
   const total = parseProgram(row.programKey)?.totalDays;
   if (total == null) return { error: '이 프로그램은 더 이어 갈 수 없어요. 새로 골라 주세요.' };
+  /*
+   * 그 일차의 판이 열려 있으면 건너뛰지 않는다 — 넘겨 버리면 판은 nextDay 가 안 맞아 일차를 못 넘기고(lib/program/advance.ts)
+   * 그날은 '건너뜀'으로 셈됐다(2026-10-16 점검 A4). 마치거나 그만둔 뒤에 건너뛴다.
+   */
+  const open = await prisma.trainingSession.findFirst({
+    where: { userId: user.id, status: 'ACTIVE' },
+    select: { plan: true },
+  });
+  const openProgram = open ? readFrozenPlan(open.plan)?.program : null;
+  if (openProgram && openProgram.key === row.programKey && openProgram.day === input.day) {
+    return { error: '운동 중인 날은 건너뛸 수 없어요. 먼저 마치거나 그만둬 주세요.' };
+  }
   /* 화면이 본 일차일 때만 — 두 번 눌러도 한 번 */
   const moved = await prisma.userTrainingProgram.updateMany({
     where: { id: row.id, status: 'active', nextDay: input.day },

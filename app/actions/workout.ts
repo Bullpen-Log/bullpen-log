@@ -349,8 +349,16 @@ export async function logSet(input: SetInput): Promise<SetResult> {
    * 늦게 온 세트는 그 판을 하던 때의 것만 — 닫힌 끝 시각(마지막으로 무언가 한 때)에서 3시간 안. 그보다 뒤라면 그 판을
    * 하던 중이 아니다(3시간 넘게 아무 일이 없으면 떠난 판으로 친다, lib/workout/stale.ts).
    */
+  /*
+   * 다만 끝 시각은 서버가 아는 마지막 세트 기준이라, 신호 없이 오래 한 운동(세트가 하나도 안 올라간 채 3시간 넘게)은
+   * 그 뒤 세트가 모두 거절되어 폰 대기열에서 조용히 사라졌다(2026-10-16 점검 A1). 그래서 판의 날짜 안에 남긴 세트
+   * (남긴 시각에서 3시간을 빼도 아직 그 날짜)도 받는다 — 자정을 넘긴 판의 늦은 세트와 같은 기준이다.
+   */
+  const onSessionDay =
+    toDateKey(new Date(at.getTime() - STALE_AFTER_MS)) <= toDateKey(session.date);
   if (
     late &&
+    !onSessionDay &&
     at.getTime() > (session.endedAt ?? session.startedAt).getTime() + STALE_AFTER_MS
   ) {
     return { error: '이미 마친 운동이라 이 세트는 저장하지 못했어요.' };
