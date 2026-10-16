@@ -94,6 +94,7 @@ import {
   recordingBitrate,
   type RecorderState,
 } from '@/lib/velocity-recorder';
+import { DualSessionRecorder } from '@/lib/velocity-dual-recorder';
 import { VELOCITY_ENGINE_VERSION } from '@/lib/velocity-engine/version';
 import { reject } from '@/lib/velocity-engine/validate';
 import { uploadAttemptClip, uploadClip } from '@/lib/velocity-clip-upload';
@@ -743,6 +744,8 @@ export function VelocityScreen({
   });
   /* 녹화기 · 그 상태(찍는 시간 · 조각 · 올림) — 녹화 중이 아니면 null */
   const recorderRef = useRef<SegmentedRecorder | null>(null);
+  /* 세션 통째 녹화(관리자 · 보정용 저장 · 앱 카메라, 엔진 2.7) — 측정 시작에 켜고 종료 · 저장 · 나가기에 끈다 */
+  const sessionRecRef = useRef<DualSessionRecorder | null>(null);
   const [rec, setRec] = useState<RecorderState | null>(null);
   const recording =
     rec != null &&
@@ -956,6 +959,7 @@ export function VelocityScreen({
     return () => {
       /* 녹화 중에 화면을 떠나면 찍던 조각은 버린다(이미 올린 조각은 남는다) */
       recorderRef.current?.abort();
+      sessionRecRef.current?.abort();
       recorderRef.current = null;
       captureRef.current?.stop();
       captureRef.current = null;
@@ -1193,6 +1197,8 @@ export function VelocityScreen({
           ? [standardNoteOf(camera.offStandard)]
           : []),
         ...distNotes,
+        /* 조용할 때 훑기가 찾은 공(엔진 2.7) — 알림이 없어 지난 영상을 훑어 뒤늦게 잰 것 */
+        ...(meta?.late ? ['뒤늦게 찾은 공이에요. 알림이 없어 지난 영상을 훑어 쟀어요.'] : []),
         ...(steadied(result)
           ? ['폰이 흔들려 바로잡아 잰 값이에요. 고정한 폰보다 조금 덜 정확할 수 있어요.']
           : m.confidence !== 'high'
@@ -1619,6 +1625,7 @@ export function VelocityScreen({
     /* 그리기를 먼저 마친 뒤 기다린다 — 누른 순간에 대기 · 음성까지 하면 첫 장면들이 늦었다 */
     requestAnimationFrame(() => {
       capture.arm();
+      void startSessionRecording(capture);
       speak(
         autoMode
           ? '측정을 시작해요. 던져요'
@@ -1651,10 +1658,78 @@ export function VelocityScreen({
   /* 세션 종료 — 잰 공이 있으면 종합 화면으로. 거기서 저장하거나(끝) 이어서 잰다 */
   const endSession = () => {
     captureRef.current?.disarm();
+    void stopSessionRecording();
     setLive(false);
     setShowCamera(false);
     setResultOpen(false);
     if (pitches.length > 0) setSummaryOpen(true);
+  };
+  /*
+   * 세션 통째 녹화(엔진 2.7 1단계, lib/velocity-dual-recorder.ts) — 관리자가 '정확도 보정용 저장'을 켠 채 앱 카메라로 잴 때, 앱이 쥔
+   * 최근 영상을 6초마다 잘라 서버 녹화(엔진 개발용 녹화와 같은 표 · 편집기)로 올린다. 알림이 침묵해 놓친 공의 영상이 남는다.
+   */
+  const startSessionRecording = async (capture: DualCapture | LiveCapture) => {
+    if (!calibOn || !(capture instanceof DualCapture) || sessionRecRef.current) return;
+    const recorder = new DualSessionRecorder(
+      {
+        cameraNow: () => capture.cameraNow(),
+        anchorClock: () => capture.anchorClock(),
+        cutRange: (from, to) => capture.cutRange(from, to),
+      },
+      (s) => setRec({ ...s })
+    );
+    sessionRecRef.current = recorder;
+    await recorder.start({
+      date: today,
+      meta: {
+        engineVersion: VELOCITY_ENGINE_VERSION,
+        app: native,
+        sessionRecording: true,
+        camera: camera
+          ? {
+              label: camera.label,
+              width: camera.width,
+              height: camera.height,
+              frameRate: camera.frameRate,
+              measuredFps: fps,
+              focus: camera.focus,
+              zoom: camera.zoom,
+              cropped: camera.cropped,
+            }
+          : null,
+        camMode: DEFAULT_CAM_MODE,
+        fovDeg: fov,
+        focalRatio,
+        cameraPos: choices.cameraPos,
+        net: choices.net,
+        zone: activeZone,
+        releaseDistM: approach === 'approaching' ? releaseDistM : null,
+        targetDistM: approach === 'receding' ? targetDistM : null,
+        /* 알림 시각(VelocityAttempt.atSec)과 같은 시계 — 편집기에서 컷을 잡을 때 */
+        cameraClockStart: capture.cameraNow(),
+      },
+    });
+    if (sessionRecRef.current !== recorder) return;
+    if (recorder.state.phase === 'error') {
+      setToast(recorder.state.error ?? '세션 녹화를 시작하지 못했어요');
+      sessionRecRef.current = null;
+      setRec(null);
+      return;
+    }
+    setToast('세션 녹화를 시작했어요(보정용)');
+  };
+  const stopSessionRecording = async () => {
+    const recorder = sessionRecRef.current;
+    if (!recorder) return;
+    sessionRecRef.current = null;
+    const res = await recorder.stop();
+    setRec(null);
+    if (res.parts > 0 || res.error)
+      setToast(
+        res.ok
+          ? `세션 녹화를 관리자에 올렸어요(조각 ${res.parts}개)`
+          : `세션 녹화 조각 ${res.parts}개 올림. ${res.error ?? '일부를 못 올렸어요'}`
+      );
   };
   /*
    * 엔진 개발용 녹화(관리자) — 측정 없이 카메라 영상을 계속 찍어 30초 남짓 조각으로 구속 측정 관리자에 올린다
@@ -1732,6 +1807,7 @@ export function VelocityScreen({
   /* 첫 화면(카메라)으로 — 세션 · 안내를 접는다. 카메라는 켠 채로(첫 화면이 카메라다). 다음 셔터는 지난 설정부터 묻는다 */
   const goHome = () => {
     captureRef.current?.disarm();
+    void stopSessionRecording();
     setLive(false);
     setShowCamera(false);
     setSummaryOpen(false);

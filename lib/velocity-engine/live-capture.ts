@@ -132,7 +132,8 @@ export type CameraInfo = {
  * 결과에 붙는 번호 — 나중에 오는 영상 클립(onClip)과 짝을 맞춘다. hitT 는 클립의 eventSec 에 해당하는 궤적 시각(CaptureJob.hitT,
  * 동시 촬영은 클립 시각 그대로) — 클립 시각 = eventSec + (궤적 시각 − hitT). 모르면 null.
  */
-export type ResultMeta = { id: number; triggerT: number; hitT: number | null };
+/** late — 조용할 때 훑기가 뒤늦게 찾은 공(dual-capture.ts, 2.7). 화면이 '뒤늦게 찾은 공' 표시를 붙인다 */
+export type ResultMeta = { id: number; triggerT: number; hitT: number | null; late?: boolean };
 
 /** 공 하나의 영상 클립 — 던진 순간을 담은 3초 조각. eventSec = 클립 안에서 던진 시각 */
 export type PitchClip = {

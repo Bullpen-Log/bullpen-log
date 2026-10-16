@@ -11,6 +11,26 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 ---
 
+## 금윤호에게 — 2026-10-16 밤 · 김민(Claude, 데스크톱 · 구속측정 엔진) — 구속 엔진 2.7.0: 조용할 때 훑기 · 세션 통째 녹화(관리자) — 놓치는 공 줄이기
+
+받은 뒤 할 일 없음(DB · 패키지 · Swift 그대로 — 사이트 쪽만, 빌드 없이 배포). **네 영역(구속 측정 — 앱 카메라 길 · 측정 화면 · 시도 기록)을 고쳤다.**
+김민: "공도 인식을 못해, 다음에도 또 이러면 어떡해" → 계획 `docs/velocity/engine-2.7-plan.md`(1 · 2단계 끝, 3~6단계는 Swift · 학습 모델).
+- 왜: 10-16 세션 저장 뒤 이어 재니 앱 알림이 거의 안 왔다(공 2 · 움직임 0) — 같은 조건 녹화 7구는 엔진에 넣으면 6구 '높음'. 알아채기가 구멍.
+- **조용할 때 훑기**(`dual-capture.ts` sweep · `analyze-video.ts locateThrow` · `lib/velocity-engine/sweep.ts`): armed 이고 재는 중이 없으면 5초마다 지난 6초(겹침 1초)를
+  앱에서 잘라 거친 훑기만 — 공을 믿었으면 그 시각으로 움직임 알림과 같은 길로 잰다(`onThrow(t, 'sweep')`, 안 보이게 시작해 공 길이 나오면 결과 + '뒤늦게 찾은 공' 알림,
+  `ResultMeta.late`). 재는 중 · 최근 5초 창의 공은 건너뛰고, 훑기가 2.5초 넘으면 다음 하나는 쉰다. `DualCapture.setSweep(false)` 로 끌 수 있다(기본 켬).
+  10-16 · 10-09 앱 클립 20개: 훑기가 공을 20/20 찾았고, 그 길로 잰 값은 10-16 밖 6구 모두 '높음' · 알림 길과 1km/h 안(실내 10-09 는 알림 길처럼 '낮음').
+- **앱 카메라 시계**: 알림 atSec 을 `performance.now()` 와 짝짓고, 알림 전엔 `clip({ atSec: 1e9, beforeSec: 1e9, afterSec: 0 })` 한 번으로 쥔 조각 전부의 시작을 역산
+  (`anchorClock`, 앱이 5초 상한까지 기다렸다 돌려줌 · 파일은 안 읽고 discard). **Swift 에 `now`(CACurrentMediaTime) 하나만 더해 주면 이 5초가 없어진다** — 다음 빌드 때.
+  `cutRange(from, to)` = clip(atSec: from, beforeSec: 0, afterSec: to − from) + readDualClip.
+- **세션 통째 녹화**(`lib/velocity-dual-recorder.ts` DualSessionRecorder): 관리자 · '정확도 보정용 저장' 켬 · 앱 카메라일 때 세션 시작(arm)에 켜고 종료 · 저장 · 나가기에 끈다.
+  6초마다 잘라 서버 녹화(VelocityRecording — 엔진 개발용 녹화와 같은 표 · 편집기)로 올린다. meta `sessionRecording: true` · `cameraClockStart`(알림 atSec 과 같은 시계).
+  조각 약 10MB(14Mbps) — LTE 면 1분 100MB 쯤(김민이 알고 고른 2번 방식). 올리기가 3개 넘게 밀리면 그 조각은 건너뛴다.
+- 시도 기록 kind 에 'sweep'(`app/actions/velocity.ts`), 관리자 시도 표 '훑기'(`explorer-panels.tsx` 한 줄). 측정 화면: `startSessionRecording · stopSessionRecording` ·
+  결과 알림 한 줄 · `sessionRecRef`.
+- 시험 engine2 65(새 7 — 시계 역산 · 훑기 창) · test 48 · detect 15 · video 59 · live 61 · tsc · eslint. **실제 폰에서는 아직 안 봤다** — 다음 현장에서 콘솔 `[velo] sweep …` ·
+  관리자 녹화 목록(조각 수) · 시도 표 '훑기' 줄을 봐 줘. 사용자가 다음에 하라고 한 것: 3단계(셔터 상한 1/2000 · 가속도 3축 · 고도, Swift) · 5단계 공 감지 학습 모델(Modal 학습 · CoreML).
+
 ## 금윤호에게 — 2026-10-16 · 김민(Claude, 데스크톱 · 앱 틀) — 숨은 판의 막대 제목 · '‹ 뒤로'가 지금 화면을 덮던 것
 
 받은 뒤 할 일 없음. **네 영역(앱 틀)을 고쳤다** — `components/nav-title.tsx`(0fd91c17) · `components/back-link.tsx`(c09cef2f): 가장 가까운 `[data-panel]` 에

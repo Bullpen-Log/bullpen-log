@@ -621,8 +621,8 @@ export async function attachClip(
 export type AttemptInput = {
   /** YYYY-MM-DD */
   date: string;
-  /** 'seed' = 앱의 공 후보(2026-10-16) */
-  kind: 'ball' | 'motion' | 'seed';
+  /** 'seed' = 앱의 공 후보(2026-10-16) · 'sweep' = 조용할 때 훑기가 뒤늦게 찾은 공(2.7) */
+  kind: 'ball' | 'motion' | 'seed' | 'sweep';
   /** 알림 시각(앱 카메라 시계 초) · 세기 */
   atSec: number | null;
   strength: number | null;
@@ -659,7 +659,10 @@ export async function recordVelocityAttempt(
     data: {
       userId: user.id,
       date: at,
-      kind: input.kind === 'ball' || input.kind === 'seed' ? input.kind : 'motion',
+      kind:
+        input.kind === 'ball' || input.kind === 'seed' || input.kind === 'sweep'
+          ? input.kind
+          : 'motion',
       atSec: optional(input.atSec, 0, 1_000_000),
       strength: optional(input.strength, 0, 1_000_000),
       ok,

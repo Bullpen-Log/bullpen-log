@@ -1203,7 +1203,7 @@ function AttemptRow({
           {a.ok ? `잼 ${a.rawKmh == null ? '—' : a.rawKmh.toFixed(1)}` : '못 잼'}
         </Badge>
         <span className="text-muted">
-          {a.kind === 'ball' ? '공 알림' : a.kind === 'seed' ? '공 후보' : '움직임'} · {a.nickname}
+          {a.kind === 'ball' ? '공 알림' : a.kind === 'seed' ? '공 후보' : a.kind === 'sweep' ? '훑기' : '움직임'} · {a.nickname}
         </span>
         {a.pitch && (
           <span className="text-muted">
