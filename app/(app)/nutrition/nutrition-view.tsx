@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import {
   useEffect,
   useOptimistic,
@@ -565,7 +565,13 @@ export function NutritionView({
                 key={m.key}
                 meal={m.key}
                 entries={entries.filter((e) => e.meal === m.key)}
-                protein={mealProtein(m.key, entries, t.protein, t.ageBand)}
+                protein={mealProtein(
+                  m.key,
+                  entries,
+                  t.protein,
+                  t.ageBand,
+                  day.prefs.avoid
+                )}
                 dailyProtein={t.protein}
                 onOpen={(e) =>
                   setSheet({
@@ -685,10 +691,15 @@ const hrefOf = (d: string, today: string) =>
   d === today ? '/nutrition' : `/nutrition?date=${d}`;
 const oldest = (today: string) => shiftDateKey(today, -NUTRITION_BACK_DAYS);
 
-/** PC 에서 ← → 로 하루씩. 글을 적는 중이거나 창이 떠 있으면 가만히 둔다. */
+/**
+ * PC 에서 ← → 로 하루씩. 글을 적는 중이거나 창이 떠 있으면 가만히 둔다.
+ * 영양 탭을 보고 있을 때만 — 탭 넷이 늘 떠 있어(components/tab-pager.tsx) 홈 · 트레이닝 · 녹화 편집기의 ← → 까지 가로챘다(2026-10-16 점검).
+ */
 function useArrowKeys(date: string, today: string) {
   const router = useRouter();
+  const here = usePathname() === '/nutrition';
   useEffect(() => {
+    if (!here) return;
     function onKey(e: KeyboardEvent) {
       if (e.defaultPrevented || e.altKey || e.ctrlKey || e.metaKey || e.shiftKey)
         return;
@@ -709,7 +720,7 @@ function useArrowKeys(date: string, today: string) {
     }
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [date, today, router]);
+  }, [date, today, router, here]);
 }
 
 function DateNav({

@@ -17,6 +17,7 @@ import {
   type MealCheck,
   type TrainingKind,
 } from '../lib/nutrition/advice.ts';
+import { exampleWords } from '../lib/nutrition/meal-protein.ts';
 
 let pass = 0;
 let fail = 0;
@@ -187,6 +188,7 @@ check(
       skipped: [],
       appetite: 1,
       sleepShort: true,
+      w: exampleWords(),
     };
     const h = r.say(s).headline;
     return !h.includes('1시간') && !h.includes('운동 뒤');
@@ -427,6 +429,90 @@ console.log('\n■ [메모 2] 성장기 금지어 — 어떤 상황에서도 없
     `상황 ${n.toLocaleString('ko-KR')}가지 — 성장기 '덜 · 가볍게 · 줄이 · 빼고 · 적게 먹' 0 · 감량 '굶 · 거르' 0 · 상표 · 보충제 0 · 60자 밑 · 줄표 없음`,
     bad.length === 0,
     bad.slice(0, 3).join(' | ')
+  );
+}
+
+console.log('\n■ 못 먹는 것(식단 취향)은 예시 음식에 안 나온다 — 2026-10-16 점검');
+{
+  /* 꼬리표별로 글에 나오면 안 되는 말. '두유'는 '우유'를 품지 않는다 */
+  const WORDS: Record<string, RegExp> = {
+    dairy: /우유|요거트|요구르트/,
+    egg: /달걀/,
+    chicken: /닭/,
+    seafood: /생선|참치|고등어|삼각김밥/,
+    wheat: /· 면 ·|식빵/,
+  };
+  const AVOIDS: NonNullable<AdviceInput['avoid']>[] = [
+    ['dairy'],
+    ['egg'],
+    ['dairy', 'egg'],
+    ['dairy', 'egg', 'chicken', 'seafood', 'wheat'],
+  ];
+  const bad: string[] = [];
+  let n = 0;
+  for (const avoid of AVOIDS)
+    for (const throwKind of KINDS)
+      for (const hour of HOURS)
+        for (const training of TRAININGS)
+          for (const meals of MEALS)
+            for (const goal of GOALS)
+              for (const eaten of [null, EATENS[1]])
+                for (const appetite of [null, 1])
+                  for (const sleepShort of [false, true]) {
+                    n++;
+                    const a = buildAdvice({
+                      ...base,
+                      hour,
+                      throwKind,
+                      training,
+                      body: { weightKg: 70, ageBand: 'adult', goal },
+                      checkin: { meals, appetite, sleepShort },
+                      eaten,
+                      eatenMeals: eaten ? { lunch: eaten.kcal } : {},
+                      avoid,
+                    });
+                    const text = `${a.headline}`;
+                    for (const k of avoid)
+                      if (WORDS[k].test(text)) bad.push(`${avoid.join('+')}: ${text}`);
+                    if (text.length > 60) bad.push(`60자 넘음: ${text}`);
+                  }
+  check(
+    `상황 ${n.toLocaleString('ko-KR')}가지 — 뺀 음식(우유 · 달걀 · 닭 · 생선 · 면)이 할 일 줄에 0 · 60자 밑`,
+    bad.length === 0,
+    bad.slice(0, 3).join(' | ')
+  );
+  check(
+    '아무것도 안 뺐으면 예전 글 그대로 — 운동 뒤 달걀 2개 + 우유 · 던진 뒤 우유 2컵 + 바나나',
+    buildAdvice({
+      ...base,
+      training: [{ kind: 'strength', minutes: 60 }],
+    }).headline?.endsWith('달걀 2개 + 우유') === true &&
+      buildAdvice({ ...base, throwKind: 'after' }).headline?.endsWith(
+        '우유 2컵 + 바나나'
+      ) === true
+  );
+}
+
+console.log('\n■ 값을 모르는 영양소는 더 먹을 양 · 점수에서 뺀다 — 2026-10-16 점검');
+{
+  /* 탄수화물을 모르는 음식(식약처 '수집')만 적은 날 — 합의 탄수화물 0 은 '안 먹음'이 아니다 */
+  const eaten = { kcal: 1500, carbs: 0, protein: 80, fat: 50 };
+  const known = buildAdvice({ ...base, eaten, eatenMeals: { lunch: 1500 } });
+  const blind = buildAdvice({
+    ...base,
+    eaten,
+    eatenMeals: { lunch: 1500 },
+    eatenUnknown: ['carbs'],
+  });
+  check(
+    "모르는 탄수화물은 '더 먹을 양' 0 · '탄수화물 N g 더' 줄 없음 · 점수 조각에서 빠짐",
+    known.more?.carbs === 400 &&
+      blind.more?.carbs === 0 &&
+      blind.more?.protein === known.more?.protein &&
+      !/탄수화물 \d+g 더/.test(blind.headline ?? '') &&
+      !blind.parts.some((p) => p.key === 'carbs') &&
+      known.parts.some((p) => p.key === 'carbs'),
+    `${known.headline} → ${blind.headline}`
   );
 }
 

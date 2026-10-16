@@ -64,6 +64,13 @@ export function MyPlanCard({
           <p className="mt-0.5 text-sm tabular-nums text-ink">
             하루 {p.targets.kcal.toLocaleString()}kcal · 단백질 {p.targets.protein}g
           </p>
+          {p.targets.floored && (
+            <p className="mt-0.5 text-xs break-keep text-muted">
+              {p.targets.ageBand === 'adult'
+                ? '기초대사량보다 낮게 잡지 않아요.'
+                : '성장기는 계산한 목표보다 낮게 잡지 않아요.'}
+            </p>
+          )}
           {parts.length > 0 && (
             <p className="mt-0.5 text-xs leading-relaxed break-keep text-muted">
               {parts.join(' · ')}

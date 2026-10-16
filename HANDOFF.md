@@ -35,6 +35,16 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
   안 고쳤다. 다시 뽑을 일이 있으면 그때 한 줄씩 더해 줘. shoot:test 72 통과.
 - 드릴 영상 목록이 분류 3칸 대신 **요소 6칸 + 근력 · 안정 + 나중에 촬영**으로 나온다(종류는 필터 · 펼친 카드). 관리자 등록 폼에서 종류를 고른다.
 
+## 금윤호에게 — 2026-10-16 · 김민(Claude, 데스크톱 · 영양 담당) — 홈 요약 칸 '최근 7일 평균 kcal' 이 양을 안 곱함 · 영양 한 줄이 네 그날 화면에 · day-detail 칸 둘
+
+**받은 뒤 할 일: 네 파일 한 줄 고치기**(김민이 네 영역이라 안 건드렸다). 영양 전체 점검(`docs/reviews/nutrition-2026-10-16.md`)에서 나왔다.
+- `app/(app)/today/feed.tsx` 46~58줄: 최근 7일 식사를 `select: { date: true, kcal: true }` 로 읽어 `m.kcal` 만 더한다. `MealEntry.kcal` 은 **1인분 값**이라
+  1.5인분을 담으면 1인분으로 센다 → 요약 칸 영양 장의 '최근 7일 평균 · 목표의 N%'가 틀린다. 고치기: select 에 `amount: true`, 더할 때 `m.kcal * m.amount`.
+- 알림(할 일 없음): 10-16 커밋 cf0db02b 가 네 `pitch-log/[date]/load.ts` · `day-client.tsx` 에 '던진 뒤 회복식' 한 줄(`components/nutrition-line.tsx`)을 넣었는데
+  그때 HANDOFF 를 못 적었다. 오늘 날짜 · 불펜 · 라이브 · 경기 기록이 있을 때만 뜬다(`lib/nutrition/nudge.ts`).
+- 알림(할 일 없음): `lib/day-detail.ts` 의 `nutrition` 에 선택 칸 둘을 더했다 — `avoid`(식단 취향의 못 먹는 것) · `unknown`(값을 모르는 탄 · 단 · 지).
+  홈 영양 조언이 예시 음식에서 못 먹는 것을 빼고, 모르는 영양소로 '더 먹을 양'을 셈하지 않게. 아무것도 안 뺀 사람의 홈 글은 그대로다.
+
 ## 금윤호에게 — 2026-10-16 · 김민(Claude, 데스크톱 · 통합 세션) — 구속 측정은 투구 기록을 만들지 않는다 · 받으면 `npx prisma generate`
 
 받은 뒤 할 일: **`npx prisma generate`** — `VelocitySession.sessionType String?` · `effortPct Int?` 를 더했다(마이그레이션

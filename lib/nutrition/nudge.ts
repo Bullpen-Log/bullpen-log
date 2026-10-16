@@ -8,6 +8,7 @@ import { recentWeightKg } from '@/lib/nutrition/load';
 import { throwDayGuide, throwDayKind, type GuideSignals } from '@/lib/nutrition/guide';
 import { afterProtein, afterWorkoutProtein, LATE_HOUR, trainingKindOf } from '@/lib/nutrition/advice';
 import { serviceHour } from '@/lib/nutrition/advice-input';
+import { toDietPrefs } from '@/lib/nutrition/diet-prefs';
 
 /**
  * 영양을 '순간에 한 줄'로(docs/designs/nutrition-moments.md) — 투구 · 운동을 마친 순간에 영양 탭을 열지 않아도 한 줄이 뜬다.
@@ -38,12 +39,23 @@ type NudgeUser = Parameters<typeof featureLocks>[0] & {
 
 const dbDate = (key: string) => new Date(`${key}T00:00:00.000Z`);
 
-/** 체중 — 영양 기록 · 체크인의 최근 체중, 없으면 가입 때 적은 몸무게. 모르면 null(짐작으로 g 을 말하지 않는다) */
+/**
+ * 체중 — 영양 기록 · 체크인의 최근 체중, 없으면 가입 때 적은 몸무게. 모르면 null(짐작으로 g 을 말하지 않는다).
+ * 못 먹는 것(식단 취향)도 같이 — 음식 보기에서 뺀다.
+ */
 async function bodyOf(user: NudgeUser, date: string) {
-  const kg = (await recentWeightKg(user.id, date)) ?? user.weightKg;
+  const [recent, profile] = await Promise.all([
+    recentWeightKg(user.id, date),
+    prisma.nutritionProfile.findUnique({
+      where: { userId: user.id },
+      select: { avoidFoods: true },
+    }),
+  ]);
+  const kg = recent ?? user.weightKg;
   return {
     weightKg: kg != null && kg > 0 ? kg : null,
     ageBand: ageBand(ageOn(user.birthDate, date)),
+    avoid: toDietPrefs(profile).avoid,
   };
 }
 
@@ -111,7 +123,8 @@ export async function workoutNutritionLine(
   const { headline, why } = afterWorkoutProtein(
     afterProtein(body.weightKg, body.ageBand),
     serviceHour(input.now) >= LATE_HOUR,
-    power
+    power,
+    body.avoid
   );
   return { title: '운동 뒤 단백질', text: headline, example: why, href: hrefOf(user) };
 }

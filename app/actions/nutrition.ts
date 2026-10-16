@@ -8,7 +8,7 @@ import { toDateKey } from '@/lib/pitch-stats';
 import { dbDate, isNutritionDate, keyOfDbDate } from '@/lib/nutrition/days';
 import { loadNutritionDay, recentWeightKg } from '@/lib/nutrition/load';
 import { STEP_KCAL } from '@/lib/nutrition/weight-goal';
-import { cleanDietPrefs } from '@/lib/nutrition/diet-prefs';
+import { cleanDietPrefs, type DietPrefs } from '@/lib/nutrition/diet-prefs';
 import {
   MAX_HEIGHT_CM,
   MAX_WEIGHT_KG,
@@ -424,11 +424,18 @@ export async function makeMealPlan(
       select: { date: true, context: true },
     }),
   ]);
+  /*
+   * 단백질을 모르는 음식(식약처 '수집' · 바코드 빈칸)은 0 으로 세면 남은 몫이 부풀어 단백질을 더 얹는다(2026-10-16 점검) —
+   * 그날 목표의 단백질 비율만큼 들었다고 본다.
+   * ponytail: 목표 비율로 어림, 음식별 평균값이 생기면 그것으로.
+   */
+  const proteinPerKcal =
+    day.targets.kcal > 0 ? day.targets.protein / day.targets.kcal : 0;
   const eaten = new Map<string, { kcal: number; protein: number }>();
   for (const e of day.entries) {
     const sum = eaten.get(e.meal) ?? { kcal: 0, protein: 0 };
     sum.kcal += e.kcal * e.amount;
-    sum.protein += (e.protein ?? 0) * e.amount;
+    sum.protein += (e.protein ?? e.kcal * proteinPerKcal) * e.amount;
     eaten.set(e.meal, sum);
   }
   const plan = buildMealPlan({
@@ -655,33 +662,35 @@ export async function saveDietPrefs(raw: unknown): Promise<NutritionResult> {
     update: data,
     create: { userId: user.id, ...data },
   });
-  /*
-   * 오늘 짠 식단에 이제 못 먹는 것(· 끈 보충식품)이 남았으면 뺀다 — 계획 줄은 '먹었어요'로 그대로 기록되는 길이다. 까닭 맨 앞에
-   * 무엇을 뺐는지 적는다(새로 짜려면 '다른 식단으로').
-   */
-  const today = toDateKey(appNow());
-  const plan = await prisma.mealPlan.findUnique({
-    where: { userId_date: { userId: user.id, date: dbDate(today) } },
-  });
-  if (plan) {
-    const { kept, removed } = dropAvoided(parsePlanItems(plan.items), prefs);
-    if (removed.length > 0) {
-      const names = [...new Set(removed.map((r) => r.name))];
-      const note = `식단 취향이 바뀌어 ${names.slice(0, 3).join(' · ')}${
-        names.length > 3 ? ` 외 ${names.length - 3}가지` : ''
-      }를 뺐어요. '다른 식단으로'를 누르면 새로 짜요.`;
-      const ctx = parsePlanContext(plan.context);
-      await prisma.mealPlan.update({
-        where: { id: plan.id },
-        data: {
-          items: kept,
-          context: { ...ctx, reasons: [note, ...ctx.reasons].slice(0, 6) },
-        },
-      });
-    }
-  }
+  await dropAvoidedFromTodayPlan(user.id, prefs);
   revalidatePath(PATH);
   return { ok: true };
+}
+
+/**
+ * 오늘 짠 식단에 이제 못 먹는 것(· 끈 보충식품)이 남았으면 뺀다 — 계획 줄은 '먹었어요'로 그대로 기록되는 길이다. 까닭 맨 앞에
+ * 무엇을 뺐는지 적는다(새로 짜려면 '다른 식단으로'). 취향을 저장하는 길(목표 창 · 첫 설정) 모두가 부른다.
+ */
+async function dropAvoidedFromTodayPlan(userId: string, prefs: DietPrefs) {
+  const today = toDateKey(appNow());
+  const plan = await prisma.mealPlan.findUnique({
+    where: { userId_date: { userId, date: dbDate(today) } },
+  });
+  if (!plan) return;
+  const { kept, removed } = dropAvoided(parsePlanItems(plan.items), prefs);
+  if (removed.length === 0) return;
+  const names = [...new Set(removed.map((r) => r.name))];
+  const note = `식단 취향이 바뀌어 ${names.slice(0, 3).join(' · ')}${
+    names.length > 3 ? ` 외 ${names.length - 3}가지` : ''
+  }를 뺐어요. '다른 식단으로'를 누르면 새로 짜요.`;
+  const ctx = parsePlanContext(plan.context);
+  await prisma.mealPlan.update({
+    where: { id: plan.id },
+    data: {
+      items: kept,
+      context: { ...ctx, reasons: [note, ...ctx.reasons].slice(0, 6) },
+    },
+  });
 }
 
 /* ─────────────────────────── 자주 먹는 조합(lib/nutrition/combos.ts) ─────────────────────────── */
@@ -955,6 +964,7 @@ export async function finishNutritionSetup(raw: {
       create: { userId: user.id, date: dbDate(today), weightKg },
     }),
   ]);
+  await dropAvoidedFromTodayPlan(user.id, prefs);
   revalidatePath(PATH);
   /* 내 정보의 키 · 몸무게가 바뀌었고, 막대 · 탭의 영양 잠금(흐림 · 자물쇠)도 걷혀야 한다 — 둘 다 레이아웃이 내려보낸다 */
   revalidatePath('/', 'layout');

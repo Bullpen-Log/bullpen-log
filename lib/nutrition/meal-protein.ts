@@ -1,5 +1,7 @@
 import { basicFood } from '@/lib/nutrition/foods';
+import { avoidsOf } from '@/lib/nutrition/meal-templates';
 import type { AgeBand } from '@/lib/nutrition/age';
+import type { AvoidKey } from '@/lib/nutrition/diet-prefs';
 import type { MealEntryView, MealKey } from '@/lib/nutrition/meta';
 
 /**
@@ -65,7 +67,8 @@ export function mealProtein(
   meal: MealKey,
   entries: MealEntryView[],
   dailyProtein: number,
-  band: AgeBand
+  band: AgeBand,
+  avoid: readonly AvoidKey[] = []
 ): MealProtein {
   const mine = entries.filter((e) => e.meal === meal);
   const protein = Math.round(
@@ -82,7 +85,7 @@ export function mealProtein(
     goal,
     done,
     short,
-    tip: short > 0 ? proteinTip(short) : null,
+    tip: short > 0 ? proteinTip(short, avoid) : null,
   };
 }
 
@@ -132,23 +135,88 @@ const TIP_PLANS: { label: string; items: [id: string, count: number][] }[] = [
   },
 ];
 
-const PLANS = TIP_PLANS.map((p) => ({
-  label: p.label,
-  protein: p.items.reduce(
+/** 기본 음식 조합의 단백질(g) — 음식 목록(foods.ts)의 값 그대로 */
+export function foodsProtein(items: readonly (readonly [id: string, count: number])[]) {
+  return items.reduce(
     (sum, [id, count]) => sum + (basicFood(id)?.protein ?? 0) * count,
     0
-  ),
+  );
+}
+
+/** 이 조합에 못 먹는 것이 들었나 — 식단 짜기와 같은 꼬리표(meal-templates.ts avoidsOf) */
+export function hasAvoided(
+  items: readonly (readonly [id: string, count: number])[],
+  avoid: readonly AvoidKey[]
+) {
+  return (
+    avoid.length > 0 &&
+    items.some(([id]) => avoidsOf(id).some((a) => avoid.includes(a)))
+  );
+}
+
+const PLANS = TIP_PLANS.map((p) => ({
+  label: p.label,
+  items: p.items,
+  protein: foodsProtein(p.items),
 }))
   .filter((p) => p.protein > 0)
   .sort((a, b) => a.protein - b.protein);
 
-/** 모자란 g 을 채우는 예시. 모자란 것이 없으면 null */
-export function proteinTip(short: number): ProteinTip | null {
-  if (!(short > 0) || PLANS.length === 0) return null;
-  const plan = PLANS.find((p) => p.protein >= short) ?? PLANS[PLANS.length - 1];
+/** 모자란 g 을 채우는 예시(못 먹는 것이 든 것은 뺀다). 모자란 것이 없으면 null */
+export function proteinTip(
+  short: number,
+  avoid: readonly AvoidKey[] = []
+): ProteinTip | null {
+  const plans = PLANS.filter((p) => !hasAvoided(p.items, avoid));
+  if (!(short > 0) || plans.length === 0) return null;
+  const plan = plans.find((p) => p.protein >= short) ?? plans[plans.length - 1];
   return {
     label: plan.label,
     protein: Math.round(plan.protein),
     covers: plan.protein >= short,
+  };
+}
+
+/* ─────────────────────────── 글 속 예시 음식 ─────────────────────────── */
+
+/**
+ * 조언 · 가이드 글 속 예시 음식 — 못 먹는 것(식단 취향)을 피해서. 2026-10-16 점검: 달걀 · 유제품을 뺀 사람(알레르기 포함)에게도
+ * 홈 · 탭 · 순간 한 줄이 매일 '달걀 2개 + 우유'를 권했다(식단 짜기만 막고 있었다).
+ *
+ * 콩(두유 · 두부)은 막는 꼬리표가 없어 대신 쓰는 자리다. 삼각김밥은 참치마요 · 달걀이 흔해(꼬리표 해산물 · 달걀) 고구마로 바꾼다.
+ * 아무것도 안 뺀 사람의 글은 예전과 한 글자도 같다.
+ */
+export function exampleWords(avoid: readonly AvoidKey[] = []) {
+  const no = (k: AvoidKey) => avoid.includes(k);
+  const dairy = no('dairy');
+  const proteins = [
+    !no('chicken') && '닭가슴살 한 조각',
+    !no('egg') && '달걀 2개',
+    !no('seafood') && '생선 한 토막',
+    '두부 반 모',
+  ].filter((w): w is string => typeof w === 'string');
+  return {
+    /** 마시는 것 한 컵 */
+    milk: dairy ? '두유' : '우유',
+    /** 배고플 때 하나 */
+    cup: dairy ? '두유' : '요거트',
+    /** 단단한 단백질 한 가지 */
+    solid: no('egg') ? '두부 반 모' : '달걀 2개',
+    /** 단백질 둘 중 하나 */
+    proteinOr: proteins.slice(0, 2).join(' 또는 '),
+    /** 자기 전 단백질 */
+    late: dairy ? '자기 전 두유' : '자기 전 우유 · 요거트',
+    /** 입맛 없는 날 잘 넘어가는 것 */
+    soft: dairy ? '두유 · 바나나' : '우유 · 바나나 · 요거트',
+    /** 들고 다니는 탄수화물 */
+    grab: hasAvoided([['triangle-gimbap', 1]], avoid) ? '고구마' : '삼각김밥',
+    /** 저녁 탄수화물 한 가지 */
+    carbs: no('wheat') ? '밥 · 감자 · 고구마' : '밥 · 면 · 고구마',
+    /** 던지기 1시간 전 가벼운 것 */
+    light: no('wheat') ? '바나나나 가래떡' : '바나나나 식빵',
+    /** 성장기 '평소 먹던 음식' */
+    everyday: [dairy ? '두유' : '우유', no('egg') ? '두부' : '달걀', '고기', '밥'].join(
+      ' · '
+    ),
   };
 }

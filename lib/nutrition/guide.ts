@@ -5,8 +5,12 @@ import {
   type ThrowPlan,
 } from '@/lib/checkin';
 import type { AgeBand } from '@/lib/nutrition/age';
+import type { AvoidKey } from '@/lib/nutrition/diet-prefs';
 import type { GoalKey, MealEntryView } from '@/lib/nutrition/meta';
 import {
+  exampleWords,
+  foodsProtein,
+  hasAvoided,
   MEAL_PROTEIN_DONE_RATIO,
   MEAL_PROTEIN_RANGE,
 } from '@/lib/nutrition/meal-protein';
@@ -63,6 +67,8 @@ export type GuideBody = {
   weightKg: number | null;
   ageBand: AgeBand;
   goal: GoalKey;
+  /** 못 먹는 것(식단 취향) — 보기 음식에서 뺀다. 없으면 빈 배열 */
+  avoid?: readonly AvoidKey[];
 };
 
 export type ThrowGuide = {
@@ -131,6 +137,116 @@ const LUNCH_OVER_HOUR = 16;
 const round5 = (n: number) => Math.round(n / 5) * 5;
 const round10 = (n: number) => Math.round(n / 10) * 10;
 
+type Example = { label: string; items: [id: string, count: number][] };
+
+/**
+ * 회복식 보기 — 앞 셋이 기본이고, 뒤는 못 먹는 것을 뺀 사람에게 대신 보이는 것(생선 · 콩 · 고기). 못 먹는 것이 든 조합은 빼고
+ * 앞에서 셋을 고른다(lib/nutrition/meal-protein.ts hasAvoided — 식단 짜기와 같은 꼬리표).
+ *
+ * 보기는 첫 줄의 단백질을 실제로 채우는 조합이어야 한다(기본 음식 목록의 값으로 — 시험이 모든 조합을 본다: 어린이 목표 15g ·
+ * 그 밖 25g 의 8할). 따라 먹었는데 '챙겼어요'가 안 뜨면 보기가 틀린 것이다.
+ */
+export const RECOVERY_EXAMPLES: Record<'child' | 'other', Example[]> = {
+  child: [
+    {
+      label: '밥 1공기 + 삶은 달걀 2개',
+      items: [
+        ['rice', 1],
+        ['egg', 2],
+      ],
+    },
+    {
+      label: '우유 2컵 + 바나나',
+      items: [
+        ['milk', 2],
+        ['banana', 1],
+      ],
+    },
+    {
+      label: '삼각김밥 + 삶은 달걀 2개',
+      items: [
+        ['triangle-gimbap', 1],
+        ['egg', 2],
+      ],
+    },
+    {
+      label: '밥 1공기 + 두부 반 모',
+      items: [
+        ['rice', 1],
+        ['tofu', 1],
+      ],
+    },
+    {
+      label: '두유 2팩 + 바나나',
+      items: [
+        ['soy-milk', 2],
+        ['banana', 1],
+      ],
+    },
+    {
+      label: '밥 1공기 + 닭가슴살 1팩',
+      items: [
+        ['rice', 1],
+        ['chicken-breast-pack', 1],
+      ],
+    },
+  ],
+  other: [
+    {
+      label: '밥 1공기 + 닭가슴살 1팩',
+      items: [
+        ['rice', 1],
+        ['chicken-breast-pack', 1],
+      ],
+    },
+    {
+      label: '우유 2컵 + 삶은 달걀 2개 + 바나나',
+      items: [
+        ['milk', 2],
+        ['egg', 2],
+        ['banana', 1],
+      ],
+    },
+    {
+      label: '삼각김밥 2개 + 삶은 달걀 2개',
+      items: [
+        ['triangle-gimbap', 2],
+        ['egg', 2],
+      ],
+    },
+    {
+      label: '밥 1공기 + 고등어구이 1토막',
+      items: [
+        ['rice', 1],
+        ['mackerel', 1],
+      ],
+    },
+    {
+      label: '밥 1공기 + 두부 1모',
+      items: [
+        ['rice', 1],
+        ['tofu', 2],
+      ],
+    },
+    {
+      label: '두유 2팩 + 두부 반 모 + 바나나',
+      items: [
+        ['soy-milk', 2],
+        ['tofu', 1],
+        ['banana', 1],
+      ],
+    },
+  ],
+};
+
+/** 못 먹는 것을 뺀 회복식 보기 셋 */
+export function recoveryExamples(band: AgeBand, avoid: readonly AvoidKey[] = []) {
+  return RECOVERY_EXAMPLES[band === 'child' ? 'child' : 'other']
+    .filter((e) => !hasAvoided(e.items, avoid) && foodsProtein(e.items) > 0)
+    .slice(0, 3)
+    .map((e) => e.label);
+}
+
 /** '1공기' · '1공기 반' · '2공기' — 탄수화물 g 을 밥 공기로(반 공기 단위, 적어도 한 공기) */
 export function riceBowls(carbs: number) {
   const bowls = Math.max(1, Math.round((carbs / RICE_BOWL_CARBS) * 2) / 2);
@@ -193,8 +309,9 @@ export function throwDayKind(s: GuideSignals): ThrowGuideKind | null {
 function commonNotes(s: GuideSignals, body: GuideBody) {
   const notes: string[] = [];
   if (s.appetite != null && s.appetite <= LOW_APPETITE) {
+    const drinks = body.avoid?.includes('dairy') ? '두유' : '우유 · 요구르트';
     notes.push(
-      '입맛이 없는 날이에요. 바나나 · 우유 · 요구르트처럼 잘 넘어가는 것을 조금씩 자주 드세요.'
+      `입맛이 없는 날이에요. 바나나 · ${drinks}처럼 잘 넘어가는 것을 조금씩 자주 드세요.`
     );
   }
   if (body.goal === 'lose') {
@@ -209,6 +326,8 @@ export function throwDayGuide(s: GuideSignals, body: GuideBody): ThrowGuide | nu
   if (!kind) return null;
   const kg = body.weightKg != null && body.weightKg > 0 ? body.weightKg : null;
   const notes = commonNotes(s, body);
+  const avoid = body.avoid ?? [];
+  const w = exampleWords(avoid);
   const base = { kind, notes, hint: null, recoveryProtein: null, thrownAt: null };
 
   if (kind === 'eve') {
@@ -217,7 +336,7 @@ export function throwDayGuide(s: GuideSignals, body: GuideBody): ThrowGuide | nu
       badge: BADGE_TOMORROW,
       title: '저녁 탄수화물 넉넉히',
       lines: [
-        '밥 · 면 · 감자처럼 익숙한 탄수화물을 평소보다 조금 넉넉히 드세요. 크게 늘리기보다 오늘 목표를 채우는 게 먼저예요.',
+        `${avoid.includes('wheat') ? '밥 · 감자 · 고구마' : '밥 · 면 · 감자'}처럼 익숙한 탄수화물을 평소보다 조금 넉넉히 드세요. 크게 늘리기보다 오늘 목표를 채우는 게 먼저예요.`,
         '기름진 음식과 처음 먹는 음식, 늦은 야식은 피하는 편이 좋아요.',
       ],
     };
@@ -240,7 +359,7 @@ export function throwDayGuide(s: GuideSignals, body: GuideBody): ThrowGuide | nu
         carbs
           ? `식사는 던지기 3~4시간 전에 하세요. 탄수화물 ${carbs}g 안팎, 쌀밥 ${riceBowls(carbs)}쯤에 반찬을 곁들이면 돼요.`
           : '식사는 던지기 3~4시간 전에, 밥을 평소보다 조금 넉넉히 드세요.',
-        '1시간 전에는 바나나나 식빵처럼 가벼운 것으로 드세요. 기름진 음식과 처음 먹는 음식은 피하는 편이 좋아요.',
+        `1시간 전에는 ${w.light}처럼 가벼운 것으로 드세요. 기름진 음식과 처음 먹는 음식은 피하는 편이 좋아요.`,
         '던진 뒤에는 투구 기록을 남기면 회복식 안내로 바뀌어요.',
       ],
     };
@@ -257,13 +376,7 @@ export function throwDayGuide(s: GuideSignals, body: GuideBody): ThrowGuide | nu
     protein && carbs
       ? `던진 뒤 1~2시간 안에 단백질 ${protein}g + 탄수화물 ${carbs}g 안팎을 드시면 좋아요.`
       : `던진 뒤 1~2시간 안에 단백질 ${lo}~${hi}g과 탄수화물(밥 한 공기쯤)을 드시면 좋아요.`,
-    /*
-     * 보기는 첫 줄의 단백질을 실제로 채우는 조합이어야 한다(기본 음식 목록의 값으로 — 어린이 목표 15g 에
-     * 18 · 14 · 18g, 그 밖 20~25g 에 37 · 27 · 23g). 따라 먹었는데 '챙겼어요'가 안 뜨면 보기가 틀린 것이다.
-     */
-    body.ageBand === 'child'
-      ? '예) 밥 1공기 + 삶은 달걀 2개 · 우유 2컵 + 바나나 · 삼각김밥 + 삶은 달걀 2개'
-      : '예) 밥 1공기 + 닭가슴살 1팩 · 우유 2컵 + 삶은 달걀 2개 + 바나나 · 삼각김밥 2개 + 삶은 달걀 2개',
+    `예) ${recoveryExamples(body.ageBand, avoid).join(' · ')}`,
   ];
   /*
    * 등판일인데 아직 경기 기록이 없다 — 아침에 구속을 재거나 몸풀기 불펜만 적은 것일 수 있다.
@@ -281,9 +394,7 @@ export function throwDayGuide(s: GuideSignals, body: GuideBody): ThrowGuide | nu
     lines.push('내일 등판이 있으니 저녁까지 탄수화물을 넉넉히 챙겨 두세요.');
   }
   if (body.ageBand !== 'adult') {
-    notes.unshift(
-      '보충제 없이 우유 · 달걀 · 고기 · 밥처럼 평소 먹던 음식으로 대개 충분해요.'
-    );
+    notes.unshift(`보충제 없이 ${w.everyday}처럼 평소 먹던 음식으로 대개 충분해요.`);
   }
   return {
     ...base,

@@ -598,7 +598,12 @@ export async function loadNutritionDay(
             })),
         },
         /* 체중을 모르면(짐작 75kg) g 을 말하지 않는다 */
-        { weightKg: bodyKg, ageBand: targets.ageBand, goal: targets.goal }
+        {
+          weightKg: bodyKg,
+          ageBand: targets.ageBand,
+          goal: targets.goal,
+          avoid: toDietPrefs(profileRow).avoid,
+        }
       )
     : null;
 
