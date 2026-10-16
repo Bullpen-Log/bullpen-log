@@ -4,7 +4,7 @@ import { redirect } from 'next/navigation';
 import bcrypt from 'bcryptjs';
 import { prisma } from '@/lib/prisma';
 import { getCurrentUser } from '@/lib/dal';
-import { deleteUserFiles, deleteVideos } from '@/lib/storage';
+import { deleteUserCompletely } from '@/lib/delete-user';
 import {
   createSession,
   deleteSession,
@@ -362,20 +362,8 @@ export async function deleteAccount(
     return { error: '비밀번호가 맞지 않아요.' };
   }
 
-  /*
-   * 올려둔 영상을 먼저 챙겨 지운다. 회원을 지우면 기록이 함께 사라져(Cascade)
-   * 경로를 알 길이 없어지고, 파일만 저장소에 남는다.
-   */
-  const logs = await prisma.pitchLog.findMany({
-    where: { userId: user.id },
-    select: { videoPaths: true },
-  });
-  const paths = logs.flatMap((l) => l.videoPaths);
-  if (paths.length > 0) await deleteVideos(paths);
-  /* 그 밖의 파일(프로필 사진 · 구속 측정 클립 · 저장하지 않은 올린 파일)까지 — 폴더를 통째로 */
-  await deleteUserFiles(user.id);
-
-  await prisma.user.delete({ where: { id: user.id } });
+  /* 파일 · 기록을 통째로(관리자의 회원 지우기와 같은 길 — lib/delete-user.ts) */
+  await deleteUserCompletely(user.id);
   await deleteSession();
   redirect('/login');
 }

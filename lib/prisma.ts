@@ -30,7 +30,6 @@ const TIME_FIELDS: Record<string, string[]> = {
   mechanicsProgram: ['startedAt', 'updatedAt'],
   nutritionProfile: ['createdAt', 'updatedAt'],
   pitchLog: ['createdAt'],
-  poseAnalysis: ['createdAt', 'updatedAt'],
   shootCheck: ['checkedAt', 'createdAt', 'updatedAt'],
   trainingSession: ['startedAt', 'createdAt', 'updatedAt'],
   user: ['createdAt'],

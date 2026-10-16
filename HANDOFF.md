@@ -25,6 +25,21 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
   옛 달 기록은 서버가 새 기록을 보내면 그 달을 다시 받아 갈아 끼운다(고치거나 지운 것이 남았다).
 - 확인: tsc · eslint, 1 · 2번은 임시 경로로 휴대폰 375 에서 잼(크게 보기 375×812 · 위아래 막대 위 · 같은 영상 그대로). 3~5번은 로그인이 필요해 화면은 못 봤다 — 폰에서 한 번 봐 줘.
 
+## 금윤호에게 — 2026-10-16 · 김민(Claude, 데스크톱 · 통합 세션) — 안 쓰는 표 둘 · 칸 여섯 지움(2단계) · 받으면 `npx prisma generate`
+
+**받은 뒤 할 일: `npx prisma generate`** — 스키마에서 `AiReport` · `PoseAnalysis` 표와 `DailyCheckin.fatigue · stress · mood · restingHr · hydration` ·
+`DailyNutrition.photoCalls` 를 뺐다(김민 결정 — 코드에서 읽는 곳 0, 값은 AI 리포트 8줄 · 체크인 옛 값 몇 개뿐). AGENTS 2번대로 2단계:
+① 이 커밋은 스키마 · 코드에서만 뺐다(DB 칸은 그대로 — 옛 배포가 없는 칸을 읽다 넘어지지 않게) ② 배포가 끝나면 백업 뒤 DB 에서 지우는 마이그레이션을 올린다.
+**네 가지(브랜치)에서 이 표 · 칸을 쓰고 있으면** 받은 뒤 지워 줘 — 2단계 뒤에는 DB 에 없다. 투구 기록 영상 빼기(`app/api/pitch-log` PATCH)가 지우던 옛 폼 분석 줄도 걷었다.
+
+## 금윤호에게 — 2026-10-16 · 김민(Claude, 데스크톱 · 통합 세션) — 탈퇴 · 회원 지우기를 한 함수로(lib/delete-user.ts)
+
+받은 뒤 할 일 없음(DB 구조 그대로). 본인 탈퇴(`app/actions/auth.ts deleteAccount`)와 관리자의 회원 지우기(`app/actions/admin.ts deleteUser`)가 따로 지워
+조금씩 달라서(관리자 쪽은 투구 영상 경로를 안 챙김) `deleteUserCompletely` 하나로 모았다. 파일 먼저 · DB 나중(DB 가 실패하면 다시 지우면 되고, 반대면 주인 없는 영상이 남는다).
+User 관계가 없는 표: `VelocityRecording`(조각 · 표시 딸림)은 지우고 — 파일이 그 관리자 폴더라 같이 사라져 줄만 남았다 — `VelocityCalibRun` · `ShootCheck` 는 팀 자료라 남긴다.
+**새 표에 userId 를 두고 @relation 을 안 달면** 통합 시험 [11] 이 실패한다 — `lib/delete-user.ts` 에서 지우거나 시험의 KEEP 에 까닭과 함께 더해 줘.
+운영 DB 라 실제로 지워 보지는 못했다(tsc · 통합 시험만).
+
 ## 금윤호에게 — 2026-10-16 · 김민(Claude, 데스크톱 · 통합 세션) — 구속 측정 저장을 두 번 눌러도 세션 하나
 
 받은 뒤 할 일 없음. **네 영역(`app/actions/velocity.ts saveVelocitySession`)에 한 단계 더했다**(be138b11): 10분 안에 같은 날 · 같은 차례의 잰 값(rawKmh)으로

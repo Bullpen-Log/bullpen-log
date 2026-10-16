@@ -453,16 +453,7 @@ export async function PATCH(req: Request) {
       });
 
       if (removed.length > 0) {
-        /*
-         * 뺀 영상의 폼 분석을 지운다.
-         *
-         * 안 지우면 어느 기록에도 안 붙은 분석이 남아, 지난 세션과 견주는
-         * 자리에 사라진 영상의 값이 계속 끼어든다.
-         */
-        await prisma.poseAnalysis.deleteMany({
-          where: { userId: user.id, videoPath: { in: removed } },
-        });
-        // 저장소에 못 찾는 파일이 쌓이지 않게 함께 지운다.
+        // 저장소에 못 찾는 파일이 쌓이지 않게 함께 지운다(옛 폼 분석 표 PoseAnalysis 는 2026-10-16 에 지웠다).
         await deleteVideos(removed);
       }
 

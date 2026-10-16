@@ -51,7 +51,7 @@
 **P2 — 지금은 맞지만 깨지기 쉬움**
 
 13. ✅ **[rehab-start 고침]** 날짜 키 함수가 10개 남짓 + 인라인 85곳. `rehab-start.tsx:393` 은 `new Date().toISOString()` 이라 한국 0~9시에 어제 날짜.
-14. ◻ 탈퇴 때 User 관계가 없는 표(`VelocityRecording*` · `VelocityCalibRun` · `ShootCheck`)가 남고, 파일을 먼저 지워 DB 삭제가 실패하면 파일만 사라진다.
+14. ◻ **[고침 — 두 입구를 lib/delete-user.ts 하나로, 녹화는 지우고 보정 · 촬영 체크는 팀 자료라 남김, 통합 시험이 새 표를 지킴]** 탈퇴 때 User 관계가 없는 표(`VelocityRecording*` · `VelocityCalibRun` · `ShootCheck`)가 남고, 파일을 먼저 지워 DB 삭제가 실패하면 파일만 사라진다.
 15. ◻ 오프라인 저장이 셋(localStorage outbox · IndexedDB 촬영 · IndexedDB 구속)으로 약속이 다르다.
 16. ◻ 관리자 확인이 다섯 벌(`assertAdmin` ×3 · `requireAdminUser` · 인라인), `lib/dal.ts requireAdmin` 은 아무도 안 씀.
 17. ◻ **[고침 — 2026-10-16 맥북, `BullpenNative.info` · `lib/native-api.ts`]** 아이폰 앱은 원격 사이트를 띄운다 — 웹 배포가 설치된 모든 앱 판의 네이티브 부품과 맞아야 하는데 부품 약속에 판 번호가 없다.

@@ -166,11 +166,6 @@ const DETAIL_NOW = {
 };
 const DETAIL_OLD = {
   OR: [
-    { fatigue: { not: null } },
-    { stress: { not: null } },
-    { mood: { not: null } },
-    { restingHr: { not: null } },
-    { hydration: { not: null } },
     { AND: [{ nutrition: { not: null } }, { date: { lt: dateOfKey('2026-09-30') } }] },
   ],
 };
