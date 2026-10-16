@@ -24,6 +24,7 @@ import {
   pickArmPain,
   pickCheckinParts,
   pickWorkoutKind,
+  sorenessFromParts,
 } from '@/lib/checkin';
 import { buildDayState } from '@/lib/engine/day-state';
 import { RECENT_DAYS } from '@/lib/report/today-pick';
@@ -196,9 +197,10 @@ export async function gatherFactsAndPlan(
             }
           : { preferredParts: c.preferredParts, preferredWorkout: c.preferredWorkout };
       })(),
-      // 잔 시간 · 근육통 — 안 적은 날은 null 이고, 그러면 추천이 아무것도 바꾸지 않는다
+      // 잔 시간 — 안 적은 날은 null 이고, 그러면 추천이 아무것도 바꾸지 않는다(3판은 수면의 질이 맡는다)
       sleepHours: c.sleepHours,
-      soreness: c.soreness,
+      // 근육통 — 2판까지 적은 값, 3판(묻지 않음)은 몸 그림의 뻐근 · 통증 부위 수로 어림한다(sorenessFromParts)
+      soreness: c.soreness ?? sorenessFromParts(c),
       // 던지는 일정 — 매일 운동 계획이 '오늘 등판 · 내일 등판'을 읽는다(theme.ts 의 plannedOuting)
       throwPlan: c.throwPlan,
       // 팔 피로 — 안전 거르기(prescription.ts 5-2)가 '심함'을 읽고, 오늘 상태 한 장 · 암케어 · 일정 지문도 이 칸을 본다(2판 P4).
@@ -225,6 +227,19 @@ export async function gatherFactsAndPlan(
       date: e.date.toISOString().slice(0, 10),
       title: e.title,
     })),
+    /*
+     * 오늘 트레이닝 탭 카드의 답 — 체크인을 안 한 날에도 일정이 읽게 따로 넘긴다(위 체크인 줄 합치기는 체크인이 있는 날만 닿아서
+     * 체크인 없이 카드만 답한 날은 답이 버려졌다, 2026-10-16 통합 검토).
+     */
+    todayPrefs: (() => {
+      const s = setupOf.get(todayKey);
+      return s
+        ? {
+            preferredParts: s.preferredParts,
+            preferredWorkout: pickWorkoutKind(s.preferredWorkout),
+          }
+        : undefined;
+    })(),
     today,
   });
   const plan = buildPitchPlan(facts);

@@ -975,6 +975,19 @@ export function armFatigueFromPain(c: {
   return level >= 2 ? SEVERE_ARM_FATIGUE : 3;
 }
 
+/**
+ * 몸 그림(다섯 부위 칸) → 옛 전신 근육통 눈금(1~5). 3판은 근육통을 묻지 않는다 — 그래서 근육통 규칙(prescription · theme ·
+ * day-state · 암케어 · 프로그램)이 새 기록에서 한 번도 안 걸렸다(2026-10-16 사용자 결정: 다시 묻지 않고 몸 그림으로 어림).
+ * 뻐근하거나 아픈 부위 수 0 '없음' · 1 '조금' · 2 '보통' · 3 '많이'(HIGH — 가장 센 운동 뺌) · 4~5 '심함'(SEVERE — 회복 날).
+ * 통증 부위도 센다 — 통증 규칙이 그 부위를 따로 빼고, 여기서는 몸 전체가 얼마나 지쳤나만 본다.
+ * 부위 칸이 하나도 없으면(옛 facts · 자가 시험의 손 체크인) null. 적어 둔 근육통이 있으면 그것이 먼저다(gather.ts).
+ */
+export function sorenessFromParts(c: Partial<CheckinParts>): number | null {
+  if (!CHECKIN_PARTS.some((p) => c[p.key] != null)) return null;
+  const n = CHECKIN_PARTS.filter((p) => c[p.key] === '뻐근' || c[p.key] === '통증').length;
+  return Math.min(n + 1, SORENESS_LEVELS.length);
+}
+
 export type CheckinSignals = {
   condition: {
     score: number;

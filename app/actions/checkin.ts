@@ -123,6 +123,13 @@ async function trySaveCheckin(formData: FormData): Promise<CheckinState> {
     ...armPain,
     bodySpots,
     note: note || null,
+    /*
+     * 3판이 묻지 않는 옛 칸 — 같은 날 2판으로 적은 값이 남으면 엔진이 그 값을 오늘 것으로 읽는다(근육통 · 팔 피로가 3판 어림보다
+     * 먼저라서, 2026-10-16 통합 검토). 비워 두면 gather.ts 가 몸 그림 · 팔 통증에서 어림한다.
+     */
+    soreness: null,
+    sleepHours: null,
+    armFatigue: null,
   };
 
   await prisma.dailyCheckin.upsert({

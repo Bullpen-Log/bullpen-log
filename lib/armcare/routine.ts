@@ -12,7 +12,7 @@ import {
 } from '@/lib/checkin';
 import { yesterdayArmLoadOf } from '@/lib/engine/arm-load';
 import { HEAVY_EQUIPMENT, intensityLevel, minutesForSets } from '@/lib/exercise-meta';
-import type { ReportFacts } from '@/lib/report/facts';
+import { todayPrefsOf, type ReportFacts } from '@/lib/report/facts';
 import { pendingOuting, type PitchPlan } from '@/lib/report/plan';
 import type { DayState } from '@/lib/engine/day-state';
 import { withJosa } from '@/lib/korean';
@@ -198,7 +198,7 @@ export function decideArmcare({
     signals.push(`전신 근육통 '${soreWord}'`);
   }
   if (plan.recovering) signals.push('최근 통증 기록');
-  if (facts.condition.today?.preferredWorkout === '회복') {
+  if (todayPrefsOf(facts).preferredWorkout === '회복') {
     signals.push('오늘은 회복을 고르심');
   }
 

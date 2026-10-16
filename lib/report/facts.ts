@@ -91,6 +91,20 @@ export type CheckinLike = CheckinParts & {
   armFatigue?: number | null;
 };
 
+/** 오늘 하고 싶은 운동 — 종류(null = 앱에 맡김) · 부위 */
+export type TodayPrefs = { preferredParts: string[]; preferredWorkout: string | null };
+
+/** 오늘 하고 싶은 운동 — 트레이닝 탭 카드의 답이 있으면 그것(체크인이 없어도), 없으면 오늘 체크인의 칸 */
+export function todayPrefsOf(facts: ReportFacts): TodayPrefs {
+  const card = facts.condition.prefsToday;
+  if (card) return card;
+  const today = facts.condition.today;
+  return {
+    preferredParts: today?.preferredParts ?? [],
+    preferredWorkout: today?.preferredWorkout ?? null,
+  };
+}
+
 export type MemoNote = { date: string; text: string };
 
 /** 홈 캘린더의 일정 한 줄(CalendarEvent) — 등판 짐작에 쓰는 칸만. date 는 'YYYY-MM-DD'(2판 P4 커밋 G) */
@@ -276,6 +290,11 @@ export type ReportFacts = {
      */
     throwPlanToday?: string | null;
     throwPlanYesterday?: string | null;
+    /**
+     * 오늘 트레이닝 탭 카드의 답(하고 싶은 운동 종류 · 부위) — 체크인이 없어도 있다. 읽는 쪽은 todayPrefsOf 로(이 칸이 없는 옛 facts 는
+     * 오늘 체크인의 칸으로 돌아간다).
+     */
+    prefsToday?: TodayPrefs;
     /**
      * 홈 캘린더의 다음 등판 — 오늘부터 OUTING_CALENDAR_DAYS 일 안의 내 일정 중 이름이 등판으로 읽히는 것(lib/calendar-event.ts
      * isOutingTitle) 가운데 가장 가까운 것, 없으면 null(2판 P4 커밋 G). 등판을 읽는 함수(lib/engine/outing.ts outingOf)가 체크인 답이 없을
@@ -586,6 +605,7 @@ export function buildFacts({
   rehab = null,
   trainingNotes,
   calendarEvents,
+  todayPrefs,
   today = appNow(),
 }: {
   nickname: string;
@@ -610,6 +630,11 @@ export function buildFacts({
    * 글자 하나 안 바뀌게(trainingNotes 와 같은 약속). 범위 밖 날짜 · 등판이 아닌 이름은 여기서 버린다.
    */
   calendarEvents?: CalendarEventLike[];
+  /**
+   * 오늘 트레이닝 탭 카드의 답(gather.ts 가 DailyTrainingSetup 에서). 넘기면 condition.prefsToday 칸이 생긴다 — 체크인이 없는 날에도
+   * 일정이 읽게. 안 넘기면 칸이 없다(옛 입력 · 자체 시험의 결과가 글자 하나 안 바뀌게) — 읽는 쪽은 todayPrefsOf 로.
+   */
+  todayPrefs?: TodayPrefs;
   today?: Date;
 }): ReportFacts {
   const asOf = toDateKey(today);
@@ -744,6 +769,8 @@ export function buildFacts({
       rehabParts: rehab && rehab.stage <= 3 ? [rehab.joint] : [],
       throwPlanToday: todayCheckin?.throwPlan ?? null,
       throwPlanYesterday: yesterdayCheckin?.throwPlan ?? null,
+      /* 칸은 넘겨받았을 때만 — 조건부 펼침이라 안 넘기면 키 자체가 없다 */
+      ...(todayPrefs ? { prefsToday: todayPrefs } : {}),
       /* 칸은 달력을 넘겼을 때만 — 없으면 키 자체가 없다(null 은 '달력에 등판이 없음') */
       ...(outingCalendar !== undefined ? { outingCalendar } : {}),
       painWordsInMemo: findPainKeywords(memos),

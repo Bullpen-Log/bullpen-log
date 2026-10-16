@@ -11,6 +11,18 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 ---
 
+## 금윤호에게 — 2026-10-16 · 김민(Claude, 데스크톱 · 통합 세션) — 체크인 3판 뒤 꺼져 있던 근육통 규칙 되살림 · 카드 답이 체크인 없는 날에도 들어감
+
+받은 뒤 할 일 없음(DB · 패키지 그대로). **네 영역(트레이닝 엔진 · 암케어 읽기)을 조금 고쳤다.** 통합 검토(`docs/architecture/README.md` P0 1 · 2번)에서 나온 것.
+- 3판은 근육통을 묻지 않는데 읽는 규칙(prescription · theme · day-state · 암케어 · 프로그램 · auto-setup · volume)이 그대로라 새 기록에서는 한 번도 안 걸렸다.
+  김민 결정: 다시 묻지 않고 몸 그림으로 어림 — `lib/checkin.ts sorenessFromParts`(뻐근 · 통증 부위 수 0 없음 · 1 조금 · 2 보통 · 3 많이 · 4~5 심함).
+  `gather.ts` 가 `c.soreness ?? sorenessFromParts(c)` 로 넣어 엔진 쪽 읽는 곳은 손대지 않았다. 잘 던진 날(`good-days-load.ts`)도 같은 어림.
+- 3판 저장(`app/actions/checkin.ts`)이 옛 칸 `soreness` · `sleepHours` · `armFatigue` 를 비운다 — 같은 날 2판으로 적은 값이 남아 엔진이 읽었다.
+- 트레이닝 탭 카드 답은 체크인 줄이 있는 날만 facts 에 합쳐져, 체크인 없이 카드만 답하면 버려졌다 → facts 에 `condition.prefsToday`(gather 가 넘길 때만 칸이 생김)
+  + 읽기 `todayPrefsOf(facts)`(`lib/report/facts.ts`). daily-plan 셋 · auto-setup · day-state · prescription · armcare/routine 이 이것으로 읽는다.
+  **새로 '하고 싶은 운동'을 읽을 때는 `facts.condition.today?.preferred*` 대신 `todayPrefsOf(facts)` 를 써 줘**(셀프테스트가 그 다섯 파일을 본다).
+- 시험: training:test 새 3개 통과, 실패 19개는 고치기 전(a70d2ecf)과 같은 목록. 화면 · 실제 계정으로는 안 봤다.
+
 ## 금윤호에게 — 2026-10-15 · 김민(Claude, 맥북) — 구속 앱 카메라 '되면 120fps'를 뺐다(엔진 2.5.2) · 첫 화면을 카메라로
 
 받은 뒤 할 일 없음(DB · 패키지 · 앱 굽기 그대로). **네 영역(구속 측정)을 고쳤다.**

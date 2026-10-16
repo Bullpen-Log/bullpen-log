@@ -52,6 +52,7 @@ import {
   belowUsualCondition,
   isHardOuting,
   isNearMaxOuting,
+  todayPrefsOf,
   type HardOuting,
   type ReportFacts,
 } from '@/lib/report/facts';
@@ -427,7 +428,7 @@ export function buildDayState({
       sleepHours: today?.sleepHours ?? null,
       sleepQuality: today?.sleepQuality ?? null,
       sleepShort,
-      preferredWorkout: today?.preferredWorkout ?? null,
+      preferredWorkout: todayPrefsOf(facts).preferredWorkout,
     },
     load: {
       hardOuting: hardOuting ? { ...hardOuting } : null,

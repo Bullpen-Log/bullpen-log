@@ -63,7 +63,7 @@ import {
   type ScoredCandidate,
 } from '@/lib/report/score';
 import { shiftDateKey } from '@/lib/pitch-stats';
-import type { ReportFacts } from '@/lib/report/facts';
+import { todayPrefsOf, type ReportFacts } from '@/lib/report/facts';
 import type { PitchPlan } from '@/lib/report/plan';
 import type { AutoCaution, AutoRecord } from '@/lib/report/auto-setup';
 import type { PlanSwap } from '@/lib/report/plan-swaps';
@@ -577,7 +577,7 @@ export function buildDailyPlan<T extends ExerciseLike>({
    * override 는 "몸 상태 경고를 봤고 그래도 하겠다"는 뜻이다. 일정을 만들 때
    * 폼에서 넘어온다 — 오늘 하루만의 결정이라 저장해 두지 않는다.
    */
-  const preferredWorkout = facts.condition.today?.preferredWorkout ?? null;
+  const preferredWorkout = todayPrefsOf(facts).preferredWorkout;
   /* 목표를 안 고른 날은 오늘 고른 운동 종류를 따른다(goalForUnchosen) */
   const goalName = trainingGoal ?? goalForUnchosen(preferredWorkout);
   /* 목표에 없는 부위는 여기서 걸러 둔다 — 아래로는 유효한 값만 흐른다 */
@@ -723,7 +723,7 @@ export function buildDailyPlan<T extends ExerciseLike>({
     recentIds: orderRecentIds,
     sessionsAgo,
     rotationSeed: rotationSeed ?? facts.asOf,
-    preferredParts: facts.condition.today?.preferredParts ?? [],
+    preferredParts: todayPrefsOf(facts).preferredParts,
     preferredWorkout,
     goal: goal.name,
     focus,
@@ -956,7 +956,7 @@ function programDayPlan<T extends ExerciseLike>({
     },
     goal: null,
     focus: null,
-    preferredWorkout: facts.condition.today?.preferredWorkout ?? null,
+    preferredWorkout: todayPrefsOf(facts).preferredWorkout,
     requestedMinutes,
     minutes: requestedMinutes,
     estimatedMinutes,

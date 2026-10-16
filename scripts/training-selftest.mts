@@ -31,6 +31,7 @@ import {
   findPainKeywords,
   isHardOuting,
   isNearMaxOuting,
+  todayPrefsOf,
   usualConditionOf,
   type CalendarEventLike,
   type CheckinLike,
@@ -95,6 +96,7 @@ import {
   sleepLevelFromQuality,
   sleepQualityOf,
   sleepQualityWord,
+  sorenessFromParts,
   nextOutingWindow as checkinNextOutingWindow,
   saysNoOuting,
   todayOutingRole,
@@ -32675,6 +32677,72 @@ console.log(
   check(
     `홈 요약 (후보 · 글 길이 — 기본 글 빼고) 큰 글 ≤ 22자 · 밑줄 ≤ 26자 · 셋째 줄 ≤ 28자 — 넘친 것: ${tooLong.join(', ') || '없음'}`,
     tooLong.length === 0
+  );
+}
+
+/* ═══════════════════ [통합 2026-10-16] 체크인 3판 — 근육통은 몸 그림으로 어림 · 트레이닝 카드 답은 체크인 없이도 ═══════════════════ */
+console.log('\n[통합 2026-10-16] 근육통 어림(sorenessFromParts) · 카드 답(todayPrefsOf)');
+{
+  const ok5 = { shoulder: '정상', elbow: '정상', wrist: '정상', lowerBack: '정상', lowerBody: '정상' };
+  check(
+    '근육통 어림 — 부위 칸이 없으면 null(옛 facts · 손 체크인), 다 정상이면 1 없음, 뻐근 · 통증 부위 수 + 1, 다섯이어도 5 심함',
+    sorenessFromParts({}) === null &&
+      sorenessFromParts(ok5) === 1 &&
+      sorenessFromParts({ ...ok5, lowerBody: '뻐근' }) === 2 &&
+      sorenessFromParts({ ...ok5, lowerBody: '뻐근', lowerBack: '통증' }) === 3 &&
+      sorenessFromParts({ ...ok5, lowerBody: '뻐근', lowerBack: '뻐근', shoulder: '뻐근' }) ===
+        HIGH_SORENESS &&
+      sorenessFromParts({
+        ...ok5,
+        lowerBody: '뻐근',
+        lowerBack: '뻐근',
+        shoulder: '뻐근',
+        wrist: '뻐근',
+      }) === SEVERE_SORENESS &&
+      sorenessFromParts({
+        shoulder: '통증',
+        elbow: '통증',
+        wrist: '통증',
+        lowerBack: '통증',
+        lowerBody: '통증',
+      }) === SEVERE_SORENESS
+  );
+  const factsWith = (extra: Partial<Parameters<typeof buildFacts>[0]>) =>
+    buildFacts({
+      nickname: '시험',
+      age: 22,
+      heightCm: 180,
+      logs: [],
+      checkins: [],
+      memos: [],
+      today: TODAY,
+      ...extra,
+    });
+  const noCheckin = factsWith({
+    todayPrefs: { preferredParts: ['하체'], preferredWorkout: '회복' },
+  });
+  const legacy = factsWith({});
+  check(
+    '카드 답 — 체크인이 없어도 todayPrefsOf 가 카드 답을 낸다, 넘기지 않으면 칸이 없고(옛 facts 와 같음) 빈 답',
+    noCheckin.condition.today === null &&
+      todayPrefsOf(noCheckin).preferredWorkout === '회복' &&
+      todayPrefsOf(noCheckin).preferredParts.join() === '하체' &&
+      !('prefsToday' in legacy.condition) &&
+      todayPrefsOf(legacy).preferredWorkout === null &&
+      todayPrefsOf(legacy).preferredParts.length === 0
+  );
+  const src = (f: string) => readFileSync(new URL(`../${f}`, import.meta.url), 'utf-8');
+  check(
+    '카드 답 · 근육통 읽기 — 계획 쪽은 오늘 체크인의 preferred* 를 직접 안 읽고, gather 가 근육통을 어림하고, 3판 저장이 옛 칸 셋을 비운다',
+    [
+      'lib/report/daily-plan.ts',
+      'lib/report/auto-setup.ts',
+      'lib/engine/day-state.ts',
+      'lib/report/prescription.ts',
+      'lib/armcare/routine.ts',
+    ].every((f) => !/today\??\.preferred(Workout|Parts)/.test(src(f))) &&
+      src('lib/report/gather.ts').includes('c.soreness ?? sorenessFromParts(c)') &&
+      /soreness: null,\s*sleepHours: null,\s*armFatigue: null/.test(src('app/actions/checkin.ts'))
   );
 }
 
