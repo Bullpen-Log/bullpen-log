@@ -260,6 +260,31 @@ console.log('\n[9] 정한 기준 — 나이 띠(D3 그대로) · 컨디션 4(D4)
   );
 }
 
+/* ─────────────────────── 10. 다시 보낸 저장 — 두 번 남지 않기 ─────────────────────── */
+console.log('\n[10] 다시 보낸 저장 — 끊긴 응답에 다시 누르거나 두 번 눌러도 기록이 하나인가');
+{
+  const fnBody = (file: string, name: string) => {
+    const text = src(file);
+    const at = text.indexOf(`export async function ${name}`);
+    const next = text.indexOf('\nexport ', at + 1);
+    return at < 0 ? '' : text.slice(at, next < 0 ? undefined : next);
+  };
+  const velocity = fnBody('app/actions/velocity.ts', 'saveVelocitySession');
+  check(
+    '구속 측정 저장 — 방금 같은 세션(같은 날 · 같은 잰 값)이 있으면 새로 안 만든다',
+    velocity.includes('recentSameSession(') &&
+      velocity.indexOf('recentSameSession(') < velocity.indexOf('velocitySession.create(')
+  );
+  check(
+    '투구 기록 저장 — 2분 안 같은 값이면 새로 안 만든다',
+    /DUPLICATE_WINDOW_MS/.test(src('app/api/pitch-log/route.ts'))
+  );
+  check(
+    "운동 마치기 — 아직 진행 중인 판일 때만 마친다(두 번 보내도 운동 시간이 한 번만 더해짐)",
+    /updateMany\(\{\s*where: \{ id: session\.id, status: 'ACTIVE' \}/.test(fnBody('app/actions/workout.ts', 'finishWorkout'))
+  );
+}
+
 console.log(`\n${passed}개 통과, ${failed}개 실패`);
 process.exit(failed === 0 ? 0 : 1);
 

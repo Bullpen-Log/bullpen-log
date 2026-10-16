@@ -4,6 +4,7 @@ import { phoneVideoPath } from '@/lib/phone-video-path';
 import { Prisma } from '@prisma/client';
 import { revalidatePath } from 'next/cache';
 import { prisma } from '@/lib/prisma';
+import { appNowMs } from '@/lib/clock';
 import { getCurrentUser } from '@/lib/dal';
 import {
   MAX_VIDEO_BYTES,
@@ -47,6 +48,27 @@ export type VelocityActionResult = { ok: true } | { ok: false; error: string };
 const MIN_KMH = 30;
 const MAX_KMH = 200;
 const MAX_PITCHES = 200;
+/** 같은 세션을 다시 저장한 것으로 보는 시간 — 끊긴 응답에 다시 누르는 사이(투구 기록 API 의 2분보다 넉넉히: 클립까지 올리느라 오래 걸린다) */
+const DUPLICATE_SESSION_MS = 10 * 60_000;
+
+/**
+ * 방금 같은 세션을 저장했나 — 같은 날, DUPLICATE_SESSION_MS 안에, 원래 잰 값(rawKmh)이 같은 차례로 같은 세션. 저장은 됐는데 답만 못 받아
+ * 다시 누르면 세션이 둘이 되어 투구 탭 카드가 공 수를 두 배로 채웠다(2026-10-16 통합 검토 — 투구 기록 API 의 같은 값 막기와 같은 꼴).
+ * 서로 다른 두 세션의 잰 값이 소수점까지 같은 차례일 일은 없다. 시각은 앱 시계(시험 계정은 createdAt 도 그 시계로 적힌다 — lib/prisma.ts).
+ */
+async function recentSameSession(userId: string, date: Date, rawKmhs: number[]) {
+  const rows = await prisma.velocitySession.findMany({
+    where: { userId, date, createdAt: { gte: new Date(appNowMs() - DUPLICATE_SESSION_MS) } },
+    select: { id: true, pitches: { select: { id: true, rawKmh: true }, orderBy: { seq: 'asc' } } },
+    orderBy: { createdAt: 'desc' },
+  });
+  return (
+    rows.find(
+      (r) =>
+        r.pitches.length === rawKmhs.length && r.pitches.every((p, i) => p.rawKmh === rawKmhs[i])
+    ) ?? null
+  );
+}
 const MEMO_MAX = 500;
 /** 보정식을 맞출 때 보는 최근 짝 수 */
 const CAL_PAIR_LIMIT = 200;
@@ -320,6 +342,9 @@ export async function saveVelocitySession(
    * 적으면 투구 수 · 부하가 두 번 셌다). 고른 종류 · 체감 강도는 세션에 두고, 투구 탭 '오늘' 카드 → 그날 화면이 이 값으로 채운 기록을 권한다
    * (lib/velocity-meta.ts unloggedSessions · logPrefillOf). 기록을 남기면 그 기록이 이 세션을 잇는다(app/api/pitch-log POST).
    */
+  const same = await recentSameSession(user.id, at, pitches.map((p) => p.rawKmh));
+  if (same) return { ok: true, sessionId: same.id, pitchIds: same.pitches.map((p) => p.id) };
+
   const session = await prisma.velocitySession.create({
       data: {
         userId: user.id,
