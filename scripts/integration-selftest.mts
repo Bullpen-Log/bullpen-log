@@ -285,6 +285,32 @@ console.log('\n[10] 다시 보낸 저장 — 끊긴 응답에 다시 누르거�
   );
 }
 
+/* ─────────────────────── 11. 탈퇴 — 남는 것 없이 ─────────────────────── */
+console.log('\n[11] 탈퇴 · 회원 지우기 — 두 입구가 같은 길이고, 사람과 이어지지 않은 표도 정해 두었는가');
+{
+  check(
+    '본인 탈퇴 · 관리자의 회원 지우기가 같은 함수(lib/delete-user.ts deleteUserCompletely)',
+    /deleteUserCompletely\(/.test(src('app/actions/auth.ts')) && /deleteUserCompletely\(/.test(src('app/actions/admin.ts'))
+  );
+  /*
+   * userId 칸은 있는데 관계(@relation)가 하나도 없는 표 — User 를 지워도 Prisma 가 찾아 지우지 않는다. 그런 표는 지우는 함수가 직접 지우거나
+   * (deleteMany), 팀 자료라 남긴다고 여기 적어야 한다. 새 표를 더하고 안 정하면 이 시험이 알린다.
+   */
+  const KEEP = new Set(['VelocityCalibRun', 'ShootCheck']);
+  const helper = src('lib/delete-user.ts');
+  const loose = [...src('prisma/schema.prisma').matchAll(/^model (\w+) \{([\s\S]*?)^\}/gm)]
+    .filter(([, , body]) => /^\s+userId\s+String\b/m.test(body) && !/@relation\(/.test(body))
+    .map(([, name]) => name);
+  const undecided = loose.filter(
+    (n) => !KEEP.has(n) && !helper.includes(`prisma.${n[0].toLowerCase()}${n.slice(1)}.deleteMany`)
+  );
+  check(
+    `사람과 이어지지 않은 표(${loose.join(' · ')})는 탈퇴 때 지우거나 남긴다고 정해져 있다`,
+    loose.length > 0 && undecided.length === 0,
+    undecided.join(', ')
+  );
+}
+
 console.log(`\n${passed}개 통과, ${failed}개 실패`);
 process.exit(failed === 0 ? 0 : 1);
 

@@ -25,6 +25,14 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
   옛 달 기록은 서버가 새 기록을 보내면 그 달을 다시 받아 갈아 끼운다(고치거나 지운 것이 남았다).
 - 확인: tsc · eslint, 1 · 2번은 임시 경로로 휴대폰 375 에서 잼(크게 보기 375×812 · 위아래 막대 위 · 같은 영상 그대로). 3~5번은 로그인이 필요해 화면은 못 봤다 — 폰에서 한 번 봐 줘.
 
+## 금윤호에게 — 2026-10-16 · 김민(Claude, 데스크톱 · 통합 세션) — 탈퇴 · 회원 지우기를 한 함수로(lib/delete-user.ts)
+
+받은 뒤 할 일 없음(DB 구조 그대로). 본인 탈퇴(`app/actions/auth.ts deleteAccount`)와 관리자의 회원 지우기(`app/actions/admin.ts deleteUser`)가 따로 지워
+조금씩 달라서(관리자 쪽은 투구 영상 경로를 안 챙김) `deleteUserCompletely` 하나로 모았다. 파일 먼저 · DB 나중(DB 가 실패하면 다시 지우면 되고, 반대면 주인 없는 영상이 남는다).
+User 관계가 없는 표: `VelocityRecording`(조각 · 표시 딸림)은 지우고 — 파일이 그 관리자 폴더라 같이 사라져 줄만 남았다 — `VelocityCalibRun` · `ShootCheck` 는 팀 자료라 남긴다.
+**새 표에 userId 를 두고 @relation 을 안 달면** 통합 시험 [11] 이 실패한다 — `lib/delete-user.ts` 에서 지우거나 시험의 KEEP 에 까닭과 함께 더해 줘.
+운영 DB 라 실제로 지워 보지는 못했다(tsc · 통합 시험만).
+
 ## 김민(맥북)에게 — 2026-10-16 · 김민(Claude, 데스크톱 · 통합 세션) — 할 일(급하지 않음 · 앱스토어 출시 전): 앱 네이티브 부품에 판 번호
 
 **맥이 있어야 한다**(Swift 를 고치고 TestFlight 로 굽는 일). 통합 검토 `docs/architecture/README.md` 17번 · `04-interfaces.md` 4-3 '네이티브 부품'.
