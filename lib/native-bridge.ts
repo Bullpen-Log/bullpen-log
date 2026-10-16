@@ -62,3 +62,29 @@ export function nativeCancelAlarm(id: string): boolean {
   call(PLUGIN, 'cancelAlarm', { id }).catch(() => {});
   return true;
 }
+
+/**
+ * 앱 부품 약속 판(BullpenNativePlugin.swift 의 API) — 한 번 묻고 기억한다. 앱이 아니면 null, info 가 없는 옛 앱(2026-10-16 전)도 null.
+ * 기능마다 필요한 판은 lib/native-api.ts.
+ */
+let apiNow: number | null | undefined;
+let apiAsk: Promise<number | null> | null = null;
+export function nativeApi(): Promise<number | null> {
+  if (apiNow !== undefined) return Promise.resolve(apiNow);
+  if (apiAsk) return apiAsk;
+  const call = bridge();
+  if (!call) {
+    apiNow = null;
+    return Promise.resolve(null);
+  }
+  apiAsk = call(PLUGIN, 'info')
+    .then((r) => {
+      const api = (r as { api?: unknown } | null)?.api;
+      return typeof api === 'number' && Number.isFinite(api) ? api : null;
+    })
+    .catch(() => null)
+    .then((api) => (apiNow = api));
+  return apiAsk;
+}
+/** 지금 아는 판 — 아직 안 물었으면 undefined(그리기 중에 쓴다. 미리 nativeApi() 로 물어 둔다) */
+export const nativeApiNow = () => apiNow;

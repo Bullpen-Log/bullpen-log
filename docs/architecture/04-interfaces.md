@@ -70,5 +70,5 @@
 | 빈 자료(체크인 없는 날) | 카드 답이 버려짐 ⚠2 · 옛 칸 null 이면 규칙 꺼짐 ⚠1 | 카드 답은 체크인과 따로 합침 · 각 신호 함수가 'unknown' 을 돌려주고 읽는 쪽이 기본값을 정함 |
 | 중복 요청 | 투구 POST 는 findFirst→create(경합 ◻) · 구속 저장 멱등 없음 ◻ · `finishWorkout` 상태 조건 없음 ◻ · 3D 요청 read-then-write ◻ | 클라이언트 생성 id + 유일 제약/upsert · 상태 조건 갱신(`updateMany where status`) |
 | 오프라인 | outbox 셋(localStorage 세트 · IndexedDB 촬영 · IndexedDB 구속) | 약속 하나: 클라이언트 id + 서버 멱등 + 받았다는 답이 와야 지움 |
-| 네이티브 부품 | 판 번호 없음(`luma` 어긋남은 오보 — snapshot 의 값 칸, Swift 에 있음) · 맥북에 넘김(HANDOFF 10-16, 출시 전) | status 에 `apiVersion` · 사이트가 모르는 판이면 웹 길로 |
+| 네이티브 부품 | 판 번호 있음(2026-10-16): `BullpenNative.info` → `{ api, build, version }`(Swift `API`), 웹 `nativeApi()`(lib/native-bridge.ts) · 기능마다 필요한 판 `lib/native-api.ts`. `info` 없는 옛 앱은 예전 짐작(`isOldApp`) | 부품을 바꾸면 Swift `API` +1 · native-api.ts 에 한 줄 |
 | 계정 바꿈 | 세트 대기열이 기기 단위 ◻ | 열쇠에 userId |

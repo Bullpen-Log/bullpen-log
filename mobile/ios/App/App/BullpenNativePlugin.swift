@@ -14,6 +14,7 @@ import UserNotifications
 ///   keepAwake({ on })                         화면 꺼짐 막기 켜기 / 끄기
 ///   scheduleAlarm({ id, at, title, body })    at(밀리초, Date.now 기준)에 알림. 같은 id 면 바꾼다. 처음엔 허락을 묻는다
 ///   cancelAlarm({ id })                       건 알림 지우기(이미 뜬 것도)
+///   info()                                    { api, build, version } — 부품 약속 판(아래 API) · 앱 빌드 번호 · 앱 판
 @objc(BullpenNativePlugin)
 public class BullpenNativePlugin: CAPPlugin, CAPBridgedPlugin, UNUserNotificationCenterDelegate {
     public let identifier = "BullpenNativePlugin"
@@ -22,7 +23,13 @@ public class BullpenNativePlugin: CAPPlugin, CAPBridgedPlugin, UNUserNotificatio
         CAPPluginMethod(name: "keepAwake", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "scheduleAlarm", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "cancelAlarm", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "info", returnType: CAPPluginReturnPromise),
     ]
+
+    /// 부품 약속 판(2026-10-16) — 앱 안 부품(BullpenNative · DualCamera · ShootCamera · LocalVideo)의 기능이나 돌려주는 칸을 바꾸면 +1 하고,
+    /// 사이트의 lib/native-api.ts 표에 '그 판부터 되는 기능'을 적는다. 웹은 올리자마자 바뀌지만 앱은 새로 깔아야 바뀌어서, 업데이트 안 한
+    /// 앱에 새 웹이 없는 기능을 부르지 않게 한다. info 가 없는 앱(이 판 전)은 사이트가 예전 짐작(isOldApp 등)으로 가린다.
+    static let API = 1
 
     /// 알림 이름표 앞머리 — 다른 알림과 섞이지 않게
     private static let prefix = "bullpen."
@@ -38,6 +45,15 @@ public class BullpenNativePlugin: CAPPlugin, CAPBridgedPlugin, UNUserNotificatio
 
     deinit {
         NotificationCenter.default.removeObserver(self)
+    }
+
+    @objc func info(_ call: CAPPluginCall) {
+        let bundle = Bundle.main.infoDictionary ?? [:]
+        call.resolve([
+            "api": Self.API,
+            "build": bundle["CFBundleVersion"] as? String ?? "",
+            "version": bundle["CFBundleShortVersionString"] as? String ?? "",
+        ])
     }
 
     @objc func keepAwake(_ call: CAPPluginCall) {
