@@ -24,9 +24,12 @@ import {
 import { DayDetailBlock } from './day-detail';
 import { useEventAlarms } from './event-alarms';
 
-/** 캘린더 ↔ 목록 그림 단추 — 달 화살표와 같은 크기 · 모양 */
+/**
+ * 캘린더 ↔ 목록 그림 단추 — 달 화살표와 같은 크기 · 모양이되 회색(보기 바꾸기는 달 넘기기보다 덜 쓰는 일이라, 같은 파랑이면
+ * 세 번째 화살표처럼 읽혔다 — 2026-10-16 디자인 점검)
+ */
 const VIEW_BUTTON =
-  'grid h-10 w-10 place-items-center rounded-full text-sky transition-colors desk:h-8 desk:w-8 desk:rounded-lg desk:border desk:border-line desk:text-muted desk:hover:border-sky desk:hover:text-sky';
+  'grid h-10 w-10 place-items-center rounded-full text-muted transition-colors hover:text-ink desk:h-8 desk:w-8 desk:rounded-lg desk:border desk:border-line desk:hover:border-sky desk:hover:text-sky';
 
 /**
  * 투구 일지 — 홈의 가운데 자리.
@@ -511,7 +514,7 @@ export function PitchLogPanel({
                     type="button"
                     aria-label="목록으로 보기"
                     onClick={() => setView('list')}
-                    className={VIEW_BUTTON}
+                    className={`${VIEW_BUTTON} mr-1`}
                   >
                     <List aria-hidden className="h-5 w-5 desk:h-4 desk:w-4" />
                   </button>
