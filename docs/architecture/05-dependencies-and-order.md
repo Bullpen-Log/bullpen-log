@@ -60,3 +60,14 @@ flowchart BT
 - 남의 데이터는 [04](04-interfaces.md) 제공 함수로. 강도는 `effortPctOf`, 날짜는 `todayKey`/`keyOfDbDate`/`dbDateOf`(만들어진 뒤), 체중은 `getBodyWeight`(만들어진 뒤).
 - 쓰기 동작을 새로 만들면: 소유 확인 · 잠금 확인 · 멱등(같은 요청 두 번) · 무효화 표 한 줄.
 - 끝: 해당 셀프테스트 + 통합 시험 · `npx tsc --noEmit` · 바꾼 파일 eslint · 공통 파일을 건드렸으면 HANDOFF 한 줄.
+
+## 5-5. 큰 파일 나누기 계획(2026-10-16 — 아직 안 나눔, 시점을 맞춘 뒤)
+
+두 파일이 여러 세션 · 두 사람의 합치기 충돌을 가장 많이 낸다(지난 3일 커밋: 앱 틀 58번 · 구속 측정 화면 27번). 나누기는 **동작을 바꾸지 않는 옮기기**만 한다.
+
+| 파일 | 지금 | 나누는 법 | 어려움 · 시간(Claude) | 언제 |
+|---|---|---|---|---|
+| `components/app-shell.tsx` | 3,129줄 — 이미 함수로 나뉨: AppNav 1,247 · DetailMenu 504 · MobileTabs 345 · MobileTopBar 160 · DockGrid 126 · QuickBar 97 · 작은 아이콘들 | `components/app-shell/` 폴더로 함수째 옮김: `mobile-tabs.tsx`(MobileTabs · TabFace) · `mobile-top-bar.tsx`(MobileTopBar · useBarHidden) · `detail-menu.tsx` · `dock.tsx`(DockGrid · QuickBar · Squares · MenuSquares) · `parts.tsx`(TopIcon · SettingsCog · Avatar · Tip · NavGlyph). `app-shell.tsx` 는 AppNav 와 내보내기만(약 1,250줄) | 쉬움 — 옮기기 + import. 1~1.5시간 + 화면 확인(휴대폰 · PC · 아이패드) | UI/UX 세션이 쉬고, 금윤호(앱 틀을 자주 고침)에게 HANDOFF 로 알린 뒤. 옮기는 날엔 다른 세션이 이 파일을 안 고친다 |
+| `app/(session)/velocity/velocity-screen.tsx` | 4,366줄 — 거의 한 함수(VelocityScreen 3,638줄) | ① 순수 계산(세션 거리 · 공 길 · 판정 도우미 약 250줄)을 `lib/velocity-screen-logic.ts` 로 — 셀프테스트로 지킬 수 있게 ② 단계별 화면(설정 안내 · 측정 중 · 세션 요약 · 저장 시트)을 부품으로 — 한 함수 안 상태를 props 로 넘겨야 함 | 어려움 — 상태가 한 함수에 얽혀 있다. ①은 1시간, ②는 3~4시간 + 실제 폰 카메라 확인 | ①은 구속 엔진 세션과 맞춰 언제든. ②는 구속 측정이 한동안 안 바뀔 때(지금은 하루에 여러 번 바뀜) |
+
+규칙(지금부터): 두 파일에 **새 기능은 새 파일로** 만들고 import 만 더한다 — 나누기 전까지 더 커지지 않게.
