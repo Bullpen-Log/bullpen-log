@@ -25,6 +25,20 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
   옛 달 기록은 서버가 새 기록을 보내면 그 달을 다시 받아 갈아 끼운다(고치거나 지운 것이 남았다).
 - 확인: tsc · eslint, 1 · 2번은 임시 경로로 휴대폰 375 에서 잼(크게 보기 375×812 · 위아래 막대 위 · 같은 영상 그대로). 3~5번은 로그인이 필요해 화면은 못 봤다 — 폰에서 한 번 봐 줘.
 
+## 김민(맥북)에게 — 2026-10-16 · 김민(Claude, 데스크톱 · 통합 세션) — 할 일(급하지 않음 · 앱스토어 출시 전): 앱 네이티브 부품에 판 번호
+
+**맥이 있어야 한다**(Swift 를 고치고 TestFlight 로 굽는 일). 통합 검토 `docs/architecture/README.md` 17번 · `04-interfaces.md` 4-3 '네이티브 부품'.
+- 왜: 앱은 원격 사이트를 띄우는 껍데기라 웹은 올리자마자 바뀌지만, 부품(DualCamera · ShootCamera · LocalVideo · BullpenNative — `mobile/ios/App/App/*Plugin.swift`)은
+  새 앱을 깔아야 바뀐다. 지금 웹은 부품마다 짐작으로 옛 앱을 가린다(`lib/dual-camera.ts isOldApp` — status 에 `single` 칸이 없으면 옛 앱). 출시하면 업데이트를
+  안 하는 사람이 생겨, 새 웹이 옛 앱에 없는 기능을 부르면 조용히 안 된다. 지금은 TestFlight 두 사람이라 급하지 않다 — 출시 준비 때.
+- 제안(작게):
+  1. `BullpenNativePlugin.swift` 에 `info` 하나 — `{ api: 1, build: CFBundleVersion }`(api = 부품 약속 판, 부품의 기능 · 칸을 바꿀 때마다 +1).
+  2. 웹은 한 곳(`lib/native-bridge.ts` 에 `nativeApi(): Promise<number | null>`, 한 번 묻고 기억 — `info` 가 없는 옛 앱은 null).
+  3. 기능마다 필요한 판을 한 표에(`lib/native-api.ts` 같은 곳 — 예: 앱 카메라 하나로 켜기 = 1). 모자라면 웹 길로 + '앱을 업데이트해 주세요' 한 줄.
+  4. `isOldApp` 같은 칸 짐작은 그 표로 옮긴다(null 이면 지금 짐작 그대로 — 지금 깔린 앱이 안 깨지게).
+- 확인: 새 앱 + 새 웹 / 옛 앱(info 없음) + 새 웹 둘 다 구속 측정 · 촬영 모드 · 폰 안 영상이 지금처럼 돌아야 한다.
+- 참고: 검토 때 'JS 의 `luma` 를 Swift 가 안 내놓는다'고 적었는데 틀렸다 — `luma` 는 `snapshot` 이 돌려주는 값 칸이고 Swift 에 있다. 지금 실제 어긋남은 없다.
+
 ## 금윤호에게 — 2026-10-16 · 김민(Claude, 데스크톱 · 통합 세션) — 구속 측정 저장을 두 번 눌러도 세션 하나
 
 받은 뒤 할 일 없음. **네 영역(`app/actions/velocity.ts saveVelocitySession`)에 한 단계 더했다**(be138b11): 10분 안에 같은 날 · 같은 차례의 잰 값(rawKmh)으로
