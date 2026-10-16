@@ -15,7 +15,7 @@ const BodySpot3D = dynamic(
   () => import('@/components/body-spot-3d').then((m) => m.BodySpot3D),
   {
     ssr: false,
-    loading: () => <div className="h-full w-full animate-pulse rounded-2xl bg-ink/6" />,
+    loading: () => <div className="h-full w-full motion-safe:animate-pulse rounded-2xl bg-ink/6" />,
   }
 );
 

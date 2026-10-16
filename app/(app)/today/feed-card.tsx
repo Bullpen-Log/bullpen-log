@@ -404,7 +404,7 @@ export function FeedCard({ items }: { items: FeedItem[] }) {
                 className="flex h-8 w-6 items-center justify-center"
               >
                 <span
-                  className={`block h-2 rounded-full transition-[width,background-color] duration-300 ease-out ${
+                  className={`block h-2 rounded-full motion-safe:transition-[width,background-color] duration-300 ease-out ${
                     on ? 'w-5 bg-sky' : 'w-2 bg-ink/20'
                   }`}
                 />

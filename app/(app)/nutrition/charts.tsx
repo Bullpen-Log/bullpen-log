@@ -52,7 +52,7 @@ export function WeekChart({
               className="group relative flex h-full flex-1 items-end rounded-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky"
             >
               <span
-                className={`block w-full rounded-t-md transition-[height,background-color] duration-500 ${EASE} ${
+                className={`block w-full rounded-t-md motion-safe:transition-[height,background-color] duration-500 ${EASE} ${
                   sel
                     ? over
                       ? 'bg-warn'

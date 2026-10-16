@@ -719,7 +719,7 @@ function Countdown({ clock, label }: { clock: Clock; label: string }) {
       </div>
       <div className="h-2 overflow-hidden rounded-full bg-surface-2">
         <div
-          className={`h-full rounded-full transition-[width] duration-200 ${
+          className={`h-full rounded-full motion-safe:transition-[width] duration-200 ${
             clock.kind === 'hold' ? 'bg-sky' : 'bg-line-strong'
           }`}
           style={{ width: `${clock.total ? (left / clock.total) * 100 : 0}%` }}

@@ -141,6 +141,9 @@ User 관계가 없는 표: `VelocityRecording`(조각 · 표시 딸림)은 지�
   거부 · 카메라 오류 글 — `app/actions/velocity.ts` · `lib/velocity-engine/*` 메시지 · 업로드, 엔진 2.6.2 '글만'), '환영해요' · '완료!' · 👏 · 홈 다 채움 축하 이모지(→ 파란 점),
   '자리를 비켜요' · '연구에 따르면' · '이곳에 ~표시돼요' 같은 직역투, '위험한지 안전한지 알려 드려요' · '언제든 ~고칠 수 있어요' 반복, 긴 안내 몇 줄, '해주세요' → '해 주세요'(41곳).
   **화면 글을 시험이 찾는 곳은 없었다**(training:test 실패 20 은 고치기 전과 같음 · highlights · arm-status · velocity engine2 통과). 구속 자동 메모(`lib/velocity-sync.ts`)는 옛 기록을 알아보는 표시라 그대로.
+- (같은 날 더) **움직임 줄이기 안전망**(`app/globals.css` 끝): 기기에서 움직임 줄이기를 켜면 CSS transition · animation 을 곧바로 끝 모습으로(0.01ms — transitionend 는 그대로 옴),
+  로딩 돌개(`.animate-spin`)만 뺀다. 진행 막대의 폭 · 높이 움직임 27곳 · 로딩 반짝임(`animate-pulse`) 7곳에 `motion-safe:`, `transition-all` 5곳 → 바뀌는 속성만.
+  **새 움직임을 넣을 때도 `motion-safe:` 를 붙여 줘** — 안전망은 빠뜨린 곳을 위한 것이다. 막대는 끝이 둥글어 폭 그대로(늘이기면 끝이 찌그러짐).
 
 ## 금윤호에게 — 2026-10-16 · 김민(Claude, 데스크톱 · 3D 담당) — 3D 결과의 '착지'를 앞발이 처음 닿은 순간으로(events.footContact) · footFlat 지움
 

@@ -26,7 +26,7 @@ export function StepBar({ step, total }: { step: number; total: number }) {
       className="h-1.5 overflow-hidden rounded-full bg-ink/10"
     >
       <span
-        className="block h-full rounded-full bg-sky transition-[width] duration-[280ms] ease-out"
+        className="block h-full rounded-full bg-sky motion-safe:transition-[width] duration-[280ms] ease-out"
         style={{ width: `${Math.min(100, Math.max(0, (step / total) * 100))}%` }}
       />
     </div>

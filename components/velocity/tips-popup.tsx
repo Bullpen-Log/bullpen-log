@@ -113,7 +113,7 @@ export function TipsCard({
               className="flex h-10 items-center px-[3px]"
             >
               <span
-                className={`block h-2 rounded-full transition-all ${k === at ? 'w-5 bg-sky' : 'w-2 bg-line-strong'}`}
+                className={`block h-2 rounded-full transition-[width,background-color] ${k === at ? 'w-5 bg-sky' : 'w-2 bg-line-strong'}`}
               />
             </button>
           ))}

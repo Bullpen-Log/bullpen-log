@@ -396,7 +396,7 @@ export function CheckinFlow({
           >
             {/* 한 페이지 = 전체의 1/질문 수 — 지금 페이지까지 정확히 그만큼 찬다(칸 표시 없이 띠 하나) */}
             <div
-              className="h-full rounded-full bg-sky transition-[width] duration-[280ms] ease-out"
+              className="h-full rounded-full bg-sky motion-safe:transition-[width] duration-[280ms] ease-out"
               style={{ width: `${(filled / questions.length) * 100}%` }}
             />
           </div>

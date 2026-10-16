@@ -650,7 +650,7 @@ export function PitchPreview({
       {re.kind === 'running' && (
         <div className="h-1.5 overflow-hidden rounded-full bg-surface-2">
           <div
-            className="h-full rounded-full bg-sky transition-[width] duration-200"
+            className="h-full rounded-full bg-sky motion-safe:transition-[width] duration-200"
             style={{ width: `${Math.round(re.ratio * 100)}%` }}
           />
         </div>

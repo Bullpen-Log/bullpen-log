@@ -2680,7 +2680,7 @@ export function VelocityScreen({
           </p>
           <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/15">
             <div
-              className="h-full rounded-full bg-sky transition-[width]"
+              className="h-full rounded-full bg-sky motion-safe:transition-[width]"
               style={{ width: `${Math.round(fileProgress * 100)}%` }}
             />
           </div>
@@ -3468,7 +3468,7 @@ export function VelocityScreen({
                   <span
                     className={`h-2 w-2 shrink-0 rounded-full ${
                       recording || status === 'armed'
-                        ? 'animate-pulse bg-danger'
+                        ? 'motion-safe:animate-pulse bg-danger'
                         : status === 'capturing' || status === 'analyzing'
                           ? 'bg-amber-400'
                           : 'bg-white/60'
@@ -4211,7 +4211,7 @@ function Shutter({
       className="group relative flex h-[4.75rem] w-[4.75rem] items-center justify-center rounded-full bg-[#3a3a3c] transition-opacity disabled:opacity-35"
     >
       <span
-        className={`flex items-center justify-center bg-[#ff3b30] text-white shadow-[0_0_0_3px_#1c1c1e] transition-[width,height,border-radius,scale] duration-300 ease-[cubic-bezier(0.2,0.9,0.3,1)] group-active:scale-90 ${
+        className={`flex items-center justify-center bg-[#ff3b30] text-white shadow-[0_0_0_3px_#1c1c1e] motion-safe:transition-[width,height,border-radius,scale] duration-300 ease-[cubic-bezier(0.2,0.9,0.3,1)] group-active:scale-90 ${
           stop ? 'h-9 w-9 rounded-[0.65rem]' : 'h-[3.9rem] w-[3.9rem] rounded-full'
         }`}
       >

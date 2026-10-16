@@ -3769,3 +3769,22 @@ html[data-dualcam] [data-finder] > video {
     display: none;
   }
 }
+
+/*
+ * 앱 전체 '움직임 줄이기' 안전망(2026-10-16 움직임 점검 — 화면마다 motion-safe 를 따로 챙기다 보니 빠지는 곳이 계속 생겼다).
+ * 기기에서 움직임 줄이기를 켜면 CSS 움직임(transition · animation)을 곧바로 끝 모습으로 — 이어지는 transitionend · animationend 는
+ * 그대로 온다(0.01ms). 로딩 돌개(.animate-spin)만 남긴다 — 멈춘 돌개는 '기다리는 중'을 말하지 못한다.
+ * JS 로 움직이는 것(판 넘기기 · 렌즈 · 시트 · 숫자 올라가기)은 각자 움직임 줄이기를 본다. 화면 전환(::view-transition)은 위 규칙이 따로 끈다.
+ */
+@media (prefers-reduced-motion: reduce) {
+  *:not(.animate-spin),
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-delay: 0ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    transition-delay: 0ms !important;
+    scroll-behavior: auto !important;
+  }
+}

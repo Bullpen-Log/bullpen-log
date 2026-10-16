@@ -115,15 +115,15 @@ export function StackBar({
       className={`flex w-full overflow-hidden rounded-full bg-ink/8 ${className}`}
     >
       <span
-        className="bg-sky transition-[width] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]"
+        className="bg-sky motion-safe:transition-[width] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]"
         style={{ width: w(done) }}
       />
       <span
-        className="bg-warn/70 transition-[width] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]"
+        className="bg-warn/70 motion-safe:transition-[width] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]"
         style={{ width: w(redo) }}
       />
       <span
-        className="bg-ink/25 transition-[width] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]"
+        className="bg-ink/25 motion-safe:transition-[width] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]"
         style={{ width: w(later) }}
       />
     </div>

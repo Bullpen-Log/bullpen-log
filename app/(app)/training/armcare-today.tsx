@@ -388,7 +388,7 @@ export function Checklist({
         </div>
         <div className="mt-3 h-2 overflow-hidden rounded-full bg-surface-2">
           <div
-            className="h-full rounded-full bg-sky transition-[width] duration-300"
+            className="h-full rounded-full bg-sky motion-safe:transition-[width] duration-300"
             style={{ width: `${items.length ? (doneCount / items.length) * 100 : 0}%` }}
           />
         </div>

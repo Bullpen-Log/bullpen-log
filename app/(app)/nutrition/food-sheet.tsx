@@ -1321,7 +1321,7 @@ function MfdsBrowse({
             <div
               key={k}
               aria-hidden
-              className="h-11 animate-pulse rounded-xl bg-surface-2"
+              className="h-11 motion-safe:animate-pulse rounded-xl bg-surface-2"
             />
           ))}
         </div>
@@ -1612,7 +1612,7 @@ function SearchResults({
                 <div
                   key={i}
                   aria-hidden
-                  className="h-11 animate-pulse rounded-xl bg-surface-2"
+                  className="h-11 motion-safe:animate-pulse rounded-xl bg-surface-2"
                 />
               ))}
             </div>

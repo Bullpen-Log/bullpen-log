@@ -548,7 +548,7 @@ function EditorBody({
                   </p>
                   <div className="h-1.5 overflow-hidden rounded-full bg-white/15">
                     <div
-                      className="h-full rounded-full bg-sky transition-[width] duration-300 ease-out"
+                      className="h-full rounded-full bg-sky motion-safe:transition-[width] duration-300 ease-out"
                       style={{ width: `${Math.round(phase.p * 100)}%` }}
                     />
                   </div>

@@ -211,7 +211,7 @@ export function RunClient({
             </p>
             <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-ink/8">
               <div
-                className="h-full rounded-full bg-sky transition-[width] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]"
+                className="h-full rounded-full bg-sky motion-safe:transition-[width] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]"
                 style={{ width: `${progress * 100}%` }}
               />
             </div>

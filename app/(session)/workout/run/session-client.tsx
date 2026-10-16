@@ -1112,7 +1112,7 @@ export function SessionClient({
                     }`}
                   >
                     <span
-                      className="block h-full rounded-full bg-sky transition-[width] duration-300 ease-out"
+                      className="block h-full rounded-full bg-sky motion-safe:transition-[width] duration-300 ease-out"
                       style={{ width: `${fill * 100}%` }}
                     />
                   </span>

@@ -334,7 +334,7 @@ function MobileUpload({ onDone }: { onDone: () => void }) {
                 {(it.state === 'uploading' || it.state === 'saving') && (
                   <div className="h-1.5 overflow-hidden rounded-full bg-ink/10">
                     <div
-                      className="h-full rounded-full bg-sky transition-[width]"
+                      className="h-full rounded-full bg-sky motion-safe:transition-[width]"
                       style={{
                         width: `${it.state === 'saving' ? 5 : (it.percent ?? 0)}%`,
                       }}

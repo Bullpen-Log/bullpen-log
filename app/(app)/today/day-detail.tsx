@@ -266,7 +266,7 @@ function Waiting() {
       {[80, 60, 70].map((w) => (
         <div
           key={w}
-          className="h-4 animate-pulse rounded bg-surface-2"
+          className="h-4 motion-safe:animate-pulse rounded bg-surface-2"
           style={{ width: `${w}%` }}
         />
       ))}
@@ -520,7 +520,7 @@ function NutritionDetail({ n }: { n: DayDetail['nutrition'] }) {
         </p>
         <div className="h-2 overflow-hidden rounded-full bg-surface-2">
           <div
-            className={`h-full rounded-full transition-[width] duration-500 ${
+            className={`h-full rounded-full motion-safe:transition-[width] duration-500 ${
               n.kcal > n.target.kcal ? 'bg-warn' : 'bg-sky'
             }`}
             style={{ width: pct(n.kcal, n.target.kcal) }}

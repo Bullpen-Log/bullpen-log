@@ -556,7 +556,7 @@ function FilePick({
       {percent != null && (
         <span
           aria-hidden
-          className="absolute inset-x-0 bottom-0 h-1 bg-sky transition-[width]"
+          className="absolute inset-x-0 bottom-0 h-1 bg-sky motion-safe:transition-[width]"
           style={{ width: `${percent}%` }}
         />
       )}

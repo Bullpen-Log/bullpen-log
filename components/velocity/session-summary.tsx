@@ -352,7 +352,7 @@ function SpeedBars({
           <span
             key={p.id}
             style={{ height: `${pct}%` }}
-            className={`min-w-0.5 flex-1 rounded-t-sm transition-[height] ${
+            className={`min-w-0.5 flex-1 rounded-t-sm motion-safe:transition-[height] ${
               top ? 'bg-sky' : 'bg-sky/35'
             }`}
           />

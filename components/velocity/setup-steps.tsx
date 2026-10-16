@@ -425,7 +425,7 @@ export function TipsStep({
             className="flex h-8 items-center px-[3px]"
           >
             <span
-              className={`block h-2 rounded-full transition-all ${k === i ? 'w-5 bg-sky' : 'w-2 bg-line-strong'}`}
+              className={`block h-2 rounded-full transition-[width,background-color] ${k === i ? 'w-5 bg-sky' : 'w-2 bg-line-strong'}`}
             />
           </button>
         ))}

@@ -860,7 +860,7 @@ function WeekStrip({
             className={`mt-1 h-1 w-6 overflow-hidden rounded-full ${selected ? 'bg-white/30' : 'bg-line'}`}
           >
             <span
-              className={`block h-full rounded-full transition-[width] duration-500 ${EASE} ${
+              className={`block h-full rounded-full motion-safe:transition-[width] duration-500 ${EASE} ${
                 selected ? 'bg-white' : over ? 'bg-warn' : 'bg-sky'
               }`}
               style={{ width: `${pct}%` }}
@@ -972,7 +972,7 @@ function GuideCard({
                 className="h-1.5 overflow-hidden rounded-full bg-surface-2"
               >
                 <div
-                  className={`h-full rounded-full bg-sky transition-[width] duration-500 ${EASE}`}
+                  className={`h-full rounded-full bg-sky motion-safe:transition-[width] duration-500 ${EASE}`}
                   style={{ width: share(recovery.protein, guide.recoveryProtein) }}
                 />
               </div>
@@ -991,7 +991,7 @@ function GuideCard({
           </p>
           <div aria-hidden className="h-1.5 overflow-hidden rounded-full bg-surface-2">
             <div
-              className={`h-full rounded-full bg-sky transition-[width] duration-500 ${EASE}`}
+              className={`h-full rounded-full bg-sky motion-safe:transition-[width] duration-500 ${EASE}`}
               style={{ width: share(carbsEaten, carbsTarget) }}
             />
           </div>
@@ -1194,7 +1194,7 @@ function TodayCard({
               </div>
               <div className="h-1.5 overflow-hidden rounded-full bg-surface-2">
                 <div
-                  className={`h-full rounded-full ${m.bar} transition-[width] duration-500 ${EASE}`}
+                  className={`h-full rounded-full ${m.bar} motion-safe:transition-[width] duration-500 ${EASE}`}
                   style={{ width: `${Math.min(100, goal > 0 ? (got / goal) * 100 : 0)}%` }}
                 />
               </div>
@@ -1496,7 +1496,7 @@ function MealSection({
                 className="mt-1 h-1 w-24 overflow-hidden rounded-full bg-surface-2"
               >
                 <div
-                  className={`h-full rounded-full transition-[width,background-color] duration-500 ${EASE} ${
+                  className={`h-full rounded-full motion-safe:transition-[width,background-color] duration-500 ${EASE} ${
                     p.done ? 'bg-ok' : 'bg-sky'
                   }`}
                   style={{ width: `${Math.min(100, (p.protein / p.goal) * 100)}%` }}
