@@ -142,3 +142,27 @@
   거기서도 10-07 4/4 알림 안, 10-06 은 시각을 돌려줬다(참값 없음). 폰 속도 · 헛 알림은 다음 현장에서(콘솔 `[velo] sweep … (net)`).
 - **남은 것**: ① 폰 실측(WASM 속도 — 2.5초 넘으면 훑기가 하나 건너뛰는 규칙이 받쳐 준다) ② 런타임을 CDN 대신 public 에 두기(14MB, 오프라인 · CSP 를 정하면)
   ③ 2판 라벨(엔진이 못 잰 클립 · 세션 녹화) ④ 알림(MotionTrigger) 자체를 모델로 — Swift · CoreML(맥).
+
+## 5단계 2판 ② — 라벨 도구(사람이 공 자리 찍기) (2026-10-16 밤)
+
+사용자(엔진 세션 후속): "2판 자료를 위해 사람이 공 자리를 찍는 도구". 1판의 약점 — 라벨이 '엔진이 이미 잰 클립'뿐 — 을 메우려면 엔진이 못 잰 16클립 ·
+실내 · 흔들림 · 세션 녹화 영상에 사람이 찍어야 한다.
+
+- **DB** `VelocityBallLabel`(마이그레이션 `20261016150000_velocity_ball_label`, 새 표만 · 적용함, 백업 `db-2026-10-16-14-30.json`): 컷(`cut:<VelocityRecordingCut.id>`) ·
+  측정 클립(`pitch:<VelocityPitch.id>`)마다 한 줄 — `sourceW · sourceH`(원본 px) · `frames` Json `[{ t, ball }]`(t 조각 · 클립 시각, ball `[x, y, 지름]` 또는 null = 공 없음).
+  관계 없이 target 글자로 가리킨다. 모양 · 검사는 `lib/velocity-ball-label.ts`, 서버 동작 `saveBallLabel · loadBallLabel`(`app/actions/velocity-recording.ts`, 관리자만).
+- **찍는 화면** `app/(app)/admin/velocity/ball-labeler.tsx`(`BallLabelDialog`, 검은 전체 화면): 녹화 편집기의 공마다 [공 자리 찍기](찍은 뒤엔 '공 자리 N장면'),
+  관리자 탐색기 공 미리보기의 [공 자리 찍기](엔진이 못 잰 10-06 · 10-07 클립도 같은 도구). ←/→ 1장면(보인 장면의 시각 = `requestVideoFrameCallback` mediaTime),
+  공 가운데 누르고 가장자리 한 번 더(끌어도 됨), 가운데만 찍고 넘기면 지난 지름, N 공 없음, Backspace 지움, S 저장, 닫을 때 안 저장한 것은 묻는다.
+- **내려받기** `services/velocity-detector/pull-labels.mjs`: 서버 라벨 → 영상(조각 · 클립)을 `~/bullpen-velocity-lab/detector-v2/videos/` 에 받아 헤드리스 크롬 +
+  mediabunny 디코더로 장면을 정확한 시각에 꺼낸다(build-dataset.mjs 와 같은 길, 긴 변 960). 찍은 장면은 디코더 장면과 반 장면 안에서 맞추고, 안 찍은 장면(3장 안 · 양쪽 공)은
+  선으로 이어 채우며 더 긴 빈틈 · '없음' 옆에서는 클립을 가른다(연속 세 장면 입력). 결과 `labels.json` 은 1판과 같은 꼴(`engine: "human"`) —
+  `modal run services/velocity-detector/train.py --dataset detector-v2` 가 그대로 읽는다.
+- **확인**: 10-16 녹화(49def374) 1번 컷(스피드건 100)의 12장면을 찍어 저장(관리자 로그인 브라우저에서 실제 서버 동작으로) → `pull-labels.mjs` 가 조각 30.8MB 를 받아
+  클립 1 · 장면 14(앞 2 + 찍은 12) · 공 12 · 60fps 로 `labels.json` 을 만들었고, `train.py` 의 `load_labels · split_clips · samples_of` 가 표본 12(공 12)로 읽는다(그림 파일 모두 있음).
+  실제 학습은 안 돌렸다(자료가 한 컷뿐).
+- **알아 둘 것**: 아이폰 녹화는 장면 시각이 고르지 않다(1/600 눈금 · 가끔 반 장면 간격) — 반 장면(0.5/fps) 안을 같은 장면으로 보므로 드물게 두 장면이 하나로 합쳐질 수 있다.
+  학습 자료로는 문제 없다(장면 하나 덜 들어갈 뿐). 10~15 장면을 이어서 찍는 것이 가장 좋고, 공 없는 장면(N)도 몇 개 찍어 두면 헛 알림 자료가 된다.
+- **남은 것**: ① 다음 현장 뒤 엔진이 못 잰 클립 · 세션 녹화에 찍기(사용자 몫, 컷당 2~3분) ② 1판 + 2판 합쳐 학습 · 1판과 같은 표로 평가 ③ 라벨 사이 보간 대신
+  장면 전부 찍기를 강제할지는 써 보고.
+

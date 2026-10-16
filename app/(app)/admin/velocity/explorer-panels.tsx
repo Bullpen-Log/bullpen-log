@@ -3,6 +3,8 @@
 import { useState } from 'react';
 import { ChevronRight, Film, RotateCcw, Trash2 } from 'lucide-react';
 import { Badge, Button } from '@/components/ui';
+import { BallLabelDialog } from './ball-labeler';
+import { pitchTarget } from '@/lib/velocity-ball-label';
 import {
   adminApplyMeasurement,
   adminDeleteCalibRun,
@@ -367,6 +369,8 @@ export function PitchPreview({
 }) {
   const [gun, setGun] = useState(p.gunKmh == null ? '' : String(p.gunKmh));
   const [re, setRe] = useState<Remeasure>({ kind: 'idle' });
+  /* 공 자리 찍기(학습 모델 2판 자료, ball-labeler.tsx) — 엔진이 못 잰 클립도 같은 도구로 */
+  const [labeling, setLabeling] = useState(false);
 
   const best = p.releaseKmh ?? p.kmh;
   const diff = p.gunKmh == null ? null : Math.round((best - p.gunKmh) * 10) / 10;
@@ -615,6 +619,28 @@ export function PitchPreview({
               ? `다시 재는 중 ${Math.round(re.ratio * 100)}%`
               : '이 영상으로 다시 재기'}
           </Button>
+        )}
+        {p.clipUrl && (
+          <Button
+            type="button"
+            variant="secondary"
+            className="h-9 px-3 py-0 text-xs"
+            onClick={() => setLabeling(true)}
+          >
+            공 자리 찍기
+          </Button>
+        )}
+        {labeling && p.clipUrl && (
+          <BallLabelDialog
+            target={pitchTarget(p.id)}
+            src={p.clipUrl}
+            fps={a?.fps ?? p.fps ?? 60}
+            startSec={Math.max(0, (p.clipEventSec ?? 0.25) - 0.25)}
+            endSec={p.clipSec}
+            title={`${pitchName(p)} · ${sessionName(s)}`}
+            onClose={() => setLabeling(false)}
+            onSaved={() => undefined}
+          />
         )}
         {p.clipPath && (
           <Button

@@ -1516,6 +1516,23 @@ model VelocityRecordingCut {
   @@index([partId])
 }
 
+/**
+ * 사람이 찍은 공 자리(공 감지 학습 모델 2판 자료, services/velocity-detector/pull-labels.mjs 가 내려받는다).
+ * 녹화 컷(VelocityRecordingCut) 또는 측정 클립(VelocityPitch) 하나에 하나 — 관계를 걸지 않고 target 글자로 가리킨다(원본이 지워지면 줄만 남는다).
+ */
+model VelocityBallLabel {
+  id        String   @id @default(uuid())
+  /// 'cut:<VelocityRecordingCut.id>' 또는 'pitch:<VelocityPitch.id>'
+  target    String   @unique
+  /// 영상 원본 크기(px) — 공 좌표의 기준
+  sourceW   Int
+  sourceH   Int
+  /// [{ t, ball }] — t 는 조각 · 클립 파일의 시각(초), ball 은 [x, y, 지름](원본 px) 또는 null(공 없는 장면)
+  frames    Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
 // ── 트레이닝 영상 촬영(관리자) ───────────────────────────────────────────────
 
 /**

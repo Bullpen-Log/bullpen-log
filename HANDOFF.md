@@ -11,6 +11,15 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 ---
 
+## 금윤호에게 — 2026-10-16 밤(4) · 김민(Claude, 데스크톱 · 구속측정 엔진) — 공 자리 찍기(학습 모델 2판 라벨 도구) · 받으면 `npx prisma generate`
+
+받은 뒤 할 일: **`npx prisma generate`** — 새 표 `VelocityBallLabel`(마이그레이션 `20261016150000_velocity_ball_label`, 더하기만 · DB 에 적용함, 백업 `db-2026-10-16-14-30.json`).
+네 영역(측정 화면 · Swift)은 안 건드렸다 — 관리자 구속 측정 화면 · 엔진 폴더만.
+- 관리자 녹화 편집기의 공마다 [공 자리 찍기], 탐색기 공 미리보기에도 [공 자리 찍기](`app/(app)/admin/velocity/ball-labeler.tsx`): 장면을 넘기며 공 가운데 · 가장자리를
+  눌러 저장(컷 · 클립마다 `VelocityBallLabel` 한 줄, 장면 시각 · 공 [x, y, 지름] 원본 px). 엔진이 못 잰 10-06 · 10-07 클립도 같은 도구로 찍는다.
+- `services/velocity-detector/pull-labels.mjs` 가 서버 라벨 + 영상을 받아 1판과 같은 `labels.json`(detector-v2) 로 — `train.py --dataset detector-v2` 가 그대로 읽는다.
+  자세한 것은 `docs/velocity/engine-2.7-plan.md` '5단계 2판 ②'. 시험으로 10-16 녹화 한 컷(12장면)을 찍어 둔 줄이 하나 있다.
+
 ## 금윤호에게 — 2026-10-16 밤(3) · 김민(Claude, 데스크톱 · 구속측정 엔진) — 엔진 2.7.1: 조용할 때 훑기가 학습 모델로 공을 찾는다
 
 받은 뒤 할 일 없음(DB · 패키지 · Swift 그대로 — onnxruntime-web 은 npm 에 안 넣고 jsDelivr 판 고정 주소에서 받는다, `lib/velocity-engine/ball-net.ts`).

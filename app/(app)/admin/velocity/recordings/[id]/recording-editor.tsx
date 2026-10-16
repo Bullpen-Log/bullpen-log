@@ -22,6 +22,8 @@ import {
   saveRecordingMemo,
 } from '@/app/actions/velocity-recording';
 import { Badge, Button, Card } from '@/components/ui';
+import { BallLabelDialog } from '../../ball-labeler';
+import { cutTarget, type BallLabel } from '@/lib/velocity-ball-label';
 import { OFFLINE_MESSAGE, orOffline } from '@/lib/action-offline';
 import { analyzeVideo, DEFAULT_FOV_DEG } from '@/lib/velocity-engine/analyze-video';
 import { reject as rejection, type RejectCode } from '@/lib/velocity-engine/validate';
@@ -43,6 +45,7 @@ import type {
  * 재기는 이 브라우저가 조각 파일을 내려받아 그 범위만 영상 파일 엔진에 넘긴다(녹화 때의 화각 · 렌즈 보정 · 카메라 위치로).
  *
  * 키보드(입력칸 밖): 스페이스 재생 · ←/→ 1프레임 · Shift+←/→ 1초 · M 공 표시.
+ * 공마다 '공 자리 찍기'(ball-labeler.tsx) — 학습 모델 2판 자료, 컷 범위의 장면에 사람이 공 중심 · 지름을 찍어 VelocityBallLabel 에 둔다.
  */
 
 const PRE_SEC = 0.6;
@@ -95,6 +98,8 @@ export function RecordingEditor({
   const [gunDraft, setGunDraft] = useState<Record<string, string>>({});
   const [memo, setMemo] = useState(detail.memo ?? '');
   const [batch, setBatch] = useState<{ done: number; total: number } | null>(null);
+  const [labels, setLabels] = useState<Record<string, BallLabel>>(detail.labels);
+  const [labeling, setLabeling] = useState<Cut | null>(null);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const barRef = useRef<HTMLDivElement>(null);
@@ -428,6 +433,7 @@ export function RecordingEditor({
   const keyRef = useRef<(e: KeyboardEvent) => void>(() => undefined);
   useEffect(() => {
     keyRef.current = (e: KeyboardEvent) => {
+      if (labeling) return;
       const el = e.target as HTMLElement | null;
       if (
         el &&
@@ -810,6 +816,11 @@ export function RecordingEditor({
                 }}
                 onWatch={() => watch(c)}
                 onMeasure={() => void measure(c)}
+                labelN={labels[c.id]?.frames.length ?? 0}
+                onLabel={() => {
+                  videoRef.current?.pause();
+                  setLabeling(c);
+                }}
                 onPatch={(patch) => update(c.id, patch)}
                 onRemove={() => void removeCut(c)}
                 here={c.partId === partId ? t : null}
@@ -819,6 +830,27 @@ export function RecordingEditor({
           </ul>
         )}
       </div>
+
+      {labeling && part && (
+        <BallLabelDialog
+          target={cutTarget(labeling.id)}
+          src={parts.find((p) => p.id === labeling.partId)?.url ?? ''}
+          fps={fps}
+          startSec={labeling.startSec}
+          endSec={labeling.endSec}
+          initial={labels[labeling.id] ?? null}
+          title={`${numberOf.get(labeling.id)}번 공`}
+          onClose={() => setLabeling(null)}
+          onSaved={(l) =>
+            setLabels((m) => {
+              const next = { ...m };
+              if (l) next[labeling.id] = l;
+              else delete next[labeling.id];
+              return next;
+            })
+          }
+        />
+      )}
     </div>
   );
 }
@@ -870,6 +902,8 @@ function CutItem({
   onSelect,
   onWatch,
   onMeasure,
+  labelN,
+  onLabel,
   onPatch,
   onRemove,
   here,
@@ -887,6 +921,9 @@ function CutItem({
   onSelect: () => void;
   onWatch: () => void;
   onMeasure: () => void;
+  /** 사람이 찍은 공 자리 장면 수(학습 자료) */
+  labelN: number;
+  onLabel: () => void;
   onPatch: (patch: Partial<Cut>) => void;
   onRemove: () => void;
   /** 이 공의 조각을 보고 있으면 지금 시각(시작 · 끝을 여기로) */
@@ -1049,6 +1086,10 @@ function CutItem({
         <SmallButton onClick={onMeasure} disabled={busy != null || !!c.tmp}>
           <Gauge aria-hidden className="h-3.5 w-3.5" />
           재기
+        </SmallButton>
+        <SmallButton onClick={onLabel} disabled={!!c.tmp} pressed={labelN > 0}>
+          <Crosshair aria-hidden className="h-3.5 w-3.5" />
+          {labelN > 0 ? `공 자리 ${labelN}장면` : '공 자리 찍기'}
         </SmallButton>
         <SmallButton
           onClick={() => onPatch({ excluded: !c.excluded })}

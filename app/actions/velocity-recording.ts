@@ -12,6 +12,12 @@ import {
   isStorageConfigured,
 } from '@/lib/storage';
 import { toDateKey } from '@/lib/pitch-stats';
+import {
+  TARGET_RE,
+  cutTarget,
+  parseBallLabel,
+  type BallLabel,
+} from '@/lib/velocity-ball-label';
 
 /**
  * 구속 측정 — 엔진 개발용 녹화(관리자). 측정 화면에서 측정 없이 찍은 원본 영상을 조각(30초 남짓, 앞 조각과 몇 초 겹침)으로
@@ -317,6 +323,7 @@ export async function deleteRecordingCut(cutId: string): Promise<RecordingResult
   const user = await requireAdminUser();
   if (!user) return { ok: false, error: '관리자만 고칠 수 있어요.' };
   await prisma.velocityRecordingCut.deleteMany({ where: { id: String(cutId) } });
+  await prisma.velocityBallLabel.deleteMany({ where: { target: cutTarget(String(cutId)) } });
   return { ok: true };
 }
 
@@ -348,4 +355,37 @@ export async function saveRecordingMemo(
     data: { memo: memo.trim() ? memo.trim().slice(0, 500) : null },
   });
   return { ok: true };
+}
+
+/* ───────── 사람이 찍은 공 자리(학습 모델 2판 자료) — lib/velocity-ball-label.ts ───────── */
+
+/** 컷 · 클립 하나의 공 자리를 통째로 덮어쓴다(장면 0개면 지운다) */
+export async function saveBallLabel(
+  target: string,
+  input: unknown
+): Promise<RecordingResult<{ frames: number }>> {
+  const user = await requireAdminUser();
+  if (!user) return { ok: false, error: '관리자만 찍을 수 있어요.' };
+  if (!TARGET_RE.test(String(target))) return { ok: false, error: '대상이 올바르지 않아요.' };
+  const label = parseBallLabel(input);
+  if (!label) return { ok: false, error: '공 자리 모양이 올바르지 않아요.' };
+  if (label.frames.length === 0) {
+    await prisma.velocityBallLabel.deleteMany({ where: { target } });
+    return { ok: true, frames: 0 };
+  }
+  const frames = label.frames as unknown as Prisma.InputJsonValue;
+  await prisma.velocityBallLabel.upsert({
+    where: { target },
+    create: { target, sourceW: label.sourceW, sourceH: label.sourceH, frames },
+    update: { sourceW: label.sourceW, sourceH: label.sourceH, frames },
+  });
+  return { ok: true, frames: label.frames.length };
+}
+
+/** 찍어 둔 공 자리 — 없으면 null(관리자 탐색기의 측정 클립이 열 때 읽는다) */
+export async function loadBallLabel(target: string): Promise<BallLabel | null> {
+  const user = await requireAdminUser();
+  if (!user || !TARGET_RE.test(String(target))) return null;
+  const row = await prisma.velocityBallLabel.findUnique({ where: { target } });
+  return row ? parseBallLabel({ sourceW: row.sourceW, sourceH: row.sourceH, frames: row.frames }) : null;
 }

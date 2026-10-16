@@ -32,6 +32,26 @@ SmartScout · PitchLab 처럼 **학습한 모델로 공을 찾는다.** 지금 �
 `lib/velocity-engine/ball-net.ts` 가 onnxruntime-web(WASM, jsDelivr 판 고정)으로 돌리고, 조용할 때 훑기(`analyze-video.ts locateThrow`)가 이것으로 날아간 공을
 찾는다(긴 변 736 · 0.2초마다 세 장면 · 데스크톱 59ms/장면). 모델을 새로 학습하면 ONNX 를 다시 내보내 같은 자리에 덮고 `ball-net.ts` 머리말의 수치를 고친다.
 
+## 2판 자료 — 사람이 찍은 공 자리(2026-10-16)
+
+1판 라벨은 '엔진이 이미 잰 클립'뿐이라 진짜 어려운 장면(엔진이 못 잰 클립 · 실내 · 흔들림)이 자료에 없다. 2판은 관리자가 직접 찍는다.
+
+```
+관리자 구속 측정 › 엔진 개발용 녹화 › 녹화 편집기 › 공마다 [공 자리 찍기]      (측정 클립은 관리자 탐색기 › 공 미리보기 › [공 자리 찍기])
+  장면을 하나씩 넘기며 공 가운데 → 가장자리를 눌러 저장 → 서버 VelocityBallLabel(컷 · 클립마다 한 줄, 장면 시각 t · 공 [x, y, 지름] 원본 px)
+  │ node --env-file=.env services/velocity-detector/pull-labels.mjs      영상을 받아 디코더로 장면 JPEG(긴 변 960) + labels.json(1판과 같은 꼴)
+  ▼
+~/bullpen-velocity-lab/detector-v2/{videos/, images/<클립>/NNN.jpg, labels.json}
+  │ modal volume put bullpen-ball-detector-data ~/bullpen-velocity-lab/detector-v2 /detector-v2
+  │ modal run services/velocity-detector/train.py --dataset detector-v2 [--tag v2]
+```
+
+- 찍는 화면 `app/(app)/admin/velocity/ball-labeler.tsx`: ←/→ 장면, 가운데 누르고 가장자리 한 번 더(또는 끌기), 가운데만 찍고 넘기면 지난 지름, N 공 없음, S 저장.
+  한 컷에 10~15 장면이면 된다. 공 없는 장면도 찍어 두면(N) 헛 알림 자료가 된다.
+- 모델 입력이 연속 세 장면이라 장면이 이어져야 한다 — pull-labels 가 안 찍은 장면(3장 안, 양쪽이 공)은 선으로 이어 채우고, 더 긴 빈틈에서는 클립을 가른다.
+  클립 앞의 두 장면은 안 찍은 것(ball null)인데 train.py 가 i ≥ 2 만 표본으로 쓰니 상관없다.
+- 1판 · 2판 자료를 합쳐 학습하려면 두 labels.json 의 clips 를 이어 붙인 폴더를 하나 더 만들면 된다(images 는 클립 id 가 달라 겹치지 않는다).
+
 ## 비용
 
 T4 시간당 약 0.6달러 — 1판 학습 한 번 15분 = 150원쯤. 자료 올리기 · 보관은 무료 한도 안.
