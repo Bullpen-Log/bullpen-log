@@ -251,12 +251,27 @@ async function ownerIds(viewer: LabViewer): Promise<string[]> {
   return [viewer.id, ...ids.filter((x) => x !== viewer.id)];
 }
 
+/**
+ * 마커 샘플(meta.kind 'marker')을 보는 계정 하나 — 2026-10-16 김민: "마커 샘플은 이 계정만 보게". 다른 관리자(같은 사람의 다른 계정 포함)에게는
+ * 목록 · 결과 화면 · 동작(분석 걸기 · 지우기 · 올리기) 모두에서 없는 샘플이다. 폴더는 그대로(지금 있는 마커는 다른 관리자 폴더에 있어도 보인다).
+ */
+const MARKER_VIEWER_ID = 'e0418384-8334-4c4b-85e3-b042cad362c5';
+export const seesMarkerSamples = (viewer: LabViewer) => viewer.id === MARKER_VIEWER_ID;
+
+async function isMarkerFolder(uid: string, id: string): Promise<boolean> {
+  const raw = (await getJson(`${folder(uid, id)}/meta.json`)) as { kind?: unknown } | null;
+  return raw?.kind === 'marker';
+}
+
 /** 그 샘플이 든 폴더의 주인(보는 사람이 볼 수 있는 폴더 안에서) — 없으면 null. 자기 폴더를 먼저 본다 */
 export async function findLabOwner(id: string, viewer: LabViewer): Promise<string | null> {
   const order = await ownerIds(viewer);
   for (const uid of order) {
     const { data, error } = await videoBucket().list(folder(uid, id), { limit: 1 });
-    if (!error && (data ?? []).length > 0) return uid;
+    if (!error && (data ?? []).length > 0) {
+      if (!seesMarkerSamples(viewer) && (await isMarkerFolder(uid, id))) return null;
+      return uid;
+    }
   }
   return null;
 }
@@ -284,7 +299,9 @@ export async function listLabSamples(viewer: LabViewer): Promise<LabSample[]> {
       return Promise.all(ids.map((id) => readSample(uid, id)));
     })
   );
-  const samples = per.flat();
+  const samples = per
+    .flat()
+    .filter((s) => s.meta?.kind !== 'marker' || seesMarkerSamples(viewer));
   await attachUrls(samples);
   return samples.sort((a, b) =>
     (b.meta?.createdAt ?? '').localeCompare(a.meta?.createdAt ?? '')

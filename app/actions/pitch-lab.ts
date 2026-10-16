@@ -7,6 +7,7 @@ import {
   deleteLabSample,
   deleteUnsavedLabSample,
   findLabOwner,
+  seesMarkerSamples,
   labVideoUrls,
   loadLabGuard,
   loadLabJob,
@@ -85,8 +86,8 @@ export async function saveLabSample(input: {
     await saveLabMeta(
       (await findLabOwner(input.id, user)) ?? user.id,
       input.id,
-      /* 마커 샘플은 관리자 스크립트만 — 일반 사용자가 보낸 kind 는 늘 sample */
-      user.role === 'ADMIN' ? meta : { ...meta, kind: 'sample' as const }
+      /* 마커 샘플은 마커를 보는 계정만(lib/pitch-lab.ts seesMarkerSamples) — 다른 사람이 보낸 kind 는 늘 sample */
+      seesMarkerSamples(user) ? meta : { ...meta, kind: 'sample' as const }
     );
   } catch {
     return { error: '정보를 저장하지 못했어요. 다시 해 주세요.' };
