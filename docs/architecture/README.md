@@ -58,7 +58,7 @@
 18. ◻ **[고침 — 색인 8개, 마이그레이션 20261016130000]** `PitchLog` 인덱스 0개 + 외래키 인덱스 빠진 표 8개(`relationMode = "prisma"` 라 지울 때 전체 훑기).
 19. ◻ 구속 공 · 세션의 `engineVersion` 은 서버 상수 — 옛 탭 · 옛 앱이 잰 공이 새 판으로 찍혀 보정 짝에 섞인다.
 20. ◻ 두 사람이 함께 자주 고치는 큰 파일: `velocity-screen.tsx` 4,269줄 · `app-shell.tsx` 3,120줄 · `globals.css` · `HANDOFF.md` 1,154줄.
-21. ◻ 죽은 표 · 칸: `AiReport` · `PoseAnalysis`(지우기만) · `photoCalls` · `stress/mood/restingHr` · `wideClip*` · `competitionLevel`.
+21. ◻ **[고침 — AiReport · PoseAnalysis · 체크인 칸 다섯 · photoCalls 지움(2단계), wideClip · mode · competitionLevel 은 아직 읽어서 남김]** 죽은 표 · 칸: `AiReport` · `PoseAnalysis`(지우기만) · `photoCalls` · `stress/mood/restingHr` · `wideClip*` · `competitionLevel`.
 22. ◻ `lib/clock-server.ts:2` 가 Next 내부 경로를 import — Next 를 올릴 때 깨질 수 있다.
 
 **보고와 달리 문제 아님(확인함)**: 3D 영상 150MB 한도 — 버킷도 150MB 로 올렸다(`pitch-lab-meta.ts:10`) ·
