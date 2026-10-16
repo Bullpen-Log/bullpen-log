@@ -5,6 +5,7 @@ import {
   pointOnRayAtDistance,
   project,
   ray,
+  rayColumn,
   rootsOnRay,
   triangulate,
   type Calibration,
@@ -171,6 +172,15 @@ const CALIB_JOINTS = [
   J.rAn,
 ];
 const ALL_JOINTS = Array.from({ length: N_JOINTS }, (_, j) => j);
+/**
+ * 착지 무렵 앞다리(leadPlaced) — 구간은 첫 닿음에서 (착지 → 릴리스)의 LEAD_PRE 배 앞 ~ 릴리스 뒤 (발목 착지 → 릴리스)의 절반(엔진이 앞발을 묶는
+ * 구간과 같은 끝). 옆 확신 LEAD_SIDE_MIN · 뒤 확신 LEAD_BACK_MIN(가려져 지운 0.2 도 가로는 쓴다) 이상일 때. 뒤 영상이 또렷하고(0.3↑) 그대로 교차한
+ * 점이 뒤 영상에 LEAD_AGREE(사람 크기 대비) 안으로 비치면 그대로 교차, 아니면 옆 시선 × 뒤 영상 가로.
+ */
+const LEAD_PRE = 0.25;
+const LEAD_SIDE_MIN = 0.5;
+const LEAD_BACK_MIN = 0.1;
+const LEAD_AGREE = 0.04;
 /** 결과에 남기는 장면 상한(검토 R9 — analysis.json 300KB 밑) */
 const MAX_FRAMES = 400;
 /** 장면 밀도(초당) 경고 문턱(검토 R1) */
@@ -227,6 +237,8 @@ export type Pitch3dCore = {
   backTime: (number | null)[];
   /** 다듬은 3D(synced 차례, 보정 좌표계) */
   smooth: Frame3[];
+  /** 착지 무렵 앞다리를 앞다리 규칙(두 영상이 맞는 교차, 아니면 옆 시선 × 뒤 영상 가로)으로 놓은 관절(synced 차례 × 관절) — v2 맞추기가 쓴다 */
+  leadPlaced: boolean[][];
   /** footContact = 앞발이 처음 닿은 장면(지표 · 화면의 '착지', 없으면 footPlant) — footPlant 는 엔진이 발을 묶는 기준 */
   evIdx: { kneeUp: number | null; footPlant: number; footContact: number; release: number };
   axes: WorldAxes;
@@ -343,9 +355,42 @@ export function analyzePitch3dCore(input: Pitch3dInput): Pitch3dCore | Pitch3dFa
   /* 3D — 두 영상 다 보이면 교차, 한쪽만 믿을 만하면 그 시선 위 · 부모로부터 뼈 길이만큼(R4) */
   /* 두 영상이 서로 안 맞아 버린 관찰(agrees) — 또렷한 쪽 시선 위에 다시 놓는다(아래 R4) */
   const dropped: boolean[][] = synced.map(() => new Array<boolean>(N_JOINTS).fill(false));
+  /*
+   * 착지 무렵 앞다리 — 뒤(2루) 영상에서 앞다리는 축다리 · 몸 뒤에 가려 2D 모델이 세로 자리를 지어낸다. 2026-10-16 마커 13구(세 대 교차 정답을 뒤 영상에
+   * 비춤): 착지 ~ 릴리스 앞무릎 · 발목의 가로 오차 가운데 0.3~1.3% · 90% 2%, 세로 90% 8~18%(사람 키 대비) — 가려진 점이 축다리 위에 찍혀도 두 다리가
+   * 그 영상에서 겹쳐 보일 만큼 가로는 같다. 예전엔 흐린 · 어긋난 뒤 점을 버리고 옆 시선 위에 뼈 길이로 놓아(R4) 착지 앞발목이 3루 쪽으로 15cm · 위로
+   * 7cm 가 가 착지 앞무릎이 12° 펴졌다. 그래서 두 영상이 맞으면 그대로 교차하고, 아니면 옆 영상 두 좌표 + 뒤 영상 가로만으로 놓는다(R4 · 버림 없음).
+   * 앞다리는 옆 영상에서 내딛는 동안 발목이 더 멀리 간 쪽(이름이 아니라 움직임 — 2D 모델이 다리 이름을 바꿔 찍은 영상에도).
+   */
+  const leadPlaced: boolean[][] = synced.map(() => new Array<boolean>(N_JOINTS).fill(false));
+  {
+    const contact = ev.footContact ?? ev.footPlant;
+    const from = contact - LEAD_PRE * (ev.release - contact);
+    const to = ev.release + 0.5 * (ev.release - ev.footPlant);
+    const travel = (an: number) => {
+      const xs = synced.filter((s) => s.t <= contact && s.side[an].v >= 0.5).map((s) => s.side[an].x);
+      return xs.length >= 2 ? Math.abs(xs[xs.length - 1] - xs[0]) : 0;
+    };
+    const lead = travel(J.lAn) >= travel(J.rAn) ? [J.lKn, J.lAn, J.lHe, J.lTo] : [J.rKn, J.rAn, J.rHe, J.rTo];
+    synced.forEach((s, k) => {
+      if (s.t < from || s.t > to) return;
+      for (const j of lead)
+        leadPlaced[k][j] = s.side[j].v >= LEAD_SIDE_MIN && s.back[j].v >= LEAD_BACK_MIN;
+    });
+  }
   const raw: Frame3[] = synced.map((s, k) =>
     s.side.map((a, j) => {
       const b = s.back[j];
+      if (leadPlaced[k][j]) {
+        if (b.v >= 0.3) {
+          const T = triangulate(cal!.side, a, cal!.back, b);
+          const q = T && project(cal!.back, T);
+          if (T && q && Math.hypot(q[0] - b.x, q[1] - b.y) <= LEAD_AGREE * back.person) return T;
+        }
+        const X = rayColumn(cal!.side, a, cal!.back, b.x);
+        if (X) return X;
+        leadPlaced[k][j] = false;
+      }
       if (!(a.v >= 0.3 && b.v >= 0.3)) return null;
       const X = triangulate(cal!.side, a, cal!.back, b);
       if (X && !agrees(cal!, X, a, b, side.person, back.person)) {
@@ -376,6 +421,7 @@ export function analyzePitch3dCore(input: Pitch3dInput): Pitch3dCore | Pitch3dFa
   const fixed: Frame3[] = raw.map((pts, k) => {
     const s = synced[k];
     const out = pts.map((X, j) => {
+      if (leadPlaced[k][j]) return X;
       const p = PARENT[j];
       const L = boneLen.get(j);
       if (p == null || L == null) return X;
@@ -610,6 +656,7 @@ export function analyzePitch3dCore(input: Pitch3dInput): Pitch3dCore | Pitch3dFa
     synced,
     backTime,
     smooth,
+    leadPlaced,
     evIdx,
     axes,
     H,

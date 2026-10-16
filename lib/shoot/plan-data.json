@@ -3288,22 +3288,6 @@
      "end": 23.5,
      "items": [
       {
-       "exerciseId": "d7acede9-5efa-464b-b1f2-c6d3d89cf455",
-       "no": "4-01",
-       "title": "백 페달",
-       "station": "넓은 바닥(이동)",
-       "bucket": "모빌리티",
-       "equipment": [
-        "맨몸"
-       ],
-       "at": 15,
-       "minutes": 1.7,
-       "load": 0.5,
-       "cue": "2~3회 · 끝 자세 2초",
-       "perSide": false,
-       "breakAfter": false
-      },
-      {
        "exerciseId": "752f043d-e7a3-4044-a79e-1f404893e0eb",
        "no": "4-02",
        "title": "워킹 니 허그",

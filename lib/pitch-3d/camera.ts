@@ -111,6 +111,19 @@ export function pointOnRayAtDistance(r: { o: Vec3; d: Vec3 }, P: Vec3, L: number
   return norm(sub(a, near)) <= norm(sub(b, near)) ? a : b;
 }
 
+/**
+ * 한 영상의 시선과 다른 영상의 '세로줄 면'(그 카메라 중심과 화면 가로 xb 를 지나는 면)이 만나는 점 — 다른 영상은 가로 자리만 믿을 때
+ * (가려진 다리의 세로 자리를 2D 모델이 지어냈을 때, analyze.ts 착지 무렵 앞다리). 시선이 면과 거의 나란하거나(84° 넘게) 카메라 뒤면 null.
+ */
+export function rayColumn(a: Camera, oa: Obs, b: Camera, xb: number): Vec3 | null {
+  const r = ray(a, oa.x, oa.y);
+  const n = normalize(mulV(transpose(b.R), [b.f, 0, -(xb - b.cx)]));
+  const den = dot(n, r.d);
+  if (Math.abs(den) < 0.1) return null;
+  const s = dot(n, sub(cameraCenter(b), r.o)) / den;
+  return s > 0 ? add(r.o, scale(r.d, s)) : null;
+}
+
 /* ───────────────────────────── 본질 행렬 ───────────────────────────── */
 
 type Pair = { a: [number, number]; b: [number, number]; w: number };
