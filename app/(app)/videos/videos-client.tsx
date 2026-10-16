@@ -6,7 +6,6 @@ import { PageHeading } from '@/components/ui';
 import { useTodayKey } from '@/components/use-today-key';
 import {
   PITCH_VIEW_OPTIONS,
-  PitchControls,
   PitchLogHeading,
   PitchViewSwitch,
   VELOCITY_ADMIN_OPTION,
@@ -181,9 +180,10 @@ export function VideosClient({
 
   return (
     <div className="stack-page">
-      {/* 머리 — 제목 옆은 '분석'(보기) 하나, 고르개 밑(PC 는 고르개 줄 오른쪽)에 찍으러 가는 문 둘(2026-10-14) */}
+      {/* 머리 — 제목 줄 오른쪽에 찍으러 가는 문 둘 + '분석', 밑 줄은 고르개만(2026-10-16) */}
       <PitchLogHeading
-        controls={<PitchControls switcher={viewControls} canMeasure={canMeasure} />}
+        controls={viewControls}
+        canMeasure={canMeasure}
       />
 
       {/* 오늘 — 계획 한 줄 · 던지는 일정(접힌 알약) · 기록 남기기 */}

@@ -61,24 +61,29 @@ const SWITCH_WIDTH = 'flex-1 pad:flex-none pad:min-w-80 desk:w-auto desk:flex-no
 const SWITCH_WIDTH_WIDE = 'w-full pad:w-auto pad:flex-none pad:min-w-80 desk:w-auto desk:flex-none';
 
 /*
- * 찍으러 가는 문 — 고르개 옆 작은 칩(2026-10-15 사용자 "투구 파트도 우리 시스템에 맞게"). 예전엔 고르개 밑 흰 카드 단추 둘이
- * 한 줄(44px)을 통째로 썼다. 휴대폰 40px 알약(누르는 자리 규칙) · PC 는 예전 하늘색 작은 단추.
+ * 찍으러 가는 문 — 제목 줄 오른쪽('분석' 앞). 휴대폰은 그림만 있는 40px 동그라미, 패드 · PC 는 이름까지(2026-10-16 디자인 점검 — 고르개 옆
+ * 칩이 고르개 밑 한 줄을 더 써, 투구 탭 위가 고르개 · 칩 · 오늘 카드 세 겹이었다. 그 전엔 10-15 고르개 밑 흰 카드 단추 줄).
  */
 const TOOL_CHIP =
-  'inline-flex h-10 shrink-0 items-center gap-1 rounded-full bg-ink/6 px-3 text-footnote font-semibold text-ink transition-opacity active:opacity-60 desk:h-9 desk:rounded-lg desk:border desk:border-sky desk:bg-sky-tint desk:px-3 desk:text-xs desk:text-sky-strong desk:hover:bg-sky-tint/70';
+  'inline-flex h-10 w-10 shrink-0 items-center justify-center gap-1 rounded-full bg-ink/6 text-footnote font-semibold text-ink transition-opacity active:opacity-60 pad:w-auto pad:px-3 desk:h-9 desk:w-auto desk:rounded-lg desk:border desk:border-sky desk:bg-sky-tint desk:px-3 desk:text-xs desk:text-sky-strong desk:hover:bg-sky-tint/70';
 
 /**
  * 구속 측정(앱 안이면 누구나, 웹이면 관리자만 · canMeasure) · 3D 동작 분석(누구나). 링크가 아니라 push 라 뒤로 가기로 그 화면 ·
- * 그 보기로 돌아온다. 휴대폰은 칩 글을 줄이고('3D 분석'), 패드 · PC 는 온 이름.
+ * 그 보기로 돌아온다. 휴대폰은 그림만(이름은 aria-label), 패드 · PC 는 이름까지.
  */
 function PitchTools({ canMeasure }: { canMeasure: boolean }) {
   const router = useRouter();
   return (
     <div className="flex shrink-0 items-center gap-1.5">
       {canMeasure && (
-        <button type="button" onClick={() => router.push('/velocity')} className={TOOL_CHIP}>
+        <button
+          type="button"
+          onClick={() => router.push('/velocity')}
+          aria-label="구속 측정"
+          className={TOOL_CHIP}
+        >
           <Radar aria-hidden className="h-4 w-4 text-sky-strong" />
-          구속 측정
+          <span aria-hidden className="hidden pad:inline desk:inline">구속 측정</span>
         </button>
       )}
       <button
@@ -88,26 +93,9 @@ function PitchTools({ canMeasure }: { canMeasure: boolean }) {
         className={TOOL_CHIP}
       >
         <Rotate3d aria-hidden className="h-4 w-4 text-sky-strong" />
-        <span aria-hidden className="pad:hidden desk:hidden">3D 분석</span>
         <span aria-hidden className="hidden pad:inline desk:inline">3D 동작 분석</span>
       </button>
     </div>
-  );
-}
-
-/** 고르개 줄 — 고르개(왼쪽) + 찍으러 가는 칩. 두 화면이 같은 조각을 쓴다 */
-export function PitchControls({
-  switcher,
-  canMeasure,
-}: {
-  switcher: ReactNode;
-  canMeasure: boolean;
-}) {
-  return (
-    <>
-      {switcher}
-      <PitchTools canMeasure={canMeasure} />
-    </>
   );
 }
 
@@ -141,13 +129,15 @@ export function PitchViewSwitch({
  * 오른쪽에 붙인다 — 한 줄(60px 남짓)만큼 본문이 커진다. 한 벌만 보이고 나머지는 숨는다
  * (display: none). 두 조각을 돌려주므로 stack-page 안에 바로 둔다.
  *
- * controls — 고르개 줄(왼쪽 것 · 고르개). action — 제목 줄 오른쪽 단추.
+ * controls — 고르개. canMeasure — 제목 줄의 구속 측정 단추를 보일지. action — 제목 줄 오른쪽 단추.
  */
 export function PitchLogHeading({
   controls,
+  canMeasure,
   action,
 }: {
   controls: ReactNode;
+  canMeasure: boolean;
   /** 제목 줄 오른쪽 — '분석' 뒤에 붙는다(구속 측정 관리자는 PC 단추들) */
   action?: ReactNode;
 }) {
@@ -166,6 +156,7 @@ export function PitchLogHeading({
           action={
             <div className="flex items-center gap-2">
               <div className="hidden items-center gap-2 desk-low:flex">{controls}</div>
+              <PitchTools canMeasure={canMeasure} />
               <AnalysisLink view="pitch" />
               {action}
             </div>

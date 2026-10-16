@@ -1,6 +1,5 @@
 import { Skeleton } from '@/components/fallback';
 import {
-  PitchControls,
   PitchLogHeading,
   VelocityAdminViewSwitch,
 } from '@/app/(app)/videos/pitch-log-heading';
@@ -17,7 +16,8 @@ export default function Loading() {
   return (
     <div className="stack-page" aria-busy="true" aria-live="polite">
       <PitchLogHeading
-        controls={<PitchControls switcher={<VelocityAdminViewSwitch />} canMeasure />}
+        controls={<VelocityAdminViewSwitch />}
+        canMeasure
         action={<Skeleton className="hidden h-9 w-56 rounded-xl desk:block" />}
       />
       <span className="sr-only">불러오는 중입니다</span>
