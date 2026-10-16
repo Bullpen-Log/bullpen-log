@@ -311,6 +311,13 @@ export async function setWeight(
     update: { weightKg },
     create: { userId: user.id, date: dbDate(date), weightKg },
   });
+  /*
+   * 오늘 적은 체중은 프로필 몸무게(User.weightKg)에도 — 내 정보 · 트레이닝(체중을 쓰는 운동) · 기록이 30일 넘게 없을 때의 영양 목표가 그 칸을
+   * 읽는다(2026-10-16 통합 검토 D5: 가장 최근 기록 하나). 지난 날을 고친 것 · 지운 것은 건드리지 않는다.
+   */
+  if (weightKg != null && date === toDateKey(appNow())) {
+    await prisma.user.update({ where: { id: user.id }, data: { weightKg } });
+  }
   revalidatePath(PATH);
   return { ok: true };
 }

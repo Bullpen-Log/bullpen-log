@@ -2,6 +2,9 @@
 
 import { revalidatePath } from 'next/cache';
 import { prisma } from '@/lib/prisma';
+import { appNow } from '@/lib/clock';
+import { toDateKey } from '@/lib/pitch-stats';
+import { dbDate } from '@/lib/nutrition/days';
 import { getCurrentUser } from '@/lib/dal';
 import {
   checkOptionalNumber,
@@ -91,7 +94,21 @@ async function tryUpdateProfile(formData: FormData): Promise<ProfileState> {
     },
   });
 
-  // 헤더의 닉네임과 대시보드 안내 문구가 바로 반영되게 한다(성별이 바뀌면 영양 목표도).
+  /*
+   * 몸무게를 바꿨으면 오늘 체중 기록에도 남긴다 — 영양 목표 · 소모 칼로리는 최근 30일 체중 기록을 User 보다 먼저 읽어서(lib/nutrition/load.ts
+   * recentWeightKg), 프로필에서만 고치면 한 달 동안 옛 체중으로 셌다(2026-10-16 통합 검토 D5: 가장 최근 기록 하나가 진실). 그대로면 안 쓴다 —
+   * 닉네임만 고쳐도 오늘 기록이 생기면 다른 날 적은 체중보다 앞서 버린다.
+   */
+  if (weight.value != null && weight.value !== user.weightKg) {
+    const date = dbDate(toDateKey(appNow()));
+    await prisma.dailyNutrition.upsert({
+      where: { userId_date: { userId: user.id, date } },
+      update: { weightKg: weight.value },
+      create: { userId: user.id, date, weightKg: weight.value },
+    });
+  }
+
+  // 헤더의 닉네임과 대시보드 안내 문구가 바로 반영되게 한다(성별 · 몸무게가 바뀌면 영양 목표도).
   revalidatePath('/', 'layout');
 
   return { success: '저장했어요.' };

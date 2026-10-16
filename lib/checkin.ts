@@ -942,10 +942,14 @@ export function sleepLevelFromQuality(q: number): (typeof SLEEP_LEVELS)[number] 
   return q >= 4 ? '충분' : '보통';
 }
 
-/** 컨디션 1~10 의 세 띠 — 화면의 그림(아픔 · 보통 · 건강)과 말. 문턱(LOW_CONDITION_THRESHOLD)은 그대로 */
+/**
+ * 컨디션 1~10 의 세 띠 — 화면의 그림(아픔 · 보통 · 건강)과 말. '아파요' 띠의 끝 = 엔진의 낮은 날 문턱(LOW_CONDITION_THRESHOLD 4).
+ * 예전엔 1~3 이라 4 를 고르면 화면은 '보통이에요'인데 엔진은 회복 날로 짰다(2026-10-16 통합 검토 D4 — 엔진 문턱 대신 화면을 맞췄다,
+ * 문턱을 내리면 이미 맞춰 둔 추천이 바뀐다). 통증 화면을 켜 두는 선(PAIN_FORCED_CONDITION 3)은 사용자 결정이라 그대로.
+ */
 export const CONDITION_BANDS = [
-  { key: 'sick', label: '아파요', min: 1, max: 3 },
-  { key: 'normal', label: '보통이에요', min: 4, max: 7 },
+  { key: 'sick', label: '아파요', min: 1, max: 4 },
+  { key: 'normal', label: '보통이에요', min: 5, max: 7 },
   { key: 'good', label: '좋아요', min: 8, max: 10 },
 ] as const;
 export type ConditionBand = (typeof CONDITION_BANDS)[number]['key'];
