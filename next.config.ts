@@ -23,6 +23,22 @@ const nextConfig: NextConfig = {
   experimental: {
     staleTimes: { dynamic: 30 },
   },
+  /*
+   * 보안 응답 머리(2026-10-16 보안 검토). 다른 사이트가 우리 화면을 iframe 에 넣어 클릭을 가로채지 못하게,
+   * 파일 종류를 멋대로 짐작하지 않게, 밖으로 나갈 때 주소를 통째로 넘기지 않게.
+   */
+  async headers() {
+    return [
+      {
+        source: '/(.*)',
+        headers: [
+          { key: 'Content-Security-Policy', value: "frame-ancestors 'none'" },
+          { key: 'X-Content-Type-Options', value: 'nosniff' },
+          { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+        ],
+      },
+    ];
+  },
   images: {
     remotePatterns: [
       // 유튜브 영상 썸네일

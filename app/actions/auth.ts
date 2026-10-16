@@ -2,6 +2,7 @@
 
 import { redirect } from 'next/navigation';
 import bcrypt from 'bcryptjs';
+import { BLOCKED_TEXT, blockedMinutes, clearFails, noteFail } from '@/lib/rate-limit';
 import { prisma } from '@/lib/prisma';
 import { getCurrentUser } from '@/lib/dal';
 import { deleteUserCompletely } from '@/lib/delete-user';
@@ -226,6 +227,9 @@ async function tryLogin(formData: FormData): Promise<AuthState> {
     return { error: '이메일과 비밀번호를 입력해 주세요.' };
   }
 
+  const blocked = await blockedMinutes(email);
+  if (blocked) return { error: BLOCKED_TEXT(blocked) };
+
   const user = await prisma.user.findUnique({
     where: { email },
     select: { id: true, role: true, password: true },
@@ -233,8 +237,10 @@ async function tryLogin(formData: FormData): Promise<AuthState> {
 
   // 이메일이 없는 경우와 비밀번호가 틀린 경우를 구분하지 않는다.
   if (!user || !(await bcrypt.compare(password, user.password))) {
+    await noteFail(email);
     return { error: '이메일 또는 비밀번호가 올바르지 않아요.' };
   }
+  await clearFails(email);
 
   /*
    * '자동 로그인'을 켜고 왔는가.
@@ -304,7 +310,10 @@ export async function changePassword(
     where: { id: user.id },
     select: { password: true },
   });
+  const blocked = await blockedMinutes(user.id);
+  if (blocked) return { error: BLOCKED_TEXT(blocked) };
   if (!row || !(await bcrypt.compare(current, row.password))) {
+    await noteFail(user.id);
     return { error: '지금 비밀번호가 맞지 않아요.' };
   }
 
@@ -358,7 +367,10 @@ export async function deleteAccount(
     where: { id: user.id },
     select: { password: true },
   });
+  const blocked = await blockedMinutes(user.id);
+  if (blocked) return { error: BLOCKED_TEXT(blocked) };
   if (!row || !(await bcrypt.compare(password, row.password))) {
+    await noteFail(user.id);
     return { error: '비밀번호가 맞지 않아요.' };
   }
 
