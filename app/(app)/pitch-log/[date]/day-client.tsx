@@ -242,6 +242,7 @@ export function DayClient({
               </p>
             </div>
             <EntryForm
+              isAdmin={isAdmin}
               date={date}
               initial={{
                 ...log,
@@ -263,6 +264,7 @@ export function DayClient({
               <p className="mt-1 text-sm text-muted">영상도 함께 바꿀 수 있어요</p>
             </div>
             <EntryForm
+              isAdmin={isAdmin}
               date={date}
               initial={log}
               onSaved={handleSaved}
@@ -335,6 +337,7 @@ export function DayClient({
               )}
             </div>
             <EntryForm
+              isAdmin={isAdmin}
               /* 측정을 남기면 채울 값이 바뀌어(없어져) 폼을 새로 연다 */
               key={`${date}:${velocityPrefill?.sessionIds.join(',') ?? ''}:${drillNew ? 'drill' : ''}`}
               date={date}

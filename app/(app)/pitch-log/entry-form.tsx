@@ -275,6 +275,7 @@ export function EntryForm({
   onSaved,
   onError,
   onCancel,
+  isAdmin = false,
 }: {
   date: string;
   /** 주어지면 등록이 아니라 수정 폼이 된다. */
@@ -292,6 +293,8 @@ export function EntryForm({
   onSaved: () => Promise<void> | void;
   onError: (message?: string) => void;
   onCancel?: () => void;
+  /** 관리자 영상은 폰이 아니라 늘 서버에 — 앱을 다시 깔면 폰 안 영상이 지워진다(2026-10-16 김민: 관리자가 올리는 건 Supabase 에) */
+  isAdmin?: boolean;
 }) {
   const editing = Boolean(initial);
 
@@ -609,7 +612,7 @@ export function EntryForm({
                   confirmRemove={removeNote}
                   onUploadingChange={setUploading}
                   compress
-                  toPhone
+                  toPhone={!isAdmin}
                   /* 영상 캘린더의 썸네일 — 손에 든 파일에서 바로 뜬다(기다리지 않는다) */
                   onUploaded={(path, file) => {
                     freshRef.current.add(path);
@@ -731,7 +734,7 @@ export function EntryForm({
                   confirmRemove={removeNote}
                   onUploadingChange={setUploading}
                   compress
-                  toPhone
+                  toPhone={!isAdmin}
                   /* 영상 캘린더의 썸네일 — 손에 든 파일에서 바로 뜬다(기다리지 않는다) */
                   onUploaded={(path, file) => {
                     freshRef.current.add(path);
