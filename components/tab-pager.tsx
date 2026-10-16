@@ -15,14 +15,16 @@ import { TRAINING_HOME_HREF, isTrainingSubView } from '@/lib/training-part';
 import { barSnapshot, setNavDirection } from '@/lib/nav-state';
 import { haptic } from '@/lib/haptics';
 import { TAB_CHOSEN_EVENT } from '@/components/tab-lens';
+import { TAB_SWIPE_TYPES } from '@/lib/transition-types';
 
 /**
  * 판 넘기기(2026-10-15 사용자 "인스타는 바로바로 넘어가고 이질감이 없다 — 저렇게") — 탭 넷(홈 · 투구 · 트레이닝 · 영양)을 한 틀 안에
  * 나란히 띄워 두고 옆으로 민다. 넘어갈 때 서버에 묻지 않는다 — 주소만 바꾼다(history.replaceState, Next 가 usePathname 에 반영하되
  * 다시 받지 않는다). 그래서 천천히 끌어도 옆에 '진짜 화면'이 있고 로딩이 없다.
  *
- * 네 판은 app/(app)/layout.tsx 의 병렬 경로 자리(@home · @videos · @training · @nutrition)가 그린다 — 주소가 그 탭이 아니어도
- * default.tsx 가 그 탭을 그려 처음부터 넷이 다 떠 있고, 한 번 그려진 판은 주소가 바뀌어도 그대로 산다(판마다 제 스크롤 자리 그대로).
+ * 네 판은 app/(app)/layout.tsx 의 병렬 경로 자리(@home · @videos · @training · @nutrition)가 그린다. 처음 연 주소의 탭만 서버가
+ * 그리고, 나머지는 default.tsx 의 자리표시(`data-panel-empty`)다 — 하단 탭으로 그 판에 처음 갈 때만 진짜로 이동(router.replace)해
+ * 채운다(2026-10-16, 넷을 늘 같이 그려 서버 일이 네 배였다). 한 번 그려진 판은 주소가 바뀌어도 그대로 산다(판마다 제 스크롤 자리 그대로).
  * 하위 화면(투구 기록 날짜 · 분석 …)은 children — 그때는 판이 숨고 children 이 보인다(html[data-pager]="page").
  *
  * 쓸기: 손가락을 받는 법은 3판(김민, 옛 tab-swipe.tsx)에서 그대로 — 아이폰 웹뷰는 손가락이 조금만 위아래로 움직여도 세로 스크롤을
@@ -145,9 +147,18 @@ export function TabPager({
       if (cur < 0 || drag.current?.on) return false;
       const i = latest.current.order.findIndex((h) => base(h) === base(href));
       if (i < 0 || i === cur) return false;
+      const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
       el.style.willChange = 'transform';
-      slide(i, `transform ${TAP_MS}ms cubic-bezier(0.32, 0.72, 0, 1)`, TAP_MS);
-      commit(i);
+      if (reduce) slide(i, 'none', 0);
+      else slide(i, `transform ${TAP_MS}ms cubic-bezier(0.32, 0.72, 0, 1)`, TAP_MS);
+      /*
+       * 아직 안 그린 판(자리표시)이면 진짜로 이동해 채운다 — 판은 이미 미끄러졌고, 그 판의 loading 이 보이다 내용이 들어온다.
+       * push 가 아니라 replace: 다른 탭 옮김(commit 의 replaceState)처럼 뒤로 가기 기록을 남기지 않는다.
+       */
+      if (el.children[i]?.querySelector('[data-panel-empty]')) {
+        window.dispatchEvent(new CustomEvent(TAB_CHOSEN_EVENT, { detail: hrefOf(i) }));
+        router.replace(hrefOf(i), { scroll: false, transitionTypes: TAB_SWIPE_TYPES });
+      } else commit(i);
       return true;
     };
 

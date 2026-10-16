@@ -3,7 +3,7 @@
 import { useEffect } from 'react';
 import Link from 'next/link';
 import { Check, Trophy } from '@/components/icon';
-import { buzz } from '@/lib/haptics';
+import { haptic } from '@/lib/haptics';
 import { useWeightUnit } from '@/components/use-units';
 import { formatSeconds } from '@/lib/exercise-meta';
 import { formatWeight, type WeightUnit } from '@/lib/units';
@@ -75,7 +75,7 @@ export function DoneClient({
 
   /* 체크가 뜨는 순간에 맞춰 떤다 — 축하는 손으로도 */
   useEffect(() => {
-    const t = window.setTimeout(() => buzz([15, 120, 15]), 550);
+    const t = window.setTimeout(() => haptic('success'), 550);
     return () => window.clearTimeout(t);
   }, []);
 

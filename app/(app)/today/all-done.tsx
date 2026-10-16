@@ -4,7 +4,7 @@ import { useEffect, useState, useSyncExternalStore, type ReactNode } from 'react
 import { createPortal } from 'react-dom';
 import { Check } from '@/components/icon';
 import { isNativeClient } from '@/lib/app-env';
-import { buzz } from '@/lib/haptics';
+import { haptic } from '@/lib/haptics';
 
 /**
  * 홈 '오늘' 링 넷이 다 찼을 때의 축하(2026-10-13 사용자: "체크인 · 투구 · 운동 · 영양이 다 완료되면").
@@ -148,7 +148,7 @@ export function RingsStage({
     const timers: number[] = [];
     timers.push(
       window.setTimeout(() => {
-        buzz([15, 120, 15]);
+        haptic('success');
         if (native) {
           setOverlay(true);
           writeCelebrated(day);

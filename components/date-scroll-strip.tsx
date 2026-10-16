@@ -3,6 +3,7 @@
 import { useLayoutEffect, useRef, type ReactNode } from 'react';
 import Link from 'next/link';
 import { ChevronLeft, ChevronRight } from '@/components/icon';
+import { haptic } from '@/lib/haptics';
 
 const WEEKDAY_SHORT = ['일', '월', '화', '수', '목', '금', '토'];
 /** 칸 폭(px) · 사이(px) — 가운데 맞추기 · 한 주씩 넘기기가 같이 쓴다 */
@@ -75,6 +76,9 @@ export function DateScrollStrip({
                 href={hrefOf(d)}
                 scroll={false}
                 data-nav="none"
+                onClick={() => {
+                  if (!selected) haptic('selection');
+                }}
                 aria-current={selected ? 'date' : undefined}
                 aria-label={`${m}월 ${dayNo}일 ${weekday}요일, ${labelOf(d)}`}
                 className={`flex flex-col items-center rounded-xl py-1.5 transition-[background-color,transform] duration-200 motion-safe:active:scale-95 ${

@@ -8,6 +8,8 @@ import { loadTodayCoreCached } from '@/lib/report/today-data';
 import { toDateKey } from '@/lib/pitch-stats';
 import { keyOfDbDate } from '@/lib/nutrition/days';
 import { Card, PageHeading } from '@/components/ui';
+import { FoldNote } from '@/components/fold-note';
+import { OpenCheckinButton } from '@/components/notice-bell';
 import { Skeleton } from '@/components/fallback';
 import { armStatusOf } from '@/lib/report/arm-status';
 import { GOOD_DAY_MIN, RATED_SESSION_TYPES } from '@/lib/pitch-satisfaction';
@@ -255,28 +257,38 @@ async function TodayBody({
         최근 메모에 통증 같은 표현이 있었던 경우.
         알림 창에 넣기에는 긴 이야기라, 홈에 그대로 둔다.
       */}
+      {/*
+        겉은 질문 · 안전 한 줄 · 체크인 단추, 까닭은 '자세히' 안(2026-10-16 UI 검토 — 홈 맨 위에 두 문단 230자가 떠 있었다).
+        '종에서 체크인하세요' 같은 안내 글은 단추로 바꿨다. 안전 문장(전문의 상담)은 접지 않는다.
+      */}
       {plan.needsPainCheck && !picked.halted && (
         <Card className="space-y-2 border-warn-line bg-warn-bg">
           <p className="text-sm font-bold text-warn">지금 통증이 있으신가요?</p>
           <p className="text-sm leading-relaxed text-warn">
-            최근 투구 일지 메모에 {`‘${facts.condition.painWordsInMemo.join(', ')}’`}{' '}
-            같은 말이 있었어요. 통증인지 알 수 없어서, 확인될 때까지 투구는 쉬고 운동은
-            회복 · 가동성만 골랐어요.
+            통증이 있으면 던지지 말고 전문의와 상담하세요.
           </p>
-          <p className="text-sm leading-relaxed text-warn">
-            통증이 있다면 던지지 말고 전문의와 상담하세요. 통증이 아니라면 오른쪽 위
-            알림(종)에서 오늘 체크인을 남겨 주세요. 바로 평소 계획으로 돌아가요.
-          </p>
+          <div className="flex flex-wrap items-center justify-between gap-x-3">
+            <FoldNote tone="warn" label="왜 물어보나요">
+              <p className="text-footnote leading-relaxed text-warn">
+                최근 투구 일지 메모에{' '}
+                {`‘${facts.condition.painWordsInMemo.join(', ')}’`} 같은 말이 있었어요.
+                통증인지 알 수 없어서, 확인될 때까지 투구는 쉬고 운동은 회복 · 가동성만
+                골랐어요. 체크인을 남기면 바로 평소 계획으로 돌아가요.
+              </p>
+            </FoldNote>
+            <OpenCheckinButton className="min-h-11 rounded-full border border-warn px-4 text-sm font-semibold text-warn">
+              오늘 체크인하기
+            </OpenCheckinButton>
+          </div>
         </Card>
       )}
 
-      {/* 최근 체크인에 통증이 있었던 경우. */}
+      {/* 최근 체크인에 통증이 있었던 경우 — 한 줄 */}
       {plan.recovering && !plan.needsPainCheck && !picked.halted && (
         <Card className="space-y-1 border-warn-line bg-warn-bg">
           <p className="text-sm font-bold text-warn">오늘은 회복 운동만 골랐어요</p>
           <p className="text-sm leading-relaxed text-warn">
-            최근 체크인에 통증이 있어서 무게 운동은 빼고 회복 · 가동성 운동만 골랐어요.
-            다시 아프면 오른쪽 위 알림(종)에서 오늘 체크인에 남겨 주세요.
+            최근 체크인에 통증이 있어서 무게 운동은 뺐어요.
           </p>
         </Card>
       )}

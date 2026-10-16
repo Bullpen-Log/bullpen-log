@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
 import { Camera, CameraOff, Loader2, ScanBarcode, X } from '@/components/icon';
 import { ErrorLine } from '@/components/error-line';
-import { buzz } from '@/lib/haptics';
+import { haptic } from '@/lib/haptics';
 import { cleanBarcode, expandUpcE } from '@/lib/nutrition/barcode';
 import { canUseCamera, makeBarcodeReader } from '@/lib/nutrition/barcode-reader';
 import type { Food } from '@/lib/nutrition/meta';
@@ -137,7 +137,7 @@ export function BarcodePanel({
               .find(Boolean);
             if (code && !stopped) {
               stopped = true;
-              buzz(30);
+              haptic('success');
               stream.getTracks().forEach((t) => t.stop());
               streamRef.current = null;
               setCam('off');

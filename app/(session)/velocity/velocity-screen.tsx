@@ -12,7 +12,7 @@ import {
 } from 'react';
 import { flushSync } from 'react-dom';
 import { ConfirmDialog } from '@/components/confirm-delete';
-import { buzz } from '@/lib/haptics';
+import { buzz, haptic } from '@/lib/haptics';
 import { unstable_rethrow, useRouter } from 'next/navigation';
 import {
   Activity,
@@ -1227,8 +1227,8 @@ export function VelocityScreen({
     );
     setSaved(false);
     setResultOpen(true);
-    /* 앱(아이폰)에서도 떨린다 — navigator.vibrate 는 아이폰에 없다(lib/haptics.ts) */
-    buzz(30);
+    /* 앱(아이폰)에서도 떨린다 — 아이폰 알림 떨림(성공), 웹은 짧은 진동(lib/haptics.ts) */
+    haptic('success');
     /* 읽어 주는 값도 세션 거리로 옮긴 값 */
     const spoken =
       withSessionDistance([...pitches, { ...added, id: -1 }], memory, distTape).at(-1)

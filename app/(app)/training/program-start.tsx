@@ -23,6 +23,7 @@ import {
   type ProgramGoal,
   type VariantKey,
 } from '@/lib/program/program';
+import { haptic } from '@/lib/haptics';
 
 /**
  * 근력 · 파워 프로그램 입구 한 줄 + 고르기 · 시작 시트(설계 §13-12 · 18).
@@ -77,15 +78,14 @@ function perWeekText(p: ProgramChoice) {
 }
 
 /**
- * 고르기 목록의 핵심 네 줄 — 무엇을(summary) · 하루 짜임(how) · 왜(why) · 이런 분께(fit). 2026-10-16 김민: "고를 때 이게 뭔지 알기 쉽지 않다 — 길게 말고
- * 핵심만, 뭘 왜 하는 건지". 자세한 차례 · 주마다 처방은 고른 뒤 '자세히 보기'에 그대로 있다.
+ * 고르기 목록의 두 줄 — 무엇을(summary) · 이런 분께(fit). 2026-10-16 김민: "고를 때 이게 뭔지 알기 쉽지 않다 — 길게 말고
+ * 핵심만, 뭘 왜 하는 건지". 처음엔 하루 짜임(how) · 왜(why)까지 네 줄이었는데 프로그램마다 200자 남짓이라 목록 한 장이 글 덩어리였다
+ * (같은 날 UI 검토). 하루 짜임 · 왜는 줄을 누르면 나오는 소개(step 'intro')에 그대로 있다 — 지우지 않고 한 번 누른 뒤로 옮겼다.
  */
 function ProgramGist({ p }: { p: ProgramChoice }) {
   return (
     <span className="mt-0.5 block space-y-0.5 text-xs break-keep">
       <span className="block text-ink/80">{p.summary}</span>
-      {p.how && <span className="block text-muted">{p.how}</span>}
-      {p.why && <span className="block text-muted">{p.why}</span>}
       {p.fit && <span className="block text-muted">이런 분께 · {p.fit}</span>}
     </span>
   );
@@ -296,7 +296,10 @@ function StartSheet({
         { error: OFFLINE_MESSAGE }
       );
       if ('error' in r) setError(r.error);
-      else onClose();
+      else {
+        haptic('success');
+        onClose();
+      }
     });
 
   /*
