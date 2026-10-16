@@ -147,11 +147,11 @@
   /*
    * 트레이닝 안의 '앱' 셋의 얼굴색(2026-10-04 — 사용자분: "불펜로그 안에 높은 퀄리티의 앱들이 들어 있는 느낌").
    * 트레이닝 홈의 앱 아이콘 · 시작 단추 · 진행 막대에만 쓴다. 앱 안쪽 화면은 늘 sky 하나다(10-01 '애플처럼').
+   * 2026-10-16 셋 다 sky 하나로(김민 '색 줄이기' — 기본 파랑 하나 + 경고색만, 예전 청록 #0d9488 · 깊은 파랑 #1f5fa8). 이름은 남겨 둔다.
    */
   --color-app-training: #0a84d6;
-  --color-app-armcare: #0d9488;
-  /* 메커니즘은 깊은 파랑 — 예전 보라(#7c3aed)는 'AI 앱 보라'로 통하는 기본색이었다(2026-10-04 'AI 티 줄이기') */
-  --color-app-mechanics: #1f5fa8;
+  --color-app-armcare: #0a84d6;
+  --color-app-mechanics: #0a84d6;
 
   /*
    * 실밥 무늬 — 야구공 솔기 곡선과 V 자 땀(2026-10-04 'AI 티 줄이기' 4단계, 사용자가 고른 불펜로그다움). 빈 칸 · 첫 화면 ·
@@ -332,8 +332,8 @@
   --color-cat-recovery: #6ee7b7;
 
   --color-app-training: #38a8f0;
-  --color-app-armcare: #2dd4bf;
-  --color-app-mechanics: #7aa7e6; /* 깊은 파랑의 밝은 쪽 — 예전 보라(#a78bfa) */
+  --color-app-armcare: #38a8f0;
+  --color-app-mechanics: #38a8f0;
 }
 
 /*

@@ -971,7 +971,7 @@ function GuideCard({
                 className="h-1.5 overflow-hidden rounded-full bg-surface-2"
               >
                 <div
-                  className={`h-full rounded-full bg-cat-recovery transition-[width] duration-500 ${EASE}`}
+                  className={`h-full rounded-full bg-sky transition-[width] duration-500 ${EASE}`}
                   style={{ width: share(recovery.protein, guide.recoveryProtein) }}
                 />
               </div>
@@ -990,7 +990,7 @@ function GuideCard({
           </p>
           <div aria-hidden className="h-1.5 overflow-hidden rounded-full bg-surface-2">
             <div
-              className={`h-full rounded-full bg-cat-power transition-[width] duration-500 ${EASE}`}
+              className={`h-full rounded-full bg-sky transition-[width] duration-500 ${EASE}`}
               style={{ width: share(carbsEaten, carbsTarget) }}
             />
           </div>
@@ -1496,7 +1496,7 @@ function MealSection({
               >
                 <div
                   className={`h-full rounded-full transition-[width,background-color] duration-500 ${EASE} ${
-                    p.done ? 'bg-ok' : 'bg-cat-lower'
+                    p.done ? 'bg-ok' : 'bg-sky'
                   }`}
                   style={{ width: `${Math.min(100, (p.protein / p.goal) * 100)}%` }}
                 />
