@@ -1,18 +1,17 @@
+import { Suspense } from 'react';
 import { requireUser } from '@/lib/dal';
 import { featureLocks } from '@/lib/feature-locks';
 import { TabLocked } from '@/components/tab-locked';
-import Loading from '@/app/(app)/loading';
+import NutritionPage from '@/app/(app)/nutrition/nutrition-page';
+import Loading from '@/app/(app)/@nutrition/nutrition/loading';
 
-/**
- * 영양 판 — 주소가 이 탭이 아닐 때 서버는 이 탭을 그리지 않고 자리표시만 둔다(@home/default.tsx 와 같은 까닭). 하단 탭으로 처음 오면
- * tab-pager 가 이 탭 주소로 이동해 그때 그린다. 잠겨 있으면(첫 설정 전) 잠긴 판 — 그 탭의 하단 탭은 설정 주소로 간다.
- */
+/** 영양 판 — 주소가 /nutrition 이 아니어도 판 넘기기 자리에 늘 떠 있다. 잠겨 있으면 잠긴 판. 처음 연 탭이 먼저 뜨게 Suspense 로 감싼다(@home/default.tsx) */
 export default async function NutritionSlotDefault() {
   const user = await requireUser();
   if (featureLocks(user).nutrition) return <TabLocked feature="nutrition" />;
   return (
-    <div data-panel-empty>
-      <Loading />
-    </div>
+    <Suspense fallback={<Loading />}>
+      <NutritionPage searchParams={Promise.resolve({})} />
+    </Suspense>
   );
 }
