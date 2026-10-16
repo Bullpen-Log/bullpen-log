@@ -110,7 +110,7 @@ export function MuscleMapPanel({
         </div>
       )}
       {status !== 'unavailable' && (
-        <div className="h-[min(52vh,460px)] min-h-[320px] overflow-hidden rounded-3xl border border-line bg-gradient-to-b from-surface to-surface-2">
+        <div className="h-[min(52vh,460px)] min-h-[320px] overflow-hidden rounded-2xl border border-line bg-gradient-to-b from-surface to-surface-2">
           <MuscleMap3D
             side={side}
             selection={selection}

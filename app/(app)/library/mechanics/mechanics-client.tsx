@@ -135,7 +135,7 @@ function GuideDetail({
               <h3 className="text-lg font-bold text-ink">{item.title}</h3>
               {/* 촬영 상황은 관리자에게만(2026-10-04 '앱 안에 머물기') */}
               {isAdmin && item.source === 'REFERENCE' && (
-                <span className="rounded-md bg-warn-bg px-2 py-0.5 text-caption font-semibold text-warn">
+                <span className="rounded-lg bg-warn-bg px-2 py-0.5 text-caption font-semibold text-warn">
                   촬영 전 · 참고 영상
                 </span>
               )}

@@ -1231,7 +1231,7 @@ function AttemptRow({
             inputMode="decimal"
             value={gun}
             onChange={(e) => setGun(e.target.value)}
-            className="h-8 w-20 rounded-md border border-line bg-surface px-2 text-ink"
+            className="h-8 w-20 rounded-lg border border-line bg-surface px-2 text-ink"
             placeholder="km/h"
           />
           <Button

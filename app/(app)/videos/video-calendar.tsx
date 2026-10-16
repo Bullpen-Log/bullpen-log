@@ -362,7 +362,7 @@ export function VideoCalendar({
             aria-hidden
             className={`absolute inset-0 ${
               day.rest
-                ? 'm-1 rounded-md border border-dashed border-line-strong'
+                ? 'm-1 rounded-lg border border-dashed border-line-strong'
                 : effortClass(day.effortPct)
             }`}
           />
@@ -418,7 +418,7 @@ export function VideoCalendar({
           {day.pitches}구
         </span>
         {day.paths.length > 1 && (
-          <span className="absolute bottom-1 right-1 inline-flex items-center gap-0.5 rounded-md bg-black/60 px-1 py-0.5 text-caption font-semibold leading-none text-white">
+          <span className="absolute bottom-1 right-1 inline-flex items-center gap-0.5 rounded-lg bg-black/60 px-1 py-0.5 text-caption font-semibold leading-none text-white">
             <Film aria-hidden className="h-2.5 w-2.5" />
             {day.paths.length}
           </span>
@@ -695,7 +695,7 @@ function DayPanel({
             className="motion-safe:animate-row-in flex flex-wrap items-baseline gap-x-3 gap-y-1 px-(--block-pad) py-2.5 desk-low:py-2"
             style={{ '--row': i } as React.CSSProperties}
           >
-            <span className="rounded-md bg-surface-2 px-1.5 py-0.5 text-caption font-semibold text-muted">
+            <span className="rounded-lg bg-surface-2 px-1.5 py-0.5 text-caption font-semibold text-muted">
               {l.sessionType}
             </span>
             {l.sessionType === REST_SESSION_TYPE ? (

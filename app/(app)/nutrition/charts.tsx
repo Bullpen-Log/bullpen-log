@@ -49,7 +49,7 @@ export function WeekChart({
               scroll={false}
               data-nav="none"
               aria-label={`${d.date}, ${kcalText(d.kcal)}kcal 먹음, 목표 ${kcalText(d.target)}kcal`}
-              className="group relative flex h-full flex-1 items-end rounded-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky"
+              className="group relative flex h-full flex-1 items-end rounded-lg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky"
             >
               <span
                 className={`block w-full rounded-t-md motion-safe:transition-[height,background-color] duration-500 ${EASE} ${

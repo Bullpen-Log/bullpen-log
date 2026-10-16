@@ -604,7 +604,7 @@ export function RecordingEditor({
                 return (
                   <div
                     key={c.id}
-                    className={`pointer-events-none absolute inset-y-1.5 rounded-md border ${
+                    className={`pointer-events-none absolute inset-y-1.5 rounded-lg border ${
                       c.excluded
                         ? 'border-line-strong bg-ink/10'
                         : on
@@ -699,7 +699,7 @@ export function RecordingEditor({
                 type="button"
                 aria-pressed={rate === r}
                 onClick={() => setRate(r)}
-                className={`min-h-9 rounded-md px-2.5 text-xs tabular-nums transition-colors ${
+                className={`min-h-9 rounded-lg px-2.5 text-xs tabular-nums transition-colors ${
                   rate === r
                     ? 'bg-surface font-semibold text-ink shadow-sm'
                     : 'text-muted'

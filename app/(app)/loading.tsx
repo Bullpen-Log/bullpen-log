@@ -26,7 +26,7 @@ export default function Loading() {
       </div>
 
       {/* 큰 카드 하나 */}
-      <Skeleton className="h-44 w-full rounded-3xl" />
+      <Skeleton className="h-44 w-full rounded-2xl" />
 
       {/* 작은 카드 넷 */}
       <div className="grid gap-block sm:grid-cols-2 lg:grid-cols-4">

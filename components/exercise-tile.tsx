@@ -56,7 +56,7 @@ export function LibraryTile({
         </span>
 
         {isReference && (
-          <span className="absolute left-2 top-2 rounded-md bg-shade/70 px-1.5 py-0.5 text-[10px] font-semibold text-white backdrop-blur-sm">
+          <span className="absolute left-2 top-2 rounded-lg bg-shade/70 px-1.5 py-0.5 text-[10px] font-semibold text-white backdrop-blur-sm">
             참고 영상
           </span>
         )}

@@ -78,7 +78,7 @@ function SectionHead({
 }) {
   return (
     <div className="flex items-start gap-3">
-      <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-[9px] bg-sky text-white desk:rounded-lg desk:border desk:border-line-strong desk:bg-transparent desk:text-muted">
+      <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-[28%] bg-sky text-white desk:rounded-lg desk:border desk:border-line-strong desk:bg-transparent desk:text-muted">
         {icon}
       </span>
       <div className="min-w-0">

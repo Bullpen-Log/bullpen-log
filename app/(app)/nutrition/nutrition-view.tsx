@@ -460,7 +460,7 @@ export function NutritionView({
             type="button"
             onClick={() => setError(null)}
             aria-label="닫기"
-            className="-m-1 rounded-md p-1 hover:bg-danger/10"
+            className="-m-1 rounded-lg p-1 hover:bg-danger/10"
           >
             <X aria-hidden className="h-4 w-4" />
           </button>
@@ -1240,7 +1240,7 @@ function TodayCard({
                 });
               });
             }}
-            className="-my-2 inline-flex min-h-10 items-center rounded-md px-1 font-semibold text-sky-strong underline-offset-2 hover:underline"
+            className="-my-2 inline-flex min-h-10 items-center rounded-lg px-1 font-semibold text-sky-strong underline-offset-2 hover:underline"
           >
             보기
           </a>
@@ -2060,7 +2060,7 @@ function WeightCard({
                 <button
                   type="button"
                   onClick={() => writeSnooze(null)}
-                  className="-my-2 min-h-10 rounded-md px-1 font-semibold text-sky-strong underline-offset-2 hover:underline"
+                  className="-my-2 min-h-10 rounded-lg px-1 font-semibold text-sky-strong underline-offset-2 hover:underline"
                 >
                   다시 보기
                 </button>

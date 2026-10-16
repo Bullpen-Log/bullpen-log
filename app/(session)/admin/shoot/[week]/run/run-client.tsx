@@ -445,7 +445,7 @@ export function RunClient({
             <button
               type="button"
               onClick={postpone}
-              className="flex h-[72px] w-16 shrink-0 flex-col items-center justify-center gap-0.5 rounded-3xl bg-ink/6 text-xs font-semibold text-ink motion-safe:active:scale-95"
+              className="flex h-[72px] w-16 shrink-0 flex-col items-center justify-center gap-0.5 rounded-2xl bg-ink/6 text-xs font-semibold text-ink motion-safe:active:scale-95"
             >
               <PauseCircle aria-hidden className="h-5 w-5" />
               미루기
@@ -456,7 +456,7 @@ export function RunClient({
                   type="button"
                   onClick={shoot}
                   aria-label="영상 없이 찍음으로 체크하고 다음으로"
-                  className="flex h-[72px] w-16 shrink-0 flex-col items-center justify-center gap-0.5 rounded-3xl bg-ink/6 text-xs font-semibold text-ink motion-safe:active:scale-95"
+                  className="flex h-[72px] w-16 shrink-0 flex-col items-center justify-center gap-0.5 rounded-2xl bg-ink/6 text-xs font-semibold text-ink motion-safe:active:scale-95"
                 >
                   <Check aria-hidden className="h-5 w-5" />
                   찍음

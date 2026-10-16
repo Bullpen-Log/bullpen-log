@@ -82,7 +82,7 @@ export function DayExercises({
           const row = (
             <>
               <span
-                className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md border transition-colors ${
+                className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border transition-colors ${
                   ex.done
                     ? 'border-sky bg-sky text-white'
                     : 'border-line-strong bg-surface'

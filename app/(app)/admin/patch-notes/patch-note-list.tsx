@@ -204,7 +204,7 @@ function Row({ row, at }: { row: PatchRow; at: number }) {
             {areas.map((a) => (
               <span
                 key={a}
-                className="rounded-md border border-line-strong px-1.5 py-0.5 text-[10px] text-muted"
+                className="rounded-lg border border-line-strong px-1.5 py-0.5 text-[10px] text-muted"
               >
                 {a}
               </span>

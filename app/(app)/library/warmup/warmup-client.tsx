@@ -57,12 +57,12 @@ function Thumb({ url, title }: { url: string | null; title: string }) {
       src={url}
       alt=""
       aria-hidden
-      className="h-10 w-16 shrink-0 rounded-md bg-surface-2 object-cover"
+      className="h-10 w-16 shrink-0 rounded-lg bg-surface-2 object-cover"
     />
   ) : (
     <span
       aria-hidden
-      className="flex h-10 w-16 shrink-0 items-center justify-center rounded-md bg-surface-2 text-[10px] text-muted"
+      className="flex h-10 w-16 shrink-0 items-center justify-center rounded-lg bg-surface-2 text-[10px] text-muted"
     >
       {title.slice(0, 2)}
     </span>
@@ -209,7 +209,7 @@ function RoutineBlock({
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <h2 className="text-base font-bold text-ink">{routine.name}</h2>
-              <span className="rounded-md border border-line-strong bg-surface-2 px-2 py-0.5 text-caption text-muted">
+              <span className="rounded-lg border border-line-strong bg-surface-2 px-2 py-0.5 text-caption text-muted">
                 {WHEN[routine.kind] ?? routine.kind}
               </span>
             </div>
@@ -275,7 +275,7 @@ function RoutineBlock({
                         type="submit"
                         disabled={off}
                         aria-label={`${item.title} ${label}`}
-                        className="grid h-11 w-11 place-items-center rounded-md text-muted transition-colors hover:text-sky disabled:opacity-30 desk:h-auto desk:w-auto desk:p-1.5"
+                        className="grid h-11 w-11 place-items-center rounded-lg text-muted transition-colors hover:text-sky disabled:opacity-30 desk:h-auto desk:w-auto desk:p-1.5"
                       >
                         <Icon className="h-3.5 w-3.5" />
                       </button>
@@ -287,7 +287,7 @@ function RoutineBlock({
                     <button
                       type="submit"
                       aria-label={`${item.title} 빼기`}
-                      className="grid h-11 w-11 place-items-center rounded-md text-muted transition-colors hover:text-warn desk:h-auto desk:w-auto desk:p-1.5"
+                      className="grid h-11 w-11 place-items-center rounded-lg text-muted transition-colors hover:text-warn desk:h-auto desk:w-auto desk:p-1.5"
                     >
                       <X className="h-3.5 w-3.5" />
                     </button>

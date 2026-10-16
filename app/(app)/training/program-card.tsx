@@ -149,7 +149,7 @@ export function ProgramCard({ props }: { props: ProgramCardProps }) {
                     <span className="block text-xs text-muted">{r.contrast}</span>
                   )}
                   {r.tag && (
-                    <span className="mt-0.5 inline-block rounded-md bg-ink/6 px-1.5 text-caption text-muted">
+                    <span className="mt-0.5 inline-block rounded-lg bg-ink/6 px-1.5 text-caption text-muted">
                       {r.tag}
                     </span>
                   )}

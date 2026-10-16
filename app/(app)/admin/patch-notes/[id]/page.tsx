@@ -64,7 +64,7 @@ export default async function PatchNotePage({
             {note.areas.map((a) => (
               <span
                 key={a}
-                className="rounded-md border border-line-strong px-1.5 py-0.5 text-caption text-muted"
+                className="rounded-lg border border-line-strong px-1.5 py-0.5 text-caption text-muted"
               >
                 {a}
               </span>

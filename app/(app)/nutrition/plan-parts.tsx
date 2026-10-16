@@ -165,7 +165,7 @@ export function PlanCard({
             <button
               type="button"
               onClick={onOpenPrefs}
-              className="-my-2 inline-flex min-h-10 items-center rounded-md px-1 font-semibold text-sky-strong underline-offset-2 hover:underline"
+              className="-my-2 inline-flex min-h-10 items-center rounded-lg px-1 font-semibold text-sky-strong underline-offset-2 hover:underline"
             >
               취향 바꾸기
             </button>

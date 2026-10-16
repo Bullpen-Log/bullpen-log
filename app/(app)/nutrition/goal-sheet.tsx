@@ -818,7 +818,7 @@ export function GoalSheet({
                   <button
                     type="button"
                     onClick={() => setCleared(true)}
-                    className="-my-2 min-h-10 rounded-md px-1 font-semibold text-sky-strong underline-offset-2 hover:underline"
+                    className="-my-2 min-h-10 rounded-lg px-1 font-semibold text-sky-strong underline-offset-2 hover:underline"
                   >
                     조정 지우기
                   </button>

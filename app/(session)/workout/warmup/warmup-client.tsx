@@ -112,7 +112,7 @@ export function WarmupClient({
               <div className="flex flex-wrap items-baseline gap-x-2 px-1">
                 <h2 className="text-heading text-subhead text-ink">{card.name}</h2>
                 {card.forToday ? (
-                  <span className="rounded-md bg-sky/10 px-1.5 py-0.5 text-[10px] font-semibold text-sky-strong">
+                  <span className="rounded-lg bg-sky/10 px-1.5 py-0.5 text-[10px] font-semibold text-sky-strong">
                     오늘 맞춤
                   </span>
                 ) : (

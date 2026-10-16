@@ -32,7 +32,7 @@ const INTENSITY_STYLE: Record<string, string> = {
 };
 
 const chip =
-  'inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-caption leading-none font-medium';
+  'inline-flex items-center gap-1 rounded-lg px-1.5 py-0.5 text-caption leading-none font-medium';
 
 /** 운동 한 줄의 부가 정보 */
 export function ExerciseBadges({
