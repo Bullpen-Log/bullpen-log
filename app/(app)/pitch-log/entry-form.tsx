@@ -13,7 +13,6 @@ import { Button, Field, Input, Textarea } from '@/components/ui';
 import { Segmented } from '@/components/segmented';
 import { VideoUpload, type UploadedVideo } from '@/components/video-upload';
 import { usePlaybackUrls } from '@/components/use-playback-urls';
-import { FilmingGuide } from '@/components/filming-guide';
 import { IntensityGuide } from '@/components/intensity-guide';
 import { EffortChips, focusEffortChips } from '@/components/effort-chips';
 import { makePitchThumb } from '@/lib/pitch-thumbs';
@@ -753,8 +752,6 @@ export function EntryForm({
               }
             >
               <div className="space-y-3">
-                {/* 올리기 전에 촬영 조건을 한 번 보고 가도록 바로 위에 둔다. */}
-                {!resting && <FilmingGuide />}
                 <VideoUpload
                   videos={shownVideos}
                   onChange={changeVideos}
@@ -876,8 +873,6 @@ export function EntryForm({
               }
             >
               <div className="space-y-3">
-                {/* 올리기 전에 촬영 조건을 한 번 보고 가도록 바로 위에 둔다. */}
-                {!resting && <FilmingGuide />}
                 <VideoUpload
                   videos={shownVideos}
                   onChange={changeVideos}
