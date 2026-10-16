@@ -515,9 +515,25 @@ export function canRequestV2(
 }
 
 /** 새 작업(queued) — 이전 결과(shownJobId)는 이어 보인다 */
+/**
+ * 작업에 적는 엔진 판 — 약속 판(PITCH3D_V2_VERSION, 손으로 올림) + 분석 서버의 엔진 지문(build.json, GET /engine). '같은 영상 다시 막기'가
+ * 이것으로 견준다 — 약속 판만 보면 엔진을 고쳐 다시 올려도 판이 그대로라 한 번 실패한 영상이 영영 막혔다(2026-10-16 통합 검토). 지문을 못 읽으면
+ * 약속 판만(예전과 같음).
+ */
+export function engineKeyOf(build: string | null): string {
+  return build ? `${PITCH3D_V2_VERSION}+${build}` : PITCH3D_V2_VERSION;
+}
+
 export function newV2Job(
   prev: Pitch3dV2Job | null,
-  input: { jobId: string; requestedBy: string; consentAt: string; now: string }
+  input: {
+    jobId: string;
+    requestedBy: string;
+    consentAt: string;
+    now: string;
+    /** engineKeyOf — 안 주면 약속 판 */
+    engine?: string;
+  }
 ): Pitch3dV2Job {
   return {
     status: 'queued',
@@ -525,7 +541,7 @@ export function newV2Job(
     requestedAt: input.now,
     requestedBy: input.requestedBy,
     consentAt: input.consentAt,
-    engine: PITCH3D_V2_VERSION,
+    engine: input.engine ?? PITCH3D_V2_VERSION,
     gpuCallId: null,
     startedAt: null,
     finishedAt: null,

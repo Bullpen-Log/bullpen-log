@@ -21,6 +21,7 @@ import { guardBlock, labMetaBlock, readLabGuard, recordFail } from '@/lib/pitch-
 import {
   applyGpuStatus,
   canRequestV2,
+  engineKeyOf,
   failV2Job,
   isV2JobId,
   newV2Job,
@@ -32,6 +33,7 @@ import {
   type Pitch3dV2Result,
 } from '@/lib/pitch-3d/v2/contract';
 import {
+  getEngineBuild,
   getGpuStatus,
   isPitch3dV2Configured,
   startGpuJob,
@@ -132,11 +134,14 @@ export async function requestPitch3dV2(input: {
   let prev: Pitch3dV2Job | null;
   let urls: { side: string; back: string } | null;
   let metaRaw: unknown;
+  let build: string | null;
   try {
-    [prev, urls, metaRaw] = await Promise.all([
+    /* 엔진 지문은 5분 기억하고, 못 물으면 null(던지지 않는다) — 판은 약속 판만으로 */
+    [prev, urls, metaRaw, build] = await Promise.all([
       loadLabJob(owner, input.id),
       labVideoUrls(owner, input.id),
       loadLabMetaRaw(owner, input.id),
+      getEngineBuild(),
     ]);
   } catch {
     return { error: STORAGE_ERROR };
@@ -147,13 +152,14 @@ export async function requestPitch3dV2(input: {
   if ('error' in can) return can;
   /*
    * GPU 비용 지키기(lib/pitch-lab-guard.ts) — 같은 엔진 판에서 영상 탓으로 실패한 샘플 · 파일은 다시 안 돌리고, 하루 실패 10번이면 멈춘다.
-   * 엔진 판이 바뀌면 같은 영상도 다시 해 볼 수 있다(고친 엔진으로는 될 수 있어서).
+   * 엔진 판이 바뀌면 같은 영상도 다시 해 볼 수 있다(고친 엔진으로는 될 수 있어서). 판 = 약속 판 + 서버 엔진 지문(engineKeyOf).
    */
+  const engine = engineKeyOf(build);
   if (
     prev?.status === 'failed' &&
     prev.fail &&
     V2_VIDEO_FAULT.has(prev.fail.code) &&
-    prev.engine === PITCH3D_V2_VERSION
+    prev.engine === engine
   )
     return { error: '이 영상은 분석하지 못했어요. 같은 영상으로는 또 실패해요. 촬영 안내대로 다시 찍어 올려 주세요.' };
   const meta = readLabMeta(metaRaw, new Date(now).toISOString());
@@ -161,7 +167,7 @@ export async function requestPitch3dV2(input: {
   const blocked = guardBlock(await loadLabGuard(user.id).catch(() => readLabGuard(null)), {
     nowMs: now,
     fps,
-    engine: PITCH3D_V2_VERSION,
+    engine,
   });
   if (blocked) return { error: blocked };
 
@@ -171,6 +177,7 @@ export async function requestPitch3dV2(input: {
     requestedBy: user.id,
     consentAt: nowIso,
     now: nowIso,
+    engine,
   });
   try {
     await retryOnce(() => saveLabJob(owner, input.id, job));

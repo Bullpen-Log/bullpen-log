@@ -12,6 +12,7 @@ import {
   MAX_V2_FRAMES,
   MAX_V2_RESULT_BYTES,
   N_V2_JOINTS,
+  engineKeyOf,
   newV2Job,
   PITCH3D_V2_VERSION,
   readPitch3dV2Job,
@@ -370,6 +371,14 @@ console.log('■ 작업 상태(job.json)');
   const T0 = Date.parse('2026-10-08T05:00:00.000Z');
   const iso = (ms: number) => new Date(ms).toISOString();
   check('없음 → 걸 수 있음', 'ok' in canRequestV2(null, T0));
+  /* 엔진 판 = 약속 판 + 서버 지문 — 엔진을 다시 올리면 판이 바뀌어 같은 영상 다시 막기가 풀린다(2026-10-16) */
+  check(
+    '엔진 판 — 지문이 있으면 약속 판+지문, 없으면 약속 판, 다른 지문이면 다른 판',
+    engineKeyOf(null) === PITCH3D_V2_VERSION &&
+      engineKeyOf('abc123') === `${PITCH3D_V2_VERSION}+abc123` &&
+      engineKeyOf('abc123') !== engineKeyOf('def456') &&
+      newV2Job(null, { jobId: JOB_ID, requestedBy: 'a', consentAt: iso(T0), now: iso(T0), engine: 'k' }).engine === 'k'
+  );
   const q = newV2Job(null, {
     jobId: JOB_ID,
     requestedBy: 'admin1',
