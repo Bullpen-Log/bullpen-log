@@ -13,6 +13,7 @@ import {
   SPEED_DISTANCE_EXPONENT,
 } from '../lib/velocity-engine/analyze-distance.ts';
 import { DRAG_K } from '../lib/velocity-engine/trajectory-fit.ts';
+import { cameraNowOf, clipSpanOf, coveredBy, nextSweepWindow } from '../lib/velocity-engine/sweep.ts';
 import { alignTrail, type TrailPoint } from '../lib/velocity-tracer.ts';
 import {
   cleanSize,
@@ -536,6 +537,35 @@ console.log(
   check(
     cleanSize(clean(21, { sizeDistM: null })) == null,
     '공 크기 거리가 없으면 깨끗한 공이 아님'
+  );
+}
+
+console.log('\n▶ 조용할 때 훑기 · 세션 녹화의 순수 셈(2.7 — lib/velocity-engine/sweep.ts)');
+if (!only || 'sweep'.includes(only)) {
+  /* 앱 카메라 시계 역산 — clip({ atSec: 1e9, beforeSec: 1e9 }) 가 돌려준 조각의 eventSec = at − 조각 시작 */
+  const span = clipSpanOf(1e9, { eventSec: 1e9 - 362814.1, durationSec: 7.75 });
+  check(
+    Math.abs(span.start - 362814.1) < 1e-6 && Math.abs(span.end - 362821.85) < 1e-6,
+    `조각 시작 · 끝 역산 — ${span.start.toFixed(2)} ~ ${span.end.toFixed(2)}(카메라 시계)`
+  );
+  const anchor = { cam: 362821.85, perf: 1000 };
+  check(Math.abs(cameraNowOf(anchor, 4000) - 362824.85) < 1e-9, '짝 뒤 3초 → 카메라 시계 +3');
+  const first = nextSweepWindow(null, 100);
+  check(
+    first != null && Math.abs(first.to - 99.6) < 1e-9 && Math.abs(first.from - 93.6) < 1e-9,
+    `처음 창 — 지금 − 0.4초에서 뒤로 6초(${first?.from} ~ ${first?.to})`
+  );
+  const next = nextSweepWindow(99.6, 105);
+  check(
+    next != null && Math.abs(next.from - 98.6) < 1e-9 && Math.abs(next.to - 104.6) < 1e-9,
+    `다음 창 — 훑은 끝 − 겹침 1초부터, 5초 뒤면 빈틈 없이 이어짐(${next?.from} ~ ${next?.to})`
+  );
+  check(nextSweepWindow(99.6, 100.8) == null, '2초가 안 되면 안 훑는다(겹침 1초 포함)');
+  const long = nextSweepWindow(80, 100);
+  check(long != null && Math.abs(long.from - 93.6) < 1e-9, '오래 쉬었으면 뒤쪽 6초만');
+  check(
+    coveredBy(5, [{ start: 4.4, end: 6.6 }]) && !coveredBy(7, [{ start: 4.4, end: 6.6 }]),
+    '찾은 공이 재는 중 · 최근 창 안이면 겹침'
   );
 }
 

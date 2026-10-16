@@ -256,6 +256,42 @@ function sameExact(a: ArrayLike<number>, b: ArrayLike<number>): boolean {
 /** 지금 시각(ms) — 걸린 시간 재기용 */
 const now = () => (typeof performance !== 'undefined' ? performance.now() : Date.now());
 
+/**
+ * 거친 훑기만 — 영상에서 날아가는 공이 있었나, 있었으면 언제(초). 조용할 때 훑기(dual-capture.ts, 2.7)가 앱이 쥔 지난 몇 초를 자른 조각에
+ * 쓴다: 공을 믿었으면(accepted) 그 시각으로 보통 공 알림처럼 다시 잰다. 하드웨어 디코더 길만 — 못 열면 null(훑기는 조용히 건너뛴다).
+ */
+export async function locateThrow(options: {
+  file: File;
+  fovDeg?: number;
+  focalPerLongSide?: number | null;
+  approach?: Approach;
+}): Promise<{ ballT: number; accepted: boolean; peak: number | null; duration: number } | null> {
+  const dec = await openDecoder(options.file).catch(() => null);
+  if (!dec) return null;
+  try {
+    const { width: sourceW, height: sourceH, duration } = dec;
+    if (!sourceW || !sourceH || !(duration > 0)) return null;
+    const approach = options.approach ?? 'receding';
+    const focalLong = options.focalPerLongSide
+      ? options.focalPerLongSide * Math.max(sourceW, sourceH)
+      : focalPxFromFov(Math.max(sourceW, sourceH), options.fovDeg ?? DEFAULT_FOV_DEG);
+    const timing = { findMs: 0, seeks: 0, seekWaitMs: 0, drawMs: 0 };
+    const plan = await planFromCoarse(
+      { width: sourceW, height: sourceH, draws: (seeks, w, h) => dec.coarse(seeks, w, h) },
+      duration,
+      null,
+      approach,
+      focalLong / sourceW,
+      timing
+    );
+    return plan.ball
+      ? { ballT: plan.ball.t, accepted: plan.ball.accepted, peak: plan.peak, duration }
+      : { ballT: NaN, accepted: false, peak: plan.peak, duration };
+  } finally {
+    dec.dispose();
+  }
+}
+
 export async function analyzeVideo(options: AnalyzeOptions): Promise<VideoAnalyzeResult> {
   const startedAt = now();
   const timing = {

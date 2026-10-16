@@ -7,8 +7,16 @@ import {
   type DualStartInfo,
 } from '@/lib/dual-camera';
 import { DEFAULT_CAM_MODE } from '@/lib/velocity-camera-mode';
-import { analyzeVideo, warmDecoder, type VideoAnalyzeResult } from './analyze-video';
+import { analyzeVideo, locateThrow, warmDecoder, type VideoAnalyzeResult } from './analyze-video';
 import type { DistanceReport } from './analyze-distance';
+import {
+  cameraNowOf,
+  clipSpanOf,
+  coveredBy,
+  nextSweepWindow,
+  SWEEP_EVERY_SEC,
+  type ClockAnchor,
+} from './sweep';
 import { LIVE_GOOD_FPS } from './live-meter';
 import type { Approach } from './validate';
 import type {
@@ -55,8 +63,8 @@ export type DualCaptureHandlers = {
 export type AttemptInfo = {
   /** 결과 번호(ResultMeta.id 와 같다) — 화면이 공과 짝을 맞춘다 */
   id: number;
-  /** 'seed' = 앱의 공 후보(2026-10-16) — 화면에 안 띄우고 그 시각으로 재 본 것 */
-  kind: 'ball' | 'motion' | 'seed';
+  /** 'seed' = 앱의 공 후보(2026-10-16) — 화면에 안 띄우고 그 시각으로 재 본 것. 'sweep' = 조용할 때 훑기가 찾은 공(2.7) */
+  kind: 'ball' | 'motion' | 'seed' | 'sweep';
   /** 알림 시각(앱 카메라 시계 초) · 세기(MotionTrigger strength) */
   atSec: number;
   strength: number;
@@ -146,6 +154,8 @@ type Job = {
   ball: boolean;
   /** 앱의 공 후보로 만든 작업 — 안 보이게 시작해 그 시각(ballAt)으로 잰다 */
   seed?: boolean;
+  /** 조용할 때 훑기가 찾은 공(2.7) — seed 처럼 안 보이게 재고, 결과에 '뒤늦게 찾은 공' 표시(ResultMeta.late) */
+  sweep?: boolean;
   /** 움직임 작업의 클립 창 안에 공 알림이 왔으면 그 시각(카메라 시계) — 그 공 시각으로 잰다 */
   ballAt?: number;
   /** 앱 알림의 세기(MotionTrigger strength) — 시도 기록에 남긴다 */
@@ -220,6 +230,15 @@ export class DualCapture {
   private releaseDistanceM: number | null = null;
   /** 이 인스턴스의 표식 — 앱 카메라를 맡았는지(owner) 견줄 때 */
   private readonly token = Symbol('dual-capture');
+  /** 앱 카메라 시계 ↔ performance.now() 짝(sweep.ts) — 알림마다 새로, 없으면 anchorClock 이 한 번 역산 */
+  private clock: ClockAnchor | null = null;
+  private anchoring: Promise<ClockAnchor | null> | null = null;
+  /** 조용할 때 훑기(2.7) — 켜짐 · 타이머 · 훑은 끝(카메라 시계) · 훑는 중 · 느리면 띄엄띄엄 */
+  private sweepOn = true;
+  private sweepTimer: ReturnType<typeof setInterval> | null = null;
+  private sweptUntil: number | null = null;
+  private sweeping = false;
+  private sweepSkip = 0;
   /** 앱이 카메라를 놓을 때까지 — 웹 카메라로 바꿔 켤 때 기다린다(같은 카메라를 둘이 못 쓴다) */
   stopped: Promise<void> = Promise.resolve();
 
@@ -312,6 +331,8 @@ export class DualCapture {
           this.reportSkip(at, Number(d.strength) || 0, thermal);
           return;
         }
+        /* 알림 시각이 곧 앱 카메라 시계 — 훑기 · 세션 녹화의 시계로 짝지어 둔다(sweep.ts) */
+        this.clock = { cam: at, perf: performance.now() };
         /* 옛 앱은 kind 가 없다 — 움직임으로 본다 */
         const kind = d.kind === 'ball' || d.kind === 'seed' ? d.kind : 'motion';
         this.onThrow(at, kind, Number(d.strength) || 0, thermal);
@@ -366,7 +387,7 @@ export class DualCapture {
 
   private onThrow(
     atSec: number,
-    kind: 'ball' | 'motion' | 'seed',
+    kind: 'ball' | 'motion' | 'seed' | 'sweep',
     strength = 0,
     thermal: number | null = null
   ) {
@@ -375,8 +396,11 @@ export class DualCapture {
     /*
      * 공 후보(seed, 2026-10-16) — 앱이 0.2초 전 장면과 견줘 본 공 · 손 덩어리를 뗀 공. 진짜 공을 더 잡지만 헛것도 섞여, 화면에 띄우지 않고
      * 그 시각으로 재 본다(공 길이 나오면 그때 보인다 · 없으면 조용히 'no-ball').
+     * 조용할 때 훑기가 찾은 공(sweep, 2.7)은 움직임 알림과 같은 길 — 넓은 클립(MOTION_CLIP)을 거친 훑기부터 다시 잰다. 훑기의 공 시각은
+     * 알림보다 0.4~0.9초 어긋날 수 있어(10-09 · 10-16 클립 20개) 그 시각을 씨앗으로 못 박지 않는다. 화면엔 공 길이 나오면 보인다.
      */
     const seed = kind === 'seed';
+    const sweep = kind === 'sweep';
     /* 재고 있는 클립 창 안이면 그 클립이 이 공을 담는다 — 공이 확실하면 화면에만 띄운다 */
     const covering = this.jobs.find((j) => atSec >= j.start && atSec <= j.end);
     if (covering) {
@@ -409,6 +433,7 @@ export class DualCapture {
       visible: ball,
       ball,
       ...(seed ? { seed: true, ballAt: atSec } : {}),
+      ...(sweep ? { sweep: true } : {}),
       strength,
       thermal,
       analyzing: false,
@@ -539,8 +564,13 @@ export class DualCapture {
         return;
       }
     }
-    /* 클립을 그대로 쟀으니 궤적 시각 = 클립 시각 */
-    const meta: ResultMeta = { id, triggerT: performance.now(), hitT: main.eventSec };
+    /* 클립을 그대로 쟀으니 궤적 시각 = 클립 시각. 훑기가 찾은 공은 '뒤늦게 찾은 공'(late) */
+    const meta: ResultMeta = {
+      id,
+      triggerT: performance.now(),
+      hitT: main.eventSec,
+      ...(job.sweep ? { late: true } : {}),
+    };
     this.handlers.onResult(result, meta);
     if (!result.measure.ok) {
       await dropWide();
@@ -579,7 +609,7 @@ export class DualCapture {
     const noBall = !ok && !job.ball && track < 4 && (job.ballAt == null || job.seed === true);
     this.handlers.onAttempt?.({
       id: job.id,
-      kind: job.ball ? 'ball' : job.seed ? 'seed' : 'motion',
+      kind: job.ball ? 'ball' : job.sweep ? 'sweep' : job.seed ? 'seed' : 'motion',
       atSec: job.at,
       strength: job.strength,
       ok,
@@ -628,18 +658,147 @@ export class DualCapture {
     /* 첫 공 계산이 디코더 모듈 받기 · JIT 데우기를 기다리지 않게 */
     void warmDecoder().catch(() => undefined);
     void callDualCamera('setTrigger', { armed: true }).catch(() => undefined);
+    this.startSweep();
     this.syncStatus();
   }
 
   disarm() {
     this.armed = false;
+    this.stopSweep();
     if (!this.running) return;
     void callDualCamera('setTrigger', { armed: false }).catch(() => undefined);
     this.syncStatus();
   }
 
+  /* ── 앱 카메라 시계 · 구간 자르기(2.7 — 조용할 때 훑기 · 세션 녹화가 쓴다) ── */
+
+  /** 지금 카메라 시계(초) — 짝이 없으면 null(anchorClock 을 먼저) */
+  cameraNow(): number | null {
+    return this.clock ? cameraNowOf(this.clock, performance.now()) : null;
+  }
+
+  /**
+   * 시계 짝을 만든다 — 알림이 아직 없었으면 앱이 쥔 조각 전부를 한 번 청해(먼 미래 at, 앱은 5초 상한까지 기다렸다가 돌려준다) 시작 시각을
+   * 역산한다. 파일은 읽지 않고 바로 지운다. 이미 짝이 있으면 그대로.
+   */
+  anchorClock(): Promise<ClockAnchor | null> {
+    if (this.clock) return Promise.resolve(this.clock);
+    if (this.anchoring) return this.anchoring;
+    const gen = this.gen;
+    this.anchoring = (async () => {
+      try {
+        const at = 1e9;
+        const clips = await callDualCamera<{ main: DualClip; wide: DualClip | null }>('clip', {
+          atSec: at,
+          beforeSec: at,
+          afterSec: 0,
+        });
+        const perf = performance.now();
+        const paths = [clips.main.path, ...(clips.wide ? [clips.wide.path] : [])];
+        void callDualCamera('discard', { paths }).catch(() => undefined);
+        if (gen !== this.gen || !this.running) return null;
+        /* 돌아온 조각의 끝이 '그 순간'의 카메라 시계 — 조각이 닫히는 몫(0.25초 안)만큼 이르다 */
+        const { end } = clipSpanOf(at, clips.main);
+        if (!this.clock) this.clock = { cam: end, perf };
+        return this.clock;
+      } catch {
+        return null;
+      } finally {
+        this.anchoring = null;
+      }
+    })();
+    return this.anchoring;
+  }
+
+  /** 카메라 시계 [from, to] 구간을 잘라 받는다(과거 구간이면 바로 온다) — 실제로 잘린 구간도 같이 */
+  async cutRange(from: number, to: number): Promise<{ blob: Blob; start: number; end: number }> {
+    const clips = await callDualCamera<{ main: DualClip; wide: DualClip | null }>('clip', {
+      atSec: from,
+      beforeSec: 0,
+      afterSec: to - from,
+    });
+    if (clips.wide) void callDualCamera('discard', { paths: [clips.wide.path] }).catch(() => undefined);
+    const blob = await readDualClip(clips.main);
+    return { blob, ...clipSpanOf(from, clips.main) };
+  }
+
+  /** 조용할 때 훑기 켜기 · 끄기(기본 켬) — armed 동안만 돈다 */
+  setSweep(on: boolean) {
+    this.sweepOn = on;
+    if (on && this.armed && this.running) this.startSweep();
+    else this.stopSweep();
+  }
+
+  private startSweep() {
+    if (!this.sweepOn || this.sweepTimer) return;
+    this.sweptUntil = null;
+    this.sweepSkip = 0;
+    void this.anchorClock();
+    this.sweepTimer = setInterval(() => void this.sweep(), SWEEP_EVERY_SEC * 1000);
+  }
+
+  private stopSweep() {
+    if (this.sweepTimer) clearInterval(this.sweepTimer);
+    this.sweepTimer = null;
+    this.sweeping = false;
+  }
+
+  /**
+   * 조용할 때 훑기(2.7) — 알림이 없는 동안 지난 몇 초를 거칠게 훑어 날아간 공이 있으면 그 시각으로 보통 공처럼 잰다(onThrow 'sweep').
+   * 앱 알림(공 · 움직임)이 발열 · 폰 자리 때문에 침묵해도 영상에 공이 있으면 몇 초 뒤엔 잡힌다(10-16 세션 저장 뒤 알림 2 · 움직임 0).
+   * 재는 중이면 쉬고, 훑기가 2.5초 넘게 걸리면(느린 폰) 다음 하나는 건너뛴다.
+   */
+  private async sweep() {
+    if (!this.running || !this.armed || this.sweeping || this.jobs.length > 0) return;
+    if (this.sweepSkip > 0) {
+      this.sweepSkip--;
+      return;
+    }
+    const now = this.cameraNow();
+    if (now == null) {
+      void this.anchorClock();
+      return;
+    }
+    const win = nextSweepWindow(this.sweptUntil, now);
+    if (!win) return;
+    const gen = this.gen;
+    this.sweeping = true;
+    const t0 = performance.now();
+    try {
+      const cut = await this.cutRange(win.from, win.to);
+      if (gen !== this.gen || !this.armed) return;
+      const found = await locateThrow({
+        file: new File([cut.blob], 'sweep.mp4', { type: 'video/mp4' }),
+        fovDeg: this.info && this.info.mainFovDeg > 0 ? this.info.mainFovDeg : this.fovDeg,
+        focalPerLongSide: this.focalPerLongSide,
+        approach: this.approach,
+      });
+      if (gen !== this.gen || !this.armed) return;
+      this.sweptUntil = cut.end;
+      if (found?.accepted && Number.isFinite(found.ballT)) {
+        const t = cut.start + found.ballT;
+        const busy = [
+          ...this.jobs.map((j) => ({ start: j.start, end: j.end })),
+          ...this.recent.filter((r) => r.until > performance.now()),
+        ];
+        /* 겹침 안에서 찾은 공은 지난 훑기 · 알림이 이미 쟀을 수 있다 — 재는 중 · 최근 창에 없을 때만 */
+        if (!coveredBy(t, busy)) {
+          console.info(`[velo] sweep ${win.from.toFixed(2)}~${win.to.toFixed(2)} → 공 ${t.toFixed(2)}`);
+          this.onThrow(t, 'sweep');
+        }
+      }
+    } catch (e) {
+      console.info('[velo] sweep 실패', e instanceof Error ? e.message : e);
+    } finally {
+      this.sweeping = false;
+      if (performance.now() - t0 > 2500) this.sweepSkip = 1;
+    }
+  }
+
   stop() {
     this.gen++;
+    this.stopSweep();
+    this.clock = null;
     this.jobs = [];
     this.recent = [];
     this.snap = null;

@@ -296,8 +296,17 @@
  *                      움직임 알림) ④ 시도 기록에 발열 상태(analysis.thermal) · 공 못 찾은 움직임(why no-ball) · 발열로 쉼(heat-skip) · 후보(kind seed).
  *   2.6.2  2026-10-16  작은 자리(값 그대로 — 글만): 화면에 뜨는 거부 · 고칠 것 · 카메라 오류 글을 '~습니다' → 해요체로, 줄표(—)는 두 문장으로
  *                      (validate · live-capture · analyze-video · analyze-frames · detect · live-meter). 측정 화면의 다른 글과 말투를 맞춤(UI 세션).
+ *   2.7.0  2026-10-16  가운데 자리(잡히는 공이 바뀜 — 값은 그대로): 놓치는 공 줄이기(docs/velocity/engine-2.7-plan.md 1 · 2단계). 10-16 세션 저장 뒤
+ *                      이어 재니 앱 알림이 거의 안 왔다(알림 2 · 움직임 0) — 같은 조건 녹화 7구는 엔진에 넣으면 6구가 '높음'. 알아채기가 구멍이라
+ *                      그물을 두 겹으로. ① 조용할 때 훑기(dual-capture.ts sweep · analyze-video.ts locateThrow · sweep.ts): armed 이고 재는 중이
+ *                      없으면 3초마다 지난 최대 5초(겹침 1초)를 잘라 거친 훑기(48장 · 가로 320)만 — 공을 믿었으면 그 시각으로 보통 공처럼 잰다
+ *                      (kind 'sweep', 결과 '뒤늦게 찾은 공' ResultMeta.late, 시도 기록 kind 'sweep'). 재는 중 · 최근 5초 창의 공은 건너뛰고, 훑기가
+ *                      2초 넘으면 다음 둘은 쉰다. 계산 · 구간은 움직임 알림과 같은 길이라 값은 그대로(10-16 움직임 알림 6번이 이 길로 4구 '높음').
+ *                      ② 세션 통째 녹화(관리자 · 보정용 저장 · 앱 카메라, lib/velocity-dual-recorder.ts): 앱이 쥔 영상을 6초마다 잘라 서버 녹화로.
+ *                      앱 카메라 시계는 알림 atSec 으로 짝짓고, 알림 전엔 clip({ atSec: 1e9, beforeSec: 1e9 }) 한 번으로 역산(sweep.ts clipSpanOf).
+ *                      Swift 는 안 고쳤다(빌드 없이 배포 — 김민). 실제 폰에서는 아직 안 봤다.
  */
-export const VELOCITY_ENGINE_VERSION = '2.6.2';
+export const VELOCITY_ENGINE_VERSION = '2.7.0';
 
 /**
  * 스피드건 보정 짝이 이어지는 묶음 — 작은 자리(0.0.X)는 재는 방법이 같아 짝을 그대로 쓴다(가운데 자리까지 같은 공 모두 — 지금은 '1.9.').
