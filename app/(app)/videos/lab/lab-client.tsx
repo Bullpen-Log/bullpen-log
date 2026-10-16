@@ -657,10 +657,10 @@ function SampleCard({
     ...sample.extras.map((x) => ({
       key: x.key,
       /*
-       * 실제 자리는 정답지 계산으로 확인(scripts/pitch-lab/markers/selfcal/README.md) — 10-12 는 cam3 아이폰 11 이 홈 쪽 정면 · cam4 SE2 가 1루 쪽,
-       * 10-16(세 대)은 cam3 15 Pro Max 가 홈–1루 사이 대각. 둘 다 홈 쪽이라 '정면'은 뺐다. 기종 · 자리는 샘플 메모에.
+       * 실제 자리는 정답지 계산으로 확인(scripts/pitch-lab/markers/selfcal/README.md) — 10-12 는 cam3 아이폰 11 · 10-16(세 대)은 cam3 15 Pro Max 가
+       * 홈 쪽 정면(김민 — 계획서의 대각이 아니라 정면에 둠), cam4 SE2 가 1루 쪽. 기종 · 자리는 샘플 메모에.
        */
-      label: x.key === 'cam3' ? '③ 홈 쪽' : '④ 1루 쪽',
+      label: x.key === 'cam3' ? '③ 홈 쪽 정면' : '④ 1루 쪽',
       url: x.url,
     })),
   ];
