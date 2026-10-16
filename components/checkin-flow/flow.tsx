@@ -551,7 +551,7 @@ function Pane({
 function Welcome({ nickname, edit }: { nickname: string; edit: boolean }) {
   return (
     <div className="flex h-full flex-col items-center justify-center text-center">
-      <div className="grid h-24 w-24 place-items-center rounded-full bg-sky text-white shadow-[0_12px_32px_-12px_var(--color-sky)]">
+      <div className="grid h-24 w-24 place-items-center rounded-full bg-sky text-white">
         <Check aria-hidden className="h-12 w-12" />
       </div>
       <h1 className="mt-7 text-2xl font-bold text-ink">
