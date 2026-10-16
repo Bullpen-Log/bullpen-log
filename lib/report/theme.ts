@@ -1847,6 +1847,7 @@ export function pickForTheme<T extends ThemedExercise>({
   doneIds,
   recentIds,
   sessionsAgo,
+  lastSessionIds,
   rotationSeed,
   preferredParts = [],
   preferredWorkout = null,
@@ -1869,6 +1870,11 @@ export function pickForTheme<T extends ThemedExercise>({
    * 곳이 있어 기본값을 바꾸지 않는다.
    */
   sessionsAgo?: Map<string, number>;
+  /**
+   * 가장 최근 세션에 한 운동(daily-plan.ts lastSessionIdsOf) — 보강 칸만 이것을 다시 고르지 않는다. sessionsAgo 는 차례에만 쓰고(자체 시험이 지킨다) 빼는 일은
+   * 이 칸이 따로 한다. 없으면 빼지 않는다.
+   */
+  lastSessionIds?: Set<string>;
   /**
    * 아직 안 해본 운동들의 순서를 섞는 씨앗.
    *
@@ -2027,6 +2033,14 @@ export function pickForTheme<T extends ThemedExercise>({
         ...pool.filter((ex) => ex.category === mainFirst),
         ...pool.filter((ex) => ex.category !== mainFirst),
       ];
+    }
+
+    /*
+     * 보강은 앞 세션에 한 운동을 다시 고르지 않는다 — 맨몸만이면 보강 후보가 하나라 운동하는 날마다 같은 보강(하프닐링 내전근 플랭크)이
+     * 나왔다(2026-10-16 트레이닝 50명). 그 하나뿐이면 이날은 보강을 쉬고 다음 세션에 다시 나온다(이틀에 한 번). 오늘 이미 한 것(0세션 전)은 그대로.
+     */
+    if (spec.slot === 'prehab' && lastSessionIds && lastSessionIds.size > 0) {
+      pool = pool.filter((ex) => !lastSessionIds.has(ex.id));
     }
 
     if (spec.slot === 'main') mainPool = pool;

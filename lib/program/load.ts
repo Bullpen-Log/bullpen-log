@@ -57,6 +57,8 @@ import {
   basicsPool,
   ROTATING_VARIANTS,
   rotatedPick,
+  fixedIdsOnDay,
+  withoutFixed,
   jumpFitsWeek,
   weekOfDay,
   variantTurn,
@@ -477,16 +479,18 @@ export async function buildProgramDay(
       };
     }
     if (!ROTATING_VARIANTS.includes(v)) return got;
+    /* 같은 날 고정 칸(본운동 · 플라이오 푸시업)에 나온 운동은 빼고 돌린다(program.ts fixedIdsOnDay) — 다 빠지면 그대로 */
+    const free = withoutFixed(got.ex, pool, fixedIdsOnDay(plan, d, (x) => anchorOf(x).ex));
     /* 점프는 주마다 단계(jumpFitsWeek) — 1~2주에 뎁스 · 바운드가 안 나오게. 맞는 것이 없으면 그대로 */
     if (v === 'jump') {
       const week = weekOfDay(plan, d);
-      const fit = pool.filter((e) => jumpFitsWeek(e, week));
+      const fit = free.pool.filter((e) => jumpFitsWeek(e, week));
       if (fit.length > 0) {
-        const anchor = jumpFitsWeek(got.ex, week) ? got.ex : null;
+        const anchor = free.anchor && jumpFitsWeek(free.anchor, week) ? free.anchor : null;
         return { ex: rotatedPick(anchor, fit, variantTurn(plan, d, v)), repinned: got.repinned };
       }
     }
-    return { ex: rotatedPick(got.ex, pool, variantTurn(plan, d, v)), repinned: got.repinned };
+    return { ex: rotatedPick(free.anchor, free.pool, variantTurn(plan, d, v)) ?? got.ex, repinned: got.repinned };
   };
   const repin: Pinned = {};
   const pinnedFor = (

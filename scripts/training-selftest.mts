@@ -491,6 +491,7 @@ import {
   type PlanScoreInput,
   type ProgramTodayExercise,
   type ProgramTodayInput,
+  lastSessionIdsOf,
 } from '../lib/report/daily-plan.ts';
 import {
   DEFAULT_GOAL,
@@ -3861,6 +3862,38 @@ console.log('\n[회복날] 가벼운 것만 · 가동성 중심 · 유산소는 
     '유산소가 들어가도 → 시간은 ±15% 안',
     Math.abs(later.estimatedMinutes - minutes) <= minutes * 0.15,
     `${minutes}분 → ${later.estimatedMinutes}분`
+  );
+}
+
+console.log('\n[보강 칸] 바로 앞 세션에 한 보강은 다시 안 고른다(2026-10-16 트레이닝 50명 — 맨몸이면 같은 보강이 매일)');
+{
+  const bw = library.filter((e) => e.category !== '나중에 촬영' && e.equipment.every((q) => q === '맨몸'));
+  const minutes = effectiveMinutes('assist', 60);
+  const run = (candidates: typeof bw, last?: Set<string>) =>
+    pickForTheme({ candidates, theme: 'assist', minutes, doneIds: new Set<string>(), lastSessionIds: last })
+      .picks.filter((p) => p.slot === 'prehab')
+      .map((p) => p.exercise.id);
+  const first = run(bw);
+  const next = run(bw, new Set(first));
+  /* 보강 후보가 하나뿐이면 다음 세션엔 그 칸을 쉰다(이틀에 한 번) */
+  const solo = bw.filter((e) => e.category !== '회복 및 보강' || e.id === first[0]);
+  const solo1 = run(solo);
+  const solo2 = run(solo, new Set(first.slice(0, 1)));
+  check(
+    '보강: 앞 세션 것은 빼고 고름 · 후보가 하나뿐이면 다음 세션은 보강 없음 · 앞 세션 기록이 없으면 그대로',
+    first.length > 0 &&
+      next.every((id) => !first.includes(id)) &&
+      solo1.join() === first[0] &&
+      solo2.length === 0,
+    `${first.length} → ${next.length} · 하나뿐 ${solo1.length} → ${solo2.length}`
+  );
+  /* 세션 번호는 운동한 날을 최근 순으로 센 것 — 오늘 아직 안 했으면 바로 앞 세션이 0 이라 '가장 작은 번호'가 앞 세션이다 */
+  const ago = new Map([['a', 0], ['b', 0], ['c', 2]]);
+  check(
+    '보강: 앞 세션 = 세션 번호가 가장 작은 것(0 이든 1 이든) · 기록이 없으면 빈 집합',
+    [...lastSessionIdsOf(ago)].sort().join() === 'a,b' &&
+      [...lastSessionIdsOf(new Map([['x', 1], ['y', 3]]))].join() === 'x' &&
+      lastSessionIdsOf(undefined).size === 0
   );
 }
 

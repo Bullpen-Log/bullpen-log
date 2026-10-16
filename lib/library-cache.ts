@@ -93,7 +93,7 @@ export const allExercises = unstable_cache(
   /* :v32 — 2026-10-16 회전 메디신볼 던지기 6개를 좌우 각각(perSide)으로 — 투수 파워의 던지기 양 */
   /* :v34 — 2026-10-16 불안정 지면 스냅다운을 '나중에 촬영'으로(scripts/library-later-snapdown-2026-10-16.mjs). */
   /* :v35 — 같은 날 백 페달도 '나중에 촬영'으로. */
-  ['library:exercises:v35'],
+  ['library:exercises:v36'],
   { tags: [LIBRARY_TAG] }
 );
 

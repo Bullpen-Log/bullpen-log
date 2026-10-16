@@ -722,6 +722,11 @@ export function buildDailyPlan<T extends ExerciseLike>({
     doneIds: new Set<string>(),
     recentIds: orderRecentIds,
     sessionsAgo,
+    /*
+     * 보강 칸은 가장 최근 세션에 한 것을 다시 안 고른다(theme.ts lastSessionIds). 세션 번호는 운동한 날을 최근 순으로 센 것이라
+     * (gather.ts exerciseSessionsAgo) 오늘 아직 안 했으면 바로 앞 세션이 0 이다 — 그래서 1 이 아니라 가장 작은 번호.
+     */
+    lastSessionIds: lastSessionIdsOf(sessionsAgo),
     rotationSeed: rotationSeed ?? facts.asOf,
     preferredParts: todayPrefsOf(facts).preferredParts,
     preferredWorkout,
@@ -1268,3 +1273,10 @@ export type StrengthHistory = StrengthDates & {
   /** 자동 맞춤이 오늘 고를 시간의 위 끝(weeklyMinutesCap) — 지난주 일정이 없으면 null */
   weeklyMinutesCap: number | null;
 };
+
+/** 가장 최근 세션(오늘 아직 안 했으면 바로 앞 세션)에 한 운동 — 세션 번호(exerciseSessionsAgo)가 가장 작은 것 */
+export function lastSessionIdsOf(sessionsAgo: Map<string, number> | undefined): Set<string> {
+  if (!sessionsAgo || sessionsAgo.size === 0) return new Set();
+  const min = Math.min(...sessionsAgo.values());
+  return new Set([...sessionsAgo].filter(([, n]) => n === min).map(([id]) => id));
+}

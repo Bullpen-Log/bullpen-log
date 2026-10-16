@@ -49,6 +49,8 @@ import {
   usedVariants,
   variantCandidates,
   basicsPool,
+  fixedIdsOnDay,
+  withoutFixed,
   warmupLine,
   weekOfDay,
   ARM_DEFER_REASON,
@@ -736,6 +738,64 @@ const lib: PinnableExercise[] = [
     '메디신볼 없음 → 플라이오 푸시업 둘 · 있으면 메디신볼만 · 박스도 없으면 바닥 플라이오 푸시업',
     [...noBall].sort().join() === 'fpp,ipp' && !withBall.includes('ipp') && !withBall.includes('fpp') && withBall.includes('chest') && neither.join() === 'fpp',
     `${noBall} | ${withBall} | ${neither}`
+  );
+}
+{
+  /*
+   * 2026-10-16 트레이닝 50명 — 메디신볼 칸이 운동 둘만 번갈아 나와 큰 공 드릴을 옮겼다: 엉덩이를 펴며 앞으로 던지는 힌지 토스도 받는다
+   * (돌려 던지기는 그대로 회전 던지기 칸 몫). 기본기 던지기 칸은 3~4주에 강도 높음까지 — 덤벨 · 밴드뿐이면 로우 포고 홉 하나가 12번 내내였다.
+   */
+  const htoss = ex('htoss', '헤비 메디신볼 힌지 토스 (큰 공)', '파워', '힌지', ['메디신볼'], '높음', '중급');
+  const over = ex('over', '힌지 오버더톱 슬램 (큰 공)', '파워', '당기기', ['메디신볼'], '높음', '중급');
+  const libM = [...lib, htoss, over];
+  const ball = variantCandidates('medball', libM, ['메디신볼'], '중급').map((e) => e.id);
+  const rot = variantCandidates('rotationalThrow', libM, ['메디신볼'], '중급').map((e) => e.id);
+  const pogo = ex('pogo', '로우 포고 홉', '파워', '스쿼트', ['맨몸'], '중간', '초급');
+  const vj = ex('vj', '버티컬 점프', '파워', '스쿼트', ['맨몸'], '높음', '초급');
+  const jumps = variantCandidates('medball', [...lib, pogo, vj], ['덤벨', '밴드'], '입문', 'basics');
+  const w1 = basicsPool(jumps, 'medball', 1).map((e) => e.id);
+  const w3 = basicsPool(jumps, 'medball', 3).map((e) => e.id);
+  check(
+    '메디신볼 칸: 힌지 토스 · 오버더톱 슬램(큰 공)도 받고 회전 던지기 칸엔 안 감 · 기본기 던지기 칸 1~2주는 포고만, 3~4주는 버티컬 점프(높음)도 돈다',
+    ball.includes('htoss') &&
+      ball.includes('over') &&
+      ball.includes('chest') &&
+      !rot.includes('htoss') &&
+      w1.includes('pogo') &&
+      !w1.includes('vj') &&
+      w3.includes('pogo') &&
+      w3.includes('vj'),
+    `${ball} | ${rot} | ${w1} | ${w3}`
+  );
+}
+{
+  /*
+   * 메디신볼 없는 헬스장(2026-10-16 트레이닝 50명) — 메디신볼 칸 대체가 박스 없는 초급이면 플라이오 푸시업 하나라 12세션 내내였고, 웨스트사이드
+   * 파워는 같은 날 플라이오 푸시업 칸과 두 번 나왔다. 대체는 상체를 빠르게 밀고 당기는 파워(바벨 빼고), 돌리는 칸은 그날 고정 칸 운동을 뺀다.
+   */
+  const fpp = ex('fpp', '플라이오 푸시업', '파워', '밀기', ['맨몸'], '높음', '중급');
+  const sbp = ex('sbp', '밴드 스피드 벤치 프레스', '파워', '밀기', ['밴드'], '중간', '초급');
+  const srow = ex('srow', '스피드 밴드 로우', '파워', '당기기', ['밴드'], '중간', '중급');
+  const pend = ex('pend', '펜들레이 로우', '파워', '당기기', ['바벨'], '높음', '중급');
+  const gymNoBall = ['맨몸', '바벨', '원판', '덤벨', '벤치', '철봉', '밴드', '케이블'];
+  const sub = variantCandidates('medball', [...lib, fpp, sbp, srow, pend], gymNoBall, '초급').map((e) => e.id);
+  const ws = parseProgram('ws4sb')!;
+  const plyoDay = [1, 2, 3, 4, 5, 6].find((d) => dayPlan(ws, d).items.some((x) => x.variant === 'plyoPush'))!;
+  const fixed = fixedIdsOnDay(ws, plyoDay, (v) => (v === 'plyoPush' ? fpp : null));
+  const onPlyoDay = withoutFixed(fpp, [fpp, sbp, srow], fixed);
+  const allFixed = withoutFixed(fpp, [fpp], fixed);
+  check(
+    '메디신볼 없음: 대체는 플라이오 푸시업 · 밴드 스피드 벤치 · 스피드 밴드 로우(바벨 펜들레이 로우 빼고) · 플라이오 푸시업 칸이 있는 날 돌리는 칸은 플라이오 푸시업을 빼고 고름 · 다 빠지면 그대로',
+    sub.includes('fpp') &&
+      sub.includes('sbp') &&
+      sub.includes('srow') &&
+      !sub.includes('pend') &&
+      fixed.has('fpp') &&
+      onPlyoDay.anchor === null &&
+      onPlyoDay.pool.map((e) => e.id).join() === 'sbp,srow' &&
+      allFixed.anchor?.id === 'fpp' &&
+      allFixed.pool.length === 1,
+    `${sub} | ${plyoDay}일차 고정 ${[...fixed]} | ${onPlyoDay.pool.map((e) => e.id)}`
   );
 }
 {

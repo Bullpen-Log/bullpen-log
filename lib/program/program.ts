@@ -1451,10 +1451,11 @@ const VARIANT_RULES: Record<VariantKey, VariantRule> = {
       inCategory(ex, '파워') &&
       ex.equipment.includes('메디신볼') &&
       /* 뛰며 던지는 것(바운드 + 슬램)도 뺀다 — 점프는 점프 칸 몫(투수 파워 밀기 날에 다리를 또 뛰던 것) */
-      (ex.movementPattern === '밀기' || ex.movementPattern === '당기기'),
-    /* 던지기(밀기 · 당기기 계열)를 먼저, 뛰며 던지는 것은 맨 뒤 */
+      /* 힌지 = 엉덩이를 펴며 앞으로 던지기(헤비 메디신볼 힌지 토스, 2026-10-16 — 이 칸이 운동 둘만 번갈아 나와 큰 공 드릴을 옮겼다) */
+      (ex.movementPattern === '밀기' || ex.movementPattern === '당기기' || ex.movementPattern === '힌지'),
+    /* 던지기(밀기 · 당기기 · 힌지 계열)를 먼저, 뛰며 던지는 것은 맨 뒤 */
     rank: (ex) => [
-      ex.movementPattern === '밀기' || ex.movementPattern === '당기기'
+      ex.movementPattern === '밀기' || ex.movementPattern === '당기기' || ex.movementPattern === '힌지'
         ? 0
         : ex.movementPattern === '회전'
           ? 1
@@ -1716,8 +1717,8 @@ export function variantCandidates<T extends PinnableExercise>(
       (!youth || intensityLevel(ex.intensity) < intensityLevel('매우 높음'))
   );
   /*
-   * 메디신볼이 없어 메디신볼 칸 후보가 하나도 없으면 플라이오 푸시업 둘(인클라인 · 바닥) — 같은 '상체를 빠르게 미는' 동작이라 그날 목적에
-   * 맞는다(2026-10-16 김민). 하나뿐이면 세션마다 같은 운동이라 둘을 돌린다. 기본기는 제 규칙(맨몸 점프)이 있다.
+   * 메디신볼이 없어 메디신볼 칸 후보가 하나도 없으면 상체를 빠르게 밀고 당기는 파워로 — 같은 '상체를 빠르게 쓰는' 동작이라 그날 목적에
+   * 맞는다(2026-10-16 김민, 아래 거르기). 기본기는 제 규칙(맨몸 점프)이 있다.
    */
   /*
    * 기본기 당기기 — 맨몸뿐이면 당기기 후보가 없어 4주 내내 당기기 0번(푸시업만)이었다(2026-10-16 검토 ①). 등 · 견갑을 맨몸으로 끄는
@@ -1731,11 +1732,19 @@ export function variantCandidates<T extends PinnableExercise>(
       )
     );
   }
+  /*
+   * 메디신볼이 없으면 상체를 빠르게 밀고 당기는 파워(바벨 없이) — 플라이오 푸시업 · 밴드 스피드 벤치 프레스 · 스피드 밴드 로우. 예전엔 플라이오
+   * 푸시업만이라 박스 없는 초급은 하나뿐이었다(2026-10-16 트레이닝 50명 — 12세션 내내 같은 운동). 바벨 로우(펜들레이)는 무게 운동이라 뺀다.
+   */
   if (usable.length === 0 && variant === 'medball' && audience !== 'basics') {
     usable.push(
       ...library.filter(
         (ex) =>
-          inCategory(ex, '파워') && ex.title.includes('플라이오 푸시업') && canDo(ex, ownedSet)
+          inCategory(ex, '파워') &&
+          (ex.movementPattern === '밀기' || ex.movementPattern === '당기기') &&
+          !ex.equipment.includes('메디신볼') &&
+          !ex.equipment.includes('바벨') &&
+          canDo(ex, ownedSet)
       )
     );
   }
@@ -1787,7 +1796,7 @@ export const BASICS_ROTATION = 3;
 /**
  * 기본기의 주차별 돌리는 후보(2026-10-16 검토 ② — 예전엔 처음 고정된 운동이 4주 내내였고, 돌리기를 넣은 뒤에는 쉬운 것과 어려운 것이
  * 섞여 돌았다). 1~2주는 쉬운 동작(난이도 초급 · 강도 중간 이하 — 인클라인 푸시업 · 글루트 브리지 · 맨몸 스쿼트)을 쉬운 것부터, 맞는 것이
- * 없으면 후보 그대로. 3~4주는 강도 중간까지에서 변형 규칙의 차례(푸시업 · RDL · 고블렛). 던지기 칸은 3~4주에 돌려 던지기를 앞으로 — 투구는 회전이라.
+ * 없으면 후보 그대로. 3~4주는 강도 중간까지(던지기 칸은 높음까지)에서 변형 규칙의 차례(푸시업 · RDL · 고블렛). 던지기 칸은 3~4주에 돌려 던지기를 앞으로 — 투구는 회전이라.
  * 돌리는 차례의 첫째(고정 운동)는 3~4주에만 앞에 둔다(load.ts pinnedOf).
  */
 export function basicsPool<T extends PinnableExercise>(pool: readonly T[], variant: VariantKey, week: number): T[] {
@@ -1804,8 +1813,11 @@ export function basicsPool<T extends PinnableExercise>(pool: readonly T[], varia
   /*
    * 3~4주도 강도 '중간'까지 — 돌리기에 덤벨 프론트 스쿼트 · 불가리안 스플릿 스쿼트 · 브로드 점프(높음)가 들어와 입문자의 12번 점검(끝까지
    * 하는 세트)에까지 걸렸다. 맞는 것이 없으면 후보 그대로.
+   * 던지기 칸만 '높음'까지 — 덤벨 · 밴드뿐이면 맨몸 점프로 대신하는데 중간 이하는 로우 포고 홉 하나라 12번 내내 같았다(2026-10-16 트레이닝
+   * 50명). 버티컬 · 브로드 점프가 같이 돈다. 1~2주는 그대로 쉬운 것만. 점검 세션은 스쿼트 · 밀기만 보아 상관없다.
    */
-  const mid = pool.filter((ex) => intensityLevel(ex.intensity) <= intensityLevel('중간'));
+  const cap = variant === 'medball' ? '높음' : '중간';
+  const mid = pool.filter((ex) => intensityLevel(ex.intensity) <= intensityLevel(cap));
   pool = mid.length > 0 ? mid : pool;
   if (variant === 'medball') {
     /* 슬램은 '회전'으로 적혀 있어도 위아래로 던지는 것이라 빼고 센다(rotationalThrow 규칙과 같은 까닭) */
@@ -1834,6 +1846,35 @@ export function rotatedPick<T extends { id: string }>(
     max
   );
   return list.length ? list[turn % list.length] : null;
+}
+
+/**
+ * 그날 돌리지 않는 칸(본운동 · 플라이오 푸시업)에 나온 운동 — 돌리는 칸은 이것을 빼고 고른다(2026-10-16 트레이닝 50명: 메디신볼이 없으면
+ * 메디신볼 칸 대체가 플라이오 푸시업이라 웨스트사이드 파워의 플라이오 푸시업 칸과 같은 날 두 번 나왔다). 보조 메뉴 칸은 따로 막는다(accessoryWithFallback).
+ */
+export function fixedIdsOnDay(
+  plan: ProgramPlan,
+  day: number,
+  exerciseOf: (v: VariantKey) => { id: string } | null
+): Set<string> {
+  const out = new Set<string>();
+  for (const x of dayPlan(plan, day).items) {
+    if (x.assist || ROTATING_VARIANTS.includes(x.variant)) continue;
+    const ex = exerciseOf(x.variant);
+    if (ex) out.add(ex.id);
+  }
+  return out;
+}
+
+/** 돌리는 칸 후보에서 그날 고정 칸 운동을 뺀다 — 다 빠지면 그대로 둔다(칸을 비우지 않는다) */
+export function withoutFixed<T extends { id: string }>(
+  anchor: T | null,
+  pool: readonly T[],
+  fixed: ReadonlySet<string>
+): { anchor: T | null; pool: T[] } {
+  const rest = pool.filter((e) => !fixed.has(e.id));
+  if (rest.length === 0) return { anchor, pool: [...pool] };
+  return { anchor: anchor && fixed.has(anchor.id) ? null : anchor, pool: rest };
 }
 
 /**
