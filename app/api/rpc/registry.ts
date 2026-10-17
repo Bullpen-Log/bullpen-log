@@ -8,6 +8,7 @@ import 'server-only';
  */
 import * as admin from '@/app/actions/admin';
 import * as app from '@/app/actions/app';
+import * as appAnalysis from '@/app/actions/app-analysis';
 import * as appArmcare from '@/app/actions/app-armcare';
 import * as appMechanics from '@/app/actions/app-mechanics';
 import * as appWorkout from '@/app/actions/app-workout';
@@ -47,6 +48,7 @@ import * as workout from '@/app/actions/workout';
 export const RPC_MODULES: Record<string, Record<string, unknown>> = {
   admin: admin,
   app: app,
+  'app-analysis': appAnalysis,
   'app-armcare': appArmcare,
   'app-mechanics': appMechanics,
   'app-workout': appWorkout,

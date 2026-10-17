@@ -128,7 +128,7 @@ export function HomeTab({
     >
       <View style={styles.head}>
         <Text style={[styles.title, { color: c.ink }]}>홈</Text>
-        <Pressable accessibilityRole="button" onPress={() => onWeb('/coach?view=pitch')} style={[styles.chip, { backgroundColor: c.chip }]}>
+        <Pressable accessibilityRole="button" onPress={() => router.push('/analysis?view=pitch' as Href)} style={[styles.chip, { backgroundColor: c.chip }]}>
           <Text style={[styles.chipText, { color: c.ink }]}>분석</Text>
         </Pressable>
       </View>

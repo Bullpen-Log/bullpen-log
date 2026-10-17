@@ -56,12 +56,21 @@ const RefWebView = WebView as unknown as ComponentType<
 const NATIVE_PATHS = new Set(['/velocity', '/velocity/measure']);
 /** 같은 화면을 두 번 쌓지 않게 — 주소 가로채기와 사이트 알림이 한 번 누름에 같이 올 수 있다 */
 let lastOpen = 0;
+/** 앱 화면이 맡는 사이트 주소(구속 측정 말고) — 사이트가 BullpenNative/<n> 판을 보고 넘기는 것과 같은 목록(lib/app-env.ts expoLevel) */
+const NATIVE_ROUTES = [
+  /^\/pitch\/\d{4}-\d{2}-\d{2}$/,
+  /^\/workout$/,
+  /^\/armcare\/[\w-]+(\?[\w=&%.-]*)?$/,
+  /^\/(mechanics|analysis)(\?[\w=&%.-]*)?$/,
+  /^\/community(\/[\w-]+)?(\?[\w=&%.-]*)?$/,
+  /^\/support(\/notices(\/[\w-]+)?|\/inquiries(\/[\w-]+)?)?$/,
+];
+const isNativePath = (path: string) => NATIVE_PATHS.has(path) || NATIVE_ROUTES.some((r) => r.test(path));
 function openNative(path: string) {
   if (Date.now() - lastOpen < 1500) return;
   lastOpen = Date.now();
   if (NATIVE_PATHS.has(path)) router.push('/velocity');
-  else if (/^\/pitch\/\d{4}-\d{2}-\d{2}$/.test(path) || path === '/workout' || /^\/armcare\/[\w-]+(\?[\w=&%.-]*)?$/.test(path) || /^\/mechanics(\?[\w=&%.-]*)?$/.test(path))
-    router.push(path as Href);
+  else if (NATIVE_ROUTES.some((r) => r.test(path))) router.push(path as Href);
 }
 const openVelocity = () => openNative('/velocity');
 
@@ -218,7 +227,7 @@ export default function SiteScreen() {
       if (href === '#settings' || href === '#profile') {
         setWebFront(true);
         web.current?.injectJavaScript(`window.__bpOpen && window.__bpOpen('${href.slice(1)}');true;`);
-      } else if (NATIVE_PATHS.has(href)) openNative(href);
+      } else if (isNativePath(href)) openNative(href);
       else goTab(href);
     };
   });

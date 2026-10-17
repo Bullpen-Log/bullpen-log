@@ -130,7 +130,7 @@ function Page({
 }
 
 /** 작은 그래프 — 주별 막대 · 날짜별 선 · 이레 점(웹 highlights.tsx MiniChart 와 같은 재료) */
-function MiniChart({ chart, warn }: { chart: HighlightChart; warn: boolean }) {
+export function MiniChart({ chart, warn }: { chart: HighlightChart; warn: boolean }) {
   const c = usePalette();
   const color = warn ? c.danger : c.sky;
   const W = 96;

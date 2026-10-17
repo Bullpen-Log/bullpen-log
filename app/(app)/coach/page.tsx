@@ -1,4 +1,6 @@
+import { headers } from 'next/headers';
 import { appNow } from '@/lib/clock';
+import { expoLevel } from '@/lib/app-env';
 import { requireUser } from '@/lib/dal';
 import { toDateKey } from '@/lib/pitch-stats';
 import { PageHeading } from '@/components/ui';
@@ -7,6 +9,7 @@ import { AnalysisView } from '@/app/(app)/today/analysis-view';
 import { loadPitchHistory, readDateParam } from '@/app/(app)/today/history';
 import { readCoachView } from './tabs';
 import { AnalysisBody } from './analysis-body';
+import { OpenNative } from '@/app/(session)/velocity/open-native';
 
 /**
  * 분석 · 그래프 — 홈의 '분석 · 그래프 더 보기'(2026-10-05 홈 정리).
@@ -35,6 +38,15 @@ export default async function CoachPage({
   const user = await requireUser();
   const today = toDateKey(appNow());
   const date = readDateParam(params.date) ?? today;
+
+  /*
+   * 새 아이폰 앱(Expo)이 분석 화면을 아는 판(BullpenNative/5 부터)이면 앱 화면으로 연다(native/src/app/analysis.tsx) — 카드 · 그래프 재료는
+   * 같은 곳에서 읽는다(lib/report/analysis-data.ts). 오늘이면 date 를 빼고 넘긴다(앱이 오늘로 연다).
+   */
+  if (expoLevel((await headers()).get('user-agent')) >= 5) {
+    return <OpenNative path={`/analysis?view=${view}${date !== today ? `&date=${date}` : ''}`} cover={true} />;
+  }
+
   const h = await loadPitchHistory(user);
 
   return (

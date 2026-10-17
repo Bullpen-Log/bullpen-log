@@ -1,4 +1,4 @@
-import type { ReviewWeek, TrainingReview } from '@/lib/report/training-review';
+import { armCareMissingOf, type ReviewWeek, type TrainingReview } from '@/lib/report/training-review';
 
 /**
  * 트레이닝 돌아보기 — 최근 4주 한 장.
@@ -10,9 +10,6 @@ import type { ReviewWeek, TrainingReview } from '@/lib/report/training-review';
  */
 
 const FULL_DAYS = 5;
-
-/** 던진 날이 이만큼 되는데 암케어가 하나도 없으면 짚어 준다 */
-const ARM_CARE_ALERT_DAYS = 3;
 
 /* ───────────────────────────── 주별 흐름 ───────────────────────────── */
 
@@ -66,9 +63,7 @@ export function TrainingReviewCards({
   const { weeks, totals } = review;
   const busiest = Math.max(...weeks.map((w) => w.days), 0);
   const anyTraining = weeks.some((w) => w.days > 0);
-  /* 던진 적이 없으면 안 챙긴 것이 아니라 챙길 일이 없었던 것 — 그때는 짚지 않는다 */
-  const armCareMissing =
-    totals.pitchedDays >= ARM_CARE_ALERT_DAYS && totals.armCareDays === 0;
+  const armCareMissing = armCareMissingOf(totals);
   const counts: { label: string; value: number; alert?: boolean }[] = [
     { label: '운동한 날', value: totals.trainedDays },
     { label: '암케어 한 날', value: totals.armCareDays, alert: armCareMissing },

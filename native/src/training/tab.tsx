@@ -126,7 +126,7 @@ export function TrainingTab({ today, bottom, onWeb }: { today: string; bottom: n
     >
       <View style={styles.head}>
         <Text style={[styles.title, { color: c.ink }]}>트레이닝</Text>
-        <Pressable accessibilityRole="button" onPress={() => onWeb('/coach?view=training')} style={[styles.chip, { backgroundColor: c.chip }]}>
+        <Pressable accessibilityRole="button" onPress={() => router.push('/analysis?view=training' as Href)} style={[styles.chip, { backgroundColor: c.chip }]}>
           <Text style={[styles.chipText, { color: c.ink }]}>분석</Text>
         </Pressable>
       </View>

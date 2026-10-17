@@ -7,36 +7,28 @@ import { ArrowDownRight, ArrowUpRight, Minus } from '@/components/icon';
  * 새로 만들게 된다. 여기서는 그대로 다시 내보내, 부르는 쪽을 고치지 않는다.
  */
 import { TONE, StatusChip, type Tone } from '@/components/tone';
+import type { DeltaView } from '@/lib/report/analysis-overview';
 
 export { TONE, StatusChip, type Tone };
 
-/** 지난 기간 대비 변화. 값이 없으면 비교 자체를 생략한다. */
+/** 지난 기간 대비 변화(셈은 lib/report/analysis-overview.ts deltaOf — 앱과 같은 반올림). 값이 없으면 비교 자체를 생략한다. */
 export function Delta({
-  percent,
-  /** 값이 오르는 게 나쁜 지표(투구량 등)면 true */
-  invert = false,
+  delta,
   suffix = '지난주 대비',
 }: {
-  percent: number | null;
-  invert?: boolean;
+  delta: DeltaView | null;
   suffix?: string;
 }) {
-  if (percent == null) {
+  if (delta == null) {
     return <span className="text-xs text-muted/60">비교할 이전 기록 없음</span>;
   }
 
-  const rounded = Math.round(percent);
-  const flat = Math.abs(rounded) < 1;
-  const up = rounded > 0;
-  const tone: Tone = flat ? 'neutral' : (up ? !invert : invert) ? 'good' : 'warn';
-  const Icon = flat ? Minus : up ? ArrowUpRight : ArrowDownRight;
+  const Icon = delta.dir === 0 ? Minus : delta.dir > 0 ? ArrowUpRight : ArrowDownRight;
 
   return (
-    <span className={`inline-flex items-center gap-1 whitespace-nowrap text-xs ${TONE[tone].text}`}>
+    <span className={`inline-flex items-center gap-1 whitespace-nowrap text-xs ${TONE[delta.tone].text}`}>
       <Icon className="h-3.5 w-3.5" />
-      <span className="tabular-nums">
-        {flat ? '변화 없음' : `${Math.abs(rounded)}%`}
-      </span>
+      <span className="tabular-nums">{delta.text}</span>
       {/* 휴대폰은 숫자 칸이 한 줄 셋이라 좁다 — 화살표 · % 만(뜻은 칸 이름 '이번 주'가 말한다) */}
       <span className="hidden text-muted/60 desk:inline">{suffix}</span>
     </span>

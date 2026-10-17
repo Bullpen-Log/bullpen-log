@@ -13,6 +13,8 @@ const LIGHT = {
   /* 주의(권하지 않음 · 통증을 남긴 날) — 사이트 --color-warn · --color-warn-bg */
   warn: '#b45309',
   warnBg: '#fffbeb',
+  /* 좋음(적정 · 변화 좋음) — 사이트 --color-ok */
+  ok: '#047857',
 };
 const DARK: typeof LIGHT = {
   page: '#000000',
@@ -25,6 +27,7 @@ const DARK: typeof LIGHT = {
   chip: '#2c2c2e',
   warn: '#fcd34d',
   warnBg: '#2a1e08',
+  ok: '#34d399',
 };
 export type Palette = typeof LIGHT;
 
