@@ -12,6 +12,7 @@ export default function RootLayout() {
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="pitch/edit" options={{ presentation: 'modal' }} />
         <Stack.Screen name="pitch/import" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="nutrition/add" options={{ presentation: 'modal' }} />
       </Stack>
     </>
   );

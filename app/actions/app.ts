@@ -2,7 +2,10 @@
 
 import { appNow } from '@/lib/clock';
 import { getCurrentUser } from '@/lib/dal';
-import { featureLocks } from '@/lib/feature-locks';
+import { featureLocks, SETUP_PATH } from '@/lib/feature-locks';
+import { isNutritionDate } from '@/lib/nutrition/days';
+import { loadNutritionDay } from '@/lib/nutrition/load';
+import type { Food, MealEntryView } from '@/lib/nutrition/meta';
 import { toDateKey } from '@/lib/pitch-stats';
 import { loadHomeFeed, loadHomeRings, type HomeRing } from '@/lib/report/home-today';
 import { loadTodayCoreCached } from '@/lib/report/today-data';
@@ -77,5 +80,43 @@ export async function loadAppHome(): Promise<
     recovering: plan.recovering && !plan.needsPainCheck && !picked.halted,
     firstDay: core.everLogged ? null : armStatusOf(facts),
     pitchLocked: locks.pitch,
+  };
+}
+
+/**
+ * 앱 영양 탭 — 웹 영양 탭과 같은 그날 자료(lib/nutrition/load.ts loadNutritionDay)에서 앱이 그리는 칸만: 목표 · 그날 먹은 것 · 체중 ·
+ * 최근 먹은 것 · 내 음식. 담기 · 양 바꾸기 · 지우기 · 체중은 웹과 같은 서버 동작(nutrition.*)을 부른다.
+ * 첫 설정 전이면 ok:false + to(웹 첫 설정 화면).
+ */
+export async function loadAppNutrition(date: string): Promise<
+  | {
+      ok: true;
+      date: string;
+      today: string;
+      targets: { kcal: number; protein: number; carbs: number; fat: number; burn: number; base: number };
+      entries: MealEntryView[];
+      weightKg: number | null;
+      recent: Food[];
+      mine: Food[];
+      mfds: boolean;
+    }
+  | { ok: false; error: string; to?: string }
+> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: '로그인이 필요해요.' };
+  if (featureLocks(user).nutrition) return { ok: false, error: '영양 첫 설정을 먼저 해 주세요.', to: SETUP_PATH.nutrition };
+  if (!isNutritionDate(date)) return { ok: false, error: '날짜가 올바르지 않아요.' };
+  const day = await loadNutritionDay(user, date);
+  const t = day.targets;
+  return {
+    ok: true,
+    date,
+    today: toDateKey(appNow()),
+    targets: { kcal: t.kcal, protein: t.protein, carbs: t.carbs, fat: t.fat, burn: t.burn, base: t.base },
+    entries: day.entries,
+    weightKg: day.weightKg,
+    recent: day.recent,
+    mine: day.mine,
+    mfds: day.mfds,
   };
 }

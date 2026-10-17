@@ -38,7 +38,12 @@ const paths = new Map<string, string>();
 for (const f of files(SRC)) {
   const code = readFileSync(f, 'utf8');
   const rel = f.slice(ROOT.length + 1);
-  /* rpc<…>(\n 'velocity.saveVelocitySession', … — 타입 인자가 여러 줄일 수 있어 rpc 뒤 첫 '<파일>.<함수>' 글자를 잡는다 */
+  /*
+   * '<파일>.<함수>' 글자 — rpc(…) 바로 안이든 도우미에 넘기든(act(date, 'nutrition.setWeight', …)). 파일 이름이 허용 목록 열쇠일 때만 센다
+   * ('1.5' · 'pitch.mov' 같은 글자를 안 잡게)
+   */
+  for (const m of code.matchAll(/['"]([\w-]+)\.([a-z]\w*)['"]/g)) if (modules.has(m[1])) calls.set(`${m[1]}.${m[2]}`, rel);
+  /* rpc(…) 바로 안의 이름은 허용 목록에 없어도 센다 — 파일 이름을 틀리게 적은 것을 잡게(타입 인자가 여러 줄일 수 있다) */
   for (const m of code.matchAll(/\brpc\b[\s\S]{0,400}?\(\s*['"]([\w-]+)\.(\w+)['"]/g)) calls.set(`${m[1]}.${m[2]}`, rel);
   for (const m of code.matchAll(/[`'"](\/api\/[\w/-]+)/g)) paths.set(m[1].replace(/\/$/, ''), rel);
 }

@@ -22,6 +22,8 @@ import { CAP_SHIM, handleCapMessage } from '~/lib/cap-bridge';
 import { loadMe, resetMe } from '~/pitch/api';
 import { resetPitchStore } from '~/pitch/store';
 import { HomeTab, resetHomeCache } from '~/home/tab';
+import { NutritionTab } from '~/nutrition/tab';
+import { resetNutritionStore } from '~/nutrition/api';
 import { useWebNav } from '~/shell/web-nav';
 import { adoptWebValues, cacheClear } from '~/lib/store';
 import { PitchTab } from '~/pitch/tab';
@@ -116,12 +118,17 @@ export default function SiteScreen() {
   /* 홈 첫 화면도 앱 화면 — '웹 홈에서' 를 누르면 홈 탭을 다시 누를 때까지 웹 홈(일정 · 자세한 그날 칸) */
   const [webHome, setWebHome] = useState(false);
   const showHome = barOn && path === '/today' && !!today && !webHome;
+  /* 영양 첫 화면도 앱 화면(오늘 먹은 것 · 담기 · 체중) — '식단 · 목표 · 통계'를 누르면 영양 탭을 다시 누를 때까지 웹 영양 */
+  const [webNutrition, setWebNutrition] = useState(false);
+  const nutritionTab = tabs.find((t) => t.href === '/nutrition');
+  const showNutrition = barOn && path === '/nutrition' && !!today && !webNutrition && !nutritionTab?.locked;
 
   const goWeb = (href: string) =>
     web.current?.injectJavaScript(`window.__bpTab && window.__bpTab(${JSON.stringify(href)});true;`);
   const pressTab = (t: ShellTab) => {
-    if ((t.href === '/videos' || t.href === '/today') && !t.locked) setPath(t.href);
+    if ((t.href === '/videos' || t.href === '/today' || t.href === '/nutrition') && !t.locked) setPath(t.href);
     if (t.href === '/today') setWebHome(false);
+    if (t.href === '/nutrition') setWebNutrition(false);
     goWeb(t.href);
   };
   /* 앱 화면이 끝난 뒤 웹을 옮길 곳(운동을 마치면 축하 화면) — shell/web-nav.ts */
@@ -200,6 +207,7 @@ export default function SiteScreen() {
       resetMe();
       resetPitchStore();
       resetHomeCache();
+      resetNutritionStore();
       setToday(null);
       void cacheClear();
     }
@@ -267,6 +275,11 @@ export default function SiteScreen() {
           <HomeTab today={today} bottom={TAB_BAR_HEIGHT} onWeb={openWeb} onTab={goTab} onWebHome={() => setWebHome(true)} />
         </View>
       ) : null}
+      {showNutrition && today ? (
+        <View style={StyleSheet.absoluteFill}>
+          <NutritionTab today={today} bottom={TAB_BAR_HEIGHT} onWebNutrition={() => setWebNutrition(true)} />
+        </View>
+      ) : null}
       {showPitch && today ? (
         <View style={StyleSheet.absoluteFill}>
           <PitchTab today={today} bottom={TAB_BAR_HEIGHT} onWeb={openWeb} />
@@ -275,7 +288,7 @@ export default function SiteScreen() {
       {barOn ? (
         <TabBar
           tabs={tabs}
-          active={showPitch ? '/videos' : showHome ? '/today' : active}
+          active={showPitch ? '/videos' : showHome ? '/today' : showNutrition ? '/nutrition' : active}
           onPress={pressTab}
         />
       ) : null}

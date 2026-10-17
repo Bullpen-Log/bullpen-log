@@ -11,7 +11,7 @@
       "bundleIdentifier": "com.bullpenlog.app",
       "supportsTablet": true,
       "infoPlist": {
-        "NSCameraUsageDescription": "구속 측정과 투구 · 운동 영상을 찍는 데 카메라를 씁니다.",
+        "NSCameraUsageDescription": "구속 측정 · 투구와 운동 영상 · 음식 바코드를 찍는 데 카메라를 씁니다.",
         "NSMicrophoneUsageDescription": "영상을 찍을 때 소리를 함께 담는 데 마이크를 씁니다.",
         "NSPhotoLibraryUsageDescription": "앨범의 투구 · 운동 영상을 고르는 데 사진을 씁니다.",
         "NSPhotoLibraryAddUsageDescription": "찍은 영상을 앨범에 저장하는 데 씁니다.",
