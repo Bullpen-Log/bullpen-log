@@ -115,6 +115,13 @@ model User {
   userExerciseLogs  UserExerciseLog[]
   workoutSessions   TrainingSession[]
   articles          Article[]
+  supportInquiries  SupportInquiry[]
+  supportReplies    SupportReply[]    @relation("SupportReplyAuthor")
+  supportNotices    SupportNotice[]   @relation("SupportNoticeAuthor")
+  communityPosts    CommunityPost[]
+  communityComments CommunityComment[]
+  communityLikes    CommunityLike[]
+  communityReports  CommunityReport[] @relation("CommunityReporter")
   checkins          DailyCheckin[]
   trainingSetups    DailyTrainingSetup[]
   armcareRoutines   DailyArmcare[]
@@ -1531,6 +1538,137 @@ model VelocityBallLabel {
   frames    Json
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+
+// ── 고객센터(2026-10-17 1판 — 틀) ──────────────────────────────────────────────
+
+/// 1:1 문의의 상태 — 접수됨 → 운영자가 답하면 답변 완료 → 쓴 사람 · 운영자가 닫으면 종료(lib/support.ts INQUIRY_STATUS)
+enum InquiryStatus {
+  OPEN
+  ANSWERED
+  CLOSED
+}
+
+/// 공지 — 운영자가 쓴다. pinned 는 맨 위 고정.
+model SupportNotice {
+  id        String   @id @default(uuid())
+  authorId  String
+  title     String
+  body      String   @db.Text
+  pinned    Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  author User @relation("SupportNoticeAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([pinned, createdAt])
+  @@index([authorId])
+}
+
+/// 1:1 문의 — 쓴 사람과 운영자가 답글(SupportReply)을 주고받는다. category 는 lib/support.ts INQUIRY_CATEGORIES 의 key.
+model SupportInquiry {
+  id        String        @id @default(uuid())
+  userId    String
+  category  String
+  title     String
+  body      String        @db.Text
+  status    InquiryStatus @default(OPEN)
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  user    User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  replies SupportReply[]
+
+  @@index([userId, createdAt])
+  @@index([status, createdAt])
+}
+
+/// 문의의 답글 — fromStaff 가 참이면 운영자의 답.
+model SupportReply {
+  id        String   @id @default(uuid())
+  inquiryId String
+  authorId  String
+  fromStaff Boolean  @default(false)
+  body      String   @db.Text
+  createdAt DateTime @default(now())
+
+  inquiry SupportInquiry @relation(fields: [inquiryId], references: [id], onDelete: Cascade)
+  author  User           @relation("SupportReplyAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([inquiryId, createdAt])
+  @@index([authorId])
+}
+
+// ── 커뮤니티(2026-10-17 1판 — 틀) ──────────────────────────────────────────────
+
+/// 글 — category 는 lib/community.ts POST_CATEGORIES 의 key. hiddenAt 은 운영자가 가린 때(신고 처리) — 목록 · 상세에서 안 보인다.
+model CommunityPost {
+  id        String    @id @default(uuid())
+  userId    String
+  category  String
+  title     String
+  body      String    @db.Text
+  hiddenAt  DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  user     User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  comments CommunityComment[]
+  likes    CommunityLike[]
+  reports  CommunityReport[]
+
+  @@index([createdAt])
+  @@index([category, createdAt])
+  @@index([userId])
+}
+
+model CommunityComment {
+  id        String    @id @default(uuid())
+  postId    String
+  userId    String
+  body      String    @db.Text
+  hiddenAt  DateTime?
+  createdAt DateTime  @default(now())
+
+  post    CommunityPost     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user    User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reports CommunityReport[]
+
+  @@index([postId, createdAt])
+  @@index([userId])
+}
+
+/// 좋아요 — 한 사람이 한 글에 한 번.
+model CommunityLike {
+  postId    String
+  userId    String
+  createdAt DateTime @default(now())
+
+  post CommunityPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([postId, userId])
+  @@index([userId])
+}
+
+/// 신고 — 글 또는 댓글 하나(둘 중 하나만 채운다). reason 은 lib/community.ts REPORT_REASONS 의 key. resolvedAt 은 운영자가 처리한 때.
+model CommunityReport {
+  id         String    @id @default(uuid())
+  reporterId String
+  postId     String?
+  commentId  String?
+  reason     String
+  detail     String?   @db.Text
+  resolvedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  reporter User              @relation("CommunityReporter", fields: [reporterId], references: [id], onDelete: Cascade)
+  post     CommunityPost?    @relation(fields: [postId], references: [id], onDelete: Cascade)
+  comment  CommunityComment? @relation(fields: [commentId], references: [id], onDelete: Cascade)
+
+  @@index([resolvedAt, createdAt])
+  @@index([reporterId])
 }
 
 // ── 트레이닝 영상 촬영(관리자) ───────────────────────────────────────────────
