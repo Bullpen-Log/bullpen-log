@@ -4,7 +4,6 @@ import { useEffect, useMemo, useRef, useState, useTransition, type ReactNode } f
 import { useRouter } from 'next/navigation';
 import { Check, ChevronLeft, X } from '@/components/icon';
 import { saveCheckin } from '@/app/actions/checkin';
-import { logout } from '@/app/actions/auth';
 import { OFFLINE_MESSAGE, orOffline } from '@/lib/action-offline';
 import { PAIN_FORCED_CONDITION } from '@/lib/checkin';
 import { partsFromSpots, type BodySpots } from '@/lib/body-spots';
@@ -434,17 +433,12 @@ export function CheckinFlow({
           >
             {existing ? '고치기 시작' : '시작'}
           </button>
-          {/* 고치는 날은 아래 글 단추가 없다 — 로그인 화면은 필요 없고 닫기는 오른쪽 위(X)에 있다(2026-10-13 사용자) */}
+          {/*
+            고치는 날은 아래 글 단추가 없다 — 닫기는 오른쪽 위(X)에 있다(2026-10-13 사용자).
+            '로그인 · 회원가입 화면으로'는 뺐다(2026-10-17 김민) — 건너뛰기 바로 옆에서 누르면 묻지 않고 로그아웃됐다. 로그아웃은 설정에서.
+          */}
           {!existing && (
-            <div className="flex items-center justify-center gap-4 text-sm text-muted">
-              <form action={logout}>
-                <button
-                  type="submit"
-                  className="min-h-11 underline-offset-2 hover:underline"
-                >
-                  로그인 · 회원가입 화면으로
-                </button>
-              </form>
+            <div className="flex items-center justify-center text-sm text-muted">
               <button
                 type="button"
                 onClick={skipToday}

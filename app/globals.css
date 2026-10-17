@@ -1689,6 +1689,19 @@ dialog:not([open]) {
       z-index: 2147483000;
     }
   }
+  /*
+   * 판 넘기기 트랙(휴대폰 · 패드, 위 [data-pager-track])은 transform 이라, 그 안의 창은 화면이 아니라 4판 폭 트랙에 붙는다 —
+   * 닫히는 0.2초 동안 투구 · 트레이닝 · 영양 판의 시트가 화면 밖으로 튀었다(2026-10-17 QA). 트랙 좌표에서 지금 판 자리(= 화면)를 준다:
+   * 왼쪽 = 판 번호 × 25% − 패드의 왼쪽 탭 막대(트랙이 그만큼 비켜 있다), 오른쪽 = 남은 판 × 25%. 위아래는 트랙 = 화면 높이(100dvh).
+   */
+  @media not all and (min-width: 36rem) and (hover: hover) and (pointer: fine) {
+    @layer base {
+      [data-pager-track] dialog:not([open]) {
+        left: calc(var(--i, 0) * 25% - var(--rail, 0px));
+        right: calc((3 - var(--i, 0)) * 25%);
+      }
+    }
+  }
   dialog:not([open]) {
     animation: dialog-shade-out 200ms ease-in both;
   }
