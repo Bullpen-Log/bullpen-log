@@ -28,6 +28,7 @@ import { logPrefillOf, unloggedSessions, type VelocitySessionView } from '../lib
 import { ageBand } from '../lib/nutrition/age.ts';
 import { FEATURE_HOME, SETUP_PATH, featureOfPath, isSetupPath } from '../lib/feature-locks.ts';
 import { MOBILE_TABS, NAV_GROUPS, applyLocks } from '../lib/nav.ts';
+import { APP_API_LEVEL, MIN_APP_API, appApiLevelOf } from '../lib/app-api.ts';
 
 let passed = 0;
 let failed = 0;
@@ -177,7 +178,13 @@ console.log('\n[7] 서버 동작 · API — 모든 쓰기 입구가 로그인한
   /* 함수를 하나도 못 읽으면 시험이 아무것도 안 본 것 — 지금 백몇십 개 */
   check(`app/actions 의 export 함수는 모두 로그인 확인을 거친다(읽은 함수 ${seen}개)`, seen > 100 && open.length === 0, open.join(', '));
   const routes = walk('app/api').filter((f) => f.endsWith('route.ts'));
-  const OPEN_ROUTES = new Set(['app/api/session/clear/route.ts', 'app/api/sim-offset/route.ts', 'app/api/library/bundle/route.ts']);
+  /* /api/rpc 는 허용 목록의 서버 액션을 부를 뿐이고 로그인은 그 액션이 확인한다(바로 위 시험) — [12] 가 따로 본다 */
+  const OPEN_ROUTES = new Set([
+    'app/api/session/clear/route.ts',
+    'app/api/sim-offset/route.ts',
+    'app/api/library/bundle/route.ts',
+    'app/api/rpc/[action]/route.ts',
+  ]);
   const unchecked = routes.filter((r) => !OPEN_ROUTES.has(r) && !AUTH.test(src(r)));
   check(
     `API 경로도 로그인 확인(로그아웃 · 시험 시계 · 굽기 전용 열쇠 셋은 따로, 읽은 경로 ${routes.length}개)`,
@@ -308,6 +315,28 @@ console.log('\n[11] 탈퇴 · 회원 지우기 — 두 입구가 같은 길이�
     `사람과 이어지지 않은 표(${loose.join(' · ')})는 탈퇴 때 지우거나 남긴다고 정해져 있다`,
     loose.length > 0 && undecided.length === 0,
     undecided.join(', ')
+  );
+}
+
+/* ─────────────────────── 12. 앱 입구(/api/rpc) ─────────────────────── */
+console.log('\n[12] 앱 입구 — 아이폰 앱(native/)이 부르는 /api/rpc 가 웹과 같은 서버 액션 · 약속 번호를 쓰는가');
+{
+  const route = src('app/api/rpc/[action]/route.ts');
+  const registry = src('app/api/rpc/registry.ts');
+  /* 서버 액션 파일을 새로 만들고 허용 목록에 안 넣으면 앱에서 'unknown-action' — 화면 조각을 돌려주는 analysis.tsx 만 뺀다 */
+  const actionFiles = readdirSync(new URL('../app/actions/', import.meta.url)).filter((f) => f.endsWith('.ts'));
+  const missing = actionFiles.filter((f) => !registry.includes(`from '@/app/actions/${f.slice(0, -3)}'`));
+  check(`서버 액션 파일 ${actionFiles.length}개가 모두 허용 목록에 있다`, actionFiles.length > 20 && missing.length === 0, missing.join(', '));
+  check(
+    '약속 번호가 낮거나 머리가 없으면 액션을 부르기 전에 426(옛 판 앱 · 남의 사이트에서 쿠키로 부르기 막기)',
+    route.indexOf('MIN_APP_API') > -1 && route.indexOf('status: 426') > -1 && route.indexOf('status: 426') < route.indexOf('await fn(')
+  );
+  check('이름 고르기는 모듈 자신의 export 만(프로토타입 이름 제외)', /Object\.hasOwn\(mod, name\)/.test(route));
+  check('redirect() · notFound() 를 삼키지 않고 앱이 알아듣는 답으로 바꾼다', route.includes("'NEXT_REDIRECT;'") && route.includes("'NEXT_HTTP_ERROR_FALLBACK;'"));
+  check(
+    '약속 번호 읽기: 없음 · 글자 · 0 · 음수는 0, 숫자는 그 수',
+    [appApiLevelOf(null), appApiLevelOf('abc'), appApiLevelOf('0'), appApiLevelOf('-3'), appApiLevelOf('2')].join() === '0,0,0,0,2' &&
+      APP_API_LEVEL >= MIN_APP_API
   );
 }
 

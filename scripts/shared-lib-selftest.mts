@@ -15,10 +15,12 @@ import { dirname, join, relative, resolve } from 'node:path';
 const ROOT = resolve(import.meta.dirname, '..');
 const NATIVE = join(ROOT, 'native');
 
-const SERVER = /import\s+['"]server-only['"]|from\s+['"](@\/lib\/prisma|next\/[^'"]*|node:[^'"]*|@prisma\/[^'"]*)['"]/;
+const SERVER =
+  /import\s+['"]server-only['"]|from\s+['"](@\/lib\/prisma|next\/[^'"]*|node:[^'"]*|@prisma\/[^'"]*)['"]/;
 const BROWSER = /\b(window|document|localStorage|navigator)\./;
 
-const strip = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:'"`])\/\/.*$/gm, '$1');
+const strip = (s: string) =>
+  s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:'"`])\/\/.*$/gm, '$1');
 const cache = new Map<string, string>();
 const code = (f: string) => {
   if (!cache.has(f)) cache.set(f, strip(readFileSync(f, 'utf8')));
@@ -27,14 +29,23 @@ const code = (f: string) => {
 
 /** `@/x` 와 상대 경로만 따라간다 — 패키지(react 등)는 앱 · 웹이 각자 깐다. */
 function resolveSpec(from: string, spec: string): string | null {
-  const base = spec.startsWith('@/') ? join(ROOT, spec.slice(2)) : spec.startsWith('.') ? resolve(dirname(from), spec) : null;
+  const base = spec.startsWith('@/')
+    ? join(ROOT, spec.slice(2))
+    : spec.startsWith('.')
+      ? resolve(dirname(from), spec)
+      : null;
   if (!base) return null;
-  for (const c of [base, `${base}.ts`, `${base}.tsx`, join(base, 'index.ts')]) if (existsSync(c) && statSync(c).isFile()) return c;
+  for (const c of [base, `${base}.ts`, `${base}.tsx`, join(base, 'index.ts')])
+    if (existsSync(c) && statSync(c).isFile()) return c;
   return null;
 }
 
 const importsOf = (f: string) =>
-  [...code(f).matchAll(/(?:import|export)\s+(?!type\b)[^'";]*?from\s+['"]([^'"]+)['"]|import\(\s*['"]([^'"]+)['"]\s*\)/g)]
+  [
+    ...code(f).matchAll(
+      /(?:import|export)\s+(?!type\b)[^'";]*?from\s+['"]([^'"]+)['"]|import\(\s*['"]([^'"]+)['"]\s*\)/g
+    ),
+  ]
     .map((m) => resolveSpec(f, m[1] ?? m[2]))
     .filter((x): x is string => x != null);
 
@@ -48,7 +59,8 @@ function blocked(start: string): { path: string[]; why: string } | null {
     const why = SERVER.test(s) ? '서버 전용' : BROWSER.test(s) ? '브라우저 전용' : null;
     if (why) {
       const path: string[] = [];
-      for (let c: string | null = f; c; c = prev.get(c) ?? null) path.unshift(relative(ROOT, c));
+      for (let c: string | null = f; c; c = prev.get(c) ?? null)
+        path.unshift(relative(ROOT, c));
       return { path, why };
     }
     for (const t of importsOf(f)) {
@@ -73,7 +85,9 @@ const walk = (dir: string, out: string[] = []) => {
 
 let fail = 0;
 const shared = new Set<string>();
-for (const f of walk(NATIVE)) for (const t of importsOf(f)) if (t.startsWith(join(ROOT, 'lib') + '/')) shared.add(t);
+for (const f of walk(NATIVE))
+  for (const t of importsOf(f))
+    if (t.startsWith(join(ROOT, 'lib') + '/')) shared.add(t);
 for (const f of [...shared].sort()) {
   const b = blocked(f);
   if (b) {
@@ -83,7 +97,17 @@ for (const f of [...shared].sort()) {
 }
 
 // 참고: 계산 폴더에서 앱이 그대로 쓸 수 있는 파일 수
-const DIRS = ['engine', 'report', 'nutrition', 'program', 'mechanics', 'armcare', 'workout', 'velocity-engine', 'pitch-3d'];
+const DIRS = [
+  'engine',
+  'report',
+  'nutrition',
+  'program',
+  'mechanics',
+  'armcare',
+  'workout',
+  'velocity-engine',
+  'pitch-3d',
+];
 let total = 0;
 let ok = 0;
 for (const d of DIRS)
@@ -94,9 +118,13 @@ for (const d of DIRS)
 ok += Number(!blocked(join(ROOT, 'lib/units.ts')));
 total++;
 
-console.log(`\n앱이 부르는 lib ${shared.size}개 · 막힘 ${fail} · (참고) 계산 파일 ${total}개 중 앱에서 그대로 쓸 수 있음 ${ok}`);
+console.log(
+  `\n앱이 부르는 lib ${shared.size}개 · 막힘 ${fail} · (참고) 계산 파일 ${total}개 중 앱에서 그대로 쓸 수 있음 ${ok}`
+);
 if (blocked(join(ROOT, 'lib/units.ts'))) {
-  console.log('✗ lib/units.ts 가 다시 브라우저 · 서버 코드를 품었다 — 기기 저장은 lib/units-storage.ts 로');
+  console.log(
+    '✗ lib/units.ts 가 다시 브라우저 · 서버 코드를 품었다 — 기기 저장은 lib/units-storage.ts 로'
+  );
   fail++;
 }
 process.exit(fail ? 1 : 0);
