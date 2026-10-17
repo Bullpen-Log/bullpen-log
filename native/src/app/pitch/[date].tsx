@@ -7,6 +7,7 @@ import { usePalette } from '~/lib/ui';
 import { ApiError, dateKeyOf, deleteLog, isPhoneVideoPath, phoneAssetId } from '~/pitch/api';
 import { monthOf, refreshMonth, useMonth } from '~/pitch/store';
 import { PitchVideo } from '~/pitch/video';
+import { VelocityDay } from '~/pitch/velocity-day';
 
 /** 그날 화면(앱) — 그날 기록들(종류 · 공 수 · 강도 · 구속 · 메모 · 영상) · 고치기 · 지우기 · 새 기록. 웹 app/(app)/pitch-log/[date] 의 첫 판 */
 const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'];
@@ -101,6 +102,7 @@ export default function PitchDayScreen() {
             ))}
           </View>
         ))}
+        <VelocityDay date={date} logCount={day.length} />
         <Pressable
           accessibilityRole="button"
           onPress={() => router.push({ pathname: '/pitch/edit' as Href as never, params: { date } })}

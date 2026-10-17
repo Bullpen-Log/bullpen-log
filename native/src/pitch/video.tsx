@@ -58,6 +58,11 @@ export function PitchVideo({ path }: { path: string }) {
   return <Player uri={uri} />;
 }
 
+/** 이미 받은 주소(서명 주소 등)를 바로 튼다 */
+export function UrlVideo({ uri }: { uri: string }) {
+  return <Player uri={uri} />;
+}
+
 function Player({ uri }: { uri: string }) {
   const player = useVideoPlayer(uri, (p) => {
     p.muted = true;

@@ -8,6 +8,8 @@ import { featureLocks, SETUP_PATH } from '@/lib/feature-locks';
 import { dbDate, isNutritionDate, keyOfDbDate } from '@/lib/nutrition/days';
 import { prisma } from '@/lib/prisma';
 import { sortEvents, type CalendarEventView } from '@/lib/calendar-event';
+import { loadVelocityDay } from '@/lib/velocity-load';
+import { logPrefillOf, unloggedSessions, type LogPrefill, type VelocitySessionView } from '@/lib/velocity-meta';
 import { loadNutritionDay } from '@/lib/nutrition/load';
 import type { Food, MealEntryView } from '@/lib/nutrition/meta';
 import type { PlanContext, PlanItem } from '@/lib/nutrition/meal-plan';
@@ -192,5 +194,27 @@ export async function loadAppDayEvents(
         ...(userId === user.id ? {} : { owner: owner.nickname }),
       }))
     ),
+  };
+}
+
+/**
+ * 앱 그날 화면의 구속 측정 칸 — 웹 그날 화면(app/(app)/pitch-log/[date]/load.ts)과 같은 세션 · 공(lib/velocity-load.ts loadVelocityDay —
+ * 서버 클립은 서명 주소, 폰 클립은 경로 그대로)과, 아직 투구 기록으로 안 남긴 측정으로 새 기록을 채울 값(logPrefillOf).
+ */
+export async function loadAppVelocityDay(
+  date: string
+): Promise<{ ok: true; sessions: VelocitySessionView[]; prefill: LogPrefill | null } | { ok: false; error: string }> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: '로그인이 필요해요.' };
+  if (typeof date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return { ok: false, error: '날짜가 올바르지 않아요.' };
+  const at = dbDate(date);
+  const [sessions, logs] = await Promise.all([
+    loadVelocityDay(user.id, at),
+    prisma.pitchLog.findMany({ where: { userId: user.id, date: at }, select: { createdAt: true } }),
+  ]);
+  return {
+    ok: true,
+    sessions,
+    prefill: logPrefillOf(unloggedSessions(sessions, logs.map((l) => l.createdAt.toISOString()))),
   };
 }

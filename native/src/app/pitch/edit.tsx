@@ -46,13 +46,20 @@ type Video = { path: string; name: string; fresh?: boolean };
 export default function PitchEditScreen() {
   /* videos · importKey = 지난 영상 가져오기(pitch/import)가 폰에 넣은 영상 경로를 붙여 연다 — 저장하면 그 묶음을 '남김'으로 */
   /* drill · pct = 트레이닝 탭 메커니즘 카드의 '드릴로 던진 공'(웹 drillPrefill 과 같은 값 — 캐치볼 · 공 수 · 강도 · 메모로 채운다) */
-  const { date, id, videos, importKey, drill, pct } = useLocalSearchParams<{
+  const { date, id, videos, importKey, drill, pct, vsids, vtype, vcount, vmax, vavg, veffort } = useLocalSearchParams<{
     date: string;
     id?: string;
     videos?: string;
     importKey?: string;
     drill?: string;
     pct?: string;
+    /* 구속 측정으로 채우기 — 그날 화면의 '측정한 N구 기록 남기기'(웹 logPrefillOf 와 같은 값). 저장하면 그 세션을 잇는다 */
+    vsids?: string;
+    vtype?: string;
+    vcount?: string;
+    vmax?: string;
+    vavg?: string;
+    veffort?: string;
   }>();
   const { logs } = useMonth(monthOf(date));
   const editing = id ? (logs ?? []).find((l) => l.id === id) : undefined;
@@ -70,9 +77,23 @@ export default function PitchEditScreen() {
     !editing && Number.isFinite(drillThrows) && drillThrows > 0
       ? { pitchCount: drillThrows, effortPct: snapEffortPct(Number(pct) || 60), memo: `메커니즘 드릴 ${drillThrows}회` }
       : null;
+  const sessionIds = vsids ? (JSON.parse(vsids) as string[]) : [];
+  const num = (v?: string) => (v && Number.isFinite(Number(v)) ? Number(v) : null);
+  const velocityPrefill =
+    !editing && sessionIds.length
+      ? {
+          sessionIds,
+          sessionType: vtype && SESSION_TYPES.some((t) => t.name === vtype) ? vtype : null,
+          pitchCount: num(vcount) ?? 0,
+          maxVelocity: num(vmax),
+          avgVelocity: num(vavg),
+          effortPct: num(veffort),
+        }
+      : null;
   return (
     <EntryForm
       key={editing?.id ?? 'new'}
+      velocityPrefill={velocityPrefill}
       date={date}
       editing={editing}
       imported={imported}
@@ -88,22 +109,42 @@ function EntryForm({
   imported,
   importKey,
   drillPrefill,
+  velocityPrefill,
 }: {
   date: string;
   editing?: PitchLog;
   imported: string[];
   importKey?: string;
   drillPrefill?: { pitchCount: number; effortPct: number; memo: string } | null;
+  velocityPrefill?: {
+    sessionIds: string[];
+    sessionType: string | null;
+    pitchCount: number;
+    maxVelocity: number | null;
+    avgVelocity: number | null;
+    effortPct: number | null;
+  } | null;
 }) {
   const c = usePalette();
   const inset = useSafeAreaInsets();
-  const [type, setType] = useState(editing?.sessionType ?? (drillPrefill ? '캐치볼' : '불펜'));
+  const vp = velocityPrefill;
+  const [type, setType] = useState(editing?.sessionType ?? vp?.sessionType ?? (drillPrefill ? '캐치볼' : '불펜'));
   const [count, setCount] = useState(
-    editing && !isRestSession(editing.sessionType) ? String(editing.pitchCount) : drillPrefill ? String(drillPrefill.pitchCount) : ''
+    editing && !isRestSession(editing.sessionType)
+      ? String(editing.pitchCount)
+      : vp?.pitchCount
+        ? String(vp.pitchCount)
+        : drillPrefill
+          ? String(drillPrefill.pitchCount)
+          : ''
   );
-  const [effort, setEffort] = useState<number | null>(editing?.effortPct ?? drillPrefill?.effortPct ?? null);
-  const [maxV, setMaxV] = useState(editing?.maxVelocity != null ? String(editing.maxVelocity) : '');
-  const [avgV, setAvgV] = useState(editing?.avgVelocity != null ? String(editing.avgVelocity) : '');
+  const [effort, setEffort] = useState<number | null>(editing?.effortPct ?? vp?.effortPct ?? drillPrefill?.effortPct ?? null);
+  const [maxV, setMaxV] = useState(
+    editing?.maxVelocity != null ? String(editing.maxVelocity) : vp?.maxVelocity != null ? String(vp.maxVelocity) : ''
+  );
+  const [avgV, setAvgV] = useState(
+    editing?.avgVelocity != null ? String(editing.avgVelocity) : vp?.avgVelocity != null ? String(vp.avgVelocity) : ''
+  );
   const [memo, setMemo] = useState(editing?.memo ?? drillPrefill?.memo ?? '');
   /* 투구 만족도 · 좋았던 · 아쉬웠던 감각(불펜 · 라이브 · 경기만 — 웹 entry-form 과 같다, lib/pitch-satisfaction.ts) */
   const [satisfaction, setSatisfaction] = useState<number | null>(editing?.satisfaction ?? null);
@@ -164,6 +205,7 @@ function EntryForm({
       memo,
       videoPaths: videos.map((v) => v.path),
       ...(isRatedSession(type) ? { satisfaction, cuesGood: good, cuesBad: bad } : {}),
+      ...(!editing && vp?.sessionIds.length ? { velocitySessionIds: vp.sessionIds } : {}),
     };
     setBusy('저장하는 중');
     setError(null);

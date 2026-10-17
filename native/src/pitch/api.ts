@@ -38,6 +38,8 @@ export type PitchEntry = {
   satisfaction?: number | null;
   cuesGood?: string[];
   cuesBad?: string[];
+  /** 새 기록을 구속 측정값으로 채웠으면 그 세션들 — 서버가 이 기록에 잇는다(웹 POST 와 같은 칸) */
+  velocitySessionIds?: string[];
 };
 
 export class ApiError extends Error {}

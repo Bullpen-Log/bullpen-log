@@ -56,7 +56,7 @@ function openNative(path: string) {
   if (Date.now() - lastOpen < 1500) return;
   lastOpen = Date.now();
   if (NATIVE_PATHS.has(path)) router.push('/velocity');
-  else if (/^\/pitch\/\d{4}-\d{2}-\d{2}$/.test(path) || path === '/workout')
+  else if (/^\/pitch\/\d{4}-\d{2}-\d{2}$/.test(path) || path === '/workout' || /^\/armcare\/[\w-]+(\?[\w=&%.-]*)?$/.test(path))
     router.push(path as Href);
 }
 const openVelocity = () => openNative('/velocity');
