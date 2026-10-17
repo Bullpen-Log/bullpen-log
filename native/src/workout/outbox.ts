@@ -7,7 +7,9 @@ import type { SavedSet } from '@/app/actions/workout';
  * 같은 규칙을 앱 저장소(AsyncStorage)로 옮겼다:
  *   - 담는 순간 화면에 보이고(신호를 기다리지 않는다), 보내는 데 성공한 것만 뺀다.
  *   - 같은 세트(판 · 운동 · 번호)를 다시 담으면 새 값으로 바뀐다 — 서버도 그 번호로 덮어써 두 번 저장되지 않는다.
- *   - 보내다 예외(신호 없음 · 서버 오류)면 그대로 두고 멈춘다 → 'offline'. 서버가 답으로 거절한 것은 다시 보내도 안 되니 뺀다.
+ *   - 보내다 예외(신호 없음)면 그대로 두고 멈춘다 → 'offline'. 서버가 답으로 거절한 것은 다시 보내도 안 되니 뺀다. 서버 오류(500 · 404)가
+ *     같은 세트에서 여덟 번 나면 그것도 거절로 본다 — 안 그러면 그 한 줄이 뒤의 세트를 모두 막고 마치기도 막았다.
+ *   - 보낸 결과는 듣는 화면 모두에(onSent) — 껍데기(앱을 켤 때 · 다시 볼 때)가 보내도 열린 운동 화면이 저장된 세트를 받는다.
  *   - 7일 넘게 못 보낸 것은 버린다(서버가 받지 않는다).
  * 화면(useSyncExternalStore)은 subscribe · snapshot 으로 읽는다.
  */
@@ -75,6 +77,19 @@ export const outbox = {
 };
 
 let draining = false;
+/** 같은 세트에서 서버 오류가 난 횟수 — 여덟이면 거절로 본다(메모리만, 앱을 다시 켜면 다시 센다) */
+const serverFails = new Map<string, number>();
+/* 여덟 번(운동 화면은 15초마다 — 약 2분) — 배포 중 잠깐 나는 오류로 세트를 버리지 않을 만큼 */
+const SERVER_FAIL_LIMIT = 8;
+const keyText = (k: SetKey) => `${k.sessionId}|${k.exerciseId}|${k.setNo}`;
+/** 보낸 결과를 듣는 곳(운동 화면) — 누가 보냈든 같은 답이 간다 */
+const sentSubs = new Set<(p: PendingSet, result: unknown) => void>();
+export function onSent(f: (p: PendingSet, result: unknown) => void) {
+  sentSubs.add(f);
+  return () => {
+    sentSubs.delete(f);
+  };
+}
 
 /**
  * 담긴 세트를 누른 순서대로 하나씩 보낸다 — 웹 lib/outbox.ts drain 과 같은 규칙. 한 번에 한 줄만 돌고, 보내는 사이 새로 담긴 것도
@@ -97,10 +112,22 @@ export async function drainOutbox<R>(
       let result: R;
       try {
         result = await send(next);
-      } catch {
-        return 'offline';
+      } catch (e) {
+        /* 신호 없음 · 다시 로그인 · 앱 업데이트는 나중에 다시. 그 밖(서버가 처리 못 함 — 500 · 모르는 동작 · 틀린 값)만 센다 */
+        const code = (e as { code?: unknown })?.code;
+        if (code === 'offline' || code === 'redirect' || code === 'update' || code == null) return 'offline';
+        const n = (serverFails.get(keyText(next)) ?? 0) + 1;
+        serverFails.set(keyText(next), n);
+        if (n < SERVER_FAIL_LIMIT) return 'offline';
+        /* 서버가 이 세트를 계속 못 받는다 — 빼고 알린다(답으로 거절한 것과 같이) */
+        serverFails.delete(keyText(next));
+        outbox.remove(next);
+        const failed = { error: '서버가 세트 하나를 받지 못해 뺐어요. 다시 남겨 주세요.' };
+        sentSubs.forEach((f) => f(next, failed));
+        continue;
       }
       handle(next, result);
+      sentSubs.forEach((f) => f(next, result));
       const now = items.find((x) => same(x, next));
       if (now === next || JSON.stringify(now) === JSON.stringify(next)) outbox.remove(next);
     }

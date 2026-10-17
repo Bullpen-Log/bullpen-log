@@ -34,7 +34,7 @@ function Sheet({
 }) {
   const inset = useSafeAreaInsets();
   return (
-    <Modal visible={open} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose} onDismiss={onClose}>
+    <Modal visible={open} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
       <KeyboardAvoidingView behavior="padding" style={{ flex: 1, backgroundColor: c.page }}>
         <View style={st.head}>
           <View style={{ flex: 1 }}>

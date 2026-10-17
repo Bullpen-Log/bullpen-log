@@ -37,7 +37,7 @@ import { BullpenNative } from '../../modules/bullpen-native';
 import { rpc, RpcError } from '~/lib/rpc';
 import { usePalette, type Palette } from '~/lib/ui';
 import { openWebAfter } from '~/shell/web-nav';
-import { drainOutbox, outbox, withPending, type ShownSet } from '~/workout/outbox';
+import { drainOutbox, onSent, outbox, withPending, type ShownSet } from '~/workout/outbox';
 import { ExerciseVideo, NoteBox, NumberPad, RestPill, RirQuestion, SetDots } from '~/workout/parts';
 import { FinishSheet, ListSheet, SwapSheet } from '~/workout/sheets';
 
@@ -323,15 +323,22 @@ function Run({
   const flush = useCallback(async () => {
     const outcome = await drainOutbox(
       (p) => rpc<SetResult>('workout.logSet', p),
-      (p, res) => {
-        if (p.sessionId !== sessionId) return;
-        if ('error' in res) setError(res.error);
-        else setSaved(res.sets);
-      }
+      () => undefined
     );
     if (outcome === 'offline') setOffline(true);
     else if (outcome === 'done') setOffline(false);
-  }, [sessionId]);
+  }, []);
+  /* 보낸 답은 누가 보냈든(이 화면 · 껍데기) 여기로 — 껍데기가 보낸 세트도 저장된 목록에 붙는다 */
+  useEffect(
+    () =>
+      onSent((p, raw) => {
+        if (p.sessionId !== sessionId) return;
+        const res = raw as SetResult;
+        if ('error' in res) setError(res.error);
+        else setSaved(res.sets);
+      }),
+    [sessionId]
+  );
 
   /* 다시 보내는 때: 화면을 열 때(지난번에 못 보낸 것), 앱으로 돌아왔을 때, 15초마다 */
   useEffect(() => {
@@ -492,11 +499,14 @@ function Run({
     /* 새 세트의 번호는 여기서 — 폰에만 있는 세트까지 세어야 안 겹치고, 번호를 함께 보내야 다시 보내도 한 줄로 남는다 */
     const setNo = fixing?.setNo ?? mine.reduce((m, x) => Math.max(m, x.setNo), 0) + 1;
     if (setNo > AMOUNT_LIMITS.sets) return setError('세트가 너무 많아요.');
+    /* 고칠 때는 '몇 개 더?' 답을 그대로 싣는다 — 안 보낸 답이 대기열에 있으면 새 값이 그 답을 덮어 잃는다 */
+    const keptRir = fixing ? mine.find((x) => x.setNo === setNo)?.rir : undefined;
     const entry = {
       setNo,
       weightKg: w,
       reps: ex.isHold ? null : n,
       holdSeconds: ex.isHold ? (ex.inMinutes ? n * 60 : n) : null,
+      ...(keptRir != null ? { rir: keptRir } : {}),
     };
     /* 이 세트로 지난 최고를 새로 넘었으면 성공 떨림(줄에 '새 최고'), 아니면 가볍게 톡 */
     const before = newRecord(ex, mine, ex.best);
@@ -555,7 +565,17 @@ function Run({
     const key = { sessionId, exerciseId: t.exerciseId, setNo: t.setNo };
     /* 폰에 담긴 것부터 뺀다 — 빼지 않으면 뒤에서 보내져 되살아난다 */
     outbox.remove(key);
-    if (!saved.some((x) => x.exerciseId === key.exerciseId && x.setNo === key.setNo)) return;
+    if (!saved.some((x) => x.exerciseId === key.exerciseId && x.setNo === key.setNo)) {
+      /*
+       * 화면엔 폰에만 있던 세트 — 그래도 서버에 지우라고 한 번 보낸다(보내기는 됐는데 답만 못 받았거나 아직 가는 중일 수 있다, 서버 지우기는
+       * 없으면 아무 일 없음). 신호가 없으면 조용히 넘긴다 — 폰에서는 이미 뺐다.
+       */
+      void rpc<SetResult>('workout.deleteSet', key).then(
+        (res) => !('error' in res) && setSaved(res.sets),
+        () => undefined
+      );
+      return;
+    }
     setBusy(true);
     try {
       const res = await rpc<SetResult>('workout.deleteSet', key);
@@ -616,7 +636,12 @@ function Run({
       if (e instanceof RpcError && e.code === 'redirect') {
         void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         closeSheet();
-        return leave(e.to ?? '/workout/done');
+        /*
+         * 앞서 누른 마치기가 서버에선 됐는데 답만 못 받았으면, 다시 누를 때 판이 이미 닫혀 서버가 트레이닝으로 보낸다 — 그때도 마친 것이니
+         * 축하 화면으로(이 판 번호로)
+         */
+        const to = e.to && !e.to.startsWith('/training') ? e.to : `/workout/done?id=${sessionId}`;
+        return leave(to);
       }
       setEnding(false);
       setFinishError('신호가 약해 마치지 못했어요. 신호가 잡히면 다시 눌러 주세요.');

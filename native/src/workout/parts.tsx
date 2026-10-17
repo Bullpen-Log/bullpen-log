@@ -278,7 +278,8 @@ export function ExerciseVideo({
   aspectRatio: number | null;
 }) {
   if (path) return <LibraryClip path={path} aspectRatio={aspectRatio} />;
-  if (!referenceVideoId) return null;
+  /* 유튜브 영상 번호만(11자) — 이 글이 사이트 주소(baseUrl)로 도는 웹뷰에 그대로 들어가니, 다른 글자가 섞인 번호는 그리지 않는다 */
+  if (!referenceVideoId || !/^[A-Za-z0-9_-]{11}$/.test(referenceVideoId)) return null;
   const html = `<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><style>html,body{margin:0;background:#000;height:100%}iframe{border:0;width:100%;height:100%}</style><iframe src="${referenceEmbedUrl(referenceVideoId)}" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen></iframe>`;
   return (
     <View style={{ gap: 6 }}>
