@@ -2,17 +2,19 @@ import * as Haptics from 'expo-haptics';
 import * as SplashScreen from 'expo-splash-screen';
 import { setStatusBarStyle } from 'expo-status-bar';
 import { BullpenNative } from '../../modules/bullpen-native';
+import { ShootCamera } from '../../modules/shoot-camera';
 
 /**
  * 작은 다리(2026-10-17 엔지니어링 검토 D4) — 아직 네이티브로 안 옮긴 웹뷰 화면이 옛 Capacitor 앱처럼 진동 · 화면 켜 두기 · 쉬는 시간 알림 ·
  * 상태 막대 색을 쓰게, 웹뷰에 window.Capacitor 흉내를 심는다. 사이트는 그대로(lib/haptics.ts · lib/native-bridge.ts · lib/native-app.ts 가
- * window.Capacitor.nativePromise 로 부른다). 카메라 · 폰 영상(DualCamera · ShootCamera · LocalVideo)은 넣지 않는다(D3 — 그 화면은 네이티브로).
- * 화면을 다 옮기면 이 파일을 지운다.
+ * window.Capacitor.nativePromise 로 부른다). 카메라 · 폰 영상(DualCamera · LocalVideo)은 넣지 않는다(D3 — 그 화면은 네이티브로).
+ * 예외 하나: 촬영 모드 카메라(ShootCamera — 관리자 촬영 모드, 웹 lib/shoot-camera.ts)는 옛 앱 부품을 모듈로 옮겨 여기로 잇는다(2026-10-18) —
+ * 관리자만 쓰는 큰 화면이라 네이티브로 옮기기 전까지 새 앱에서도 찍게. 화면을 다 옮기면 이 파일을 지운다.
  *
  * 웹 → 앱: { t: 'cap', id, plugin, method, options } · 앱 → 웹: window.__bpCapReply(id, ok, value)
  * 웹 → 앱: { t: 'theme', dark, color } — 테마가 바뀔 때(상태 막대 글자색 · 웹뷰 바탕)
  */
-const PLUGINS = ['Haptics', 'BullpenNative', 'SystemBars', 'SplashScreen'];
+const PLUGINS = ['Haptics', 'BullpenNative', 'SystemBars', 'SplashScreen', 'ShootCamera'];
 
 /** 웹뷰가 문서를 읽기 전에 심는 글 — injectedJavaScriptBeforeContentLoaded */
 export const CAP_SHIM = `(function () {
@@ -20,11 +22,14 @@ export const CAP_SHIM = `(function () {
   var have = ${JSON.stringify(Object.fromEntries(PLUGINS.map((p) => [p, true])))};
   var seq = 0, wait = {};
   var post = function (m) { window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify(m)); };
-  window.__bpCapReply = function (id, ok, value) {
+  window.__bpCapReply = function (id, ok, value, code) {
     var w = wait[id];
     if (!w) return;
     delete wait[id];
-    if (ok) w[0](value); else w[1](new Error(value || 'failed'));
+    if (ok) return w[0](value);
+    var err = new Error(value || 'failed');
+    if (code) err.code = code;
+    w[1](err);
   };
   window.Capacitor = {
     isPluginAvailable: function (name) { return !!have[name]; },
@@ -86,6 +91,13 @@ async function run({ plugin, method, options: o }: CapMessage): Promise<unknown>
     return null;
   }
   if (plugin === 'SplashScreen' && method === 'hide') return SplashScreen.hideAsync();
+  if (plugin === 'ShootCamera') {
+    if (method === 'status') return ShootCamera.status();
+    if (method === 'record') return ShootCamera.record({ maxSeconds: Number(o.maxSeconds) || 180 });
+    if (method === 'read')
+      return ShootCamera.read({ path: String(o.path), offset: Number(o.offset) || 0, length: Number(o.length) || undefined });
+    if (method === 'discard') return ShootCamera.discard({ paths: Array.isArray(o.paths) ? o.paths.map(String) : [] });
+  }
   throw new Error(`${plugin}.${method} 은 이 앱에 없어요`);
 }
 
@@ -105,8 +117,13 @@ export function handleCapMessage(
   const id = m.id;
   run(m as CapMessage).then(
     (value) => reply(`window.__bpCapReply(${id}, true, ${JSON.stringify(value ?? null)});true;`),
-    (e: unknown) =>
-      reply(`window.__bpCapReply(${id}, false, ${JSON.stringify(e instanceof Error ? e.message : String(e))});true;`)
+    (e: unknown) => {
+      /* 모듈의 오류 종류(denied · busy …)를 웹이 읽는다(lib/shoot-camera.ts 가 e.code 로 가른다) */
+      const code = (e as { code?: unknown })?.code;
+      reply(
+        `window.__bpCapReply(${id}, false, ${JSON.stringify(e instanceof Error ? e.message : String(e))}, ${JSON.stringify(typeof code === 'string' ? code : null)});true;`
+      );
+    }
   );
   return true;
 }
