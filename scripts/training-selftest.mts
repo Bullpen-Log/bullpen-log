@@ -13949,9 +13949,9 @@ console.log(
    * 예전 이 칸은 홈 계획 줄 · 투구 기록 '오늘 계획'이 등판 날을 '등판'으로 그리는지 봤다 — 이제 그 숫자 칸이 없다.
    */
   const shown = [
-    'app/(app)/today/page.tsx',
+    'app/(app)/today/home-page.tsx',
     'app/(app)/pitch-log/[date]/load.ts',
-    'app/(app)/videos/page.tsx',
+    'app/(app)/videos/videos-page.tsx',
   ].map((f) => readFileSync(new URL(`../${f}`, import.meta.url), 'utf8'));
   check(
     '뒤집기 (화면) 홈 · 그날 화면 · 투구 기록 탭은 권하는 투구수(pitchRangeText · intensityRangeText) 대신 지금 팔 상태(armStatusOf)를 보인다',
@@ -14663,7 +14663,7 @@ console.log(
     s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
   const srcOf = (p: string) =>
     readFileSync(new URL(`../${p}`, import.meta.url), 'utf8');
-  const homeSrc = stripComments(srcOf('app/(app)/today/page.tsx'));
+  const homeSrc = stripComments(srcOf('app/(app)/today/home-page.tsx'));
   check(
     "검토 (홈) 잘 던진 날 메모가 답 글자 목록 대신 todayOutingRole(facts 의 오늘 · 어제 답)로 — 어제 '내일 등판' + 오늘 답 없음(C4)도 등판 날",
     !/PRE_THROW_PLANS/.test(homeSrc) &&
@@ -19282,7 +19282,7 @@ console.log(
         /outingLineOf\(outing\)/.test(comp) &&
         /<OpenCheckinButton[\s\S]*?바꾸기[\s\S]*?<\/OpenCheckinButton>/.test(comp)
     );
-    const page = strip('app/(app)/training/page.tsx');
+    const page = strip('app/(app)/training/training-page.tsx');
     const at = page.indexOf('<OutingLine outing={core.state.outing} />');
     check(
       'P4 화면 (사) 트레이닝 화면 — 오늘 상태 한 장의 등판 칸으로 한 번만 그리고, 일정 카드 묶음(halted · 만들기 전 · 일정) 바로 위',
@@ -22263,7 +22263,7 @@ console.log(
      */
     const SITES: [string, [RegExp, number][]][] = [
       [
-        'app/(app)/training/page.tsx',
+        'app/(app)/training/training-page.tsx',
         [
           [/planPrescription\(ex, savedPlan\)/g, 1],
           [/planPrescription\(raw, savedPlan\)/g, 1],
@@ -23129,7 +23129,7 @@ console.log(
         .replace(/^\s*\/\/.*$/gm, '');
     const setup = strip('app/actions/training-setup.ts');
     const today = strip('lib/report/today-data.ts');
-    const page = strip('app/(app)/training/page.tsx');
+    const page = strip('app/(app)/training/training-page.tsx');
     const form = strip('components/training-forms.tsx');
     const tool = strip('scripts/training-baseline.mts');
     check(
@@ -26870,7 +26870,7 @@ console.log(
         .replace(/\/\*[\s\S]*?\*\//g, '')
         .replace(/\{\/\*[\s\S]*?\*\/\}/g, '')
         .replace(/^\s*\/\/.*$/gm, '');
-    const page = strip('app/(app)/training/page.tsx');
+    const page = strip('app/(app)/training/training-page.tsx');
     const list = strip('app/(app)/training/exercise-list.tsx');
     const row = strip('app/(app)/training/check-row.tsx');
     check(
@@ -30282,7 +30282,7 @@ console.log(
         /exercises: \[\.\.\.view\.session\.exercises\],/.test(fromBody) &&
         !/role !== 'program'|role === 'program'/.test(load + fromBody)
     );
-    const page = strip('app/(app)/training/page.tsx');
+    const page = strip('app/(app)/training/training-page.tsx');
     const slot = [
       '{picked.halted ? (',
       ') : screen.programOwns ? (',
@@ -31008,7 +31008,7 @@ console.log(
         .replace(/\{\/\*[\s\S]*?\*\/\}/g, '')
         .replace(/\/\*[\s\S]*?\*\//g, '')
         .replace(/^\s*\/\/.*$/gm, '');
-    const page = strip('app/(app)/training/page.tsx');
+    const page = strip('app/(app)/training/training-page.tsx');
     const home = strip('app/(app)/training/training-home.tsx');
     const homeCard = home.slice(
       home.indexOf('async function WorkoutCard'),
@@ -31249,7 +31249,7 @@ console.log(
     const prog = strip('lib/program/load.ts');
     const nw = strip('lib/program/next-weight.ts');
     const fuel = strip('lib/nutrition/fuel-load.ts');
-    const page = strip('app/(app)/nutrition/page.tsx');
+    const page = strip('app/(app)/nutrition/nutrition-page.tsx');
     const view = strip('app/(app)/nutrition/nutrition-view.tsx');
     const nload = strip('lib/nutrition/load.ts');
     const homeDir = new URL('../app/(app)/today/', import.meta.url);
