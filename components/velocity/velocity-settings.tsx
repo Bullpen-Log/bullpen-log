@@ -31,7 +31,7 @@ import {
   loadLens,
   type LensCalibration,
 } from '@/lib/velocity-lens';
-import { applySpeedUnit, SPEED_UNITS } from '@/lib/units';
+import { applySpeedUnit, SPEED_UNITS } from '@/lib/units-storage';
 import { useSpeedUnit } from '@/components/use-units';
 import { BottomSheet } from './pitch-editor';
 import { Panel, SectionLabel } from './kit';

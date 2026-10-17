@@ -58,7 +58,7 @@ import {
   serverWeightUnit,
   subscribeUnits,
   toWeight,
-} from '@/lib/units';
+} from '@/lib/units-storage';
 import {
   AMOUNT_LIMITS,
   WEIGHT_STEP,

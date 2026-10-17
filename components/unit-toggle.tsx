@@ -15,7 +15,7 @@ import {
   SPEED_UNITS,
   subscribeUnits,
   WEIGHT_UNITS,
-} from '@/lib/units';
+} from '@/lib/units-storage';
 import { Segmented } from '@/components/segmented';
 
 /**

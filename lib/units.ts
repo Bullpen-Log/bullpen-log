@@ -5,14 +5,13 @@
  * DB 에 섞여 들어가면 나중에 어느 줄이 파운드인지 알 수 없게 되고, 부하 계산도
  * 단위를 물어봐야 한다.
  *
- * 고른 값은 브라우저(localStorage)에만 둔다. 테마와 같은 이유다 — 기기마다
+ * 고른 값은 브라우저(localStorage)에만 둔다(읽고 쓰기는 lib/units-storage.ts). 테마와 같은 이유다 — 기기마다
  * 다르게 두고 싶을 수 있고, 서버에 넣으려면 DB 를 고쳐야 하는데 이 값 하나
  * 때문에 같이 쓰는 표를 건드릴 일은 아니다.
+ *
+ * 이 파일은 계산만 둔다 — 웹과 아이폰 앱(native/, React Native)이 같이 쓴다. window · localStorage 를 넣지 않는다
+ * (scripts/shared-lib-selftest.mts 가 지킨다).
  */
-
-export const LENGTH_KEY = 'bullpen-unit-length';
-export const WEIGHT_KEY = 'bullpen-unit-weight';
-export const SPEED_KEY = 'bullpen-unit-speed';
 
 export const LENGTH_UNITS = [
   { value: 'cm', label: 'cm', hint: '센티미터' },
@@ -113,91 +112,4 @@ export function formatSpeed(kmh: number | null | undefined, unit: SpeedUnit) {
 /** 단위 이름만 — 칸 제목에 붙일 때 쓴다 */
 export function speedLabel(unit: SpeedUnit) {
   return unit === 'mph' ? 'mph' : 'km/h';
-}
-
-/* ── 고른 값 읽고 쓰기 ────────────────────────────────────── */
-
-function read<T extends string>(key: string, allowed: readonly T[], fallback: T): T {
-  if (typeof window === 'undefined') return fallback;
-  try {
-    const v = window.localStorage.getItem(key);
-    return (allowed as readonly string[]).includes(v ?? '') ? (v as T) : fallback;
-  } catch {
-    return fallback;
-  }
-}
-
-export function readLengthUnit(): LengthUnit {
-  return read(
-    LENGTH_KEY,
-    LENGTH_UNITS.map((u) => u.value),
-    DEFAULT_LENGTH
-  );
-}
-
-export function readWeightUnit(): WeightUnit {
-  return read(
-    WEIGHT_KEY,
-    WEIGHT_UNITS.map((u) => u.value),
-    DEFAULT_WEIGHT
-  );
-}
-
-export function readSpeedUnit(): SpeedUnit {
-  return read(
-    SPEED_KEY,
-    SPEED_UNITS.map((u) => u.value),
-    DEFAULT_SPEED
-  );
-}
-
-/** 서버는 브라우저 저장소를 볼 수 없다. 붙기 전까지는 이 값으로 그린다. */
-export function serverLengthUnit(): LengthUnit {
-  return DEFAULT_LENGTH;
-}
-export function serverWeightUnit(): WeightUnit {
-  return DEFAULT_WEIGHT;
-}
-export function serverSpeedUnit(): SpeedUnit {
-  return DEFAULT_SPEED;
-}
-
-/*
- * 값이 바뀌었을 때 알려줄 곳들.
- *
- * 테마와 같은 방식이다(lib/theme.ts). localStorage 는 리액트 바깥이라 화면이
- * 그 값을 읽으려면 구독이 필요하고, 'storage' 이벤트는 다른 탭에서 바꿨을
- * 때만 오므로 같은 탭에서 바꾼 것은 직접 알린다.
- */
-const listeners = new Set<() => void>();
-
-export function subscribeUnits(onChange: () => void) {
-  listeners.add(onChange);
-  window.addEventListener('storage', onChange);
-  return () => {
-    listeners.delete(onChange);
-    window.removeEventListener('storage', onChange);
-  };
-}
-
-export function applyLengthUnit(unit: LengthUnit) {
-  save(LENGTH_KEY, unit);
-}
-
-export function applyWeightUnit(unit: WeightUnit) {
-  save(WEIGHT_KEY, unit);
-}
-
-export function applySpeedUnit(unit: SpeedUnit) {
-  save(SPEED_KEY, unit);
-}
-
-function save(key: string, value: string) {
-  if (typeof window === 'undefined') return;
-  try {
-    window.localStorage.setItem(key, value);
-  } catch {
-    // 저장이 막힌 곳에서는 이번 화면에만 적용된다.
-  }
-  for (const listener of listeners) listener();
 }
