@@ -28,7 +28,7 @@ const shiftMonth = (month: string, by: number) => {
   return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
 };
 
-export function PitchTab({ today, bottom }: { today: string; bottom: number }) {
+export function PitchTab({ today, bottom, onWeb }: { today: string; bottom: number; onWeb: (href: string) => void }) {
   const c = usePalette();
   const inset = useSafeAreaInsets();
   const [month, setMonth] = useState(monthOf(today));
@@ -101,6 +101,20 @@ export function PitchTab({ today, bottom }: { today: string; bottom: number }) {
           <Text style={styles.addText}>오늘 기록</Text>
         </Pressable>
       </View>
+
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+        {(
+          [
+            ['2분할 비교', () => router.push('/pitch/compare' as Href)],
+            ['투구 분석', () => onWeb('/coach?view=pitch')],
+            ['3D 동작 분석', () => onWeb('/videos/lab')],
+          ] as const
+        ).map(([label, go]) => (
+          <Pressable key={label} accessibilityRole="button" onPress={go} style={[styles.link, { backgroundColor: c.card }]}>
+            <Text style={[styles.linkText, { color: c.ink }]}>{label}</Text>
+          </Pressable>
+        ))}
+      </ScrollView>
 
       <FindBar q={q} onChange={setQ} />
 
@@ -254,6 +268,8 @@ const styles = StyleSheet.create({
   },
   addText: { color: '#fff', fontSize: 15, fontWeight: '600' },
   card: { borderRadius: 20, padding: 12 },
+  link: { height: 36, borderRadius: 18, paddingHorizontal: 14, justifyContent: 'center' },
+  linkText: { fontSize: 14, fontWeight: '600' },
   monthRow: {
     flexDirection: 'row',
     alignItems: 'center',

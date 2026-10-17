@@ -91,11 +91,16 @@ export default function SiteScreen() {
   /* 투구 탭의 첫 화면일 때만 앱 화면 — 잠겼으면 웹의 첫 설정 화면(주소가 /videos/setup)으로 간다 */
   const showPitch = barOn && path === '/videos' && !!today && !pitchTab?.locked;
 
+  const goWeb = (href: string) =>
+    web.current?.injectJavaScript(`window.__bpTab && window.__bpTab(${JSON.stringify(href)});true;`);
   const pressTab = (t: ShellTab) => {
     if (t.href === '/videos' && !t.locked) setPath('/videos');
-    web.current?.injectJavaScript(
-      `window.__bpTab && window.__bpTab(${JSON.stringify(t.href)});true;`
-    );
+    goWeb(t.href);
+  };
+  /* 투구 탭(앱 화면)에서 아직 웹인 화면(투구 분석 · 3D 동작 분석)으로 — 앱 화면을 바로 걷고 웹이 그 주소로 간다 */
+  const openWeb = (href: string) => {
+    setPath(href.split('?')[0]);
+    goWeb(href);
   };
 
   const hideSplash = useCallback(() => {
@@ -209,7 +214,7 @@ export default function SiteScreen() {
       />
       {showPitch && today ? (
         <View style={StyleSheet.absoluteFill}>
-          <PitchTab today={today} bottom={TAB_BAR_HEIGHT} />
+          <PitchTab today={today} bottom={TAB_BAR_HEIGHT} onWeb={openWeb} />
         </View>
       ) : null}
       {barOn ? (
