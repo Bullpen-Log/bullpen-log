@@ -12,10 +12,10 @@ import type { Palette } from '~/lib/ui';
 import type { ShownSet } from './outbox';
 
 /**
- * 운동 진행 화면의 아래 시트 셋 — 오늘 목록(웹 exercise-sheet.tsx) · 마치기(finish-sheet.tsx) · 교체(swap-sheet.tsx).
+ * 운동 진행 화면의 아래 시트 셋 — 오늘 목록(웹 exercise-sheet.tsx) · 마치기(finish-sheet.tsx) · 교체(swap-sheet.tsx). Sheet 는 트레이닝 운동 화면의 시트도 쓴다.
  * 아이폰 기본 시트(pageSheet)라 끌어내려 닫기가 저절로 온다.
  */
-function Sheet({
+export function Sheet({
   open,
   onClose,
   title,

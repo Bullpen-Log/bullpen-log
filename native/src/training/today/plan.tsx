@@ -12,11 +12,13 @@ import type { TodayGroup, TodayMake, TodayPlan, TodayRow, TrainingToday } from '
 import { ExerciseMedia } from '~/armcare/parts';
 import { act } from '~/mechanics/parts';
 import type { Palette } from '~/lib/ui';
+import { Sheet } from '~/workout/sheets';
+import { AddSheet, PlanForm } from './forms';
 import { BigButton, Card, Chip, LinkRow, s, useWeightUnit, type TodayActions } from './parts';
 
 /**
  * 트레이닝 '운동' 화면의 일정 쪽 조각 — 웹 app/(app)/training/ 의 state-notice-band · done-card · exercise-list · training-note ·
- * training-prefs-card · components/training-forms.tsx(자동 맞춤 칸) · components/outing-line.tsx 를 옮겼다. 서버 동작은 웹과 같은 것을 부른다.
+ * training-prefs-card · components/outing-line.tsx 를 옮겼다. 만들기 폼 · 운동 추가 창은 ./forms. 서버 동작은 웹과 같은 것을 부른다.
  */
 
 const tick = () => void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -246,82 +248,13 @@ export function PrefsCard({ prefs, today, c, a }: { prefs: NonNullable<TrainingT
 
 /* ----------------------------- 일정 만들기 ----------------------------- */
 
-/** 아직 안 만든 날 · 남은 운동이 없는 날(웹 PlanForm 의 자동 맞춤) — 직접 고르기는 웹 */
+/** 아직 안 만든 날 · 남은 운동이 없는 날(웹 PlanForm — 자동 맞춤 · 직접 고르기) */
 export function MakeCard({ make, head, note, c, a }: { make: TodayMake; head: string; note: string | null; c: Palette; a: TodayActions }) {
-  const [on, setOn] = useState<string[]>(() => make.selected.filter((n) => make.equipment.includes(n)));
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const make1 = () => {
-    if (busy) return;
-    setBusy(true);
-    setError(null);
-    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    void a.generate([['mode', 'auto'], ...on.map((n) => ['availableEquipment', n] as [string, string])]).then((err) => {
-      setBusy(false);
-      setError(err);
-    });
-  };
-
   return (
     <Card c={c}>
       <Text style={[s.cardTitle, { color: c.ink }]}>{head}</Text>
       {note ? <Text style={[s.body, { color: c.muted }]}>{note}</Text> : null}
-      {!make.checkedIn ? (
-        <View style={[s.box, { backgroundColor: c.page, gap: 8 }]}>
-          <Text style={[s.bodyBold, { color: c.ink }]}>오늘 체크인을 먼저 남겨주세요</Text>
-          <Text style={[s.small, { color: c.muted }]}>오늘 몸 상태를 보고 짜요. 30초면 돼요.</Text>
-          <BigButton c={c} label="오늘 체크인하기" onPress={a.checkin} />
-        </View>
-      ) : make.needsEquipment ? (
-        <View style={[s.box, { backgroundColor: c.page, gap: 4 }]}>
-          <Text style={[s.bodyBold, { color: c.ink }]}>가진 장비부터 골라 주세요</Text>
-          <Text style={[s.small, { color: c.muted }]}>처음 한 번만 물어요. 없는 장비로 하는 운동은 빼고 짜요.</Text>
-          <LinkRow c={c} label="장비 고르기" onPress={() => a.web('/training')} />
-        </View>
-      ) : (
-        <>
-          <Text style={[s.small, { color: c.muted }]}>자동 맞춤이에요. 목표 · 시간은 앱이 정해요.</Text>
-          {make.clash ? (
-            <View style={[s.box, { backgroundColor: c.warnBg, gap: 4 }]}>
-              <Text style={[s.bodyBold, { color: c.warn }]}>
-                {make.clash.kind} 운동을 하고 싶다고 하셨는데, {make.clash.reason}.
-              </Text>
-              <Text style={[s.small, { color: c.warn }]}>
-                자동 맞춤은 몸 상태에 맞춰 {make.clash.fallbackLabel} 위주로 만들어요. {make.clash.kind} 운동을 하고 싶으면 ‘직접 고르기’에서 만들 수 있어요.
-              </Text>
-            </View>
-          ) : null}
-          {make.equipment.length > 0 ? (
-            <View style={{ gap: 8 }}>
-              <Text style={[s.smallBold, { color: c.ink }]}>오늘 쓸 수 있는 장비</Text>
-              <View style={s.chips}>
-                {make.equipment.map((n) => (
-                  <Chip
-                    key={n}
-                    c={c}
-                    label={n}
-                    on={on.includes(n)}
-                    onPress={() => {
-                      void Haptics.selectionAsync();
-                      setOn((cur) => (cur.includes(n) ? cur.filter((x) => x !== n) : [...cur, n]));
-                    }}
-                  />
-                ))}
-              </View>
-              <Text style={[s.tiny, { color: c.muted }]}>안 켜면 맨몸 운동만 나와요.</Text>
-            </View>
-          ) : null}
-          {error ? <Text style={[s.small, { color: c.danger }]}>{error}</Text> : null}
-          <BigButton
-            c={c}
-            busy={busy}
-            label={busy ? '오늘 몸 상태에 맞추고 있어요…' : '자동 맞춤으로 만들기'}
-            onPress={make1}
-          />
-          <LinkRow c={c} label="직접 골라 만들기" onPress={() => a.web('/training')} />
-        </>
-      )}
+      <PlanForm make={make} generated={false} c={c} a={a} />
     </Card>
   );
 }
@@ -337,15 +270,20 @@ const EMPTY: Local = { done: {}, fav: {}, gone: [] };
  */
 export function PlanBody({
   plan,
+  make,
   data,
   c,
   a,
 }: {
   plan: TodayPlan;
+  /** '조건 바꿔 다시 만들기' 폼의 재료 */
+  make: TodayMake;
   data: TrainingToday;
   c: Palette;
   a: TodayActions;
 }) {
+  const [remake, setRemake] = useState(false);
+  const [adding, setAdding] = useState(false);
   const [local, setLocal] = useState<Local>(EMPTY);
   /* 새로 받은 목록이면 화면에서만 바꾼 것을 걷는다 — 서버 값이 이긴다(웹 seen 과 같다) */
   const [seen, setSeen] = useState(plan.groups);
@@ -441,6 +379,15 @@ export function PlanBody({
           ))}
         </View>
       ))}
+      {/* 더하는 것은 목록 끝에서 찾아서(웹 AddExercise 와 같은 자리) */}
+      <Pressable
+        accessibilityRole="button"
+        onPress={() => setAdding(true)}
+        style={({ pressed }) => [st.add, { backgroundColor: `${c.sky}14` }, pressed && { opacity: 0.6 }]}
+      >
+        <SymbolView name="plus" size={15} tintColor={c.sky} />
+        <Text style={[s.bodyBold, { color: c.sky }]}>운동 추가</Text>
+      </Pressable>
     </View>
   );
 
@@ -488,9 +435,20 @@ export function PlanBody({
           </Text>
         ) : null}
         <View style={[s.divider, { borderTopColor: c.line }]}>
-          <LinkRow c={c} label="조건 바꿔 다시 만들기" onPress={() => a.web('/training')} />
+          <LinkRow c={c} label="조건 바꿔 다시 만들기" onPress={() => setRemake(true)} />
         </View>
       </Card>
+
+      {/* 조건 바꿔 다시 만들기 — 웹은 카드 안 접이, 앱은 시트. 웹처럼 '오늘 하고 싶은 운동' 카드가 폼 위에 선다 */}
+      {remake ? (
+        <Sheet open onClose={() => setRemake(false)} title="조건 바꿔 다시 만들기" c={c}>
+          {data.prefs ? <PrefsCard prefs={data.prefs} today={data.today} c={c} a={a} /> : null}
+          <Card c={c}>
+            <PlanForm make={make} generated c={c} a={a} onLeave={() => setRemake(false)} />
+          </Card>
+        </Sheet>
+      ) : null}
+      {adding ? <AddSheet inPlanIds={all.map((r) => r.id)} onClose={() => setAdding(false)} c={c} a={a} /> : null}
 
       {plan.noEquipment ? (
         <Card c={c} tone="warn">
@@ -714,5 +672,6 @@ const st = StyleSheet.create({
   thumb: { width: 64, height: 48, borderRadius: 10 },
   icon: { width: 44, height: 40, alignItems: 'center', justifyContent: 'center' },
   level: { flex: 1, height: 40, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  add: { minHeight: 52, borderRadius: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
   input: { minHeight: 80, borderRadius: 12, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 10, fontSize: 15, textAlignVertical: 'top' },
 });

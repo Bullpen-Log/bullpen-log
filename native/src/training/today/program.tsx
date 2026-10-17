@@ -7,11 +7,12 @@ import type { ProgramCardProps, ProgramResult } from '@/lib/program/load';
 import { act } from '~/mechanics/parts';
 import type { Palette } from '~/lib/ui';
 import { BigButton, Card, LinkRow, s, type TodayActions } from './parts';
+import { RepinSheet } from './program-start';
 
 /**
  * 근력 · 파워 프로그램 카드(앱 화면) — 웹 app/(app)/training/program-card.tsx 를 옮겼다. 차례도 같다: 오늘 상태 + 일차 → 주의 한 줄 → [운동 시작]
- * → 운동 줄(누르면 그 무게의 까닭) → 진행 → 앞으로 할 세션 → 자세히. 건너뛰기 · 그만두기 · '그래도 오늘 할래요'는 같은 서버 동작(program.*),
- * 고정 운동 바꾸기는 웹(후보 고르기 창).
+ * → 운동 줄(누르면 그 무게의 까닭) → 진행 → 앞으로 할 세션 → 자세히. 건너뛰기 · 그만두기 · '그래도 오늘 할래요' · 고정 운동 바꾸기(./program-start
+ * RepinSheet)는 같은 서버 동작(program.*).
  */
 type Row = ProgramCardProps['rows'][number];
 
@@ -22,6 +23,7 @@ export function ProgramCardView({ p, c, a }: { p: ProgramCardProps; c: Palette; 
   const [ahead, setAhead] = useState(false);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [repin, setRepin] = useState(false);
 
   const going = p.kind === 'go';
   const finishedToday = p.todayState === 'finished';
@@ -214,7 +216,7 @@ export function ProgramCardView({ p, c, a }: { p: ProgramCardProps; c: Palette; 
                 }
               />
             ) : null}
-            <LinkRow c={c} label="고정 운동 바꾸기" onPress={() => a.web('/training')} />
+            <LinkRow c={c} label="고정 운동 바꾸기" onPress={() => setRepin(true)} />
             <LinkRow c={c} label="몸 상태가 바뀌었으면 체크인 고치기" onPress={a.checkin} />
             <LinkRow
               c={c}
@@ -234,6 +236,7 @@ export function ProgramCardView({ p, c, a }: { p: ProgramCardProps; c: Palette; 
           </View>
         ) : null}
       </View>
+      {repin ? <RepinSheet pinned={p.pinned} onClose={() => setRepin(false)} c={c} a={a} /> : null}
     </Card>
   );
 }

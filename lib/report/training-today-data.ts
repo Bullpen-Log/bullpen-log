@@ -17,17 +17,26 @@ import { readFrozenPlan } from '@/lib/workout/session-plan';
 import { summarizeSets, totalVolumeKg, type ExerciseSummary } from '@/lib/workout/summarize';
 import { recentAmounts, type PastAmount } from '@/lib/report/exercise-recent';
 import { MIN_CANDIDATES } from '@/lib/report/prescription';
-import { SLOT_LABELS, SLOT_ORDER, type SlotKey } from '@/lib/report/theme';
+import { DEFAULT_WORKOUT_MINUTES, SLOT_LABELS, SLOT_ORDER, type SlotKey } from '@/lib/report/theme';
 import { orderSession } from '@/lib/report/exercise-order';
 import { availableParts } from '@/lib/report/today-pick';
 import { exercisesByIds } from '@/lib/library-cache';
 import { cautionLabel } from '@/lib/report/auto-setup';
-import { GOAL_FOCUSES } from '@/lib/report/personalize';
+import { GOAL_FOCUSES, TRAINING_LEVELS } from '@/lib/report/personalize';
+import { SELECTABLE_EQUIPMENT } from '@/lib/report/equipment';
+import { ageFromBirthDate } from '@/lib/profile';
 import { outingLineOf, type OutingLineText } from '@/lib/outing-line';
-import { PROGRAMS_ENABLED } from '@/lib/program/program';
+import {
+  PROGRAMS_ENABLED,
+  profileBlock,
+  programChoiceList,
+  type ProgramBlock,
+  type ProgramChoice,
+} from '@/lib/program/program';
 import {
   activeProgram,
   buildProgramDay,
+  hasFinishedBasics,
   programCardProps,
   programResult,
   programTodayOf,
@@ -43,7 +52,7 @@ import { loadTrainingStrip, type TrainingStripDay } from '@/lib/training-week';
  * 웹 화면(app/(app)/training/training-page.tsx 의 기본 칸 — ?view 없음)이 그리는 것과 같은 함수 · 같은 차례로 읽는다: 오늘 셈(loadTodayCore) ·
  * 근력 프로그램 날(buildProgramDay) · 화면 판정(trainingScreenOf) · 상태 바뀜 띠(stateNoticeOf) · 운동 줄(orderSession · planPrescription ·
  * pickReasonLineOf) · 완료 카드(summarizeSets). 웹 쪽을 고치면 여기도 같이 본다(웹 페이지는 서버 부품이라 데이터와 그리기가 한 파일이다).
- * 앱이 직접 안 그리는 것(운동 추가 창 · 조건 바꿔 만들기 폼 · 프로그램 고르기 · 3D 부위)은 읽지 않는다 — 앱은 그 칸을 웹으로 보낸다.
+ * 운동 추가 창의 400개 목록은 창을 열 때 따로 읽는다(loadTodayPicker). 3D 부위는 읽지 않는다.
  *
  * 'use server' 파일에 두지 않는다 — user 를 받는 함수가 거기 있으면 누구나 부를 수 있는 입구가 된다.
  */
@@ -85,6 +94,31 @@ export type TodayMake = {
   selected: string[];
   /** 고른 운동 종류가 몸 상태와 부딪힘 */
   clash: { kind: string; reason: string; fallbackLabel: string } | null;
+  /** 직접 고르기 칸(웹 PlanForm 의 minutes · defaultMinutes · goal · focus · preferredWorkout · effortSpike · startMode) — 이번에 쓸 시간 */
+  minutes: number;
+  /** 내 정보에 저장한 기본 시간 */
+  defaultMinutes: number;
+  /** 지난번에 고른 목표 · 부위(한 번도 안 골랐으면 null) */
+  goal: string | null;
+  focus: string | null;
+  preferredWorkout: string | null;
+  /** 최근 운동 힘듦 급증 — 직접 고르기에 경고 한 줄 · '그래도 고른 대로' */
+  effortSpike: boolean;
+  /** 오늘 직접 골라 만들었으면 다시 만들 때도 직접 고르기로 연다 */
+  manual: boolean;
+};
+
+/** 근력 프로그램 고르기 · 시작 시트의 재료 — 웹 ProgramStartProps(app/(app)/training/program-start.tsx)와 같은 칸 */
+export type TodayProgramStart = {
+  programs: ProgramChoice[];
+  needBirth: boolean;
+  level: string | null;
+  levels: { name: string; desc: string }[];
+  owned: string[];
+  equipment: string[];
+  blocked: ProgramBlock | null;
+  basicsBlocked: ProgramBlock | null;
+  basicsDone: boolean;
 };
 
 /** 일정 카드(만든 날) */
@@ -113,7 +147,7 @@ export type TodayBody =
   | { kind: 'none' }
   | { kind: 'make'; stale: string | null; make: TodayMake }
   | { kind: 'empty'; dropped: boolean; make: TodayMake }
-  | { kind: 'plan'; plan: TodayPlan };
+  | { kind: 'plan'; plan: TodayPlan; make: TodayMake };
 
 export type TrainingToday = {
   today: string;
@@ -121,8 +155,8 @@ export type TrainingToday = {
   strip: TrainingStripDay[];
   programCard: ProgramCardProps | null;
   programDone: ProgramResult | null;
-  /** 근력 프로그램 고르기 입구 — 진행 중인 프로그램이 없고 오늘 일정을 아직 안 만든 날(웹과 같은 조건) */
-  programPick: boolean;
+  /** 근력 프로그램 고르기 입구 — 진행 중인 프로그램이 없고 오늘 일정을 아직 안 만든 날만(웹과 같은 조건), 아니면 null */
+  programStart: TodayProgramStart | null;
   /** 상태 바뀜 띠 — 띄울 때만(kind 'remake') */
   notice: StateNotice | null;
   /** 띠의 '지금 상태로 다시 만들기'가 보낼 칸(웹 remakeFieldsOf 그대로) */
@@ -159,10 +193,13 @@ export async function loadTrainingToday(user: TodayUser, today: Date): Promise<T
   ]);
   const { savedPlan, picked, doneIds, shownPicks, droppedForSafety } = core;
   const programRow = PROGRAMS_ENABLED ? await activeProgram(user.id) : null;
-  const [programView, doneProgram, strip] = await Promise.all([
+  /* 기본기 4주를 마쳤나 — 웹 페이지와 같다(성인 입문만, 진행 중인 줄이 없으면 미리 같이 묻는다) */
+  const asksBasics = PROGRAMS_ENABLED && user.trainingLevel === '입문';
+  const [programView, doneProgram, strip, basicsEarly] = await Promise.all([
     programRow ? buildProgramDay(core, programRow, user) : Promise.resolve(null),
     PROGRAMS_ENABLED && !programRow ? recentlyDoneProgram(user.id, today) : Promise.resolve(null),
     loadTrainingStrip(user.id, core.todayKey, core.todayKey),
+    asksBasics && !programRow ? hasFinishedBasics(user.id) : Promise.resolve(null),
   ]);
   const programCard = programView ? programCardProps(programView, core.library) : null;
   const programDone = doneProgram ? await programResult(doneProgram, core.library) : null;
@@ -269,13 +306,44 @@ export async function loadTrainingToday(user: TodayUser, today: Date): Promise<T
     items: rows.filter((r) => r.slot === slot).map((r) => r.row),
   })).filter((g) => g.items.length > 0);
 
-  const make = (): TodayMake => ({
+  const savedMinutes = user.dailyWorkoutMinutes ?? DEFAULT_WORKOUT_MINUTES;
+  const make = (minutes: number): TodayMake => ({
     checkedIn: core.hasCheckinToday,
     needsEquipment: user.ownedEquipment.length === 0,
     equipment: user.ownedEquipment.filter((name) => name !== '맨몸'),
     selected: core.todaySetup?.availableEquipment.length ? core.todaySetup.availableEquipment : [],
     clash: core.workoutClash,
+    minutes,
+    defaultMinutes: savedMinutes,
+    goal: user.trainingGoal,
+    focus: user.trainingFocus,
+    preferredWorkout: core.preferredWorkout,
+    effortSpike: core.effortSpike,
+    manual: savedPlan != null && !savedPlan.auto && !savedPlan.program,
   });
+
+  /* 프로그램 고르기 — 웹 페이지의 programStart 와 같은 셈(오늘 일정을 만든 날은 숨긴다) */
+  const basicsDone =
+    asksBasics && !programView ? (basicsEarly ?? (await hasFinishedBasics(user.id))) : false;
+  const known = {
+    age: user.birthDate ? ageFromBirthDate(user.birthDate, today) : null,
+    trainingLevel: user.trainingLevel,
+    basicsDone,
+  };
+  const programStart: TodayProgramStart | null =
+    PROGRAMS_ENABLED && !programView && savedPlan == null
+      ? {
+          programs: programChoiceList(),
+          needBirth: user.birthDate == null,
+          level: user.trainingLevel,
+          levels: TRAINING_LEVELS.map((l) => ({ name: l.name, desc: l.desc })),
+          owned: user.ownedEquipment,
+          equipment: [...SELECTABLE_EQUIPMENT],
+          blocked: profileBlock({ audience: 'adult', ...known }),
+          basicsBlocked: profileBlock({ audience: 'basics', ...known }),
+          basicsDone,
+        }
+      : null;
 
   /* 일정 자리 — 웹 페이지의 갈래 차례 그대로(멈춤 > 프로그램 주인 > 안 만든 날 · 스러진 일정 > 남은 것 없음 > 일정) */
   const body: TodayBody = picked.halted
@@ -289,11 +357,12 @@ export async function loadTrainingToday(user: TodayUser, today: Date): Promise<T
             planResting: screen.planResting ? TRAINING_SCREEN_TEXT.planResting : null,
           }
       : savedPlan == null || screen.stalePlan
-        ? { kind: 'make', stale: screen.stalePlan ? TRAINING_SCREEN_TEXT.stalePlan : null, make: make() }
+        ? { kind: 'make', stale: screen.stalePlan ? TRAINING_SCREEN_TEXT.stalePlan : null, make: make(savedMinutes) }
         : groups.length === 0
-          ? { kind: 'empty', dropped: droppedForSafety > 0, make: make() }
+          ? { kind: 'empty', dropped: droppedForSafety > 0, make: make(savedPlan.requestedMinutes) }
           : {
               kind: 'plan',
+              make: make(savedPlan.requestedMinutes),
               plan: {
                 title: `오늘은 ${savedPlan.theme.label}`,
                 minutes: core.shownMinutes,
@@ -329,7 +398,7 @@ export async function loadTrainingToday(user: TodayUser, today: Date): Promise<T
     strip: strip.slice(-7),
     programCard,
     programDone,
-    programPick: PROGRAMS_ENABLED && !programView && savedPlan == null,
+    programStart,
     notice: screen.usesPlan && savedPlan && notice.kind === 'remake' ? notice : null,
     remakeFields:
       screen.usesPlan && savedPlan
@@ -343,4 +412,52 @@ export async function loadTrainingToday(user: TodayUser, today: Date): Promise<T
     prefs: core.hasCheckinToday ? { answer: core.trainingPrefs, parts: availableParts(core.library) } : null,
     body,
   };
+}
+
+/** '운동 추가' 창의 운동 하나 — 웹 PickableExercise(add-exercise.tsx)에서 창이 그리는 칸만, 경고는 서버가 미리 센다 */
+export type TodayPickItem = {
+  id: string;
+  title: string;
+  category: string;
+  bodyParts: string[];
+  intensity: string;
+  difficulty: string | null;
+  equipment: string[];
+  favorite: boolean;
+  /** 더하고 나서 목록에 보일 처방(오늘 목표 · 양 조절에 맞춘 것) */
+  prescription: string | null;
+  /** 이미 오늘 목록에 있다 — 다시 넣을 수 없다 */
+  inPlan: boolean;
+  /** 오늘 몸 상태에는 권하지 않는다(막지는 않는다) */
+  unsafe: boolean;
+  /** 가진 장비에 없는 것(맨몸 빼고) */
+  missing: string[];
+};
+
+/**
+ * '운동 추가' 창을 열 때 — 웹 페이지가 AddExercise 에 넘기는 것(pickable · inPlanIds · safeIds · ownedEquipment)과 같은 셈. 400개 남짓이라
+ * 화면을 열 때마다 싣지 않고 창을 열 때 한 번 읽는다(오늘 셈을 한 번 더 돈다 — 웹 페이지를 다시 여는 것과 같은 값).
+ */
+export async function loadTodayPicker(user: TodayUser, today: Date): Promise<TodayPickItem[]> {
+  const [core, fav] = await Promise.all([loadTodayCore(user, today), favoriteExerciseIds(user.id)]);
+  const inPlan = new Set(core.shownPicks.map((p) => p.exerciseId));
+  const safe = new Set(core.safeIds);
+  const owned = new Set(user.ownedEquipment);
+  return core.library.map((raw) => {
+    const ex = planPrescription(raw, core.savedPlan);
+    return {
+      id: ex.id,
+      title: ex.title,
+      category: ex.category,
+      bodyParts: ex.bodyParts,
+      intensity: ex.intensity,
+      difficulty: ex.difficulty,
+      equipment: ex.equipment,
+      favorite: fav.has(ex.id),
+      prescription: formatPrescription(ex),
+      inPlan: inPlan.has(ex.id),
+      unsafe: !safe.has(ex.id),
+      missing: ex.equipment.filter((e) => e !== '맨몸' && !owned.has(e)),
+    };
+  });
 }
