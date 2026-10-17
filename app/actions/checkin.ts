@@ -47,54 +47,6 @@ export async function saveCheckin(
   return withInput(await trySaveCheckin(formData), formData);
 }
 
-/**
- * 아이폰 앱(native/src/app/checkin.tsx) 체크인 — 앱은 폼(FormData)을 못 보내 JSON 으로 받아, 웹 흐름(components/checkin-flow/flow.tsx)이
- * 보내는 것과 같은 폼 칸으로 옮겨 같은 저장(trySaveCheckin)을 탄다. 앱은 몸 그림 대신 다섯 부위를 고른다(몸 그림 근육은 비움).
- */
-export async function saveAppCheckin(input: {
-  date: unknown;
-  condition: unknown;
-  sleepQuality: unknown;
-  parts: unknown;
-  armSpots: unknown;
-  armLevel: unknown;
-  note: unknown;
-}): Promise<CheckinState> {
-  const fd = new FormData();
-  fd.set('flow', '3');
-  fd.set('date', String(input?.date ?? ''));
-  fd.set('condition', String(input?.condition ?? ''));
-  if (input?.sleepQuality != null) fd.set('sleepQuality', String(input.sleepQuality));
-  const parts = (input?.parts ?? {}) as Record<string, unknown>;
-  for (const p of CHECKIN_PARTS) if (typeof parts[p.key] === 'string') fd.set(p.key, parts[p.key] as string);
-  fd.set('armpain', '1');
-  if (Array.isArray(input?.armSpots)) for (const s of input.armSpots) fd.append('armPainSpots', String(s));
-  if (input?.armLevel != null) fd.set('armPainLevel', String(input.armLevel));
-  fd.set('note', typeof input?.note === 'string' ? input.note : '');
-  /*
-   * 웹 몸 그림으로 고른 근육(bodySpots)을 지키기 — 앱은 다섯 부위만 고르니, 앱이 그대로 둔 부위의 근육은 남기고 바꾼 부위의 근육만
-   * 버린다(남기면 그 근육이 부위 칸을 도로 올려 앱에서 '정상'으로 낮춘 것이 안 먹는다). 안 보내면 trySaveCheckin 이 {} 로 덮는다.
-   */
-  const user = await getCurrentUser();
-  const dateKey = String(input?.date ?? '');
-  if (user && validateCheckinDate(dateKey)) {
-    const row = await prisma.dailyCheckin.findUnique({
-      where: { userId_date: { userId: user.id, date: new Date(`${dateKey}T00:00:00.000Z`) } },
-    });
-    if (row) {
-      const stored = pickCheckinParts(row as Partial<Record<CheckinPartKey, string>>);
-      const kept = Object.fromEntries(
-        Object.entries(cleanBodySpots(row.bodySpots)).filter(([id]) => {
-          const part = spotOf(id)?.def.part;
-          return part != null && (fd.get(part) ?? '정상') === stored[part];
-        })
-      );
-      fd.set('bodySpots', JSON.stringify(kept));
-    }
-  }
-  return trySaveCheckin(fd);
-}
-
 async function trySaveCheckin(formData: FormData): Promise<CheckinState> {
   const user = await getCurrentUser();
   if (!user) return { error: '로그인이 필요해요.' };
@@ -194,4 +146,52 @@ async function trySaveCheckin(formData: FormData): Promise<CheckinState> {
   /* 체크인 관문은 모든 화면의 틀(레이아웃)에 있다. 거기도 오늘 체크인을 알아야 한다. */
   revalidatePath('/', 'layout');
   return { success: '오늘 체크인을 저장했어요.', savedDate: dateKey };
+}
+
+/**
+ * 아이폰 앱(native/src/app/checkin.tsx) 체크인 — 앱은 폼(FormData)을 못 보내 JSON 으로 받아, 웹 흐름(components/checkin-flow/flow.tsx)이
+ * 보내는 것과 같은 폼 칸으로 옮겨 같은 저장(trySaveCheckin)을 탄다. 앱은 몸 그림 대신 다섯 부위를 고른다(몸 그림 근육은 비움).
+ */
+export async function saveAppCheckin(input: {
+  date: unknown;
+  condition: unknown;
+  sleepQuality: unknown;
+  parts: unknown;
+  armSpots: unknown;
+  armLevel: unknown;
+  note: unknown;
+}): Promise<CheckinState> {
+  const fd = new FormData();
+  fd.set('flow', '3');
+  fd.set('date', String(input?.date ?? ''));
+  fd.set('condition', String(input?.condition ?? ''));
+  if (input?.sleepQuality != null) fd.set('sleepQuality', String(input.sleepQuality));
+  const parts = (input?.parts ?? {}) as Record<string, unknown>;
+  for (const p of CHECKIN_PARTS) if (typeof parts[p.key] === 'string') fd.set(p.key, parts[p.key] as string);
+  fd.set('armpain', '1');
+  if (Array.isArray(input?.armSpots)) for (const s of input.armSpots) fd.append('armPainSpots', String(s));
+  if (input?.armLevel != null) fd.set('armPainLevel', String(input.armLevel));
+  fd.set('note', typeof input?.note === 'string' ? input.note : '');
+  /*
+   * 웹 몸 그림으로 고른 근육(bodySpots)을 지키기 — 앱은 다섯 부위만 고르니, 앱이 그대로 둔 부위의 근육은 남기고 바꾼 부위의 근육만
+   * 버린다(남기면 그 근육이 부위 칸을 도로 올려 앱에서 '정상'으로 낮춘 것이 안 먹는다). 안 보내면 trySaveCheckin 이 {} 로 덮는다.
+   */
+  const user = await getCurrentUser();
+  const dateKey = String(input?.date ?? '');
+  if (user && validateCheckinDate(dateKey)) {
+    const row = await prisma.dailyCheckin.findUnique({
+      where: { userId_date: { userId: user.id, date: new Date(`${dateKey}T00:00:00.000Z`) } },
+    });
+    if (row) {
+      const stored = pickCheckinParts(row as Partial<Record<CheckinPartKey, string>>);
+      const kept = Object.fromEntries(
+        Object.entries(cleanBodySpots(row.bodySpots)).filter(([id]) => {
+          const part = spotOf(id)?.def.part;
+          return part != null && (fd.get(part) ?? '정상') === stored[part];
+        })
+      );
+      fd.set('bodySpots', JSON.stringify(kept));
+    }
+  }
+  return trySaveCheckin(fd);
 }
