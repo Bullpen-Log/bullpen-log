@@ -34,15 +34,25 @@ export async function cacheClear(): Promise<void> {
   }
 }
 
-/** 옛 앱(웹 화면 localStorage)에 있던 값을 처음 한 번 옮긴다 — 웹이 JSON 글자로 둔 것을 그대로(이미 있으면 안 덮는다) */
-export async function adoptWebValues(items: Record<string, string | null>): Promise<void> {
-  try {
-    for (const [key, raw] of Object.entries(items)) {
-      if (raw == null || (await AsyncStorage.getItem(key)) != null) continue;
-      JSON.parse(raw);
-      await AsyncStorage.setItem(key, raw);
+/**
+ * 웹 화면(localStorage)에 있는 값을 앱 저장소로 옮긴다. 두 갈래:
+ * - JSON 값(구속 측정 설정 등) — 옛 앱 값을 처음 한 번만(앱에서 고친 것을 안 덮는다)
+ * - 글자 값(raw — 무게 단위 'kg' · 'lb' 처럼 따옴표 없이 둔 것) — 웹 설정 창이 고치는 곳이라 늘 웹 값을 따른다
+ * 한 열쇠가 깨져도 나머지는 옮긴다.
+ */
+export async function adoptWebValues(items: Record<string, string | null>, raw: readonly string[] = []): Promise<void> {
+  for (const [key, value] of Object.entries(items)) {
+    if (value == null) continue;
+    try {
+      if (raw.includes(key)) {
+        if ((await AsyncStorage.getItem(key)) !== value) await AsyncStorage.setItem(key, value);
+        continue;
+      }
+      if ((await AsyncStorage.getItem(key)) != null) continue;
+      JSON.parse(value);
+      await AsyncStorage.setItem(key, value);
+    } catch {
+      /* 깨진 값은 건너뛴다 */
     }
-  } catch {
-    /* 깨진 값은 건너뛴다 */
   }
 }

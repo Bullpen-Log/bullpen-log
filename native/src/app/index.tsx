@@ -27,6 +27,8 @@ import { resetNutritionStore } from '~/nutrition/api';
 import { useWebNav } from '~/shell/web-nav';
 import { setMenu, useMenu, type MenuGroup } from '~/shell/menu-store';
 import { adoptWebValues, cacheClear } from '~/lib/store';
+import { rpc } from '~/lib/rpc';
+import { drainOutbox } from '~/workout/outbox';
 import { PitchTab } from '~/pitch/tab';
 import { DEFAULT_TABS, TAB_BAR_HEIGHT, TabBar, type ShellTab } from '~/shell/tab-bar';
 
@@ -77,7 +79,10 @@ function tabOf(path: string, tabs: ShellTab[]): string | null {
  * 옛 앱(웹 화면)이 이 폰의 localStorage 에 둔 값 가운데 앱 화면이 쓰는 것 — 처음 그릴 때 앱 저장소로 옮긴다(이미 있으면 안 덮는다,
  * lib/store.ts adoptWebValues). 같은 번들 ID 라 옛 앱의 웹 저장소 · 로그인 쿠키는 그대로 남아 있다.
  */
-const WEB_KEYS = ['bullpen-velocity-setup'];
+const WEB_JSON_KEYS = ['bullpen-velocity-setup'];
+/** 웹 설정 창이 고치는 글자 값 — 늘 웹을 따른다(운동 진행 화면의 kg · lb, lib/units-storage.ts WEIGHT_KEY) */
+const WEB_RAW_KEYS = ['bullpen-unit-weight'];
+const WEB_KEYS = [...WEB_JSON_KEYS, ...WEB_RAW_KEYS];
 const ADOPT_WEB_VALUES = `(function(){try{var o={};${JSON.stringify(WEB_KEYS)}.forEach(function(k){o[k]=localStorage.getItem(k)});window.ReactNativeWebView&&window.ReactNativeWebView.postMessage(JSON.stringify({t:'adopt',items:o}))}catch(e){}})();true;`;
 
 export default function SiteScreen() {
@@ -100,10 +105,18 @@ export default function SiteScreen() {
         () => undefined
       );
   }, [barOn, today]);
+  /*
+   * 운동 중 신호가 없어 폰에 남은 세트 — 앱을 켤 때 · 다시 볼 때 보낸다(운동 화면을 다시 안 열어도). 서버가 거절한 것은 대기열이 뺀다.
+   * 로그인 전이면 보내기가 막혀 그대로 남는다(다음 기회에).
+   */
+  useEffect(() => {
+    if (barOn) void drainOutbox((p) => rpc('workout.logSet', p), () => undefined);
+  }, [barOn]);
   /* 앱을 다시 볼 때 오늘을 다시 묻는다 — 밤을 넘겨 켜 둔 앱이 어제 달력 · 어제 홈을 보이지 않게 */
   useEffect(() => {
     const sub = AppState.addEventListener('change', (st) => {
       if (st !== 'active') return;
+      void drainOutbox((p) => rpc('workout.logSet', p), () => undefined);
       resetMe();
       void loadMe().then(
         (m) => setToday(m.today),
@@ -212,7 +225,7 @@ export default function SiteScreen() {
     if (msg.t === 'tabs' && Array.isArray(msg.items)) return setTabs(msg.items);
     if (msg.t === 'path' && typeof msg.path === 'string') return setPath(msg.path);
     if (msg.t === 'tabbar') return setBarOn(msg.on === true);
-    if (msg.t === 'adopt' && msg.items) return void adoptWebValues(msg.items);
+    if (msg.t === 'adopt' && msg.items) return void adoptWebValues(msg.items, WEB_RAW_KEYS);
     if (msg.t === 'menu' && Array.isArray(msg.groups)) return setMenu({ groups: msg.groups, nickname: String(msg.nickname ?? '') });
     if (msg.t === 'webfront') return setWebFront(msg.on === true);
     /* 진동 · 화면 켜 두기 · 알림 · 테마(작은 다리, lib/cap-bridge.ts) */

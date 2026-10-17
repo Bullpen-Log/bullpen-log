@@ -9,7 +9,9 @@ import { BullpenNative } from '../../modules/bullpen-native';
 export class RpcError extends Error {
   constructor(
     message: string,
-    readonly code: string
+    readonly code: string,
+    /** code 'redirect' 일 때 서버가 보내려던 주소(예: 운동을 마치면 '/workout/done?id=…') */
+    readonly to?: string
   ) {
     super(message);
   }
@@ -44,6 +46,6 @@ export async function rpc<T>(action: string, ...args: unknown[]): Promise<T> {
     | null;
   if (res.status === 426) throw new RpcError('앱을 업데이트해 주세요.', 'update');
   if (!body || !body.ok) throw new RpcError('서버에서 처리하지 못했어요.', body?.error ?? 'server');
-  if ('redirect' in body) throw new RpcError('다시 로그인해 주세요.', 'redirect');
+  if ('redirect' in body) throw new RpcError('다시 로그인해 주세요.', 'redirect', body.redirect);
   return body.result;
 }
