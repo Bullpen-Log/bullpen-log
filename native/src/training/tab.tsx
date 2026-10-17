@@ -106,6 +106,9 @@ export function TrainingTab({ today, bottom, onWeb }: { today: string; bottom: n
     /* 암케어 따라 하기는 앱 화면 — 웹(/armcare/play/<id>)을 거치면 한 번 더 읽고 넘긴다 */
     const armcare = /^\/armcare\/play\/([\w-]+)(\?.*)?$/.exec(a.href);
     if (armcare) return router.push(`/armcare/${armcare[1]}${armcare[2] ?? ''}` as Href);
+    /* 메커니즘 따라 하기도 앱 화면(앱 판 4) */
+    const mech = /^\/mechanics\/play(\?.*)?$/.exec(a.href);
+    if (mech) return router.push(`/mechanics${mech[1] ?? ''}` as Href);
     onWeb(a.href);
   };
 
