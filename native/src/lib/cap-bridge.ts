@@ -2,6 +2,7 @@ import * as Haptics from 'expo-haptics';
 import * as SplashScreen from 'expo-splash-screen';
 import { setStatusBarStyle } from 'expo-status-bar';
 import { BullpenNative } from '../../modules/bullpen-native';
+import { LocalVideo } from '../../modules/local-video';
 import { ShootCamera } from '../../modules/shoot-camera';
 
 /**
@@ -16,10 +17,21 @@ import { ShootCamera } from '../../modules/shoot-camera';
  */
 const PLUGINS = ['Haptics', 'BullpenNative', 'SystemBars', 'SplashScreen', 'ShootCamera'];
 
+/**
+ * 한 주소에서만 잇는 부품(2026-10-18) — 폰 영상(LocalVideo)은 D3 대로 다른 웹 화면에 잇지 않는다. 다만 옛 앱(Capacitor)이 웹 저장소에
+ * 남긴 저장 안 한 구속 세션은 웹 구속 화면(/velocity?resume=1&web=1)만 마무리할 수 있고, 회원 클립은 폰에만 둔다(2026-10-10 결정 —
+ * 부품이 없으면 웹이 서버로 올린다). 그래서 그 화면에서만 폰에 넣는 셋(begin · append · finish)과 status 를 잇는다.
+ */
+const SCOPED: Record<string, string> = { LocalVideo: '/velocity' };
+const LOCAL_VIDEO_METHODS = new Set(['status', 'begin', 'append', 'finish']);
+
 /** 웹뷰가 문서를 읽기 전에 심는 글 — injectedJavaScriptBeforeContentLoaded */
 export const CAP_SHIM = `(function () {
   if (window.Capacitor) return;
   var have = ${JSON.stringify(Object.fromEntries(PLUGINS.map((p) => [p, true])))};
+  /* 한 화면에서만 있는 부품 — 폰 영상(LocalVideo)은 웹 구속 화면이 옛 앱 세션을 마무리할 때만(SCOPED 설명) */
+  var scoped = ${JSON.stringify(SCOPED)};
+  var can = function (name) { return !!have[name] || (!!scoped[name] && location.pathname.indexOf(scoped[name]) === 0); };
   var seq = 0, wait = {};
   var post = function (m) { window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify(m)); };
   window.__bpCapReply = function (id, ok, value, code) {
@@ -32,9 +44,9 @@ export const CAP_SHIM = `(function () {
     w[1](err);
   };
   window.Capacitor = {
-    isPluginAvailable: function (name) { return !!have[name]; },
+    isPluginAvailable: can,
     nativePromise: function (plugin, method, options) {
-      if (!have[plugin]) return Promise.reject(new Error('unavailable'));
+      if (!can(plugin)) return Promise.reject(new Error('unavailable'));
       return new Promise(function (resolve, reject) {
         var id = ++seq;
         wait[id] = [resolve, reject];
@@ -97,6 +109,12 @@ async function run({ plugin, method, options: o }: CapMessage): Promise<unknown>
     if (method === 'read')
       return ShootCamera.read({ path: String(o.path), offset: Number(o.offset) || 0, length: Number(o.length) || undefined });
     if (method === 'discard') return ShootCamera.discard({ paths: Array.isArray(o.paths) ? o.paths.map(String) : [] });
+  }
+  if (plugin === 'LocalVideo' && LOCAL_VIDEO_METHODS.has(method)) {
+    if (method === 'status') return LocalVideo.status();
+    if (method === 'begin') return LocalVideo.begin({ ext: typeof o.ext === 'string' ? o.ext : undefined });
+    if (method === 'append') return LocalVideo.append({ token: String(o.token), data: String(o.data) });
+    return LocalVideo.finish({ token: String(o.token) });
   }
   throw new Error(`${plugin}.${method} 은 이 앱에 없어요`);
 }

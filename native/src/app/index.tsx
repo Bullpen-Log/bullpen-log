@@ -9,7 +9,7 @@ import {
   type ComponentType,
   type Ref,
 } from 'react';
-import { AppState, Pressable, StyleSheet, Text, View, useColorScheme } from 'react-native';
+import { Alert, AppState, Pressable, StyleSheet, Text, View, useColorScheme } from 'react-native';
 import {
   WebView,
   type WebViewMessageEvent,
@@ -29,7 +29,7 @@ import { resetVelocityDayCache } from '~/pitch/velocity-day';
 import { resetNutritionStore } from '~/nutrition/api';
 import { useWebNav } from '~/shell/web-nav';
 import { setMenu, useMenu, type MenuGroup } from '~/shell/menu-store';
-import { adoptWebValues, cacheClear } from '~/lib/store';
+import { adoptWebValues, cacheClear, loadJson, saveJson } from '~/lib/store';
 import { clearDraft } from '~/velocity/draft';
 import { rpc } from '~/lib/rpc';
 import { drainOutbox, setOutboxOwner } from '~/workout/outbox';
@@ -88,6 +88,15 @@ const WEB_JSON_KEYS = ['bullpen-velocity-setup'];
 const WEB_RAW_KEYS = ['bullpen-unit-weight'];
 const WEB_KEYS = [...WEB_JSON_KEYS, ...WEB_RAW_KEYS];
 const ADOPT_WEB_VALUES = `(function(){try{var o={};${JSON.stringify(WEB_KEYS)}.forEach(function(k){o[k]=localStorage.getItem(k)});window.ReactNativeWebView&&window.ReactNativeWebView.postMessage(JSON.stringify({t:'adopt',items:o}))}catch(e){}})();true;`;
+/*
+ * 옛 앱(Capacitor 웹뷰)이 웹 저장소(IndexedDB 'bullpen-velocity', lib/velocity-draft.ts)에 남긴 저장 안 한 구속 세션 · 못 올린 클립을 센다.
+ * 같은 번들이라 웹 저장소는 이어지는데, 새 앱은 구속 측정을 앱 화면으로 열어 그 세션에 닿을 길이 없었다(2026-10-17 검토 D9 — 첫 실행 옮기기).
+ * 공 모양이 앱 세션과 달라 옮겨 담지 않고, 웹 구속 화면(?resume=1&web=1)이 마저 저장하게 한다. 없는 DB 는 만들지 않는다(onupgradeneeded 에서 멈춤).
+ */
+const OLD_VELOCITY = `(function(){try{var r=indexedDB.open('bullpen-velocity');r.onupgradeneeded=function(){r.transaction.abort()};r.onsuccess=function(){var d=r.result,n=[].slice.call(d.objectStoreNames);if(n.indexOf('draft')<0||n.indexOf('uploads')<0){d.close();return}var tx=d.transaction(['draft','uploads'],'readonly'),g=tx.objectStore('draft').get('current'),u=tx.objectStore('uploads').count();tx.oncomplete=function(){var p=g.result&&g.result.pitches?g.result.pitches.length:0;d.close();if(p||u.result)window.ReactNativeWebView&&window.ReactNativeWebView.postMessage(JSON.stringify({t:'oldvelo',pitches:p,uploads:u.result}))}}}catch(e){}})();true;`;
+/** 옛 세션을 '나중에' 하면 하루 동안 다시 묻지 않는다 */
+const OLD_VELOCITY_SNOOZE = 'bullpen-old-velocity-snooze';
+let askedOldVelocity = false;
 
 export default function SiteScreen() {
   /** 바꾸면 웹뷰를 새로 그린다 — 다시 불러오기(react-native-webview 14 의 WebView 는 ref 를 안 받는다) */
@@ -231,6 +240,24 @@ export default function SiteScreen() {
   }, []);
 
   /* 사이트 안에서 누른 이동은 페이지를 새로 안 불러 onShouldStart 가 못 본다 — 사이트(app/(session)/velocity/open-native.tsx)가 알려 준다 */
+  /* 옛 앱이 남긴 저장 안 한 구속 세션 — 앱을 켤 때 한 번 묻고, 마무리하기면 웹 구속 화면이 세션 요약부터 연다 */
+  const askOldVelocity = async (pitches: number, uploads: number) => {
+    if (askedOldVelocity || path.startsWith('/velocity')) return;
+    askedOldVelocity = true;
+    const until = Number(await loadJson(OLD_VELOCITY_SNOOZE)) || 0;
+    if (Date.now() < until) return;
+    const what = [pitches ? `저장하지 않은 공 ${pitches}개` : '', uploads ? `못 올린 영상 ${uploads}개` : ''].filter(Boolean).join(' · ');
+    Alert.alert('예전 앱에 맡겨 둔 구속 측정이 있어요', `${what}. 웹 화면에서 마저 저장해 주세요.`, [
+      { text: '나중에', style: 'cancel', onPress: () => void saveJson(OLD_VELOCITY_SNOOZE, Date.now() + 24 * 60 * 60 * 1000) },
+      { text: '마무리하기', onPress: () => openWeb('/velocity?resume=1&web=1') },
+    ]);
+  };
+  /* 알림 처리기(onMessage)는 한 번 만든다 — 늘 지금 주소 · 웹 열기를 보게 ref 로 */
+  const oldVelocity = useRef(askOldVelocity);
+  useEffect(() => {
+    oldVelocity.current = askOldVelocity;
+  });
+
   const onMessage = useCallback((ev: WebViewMessageEvent) => {
     let msg: {
       t?: string;
@@ -240,6 +267,8 @@ export default function SiteScreen() {
       search?: string;
       groups?: MenuGroup[];
       nickname?: unknown;
+      pitches?: unknown;
+      uploads?: unknown;
     };
     try {
       msg = JSON.parse(ev.nativeEvent.data);
@@ -257,6 +286,7 @@ export default function SiteScreen() {
     if (msg.t === 'adopt' && msg.items) return void adoptWebValues(msg.items, WEB_RAW_KEYS);
     if (msg.t === 'menu' && Array.isArray(msg.groups)) return setMenu({ groups: msg.groups, nickname: String(msg.nickname ?? '') });
     if (msg.t === 'webfront') return setWebFront(msg.on === true);
+    if (msg.t === 'oldvelo') return void oldVelocity.current(Number(msg.pitches) || 0, Number(msg.uploads) || 0);
     /* 진동 · 화면 켜 두기 · 알림 · 테마(작은 다리, lib/cap-bridge.ts) */
     handleCapMessage(
       msg,
@@ -319,7 +349,7 @@ export default function SiteScreen() {
         key={load}
         ref={web}
         injectedJavaScriptBeforeContentLoaded={CAP_SHIM}
-        injectedJavaScript={ADOPT_WEB_VALUES}
+        injectedJavaScript={ADOPT_WEB_VALUES + OLD_VELOCITY}
         source={{ uri: `${SITE_URL}${START_PATH}` }}
         applicationNameForUserAgent={APP_UA}
         sharedCookiesEnabled

@@ -24,12 +24,14 @@ export default async function VelocityPage({
 }: {
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
-  /* 새 아이폰 앱(Expo)은 구속 측정을 앱 화면으로 연다 — 웹 화면은 앱 카메라 다리가 없어 웹 카메라(30fps)로 켜졌다 */
-  if (isExpoUserAgent((await headers()).get('user-agent'))) return <OpenNative path="/velocity" />;
-  const [{ user, allowed, pitchLocked, isAdmin, native }, { resume }] = await Promise.all([
-    velocityAccess(),
-    searchParams,
-  ]);
+  const params = await searchParams;
+  /*
+   * 새 아이폰 앱(Expo)은 구속 측정을 앱 화면으로 연다 — 웹 화면은 앱 카메라 다리가 없어 웹 카메라(30fps)로 켜졌다. ?web=1 은 예외:
+   * 옛 앱이 웹 저장소에 남긴 저장 안 한 세션을 이 화면이 마무리한다(앱 껍데기가 켤 때 묻는다 — native/src/app/index.tsx OLD_VELOCITY).
+   */
+  if (params.web !== '1' && isExpoUserAgent((await headers()).get('user-agent'))) return <OpenNative path="/velocity" />;
+  const { resume } = params;
+  const { user, allowed, pitchLocked, isAdmin, native } = await velocityAccess();
   /* 처음 가입한 사람은 첫 설정(2026-10-09, lib/feature-locks.ts)을 마쳐야 연다 */
   if (pitchLocked) redirect(SETUP_PATH.pitch);
   if (!allowed) return <AppOnly />;
