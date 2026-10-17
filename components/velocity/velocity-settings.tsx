@@ -1,25 +1,19 @@
 'use client';
 
+import { SETUP_CHANGE_EVENT, SETUP_KEY, clearSetup, loadFov, loadSetup, saveFov, saveSetup } from '@/lib/velocity-storage';
 import { useMemo, useState, useSyncExternalStore } from 'react';
 import { AlertTriangle, Settings2 } from 'lucide-react';
 import { Segmented } from '@/components/segmented';
 import { Switch } from '@/components/switch';
 import {
   calibrationText,
-  loadFov,
-  saveFov,
   type CalFit,
 } from '@/lib/velocity-calibration';
 import { DEFAULT_FOV_DEG } from '@/lib/velocity-engine/analyze-frames';
 import {
   CAMERA_OPTIONS,
-  clearSetup,
   DEFAULT_SETUP,
   defaultZone,
-  loadSetup,
-  saveSetup,
-  SETUP_CHANGE_EVENT,
-  SETUP_KEY,
   type VelocitySetup,
   approachOf,
   RELEASE_DIST_MIN,

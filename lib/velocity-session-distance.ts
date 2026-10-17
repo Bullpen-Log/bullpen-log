@@ -15,30 +15,16 @@ export const SESSION_DIST_MIN = 3;
 export const MEMORY_TOL = 0.06;
 /** 지난 세션 거리를 공 몇 개 몫으로 섞나 */
 export const MEMORY_WEIGHT = 2;
-const MEMORY_KEY = 'bullpen-velocity-dist-memory';
 const MEMORY_DAYS = 30;
 
 export type DistMemory = { distM: number; n: number; at: number };
 
-export function loadDistMemory(): DistMemory | null {
-  try {
-    const m = JSON.parse(
-      localStorage.getItem(MEMORY_KEY) ?? 'null'
-    ) as DistMemory | null;
-    if (!m || !(m.distM > 0) || !(Date.now() - m.at < MEMORY_DAYS * 86_400_000))
-      return null;
-    return m;
-  } catch {
+/** 저장해 둔 지난 세션 거리(JSON 을 푼 값) → 30일 안의 것만. 웹(lib/velocity-storage.ts) · 앱 저장소가 같이 쓴다 */
+export function parseDistMemory(raw: unknown, now: number): DistMemory | null {
+  const m = raw as DistMemory | null;
+  if (!m || typeof m !== 'object' || !(m.distM > 0) || !(now - m.at < MEMORY_DAYS * 86_400_000))
     return null;
-  }
-}
-
-export function saveDistMemory(m: DistMemory) {
-  try {
-    localStorage.setItem(MEMORY_KEY, JSON.stringify(m));
-  } catch {
-    /* 사생활 보호 모드 등 — 다음 세션은 다시 어림한다 */
-  }
+  return m;
 }
 
 export function medianOf(xs: number[]): number {
