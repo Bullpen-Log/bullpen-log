@@ -418,13 +418,14 @@ export function CheckinFlow({
 
       {/* 가운데 — 화면 둘을 겹쳐 두고 전환한다 */}
       <div className="relative min-h-0 flex-1 overflow-hidden">
+        {/* 두 판의 key 는 화면 이름 — 나가는 판이 같은 노드로 남아(phase 만 leave 로) 3D 몸 · 찾기 칸이 다시 마운트되지 않는다(2026-10-17 전엔 깜빡였다) */}
         {view.prev && (
-          <Pane key={`leave-${view.prev}`} phase="leave" dir={view.dir}>
+          <Pane key={view.prev} phase="leave" dir={view.dir}>
             {render(view.prev)}
           </Pane>
         )}
         <Pane
-          key={`cur-${view.cur}`}
+          key={view.cur}
           phase={view.prev ? 'enter' : 'idle'}
           dir={view.dir}
         >
