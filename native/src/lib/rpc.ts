@@ -18,9 +18,14 @@ export class RpcError extends Error {
 let synced: Promise<unknown> | null = null;
 const HOST = new URL(SITE_URL).hostname;
 
-export async function rpc<T>(action: string, ...args: unknown[]): Promise<T> {
+/** 웹뷰의 로그인 쿠키를 앱 요청 저장소로(처음 한 번) — rpc 말고 사이트 API(/api/…)를 부를 때도 먼저 */
+export function syncSession(): Promise<unknown> {
   synced ??= BullpenNative.sync(HOST).catch(() => 0);
-  await synced;
+  return synced;
+}
+
+export async function rpc<T>(action: string, ...args: unknown[]): Promise<T> {
+  await syncSession();
   let res: Response;
   try {
     res = await fetch(`${SITE_URL}/api/rpc/${action}`, {

@@ -1,0 +1,62 @@
+import { useVideoPlayer, VideoView } from 'expo-video';
+import { useEffect, useState } from 'react';
+import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { LocalVideo } from '../../modules/local-video';
+import { isPhoneVideoPath, phoneAssetId, serverVideoUrls } from './api';
+
+/**
+ * 투구 영상 하나 — 폰 영상(`{userId}/local-…`)은 앱 안 영상 폴더의 파일을 바로, 서버 영상은 서명 주소로 튼다. 폰에 없으면(다른 폰 · 앱을
+ * 다시 깔아 지워짐) 웹과 같은 말을 보인다.
+ */
+export function PitchVideo({ path }: { path: string }) {
+  const [uri, setUri] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    const job = isPhoneVideoPath(path)
+      ? LocalVideo.fileUrl({ id: phoneAssetId(path) }).then((r) => r.url)
+      : serverVideoUrls([path]).then((urls) => {
+          const url = urls[path];
+          if (!url) throw new Error('영상을 찾지 못했어요');
+          return url;
+        });
+    job.then(
+      (u) => alive && setUri(u),
+      () =>
+        alive &&
+        setError(isPhoneVideoPath(path) ? '이 영상은 이 폰에 없어요. 찍은 폰의 불펜로그 앱에서 볼 수 있어요.' : '영상을 불러오지 못했어요.')
+    );
+    return () => {
+      alive = false;
+    };
+  }, [path]);
+
+  if (error)
+    return (
+      <View style={[styles.box, styles.center]}>
+        <Text style={styles.note}>{error}</Text>
+      </View>
+    );
+  if (!uri)
+    return (
+      <View style={[styles.box, styles.center]}>
+        <ActivityIndicator color="#fff" />
+      </View>
+    );
+  return <Player uri={uri} />;
+}
+
+function Player({ uri }: { uri: string }) {
+  const player = useVideoPlayer(uri, (p) => {
+    p.muted = true;
+    p.loop = true;
+  });
+  return <VideoView player={player} style={styles.box} nativeControls contentFit="contain" />;
+}
+
+const styles = StyleSheet.create({
+  box: { width: '100%', aspectRatio: 9 / 16, maxHeight: 420, borderRadius: 16, backgroundColor: '#000', overflow: 'hidden' },
+  center: { alignItems: 'center', justifyContent: 'center', padding: 16 },
+  note: { color: 'rgba(255,255,255,0.8)', fontSize: 15, textAlign: 'center' },
+});

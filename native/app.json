@@ -26,9 +26,12 @@
           "backgroundColor": "#f4f7fb",
           "image": "./assets/icon.png",
           "imageWidth": 120,
-          "dark": { "backgroundColor": "#000000" }
+          "dark": {
+            "backgroundColor": "#000000"
+          }
         }
-      ]
+      ],
+      "expo-video"
     ],
     "experiments": {
       "typedRoutes": true,

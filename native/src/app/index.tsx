@@ -1,19 +1,37 @@
 import * as Linking from 'expo-linking';
-import { router } from 'expo-router';
+import { type Href, router } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
-import { useCallback, useRef, useState, type ComponentType, type Ref } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ComponentType,
+  type Ref,
+} from 'react';
 import { Pressable, StyleSheet, Text, View, useColorScheme } from 'react-native';
-import { WebView, type WebViewMessageEvent, type WebViewNavigation, type WebViewProps } from 'react-native-webview';
+import {
+  WebView,
+  type WebViewMessageEvent,
+  type WebViewNavigation,
+  type WebViewProps,
+} from 'react-native-webview';
 import type { ShouldStartLoadRequest } from 'react-native-webview/lib/WebViewTypes';
 import { APP_UA, SITE_HOST, SITE_URL, START_PATH } from '~/lib/site';
 import { CAP_SHIM, handleCapMessage } from '~/lib/cap-bridge';
+import { loadMe } from '~/pitch/api';
+import { PitchTab } from '~/pitch/tab';
+import { DEFAULT_TABS, TAB_BAR_HEIGHT, TabBar, type ShellTab } from '~/shell/tab-bar';
 
 type WebViewHandle = { injectJavaScript(script: string): void };
 /* react-native-webview 14 의 타입은 ref 를 안 받지만 실제 부품은 forwardRef 다(velocity/engine.tsx 와 같다) */
-const RefWebView = WebView as unknown as ComponentType<WebViewProps & { ref?: Ref<WebViewHandle> }>;
+const RefWebView = WebView as unknown as ComponentType<
+  WebViewProps & { ref?: Ref<WebViewHandle> }
+>;
 
 /**
- * 전환 1판의 앱 = 사이트를 화면 가득 띄운 웹뷰 하나(지금 Capacitor 껍데기와 같은 모습).
+ * 앱 껍데기 — 사이트 웹뷰 하나 + 앱 아래 탭 막대(shell/tab-bar.tsx). 홈 · 트레이닝 · 영양은 웹뷰가(사이트의 판 넘기기로 바로 옮김), 투구 탭은
+ * 앱 화면(pitch/tab.tsx)이 웹뷰를 덮는다. 사이트는 앱 안이면 제 탭 막대를 숨긴다(components/app-shell/expo-tabs.tsx).
  *
  * 화면을 네이티브로 옮기면(구속 측정 · 촬영 · 투구 영상부터, 검토 D3) 그 주소로 가는 길을 여기서 가로채 네이티브 화면을 연다.
  * 로그인은 사이트 'session' 쿠키 그대로 — sharedCookiesEnabled 로 앱의 쿠키 저장소와 같이 써서 네이티브 화면의 /api/rpc 도
@@ -23,10 +41,29 @@ const RefWebView = WebView as unknown as ComponentType<WebViewProps & { ref?: Re
 const NATIVE_PATHS = new Set(['/velocity', '/velocity/measure']);
 /** 같은 화면을 두 번 쌓지 않게 — 주소 가로채기와 사이트 알림이 한 번 누름에 같이 올 수 있다 */
 let lastOpen = 0;
-function openVelocity() {
+function openNative(path: string) {
   if (Date.now() - lastOpen < 1500) return;
   lastOpen = Date.now();
-  router.push('/velocity');
+  if (NATIVE_PATHS.has(path)) router.push('/velocity');
+  else if (/^\/pitch\/\d{4}-\d{2}-\d{2}$/.test(path))
+    router.push(path as Href);
+}
+const openVelocity = () => openNative('/velocity');
+
+/** 사이트 주소 → 그 주소가 속한 탭(웹 lib/nav.ts NAV_ALSO 와 같은 묶음) */
+function tabOf(path: string, tabs: ShellTab[]): string | null {
+  const group: Record<string, string[]> = {
+    '/today': ['/today', '/coach'],
+    '/videos': ['/videos', '/pitch-log', '/admin/velocity'],
+    '/training': ['/training'],
+    '/nutrition': ['/nutrition'],
+  };
+  for (const t of tabs) {
+    const base = t.href.split('?')[0];
+    const roots = group[base] ?? [base];
+    if (roots.some((r) => path === r || path.startsWith(`${r}/`))) return t.href;
+  }
+  return null;
 }
 
 export default function SiteScreen() {
@@ -37,6 +74,29 @@ export default function SiteScreen() {
   const web = useRef<WebViewHandle>(null);
   /** 사이트 테마의 바탕색 — 오래 뒤에 있다 돌아와 다시 그리는 동안 흰 화면이 번쩍이지 않게(옛 앱의 bullpenTheme 과 같은 일) */
   const [pageColor, setPageColor] = useState<string | null>(null);
+  /* 앱 탭 막대 — 사이트가 알려 준 탭 · 지금 주소 · 막대를 보일지(탭이 없는 웹 화면에서는 숨김) */
+  const [tabs, setTabs] = useState<ShellTab[]>(DEFAULT_TABS);
+  const [path, setPath] = useState('/today');
+  const [barOn, setBarOn] = useState(false);
+  const [today, setToday] = useState<string | null>(null);
+  useEffect(() => {
+    if (barOn && !today)
+      void loadMe().then(
+        (m) => setToday(m.today),
+        () => undefined
+      );
+  }, [barOn, today]);
+  const active = tabOf(path, tabs);
+  const pitchTab = tabs.find((t) => t.href === '/videos');
+  /* 투구 탭의 첫 화면일 때만 앱 화면 — 잠겼으면 웹의 첫 설정 화면(주소가 /videos/setup)으로 간다 */
+  const showPitch = barOn && path === '/videos' && !!today && !pitchTab?.locked;
+
+  const pressTab = (t: ShellTab) => {
+    if (t.href === '/videos' && !t.locked) setPath('/videos');
+    web.current?.injectJavaScript(
+      `window.__bpTab && window.__bpTab(${JSON.stringify(t.href)});true;`
+    );
+  };
 
   const hideSplash = useCallback(() => {
     void SplashScreen.hideAsync();
@@ -56,20 +116,29 @@ export default function SiteScreen() {
       openVelocity();
       return false;
     }
-    if (host === SITE_HOST || req.url.startsWith('about:') || req.url.startsWith('blob:') || req.url.startsWith('data:')) return true;
+    if (
+      host === SITE_HOST ||
+      req.url.startsWith('about:') ||
+      req.url.startsWith('blob:') ||
+      req.url.startsWith('data:')
+    )
+      return true;
     void Linking.openURL(req.url);
     return false;
   }, []);
 
   /* 사이트 안에서 누른 이동은 페이지를 새로 안 불러 onShouldStart 가 못 본다 — 사이트(app/(session)/velocity/open-native.tsx)가 알려 준다 */
   const onMessage = useCallback((ev: WebViewMessageEvent) => {
-    let msg: { t?: string; path?: string };
+    let msg: { t?: string; path?: string; items?: ShellTab[]; on?: boolean };
     try {
       msg = JSON.parse(ev.nativeEvent.data);
     } catch {
       return;
     }
-    if (msg.t === 'native' && msg.path && NATIVE_PATHS.has(msg.path)) return openVelocity();
+    if (msg.t === 'native' && msg.path) return openNative(msg.path);
+    if (msg.t === 'tabs' && Array.isArray(msg.items)) return setTabs(msg.items);
+    if (msg.t === 'path' && typeof msg.path === 'string') return setPath(msg.path);
+    if (msg.t === 'tabbar') return setBarOn(msg.on === true);
     /* 진동 · 화면 켜 두기 · 알림 · 테마(작은 다리, lib/cap-bridge.ts) */
     handleCapMessage(
       msg,
@@ -85,15 +154,20 @@ export default function SiteScreen() {
   if (failed) {
     return (
       <View style={[styles.offline, dark && styles.offlineDark]}>
-        <Text style={[styles.title, dark && styles.textDark]}>인터넷에 연결할 수 없어요</Text>
-        <Text style={[styles.body, dark && styles.mutedDark]}>연결되면 다시 불러와 주세요.</Text>
+        <Text style={[styles.title, dark && styles.textDark]}>
+          인터넷에 연결할 수 없어요
+        </Text>
+        <Text style={[styles.body, dark && styles.mutedDark]}>
+          연결되면 다시 불러와 주세요.
+        </Text>
         <Pressable
           accessibilityRole="button"
           style={styles.button}
           onPress={() => {
             setFailed(false);
             setLoad((n) => n + 1);
-          }}>
+          }}
+        >
           <Text style={styles.buttonText}>다시 불러오기</Text>
         </Pressable>
       </View>
@@ -101,44 +175,76 @@ export default function SiteScreen() {
   }
 
   return (
-    <RefWebView
-      key={load}
-      ref={web}
-      injectedJavaScriptBeforeContentLoaded={CAP_SHIM}
-      source={{ uri: `${SITE_URL}${START_PATH}` }}
-      applicationNameForUserAgent={APP_UA}
-      sharedCookiesEnabled
-      allowsBackForwardNavigationGestures
-      allowsInlineMediaPlayback
-      mediaPlaybackRequiresUserAction={false}
-      mediaCapturePermissionGrantType="grant"
-      allowsLinkPreview={false}
-      contentInsetAdjustmentBehavior="never"
-      automaticallyAdjustContentInsets={false}
-      decelerationRate="normal"
-      pullToRefreshEnabled={false}
-      style={[styles.web, dark && styles.offlineDark, pageColor ? { backgroundColor: pageColor } : null]}
-      onShouldStartLoadWithRequest={onShouldStart}
-      onNavigationStateChange={onNav}
-      onMessage={onMessage}
-      onLoadEnd={hideSplash}
-      onError={() => {
-        hideSplash();
-        setFailed(true);
-      }}
-      onContentProcessDidTerminate={() => setLoad((n) => n + 1)}
-    />
+    <View style={{ flex: 1 }}>
+      <RefWebView
+        key={load}
+        ref={web}
+        injectedJavaScriptBeforeContentLoaded={CAP_SHIM}
+        source={{ uri: `${SITE_URL}${START_PATH}` }}
+        applicationNameForUserAgent={APP_UA}
+        sharedCookiesEnabled
+        allowsBackForwardNavigationGestures
+        allowsInlineMediaPlayback
+        mediaPlaybackRequiresUserAction={false}
+        mediaCapturePermissionGrantType="grant"
+        allowsLinkPreview={false}
+        contentInsetAdjustmentBehavior="never"
+        automaticallyAdjustContentInsets={false}
+        decelerationRate="normal"
+        pullToRefreshEnabled={false}
+        style={[
+          styles.web,
+          dark && styles.offlineDark,
+          pageColor ? { backgroundColor: pageColor } : null,
+        ]}
+        onShouldStartLoadWithRequest={onShouldStart}
+        onNavigationStateChange={onNav}
+        onMessage={onMessage}
+        onLoadEnd={hideSplash}
+        onError={() => {
+          hideSplash();
+          setFailed(true);
+        }}
+        onContentProcessDidTerminate={() => setLoad((n) => n + 1)}
+      />
+      {showPitch && today ? (
+        <View style={StyleSheet.absoluteFill}>
+          <PitchTab today={today} bottom={TAB_BAR_HEIGHT} />
+        </View>
+      ) : null}
+      {barOn ? (
+        <TabBar
+          tabs={tabs}
+          active={showPitch ? '/videos' : active}
+          onPress={pressTab}
+        />
+      ) : null}
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   web: { flex: 1, backgroundColor: '#f4f7fb' },
-  offline: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, padding: 24, backgroundColor: '#f4f7fb' },
+  offline: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+    padding: 24,
+    backgroundColor: '#f4f7fb',
+  },
   offlineDark: { backgroundColor: '#000000' },
   title: { fontSize: 20, fontWeight: '700', color: '#1d1d1f' },
   body: { fontSize: 15, color: '#6e6e73' },
   textDark: { color: '#f5f5f7' },
   mutedDark: { color: '#98989d' },
-  button: { marginTop: 8, height: 48, paddingHorizontal: 24, borderRadius: 24, backgroundColor: '#0a84d6', justifyContent: 'center' },
+  button: {
+    marginTop: 8,
+    height: 48,
+    paddingHorizontal: 24,
+    borderRadius: 24,
+    backgroundColor: '#0a84d6',
+    justifyContent: 'center',
+  },
   buttonText: { fontSize: 17, fontWeight: '600', color: '#ffffff' },
 });

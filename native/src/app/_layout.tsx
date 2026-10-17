@@ -9,7 +9,9 @@ export default function RootLayout() {
   return (
     <>
       <StatusBar style="auto" />
-      <Stack screenOptions={{ headerShown: false }} />
+      <Stack screenOptions={{ headerShown: false }}>
+        <Stack.Screen name="pitch/edit" options={{ presentation: 'modal' }} />
+      </Stack>
     </>
   );
 }

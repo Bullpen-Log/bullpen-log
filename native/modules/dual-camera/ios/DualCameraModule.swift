@@ -114,7 +114,7 @@ public class DualCameraModule: Module {
 
         AsyncFunction("snapshot") { (options: [String: Any], promise: Promise) in
             guard let controller = self.controller else { return Self.off(promise) }
-            let short = max(120, min(1080, (options["short"] as? Int) ?? 720))
+            let short = max(120, min(1080, Self.int(options["short"]) ?? 720))
             controller.requestSnapshot(short: short) { result in
                 if let result { promise.resolve(result) } else { promise.reject("snapshot", "장면을 받지 못했어요.") }
             }
@@ -124,8 +124,8 @@ public class DualCameraModule: Module {
             guard let path = options["path"] as? String, self.isIssued(path) else {
                 return promise.reject("path", "읽을 수 없는 파일이에요.")
             }
-            let offset = UInt64(max(0, (options["offset"] as? Int) ?? 0))
-            let length = max(1, min(4 * 1024 * 1024, (options["length"] as? Int) ?? 1024 * 1024))
+            let offset = UInt64(max(0, Self.int(options["offset"]) ?? 0))
+            let length = max(1, min(4 * 1024 * 1024, Self.int(options["length"]) ?? 1024 * 1024))
             do {
                 let handle = try FileHandle(forReadingFrom: URL(fileURLWithPath: path))
                 defer { try? handle.close() }
@@ -212,9 +212,9 @@ public class DualCameraModule: Module {
         controller?.stop()
         DispatchQueue.main.async { PreviewHub.shared.setPreview(nil) }
         let config = DualCameraController.Config(
-            fps: Int32(max(24, min(240, (options["fps"] as? Int) ?? 60))),
-            preferFps: Int32(max(0, min(240, (options["preferFps"] as? Int) ?? 0))),
-            short: (options["short"] as? Int).map { Int32($0) },
+            fps: Int32(max(24, min(240, Self.int(options["fps"]) ?? 60))),
+            preferFps: Int32(max(0, min(240, Self.int(options["preferFps"]) ?? 0))),
+            short: Self.int(options["short"]).map { Int32($0) },
             net: (options["net"] as? Bool) ?? false,
             roi: Self.rect(options["roi"]) ?? MotionTrigger.defaultRoi,
             armed: (options["armed"] as? Bool) ?? true,
@@ -279,6 +279,12 @@ public class DualCameraModule: Module {
         issuedLock.lock()
         defer { issuedLock.unlock() }
         return issued.contains(path)
+    }
+
+    /// Expo 는 JS 숫자를 Double 로 넘긴다 — `as? Int` 는 nil 이라 offset · length · fps 를 못 읽어 늘 기본값이었다(2026-10-18 찾음:
+    /// read 가 늘 처음 1MB 만 돌려줘 1MB 넘는 클립이 계산기에 망가진 채 갔다)
+    private static func int(_ value: Any?) -> Int? {
+        number(value).map { Int($0) }
     }
 
     private static func number(_ value: Any?) -> Double? {
