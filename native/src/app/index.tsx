@@ -25,6 +25,7 @@ import { HomeTab, resetHomeCache } from '~/home/tab';
 import { NutritionTab } from '~/nutrition/tab';
 import { resetNutritionStore } from '~/nutrition/api';
 import { useWebNav } from '~/shell/web-nav';
+import { setMenu, useMenu, type MenuGroup } from '~/shell/menu-store';
 import { adoptWebValues, cacheClear } from '~/lib/store';
 import { PitchTab } from '~/pitch/tab';
 import { DEFAULT_TABS, TAB_BAR_HEIGHT, TabBar, type ShellTab } from '~/shell/tab-bar';
@@ -112,37 +113,56 @@ export default function SiteScreen() {
     return () => sub.remove();
   }, []);
   const active = tabOf(path, tabs);
+  /* 웹을 앞으로 — 앱 화면 위에서 연 웹 창(설정)이 보이게 앱 화면을 잠시 걷는다. 그 창을 닫거나 탭을 누르면 돌아온다 */
+  const [webFront, setWebFront] = useState(false);
   const pitchTab = tabs.find((t) => t.href === '/videos');
   /* 투구 탭의 첫 화면일 때만 앱 화면 — 잠겼으면 웹의 첫 설정 화면(주소가 /videos/setup)으로 간다 */
-  const showPitch = barOn && path === '/videos' && !!today && !pitchTab?.locked;
+  const showPitch = barOn && path === '/videos' && !!today && !pitchTab?.locked && !webFront;
   /* 홈 첫 화면도 앱 화면 — '웹 홈에서' 를 누르면 홈 탭을 다시 누를 때까지 웹 홈(일정 · 자세한 그날 칸) */
   const [webHome, setWebHome] = useState(false);
-  const showHome = barOn && path === '/today' && !!today && !webHome;
+  const showHome = barOn && path === '/today' && !!today && !webHome && !webFront;
   /* 영양 첫 화면도 앱 화면(오늘 먹은 것 · 담기 · 체중) — '식단 · 목표 · 통계'를 누르면 영양 탭을 다시 누를 때까지 웹 영양 */
   const [webNutrition, setWebNutrition] = useState(false);
   const nutritionTab = tabs.find((t) => t.href === '/nutrition');
-  const showNutrition = barOn && path === '/nutrition' && !!today && !webNutrition && !nutritionTab?.locked;
+  const showNutrition = barOn && path === '/nutrition' && !!today && !webNutrition && !nutritionTab?.locked && !webFront;
+  const menu = useMenu();
 
   const goWeb = (href: string) =>
     web.current?.injectJavaScript(`window.__bpTab && window.__bpTab(${JSON.stringify(href)});true;`);
   const pressTab = (t: ShellTab) => {
+    setWebFront(false);
+    /* 더보기는 앱 화면(사이트가 목록을 알려 준 뒤) — 웹 메뉴는 앱 화면 위에서 열면 밑에 깔려 안 보인다 */
+    if (t.href === '/more' && menu.groups.length) return router.push('/more' as Href);
     if ((t.href === '/videos' || t.href === '/today' || t.href === '/nutrition') && !t.locked) setPath(t.href);
     if (t.href === '/today') setWebHome(false);
     if (t.href === '/nutrition') setWebNutrition(false);
     goWeb(t.href);
-  };
-  /* 앱 화면이 끝난 뒤 웹을 옮길 곳(운동을 마치면 축하 화면) — shell/web-nav.ts */
-  useWebNav(useCallback((href: string) => goWeb(href), []));
-  const goTab = (href: string) => {
-    const t = tabs.find((x) => x.href === href);
-    if (t) pressTab(t);
-    else openWeb(href);
   };
   /* 투구 탭(앱 화면)에서 아직 웹인 화면(투구 분석 · 3D 동작 분석)으로 — 앱 화면을 바로 걷고 웹이 그 주소로 간다 */
   const openWeb = (href: string) => {
     setPath(href.split('?')[0]);
     goWeb(href);
   };
+  const goTab = (href: string) => {
+    const t = tabs.find((x) => x.href === href);
+    if (t) pressTab(t);
+    else openWeb(href);
+  };
+  /*
+   * 앱 화면이 끝난 뒤 웹을 옮길 곳(운동을 마치면 축하 화면 · 더보기에서 고른 곳) — shell/web-nav.ts. 탭 · 앱 화면이 있는 곳은 그리로,
+   * '#settings' 는 웹 설정 창(주소가 없다 — 앱 화면을 걷고 연다). 처리기는 늘 지금 탭 목록을 보게 ref 로.
+   */
+  const navTo = useRef<(href: string) => void>(() => undefined);
+  useEffect(() => {
+    navTo.current = (href) => {
+      if (href === '#settings') {
+        setWebFront(true);
+        web.current?.injectJavaScript(`window.__bpOpen && window.__bpOpen('settings');true;`);
+      } else if (NATIVE_PATHS.has(href)) openNative(href);
+      else goTab(href);
+    };
+  });
+  useWebNav(useCallback((href: string) => navTo.current(href), []));
 
   const hideSplash = useCallback(() => {
     void SplashScreen.hideAsync();
@@ -175,7 +195,14 @@ export default function SiteScreen() {
 
   /* 사이트 안에서 누른 이동은 페이지를 새로 안 불러 onShouldStart 가 못 본다 — 사이트(app/(session)/velocity/open-native.tsx)가 알려 준다 */
   const onMessage = useCallback((ev: WebViewMessageEvent) => {
-    let msg: { t?: string; path?: string; items?: ShellTab[] & Record<string, string | null>; on?: boolean };
+    let msg: {
+      t?: string;
+      path?: string;
+      items?: ShellTab[] & Record<string, string | null>;
+      on?: boolean;
+      groups?: MenuGroup[];
+      nickname?: unknown;
+    };
     try {
       msg = JSON.parse(ev.nativeEvent.data);
     } catch {
@@ -186,6 +213,8 @@ export default function SiteScreen() {
     if (msg.t === 'path' && typeof msg.path === 'string') return setPath(msg.path);
     if (msg.t === 'tabbar') return setBarOn(msg.on === true);
     if (msg.t === 'adopt' && msg.items) return void adoptWebValues(msg.items);
+    if (msg.t === 'menu' && Array.isArray(msg.groups)) return setMenu({ groups: msg.groups, nickname: String(msg.nickname ?? '') });
+    if (msg.t === 'webfront') return setWebFront(msg.on === true);
     /* 진동 · 화면 켜 두기 · 알림 · 테마(작은 다리, lib/cap-bridge.ts) */
     handleCapMessage(
       msg,

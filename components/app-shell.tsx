@@ -1327,7 +1327,14 @@ export function AppNav({
 
       <MobileTabs tabs={tabs} menuOpen={open} onMenu={() => go('sheet')} />
       <Suspense fallback={null}>
-        <ExpoTabBridge tabs={tabs} onMenu={() => go('sheet')} />
+        <ExpoTabBridge
+          tabs={tabs}
+          onMenu={() => go('sheet')}
+          groups={groups}
+          nickname={nickname}
+          settingsOpen={settingsOpen}
+          onSettings={() => setSettingsOpen(true)}
+        />
       </Suspense>
 
       <DetailMenu
