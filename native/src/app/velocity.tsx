@@ -60,7 +60,7 @@ export default function VelocityScreen() {
   const [zone, setZone] = useState<ZoneRect>(DEFAULT_SETUP.zone);
   const [info, setInfo] = useState<StartInfo | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [fps, setFps] = useState<number | null>(null);
+  const [fps, setFps] = useState<{ fps: number; dropped: number } | null>(null);
   const [status, setStatus] = useState<{ status: CaptureStatus; visible: number }>({ status: 'armed', visible: 0 });
   const [notice, setNotice] = useState<string | null>(null);
   const [tilt, setTilt] = useState<{ roll: number; pitch: number } | null>(null);
@@ -143,7 +143,7 @@ export default function VelocityScreen() {
     captureRef.current = capture;
     const subs = [
       DualCamera.addListener('throw', (e) => capture.onThrow(e)),
-      DualCamera.addListener('fps', (e) => setFps(Math.round(e.fps))),
+      DualCamera.addListener('fps', (e) => setFps({ fps: Math.round(e.fps), dropped: e.dropped })),
       DualCamera.addListener('error', (e) => setError(e.message)),
       DualCamera.addListener('level', (g) => {
         const t = tiltOf([g.x, g.y, g.z]);
@@ -281,7 +281,11 @@ export default function VelocityScreen() {
         </Pressable>
         <View style={styles.pill}>
           <Text style={styles.pillText}>
-            {error ? '카메라 오류' : info ? `${info.mainHeight}p · ${fps ?? Math.round(info.mainFps)}fps` : '카메라 켜는 중'}
+            {error
+              ? '카메라 오류'
+              : info
+                ? `${Math.min(info.mainWidth, info.mainHeight)}p · ${fps?.fps ?? Math.round(info.mainFps)}fps${fps?.dropped ? ` · 버림 ${fps.dropped}` : ''}`
+                : '카메라 켜는 중'}
           </Text>
         </View>
         {step === 'measure' && status.visible > 0 ? (

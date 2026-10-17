@@ -3,7 +3,7 @@ import { router } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useCallback, useState } from 'react';
 import { Pressable, StyleSheet, Text, View, useColorScheme } from 'react-native';
-import { WebView, type WebViewNavigation } from 'react-native-webview';
+import { WebView, type WebViewMessageEvent, type WebViewNavigation } from 'react-native-webview';
 import type { ShouldStartLoadRequest } from 'react-native-webview/lib/WebViewTypes';
 import { APP_UA, SITE_HOST, SITE_URL, START_PATH } from '~/lib/site';
 
@@ -16,6 +16,13 @@ import { APP_UA, SITE_HOST, SITE_URL, START_PATH } from '~/lib/site';
  */
 /** 사이트 주소 중 네이티브 화면이 맡는 것 */
 const NATIVE_PATHS = new Set(['/velocity', '/velocity/measure']);
+/** 같은 화면을 두 번 쌓지 않게 — 주소 가로채기와 사이트 알림이 한 번 누름에 같이 올 수 있다 */
+let lastOpen = 0;
+function openVelocity() {
+  if (Date.now() - lastOpen < 1500) return;
+  lastOpen = Date.now();
+  router.push('/velocity');
+}
 
 export default function SiteScreen() {
   /** 바꾸면 웹뷰를 새로 그린다 — 다시 불러오기(react-native-webview 14 의 WebView 는 ref 를 안 받는다) */
@@ -38,12 +45,22 @@ export default function SiteScreen() {
     }
     /* 네이티브로 옮긴 화면 — 사이트 대신 앱 화면을 연다(구속 측정, 검토 D3) */
     if (host === SITE_HOST && NATIVE_PATHS.has(new URL(req.url).pathname)) {
-      router.push('/velocity');
+      openVelocity();
       return false;
     }
     if (host === SITE_HOST || req.url.startsWith('about:') || req.url.startsWith('blob:') || req.url.startsWith('data:')) return true;
     void Linking.openURL(req.url);
     return false;
+  }, []);
+
+  /* 사이트 안에서 누른 이동은 페이지를 새로 안 불러 onShouldStart 가 못 본다 — 사이트(app/(session)/velocity/open-native.tsx)가 알려 준다 */
+  const onMessage = useCallback((ev: WebViewMessageEvent) => {
+    try {
+      const msg = JSON.parse(ev.nativeEvent.data) as { t?: string; path?: string };
+      if (msg.t === 'native' && msg.path && NATIVE_PATHS.has(msg.path)) openVelocity();
+    } catch {
+      /* 다른 알림 */
+    }
   }, []);
 
   const onNav = useCallback((nav: WebViewNavigation) => {
@@ -86,6 +103,7 @@ export default function SiteScreen() {
       style={[styles.web, dark && styles.offlineDark]}
       onShouldStartLoadWithRequest={onShouldStart}
       onNavigationStateChange={onNav}
+      onMessage={onMessage}
       onLoadEnd={hideSplash}
       onError={() => {
         hideSplash();

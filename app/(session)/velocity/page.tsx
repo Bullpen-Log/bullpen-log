@@ -1,4 +1,6 @@
+import { headers } from 'next/headers';
 import { appNow } from '@/lib/clock';
+import { isExpoUserAgent } from '@/lib/app-env';
 import { redirect } from 'next/navigation';
 import { toDateKey } from '@/lib/pitch-stats';
 import { SETUP_PATH } from '@/lib/feature-locks';
@@ -7,6 +9,7 @@ import { loadVelocityHistory } from '@/lib/velocity-load';
 import { velocityAccess } from './access';
 import { AppOnly } from './app-only';
 import { VelocityScreen } from './velocity-screen';
+import { OpenNative } from './open-native';
 
 /**
  * 구속 측정 — 첫 화면이 곧 카메라다(2026-10-15 김민: "기본 홈화면을 카메라처럼, 측정 시작을 누르면 그 위로 안내창 · 밑의 촬영 단추는
@@ -21,6 +24,8 @@ export default async function VelocityPage({
 }: {
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
+  /* 새 아이폰 앱(Expo)은 구속 측정을 앱 화면으로 연다 — 웹 화면은 앱 카메라 다리가 없어 웹 카메라(30fps)로 켜졌다 */
+  if (isExpoUserAgent((await headers()).get('user-agent'))) return <OpenNative path="/velocity" />;
   const [{ user, allowed, pitchLocked, isAdmin, native }, { resume }] = await Promise.all([
     velocityAccess(),
     searchParams,
