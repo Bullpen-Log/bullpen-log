@@ -665,7 +665,7 @@ export function NutritionView({
           profile={day.profile}
           prefs={day.prefs}
           today={today}
-          body={day.body}
+          body={day.todayBody}
           assumed={t.assumed}
         />
       )}

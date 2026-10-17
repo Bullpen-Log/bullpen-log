@@ -36,11 +36,12 @@ export function MyPlanCard({
 }) {
   const unit = useWeightUnit();
   const [open, setOpen] = useState(false);
+  /* 오늘 기준 몸 — 지난 날을 보더라도 계획은 오늘 몸으로(목표 창 · 서버 검사와 같은 값) */
   const body: OnboardingBody = {
-    age: day.body.age,
-    sex: day.body.sex,
-    heightCm: day.body.heightCm,
-    weightKg: day.body.weightKg,
+    age: day.todayBody.age,
+    sex: day.todayBody.sex,
+    heightCm: day.todayBody.heightCm,
+    weightKg: day.todayBody.weightKg,
     level: null,
   };
   const p = previewOfProfile(day.profile, body);
