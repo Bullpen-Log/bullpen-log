@@ -1,4 +1,5 @@
 import * as Linking from 'expo-linking';
+import { router } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useCallback, useState } from 'react';
 import { Pressable, StyleSheet, Text, View, useColorScheme } from 'react-native';
@@ -13,6 +14,9 @@ import { APP_UA, SITE_HOST, SITE_URL, START_PATH } from '~/lib/site';
  * 로그인은 사이트 'session' 쿠키 그대로 — sharedCookiesEnabled 로 앱의 쿠키 저장소와 같이 써서 네이티브 화면의 /api/rpc 도
  * 같은 로그인으로 부른다.
  */
+/** 사이트 주소 중 네이티브 화면이 맡는 것 */
+const NATIVE_PATHS = new Set(['/velocity', '/velocity/measure']);
+
 export default function SiteScreen() {
   /** 바꾸면 웹뷰를 새로 그린다 — 다시 불러오기(react-native-webview 14 의 WebView 는 ref 를 안 받는다) */
   const [load, setLoad] = useState(0);
@@ -30,6 +34,11 @@ export default function SiteScreen() {
     try {
       host = new URL(req.url).host;
     } catch {
+      return false;
+    }
+    /* 네이티브로 옮긴 화면 — 사이트 대신 앱 화면을 연다(구속 측정, 검토 D3) */
+    if (host === SITE_HOST && NATIVE_PATHS.has(new URL(req.url).pathname)) {
+      router.push('/velocity');
       return false;
     }
     if (host === SITE_HOST || req.url.startsWith('about:') || req.url.startsWith('blob:') || req.url.startsWith('data:')) return true;
