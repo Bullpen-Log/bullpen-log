@@ -123,8 +123,9 @@ export default async function CommunityAdminPage({
               >
                 <Card className={`space-y-3 ${resolved ? 'opacity-70' : ''}`}>
                   <div className="flex flex-wrap items-center gap-2 text-xs text-muted">
-                    <Badge className={isComment ? '' : 'border-sky-soft/60 text-sky'}>
-                      {isComment ? '댓글' : '글'}
+                    {/* 대상이 지워졌으면 종류를 모른다(글 · 댓글 둘 다 SetNull) — '글'로 단정하지 않는다 */}
+                    <Badge className={isComment || gone ? '' : 'border-sky-soft/60 text-sky'}>
+                      {gone ? '지워짐' : isComment ? '댓글' : '글'}
                     </Badge>
                     <Badge className="border-danger-line bg-danger-bg text-danger desk:bg-transparent">
                       {reportReasonLabel(r.reason)}
@@ -148,7 +149,7 @@ export default async function CommunityAdminPage({
 
                   {gone ? (
                     <p className="text-sm text-muted">
-                      신고된 {isComment ? '댓글' : '글'}이 이미 지워졌어요.
+                      신고된 글 · 댓글이 이미 지워졌어요.
                     </p>
                   ) : (
                     <Link
