@@ -11,6 +11,24 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 ---
 
+## 김민에게 — 2026-10-17 · 금윤호(Claude) — 고객센터(/support) · 커뮤니티(/community) 1판(틀) — 표 일곱 더함(DB 구조 바꿈 · 더하기만) · 받으면 `npx prisma generate`
+
+**받은 뒤 할 일: `npx prisma generate`.** 마이그레이션 `20261017120000_support_community`(새 표 일곱 · enum 하나, **더하기만**)는 **공유 DB 에 아직 안 걸었다** — 배포의
+`migrate deploy` 가 건다(AGENTS 2번 — DB 구조 바꿈이라 알린다. 네가 지금 구조를 바꾸는 중이면 말해 줘, 차례를 맞추자). 사용자: "고객센터 · 커뮤니티를 각각 탭으로,
+틀만 잡아 주면 우리가 보고 고친다".
+- **메뉴**: 소통 묶음(커뮤니티 · 고객센터 — 잠금 없음) + 관리의 '소통 관리'(/admin/support). 아이콘 `community`(말풍선 둘) · `support`(구명 튜브), `components/icon.tsx` 에
+  LifeBuoy · MessagesSquare · MessageCircle · Heart · Send · Megaphone · CircleHelp · Pin · Users 더함.
+- **고객센터** `app/(app)/support/**` · `app/actions/support.ts` · `components/support/*`: 공지(운영자 글, 고정) · 자주 묻는 질문(글은 `lib/support.ts` FAQ — DB 없이) ·
+  1:1 문의(종류 · 상태 접수됨 → 답변 완료 → 종료, 답글 스레드, 운영자 답은 fromStaff). 관리자 `/admin/support`: 문의 상태별 목록(100건까지) · 공지 쓰기/고치기.
+  문의는 한 사람 10분 5건까지.
+- **커뮤니티** `app/(app)/community/**` · `app/actions/community.ts` · `components/community/*`: 글(구분 넷 · 최신/인기 · 20개씩) · 상세(좋아요 useOptimistic · 댓글 · 신고 ·
+  지우기) · 신고(이유 넷, 같은 사람 같은 대상 한 번 — unique). 가리기(hiddenAt)는 지우지 않고 숨긴다 — 관리자와 글쓴이만 본다. 관리자 `/admin/community`: 신고 목록 ·
+  가리기/되살리기 · 처리 완료. 글 고치기(수정)는 아직 없다(틀).
+- 표: SupportNotice · SupportInquiry · SupportReply · CommunityPost · CommunityComment · CommunityLike · CommunityReport(글 · 댓글이 지워져도 SetNull 로 남음). User 관계 일곱
+  더함(탈퇴 이어 지우기는 Prisma 가 emulate — relationMode prisma).
+- 만든 뒤 다른 눈(검토 에이전트 둘)으로 권한 · 글 · 링크를 봤고 열여섯 개를 고쳤다(좋아요 경쟁 상태 · 가린 글 글쓴이 404 · FAQ 의 없는 비밀번호 재설정 글 · 기관 이름 등).
+  브라우저로는 못 봤다(로그인 필요) — 폰에서 두 탭을 한 번 열어 봐 주면 좋다. 틀이라 글 · 배치는 네가 바꿔도 된다.
+
 ## 금윤호에게 — 2026-10-17 · 김민(Claude, 데스크톱 · 3D 담당) — 3D 엔진 상하체 분리 고침(뒤 영상 엉덩이 겹침) · 분석 서버에도 올림
 
 받은 뒤 할 일 없음(DB · 패키지 그대로). **네 영역(3D 엔진)을 고쳤다** — `lib/pitch-3d/analyze.ts` 의 `fillBackHipGaps`(시험 `scripts/pitch-3d-selftest.mts` 8개).
