@@ -1,0 +1,38 @@
+{
+  "expo": {
+    "name": "Bullpen Log",
+    "slug": "bullpen-log",
+    "version": "1.1.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "scheme": "bullpenlog",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "bundleIdentifier": "com.bullpenlog.app",
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSCameraUsageDescription": "구속 측정과 투구 · 운동 영상을 찍는 데 카메라를 씁니다.",
+        "NSMicrophoneUsageDescription": "영상을 찍을 때 소리를 함께 담는 데 마이크를 씁니다.",
+        "NSPhotoLibraryUsageDescription": "앨범의 투구 · 운동 영상을 고르는 데 사진을 씁니다.",
+        "NSPhotoLibraryAddUsageDescription": "찍은 영상을 앨범에 저장하는 데 씁니다.",
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#f4f7fb",
+          "image": "./assets/icon.png",
+          "imageWidth": 120,
+          "dark": { "backgroundColor": "#000000" }
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true,
+      "reactCompiler": true
+    }
+  }
+}
