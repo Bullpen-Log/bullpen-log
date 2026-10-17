@@ -5,6 +5,7 @@
  */
 import { drainOutbox, onSent, outbox, setOutboxOwner, type PendingSet } from '~/workout/outbox';
 import { checkOutbox, drainChecks, type PendingCheck } from '~/armcare/outbox';
+import { adoptWebValues, cacheClear, cacheEpoch, cacheGet, cacheSet, loadJson, saveJson } from '~/lib/store';
 
 let fail = 0;
 const ok = (cond: boolean, msg: string) => {
@@ -145,6 +146,22 @@ await drainChecks(async (p) => {
   return { ok: true };
 }, () => undefined);
 ok(sentChecks.length === 1 && !('owner' in sentChecks[0]), '암케어: A 로 돌아오면 보내고, 계정 표시는 빼고 보낸다');
+
+/* 7. 받아 둔 값 · 웹 값 옮기기(native/src/lib/store.ts) — 로그아웃은 받아 둔 서버 값만 지우고 세대를 올린다 */
+await cacheSet('home', { n: 1 });
+await saveJson('bullpen-velocity-setup', { keep: true });
+const e0 = cacheEpoch();
+await cacheClear();
+ok(cacheEpoch() === e0 + 1 && (await cacheGet('home')) === null, '로그아웃하면 받아 둔 값이 지워지고 세대가 오른다');
+ok(JSON.stringify(await loadJson('bullpen-velocity-setup')) === '{"keep":true}', '로그아웃해도 기기 설정은 남는다');
+await adoptWebValues({ 'bullpen-velocity-setup': '{"web":true}', 'new-json': '{"a":1}', broken: '{no', 'bullpen-unit-weight': 'lb' }, ['bullpen-unit-weight']);
+ok(JSON.stringify(await loadJson('bullpen-velocity-setup')) === '{"keep":true}', '웹 JSON 값은 앱에 이미 있으면 안 덮는다');
+ok(JSON.stringify(await loadJson('new-json')) === '{"a":1}' && (await loadJson('broken')) === null, '처음 보는 웹 JSON 은 옮기고, 깨진 값은 건너뛴다');
+await adoptWebValues({ 'bullpen-unit-weight': 'kg' }, ['bullpen-unit-weight']);
+/* 앱 패키지라 scripts/ 에서는 타입을 못 찾는다 — 시험에서는 경로 해석기(scripts/native-test-loader.mjs)가 메모리 흉내로 바꾼다 */
+// @ts-expect-error 위 까닭
+const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default as { getItem(k: string): Promise<string | null> };
+ok((await AsyncStorage.getItem('bullpen-unit-weight')) === 'kg', '글자 값(무게 단위)은 늘 웹을 따른다');
 
 console.log(fail ? `실패 ${fail}` : '모두 통과');
 if (fail) process.exit(1);
