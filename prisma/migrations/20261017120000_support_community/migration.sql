@@ -133,3 +133,9 @@ CREATE INDEX "CommunityReport_resolvedAt_createdAt_idx" ON "CommunityReport"("re
 -- CreateIndex
 CREATE INDEX "CommunityReport_reporterId_idx" ON "CommunityReport"("reporterId");
 
+-- CreateIndex
+CREATE UNIQUE INDEX "CommunityReport_reporterId_postId_key" ON "CommunityReport"("reporterId", "postId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "CommunityReport_reporterId_commentId_key" ON "CommunityReport"("reporterId", "commentId");
+

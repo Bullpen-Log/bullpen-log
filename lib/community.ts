@@ -34,6 +34,8 @@ export function reportReasonLabel(key: string) {
 export const POST_TITLE_MAX = 80;
 export const POST_BODY_MAX = 5000;
 export const COMMENT_BODY_MAX = 1000;
+/** 신고 상세(선택) */
+export const REPORT_DETAIL_MAX = 500;
 /** 한 번에 보이는 글 수(더 보기로 다음 장) */
 export const POSTS_PER_PAGE = 20;
 

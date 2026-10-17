@@ -1664,9 +1664,13 @@ model CommunityReport {
   createdAt  DateTime  @default(now())
 
   reporter User              @relation("CommunityReporter", fields: [reporterId], references: [id], onDelete: Cascade)
-  post     CommunityPost?    @relation(fields: [postId], references: [id], onDelete: Cascade)
-  comment  CommunityComment? @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  /* 글 · 댓글이 지워져도 신고 기록은 남는다(SetNull) — 관리자 화면이 '이미 지워졌어요'로 보인다 */
+  post     CommunityPost?    @relation(fields: [postId], references: [id], onDelete: SetNull)
+  comment  CommunityComment? @relation(fields: [commentId], references: [id], onDelete: SetNull)
 
+  /* 같은 사람이 같은 글 · 댓글을 두 번 신고하지 못하게(NULL 은 서로 다른 값으로 친다) */
+  @@unique([reporterId, postId])
+  @@unique([reporterId, commentId])
   @@index([resolvedAt, createdAt])
   @@index([reporterId])
 }
