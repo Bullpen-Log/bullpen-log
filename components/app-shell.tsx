@@ -1,6 +1,7 @@
 'use client';
 
 import {
+  Suspense,
   useEffect,
   useEffectEvent,
   useId,
@@ -38,6 +39,7 @@ import { SettingsCog, Avatar } from './app-shell/glyphs';
 import { DetailMenu } from './app-shell/detail-menu';
 import { MobileTopBar } from './app-shell/mobile-top-bar';
 import { MobileTabs } from './app-shell/mobile-tabs';
+import { ExpoTabBridge } from './app-shell/expo-tabs';
 
 /*
  * 도크(아이콘만 모인 작은 판)가 뜨고 지는 시간.
@@ -1324,6 +1326,9 @@ export function AppNav({
       </Modal>
 
       <MobileTabs tabs={tabs} menuOpen={open} onMenu={() => go('sheet')} />
+      <Suspense fallback={null}>
+        <ExpoTabBridge tabs={tabs} onMenu={() => go('sheet')} />
+      </Suspense>
 
       <DetailMenu
         groups={groups}

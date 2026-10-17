@@ -7,6 +7,7 @@ import 'server-only';
  * 새 액션 파일을 만들면 여기에 한 줄 더한다(빠뜨리면 앱에서 'unknown-action').
  */
 import * as admin from '@/app/actions/admin';
+import * as app from '@/app/actions/app';
 import * as armcare from '@/app/actions/armcare';
 import * as auth from '@/app/actions/auth';
 import * as board from '@/app/actions/board';
@@ -42,6 +43,7 @@ import * as workout from '@/app/actions/workout';
 
 export const RPC_MODULES: Record<string, Record<string, unknown>> = {
   admin: admin,
+  app: app,
   armcare: armcare,
   auth: auth,
   board: board,

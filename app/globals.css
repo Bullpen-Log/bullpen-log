@@ -3801,3 +3801,14 @@ html[data-dualcam] [data-finder] > video {
     scroll-behavior: auto !important;
   }
 }
+
+/*
+ * Expo 앱 탭 — 새 아이폰 앱(native/, <html data-shell="expo">, lib/native-app.ts)은 아래 탭 막대를 앱이 그린다(투구 탭은 앱 화면,
+ * 홈 · 트레이닝 · 영양은 이 웹 화면). 웹 탭 막대를 숨기고, 탭 위에 띄우던 것들은 앱 막대(49pt + 홈 막대 자리) 위로.
+ */
+html[data-shell='expo'] nav[data-mobile-tabs] {
+  display: none;
+}
+html[data-shell='expo'] {
+  --tab-bar-top: calc(env(safe-area-inset-bottom) + 3.0625rem);
+}
