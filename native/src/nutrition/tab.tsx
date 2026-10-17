@@ -11,7 +11,7 @@ import { clearPlan, eatPlan, makePlan, removeEntry, saveWeight, setAmount, useNu
 
 /**
  * 영양 탭(앱 화면) — 웹 영양 탭의 '기록' 쪽: 오늘 먹은 것과 목표(kcal · 탄 · 단 · 지) · 끼니마다 담은 음식(양 바꾸기 · 지우기) · 체중.
- * 담기는 음식 고르기 화면(/nutrition/add — 검색 · 최근 · 내 음식 · 바코드). 식단 짜기 · 목표 · 통계는 아직 웹(onWeb).
+ * 담기는 음식 고르기 화면(/nutrition/add — 검색 · 최근 · 내 음식 · 바코드), 식단 짜기는 이 탭 안, 목표 · 통계는 /nutrition/stats. 첫 설정만 웹(onWebNutrition).
  * 날짜는 오늘부터 지난 6주까지 ‹ › 로.
  */
 const BACK_DAYS = 42;
@@ -85,8 +85,12 @@ export function NutritionTab({ today, bottom, onWebNutrition }: { today: string;
     >
       <View style={styles.head}>
         <Text style={[styles.title, { color: c.ink }]}>영양</Text>
-        <Pressable accessibilityRole="button" onPress={onWebNutrition} style={[styles.chip, { backgroundColor: c.chip }]}>
-          <Text style={[styles.chipText, { color: c.ink }]}>식단 · 목표 · 통계</Text>
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => router.push({ pathname: '/nutrition/stats' as Href as never, params: { date } })}
+          style={[styles.chip, { backgroundColor: c.chip }]}
+        >
+          <Text style={[styles.chipText, { color: c.ink }]}>목표 · 통계</Text>
         </Pressable>
       </View>
 

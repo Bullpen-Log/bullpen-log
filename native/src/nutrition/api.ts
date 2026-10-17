@@ -39,10 +39,19 @@ const subs = new Set<() => void>();
 const emit = () => subs.forEach((f) => f());
 const EMPTY: Entry = { day: null, error: null, to: null, loading: false };
 
+/* 날마다 마지막으로 보낸 읽기 번호 — 저장 전에 떠난 읽기가 저장 뒤 읽기보다 늦게 와 옛 목표 · 식단으로 덮지 않게 */
+const seq = new Map<string, number>();
+
 export async function refreshDay(date: string): Promise<void> {
   const prev = days.get(date) ?? EMPTY;
+  const e = cacheEpoch();
+  const n = (seq.get(date) ?? 0) + 1;
+  seq.set(date, n);
+  /* 로그아웃(세대가 바뀜) 뒤에 온 것 · 더 새 읽기가 있는 것은 버린다 */
+  const current = () => e === cacheEpoch() && seq.get(date) === n;
   if (!prev.day)
     void cacheGet(`nutrition:${date}`).then((v) => {
+      if (e !== cacheEpoch()) return;
       const now = days.get(date) ?? EMPTY;
       if (!now.day && v) {
         days.set(date, { ...now, day: v as NutritionDay });
@@ -51,17 +60,19 @@ export async function refreshDay(date: string): Promise<void> {
     });
   days.set(date, { ...prev, loading: true });
   emit();
-  const e = cacheEpoch();
   try {
     const res = await rpc<({ ok: true } & NutritionDay) | { ok: false; error: string; to?: string }>('app.loadAppNutrition', date);
-    if (e !== cacheEpoch()) return;
-    if (!res.ok) days.set(date, { ...prev, error: res.error, to: res.to ?? null, loading: false });
+    if (!current()) return;
+    const now = days.get(date) ?? EMPTY;
+    if (!res.ok) days.set(date, { ...now, error: res.error, to: res.to ?? null, loading: false });
     else {
       days.set(date, { day: res, error: null, to: null, loading: false });
       void cacheSet(`nutrition:${date}`, res);
     }
-  } catch (e) {
-    days.set(date, { ...prev, error: e instanceof Error ? e.message : '불러오지 못했어요.', loading: false });
+  } catch (err) {
+    if (!current()) return;
+    const now = days.get(date) ?? EMPTY;
+    days.set(date, { ...now, error: err instanceof Error ? err.message : '불러오지 못했어요.', loading: false });
   }
   emit();
 }
@@ -83,6 +94,15 @@ export function useNutritionDay(date: string) {
 export function resetNutritionStore() {
   days.clear();
   emit();
+}
+
+/**
+ * 목표를 바꾼 뒤(목표 · 통계 화면) — 보던 날만 다시 받고(다시 받는 동안 지난 칸은 그대로), 받아 둔 다른 날은 버린다. 그날 칸마다 목표가 들어 있어
+ * 옛 목표로 남으면 안 되고, 다 다시 받으면 저장마다 날 수만큼 서버를 불렀다. 버린 날은 다시 볼 때 받는다(useNutritionDay).
+ */
+export function refreshNutritionDays(date: string) {
+  for (const d of [...days.keys()]) if (d !== date) days.delete(d);
+  void refreshDay(date);
 }
 
 /** 서버 동작 하나 — 실패 글은 그대로, 성공하면 그날을 다시 받는다. 이름은 '<파일>.<함수>' 글자 그대로(npm run native-api:test 가 찾는다) */
