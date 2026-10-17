@@ -19,12 +19,25 @@ type SetKey = Pick<PendingSet, 'sessionId' | 'exerciseId' | 'setNo'>;
 const KEY = 'bullpen-workout:pending-sets:v1';
 const MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 const EMPTY: readonly PendingSet[] = Object.freeze([]);
+const keyText = (k: SetKey) => `${k.sessionId}|${k.exerciseId}|${k.setNo}`;
 const same = (a: SetKey, b: SetKey) => a.sessionId === b.sessionId && a.exerciseId === b.exerciseId && a.setNo === b.setNo;
 
-let items: readonly PendingSet[] = EMPTY;
+/** 담은 사람(계정) — 같은 폰에 다른 사람이 로그인해도 앞사람의 못 보낸 세트를 그 사람 이름으로 보내지 않는다(보내면 서버가 거절해 버려진다) */
+type Stored = PendingSet & { owner?: string };
+let items: readonly Stored[] = EMPTY;
+let owner: string | null = null;
+/** 지금 로그인한 계정 — 껍데기가 정한다(loadMe 뒤, 로그아웃 때 null). 담는 세트에 붙고, 보내기는 이 계정 것만 */
+export function setOutboxOwner(id: string | null) {
+  owner = id;
+}
+/**
+ * 지운 세트 — 지우는 사이에 그 세트의 보내기가 이미 가는 중이면 서버에 다시 생긴다. 지운 열쇠를 적어 두고, 그 보내기의 답이 오면 한 번 더
+ * 지운다(onSent 를 듣는 화면이). 같은 세트를 다시 담으면 풀린다.
+ */
+const dropped = new Set<string>();
 const listeners = new Set<() => void>();
 
-function set(next: readonly PendingSet[]) {
+function set(next: readonly Stored[]) {
   items = next;
   listeners.forEach((l) => l());
   void (next.length ? AsyncStorage.setItem(KEY, JSON.stringify(next)) : AsyncStorage.removeItem(KEY)).catch(() => {
@@ -69,8 +82,15 @@ export const outbox = {
   snapshot: (): readonly PendingSet[] => items,
   /** 담는다 — 같은 세트가 있으면 새 값으로 */
   add(p: PendingSet) {
-    set([...items.filter((x) => !same(x, p)), p]);
+    dropped.delete(keyText(p));
+    set([...items.filter((x) => !same(x, p)), owner ? { ...p, owner } : p]);
   },
+  /** 사람이 지운 세트 — 빼고, 가는 중인 보내기의 답을 알아보게 적어 둔다 */
+  drop(k: SetKey) {
+    dropped.add(keyText(k));
+    if (items.some((x) => same(x, k))) set(items.filter((x) => !same(x, k)));
+  },
+  isDropped: (k: SetKey) => dropped.has(keyText(k)),
   remove(k: SetKey) {
     if (items.some((x) => same(x, k))) set(items.filter((x) => !same(x, k)));
   },
@@ -81,7 +101,6 @@ let draining = false;
 const serverFails = new Map<string, number>();
 /* 여덟 번(운동 화면은 15초마다 — 약 2분) — 배포 중 잠깐 나는 오류로 세트를 버리지 않을 만큼 */
 const SERVER_FAIL_LIMIT = 8;
-const keyText = (k: SetKey) => `${k.sessionId}|${k.exerciseId}|${k.setNo}`;
 /** 보낸 결과를 듣는 곳(운동 화면) — 누가 보냈든 같은 답이 간다 */
 const sentSubs = new Set<(p: PendingSet, result: unknown) => void>();
 export function onSent(f: (p: PendingSet, result: unknown) => void) {
@@ -107,11 +126,17 @@ export async function drainOutbox<R>(
   try {
     await loaded;
     for (;;) {
-      const next = [...items].sort((a, b) => a.recordedAt.localeCompare(b.recordedAt))[0];
+      /* 지금 계정 것(또는 계정을 모르고 담은 옛 줄)만 — 다른 계정 것은 그 사람이 다시 로그인할 때까지 둔다 */
+      const next = [...items]
+        .filter((p) => !p.owner || p.owner === owner)
+        .sort((a, b) => a.recordedAt.localeCompare(b.recordedAt))[0];
       if (!next) return 'done';
+      /* 담은 사람 표시는 폰 것 — 서버에는 안 보낸다 */
+      const plain: PendingSet = { ...next };
+      delete (plain as Stored).owner;
       let result: R;
       try {
-        result = await send(next);
+        result = await send(plain);
       } catch (e) {
         /* 신호 없음 · 다시 로그인 · 앱 업데이트는 나중에 다시. 그 밖(서버가 처리 못 함 — 500 · 모르는 동작 · 틀린 값)만 센다 */
         const code = (e as { code?: unknown })?.code;
@@ -126,6 +151,7 @@ export async function drainOutbox<R>(
         sentSubs.forEach((f) => f(next, failed));
         continue;
       }
+      serverFails.delete(keyText(next));
       handle(next, result);
       sentSubs.forEach((f) => f(next, result));
       const now = items.find((x) => same(x, next));

@@ -333,6 +333,14 @@ function Run({
     () =>
       onSent((p, raw) => {
         if (p.sessionId !== sessionId) return;
+        /* 보내는 사이 사람이 지운 세트 — 서버에 다시 생겼으니 한 번 더 지운다 */
+        if (outbox.isDropped(p)) {
+          void rpc<SetResult>('workout.deleteSet', { sessionId: p.sessionId, exerciseId: p.exerciseId, setNo: p.setNo }).then(
+            (r) => !('error' in r) && setSaved(r.sets),
+            () => undefined
+          );
+          return;
+        }
         const res = raw as SetResult;
         if ('error' in res) setError(res.error);
         else setSaved(res.sets);
@@ -564,7 +572,7 @@ function Run({
     if (editing?.setNo === t.setNo) endEdit();
     const key = { sessionId, exerciseId: t.exerciseId, setNo: t.setNo };
     /* 폰에 담긴 것부터 뺀다 — 빼지 않으면 뒤에서 보내져 되살아난다 */
-    outbox.remove(key);
+    outbox.drop(key);
     if (!saved.some((x) => x.exerciseId === key.exerciseId && x.setNo === key.setNo)) {
       /*
        * 화면엔 폰에만 있던 세트 — 그래도 서버에 지우라고 한 번 보낸다(보내기는 됐는데 답만 못 받았거나 아직 가는 중일 수 있다, 서버 지우기는

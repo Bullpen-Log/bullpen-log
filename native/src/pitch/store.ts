@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useSyncExternalStore } from 'react';
-import { cacheGet, cacheSet } from '~/lib/store';
+import { cacheEpoch, cacheGet, cacheSet } from '~/lib/store';
 import { loadAll, loadMonth, type PitchLog } from './api';
 
 /**
@@ -35,8 +35,10 @@ export async function refreshMonth(month: string): Promise<void> {
   const prev = months.get(month) ?? EMPTY;
   months.set(month, { ...prev, loading: true });
   emit();
+  const e = cacheEpoch();
   try {
     const logs = await loadMonth(month);
+    if (e !== cacheEpoch()) return;
     months.set(month, { logs, error: null, loading: false });
     void cacheSet(`pitch:${month}`, logs);
   } catch (e) {

@@ -7,7 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { CardAction, TrainingCard } from '@/lib/report/training-home-data';
 import { TRAINING_PART_HREF, type TrainingPart } from '@/lib/training-part';
 import { rpc, RpcError } from '~/lib/rpc';
-import { cacheGet, cacheSet } from '~/lib/store';
+import { cacheEpoch, cacheGet, cacheSet } from '~/lib/store';
 import { usePalette } from '~/lib/ui';
 
 /**
@@ -34,16 +34,19 @@ export function TrainingTab({ today, bottom, onWeb }: { today: string; bottom: n
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [starting, setStarting] = useState(false);
+  /* 이 화면을 연 뒤 서버에서 한 번 받았나 — 받아 둔 카드의 '드릴 공 남기기'는 이미 남긴 뒤일 수 있어, 새로 받은 뒤에만 보인다 */
+  const [fresh, setFresh] = useState(false);
   /* 껍데기가 그릴 때마다 새 onWeb 을 넘긴다 — 불러오기가 그것에 묶이면 그릴 때마다 다시 받았다 */
   const onWebRef = useRef(onWeb);
   useEffect(() => {
     onWebRef.current = onWeb;
   });
 
-  const load = useCallback(
-    () =>
-      rpc<({ ok: true } & Loaded) | { ok: false; error: string; to?: string }>('app.loadAppTraining').then(
+  const load = useCallback(() => {
+    const e = cacheEpoch();
+    return rpc<({ ok: true } & Loaded) | { ok: false; error: string; to?: string }>('app.loadAppTraining').then(
         (r) => {
+          if (e !== cacheEpoch()) return;
           if (!r.ok) {
             if (r.to) onWebRef.current(r.to);
             return setError(r.error);
@@ -51,12 +54,12 @@ export function TrainingTab({ today, bottom, onWeb }: { today: string; bottom: n
           cached = r;
           void cacheSet('training', r);
           setData(r);
+          setFresh(true);
           setError(null);
         },
-        (e: unknown) => setError(e instanceof Error ? e.message : '불러오지 못했어요.')
-      ),
-    []
-  );
+        (err: unknown) => setError(err instanceof Error ? err.message : '불러오지 못했어요.')
+      );
+  }, []);
   useEffect(() => {
     let alive = true;
     if (!cached)
@@ -126,7 +129,7 @@ export function TrainingTab({ today, bottom, onWeb }: { today: string; bottom: n
       {!data && !error ? <ActivityIndicator style={{ paddingVertical: 24 }} /> : null}
 
       {data?.cards.map((card) => (
-        <Card key={card.app} card={card} busy={starting} onOpen={() => onWeb(TRAINING_PART_HREF[card.app])} onAction={act} onWeb={onWeb} />
+        <Card key={card.app} card={fresh ? card : { ...card, throwNote: null }} busy={starting} onOpen={() => onWeb(TRAINING_PART_HREF[card.app])} onAction={act} onWeb={onWeb} />
       ))}
     </ScrollView>
   );

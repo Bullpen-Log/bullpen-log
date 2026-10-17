@@ -3,7 +3,7 @@ import type { Food, MealEntryView, MealKey } from '@/lib/nutrition/meta';
 import type { PlanContext, PlanItem } from '@/lib/nutrition/meal-plan';
 import type { Place } from '@/lib/nutrition/meal-templates';
 import { rpc } from '~/lib/rpc';
-import { cacheGet, cacheSet } from '~/lib/store';
+import { cacheEpoch, cacheGet, cacheSet } from '~/lib/store';
 import { call } from '~/pitch/api';
 
 /**
@@ -51,8 +51,10 @@ export async function refreshDay(date: string): Promise<void> {
     });
   days.set(date, { ...prev, loading: true });
   emit();
+  const e = cacheEpoch();
   try {
     const res = await rpc<({ ok: true } & NutritionDay) | { ok: false; error: string; to?: string }>('app.loadAppNutrition', date);
+    if (e !== cacheEpoch()) return;
     if (!res.ok) days.set(date, { ...prev, error: res.error, to: res.to ?? null, loading: false });
     else {
       days.set(date, { day: res, error: null, to: null, loading: false });

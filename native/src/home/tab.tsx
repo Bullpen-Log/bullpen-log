@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { FeedItem } from '@/lib/report/feed-items';
-import { cacheGet, cacheSet } from '~/lib/store';
+import { cacheEpoch, cacheGet, cacheSet } from '~/lib/store';
 import { usePalette } from '~/lib/ui';
 import { dateKeyOf } from '~/pitch/api';
 import { MonthGrid } from '~/pitch/month-grid';
@@ -53,19 +53,19 @@ export function HomeTab({
   const [selected, setSelected] = useState(today);
   const { logs, reload } = useMonth(month);
 
-  const refresh = useCallback(
-    () =>
-      loadHome().then(
+  const refresh = useCallback(() => {
+    const e = cacheEpoch();
+    return loadHome().then(
         (h) => {
+          if (e !== cacheEpoch()) return;
           cached = h;
           void cacheSet('home', h);
           setHome(h);
           setError(null);
         },
-        (e: unknown) => setError(e instanceof Error ? e.message : '불러오지 못했어요.')
-      ),
-    []
-  );
+        (err: unknown) => setError(err instanceof Error ? err.message : '불러오지 못했어요.')
+      );
+  }, []);
   useEffect(() => {
     let alive = true;
     /* 앱을 막 켰으면 폰에 남긴 오늘 홈을 먼저(날이 바뀌었으면 안 씀) */
@@ -74,8 +74,10 @@ export function HomeTab({
         const h = v as AppHome | null;
         if (alive && h?.today === today && !cached) setHome(h);
       });
+    const e = cacheEpoch();
     loadHome().then(
       (h) => {
+        if (e !== cacheEpoch()) return;
         cached = h;
         void cacheSet('home', h);
         if (alive) setHome(h);

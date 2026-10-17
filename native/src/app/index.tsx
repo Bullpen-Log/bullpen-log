@@ -30,7 +30,7 @@ import { setMenu, useMenu, type MenuGroup } from '~/shell/menu-store';
 import { adoptWebValues, cacheClear } from '~/lib/store';
 import { clearDraft } from '~/velocity/draft';
 import { rpc } from '~/lib/rpc';
-import { drainOutbox } from '~/workout/outbox';
+import { drainOutbox, setOutboxOwner } from '~/workout/outbox';
 import { PitchTab } from '~/pitch/tab';
 import { DEFAULT_TABS, TAB_BAR_HEIGHT, TabBar, type ShellTab } from '~/shell/tab-bar';
 
@@ -114,7 +114,15 @@ export default function SiteScreen() {
    * 로그인 전이면 보내기가 막혀 그대로 남는다(다음 기회에).
    */
   useEffect(() => {
-    if (barOn) void drainOutbox((p) => rpc('workout.logSet', p), () => undefined);
+    if (!barOn) return;
+    /* 누구인지 안 뒤에 — 대기열은 지금 계정 것만 보낸다 */
+    void loadMe().then(
+      (m) => {
+        setOutboxOwner(m.userId);
+        void drainOutbox((p) => rpc('workout.logSet', p), () => undefined);
+      },
+      () => undefined
+    );
   }, [barOn]);
   /* 앱을 다시 볼 때 오늘을 다시 묻는다 — 밤을 넘겨 켜 둔 앱이 어제 달력 · 어제 홈을 보이지 않게 */
   useEffect(() => {
@@ -266,6 +274,7 @@ export default function SiteScreen() {
     }
     if (pathname === '/login' || pathname.startsWith('/login/') || pathname === '/signup') {
       resetMe();
+      setOutboxOwner(null);
       resetPitchStore();
       resetHomeCache();
       resetNutritionStore();

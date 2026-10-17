@@ -23,9 +23,16 @@ export async function saveJson(key: string, value: unknown): Promise<void> {
  * 로그아웃하면(껍데기가 로그인 화면을 보면) 다 지운다 — 같은 폰에 다른 사람이 로그인했을 때 앞사람 기록이 비치지 않게.
  */
 const CACHE = 'bullpen-cache:';
+/**
+ * 로그인 세대 — 로그아웃(cacheClear)마다 올린다. 로그아웃 전에 떠난 서버 읽기가 늦게 돌아와 앞사람 값을 메모리 · 폰에 다시 넣지 않게,
+ * 읽기를 시작할 때 세대를 쥐고 돌아왔을 때 같은지 본다(cacheEpoch).
+ */
+let epoch = 0;
+export const cacheEpoch = () => epoch;
 export const cacheGet = (key: string) => loadJson(CACHE + key);
 export const cacheSet = (key: string, value: unknown) => saveJson(CACHE + key, value);
 export async function cacheClear(): Promise<void> {
+  epoch++;
   try {
     const keys = (await AsyncStorage.getAllKeys()).filter((k) => k.startsWith(CACHE));
     if (keys.length) await AsyncStorage.multiRemove(keys);
