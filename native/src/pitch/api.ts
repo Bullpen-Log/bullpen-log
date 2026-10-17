@@ -34,6 +34,10 @@ export type PitchEntry = {
   avgVelocity: number | null;
   memo: string;
   videoPaths: string[];
+  /* 불펜 · 라이브 · 경기만 보낸다 — 안 보내면 서버가 그 칸을 손대지 않는다(웹 API 규칙) */
+  satisfaction?: number | null;
+  cuesGood?: string[];
+  cuesBad?: string[];
 };
 
 export class ApiError extends Error {}
@@ -68,6 +72,8 @@ export function loadMe(): Promise<Me> {
 }
 
 export const loadMonth = (month: string) => call<PitchLog[]>(`/api/pitch-log?month=${month}`, { method: 'GET' });
+/** 모든 기록 — 찾기(느낌으로 찾기)가 켜졌을 때만 */
+export const loadAll = () => call<PitchLog[]>('/api/pitch-log', { method: 'GET' });
 export const createLog = (e: PitchEntry) => call<PitchLog>('/api/pitch-log', { method: 'POST', body: e });
 export const updateLog = (id: string, e: PitchEntry) => call<PitchLog>('/api/pitch-log', { method: 'PATCH', body: { id, ...e } });
 export const deleteLog = (id: string) => call<{ ok: true }>('/api/pitch-log', { method: 'DELETE', body: { id } });

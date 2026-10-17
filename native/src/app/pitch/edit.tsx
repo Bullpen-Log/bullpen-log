@@ -14,11 +14,16 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { EFFORT_CHIPS } from '@/lib/pitch-effort';
 import { SESSION_TYPES, isRestSession } from '@/lib/session-type';
+import {
+  GOOD_DAY_MIN,
+  PITCH_CUES,
+  SATISFACTION_ENDS,
+  SATISFACTION_OPTIONS,
+  isRatedSession,
+} from '@/lib/pitch-satisfaction';
 import { LocalVideo } from '../../../modules/local-video';
-import { SITE_URL } from '~/lib/site';
-import { syncSession } from '~/lib/rpc';
+import { PICK_ORIGINAL, attach, markImported } from '~/pitch/attach';
 import { usePalette } from '~/lib/ui';
-import { APP_API_HEADER, APP_API_LEVEL } from '@/lib/app-api';
 import {
   ApiError,
   createLog,
@@ -38,35 +43,9 @@ import { monthOf, refreshMonth, useMonth } from '~/pitch/store';
 const MAX_VIDEOS = 2;
 type Video = { path: string; name: string; fresh?: boolean };
 
-async function uploadUrl(body: unknown): Promise<{ path: string; signedUrl?: string }> {
-  await syncSession();
-  const res = await fetch(`${SITE_URL}/api/pitch-log/upload-url`, {
-    method: 'POST',
-    credentials: 'include',
-    headers: { 'content-type': 'application/json', [APP_API_HEADER]: String(APP_API_LEVEL) },
-    body: JSON.stringify(body),
-  });
-  const json = (await res.json().catch(() => null)) as { path?: string; signedUrl?: string; error?: string } | null;
-  if (!res.ok || !json?.path) throw new ApiError(json?.error ?? '영상을 올릴 준비를 못 했어요.');
-  return { path: json.path, signedUrl: json.signedUrl };
-}
-
-/** 고른 영상 하나를 붙일 경로로 — 회원은 폰에 넣고 경로만 받고, 관리자는 서버에 올린다 */
-async function attach(asset: ImagePicker.ImagePickerAsset, admin: boolean): Promise<string> {
-  if (!admin) {
-    const { id } = await LocalVideo.saveFile({ path: asset.uri });
-    return (await uploadUrl({ localId: id })).path;
-  }
-  const type = asset.mimeType ?? 'video/quicktime';
-  const target = await uploadUrl({ fileName: asset.fileName ?? 'pitch.mov', fileSize: asset.fileSize ?? 1, fileType: type });
-  const blob = await (await fetch(asset.uri)).blob();
-  const put = await fetch(target.signedUrl!, { method: 'PUT', headers: { 'content-type': type }, body: blob });
-  if (!put.ok) throw new ApiError('영상을 올리지 못했어요.');
-  return target.path;
-}
-
 export default function PitchEditScreen() {
-  const { date, id } = useLocalSearchParams<{ date: string; id?: string }>();
+  /* videos · importKey = 지난 영상 가져오기(pitch/import)가 폰에 넣은 영상 경로를 붙여 연다 — 저장하면 그 묶음을 '남김'으로 */
+  const { date, id, videos, importKey } = useLocalSearchParams<{ date: string; id?: string; videos?: string; importKey?: string }>();
   const { logs } = useMonth(monthOf(date));
   const editing = id ? (logs ?? []).find((l) => l.id === id) : undefined;
   /* 고치기인데 그 달을 아직 못 받았으면 잠깐 기다린다 — 폼은 처음 값으로 한 번만 채운다 */
@@ -77,10 +56,21 @@ export default function PitchEditScreen() {
       </View>
     );
   }
-  return <EntryForm key={editing?.id ?? 'new'} date={date} editing={editing} />;
+  const imported = videos ? (JSON.parse(videos) as string[]) : [];
+  return <EntryForm key={editing?.id ?? 'new'} date={date} editing={editing} imported={imported} importKey={importKey} />;
 }
 
-function EntryForm({ date, editing }: { date: string; editing?: PitchLog }) {
+function EntryForm({
+  date,
+  editing,
+  imported,
+  importKey,
+}: {
+  date: string;
+  editing?: PitchLog;
+  imported: string[];
+  importKey?: string;
+}) {
   const c = usePalette();
   const inset = useSafeAreaInsets();
   const [type, setType] = useState(editing?.sessionType ?? '불펜');
@@ -89,8 +79,19 @@ function EntryForm({ date, editing }: { date: string; editing?: PitchLog }) {
   const [maxV, setMaxV] = useState(editing?.maxVelocity != null ? String(editing.maxVelocity) : '');
   const [avgV, setAvgV] = useState(editing?.avgVelocity != null ? String(editing.avgVelocity) : '');
   const [memo, setMemo] = useState(editing?.memo ?? '');
+  /* 투구 만족도 · 좋았던 · 아쉬웠던 감각(불펜 · 라이브 · 경기만 — 웹 entry-form 과 같다, lib/pitch-satisfaction.ts) */
+  const [satisfaction, setSatisfaction] = useState<number | null>(editing?.satisfaction ?? null);
+  const [good, setGood] = useState<string[]>(editing?.cuesGood ?? []);
+  const [bad, setBad] = useState<string[]>(editing?.cuesBad ?? []);
+  const toggleCue = (cue: string, side: 'good' | 'bad') => {
+    const [mine, setMine, setOther] = side === 'good' ? [good, setGood, setBad] : [bad, setBad, setGood];
+    setMine(mine.includes(cue) ? mine.filter((x) => x !== cue) : [...mine, cue]);
+    setOther((o) => o.filter((x) => x !== cue));
+  };
   const [videos, setVideos] = useState<Video[]>(
-    () => editing?.videoPaths.map((p, i) => ({ path: p, name: `영상 ${i + 1}` })) ?? []
+    () =>
+      editing?.videoPaths.map((p, i) => ({ path: p, name: `영상 ${i + 1}` })) ??
+      imported.map((p, i) => ({ path: p, name: `가져온 영상 ${i + 1}`, fresh: true }))
   );
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -99,7 +100,7 @@ function EntryForm({ date, editing }: { date: string; editing?: PitchLog }) {
 
   const pick = async (camera: boolean) => {
     setError(null);
-    const opts: ImagePicker.ImagePickerOptions = { mediaTypes: ['videos'], videoMaxDuration: 180, quality: 1 };
+    const opts: ImagePicker.ImagePickerOptions = { ...PICK_ORIGINAL, videoMaxDuration: 180 };
     const res = camera
       ? await ImagePicker.launchCameraAsync(opts)
       : await ImagePicker.launchImageLibraryAsync({ ...opts, allowsMultipleSelection: true, selectionLimit: MAX_VIDEOS - videos.length });
@@ -136,6 +137,7 @@ function EntryForm({ date, editing }: { date: string; editing?: PitchLog }) {
       avgVelocity: rest || !avgV ? null : Number.parseFloat(avgV),
       memo,
       videoPaths: videos.map((v) => v.path),
+      ...(isRatedSession(type) ? { satisfaction, cuesGood: good, cuesBad: bad } : {}),
     };
     setBusy('저장하는 중');
     setError(null);
@@ -147,6 +149,7 @@ function EntryForm({ date, editing }: { date: string; editing?: PitchLog }) {
         if (gone.length) void LocalVideo.remove({ ids: gone }).catch(() => undefined);
       } else {
         await createLog(entry);
+        if (importKey) markImported(importKey);
       }
       await refreshMonth(monthOf(date));
       router.back();
@@ -205,7 +208,52 @@ function EntryForm({ date, editing }: { date: string; editing?: PitchLog }) {
           </>
         ) : null}
 
-        <Text style={[styles.label, { color: c.muted }]}>메모</Text>
+        {isRatedSession(type) ? (
+          <>
+            <Text style={[styles.label, { color: c.muted }]}>투구 만족도</Text>
+            <Chips
+              items={SATISFACTION_OPTIONS.map((o) => o.label)}
+              value={satisfaction == null ? null : String(satisfaction)}
+              onChange={(v) => setSatisfaction(satisfaction === Number(v) ? null : Number(v))}
+            />
+            <Text style={{ color: c.muted, fontSize: 12 }}>
+              1 {SATISFACTION_ENDS.low} · {SATISFACTION_ENDS.high} 5
+            </Text>
+            {(
+              [
+                ['good', '좋았던 것', good],
+                ['bad', '아쉬웠던 것', bad],
+              ] as const
+            ).map(([side, label, list]) => (
+              <View key={side} style={{ gap: 8 }}>
+                <Text style={[styles.label, { color: c.muted }]}>{label}</Text>
+                <View style={styles.chips}>
+                  {PITCH_CUES.map((cue) => {
+                    const on = list.includes(cue);
+                    return (
+                      <Pressable
+                        key={cue}
+                        accessibilityRole="checkbox"
+                        accessibilityState={{ checked: on }}
+                        onPress={() => toggleCue(cue, side)}
+                        style={[styles.chip, { backgroundColor: on ? c.sky : c.chip }]}
+                      >
+                        <Text style={[styles.chipText, { color: on ? '#fff' : c.ink }]}>{cue}</Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </View>
+            ))}
+          </>
+        ) : null}
+
+        <Text style={[styles.label, { color: c.muted }]}>
+          {rest ? '메모' : '특이사항 · 느낀점'}
+        </Text>
+        {isRatedSession(type) && (satisfaction ?? 0) >= GOOD_DAY_MIN && !memo.trim() ? (
+          <Text style={{ color: c.muted, fontSize: 12 }}>잘 던진 날 남긴 메모는 다음에 던지는 날 홈에 다시 띄워 드려요.</Text>
+        ) : null}
         <TextInput value={memo} onChangeText={setMemo} multiline placeholder="오늘 던진 느낌" placeholderTextColor={c.muted} style={[input, styles.memo]} />
 
         {!rest ? (

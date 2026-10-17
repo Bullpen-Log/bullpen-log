@@ -11,6 +11,7 @@ export default function RootLayout() {
       <StatusBar style="auto" />
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="pitch/edit" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="pitch/import" options={{ presentation: 'modal' }} />
       </Stack>
     </>
   );

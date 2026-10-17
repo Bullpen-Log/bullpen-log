@@ -84,6 +84,17 @@ export default function PitchDayScreen() {
                   .join(' · ') || ' '}
               </Text>
             ) : null}
+            {l.satisfaction != null || l.cuesGood.length || l.cuesBad.length ? (
+              <Text style={[styles.meta, { color: c.muted }]}>
+                {[
+                  l.satisfaction != null ? `만족도 ${l.satisfaction}` : null,
+                  l.cuesGood.length ? `좋았던 것 ${l.cuesGood.join(' · ')}` : null,
+                  l.cuesBad.length ? `아쉬웠던 것 ${l.cuesBad.join(' · ')}` : null,
+                ]
+                  .filter(Boolean)
+                  .join('  ')}
+              </Text>
+            ) : null}
             {l.memo ? <Text style={[styles.memo, { color: c.ink }]}>{l.memo}</Text> : null}
             {l.videoPaths.map((p) => (
               <PitchVideo key={p} path={p} />
