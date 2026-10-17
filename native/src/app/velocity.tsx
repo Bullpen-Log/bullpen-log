@@ -23,6 +23,9 @@ import { loadJson, saveJson } from '~/lib/store';
 import { AppCapture, type CaptureStatus, type MeasureSettings } from '~/velocity/capture';
 import { VelocityEngine, type EngineHandle } from '~/velocity/engine';
 import { decide, saveSession, shownKmh, statsOf, type NativePitch, type SessionCtx } from '~/velocity/session';
+import { clearDraft, loadDraft, saveDraft } from '~/velocity/draft';
+import { ClipModal } from '~/velocity/clip-modal';
+import { PITCH_TYPES } from '@/lib/velocity-meta';
 
 /**
  * 구속 측정(네이티브) — 3판: 설정(지난 설정 · 종류 · 카메라 자리) → 수평 → 스트라이크 존 → 측정(던짐 알림 → 클립 → 숨은 웹뷰 계산기) →
@@ -44,6 +47,12 @@ const SETTINGS: Omit<MeasureSettings, 'tiltRad'> = {
 /** 수평으로 볼 좌우 · 앞뒤 기울기(도) — 웹 수평계(lib/use-device-level.ts LEVEL_OK_DEG · PITCH_OK_DEG)와 같다 */
 const ROLL_OK = 1.5;
 const PITCH_OK = 10;
+
+/** 저장 안 하고 버리는 공의 클립 파일을 지운다 */
+const discardAll = (list: NativePitch[]) => {
+  const paths = list.map((p) => p.clip.path);
+  if (paths.length) void DualCamera.discard({ paths });
+};
 
 type Step = 'loading' | 'ask' | 'type' | 'camera' | 'level' | 'zone' | 'measure';
 type Start = { isAdmin: boolean; today: string; fit: CalFit };
@@ -70,6 +79,11 @@ export default function VelocityScreen() {
   const [effortPct, setEffortPct] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  /* 세션 저장 창에서 펼친 공(구종 고르기 · 영상) · 다시 보는 클립 */
+  const [openId, setOpenId] = useState<number | null>(null);
+  const [replay, setReplay] = useState<string | null>(null);
+  /* 세션 날짜 — 보통 오늘, 맡겨 둔 세션을 이어 하면 그 날 */
+  const [sessionDate, setSessionDate] = useState<string | null>(null);
 
   /* 재기 흐름(AppCapture)은 한 번 만들어 쥐고, 지금 값은 ref 로 읽는다 */
   const pitchesRef = useRef<NativePitch[]>([]);
@@ -82,6 +96,18 @@ export default function VelocityScreen() {
     ctxRef.current = { cameraPos, zone, info };
   }, [zone, info]);
   const fit = start?.fit ?? NO_CALIBRATION;
+  /* 공 목록을 바꾸는 곳은 모두 여기로 — ref(재기 흐름이 읽음) · 화면 · 폰에 맡긴 세션을 같이 */
+  const draftReady = useRef(false);
+  const setList = (next: NativePitch[]) => {
+    pitchesRef.current = next;
+    setPitches(next);
+  };
+  useEffect(() => {
+    if (!draftReady.current) return;
+    const date = sessionDate ?? todayRef.current;
+    if (pitches.length && date) void saveDraft({ date, sessionType, pitches });
+    else void clearDraft();
+  }, [pitches, sessionType, sessionDate]);
 
   /* 서버(관리자인가 · 오늘 · 보정식)와 지난 설정 */
   useEffect(() => {
@@ -101,6 +127,31 @@ export default function VelocityScreen() {
         const s = parseSetup(raw);
         setStored(s);
         setStep(s ? 'ask' : 'type');
+        void loadDraft().then((d) => {
+          if (!alive) return;
+          if (!d) {
+            draftReady.current = true;
+            return;
+          }
+          const resume = () => {
+            setList(d.pitches);
+            setSessionType(d.sessionType);
+            setSessionDate(d.date);
+            if (s) setZone(s.zone);
+            draftReady.current = true;
+            setStep('measure');
+            setSheet(true);
+          };
+          const drop = () => {
+            discardAll(d.pitches);
+            draftReady.current = true;
+            void clearDraft();
+          };
+          Alert.alert('저장하지 않은 공이 있어요', `${d.date.slice(5).replace('-', '/')} ${d.sessionType} · ${d.pitches.length}구`, [
+            { text: '지우기', style: 'destructive', onPress: drop },
+            { text: '이어서 하기', style: 'default', onPress: resume },
+          ]);
+        });
       })
       .catch((e: unknown) => alive && setBlocked(e instanceof RpcError ? e.message : '서버에 닿지 못했어요.'));
     return () => {
@@ -119,8 +170,7 @@ export default function VelocityScreen() {
           const out = decide(result, pitchesRef.current, ctxRef.current, meta);
           if (out.notice) setNotice(out.notice);
           if (out.list) {
-            pitchesRef.current = out.list;
-            setPitches(out.list);
+            setList(out.list);
             setNotice(null);
           }
           return out.verdict;
@@ -188,10 +238,6 @@ export default function VelocityScreen() {
     void saveJson(SETUP_KEY, { ...DEFAULT_SETUP, sessionType: s.sessionType, cameraPos, zone: s.zone, savedAt: new Date().toISOString() });
   };
 
-  const discardAll = (list: NativePitch[]) => {
-    const paths = list.map((p) => p.clip.path);
-    if (paths.length) void DualCamera.discard({ paths });
-  };
   const close = () => {
     if (!pitches.length) return router.back();
     Alert.alert('저장하지 않고 나갈까요?', `잰 공 ${pitches.length}개가 사라져요.`, [
@@ -201,6 +247,7 @@ export default function VelocityScreen() {
         style: 'destructive',
         onPress: () => {
           discardAll(pitches);
+          void clearDraft();
           router.back();
         },
       },
@@ -209,10 +256,10 @@ export default function VelocityScreen() {
   const remove = (id: number) => {
     const gone = pitches.find((p) => p.id === id);
     if (gone) discardAll([gone]);
-    const next = pitches.filter((p) => p.id !== id);
-    pitchesRef.current = next;
-    setPitches(next);
+    setList(pitches.filter((p) => p.id !== id));
   };
+  const setPitchType = (id: number, key: string) =>
+    setList(pitches.map((p) => (p.id === id ? { ...p, pitchType: p.pitchType === key ? null : key } : p)));
   const save = async () => {
     if (!start || saving || !pitches.length) return;
     if (effortPct == null) return setSaveError('체감 강도를 골라 주세요.');
@@ -220,7 +267,7 @@ export default function VelocityScreen() {
     setSaveError(null);
     try {
       const res = await saveSession({
-        date: start.today,
+        date: sessionDate ?? start.today,
         sessionType,
         effortPct,
         ctx: ctxRef.current,
@@ -229,8 +276,9 @@ export default function VelocityScreen() {
         attemptIds: attempts.current,
       });
       if (!res.ok) return setSaveError(res.error);
-      pitchesRef.current = [];
-      setPitches([]);
+      setList([]);
+      void clearDraft();
+      setSessionDate(null);
       attempts.current.clear();
       setSheet(false);
       Alert.alert(
@@ -345,10 +393,13 @@ export default function VelocityScreen() {
       ) : (
         <View style={[styles.bottom, { paddingBottom: inset.bottom + 16 }]}>
           {last ? (
-            <Text style={styles.big}>
-              {shownKmh(last, fit).toFixed(1)}
-              <Text style={styles.unit}> km/h</Text>
-            </Text>
+            <Pressable accessibilityRole="button" accessibilityLabel="방금 공 영상 다시 보기" onPress={() => setReplay(last.clip.path)}>
+              <Text style={styles.big}>
+                {shownKmh(last, fit).toFixed(1)}
+                <Text style={styles.unit}> km/h</Text>
+              </Text>
+              <Text style={styles.line}>눌러서 영상 다시 보기</Text>
+            </Pressable>
           ) : (
             <Text style={styles.line}>던지면 저절로 재요</Text>
           )}
@@ -373,16 +424,39 @@ export default function VelocityScreen() {
               </Text>
             ) : null}
             <ScrollView style={styles.list}>
-              {pitches.map((p, i) => (
-                <View key={p.id} style={styles.listRow}>
-                  <Text style={styles.listText}>
-                    {i + 1}. {shownKmh(p, fit).toFixed(1)} km/h{p.notes.length ? ` · ${p.notes[0]}` : ''}
-                  </Text>
-                  <Pressable accessibilityRole="button" accessibilityLabel={`${i + 1}번 공 지우기`} onPress={() => remove(p.id)} hitSlop={8}>
-                    <Text style={styles.remove}>지우기</Text>
-                  </Pressable>
-                </View>
-              ))}
+              {pitches.map((p, i) => {
+                const type = PITCH_TYPES.find((t) => t.key === p.pitchType)?.label;
+                return (
+                  <View key={p.id} style={styles.listItem}>
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityState={{ expanded: openId === p.id }}
+                      onPress={() => setOpenId(openId === p.id ? null : p.id)}
+                      style={styles.listRow}
+                    >
+                      <Text style={styles.listText} numberOfLines={openId === p.id ? undefined : 1}>
+                        {i + 1}. {shownKmh(p, fit).toFixed(1)} km/h{type ? ` · ${type}` : ''}
+                        {p.notes.length ? ` · ${p.notes[0]}` : ''}
+                      </Text>
+                      <Text style={styles.chev}>{openId === p.id ? '⌃' : '⌄'}</Text>
+                    </Pressable>
+                    {openId === p.id ? (
+                      <View style={{ gap: 8, paddingBottom: 8 }}>
+                        <Chips
+                          items={PITCH_TYPES.map((t) => t.label)}
+                          value={type ?? null}
+                          onChange={(label) => setPitchType(p.id, PITCH_TYPES.find((t) => t.label === label)!.key)}
+                          light
+                        />
+                        <View style={styles.row}>
+                          <Button label="영상 보기" kind="ghostDark" onPress={() => setReplay(p.clip.path)} flex />
+                          <Button label="이 공 지우기" kind="ghostDark" onPress={() => remove(p.id)} flex />
+                        </View>
+                      </View>
+                    ) : null}
+                  </View>
+                );
+              })}
             </ScrollView>
             <Text style={styles.label}>종류</Text>
             <Chips
@@ -406,7 +480,9 @@ export default function VelocityScreen() {
             <Button label="더 재기" kind="ghostDark" onPress={() => setSheet(false)} disabled={saving} />
           </View>
         </View>
+        <ClipModal path={replay} onClose={() => setReplay(null)} />
       </Modal>
+      {!sheet ? <ClipModal path={replay} onClose={() => setReplay(null)} /> : null}
     </View>
   );
 }
@@ -541,6 +617,7 @@ const styles = StyleSheet.create({
   list: { maxHeight: 200 },
   listRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 44, gap: 8 },
   listText: { flex: 1, fontSize: 15, color: '#1d1d1f' },
-  remove: { fontSize: 15, color: '#d70015', fontWeight: '600' },
+  listItem: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#e5e5ea' },
+  chev: { fontSize: 15, color: '#8e8e93' },
   label: { fontSize: 13, fontWeight: '600', color: '#6e6e73', marginTop: 8 },
 });

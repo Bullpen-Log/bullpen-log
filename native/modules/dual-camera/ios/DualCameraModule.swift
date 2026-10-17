@@ -275,10 +275,17 @@ public class DualCameraModule: Module {
         issuedLock.unlock()
     }
 
+    /// 이 앱이 내준 클립인가 — 이번 실행에 내준 것, 또는 클립 폴더(tmp/bullpen-dualcam) 바로 안의 파일. 폴더 쪽은 앱을 껐다 켜도
+    /// 저장 안 한 세션(JS 가 폰에 맡겨 둔 공 목록)의 클립을 붙일 수 있게 — 이름에 '/' · '..' 가 없는 파일만
     private func isIssued(_ path: String) -> Bool {
         issuedLock.lock()
-        defer { issuedLock.unlock() }
-        return issued.contains(path)
+        let known = issued.contains(path)
+        issuedLock.unlock()
+        if known { return true }
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("bullpen-dualcam", isDirectory: true).standardizedFileURL.path
+        let url = URL(fileURLWithPath: path).standardizedFileURL
+        return url.deletingLastPathComponent().path == dir && !url.lastPathComponent.contains("..")
+            && FileManager.default.fileExists(atPath: url.path)
     }
 
     /// Expo 는 JS 숫자를 Double 로 넘긴다 — `as? Int` 는 nil 이라 offset · length · fps 를 못 읽어 늘 기본값이었다(2026-10-18 찾음:

@@ -36,6 +36,8 @@ export type NativePitch = SessionPitchCore &
     clip: Clip;
     /** 짐작한 코스(1~9) — 마지막 공 자리를 존에 대어 */
     zone: number | null;
+    /** 구종(lib/velocity-meta.ts PITCH_TYPES 의 key) — 세션 저장 창에서 고른다, 안 고르면 null */
+    pitchType?: string | null;
     notes: string[];
   };
 
@@ -195,7 +197,7 @@ export async function saveSession(input: {
         durationSec: p.durationSec,
         frames: p.frames,
         fps: p.fps,
-        pitchType: null,
+        pitchType: p.pitchType ?? null,
         zone: p.zone,
         result: null,
         gunKmh: null,
