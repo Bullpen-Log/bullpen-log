@@ -24,6 +24,7 @@ const OUT = join(ROOT, 'services', 'pitch3d-gpu', 'engine');
 const FILES = [
   'lib/pitch-3d/analyze.ts',
   'lib/pitch-3d/camera.ts',
+  'lib/pitch-3d/focal-table.ts',
   'lib/pitch-3d/linalg.ts',
   'lib/pitch-3d/metrics.ts',
   'lib/pitch-3d/motion.ts',

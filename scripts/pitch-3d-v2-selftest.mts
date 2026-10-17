@@ -3198,5 +3198,42 @@ console.log('■ 점검 카드 드릴 고르기(drillPicksFor) — 쉬운 단계
   );
 }
 
+{
+  /* 기종별 초점 표(lib/pitch-3d/focal-table.ts, 2026-10-17) — 표 찾기 · 1배 · 줌 · 카메라마다 사전 */
+  const { fpsMode, devicePrior, cameraFocalPriors } = await import('@/lib/pitch-3d/focal-table');
+  const { FOCAL_PRIOR_1X } = await import('@/lib/pitch-3d/camera');
+  check('초점 표: fps 모드(240 · 59.94 → 60, 장면을 빠뜨린 평균 151 은 모름)', fpsMode(240) === 240 && fpsMode(59.94) === 60 && fpsMode(151) === null && fpsMode(null) === null);
+  const pm = devicePrior({ model: ' iphone 15  pro max ', fps: 119.88 });
+  check('초점 표: 기종 · fps 로 찾는다(대소문자 · 빈칸 무시)', pm?.k === 0.7967 && pm.sigma === 0.03, JSON.stringify(pm));
+  check('초점 표: 같은 기종도 표에 없는 fps(240)면 없음', devicePrior({ model: 'iPhone 15 Pro Max', fps: 240 }) === null);
+  check('초점 표: 표에 없는 기종 · 기종 없음(화면 녹화)은 없음', devicePrior({ model: 'iPhone 13', fps: 240 }) === null && devicePrior({ model: null, fps: 60 }) === null);
+  check(
+    '초점 표: 줌이면 사전 없음 · 표에 하나도 없으면 예전 1배 사전 하나',
+    cameraFocalPriors(false, { side: { model: 'iPad (10th generation)', fps: 120 } }) === undefined &&
+      cameraFocalPriors(true, { side: { model: null, fps: 60 }, back: null }) === FOCAL_PRIOR_1X
+  );
+  const mix = cameraFocalPriors(true, { side: { model: 'iPad (10th generation)', fps: 120 }, back: { model: null, fps: 60 } });
+  check('초점 표: 한 대만 표에 있으면 그 카메라만 표 값 · 다른 카메라는 1배', !!mix && !('k' in mix) && mix.side?.k === 0.8558 && mix.back === FOCAL_PRIOR_1X);
+  /* 엔진 — 카메라마다 준 사전은 그 카메라 초점만 끈다(합성 투수: 옆만 진짜보다 15% 크게 좁은 사전) */
+  const sc = { ...base, name: '초점 표' };
+  const { side: camS, back: camB } = cameras(sc);
+  const s = makeV2Track(sc, camS, sc.side, 'side', 71);
+  const b = makeV2Track(sc, camB, sc.back, 'back', 72);
+  const events = { kneeUp: s.toMedia(EV.kneeUp), footPlant: s.toMedia(EV.footPlant), release: s.toMedia(EV.release) };
+  const ks = (focalPrior?: { side?: { k: number; sigma: number }; back?: { k: number; sigma: number } }) => {
+    const { result } = fitPitch3dV2({ side: s.track, back: b.track, hand: sc.hand, heightCm: 183, jobId: JOB_ID, poseModel: 'synth', screenRecorded: true, slowmoFps: 240, events, focalPrior });
+    return result.ok && result.cameras
+      ? { s: result.cameras.side.f / Math.max(s.track.W, s.track.H), b: result.cameras.back.f / Math.max(b.track.W, b.track.H) }
+      : null;
+  };
+  const free = ks();
+  const pulled = ks({ side: { k: sc.side.k * 1.15, sigma: 0.01 } });
+  check(
+    '초점 표: 옆 사전은 옆 초점만 끈다(뒤는 그대로)',
+    !!free && !!pulled && Math.abs(pulled.s / (sc.side.k * 1.15) - 1) < 0.03 && Math.abs(pulled.b / free.b - 1) < 0.05,
+    free && pulled ? `옆 ${free.s.toFixed(3)} → ${pulled.s.toFixed(3)}(사전 ${(sc.side.k * 1.15).toFixed(3)}) · 뒤 ${free.b.toFixed(3)} → ${pulled.b.toFixed(3)}` : '실패'
+  );
+}
+
 console.log(`\n통과 ${passed} · 실패 ${failed}`);
 if (failed > 0) process.exit(1);

@@ -119,8 +119,8 @@ export type V2Input = {
   events?: { kneeUp?: number | null; footPlant: number; footContact?: number; release: number };
   /** 통계 움직임 틀(motion-template.ts) — 두 영상 다 안 보인 관절 짐작. 없으면 예전 채우기 */
   motionTemplate?: MotionTemplate;
-  /** 초점 사전(선택) — '1배로 찍음'처럼 렌즈를 알 때만(lib/pitch-3d/camera.ts FOCAL_PRIOR_1X). 없으면 예전과 같다 */
-  focalPrior?: { k: number; sigma: number };
+  /** 초점 사전(선택) — '1배로 찍음'처럼 렌즈를 알 때만(lib/pitch-3d/camera.ts FOCAL_PRIOR_1X), 기종 · fps 를 알면 카메라마다(focal-table.ts). 없으면 예전과 같다 */
+  focalPrior?: { k: number; sigma: number } | { side?: { k: number; sigma: number }; back?: { k: number; sigma: number } };
 };
 
 /* ───────────────────────────── 결과 ───────────────────────────── */
