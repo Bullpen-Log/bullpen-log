@@ -2096,6 +2096,16 @@ export function VelocityScreen({
   const editingPitch =
     editing == null ? null : (pitches.find((p) => p.id === editing) ?? null);
 
+  /*
+   * 저장 · 맡길 때 쓸 맥락 — 되살린 세션에 새로 잰 공이 없으면 그때의 맥락. 예전엔 '카메라가 꺼져 있을 때만'이라, 이어 재기 화면이
+   * 카메라를 저절로 켜면 공 하나 안 쟀는데도 오늘 카메라 설정(화각 · 기기 · 폰 자리)으로 덮였다(2026-10-17 금윤호 버그 사냥).
+   * 새 공을 재면 그 카메라가 지금 맥락이라 sessionContext().
+   */
+  const restoredIdsRef = useRef(new Set<number>());
+  const contextNow = (): SessionContext =>
+    draftMeta && pitches.every((p) => p.sample || restoredIdsRef.current.has(p.id))
+      ? draftMeta
+      : sessionContext();
   /* 세션의 측정 맥락 — 저장할 때 · 폰에 맡길 때 같이 */
   const sessionContext = (): SessionContext => {
     const longSide = camera ? Math.max(camera.width, camera.height) : null;
@@ -2167,7 +2177,7 @@ export function VelocityScreen({
     hadRealRef.current = true;
     void saveDraft<DraftPitch, SessionContext>({
       date: draftDate ?? today,
-      meta: camera == null && draftMeta ? draftMeta : sessionContext(),
+      meta: contextNow(),
       pitches: real.map(toDraftPitch),
       savedAt: Date.now(),
     });
@@ -2233,6 +2243,7 @@ export function VelocityScreen({
         };
       });
       setPitches((prev) => (prev.length ? prev : restored));
+      restoredIdsRef.current = new Set(restored.map((p) => p.id));
       setDraftDate(d.date);
       setDraftMeta(d.meta);
       setToast(`저장하지 않은 공 ${restored.length}개를 이어서 담았어요`);
@@ -2282,8 +2293,8 @@ export function VelocityScreen({
           date,
           sessionType,
           effortPct,
-          /* 되살린 세션을 카메라를 켜기 전에 저장하면 그때의 맥락으로 */
-          ...(camera == null && draftMeta ? draftMeta : sessionContext()),
+          /* 되살린 세션에 새 공이 없으면 그때의 맥락으로 */
+          ...contextNow(),
           pitches: pitches.map((p) => ({
             rawKmh: p.rawKmh,
             errorKmh: p.errorKmh,
