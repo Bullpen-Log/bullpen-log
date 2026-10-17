@@ -518,6 +518,23 @@ export async function generateTodayPlan(formData: FormData) {
 }
 
 /**
+ * 아이폰 앱(native/src/app/training-today.tsx)의 일정 만들기 — 앱은 폼(FormData)을 못 보내 [이름, 값] 줄로 받아, 웹 폼(components/training-forms.tsx
+ * PlanForm 의 자동 맞춤 · 상태 바뀜 띠의 remakeFieldsOf)이 보내는 것과 같은 칸으로 옮겨 같은 만들기(generateTodayPlan)를 탄다. 돌아갈 곳은 늘
+ * '/training' — 끝나면 웹처럼 redirect 하고, 앱은 그 답을 '만들었어요'로 받아 다시 읽는다. 글자 아닌 줄은 버린다(검사는 generateTodayPlan 이 한다).
+ */
+export async function generateAppTodayPlan(fields: unknown) {
+  const user = await getCurrentUser();
+  if (!user) redirect('/login');
+  const formData = new FormData();
+  if (Array.isArray(fields))
+    for (const f of fields)
+      if (Array.isArray(f) && typeof f[0] === 'string' && typeof f[1] === 'string' && f[0] !== 'returnTo')
+        formData.append(f[0], f[1]);
+  formData.set('returnTo', '/training');
+  return generateTodayPlan(formData);
+}
+
+/**
  * 자동 맞춤 — 오늘 방향(목표·시간)을 규칙 초안으로 정한다(lib/report/auto-setup.ts).
  * 2026-10-07 AI 를 뺐다(사용자) — 예전에는 이 울타리 안에서 AI 가 골랐다.
  *

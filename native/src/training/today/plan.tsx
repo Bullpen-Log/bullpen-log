@@ -1,0 +1,718 @@
+import * as Haptics from 'expo-haptics';
+import { SymbolView } from 'expo-symbols';
+import { useRef, useState } from 'react';
+import { Alert, Image, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { NO_WORKOUT_KIND, WORKOUT_KINDS } from '@/lib/checkin';
+import { formatAmount } from '@/lib/exercise-meta';
+import { formatSummary, volumeIn } from '@/lib/workout/summarize';
+import type { OutingLineText } from '@/lib/outing-line';
+import type { WeightUnit } from '@/lib/units';
+import { STATE_NOTICE_TEXT, moreText, type StateNotice } from '@/lib/report/state-notice';
+import type { TodayGroup, TodayMake, TodayPlan, TodayRow, TrainingToday } from '@/lib/report/training-today-data';
+import { ExerciseMedia } from '~/armcare/parts';
+import { act } from '~/mechanics/parts';
+import type { Palette } from '~/lib/ui';
+import { BigButton, Card, Chip, LinkRow, s, useWeightUnit, type TodayActions } from './parts';
+
+/**
+ * 트레이닝 '운동' 화면의 일정 쪽 조각 — 웹 app/(app)/training/ 의 state-notice-band · done-card · exercise-list · training-note ·
+ * training-prefs-card · components/training-forms.tsx(자동 맞춤 칸) · components/outing-line.tsx 를 옮겼다. 서버 동작은 웹과 같은 것을 부른다.
+ */
+
+const tick = () => void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+
+/** '2026-08-24' → '8/24' */
+const shortDate = (key: string) => {
+  const [, m, d] = key.split('-');
+  return `${Number(m)}/${Number(d)}`;
+};
+
+/* ----------------------------- 상태 바뀜 띠 ----------------------------- */
+
+/** 일정을 만든 뒤 판단 입력이 바뀌었을 때(웹 StateNoticeBand) — 다시 만들기는 만들 때 고른 조건 그대로 */
+export function NoticeBand({ notice, fields, c, a }: { notice: StateNotice; fields: [string, string][]; c: Palette; a: TodayActions }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  return (
+    <Card c={c} tone="warn">
+      <View style={[s.row, { alignItems: 'flex-start' }]}>
+        <SymbolView name="arrow.clockwise" size={15} tintColor={c.warn} />
+        <View style={{ flex: 1, gap: 4 }}>
+          <Text style={[s.bodyBold, { color: c.warn }]}>{STATE_NOTICE_TEXT.title}</Text>
+          {[...notice.lines, ...(notice.more > 0 ? [moreText(notice.more)] : [])].map((line, i) => (
+            <Text key={i} style={[s.small, { color: c.warn }]}>
+              · {line}
+            </Text>
+          ))}
+          {notice.note ? <Text style={[s.small, { color: c.warn }]}>{notice.note}</Text> : null}
+        </View>
+      </View>
+      {notice.canRemake ? (
+        <BigButton
+          c={c}
+          busy={busy}
+          label={busy ? STATE_NOTICE_TEXT.remaking : STATE_NOTICE_TEXT.remake}
+          onPress={() => {
+            setBusy(true);
+            setError(null);
+            void a.generate(fields).then((err) => {
+              setBusy(false);
+              setError(err);
+            });
+          }}
+        />
+      ) : notice.blockedBy === 'checkin' ? (
+        <LinkRow c={c} label={STATE_NOTICE_TEXT.checkinButton} onPress={a.checkin} />
+      ) : null}
+      {error ? <Text style={[s.small, { color: c.danger }]}>{error}</Text> : null}
+    </Card>
+  );
+}
+
+/* ----------------------------- 완료 카드 ----------------------------- */
+
+/** 운동을 마친 날 [운동 시작] 자리(웹 DoneCard) — 종료 요약과 같은 세 숫자 · 같은 줄 */
+export function DoneView({ done, intensity, canResume, c, a }: {
+  done: NonNullable<TrainingToday['done']>;
+  intensity: number | null;
+  canResume: boolean;
+  c: Palette;
+  a: TodayActions;
+}) {
+  const unit = useWeightUnit();
+  return (
+    <Card c={c} tone="done">
+      <View style={s.between}>
+        <View style={s.row}>
+          <SymbolView name="checkmark.circle.fill" size={18} tintColor={c.sky} />
+          <Text style={[s.cardTitle, { color: c.sky }]}>오늘 운동 완료</Text>
+        </View>
+        {intensity != null ? <Text style={[s.smallBold, { color: c.sky }]}>강도 {intensity}/10</Text> : null}
+      </View>
+      <View style={[s.row, { gap: 8 }]}>
+        {[
+          { label: '운동 시간', value: `${done.minutes}`, unit: '분' },
+          { label: '총 세트', value: `${done.sets}`, unit: '세트' },
+          {
+            label: '총 볼륨',
+            value: done.volumeKg > 0 ? volumeIn(done.volumeKg, unit).toLocaleString('ko-KR') : '—',
+            unit: done.volumeKg > 0 ? unit : '',
+          },
+        ].map((n) => (
+          <View key={n.label} style={[st.stat, { backgroundColor: c.page }]}>
+            <Text style={[s.tiny, { color: c.muted }]}>{n.label}</Text>
+            <Text style={[st.statValue, { color: c.ink }]}>
+              {n.value}
+              <Text style={[s.tiny, { color: c.muted }]}> {n.unit}</Text>
+            </Text>
+          </View>
+        ))}
+      </View>
+      {done.lines.length > 0 ? (
+        <View style={[s.box, { backgroundColor: c.page, paddingVertical: 2 }]}>
+          {done.lines.map((l, i) => (
+            <View key={l.id} style={[st.line, i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.line }]}>
+              <Text numberOfLines={1} style={[s.smallBold, { flex: 1, color: c.ink }]}>
+                {l.title}
+              </Text>
+              <Text style={[s.tiny, s.num, { color: c.muted }]}>{formatSummary(l.summary, unit)}</Text>
+            </View>
+          ))}
+        </View>
+      ) : (
+        <Text style={[s.small, { color: c.muted, textAlign: 'center' }]}>남긴 세트 없이 마쳤어요.</Text>
+      )}
+      {canResume ? (
+        <Pressable accessibilityRole="button" disabled={a.starting} onPress={() => a.start(false)} style={[s.pill, a.starting && { opacity: 0.6 }]}>
+          <Text style={[s.bodyBold, { color: c.sky }]}>운동 더 하기</Text>
+        </Pressable>
+      ) : null}
+    </Card>
+  );
+}
+
+/* ----------------------------- 한 줄들 ----------------------------- */
+
+/** 다음 등판 한 줄(웹 OutingLine) — 짐작이면 '바꾸기'가 체크인을 연다 */
+export function OutingRow({ line, c, a }: { line: OutingLineText; c: Palette; a: TodayActions }) {
+  return (
+    <View style={[st.lineCard, { backgroundColor: c.card }]}>
+      <SymbolView name="calendar.badge.clock" size={16} tintColor={c.sky} />
+      <View style={{ flex: 1 }}>
+        <Text style={[s.bodyBold, { color: c.ink }]}>{line.main}</Text>
+        {line.guess ? <Text style={[s.tiny, { color: c.muted }]}>{line.guess}</Text> : null}
+      </View>
+      {line.guess ? (
+        <Pressable accessibilityRole="button" onPress={a.checkin} style={st.lineBtn}>
+          <Text style={[s.bodyBold, { color: c.sky }]}>바꾸기</Text>
+        </Pressable>
+      ) : null}
+    </View>
+  );
+}
+
+/** 근력 프로그램이 오늘 주인인 날의 일정 자리 한 줄(웹 ProgramDayLine) */
+export function ProgramDayRow({ text, planResting, c }: { text: string; planResting: string | null; c: Palette }) {
+  return (
+    <View style={[st.lineCard, { backgroundColor: c.card }]}>
+      <SymbolView name="dumbbell.fill" size={16} tintColor={c.sky} />
+      <View style={{ flex: 1 }}>
+        <Text style={[s.bodyBold, { color: c.ink }]}>{text}</Text>
+        {planResting ? <Text style={[s.tiny, { color: c.muted }]}>{planResting}</Text> : null}
+      </View>
+    </View>
+  );
+}
+
+/** 처방을 멈춘 날(웹 멈춤 카드) — 할 일은 체크인 */
+export function HaltedCard({ reason, c, a }: { reason: string; c: Palette; a: TodayActions }) {
+  return (
+    <Card c={c} tone="warn">
+      <Text style={[s.bodyBold, { color: c.warn }]}>오늘은 운동을 처방하지 않았어요</Text>
+      <Text style={[s.body, { color: c.warn }]}>{reason}</Text>
+      <LinkRow c={c} label="오늘 체크인 남기기" onPress={a.checkin} />
+    </Card>
+  );
+}
+
+/* ----------------------------- 오늘 하고 싶은 운동 ----------------------------- */
+
+/** '오늘 하고 싶은 운동이 있나요?'(웹 TrainingPrefsCard) — 접힌 한 줄에서 시작, 고르면 일정 만들기가 그쪽으로 짠다 */
+export function PrefsCard({ prefs, today, c, a }: { prefs: NonNullable<TrainingToday['prefs']>; today: string; c: Palette; a: TodayActions }) {
+  const answer = prefs.answer;
+  const [open, setOpen] = useState(false);
+  const [workout, setWorkout] = useState<string | null>(answer?.workout ?? null);
+  const [picked, setPicked] = useState<string[]>(answer?.parts ?? []);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const summary = answer ? [answer.workout ?? NO_WORKOUT_KIND, ...answer.parts].join(' · ') : null;
+
+  const save = async () => {
+    if (busy) return;
+    setBusy(true);
+    setError(null);
+    const r = await act<{ ok: true }>('day-cards.saveTrainingPrefs', { date: today, workout, parts: picked });
+    setBusy(false);
+    if ('error' in r) return setError(r.error);
+    void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    setOpen(false);
+    await a.reload();
+  };
+
+  return (
+    <Card c={c}>
+      <Pressable accessibilityRole="button" accessibilityState={{ expanded: open }} onPress={() => setOpen((v) => !v)} style={s.between}>
+        <View style={{ flex: 1, gap: 2 }}>
+          <Text style={[s.bodyBold, { color: c.ink }]}>오늘 하고 싶은 운동이 있나요?</Text>
+          <Text style={[s.small, { color: summary ? c.ink : c.muted }]}>{summary ?? '고르면 그쪽으로 일정을 짜요.'}</Text>
+        </View>
+        <Text style={[s.bodyBold, { color: c.sky }]}>{open ? '접기' : summary ? '바꾸기' : '답하기'}</Text>
+      </Pressable>
+      {open ? (
+        <View style={{ gap: 10 }}>
+          <Text style={[s.small, { color: c.muted }]}>아픈 날은 고른 것과 상관없이 회복으로 가요.</Text>
+          <View style={s.chips}>
+            <Chip c={c} label={NO_WORKOUT_KIND} on={workout == null} onPress={() => setWorkout(null)} />
+            {WORKOUT_KINDS.map((k) => (
+              <Chip key={k.name} c={c} label={k.name} on={workout === k.name} onPress={() => setWorkout(k.name)} />
+            ))}
+          </View>
+          <Text style={[s.tiny, { color: c.muted }]}>
+            {WORKOUT_KINDS.find((k) => k.name === workout)?.desc ?? '앱이 투구량과 몸 상태를 보고 골라요.'}
+          </Text>
+          {prefs.parts.length > 0 ? (
+            <>
+              <Text style={[s.smallBold, { color: c.muted }]}>하고 싶은 부위 (없어도 돼요)</Text>
+              <View style={s.chips}>
+                {prefs.parts.map((p) => (
+                  <Chip
+                    key={p}
+                    c={c}
+                    label={p}
+                    on={picked.includes(p)}
+                    onPress={() => setPicked((cur) => (cur.includes(p) ? cur.filter((x) => x !== p) : [...cur, p]))}
+                  />
+                ))}
+              </View>
+            </>
+          ) : null}
+          {error ? <Text style={[s.small, { color: c.danger }]}>{error}</Text> : null}
+          <BigButton c={c} busy={busy} label={busy ? '저장 중…' : '이대로 할래요'} onPress={() => void save()} />
+        </View>
+      ) : null}
+    </Card>
+  );
+}
+
+/* ----------------------------- 일정 만들기 ----------------------------- */
+
+/** 아직 안 만든 날 · 남은 운동이 없는 날(웹 PlanForm 의 자동 맞춤) — 직접 고르기는 웹 */
+export function MakeCard({ make, head, note, c, a }: { make: TodayMake; head: string; note: string | null; c: Palette; a: TodayActions }) {
+  const [on, setOn] = useState<string[]>(() => make.selected.filter((n) => make.equipment.includes(n)));
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const make1 = () => {
+    if (busy) return;
+    setBusy(true);
+    setError(null);
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    void a.generate([['mode', 'auto'], ...on.map((n) => ['availableEquipment', n] as [string, string])]).then((err) => {
+      setBusy(false);
+      setError(err);
+    });
+  };
+
+  return (
+    <Card c={c}>
+      <Text style={[s.cardTitle, { color: c.ink }]}>{head}</Text>
+      {note ? <Text style={[s.body, { color: c.muted }]}>{note}</Text> : null}
+      {!make.checkedIn ? (
+        <View style={[s.box, { backgroundColor: c.page, gap: 8 }]}>
+          <Text style={[s.bodyBold, { color: c.ink }]}>오늘 체크인을 먼저 남겨주세요</Text>
+          <Text style={[s.small, { color: c.muted }]}>오늘 몸 상태를 보고 짜요. 30초면 돼요.</Text>
+          <BigButton c={c} label="오늘 체크인하기" onPress={a.checkin} />
+        </View>
+      ) : make.needsEquipment ? (
+        <View style={[s.box, { backgroundColor: c.page, gap: 4 }]}>
+          <Text style={[s.bodyBold, { color: c.ink }]}>가진 장비부터 골라 주세요</Text>
+          <Text style={[s.small, { color: c.muted }]}>처음 한 번만 물어요. 없는 장비로 하는 운동은 빼고 짜요.</Text>
+          <LinkRow c={c} label="장비 고르기" onPress={() => a.web('/training')} />
+        </View>
+      ) : (
+        <>
+          <Text style={[s.small, { color: c.muted }]}>자동 맞춤이에요. 목표 · 시간은 앱이 정해요.</Text>
+          {make.clash ? (
+            <View style={[s.box, { backgroundColor: c.warnBg, gap: 4 }]}>
+              <Text style={[s.bodyBold, { color: c.warn }]}>
+                {make.clash.kind} 운동을 하고 싶다고 하셨는데, {make.clash.reason}.
+              </Text>
+              <Text style={[s.small, { color: c.warn }]}>
+                자동 맞춤은 몸 상태에 맞춰 {make.clash.fallbackLabel} 위주로 만들어요. {make.clash.kind} 운동을 하고 싶으면 ‘직접 고르기’에서 만들 수 있어요.
+              </Text>
+            </View>
+          ) : null}
+          {make.equipment.length > 0 ? (
+            <View style={{ gap: 8 }}>
+              <Text style={[s.smallBold, { color: c.ink }]}>오늘 쓸 수 있는 장비</Text>
+              <View style={s.chips}>
+                {make.equipment.map((n) => (
+                  <Chip
+                    key={n}
+                    c={c}
+                    label={n}
+                    on={on.includes(n)}
+                    onPress={() => {
+                      void Haptics.selectionAsync();
+                      setOn((cur) => (cur.includes(n) ? cur.filter((x) => x !== n) : [...cur, n]));
+                    }}
+                  />
+                ))}
+              </View>
+              <Text style={[s.tiny, { color: c.muted }]}>안 켜면 맨몸 운동만 나와요.</Text>
+            </View>
+          ) : null}
+          {error ? <Text style={[s.small, { color: c.danger }]}>{error}</Text> : null}
+          <BigButton
+            c={c}
+            busy={busy}
+            label={busy ? '오늘 몸 상태에 맞추고 있어요…' : '자동 맞춤으로 만들기'}
+            onPress={make1}
+          />
+          <LinkRow c={c} label="직접 골라 만들기" onPress={() => a.web('/training')} />
+        </>
+      )}
+    </Card>
+  );
+}
+
+/* ----------------------------- 일정 카드 · 목록 · 메모 ----------------------------- */
+
+type Local = { done: Record<string, boolean>; fav: Record<string, boolean>; gone: string[] };
+const EMPTY: Local = { done: {}, fav: {}, gone: [] };
+
+/**
+ * 만든 날 — 일정 머리(목표 · 까닭) · 체크 목록 · 오늘 운동 메모(웹 training-page 의 일정 갈래). 체크 · 별 · 빼기는 화면을 먼저 바꾸고 서버에
+ * 보낸다(웹 exercise-list 와 같은 길 — 실패하면 서버가 마지막으로 확인해 준 값으로 되돌림). 빼기 · 메모 뒤에는 화면을 다시 읽는다(시간 · 개수가 바뀐다).
+ */
+export function PlanBody({
+  plan,
+  data,
+  c,
+  a,
+}: {
+  plan: TodayPlan;
+  data: TrainingToday;
+  c: Palette;
+  a: TodayActions;
+}) {
+  const [local, setLocal] = useState<Local>(EMPTY);
+  /* 새로 받은 목록이면 화면에서만 바꾼 것을 걷는다 — 서버 값이 이긴다(웹 seen 과 같다) */
+  const [seen, setSeen] = useState(plan.groups);
+  if (seen !== plan.groups) {
+    setSeen(plan.groups);
+    setLocal(EMPTY);
+  }
+  const [error, setError] = useState<string | null>(null);
+  const pending = useRef(new Set<string>());
+  const [listOpen, setListOpen] = useState(false);
+  const unit = useWeightUnit();
+
+  const groups: TodayGroup[] = plan.groups
+    .map((g) => ({
+      ...g,
+      items: g.items
+        .filter((r) => !local.gone.includes(r.id))
+        .map((r) => ({ ...r, done: local.done[r.id] ?? r.done, favorite: local.fav[r.id] ?? r.favorite })),
+    }))
+    .filter((g) => g.items.length > 0);
+  const all = groups.flatMap((g) => g.items);
+  const doneCount = all.filter((r) => r.done).length;
+
+  const toggle = async (r: TodayRow) => {
+    if (pending.current.has(r.id)) return;
+    pending.current.add(r.id);
+    tick();
+    const next = !r.done;
+    setError(null);
+    setLocal((l) => ({ ...l, done: { ...l.done, [r.id]: next } }));
+    const res = await act<{ ok: true }>('exercise-log.setExerciseDone', r.id, next, data.today);
+    pending.current.delete(r.id);
+    if ('error' in res) {
+      setLocal((l) => ({ ...l, done: { ...l.done, [r.id]: !next } }));
+      setError(res.error);
+    }
+  };
+  const star = async (r: TodayRow) => {
+    tick();
+    setLocal((l) => ({ ...l, fav: { ...l.fav, [r.id]: !r.favorite } }));
+    const res = await act<{ favorite: boolean }>('favorite.toggleExerciseFavorite', r.id);
+    if ('error' in res) {
+      setLocal((l) => ({ ...l, fav: { ...l.fav, [r.id]: r.favorite } }));
+      setError(res.error);
+    } else setLocal((l) => ({ ...l, fav: { ...l.fav, [r.id]: res.favorite } }));
+  };
+  const remove = (r: TodayRow) =>
+    Alert.alert(`${r.title}`, '오늘 목록에서 뺄까요? 완료 표시도 같이 지워요.', [
+      { text: '취소', style: 'cancel' },
+      {
+        text: '빼기',
+        style: 'destructive',
+        onPress: () => {
+          void (async () => {
+            setError(null);
+            setLocal((l) => ({ ...l, gone: [...l.gone, r.id] }));
+            const res = await act<{ ok: true }>('plan-edit.removeFromTodayPlan', r.id);
+            if ('error' in res) {
+              setLocal((l) => ({ ...l, gone: l.gone.filter((x) => x !== r.id) }));
+              return setError(res.error);
+            }
+            await a.reload();
+          })();
+        },
+      },
+    ]);
+
+  const list = (
+    <View style={{ gap: 12 }}>
+      <View style={[s.card, { backgroundColor: c.card }]}>
+        <View style={s.between}>
+          <Text style={[s.bodyBold, { color: c.ink }]}>
+            오늘 <Text style={[s.num, { fontSize: 18 }]}>{doneCount}</Text>
+            <Text style={{ color: c.muted }}>/{all.length}</Text> 완료
+          </Text>
+          {all.length > 0 && doneCount === all.length ? <Text style={[s.bodyBold, { color: c.sky }]}>전부 마쳤어요</Text> : null}
+        </View>
+        <View style={[s.bar, { backgroundColor: c.line }]}>
+          <View style={{ width: `${all.length ? (doneCount / all.length) * 100 : 0}%`, backgroundColor: c.sky, borderRadius: 4 }} />
+        </View>
+        {doneCount === 0 && all.length > 0 ? (
+          <Text style={[s.tiny, { color: c.muted }]}>마친 운동을 눌러 표시해 주세요. 운동 부하와 다음 일정에 들어가요.</Text>
+        ) : null}
+      </View>
+      {error ? <Text style={[s.small, { color: c.danger }]}>{error}</Text> : null}
+      {groups.map((g) => (
+        <View key={g.slot} style={{ gap: 8 }}>
+          <Text style={[s.bodyBold, { color: c.ink, paddingHorizontal: 4 }]}>
+            {g.label} <Text style={[s.tiny, { color: c.muted }]}>{g.hint}</Text>
+          </Text>
+          {g.items.map((r) => (
+            <ExerciseRow key={r.id} r={r} unit={unit} c={c} onToggle={() => void toggle(r)} onStar={() => void star(r)} onRemove={() => remove(r)} />
+          ))}
+        </View>
+      ))}
+    </View>
+  );
+
+  return (
+    <>
+      <Card c={c}>
+        <View style={s.between}>
+          <Text style={[s.title, { color: c.ink, flex: 1 }]}>{plan.title}</Text>
+          <Text style={[s.small, { color: c.muted }]}>
+            <Text style={[s.bodyBold, s.num, { color: c.ink }]}>{all.length}</Text>종목 · 약{' '}
+            <Text style={[s.bodyBold, s.num, { color: c.ink }]}>{plan.minutes}</Text>분
+          </Text>
+        </View>
+        {plan.goal ? <Text style={[s.bodyBold, { color: c.ink }]}>목표 · {plan.goal}</Text> : null}
+        <Text style={[s.body, { color: c.muted }]}>{plan.reason}</Text>
+        {plan.reasons.length > 0 ? (
+          <View style={{ gap: 2 }}>
+            <Text style={[s.smallBold, { color: c.ink }]}>오늘 이렇게 짰어요</Text>
+            {plan.reasons.map((line) => (
+              <Text key={line} style={[s.small, { color: c.muted }]}>
+                · {line}
+              </Text>
+            ))}
+          </View>
+        ) : null}
+        {plan.autoPain ? (
+          <View style={[s.box, { backgroundColor: c.page, gap: 6 }]}>
+            <Text style={[s.smallBold, { color: c.sky }]}>
+              자동 맞춤 <Text style={{ color: c.muted, fontWeight: '400' }}>{plan.autoPain.summary}</Text>
+            </Text>
+            <Text style={[s.small, { color: c.ink }]}>{plan.autoPain.reason}</Text>
+            {plan.autoPain.caution ? <Text style={[s.tiny, { color: c.muted }]}>메모를 보고 조심한 곳: {plan.autoPain.caution}</Text> : null}
+            <Text style={[s.small, { color: c.warn }]}>메모에 통증 같은 말이 있어요.</Text>
+            <LinkRow c={c} label="통증이면 체크인 고치기" onPress={a.checkin} />
+          </View>
+        ) : null}
+        {plan.cut ? (
+          <Text style={[s.tiny, { color: c.warn }]}>
+            회복 데이라 {plan.cut.requested}분 → {plan.cut.minutes}분
+          </Text>
+        ) : null}
+        {plan.droppedForSafety > 0 ? (
+          <Text style={[s.small, s.box, { color: c.warn, backgroundColor: c.warnBg }]}>
+            몸 상태가 바뀌어 무리인 운동 {plan.droppedForSafety}개를 뺐어요.
+          </Text>
+        ) : null}
+        <View style={[s.divider, { borderTopColor: c.line }]}>
+          <LinkRow c={c} label="조건 바꿔 다시 만들기" onPress={() => a.web('/training')} />
+        </View>
+      </Card>
+
+      {plan.noEquipment ? (
+        <Card c={c} tone="warn">
+          <Text style={[s.small, { color: c.warn }]}>장비를 안 골라 전부 있다고 보고 골랐어요.</Text>
+          <LinkRow c={c} label="가진 장비 고르기" onPress={() => a.web('/training')} />
+        </Card>
+      ) : null}
+
+      {/* 마친 날은 목록을 접는다 — 위 완료 카드가 오늘 한 것을 숫자까지 말한다(웹 DoneFold) */}
+      {data.done ? (
+        <View style={[s.card, { backgroundColor: c.card, paddingVertical: 4 }]}>
+          <Pressable accessibilityRole="button" accessibilityState={{ expanded: listOpen }} onPress={() => setListOpen((v) => !v)} style={s.linkRow}>
+            <SymbolView name={listOpen ? 'chevron.up' : 'chevron.down'} size={12} tintColor={c.muted} />
+            <Text style={[s.bodyBold, { flex: 1, color: c.ink }]}>오늘 목록 보기</Text>
+            <Text style={[s.tiny, { color: c.muted }]}>{all.length}개</Text>
+          </Pressable>
+          {listOpen ? <View style={{ paddingBottom: 12 }}>{list}</View> : null}
+        </View>
+      ) : (
+        list
+      )}
+
+      <NoteView note={data.note} anyDone={doneCount > 0} today={data.today} c={c} a={a} />
+
+      {plan.tooFew ? (
+        <Card c={c} tone="warn">
+          <Text style={[s.small, { color: c.warn }]}>
+            오늘 조건에 맞는 운동이 {plan.tooFew.count}개뿐이에요(권장 {plan.tooFew.min}개 이상).
+          </Text>
+        </Card>
+      ) : null}
+    </>
+  );
+}
+
+/** 운동 한 줄 — 누르면 체크, 오른쪽 별 · 빼기, 밑에 지난번 · 영상(웹 CheckRow + RowFooter) */
+function ExerciseRow({
+  r,
+  unit,
+  c,
+  onToggle,
+  onStar,
+  onRemove,
+}: {
+  r: TodayRow;
+  unit: WeightUnit;
+  c: Palette;
+  onToggle: () => void;
+  onStar: () => void;
+  onRemove: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const last = r.last ? formatAmount(r.last, unit) : null;
+  const hasVideo = Boolean(r.videoPath || r.referenceVideoId);
+  return (
+    <View style={[st.ex, { backgroundColor: r.done ? `${c.sky}14` : c.card, borderColor: r.done ? c.sky : c.card }]}>
+      <View style={s.row}>
+        <Pressable
+          accessibilityRole="checkbox"
+          accessibilityState={{ checked: r.done }}
+          accessibilityLabel={r.title}
+          onPress={onToggle}
+          style={[s.row, { flex: 1, minWidth: 0, minHeight: 56 }]}
+        >
+          <SymbolView name={r.done ? 'checkmark.circle.fill' : 'circle'} size={24} tintColor={r.done ? c.sky : c.muted} />
+          {r.thumbUrl ? <Image source={{ uri: r.thumbUrl }} style={[st.thumb, { backgroundColor: c.line }]} /> : null}
+          <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
+            <Text numberOfLines={2} style={[s.bodyBold, { color: c.ink }]}>
+              {r.title}
+            </Text>
+            <Text numberOfLines={1} style={[s.tiny, { color: c.muted }]}>
+              {r.category}
+              {r.manual ? ' · 직접 넣음' : ''}
+            </Text>
+            {r.prescription ? <Text style={[s.small, { color: c.ink }]}>{r.prescription}</Text> : null}
+            {r.reason ? <Text style={[s.tiny, { color: c.sky }]}>{r.reason}</Text> : null}
+            {r.unsafe ? <Text style={[s.tiny, { color: c.warn }]}>오늘 몸 상태에는 권하지 않는 운동이에요</Text> : null}
+          </View>
+        </Pressable>
+        <View>
+          <Pressable accessibilityRole="button" accessibilityLabel={`${r.title} ${r.favorite ? '즐겨찾기 빼기' : '즐겨찾기'}`} onPress={onStar} style={st.icon}>
+            <SymbolView name={r.favorite ? 'star.fill' : 'star'} size={18} tintColor={r.favorite ? '#ff9500' : c.muted} />
+          </Pressable>
+          <Pressable accessibilityRole="button" accessibilityLabel={`${r.title} 목록에서 빼기`} onPress={onRemove} style={st.icon}>
+            <SymbolView name="xmark" size={15} tintColor={c.muted} />
+          </Pressable>
+        </View>
+      </View>
+      {last || hasVideo ? (
+        <View style={[s.between, s.divider, { borderTopColor: c.line, minHeight: 40 }]}>
+          <Text numberOfLines={1} style={[s.tiny, { flex: 1, color: c.muted }]}>
+            {last && r.last ? (
+              <>
+                지난번 {shortDate(r.last.date)} · <Text style={{ color: c.ink, fontWeight: '600' }}>{last}</Text>
+              </>
+            ) : null}
+          </Text>
+          {hasVideo ? (
+            <Pressable accessibilityRole="button" accessibilityState={{ expanded: open }} onPress={() => setOpen((v) => !v)} style={st.lineBtn}>
+              <Text style={[s.smallBold, { color: c.sky }]}>{open ? '접기' : '영상'}</Text>
+            </Pressable>
+          ) : null}
+        </View>
+      ) : null}
+      {open ? (
+        <View style={{ gap: 10, paddingBottom: 6 }}>
+          <ExerciseMedia path={r.videoPath} referenceVideoId={r.referenceVideoId} thumbUrl={r.thumbUrl} aspectRatio={r.aspectRatio} />
+          {r.description ? (
+            <Text selectable style={[s.body, { color: c.ink }]}>
+              {r.description}
+            </Text>
+          ) : null}
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+/** 오늘 운동이 어땠는지 — 하루에 하나(웹 TrainingNote). 강도는 1~10 중 하나를 골라야 저장된다(기본값을 채우지 않는다) */
+function NoteView({ note, anyDone, today, c, a }: { note: TrainingToday['note']; anyDone: boolean; today: string; c: Palette; a: TodayActions }) {
+  /* 저장한 뒤 다시 읽기가 오기 전까지 저장한 값을 보인다 — 새로 받은 메모가 오면 그것이 이긴다 */
+  const [mine, setMine] = useState<TrainingToday['note'] | null>(null);
+  const [seen, setSeen] = useState(note);
+  if (seen !== note) {
+    setSeen(note);
+    setMine(null);
+  }
+  const cur = mine ?? note;
+  const saved = cur.intensity != null;
+  const [editing, setEditing] = useState(!saved);
+  const [value, setValue] = useState<number | null>(note.intensity);
+  const [text, setText] = useState(note.memo ?? '');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  if (!saved && !anyDone)
+    return (
+      <Text style={[s.body, s.box, { color: c.muted, backgroundColor: c.card }]}>
+        운동을 하나라도 마치면 여기에 오늘 운동이 어땠는지 남길 수 있어요.
+      </Text>
+    );
+
+  if (saved && !editing)
+    return (
+      <Card c={c}>
+        <View style={s.between}>
+          <Text style={[s.bodyBold, { color: c.sky }]}>✓ 오늘 운동 강도 {cur.intensity}/10</Text>
+          <Pressable accessibilityRole="button" onPress={() => setEditing(true)} style={st.lineBtn}>
+            <Text style={[s.smallBold, { color: c.sky }]}>고치기</Text>
+          </Pressable>
+        </View>
+        {cur.memo ? <Text style={[s.body, { color: c.ink }]}>{cur.memo}</Text> : null}
+      </Card>
+    );
+
+  const save = async () => {
+    if (busy) return;
+    setError(null);
+    if (value == null) return setError('운동 강도를 먼저 골라 주세요.');
+    setBusy(true);
+    const r = await act<{ ok: true }>('exercise-log.saveTrainingNote', value, text, today);
+    setBusy(false);
+    if ('error' in r) return setError(r.error);
+    void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    setMine({ intensity: value, memo: text.trim() || null });
+    setEditing(false);
+    await a.reload();
+  };
+
+  return (
+    <Card c={c}>
+      <View style={{ gap: 2 }}>
+        <Text style={[s.bodyBold, { color: c.ink }]}>오늘 운동은 어땠나요?</Text>
+        <Text style={[s.tiny, { color: c.muted }]}>하루에 한 번만 적으면 돼요. 투구와 함께 몸에 걸린 부담을 보는 데 써요.</Text>
+      </View>
+      <Text style={[s.smallBold, { color: c.ink }]}>운동 강도 · {value == null ? '아직 안 골랐어요' : `${value} / 10`}</Text>
+      <View style={[s.row, { gap: 6 }]}>
+        {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
+          <Pressable
+            key={n}
+            accessibilityRole="button"
+            accessibilityLabel={`강도 ${n}`}
+            accessibilityState={{ selected: value === n }}
+            onPress={() => {
+              void Haptics.selectionAsync();
+              setValue(n);
+            }}
+            style={[st.level, { backgroundColor: value === n ? c.sky : c.chip }]}
+          >
+            <Text style={[s.smallBold, s.num, { color: value === n ? '#fff' : c.ink }]}>{n}</Text>
+          </Pressable>
+        ))}
+      </View>
+      <View style={s.between}>
+        <Text style={[s.tiny, { color: c.muted }]}>1 아주 가벼움</Text>
+        <Text style={[s.tiny, { color: c.muted }]}>10 최대</Text>
+      </View>
+      <TextInput
+        value={text}
+        onChangeText={setText}
+        multiline
+        maxLength={1000}
+        placeholder="무거웠던 곳, 잘 된 동작 (안 적어도 돼요)"
+        placeholderTextColor={c.muted}
+        style={[st.input, { color: c.ink, backgroundColor: c.page, borderColor: c.line }]}
+      />
+      {error ? <Text style={[s.small, { color: c.danger }]}>{error}</Text> : null}
+      <BigButton c={c} busy={busy} label={busy ? '저장 중…' : saved ? '고쳐서 저장' : '오늘 운동 기록 저장'} onPress={() => void save()} />
+      {saved ? <LinkRow c={c} label="취소" onPress={() => setEditing(false)} /> : null}
+    </Card>
+  );
+}
+
+const st = StyleSheet.create({
+  stat: { flex: 1, borderRadius: 12, paddingVertical: 10, alignItems: 'center', gap: 2 },
+  statValue: { fontSize: 20, fontWeight: '700', fontVariant: ['tabular-nums'] },
+  line: { minHeight: 40, flexDirection: 'row', alignItems: 'center', gap: 12 },
+  lineCard: { minHeight: 52, borderRadius: 16, flexDirection: 'row', alignItems: 'center', gap: 10, paddingLeft: 16, paddingRight: 6, paddingVertical: 6 },
+  lineBtn: { minHeight: 44, paddingHorizontal: 12, justifyContent: 'center' },
+  ex: { borderRadius: 16, borderWidth: 1, paddingLeft: 12, paddingRight: 2, paddingVertical: 4, gap: 4 },
+  thumb: { width: 64, height: 48, borderRadius: 10 },
+  icon: { width: 44, height: 40, alignItems: 'center', justifyContent: 'center' },
+  level: { flex: 1, height: 40, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  input: { minHeight: 80, borderRadius: 12, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 10, fontSize: 15, textAlignVertical: 'top' },
+});

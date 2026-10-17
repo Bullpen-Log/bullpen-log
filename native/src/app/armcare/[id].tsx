@@ -35,7 +35,7 @@ function leave(to: string) {
 
 export default function ArmcarePlayScreen() {
   const c = usePalette();
-  const { id, d, areas } = useLocalSearchParams<{ id: string; d?: string; areas?: string }>();
+  const { id, d, areas, from } = useLocalSearchParams<{ id: string; d?: string; areas?: string; from?: string }>();
   const [data, setData] = useState<ArmcarePlay | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
   const [tries, setTries] = useState(0);
@@ -59,7 +59,7 @@ export default function ArmcarePlayScreen() {
     };
   }, [id, d, areas, tries]);
 
-  if (data) return <Player {...data} c={c} />;
+  if (data) return <Player {...data} inApp={from === 'app'} c={c} />;
   return (
     <View style={[s.fill, s.centerBox, { backgroundColor: c.page, gap: 16 }]}>
       <Stack.Screen options={{ gestureEnabled: false }} />
@@ -184,7 +184,9 @@ const tick = () => void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
 /* ----------------------------- 본체 ----------------------------- */
 
-function Player({ title, backHref, dateKey, notice, items, rehabCheck, c }: ArmcarePlay & { c: Palette }) {
+function Player({ title, backHref, dateKey, notice, items, rehabCheck, inApp, c }: ArmcarePlay & { inApp: boolean; c: Palette }) {
+  /* 앱 화면에서 열었으면 그냥 뒤로(그 화면이 다시 보인다) — 웹에서 넘어왔으면 웹을 돌아갈 칸으로(~/shell/web-nav fromApp) */
+  const close = () => (inApp ? router.back() : leave(backHref));
   const inset = useSafeAreaInsets();
   const [state, dispatch] = useReducer((st: State, a: Action) => reduce(st, a, items), items, initState);
 
@@ -361,7 +363,7 @@ function Player({ title, backHref, dateKey, notice, items, rehabCheck, c }: Armc
   const header = (
     <View style={[s.header, { paddingTop: inset.top + 8, backgroundColor: c.card, borderBottomColor: c.line }]}>
       <View style={s.headRow}>
-        <Pressable onPress={() => leave(backHref)} accessibilityRole="button" accessibilityLabel="따라하기 닫기" style={s.iconBtn}>
+        <Pressable onPress={close} accessibilityRole="button" accessibilityLabel="따라하기 닫기" style={s.iconBtn}>
           <View style={[s.circle, { backgroundColor: c.chip }]}>
             <SymbolView name="xmark" size={14} weight="semibold" tintColor={c.muted} />
           </View>
@@ -427,7 +429,7 @@ function Player({ title, backHref, dateKey, notice, items, rehabCheck, c }: Armc
         {rehabCheck && count > 0 ? (
           <RehabCheck dateKey={dateKey} settled={unsaved.length === 0} initial={rehabCheck.initial} c={c} />
         ) : null}
-        <Pressable onPress={() => leave(backHref)} accessibilityRole="button" style={[s.pill, { backgroundColor: c.sky }]}>
+        <Pressable onPress={close} accessibilityRole="button" style={[s.pill, { backgroundColor: c.sky }]}>
           <Text style={[s.bodyBold, { color: '#fff' }]}>암케어로 돌아가기</Text>
         </Pressable>
       </ScrollView>

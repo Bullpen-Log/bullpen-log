@@ -5,7 +5,7 @@ import { useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { josa } from '@/lib/korean';
 import { mechanicsLevel } from '@/lib/mechanics/levels';
-import { DRILL_THROW_TEXT, FILM_VERDICTS, type DrillThrowNote, type FilmVerdict } from '@/lib/mechanics/program';
+import { DRILL_THROW_TEXT, FILM_VERDICTS, type DrillThrowNote, type FilmNote, type FilmVerdict } from '@/lib/mechanics/program';
 import { rpc, RpcError } from '~/lib/rpc';
 import type { Palette } from '~/lib/ui';
 import { openWebAfter } from '~/shell/web-nav';
@@ -136,9 +136,9 @@ export function ThrowNoteCard({ note, c }: { note: DrillThrowNote; c: Palette })
   );
 }
 
-/** 찍어서 견준 뒤의 한 답(웹 film-verdict.tsx) — 세션 번호와 함께 남고 프로그램 칸이 '견준 기록'으로 보인다. 다시 누르면 바꾼다 */
-export function FilmVerdictButtons({ session, c }: { session: number; c: Palette }) {
-  const [saved, setSaved] = useState<FilmVerdict | null>(null);
+/** 찍어서 견준 뒤의 한 답(웹 film-verdict.tsx) — 세션 번호와 함께 남고 프로그램 칸이 '견준 기록'으로 보인다. 다시 누르면 바꾼다. current 는 이미 남긴 답 */
+export function FilmVerdictButtons({ session, current = null, c }: { session: number; current?: FilmNote | null; c: Palette }) {
+  const [saved, setSaved] = useState<FilmVerdict | null>(current?.verdict ?? null);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const pick = async (verdict: FilmVerdict) => {
@@ -186,7 +186,18 @@ export function FilmVerdictButtons({ session, c }: { session: number; c: Palette
  * 다음 · 아래 수준 권하기(웹 LevelOffer) — 저절로 바꾸지 않는다. 누르면 그 수준의 1번 세션부터.
  * done: 12세션을 다 마침 · up: 여러 요소에서 '쉬움'이 쌓임 · down: '어려움'이 이어짐.
  */
-export function LevelOffer({ kind, to, c }: { kind: 'done' | 'up' | 'down'; to: Parameters<typeof mechanicsLevel>[0]; c: Palette }) {
+export function LevelOffer({
+  kind,
+  to,
+  onChanged,
+  c,
+}: {
+  kind: 'done' | 'up' | 'down';
+  to: Parameters<typeof mechanicsLevel>[0];
+  /** 바꾼 뒤 — 프로그램 칸(앱 화면)은 다시 받는다 */
+  onChanged?: () => void;
+  c: Palette;
+}) {
   const [state, setState] = useState<'ask' | 'changed' | 'keep'>('ask');
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -211,7 +222,10 @@ export function LevelOffer({ kind, to, c }: { kind: 'done' | 'up' | 'down'; to: 
     const res = await act<{ ok: true }>('mechanics.startMechanicsProgram', to);
     setPending(false);
     if ('error' in res) setError(res.error);
-    else setState('changed');
+    else {
+      setState('changed');
+      onChanged?.();
+    }
   };
   return (
     <View style={[s.block, { backgroundColor: c.card }]}>

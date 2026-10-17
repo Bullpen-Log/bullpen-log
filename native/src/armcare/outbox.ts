@@ -61,6 +61,8 @@ export const checkOutbox = {
     };
   },
   snapshot: (): readonly PendingCheck[] => items,
+  /** 아직 안 보낸 체크를 푼다(체크 목록에서 다시 누름) — 서버에는 간 적이 없으니 빼기만 하면 된다 */
+  drop: (k: CheckKey) => remove(k),
   add(p: PendingCheck) {
     const owner = outboxOwner();
     set([...items.filter((x) => !same(x, p)), owner ? { ...p, owner } : p]);

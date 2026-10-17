@@ -14,3 +14,9 @@ export function useWebNav(handler: (href: string) => void) {
     };
   }, [handler]);
 }
+
+/**
+ * 앱 화면에서 따라 하기(암케어 · 메커니즘)를 열 때 붙인다 — 플레이어는 닫거나 마칠 때 웹을 그 칸(/training?view=…)으로 옮겨 왔는데(웹에서 넘어온 때를
+ * 위해), 앱 화면(트레이닝 탭 · 암케어 · 메커니즘 화면)에서 열었으면 그냥 뒤로 가야 그 화면이 다시 보인다.
+ */
+export const fromApp = (path: string) => `${path}${path.includes('?') ? '&' : '?'}from=app`;

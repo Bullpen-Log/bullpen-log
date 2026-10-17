@@ -9,6 +9,7 @@ import { TRAINING_PART_HREF, type TrainingPart } from '@/lib/training-part';
 import { rpc, RpcError } from '~/lib/rpc';
 import { cacheEpoch, cacheGet, cacheSet } from '~/lib/store';
 import { usePalette } from '~/lib/ui';
+import { fromApp } from '~/shell/web-nav';
 
 /**
  * 트레이닝 탭 첫 화면(앱 화면) — 웹 트레이닝 홈(app/(app)/training/training-home.tsx)과 같은 앱 카드 셋(오늘 운동 · 암케어 · 메커니즘,
@@ -105,10 +106,10 @@ export function TrainingTab({ today, bottom, onWeb }: { today: string; bottom: n
     if (a.kind === 'checkin') return router.push({ pathname: '/checkin' as Href as never, params: { date: today } });
     /* 암케어 따라 하기는 앱 화면 — 웹(/armcare/play/<id>)을 거치면 한 번 더 읽고 넘긴다 */
     const armcare = /^\/armcare\/play\/([\w-]+)(\?.*)?$/.exec(a.href);
-    if (armcare) return router.push(`/armcare/${armcare[1]}${armcare[2] ?? ''}` as Href);
+    if (armcare) return router.push(fromApp(`/armcare/${armcare[1]}${armcare[2] ?? ''}`) as Href);
     /* 메커니즘 따라 하기도 앱 화면(앱 판 4) */
     const mech = /^\/mechanics\/play(\?.*)?$/.exec(a.href);
-    if (mech) return router.push(`/mechanics${mech[1] ?? ''}` as Href);
+    if (mech) return router.push(fromApp(`/mechanics${mech[1] ?? ''}`) as Href);
     onWeb(a.href);
   };
 
@@ -116,6 +117,14 @@ export function TrainingTab({ today, bottom, onWeb }: { today: string; bottom: n
     setRefreshing(true);
     await load();
     setRefreshing(false);
+  };
+
+  /* 카드를 누르면 그 앱의 전체 화면 — 앱 화면이 있는 것은 앱으로(웹 탭 판 안의 화면이라 사이트가 넘기지 않는다) */
+  const openPart = (app: TrainingPart) => {
+    if (app === 'today') return router.push({ pathname: '/training-today' as Href as never, params: { today } });
+    if (app === 'armcare') return router.push('/training-armcare' as Href);
+    if (app === 'mechanics') return router.push('/training-mechanics' as Href);
+    onWeb(TRAINING_PART_HREF[app]);
   };
 
   return (
@@ -135,7 +144,7 @@ export function TrainingTab({ today, bottom, onWeb }: { today: string; bottom: n
       {!data && !error ? <ActivityIndicator style={{ paddingVertical: 24 }} /> : null}
 
       {data?.cards.map((card) => (
-        <Card key={card.app} card={fresh ? card : { ...card, throwNote: null }} busy={starting} onOpen={() => onWeb(TRAINING_PART_HREF[card.app])} onAction={act} onWeb={onWeb} />
+        <Card key={card.app} card={fresh ? card : { ...card, throwNote: null }} busy={starting} onOpen={() => openPart(card.app)} onAction={act} onWeb={onWeb} />
       ))}
     </ScrollView>
   );
@@ -197,7 +206,16 @@ function Card({
         </View>
       ) : null}
       {card.gap ? (
-        <Pressable accessibilityRole="button" onPress={() => onWeb(card.gap!.href)} style={styles.line}>
+        <Pressable
+          accessibilityRole="button"
+          onPress={() =>
+            /* 암케어 빈 곳 줄(/training?view=armcare&tab=guide)은 앱 암케어 화면의 부위별 보강 칸으로 */
+            card.gap!.href === '/training?view=armcare&tab=guide'
+              ? router.push({ pathname: '/training-armcare' as Href as never, params: { tab: 'guide' } })
+              : onWeb(card.gap!.href)
+          }
+          style={styles.line}
+        >
           <Text style={{ color: c.sky, fontSize: 13, fontWeight: '600' }}>{card.gap.text} ›</Text>
         </Pressable>
       ) : null}

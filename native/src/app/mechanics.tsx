@@ -37,7 +37,7 @@ type FinishResult = { ok: true; advice: ReturnType<typeof levelAdvice>; throwNot
 
 export default function MechanicsPlayScreen() {
   const c = usePalette();
-  const { anyway } = useLocalSearchParams<{ anyway?: string }>();
+  const { anyway, from } = useLocalSearchParams<{ anyway?: string; from?: string }>();
   const [data, setData] = useState<MechanicsPlay | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
   const [tries, setTries] = useState(0);
@@ -61,7 +61,7 @@ export default function MechanicsPlayScreen() {
     };
   }, [anyway, tries]);
 
-  if (data) return <Player {...data} c={c} />;
+  if (data) return <Player {...data} inApp={from === 'app'} c={c} />;
   return (
     <View style={[s.fill, s.centerBox, { backgroundColor: c.page, gap: 16 }]}>
       <Stack.Screen options={{ gestureEnabled: false }} />
@@ -122,7 +122,9 @@ const tick = () => void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
 /* ----------------------------- 본체 ----------------------------- */
 
-function Player({ backHref, items, startAt, label, sessionNumber, partial, painLabel, c }: MechanicsPlay & { c: Palette }) {
+function Player({ backHref, items, startAt, label, sessionNumber, partial, painLabel, inApp, c }: MechanicsPlay & { inApp: boolean; c: Palette }) {
+  /* 앱 화면에서 열었으면 그냥 뒤로(그 화면이 다시 보인다) — 웹에서 넘어왔으면 웹을 돌아갈 칸으로(~/shell/web-nav fromApp) */
+  const close = () => (inApp ? router.back() : leave(backHref));
   const inset = useSafeAreaInsets();
   const [index, setIndex] = useState(startAt);
   const [done, setDone] = useState<boolean[]>(() => items.map((_, i) => i < startAt));
@@ -216,7 +218,7 @@ function Player({ backHref, items, startAt, label, sessionNumber, partial, painL
   const header = (
     <View style={[s.header, { paddingTop: inset.top + 8, backgroundColor: c.card, borderBottomColor: c.line }]}>
       <View style={s.headRow}>
-        <Pressable onPress={() => leave(backHref)} accessibilityRole="button" accessibilityLabel="따라 하기 닫기" style={s.iconBtn}>
+        <Pressable onPress={close} accessibilityRole="button" accessibilityLabel="따라 하기 닫기" style={s.iconBtn}>
           <View style={[s.circle, { backgroundColor: c.chip }]}>
             <SymbolView name="xmark" size={14} weight="semibold" tintColor={c.muted} />
           </View>
@@ -281,7 +283,7 @@ function Player({ backHref, items, startAt, label, sessionNumber, partial, painL
           </View>
         ) : null}
 
-        <Pressable onPress={() => leave(backHref)} accessibilityRole="button" style={[s.pill, s.stretch, { backgroundColor: c.sky }]}>
+        <Pressable onPress={close} accessibilityRole="button" style={[s.pill, s.stretch, { backgroundColor: c.sky }]}>
           <Text style={[s.bodyBold, { color: '#fff' }]}>완료</Text>
         </Pressable>
       </ScrollView>

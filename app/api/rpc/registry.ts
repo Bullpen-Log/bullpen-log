@@ -11,6 +11,8 @@ import * as app from '@/app/actions/app';
 import * as appAnalysis from '@/app/actions/app-analysis';
 import * as appArmcare from '@/app/actions/app-armcare';
 import * as appMechanics from '@/app/actions/app-mechanics';
+import * as appTraining from '@/app/actions/app-training';
+import * as appTrainingParts from '@/app/actions/app-training-parts';
 import * as appWorkout from '@/app/actions/app-workout';
 import * as armcare from '@/app/actions/armcare';
 import * as auth from '@/app/actions/auth';
@@ -51,6 +53,8 @@ export const RPC_MODULES: Record<string, Record<string, unknown>> = {
   'app-analysis': appAnalysis,
   'app-armcare': appArmcare,
   'app-mechanics': appMechanics,
+  'app-training': appTraining,
+  'app-training-parts': appTrainingParts,
   'app-workout': appWorkout,
   armcare: armcare,
   auth: auth,
