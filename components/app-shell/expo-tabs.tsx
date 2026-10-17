@@ -12,7 +12,7 @@ import { slideToTab } from '@/components/tab-pager';
  *            { t: 'menu', groups, nickname }(더보기 목록 — 앱이 제 더보기 화면에 그린다, 앱 화면 위에서 웹 메뉴를 열면 밑에 깔려 안 보여서)
  *            { t: 'webfront', on: false }(설정 창을 닫았다 — 앱이 덮었던 앱 화면을 다시 보인다)
  *   앱 → 웹: window.__bpTab(href) — 판 넘기기(slideToTab)로 옮기고, 못 하면(하위 화면) 이동. 더보기는 메뉴를 연다.
- *            window.__bpOpen('settings') — 설정 창(웹 틀의 창이라 주소가 없다)
+ *            window.__bpOpen('settings' | 'profile') — 설정 · 내 정보 창(웹 틀의 창이라 주소가 없다 — /profile 은 홈으로 간다)
  * 새 앱이 아니면 아무것도 안 한다. 웹 탭 막대는 globals.css 'Expo 앱 탭'이 숨긴다.
  */
 type RN = { postMessage(s: string): void };
@@ -26,13 +26,16 @@ export function ExpoTabBridge({
   nickname,
   settingsOpen,
   onSettings,
+  onProfile,
 }: {
   tabs: NavItem[];
   onMenu: () => void;
   groups: NavGroup[];
   nickname: string;
+  /** 앱이 연 웹 창(설정 · 내 정보)이 열려 있나 — 닫히면 앱에 알린다 */
   settingsOpen: boolean;
   onSettings: () => void;
+  onProfile: () => void;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -79,8 +82,9 @@ export function ExpoTabBridge({
     if (!isExpo()) return;
     (window as unknown as { __bpOpen?: (what: string) => void }).__bpOpen = (what) => {
       if (what === 'settings') onSettings();
+      else if (what === 'profile') onProfile();
     };
-  }, [onSettings]);
+  }, [onSettings, onProfile]);
 
   /* 설정 창을 닫으면 앱에 알린다 — 앱 화면(홈 · 투구 · 영양) 위에서 연 창이면 앱이 그 화면을 다시 보인다 */
   const wasOpen = useRef(false);

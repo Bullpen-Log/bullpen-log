@@ -187,14 +187,14 @@ export default function SiteScreen() {
   };
   /*
    * 앱 화면이 끝난 뒤 웹을 옮길 곳(운동을 마치면 축하 화면 · 더보기에서 고른 곳) — shell/web-nav.ts. 탭 · 앱 화면이 있는 곳은 그리로,
-   * '#settings' 는 웹 설정 창(주소가 없다 — 앱 화면을 걷고 연다). 처리기는 늘 지금 탭 목록을 보게 ref 로.
+   * '#settings' · '#profile' 은 웹 설정 · 내 정보 창(주소가 없다 — 앱 화면을 걷고 연다). 처리기는 늘 지금 탭 목록을 보게 ref 로.
    */
   const navTo = useRef<(href: string) => void>(() => undefined);
   useEffect(() => {
     navTo.current = (href) => {
-      if (href === '#settings') {
+      if (href === '#settings' || href === '#profile') {
         setWebFront(true);
-        web.current?.injectJavaScript(`window.__bpOpen && window.__bpOpen('settings');true;`);
+        web.current?.injectJavaScript(`window.__bpOpen && window.__bpOpen('${href.slice(1)}');true;`);
       } else if (NATIVE_PATHS.has(href)) openNative(href);
       else goTab(href);
     };

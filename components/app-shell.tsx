@@ -1332,8 +1332,9 @@ export function AppNav({
           onMenu={() => go('sheet')}
           groups={groups}
           nickname={nickname}
-          settingsOpen={settingsOpen}
+          settingsOpen={settingsOpen || profileOpen}
           onSettings={() => setSettingsOpen(true)}
+          onProfile={() => setProfileOpen(true)}
         />
       </Suspense>
 
