@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useSyncExternalStore } from 'react';
 import type { Food, MealEntryView, MealKey } from '@/lib/nutrition/meta';
+import type { PlanContext, PlanItem } from '@/lib/nutrition/meal-plan';
+import type { Place } from '@/lib/nutrition/meal-templates';
 import { rpc } from '~/lib/rpc';
 import { cacheGet, cacheSet } from '~/lib/store';
 import { call } from '~/pitch/api';
@@ -17,6 +19,7 @@ export type NutritionDay = {
   recent: Food[];
   mine: Food[];
   mfds: boolean;
+  mealPlan: { items: PlanItem[]; context: PlanContext } | null;
 };
 type Result = { ok: true } | { ok: false; error: string };
 
@@ -106,6 +109,12 @@ export const addFoods = (date: string, meal: MealKey, items: { food: Food; amoun
 export const setAmount = (date: string, id: string, amount: number) => act(date, 'nutrition.updateMealAmount', id, amount);
 export const removeEntry = (date: string, id: string) => act(date, 'nutrition.deleteMealEntry', id);
 export const saveWeight = (date: string, kg: number | null) => act(date, 'nutrition.setWeight', date, kg);
+/* 식단 짜기(오늘만) — 웹과 같은 서버 셈(lib/nutrition/meal-plan.ts). variant 를 올리면 다른 식단 */
+export const makePlan = (date: string, place: Place, hot: boolean, variant: number) =>
+  act(date, 'nutrition.makeMealPlan', date, { place, hot, variant });
+/** 계획 줄을 먹은 기록으로 — 같은 줄을 두 번 눌러도 한 번 */
+export const eatPlan = (date: string, keys: string[]) => act(date, 'nutrition.eatPlanItems', date, keys);
+export const clearPlan = (date: string) => act(date, 'nutrition.clearMealPlan', date);
 
 /** 식약처 — 품목대표(바로) 먼저, 상품까지는 뒤에(1~13초) */
 export const searchMfdsReps = (q: string) =>

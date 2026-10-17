@@ -1,11 +1,13 @@
 import { type Href, router } from 'expo-router';
 import { useState } from 'react';
-import { Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MEALS, amountText, entryMacros, type MealEntryView } from '@/lib/nutrition/meta';
 import { shiftDateKey } from '@/lib/pitch-stats';
 import { usePalette } from '~/lib/ui';
-import { removeEntry, saveWeight, setAmount, useNutritionDay } from './api';
+import { PLAN_PLACES, type PlanItem } from '@/lib/nutrition/meal-plan';
+import type { Place } from '@/lib/nutrition/meal-templates';
+import { clearPlan, eatPlan, makePlan, removeEntry, saveWeight, setAmount, useNutritionDay } from './api';
 
 /**
  * 영양 탭(앱 화면) — 웹 영양 탭의 '기록' 쪽: 오늘 먹은 것과 목표(kcal · 탄 · 단 · 지) · 끼니마다 담은 음식(양 바꾸기 · 지우기) · 체중.
@@ -128,9 +130,12 @@ export function NutritionTab({ today, bottom, onWebNutrition }: { today: string;
         <View style={[styles.card, { backgroundColor: c.card, height: 160 }]} />
       ) : null}
 
+      {day && date === today ? <PlanCard date={date} plan={day.mealPlan} busy={busy} run={run} /> : null}
+
       {day
         ? MEALS.map((meal) => {
             const list = day.entries.filter((e) => e.meal === meal.key);
+            const planned = (day.mealPlan?.items ?? []).filter((p) => p.meal === meal.key && !p.done);
             const kcal = list.reduce((n, e) => n + entryMacros(e).kcal, 0);
             const protein = list.reduce((n, e) => n + entryMacros(e).protein, 0);
             return (
@@ -149,6 +154,9 @@ export function NutritionTab({ today, bottom, onWebNutrition }: { today: string;
                     <Text style={[styles.addText, { color: c.sky }]}>+ 담기</Text>
                   </Pressable>
                 </View>
+                {planned.length ? (
+                  <PlanRows items={planned} onEat={(keys) => run(() => eatPlan(date, keys))} busy={busy} />
+                ) : null}
                 {list.map((e) => (
                   <EntryRow
                     key={e.id}
@@ -186,6 +194,132 @@ export function NutritionTab({ today, bottom, onWebNutrition }: { today: string;
         </View>
       ) : null}
     </ScrollView>
+  );
+}
+
+/**
+ * 식단 짜기(오늘만) — 웹 영양 탭 식단 카드와 같은 서버 셈. 짜기 전: 오늘 훈련 장소 · 더운 날 → [식단 짜기]. 짠 뒤: 까닭 몇 줄 ·
+ * [다른 식단으로](같은 조건의 다음 식단) · [지우기]. 계획 줄은 끼니 칸에 흐리게 서고, 먹었으면 동그라미로 먹은 기록이 된다.
+ */
+function PlanCard({
+  date,
+  plan,
+  busy,
+  run,
+}: {
+  date: string;
+  plan: { items: PlanItem[]; context: { place: Place; hot: boolean; variant: number; reasons: string[] } } | null;
+  busy: boolean;
+  run: (job: () => Promise<string | null>) => Promise<void>;
+}) {
+  const c = usePalette();
+  const [place, setPlace] = useState<Place>(plan?.context.place ?? 'home');
+  const [hot, setHot] = useState(plan?.context.hot ?? false);
+  if (plan) {
+    const left = plan.items.filter((p) => !p.done).length;
+    return (
+      <View style={[styles.card, { backgroundColor: c.card }]}>
+        <Text style={[styles.mealTitle, { color: c.ink }]}>오늘 식단</Text>
+        <Text style={{ color: c.muted, fontSize: 14 }}>
+          {left > 0 ? `먹을 것 ${left}가지 남았어요 · 끼니 칸의 동그라미를 누르면 먹은 기록이 돼요.` : '식단을 다 먹었어요.'}
+        </Text>
+        {plan.context.reasons.slice(0, 3).map((r, i) => (
+          <Text key={i} style={{ color: c.muted, fontSize: 13 }}>
+            · {r}
+          </Text>
+        ))}
+        <View style={styles.weightRow}>
+          <Pressable
+            accessibilityRole="button"
+            disabled={busy}
+            onPress={() => run(() => makePlan(date, plan.context.place, plan.context.hot, plan.context.variant + 1))}
+            style={[styles.ghostBtn, { backgroundColor: c.chip }]}
+          >
+            <Text style={{ color: c.ink, fontSize: 15, fontWeight: '600' }}>다른 식단으로</Text>
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            disabled={busy}
+            onPress={() =>
+              Alert.alert('오늘 식단을 지울까요?', '먹은 기록은 그대로 남아요.', [
+                { text: '취소', style: 'cancel' },
+                { text: '지우기', style: 'destructive', onPress: () => void run(() => clearPlan(date)) },
+              ])
+            }
+            style={[styles.ghostBtn, { backgroundColor: c.chip }]}
+          >
+            <Text style={{ color: c.danger, fontSize: 15, fontWeight: '600' }}>지우기</Text>
+          </Pressable>
+        </View>
+      </View>
+    );
+  }
+  return (
+    <View style={[styles.card, { backgroundColor: c.card }]}>
+      <Text style={[styles.mealTitle, { color: c.ink }]}>오늘 식단 짜기</Text>
+      <Text style={{ color: c.muted, fontSize: 14 }}>목표 · 오늘 운동 · 컨디션에 맞춰 남은 끼니를 짜요.</Text>
+      <View style={styles.placeRow}>
+        {PLAN_PLACES.map((p) => {
+          const on = place === p.key;
+          return (
+            <Pressable
+              key={p.key}
+              accessibilityRole="radio"
+              accessibilityState={{ selected: on }}
+              onPress={() => setPlace(p.key)}
+              style={[styles.placeChip, { backgroundColor: on ? c.sky : c.chip }]}
+            >
+              <Text style={{ color: on ? '#fff' : c.ink, fontSize: 14, fontWeight: '600' }}>{p.label}</Text>
+            </Pressable>
+          );
+        })}
+      </View>
+      <View style={styles.hotRow}>
+        <Text style={{ flex: 1, color: c.ink, fontSize: 15 }}>더운 날 · 야외 훈련</Text>
+        <Switch value={hot} onValueChange={setHot} />
+      </View>
+      <Pressable
+        accessibilityRole="button"
+        disabled={busy}
+        onPress={() => run(() => makePlan(date, place, hot, 0))}
+        style={[styles.primary, { backgroundColor: c.sky }, busy && { opacity: 0.5 }]}
+      >
+        <Text style={styles.primaryText}>{busy ? '짜는 중' : '식단 짜기'}</Text>
+      </Pressable>
+    </View>
+  );
+}
+
+/** 끼니 칸 안의 계획 줄 — 흐린 줄, 동그라미 = 먹었어요, 끼니째 '모두 먹었어요' */
+function PlanRows({ items, onEat, busy }: { items: PlanItem[]; onEat: (keys: string[]) => void; busy: boolean }) {
+  const c = usePalette();
+  return (
+    <View style={{ gap: 2 }}>
+      {items.map((p) => (
+        <View key={p.key} style={[styles.entry, { opacity: 0.75 }]}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`${p.name} 먹었어요`}
+            disabled={busy}
+            onPress={() => onEat([p.key])}
+            hitSlop={8}
+            style={[styles.eat, { borderColor: c.sky }]}
+          />
+          <Text style={{ flex: 1, color: c.ink, fontSize: 15 }} numberOfLines={1}>
+            식단 · {p.name}
+          </Text>
+          <Text style={{ color: c.muted, fontSize: 14 }}>
+            {p.amount !== 1 ? `${amountText(p.amount)} · ` : ''}
+            {kcalText(p.kcal * p.amount)}
+          </Text>
+        </View>
+      ))}
+      {items.length > 1 ? (
+        <Pressable accessibilityRole="button" disabled={busy} onPress={() => onEat(items.map((p) => p.key))} style={{ minHeight: 36, justifyContent: 'center' }}>
+          <Text style={{ color: c.sky, fontSize: 14, fontWeight: '600' }}>모두 먹었어요</Text>
+        </Pressable>
+      ) : null}
+    </View>
   );
 }
 
@@ -285,5 +419,10 @@ const styles = StyleSheet.create({
   input: { flex: 1, minHeight: 48, borderRadius: 12, paddingHorizontal: 14, fontSize: 17 },
   save: { height: 48, borderRadius: 24, paddingHorizontal: 20, justifyContent: 'center' },
   primary: { height: 48, borderRadius: 24, paddingHorizontal: 24, alignItems: 'center', justifyContent: 'center' },
+  ghostBtn: { flex: 1, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
+  placeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  placeChip: { minHeight: 40, paddingHorizontal: 14, borderRadius: 20, justifyContent: 'center' },
+  hotRow: { flexDirection: 'row', alignItems: 'center', minHeight: 44 },
+  eat: { width: 22, height: 22, borderRadius: 11, borderWidth: 2 },
   primaryText: { color: '#fff', fontSize: 17, fontWeight: '600' },
 });

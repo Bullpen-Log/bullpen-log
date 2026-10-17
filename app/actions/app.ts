@@ -10,6 +10,7 @@ import { prisma } from '@/lib/prisma';
 import { sortEvents, type CalendarEventView } from '@/lib/calendar-event';
 import { loadNutritionDay } from '@/lib/nutrition/load';
 import type { Food, MealEntryView } from '@/lib/nutrition/meta';
+import type { PlanContext, PlanItem } from '@/lib/nutrition/meal-plan';
 import { toDateKey } from '@/lib/pitch-stats';
 import { loadHomeFeed, loadHomeRings, type HomeRing } from '@/lib/report/home-today';
 import { loadTodayCoreCached } from '@/lib/report/today-data';
@@ -110,6 +111,8 @@ export async function loadAppNutrition(date: string): Promise<
       recent: Food[];
       mine: Food[];
       mfds: boolean;
+      /** 그날 짜 둔 식단(먹은 기록과 따로) — 없으면 null */
+      mealPlan: { items: PlanItem[]; context: PlanContext } | null;
     }
   | { ok: false; error: string; to?: string }
 > {
@@ -129,6 +132,7 @@ export async function loadAppNutrition(date: string): Promise<
     recent: day.recent,
     mine: day.mine,
     mfds: day.mfds,
+    mealPlan: day.mealPlan,
   };
 }
 
