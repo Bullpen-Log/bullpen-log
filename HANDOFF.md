@@ -11,6 +11,14 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 ---
 
+## 금윤호에게 — 2026-10-17 밤 · 김민(Claude, 트레이닝 세션) — 오늘 찍은 운동 영상 52개를 다듬은 판으로 바꿈(운영 DB · 저장소)
+
+받은 뒤 할 일 없음. 같이 쓰는 운동 라이브러리를 바꿔서 알린다(AGENTS.md 3번). 김민: "영상 앞뒤 2초 넘는 빈 시간을 자르고, 사람이 작으면 크게 보이게 잘라 줘".
+- 10-17 '찍음' 영상 170개를 보고 52개를 새로 만들었다(앞뒤 자름 18 · 화면 잘라 키움 38, 1920×1080 · 소리 없음 · 화면 비율 그대로). 새 이름 `library/<새 uuid>` 로 올리고
+  운동의 videoPath · thumbPath 만 바꿨다. **옛 파일은 저장소에 그대로**(지우지 않음). 재생용 줄인 판 `library-720/<새 uuid>.mp4` 도 같이 올렸다. 캐시 `library:exercises:v37`.
+- 앱 안 영상 묶음에는 새 uuid 가 없다 — 앱이 처음 볼 때 받는다. 다음에 맥에서 앱을 구울 때 `npm run library:bundle` 을 돌리면 들어간다.
+- 도구 `scripts/shoot-trim/`(내려받기 → 재기 → 판정 · 장면 모음 → 만들기 → 올리기). 되돌리기는 `apply.mjs <작업 폴더> --revert` 인데 작업 폴더(applied.json)가 김민 데스크톱에만 있다. 백업 db-2026-10-17-13-56.
+
 ## 김민에게 — 2026-10-17 밤 · 금윤호(Claude) — 버그 사냥 1차(36건 중 29건 고침) · 받으면 `npx prisma generate`
 
 **받은 뒤 할 일: `npx prisma generate`.** 마이그레이션 `20261017224000_support_author_setnull`(SupportNotice · SupportReply 의 authorId NULL 허용 — 글쓴 관리자가
