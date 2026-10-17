@@ -13,12 +13,26 @@ import {
   REPLY_BODY_MAX,
   isInquiryCategory,
 } from '@/lib/support';
+import {
+  loadInquiries,
+  loadInquiry,
+  loadNotice,
+  loadNotices,
+  loadSupportHome,
+} from '@/lib/support-load';
+import { CONTACT } from '@/components/site-footer';
+import {
+  formatSupportDate,
+  formatSupportDateTime,
+} from '@/components/support/support-format';
 
 /**
  * 고객센터 동작 — 1:1 문의 · 답글 · 상태 · 공지(2026-10-17 1판 — 틀). 글 · 한도는 lib/support.ts.
  * 권한은 여기서 다시 본다 — 화면이 단추를 숨겨도 주소로 바로 보낼 수 있다.
  */
 export type SupportState = { error?: string; values?: FormValues } | undefined;
+
+type Me = NonNullable<Awaited<ReturnType<typeof getCurrentUser>>>;
 
 const LOGIN_NEEDED = '로그인이 필요해요.';
 const ADMIN_ONLY = '관리자만 할 수 있어요.';
@@ -52,12 +66,17 @@ export async function createInquiry(
   _prev: SupportState,
   formData: FormData
 ): Promise<SupportState> {
+  const made = await tryCreateInquiry(await getCurrentUser(), formData);
+  if ('id' in made) redirect(`/support/inquiries/${made.id}`);
   // 오류로 끝나면 쓰던 글을 돌려준다. 길게 쓴 내용이 날아가면 안 된다.
-  return withInput(await tryCreateInquiry(formData), formData);
+  return withInput(made, formData);
 }
 
-async function tryCreateInquiry(formData: FormData): Promise<SupportState> {
-  const user = await getCurrentUser();
+/** 문의 만들기 — 웹(createInquiry)은 그 문의로 redirect, 앱(createAppInquiry)은 번호를 받아 그 문의 화면을 연다 */
+async function tryCreateInquiry(
+  user: Me | null,
+  formData: FormData
+): Promise<{ error: string } | { id: string }> {
   if (!user) return { error: LOGIN_NEEDED };
 
   const category = String(formData.get('category') ?? '');
@@ -72,6 +91,13 @@ async function tryCreateInquiry(formData: FormData): Promise<SupportState> {
   if (body.length > INQUIRY_BODY_MAX) {
     return { error: `내용은 ${INQUIRY_BODY_MAX}자 안으로 적어 주세요.` };
   }
+
+  /* 1분 안 같은 문의면 그것을 돌려준다 — 끊긴 응답에 다시 보내면 같은 문의가 둘 생기고 10분 다섯 건 한도도 먹었다 */
+  const same = await prisma.supportInquiry.findFirst({
+    where: { userId: user.id, category, title, body, createdAt: { gte: new Date(Date.now() - 60_000) } },
+    select: { id: true },
+  });
+  if (same) return { id: same.id };
 
   /* 한 사람이 10분에 다섯 건 넘게는 못 보낸다 — 실수로 여러 번 누르거나 돌려서 쌓는 것을 막는다 */
   const recent = await prisma.supportInquiry.count({
@@ -90,7 +116,7 @@ async function tryCreateInquiry(formData: FormData): Promise<SupportState> {
   });
 
   revalidateInquiries();
-  redirect(`/support/inquiries/${inquiry.id}`);
+  return { id: inquiry.id };
 }
 
 export async function replyInquiry(
@@ -156,7 +182,7 @@ export async function reopenInquiry(formData: FormData) {
 }
 
 async function setInquiryStatus(
-  user: NonNullable<Awaited<ReturnType<typeof getCurrentUser>>>,
+  user: Me,
   formData: FormData,
   status: 'OPEN' | 'CLOSED'
 ) {
@@ -245,19 +271,144 @@ async function tryUpdateNotice(formData: FormData): Promise<SupportState> {
 
 export async function deleteNotice(formData: FormData) {
   const user = await getCurrentUser();
-  if (!user || user.role !== 'ADMIN') return;
+  /* 지운 자리(공지 상세)에서 왔으니 공지 목록으로 — 관리 화면으로 튕기면 보던 목록을 잃는다 */
+  if (user && (await removeNotice(user, String(formData.get('id') ?? ''))))
+    redirect('/support/notices');
+}
 
-  const id = String(formData.get('id') ?? '');
-  if (!id) return;
-
+/** 지웠으면 true — 관리자만. 웹(deleteNotice)은 공지 목록으로 redirect, 앱(deleteAppNotice)은 화면을 닫는다 */
+async function removeNotice(user: Me, id: string) {
+  if (user.role !== 'ADMIN' || !id) return false;
   const exists = await prisma.supportNotice.findUnique({
     where: { id },
     select: { id: true },
   });
-  if (!exists) return;
+  if (!exists) return false;
 
   await prisma.supportNotice.delete({ where: { id } });
   revalidateNotices(id);
-  /* 지운 자리(공지 상세)에서 왔으니 공지 목록으로 — 관리 화면으로 튕기면 보던 목록을 잃는다 */
-  redirect('/support/notices');
+  return true;
+}
+
+// ── 아이폰 앱(native/src/app/support) ───────────────────────────────────────
+
+/*
+ * 앱은 FormData 서버 동작을 못 부른다(JSON rpc) — 같은 검사 · 같은 쓰기를 부르는 JSON 입구. 읽기는 웹 화면과 같은 곳
+ * (lib/support-load.ts)에서 하고, 날짜는 웹과 같은 글(한국 시간)로 바꿔 보낸다.
+ */
+const TO_LOGIN = { ok: false, to: '/login' } as const;
+const fail = (error: string | undefined) => ({
+  ok: false as const,
+  error: error ?? '처리하지 못했어요.',
+});
+const dated = <T extends { createdAt: Date }>({ createdAt, ...row }: T) => ({
+  ...row,
+  date: formatSupportDate(createdAt),
+});
+
+/** 고객센터 첫 화면 — 공지 3 · 내 문의 5 · 문의 수 · 메일 주소(로그인이 안 될 때 닿는 길) */
+export async function loadAppSupport() {
+  const user = await getCurrentUser();
+  if (!user) return TO_LOGIN;
+  const home = await loadSupportHome(user);
+  return {
+    ok: true as const,
+    notices: home.notices.map(dated),
+    inquiries: home.inquiries.map(dated),
+    inquiryCount: home.inquiryCount,
+    contact: CONTACT,
+    isAdmin: user.role === 'ADMIN',
+  };
+}
+
+export async function loadAppNotices() {
+  const user = await getCurrentUser();
+  if (!user) return TO_LOGIN;
+  return {
+    ok: true as const,
+    notices: (await loadNotices()).map(dated),
+    isAdmin: user.role === 'ADMIN',
+  };
+}
+
+/** 공지 한 편 — 없으면 notice: null */
+export async function loadAppNotice(id: unknown) {
+  const user = await getCurrentUser();
+  if (!user) return TO_LOGIN;
+  const notice = await loadNotice(String(id ?? ''));
+  if (!notice) return { ok: true as const, notice: null, isAdmin: false };
+  const { createdAt, ...rest } = notice;
+  return {
+    ok: true as const,
+    notice: { ...rest, at: formatSupportDateTime(createdAt) },
+    isAdmin: user.role === 'ADMIN',
+  };
+}
+
+export async function loadAppInquiries() {
+  const user = await getCurrentUser();
+  if (!user) return TO_LOGIN;
+  return { ok: true as const, inquiries: (await loadInquiries(user)).map(dated) };
+}
+
+/** 문의 한 건 — 쓴 사람 · 관리자만(아니면 inquiry: null) */
+export async function loadAppInquiry(id: unknown) {
+  const user = await getCurrentUser();
+  if (!user) return TO_LOGIN;
+  const inquiry = await loadInquiry(user, String(id ?? ''));
+  if (!inquiry) return { ok: true as const, inquiry: null };
+  const { createdAt, replies, ...rest } = inquiry;
+  return {
+    ok: true as const,
+    inquiry: {
+      ...rest,
+      at: formatSupportDateTime(createdAt),
+      replies: replies.map(({ createdAt: at, ...r }) => ({
+        ...r,
+        at: formatSupportDateTime(at),
+      })),
+    },
+  };
+}
+
+export async function createAppInquiry(input: {
+  category?: unknown;
+  title?: unknown;
+  body?: unknown;
+}) {
+  const user = await getCurrentUser();
+  const fd = new FormData();
+  fd.set('category', String(input?.category ?? ''));
+  fd.set('title', String(input?.title ?? ''));
+  fd.set('body', String(input?.body ?? ''));
+  const made = await tryCreateInquiry(user, fd);
+  return 'id' in made ? { ok: true as const, id: made.id } : fail(made.error);
+}
+
+export async function replyAppInquiry(id: unknown, body: unknown) {
+  const user = await getCurrentUser();
+  if (!user) return fail(LOGIN_NEEDED);
+  const fd = new FormData();
+  fd.set('id', String(id ?? ''));
+  fd.set('body', String(body ?? ''));
+  const r = await tryReplyInquiry(fd);
+  return r?.error ? fail(r.error) : { ok: true as const };
+}
+
+/** 문의 종료(open false) · 다시 열기(open true) — 쓴 사람 · 관리자만(setInquiryStatus 가 본다) */
+export async function setAppInquiryOpen(id: unknown, open: unknown) {
+  const user = await getCurrentUser();
+  if (!user) return fail(LOGIN_NEEDED);
+  const fd = new FormData();
+  fd.set('id', String(id ?? ''));
+  await setInquiryStatus(user, fd, open === true ? 'OPEN' : 'CLOSED');
+  return { ok: true as const };
+}
+
+export async function deleteAppNotice(id: unknown) {
+  const user = await getCurrentUser();
+  if (!user) return fail(LOGIN_NEEDED);
+  return (await removeNotice(user, String(id ?? '')))
+    ? { ok: true as const }
+    : fail('지우지 못했어요.');
 }

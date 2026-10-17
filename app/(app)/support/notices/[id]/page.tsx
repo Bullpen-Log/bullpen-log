@@ -1,7 +1,10 @@
+import { headers } from 'next/headers';
 import { notFound } from 'next/navigation';
 import { Pencil, Pin, Trash2 } from '@/components/icon';
-import { prisma } from '@/lib/prisma';
 import { requireUser } from '@/lib/dal';
+import { expoLevel } from '@/lib/app-env';
+import { loadNotice } from '@/lib/support-load';
+import { OpenNative } from '@/app/(session)/velocity/open-native';
 import { deleteNotice } from '@/app/actions/support';
 import { BackLink, Badge, ButtonLink } from '@/components/ui';
 import { ConfirmDeleteForm } from '@/components/confirm-delete';
@@ -16,17 +19,14 @@ export default async function SupportNoticePage({
   const { id } = await params;
   const user = await requireUser();
 
-  const notice = await prisma.supportNotice.findUnique({
-    where: { id },
-    select: {
-      id: true,
-      title: true,
-      body: true,
-      pinned: true,
-      createdAt: true,
-      updatedAt: true,
-    },
-  });
+  /* 새 아이폰 앱(Expo)이 고객센터를 아는 판(BullpenNative/6 부터)이면 앱 화면으로 연다(native/src/app/support/notices/[id].tsx) */
+  if (expoLevel((await headers()).get('user-agent')) >= 6) {
+    return (
+      <OpenNative path={`/support/notices/${encodeURIComponent(id)}`} cover={false} />
+    );
+  }
+
+  const notice = await loadNotice(id);
   if (!notice) notFound();
 
   const isAdmin = user.role === 'ADMIN';

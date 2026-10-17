@@ -6,6 +6,8 @@ import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { getCurrentUser } from '@/lib/dal';
 import { appNow } from '@/lib/clock';
+import { loadCommunityList, loadCommunityPost } from '@/lib/community-load';
+import { formatDateTime, relativeTime } from '@/components/community/community-format';
 import { withInput, type FormValues } from '@/lib/form-values';
 import {
   REPORT_DETAIL_MAX,
@@ -26,6 +28,8 @@ export type CommunityState = { error?: string; values?: FormValues } | undefined
 export type ReportState =
   { error?: string; values?: FormValues; done?: boolean } | undefined;
 
+type Me = NonNullable<Awaited<ReturnType<typeof getCurrentUser>>>;
+
 const LOGIN_NEEDED = '로그인이 필요해요.';
 const field = (formData: FormData, name: string) =>
   String(formData.get(name) ?? '').trim();
@@ -43,12 +47,17 @@ export async function createPost(
   _prev: CommunityState,
   formData: FormData
 ): Promise<CommunityState> {
+  const made = await tryCreatePost(await getCurrentUser(), formData);
+  if ('id' in made) redirect(`/community/${made.id}`);
   /* 오류로 끝나면 쓰던 글을 돌려준다 — 길게 쓴 내용이 날아가면 안 된다 */
-  return withInput(await tryCreatePost(formData), formData);
+  return withInput(made, formData);
 }
 
-async function tryCreatePost(formData: FormData): Promise<CommunityState> {
-  const user = await getCurrentUser();
+/** 글 만들기 — 웹(createPost)은 만든 글로 redirect, 앱(createAppPost)은 번호를 받아 그 글 화면을 연다 */
+async function tryCreatePost(
+  user: Me | null,
+  formData: FormData
+): Promise<{ error: string } | { id: string }> {
   if (!user) return { error: LOGIN_NEEDED };
 
   const category = field(formData, 'category');
@@ -62,31 +71,43 @@ async function tryCreatePost(formData: FormData): Promise<CommunityState> {
   if (body.length > POST_BODY_MAX)
     return { error: `내용은 ${POST_BODY_MAX}자까지 적을 수 있어요.` };
 
+  /*
+   * 1분 안 같은 글이면 새로 안 만든다 — 저장은 됐는데 응답이 끊겨(앱 '신호가 약해 보내지 못했어요') 다시 누르면 같은 글이 둘 생겼다.
+   * createdAt 은 DB 의 실제 시각이라 Date.now 와 견준다.
+   */
+  const same = await prisma.communityPost.findFirst({
+    where: { userId: user.id, category, title, body, createdAt: { gte: new Date(Date.now() - 60_000) } },
+    select: { id: true },
+  });
+  if (same) return { id: same.id };
+
   const post = await prisma.communityPost.create({
     data: { userId: user.id, category, title, body },
     select: { id: true },
   });
 
   revalidatePath('/community');
-  redirect(`/community/${post.id}`);
+  return { id: post.id };
 }
 
 export async function deletePost(formData: FormData) {
   const user = await getCurrentUser();
-  if (!user) return;
-  const id = field(formData, 'id');
-  if (!id) return;
+  if (user && (await removePost(user, field(formData, 'id')))) redirect('/community');
+}
 
+/** 지웠으면 true — 웹(deletePost)은 목록으로 redirect, 앱(deleteAppPost)은 화면을 닫는다 */
+async function removePost(user: Me, id: string) {
+  if (!id) return false;
   const post = await prisma.communityPost.findUnique({
     where: { id },
     select: { userId: true },
   });
   /* 글쓴이 본인이거나 관리자만 — 댓글 · 좋아요 · 신고는 Prisma 가 이어서 지운다(relationMode prisma) */
-  if (!post || (post.userId !== user.id && user.role !== 'ADMIN')) return;
+  if (!post || (post.userId !== user.id && user.role !== 'ADMIN')) return false;
 
   await prisma.communityPost.delete({ where: { id } });
   revalidatePost(id);
-  redirect('/community');
+  return true;
 }
 
 // ── 좋아요 ────────────────────────────────────────────────────────────────
@@ -152,7 +173,12 @@ async function tryAddComment(formData: FormData): Promise<CommunityState> {
   if (!post || (post.hiddenAt && user.role !== 'ADMIN'))
     return { error: '글을 찾지 못했어요.' };
 
-  await prisma.communityComment.create({ data: { postId, userId: user.id, body } });
+  /* 1분 안 같은 댓글이면 새로 안 만든다(끊긴 응답에 다시 보냄 — 글 만들기와 같은 까닭) */
+  const same = await prisma.communityComment.findFirst({
+    where: { postId, userId: user.id, body, createdAt: { gte: new Date(Date.now() - 60_000) } },
+    select: { id: true },
+  });
+  if (!same) await prisma.communityComment.create({ data: { postId, userId: user.id, body } });
   revalidatePath('/community');
   revalidatePath(`/community/${postId}`);
   return undefined;
@@ -281,4 +307,157 @@ export async function resolveReport(formData: FormData) {
     data: { resolvedAt: appNow() },
   });
   revalidatePath('/admin/community');
+}
+
+// ── 아이폰 앱(native/src/app/community) ─────────────────────────────────────
+
+/*
+ * 앱은 FormData 서버 동작을 못 부른다(JSON rpc) — 같은 검사 · 같은 쓰기를 부르는 JSON 입구. 읽기는 웹 화면과 같은 곳
+ * (lib/community-load.ts)에서 하고, 때는 웹과 같은 글(방금 · N분 전 · 날짜 시각)로 바꿔 보낸다.
+ */
+const TO_LOGIN = { ok: false, to: '/login' } as const;
+const fail = (e: CommunityState | ReportState) => ({
+  ok: false as const,
+  error: e?.error ?? '처리하지 못했어요.',
+});
+
+/** 목록 — pages 는 앱이 더 보기로 이어 붙인 장 수(돌아오면 그만큼 다시 읽는다) */
+export async function loadAppCommunity(
+  category: unknown,
+  sort: unknown,
+  pages: unknown
+) {
+  const user = await getCurrentUser();
+  if (!user) return TO_LOGIN;
+  const list = await loadCommunityList(user, {
+    category: isPostCategory(category) ? category : undefined,
+    sort: sort === 'hot' ? 'hot' : 'new',
+    page: 1,
+    pages: Math.floor(Number(pages)) || 1,
+  });
+  return {
+    ok: true as const,
+    hasMore: list.hasMore,
+    posts: list.posts.map(({ createdAt, ...p }) => ({
+      ...p,
+      ago: relativeTime(createdAt),
+    })),
+  };
+}
+
+/** 글 하나 — 없거나 볼 수 없으면 post: null */
+export async function loadAppCommunityPost(id: unknown) {
+  const user = await getCurrentUser();
+  if (!user) return TO_LOGIN;
+  const post = await loadCommunityPost(user, String(id ?? ''));
+  if (!post) return { ok: true as const, post: null };
+  const { createdAt, comments, ...rest } = post;
+  return {
+    ok: true as const,
+    post: {
+      ...rest,
+      at: formatDateTime(createdAt),
+      comments: comments.map(({ createdAt: at, ...c }) => ({
+        ...c,
+        ago: relativeTime(at),
+      })),
+    },
+  };
+}
+
+export async function createAppPost(input: {
+  category?: unknown;
+  title?: unknown;
+  body?: unknown;
+}) {
+  const user = await getCurrentUser();
+  const fd = new FormData();
+  fd.set('category', String(input?.category ?? ''));
+  fd.set('title', String(input?.title ?? ''));
+  fd.set('body', String(input?.body ?? ''));
+  const made = await tryCreatePost(user, fd);
+  return 'id' in made ? { ok: true as const, id: made.id } : fail(made);
+}
+
+export async function deleteAppPost(id: unknown) {
+  const user = await getCurrentUser();
+  if (!user) return fail({ error: LOGIN_NEEDED });
+  return (await removePost(user, String(id ?? '')))
+    ? { ok: true as const }
+    : fail({ error: '지우지 못했어요.' });
+}
+
+/**
+ * 앱 좋아요 — 켜기 · 끄기를 바라는 상태(liked)로 받고, 실제로 남은 상태 · 수를 돌려준다. 웹처럼 뒤집기로 하면 응답이 끊겼을 때 앱이 되돌린
+ * 하트와 서버가 어긋났고, 가린 · 없는 글이면 웹 동작이 말없이 끝나 앱은 바뀐 줄 알았다. 같은 값을 두 번 보내도 결과는 같다.
+ */
+export async function setAppLike(postId: unknown, liked: unknown) {
+  const user = await getCurrentUser();
+  if (!user) return fail({ error: LOGIN_NEEDED });
+  if (typeof postId !== 'string' || !postId || typeof liked !== 'boolean') return fail({ error: '다시 해 주세요.' });
+  const post = await prisma.communityPost.findUnique({ where: { id: postId }, select: { hiddenAt: true } });
+  /* 가린 글은 관리자만 보이므로 좋아요도 관리자만(웹 toggleLike 와 같다) */
+  if (!post || (post.hiddenAt && user.role !== 'ADMIN')) return fail({ error: '글을 찾을 수 없어요.' });
+  if (liked) {
+    try {
+      await prisma.communityLike.create({ data: { postId, userId: user.id } });
+    } catch (e) {
+      if (!(e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002')) throw e;
+    }
+  } else {
+    await prisma.communityLike.deleteMany({ where: { postId, userId: user.id } });
+  }
+  const likes = await prisma.communityLike.count({ where: { postId } });
+  revalidatePath('/community');
+  revalidatePath(`/community/${postId}`);
+  return { ok: true as const, liked, likes };
+}
+
+export async function addAppComment(postId: unknown, body: unknown) {
+  const user = await getCurrentUser();
+  if (!user) return fail({ error: LOGIN_NEEDED });
+  const fd = new FormData();
+  fd.set('postId', String(postId ?? ''));
+  fd.set('body', String(body ?? ''));
+  const r = await tryAddComment(fd);
+  return r?.error ? fail(r) : { ok: true as const };
+}
+
+export async function deleteAppComment(id: unknown) {
+  const user = await getCurrentUser();
+  if (!user) return fail({ error: LOGIN_NEEDED });
+  const fd = new FormData();
+  fd.set('id', String(id ?? ''));
+  await deleteComment(fd);
+  return { ok: true as const };
+}
+
+/** 신고 — 글(postId) 또는 댓글(commentId) 하나 */
+export async function reportApp(input: {
+  postId?: unknown;
+  commentId?: unknown;
+  reason?: unknown;
+  detail?: unknown;
+}) {
+  const user = await getCurrentUser();
+  if (!user) return fail({ error: LOGIN_NEEDED });
+  const fd = new FormData();
+  if (input?.postId) fd.set('postId', String(input.postId));
+  if (input?.commentId) fd.set('commentId', String(input.commentId));
+  fd.set('reason', String(input?.reason ?? ''));
+  fd.set('detail', String(input?.detail ?? ''));
+  const r = await tryReport(fd);
+  return r?.done ? { ok: true as const } : fail(r);
+}
+
+/** 관리자의 가리기 · 되살리기(setHidden 이 관리자인지 다시 본다) */
+export async function setAppHidden(kind: unknown, id: unknown, hidden: unknown) {
+  const user = await getCurrentUser();
+  if (!user) return fail({ error: LOGIN_NEEDED });
+  const fd = new FormData();
+  fd.set('kind', String(kind ?? ''));
+  fd.set('id', String(id ?? ''));
+  fd.set('hidden', hidden === true ? '1' : '0');
+  await setHidden(fd);
+  return { ok: true as const };
 }

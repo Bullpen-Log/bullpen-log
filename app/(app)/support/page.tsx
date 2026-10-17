@@ -1,6 +1,9 @@
 import { CircleHelp, Megaphone, MessagesSquare, Send } from '@/components/icon';
-import { prisma } from '@/lib/prisma';
+import { headers } from 'next/headers';
 import { requireUser } from '@/lib/dal';
+import { expoLevel } from '@/lib/app-env';
+import { loadSupportHome } from '@/lib/support-load';
+import { OpenNative } from '@/app/(session)/velocity/open-native';
 import { ButtonLink, Card, PageHeading } from '@/components/ui';
 import { CONTACT } from '@/components/site-footer';
 import { SupportFaq } from '@/components/support/support-faq';
@@ -15,27 +18,13 @@ import { SupportSectionHead } from '@/components/support/support-section';
 export default async function SupportPage() {
   const user = await requireUser();
 
-  const [notices, inquiries, inquiryCount] = await Promise.all([
-    prisma.supportNotice.findMany({
-      orderBy: [{ pinned: 'desc' }, { createdAt: 'desc' }],
-      take: 3,
-      select: { id: true, title: true, pinned: true, createdAt: true },
-    }),
-    prisma.supportInquiry.findMany({
-      where: { userId: user.id },
-      orderBy: { createdAt: 'desc' },
-      take: 5,
-      select: {
-        id: true,
-        title: true,
-        category: true,
-        status: true,
-        createdAt: true,
-        _count: { select: { replies: true } },
-      },
-    }),
-    prisma.supportInquiry.count({ where: { userId: user.id } }),
-  ]);
+  /* 새 아이폰 앱(Expo)이 고객센터를 아는 판(BullpenNative/6 부터)이면 앱 화면으로 연다(native/src/app/support/index.tsx) */
+  if (expoLevel((await headers()).get('user-agent')) >= 6) {
+    return <OpenNative path="/support" cover={false} />;
+  }
+
+  /* 읽기는 앱 화면과 같은 곳(lib/support-load.ts) */
+  const { notices, inquiries, inquiryCount } = await loadSupportHome(user);
 
   return (
     <div className="stack-page">
@@ -77,10 +66,7 @@ export default async function SupportPage() {
             아직 문의한 게 없어요. 오류 · 계정 · 기능 제안 무엇이든 물어 주세요.
           </p>
         ) : (
-          <SupportInquiryRows
-            rows={inquiries.map((q) => ({ ...q, replyCount: q._count.replies }))}
-            bordered={false}
-          />
+          <SupportInquiryRows rows={inquiries} bordered={false} />
         )}
       </Card>
 

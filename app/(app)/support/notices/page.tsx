@@ -1,6 +1,9 @@
 import { Megaphone } from '@/components/icon';
-import { prisma } from '@/lib/prisma';
+import { headers } from 'next/headers';
 import { requireUser } from '@/lib/dal';
+import { expoLevel } from '@/lib/app-env';
+import { loadNotices } from '@/lib/support-load';
+import { OpenNative } from '@/app/(session)/velocity/open-native';
 import { BackLink, ButtonLink, EmptyState, PageHeading } from '@/components/ui';
 import { SupportNoticeRows } from '@/components/support/support-notice-rows';
 
@@ -9,10 +12,12 @@ export default async function SupportNoticesPage() {
   const user = await requireUser();
   const isAdmin = user.role === 'ADMIN';
 
-  const notices = await prisma.supportNotice.findMany({
-    orderBy: [{ pinned: 'desc' }, { createdAt: 'desc' }],
-    select: { id: true, title: true, pinned: true, createdAt: true },
-  });
+  /* 새 아이폰 앱(Expo)이 고객센터를 아는 판(BullpenNative/6 부터)이면 앱 화면으로 연다(native/src/app/support/notices/index.tsx) */
+  if (expoLevel((await headers()).get('user-agent')) >= 6) {
+    return <OpenNative path="/support/notices" cover={false} />;
+  }
+
+  const notices = await loadNotices();
 
   return (
     <div className="stack-page">

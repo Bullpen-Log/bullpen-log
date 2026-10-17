@@ -1,7 +1,10 @@
+import { headers } from 'next/headers';
 import { notFound } from 'next/navigation';
 import { Eye, EyeOff, Heart, MessageCircle, Trash2 } from '@/components/icon';
-import { prisma } from '@/lib/prisma';
 import { requireUser } from '@/lib/dal';
+import { expoLevel } from '@/lib/app-env';
+import { loadCommunityPost } from '@/lib/community-load';
+import { OpenNative } from '@/app/(session)/velocity/open-native';
 import { postCategoryLabel } from '@/lib/community';
 import { deleteComment, deletePost, setHidden } from '@/app/actions/community';
 import { BackLink, Badge, Button } from '@/components/ui';
@@ -56,29 +59,22 @@ export default async function CommunityPostPage({
 }) {
   const { id } = await params;
   const user = await requireUser();
-  const isAdmin = user.role === 'ADMIN';
 
-  const post = await prisma.communityPost.findUnique({
-    where: { id },
-    include: {
-      user: { select: { id: true, nickname: true } },
-      /* 내가 눌렀는지만 — 전체 수는 _count 로 */
-      likes: { where: { userId: user.id }, select: { userId: true } },
-      _count: { select: { likes: true } },
-      comments: {
-        where: isAdmin ? {} : { hiddenAt: null },
-        orderBy: { createdAt: 'asc' },
-        include: { user: { select: { nickname: true } } },
-      },
-    },
-  });
-  /* 가린 글은 관리자와 글쓴이만 — 글쓴이는 왜 안 보이는지 알아야 한다(아래 배지). 남은 notFound */
-  if (!post || (post.hiddenAt && !isAdmin && post.userId !== user.id)) notFound();
+  /* 새 아이폰 앱(Expo)이 커뮤니티를 아는 판(BullpenNative/6 부터)이면 앱 화면으로 연다(native/src/app/community/[id].tsx) */
+  if (expoLevel((await headers()).get('user-agent')) >= 6) {
+    return <OpenNative path={`/community/${encodeURIComponent(id)}`} cover={false} />;
+  }
 
-  const isOwner = post.userId === user.id;
-  const postHidden = post.hiddenAt !== null;
-  /* 댓글 수는 가린 댓글을 빼고 — 목록의 수와 같아야 한다 */
-  const visibleComments = post.comments.filter((c) => c.hiddenAt === null).length;
+  /*
+   * 읽기 · 누가 무엇을 누를 수 있나는 앱 화면과 같은 곳(lib/community-load.ts). 가린 글은 관리자와 글쓴이만 — 글쓴이는 왜 안 보이는지
+   * 알아야 한다(아래 배지). 남은 notFound
+   */
+  const post = await loadCommunityPost(user, id);
+  if (!post) notFound();
+
+  const isAdmin = post.isAdmin;
+  const postHidden = post.hidden;
+  const visibleComments = post.commentCount;
 
   return (
     <div className="stack-page mx-auto max-w-3xl">
@@ -101,7 +97,7 @@ export default async function CommunityPostPage({
           </div>
           <h1 className="text-heading page-title text-ink">{post.title}</h1>
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted">
-            <span className="font-medium text-ink">{post.user.nickname}</span>
+            <span className="font-medium text-ink">{post.nickname}</span>
             <time dateTime={post.createdAt.toISOString()}>
               {formatDateTime(post.createdAt)}
             </time>
@@ -115,17 +111,17 @@ export default async function CommunityPostPage({
         {/* 동작 줄 — 좋아요 · 댓글 수 왼쪽, 신고 · 가리기 · 지우기 오른쪽 */}
         <div className="flex flex-wrap items-center gap-2 border-t border-line pt-5">
           {/* 가린 글은 글쓴이도 좋아요를 못 누른다(서버 toggleLike 가 거절) — 단추 대신 수만(댓글 폼과 같은 조건) */}
-          {postHidden && !isAdmin ? (
+          {!post.canLike ? (
             <span className="inline-flex min-h-10 items-center gap-1.5 px-3 text-sm text-muted tabular-nums">
               <Heart aria-hidden className="h-4 w-4" />
               <span className="sr-only">좋아요 </span>
-              {post._count.likes}
+              {post.likes}
             </span>
           ) : (
             <CommunityLikeButton
               postId={post.id}
-              liked={post.likes.length > 0}
-              count={post._count.likes}
+              liked={post.liked}
+              count={post.likes}
             />
           )}
           <span className="inline-flex min-h-10 items-center gap-1.5 px-3 text-sm text-muted tabular-nums">
@@ -135,7 +131,7 @@ export default async function CommunityPostPage({
           </span>
           <div className="ml-auto flex flex-wrap items-center gap-1">
             {isAdmin && <HideToggle kind="post" id={post.id} hidden={postHidden} />}
-            {(isOwner || isAdmin) && (
+            {post.canDelete && (
               <ConfirmDeleteForm
                 action={deletePost}
                 hidden={{ id: post.id }}
@@ -160,7 +156,7 @@ export default async function CommunityPostPage({
           </div>
         </div>
         {/* 신고 폼은 펼치면 폭을 다 쓰므로 동작 줄 밑에 따로 — 내 글은 신고하지 않는다 */}
-        {!isOwner && !postHidden && <CommunityReportForm postId={post.id} />}
+        {post.canReport && <CommunityReportForm postId={post.id} />}
       </article>
 
       {/* 댓글 */}
@@ -172,8 +168,8 @@ export default async function CommunityPostPage({
         {post.comments.length > 0 && (
           <ul className="divide-y divide-line overflow-hidden rounded-2xl border border-line bg-surface">
             {post.comments.map((c, i) => {
-              const hidden = c.hiddenAt !== null;
-              const mine = c.userId === user.id;
+              const hidden = c.hidden;
+              const mine = c.mine;
               return (
                 <li
                   key={c.id}
@@ -181,7 +177,7 @@ export default async function CommunityPostPage({
                   className={`selectable space-y-2 px-(--block-pad) py-4 motion-safe:animate-row-in ${hidden ? 'opacity-55' : ''}`}
                 >
                   <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted">
-                    <span className="font-medium text-ink">{c.user.nickname}</span>
+                    <span className="font-medium text-ink">{c.nickname}</span>
                     {mine && <Badge className="min-h-0 px-2 py-0.5">나</Badge>}
                     {hidden && (
                       <Badge className="min-h-0 gap-1 border-danger-line bg-danger-bg px-2 py-0.5 text-danger desk:bg-transparent">
@@ -201,8 +197,8 @@ export default async function CommunityPostPage({
                   </p>
                   <div className="-mb-2 flex flex-wrap items-center justify-end gap-1">
                     {isAdmin && <HideToggle kind="comment" id={c.id} hidden={hidden} />}
-                    {!mine && <CommunityReportForm commentId={c.id} compact />}
-                    {(mine || isAdmin) && (
+                    {c.canReport && <CommunityReportForm commentId={c.id} compact />}
+                    {c.canDelete && (
                       <ConfirmDeleteForm
                         action={deleteComment}
                         hidden={{ id: c.id }}
@@ -229,7 +225,7 @@ export default async function CommunityPostPage({
         )}
 
         {/* 가린 글에는 글쓴이도 댓글을 못 단다 — 아무도 못 보는 글이다 */}
-        {!(postHidden && !isAdmin) && <CommunityCommentForm postId={post.id} />}
+        {post.canComment && <CommunityCommentForm postId={post.id} />}
       </section>
     </div>
   );

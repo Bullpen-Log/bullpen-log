@@ -1,9 +1,11 @@
 import Link from 'next/link';
+import { headers } from 'next/headers';
 import { EyeOff, Heart, MessageCircle, MessagesSquare } from '@/components/icon';
-import { prisma } from '@/lib/prisma';
 import { requireUser } from '@/lib/dal';
+import { expoLevel } from '@/lib/app-env';
+import { loadCommunityList } from '@/lib/community-load';
+import { OpenNative } from '@/app/(session)/velocity/open-native';
 import {
-  POSTS_PER_PAGE,
   POST_CATEGORIES,
   POST_SORTS,
   isPostCategory,
@@ -40,43 +42,19 @@ export default async function CommunityPage({
 }) {
   const user = await requireUser();
   const sp = await searchParams;
-  const isAdmin = user.role === 'ADMIN';
 
   const rawCategory = one(sp.category);
   const category = isPostCategory(rawCategory) ? rawCategory : undefined;
   const sort: PostSort = one(sp.sort) === 'hot' ? 'hot' : 'new';
   const page = Math.max(1, Number.parseInt(one(sp.page) ?? '1', 10) || 1);
 
-  /* 한 장보다 하나 더 읽어 다음 장이 있는지만 안다 — count 쿼리 하나를 아낀다 */
-  const rows = await prisma.communityPost.findMany({
-    where: {
-      ...(category ? { category } : {}),
-      ...(isAdmin ? {} : { hiddenAt: null }),
-    },
-    orderBy:
-      sort === 'hot'
-        ? [{ likes: { _count: 'desc' } }, { createdAt: 'desc' }]
-        : [{ createdAt: 'desc' }],
-    skip: (page - 1) * POSTS_PER_PAGE,
-    take: POSTS_PER_PAGE + 1,
-    select: {
-      id: true,
-      category: true,
-      title: true,
-      body: true,
-      hiddenAt: true,
-      createdAt: true,
-      user: { select: { nickname: true } },
-      /* 댓글 수는 가린 댓글을 빼고 — 사용자가 보는 수와 같아야 한다 */
-      _count: { select: { likes: true, comments: { where: { hiddenAt: null } } } },
-    },
-  });
-  const hasMore = rows.length > POSTS_PER_PAGE;
-  /* 두 줄 미리보기에 본문 전체(최대 5,000자)를 실어 보내지 않는다 */
-  const posts = (hasMore ? rows.slice(0, POSTS_PER_PAGE) : rows).map((p) => ({
-    ...p,
-    preview: p.body.length > 160 ? `${p.body.slice(0, 160)}…` : p.body,
-  }));
+  /* 새 아이폰 앱(Expo)이 커뮤니티를 아는 판(BullpenNative/6 부터)이면 앱 화면으로 연다(native/src/app/community) */
+  if (expoLevel((await headers()).get('user-agent')) >= 6) {
+    return <OpenNative path={listHref({ category, sort, page })} cover={false} />;
+  }
+
+  /* 읽기는 앱 화면과 같은 곳(lib/community-load.ts) — 가린 글은 관리자에게만 */
+  const { posts, hasMore } = await loadCommunityList(user, { category, sort, page });
 
   const chipClass = (active: boolean) =>
     `inline-flex min-h-9 shrink-0 items-center rounded-full px-4 text-sm font-semibold whitespace-nowrap transition-colors ${
@@ -171,7 +149,7 @@ export default async function CommunityPage({
       ) : (
         <ul className="divide-y divide-line overflow-hidden rounded-2xl border border-line bg-surface">
           {posts.map((post, i) => {
-            const hidden = post.hiddenAt !== null;
+            const hidden = post.hidden;
             return (
               <li
                 key={post.id}
@@ -200,18 +178,18 @@ export default async function CommunityPage({
                     {post.preview}
                   </p>
                   <div className="flex items-center gap-3 text-xs text-muted">
-                    <span className="text-ink/80">{post.user.nickname}</span>
+                    <span className="text-ink/80">{post.nickname}</span>
                     <span>{relativeTime(post.createdAt)}</span>
                     <span className="ml-auto flex items-center gap-3 tabular-nums">
                       <span className="flex items-center gap-1">
                         <Heart aria-hidden className="h-3.5 w-3.5" />
                         <span className="sr-only">좋아요 </span>
-                        {post._count.likes}
+                        {post.likes}
                       </span>
                       <span className="flex items-center gap-1">
                         <MessageCircle aria-hidden className="h-3.5 w-3.5" />
                         <span className="sr-only">댓글 </span>
-                        {post._count.comments}
+                        {post.comments}
                       </span>
                     </span>
                   </div>

@@ -1,6 +1,9 @@
 import { MessagesSquare } from '@/components/icon';
-import { prisma } from '@/lib/prisma';
+import { headers } from 'next/headers';
 import { requireUser } from '@/lib/dal';
+import { expoLevel } from '@/lib/app-env';
+import { loadInquiries } from '@/lib/support-load';
+import { OpenNative } from '@/app/(session)/velocity/open-native';
 import { BackLink, ButtonLink, EmptyState, PageHeading } from '@/components/ui';
 import { SupportInquiryRows } from '@/components/support/support-inquiry-rows';
 
@@ -8,18 +11,12 @@ import { SupportInquiryRows } from '@/components/support/support-inquiry-rows';
 export default async function SupportInquiriesPage() {
   const user = await requireUser();
 
-  const inquiries = await prisma.supportInquiry.findMany({
-    where: { userId: user.id },
-    orderBy: { createdAt: 'desc' },
-    select: {
-      id: true,
-      title: true,
-      category: true,
-      status: true,
-      createdAt: true,
-      _count: { select: { replies: true } },
-    },
-  });
+  /* 새 아이폰 앱(Expo)이 고객센터를 아는 판(BullpenNative/6 부터)이면 앱 화면으로 연다(native/src/app/support/inquiries/index.tsx) */
+  if (expoLevel((await headers()).get('user-agent')) >= 6) {
+    return <OpenNative path="/support/inquiries" cover={false} />;
+  }
+
+  const inquiries = await loadInquiries(user);
 
   return (
     <div className="stack-page">
@@ -45,9 +42,7 @@ export default async function SupportInquiriesPage() {
           }
         />
       ) : (
-        <SupportInquiryRows
-          rows={inquiries.map((q) => ({ ...q, replyCount: q._count.replies }))}
-        />
+        <SupportInquiryRows rows={inquiries} />
       )}
     </div>
   );

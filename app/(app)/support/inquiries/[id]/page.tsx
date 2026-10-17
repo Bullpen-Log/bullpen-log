@@ -1,7 +1,10 @@
+import { headers } from 'next/headers';
 import { notFound } from 'next/navigation';
 import { Lock } from '@/components/icon';
-import { prisma } from '@/lib/prisma';
 import { requireUser } from '@/lib/dal';
+import { expoLevel } from '@/lib/app-env';
+import { loadInquiry } from '@/lib/support-load';
+import { OpenNative } from '@/app/(session)/velocity/open-native';
 import { closeInquiry, reopenInquiry } from '@/app/actions/support';
 import { inquiryCategoryLabel } from '@/lib/support';
 import { BackLink, Badge, Button, Card } from '@/components/ui';
@@ -21,39 +24,23 @@ export default async function InquiryPage({
 }) {
   const { id } = await params;
   const user = await requireUser();
-  const isAdmin = user.role === 'ADMIN';
 
-  const inquiry = await prisma.supportInquiry.findUnique({
-    where: { id },
-    select: {
-      id: true,
-      userId: true,
-      category: true,
-      title: true,
-      body: true,
-      status: true,
-      createdAt: true,
-      user: { select: { nickname: true } },
-      replies: {
-        orderBy: { createdAt: 'asc' },
-        select: {
-          id: true,
-          fromStaff: true,
-          body: true,
-          createdAt: true,
-          author: { select: { nickname: true } },
-        },
-      },
-    },
-  });
-  if (!inquiry || (inquiry.userId !== user.id && !isAdmin)) notFound();
+  /* 새 아이폰 앱(Expo)이 고객센터를 아는 판(BullpenNative/6 부터)이면 앱 화면으로 연다(native/src/app/support/inquiries/[id].tsx) */
+  if (expoLevel((await headers()).get('user-agent')) >= 6) {
+    return (
+      <OpenNative path={`/support/inquiries/${encodeURIComponent(id)}`} cover={false} />
+    );
+  }
+
+  /* 읽기는 앱 화면과 같은 곳(lib/support-load.ts) — 쓴 사람 · 관리자만, 아니면 없는 것처럼 */
+  const inquiry = await loadInquiry(user, id);
+  if (!inquiry) notFound();
 
   const closed = inquiry.status === 'CLOSED';
   /* 관리자가 남의 문의를 열었을 때 — 목록으로 돌아가는 길이 관리자 쪽이어야 한다 */
-  const back =
-    isAdmin && inquiry.userId !== user.id
-      ? { href: '/admin/support', label: '소통 관리' }
-      : { href: '/support/inquiries', label: '1:1 문의' };
+  const back = inquiry.staff
+    ? { href: '/admin/support', label: '소통 관리' }
+    : { href: '/support/inquiries', label: '1:1 문의' };
 
   return (
     <div className="selectable mx-auto max-w-3xl stack-page">
@@ -67,7 +54,7 @@ export default async function InquiryPage({
         </div>
         <h1 className="text-heading page-title text-ink">{inquiry.title}</h1>
         <p className="text-xs text-muted">
-          <span className="text-ink">{inquiry.user.nickname}</span>
+          <span className="text-ink">{inquiry.nickname}</span>
           <span className="mx-2 text-line-strong">·</span>
           {formatSupportDateTime(inquiry.createdAt)}
         </p>
@@ -89,9 +76,7 @@ export default async function InquiryPage({
               }`}
             >
               <div className="mb-2 flex flex-wrap items-center gap-2 text-xs text-muted">
-                <span className="font-semibold text-ink">
-                  {r.author?.nickname ?? (r.fromStaff ? '운영자' : '탈퇴한 회원')}
-                </span>
+                <span className="font-semibold text-ink">{r.name}</span>
                 {r.fromStaff && (
                   <Badge className="border-sky-soft/40 text-sky">운영자</Badge>
                 )}
@@ -121,10 +106,7 @@ export default async function InquiryPage({
         </Card>
       ) : (
         <div className="space-y-3">
-          <SupportReplyForm
-            inquiryId={inquiry.id}
-            staff={isAdmin && inquiry.userId !== user.id}
-          />
+          <SupportReplyForm inquiryId={inquiry.id} staff={inquiry.staff} />
           <SafeForm action={closeInquiry} className="flex justify-end">
             <input type="hidden" name="id" value={inquiry.id} />
             <Button type="submit" variant="ghost" size="sm">
