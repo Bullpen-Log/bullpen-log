@@ -1,5 +1,6 @@
 'use server';
 
+import { Prisma } from '@prisma/client';
 import { appNow } from '@/lib/clock';
 import { revalidatePath } from 'next/cache';
 import { prisma } from '@/lib/prisma';
@@ -498,14 +499,16 @@ export async function eatPlanItems(
     return { ok: false, error: '먹은 것을 다시 골라 주세요.' };
   }
   const where = { userId_date: { userId: user.id, date: dbDate(date) } };
-  const row = await prisma.mealPlan.findUnique({ where, select: { items: true } });
+  const row = await prisma.mealPlan.findUnique({ where, select: { id: true, items: true, updatedAt: true } });
   if (!row) return { ok: false, error: '식단이 없어요. 새로고침해 주세요.' };
   const items = parsePlanItems(row.items);
   const want = new Set(keys.filter((k): k is string => typeof k === 'string'));
   const eat = items.filter((i) => want.has(i.key) && !i.done);
   if (eat.length === 0) return { ok: true };
 
-  const rows = [];
+  const rows: Prisma.MealEntryCreateManyInput[] = [];
+  /* 실제로 기록을 만든 줄만 '먹음'으로 — 값이 깨져 건너뛴 줄이 기록 없이 계획에서 사라지지 않게 */
+  const done = new Set<string>();
   for (const i of eat) {
     const food = cleanFood({
       source: i.source,
@@ -521,15 +524,27 @@ export async function eatPlanItems(
     const amount = cleanAmount(i.amount);
     if (typeof food === 'string' || amount === null) continue;
     rows.push({ userId: user.id, date: dbDate(date), meal: i.meal, amount, ...food });
+    done.add(i.key);
   }
-  const done = new Set(eat.map((i) => i.key));
-  await prisma.$transaction([
-    prisma.mealEntry.createMany({ data: rows }),
-    prisma.mealPlan.update({
-      where,
-      data: { items: items.map((i) => (done.has(i.key) ? { ...i, done: true } : i)) },
-    }),
-  ]);
+  if (rows.length === 0) return { ok: false, error: '이 음식은 기록할 수 없어요. 끼니에서 직접 담아 주세요.' };
+  /*
+   * 읽은 뒤 그새 바뀌었으면(폰 · 웹에서 같이 누름, 두 번 누름) 쓰지 않는다 — 둘 다 '안 먹음'을 보고 기록을 두 번 만들고, 늦은 쪽이
+   * 앞쪽의 '먹음'을 되돌렸다. updatedAt 이 읽은 값일 때만 계획을 고치고, 그때만 기록을 만든다(한 트랜잭션).
+   */
+  const CHANGED = 'meal-plan-changed';
+  try {
+    await prisma.$transaction(async (tx) => {
+      const claimed = await tx.mealPlan.updateMany({
+        where: { id: row.id, updatedAt: row.updatedAt },
+        data: { items: items.map((i) => (done.has(i.key) ? { ...i, done: true } : i)) },
+      });
+      if (claimed.count === 0) throw new Error(CHANGED);
+      await tx.mealEntry.createMany({ data: rows });
+    });
+  } catch (e) {
+    if (e instanceof Error && e.message === CHANGED) return { ok: false, error: '식단이 방금 바뀌었어요. 새로고침해 주세요.' };
+    throw e;
+  }
   revalidatePath(PATH);
   return { ok: true };
 }

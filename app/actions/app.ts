@@ -4,6 +4,7 @@ import { cookies } from 'next/headers';
 import { unstable_rethrow } from 'next/navigation';
 import { appNow } from '@/lib/clock';
 import { getCurrentUser } from '@/lib/dal';
+import { pickArmPain, pickCheckinParts, validateCheckinDate, type CheckinPartKey } from '@/lib/checkin';
 import { featureLocks, SETUP_PATH } from '@/lib/feature-locks';
 import { dbDate, isNutritionDate, keyOfDbDate } from '@/lib/nutrition/days';
 import { prisma } from '@/lib/prisma';
@@ -195,6 +196,45 @@ export async function loadAppDayEvents(
         ...(userId === user.id ? {} : { owner: owner.nickname }),
       }))
     ),
+  };
+}
+
+/**
+ * 앱 체크인 화면(native/src/app/checkin.tsx)이 고치기로 열 때 — 그날 저장한 값 그대로(팔 통증 자리 · 정도까지). 그날 칸(lib/day-detail.ts)은
+ * 보이는 글이라 팔 통증 자리가 없어, 그것으로 채우면 다시 저장할 때 팔 통증 자리가 지워졌다.
+ */
+export async function loadAppCheckin(date: string): Promise<
+  | {
+      ok: true;
+      checkin: {
+        condition: number;
+        sleepQuality: number | null;
+        parts: Record<CheckinPartKey, string>;
+        armSpots: string[];
+        armLevel: number | null;
+        note: string;
+      } | null;
+    }
+  | { ok: false; error: string }
+> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: '로그인이 필요해요.' };
+  if (!validateCheckinDate(String(date))) return { ok: false, error: '날짜가 올바르지 않아요.' };
+  const row = await prisma.dailyCheckin.findUnique({
+    where: { userId_date: { userId: user.id, date: new Date(`${date}T00:00:00.000Z`) } },
+  });
+  if (!row) return { ok: true, checkin: null };
+  const arm = pickArmPain(row);
+  return {
+    ok: true,
+    checkin: {
+      condition: row.condition,
+      sleepQuality: row.sleepQuality ?? null,
+      parts: pickCheckinParts(row as Partial<Record<CheckinPartKey, string>>),
+      armSpots: arm.armPainSpots,
+      armLevel: arm.armPainLevel,
+      note: row.note ?? '',
+    },
   };
 }
 

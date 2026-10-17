@@ -16,7 +16,6 @@ import {
 } from '@/lib/checkin';
 import { rpc, RpcError } from '~/lib/rpc';
 import { usePalette } from '~/lib/ui';
-import { loadDay } from '~/home/api';
 
 /**
  * 체크인(앱 화면) — 웹 3판 흐름(components/checkin-flow)과 같은 신호 셋: 컨디션 1~10 · 어젯밤 수면의 질 1~5 · 불편한 곳 · 메모.
@@ -25,6 +24,14 @@ import { loadDay } from '~/home/api';
  */
 const LEVELS = ['정상', '뻐근', '통증'] as const;
 type Level = (typeof LEVELS)[number];
+type StoredCheckin = {
+  condition: number;
+  sleepQuality: number | null;
+  parts: Record<CheckinPartKey, string>;
+  armSpots: string[];
+  armLevel: number | null;
+  note: string;
+};
 
 export default function CheckinScreen() {
   const { date } = useLocalSearchParams<{ date: string }>();
@@ -42,38 +49,44 @@ export default function CheckinScreen() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  /* 오늘 이미 남겼으면 그 값으로(고치기) — 팔 통증 자리는 그날 칸에 없어 다시 고른다 */
+  /*
+   * 그날 이미 남겼으면 그 값으로(고치기) — 팔 통증 자리 · 정도까지(app.loadAppCheckin). 못 불러오면 저장을 막는다: 빈 값으로 저장하면
+   * 그날 남긴 통증 부위가 '정상'으로 덮인다.
+   */
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [attempt, setAttempt] = useState(0);
   useEffect(() => {
     let alive = true;
-    loadDay(date)
-      .then((d) => {
-        if (!alive || !d.checkin) return;
-        setCondition(d.checkin.condition);
-        setSleep(d.checkin.sleepQuality);
-        setNote(d.checkin.note ?? '');
-        const byLabel = new Map(d.checkin.parts.map((p) => [p.label, p.value]));
+    rpc<{ ok: true; checkin: StoredCheckin | null } | { ok: false; error: string }>('app.loadAppCheckin', date)
+      .then((r) => {
+        if (!alive) return;
+        if (!r.ok) return setLoadError(r.error);
+        setLoadError(null);
+        const d = r.checkin;
+        if (!d) return;
+        setCondition(d.condition);
+        setSleep(d.sleepQuality);
+        setNote(d.note);
         setParts(
-          (prev) =>
-            Object.fromEntries(
-              CHECKIN_PARTS.map((p) => {
-                const v = byLabel.get(p.label);
-                return [p.key, v === '뻐근' || v === '통증' ? v : prev[p.key]];
-              })
-            ) as Record<CheckinPartKey, Level>
+          Object.fromEntries(
+            CHECKIN_PARTS.map((p) => [p.key, d.parts[p.key] === '뻐근' || d.parts[p.key] === '통증' ? d.parts[p.key] : '정상'])
+          ) as Record<CheckinPartKey, Level>
         );
+        setArmSpots(d.armSpots);
+        setArmLevel(d.armLevel);
       })
-      .catch(() => undefined)
+      .catch((e: unknown) => alive && setLoadError(e instanceof RpcError && e.code === 'offline' ? '신호가 약해 불러오지 못했어요.' : '불러오지 못했어요.'))
       .finally(() => alive && setLoading(false));
     return () => {
       alive = false;
     };
-  }, [date]);
+  }, [date, attempt]);
 
   const armJoints = (['shoulder', 'elbow'] as const).filter((k) => parts[k] === '통증');
   const lowDay = condition != null && condition <= PAIN_FORCED_CONDITION;
 
   const save = async () => {
-    if (saving) return;
+    if (saving || loadError) return;
     if (condition == null) return setError('오늘 컨디션을 골라 주세요.');
     setSaving(true);
     setError(null);
@@ -120,12 +133,26 @@ export default function CheckinScreen() {
           <Text style={{ color: c.sky, fontSize: 17 }}>닫기</Text>
         </Pressable>
         <Text style={{ color: c.ink, fontSize: 17, fontWeight: '600' }}>오늘 체크인</Text>
-        <Pressable accessibilityRole="button" onPress={save} disabled={saving} hitSlop={10}>
-          <Text style={{ color: c.sky, fontSize: 17, fontWeight: '700', opacity: saving ? 0.4 : 1 }}>저장</Text>
+        <Pressable accessibilityRole="button" onPress={save} disabled={saving || loading || !!loadError} hitSlop={10}>
+          <Text style={{ color: c.sky, fontSize: 17, fontWeight: '700', opacity: saving || loading || loadError ? 0.4 : 1 }}>저장</Text>
         </Pressable>
       </View>
       {loading ? (
         <ActivityIndicator style={{ marginTop: 32 }} />
+      ) : loadError ? (
+        <View style={{ padding: 24, gap: 16, alignItems: 'center' }}>
+          <Text style={{ color: c.danger, fontSize: 15, textAlign: 'center' }}>{loadError} 그날 남긴 값을 덮지 않게 저장을 막아 뒀어요.</Text>
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => {
+              setLoading(true);
+              setAttempt((n) => n + 1);
+            }}
+            style={[styles.primary, { backgroundColor: c.sky, paddingHorizontal: 28 }]}
+          >
+            <Text style={styles.primaryText}>다시 불러오기</Text>
+          </Pressable>
+        </View>
       ) : (
         <ScrollView contentContainerStyle={{ padding: 16, gap: 10, paddingBottom: inset.bottom + 32 }} keyboardShouldPersistTaps="handled">
           <Text style={[styles.q, { color: c.ink }]}>오늘 컨디션은 어때요?</Text>

@@ -12,8 +12,9 @@ import {
   sleepLevelFromQuality,
   validateCheckin,
   validateCheckinDate,
+  type CheckinPartKey,
 } from '@/lib/checkin';
-import { parseBodySpots, partsFromSpots } from '@/lib/body-spots';
+import { cleanBodySpots, parseBodySpots, partsFromSpots, spotOf } from '@/lib/body-spots';
 import { withInput, type FormValues } from '@/lib/form-values';
 
 export type CheckinState =
@@ -70,6 +71,27 @@ export async function saveAppCheckin(input: {
   if (Array.isArray(input?.armSpots)) for (const s of input.armSpots) fd.append('armPainSpots', String(s));
   if (input?.armLevel != null) fd.set('armPainLevel', String(input.armLevel));
   fd.set('note', typeof input?.note === 'string' ? input.note : '');
+  /*
+   * 웹 몸 그림으로 고른 근육(bodySpots)을 지키기 — 앱은 다섯 부위만 고르니, 앱이 그대로 둔 부위의 근육은 남기고 바꾼 부위의 근육만
+   * 버린다(남기면 그 근육이 부위 칸을 도로 올려 앱에서 '정상'으로 낮춘 것이 안 먹는다). 안 보내면 trySaveCheckin 이 {} 로 덮는다.
+   */
+  const user = await getCurrentUser();
+  const dateKey = String(input?.date ?? '');
+  if (user && validateCheckinDate(dateKey)) {
+    const row = await prisma.dailyCheckin.findUnique({
+      where: { userId_date: { userId: user.id, date: new Date(`${dateKey}T00:00:00.000Z`) } },
+    });
+    if (row) {
+      const stored = pickCheckinParts(row as Partial<Record<CheckinPartKey, string>>);
+      const kept = Object.fromEntries(
+        Object.entries(cleanBodySpots(row.bodySpots)).filter(([id]) => {
+          const part = spotOf(id)?.def.part;
+          return part != null && (fd.get(part) ?? '정상') === stored[part];
+        })
+      );
+      fd.set('bodySpots', JSON.stringify(kept));
+    }
+  }
   return trySaveCheckin(fd);
 }
 

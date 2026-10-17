@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Alert, KeyboardAvoidingView, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
@@ -39,12 +39,16 @@ export function DayEvents({ date }: { date: string }) {
     list: days.get(date) ?? null,
   }));
   const [sheet, setSheet] = useState<{ event: CalendarEventView | null } | null>(null);
+  /* 고치기 · 지우기를 하면 하나 올린다 — 그 전에 떠난 읽기가 늦게 오면 버리고(방금 저장한 일정이 사라지지 않게) 다시 읽는다 */
+  const gen = useRef(0);
+  const [reload, setReload] = useState(0);
 
   useEffect(() => {
     let alive = true;
+    const g = gen.current;
     rpc<{ ok: true; events: CalendarEventView[] } | { ok: false; error: string }>('app.loadAppDayEvents', date).then(
       (r) => {
-        if (!r.ok || !alive) return;
+        if (!r.ok || !alive || g !== gen.current) return;
         days.set(date, r.events);
         setState({ date, list: r.events });
       },
@@ -53,13 +57,15 @@ export function DayEvents({ date }: { date: string }) {
     return () => {
       alive = false;
     };
-  }, [date]);
+  }, [date, reload]);
 
   const list = state.date === date ? state.list ?? days.get(date) ?? null : days.get(date) ?? null;
   const put = (next: CalendarEventView[]) => {
+    gen.current++;
     const sorted = sortEvents(next);
     days.set(date, sorted);
     setState({ date, list: sorted });
+    setReload((n) => n + 1);
   };
 
   return (
@@ -132,7 +138,9 @@ function EventSheet({
   const [title, setTitle] = useState(event?.title ?? '');
   const [time, setTime] = useState(event?.time ?? '');
   const [memo, setMemo] = useState(event?.memo ?? '');
-  const [remind, setRemind] = useState<number | null>(event ? event.remindMin : defaultRemind(null));
+  /* 'auto' — 아직 안 골랐다: 시각이 있으면 30분 전, 하루 종일이면 그날 아침(웹 day-schedule.tsx 와 같은 규칙) */
+  const [remindPick, setRemind] = useState<number | null | 'auto'>(event ? event.remindMin : 'auto');
+  const remind = remindPick === 'auto' ? defaultRemind(time.trim() || null) : remindPick;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const allDay = !time.trim();
