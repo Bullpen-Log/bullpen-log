@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { MARK_PATH, MARK_VIEWBOX } from '@/components/logo';
 
 /**
@@ -50,8 +50,13 @@ function isRevisit() {
   }
 }
 
+const noSubscribe = () => () => {};
+
 export function AppSplash() {
   const [show, setShow] = useState(() => !played);
+  /* 서버 HTML 을 그리거나 붙는(hydration) 중인가 — 클라이언트 이동으로 새로 그릴 때는 <script> 가 돌지 않고 React 가 콘솔 오류만
+     낸다(체크인 건너뛰기 → 홈, 2026-10-17 QA). 그때 표시는 아래 효과가 단다 */
+  const fromServer = useSyncExternalStore(noSubscribe, () => false, () => true);
   const rootRef = useRef<HTMLDivElement>(null);
   const markRef = useRef<HTMLDivElement>(null);
   const slotRef = useRef<HTMLSpanElement>(null);
@@ -112,11 +117,13 @@ export function AppSplash() {
        * 스트리밍 조각이 드러나며 거는 화면 전환(view transition)의 그림이 이 판 위로 번쩍였다(왼쪽 · 오른쪽 틀, 2026-10-07).
        * globals.css 가 이 표시가 있는 동안 view-transition-name 을 모두 끈다(체크인 관문의 data-gate-up 과 같은 방식).
        */}
-      <script
-        dangerouslySetInnerHTML={{
-          __html: `document.documentElement.setAttribute('${SPLASH_ATTR}','')`,
-        }}
-      />
+      {fromServer && (
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `document.documentElement.setAttribute('${SPLASH_ATTR}','')`,
+          }}
+        />
+      )}
       <div className="app-splash__stage">
         {/* 끝 장면의 이름 — B 칸은 비워 두고(큰 B 가 와서 앉는다) 글자만 */}
         <span className="app-splash__word text-display">

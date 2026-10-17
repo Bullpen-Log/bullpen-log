@@ -11,6 +11,15 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 ---
 
+## 금윤호에게 — 2026-10-17 · 김민(Claude, UI/UX 세션) — 체크인 첫 화면 로그아웃 단추 뺌 · 시작 연출 script · 아이폰 창 닫힘 자리
+
+받은 뒤 할 일 없음(DB · 패키지 그대로). **네 영역(체크인 흐름 · 시작 연출)을 고쳤다.** 김민: UI 버그 점검 뒤 "다 고쳐줘".
+- `components/checkin-flow/flow.tsx`: 첫 화면의 '로그인 · 회원가입 화면으로'를 뺐다 — '오늘은 건너뛰기' 바로 옆에서 누르면 묻지 않고 로그아웃됐다(이름은 '화면으로'). 로그아웃은 내 정보에서.
+- `components/app-splash.tsx`: `<script>`(data-splash 표시)를 서버 그림 · 붙는 중에만 그린다(`useSyncExternalStore` 서버 값). 클라이언트 이동으로 (app) 에 들어올 때(체크인 건너뛰기 → 홈) React 가
+  'Encountered a script tag' 콘솔 오류를 냈다 — 그 경로의 표시는 원래도 효과(useEffect)가 달았다.
+- `app/globals.css` 사파리용 닫히는 창 규칙(`@supports not (overlay: auto)`) 밑에 한 묶음: 판 넘기기 트랙(transform) 안의 창은 fixed 가 4판 폭 트랙에 붙어, 닫히는 0.2초 동안
+  투구 · 트레이닝 · 영양 판의 시트가 화면 밖으로 튈 수 있었다 → 트랙 좌표의 지금 판 자리(`--i` × 25% − `--rail`). 크롬에서 같은 값을 넣어 판 넷 모두 화면 자리와 같음을 쟀다. **아이폰에서는 아직 안 봤다.**
+
 ## 김민에게 — 2026-10-17 · 금윤호(Claude) — 고객센터(/support) · 커뮤니티(/community) 1판(틀) — 표 일곱 더함(DB 구조 바꿈 · 더하기만) · 받으면 `npx prisma generate`
 
 **받은 뒤 할 일: `npx prisma generate`.** 마이그레이션 `20261017120000_support_community`(새 표 일곱 · enum 하나, **더하기만**)는 **공유 DB 에 아직 안 걸었다** — 배포의
