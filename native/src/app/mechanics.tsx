@@ -1,6 +1,6 @@
 import * as Haptics from 'expo-haptics';
 import { SymbolView } from 'expo-symbols';
-import { router, Stack, useLocalSearchParams } from 'expo-router';
+import { type Href, router, Stack, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View, type ScrollViewInstance } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -271,7 +271,7 @@ function Player({ backHref, items, startAt, label, sessionNumber, partial, painL
             <Text style={[s.body, { color: c.muted }]}>
               같은 자리에서 다시 찍어 처음 영상과 2분할로 견줘 보세요. 구속도 재 두면 효과를 알 수 있어요.
             </Text>
-            <Pressable onPress={() => leave('/videos?compare=1')} accessibilityRole="link" style={[s.pill, { backgroundColor: c.chip }]}>
+            <Pressable onPress={() => router.push('/pitch/compare' as Href)} accessibilityRole="link" style={[s.pill, { backgroundColor: c.chip }]}>
               <Text style={[s.bodyBold, { color: c.ink }]}>2분할 비교 열기</Text>
             </Pressable>
             {/* 견준 결과 — 지금 못 견줬으면 '아직'을 누르거나 프로그램 칸에서 나중에 남긴다 */}
