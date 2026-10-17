@@ -3,7 +3,6 @@
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
-import { appNow } from '@/lib/clock';
 import { getCurrentUser } from '@/lib/dal';
 import { withInput, type FormValues } from '@/lib/form-values';
 import {
@@ -78,7 +77,8 @@ async function tryCreateInquiry(formData: FormData): Promise<SupportState> {
   const recent = await prisma.supportInquiry.count({
     where: {
       userId: user.id,
-      createdAt: { gte: new Date(appNow().getTime() - 10 * 60_000) },
+      /* createdAt 은 DB 의 실제 시각 — 시뮬레이션 날짜(appNow)와 견주면 시험 계정이 영원히 막혔다(lib/clock.ts) */
+      createdAt: { gte: new Date(Date.now() - 10 * 60_000) },
     },
   });
   if (recent >= 5)

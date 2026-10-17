@@ -203,7 +203,8 @@ export function FeedCard({ items }: { items: FeedItem[] }) {
 
   useEffect(() => {
     /* 움직임 줄이기면 저절로 넘기지 않는다 — 미끄러짐만 빼면 내용이 3초마다 바뀌는 건 그대로였다 */
-    if (n < 2 || reduce || paused || held || offPanel || drag != null || moving != null) return;
+    if (n < 2 || reduce || paused || held || offPanel || drag != null || moving != null)
+      return;
     if (manualAt.current > 0) return;
     const dwell = items[index]?.tone === 'none' ? DWELL_NONE_MS : DWELL_MS;
     const id = window.setTimeout(() => {
@@ -287,7 +288,14 @@ export function FeedCard({ items }: { items: FeedItem[] }) {
        * ‹ › 를 한 번 누르면 자동 넘김이 영영 멈췄다.
        */
       onPointerEnter={(e) => e.pointerType === 'mouse' && setPaused(true)}
-      onPointerLeave={(e) => (e.pointerType === 'mouse' ? setPaused(false) : setHeld(false))}
+      onPointerLeave={(e) =>
+        e.pointerType === 'mouse' ? setPaused(false) : setHeld(false)
+      }
+      /* 키보드 초점이 칸 안에 있는 동안도 쉰다 — 초점 둔 링크의 글이 3초마다 바뀌고 초점이 사라졌다(2026-10-17) */
+      onFocus={() => setPaused(true)}
+      onBlur={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setPaused(false);
+      }}
     >
       {/*
        * 위 줄 — 왼쪽 이름표(장마다 바뀜), 오른쪽 ‹ ›. 장이 하나면 단추를 안 낸다.

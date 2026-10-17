@@ -88,7 +88,17 @@ export function TabPager({
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const index = order.findIndex((h) => base(h) === pathname);
+  const view = searchParams.get('view');
+  /*
+   * 투구 기록 팝업(/pitch-log/<날짜>, @modal 가로채기)이 떠도 밑의 판은 그대로 — 팝업 전 주소를 쥔다(그리는 도중 상태 보정, day-modal 과
+   * 같은 꼴). 전에는 index 가 -1 → html[data-pager='page'] → 트랙이 display:none 으로 팝업 뒤가 비고(PC 는 바닥글이 막 뒤로 올라옴),
+   * 닫으면 판의 스크롤 자리를 잃었다(2026-10-17). 주소로 곧장 들어온 하드 로드는 쥔 주소도 팝업 주소라 지금처럼 children 전체 화면.
+   */
+  const popup = pathname.startsWith('/pitch-log/');
+  const [shown, setShown] = useState({ pathname, view });
+  if (!popup && (shown.pathname !== pathname || shown.view !== view))
+    setShown({ pathname, view });
+  const index = order.findIndex((h) => base(h) === shown.pathname);
   const tabMode = index >= 0;
   const track = useRef<HTMLDivElement>(null);
   const [ghost, setGhost] = useState<{ item: NavItem } | null>(null);
@@ -190,7 +200,8 @@ export function TabPager({
     const onDown = (e: TouchEvent) => {
       const old = drag.current;
       /* 끌던 손가락이 이미 떨어졌으면(끝 알림을 놓침 — 손가락 밑 노드가 다시 그려지면 track 까지 안 온다) 3초를 기다리지 않고 푼다 */
-      const lost = old != null && !Array.from(e.touches).some((t) => t.identifier === old.id);
+      const lost =
+        old != null && !Array.from(e.touches).some((t) => t.identifier === old.id);
       if (old && (!old.on || lost || e.timeStamp - old.t > 3000)) {
         drag.current = null;
         if (old.on) {
@@ -318,7 +329,11 @@ export function TabPager({
              * 손가락뿐이라 검은 판이 화면을 덮은 채 남았다(2026-10-16). 넘어갔으면 이 틀이 사라져 아무 일도 없다.
              */
             window.setTimeout(() => {
-              if (!el.isConnected || location.pathname === new URL(cam.href, location.href).pathname) return;
+              if (
+                !el.isConnected ||
+                location.pathname === new URL(cam.href, location.href).pathname
+              )
+                return;
               trans('');
               setDx(0);
               setGhost(null);
@@ -390,7 +405,7 @@ export function TabPager({
              */
             data-bare={
               base(order[i]) === '/today' ||
-              (i === index && isTrainingSubView(pathname, searchParams.get('view')))
+              (i === index && isTrainingSubView(shown.pathname, shown.view))
                 ? undefined
                 : ''
             }

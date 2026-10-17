@@ -11,6 +11,23 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 ---
 
+## 김민에게 — 2026-10-17 밤 · 금윤호(Claude) — 버그 사냥 1차(36건 중 29건 고침) · 받으면 `npx prisma generate`
+
+**받은 뒤 할 일: `npx prisma generate`.** 마이그레이션 `20261017224000_support_author_setnull`(SupportNotice · SupportReply 의 authorId NULL 허용 — 글쓴 관리자가
+지워져도 공지 · 운영자 답글이 남게, **바꾸기만**)은 배포의 `migrate deploy` 가 건다. 사용자: "작은 버그 · 치명 버그를 모두 찾아 고쳐" — 검토 에이전트 8 + 반박 9 로 36건
+(치명 0 · bug 9 · minor 27), 아래는 네 영역에 닿은 것만. 나머지(홈 · 영양 · 고객센터 · 커뮤니티 · 내 정보)는 커밋 글에.
+- **체크인(네가 오늘 손댄 flow.tsx)**: `restCard`(쉬어요 카드)는 어깨 · 팔꿈치가 '통증'일 때만 — 관절을 뻐근으로 내려도 armLevel 3 이 남아 카드가 떴다(서버 parseArmPain 과 같은 규칙).
+  `checkin-gate.tsx` 의 2.2초 안전망 타이머 뺌 — 그 카드를 읽기 전에 PC 관문이 닫아 버렸다(닫기는 흐름의 onDone 만, 종 팝업과 같음). '처음으로'는 저장 중 잠금. 메모 칸 aria.
+- **구속 측정 화면(`velocity-screen.tsx`, 상태만 — 엔진은 안 건드림)**: 되살린 세션의 `draftDate` 가 저장 · 지우기 뒤에도 남아 다음 세션이 옛 날짜로 저장됐다 → 비움,
+  `saved` 는 저장한 날짜(안내 링크가 그날로). 마지막 공을 지우면 폰 임시 저장이 안 지워져 다음에 되살아났다 → 공이 있다가 없어지면 `clearDraft`. 첫 화면 기록 단추의
+  최고 구속에 보정이 두 번 걸렸다(`shown()` 뺌 — maxKmh 는 이미 보정값). 저장 시트 제목 '세션 저장하기'. **안 고친 것**: 되살린 세션의 `draftMeta` 가 저장 때 안 쓰임
+  (카메라가 먼저 켜져 `camera == null` 이 거짓) · `loadFov` 첫 렌더 읽기(하이드레이션) — 엔진 쪽 판단이 필요해 네게 넘긴다.
+- **판 넘기기(`tab-pager.tsx`)**: 투구 기록 팝업(/pitch-log/<날짜>) 동안 index 가 -1 → `data-pager='page'` → 트랙 display:none 으로 팝업 뒤가 비고 닫으면 스크롤 자리를
+  잃었다 → 팝업 전 주소를 쥔다(mobile-top-bar 의 bare · home 도 같은 규칙). **안 고친 것**: 하위 화면(암케어)을 두고 다른 탭 갔다 돌아오면 주소만 `?view=home` 인 것 —
+  설계 결정(iOS 처럼 유지 vs 첫 화면 복귀)이라 네 판단.
+- 앱 입구 `app/api/rpc/registry.ts` 에 support · community 더함(빠져서 앱에서 'unknown-action' — 통합 시험이 잡았다). `feed.tsx` kcal × amount 네 말대로 고침.
+- 시험: integration 33 · nutrition 494 · velocity 48 · highlights 25 · calendar 통과. tsc · eslint 깨끗.
+
 ## 금윤호에게 — 2026-10-17 · 김민(Claude, UI/UX 세션) — 체크인 첫 화면 로그아웃 단추 뺌 · 시작 연출 script · 아이폰 창 닫힘 자리
 
 받은 뒤 할 일 없음(DB · 패키지 그대로). **네 영역(체크인 흐름 · 시작 연출)을 고쳤다.** 김민: UI 버그 점검 뒤 "다 고쳐줘".

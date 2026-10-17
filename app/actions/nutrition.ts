@@ -928,6 +928,12 @@ export async function finishNutritionSetup(raw: {
     return { ok: false, error: answers, field: 'kcalTarget' };
 
   const today = toDateKey(appNow());
+  /*
+   * 체중 화면은 참조값(최근 30일 기록 ?? 내 정보)이 없을 때만 보인다(setup-wizard askBody) — 참조값과 같으면 사용자가 다시 재지 않은
+   * 값이라 오늘 체중 기록으로는 만들지 않는다(옛 값이 오늘 점으로 찍히고 stale 권유가 비켜 갔다, 2026-10-17). 내 정보의 몸무게는 그대로 맞춘다.
+   */
+  const refKg = (await recentWeightKg(user.id, today)) ?? user.weightKg;
+  const weightEntered = refKg === null || refKg !== weightKg;
   const body: OnboardingBody = {
     age: ageOn(user.birthDate, today),
     sex: isSex(user.sex) ? user.sex : null,
@@ -965,11 +971,15 @@ export async function finishNutritionSetup(raw: {
       update: data,
       create: { userId: user.id, ...data },
     }),
-    prisma.dailyNutrition.upsert({
-      where: { userId_date: { userId: user.id, date: dbDate(today) } },
-      update: { weightKg },
-      create: { userId: user.id, date: dbDate(today), weightKg },
-    }),
+    ...(weightEntered
+      ? [
+          prisma.dailyNutrition.upsert({
+            where: { userId_date: { userId: user.id, date: dbDate(today) } },
+            update: { weightKg },
+            create: { userId: user.id, date: dbDate(today), weightKg },
+          }),
+        ]
+      : []),
   ]);
   await dropAvoidedFromTodayPlan(user.id, prefs);
   revalidatePath(PATH);

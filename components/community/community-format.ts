@@ -1,8 +1,7 @@
-import { appNow } from '@/lib/clock';
 import type { PostCategory } from '@/lib/community';
 
 /**
- * 커뮤니티 화면이 같이 쓰는 글자 다듬기 — 때 · 구분 색. 서버 컴포넌트에서 부른다(appNow 는 시뮬레이션 계정의 날짜를 본다).
+ * 커뮤니티 화면이 같이 쓰는 글자 다듬기 — 때 · 구분 색. 서버 컴포넌트에서 부른다. 글 시각은 DB 의 실제 시각이라 실제 '지금'과 견준다(appNow 아님).
  */
 
 /* 서버(Vercel)는 UTC 로 돈다 — 시간대를 안 주면 한국 0~9시에 쓴 글이 전날로 찍힌다 */
@@ -25,8 +24,8 @@ export const formatDate = (date: Date) => dateOnly.format(date);
 export const formatDateTime = (date: Date) => dateTime.format(date);
 
 /** 목록의 짧은 때 — 방금 · N분 전 · N시간 전 · N일 전, 한 주 넘으면 날짜 */
-export function relativeTime(date: Date, now: Date = appNow()) {
-  const minutes = Math.floor((now.getTime() - date.getTime()) / 60_000);
+export function relativeTime(date: Date, now: Date = new Date()) {
+  const minutes = Math.max(0, Math.floor((now.getTime() - date.getTime()) / 60_000));
   if (minutes < 1) return '방금';
   if (minutes < 60) return `${minutes}분 전`;
   const hours = Math.floor(minutes / 60);

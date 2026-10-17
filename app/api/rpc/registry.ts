@@ -12,6 +12,7 @@ import * as auth from '@/app/actions/auth';
 import * as board from '@/app/actions/board';
 import * as calendarEvent from '@/app/actions/calendar-event';
 import * as checkin from '@/app/actions/checkin';
+import * as community from '@/app/actions/community';
 import * as content from '@/app/actions/content';
 import * as dayCards from '@/app/actions/day-cards';
 import * as exerciseHistory from '@/app/actions/exercise-history';
@@ -30,6 +31,7 @@ import * as profile from '@/app/actions/profile';
 import * as program from '@/app/actions/program';
 import * as rehab from '@/app/actions/rehab';
 import * as shoot from '@/app/actions/shoot';
+import * as support from '@/app/actions/support';
 import * as trainingDays from '@/app/actions/training-days';
 import * as trainingSetup from '@/app/actions/training-setup';
 import * as velocity from '@/app/actions/velocity';
@@ -45,6 +47,7 @@ export const RPC_MODULES: Record<string, Record<string, unknown>> = {
   board: board,
   'calendar-event': calendarEvent,
   checkin: checkin,
+  community: community,
   content: content,
   'day-cards': dayCards,
   'exercise-history': exerciseHistory,
@@ -63,6 +66,7 @@ export const RPC_MODULES: Record<string, Record<string, unknown>> = {
   program: program,
   rehab: rehab,
   shoot: shoot,
+  support: support,
   'training-days': trainingDays,
   'training-setup': trainingSetup,
   velocity: velocity,

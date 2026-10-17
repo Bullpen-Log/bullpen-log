@@ -13,6 +13,7 @@ import {
   PageHeading,
 } from '@/components/ui';
 import { formatDateTime } from '@/components/community/community-format';
+import { SafeForm } from '@/components/safe-form';
 
 type Search = { [key: string]: string | string[] | undefined };
 
@@ -172,8 +173,9 @@ export default async function CommunityAdminPage({
                   )}
 
                   <div className="flex flex-wrap items-center justify-end gap-2">
+                    {/* SafeForm — 신호가 끊겨 보내기가 던지면 목록이 통째로 오류 화면이 됐다(2026-10-17) */}
                     {!gone && (
-                      <form action={setHidden}>
+                      <SafeForm action={setHidden}>
                         <input
                           type="hidden"
                           name="kind"
@@ -194,16 +196,16 @@ export default async function CommunityAdminPage({
                           )}
                           {hidden ? '되살리기' : '가리기'}
                         </Button>
-                      </form>
+                      </SafeForm>
                     )}
                     {!resolved && (
-                      <form action={resolveReport}>
+                      <SafeForm action={resolveReport}>
                         <input type="hidden" name="id" value={r.id} />
                         <Button type="submit" size="sm" className="gap-1.5">
                           <Check aria-hidden className="h-4 w-4" />
                           처리 완료
                         </Button>
-                      </form>
+                      </SafeForm>
                     )}
                   </div>
                 </Card>

@@ -2,7 +2,14 @@
 
 import { addTransitionType, useState, useTransition, type ComponentProps } from 'react';
 import { unstable_rethrow, useRouter } from 'next/navigation';
-import { Camera, ChevronRight, Loader2, Play, RotateCw, Trash2 } from '@/components/icon';
+import {
+  Camera,
+  ChevronRight,
+  Loader2,
+  Play,
+  RotateCw,
+  Trash2,
+} from '@/components/icon';
 import { IconCircle } from '@/components/icon-circle';
 import { quietRefresh } from '@/lib/quiet-refresh';
 import { QUIET_REFRESH } from '@/lib/transition-types';
@@ -40,7 +47,8 @@ import {
  * 그날 화면의 '구속 측정' — 카메라로 잰 세션과 공들을 보고, 고치고, 지운다.
  *
  * 투구 기록 한 건(투구수 · 최고 · 평균)은 위의 기록 카드에 있고, 여기는 그 안의 공 하나하나다.
- * 공을 지우면 서버가 그 기록의 투구수 · 구속도 다시 맞춘다(app/actions/velocity.ts).
+ * 공을 지우면 서버가 그 기록의 투구수 · 구속도 다시 맞춘다 — 옛 카메라 기록(memo 가 [구속 측정])만. 2026-10-16 이후 손으로 남긴 기록은
+ * 그대로다(lib/velocity-sync.ts) — 지우기 확인 글은 legacyLogIds 로 가른다.
  *
  * 공(줄 · ▶)을 누르면 잰 직후의 결과 화면처럼 연다 — 그 공의 영상을 되풀이하며 공 길을 파란 관으로 따라 그리고 구속 · 구종을 보인다
  * (사용자 2026-10-07: "결과 목록에서 측정 직후처럼"). 고치기(구종 · 코스 · 결과 · 스피드건 · 메모)는 그 화면 오른쪽 위 연필 → 아래 시트.
@@ -60,10 +68,13 @@ const TIME_KST = new Intl.DateTimeFormat('ko-KR', {
 export function VelocitySection({
   sessions,
   isAdmin = false,
+  legacyLogIds,
 }: {
   sessions: VelocitySessionView[];
   /** 관리자 — 스피드건 값 칸(일반 사용자는 스피드건 짝을 안 쓴다, 2026-10-15) */
   isAdmin?: boolean;
+  /** 옛 카메라 기록(memo 가 [구속 측정]) id — 이 기록만 세션과 함께 지워지고 투구수가 맞춰진다 */
+  legacyLogIds?: ReadonlySet<string>;
 }) {
   const router = useRouter();
   const unit = useSpeedUnit();
@@ -562,14 +573,43 @@ export function VelocitySection({
         }
         detail={
           ask?.kind === 'session'
-            ? `${ask.session.pitches.length}구를 통째로 지워요. 같이 만든 투구 기록도 지워지고 되돌릴 수 없어요.`
-            : '투구 기록의 투구수와 구속도 다시 맞춰져요. 되돌릴 수 없어요.'
+            ? sessionDeleteText(ask.session, legacyLogIds)
+            : pitchDeleteText(editingSession, legacyLogIds)
         }
         confirmLabel={ask?.kind === 'session' ? '세션 지우기' : '공 지우기'}
         pending={pending}
       />
     </section>
   );
+}
+
+/*
+ * 지우기 확인 글 — 이어진 투구 기록의 성격으로 가른다. 옛 카메라 기록(legacy)만 세션과 함께 지워지고 투구수 · 구속이 맞춰진다
+ * (lib/velocity-sync.ts). 손으로 남긴 기록(manual)은 그대로 남고, 안 이어진 세션(none)은 세션만 사라진다(2026-10-17 — 전에는 셋 다 옛 글).
+ */
+function linkOf(pitchLogId: string | null | undefined, legacy?: ReadonlySet<string>) {
+  return pitchLogId == null ? 'none' : legacy?.has(pitchLogId) ? 'legacy' : 'manual';
+}
+function sessionDeleteText(s: VelocitySessionView, legacy?: ReadonlySet<string>) {
+  const n = `${s.pitches.length}구를 통째로 지워요.`;
+  const link = linkOf(s.pitchLogId, legacy);
+  if (link === 'legacy') return `${n} 같이 만든 투구 기록도 지워지고 되돌릴 수 없어요.`;
+  if (link === 'manual')
+    return `${n} 이어진 투구 기록은 그대로 남아요 — 투구수 · 구속은 기록 고치기에서 맞춰 주세요. 되돌릴 수 없어요.`;
+  return `${n} 되돌릴 수 없어요.`;
+}
+function pitchDeleteText(
+  s: VelocitySessionView | null | undefined,
+  legacy?: ReadonlySet<string>
+) {
+  const link = linkOf(s?.pitchLogId, legacy);
+  if (link === 'legacy')
+    return '투구 기록의 투구수와 구속도 다시 맞춰져요. 되돌릴 수 없어요.';
+  const last =
+    s != null && s.pitches.length === 1 ? '마지막 공이라 세션도 함께 지워져요. ' : '';
+  if (link === 'manual')
+    return `${last}이어진 투구 기록의 투구수 · 구속은 바뀌지 않아요. 되돌릴 수 없어요.`;
+  return `${last}되돌릴 수 없어요.`;
 }
 
 function Row({ label, value }: { label: string; value: string }) {

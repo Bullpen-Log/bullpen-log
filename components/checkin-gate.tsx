@@ -1,6 +1,12 @@
 'use client';
 
-import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react';
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from 'react';
 import { useRouter } from 'next/navigation';
 import { CheckinFlow } from '@/components/checkin-flow/flow';
 import type { CheckinFlowContext } from '@/components/checkin-flow/types';
@@ -35,12 +41,6 @@ import { DESK_MEDIA } from '@/lib/nav';
  *
  * 모든 화면의 틀((app)/layout.tsx)에 들어 있어서, 어느 화면으로 들어오든 뜬다.
  */
-
-/**
- * 저장한 뒤 '체크인 완료'가 보이는 시간 — 흐름의 완료 화면(1.5초)이 끝나면 흐름이 onDone 으로 닫지만,
- * 그 신호를 놓쳐도 이때는 닫는다.
- */
-const DONE_MS = 2200;
 
 /*
  * 창을 열기 전에 글꼴 조각도 같이 받아 둘 글 — 흐름의 글자(아래 readyToOpen).
@@ -175,7 +175,11 @@ export function CheckinGate({
    * 서버에서는 null: 사용자의 날짜를 알기 전에는 아무것도 띄우지 않는다.
    */
   const today = useTodayKey(null);
-  const skippedDay = useSyncExternalStore(subscribeCheckinSkip, readCheckinSkip, () => null);
+  const skippedDay = useSyncExternalStore(
+    subscribeCheckinSkip,
+    readCheckinSkip,
+    () => null
+  );
 
   /* 이 화면에서 방금 한 일 — 서버가 새 목록을 주기 전에도 바로 닫히게 */
   const [skippedHere, setSkippedHere] = useState<string | null>(null);
@@ -194,7 +198,7 @@ export function CheckinGate({
     doneHere !== today;
   /*
    * 방금 체크인했나 — 서버가 오늘이 든 새 목록을 준 그 순간에 안다. 그때 needed 가 false 가 되어 창이 닫히기 시작하면
-   * 흐름의 완료 화면이 보이기도 전에 사라진다. '찾던 것이 목록에 들어왔다'를 여기서 보고 잠깐 더 열어 둔다(showDone).
+   * 흐름의 완료 화면이 보이기도 전에 사라진다. '찾던 것이 목록에 들어왔다'를 여기서 보고 흐름이 onDone 으로 닫을 때까지 열어 둔다(showDone).
    * 건너뛴 경우는 목록에 오늘이 없으므로 걸리지 않는다. (그리는 도중 상태 보정)
    */
   const [wasNeeded, setWasNeeded] = useState(false);
@@ -204,12 +208,10 @@ export function CheckinGate({
   }
   const open = needed || showDone;
 
-  /* 완료 화면은 잠깐만 — 흐름이 제 때(1.5초)에 onDone 으로 닫고, 놓치면 여기서 닫는다 */
-  useEffect(() => {
-    if (!showDone) return;
-    const timer = window.setTimeout(() => setShowDone(false), DONE_MS);
-    return () => window.clearTimeout(timer);
-  }, [showDone]);
+  /*
+   * 닫기는 흐름의 onDone 만 — 1.5초 타이머 · 완료 화면 탭 · '홈으로' 어느 길로든 finish 가 부른다. 예전의 2.2초 안전망은 가만히도
+   * 아픈 날의 '던지지 말고 쉬어요' 카드(흐름이 붙들어 두는 화면)까지 읽기 전에 닫아 버렸다(2026-10-17). 종의 팝업(app-shell)도 안전망 없이 같다.
+   */
 
   /* 관문이 통째로 사라지면(로그아웃 · 운동 화면) 표시도 뗀다 — 남으면 앱의 화면 전환이 계속 막힌다 */
   useEffect(() => () => document.documentElement.removeAttribute(GATE_UP), []);

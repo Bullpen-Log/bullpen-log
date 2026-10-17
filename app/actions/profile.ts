@@ -8,6 +8,7 @@ import { dbDate } from '@/lib/nutrition/days';
 import { getCurrentUser } from '@/lib/dal';
 import {
   checkOptionalNumber,
+  MAX_NICKNAME,
   MAX_WEIGHT_KG,
   MIN_WEIGHT_KG,
   isSex,
@@ -40,6 +41,10 @@ async function tryUpdateProfile(formData: FormData): Promise<ProfileState> {
   const nickname = String(formData.get('nickname') ?? '').trim();
   if (nickname.length < 2) {
     return { error: '닉네임은 2자 이상이어야 해요.' };
+  }
+  /* 가입(20자)과 같은 선 — 내 정보에만 위 한계가 없어 아무 길이나 저장됐다(2026-10-17) */
+  if (nickname.length > MAX_NICKNAME) {
+    return { error: `닉네임은 ${MAX_NICKNAME}자까지예요.` };
   }
 
   const checked = validateProfile(

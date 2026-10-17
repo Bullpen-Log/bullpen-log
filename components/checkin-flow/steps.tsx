@@ -294,7 +294,9 @@ function MuscleFinder({
             <div className="max-h-72 space-y-3 overflow-y-auto overscroll-contain pr-1">
               {groups.map((g) => (
                 <div key={g.part.key} className="space-y-1.5">
-                  <p className="text-caption font-semibold text-muted">{g.part.label}</p>
+                  <p className="text-caption font-semibold text-muted">
+                    {g.part.label}
+                  </p>
                   <ul className="space-y-1">
                     {g.defs.map((d) => (
                       <li key={d.key} className="flex flex-wrap items-center gap-1.5">
@@ -428,12 +430,15 @@ export function MemoStep({
   return (
     <div className="flex h-full flex-col gap-3">
       <div>
-        <h1 className={TITLE}>남길 말이 있나요?</h1>
+        <h1 id="checkin-memo-title" className={TITLE}>
+          남길 말이 있나요?
+        </h1>
         <p className="mt-1 text-sm text-muted">
           캘린더 그날 메모에 남아요. 없으면 그냥 완료.
         </p>
       </div>
       <textarea
+        aria-labelledby="checkin-memo-title"
         value={value}
         onChange={(e) => onChange(e.target.value.slice(0, CHECKIN_NOTE_MAX))}
         maxLength={CHECKIN_NOTE_MAX}

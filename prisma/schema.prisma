@@ -1553,14 +1553,15 @@ enum InquiryStatus {
 /// 공지 — 운영자가 쓴다. pinned 는 맨 위 고정.
 model SupportNotice {
   id        String   @id @default(uuid())
-  authorId  String
+  authorId  String?
   title     String
   body      String   @db.Text
   pinned    Boolean  @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  author User @relation("SupportNoticeAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  /// 글쓴 관리자가 지워져도 공지는 남는다(SetNull, 2026-10-17 — Cascade 였을 때 계정과 함께 사라졌다)
+  author User? @relation("SupportNoticeAuthor", fields: [authorId], references: [id], onDelete: SetNull)
 
   @@index([pinned, createdAt])
   @@index([authorId])
@@ -1588,13 +1589,14 @@ model SupportInquiry {
 model SupportReply {
   id        String   @id @default(uuid())
   inquiryId String
-  authorId  String
+  authorId  String?
   fromStaff Boolean  @default(false)
   body      String   @db.Text
   createdAt DateTime @default(now())
 
   inquiry SupportInquiry @relation(fields: [inquiryId], references: [id], onDelete: Cascade)
-  author  User           @relation("SupportReplyAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  /// 답글 쓴 사람이 지워져도 대화는 남는다(SetNull) — 운영자 답이 사라지면 '답변 완료'인데 답이 없는 문의가 됐다
+  author  User?          @relation("SupportReplyAuthor", fields: [authorId], references: [id], onDelete: SetNull)
 
   @@index([inquiryId, createdAt])
   @@index([authorId])

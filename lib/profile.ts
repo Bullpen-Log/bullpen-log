@@ -6,6 +6,9 @@ import { toDateKey } from '@/lib/pitch-stats';
  * 키는 영상에서 잰 길이(스트라이드 등)를 몸 크기로 나눠 비교할 때 쓴다.
  */
 
+/** 이름(닉네임) 길이의 위 한계 — 가입(app/actions/auth.ts) · 내 정보(app/actions/profile.ts) · 두 입력칸의 maxLength 가 같은 선 */
+export const MAX_NICKNAME = 20;
+
 export const MIN_HEIGHT_CM = 100;
 export const MAX_HEIGHT_CM = 250;
 

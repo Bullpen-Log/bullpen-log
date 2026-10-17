@@ -1,11 +1,12 @@
 import { notFound } from 'next/navigation';
-import { Eye, EyeOff, MessageCircle, Trash2 } from '@/components/icon';
+import { Eye, EyeOff, Heart, MessageCircle, Trash2 } from '@/components/icon';
 import { prisma } from '@/lib/prisma';
 import { requireUser } from '@/lib/dal';
 import { postCategoryLabel } from '@/lib/community';
 import { deleteComment, deletePost, setHidden } from '@/app/actions/community';
 import { BackLink, Badge, Button } from '@/components/ui';
 import { ConfirmDeleteForm } from '@/components/confirm-delete';
+import { SafeForm } from '@/components/safe-form';
 import { CommunityLikeButton } from '@/components/community/community-like-button';
 import { CommunityReportForm } from '@/components/community/community-report-form';
 import { CommunityCommentForm } from '@/components/community/community-comment-form';
@@ -29,7 +30,7 @@ function HideToggle({
   hidden: boolean;
 }) {
   return (
-    <form action={setHidden}>
+    <SafeForm action={setHidden}>
       <input type="hidden" name="kind" value={kind} />
       <input type="hidden" name="id" value={id} />
       <input type="hidden" name="hidden" value={hidden ? '0' : '1'} />
@@ -41,7 +42,7 @@ function HideToggle({
         )}
         {hidden ? '되살리기' : '가리기'}
       </Button>
-    </form>
+    </SafeForm>
   );
 }
 
@@ -113,11 +114,20 @@ export default async function CommunityPostPage({
 
         {/* 동작 줄 — 좋아요 · 댓글 수 왼쪽, 신고 · 가리기 · 지우기 오른쪽 */}
         <div className="flex flex-wrap items-center gap-2 border-t border-line pt-5">
-          <CommunityLikeButton
-            postId={post.id}
-            liked={post.likes.length > 0}
-            count={post._count.likes}
-          />
+          {/* 가린 글은 글쓴이도 좋아요를 못 누른다(서버 toggleLike 가 거절) — 단추 대신 수만(댓글 폼과 같은 조건) */}
+          {postHidden && !isAdmin ? (
+            <span className="inline-flex min-h-10 items-center gap-1.5 px-3 text-sm text-muted tabular-nums">
+              <Heart aria-hidden className="h-4 w-4" />
+              <span className="sr-only">좋아요 </span>
+              {post._count.likes}
+            </span>
+          ) : (
+            <CommunityLikeButton
+              postId={post.id}
+              liked={post.likes.length > 0}
+              count={post._count.likes}
+            />
+          )}
           <span className="inline-flex min-h-10 items-center gap-1.5 px-3 text-sm text-muted tabular-nums">
             <MessageCircle aria-hidden className="h-4 w-4" />
             <span className="sr-only">댓글 </span>
