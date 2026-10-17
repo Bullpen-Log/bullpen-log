@@ -1,11 +1,16 @@
 import * as Linking from 'expo-linking';
 import { router } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState, type ComponentType, type Ref } from 'react';
 import { Pressable, StyleSheet, Text, View, useColorScheme } from 'react-native';
-import { WebView, type WebViewMessageEvent, type WebViewNavigation } from 'react-native-webview';
+import { WebView, type WebViewMessageEvent, type WebViewNavigation, type WebViewProps } from 'react-native-webview';
 import type { ShouldStartLoadRequest } from 'react-native-webview/lib/WebViewTypes';
 import { APP_UA, SITE_HOST, SITE_URL, START_PATH } from '~/lib/site';
+import { CAP_SHIM, handleCapMessage } from '~/lib/cap-bridge';
+
+type WebViewHandle = { injectJavaScript(script: string): void };
+/* react-native-webview 14 의 타입은 ref 를 안 받지만 실제 부품은 forwardRef 다(velocity/engine.tsx 와 같다) */
+const RefWebView = WebView as unknown as ComponentType<WebViewProps & { ref?: Ref<WebViewHandle> }>;
 
 /**
  * 전환 1판의 앱 = 사이트를 화면 가득 띄운 웹뷰 하나(지금 Capacitor 껍데기와 같은 모습).
@@ -29,6 +34,9 @@ export default function SiteScreen() {
   const [load, setLoad] = useState(0);
   const [failed, setFailed] = useState(false);
   const dark = useColorScheme() === 'dark';
+  const web = useRef<WebViewHandle>(null);
+  /** 사이트 테마의 바탕색 — 오래 뒤에 있다 돌아와 다시 그리는 동안 흰 화면이 번쩍이지 않게(옛 앱의 bullpenTheme 과 같은 일) */
+  const [pageColor, setPageColor] = useState<string | null>(null);
 
   const hideSplash = useCallback(() => {
     void SplashScreen.hideAsync();
@@ -55,12 +63,19 @@ export default function SiteScreen() {
 
   /* 사이트 안에서 누른 이동은 페이지를 새로 안 불러 onShouldStart 가 못 본다 — 사이트(app/(session)/velocity/open-native.tsx)가 알려 준다 */
   const onMessage = useCallback((ev: WebViewMessageEvent) => {
+    let msg: { t?: string; path?: string };
     try {
-      const msg = JSON.parse(ev.nativeEvent.data) as { t?: string; path?: string };
-      if (msg.t === 'native' && msg.path && NATIVE_PATHS.has(msg.path)) openVelocity();
+      msg = JSON.parse(ev.nativeEvent.data);
     } catch {
-      /* 다른 알림 */
+      return;
     }
+    if (msg.t === 'native' && msg.path && NATIVE_PATHS.has(msg.path)) return openVelocity();
+    /* 진동 · 화면 켜 두기 · 알림 · 테마(작은 다리, lib/cap-bridge.ts) */
+    handleCapMessage(
+      msg,
+      (script) => web.current?.injectJavaScript(script),
+      (t) => t.color && setPageColor(t.color)
+    );
   }, []);
 
   const onNav = useCallback((nav: WebViewNavigation) => {
@@ -86,8 +101,10 @@ export default function SiteScreen() {
   }
 
   return (
-    <WebView
+    <RefWebView
       key={load}
+      ref={web}
+      injectedJavaScriptBeforeContentLoaded={CAP_SHIM}
       source={{ uri: `${SITE_URL}${START_PATH}` }}
       applicationNameForUserAgent={APP_UA}
       sharedCookiesEnabled
@@ -100,7 +117,7 @@ export default function SiteScreen() {
       automaticallyAdjustContentInsets={false}
       decelerationRate="normal"
       pullToRefreshEnabled={false}
-      style={[styles.web, dark && styles.offlineDark]}
+      style={[styles.web, dark && styles.offlineDark, pageColor ? { backgroundColor: pageColor } : null]}
       onShouldStartLoadWithRequest={onShouldStart}
       onNavigationStateChange={onNav}
       onMessage={onMessage}

@@ -1,8 +1,8 @@
 Pod::Spec.new do |s|
-  s.name           = 'SiteSession'
+  s.name           = 'BullpenNative'
   s.version        = '1.0.0'
-  s.summary        = '사이트 로그인 쿠키를 앱 요청에(불펜로그)'
-  s.description    = '웹뷰(WKWebView)의 사이트 쿠키를 앱의 쿠키 저장소로 옮긴다'
+  s.summary        = '앱 공용 부품(불펜로그) — 로그인 쿠키 · 화면 켜 두기 · 로컬 알림'
+  s.description    = '웹뷰 사이트 쿠키를 앱 요청에 · 화면 켜 두기 · 쉬는 시간 · 일정 알림'
   s.author         = 'Bullpen Log'
   s.homepage       = 'https://bullpen-log.vercel.app'
   s.platforms      = { :ios => '16.4' }

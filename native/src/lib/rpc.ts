@@ -1,10 +1,10 @@
 import { APP_API_HEADER, APP_API_LEVEL } from '@/lib/app-api';
 import { SITE_URL } from '~/lib/site';
-import { SiteSession } from '../../modules/site-session';
+import { BullpenNative } from '../../modules/bullpen-native';
 
 /**
  * 사이트 서버 동작 부르기 — POST /api/rpc/<파일>.<함수>(app/api/rpc/[action]/route.ts). 로그인은 웹뷰의 'session' 쿠키를 앱 저장소로
- * 옮겨(SiteSession.sync — 처음 한 번) 그대로 실어 보낸다. 판 확인 장치(x-bullpen-app)가 426 이면 앱을 업데이트하라고 알린다.
+ * 옮겨(BullpenNative.sync — 처음 한 번) 그대로 실어 보낸다. 판 확인 장치(x-bullpen-app)가 426 이면 앱을 업데이트하라고 알린다.
  */
 export class RpcError extends Error {
   constructor(
@@ -19,7 +19,7 @@ let synced: Promise<unknown> | null = null;
 const HOST = new URL(SITE_URL).hostname;
 
 export async function rpc<T>(action: string, ...args: unknown[]): Promise<T> {
-  synced ??= SiteSession.sync(HOST).catch(() => 0);
+  synced ??= BullpenNative.sync(HOST).catch(() => 0);
   await synced;
   let res: Response;
   try {
