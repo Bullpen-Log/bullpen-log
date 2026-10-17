@@ -587,8 +587,12 @@ export function VelocityScreen({
   });
   /* 녹화기 · 그 상태(찍는 시간 · 조각 · 올림) — 녹화 중이 아니면 null */
   const recorderRef = useRef<SegmentedRecorder | null>(null);
-  /* 세션 통째 녹화(관리자 · 보정용 저장 · 앱 카메라, 엔진 2.7) — 측정 시작에 켜고 종료 · 저장 · 나가기에 끈다 */
+  /*
+   * 세션 통째 녹화(관리자 · 앱 카메라, 엔진 2.7) — 측정 시작 왼쪽 위 '세션 녹화' 단추로 켜고(2026-10-17 사용자: "시작하기 전에 옆에 따로
+   * 켜기 버튼"), 측정 시작에 녹화를 시작해 종료 · 저장 · 나가기에 끈다. 1분에 100MB 남짓이라 기억하지 않는다 — 화면을 열 때마다 꺼진 채.
+   */
   const sessionRecRef = useRef<DualSessionRecorder | null>(null);
+  const [sessionRecWanted, setSessionRecWanted] = useState(false);
   const [rec, setRec] = useState<RecorderState | null>(null);
   const recording =
     rec != null &&
@@ -1449,11 +1453,15 @@ export function VelocityScreen({
     if (pitches.length > 0) setSummaryOpen(true);
   };
   /*
-   * 세션 통째 녹화(엔진 2.7 1단계, lib/velocity-dual-recorder.ts) — 관리자가 '정확도 보정용 저장'을 켠 채 앱 카메라로 잴 때, 앱이 쥔
+   * 세션 통째 녹화(엔진 2.7 1단계, lib/velocity-dual-recorder.ts) — 관리자가 '세션 녹화' 단추를 켠 채 앱 카메라로 잴 때, 앱이 쥔
    * 최근 영상을 6초마다 잘라 서버 녹화(엔진 개발용 녹화와 같은 표 · 편집기)로 올린다. 알림이 침묵해 놓친 공의 영상이 남는다.
    */
   const startSessionRecording = async (capture: DualCapture | LiveCapture) => {
-    if (!calibOn || !(capture instanceof DualCapture) || sessionRecRef.current) return;
+    if (!isAdmin || !sessionRecWanted || sessionRecRef.current) return;
+    if (!(capture instanceof DualCapture)) {
+      setToast('세션 녹화는 앱 카메라에서만 돼요');
+      return;
+    }
     const recorder = new DualSessionRecorder(
       {
         cameraNow: () => capture.cameraNow(),
@@ -1500,7 +1508,7 @@ export function VelocityScreen({
       setRec(null);
       return;
     }
-    setToast('세션 녹화를 시작했어요(보정용)');
+    setToast('세션 녹화를 시작했어요');
   };
   const stopSessionRecording = async () => {
     const recorder = sessionRecRef.current;
@@ -2347,6 +2355,8 @@ export function VelocityScreen({
       ? `카메라 화면이 잘려 와서(${camera.width}×${camera.height}) 값이 부정확할 수 있어요.`
       : null;
   const speedNum = (kmh: number) => Math.round(toSpeed(kmh, unit) * 10) / 10;
+  /* 관리자 '세션 녹화' 칩 — 측정 시작 전엔 켜기 단추, 측정 중엔 녹화 상태(결과가 떠 있으면 숨김). 알림창은 그만큼 위로 */
+  const recChip = step === 'measure' && isAdmin && !recOn && (!live || (rec != null && !resultShown));
   const levelOk = !level.supported || level.ok;
   const targetText =
     choices.cameraPos === 'behind-pitcher' ? '릴리스 포인트' : '미트가 오는 자리';
@@ -3017,7 +3027,7 @@ export function VelocityScreen({
                     standardNote ||
                     cropNote ||
                     (isAdmin && !native)) && (
-                    <div className={`space-y-2 px-4 ${resultShown || cardUp ? '' : 'pb-3'}`}>
+                    <div className={`space-y-2 px-4 ${recChip ? 'pb-14' : resultShown || cardUp ? '' : 'pb-3'}`}>
                       {/* 초당 장면 · 잘림 — 측정 화면에서만(수평 · 존은 오른쪽 위 주황 표시로 충분), 결과가 떠 있으면 결과의 알림이 말한다 */}
                       {step === 'measure' &&
                         !resultShown &&
@@ -3419,6 +3429,41 @@ export function VelocityScreen({
                   <span
                     className={`h-1.5 w-1.5 rounded-full transition-colors ${showCamera ? 'bg-white/35' : 'bg-white'}`}
                   />
+                </div>
+              )}
+              {recChip && (
+                <div className="absolute bottom-full left-4 mb-2">
+                  {!live ? (
+                    <button
+                      type="button"
+                      aria-pressed={sessionRecWanted}
+                      onClick={() => {
+                        if (!sessionRecWanted && cameraOn && !appCapture) {
+                          setToast('세션 녹화는 앱 카메라에서만 돼요');
+                          return;
+                        }
+                        setSessionRecWanted(!sessionRecWanted);
+                      }}
+                      className={`inline-flex h-10 items-center gap-2 rounded-full border px-3.5 text-sm font-medium backdrop-blur transition-colors ${
+                        sessionRecWanted
+                          ? 'border-red-400/70 bg-red-500/85 text-white'
+                          : 'border-white/25 bg-black/55 text-white/85'
+                      }`}
+                    >
+                      <span
+                        aria-hidden
+                        className={`h-2.5 w-2.5 rounded-full ${sessionRecWanted ? 'bg-white' : 'bg-red-400'}`}
+                      />
+                      {sessionRecWanted ? '세션 녹화 켬' : '세션 녹화 끔'}
+                    </button>
+                  ) : (
+                    rec && (
+                      <span className="inline-flex h-8 items-center gap-1.5 rounded-full bg-red-500/85 px-3 text-xs font-medium tabular-nums text-white">
+                        <span aria-hidden className="h-2 w-2 rounded-full bg-white motion-safe:animate-pulse" />
+                        녹화 중 · 올림 {rec.uploaded}/{rec.parts}
+                      </span>
+                    )
+                  )}
                 </div>
               )}
               <input
@@ -4099,11 +4144,15 @@ function Shutter({
       onClick={onClick}
       disabled={disabled}
       aria-label={label}
-      className="group relative flex h-[4.75rem] w-[4.75rem] items-center justify-center rounded-full bg-[#3a3a3c] transition-opacity disabled:opacity-35"
+      className="group relative flex h-[4.75rem] w-[4.75rem] items-center justify-center rounded-full border-[5px] border-white transition-opacity disabled:opacity-35"
     >
+      {/*
+       * 운동 영상 촬영 단추(mobile/ios/App/App/ShootCameraPlugin.swift recordButton)와 똑같이 — 76 원 · 흰 테두리 5 · 안쪽 빨강(systemRed)
+       * 58 원, 멈춤이면 30 네모(모서리 7), 0.18초(2026-10-17 사용자: "운동 영상 촬영할 때 빨간 버튼이랑 완전 똑같이")
+       */}
       <span
-        className={`flex items-center justify-center bg-[#ff3b30] text-white shadow-[0_0_0_3px_#1c1c1e] motion-safe:transition-[width,height,border-radius,scale] duration-300 ease-[cubic-bezier(0.2,0.9,0.3,1)] group-active:scale-90 ${
-          stop ? 'h-9 w-9 rounded-[0.65rem]' : 'h-[3.9rem] w-[3.9rem] rounded-full'
+        className={`flex items-center justify-center bg-[#ff3b30] text-white motion-safe:transition-[width,height,border-radius] motion-safe:duration-[180ms] motion-safe:ease-in-out ${
+          stop ? 'h-[1.875rem] w-[1.875rem] rounded-[7px]' : 'h-[3.625rem] w-[3.625rem] rounded-full'
         }`}
       >
         {state === 'busy' ? (

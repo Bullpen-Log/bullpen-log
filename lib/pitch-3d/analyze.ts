@@ -1146,6 +1146,12 @@ const REPAIR_SELF_SURE = 0.8;
 /** 두 손목이 사람 키의 이만큼 안에 모였으면(세트 자세) 팔을 뒤집어 줄어드는 다시 비춤이 사람 키의 REPAIR_MIN_GAIN 넘어야 뒤집는다 */
 const REPAIR_NEAR = 0.08;
 const REPAIR_MIN_GAIN = 0.005;
+/**
+ * 팔을 뒤집은 쪽이 앞뒤 장면과 원래보다 이만큼 배 넘게 떨어지면(1px 밑은 1px 로 셈) 다시 비춤이 작아도 뒤집지 않는다 — 2026-10-17 마커 10-16
+ * 투구 5: 빠른 구간이 시작되기 직전인 착지 장면에서 옆 영상 팔 하나를 뒤집었더니 앞뒤와 280px 떨어졌고(원래 16px), 어깨선이 6장면 동안 20° 튀었다.
+ * 1차 보정이 조금만 달라도(이때는 초점을 알려 줌) 다시 비춤이 우연히 뒤집은 쪽을 고른다.
+ */
+const REPAIR_MAX_JUMP = 5;
 
 /**
  * 좌우 다시 고침(R3) — target 영상의 장면마다 다른 영상(other)을 대응 시각으로 보간해, 팔 · 다리 묶음을 뒤집는 쪽이 다시 비춤이 30% 넘게
@@ -1219,6 +1225,8 @@ function repairLabels(
         throwArm.some((j) => o[j].v < REPAIR_OTHER_MIN) &&
         throwArm.every((j) => f.p[j].v >= REPAIR_SELF_SURE);
       const smoother = !(fast || otherBlur) || pairs !== ARM_PAIRS || jk == null || js == null || js < jk;
+      /* 어느 구간에서든 팔을 뒤집은 쪽이 앞뒤와 크게 끊기면 뒤집지 않는다(REPAIR_MAX_JUMP) */
+      const jumps = pairs === ARM_PAIRS && jk != null && js != null && js > REPAIR_MAX_JUMP * Math.max(jk, 1);
       /*
        * 손을 모은 세트 자세에서는 두 팔 점이 겹쳐 그대로 · 뒤집음의 다시 비춤이 둘 다 아주 작다(사람 키의 0.4~0.8%) — 비율(30%)만 보면 잡음에도
        * 뒤집혀, 장면마다 이름이 바뀌어 3D 두 손이 번갈아 튀었다(2026-10-13 실험실 샘플 1 세트: 0.007 → 0.004 로 뒤집기, 화면 손 떨림 키의 2.7%).
@@ -1232,7 +1240,8 @@ function repairLabels(
         flip != null &&
         flip < keep * 0.7 &&
         (!handsTogether || keep - flip > REPAIR_MIN_GAIN) &&
-        smoother
+        smoother &&
+        !jumps
       ) {
         f.p = sw;
         n++;
