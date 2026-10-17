@@ -4361,11 +4361,15 @@ function Shutter({
       onClick={onClick}
       disabled={disabled}
       aria-label={label}
-      className="group relative flex h-[4.75rem] w-[4.75rem] items-center justify-center rounded-full bg-[#3a3a3c] transition-opacity disabled:opacity-35"
+      className="group relative flex h-[4.75rem] w-[4.75rem] items-center justify-center rounded-full border-[5px] border-white transition-opacity disabled:opacity-35"
     >
+      {/*
+       * 운동 영상 촬영 단추(mobile/ios/App/App/ShootCameraPlugin.swift recordButton)와 똑같이 — 76 원 · 흰 테두리 5 · 안쪽 빨강(systemRed)
+       * 58 원, 멈춤이면 30 네모(모서리 7), 0.18초(2026-10-17 사용자: "운동 영상 촬영할 때 빨간 버튼이랑 완전 똑같이")
+       */}
       <span
-        className={`flex items-center justify-center bg-[#ff3b30] text-white shadow-[0_0_0_3px_#1c1c1e] motion-safe:transition-[width,height,border-radius,scale] duration-300 ease-[cubic-bezier(0.2,0.9,0.3,1)] group-active:scale-90 ${
-          stop ? 'h-9 w-9 rounded-[0.65rem]' : 'h-[3.9rem] w-[3.9rem] rounded-full'
+        className={`flex items-center justify-center bg-[#ff3b30] text-white motion-safe:transition-[width,height,border-radius] motion-safe:duration-[180ms] motion-safe:ease-in-out ${
+          stop ? 'h-[1.875rem] w-[1.875rem] rounded-[7px]' : 'h-[3.625rem] w-[3.625rem] rounded-full'
         }`}
       >
         {state === 'busy' ? (
