@@ -1,5 +1,7 @@
 'use server';
 
+import { cookies } from 'next/headers';
+import { unstable_rethrow } from 'next/navigation';
 import { appNow } from '@/lib/clock';
 import { getCurrentUser } from '@/lib/dal';
 import { featureLocks, SETUP_PATH } from '@/lib/feature-locks';
@@ -11,6 +13,13 @@ import { loadHomeFeed, loadHomeRings, type HomeRing } from '@/lib/report/home-to
 import { loadTodayCoreCached } from '@/lib/report/today-data';
 import { armStatusOf, type ArmStatus } from '@/lib/report/arm-status';
 import type { FeedItem } from '@/lib/report/feed-items';
+import {
+  armcareCardData,
+  mechanicsCardData,
+  workoutCardData,
+  type TrainingCard,
+} from '@/lib/report/training-home-data';
+import { TRAINING_PART_COOKIE, readTrainingPart, type TrainingPart } from '@/lib/training-part';
 
 /**
  * 아이폰 앱(native/)이 화면을 열 때 — 누구인가(폰 영상 경로 `{userId}/local-…` 를 만든다) · 오늘(시험 계정 날짜까지) · 잠긴 탭 · 관리자.
@@ -119,4 +128,34 @@ export async function loadAppNutrition(date: string): Promise<
     mine: day.mine,
     mfds: day.mfds,
   };
+}
+
+/**
+ * 앱 트레이닝 탭 첫 화면 — 웹 트레이닝 홈(app/(app)/training/training-home.tsx)과 같은 앱 카드 셋(lib/report/training-home-data.ts).
+ * 카드 하나가 실패해도 나머지는 보인다(웹 SafeCard 와 같다). 마지막으로 쓴 앱(쿠키)이 맨 위.
+ */
+export async function loadAppTraining(): Promise<
+  { ok: true; today: string; cards: TrainingCard[] } | { ok: false; error: string; to?: string }
+> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: '로그인이 필요해요.' };
+  if (featureLocks(user).training) return { ok: false, error: '트레이닝 첫 설정을 먼저 해 주세요.', to: SETUP_PATH.training };
+  const now = appNow();
+  const safe = async (app: TrainingPart, job: () => Promise<TrainingCard>): Promise<TrainingCard> => {
+    try {
+      return await job();
+    } catch (err) {
+      unstable_rethrow(err);
+      console.error(`[앱 트레이닝] ${app} 카드`, err);
+      return { app, status: '지금은 불러오지 못했어요. 눌러서 열어 보세요', tone: 'warn', action: null };
+    }
+  };
+  const cards = await Promise.all([
+    safe('today', () => workoutCardData(user, now)),
+    safe('armcare', () => armcareCardData(user, now)),
+    safe('mechanics', () => mechanicsCardData(user.id)),
+  ]);
+  const last = readTrainingPart((await cookies()).get(TRAINING_PART_COOKIE)?.value);
+  if (last) cards.sort((a, b) => Number(b.app === last) - Number(a.app === last));
+  return { ok: true, today: toDateKey(now), cards };
 }

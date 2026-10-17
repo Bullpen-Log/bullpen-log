@@ -23,6 +23,7 @@ import { loadMe, resetMe } from '~/pitch/api';
 import { resetPitchStore } from '~/pitch/store';
 import { HomeTab, resetHomeCache } from '~/home/tab';
 import { NutritionTab } from '~/nutrition/tab';
+import { TrainingTab, resetTrainingCache } from '~/training/tab';
 import { resetNutritionStore } from '~/nutrition/api';
 import { useWebNav } from '~/shell/web-nav';
 import { setMenu, useMenu, type MenuGroup } from '~/shell/menu-store';
@@ -97,6 +98,8 @@ export default function SiteScreen() {
   /* 앱 탭 막대 — 사이트가 알려 준 탭 · 지금 주소 · 막대를 보일지(탭이 없는 웹 화면에서는 숨김) */
   const [tabs, setTabs] = useState<ShellTab[]>(DEFAULT_TABS);
   const [path, setPath] = useState('/today');
+  /* 주소의 ? 뒤 — 트레이닝은 첫 화면(?view=home)만 앱 화면이고 암케어 · 메커니즘(?view=…)은 웹이라 가른다 */
+  const [search, setSearch] = useState('');
   const [barOn, setBarOn] = useState(false);
   const [today, setToday] = useState<string | null>(null);
   useEffect(() => {
@@ -139,12 +142,21 @@ export default function SiteScreen() {
   const [webNutrition, setWebNutrition] = useState(false);
   const nutritionTab = tabs.find((t) => t.href === '/nutrition');
   const showNutrition = barOn && path === '/nutrition' && !!today && !webNutrition && !nutritionTab?.locked && !webFront;
+  /* 트레이닝 첫 화면(앱 카드 셋)도 앱 화면 — 카드를 누르면(암케어 · 메커니즘 · 운동 전체) 주소가 ?view=… 로 바뀌어 웹이 보인다 */
+  const trainingTab = tabs.find((t) => t.href.startsWith('/training'));
+  const trainingView = new URLSearchParams(search).get('view');
+  const showTraining =
+    barOn && path === '/training' && (trainingView === 'home' || trainingView === 'last') && !!today && !trainingTab?.locked && !webFront;
   const menu = useMenu();
 
   const goWeb = (href: string) =>
     web.current?.injectJavaScript(`window.__bpTab && window.__bpTab(${JSON.stringify(href)});true;`);
   const pressTab = (t: ShellTab) => {
     setWebFront(false);
+    if (t.href.startsWith('/training') && !t.locked) {
+      setPath('/training');
+      setSearch(t.href.split('?')[1] ?? '');
+    }
     /* 더보기는 앱 화면(사이트가 목록을 알려 준 뒤) — 웹 메뉴는 앱 화면 위에서 열면 밑에 깔려 안 보인다 */
     if (t.href === '/more' && menu.groups.length) return router.push('/more' as Href);
     if ((t.href === '/videos' || t.href === '/today' || t.href === '/nutrition') && !t.locked) setPath(t.href);
@@ -155,6 +167,7 @@ export default function SiteScreen() {
   /* 투구 탭(앱 화면)에서 아직 웹인 화면(투구 분석 · 3D 동작 분석)으로 — 앱 화면을 바로 걷고 웹이 그 주소로 간다 */
   const openWeb = (href: string) => {
     setPath(href.split('?')[0]);
+    setSearch(href.split('?')[1] ?? '');
     goWeb(href);
   };
   const goTab = (href: string) => {
@@ -214,6 +227,7 @@ export default function SiteScreen() {
       path?: string;
       items?: ShellTab[] & Record<string, string | null>;
       on?: boolean;
+      search?: string;
       groups?: MenuGroup[];
       nickname?: unknown;
     };
@@ -224,7 +238,11 @@ export default function SiteScreen() {
     }
     if (msg.t === 'native' && msg.path) return openNative(msg.path);
     if (msg.t === 'tabs' && Array.isArray(msg.items)) return setTabs(msg.items);
-    if (msg.t === 'path' && typeof msg.path === 'string') return setPath(msg.path);
+    if (msg.t === 'path' && typeof msg.path === 'string') {
+      setPath(msg.path);
+      setSearch(typeof msg.search === 'string' ? msg.search : '');
+      return;
+    }
     if (msg.t === 'tabbar') return setBarOn(msg.on === true);
     if (msg.t === 'adopt' && msg.items) return void adoptWebValues(msg.items, WEB_RAW_KEYS);
     if (msg.t === 'menu' && Array.isArray(msg.groups)) return setMenu({ groups: msg.groups, nickname: String(msg.nickname ?? '') });
@@ -251,6 +269,7 @@ export default function SiteScreen() {
       resetPitchStore();
       resetHomeCache();
       resetNutritionStore();
+      resetTrainingCache();
       setToday(null);
       void cacheClear();
       /* 저장 안 한 구속 세션(폰에 맡김) — 다음 사람이 '이어서 하기'로 앞사람 공을 제 기록에 저장하지 않게. 클립 파일은 tmp 라 하루 안에 앱이 치운다 */
@@ -320,6 +339,11 @@ export default function SiteScreen() {
           <HomeTab today={today} bottom={TAB_BAR_HEIGHT} onWeb={openWeb} onTab={goTab} onWebHome={() => setWebHome(true)} />
         </View>
       ) : null}
+      {showTraining && today ? (
+        <View style={StyleSheet.absoluteFill}>
+          <TrainingTab today={today} bottom={TAB_BAR_HEIGHT} onWeb={openWeb} />
+        </View>
+      ) : null}
       {showNutrition && today ? (
         <View style={StyleSheet.absoluteFill}>
           <NutritionTab today={today} bottom={TAB_BAR_HEIGHT} onWebNutrition={() => setWebNutrition(true)} />
@@ -333,7 +357,7 @@ export default function SiteScreen() {
       {barOn ? (
         <TabBar
           tabs={tabs}
-          active={showPitch ? '/videos' : showHome ? '/today' : showNutrition ? '/nutrition' : active}
+          active={showPitch ? '/videos' : showHome ? '/today' : showNutrition ? '/nutrition' : showTraining ? (trainingTab?.href ?? active) : active}
           onPress={pressTab}
         />
       ) : null}

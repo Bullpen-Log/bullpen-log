@@ -12,7 +12,7 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { EFFORT_CHIPS } from '@/lib/pitch-effort';
+import { EFFORT_CHIPS, snapEffortPct } from '@/lib/pitch-effort';
 import { SESSION_TYPES, isRestSession } from '@/lib/session-type';
 import {
   GOOD_DAY_MIN,
@@ -45,7 +45,15 @@ type Video = { path: string; name: string; fresh?: boolean };
 
 export default function PitchEditScreen() {
   /* videos · importKey = 지난 영상 가져오기(pitch/import)가 폰에 넣은 영상 경로를 붙여 연다 — 저장하면 그 묶음을 '남김'으로 */
-  const { date, id, videos, importKey } = useLocalSearchParams<{ date: string; id?: string; videos?: string; importKey?: string }>();
+  /* drill · pct = 트레이닝 탭 메커니즘 카드의 '드릴로 던진 공'(웹 drillPrefill 과 같은 값 — 캐치볼 · 공 수 · 강도 · 메모로 채운다) */
+  const { date, id, videos, importKey, drill, pct } = useLocalSearchParams<{
+    date: string;
+    id?: string;
+    videos?: string;
+    importKey?: string;
+    drill?: string;
+    pct?: string;
+  }>();
   const { logs } = useMonth(monthOf(date));
   const editing = id ? (logs ?? []).find((l) => l.id === id) : undefined;
   /* 고치기인데 그 달을 아직 못 받았으면 잠깐 기다린다 — 폼은 처음 값으로 한 번만 채운다 */
@@ -57,7 +65,21 @@ export default function PitchEditScreen() {
     );
   }
   const imported = videos ? (JSON.parse(videos) as string[]) : [];
-  return <EntryForm key={editing?.id ?? 'new'} date={date} editing={editing} imported={imported} importKey={importKey} />;
+  const drillThrows = drill ? Number.parseInt(drill, 10) : NaN;
+  const drillPrefill =
+    !editing && Number.isFinite(drillThrows) && drillThrows > 0
+      ? { pitchCount: drillThrows, effortPct: snapEffortPct(Number(pct) || 60), memo: `메커니즘 드릴 ${drillThrows}회` }
+      : null;
+  return (
+    <EntryForm
+      key={editing?.id ?? 'new'}
+      date={date}
+      editing={editing}
+      imported={imported}
+      importKey={importKey}
+      drillPrefill={drillPrefill}
+    />
+  );
 }
 
 function EntryForm({
@@ -65,20 +87,24 @@ function EntryForm({
   editing,
   imported,
   importKey,
+  drillPrefill,
 }: {
   date: string;
   editing?: PitchLog;
   imported: string[];
   importKey?: string;
+  drillPrefill?: { pitchCount: number; effortPct: number; memo: string } | null;
 }) {
   const c = usePalette();
   const inset = useSafeAreaInsets();
-  const [type, setType] = useState(editing?.sessionType ?? '불펜');
-  const [count, setCount] = useState(editing && !isRestSession(editing.sessionType) ? String(editing.pitchCount) : '');
-  const [effort, setEffort] = useState<number | null>(editing?.effortPct ?? null);
+  const [type, setType] = useState(editing?.sessionType ?? (drillPrefill ? '캐치볼' : '불펜'));
+  const [count, setCount] = useState(
+    editing && !isRestSession(editing.sessionType) ? String(editing.pitchCount) : drillPrefill ? String(drillPrefill.pitchCount) : ''
+  );
+  const [effort, setEffort] = useState<number | null>(editing?.effortPct ?? drillPrefill?.effortPct ?? null);
   const [maxV, setMaxV] = useState(editing?.maxVelocity != null ? String(editing.maxVelocity) : '');
   const [avgV, setAvgV] = useState(editing?.avgVelocity != null ? String(editing.avgVelocity) : '');
-  const [memo, setMemo] = useState(editing?.memo ?? '');
+  const [memo, setMemo] = useState(editing?.memo ?? drillPrefill?.memo ?? '');
   /* 투구 만족도 · 좋았던 · 아쉬웠던 감각(불펜 · 라이브 · 경기만 — 웹 entry-form 과 같다, lib/pitch-satisfaction.ts) */
   const [satisfaction, setSatisfaction] = useState<number | null>(editing?.satisfaction ?? null);
   const [good, setGood] = useState<string[]>(editing?.cuesGood ?? []);
