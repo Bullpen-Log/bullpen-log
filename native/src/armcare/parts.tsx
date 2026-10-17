@@ -6,7 +6,9 @@ import { methodByKey, type ArmcareMethodKey } from '@/lib/armcare/methods';
 import { REHAB_FEEL_OPTIONS, REHAB_LEFTOVER_OPTIONS } from '@/lib/armcare/rehab-regions';
 import type { RehabFeel, RehabLeftover, RehabResult } from '@/lib/armcare/rehab-regions';
 import type { RehabCheckInitial } from '@/app/(session)/armcare/play/[id]/rehab-check';
-import { rpc } from '~/lib/rpc';
+import { router } from 'expo-router';
+import { rpc, RpcError } from '~/lib/rpc';
+import { openWebAfter } from '~/shell/web-nav';
 import type { Palette } from '~/lib/ui';
 import { ExerciseVideo, clockText } from '~/workout/parts';
 
@@ -218,7 +220,13 @@ export function RehabCheck({
         void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         setResult({ result: res.result, text: res.text });
       }
-    } catch {
+    } catch (e) {
+      /* 로그인이 풀렸으면 신호 탓이 아니다 — 화면을 닫고 웹을 로그인으로 */
+      if (e instanceof RpcError && e.code === 'redirect') {
+        openWebAfter(e.to ?? '/login');
+        router.back();
+        return;
+      }
       setError('인터넷 연결을 확인한 뒤 다시 해 주세요.');
     } finally {
       setPending(false);

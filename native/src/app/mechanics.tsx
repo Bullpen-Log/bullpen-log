@@ -177,7 +177,7 @@ function Player({ backHref, items, startAt, label, sessionNumber, partial, painL
 
   /** 세션을 마친다 — 실패하면 끝 화면으로 넘어가지 않고 다시 저장하게 한다 */
   const finish = async () => {
-    const res = await act<FinishResult>('mechanics.finishMechanicsSession', { partial });
+    const res = await act<FinishResult>('mechanics.finishMechanicsSession', { partial, session: sessionNumber });
     if ('error' in res) {
       setError(res.error);
       setFinishFailed(true);
@@ -203,8 +203,12 @@ function Player({ backHref, items, startAt, label, sessionNumber, partial, painL
       else await finish();
     });
 
-  /* 건너뛰기 — 마지막 드릴이면 건너뛰고 마친다 */
+  /* 건너뛰기 — 마지막 드릴이면 건너뛰고 마친다. 단추가 다음 드릴에서도 같은 자리라 0.45초 안의 둘째 탭은 버린다(안 보인 드릴까지 건너뛰었다) */
+  const skipping = useRef(false);
   const skip = () => {
+    if (skipping.current) return;
+    skipping.current = true;
+    setTimeout(() => (skipping.current = false), 450);
     if (index + 1 < items.length) next();
     else void run(finish);
   };

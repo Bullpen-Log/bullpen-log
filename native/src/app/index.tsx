@@ -33,6 +33,8 @@ import { adoptWebValues, cacheClear, loadJson, saveJson } from '~/lib/store';
 import { clearDraft } from '~/velocity/draft';
 import { rpc } from '~/lib/rpc';
 import { drainOutbox, setOutboxOwner } from '~/workout/outbox';
+import { drainChecks } from '~/armcare/outbox';
+import { sendCheck } from '~/armcare/send';
 import { PitchTab } from '~/pitch/tab';
 import { DEFAULT_TABS, TAB_BAR_HEIGHT, TabBar, type ShellTab } from '~/shell/tab-bar';
 
@@ -98,6 +100,17 @@ const OLD_VELOCITY = `(function(){try{var r=indexedDB.open('bullpen-velocity');r
 const OLD_VELOCITY_SNOOZE = 'bullpen-old-velocity-snooze';
 let askedOldVelocity = false;
 
+/** 폰에 남은 운동 세트 · 암케어 체크를 보낸다 — 체크를 하나라도 보냈으면 사이트의 트레이닝 목록 · 홈을 새로 그리게(따라 하기 화면과 같다) */
+function drainQueues() {
+  void drainOutbox((p) => rpc('workout.logSet', p), () => undefined);
+  let sent = 0;
+  void drainChecks(sendCheck, (_p, res) => {
+    if (!('error' in res)) sent++;
+  }).then(() => {
+    if (sent) rpc('exercise-log.refreshTrainingLists').catch(() => undefined);
+  });
+}
+
 export default function SiteScreen() {
   /** 바꾸면 웹뷰를 새로 그린다 — 다시 불러오기(react-native-webview 14 의 WebView 는 ref 를 안 받는다) */
   const [load, setLoad] = useState(0);
@@ -121,7 +134,8 @@ export default function SiteScreen() {
       );
   }, [barOn, today]);
   /*
-   * 운동 중 신호가 없어 폰에 남은 세트 — 앱을 켤 때 · 다시 볼 때 보낸다(운동 화면을 다시 안 열어도). 서버가 거절한 것은 대기열이 뺀다.
+   * 운동 중 신호가 없어 폰에 남은 세트 · 암케어 체크 — 앱을 켤 때 · 다시 볼 때 보낸다(그 화면을 다시 안 열어도 — 암케어 체크는 7일 지나면 버려진다).
+   * 서버가 거절한 것은 대기열이 뺀다.
    * 로그인 전이면 보내기가 막혀 그대로 남는다(다음 기회에).
    */
   useEffect(() => {
@@ -130,7 +144,7 @@ export default function SiteScreen() {
     void loadMe().then(
       (m) => {
         setOutboxOwner(m.userId);
-        void drainOutbox((p) => rpc('workout.logSet', p), () => undefined);
+        drainQueues();
       },
       () => undefined
     );
@@ -139,7 +153,7 @@ export default function SiteScreen() {
   useEffect(() => {
     const sub = AppState.addEventListener('change', (st) => {
       if (st !== 'active') return;
-      void drainOutbox((p) => rpc('workout.logSet', p), () => undefined);
+      drainQueues();
       resetMe();
       void loadMe().then(
         (m) => setToday(m.today),

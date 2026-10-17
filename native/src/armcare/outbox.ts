@@ -67,6 +67,19 @@ export const checkOutbox = {
   },
 };
 
+/*
+ * 보낸 결과를 듣는 곳 — 껍데기(앱을 켤 때 · 앞에 올 때)도 보내므로, 열린 따라 하기 화면이 자기가 안 보낸 체크도 저장된 것으로 알게(운동 세트의
+ * ~/workout/outbox.ts onSent 와 같은 꼴). 거절은 { error } 결과로 온다.
+ */
+type CheckListener = (p: PendingCheck, result: unknown) => void;
+const resultListeners = new Set<CheckListener>();
+export function onCheckResult(l: CheckListener) {
+  resultListeners.add(l);
+  return () => {
+    resultListeners.delete(l);
+  };
+}
+
 let draining = false;
 /** 같은 체크에서 서버 오류가 난 횟수(메모리만) */
 const serverFails = new Map<string, number>();
@@ -74,13 +87,13 @@ const SERVER_FAIL_LIMIT = 8;
 
 /**
  * 담긴 체크를 마친 순서대로 하나씩 보낸다 — 웹 lib/outbox.ts drain 과 같은 규칙. 한 번에 한 줄만 돌고, 보내는 사이 새로 담긴 것도 이어 보낸다.
- * ponytail: 따라 하기 화면이 열려 있을 때만 돈다(웹은 암케어 목록도 보낸다). 껍데기에서도 보내려면 운동 세트처럼 결과를 듣는 화면 모두에
- * 알려야 한다(~/workout/outbox.ts onSent) — 안 그러면 열린 화면이 그 체크를 저장된 것으로 못 본다.
+ * 따라 하기 화면과 껍데기(앱을 켤 때 · 앞에 올 때, native/src/app/index.tsx) 둘이 보낸다 — 결과는 onCheckResult 로 듣는 곳 모두에.
+ * 'auth' 는 로그인이 풀렸다(신호 끊김과 다르게 알린다 — 로그인하면 이어 보낸다).
  */
 export async function drainChecks<R>(
   send: (p: PendingCheck) => Promise<R>,
   handle: (p: PendingCheck, result: R) => void
-): Promise<'done' | 'offline' | 'busy'> {
+): Promise<'done' | 'offline' | 'auth' | 'busy'> {
   if (draining) return 'busy';
   draining = true;
   try {
@@ -102,17 +115,21 @@ export async function drainChecks<R>(
          * 대기열(~/workout/outbox.ts)과 같은 규칙. 안 그러면 그 한 줄이 뒤의 체크와 재활 3문항을 계속 막는다.
          */
         const code = (e as { code?: unknown })?.code;
-        if (code === 'offline' || code === 'redirect' || code === 'update' || code == null) return 'offline';
+        if (code === 'redirect') return 'auth';
+        if (code === 'offline' || code === 'update' || code == null) return 'offline';
         const n = (serverFails.get(checkId(next)) ?? 0) + 1;
         serverFails.set(checkId(next), n);
         if (n < SERVER_FAIL_LIMIT) return 'offline';
         serverFails.delete(checkId(next));
         remove(next);
-        handle(plain, { error: '서버가 체크 하나를 받지 못해 뺐어요. 다시 체크해 주세요.' } as R);
+        const refused = { error: '서버가 체크 하나를 받지 못해 뺐어요. 다시 체크해 주세요.' };
+        handle(plain, refused as R);
+        resultListeners.forEach((l) => l(plain, refused));
         continue;
       }
       serverFails.delete(checkId(next));
       handle(plain, result);
+      resultListeners.forEach((l) => l(plain, result));
       remove(next);
     }
   } finally {

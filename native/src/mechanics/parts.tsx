@@ -115,7 +115,13 @@ export function ThrowNoteCard({ note, c }: { note: DrillThrowNote; c: Palette })
     <View style={[s.note, { backgroundColor: c.card }]}>
       <Text style={[s.bodyBold, { color: c.ink }]}>{DRILL_THROW_TEXT.line(note.throws)}</Text>
       <View style={s.row}>
-        <Pressable onPress={() => recordThrows(note)} accessibilityRole="link" style={[s.chip, { backgroundColor: c.sky + '1a' }]}>
+        <Pressable
+          onPress={() => {
+            /* 남기러 가면 닫는다 — 끝 화면이 밑에 남아, 저장하고 돌아와 또 누르면 같은 공으로 기록이 하나 더 생겼다 */
+            setClosed(true);
+            recordThrows(note);
+          }}
+          accessibilityRole="link" style={[s.chip, { backgroundColor: c.sky + '1a' }]}>
           <Text style={[s.smallBold, { color: c.sky }]}>{DRILL_THROW_TEXT.record}</Text>
           <SymbolView name="chevron.right" size={11} weight="semibold" tintColor={c.sky} />
         </Pressable>

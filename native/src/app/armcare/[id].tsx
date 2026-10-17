@@ -9,7 +9,8 @@ import { REST_CLOCK_LIMIT_SECONDS } from '@/lib/workout/rest';
 import type { ArmcarePlay } from '@/lib/armcare/play-load';
 import type { PlayerItem } from '@/app/(session)/armcare/play/[id]/armcare-player';
 import { BullpenNative } from '../../../modules/bullpen-native';
-import { checkId, checkOutbox, drainChecks } from '~/armcare/outbox';
+import { checkId, checkOutbox, drainChecks, onCheckResult } from '~/armcare/outbox';
+import { sendCheck } from '~/armcare/send';
 import { Countdown, ExerciseMedia, HowTo, RehabCheck, type Clock } from '~/armcare/parts';
 import { rpc, RpcError } from '~/lib/rpc';
 import { usePalette, type Palette } from '~/lib/ui';
@@ -25,7 +26,6 @@ import { SetDots } from '~/workout/parts';
  * 화면은 켜 두되 10분 동안 아무것도 안 누르면 놓는다. 끝나면 웹을 암케어로 보내고 닫는다.
  */
 type LoadResult = ({ ok: true } & ArmcarePlay) | { ok: false; to: string };
-type CheckResult = { ok: true } | { error: string };
 
 /** 화면을 닫고 웹을 그 주소로 — 껍데기(index.tsx)가 웹뷰를 옮긴다 */
 function leave(to: string) {
@@ -227,15 +227,20 @@ function Player({ title, backHref, dateKey, notice, items, rehabCheck, c }: Armc
   const [refused, setRefused] = useState<{ ids: string[]; message: string } | null>(null);
   const [offline, setOffline] = useState(false);
 
-  const flush = useCallback(async () => {
-    const outcome = await drainChecks(
-      (p) => rpc<CheckResult>('exercise-log.markExerciseDone', p.exerciseId, p.dateKey),
-      (p, res) => {
+  /* 결과는 누가 보냈든(이 화면 · 껍데기) 여기로 온다 */
+  useEffect(
+    () =>
+      onCheckResult((p, res) => {
         const cid = checkId(p);
-        if ('error' in res) setRefused((r) => ({ ids: [...(r?.ids ?? []).filter((x) => x !== cid), cid], message: res.error }));
+        const error = (res as { error?: unknown } | null)?.error;
+        if (typeof error === 'string') setRefused((r) => ({ ids: [...(r?.ids ?? []).filter((x) => x !== cid), cid], message: error }));
         else setSaved((prev) => new Set(prev).add(cid));
-      }
-    );
+      }),
+    []
+  );
+  const flush = useCallback(async () => {
+    const outcome = await drainChecks(sendCheck, () => undefined);
+    if (outcome === 'auth') return leave('/login');
     if (outcome === 'offline') setOffline(true);
     else if (outcome === 'done') setOffline(false);
   }, []);
