@@ -1,11 +1,18 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState, useTransition, type ReactNode } from 'react';
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useTransition,
+  type ReactNode,
+} from 'react';
 import { useRouter } from 'next/navigation';
 import { Check, ChevronLeft, X } from '@/components/icon';
 import { saveCheckin } from '@/app/actions/checkin';
 import { OFFLINE_MESSAGE, orOffline } from '@/lib/action-offline';
-import { PAIN_FORCED_CONDITION } from '@/lib/checkin';
+import { PAIN_FORCED_CONDITION, armPainJointsToday } from '@/lib/checkin';
 import { partsFromSpots, type BodySpots } from '@/lib/body-spots';
 import { shiftDateKey } from '@/lib/pitch-stats';
 import { buzz, haptic } from '@/lib/haptics';
@@ -274,7 +281,12 @@ export function CheckinFlow({
    * 완료 화면 — 1.5초 뒤 홈으로, 누르면 바로 홈으로. 가만히도 아픈 날(정도 3)은 쉬라는 카드라 저절로 안 넘어간다.
    * 예전에는 손대면 멈췄는데(hold) 완료 화면엔 단추가 없어, 누르는 순간 그 화면에 갇혀 멈춘 것처럼 보였다(2026-10-16 김민).
    */
-  const restCard = painOn && answers?.armLevel === 3;
+  /* 어깨 · 팔꿈치가 '통증'일 때만 — 서버(parseArmPain)와 같은 규칙. 관절을 뻐근으로 내리거나 빼도 armLevel 은 남아 있어 카드가 떴다(2026-10-17) */
+  const restCard =
+    painOn &&
+    answers != null &&
+    answers.armLevel === 3 &&
+    armPainJointsToday(partsFromSpots(answers.spots)).length > 0;
   useEffect(() => {
     if (view.cur !== 'done' || restCard) return;
     const t = window.setTimeout(finish, DONE_MS);
@@ -377,7 +389,9 @@ export function CheckinFlow({
             <button
               type="button"
               onClick={() => go('welcome', -1)}
-              className="-ml-2 inline-flex min-h-12 items-center gap-0.5 rounded-full px-2 text-base font-medium text-muted transition-colors hover:text-ink"
+              /* 저장 중에는 잠근다 — 그 사이 첫 화면으로 가면 실패 글(메모 화면 안)을 볼 길이 없었다 */
+              disabled={pending}
+              className="-ml-2 inline-flex min-h-12 items-center gap-0.5 rounded-full px-2 text-base font-medium text-muted transition-colors hover:text-ink disabled:opacity-50"
             >
               <ChevronLeft aria-hidden className="h-5 w-5" />
               처음으로
@@ -623,8 +637,8 @@ function Done({
         <div className="rise-in mt-6 w-full max-w-sm space-y-3 rounded-2xl border border-warn-line bg-warn-bg p-4 text-left [--rise-delay:700ms]">
           <p className="text-sm font-bold text-warn">오늘은 던지지 말고 쉬어요</p>
           <p className="text-sm leading-relaxed text-ink/80">
-            가만히 있어도 아픈 날이에요. 트레이닝 탭 암케어만 하고,
-            며칠 이어지면 진료를 받아요.
+            가만히 있어도 아픈 날이에요. 트레이닝 탭 암케어만 하고, 며칠 이어지면 진료를
+            받아요.
           </p>
           <div className="flex flex-wrap gap-2">
             <a

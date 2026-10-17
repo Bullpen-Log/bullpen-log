@@ -437,7 +437,9 @@ export function SetupWizard({
               ))}
             </dl>
             <p className="text-xs leading-relaxed break-keep text-muted">
-              저장하면 키 · 체중은 내 정보에, 오늘 체중은 체중 기록에 함께 들어가요.
+              {askBody.includes('weight')
+                ? '저장하면 키 · 체중은 내 정보에, 오늘 체중은 체중 기록에 함께 들어가요.'
+                : '저장하면 키 · 체중은 내 정보에 들어가요.'}
             </p>
           </div>
         )}

@@ -1,4 +1,3 @@
-import { appNowMs } from '@/lib/clock';
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getCurrentUser } from '@/lib/dal';
@@ -320,7 +319,8 @@ export async function POST(req: Request) {
       where: {
         userId: user.id,
         date: parsedDate,
-        createdAt: { gte: new Date(appNowMs() - DUPLICATE_WINDOW_MS) },
+        /* createdAt 은 DB 의 실제 시각 — 시뮬레이션 날짜(appNow)와 견주면 안 된다(lib/clock.ts) */
+        createdAt: { gte: new Date(Date.now() - DUPLICATE_WINDOW_MS) },
         ...checked,
         videoPaths: { equals: paths },
       },

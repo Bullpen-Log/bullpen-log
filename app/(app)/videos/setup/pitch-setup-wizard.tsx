@@ -323,7 +323,7 @@ export function PitchSetupWizard({
             <p className="text-xs leading-relaxed break-keep text-muted">
               {done
                 ? '저장하면 내 정보의 같은 칸도 이 값으로 바뀌어요.'
-                : '시작하면 투구 탭이 열리고, 사용법을 짧게 안내해요.'}
+                : '시작하면 투구 탭이 열려요. 설정은 내 정보에서 고칠 수 있어요.'}
             </p>
           </div>
         )}

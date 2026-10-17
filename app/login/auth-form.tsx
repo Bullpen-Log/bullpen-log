@@ -12,6 +12,7 @@ import {
 } from 'react';
 import { createPortal, useFormStatus } from 'react-dom';
 import { CalendarDays, Info } from '@/components/icon';
+import { useTodayKey } from '@/components/use-today-key';
 import { MiniCalendar } from '@/components/mini-calendar';
 import { useModalState } from '@/components/modal';
 import { LegalSheet, wantsNewTab, type LegalDoc } from '@/components/legal-sheet';
@@ -948,7 +949,9 @@ function SignupWizard({
                       onChange={(e) => setShowPassword(e.target.checked)}
                       className="h-4 w-4 cursor-pointer accent-sky"
                     />
-                    <span className="text-sm text-muted select-none">비밀번호 표시</span>
+                    <span className="text-sm text-muted select-none">
+                      비밀번호 표시
+                    </span>
                   </label>
                 </div>
               </div>
@@ -1033,7 +1036,6 @@ function SignupWizard({
           </div>
         )}
 
-
         {/*
           5 동의 두 가지. 받는 정보를 보면 그냥 넘어갈 수준이 아니다 — 생년월일, 키, 몸무게, 통증 부위, 투구 기록, 영상.
           통증 기록은 건강에 관한 정보라 따로 동의를 받는다. 미리 체크해 두지 않는다. '모두 동의'는 둘을 한 번에
@@ -1101,7 +1103,12 @@ function SignupWizard({
 /* ─────────────────────────── 둘을 잇는 것 ─────────────────────────── */
 
 /** today 는 생년월일에서 미래 날짜를 못 고르게 막는 데 쓴다. */
-export function AuthForm({ today }: { today: string }) {
+export function AuthForm({ today: serverToday }: { today: string }) {
+  /*
+   * 이 화면은 빌드 때 미리 만들어진다(app/login/page.tsx) — 서버가 준 날짜는 배포 날짜라, 가입 마법사의 생년월일 한계 · '앞으로 올 날'
+   * 검사가 며칠 지나면 어긋났다(2026-10-17). 붙은 뒤에는 브라우저 날짜로(useSyncExternalStore — 수화 어긋남 없음).
+   */
+  const today = useTodayKey(serverToday);
   const [mode, setMode] = useState<'login' | 'signup'>('login');
   /* 로그인 ↔ 가입을 바꾼 뒤인가 — 처음 들어왔을 때는 초점을 옮기지 않는다 */
   const [switched, setSwitched] = useState(false);

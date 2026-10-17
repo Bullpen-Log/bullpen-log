@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { CalendarDays, ChartLine, List } from '@/components/icon';
 import { Card, FormError } from '@/components/ui';
-import { toDateKey } from '@/lib/pitch-stats';
 import { readEffort } from '@/lib/pitch-effort';
 import { REST_SESSION_TYPE } from '@/lib/session-type';
 import { LegendSwatch, MonthCalendar, type DayMark } from '@/components/month-calendar';
@@ -148,7 +147,8 @@ export function PitchLogPanel({
     setSwapped(true);
     setView(next);
   };
-  const [error, setError] = useState<string>();
+  /* 옛 달 받기에 실패한 달 — 그 달을 볼 때만 글을 보인다(다른 달로 넘기거나 다시 받으면 사라진다, 2026-10-17 전에는 세션 내내 남았다) */
+  const [errorMonth, setErrorMonth] = useState<string>();
 
   /*
    * 이미 받아 온 달들. 같은 달을 두 번 받지 않으려고 둔다. 처음 받아 온
@@ -283,7 +283,7 @@ export function PitchLogPanel({
 
   // 넘어온 날짜가 지난달이면 달력도 그 달을 펴야 한다.
   const [month, setMonth] = useState(() => {
-    const [y, m] = (initialDate ?? toDateKey(new Date())).split('-').map(Number);
+    const [y, m] = (initialDate ?? today).split('-').map(Number);
     return new Date(y, m - 1, 1);
   });
 
@@ -376,6 +376,7 @@ export function PitchLogPanel({
       .then((res) => (res.ok ? res.json() : Promise.reject(new Error())))
       .then((older: Log[]) => {
         if (cancelled) return;
+        setErrorMonth((m) => (m === monthKey ? undefined : m));
         // 그 달 것은 새로 받은 것으로 갈아 끼운다(지운 기록이 남지 않게). 처음 범위와 겹치는 것은 logs 가 id 로 거른다.
         setOlderLogs((prev) => [
           ...prev.filter((l) => !l.date.startsWith(monthKey)),
@@ -383,10 +384,10 @@ export function PitchLogPanel({
         ]);
       })
       .catch(() => {
-        if (cancelled) return;
-        // 다시 넘어오면 한 번 더 받아볼 수 있게 표시를 지운다.
+        // 다시 넘어오면 한 번 더 받아볼 수 있게 표시를 지운다 — 다른 달로 넘긴 뒤 실패해도 지워야 그 달을 다시 받는다.
         loadedMonths.current.delete(monthKey);
-        setError('그 달 기록을 불러오지 못했어요. 잠시 후 다시 시도해 주세요.');
+        if (cancelled) return;
+        setErrorMonth(monthKey);
       });
 
     return () => {
@@ -467,7 +468,11 @@ export function PitchLogPanel({
         미끄러진다. 예전에는 버튼 색만 켜고 꺼서, 같은 모양의 상자인데 여기만
         움직임이 달랐다.
       */}
-      <FormError>{error}</FormError>
+      <FormError>
+        {errorMonth === monthKey
+          ? '그 달 기록을 불러오지 못했어요. 잠시 후 다시 시도해 주세요.'
+          : undefined}
+      </FormError>
 
       {/*
         보기 전환은 달력 머리의 목록 그림 · 목록 머리의 달력 그림으로(2026-10-16 — 예전 [캘린더 | 목록] 고르개가 카드 위에 제목 없이 혼자 떠 있었다)

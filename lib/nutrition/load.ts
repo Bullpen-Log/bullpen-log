@@ -262,7 +262,11 @@ export async function loadNutritionDay(
    * 한 번에 읽도록 둘을 덮는 범위. 예전 띠는 고른 날이 든 한 주(일~토)였다.
    */
   const todayKey = toDateKey(appNow());
-  const stripKeys = stripDays(date, todayKey, shiftDateKey(todayKey, -NUTRITION_BACK_DAYS));
+  const stripKeys = stripDays(
+    date,
+    todayKey,
+    shiftDateKey(todayKey, -NUTRITION_BACK_DAYS)
+  );
   const stripStart = stripKeys[0];
   const stripEnd = stripKeys[stripKeys.length - 1];
   const rangeStart = weekStart < stripStart ? weekStart : stripStart;
@@ -341,7 +345,8 @@ export async function loadNutritionDay(
     prisma.userFood.findMany({
       where: { userId },
       orderBy: { updatedAt: 'desc' },
-      take: 100,
+      /* 저장 한도(app/actions/nutrition.ts saveUserFood, 300)와 같게 — 100 이면 나머지는 보이지도 지워지지도 않았다(2026-10-17) */
+      take: 300,
     }),
     prisma.mealCombo.findMany({
       where: { userId },

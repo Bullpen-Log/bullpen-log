@@ -48,7 +48,7 @@ export async function Feed({ user, today }: { user: HomeUser; today: string }) {
           userId: user.id,
           date: { gte: dbDate(shiftDateKey(today, -7)), lt: dbDate(today) },
         },
-        select: { date: true, kcal: true, meal: true },
+        select: { date: true, kcal: true, amount: true, meal: true },
       }),
     ]);
 
@@ -59,7 +59,8 @@ export async function Feed({ user, today }: { user: HomeUser; today: string }) {
   for (const m of weekMeals) {
     const k = toDateKey(m.date);
     const d = byDay.get(k) ?? { kcal: 0, meals: new Set<string>() };
-    d.kcal += m.kcal;
+    /* kcal 은 1인분 값 — 먹은 양(amount)을 곱한다(lib/nutrition/load.ts 와 같은 셈, 2026-10-17 김민 발견) */
+    d.kcal += m.kcal * m.amount;
     d.meals.add(m.meal);
     byDay.set(k, d);
   }

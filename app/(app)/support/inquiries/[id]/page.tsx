@@ -89,7 +89,9 @@ export default async function InquiryPage({
               }`}
             >
               <div className="mb-2 flex flex-wrap items-center gap-2 text-xs text-muted">
-                <span className="font-semibold text-ink">{r.author.nickname}</span>
+                <span className="font-semibold text-ink">
+                  {r.author?.nickname ?? (r.fromStaff ? '운영자' : '탈퇴한 회원')}
+                </span>
                 {r.fromStaff && (
                   <Badge className="border-sky-soft/40 text-sky">운영자</Badge>
                 )}

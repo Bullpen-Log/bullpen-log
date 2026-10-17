@@ -936,7 +936,8 @@ export function VelocityScreen({
   const [effortPct, setEffortPct] = useState<number | null>(null);
   const [effortMissing, setEffortMissing] = useState(false);
   const [saving, startSaving] = useTransition();
-  const [saved, setSaved] = useState(false);
+  /* 저장한 세션의 날짜 — '기록 남기기' 링크가 그날로(되살린 세션은 오늘이 아닐 수 있다). 없으면 null */
+  const [saved, setSaved] = useState<string | null>(null);
   /* 저장하지 않은 공이 있을 때 나가기 — 묻는 창(앱의 영어 시스템 창 대신) */
   const [askLeave, setAskLeave] = useState(false);
   const [askClear, setAskClear] = useState(false);
@@ -1250,7 +1251,7 @@ export function VelocityScreen({
         distTape
       )
     );
-    setSaved(false);
+    setSaved(null);
     setResultOpen(true);
     /* 앱(아이폰)에서도 떨린다 — 아이폰 알림 떨림(성공), 웹은 짧은 진동(lib/haptics.ts) */
     haptic('success');
@@ -1618,7 +1619,7 @@ export function VelocityScreen({
     void requestPermission();
     setError(null);
     setLast(null);
-    setSaved(false);
+    setSaved(null);
     setShowCamera(true);
     capture.setManual(!autoMode);
     setLive(true);
@@ -1830,6 +1831,9 @@ export function VelocityScreen({
     attemptIdsRef.current.clear();
     sessionAttemptIdsRef.current = [];
     void clearDraft();
+    /* 되살린 세션의 날짜 · 맥락도 비운다 — 남으면 다음 세션이 옛 날짜로 저장됐다(2026-10-17) */
+    setDraftDate(null);
+    setDraftMeta(null);
   };
   /* 닫기 — 첫 화면이면 구속 측정을 떠나고, 그 밖이면 첫 화면으로. 저장하지 않은 공이 있으면 한 번 묻는다(말없이 사라지지 않게) */
   const leave = () => {
@@ -2137,9 +2141,22 @@ export function VelocityScreen({
    * 메모리를 던다(지금 보는 공 · 막 잰 공은 재생이 끊기지 않게 그대로). 예시 공은 맡기지 않는다.
    */
   const storedRef = useRef(new Map<number, { src: Blob; stored: Blob }>());
+  /*
+   * 공이 있다가 없어졌을 때만 폰 임시 저장을 지운다 — 마지막 공을 지우면 효과가 그냥 끝나 임시 저장이 남고, 다음에 열 때 지운 공이
+   * 되살아났다(2026-10-17). 처음(loadDraft 전, 공 0개)에는 지우지 않아 되살리기와 겹치지 않는다.
+   */
+  const hadRealRef = useRef(false);
   useEffect(() => {
     const real = pitches.filter((p) => !p.sample);
-    if (real.length === 0) return;
+    if (real.length === 0) {
+      if (hadRealRef.current) {
+        hadRealRef.current = false;
+        storedRef.current.clear();
+        void clearDraft();
+      }
+      return;
+    }
+    hadRealRef.current = true;
     void saveDraft<DraftPitch, SessionContext>({
       date: draftDate ?? today,
       meta: camera == null && draftMeta ? draftMeta : sessionContext(),
@@ -2248,11 +2265,13 @@ export function VelocityScreen({
       return;
     }
     setError(null);
+    /* 날짜는 저장 직전에 한 번 잡는다 — 성공 처리 · 안내 링크가 같은 날을 본다 */
+    const date = draftDate ?? today;
     startSaving(async () => {
       let res: Awaited<ReturnType<typeof saveVelocitySession>>;
       try {
         res = await saveVelocitySession({
-          date: draftDate ?? today,
+          date,
           sessionType,
           effortPct,
           /* 되살린 세션을 카메라를 켜기 전에 저장하면 그때의 맥락으로 */
@@ -2351,7 +2370,9 @@ export function VelocityScreen({
       }
       for (const p of pitches) revokeClips(p);
       await clearDraft();
-      setSaved(true);
+      setDraftDate(null);
+      setDraftMeta(null);
+      setSaved(date);
       setPitches([]);
       attemptIdsRef.current.clear();
       sessionAttemptIdsRef.current = [];
@@ -2443,7 +2464,7 @@ export function VelocityScreen({
       })),
     ]);
     setLast(null);
-    setSaved(false);
+    setSaved(null);
     setToast(`예시 공 ${SAMPLE_PITCHES.length}개를 넣었어요(저장은 안 돼요)`);
   };
   const clearSamplePitches = () => {
@@ -2468,8 +2489,8 @@ export function VelocityScreen({
     !fileBusy &&
     !(live && !showCamera) &&
     phase == null;
-  /* 첫 화면 기록 단추의 숫자 — 가장 최근 세션의 최고 구속 */
-  const latestMax = history.length ? shown(history[history.length - 1].maxKmh) : null;
+  /* 첫 화면 기록 단추의 숫자 — 가장 최근 세션의 최고 구속(maxKmh 는 이미 보정된 값 — lib/velocity-load.ts, 한 번 더 걸면 기록 시트와 어긋난다) */
+  const latestMax = history.length ? history[history.length - 1].maxKmh : null;
   const lastTip = tipIndex >= tipsCount(choices) - 1;
   /* 안내창 카드 밑 단추(김민: "다음 버튼은 창에다가, 셔터로 하니까 헷갈려") — 셔터는 첫 화면의 측정 시작과 측정에만 */
   const guideLabel = showAsk
@@ -3237,7 +3258,7 @@ export function VelocityScreen({
                             떴다(측정 화면은 (app) 밖이다). 주소로 곧장 가면 팝업 없이 그날 화면이 뜬다.
                           */}
                           <a
-                            href={`/pitch-log/${today}`}
+                            href={`/pitch-log/${saved}`}
                             className="ml-auto font-semibold text-sky"
                           >
                             기록 남기기
@@ -4015,7 +4036,7 @@ export function VelocityScreen({
       <BottomSheet
         open={sheet === 'save'}
         onClose={() => setSheet('none')}
-        title="오늘 투구 기록으로 남기기"
+        title="세션 저장하기"
       >
         {stats && (
           <div className="space-y-4">
