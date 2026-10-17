@@ -1,9 +1,10 @@
 /**
- * 아이폰 앱 운동 세트 대기열(native/src/workout/outbox.ts)의 시험 — `npm run native-outbox:test`.
+ * 아이폰 앱 운동 세트 · 암케어 체크 대기열(native/src/workout/outbox.ts · native/src/armcare/outbox.ts)의 시험 — `npm run native-outbox:test`.
  * 신호가 약한 체육관에서 세트를 잃지 않게 하는 곳이라 규칙을 못 박아 둔다: 성공한 것만 빼기 · 신호 없음은 남기기 · 서버 오류 여덟 번이면 빼고 알리기 ·
  * 다른 계정 것은 안 보내기(계정 표시는 서버에 안 감) · 지운 세트 표시 · 같은 세트는 새 값으로.
  */
 import { drainOutbox, onSent, outbox, setOutboxOwner, type PendingSet } from '~/workout/outbox';
+import { checkOutbox, drainChecks, type PendingCheck } from '~/armcare/outbox';
 
 let fail = 0;
 const ok = (cond: boolean, msg: string) => {
@@ -99,5 +100,51 @@ outbox.add(set(5));
 ok(!outbox.isDropped(k5), '다시 담으면 지운 표시가 풀린다');
 
 off();
+
+/* 6. 암케어 체크 — 같은 규칙(성공만 빼기 · 신호 없음 남기기 · 서버 오류 여덟 번째 빼기 · 다른 계정 안 보냄 · 마친 순서대로) */
+const check = (id: string, at: string): PendingCheck => ({ exerciseId: id, dateKey: '2026-10-18', recordedAt: at });
+const checks = () => checkOutbox.snapshot().map((p) => p.exerciseId);
+setOutboxOwner('A');
+checkOutbox.add(check('b', '2026-10-18T10:02:00.000Z'));
+checkOutbox.add(check('a', '2026-10-18T10:01:00.000Z'));
+const order: string[] = [];
+let cr = await drainChecks(async (p) => {
+  order.push(p.exerciseId);
+  return { ok: true };
+}, () => undefined);
+ok(cr === 'done' && order.join() === 'a,b' && checks().length === 0, '암케어 체크는 마친 순서대로 보내고 빠진다');
+checkOutbox.add(check('c', '2026-10-18T10:03:00.000Z'));
+checkOutbox.add(check('c', '2026-10-18T10:04:00.000Z'));
+ok(checks().filter((x) => x === 'c').length === 1, '같은 체크(운동 · 날)는 새것 하나로');
+cr = await drainChecks(async () => {
+  throw err('offline');
+}, () => undefined);
+ok(cr === 'offline' && checks().includes('c'), '암케어: 신호 없음이면 남긴다');
+for (let i = 0; i < 7; i++) {
+  await drainChecks(async () => {
+    throw err('server');
+  }, () => undefined);
+}
+ok(checks().includes('c'), '암케어: 서버 오류 일곱 번까지는 남긴다');
+let rejected: unknown = null;
+await drainChecks(async () => {
+  throw err('server');
+}, (_p, res) => (rejected = res));
+ok(!checks().includes('c') && typeof rejected === 'object' && rejected != null && 'error' in rejected, '암케어: 여덟 번째에 빼고 오류로 알린다');
+checkOutbox.add(check('d', '2026-10-18T10:05:00.000Z'));
+setOutboxOwner('B');
+const sentChecks: PendingCheck[] = [];
+await drainChecks(async (p) => {
+  sentChecks.push(p);
+  return { ok: true };
+}, () => undefined);
+ok(sentChecks.length === 0 && checks().includes('d'), '암케어: 다른 계정(B)으로는 A 의 체크를 안 보낸다');
+setOutboxOwner('A');
+await drainChecks(async (p) => {
+  sentChecks.push(p);
+  return { ok: true };
+}, () => undefined);
+ok(sentChecks.length === 1 && !('owner' in sentChecks[0]), '암케어: A 로 돌아오면 보내고, 계정 표시는 빼고 보낸다');
+
 console.log(fail ? `실패 ${fail}` : '모두 통과');
 if (fail) process.exit(1);
