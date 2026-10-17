@@ -46,4 +46,6 @@ export type DualCameraEvents = {
   throw: (e: ThrowEvent) => void;
   error: (e: { message: string }) => void;
   fps: (e: FpsEvent) => void;
+  /** 중력 방향(폰 좌표 x 오른쪽 · y 위 · z 화면 밖) — level({ on: true }) 동안 0.1초마다 */
+  level: (e: { x: number; y: number; z: number }) => void;
 };

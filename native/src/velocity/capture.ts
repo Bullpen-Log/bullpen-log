@@ -37,9 +37,12 @@ export type MeasureSettings = Omit<MeasureOpts, 'fps' | 'fovDeg' | 'fovKnown' | 
 
 export type CaptureStatus = 'armed' | 'capturing' | 'analyzing';
 
+/** 화면이 잰 공을 받았나 — 안 받으면(측정 불가 · 잡음) 클립을 지우고 시도 기록에 까닭을 남긴다 */
+export type Verdict = { kept: true } | { kept: false; code?: string; why?: string };
+
 export type CaptureHandlers = {
-  /** 잰 공(쟀든 못 쟀든 공 길이 있는 것) — clip 은 다 쓴 뒤 discard 를 부른다 */
-  onResult(result: EngineResult, meta: { id: number; hitT: number; clip: Clip }): void;
+  /** 잰 공(쟀든 못 쟀든 공 길이 있는 것). 받으면(kept) 클립은 화면 것 — 다 쓴 뒤 화면이 discard 를 부른다 */
+  onResult(result: EngineResult, meta: { id: number; hitT: number; clip: Clip; late: boolean }): Verdict;
   /** 화면에 띄울 작업 수가 바뀜 — '투구를 인식했어요' · '구속 계산 중' */
   onStatus(status: CaptureStatus, visible: number): void;
   onNotice(message: string): void;
@@ -56,6 +59,7 @@ export type CaptureHandlers = {
     trackFrames: number;
     rawKmh: number | null;
     confidence: string | null;
+    distance?: unknown;
   }): void;
 };
 
@@ -180,24 +184,27 @@ export class AppCapture {
     const ok = result.measure.ok;
     const track = result.track.length;
     const noBall = !ok && !job.ball && track < 4 && (job.ballAt == null || job.seed === true);
+    /* 공 길이 거의 없으면 헛알림 — 띄웠던 공이면 알리고, 아니면 조용히 넘긴다. 아니면 화면이 받을지 정한다 */
+    const silent = !ok && (!job.visible || track < 4);
+    if (silent && job.visible) this.handlers.onNotice(LOST_BALL_NOTE);
+    const verdict: Verdict = silent
+      ? { kept: false }
+      : this.handlers.onResult(result, { id: job.id, hitT: main.eventSec, clip: main, late: false });
+    const dropped = ok && !verdict.kept;
     this.handlers.onAttempt?.({
       id: job.id,
       kind: job.ball ? 'ball' : job.seed ? 'seed' : 'motion',
       atSec: job.at,
       strength: job.strength,
-      ok,
-      code: result.measure.ok ? null : result.measure.code,
-      why: noBall ? 'no-ball' : (result.distance?.why ?? null),
+      ok: ok && verdict.kept,
+      code: result.measure.ok ? (dropped ? (verdict.code ?? 'LOW_CONFIDENCE') : null) : result.measure.code,
+      why: noBall ? 'no-ball' : dropped ? (verdict.why ?? null) : (result.distance?.why ?? null),
       thermal: job.thermal,
       trackFrames: track,
       rawKmh: result.measure.ok ? result.measure.kmh : null,
       confidence: result.measure.ok ? result.measure.confidence : null,
+      distance: result.distance,
     });
-    /* 공 길이 거의 없으면 헛알림 — 띄웠던 공이면 알리고, 아니면 조용히 넘긴다 */
-    if (!ok && (!job.visible || track < 4)) {
-      if (job.visible) this.handlers.onNotice(LOST_BALL_NOTE);
-      return void drop([main.path]);
-    }
-    this.handlers.onResult(result, { id: job.id, hitT: main.eventSec, clip: main });
+    if (!verdict.kept) drop([main.path]);
   }
 }

@@ -13,6 +13,12 @@ declare class DualCameraModule extends NativeModule<DualCameraEvents> {
   clip(options: { atSec: number; beforeSec?: number; afterSec?: number }): Promise<{ main: Clip; wide: Clip | null }>;
   read(options: { path: string; offset: number; length?: number }): Promise<{ data: string; size: number; eof: boolean }>;
   discard(options: { paths: string[] }): Promise<void>;
+  /** 폰 기울기 알림('level') 켜고 끄기 */
+  level(options: { on: boolean }): Promise<void>;
+  /** 회원 클립을 앱 안 영상 폴더로 → 영상 번호(UUID) */
+  keep(options: { path: string }): Promise<{ id: string }>;
+  /** 관리자 클립을 서명 주소로 PUT */
+  upload(options: { path: string; url: string; contentType?: string }): Promise<{ status: number }>;
   snapshot(options: { short?: number }): Promise<{ luma: string; width: number; height: number }>;
   diag(): Promise<Record<string, unknown>>;
   tune(options: { stabilization?: boolean; zoom?: number; lens?: number; autoFocus?: boolean }): Promise<Record<string, unknown>>;

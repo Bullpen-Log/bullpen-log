@@ -1,4 +1,5 @@
 import AVFoundation
+import CoreMotion
 import ExpoModulesCore
 import UIKit
 
@@ -8,19 +9,24 @@ import UIKit
 /// lib/velocity-engine/dual-capture.ts 가 쓰던 약속 그대로라 RN 쪽도 같은 모양으로 부른다. 다른 것은 미리보기 하나:
 /// Capacitor 는 투명한 웹뷰 뒤에 그렸지만(setPreview 의 CSS 자리), 여기서는 RN 화면에 놓는 뷰(DualCameraPreview)가 품는다.
 ///
-/// 알림: 'throw' { atSec, strength, kind, thermal } · 'error' { message } · 'fps' { fps, dropped, shutter, iso }
+/// 알림: 'throw' { atSec, strength, kind, thermal } · 'error' { message } · 'fps' { fps, dropped, shutter, iso } · 'level' { x, y, z }(중력, 폰 좌표)
+///
+/// 앱만의 것(2026-10-17 3판): level(폰 기울기 — 웹은 deviceorientation) · keep(회원 클립을 앱 안 폴더에, Capacitor LocalVideo 와 같은 자리) ·
+/// upload(관리자 클립을 서명 주소로 PUT).
 public class DualCameraModule: Module {
     private var controller: DualCameraController?
     /// 넘겨준 클립 파일 — read · discard 는 이것만 받는다(다른 파일을 읽히지 않게)
     private var issued = Set<String>()
     private let issuedLock = NSLock()
+    private let motion = CMMotionManager()
 
     public func definition() -> ModuleDefinition {
         Name("DualCamera")
 
-        Events("throw", "error", "fps")
+        Events("throw", "error", "fps", "level")
 
         OnDestroy {
+            self.motion.stopDeviceMotionUpdates()
             self.controller?.stop()
             DispatchQueue.main.async { PreviewHub.shared.setPreview(nil) }
         }
@@ -145,6 +151,60 @@ public class DualCameraModule: Module {
             }
         }
 
+        /// 폰 기울기 — 켜면 0.1초마다 'level' { x, y, z }(중력 방향, x 오른쪽 · y 위 · z 화면 밖 — 웹 lib/device-tilt.ts gravityOf 와 같은 좌표)
+        AsyncFunction("level") { (options: [String: Any]) in
+            let on = (options["on"] as? Bool) ?? false
+            guard self.motion.isDeviceMotionAvailable else { return }
+            if !on { return self.motion.stopDeviceMotionUpdates() }
+            if self.motion.isDeviceMotionActive { return }
+            self.motion.deviceMotionUpdateInterval = 0.1
+            self.motion.startDeviceMotionUpdates(to: .main) { [weak self] data, _ in
+                guard let g = data?.gravity else { return }
+                self?.sendEvent("level", ["x": g.x, "y": g.y, "z": g.z])
+            }
+        }
+
+        /// 회원 클립을 앱 안 영상 폴더(Application Support/bullpen-videos, 백업 제외)로 옮긴다 → { id }(UUID). 옛 Capacitor 앱의
+        /// LocalVideoPlugin 과 같은 폴더 · 같은 이름이라 그 영상 번호(서버 clipPath 의 local-…)로 다시 찾는다.
+        AsyncFunction("keep") { (options: [String: Any], promise: Promise) in
+            guard let path = options["path"] as? String, self.isIssued(path) else {
+                return promise.reject("path", "옮길 수 없는 파일이에요.")
+            }
+            let fm = FileManager.default
+            let base = fm.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            var store = base.appendingPathComponent("bullpen-videos", isDirectory: true)
+            if !fm.fileExists(atPath: store.path) {
+                try? fm.createDirectory(at: store, withIntermediateDirectories: true)
+                var values = URLResourceValues()
+                values.isExcludedFromBackup = true
+                try? store.setResourceValues(values)
+            }
+            let id = UUID().uuidString
+            let src = URL(fileURLWithPath: path)
+            let ext = src.pathExtension.isEmpty ? "mp4" : src.pathExtension.lowercased()
+            do {
+                try fm.moveItem(at: src, to: store.appendingPathComponent("\(id).\(ext)"))
+                self.forget(path)
+                promise.resolve(["id": id])
+            } catch {
+                promise.reject("failed", "폰에 저장하지 못했어요.")
+            }
+        }
+
+        /// 클립 파일을 서명 주소로 PUT → { status }. 관리자 클립(서버 저장소)용
+        AsyncFunction("upload") { (options: [String: Any], promise: Promise) in
+            guard let path = options["path"] as? String, self.isIssued(path),
+                  let target = (options["url"] as? String).flatMap(URL.init(string:)), target.scheme == "https"
+            else { return promise.reject("args", "올릴 수 없는 파일이에요.") }
+            var request = URLRequest(url: target)
+            request.httpMethod = "PUT"
+            request.setValue((options["contentType"] as? String) ?? "video/mp4", forHTTPHeaderField: "Content-Type")
+            URLSession.shared.uploadTask(with: request, fromFile: URL(fileURLWithPath: path)) { _, response, error in
+                if let error { return promise.reject("network", error.localizedDescription) }
+                promise.resolve(["status": (response as? HTTPURLResponse)?.statusCode ?? 0])
+            }.resume()
+        }
+
         View(DualCameraPreview.self) {}
     }
 
@@ -206,6 +266,12 @@ public class DualCameraModule: Module {
     private func remember(_ paths: [String]) {
         issuedLock.lock()
         paths.forEach { issued.insert($0) }
+        issuedLock.unlock()
+    }
+
+    private func forget(_ path: String) {
+        issuedLock.lock()
+        issued.remove(path)
         issuedLock.unlock()
     }
 
