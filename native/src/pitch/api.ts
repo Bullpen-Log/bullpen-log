@@ -70,6 +70,10 @@ export function loadMe(): Promise<Me> {
   meCache.catch(() => (meCache = null));
   return meCache;
 }
+/** 다시 묻게 — 로그아웃했거나 앱을 다시 볼 때(날이 바뀌었을 수 있다) */
+export const resetMe = () => {
+  meCache = null;
+};
 
 export const loadMonth = (month: string) => call<PitchLog[]>(`/api/pitch-log?month=${month}`, { method: 'GET' });
 /** 모든 기록 — 찾기(느낌으로 찾기)가 켜졌을 때만 */

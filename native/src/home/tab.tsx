@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { FeedItem } from '@/lib/report/feed-items';
+import { cacheGet, cacheSet } from '~/lib/store';
 import { usePalette } from '~/lib/ui';
 import { dateKeyOf } from '~/pitch/api';
 import { MonthGrid } from '~/pitch/month-grid';
@@ -18,6 +19,10 @@ import { RingsCard } from './rings';
  * 아직 웹인 것(체크인 흐름 · 분석 · 달력 일정)은 onWeb 으로 웹 화면을 연다.
  */
 let cached: AppHome | null = null;
+/** 로그아웃 — 앞사람 홈을 지운다 */
+export const resetHomeCache = () => {
+  cached = null;
+};
 
 export function HomeTab({
   today,
@@ -49,6 +54,7 @@ export function HomeTab({
       loadHome().then(
         (h) => {
           cached = h;
+          void cacheSet('home', h);
           setHome(h);
           setError(null);
         },
@@ -58,9 +64,16 @@ export function HomeTab({
   );
   useEffect(() => {
     let alive = true;
+    /* 앱을 막 켰으면 폰에 남긴 오늘 홈을 먼저(날이 바뀌었으면 안 씀) */
+    if (!cached)
+      void cacheGet('home').then((v) => {
+        const h = v as AppHome | null;
+        if (alive && h?.today === today && !cached) setHome(h);
+      });
     loadHome().then(
       (h) => {
         cached = h;
+        void cacheSet('home', h);
         if (alive) setHome(h);
       },
       (e: unknown) => alive && setError(e instanceof Error ? e.message : '불러오지 못했어요.')
@@ -68,7 +81,7 @@ export function HomeTab({
     return () => {
       alive = false;
     };
-  }, []);
+  }, [today]);
 
   const pull = async () => {
     setRefreshing(true);

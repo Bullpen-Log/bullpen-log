@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useSyncExternalStore } from 'react';
+import { cacheGet, cacheSet } from '~/lib/store';
 import { loadAll, loadMonth, type PitchLog } from './api';
 
 /**
  * 달마다 받은 투구 기록을 앱이 쥐고 있다가 화면을 열면 바로 그린다(검토 D10 '받아 둔 값 먼저') — 그리고 뒤에서 새로 받는다.
- * 남기기 · 고치기 · 지우기 뒤에는 그 달을 다시 받는다(refreshMonth). 앱을 껐다 켜면 비어 있다(폰 저장은 다음 단계).
+ * 남기기 · 고치기 · 지우기 뒤에는 그 달을 다시 받는다(refreshMonth). 받은 달은 폰에도 남겨(cacheSet) 앱을 껐다 켜도 먼저 그린다.
  */
 type Entry = { logs: PitchLog[] | null; error: string | null; loading: boolean };
 const months = new Map<string, Entry>();
@@ -11,14 +12,33 @@ const listeners = new Set<() => void>();
 const emit = () => listeners.forEach((l) => l());
 const EMPTY: Entry = { logs: null, error: null, loading: false };
 
+/** 폰에 남긴 달을 먼저 — 서버 값이 먼저 오면 안 덮는다 */
+function warm(key: string) {
+  if (months.get(key)?.logs) return;
+  void cacheGet(`pitch:${key}`).then((v) => {
+    const now = months.get(key) ?? EMPTY;
+    if (now.logs || !Array.isArray(v)) return;
+    months.set(key, { ...now, logs: v as PitchLog[] });
+    emit();
+  });
+}
+
+/** 로그아웃 — 앞사람 기록을 지운다(폰 저장은 lib/store.ts cacheClear) */
+export function resetPitchStore() {
+  months.clear();
+  emit();
+}
+
 export async function refreshMonth(month: string): Promise<void> {
   if (months.has(ALL)) void refreshAll();
+  warm(month);
   const prev = months.get(month) ?? EMPTY;
   months.set(month, { ...prev, loading: true });
   emit();
   try {
     const logs = await loadMonth(month);
     months.set(month, { logs, error: null, loading: false });
+    void cacheSet(`pitch:${month}`, logs);
   } catch (e) {
     months.set(month, { ...prev, error: e instanceof Error ? e.message : '불러오지 못했어요', loading: false });
   }

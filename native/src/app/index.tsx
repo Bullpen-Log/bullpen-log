@@ -9,7 +9,7 @@ import {
   type ComponentType,
   type Ref,
 } from 'react';
-import { Pressable, StyleSheet, Text, View, useColorScheme } from 'react-native';
+import { AppState, Pressable, StyleSheet, Text, View, useColorScheme } from 'react-native';
 import {
   WebView,
   type WebViewMessageEvent,
@@ -19,9 +19,11 @@ import {
 import type { ShouldStartLoadRequest } from 'react-native-webview/lib/WebViewTypes';
 import { APP_UA, SITE_HOST, SITE_URL, START_PATH } from '~/lib/site';
 import { CAP_SHIM, handleCapMessage } from '~/lib/cap-bridge';
-import { loadMe } from '~/pitch/api';
+import { loadMe, resetMe } from '~/pitch/api';
+import { resetPitchStore } from '~/pitch/store';
+import { HomeTab, resetHomeCache } from '~/home/tab';
+import { adoptWebValues, cacheClear } from '~/lib/store';
 import { PitchTab } from '~/pitch/tab';
-import { HomeTab } from '~/home/tab';
 import { DEFAULT_TABS, TAB_BAR_HEIGHT, TabBar, type ShellTab } from '~/shell/tab-bar';
 
 type WebViewHandle = { injectJavaScript(script: string): void };
@@ -67,6 +69,13 @@ function tabOf(path: string, tabs: ShellTab[]): string | null {
   return null;
 }
 
+/**
+ * 옛 앱(웹 화면)이 이 폰의 localStorage 에 둔 값 가운데 앱 화면이 쓰는 것 — 처음 그릴 때 앱 저장소로 옮긴다(이미 있으면 안 덮는다,
+ * lib/store.ts adoptWebValues). 같은 번들 ID 라 옛 앱의 웹 저장소 · 로그인 쿠키는 그대로 남아 있다.
+ */
+const WEB_KEYS = ['bullpen-velocity-setup'];
+const ADOPT_WEB_VALUES = `(function(){try{var o={};${JSON.stringify(WEB_KEYS)}.forEach(function(k){o[k]=localStorage.getItem(k)});window.ReactNativeWebView&&window.ReactNativeWebView.postMessage(JSON.stringify({t:'adopt',items:o}))}catch(e){}})();true;`;
+
 export default function SiteScreen() {
   /** 바꾸면 웹뷰를 새로 그린다 — 다시 불러오기(react-native-webview 14 의 WebView 는 ref 를 안 받는다) */
   const [load, setLoad] = useState(0);
@@ -87,6 +96,18 @@ export default function SiteScreen() {
         () => undefined
       );
   }, [barOn, today]);
+  /* 앱을 다시 볼 때 오늘을 다시 묻는다 — 밤을 넘겨 켜 둔 앱이 어제 달력 · 어제 홈을 보이지 않게 */
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (st) => {
+      if (st !== 'active') return;
+      resetMe();
+      void loadMe().then(
+        (m) => setToday(m.today),
+        () => undefined
+      );
+    });
+    return () => sub.remove();
+  }, []);
   const active = tabOf(path, tabs);
   const pitchTab = tabs.find((t) => t.href === '/videos');
   /* 투구 탭의 첫 화면일 때만 앱 화면 — 잠겼으면 웹의 첫 설정 화면(주소가 /videos/setup)으로 간다 */
@@ -144,7 +165,7 @@ export default function SiteScreen() {
 
   /* 사이트 안에서 누른 이동은 페이지를 새로 안 불러 onShouldStart 가 못 본다 — 사이트(app/(session)/velocity/open-native.tsx)가 알려 준다 */
   const onMessage = useCallback((ev: WebViewMessageEvent) => {
-    let msg: { t?: string; path?: string; items?: ShellTab[]; on?: boolean };
+    let msg: { t?: string; path?: string; items?: ShellTab[] & Record<string, string | null>; on?: boolean };
     try {
       msg = JSON.parse(ev.nativeEvent.data);
     } catch {
@@ -154,6 +175,7 @@ export default function SiteScreen() {
     if (msg.t === 'tabs' && Array.isArray(msg.items)) return setTabs(msg.items);
     if (msg.t === 'path' && typeof msg.path === 'string') return setPath(msg.path);
     if (msg.t === 'tabbar') return setBarOn(msg.on === true);
+    if (msg.t === 'adopt' && msg.items) return void adoptWebValues(msg.items);
     /* 진동 · 화면 켜 두기 · 알림 · 테마(작은 다리, lib/cap-bridge.ts) */
     handleCapMessage(
       msg,
@@ -164,6 +186,20 @@ export default function SiteScreen() {
 
   const onNav = useCallback((nav: WebViewNavigation) => {
     if (!nav.loading) setFailed(false);
+    /* 로그인 화면 = 로그아웃했거나 로그인이 풀렸다 — 앞사람 기록(메모리 · 폰)을 지운다. 다음 사람이 로그인하면 새로 받는다 */
+    let pathname = '';
+    try {
+      pathname = new URL(nav.url).pathname;
+    } catch {
+      return;
+    }
+    if (pathname === '/login' || pathname.startsWith('/login/') || pathname === '/signup') {
+      resetMe();
+      resetPitchStore();
+      resetHomeCache();
+      setToday(null);
+      void cacheClear();
+    }
   }, []);
 
   if (failed) {
@@ -195,6 +231,7 @@ export default function SiteScreen() {
         key={load}
         ref={web}
         injectedJavaScriptBeforeContentLoaded={CAP_SHIM}
+        injectedJavaScript={ADOPT_WEB_VALUES}
         source={{ uri: `${SITE_URL}${START_PATH}` }}
         applicationNameForUserAgent={APP_UA}
         sharedCookiesEnabled
