@@ -1,5 +1,5 @@
 import { type Href, router } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import {
   Pressable,
   RefreshControl,
@@ -12,7 +12,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { isRestSession } from '@/lib/session-type';
 import { EMPTY_FIND, filterLogs, isFindActive, type FindQuery } from '@/lib/pitch-find';
 import { usePalette } from '~/lib/ui';
-import { dateKeyOf, type PitchLog } from './api';
+import { dateKeyOf } from './api';
+import { MonthGrid } from './month-grid';
 import { FindBar } from './find-bar';
 import { monthOf, useAllLogs, useMonth } from './store';
 
@@ -20,14 +21,6 @@ import { monthOf, useAllLogs, useMonth } from './store';
  * 투구 탭(앱 화면) — 찾기 · 달력(그날 공 수 · 영상 점) + 그달 기록 목록 · 지난 영상 가져오기. 날짜를 누르면 그날 화면(/pitch/[date]).
  * 웹 투구 탭(app/(app)/videos)과 같은 규칙.
  */
-const WEEK = ['일', '월', '화', '수', '목', '금', '토'];
-
-const shiftMonth = (month: string, by: number) => {
-  const [y, m] = month.split('-').map(Number);
-  const d = new Date(Date.UTC(y, m - 1 + by, 1));
-  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
-};
-
 export function PitchTab({ today, bottom, onWeb }: { today: string; bottom: number; onWeb: (href: string) => void }) {
   const c = usePalette();
   const inset = useSafeAreaInsets();
@@ -38,29 +31,6 @@ export function PitchTab({ today, bottom, onWeb }: { today: string; bottom: numb
   const finding = isFindActive(q);
   const all = useAllLogs(finding);
 
-  const byDay = useMemo(() => {
-    const map = new Map<string, PitchLog[]>();
-    for (const l of logs ?? []) {
-      const k = dateKeyOf(l.date);
-      map.set(k, [...(map.get(k) ?? []), l]);
-    }
-    return map;
-  }, [logs]);
-
-  const cells = useMemo(() => {
-    const [y, m] = month.split('-').map(Number);
-    const first = new Date(Date.UTC(y, m - 1, 1)).getUTCDay();
-    const days = new Date(Date.UTC(y, m, 0)).getUTCDate();
-    return [
-      ...Array.from({ length: first }, () => null),
-      ...Array.from(
-        { length: days },
-        (_, i) => `${month}-${String(i + 1).padStart(2, '0')}`
-      ),
-    ];
-  }, [month]);
-
-  const [y, m] = month.split('-').map(Number);
   const list = finding
     ? filterLogs([...(all.logs ?? [])].reverse(), q)
     : [...(logs ?? [])].reverse();
@@ -123,82 +93,13 @@ export function PitchTab({ today, bottom, onWeb }: { today: string; bottom: numb
           {all.logs ? `맞는 기록 ${list.length}건` : '모든 기록을 불러오는 중…'}
         </Text>
       ) : (
-        <View style={[styles.card, { backgroundColor: c.card }]}>
-          <View style={styles.monthRow}>
-            <Pressable
-              accessibilityLabel="지난달"
-              hitSlop={10}
-              onPress={() => setMonth(shiftMonth(month, -1))}
-              style={styles.arrow}
-            >
-              <Text style={[styles.arrowText, { color: c.sky }]}>‹</Text>
-            </Pressable>
-            <Text style={[styles.month, { color: c.ink }]}>
-              {y}년 {m}월
-            </Text>
-            <Pressable
-              accessibilityLabel="다음달"
-              hitSlop={10}
-              disabled={month >= monthOf(today)}
-              onPress={() => setMonth(shiftMonth(month, 1))}
-              style={[styles.arrow, month >= monthOf(today) && { opacity: 0.3 }]}
-            >
-              <Text style={[styles.arrowText, { color: c.sky }]}>›</Text>
-            </Pressable>
-          </View>
-          <View style={styles.grid}>
-            {WEEK.map((w) => (
-              <Text key={w} style={[styles.week, { color: c.muted }]}>
-                {w}
-              </Text>
-            ))}
-            {cells.map((day, i) => {
-              if (!day) return <View key={`e${i}`} style={styles.cell} />;
-              const dayLogs = byDay.get(day) ?? [];
-              const count = dayLogs.reduce((n, l) => n + l.pitchCount, 0);
-              const rest =
-                dayLogs.length > 0 &&
-                dayLogs.every((l) => isRestSession(l.sessionType));
-              const video = dayLogs.some((l) => l.videoPaths.length > 0);
-              const isToday = day === today;
-              const future = day > today;
-              return (
-                <Pressable
-                  key={day}
-                  disabled={future}
-                  accessibilityLabel={`${Number(day.slice(8))}일${count ? ` ${count}구` : ''}`}
-                  onPress={() => router.push(`/pitch/${day}` as Href)}
-                  style={[styles.cell, future && { opacity: 0.35 }]}
-                >
-                  <View
-                    style={[
-                      styles.dayCircle,
-                      isToday && { borderColor: c.sky, borderWidth: 2 },
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.dayNum,
-                        { color: c.ink },
-                        isToday && { fontWeight: '700' },
-                      ]}
-                    >
-                      {Number(day.slice(8))}
-                    </Text>
-                  </View>
-                  <Text style={[styles.count, { color: rest ? c.muted : c.sky }]}>
-                    {rest ? '휴식' : count ? `${count}구` : ' '}
-                  </Text>
-                  {video ? (
-                    <View style={[styles.dot, { backgroundColor: c.sky }]} />
-                  ) : (
-                    <View style={styles.dotGap} />
-                  )}
-                </Pressable>
-              );
-            })}
-          </View>
-        </View>
+        <MonthGrid
+          month={month}
+          today={today}
+          logs={logs}
+          onMonth={setMonth}
+          onDay={(day) => router.push(`/pitch/${day}` as Href)}
+        />
       )}
 
       {error && !logs ? (
@@ -267,19 +168,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   addText: { color: '#fff', fontSize: 15, fontWeight: '600' },
-  card: { borderRadius: 20, padding: 12 },
   link: { height: 36, borderRadius: 18, paddingHorizontal: 14, justifyContent: 'center' },
   linkText: { fontSize: 14, fontWeight: '600' },
-  monthRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingBottom: 8,
-  },
-  arrow: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
-  arrowText: { fontSize: 28 },
-  month: { fontSize: 17, fontWeight: '600' },
-  grid: { flexDirection: 'row', flexWrap: 'wrap' },
   week: { width: `${100 / 7}%`, textAlign: 'center', fontSize: 12, paddingBottom: 4 },
   cell: {
     width: `${100 / 7}%`,
@@ -287,17 +177,6 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     minHeight: 58,
   },
-  dayCircle: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  dayNum: { fontSize: 15 },
-  count: { fontSize: 11, fontWeight: '600', marginTop: 1 },
-  dot: { width: 5, height: 5, borderRadius: 3, marginTop: 2 },
-  dotGap: { height: 7 },
   row: {
     flexDirection: 'row',
     alignItems: 'center',

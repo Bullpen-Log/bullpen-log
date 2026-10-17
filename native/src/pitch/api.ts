@@ -42,7 +42,7 @@ export type PitchEntry = {
 
 export class ApiError extends Error {}
 
-async function call<T>(path: string, init: { method: string; body?: unknown }): Promise<T> {
+export async function call<T>(path: string, init: { method: string; body?: unknown }): Promise<T> {
   await syncSession();
   let res: Response;
   try {

@@ -21,6 +21,7 @@ import { APP_UA, SITE_HOST, SITE_URL, START_PATH } from '~/lib/site';
 import { CAP_SHIM, handleCapMessage } from '~/lib/cap-bridge';
 import { loadMe } from '~/pitch/api';
 import { PitchTab } from '~/pitch/tab';
+import { HomeTab } from '~/home/tab';
 import { DEFAULT_TABS, TAB_BAR_HEIGHT, TabBar, type ShellTab } from '~/shell/tab-bar';
 
 type WebViewHandle = { injectJavaScript(script: string): void };
@@ -90,12 +91,21 @@ export default function SiteScreen() {
   const pitchTab = tabs.find((t) => t.href === '/videos');
   /* 투구 탭의 첫 화면일 때만 앱 화면 — 잠겼으면 웹의 첫 설정 화면(주소가 /videos/setup)으로 간다 */
   const showPitch = barOn && path === '/videos' && !!today && !pitchTab?.locked;
+  /* 홈 첫 화면도 앱 화면 — '웹 홈에서' 를 누르면 홈 탭을 다시 누를 때까지 웹 홈(일정 · 자세한 그날 칸) */
+  const [webHome, setWebHome] = useState(false);
+  const showHome = barOn && path === '/today' && !!today && !webHome;
 
   const goWeb = (href: string) =>
     web.current?.injectJavaScript(`window.__bpTab && window.__bpTab(${JSON.stringify(href)});true;`);
   const pressTab = (t: ShellTab) => {
-    if (t.href === '/videos' && !t.locked) setPath('/videos');
+    if ((t.href === '/videos' || t.href === '/today') && !t.locked) setPath(t.href);
+    if (t.href === '/today') setWebHome(false);
     goWeb(t.href);
+  };
+  const goTab = (href: string) => {
+    const t = tabs.find((x) => x.href === href);
+    if (t) pressTab(t);
+    else openWeb(href);
   };
   /* 투구 탭(앱 화면)에서 아직 웹인 화면(투구 분석 · 3D 동작 분석)으로 — 앱 화면을 바로 걷고 웹이 그 주소로 간다 */
   const openWeb = (href: string) => {
@@ -212,6 +222,11 @@ export default function SiteScreen() {
         }}
         onContentProcessDidTerminate={() => setLoad((n) => n + 1)}
       />
+      {showHome && today ? (
+        <View style={StyleSheet.absoluteFill}>
+          <HomeTab today={today} bottom={TAB_BAR_HEIGHT} onWeb={openWeb} onTab={goTab} onWebHome={() => setWebHome(true)} />
+        </View>
+      ) : null}
       {showPitch && today ? (
         <View style={StyleSheet.absoluteFill}>
           <PitchTab today={today} bottom={TAB_BAR_HEIGHT} onWeb={openWeb} />
@@ -220,7 +235,7 @@ export default function SiteScreen() {
       {barOn ? (
         <TabBar
           tabs={tabs}
-          active={showPitch ? '/videos' : active}
+          active={showPitch ? '/videos' : showHome ? '/today' : active}
           onPress={pressTab}
         />
       ) : null}
