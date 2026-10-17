@@ -235,7 +235,7 @@ export function WeekDots({ week, c }: { week: { key: string; done: boolean }[]; 
   );
 }
 
-/** 내 루틴 하나 — 이름 · 운동 수 · 오늘 몇 개, 펼치면 체크 목록. ▶ 따라 하기(앱), 연필 고치기(웹) */
+/** 내 루틴 하나 — 이름 · 운동 수 · 오늘 몇 개, 펼치면 체크 목록. ▶ 따라 하기(앱), 연필 고치기(앱 화면 /training/routine/<id>) */
 export function RoutineCard({ routine: r, dateKey, fresh, open, onToggle, onChanged, c }: {
   routine: AppMyRoutine;
   dateKey: string;
@@ -281,7 +281,7 @@ export function RoutineCard({ routine: r, dateKey, fresh, open, onToggle, onChan
             </View>
           </Pressable>
         ) : null}
-        <Pressable onPress={() => leave(`/training/routine/${r.id}`)} accessibilityRole="link" accessibilityLabel={`${r.name} 고치기`} style={st.circleHit}>
+        <Pressable onPress={() => router.push(`/training/routine/${r.id}` as Href)} accessibilityRole="button" accessibilityLabel={`${r.name} 고치기`} style={st.circleHit}>
           <View style={[st.circle, { backgroundColor: c.chip }]}>
             <SymbolView name="pencil" size={15} tintColor={c.ink} />
           </View>

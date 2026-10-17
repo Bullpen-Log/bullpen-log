@@ -16,7 +16,7 @@ import { Fold, Screen, SectionHead, WebRow, s, useJump, useScreenData } from '~/
  * 자료는 웹과 같은 함수로 모은다(app/actions/app-training-parts.ts → lib/armcare/today-load.ts). 트레이닝 탭의 암케어 카드에서 들어온다.
  *
  * [루틴] 맞춤 루틴(재활 중이면 오늘 재활) · 내 루틴 · 이번 주, [부위별 보강] 빈 곳 보강 · 부위 카드. 따라 하기는 앱 화면(/armcare/<id>?d=…),
- * 체크는 웹 목록과 같은 기록. 루틴 만들기 · 고치기 · 재활 시작 · 자세한 재활 · 3D 근육 지도 · 루틴에 담기 · 팔 통증 안내는 웹으로 보낸다(leave).
+ * 루틴 만들기 · 고치기도 앱 화면(/training/routine/<id>), 체크는 웹 목록과 같은 기록. 재활 시작 · 자세한 재활 · 3D 근육 지도 · 루틴에 담기 · 팔 통증 안내는 웹으로 보낸다(leave).
  */
 const TABS = [
   { value: 'today', label: '루틴' },
@@ -143,7 +143,10 @@ function TodayTab({ data, fresh, reload, c }: { data: AppArmcareTodayTab; fresh:
           ))
         )}
         {data.routines.length < data.routineMax ? (
-          <WebRow label="새 루틴 만들기" href="/training/routine/new" c={c} />
+          <Pressable onPress={() => router.push('/training/routine/new' as Href)} accessibilityRole="button" style={[s.webRow, { backgroundColor: c.card }]}>
+            <Text style={[s.body, { color: c.ink, flex: 1 }]}>새 루틴 만들기</Text>
+            <SymbolView name="chevron.right" size={13} weight="semibold" tintColor={c.muted} />
+          </Pressable>
         ) : (
           <Text style={[s.tiny, { color: c.muted, paddingHorizontal: 4 }]}>루틴은 {data.routineMax}개까지 둘 수 있어요.</Text>
         )}

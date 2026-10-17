@@ -1,18 +1,8 @@
 import { notFound } from 'next/navigation';
 import { BackLink } from '@/components/ui';
 import { requireUser } from '@/lib/dal';
-import { visibleExercises } from '@/lib/library-cache';
-import { formatPrescription } from '@/lib/exercise-meta';
-import { ARMCARE_CATEGORY, primaryArea } from '@/lib/armcare/anatomy';
-import { armcareMinutes } from '@/lib/armcare/routine';
-import { loadMyRoutine, loadMyRoutines } from '@/lib/armcare/my-routines-store';
-import {
-  MY_ROUTINE_MAX,
-  clampRoutineSets,
-  isRoutineId,
-} from '@/lib/armcare/my-routines';
-import { toArmcareViews } from '../../armcare-views';
-import { RoutineBuilder, type BuilderExercise } from './routine-builder';
+import { loadRoutineBuilder } from '@/lib/armcare/routine-builder-load';
+import { RoutineBuilder } from './routine-builder';
 import { ArmcareInfoProvider } from '../../armcare-info';
 import { throwingSide } from '@/lib/armcare/muscle-map';
 
@@ -38,42 +28,9 @@ export default async function RoutinePage({
   const { add } = await searchParams;
 
   const isNew = id === 'new';
-  const routine = !isNew && isRoutineId(id) ? await loadMyRoutine(user.id, id) : null;
-  if (!isNew && !routine) notFound();
-
-  const [library, mine] = await Promise.all([
-    visibleExercises(),
-    isNew ? loadMyRoutines(user.id) : Promise.resolve([]),
-  ]);
-  const armcare = library.filter((ex) => ex.category === ARMCARE_CATEGORY);
-  const views = await toArmcareViews(armcare);
-
-  const exercises: BuilderExercise[] = armcare.map((ex, i) => {
-    const muscles = ex.targetMuscles ?? [];
-    const one = formatPrescription({ ...ex, sets: 1 });
-    return {
-      view: views[i],
-      defaultSets: clampRoutineSets(ex.sets ?? 2),
-      area: primaryArea(muscles)?.key ?? null,
-      minutes: [1, 2, 3, 4, 5].map((s) =>
-        armcareMinutes({ ...ex, targetMuscles: muscles }, s)
-      ),
-      /* '1세트 × 10회 …'에서 세트를 뗀 것 — 세트는 이 화면에서 따로 고른다 */
-      dose: one ? one.replace(/^1세트 × /, '') : null,
-    };
-  });
-  const known = new Set(armcare.map((ex) => ex.id));
-
-  const initialItems = routine
-    ? routine.items.filter((it) => known.has(it.exerciseId))
-    : typeof add === 'string' && known.has(add)
-      ? [
-          {
-            exerciseId: add,
-            sets: exercises.find((e) => e.view.id === add)!.defaultSets,
-          },
-        ]
-      : [];
+  /* 고르는 목록 · 담은 운동은 앱 화면과 같은 곳에서(lib/armcare/routine-builder-load.ts) */
+  const data = await loadRoutineBuilder(user.id, id, add);
+  if (!data) notFound();
 
   return (
     <div className="stack-page">
@@ -91,12 +48,12 @@ export default async function RoutinePage({
       {/* 근육 칩을 누르면 그 근육의 3D 그림·설명 창(armcare-info.tsx) */}
       <ArmcareInfoProvider side={throwingSide(user.throwingHand)}>
         <RoutineBuilder
-          id={routine?.id ?? null}
-          initialName={routine?.name ?? ''}
-          initialItems={initialItems}
-          exercises={exercises}
-          full={isNew && mine.length >= MY_ROUTINE_MAX}
-          droppedHidden={routine ? routine.items.length - initialItems.length : 0}
+          id={data.id}
+          initialName={data.name}
+          initialItems={data.items}
+          exercises={data.exercises}
+          full={data.full}
+          droppedHidden={data.droppedHidden}
         />
       </ArmcareInfoProvider>
     </div>
