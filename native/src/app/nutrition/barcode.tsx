@@ -8,7 +8,7 @@ import { cleanBarcode } from '@/lib/nutrition/barcode';
 import type { Food } from '@/lib/nutrition/meta';
 import { rpc } from '~/lib/rpc';
 import { usePalette } from '~/lib/ui';
-import { lookupBarcode } from '~/nutrition/api';
+import { lookupBarcode, toFoodInput } from '~/nutrition/api';
 import { putScanned } from '~/nutrition/scanned';
 
 /**
@@ -28,7 +28,10 @@ export default function BarcodeScreen() {
 
   const look = async (raw: string) => {
     const code = cleanBarcode(raw);
-    if (!code) return setPhase({ kind: 'error', message: '바코드 숫자가 맞지 않아요. 밑의 숫자를 다시 확인해 주세요.' });
+    if (!code) {
+      busy.current = false;
+      return setPhase({ kind: 'error', message: '바코드 숫자가 맞지 않아요. 밑의 숫자를 다시 확인해 주세요.' });
+    }
     setPhase({ kind: 'looking', code });
     const res = await lookupBarcode(code);
     busy.current = false;
@@ -144,7 +147,8 @@ function ManualFood({ code, name: initialName, onRescan }: { code: string; name:
     setSaving(true);
     setError(null);
     try {
-      const res = await rpc<{ ok: true } | { ok: false; error: string }>('nutrition.saveUserFood', food);
+      /* 바코드 숫자가 sourceId 로 가야 다음에 같은 바코드를 내 음식에서 바로 찾는다(lib/nutrition/barcode-lookup.ts) */
+      const res = await rpc<{ ok: true } | { ok: false; error: string }>('nutrition.saveUserFood', toFoodInput(food));
       if (!res.ok) return setError(res.error);
       putScanned(food);
       router.back();

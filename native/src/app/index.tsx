@@ -27,6 +27,7 @@ import { resetNutritionStore } from '~/nutrition/api';
 import { useWebNav } from '~/shell/web-nav';
 import { setMenu, useMenu, type MenuGroup } from '~/shell/menu-store';
 import { adoptWebValues, cacheClear } from '~/lib/store';
+import { clearDraft } from '~/velocity/draft';
 import { rpc } from '~/lib/rpc';
 import { drainOutbox } from '~/workout/outbox';
 import { PitchTab } from '~/pitch/tab';
@@ -252,6 +253,8 @@ export default function SiteScreen() {
       resetNutritionStore();
       setToday(null);
       void cacheClear();
+      /* 저장 안 한 구속 세션(폰에 맡김) — 다음 사람이 '이어서 하기'로 앞사람 공을 제 기록에 저장하지 않게. 클립 파일은 tmp 라 하루 안에 앱이 치운다 */
+      void clearDraft();
     }
   }, []);
 

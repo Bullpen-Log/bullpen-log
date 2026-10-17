@@ -118,9 +118,15 @@ public class ShootCameraModule: Module {
         top.present(recorder, animated: true)
     }
 
+    /// 이 앱이 내준 촬영본인가 — 이번 실행에 내준 것, 또는 촬영 폴더(tmp/bullpen-shoot) 바로 안의 파일(DualCamera 와 같은 규칙 — 넘기다 앱이
+    /// 꺼지면 다음 실행에 읽거나 지울 수 있게)
     private func isIssued(_ path: String) -> Bool {
         lock.lock()
-        defer { lock.unlock() }
-        return issued.contains(path)
+        let known = issued.contains(path)
+        lock.unlock()
+        if known { return true }
+        let url = URL(fileURLWithPath: path).standardizedFileURL
+        return url.deletingLastPathComponent().path == Self.folder.standardizedFileURL.path
+            && !url.lastPathComponent.contains("..") && FileManager.default.fileExists(atPath: url.path)
     }
 }

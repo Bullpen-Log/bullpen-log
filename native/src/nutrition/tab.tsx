@@ -21,10 +21,16 @@ const kcalText = (n: number) => `${round(n).toLocaleString('ko-KR')}kcal`;
 export function NutritionTab({ today, bottom, onWebNutrition }: { today: string; bottom: number; onWebNutrition: () => void }) {
   const c = usePalette();
   const inset = useSafeAreaInsets();
-  const [date, setDate] = useState(today);
-  const { day, error, to, loading, reload } = useNutritionDay(date);
   const [openId, setOpenId] = useState<string | null>(null);
+  const [date, setDateRaw] = useState(today);
   const [weightText, setWeightText] = useState<string | null>(null);
+  /* 날을 바꾸면 적던 체중은 버린다 — 다른 날에 저장되지 않게 */
+  const setDate = (d: string) => {
+    setDateRaw(d);
+    setWeightText(null);
+    setOpenId(null);
+  };
+  const { day, error, to, loading, reload } = useNutritionDay(date);
   const [busy, setBusy] = useState(false);
 
   if (to)

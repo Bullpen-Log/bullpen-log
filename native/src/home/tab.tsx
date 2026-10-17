@@ -9,7 +9,7 @@ import { dateKeyOf } from '~/pitch/api';
 import { MonthGrid } from '~/pitch/month-grid';
 import { monthOf, useMonth } from '~/pitch/store';
 import { loadHome, type AppHome, type HomeRing } from './api';
-import { DayCard } from './day-card';
+import { DayCard, resetDayCache } from './day-card';
 import { FeedCard } from './feed';
 import { RingsCard } from './rings';
 
@@ -22,6 +22,7 @@ let cached: AppHome | null = null;
 /** 로그아웃 — 앞사람 홈을 지운다 */
 export const resetHomeCache = () => {
   cached = null;
+  resetDayCache();
 };
 
 export function HomeTab({
@@ -42,7 +43,8 @@ export function HomeTab({
 }) {
   const c = usePalette();
   const inset = useSafeAreaInsets();
-  const [home, setHome] = useState<AppHome | null>(cached);
+  /* 받아 둔 홈은 오늘 것일 때만 먼저(자정을 넘겨 켜 둔 앱이 어제 링을 안 보이게) */
+  const [home, setHome] = useState<AppHome | null>(() => (cached?.today === today ? cached : null));
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [month, setMonth] = useState(monthOf(today));

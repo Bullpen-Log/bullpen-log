@@ -242,7 +242,11 @@ final class ShootRecorderViewController: UIViewController, AVCaptureFileOutputRe
 
     // MARK: 단추
 
+    /// 녹화를 시작했다(startRecording 을 큐에 넣음) — isRecording 은 조금 뒤에야 켜져, 그 사이 또 누르면 AVFoundation 이 예외를 낸다
+    private var starting = false
+
     @objc private func recordTapped() {
+        if starting && !output.isRecording { return }
         if output.isRecording {
             recordButton.isEnabled = false
             sessionQueue.async { self.output.stopRecording() }
@@ -257,6 +261,7 @@ final class ShootRecorderViewController: UIViewController, AVCaptureFileOutputRe
             return
         }
         let url = ShootCameraModule.folder.appendingPathComponent(UUID().uuidString + ".mov")
+        starting = true
         cancelButton.isHidden = true
         lensControl.isEnabled = false
         setRecordingLook(true)

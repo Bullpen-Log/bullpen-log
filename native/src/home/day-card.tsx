@@ -12,6 +12,8 @@ import { loadDay, type DayDetail } from './api';
  * 투구 줄을 누르면 앱 그날 화면(폰 영상도 튼다 — 웹 홈에서는 회원 폰 영상이 안 열렸다). 운동 · 영양은 그 탭으로(onTab).
  */
 const days = new Map<string, DayDetail>();
+/** 로그아웃 — 앞사람 그날 칸(체크인 메모 · 끼니)을 지운다 */
+export const resetDayCache = () => days.clear();
 
 export function DayCard({
   date,

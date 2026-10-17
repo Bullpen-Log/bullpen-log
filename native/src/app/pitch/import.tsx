@@ -48,6 +48,9 @@ export default function PitchImportScreen() {
   const [groups, setGroups] = useState<ImportGroup[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  /* 고를 때마다 새 번호 — 묶음 열쇠(날짜#n)는 다시 고르면 겹쳐, 앞서 남긴 묶음과 헷갈리지 않게 '남김' 표시를 이 번호로 가른다 */
+  const [pickNo, setPickNo] = useState(0);
+  const keyOf = (g: ImportGroup) => `${pickNo}|${g.key}`;
   const done = useImported();
 
   const pick = async () => {
@@ -68,6 +71,7 @@ export default function PitchImportScreen() {
       const { date, source } = importDateOf(facts, 0, now);
       next.push({ item: { id: i, name: asset.fileName ?? `영상 ${i + 1}`, date, source }, asset });
     }
+    setPickNo((n) => n + 1);
     setPicked(next);
     setGroups(groupItems(next.map((p) => p.item)));
     setBusy(null);
@@ -86,7 +90,7 @@ export default function PitchImportScreen() {
       }
       router.push({
         pathname: '/pitch/edit' as Href as never,
-        params: { date: g.date, videos: JSON.stringify(paths), importKey: g.key },
+        params: { date: g.date, videos: JSON.stringify(paths), importKey: keyOf(g) },
       });
     } catch (e) {
       /* 반쯤 넣다 막히면 넣은 것도 폰에서 뺀다(다시 누르면 처음부터) */
@@ -98,7 +102,7 @@ export default function PitchImportScreen() {
     }
   };
 
-  const left = groups.filter((g) => !done.has(g.key)).length;
+  const left = groups.filter((g) => !done.has(keyOf(g))).length;
 
   return (
     <View style={{ flex: 1, backgroundColor: c.page }}>
@@ -126,7 +130,7 @@ export default function PitchImportScreen() {
               {left > 0 ? `${groups.length}개 묶음 중 ${left}개 남았어요.` : `${groups.length}개 묶음을 모두 남겼어요.`}
             </Text>
             {groups.map((g) => {
-              const saved = done.has(g.key);
+              const saved = done.has(keyOf(g));
               const check = g.items.some(needsDateCheck);
               return (
                 <View key={g.key} style={[styles.card, { backgroundColor: c.card }, saved && { opacity: 0.55 }]}>

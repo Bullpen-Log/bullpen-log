@@ -1,6 +1,6 @@
 import * as ImagePicker from 'expo-image-picker';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -151,6 +151,7 @@ function EntryForm({
         await createLog(entry);
         if (importKey) markImported(importKey);
       }
+      savedRef.current = true;
       await refreshMonth(monthOf(date));
       router.back();
     } catch (e) {
@@ -159,6 +160,24 @@ function EntryForm({
       setBusy(null);
     }
   };
+
+  /*
+   * 쓸어내려 닫아도(모달 끌기) 이번에 넣은 폰 영상을 지운다 — [취소]만 지우면 끌어 닫은 영상이 앱 안에 통째로 남는다. 저장했으면 그대로.
+   * 닫힐 때 지금 목록을 보게 ref 로 쥔다.
+   */
+  const videosRef = useRef(videos);
+  const savedRef = useRef(false);
+  useEffect(() => {
+    videosRef.current = videos;
+  }, [videos]);
+  useEffect(
+    () => () => {
+      if (savedRef.current) return;
+      const fresh = videosRef.current.filter((v) => v.fresh && isPhoneVideoPath(v.path)).map((v) => phoneAssetId(v.path));
+      if (fresh.length) void LocalVideo.remove({ ids: fresh }).catch(() => undefined);
+    },
+    []
+  );
 
   const cancel = () => {
     const fresh = videos.filter((v) => v.fresh && isPhoneVideoPath(v.path)).map((v) => phoneAssetId(v.path));

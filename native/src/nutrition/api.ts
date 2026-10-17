@@ -92,8 +92,17 @@ async function act(date: string, name: string, ...args: unknown[]): Promise<stri
   }
 }
 
+/* 서버(cleanFood)는 출처 열쇠를 sourceId 로 읽는다 — 화면 음식(Food)의 id 를 옮겨 준다(웹 nutrition/shared.ts toFoodInput 과 같다).
+   빠뜨리면 즐겨찾기 · 인기 순위 · 다시 고르기가 그 음식을 못 알아본다 */
+export const toFoodInput = (food: Food) => ({ ...food, sourceId: food.id });
 export const addFoods = (date: string, meal: MealKey, items: { food: Food; amount: number }[]) =>
-  act(date, 'nutrition.addMealEntries', date, meal, items);
+  act(
+    date,
+    'nutrition.addMealEntries',
+    date,
+    meal,
+    items.map((it) => ({ food: toFoodInput(it.food), amount: it.amount }))
+  );
 export const setAmount = (date: string, id: string, amount: number) => act(date, 'nutrition.updateMealAmount', id, amount);
 export const removeEntry = (date: string, id: string) => act(date, 'nutrition.deleteMealEntry', id);
 export const saveWeight = (date: string, kg: number | null) => act(date, 'nutrition.setWeight', date, kg);

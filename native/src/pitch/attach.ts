@@ -1,5 +1,5 @@
 import * as ImagePicker from 'expo-image-picker';
-import { File } from 'expo-file-system';
+import { File, FileMode } from 'expo-file-system';
 import { useSyncExternalStore } from 'react';
 import { readLabFileFacts } from '@/lib/pitch-lab-file';
 import { APP_API_HEADER, APP_API_LEVEL } from '@/lib/app-api';
@@ -52,7 +52,8 @@ export const PICK_ORIGINAL: ImagePicker.ImagePickerOptions = {
  * 파일 손잡이(expo-file-system)를 그 모양으로 감싼다(영상 전체를 메모리에 안 올림).
  */
 export async function readVideoFacts(uri: string) {
-  const handle = new File(uri).open();
+  /* 읽기 전용 — 기본(읽기 · 쓰기)은 사진 선택기가 준 읽기 전용 파일에서 막힌다 */
+  const handle = new File(uri).open(FileMode.ReadOnly);
   try {
     const size = handle.size ?? 0;
     const blob = {
