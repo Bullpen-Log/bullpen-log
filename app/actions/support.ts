@@ -142,18 +142,24 @@ async function tryReplyInquiry(formData: FormData): Promise<SupportState> {
 }
 
 /** 쓴 사람 · 관리자가 문의를 닫는다 — 닫힌 문의에는 답글을 못 쓴다(다시 열 수 있다) */
+/* 로그인 확인은 내보내는 함수 안에서 — 통합 시험(scripts/integration-selftest.mts)이 export 함수마다 그 줄을 본다 */
 export async function closeInquiry(formData: FormData) {
-  await setInquiryStatus(formData, 'CLOSED');
+  const user = await getCurrentUser();
+  if (!user) return;
+  await setInquiryStatus(user, formData, 'CLOSED');
 }
 
 export async function reopenInquiry(formData: FormData) {
-  await setInquiryStatus(formData, 'OPEN');
-}
-
-async function setInquiryStatus(formData: FormData, status: 'OPEN' | 'CLOSED') {
   const user = await getCurrentUser();
   if (!user) return;
+  await setInquiryStatus(user, formData, 'OPEN');
+}
 
+async function setInquiryStatus(
+  user: NonNullable<Awaited<ReturnType<typeof getCurrentUser>>>,
+  formData: FormData,
+  status: 'OPEN' | 'CLOSED'
+) {
   const id = String(formData.get('id') ?? '');
   if (!id) return;
 
