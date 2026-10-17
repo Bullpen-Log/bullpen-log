@@ -10,6 +10,9 @@ const LIGHT = {
   sky: '#0a84d6',
   danger: '#d70015',
   chip: '#e5e5ea',
+  /* 주의(권하지 않음 · 통증을 남긴 날) — 사이트 --color-warn · --color-warn-bg */
+  warn: '#b45309',
+  warnBg: '#fffbeb',
 };
 const DARK: typeof LIGHT = {
   page: '#000000',
@@ -20,6 +23,8 @@ const DARK: typeof LIGHT = {
   sky: '#0a84ff',
   danger: '#ff453a',
   chip: '#2c2c2e',
+  warn: '#fcd34d',
+  warnBg: '#2a1e08',
 };
 export type Palette = typeof LIGHT;
 

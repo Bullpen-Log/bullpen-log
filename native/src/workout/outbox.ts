@@ -30,6 +30,8 @@ let owner: string | null = null;
 export function setOutboxOwner(id: string | null) {
   owner = id;
 }
+/** 지금 계정 — 암케어 체크 대기열(~/armcare/outbox.ts)도 같은 계정 규칙을 쓴다 */
+export const outboxOwner = () => owner;
 /**
  * 지운 세트 — 지우는 사이에 그 세트의 보내기가 이미 가는 중이면 서버에 다시 생긴다. 지운 열쇠를 적어 두고, 그 보내기의 답이 오면 한 번 더
  * 지운다(onSent 를 듣는 화면이). 같은 세트를 다시 담으면 풀린다.

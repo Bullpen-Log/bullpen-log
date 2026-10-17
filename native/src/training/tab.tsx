@@ -103,6 +103,9 @@ export function TrainingTab({ today, bottom, onWeb }: { today: string; bottom: n
   const act = (a: CardAction) => {
     if (a.kind === 'workout') return void startWorkout(a);
     if (a.kind === 'checkin') return router.push({ pathname: '/checkin' as Href as never, params: { date: today } });
+    /* 암케어 따라 하기는 앱 화면 — 웹(/armcare/play/<id>)을 거치면 한 번 더 읽고 넘긴다 */
+    const armcare = /^\/armcare\/play\/([\w-]+)(\?.*)?$/.exec(a.href);
+    if (armcare) return router.push(`/armcare/${armcare[1]}${armcare[2] ?? ''}` as Href);
     onWeb(a.href);
   };
 
