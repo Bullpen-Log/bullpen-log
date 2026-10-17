@@ -7,13 +7,14 @@ import { getCurrentUser } from '@/lib/dal';
 import { featureLocks, SETUP_PATH } from '@/lib/feature-locks';
 import { dbDate, isNutritionDate, keyOfDbDate } from '@/lib/nutrition/days';
 import { prisma } from '@/lib/prisma';
-import { sortEvents, type CalendarEventView } from '@/lib/calendar-event';
+import { isOutingTitle, sortEvents, type CalendarEventView } from '@/lib/calendar-event';
+import { gatherFactsAndPlan } from '@/lib/report/gather';
 import { loadVelocityDay } from '@/lib/velocity-load';
 import { logPrefillOf, unloggedSessions, type LogPrefill, type VelocitySessionView } from '@/lib/velocity-meta';
 import { loadNutritionDay } from '@/lib/nutrition/load';
 import type { Food, MealEntryView } from '@/lib/nutrition/meta';
 import type { PlanContext, PlanItem } from '@/lib/nutrition/meal-plan';
-import { toDateKey } from '@/lib/pitch-stats';
+import { shiftDateKey, toDateKey } from '@/lib/pitch-stats';
 import { loadHomeFeed, loadHomeRings, type HomeRing } from '@/lib/report/home-today';
 import { loadTodayCoreCached } from '@/lib/report/today-data';
 import { armStatusOf, type ArmStatus } from '@/lib/report/arm-status';
@@ -216,5 +217,60 @@ export async function loadAppVelocityDay(
     ok: true,
     sessions,
     prefill: logPrefillOf(unloggedSessions(sessions, logs.map((l) => l.createdAt.toISOString()))),
+  };
+}
+
+/**
+ * 앱 투구 탭 맨 위 '오늘' 카드 — 웹 투구 탭(app/(app)/videos/videos-page.tsx)과 같은 값: 지금 팔 상태(armStatusOf — 오늘 던진 기록까지),
+ * 오늘 남긴 공 수, 아직 투구 기록으로 안 남긴 구속 측정 공 수, '오늘 던지는 일정' 질문(체크인 줄의 답 · 달력 오늘/내일 등판 힌트).
+ */
+export async function loadAppPitchToday(): Promise<
+  | {
+      ok: true;
+      today: string;
+      status: ArmStatus;
+      logged: { pitches: number } | null;
+      unloggedVelocity: number | null;
+      throwCard: { plan: string | null; hasCheckin: boolean; hint: string | null };
+    }
+  | { ok: false; error: string }
+> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: '로그인이 필요해요.' };
+  const now = appNow();
+  const todayKey = toDateKey(now);
+  const todayAt = dbDate(todayKey);
+  const [gathered, todayLogs, velocityToday, checkinToday, calendarRows] = await Promise.all([
+    gatherFactsAndPlan(user, now),
+    prisma.pitchLog.findMany({ where: { userId: user.id, date: todayAt }, select: { pitchCount: true, createdAt: true } }),
+    prisma.velocitySession.findMany({
+      where: { userId: user.id, date: todayAt, pitchLogId: null },
+      select: { createdAt: true, _count: { select: { pitches: true } } },
+    }),
+    prisma.dailyCheckin.findUnique({
+      where: { userId_date: { userId: user.id, date: todayAt } },
+      select: { throwPlan: true },
+    }),
+    prisma.calendarEvent.findMany({
+      where: { userId: user.id, date: { gte: todayAt, lte: dbDate(shiftDateKey(todayKey, 1)) } },
+      select: { date: true, title: true },
+    }),
+  ]);
+  const outingOn = (day: string) => calendarRows.some((e) => keyOfDbDate(e.date) === day && isOutingTitle(e.title));
+  return {
+    ok: true,
+    today: todayKey,
+    status: armStatusOf(gathered.facts),
+    logged: todayLogs.length ? { pitches: todayLogs.reduce((n, l) => n + l.pitchCount, 0) } : null,
+    unloggedVelocity:
+      unloggedSessions(
+        velocityToday.map((s) => ({ pitchLogId: null, createdAt: s.createdAt.toISOString(), n: s._count.pitches })),
+        todayLogs.map((l) => l.createdAt.toISOString())
+      ).reduce((n, s) => n + s.n, 0) || null,
+    throwCard: {
+      plan: checkinToday?.throwPlan ?? null,
+      hasCheckin: checkinToday != null,
+      hint: outingOn(todayKey) ? '오늘 등판' : outingOn(shiftDateKey(todayKey, 1)) ? '내일 등판' : null,
+    },
   };
 }

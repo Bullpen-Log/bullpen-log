@@ -15,6 +15,7 @@ import { usePalette } from '~/lib/ui';
 import { dateKeyOf } from './api';
 import { MonthGrid } from './month-grid';
 import { FindBar } from './find-bar';
+import { PitchTodayCard } from './today-card';
 import { monthOf, useAllLogs, useMonth } from './store';
 
 /**
@@ -71,6 +72,8 @@ export function PitchTab({ today, bottom, onWeb }: { today: string; bottom: numb
           <Text style={styles.addText}>오늘 기록</Text>
         </Pressable>
       </View>
+
+      {!finding ? <PitchTodayCard today={today} /> : null}
 
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
         {(

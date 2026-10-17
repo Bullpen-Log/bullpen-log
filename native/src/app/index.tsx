@@ -24,6 +24,8 @@ import { resetPitchStore } from '~/pitch/store';
 import { HomeTab, resetHomeCache } from '~/home/tab';
 import { NutritionTab } from '~/nutrition/tab';
 import { TrainingTab, resetTrainingCache } from '~/training/tab';
+import { resetPitchTodayCache } from '~/pitch/today-card';
+import { resetVelocityDayCache } from '~/pitch/velocity-day';
 import { resetNutritionStore } from '~/nutrition/api';
 import { useWebNav } from '~/shell/web-nav';
 import { setMenu, useMenu, type MenuGroup } from '~/shell/menu-store';
@@ -279,6 +281,8 @@ export default function SiteScreen() {
       resetHomeCache();
       resetNutritionStore();
       resetTrainingCache();
+      resetPitchTodayCache();
+      resetVelocityDayCache();
       setToday(null);
       void cacheClear();
       /* 저장 안 한 구속 세션(폰에 맡김) — 다음 사람이 '이어서 하기'로 앞사람 공을 제 기록에 저장하지 않게. 클립 파일은 tmp 라 하루 안에 앱이 치운다 */
