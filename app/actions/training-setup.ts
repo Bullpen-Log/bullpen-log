@@ -155,6 +155,45 @@ export async function saveOwnedEquipment(formData: FormData) {
   redirect(back, RedirectType.replace);
 }
 
+/*
+ * 아이폰 앱(native/src/app/training/settings.tsx)의 트레이닝 설정 — 웹 saveTrainingSettings · saveOwnedEquipment 와 같은 칸 · 같은 거름
+ * (readTrainingProfile · readOwnedEquipment)을 JSON 으로 받는다. 웹은 저장 뒤 redirect 하지만 앱은 결과로 받는다(화면을 앱이 쥔다).
+ */
+type AppSettingsResult = { ok: true } | { ok: false; error: string };
+
+export async function saveAppTrainingLevel(level: unknown): Promise<AppSettingsResult> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: '로그인이 필요해요.' };
+  const fd = new FormData();
+  fd.set('trainingLevel', typeof level === 'string' ? level : '');
+  const data = readTrainingProfile(fd);
+  if (!data.trainingLevel) return { ok: false, error: '경력을 골라 주세요.' };
+  await prisma.user.update({ where: { id: user.id }, data });
+  revalidatePath('/today');
+  revalidatePath('/training');
+  return { ok: true };
+}
+
+export async function saveAppOwnedEquipment(names: unknown): Promise<AppSettingsResult> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: '로그인이 필요해요.' };
+  const fd = new FormData();
+  if (Array.isArray(names)) for (const n of names) if (typeof n === 'string') fd.append('ownedEquipment', n);
+  await prisma.user.update({ where: { id: user.id }, data: readOwnedEquipment(fd) });
+  revalidatePath('/today');
+  revalidatePath('/training');
+  return { ok: true };
+}
+
+/** 앱 트레이닝 설정 화면을 열 때 — 지금 경력 · 가진 장비(한 번도 안 골랐으면 빈 목록, 웹처럼 화면이 전부 켜서 보인다) */
+export async function loadAppTrainingSettings(): Promise<
+  { ok: true; trainingLevel: string | null; ownedEquipment: string[] } | { ok: false; to: string }
+> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, to: '/login' };
+  return { ok: true, trainingLevel: user.trainingLevel ?? null, ownedEquipment: user.ownedEquipment ?? [] };
+}
+
 /**
  * 오늘의 운동 일정을 만든다.
  *

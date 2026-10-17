@@ -1,3 +1,4 @@
+import { type Href, router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { SymbolView } from 'expo-symbols';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
@@ -74,7 +75,7 @@ export function PlanForm({
       <View style={[s.box, { backgroundColor: c.page, gap: 4 }]}>
         <Text style={[s.bodyBold, { color: c.ink }]}>가진 장비부터 골라 주세요</Text>
         <Text style={[s.small, { color: c.muted }]}>처음 한 번만 물어요. 없는 장비로 하는 운동은 빼고 짜요.</Text>
-        <LinkRow c={c} label="장비 고르기" onPress={() => go(() => a.web('/training'))} />
+        <LinkRow c={c} label="장비 고르기" onPress={() => go(() => router.push('/training/settings' as Href))} />
       </View>
     );
 

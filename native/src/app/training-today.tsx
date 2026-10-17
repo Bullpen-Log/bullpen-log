@@ -256,7 +256,7 @@ export default function TrainingTodayScreen() {
           <PlanBody plan={b.plan} make={b.make} data={data} c={c} a={actions} />
         ) : null}
 
-        <WebRows c={c} rows={[{ label: '트레이닝 설정 · 장비', href: '/training', onPress: leave }]} />
+        <WebRows c={c} rows={[{ label: '트레이닝 설정 · 장비', href: '/training/settings', onPress: (href) => router.push(href as Href) }]} />
       </ScrollView>
     </View>
   );

@@ -1,3 +1,4 @@
+import { type Href, router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { SymbolView } from 'expo-symbols';
 import { useRef, useState } from 'react';
@@ -453,7 +454,7 @@ export function PlanBody({
       {plan.noEquipment ? (
         <Card c={c} tone="warn">
           <Text style={[s.small, { color: c.warn }]}>장비를 안 골라 전부 있다고 보고 골랐어요.</Text>
-          <LinkRow c={c} label="가진 장비 고르기" onPress={() => a.web('/training')} />
+          <LinkRow c={c} label="가진 장비 고르기" onPress={() => router.push('/training/settings' as Href)} />
         </Card>
       ) : null}
 
