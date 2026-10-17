@@ -5,7 +5,9 @@ import { unstable_rethrow } from 'next/navigation';
 import { appNow } from '@/lib/clock';
 import { getCurrentUser } from '@/lib/dal';
 import { featureLocks, SETUP_PATH } from '@/lib/feature-locks';
-import { isNutritionDate } from '@/lib/nutrition/days';
+import { dbDate, isNutritionDate, keyOfDbDate } from '@/lib/nutrition/days';
+import { prisma } from '@/lib/prisma';
+import { sortEvents, type CalendarEventView } from '@/lib/calendar-event';
 import { loadNutritionDay } from '@/lib/nutrition/load';
 import type { Food, MealEntryView } from '@/lib/nutrition/meta';
 import { toDateKey } from '@/lib/pitch-stats';
@@ -158,4 +160,33 @@ export async function loadAppTraining(): Promise<
   const last = readTrainingPart((await cookies()).get(TRAINING_PART_COOKIE)?.value);
   if (last) cards.sort((a, b) => Number(b.app === last) - Number(a.app === last));
   return { ok: true, today: toDateKey(now), cards };
+}
+
+/**
+ * 앱 홈 그날 칸의 일정 — 웹 홈 달력과 같은 범위(내 일정, 관리자는 다른 관리자 일정도 읽기만 — owner 닉네임). 더하기 · 고치기 · 지우기는
+ * 웹과 같은 calendar-event.saveCalendarEvent · deleteCalendarEvent.
+ */
+export async function loadAppDayEvents(
+  date: string
+): Promise<{ ok: true; events: CalendarEventView[] } | { ok: false; error: string }> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: '로그인이 필요해요.' };
+  if (typeof date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return { ok: false, error: '날짜가 올바르지 않아요.' };
+  const rows = await prisma.calendarEvent.findMany({
+    where: {
+      date: dbDate(date),
+      ...(user.role === 'ADMIN' ? { user: { role: 'ADMIN' } } : { userId: user.id }),
+    },
+    select: { id: true, date: true, title: true, time: true, memo: true, remindMin: true, userId: true, user: { select: { nickname: true } } },
+  });
+  return {
+    ok: true,
+    events: sortEvents(
+      rows.map(({ userId, user: owner, ...e }) => ({
+        ...e,
+        date: keyOfDbDate(e.date),
+        ...(userId === user.id ? {} : { owner: owner.nickname }),
+      }))
+    ),
+  };
 }

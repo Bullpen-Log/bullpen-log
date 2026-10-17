@@ -6,6 +6,7 @@ import { isRestSession } from '@/lib/session-type';
 import { usePalette } from '~/lib/ui';
 import type { PitchLog } from '~/pitch/api';
 import { loadDay, type DayDetail } from './api';
+import { DayEvents } from './events';
 
 /**
  * 홈 달력 밑 그날 칸 — 웹 day-summary.tsx 와 같은 재료(/api/day-detail · lib/day-detail.ts): 컨디션 · 투구 · 운동 · 영양.
@@ -122,6 +123,7 @@ export function DayCard({
           />
         </>
       )}
+      <DayEvents date={date} />
     </View>
   );
 }

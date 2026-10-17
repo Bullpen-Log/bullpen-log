@@ -10,6 +10,7 @@ import { MonthGrid } from '~/pitch/month-grid';
 import { monthOf, useMonth } from '~/pitch/store';
 import { loadHome, type AppHome, type HomeRing } from './api';
 import { DayCard, resetDayCache } from './day-card';
+import { resetEventsCache } from './events';
 import { FeedCard } from './feed';
 import { RingsCard } from './rings';
 
@@ -23,6 +24,7 @@ let cached: AppHome | null = null;
 export const resetHomeCache = () => {
   cached = null;
   resetDayCache();
+  resetEventsCache();
 };
 
 export function HomeTab({
@@ -160,7 +162,7 @@ export function HomeTab({
       <DayCard date={selected} logs={dayLogs} onTab={onTab} />
 
       <Pressable accessibilityRole="button" onPress={onWebHome} style={styles.webLink}>
-        <Text style={{ color: c.muted, fontSize: 14 }}>일정 · 자세한 그날 기록은 웹 홈에서 ›</Text>
+        <Text style={{ color: c.muted, fontSize: 14 }}>웹 홈 달력으로 보기 ›</Text>
       </Pressable>
     </ScrollView>
   );
