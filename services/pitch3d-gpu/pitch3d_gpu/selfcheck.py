@@ -63,6 +63,9 @@ check("슬로모 · 화면 녹화를 엔진에 넘긴다(빼면 착지 → 릴�
 check("segment 순간을 넘긴다", _fp["events"] == {"footPlant": 1.0, "release": 1.2})
 _fp2 = fit_payload({"jobId": "j", "meta": {"slowmoFps": 999}}, {"side": 1, "back": 2}, {}, "rtmw")
 check("모르는 슬로모 값 · 정보 없음은 None · 원본", _fp2["slowmoFps"] is None and _fp2["screenRecorded"] is False and _fp2["hand"] == "R")
+_dev = {"side": {"model": "iPhone 15 Pro Max", "fps": 240.0}, "back": {"model": None, "fps": 60.0}}
+check("영상 머리의 기종 · fps 를 엔진에 넘긴다(기종별 초점 표)", fit_payload({"jobId": "j", "meta": {}}, {"side": 1, "back": 2}, {}, "rtmw", _dev)["devices"] == _dev)
+check("기종 정보가 없으면 칸을 안 만든다(엔진은 예전처럼 1배 사전)", "devices" not in _fp2)
 
 
 class FakePose:

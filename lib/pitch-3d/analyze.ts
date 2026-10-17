@@ -10,7 +10,7 @@ import {
   triangulate,
   type Calibration,
   type CalibFrame,
-  type FocalPrior,
+  type FocalPriors,
   type Obs,
 } from '@/lib/pitch-3d/camera';
 import {
@@ -78,8 +78,8 @@ export type Pitch3dInput = {
   screenRecorded?: boolean;
   /** 시험용 — 옆 영상 시각(초)으로 준 순간. 없으면 옆 영상 규칙(detectPitchEvents) */
   events?: { kneeUp?: number | null; footPlant: number; footContact?: number; release: number };
-  /** 초점 사전(선택) — 렌즈를 알 때만(camera.ts FOCAL_PRIOR_1X). 없으면 예전과 같다 */
-  focalPrior?: FocalPrior;
+  /** 초점 사전(선택) — 렌즈를 알 때만(camera.ts FOCAL_PRIOR_1X), 기종 · fps 를 알면 카메라마다(focal-table.ts). 없으면 예전과 같다 */
+  focalPrior?: FocalPriors;
 };
 
 export type FailCode = 'short' | 'events' | 'sync' | 'range' | 'calibration';

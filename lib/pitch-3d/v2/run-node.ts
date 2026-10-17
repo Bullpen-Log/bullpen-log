@@ -13,7 +13,7 @@ import {
   type V2Input,
 } from '@/lib/pitch-3d/v2/contract';
 import { fitPitch3dV2 } from '@/lib/pitch-3d/v2/fit';
-import { FOCAL_PRIOR_1X } from '@/lib/pitch-3d/camera';
+import { cameraFocalPriors, type CameraDevice } from '@/lib/pitch-3d/focal-table';
 import type { MotionTemplate } from '@/lib/pitch-3d/v2/motion-template';
 import { readV2Track, toPoseTrack } from '@/lib/pitch-3d/v2/track';
 
@@ -339,6 +339,21 @@ function engineBuild(): string | null {
   return build;
 }
 
+/** 영상 머리에서 읽은 기종 · fps(pipeline.py device_info) — 모양이 틀린 칸은 버린다 */
+function readDevices(raw: unknown): { side?: CameraDevice; back?: CameraDevice } | undefined {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const one = (d: unknown): CameraDevice | undefined => {
+    if (!d || typeof d !== 'object') return undefined;
+    const o = d as Record<string, unknown>;
+    return {
+      model: typeof o.model === 'string' ? o.model.slice(0, 80) : null,
+      fps: typeof o.fps === 'number' && Number.isFinite(o.fps) ? o.fps : null,
+    };
+  };
+  const o = raw as Record<string, unknown>;
+  return { side: one(o.side), back: one(o.back) };
+}
+
 /** fit 입력 모양 검사 → 맞추기 → 저장할 JSON 문자열(실패도 결과 모양이다) */
 export function runFit(raw: unknown): string {
   const r = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
@@ -359,8 +374,11 @@ export function runFit(raw: unknown): string {
     /* 거친 전체 영상에서 찾은 순간을 넘겨받는다 — 잘라 낸 구간에서 다시 찾으면 실패했다(2026-10-08 샘플 1 · 3, fit 단계 events) */
     events: readV2Events(r.events),
     motionTemplate: motionTemplate(),
-    /* 렌즈를 알면 초점 사전 — GPU 파이프라인이 안내서대로 '1x' 를 기본으로 넘긴다(pipeline.py fit_payload). 안 주면 예전과 같다 */
-    focalPrior: r.lens === '1x' ? FOCAL_PRIOR_1X : undefined,
+    /*
+     * 렌즈를 알면 초점 사전 — GPU 파이프라인이 안내서대로 '1x' 를 기본으로 넘긴다(pipeline.py fit_payload). 영상 머리의 기종 · fps(devices)가
+     * 표에 있으면 그 카메라는 잰 초점으로 좁게(focal-table.ts). 안 주면 예전과 같다
+     */
+    focalPrior: cameraFocalPriors(r.lens === '1x', readDevices(r.devices)),
   };
   let result;
   try {
