@@ -22,6 +22,7 @@ import { CAP_SHIM, handleCapMessage } from '~/lib/cap-bridge';
 import { loadMe, resetMe } from '~/pitch/api';
 import { resetPitchStore } from '~/pitch/store';
 import { HomeTab, resetHomeCache } from '~/home/tab';
+import { useWebNav } from '~/shell/web-nav';
 import { adoptWebValues, cacheClear } from '~/lib/store';
 import { PitchTab } from '~/pitch/tab';
 import { DEFAULT_TABS, TAB_BAR_HEIGHT, TabBar, type ShellTab } from '~/shell/tab-bar';
@@ -48,7 +49,7 @@ function openNative(path: string) {
   if (Date.now() - lastOpen < 1500) return;
   lastOpen = Date.now();
   if (NATIVE_PATHS.has(path)) router.push('/velocity');
-  else if (/^\/pitch\/\d{4}-\d{2}-\d{2}$/.test(path))
+  else if (/^\/pitch\/\d{4}-\d{2}-\d{2}$/.test(path) || path === '/workout')
     router.push(path as Href);
 }
 const openVelocity = () => openNative('/velocity');
@@ -123,6 +124,8 @@ export default function SiteScreen() {
     if (t.href === '/today') setWebHome(false);
     goWeb(t.href);
   };
+  /* 앱 화면이 끝난 뒤 웹을 옮길 곳(운동을 마치면 축하 화면) — shell/web-nav.ts */
+  useWebNav(useCallback((href: string) => goWeb(href), []));
   const goTab = (href: string) => {
     const t = tabs.find((x) => x.href === href);
     if (t) pressTab(t);
