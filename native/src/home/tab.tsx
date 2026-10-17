@@ -1,5 +1,5 @@
-import { type Href, router } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { type Href, router, useFocusEffect } from 'expo-router';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { FeedItem } from '@/lib/report/feed-items';
@@ -87,6 +87,15 @@ export function HomeTab({
     };
   }, [today]);
 
+  /* 위에 쌓인 앱 화면(체크인 · 투구 기록 · 운동)에서 돌아오면 다시 받는다 — 링이 방금 남긴 것을 따라오게(처음 한 번은 위 효과가 받는다) */
+  const focused = useRef(false);
+  useFocusEffect(
+    useCallback(() => {
+      if (focused.current) void refresh();
+      focused.current = true;
+    }, [refresh])
+  );
+
   const pull = async () => {
     setRefreshing(true);
     await Promise.all([refresh(), reload()]);
@@ -94,12 +103,12 @@ export function HomeTab({
   };
 
   const openRing = (r: HomeRing) => {
-    if (r.key === 'checkin') return onWeb('/checkin');
+    if (r.key === 'checkin') return router.push({ pathname: '/checkin' as Href as never, params: { date: today } });
     if (r.key === 'pitch') return home?.pitchLocked ? onWeb(r.href ?? '/videos/setup') : router.push(`/pitch/${today}` as Href);
     onTab(r.href ?? '/today');
   };
   const openFeed = (it: FeedItem) => {
-    if (it.checkin && !it.href) return onWeb('/checkin');
+    if (it.checkin && !it.href) return router.push({ pathname: '/checkin' as Href as never, params: { date: today } });
     if (!it.href) return;
     const day = /^\/pitch-log\/(\d{4}-\d{2}-\d{2})/.exec(it.href)?.[1];
     if (day) return router.push(`/pitch/${day}` as Href);
@@ -131,7 +140,7 @@ export function HomeTab({
               title="지금 통증이 있으신가요?"
               body={`최근 투구 메모에 ‘${home.painWords.join(', ')}’ 같은 말이 있었어요. 통증이 있으면 던지지 말고 전문의와 상담하세요. 체크인을 남기면 평소 계획으로 돌아가요.`}
               action="오늘 체크인하기"
-              onPress={() => onWeb('/checkin')}
+              onPress={() => router.push({ pathname: '/checkin' as Href as never, params: { date: today } })}
             />
           ) : null}
           {home.recovering ? <Warn title="오늘은 회복 운동만 골랐어요" body="최근 체크인에 통증이 있어서 무게 운동은 뺐어요." /> : null}

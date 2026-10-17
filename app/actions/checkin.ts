@@ -46,6 +46,33 @@ export async function saveCheckin(
   return withInput(await trySaveCheckin(formData), formData);
 }
 
+/**
+ * 아이폰 앱(native/src/app/checkin.tsx) 체크인 — 앱은 폼(FormData)을 못 보내 JSON 으로 받아, 웹 흐름(components/checkin-flow/flow.tsx)이
+ * 보내는 것과 같은 폼 칸으로 옮겨 같은 저장(trySaveCheckin)을 탄다. 앱은 몸 그림 대신 다섯 부위를 고른다(몸 그림 근육은 비움).
+ */
+export async function saveAppCheckin(input: {
+  date: unknown;
+  condition: unknown;
+  sleepQuality: unknown;
+  parts: unknown;
+  armSpots: unknown;
+  armLevel: unknown;
+  note: unknown;
+}): Promise<CheckinState> {
+  const fd = new FormData();
+  fd.set('flow', '3');
+  fd.set('date', String(input?.date ?? ''));
+  fd.set('condition', String(input?.condition ?? ''));
+  if (input?.sleepQuality != null) fd.set('sleepQuality', String(input.sleepQuality));
+  const parts = (input?.parts ?? {}) as Record<string, unknown>;
+  for (const p of CHECKIN_PARTS) if (typeof parts[p.key] === 'string') fd.set(p.key, parts[p.key] as string);
+  fd.set('armpain', '1');
+  if (Array.isArray(input?.armSpots)) for (const s of input.armSpots) fd.append('armPainSpots', String(s));
+  if (input?.armLevel != null) fd.set('armPainLevel', String(input.armLevel));
+  fd.set('note', typeof input?.note === 'string' ? input.note : '');
+  return trySaveCheckin(fd);
+}
+
 async function trySaveCheckin(formData: FormData): Promise<CheckinState> {
   const user = await getCurrentUser();
   if (!user) return { error: '로그인이 필요해요.' };

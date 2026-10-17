@@ -14,6 +14,7 @@ export default function RootLayout() {
         <Stack.Screen name="pitch/import" options={{ presentation: 'modal' }} />
         <Stack.Screen name="nutrition/add" options={{ presentation: 'modal' }} />
         <Stack.Screen name="more" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="checkin" options={{ presentation: 'modal' }} />
       </Stack>
     </>
   );

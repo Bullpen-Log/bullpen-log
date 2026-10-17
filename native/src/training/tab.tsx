@@ -1,6 +1,6 @@
 import { SymbolView, type SFSymbol } from 'expo-symbols';
 import * as Haptics from 'expo-haptics';
-import { type Href, router } from 'expo-router';
+import { type Href, router, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -70,6 +70,15 @@ export function TrainingTab({ today, bottom, onWeb }: { today: string; bottom: n
     };
   }, [load, today]);
 
+  /* 운동 · 체크인(앱 화면)에서 돌아오면 다시 받는다 — '이어서'·'마쳤어요'가 바로 바뀌게 */
+  const focused = useRef(false);
+  useFocusEffect(
+    useCallback(() => {
+      if (focused.current) void load();
+      focused.current = true;
+    }, [load])
+  );
+
   /* [시작] — 운동 판을 연다. 서버는 판을 열고 운동 화면 · 워밍업 · 쉬는 날 화면으로 보낸다(redirect) — 운동 화면이면 앱 화면, 나머지는 웹 */
   const startWorkout = async (a: Extract<CardAction, { kind: 'workout' }>) => {
     if (starting) return;
@@ -90,7 +99,7 @@ export function TrainingTab({ today, bottom, onWeb }: { today: string; bottom: n
   };
   const act = (a: CardAction) => {
     if (a.kind === 'workout') return void startWorkout(a);
-    if (a.kind === 'checkin') return onWeb('/checkin');
+    if (a.kind === 'checkin') return router.push({ pathname: '/checkin' as Href as never, params: { date: today } });
     onWeb(a.href);
   };
 
