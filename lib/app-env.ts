@@ -26,6 +26,15 @@ export function isExpoUserAgent(userAgent: string | null | undefined): boolean {
   return !!userAgent && userAgent.includes(EXPO_UA_MARK);
 }
 
+/**
+ * 새 앱이 아는 앱 화면의 판(BullpenNative/<n>) — 사이트가 앱 화면으로 넘기기 전에 그 판이 그 화면을 아는지 본다. 사이트는 바로 배포되고
+ * 앱은 폰에 깔린 판이 늦게 바뀌어서, 모르는 판에 넘기면 화면이 사라진다. 판: 1 구속 측정 · 투구 그날, 2 운동 진행(/workout).
+ */
+export function expoLevel(userAgent: string | null | undefined): number {
+  const m = userAgent ? /BullpenNative\/(\d+)/.exec(userAgent) : null;
+  return m ? Number(m[1]) : 0;
+}
+
 /** 서버 — 요청 머리의 User-Agent 로 판단한다 */
 export function isNativeUserAgent(userAgent: string | null | undefined): boolean {
   return !!userAgent && userAgent.includes(NATIVE_UA_MARK);
