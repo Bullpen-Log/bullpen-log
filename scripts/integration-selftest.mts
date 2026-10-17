@@ -340,6 +340,23 @@ console.log('\n[12] 앱 입구 — 아이폰 앱(native/)이 부르는 /api/rpc 
   );
 }
 
+/* ─────────────────────── 13. 앱 카메라 두 벌 ─────────────────────── */
+console.log('\n[13] 앱 카메라 — Capacitor 앱과 Expo 앱(native/)의 카메라 핵심이 같은가');
+{
+  /* Expo 판이 나갈 때까지 두 앱이 같이 쓰인다 — 한쪽만 고치면 구속 측정이 앱마다 달라진다. mobile/ 을 지우면 이 검사도 지운다 */
+  const MARK = '\n// MARK: - 카메라 둘\n';
+  const capacitor = src('mobile/ios/App/App/DualCameraPlugin.swift');
+  const expo = src('native/modules/dual-camera/ios/DualCameraCore.swift');
+  const a = capacitor.slice(capacitor.indexOf(MARK));
+  const b = expo.slice(expo.indexOf(MARK));
+  const line = a.split('\n').findIndex((l, i) => l !== b.split('\n')[i]);
+  check(
+    'mobile/…/DualCameraPlugin.swift 와 native/modules/dual-camera/ios/DualCameraCore.swift 의 카메라 핵심이 글자까지 같다',
+    a.length > 10_000 && a === b,
+    line < 0 ? '' : `${line + 1}번째 줄부터 다름 — 두 파일을 같이 고친다`
+  );
+}
+
 console.log(`\n${passed}개 통과, ${failed}개 실패`);
 process.exit(failed === 0 ? 0 : 1);
 
