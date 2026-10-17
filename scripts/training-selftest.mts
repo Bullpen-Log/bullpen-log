@@ -14672,12 +14672,10 @@ console.log(
       )
   );
   check(
-    "검토 (홈) 계획 줄 — 등판 날 고정 글('양은 경기가 정해요')이 까닭(day.reason)을 덮지 않는다 · 투구 기록 '오늘 계획'은 던지는 등판 날만 '등판'",
-    /if \(day\.outing === 'game'\) \{/.test(homeSrc) &&
-      /sub: day\.reason \}/.test(homeSrc) &&
-      /game: todayPlanDay\.outing === 'game' && todayPlanDay\.throwing/.test(
-        srcOf('app/(app)/pitch-log/[date]/load.ts')
-      )
+    /* 2026-10-14 부터 홈 첫날 카드 · 그날 화면은 '오늘 N~M구' 계획 줄 대신 지금 팔 상태(armStatusOf)를 보인다 — 옛 계획 줄 검사는 그 배선 검사로 바꿈 */
+    "검토 (홈) 첫날 카드와 그날 화면은 권하는 투구수 대신 지금 팔 상태(armStatusOf) — 홈은 facts, 그날 화면은 gathered.facts 로",
+    /status=\{armStatusOf\(facts\)\}/.test(homeSrc) &&
+      /armStatusOf\(gathered\.facts\)/.test(srcOf('app/(app)/pitch-log/[date]/load.ts'))
   );
   const gatherSrc = srcOf('lib/report/gather.ts');
   /*
