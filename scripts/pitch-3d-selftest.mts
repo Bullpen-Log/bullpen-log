@@ -8,7 +8,7 @@
  * 원리상 약하게 정해지는 경우, R2), 화면 녹화처럼 같은 장면 · 슬로모 속도 차 · 시작 어긋남, 2D 잡음, 한쪽에서 가려진 관절의 지어낸 값,
  * 뒤 영상 좌우 뒤바뀜, 폰 숙임 · 기울임을 넣는다. 진짜 지표는 같은 지표 함수로 진짜 3D 에서 잰다 — 차이 = 엔진(기하)의 오차.
  */
-import { readPitch3dResult, storedAnalysisJson, MAX_STORED_BYTES, type Pitch3dOk } from '../lib/pitch-3d/analyze.ts';
+import { fillBackHipGaps, readPitch3dResult, storedAnalysisJson, MAX_STORED_BYTES, type Pitch3dOk, type Synced } from '../lib/pitch-3d/analyze.ts';
 import {
   decomposeEssential,
   essentialFrom,
@@ -153,6 +153,36 @@ console.log('■ 결과 저장 · 읽기');
   check('저장: 검사를 지난 결과만 문자열로', 'json' in storedAnalysisJson(JSON.parse(json)) && 'error' in storedAnalysisJson({ ok: true }));
   check('저장: 900KB 넘으면 거절(품질 칸에 큰 글을 넣어도)', 'error' in storedAnalysisJson({ ...JSON.parse(json), quality: { pad: 'x'.repeat(1_000_000) } }));
   check('읽기: 실패 결과는 까닭 글을 다시 붙인다', (readPitch3dResult({ ok: false, version: '0.1.0', code: 'range', reason: '<b>x</b>' }) as { reason: string } | null)?.reason?.startsWith('두 영상이') === true);
+}
+
+{
+  console.log('\n■ 뒤 영상 엉덩이 간격 메우기(fillBackHipGaps)');
+  /* 뒤 영상 왼 − 오른 엉덩이 가로 간격이 +10 → (겹쳐 +4 에 머묾) → −10 — 가운데 점 100 */
+  const gaps = [10, 10, 10, 4, 4, 4, -10, -10, -10];
+  const frames = (gs: number[]): Synced[] =>
+    gs.map((g, k) => {
+      const pt = Array.from({ length: 17 }, () => ({ x: 0, y: 0, v: 0.9 }));
+      const back = pt.map((o) => ({ ...o }));
+      back[7] = { x: 100 + g / 2, y: 50, v: 0.9 };
+      back[8] = { x: 100 - g / 2, y: 50, v: 0.9 };
+      return { i: k, t: k, side: pt, back };
+    });
+  const s = frames(gaps);
+  const n = fillBackHipGaps(s, 0, 8, 10);
+  const gapOf = (k: number) => s[k].back[7].x - s[k].back[8].x;
+  check('겹친 세 장면을 메움', n === 3, String(n));
+  check('앞뒤 믿을 장면 사이를 시간으로 이음(+5 · 0 · −5)', Math.abs(gapOf(3) - 5) < 1e-9 && Math.abs(gapOf(4)) < 1e-9 && Math.abs(gapOf(5) + 5) < 1e-9, [3, 4, 5].map(gapOf).join(' · '));
+  check('가운데 점 · 믿을 장면은 그대로', s.every((f) => Math.abs((f.back[7].x + f.back[8].x) / 2 - 100) < 1e-9) && gapOf(2) === 10 && gapOf(6) === -10);
+  const e = frames([4, 4, 10, 10, -10]);
+  check('앞에 믿을 장면이 없으면 그대로', fillBackHipGaps(e, 0, 4, 10) === 0 && e[0].back[7].x - e[0].back[8].x === 4);
+  const o = frames(gaps);
+  check('구간 밖은 손대지 않음', fillBackHipGaps(o, 6, 8, 10) === 0);
+  const c = frames([10, 10, 10, 5, 0, -5, -10, -10, -10]);
+  check('관찰이 0 을 고르게 지나가면(깨끗한 2D) 그대로', fillBackHipGaps(c, 0, 8, 10) === 0);
+  const z = frames([10, 10, 4, 4, 10, 10]);
+  check('앞뒤 좌우가 같으면(0 을 안 지남) 그대로', fillBackHipGaps(z, 0, 5, 10) === 0);
+  const m = frames(gaps);
+  check('사람이 크면(선에서 키의 1% 안) 그대로 · 3% 넘는 장면만 메움', fillBackHipGaps(m, 0, 8, 100) === 2 && m[3].back[7].x - m[3].back[8].x === 4);
 }
 
 if (FULL) {

@@ -181,6 +181,12 @@ const LEAD_PRE = 0.25;
 const LEAD_SIDE_MIN = 0.5;
 const LEAD_BACK_MIN = 0.1;
 const LEAD_AGREE = 0.04;
+/** 뒤 영상 엉덩이 간격 메우기(fillBackHipGaps)의 문턱 — 가장 넓은 간격의 이만큼 밑이면 겹친 장면(마커 13구에서 0.5 · 0.6 · 0.7 을 견줘 가운데) */
+const HIP_FILL_FRAC = 0.6;
+/** 관찰이 이은 선에서 이만큼(사람 크기 대비) 안이면 그대로 · 넘으면 선으로 */
+const HIP_FILL_DEV = [0.01, 0.03] as const;
+/** 좁은 구간 장면 중 이 몫 넘게 앞쪽 좌우에 머물면 '늦게 뒤집힘'으로 본다 */
+const HIP_FILL_STUCK = 0.6;
 /** 결과에 남기는 장면 상한(검토 R9 — analysis.json 300KB 밑) */
 const MAX_FRAMES = 400;
 /** 장면 밀도(초당) 경고 문턱(검토 R1) */
@@ -351,6 +357,14 @@ export function analyzePitch3dCore(input: Pitch3dInput): Pitch3dCore | Pitch3dFa
     backTime[i] != null && dtwTime[i] != null ? [backTime[i]! - dtwTime[i]!] : []
   );
   const offsetFrames = Math.round((median(shifts.map(Math.abs)) / backDt) * 10) / 10;
+
+  /* 뒤 영상 엉덩이 간격 메우기(fillBackHipGaps) — 니업(없으면 착지 앞 (착지 → 릴리스)의 3배) ~ 릴리스 뒤 그 절반 */
+  fillBackHipGaps(
+    synced,
+    ev.kneeUp ?? ev.footPlant - 3 * (ev.release - ev.footPlant),
+    ev.release + 0.5 * (ev.release - ev.footPlant),
+    back.person
+  );
 
   /* 3D — 두 영상 다 보이면 교차, 한쪽만 믿을 만하면 그 시선 위 · 부모로부터 뼈 길이만큼(R4) */
   /* 두 영상이 서로 안 맞아 버린 관찰(agrees) — 또렷한 쪽 시선 위에 다시 놓는다(아래 R4) */
@@ -924,6 +938,58 @@ export function refineSync(
     last = Math.max(last + 1e-6, v);
     return last;
   });
+}
+
+/**
+ * 뒤 영상 엉덩이 간격 메우기 — 착지 직후 뒤(2루) 영상에서 두 엉덩이가 앞뒤로 겹쳐 보이면 2D 모델이 좌우 순서를 늦게 바꾸고 간격을 지어낸다.
+ * 2026-10-16 마커 13구(세 대 교차 정답을 뒤 영상에 비춤): 정답 왼 − 오른 가로 간격이 +2 → −5%(사람 키 대비)로 지나는 동안 관찰은 +3~5% 에
+ * 머물다 한 번에 뒤집혔다(가운데 점은 맞음). 그대로 교차하면 골반이 착지 직후 10~18° 늦게 돌아 상하체 분리가 12° 작았다.
+ * [from, to](옆 영상 시각) 안에서 간격이 가장 넓은 간격(95% 값)의 HIP_FILL_FRAC 밑인 장면은 앞뒤 믿을 장면 사이를 시간으로 잇고 가운데 점은
+ * 그대로 둔다 — 진짜 보정으로 착지 ~ 30% 골반 오차 −11.7 → −3.1°, 엔진 13구 분리 −11.9 → −5.4°(10-12 마커 골반 스티커 정답도 조금 나아짐).
+ * 메우는 것은 '간격이 0 을 지나야 하는데(앞뒤 믿을 장면의 좌우가 반대) 관찰이 HIP_FILL_STUCK 넘게 앞쪽 좌우에 머문' 구간만 — 2D 가 깨끗하면
+ * 겹쳐도 간격이 0 을 고르게 지나가 손댈 까닭이 없다(합성 투수에서 모든 좁은 구간을 메우면 원근이 강한 영상에서 어깨 다시 비춤이 3% 를 넘었다).
+ * 그 안에서도 관찰이 이은 선에서 사람 크기(person)의 HIP_FILL_DEV[0] 안이면 그대로, [1] 넘으면 선으로(사이는 섞음). synced 를 바꾸고 바꾼 장면 수를 돌려준다.
+ */
+export function fillBackHipGaps(synced: Synced[], from: number, to: number, person: number): number {
+  const idx = synced.flatMap((s, k) =>
+    s.t >= from && s.t <= to && s.back[J.lHip].v >= 0.3 && s.back[J.rHip].v >= 0.3 ? [k] : []
+  );
+  if (idx.length < 3) return 0;
+  const gap = idx.map((k) => synced[k].back[J.lHip].x - synced[k].back[J.rHip].x);
+  const wide = gap.map(Math.abs).sort((a, b) => a - b);
+  const thr = HIP_FILL_FRAC * wide[Math.floor(wide.length * 0.95)];
+  const good = gap.map((g) => Math.abs(g) >= thr);
+  const [d0, d1] = HIP_FILL_DEV;
+  let filled = 0;
+  for (let i0 = 0; i0 < idx.length; i0++) {
+    if (good[i0]) continue;
+    let i1 = i0;
+    while (i1 + 1 < idx.length && !good[i1 + 1]) i1++;
+    const [a, b] = [i0 - 1, i1 + 1];
+    const win = gap.slice(i0, i1 + 1);
+    const stuck =
+      a >= 0 &&
+      b < idx.length &&
+      Math.sign(gap[a]) !== Math.sign(gap[b]) &&
+      win.filter((g) => Math.sign(g) === Math.sign(gap[a])).length > HIP_FILL_STUCK * win.length;
+    if (stuck)
+      for (let i = i0; i <= i1; i++) {
+        const [ta, tb, t] = [synced[idx[a]].t, synced[idx[b]].t, synced[idx[i]].t];
+        const line = gap[a] + ((gap[b] - gap[a]) * (t - ta)) / Math.max(1e-9, tb - ta);
+        const w = Math.max(0, Math.min(1, (Math.abs(gap[i] - line) / person - d0) / (d1 - d0)));
+        if (w === 0) continue;
+        const g = gap[i] + (line - gap[i]) * w;
+        const s = synced[idx[i]];
+        const mx = (s.back[J.lHip].x + s.back[J.rHip].x) / 2;
+        const back = s.back.slice();
+        back[J.lHip] = { ...back[J.lHip], x: mx + g / 2 };
+        back[J.rHip] = { ...back[J.rHip], x: mx - g / 2 };
+        synced[idx[i]] = { ...s, back };
+        filled++;
+      }
+    i0 = i1;
+  }
+  return filled;
 }
 
 /**
