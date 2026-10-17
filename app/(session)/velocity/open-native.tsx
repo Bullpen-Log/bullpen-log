@@ -10,8 +10,13 @@ import { useRouter } from 'next/navigation';
 export function OpenNative({ path, cover = true }: { path: string; cover?: boolean }) {
   const router = useRouter();
   useEffect(() => {
-    const rn = (window as unknown as { ReactNativeWebView?: { postMessage(s: string): void } }).ReactNativeWebView;
-    rn?.postMessage(JSON.stringify({ t: 'native', path }));
+    const w = window as unknown as { ReactNativeWebView?: { postMessage(s: string): void }; __bpPopAt?: number };
+    /*
+     * 뒤로 쓸기로 이 자리에 다시 왔으면(앱이 popstate 시각을 남긴다 — native/src/lib/cap-bridge.ts) 앱 화면을 또 열지 않고 한 칸 더 뒤로 —
+     * 예전엔 쓸 때마다 앱 화면이 다시 열리고 웹은 검은 판에 남았다.
+     */
+    const backSwipe = Date.now() - (w.__bpPopAt ?? 0) < 1500;
+    if (!backSwipe) w.ReactNativeWebView?.postMessage(JSON.stringify({ t: 'native', path }));
     if (window.history.length > 1) router.back();
     else router.replace('/today');
   }, [router, path]);

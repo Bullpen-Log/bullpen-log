@@ -59,6 +59,16 @@ export const CAP_SHIM = `(function () {
     var bg = document.body ? getComputedStyle(document.body).backgroundColor : '';
     post({ t: 'theme', dark: (root.getAttribute('data-theme') || 'light') !== 'light', color: bg });
   };
+  /*
+   * 주소가 바뀌면 알린다(사이트의 클라이언트 이동은 onNavigationStateChange 가 놓칠 수 있다 — 로그아웃은 redirect 로 /login 에 간다).
+   * 뒤로 쓸기(popstate) 시각도 남긴다 — 사이트의 OpenNative 가 뒤로 와서 다시 그려진 것인지 안다(그때는 앱 화면을 또 열지 않는다).
+   */
+  var loc = function () { post({ t: 'loc', path: location.pathname }); };
+  ['pushState', 'replaceState'].forEach(function (k) {
+    var f = history[k];
+    history[k] = function () { var r = f.apply(this, arguments); loc(); return r; };
+  });
+  window.addEventListener('popstate', function () { window.__bpPopAt = Date.now(); loc(); });
   document.addEventListener('DOMContentLoaded', function () {
     theme();
     new MutationObserver(theme).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });

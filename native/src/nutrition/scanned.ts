@@ -10,3 +10,7 @@ export function takeScanned(): Food | null {
   slot = null;
   return f;
 }
+/** 로그아웃 — 앞사람이 찍은 바코드 음식이 다음 사람 담기 화면에 안 넘어가게 */
+export const resetScanned = () => {
+  slot = null;
+};

@@ -1,3 +1,4 @@
+import { router } from 'expo-router';
 import { useEffect } from 'react';
 
 /**
@@ -20,3 +21,13 @@ export function useWebNav(handler: (href: string) => void) {
  * 위해), 앱 화면(트레이닝 탭 · 암케어 · 메커니즘 화면)에서 열었으면 그냥 뒤로 가야 그 화면이 다시 보인다.
  */
 export const fromApp = (path: string) => `${path}${path.includes('?') ? '&' : '?'}from=app`;
+
+/**
+ * 앱 화면을 모두 걷고 웹을 그 주소로 — 앱 화면이 웹을 웹 쪽 칸으로 넘길 때 모두 이것을 쓴다. 한 칸만 걷으면 밑의 앱 화면(오늘 운동 위에 연
+ * 운동 진행 · 암케어 위의 따라 하기)이 옮긴 웹을 가렸다. 걷은 뒤에 알린다 — 먼저 알리면 껍데기가 그 주소로 연 앱 화면까지 같이 걷혔다.
+ */
+export function leaveTo(href: string) {
+  if (router.canDismiss()) router.dismissAll();
+  else if (router.canGoBack()) router.back();
+  openWebAfter(href);
+}

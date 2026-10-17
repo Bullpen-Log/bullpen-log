@@ -14,7 +14,7 @@ import { sendCheck } from '~/armcare/send';
 import { Countdown, ExerciseMedia, HowTo, RehabCheck, type Clock } from '~/armcare/parts';
 import { rpc, RpcError } from '~/lib/rpc';
 import { usePalette, type Palette } from '~/lib/ui';
-import { openWebAfter } from '~/shell/web-nav';
+import { leaveTo } from '~/shell/web-nav';
 import { SetDots } from '~/workout/parts';
 
 /**
@@ -27,11 +27,8 @@ import { SetDots } from '~/workout/parts';
  */
 type LoadResult = ({ ok: true } & ArmcarePlay) | { ok: false; to: string };
 
-/** 화면을 닫고 웹을 그 주소로 — 껍데기(index.tsx)가 웹뷰를 옮긴다 */
-function leave(to: string) {
-  openWebAfter(to);
-  router.back();
-}
+/** 화면을 닫고 웹을 그 주소로 — 껍데기(index.tsx)가 웹뷰를 옮긴다(~/shell/web-nav leaveTo) */
+const leave = leaveTo;
 
 export default function ArmcarePlayScreen() {
   const c = usePalette();

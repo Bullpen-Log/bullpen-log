@@ -36,7 +36,8 @@ import type { RunPayload } from '@/lib/workout/run-load';
 import { BullpenNative } from '../../modules/bullpen-native';
 import { rpc, RpcError } from '~/lib/rpc';
 import { usePalette, type Palette } from '~/lib/ui';
-import { openWebAfter } from '~/shell/web-nav';
+import { leaveTo } from '~/shell/web-nav';
+import { TRAINING_HOME_HREF } from '@/lib/training-part';
 import { drainOutbox, onSent, outbox, withPending, type ShownSet } from '~/workout/outbox';
 import { ExerciseVideo, NoteBox, NumberPad, RestPill, RirQuestion, SetDots } from '~/workout/parts';
 import { FinishSheet, ListSheet, SwapSheet } from '~/workout/sheets';
@@ -51,11 +52,8 @@ import { FinishSheet, ListSheet, SwapSheet } from '~/workout/sheets';
 type LoadResult = ({ ok: true } & RunPayload) | { ok: false; error: string; to?: string };
 type SetResult = { sets: SavedSet[] } | { error: string };
 
-/** 화면을 닫고 웹을 그 주소로 — 껍데기(index.tsx)가 웹뷰를 옮긴다 */
-function leave(to: string) {
-  openWebAfter(to);
-  router.back();
-}
+/** 화면을 닫고 웹을 그 주소로 — 껍데기(index.tsx)가 웹뷰를 옮긴다(~/shell/web-nav leaveTo) */
+const leave = leaveTo;
 
 export default function WorkoutScreen() {
   const c = usePalette();
@@ -674,7 +672,7 @@ function Run({
       <KeyboardAvoidingView behavior="padding" style={s.fill}>
         {/* ─────────── 위: 보는 곳 ─────────── */}
         <View style={[s.header, { paddingTop: inset.top + 8, backgroundColor: c.card, borderBottomColor: c.line }]}>
-          <Pressable onPress={() => leave('/training')} accessibilityRole="button" accessibilityLabel="나가기" style={s.iconBtn}>
+          <Pressable onPress={() => leave(TRAINING_HOME_HREF)} accessibilityRole="button" accessibilityLabel="나가기" style={s.iconBtn}>
             <View style={[s.circle, { backgroundColor: c.chip }]}>
               <SymbolView name="xmark" size={14} weight="semibold" tintColor={c.muted} />
             </View>

@@ -6,19 +6,15 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { INQUIRY_STATUS, inquiryCategoryLabel, type InquiryStatusKey } from '@/lib/support';
 import { rpc, RpcError } from '~/lib/rpc';
 import type { Palette } from '~/lib/ui';
-import { openWebAfter } from '~/shell/web-nav';
+import { leaveTo } from '~/shell/web-nav';
 
 /**
  * 커뮤니티 · 고객센터 앱 화면(native/src/app/community · support)이 같이 쓰는 조각 — 읽기 · 쓰기 부르기, 위 막대, 줄, 알약.
  * 서버는 웹 화면과 같은 읽기(lib/community-load.ts · lib/support-load.ts)와 같은 쓰기(app/actions/community.ts · support.ts 의 App 입구)다.
  */
 
-/** 앱 화면을 모두 걷고 웹을 그 주소로 — 커뮤니티 · 고객센터는 화면이 여러 겹 쌓여 back 한 번으로는 웹이 안 보인다 */
-export function leave(to: string) {
-  openWebAfter(to);
-  if (router.canDismiss()) router.dismissAll();
-  else router.back();
-}
+/** 앱 화면을 모두 걷고 웹을 그 주소로(~/shell/web-nav leaveTo) — 커뮤니티 · 고객센터는 화면이 여러 겹 쌓여 back 한 번으로는 웹이 안 보인다 */
+export const leave = leaveTo;
 
 const readError = (e: unknown) =>
   e instanceof RpcError && e.code === 'update'

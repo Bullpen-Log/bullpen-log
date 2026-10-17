@@ -81,6 +81,12 @@ export function markImported(key: string) {
   importVersion++;
   importSubs.forEach((f) => f());
 }
+/** 로그아웃 — 앞사람 가져오기 표시를 지운다 */
+export function resetImported() {
+  imported.clear();
+  importVersion++;
+  importSubs.forEach((f) => f());
+}
 export function useImported(): ReadonlySet<string> {
   useSyncExternalStore(
     (f) => {

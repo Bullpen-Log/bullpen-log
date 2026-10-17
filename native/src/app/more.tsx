@@ -4,7 +4,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { usePalette } from '~/lib/ui';
 import { useMenu } from '~/shell/menu-store';
-import { openWebAfter } from '~/shell/web-nav';
+import { leaveTo } from '~/shell/web-nav';
 
 /**
  * 더보기(앱) — 사이트의 메뉴 묶음(lib/nav.ts visibleGroups · 잠김까지, 사이트가 알려 줌)을 아이폰 설정 목록처럼. 누르면 닫고 그곳으로
@@ -33,10 +33,7 @@ export default function MoreScreen() {
   const c = usePalette();
   const inset = useSafeAreaInsets();
   const { groups, nickname } = useMenu();
-  const go = (href: string) => {
-    router.back();
-    openWebAfter(href);
-  };
+  const go = leaveTo;
 
   const row = (key: string, label: string, icon: SFSymbol, onPress: () => void, locked = false, last = false) => (
     <Pressable

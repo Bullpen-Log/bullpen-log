@@ -21,6 +21,8 @@ import { APP_UA, SITE_HOST, SITE_URL, START_PATH } from '~/lib/site';
 import { CAP_SHIM, handleCapMessage } from '~/lib/cap-bridge';
 import { loadMe, resetMe } from '~/pitch/api';
 import { resetPitchStore } from '~/pitch/store';
+import { resetImported } from '~/pitch/attach';
+import { resetScanned } from '~/nutrition/scanned';
 import { HomeTab, resetHomeCache } from '~/home/tab';
 import { NutritionTab } from '~/nutrition/tab';
 import { TrainingTab, resetTrainingCache } from '~/training/tab';
@@ -55,7 +57,7 @@ const RefWebView = WebView as unknown as ComponentType<
 /** 사이트 주소 중 네이티브 화면이 맡는 것 */
 const NATIVE_PATHS = new Set(['/velocity', '/velocity/measure']);
 /** 같은 화면을 두 번 쌓지 않게 — 주소 가로채기와 사이트 알림이 한 번 누름에 같이 올 수 있다 */
-let lastOpen = 0;
+let lastOpen = { path: '', at: 0 };
 /** 앱 화면이 맡는 사이트 주소(구속 측정 말고) — 사이트가 BullpenNative/<n> 판을 보고 넘기는 것과 같은 목록(lib/app-env.ts expoLevel) */
 const NATIVE_ROUTES = [
   /^\/pitch\/\d{4}-\d{2}-\d{2}$/,
@@ -67,10 +69,12 @@ const NATIVE_ROUTES = [
 ];
 const isNativePath = (path: string) => NATIVE_PATHS.has(path) || NATIVE_ROUTES.some((r) => r.test(path));
 function openNative(path: string) {
-  if (Date.now() - lastOpen < 1500) return;
-  lastOpen = Date.now();
+  /* 같은 주소만 1.5초 안에 한 번 — 예전엔 어느 주소든 막아, 앱 화면을 닫자마자 다른 앱 화면을 열면 말없이 안 열렸다 */
+  if (path === lastOpen.path && Date.now() - lastOpen.at < 1500) return;
   if (NATIVE_PATHS.has(path)) router.push('/velocity');
   else if (NATIVE_ROUTES.some((r) => r.test(path))) router.push(path as Href);
+  else return;
+  lastOpen = { path, at: Date.now() };
 }
 const openVelocity = () => openNative('/velocity');
 
@@ -108,6 +112,27 @@ const OLD_VELOCITY = `(function(){try{var r=indexedDB.open('bullpen-velocity');r
 /** 옛 세션을 '나중에' 하면 하루 동안 다시 묻지 않는다 */
 const OLD_VELOCITY_SNOOZE = 'bullpen-old-velocity-snooze';
 let askedOldVelocity = false;
+
+const isLoginPath = (p: string) => p === '/login' || p.startsWith('/login/') || p === '/signup';
+
+/** 로그아웃 — 앞사람 기록(메모리 · 폰)을 지운다. 다음 사람이 로그인하면 새로 받는다 */
+function resetAccount() {
+  resetMe();
+  setOutboxOwner(null);
+  resetPitchStore();
+  resetHomeCache();
+  resetNutritionStore();
+  resetTrainingCache();
+  resetPitchTodayCache();
+  resetVelocityDayCache();
+  resetImported();
+  resetScanned();
+  /* 더보기의 이름 · 관리자 칸 — 다음 사람의 메뉴 알림이 오기 전까지 앞사람 것이 보였다 */
+  setMenu({ groups: [], nickname: '' });
+  void cacheClear();
+  /* 저장 안 한 구속 세션(폰에 맡김) — 다음 사람이 '이어서 하기'로 앞사람 공을 제 기록에 저장하지 않게. 클립 파일은 tmp 라 하루 안에 앱이 치운다 */
+  void clearDraft();
+}
 
 /** 폰에 남은 운동 세트 · 암케어 체크를 보낸다 — 체크를 하나라도 보냈으면 사이트의 트레이닝 목록 · 홈을 새로 그리게(따라 하기 화면과 같다) */
 function drainQueues() {
@@ -247,7 +272,9 @@ export default function SiteScreen() {
       return false;
     }
     /* 네이티브로 옮긴 화면 — 사이트 대신 앱 화면을 연다(구속 측정, 검토 D3) */
-    if (host === SITE_HOST && NATIVE_PATHS.has(new URL(req.url).pathname)) {
+    /* ?web=1 은 옛 앱 세션을 웹 구속 화면이 마무리하는 길이라 가로채지 않는다(app/(session)/velocity/page.tsx) */
+    const u = new URL(req.url);
+    if (host === SITE_HOST && NATIVE_PATHS.has(u.pathname) && u.searchParams.get('web') !== '1') {
       openVelocity();
       return false;
     }
@@ -309,6 +336,13 @@ export default function SiteScreen() {
     if (msg.t === 'adopt' && msg.items) return void adoptWebValues(msg.items, WEB_RAW_KEYS);
     if (msg.t === 'menu' && Array.isArray(msg.groups)) return setMenu({ groups: msg.groups, nickname: String(msg.nickname ?? '') });
     if (msg.t === 'webfront') return setWebFront(msg.on === true);
+    if (msg.t === 'loc') {
+      if (typeof msg.path === 'string' && isLoginPath(msg.path)) {
+        resetAccount();
+        setToday(null);
+      }
+      return;
+    }
     if (msg.t === 'oldvelo') return void oldVelocity.current(Number(msg.pitches) || 0, Number(msg.uploads) || 0);
     /* 진동 · 화면 켜 두기 · 알림 · 테마(작은 다리, lib/cap-bridge.ts) */
     handleCapMessage(
@@ -327,19 +361,9 @@ export default function SiteScreen() {
     } catch {
       return;
     }
-    if (pathname === '/login' || pathname.startsWith('/login/') || pathname === '/signup') {
-      resetMe();
-      setOutboxOwner(null);
-      resetPitchStore();
-      resetHomeCache();
-      resetNutritionStore();
-      resetTrainingCache();
-      resetPitchTodayCache();
-      resetVelocityDayCache();
+    if (isLoginPath(pathname)) {
+      resetAccount();
       setToday(null);
-      void cacheClear();
-      /* 저장 안 한 구속 세션(폰에 맡김) — 다음 사람이 '이어서 하기'로 앞사람 공을 제 기록에 저장하지 않게. 클립 파일은 tmp 라 하루 안에 앱이 치운다 */
-      void clearDraft();
     }
   }, []);
 

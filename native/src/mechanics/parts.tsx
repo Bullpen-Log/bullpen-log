@@ -8,15 +8,12 @@ import { mechanicsLevel } from '@/lib/mechanics/levels';
 import { DRILL_THROW_TEXT, FILM_VERDICTS, type DrillThrowNote, type FilmNote, type FilmVerdict } from '@/lib/mechanics/program';
 import { rpc, RpcError } from '~/lib/rpc';
 import type { Palette } from '~/lib/ui';
-import { openWebAfter } from '~/shell/web-nav';
+import { leaveTo } from '~/shell/web-nav';
 
 /** 메커니즘 따라 하기(native/src/app/mechanics.tsx)의 작은 조각 — 웹 mechanics-player.tsx · drill-throw-note.tsx · film-verdict.tsx 를 옮겼다 */
 
-/** 화면을 닫고 웹을 그 주소로 — 껍데기(index.tsx)가 웹뷰를 옮긴다 */
-export function leave(to: string) {
-  openWebAfter(to);
-  router.back();
-}
+/** 화면을 닫고 웹을 그 주소로 — 껍데기(index.tsx)가 웹뷰를 옮긴다(~/shell/web-nav leaveTo) */
+export const leave = leaveTo;
 
 /**
  * 서버 동작 부르기 — 웹 orOffline 처럼 던지지 않고 { error } 로 돌려준다(신호가 끊겨도 화면이 오류로 사라지지 않게). 로그인이 풀렸으면
