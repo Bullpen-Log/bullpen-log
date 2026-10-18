@@ -23,15 +23,17 @@ Read these first, in this order, before writing any code:
    `scripts/velocity-accuracy.mts`, `scripts/velocity-lab/engine2-lab.mts`.
 4. `mobile/ios/App/App/DualCameraPlugin.swift` (read only; do not edit; it is the other developer's area).
 
-## 0. DECISIONS (filled by the owner; if a line is blank, use the default in parentheses and say so in the commit body)
-- RULE_SET: ______ (default: KBO 2025: top 55.75 %, bottom 27.04 % of batter height, width = plate 43.18 cm + 2 cm each side, judged at the plate midpoint plane; MLB 2026 as a second table)
-- CAMERA_POSITIONS_V1: ______ (default: behind-pitcher only; behind-catcher is P5)
-- VERDICT_DISPLAY: ______ (default: binary strike/ball + distance to the nearest zone edge in cm + '경계' badge inside the uncertainty band; never a third state)
-- FEATURE_NAME_KO: ______ (default: 'ABS')
-- BATTER_HEIGHT_MODE: ______ (default: one height per session; batters assigned afterwards from the saved trajectory and re-judged instantly)
-- INCLUDE_3D_VIEW_V1: ______ (default: no; P3 optional +3 h; the 2D clip overlay ships first)
-- ENTRY_POINT: ______ (default: a mode inside the existing velocity measurement flow, not a new top-level tab)
-- VALIDATION_SHOOT_DATE: ______ (default: add two phones to the 2026-10-18 marker shoot: one behind the pitcher per spec, one 240 fps side camera on the plate-front line)
+## 0. DECISIONS (answered by the owner 2026-10-18)
+- RULE_SET: KBO 2025 (top 55.75 %, bottom 27.04 % of batter height, width = plate 43.18 cm + 2 cm each side, midpoint plane). MLB 2026 kept as a second table.
+- CAMERA_POSITIONS_V1: behind-pitcher only; behind-catcher is P5.
+- VERDICT_DISPLAY: binary strike/ball only + distance to the nearest zone edge (cm) + '경계' badge inside the uncertainty band. Never a third state.
+- FEATURE_NAME_KO: 'ABS'.
+- BATTER_HEIGHT_MODE: a '다음 타자' control on the measurement screen advances to the next batter and lets the user enter that batter's height. At session start the
+  user may pick '평균 신장' (`AVERAGE_HEIGHT_CM` 175) instead of a number; when picked, it persists for every following batter until a height is typed.
+  Batter index increments per '다음 타자'; the saved trajectory allows instant re-judge when a height is corrected afterwards.
+- INCLUDE_3D_VIEW_V1: yes (+3 h in P3; `components/abs/zone-3d.tsx`, loaded on demand).
+- ENTRY_POINT: a mode inside the existing velocity measurement flow. Admin-only until GATE 2 passes.
+- VALIDATION_SHOOT_DATE: 2026-10-19, together with the velocity measurement shoot. Protocol: `docs/designs/abs-p0-protocol.md`.
 
 ## 1. Non-negotiable constraints
 - One camera. Never design around a second device. The side 240 fps camera exists only in the validation protocol, never in the product.
@@ -103,7 +105,9 @@ Read these first, in this order, before writing any code:
 
 ### 2.4 UI `components/abs/` and the velocity flow
 - Entry: in the velocity setup's session-type step add 'ABS 라이브 배팅' (FEATURE_NAME_KO). It adds two setup steps after camera position:
-  1. `HeightStep`: batter height (cm, `inputMode="numeric"`, 120–210, prefilled from `User.heightCm` when the user is the batter), rule picker collapsed (default KBO).
+  1. `HeightStep`: batter height (cm, `inputMode="numeric"`, 120–210, prefilled from `User.heightCm` when the user is the batter) or the '평균 신장' chip
+     (persists for later batters), rule picker collapsed (default KBO). During measurement a '다음 타자' button (bottom bar, left slot) opens a small sheet:
+     height field prefilled with the previous choice ('평균 신장' stays selected if it was chosen), confirm → batter index +1, zone box recomputed.
   2. `PlateStep`: live viewfinder; `PlateFinder` runs plate-detect every 500 ms and draws the pentagon plus the zone box projected into the image (`projectWorld` on the
      8 box corners). Buttons '이 자리로' · '직접 맞추기'(magnifier + drag the five corners) · '다시 찾기'. Calibration quality as a green/amber dot, not a number.
 - Measurement: reuse the existing screen. `pitch-result.tsx` gets an optional `abs?: Verdict` prop rendering `VerdictCard`: big S / B (sky / white), edge text

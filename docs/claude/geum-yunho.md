@@ -617,7 +617,12 @@
       `docs/designs/abs-single-camera.md`. 결론: 투수 뒤 3~5 m · 2배 한 대로 좌우 ±2 cm, 높이는 ±3 노림(실측 전 ±4~8 — 통과 순간 = 깊이가 난제, 단서 셋:
       투수 발 · 포수 발 · 옆 1 m 시차). **만들기 전 P0 실험**(폰 두 대 · 옆 240fps 자 · 30~50구: 통과 장면 차 < 0.3장 · 공 보임 > 90%). 반박 검토 둘 반영.
       사용자가 정할 것 여덟(규칙 · 자리 · 판정 표시 · 이름 · 신장 · 3D · 모드 · 촬영일). 답이 오면 P0 부터.
-      **구축 프롬프트(2026-10-18, 영어)**: `docs/designs/abs-build-prompt.md` — §0 DECISIONS 여덟 칸에 답을 채워 새 세션에 그대로 넘긴다. 뼈대: `lib/abs/`
+      **사용자 답(2026-10-18)**: KBO · 투수 뒤만 · S/B 둘만 · 3D 포함 · '다음 타자' 단추로 신장(처음 '평균 신장' 고르면 유지) · 실험 촬영 10-19 구속 촬영과 함께.
+      **P0 끝(2026-10-18)**: `lib/abs/`(rules · zone · cross · judge · index, 순수) + `npm run abs:test`(38) · `abs:bench`(합성 300구 × 15 시나리오 6초) ·
+      `docs/designs/abs-p0-protocol.md`(10-19 촬영 안내 · 체크리스트). 핵심 숫자: 좌우 p95 2cm 됨, 높이는 깊이 단서 σ_D 가 전부(0.1m → 3cm · 0.3m → 7cm),
+      카메라는 축에서 0.5m 비킴(투수 몸통 가림 52% → 14%). 다음: 촬영 자료 받으면 `scripts/abs-p0-score.mts`(옆 240fps 자와 견주기) → 검문 1 → P1(calib ·
+      plate-detect · stability).
+      **구축 프롬프트(2026-10-18, 영어)**: `docs/designs/abs-build-prompt.md` — §0 DECISIONS 채움. 뼈대: `lib/abs/`
       순수 모듈(rules · zone · calib · depth · cross · judge · events · stability · plate-detect) + `npm run abs:test` · `abs:bench` → UI `components/abs/` → 엔진 인자
       (`FitOptions.anchors` · `DistanceInput.depthCues` · `AnalysisJson.abs`)는 P2 끝 한 커밋 + HANDOFF. DB 변경 없음(zone · result · analysis.abs).
 
