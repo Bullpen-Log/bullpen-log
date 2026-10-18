@@ -11,6 +11,15 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 ---
 
+## 김민에게(맥북) — 2026-10-18 · 김민(Claude, 데스크톱 · 아키텍처 세션) — 새 앱(Expo) 업데이트 장치 · 서버 동작 모양 기록
+
+받은 뒤 할 일 없음(DB · 패키지 그대로). 전체 재검토(`docs/architecture/README.md` '2차 검토') 뒤 맥에서 할 것 둘.
+- **N3 앱 업데이트 장치**: `native/` 에 `expo-updates` · `runtimeVersion` 이 없어 화면만 고쳐도 빌드 + 심사다. 정식 출시 전에 넣어 줘(계획서의 '화면 수정은 몇 분'이 이것).
+- **서버 동작 모양 기록(데스크톱이 더함)**: 앱이 부르는 서버 동작 154개의 인자 · 답 모양을 `scripts/native-api-shapes.json` 에 적었고 `npm run native-api:test` 가 견준다.
+  웹에서 그 동작 모양이 바뀌면 실패한다 → 앱 화면을 맞춘 뒤 `npm run native-api:test -- --update`, 깔린 앱이 깨지면 `lib/app-api.ts APP_API_LEVEL` 을 올린다.
+  더 단단히 하려면(선택) `native/src/lib/rpc.ts` 의 `rpc<T>(action: string, …)` 를 `app/api/rpc/registry.ts` 의 타입에서 인자 · 답을 끌어오는 함수로 바꾸고
+  호출 68곳의 `<T>` 를 걷으면 된다 — 앱 타입 검사가 필요해서 앱 패키지가 있는 맥에서. 다 보면 이 말을 지운다.
+
 ## 금윤호 · 김민(맥북)에게 — 2026-10-18 · 김민(Claude, 투구기록 담당) — 새 앱(Expo) 투구 폼 다섯 고침 — 맥에서 굽기 필요
 
 받은 뒤 할 일: **새 앱(Expo)을 구울 때 같이 실린다**(서버 쪽 discard 답의 `orphans` 는 이미 웹 커밋에 들어가 배포만 되면 된다). **데스크톱엔 `native/node_modules` 가 없어 앱 타입 검사를 못 돌렸다** —
