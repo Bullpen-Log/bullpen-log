@@ -71,9 +71,13 @@ export default function LabListScreen() {
           keyboardShouldPersistTaps="handled"
           refreshControl={<RefreshControl refreshing={false} onRefresh={() => void reload()} />}
         >
-          <Text style={{ color: c.muted, fontSize: 15, lineHeight: 21, paddingHorizontal: 4 }}>
-            같은 공을 옆과 뒤에서 함께 찍어 올리면 몸의 움직임을 3D 로 보여 줘요.
-          </Text>
+          {/* 웹 머리처럼 '베타' 표시 */}
+          <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 8, paddingHorizontal: 4 }}>
+            <View style={{ borderRadius: 8, paddingHorizontal: 8, paddingVertical: 2, marginTop: 1, backgroundColor: c.skyTint }}>
+              <Text style={{ color: c.skyStrong, fontSize: 12, fontWeight: '700' }}>베타</Text>
+            </View>
+            <Text style={{ flex: 1, color: c.muted, fontSize: 15, lineHeight: 21 }}>같은 공을 옆과 뒤에서 함께 찍어 올리면 몸의 움직임을 3D 로 보여 줘요.</Text>
+          </View>
           {/* 마커 샘플(스티커를 붙여 3~4대로 찍은 정답지용)은 따로 — 2026-10-12 사용자: "기존 샘플과 다른 곳에" */}
           {markers.length > 0 ? (
             <View accessibilityRole="radiogroup" style={s.chips}>
