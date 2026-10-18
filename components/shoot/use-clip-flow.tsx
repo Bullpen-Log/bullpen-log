@@ -89,6 +89,23 @@ export function useClipFlow({
   /** 편집 창에서 만든 촬영본의 폰 기록 — 같은 영상으로 [다시 올리기]면 이것을 이어 쓴다(이미 올린 경로까지) */
   const lastRecord = useRef<{ file: File; record: PendingClip } | null>(null);
 
+  /*
+   * 찍기 · 편집 동안 '뒤로'를 막는다 — 앱은 화면 왼쪽 끝을 밀면 앞 화면으로 간다(웹뷰 allowsBackForwardNavigationGestures).
+   * 촬영을 마치고 편집 창이 뜨는 동안 손이 왼쪽 끝에 닿으면 촬영 목록(주차 시간표)으로 튕기고 찍은 영상도 잃었다(2026-10-18 사용자:
+   * "가끔 촬영이 끝나면 올리기 대신 목록 화면으로 튕긴다"). 같은 주소의 칸을 하나 더 쌓아 두면 뒤로 가도 같은 화면에 남는다 —
+   * 주소를 안 넘겨 Next 라우터는 아무 일도 안 하고(같은 화면), 뒤로 가면 다시 쌓는다. 창을 닫은 뒤 남은 한 칸은 뒤로 한 번에 지나간다.
+   */
+  useEffect(() => {
+    if (!open) return;
+    const isGuard = () => !!(window.history.state as { bpClipGuard?: boolean } | null)?.bpClipGuard;
+    const guard = () => {
+      if (!isGuard()) window.history.pushState({ bpClipGuard: true }, '');
+    };
+    guard();
+    window.addEventListener('popstate', guard);
+    return () => window.removeEventListener('popstate', guard);
+  }, [open]);
+
   /* 지난번에 올리지 못하고 맡겨 둔 것 */
   useEffect(() => {
     let alive = true;
