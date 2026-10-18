@@ -4,7 +4,7 @@ import { type Href, router } from 'expo-router';
 import { Alert, RefreshControl, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { loadAppAdmin } from '@/app/actions/app-admin';
-import { Badge, Bar, call, leave, LoadState, Row, s, useLoad } from '~/community/parts';
+import { Badge, Bar, call, LoadState, Row, s, useLoad } from '~/community/parts';
 import { usePalette, type Palette } from '~/lib/ui';
 
 /**
@@ -44,8 +44,8 @@ export default function AdminScreen() {
             <MenuRow icon="bubble.left.and.bubble.right" label="소통 관리" detail={data.openInquiries > 0 ? `답할 문의 ${data.openInquiries}` : '1:1 문의 · 공지'} onPress={() => router.push('/admin/support' as Href)} c={c} />
             <MenuRow icon="flag" label="커뮤니티 신고" detail={data.openReports > 0 ? `처리 전 ${data.openReports}` : '신고된 글 · 댓글'} onPress={() => router.push('/admin/community' as Href)} c={c} />
             <MenuRow icon="doc.text" label="패치노트" detail="누가 · 어느 날 무엇을 고쳤나" onPress={() => router.push('/admin/patch-notes' as Href)} c={c} />
-            <MenuRow icon="gauge.with.needle" label="구속 측정 관리자" detail="웹에서 열려요" web onPress={() => leave('/admin/velocity')} c={c} />
-            <MenuRow icon="video" label="촬영 관리자" detail="웹에서 열려요" web last onPress={() => leave('/admin/shoot')} c={c} />
+            <MenuRow icon="gauge.with.needle" label="구속 측정 관리자" detail="지난 영상 · 영상 올리기" onPress={() => router.push('/admin/velocity' as Href)} c={c} />
+            <MenuRow icon="video" label="촬영 관리자" detail="주차 시간표 · 찍음 체크" last onPress={() => router.push('/admin/shoot' as Href)} c={c} />
           </View>
 
           <View style={{ gap: 6 }}>

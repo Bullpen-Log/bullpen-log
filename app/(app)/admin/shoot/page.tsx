@@ -1,4 +1,7 @@
+import { headers } from 'next/headers';
 import { requireAdmin } from '@/lib/dal';
+import { expoLevel } from '@/lib/app-env';
+import { OpenNative } from '@/app/(session)/velocity/open-native';
 import { ShootOverview } from './overview';
 
 /**
@@ -10,5 +13,7 @@ import { ShootOverview } from './overview';
  */
 export default async function ShootAdminPage() {
   await requireAdmin();
+  /* 새 아이폰 앱(판 9~)은 앱 화면(native/src/app/admin/shoot/index.tsx) — 촬영 모드(run)는 웹 그대로 */
+  if (expoLevel((await headers()).get('user-agent')) >= 9) return <OpenNative path="/admin/shoot" cover={false} />;
   return <ShootOverview />;
 }

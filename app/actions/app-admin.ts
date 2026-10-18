@@ -10,6 +10,9 @@ import { formatDateTime } from '@/components/community/community-format';
 import { deleteUser, toggleUserRole } from '@/app/actions/admin';
 import { resolveReport } from '@/app/actions/community';
 import { updatePatchNote } from '@/app/actions/patch-note';
+import { loadVelocityAdminDay, loadVelocityAdminOverview } from '@/lib/velocity-admin-load';
+import { countVelocityRecordings } from '@/lib/velocity-recording-load';
+import { pitchTypeLabel } from '@/lib/velocity-meta';
 
 /**
  * 아이폰 앱의 관리자 화면(native/src/app/admin/*) — 웹 app/(app)/admin/* 과 같은 자료 · 같은 쓰기. 쓰기는 웹 폼 동작(FormData)을 그대로 부른다
@@ -262,3 +265,50 @@ export async function saveAppPatchNote(id: unknown, memo: unknown) {
   const r = await updatePatchNote(undefined, fd);
   return r?.error ? { ok: false as const, error: r.error } : { ok: true as const };
 }
+
+/**
+ * 구속 측정 관리자(앱) 첫 화면 — 웹 app/(app)/admin/velocity/mobile-admin.tsx 의 휴대폰 화면과 같은 자료(숫자 셋 · 지난 영상 날짜 40개 · 녹화 수).
+ * 탐색기 · 보정 · 다시 재기는 브라우저 영상 엔진이라 PC 웹에 둔다.
+ */
+export async function loadAppVelocityAdmin() {
+  const a = await admin();
+  if ('ok' in a) return a;
+  const [data, recordings] = await Promise.all([loadVelocityAdminOverview(), countVelocityRecordings()]);
+  return {
+    ok: true as const,
+    totals: { pitches: data.totals.pitches, pairs: data.totals.pairs },
+    biasKmh: data.overall.biasKmh,
+    recordings,
+    days: data.days.slice(0, 40).map((d) => ({ date: d.date, pitches: d.pitches, clips: d.clips, pairs: d.pairs, maxKmh: d.maxKmh })),
+  };
+}
+
+/** 그날 공 — 최근부터(웹 MobileDay 와 같은 줄). 영상은 서명 재생 주소(누를 때 받는다) */
+export async function loadAppVelocityDay(date: unknown) {
+  const a = await admin();
+  if ('ok' in a) return a;
+  const d = String(date ?? '');
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) return { ok: true as const, day: null };
+  const day = await loadVelocityAdminDay(d);
+  const rows = day.sessions
+    .flatMap((s) => s.pitches.map((p) => ({ s, p })))
+    .sort((x, y) => y.p.createdAt.localeCompare(x.p.createdAt))
+    .map(({ s, p }) => ({
+      id: p.id,
+      manual: p.manual,
+      kmh: p.kmh,
+      gunKmh: p.gunKmh,
+      /* 카메라 값(릴리스 추정이 있으면 그것) − 건 — 수기 · 짝 없음은 null */
+      diff: !p.manual && p.gunKmh != null ? (p.releaseKmh ?? p.rawKmh) - p.gunKmh : null,
+      who: s.nickname,
+      pitchType: p.pitchType ? pitchTypeLabel(p.pitchType) : null,
+      source: s.source === 'file' ? '영상 파일' : '카메라',
+      clipUrl: p.clipUrl,
+      wideClipUrl: p.wideClipUrl,
+    }));
+  return {
+    ok: true as const,
+    day: { date: day.date, pitches: day.stat.pitches, clips: day.stat.clips, pairs: day.stat.pairs, biasKmh: day.stat.biasKmh, rows },
+  };
+}
+

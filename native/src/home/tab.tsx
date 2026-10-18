@@ -154,7 +154,7 @@ export function HomeTab({
               <Pressable
                 accessibilityRole="button"
                 onPress={() =>
-                  home.pitchLocked ? onWeb('/videos/setup') : router.push({ pathname: '/pitch/edit' as Href as never, params: { date: today } })
+                  home.pitchLocked ? router.push('/setup/pitch' as Href) : router.push({ pathname: '/pitch/edit' as Href as never, params: { date: today } })
                 }
                 style={[styles.primary, { backgroundColor: c.sky }]}
               >

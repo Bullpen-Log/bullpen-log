@@ -74,6 +74,8 @@ const NATIVE_ROUTES = [
   /^\/workout-done\?id=[\w-]+$/,
   /^\/setup\/(pitch|training|nutrition)$/,
   /^\/admin(\/(support|community|patch-notes(\/[\w-]+)?|notice(\?id=[\w-]+)?))?$/,
+  /^\/admin\/shoot(\/\d+(\?at=[\w%.-]+)?)?$/,
+  /^\/admin\/velocity(\/(upload|\d{4}-\d{2}-\d{2}))?$/,
   /^\/lab(\/guide|\/[0-9a-f-]{36})?(\?[\w=&%.-]*)?$/,
   /^\/login\?native=1$/,
   /^\/(signup|account)$/,

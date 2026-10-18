@@ -1,5 +1,5 @@
 import * as Haptics from 'expo-haptics';
-import { useLocalSearchParams } from 'expo-router';
+import { type Href, router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -13,7 +13,7 @@ import { dateText } from '@/lib/nutrition/period';
 import { computeTargets } from '@/lib/nutrition/targets';
 import { STEP_KCAL, goalCopy, planOnSave } from '@/lib/nutrition/weight-goal';
 import type { WeightUnit } from '@/lib/units';
-import { Bar, BarButton, LoadState, call, leave, useLoad } from '~/community/parts';
+import { Bar, BarButton, LoadState, call, useLoad } from '~/community/parts';
 import { refreshNutritionDays } from '~/nutrition/api';
 import { WeekChart, WeightTrend } from '~/nutrition/stats/charts';
 import { GoalSheet, kgText, paceText } from '~/nutrition/stats/goal-sheet';
@@ -86,7 +86,7 @@ export default function NutritionStatsScreen() {
               <Text style={{ flex: 1, color: c.ink, fontSize: 15 }}>
                 {data.hasProfile ? '새 계획 화면으로 목표를 다시 정해 볼까요?' : '열 가지 질문으로 내 계획을 만들어요.'}
               </Text>
-              <Pressable accessibilityRole="button" onPress={() => leave('/nutrition/setup')} style={[st.smallBtn, { backgroundColor: c.sky }]}>
+              <Pressable accessibilityRole="button" onPress={() => router.push('/setup/nutrition' as Href)} style={[st.smallBtn, { backgroundColor: c.sky }]}>
                 <Text style={{ color: '#fff', fontSize: 14, fontWeight: '600' }}>시작하기</Text>
               </Pressable>
             </View>

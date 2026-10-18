@@ -31,7 +31,8 @@ export function isExpoUserAgent(userAgent: string | null | undefined): boolean {
  * 앱은 폰에 깔린 판이 늦게 바뀌어서, 모르는 판에 넘기면 화면이 사라진다. 판: 1 구속 측정 · 투구 그날, 2 운동 진행(/workout),
  * 3 암케어 따라 하기(/armcare/<id>), 4 메커니즘 따라 하기(/mechanics), 5 분석(/analysis), 6 커뮤니티 · 고객센터(/community · /support),
  * 7 라이브러리(/library/training · /library/mechanics) · 자료실(/board), 8 관리자(/admin) · 3D 동작 분석 결과(/lab/<id>) · 계정(로그인 · /account),
- * 9 3D 동작 분석 목록 · 촬영 안내(/lab · /lab/guide).
+ * 9 3D 동작 분석 목록 · 촬영 안내(/lab · /lab/guide) · 촬영 관리자(/admin/shoot · /admin/shoot/<주>) ·
+ *   구속 측정 관리자 휴대폰 화면(/admin/velocity · /<날짜> · /upload).
  */
 export function expoLevel(userAgent: string | null | undefined): number {
   const m = userAgent ? /BullpenNative\/(\d+)/.exec(userAgent) : null;
