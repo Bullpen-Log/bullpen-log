@@ -14,6 +14,7 @@ import { monthOf, reloadFeatured, reloadNoteDays, useAllLogs, useDayThumbs, useM
 import { READABLE_WIDE, TwoColumns } from '~/lib/layout';
 import { useOnTabActive, useRetapTop } from '~/shell/tab-pager';
 import { useTabIntent } from '~/shell/tab-intent';
+import { useMenu } from '~/shell/menu-store';
 
 /**
  * 투구 탭(앱 화면) — 찾기 · 달력(그날 공 수 · 영상 점) + 그달 기록 목록 · 지난 영상 가져오기. 날짜를 누르면 그날 화면(/pitch/[date]).
@@ -25,6 +26,7 @@ export function PitchTab({ today, bottom, onWeb }: { today: string; bottom: numb
   const inset = useSafeAreaInsets();
   /* [캘린더 | 목록] — 웹 투구 탭 고르개(pitch-log-heading.tsx PITCH_VIEW_OPTIONS). 찾기는 목록에만(웹 video-gallery 와 같다) */
   const [view, setView] = useState<'calendar' | 'list'>('calendar');
+  const isAdmin = useMenu().isAdmin === true;
   const [month, setMonth] = useState(monthOf(today));
   const [monthSettled, setMonthSettled] = useState(false);
   /* 고른 날 — 밑에 그날 칸(웹 video-calendar). 펴지면 320ms 뒤 화면 밖이면 굴려 보인다 */
@@ -84,14 +86,16 @@ export function PitchTab({ today, bottom, onWeb }: { today: string; bottom: numb
         <ToolCircle icon="rotate3d" label="3D 동작 분석" onPress={() => router.push('/lab' as Href)} />
         <AnalysisPill view="pitch" />
       </PageHead>
-      <Segmented
+      {/* 관리자는 셋째 칸 '구속 측정 관리자'(웹 videos-client VELOCITY_ADMIN_OPTION) — 누르면 그 화면으로 가고 고른 보기는 그대로 */}
+      <Segmented<'calendar' | 'list' | 'velocity'>
         label="기록 보기 방식"
         options={[
           { value: 'calendar', label: '캘린더' },
           { value: 'list', label: '목록' },
+          ...(isAdmin ? [{ value: 'velocity' as const, label: '구속 측정 관리자' }] : []),
         ]}
         value={view}
-        onChange={setView}
+        onChange={(v) => (v === 'velocity' ? router.push('/admin/velocity?from=pitch' as Href) : setView(v))}
       />
 
       {/* 아이패드 가로(~/lib/layout TwoColumns) — 왼쪽 오늘 카드 · 가져오기, 오른쪽 캘린더나 목록. 좁으면 위아래 그대로 */}

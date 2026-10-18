@@ -1,4 +1,4 @@
-import { type Href, router } from 'expo-router';
+import { type Href, router, useLocalSearchParams } from 'expo-router';
 import { Pressable, RefreshControl, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { loadAppVelocityAdmin } from '@/app/actions/app-admin';
@@ -17,9 +17,11 @@ export default function VelocityAdminScreen() {
   const c = usePalette();
   const inset = useSafeAreaInsets();
   const { data, error, reload } = useLoad<Loaded>('app-admin.loadAppVelocityAdmin');
+  /* 투구 탭 고르개의 셋째 칸에서 왔으면 뒤로 글도 '투구' */
+  const { from } = useLocalSearchParams<{ from?: string }>();
   return (
     <View style={{ flex: 1, backgroundColor: c.page }}>
-      <Bar back="관리자" title="구속 측정 관리자" c={c} />
+      <Bar back={from === 'pitch' ? '투구' : '관리자'} title="구속 측정 관리자" c={c} />
       {!data ? (
         <LoadState error={error} onRetry={() => void reload()} c={c} />
       ) : (
