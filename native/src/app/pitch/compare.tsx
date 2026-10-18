@@ -1,4 +1,4 @@
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useVideoPlayer, VideoView, type VideoPlayer } from 'expo-video';
 import { useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -20,8 +20,11 @@ export default function PitchCompareScreen() {
   const c = usePalette();
   const inset = useSafeAreaInsets();
   const all = useAllLogs(true);
-  const [picked, setPicked] = useState<Pick[]>([]);
-  const [comparing, setComparing] = useState(false);
+  /* 목록에서 A · B 를 골라 왔으면 바로 나란히(웹 video-gallery → compare-view) */
+  const params = useLocalSearchParams<{ a?: string; al?: string; b?: string; bl?: string }>();
+  const given = params.a && params.b ? [{ key: 'a', path: params.a, label: params.al ?? 'A' }, { key: 'b', path: params.b, label: params.bl ?? 'B' }] : null;
+  const [picked, setPicked] = useState<Pick[]>(given ?? []);
+  const [comparing, setComparing] = useState(given != null);
 
   const videos = useMemo(
     () =>

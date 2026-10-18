@@ -1,6 +1,6 @@
 import { Image } from 'expo-image';
 import { type Href, router } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useSyncExternalStore } from 'react';
 import { ActionSheetIOS, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Animated, { LinearTransition } from 'react-native-reanimated';
 import { STRONG_EFFORT_PCT, effortBand, effortText, readEffort } from '@/lib/pitch-effort';
@@ -59,6 +59,8 @@ export function LogList({ logs }: { logs: PitchLog[] | null }) {
   const [sort, setSort] = useState<Sort>('recent');
   const [filter, setFilter] = useState('all');
   const [toggled, setToggled] = useState<Record<string, boolean>>({});
+  /* 2분할 비교 — 웹처럼 목록에서 바로 A · B 를 고르고 탭 위에 뜬 막대에서 [비교하기](video-gallery selecting) */
+  const { selecting, picked } = useCompare();
   const finding = isFindActive(q);
   const shown = useMemo(() => filterLogs(logs ?? [], q), [logs, q]);
 
@@ -159,9 +161,13 @@ export function LogList({ logs }: { logs: PitchLog[] | null }) {
             );
           })}
         </ScrollView>
-        {videoCount >= 2 ? (
-          <Press accessibilityRole="button" onPress={() => router.push('/pitch/compare' as Href)} style={[styles.chip, { backgroundColor: c.skyTint }]}>
-            <Text style={[styles.chipText, { color: c.skyStrong, fontWeight: '600' }]}>2분할 비교</Text>
+        {selecting || videoCount >= 2 ? (
+          <Press
+            accessibilityRole="button"
+            onPress={() => setCompare({ selecting: !selecting, picked: [null, null] })}
+            style={[styles.chip, { backgroundColor: selecting ? withAlpha(c.ink, 0.06) : c.skyTint }]}
+          >
+            <Text style={[styles.chipText, { color: selecting ? c.muted : c.skyStrong, fontWeight: '600' }]}>{selecting ? '그만두기' : '2분할 비교'}</Text>
           </Press>
         ) : null}
       </View>
@@ -195,8 +201,24 @@ export function LogList({ logs }: { logs: PitchLog[] | null }) {
               <Animated.View entering={fadeIn} style={{ borderTopWidth: StyleSheet.hairlineWidth, borderColor: c.line }}>
                 {g.items.map((x, i) => (
                   <Animated.View key={x.id} entering={rowIn(Math.min(i, 8))} style={i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderColor: c.line }}>
-                    <Press accessibilityRole="button" onPress={() => router.push(`/pitch/${x.date}` as Href)} style={styles.row}>
-                      <ClipThumb clip={x} url={x.path ? thumbs[x.path] : undefined} />
+                    <Press
+                      accessibilityRole="button"
+                      accessibilityState={selecting ? { selected: picked.some((y) => y?.id === x.id), disabled: !x.path } : undefined}
+                      onPress={() => (selecting ? pickClip(x) : router.push(`/pitch/${x.date}` as Href))}
+                      style={[
+                        styles.row,
+                        selecting && picked.some((y) => y?.id === x.id) && { backgroundColor: c.skyTint },
+                        selecting && !x.path && { opacity: 0.4 },
+                      ]}
+                    >
+                      <View>
+                        <ClipThumb clip={x} url={x.path ? thumbs[x.path] : undefined} />
+                        {selecting && picked.some((y) => y?.id === x.id) ? (
+                          <View style={[styles.slot, { backgroundColor: c.sky }]}>
+                            <Text style={styles.slotText}>{picked[0]?.id === x.id ? 'A' : 'B'}</Text>
+                          </View>
+                        ) : null}
+                      </View>
                       <View style={{ flex: 1, minWidth: 0 }}>
                         <Text numberOfLines={1}>
                           <Text style={[styles.rowDate, { color: c.ink }]}>{spokenDate(x.date)} </Text>
@@ -211,7 +233,7 @@ export function LogList({ logs }: { logs: PitchLog[] | null }) {
                           </Text>
                         ) : null}
                       </View>
-                      <Icon name="chevron-right" size={16} color={withAlpha(c.muted, 0.6)} />
+                      {selecting ? null : <Icon name="chevron-right" size={16} color={withAlpha(c.muted, 0.6)} />}
                     </Press>
                   </Animated.View>
                 ))}
@@ -220,6 +242,87 @@ export function LogList({ logs }: { logs: PitchLog[] | null }) {
           </Animated.View>
         );
       })}
+      {/* 고르는 중에는 뜬 막대에 끝 줄이 가려지지 않게(웹 pb-24) */}
+      {selecting ? <View style={{ height: 80 }} /> : null}
+    </View>
+  );
+}
+
+/** 비교 고르기 상태 — 목록과 탭 위 막대(투구 탭이 스크롤 바깥에 띄운다)가 같이 본다 */
+type Picked = [Clip | null, Clip | null];
+let cmp: { selecting: boolean; picked: Picked } = { selecting: false, picked: [null, null] };
+const cmpListeners = new Set<() => void>();
+function setCompare(v: typeof cmp) {
+  cmp = v;
+  cmpListeners.forEach((l) => l());
+}
+function useCompare() {
+  return useSyncExternalStore(
+    (l) => {
+      cmpListeners.add(l);
+      return () => cmpListeners.delete(l);
+    },
+    () => cmp
+  );
+}
+/** 고르기 — 고른 것을 다시 누르면 비우고, 빈 쪽에 넣고, 둘 다 찼으면 앞의 것을 밀어낸다 */
+function pickClip(x: Clip) {
+  if (!x.path) return;
+  const p = cmp.picked;
+  const at = p.findIndex((y) => y?.id === x.id);
+  const next: Picked =
+    at >= 0 ? (p.map((y, j) => (j === at ? null : y)) as Picked) : p[0] == null ? [x, p[1]] : p[1] == null ? [p[0], x] : [p[1], x];
+  setCompare({ ...cmp, picked: next });
+}
+
+/** 탭 위에 뜬 '고른 둘' 막대 — 웹 video-gallery 의 고르는 중 아래 막대(A · B · 비우기 · [비교하기]) */
+export function ComparePickBar({ bottom }: { bottom: number }) {
+  const c = usePalette();
+  const { selecting, picked } = useCompare();
+  if (!selecting) return null;
+  const ready = !!picked[0]?.path && !!picked[1]?.path;
+  return (
+    <View pointerEvents="box-none" style={[styles.pickWrap, { bottom }]}>
+      <Animated.View entering={fadeIn} style={[styles.pickBar, { backgroundColor: c.card, borderColor: c.lineStrong }]}>
+        {[0, 1].map((i) => {
+          const p = picked[i];
+          return (
+            <View key={i} style={[styles.slotChip, p ? { borderColor: c.sky, backgroundColor: c.skyTint } : { borderColor: c.line, borderStyle: 'dashed' }]}>
+              <Text style={{ color: p ? c.skyStrong : c.muted, fontSize: 12, fontWeight: '700' }}>{i === 0 ? 'A' : 'B'}</Text>
+              <Text numberOfLines={1} style={{ flexShrink: 1, color: p ? c.skyStrong : c.muted, fontSize: 12 }}>
+                {p ? spokenDate(p.date) : '비어 있음'}
+              </Text>
+              {p ? (
+                <Press
+                  accessibilityRole="button"
+                  accessibilityLabel={`${i === 0 ? 'A' : 'B'}면 비우기`}
+                  hitSlop={12}
+                  onPress={() => setCompare({ ...cmp, picked: picked.map((y, j) => (j === i ? null : y)) as Picked })}
+                >
+                  <Icon name="x" size={12} color={c.skyStrong} />
+                </Press>
+              ) : null}
+            </View>
+          );
+        })}
+        <View style={{ flex: 1 }} />
+        <Press
+          accessibilityRole="button"
+          disabled={!ready}
+          onPress={() => {
+            const [a, b] = picked;
+            if (!a?.path || !b?.path) return;
+            router.push({
+              pathname: '/pitch/compare' as Href as never,
+              params: { a: a.path, al: `${spokenDate(a.date)} ${a.sessionType}`, b: b.path, bl: `${spokenDate(b.date)} ${b.sessionType}` },
+            });
+            setCompare({ selecting: false, picked: [null, null] });
+          }}
+          style={[styles.compareBtn, { backgroundColor: ready ? c.sky : c.lineStrong }]}
+        >
+          <Text style={{ color: '#fff', fontSize: 12, fontWeight: '600' }}>{ready ? '비교하기' : '두 개를 고르세요'}</Text>
+        </Press>
+      </Animated.View>
     </View>
   );
 }
@@ -261,6 +364,12 @@ const styles = StyleSheet.create({
   monthHead: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 20, minHeight: 48 },
   monthTitle: { fontSize: 15, fontWeight: '700' },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 64, paddingHorizontal: 20, paddingVertical: 10 },
+  slot: { position: 'absolute', left: 4, top: 4, width: 20, height: 20, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  slotText: { color: '#fff', fontSize: 11, fontWeight: '800' },
+  pickWrap: { position: 'absolute', left: 16, right: 16 },
+  pickBar: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8, borderRadius: 20, borderWidth: StyleSheet.hairlineWidth, paddingHorizontal: 16, paddingVertical: 12, boxShadow: '0 20px 40px -12px rgba(0,0,0,0.25)' },
+  slotChip: { flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 6, maxWidth: 140 },
+  compareBtn: { borderRadius: 10, paddingHorizontal: 14, paddingVertical: 8 },
   thumb: { width: 96, aspectRatio: 16 / 9, borderRadius: 12, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' },
   rowDate: { fontSize: 15, fontWeight: '600' },
   rowType: { fontSize: 13 },

@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PRESSED, SPACE, usePalette } from '~/lib/ui';
 import { Icon } from '~/shell/icon';
 import { AnalysisPill, PageHead, Segmented, ToolCircle } from '~/shell/heading';
-import { LogList } from './log-list';
+import { ComparePickBar, LogList } from './log-list';
 import { MonthGrid } from './month-grid';
 import { PitchDayPanel } from './day-panel';
 import { PitchTodayCard } from './today-card';
@@ -57,6 +57,7 @@ export function PitchTab({ today, bottom, onWeb }: { today: string; bottom: numb
   }, [selected]);
 
   return (
+    <View style={{ flex: 1 }}>
     <ScrollView
       ref={scrollRef}
       onLayout={(e) => (viewH.current = e.nativeEvent.layout.height)}
@@ -132,6 +133,9 @@ export function PitchTab({ today, bottom, onWeb }: { today: string; bottom: numb
         }
       />
     </ScrollView>
+    {/* 2분할 비교 고르는 중 — 하단 탭 위에 뜬 막대(웹 video-gallery) */}
+    {view === 'list' ? <ComparePickBar bottom={Math.max(inset.bottom - 13, 12) + 62 + 12} /> : null}
+    </View>
   );
 }
 
