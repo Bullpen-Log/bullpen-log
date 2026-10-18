@@ -333,6 +333,8 @@ export function MonthGrid({
 }
 
 
+/* 한 주 일곱 칸 — 100/7% 로 두면 소수점 반올림이 쌓여 일곱째 칸(토)이 다음 줄로 넘어갔다(날짜와 요일이 어긋남) */
+const SEVENTH = '14.28%';
 const styles = StyleSheet.create({
   /* 웹 Card 안쪽 20 · 머리 → 16 → 요일 · 칸 → 8 → '표시 보기'(-mt-2) */
   card: { borderRadius: 20, padding: 20, overflow: 'hidden' },
@@ -340,10 +342,10 @@ const styles = StyleSheet.create({
   unit: { fontSize: 20, fontWeight: '900', letterSpacing: 0 },
   arrow: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
   weekRow: { flexDirection: 'row', marginTop: 16, marginBottom: 4 },
-  week: { width: `${100 / 7}%`, textAlign: 'center', fontSize: 11, fontWeight: '500', paddingBottom: 4 },
+  week: { width: SEVENTH, textAlign: 'center', fontSize: 11, fontWeight: '500', paddingBottom: 4 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: -2 },
   /* 칸 — 웹 휴대폰 min-h 3.25rem(고르면 2.75rem) · rounded-lg 12 · 칸 사이 4 */
-  slot: { width: `${100 / 7}%`, padding: 2 },
+  slot: { width: SEVENTH, padding: 2 },
   cell: { borderRadius: 12, borderWidth: 1, borderColor: 'transparent', alignItems: 'center', justifyContent: 'center', gap: 2 },
   /* 영상 달력 칸 — 웹 size large h-[4.25rem] · rounded-lg · border-line */
   videoCell: { height: 68, borderRadius: 12, borderWidth: 1, overflow: 'hidden' },

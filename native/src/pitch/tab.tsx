@@ -126,12 +126,14 @@ export function PitchTab({ today, bottom, onWeb }: { today: string; bottom: numb
   );
 }
 
+/* 한 주 일곱 칸 — 100/7% 로 두면 소수점 반올림이 쌓여 일곱째 칸(토)이 다음 줄로 넘어갔다(날짜와 요일이 어긋남) */
+const SEVENTH = '14.28%';
 const styles = StyleSheet.create({
   link: { height: 36, borderRadius: 18, paddingHorizontal: 14, justifyContent: 'center' },
   linkText: { fontSize: 14, fontWeight: '600' },
-  week: { width: `${100 / 7}%`, textAlign: 'center', fontSize: 12, paddingBottom: 4 },
+  week: { width: SEVENTH, textAlign: 'center', fontSize: 12, paddingBottom: 4 },
   cell: {
-    width: `${100 / 7}%`,
+    width: SEVENTH,
     alignItems: 'center',
     paddingVertical: 4,
     minHeight: 58,
