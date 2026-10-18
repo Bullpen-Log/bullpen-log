@@ -265,7 +265,11 @@ export function HomeTab({
                 events={eventCounts}
                 clips={clipCounts}
                 compact={selected != null}
-                onMonth={setMonth}
+                onMonth={(m) => {
+                  setMonth(m);
+                  /* 고른 날이 새 달 밖이면 접는다 — 그날 칸은 이 달 기록만 받아 '기록 없음'으로 보였다 */
+                  setSelected((cur) => (cur && cur.slice(0, 7) === m.slice(0, 7) ? cur : null));
+                }}
                 onDay={(day) => setSelected((cur) => (cur === day ? null : day))}
                 headerAction={
                   <Press accessibilityRole="button" accessibilityLabel="목록으로 보기" onPress={() => setCalView('list')} style={[styles.viewBtn, { marginRight: 4 }]}>

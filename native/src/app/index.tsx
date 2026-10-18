@@ -22,6 +22,7 @@ import { CAP_SHIM, handleCapMessage } from '~/lib/cap-bridge';
 import { loadMe, resetMe } from '~/pitch/api';
 import { resetPitchStore } from '~/pitch/store';
 import { resetCompare } from '~/pitch/log-list';
+import { resetLibraryItems } from '~/library/parts';
 import { resetImported } from '~/pitch/attach';
 import { resetScanned } from '~/nutrition/scanned';
 import { HomeTab, resetHomeCache } from '~/home/tab';
@@ -160,6 +161,7 @@ function resetAccount() {
   setOutboxOwner(null);
   resetPitchStore();
   resetCompare();
+  resetLibraryItems();
   resetHomeCache();
   resetNutritionStore();
   resetTrainingCache();

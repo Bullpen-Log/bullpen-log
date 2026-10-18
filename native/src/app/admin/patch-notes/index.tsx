@@ -33,7 +33,7 @@ export default function PatchNotesScreen() {
   const [query, setQuery] = useState('');
   const [sort, setSort] = useState<Sort>('new');
   const [who, setWho] = useState('all');
-  const rows = useMemo(() => data?.notes ?? [], [data]);
+  const rows = useMemo(() => (data && 'notes' in data ? data.notes : []), [data]);
   /* 누가 있는지는 기록에서 뽑는다 — 사람이 늘면 칸도 저절로 는다 */
   const people = useMemo(() => [...new Set(rows.map((r) => r.author))].sort((a, b) => a.localeCompare(b, 'ko')), [rows]);
   const shown = useMemo(() => {
@@ -70,8 +70,9 @@ export default function PatchNotesScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: c.page }}>
       <Bar back="관리자" title="패치노트" c={c} />
-      {!data ? (
-        <LoadState error={error} onRetry={() => void reload()} c={c} />
+      {!data || !('notes' in data) ? (
+        /* 관리자가 아니면 서버가 갈 곳만 돌려준다 — 빈 목록으로 보이지 않게 알림으로 */
+        <LoadState error={data ? '관리자만 볼 수 있어요.' : error} onRetry={() => void reload()} c={c} />
       ) : (
         <ScrollView
           keyboardDismissMode="on-drag"

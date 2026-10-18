@@ -28,6 +28,8 @@ const items = new Map<string, Exercise | Drill>();
 export function remember(list: readonly (Exercise | Drill)[]) {
   for (const x of list) items.set(x.id, x);
 }
+/** 로그아웃 — 앞사람의 별(즐겨찾기)이 상세 화면에 남지 않게(app/index.tsx resetAccount) */
+export const resetLibraryItems = () => items.clear();
 export function recall<T extends Exercise | Drill>(id: string): T | null {
   return (items.get(id) as T | undefined) ?? null;
 }
@@ -35,6 +37,12 @@ export function recall<T extends Exercise | Drill>(id: string): T | null {
 /** 별 — 누르면 바로 바꾸고, 서버가 거절하면 되돌린다(웹 FavoriteButton 과 같은 동작 · 같은 서버 길) */
 export function useStar(item: Exercise | Drill, kind: 'exercise' | 'drill') {
   const [on, setOn] = useState(item.favorite);
+  /* 목록을 새로 받아 별 값이 바뀌면 따라간다 — 낡은 값으로 누르면 드릴은 서버가 뒤집기만 해서 뜻과 반대로 바뀌었다 */
+  const [seen, setSeen] = useState(item.favorite);
+  if (seen !== item.favorite) {
+    setSeen(item.favorite);
+    setOn(item.favorite);
+  }
   const [note, setNote] = useState<string | null>(null);
   const toggle = async () => {
     const next = !on;

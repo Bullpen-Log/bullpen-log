@@ -2,7 +2,7 @@ import { SymbolView } from 'expo-symbols';
 import * as Haptics from 'expo-haptics';
 import { type Href, router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BASIC_FOODS, STARTER_FOOD_IDS, basicAliases, basicFood } from '@/lib/nutrition/foods';
 import { COMBO_TOP, comboFood, findCombo, itemsFromEntries, orderCombos, type MealComboView } from '@/lib/nutrition/combos';
@@ -152,7 +152,11 @@ export default function NutritionAddScreen() {
     const saveErr = save ? await saveMyFood(food) : null;
     setCustomBusy(false);
     void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    if (replacing) return router.back();
+    if (replacing) {
+      /* 바꾸기는 바로 닫는다 — 내 음식 저장만 실패했으면 알리고 닫는다(조용히 버려지던 것) */
+      if (saveErr) Alert.alert('내 음식에 저장하지 못했어요', `${food.name}: ${saveErr}`);
+      return router.back();
+    }
     setAdded((a) => [...a, food.name]);
     setCustomOpen(false);
     if (saveErr) setError(`${food.name} 내 음식에 저장하지 못했어요. ${saveErr}`);
@@ -378,15 +382,20 @@ export default function NutritionAddScreen() {
                       <Text style={{ color: c.muted, fontSize: 15, padding: 8, textAlign: 'center' }}>‘{q.trim()}’에 맞는 음식이 없어요.</Text>
                     ) : null}
                   </>
+                ) : !day ? (
+                  /* 그날을 아직 받는 중 — 식약처가 되는지 모르니 '없어요' · '연결 전'을 말하지 않는다 */
+                  <ActivityIndicator style={{ padding: 8 }} />
                 ) : local.length === 0 ? (
                   <Text style={{ color: c.muted, fontSize: 15, padding: 8, textAlign: 'center' }}>‘{q.trim()}’에 맞는 음식이 없어요.</Text>
                 ) : null}
                 {custom}
-                <Text style={{ color: c.muted, fontSize: 12, lineHeight: 17, paddingTop: 8 }}>
-                  {day?.mfds
-                    ? '식약처 자료는 식품의약품안전처 식품영양성분 데이터베이스(공공데이터포털)에서 가져와요.'
-                    : '식약처 음식 검색은 아직 연결 전이에요.'}
-                </Text>
+                {day ? (
+                  <Text style={{ color: c.muted, fontSize: 12, lineHeight: 17, paddingTop: 8 }}>
+                    {day.mfds
+                      ? '식약처 자료는 식품의약품안전처 식품영양성분 데이터베이스(공공데이터포털)에서 가져와요.'
+                      : '식약처 음식 검색은 아직 연결 전이에요.'}
+                  </Text>
+                ) : null}
               </>
             ) : (
               <>
