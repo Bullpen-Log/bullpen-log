@@ -33,8 +33,8 @@ import { DESK_MEDIA } from '@/lib/nav';
  * 둘을 가르는 기준은 CSS 의 desk: 와 같은 DESK_MEDIA(lib/nav.ts).
  *
  * 다만 막아 두기만 하면 급한 날 앱을 못 쓴다. 흐름의 첫 화면에 '오늘은 건너뛰기'가 있다. 건너뛰면
- * 이번 접속 동안만 안 묻고, 다음에 접속하면 다시 묻는다(components/checkin-skip.ts) — 건너뛴 것을
- * 하루 종일 기억하면 한 번 건너뛴 날은 끝내 체크인을 안 하게 된다.
+ * 그날은 다시 묻지 않는다(components/checkin-skip.ts). 예전엔 이번 접속 동안만이었는데(한 번 건너뛴 날은 끝내 체크인을 안 하게
+ * 될까 봐), 아이폰 앱은 켤 때마다 새 접속이라 앱을 열 때마다 다시 물어 2026-10-18 김민이 하루로 바꿨다.
  *
  * 건너뛰어도 체크인은 아직 안 한 것이다. 오른쪽 위 알림(종)에 남아 있고, 거기서
  * 언제든 하거나 고친다(components/notice-bell.tsx — 같은 흐름을 연다).
@@ -233,7 +233,7 @@ export function CheckinGate({
     /*
      * 휴대폰(desk 가 아니면)은 창이 아니라 전체 화면 흐름으로 보낸다 — 시작 연출 · 투어가 끝난 뒤에.
      * 완료 화면이 끝나면 흐름이 홈으로 돌려보내고, 그때는 오늘이 목록에 들어 있어 다시 보내지 않는다.
-     * 건너뛰면 이번 접속 동안 안 보낸다(checkin-skip).
+     * 건너뛰면 그날은 안 보낸다(checkin-skip).
      */
     const mobile = !window.matchMedia(DESK_MEDIA).matches;
     let cancelled = false;
