@@ -6,24 +6,15 @@ import { ChevronDown, ChevronRight } from '@/components/icon';
 import { Expand } from '@/components/expand';
 import { mechanicsElement } from '@/lib/mechanics/elements';
 import type { DrillPick } from '@/lib/mechanics/drills';
-import { plantFrame, type Pitch3dV2Ok } from '@/lib/pitch-3d/v2/contract';
-import { mechChecks } from '@/lib/pitch-3d/v2/mech-checks';
+import type { Pitch3dV2Ok } from '@/lib/pitch-3d/v2/contract';
+import type { MechVerdict } from '@/lib/pitch-3d/v2/mech-judge';
 import {
-  judgeMechanics,
-  type MechStatus,
-  type MechVerdict,
-} from '@/lib/pitch-3d/v2/mech-judge';
+  MECH_STATUS_TEXT as STATUS_TEXT,
+  mechSummary,
+  type DrillPicks,
+} from '@/lib/pitch-3d/v2/lab-summary';
 
-export type DrillPicks = Record<string, { count: number; items: DrillPick[] }>;
-
-const STATUS_TEXT: Record<MechStatus, string> = {
-  improve: '고칠 점',
-  fair: '보통',
-  good: '좋아요',
-  unsure: '판정 안 함',
-};
-/** 고칠 점이 먼저 */
-const ORDER: MechStatus[] = ['improve', 'fair', 'good', 'unsure'];
+export type { DrillPicks };
 
 /**
  * 메커니즘 점검 카드 — 드리프트 · 상하체 분리 · 앞다리 버티기를 판정 한 줄씩(설계 docs/designs/pitch-mechanics-checks.md).
@@ -41,23 +32,9 @@ export function MechCard({
   drillPicks: DrillPicks;
   onJump: (frame: number) => void;
 }) {
-  const { judgement, frames } = useMemo(() => {
-    const m = mechChecks(result, heightCm);
-    return {
-      judgement: judgeMechanics([m], heightCm),
-      frames: {
-        drift: result.events.kneeUp,
-        separation: m.separation.frame,
-        trunkTiming: m.separation.trunkHalfFrame,
-        trunkAtPlant: plantFrame(result.events),
-        block: result.events.release,
-        pelvisLevel: plantFrame(result.events),
-      } as Record<MechVerdict['key'], number | null>,
-    };
-  }, [result, heightCm]);
-  const items = judgement.items
-    .filter((i) => i.shown)
-    .sort((a, b) => ORDER.indexOf(a.status) - ORDER.indexOf(b.status));
+  /* 판정 · 차례 · 그 순간은 앱 화면과 같이(lib/pitch-3d/v2/lab-summary.ts) */
+  const judgement = useMemo(() => mechSummary(result, heightCm), [result, heightCm]);
+  const items = judgement.items;
   const [open, setOpen] = useState<string | null>(null);
 
   return (
@@ -75,7 +52,7 @@ export function MechCard({
             it={it}
             open={open === it.key}
             onToggle={() => setOpen(open === it.key ? null : it.key)}
-            frame={frames[it.key]}
+            frame={it.frame}
             onJump={onJump}
             picks={drillPicks[it.focus]}
           />
