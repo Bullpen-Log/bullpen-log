@@ -107,7 +107,7 @@ export default function ShootHomeScreen() {
 
           {data.attention.length > 0 ? (
             <>
-              <Text style={[s.label, { color: c.ink, fontSize: 15 }]}>다시 찍기 · 미룬 것 {data.attention.length}개</Text>
+              <Text style={[s.label, { color: c.ink, fontSize: 15 }]}>다시 찍기 · 미룬 것 {data.attentionTotal ?? data.attention.length}개</Text>
               <View style={[s.group, { backgroundColor: c.card }]}>
                 {data.attention.map((a, i) => (
                   <Row

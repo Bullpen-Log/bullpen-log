@@ -86,11 +86,13 @@ export async function loadAppShoot() {
       return n ? { label, week: n.week, weekLabel: n.label, done: n.count.done, total: n.total, current: n.current! } : null;
     })
     .filter((n) => n != null);
-  const attention = items
-    .filter((i) => {
-      const st = stateOf(i, checks);
-      return st === 'redo' || st === 'later';
-    })
+  const needs = items.filter((i) => {
+    const st = stateOf(i, checks);
+    return st === 'redo' || st === 'later';
+  });
+  /* 목록은 12개까지, 제목의 개수는 전부(웹 overview.tsx attention.length 와 같다) */
+  const attentionTotal = needs.length;
+  const attention = needs
     .slice(0, 12)
     .map((it) => {
       const c = checks.get(it.exerciseId)!;
@@ -109,6 +111,7 @@ export async function loadAppShoot() {
     nexts,
     weeks,
     attention,
+    attentionTotal,
   };
 }
 
