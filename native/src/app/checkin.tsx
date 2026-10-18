@@ -88,6 +88,7 @@ export default function CheckinScreen() {
   const save = async () => {
     if (saving || loadError) return;
     if (condition == null) return setError('오늘 컨디션을 골라 주세요.');
+    if (armJoints.length > 0 && armLevel == null) return setError('어깨 · 팔꿈치가 얼마나 아픈지 골라 주세요.');
     setSaving(true);
     setError(null);
     try {
