@@ -163,7 +163,7 @@ function IconButton({
 /* ----------------------------- 마치기 ----------------------------- */
 
 /** 운동 체감 강도 기준표 — 웹 components/intensity-guide.tsx TRAINING_LEVELS 그대로(그 파일은 웹 부품이라 못 부른다) */
-const TRAINING_LEVELS = [
+export const TRAINING_LEVELS = [
   { max: 2, label: '아주 가벼움', detail: '몸을 푸는 정도로 끝났어요. 끝나고도 피로가 거의 없어요.' },
   { max: 4, label: '가벼움', detail: '땀은 났지만 여유가 많았어요. 같은 운동을 한 번 더 해도 될 것 같아요.' },
   { max: 6, label: '보통', detail: '평소대로 제대로 한 날이에요. 끝날 즈음 지쳤지만 무리는 아니었어요.' },

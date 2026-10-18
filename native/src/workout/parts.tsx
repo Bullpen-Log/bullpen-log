@@ -2,7 +2,7 @@ import { SymbolView } from 'expo-symbols';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import * as WebBrowser from 'expo-web-browser';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Animated, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { EXERCISE_NOTE_MAX, cleanExerciseNote } from '@/lib/exercise-meta';
 import { referenceEmbedUrl, referenceWatchUrl } from '@/lib/reference-video';
@@ -40,21 +40,38 @@ export function RestPill({ seconds, target, c }: { seconds: number; target: numb
   );
 }
 
-/** 처방 세트 수만큼의 점 — 남긴 세트만큼 찬다. 처방보다 더 하면 점이 늘어난다(더 한 것도 한 것이다) */
+/** 처방 세트 수만큼의 점 — 남긴 세트만큼 찬다. 처방보다 더 하면 점이 늘어난다(더 한 것도 한 것이다). 칠해지는 순간 한 번 톡 커진다(웹 finish-pop) */
 export function SetDots({ planned, done, c }: { planned: number; done: number; c: Palette }) {
   const total = Math.max(planned, done);
+  const all = done >= planned;
   return (
     <View style={s.dotsRow}>
       <View style={s.dots}>
         {Array.from({ length: total }, (_, i) => (
-          <View key={i} style={[s.dot, { backgroundColor: i < done ? c.sky : c.line }]} />
+          <Pop key={`${i}-${i < done}`} on={i < done}>
+            <View style={[s.dot, { backgroundColor: i < done ? c.sky : c.line }]} />
+          </Pop>
         ))}
       </View>
-      <Text style={[s.small, { color: done >= planned ? c.sky : c.muted, fontWeight: done >= planned ? '700' : '400' }]}>
-        {done >= planned ? `✓ ${planned}세트 다 했어요` : `${planned}세트 중 ${done}세트`}
-      </Text>
+      <Pop key={`all-${all}`} on={all}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+          {all ? <SymbolView name="checkmark" size={12} weight="bold" tintColor={c.sky} /> : null}
+          <Text style={[s.small, { color: all ? c.sky : c.muted, fontWeight: all ? '700' : '400' }]}>
+            {all ? `${planned}세트 다 했어요` : `${planned}세트 중 ${done}세트`}
+          </Text>
+        </View>
+      </Pop>
     </View>
   );
+}
+
+/** on 으로 새로 그려질 때 0.6 → 1 로 한 번 튀어 커진다(웹 finish-pop) */
+function Pop({ on, children }: { on: boolean; children: React.ReactNode }) {
+  const [v] = useState(() => new Animated.Value(on ? 0 : 1));
+  useEffect(() => {
+    if (on) Animated.spring(v, { toValue: 1, friction: 5, tension: 160, useNativeDriver: true }).start();
+  }, [on, v]);
+  return <Animated.View style={{ transform: [{ scale: v.interpolate({ inputRange: [0, 1], outputRange: [0.6, 1] }) }] }}>{children}</Animated.View>;
 }
 
 const PAD_KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '.', '0'] as const;
