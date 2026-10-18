@@ -1,16 +1,19 @@
 import * as Haptics from 'expo-haptics';
-import { useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useRef, useState, type ComponentType, type Ref } from 'react';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { WebView, type WebViewMessageEvent, type WebViewProps } from 'react-native-webview';
 import { areaOfMuscle, muscleInfo, type ArmcareMuscle } from '@/lib/armcare/anatomy';
 import { visibleChips } from '@/lib/armcare/chips';
 import { MUSCLE_DETAILS } from '@/lib/armcare/details';
+import { APP_UA, SITE_URL } from '~/lib/site';
 import type { Palette } from '~/lib/ui';
 import { Sheet } from '~/workout/sheets';
 
 /**
  * 근육 칩 — 웹 components/muscle-chips.tsx: 맨 앞(가장 크게 쓰는 근육, 또는 highlight)만 진하게, max 넘으면 '+N'(누르면 다 펼침).
  * 칩을 누르면 그 근육 설명 창(웹 armcare-info-body.tsx MuscleInfo 의 글 — 어떤 근육 · 던질 때 · 왜 중요한가 · 이렇게 키워요 · 붙는 곳).
- * 웹 창의 3D 근육 그림은 앱에 없다(글만). 설명이 없는 근육 이름이면 글자 칩.
+ * 창 맨 위 3D 근육 그림은 사이트 app/embed/muscle 을 작은 웹뷰로(3D 동작 분석 lab-3d.tsx 와 같은 방식 — 3D 는 웹 WebGL 한 벌).
+ * 설명이 없는 근육 이름이면 글자 칩.
  */
 export function MuscleChips({ muscles, highlight, max, c }: { muscles: string[]; highlight?: readonly string[]; max?: number; c: Palette }) {
   const [all, setAll] = useState(false);
@@ -72,6 +75,7 @@ function MuscleSheet({ name, muscles, onPick, onClose, c }: { name: string | nul
           })}
         </View>
       ) : null}
+      {name && d ? <Muscle3D name={name} onPick={(m) => MUSCLE_DETAILS[m as ArmcareMuscle] && onPick(m)} c={c} /> : null}
       {d ? (
         <View style={{ gap: 18 }}>
           {(
@@ -99,7 +103,73 @@ function MuscleSheet({ name, muscles, onPick, onClose, c }: { name: string | nul
   );
 }
 
+type WebViewHandle = { injectJavaScript(script: string): void; reload(): void };
+/* react-native-webview 14 의 타입은 ref 를 안 받지만 실제 부품은 forwardRef 다(lab-3d.tsx 와 같다) */
+const RefWebView = WebView as unknown as ComponentType<WebViewProps & { ref?: Ref<WebViewHandle> }>;
+type FromWeb = { t: 'muscle'; kind: 'status'; status: string } | { t: 'muscle'; kind: 'pick'; muscle: string };
+
+/**
+ * 3D 근육 그림 — 웹 근육 설명 창의 InfoGraphic(armcare-info-body.tsx)과 같은 칸(끌어 돌리기 · 근육 누르기). 근육을 바꾸면 웹뷰를 새로 열지 않고
+ * window.__musclePick 으로 알리고, 3D 에서 누른 근육은 'pick' 으로 받아 창을 그 근육으로 바꾼다. WebGL 이 없거나 못 불러오면 칸을 접는다(글만 남음).
+ */
+function Muscle3D({ name, onPick, c }: { name: string; onPick: (muscle: string) => void; c: Palette }) {
+  const web = useRef<WebViewHandle>(null);
+  const [first] = useState(name);
+  const [ready, setReady] = useState(false);
+  const [gone, setGone] = useState(false);
+  const url = `${SITE_URL}/embed/muscle?m=${encodeURIComponent(first)}&bg=${encodeURIComponent(c.card)}`;
+  /* 창 안에서 다른 근육으로 바꾸면(위 칩 · 3D 누름) 그림도 그 근육으로 */
+  useEffect(() => {
+    if (ready) web.current?.injectJavaScript(`window.__musclePick&&window.__musclePick(${JSON.stringify(name)});true;`);
+  }, [name, ready]);
+  if (gone) return null;
+  const onMessage = (e: WebViewMessageEvent) => {
+    let m: FromWeb;
+    try {
+      m = JSON.parse(e.nativeEvent.data) as FromWeb;
+    } catch {
+      return;
+    }
+    if (m?.t !== 'muscle') return;
+    if (m.kind === 'status') {
+      if (m.status === 'unavailable' || m.status === 'error') setGone(true);
+      else if (m.status === 'ready') setReady(true);
+    } else if (m.kind === 'pick' && m.muscle !== name) {
+      void Haptics.selectionAsync();
+      onPick(m.muscle);
+    }
+  };
+  return (
+    <View style={[st.map, { backgroundColor: c.card }]}>
+      <RefWebView
+        ref={web}
+        source={{ uri: url }}
+        applicationNameForUserAgent={APP_UA}
+        sharedCookiesEnabled
+        scrollEnabled={false}
+        bounces={false}
+        allowsLinkPreview={false}
+        contentInsetAdjustmentBehavior="never"
+        automaticallyAdjustContentInsets={false}
+        style={{ flex: 1, backgroundColor: 'transparent' }}
+        /* 이 칸은 3D 하나만 — 다른 주소로 옮겨 가지 않는다 */
+        onShouldStartLoadWithRequest={(r) => r.url === url || r.url === 'about:blank'}
+        onMessage={onMessage}
+        onError={() => setGone(true)}
+        onHttpError={() => setGone(true)}
+        onContentProcessDidTerminate={() => web.current?.reload()}
+      />
+      {!ready ? (
+        <View style={[StyleSheet.absoluteFill, { alignItems: 'center', justifyContent: 'center' }]} pointerEvents="none">
+          <ActivityIndicator color={c.muted} />
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
 const st = StyleSheet.create({
+  map: { height: 260, borderRadius: 16, overflow: 'hidden', marginBottom: 16 },
   wrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 4 },
   chip: { minHeight: 24, borderRadius: 12, paddingHorizontal: 8, justifyContent: 'center' },
   tab: { minHeight: 34, borderRadius: 17, paddingHorizontal: 12, justifyContent: 'center' },
