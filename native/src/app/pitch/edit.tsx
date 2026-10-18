@@ -128,7 +128,8 @@ function EntryForm({
   const c = usePalette();
   const inset = useSafeAreaInsets();
   const vp = velocityPrefill;
-  const [type, setType] = useState(editing?.sessionType ?? vp?.sessionType ?? (drillPrefill ? '캐치볼' : '불펜'));
+  /* 비워 두고 꼭 고르게(2026-10-18 사용자) — 예전엔 '불펜'이 미리 골라져 있었다 */
+  const [type, setType] = useState<string>(editing?.sessionType ?? vp?.sessionType ?? (drillPrefill ? '캐치볼' : ''));
   const [count, setCount] = useState(
     editing && !isRestSession(editing.sessionType)
       ? String(editing.pitchCount)
@@ -194,6 +195,7 @@ function EntryForm({
 
   const save = async () => {
     if (busy) return;
+    if (!type) return setError('투구 종류를 골라 주세요.');
     if (!rest && effort == null) return setError('체감 강도를 골라 주세요.');
     const entry: PitchEntry = {
       date,

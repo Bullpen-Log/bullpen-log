@@ -18,7 +18,7 @@ import { EffortChips, focusEffortChips } from '@/components/effort-chips';
 import { makePitchThumb } from '@/lib/pitch-thumbs';
 import { dateKeyLabel } from '@/lib/pitch-stats';
 import { readEffort } from '@/lib/pitch-effort';
-import { DEFAULT_SESSION_TYPE, SESSION_TYPES, isRestSession } from '@/lib/session-type';
+import { SESSION_TYPES, isRestSession } from '@/lib/session-type';
 import type { LogPrefill } from '@/lib/velocity-meta';
 import {
   GOOD_DAY_MIN,
@@ -65,7 +65,8 @@ function discardUploads(paths: string[]) {
 }
 
 const EMPTY_FORM = {
-  sessionType: DEFAULT_SESSION_TYPE as string,
+  /* 비워 두고 꼭 고르게 — 예전엔 '불펜'이 미리 골라져 캐치볼도 불펜으로 저장됐다(2026-10-18 사용자: "비워둬") */
+  sessionType: '' as string,
   pitchCount: '',
   /*
    * 체감 강도(%) — 기본값 없이 비워 둔다(2판 D2). 예전 1~10 막대는 5 에서 시작해 운영 기록의 3분의 2가 손대지 않은 5 였고,
@@ -562,6 +563,10 @@ export function EntryForm({
       onError(
         `구속은 ${round1(toSpeed(SPEED_MIN_KMH, unit))}~${round1(toSpeed(SPEED_MAX_KMH, unit))} ${speedLabel(unit)} 사이로 적어 주세요.`
       );
+      return;
+    }
+    if (!form.sessionType) {
+      onError('투구 종류를 골라 주세요.');
       return;
     }
     /* 던진 날인데 체감 강도를 안 골랐다 — 서버까지 가지 않고 그 칸으로 보낸다(서버도 같은 말로 막는다) */

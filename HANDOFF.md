@@ -31,6 +31,8 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 - 아이폰 앱(`native/src/app/checkin.tsx` · `native/src/pitch/velocity-day.tsx`): 잠 · 자리 필수, 구속 카드에 '못 잰 공 N개는 빠졌어요'. 앱은 새로 구워야 들어간다.
 - 투구 기록 폼(`app/(app)/pitch-log/entry-form.tsx`, 너 · 구속 측정 쪽): 구속 측정으로 채운 투구 수 밑에 '못 잰 공 N개는 빠졌어요'. 셈은 `lib/velocity-load.ts withMissedAttempts`
   (VelocityAttempt — 이어진 공 없음 · 공 길 장면 1장 이상).
+- 투구 기록 종류(`entry-form.tsx` · `app/api/pitch-log/route.ts` · `native/src/app/pitch/edit.tsx`): '불펜'이 미리 골라져 있던 것을 비워 두고 꼭 고르게
+  (서버도 빈 종류를 막는다). 프로그램의 '불펜 날 회전 던지기 빼기'는 뺐다(`lib/program/program.ts` — 두 손 몸통 던지기라 팔 부담이 작다, 사용자).
 - **경기 강도**(`lib/pitch-stats.ts` stressFactor · outingLoadOf, `lib/report/facts.ts` nearMax): 경기도 고른 체감 강도대로 셈한다(예전엔 늘 100%). 세게 던진 날 · 부하 · 휴식이
   강도를 낮게 고른 경기에서 가벼워진다. 시험 기대값을 같이 고침(training 1818 · 그 밖 시험 모두 통과).
 
