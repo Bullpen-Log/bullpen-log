@@ -1,6 +1,6 @@
 import * as Haptics from 'expo-haptics';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { type GestureResponderEvent, Pressable, type PressableProps, type StyleProp, type ViewStyle } from 'react-native';
+import { type GestureResponderEvent, Pressable, type PressableProps, type StyleProp, StyleSheet, type ViewStyle } from 'react-native';
 import Animated, { Easing, useAnimatedStyle, useReducedMotion, useSharedValue, withTiming } from 'react-native-reanimated';
 
 /**
@@ -55,8 +55,11 @@ export function Press({
     lit.value = card && !reduce ? withTiming(0, { duration: 180, easing: CARD_EASE }) : 0;
   };
   const dim = card || big ? 0.8 : 0.55;
+  /* 부르는 쪽이 준 투명도(못 누르는 단추의 0.3 같은 것)에 누름 표시를 곱한다 — 예전엔 아래 opacity 가 뒤에 와 덮어써, 흐리게 둔 단추가 늘 또렷했다 */
+  const flat = StyleSheet.flatten(style as never) as ViewStyle | undefined;
+  const base = typeof flat?.opacity === 'number' ? flat.opacity : 1;
   const anim = useAnimatedStyle(() => ({
-    opacity: 1 - (1 - dim) * lit.value,
+    opacity: base * (1 - (1 - dim) * lit.value),
     transform: card ? [{ scale: 1 - 0.015 * lit.value }] : [],
   }));
   return (
