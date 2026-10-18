@@ -34,6 +34,7 @@ import {
   cursorOf,
   cursorOfList,
   doneShare,
+  openAfter,
   groupCounts,
   paceMinutes,
   sessionsOf,
@@ -654,6 +655,17 @@ console.log('\n■ 진행(지금 · 다음 · 미룬 것)');
   check(
     '먼저 찍기로 고른 미룬 운동이 지금, 다음은 첫 안 찍은 것',
     lp.current === items[1] && lp.next === items[2]
+  );
+  /* 중간부터 — 5번째를 골라 찍으면 다음은 6번째(처음의 안 찍은 것이 아니라), 뒤가 다 찍혔으면 앞에서(2026-10-18) */
+  const mid = cursorOfList(items, mk([]), items[4].exerciseId);
+  const afterMid = openAfter(items, mk([[4, 'done', 0]]), items[4].exerciseId);
+  const tailDone = mk(items.slice(5).map((_, k) => [5 + k, 'done', 0] as [number, 'done', number]));
+  check(
+    '중간부터 찍기 — 다음은 고른 운동 바로 뒤, 찍은 뒤 이어 갈 차례도 그 뒤부터, 뒤가 다 찍혔으면 앞에서',
+    mid.current === items[4] &&
+      mid.next === items[5] &&
+      afterMid[0] === items[5] &&
+      openAfter(items, tailDone, items[4].exerciseId)[0] === items[0]
   );
   const lq = cursorOfList(items, mk([[0, 'done', 0]]), items[0].exerciseId);
   check('이미 찍은 것을 고르면 무시하고 순서대로', lq.current === items[1]);

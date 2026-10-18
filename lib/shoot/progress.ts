@@ -89,8 +89,29 @@ export function cursorOfList(
   const picked = pickId ? items.find((it) => it.exerciseId === pickId) : undefined;
   const current =
     picked && stateOf(picked, checks) !== 'done' ? picked : (open[0] ?? null);
-  const next = open.find((it) => it !== current) ?? null;
+  /* 다음은 지금 운동 바로 뒤의 차례(중간부터 찍어도 이어서) — 뒤에 없으면 앞에서 */
+  const next = current ? (openAfter(items, checks, current.exerciseId, laterIsOpen)[0] ?? null) : null;
   return { current, next, index: current ? items.indexOf(current) : items.length };
+}
+
+/**
+ * 이 운동 뒤로 아직 안 찍은 것들 — 목록에서 그 운동 뒤쪽 먼저, 끝까지 가면 앞에서(그 운동은 빼고).
+ * 중간 운동부터 찍기 시작해도 찍은 뒤 그 바로 다음으로 넘어가게 한다(2026-10-18 사용자: "중간부터 시작하면 다음 운동으로 자동으로
+ * 안 넘어가고 처음으로 간다").
+ */
+export function openAfter(
+  items: PlanItem[],
+  checks: Map<string, ShootCheckView>,
+  id: string,
+  laterIsOpen = false
+): PlanItem[] {
+  const at = items.findIndex((it) => it.exerciseId === id);
+  const order = at < 0 ? items : [...items.slice(at + 1), ...items.slice(0, at)];
+  return order.filter((it) => {
+    if (it.exerciseId === id) return false;
+    const st = stateOf(it, checks);
+    return st === 'todo' || st === 'redo' || (laterIsOpen && st === 'later');
+  });
 }
 
 /** 지금 운동 뒤에 남은 줄 — 다음 자리로 옮기는지, 쉬는지 알려 준다 */
