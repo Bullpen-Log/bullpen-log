@@ -4,6 +4,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { usePalette } from '~/lib/ui';
 import { useMenu } from '~/shell/menu-store';
+import { DEFAULT_TABS } from '~/shell/tab-bar';
 import { leaveTo } from '~/shell/web-nav';
 import { READABLE } from '~/lib/layout';
 
@@ -29,6 +30,9 @@ const ICON: Record<string, SFSymbol> = {
   community: 'bubble.left.and.bubble.right',
   support: 'lifepreserver',
 };
+
+/** 하단 탭에도 있는 메뉴 항목 — 웹 휴대폰 더보기 폴더처럼 뺀다(components/app-shell/detail-menu.tsx inTabBar: 같은 길이 두 번). 잠기면 주소가 바뀌어 이름 · 그림으로 견준다 */
+const inTabBar = (it: { label: string; icon: string }) => DEFAULT_TABS.some((t) => t.label === it.label && t.icon === it.icon);
 
 export default function MoreScreen() {
   const c = usePalette();
@@ -66,17 +70,21 @@ export default function MoreScreen() {
       </View>
       <ScrollView contentContainerStyle={[{ padding: 16, gap: 20, paddingBottom: inset.bottom + 24 }, READABLE]}>
         <View style={[styles.group, { backgroundColor: c.card }]}>
-          {row('profile', nickname ? `${nickname} · 내 정보` : '내 정보', 'person.crop.circle', () => (router.back(), router.push('/profile' as Href)))}
-          {row('settings', '설정', 'gearshape', () => (router.back(), router.push('/settings' as Href)), false, true)}
+          {/* 웹처럼 더보기를 닫지 않고 그 위로 연다 — 닫으면 더보기로 돌아온다(detail-menu.tsx '휴대폰은 폴더를 닫지 않는다') */}
+          {row('profile', nickname ? `${nickname} · 내 정보` : '내 정보', 'person.crop.circle', () => router.push('/profile' as Href))}
+          {row('settings', '설정', 'gearshape', () => router.push('/settings' as Href), false, true)}
         </View>
-        {groups.map((g, gi) => (
-          <View key={gi} style={{ gap: 6 }}>
-            {g.title ? <Text style={[styles.groupTitle, { color: c.muted }]}>{g.title}</Text> : null}
-            <View style={[styles.group, { backgroundColor: c.card }]}>
-              {g.items.map((it, i) => row(it.href, it.label, ICON[it.icon] ?? 'circle', () => go(it.href), it.locked, i === g.items.length - 1))}
+        {groups
+          .map((g) => ({ ...g, items: g.items.filter((it) => !inTabBar(it)) }))
+          .filter((g) => g.items.length > 0)
+          .map((g, gi) => (
+            <View key={gi} style={{ gap: 6 }}>
+              {g.title ? <Text style={[styles.groupTitle, { color: c.muted }]}>{g.title}</Text> : null}
+              <View style={[styles.group, { backgroundColor: c.card }]}>
+                {g.items.map((it, i) => row(it.href, it.label, ICON[it.icon] ?? 'circle', () => go(it.href), it.locked, i === g.items.length - 1))}
+              </View>
             </View>
-          </View>
-        ))}
+          ))}
       </ScrollView>
     </View>
   );

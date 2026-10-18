@@ -57,6 +57,8 @@ import {
   scaleMacros,
   sumMacros,
   type Food,
+  QUICK_AMOUNTS,
+  stepAmount,
   type MealEntryView,
   type MealKey,
   type RankedFood,
@@ -1643,15 +1645,8 @@ function SearchResults({
 
 /* ─────────────────────────── 양 고르기 ─────────────────────────── */
 
-const QUICK = [0.5, 1, 1.5, 2, 3];
-
-/* − 는 0.25 밑의 양(그램으로 적은 0.1인분 등)을 늘리지 않는다 — 예전에는 0.1 에서 − 를 누르면 0.25 로 커졌다 */
-function stepAmount(amount: number, dir: 1 | -1) {
-  const size = amount < 1 || (amount === 1 && dir === -1) ? 0.25 : 0.5;
-  const next = Math.round((amount + dir * size) / size) * size;
-  const floor = dir === -1 ? Math.min(amount, 0.25) : 0.25;
-  return Math.min(AMOUNT_MAX, Math.max(floor, next));
-}
+/* 빠른 칩 · −/+ 걸음은 lib/nutrition/meta.ts(앱 담기 화면과 같이 쓴다) */
+const QUICK = QUICK_AMOUNTS;
 
 const round20 = (n: number) => Math.round(n * 20) / 20;
 

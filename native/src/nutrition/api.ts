@@ -2,6 +2,8 @@ import { useCallback, useEffect, useSyncExternalStore } from 'react';
 import type { Food, MealEntryView, MealKey } from '@/lib/nutrition/meta';
 import type { PlanContext, PlanItem } from '@/lib/nutrition/meal-plan';
 import type { Place } from '@/lib/nutrition/meal-templates';
+import type { AgeBand } from '@/lib/nutrition/age';
+import type { AvoidKey } from '@/lib/nutrition/diet-prefs';
 import { rpc } from '~/lib/rpc';
 import { cacheEpoch, cacheGet, cacheSet } from '~/lib/store';
 import { call } from '~/pitch/api';
@@ -20,6 +22,9 @@ export type NutritionDay = {
   mine: Food[];
   mfds: boolean;
   mealPlan: { items: PlanItem[]; context: PlanContext } | null;
+  /** 끼니 단백질 목표용 — 이 칸을 모르는 옛 서버 · 폰에 남은 옛 자료는 없다 */
+  ageBand?: AgeBand;
+  avoid?: AvoidKey[];
 };
 type Result = { ok: true } | { ok: false; error: string };
 

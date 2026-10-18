@@ -15,6 +15,8 @@ import { logPrefillOf, unloggedSessions, type LogPrefill, type VelocitySessionVi
 import { loadNutritionDay } from '@/lib/nutrition/load';
 import type { Food, MealEntryView } from '@/lib/nutrition/meta';
 import type { PlanContext, PlanItem } from '@/lib/nutrition/meal-plan';
+import type { AgeBand } from '@/lib/nutrition/age';
+import type { AvoidKey } from '@/lib/nutrition/diet-prefs';
 import { shiftDateKey, toDateKey } from '@/lib/pitch-stats';
 import { loadHomeFeed, loadHomeRings, type HomeRing } from '@/lib/report/home-today';
 import { loadTodayCoreCached } from '@/lib/report/today-data';
@@ -117,6 +119,9 @@ export async function loadAppNutrition(date: string): Promise<
       mfds: boolean;
       /** 그날 짜 둔 식단(먹은 기록과 따로) — 없으면 null */
       mealPlan: { items: PlanItem[]; context: PlanContext } | null;
+      /** 끼니마다 단백질 목표 · 모자랄 때 예시(lib/nutrition/meal-protein.ts mealProtein)에 — 웹 끼니 칸과 같은 값 */
+      ageBand: AgeBand;
+      avoid: AvoidKey[];
     }
   | { ok: false; error: string; to?: string }
 > {
@@ -137,6 +142,8 @@ export async function loadAppNutrition(date: string): Promise<
     mine: day.mine,
     mfds: day.mfds,
     mealPlan: day.mealPlan,
+    ageBand: t.ageBand,
+    avoid: day.prefs.avoid,
   };
 }
 

@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MEALS, amountText, entryMacros, type MealEntryView } from '@/lib/nutrition/meta';
+import { mealProtein } from '@/lib/nutrition/meal-protein';
 import { shiftDateKey } from '@/lib/pitch-stats';
 import { fromWeight, round1, toWeight } from '@/lib/units';
 import { useWeightUnit } from '~/lib/weight-unit';
@@ -147,14 +148,27 @@ export function NutritionTab({ today, bottom, onWebNutrition }: { today: string;
             const list = day.entries.filter((e) => e.meal === meal.key);
             const planned = (day.mealPlan?.items ?? []).filter((p) => p.meal === meal.key && !p.done);
             const kcal = list.reduce((n, e) => n + entryMacros(e).kcal, 0);
-            const protein = list.reduce((n, e) => n + entryMacros(e).protein, 0);
+            /* 끼니 단백질 — 웹 끼니 칸과 같은 계산(목표 · 8할이면 채움 · 모자라면 예시). 나이 띠를 모르는 옛 자료면 목표 없이 */
+            const p = day.ageBand
+              ? mealProtein(meal.key, day.entries, t?.protein ?? 0, day.ageBand, day.avoid ?? [])
+              : null;
+            const protein = p?.protein ?? Math.round(list.reduce((n, e) => n + entryMacros(e).protein, 0));
             return (
               <View key={meal.key} style={[styles.card, { backgroundColor: c.card, gap: 4 }]}>
                 <View style={styles.mealHead}>
                   <Text style={[styles.mealTitle, { color: c.ink }]}>{meal.label}</Text>
-                  <Text style={{ color: c.muted, fontSize: 14, flex: 1 }}>
-                    {list.length ? `${kcalText(kcal)} · 단백질 ${round(protein)}g` : ''}
-                  </Text>
+                  <View style={{ flex: 1, gap: 4 }}>
+                    <Text style={{ color: p?.done ? c.ok : c.muted, fontSize: 14, fontWeight: p?.done ? '600' : '400' }}>
+                      {list.length ? `${kcalText(kcal)} · ` : ''}
+                      {p?.done ? '✓ ' : ''}
+                      {list.length || p?.goal != null ? `단백질 ${protein}${p?.unknown ? '+' : ''}${p?.goal != null ? ` / 목표 ${p.goal}` : ''}g` : ''}
+                    </Text>
+                    {p?.goal != null ? (
+                      <View style={[styles.proteinTrack, { backgroundColor: c.chip }]}>
+                        <View style={{ width: `${Math.min(100, (p.protein / p.goal) * 100)}%`, height: '100%', borderRadius: 2, backgroundColor: p.done ? c.ok : c.sky }} />
+                      </View>
+                    ) : null}
+                  </View>
                   <Pressable
                     accessibilityRole="button"
                     accessibilityLabel={`${meal.label}에 음식 담기`}
@@ -177,6 +191,12 @@ export function NutritionTab({ today, bottom, onWebNutrition }: { today: string;
                     onRemove={() => run(() => removeEntry(date, e.id))}
                   />
                 ))}
+                {p?.tip ? (
+                  <Text style={{ color: c.muted, fontSize: 13, lineHeight: 18, paddingTop: 2 }}>
+                    단백질 <Text style={{ color: c.ink, fontWeight: '600' }}>{p.short}g</Text> 모자라요 · {p.tip.label}(+{p.tip.protein}g)이면{' '}
+                    {p.tip.covers ? '채워요' : '거의 채워요'}
+                  </Text>
+                ) : null}
               </View>
             );
           })
@@ -402,6 +422,7 @@ function EntryRow({
 }
 
 const styles = StyleSheet.create({
+  proteinTrack: { height: 4, borderRadius: 2, overflow: 'hidden' },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 16, padding: 24 },
   head: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   title: { flex: 1, fontSize: 34, fontWeight: '700' },
