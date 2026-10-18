@@ -16,6 +16,7 @@ import { fadeIn } from '~/shell/motion';
 import { Press } from '~/shell/press';
 import { Segmented } from '~/shell/heading';
 import { DateStrip, StripBar } from '~/shell/date-strip';
+import { DateNavButton } from '~/shell/mini-calendar';
 import { PLAN_PLACES, type PlanItem } from '@/lib/nutrition/meal-plan';
 import type { Place } from '@/lib/nutrition/meal-templates';
 import { clearPlan, eatPlan, editEntries, makePlan, saveWeight, useNutritionDay } from './api';
@@ -28,7 +29,8 @@ import { useOnTabActive, useRetapTop } from '~/shell/tab-pager';
  * 담기는 음식 고르기 화면(/nutrition/add — 검색 · 최근 · 내 음식 · 바코드), 식단 짜기는 이 탭 안, 목표 · 통계는 /nutrition/stats. 첫 설정만 웹(onWebNutrition).
  * 날짜는 오늘부터 지난 6주까지 ‹ › 로.
  */
-const BACK_DAYS = 42;
+/* 날짜 띠는 최근 6주, 띠 끝 작은 달력으로 1년 전까지(웹 NUTRITION_BACK_DAYS) */
+const BACK_DAYS = 366;
 
 const round = (n: number) => Math.round(n);
 const kcalText = (n: number) => `${round(n).toLocaleString('ko-KR')}kcal`;
@@ -167,6 +169,15 @@ export function NutritionTab({ today, bottom, onWebNutrition }: { today: string;
               const x = strip.find((y) => y.date === d);
               return <StripBar pct={x && x.target > 0 ? (x.kcal / x.target) * 100 : 0} over={!!x && x.kcal > x.target} selected={selected} />;
             }}
+            end={
+              <DateNavButton
+                date={date}
+                today={today}
+                min={oldest}
+                marked={(k) => (day?.calendar?.[k] ?? 0) > 0}
+                onPick={setDate}
+              />
+            }
           />
         ) : (
           <View style={styles.dateRow}>

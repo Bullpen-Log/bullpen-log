@@ -29,6 +29,7 @@ export type NutritionDay = {
   yesterday?: MealEntryView[];
   /** 제목 밑 날짜 띠(최근 6주) — 옛 서버 · 폰에 남은 옛 자료는 없다 */
   strip?: { date: string; kcal: number; target: number }[];
+  calendar?: Record<string, number>;
   adjust?: number;
   assumed?: string[];
   hasProfile?: boolean;

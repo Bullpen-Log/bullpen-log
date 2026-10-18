@@ -148,6 +148,8 @@ export async function loadAppNutrition(date: string): Promise<
       yesterday: MealEntryView[];
       /** 제목 밑 날짜 띠(최근 6주 · 날마다 먹은 / 목표 kcal) — 웹 WeekStrip */
       strip: { date: string; kcal: number; target: number }[];
+      /** 날짜 고르는 작은 달력의 점 — 날짜 → 그날 담은 음식 수(웹 DateNav calendar) */
+      calendar: Record<string, number>;
       /** 오늘 카드 — 체중 조정 · 짐작한 칸 · 목표를 정했나(웹 TodayCard) */
       adjust: number;
       assumed: string[];
@@ -185,6 +187,7 @@ export async function loadAppNutrition(date: string): Promise<
     checkinAnswers: day.checkinAnswers,
     yesterday: day.yesterday,
     strip: day.strip.map((d) => ({ date: d.date, kcal: d.kcal, target: d.target })),
+    calendar: day.calendar,
     adjust: t.adjust,
     assumed: t.assumed,
     hasProfile: day.hasProfile,

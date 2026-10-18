@@ -17,6 +17,8 @@ import { fromApp, openCheckin } from '~/shell/web-nav';
 import { READABLE } from '~/lib/layout';
 import { useOnTabActive, useRetapTop } from '~/shell/tab-pager';
 import { DateStrip } from '~/shell/date-strip';
+import { DateNavButton } from '~/shell/mini-calendar';
+import { shiftDateKey } from '@/lib/pitch-stats';
 import { AnalysisPill, PageHead } from '~/shell/heading';
 import { Icon, type IconName } from '~/shell/icon';
 
@@ -180,6 +182,7 @@ export function TrainingTab({ today, bottom, onWeb }: { today: string; bottom: n
               </View>
             );
           }}
+          end={<TrainingDateNav today={data.today} />}
         />
       ) : null}
 
@@ -266,6 +269,31 @@ function Card({
       {/* 웹 트레이닝 홈의 드릴 공 줄과 같은 부품(DRILL_THROW_TEXT 문구 · '이미 넣었어요' · '안 적을래요' 닫기 — mechanics.closeDrillThrowNote) */}
       {card.throwNote ? <ThrowNoteCard note={card.throwNote} c={c} /> : null}
     </View>
+  );
+}
+
+/** 띠 끝 달력 — 1년 치 한 날에 점(웹 training/date-nav.tsx · training-days.trainingMarkedDays, 열 때 한 번 받는다), 고르면 그날 기록 */
+let markedDays: Set<string> | null = null;
+function TrainingDateNav({ today }: { today: string }) {
+  const [, bump] = useState(0);
+  useEffect(() => {
+    if (markedDays) return;
+    void rpc<string[]>('training-days.trainingMarkedDays').then(
+      (days) => {
+        markedDays = new Set(days);
+        bump((n) => n + 1);
+      },
+      () => undefined
+    );
+  }, []);
+  return (
+    <DateNavButton
+      date={today}
+      today={today}
+      min={shiftDateKey(today, -366)}
+      marked={(d) => markedDays?.has(d) ?? false}
+      onPick={(d) => (d === today ? router.push({ pathname: '/training-today' as Href as never, params: { today } }) : router.push(`/training/day/${d}` as Href))}
+    />
   );
 }
 
