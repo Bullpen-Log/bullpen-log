@@ -96,7 +96,8 @@ export const allExercises = unstable_cache(
   /* :v37 — 2026-10-17 촬영 영상 52개를 다듬은 판(앞뒤 빈 시간 · 작은 사람)으로 경로 바꿈(scripts/shoot-trim/apply.mjs). */
   /* :v38 — 2026-10-18 직접 찍은 영상과 어긋난 운동 43개의 설명 · 도구 · 좌우 · 버티기/횟수를 영상대로 고침. */
   /* :v39 — 같은 날 제목이 영상과 다른 넷(케이블 → 덤벨 셋 · TRX 로테이션) · 바텀업 캐리 설명을 영상대로. */
-  ['library:exercises:v39'],
+  /* :v40 — 2026-10-18 회전 운동 셋(케이블 와이드 스탠스 로테이션 · TRX 로테이션 · 케이블 안티 로테이션 홀드)을 좌우 따로로. */
+  ['library:exercises:v40'],
   { tags: [LIBRARY_TAG] }
 );
 

@@ -3676,14 +3676,14 @@ console.log('\n[워밍업] 일정에 워밍업을 안 넣는가');
    *
    * 예전에는 이것들이 워밍업 구간으로만 들어갈 수 있었다. 워밍업을 없애면서
    * 거르개를 같이 걷어내지 않으면, 어느 구간에도 못 들어가 영영 안 나온다.
-   * 암케어는 뺀다 — 일정이 아니라 암케어 화면에서 쓴다(아래 5번).
+   * 암케어는 뺀다 — 일정이 아니라 암케어 화면에서 쓴다(아래 5번). '나중에 촬영'(일부러 일정에서 뺀 것, 2026-10-14) ·
+   * '워밍업'(워밍업 루틴에서만 쓴다)도 뺀다 — 2026-10-18 '1/7' 실패는 이 여섯이었다.
    */
   {
     const veryLow = library.filter(
       (ex) =>
         ex.intensity === '매우 낮음' &&
-        ex.category !== '모빌리티' &&
-        ex.category !== '암케어'
+        !['모빌리티', '암케어', '나중에 촬영', '워밍업'].includes(ex.category)
     );
     const reachable = veryLow.filter((ex) =>
       compositionFor('assist', DEFAULT_GOAL).some((sp) =>
@@ -19943,21 +19943,23 @@ console.log(
         [...new Set(library.flatMap((e) => e.equipment))],
         null
       );
+      /* 531 둘째 날의 메디신볼은 2026-10-16(84120a40) 빠졌다 — 메디신볼이 남은 웨스트사이드 셋째 날(메디신볼 · 플라이오 푸시업)로 본다 */
+      const medDay = parseProgram('ws4sb')!;
       const day2 = (p: RP) => {
         const f = rFacts(p);
         const input = { facts: f, plan: buildPitchPlan(f), library, partsOnly: true };
         const safe = new Set(selectCandidates(input).candidates.map((e) => e.id));
         const slots = painSlotsOf(
-          programDayPlan(program, 2).items,
+          programDayPlan(medDay, 3).items,
           (v) => (realPinned[v] ? { id: realPinned[v] } : null),
           safe,
           droppedOnlyForArmFatigue(input)
         );
         return {
           slots,
-          decision: decideToday(program, {
+          decision: decideToday(medDay, {
             ...baseSig,
-            nextDay: 2,
+            nextDay: 3,
             painSlots: slots.painSlots,
             slotReasons: slots.slotReasons,
           }),
@@ -19967,7 +19969,7 @@ console.log(
       const calm = day2({ armFatigue: 3 });
       const reasons = Object.values(sev.slots.slotReasons);
       check(
-        "검토 (마) 실제 표 · 531 둘째 날 — 팔 피로 '심함'이면 메디신볼 칸이 '대체 · 팔 피로'(통증 부위 아님), '보통'이면 대체 없음",
+        "검토 (마) 실제 표 · 웨스트사이드 셋째 날 — 팔 피로 '심함'이면 메디신볼 칸이 '대체 · 팔 피로'(통증 부위 아님), '보통'이면 대체 없음",
         sev.slots.painSlots.includes('power') &&
           reasons.length > 0 &&
           reasons.every((r) => r === SUBSTITUTE_REASON.armFatigue) &&
@@ -27517,12 +27519,13 @@ console.log(
       (_, i) => programDaySlotsOf('stronglifts-5x5', i + 1)?.heavyLower === true
     ).every(Boolean);
     const press = programDaySlotsOf('531', 2);
+    /* 531 밀기 날의 준비 메디신볼은 2026-10-16(84120a40) 뺐다 — 큰 하체도 팔 던지기도 없는 날 */
     check(
-      `P6-1 (가) 프로그램 일차 칸 — ${programs}개 프로그램 · ${days}일차가 dayPlan 과 같다(큰 하체 ${heavyDays} · 없음 ${lightDays} · 팔 던지기 든 날 ${armDays}), 스트롱리프트는 매일 큰 하체, 5/3/1 2일차(밀기)는 큰 하체 없이 메디신볼`,
+      `P6-1 (가) 프로그램 일차 칸 — ${programs}개 프로그램 · ${days}일차가 dayPlan 과 같다(큰 하체 ${heavyDays} · 없음 ${lightDays} · 팔 던지기 든 날 ${armDays}), 스트롱리프트는 매일 큰 하체, 5/3/1 2일차(밀기)는 큰 하체 · 팔 던지기 없음`,
       bad.length === 0 &&
         slEvery &&
         press?.heavyLower === false &&
-        press.armThrows.join() === 'medball' &&
+        press.armThrows.length === 0 &&
         heavyDays > 0 &&
         lightDays > 0 &&
         armDays > 0 &&
@@ -27539,10 +27542,10 @@ console.log(
     );
     const throwEx = library.find((e) => isArmPlyo(e));
     const jumpEx = library.find((e) => e.category === '파워' && !isArmPlyo(e));
-    const asJump = programDaySlotsOf('531', 2, (v) =>
+    const asJump = programDaySlotsOf('basics-4w', 1, (v) =>
       v === 'medball' ? jumpEx : null
     );
-    const asThrow = programDaySlotsOf('531', 2, (v) =>
+    const asThrow = programDaySlotsOf('basics-4w', 1, (v) =>
       v === 'medball' ? throwEx : null
     );
     check(
@@ -28971,27 +28974,29 @@ console.log(
       logs: [{ daysAgo: 0, pitches: 40, intensity: 9, sessionType: '불펜' }],
       today: {},
     };
+    /* 메디신볼 · 플라이오 푸시업이 든 날 — 531 2일차의 메디신볼이 2026-10-16(84120a40) 빠져 웨스트사이드 셋째 날로 */
     const run = (o: Partial<Run> = {}): Run => ({
-      key: '531',
-      nextDay: 2,
+      key: 'ws4sb',
+      nextDay: 3,
       lastDoneDate: sKey(3),
       lastLowerKey: null,
       override: false,
       ...o,
     });
+    const ARM_DAY_DEFER = ['medball', 'plyoPush'];
     const a = cardAndArbiter(hardPen, run());
     const a2 = cardAndArbiter(hardPen, run({ override: true }));
     check(
-      "P6-2 (다) A 오늘 불펜 40구 90% + 5/3/1 2일차(메디신볼) — 카드는 쉬는 날('오늘 많이 던졌어요'), 넘기면 하는 날에 메디신볼만 빼고 주의 '팔 아낌', 중재는 같은 날 프로그램 날 · 같은 변형을 뺀다",
+      "P6-2 (다) A 오늘 불펜 40구 90% + 웨스트사이드 3일차(메디신볼 · 플라이오 푸시업) — 카드는 쉬는 날('오늘 많이 던졌어요'), 넘기면 하는 날에 메디신볼만 빼고 주의 '팔 아낌', 중재는 같은 날 프로그램 날 · 같은 변형을 뺀다",
       a.decision.kind === 'rest' &&
         a.decision.reason === 'hardToday' &&
         restTextOf(a.decision.reason) === '오늘 많이 던졌어요' &&
         a.r.program?.role === 'none' &&
         a2.decision.kind === 'go' &&
-        same(a2.decision.deferVariants, ['medball']) &&
+        same(a2.decision.deferVariants, ARM_DAY_DEFER) &&
         a2.decision.caution === 'armRest' &&
         a2.r.program?.role === 'owns' &&
-        same(a2.r.programAdjust.deferVariants, ['medball']) &&
+        same(a2.r.programAdjust.deferVariants, ARM_DAY_DEFER) &&
         a2.r.deferred.some(
           (x) => x.key === 'programVariant' && x.variant === 'medball'
         ),
@@ -29052,17 +29057,17 @@ console.log(
      * 오늘 프로그램 판을 연 뒤 세게 던진 불펜을 적은 날 — 그날은 프로그램 것이라 쉬라고 하지 않는다(중재 fromSession 과 같은 규칙). 팔 예산은
      * 그대로라 메디신볼은 뺀다(얼린 판은 그대로 — 카드 목록만).
      */
-    const f = cardAndArbiter(hardPen, run({ session: { state: 'active', day: 2 } }));
+    const f = cardAndArbiter(hardPen, run({ session: { state: 'active', day: 3 } }));
     const fRec = cardAndArbiter(
       { name: "오늘 '회복' 고름", today: { preferredWorkout: '회복' } },
-      run({ session: { state: 'finished', day: 2 }, nextDay: 3 })
+      run({ session: { state: 'finished', day: 3 }, nextDay: 4 })
     );
     check(
       "P6-2 (다) E 오늘 프로그램 판이 있는 날 — 세게 던진 불펜 · '회복' 고름을 뒤에 적어도 카드는 쉬라고 하지 않고(중재도 오늘 판으로 프로그램 날), 팔 예산은 그대로 메디신볼을 뺀다",
       !f.made.signals.hardToday &&
         f.made.signals.armSpent &&
         f.decision.kind === 'go' &&
-        same(f.decision.deferVariants, ['medball']) &&
+        same(f.decision.deferVariants, ARM_DAY_DEFER) &&
         f.r.program?.role === 'owns' &&
         f.r.program.roleWhy === 'session' &&
         !fRec.made.signals.choseRecovery &&
@@ -30313,10 +30318,11 @@ console.log(
         ),
       slot.join(' · ')
     );
-    const home = strip('app/(app)/training/training-home.tsx');
+    /* 카드 판정은 2026-10-18(0126c867) lib/report/training-home-data.ts 로 옮겼다 — 웹 카드 · 아이폰 앱이 같이 쓴다 */
+    const home = strip('lib/report/training-home-data.ts');
     const card = home.slice(
-      home.indexOf('async function WorkoutCard'),
-      home.indexOf('async function ArmcareCard')
+      home.indexOf('export async function workoutCardData'),
+      home.indexOf('export async function armcareCardData')
     );
     const order = [
       "session?.status === 'FINISHED'",
@@ -30335,9 +30341,9 @@ console.log(
           card
         ) &&
         /buildProgramDay\(core, programRow, user\)/.test(card) &&
-        /<StartWorkout compact program resume=\{active\} \/>/.test(card) &&
-        /* P6 로 바뀜(P6-6) — 상태 바뀜 카드(주의 색 한 줄)도 [시작]을 그대로 둬 셋째 시작 단추가 생겼다(알림은 다시 만들기를 권할 뿐) */
-        card.split('<StartWorkout').length === 4,
+        /* 프로그램 날 [시작] = 프로그램 운동 시작(program: true), 상태 바뀜 · 보통 카드는 매일 일정 시작 — 세 시작 단추 */
+        /action: canStart \? \{ kind: 'workout', program: true, resume: active \} : null,/.test(card) &&
+        card.split("kind: 'workout'").length === 4,
       order.join(' · ')
     );
     const start = strip('app/(app)/training/start-workout.tsx');
@@ -30504,14 +30510,15 @@ console.log(
         .replace(/^\s*\/\/.*$/gm, '');
     const load = strip('lib/mechanics/load.ts');
     const play = strip('app/(session)/mechanics/play/page.tsx');
+    const playLoad = strip('lib/mechanics/play-load.ts');
     const player = strip('app/(session)/mechanics/play/mechanics-player.tsx');
     const action = strip('app/actions/mechanics.ts');
     const finish = action.slice(
       action.indexOf('export async function finishMechanicsSession')
     );
     const card = strip('app/(app)/training/mechanics-program.tsx');
-    const home = strip('app/(app)/training/training-home.tsx');
-    const homeCard = home.slice(home.indexOf('async function MechanicsCard'));
+    const home = strip('lib/report/training-home-data.ts');
+    const homeCard = home.slice(home.indexOf('export async function mechanicsCardData'));
     const dayState = strip('lib/engine/day-state.ts');
     const arbiter = strip('lib/engine/arbiter.ts');
     const rows: [string, boolean][] = [
@@ -30524,19 +30531,21 @@ console.log(
           ) &&
           /select: \{ ownedEquipment: true, birthDate: true \}/.test(load) &&
           /painFold: mechanicsFoldOf\(\{/.test(load) &&
-          /painFold: null \}/.test(load),
+          /painFold: null(, throwNote: null)? \}/.test(load),
       ],
       [
         '따라 하기 — ?anyway=1 이 아니면(또는 못 펼치는 날이면) playItemsFor 가 무브먼트만, 비면 프로그램 칸으로, 시작 자리는 resumeAt',
-        /\.anyway === '1' && painFold\?\.canUnfold !== false/.test(play) &&
-          /playItemsFor\(session, painFold, anyway\)/.test(play) &&
-          /if \(items\.length === 0\) redirect\(BACK\)/.test(play) &&
-          /startAt=\{resumeAt\(items, done\)\}/.test(play) &&
-          /partial=\{partial\}/.test(play),
+        /* 2026-10-18(3a266d6c) 판정이 lib/mechanics/play-load.ts 로 — 웹 페이지 · 아이폰 앱이 같이 쓴다 */
+        /anywayParam === '1' && painFold\?\.canUnfold !== false/.test(playLoad) &&
+          /playItemsFor\(session, painFold, anyway\)/.test(playLoad) &&
+          /items\.length === 0/.test(playLoad) &&
+          /startAt: resumeAt\(items, done\)/.test(playLoad) &&
+          /startAt=\{play\.startAt\}/.test(play) &&
+          /partial=\{play\.partial\}/.test(play),
       ],
       [
         '마치기 — 반만 마치면 진행 · 세션 수 · 마친 날을 그대로(update 앞에서 돌아감), 다 마치면 finishState',
-        /finishMechanicsSession\(\{ partial \}\)/.test(player) &&
+        /finishMechanicsSession\(\{ partial(, session: sessionNumber)? \}\)/.test(player) &&
           /opts\?\.partial === true/.test(finish) &&
           finish.indexOf('opts?.partial === true') <
             finish.indexOf('prisma.mechanicsProgram.update') &&
@@ -31007,10 +31016,10 @@ console.log(
         .replace(/\/\*[\s\S]*?\*\//g, '')
         .replace(/^\s*\/\/.*$/gm, '');
     const page = strip('app/(app)/training/training-page.tsx');
-    const home = strip('app/(app)/training/training-home.tsx');
+    const home = strip('lib/report/training-home-data.ts');
     const homeCard = home.slice(
-      home.indexOf('async function WorkoutCard'),
-      home.indexOf('async function ArmcareCard')
+      home.indexOf('export async function workoutCardData'),
+      home.indexOf('export async function armcareCardData')
     );
     const band = strip('app/(app)/training/state-notice-band.tsx');
     const today = strip('lib/report/today-data.ts');
@@ -31050,7 +31059,7 @@ console.log(
           at(homeCard, 'stateNoticeOf(core.stateChanges') <
             at(homeCard, 'count === 0') &&
           /notice\.kind === 'remake' && notice\.canRemake/.test(homeCard) &&
-          /status=\{STATE_NOTICE_TEXT\.home\}/.test(homeCard) &&
+          /card\('today', STATE_NOTICE_TEXT\.home,/.test(homeCard) &&
           /session: session\?\.status === 'ACTIVE' \? 'active' : 'none'/.test(homeCard),
       ],
       [
