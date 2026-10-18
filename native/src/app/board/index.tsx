@@ -1,7 +1,7 @@
 import { SymbolView } from 'expo-symbols';
 import { type Href, router } from 'expo-router';
 import { useState } from 'react';
-import { FlatList, RefreshControl, Text, View } from 'react-native';
+import { FlatList, Pressable, RefreshControl, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { loadAppBoard } from '@/app/actions/board';
 import { Bar, BarButton, LoadState, Row, s, useLoad } from '~/community/parts';
@@ -80,9 +80,15 @@ export default function BoardScreen() {
           ListEmptyComponent={
             <View style={{ alignItems: 'center', gap: 6, paddingTop: 48 }}>
               <Text style={{ color: c.ink, fontSize: 17, fontWeight: '600' }}>아직 등록된 자료가 없어요</Text>
-              <Text style={{ color: c.muted, fontSize: 15, textAlign: 'center' }}>
-                {data.canWrite ? '첫 번째 자료를 올려 보세요.' : '투구 역학과 트레이닝 자료가 올라오면 여기에 보여요.'}
+              <Text style={{ color: c.muted, fontSize: 15, textAlign: 'center', lineHeight: 21, paddingHorizontal: 24 }}>
+                {data.canWrite ? '첫 번째 자료를 올려 보세요. 참고한 링크와 함께 요약을 남기면 좋아요.' : '투구 역학과 트레이닝 자료가 올라오면 여기에 보여요.'}
               </Text>
+              {/* 웹 board/page.tsx 빈 칸의 [첫 글 쓰기](글을 쓸 수 있는 사람만) */}
+              {data.canWrite ? (
+                <Pressable accessibilityRole="button" onPress={() => router.push('/board/new' as Href)} style={[s.pill, { marginTop: 12, backgroundColor: c.chip }]}>
+                  <Text style={{ color: c.ink, fontSize: 15, fontWeight: '600' }}>첫 글 쓰기</Text>
+                </Pressable>
+              ) : null}
             </View>
           }
         />
