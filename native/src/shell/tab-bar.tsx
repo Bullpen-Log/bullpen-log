@@ -4,7 +4,7 @@ import { GlassView, isLiquidGlassAvailable } from 'expo-glass-effect';
 import { useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
-import Animated, { runOnJS, useAnimatedStyle, useSharedValue, withDelay, withSequence, withSpring } from 'react-native-reanimated';
+import Animated, { Easing, runOnJS, useAnimatedStyle, useReducedMotion, useSharedValue, withDelay, withSequence, withSpring, withTiming } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { usePalette, useTheme } from '~/lib/ui';
 import { Icon, type IconName } from '~/shell/icon';
@@ -69,6 +69,7 @@ export function TabBar({ tabs, active, onPress }: { tabs: ShellTab[]; active: st
   const index = Math.max(0, tabs.findIndex((t) => t.href === active));
   const showLens = tabs.some((t) => t.href === active);
   const [width, setWidth] = useState(0);
+  const [spin, setSpin] = useState(0);
   const cell = width > 0 ? (width - PAD * 2) / Math.max(1, tabs.length) : 0;
 
   const pos = useSharedValue(index);
@@ -165,6 +166,8 @@ export function TabBar({ tabs, active, onPress }: { tabs: ShellTab[]; active: st
               if (!on) lift.set(withSpring(0, LIFT_SPRING));
             }}
             onPress={() => {
+              /* 더보기를 열면 네모 넷이 차례로 반 바퀴(웹 glyphs Squares animate-square-spin) */
+              if (t.icon === 'menu') setSpin((n) => n + 1);
               /* 떨림은 탭을 옮길 때만(웹 mobile-tabs) — 지금 탭을 다시 누르면 맨 위로 굴린다 */
               if (!on) void Haptics.selectionAsync();
               else emitRetap();
@@ -173,7 +176,7 @@ export function TabBar({ tabs, active, onPress }: { tabs: ShellTab[]; active: st
             style={({ pressed }) => [styles.item, t.locked && { opacity: 0.55 }, pressed && { transform: [{ scale: 0.94 }] }]}
           >
             <View>
-              <Icon name={GLYPH[t.icon] ?? 'house'} size={26} color={color} />
+              {t.icon === 'menu' ? <SpinSquares color={color} spin={spin} /> : <Icon name={GLYPH[t.icon] ?? 'house'} size={26} color={color} />}
               {/* 잠긴 탭 — 그림 오른쪽 아래 12px 자물쇠(웹 glyphs NavGlyph) */}
               {t.locked ? (
                 <View style={[styles.lockBadge, { backgroundColor: col.lens }]}>
@@ -227,3 +230,36 @@ const styles = StyleSheet.create({
   item: { flex: 1, height: ITEM_H, alignItems: 'center', justifyContent: 'center', gap: 2, paddingTop: 2, borderRadius: 999 },
   label: { fontSize: 10 },
 });
+
+/**
+ * 더보기의 네모 넷 — 열 때마다 각자 제자리에서 반 바퀴, 왼위 → 오른위 → 왼아래 → 오른아래 차례로 45ms 씩 늦게(420ms).
+ * 웹 components/app-shell/glyphs.tsx Squares 와 같은 크기 비율(칸 18.4 · 네모 7.2 · 선 1.9).
+ */
+const SQ_AT = [
+  { left: 0, top: 0 },
+  { right: 0, top: 0 },
+  { left: 0, bottom: 0 },
+  { right: 0, bottom: 0 },
+] as const;
+function SpinSquares({ color, spin }: { color: string; spin: number }) {
+  return (
+    <View style={{ width: 26, height: 26, alignItems: 'center', justifyContent: 'center' }}>
+      <View style={{ width: 18.4, height: 18.4 }}>
+        {SQ_AT.map((at, i) => (
+          <Square key={i} at={at} i={i} color={color} spin={spin} />
+        ))}
+      </View>
+    </View>
+  );
+}
+function Square({ at, i, color, spin }: { at: (typeof SQ_AT)[number]; i: number; color: string; spin: number }) {
+  const r = useSharedValue(0);
+  const reduce = useReducedMotion();
+  useEffect(() => {
+    if (!spin || reduce) return;
+    r.set(0);
+    r.set(withDelay(i * 45, withTiming(180, { duration: 420, easing: Easing.bezier(0.22, 1, 0.36, 1) })));
+  }, [spin, i, r, reduce]);
+  const style = useAnimatedStyle(() => ({ transform: [{ rotate: `${r.get()}deg` }] }));
+  return <Animated.View style={[{ position: 'absolute', width: 7.2, height: 7.2, borderRadius: 2, borderWidth: 1.9, borderColor: color }, at, style]} />;
+}
