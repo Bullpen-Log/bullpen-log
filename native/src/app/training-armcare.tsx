@@ -90,7 +90,7 @@ function TodayTab({ data, fresh, reload, c }: { data: AppArmcareTodayTab; fresh:
           <RehabCard rehab={custom.rehab} dateKey={data.dateKey} c={c} />
         ) : custom.kind === 'checkin' ? (
           <View style={[s.card, { backgroundColor: c.card }]}>
-            <Text style={[s.bodyBold, { color: c.ink, fontSize: 17 }]}>오늘 체크인을 먼저 남겨주세요</Text>
+            <Text style={[s.bodyBold, { color: c.ink, fontSize: 17 }]}>오늘 체크인을 먼저 남겨 주세요</Text>
             <Text style={[s.body, { color: c.muted }]}>30초면 돼요. 몸 상태를 보고 루틴을 짜요.</Text>
             <Pressable
               onPress={() => openCheckin('/training?view=home')}

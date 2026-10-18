@@ -96,7 +96,7 @@ export default function PitchDayScreen() {
         </Text>
         {future ? (
           <Text style={[styles.well, { color: c.muted, backgroundColor: withAlpha(c.chip, 0.5) }]}>
-            앞으로 올 날짜에는 기록할 수 없어요.{'\n'}던지고 나서 그날 또는 그 뒤에 남겨주세요.
+            앞으로 올 날짜에는 기록할 수 없어요.{'\n'}던지고 나서 그날 또는 그 뒤에 남겨 주세요.
           </Text>
         ) : null}
         {arm ? <ArmChip c={c} status={arm} /> : null}
