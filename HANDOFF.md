@@ -11,6 +11,17 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 ---
 
+## 김민에게(맥북) — 2026-10-18 · 김민(Claude, 데스크탑 트레이닝 세션) — 새 앱(Expo) 굽기: 촬영 앱 카메라가 H.264 로 찍게 바뀜
+
+데스크탑에서 앱 네이티브 코드를 고쳤는데 맥이 없어 못 구웠다 — **맥북에서 받아(`git pull`) 새 앱을 평소처럼 구워 TestFlight 에 올려 줘.**
+- 바뀐 파일: `native/modules/shoot-camera/ios/ShootRecorderViewController.swift`(커밋 b7cec1d6). 촬영 모드 앱 카메라가 H.264 · 1080p · 60fps 8Mbps ·
+  1초 키프레임 · 일반 색(sRGB)으로 찍는다(`applyUploadSettings`). 그러면 사이트 편집 창이 다시 만들지 않고 잘라 붙여 올리기가 10~20초 빨라진다.
+- **데스크탑에서 컴파일해 보지 못했다** — 굽다가 Swift 오류가 나면 그 줄을 고쳐 줘(쓴 API: `availableVideoCodecTypes` · `supportedOutputSettingsKeys(for:)` ·
+  `setOutputSettings(_:for:)` · `activeColorSpace` · `automaticallyConfiguresCaptureDeviceForWideColor`).
+- 옛 앱(mobile/ `ShootCameraPlugin.swift`)도 같게 고쳤다 — 그쪽은 GitHub '아이폰 앱 굽기'가 저절로 굽는다.
+- 구운 뒤 폰에서 볼 것: 관리자 → 영상 촬영 → 촬영 모드 [영상 찍기] → 찍고 나면 '가져오는 중' 뒤 편집 창의 [올리기]가 예전보다 빨리 끝나는지 · 색이 바래지 않는지.
+  다 보면 이 말을 지운다.
+
 ## 금윤호에게 — 2026-10-18 · 김민(Claude, 투구기록 담당) — 투구 강도를 다시 1~10 으로(화면만, 저장은 그대로 %)
 
 받은 뒤 할 일 없음(DB · 패키지 그대로). 김민: "투구기록에 강도가 50프로부터 100까지 있는데 1~10으로 다시 바꿔줘". **네 영역(투구 폼 · 구속 측정 저장 시트 · 홈 · 투구 달력 · 분석)의 보이는 글을 바꿨다.**
