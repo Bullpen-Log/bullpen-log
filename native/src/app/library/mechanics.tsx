@@ -2,11 +2,11 @@ import { type Href, router } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, RefreshControl, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { LATER_CATEGORY } from '@/lib/categories';
-import { DRILL_STAGE_NAMES, FOCUS_POINTS } from '@/lib/exercise-meta';
+import { LATER_CATEGORY, MECHANICS_CATEGORY_NAMES } from '@/lib/categories';
+import { DRILL_EQUIPMENT, DRILL_STAGE_NAMES, FOCUS_POINTS } from '@/lib/exercise-meta';
 import { matchesSearch } from '@/lib/korean';
 import { Bar } from '~/community/parts';
-import { ChipRow, DRILL_LIST, FoldHead, ItemRow, SearchField, recall, remember, type Drill, WarmupLink } from '~/library/parts';
+import { ChipRow, DRILL_LIST, FilterSheet, filterChips, filterCount, matchesFilter, FoldHead, ItemRow, SearchField, recall, remember, type Drill, WarmupLink } from '~/library/parts';
 import { usePalette } from '~/lib/ui';
 import { useScreenData } from '~/training/screen';
 import { READABLE } from '~/lib/layout';
@@ -17,8 +17,15 @@ import { READABLE } from '~/lib/layout';
  *
  * 웹과 같은 칸: 투구 차례의 여섯 요소(주 요소 기준) → 근력 · 안정 → 요소 미정 → 나중에 촬영. 요소 칩을 고르면 보조로 걸린 드릴까지 나오고
  * 주 요소인 것 · 기초 단계가 앞에 선다(웹 matched 와 같은 차례). 관리자의 등록 · 수정은 웹에서 한다.
- * ponytail: 거르기는 즐겨찾기 · 요소만 — 웹의 단계 · 종류 · 장비 거르기는 뺐다. 찾는 사람이 생기면 칩 줄에 더한다.
+ * 거르기는 웹 MetaFilter 와 같다 — [★ 즐겨찾기] 옆 [필터] 시트에서 요소 · 단계 · 종류 · 장비.
  */
+const FILTER_GROUPS = [
+  { key: 'focusPoints', label: '요소', options: FOCUS_POINTS },
+  { key: 'stage', label: '단계', options: DRILL_STAGE_NAMES },
+  { key: 'category', label: '종류', options: MECHANICS_CATEGORY_NAMES.filter((x) => x !== LATER_CATEGORY) },
+  { key: 'equipment', label: '장비', options: DRILL_EQUIPMENT },
+];
+const EMPTY_FILTER: Record<string, string[]> = { focusPoints: [], stage: [], category: [], equipment: [] };
 const STRENGTH_CATEGORY = '근력 · 안정 드릴';
 const NO_FOCUS = '요소 미정';
 const SECTIONS = [...FOCUS_POINTS, STRENGTH_CATEGORY, NO_FOCUS, LATER_CATEGORY];
@@ -33,7 +40,9 @@ export default function DrillLibraryScreen() {
   const state = useScreenData<{ drills: Drill[] }>(DRILL_LIST, '', 'library:drills');
   const [query, setQuery] = useState('');
   const [onlyFav, setOnlyFav] = useState(false);
-  const [points, setPoints] = useState<string[]>([]);
+  const [filter, setFilter] = useState(EMPTY_FILTER);
+  const [sheet, setSheet] = useState(false);
+  const points = filter.focusPoints;
   const [open, setOpen] = useState<ReadonlySet<string>>(new Set());
 
   const data = state.data;
@@ -43,18 +52,18 @@ export default function DrillLibraryScreen() {
     return data.drills.map((g) => recall<Drill>(g.id) ?? g);
   }, [data]);
   const favCount = drills.filter((g) => g.favorite).length;
-  const filtering = query.trim() !== '' || onlyFav || points.length > 0;
+  const filtering = query.trim() !== '' || onlyFav || filterCount(filter) > 0;
   const matched = useMemo(() => {
     const hits = drills.filter(
       (g) =>
         (!onlyFav || g.favorite) &&
-        (points.length === 0 || points.some((p) => g.focusPoints.includes(p))) &&
+        matchesFilter(filter, { focusPoints: g.focusPoints, stage: g.stage ? [g.stage] : [], category: [g.category], equipment: g.equipment }) &&
         (matchesSearch(g.title, query) || matchesSearch(g.category, query))
     );
     /* 고른 요소가 주 요소인 드릴 먼저, 같으면 기초 → 연결 → 통합(웹과 같다) */
     const rank = (g: Drill) => (points.length > 0 && !points.includes(g.focusPoints[0]) ? 10 : 0) + stageRank(g);
     return hits.sort((a, b) => rank(a) - rank(b) || a.sortOrder - b.sortOrder);
-  }, [drills, onlyFav, points, query]);
+  }, [drills, onlyFav, filter, points, query]);
   const bySection = useMemo(() => {
     const m = new Map<string, Drill[]>();
     for (const g of drills) m.set(sectionOf(g), [...(m.get(sectionOf(g)) ?? []), g]);
@@ -73,12 +82,7 @@ export default function DrillLibraryScreen() {
 
   const chips = [
     ...(favCount > 0 ? [{ key: 'fav', label: `★ 즐겨찾기 ${favCount}`, on: onlyFav, onPress: () => setOnlyFav((v) => !v) }] : []),
-    ...FOCUS_POINTS.map((p) => ({
-      key: p,
-      label: p,
-      on: points.includes(p),
-      onPress: () => setPoints((prev) => (prev.includes(p) ? prev.filter((x) => x !== p) : [...prev, p])),
-    })),
+    ...filterChips(FILTER_GROUPS, filter, setFilter, () => setSheet(true)),
   ];
 
   return (
@@ -88,6 +92,7 @@ export default function DrillLibraryScreen() {
         <SearchField value={query} onChange={setQuery} placeholder="드릴 이름으로 찾기" c={c} />
         <ChipRow chips={chips} c={c} />
       </View>
+      <FilterSheet open={sheet} onClose={() => setSheet(false)} groups={FILTER_GROUPS} value={filter} onChange={setFilter} resultCount={filtering ? matched.length : null} c={c} />
       {!data ? (
         state.failed ? (
           <View style={{ padding: 24, gap: 16, alignItems: 'center' }}>
@@ -115,7 +120,7 @@ export default function DrillLibraryScreen() {
                 onPress={() => {
                   setQuery('');
                   setOnlyFav(false);
-                  setPoints([]);
+                  setFilter(EMPTY_FILTER);
                 }}
                 hitSlop={8}
               >

@@ -7,6 +7,7 @@ import type { LibraryExercise } from '@/lib/library-load';
 import type { GuideItem } from '@/app/(app)/library/mechanics/mechanics-client';
 import { act } from '~/mechanics/parts';
 import type { Palette } from '~/lib/ui';
+import { Sheet } from '~/workout/sheets';
 
 /**
  * 라이브러리 앱 화면(native/src/app/library — 운동 영상 · 투구 드릴 목록과 상세)이 같이 쓰는 조각 — 받은 목록 기억 · 줄 · 찾기 칸 · 칩 · 별.
@@ -194,6 +195,8 @@ export function Tags({ items: list, c }: { items: string[]; c: Palette }) {
 }
 
 export const st = StyleSheet.create({
+  foot: { height: 50, borderRadius: 25, paddingHorizontal: 20, alignItems: 'center', justifyContent: 'center' },
+  opt: { minHeight: 40, borderRadius: 20, paddingHorizontal: 16, justifyContent: 'center' },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, paddingVertical: 10, minHeight: 64 },
   first: { borderTopLeftRadius: 14, borderTopRightRadius: 14 },
   last: { borderBottomLeftRadius: 14, borderBottomRightRadius: 14 },
@@ -223,5 +226,96 @@ export function WarmupLink({ c }: { c: Palette }) {
       </View>
       <SymbolView name="chevron.right" size={13} weight="semibold" tintColor={c.muted} />
     </Pressable>
+  );
+}
+
+/* ----------------------------- 필터(웹 components/meta-filter.tsx) ----------------------------- */
+
+export type FilterGroup = { key: string; label: string; options: readonly string[] };
+export type FilterState = Record<string, string[]>;
+export const filterCount = (f: FilterState) => Object.values(f).reduce((n, v) => n + v.length, 0);
+/** 묶음 안은 하나라도, 묶음끼리는 모두(웹 matchesFilter) */
+export const matchesFilter = (f: FilterState, fields: Record<string, string[]>) =>
+  Object.entries(f).every(([key, chosen]) => chosen.length === 0 || chosen.some((x) => (fields[key] ?? []).includes(x)));
+
+/** 칩 줄의 [필터 n] + 고른 조건 칩(누르면 그 조건만 끔) */
+export function filterChips(groups: readonly FilterGroup[], f: FilterState, set: (f: FilterState) => void, openSheet: () => void) {
+  const n = filterCount(f);
+  return [
+    { key: 'filter', label: n > 0 ? `필터 ${n}` : '필터', on: n > 0, onPress: openSheet },
+    ...groups.flatMap((g) =>
+      (f[g.key] ?? []).map((v) => ({ key: `${g.key}:${v}`, label: `${v} ✕`, on: true, onPress: () => set({ ...f, [g.key]: f[g.key].filter((x) => x !== v) }) }))
+    ),
+  ];
+}
+
+/** 조건 고르기 시트 — 묶음마다 칩, 아래 [모두 지우기][N개 보기] */
+export function FilterSheet({
+  open,
+  onClose,
+  groups,
+  value,
+  onChange,
+  resultCount,
+  c,
+}: {
+  open: boolean;
+  onClose: () => void;
+  groups: readonly FilterGroup[];
+  value: FilterState;
+  onChange: (f: FilterState) => void;
+  resultCount: number | null;
+  c: Palette;
+}) {
+  const n = filterCount(value);
+  const toggle = (key: string, v: string) => {
+    void Haptics.selectionAsync();
+    const cur = value[key] ?? [];
+    onChange({ ...value, [key]: cur.includes(v) ? cur.filter((x) => x !== v) : [...cur, v] });
+  };
+  return (
+    <Sheet
+      open={open}
+      onClose={onClose}
+      title="필터"
+      c={c}
+      footer={
+        <View style={{ flexDirection: 'row', gap: 10 }}>
+          <Pressable
+            accessibilityRole="button"
+            disabled={n === 0}
+            onPress={() => onChange(Object.fromEntries(groups.map((g) => [g.key, []])))}
+            style={[st.foot, { backgroundColor: c.chip }, n === 0 && { opacity: 0.4 }]}
+          >
+            <Text style={{ color: c.ink, fontSize: 17, fontWeight: '600' }}>모두 지우기</Text>
+          </Pressable>
+          <Pressable accessibilityRole="button" onPress={onClose} style={[st.foot, { flex: 1, backgroundColor: c.sky }]}>
+            <Text style={{ color: '#fff', fontSize: 17, fontWeight: '600' }}>{resultCount != null ? `${resultCount}개 보기` : '완료'}</Text>
+          </Pressable>
+        </View>
+      }
+    >
+      {groups.map((g) => (
+        <View key={g.key} style={{ gap: 10, marginBottom: 20 }}>
+          <Text style={{ color: c.ink, fontSize: 15, fontWeight: '700' }}>{g.label}</Text>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+            {g.options.map((v) => {
+              const on = (value[g.key] ?? []).includes(v);
+              return (
+                <Pressable
+                  key={v}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: on }}
+                  onPress={() => toggle(g.key, v)}
+                  style={[st.opt, { backgroundColor: on ? c.sky : c.chip }]}
+                >
+                  <Text style={{ color: on ? '#fff' : c.ink, fontSize: 15, fontWeight: '600' }}>{v}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        </View>
+      ))}
+    </Sheet>
   );
 }
