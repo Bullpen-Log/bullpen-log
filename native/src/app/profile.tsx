@@ -221,7 +221,7 @@ function Avatar({ nickname, url, reload, c }: { nickname: string; url: string | 
       </View>
       <View style={{ flexDirection: 'row', gap: 20 }}>
         <Pressable accessibilityRole="button" onPress={() => void pick()} disabled={busy} hitSlop={8}>
-          <Text style={{ color: c.sky, fontSize: 15, fontWeight: '600' }}>{shown ? '사진 바꾸기' : '사진 넣기'}</Text>
+          <Text style={{ color: c.sky, fontSize: 15, fontWeight: '600' }}>{shown ? '사진 바꾸기' : '사진 올리기'}</Text>
         </Pressable>
         {shown ? (
           <Pressable accessibilityRole="button" onPress={remove} disabled={busy} hitSlop={8}>
@@ -230,6 +230,8 @@ function Avatar({ nickname, url, reload, c }: { nickname: string; url: string | 
         ) : null}
       </View>
       {error ? <Text style={{ color: c.danger, fontSize: 14 }}>{error}</Text> : null}
+      {/* 웹 avatar-picker 밑 한 줄 */}
+      <Text style={{ color: c.muted, fontSize: 12, textAlign: 'center' }}>사진은 작게 줄여서 올리고, 나만 볼 수 있게 저장해요.</Text>
     </View>
   );
 }
