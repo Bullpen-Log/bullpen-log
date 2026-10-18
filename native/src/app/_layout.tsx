@@ -2,6 +2,7 @@ import { router, Stack, usePathname } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useTheme } from '~/lib/ui';
 
 /** 사이트 첫 화면이 그려질 때까지 시작 화면을 둔다(index.tsx 가 걷는다) — 흰 화면이 번쩍이지 않게 */
@@ -42,7 +43,8 @@ export default function RootLayout() {
     if (path !== '/') void SplashScreen.hideAsync();
   }, [path]);
   return (
-    <>
+    /* 밀어서 하기(shell/swipe-row.tsx) 같은 손가락 동작 부품은 이 뿌리 안에서만 돈다 */
+    <GestureHandlerRootView style={{ flex: 1 }}>
       {/* 상태바 글자색 — 설정 테마를 따른다(기기 밝기가 아니라) */}
       <StatusBar style={theme === 'light' ? 'dark' : 'light'} />
       <Stack screenOptions={{ headerShown: false }}>
@@ -60,6 +62,6 @@ export default function RootLayout() {
           options={{ presentation: 'formSheet', sheetAllowedDetents: 'fitToContents', sheetGrabberVisible: true, sheetCornerRadius: 28 }}
         />
       </Stack>
-    </>
+    </GestureHandlerRootView>
   );
 }
