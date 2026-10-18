@@ -27,8 +27,8 @@ const MODES = [
 ] as const;
 
 /**
- * 일정 만들기 — 체크인이 없으면 체크인 먼저, 장비를 한 번도 안 골랐으면 장비 먼저(웹은 그 자리 폼, 앱은 웹), 아니면 [자동 맞춤 | 직접 고르기].
- * 직접 고르기의 칸 · 한도는 웹과 같은 함수(목표마다 시간 칸 · 부위 칸이 다르다). generated 면 '다시 만들기' 글. onLeave 는 체크인 · 웹으로 가기 전에
+ * 일정 만들기 — 체크인이 없으면 체크인 먼저, 장비를 한 번도 안 골랐으면 장비 먼저(웹은 그 자리 폼, 앱은 트레이닝 설정 화면 /training/settings), 아니면 [자동 맞춤 | 직접 고르기].
+ * 직접 고르기의 칸 · 한도는 웹과 같은 함수(목표마다 시간 칸 · 부위 칸이 다르다). generated 면 '다시 만들기' 글. onLeave 는 체크인 · 설정 화면으로 가기 전에
  * 시트를 닫는 길(시트가 열린 채 다른 화면을 열면 시트 밑에 깔린다).
  */
 export function PlanForm({
@@ -66,8 +66,8 @@ export function PlanForm({
     return (
       <View style={[s.box, { backgroundColor: c.page, gap: 8 }]}>
         <Text style={[s.bodyBold, { color: c.ink }]}>오늘 체크인을 먼저 남겨 주세요</Text>
-        <Text style={[s.small, { color: c.muted }]}>오늘 몸 상태를 보고 짜요. 30초면 돼요.</Text>
-        <BigButton c={c} label="오늘 체크인하기" onPress={() => go(a.checkin)} />
+        <Text style={[s.small, { color: c.muted }]}>20초면 돼요. 남기면 바로 오늘 운동 일정을 만들 수 있어요.</Text>
+        <BigButton c={c} label="체크인하기 ›" onPress={() => go(a.checkin)} />
       </View>
     );
   if (make.needsEquipment)

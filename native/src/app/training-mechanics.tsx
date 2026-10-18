@@ -71,7 +71,7 @@ function ProgramTab({ data, reload, c }: { data: AppMechanicsProgramTab; reload:
         <SessionCard program={program} session={data.session} doneToday={data.doneToday} painFold={data.painFold} c={c} />
       )}
       {!completed && program.advice && program.advice.kind !== 'done' && program.advice.to ? (
-        <LevelOffer kind={program.advice.kind} to={program.advice.to} onChanged={() => void reload()} c={c} />
+        <LevelOffer kind={program.advice.kind} to={program.advice.to} onChanged={() => void reload()} keepLabel="지금 수준 계속" c={c} />
       ) : null}
       <LevelProgress program={program} c={c} />
       <FilmCard sessionsDone={program.sessionsDone} films={program.films} c={c} />

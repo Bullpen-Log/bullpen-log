@@ -4,6 +4,8 @@ import { cookies } from 'next/headers';
 import { unstable_rethrow } from 'next/navigation';
 import { appNow } from '@/lib/clock';
 import { getCurrentUser } from '@/lib/dal';
+import { loadTrainingStrip, type TrainingStripDay } from '@/lib/training-week';
+import { loadTrainingWeekCounts, type TrainingWeekCounts } from '@/lib/report/training-week-counts';
 import { pickArmPain, pickCheckinParts, validateCheckinDate, type CheckinPartKey } from '@/lib/checkin';
 import { featureLocks, SETUP_PATH } from '@/lib/feature-locks';
 import { dbDate, isNutritionDate, keyOfDbDate } from '@/lib/nutrition/days';
@@ -145,7 +147,16 @@ export async function loadAppNutrition(date: string): Promise<
  * 카드 하나가 실패해도 나머지는 보인다(웹 SafeCard 와 같다). 마지막으로 쓴 앱(쿠키)이 맨 위.
  */
 export async function loadAppTraining(): Promise<
-  { ok: true; today: string; cards: TrainingCard[] } | { ok: false; error: string; to?: string }
+  | {
+      ok: true;
+      today: string;
+      cards: TrainingCard[];
+      /** 제목 밑 날짜 띠(최근 6주, 웹 트레이닝 홈과 같은 lib/training-week.ts loadTrainingStrip) */
+      strip: TrainingStripDay[];
+      /** '이번 주 운동 N일 · 암케어 N일 · 메커니즘 N일'(lib/report/training-week-counts.ts) */
+      week: TrainingWeekCounts;
+    }
+  | { ok: false; error: string; to?: string }
 > {
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: '로그인이 필요해요.' };
@@ -160,14 +171,19 @@ export async function loadAppTraining(): Promise<
       return { app, status: '지금은 불러오지 못했어요. 눌러서 열어 보세요', tone: 'warn', action: null };
     }
   };
-  const cards = await Promise.all([
-    safe('today', () => workoutCardData(user, now)),
-    safe('armcare', () => armcareCardData(user, now)),
-    safe('mechanics', () => mechanicsCardData(user.id)),
+  const todayKey = toDateKey(now);
+  const [cards, strip, week] = await Promise.all([
+    Promise.all([
+      safe('today', () => workoutCardData(user, now)),
+      safe('armcare', () => armcareCardData(user, now)),
+      safe('mechanics', () => mechanicsCardData(user.id)),
+    ]),
+    loadTrainingStrip(user.id, todayKey, todayKey),
+    loadTrainingWeekCounts(user.id, now),
   ]);
   const last = readTrainingPart((await cookies()).get(TRAINING_PART_COOKIE)?.value);
   if (last) cards.sort((a, b) => Number(b.app === last) - Number(a.app === last));
-  return { ok: true, today: toDateKey(now), cards };
+  return { ok: true, today: todayKey, cards, strip, week };
 }
 
 /**

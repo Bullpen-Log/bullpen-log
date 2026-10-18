@@ -48,19 +48,30 @@ const SHOWN = 8;
 const TREND_POINTS = 12;
 
 /** 지난 기록 — 내 메모 · 최고 기록 셋 · 볼륨 흐름(막대를 누르면 그날 값) · 최근 날짜별 기록. 열 때 받는다 */
-export function HistoryPanel({ exerciseId, unit, c }: { exerciseId: string; unit: WeightUnit; c: Palette }) {
+export function HistoryPanel({
+  exerciseId,
+  excludeSessionId,
+  unit,
+  c,
+}: {
+  exerciseId: string;
+  /** 운동 화면에서 열었으면 지금 하는 판 — 그 판의 세트는 '지난 기록'이 아니라 뺀다(웹 ExerciseHistoryPanel 과 같다) */
+  excludeSessionId?: string;
+  unit: WeightUnit;
+  c: Palette;
+}) {
   const [got, setGot] = useState<{ history: ExerciseHistory; note: string | null } | { error: string } | null>(null);
   const [more, setMore] = useState(false);
   const [hover, setHover] = useState<number | null>(null);
   useEffect(() => {
     let alive = true;
-    void act<{ history: ExerciseHistory; note: string | null }>('exercise-history.exerciseHistory', { exerciseId }).then((r) => {
+    void act<{ history: ExerciseHistory; note: string | null }>('exercise-history.exerciseHistory', { exerciseId, excludeSessionId }).then((r) => {
       if (alive) setGot(r);
     });
     return () => {
       alive = false;
     };
-  }, [exerciseId]);
+  }, [exerciseId, excludeSessionId]);
 
   if (!got) return <Text style={[s.small, s.center, { color: c.muted, paddingVertical: 24 }]}>기록을 불러오는 중…</Text>;
   if ('error' in got) return <Text style={[s.small, s.center, st.empty, { color: c.muted, backgroundColor: c.card }]}>{got.error}</Text>;

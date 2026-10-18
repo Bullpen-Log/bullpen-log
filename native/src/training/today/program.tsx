@@ -8,10 +8,11 @@ import { act } from '~/mechanics/parts';
 import type { Palette } from '~/lib/ui';
 import { BigButton, Card, LinkRow, s, type TodayActions } from './parts';
 import { RepinSheet } from './program-start';
+import { Sheet } from '~/workout/sheets';
 
 /**
  * 근력 · 파워 프로그램 카드(앱 화면) — 웹 app/(app)/training/program-card.tsx 를 옮겼다. 차례도 같다: 오늘 상태 + 일차 → 주의 한 줄 → [운동 시작]
- * → 운동 줄(누르면 그 무게의 까닭) → 진행 → 앞으로 할 세션 → 자세히. 건너뛰기 · 그만두기 · '그래도 오늘 할래요' · 고정 운동 바꾸기(./program-start
+ * → 운동 줄(누르면 그 무게의 까닭 시트) → 진행 → 앞으로 할 세션 → 자세히. 건너뛰기 · 그만두기 · '그래도 오늘 할래요' · 고정 운동 바꾸기(./program-start
  * RepinSheet)는 같은 서버 동작(program.*).
  */
 type Row = ProgramCardProps['rows'][number];
@@ -24,6 +25,8 @@ export function ProgramCardView({ p, c, a }: { p: ProgramCardProps; c: Palette; 
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [repin, setRepin] = useState(false);
+  /** 운동 줄을 누르면 그 무게의 까닭 — 웹처럼 시트(예전 앱은 Alert 글 한 덩이) */
+  const [why, setWhy] = useState<Row | null>(null);
 
   const going = p.kind === 'go';
   const finishedToday = p.todayState === 'finished';
@@ -73,20 +76,6 @@ export function ProgramCardView({ p, c, a }: { p: ProgramCardProps; c: Palette; 
       },
     ]);
 
-  const why = (r: Row) =>
-    Alert.alert(
-      r.title,
-      [
-        `${r.slotLabel} · ${r.line}`,
-        r.substituteFor ? `오늘은 ${r.substituteFor} 대신이에요.` : null,
-        r.reason ?? '무게 없이 하는 운동이에요.',
-        r.kg != null ? `추천 ${kgText(r.kg)}kg${r.perHand ? ' (한 손)' : ''}. 실제 무게는 들어 보고 정해요.` : null,
-        r.warmup ? `준비: ${r.warmup}` : null,
-      ]
-        .filter(Boolean)
-        .join('\n\n')
-    );
-
   return (
     <Card c={c}>
       <View style={{ gap: 4 }}>
@@ -126,16 +115,17 @@ export function ProgramCardView({ p, c, a }: { p: ProgramCardProps; c: Palette; 
               key={r.id}
               accessibilityRole="button"
               accessibilityHint="무게의 까닭 보기"
-              onPress={() => why(r)}
+              onPress={() => setWhy(r)}
               style={[st.row, i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.line }]}
             >
               <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
-                <Text numberOfLines={1} style={[s.bodyBold, { color: c.ink }]}>
-                  {r.optional ? <Text style={{ color: c.muted }}>선택 · </Text> : null}
-                  {r.title}
-                </Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  {/* 웹과 같은 회색 알약 '선택' · 회색 꼬리표 칩 */}
+                  {r.optional ? <Text style={[st.badge, { color: c.muted, backgroundColor: c.chip }]}>선택</Text> : null}
+                  <Text numberOfLines={1} style={[s.bodyBold, { color: c.ink, flexShrink: 1 }]}>{r.title}</Text>
+                </View>
                 {r.contrast ? <Text style={[s.tiny, { color: c.muted }]}>{r.contrast}</Text> : null}
-                {r.tag ? <Text style={[s.tiny, { color: c.muted }]}>{r.tag}</Text> : null}
+                {r.tag ? <Text style={[st.tag, { color: c.muted, backgroundColor: c.chip }]}>{r.tag}</Text> : null}
               </View>
               <View style={{ alignItems: 'flex-end' }}>
                 {r.kg != null ? (
@@ -237,6 +227,24 @@ export function ProgramCardView({ p, c, a }: { p: ProgramCardProps; c: Palette; 
         ) : null}
       </View>
       {repin ? <RepinSheet pinned={p.pinned} onClose={() => setRepin(false)} c={c} a={a} /> : null}
+      <Sheet open={why != null} onClose={() => setWhy(null)} title={why?.title ?? ''} c={c}>
+        {why ? (
+          <View style={{ gap: 12 }}>
+            <Text style={[s.body, { color: c.muted }]}>
+              {why.slotLabel} · {why.line}
+            </Text>
+            {why.substituteFor ? <Text style={[s.body, { color: c.ink }]}>오늘은 {why.substituteFor} 대신이에요.</Text> : null}
+            <Text style={[s.body, { color: c.ink }]}>{why.reason ?? '무게 없이 하는 운동이에요.'}</Text>
+            {why.kg != null ? (
+              <Text style={[s.body, { color: c.ink }]}>
+                추천 <Text style={[s.bodyBold, s.num]}>{kgText(why.kg)}kg</Text>
+                {why.perHand ? ' (한 손)' : ''}. 실제 무게는 들어 보고 정해요.
+              </Text>
+            ) : null}
+            {why.warmup ? <Text style={[s.body, { color: c.muted }]}>준비: {why.warmup}</Text> : null}
+          </View>
+        ) : null}
+      </Sheet>
     </Card>
   );
 }
@@ -271,6 +279,8 @@ function Upcoming({ sessions, c }: { sessions: ProgramCardProps['upcoming']; c: 
                 ) : null}
               </View>
               <Text style={[s.tiny, { color: c.muted }]}>{u.items.length}개</Text>
+              {/* 펼침 화살표(웹 UpcomingSessions 의 ▾) */}
+              <SymbolView name={shown ? 'chevron.up' : 'chevron.down'} size={11} tintColor={c.muted} />
             </Pressable>
             {shown
               ? u.items.map((it, i) => (
@@ -341,6 +351,8 @@ export function ProgramDoneView({ result, c }: { result: ProgramResult; c: Palet
           </View>
         );
       })}
+      {/* 웹 program-done.tsx 의 끝 줄 — 고르기 입구가 바로 밑에 있다 */}
+      <Text style={[s.small, { color: c.muted }]}>다음 프로그램은 바로 밑에서 골라요.</Text>
     </Card>
   );
 }
@@ -348,4 +360,6 @@ export function ProgramDoneView({ result, c }: { result: ProgramResult; c: Palet
 const st = StyleSheet.create({
   row: { minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 6 },
   thumb: { width: 56, height: 42, borderRadius: 10 },
+  badge: { fontSize: 12, fontWeight: '600', borderRadius: 9, overflow: 'hidden', paddingHorizontal: 6, paddingVertical: 2 },
+  tag: { alignSelf: 'flex-start', fontSize: 11, borderRadius: 7, overflow: 'hidden', paddingHorizontal: 6, paddingVertical: 1, marginTop: 2 },
 });
