@@ -32,6 +32,7 @@ import { useWeightUnit } from '~/lib/weight-unit';
 import { rpc, RpcError } from '~/lib/rpc';
 import { usePalette, type Palette } from '~/lib/ui';
 import { READABLE } from '~/lib/layout';
+import { DateNavButton } from '~/shell/mini-calendar';
 
 /**
  * 투구 분석 · 트레이닝 분석(앱 화면) — 웹 /coach?view=…&date=…(app/(app)/coach/page.tsx)를 옮겼다. 사이트의 분석 화면이 앱(BullpenNative/5 부터)이면
@@ -566,29 +567,41 @@ const ICON: Record<MetricKey, SFSymbol> = {
 const PERIODS = [
   { value: '4w', label: '4주', days: 28 },
   { value: '12w', label: '12주', days: 84 },
+  { value: 'custom', label: '기간 설정', days: 0 },
 ] as const;
 type Period = (typeof PERIODS)[number]['value'];
 const RANGE_KEY = 'bullpen-trends-range';
+const shortDate = (key: string) => `${Number(key.slice(5, 7))}월 ${Number(key.slice(8))}일`;
 
 function Trends({ data, onJump, c }: { data: AppAnalysis; onJump: (day: string) => void; c: Palette }) {
   const [period, setPeriodState] = useState<Period>('4w');
+  const today = data.today;
+  /* '기간 설정' — 시작 · 끝을 작은 달력에서 고른다(받아 온 기록 범위 안, 기록 있는 날에 점). 45일까지는 날짜별, 넘으면 주별 */
+  const earliest = data.series.from;
+  const [custom, setCustom] = useState({ from: shiftDateKey(today, -27), to: today });
   const speed = usePrefs().speed;
   const weight = useWeightUnit();
-  /* 고른 기간은 이 폰에 기억한다 — 웹 그래프와 같은 열쇠 · 모양(today/home-trends.tsx RANGE_KEY). 앱은 4주 · 12주만이라 웹의 '기간 설정'으로 남긴 값은 4주로 */
+  /* 고른 기간은 이 폰에 기억한다 — 웹 그래프와 같은 열쇠 · 모양(today/home-trends.tsx RANGE_KEY readRange) */
   useEffect(() => {
     let alive = true;
     void loadJson(RANGE_KEY).then((v) => {
-      const saved = (v as { period?: string } | null)?.period;
-      if (alive && PERIODS.some((x) => x.value === saved)) setPeriodState(saved as Period);
+      const saved = v as { period?: string; from?: string; to?: string } | null;
+      if (!alive || !saved) return;
+      if (PERIODS.some((x) => x.value === saved.period)) setPeriodState(saved.period as Period);
+      if (saved.from && saved.to && saved.from >= earliest && saved.from <= saved.to && saved.to <= today) setCustom({ from: saved.from, to: saved.to });
     });
     return () => {
       alive = false;
     };
-  }, []);
+  }, [earliest, today]);
   const p = PERIODS.find((x) => x.value === period)!;
-  const today = data.today;
-  const range = { from: shiftDateKey(today, -(p.days - 1)), to: today };
+  const range = period === 'custom' ? custom : { from: shiftDateKey(today, -(p.days - 1)), to: today };
   const span = daysBetween(range.from, range.to) + 1;
+  const periodName = period === 'custom' ? `${span}일` : p.label;
+  const pickRange = (next: { from: string; to: string }) => {
+    setCustom(next);
+    void saveJson(RANGE_KEY, { period: 'custom', ...next });
+  };
   const { slots, daily } = slotsOf(range);
   const days = daysOf(range);
   /* 견줄 바로 앞 기간(같은 길이) — 받아 온 기록보다 앞으로 넘어가면 견주지 않는다(웹과 같다) */
@@ -596,6 +609,7 @@ function Trends({ data, onJump, c }: { data: AppAnalysis; onJump: (day: string) 
   const before = beforeFrom < data.series.from ? null : daysOf({ from: beforeFrom, to: shiftDateKey(range.from, -1) });
   const valueOf = (key: MetricKey, day: string) => data.series.values[key]?.[day] ?? null;
   const specs = METRIC_SPECS.filter((m) => ANALYSIS_METRICS[data.view].includes(m.key));
+  const hasRecord = (day: string) => specs.some((m) => valueOf(m.key, day) != null);
 
   return (
     <View style={{ gap: 12 }}>
@@ -605,7 +619,7 @@ function Trends({ data, onJump, c }: { data: AppAnalysis; onJump: (day: string) 
             그래프
           </Text>
           <Text style={[s.small, { color: c.muted }]}>
-            <Text style={[s.smallBold, { color: c.ink }]}>최근 {p.label}</Text>
+            <Text style={[s.smallBold, { color: c.ink }]}>{period === 'custom' ? '고른 기간' : `최근 ${p.label}`}</Text>
             {daily ? ' · 날짜별' : ' · 주별'}
           </Text>
         </View>
@@ -619,8 +633,7 @@ function Trends({ data, onJump, c }: { data: AppAnalysis; onJump: (day: string) 
                   if (on) return;
                   void Haptics.selectionAsync();
                   setPeriodState(x.value);
-                  const days = PERIODS.find((y) => y.value === x.value)!.days;
-                  void saveJson(RANGE_KEY, { period: x.value, from: shiftDateKey(today, -(days - 1)), to: today });
+                  void saveJson(RANGE_KEY, { period: x.value, ...custom });
                 }}
                 accessibilityRole="tab"
                 accessibilityState={{ selected: on }}
@@ -632,8 +645,18 @@ function Trends({ data, onJump, c }: { data: AppAnalysis; onJump: (day: string) 
           })}
         </View>
       </View>
+      {period === 'custom' ? (
+        <View style={[s.row, { flexWrap: 'wrap', gap: 8 }]}>
+          <DateNavButton label={shortDate(custom.from)} date={custom.from} today={custom.to} min={earliest} marked={hasRecord} onPick={(from) => pickRange({ ...custom, from })} />
+          <Text style={{ color: c.muted, fontSize: 15 }}>~</Text>
+          <DateNavButton label={shortDate(custom.to)} date={custom.to} today={today} min={custom.from} marked={hasRecord} onPick={(to) => pickRange({ ...custom, to })} />
+          <Text style={[s.tiny, { color: c.muted, fontVariant: ['tabular-nums'] }]}>
+            {span}일 · {daily ? '날짜별' : '주별'}
+          </Text>
+        </View>
+      ) : null}
       {/* 기간을 바꾸면 새로 그린다(key) */}
-      <View key={period} style={s.row}>
+      <View key={`${range.from}~${range.to}`} style={s.row}>
         {specs.map((m) => {
           const fmt = (v: number) => formatMetric(m.key, v, speed, weight);
           return (
@@ -641,10 +664,10 @@ function Trends({ data, onJump, c }: { data: AppAnalysis; onJump: (day: string) 
               key={m.key}
               spec={m}
               icon={ICON[m.key]}
-              card={trendCardOf(m, valueOf, days, before, slots, fmt, p.label)}
+              card={trendCardOf(m, valueOf, days, before, slots, fmt, periodName)}
               slots={slots}
               daily={daily}
-              endsToday
+              endsToday={range.to === today}
               format={fmt}
               onJump={onJump}
               c={c}

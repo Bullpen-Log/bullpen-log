@@ -11,6 +11,8 @@ import { Press } from '~/shell/press';
  * 고를 수 없는 날은 흐리게 · 기록이 있는 날은 숫자 밑 점. 한 판에 늘 여섯 줄(달마다 높이가 들썩이지 않게).
  */
 const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'];
+/** 판 높이(머리 + 요일 + 여섯 줄 + 여백) — 위아래 어디로 열지 정할 때 */
+const POP_H = 380;
 const pad = (n: number) => String(n).padStart(2, '0');
 const keyOf = (y: number, m: number, d: number) => `${y}-${pad(m + 1)}-${pad(d)}`;
 
@@ -125,12 +127,13 @@ export function DateNavButton({
 }) {
   const c = usePalette();
   const ref = useRef<ComponentRef<typeof View>>(null);
-  const [at, setAt] = useState<{ top: number; right: number } | null>(null);
+  const [at, setAt] = useState<{ top?: number; bottom?: number; right: number } | null>(null);
   const open = () =>
     ref.current?.measureInWindow((x, y, w, h) => {
-      const { width } = Dimensions.get('window');
-      /* 글자 칸은 왼쪽 끝을 맞춘다(판 폭 296) */
-      setAt({ top: y + h + 8, right: label != null ? Math.max(12, width - x - 296) : Math.max(12, width - (x + w)) });
+      const { width, height } = Dimensions.get('window');
+      /* 글자 칸은 왼쪽 끝을 맞춘다(판 폭 296). 밑에 판(약 380) 자리가 없으면 위로 연다 */
+      const right = label != null ? Math.max(12, width - x - 296) : Math.max(12, width - (x + w));
+      setAt(y + h + 8 + POP_H > height - 24 && y - 8 - POP_H > 40 ? { bottom: height - y + 8, right } : { top: y + h + 8, right });
     });
   return (
     <>
@@ -164,7 +167,7 @@ export function DateNavButton({
           <Animated.View
             entering={FadeIn.duration(160)}
             exiting={FadeOut.duration(120)}
-            style={[styles.pop, { top: at.top, right: at.right, backgroundColor: c.card, borderColor: c.line, boxShadow: '0 10px 30px rgba(0,0,0,0.15)' }]}
+            style={[styles.pop, { top: at.top, bottom: at.bottom, right: at.right, backgroundColor: c.card, borderColor: c.line, boxShadow: '0 10px 30px rgba(0,0,0,0.15)' }]}
           >
             <MiniCalendar
               value={date}
