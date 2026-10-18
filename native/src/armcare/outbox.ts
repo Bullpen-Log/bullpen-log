@@ -120,7 +120,12 @@ export async function drainChecks<R>(
          */
         const code = (e as { code?: unknown })?.code;
         if (code === 'redirect') return 'auth';
-        if (code === 'offline' || code === 'update' || code == null) return 'offline';
+        /*
+         * 서버가 잠깐 멈춘 것(500 · 504 — code 'server')도 남긴다(2026-10-18 김민). 2분쯤 오류가 이어지면 따라 하기 중 체크가 다 지워지고
+         * 재활 3문항까지 막혔다 — 웹 대기열(lib/outbox.ts)처럼 쥐고 있다가 다시 보낸다. 서버가 그 체크 자체를 못 받는 것
+         * (bad-body · unknown-action 같은 정해진 오류)만 여덟 번이면 뺀다.
+         */
+        if (code === 'offline' || code === 'update' || code === 'server' || code == null) return 'offline';
         const n = (serverFails.get(checkId(next)) ?? 0) + 1;
         serverFails.set(checkId(next), n);
         if (n < SERVER_FAIL_LIMIT) return 'offline';

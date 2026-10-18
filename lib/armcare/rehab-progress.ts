@@ -157,6 +157,8 @@ export type RehabStatus = {
   refer: string | null;
   /** 심함 — 밤 · 쉴 때 통증이 7일 없을 때까지 1단계에 머무는 중 */
   nightHold: boolean;
+  /** 최근 7일 밤 · 쉴 때 통증이 없다(체크인 정도 3 · 매주 확인) — 투구 복귀표가 본다 */
+  nightPainFree: boolean;
   gate: StageGate;
   /** 매주 확인 — 할 때가 됐나 · 지금 할 수 있나 · 가장 최근 것 */
   weekly: WeeklyDueState & { last: RehabWeeklyLike | null };
@@ -383,6 +385,7 @@ export function rehabStatus({
     loweredReason,
     refer,
     nightHold,
+    nightPainFree,
     gate,
     weekly: { ...weekly, last: lastWeekly },
     eased,
