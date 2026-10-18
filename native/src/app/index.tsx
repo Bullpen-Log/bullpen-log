@@ -68,7 +68,7 @@ const NATIVE_ROUTES = [
   /^\/(mechanics|analysis)(\?[\w=&%.-]*)?$/,
   /^\/community(\/[\w-]+)?(\?[\w=&%.-]*)?$/,
   /^\/support(\/notices(\/[\w-]+)?|\/inquiries(\/[\w-]+)?)?$/,
-  /^\/library\/(training|mechanics)$/,
+  /^\/library\/(training|mechanics|warmup)$/,
   /^\/board(\/[\w-]+)?$/,
   /^\/warmup$/,
   /^\/workout-done\?id=[\w-]+$/,
