@@ -23,6 +23,7 @@ export const HomeSwipeContext = createContext<GestureType | null>(null);
 export const useHomeSwipe = () => useContext(HomeSwipeContext);
 
 function settle(dist: number, speed: number) {
+  'worklet';
   const d = Math.max(1, Math.abs(dist));
   const v = Math.max(0, speed) / 1000; // px/ms
   const ms = v > 0.05 ? Math.round(Math.min(280, Math.max(130, (2.2 * d) / v))) : 200;
