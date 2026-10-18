@@ -95,7 +95,8 @@ export const allExercises = unstable_cache(
   /* :v35 — 같은 날 백 페달도 '나중에 촬영'으로. */
   /* :v37 — 2026-10-17 촬영 영상 52개를 다듬은 판(앞뒤 빈 시간 · 작은 사람)으로 경로 바꿈(scripts/shoot-trim/apply.mjs). */
   /* :v38 — 2026-10-18 직접 찍은 영상과 어긋난 운동 43개의 설명 · 도구 · 좌우 · 버티기/횟수를 영상대로 고침. */
-  ['library:exercises:v38'],
+  /* :v39 — 같은 날 제목이 영상과 다른 넷(케이블 → 덤벨 셋 · TRX 로테이션) · 바텀업 캐리 설명을 영상대로. */
+  ['library:exercises:v39'],
   { tags: [LIBRARY_TAG] }
 );
 
