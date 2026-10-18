@@ -26,6 +26,7 @@ export type NutritionDay = {
   ageBand?: AgeBand;
   avoid?: AvoidKey[];
   checkinAnswers?: NutritionAnswer | null;
+  yesterday?: MealEntryView[];
 };
 export type NutritionAnswer = { appetite: number | null; mealAmount: string | null; skippedMeals: string[] };
 type Result = { ok: true } | { ok: false; error: string };

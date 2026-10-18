@@ -19,7 +19,8 @@ import { READABLE } from '~/lib/layout';
  * 웹 food-sheet.tsx 처럼 담아도 창을 닫지 않는다(한 끼는 보통 여러 가지) — 아래에 '○○ 담았어요'를 모아 보여 주고 '다 했어요'로 닫는다.
  * 바꾸기 모드(entry=먹은 줄 id 또는 plan=식단 줄 key, name=옛 이름): 웹 음식 창의 '‘○○’ 바꾸기'처럼 고르면 그 줄이 바뀌고 창이 닫힌다.
  * 목록에 없으면 직접 입력(웹 CustomEntry — 찾던 말을 이름에 미리, 내 음식 저장 스위치).
- * 조합 · 어제와 같이 · 분류 둘러보기는 아직 웹.
+ * 어제와 같이 담기(웹과 같다 — 전날 그 끼니에 먹은 것을 같은 양으로 한 번에).
+ * 조합 · 분류 둘러보기는 아직 웹.
  */
 const LIMIT = 30;
 
@@ -148,6 +149,37 @@ export default function NutritionAddScreen() {
     setAdded((a) => [...a, food.name]);
     setCustomOpen(false);
     if (saveErr) setError(`${food.name} 내 음식에 저장하지 못했어요. ${saveErr}`);
+  };
+
+  /* 어제 그 끼니 — 같은 음식 · 같은 양으로 한 번에(웹 addYesterday) */
+  const yesterday = (day?.yesterday ?? []).filter((e) => e.meal === mealKey);
+  const yesterdayKcal = yesterday.reduce((n, e) => n + e.kcal * e.amount, 0);
+  const addYesterday = async () => {
+    if (quick) return;
+    setQuick('yesterday');
+    setError(null);
+    const err = await addFoods(
+      date,
+      mealKey,
+      yesterday.map((e) => ({
+        food: {
+          source: e.source,
+          id: e.sourceId,
+          name: e.name,
+          servingLabel: e.servingLabel ?? '1인분',
+          servingGrams: e.servingGrams,
+          kcal: e.kcal,
+          carbs: e.carbs,
+          protein: e.protein,
+          fat: e.fat,
+        },
+        amount: e.amount,
+      }))
+    );
+    setQuick(null);
+    if (err) return setError(err);
+    void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    setAdded((a) => [...a, `어제 ${mealLabel(mealKey)} ${yesterday.length}가지`]);
   };
 
   const custom = (
@@ -313,6 +345,26 @@ export default function NutritionAddScreen() {
               </>
             ) : (
               <>
+                {!replacing && yesterday.length > 0 ? (
+                  <Pressable
+                    accessibilityRole="button"
+                    onPress={() => void addYesterday()}
+                    disabled={quick != null}
+                    style={({ pressed }) => [styles.row, { backgroundColor: c.card }, pressed && { opacity: 0.6 }]}
+                  >
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ color: c.ink, fontSize: 15, fontWeight: '600' }}>어제 {mealLabel(mealKey)}과 같이 담기</Text>
+                      <Text style={{ color: c.muted, fontSize: 13 }} numberOfLines={1}>
+                        {yesterday.map((e) => e.name).join(', ')}
+                      </Text>
+                    </View>
+                    {quick === 'yesterday' ? (
+                      <ActivityIndicator />
+                    ) : (
+                      <Text style={{ color: c.muted, fontSize: 14 }}>{Math.round(yesterdayKcal).toLocaleString('ko-KR')}kcal</Text>
+                    )}
+                  </Pressable>
+                ) : null}
                 {day?.recent.length ? <Text style={[styles.section, { color: c.muted }]}>최근 먹은 것</Text> : null}
                 {day?.recent.slice(0, LIMIT).map((f, i) => row(f, `r${i}`))}
                 {day?.mine.length ? <Text style={[styles.section, { color: c.muted }]}>내 음식</Text> : null}
