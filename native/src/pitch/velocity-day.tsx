@@ -16,12 +16,9 @@ type Loaded = { sessions: VelocitySessionView[]; prefill: LogPrefill | null };
 const days = new Map<string, Loaded>();
 export const resetVelocityDayCache = () => days.clear();
 
-export function VelocityDay({ date, logCount }: { date: string; logCount: number }) {
-  const c = usePalette();
+/** 그날 구속 측정(세션 · 공 · 클립 주소) — 그날 화면 구속 칸 · 홈 그날 칸 영상(웹 velocity-clips)이 같이 쓴다. key 가 바뀌면 다시 받는다 */
+export function useVelocityDay(date: string, key: unknown = 0): Loaded | null {
   const [state, setState] = useState<{ date: string; data: Loaded | null }>(() => ({ date, data: days.get(date) ?? null }));
-  const [open, setOpen] = useState<string | null>(null);
-
-  /* 기록 수가 바뀌면(측정값으로 남겼으면) 다시 받는다 — '남기기' 줄이 걷히게 */
   useEffect(() => {
     let alive = true;
     rpc<({ ok: true } & Loaded) | { ok: false; error: string }>('app.loadAppVelocityDay', date).then(
@@ -35,9 +32,16 @@ export function VelocityDay({ date, logCount }: { date: string; logCount: number
     return () => {
       alive = false;
     };
-  }, [date, logCount]);
+  }, [date, key]);
+  return state.date === date ? (state.data ?? days.get(date) ?? null) : (days.get(date) ?? null);
+}
 
-  const data = state.date === date ? state.data ?? days.get(date) ?? null : days.get(date) ?? null;
+export function VelocityDay({ date, logCount }: { date: string; logCount: number }) {
+  const c = usePalette();
+  const [open, setOpen] = useState<string | null>(null);
+
+  /* 기록 수가 바뀌면(측정값으로 남겼으면) 다시 받는다 — '남기기' 줄이 걷히게 */
+  const data = useVelocityDay(date, logCount);
   if (!data || data.sessions.length === 0) return null;
   const pf = data.prefill;
 

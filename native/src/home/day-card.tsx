@@ -17,6 +17,7 @@ import { openCheckin } from '~/shell/web-nav';
 import { loadDay, type DayDetail } from './api';
 import { DayEvents, useDayEventCount } from './events';
 import { PitchVideo } from '~/pitch/video';
+import { VelocityClips } from './velocity-clips';
 import { useFeatured, useVelocityDays } from '~/pitch/store';
 
 /**
@@ -229,9 +230,11 @@ export function DayCards({
               </View>
             )
           ) : focus === 'video' ? (
-            videos ? (
-              /* 두 개까지 그 자리에서 튼다 — 더 있으면 투구 탭에서(웹 VideoDetail) */
-              <View style={{ gap: 12 }}>
+            videos || vday?.clips ? (
+              /* 올린 영상 두 개까지 + 구속 측정 클립(웹 day-detail — 둘 다 있으면 위아래로) */
+              <View style={{ gap: 20 }}>
+                {videos ? (
+                  <View style={{ gap: 12 }}>
                 {/* 대표로 고른 것을 먼저(웹 VideoDetail — 고른 영상이 기록에서 빠졌을 수도 있어 확인한다) */}
                 {(() => {
                   const all = logs.flatMap((l) => (isRestSession(l.sessionType) ? [] : l.videoPaths));
@@ -244,9 +247,10 @@ export function DayCards({
                   ));
                 })()}
                 {videos > 2 ? <Text style={{ color: c.muted, fontSize: 12 }}>외 {videos - 2}개는 투구 기록에서 볼 수 있어요.</Text> : null}
+                  </View>
+                ) : null}
+                {vday?.clips ? <VelocityClips date={date} /> : null}
               </View>
-            ) : vday?.clips ? (
-              <Text style={{ color: c.muted, fontSize: 13 }}>구속 측정 영상 {vday.clips}개는 그날 화면에서 공마다 볼 수 있어요.</Text>
             ) : (
               <Empty c={c}>이 날 올린 영상이 없어요.</Empty>
             )
