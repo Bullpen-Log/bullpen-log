@@ -41,6 +41,7 @@ import { drainChecks } from '~/armcare/outbox';
 import { sendCheck } from '~/armcare/send';
 import { PitchTab } from '~/pitch/tab';
 import { DEFAULT_TABS, TAB_BAR_HEIGHT, TabBar, type ShellTab } from '~/shell/tab-bar';
+import { TabPager } from '~/shell/tab-pager';
 
 type WebViewHandle = { injectJavaScript(script: string): void };
 /* react-native-webview 14 의 타입은 ref 를 안 받지만 실제 부품은 forwardRef 다(velocity/engine.tsx 와 같다) */
@@ -255,6 +256,14 @@ export default function SiteScreen() {
   const showTraining =
     barOn && path === '/training' && (trainingView === 'home' || trainingView === 'last') && !!today && !trainingTab?.locked && !webFront;
   const menu = useMenu();
+  /* 판 넘기기 — 지금 보일 앱 판(없으면 웹이 앞)과 한 번이라도 열린 판(붙여 둠) */
+  const pagerOn = showHome || showPitch || showTraining || showNutrition;
+  const nowIndex = showHome ? 0 : showPitch ? 1 : showTraining ? 2 : showNutrition ? 3 : -1;
+  const [pagerIndex, setPagerIndex] = useState(0);
+  if (nowIndex >= 0 && nowIndex !== pagerIndex) setPagerIndex(nowIndex);
+  const [seen, setSeen] = useState({ home: false, pitch: false, training: false, nutrition: false });
+  if ((showHome && !seen.home) || (showPitch && !seen.pitch) || (showTraining && !seen.training) || (showNutrition && !seen.nutrition))
+    setSeen({ home: seen.home || showHome, pitch: seen.pitch || showPitch, training: seen.training || showTraining, nutrition: seen.nutrition || showNutrition });
 
   const goWeb = (href: string) =>
     web.current?.injectJavaScript(`window.__bpTab && window.__bpTab(${JSON.stringify(href)});true;`);
@@ -489,25 +498,18 @@ export default function SiteScreen() {
         }}
         onContentProcessDidTerminate={() => setLoad((n) => n + 1)}
       />
-      {showHome && today ? (
-        <View style={StyleSheet.absoluteFill}>
-          <HomeTab today={today} bottom={TAB_BAR_HEIGHT} onWeb={openWeb} onTab={goTab} />
-        </View>
-      ) : null}
-      {showTraining && today ? (
-        <View style={StyleSheet.absoluteFill}>
-          <TrainingTab today={today} bottom={TAB_BAR_HEIGHT} onWeb={openWeb} />
-        </View>
-      ) : null}
-      {showNutrition && today ? (
-        <View style={StyleSheet.absoluteFill}>
-          <NutritionTab today={today} bottom={TAB_BAR_HEIGHT} onWebNutrition={() => setWebNutrition(true)} />
-        </View>
-      ) : null}
-      {showPitch && today ? (
-        <View style={StyleSheet.absoluteFill}>
-          <PitchTab today={today} bottom={TAB_BAR_HEIGHT} onWeb={openWeb} />
-        </View>
+      {/* 탭 넷 — 나란히 두고 240ms 에 미끄러진다(웹 tab-pager). 한 번 연 판은 붙여 둬서 굴린 자리가 남는다 */}
+      {today ? (
+        <TabPager
+          index={pagerIndex}
+          visible={pagerOn}
+          slots={[
+            seen.home ? <HomeTab key="home" today={today} bottom={TAB_BAR_HEIGHT} onWeb={openWeb} onTab={goTab} /> : null,
+            seen.pitch ? <PitchTab key="pitch" today={today} bottom={TAB_BAR_HEIGHT} onWeb={openWeb} /> : null,
+            seen.training ? <TrainingTab key="training" today={today} bottom={TAB_BAR_HEIGHT} onWeb={openWeb} /> : null,
+            seen.nutrition ? <NutritionTab key="nutrition" today={today} bottom={TAB_BAR_HEIGHT} onWebNutrition={() => setWebNutrition(true)} /> : null,
+          ]}
+        />
       ) : null}
       {/*
         웹 창(설정 · 내 정보 — 웹 틀의 폴더 모양 창)이 앞에 떠 있는 동안은 숨긴다 — 그 창을 닫는 바깥 막은 아래쪽 띠뿐인데 이 막대가 그 띠를

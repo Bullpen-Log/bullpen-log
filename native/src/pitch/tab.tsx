@@ -17,6 +17,7 @@ import { PitchTodayCard } from './today-card';
 import { monthOf, useAllLogs, useMonth } from './store';
 
 import { READABLE_WIDE, TwoColumns } from '~/lib/layout';
+import { useOnTabActive } from '~/shell/tab-pager';
 
 /** 강도 글 1~10(웹 effortText — 옛 기록은 intensity 로) */
 const effortOf = (l: { intensity: number | null; effortPct: number | null }) =>
@@ -34,7 +35,9 @@ export function PitchTab({ today, bottom, onWeb }: { today: string; bottom: numb
   /* [캘린더 | 목록] — 웹 투구 탭 고르개(pitch-log-heading.tsx PITCH_VIEW_OPTIONS). 찾기는 목록에만(웹 video-gallery 와 같다) */
   const [view, setView] = useState<'calendar' | 'list'>('calendar');
   const [month, setMonth] = useState(monthOf(today));
-  const { logs, error } = useMonth(month);
+  const { logs, error, reload } = useMonth(month);
+  /* 탭을 옮겼다 돌아오면 새로 받는다(판은 붙어 있다) */
+  useOnTabActive(() => void reload());
   const [q, setQ] = useState<FindQuery>(EMPTY_FIND);
   const all = useAllLogs(view === 'list');
   const finding = isFindActive(q);

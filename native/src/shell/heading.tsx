@@ -1,7 +1,8 @@
 import { type Href, router } from 'expo-router';
 import { useEffect, useState, type ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
+import * as Haptics from 'expo-haptics';
+import Animated, { Easing, useAnimatedStyle, useReducedMotion, useSharedValue, withTiming } from 'react-native-reanimated';
 import { TYPE, usePalette } from '~/lib/ui';
 import { Icon, type IconName } from '~/shell/icon';
 
@@ -70,10 +71,12 @@ export function Segmented<V extends string>({
   const [w, setW] = useState(0);
   const index = Math.max(0, options.findIndex((o) => o.value === value));
   const cell = w > 0 ? (w - PAD * 2 - GAP * (options.length - 1)) / options.length : 0;
+  const reduce = useReducedMotion();
   const x = useSharedValue(index);
+  /* 흰 표시가 미끄러진다 — 웹 use-sliding-thumb.ts: 260ms cubic-bezier(0.2,0,0,1), 처음 자리 잡을 때는 안 움직임 */
   useEffect(() => {
-    x.value = withSpring(index, { stiffness: 320, damping: 30 });
-  }, [index, x]);
+    x.value = reduce ? index : withTiming(index, { duration: 260, easing: Easing.bezier(0.2, 0, 0, 1) });
+  }, [index, x, reduce]);
   const thumb = useAnimatedStyle(() => ({ transform: [{ translateX: x.value * (cell + GAP) }] }));
   return (
     <View
@@ -95,7 +98,11 @@ export function Segmented<V extends string>({
             key={o.value}
             accessibilityRole="radio"
             accessibilityState={{ selected: on }}
-            onPress={() => !on && onChange(o.value)}
+            onPress={() => {
+              if (on) return;
+              void Haptics.selectionAsync();
+              onChange(o.value);
+            }}
             style={st.segItem}
           >
             <Text style={{ color: c.ink, opacity: on ? 1 : 0.75, fontSize: 15, fontWeight: on ? '600' : '500' }}>{o.label}</Text>
@@ -113,7 +120,7 @@ const st = StyleSheet.create({
   tools: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   pill: { height: 44, borderRadius: 22, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', gap: 6 },
   circle: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
-  seg: { flexDirection: 'row', padding: PAD, gap: GAP, borderRadius: 24 },
-  thumb: { position: 'absolute', top: PAD, bottom: PAD, left: PAD, borderRadius: 16 },
-  segItem: { flex: 1, minHeight: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 16 },
+  seg: { flexDirection: 'row', padding: PAD, gap: GAP, borderRadius: 28 },
+  thumb: { position: 'absolute', top: PAD, bottom: PAD, left: PAD, borderRadius: 20 },
+  segItem: { flex: 1, minHeight: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 20 },
 });

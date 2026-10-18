@@ -14,6 +14,7 @@ import type { Place } from '@/lib/nutrition/meal-templates';
 import { clearPlan, eatPlan, editEntries, makePlan, saveWeight, useNutritionDay } from './api';
 import { READABLE } from '~/lib/layout';
 import { NutritionCheckinCard } from './checkin-card';
+import { useOnTabActive } from '~/shell/tab-pager';
 
 /**
  * 영양 탭(앱 화면) — 웹 영양 탭의 '기록' 쪽: 오늘 먹은 것과 목표(kcal · 탄 · 단 · 지) · 끼니마다 담은 음식(양 바꾸기 · 지우기) · 체중.
@@ -41,6 +42,8 @@ export function NutritionTab({ today, bottom, onWebNutrition }: { today: string;
     setDrafts({});
   };
   const { day, error, to, loading, reload } = useNutritionDay(date);
+  /* 탭을 옮겼다 돌아오면 새로 받는다(1번 판 넘기기 — 판이 붙어 있어 마운트로는 안 받는다) */
+  useOnTabActive(() => void reload());
   const [busy, setBusy] = useState(false);
   /* 체중은 설정 단위(kg · lb)로 보이고 적는다 — 저장은 늘 kg(2026-10-18 점검: lb 쓰는 사람의 160 이 160kg 으로 저장됐다) */
   const unit = useWeightUnit();

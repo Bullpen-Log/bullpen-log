@@ -15,6 +15,7 @@ import { cacheEpoch, cacheGet, cacheSet } from '~/lib/store';
 import { usePalette } from '~/lib/ui';
 import { fromApp, openCheckin } from '~/shell/web-nav';
 import { READABLE } from '~/lib/layout';
+import { useOnTabActive } from '~/shell/tab-pager';
 
 /**
  * 트레이닝 탭 첫 화면(앱 화면) — 웹 트레이닝 홈(app/(app)/training/training-home.tsx)과 같은 앱 카드 셋(오늘 운동 · 암케어 · 메커니즘,
@@ -79,6 +80,8 @@ export function TrainingTab({ today, bottom, onWeb }: { today: string; bottom: n
     };
   }, [load, today]);
 
+  /* 탭을 옮겼다 돌아오면 새로 받는다(1번 판 넘기기 — 판이 붙어 있어 마운트로는 안 받는다) */
+  useOnTabActive(() => void load());
   /* 운동 · 체크인(앱 화면)에서 돌아오면 다시 받는다 — '이어서'·'마쳤어요'가 바로 바뀌게 */
   const focused = useRef(false);
   useFocusEffect(

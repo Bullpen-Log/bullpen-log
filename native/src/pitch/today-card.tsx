@@ -6,6 +6,7 @@ import { rpc } from '~/lib/rpc';
 import { cacheEpoch } from '~/lib/store';
 import { usePalette } from '~/lib/ui';
 import { openCheckin } from '~/shell/web-nav';
+import { useOnTabActive } from '~/shell/tab-pager';
 
 /**
  * 투구 탭 맨 위 '오늘' 카드(앱) — 웹 투구 탭 today-card.tsx 와 같은 값(app.loadAppPitchToday): 지금 팔 상태(위험 · 주의 · 안전) ·
@@ -41,6 +42,8 @@ export function PitchTodayCard({ today }: { today: string }) {
       () => undefined
     );
   }, []);
+  /* 탭을 옮겼다 돌아와도(판은 붙어 있다) */
+  useOnTabActive(() => load());
   useFocusEffect(
     useCallback(() => {
       load();

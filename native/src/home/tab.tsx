@@ -1,13 +1,14 @@
 import { type Href, router, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState, Pressable, StyleSheet, Text, View } from 'react-native';
-import Animated, { useAnimatedRef, useAnimatedScrollHandler, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
+import Animated, { Easing, useAnimatedRef, useAnimatedScrollHandler, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { FeedItem } from '@/lib/report/feed-items';
 import { cacheEpoch, cacheGet, cacheSet } from '~/lib/store';
 import { PRESSED, SPACE, usePalette } from '~/lib/ui';
 import { Icon } from '~/shell/icon';
 import { REST_SESSION_TYPE } from '@/lib/session-type';
+import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 import { Wordmark } from '~/shell/wordmark';
 import { Pulse } from '~/shell/motion';
 import { openCheckin } from '~/shell/web-nav';
@@ -20,6 +21,7 @@ import { resetEventsCache } from './events';
 import { FeedCard } from './feed';
 import { RingsCard } from './rings';
 import { READABLE } from '~/lib/layout';
+import { useOnTabActive } from '~/shell/tab-pager';
 
 /**
  * 홈 탭(앱 화면) — 웹 홈(app/(app)/today/home-page.tsx)과 같은 차례: 링 넷 → 요약 칸 → (알림 카드) → 투구 달력 → 고른 날 칸.
@@ -94,6 +96,8 @@ export function HomeTab({
   }, [today]);
 
   /* 위에 쌓인 앱 화면(체크인 · 투구 기록 · 운동)에서 돌아오면 다시 받는다 — 링이 방금 남긴 것을 따라오게(처음 한 번은 위 효과가 받는다) */
+  /* 탭을 옮겼다 돌아오면(판은 붙어 있다) 새로 받는다 — 다른 탭에서 남긴 것이 링 · 달력에 바로 */
+  useOnTabActive(() => void Promise.all([refresh(), reload()]));
   const focused = useRef(false);
   useFocusEffect(
     useCallback(() => {
@@ -120,17 +124,29 @@ export function HomeTab({
   }, [refresh, reload]);
 
   /* 위 막대 — 아래로 굴리면 숨고 위로 굴리면 나온다(웹 mobile-top-bar.tsx useBarHidden 과 같은 문턱: 64 넘게 내려가며 4 넘게 움직임) */
-  const barShown = useSharedValue(1);
+  /* 위 막대 — 나올 때 자리 280ms cubic-bezier(0.32,0.72,0,1) + 진하기 200ms ease-out, 숨을 때 240ms + 160ms ease-in(웹 gc:3268-3288) */
+  const barY = useSharedValue(0);
+  const barO = useSharedValue(1);
+  const barUp = useSharedValue(1);
   const lastY = useSharedValue(0);
   const onScroll = useAnimatedScrollHandler((e) => {
     const y = e.contentOffset.y;
     const dy = y - lastY.value;
     lastY.value = y;
-    if (y < 8) barShown.value = withTiming(1, { duration: 200 });
-    else if (dy > 4 && y > 64) barShown.value = withTiming(0, { duration: 200 });
-    else if (dy < -4) barShown.value = withTiming(1, { duration: 200 });
+    const show = y < 8 || dy < -4 ? 1 : dy > 4 && y > 64 ? 0 : -1;
+    if (show === -1 || show === barUp.value) return;
+    barUp.value = show;
+    if (show) {
+      barY.value = withTiming(0, { duration: 280, easing: Easing.bezier(0.32, 0.72, 0, 1) });
+      barO.value = withTiming(1, { duration: 200, easing: Easing.out(Easing.ease) });
+    } else {
+      barY.value = withTiming(-BAR_H, { duration: 240, easing: Easing.bezier(0.32, 0.72, 0, 1) });
+      barO.value = withTiming(0, { duration: 160, easing: Easing.in(Easing.ease) });
+    }
   });
-  const barStyle = useAnimatedStyle(() => ({ transform: [{ translateY: (barShown.value - 1) * BAR_H }], opacity: barShown.value }));
+  const barStyle = useAnimatedStyle(() => ({ transform: [{ translateY: barY.value }], opacity: barO.value }));
+  /* 막대 밑 꼬리 — 웹 위 막(top-veil)처럼 바탕색이 16px 동안 옅어진다. 막대가 숨으면 시계 자리 밑으로 같이 올라간다 */
+  const tailStyle = useAnimatedStyle(() => ({ transform: [{ translateY: barY.value }] }));
 
   const openRing = (r: HomeRing) => {
     if (r.key === 'checkin') return openCheckin();
@@ -242,6 +258,17 @@ export function HomeTab({
       </Animated.ScrollView>
 
       {/* 위 막대 — 홈은 로고가 가운데, 오른쪽은 알림 종만(웹 2026-10-14 "인스타처럼"). 시계 자리는 늘 막대 색으로 덮는다 */}
+      <Animated.View pointerEvents="none" style={[styles.tail, { top: inset.top + BAR_H }, tailStyle]}>
+        <Svg width="100%" height={16}>
+          <Defs>
+            <LinearGradient id="veil" x1="0" y1="0" x2="0" y2="1">
+              <Stop offset="0" stopColor={c.page} stopOpacity={0.95} />
+              <Stop offset="1" stopColor={c.page} stopOpacity={0} />
+            </LinearGradient>
+          </Defs>
+          <Rect width="100%" height={16} fill="url(#veil)" />
+        </Svg>
+      </Animated.View>
       <View pointerEvents="none" style={[styles.clock, { height: inset.top, backgroundColor: c.page }]} />
       <Animated.View style={[styles.bar, { top: inset.top, backgroundColor: c.page }, barStyle]}>
         <Wordmark color={c.ink} />
@@ -380,6 +407,7 @@ const BAR_H = 56;
 
 const styles = StyleSheet.create({
   clock: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 3 },
+  tail: { position: 'absolute', left: 0, right: 0, height: 16, zIndex: 1 },
   bar: { position: 'absolute', left: 0, right: 0, height: BAR_H, alignItems: 'center', justifyContent: 'center', zIndex: 2 },
   bell: { position: 'absolute', right: 12, width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
   dot: { position: 'absolute', right: 10, top: 10, width: 9, height: 9, borderRadius: 5, borderWidth: 2 },
