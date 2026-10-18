@@ -584,8 +584,9 @@ function PlanStep({ ctx }: { ctx: StepCtx }) {
           </Text>
         </View>
       ) : (
-        <Pressable accessibilityRole="button" onPress={() => setOpen(true)} hitSlop={6} style={{ alignSelf: 'flex-start', minHeight: 44, justifyContent: 'center' }}>
-          <Text style={{ color: c.sky, fontSize: 15, fontWeight: '600' }}>✎ 하루 목표를 직접 정하기</Text>
+        <Pressable accessibilityRole="button" onPress={() => setOpen(true)} hitSlop={6} style={{ alignSelf: 'flex-start', minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          <SymbolView name="pencil" size={14} tintColor={c.sky} />
+          <Text style={{ color: c.sky, fontSize: 15, fontWeight: '600' }}>하루 목표를 직접 정하기</Text>
         </Pressable>
       )}
       <View style={{ gap: 8 }}>
