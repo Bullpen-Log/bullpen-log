@@ -13,6 +13,7 @@ import { monthOf, reloadFeatured, reloadNoteDays, useAllLogs, useDayThumbs, useM
 
 import { READABLE_WIDE, TwoColumns } from '~/lib/layout';
 import { useOnTabActive, useRetapTop } from '~/shell/tab-pager';
+import { useTabIntent } from '~/shell/tab-intent';
 
 /**
  * 투구 탭(앱 화면) — 찾기 · 달력(그날 공 수 · 영상 점) + 그달 기록 목록 · 지난 영상 가져오기. 날짜를 누르면 그날 화면(/pitch/[date]).
@@ -35,6 +36,12 @@ export function PitchTab({ today, bottom, onWeb }: { today: string; bottom: numb
   /* 탭을 옮겼다 돌아오면 새로 받는다(판은 붙어 있다) */
   useOnTabActive(() => void Promise.all([reload(), reloadFeatured(), reloadNoteDays()]));
   const notes = useNoteDays();
+  /* 홈 그날 칸의 '투구 탭에서 보기' — 달력이 그날을 연 채로(웹 /videos?date=) */
+  useTabIntent('pitch', (d) => {
+    setView('calendar');
+    setMonth(monthOf(d));
+    setSelected(d);
+  });
   const all = useAllLogs(view === 'list');
   /* 지금 탭(투구)을 다시 누르면 맨 위로 */
   const scrollRef = useRef<ScrollViewInstance>(null);

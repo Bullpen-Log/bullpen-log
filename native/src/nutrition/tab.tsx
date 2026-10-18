@@ -17,6 +17,7 @@ import { Press } from '~/shell/press';
 import { Segmented } from '~/shell/heading';
 import { DateStrip, StripBar } from '~/shell/date-strip';
 import { DateNavButton } from '~/shell/mini-calendar';
+import { useTabIntent } from '~/shell/tab-intent';
 import { PLAN_PLACES, type PlanItem } from '@/lib/nutrition/meal-plan';
 import type { Place } from '@/lib/nutrition/meal-templates';
 import { clearPlan, eatPlan, editEntries, makePlan, saveWeight, useNutritionDay } from './api';
@@ -57,6 +58,8 @@ export function NutritionTab({ today, bottom, onWebNutrition }: { today: string;
   useRetapTop(() => topRef.current?.scrollTo({ y: 0, animated: true }));
 
   useOnTabActive(() => void reload());
+  /* 홈 그날 칸의 '영양 탭에서 자세히' — 그날로 연다(웹 /nutrition?date=) */
+  useTabIntent('nutrition', (d) => setDate(d));
   const [busy, setBusy] = useState(false);
   /* 펴 둔 끼니(휴대폰 웹처럼 한 줄로 접어 두고 누르면 편다) */
   const [openMeals, setOpenMeals] = useState<MealKey[]>([]);

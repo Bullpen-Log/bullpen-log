@@ -1,5 +1,5 @@
 import { type Href, router } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import Animated, { Easing, FadeInDown, LinearTransition } from 'react-native-reanimated';
 import { SLEEP_QUALITY_LEVELS } from '@/lib/checkin';
@@ -18,6 +18,7 @@ import { loadDay, type DayDetail } from './api';
 import { DayEvents, useDayEventCount } from './events';
 import { PitchVideo } from '~/pitch/video';
 import { VelocityClips } from './velocity-clips';
+import { openTabAt } from '~/shell/tab-intent';
 import { useFeatured, useVelocityDays } from '~/pitch/store';
 
 /**
@@ -84,6 +85,14 @@ export function DayCards({
       alive = false;
     };
   }, [date, today, retry]);
+  /* 한 번은 저절로 다시 받는다 — 서버가 잠깐 몰려 실패한 것이면 사람이 누르기 전에 채워진다(1.5초 뒤, 날마다 한 번) */
+  const autoRetried = useRef<string | null>(null);
+  useEffect(() => {
+    if (!state.error || state.date !== date || autoRetried.current === date) return;
+    autoRetried.current = date;
+    const t = setTimeout(() => setRetry((n) => n + 1), 1500);
+    return () => clearTimeout(t);
+  }, [state.error, state.date, date]);
 
   const ahead = date > today;
   /* 같이 만든 투구 기록을 지워도 측정 세션은 남는다 — 그래도 카메라 줄은 보인다(웹 PitchDetail) */
@@ -116,7 +125,7 @@ export function DayCards({
   const first = ahead ? 'schedule' : (TILES.find((t) => has[t.key])?.key ?? 'pitch');
   /* 칸이 펴진 채 날을 바꾸면 보던 아이콘 그대로(웹 — 날마다 영양 · 투구를 견줘 본다). 처음 펼 때만 first */
   const focus = picked ? picked.focus : first;
-  const link = tabLink(focus, date, today, !has[focus]);
+  const link = tabLink(focus, date, today, !has[focus], videos === 0 && (vday?.clips ?? 0) > 0);
 
   return (
     <>
@@ -280,18 +289,23 @@ export function DayCards({
 }
 
 /** 탭으로 가는 길 — 웹 day-detail.tsx tabLink 와 같은 글 */
-function tabLink(focus: Focus, date: string, today: string, empty: boolean): { href: string; label: string } | null {
+function tabLink(focus: Focus, date: string, today: string, empty: boolean, clipsOnly = false): { href: string; label: string } | null {
   const isToday = date === today;
   if (focus === 'pitch') return { href: `/pitch/${date}`, label: empty ? '이 날 투구 남기기' : '투구 탭에서 자세히' };
   if (focus === 'training')
     return { href: isToday ? '/training' : `/training/day/${date}`, label: empty ? (isToday ? '오늘 운동하러 가기' : '이 날 운동 채우기') : '트레이닝에서 자세히' };
-  if (focus === 'nutrition') return { href: '/nutrition', label: empty ? '식단 기록하러 가기' : '영양 탭에서 자세히' };
-  if (focus === 'video') return { href: `/pitch/${date}`, label: empty ? '투구 탭으로' : '투구 탭에서 보기' };
+  if (focus === 'nutrition') return { href: isToday ? '/nutrition' : `/nutrition?date=${date}`, label: empty ? '식단 기록하러 가기' : '영양 탭에서 자세히' };
+  /* 구속 측정 클립만 있는 날은 공마다 보는 그날 화면, 아니면 투구 달력이 그날을 연 채로(웹 /videos?date=) */
+  if (focus === 'video') return clipsOnly ? { href: `/pitch/${date}`, label: '그날 화면에서 공마다 보기' } : { href: `/videos?date=${date}`, label: empty ? '투구 탭으로' : '투구 탭에서 보기' };
   return null;
 }
 function go(href: string, onTab: (href: string) => void) {
   if (href.startsWith('/pitch/') || href.startsWith('/training/day/')) return router.push(href as Href);
-  onTab(href);
+  const [path, query] = href.split('?');
+  const date = new URLSearchParams(query ?? '').get('date');
+  if (date && path === '/nutrition') openTabAt('nutrition', date);
+  if (date && path === '/videos') openTabAt('pitch', date);
+  onTab(path);
 }
 
 function TrainingDetail({ d, c }: { d: DayDetail; c: Palette }) {
