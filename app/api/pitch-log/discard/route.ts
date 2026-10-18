@@ -61,5 +61,6 @@ export async function POST(req: Request) {
   const orphans = own.filter((p) => !used.has(p));
   if (orphans.length > 0) await deleteVideos(orphans);
 
-  return NextResponse.json({ deleted: orphans.length });
+  /* orphans — 어느 기록 · 클립에도 없는 경로. 폰 영상(local-)은 서버에 파일이 없어, 부르는 쪽이 이것만 폰에서 지운다(lib/local-video.ts discardPhoneVideos) */
+  return NextResponse.json({ deleted: orphans.length, orphans });
 }
