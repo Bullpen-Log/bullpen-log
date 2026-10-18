@@ -1,5 +1,5 @@
 import { SymbolView, type SFSymbol } from 'expo-symbols';
-import { router } from 'expo-router';
+import { type Href, router } from 'expo-router';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { usePalette } from '~/lib/ui';
@@ -65,7 +65,7 @@ export default function MoreScreen() {
       </View>
       <ScrollView contentContainerStyle={{ padding: 16, gap: 20, paddingBottom: inset.bottom + 24 }}>
         <View style={[styles.group, { backgroundColor: c.card }]}>
-          {row('profile', nickname ? `${nickname} · 내 정보` : '내 정보', 'person.crop.circle', () => go('#profile'))}
+          {row('profile', nickname ? `${nickname} · 내 정보` : '내 정보', 'person.crop.circle', () => (router.back(), router.push('/profile' as Href)))}
           {row('settings', '설정', 'gearshape', () => go('#settings'), false, true)}
         </View>
         {groups.map((g, gi) => (

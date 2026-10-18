@@ -19,3 +19,5 @@ export const useMenu = () =>
     },
     () => menu
   );
+/** 앱 내 정보(app/profile.tsx)에서 닉네임을 고치면 더보기 머리도 바로 바꾼다 — 사이트가 다음 알림을 보낼 때까지 */
+export const setMenuNickname = (nickname: string) => setMenu({ ...menu, nickname });
