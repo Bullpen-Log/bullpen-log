@@ -87,6 +87,24 @@ export function pickTarget(
   };
 }
 
+/**
+ * 다시 만들지 않고 앞뒤만 잘라 붙여도 되나 — 이미 올릴 모양(H.264 · 일반 색 · 줄일 필요 없음 · 비트레이트가 목표의 1.3배 안 ·
+ * 자른 길이로 48MB 안)이면 그대로 쓴다. 앱 카메라가 이 모양으로 찍는다(2026-10-18, ShootRecorder applyUploadSettings) —
+ * 폰에서 다시 만드는 10~20초가 사라진다. 원본 비트레이트는 파일 크기 ÷ 길이로 어림한다.
+ */
+export function canKeepAsIs(
+  info: Pick<ClipInfo, 'codec' | 'hdr' | 'width' | 'height' | 'fps' | 'bytes' | 'duration' | 'startTime'>,
+  seconds: number,
+  budgetBytes = CLIP_BUDGET_BYTES
+): boolean {
+  if (info.codec !== 'avc' || info.hdr) return false;
+  const target = pickTarget(info, seconds, budgetBytes);
+  if (target.scaled) return false;
+  const length = Math.max(0.1, info.duration - info.startTime);
+  const sourceBitrate = (info.bytes * 8) / length;
+  return sourceBitrate <= target.bitrate * 1.3 && estimateBytes(sourceBitrate, seconds) <= budgetBytes;
+}
+
 /** 예상 크기(바이트) — 비트레이트 × 길이 + 상자 몫 */
 export function estimateBytes(bitrate: number, seconds: number): number {
   return Math.round((bitrate * seconds) / 8 + 64 * 1024);

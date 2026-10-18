@@ -153,6 +153,8 @@ final class ShootRecorderViewController: UIViewController, AVCaptureFileOutputRe
             return
         }
         session.beginConfiguration()
+        /* 색 공간은 아래에서 직접 정한다(일반 색) — 세션이 넓은 색으로 되돌리지 않게 */
+        session.automaticallyConfiguresCaptureDeviceForWideColor = false
         for old in session.inputs { session.removeInput(old) }
         guard session.canAddInput(input) else {
             session.commitConfiguration()
@@ -192,8 +194,11 @@ final class ShootRecorderViewController: UIViewController, AVCaptureFileOutputRe
             camera.activeVideoMaxFrameDuration = duration
             if camera.isFocusModeSupported(.continuousAutoFocus) { camera.focusMode = .continuousAutoFocus }
             if camera.isExposureModeSupported(.continuousAutoExposure) { camera.exposureMode = .continuousAutoExposure }
+            /* 일반 색(SDR)으로 — HDR(HLG)이면 사이트가 H.264 로 다시 만들어야 해서 올리기가 느렸다(2026-10-18) */
+            if camera.activeFormat.supportedColorSpaces.contains(.sRGB) { camera.activeColorSpace = .sRGB }
             camera.unlockForConfiguration()
         } catch {}
+        applyUploadSettings(fps: rate)
         if let connection = output.connection(with: .video), connection.isVideoStabilizationSupported {
             /* 흔들림 보정 — 강한 것부터(2026-10-10 사용자) */
             let f = camera.activeFormat
@@ -222,6 +227,23 @@ final class ShootRecorderViewController: UIViewController, AVCaptureFileOutputRe
         lensControl.isEnabled = false
         timeLabel.text = "카메라 바꾸는 중"
         sessionQueue.async { self.configure() }
+    }
+
+    /// 올릴 모양 그대로 찍는다 — H.264 · 1080p · 사이트가 올리는 비트레이트(60fps 8Mbps · 30fps 6Mbps, lib/clip/plan.ts) · 1초마다 키프레임.
+    /// 그러면 사이트 편집 창이 다시 만들지 않고 앞뒤만 잘라 붙인다(lib/clip/edit.ts — 2026-10-18 사용자: "올라가는 속도를 더 빠르게").
+    /// 이 폰이 비트레이트 칸을 못 받으면 코덱만 바꾼다 — 그때는 사이트가 예전처럼 다시 만든다.
+    private func applyUploadSettings(fps: Double) {
+        guard let connection = output.connection(with: .video) else { return }
+        var settings: [String: Any] = [:]
+        if output.availableVideoCodecTypes.contains(.h264) { settings[AVVideoCodecKey] = AVVideoCodecType.h264 }
+        if output.supportedOutputSettingsKeys(for: connection).contains(AVVideoCompressionPropertiesKey) {
+            settings[AVVideoCompressionPropertiesKey] = [
+                AVVideoAverageBitRateKey: fps > 45 ? 8_000_000 : 6_000_000,
+                AVVideoMaxKeyFrameIntervalKey: max(1, Int(fps.rounded())),
+                AVVideoProfileLevelKey: AVVideoProfileLevelH264HighAutoLevel,
+            ]
+        }
+        if !settings.isEmpty { output.setOutputSettings(settings, for: connection) }
     }
 
     /// 녹화를 시작하는 순간 폰을 든 방향(세로 · 가로)으로 영상을 세운다

@@ -17,6 +17,7 @@ import { ALL_FORMATS, BlobSource, Input } from 'mediabunny';
 import {
   CLIP_BUDGET_BYTES,
   MIN_CLIP_SEC,
+  canKeepAsIs,
   clampTrim,
   clipTimeText,
   estimateBytes,
@@ -57,6 +58,16 @@ console.log('① 순수 계산');
   check('짝수', even(1079) === 1080 && even(361) === 362 && even(1) === 2);
   const odd = pickTarget({ width: 1179, height: 2556, fps: 30 }, 8);
   check('홀수 화면(아이폰 화면 녹화)도 짝수로 줄인다', odd.width % 2 === 0 && odd.height % 2 === 0 && odd.height === 1920, JSON.stringify(odd));
+  /* 앱 카메라가 올릴 모양(H.264 · 8Mbps)으로 찍은 15초 1080p60 — 다시 만들지 않는다(2026-10-18) */
+  const app = { codec: 'avc', hdr: false, width: 1080, height: 1920, fps: 60, bytes: 15_500_000, duration: 15, startTime: 0 };
+  check(
+    '이미 올릴 모양이면 잘라 붙이기 — H.264 · 8Mbps 1080p60 은 그대로, HEVC · HDR · 비트레이트 높음 · 4K 는 다시 만든다',
+    canKeepAsIs(app, 12) &&
+      !canKeepAsIs({ ...app, codec: 'hevc' }, 12) &&
+      !canKeepAsIs({ ...app, hdr: true }, 12) &&
+      !canKeepAsIs({ ...app, bytes: 45_000_000 }, 12) &&
+      !canKeepAsIs({ ...app, width: 2160, height: 3840, bytes: 30_000_000 }, 12)
+  );
 }
 {
   check('처음 구간 = 통째', JSON.stringify(initialTrim(7.25)) === JSON.stringify({ start: 0, end: 7.25 }));
@@ -184,12 +195,13 @@ console.log('③ 앱 카메라 다리 — 가짜 앱 부품');
   const got = file ? Buffer.from(await file.arrayBuffer()) : Buffer.alloc(0);
   const reads = calls.filter((c) => c.method === 'read').length;
   check('조각으로 넘겨받아 원래 바이트 그대로', !!file && got.equals(source), `${got.length} / ${source.length}`);
-  check('2MB 씩 세 번 읽음', reads === 3, `읽기 ${reads}번`);
+  /* 2026-10-18 부터 4MB 씩(앱 상한 그대로) — 5MB 는 두 번 */
+  check('4MB 씩 두 번 읽음', reads === 2, `읽기 ${reads}번`);
   check('다 받으면 앱의 임시 파일을 지움', calls.at(-1)?.method === 'discard');
   check('파일 이름 · 종류(mov)', file?.name === 'app-camera.mov' && file?.type === 'video/quicktime');
   check(
     '진행률 0 → 1',
-    seen.length === 3 && seen.at(-1) === 1 && seen.every((x, i) => i === 0 || x >= seen[i - 1])
+    seen.length === 2 && seen.at(-1) === 1 && seen.every((x, i) => i === 0 || x >= seen[i - 1])
   );
   const raw = Buffer.from('불펜로그 앱 카메라');
   check('base64 풀기', Buffer.from(decodeBase64(raw.toString('base64'))).equals(raw));

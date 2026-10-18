@@ -26,7 +26,7 @@ import {
   canEncodeVideo,
   type ConversionOptions,
 } from 'mediabunny';
-import { CLIP_BUDGET_BYTES, clampTrim, pickTarget, type ClipInfo } from '@/lib/clip/plan';
+import { CLIP_BUDGET_BYTES, canKeepAsIs, clampTrim, pickTarget, type ClipInfo } from '@/lib/clip/plan';
 
 export { ConversionCanceledError };
 
@@ -236,8 +236,11 @@ async function exportOnce(
     const { start, end } = clampTrim(range.start, range.end, info.duration);
     const target = pickTarget(info, end - start, options.budgetBytes, options.maxBitrate);
     const quality = new Quality({ bitrate: target.bitrate });
+    /* 이미 올릴 모양이면(앱 카메라가 H.264 · 목표 비트레이트로 찍음) 다시 만들지 않고 잘라 붙이기 — 폰에서 10~20초 빨라진다 */
+    const keepAsIs = options.maxBitrate === undefined && canKeepAsIs(info, end - start, options.budgetBytes);
     const canTranscode =
       !options.forceCopy &&
+      !keepAsIs &&
       info.canDecode &&
       typeof VideoEncoder !== 'undefined' &&
       (await canEncodeVideo('avc', {
