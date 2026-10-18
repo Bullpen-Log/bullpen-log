@@ -5,6 +5,7 @@ import { THROW_PLANS } from '@/lib/checkin';
 import { rpc } from '~/lib/rpc';
 import { cacheEpoch } from '~/lib/store';
 import { usePalette } from '~/lib/ui';
+import { openCheckin } from '~/shell/web-nav';
 
 /**
  * 투구 탭 맨 위 '오늘' 카드(앱) — 웹 투구 탭 today-card.tsx 와 같은 값(app.loadAppPitchToday): 지금 팔 상태(위험 · 주의 · 안전) ·
@@ -73,7 +74,7 @@ export function PitchTodayCard({ today }: { today: string }) {
       };
 
   return (
-    <View style={[styles.card, { backgroundColor: c.card }]}>
+    <View style={[styles.card, { backgroundColor: c.card, boxShadow: c.float }]}>
       <View style={styles.status}>
         <View style={[styles.badge, { backgroundColor: color }]}>
           <Text style={styles.badgeText}>{LEVEL[data.status.level]}</Text>
@@ -113,7 +114,7 @@ export function PitchTodayCard({ today }: { today: string }) {
       ) : (
         <Pressable
           accessibilityRole="button"
-          onPress={() => router.push({ pathname: '/checkin' as Href as never, params: { date: data.today } })}
+          onPress={() => openCheckin('/videos')}
           style={{ minHeight: 40, justifyContent: 'center' }}
         >
           <Text style={{ color: c.sky, fontSize: 14, fontWeight: '600' }}>체크인을 남기면 여기서 골라요 · 체크인하기 ›</Text>

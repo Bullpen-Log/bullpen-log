@@ -8,6 +8,7 @@ import { drainChecks, onCheckResult } from '~/armcare/outbox';
 import { sendCheck } from '~/armcare/send';
 import { act, leave } from '~/mechanics/parts';
 import { usePalette, type Palette } from '~/lib/ui';
+import { openCheckin } from '~/shell/web-nav';
 import { AREAS_BY_JOINT, AreaCard, Checklist, GapCard, PainNote, RehabCard, RoutineCard, WeekDots, openPlay } from '~/training/armcare-parts';
 import { Fold, Screen, SectionHead, WebRow, s, useJump, useScreenData } from '~/training/screen';
 
@@ -88,7 +89,7 @@ function TodayTab({ data, fresh, reload, c }: { data: AppArmcareTodayTab; fresh:
             <Text style={[s.bodyBold, { color: c.ink, fontSize: 17 }]}>오늘 체크인을 먼저 남겨주세요</Text>
             <Text style={[s.body, { color: c.muted }]}>30초면 돼요. 몸 상태를 보고 루틴을 짜요.</Text>
             <Pressable
-              onPress={() => router.push({ pathname: '/checkin' as Href as never, params: { date: data.dateKey } })}
+              onPress={() => openCheckin('/training?view=home')}
               accessibilityRole="button"
               style={[s.pill, { backgroundColor: c.sky }]}
             >
@@ -105,7 +106,7 @@ function TodayTab({ data, fresh, reload, c }: { data: AppArmcareTodayTab; fresh:
               </Pressable>
             ) : null}
             <Pressable
-              onPress={() => router.push({ pathname: '/checkin' as Href as never, params: { date: data.dateKey } })}
+              onPress={() => openCheckin('/training?view=home')}
               accessibilityRole="button"
               style={s.textBtn}
             >

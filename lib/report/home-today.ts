@@ -46,7 +46,7 @@ export async function loadHomeRings(
   user: HomeUser,
   today: string,
   pitchLocked: boolean
-): Promise<{ items: HomeRing[]; checkinDone: boolean }> {
+): Promise<{ items: HomeRing[]; checkinDone: boolean; pitchDone: boolean }> {
   const [detail, logs, advice, mealPlan] = await Promise.all([
     loadDayDetailCached(user, today),
     prisma.pitchLog.findMany({
@@ -119,7 +119,8 @@ export async function loadHomeRings(
     },
   ];
 
-  return { items, checkinDone: detail.checkin != null };
+  /* pitchDone — 오늘 투구 기록이 한 줄이라도(쉰 날 줄 포함) 있나: 앱 위 막대 알림 종의 '오늘 할 일'(웹 종과 같은 판정) */
+  return { items, checkinDone: detail.checkin != null, pitchDone: logs.length > 0 };
 }
 
 /** 요약 칸 장들 — 장을 만드는 셈은 lib/report/feed-items.ts(순수), 여기는 재료를 모은다 */

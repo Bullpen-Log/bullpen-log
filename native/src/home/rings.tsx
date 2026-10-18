@@ -21,7 +21,7 @@ const LEN = 2 * Math.PI * R;
 export function RingsCard({ rings, onPress }: { rings: HomeRing[]; onPress: (ring: HomeRing) => void }) {
   const c = usePalette();
   return (
-    <View style={[styles.card, { backgroundColor: c.card }]}>
+    <View style={[styles.card, { backgroundColor: c.card, boxShadow: c.float }]}>
       {rings.map((it) => {
         const v = Math.min(1, Math.max(0, it.value));
         const full = v >= 1;

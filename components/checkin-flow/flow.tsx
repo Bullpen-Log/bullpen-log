@@ -122,10 +122,13 @@ export function CheckinFlow({
   ctx,
   onDone,
   onSkip,
+  returnTo = '/',
 }: {
   /** page — 휴대폰 전체 화면(틀의 높이를 다 쓴다) · popup — PC 의 창 안(제 높이를 정한다) */
   variant: 'page' | 'popup';
   ctx: CheckinFlowContext;
+  /** page 가 끝나면 돌아갈 곳 — 앱의 트레이닝 화면에서 열면 그리로(app/(session)/checkin/page.tsx 의 ?next=) */
+  returnTo?: string;
   /** 완료 화면이 끝났을 때(popup) — 창을 닫는다. page 는 홈으로 간다 */
   onDone?: () => void;
   /** 환영에서 '오늘은 건너뛰기'(popup) — 창을 닫는다 */
@@ -270,12 +273,12 @@ export function CheckinFlow({
   const finish = () => {
     if (left.current) return;
     left.current = true;
-    if (variant === 'page') router.replace('/');
+    if (variant === 'page') router.replace(returnTo);
     else onDone?.();
   };
   const skipToday = () => {
     if (today) writeCheckinSkip(today);
-    if (variant === 'page') router.replace('/');
+    if (variant === 'page') router.replace(returnTo);
     else onSkip?.();
   };
 
@@ -395,7 +398,7 @@ export function CheckinFlow({
         <header className="flex shrink-0 justify-end px-3 pt-[max(0.5rem,env(safe-area-inset-top))]">
           <button
             type="button"
-            onClick={() => router.replace('/')}
+            onClick={() => router.replace(returnTo)}
             aria-label="닫기"
             className="grid h-12 w-12 place-items-center rounded-full text-muted transition-colors hover:bg-ink/6 hover:text-ink"
           >

@@ -65,6 +65,8 @@ export async function loadAppHome(): Promise<
       today: string;
       rings: HomeRing[];
       checkinDone: boolean;
+      /** 오늘 투구 기록이 있나(쉰 날 줄 포함) — 앱 위 막대 알림 종 */
+      pitchDone: boolean;
       feed: FeedItem[];
       /** 최근 투구 메모에 통증 같은 말 — 체크인으로 확인할 때까지 투구는 쉬고 운동은 회복만(웹 홈 맨 위 경고 카드) */
       painWords: string[] | null;
@@ -91,6 +93,7 @@ export async function loadAppHome(): Promise<
     today,
     rings: rings.items,
     checkinDone: rings.checkinDone,
+    pitchDone: rings.pitchDone,
     feed,
     painWords: plan.needsPainCheck && !picked.halted ? facts.condition.painWordsInMemo : null,
     recovering: plan.recovering && !plan.needsPainCheck && !picked.halted,

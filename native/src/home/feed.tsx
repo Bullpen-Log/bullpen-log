@@ -44,7 +44,7 @@ export function FeedCard({ items, onOpen }: { items: FeedItem[]; onOpen: (item: 
 
   if (!n) return null;
   return (
-    <View style={[styles.card, { backgroundColor: c.card }]} onLayout={(e) => setWidth(e.nativeEvent.layout.width)}>
+    <View style={[styles.card, { backgroundColor: c.card, boxShadow: c.float }]} onLayout={(e) => setWidth(e.nativeEvent.layout.width)}>
       <ScrollView
         ref={scroll}
         horizontal

@@ -11,7 +11,7 @@ import { rpc, RpcError } from '~/lib/rpc';
 import { REST_DAY } from '~/training/rest-day';
 import { cacheEpoch, cacheGet, cacheSet } from '~/lib/store';
 import { usePalette, type Palette } from '~/lib/ui';
-import { useWebNav } from '~/shell/web-nav';
+import { useWebNav, openCheckin } from '~/shell/web-nav';
 import { BigButton, s, WebRows, type TodayActions } from '~/training/today/parts';
 import { DoneView, HaltedCard, MakeCard, NoticeBand, OutingRow, PlanBody, PrefsCard, ProgramDayRow } from '~/training/today/plan';
 import { ProgramCardView, ProgramDoneView } from '~/training/today/program';
@@ -151,7 +151,7 @@ export default function TrainingTodayScreen() {
     reload: load,
     start: (program) => void start(program),
     starting,
-    checkin: () => router.push({ pathname: '/checkin' as Href as never, params: { date: data?.today ?? today } }),
+    checkin: () => openCheckin('/training?view=home'),
     generate,
     web: leave,
   };
