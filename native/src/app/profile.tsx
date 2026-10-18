@@ -1,5 +1,5 @@
 import { Image } from 'expo-image';
-import { router } from 'expo-router';
+import { type Href, router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
 import { useState } from 'react';
@@ -129,7 +129,7 @@ function Body({ p, reload, c }: { p: AppProfile; reload: () => void; c: Palette 
 
       <Group title="계정" footer={p.isAdmin ? '관리자 계정이에요. 트레이닝 영상과 메커니즘 가이드를 올리고 지울 수 있어요.' : undefined} c={c}>
         <Row label={p.email} c={c} last>
-          <Pressable accessibilityRole="link" onPress={() => router.push('/account')} hitSlop={8}>
+          <Pressable accessibilityRole="link" onPress={() => router.push('/account' as Href)} hitSlop={8}>
             <Text style={{ color: c.sky, fontSize: 15, fontWeight: '600' }}>비밀번호 · 로그아웃 ›</Text>
           </Pressable>
         </Row>

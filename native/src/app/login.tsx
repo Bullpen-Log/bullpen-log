@@ -1,5 +1,5 @@
 import * as Haptics from 'expo-haptics';
-import { router, Stack } from 'expo-router';
+import { type Href, router, Stack } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, type TextInputInstance, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -150,7 +150,7 @@ export default function LoginScreen() {
         >
           <Text style={{ color: '#fff', fontSize: 17, fontWeight: '700' }}>{busy ? '로그인 중…' : '로그인'}</Text>
         </Pressable>
-        <Pressable accessibilityRole="link" onPress={() => router.push('/signup')} hitSlop={8} style={{ alignSelf: 'center', minHeight: 44, justifyContent: 'center' }}>
+        <Pressable accessibilityRole="link" onPress={() => router.push('/signup' as Href)} hitSlop={8} style={{ alignSelf: 'center', minHeight: 44, justifyContent: 'center' }}>
           <Text style={{ color: c.sky, fontSize: 16, fontWeight: '600' }}>계정 만들기</Text>
         </Pressable>
       </ScrollView>
