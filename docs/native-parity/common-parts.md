@@ -25,6 +25,13 @@
 - `ToolCircle icon="…" label="…"` — 그림만 있는 40pt 동그라미.
 - `Segmented options value onChange label` — 회색 바탕 위로 흰 칸이 미끄러지는 고르개(칸 40pt).
 
+## 공통 부품 더(네이티브2 요청)
+
+- `native/src/shell/swipe-row.tsx` `SwipeRow actions={[{ label, color, onPress }]}` — 줄을 밀면 오른쪽에서 단추. 한 번에 한 줄만 열림.
+  뿌리 레이아웃이 `GestureHandlerRootView` 로 감싸 둬서 어느 화면에서나 쓸 수 있다.
+- `rpc('app-training.rememberTrainingPart', 'today' | 'armcare' | 'mechanics')` — '마지막으로 쓴 트레이닝 앱' 쿠키(웹 remember-app.tsx 와 같은 값).
+  앱 화면이 그 앱을 열 때 한 번 부르면 트레이닝 홈 순서가 웹과 같아진다.
+
 ## 하지 않는 것
 
 - **당겨서 새로고침(RefreshControl) 없음** — 웹이 2026-10-15 에 뺐다. 화면에 돌아올 때(useFocusEffect) · 앱을 5분 넘게 떠났다 올 때 새로 받는다(홈 `home/tab.tsx` 참고).
