@@ -11,6 +11,18 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 ---
 
+## 김민에게(맥북) — 2026-10-18 · 클라우드 세션(Claude) — 아이패드 촬영 카메라: 가로로 들면 미리보기가 옆으로 눕던 것
+
+받은 뒤 할 일: **맥북에서 새 앱(Expo)을 구울 때 같이 실린다** — 이 파일의 '새 앱(Expo) 굽기 · 촬영 앱 카메라가 H.264 로' 메모와 같은 굽기로 된다. 옛 앱(mobile/)은 main 에 들어가면
+GitHub '아이폰 앱 굽기'가 저절로 굽는다. **리눅스 클라우드라 Swift 를 컴파일해 보지 못했다** — 굽다가 오류가 나면 그 줄을 고쳐 줘.
+- 까닭: 아이패드는 앱이 모든 방향 · 화면 나누기를 받아 촬영 화면의 '세로 고정'이 먹지 않는다. 가로로 들면 화면(단추)은 돌고 미리보기 판은 세로 그대로라
+  옆으로 누워 보였다(찍힌 영상 방향은 원래 맞았다).
+- 고침(두 파일 같게 — `native/modules/shoot-camera/ios/ShootRecorderViewController.swift` · `mobile/ios/App/App/ShootCameraPlugin.swift`):
+  아이패드는 `supportedInterfaceOrientations` = `.all`(아이폰은 그대로 세로), iOS 17+ 는 `RotationCoordinator.videoRotationAngleForHorizonLevelPreview` 를
+  KVO 로 따라 미리보기 연결 각도를 바꾸고(애플 AVCam 과 같은 방식), iOS 16 은 화면 방향으로 `videoOrientation`. 눕혀 둔 아이패드(iOS 16)의 녹화 방향은 화면 방향을 따른다.
+- 구운 뒤 아이패드에서 볼 것: 관리자 → 영상 촬영 → 촬영 모드 [영상 찍기] → 세로 · 가로 · 찍는 중에 돌리기에서 미리보기가 똑바로 서는지 · 찍은 영상 방향. 아이폰은 예전과 같아야 한다.
+  다 보면 이 말을 지운다.
+
 ## 김민에게(맥북) — 2026-10-18 · 김민(Claude, 데스크탑 트레이닝 세션) — 새 앱(Expo) 굽기: 촬영 앱 카메라가 H.264 로 찍게 바뀜
 
 데스크탑에서 앱 네이티브 코드를 고쳤는데 맥이 없어 못 구웠다 — **맥북에서 받아(`git pull`) 새 앱을 평소처럼 구워 TestFlight 에 올려 줘.**

@@ -2,6 +2,7 @@ import AVFoundation
 import UIKit
 
 /// 촬영 모드의 찍는 화면 — 옛 앱(mobile/ios/App/App/ShootCameraPlugin.swift)의 것을 그대로 옮겼다(폴더 이름만 ShootCameraModule.folder).
+/// 아이폰은 화면이 세로 고정, 아이패드는 든 방향으로 화면 · 미리보기가 같이 돈다.
 final class ShootRecorderViewController: UIViewController, AVCaptureFileOutputRecordingDelegate {
     enum Result {
         case saved(URL)
@@ -22,6 +23,8 @@ final class ShootRecorderViewController: UIViewController, AVCaptureFileOutputRe
     private var fps: Double = 0
     private var lens = ""
     private var rotation: Any?  // AVCaptureDevice.RotationCoordinator (iOS 17+)
+    /// 미리보기 각도를 따라가는 관찰 — 렌즈를 바꾸면 새 기기로 다시 단다
+    private var previewRotation: NSKeyValueObservation?
 
     private let preview = AVCaptureVideoPreviewLayer()
     private let recordButton = UIButton(type: .custom)
@@ -41,7 +44,11 @@ final class ShootRecorderViewController: UIViewController, AVCaptureFileOutputRe
     required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
 
     override var prefersStatusBarHidden: Bool { true }
-    override var supportedInterfaceOrientations: UIInterfaceOrientationMask { .portrait }
+    /// 아이패드는 앱이 모든 방향 · 화면 나누기를 받아 세로로 잠글 수 없다 — 잠그는 척하면 화면만 돌고 미리보기는 옆으로 누웠다(2026-10-18 사용자:
+    /// 아이패드 촬영 카메라). 그래서 아이패드는 방향을 받고 미리보기도 같이 돌린다(applyPreviewRotation).
+    override var supportedInterfaceOrientations: UIInterfaceOrientationMask {
+        UIDevice.current.userInterfaceIdiom == .pad ? .all : .portrait
+    }
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -123,7 +130,12 @@ final class ShootRecorderViewController: UIViewController, AVCaptureFileOutputRe
 
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
+        /* 돌릴 때 미리보기 판이 따로 움직이지 않게 */
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
         preview.frame = view.bounds
+        CATransaction.commit()
+        if #unavailable(iOS 17.0) { applyLegacyPreviewOrientation() }
     }
 
     override func viewDidAppear(_ animated: Bool) {
@@ -213,7 +225,14 @@ final class ShootRecorderViewController: UIViewController, AVCaptureFileOutputRe
 
         DispatchQueue.main.async {
             if #available(iOS 17.0, *) {
-                self.rotation = AVCaptureDevice.RotationCoordinator(device: camera, previewLayer: self.preview)
+                let coordinator = AVCaptureDevice.RotationCoordinator(device: camera, previewLayer: self.preview)
+                self.rotation = coordinator
+                self.previewRotation = coordinator.observe(\.videoRotationAngleForHorizonLevelPreview, options: [.initial, .new]) { [weak self] c, _ in
+                    let angle = c.videoRotationAngleForHorizonLevelPreview
+                    DispatchQueue.main.async { self?.applyPreviewRotation(angle) }
+                }
+            } else {
+                self.applyLegacyPreviewOrientation()
             }
             self.recordButton.isEnabled = true
             self.lensControl.isEnabled = true
@@ -246,6 +265,29 @@ final class ShootRecorderViewController: UIViewController, AVCaptureFileOutputRe
         if !settings.isEmpty { output.setOutputSettings(settings, for: connection) }
     }
 
+    /// 미리보기를 기기를 든 방향으로 세운다(iOS 17+) — 아이폰은 늘 세로라 90° 그대로, 아이패드는 돌릴 때마다 바뀐다
+    @available(iOS 17.0, *)
+    private func applyPreviewRotation(_ angle: CGFloat) {
+        guard let connection = preview.connection, connection.isVideoRotationAngleSupported(angle) else { return }
+        connection.videoRotationAngle = angle
+    }
+
+    /// iOS 16 — 화면 방향 그대로 미리보기를 세운다
+    private func applyLegacyPreviewOrientation() {
+        guard let connection = preview.connection, connection.isVideoOrientationSupported else { return }
+        connection.videoOrientation = Self.videoOrientation(view.window?.windowScene?.interfaceOrientation ?? .portrait)
+    }
+
+    /// 화면 방향 → 영상 방향(두 이름이 같은 뜻 — 홈 단추 자리 기준)
+    private static func videoOrientation(_ o: UIInterfaceOrientation) -> AVCaptureVideoOrientation {
+        switch o {
+        case .landscapeLeft: return .landscapeLeft
+        case .landscapeRight: return .landscapeRight
+        case .portraitUpsideDown: return .portraitUpsideDown
+        default: return .portrait
+        }
+    }
+
     /// 녹화를 시작하는 순간 폰을 든 방향(세로 · 가로)으로 영상을 세운다
     private func applyRotation(_ connection: AVCaptureConnection) {
         if #available(iOS 17.0, *), let coordinator = rotation as? AVCaptureDevice.RotationCoordinator {
@@ -258,7 +300,9 @@ final class ShootRecorderViewController: UIViewController, AVCaptureFileOutputRe
         case .landscapeLeft: connection.videoOrientation = .landscapeRight
         case .landscapeRight: connection.videoOrientation = .landscapeLeft
         case .portraitUpsideDown: connection.videoOrientation = .portraitUpsideDown
-        default: connection.videoOrientation = .portrait
+        case .portrait: connection.videoOrientation = .portrait
+        /* 눕혀 둔 아이패드 · 모름 — 화면 방향을 따른다 */
+        default: connection.videoOrientation = Self.videoOrientation(view.window?.windowScene?.interfaceOrientation ?? .portrait)
         }
     }
 
