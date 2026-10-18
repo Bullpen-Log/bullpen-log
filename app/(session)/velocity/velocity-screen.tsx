@@ -489,7 +489,10 @@ export function VelocityScreen({
   history = [],
   initialStep = 'home',
   resume = false,
+  absMode = false,
 }: {
+  /** ABS 판정 모드(/abs) — ABS 가 켜진 채 열고 제목 · 셔터 글이 '판정'. 흐름 · 엔진은 구속 측정 그대로 */
+  absMode?: boolean;
   isAdmin: boolean;
   native: boolean;
   today: string;
@@ -798,6 +801,13 @@ export function VelocityScreen({
     live: step === 'measure' && live,
     snapshot: () => captureRef.current?.snapshot() ?? null,
   });
+  /* /abs 로 열었으면 ABS 를 켜 둔다(저장된 설정이 꺼져 있어도) — 설정을 읽은 뒤 한 박자 뒤 */
+  const absSetOn = abs.setOn;
+  useEffect(() => {
+    if (!absMode) return;
+    const t = setTimeout(() => absSetOn(true), 50);
+    return () => clearTimeout(t);
+  }, [absMode, absSetOn]);
   const fit = calibration;
   const shown = (raw: number) =>
     useCal && fit.n > 0 ? applyCalibration(raw, fit) : raw;
@@ -2363,7 +2373,7 @@ export function VelocityScreen({
     else setTipIndex(tipIndex + 1);
   };
   /* 카메라 무대 위 가운데 — 단계 이름(측정은 세션 중 상태가 대신) */
-  const stageTitle = step === 'home' ? { n: '', label: '구속 측정' } : null;
+  const stageTitle = step === 'home' ? { n: '', label: absMode ? 'ABS 판정' : '구속 측정' } : null;
   /*
    * 셔터 — 첫 화면은 '측정 시작'(안내창을 연다). 안내창 · 수평 · 존 동안은 흐리게 자리만 지킨다(앞으로 가기는 카드 안 단추 — 김민:
    * "다음 버튼은 창에다가, 셔터로 하니까 헷갈려"). 측정 단계의 셔터는 아래 막대의 다른 갈래가 그린다.
@@ -2373,10 +2383,10 @@ export function VelocityScreen({
       <Shutter
         onClick={() => setStep('type')}
         disabled={step !== 'home' || fileBusy}
-        label="측정 시작"
+        label={absMode ? '판정 시작' : '측정 시작'}
       />
       <span className={`${SIDE_LABEL} transition-opacity ${step === 'home' ? '' : 'opacity-35'}`}>
-        측정 시작
+        {absMode ? '판정 시작' : '측정 시작'}
       </span>
     </div>
   );
