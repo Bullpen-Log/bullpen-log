@@ -22,9 +22,17 @@ import {
   severityLabel,
   stageTestFor,
   type RehabResult,
+  daysBetween,
+  hasPlyoBall,
+  throwingNext,
+  type RehabConditionKey,
+  type RehabSeverity,
   type RehabStage,
   type StageTest,
+  type ThrowRecord,
+  type ThrowingNext,
 } from '@/lib/armcare/rehab';
+import { loadRehabThrows } from '@/lib/armcare/rehab-store';
 import { shiftDateKey } from '@/lib/pitch-stats';
 import { toArmcareViews } from '@/app/(app)/training/armcare-views';
 import type { ArmcareExerciseView } from '@/app/(app)/training/armcare-media';
@@ -84,8 +92,23 @@ export type AppRehabDetail = {
   conditionChoices: { key: string; label: string }[];
   /** 매주 확인 — 지난 확인(날짜 · 다치기 전의 %) · 다음 확인 날(지금 할 수 있으면 null) */
   weekly: { allowed: boolean; last: { date: string; normalPct: number } | null; nextOn: string | null };
-  /** 4단계 — 투구 복귀표를 열었나 · 공 운동 통증 없는 날 */
-  throwing: { opened: boolean; painFreeBallDays: number; needed: number } | null;
+  /** 4단계 — 투구 복귀표(웹 rehab-throwing.tsx RehabThrowingView 와 같은 칸) */
+  throwing: AppRehabThrowing | null;
+  /** 지난 7일 안의 매주 확인 — 투구 복귀표 열기가 이 % · 자신감을 쓴다(없으면 매주 확인부터) */
+  weeklyRecent: { normalPct: number; confidence: number } | null;
+};
+
+export type AppRehabThrowing = {
+  opened: boolean;
+  painFreeBallDays: number;
+  needed: number;
+  hasPlyo: boolean;
+  severity: RehabSeverity;
+  condition: RehabConditionKey | null;
+  daysSinceStart: number;
+  throws: ThrowRecord[];
+  next: ThrowingNext | null;
+  todayKey: string;
 };
 
 export type AppArmcareCustom =
@@ -199,7 +222,7 @@ export async function loadAppArmcareTab(
 
   let custom: AppArmcareCustom;
   if (data.rehab) {
-    custom = { kind: 'rehab', rehab: await rehabSummary(data.rehab, (picks) => toItems(picks, () => false, data.rehab!.doneToday, data.rehab!.program.area)) };
+    custom = { kind: 'rehab', rehab: await rehabSummary(data.rehab, (picks) => toItems(picks, () => false, data.rehab!.doneToday, data.rehab!.program.area), user, data.todayKey) };
   } else if (!data.hasCheckinToday) {
     custom = { kind: 'checkin' };
   } else if (data.decision.kind === 'rest') {
@@ -271,9 +294,14 @@ export async function loadAppArmcareTab(
 /** 오늘 재활 겉 모습 — 웹 rehab-card.tsx 머리 · 위 한 줄 · 오늘 · 진행(Progress)과 같은 글 */
 async function rehabSummary(
   rehab: NonNullable<ArmcareTodayData['rehab']>,
-  toItems: (picks: { exerciseId: string; sets: number; note?: string | null }[]) => Promise<AppArmcareItem[]>
+  toItems: (picks: { exerciseId: string; sets: number; note?: string | null }[]) => Promise<AppArmcareItem[]>,
+  user: AppUser,
+  dateKey: string
 ): Promise<AppRehabSummary> {
   const { program, status, session } = rehab;
+  /* 4단계 — 복귀표에 던진 날(투구 기록의 꼬리표)과 다음 칸(웹 armcare-section.tsx rehabCardView 와 같다) */
+  const throws = status.throwing ? await loadRehabThrows(user.id, program.startedOn) : [];
+  const recent = status.weekly.last && daysBetween(status.weekly.last.date, dateKey) < WEEKLY_EVERY_DAYS ? status.weekly.last : null;
   const items = await toItems(
     session.items.map((it) => ({ exerciseId: it.exerciseId, sets: it.sets, note: it.note ?? (it.replaces ? `${it.replaces} 대신` : null) }))
   );
@@ -321,7 +349,21 @@ async function rehabSummary(
         last: status.weekly.last ? { date: status.weekly.last.date, normalPct: status.weekly.last.normalPct } : null,
         nextOn: status.weekly.allowed ? null : shiftDateKey(status.weekly.last?.date ?? program.startedOn, WEEKLY_EVERY_DAYS),
       },
-      throwing: t ? { opened: t.openedOn != null, painFreeBallDays: t.painFreeBallDays, needed: t.needed } : null,
+      throwing: t
+        ? {
+            opened: t.openedOn != null,
+            painFreeBallDays: t.painFreeBallDays,
+            needed: t.needed,
+            hasPlyo: hasPlyoBall(user.ownedEquipment),
+            severity: program.severity,
+            condition: program.condition,
+            daysSinceStart: daysBetween(program.startedOn, dateKey),
+            throws,
+            next: t.openedOn ? throwingNext({ records: throws, severity: program.severity, todayKey: dateKey }) : null,
+            todayKey: dateKey,
+          }
+        : null,
+      weeklyRecent: recent ? { normalPct: recent.normalPct, confidence: recent.confidence } : null,
     },
   };
 }

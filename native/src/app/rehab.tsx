@@ -5,10 +5,11 @@ import { useState } from 'react';
 import { Alert, Pressable, RefreshControl, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { RED_FLAGS, RED_FLAGS_LINE } from '@/lib/armcare/pain-guide';
-import { REHAB_STAGES, type RehabStage } from '@/lib/armcare/rehab-regions';
-import type { AppArmcareGuideTab, AppArmcareTodayTab, AppRehabSummary } from '@/lib/armcare/today-load';
+import { HALF_EFFORT_NOTE, REHAB_STAGES, THROWING_PAIN_RULES, THROWING_STEPS, throwingFrequency, type RehabStage, type ThrowPain } from '@/lib/armcare/rehab';
+import { shiftDateKey } from '@/lib/pitch-stats';
+import type { AppArmcareGuideTab, AppArmcareTodayTab, AppRehabSummary, AppRehabThrowing } from '@/lib/armcare/today-load';
 import { Bar } from '~/community/parts';
-import { act, leave } from '~/mechanics/parts';
+import { act } from '~/mechanics/parts';
 import { usePalette, type Palette } from '~/lib/ui';
 import { openPlay } from '~/training/armcare-parts';
 import { s, useScreenData } from '~/training/screen';
@@ -16,7 +17,7 @@ import { s, useScreenData } from '~/training/screen';
 /**
  * 재활 자세히(앱 화면) — 웹 rehab-card.tsx 의 [자세히]: 이 단계의 목표 · 오늘 운동 · 피할 것 · 위험 신호 · 다음 단계로 가는 조건 ·
  * 매주 확인 · [진단 받았어요] · [단계 직접 바꾸기] · [그만두기 / 재활 끝내기]. 자료는 암케어 화면과 같은 받기(같은 열쇠라 받아 둔 값이 바로 뜬다).
- * 단계 시험(rehab-test.tsx) · 매주 확인(rehab-weekly.tsx)은 앱 화면, 투구 복귀표(열기 시험 · 던진 날 남기기)는 아직 웹.
+ * 단계 시험(rehab-test.tsx) · 매주 확인(rehab-weekly.tsx) · 투구 복귀표 열기(rehab-throw-open.tsx) · 던진 것 남기기(rehab-throw-log.tsx)도 앱 화면.
  */
 export default function RehabScreen() {
   const c = usePalette();
@@ -48,7 +49,6 @@ function Detail({ rehab, dateKey, reload, c }: { rehab: AppRehabSummary; dateKey
   const [pick, setPick] = useState<{ kind: 'diagnosis' | 'stage'; value: string | null } | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const toWeb = () => leave('/training?view=armcare');
 
   const run = async (action: string, ...args: unknown[]) => {
     if (busy) return false;
@@ -167,15 +167,20 @@ function Detail({ rehab, dateKey, reload, c }: { rehab: AppRehabSummary; dateKey
       ) : (
         <Part title={d.throwing.opened ? '투구 복귀표' : '투구 복귀표를 여는 조건'} c={c}>
           {d.throwing.opened ? (
-            <Text style={[s.body, { color: c.ink }]}>투구 복귀표를 열었어요. 던진 날 남기기 · 다음 칸은 웹에서 봐요.</Text>
+            <ThrowingProgram t={d.throwing} reload={reload} c={c} />
           ) : (
             <>
               <Check ok={d.throwing.painFreeBallDays >= d.throwing.needed} label={`공 운동을 통증 없이 ${d.throwing.needed}일 (지금 ${Math.min(d.throwing.painFreeBallDays, d.throwing.needed)}일)`} c={c} />
               <Check ok={false} label="밀기 · 공 던지기 힘 비교 · 팔 상태 90% 이상 · 던질 자신감 7 이상" c={c} />
+              <Text style={[s.small, { color: c.muted }]}>가능하면 진료 때 투구 복귀를 물어보세요.</Text>
+              <AppButton
+                label={d.weeklyRecent ? '투구 복귀표 열기' : '이번 주 확인부터'}
+                disabled={!d.weeklyRecent && !d.weekly.allowed}
+                onPress={() => router.push((d.weeklyRecent ? '/rehab-throw-open' : '/rehab-weekly') as Href)}
+                c={c}
+              />
             </>
           )}
-          <Text style={[s.small, { color: c.muted }]}>가능하면 진료 때 투구 복귀를 물어보세요.</Text>
-          <WebButton label={d.throwing.opened ? '투구 복귀표 보기 (웹)' : '투구 복귀표 열기 (웹)'} onPress={toWeb} c={c} />
         </Part>
       )}
 
@@ -239,6 +244,84 @@ function Detail({ rehab, dateKey, reload, c }: { rehab: AppRehabSummary; dateKey
   );
 }
 
+const PAIN_SHORT: Record<ThrowPain, string> = { none: '안 아픔', faded: '몸 풀 때 아프다 사라짐', stayed: '계속 아픔' };
+const md = (key: string) => `${Number(key.slice(5, 7))}/${Number(key.slice(8, 10))}`;
+
+/** 투구 복귀표(웹 rehab-throwing.tsx ThrowingProgram) — 다음 칸 · 여섯 칸 · 던진 날 · 빈도 · 던질 때 아프면 · 절반 힘 */
+function ThrowingProgram({ t, reload, c }: { t: AppRehabThrowing; reload: () => void; c: Palette }) {
+  const next = t.next;
+  const last = t.throws.at(-1);
+  const lastRecent = last != null && !last.laterPain && last.date >= shiftDateKey(t.todayKey, -1);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const laterPain = async () => {
+    if (busy) return;
+    setBusy(true);
+    setError(null);
+    const r = await act<{ ok: true }>('rehab.markRehabThrowLaterPain');
+    setBusy(false);
+    if ('error' in r) setError(r.error);
+    else reload();
+  };
+  return (
+    <View style={{ gap: 12 }}>
+      {next ? (
+        <View style={{ borderRadius: 12, padding: 12, gap: 2, backgroundColor: c.sky + '14' }}>
+          <Text style={[s.bodyBold, { color: c.sky }]}>
+            {next.done ? '마운드 칸까지 마쳤어요' : `다음 ${next.step}칸 · ${THROWING_STEPS[next.step - 1].distance}${next.restUntil ? ` · ${md(next.restUntil)}부터` : ''}`}
+          </Text>
+          <Text style={[s.small, { color: c.ink }]}>{next.reason}</Text>
+        </View>
+      ) : null}
+      <View style={{ borderRadius: 12, overflow: 'hidden', backgroundColor: c.page }}>
+        {THROWING_STEPS.map((st, i) => (
+          <View key={st.distance} style={{ flexDirection: 'row', gap: 10, padding: 10, backgroundColor: next && !next.done && next.step === i + 1 ? c.sky + '1a' : 'transparent' }}>
+            <Text style={[s.small, { color: c.muted, width: 14 }]}>{i + 1}</Text>
+            <Text style={[s.bodyBold, { color: c.ink, width: 44 }]}>{st.distance}</Text>
+            <Text style={[s.small, { color: c.ink, flex: 1 }]}>{st.plan}</Text>
+          </View>
+        ))}
+      </View>
+      {next ? (
+        <Pressable onPress={() => router.push('/rehab-throw-log' as Href)} accessibilityRole="button" style={[s.smallPill, { backgroundColor: c.sky, minHeight: 48, justifyContent: 'center' }]}>
+          <Text style={[s.bodyBold, { color: '#fff' }]}>오늘 던진 것 남기기</Text>
+        </Pressable>
+      ) : null}
+      {next && lastRecent ? (
+        <Pressable onPress={() => void laterPain()} disabled={busy} accessibilityRole="button" style={{ minHeight: 40, alignItems: 'center', justifyContent: 'center' }}>
+          <Text style={[s.smallBold, { color: c.muted }]}>{busy ? '남기는 중…' : '던진 뒤에(1시간 넘게 · 다음 날) 아팠어요'}</Text>
+        </Pressable>
+      ) : null}
+      {error ? <Text style={[s.small, { color: c.danger }]}>{error}</Text> : null}
+      {[...t.throws]
+        .reverse()
+        .slice(0, 6)
+        .map((th, i) => (
+          <View key={`${th.date}-${i}`} style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 8 }}>
+            <Text style={[s.small, { color: c.muted }]}>
+              {md(th.date)} · {th.step}칸 {THROWING_STEPS[th.step - 1].distance} · {th.pitches}개
+            </Text>
+            <Text style={[s.small, { color: th.pain === 'none' && !th.laterPain ? c.muted : c.warn }]}>
+              {PAIN_SHORT[th.pain]}
+              {th.laterPain ? ' · 던진 뒤 아픔' : ''}
+            </Text>
+          </View>
+        ))}
+      <Text style={[s.bodyBold, { color: c.sky }]}>{throwingFrequency(t.severity)}</Text>
+      <View style={{ gap: 4 }}>
+        <Text style={[s.smallBold, { color: c.muted }]}>던질 때 아프면</Text>
+        {THROWING_PAIN_RULES.map((r) => (
+          <Text key={r.when} style={[s.small, { color: c.ink }]}>
+            <Text style={{ fontWeight: '700' }}>{r.when}</Text>, {r.then}
+          </Text>
+        ))}
+      </View>
+      <Text style={[s.small, { color: c.muted }]}>{HALF_EFFORT_NOTE}</Text>
+      <Text style={[s.small, { color: c.muted }]}>가능하면 진료 때 투구 복귀를 물어보세요. 마운드 칸까지 통증 없이 마치면 재활을 끝내요.</Text>
+    </View>
+  );
+}
+
 function Part({ title, children, c }: { title: string; children: React.ReactNode; c: Palette }) {
   return (
     <View style={{ gap: 8, padding: 14, borderRadius: 14, backgroundColor: c.card }}>
@@ -254,15 +337,6 @@ function Check({ ok, label, c }: { ok: boolean; label: string; c: Palette }) {
       <SymbolView name={ok ? 'checkmark.circle.fill' : 'circle'} size={18} tintColor={ok ? c.sky : c.muted} />
       <Text style={[s.body, { color: ok ? c.ink : c.muted, flex: 1 }]}>{label}</Text>
     </View>
-  );
-}
-
-function WebButton({ label, onPress, disabled, c }: { label: string; onPress: () => void; disabled?: boolean; c: Palette }) {
-  return (
-    <Pressable onPress={onPress} disabled={disabled} accessibilityRole="link" style={[s.smallPill, { backgroundColor: c.sky + '1a', alignSelf: 'flex-start', minHeight: 44, paddingHorizontal: 16, opacity: disabled ? 0.5 : 1 }]}>
-      <Text style={[s.bodyBold, { color: c.sky }]}>{label}</Text>
-      <SymbolView name="arrow.up.right" size={12} tintColor={c.sky} />
-    </Pressable>
   );
 }
 

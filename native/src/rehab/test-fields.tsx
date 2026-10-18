@@ -2,6 +2,7 @@ import { SymbolView } from 'expo-symbols';
 import { Text, TextInput, View } from 'react-native';
 import { CKCUEST_METHOD, type StageTest } from '@/lib/armcare/rehab';
 import { YES_NO, num, type StageTestDraft } from '@/lib/armcare/rehab-test-draft';
+import type { ThrowingDraft } from '@/lib/armcare/rehab-throwing-draft';
 import type { Palette } from '~/lib/ui';
 import { ChoiceChips } from '~/setup/frame';
 
@@ -101,6 +102,42 @@ export function JudgedBox({ pass, fails, c }: { pass: boolean; fails: string[]; 
           </Text>
         ))
       )}
+    </View>
+  );
+}
+
+/**
+ * 투구 복귀표 열기 시험 칸(앱) — 웹 rehab-throwing.tsx ThrowingTestFields 와 같은 질문: 앉아서 한 팔 메디신볼 밀기(≥ 100%) ·
+ * (플라이오볼이 있으면) 프론 볼 드롭 30초(≥ 110%) · 한 팔 90/90 벽 던지기 30초(≥ 115%) · 시험 중 통증. 열기 화면과 4단계 매주 확인 ④가 같이 쓴다.
+ */
+export function ThrowingTestFields({ hasPlyo, draft, onChange, c }: { hasPlyo: boolean; draft: ThrowingDraft; onChange: (next: ThrowingDraft) => void; c: Palette }) {
+  const setPair = (key: 'push' | 'drop' | 'wall', side: 0 | 1) => (value: string) => {
+    const pair: [string, string] = [...draft[key]];
+    pair[side] = value;
+    onChange({ ...draft, [key]: pair });
+  };
+  const pair = (key: 'push' | 'drop' | 'wall', title: string, hint: string, decimal = false) => (
+    <View style={{ gap: 8 }}>
+      <Text style={{ color: c.ink, fontSize: 15, fontWeight: '600' }}>{title}</Text>
+      <Text style={{ color: c.muted, fontSize: 13, lineHeight: 18 }}>{hint}</Text>
+      <View style={{ flexDirection: 'row', gap: 10 }}>
+        <NumberBox label="다친 쪽" value={draft[key][0]} onChange={setPair(key, 0)} decimal={decimal} c={c} />
+        <NumberBox label="반대쪽" value={draft[key][1]} onChange={setPair(key, 1)} decimal={decimal} c={c} />
+      </View>
+    </View>
+  );
+  return (
+    <View style={{ gap: 18 }}>
+      {pair('push', '앉아서 한 팔 메디신볼 밀기 (cm)', '벽에 등을 대고 앉아 2kg 메디신볼을 한 팔로 밀어 던져요. 세 번 던진 거리의 평균을 적어요. 반대쪽만큼 나가면 통과예요.', true)}
+      {hasPlyo ? (
+        <>
+          {pair('drop', '프론 볼 드롭 30초 (횟수)', '엎드려 팔을 90/90 으로 들고, 30초 동안 플라이오볼을 놓았다 잡기를 되풀이해요. 반대쪽의 110% 이상이면 통과예요.')}
+          {pair('wall', '한 팔 90/90 벽 던지기 30초 (횟수)', '팔을 90/90 으로 들고 30초 동안 벽에 플라이오볼을 던지고 받아요. 반대쪽의 115% 이상이면 통과예요.')}
+        </>
+      ) : (
+        <Text style={{ color: c.muted, fontSize: 13 }}>플라이오볼이 없어 볼 드롭 · 벽 던지기 시험은 건너뛰고 밀기로 봐요.</Text>
+      )}
+      <ChoiceChips legend="시험 중 가장 아팠던 정도 (0~10)" options={ZERO_TEN} value={draft.pain == null ? null : String(draft.pain)} onChange={(v) => onChange({ ...draft, pain: Number(v) })} c={c} />
     </View>
   );
 }

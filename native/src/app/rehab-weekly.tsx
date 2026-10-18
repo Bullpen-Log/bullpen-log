@@ -5,9 +5,10 @@ import { useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { judgeStageTest } from '@/lib/armcare/rehab';
 import { emptyStageTestDraft, num, stageTestFilled, stageTestInput } from '@/lib/armcare/rehab-test-draft';
+import { emptyThrowingDraft, judgeThrowingDraft, throwingFilled, throwingInput } from '@/lib/armcare/rehab-throwing-draft';
 import type { AppArmcareGuideTab, AppArmcareTodayTab, AppRehabDetail } from '@/lib/armcare/today-load';
 import { act } from '~/mechanics/parts';
-import { JudgedBox, StageTestFields, ZERO_TEN } from '~/rehab/test-fields';
+import { JudgedBox, StageTestFields, ThrowingTestFields, ZERO_TEN } from '~/rehab/test-fields';
 import { usePalette } from '~/lib/ui';
 import { ChoiceChips, StepFrame } from '~/setup/frame';
 import { useScreenData } from '~/training/screen';
@@ -15,7 +16,7 @@ import { useScreenData } from '~/training/screen';
 /**
  * 매주 확인(앱 화면, 약 1분) — 웹 rehab-weekly.tsx WeeklyFlow 와 같은 질문: ① 다치기 전 대비 % ② 이번 주 가장 아팠던 정도 · 밤이나 쉴 때
  * ③ 내 활동 둘 0~10 · 세게 던질 자신감 ④ 그 단계의 단계 시험(건너뛸 수 있다). 저장은 같은 rehab.saveRehabWeekly — 서버가 결과 줄을 돌려준다.
- * 4단계의 ④(투구 복귀표 열기 시험)는 아직 웹이라 앱에서는 시험 없이 남긴다.
+ * 4단계의 ④는 투구 복귀표 열기 시험(통과하면 서버가 연다).
  */
 const PCT = Array.from({ length: 11 }, (_, i) => ({ value: String(i * 10), label: String(i * 10) }));
 const YES_NO = [
@@ -47,14 +48,22 @@ function Flow({ d }: { d: AppRehabDetail }) {
   const [scores, setScores] = useState<(number | null)[]>(() => d.activities.map(() => null));
   const [confidence, setConfidence] = useState<number | null>(null);
   const test = d.stage === 4 ? null : d.stageTest;
-  const [skipTest, setSkipTest] = useState(test == null);
+  const throwTest = d.stage === 4 ? d.throwing : null;
+  const [skipTest, setSkipTest] = useState(test == null && throwTest == null);
   const [draft, setDraft] = useState(() => emptyStageTestDraft(d.ckcFirst));
+  const [throwDraft, setThrowDraft] = useState(emptyThrowingDraft);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<{ lines: string[]; test: { pass: boolean; fails: string[] } | null } | null>(null);
 
-  const testFilled = test ? stageTestFilled(test, draft) : false;
-  const judged = test && testFilled ? judgeStageTest(test, stageTestInput(test, draft)) : null;
+  const testFilled = test ? stageTestFilled(test, draft) : throwTest ? throwingFilled(throwDraft, throwTest.hasPlyo) : false;
+  const judged = !testFilled
+    ? null
+    : test
+      ? judgeStageTest(test, stageTestInput(test, draft))
+      : throwTest && normalPct != null && confidence != null
+        ? judgeThrowingDraft(throwTest, throwDraft, normalPct, confidence)
+        : null;
   const canNext =
     (step === 0 && normalPct != null) || (step === 1 && worst != null && night != null) || (step === 2 && scores.every((s) => s != null) && confidence != null);
   const canSave = skipTest || testFilled;
@@ -64,9 +73,13 @@ function Flow({ d }: { d: AppRehabDetail }) {
     setBusy(true);
     setError(null);
     const testInput =
-      skipTest || !test
+      skipTest || (!test && !throwTest)
         ? null
-        : test.kind === 'rom'
+        : throwTest
+          ? { kind: 'throwing', ...throwingInput(throwDraft, throwTest.hasPlyo) }
+          : !test
+            ? null
+            : test.kind === 'rom'
           ? { kind: 'rom', painFree: draft.painFree === 'yes', similar: draft.similar === 'yes' }
           : { kind: 'strength', injured: num(draft.injured) ?? 0, other: num(draft.other) ?? 0, pain: draft.pain ?? 0, ckc: test.ckc ? num(draft.ckcNow) : null };
     const r = await act<{ ok: true; lines: string[]; test: { pass: boolean; fails: string[] } | null }>('rehab.saveRehabWeekly', {
@@ -93,7 +106,7 @@ function Flow({ d }: { d: AppRehabDetail }) {
         ))}
         {result.test ? (
           <View style={{ gap: 6 }}>
-            <Text style={{ color: c.muted, fontSize: 13, fontWeight: '700' }}>단계 시험</Text>
+            <Text style={{ color: c.muted, fontSize: 13, fontWeight: '700' }}>{d.stage === 4 ? '투구 복귀표 열기 시험' : '단계 시험'}</Text>
             <JudgedBox pass={result.test.pass} fails={result.test.fails} c={c} />
           </View>
         ) : null}
@@ -106,7 +119,7 @@ function Flow({ d }: { d: AppRehabDetail }) {
     '100이면 다치기 전과 같아요.',
     undefined,
     '0 은 못 해요, 10 은 다치기 전처럼 해요.',
-    d.stage === 4 ? '투구 복귀표 열기 시험은 웹에서 해요. 여기서는 시험 없이 남겨요.' : '두 번 이어 통과하면 이 단계 기간이 줄어들 수 있어요.',
+    d.stage === 4 ? '통과하면 투구 복귀표가 열려요.' : '두 번 이어 통과하면 이 단계 기간이 줄어들 수 있어요.',
   ];
 
   return (
@@ -143,11 +156,16 @@ function Flow({ d }: { d: AppRehabDetail }) {
         </View>
       ) : (
         <View style={{ gap: 16 }}>
-          {skipTest || !test ? (
+          {skipTest || (!test && !throwTest) ? (
             <View style={{ borderRadius: 12, padding: 12, backgroundColor: c.card }}>
               <Text style={{ color: c.ink, fontSize: 15 }}>오늘은 시험 없이 남겨요.</Text>
             </View>
-          ) : (
+          ) : throwTest ? (
+            <>
+              <ThrowingTestFields hasPlyo={throwTest.hasPlyo} draft={throwDraft} onChange={setThrowDraft} c={c} />
+              {judged ? <JudgedBox pass={judged.pass} fails={judged.fails} c={c} /> : null}
+            </>
+          ) : !test ? null : (
             <>
               <View style={{ borderRadius: 12, padding: 12, backgroundColor: c.card }}>
                 <Text style={{ color: c.ink, fontSize: 15, lineHeight: 22 }}>{test.method}</Text>
@@ -156,7 +174,7 @@ function Flow({ d }: { d: AppRehabDetail }) {
               {judged ? <JudgedBox pass={judged.pass} fails={judged.fails} c={c} /> : null}
             </>
           )}
-          {test ? (
+          {test || throwTest ? (
             <Pressable onPress={() => setSkipTest((v) => !v)} accessibilityRole="button" hitSlop={8} style={{ flexDirection: 'row', gap: 6, alignItems: 'center', minHeight: 44 }}>
               <SymbolView name={skipTest ? 'pencil' : 'forward'} size={13} tintColor={c.sky} />
               <Text style={{ color: c.sky, fontSize: 15, fontWeight: '600' }}>{skipTest ? '시험할게요' : '오늘은 시험 건너뛰기'}</Text>
