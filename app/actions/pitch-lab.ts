@@ -14,6 +14,7 @@ import {
   loadLabJob,
   loadLabMetaRaw,
   loadV2Result,
+  listLabSamples,
   saveLabGuard,
   saveLabJob,
   saveLabMeta,
@@ -39,7 +40,15 @@ import {
   isPitch3dV2Configured,
   startGpuJob,
 } from '@/lib/pitch-3d/v2/gpu-client';
-import { isLabId, LAB_VIEWS, labMetaChips, labViewLabel, readLabMeta } from '@/lib/pitch-lab-meta';
+import {
+  isLabId,
+  LAB_VIEWS,
+  labCardChips,
+  labHandOf,
+  labMetaChips,
+  labViewLabel,
+  readLabMeta,
+} from '@/lib/pitch-lab-meta';
 import { MECH_FOCUS_POINTS } from '@/lib/pitch-3d/v2/mech-judge';
 import { trainingGuides } from '@/lib/library-cache';
 import { drillPicksFor, groupDrills, type DrillPick } from '@/lib/mechanics/drills';
@@ -410,3 +419,56 @@ export async function loadAppLabDetail(input: {
     waiting: result ? null : labWaitingText(job, now, hasVideos),
   };
 }
+
+export type AppLabListItem = {
+  id: string;
+  /** 표시 이름 앞말 — 일반 '투구' · 마커 '마커 샘플'(번호는 화면이 센다) */
+  marker: boolean;
+  /** '10월 16일 14:05'(올린 시각이 없으면 null) */
+  when: string | null;
+  /** 올리다 멈춰 정보가 없음 — 지울 수만 있다 */
+  broken: boolean;
+  /** 기본값과 다른 촬영 정보(웹 카드와 같은 labCardChips) */
+  chips: string[];
+  memo: string | null;
+  status: ReturnType<typeof labStatusLabel>;
+};
+
+const LIST_WHEN = new Intl.DateTimeFormat('ko-KR', {
+  timeZone: 'Asia/Seoul',
+  month: 'long',
+  day: 'numeric',
+  hour: '2-digit',
+  minute: '2-digit',
+  hourCycle: 'h23',
+});
+
+/**
+ * 아이폰 앱 3D 동작 분석 목록 — 웹 /videos/lab(page.tsx · lab-client.tsx)과 같은 샘플(사람마다 자기 것, 관리자는 관리자끼리).
+ * 올리기는 앱이 영상을 저장소에 바로 올리고(app/api/pitch-lab/upload-url) saveLabSample 을 부른다 · 지우기는 removeLabSample.
+ * /api/rpc/pitch-lab.loadAppLabList 로 부른다.
+ */
+export async function loadAppLabList(): Promise<
+  | { ok: true; samples: AppLabListItem[]; heightCm: number | null; hand: 'L' | 'R' }
+  | { ok: false; to: string }
+> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, to: '/login' };
+  const samples = await listLabSamples(user);
+  const now = Date.now();
+  return {
+    ok: true,
+    heightCm: user.heightCm ?? null,
+    hand: labHandOf(user.throwingHand),
+    samples: samples.map((s) => ({
+      id: s.id,
+      marker: s.meta?.kind === 'marker',
+      when: s.meta?.createdAt ? LIST_WHEN.format(new Date(s.meta.createdAt)) : null,
+      broken: !s.meta,
+      chips: s.meta && s.meta.kind !== 'marker' ? labCardChips(s.meta) : [],
+      memo: s.meta?.memo ?? null,
+      status: labStatusLabel(s.v2.job, now),
+    })),
+  };
+}
+

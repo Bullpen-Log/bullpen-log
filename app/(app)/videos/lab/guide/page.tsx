@@ -1,4 +1,7 @@
+import { headers } from 'next/headers';
 import { requireUser } from '@/lib/dal';
+import { expoLevel } from '@/lib/app-env';
+import { OpenNative } from '@/app/(session)/velocity/open-native';
 import { labHandOf } from '@/lib/pitch-lab-meta';
 import { LabGuideView } from './guide-view';
 
@@ -9,6 +12,9 @@ import { LabGuideView } from './guide-view';
  */
 export default async function LabGuidePage() {
   const user = await requireUser();
+  /* 새 아이폰 앱(판 9~)은 앱 화면(native/src/app/lab/guide.tsx)으로 */
+  if (expoLevel((await headers()).get('user-agent')) >= 9)
+    return <OpenNative path={`/lab/guide?hand=${labHandOf(user.throwingHand)}`} cover={false} />;
   /* 옆 폰 자리(우투 3루 · 좌투 1루)는 가입 때 고른 던지는 손으로 */
   return <LabGuideView hand={labHandOf(user.throwingHand)} />;
 }

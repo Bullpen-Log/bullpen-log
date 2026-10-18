@@ -1,4 +1,7 @@
+import { headers } from 'next/headers';
 import { requireUser } from '@/lib/dal';
+import { expoLevel } from '@/lib/app-env';
+import { OpenNative } from '@/app/(session)/velocity/open-native';
 import { listLabSamples } from '@/lib/pitch-lab';
 import { labHandOf } from '@/lib/pitch-lab-meta';
 import { LabClient } from './lab-client';
@@ -13,6 +16,8 @@ import { LabClient } from './lab-client';
  */
 export default async function PitchLabPage() {
   const user = await requireUser();
+  /* 새 아이폰 앱(판 9~)은 앱 화면(native/src/app/lab/index.tsx)으로 */
+  if (expoLevel((await headers()).get('user-agent')) >= 9) return <OpenNative path="/lab" cover={false} />;
   const samples = await listLabSamples(user);
   return (
     <LabClient

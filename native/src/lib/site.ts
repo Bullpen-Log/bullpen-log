@@ -14,9 +14,9 @@ export const SITE_HOST = new URL(SITE_URL).host;
 /**
  * 웹뷰 User-Agent 끝에 붙는 이름표 — BullpenNative/<n> 의 n 은 이 앱이 아는 앱 화면의 판(사이트 lib/app-env.ts expoLevel).
  * 사이트가 새 앱 화면으로 넘기는 길을 더하면 여기를 올린다: 1 구속 측정 · 투구 그날, 2 운동 진행(/workout), 3 암케어 따라 하기(/armcare/<id>), 4 메커니즘 따라 하기(/mechanics), 5 분석(/analysis), 6 커뮤니티 · 고객센터(/community · /support), 7 라이브러리 · 자료실,
- * 8 설정 · 관리자 · 재활 · 내 정보 · 3D 동작 분석 결과(/lab/<id>) · 계정(로그인 · 가입 · /account).
+ * 8 설정 · 관리자 · 재활 · 내 정보 · 3D 동작 분석 결과(/lab/<id>) · 계정(로그인 · 가입 · /account), 9 3D 동작 분석 목록 · 촬영 안내(/lab · /lab/guide).
  */
-export const APP_UA = 'BullpenLogApp/2.0 BullpenNative/8';
+export const APP_UA = 'BullpenLogApp/2.0 BullpenNative/9';
 
 /** 앱을 켜면 처음 여는 사이트 화면 — Capacitor 껍데기와 같다(mobile/capacitor.config.json server.url) */
 export const START_PATH = '/today';

@@ -80,7 +80,7 @@ export function PitchTab({ today, bottom, onWeb }: { today: string; bottom: numb
           [
             ['2분할 비교', () => router.push('/pitch/compare' as Href)],
             ['투구 분석', () => router.push('/analysis?view=pitch' as Href)],
-            ['3D 동작 분석', () => onWeb('/videos/lab')],
+            ['3D 동작 분석', () => router.push('/lab' as Href)],
           ] as const
         ).map(([label, go]) => (
           <Pressable key={label} accessibilityRole="button" onPress={go} style={[styles.link, { backgroundColor: c.card }]}>

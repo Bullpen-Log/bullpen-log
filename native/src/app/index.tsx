@@ -74,7 +74,7 @@ const NATIVE_ROUTES = [
   /^\/workout-done\?id=[\w-]+$/,
   /^\/setup\/(pitch|training|nutrition)$/,
   /^\/admin(\/(support|community|patch-notes(\/[\w-]+)?|notice(\?id=[\w-]+)?))?$/,
-  /^\/lab\/[0-9a-f-]{36}$/,
+  /^\/lab(\/guide|\/[0-9a-f-]{36})?(\?[\w=&%.-]*)?$/,
   /^\/login\?native=1$/,
   /^\/(signup|account)$/,
 ];
