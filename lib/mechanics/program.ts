@@ -588,12 +588,12 @@ export const MECHANICS_FOLD_TEXT = {
   /** 접힌 날 할 수 있는 드릴을 다 한 뒤 */
   openDone: '오늘 할 수 있는 드릴은 마쳤어요. 던지기 드릴은 다른 날 이어서 해요.',
   /** 무브먼트만 하고 마친 따라 하기 끝 화면 */
-  partialFinish: '오늘은 무브먼트 드릴만 했어요. 이 세션은 다른 날 이어서 해요.',
+  partialFinish: '오늘은 안 던지는 드릴만 했어요. 이 세션은 다른 날 이어서 해요.',
   /**
    * 트레이닝 홈 카드 한 줄(다른 카드 줄처럼 마침표 없이). cause 는 MechanicsPainFold.cause('어깨 통증으로' · '등판이라' …) — 2판 P6 검토부터
    * 통증 말고도 접어서 까닭 머리말을 받는다.
    */
-  homeOpen: (cause: string, n: number) => `오늘은 ${cause} 무브먼트 드릴 ${n}개만 해요`,
+  homeOpen: (cause: string, n: number) => `오늘은 ${cause} 안 던지는 드릴 ${n}개만 해요`,
   /** 성장기(만 16세 미만)의 통증 날 — 펼치지 못하고 진료를 권한다(lib/checkin.ts ARM_PAIN_ROUTINE_MIN_AGE 와 같은 뜻) */
   youthReason: (label: string) =>
     `오늘 ${label}${josa(label, '이/가')} 아파 던지기 · 메디신볼 드릴은 쉬어요. 진료가 먼저예요.`,
@@ -607,7 +607,7 @@ export const MECHANICS_FOLD_TEXT = {
 export const MECHANICS_FOLD_BUTTONS = {
   unfold: '펼치기',
   refold: '다시 접기',
-  openOnly: '무브먼트 드릴만 하기',
+  openOnly: '안 던지는 드릴만 하기',
   anyway: '그래도 하기',
 } as const;
 

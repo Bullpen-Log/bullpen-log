@@ -218,6 +218,8 @@ function Player({ backHref, items, startAt, label, sessionNumber, partial, painL
     skipping.current = true;
     setTimeout(() => (skipping.current = false), 450);
     if (index + 1 < items.length) next();
+    /* 한 드릴도 안 하고 끝까지 건너뛰었으면 세션을 세지 않고 닫는다(다 건너뛰어도 다음 세션으로 넘어갔다) */
+    else if (!done.some(Boolean)) close();
     else void run(finish);
   };
 
@@ -351,7 +353,7 @@ function Player({ backHref, items, startAt, label, sessionNumber, partial, painL
           </Pressable>
         ) : (
           <Pressable onPress={skip} disabled={pending} accessibilityRole="button" style={s.textBtn}>
-            <Text style={[s.smallBold, { color: c.muted }]}>{index + 1 < items.length ? '이번 드릴은 건너뛰기' : '건너뛰고 세션 마치기'}</Text>
+            <Text style={[s.smallBold, { color: c.muted }]}>{index + 1 < items.length ? '이번 드릴은 건너뛰기' : done.some(Boolean) ? '건너뛰고 세션 마치기' : '오늘은 그만하기'}</Text>
           </Pressable>
         )}
       </View>

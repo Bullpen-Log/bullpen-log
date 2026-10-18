@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useTransition } from 'react';
 import Link from 'next/link';
-import { unstable_rethrow } from 'next/navigation';
+import { unstable_rethrow, useRouter } from 'next/navigation';
 import { AlertTriangle, Check, ChevronDown, Info, Shuffle, X } from '@/components/icon';
 import { LibraryVideo } from '@/components/library-video';
 import { ErrorLine } from '@/components/error-line';
@@ -125,12 +125,22 @@ export function MechanicsPlayer({
     setFinished(true);
   };
 
-  /* 건너뛰기 — 마지막 드릴이면 건너뛰고 마친다(예전엔 마지막 드릴은 건너뛸 수 없었다) */
+  /*
+   * 건너뛰기 — 마지막 드릴이면 건너뛰고 마친다(예전엔 마지막 드릴은 건너뛸 수 없었다). 한 드릴도 안 했으면 세션을 세지 않고 닫는다
+   * (다 건너뛰어도 다음 세션으로 넘어갔다). 단추가 다음 드릴에서도 같은 자리라 0.45초 안의 둘째 누름은 버린다(앱과 같게).
+   */
+  const router = useRouter();
+  const skipping = useRef(false);
   const skip = () => {
+    if (skipping.current) return;
+    skipping.current = true;
+    setTimeout(() => (skipping.current = false), 450);
     if (index + 1 < items.length) {
       setIndex(index + 1);
       setSetsDone(0);
       scroller.current?.scrollTo({ top: 0 });
+    } else if (!done.some(Boolean)) {
+      router.push(backHref);
     } else {
       startTransition(async () => {
         setError(null);
@@ -257,7 +267,11 @@ export function MechanicsPlayer({
                   disabled={pending}
                   className="mx-auto flex min-h-11 items-center px-3 text-xs font-semibold text-muted hover:text-ink"
                 >
-                  {index + 1 < items.length ? '이번 드릴은 건너뛰기' : '건너뛰고 세션 마치기'}
+                  {index + 1 < items.length
+                    ? '이번 드릴은 건너뛰기'
+                    : done.some(Boolean)
+                      ? '건너뛰고 세션 마치기'
+                      : '오늘은 그만하기'}
                 </button>
               )}
             </div>
