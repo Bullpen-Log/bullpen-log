@@ -16,6 +16,8 @@ import { gatherFactsAndPlan } from '@/lib/report/gather';
 import { loadVelocityByDate, loadVelocityDay, withMissedAttempts } from '@/lib/velocity-load';
 import { logPrefillOf, unloggedSessions, type LogPrefill, type VelocitySessionView } from '@/lib/velocity-meta';
 import { loadNutritionDay } from '@/lib/nutrition/load';
+import { loadAdvice } from '@/lib/nutrition/advice-load';
+import { serviceHour } from '@/lib/nutrition/advice-input';
 import type { Food, MealEntryView } from '@/lib/nutrition/meta';
 import type { PlanContext, PlanItem } from '@/lib/nutrition/meal-plan';
 import type { AgeBand } from '@/lib/nutrition/age';
@@ -144,6 +146,16 @@ export async function loadAppNutrition(date: string): Promise<
       checkinAnswers: { appetite: number | null; mealAmount: string | null; skippedMeals: string[] } | null;
       /** 전날 먹은 것 — 담기 화면의 '어제 아침과 같이 담기'(웹 food-sheet.tsx 와 같은 값) */
       yesterday: MealEntryView[];
+      /** 제목 밑 날짜 띠(최근 6주 · 날마다 먹은 / 목표 kcal) — 웹 WeekStrip */
+      strip: { date: string; kcal: number; target: number }[];
+      /** 오늘 카드 — 체중 조정 · 짐작한 칸 · 목표를 정했나(웹 TodayCard) */
+      adjust: number;
+      assumed: string[];
+      hasProfile: boolean;
+      /** 오늘 영양 할 일 한 줄 · 균형 점수(웹 TodayCard 의 advice — 오늘만, 지난 날은 null) */
+      advice: { headline: string | null; score: number | null; highlight: boolean } | null;
+      /** 던지는 날 가이드(웹 GuideCard) — 그날은 할 일 한 줄 대신 이것 */
+      guide: { badge: string; title: string; lines: string[]; notes: string[]; hint: string | null } | null;
     }
   | { ok: false; error: string; to?: string }
 > {
@@ -151,12 +163,16 @@ export async function loadAppNutrition(date: string): Promise<
   if (!user) return { ok: false, error: '로그인이 필요해요.' };
   if (featureLocks(user).nutrition) return { ok: false, error: '영양 첫 설정을 먼저 해 주세요.', to: SETUP_PATH.nutrition };
   if (!isNutritionDate(date)) return { ok: false, error: '날짜가 올바르지 않아요.' };
-  const day = await loadNutritionDay(user, date);
+  const today = toDateKey(appNow());
+  const [day, advice] = await Promise.all([
+    loadNutritionDay(user, date),
+    date === today ? loadAdvice(user, date, today, serviceHour(appNow())).catch(() => null) : null,
+  ]);
   const t = day.targets;
   return {
     ok: true,
     date,
-    today: toDateKey(appNow()),
+    today,
     targets: { kcal: t.kcal, protein: t.protein, carbs: t.carbs, fat: t.fat, burn: t.burn, base: t.base },
     entries: day.entries,
     weightKg: day.weightKg,
@@ -168,6 +184,12 @@ export async function loadAppNutrition(date: string): Promise<
     avoid: day.prefs.avoid,
     checkinAnswers: day.checkinAnswers,
     yesterday: day.yesterday,
+    strip: day.strip.map((d) => ({ date: d.date, kcal: d.kcal, target: d.target })),
+    adjust: t.adjust,
+    assumed: t.assumed,
+    hasProfile: day.hasProfile,
+    advice: advice ? { headline: advice.headline, score: advice.score, highlight: advice.highlight } : null,
+    guide: day.guide ? { badge: day.guide.badge, title: day.guide.title, lines: day.guide.lines, notes: day.guide.notes, hint: day.guide.hint } : null,
   };
 }
 

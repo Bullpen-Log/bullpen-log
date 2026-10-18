@@ -46,10 +46,11 @@ const STEP_LABEL = {
 export default function NutritionStatsScreen() {
   const c = usePalette();
   const inset = useSafeAreaInsets();
-  const params = useLocalSearchParams<{ date?: string }>();
+  /* goal=1 — 영양 탭 머리의 목표 단추로 왔으면 목표 창부터(웹 머리 단추 = 목표 창) */
+  const params = useLocalSearchParams<{ date?: string; goal?: string }>();
   const { data, error, reload } = useLoad<Load>('app-nutrition.loadAppNutritionStats', typeof params.date === 'string' ? params.date : null);
   const unit = useWeightUnit();
-  const [goalOpen, setGoalOpen] = useState(false);
+  const [goalOpen, setGoalOpen] = useState(params.goal === '1');
   const [pulling, setPulling] = useState(false);
 
   /* 목표가 바뀌었다 — 이 화면과 영양 탭(받아 둔 날마다 목표가 들어 있다)을 다시 받는다 */

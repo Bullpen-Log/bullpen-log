@@ -27,6 +27,13 @@ export type NutritionDay = {
   avoid?: AvoidKey[];
   checkinAnswers?: NutritionAnswer | null;
   yesterday?: MealEntryView[];
+  /** 제목 밑 날짜 띠(최근 6주) — 옛 서버 · 폰에 남은 옛 자료는 없다 */
+  strip?: { date: string; kcal: number; target: number }[];
+  adjust?: number;
+  assumed?: string[];
+  hasProfile?: boolean;
+  advice?: { headline: string | null; score: number | null; highlight: boolean } | null;
+  guide?: { badge: string; title: string; lines: string[]; notes: string[]; hint: string | null } | null;
 };
 export type NutritionAnswer = { appetite: number | null; mealAmount: string | null; skippedMeals: string[] };
 type Result = { ok: true } | { ok: false; error: string };

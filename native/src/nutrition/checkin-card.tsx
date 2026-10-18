@@ -1,14 +1,18 @@
 import * as Haptics from 'expo-haptics';
 import { useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
+import Animated from 'react-native-reanimated';
 import { APPETITE_LEVELS, MEAL_AMOUNTS, SKIPPABLE_MEALS, mealSummary } from '@/lib/checkin';
-import { usePalette } from '~/lib/ui';
+import { usePalette, withAlpha } from '~/lib/ui';
+import { Icon } from '~/shell/icon';
+import { fadeIn } from '~/shell/motion';
+import { Press } from '~/shell/press';
 import { saveNutritionAnswer, type NutritionAnswer } from './api';
 
 /**
- * 영양 탭 — '오늘 식욕 · 끼니는요?' 카드(웹 app/(app)/nutrition/nutrition-checkin-card.tsx 와 같은 질문 · 칩 · 글, 오늘만).
- * 웹 DayCard 의 folded 처럼 접힌 알약으로 시작한다: 답이 없으면 '오늘 식욕 · 끼니는요? 답하기', 답했으면 '오늘 설정 · 식욕 보통 · 잘 먹음'.
- * 누르면 펴서 고르고 [저장](day-cards.saveNutritionCheckin) · [나중에].
+ * 영양 탭 — '오늘 식욕 · 끼니는요?' 카드(웹 app/(app)/nutrition/nutrition-checkin-card.tsx · components/day-card.tsx folded, 오늘만).
+ * 접힌 알약으로 시작한다(왼쪽에 붙은 작은 알약 · 연필): 답이 없으면 '오늘 식욕 · 끼니는요? 답하기', 답했으면 '오늘 설정 · 식욕 보통 · 잘 먹음'.
+ * 누르면 하늘 판이 펴진다 — 제목 · 한 줄 · 오른쪽 위 '나중에', 칩(같은 폭 세 칸) · [저장](day-cards.saveNutritionCheckin).
  */
 export function NutritionCheckinCard({ date, answer }: { date: string; answer: NutritionAnswer | null }) {
   const c = usePalette();
@@ -21,15 +25,15 @@ export function NutritionCheckinCard({ date, answer }: { date: string; answer: N
 
   if (!open)
     return (
-      <Pressable accessibilityRole="button" onPress={() => setOpen(true)} style={[styles.pill, { backgroundColor: c.card }]}>
-        <Text style={{ color: c.muted, fontSize: 14, fontWeight: '600' }} numberOfLines={1}>
+      <Press accessibilityRole="button" onPress={() => setOpen(true)} style={[styles.pill, { backgroundColor: withAlpha(c.ink, 0.06) }]}>
+        <Text numberOfLines={1} style={{ color: c.muted, fontSize: 12, fontWeight: '600', flexShrink: 1 }}>
           {summary == null ? '오늘 식욕 · 끼니는요?' : '오늘 설정'}
         </Text>
-        <Text style={{ flex: 1, color: summary == null ? c.sky : c.ink, fontSize: 14 }} numberOfLines={1}>
+        <Text numberOfLines={1} style={{ color: summary == null ? c.sky : c.ink, fontSize: 12, flexShrink: 1 }}>
           {summary ?? '답하기'}
         </Text>
-        {summary != null ? <Text style={{ color: c.sky, fontSize: 14, fontWeight: '600' }}>바꾸기</Text> : null}
-      </Pressable>
+        <Icon name="pencil" size={14} color={c.muted} />
+      </Press>
     );
   return <MealForm date={date} initial={answer} onDone={() => setOpen(false)} />;
 }
@@ -54,55 +58,69 @@ function MealForm({ date, initial, onDone }: { date: string; initial: NutritionA
   };
 
   const chip = (key: string, label: string, on: boolean, press: () => void) => (
-    <Pressable
-      key={key}
-      accessibilityRole="button"
-      accessibilityState={{ selected: on }}
-      onPress={press}
-      style={[styles.chip, { backgroundColor: on ? c.sky : c.chip }]}
-    >
-      <Text style={{ color: on ? '#fff' : c.ink, fontSize: 14, fontWeight: '600' }}>{label}</Text>
-    </Pressable>
+    <View key={key} style={styles.gridCell}>
+      <Press
+        select
+        selected={on}
+        accessibilityRole="button"
+        accessibilityState={{ selected: on }}
+        onPress={press}
+        style={[styles.chip, on ? { borderColor: c.sky, backgroundColor: withAlpha(c.sky, 0.1) } : { backgroundColor: withAlpha(c.ink, 0.06) }]}
+      >
+        <Text numberOfLines={1} style={{ color: on ? c.sky : withAlpha(c.ink, 0.8), fontSize: 15, fontWeight: on ? '600' : '400' }}>
+          {label}
+        </Text>
+      </Press>
+    </View>
   );
 
   return (
-    <View style={[styles.card, { backgroundColor: c.card }]}>
-      <Text style={{ color: c.ink, fontSize: 17, fontWeight: '700' }}>오늘 식욕 · 끼니는요?</Text>
-      <Text style={{ color: c.muted, fontSize: 13 }}>음식을 하나하나 안 적어도 오늘 조언과 식단이 여기에 맞춰요.</Text>
-      <Text style={[styles.label, { color: c.muted }]}>식욕</Text>
-      <View style={styles.chips}>
-        {APPETITE_LEVELS.map((label, i) => chip(label, label, appetite === i + 1, () => setAppetite(appetite === i + 1 ? null : i + 1)))}
+    <Animated.View entering={fadeIn} style={[styles.card, { backgroundColor: withAlpha(c.skyTint, 0.6), borderColor: withAlpha(c.sky, 0.25) }]}>
+      <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 12 }}>
+        <View style={{ flex: 1, gap: 2 }}>
+          <Text style={{ color: c.ink, fontSize: 17, fontWeight: '700' }}>오늘 식욕 · 끼니는요?</Text>
+          <Text style={{ color: c.muted, fontSize: 12 }}>음식을 하나하나 안 적어도 오늘 조언과 식단이 여기에 맞춰요.</Text>
+        </View>
+        <Press accessibilityRole="button" onPress={onDone} style={styles.later}>
+          <Text style={{ color: c.muted, fontSize: 12, fontWeight: '500' }}>{initial ? '닫기' : '나중에'}</Text>
+        </Press>
       </View>
-      <Text style={[styles.label, { color: c.muted }]}>끼니 양</Text>
-      <View style={styles.chips}>{MEAL_AMOUNTS.map((a) => chip(a, a, amount === a, () => setAmount(amount === a ? null : a)))}</View>
-      <Text style={[styles.label, { color: c.muted }]}>거른 끼니</Text>
-      <View style={styles.chips}>
-        {SKIPPABLE_MEALS.map((m) =>
-          chip(m.key, m.label, skipped.includes(m.key), () =>
-            setSkipped((cur) => (cur.includes(m.key) ? cur.filter((x) => x !== m.key) : [...cur, m.key]))
-          )
-        )}
+      <View style={{ gap: 6 }}>
+        <Text style={[styles.label, { color: c.muted }]}>식욕</Text>
+        <View style={styles.grid}>
+          {APPETITE_LEVELS.map((label, i) => chip(label, label, appetite === i + 1, () => setAppetite(appetite === i + 1 ? null : i + 1)))}
+        </View>
       </View>
-      {error ? <Text style={{ color: c.danger, fontSize: 13 }}>{error}</Text> : null}
-      <View style={styles.actions}>
-        <Pressable accessibilityRole="button" onPress={onDone} style={[styles.ghost, { backgroundColor: c.chip }]}>
-          <Text style={{ color: c.ink, fontSize: 16, fontWeight: '600' }}>나중에</Text>
-        </Pressable>
-        <Pressable accessibilityRole="button" onPress={() => void save()} disabled={saving} style={[styles.primary, { backgroundColor: c.sky }, saving && { opacity: 0.5 }]}>
-          <Text style={{ color: '#fff', fontSize: 16, fontWeight: '600' }}>{saving ? '저장 중…' : '저장'}</Text>
-        </Pressable>
+      <View style={{ gap: 6 }}>
+        <Text style={[styles.label, { color: c.muted }]}>끼니 양</Text>
+        <View style={styles.grid}>{MEAL_AMOUNTS.map((a) => chip(a, a, amount === a, () => setAmount(amount === a ? null : a)))}</View>
       </View>
-    </View>
+      <View style={{ gap: 6 }}>
+        <Text style={[styles.label, { color: c.muted }]}>거른 끼니</Text>
+        <View style={styles.grid}>
+          {SKIPPABLE_MEALS.map((m) =>
+            chip(m.key, m.label, skipped.includes(m.key), () =>
+              setSkipped((cur) => (cur.includes(m.key) ? cur.filter((x) => x !== m.key) : [...cur, m.key]))
+            )
+          )}
+        </View>
+      </View>
+      {error ? <Text style={{ color: c.danger, fontSize: 12 }}>{error}</Text> : null}
+      <Press accessibilityRole="button" onPress={() => void save()} disabled={saving} style={[styles.primary, { backgroundColor: c.sky }, saving && { opacity: 0.5 }]}>
+        <Text style={{ color: '#fff', fontSize: 16, fontWeight: '700' }}>{saving ? '저장 중…' : '저장'}</Text>
+      </Press>
+    </Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
-  pill: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 48, borderRadius: 24, paddingHorizontal: 16 },
-  card: { borderRadius: 20, padding: 16, gap: 8 },
-  label: { fontSize: 12, fontWeight: '600', marginTop: 4 },
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  chip: { minHeight: 40, paddingHorizontal: 14, borderRadius: 20, justifyContent: 'center' },
-  actions: { flexDirection: 'row', gap: 8, marginTop: 4 },
-  ghost: { flex: 1, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center' },
-  primary: { flex: 1, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center' },
+  pill: { alignSelf: 'flex-start', maxWidth: '100%', flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 40, borderRadius: 20, paddingHorizontal: 14 },
+  card: { borderRadius: 20, borderWidth: 1, padding: 20, gap: 12 },
+  later: { minHeight: 40, marginVertical: -8, paddingHorizontal: 12, borderRadius: 20, justifyContent: 'center' },
+  label: { fontSize: 12, fontWeight: '600' },
+  /* 웹 chip-grid data-cols=3 — 같은 폭 세 칸 */
+  grid: { flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: -4, rowGap: 8 },
+  gridCell: { width: '33.333%', paddingHorizontal: 4 },
+  chip: { minHeight: 40, borderRadius: 20, borderWidth: 1, borderColor: 'transparent', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8 },
+  primary: { height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center' },
 });
