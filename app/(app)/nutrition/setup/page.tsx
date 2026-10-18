@@ -1,4 +1,7 @@
+import { headers } from 'next/headers';
 import { appNow } from '@/lib/clock';
+import { expoLevel } from '@/lib/app-env';
+import { OpenNative } from '@/app/(session)/velocity/open-native';
 import { requireUser } from '@/lib/dal';
 import { prisma } from '@/lib/prisma';
 import { toDateKey } from '@/lib/pitch-stats';
@@ -23,6 +26,8 @@ import { SetupWizard } from './setup-wizard';
  */
 export default async function NutritionSetupPage() {
   const user = await requireUser();
+  /* 새 아이폰 앱(Expo)이 첫 설정을 아는 판(BullpenNative/7 부터)이면 앱 화면으로 연다(native/src/app/setup/nutrition.tsx) */
+  if (expoLevel((await headers()).get('user-agent')) >= 7) return <OpenNative path="/setup/nutrition" cover={false} />;
   const today = toDateKey(appNow());
   const [row, recent] = await Promise.all([
     prisma.nutritionProfile.findUnique({ where: { userId: user.id } }),

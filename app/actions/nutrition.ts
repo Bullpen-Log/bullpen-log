@@ -7,9 +7,9 @@ import { prisma } from '@/lib/prisma';
 import { getCurrentUser } from '@/lib/dal';
 import { toDateKey } from '@/lib/pitch-stats';
 import { dbDate, isNutritionDate, keyOfDbDate } from '@/lib/nutrition/days';
-import { loadNutritionDay, recentWeightKg } from '@/lib/nutrition/load';
+import { loadNutritionDay, recentWeightKg, toProfile } from '@/lib/nutrition/load';
 import { STEP_KCAL } from '@/lib/nutrition/weight-goal';
-import { cleanDietPrefs, type DietPrefs } from '@/lib/nutrition/diet-prefs';
+import { cleanDietPrefs, toDietPrefs, type DietPrefs } from '@/lib/nutrition/diet-prefs';
 import {
   MAX_HEIGHT_CM,
   MAX_WEIGHT_KG,
@@ -19,8 +19,11 @@ import {
 } from '@/lib/profile';
 import { buildProfileData, type ProfileInput } from '@/lib/nutrition/profile-save';
 import {
+  EMPTY_ANSWERS,
+  answersOfProfile,
   fieldOfNutritionError,
   readNutritionAnswers,
+  type NutritionAnswers,
   toDietPrefsRaw,
   toProfileInput,
   type FormLike,
@@ -51,6 +54,7 @@ import {
   MACRO_MAX,
   isMealKey,
   isSex,
+  type Sex,
   type EntrySource,
   ENTRY_SOURCES,
 } from '@/lib/nutrition/meta';
@@ -1001,4 +1005,43 @@ export async function finishNutritionSetup(raw: {
   /* 내 정보의 키 · 몸무게가 바뀌었고, 막대 · 탭의 영양 잠금(흐림 · 자물쇠)도 걷혀야 한다 — 둘 다 레이아웃이 내려보낸다 */
   revalidatePath('/', 'layout');
   return { ok: true };
+}
+
+/**
+ * 아이폰 앱(native/src/app/setup/nutrition.tsx)의 영양 첫 설정을 열 때 — 웹 /nutrition/setup(page.tsx)이 넘기는 것과 같은 값. 줄이 없으면
+ * 빈 답(목표 카드부터 고르게), 있으면 정해 둔 목표 · 취향으로 채운 답. 저장은 웹과 같은 finishNutritionSetup.
+ */
+export async function loadAppNutritionSetup(): Promise<
+  | {
+      ok: true;
+      today: string;
+      name: string;
+      age: number | null;
+      sex: Sex | null;
+      heightCm: number | null;
+      weightKg: number | null;
+      hasProfile: boolean;
+      initial: NutritionAnswers;
+    }
+  | { ok: false; to: string }
+> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, to: '/login' };
+  const today = toDateKey(appNow());
+  const [row, recent] = await Promise.all([
+    prisma.nutritionProfile.findUnique({ where: { userId: user.id } }),
+    recentWeightKg(user.id, today),
+  ]);
+  const age = ageOn(user.birthDate, today);
+  return {
+    ok: true,
+    today,
+    name: user.nickname,
+    age,
+    sex: isSex(user.sex) ? user.sex : null,
+    heightCm: user.heightCm,
+    weightKg: recent ?? user.weightKg,
+    hasProfile: row !== null,
+    initial: row === null ? EMPTY_ANSWERS : answersOfProfile(toProfile(row), toDietPrefs(row), age),
+  };
 }
