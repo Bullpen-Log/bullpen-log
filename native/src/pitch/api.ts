@@ -47,6 +47,8 @@ export type PitchEntry = {
 };
 
 export class ApiError extends Error {}
+/** 서버에 닿지 못함(신호 끊김) — 폼이 적은 것을 폰에 남겨 둘 때 가른다 */
+export class OfflineError extends ApiError {}
 
 export async function call<T>(path: string, init: { method: string; body?: unknown }): Promise<T> {
   await syncSession();
@@ -59,7 +61,7 @@ export async function call<T>(path: string, init: { method: string; body?: unkno
       ...(init.body !== undefined ? { body: JSON.stringify(init.body) } : {}),
     });
   } catch {
-    throw new ApiError('신호가 약해 서버에 닿지 못했어요.');
+    throw new OfflineError('신호가 약해 서버에 닿지 못했어요.');
   }
   const body = (await res.json().catch(() => null)) as (T & { error?: string }) | null;
   if (!res.ok) throw new ApiError(body?.error ?? '서버에서 처리하지 못했어요.');

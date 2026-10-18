@@ -35,6 +35,7 @@ import { Segmented } from '~/shell/heading';
 import { Icon } from '~/shell/icon';
 import {
   ApiError,
+  OfflineError,
   createLog,
   isPhoneVideoPath,
   loadMe,
@@ -46,6 +47,7 @@ import {
 } from '~/pitch/api';
 import { monthOf, refreshMonth, useMonth } from '~/pitch/store';
 import { READABLE } from '~/lib/layout';
+import { loadJson, saveJson } from '~/lib/store';
 
 /**
  * 투구 기록 남기기 · 고치기(앱) — 종류 · 공 수 · 체감 강도 · 구속 · 메모 · 영상 두 개까지. 웹 entry-form 의 첫 판(만족도 · 감각 칩 · 드릴 ·
@@ -262,6 +264,38 @@ export function EntryForm({
   /* 두 번 눌러도 한 번만 — busy(상태)는 다시 그려진 뒤에야 바뀌어, 빨리 두 번 누르면 둘 다 지나갔다 */
   const inFlight = useRef(false);
   /* 저장했거나 [취소]가 직접 정리했으면 닫힐 때 다시 지우지 않는다(아래 닫힘 정리) */
+  /*
+   * 신호가 끊겨 못 저장하면 적은 것을 폰에 남겨 두고, 다시 열면 채운다(웹 entry-form readDraft · writeDraft — 7일, 날 · 기록마다).
+   * 측정 · 드릴 · 가져온 영상으로 채워 여는 폼은 그 값이 먼저다. 영상은 남기지 않는다.
+   */
+  const draftKey = `pitch-draft:${date}:${editing?.id ?? 'new'}`;
+  const [restored, setRestored] = useState(false);
+  useEffect(() => {
+    if (vp || drillPrefill || imported.length) return;
+    let alive = true;
+    void loadJson(draftKey).then((raw) => {
+      const d = raw as { savedAt?: number; form?: Record<string, unknown> } | null;
+      if (!alive || !d?.form || typeof d.savedAt !== 'number') return;
+      if (Date.now() - d.savedAt > 7 * 24 * 3600 * 1000 || typeof d.form.type !== 'string') return void saveJson(draftKey, null);
+      const f = d.form as { type: string; count: string; effort: number | null; maxV: string; avgV: string; memo: string; satisfaction: number | null; good: string[]; bad: string[] };
+      setType(f.type);
+      setCount(f.count);
+      setEffort(f.effort);
+      setMaxV(f.maxV);
+      setAvgV(f.avgV);
+      setMemo(f.memo);
+      setSatisfaction(f.satisfaction);
+      setGood(f.good ?? []);
+      setBad(f.bad ?? []);
+      if (f.maxV || f.avgV || f.memo || f.satisfaction != null) setMore(true);
+      setRestored(true);
+    });
+    return () => {
+      alive = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 처음 붙을 때 한 번만
+  }, []);
+
   const savedRef = useRef(false);
   const save = async () => {
     if (busy || inFlight.current) return;
@@ -313,12 +347,17 @@ export function EntryForm({
         if (importKey) markImported(importKey);
       }
       savedRef.current = true;
+      void saveJson(draftKey, null);
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       await refreshMonth(monthOf(date));
       if (inline) inline.onDone();
       else router.back();
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : '저장하지 못했어요. 적은 것은 그대로 있어요.');
+      if (e instanceof OfflineError) {
+        /* 신호가 약해 서버에 못 닿았다 — 적은 것은 폰에 맡긴다(창을 닫아도 다시 채움) */
+        void saveJson(draftKey, { savedAt: Date.now(), form: { type, count, effort, maxV, avgV, memo, satisfaction, good, bad } });
+        setError('저장하지 못했어요. 신호를 확인해 주세요. 적은 내용은 이 폰에 남겨 뒀어요.');
+      } else setError(e instanceof ApiError ? e.message : '저장하지 못했어요. 적은 것은 그대로 있어요.');
     } finally {
       inFlight.current = false;
       setBusy(null);
@@ -357,6 +396,30 @@ export function EntryForm({
 
   const fields = (
     <View style={{ gap: 20 }}>
+      {restored ? (
+        <View style={[styles.restored, { backgroundColor: withAlpha(c.sky, 0.1) }]}>
+          <Text style={{ flex: 1, color: withAlpha(c.ink, 0.8), fontSize: 13 }}>저장하지 못했던 기록을 다시 채웠어요. 저장을 눌러 주세요.</Text>
+          <Press
+            accessibilityRole="button"
+            onPress={() => {
+              void saveJson(draftKey, null);
+              setRestored(false);
+              setType(editing?.sessionType ?? '');
+              setCount(editing ? String(editing.pitchCount) : '');
+              setEffort(initialEffort?.pct ?? null);
+              setMaxV(shownSpeed(editing?.maxVelocity));
+              setAvgV(shownSpeed(editing?.avgVelocity));
+              setMemo(editing?.memo ?? '');
+              setSatisfaction(editing?.satisfaction ?? null);
+              setGood(editing?.cuesGood ?? []);
+              setBad(editing?.cuesBad ?? []);
+            }}
+            style={styles.restoredBtn}
+          >
+            <Text style={{ color: c.sky, fontSize: 13, fontWeight: '500' }}>지우기</Text>
+          </Press>
+        </View>
+      ) : null}
       <Field c={c} label="투구 종류" hint={typeHint}>
         <TypeGrid value={type} onChange={setType} />
       </Field>
@@ -693,6 +756,8 @@ function IntensityGuide({ c }: { c: Palette }) {
 }
 
 const styles = StyleSheet.create({
+  restored: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 4 },
+  restoredBtn: { minHeight: 40, justifyContent: 'center', paddingHorizontal: 4 },
   bar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingBottom: 8 },
   barAction: { fontSize: 17 },
   barTitle: { fontSize: 17, fontWeight: '600' },
