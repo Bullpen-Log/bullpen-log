@@ -25,7 +25,9 @@ export type NutritionDay = {
   /** 끼니 단백질 목표용 — 이 칸을 모르는 옛 서버 · 폰에 남은 옛 자료는 없다 */
   ageBand?: AgeBand;
   avoid?: AvoidKey[];
+  checkinAnswers?: NutritionAnswer | null;
 };
+export type NutritionAnswer = { appetite: number | null; mealAmount: string | null; skippedMeals: string[] };
 type Result = { ok: true } | { ok: false; error: string };
 
 class NutritionError extends Error {
@@ -151,6 +153,9 @@ export const saveMyFood = async (food: Food): Promise<string | null> => {
     return e instanceof Error ? e.message : '저장하지 못했어요.';
   }
 };
+/** '오늘 식욕 · 끼니는요?' 카드 저장(웹과 같은 서버 동작 — DailyNutrition, 조언 · 가이드 · 식단 짜기가 읽는다) */
+export const saveNutritionAnswer = (date: string, a: NutritionAnswer) =>
+  act(date, 'day-cards.saveNutritionCheckin', { date, appetite: a.appetite, mealAmount: a.mealAmount, skippedMeals: a.skippedMeals });
 export const replacePlan = (date: string, key: string, food: Food, amount: number) =>
   act(date, 'nutrition.replacePlanItem', date, key, toFoodInput(food), amount);
 export const saveWeight = (date: string, kg: number | null) => act(date, 'nutrition.setWeight', date, kg);

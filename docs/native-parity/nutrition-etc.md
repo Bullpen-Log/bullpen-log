@@ -20,6 +20,8 @@
   (웹과 같은 `nutrition.replaceMealEntry` · `replacePlanItem`). 편집 중 바꾼 줄의 고친 양은 버리고 옮기기 · 지우기는 지킨다(웹 rowSig).
 - **영양 직접 입력**(`native/src/nutrition/custom-food.tsx`): 담기 화면 아래 '목록에 없으면 직접 입력' · '‘…’ 직접 입력'(찾던 말을 이름에 미리) — 이름 · 먹은 양 ·
   칼로리 · 탄단지, '내 음식에 저장해 다음에도 쓰기'(담기 뒤에만 저장), 웹과 같은 검사 · 문구. 바꾸기 모드면 '이 음식으로 바꾸기'.
+- **영양 식욕 · 끼니 카드**(`native/src/nutrition/checkin-card.tsx`, 오늘만 · 오늘 카드 위): 접힌 알약 '오늘 식욕 · 끼니는요? 답하기' / '오늘 설정 · …  바꾸기' →
+  펴서 식욕 다섯 · 끼니 양 셋 · 거른 끼니 셋, [저장] · [나중에]. 웹과 같은 `day-cards.saveNutritionCheckin`, 답은 `app.loadAppNutrition` 의 `checkinAnswers`.
 - **설정**(`native/src/app/settings.tsx`): 테마 고르개에 웹과 같은 뜻의 그림(해 · 달 · 달과 별 · 반쪽 원).
 - **내 정보**(`native/src/app/profile.tsx`): 키를 설정의 길이 단위대로(cm · in, 저장은 정수 cm — 웹 profile-form 과 같다).
 - **계정**(`native/src/app/account.tsx`): 탈퇴 안내 · 단추를 웹 문구로('되돌릴 수 없어요 …', '탈퇴하고 모든 기록 지우기').
@@ -28,7 +30,7 @@
 
 - **영양 오늘 카드의 할 일 한 줄 · 균형 점수 · 먹은 % 링 · 던지는 날 가이드 · 영양 추세 경고**: 웹은 `loadAdvice`(lib/nutrition/advice-load.ts, 서버 전용)로 짓는다.
   앱에 셈을 새로 짜지 않으려면 그 결과를 내려 주는 서버 동작이 필요하다 — 다음 차례(`app.loadAppNutrition` 에 `advice` 를 싣는 길).
-- **영양 어제와 같이 · 자주 먹는 조합 · 분류 둘러보기 · 날짜 띠 · 작은 달력 · 식욕/끼니 카드**:
+- **영양 어제와 같이 · 자주 먹는 조합 · 분류 둘러보기 · 날짜 띠 · 작은 달력**:
   웹 서버 동작(`addMealEntries` · `editMealEntries` · `replaceMealEntry` · `saveNutritionCheckin` …)은 이미 있어 앱 화면만 만들면 된다 — 화면이 커서 다음 차례.
 - **분석 '그날 분석'으로 들어오기 · /coach?date= 주소의 날짜**: 홈 그날 카드(다른 세션 영역)와 `native/src/app/index.tsx`(공용) 손이 필요하다.
 - **기간 설정(시작 · 끝 달력)**: 앱은 서버가 정한 기간(SERIES_DAYS)만 받는다 — 서버 동작에 기간 인자를 더해야 한다.
@@ -97,8 +99,8 @@
 
 | 항목 | 웹 | 앱 | 상태 | 빈도 | 메모 | 조치 |
 |---|---|---|---|---|---|---|
-| '오늘 식욕 · 끼니는요?' 접힌 카드(오늘만) | NV:504-508; `nutrition-checkin-card.tsx`:29-58 | - | 앱에 없음 | 자주 | 앱 전체를 찾아봐도 saveNutritionCheckin / 식욕이 없음 | 남김(서버 동작 · 큰 화면 — 다음 차례, 같은 웹 서버 동작으로 잇는다) |
-| 식욕 칩 · 끼니 양 · 거른 끼니, 저장 | `nutrition-checkin-card.tsx`:100-153 | - | 앱에 없음 | 자주 | 이 답을 조언·가이드·식단 짜기가 읽음 | 남김(서버 동작 · 큰 화면 — 다음 차례, 같은 웹 서버 동작으로 잇는다) |
+| '오늘 식욕 · 끼니는요?' 접힌 카드(오늘만) | NV:504-508; `nutrition-checkin-card.tsx`:29-58 | - | 앱에 없음 | 자주 | 앱 전체를 찾아봐도 saveNutritionCheckin / 식욕이 없음 | 고침(접힌 알약 → 펴서 식욕 · 끼니 양 · 거른 끼니, `day-cards.saveNutritionCheckin`) |
+| 식욕 칩 · 끼니 양 · 거른 끼니, 저장 | `nutrition-checkin-card.tsx`:100-153 | - | 앱에 없음 | 자주 | 이 답을 조언·가이드·식단 짜기가 읽음 | 고침(접힌 알약 → 펴서 식욕 · 끼니 양 · 거른 끼니, `day-cards.saveNutritionCheckin`) |
 
 ### 1-4. 첫 화면 — 식단 짜기 카드
 

@@ -13,6 +13,7 @@ import { PLAN_PLACES, type PlanItem } from '@/lib/nutrition/meal-plan';
 import type { Place } from '@/lib/nutrition/meal-templates';
 import { clearPlan, eatPlan, editEntries, makePlan, saveWeight, useNutritionDay } from './api';
 import { READABLE } from '~/lib/layout';
+import { NutritionCheckinCard } from './checkin-card';
 
 /**
  * 영양 탭(앱 화면) — 웹 영양 탭의 '기록' 쪽: 오늘 먹은 것과 목표(kcal · 탄 · 단 · 지) · 끼니마다 담은 음식(양 바꾸기 · 지우기) · 체중.
@@ -149,6 +150,9 @@ export function NutritionTab({ today, bottom, onWebNutrition }: { today: string;
       </View>
 
       {error && !day ? <Text style={{ color: c.danger, fontSize: 15 }}>{error}</Text> : null}
+
+      {/* 오늘만 — 지난 날은 적을 수 없다(웹 nutrition-view.tsx 와 같은 자리: 오늘 카드 위) */}
+      {day && date === today ? <NutritionCheckinCard date={date} answer={day.checkinAnswers ?? null} /> : null}
 
       {t ? (
         <View style={[styles.card, { backgroundColor: c.card }]}>
