@@ -5,12 +5,12 @@ import Animated, { Easing, useAnimatedRef, useAnimatedScrollHandler, useAnimated
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { FeedItem } from '@/lib/report/feed-items';
 import { cacheEpoch, cacheGet, cacheSet } from '~/lib/store';
-import { PRESSED, SPACE, usePalette } from '~/lib/ui';
+import { PRESSED, SPACE, usePalette, withAlpha } from '~/lib/ui';
 import { Icon } from '~/shell/icon';
 import { REST_SESSION_TYPE } from '@/lib/session-type';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 import { Wordmark } from '~/shell/wordmark';
-import { Pulse, viewSwap } from '~/shell/motion';
+import { fadeIn, Pulse, viewSwap } from '~/shell/motion';
 import { openCheckin } from '~/shell/web-nav';
 import { ApiError, call, dateKeyOf } from '~/pitch/api';
 import { MonthGrid } from '~/pitch/month-grid';
@@ -283,8 +283,8 @@ export function HomeTab({
         </Animated.View>
 
         {/* 캘린더 밑 — 알림 카드 · 첫날 카드(웹 home-page.tsx TodayBody 와 같은 차례) */}
-        {home?.painWords || home?.recovering || home?.firstDay ? (
-          <Animated.View layout={layoutMove} style={{ marginTop: SPACE.section, gap: SPACE.gap }}>
+        {home?.painWords || home?.recovering || home?.firstDay || home?.goodNote ? (
+          <Animated.View layout={layoutMove} style={{ marginTop: SPACE.section, gap: SPACE.section }}>
             {home.painWords ? (
               <Warn
                 title="지금 통증이 있으신가요?"
@@ -298,6 +298,7 @@ export function HomeTab({
             {home.firstDay ? (
               <FirstDayCard today={today} status={home.firstDay} locked={home.pitchLocked} onTab={onTab} onRested={() => void refresh()} />
             ) : null}
+            {home.goodNote ? <GoodDayNote note={home.goodNote} /> : null}
           </Animated.View>
         ) : null}
       </Animated.ScrollView>
@@ -458,6 +459,8 @@ const styles = StyleSheet.create({
   bell: { position: 'absolute', right: 12, width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
   dot: { position: 'absolute', right: 10, top: 10, width: 9, height: 9, borderRadius: 5, borderWidth: 2 },
   card: { borderRadius: 20, padding: SPACE.pad, gap: 10 },
+  good: { borderRadius: 20, borderWidth: 1 },
+  goodHead: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 48, padding: SPACE.pad },
   listHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 4 },
   viewBtn: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
   cardTitle: { fontSize: 15, fontWeight: '700' },
@@ -466,3 +469,38 @@ const styles = StyleSheet.create({
   ghost: { alignSelf: 'flex-start', minHeight: 44, borderRadius: 22, borderWidth: 1, paddingHorizontal: 16, justifyContent: 'center' },
   webLink: { alignItems: 'center', paddingVertical: 8 },
 });
+
+/**
+ * '지난번 잘 던진 날 남긴 말' — 웹 good-day-note.tsx: 하늘색 판, 겉은 메모 한 줄, 누르면 메모 전체 · 날짜 · 종류 · 만족도 · 좋았던 것.
+ */
+function GoodDayNote({ note }: { note: NonNullable<AppHome['goodNote']> }) {
+  const c = usePalette();
+  const [open, setOpen] = useState(false);
+  const [, m, d] = note.date.split('-').map(Number);
+  return (
+    <Animated.View layout={layoutMove} style={[styles.good, { backgroundColor: c.skyTint, borderColor: withAlpha(c.sky, 0.25) }]}>
+      <Press accessibilityRole="button" accessibilityState={{ expanded: open }} onPress={() => setOpen((o) => !o)} style={styles.goodHead}>
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <Text style={{ color: c.skyStrong, fontSize: 12, fontWeight: '500' }}>지난번 잘 던진 날 남긴 말</Text>
+          {open ? null : (
+            <Text numberOfLines={1} style={{ color: c.ink, fontSize: 15, marginTop: 4 }}>
+              {note.memo}
+            </Text>
+          )}
+        </View>
+        <View style={{ transform: [{ rotate: open ? '180deg' : '0deg' }] }}>
+          <Icon name="chevron-down" size={16} color={c.sky} />
+        </View>
+      </Press>
+      {open ? (
+        <Animated.View entering={fadeIn} style={{ gap: 8, paddingHorizontal: SPACE.pad, paddingBottom: SPACE.pad, marginTop: -8 }}>
+          <Text style={{ color: c.ink, fontSize: 15, lineHeight: 23 }}>{note.memo}</Text>
+          <Text style={{ color: c.muted, fontSize: 12 }}>
+            {m}월 {d}일 · {note.sessionType} · 만족도 {note.satisfaction}/5
+            {note.cuesGood.length ? ` · 좋았던 것 ${note.cuesGood.join(' · ')}` : ''}
+          </Text>
+        </Animated.View>
+      ) : null}
+    </Animated.View>
+  );
+}

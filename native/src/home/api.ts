@@ -20,6 +20,8 @@ export type AppHome = {
   recovering: boolean;
   firstDay: ArmStatus | null;
   pitchLocked: boolean;
+  /** 지난번 잘 던진 날 남긴 말 — 오늘 던지는 날 기록 전에만(옛 서버는 칸 없음) */
+  goodNote?: { date: string; sessionType: string; satisfaction: number; memo: string; cuesGood: string[] } | null;
 };
 
 export async function loadHome(): Promise<AppHome> {

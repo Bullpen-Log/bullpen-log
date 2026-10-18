@@ -6,7 +6,8 @@ import { appNow } from '@/lib/clock';
 import { getCurrentUser } from '@/lib/dal';
 import { loadTrainingStrip, type TrainingStripDay } from '@/lib/training-week';
 import { loadTrainingWeekCounts, type TrainingWeekCounts } from '@/lib/report/training-week-counts';
-import { pickArmPain, pickCheckinParts, validateCheckinDate, type CheckinPartKey } from '@/lib/checkin';
+import { pickArmPain, pickCheckinParts, todayOutingRole, validateCheckinDate, type CheckinPartKey } from '@/lib/checkin';
+import { GOOD_DAY_MIN, RATED_SESSION_TYPES } from '@/lib/pitch-satisfaction';
 import { featureLocks, SETUP_PATH } from '@/lib/feature-locks';
 import { dbDate, isNutritionDate, keyOfDbDate } from '@/lib/nutrition/days';
 import { prisma } from '@/lib/prisma';
@@ -79,6 +80,8 @@ export async function loadAppHome(): Promise<
       /** 투구 기록을 한 번도 안 남긴 사람 — 지금 팔 상태(첫날 카드) */
       firstDay: ArmStatus | null;
       pitchLocked: boolean;
+      /** 지난번 잘 던진 날 남긴 말 — 오늘 던지는 날, 오늘 기록 전에만(웹 home-page.tsx goodNote · good-day-note.tsx) */
+      goodNote: { date: string; sessionType: string; satisfaction: number; memo: string; cuesGood: string[] } | null;
     }
   | { ok: false; error: string }
 > {
@@ -86,10 +89,16 @@ export async function loadAppHome(): Promise<
   if (!user) return { ok: false, error: '로그인이 필요해요.' };
   const today = toDateKey(appNow());
   const locks = featureLocks(user);
-  const [rings, feed, core] = await Promise.all([
+  const [rings, feed, core, goodDay] = await Promise.all([
     loadHomeRings(user, today, locks.pitch),
     loadHomeFeed(user, today),
     loadTodayCoreCached(user),
+    /* 만족도가 높았던 날의 메모 — 5점 먼저, 같은 점수면 최근 것(웹 홈과 같은 조회) */
+    prisma.pitchLog.findFirst({
+      where: { userId: user.id, sessionType: { in: [...RATED_SESSION_TYPES] }, satisfaction: { gte: GOOD_DAY_MIN }, memo: { not: null } },
+      orderBy: [{ satisfaction: 'desc' }, { date: 'desc' }, { createdAt: 'desc' }],
+      select: { date: true, sessionType: true, satisfaction: true, memo: true, cuesGood: true },
+    }),
   ]);
   const { plan, picked, facts } = core;
   return {
@@ -103,6 +112,10 @@ export async function loadAppHome(): Promise<
     recovering: plan.recovering && !plan.needsPainCheck && !picked.halted,
     firstDay: core.everLogged ? null : armStatusOf(facts),
     pitchLocked: locks.pitch,
+    goodNote:
+      goodDay?.memo && goodDay.satisfaction != null && todayOutingRole(facts.condition.throwPlanToday, facts.condition.throwPlanYesterday) != null && !rings.pitchDone
+        ? { date: toDateKey(goodDay.date), sessionType: goodDay.sessionType, satisfaction: goodDay.satisfaction, memo: goodDay.memo, cuesGood: goodDay.cuesGood }
+        : null,
   };
 }
 
