@@ -1,4 +1,5 @@
 import { Image } from 'expo-image';
+import { router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
 import { useState } from 'react';
@@ -18,7 +19,7 @@ import { leaveTo } from '~/shell/web-nav';
 
 /**
  * 내 정보(앱 화면) — 웹 내 정보 창(components/profile-panel.tsx)의 사진 · 기본 정보 · 몸을 옮겼다. 저장은 같은 검사의 profile.updateAppProfile,
- * 사진은 웹과 같은 길(/api/profile/avatar-url 서명 주소로 PUT → profile.saveAvatar). 비밀번호 · 로그아웃 · 탈퇴는 로그인 쿠키를 다뤄 웹 창에 둔다.
+ * 사진은 웹과 같은 길(/api/profile/avatar-url 서명 주소로 PUT → profile.saveAvatar). 비밀번호 · 로그아웃 · 탈퇴는 앱 계정 화면(account.tsx).
  * 키는 늘 cm, 몸무게는 웹 설정의 무게 단위(저장은 kg).
  */
 type Loaded = ({ ok: true } & AppProfile) | { ok: false; to: string };
@@ -128,7 +129,7 @@ function Body({ p, reload, c }: { p: AppProfile; reload: () => void; c: Palette 
 
       <Group title="계정" footer={p.isAdmin ? '관리자 계정이에요. 트레이닝 영상과 메커니즘 가이드를 올리고 지울 수 있어요.' : undefined} c={c}>
         <Row label={p.email} c={c} last>
-          <Pressable accessibilityRole="link" onPress={() => leaveTo('#profile')} hitSlop={8}>
+          <Pressable accessibilityRole="link" onPress={() => router.push('/account')} hitSlop={8}>
             <Text style={{ color: c.sky, fontSize: 15, fontWeight: '600' }}>비밀번호 · 로그아웃 ›</Text>
           </Pressable>
         </Row>

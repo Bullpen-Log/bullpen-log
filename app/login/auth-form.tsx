@@ -31,10 +31,7 @@ import {
 import { Chips } from '@/components/onboarding/choices';
 import { NumberUnitField } from '@/components/onboarding/number-unit-field';
 import { RevealField } from '@/components/onboarding/reveal-field';
-import {
-  useStepWizard,
-  type WizardProblem,
-} from '@/components/onboarding/use-step-wizard';
+import { useStepWizard } from '@/components/onboarding/use-step-wizard';
 import {
   MAX_AGE,
   MAX_HEIGHT_CM,
@@ -43,10 +40,17 @@ import {
   MIN_HEIGHT_CM,
   MIN_WEIGHT_KG,
   SEX_OPTIONS,
-  ageFromBirthDate,
-  parseBirthDate,
-  type Sex,
 } from '@/lib/profile';
+import {
+  EMAIL_RE,
+  EMPTY_SIGNUP as EMPTY,
+  SIGNUP_STEPS as STEPS,
+  checkSignupStep as checkStep,
+  heightOk,
+  stepOfField,
+  type SignupAnswers,
+  type SignupStep as StepKey,
+} from '@/lib/signup-check';
 
 /**
  * 로그인 · 회원가입.
@@ -289,139 +293,8 @@ function LoginForm({
 
 /* ─────────────────────────── 회원가입 — 답 · 차례 ─────────────────────────── */
 
-type SignupAnswers = {
-  nickname: string;
-  email: string;
-  /** 'YYYY-MM-DD' */
-  birthDate: string;
-  sex: Sex | null;
-  heightCm: number | null;
-  weightKg: number | null;
-  password: string;
-  passwordConfirm: string;
-  agreeTerms: boolean;
-  agreePrivacy: boolean;
-};
-
-const EMPTY: SignupAnswers = {
-  nickname: '',
-  email: '',
-  birthDate: '',
-  sex: null,
-  heightCm: null,
-  weightKg: null,
-  password: '',
-  passwordConfirm: '',
-  agreeTerms: false,
-  agreePrivacy: false,
-};
-
-type StepKey = 'name' | 'birth' | 'body' | 'terms';
-
-/**
- * 화면 차례 — 답에 따라 생기고 빠지는 화면이 없어 늘 넷이다(소속은 2026-10-10 에 뺐다 — 계산에 안 쓴다).
- * 비밀번호는 2026-10-12 에 첫 화면으로 옮겼다(사용자: "이름, 이메일, 비밀번호까지 한 번에").
- */
-const STEPS: StepKey[] = ['name', 'birth', 'body', 'terms'];
-
-/** 칸이 있는 화면 — 서버가 어느 칸을 막았는지(AuthState.field) 알려 주면 그 화면으로 돌아간다 */
-const FIELD_STEP: Record<string, StepKey> = {
-  nickname: 'name',
-  email: 'name',
-  birthDate: 'birth',
-  sex: 'birth',
-  heightCm: 'body',
-  weightKg: 'body',
-  password: 'name',
-  passwordConfirm: 'name',
-  agreeTerms: 'terms',
-  agreePrivacy: 'terms',
-};
-
 /** 어느 칸의 문제도 아닌 것(신호 끊김) — 빨갛게 칠할 칸은 없고, 마지막 화면의 보내기 단추 곁에 까닭만 보인다 */
 const WHOLE_FORM = 'form';
-
-function stepOfField(field: string): StepKey {
-  return FIELD_STEP[field] ?? 'terms';
-}
-
-/** 키 · 몸무게가 범위 안인가 — 서버(lib/profile.ts)와 같은 선. 몸무게 칸은 키가 이 선을 넘어야 펴진다 */
-function heightOk(h: number | null): h is number {
-  return h !== null && Number.isInteger(h) && h >= MIN_HEIGHT_CM && h <= MAX_HEIGHT_CM;
-}
-function weightOk(kg: number | null): kg is number {
-  return kg !== null && kg >= MIN_WEIGHT_KG && kg <= MAX_WEIGHT_KG;
-}
-
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-/**
- * 한 화면을 넘어가도 되는가 — 서버(app/actions/auth.ts · lib/profile.ts · lib/baseline.ts)와 같은 기준을 먼저 본다.
- * 여기서 놓치면 여섯 화면을 다 지나 마지막에야 막힌다. 두 칸 화면은 두 칸 모두 맞아야 넘어간다.
- *
- * 브라우저의 기본 검사는 쓰지 않는다(폼이 noValidate). 모든 화면이 한 폼 안에 있어서, 기본 검사를 켜 두면 아직
- * 안 보인 화면의 빈칸 때문에 '다음'이 막힌다.
- */
-function checkStep(
-  key: StepKey,
-  a: SignupAnswers,
-  today: string
-): WizardProblem | null {
-  switch (key) {
-    case 'name': {
-      const nickname = a.nickname.trim();
-      if (!nickname) return { error: '뭐라고 부를지 적어 주세요.', field: 'nickname' };
-      if (nickname.length < 2)
-        return { error: '이름은 2자 이상이어야 해요.', field: 'nickname' };
-      const email = a.email.trim();
-      if (!email) return { error: '이메일을 적어 주세요.', field: 'email' };
-      if (!EMAIL_RE.test(email))
-        return { error: '올바른 이메일 형식이 아니에요.', field: 'email' };
-      if (a.password.length < 8)
-        return { error: '비밀번호는 8자 이상이어야 해요.', field: 'password' };
-      if (!a.passwordConfirm)
-        return { error: '비밀번호를 한 번 더 적어 주세요.', field: 'passwordConfirm' };
-      if (a.password !== a.passwordConfirm)
-        return { error: '비밀번호가 일치하지 않아요.', field: 'passwordConfirm' };
-      return null;
-    }
-    case 'birth': {
-      if (!a.birthDate) return { error: '생년월일을 골라 주세요.', field: 'birthDate' };
-      const parsed = parseBirthDate(a.birthDate);
-      if (!parsed)
-        return { error: '생년월일을 올바르게 골라 주세요.', field: 'birthDate' };
-      const age = ageFromBirthDate(parsed);
-      if (a.birthDate > today || age < MIN_AGE || age > MAX_AGE) {
-        return { error: '생년월일을 다시 확인해 주세요.', field: 'birthDate' };
-      }
-      if (!a.sex) return { error: '성별을 골라 주세요.', field: 'sex' };
-      return null;
-    }
-    case 'body':
-      if (a.heightCm === null) return { error: '키를 적어 주세요.', field: 'heightCm' };
-      if (!heightOk(a.heightCm)) {
-        return {
-          error: `키는 ${MIN_HEIGHT_CM}~${MAX_HEIGHT_CM}cm 사이로 적어 주세요.`,
-          field: 'heightCm',
-        };
-      }
-      if (a.weightKg === null)
-        return { error: '몸무게를 적어 주세요.', field: 'weightKg' };
-      if (!weightOk(a.weightKg)) {
-        return {
-          error: `몸무게는 ${MIN_WEIGHT_KG}~${MAX_WEIGHT_KG}kg 사이로 적어 주세요.`,
-          field: 'weightKg',
-        };
-      }
-      return null;
-    case 'terms':
-      if (!a.agreeTerms)
-        return { error: '이용약관에 동의해 주세요.', field: 'agreeTerms' };
-      if (!a.agreePrivacy)
-        return { error: '개인정보 처리방침에 동의해 주세요.', field: 'agreePrivacy' };
-      return null;
-  }
-}
 
 /* ─────────────────────────── 회원가입 — 부품 ─────────────────────────── */
 

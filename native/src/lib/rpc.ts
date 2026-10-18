@@ -26,15 +26,31 @@ export function syncSession(): Promise<unknown> {
   return synced;
 }
 
-export async function rpc<T>(action: string, ...args: unknown[]): Promise<T> {
+export function rpc<T>(action: string, ...args: unknown[]): Promise<T> {
+  return call<T>(action, JSON.stringify({ args }), { 'content-type': 'application/json' });
+}
+
+/**
+ * 폼 동작((prev, formData) 꼴 — auth.login · auth.changePassword …)을 부른다. 앞 인자는 늘 null(useActionState 의 지난 상태),
+ * fields 는 웹 폼과 같은 칸 이름(app/api/rpc/[action]/route.ts 의 multipart · __args). 체크박스는 켰을 때만 'on' 으로 넣는다.
+ */
+export function rpcForm<T>(action: string, fields: Record<string, string | null | undefined>): Promise<T> {
+  const form = new FormData();
+  form.append('__args', '[null]');
+  for (const [k, v] of Object.entries(fields)) if (v != null) form.append(k, v);
+  /* content-type 은 비워 둔다 — fetch 가 경계(boundary)를 붙여 채운다 */
+  return call<T>(action, form, {});
+}
+
+async function call<T>(action: string, payload: string | FormData, headers: Record<string, string>): Promise<T> {
   await syncSession();
   let res: Response;
   try {
     res = await fetch(`${SITE_URL}/api/rpc/${action}`, {
       method: 'POST',
       credentials: 'include',
-      headers: { 'content-type': 'application/json', [APP_API_HEADER]: String(APP_API_LEVEL) },
-      body: JSON.stringify({ args }),
+      headers: { ...headers, [APP_API_HEADER]: String(APP_API_LEVEL) },
+      body: payload,
     });
   } catch {
     throw new RpcError('신호가 약해 서버에 닿지 못했어요.', 'offline');
