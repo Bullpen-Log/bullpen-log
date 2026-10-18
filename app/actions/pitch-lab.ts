@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { getCurrentUser, requireUser } from '@/lib/dal';
+import { featureLocks, SETUP_PATH } from '@/lib/feature-locks';
 import {
   createV2ResultUploadUrl,
   deleteLabSample,
@@ -375,6 +376,8 @@ export async function loadAppLabDetail(input: {
 }): Promise<AppLabDetail | { ok: false; to: string }> {
   const user = await getCurrentUser();
   if (!user) return { ok: false, to: '/login' };
+  /* 투구 첫 설정 전이면 설정으로(웹 /videos/lab 과 같다) */
+  if (featureLocks(user).pitch) return { ok: false, to: SETUP_PATH.pitch };
   if (!isLabId(input?.id)) return { ok: false, to: LAB_PATH };
   const sample = await loadLabSample(input.id, user);
   if (!sample) return { ok: false, to: LAB_PATH };
@@ -471,6 +474,8 @@ export async function loadAppLabList(): Promise<
 > {
   const user = await getCurrentUser();
   if (!user) return { ok: false, to: '/login' };
+  /* 투구 첫 설정 전이면 설정으로(웹 /videos/lab 과 같다) */
+  if (featureLocks(user).pitch) return { ok: false, to: SETUP_PATH.pitch };
   const samples = await listLabSamples(user);
   const now = Date.now();
   return {

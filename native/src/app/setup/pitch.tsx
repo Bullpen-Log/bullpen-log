@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, Text, View } from 'react-native';
 import { ADULT_AGE } from '@/lib/report/plan';
 import { BASELINE_MIX, MIX_COUNTS, THROWING_HANDS, mixDailyLoad } from '@/lib/baseline';
-import { scaleToEffortPct } from '@/lib/pitch-effort';
+import { effortScaleText, scaleToEffortPct } from '@/lib/pitch-effort';
 import { checkPitchStep, pitchStepOfField, toPitchFormFields, visiblePitchSteps, type PitchSetupAnswers, type PitchStepKey } from '@/lib/pitching/setup-answers';
 import { rpc, RpcError } from '~/lib/rpc';
 import { usePalette } from '~/lib/ui';
@@ -163,7 +163,7 @@ function Wizard({ name, age, done, initial }: Extract<Loaded, { ok: true }>) {
                 value={a[field]}
                 onChange={(v) => patch({ [field]: v })}
                 invalid={problem?.field === field}
-                hint={`한 번에 보통 ${t.pitches}구, 강도 ${scaleToEffortPct(t.intensity)}% 정도로 셈해요.`}
+                hint={`한 번에 보통 ${t.pitches}구, 강도 ${effortScaleText(scaleToEffortPct(t.intensity))} 정도로 셈해요.`}
                 c={c}
               />
             );

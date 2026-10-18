@@ -4,7 +4,7 @@ import { Alert, Linking, Modal, Pressable, ScrollView, StyleSheet, Text, View } 
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { tiltOf } from '@/lib/device-tilt';
 import { NO_CALIBRATION, type CalFit } from '@/lib/velocity-calibration';
-import { EFFORT_CHIPS } from '@/lib/pitch-effort';
+import { EFFORT_CHIPS, effortScaleText } from '@/lib/pitch-effort';
 import { SESSION_TYPES, isRestSession } from '@/lib/session-type';
 import {
   DEFAULT_SETUP,
@@ -478,10 +478,11 @@ export default function VelocityScreen() {
             />
             <Text style={styles.label}>체감 강도</Text>
             <Chips
-              items={EFFORT_CHIPS.map((v) => `${v}%`)}
-              value={effortPct == null ? null : `${effortPct}%`}
+              items={EFFORT_CHIPS.map((v) => effortScaleText(v))}
+              value={effortPct == null ? null : effortScaleText(effortPct)}
               onChange={(v) => {
-                setEffortPct(Number.parseInt(v, 10));
+                /* 칩은 1~10(웹 effort-chips 와 같게), 저장은 그대로 체감 강도 %(칩 n = n × 10%) */
+                setEffortPct(Math.round(Number(v) * 10));
                 setSaveError(null);
               }}
               light
