@@ -1,8 +1,9 @@
+import { SymbolView } from 'expo-symbols';
 import { type Href, router } from 'expo-router';
 import { useState } from 'react';
 import { Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { MEALS, amountText, entryMacros, type MealEntryView } from '@/lib/nutrition/meta';
+import { MEALS, amountText, entryMacros, mealLabel, stepAmount, type EntryEdit, type MealEntryView, type MealKey } from '@/lib/nutrition/meta';
 import { mealProtein } from '@/lib/nutrition/meal-protein';
 import { shiftDateKey } from '@/lib/pitch-stats';
 import { fromWeight, round1, toWeight } from '@/lib/units';
@@ -10,7 +11,7 @@ import { useWeightUnit } from '~/lib/weight-unit';
 import { usePalette } from '~/lib/ui';
 import { PLAN_PLACES, type PlanItem } from '@/lib/nutrition/meal-plan';
 import type { Place } from '@/lib/nutrition/meal-templates';
-import { clearPlan, eatPlan, makePlan, removeEntry, saveWeight, setAmount, useNutritionDay } from './api';
+import { clearPlan, eatPlan, editEntries, makePlan, saveWeight, useNutritionDay } from './api';
 import { READABLE } from '~/lib/layout';
 
 /**
@@ -19,7 +20,6 @@ import { READABLE } from '~/lib/layout';
  * 날짜는 오늘부터 지난 6주까지 ‹ › 로.
  */
 const BACK_DAYS = 42;
-const AMOUNT_STEP = 0.25;
 
 const round = (n: number) => Math.round(n);
 const kcalText = (n: number) => `${round(n).toLocaleString('ko-KR')}kcal`;
@@ -27,14 +27,17 @@ const kcalText = (n: number) => `${round(n).toLocaleString('ko-KR')}kcal`;
 export function NutritionTab({ today, bottom, onWebNutrition }: { today: string; bottom: number; onWebNutrition: () => void }) {
   const c = usePalette();
   const inset = useSafeAreaInsets();
-  const [openId, setOpenId] = useState<string | null>(null);
+  /* 끼니 편집 — 웹처럼 한 끼니씩. 고친 값(초안)은 '완료'를 누를 때 한 번에 저장(nutrition.editMealEntries), '취소'면 버린다 */
+  const [editing, setEditing] = useState<MealKey | null>(null);
+  const [drafts, setDrafts] = useState<Record<string, Draft>>({});
   const [date, setDateRaw] = useState(today);
   const [weightText, setWeightText] = useState<string | null>(null);
   /* 날을 바꾸면 적던 체중은 버린다 — 다른 날에 저장되지 않게 */
   const setDate = (d: string) => {
     setDateRaw(d);
     setWeightText(null);
-    setOpenId(null);
+    setEditing(null);
+    setDrafts({});
   };
   const { day, error, to, loading, reload } = useNutritionDay(date);
   const [busy, setBusy] = useState(false);
@@ -69,6 +72,25 @@ export function NutritionTab({ today, bottom, onWebNutrition }: { today: string;
     const err = await job();
     setBusy(false);
     if (err) Alert.alert('저장하지 못했어요', err);
+  };
+
+  const startEdit = (meal: MealKey) => {
+    setEditing(meal);
+    setDrafts({});
+  };
+  const draftOf = (e: MealEntryView): Draft => drafts[e.id] ?? { amount: e.amount, meal: e.meal, remove: false };
+  const finishEdit = (list: MealEntryView[]) => {
+    const edits: EntryEdit[] = [];
+    for (const e of list) {
+      const d = drafts[e.id];
+      if (!d) continue;
+      if (d.remove) edits.push({ id: e.id, remove: true });
+      else if (d.amount !== e.amount || d.meal !== e.meal)
+        edits.push({ id: e.id, ...(d.amount !== e.amount ? { amount: d.amount } : {}), ...(d.meal !== e.meal ? { meal: d.meal } : {}) });
+    }
+    setEditing(null);
+    setDrafts({});
+    if (edits.length) void run(() => editEntries(date, edits));
   };
 
   const saveW = () => {
@@ -153,6 +175,8 @@ export function NutritionTab({ today, bottom, onWebNutrition }: { today: string;
               ? mealProtein(meal.key, day.entries, t?.protein ?? 0, day.ageBand, day.avoid ?? [])
               : null;
             const protein = p?.protein ?? Math.round(list.reduce((n, e) => n + entryMacros(e).protein, 0));
+            const isEditing = editing === meal.key;
+            const allRemoved = list.length > 0 && list.every((e) => draftOf(e).remove);
             return (
               <View key={meal.key} style={[styles.card, { backgroundColor: c.card, gap: 4 }]}>
                 <View style={styles.mealHead}>
@@ -169,29 +193,66 @@ export function NutritionTab({ today, bottom, onWebNutrition }: { today: string;
                       </View>
                     ) : null}
                   </View>
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={`${meal.label}에 음식 담기`}
-                    onPress={() => router.push({ pathname: '/nutrition/add' as Href as never, params: { date, meal: meal.key } })}
-                    style={[styles.add, { backgroundColor: c.chip }]}
-                  >
-                    <Text style={[styles.addText, { color: c.sky }]}>+ 담기</Text>
-                  </Pressable>
+                  {isEditing ? (
+                    <>
+                      <Pressable accessibilityRole="button" onPress={() => (setEditing(null), setDrafts({}))} hitSlop={6} style={styles.textBtn}>
+                        <Text style={{ color: c.muted, fontSize: 15 }}>취소</Text>
+                      </Pressable>
+                      <Pressable accessibilityRole="button" onPress={() => finishEdit(list)} hitSlop={6} style={styles.textBtn}>
+                        <Text style={{ color: c.sky, fontSize: 15, fontWeight: '700' }}>완료</Text>
+                      </Pressable>
+                    </>
+                  ) : (
+                    <>
+                      {list.length ? (
+                        <Pressable accessibilityRole="button" accessibilityLabel={`${meal.label} 편집`} onPress={() => startEdit(meal.key)} hitSlop={6} style={styles.textBtn}>
+                          <Text style={{ color: c.sky, fontSize: 15, fontWeight: '600' }}>편집</Text>
+                        </Pressable>
+                      ) : null}
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel={`${meal.label}에 음식 담기`}
+                        onPress={() => router.push({ pathname: '/nutrition/add' as Href as never, params: { date, meal: meal.key } })}
+                        style={[styles.add, { backgroundColor: c.chip }]}
+                      >
+                        <Text style={[styles.addText, { color: c.sky }]}>+ 담기</Text>
+                      </Pressable>
+                    </>
+                  )}
                 </View>
                 {planned.length ? (
                   <PlanRows items={planned} onEat={(keys) => run(() => eatPlan(date, keys))} busy={busy} />
                 ) : null}
-                {list.map((e) => (
-                  <EntryRow
-                    key={e.id}
-                    entry={e}
-                    open={openId === e.id}
-                    onToggle={() => setOpenId(openId === e.id ? null : e.id)}
-                    onAmount={(a) => run(() => setAmount(date, e.id, a))}
-                    onRemove={() => run(() => removeEntry(date, e.id))}
-                  />
-                ))}
-                {p?.tip ? (
+                {list.map((e) =>
+                  isEditing ? (
+                    <EditRow key={e.id} entry={e} draft={draftOf(e)} onChange={(d) => setDrafts((all) => ({ ...all, [e.id]: d }))} />
+                  ) : (
+                    /* 줄을 누르면 그 끼니가 편집 모양이 된다(웹 MealSection onEdit) */
+                    <EntryRow key={e.id} entry={e} onPress={() => startEdit(meal.key)} />
+                  )
+                )}
+                {isEditing ? (
+                  <View style={styles.editFoot}>
+                    <Text style={{ flex: 1, color: c.muted, fontSize: 13 }}>고친 것은 완료를 누르면 한 번에 저장돼요</Text>
+                    <Pressable
+                      accessibilityRole="button"
+                      onPress={() =>
+                        setDrafts((all) => {
+                          const next = { ...all };
+                          for (const e of list) next[e.id] = { ...draftOf(e), remove: !allRemoved };
+                          return next;
+                        })
+                      }
+                      hitSlop={6}
+                      style={styles.textBtn}
+                    >
+                      <Text style={{ color: allRemoved ? c.sky : c.danger, fontSize: 13, fontWeight: '600' }}>
+                        {allRemoved ? '모두 되살리기' : '모두 지우기'}
+                      </Text>
+                    </Pressable>
+                  </View>
+                ) : null}
+                {p?.tip && !isEditing ? (
                   <Text style={{ color: c.muted, fontSize: 13, lineHeight: 18, paddingTop: 2 }}>
                     단백질 <Text style={{ color: c.ink, fontWeight: '600' }}>{p.short}g</Text> 모자라요 · {p.tip.label}(+{p.tip.protein}g)이면{' '}
                     {p.tip.covers ? '채워요' : '거의 채워요'}
@@ -371,52 +432,76 @@ function Bar({ label, value, target }: { label: string; value: number; target: n
   );
 }
 
-function EntryRow({
-  entry,
-  open,
-  onToggle,
-  onAmount,
-  onRemove,
-}: {
-  entry: MealEntryView;
-  open: boolean;
-  onToggle: () => void;
-  onAmount: (amount: number) => void;
-  onRemove: () => void;
-}) {
+type Draft = { amount: number; meal: MealKey; remove: boolean };
+
+function EntryRow({ entry, onPress }: { entry: MealEntryView; onPress: () => void }) {
   const c = usePalette();
   const m = entryMacros(entry);
-  const step = (by: number) => {
-    const next = Math.round((entry.amount + by) / AMOUNT_STEP) * AMOUNT_STEP;
-    if (next >= AMOUNT_STEP && next <= 20) onAmount(next);
-  };
   return (
-    <View>
-      <Pressable accessibilityRole="button" accessibilityState={{ expanded: open }} onPress={onToggle} style={styles.entry}>
-        <Text style={{ flex: 1, color: c.ink, fontSize: 15 }} numberOfLines={1}>
+    <Pressable accessibilityRole="button" accessibilityHint="끼니 편집" onPress={onPress} style={styles.entry}>
+      <Text style={{ flex: 1, color: c.ink, fontSize: 15 }} numberOfLines={1}>
+        {entry.name}
+      </Text>
+      <Text style={{ color: c.muted, fontSize: 14 }}>
+        {entry.amount !== 1 ? `${amountText(entry.amount)} · ` : ''}
+        {kcalText(m.kcal)}
+      </Text>
+    </Pressable>
+  );
+}
+
+/** 끼니 편집의 한 줄 — 웹 nutrition-view.tsx EditRow 와 같은 칸: 양 −/+ · 다른 끼니로 옮기기 · 지우기(되살리기) */
+function EditRow({ entry, draft, onChange }: { entry: MealEntryView; draft: Draft; onChange: (d: Draft) => void }) {
+  const c = usePalette();
+  const moved = draft.meal !== entry.meal;
+  const move = () =>
+    Alert.alert(
+      `${entry.name} 옮기기`,
+      undefined,
+      [
+        ...MEALS.map((m) => ({
+          text: m.key === draft.meal ? `${m.label} ✓` : m.label,
+          onPress: () => onChange({ ...draft, meal: m.key }),
+        })),
+        { text: '취소', style: 'cancel' as const },
+      ]
+    );
+  return (
+    <View style={styles.entry}>
+      <View style={{ flex: 1, opacity: draft.remove ? 0.45 : 1 }}>
+        <Text style={{ color: c.ink, fontSize: 15, textDecorationLine: draft.remove ? 'line-through' : 'none' }} numberOfLines={1}>
           {entry.name}
         </Text>
-        <Text style={{ color: c.muted, fontSize: 14 }}>
-          {entry.amount !== 1 ? `${amountText(entry.amount)} · ` : ''}
-          {kcalText(m.kcal)}
+        <Text style={{ color: c.muted, fontSize: 13 }} numberOfLines={1}>
+          {kcalText(entry.kcal * draft.amount)}
+          {moved && !draft.remove ? <Text style={{ color: c.sky, fontWeight: '600' }}> · {mealLabel(draft.meal)}으로 옮김</Text> : null}
         </Text>
-      </Pressable>
-      {open ? (
-        <View style={styles.entryEdit}>
-          <Pressable accessibilityLabel="덜" onPress={() => step(-AMOUNT_STEP)} style={[styles.step, { backgroundColor: c.chip }]}>
-            <Text style={[styles.stepText, { color: c.ink }]}>−</Text>
+      </View>
+      {draft.remove ? (
+        <Pressable accessibilityRole="button" onPress={() => onChange({ ...draft, remove: false })} style={styles.textBtn}>
+          <Text style={{ color: c.sky, fontSize: 14, fontWeight: '600' }}>되살리기</Text>
+        </Pressable>
+      ) : (
+        <>
+          <View style={[styles.stepper, { backgroundColor: c.chip }]}>
+            <Pressable accessibilityLabel={`${entry.name} 줄이기`} onPress={() => onChange({ ...draft, amount: stepAmount(draft.amount, -1) })} style={styles.step}>
+              <Text style={[styles.stepText, { color: c.ink }]}>−</Text>
+            </Pressable>
+            <Text style={{ color: c.ink, fontSize: 13, fontWeight: '600', minWidth: 44, textAlign: 'center', fontVariant: ['tabular-nums'] }}>
+              {amountText(draft.amount)}
+            </Text>
+            <Pressable accessibilityLabel={`${entry.name} 늘리기`} onPress={() => onChange({ ...draft, amount: stepAmount(draft.amount, 1) })} style={styles.step}>
+              <Text style={[styles.stepText, { color: c.ink }]}>+</Text>
+            </Pressable>
+          </View>
+          <Pressable accessibilityRole="button" accessibilityLabel={`${entry.name} 다른 끼니로 옮기기`} onPress={move} style={styles.icon}>
+            <SymbolView name="arrow.left.arrow.right" size={17} tintColor={moved ? c.sky : c.muted} />
           </Pressable>
-          <Text style={{ color: c.ink, fontSize: 15, minWidth: 64, textAlign: 'center' }}>
-            {entry.servingLabel ? `${entry.amount} × ${entry.servingLabel}` : amountText(entry.amount)}
-          </Text>
-          <Pressable accessibilityLabel="더" onPress={() => step(AMOUNT_STEP)} style={[styles.step, { backgroundColor: c.chip }]}>
-            <Text style={[styles.stepText, { color: c.ink }]}>+</Text>
+          <Pressable accessibilityRole="button" accessibilityLabel={`${entry.name} 지우기`} onPress={() => onChange({ ...draft, remove: true })} style={styles.icon}>
+            <SymbolView name="trash" size={17} tintColor={c.muted} />
           </Pressable>
-          <Pressable accessibilityRole="button" onPress={onRemove} style={{ marginLeft: 'auto', padding: 8 }}>
-            <Text style={{ color: c.danger, fontSize: 15, fontWeight: '600' }}>지우기</Text>
-          </Pressable>
-        </View>
-      ) : null}
+        </>
+      )}
     </View>
   );
 }
@@ -443,8 +528,11 @@ const styles = StyleSheet.create({
   add: { height: 36, borderRadius: 18, paddingHorizontal: 14, justifyContent: 'center' },
   addText: { fontSize: 15, fontWeight: '600' },
   entry: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 44 },
-  entryEdit: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingBottom: 8 },
-  step: { width: 44, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
+  editFoot: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingTop: 4 },
+  textBtn: { minHeight: 40, paddingHorizontal: 8, justifyContent: 'center' },
+  stepper: { flexDirection: 'row', alignItems: 'center', borderRadius: 12 },
+  step: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
+  icon: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
   stepText: { fontSize: 22, fontWeight: '600' },
   weightRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   input: { flex: 1, minHeight: 48, borderRadius: 12, paddingHorizontal: 14, fontSize: 17 },
