@@ -1,3 +1,4 @@
+import { SymbolView } from 'expo-symbols';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import * as WebBrowser from 'expo-web-browser';
 import { useEffect, useState } from 'react';
@@ -8,7 +9,7 @@ import { referenceEmbedUrl, referenceWatchUrl } from '@/lib/reference-video';
 import { rpc } from '~/lib/rpc';
 import { SITE_URL } from '~/lib/site';
 import type { Palette } from '~/lib/ui';
-import { call } from '~/pitch/api';
+import { call, loadMe } from '~/pitch/api';
 
 /** 운동 진행 화면(native/src/app/workout.tsx)의 작은 조각 — 웹 app/(session)/workout/run/session-client.tsx 의 같은 이름 부품을 옮겼다 */
 
@@ -30,6 +31,7 @@ export function RestPill({ seconds, target, c }: { seconds: number; target: numb
       accessibilityLabel={`쉰 시간 ${clockText(seconds)}${target != null ? `, 권장 쉬는 시간 ${clockText(target)}` : ''}`}
       style={[s.rest, { backgroundColor: c.chip }]}
     >
+      <SymbolView name="timer" size={16} tintColor={over ? c.sky : c.muted} />
       <Text style={[s.restClock, { color: c.ink }]}>{clockText(seconds)}</Text>
       <Text style={[s.small, { color: over ? c.sky : c.muted, fontWeight: over ? '700' : '400' }]}>
         {target == null ? '쉬는 중' : `권장 ${clockText(target)}`}
@@ -268,6 +270,22 @@ export function NoteBox({
  * 자세 영상 — 직접 찍은 영상은 라이브러리 재생 주소(/api/library/video-url, 웹 components/library-video.tsx 와 같은 small 판)로 틀고,
  * 유튜브 참고 영상은 공식 삽입 재생기를 작은 웹뷰로(우리 사이트를 주소로 둔다 — 유튜브가 출처 없는 삽입을 막는다).
  */
+/** 관리자인가 — 앱을 켤 때 한 번 받은 나(app.loadAppMe, ~/pitch/api loadMe). 받기 전 · 실패면 아님 */
+function useIsAdmin() {
+  const [admin, setAdmin] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    loadMe().then(
+      (me) => alive && setAdmin(me.isAdmin),
+      () => undefined
+    );
+    return () => {
+      alive = false;
+    };
+  }, []);
+  return admin;
+}
+
 export function ExerciseVideo({
   path,
   referenceVideoId,
@@ -277,6 +295,7 @@ export function ExerciseVideo({
   referenceVideoId: string | null;
   aspectRatio: number | null;
 }) {
+  const admin = useIsAdmin();
   if (path) return <LibraryClip path={path} aspectRatio={aspectRatio} />;
   /* 유튜브 영상 번호만(11자) — 이 글이 사이트 주소(baseUrl)로 도는 웹뷰에 그대로 들어가니, 다른 글자가 섞인 번호는 그리지 않는다 */
   if (!referenceVideoId || !/^[A-Za-z0-9_-]{11}$/.test(referenceVideoId)) return null;
@@ -292,13 +311,16 @@ export function ExerciseVideo({
           style={{ backgroundColor: '#000' }}
         />
       </View>
-      <Pressable
-        onPress={() => void WebBrowser.openBrowserAsync(referenceWatchUrl(referenceVideoId))}
-        accessibilityRole="link"
-        style={s.noteAdd}
-      >
-        <Text style={[s.small, { color: '#0a84d6' }]}>유튜브에서 열기 ↗</Text>
-      </Pressable>
+      {/* 관리자만 — 웹 components/library-video.tsx 와 같다(2026-10-04 '앱 안에 머물기': 일반 사용자는 유튜브로 나가지 않게) */}
+      {admin ? (
+        <Pressable
+          onPress={() => void WebBrowser.openBrowserAsync(referenceWatchUrl(referenceVideoId))}
+          accessibilityRole="link"
+          style={s.noteAdd}
+        >
+          <Text style={[s.small, { color: '#0a84d6' }]}>유튜브에서 열기 ↗</Text>
+        </Pressable>
+      ) : null}
     </View>
   );
 }

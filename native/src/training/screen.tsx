@@ -1,6 +1,6 @@
 import * as Haptics from 'expo-haptics';
 import { SymbolView } from 'expo-symbols';
-import { router, useFocusEffect } from 'expo-router';
+import { type Href, router, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
 import {
   ActivityIndicator,
@@ -128,6 +128,7 @@ export function Screen<K extends string>({
   onTab,
   state,
   scrollRef,
+  settings = false,
   children,
 }: {
   title: string;
@@ -136,6 +137,8 @@ export function Screen<K extends string>({
   onTab: (t: K) => void;
   state: { data: unknown; failed: string | null; refreshing: boolean; load: () => void; refresh: () => void };
   scrollRef?: RefObject<ScrollViewInstance | null>;
+  /** 머리 오른쪽 트레이닝 설정 — 웹처럼 암케어만(메커니즘은 장비 · 목표 설정을 읽지 않아 웹에도 없다) */
+  settings?: boolean;
   children: ReactNode;
 }) {
   const c = usePalette();
@@ -149,7 +152,14 @@ export function Screen<K extends string>({
         <Text accessibilityRole="header" numberOfLines={1} style={[s.headTitle, { color: c.ink }]}>
           {title}
         </Text>
-        <View style={s.iconBtn} />
+        {/* 웹 암케어 머리의 트레이닝 설정(휴대폰 '설정' 알약)과 같은 자리 — 앱 설정 화면 */}
+        {settings ? (
+          <Pressable onPress={() => router.push('/training/settings' as Href)} accessibilityRole="button" accessibilityLabel="트레이닝 설정" style={s.iconBtn}>
+            <SymbolView name="gearshape" size={20} tintColor={c.sky} />
+          </Pressable>
+        ) : (
+          <View style={s.iconBtn} />
+        )}
       </View>
       <ScrollView
         ref={scrollRef}

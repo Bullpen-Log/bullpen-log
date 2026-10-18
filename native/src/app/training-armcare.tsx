@@ -5,6 +5,8 @@ import { Pressable, Text, View, type ScrollViewInstance } from 'react-native';
 import type { ArmcareAreaKey } from '@/lib/armcare/anatomy';
 import type { AppArmcareGuideTab, AppArmcareTodayTab } from '@/lib/armcare/today-load';
 import { drainChecks, onCheckResult } from '~/armcare/outbox';
+import { PainGuideButton, type PainView } from '~/armcare/pain-guide-sheet';
+import { MyRoutinesProvider } from '~/armcare/add-to-routine';
 import { sendCheck } from '~/armcare/send';
 import { act, leave } from '~/mechanics/parts';
 import { usePalette, type Palette } from '~/lib/ui';
@@ -17,7 +19,7 @@ import { Fold, Screen, SectionHead, WebRow, s, useJump, useScreenData } from '~/
  * 자료는 웹과 같은 함수로 모은다(app/actions/app-training-parts.ts → lib/armcare/today-load.ts). 트레이닝 탭의 암케어 카드에서 들어온다.
  *
  * [루틴] 맞춤 루틴(재활 중이면 오늘 재활) · 내 루틴 · 이번 주, [부위별 보강] 빈 곳 보강 · 부위 카드. 따라 하기는 앱 화면(/armcare/<id>?d=…),
- * 루틴 만들기 · 고치기도 앱 화면(/training/routine/<id>), 체크는 웹 목록과 같은 기록. 재활 시작 · 자세한 재활 · 3D 근육 지도 · 루틴에 담기 · 팔 통증 안내는 웹으로 보낸다(leave).
+ * 루틴 만들기 · 고치기도 앱 화면(/training/routine/<id>), 체크는 웹 목록과 같은 기록. 팔 통증 안내는 앱 시트(~/armcare/pain-guide-sheet — 웹 arm-pain-guide-body 와 같은 글), 루틴에 담기는 앱 창(~/armcare/add-to-routine), 3D 근육 지도는 웹으로 보낸다(leave).
  */
 const TABS = [
   { value: 'today', label: '루틴' },
@@ -59,7 +61,7 @@ export default function TrainingArmcareScreen() {
 
   const data = state.data && state.data.tab === tab ? state.data : null;
   return (
-    <Screen title="암케어" tabs={TABS} tab={tab} onTab={pick} state={{ ...state, data }} scrollRef={scroll}>
+    <Screen title="암케어" tabs={TABS} tab={tab} onTab={pick} state={{ ...state, data }} scrollRef={scroll} settings>
       {data?.tab === 'today' ? (
         <TodayTab data={data} fresh={state.fresh} reload={load} c={c} />
       ) : data?.tab === 'guide' ? (
@@ -93,7 +95,7 @@ function TodayTab({ data, fresh, reload, c }: { data: AppArmcareTodayTab; fresh:
               accessibilityRole="button"
               style={[s.pill, { backgroundColor: c.sky }]}
             >
-              <Text style={[s.bodyBold, { color: '#fff' }]}>체크인</Text>
+              <Text style={[s.bodyBold, { color: '#fff' }]}>체크인하기 ›</Text>
             </Pressable>
           </View>
         ) : custom.kind === 'rest' ? (
@@ -101,9 +103,13 @@ function TodayTab({ data, fresh, reload, c }: { data: AppArmcareTodayTab; fresh:
             <Text style={[s.bodyBold, { color: c.warn }]}>오늘은 팔을 쉬는 날이에요</Text>
             <Text style={[s.body, { color: c.warn }]}>{custom.reason}</Text>
             {custom.pain ? (
-              <Pressable onPress={() => leave('/training?view=armcare')} accessibilityRole="link" style={[s.chip, { backgroundColor: c.card, alignSelf: 'flex-start' }]}>
-                <Text style={[s.smallBold, { color: c.warn }]}>통증 안내 보기 ›</Text>
-              </Pressable>
+              data.painView ? (
+                <PainGuideButton pain={data.painView} tone="warn" c={c} />
+              ) : (
+                <Pressable onPress={() => leave('/training?view=armcare')} accessibilityRole="link" style={[s.chip, { backgroundColor: c.card, alignSelf: 'flex-start' }]}>
+                  <Text style={[s.smallBold, { color: c.warn }]}>통증 안내 보기 ›</Text>
+                </Pressable>
+              )
             ) : null}
             <Pressable
               onPress={() => openCheckin('/training?view=home')}
@@ -114,7 +120,7 @@ function TodayTab({ data, fresh, reload, c }: { data: AppArmcareTodayTab; fresh:
             </Pressable>
           </View>
         ) : (
-          <CustomRoutine custom={custom} dateKey={data.dateKey} fresh={fresh} reload={reload} c={c} />
+          <CustomRoutine custom={custom} painView={data.painView ?? null} dateKey={data.dateKey} fresh={fresh} reload={reload} c={c} />
         )}
         {data.rehabStart ? <RehabStartRow start={data.rehabStart} c={c} /> : null}
       </View>
@@ -161,12 +167,15 @@ function TodayTab({ data, fresh, reload, c }: { data: AppArmcareTodayTab; fresh:
 /** 맞춤 루틴 — 아직 안 만들었으면 권하는 종류 · [맞춤 루틴 만들기], 만들었으면 머리 · [따라하기] · [다시 만들기] · 체크 목록(웹 ArmcareToday) */
 function CustomRoutine({
   custom,
+  painView,
   dateKey,
   fresh,
   reload,
   c,
 }: {
   custom: Extract<AppArmcareTodayTab['custom'], { kind: 'routine' }>;
+  /** 팔 통증 안내 시트에 넣을 값 — 옛 서버면 없어 웹으로 보낸다 */
+  painView: PainView | null;
   dateKey: string;
   fresh: boolean;
   reload: () => Promise<void>;
@@ -188,9 +197,13 @@ function CustomRoutine({
     <>
       {custom.afterThrowing ? <Text style={[s.bodyBold, { color: c.ink }]}>{custom.afterThrowing}</Text> : null}
       {custom.pain ? (
-        <Pressable onPress={() => leave('/training?view=armcare')} accessibilityRole="link" style={[s.chip, { backgroundColor: c.sky + '1a', alignSelf: 'flex-start' }]}>
-          <Text style={[s.smallBold, { color: c.sky }]}>통증 안내 보기 ›</Text>
-        </Pressable>
+        painView ? (
+          <PainGuideButton pain={painView} tone="sky" c={c} />
+        ) : (
+          <Pressable onPress={() => leave('/training?view=armcare')} accessibilityRole="link" style={[s.chip, { backgroundColor: c.sky + '1a', alignSelf: 'flex-start' }]}>
+            <Text style={[s.smallBold, { color: c.sky }]}>통증 안내 보기 ›</Text>
+          </Pressable>
+        )
       ) : null}
     </>
   );
@@ -276,32 +289,34 @@ function GuideTab({ data, scroll, c }: { data: AppArmcareGuideTab; scroll: RefOb
     jump.jump(key);
   };
   return (
-    <View onLayout={jump.onRoot} style={{ gap: 12 }}>
-      <Text style={[s.small, { color: c.muted }]}>부위를 펼쳐 보세요.</Text>
-      {data.coverage.pain ? <PainNote pain={data.coverage.pain} onArea={showArea} c={c} /> : null}
-      <GapCard gaps={data.coverage.gaps} allCovered={data.coverage.allCovered} total={data.coverage.total} dateKey={data.dateKey} c={c} />
-      <WebRow label="3D 근육 지도 보기" href="/training?view=armcare&tab=guide" c={c} />
-      {AREAS_BY_JOINT.flatMap(({ joint, areas }) => [
-        <Text key={joint} accessibilityRole="header" style={[s.section, { color: c.ink, paddingHorizontal: 4, paddingTop: 8 }]}>
-          {joint}
-        </Text>,
-        ...areas.map((area) => (
-          <AreaCard
-            key={area.key}
-            area={area}
-            exercises={data.exercises}
-            open={open === area.key}
-            onToggle={() => setOpen(open === area.key ? null : area.key)}
-            onLayout={jump.onItem(area.key)}
-            c={c}
-          />
-        )),
-      ])}
-      <Text style={[s.tiny, { color: c.muted }]}>운동이 부상을 막아 준다는 보장은 없어요. 아프면 쉬고 진료를 받으세요.</Text>
-      {data.untagged > 0 ? (
-        <Text style={[s.tiny, { color: c.muted }]}>근육을 아직 적지 않은 암케어 운동 {data.untagged}개는 여기 나오지 않아요.</Text>
-      ) : null}
-    </View>
+    <MyRoutinesProvider routines={data.routines ?? null}>
+      <View onLayout={jump.onRoot} style={{ gap: 12 }}>
+        <Text style={[s.small, { color: c.muted }]}>부위를 펼쳐 보세요.</Text>
+        {data.coverage.pain ? <PainNote pain={data.coverage.pain} onArea={showArea} c={c} /> : null}
+        <GapCard gaps={data.coverage.gaps} allCovered={data.coverage.allCovered} total={data.coverage.total} dateKey={data.dateKey} c={c} />
+        <WebRow label="3D 근육 지도 보기" href="/training?view=armcare&tab=guide" c={c} />
+        {AREAS_BY_JOINT.flatMap(({ joint, areas }) => [
+          <Text key={joint} accessibilityRole="header" style={[s.section, { color: c.ink, paddingHorizontal: 4, paddingTop: 8 }]}>
+            {joint}
+          </Text>,
+          ...areas.map((area) => (
+            <AreaCard
+              key={area.key}
+              area={area}
+              exercises={data.exercises}
+              open={open === area.key}
+              onToggle={() => setOpen(open === area.key ? null : area.key)}
+              onLayout={jump.onItem(area.key)}
+              c={c}
+            />
+          )),
+        ])}
+        <Text style={[s.tiny, { color: c.muted }]}>운동이 부상을 막아 준다는 보장은 없어요. 아프면 쉬고 진료를 받으세요.</Text>
+        {data.untagged > 0 ? (
+          <Text style={[s.tiny, { color: c.muted }]}>근육을 아직 적지 않은 암케어 운동 {data.untagged}개는 여기 나오지 않아요.</Text>
+        ) : null}
+      </View>
+    </MyRoutinesProvider>
   );
 }
 

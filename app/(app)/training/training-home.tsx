@@ -2,13 +2,10 @@ import { Suspense, type ReactNode } from 'react';
 import Link from 'next/link';
 import { unstable_rethrow } from 'next/navigation';
 import { Check, ChevronRight, Dumbbell, Play, ShieldPlus, Target, type LucideIcon } from '@/components/icon';
-import { prisma } from '@/lib/prisma';
 import { PAGE_TITLE_LINE } from '@/components/ui';
 import { NavTitle } from '@/components/nav-title';
 import { AnalysisLink } from '@/components/analysis-link';
 import { OpenCheckinButton } from '@/components/notice-bell';
-import { ARMCARE_CATEGORY } from '@/lib/armcare/anatomy';
-import { visibleExercises } from '@/lib/library-cache';
 import {
   armcareCardData,
   mechanicsCardData,
@@ -17,12 +14,12 @@ import {
   type TrainingCard,
 } from '@/lib/report/training-home-data';
 import { DrillThrowNoteCard } from './drill-throw-note';
-import { shiftDateKey, toDateKey } from '@/lib/pitch-stats';
-import { dbDate, keyOfDbDate } from '@/lib/nutrition/days';
+import { toDateKey } from '@/lib/pitch-stats';
 import { TRAINING_PART_HREF, type TrainingPart } from '@/lib/training-part';
 import { StartWorkout } from './start-workout';
 import { TrainingDayStrip } from './day-strip';
 import { loadTrainingStrip } from '@/lib/training-week';
+import { loadTrainingWeekCounts } from '@/lib/report/training-week-counts';
 
 /**
  * 트레이닝 홈 — 트레이닝 · 암케어 · 메커니즘을 앱 카드 셋으로(2026-10-04).
@@ -318,33 +315,13 @@ async function DayStripLoad({ userId, today }: { userId: string; today: string }
 
 /** 이번 주(월요일부터) 앱마다 한 날 수 — 셋 다 '일'(2026-10-16 디자인 점검 — 운동만 '번'이라 단위가 섞였다) */
 async function WeekStrip({ userId, today }: { userId: string; today: Date }) {
-  const todayKey = toDateKey(today);
-  const dow = new Date(`${todayKey}T00:00:00Z`).getUTCDay();
-  const monday = dbDate(shiftDateKey(todayKey, -((dow + 6) % 7)));
-
-  const armcareIds = (await visibleExercises())
-    .filter((ex) => ex.category === ARMCARE_CATEGORY)
-    .map((ex) => ex.id);
-  const [workouts, armcareLogs, drillLogs] = await Promise.all([
-    prisma.trainingSession.findMany({
-      where: { userId, status: 'FINISHED', date: { gte: monday } },
-      select: { date: true },
-    }),
-    prisma.userExerciseLog.findMany({
-      where: { userId, completed: true, date: { gte: monday }, exerciseId: { in: armcareIds } },
-      select: { date: true },
-    }),
-    prisma.userDrillLog.findMany({
-      where: { userId, done: true, date: { gte: monday } },
-      select: { date: true },
-    }),
-  ]);
-  const days = (rows: { date: Date }[]) => new Set(rows.map((r) => keyOfDbDate(r.date))).size;
+  /* 셈은 앱 트레이닝 탭과 같은 곳(lib/report/training-week-counts.ts) */
+  const week = await loadTrainingWeekCounts(userId, today);
 
   const cells: { app: TrainingPart; value: number; unit: string }[] = [
-    { app: 'today', value: days(workouts), unit: '일' },
-    { app: 'armcare', value: days(armcareLogs), unit: '일' },
-    { app: 'mechanics', value: days(drillLogs), unit: '일' },
+    { app: 'today', value: week.today, unit: '일' },
+    { app: 'armcare', value: week.armcare, unit: '일' },
+    { app: 'mechanics', value: week.mechanics, unit: '일' },
   ];
   /*
    * 한 줄 요약 — 예전엔 똑같은 칸 셋('0번 · 0일 · 0일')이 나란했다. 대시보드 템플릿처럼 보였고, 다 0 인 주에는 큰 0 셋이
