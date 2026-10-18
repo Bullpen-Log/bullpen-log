@@ -7,7 +7,7 @@ import { BODY_PARTS, EXERCISE_EQUIPMENT, INTENSITY_NAMES } from '@/lib/exercise-
 import { matchesSearch } from '@/lib/korean';
 import type { WarmupFolder } from '@/app/(app)/library/training/training-client';
 import { Bar } from '~/community/parts';
-import { ChipRow, EXERCISE_LIST, FilterSheet, filterChips, filterCount, matchesFilter, FoldHead, ItemRow, SearchField, recall, remember, type Exercise, WarmupLink } from '~/library/parts';
+import { ChipRow, EXERCISE_LIST, FilterSheet, filterChips, filterCount, matchesFilter, FoldHead, ItemRow, SearchField, recall, remember, type Exercise, LibraryTabs } from '~/library/parts';
 import { usePalette } from '~/lib/ui';
 import { useScreenData } from '~/training/screen';
 import { READABLE } from '~/lib/layout';
@@ -158,7 +158,7 @@ export default function ExerciseLibraryScreen() {
           contentContainerStyle={[{ paddingHorizontal: 16, gap: 10, paddingBottom: inset.bottom + 32 }, READABLE]}
           refreshControl={<RefreshControl refreshing={state.refreshing} onRefresh={() => void state.refresh()} />}
         >
-          <WarmupLink c={c} />
+          <LibraryTabs active="training" c={c} />
           {TRAINING_CATEGORIES.map(({ name }) => {
             const list = byCategory.get(name) ?? [];
             if (name === '워밍업' && data.warmupFolders.length > 0) {

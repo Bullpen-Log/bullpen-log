@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { formatPrescription } from '@/lib/exercise-meta';
 import type { WarmupFolder } from '@/app/(app)/library/training/training-client';
 import { Bar } from '~/community/parts';
-import { EXERCISE_LIST, ItemRow, type Exercise } from '~/library/parts';
+import { EXERCISE_LIST, ItemRow, type Exercise, LibraryTabs } from '~/library/parts';
 import { usePalette } from '~/lib/ui';
 import { useScreenData } from '~/training/screen';
 import { READABLE } from '~/lib/layout';
@@ -54,6 +54,7 @@ export default function WarmupRoutineScreen() {
           contentContainerStyle={[{ paddingHorizontal: 16, gap: 14, paddingBottom: inset.bottom + 32 }, READABLE]}
           refreshControl={<RefreshControl refreshing={state.refreshing} onRefresh={() => void state.refresh()} />}
         >
+          <LibraryTabs active="warmup" c={c} />
           {/* 웹 /library/warmup 머리 카드와 같은 글 */}
           <View style={{ backgroundColor: c.card, borderRadius: 16, padding: 16, gap: 6 }}>
             <Text style={{ color: c.ink, fontSize: 15, fontWeight: '700' }}>워밍업은 고정이에요</Text>
