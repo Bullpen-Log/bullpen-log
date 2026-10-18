@@ -3,6 +3,7 @@ import { type Href, router, useLocalSearchParams } from 'expo-router';
 import { useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { toDateKey } from '@/lib/pitch-stats';
 import { REST_SESSION_TYPE } from '@/lib/session-type';
 import { ApiError, call } from '~/pitch/api';
 import { openCheckin } from '~/shell/web-nav';
@@ -21,7 +22,9 @@ function spokenDay(day: string) {
 }
 
 export default function NoticeScreen() {
-  const p = useLocalSearchParams<{ date: string; checkin?: string; pitch?: string; locked?: string }>();
+  const params = useLocalSearchParams<{ date?: string; checkin?: string; pitch?: string; locked?: string }>();
+  /* 날짜 없이 열려도(바깥 링크) 오늘로 — 'NaN월'과 날짜 없는 쉬는 날 기록을 막는다 */
+  const p = { ...params, date: params.date || toDateKey(new Date()) };
   const c = usePalette();
   const inset = useSafeAreaInsets();
   const checkinDone = p.checkin === '1';
