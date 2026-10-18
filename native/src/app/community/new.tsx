@@ -59,6 +59,7 @@ export default function NewPostScreen() {
           placeholderTextColor={c.muted}
           style={[s.input, { backgroundColor: c.card, color: c.ink }]}
         />
+        <Text style={{ color: c.muted, fontSize: 13 }}>{POST_TITLE_MAX}자까지 적을 수 있어요.</Text>
         <Text style={[s.label, { color: c.muted }]}>내용</Text>
         <TextInput
           value={body}
