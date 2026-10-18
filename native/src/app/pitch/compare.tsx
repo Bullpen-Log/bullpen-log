@@ -7,6 +7,7 @@ import { usePalette } from '~/lib/ui';
 import { dateKeyOf } from '~/pitch/api';
 import { useAllLogs } from '~/pitch/store';
 import { useVideoUri } from '~/pitch/video';
+import { READABLE } from '~/lib/layout';
 
 /**
  * 2분할 비교(앱) — 웹 투구 탭의 '2분할 비교'와 같은 일: 영상 둘을 골라 나란히 튼다. 같이 재생 · 멈춤 · 처음으로 · 느리게(½ · ¼),
@@ -54,7 +55,7 @@ export default function PitchCompareScreen() {
         <Compare a={picked[0]} b={picked[1]} bottom={inset.bottom} />
       ) : (
         <>
-          <ScrollView contentContainerStyle={{ padding: 16, gap: 8, paddingBottom: inset.bottom + 96 }}>
+          <ScrollView contentContainerStyle={[{ padding: 16, gap: 8, paddingBottom: inset.bottom + 96 }, READABLE]}>
             <Text style={{ color: c.muted, fontSize: 15 }}>견줄 영상 둘을 골라 주세요.</Text>
             {!all.logs ? <ActivityIndicator style={{ marginTop: 24 }} /> : null}
             {all.logs && videos.length === 0 ? (

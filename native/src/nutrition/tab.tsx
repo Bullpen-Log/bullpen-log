@@ -8,6 +8,7 @@ import { usePalette } from '~/lib/ui';
 import { PLAN_PLACES, type PlanItem } from '@/lib/nutrition/meal-plan';
 import type { Place } from '@/lib/nutrition/meal-templates';
 import { clearPlan, eatPlan, makePlan, removeEntry, saveWeight, setAmount, useNutritionDay } from './api';
+import { READABLE } from '~/lib/layout';
 
 /**
  * 영양 탭(앱 화면) — 웹 영양 탭의 '기록' 쪽: 오늘 먹은 것과 목표(kcal · 탄 · 단 · 지) · 끼니마다 담은 음식(양 바꾸기 · 지우기) · 체중.
@@ -79,7 +80,7 @@ export function NutritionTab({ today, bottom, onWebNutrition }: { today: string;
   return (
     <ScrollView
       style={{ flex: 1, backgroundColor: c.page }}
-      contentContainerStyle={{ paddingTop: inset.top + 12, paddingBottom: bottom + 24, paddingHorizontal: 16, gap: 16 }}
+      contentContainerStyle={[{ paddingTop: inset.top + 12, paddingBottom: bottom + 24, paddingHorizontal: 16, gap: 16 }, READABLE]}
       refreshControl={<RefreshControl refreshing={loading && day != null} onRefresh={reload} />}
       keyboardShouldPersistTaps="handled"
     >

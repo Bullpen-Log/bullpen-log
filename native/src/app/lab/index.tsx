@@ -25,6 +25,7 @@ import { probeLabAsset, uploadLabVideo } from '~/lab/upload';
 import { PICK_ORIGINAL } from '~/pitch/attach';
 import { rpc } from '~/lib/rpc';
 import { usePalette, type Palette } from '~/lib/ui';
+import { READABLE } from '~/lib/layout';
 
 /**
  * 3D 동작 분석 목록(앱 화면) — 웹 app/(app)/videos/lab/lab-client.tsx 를 옮겼다: 위는 옆 · 뒤 영상 짝 올리기, 아래는 올린 샘플(누르면 결과 화면
@@ -66,7 +67,7 @@ export default function LabListScreen() {
         <LoadState error={error} onRetry={() => void reload()} c={c} />
       ) : (
         <ScrollView
-          contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: inset.bottom + 32 }}
+          contentContainerStyle={[{ padding: 16, gap: 12, paddingBottom: inset.bottom + 32 }, READABLE]}
           keyboardShouldPersistTaps="handled"
           refreshControl={<RefreshControl refreshing={false} onRefresh={() => void reload()} />}
         >

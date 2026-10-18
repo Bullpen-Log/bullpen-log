@@ -5,6 +5,7 @@ import { KeyboardAvoidingView, ScrollView, Text, TextInput } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Bar, BarButton, call, s, useBusy } from '~/community/parts';
 import { usePalette } from '~/lib/ui';
+import { READABLE } from '~/lib/layout';
 
 /**
  * 자료실 글쓰기(앱 화면, 관리자) — 웹 app/(app)/board/new 를 옮겼다. 제목 · 내용 · 원문 링크 · 태그(쉼표, 5개까지), 같은 서버 검사
@@ -33,7 +34,7 @@ export default function NewArticleScreen() {
   return (
     <KeyboardAvoidingView behavior="padding" style={{ flex: 1, backgroundColor: c.page }}>
       <Bar back="자료실" title="글쓰기" right={<BarButton label="올리기" onPress={submit} disabled={send.busy} c={c} />} c={c} />
-      <ScrollView contentContainerStyle={{ padding: 16, gap: 8, paddingBottom: inset.bottom + 32 }} keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerStyle={[{ padding: 16, gap: 8, paddingBottom: inset.bottom + 32 }, READABLE]} keyboardShouldPersistTaps="handled">
         <Text style={[s.label, { color: c.muted }]}>제목</Text>
         <TextInput value={title} onChangeText={setTitle} maxLength={150} placeholderTextColor={c.muted} style={[s.input, field]} />
         <Text style={[s.label, { color: c.muted }]}>내용</Text>

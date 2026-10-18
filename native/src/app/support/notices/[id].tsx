@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { loadAppNotice } from '@/app/actions/support';
 import { Badge, Bar, call, LoadState, s, useLoad } from '~/community/parts';
 import { usePalette } from '~/lib/ui';
+import { READABLE } from '~/lib/layout';
 
 /**
  * 공지 한 편(앱 화면) — 웹 app/(app)/support/notices/[id]/page.tsx. 누구나 읽는다. 관리자만 고치고(웹 관리 화면으로) 지운다
@@ -44,7 +45,7 @@ export default function NoticeScreen() {
       ) : !notice ? (
         <Text style={{ color: c.muted, fontSize: 15, textAlign: 'center', padding: 32 }}>공지를 찾지 못했어요. 지워진 공지예요.</Text>
       ) : (
-        <ScrollView contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: inset.bottom + 32 }}>
+        <ScrollView contentContainerStyle={[{ padding: 16, gap: 12, paddingBottom: inset.bottom + 32 }, READABLE]}>
           {notice.pinned ? <Badge text="고정" color={c.sky} c={c} /> : null}
           <Text selectable style={{ color: c.ink, fontSize: 24, fontWeight: '700' }}>
             {notice.title}

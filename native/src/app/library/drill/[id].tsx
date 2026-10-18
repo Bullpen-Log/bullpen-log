@@ -7,6 +7,7 @@ import { ExerciseMedia } from '~/armcare/parts';
 import { Bar } from '~/community/parts';
 import { DRILL_LIST, Tags, recall, useStar, type Drill } from '~/library/parts';
 import { s, useScreenData } from '~/training/screen';
+import { READABLE } from '~/lib/layout';
 
 /**
  * 드릴 하나(앱 화면) — 웹 투구 드릴 라이브러리에서 카드를 펼친 것(mechanics-client.tsx GuideDetail)을 옮겼다. 영상 · 이름 · 요소(맨 앞이 주 요소) ·
@@ -37,7 +38,7 @@ function Body({ item, c }: { item: Drill; c: Palette }) {
   const star = useStar(item, 'drill');
   const [main, ...more] = item.focusPoints;
   return (
-    <ScrollView contentContainerStyle={{ padding: 16, gap: 16, paddingBottom: inset.bottom + 40 }}>
+    <ScrollView contentContainerStyle={[{ padding: 16, gap: 16, paddingBottom: inset.bottom + 40 }, READABLE]}>
       <ExerciseMedia path={item.videoPath} referenceVideoId={item.referenceVideoId} thumbUrl={item.thumbUrl} aspectRatio={item.aspectRatio} />
       <View style={[s.row, { alignItems: 'flex-start' }]}>
         <View style={{ flex: 1, gap: 6 }}>

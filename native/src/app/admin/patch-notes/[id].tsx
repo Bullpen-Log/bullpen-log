@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { loadAppPatchNote } from '@/app/actions/app-admin';
 import { Bar, call, LoadState, s, useBusy, useLoad } from '~/community/parts';
 import { usePalette, type Palette } from '~/lib/ui';
+import { READABLE } from '~/lib/layout';
 
 /**
  * 패치노트 한 장(앱 화면, 관리자) — 웹 app/(app)/admin/patch-notes/[id]/page.tsx: 그날의 크기 · 한 일(커밋 제목 · 본문) · 메모.
@@ -52,7 +53,7 @@ function Body({ note, c }: { note: Note; c: Palette }) {
       return null;
     });
   return (
-    <ScrollView contentContainerStyle={{ padding: 16, gap: 16, paddingBottom: inset.bottom + 32 }} keyboardShouldPersistTaps="handled">
+    <ScrollView contentContainerStyle={[{ padding: 16, gap: 16, paddingBottom: inset.bottom + 32 }, READABLE]} keyboardShouldPersistTaps="handled">
       <View style={{ gap: 4 }}>
         <Text style={[s.meta, { color: c.sky, fontWeight: '600' }]}>{note.author}</Text>
         <Text style={{ color: c.ink, fontSize: 24, fontWeight: '700' }}>{note.day}</Text>

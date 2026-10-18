@@ -14,6 +14,7 @@ import {
 import { BullpenNative } from '../../modules/bullpen-native';
 import { rpc } from '~/lib/rpc';
 import { usePalette } from '~/lib/ui';
+import { READABLE } from '~/lib/layout';
 
 /**
  * 홈 그날 칸의 일정 — 웹 홈 달력의 일정(app/(app)/today/day-schedule.tsx)과 같은 자료 · 같은 서버 동작(calendar-event.*). 다른 관리자의 일정은
@@ -203,7 +204,7 @@ function EventSheet({
             <Text style={{ color: c.sky, fontSize: 17, fontWeight: '700', opacity: busy ? 0.4 : 1 }}>저장</Text>
           </Pressable>
         </View>
-        <ScrollView contentContainerStyle={{ padding: 16, gap: 8, paddingBottom: inset.bottom + 24 }} keyboardShouldPersistTaps="handled">
+        <ScrollView contentContainerStyle={[{ padding: 16, gap: 8, paddingBottom: inset.bottom + 24 }, READABLE]} keyboardShouldPersistTaps="handled">
           <Text style={[styles.sheetLabel, { color: c.muted }]}>제목</Text>
           <TextInput value={title} onChangeText={setTitle} maxLength={EVENT_TITLE_MAX} placeholder="예: 연습 경기" placeholderTextColor={c.muted} style={input} />
           <Text style={[styles.sheetLabel, { color: c.muted }]}>시각(비우면 하루 종일)</Text>

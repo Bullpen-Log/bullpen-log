@@ -8,6 +8,7 @@ import { POST_CATEGORIES, POST_SORTS, isPostCategory, postCategoryLabel, type Po
 import type { loadAppCommunity } from '@/app/actions/community';
 import { Badge, Bar, BarButton, categoryColor, Chip, LoadState, s, useLoad } from '~/community/parts';
 import { usePalette } from '~/lib/ui';
+import { READABLE } from '~/lib/layout';
 
 /**
  * 커뮤니티 목록(앱 화면) — 웹 app/(app)/community/page.tsx 를 옮겼다. 사이트의 /community 가 앱(BullpenNative/6 부터)이면 이 화면을 띄우고
@@ -127,7 +128,7 @@ export default function CommunityScreen() {
             )
           }
           style={{ opacity: stale && !more ? 0.5 : 1 }}
-          contentContainerStyle={{ paddingBottom: inset.bottom + 24 }}
+          contentContainerStyle={[{ paddingBottom: inset.bottom + 24 }, READABLE]}
           refreshControl={
             <RefreshControl
               refreshing={pulling}

@@ -23,6 +23,7 @@ import { Bar, Chip, LoadState, useLoad } from '~/community/parts';
 import { act } from '~/mechanics/parts';
 import { usePalette, type Palette } from '~/lib/ui';
 import { s } from '~/training/screen';
+import { READABLE } from '~/lib/layout';
 
 /**
  * 내 루틴 만들기 · 고치기(앱 화면) — 웹 /training/routine/new · /training/routine/<id>(app/(app)/training/routine/[id]/routine-builder.tsx)를 옮겼다.
@@ -142,7 +143,7 @@ function Builder({ data, c }: { data: RoutineBuilderData; c: Palette }) {
 
   return (
     <View style={s.fill}>
-      <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 16, gap: 24, paddingBottom: 24 }}>
+      <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={[{ padding: 16, gap: 24, paddingBottom: 24 }, READABLE]}>
         <Text style={[s.small, { color: c.muted, paddingHorizontal: 4 }]}>운동을 담고 세트와 차례를 정하세요.</Text>
 
         <View style={{ gap: 6 }}>

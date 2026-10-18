@@ -14,6 +14,7 @@ import { useWeightUnit } from '~/lib/weight-unit';
 import { s } from '~/training/screen';
 import { Sheet } from '~/workout/sheets';
 import { HistoryPanel } from '~/training/history';
+import { READABLE } from '~/lib/layout';
 
 /**
  * 그날의 운동 기록(앱 화면) — 웹 /training/day/<날짜>(app/(app)/training/day/[date]/page.tsx · day-exercises.tsx)를 옮겼다. 자료는 웹과 같은
@@ -54,7 +55,7 @@ export default function TrainingDayScreen() {
         <Text style={[s.body, s.center, { color: c.muted, padding: 32 }]}>없는 날짜예요.</Text>
       ) : (
         <ScrollView
-          contentContainerStyle={{ padding: 16, gap: 16, paddingBottom: Math.max(40, inset.bottom + 24) }}
+          contentContainerStyle={[{ padding: 16, gap: 16, paddingBottom: Math.max(40, inset.bottom + 24) }, READABLE]}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void refresh()} />}
           style={load.stale ? { opacity: 0.6 } : null}
         >

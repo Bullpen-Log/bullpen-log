@@ -17,6 +17,7 @@ import { usePalette } from '~/lib/ui';
 import { LocalVideo } from '../../../modules/local-video';
 import { ApiError, isPhoneVideoPath, loadMe, phoneAssetId } from '~/pitch/api';
 import { PICK_ORIGINAL, attach, readVideoFacts, useImported } from '~/pitch/attach';
+import { READABLE } from '~/lib/layout';
 
 /**
  * 지난 영상 가져오기(앱) — 웹 app/(app)/videos/import-sheet.tsx 와 같은 규칙(lib/pitch-import.ts): 사진 앱에서 영상 여러 개를 고르면
@@ -113,7 +114,7 @@ export default function PitchImportScreen() {
         <Text style={[styles.barTitle, { color: c.ink }]}>지난 영상 가져오기</Text>
         <View style={{ width: 34 }} />
       </View>
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: inset.bottom + 32, gap: 12 }}>
+      <ScrollView contentContainerStyle={[{ padding: 16, paddingBottom: inset.bottom + 32, gap: 12 }, READABLE]}>
         {groups.length === 0 ? (
           <View style={{ gap: 12, paddingTop: 8 }}>
             <Text style={{ color: c.ink, fontSize: 17, lineHeight: 24 }}>

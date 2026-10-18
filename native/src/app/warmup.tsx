@@ -12,6 +12,7 @@ import { rpc, RpcError } from '~/lib/rpc';
 import { usePalette } from '~/lib/ui';
 import { leaveTo } from '~/shell/web-nav';
 import { s } from '~/training/screen';
+import { READABLE } from '~/lib/layout';
 
 /**
  * 워밍업 창(앱 화면) — 웹 app/(session)/workout/warmup/warmup-client.tsx 를 옮겼다. [운동 시작]과 본운동 사이에 한 번 지난다. 사이트의
@@ -114,7 +115,7 @@ export default function WarmupScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: c.page }}>
       <Bar back="트레이닝" title="워밍업" c={c} />
-      <ScrollView contentContainerStyle={{ padding: 16, gap: 16, paddingBottom: 24 }}>
+      <ScrollView contentContainerStyle={[{ padding: 16, gap: 16, paddingBottom: 24 }, READABLE]}>
         <View style={{ gap: 4 }}>
           <Text style={[s.small, { color: c.muted }]}>{data.themeLabel}</Text>
           <Text style={[s.body, { color: c.muted }]}>

@@ -35,6 +35,7 @@ import {
   type PitchLog,
 } from '~/pitch/api';
 import { monthOf, refreshMonth, useMonth } from '~/pitch/store';
+import { READABLE } from '~/lib/layout';
 
 /**
  * 투구 기록 남기기 · 고치기(앱) — 종류 · 공 수 · 체감 강도 · 구속 · 메모 · 영상 두 개까지. 웹 entry-form 의 첫 판(만족도 · 감각 칩 · 드릴 ·
@@ -270,7 +271,7 @@ function EntryForm({
           <Text style={[styles.barAction, { color: c.sky, fontWeight: '700' }, busy && { opacity: 0.4 }]}>저장</Text>
         </Pressable>
       </View>
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: inset.bottom + 32, gap: 8 }} keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerStyle={[{ padding: 16, paddingBottom: inset.bottom + 32, gap: 8 }, READABLE]} keyboardShouldPersistTaps="handled">
         <Text style={[styles.label, { color: c.muted }]}>종류</Text>
         <Chips items={SESSION_TYPES.map((t) => t.name)} value={type} onChange={setType} />
 

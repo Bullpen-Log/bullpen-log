@@ -8,6 +8,7 @@ import { accountForm, clearSession } from '~/account/session';
 import { loadJson, saveJson } from '~/lib/store';
 import { usePalette, type Palette } from '~/lib/ui';
 import { leaveTo } from '~/shell/web-nav';
+import { READABLE } from '~/lib/layout';
 
 /**
  * 로그인(앱 화면) — 웹 로그인(app/login/auth-form.tsx LoginForm)을 옮겼다. 서버는 같은 auth.login(막힘 · 잠금 규칙 그대로).
@@ -69,7 +70,7 @@ export default function LoginScreen() {
     <View style={{ flex: 1, backgroundColor: c.page }}>
       <Stack.Screen options={{ gestureEnabled: false }} />
       <ScrollView
-        contentContainerStyle={{ padding: 20, paddingTop: inset.top + 48, paddingBottom: inset.bottom + 32, gap: 22 }}
+        contentContainerStyle={[{ padding: 20, paddingTop: inset.top + 48, paddingBottom: inset.bottom + 32, gap: 22 }, READABLE]}
         keyboardShouldPersistTaps="handled"
         automaticallyAdjustKeyboardInsets
       >

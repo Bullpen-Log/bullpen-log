@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { INQUIRY_BODY_MAX, INQUIRY_CATEGORIES, INQUIRY_TITLE_MAX, type InquiryCategory } from '@/lib/support';
 import { Bar, BarButton, call, Chip, s, useBusy } from '~/community/parts';
 import { usePalette } from '~/lib/ui';
+import { READABLE } from '~/lib/layout';
 
 /**
  * 문의하기(앱 화면) — 웹 components/support/support-inquiry-form.tsx 를 옮겼다. 종류 · 제목 · 내용, 같은 한도 · 같은 서버 검사
@@ -33,7 +34,7 @@ export default function NewInquiryScreen() {
   return (
     <KeyboardAvoidingView behavior="padding" style={{ flex: 1, backgroundColor: c.page }}>
       <Bar back="고객센터" title="문의하기" right={<BarButton label="보내기" onPress={submit} disabled={send.busy} c={c} />} c={c} />
-      <ScrollView contentContainerStyle={{ padding: 16, gap: 8, paddingBottom: inset.bottom + 32 }} keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerStyle={[{ padding: 16, gap: 8, paddingBottom: inset.bottom + 32 }, READABLE]} keyboardShouldPersistTaps="handled">
         <Text style={{ color: c.muted, fontSize: 15, lineHeight: 21 }}>운영자가 확인하고 답해 드려요. 답이 오면 문의 화면에 이어서 보여요.</Text>
         <Text style={[s.label, { color: c.muted }]}>어떤 문의인가요?</Text>
         <View accessibilityRole="radiogroup" style={s.chips}>

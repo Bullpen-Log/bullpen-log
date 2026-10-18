@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { loadAppBoard } from '@/app/actions/board';
 import { Bar, BarButton, LoadState, Row, s, useLoad } from '~/community/parts';
 import { usePalette } from '~/lib/ui';
+import { READABLE } from '~/lib/layout';
 
 /**
  * 자료실 목록(앱 화면) — 웹 app/(app)/board/page.tsx 를 옮겼다. 사이트의 /board 가 앱(BullpenNative/7 부터)이면 이 화면을 띄운다(page.tsx →
@@ -65,7 +66,7 @@ export default function BoardScreen() {
           data={data.articles}
           keyExtractor={(a) => a.id}
           renderItem={row}
-          contentContainerStyle={{ padding: 16, paddingBottom: inset.bottom + 32 }}
+          contentContainerStyle={[{ padding: 16, paddingBottom: inset.bottom + 32 }, READABLE]}
           refreshControl={
             <RefreshControl
               refreshing={pulling}

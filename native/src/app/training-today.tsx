@@ -16,6 +16,7 @@ import { BigButton, s, WebRows, type TodayActions } from '~/training/today/parts
 import { DoneView, HaltedCard, MakeCard, NoticeBand, OutingRow, PlanBody, PrefsCard, ProgramDayRow } from '~/training/today/plan';
 import { ProgramCardView, ProgramDoneView } from '~/training/today/program';
 import { ProgramStartView } from '~/training/today/program-start';
+import { READABLE } from '~/lib/layout';
 
 /**
  * 트레이닝 '운동' 앱 화면 — 웹 /training(기본 칸, app/(app)/training/training-page.tsx)을 옮겼다. 앱 트레이닝 탭(native/src/training/tab.tsx)의 운동
@@ -201,7 +202,7 @@ export default function TrainingTodayScreen() {
       {header}
       <ScrollView
         style={s.fill}
-        contentContainerStyle={[s.content, { paddingBottom: Math.max(24, inset.bottom + 16) }]}
+        contentContainerStyle={[s.content, { paddingBottom: Math.max(24, inset.bottom + 16) }, READABLE]}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
