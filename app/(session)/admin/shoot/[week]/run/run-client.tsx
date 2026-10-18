@@ -34,6 +34,7 @@ import {
   weekItems,
 } from '@/lib/shoot/progress';
 import { toDateKey } from '@/lib/pitch-stats';
+import { weekLabel } from '@/lib/shoot/schedule';
 
 /**
  * 촬영 모드 — 찍는 동안 휴대폰 한 손으로.
@@ -53,10 +54,13 @@ export function RunClient({
   data,
   me,
   startAt,
+  crew = null,
 }: {
   data: ShootWeekData;
   me: string;
   startAt: string | null;
+  /** 두 사람이 나눠 찍는 주에서 이 사람 몫만 돌 때('A') */
+  crew?: string | null;
 }) {
   const { week, carried, infos } = data;
   const { map, set, adopt, toast, undo, closeToast, error, clearError } = useShootChecks(
@@ -79,7 +83,7 @@ export function RunClient({
   const list = useModalState<'list'>();
   useWakeLock(true);
 
-  const { current, next } = cursorOfList(queue, map, pickId);
+  const { current, next } = cursorOfList(queue, map, pickId, !!week.deferred);
   const count = countOf(items, map);
   /* 다음 뒤로 셋 — '그다음' 줄 */
   const after = current
@@ -203,7 +207,8 @@ export function RunClient({
           </Link>
           <div className="min-w-0 flex-1">
             <p className="flex items-center gap-2 text-sm font-bold text-ink">
-              {week.week}주차 촬영
+              {weekLabel(week)}
+              {crew ? ` · ${crew}` : ''} 촬영
               <span className="text-xs font-medium tabular-nums text-muted">
                 {count.done} / {count.total}
               </span>
@@ -517,7 +522,7 @@ export function RunClient({
       <Modal
         open={list.open}
         onClose={list.close}
-        title={`${week.week}주차 목록`}
+        title={`${weekLabel(week)}${crew ? ` · ${crew}` : ''} 목록`}
         description="누르면 그 운동을 먼저 찍어요"
         origin={list.origin}
       >

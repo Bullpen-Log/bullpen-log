@@ -77,11 +77,13 @@ export function cursorOfList(
   items: PlanItem[],
   checks: Map<string, ShootCheckView>,
   /** 목록에서 '먼저 찍기'로 고른 운동 — 아직 안 찍었으면(미룸이어도) 지금이 된다 */
-  pickId: string | null = null
+  pickId: string | null = null,
+  /** 미룬 영상 칸 — 거기 것은 모두 미룸이라 미룸도 찍을 차례로 본다 */
+  laterIsOpen = false
 ): { current: PlanItem | null; next: PlanItem | null; index: number } {
   const isOpen = (it: PlanItem) => {
     const st = stateOf(it, checks);
-    return st === 'todo' || st === 'redo';
+    return st === 'todo' || st === 'redo' || (laterIsOpen && st === 'later');
   };
   const open = items.filter(isOpen);
   const picked = pickId ? items.find((it) => it.exerciseId === pickId) : undefined;
@@ -110,6 +112,9 @@ export function transitionAfter(
 /**
  * 이 주보다 앞 주에서 아직 못 찍은 것(대기 · 다시 · 미룸) — 이 주 끝에 이어 찍을 거리.
  * 체크가 하나도 없는 주는 아직 찍으러 가지 않은 주라 넘기지 않는다(시작 전에 2주차를 열어도 1주차 66개가 붙지 않게).
+ *
+ * 미룬 영상 칸(PlanWeek.deferred, 2026-10-18)이 있는 계획은 미룬 것을 그 칸으로 모은다 — 다른 실내 주에서 미룸으로 체크한 것은
+ * 그 칸 끝에 붙고, 다른 주로는 넘어가지 않는다(두 곳에 같은 운동이 안 보이게).
  */
 export function carriedOver(
   plan: ShootPlan,
@@ -118,13 +123,22 @@ export function carriedOver(
 ): PlanItem[] {
   const target = plan.weeks.find((w) => w.week === week);
   const outdoor = !!target?.outdoor;
+  const hasDeferred = plan.weeks.some((w) => w.deferred);
+  if (target?.deferred)
+    return plan.weeks
+      .filter((w) => !w.outdoor && !w.deferred)
+      .flatMap(weekItems)
+      .filter((it) => stateOf(it, checks) === 'later');
   return plan.weeks
     // 실내 주차의 남은 것은 실내 주차로, 야외는 야외로만(자리 · 기구가 다르다)
-    .filter((w) => w.week < week && !!w.outdoor === outdoor)
+    .filter((w) => w.week < week && !!w.outdoor === outdoor && !w.deferred)
     .map(weekItems)
     .filter((its) => its.some((it) => checks.has(it.exerciseId)))
     .flat()
-    .filter((it) => stateOf(it, checks) !== 'done');
+    .filter((it) => {
+      const st = stateOf(it, checks);
+      return st !== 'done' && !(hasDeferred && st === 'later');
+    });
 }
 
 /**

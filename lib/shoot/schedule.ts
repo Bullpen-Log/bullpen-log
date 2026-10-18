@@ -261,7 +261,7 @@ export const DEFAULT_OPTIONS: ScheduleOptions = {
   loadWeight: 1.5,
 };
 
-type Row = ShootExercise & {
+export type Row = ShootExercise & {
   station: Station;
   bucket: Bucket;
   minutes: number;
@@ -304,6 +304,12 @@ export type PlanStation = {
   station: Station;
   /** 회 처음의 몸풀기(가벼운 모빌리티 · 스트레칭) — 자리 차례 규칙 밖 */
   warmup?: boolean;
+  /**
+   * 두 사람이 같은 헬스장에서 나눠 찍는 주(lib/shoot/crews.ts) — 공간(넓은 공간 · 랙 공간 · 케이블 공간)과 맡은 사람(A · B).
+   * 있으면 계획 시각은 그 사람의 시계다(둘이 동시에 0:15 부터).
+   */
+  space?: string;
+  crew?: string;
   start: number;
   end: number;
   items: PlanItem[];
@@ -318,7 +324,17 @@ export type PlanWeek = {
   load: Partial<Record<Bucket, number>>;
   /** 야외 주차(투구 드릴 · 워밍업) — 앞 주에서 넘어오는 것도 같은 쪽끼리만 */
   outdoor?: boolean;
+  /**
+   * 미룬 영상 칸(2026-10-18 사용자: "미룬 항목 전용 카드 — 주차 이름 대신 '미룬 영상'") — 주차가 아니라 미룬 것을 모으는 곳.
+   * 다른 실내 주에서 미룸으로 체크한 것도 여기 끝에 이어 붙는다(lib/shoot/progress.ts carriedOver).
+   */
+  deferred?: boolean;
 };
+
+/** 주차 이름 — 미룬 영상 칸은 '미룬 영상' */
+export function weekLabel(w: { week: number; deferred?: boolean }): string {
+  return w.deferred ? '미룬 영상' : `${w.week}주차`;
+}
 
 export type ShootPlan = {
   version: number;
@@ -477,7 +493,7 @@ export function buildPlan(
  * 다른 부위로 · 천천히 내리기는 그 부위 끝. 자세를 부위보다 앞에 둔 까닭: 모델이 일어났다 누웠다 하는 시간과 카메라 높이 맞추기가
  * 부위 피로보다 촬영을 더 늦췄다(사용자 2026-10-09 "자세까지 넣어서"). 같은 부위가 자세 경계를 넘어 이어질 수는 있다.
  */
-function orderStation(list: Row[], station: Station): Row[] {
+export function orderStation(list: Row[], station: Station): Row[] {
   const pr = (x: Row) => POSTURES.indexOf(x.posture);
   const byKey = (a: Row, b: Row) =>
     (a.eqKey + (a.movementPattern ?? '') + a.title).localeCompare(
@@ -521,7 +537,7 @@ function orderStation(list: Row[], station: Station): Row[] {
 }
 
 /** 몸풀기 — 서서 → … → 앉아, 같은 자세 안에서는 이름 차례(한 부위라 돌리지 않는다) */
-function orderWarmup(list: Row[]): Row[] {
+export function orderWarmup(list: Row[]): Row[] {
   return [...list].sort(
     (a, b) =>
       POSTURES.indexOf(a.posture) - POSTURES.indexOf(b.posture) ||
