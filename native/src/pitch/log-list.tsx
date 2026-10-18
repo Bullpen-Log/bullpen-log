@@ -1,6 +1,6 @@
 import { Image } from 'expo-image';
 import { type Href, router } from 'expo-router';
-import { useMemo, useState, useSyncExternalStore } from 'react';
+import { type ComponentRef, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { ActionSheetIOS, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Animated, { LinearTransition } from 'react-native-reanimated';
 import { STRONG_EFFORT_PCT, effortBand, effortText, readEffort } from '@/lib/pitch-effort';
@@ -52,7 +52,7 @@ type Clip = {
   summary: string;
 };
 
-export function LogList({ logs }: { logs: PitchLog[] | null }) {
+export function LogList({ logs, today, onReveal }: { logs: PitchLog[] | null; today: string; onReveal: (windowY: number) => void }) {
   const c = usePalette();
   const speed = usePrefs().speed;
   const [q, setQ] = useState<FindQuery>(EMPTY_FIND);
@@ -62,6 +62,17 @@ export function LogList({ logs }: { logs: PitchLog[] | null }) {
   /* 2분할 비교 — 웹처럼 목록에서 바로 A · B 를 고르고 탭 위에 뜬 막대에서 [비교하기](video-gallery selecting) */
   const { selecting, picked } = useCompare();
   const finding = isFindActive(q);
+  /* 날짜로 가기 — 그 달을 펴고 그날 줄(없으면 그 달 카드)이 화면 위쪽에 오게(웹 jumpTo). 줄은 날짜마다 첫 줄만 기억한다 */
+  const spots = useRef(new Map<string, ComponentRef<typeof View>>());
+  const [flash, setFlash] = useState<string | null>(null);
+  const logDays = useMemo(() => new Set((logs ?? []).map((l) => l.date.slice(0, 10))), [logs]);
+  const jumpTo = (date: string) => {
+    const month = date.slice(0, 7);
+    setToggled((t) => ({ ...t, [month]: true }));
+    setFlash(date);
+    setTimeout(() => setFlash(null), 1600);
+    setTimeout(() => (spots.current.get(date) ?? spots.current.get(month))?.measureInWindow((_x, y) => onReveal(y)), 120);
+  };
   const shown = useMemo(() => filterLogs(logs ?? [], q), [logs, q]);
 
   const clips = useMemo<Clip[]>(
@@ -141,7 +152,7 @@ export function LogList({ logs }: { logs: PitchLog[] | null }) {
           <Icon name="chevron-down" size={14} color={c.muted} />
         </Press>
       </View>
-      <FindBar q={q} onChange={setQ} />
+      <FindBar q={q} onChange={setQ} today={today} marked={(d) => logDays.has(d)} onJump={jumpTo} />
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flex: 1 }} contentContainerStyle={{ gap: 6 }}>
           {chips.map((x) => {
@@ -181,7 +192,13 @@ export function LogList({ logs }: { logs: PitchLog[] | null }) {
       {months.map((g) => {
         const open = isOpen(g.month);
         return (
-          <Animated.View key={g.month} layout={LinearTransition.duration(260)} style={[styles.month, { backgroundColor: c.card, borderColor: c.line }]}>
+          <Animated.View
+            key={g.month}
+            ref={(el: ComponentRef<typeof View> | null) => {
+              if (el) spots.current.set(g.month, el);
+            }}
+            layout={LinearTransition.duration(260)}
+            style={[styles.month, { backgroundColor: c.card, borderColor: c.line }]}>
             <Press
               accessibilityRole="button"
               accessibilityState={{ expanded: open }}
@@ -200,7 +217,14 @@ export function LogList({ logs }: { logs: PitchLog[] | null }) {
             {open ? (
               <Animated.View entering={fadeIn} style={{ borderTopWidth: StyleSheet.hairlineWidth, borderColor: c.line }}>
                 {g.items.map((x, i) => (
-                  <Animated.View key={x.id} entering={rowIn(Math.min(i, 8))} style={i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderColor: c.line }}>
+                  <Animated.View
+                    key={x.id}
+                    ref={(el: ComponentRef<typeof View> | null) => {
+                      if (el && (i === 0 || g.items[i - 1].date !== x.date)) spots.current.set(x.date, el);
+                    }}
+                    entering={rowIn(Math.min(i, 8))}
+                    style={[i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderColor: c.line }, flash === x.date && { backgroundColor: c.skyTint }]}
+                  >
                     <Press
                       accessibilityRole="button"
                       accessibilityState={selecting ? { selected: picked.some((y) => y?.id === x.id), disabled: !x.path } : undefined}

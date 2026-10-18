@@ -128,7 +128,11 @@ export function PitchTab({ today, bottom, onWeb }: { today: string; bottom: numb
               ) : null}
             </>
           ) : (
-            <LogList logs={all.logs} />
+            <LogList
+              logs={all.logs}
+              today={today}
+              onReveal={(y) => scrollRef.current?.scrollTo({ y: Math.max(0, scrollY.current + y - inset.top - 72), animated: true })}
+            />
           )
         }
       />
