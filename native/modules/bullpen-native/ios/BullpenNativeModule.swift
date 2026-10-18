@@ -5,6 +5,8 @@ import WebKit
 
 /// 앱 공용 부품 — 웹뷰 화면과 네이티브 화면이 같이 쓰는 작은 것들.
 ///   sync(host)                              웹뷰(WKWebView)의 사이트 쿠키(로그인 'session')를 앱 요청 저장소로 → 옮긴 수
+///   mirror(host)                            거꾸로 — 웹뷰 저장소를 앱 저장소와 같게(앱에 없는 'session' 은 웹뷰에서 지움) → 넣은 수
+///   clearSession(host)                      두 저장소의 'session' 지우기(로그인 화면에 왔을 때)
 ///   keepAwake(on)                           화면 꺼짐 막기 켜기 / 끄기(앱이 앞으로 돌아오면 되살린다)
 ///   scheduleAlarm(id, at, title, body)      at(밀리초, Date.now 기준)에 로컬 알림. 같은 id 면 바꾼다. 처음엔 허락을 묻는다
 ///   cancelAlarm(id)                         건 알림 지우기(이미 뜬 것도)
@@ -17,6 +19,23 @@ import WebKit
 public class BullpenNativeModule: Module {
     /// 알림 이름표 앞머리 — 다른 알림과 섞이지 않게(옛 앱과 같다)
     static let prefix = "bullpen."
+    /// 사이트 로그인 쿠키 이름(lib/session.ts SESSION_COOKIE)
+    static let session = "session"
+    /// 이 사이트(host)의 쿠키인가 — '.bullpen-log.vercel.app' 같은 앞 점도 받는다
+    static func matches(_ c: HTTPCookie, _ host: String) -> Bool {
+        let d = c.domain.hasPrefix(".") ? String(c.domain.dropFirst()) : c.domain
+        return host == d || host.hasSuffix("." + d)
+    }
+    static func isSession(_ c: HTTPCookie, _ host: String) -> Bool { c.name == session && matches(c, host) }
+    static func sameKey(_ a: HTTPCookie, _ b: HTTPCookie) -> Bool { a.name == b.name && a.domain == b.domain && a.path == b.path }
+    /// 앱 저장소의 'session' 을 keep 그대로 — keep 에 없는 것은 지우고, keep 의 것은 다시 넣는다
+    static func restoreSessions(_ keep: [HTTPCookie], _ host: String) {
+        let jar = HTTPCookieStorage.shared
+        for c in jar.cookies ?? [] where isSession(c, host) && !keep.contains(where: { sameKey($0, c) }) {
+            jar.deleteCookie(c)
+        }
+        for c in keep where c.name == session { jar.setCookie(c) }
+    }
     private var wantAwake = false
     private let presenter = AlarmPresenter()
 
@@ -37,12 +56,59 @@ public class BullpenNativeModule: Module {
         AsyncFunction("sync") { (host: String, promise: Promise) in
             DispatchQueue.main.async {
                 WKWebsiteDataStore.default().httpCookieStore.getAllCookies { cookies in
-                    let mine = cookies.filter { c in
-                        let d = c.domain.hasPrefix(".") ? String(c.domain.dropFirst()) : c.domain
-                        return host == d || host.hasSuffix("." + d)
-                    }
+                    let mine = cookies.filter { Self.matches($0, host) }
                     mine.forEach { HTTPCookieStorage.shared.setCookie($0) }
                     promise.resolve(mine.count)
+                }
+            }
+        }
+
+        /// 앱 화면이 로그인 · 가입 · 비밀번호 바꾸기 · 로그아웃 · 탈퇴를 한 뒤 — 서버의 Set-Cookie 는 앱 저장소에 들어온다. 웹뷰 저장소를 그와 같게:
+        /// 앱 저장소의 사이트 쿠키는 넣고, 앱에 없는 'session' 은 웹뷰에서도 지운다. react-native-webview 는 넣기만 옮기고 지우기는 안 옮긴다
+        /// (RNCWebViewImpl cookiesDidChangeInCookieStore · syncCookiesToWebView) — 그대로 두면 지운 로그인이 다음 실행에 웹뷰로 되살아났다.
+        ///
+        /// 차례가 중요하다: 웹뷰 쿠키가 바뀔 때마다 react-native-webview 가 웹뷰의 쿠키 전부를 앱 저장소로 되옮긴다(cookiesDidChange). 그래서
+        /// 웹뷰의 옛 로그인을 먼저 지우고 → 앱 것을 넣고 → 끝에 앱 저장소의 'session' 을 처음 본 그대로 되돌린다(그 사이 되옮겨진 옛 값이 남지 않게).
+        AsyncFunction("mirror") { (host: String, promise: Promise) in
+            DispatchQueue.main.async {
+                let store = WKWebsiteDataStore.default().httpCookieStore
+                let app = (HTTPCookieStorage.shared.cookies ?? []).filter { Self.matches($0, host) }
+                store.getAllCookies { web in
+                    let stale = DispatchGroup()
+                    for c in web where Self.isSession(c, host) && !app.contains(where: { Self.sameKey($0, c) }) {
+                        stale.enter()
+                        store.delete(c) { stale.leave() }
+                    }
+                    stale.notify(queue: .main) {
+                        let put = DispatchGroup()
+                        for c in app {
+                            put.enter()
+                            store.setCookie(c) { put.leave() }
+                        }
+                        put.notify(queue: .main) {
+                            Self.restoreSessions(app, host)
+                            promise.resolve(app.count)
+                        }
+                    }
+                }
+            }
+        }
+
+        /// 로그인 화면에 왔다 = 로그아웃 상태 — 두 저장소의 'session' 을 지운다(앞사람 로그인이 앱 요청 · 웹뷰에 남지 않게).
+        /// 웹뷰부터 지운다 — 앱 것을 먼저 지우면 웹뷰가 바뀌는 사이 옛 로그인이 앱 저장소로 되옮겨질 수 있다.
+        AsyncFunction("clearSession") { (host: String, promise: Promise) in
+            DispatchQueue.main.async {
+                let store = WKWebsiteDataStore.default().httpCookieStore
+                store.getAllCookies { web in
+                    let group = DispatchGroup()
+                    for c in web where Self.isSession(c, host) {
+                        group.enter()
+                        store.delete(c) { group.leave() }
+                    }
+                    group.notify(queue: .main) {
+                        Self.restoreSessions([], host)
+                        promise.resolve(nil)
+                    }
                 }
             }
         }

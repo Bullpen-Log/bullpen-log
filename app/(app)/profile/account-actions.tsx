@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState, useState } from 'react';
+import { useActionState, useState, useSyncExternalStore } from 'react';
 import { useFormStatus } from 'react-dom';
 import { ChevronRight, KeyRound, LogOut, UserMinus, type LucideIcon } from '@/components/icon';
 import { IconCircle, type CircleTone } from '@/components/icon-circle';
@@ -13,6 +13,7 @@ import {
 import { guardFormAction } from '@/lib/action-offline';
 import { Button, Field, FormError, Input } from '@/components/ui';
 import { Modal } from '@/components/modal';
+import { expoLevel } from '@/lib/app-env';
 
 /**
  * 계정을 다루는 세 가지 — 로그아웃, 비밀번호 바꾸기, 탈퇴.
@@ -68,6 +69,15 @@ function LogoutButton() {
   );
 }
 
+/** 앱 계정 화면을 아는 판(native/src/lib/site.ts APP_UA 의 BullpenNative/<n>) */
+const NATIVE_ACCOUNT_LEVEL = 8;
+const noSubscribe = () => () => {};
+function openNativeAccount() {
+  const rn = (window as unknown as { ReactNativeWebView?: { postMessage(s: string): void } })
+    .ReactNativeWebView;
+  rn?.postMessage(JSON.stringify({ t: 'native', path: '/account' }));
+}
+
 export function AccountActions() {
   const [pwOpen, setPwOpen] = useState(false);
   const [outOpen, setOutOpen] = useState(false);
@@ -76,6 +86,25 @@ export function AccountActions() {
    * "지금 비밀번호가 맞지 않습니다"가 그대로 남아 있다.
    */
   const [formSeq, setFormSeq] = useState(0);
+  /*
+   * 새 아이폰 앱(판 8~)은 계정 셋을 앱 화면(native/src/app/account.tsx)으로 연다 — 로그인 쿠키를 앱이 쥐고 웹뷰와 맞춰야 해서
+   * (웹에서 로그아웃하면 앱 요청 쪽에 옛 로그인이 남았다). 서버 그림 · 붙는 동안은 웹 줄 그대로.
+   */
+  const native = useSyncExternalStore(
+    noSubscribe,
+    () => expoLevel(navigator.userAgent) >= NATIVE_ACCOUNT_LEVEL,
+    () => false
+  );
+  if (native)
+    return (
+      <div className="border-t border-line pt-4">
+        <div className="divide-y divide-line overflow-hidden rounded-2xl bg-surface-2">
+          <ActionRow type="button" Icon={KeyRound} onClick={openNativeAccount}>
+            로그아웃 · 비밀번호 · 탈퇴
+          </ActionRow>
+        </div>
+      </div>
+    );
 
   return (
     <div className="border-t border-line pt-4">
