@@ -250,7 +250,7 @@ export default function SiteScreen() {
   useEffect(() => {
     navTo.current = (href) => {
       if (href === '#settings' || href === '#profile') {
-        setWebFront(true);
+        /* 앞으로 내는 것은 웹이 창을 연 뒤 알린다(webfront true) — 연결이 없는 웹 화면이면 아무 일도 안 일어나고 갇히지 않는다 */
         web.current?.injectJavaScript(`window.__bpOpen && window.__bpOpen('${href.slice(1)}');true;`);
       } else if (isNativePath(href)) openNative(href);
       else goTab(href);
@@ -444,7 +444,11 @@ export default function SiteScreen() {
           <PitchTab today={today} bottom={TAB_BAR_HEIGHT} onWeb={openWeb} />
         </View>
       ) : null}
-      {barOn ? (
+      {/*
+        웹 창(설정 · 내 정보 — 웹 틀의 폴더 모양 창)이 앞에 떠 있는 동안은 숨긴다 — 그 창을 닫는 바깥 막은 아래쪽 띠뿐인데 이 막대가 그 띠를
+        덮어, 앱에서는 창을 닫을 자리가 없었다(2026-10-18 시뮬레이터에서 확인). 창이 닫히면 웹이 알려(webfront false) 다시 보인다.
+      */}
+      {barOn && !webFront ? (
         <TabBar
           tabs={tabs}
           active={showPitch ? '/videos' : showHome ? '/today' : showNutrition ? '/nutrition' : showTraining ? (trainingTab?.href ?? active) : active}

@@ -86,11 +86,14 @@ export function ExpoTabBridge({
     };
   }, [onSettings, onProfile]);
 
-  /* 설정 창을 닫으면 앱에 알린다 — 앱 화면(홈 · 투구 · 영양) 위에서 연 창이면 앱이 그 화면을 다시 보인다 */
+  /*
+   * 설정 · 내 정보 창이 열리고 닫히면 앱에 알린다 — 열리면 앱이 앱 화면 · 하단 탭을 걷어 창이 보이고 닫을 자리(아래 막)가 드러나고,
+   * 닫히면 앱 화면을 다시 보인다. 열림도 여기서 알린다(앱이 열기를 부른 뒤 먼저 걷으면, 이 연결이 없는 웹 화면에서는 탭 없이 갇혔다).
+   */
   const wasOpen = useRef(false);
   useEffect(() => {
     if (!isExpo()) return;
-    if (wasOpen.current && !settingsOpen) rn()?.postMessage(JSON.stringify({ t: 'webfront', on: false }));
+    if (wasOpen.current !== settingsOpen) rn()?.postMessage(JSON.stringify({ t: 'webfront', on: settingsOpen }));
     wasOpen.current = settingsOpen;
   }, [settingsOpen]);
 
