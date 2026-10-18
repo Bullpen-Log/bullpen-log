@@ -5,7 +5,7 @@ import Animated from 'react-native-reanimated';
 import { COMBO_NAME_MAX, comboMacros, defaultComboName, type ComboItem, type MealComboView } from '@/lib/nutrition/combos';
 import { FOOD_CATEGORIES, FOODS_BY_CATEGORY, type FoodCategory } from '@/lib/nutrition/foods';
 import { subcategoriesOf, subcategoryOf } from '@/lib/nutrition/food-subcategory';
-import { mealLabel, type Food, type RankedFood } from '@/lib/nutrition/meta';
+import { AMOUNT_MAX, AMOUNT_MIN, QUICK_AMOUNTS, SOURCE_LABEL, amountText, gramText, mealLabel, scaleMacros, stepAmount, type Food, type RankedFood } from '@/lib/nutrition/meta';
 import { withAlpha, type Palette } from '~/lib/ui';
 import { Icon } from '~/shell/icon';
 import { fadeIn } from '~/shell/motion';
@@ -295,4 +295,146 @@ const st = StyleSheet.create({
   section: { fontSize: 13, fontWeight: '600', paddingTop: 8 },
   empty: { fontSize: 15, padding: 12, textAlign: 'center', lineHeight: 21 },
   more: { minHeight: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
+  pick: { borderRadius: 20, padding: 16, gap: 12 },
+  fav: { flexDirection: 'row', alignItems: 'center', gap: 4, minHeight: 36, borderRadius: 10, paddingHorizontal: 10 },
+  stepper: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderRadius: 14 },
+  stepBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  grams: { width: 84, height: 44, borderRadius: 12, borderWidth: 1, paddingHorizontal: 12, textAlign: 'right', fontSize: 15 },
+  quick: { minHeight: 34, borderRadius: 10, paddingHorizontal: 12, justifyContent: 'center' },
+  macros: { flexDirection: 'row', borderRadius: 12, paddingVertical: 10 },
+  half: { flex: 1, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center' },
 });
+
+/**
+ * 고른 음식 — 웹 PickFood: 1인분 · 출처 · ★ 내 음식에 두기, 양(− 양 +) · 그램 칸(1인분 g 을 알 때), 빠른 양, 칼로리 · 탄 · 단 · 지 넷.
+ */
+export function PickPanel({
+  food,
+  amount,
+  setAmount,
+  favorite,
+  onFavorite,
+  error,
+  saving,
+  replacing,
+  onCancel,
+  onSave,
+  c,
+}: {
+  food: Food;
+  amount: number;
+  setAmount: (a: number) => void;
+  /** null = 별을 달 수 없는 음식(직접 입력 · 내 음식) */
+  favorite: boolean | null;
+  onFavorite: () => void;
+  error: string | null;
+  saving: boolean;
+  replacing: boolean;
+  onCancel: () => void;
+  onSave: () => void;
+  c: Palette;
+}) {
+  const [grams, setGrams] = useState(food.servingGrams ? gramText(food.servingGrams * amount) : '');
+  const setBoth = (next: number) => {
+    setAmount(next);
+    if (food.servingGrams) setGrams(gramText(next * food.servingGrams));
+  };
+  const typeGrams = (text: string) => {
+    const clean = text.replace(/,/g, '.').replace(/[^\d.]/g, '');
+    setGrams(clean);
+    const g = Number(clean);
+    if (food.servingGrams && g > 0) setAmount(Math.min(AMOUNT_MAX, Math.max(AMOUNT_MIN, Math.round((g / food.servingGrams) * 20) / 20)));
+  };
+  const got = scaleMacros(food, amount);
+  const cell = (label: string, v: number | null, unit: string, big = false) => (
+    <View style={{ flex: 1, alignItems: 'center', gap: 2 }}>
+      <Text style={{ color: c.muted, fontSize: 11 }}>{label}</Text>
+      {v === null ? (
+        <Text style={{ color: c.muted, fontSize: 13 }}>정보 없음</Text>
+      ) : (
+        <Text style={{ color: c.ink, fontSize: big ? 17 : 15, fontWeight: big ? '700' : '600', fontVariant: ['tabular-nums'] }}>
+          {unit === 'kcal' ? kcalText(v) : `${gramText(v)}g`}
+        </Text>
+      )}
+    </View>
+  );
+  return (
+    <View style={[st.pick, { backgroundColor: c.card }]}>
+      <Text style={{ color: c.ink, fontSize: 17, fontWeight: '700' }} numberOfLines={2}>
+        {food.name}
+      </Text>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+        <Text style={{ flex: 1, color: c.muted, fontSize: 13 }} numberOfLines={2}>
+          1인분 {food.servingLabel} · {SOURCE_LABEL[food.source]}
+          {food.note ? ` · ${food.note}` : ''}
+        </Text>
+        {favorite !== null ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityState={{ selected: favorite }}
+            onPress={() => {
+              void Haptics.selectionAsync();
+              onFavorite();
+            }}
+            style={[st.fav, favorite && { backgroundColor: withAlpha(c.warn, 0.12) }]}
+          >
+            <Icon name="star" size={16} color={favorite ? c.warn : c.muted} fill={favorite ? c.warn : 'none'} />
+            <Text style={{ color: favorite ? c.warn : c.muted, fontSize: 13, fontWeight: '600' }}>{favorite ? '내 음식' : '내 음식에 두기'}</Text>
+          </Pressable>
+        ) : null}
+      </View>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+        <View style={[st.stepper, { borderColor: c.line, backgroundColor: c.page }]}>
+          <Pressable accessibilityRole="button" accessibilityLabel="줄이기" onPress={() => setBoth(stepAmount(amount, -1))} style={st.stepBtn}>
+            <Icon name="minus" size={16} color={c.muted} />
+          </Pressable>
+          <Text style={{ minWidth: 72, textAlign: 'center', color: c.ink, fontSize: 17, fontWeight: '700', fontVariant: ['tabular-nums'] }}>{amountText(amount)}</Text>
+          <Pressable accessibilityRole="button" accessibilityLabel="늘리기" onPress={() => setBoth(stepAmount(amount, 1))} style={st.stepBtn}>
+            <Icon name="plus" size={16} color={c.muted} />
+          </Pressable>
+        </View>
+        {food.servingGrams !== null ? (
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <TextInput
+              value={grams}
+              onChangeText={typeGrams}
+              keyboardType="decimal-pad"
+              accessibilityLabel="그램"
+              style={[st.grams, { borderColor: c.line, backgroundColor: c.page, color: c.ink }]}
+            />
+            <Text style={{ color: c.muted, fontSize: 15 }}>g</Text>
+          </View>
+        ) : null}
+      </View>
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+        {QUICK_AMOUNTS.map((a) => (
+          <Pressable
+            key={a}
+            accessibilityRole="radio"
+            accessibilityState={{ selected: amount === a }}
+            onPress={() => setBoth(a)}
+            style={[st.quick, { backgroundColor: amount === a ? c.skyTint : c.page }]}
+          >
+            <Text style={{ color: amount === a ? c.sky : c.muted, fontSize: 13, fontWeight: '600' }}>{amountText(a)}</Text>
+          </Pressable>
+        ))}
+      </View>
+      <View style={[st.macros, { backgroundColor: c.page }]}>
+        {cell('칼로리', got.kcal, 'kcal', true)}
+        {cell('탄수화물', food.carbs === null ? null : got.carbs, 'g')}
+        {cell('단백질', food.protein === null ? null : got.protein, 'g')}
+        {cell('지방', food.fat === null ? null : got.fat, 'g')}
+      </View>
+      {error ? <Text style={{ color: c.danger, fontSize: 14 }}>{error}</Text> : null}
+      <View style={{ flexDirection: 'row', gap: 8 }}>
+        <Pressable accessibilityRole="button" onPress={onCancel} style={[st.half, { backgroundColor: c.chip }]}>
+          <Text style={{ color: c.ink, fontSize: 16, fontWeight: '600' }}>다른 음식</Text>
+        </Pressable>
+        <Pressable accessibilityRole="button" onPress={onSave} disabled={saving} style={[st.half, { backgroundColor: c.sky }, saving && { opacity: 0.5 }]}>
+          <Text style={{ color: '#fff', fontSize: 17, fontWeight: '600' }}>{saving ? (replacing ? '바꾸는 중' : '담는 중') : replacing ? '바꾸기' : '담기'}</Text>
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+

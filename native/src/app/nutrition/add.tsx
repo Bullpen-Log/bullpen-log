@@ -7,11 +7,12 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BASIC_FOODS, STARTER_FOOD_IDS, basicAliases, basicFood } from '@/lib/nutrition/foods';
 import { COMBO_TOP, comboFood, findCombo, itemsFromEntries, orderCombos, type MealComboView } from '@/lib/nutrition/combos';
 import { matchScore } from '@/lib/nutrition/hangul';
-import { isMealKey, mealLabel, QUICK_AMOUNTS, stepAmount, type Food, type MealKey } from '@/lib/nutrition/meta';
+import { isMealKey, mealLabel, type Food, type MealKey } from '@/lib/nutrition/meta';
 import { usePalette, withAlpha } from '~/lib/ui';
-import { addFoods, deleteCombo, markComboUsed, replaceEntry, replacePlan, saveCombo, saveMyFood, searchMfds, searchMfdsReps, useNutritionDay } from '~/nutrition/api';
-import { BrowseAll, ComboButton, ComboRow, SaveCombo } from '~/nutrition/add-parts';
+import { addFoods, deleteCombo, deleteMyFood, favoriteFood, unfavoriteFood, markComboUsed, replaceEntry, replacePlan, saveCombo, saveMyFood, searchMfds, searchMfdsReps, useNutritionDay } from '~/nutrition/api';
+import { BrowseAll, ComboButton, ComboRow, PickPanel, SaveCombo } from '~/nutrition/add-parts';
 import { Segmented } from '~/shell/heading';
+import { Icon } from '~/shell/icon';
 import { CustomFood } from '~/nutrition/custom-food';
 import { takeScanned } from '~/nutrition/scanned';
 import { READABLE } from '~/lib/layout';
@@ -219,6 +220,36 @@ export default function NutritionAddScreen() {
     setSavedName(name);
     return true;
   };
+  /* ★ 내 음식에 두기 — 기본 · 식약처 · 바코드 음식만(웹 canFavorite). 누르는 대로 바꾸고, 서버가 거절하면 되돌린다 */
+  const favKey = (f: Food) => `${f.source}:${f.id}`;
+  const canFavorite = (f: Food) => (f.source === 'basic' || f.source === 'mfds' || f.source === 'barcode') && !!f.id;
+  const [favs, setFavs] = useState<Set<string> | null>(null);
+  const favSet = favs ?? new Set(day?.favorites ?? []);
+  const toggleFavorite = async (f: Food) => {
+    const key = favKey(f);
+    const on = !favSet.has(key);
+    const flip = (v: boolean) =>
+      setFavs((prev) => {
+        const next = new Set(prev ?? day?.favorites ?? []);
+        if (v) next.add(key);
+        else next.delete(key);
+        return next;
+      });
+    flip(on);
+    const err = on ? await favoriteFood(date, f) : await unfavoriteFood(date, f);
+    if (err) {
+      flip(!on);
+      setError(err);
+    }
+  };
+  /* 내 음식 지우기(웹 removeMine) — 한 번 더 눌러야 지운다 */
+  const [confirmMine, setConfirmMine] = useState<string | null>(null);
+  const removeMine = async (f: Food) => {
+    if (!f.id) return;
+    setConfirmMine(null);
+    const err = await deleteMyFood(date, f.id);
+    if (err) setError(err);
+  };
   const starters = useMemo(() => STARTER_FOOD_IDS.map(basicFood).filter((f): f is Food => f !== null), []);
 
   const custom = (
@@ -298,50 +329,25 @@ export default function NutritionAddScreen() {
       </View>
 
       {chosen ? (
-        <View style={[styles.pick, { backgroundColor: c.card, marginHorizontal: 16 }]}>
-          <Text style={{ color: c.ink, fontSize: 17, fontWeight: '700' }} numberOfLines={2}>
-            {chosen.name}
-          </Text>
-          <Text style={{ color: c.muted, fontSize: 14 }}>
-            {amount} × {chosen.servingLabel} · {Math.round(chosen.kcal * amount)}kcal
-            {chosen.protein != null ? ` · 단백질 ${Math.round(chosen.protein * amount)}g` : ''}
-          </Text>
-          <View style={styles.amounts}>
-            {QUICK_AMOUNTS.map((a) => (
-              <Pressable
-                key={a}
-                accessibilityRole="radio"
-                accessibilityState={{ selected: amount === a }}
-                onPress={() => setAmount(a)}
-                style={[styles.amount, { backgroundColor: amount === a ? c.sky : c.chip }]}
-              >
-                <Text style={{ color: amount === a ? '#fff' : c.ink, fontSize: 15, fontWeight: '600' }}>{a}</Text>
-              </Pressable>
-            ))}
-            <Pressable accessibilityLabel="양 줄이기" onPress={() => setAmount((x) => stepAmount(x, -1))} style={[styles.amount, { backgroundColor: c.chip }]}>
-              <Text style={{ color: c.ink, fontSize: 17 }}>−</Text>
-            </Pressable>
-            <Pressable accessibilityLabel="양 늘리기" onPress={() => setAmount((x) => stepAmount(x, 1))} style={[styles.amount, { backgroundColor: c.chip }]}>
-              <Text style={{ color: c.ink, fontSize: 17 }}>+</Text>
-            </Pressable>
-          </View>
-          {error ? <Text style={{ color: c.danger, fontSize: 14 }}>{error}</Text> : null}
-          <View style={styles.amounts}>
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => {
-                setPicked(null);
-                setScanned(null);
-              }}
-              style={[styles.ghost, { backgroundColor: c.chip }]}
-            >
-              <Text style={{ color: c.ink, fontSize: 16, fontWeight: '600' }}>다른 음식</Text>
-            </Pressable>
-            <Pressable accessibilityRole="button" onPress={save} disabled={saving} style={[styles.primary, { backgroundColor: c.sky }, saving && { opacity: 0.5 }]}>
-              <Text style={styles.primaryText}>{saving ? (replacing ? '바꾸는 중' : '담는 중') : replacing ? '바꾸기' : '담기'}</Text>
-            </Pressable>
-          </View>
-        </View>
+        <ScrollView contentContainerStyle={[{ paddingHorizontal: 16, paddingBottom: inset.bottom + 24 }, READABLE]} keyboardShouldPersistTaps="handled">
+          <PickPanel
+            key={`${chosen.source}:${chosen.id ?? chosen.name}`}
+            food={chosen}
+            amount={amount}
+            setAmount={setAmount}
+            favorite={canFavorite(chosen) ? favSet.has(favKey(chosen)) : null}
+            onFavorite={() => void toggleFavorite(chosen)}
+            error={error}
+            saving={saving}
+            replacing={!!replacing}
+            onCancel={() => {
+              setPicked(null);
+              setScanned(null);
+            }}
+            onSave={() => void save()}
+            c={c}
+          />
+        </ScrollView>
       ) : (
         <>
           <View style={{ paddingHorizontal: 16, paddingBottom: 8 }}>
@@ -464,7 +470,22 @@ export default function NutritionAddScreen() {
                         </>
                       ) : null}
                       {day.mine.length > 0 && !replacing && comboList.length > 0 ? <Text style={[styles.section, { color: c.muted }]}>음식</Text> : null}
-                      {day.mine.slice(0, LIMIT).map((f, i) => row(f, `y${i}`))}
+                      {day.mine.slice(0, LIMIT).map((f, i) => (
+                        <View key={`y${i}`} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                          <View style={{ flex: 1 }}>{row(f, `yr${i}`)}</View>
+                          {f.id ? (
+                            confirmMine === f.id ? (
+                              <Pressable accessibilityRole="button" onPress={() => void removeMine(f)} style={[styles.del, { backgroundColor: withAlpha(c.danger, 0.12) }]}>
+                                <Text style={{ color: c.danger, fontSize: 13, fontWeight: '700' }}>지우기</Text>
+                              </Pressable>
+                            ) : (
+                              <Pressable accessibilityRole="button" accessibilityLabel={`${f.name} 내 음식에서 빼기`} onPress={() => setConfirmMine(f.id)} style={styles.delIcon}>
+                                <Icon name="trash2" size={16} color={c.muted} />
+                              </Pressable>
+                            )
+                          ) : null}
+                        </View>
+                      ))}
                     </>
                   )
                 ) : null}
@@ -497,13 +518,9 @@ const styles = StyleSheet.create({
   input: { height: 44, borderRadius: 12, paddingHorizontal: 14, fontSize: 17 },
   section: { fontSize: 13, fontWeight: '600', paddingTop: 10, paddingBottom: 2 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 56, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 8 },
-  pick: { borderRadius: 20, padding: 16, gap: 12 },
-  amounts: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
-  amount: { minWidth: 48, height: 40, borderRadius: 20, paddingHorizontal: 12, alignItems: 'center', justifyContent: 'center' },
-  ghost: { flex: 1, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center' },
-  primary: { flex: 1, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center' },
-  primaryText: { color: '#fff', fontSize: 17, fontWeight: '600' },
   plus: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
+  del: { height: 36, borderRadius: 10, paddingHorizontal: 10, justifyContent: 'center' },
+  delIcon: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
   customBtn: { minHeight: 48, borderRadius: 14, borderWidth: 1, borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center' },
   added: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, paddingTop: 10, borderTopWidth: StyleSheet.hairlineWidth },
   done: { height: 40, borderRadius: 20, paddingHorizontal: 16, alignItems: 'center', justifyContent: 'center' },

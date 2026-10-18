@@ -41,6 +41,7 @@ export type NutritionDay = {
   combos?: MealComboView[];
   browseSubs?: Record<string, Record<string, number>>;
   popular?: RankedFood[];
+  favorites?: string[];
 };
 export type NutritionAnswer = { appetite: number | null; mealAmount: string | null; skippedMeals: string[] };
 type Result = { ok: true } | { ok: false; error: string };
@@ -181,6 +182,10 @@ export const makePlan = (date: string, place: Place, hot: boolean, variant: numb
 export const eatPlan = (date: string, keys: string[]) => act(date, 'nutrition.eatPlanItems', date, keys);
 export const clearPlan = (date: string) => act(date, 'nutrition.clearMealPlan', date);
 
+/** ★ 내 음식에 두기 · 풀기(웹 toggleFavorite — 같은 서버 동작) · 내 음식 지우기(웹 removeMine) */
+export const favoriteFood = (date: string, food: Food) => act(date, 'nutrition.saveUserFood', toFoodInput(food));
+export const unfavoriteFood = (date: string, food: Food) => act(date, 'nutrition.unfavoriteFood', food.source, food.id);
+export const deleteMyFood = (date: string, id: string) => act(date, 'nutrition.deleteUserFood', id);
 /** 조합 — 저장 · 지우기 · 담은 횟수(웹과 같은 서버 동작 nutrition.saveMealCombo · deleteMealCombo · markComboUsed) */
 export const saveCombo = (date: string, name: string, meal: MealKey, items: ComboItem[]) => act(date, 'nutrition.saveMealCombo', { name, meal, items });
 export const deleteCombo = (date: string, id: string) => act(date, 'nutrition.deleteMealCombo', id);

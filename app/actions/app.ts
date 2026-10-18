@@ -163,6 +163,8 @@ export async function loadAppNutrition(date: string): Promise<
       combos: MealComboView[];
       browseSubs: Record<string, Record<string, number>>;
       popular: RankedFood[];
+      /** ★ 내 음식에 둔 기본 · 식약처 · 바코드 음식의 열쇠('source:id') — 담기 화면의 '내 음식에 두기' */
+      favorites: string[];
     }
   | { ok: false; error: string; to?: string }
 > {
@@ -201,6 +203,7 @@ export async function loadAppNutrition(date: string): Promise<
     combos: day.combos,
     browseSubs: day.browseSubs,
     popular: day.popular,
+    favorites: day.favorites,
   };
 }
 
