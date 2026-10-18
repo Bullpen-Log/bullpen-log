@@ -3,7 +3,9 @@ import { Toaster } from '~/shell/toast';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
+import { Appearance } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { usePrefs } from '~/lib/prefs';
 import { useTheme } from '~/lib/ui';
 
 /** 사이트 첫 화면이 그려질 때까지 시작 화면을 둔다(index.tsx 가 걷는다) — 흰 화면이 번쩍이지 않게 */
@@ -43,6 +45,11 @@ export default function RootLayout() {
   useEffect(() => {
     if (path !== '/') void SplashScreen.hideAsync();
   }, [path]);
+  /* 자판 · 동작 시트 · 날짜 바퀴 같은 기기 UI 도 설정 테마를 따른다(다크를 골랐는데 기기가 라이트면 자판이 하얗게 떴다). '자동'이면 기기 그대로 */
+  const pick = usePrefs().theme;
+  useEffect(() => {
+    Appearance.setColorScheme(pick === 'system' ? 'unspecified' : pick === 'light' ? 'light' : 'dark');
+  }, [pick]);
   return (
     /* 밀어서 하기(shell/swipe-row.tsx) 같은 손가락 동작 부품은 이 뿌리 안에서만 돈다 */
     <GestureHandlerRootView style={{ flex: 1 }}>
