@@ -56,7 +56,7 @@ export default function WarmupRoutineScreen() {
         >
           <LibraryTabs active="warmup" c={c} />
           {/* 웹 /library/warmup 머리 카드와 같은 글 */}
-          <View style={{ backgroundColor: c.card, borderRadius: 16, padding: 16, gap: 6 }}>
+          <View style={{ backgroundColor: c.card, boxShadow: c.float, borderRadius: 16, padding: 16, gap: 6 }}>
             <Text style={{ color: c.ink, fontSize: 15, fontWeight: '700' }}>워밍업은 고정이에요</Text>
             <Text style={{ color: c.muted, fontSize: 14, lineHeight: 20 }}>
               날마다 새로 뽑지 않아요. 운동을 시작하면 본운동 전에 공통 루틴(몸 데우기 · 동적 가동)과 오늘 목적에 맞는 루틴 하나가 차례로 떠요. 체크만 하고, 운동 시간과 운동량에는 안 들어가요.

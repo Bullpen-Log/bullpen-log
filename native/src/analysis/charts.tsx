@@ -238,7 +238,7 @@ export function TrendCardView({
   const change = card.change;
 
   return (
-    <View style={[st.cell, { backgroundColor: c.card }]}>
+    <View style={[st.cell, { backgroundColor: c.card, boxShadow: c.float }]}>
       <View style={st.cellHead}>
         <SymbolView name={icon} size={13} tintColor={c.sky} />
         <Text numberOfLines={1} style={[st.smallBold, { color: c.sky, flex: 1 }]}>

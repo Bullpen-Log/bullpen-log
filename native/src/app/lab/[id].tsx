@@ -173,12 +173,12 @@ export default function LabScreen() {
                     data.waiting && <Waiting waiting={data.waiting} />
                   )}
                   {r?.stale && !active && (
-                    <View style={[s.notice, { backgroundColor: c.card, borderColor: c.line }]}>
+                    <View style={[s.notice, { backgroundColor: c.card, boxShadow: c.float, borderColor: c.line }]}>
                       <Text style={[s.small, { color: c.ink, flex: 1 }]}>엔진이 나아졌어요. 다시 분석하면 새 엔진으로 볼 수 있어요.</Text>
                     </View>
                   )}
                   {r && active && (
-                    <View style={[s.notice, { backgroundColor: c.card, borderColor: c.line }]}>
+                    <View style={[s.notice, { backgroundColor: c.card, boxShadow: c.float, borderColor: c.line }]}>
                       <Text style={[s.small, { color: c.ink, flex: 1 }]}>다시 분석 중이에요. 끝날 때까지 이전 결과를 보여 줘요.</Text>
                     </View>
                   )}
@@ -215,7 +215,7 @@ export default function LabScreen() {
                       {r ? (
                         <>
                           <Text style={[s.small, { color: c.muted }]}>숫자는 아직 참고용이에요. 누르면 그 순간으로 가요.</Text>
-                          <View style={[s.list, { backgroundColor: c.card }]}>
+                          <View style={[s.list, { backgroundColor: c.card, boxShadow: c.float }]}>
                             {r.rows.map((m, i) => (
                               <Pressable
                                 key={m.key}
@@ -318,7 +318,7 @@ function RequestPanel({ id, req, hasResult, onStarted, c }: { id: string; req: A
   return (
     <View style={{ gap: 10 }}>
       {req.fix ? (
-        <View style={[s.notice, { backgroundColor: c.card, borderColor: c.line, flexDirection: 'column', alignItems: 'flex-start', gap: 4 }]}>
+        <View style={[s.notice, { backgroundColor: c.card, boxShadow: c.float, borderColor: c.line, flexDirection: 'column', alignItems: 'flex-start', gap: 4 }]}>
           <Text style={[s.small, { color: c.ink }]}>{req.fix}</Text>
           {req.fixSection ? (
             <Pressable onPress={() => router.push(`/lab/guide?s=${req.fixSection}` as Href)} accessibilityRole="link" hitSlop={6}>
@@ -373,7 +373,7 @@ function MechList({ c, mech, onJump }: { c: Palette; mech: Mech; onJump: (frame:
         <Text style={[s.section, { color: c.ink }]}>메커니즘 점검</Text>
         {mech.tentative && <Text style={[s.small, { color: c.muted }]}>한 구만 봐서 참고용</Text>}
       </View>
-      <View style={[s.list, { backgroundColor: c.card }]}>
+      <View style={[s.list, { backgroundColor: c.card, boxShadow: c.float }]}>
         {mech.items.map((it, i) => {
           const isOpen = open === it.key;
           const improve = it.status === 'improve';

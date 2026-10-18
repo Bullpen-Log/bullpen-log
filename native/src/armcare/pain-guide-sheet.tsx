@@ -58,13 +58,13 @@ function PainGuideBody({ pain, c, onRehab }: { pain: PainView; c: Palette; onReh
         </Text>
       )}
       <RedFlags c={c} />
-      <View style={[st.box, { backgroundColor: c.card }]}>
+      <View style={[st.box, { backgroundColor: c.card, boxShadow: c.float }]}>
         <Text style={[st.label, { color: c.sky }]}>오늘은</Text>
         <Text style={[st.body, { color: c.ink }]}>{advice.text}</Text>
       </View>
       <Text style={[st.small, { color: c.muted, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.line, paddingTop: 12 }]}>{DISCLAIMER}</Text>
       {REHAB_ENABLED ? (
-        <Pressable onPress={onRehab} accessibilityRole="button" style={[st.row, { backgroundColor: c.card }]}>
+        <Pressable onPress={onRehab} accessibilityRole="button" style={[st.row, { backgroundColor: c.card, boxShadow: c.float }]}>
           <View style={{ flex: 1 }}>
             <Text style={[st.body, { color: c.ink, fontWeight: '600' }]}>재활 프로그램</Text>
             <Text style={[st.small, { color: c.muted }]}>아픈 곳과 정도에 맞춰 몇 주에 걸쳐 단계별로 해요</Text>

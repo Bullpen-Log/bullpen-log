@@ -110,7 +110,7 @@ function ElementsTab({
         투구의 흐름
       </Text>
       <ElementChain current={open} onPick={(name) => openElement(name, null)} c={c} />
-      <View style={[s.card, { backgroundColor: c.card, paddingVertical: 6 }]}>
+      <View style={[s.card, { backgroundColor: c.card, boxShadow: c.float, paddingVertical: 6 }]}>
         <Fold label="왜 순서가 중요한가요" c={c}>
           <OverviewDetail c={c} />
         </Fold>

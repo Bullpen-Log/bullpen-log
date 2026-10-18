@@ -185,7 +185,7 @@ function Builder({ data, c }: { data: RoutineBuilderData; c: Palette }) {
               const e = byId.get(it.exerciseId);
               if (!e) return null;
               return (
-                <View key={it.exerciseId} style={[st.picked, { backgroundColor: c.card, borderColor: c.line }]}>
+                <View key={it.exerciseId} style={[st.picked, { backgroundColor: c.card, boxShadow: c.float, borderColor: c.line }]}>
                   <Text style={[s.smallBold, { color: c.muted, width: 20, textAlign: 'center' }]}>{i + 1}</Text>
                   <View style={{ flex: 1, gap: 4 }}>
                     <Text style={[s.bodyBold, { color: c.ink }]}>{e.view.title}</Text>
@@ -281,7 +281,7 @@ function PickRow({ e, inside, disabled, onToggle, c }: { e: BuilderExercise; ins
   const method = ex.method && !ex.title.includes(methodByKey(ex.method).label) ? methodByKey(ex.method).label : null;
   const line = [ex.prescription?.replace(/\s*·\s*세트 사이 [^·]+ 휴식/, ''), ex.equipment.join(' · ')].filter(Boolean).join(' · ');
   return (
-    <View style={[st.row, { backgroundColor: c.card, borderColor: inside ? c.sky : c.line }]}>
+    <View style={[st.row, { backgroundColor: c.card, boxShadow: c.float, borderColor: inside ? c.sky : c.line }]}>
       <View style={st.rowHead}>
         <View style={{ flex: 1, gap: 3 }}>
           <Text style={[s.bodyBold, { color: c.ink }]}>

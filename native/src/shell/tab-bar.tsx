@@ -51,11 +51,24 @@ const LIFT_SY = 0.28;
 
 /** 테마마다 알약 · 렌즈 · 글자 색 — globals.css [data-tab-bar] 의 --tab-base · --tab-edge · --lens-ink · --tab-on · --tab-off */
 function tabColors(theme: 'light' | 'dark' | 'navy', sky: string, muted: string) {
+  /* rim = 유리 가장자리 빛(위는 밝게 · 아래는 옅게), tint = 진짜 유리에 얹는 색, lensRim = 렌즈 캡슐의 빛 */
   if (theme === 'dark')
-    return { base: 'rgba(28,28,30,0.88)', edge: 'rgba(255,255,255,0.18)', lens: 'rgba(255,255,255,0.16)', on: '#ffffff', off: 'rgba(255,255,255,0.62)', shadow: '#000000' };
+    return {
+      base: 'rgba(28,28,30,0.88)', edge: 'rgba(255,255,255,0.18)', lens: 'rgba(255,255,255,0.16)', on: '#ffffff', off: 'rgba(255,255,255,0.62)', shadow: '#000000',
+      tint: 'rgba(0,0,0,0.18)', rim: 'inset 0 1px 0 rgba(255,255,255,0.28), inset 0 -1px 0 rgba(255,255,255,0.06), inset 0 0 0 0.5px rgba(255,255,255,0.16)',
+      lensRim: 'inset 0 1px 0 rgba(255,255,255,0.22), 0 2px 8px rgba(0,0,0,0.35)', drop: 0.55,
+    };
   if (theme === 'navy')
-    return { base: 'rgba(20,29,43,0.9)', edge: 'rgba(180,205,240,0.2)', lens: 'rgba(200,220,255,0.16)', on: '#7dd3fc', off: 'rgba(200,220,255,0.6)', shadow: '#030812' };
-  return { base: 'rgba(255,255,255,0.86)', edge: 'rgba(255,255,255,0.9)', lens: 'rgba(20,30,50,0.1)', on: sky, off: muted, shadow: '#141e32' };
+    return {
+      base: 'rgba(20,29,43,0.9)', edge: 'rgba(180,205,240,0.2)', lens: 'rgba(200,220,255,0.16)', on: '#7dd3fc', off: 'rgba(200,220,255,0.6)', shadow: '#030812',
+      tint: 'rgba(14,30,60,0.28)', rim: 'inset 0 1px 0 rgba(200,225,255,0.3), inset 0 -1px 0 rgba(200,225,255,0.06), inset 0 0 0 0.5px rgba(200,225,255,0.16)',
+      lensRim: 'inset 0 1px 0 rgba(220,235,255,0.25), 0 2px 8px rgba(0,0,0,0.35)', drop: 0.55,
+    };
+  return {
+    base: 'rgba(255,255,255,0.86)', edge: 'rgba(255,255,255,0.9)', lens: 'rgba(120,130,150,0.16)', on: sky, off: muted, shadow: '#141e32',
+    tint: undefined, rim: 'inset 0 1px 0 rgba(255,255,255,0.95), inset 0 -1px 0 rgba(255,255,255,0.35), inset 0 0 0 0.5px rgba(255,255,255,0.6)',
+    lensRim: 'inset 0 1px 0 rgba(255,255,255,0.7), 0 1px 4px rgba(20,30,50,0.1)', drop: 0.3,
+  };
 }
 
 export function TabBar({ tabs, active, onPress }: { tabs: ShellTab[]; active: string | null; onPress: (t: ShellTab) => void }) {
@@ -148,7 +161,7 @@ export function TabBar({ tabs, active, onPress }: { tabs: ShellTab[]; active: st
   const body = (
     <>
       {cell > 0 ? (
-        <Animated.View pointerEvents="none" style={[styles.lens, { width: cell, backgroundColor: col.lens }, lensStyle]} />
+        <Animated.View pointerEvents="none" style={[styles.lens, { width: cell, backgroundColor: col.lens, boxShadow: col.lensRim }, lensStyle]} />
       ) : null}
       {tabs.map((t) => {
         const on = active === t.href;
@@ -200,14 +213,26 @@ export function TabBar({ tabs, active, onPress }: { tabs: ShellTab[]; active: st
 
   return (
     <View pointerEvents="box-none" style={[styles.wrap, { paddingBottom: gap, paddingLeft: Math.max(20, inset.left), paddingRight: Math.max(20, inset.right) }]}>
-      <View style={[styles.shadow, { boxShadow: `0 10px 40px ${withAlpha(col.shadow, 0.22)}` }]} onLayout={(e) => setWidth(e.nativeEvent.layout.width)}>
+      {/* 떠 있는 겹 그림자(접촉 · 가까운 · 먼 그림자) — 바닥에서 떠 보이게 */}
+      <View
+        style={[
+          styles.shadow,
+          {
+            boxShadow: `0 1px 2px ${withAlpha(col.shadow, col.drop * 0.4)}, 0 8px 22px -4px ${withAlpha(col.shadow, col.drop * 0.8)}, 0 22px 48px -14px ${withAlpha(col.shadow, col.drop)}`,
+          },
+        ]}
+        onLayout={(e) => setWidth(e.nativeEvent.layout.width)}
+      >
         {glass ? (
-          <GlassView glassEffectStyle="regular" colorScheme={theme === 'light' ? 'light' : 'dark'} style={styles.pill}>
+          /* iOS 26 진짜 유리 — 누르면 유리가 손가락에 반응(isInteractive), 테마 색을 살짝 얹는다 */
+          <GlassView glassEffectStyle="regular" isInteractive tintColor={col.tint} colorScheme={theme === 'light' ? 'light' : 'dark'} style={styles.pill}>
             {row}
           </GlassView>
         ) : (
           <View style={[styles.pill, { backgroundColor: col.base, borderColor: col.edge, borderWidth: 1 }]}>{row}</View>
         )}
+        {/* 유리 가장자리 빛 — 위 테두리가 밝게 빛나 두께가 보인다(누르기는 그대로 지나간다) */}
+        <View pointerEvents="none" style={[StyleSheet.absoluteFill, { borderRadius: 999, boxShadow: col.rim }]} />
       </View>
     </View>
   );

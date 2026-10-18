@@ -79,7 +79,7 @@ export function HistoryPanel({
   const { history, note } = got;
   const { kind, days } = history;
   const noteBox = note ? (
-    <View style={[s.box, { backgroundColor: c.card, gap: 4 }]}>
+    <View style={[s.box, { backgroundColor: c.card, boxShadow: c.float, gap: 4 }]}>
       <Text style={[s.smallBold, { color: c.muted }]}>내 메모</Text>
       <Text selectable style={[s.body, { color: c.ink }]}>
         {note}
@@ -124,7 +124,7 @@ export function HistoryPanel({
       {/* 세 칸 높이를 같게(셋째 칸은 밑 줄이 없을 때가 많다 — 가운데로 떠 보였다) */}
       <View style={[s.row, { alignItems: 'stretch' }]}>
         {[first, second, third].map((x) => (
-          <View key={x.label} style={[st.stat, { backgroundColor: c.card }]}>
+          <View key={x.label} style={[st.stat, { backgroundColor: c.card, boxShadow: c.float }]}>
             <Text style={[s.tiny, { color: c.muted }]}>{x.label}</Text>
             <Text numberOfLines={1} style={[s.bodyBold, { color: c.ink }]}>
               {x.value}
@@ -181,7 +181,7 @@ export function HistoryPanel({
 
       <View style={{ gap: 6 }}>
         <Text style={[s.smallBold, { color: c.muted }]}>최근 기록</Text>
-        <View style={[st.list, { backgroundColor: c.card }]}>
+        <View style={[st.list, { backgroundColor: c.card, boxShadow: c.float }]}>
           {shown.map((x, i) => (
             <View key={x.date} style={[st.listRow, i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.line }]}>
               <View style={s.between}>

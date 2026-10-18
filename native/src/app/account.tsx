@@ -40,7 +40,7 @@ export default function AccountScreen() {
     <View style={{ flex: 1, backgroundColor: c.page }}>
       <Bar back="내 정보" title="계정" c={c} />
       <ScrollView contentContainerStyle={[{ padding: 16, gap: 22, paddingBottom: inset.bottom + 32 }, READABLE]} keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets>
-        <View style={[st.group, { backgroundColor: c.card }]}>
+        <View style={[st.group, { backgroundColor: c.card, boxShadow: c.float }]}>
           <ActionRow symbol="rectangle.portrait.and.arrow.right" label={leaving ? '로그아웃하는 중…' : '로그아웃'} onPress={() => void logout()} disabled={leaving} c={c} />
           <ActionRow symbol="key.fill" label="비밀번호 바꾸기" onPress={() => setOpen(open === 'pw' ? null : 'pw')} expanded={open === 'pw'} c={c} />
           <ActionRow symbol="person.fill.badge.minus" label="회원 탈퇴" danger onPress={() => setOpen(open === 'leave' ? null : 'leave')} expanded={open === 'leave'} last c={c} />

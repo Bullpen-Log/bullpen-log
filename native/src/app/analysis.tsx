@@ -225,7 +225,7 @@ function Highlights({ items, c }: { items: Highlight[]; c: Palette }) {
           disabled={!h.href}
           onPress={() => h.href && openHref(h.href)}
           accessibilityRole={h.href ? 'button' : 'text'}
-          style={({ pressed }) => [s.card, s.row, { backgroundColor: c.card }, pressed && { opacity: 0.7 }]}
+          style={({ pressed }) => [s.card, s.row, { backgroundColor: c.card, boxShadow: c.float }, pressed && { opacity: 0.7 }]}
         >
           <View style={{ flex: 1, gap: 2 }}>
             <Text style={[s.smallBold, { color: h.warn ? c.warn : c.muted }]}>{h.label}</Text>
@@ -365,7 +365,7 @@ function StatCell({
   c: Palette;
 }) {
   return (
-    <View style={[s.statCell, { backgroundColor: c.card }]}>
+    <View style={[s.statCell, { backgroundColor: c.card, boxShadow: c.float }]}>
       {/* 상태를 알리는 얇은 상단 선 */}
       {tone !== 'neutral' ? <View style={[s.statLine, { backgroundColor: toneColor(tone, c) }]} /> : null}
       <Text numberOfLines={1} style={[s.tiny, { color: c.muted, fontWeight: '600' }]}>
@@ -415,7 +415,7 @@ function GoodDays({ result, c }: { result: GoodDayResult; c: Palette }) {
   const feel = patterns.filter((p) => p.kind === 'feel');
   const rows = all.slice(0, 8);
   return (
-    <View style={[s.card, { backgroundColor: c.card }]}>
+    <View style={[s.card, { backgroundColor: c.card, boxShadow: c.float }]}>
       <View style={{ gap: 2 }}>
         <Text accessibilityRole="header" style={[s.cardTitle, { color: c.ink }]}>
           잘 던진 날
@@ -507,7 +507,7 @@ function Review({ review, armCareMissing, c }: { review: TrainingReview; armCare
     { label: '암케어 한 날', value: totals.armCareDays, alert: armCareMissing },
   ];
   return (
-    <View style={[s.card, { backgroundColor: c.card }]}>
+    <View style={[s.card, { backgroundColor: c.card, boxShadow: c.float }]}>
       <Text accessibilityRole="header" style={[s.cardTitle, { color: c.ink }]}>
         최근 {weeks.length}주
       </Text>

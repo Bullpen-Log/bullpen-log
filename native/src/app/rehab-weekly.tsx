@@ -100,7 +100,7 @@ function Flow({ d }: { d: AppRehabDetail }) {
     return (
       <StepFrame progress={1} counter="이번 주 확인" title="이번 주 확인을 남겼어요" problem={null} back={{ label: '', onPress: () => undefined, disabled: true }} next={{ label: '닫기', onPress: () => router.back() }} c={c}>
         {result.lines.map((line) => (
-          <View key={line} style={{ borderRadius: 12, padding: 12, backgroundColor: c.card }}>
+          <View key={line} style={{ borderRadius: 12, padding: 12, backgroundColor: c.card, boxShadow: c.float }}>
             <Text style={{ color: c.ink, fontSize: 15, lineHeight: 22 }}>{line}</Text>
           </View>
         ))}
@@ -157,7 +157,7 @@ function Flow({ d }: { d: AppRehabDetail }) {
       ) : (
         <View style={{ gap: 16 }}>
           {skipTest || (!test && !throwTest) ? (
-            <View style={{ borderRadius: 12, padding: 12, backgroundColor: c.card }}>
+            <View style={{ borderRadius: 12, padding: 12, backgroundColor: c.card, boxShadow: c.float }}>
               <Text style={{ color: c.ink, fontSize: 15 }}>오늘은 시험 없이 남겨요.</Text>
             </View>
           ) : throwTest ? (
@@ -167,7 +167,7 @@ function Flow({ d }: { d: AppRehabDetail }) {
             </>
           ) : !test ? null : (
             <>
-              <View style={{ borderRadius: 12, padding: 12, backgroundColor: c.card }}>
+              <View style={{ borderRadius: 12, padding: 12, backgroundColor: c.card, boxShadow: c.float }}>
                 <Text style={{ color: c.ink, fontSize: 15, lineHeight: 22 }}>{test.method}</Text>
               </View>
               <StageTestFields test={test} draft={draft} onChange={setDraft} firstEditable={false} c={c} />

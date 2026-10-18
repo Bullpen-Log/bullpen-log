@@ -76,9 +76,9 @@ export default function NoticeFormScreen() {
             multiline
             placeholder="알릴 내용을 적어 주세요"
             placeholderTextColor={c.muted}
-            style={[s.area, { backgroundColor: c.card, color: c.ink, minHeight: 280 }]}
+            style={[s.area, { backgroundColor: c.card, boxShadow: c.float, color: c.ink, minHeight: 280 }]}
           />
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 10, padding: 14, borderRadius: 14, backgroundColor: c.card }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 10, padding: 14, borderRadius: 14, backgroundColor: c.card, boxShadow: c.float }}>
             <View style={{ flex: 1 }}>
               <Text style={{ color: c.ink, fontSize: 16 }}>맨 위에 고정</Text>
               <Text style={[s.meta, { color: c.muted }]}>고정한 공지는 목록 맨 위에 늘 보여요.</Text>

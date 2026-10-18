@@ -43,7 +43,7 @@ export default function SettingsScreen() {
         </Section>
 
         <Section icon="info.circle" title="정보" desc="약관 · 출처 · 문의는 여기에 있어요." c={c}>
-          <View style={[st.group, { backgroundColor: c.card }]}>
+          <View style={[st.group, { backgroundColor: c.card, boxShadow: c.float }]}>
             <Row label="이용약관" onPress={() => open('/terms')} c={c} />
             <Row label="개인정보 처리방침" onPress={() => open('/privacy')} c={c} />
             <Row label="3D 모델 출처" onPress={() => setCredit((v) => !v)} open={credit} c={c} />

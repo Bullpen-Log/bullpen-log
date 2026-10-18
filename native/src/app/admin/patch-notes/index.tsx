@@ -107,7 +107,7 @@ export default function PatchNotesScreen() {
                     {monthLabel(g.month)} <Text style={{ fontWeight: '400', opacity: 0.6 }}>{g.list.length}장</Text>
                   </Text>
                 ) : null}
-                <View style={[s.group, { backgroundColor: c.card }]}>
+                <View style={[s.group, { backgroundColor: c.card, boxShadow: c.float }]}>
                   {g.list.map((n, i) => (
                     <Row key={n.id} onPress={() => router.push(`/admin/patch-notes/${n.id}` as Href)} last={i === g.list.length - 1} c={c}>
                       <Text style={[s.meta, { color: c.sky, fontWeight: '600' }]}>

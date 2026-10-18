@@ -143,7 +143,7 @@ export function Muscle3D({ name, area, onPick, c }: { name?: string; area?: stri
     }
   };
   return (
-    <View style={[st.map, { backgroundColor: c.card }]}>
+    <View style={[st.map, { backgroundColor: c.card, boxShadow: c.float }]}>
       <RefWebView
         ref={web}
         source={{ uri: url }}

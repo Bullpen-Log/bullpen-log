@@ -289,7 +289,7 @@ export default function NutritionAddScreen() {
         setPicked(f);
         setAmount(1);
       }}
-      style={({ pressed }) => [styles.row, { backgroundColor: c.card }, pressed && { opacity: 0.6 }]}
+      style={({ pressed }) => [styles.row, { backgroundColor: c.card, boxShadow: c.float }, pressed && { opacity: 0.6 }]}
     >
       <View style={{ flex: 1 }}>
         <Text style={{ color: c.ink, fontSize: 15, fontWeight: '600' }} numberOfLines={1}>
@@ -409,7 +409,7 @@ export default function NutritionAddScreen() {
                     accessibilityRole="button"
                     onPress={() => void addYesterday()}
                     disabled={quick != null}
-                    style={({ pressed }) => [styles.row, { backgroundColor: c.card }, pressed && { opacity: 0.6 }]}
+                    style={({ pressed }) => [styles.row, { backgroundColor: c.card, boxShadow: c.float }, pressed && { opacity: 0.6 }]}
                   >
                     <View style={{ flex: 1 }}>
                       <Text style={{ color: c.ink, fontSize: 15, fontWeight: '600' }}>어제 {mealLabel(mealKey)}과 같이 담기</Text>

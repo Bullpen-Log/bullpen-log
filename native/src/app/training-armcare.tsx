@@ -89,7 +89,7 @@ function TodayTab({ data, fresh, reload, c }: { data: AppArmcareTodayTab; fresh:
         {custom.kind === 'rehab' ? (
           <RehabCard rehab={custom.rehab} dateKey={data.dateKey} c={c} />
         ) : custom.kind === 'checkin' ? (
-          <View style={[s.card, { backgroundColor: c.card }]}>
+          <View style={[s.card, { backgroundColor: c.card, boxShadow: c.float }]}>
             <Text style={[s.bodyBold, { color: c.ink, fontSize: 17 }]}>오늘 체크인을 먼저 남겨 주세요</Text>
             <Text style={[s.body, { color: c.muted }]}>30초면 돼요. 몸 상태를 보고 루틴을 짜요.</Text>
             <Pressable
@@ -133,7 +133,7 @@ function TodayTab({ data, fresh, reload, c }: { data: AppArmcareTodayTab; fresh:
           <Text style={[s.small, s.box, { color: c.warn, backgroundColor: c.warnBg }]}>오늘 통증을 남기셨어요. 쉬는 걸 권해요.</Text>
         ) : null}
         {data.routines.length === 0 ? (
-          <View style={[s.card, { backgroundColor: c.card, gap: 6 }]}>
+          <View style={[s.card, { backgroundColor: c.card, boxShadow: c.float, gap: 6 }]}>
             <Text style={[s.bodyBold, { color: c.ink }]}>아직 만든 루틴이 없어요</Text>
             <Text style={[s.small, { color: c.muted }]}>자주 하는 운동만 골라 이름을 붙여 두세요.</Text>
           </View>
@@ -152,7 +152,7 @@ function TodayTab({ data, fresh, reload, c }: { data: AppArmcareTodayTab; fresh:
           ))
         )}
         {data.routines.length < data.routineMax ? (
-          <Pressable onPress={() => router.push('/training/routine/new' as Href)} accessibilityRole="button" style={[s.webRow, { backgroundColor: c.card }]}>
+          <Pressable onPress={() => router.push('/training/routine/new' as Href)} accessibilityRole="button" style={[s.webRow, { backgroundColor: c.card, boxShadow: c.float }]}>
             <Text style={[s.body, { color: c.ink, flex: 1 }]}>새 루틴 만들기</Text>
             <SymbolView name="chevron.right" size={13} weight="semibold" tintColor={c.muted} />
           </Pressable>
@@ -213,7 +213,7 @@ function CustomRoutine({
 
   if (!routine) {
     return (
-      <View style={[s.card, { backgroundColor: c.card, borderWidth: 1, borderColor: c.sky + '40' }]}>
+      <View style={[s.card, { backgroundColor: c.card, boxShadow: c.float, borderWidth: 1, borderColor: c.sky + '40' }]}>
         <Text style={[s.title, { color: c.ink }]}>오늘은 {decision.label}을 권해요</Text>
         <Text style={[s.bodyBold, { color: c.sky }]}>{decision.reason}</Text>
         {extra}
@@ -234,7 +234,7 @@ function CustomRoutine({
   const unsafeCount = routine.items.filter((it) => it.unsafe).length;
   return (
     <View style={{ gap: 10 }}>
-      <View style={[s.card, { backgroundColor: c.card, borderWidth: 1, borderColor: c.sky + '40' }]}>
+      <View style={[s.card, { backgroundColor: c.card, boxShadow: c.float, borderWidth: 1, borderColor: c.sky + '40' }]}>
         <View style={s.between}>
           <Text style={[s.title, { color: c.ink, flexShrink: 1 }]}>오늘의 {routine.label}</Text>
           <Text style={[s.small, { color: c.muted }]}>
@@ -329,7 +329,7 @@ function RehabStartRow({ start, c }: { start: NonNullable<AppArmcareTodayTab['re
   if (start.area) q.set('area', start.area);
   if (start.level) q.set('level', String(start.level));
   return (
-    <Pressable onPress={() => router.push(`/rehab-start?${q}` as Href)} accessibilityRole="button" style={[s.webRow, { backgroundColor: c.card }]}>
+    <Pressable onPress={() => router.push(`/rehab-start?${q}` as Href)} accessibilityRole="button" style={[s.webRow, { backgroundColor: c.card, boxShadow: c.float }]}>
       <Text style={[s.body, { color: c.ink, flex: 1 }]}>
         팔이 아프면 · <Text style={{ color: c.sky, fontWeight: '600' }}>재활 프로그램</Text>
       </Text>

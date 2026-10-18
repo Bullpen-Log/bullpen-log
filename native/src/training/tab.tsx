@@ -216,7 +216,7 @@ function Card({
   const label =
     card.action?.kind === 'workout' ? (card.action.resume ? '이어서' : '시작') : card.action ? card.action.label : null;
   return (
-    <View style={[styles.card, { backgroundColor: c.card }]}>
+    <View style={[styles.card, { backgroundColor: c.card, boxShadow: c.float }]}>
       <Pressable accessibilityRole="button" accessibilityLabel={`${a.name}. ${card.status}`} onPress={onOpen} style={styles.row}>
         <View style={[styles.icon, { backgroundColor: c.sky }]}>
           <Icon name={a.glyph} size={24} color="#fff" />
@@ -306,7 +306,7 @@ function WeekLine({ week, c }: { week: TrainingWeekCounts; c: ReturnType<typeof 
   ];
   const none = cells.every(([, n]) => n === 0);
   return (
-    <View style={[styles.week, { backgroundColor: c.card }]}>
+    <View style={[styles.week, { backgroundColor: c.card, boxShadow: c.float }]}>
       {none ? (
         <Text style={{ color: c.muted, fontSize: 15 }}>이번 주는 아직 기록이 없어요.</Text>
       ) : (

@@ -128,7 +128,7 @@ export default function SignupScreen() {
         </View>
 
         {step === 'name' ? (
-          <View style={[st.group, { backgroundColor: c.card }]}>
+          <View style={[st.group, { backgroundColor: c.card, boxShadow: c.float }]}>
             <Input value={a.nickname} onChange={(t) => set({ nickname: t })} placeholder="이름(앱에서 부를 이름)" bad={bad('nickname')} maxLength={MAX_NICKNAME} textContentType="nickname" c={c} />
             <Input value={a.email} onChange={(t) => set({ email: t })} placeholder="이메일" bad={bad('email')} keyboardType="email-address" textContentType="username" autoComplete="email" c={c} />
             <Input value={a.password} onChange={(t) => set({ password: t })} placeholder="비밀번호(8자 이상)" bad={bad('password')} secure c={c} />
@@ -160,7 +160,7 @@ export default function SignupScreen() {
         ) : null}
 
         {step === 'body' ? (
-          <View style={[st.group, { backgroundColor: c.card }]}>
+          <View style={[st.group, { backgroundColor: c.card, boxShadow: c.float }]}>
             <UnitRow label="키" unit="cm" bad={bad('heightCm')} c={c}>
               <Num value={a.heightCm == null ? '' : String(a.heightCm)} onChange={(t) => { const v = t.replace(/\D/g, '').slice(0, 3); set({ heightCm: v ? Number(v) : null }); }} placeholder="175" width={72} label="키" c={c} />
             </UnitRow>
@@ -183,7 +183,7 @@ export default function SignupScreen() {
         ) : null}
 
         {step === 'terms' ? (
-          <View style={[st.group, { backgroundColor: c.card }]}>
+          <View style={[st.group, { backgroundColor: c.card, boxShadow: c.float }]}>
             <AgreeRow label="모두 동의" value={a.agreeTerms && a.agreePrivacy} onChange={(v) => set({ agreeTerms: v, agreePrivacy: v })} strong c={c} />
             <AgreeRow label="이용약관 동의(필수)" doc="terms" value={a.agreeTerms} onChange={(v) => set({ agreeTerms: v })} bad={bad('agreeTerms')} c={c} />
             <AgreeRow label="개인정보 처리방침 동의(필수)" doc="privacy" value={a.agreePrivacy} onChange={(v) => set({ agreePrivacy: v })} bad={bad('agreePrivacy')} last c={c} />

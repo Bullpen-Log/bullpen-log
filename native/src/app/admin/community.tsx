@@ -64,7 +64,7 @@ function ReportCard({ r, reload, c }: { r: Report; reload: () => void; c: Palett
   };
   const gone = r.kind == null;
   return (
-    <View style={{ borderRadius: 14, padding: 14, gap: 10, backgroundColor: c.card, opacity: r.resolvedAt ? 0.7 : 1 }}>
+    <View style={{ borderRadius: 14, padding: 14, gap: 10, backgroundColor: c.card, boxShadow: c.float, opacity: r.resolvedAt ? 0.7 : 1 }}>
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6 }}>
         <Badge text={gone ? '지워짐' : r.kind === 'comment' ? '댓글' : '글'} color={r.kind === 'post' ? c.sky : undefined} c={c} />
         <Badge text={r.reason} color={c.danger} c={c} />

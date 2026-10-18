@@ -26,13 +26,13 @@ const LIGHT = {
   dangerBg: '#fef2f2',
   dangerLine: '#fecaca',
   raised: '#ffffff',
-  /* 카드가 바탕 위에 떠 보이게 — 사이트 globals.css --card-float 네 겹(위 빛 · 가장자리 · 접촉 · 주변 그림자) */
+  /* 카드가 바탕 위에 떠 보이게 — 위 빛 · 가장자리 · 접촉 · 가까운 · 먼 그림자 다섯 겹(2026-10-19 김민: "플로팅 UI 처럼 입체적으로 떠 있는 느낌") */
   float:
-    'inset 0 1px 0 rgba(255,255,255,0.7), 0 0 0 0.5px rgba(20,30,50,0.06), 0 1px 2px rgba(20,30,50,0.05), 0 6px 16px -4px rgba(20,30,50,0.08), 0 22px 44px -14px rgba(20,30,50,0.12)',
+    'inset 0 1px 0 rgba(255,255,255,0.9), 0 0 0 0.5px rgba(20,30,50,0.07), 0 1px 2px rgba(20,30,50,0.07), 0 6px 14px -4px rgba(20,30,50,0.1), 0 18px 36px -12px rgba(20,30,50,0.16), 0 36px 64px -28px rgba(20,30,50,0.2)',
 };
 /* 다크 · 네이비 카드 — 검은 바탕이라 그림자 대신 가장자리 빛(사이트 :root[data-theme='dark'] 의 --card-float) */
 const FLOAT_DARK =
-  'inset 0 1px 0 rgba(255,255,255,0.07), 0 0 0 0.5px rgba(255,255,255,0.08), 0 1px 2px rgba(0,0,0,0.4), 0 8px 20px -6px rgba(0,0,0,0.5)';
+  'inset 0 1px 0 rgba(255,255,255,0.1), 0 0 0 0.5px rgba(255,255,255,0.1), 0 2px 4px rgba(0,0,0,0.5), 0 12px 28px -8px rgba(0,0,0,0.7), 0 28px 56px -20px rgba(0,0,0,0.75)';
 const DARK: typeof LIGHT = {
   page: '#000000',
   card: '#1c1c1e',

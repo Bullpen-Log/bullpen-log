@@ -222,7 +222,7 @@ function ItemCard({ it, disabled, onGun, onType, onRemove, c }: { it: Item; disa
   const status =
     it.state === 'saving' ? '저장하는 중…' : it.state === 'uploading' ? `영상 올리는 중 ${it.percent ?? 0}%` : it.state === 'done' ? '올렸어요' : null;
   return (
-    <View style={{ borderRadius: 14, padding: 12, gap: 8, backgroundColor: c.card }}>
+    <View style={{ borderRadius: 14, padding: 12, gap: 8, backgroundColor: c.card, boxShadow: c.float }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
         <Text style={[s.meta, { flex: 1, color: c.muted }]} numberOfLines={1}>
           {it.asset.fileName ?? '영상'} · {mb(it.asset.fileSize ?? 0)}

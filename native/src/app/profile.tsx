@@ -240,7 +240,7 @@ function Group({ title, footer, children, c }: { title: string; footer?: string;
   return (
     <View style={{ gap: 6 }}>
       <Text style={{ color: c.muted, fontSize: 13, fontWeight: '600', paddingHorizontal: 16 }}>{title}</Text>
-      <View style={{ backgroundColor: c.card, borderRadius: 14, overflow: 'hidden' }}>{children}</View>
+      <View style={{ backgroundColor: c.card, boxShadow: c.float, borderRadius: 14, overflow: 'hidden' }}>{children}</View>
       {footer ? <Text style={{ color: c.muted, fontSize: 13, lineHeight: 18, paddingHorizontal: 16 }}>{footer}</Text> : null}
     </View>
   );

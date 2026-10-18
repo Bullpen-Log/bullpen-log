@@ -91,7 +91,7 @@ function Body({ item, c }: { item: Exercise; c: Palette }) {
       ) : null}
       {rx ? <Text style={[s.bodyBold, { color: c.ink }]}>{rx}</Text> : null}
 
-      <View style={[s.card, { backgroundColor: c.card }]}>
+      <View style={[s.card, { backgroundColor: c.card, boxShadow: c.float }]}>
         {!desc ? (
           <ActivityIndicator />
         ) : desc.failed ? (

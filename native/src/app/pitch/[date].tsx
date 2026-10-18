@@ -130,7 +130,7 @@ export default function PitchDayScreen() {
                   );
                 if (editingId === l.id)
                   return (
-                    <View key={l.id} style={[styles.formBox, { backgroundColor: c.card, borderColor: c.line }]}>
+                    <View key={l.id} style={[styles.formBox, { backgroundColor: c.card, boxShadow: c.float, borderColor: c.line }]}>
                       <View style={{ gap: 4 }}>
                         <Text style={[styles.formTitle, { color: c.ink }]}>기록 수정</Text>
                         <Text style={{ color: c.muted, fontSize: 15 }}>영상도 함께 바꿀 수 있어요</Text>
@@ -210,7 +210,7 @@ export default function PitchDayScreen() {
           right={
             <>
               {future || !logs ? null : addOpen ? (
-                <View style={[styles.formBox, { backgroundColor: c.card, borderColor: c.line }]}>
+                <View style={[styles.formBox, { backgroundColor: c.card, boxShadow: c.float, borderColor: c.line }]}>
                   <View style={styles.formHead}>
                     <Text style={[styles.formTitle, { color: c.ink }]}>{day.length > 0 ? '기록 추가' : '이날 기록하기'}</Text>
                     {day.length > 0 ? (

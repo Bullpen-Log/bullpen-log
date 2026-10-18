@@ -235,7 +235,7 @@ export function NoteBox({
 
   if (writing)
     return (
-      <View style={[s.noteBox, { borderColor: c.sky, backgroundColor: c.card }]}>
+      <View style={[s.noteBox, { borderColor: c.sky, backgroundColor: c.card, boxShadow: c.float }]}>
         <View style={s.noteHead}>
           <Text style={[s.smallBold, { color: c.sky, flex: 1 }]}>내 메모</Text>
           <Pressable onPress={() => setDraft(null)} disabled={saving} style={s.noteBtn} accessibilityRole="button">
@@ -276,7 +276,7 @@ export function NoteBox({
       </Pressable>
     );
   return (
-    <Pressable onPress={open} accessibilityRole="button" style={[s.noteBox, { borderColor: c.line, backgroundColor: c.card }]}>
+    <Pressable onPress={open} accessibilityRole="button" style={[s.noteBox, { borderColor: c.line, backgroundColor: c.card, boxShadow: c.float }]}>
       <Text style={[s.tiny, { color: c.muted, fontWeight: '600' }]}>내 메모 · 고치기</Text>
       <Text style={[s.body, { color: c.ink }]}>{note}</Text>
     </Pressable>

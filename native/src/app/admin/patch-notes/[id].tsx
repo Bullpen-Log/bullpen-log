@@ -61,13 +61,13 @@ function Body({ note, c }: { note: Note; c: Palette }) {
       </View>
       <View style={{ flexDirection: 'row', gap: 8 }}>
         {stats.map((st) => (
-          <View key={st.label} style={{ flex: 1, borderRadius: 12, padding: 10, gap: 2, backgroundColor: c.card }}>
+          <View key={st.label} style={{ flex: 1, borderRadius: 12, padding: 10, gap: 2, backgroundColor: c.card, boxShadow: c.float }}>
             <Text style={[s.meta, { color: c.muted }]}>{st.label}</Text>
             <Text style={{ color: c.ink, fontSize: 16, fontWeight: '700', fontVariant: ['tabular-nums'] }}>{st.value}</Text>
           </View>
         ))}
       </View>
-      <View style={{ borderRadius: 14, padding: 14, gap: 12, backgroundColor: c.card }}>
+      <View style={{ borderRadius: 14, padding: 14, gap: 12, backgroundColor: c.card, boxShadow: c.float }}>
         <Text style={{ color: c.ink, fontSize: 15, fontWeight: '700' }}>한 일</Text>
         {note.commits.length === 0 ? (
           <Text style={[s.meta, { color: c.muted }]}>커밋 기록이 없어요.</Text>
@@ -85,7 +85,7 @@ function Body({ note, c }: { note: Note; c: Palette }) {
           multiline
           placeholder="메모"
           placeholderTextColor={c.muted}
-          style={[s.area, { backgroundColor: c.card, color: c.ink, minHeight: 140 }]}
+          style={[s.area, { backgroundColor: c.card, boxShadow: c.float, color: c.ink, minHeight: 140 }]}
         />
         {save.error ? <Text style={{ color: c.danger, fontSize: 14, fontWeight: '600' }}>{save.error}</Text> : null}
         <Pressable

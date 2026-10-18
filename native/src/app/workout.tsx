@@ -797,14 +797,14 @@ function Run({
             </Pressable>
           </View>
           {showForm && hasForm ? (
-            <View style={[s.formBox, { backgroundColor: c.card }]}>
+            <View style={[s.formBox, { backgroundColor: c.card, boxShadow: c.float }]}>
               {/* 운동마다 새 재생기 — 같은 자리라 앞 운동의 영상이 다음 운동에서도 돌지 않게. 웹 LibraryVideo 처럼 미리보기 그림 → 눌러 재생 */}
               <ExerciseMedia key={ex.id} path={ex.videoPath} referenceVideoId={ex.referenceVideoId} thumbUrl={ex.thumbUrl} aspectRatio={ex.aspectRatio} />
               {ex.description ? <Text style={[s.body, { color: c.ink }]}>{ex.description}</Text> : null}
             </View>
           ) : null}
           {showHistory ? (
-            <View style={[s.formBox, { backgroundColor: c.card }]}>
+            <View style={[s.formBox, { backgroundColor: c.card, boxShadow: c.float }]}>
               <HistoryPanel key={ex.id} exerciseId={ex.id} excludeSessionId={sessionId} unit={wUnit} c={c} />
             </View>
           ) : null}
@@ -826,7 +826,7 @@ function Run({
             {mine.length === 0 ? (
               <Text style={[s.empty, { backgroundColor: c.card, color: c.muted }]}>첫 세트를 마치면 여기에 쌓여요.</Text>
             ) : (
-              <View style={[s.setList, { backgroundColor: c.card }]}>
+              <View style={[s.setList, { backgroundColor: c.card, boxShadow: c.float }]}>
                 {mine.map((x, i) => {
                   const fixingThis = i === editIndex;
                   return (

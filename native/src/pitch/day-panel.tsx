@@ -60,7 +60,7 @@ export function PitchDayPanel({ date, logs }: { date: string; logs: PitchLog[] }
 
   const log = playing ? logs.find((l) => l.videoPaths.includes(playing)) : undefined;
   return (
-    <Animated.View entering={fadeIn} style={[styles.panel, { backgroundColor: c.card, borderColor: c.line }]}>
+    <Animated.View entering={fadeIn} style={[styles.panel, { backgroundColor: c.card, boxShadow: c.float, borderColor: c.line }]}>
       <View style={[styles.head, { borderBottomColor: c.line }]}>
         <Text style={{ flex: 1, color: c.ink, fontSize: 15, fontWeight: '700' }}>
           {spokenDate(date)}

@@ -422,7 +422,7 @@ export function AddSheet({ inPlanIds, onClose, c, a }: {
         <Chip c={c} label={chosen > 0 ? `조건 ${chosen}` : '조건 고르기'} on={filterOpen} onPress={() => setFilterOpen((v) => !v)} />
       </View>
       {filterOpen ? (
-        <View style={[s.card, { backgroundColor: c.card }]}>
+        <View style={[s.card, { backgroundColor: c.card, boxShadow: c.float }]}>
           {FILTERS.map((g) => (
             <View key={g.key} style={{ gap: 6 }}>
               <Text style={[s.smallBold, { color: c.muted }]}>{g.label}</Text>

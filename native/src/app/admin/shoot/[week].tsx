@@ -130,7 +130,7 @@ function WeekBody({ data, me, at, reload, c }: { data: Data; me: string; at: str
             : `${items.length}개 · 계획 0:15~${clockText(week.end)} · ${crews.length ? `${crews.join(' · ')} 두 사람이 공간을 나눠 동시에` : `자리 ${week.stations.length}곳`}${carried.length ? ` · 앞 주에서 넘어온 것 ${carried.length}개` : ''}`}
         </Text>
 
-        <View style={{ borderRadius: 14, padding: 14, gap: 12, backgroundColor: c.card }}>
+        <View style={{ borderRadius: 14, padding: 14, gap: 12, backgroundColor: c.card, boxShadow: c.float }}>
           <View style={{ flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' }}>
             <Text style={{ color: c.muted, fontSize: 14 }}>
               <Text style={{ color: c.ink, fontSize: 24, fontWeight: '700' }}>{count.done}</Text> / {count.total} 찍음
@@ -159,7 +159,7 @@ function WeekBody({ data, me, at, reload, c }: { data: Data; me: string; at: str
           </View>
         </View>
 
-        <View style={{ borderRadius: 14, padding: 14, gap: 8, backgroundColor: c.card }}>
+        <View style={{ borderRadius: 14, padding: 14, gap: 8, backgroundColor: c.card, boxShadow: c.float }}>
           <Text style={{ color: c.ink, fontSize: 15, fontWeight: '700' }}>챙길 기구</Text>
           <View style={s.chips}>
             {equipment.map((e) => (
@@ -189,7 +189,7 @@ function WeekBody({ data, me, at, reload, c }: { data: Data; me: string; at: str
           if (list.length === 0) return null;
           const sc = countOf(st.items, map);
           return (
-            <View key={st.warmup ? 'warmup' : st.station} style={[s.group, { backgroundColor: c.card }]}>
+            <View key={st.warmup ? 'warmup' : st.station} style={[s.group, { backgroundColor: c.card, boxShadow: c.float }]}>
               <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: 0.5, borderBottomColor: c.line }}>
                 <Text style={{ flex: 1, color: c.ink, fontSize: 15, fontWeight: '700' }} numberOfLines={2}>
                   {st.crew ? <Text style={{ color: c.sky }}>{st.crew} </Text> : null}
@@ -413,7 +413,7 @@ function DetailSheet({
         </Pressable>
         <Text style={[s.meta, { color: c.muted, marginTop: -6 }]}>촬영 모드에서 카메라로 찍거나 앨범에서 골라 잘라 올려요.</Text>
 
-        <View style={{ borderRadius: 14, padding: 14, gap: 8, backgroundColor: c.card }}>
+        <View style={{ borderRadius: 14, padding: 14, gap: 8, backgroundColor: c.card, boxShadow: c.float }}>
           {facts.map(([k, v]) => (
             <View key={k} style={{ flexDirection: 'row', gap: 12 }}>
               <Text style={{ color: c.muted, fontSize: 15, width: 56 }}>{k}</Text>

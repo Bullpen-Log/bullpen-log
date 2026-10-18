@@ -391,7 +391,7 @@ function MacroPresetStep({ ctx }: { ctx: StepCtx }) {
         invalid={invalid('macroPreset')}
         c={c}
       />
-      <View style={{ backgroundColor: c.card, borderRadius: 16, padding: 14, gap: 8 }}>
+      <View style={{ backgroundColor: c.card, boxShadow: c.float, borderRadius: 16, padding: 14, gap: 8 }}>
         <Text style={{ color: c.muted, fontSize: 13 }}>이렇게 나눠요 · 하루 {kcalText(t.base)}kcal(운동 없는 날)</Text>
         <MacroBar carbs={t.carbs} protein={t.protein} fat={t.fat} c={c} />
       </View>
@@ -562,7 +562,7 @@ function PlanStep({ ctx }: { ctx: StepCtx }) {
       </View>
       {floorNote(t) ? <Text style={{ color: c.muted, fontSize: 13 }}>{floorNote(t)}</Text> : null}
       {open ? (
-        <View style={{ backgroundColor: c.card, borderRadius: 16, padding: 14, gap: 8 }}>
+        <View style={{ backgroundColor: c.card, boxShadow: c.float, borderRadius: 16, padding: 14, gap: 8 }}>
           <Text style={{ color: c.muted, fontSize: 13, fontWeight: '600' }}>하루 목표(운동 전)</Text>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
             <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', borderRadius: 12, borderWidth: 1, borderColor: invalid('kcalTarget') ? c.danger : c.line, paddingHorizontal: 12 }}>
@@ -609,7 +609,7 @@ function PlanStep({ ctx }: { ctx: StepCtx }) {
         </Text>
       </View>
       {p.etaWeeks !== null && a.targetWeightKg !== null ? (
-        <View style={{ backgroundColor: c.card, borderRadius: 14, padding: 12, gap: 4 }}>
+        <View style={{ backgroundColor: c.card, boxShadow: c.float, borderRadius: 14, padding: 12, gap: 4 }}>
           {p.forecast.length > 1 ? <WeightForecast points={p.forecast} c={c} /> : null}
           <Text style={{ color: c.muted, fontSize: 13, lineHeight: 19, textAlign: 'center' }}>
             계획대로면 약 <Text style={{ color: c.ink, fontWeight: '600' }}>{p.etaWeeks}주</Text>, {dateText(periodDate(today, p.etaWeeks))}쯤 {kgText(a.targetWeightKg, unit)}
@@ -633,7 +633,7 @@ function MacroEditStep({ ctx }: { ctx: StepCtx }) {
   const t = p.targets;
   return (
     <View style={{ gap: 16 }}>
-      <View style={{ backgroundColor: c.card, borderRadius: 16, padding: 14, gap: 8 }}>
+      <View style={{ backgroundColor: c.card, boxShadow: c.float, borderRadius: 16, padding: 14, gap: 8 }}>
         <Text style={{ color: c.muted, fontSize: 13 }}>
           하루 <Text style={{ color: c.ink, fontWeight: '700' }}>{kcalText(t.base)}kcal</Text>
           {t.manual ? ' · 직접 정함' : ''}

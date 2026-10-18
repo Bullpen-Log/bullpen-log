@@ -102,7 +102,7 @@ export function VelocityDay({ date, logCount }: { date: string; logCount: number
         const cal = calibrationText({ scale: s.calScale, offset: s.calOffset, n: s.calPairs });
         const release = releaseOf(s);
         return (
-          <View key={s.id} style={[styles.session, { backgroundColor: c.card, borderColor: c.line }]}>
+          <View key={s.id} style={[styles.session, { backgroundColor: c.card, boxShadow: c.float, borderColor: c.line }]}>
             <View style={[styles.sessionHead, { borderBottomColor: c.line }]}>
               <View style={{ flex: 1, gap: 2 }}>
                 <Text style={{ color: c.muted, fontSize: 12 }}>

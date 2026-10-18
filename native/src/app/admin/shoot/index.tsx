@@ -30,7 +30,7 @@ export default function ShootHomeScreen() {
         >
           <Text style={{ color: c.muted, fontSize: 15, lineHeight: 21, paddingHorizontal: 4 }}>{data.description}</Text>
 
-          <View style={{ borderRadius: 14, padding: 16, gap: 16, backgroundColor: c.card }}>
+          <View style={{ borderRadius: 14, padding: 16, gap: 16, backgroundColor: c.card, boxShadow: c.float }}>
             <View style={{ alignItems: 'center' }}>
               <ShootGauge done={data.all.done} uploaded={data.uploaded} total={data.all.total} c={c} />
             </View>
@@ -108,7 +108,7 @@ export default function ShootHomeScreen() {
           {data.attention.length > 0 ? (
             <>
               <Text style={[s.label, { color: c.ink, fontSize: 15 }]}>다시 찍기 · 미룬 것 {data.attentionTotal ?? data.attention.length}개</Text>
-              <View style={[s.group, { backgroundColor: c.card }]}>
+              <View style={[s.group, { backgroundColor: c.card, boxShadow: c.float }]}>
                 {data.attention.map((a, i) => (
                   <Row
                     key={a.exerciseId}

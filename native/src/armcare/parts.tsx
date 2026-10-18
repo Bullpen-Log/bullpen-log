@@ -123,7 +123,7 @@ export function HowTo({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- 처음 그릴 때 한 번
   }, []);
   return (
-    <View style={[s.howTo, { backgroundColor: c.card }]}>
+    <View style={[s.howTo, { backgroundColor: c.card, boxShadow: c.float }]}>
       {inline ? null : <Pressable
         onPress={() => {
           setOpen((v) => !v);
@@ -264,7 +264,7 @@ export function RehabCheck({
   }
 
   return (
-    <View style={[s.rehab, { backgroundColor: c.card }]}>
+    <View style={[s.rehab, { backgroundColor: c.card, boxShadow: c.float }]}>
       <Text style={[s.rehabTitle, { color: c.ink }]}>오늘 어땠어요?</Text>
       <View style={{ gap: 6 }}>
         <Text style={[s.bodyBold, { color: c.ink }]}>시작할 때 지난번 운동 뒤 통증이 남아 있었어요?</Text>

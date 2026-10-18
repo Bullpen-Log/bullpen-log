@@ -56,7 +56,7 @@ export default function LabGuideScreen() {
         tops.current[id] = e.nativeEvent.layout.y;
         setLaid((n) => n + 1);
       }}
-      style={{ borderRadius: 14, padding: 14, gap: 12, backgroundColor: c.card }}
+      style={{ borderRadius: 14, padding: 14, gap: 12, backgroundColor: c.card, boxShadow: c.float }}
     >
       <Text style={{ color: c.ink, fontSize: 17, fontWeight: '600' }}>{LAB_GUIDE_SECTION_NAME[id]}</Text>
       {children}

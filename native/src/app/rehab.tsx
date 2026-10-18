@@ -192,7 +192,7 @@ function Detail({ rehab, dateKey, reload, c }: { rehab: AppRehabSummary; dateKey
       <Text style={[s.small, { color: c.muted }]}>담당 의사 · 치료사의 지시가 먼저예요.</Text>
 
       {pick ? (
-        <View style={{ gap: 10, padding: 14, borderRadius: 14, backgroundColor: c.card }}>
+        <View style={{ gap: 10, padding: 14, borderRadius: 14, backgroundColor: c.card, boxShadow: c.float }}>
           <Text style={[s.bodyBold, { color: c.ink }]}>{pick.kind === 'diagnosis' ? '진단 받았어요' : `단계 직접 바꾸기 · 지금 ${d.stage}단계`}</Text>
           {choices.map((o) => {
             const on = pick.value === o.value;
@@ -321,7 +321,7 @@ function ThrowingProgram({ t, reload, c }: { t: AppRehabThrowing; reload: () => 
 
 function Part({ title, children, c }: { title: string; children: React.ReactNode; c: Palette }) {
   return (
-    <View style={{ gap: 8, padding: 14, borderRadius: 14, backgroundColor: c.card }}>
+    <View style={{ gap: 8, padding: 14, borderRadius: 14, backgroundColor: c.card, boxShadow: c.float }}>
       <Text style={[s.smallBold, { color: c.sky }]}>{title}</Text>
       {children}
     </View>

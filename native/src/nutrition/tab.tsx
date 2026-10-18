@@ -250,7 +250,7 @@ export function NutritionTab({ today, bottom, onWebNutrition }: { today: string;
           ) : null}
         </Animated.View>
       ) : !error ? (
-        <View style={[styles.card, { backgroundColor: c.card, height: 180 }]} />
+        <View style={[styles.card, { backgroundColor: c.card, boxShadow: c.float, height: 180 }]} />
       ) : null}
 
       {day && isToday && t ? <PlanCard date={date} plan={day.mealPlan} busy={busy} run={run} kcal={t.kcal} protein={t.protein} state={day.planState ?? null} ageBand={day.ageBand} /> : null}
@@ -545,7 +545,7 @@ function PlanCard({
     );
     const childNote = ageBand != null && ageBand !== 'adult' && total.protein > (plan.context.target?.protein || 1) * 1.3;
     return (
-      <View style={[styles.card, { backgroundColor: c.card, gap: 8 }]}>
+      <View style={[styles.card, { backgroundColor: c.card, boxShadow: c.float, gap: 8 }]}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
           <View style={{ flex: 1, minWidth: 0 }}>
             <Text style={{ color: c.ink, fontSize: 15, fontWeight: '700' }}>오늘 식단</Text>

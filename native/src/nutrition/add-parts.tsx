@@ -30,7 +30,7 @@ export function ComboButton({ combo, busy, onAdd, c }: { combo: MealComboView; b
       accessibilityLabel={`${combo.name} 조합 한 번에 담기`}
       onPress={onAdd}
       disabled={busy}
-      style={({ pressed }) => [st.wide, { backgroundColor: c.card }, pressed && { opacity: 0.6 }]}
+      style={({ pressed }) => [st.wide, { backgroundColor: c.card, boxShadow: c.float }, pressed && { opacity: 0.6 }]}
     >
       <Icon name="layers" size={16} color={c.sky} />
       <View style={{ flex: 1, minWidth: 0 }}>
@@ -51,7 +51,7 @@ export function ComboRow({ combo, busy, onAdd, onRemove, c }: { combo: MealCombo
   const { names, totals } = comboLines(combo.items);
   const [confirm, setConfirm] = useState(false);
   return (
-    <View style={[st.row, { backgroundColor: c.card }]}>
+    <View style={[st.row, { backgroundColor: c.card, boxShadow: c.float }]}>
       <Pressable accessibilityRole="button" onPress={onAdd} style={{ flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
         <Icon name="layers" size={16} color={c.sky} />
         <View style={{ flex: 1, minWidth: 0 }}>

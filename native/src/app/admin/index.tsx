@@ -31,7 +31,7 @@ export default function AdminScreen() {
         >
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
             {data.stats.map((st) => (
-              <View key={st.label} style={{ flexBasis: '47%', flexGrow: 1, borderRadius: 14, padding: 14, backgroundColor: c.card, gap: 4 }}>
+              <View key={st.label} style={{ flexBasis: '47%', flexGrow: 1, borderRadius: 14, padding: 14, backgroundColor: c.card, boxShadow: c.float, gap: 4 }}>
                 <Text style={[s.meta, { color: c.muted }]}>{st.label}</Text>
                 <Text style={{ color: c.ink, fontSize: 26, fontWeight: '700', fontVariant: ['tabular-nums'] }}>
                   {st.value}
@@ -41,7 +41,7 @@ export default function AdminScreen() {
             ))}
           </View>
 
-          <View style={[s.group, { backgroundColor: c.card }]}>
+          <View style={[s.group, { backgroundColor: c.card, boxShadow: c.float }]}>
             <MenuRow icon="bubble.left.and.bubble.right" label="소통 관리" detail={data.openInquiries > 0 ? `답할 문의 ${data.openInquiries}` : '1:1 문의 · 공지'} onPress={() => router.push('/admin/support' as Href)} c={c} />
             <MenuRow icon="flag" label="커뮤니티 신고" detail={data.openReports > 0 ? `처리 전 ${data.openReports}` : '신고된 글 · 댓글'} onPress={() => router.push('/admin/community' as Href)} c={c} />
             <MenuRow icon="doc.text" label="패치노트" detail="누가 · 어느 날 무엇을 고쳤나" onPress={() => router.push('/admin/patch-notes' as Href)} c={c} />
@@ -54,7 +54,7 @@ export default function AdminScreen() {
               <Text style={[s.title, { color: c.ink }]}>회원 목록</Text>
               <Text style={[s.meta, { color: c.muted }]}>최근 가입순</Text>
             </View>
-            <View style={[s.group, { backgroundColor: c.card }]}>
+            <View style={[s.group, { backgroundColor: c.card, boxShadow: c.float }]}>
               {data.users.map((u, i) => (
                 <UserRow key={u.id} u={u} self={u.id === data.meId} last={i === data.users.length - 1} reload={reload} c={c} />
               ))}

@@ -55,7 +55,7 @@ export default function SupportScreen() {
           </Pressable>
 
           {/* 메일 — 로그인이 안 되는 사람도 닿을 수 있는 길(웹 꼬리말 · 약관과 같은 주소, 서버가 알려 준다) */}
-          <View style={[s.group, { backgroundColor: c.card, padding: 16, gap: 8 }]}>
+          <View style={[s.group, { backgroundColor: c.card, boxShadow: c.float, padding: 16, gap: 8 }]}>
             <Text style={{ color: c.ink, fontSize: 17, fontWeight: '700' }}>더 궁금한 게 있어요?</Text>
             <Text style={{ color: c.muted, fontSize: 15, lineHeight: 21 }}>
               자주 묻는 질문에 없으면 1:1 문의로 물어 주세요. 로그인이 안 될 때는 메일로도 받아요.
@@ -86,7 +86,7 @@ function Section({ title, more, children, c }: { title: string; more?: () => voi
           </Pressable>
         ) : null}
       </View>
-      <View style={[s.group, { backgroundColor: c.card }]}>{children}</View>
+      <View style={[s.group, { backgroundColor: c.card, boxShadow: c.float }]}>{children}</View>
     </View>
   );
 }

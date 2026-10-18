@@ -97,7 +97,7 @@ export default function NutritionStatsScreen() {
 
           <WeightCard day={data} unit={unit} onOpenGoal={() => setGoalOpen(true)} onChanged={changed} c={c} />
 
-          <View style={[st.card, { backgroundColor: c.card }]}>
+          <View style={[st.card, { backgroundColor: c.card, boxShadow: c.float }]}>
             <View style={st.cardHead}>
               <Text style={[st.cardTitle, { color: c.ink }]}>최근 7일</Text>
               <Text style={{ color: c.muted, fontSize: 12 }}>막대 = 먹은 칼로리 · 선 = 그날 목표</Text>
@@ -231,7 +231,7 @@ function WeightCard({
   }
 
   return (
-    <View style={[st.card, { backgroundColor: c.card }]}>
+    <View style={[st.card, { backgroundColor: c.card, boxShadow: c.float }]}>
       <View style={st.cardHead}>
         <Text style={[st.cardTitle, { color: c.ink }]}>체중</Text>
         <Text style={{ color: c.muted, fontSize: 13 }}>
@@ -348,7 +348,7 @@ function PlanCard({ day, unit, onOpenGoal, c }: { day: Stats; unit: WeightUnit; 
   const rule = ageRule(p.age);
 
   return (
-    <View style={[st.card, { backgroundColor: c.card }]}>
+    <View style={[st.card, { backgroundColor: c.card, boxShadow: c.float }]}>
       <View style={st.row}>
         <View style={{ flex: 1, gap: 2 }}>
           <Text style={[st.cardTitle, { color: c.ink }]}>

@@ -74,7 +74,7 @@ export default function PitchCompareScreen() {
                   accessibilityRole="checkbox"
                   accessibilityState={{ checked: n >= 0 }}
                   onPress={() => toggle(v)}
-                  style={[styles.row, { backgroundColor: c.card }]}
+                  style={[styles.row, { backgroundColor: c.card, boxShadow: c.float }]}
                 >
                   <View style={[styles.check, { borderColor: n >= 0 ? c.sky : c.line, backgroundColor: n >= 0 ? c.sky : 'transparent' }]}>
                     {n >= 0 ? <Text style={styles.checkText}>{n + 1}</Text> : null}

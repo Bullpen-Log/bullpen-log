@@ -72,7 +72,7 @@ export function CustomFood({
   );
 
   return (
-    <View style={[styles.box, { backgroundColor: c.card }]}>
+    <View style={[styles.box, { backgroundColor: c.card, boxShadow: c.float }]}>
       {field('음식 이름', name, setName, { placeholder: '예) 엄마표 제육볶음', max: FOOD_NAME_MAX })}
       {field('먹은 양 (선택)', serving, setServing, { placeholder: '1인분', max: 40 })}
       <View style={styles.row}>

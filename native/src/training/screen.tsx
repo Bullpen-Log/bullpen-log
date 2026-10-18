@@ -226,7 +226,7 @@ export function useJump(scroll: RefObject<ScrollViewInstance | null>, initial: s
 /** 웹으로 가는 줄 — 앱에 아직 없는 것(만들기 · 시험 · 3D 지도 등). 누르면 화면을 닫고 웹이 그 주소로 */
 export function WebRow({ label, href, c }: { label: string; href: string; c: Palette }) {
   return (
-    <Pressable onPress={() => leave(href)} accessibilityRole="link" style={[s.webRow, { backgroundColor: c.card }]}>
+    <Pressable onPress={() => leave(href)} accessibilityRole="link" style={[s.webRow, { backgroundColor: c.card, boxShadow: c.float }]}>
       <Text style={[s.body, { color: c.ink, flex: 1 }]}>{label}</Text>
       <SymbolView name="arrow.up.right" size={13} weight="semibold" tintColor={c.muted} />
     </Pressable>

@@ -1,5 +1,6 @@
 import { router, Stack, usePathname } from 'expo-router';
 import { Toaster } from '~/shell/toast';
+import { Intro, markAppReady } from '~/shell/intro';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
@@ -43,7 +44,10 @@ export default function RootLayout() {
   const path = usePathname();
   const theme = useTheme();
   useEffect(() => {
-    if (path !== '/') void SplashScreen.hideAsync();
+    if (path !== '/') {
+      void SplashScreen.hideAsync();
+      markAppReady();
+    }
   }, [path]);
   /* 자판 · 동작 시트 · 날짜 바퀴 같은 기기 UI 도 설정 테마를 따른다(다크를 골랐는데 기기가 라이트면 자판이 하얗게 떴다). '자동'이면 기기 그대로 */
   const pick = usePrefs().theme;
@@ -76,6 +80,8 @@ export default function RootLayout() {
       </Stack>
       {/* '저장했어요' 같은 잠깐 알림(웹 Toaster) — 쌓인 화면 위, 시계 밑 */}
       <Toaster />
+      {/* 시작 연출 — 웹 시작 연출과 같은 B → 이름(shell/intro.tsx), 사이트가 그려지면 걷힌다 */}
+      <Intro />
     </GestureHandlerRootView>
   );
 }

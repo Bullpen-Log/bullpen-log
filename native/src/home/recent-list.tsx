@@ -83,7 +83,7 @@ export function RecentList({ logs }: { logs: PitchLog[] | null }) {
           );
         })}
       </ScrollView>
-      <View style={[styles.box, { backgroundColor: c.card, borderColor: c.line }]}>
+      <View style={[styles.box, { backgroundColor: c.card, boxShadow: c.float, borderColor: c.line }]}>
         {months.map((g, gi) => {
           const open = isOpen(g.month);
           return (

@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Alert, Linking, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { tiltOf } from '@/lib/device-tilt';
@@ -26,6 +26,7 @@ import { decide, saveSession, shownKmh, statsOf, type NativePitch, type SessionC
 import { clearDraft, loadDraft, saveDraft } from '~/velocity/draft';
 import { ClipModal } from '~/velocity/clip-modal';
 import { PITCH_TYPES } from '@/lib/velocity-meta';
+import { CardButton, ChromeButton, ChromePill, GuideCard, InfoPill, LevelBubble, RED, Shutter, ShutterLabel, SideButton, SideGap } from '~/velocity/camera-ui';
 
 /**
  * 구속 측정(네이티브) — 3판: 설정(지난 설정 · 종류 · 카메라 자리) → 수평 → 스트라이크 존 → 측정(던짐 알림 → 클립 → 숨은 웹뷰 계산기) →
@@ -86,6 +87,9 @@ export default function VelocityScreen() {
   const [replay, setReplay] = useState<string | null>(null);
   /* 세션 날짜 — 보통 오늘, 맡겨 둔 세션을 이어 하면 그 날 */
   const [sessionDate, setSessionDate] = useState<string | null>(null);
+  /* 측정 시작 셔터를 눌렀나 — 웹처럼 카메라 화면에서 빨간 단추로 시작 */
+  const [live, setLive] = useState(false);
+  const [focusBusy, setFocusBusy] = useState(false);
 
   /* 재기 흐름(AppCapture)은 한 번 만들어 쥐고, 지금 값은 ref 로 읽는다 */
   const pitchesRef = useRef<NativePitch[]>([]);
@@ -142,6 +146,7 @@ export default function VelocityScreen() {
             if (s) setZone(s.zone);
             draftReady.current = true;
             setStep('measure');
+            setLive(true);
             setSheet(true);
           };
           const drop = () => {
@@ -232,10 +237,10 @@ export default function VelocityScreen() {
   useEffect(() => {
     const capture = captureRef.current;
     if (!capture || !info) return;
-    const armed = step === 'measure' && !sheet;
+    const armed = step === 'measure' && live && !sheet;
     capture.armed = armed;
     void DualCamera.setTrigger({ armed });
-  }, [step, sheet, info]);
+  }, [step, live, sheet, info]);
 
   const begin = (s: Pick<VelocitySetup, 'sessionType' | 'zone'>) => {
     setSessionType(s.sessionType);
@@ -244,6 +249,14 @@ export default function VelocityScreen() {
     void saveJson(SETUP_KEY, { ...DEFAULT_SETUP, sessionType: s.sessionType, cameraPos, zone: s.zone, savedAt: new Date().toISOString() });
   };
 
+  /* 위 왼쪽 단추 — 설정 단계면 앞 단계로, 측정이면 닫기 */
+  const PREV: Partial<Record<Step, Step>> = { camera: 'type', level: 'camera', zone: 'level' };
+  const back = () => {
+    const prev = PREV[step];
+    if (prev) return setStep(prev);
+    if (step === 'type' && stored) return setStep('ask');
+    close();
+  };
   const close = () => {
     if (!pitches.length) return router.back();
     Alert.alert('저장하지 않고 나갈까요?', `잰 공 ${pitches.length}개가 사라져요.`, [
@@ -310,120 +323,213 @@ export default function VelocityScreen() {
     setZone(fitZone(centerZone({ ...zone, w, h: zone.h * (w / zone.w) }), cameraPos, frame));
   };
 
-  return (
-    <View style={styles.root} onLayout={(e) => setView(e.nativeEvent.layout)}>
-      <DualCameraPreview style={StyleSheet.absoluteFill} />
-      <VelocityEngine ref={engine} />
-      {(step === 'zone' || step === 'measure') && zoneView ? (
-        <View
-          pointerEvents="none"
-          style={[
-            styles.zone,
-            {
-              left: zoneView.x * view.width,
-              top: zoneView.y * view.height,
-              width: zoneView.w * view.width,
-              height: zoneView.h * view.height,
-            },
-          ]}
-        />
-      ) : null}
+  const setupNo: Partial<Record<Step, [number, string]>> = { type: [1, '투구 종류'], camera: [2, '카메라 자리'], level: [3, '수평'], zone: [4, '스트라이크 존'] };
+  const no = setupNo[step];
+  const measuring = step === 'measure' && live;
+  const refocus = () => {
+    if (focusBusy) return;
+    setFocusBusy(true);
+    /* 존 가운데에 맞추고(먼 곳만) 잠근다 — 앱 시작 옵션과 같은 '먼 곳' */
+    void DualCamera.focus({ focus: { x: zone.x + zone.w / 2, y: zone.y + zone.h / 2 }, far: true })
+      .catch(() => undefined)
+      .finally(() => setTimeout(() => setFocusBusy(false), 600));
+  };
+  const showTips = () =>
+    Alert.alert(
+      '주의사항',
+      ['삼각대에 세워 흔들리지 않게 두세요.', '투수 뒤 약 1m, 미트까지 화면에 들어오게요.', '해를 마주 보지 않게, 밝은 곳에서 재요.', '2배 줌 그대로 두세요(앱이 맞춰요).', '미트 뒤 그물이 흔들리면 잘 못 재요.'].join('\n')
+    );
+  const statusDot = status.visible > 0 ? (status.status === 'analyzing' ? '#fbbf24' : RED) : '#34d399';
+  const statusText =
+    status.visible > 0 ? (status.status === 'analyzing' ? '구속 계산 중' : '투구를 인식했어요') : pitches.length ? `측정 중 · ${pitches.length}구` : '던지면 저절로 재요';
 
-      <View style={[styles.top, { paddingTop: inset.top + 8 }]}>
-        <Pressable accessibilityRole="button" accessibilityLabel="닫기" onPress={close} style={styles.close}>
-          <Text style={styles.closeText}>‹</Text>
-        </Pressable>
-        <View style={styles.pill}>
-          <Text style={styles.pillText}>
+  return (
+    <View style={styles.root}>
+      <View style={styles.finder} onLayout={(e) => setView(e.nativeEvent.layout)}>
+        <DualCameraPreview style={StyleSheet.absoluteFill} />
+        <VelocityEngine ref={engine} />
+        {(step === 'zone' || step === 'measure') && zoneView ? (
+          <View
+            pointerEvents="none"
+            style={[
+              styles.zone,
+              {
+                left: zoneView.x * view.width,
+                top: zoneView.y * view.height,
+                width: zoneView.w * view.width,
+                height: zoneView.h * view.height,
+              },
+            ]}
+          >
+            {/* 존 9칸 격자 — 웹 ZoneOverlay 처럼 */}
+            <View style={[styles.zoneLine, { left: '33.3%', top: 0, bottom: 0, width: 1 }]} />
+            <View style={[styles.zoneLine, { left: '66.6%', top: 0, bottom: 0, width: 1 }]} />
+            <View style={[styles.zoneLine, { top: '33.3%', left: 0, right: 0, height: 1 }]} />
+            <View style={[styles.zoneLine, { top: '66.6%', left: 0, right: 0, height: 1 }]} />
+          </View>
+        ) : null}
+
+        {/* 위 줄 — 뒤로 · 가운데 알약 · 재초점(웹 카메라 앱 꼴) */}
+        <View style={[styles.top, { paddingTop: inset.top + 6 }]}>
+          <ChromeButton icon={step === 'measure' ? 'x' : 'chevron-left'} label={step === 'measure' ? '닫기' : '뒤로'} onPress={back} />
+          <View style={styles.topMid}>
+            {no ? (
+              <ChromePill>
+                {no[0]}/4 · {no[1]}
+              </ChromePill>
+            ) : step === 'ask' ? (
+              <ChromePill>지난 설정</ChromePill>
+            ) : step === 'measure' ? (
+              <ChromePill dot={measuring ? statusDot : 'rgba(255,255,255,0.5)'}>{measuring ? statusText : '측정 준비'}</ChromePill>
+            ) : null}
+          </View>
+          {step !== 'measure' ? <ChromeButton icon="focus" label="초점 다시 맞추기" onPress={refocus} busy={focusBusy} disabled={!info} /> : <View style={{ width: 44 }} />}
+        </View>
+        {/* 둘째 줄 — 수평계 | 카메라 상태 */}
+        <View style={[styles.second, { top: inset.top + 58 }]}>
+          {tilt ? <LevelBubble roll={tilt.roll} pitch={tilt.pitch} rollOk={ROLL_OK} pitchOk={PITCH_OK} /> : <View />}
+          <InfoPill tone={error ? 'warn' : undefined}>
             {error
               ? '카메라 오류'
               : info
-                ? `${Math.min(info.mainWidth, info.mainHeight)}p · ${fps?.fps ?? Math.round(info.mainFps)}fps${fps?.dropped ? ` · 버림 ${fps.dropped}` : ''}`
+                ? `${Math.min(info.mainWidth, info.mainHeight)}p · ${fps?.fps ?? Math.round(info.mainFps)}fps · 2배${fps?.dropped ? ` · 버림 ${fps.dropped}` : ''}`
                 : '카메라 켜는 중'}
-          </Text>
+          </InfoPill>
         </View>
-        {step === 'measure' && status.visible > 0 ? (
-          <View style={[styles.pill, styles.live]}>
-            <Text style={styles.pillText}>{status.status === 'analyzing' ? '구속 계산 중' : '투구를 인식했어요'}</Text>
-          </View>
-        ) : null}
+
+        {/* 카메라 위 안내창 · 결과 — 뷰파인더 아래쪽 */}
+        <View style={styles.over} pointerEvents="box-none">
+          {blocked ? (
+            <GuideCard title={blocked} footer={<CardButton label="닫기" onPress={() => router.back()} />} />
+          ) : error && step !== 'measure' ? (
+            <GuideCard
+              title="카메라를 켜지 못했어요"
+              subtitle={error}
+              footer={
+                <>
+                  <CardButton label="닫기" tone={denied ? 'quiet' : 'sky'} onPress={() => router.back()} />
+                  {denied ? <CardButton label="설정 열기" onPress={() => void Linking.openSettings()} /> : null}
+                </>
+              }
+            />
+          ) : step === 'loading' ? null : step === 'ask' && stored ? (
+            <GuideCard
+              title="지난 설정으로 바로 시작할까요?"
+              subtitle={`${stored.sessionType} · 투수 뒤 · 2배 줌. 같은 자리에서 같은 방식으로 재면 카메라로 바로 가요.`}
+              footer={
+                <>
+                  <CardButton label="새 설정" tone="quiet" onPress={() => setStep('type')} />
+                  <CardButton label="이 설정으로 시작" onPress={() => begin(stored)} />
+                </>
+              }
+            />
+          ) : step === 'type' ? (
+            <GuideCard step={1} total={4} title="어떤 투구인가요?" subtitle="투구 기록을 남길 때 이 종류로 채워요." footer={<CardButton label="다음" onPress={() => setStep('camera')} />}>
+              <Chips items={SESSION_TYPES.filter((t) => !isRestSession(t.name)).map((t) => t.name)} value={sessionType} onChange={setSessionType} light />
+            </GuideCard>
+          ) : step === 'camera' ? (
+            <GuideCard
+              step={2}
+              total={4}
+              title="투수 뒤에 폰을 두세요"
+              subtitle="삼각대에 세워 투수 뒤 약 1m 에 두고, 미트까지 화면에 들어오게 해요. 2배 줌 · 기준 거리 20m 로 재요."
+              footer={<CardButton label="다음" onPress={() => setStep('level')} />}
+            />
+          ) : step === 'level' ? (
+            <GuideCard
+              step={3}
+              total={4}
+              ok={!!level}
+              title={level ? '수평이에요' : '폰을 수평으로 맞춰 주세요'}
+              subtitle={
+                tilt
+                  ? `좌우 ${tilt.roll.toFixed(1)}° · 앞뒤 ${tilt.pitch.toFixed(0)}°${level ? '' : '. 좌우 1.5° · 앞뒤 10° 안으로 맞춰요.'}`
+                  : '기울기를 읽는 중이에요.'
+              }
+              footer={<CardButton label="다음" onPress={() => setStep('zone')} />}
+            />
+          ) : step === 'zone' ? (
+            <GuideCard
+              step={4}
+              total={4}
+              title="스트라이크 존 크기를 맞춰 주세요"
+              subtitle="미트 자리의 존에 맞게 키우거나 줄여요."
+              footer={<CardButton label="완료" onPress={() => begin({ sessionType, zone })} />}
+            >
+              <View style={styles.row}>
+                <CardButton label="작게" tone="quiet" grow onPress={() => resizeZone(-1)} />
+                <CardButton label="크게" tone="quiet" grow onPress={() => resizeZone(1)} />
+              </View>
+            </GuideCard>
+          ) : last || notice || (error && step === 'measure') ? (
+            /* 방금 공 — 누르면 영상 다시 보기 */
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="방금 공 영상 다시 보기"
+              disabled={!last}
+              onPress={() => last && setReplay(last.clip.path)}
+              style={styles.result}
+            >
+              {last ? (
+                <View style={{ flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between' }}>
+                  <Text style={styles.big}>
+                    {shownKmh(last, fit).toFixed(1)}
+                    <Text style={styles.unit}> km/h</Text>
+                  </Text>
+                  {stats ? (
+                    <Text style={styles.statLine}>
+                      최고 {stats.max.toFixed(1)}
+                      {'\n'}평균 {stats.avg.toFixed(1)}
+                    </Text>
+                  ) : null}
+                </View>
+              ) : null}
+              {error && step === 'measure' ? <Text style={styles.error}>{error}</Text> : null}
+              {notice ? <Text style={styles.line}>{notice}</Text> : null}
+              {last ? <Text style={styles.hint}>눌러서 영상 다시 보기</Text> : null}
+            </Pressable>
+          ) : !live ? (
+            <InfoPill>빨간 단추를 누르면 측정을 시작해요</InfoPill>
+          ) : null}
+        </View>
       </View>
 
-      {blocked ? (
-        <Panel inset={inset.bottom} title={blocked}>
-          <Button label="닫기" onPress={() => router.back()} />
-        </Panel>
-      ) : error && step !== 'measure' ? (
-        <Panel inset={inset.bottom} title="카메라를 켜지 못했어요" body={error}>
-          {denied ? <Button label="설정 열기" onPress={() => void Linking.openSettings()} /> : null}
-          <Button label="닫기" kind={denied ? 'ghost' : 'primary'} onPress={() => router.back()} />
-        </Panel>
-      ) : step === 'loading' ? null : step === 'ask' && stored ? (
-        <Panel inset={inset.bottom} title="지난 설정으로 할까요?" body={`${stored.sessionType} · 투수 뒤`}>
-          <Button label="이 설정으로 시작" onPress={() => begin(stored)} />
-          <Button label="새로 설정" kind="ghost" onPress={() => setStep('type')} />
-        </Panel>
-      ) : step === 'type' ? (
-        <Panel inset={inset.bottom} title="어떤 투구인가요?" body="투구 기록을 남길 때 이 종류로 채워요.">
-          <Chips
-            items={SESSION_TYPES.filter((t) => !isRestSession(t.name)).map((t) => t.name)}
-            value={sessionType}
-            onChange={setSessionType}
-          />
-          <Button label="다음" onPress={() => setStep('camera')} />
-        </Panel>
-      ) : step === 'camera' ? (
-        <Panel
-          inset={inset.bottom}
-          title="투수 뒤에 폰을 두세요"
-          body="삼각대에 세워 투수 뒤 약 1m 에 두고, 미트까지 화면에 들어오게 해요. 2배 줌 · 기준 거리 20m 로 재요."
-        >
-          <Button label="다음" onPress={() => setStep('level')} />
-        </Panel>
-      ) : step === 'level' ? (
-        <Panel
-          inset={inset.bottom}
-          title={level ? '수평이에요' : '폰을 수평으로 맞춰 주세요'}
-          body={
-            tilt
-              ? `좌우 ${tilt.roll.toFixed(1)}° · 앞뒤 ${tilt.pitch.toFixed(0)}°${level ? '' : '. 좌우 1.5° · 앞뒤 10° 안으로'}`
-              : '기울기를 읽는 중이에요'
-          }
-          ok={!!level}
-        >
-          <Button label="다음" onPress={() => setStep('zone')} />
-        </Panel>
-      ) : step === 'zone' ? (
-        <Panel inset={inset.bottom} title="스트라이크 존 크기를 맞춰 주세요" body="미트 자리의 존에 맞게 키우거나 줄여요.">
-          <View style={styles.row}>
-            <Button label="작게" kind="ghost" onPress={() => resizeZone(-1)} flex />
-            <Button label="크게" kind="ghost" onPress={() => resizeZone(1)} flex />
-          </View>
-          <Button label="측정 시작" onPress={() => begin({ sessionType, zone })} />
-        </Panel>
-      ) : (
-        <View style={[styles.bottom, { paddingBottom: inset.bottom + 16 }]}>
-          {last ? (
-            <Pressable accessibilityRole="button" accessibilityLabel="방금 공 영상 다시 보기" onPress={() => setReplay(last.clip.path)}>
-              <Text style={styles.big}>
-                {shownKmh(last, fit).toFixed(1)}
-                <Text style={styles.unit}> km/h</Text>
-              </Text>
-              <Text style={styles.line}>눌러서 영상 다시 보기</Text>
-            </Pressable>
-          ) : (
-            <Text style={styles.line}>던지면 저절로 재요</Text>
-          )}
-          {error ? <Text style={styles.error}>{error}</Text> : null}
-          {notice ? <Text style={styles.line}>{notice}</Text> : null}
-          {stats ? (
-            <Text style={styles.line}>
-              {stats.n}구 · 최고 {stats.max.toFixed(1)} · 평균 {stats.avg.toFixed(1)}
-            </Text>
-          ) : null}
-          {pitches.length ? <Button label="세션 끝내기" onPress={() => setSheet(true)} /> : null}
-        </View>
-      )}
+      {/* 아래 검은 막대 — 옆 단추 · 셔터 · 옆 단추(웹 카메라 앱 꼴) */}
+      <View style={[styles.bar, { paddingBottom: Math.max(inset.bottom, 12) }]}>
+        {step === 'measure' && live ? (
+          <>
+            <SideButton icon="focus" label="초점" onPress={refocus} busy={focusBusy} disabled={!info} />
+            <View style={styles.mid}>
+              <Shutter state="stop" label="세션 종료" onPress={() => (pitches.length ? setSheet(true) : setLive(false))} />
+              <ShutterLabel>세션 종료{pitches.length ? ` · ${pitches.length}구` : ''}</ShutterLabel>
+            </View>
+            <SideButton icon="list" label="이전 공" onPress={() => setSheet(true)} disabled={!pitches.length} badge={pitches.length} />
+          </>
+        ) : step === 'measure' ? (
+          <>
+            <SideButton icon="info" label="주의사항" onPress={showTips} />
+            <View style={styles.mid}>
+              <Shutter state="ready" label="측정 시작" onPress={() => setLive(true)} disabled={!info} />
+              <ShutterLabel>측정 시작</ShutterLabel>
+            </View>
+            <SideButton icon="focus" label="초점" onPress={refocus} busy={focusBusy} disabled={!info} />
+          </>
+        ) : (
+          <>
+            {step === 'zone' ? (
+              <SideButton icon="rotate-ccw" label="기본 자리" onPress={() => setZone(fitZone(DEFAULT_SETUP.zone, cameraPos, frame))} />
+            ) : (
+              <SideButton icon="info" label="주의사항" onPress={showTips} />
+            )}
+            {/* 다음 · 완료는 카메라 위 안내창 안 — 셔터는 흐리게 자리만(웹과 같다) */}
+            <View style={styles.mid}>
+              <Shutter state="wait" label="설정을 마치면 측정해요" />
+              <ShutterLabel>측정</ShutterLabel>
+            </View>
+            <SideGap />
+          </>
+        )}
+      </View>
 
       <Modal visible={sheet} transparent animationType="slide" onRequestClose={() => setSheet(false)}>
         <View style={styles.scrim}>
@@ -499,28 +605,6 @@ export default function VelocityScreen() {
   );
 }
 
-function Panel({
-  title,
-  body,
-  ok,
-  inset,
-  children,
-}: {
-  title: string;
-  body?: string;
-  ok?: boolean;
-  inset: number;
-  children?: ReactNode;
-}) {
-  return (
-    <View style={[styles.panel, { marginBottom: inset + 16 }]}>
-      <Text style={[styles.panelTitle, ok ? styles.okText : null]}>{title}</Text>
-      {body ? <Text style={styles.panelBody}>{body}</Text> : null}
-      <View style={styles.panelActions}>{children}</View>
-    </View>
-  );
-}
-
 function Button({
   label,
   onPress,
@@ -584,33 +668,29 @@ function Chips({
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#000' },
-  zone: { position: 'absolute', borderWidth: 2, borderColor: 'rgba(255,255,255,0.85)', borderRadius: 4 },
-  top: { position: 'absolute', left: 0, right: 0, top: 0, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16 },
-  close: { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(0,0,0,0.45)', alignItems: 'center', justifyContent: 'center' },
-  closeText: { color: '#fff', fontSize: 28, lineHeight: 30 },
-  pill: { height: 32, paddingHorizontal: 12, borderRadius: 16, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'center' },
-  live: { backgroundColor: 'rgba(10,132,214,0.85)' },
-  pillText: { color: '#fff', fontSize: 13, fontWeight: '600' },
-  bottom: { position: 'absolute', left: 16, right: 16, bottom: 0, gap: 8 },
-  big: { color: '#fff', fontSize: 56, fontWeight: '700', fontVariant: ['tabular-nums'] },
+  finder: { flex: 1, overflow: 'hidden', borderBottomLeftRadius: 24, borderBottomRightRadius: 24 },
+  zone: { position: 'absolute', borderWidth: 2, borderColor: 'rgba(255,255,255,0.9)', borderRadius: 4, boxShadow: '0 0 0 1px rgba(0,0,0,0.35), inset 0 0 0 1px rgba(0,0,0,0.25)' },
+  zoneLine: { position: 'absolute', backgroundColor: 'rgba(255,255,255,0.45)' },
+  top: { position: 'absolute', left: 0, right: 0, top: 0, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12 },
+  topMid: { flex: 1, alignItems: 'center' },
+  second: { position: 'absolute', left: 12, right: 12, flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' },
+  over: { position: 'absolute', left: 12, right: 12, bottom: 12, alignItems: 'stretch' },
+  result: {
+    padding: 16,
+    borderRadius: 24,
+    backgroundColor: 'rgba(20,20,22,0.72)',
+    gap: 4,
+    boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.14), inset 0 0 0 0.5px rgba(255,255,255,0.12), 0 12px 30px -8px rgba(0,0,0,0.6)',
+  },
+  big: { color: '#fff', fontSize: 56, fontFamily: 'ui-rounded', fontWeight: '700', fontVariant: ['tabular-nums'], letterSpacing: -1 },
   unit: { fontSize: 20, fontWeight: '600' },
-  line: { color: '#fff', fontSize: 15, fontWeight: '600', textShadowColor: 'rgba(0,0,0,0.6)', textShadowRadius: 4 },
+  statLine: { color: 'rgba(255,255,255,0.75)', fontSize: 13, fontWeight: '600', textAlign: 'right', marginBottom: 10, fontVariant: ['tabular-nums'] },
+  line: { color: '#fff', fontSize: 15, fontWeight: '600' },
+  hint: { color: 'rgba(255,255,255,0.6)', fontSize: 12, fontWeight: '500' },
   error: { color: '#ff6b6b', fontSize: 15, fontWeight: '600' },
   errorDark: { color: '#d70015', fontSize: 15, fontWeight: '600' },
-  panel: {
-    position: 'absolute',
-    left: 16,
-    right: 16,
-    bottom: 0,
-    backgroundColor: 'rgba(28,28,30,0.92)',
-    borderRadius: 24,
-    padding: 20,
-    gap: 8,
-  },
-  panelTitle: { color: '#fff', fontSize: 20, fontWeight: '700' },
-  okText: { color: '#30d158' },
-  panelBody: { color: 'rgba(255,255,255,0.75)', fontSize: 15, lineHeight: 21 },
-  panelActions: { gap: 8, marginTop: 8 },
+  bar: { backgroundColor: '#000', paddingTop: 10, flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-around', paddingHorizontal: 12 },
+  mid: { alignItems: 'center' },
   row: { flexDirection: 'row', gap: 8 },
   button: { minHeight: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 16 },
   primary: { backgroundColor: '#0a84d6' },

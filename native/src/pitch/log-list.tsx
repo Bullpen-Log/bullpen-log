@@ -205,7 +205,7 @@ export function LogList({ logs, today, onReveal }: { logs: PitchLog[] | null; to
               if (el) spots.current.set(g.month, el);
             }}
             layout={LinearTransition.duration(260)}
-            style={[styles.month, { backgroundColor: c.card, borderColor: c.line }]}>
+            style={[styles.month, { backgroundColor: c.card, boxShadow: c.float, borderColor: c.line }]}>
             <Press
               accessibilityRole="button"
               accessibilityState={{ expanded: open }}
@@ -335,7 +335,7 @@ export function ComparePickBar({ bottom }: { bottom: number }) {
   const ready = !!picked[0]?.path && !!picked[1]?.path;
   return (
     <View pointerEvents="box-none" style={[styles.pickWrap, { bottom }]}>
-      <Animated.View entering={fadeIn} style={[styles.pickBar, { backgroundColor: c.card, borderColor: c.lineStrong }]}>
+      <Animated.View entering={fadeIn} style={[styles.pickBar, { backgroundColor: c.card, boxShadow: c.float, borderColor: c.lineStrong }]}>
         {[0, 1].map((i) => {
           const p = picked[i];
           return (

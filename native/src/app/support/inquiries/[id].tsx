@@ -66,7 +66,7 @@ export default function InquiryScreen() {
       <Bar back={q.staff ? '뒤로' : '1:1 문의'} c={c} />
       <ScrollView ref={scroll} contentContainerStyle={[{ padding: 16, gap: 12, paddingBottom: 24 }, READABLE]} keyboardShouldPersistTaps="handled">
         {/* 물음 */}
-        <View style={[s.group, { backgroundColor: c.card, padding: 16, gap: 10 }]}>
+        <View style={[s.group, { backgroundColor: c.card, boxShadow: c.float, padding: 16, gap: 10 }]}>
           <View style={{ flexDirection: 'row', gap: 6 }}>
             <Badge text={inquiryCategoryLabel(q.category)} c={c} />
             <StatusBadge status={q.status} c={c} />
@@ -106,7 +106,7 @@ export default function InquiryScreen() {
         ))}
 
         {closed ? (
-          <View style={[s.group, { backgroundColor: c.card, padding: 20, gap: 12, alignItems: 'center' }]}>
+          <View style={[s.group, { backgroundColor: c.card, boxShadow: c.float, padding: 20, gap: 12, alignItems: 'center' }]}>
             <SymbolView name="lock.fill" size={20} tintColor={c.muted} />
             <Text style={{ color: c.muted, fontSize: 15, textAlign: 'center' }}>종료된 문의예요. 더 물을 게 있으면 다시 열어 주세요.</Text>
             <Pressable accessibilityRole="button" onPress={() => setOpen(true)} disabled={send.busy} style={[s.pill, { backgroundColor: c.chip }]}>

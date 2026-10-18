@@ -66,7 +66,7 @@ function Body({ item, c }: { item: Drill; c: Palette }) {
         </Text>
       ) : null}
       <Tags items={[...(item.stage ? [item.stage] : []), ...item.equipment]} c={c} />
-      <View style={[s.card, { backgroundColor: c.card }]}>
+      <View style={[s.card, { backgroundColor: c.card, boxShadow: c.float }]}>
         {item.description ? (
           <Text selectable style={[s.body, { color: c.ink }]}>
             {item.description}

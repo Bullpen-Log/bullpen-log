@@ -68,7 +68,7 @@ export default function NewPostScreen() {
           multiline
           placeholder="자유롭게 적어 보세요."
           placeholderTextColor={c.muted}
-          style={[s.area, { backgroundColor: c.card, color: c.ink }]}
+          style={[s.area, { backgroundColor: c.card, boxShadow: c.float, color: c.ink }]}
         />
         <Text style={{ color: c.muted, fontSize: 13 }}>{POST_BODY_MAX}자까지 적을 수 있어요. 선수 · 팀 이름은 적지 않아요.</Text>
         {send.error ? <Text style={{ color: c.danger, fontSize: 15 }}>{send.error}</Text> : null}

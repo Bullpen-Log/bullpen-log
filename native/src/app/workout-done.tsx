@@ -146,7 +146,7 @@ export default function WorkoutDoneScreen() {
         </View>
 
         <Rise delay={750} still={still}>
-        <View style={[st.numbers, { backgroundColor: c.card }]}>
+        <View style={[st.numbers, { backgroundColor: c.card, boxShadow: c.float }]}>
           {numbers.map((n, i) => (
             <View key={n.label} style={[st.number, i > 0 && { borderLeftWidth: StyleSheet.hairlineWidth, borderLeftColor: c.line }]}>
               <Text style={[s.tiny, { color: c.muted }]}>{n.label}</Text>
@@ -298,7 +298,7 @@ function Section({ title, children, c }: { title: string; children: React.ReactN
   return (
     <View style={{ gap: 8 }}>
       <Text style={[s.smallBold, { color: c.muted, paddingHorizontal: 4 }]}>{title}</Text>
-      <View style={{ backgroundColor: c.card, borderRadius: 16, overflow: 'hidden' }}>{children}</View>
+      <View style={{ backgroundColor: c.card, boxShadow: c.float, borderRadius: 16, overflow: 'hidden' }}>{children}</View>
     </View>
   );
 }
@@ -336,7 +336,7 @@ function Effort({ sessionId, c }: { sessionId: string; c: Palette }) {
   const current = saved ?? picked;
   const level = saved ? EFFORT_LEVELS.find((l) => l.key === saved) : null;
   return (
-    <View style={[st.effort, { backgroundColor: c.card }]}>
+    <View style={[st.effort, { backgroundColor: c.card, boxShadow: c.float }]}>
       <View style={[s.between, { alignItems: 'center' }]}>
         <Text style={[s.bodyBold, { color: c.ink }]}>{saved ? '오늘 힘듦을 남겼어요' : '오늘 얼마나 힘들었나요?'}</Text>
         {saved ? (

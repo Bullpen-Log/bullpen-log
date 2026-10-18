@@ -69,7 +69,7 @@ export function Description({ guideId, inline = false, c }: { guideId: string; i
       </Text>
     ) : null;
   return (
-    <View style={[s.card, { backgroundColor: c.card }]}>
+    <View style={[s.card, { backgroundColor: c.card, boxShadow: c.float }]}>
       <Pressable
         onPress={() => {
           setOpen((v) => !v);
@@ -130,7 +130,7 @@ export function ThrowNoteCard({ note, c }: { note: DrillThrowNote; c: Palette })
     else setClosed(true);
   };
   return (
-    <View style={[s.note, { backgroundColor: c.card }]}>
+    <View style={[s.note, { backgroundColor: c.card, boxShadow: c.float }]}>
       <Text style={[s.bodyBold, { color: c.ink }]}>{DRILL_THROW_TEXT.line(note.throws)}</Text>
       <View style={s.row}>
         <Pressable
@@ -249,7 +249,7 @@ export function LevelOffer({
     }
   };
   return (
-    <View style={[s.block, { backgroundColor: c.card }]}>
+    <View style={[s.block, { backgroundColor: c.card, boxShadow: c.float }]}>
       {state === 'changed' ? (
         <Text style={[s.bodyBold, { color: c.ink }]}>
           {level.name} 프로그램으로 바꿨어요. 다음은 {level.name} 1번 세션이에요.

@@ -140,7 +140,7 @@ export function DoneView({ done, intensity, canResume, c, a }: {
 /** 다음 등판 한 줄(웹 OutingLine) — 짐작이면 '바꾸기'가 체크인을 연다 */
 export function OutingRow({ line, c, a }: { line: OutingLineText; c: Palette; a: TodayActions }) {
   return (
-    <View style={[st.lineCard, { backgroundColor: c.card }]}>
+    <View style={[st.lineCard, { backgroundColor: c.card, boxShadow: c.float }]}>
       <SymbolView name="calendar.badge.clock" size={16} tintColor={c.sky} />
       <View style={{ flex: 1 }}>
         <Text style={[s.bodyBold, { color: c.ink }]}>{line.main}</Text>
@@ -158,7 +158,7 @@ export function OutingRow({ line, c, a }: { line: OutingLineText; c: Palette; a:
 /** 근력 프로그램이 오늘 주인인 날의 일정 자리 한 줄(웹 ProgramDayLine) */
 export function ProgramDayRow({ text, planResting, c }: { text: string; planResting: string | null; c: Palette }) {
   return (
-    <View style={[st.lineCard, { backgroundColor: c.card }]}>
+    <View style={[st.lineCard, { backgroundColor: c.card, boxShadow: c.float }]}>
       <SymbolView name="dumbbell.fill" size={16} tintColor={c.sky} />
       <View style={{ flex: 1 }}>
         <Text style={[s.bodyBold, { color: c.ink }]}>{text}</Text>
@@ -346,7 +346,7 @@ export function PlanBody({
 
   const list = (
     <View style={{ gap: 12 }}>
-      <View style={[s.card, { backgroundColor: c.card }]}>
+      <View style={[s.card, { backgroundColor: c.card, boxShadow: c.float }]}>
         <View style={s.between}>
           <Text style={[s.bodyBold, { color: c.ink }]}>
             오늘 <Text style={[s.num, { fontSize: 18 }]}>{doneCount}</Text>
@@ -452,7 +452,7 @@ export function PlanBody({
 
       {/* 마친 날은 목록을 접는다 — 위 완료 카드가 오늘 한 것을 숫자까지 말한다(웹 DoneFold) */}
       {data.done ? (
-        <View style={[s.card, { backgroundColor: c.card, paddingVertical: 4 }]}>
+        <View style={[s.card, { backgroundColor: c.card, boxShadow: c.float, paddingVertical: 4 }]}>
           <Pressable accessibilityRole="button" accessibilityState={{ expanded: listOpen }} onPress={() => setListOpen((v) => !v)} style={s.linkRow}>
             <SymbolView name={listOpen ? 'chevron.up' : 'chevron.down'} size={12} tintColor={c.muted} />
             <Text style={[s.bodyBold, { flex: 1, color: c.ink }]}>오늘 목록 보기</Text>

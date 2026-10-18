@@ -50,7 +50,7 @@ export default function VelocityAdminScreen() {
           {data.days.length === 0 ? (
             <Text style={{ color: c.muted, fontSize: 15, textAlign: 'center', padding: 24 }}>아직 올린 공이 없어요.</Text>
           ) : (
-            <View style={[s.group, { backgroundColor: c.card }]}>
+            <View style={[s.group, { backgroundColor: c.card, boxShadow: c.float }]}>
               {data.days.map((d, i) => (
                 <Row key={d.date} onPress={() => router.push(`/admin/velocity/${d.date}` as Href)} last={i === data.days.length - 1} c={c}>
                   <Text style={{ color: c.ink, fontSize: 15, fontWeight: '500', fontVariant: ['tabular-nums'] }}>{d.date}</Text>
@@ -72,7 +72,7 @@ export default function VelocityAdminScreen() {
 
 function Tile({ label, value, unit, c }: { label: string; value: string; unit?: string; c: Palette }) {
   return (
-    <View style={{ flex: 1, borderRadius: 14, paddingVertical: 12, alignItems: 'center', backgroundColor: c.card }}>
+    <View style={{ flex: 1, borderRadius: 14, paddingVertical: 12, alignItems: 'center', backgroundColor: c.card, boxShadow: c.float }}>
       <Text style={[s.meta, { color: c.muted }]}>{label}</Text>
       <Text style={{ color: c.ink, fontSize: 20, fontWeight: '700', marginTop: 2, fontVariant: ['tabular-nums'] }}>
         {value}

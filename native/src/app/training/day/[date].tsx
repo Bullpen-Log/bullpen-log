@@ -130,7 +130,7 @@ function DayBody({ day, c }: { day: AppTrainingDay; c: Palette }) {
 
       {/* 그날 어땠는지 먼저 — 목록보다 이쪽을 다시 읽으러 온다 */}
       {detail.intensity != null ? (
-        <View style={[s.card, { backgroundColor: c.card, borderWidth: 1, borderColor: c.sky + '40', gap: 6 }]}>
+        <View style={[s.card, { backgroundColor: c.card, boxShadow: c.float, borderWidth: 1, borderColor: c.sky + '40', gap: 6 }]}>
           <Text style={[s.bodyBold, { color: c.ink }]}>운동 강도 {detail.intensity}/10</Text>
           <Text selectable style={[s.body, { color: detail.memo ? c.ink : c.muted }]}>
             {detail.memo || '남긴 메모가 없어요.'}

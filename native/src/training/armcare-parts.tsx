@@ -162,7 +162,7 @@ export function Checklist({
 
   return (
     <View style={{ gap: 10 }}>
-      <View style={[s.card, { backgroundColor: c.card, gap: 10 }]}>
+      <View style={[s.card, { backgroundColor: c.card, boxShadow: c.float, gap: 10 }]}>
         <View style={s.between}>
           <Text style={[s.bodyBold, { color: c.ink }]}>
             {doneCount}
@@ -202,7 +202,7 @@ const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'];
 export function WeekDots({ week, c }: { week: { key: string; done: boolean }[]; c: Palette }) {
   const days = week.filter((d) => d.done).length;
   return (
-    <View style={[s.card, { backgroundColor: c.card }]} accessibilityLabel={`이번 주 암케어 최근 7일 중 ${days}일`}>
+    <View style={[s.card, { backgroundColor: c.card, boxShadow: c.float }]} accessibilityLabel={`이번 주 암케어 최근 7일 중 ${days}일`}>
       <View style={s.between}>
         <Text style={[s.bodyBold, { color: c.ink }]}>이번 주 암케어</Text>
         <Text style={[s.small, { color: c.muted }]}>
@@ -253,7 +253,7 @@ export function RoutineCard({ routine: r, dateKey, fresh, open, onToggle, onChan
   /* 폰에 담긴 체크도 한 것으로(체크 목록과 같은 셈) — 목록에서 누른 것은 화면이 다시 받으면(onChanged) 따라온다 */
   const done = r.items.filter((it) => it.done || pending.some((p) => p.exerciseId === it.exercise.id && p.dateKey === dateKey)).length;
   return (
-    <View style={[st.routine, { backgroundColor: c.card, borderColor: open ? c.sky + '66' : c.line }]}>
+    <View style={[st.routine, { backgroundColor: c.card, boxShadow: c.float, borderColor: open ? c.sky + '66' : c.line }]}>
       <View style={s.row}>
         <Pressable onPress={onToggle} accessibilityRole="button" accessibilityState={{ expanded: open }} style={st.routineHead}>
           <View style={{ flex: 1, gap: 2 }}>
@@ -327,7 +327,7 @@ export function RehabLine({ line, bg, c }: { line: NonNullable<AppRehabSummary['
 
 export function RehabCard({ rehab, dateKey, c }: { rehab: AppRehabSummary; dateKey: string; c: Palette }) {
   return (
-    <View style={[s.card, { backgroundColor: c.card, borderWidth: 1, borderColor: c.sky + '40' }]}>
+    <View style={[s.card, { backgroundColor: c.card, boxShadow: c.float, borderWidth: 1, borderColor: c.sky + '40' }]}>
       <View style={{ gap: 2 }}>
         <Text style={[s.smallBold, { color: c.muted }]}>재활 프로그램 · {rehab.day}일째</Text>
         <Text style={[s.title, { color: c.ink }]}>{rehab.title}</Text>
@@ -412,7 +412,7 @@ export function GapCard({
   }
   const decel = gaps.some((g) => g.key === 'shoulder-back' || g.key === 'elbow-inner');
   return (
-    <View style={[s.card, { backgroundColor: c.card }]}>
+    <View style={[s.card, { backgroundColor: c.card, boxShadow: c.float }]}>
       <View style={{ gap: 2 }}>
         <Text style={[s.bodyBold, { color: c.ink, fontSize: 17 }]}>{total === 0 ? '최근 2주 암케어 기록이 없어요' : '2주째 비어 있어요'}</Text>
         <Text style={[s.body, { color: c.muted }]}>
@@ -467,7 +467,7 @@ export function AreaCard({
   return (
     <View
       onLayout={onLayout}
-      style={[st.routine, { backgroundColor: c.card, borderColor: open ? c.sky + '66' : c.line }]}
+      style={[st.routine, { backgroundColor: c.card, boxShadow: c.float, borderColor: open ? c.sky + '66' : c.line }]}
     >
       <Pressable onPress={onToggle} accessibilityRole="button" accessibilityState={{ expanded: open }} style={st.routineHead}>
         <Text style={[s.bodyBold, { color: c.ink, flex: 1 }]}>

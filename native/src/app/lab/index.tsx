@@ -94,7 +94,7 @@ export default function LabListScreen() {
               </Text>
             </View>
           ) : (
-            <View style={[s.group, { backgroundColor: c.card }]}>
+            <View style={[s.group, { backgroundColor: c.card, boxShadow: c.float }]}>
               {shown.map((x, i) => (
                 <SampleRow
                   key={x.id}
@@ -230,7 +230,7 @@ function UploadCard({ heightCm, defaultHand, onDone, c }: { heightCm: number | n
   };
 
   return (
-    <View style={{ borderRadius: 14, padding: 14, gap: 12, backgroundColor: c.card }}>
+    <View style={{ borderRadius: 14, padding: 14, gap: 12, backgroundColor: c.card, boxShadow: c.float }}>
       <View style={{ gap: 2 }}>
         <Text style={{ color: c.ink, fontSize: 17, fontWeight: '600' }}>영상 올리기</Text>
         <Text style={[s.meta, { color: c.muted }]}>두 폰으로 같은 공을 동시에 찍은 원본만 올릴 수 있어요. 영상 하나에 {LAB_MAX_VIDEO_MB}MB까지예요.</Text>

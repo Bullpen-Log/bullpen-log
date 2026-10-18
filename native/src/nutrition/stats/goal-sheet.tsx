@@ -533,7 +533,7 @@ export function GoalSheet({
                 ) : null}
               </View>
 
-              <View style={[st.preview, { backgroundColor: c.card }]}>
+              <View style={[st.preview, { backgroundColor: c.card, boxShadow: c.float }]}>
                 <Text style={[st.label, { color: c.muted }]}>이렇게 먹어요 (운동 없는 날)</Text>
                 <View style={st.stats}>
                   <Stat label="하루 칼로리" value={`${kcalText(preview.base)}kcal`} strong c={c} />
