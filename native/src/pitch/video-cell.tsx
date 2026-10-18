@@ -1,0 +1,126 @@
+import { Image } from 'expo-image';
+import { StyleSheet, Text, View } from 'react-native';
+import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
+import { STRONG_EFFORT_PCT, effortBand } from '@/lib/pitch-effort';
+import { usePalette, withAlpha } from '~/lib/ui';
+import { Icon } from '~/shell/icon';
+
+/**
+ * 투구 탭 달력 칸 속 — 웹 app/(app)/videos/video-calendar.tsx renderDay 와 같은 꼴.
+ * - 영상 있는 날: 그날 대표 영상의 한 장면을 칸 가득 · 위아래만 살짝 어둡게 · 왼쪽 위 날짜 · 왼쪽 아래 'N구' · 영상이 여럿이면 오른쪽 아래 필름 + 수.
+ * - 영상 없이 남긴 날: 체감 강도로 칠하고 왼쪽 위 날짜 · 가운데 아래 'N구'. 쉬는 날은 안쪽 점선 · '휴식'.
+ * - 아무것도 없는 지난날: 옅은 회색 판 · 날짜만. 앞날은 더 옅은 날짜만.
+ * - 오늘은 날짜에 파란 테두리 원(어두운 바탕이면 흰 원).
+ * 장면 그림을 아직 못 받았으면 강도 칠한 칸으로 보이다가 받으면 옅게 바뀐다(160ms).
+ */
+const BAND_ALPHA = { strong: 0.7, mid: 0.4, light: 0.15 } as const;
+
+export type VideoDay = {
+  day: number;
+  isToday: boolean;
+  isFuture: boolean;
+  /** 그날 기록이 있나 */
+  logged: boolean;
+  rest: boolean;
+  pitches: number;
+  effortPct: number;
+  videos: number;
+  thumb: string | null;
+};
+
+export function VideoCell({ d }: { d: VideoDay }) {
+  const c = usePalette();
+  if (!d.logged) {
+    return (
+      <>
+        {!d.isFuture ? <View style={[StyleSheet.absoluteFill, { backgroundColor: withAlpha(c.chip, 0.5) }]} /> : null}
+        <DayNum d={d} color={d.isFuture ? withAlpha(c.muted, 0.35) : c.muted} ring={c.sky} />
+      </>
+    );
+  }
+  if (d.thumb) {
+    return (
+      <>
+        <Image source={{ uri: d.thumb }} contentFit="cover" transition={160} style={StyleSheet.absoluteFill} />
+        <Shade />
+        <DayNum d={d} color="#fff" ring="#fff" bold shadow />
+        <Text style={[styles.cornerCount, styles.shadow]}>{d.pitches}구</Text>
+        {d.videos > 1 ? (
+          <View style={styles.films}>
+            <Icon name="film" size={10} color="#fff" />
+            <Text style={styles.filmsText}>{d.videos}</Text>
+          </View>
+        ) : null}
+      </>
+    );
+  }
+  const strong = !d.rest && d.effortPct >= STRONG_EFFORT_PCT;
+  const ink = strong ? '#fff' : c.ink;
+  return (
+    <>
+      {d.rest ? (
+        <View style={[styles.restLine, { borderColor: c.lineStrong }]} />
+      ) : (
+        <View style={[StyleSheet.absoluteFill, { backgroundColor: withAlpha(c.sky, BAND_ALPHA[effortBand(d.effortPct)]) }]} />
+      )}
+      <DayNum d={d} color={ink} ring={strong ? '#fff' : c.sky} />
+      <Text numberOfLines={1} style={[styles.midCount, { color: d.rest ? c.muted : ink }]}>
+        {d.rest ? '휴식' : `${d.pitches}구`}
+      </Text>
+    </>
+  );
+}
+
+function DayNum({ d, color, ring, bold = false, shadow = false }: { d: VideoDay; color: string; ring: string; bold?: boolean; shadow?: boolean }) {
+  if (d.isToday) {
+    return (
+      <View style={[styles.today, { borderColor: ring }]}>
+        <Text style={[styles.dayText, { color: ring, fontWeight: '700' }, shadow && styles.shadow]}>{d.day}</Text>
+      </View>
+    );
+  }
+  return <Text style={[styles.dayText, styles.dayPos, { color, fontWeight: bold ? '700' : '500' }, shadow && styles.shadow]}>{d.day}</Text>;
+}
+
+/* 위 36px · 아래 32px 만 어둡게 — 밝은 장면 위에서도 날짜 · 투구수가 읽히게(웹 from-black/55 · /60) */
+function Shade() {
+  return (
+    <Svg style={StyleSheet.absoluteFill} pointerEvents="none">
+      <Defs>
+        <LinearGradient id="t" x1="0" y1="0" x2="0" y2="1">
+          <Stop offset="0" stopColor="#000" stopOpacity={0.55} />
+          <Stop offset="1" stopColor="#000" stopOpacity={0} />
+        </LinearGradient>
+        <LinearGradient id="b" x1="0" y1="0" x2="0" y2="1">
+          <Stop offset="0" stopColor="#000" stopOpacity={0} />
+          <Stop offset="1" stopColor="#000" stopOpacity={0.6} />
+        </LinearGradient>
+      </Defs>
+      <Rect x="0" y="0" width="100%" height={36} fill="url(#t)" />
+      <Rect x="0" y="100%" width="100%" height={32} translateY={-32} fill="url(#b)" />
+    </Svg>
+  );
+}
+
+const styles = StyleSheet.create({
+  dayText: { fontSize: 12, lineHeight: 16, fontVariant: ['tabular-nums'] },
+  dayPos: { position: 'absolute', left: 6, top: 4 },
+  today: { position: 'absolute', left: 2, top: 2, minWidth: 22, height: 22, borderRadius: 11, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center' },
+  shadow: { textShadowColor: 'rgba(0,0,0,0.5)', textShadowRadius: 3, textShadowOffset: { width: 0, height: 1 } },
+  cornerCount: { position: 'absolute', left: 6, bottom: 4, color: '#fff', fontSize: 11, fontWeight: '600', lineHeight: 12 },
+  midCount: { position: 'absolute', left: 4, right: 4, bottom: 6, textAlign: 'center', fontSize: 11, fontWeight: '600', lineHeight: 12 },
+  films: {
+    position: 'absolute',
+    right: 4,
+    bottom: 4,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+    borderRadius: 8,
+    paddingHorizontal: 4,
+    paddingVertical: 2,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+  },
+  filmsText: { color: '#fff', fontSize: 11, fontWeight: '600', lineHeight: 12 },
+  restLine: { position: 'absolute', top: 4, left: 4, right: 4, bottom: 4, borderRadius: 8, borderWidth: 1, borderStyle: 'dashed' },
+});

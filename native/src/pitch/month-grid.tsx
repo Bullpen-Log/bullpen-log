@@ -9,6 +9,7 @@ import { fadeIn } from '~/shell/motion';
 import { Press } from '~/shell/press';
 import { dateKeyOf, type PitchLog } from './api';
 import { monthOf } from './store';
+import { VideoCell } from './video-cell';
 
 /**
  * 달 달력 — 웹 components/month-calendar.tsx 와 같은 칸 · 같은 움직임.
@@ -74,6 +75,8 @@ export function MonthGrid({
   selected,
   allowFuture = false,
   compact = false,
+  video = false,
+  thumbs,
   onMonth,
   onDay,
 }: {
@@ -86,6 +89,10 @@ export function MonthGrid({
   allowFuture?: boolean;
   /** 날을 골라 밑에 그날 칸이 펴졌을 때 — 칸이 납작해진다(웹 compact) */
   compact?: boolean;
+  /** 투구 탭 영상 달력 — 칸 68 · 테두리 · 그날 영상 장면(웹 video-calendar.tsx). 홈은 강도 칸 */
+  video?: boolean;
+  /** 날짜 → 그날 대표 영상 장면 주소(video 일 때) */
+  thumbs?: Record<string, string>;
   onMonth: (month: string) => void;
   onDay: (day: string) => void;
 }) {
@@ -163,6 +170,35 @@ export function MonthGrid({
           const isSel = day === selected;
           const future = !allowFuture && day > today;
           const ink = strong ? '#fff' : c.ink;
+          if (video) {
+            const paths = rest ? [] : dayLogs.flatMap((l) => l.videoPaths);
+            return (
+              <View key={day} style={styles.slot}>
+                <Press
+                  select
+                  selected={isSel}
+                  disabled={future}
+                  accessibilityLabel={`${Number(day.slice(5, 7))}월 ${Number(day.slice(8))}일${count ? `, ${count}구` : rest ? ', 쉬는 날로 남김' : ''}${paths.length ? `, 영상 ${paths.length}개` : ''}${isToday ? ', 오늘' : ''}`}
+                  onPress={() => onDay(day)}
+                  style={[styles.videoCell, { borderColor: future ? 'transparent' : isSel ? c.sky : c.line }, isSel && { boxShadow: `0 0 0 2px ${c.sky}` }]}
+                >
+                  <VideoCell
+                    d={{
+                      day: Number(day.slice(8)),
+                      isToday,
+                      isFuture: future,
+                      logged: dayLogs.length > 0,
+                      rest,
+                      pitches: count,
+                      effortPct: effort ?? 0,
+                      videos: paths.length,
+                      thumb: thumbs?.[day] ?? null,
+                    }}
+                  />
+                </Press>
+              </View>
+            );
+          }
           return (
             <View key={day} style={styles.slot}>
               <Animated.View layout={LinearTransition.duration(300).easing(CELL)}>
@@ -239,6 +275,8 @@ const styles = StyleSheet.create({
   /* 칸 — 웹 휴대폰 min-h 3.25rem(고르면 2.75rem) · rounded-lg 12 · 칸 사이 4 */
   slot: { width: `${100 / 7}%`, padding: 2 },
   cell: { borderRadius: 12, borderWidth: 1, borderColor: 'transparent', alignItems: 'center', justifyContent: 'center', gap: 2 },
+  /* 영상 달력 칸 — 웹 size large h-[4.25rem] · rounded-lg · border-line */
+  videoCell: { height: 68, borderRadius: 12, borderWidth: 1, overflow: 'hidden' },
   dayNumBox: { minWidth: 24, height: 24, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   dayNum: { fontSize: 15, fontWeight: '500', fontVariant: ['tabular-nums'] },
   count: { fontSize: 11, lineHeight: 12, paddingHorizontal: 2, opacity: 0.8 },

@@ -48,6 +48,8 @@ export default function RootLayout() {
       {/* 상태바 글자색 — 설정 테마를 따른다(기기 밝기가 아니라) */}
       <StatusBar style={theme === 'light' ? 'dark' : 'light'} />
       <Stack screenOptions={{ headerShown: false }}>
+        {/* 그날 화면 — 웹 휴대폰처럼 아래에서 올라오는 창(끌어내려 닫기) */}
+        <Stack.Screen name="pitch/[date]" options={{ presentation: 'modal' }} />
         <Stack.Screen name="pitch/edit" options={{ presentation: 'modal' }} />
         <Stack.Screen name="pitch/import" options={{ presentation: 'modal' }} />
         <Stack.Screen name="nutrition/add" options={{ presentation: 'modal' }} />

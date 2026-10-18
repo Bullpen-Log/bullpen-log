@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useReducer, useSyncExternalStore } from 'react';
+import { isRestSession } from '@/lib/session-type';
 import { cacheEpoch, cacheGet, cacheSet } from '~/lib/store';
-import { loadAll, loadMonth, type PitchLog } from './api';
+import { isPhoneVideoPath, loadAll, loadMonth, serverThumbUrls, type PitchLog } from './api';
 
 /**
  * 달마다 받은 투구 기록을 앱이 쥐고 있다가 화면을 열면 바로 그린다(검토 D10 '받아 둔 값 먼저') — 그리고 뒤에서 새로 받는다.
@@ -92,3 +93,49 @@ export function useAllLogs(on: boolean) {
 
 /** 2026-10 */
 export const monthOf = (dateKey: string) => dateKey.slice(0, 7);
+
+/**
+ * 영상 달력 칸의 장면 그림 — 그날 대표 영상(쉬는 날 기록 빼고 처음 올린 영상, 웹 video-calendar repOf)의 썸네일 주소.
+ * 받은 주소는 앱이 쥐고 있어 달을 오가도 다시 묻지 않는다(서명 주소라 앱을 다시 켜면 새로 받는다).
+ * 웹에서 고른 대표(★)는 아직 안 읽는다 — 처음 영상으로 보인다.
+ */
+const thumbUrls = new Map<string, string | null>();
+/** 영상 경로 → 장면 그림 주소(목록 줄 · 달력 칸이 같이 쓴다). 못 받았거나 그림이 없는 영상은 빠진다 */
+export function usePathThumbs(paths: string[]): Record<string, string> {
+  const [, bump] = useReducer((n: number) => n + 1, 0);
+  const want = [...new Set(paths)].filter((p) => !isPhoneVideoPath(p) && !thumbUrls.has(p));
+  const key = want.join('|');
+  useEffect(() => {
+    if (!key) return;
+    const ask = key.split('|');
+    let alive = true;
+    void serverThumbUrls(ask)
+      .then((got) => {
+        for (const p of ask) thumbUrls.set(p, got[p] ?? null);
+        if (alive) bump();
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [key]);
+  const out: Record<string, string> = {};
+  for (const p of paths) {
+    const url = thumbUrls.get(p);
+    if (url) out[p] = url;
+  }
+  return out;
+}
+
+export function useDayThumbs(logs: PitchLog[] | null): Record<string, string> {
+  const reps = new Map<string, string>();
+  for (const l of logs ?? []) {
+    if (isRestSession(l.sessionType) || !l.videoPaths.length) continue;
+    const day = l.date.slice(0, 10);
+    if (!reps.has(day)) reps.set(day, l.videoPaths[0]);
+  }
+  const urls = usePathThumbs([...reps.values()]);
+  const out: Record<string, string> = {};
+  for (const [day, p] of reps) if (urls[p]) out[day] = urls[p];
+  return out;
+}

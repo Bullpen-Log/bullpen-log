@@ -8,6 +8,7 @@ import { usePrefs } from '~/lib/prefs';
 import { LocalVideo } from '../../../modules/local-video';
 import { TYPE, usePalette, type Palette } from '~/lib/ui';
 import { Icon } from '~/shell/icon';
+import { Press } from '~/shell/press';
 import { ApiError, dateKeyOf, deleteLog, isPhoneVideoPath, phoneAssetId } from '~/pitch/api';
 import { monthOf, refreshMonth, useMonth } from '~/pitch/store';
 import { PitchVideo } from '~/pitch/video';
@@ -48,14 +49,18 @@ export default function PitchDayScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: c.page }}>
-      <View style={[styles.bar, { paddingTop: inset.top, backgroundColor: c.page }]}>
-        <Pressable accessibilityRole="button" onPress={() => router.back()} hitSlop={10} style={styles.back}>
-          <Text style={[styles.backText, { color: c.sky }]}>‹ 투구 기록</Text>
-        </Pressable>
-        <Text style={[styles.barTitle, { color: c.ink }]}>
+      {/* 웹 휴대폰 그날 창(아래 시트)처럼 — 손잡이 · 가운데 날짜 · 오른쪽 닫기 ✕(44). 끌어내려도 닫힌다(_layout presentation modal) */}
+      <View style={[styles.grabber, { backgroundColor: c.lineStrong }]} />
+      <View style={[styles.bar, { backgroundColor: c.page }]}>
+        <View style={styles.side} />
+        <Text accessibilityRole="header" style={[styles.barTitle, { color: c.ink }]}>
           {at.getUTCMonth() + 1}월 {at.getUTCDate()}일 ({WEEKDAYS[at.getUTCDay()]})
         </Text>
-        <View style={styles.back} />
+        <View style={[styles.side, { alignItems: 'flex-end' }]}>
+          <Press accessibilityRole="button" accessibilityLabel="닫기" onPress={() => router.back()} style={[styles.close, { backgroundColor: c.chip }]}>
+            <Icon name="x" size={18} color={c.muted} />
+          </Press>
+        </View>
       </View>
       <ScrollView contentContainerStyle={[{ padding: 16, paddingBottom: inset.bottom + 32, gap: 12 }, READABLE_WIDE]}>
         {/* 아이패드 가로(~/lib/layout TwoColumns) — 왼쪽 그날 기록 · 새 기록, 오른쪽 구속 측정. 좁으면 위아래 그대로 */}
@@ -176,9 +181,10 @@ export default function PitchDayScreen() {
 }
 
 const styles = StyleSheet.create({
-  bar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 8, minHeight: 44 },
-  back: { minWidth: 96, height: 44, justifyContent: 'center' },
-  backText: { fontSize: 17 },
+  grabber: { alignSelf: 'center', width: 36, height: 5, borderRadius: 3, marginTop: 6 },
+  bar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 8, minHeight: 52 },
+  side: { width: 52 },
+  close: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center', margin: 6 },
   barTitle: { fontSize: 17, fontWeight: '600' },
   card: { borderRadius: 20, padding: 20, gap: 20 },
   cardHead: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
