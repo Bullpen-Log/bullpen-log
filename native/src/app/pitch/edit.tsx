@@ -84,13 +84,32 @@ export default function PitchEditScreen() {
     vavg?: string;
     veffort?: string;
   }>();
-  const { logs } = useMonth(monthOf(date));
+  const c = usePalette();
+  const { logs, error, loading, reload } = useMonth(monthOf(date));
   const editing = id ? (logs ?? []).find((l) => l.id === id) : undefined;
   /* 고치기인데 그 달을 아직 못 받았으면 잠깐 기다린다 — 폼은 처음 값으로 한 번만 채운다 */
   if (id && !editing) {
+    /* 다 받았는데 없거나(다른 기기에서 지움) 못 받았으면 — 끝없이 돌지 않고 알린다 */
+    const missing = !loading && (logs != null || error != null);
     return (
-      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-        <ActivityIndicator />
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 14, padding: 24 }}>
+        {missing ? (
+          <>
+            <Text style={{ color: c.ink, fontSize: 15, textAlign: 'center' }}>{error && !logs ? error : '이 기록을 찾지 못했어요. 지워졌을 수 있어요.'}</Text>
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              {error && !logs ? (
+                <Pressable accessibilityRole="button" onPress={() => void reload()} style={{ minHeight: 44, paddingHorizontal: 18, borderRadius: 22, justifyContent: 'center', backgroundColor: c.sky }}>
+                  <Text style={{ color: '#fff', fontSize: 15, fontWeight: '600' }}>다시 불러오기</Text>
+                </Pressable>
+              ) : null}
+              <Pressable accessibilityRole="button" onPress={() => router.back()} style={{ minHeight: 44, paddingHorizontal: 18, borderRadius: 22, justifyContent: 'center', backgroundColor: c.chip }}>
+                <Text style={{ color: c.ink, fontSize: 15, fontWeight: '600' }}>닫기</Text>
+              </Pressable>
+            </View>
+          </>
+        ) : (
+          <ActivityIndicator />
+        )}
       </View>
     );
   }

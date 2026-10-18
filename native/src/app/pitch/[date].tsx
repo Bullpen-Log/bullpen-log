@@ -219,7 +219,7 @@ export default function PitchDayScreen() {
                       </Press>
                     ) : null}
                   </View>
-                  <EntryForm key={`${date}:${day.length}`} date={date} imported={[]} inline={{ onDone: () => setFormOpen(null) }} />
+                  <EntryForm key={date} date={date} imported={[]} inline={{ onDone: () => setFormOpen(null) }} />
                 </View>
               ) : (
                 <Press accessibilityRole="button" onPress={() => setFormOpen(true)} style={[styles.add, { backgroundColor: c.skyTint }]}>

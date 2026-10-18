@@ -19,7 +19,10 @@ const EMPTY: Entry = { logs: null, error: null, loading: false };
 /** 폰에 남긴 달을 먼저 — 서버 값이 먼저 오면 안 덮는다 */
 function warm(key: string) {
   if (months.get(key)?.logs) return;
+  const e = cacheEpoch();
   void cacheGet(`pitch:${key}`).then((v) => {
+    /* 그새 로그아웃했으면 앞사람 달을 다시 넣지 않는다 */
+    if (e !== cacheEpoch()) return;
     const now = months.get(key) ?? EMPTY;
     if (now.logs || !Array.isArray(v)) return;
     months.set(key, { ...now, logs: v as PitchLog[] });
@@ -31,6 +34,16 @@ function warm(key: string) {
 export function resetPitchStore() {
   months.clear();
   emit();
+  /* 날짜별 구속 · 대표 영상 · 메모 날 · 썸네일도 — 남으면 다음 사람 달력에 앞사람 표시가 뜬다 */
+  thumbUrls.clear();
+  velocityDays = null;
+  velocityLoading = null;
+  velocityListeners.forEach((l) => l());
+  featured = null;
+  featuredLoading = null;
+  emitFeatured();
+  noteDays = null;
+  noteListeners.forEach((l) => l());
 }
 
 export async function refreshMonth(month: string): Promise<void> {
@@ -186,9 +199,10 @@ let velocityDays: VelocityDays | null = null;
 const velocityListeners = new Set<() => void>();
 let velocityLoading: Promise<void> | null = null;
 export function reloadVelocityDays(): Promise<void> {
+  const e = cacheEpoch();
   velocityLoading ??= rpc<{ ok: true; days: VelocityDays } | { ok: false; error: string }>('app.loadAppVelocityDays')
     .then((r) => {
-      if (!r.ok) return;
+      if (!r.ok || e !== cacheEpoch()) return;
       velocityDays = r.days;
       velocityListeners.forEach((l) => l());
     })
@@ -221,9 +235,10 @@ const featuredListeners = new Set<() => void>();
 const emitFeatured = () => featuredListeners.forEach((l) => l());
 let featuredLoading: Promise<void> | null = null;
 export function reloadFeatured(): Promise<void> {
+  const e = cacheEpoch();
   featuredLoading ??= rpc<{ ok: true; featured: Record<string, string> } | { ok: false; error: string }>('app.loadAppFeatured')
     .then((r) => {
-      if (!r.ok) return;
+      if (!r.ok || e !== cacheEpoch()) return;
       featured = r.featured;
       emitFeatured();
     })
@@ -268,9 +283,10 @@ export const repOf = (paths: string[], pick: string | undefined) => (pick && pat
 let noteDays: Set<string> | null = null;
 const noteListeners = new Set<() => void>();
 export function reloadNoteDays(): Promise<void> {
+  const e = cacheEpoch();
   return rpc<{ ok: true; days: string[] } | { ok: false; error: string }>('app.loadAppNoteDays')
     .then((r) => {
-      if (!r.ok) return;
+      if (!r.ok || e !== cacheEpoch()) return;
       noteDays = new Set(r.days);
       noteListeners.forEach((l) => l());
     })

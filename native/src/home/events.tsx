@@ -13,6 +13,7 @@ import {
 } from '@/lib/calendar-event';
 import { BullpenNative } from '../../modules/bullpen-native';
 import { rpc } from '~/lib/rpc';
+import { cacheEpoch } from '~/lib/store';
 import { usePalette, withAlpha } from '~/lib/ui';
 import { Icon } from '~/shell/icon';
 import { fadeIn } from '~/shell/motion';
@@ -40,6 +41,8 @@ let loading: Promise<void> | null = null;
 
 export const resetEventsCache = () => {
   store = { list: null };
+  /* 로그아웃 전에 떠난 받기가 끝나 앞사람 일정 · 알림을 다시 넣지 않게(reloadEvents 의 세대 확인과 같이) */
+  loading = null;
   emit();
 };
 
@@ -53,9 +56,10 @@ function syncAlarm(e: CalendarEventView) {
 
 /** 일정을 (다시) 받는다 — 홈이 보일 때마다. 알림도 다시 건다 */
 export function reloadEvents(): Promise<void> {
+  const epoch = cacheEpoch();
   loading ??= rpc<{ ok: true; events: CalendarEventView[] } | { ok: false; error: string }>('app.loadAppEvents')
     .then((r) => {
-      if (!r.ok) return;
+      if (!r.ok || epoch !== cacheEpoch()) return;
       store = { list: r.events };
       emit();
       for (const e of r.events) if (!e.owner) syncAlarm(e);
@@ -67,8 +71,9 @@ export function reloadEvents(): Promise<void> {
   return loading;
 }
 
-const put = (next: CalendarEventView[]) => {
-  store = { list: sortEvents(next) };
+/** 지금 목록에서 고쳐 넣는다 — 그린 때 쥔 목록으로 덮으면 그새 받은 일정 · 다른 저장이 사라진다 */
+const put = (edit: (list: CalendarEventView[]) => CalendarEventView[]) => {
+  store = { list: sortEvents(edit(store.list ?? [])) };
   emit();
 };
 
@@ -121,13 +126,13 @@ export function DayEvents({ date }: { date: string }) {
                     date={date}
                     event={e}
                     onDone={(saved) => {
-                      put([...(all ?? []).filter((x) => x.id !== saved.id), saved]);
+                      put((list) => [...list.filter((x) => x.id !== saved.id), saved]);
                       syncAlarm(saved);
                       set(null);
                     }}
                     onCancel={() => set(null)}
                     onDeleted={() => {
-                      put((all ?? []).filter((x) => x.id !== e.id));
+                      put((list) => list.filter((x) => x.id !== e.id));
                       void BullpenNative.cancelAlarm(`event-${e.id}`).catch(() => undefined);
                       set(null);
                     }}
@@ -176,7 +181,7 @@ export function DayEvents({ date }: { date: string }) {
             date={date}
             event={null}
             onDone={(saved) => {
-              put([...(all ?? []), saved]);
+              put((list) => [...list, saved]);
               syncAlarm(saved);
               set(null);
             }}

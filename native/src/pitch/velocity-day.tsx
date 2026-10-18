@@ -1,6 +1,6 @@
 import * as Haptics from 'expo-haptics';
 import { type Href, router } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Alert, Modal, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { LogPrefill, PitchEdit, VelocityPitchView, VelocitySessionView } from '@/lib/velocity-meta';
@@ -265,12 +265,18 @@ function ResultSheet({
   const rel = session ? releaseOf(session) : (k: number) => k;
   const clip = pitch.clip!;
   const start = clip.eventSec != null ? Math.max(0, clip.eventSec - 0.6) : null;
+  /* 서버에 저장된 마지막 구종 · 마지막으로 누른 차례 — 늦게 실패한 앞 누름이 뒤에 고른 것을 되돌리지 않게 */
+  const confirmed = useRef(pitch.pitchType);
+  const turn = useRef(0);
   const pick = async (key: string | null) => {
+    const mine = ++turn.current;
     setType(key);
     void Haptics.selectionAsync();
     const r = await rpc<Result>('velocity.updateVelocityPitch', pitch.id, { ...editOf(pitch), pitchType: key }).catch(() => ({ ok: false as const, error: '신호가 약해 서버에 닿지 못했어요.' }));
+    if (r.ok) confirmed.current = key;
+    if (mine !== turn.current) return;
     if (!r.ok) {
-      setType(pitch.pitchType);
+      setType(confirmed.current);
       return Alert.alert('저장하지 못했어요', r.error);
     }
     onSaved();

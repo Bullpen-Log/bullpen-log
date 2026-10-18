@@ -306,6 +306,8 @@ function setCompare(v: typeof cmp) {
   cmp = v;
   cmpListeners.forEach((l) => l());
 }
+/** 로그아웃 — 앞사람이 고른 영상(경로)이 다음 사람의 비교로 넘어가지 않게(app/index.tsx resetAccount) */
+export const resetCompare = () => setCompare({ selecting: false, picked: [null, null] });
 function useCompare() {
   return useSyncExternalStore(
     (l) => {
