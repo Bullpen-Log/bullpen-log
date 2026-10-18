@@ -1,4 +1,4 @@
-import { SymbolView, type SFSymbol } from 'expo-symbols';
+import { SymbolView } from 'expo-symbols';
 import * as Haptics from 'expo-haptics';
 import { type Href, router, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -16,6 +16,9 @@ import { usePalette } from '~/lib/ui';
 import { fromApp, openCheckin } from '~/shell/web-nav';
 import { READABLE } from '~/lib/layout';
 import { useOnTabActive, useRetapTop } from '~/shell/tab-pager';
+import { DateStrip } from '~/shell/date-strip';
+import { AnalysisPill, PageHead } from '~/shell/heading';
+import { Icon, type IconName } from '~/shell/icon';
 
 /**
  * 트레이닝 탭 첫 화면(앱 화면) — 웹 트레이닝 홈(app/(app)/training/training-home.tsx)과 같은 앱 카드 셋(오늘 운동 · 암케어 · 메커니즘,
@@ -28,10 +31,10 @@ export const resetTrainingCache = () => {
   cached = null;
 };
 
-const APP: Record<TrainingPart, { name: string; icon: SFSymbol }> = {
-  today: { name: '오늘 운동', icon: 'dumbbell.fill' },
-  armcare: { name: '암케어', icon: 'cross.case.fill' },
-  mechanics: { name: '메커니즘', icon: 'target' },
+const APP: Record<TrainingPart, { name: string; glyph: IconName }> = {
+  today: { name: '오늘 운동', glyph: 'dumbbell' },
+  armcare: { name: '암케어', glyph: 'shield-plus' },
+  mechanics: { name: '메커니즘', glyph: 'target' },
 };
 
 export function TrainingTab({ today, bottom, onWeb }: { today: string; bottom: number; onWeb: (href: string) => void }) {
@@ -150,16 +153,35 @@ export function TrainingTab({ today, bottom, onWeb }: { today: string; bottom: n
       contentContainerStyle={[{ paddingTop: inset.top + 12, paddingBottom: bottom + 24, paddingHorizontal: 16, gap: 12 }, READABLE]}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={pull} />}
     >
-      <View style={styles.head}>
-        <Text style={[styles.title, { color: c.ink }]}>트레이닝</Text>
-        <Pressable accessibilityRole="button" onPress={() => router.push('/analysis?view=training' as Href)} style={[styles.chip, { backgroundColor: c.chip }]}>
-          <Text style={[styles.chipText, { color: c.ink }]}>분석</Text>
-        </Pressable>
-      </View>
+      <PageHead title="트레이닝">
+        <AnalysisPill view="training" />
+      </PageHead>
 
-      {/* 웹 트레이닝 홈과 같은 차례 — 제목 밑 날짜 띠(최근 6주) → 이번 주 한 줄 → 앱 카드 셋 */}
-      {data?.strip?.length ? <DayStrip days={data.strip} today={data.today} c={c} /> : null}
-      {data?.week ? <WeekLine week={data.week} c={c} /> : null}
+      {/* 웹 트레이닝 홈과 같은 차례 — 제목 밑 날짜 띠(최근 6주, 칸 밑 점 = 그날 한 것) → 앱 카드 셋 → 이번 주 한 줄 */}
+      {data?.strip?.length ? (
+        <DateStrip
+          days={data.strip.map((d) => d.date)}
+          date={data.today}
+          today={data.today}
+          onPick={(d) => router.push(`/training/day/${d}` as Href)}
+          labelOf={(d) => {
+            const x = data.strip!.find((y) => y.date === d);
+            const done = x ? [x.workout && '운동', x.armcare && '암케어', x.drill && '메커니즘'].filter(Boolean) : [];
+            return done.length ? done.join(' · ') : '기록 없음';
+          }}
+          mark={(d, selected) => {
+            const x = data.strip!.find((y) => y.date === d);
+            const n = x ? [x.workout, x.armcare, x.drill].filter(Boolean).length : 0;
+            return (
+              <View style={styles.dots}>
+                {Array.from({ length: n }, (_, i) => (
+                  <View key={i} style={[styles.dot, { backgroundColor: selected ? '#fff' : c.sky }]} />
+                ))}
+              </View>
+            );
+          }}
+        />
+      ) : null}
 
       {error && !data ? <Text style={{ color: c.danger, fontSize: 15 }}>{error}</Text> : null}
       {!data && !error ? <ActivityIndicator style={{ paddingVertical: 24 }} /> : null}
@@ -167,6 +189,7 @@ export function TrainingTab({ today, bottom, onWeb }: { today: string; bottom: n
       {data?.cards.map((card) => (
         <Card key={card.app} card={fresh ? card : { ...card, throwNote: null }} busy={starting} onOpen={() => openPart(card.app)} onAction={act} onWeb={onWeb} />
       ))}
+      {data?.week ? <WeekLine week={data.week} c={c} /> : null}
     </ScrollView>
   );
 }
@@ -193,11 +216,11 @@ function Card({
     <View style={[styles.card, { backgroundColor: c.card }]}>
       <Pressable accessibilityRole="button" accessibilityLabel={`${a.name}. ${card.status}`} onPress={onOpen} style={styles.row}>
         <View style={[styles.icon, { backgroundColor: c.sky }]}>
-          <SymbolView name={a.icon} size={22} tintColor="#fff" />
+          <Icon name={a.glyph} size={24} color="#fff" />
         </View>
         <View style={{ flex: 1, gap: 2 }}>
           <Text style={[styles.name, { color: c.ink }]}>{a.name}</Text>
-          <Text style={{ color: toneColor, fontSize: 14 }}>
+          <Text style={{ color: toneColor, fontSize: 15 }}>
             {card.tone === 'done' ? '✓ ' : ''}
             {card.status}
           </Text>
@@ -246,47 +269,6 @@ function Card({
   );
 }
 
-/**
- * 날짜 띠 — 웹 day-strip.tsx(components/date-scroll-strip.tsx)와 같은 최근 6주를 옆으로 굴리는 한 줄. 칸 밑 점은 그날 한 것(운동 · 암케어 ·
- * 메커니즘), 지난날을 누르면 그날 기록(앱 화면 /training/day/<날짜>), 오늘은 여기(누르지 않음). 처음엔 오늘 쪽(끝)을 보인다.
- */
-function DayStrip({ days, today, c }: { days: TrainingStripDay[]; today: string; c: ReturnType<typeof usePalette> }) {
-  const ref = useRef<ScrollViewInstance>(null);
-  return (
-    <ScrollView
-      ref={ref}
-      horizontal
-      showsHorizontalScrollIndicator={false}
-      onContentSizeChange={() => ref.current?.scrollToEnd({ animated: false })}
-      contentContainerStyle={{ gap: 6 }}
-    >
-      {days.map((day) => {
-        const on = day.date === today;
-        const [, m, d] = day.date.split('-').map(Number);
-        const week = '일월화수목금토'[new Date(`${day.date}T00:00:00Z`).getUTCDay()];
-        const dots = [day.workout, day.armcare, day.drill];
-        return (
-          <Pressable
-            key={day.date}
-            accessibilityRole="button"
-            accessibilityLabel={`${m}월 ${d}일${on ? ', 오늘' : ''}`}
-            disabled={on}
-            onPress={() => router.push(`/training/day/${day.date}` as Href)}
-            style={[styles.day, { backgroundColor: c.card, borderColor: on ? c.sky : 'transparent' }]}
-          >
-            {/* 1일 칸은 요일 대신 'N월'(웹 date-scroll-strip 과 같다) */}
-            <Text style={{ fontSize: 11, color: on ? c.sky : c.muted }}>{d === 1 ? `${m}월` : week}</Text>
-            <Text style={{ fontSize: 17, fontWeight: on ? '800' : '600', color: on ? c.sky : c.ink, fontVariant: ['tabular-nums'] }}>{d}</Text>
-            <View style={styles.dots}>
-              {dots.map((x, i) => (x ? <View key={i} style={[styles.dot, { backgroundColor: c.sky }]} /> : null))}
-            </View>
-          </Pressable>
-        );
-      })}
-    </ScrollView>
-  );
-}
-
 /** 이번 주 한 줄 — 웹 WeekStrip 과 같은 글('이번 주 운동 N일 · 암케어 N일 · 메커니즘 N일', 다 0 이면 '이번 주는 아직 기록이 없어요.') */
 function WeekLine({ week, c }: { week: TrainingWeekCounts; c: ReturnType<typeof usePalette> }) {
   const cells: [string, number][] = [
@@ -316,8 +298,8 @@ function WeekLine({ week, c }: { week: TrainingWeekCounts; c: ReturnType<typeof 
 
 const styles = StyleSheet.create({
   day: { width: 48, minHeight: 64, borderRadius: 14, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center', gap: 2 },
-  dots: { flexDirection: 'row', gap: 2, height: 5 },
-  dot: { width: 5, height: 5, borderRadius: 2.5 },
+  dots: { flexDirection: 'row', gap: 2, height: 6, marginTop: 4, alignItems: 'center' },
+  dot: { width: 6, height: 6, borderRadius: 3 },
   week: { borderRadius: 16, paddingHorizontal: 16, paddingVertical: 14 },
   head: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingBottom: 4 },
   title: { flex: 1, fontSize: 34, fontWeight: '700' },
@@ -325,8 +307,8 @@ const styles = StyleSheet.create({
   chipText: { fontSize: 15, fontWeight: '600' },
   card: { borderRadius: 20, padding: 16, gap: 12 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  icon: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  name: { fontSize: 17, fontWeight: '700' },
+  icon: { width: 44, height: 44, borderRadius: 12.3, alignItems: 'center', justifyContent: 'center' },
+  name: { fontSize: 16, fontWeight: '700' },
   start: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 40, borderRadius: 20, paddingHorizontal: 16 },
   startText: { color: '#fff', fontSize: 15, fontWeight: '700' },
   bars: { flexDirection: 'row', gap: 2 },
