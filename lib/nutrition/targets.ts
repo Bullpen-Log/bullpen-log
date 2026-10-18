@@ -264,3 +264,13 @@ export function computeTargets(
     paceKg,
   };
 }
+
+/**
+ * 바닥까지 올렸을 때 한 줄(웹 내 계획 · 첫 설정 계획 · 탄단지 g, 앱 첫 설정이 같이 쓴다). 낮게 적은 값이 몰래 바뀌면 고장처럼 보였다(2026-10-18 점검).
+ */
+export function floorNote(t: Pick<Targets, 'floored' | 'ageBand'>): string | null {
+  if (!t.floored) return null;
+  return t.ageBand === 'adult'
+    ? '기초대사량보다 낮게 잡지 않아요.'
+    : '성장기는 계산한 목표보다 낮게 잡지 않아요.';
+}

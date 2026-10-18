@@ -422,6 +422,7 @@ import {
   rehabFacts,
   rehabSeverity,
   rehabStartBlock,
+  rehabStartNotice,
   rehabStatus,
   stageExercises,
   stageMinDays,
@@ -6276,10 +6277,10 @@ console.log('\n[암케어] 부위·근육 · 오늘의 루틴 · 부하');
     levelAdvice(1, { spots: ['elbow-inner'], age: 14 }),
   ];
   check(
-    "안내 시트 — '오늘은'은 정도 1 + 자리 + 15세 이상만 루틴, 그 밖은 진료 권유 · 위험 신호 5 · 맺음말",
+    "안내 시트 — '오늘은'은 정도 1 + 자리 + 15세 이상만 루틴, 그 밖은 진료 권유 · 위험 신호 10(2026-10-18 가이드라인 2절 다섯 더함) · 맺음말",
     advices[0].routine &&
       advices.slice(1).every((a) => !a.routine && a.text.includes('진료')) &&
-      RED_FLAGS.length === 5 &&
+      RED_FLAGS.length === 10 &&
       DISCLAIMER.includes('참고용') &&
       DISCLAIMER.includes('병원'),
     advices.map((a) => `${a.routine ? '루틴' : '쉬기'}:${a.text}`).join(' / ')
@@ -6476,9 +6477,13 @@ console.log(
       block(16, 'shoulder-back') === null &&
       block(null, 'elbow-outer') === null
   );
+  /* 2026-10-18 김민: 팔꿈치 바깥쪽은 고를 병명이 없어 영영 못 열었다 — 진료 먼저 안내하고 연다(rehabStartNotice) */
   check(
-    '시작 — 18세 미만 팔꿈치 바깥쪽 · 뒤쪽은 진단 없이 막음(X-ray), 진단이 있으면 · 18세 · 안쪽은 연다',
-    block(17, 'elbow-outer') === 'xray' &&
+    '시작 — 18세 미만 팔꿈치 뒤쪽은 진단 없이 막음(X-ray), 바깥쪽은 열고 진료 먼저 안내, 진단이 있으면 · 18세 · 안쪽은 연다',
+    block(17, 'elbow-outer') === null &&
+      (rehabStartNotice({ age: 17, area: 'elbow-outer', condition: null }) ?? '').includes('진료를 먼저') &&
+      rehabStartNotice({ age: 18, area: 'elbow-outer', condition: null }) === null &&
+      rehabStartNotice({ age: 17, area: 'elbow-inner', condition: null }) === null &&
       block(17, 'elbow-back') === 'xray' &&
       block(17, 'elbow-back', 'posterior-impingement') === null &&
       block(18, 'elbow-outer') === null &&
@@ -6695,6 +6700,12 @@ console.log(
         src.includes('if (status.refer) return') &&
         src.includes('if (status.nightHold)') &&
         /reason === 'done'[\s\S]{0,300}throwingOpenedOn\(active\.program, weeklies\)/.test(src)
+    );
+    check(
+      '재활 서버 — 투구 복귀표 열기 · 던진 것 남기기는 쉬는 날 · 진료 권유 · 밤 통증이면 막는다(같은 throwBlock)',
+      (src.match(/const notToday = throwBlock\(/g) ?? []).length === 2 &&
+        src.includes('if (status.refer) return `오늘은 던지지 않아요.') &&
+        src.includes('if (!status.nightPainFree)')
     );
   }
   check(

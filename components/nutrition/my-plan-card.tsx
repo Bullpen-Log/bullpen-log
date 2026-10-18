@@ -14,6 +14,7 @@ import {
   type OnboardingBody,
 } from '@/lib/nutrition/onboarding-answers';
 import { dateText } from '@/lib/nutrition/period';
+import { floorNote } from '@/lib/nutrition/targets';
 
 /**
  * '내 계획' — 영양 탭(통계 열 맨 위)의 카드. 가입 끼움 '추천 계획'과 같은 부품(components/onboarding/plan-stats.tsx)이라
@@ -65,11 +66,9 @@ export function MyPlanCard({
           <p className="mt-0.5 text-sm tabular-nums text-ink">
             하루 {p.targets.kcal.toLocaleString()}kcal · 단백질 {p.targets.protein}g
           </p>
-          {p.targets.floored && (
+          {floorNote(p.targets) && (
             <p className="mt-0.5 text-xs break-keep text-muted">
-              {p.targets.ageBand === 'adult'
-                ? '기초대사량보다 낮게 잡지 않아요.'
-                : '성장기는 계산한 목표보다 낮게 잡지 않아요.'}
+              {floorNote(p.targets)}
             </p>
           )}
           {parts.length > 0 && (

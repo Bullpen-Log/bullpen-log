@@ -14,6 +14,7 @@ import {
   kcalText,
 } from '@/lib/nutrition/meta';
 import { kcalOfMacros } from '@/lib/nutrition/onboarding';
+import { floorNote } from '@/lib/nutrition/targets';
 import type { NutritionAnswers, Preview } from '@/lib/nutrition/onboarding-answers';
 
 /**
@@ -45,6 +46,9 @@ export function MacroEditor({
           <strong className="font-semibold text-ink">{kcalText(t.base)}kcal</strong>
           {t.manual ? ' · 직접 정함' : ''}
         </p>
+        {floorNote(t) && (
+          <p className="mt-1 text-xs break-keep text-muted">{floorNote(t)}</p>
+        )}
         <div className="mt-2">
           <MacroBar carbs={t.carbs} protein={t.protein} fat={t.fat} compact />
         </div>

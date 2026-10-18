@@ -2,6 +2,7 @@
 
 import { Prisma } from '@prisma/client';
 import { appNow } from '@/lib/clock';
+import { withJosa } from '@/lib/korean';
 import { revalidatePath } from 'next/cache';
 import { prisma } from '@/lib/prisma';
 import { getCurrentUser } from '@/lib/dal';
@@ -706,9 +707,9 @@ async function dropAvoidedFromTodayPlan(userId: string, prefs: DietPrefs) {
   const { kept, removed } = dropAvoided(parsePlanItems(plan.items), prefs);
   if (removed.length === 0) return;
   const names = [...new Set(removed.map((r) => r.name))];
-  const note = `식단 취향이 바뀌어 ${names.slice(0, 3).join(' · ')}${
-    names.length > 3 ? ` 외 ${names.length - 3}가지` : ''
-  }를 뺐어요. '다른 식단으로'를 누르면 새로 짜요.`;
+  /* 조사는 끝 글자로 — '닭가슴살를' 처럼 늘 '를'이었다(2026-10-18 점검) */
+  const what = `${names.slice(0, 3).join(' · ')}${names.length > 3 ? ` 외 ${names.length - 3}가지` : ''}`;
+  const note = `식단 취향이 바뀌어 ${withJosa(what, '을/를')} 뺐어요. '다른 식단으로'를 누르면 새로 짜요.`;
   const ctx = parsePlanContext(plan.context);
   await prisma.mealPlan.update({
     where: { id: plan.id },

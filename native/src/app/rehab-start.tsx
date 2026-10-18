@@ -17,6 +17,7 @@ import {
   rehabNotes,
   rehabSeverity,
   rehabStartBlock,
+  rehabStartNotice,
   rehabTitle,
   severityLabel,
   startStage,
@@ -236,7 +237,7 @@ export default function RehabStartScreen() {
         block ? (
           <Blocked text={block.text} c={c} />
         ) : (
-          <Summary area={area} level={level} worst={worst} condition={condition} activities={activities} c={c} />
+          <Summary area={area} level={level} worst={worst} condition={condition} activities={activities} notice={rehabStartNotice({ age, area, condition })} c={c} />
         )
       ) : null}
     </StepFrame>
@@ -250,6 +251,7 @@ function Summary({
   worst,
   condition,
   activities,
+  notice,
   c,
 }: {
   area: ArmcareAreaKey;
@@ -257,6 +259,8 @@ function Summary({
   worst: number;
   condition: RehabConditionKey | null;
   activities: string[];
+  /** 18세 미만 팔꿈치 바깥쪽 — 진료 먼저(rehabStartNotice, 웹과 같은 글) */
+  notice: string | null;
   c: Palette;
 }) {
   const severity = rehabSeverity({ level, worst, condition });
@@ -267,6 +271,11 @@ function Summary({
   const body = { fontSize: 15, lineHeight: 22 } as const;
   return (
     <View style={{ gap: 14 }}>
+      {notice ? (
+        <View style={{ borderRadius: 12, padding: 12, backgroundColor: c.warnBg }}>
+          <Text style={[body, { color: c.warn }]}>{notice}</Text>
+        </View>
+      ) : null}
       {severity === 'severe' ? (
         <View style={{ borderRadius: 12, padding: 12, backgroundColor: c.warnBg }}>
           <Text style={[body, { color: c.warn }]}>

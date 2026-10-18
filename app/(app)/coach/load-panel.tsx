@@ -34,7 +34,9 @@ function Primary({ view }: { view: LoadView }) {
             {view.name} 부하 지수
           </p>
         </div>
-        {zone ? (
+        {view.signal ? (
+          <StatusChip tone={view.signal.tone}>{view.signal.label}</StatusChip>
+        ) : zone ? (
           <StatusChip tone={zone.tone}>{zone.label}</StatusChip>
         ) : (
           <StatusChip tone="neutral">쌓는 중</StatusChip>
@@ -50,10 +52,15 @@ function Primary({ view }: { view: LoadView }) {
                 {view.ratio.toFixed(2)}
               </span>
             </p>
-            <p className={`mt-1.5 text-sm font-medium ${TONE[zone.tone].text}`}>
-              {describeRatio(view.ratio)}
-              <span className="ml-1.5 font-normal text-muted">· {view.meaning}</span>
-            </p>
+            {/* 투구는 홈 · 팔 상태와 같은 한 줄(view.signal), 운동은 지수 구간 그대로 */}
+            {view.signal ? (
+              <p className={`mt-1.5 text-sm font-medium ${TONE[view.signal.tone].text}`}>{view.signal.line}</p>
+            ) : (
+              <p className={`mt-1.5 text-sm font-medium ${TONE[zone.tone].text}`}>
+                {describeRatio(view.ratio)}
+                <span className="ml-1.5 font-normal text-muted">· {view.meaning}</span>
+              </p>
+            )}
             {/* 문진 추정치가 섞여 있는 동안에는 그 사실을 숨기지 않는다 — 단정하지 않게 한 줄로 */}
             {view.estimated && (
               <p className="mt-2 text-xs text-muted">

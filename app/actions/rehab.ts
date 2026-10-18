@@ -38,6 +38,7 @@ import {
   type RehabFeel,
   type RehabLeftover,
   type RehabResult,
+  type RehabStatus,
   type RehabStage,
   type RehabWeeklyLike,
   type RehabWeeklyTest,
@@ -588,6 +589,17 @@ export async function saveRehabWeekly(input: {
 /* ─────────────────────────────── 투구 복귀표 열기 ─────────────────────────────── */
 
 /**
+ * 오늘은 던지지 않는 날인가 — 투구 복귀표를 열 때와 던진 것을 남길 때 같은 규칙(2026-10-18 김민). 한 번 열면 그 뒤 쉬는 날 ·
+ * 진료 권유 · 밤 통증이 생겨도 계속 던지게 했다. 화면에는 까닭 한 줄.
+ */
+function throwBlock(status: RehabStatus): string | null {
+  if (status.refer) return `오늘은 던지지 않아요. ${status.refer}`;
+  if (status.rest) return `오늘은 던지지 않아요. ${status.rest}`;
+  if (!status.nightPainFree) return '밤이나 쉴 때 아픈 날이 있어 던지지 않아요. 7일 없으면 다시 던져요.';
+  return null;
+}
+
+/**
  * 4단계 카드의 [투구 복귀표 열기] — 앉아서 한 팔 메디신볼 밀기 · (플라이오볼이 있으면) 프론 볼 드롭 · 한 팔 90/90 벽 던지기 ·
  * 시험 중 통증을 받고, 정상 대비 % · 자신감은 지난 7일 안의 매주 확인 것을 쓴다(없으면 화면이 매주 확인부터 연다).
  *
@@ -617,8 +629,10 @@ export async function openThrowingProgram(input: {
     return { error: '시험 기록을 모두 적어 주세요.' };
 
   const todayKey = toDateKey(appNow());
-  const { sessions, weeklies } = await loadRehabRecords(user.id, active.id, todayKey);
+  const { sessions, checkins, weeklies } = await loadRehabRecords(user.id, active.id, todayKey);
   if (throwingOpenedOn(program, weeklies)) return { ok: true };
+  const notToday = throwBlock(rehabStatus({ program, sessions, checkins, weeklies, todayKey }));
+  if (notToday) return { error: notToday };
   const recent = weeklies.at(-1);
   if (!recent || daysBetween(recent.date, todayKey) >= WEEKLY_EVERY_DAYS) {
     return { error: '먼저 이번 주 확인을 해 주세요.' };
@@ -691,8 +705,12 @@ export async function logRehabThrow(input: {
   if (!Number.isFinite(pitches) || pitches < 1 || pitches > 150) return { error: '공 수를 1~150 사이로 적어 주세요.' };
 
   const todayKey = toDateKey(appNow());
-  const { weeklies } = await loadRehabRecords(user.id, active.id, todayKey);
+  const { sessions, checkins, weeklies } = await loadRehabRecords(user.id, active.id, todayKey);
   if (!throwingOpenedOn(active.program, weeklies)) return { error: '먼저 투구 복귀표를 열어 주세요.' };
+  const notToday = throwBlock(
+    rehabStatus({ program: active.program, sessions, checkins, weeklies, todayKey })
+  );
+  if (notToday) return { error: notToday };
 
   const memo = throwMemo(step, input.pain);
   const date = dayStart(todayKey);

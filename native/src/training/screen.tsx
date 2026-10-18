@@ -4,6 +4,7 @@ import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
 import {
   ActivityIndicator,
+  AppState,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -87,6 +88,19 @@ export function useScreenData<T>(action: string, arg: string, key: string) {
       alive = false;
     };
   }, [key, load]);
+
+  /*
+   * 앱이 다시 앞에 오면 다시 받는다(2026-10-18 김민) — 밤새 열어 둔 암케어 목록이 어제 날짜로 체크를 남겼다. 받는 동안은 fresh 를
+   * 꺼 체크 · 만들기를 막는다(받아 둔 값이 어제 것일 수 있다).
+   */
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (st) => {
+      if (st !== 'active') return;
+      setFresh(false);
+      void load();
+    });
+    return () => sub.remove();
+  }, [load]);
 
   /* 따라 하기 · 체크인(앱 화면)에서 돌아오면 다시 받는다 — 체크 · 진행이 바로 바뀌게 */
   const focused = useRef(false);

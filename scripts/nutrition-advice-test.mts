@@ -17,7 +17,7 @@ import {
   type MealCheck,
   type TrainingKind,
 } from '../lib/nutrition/advice.ts';
-import { exampleWords } from '../lib/nutrition/meal-protein.ts';
+import { exampleWords, foodsProtein } from '../lib/nutrition/meal-protein.ts';
 
 let pass = 0;
 let fail = 0;
@@ -203,6 +203,7 @@ check(
       appetite: 1,
       sleepShort: true,
       w: exampleWords(),
+      recovery: '밥 1공기 + 닭가슴살 1팩',
     };
     const h = r.say(s).headline;
     return !h.includes('1시간') && !h.includes('운동 뒤');
@@ -496,14 +497,45 @@ console.log('\n■ 못 먹는 것(식단 취향)은 예시 음식에 안 나온�
     bad.slice(0, 3).join(' | ')
   );
   check(
-    '아무것도 안 뺐으면 예전 글 그대로 — 운동 뒤 달걀 2개 + 우유 · 던진 뒤 우유 2컵 + 바나나',
+    '아무것도 안 뺐으면 보기 음식 — 운동 뒤 달걀 2개 + 우유 2컵 · 던진 뒤 밥 1공기 + 닭가슴살 1팩',
     buildAdvice({
       ...base,
       training: [{ kind: 'strength', minutes: 60 }],
-    }).headline?.endsWith('달걀 2개 + 우유') === true &&
+    }).headline?.endsWith('달걀 2개 + 우유 2컵') === true &&
       buildAdvice({ ...base, throwKind: 'after' }).headline?.endsWith(
-        '우유 2컵 + 바나나'
+        '밥 1공기 + 닭가슴살 1팩'
       ) === true
+  );
+}
+
+console.log('\n■ 2026-10-18 점검 — 등판 날 오후 · 보기 g · 성장기 범위');
+{
+  const pm = buildAdvice({ ...base, throwKind: 'today', hour: 15 });
+  check(
+    "오늘 등판 · 오후 · 아직 투구 기록 없음 — '던진 뒤'가 아니라 던지기 전(탭 가이드와 같은 쪽)",
+    !/던진 뒤/.test(pm.headline ?? '') && /던지기 전/.test(pm.headline ?? ''),
+    pm.headline ?? ''
+  );
+  check(
+    '운동 뒤 보기는 한 끼 아래 끝(20g)을 채운다 — 달걀 2개 + 우유 2컵 · 두부 반 모 + 두유 2팩',
+    foodsProtein([
+      ['egg', 2],
+      ['milk', 2],
+    ]) >= 20 &&
+      foodsProtein([
+        ['tofu', 1],
+        ['soy-milk', 2],
+      ]) >= 20
+  );
+  const teen = buildAdvice({
+    ...base,
+    target: { ...base.target, protein: 90 },
+    body: { weightKg: 60, ageBand: 'teen', goal: 'maintain' },
+  });
+  check(
+    '성장기 단백질 범위는 성장기 칸(1.3~1.8g/kg) — 60kg 은 위 끝 110g 안팎, 성인 2.2(130g)가 아니다',
+    teen.range.protein.hi <= 110,
+    JSON.stringify(teen.range.protein)
   );
 }
 

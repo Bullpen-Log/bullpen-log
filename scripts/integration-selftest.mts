@@ -357,7 +357,10 @@ console.log('\n[12] 앱 입구 — 아이폰 앱(native/)이 부르는 /api/rpc 
     '약속 번호가 낮거나 머리가 없으면 액션을 부르기 전에 426(옛 판 앱 · 남의 사이트에서 쿠키로 부르기 막기)',
     route.indexOf('MIN_APP_API') > -1 && route.indexOf('status: 426') > -1 && route.indexOf('status: 426') < route.indexOf('await fn(')
   );
-  check('이름 고르기는 모듈 자신의 export 만(프로토타입 이름 제외)', /Object\.hasOwn\(mod, name\)/.test(route));
+  check(
+    '이름 고르기는 모듈 자신의 export 만, 모듈 이름도 허용 목록 자신의 것만(프로토타입 이름 제외)',
+    /Object\.hasOwn\(mod, name\)/.test(route) && /Object\.hasOwn\(RPC_MODULES, key\)/.test(route)
+  );
   check('redirect() · notFound() 를 삼키지 않고 앱이 알아듣는 답으로 바꾼다', route.includes("'NEXT_REDIRECT;'") && route.includes("'NEXT_HTTP_ERROR_FALLBACK;'"));
   check(
     '약속 번호 읽기: 없음 · 글자 · 0 · 음수는 0, 숫자는 그 수',
