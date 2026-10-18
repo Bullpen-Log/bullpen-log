@@ -1,9 +1,9 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import Animated, { Easing, LinearTransition, withDelay, withTiming } from 'react-native-reanimated';
 import { isRestSession } from '@/lib/session-type';
 import { STRONG_EFFORT_PCT, effortBand, readEffort } from '@/lib/pitch-effort';
-import { TYPE, usePalette } from '~/lib/ui';
+import { TYPE, usePalette, withAlpha } from '~/lib/ui';
 import { Icon } from '~/shell/icon';
 import { fadeIn } from '~/shell/motion';
 import { Press } from '~/shell/press';
@@ -77,6 +77,9 @@ export function MonthGrid({
   compact = false,
   video = false,
   thumbs,
+  events,
+  headerAction,
+  legendExtra = false,
   onMonth,
   onDay,
 }: {
@@ -93,11 +96,18 @@ export function MonthGrid({
   video?: boolean;
   /** 날짜 → 그날 대표 영상 장면 주소(video 일 때) */
   thumbs?: Record<string, string>;
+  /** 날짜 → 그날 일정 수 — 칸 밑 짧은 막대(웹 events, 둘 넘으면 점 하나 더) */
+  events?: Record<string, number>;
+  /** 머리 오른쪽 ‹ › 앞에 둘 단추(홈의 목록 보기 — 웹 headerAction) */
+  headerAction?: ReactNode;
+  /** 범례에 '일정'까지(홈) */
+  legendExtra?: boolean;
   onMonth: (month: string) => void;
   onDay: (day: string) => void;
 }) {
   const c = usePalette();
   const [legend, setLegend] = useState(false);
+  const [jump, setJump] = useState(false);
   /* 넘긴 쪽 — 처음 그릴 때(0)는 안 움직인다. 달이 바뀐 그 그리기에서 정한다(그리기 중 상태 맞추기) */
   const [seen, setSeen] = useState({ month, dir: 0 });
   if (seen.month !== month) setSeen({ month, dir: month > seen.month ? 1 : -1 });
@@ -128,14 +138,19 @@ export function MonthGrid({
     <Animated.View layout={LinearTransition.duration(380).easing(SLIDE)} style={[styles.card, { backgroundColor: c.card, boxShadow: c.float }]}>
       {/* 머리 — 왼쪽 '2026년 10월'(둥근 숫자 · 년월은 0.83배 굵게), 오른쪽 ‹ › 40 동그라미 */}
       <View style={styles.monthRow}>
-        <Animated.View key={month} entering={dir ? titleIn(dir) : undefined} style={{ flex: 1 }}>
-          <Text accessibilityRole="header" style={{ color: c.ink }}>
-            <Text style={[TYPE.num, { fontSize: 24 }]}>{y}</Text>
-            <Text style={styles.unit}>년 </Text>
-            <Text style={[TYPE.num, { fontSize: 24 }]}>{m}</Text>
-            <Text style={styles.unit}>월</Text>
-          </Text>
-        </Animated.View>
+        <View style={{ flex: 1, alignItems: 'flex-start' }}>
+          <Press accessibilityRole="button" accessibilityLabel={`${y}년 ${m}월, 달 고르기`} accessibilityState={{ expanded: jump }} onPress={() => setJump((o) => !o)}>
+            <Animated.View key={month} entering={dir ? titleIn(dir) : undefined}>
+              <Text style={{ color: c.ink }}>
+                <Text style={[TYPE.num, { fontSize: 24 }]}>{y}</Text>
+                <Text style={styles.unit}>년 </Text>
+                <Text style={[TYPE.num, { fontSize: 24 }]}>{m}</Text>
+                <Text style={styles.unit}>월</Text>
+              </Text>
+            </Animated.View>
+          </Press>
+        </View>
+        {headerAction}
         <Press accessibilityRole="button" accessibilityLabel="이전 달" onPress={() => onMonth(shiftMonth(month, -1))} style={styles.arrow}>
           <Icon name="chevron-left" size={20} color={c.sky} />
         </Press>
@@ -149,6 +164,18 @@ export function MonthGrid({
           <Icon name="chevron-right" size={20} color={c.sky} />
         </Press>
       </View>
+      {jump ? (
+        <MonthJump
+          month={month}
+          today={today}
+          allowFuture={allowFuture}
+          onClose={() => setJump(false)}
+          onPick={(next) => {
+            setJump(false);
+            if (next !== month) onMonth(next);
+          }}
+        />
+      ) : null}
       {/* 요일 줄은 달이 바뀌어도 가만히 */}
       <View style={styles.weekRow}>
         {WEEK.map((w) => (
@@ -163,13 +190,15 @@ export function MonthGrid({
           const dayLogs = byDay.get(day) ?? [];
           const count = dayLogs.reduce((n, l) => n + l.pitchCount, 0);
           const rest = dayLogs.length > 0 && dayLogs.every((l) => isRestSession(l.sessionType));
-          const video = dayLogs.some((l) => l.videoPaths.length > 0);
+          const hasVideo = dayLogs.some((l) => l.videoPaths.length > 0);
           const effort = dayLogs.length && !rest ? Math.max(0, ...dayLogs.map((l) => readEffort({ intensity: l.intensity ?? 0, effortPct: l.effortPct })?.pct ?? 0)) : null;
           const strong = effort != null && effort >= STRONG_EFFORT_PCT;
           const isToday = day === today;
           const isSel = day === selected;
           const future = !allowFuture && day > today;
-          const ink = strong ? '#fff' : c.ink;
+          const ink = strong ? '#ffffff' : c.ink;
+          /* 홈의 앞날(기록 없음)은 70% 글자 — 웹 isAhead */
+          const aheadEmpty = allowFuture && day > today && !dayLogs.length;
           if (video) {
             const paths = rest ? [] : dayLogs.flatMap((l) => l.videoPaths);
             return (
@@ -206,7 +235,7 @@ export function MonthGrid({
                   select
                   selected={isSel}
                   disabled={future}
-                  accessibilityLabel={`${Number(day.slice(5, 7))}월 ${Number(day.slice(8))}일${count ? `, ${count}구` : rest ? ', 쉬는 날로 남김' : ''}${video ? ', 영상 있음' : ''}${isToday ? ', 오늘' : ''}`}
+                  accessibilityLabel={`${Number(day.slice(5, 7))}월 ${Number(day.slice(8))}일${count ? `, ${count}구` : rest ? ', 쉬는 날로 남김' : ''}${hasVideo ? ', 영상 있음' : ''}${isToday ? ', 오늘' : ''}`}
                   accessibilityState={{ selected: isSel }}
                   onPress={() => onDay(day)}
                   style={[
@@ -219,7 +248,7 @@ export function MonthGrid({
                   ]}
                 >
                   <View style={[styles.dayNumBox, isToday && { borderColor: strong ? '#fff' : c.sky, borderWidth: 1.5 }]}>
-                    <Text style={[styles.dayNum, { color: isToday ? (strong ? '#fff' : c.sky) : rest ? c.muted : ink }, isToday && { fontWeight: '700', fontSize: 13 }]}>
+                    <Text style={[styles.dayNum, { color: isToday ? (strong ? '#fff' : c.sky) : rest ? c.muted : aheadEmpty ? withAlpha(c.ink, 0.7) : ink }, isToday && { fontWeight: '700', fontSize: 13 }]}>
                       {Number(day.slice(8))}
                     </Text>
                   </View>
@@ -228,7 +257,13 @@ export function MonthGrid({
                       {rest ? '휴식' : `${count}구`}
                     </Text>
                   ) : null}
-                  {video ? <View style={[styles.dot, { backgroundColor: c.skyStrong, borderColor: c.card }]} /> : null}
+                  {events?.[day] ? (
+                    <View style={styles.events}>
+                      <View style={[styles.eventBar, { backgroundColor: withAlpha(ink, 0.7) }]} />
+                      {events[day] > 1 ? <View style={[styles.eventDot, { backgroundColor: withAlpha(ink, 0.7) }]} /> : null}
+                    </View>
+                  ) : null}
+                  {hasVideo ? <View style={[styles.dot, { backgroundColor: c.skyStrong, borderColor: c.card }]} /> : null}
                 </Press>
               </Animated.View>
             </View>
@@ -239,14 +274,18 @@ export function MonthGrid({
       <Press accessibilityRole="button" accessibilityState={{ expanded: legend }} onPress={() => setLegend((o) => !o)} style={styles.legendBtn}>
         <Icon name="info" size={14} color={c.muted} />
         <Text style={{ color: c.muted, fontSize: 12 }}>표시 보기</Text>
-        <Icon name={legend ? 'chevron-up' : 'chevron-down'} size={14} color={c.muted} />
+        <View style={{ transform: [{ rotate: legend ? '180deg' : '0deg' }] }}>
+          <Icon name="chevron-down" size={14} color={c.muted} />
+        </View>
       </Press>
       {legend ? (
         <Animated.View entering={fadeIn} style={styles.legend}>
+          {/* 웹 범례와 같은 차례 — 강도 낮음 · 보통 · 높음(12×20) · 쉬는 날 · 영상 · 일정 */}
+          <Text style={[styles.legendText, { color: c.muted }]}>강도</Text>
           {(['light', 'mid', 'strong'] as const).map((b, i) => (
             <View key={b} style={styles.legendItem}>
               <View style={[styles.swatch, { backgroundColor: alpha(c.sky, BAND_ALPHA[b]) }]} />
-              <Text style={[styles.legendText, { color: c.muted }]}>{['강도 낮음', '중간', '높음'][i]}</Text>
+              <Text style={[styles.legendText, { color: c.muted }]}>{['낮음', '보통', '높음'][i]}</Text>
             </View>
           ))}
           <View style={styles.legendItem}>
@@ -257,6 +296,12 @@ export function MonthGrid({
             <View style={[styles.legendDot, { backgroundColor: c.skyStrong }]} />
             <Text style={[styles.legendText, { color: c.muted }]}>영상</Text>
           </View>
+          {legendExtra ? (
+            <View style={styles.legendItem}>
+              <View style={[styles.eventBar, { backgroundColor: withAlpha(c.ink, 0.7) }]} />
+              <Text style={[styles.legendText, { color: c.muted }]}>일정</Text>
+            </View>
+          ) : null}
         </Animated.View>
       ) : null}
     </Animated.View>
@@ -265,11 +310,12 @@ export function MonthGrid({
 
 
 const styles = StyleSheet.create({
-  card: { borderRadius: 20, padding: 20, paddingBottom: 8, overflow: 'hidden' },
+  /* 웹 Card 안쪽 20 · 머리 → 16 → 요일 · 칸 → 8 → '표시 보기'(-mt-2) */
+  card: { borderRadius: 20, padding: 20, overflow: 'hidden' },
   monthRow: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingBottom: 4 },
   unit: { fontSize: 20, fontWeight: '900', letterSpacing: 0 },
   arrow: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
-  weekRow: { flexDirection: 'row', marginBottom: 4 },
+  weekRow: { flexDirection: 'row', marginTop: 16, marginBottom: 4 },
   week: { width: `${100 / 7}%`, textAlign: 'center', fontSize: 11, fontWeight: '500', paddingBottom: 4 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: -2 },
   /* 칸 — 웹 휴대폰 min-h 3.25rem(고르면 2.75rem) · rounded-lg 12 · 칸 사이 4 */
@@ -279,12 +325,165 @@ const styles = StyleSheet.create({
   videoCell: { height: 68, borderRadius: 12, borderWidth: 1, overflow: 'hidden' },
   dayNumBox: { minWidth: 24, height: 24, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   dayNum: { fontSize: 15, fontWeight: '500', fontVariant: ['tabular-nums'] },
-  count: { fontSize: 11, lineHeight: 12, paddingHorizontal: 2, opacity: 0.8 },
+  count: { fontSize: 10, lineHeight: 11, paddingHorizontal: 2, opacity: 0.8 },
   dot: { position: 'absolute', right: 4, top: 4, width: 6, height: 6, borderRadius: 3, borderWidth: 1 },
-  legendBtn: { alignSelf: 'center', flexDirection: 'row', alignItems: 'center', gap: 4, minHeight: 36, paddingHorizontal: 8 },
-  legend: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', columnGap: 12, rowGap: 6, paddingBottom: 12 },
+  legendBtn: { alignSelf: 'center', flexDirection: 'row', alignItems: 'center', gap: 4, minHeight: 36, paddingHorizontal: 8, marginTop: 8, marginBottom: -8 },
+  legend: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', alignItems: 'center', columnGap: 12, rowGap: 8, paddingTop: 12 },
   legendItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  swatch: { width: 14, height: 14, borderRadius: 4 },
+  swatch: { width: 20, height: 12, borderRadius: 4 },
+  events: { position: 'absolute', left: 0, right: 0, bottom: 2, flexDirection: 'row', justifyContent: 'center', gap: 2 },
+  eventBar: { width: 12, height: 4, borderRadius: 2 },
+  eventDot: { width: 4, height: 4, borderRadius: 2 },
   legendDot: { width: 6, height: 6, borderRadius: 3 },
-  legendText: { fontSize: 12 },
+  legendText: { fontSize: 11 },
+  jump: { position: 'absolute', left: 20, top: 64, width: 256, zIndex: 20, borderRadius: 20, borderWidth: StyleSheet.hairlineWidth, padding: 12 },
+  jumpHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
+  jumpArrow: { minWidth: 44, minHeight: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  jumpYear: { flexDirection: 'row', alignItems: 'center', gap: 4, minHeight: 44, paddingHorizontal: 8, borderRadius: 12 },
+  jumpGrid: { flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: -2 },
+  jumpCell: { width: '25%', padding: 2 },
+  jumpBtn: { minHeight: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  jumpToday: { marginTop: 8, minHeight: 44, borderRadius: 12, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
 });
+
+/**
+ * '2026년 10월'을 누르면 펼쳐지는 빠른 이동 — 웹 month-calendar.tsx MonthJump 와 같다.
+ * 달 쪽(1~12월, ‹ 해 › · 해를 누르면 해 쪽) · 해 쪽(12년씩, 쪽의 끝이 마지막 해에 맞게) · [오늘로]. 아직 안 온 해 · 달은 흐리게(홈은 5년 앞까지).
+ * 창이 아니라 제자리에 뜨는 작은 판 — 바깥(카드)을 누르면 닫힌다.
+ */
+const MONTH_LABELS = Array.from({ length: 12 }, (_, i) => `${i + 1}월`);
+function MonthJump({
+  month,
+  today,
+  allowFuture,
+  onPick,
+  onClose,
+}: {
+  month: string;
+  today: string;
+  allowFuture: boolean;
+  onPick: (month: string) => void;
+  onClose: () => void;
+}) {
+  const c = usePalette();
+  const [cy, cm] = month.split('-').map(Number);
+  const [ty, tm] = today.split('-').map(Number);
+  const lastYear = allowFuture ? ty + 5 : ty;
+  const [view, setView] = useState<'month' | 'year'>('month');
+  const [pickYear, setPickYear] = useState(cy);
+  const pageStartFor = (year: number) => lastYear - 11 - 12 * Math.max(0, Math.floor((lastYear - year) / 12));
+  const [pageStart, setPageStart] = useState(pageStartFor(cy));
+  const key = (y: number, m: number) => `${y}-${String(m).padStart(2, '0')}`;
+  return (
+    <>
+      {/* 바깥 누르면 닫힘 — 카드 전체를 덮는 투명 판 */}
+      <Press accessibilityLabel="달 고르기 닫기" onPress={onClose} style={[StyleSheet.absoluteFill, { zIndex: 19 }]} />
+      <Animated.View entering={fadeIn} style={[styles.jump, { backgroundColor: c.card, borderColor: c.line, boxShadow: '0 10px 30px -10px rgba(0,0,0,0.25)' }]}>
+        <Animated.View key={view} entering={fadeIn}>
+          {view === 'month' ? (
+            <>
+              <View style={styles.jumpHead}>
+                <Press accessibilityRole="button" accessibilityLabel="이전 해" onPress={() => setPickYear((y) => y - 1)} style={styles.jumpArrow}>
+                  <Icon name="chevron-left" size={16} color={c.muted} />
+                </Press>
+                <Press
+                  accessibilityRole="button"
+                  accessibilityLabel={`${pickYear}년, 해 고르기`}
+                  onPress={() => {
+                    setPageStart(pageStartFor(pickYear));
+                    setView('year');
+                  }}
+                  style={styles.jumpYear}
+                >
+                  <Text style={{ color: c.ink, fontSize: 15, fontWeight: '600' }}>{pickYear}년</Text>
+                  <Icon name="chevron-down" size={14} color={c.muted} />
+                </Press>
+                <Press
+                  accessibilityRole="button"
+                  accessibilityLabel="다음 해"
+                  disabled={pickYear >= lastYear}
+                  onPress={() => setPickYear((y) => y + 1)}
+                  style={[styles.jumpArrow, pickYear >= lastYear && { opacity: 0.3 }]}
+                >
+                  <Icon name="chevron-right" size={16} color={c.muted} />
+                </Press>
+              </View>
+              <View style={styles.jumpGrid}>
+                {MONTH_LABELS.map((label, i) => {
+                  const on = pickYear === cy && i + 1 === cm;
+                  const future = !allowFuture && (pickYear > ty || (pickYear === ty && i + 1 > tm));
+                  return (
+                    <View key={label} style={styles.jumpCell}>
+                      <Press
+                        select
+                        selected={on}
+                        disabled={future}
+                        accessibilityState={{ selected: on, disabled: future }}
+                        onPress={() => onPick(key(pickYear, i + 1))}
+                        style={[styles.jumpBtn, on && { backgroundColor: c.sky }]}
+                      >
+                        <Text style={{ fontSize: 15, fontWeight: '500', color: on ? '#fff' : future ? withAlpha(c.muted, 0.35) : c.ink }}>{label}</Text>
+                      </Press>
+                    </View>
+                  );
+                })}
+              </View>
+            </>
+          ) : (
+            <>
+              <View style={styles.jumpHead}>
+                <Press accessibilityRole="button" accessibilityLabel="이전 12년" onPress={() => setPageStart((y) => y - 12)} style={styles.jumpArrow}>
+                  <Icon name="chevron-left" size={16} color={c.muted} />
+                </Press>
+                <Text style={{ color: c.ink, fontSize: 15, fontWeight: '600' }}>
+                  {pageStart} – {pageStart + 11}
+                </Text>
+                <Press
+                  accessibilityRole="button"
+                  accessibilityLabel="다음 12년"
+                  disabled={pageStart + 11 >= lastYear}
+                  onPress={() => setPageStart((y) => y + 12)}
+                  style={[styles.jumpArrow, pageStart + 11 >= lastYear && { opacity: 0.3 }]}
+                >
+                  <Icon name="chevron-right" size={16} color={c.muted} />
+                </Press>
+              </View>
+              <View style={styles.jumpGrid}>
+                {Array.from({ length: 12 }, (_, i) => pageStart + i).map((year) => {
+                  const on = year === pickYear;
+                  const off = year > lastYear;
+                  return (
+                    <View key={year} style={styles.jumpCell}>
+                      <Press
+                        select
+                        selected={on}
+                        disabled={off}
+                        onPress={() => {
+                          setPickYear(year);
+                          setView('month');
+                        }}
+                        style={[styles.jumpBtn, on && { backgroundColor: c.sky }]}
+                      >
+                        <Text
+                          style={[
+                            TYPE.num,
+                            { fontSize: 15, fontWeight: '500', color: on ? '#fff' : off ? withAlpha(c.muted, 0.35) : year === ty ? c.sky : c.ink },
+                          ]}
+                        >
+                          {year}
+                        </Text>
+                      </Press>
+                    </View>
+                  );
+                })}
+              </View>
+            </>
+          )}
+        </Animated.View>
+        <Press accessibilityRole="button" onPress={() => onPick(key(ty, tm))} style={[styles.jumpToday, { borderColor: c.line }]}>
+          <Text style={{ color: c.muted, fontSize: 15, fontWeight: '500' }}>오늘로</Text>
+        </Press>
+      </Animated.View>
+    </>
+  );
+}

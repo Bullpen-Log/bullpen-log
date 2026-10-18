@@ -232,6 +232,8 @@ function EntryForm({
 
   /* 두 번 눌러도 한 번만 — busy(상태)는 다시 그려진 뒤에야 바뀌어, 빨리 두 번 누르면 둘 다 지나갔다 */
   const inFlight = useRef(false);
+  /* 저장했거나 [취소]가 직접 정리했으면 닫힐 때 다시 지우지 않는다(아래 닫힘 정리) */
+  const savedRef = useRef(false);
   const save = async () => {
     if (busy || inFlight.current) return;
     if (!type) return setError('투구 종류를 골라 주세요.');
@@ -282,7 +284,6 @@ function EntryForm({
    * 닫힐 때 지금 목록을 보게 ref 로 쥔다.
    */
   const videosRef = useRef(videos);
-  const savedRef = useRef(false);
   useEffect(() => {
     videosRef.current = videos;
   }, [videos]);

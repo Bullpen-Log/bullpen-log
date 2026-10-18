@@ -16,6 +16,11 @@ export const rowIn = (i = 0) =>
 
 export const fadeIn = FadeIn.duration(160).easing(Easing.out(Easing.ease));
 
+/** 보기 바꿈(달력 ↔ 목록) — 웹 view-swap: 4px 아래에서 180ms cubic-bezier(0.22,1,0.36,1) 로 떠오르며 진해짐 */
+export const viewSwap = FadeInDown.duration(180)
+  .easing(Easing.bezier(0.22, 1, 0.36, 1))
+  .withInitialValues({ opacity: 0, transform: [{ translateY: 4 }] });
+
 /** 불러오는 동안 회색 덩이 — 웹 animate-pulse(2초에 한 번 1 → 0.5 → 1, cubic-bezier(0.4,0,0.6,1)). 움직임 줄이기면 멈춘 채 */
 export function Pulse({ style }: { style?: StyleProp<ViewStyle> }) {
   const reduce = useReducedMotion();

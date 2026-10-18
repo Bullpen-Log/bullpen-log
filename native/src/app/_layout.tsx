@@ -1,4 +1,5 @@
 import { router, Stack, usePathname } from 'expo-router';
+import { Toaster } from '~/shell/toast';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
@@ -66,6 +67,8 @@ export default function RootLayout() {
           options={{ presentation: 'formSheet', sheetAllowedDetents: 'fitToContents', sheetGrabberVisible: true, sheetCornerRadius: 28 }}
         />
       </Stack>
+      {/* '저장했어요' 같은 잠깐 알림(웹 Toaster) — 쌓인 화면 위, 시계 밑 */}
+      <Toaster />
     </GestureHandlerRootView>
   );
 }

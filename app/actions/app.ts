@@ -203,6 +203,30 @@ export async function loadAppTraining(): Promise<
 }
 
 /**
+ * 앱 홈 달력의 일정 전부 — 웹 홈(home-page.tsx)과 같은 범위 · 같은 상한(3,000). 달력 칸 밑 일정 막대 · 그날 칸 · 알림 다시 걸기가 쓴다.
+ */
+export async function loadAppEvents(): Promise<{ ok: true; events: CalendarEventView[] } | { ok: false; error: string }> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: '로그인이 필요해요.' };
+  const rows = await prisma.calendarEvent.findMany({
+    where: user.role === 'ADMIN' ? { user: { role: 'ADMIN' } } : { userId: user.id },
+    orderBy: { date: 'asc' },
+    take: 3000,
+    select: { id: true, date: true, title: true, time: true, memo: true, remindMin: true, userId: true, user: { select: { nickname: true } } },
+  });
+  return {
+    ok: true,
+    events: sortEvents(
+      rows.map(({ userId, user: owner, ...e }) => ({
+        ...e,
+        date: keyOfDbDate(e.date),
+        ...(userId === user.id ? {} : { owner: owner.nickname }),
+      }))
+    ),
+  };
+}
+
+/**
  * 앱 홈 그날 칸의 일정 — 웹 홈 달력과 같은 범위(내 일정, 관리자는 다른 관리자 일정도 읽기만 — owner 닉네임). 더하기 · 고치기 · 지우기는
  * 웹과 같은 calendar-event.saveCalendarEvent · deleteCalendarEvent.
  */

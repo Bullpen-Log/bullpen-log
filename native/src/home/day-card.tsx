@@ -15,7 +15,7 @@ import { fadeIn, rowIn } from '~/shell/motion';
 import { Press } from '~/shell/press';
 import { openCheckin } from '~/shell/web-nav';
 import { loadDay, type DayDetail } from './api';
-import { countDayEvents, DayEvents } from './events';
+import { DayEvents, useDayEventCount } from './events';
 
 /**
  * 홈 달력 밑 그날 칸 — 웹 day-summary.tsx(요약 카드) · day-detail.tsx(자세히 카드)와 같은 두 카드.
@@ -64,7 +64,6 @@ export function DayCards({
     detail: days.get(date) ?? null,
     error: null,
   }));
-  const [events, setEvents] = useState<{ date: string; n: number | null }>({ date, n: null });
   const [picked, setPicked] = useState<{ date: string; focus: Focus } | null>(null);
 
   useEffect(() => {
@@ -77,7 +76,6 @@ export function DayCards({
         },
         (e: unknown) => alive && setState((s) => ({ date, detail: s.date === date ? s.detail : null, error: e instanceof Error ? e.message : '불러오지 못했어요.' }))
       );
-    void countDayEvents(date).then((n) => alive && setEvents({ date, n }));
     return () => {
       alive = false;
     };
@@ -85,7 +83,7 @@ export function DayCards({
 
   const ahead = date > today;
   const d = state.date === date ? (state.detail ?? days.get(date) ?? null) : (days.get(date) ?? null);
-  const eventCount = events.date === date ? (events.n ?? 0) : 0;
+  const eventCount = useDayEventCount(date) ?? 0;
   const videos = logs.reduce((n, l) => n + l.videoPaths.length, 0);
   const doneEx = d?.training.exercises.filter((e) => e.done) ?? [];
   const pain = d?.checkin?.parts.some((p) => p.value === '통증') ?? false;
@@ -99,7 +97,8 @@ export function DayCards({
   };
   /* 처음 펼칠 것 — 남긴 것 가운데 가장 앞, 아무것도 없으면 투구(앞날이면 일정 — 웹 firstFocus 와 같다) */
   const first = ahead ? 'schedule' : (TILES.find((t) => has[t.key])?.key ?? 'pitch');
-  const focus = picked?.date === date ? picked.focus : first;
+  /* 칸이 펴진 채 날을 바꾸면 보던 아이콘 그대로(웹 — 날마다 영양 · 투구를 견줘 본다). 처음 펼 때만 first */
+  const focus = picked ? picked.focus : first;
   const link = tabLink(focus, date, today, !has[focus]);
 
   return (

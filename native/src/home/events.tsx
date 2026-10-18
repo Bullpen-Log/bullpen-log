@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
-import { Alert, KeyboardAvoidingView, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useEffect, useState, useSyncExternalStore } from 'react';
+import { ActionSheetIOS, Alert, StyleSheet, Text, TextInput, View } from 'react-native';
+import Animated from 'react-native-reanimated';
 import {
   EVENT_MEMO_MAX,
   EVENT_TITLE_MAX,
@@ -13,164 +13,227 @@ import {
 } from '@/lib/calendar-event';
 import { BullpenNative } from '../../modules/bullpen-native';
 import { rpc } from '~/lib/rpc';
-import { usePalette } from '~/lib/ui';
-import { READABLE } from '~/lib/layout';
+import { usePalette, withAlpha } from '~/lib/ui';
+import { Icon } from '~/shell/icon';
+import { fadeIn } from '~/shell/motion';
+import { Press } from '~/shell/press';
+import { toast } from '~/shell/toast';
 
 /**
- * 홈 그날 칸의 일정 — 웹 홈 달력의 일정(app/(app)/today/day-schedule.tsx)과 같은 자료 · 같은 서버 동작(calendar-event.*). 다른 관리자의 일정은
- * 보기만. 알림은 앱이 바로 건다(웹 event-alarms.ts 와 같은 이름 'event-<id>' — 웹 홈이 다시 그려지면 같은 이름이라 덮어쓴다).
+ * 홈 달력의 일정 — 웹 홈(home-page.tsx 의 일정 전부 · pitch-log-panel eventCounts · day-schedule.tsx)과 같다.
+ * - 일정은 한 번에 다 받는다(app.loadAppEvents, 웹과 같은 범위 · 상한) — 달력 칸 밑 막대 · 그날 칸 · 알림이 같이 쓴다.
+ * - 받을 때마다 내 일정의 알림을 다시 건다(웹 useEventAlarms — 웹 · 다른 기기에서 만든 일정도 울리게).
+ * - 그날 칸: 일정 줄(파란 막대 · 제목 · 다른 관리자 칩 · 시각 + 알림 종 · 메모 다), 누르면 그 자리에서 고치기,
+ *   일정이 없으면 새 일정 폼이 펴진 채(제목에 커서), 있으면 '일정 추가' 단추.
  */
-const days = new Map<string, CalendarEventView[]>();
-export const resetEventsCache = () => days.clear();
-/** 그날 일정 수 — 그날 칸의 '일정' 아이콘을 칠할지(받아 두면 일정 칸이 펴질 때 바로 보인다). 못 받으면 null */
-export async function countDayEvents(date: string): Promise<number | null> {
-  try {
-    const r = await rpc<{ ok: true; events: CalendarEventView[] } | { ok: false; error: string }>('app.loadAppDayEvents', date);
-    if (!r.ok) return null;
-    days.set(date, r.events);
-    return r.events.length;
-  } catch {
-    return null;
-  }
-}
+type Store = { list: CalendarEventView[] | null };
+let store: Store = { list: null };
+const listeners = new Set<() => void>();
+const emit = () => listeners.forEach((l) => l());
+const subscribe = (l: () => void) => {
+  listeners.add(l);
+  return () => {
+    listeners.delete(l);
+  };
+};
+let loading: Promise<void> | null = null;
 
-type SaveResult = { ok: true; event: CalendarEventView } | { ok: false; error: string };
+export const resetEventsCache = () => {
+  store = { list: null };
+  emit();
+};
 
 function syncAlarm(e: CalendarEventView) {
-  const at = remindAt(e);
   const id = `event-${e.id}`;
+  const at = e.owner ? null : remindAt(e);
   if (at == null || at <= Date.now()) return void BullpenNative.cancelAlarm(id).catch(() => undefined);
   const body = [timeLabel(e.time), e.memo?.split('\n')[0]].filter(Boolean).join(' · ');
   void BullpenNative.scheduleAlarm(id, at, e.title, body).catch(() => undefined);
 }
 
+/** 일정을 (다시) 받는다 — 홈이 보일 때마다. 알림도 다시 건다 */
+export function reloadEvents(): Promise<void> {
+  loading ??= rpc<{ ok: true; events: CalendarEventView[] } | { ok: false; error: string }>('app.loadAppEvents')
+    .then((r) => {
+      if (!r.ok) return;
+      store = { list: r.events };
+      emit();
+      for (const e of r.events) if (!e.owner) syncAlarm(e);
+    })
+    .catch(() => undefined)
+    .finally(() => {
+      loading = null;
+    });
+  return loading;
+}
+
+const put = (next: CalendarEventView[]) => {
+  store = { list: sortEvents(next) };
+  emit();
+};
+
+export function useEvents(): CalendarEventView[] | null {
+  return useSyncExternalStore(subscribe, () => store).list;
+}
+
+/** 날짜 → 일정 수(달력 칸 밑 막대) */
+export function useEventCounts(): Record<string, number> {
+  const list = useEvents();
+  const out: Record<string, number> = {};
+  for (const e of list ?? []) out[e.date] = (out[e.date] ?? 0) + 1;
+  return out;
+}
+
+/** 그날 일정 수 — 받기 전이면 null */
+export function useDayEventCount(date: string): number | null {
+  const list = useEvents();
+  return list ? list.filter((e) => e.date === date).length : null;
+}
+
+function remindText(e: CalendarEventView) {
+  const o = REMIND_OPTIONS.find((x) => x.value === e.remindMin);
+  if (!o || o.value == null) return null;
+  return e.time ? o.label : o.allDayLabel;
+}
+
 export function DayEvents({ date }: { date: string }) {
   const c = usePalette();
-  const [state, setState] = useState<{ date: string; list: CalendarEventView[] | null }>(() => ({
-    date,
-    list: days.get(date) ?? null,
-  }));
-  const [sheet, setSheet] = useState<{ event: CalendarEventView | null } | null>(null);
-  /* 고치기 · 지우기를 하면 하나 올린다 — 그 전에 떠난 읽기가 늦게 오면 버리고(방금 저장한 일정이 사라지지 않게) 다시 읽는다 */
-  const gen = useRef(0);
-  const [reload, setReload] = useState(0);
-
+  const all = useEvents();
   useEffect(() => {
-    let alive = true;
-    const g = gen.current;
-    rpc<{ ok: true; events: CalendarEventView[] } | { ok: false; error: string }>('app.loadAppDayEvents', date).then(
-      (r) => {
-        if (!r.ok || !alive || g !== gen.current) return;
-        days.set(date, r.events);
-        setState({ date, list: r.events });
-      },
-      () => undefined
-    );
-    return () => {
-      alive = false;
-    };
-  }, [date, reload]);
+    if (!store.list) void reloadEvents();
+  }, []);
+  const list = (all ?? []).filter((e) => e.date === date);
+  const [editing, setEditing] = useState<{ date: string; id: 'new' | string | null } | null>(null);
+  /* 일정이 없는 날은 새 일정 폼이 펴진 채(웹 DaySchedule) — 날을 바꾸면 다시 정한다 */
+  const id = editing && editing.date === date ? editing.id : all && list.length === 0 ? 'new' : null;
+  const set = (v: 'new' | string | null) => setEditing({ date, id: v });
 
-  const list = state.date === date ? state.list ?? days.get(date) ?? null : days.get(date) ?? null;
-  const put = (next: CalendarEventView[]) => {
-    gen.current++;
-    const sorted = sortEvents(next);
-    days.set(date, sorted);
-    setState({ date, list: sorted });
-    setReload((n) => n + 1);
-  };
-
+  if (!all) return <Text style={{ color: c.muted, fontSize: 13 }}>불러오는 중…</Text>;
   return (
-    <View style={{ gap: 4 }}>
-      <View style={styles.head}>
-        <Text style={[styles.label, { color: c.muted }]}>일정</Text>
-        <Text style={{ flex: 1, color: c.ink, fontSize: 15 }}>{list && list.length === 0 ? '일정 없음' : ''}</Text>
-        <Pressable accessibilityRole="button" accessibilityLabel="일정 더하기" onPress={() => setSheet({ event: null })} hitSlop={8}>
-          <Text style={{ color: c.sky, fontSize: 14, fontWeight: '600' }}>+ 일정</Text>
-        </Pressable>
-      </View>
-      {(list ?? []).map((e) => (
-        <Pressable
-          key={e.id}
-          accessibilityRole="button"
-          disabled={!!e.owner}
-          onPress={() => setSheet({ event: e })}
-          style={styles.item}
-        >
-          <Text style={{ width: 52, color: c.sky, fontSize: 14, fontWeight: '600' }}>{timeLabel(e.time)}</Text>
-          <View style={{ flex: 1 }}>
-            <Text style={{ color: c.ink, fontSize: 15 }} numberOfLines={1}>
-              {e.title}
-              {e.owner ? ` · ${e.owner}` : ''}
-            </Text>
-            {e.memo ? (
-              <Text style={{ color: c.muted, fontSize: 13 }} numberOfLines={2}>
-                {e.memo}
-              </Text>
-            ) : null}
-          </View>
-        </Pressable>
-      ))}
-      {sheet ? (
-        <EventSheet
-          date={date}
-          event={sheet.event}
-          onClose={() => setSheet(null)}
-          onSaved={(e) => {
-            put([...(list ?? []).filter((x) => x.id !== e.id), e]);
-            syncAlarm(e);
-            setSheet(null);
-          }}
-          onDeleted={(id) => {
-            put((list ?? []).filter((x) => x.id !== id));
-            void BullpenNative.cancelAlarm(`event-${id}`).catch(() => undefined);
-            setSheet(null);
-          }}
-        />
+    <View style={{ gap: 12 }}>
+      {list.length ? (
+        <View>
+          {list.map((e, i) => (
+            <View key={e.id} style={i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderColor: c.line }}>
+              {id === e.id ? (
+                <View style={{ paddingVertical: 12 }}>
+                  <EventForm
+                    date={date}
+                    event={e}
+                    onDone={(saved) => {
+                      put([...(all ?? []).filter((x) => x.id !== saved.id), saved]);
+                      syncAlarm(saved);
+                      set(null);
+                    }}
+                    onCancel={() => set(null)}
+                    onDeleted={() => {
+                      put((all ?? []).filter((x) => x.id !== e.id));
+                      void BullpenNative.cancelAlarm(`event-${e.id}`).catch(() => undefined);
+                      set(null);
+                    }}
+                  />
+                </View>
+              ) : (
+                <Press
+                  accessibilityRole="button"
+                  accessibilityLabel={`${e.title}, ${timeLabel(e.time)}${e.owner ? '' : ', 고치기'}`}
+                  disabled={!!e.owner}
+                  onPress={() => set(e.id)}
+                  style={styles.line}
+                >
+                  <View style={[styles.bar, { backgroundColor: e.owner ? withAlpha(c.muted, 0.5) : c.sky }]} />
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                      <Text numberOfLines={1} style={{ flexShrink: 1, color: c.ink, fontSize: 15, fontWeight: '600' }}>
+                        {e.title}
+                      </Text>
+                      {e.owner ? (
+                        <Text style={[styles.owner, { color: c.muted, backgroundColor: withAlpha(c.chip, 0.6) }]}>{e.owner}</Text>
+                      ) : null}
+                    </View>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 1 }}>
+                      <Text style={{ color: c.muted, fontSize: 12 }}>{timeLabel(e.time)}</Text>
+                      {!e.owner && remindText(e) ? (
+                        <>
+                          <View style={{ marginLeft: 4 }}>
+                            <Icon name="bell" size={12} color={c.muted} />
+                          </View>
+                          <Text style={{ color: c.muted, fontSize: 12 }}>{remindText(e)}</Text>
+                        </>
+                      ) : null}
+                    </View>
+                    {e.memo ? <Text style={{ color: c.muted, fontSize: 12, marginTop: 2 }}>{e.memo}</Text> : null}
+                  </View>
+                </Press>
+              )}
+            </View>
+          ))}
+        </View>
+      ) : null}
+      {id === 'new' ? (
+        <Animated.View entering={fadeIn}>
+          <EventForm
+            date={date}
+            event={null}
+            onDone={(saved) => {
+              put([...(all ?? []), saved]);
+              syncAlarm(saved);
+              set(null);
+            }}
+            onCancel={list.length === 0 ? undefined : () => set(null)}
+          />
+        </Animated.View>
+      ) : id == null ? (
+        <Press accessibilityRole="button" onPress={() => set('new')} style={[styles.secondary, { backgroundColor: withAlpha(c.ink, 0.06) }]}>
+          <Icon name="plus" size={16} color={c.ink} />
+          <Text style={{ color: c.ink, fontSize: 15, fontWeight: '600' }}>일정 추가</Text>
+        </Press>
       ) : null}
     </View>
   );
 }
 
-function EventSheet({
+function EventForm({
   date,
   event,
-  onClose,
-  onSaved,
+  onDone,
+  onCancel,
   onDeleted,
 }: {
   date: string;
   event: CalendarEventView | null;
-  onClose: () => void;
-  onSaved: (e: CalendarEventView) => void;
-  onDeleted: (id: string) => void;
+  onDone: (saved: CalendarEventView) => void;
+  onCancel?: () => void;
+  onDeleted?: () => void;
 }) {
   const c = usePalette();
-  const inset = useSafeAreaInsets();
   const [title, setTitle] = useState(event?.title ?? '');
   const [time, setTime] = useState(event?.time ?? '');
   const [memo, setMemo] = useState(event?.memo ?? '');
-  /* 'auto' — 아직 안 골랐다: 시각이 있으면 30분 전, 하루 종일이면 그날 아침(웹 day-schedule.tsx 와 같은 규칙) */
-  const [remindPick, setRemind] = useState<number | null | 'auto'>(event ? event.remindMin : 'auto');
+  const [remindPick, setRemindPick] = useState<number | null | 'auto'>(event ? event.remindMin : 'auto');
   const remind = remindPick === 'auto' ? defaultRemind(time.trim() || null) : remindPick;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const allDay = !time.trim();
 
   const save = async () => {
-    if (busy) return;
+    if (busy || !title.trim()) return;
     setBusy(true);
     setError(null);
     try {
-      const res = await rpc<SaveResult>('calendar-event.saveCalendarEvent', event?.id ?? null, {
-        date,
-        title,
-        time: time.trim() || null,
-        memo: memo.trim() || null,
-        remindMin: remind,
-      });
+      const res = await rpc<{ ok: true; event: CalendarEventView } | { ok: false; error: string }>(
+        'calendar-event.saveCalendarEvent',
+        event?.id ?? null,
+        { date, title, time: time.trim() || null, memo: memo.trim() || null, remindMin: remind }
+      );
       if (!res.ok) return setError(res.error);
-      onSaved(res.event);
+      toast(event ? '고쳤어요' : '일정을 더했어요');
+      if (!event) {
+        setTitle('');
+        setTime('');
+        setMemo('');
+        setRemindPick('auto');
+      }
+      onDone(res.event);
     } catch {
       setError('신호가 약해 저장하지 못했어요. 적은 것은 그대로 있어요.');
     } finally {
@@ -188,8 +251,9 @@ function EventSheet({
           setBusy(true);
           try {
             const res = await rpc<{ ok: true } | { ok: false; error: string }>('calendar-event.deleteCalendarEvent', event.id);
-            if (!res.ok) setError(res.error);
-            else onDeleted(event.id);
+            if (!res.ok) return setError(res.error);
+            toast('지웠어요');
+            onDeleted?.();
           } catch {
             setError('신호가 약해 지우지 못했어요.');
           } finally {
@@ -198,27 +262,40 @@ function EventSheet({
         },
       },
     ]);
+  const allDay = !time.trim();
+  const pickRemind = () => {
+    const opts = REMIND_OPTIONS.map((o) => (allDay ? o.allDayLabel : o.label));
+    ActionSheetIOS.showActionSheetWithOptions({ options: [...opts, '취소'], cancelButtonIndex: opts.length, title: '알림' }, (i) => {
+      if (i < opts.length) setRemindPick(REMIND_OPTIONS[i].value);
+    });
+  };
+  const remindLabel = (() => {
+    const o = REMIND_OPTIONS.find((x) => x.value === remind);
+    return o ? (allDay ? o.allDayLabel : o.label) : '없음';
+  })();
+  const input = [styles.input, { backgroundColor: withAlpha(c.ink, 0.05), color: c.ink }];
 
-  const [, m, d] = date.split('-').map(Number);
-  const input = [styles.input, { backgroundColor: c.card, color: c.ink }];
   return (
-    <Modal visible animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
-      <KeyboardAvoidingView behavior="padding" style={{ flex: 1, backgroundColor: c.page }}>
-        <View style={styles.bar}>
-          <Pressable accessibilityRole="button" onPress={onClose} hitSlop={10}>
-            <Text style={{ color: c.sky, fontSize: 17 }}>취소</Text>
-          </Pressable>
-          <Text style={{ color: c.ink, fontSize: 17, fontWeight: '600' }}>
-            {m}월 {d}일 {event ? '일정 고치기' : '새 일정'}
+    <View style={{ gap: 12 }}>
+      <View style={{ gap: 6 }}>
+        <Text style={[styles.label, { color: c.ink }]}>일정</Text>
+        <TextInput
+          value={title}
+          onChangeText={setTitle}
+          maxLength={EVENT_TITLE_MAX}
+          placeholder="예: 연습 경기, 병원"
+          placeholderTextColor={c.muted}
+          autoFocus={event === null}
+          returnKeyType="done"
+          onSubmitEditing={() => void save()}
+          style={input}
+        />
+      </View>
+      <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 8 }}>
+        <View style={{ flex: 1, gap: 6 }}>
+          <Text style={[styles.label, { color: c.ink }]}>
+            시각{allDay ? <Text style={{ color: c.muted, fontWeight: '400' }}>  비우면 하루 종일</Text> : null}
           </Text>
-          <Pressable accessibilityRole="button" onPress={save} disabled={busy} hitSlop={10}>
-            <Text style={{ color: c.sky, fontSize: 17, fontWeight: '700', opacity: busy ? 0.4 : 1 }}>저장</Text>
-          </Pressable>
-        </View>
-        <ScrollView contentContainerStyle={[{ padding: 16, gap: 8, paddingBottom: inset.bottom + 24 }, READABLE]} keyboardShouldPersistTaps="handled">
-          <Text style={[styles.sheetLabel, { color: c.muted }]}>제목</Text>
-          <TextInput value={title} onChangeText={setTitle} maxLength={EVENT_TITLE_MAX} placeholder="예: 연습 경기" placeholderTextColor={c.muted} style={input} />
-          <Text style={[styles.sheetLabel, { color: c.muted }]}>시각(비우면 하루 종일)</Text>
           <TextInput
             value={time}
             onChangeText={(v) => {
@@ -231,53 +308,67 @@ function EventSheet({
             placeholderTextColor={c.muted}
             style={input}
           />
-          <Text style={[styles.sheetLabel, { color: c.muted }]}>알림</Text>
-          <View style={styles.chips}>
-            {REMIND_OPTIONS.map((o) => {
-              const on = remind === o.value;
-              return (
-                <Pressable
-                  key={String(o.value)}
-                  accessibilityRole="radio"
-                  accessibilityState={{ selected: on }}
-                  onPress={() => setRemind(o.value)}
-                  style={[styles.chip, { backgroundColor: on ? c.sky : c.chip }]}
-                >
-                  <Text style={{ color: on ? '#fff' : c.ink, fontSize: 14, fontWeight: '600' }}>{allDay ? o.allDayLabel : o.label}</Text>
-                </Pressable>
-              );
-            })}
-          </View>
-          <Text style={[styles.sheetLabel, { color: c.muted }]}>메모</Text>
-          <TextInput
-            value={memo}
-            onChangeText={setMemo}
-            maxLength={EVENT_MEMO_MAX}
-            multiline
-            placeholder="선택"
-            placeholderTextColor={c.muted}
-            style={[input, { minHeight: 88, paddingTop: 12, textAlignVertical: 'top' }]}
-          />
-          {error ? <Text style={{ color: c.danger, fontSize: 15 }}>{error}</Text> : null}
-          {event ? (
-            <Pressable accessibilityRole="button" onPress={remove} disabled={busy} style={[styles.delete, { backgroundColor: c.card }]}>
-              <Text style={{ color: c.danger, fontSize: 17, fontWeight: '600' }}>일정 지우기</Text>
-            </Pressable>
-          ) : null}
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </Modal>
+        </View>
+        {time ? (
+          <Press accessibilityRole="button" onPress={() => setTime('')} style={styles.ghost}>
+            <Text style={{ color: c.ink, fontSize: 15, fontWeight: '600' }}>하루 종일</Text>
+          </Press>
+        ) : null}
+      </View>
+      <View style={{ gap: 6 }}>
+        <Text style={[styles.label, { color: c.ink }]}>알림</Text>
+        <Press accessibilityRole="button" accessibilityLabel={`알림 ${remindLabel}, 바꾸기`} onPress={pickRemind} style={[input, styles.select]}>
+          <Text style={{ flex: 1, color: c.ink, fontSize: 15 }}>{remindLabel}</Text>
+          <Icon name="chevrons-up-down" size={16} color={c.muted} />
+        </Press>
+      </View>
+      <View style={{ gap: 6 }}>
+        <Text style={[styles.label, { color: c.ink }]}>메모</Text>
+        <TextInput
+          value={memo}
+          onChangeText={setMemo}
+          maxLength={EVENT_MEMO_MAX}
+          multiline
+          placeholder="선택"
+          placeholderTextColor={c.muted}
+          style={[input, { minHeight: 72, paddingTop: 12, textAlignVertical: 'top' }]}
+        />
+      </View>
+      {error ? <Text style={{ color: c.danger, fontSize: 13 }}>{error}</Text> : null}
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+        {event && onDeleted ? (
+          <Press accessibilityRole="button" accessibilityLabel="일정 지우기" onPress={remove} disabled={busy} style={styles.trash}>
+            <Icon name="trash2" size={16} color={c.danger} />
+          </Press>
+        ) : null}
+        <View style={{ flex: 1 }} />
+        {onCancel ? (
+          <Press accessibilityRole="button" onPress={onCancel} style={styles.ghost}>
+            <Text style={{ color: c.ink, fontSize: 15, fontWeight: '600' }}>취소</Text>
+          </Press>
+        ) : null}
+        <Press
+          accessibilityRole="button"
+          disabled={busy || !title.trim()}
+          onPress={() => void save()}
+          style={[styles.primary, { backgroundColor: c.sky }, (busy || !title.trim()) && { opacity: 0.4 }]}
+        >
+          <Text style={{ color: '#fff', fontSize: 15, fontWeight: '700' }}>{busy ? '저장하는 중…' : event ? '저장' : '추가'}</Text>
+        </Press>
+      </View>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  head: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 44 },
-  label: { width: 52, fontSize: 14, fontWeight: '600' },
-  item: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, paddingVertical: 6 },
-  sheetLabel: { fontSize: 13, fontWeight: '600', marginTop: 10 },
-  bar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 14, paddingBottom: 8 },
-  input: { minHeight: 48, borderRadius: 12, paddingHorizontal: 14, fontSize: 17 },
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  chip: { minHeight: 40, paddingHorizontal: 14, borderRadius: 20, justifyContent: 'center' },
-  delete: { marginTop: 16, minHeight: 50, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  line: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, minHeight: 56, paddingVertical: 10 },
+  bar: { width: 4, height: 16, borderRadius: 2, marginTop: 3 },
+  owner: { fontSize: 12, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10, overflow: 'hidden' },
+  secondary: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, minHeight: 44, borderRadius: 22 },
+  label: { fontSize: 13, fontWeight: '600' },
+  input: { minHeight: 48, borderRadius: 12, paddingHorizontal: 16, fontSize: 16 },
+  select: { flexDirection: 'row', alignItems: 'center' },
+  ghost: { minHeight: 44, paddingHorizontal: 16, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
+  primary: { minHeight: 44, paddingHorizontal: 20, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
+  trash: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
 });

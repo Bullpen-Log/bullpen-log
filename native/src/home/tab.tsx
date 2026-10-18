@@ -10,14 +10,16 @@ import { Icon } from '~/shell/icon';
 import { REST_SESSION_TYPE } from '@/lib/session-type';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 import { Wordmark } from '~/shell/wordmark';
-import { Pulse } from '~/shell/motion';
+import { Pulse, viewSwap } from '~/shell/motion';
 import { openCheckin } from '~/shell/web-nav';
 import { ApiError, call, dateKeyOf } from '~/pitch/api';
 import { MonthGrid } from '~/pitch/month-grid';
-import { monthOf, useMonth } from '~/pitch/store';
+import { monthOf, useAllLogs, useMonth } from '~/pitch/store';
 import { loadHome, type AppHome, type HomeRing } from './api';
 import { DayCards, layoutMove, resetDayCache } from './day-card';
-import { resetEventsCache } from './events';
+import { reloadEvents, resetEventsCache, useEventCounts } from './events';
+import { RecentList } from './recent-list';
+import { Press } from '~/shell/press';
 import { FeedCard } from './feed';
 import { RingsCard } from './rings';
 import { CameraSwipe } from './camera-swipe';
@@ -59,6 +61,15 @@ export function HomeTab({
   /* 고른 날 — 처음엔 없다(웹 홈처럼 날짜를 누르면 밑에 그날 칸이 펴지고 X 로 닫는다) */
   const [selected, setSelected] = useState<string | null>(null);
   const { logs, reload } = useMonth(month);
+  /* 달력 | 목록 — 목록은 모든 기록(최근 것부터) */
+  const [calView, setCalViewRaw] = useState<'calendar' | 'list'>('calendar');
+  const [swapped, setSwapped] = useState(false);
+  const setCalView = (v: 'calendar' | 'list') => {
+    setSwapped(true);
+    setCalViewRaw(v);
+  };
+  const allLogs = useAllLogs(calView === 'list');
+  const eventCounts = useEventCounts();
 
   const refresh = useCallback(() => {
     const e = cacheEpoch();
@@ -81,6 +92,7 @@ export function HomeTab({
         const h = v as AppHome | null;
         if (alive && h?.today === today && !cached) setHome(h);
       });
+    void reloadEvents();
     const e = cacheEpoch();
     loadHome().then(
       (h) => {
@@ -98,7 +110,7 @@ export function HomeTab({
 
   /* 위에 쌓인 앱 화면(체크인 · 투구 기록 · 운동)에서 돌아오면 다시 받는다 — 링이 방금 남긴 것을 따라오게(처음 한 번은 위 효과가 받는다) */
   /* 탭을 옮겼다 돌아오면(판은 붙어 있다) 새로 받는다 — 다른 탭에서 남긴 것이 링 · 달력에 바로 */
-  useOnTabActive(() => void Promise.all([refresh(), reload()]));
+  useOnTabActive(() => void Promise.all([refresh(), reload(), reloadEvents()]));
   const focused = useRef(false);
   useFocusEffect(
     useCallback(() => {
@@ -119,7 +131,7 @@ export function HomeTab({
       }
       const away = leftAt.current;
       leftAt.current = null;
-      if (away != null && Date.now() - away > 5 * 60_000) void Promise.all([refresh(), reload()]);
+      if (away != null && Date.now() - away > 5 * 60_000) void Promise.all([refresh(), reload(), reloadEvents()]);
     });
     return () => sub.remove();
   }, [refresh, reload]);
@@ -222,17 +234,39 @@ export function HomeTab({
 
         <Animated.View layout={layoutMove} style={{ marginTop: SPACE.section }} onLayout={(e) => (calY.current = e.nativeEvent.layout.y)}>
           {/* 홈 달력은 앞날 · 다음 달도 열린다 — 일정을 미리 적는 곳(엔진이 다음 등판을 읽는다, 웹 allowFuture). 날을 고르면 칸이 납작해진다(웹 compact) */}
-          <MonthGrid
-            month={month}
-            today={today}
-            logs={logs}
-            selected={selected}
-            allowFuture
-            compact={selected != null}
-            onMonth={setMonth}
-            onDay={(day) => setSelected((cur) => (cur === day ? null : day))}
-          />
-          {selected ? (
+          {/* 보기 전환은 달력 머리의 목록 그림 · 목록 머리의 달력 그림으로(웹 2026-10-16) — 바꿀 때만 옅게 떠오른다(view-swap) */}
+          {calView === 'list' ? (
+            <Animated.View key="list" entering={viewSwap} style={{ gap: 16 }}>
+              <View style={styles.listHead}>
+                <Text style={{ color: c.ink, fontSize: 15, fontWeight: '600' }}>최근 기록</Text>
+                <Press accessibilityRole="button" accessibilityLabel="캘린더로 보기" onPress={() => setCalView('calendar')} style={styles.viewBtn}>
+                  <Icon name="calendar-days" size={20} color={c.muted} />
+                </Press>
+              </View>
+              <RecentList logs={allLogs.logs} />
+            </Animated.View>
+          ) : (
+            <Animated.View key="calendar" entering={swapped ? viewSwap : undefined}>
+              <MonthGrid
+                month={month}
+                today={today}
+                logs={logs}
+                selected={selected}
+                allowFuture
+                legendExtra
+                events={eventCounts}
+                compact={selected != null}
+                onMonth={setMonth}
+                onDay={(day) => setSelected((cur) => (cur === day ? null : day))}
+                headerAction={
+                  <Press accessibilityRole="button" accessibilityLabel="목록으로 보기" onPress={() => setCalView('list')} style={[styles.viewBtn, { marginRight: 4 }]}>
+                    <Icon name="list" size={20} color={c.muted} />
+                  </Press>
+                }
+              />
+            </Animated.View>
+          )}
+          {selected && calView === 'calendar' ? (
             <View style={{ marginTop: 16 }} onLayout={(e) => (dayY.current = e.nativeEvent.layout.y)}>
               <DayCards date={selected} today={today} logs={dayLogs} onTab={onTab} onClose={() => setSelected(null)} />
             </View>
@@ -415,6 +449,8 @@ const styles = StyleSheet.create({
   bell: { position: 'absolute', right: 12, width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
   dot: { position: 'absolute', right: 10, top: 10, width: 9, height: 9, borderRadius: 5, borderWidth: 2 },
   card: { borderRadius: 20, padding: SPACE.pad, gap: 10 },
+  listHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 4 },
+  viewBtn: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
   cardTitle: { fontSize: 15, fontWeight: '700' },
   pill: { minHeight: 44, borderRadius: 22, paddingHorizontal: 16, justifyContent: 'center' },
   pillText: { color: '#fff', fontSize: 15, fontWeight: '600' },
