@@ -6,6 +6,7 @@ import 'server-only';
  * requireAdmin). 여기 넣는다고 열리는 면이 늘지 않는다 — 그래서 모듈째 넣는다. analysis.tsx 는 화면 조각(JSX)을 돌려줘 앱이 못 써서 뺐다.
  * 새 액션 파일을 만들면 여기에 한 줄 더한다(빠뜨리면 앱에서 'unknown-action').
  */
+import * as abs from '@/app/actions/abs';
 import * as admin from '@/app/actions/admin';
 import * as app from '@/app/actions/app';
 import * as appAdmin from '@/app/actions/app-admin';
@@ -52,6 +53,7 @@ import * as warmup from '@/app/actions/warmup';
 import * as workout from '@/app/actions/workout';
 
 export const RPC_MODULES: Record<string, Record<string, unknown>> = {
+  abs: abs,
   admin: admin,
   app: app,
   'app-admin': appAdmin,
