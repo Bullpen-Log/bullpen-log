@@ -168,6 +168,16 @@ final class ShootRecorderViewController: UIViewController, AVCaptureFileOutputRe
     private var timer: Timer?
     private var startedAt: Date?
 
+    /// 아이패드 — 단추 · 글자를 키우고, 가로로 들면 셔터 줄을 오른쪽 세로로 둔다(아이패드 기본 카메라처럼, 2026-10-18 사용자: 아이패드 화면 크기에 맞게)
+    private let isPad = UIDevice.current.userInterfaceIdiom == .pad
+    private var shutterSide: CGFloat { isPad ? 92 : 76 }
+    private var innerSide: CGFloat { isPad ? 72 : 58 }
+    private var innerRecordingSide: CGFloat { isPad ? 36 : 30 }
+    /// 아래 줄(아이폰 · 세로 아이패드) ↔ 오른쪽 세로 줄(가로 아이패드)
+    private var bottomLayout: [NSLayoutConstraint] = []
+    private var sideLayout: [NSLayoutConstraint] = []
+    private var usingSide = false
+
     init(maxSeconds: Double, done: @escaping (Result) -> Void) {
         self.maxSeconds = maxSeconds
         self.done = done
@@ -191,7 +201,7 @@ final class ShootRecorderViewController: UIViewController, AVCaptureFileOutputRe
         preview.videoGravity = .resizeAspect
         view.layer.addSublayer(preview)
 
-        timeLabel.font = .monospacedDigitSystemFont(ofSize: 17, weight: .semibold)
+        timeLabel.font = .monospacedDigitSystemFont(ofSize: isPad ? 20 : 17, weight: .semibold)
         timeLabel.textColor = .white
         timeLabel.textAlignment = .center
         timeLabel.backgroundColor = UIColor.black.withAlphaComponent(0.45)
@@ -202,7 +212,7 @@ final class ShootRecorderViewController: UIViewController, AVCaptureFileOutputRe
         view.addSubview(timeLabel)
 
         cancelButton.setTitle("취소", for: .normal)
-        cancelButton.titleLabel?.font = .systemFont(ofSize: 17, weight: .semibold)
+        cancelButton.titleLabel?.font = .systemFont(ofSize: isPad ? 20 : 17, weight: .semibold)
         cancelButton.tintColor = .white
         cancelButton.addTarget(self, action: #selector(cancelTapped), for: .touchUpInside)
         cancelButton.translatesAutoresizingMaskIntoConstraints = false
@@ -213,14 +223,15 @@ final class ShootRecorderViewController: UIViewController, AVCaptureFileOutputRe
         lensControl.isEnabled = false
         lensControl.backgroundColor = UIColor.black.withAlphaComponent(0.45)
         lensControl.selectedSegmentTintColor = .white
-        lensControl.setTitleTextAttributes([.foregroundColor: UIColor.white, .font: UIFont.systemFont(ofSize: 15, weight: .semibold)], for: .normal)
-        lensControl.setTitleTextAttributes([.foregroundColor: UIColor.black, .font: UIFont.systemFont(ofSize: 15, weight: .semibold)], for: .selected)
+        let lensFont = UIFont.systemFont(ofSize: isPad ? 17 : 15, weight: .semibold)
+        lensControl.setTitleTextAttributes([.foregroundColor: UIColor.white, .font: lensFont], for: .normal)
+        lensControl.setTitleTextAttributes([.foregroundColor: UIColor.black, .font: lensFont], for: .selected)
         lensControl.accessibilityLabel = "렌즈"
         lensControl.addTarget(self, action: #selector(lensChanged), for: .valueChanged)
         lensControl.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(lensControl)
 
-        recordButton.layer.cornerRadius = 38
+        recordButton.layer.cornerRadius = shutterSide / 2
         recordButton.layer.borderWidth = 5
         recordButton.layer.borderColor = UIColor.white.cgColor
         recordButton.addTarget(self, action: #selector(recordTapped), for: .touchUpInside)
@@ -230,36 +241,58 @@ final class ShootRecorderViewController: UIViewController, AVCaptureFileOutputRe
         view.addSubview(recordButton)
         recordInner.backgroundColor = .systemRed
         recordInner.isUserInteractionEnabled = false
-        recordInner.layer.cornerRadius = 29
+        recordInner.layer.cornerRadius = innerSide / 2
         recordInner.translatesAutoresizingMaskIntoConstraints = false
         recordButton.addSubview(recordInner)
-        innerSize = [recordInner.widthAnchor.constraint(equalToConstant: 58), recordInner.heightAnchor.constraint(equalToConstant: 58)]
+        innerSize = [recordInner.widthAnchor.constraint(equalToConstant: innerSide), recordInner.heightAnchor.constraint(equalToConstant: innerSide)]
 
         let g = view.safeAreaLayoutGuide
         NSLayoutConstraint.activate([
             timeLabel.topAnchor.constraint(equalTo: g.topAnchor, constant: 12),
             timeLabel.centerXAnchor.constraint(equalTo: view.centerXAnchor),
-            timeLabel.heightAnchor.constraint(equalToConstant: 32),
-            timeLabel.widthAnchor.constraint(greaterThanOrEqualToConstant: 150),
-            recordButton.bottomAnchor.constraint(equalTo: g.bottomAnchor, constant: -24),
-            recordButton.centerXAnchor.constraint(equalTo: view.centerXAnchor),
-            recordButton.widthAnchor.constraint(equalToConstant: 76),
-            recordButton.heightAnchor.constraint(equalToConstant: 76),
+            timeLabel.heightAnchor.constraint(equalToConstant: isPad ? 40 : 32),
+            timeLabel.widthAnchor.constraint(greaterThanOrEqualToConstant: isPad ? 190 : 150),
+            recordButton.widthAnchor.constraint(equalToConstant: shutterSide),
+            recordButton.heightAnchor.constraint(equalToConstant: shutterSide),
             recordInner.centerXAnchor.constraint(equalTo: recordButton.centerXAnchor),
             recordInner.centerYAnchor.constraint(equalTo: recordButton.centerYAnchor),
-            cancelButton.centerYAnchor.constraint(equalTo: recordButton.centerYAnchor),
-            cancelButton.leadingAnchor.constraint(equalTo: g.leadingAnchor, constant: 24),
             cancelButton.heightAnchor.constraint(equalToConstant: 44),
+            lensControl.widthAnchor.constraint(equalToConstant: isPad ? 180 : 140),
+            lensControl.heightAnchor.constraint(equalToConstant: isPad ? 44 : 36),
+        ] + innerSize)
+        /* 아래 줄 — 아이폰 · 세로로 든 아이패드 */
+        bottomLayout = [
+            recordButton.bottomAnchor.constraint(equalTo: g.bottomAnchor, constant: isPad ? -32 : -24),
+            recordButton.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+            cancelButton.centerYAnchor.constraint(equalTo: recordButton.centerYAnchor),
+            cancelButton.leadingAnchor.constraint(equalTo: g.leadingAnchor, constant: isPad ? 32 : 24),
             lensControl.bottomAnchor.constraint(equalTo: recordButton.topAnchor, constant: -20),
             lensControl.centerXAnchor.constraint(equalTo: view.centerXAnchor),
-            lensControl.widthAnchor.constraint(equalToConstant: 140),
-            lensControl.heightAnchor.constraint(equalToConstant: 36),
-        ] + innerSize)
+        ]
+        /* 오른쪽 세로 줄 — 가로로 든 아이패드(렌즈 · 셔터 · 취소를 위에서 아래로). 셔터 가운데가 끝에서 106pt 라 렌즈 고르개(180pt)도 안에 든다 */
+        sideLayout = [
+            recordButton.centerYAnchor.constraint(equalTo: view.centerYAnchor),
+            recordButton.trailingAnchor.constraint(equalTo: g.trailingAnchor, constant: -60),
+            lensControl.bottomAnchor.constraint(equalTo: recordButton.topAnchor, constant: -28),
+            lensControl.centerXAnchor.constraint(equalTo: recordButton.centerXAnchor),
+            cancelButton.topAnchor.constraint(equalTo: recordButton.bottomAnchor, constant: 28),
+            cancelButton.centerXAnchor.constraint(equalTo: recordButton.centerXAnchor),
+        ]
+        NSLayoutConstraint.activate(bottomLayout)
 
         sessionQueue.async { self.configure() }
     }
 
     private var innerSize: [NSLayoutConstraint] = []
+
+    override func viewWillLayoutSubviews() {
+        super.viewWillLayoutSubviews()
+        let side = isPad && view.bounds.width > view.bounds.height
+        guard side != usingSide else { return }
+        usingSide = side
+        NSLayoutConstraint.deactivate(side ? bottomLayout : sideLayout)
+        NSLayoutConstraint.activate(side ? sideLayout : bottomLayout)
+    }
 
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
@@ -471,9 +504,9 @@ final class ShootRecorderViewController: UIViewController, AVCaptureFileOutputRe
 
     private func setRecordingLook(_ on: Bool) {
         UIView.animate(withDuration: 0.18) {
-            let side: CGFloat = on ? 30 : 58
+            let side: CGFloat = on ? self.innerRecordingSide : self.innerSide
             self.innerSize.forEach { $0.constant = side }
-            self.recordInner.layer.cornerRadius = on ? 7 : 29
+            self.recordInner.layer.cornerRadius = on ? 7 : self.innerSide / 2
             self.recordButton.layoutIfNeeded()
         }
         recordButton.accessibilityLabel = on ? "녹화 멈추기" : "녹화"

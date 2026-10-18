@@ -236,7 +236,7 @@ export function RunClient({
 
       {/* ── 가운데 ── */}
       <div ref={bodyRef} className="flex-1 overflow-y-auto">
-        <div className="mx-auto w-full max-w-2xl space-y-5 px-4 py-4">
+        <div className="mx-auto w-full max-w-2xl pad:max-w-6xl space-y-5 px-4 py-4 pad:px-8 pad:py-6">
           {!current && errorBox}
 
           <PendingClips clips={clips} isUploaded={(id) => !!infos[id]?.uploaded} />
@@ -244,106 +244,109 @@ export function RunClient({
           {current ? (
             <article
               key={current.exerciseId}
-              className="motion-safe:animate-step-next space-y-4"
+              /* 아이패드는 두 칸 — 왼쪽 지금 운동, 오른쪽 다음 · 그다음(2026-10-18 사용자: 아이패드 화면 크기에 맞게) */
+              className="motion-safe:animate-step-next space-y-4 pad:grid pad:grid-cols-[minmax(0,1fr)_minmax(0,22rem)] pad:items-start pad:gap-8 pad:space-y-0"
             >
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setSlate(true)}
-                  className="text-numeric rounded-xl bg-ink px-3 py-1.5 text-xl text-page motion-safe:active:scale-95"
-                  aria-label={`번호판 크게 보기 ${current.no}`}
-                >
-                  {current.no}
-                </button>
-                <span className="inline-flex items-center gap-1 rounded-full bg-ink/6 px-2.5 py-1 text-xs font-medium text-ink">
-                  <MapPin aria-hidden className="h-3.5 w-3.5 text-muted" />
-                  {current.station}
-                </span>
-                {infos[current.exerciseId]?.uploaded && (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-sky/12 px-2.5 py-1 text-xs font-bold text-sky-strong">
-                    <CircleCheck aria-hidden className="h-3.5 w-3.5" />
-                    올림
+              <div className="min-w-0 space-y-4">
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setSlate(true)}
+                    className="text-numeric rounded-xl bg-ink px-3 py-1.5 text-xl text-page motion-safe:active:scale-95 pad:text-2xl"
+                    aria-label={`번호판 크게 보기 ${current.no}`}
+                  >
+                    {current.no}
+                  </button>
+                  <span className="inline-flex items-center gap-1 rounded-full bg-ink/6 px-2.5 py-1 text-xs font-medium text-ink">
+                    <MapPin aria-hidden className="h-3.5 w-3.5 text-muted" />
+                    {current.station}
                   </span>
-                )}
-                {!carriedNow && (
-                  <span className="ml-auto text-xs tabular-nums text-muted">
-                    계획 {clockText(current.at)}
-                  </span>
-                )}
-              </div>
-              {fromWeek.has(current.exerciseId) && (
-                <p className="text-xs font-semibold text-muted">
-                  {fromWeek.get(current.exerciseId)}주차에서 넘어온 운동
-                </p>
-              )}
-              {stateOf(current, map) === 'redo' && (
-                <p className="rounded-xl bg-warn/12 px-3 py-2 text-sm font-semibold text-warn">
-                  다시 찍기
-                  {map.get(current.exerciseId)?.note
-                    ? ` · ${map.get(current.exerciseId)?.note}`
-                    : ''}
-                </p>
-              )}
-              <h1 className="text-heading text-[1.75rem] leading-tight text-ink break-keep">
-                {current.title}
-              </h1>
-              <div className="rounded-2xl bg-sky/10 px-4 py-3">
-                <p className="text-xs font-semibold text-sky-strong">시범</p>
-                <p className="mt-0.5 text-xl font-bold break-keep text-ink">
-                  {current.cue}
-                </p>
-                <p className="mt-1 text-xs text-muted">
-                  {BUCKET_LABEL[current.bucket]}
-                  {current.group ? ` · ${current.group}` : ''}
-                  {current.kind === 'drill'
-                    ? ' · 자세가 보이게, 세게 말고'
-                    : current.load >= 2
-                      ? ' · 부하 높음 — 무게는 평소의 절반쯤'
-                      : ' · 가볍게, 자세가 보이게'}
-                </p>
-              </div>
-              <ShootExerciseDetail
-                item={current}
-                info={infos[current.exerciseId]}
-                compact
-              />
-              <p className="flex flex-wrap items-center gap-x-2 text-xs text-muted">
-                다른 폰 · 카메라 앱으로 찍었으면
-                <button
-                  type="button"
-                  onClick={() => clipTarget && clips.startAlbum(clipTarget)}
-                  className="inline-flex min-h-10 items-center gap-1 rounded-full px-1 font-semibold text-sky-strong"
-                >
-                  <Images aria-hidden className="h-4 w-4" />
-                  앨범에서 고르기
-                </button>
-              </p>
-
-              {(rest || move) && (
-                <p className="flex items-center gap-2 rounded-xl border border-dashed border-line-strong px-4 py-3 text-sm text-ink">
-                  {rest ? (
-                    <>
-                      <Coffee
-                        aria-hidden
-                        className="h-4 w-4 shrink-0 text-sky-strong"
-                      />
-                      이 운동 뒤 5분 쉬기
-                      {move ? ` · 그다음 ${move}로 옮겨요` : ''}
-                    </>
-                  ) : (
-                    <>
-                      <ArrowRight
-                        aria-hidden
-                        className="h-4 w-4 shrink-0 text-sky-strong"
-                      />
-                      다음은 자리 옮김 · {current.station} → {move}
-                    </>
+                  {infos[current.exerciseId]?.uploaded && (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-sky/12 px-2.5 py-1 text-xs font-bold text-sky-strong">
+                      <CircleCheck aria-hidden className="h-3.5 w-3.5" />
+                      올림
+                    </span>
                   )}
+                  {!carriedNow && (
+                    <span className="ml-auto text-xs tabular-nums text-muted">
+                      계획 {clockText(current.at)}
+                    </span>
+                  )}
+                </div>
+                {fromWeek.has(current.exerciseId) && (
+                  <p className="text-xs font-semibold text-muted">
+                    {fromWeek.get(current.exerciseId)}주차에서 넘어온 운동
+                  </p>
+                )}
+                {stateOf(current, map) === 'redo' && (
+                  <p className="rounded-xl bg-warn/12 px-3 py-2 text-sm font-semibold text-warn">
+                    다시 찍기
+                    {map.get(current.exerciseId)?.note
+                      ? ` · ${map.get(current.exerciseId)?.note}`
+                      : ''}
+                  </p>
+                )}
+                <h1 className="text-heading text-[1.75rem] leading-tight text-ink break-keep pad:text-4xl">
+                  {current.title}
+                </h1>
+                <div className="rounded-2xl bg-sky/10 px-4 py-3">
+                  <p className="text-xs font-semibold text-sky-strong">시범</p>
+                  <p className="mt-0.5 text-xl font-bold break-keep text-ink pad:text-2xl">
+                    {current.cue}
+                  </p>
+                  <p className="mt-1 text-xs text-muted">
+                    {BUCKET_LABEL[current.bucket]}
+                    {current.group ? ` · ${current.group}` : ''}
+                    {current.kind === 'drill'
+                      ? ' · 자세가 보이게, 세게 말고'
+                      : current.load >= 2
+                        ? ' · 부하 높음 — 무게는 평소의 절반쯤'
+                        : ' · 가볍게, 자세가 보이게'}
+                  </p>
+                </div>
+                <ShootExerciseDetail
+                  item={current}
+                  info={infos[current.exerciseId]}
+                  compact
+                />
+                <p className="flex flex-wrap items-center gap-x-2 text-xs text-muted">
+                  다른 폰 · 카메라 앱으로 찍었으면
+                  <button
+                    type="button"
+                    onClick={() => clipTarget && clips.startAlbum(clipTarget)}
+                    className="inline-flex min-h-10 items-center gap-1 rounded-full px-1 font-semibold text-sky-strong"
+                  >
+                    <Images aria-hidden className="h-4 w-4" />
+                    앨범에서 고르기
+                  </button>
                 </p>
-              )}
+
+                {(rest || move) && (
+                  <p className="flex items-center gap-2 rounded-xl border border-dashed border-line-strong px-4 py-3 text-sm text-ink">
+                    {rest ? (
+                      <>
+                        <Coffee
+                          aria-hidden
+                          className="h-4 w-4 shrink-0 text-sky-strong"
+                        />
+                        이 운동 뒤 5분 쉬기
+                        {move ? ` · 그다음 ${move}로 옮겨요` : ''}
+                      </>
+                    ) : (
+                      <>
+                        <ArrowRight
+                          aria-hidden
+                          className="h-4 w-4 shrink-0 text-sky-strong"
+                        />
+                        다음은 자리 옮김 · {current.station} → {move}
+                      </>
+                    )}
+                  </p>
+                )}
+              </div>
 
               {next && (
-                <section className="space-y-2">
+                <section className="space-y-2 pad:sticky pad:top-0">
                   <h2 className="text-xs font-semibold text-muted">다음</h2>
                   <button
                     type="button"
@@ -436,11 +439,11 @@ export function RunClient({
           ref={barRef}
           className="shrink-0 border-t border-line bg-surface px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3"
         >
-          {errorBox && <div className="mx-auto mb-2 w-full max-w-2xl">{errorBox}</div>}
+          {errorBox && <div className="mx-auto mb-2 w-full max-w-2xl pad:max-w-6xl">{errorBox}</div>}
           {(clips.cameraNotice || clips.cameraMissingText) && (
             <p
               role={clips.cameraNotice ? 'alert' : undefined}
-              className="motion-safe:animate-fade-in mx-auto mb-2 flex w-full max-w-2xl items-start gap-2 text-xs break-keep text-muted"
+              className="motion-safe:animate-fade-in mx-auto mb-2 flex w-full max-w-2xl pad:max-w-6xl items-start gap-2 text-xs break-keep text-muted"
             >
               <Camera aria-hidden className="mt-px h-4 w-4 shrink-0" />
               <span className={clips.cameraNotice ? 'font-semibold text-warn' : ''}>
@@ -448,11 +451,11 @@ export function RunClient({
               </span>
             </p>
           )}
-          <div className="mx-auto flex w-full max-w-2xl items-center gap-2">
+          <div className="mx-auto flex w-full max-w-2xl pad:max-w-6xl items-center gap-2">
             <button
               type="button"
               onClick={postpone}
-              className="flex h-[72px] w-16 shrink-0 flex-col items-center justify-center gap-0.5 rounded-2xl bg-ink/6 text-xs font-semibold text-ink motion-safe:active:scale-95"
+              className="flex h-[72px] w-16 shrink-0 flex-col items-center justify-center gap-0.5 rounded-2xl bg-ink/6 text-xs font-semibold text-ink motion-safe:active:scale-95 pad:h-20 pad:w-24 pad:text-sm"
             >
               <PauseCircle aria-hidden className="h-5 w-5" />
               미루기
@@ -463,7 +466,7 @@ export function RunClient({
                   type="button"
                   onClick={shoot}
                   aria-label="영상 없이 찍음으로 체크하고 다음으로"
-                  className="flex h-[72px] w-16 shrink-0 flex-col items-center justify-center gap-0.5 rounded-2xl bg-ink/6 text-xs font-semibold text-ink motion-safe:active:scale-95"
+                  className="flex h-[72px] w-16 shrink-0 flex-col items-center justify-center gap-0.5 rounded-2xl bg-ink/6 text-xs font-semibold text-ink motion-safe:active:scale-95 pad:h-20 pad:w-24 pad:text-sm"
                 >
                   <Check aria-hidden className="h-5 w-5" />
                   찍음
@@ -471,7 +474,7 @@ export function RunClient({
                 <button
                   type="button"
                   onClick={() => clipTarget && void clips.startCamera(clipTarget)}
-                  className="flex h-[72px] min-w-0 flex-1 items-center justify-center gap-2 rounded-full bg-sky text-lg font-bold text-white motion-safe:active:scale-[0.98]"
+                  className="flex h-[72px] min-w-0 flex-1 items-center justify-center gap-2 rounded-full bg-sky text-lg font-bold text-white motion-safe:active:scale-[0.98] pad:h-20 pad:text-xl"
                 >
                   <Camera aria-hidden className="h-6 w-6" />
                   {infos[current.exerciseId]?.uploaded ? '다시 찍기' : '영상 찍기'}
@@ -482,7 +485,7 @@ export function RunClient({
               <button
                 type="button"
                 onClick={shoot}
-                className="flex h-[72px] min-w-0 flex-1 items-center justify-center gap-2 rounded-full bg-sky text-lg font-bold text-white motion-safe:active:scale-[0.98]"
+                className="flex h-[72px] min-w-0 flex-1 items-center justify-center gap-2 rounded-full bg-sky text-lg font-bold text-white motion-safe:active:scale-[0.98] pad:h-20 pad:text-xl"
               >
                 <Check aria-hidden className="h-6 w-6" />
                 찍음 · 다음으로
