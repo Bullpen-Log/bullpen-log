@@ -15,7 +15,7 @@ import { fadeIn, rowIn } from '~/shell/motion';
 import { Press } from '~/shell/press';
 import type { PitchLog } from './api';
 import { FindBar } from './find-bar';
-import { thumbSource, usePathThumbs, type Thumb } from './store';
+import { repOf, setFeatured, thumbSource, useFeatured, usePathThumbs, type Thumb } from './store';
 
 /**
  * 투구 목록 — 웹 app/(app)/videos/video-gallery.tsx 와 같은 꼴.
@@ -105,6 +105,13 @@ export function LogList({ logs, today, onReveal }: { logs: PitchLog[] | null; to
     [shown, speed]
   );
   const videoCount = clips.filter((x) => x.path).length;
+  /* 대표 영상 — 영상이 여럿인 날만 줄 오른쪽 별(웹 video-gallery choosable). 그날 영상은 거르기 전 기록 전체에서 */
+  const pick = useFeatured();
+  const dayPaths = useMemo(() => {
+    const m = new Map<string, string[]>();
+    for (const l of logs ?? []) if (l.sessionType !== REST_SESSION_TYPE) m.set(l.date.slice(0, 10), [...(m.get(l.date.slice(0, 10)) ?? []), ...l.videoPaths]);
+    return m;
+  }, [logs]);
 
   const chips = useMemo(() => {
     const byType = new Map<string, Set<string>>();
@@ -225,6 +232,7 @@ export function LogList({ logs, today, onReveal }: { logs: PitchLog[] | null; to
                     entering={rowIn(Math.min(i, 8))}
                     style={[i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderColor: c.line }, flash === x.date && { backgroundColor: c.skyTint }]}
                   >
+                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                     <Press
                       accessibilityRole="button"
                       accessibilityState={selecting ? { selected: picked.some((y) => y?.id === x.id), disabled: !x.path } : undefined}
@@ -233,6 +241,7 @@ export function LogList({ logs, today, onReveal }: { logs: PitchLog[] | null; to
                         styles.row,
                         selecting && picked.some((y) => y?.id === x.id) && { backgroundColor: c.skyTint },
                         selecting && !x.path && { opacity: 0.4 },
+                        { flex: 1 },
                       ]}
                     >
                       <View>
@@ -259,6 +268,23 @@ export function LogList({ logs, today, onReveal }: { logs: PitchLog[] | null; to
                       </View>
                       {selecting ? null : <Icon name="chevron-right" size={16} color={withAlpha(c.muted, 0.6)} />}
                     </Press>
+                    {!selecting && x.path && (dayPaths.get(x.date)?.length ?? 0) > 1
+                      ? (() => {
+                          const on = repOf(dayPaths.get(x.date) ?? [], pick[x.date]) === x.path;
+                          return (
+                            <Press
+                              accessibilityRole="button"
+                              accessibilityState={{ selected: on }}
+                              accessibilityLabel={on ? `${spokenDate(x.date)} 대표 영상, 캘린더에 이 영상이 떠요` : `${spokenDate(x.date)} 대표 영상으로 고르기`}
+                              onPress={() => !on && x.path && void setFeatured(x.date, x.path)}
+                              style={styles.star}
+                            >
+                              <Icon name="star" size={16} color={on ? c.sky : c.muted} fill={on ? c.sky : 'none'} />
+                            </Press>
+                          );
+                        })()
+                      : null}
+                    </View>
                   </Animated.View>
                 ))}
               </Animated.View>
@@ -376,6 +402,7 @@ function ClipThumb({ clip, url }: { clip: Clip; url: Thumb | undefined }) {
 }
 
 const styles = StyleSheet.create({
+  star: { width: 40, height: 40, marginRight: 8, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
   head: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   headText: { flex: 1, fontSize: 15, fontWeight: '700' },
   sort: { flexDirection: 'row', alignItems: 'center', gap: 4, minHeight: 36, borderRadius: 18, paddingLeft: 12, paddingRight: 10 },
