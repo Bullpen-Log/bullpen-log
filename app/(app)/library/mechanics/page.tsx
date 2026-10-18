@@ -1,47 +1,17 @@
+import { headers } from 'next/headers';
 import { requireUser } from '@/lib/dal';
-import { favoriteDrillIds } from '@/lib/favorites';
-import { createPlaybackUrls } from '@/lib/storage';
-import { referenceThumbUrl } from '@/lib/reference-video';
-import { MechanicsClient, type GuideItem } from './mechanics-client';
-import { visibleGuides } from '@/lib/library-cache';
+import { expoLevel } from '@/lib/app-env';
+import { OpenNative } from '@/app/(session)/velocity/open-native';
+import { loadDrillLibrary } from '@/lib/library-load';
+import { MechanicsClient } from './mechanics-client';
 
 export default async function MechanicsPage() {
   const user = await requireUser();
 
-  const [guides, favoriteIds] = await Promise.all([
-    /* 누가 보든 같은 목록이라 캐시에서 꺼낸다 (lib/library-cache.ts). 숨긴 드릴은 뺀다 */
-    visibleGuides(),
-    favoriteDrillIds(user.id),
-  ]);
-
-  const thumbUrls = await createPlaybackUrls(
-    guides.map((g) => g.thumbPath).filter((p): p is string => !!p)
-  );
-
-  const items: GuideItem[] = guides.map((g) => ({
-    id: g.id,
-    title: g.title,
-    category: g.category,
-    description: g.description,
-    focusPoints: g.focusPoints,
-    equipment: g.equipment,
-    stage: g.stage,
-    videoPath: g.videoPath,
-    source: g.source,
-    referenceVideoId: g.referenceVideoId,
-    aspectRatio: g.aspectRatio,
-    /*
-     * 참고 영상의 미리보기는 유튜브가 공개한 고정 주소를 그대로 쓴다.
-     * 우리 저장소에 담아 두지 않으므로 발급받을 주소도 없다.
-     */
-    thumbUrl: g.referenceVideoId
-      ? referenceThumbUrl(g.referenceVideoId)
-      : g.thumbPath
-        ? (thumbUrls[g.thumbPath] ?? null)
-        : null,
-    sortOrder: g.sortOrder,
-    favorite: favoriteIds.has(g.id),
-  }));
+  /* 새 아이폰 앱(Expo)이 라이브러리를 아는 판(BullpenNative/7 부터)이면 앱 화면으로 연다(native/src/app/library/mechanics.tsx) */
+  if (expoLevel((await headers()).get('user-agent')) >= 7) return <OpenNative path="/library/mechanics" cover={false} />;
+  /* 목록 · 별 — 앱(app-library.ts)과 같은 함수(lib/library-load.ts). 숨긴 드릴은 뺀다 */
+  const items = await loadDrillLibrary(user.id);
 
   /*
    * 예전에는 여기에 '학습 완료 0 / 116' 카드가 있었다. 진행률로 보이니 116개를
