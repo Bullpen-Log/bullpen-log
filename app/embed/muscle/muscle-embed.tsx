@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import dynamic from 'next/dynamic';
-import { areaOfMuscle } from '@/lib/armcare/anatomy';
+import { areaOfMuscle, type ArmcareAreaKey } from '@/lib/armcare/anatomy';
 import type { MapSelection, MapStatus } from '@/app/(app)/training/muscle-map-3d';
 
 /** 3D 는 이 화면에서만 받는다(웹 근육 설명 창과 같은 부품) */
@@ -18,12 +18,12 @@ type ToApp = { t: 'muscle'; kind: 'status'; status: MapStatus } | { t: 'muscle';
 type Bridge = { ReactNativeWebView?: { postMessage(s: string): void }; __musclePick?: (name: string) => void };
 const post = (msg: ToApp) => (window as unknown as Bridge).ReactNativeWebView?.postMessage(JSON.stringify(msg));
 
-export function MuscleEmbed({ muscle, side, bg }: { muscle: string | null; side: 'right' | 'left'; bg: string | null }) {
+export function MuscleEmbed({ muscle, area, side, bg }: { muscle: string | null; area: ArmcareAreaKey | null; side: 'right' | 'left'; bg: string | null }) {
   /* 웹 근육 설명(armcare-info-body InfoGraphic)과 같은 고름 — 그 근육의 부위 · 근육 · 누른 갈래 */
   const [pick, setPick] = useState<{ name: string | null; part: string | null }>({ name: muscle, part: null });
   const selection = useMemo<MapSelection>(
-    () => ({ area: pick.name ? (areaOfMuscle(pick.name)?.key ?? null) : null, muscle: pick.name, part: pick.part }),
-    [pick]
+    () => ({ area: area ?? (pick.name ? (areaOfMuscle(pick.name)?.key ?? null) : null), muscle: pick.name, part: pick.part }),
+    [pick, area]
   );
 
   useEffect(() => {

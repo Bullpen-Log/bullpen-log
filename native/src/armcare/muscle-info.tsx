@@ -112,17 +112,18 @@ type FromWeb = { t: 'muscle'; kind: 'status'; status: string } | { t: 'muscle'; 
  * 3D 근육 그림 — 웹 근육 설명 창의 InfoGraphic(armcare-info-body.tsx)과 같은 칸(끌어 돌리기 · 근육 누르기). 근육을 바꾸면 웹뷰를 새로 열지 않고
  * window.__musclePick 으로 알리고, 3D 에서 누른 근육은 'pick' 으로 받아 창을 그 근육으로 바꾼다. WebGL 이 없거나 못 불러오면 칸을 접는다(글만 남음).
  */
-function Muscle3D({ name, onPick, c }: { name: string; onPick: (muscle: string) => void; c: Palette }) {
+export function Muscle3D({ name, area, onPick, c }: { name?: string; area?: string; onPick?: (muscle: string) => void; c: Palette }) {
   const web = useRef<WebViewHandle>(null);
   const [first] = useState(name);
   const [ready, setReady] = useState(false);
   /* 웹 쪽이 뜨면 제 '불러오는 중'을 그리므로 앱 돌개는 페이지가 뜨기 전까지만 */
   const [loaded, setLoaded] = useState(false);
   const [gone, setGone] = useState(false);
-  const url = `${SITE_URL}/embed/muscle?m=${encodeURIComponent(first)}&bg=${encodeURIComponent(c.card)}`;
+  /* 부위 칸(AreaCard 자세히)은 ?a=부위 — 그 부위 근육 전체를 켠다(웹 AreaInfo 그림) */
+  const url = `${SITE_URL}/embed/muscle?${area ? `a=${encodeURIComponent(area)}` : `m=${encodeURIComponent(first ?? '')}`}&bg=${encodeURIComponent(c.card)}`;
   /* 창 안에서 다른 근육으로 바꾸면(위 칩 · 3D 누름) 그림도 그 근육으로 */
   useEffect(() => {
-    if (ready) web.current?.injectJavaScript(`window.__musclePick&&window.__musclePick(${JSON.stringify(name)});true;`);
+    if (ready && name) web.current?.injectJavaScript(`window.__musclePick&&window.__musclePick(${JSON.stringify(name)});true;`);
   }, [name, ready]);
   if (gone) return null;
   const onMessage = (e: WebViewMessageEvent) => {
@@ -136,7 +137,7 @@ function Muscle3D({ name, onPick, c }: { name: string; onPick: (muscle: string) 
     if (m.kind === 'status') {
       if (m.status === 'unavailable' || m.status === 'error') setGone(true);
       else if (m.status === 'ready') setReady(true);
-    } else if (m.kind === 'pick' && m.muscle !== name) {
+    } else if (m.kind === 'pick' && onPick && m.muscle !== name) {
       void Haptics.selectionAsync();
       onPick(m.muscle);
     }

@@ -14,7 +14,7 @@ import { act, leave } from '~/mechanics/parts';
 import type { Palette } from '~/lib/ui';
 import { Fold, s } from './screen';
 import { fromApp } from '~/shell/web-nav';
-import { MuscleChips } from '~/armcare/muscle-info';
+import { Muscle3D, MuscleChips } from '~/armcare/muscle-info';
 import { AREA_DETAILS } from '@/lib/armcare/details';
 
 /**
@@ -488,6 +488,7 @@ export function AreaCard({
           <MuscleChips muscles={muscles.map((m) => m.name)} highlight={muscles.map((m) => m.name)} c={c} />
           {/* 부위 자세히 — 웹 armcare-info-body AreaInfo 의 차례 · 글(lib/armcare/details AREA_DETAILS) */}
           <Fold label={`${area.label} 자세히 보기`} c={c}>
+            <Muscle3D area={area.key} c={c} />
             {AREA_DETAILS[area.key] ? (
               <>
                 <AreaSection title="던질 때 하는 일" c={c}>
