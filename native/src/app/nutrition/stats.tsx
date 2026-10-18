@@ -7,7 +7,6 @@ import type { loadAppNutritionStats } from '@/app/actions/app-nutrition';
 import { ageRule } from '@/lib/nutrition/age';
 import { SEASON_PHASES } from '@/lib/nutrition/diet-prefs';
 import { ACTIVITIES, GOAL_KINDS, MACRO_PRESETS, kcalText } from '@/lib/nutrition/meta';
-import { macroSplit } from '@/lib/nutrition/onboarding';
 import { answersOfProfile, periodDate, previewOfProfile, type OnboardingBody } from '@/lib/nutrition/onboarding-answers';
 import { dateText } from '@/lib/nutrition/period';
 import { computeTargets } from '@/lib/nutrition/targets';
@@ -21,6 +20,8 @@ import { cacheGet, cacheSet } from '~/lib/store';
 import { usePalette, type Palette } from '~/lib/ui';
 import { useWeightUnit } from '~/lib/weight-unit';
 import { READABLE } from '~/lib/layout';
+import { WeightForecast } from '~/shell/weight-forecast';
+import { MacroBar } from '~/setup/nutrition-steps';
 
 /**
  * 영양 목표 · 통계(앱 화면) — 웹 영양 탭의 통계 열(app/(app)/nutrition/nutrition-view.tsx: 체중 카드 → 최근 7일 → 내 계획)과 목표 창을 옮겼다.
@@ -297,7 +298,6 @@ function PlanCard({ day, unit, onOpenGoal, c }: { day: Stats; unit: WeightUnit; 
     t.paceKg ? paceText(t.paceKg, unit) : null,
     a.goalEndDate ? `${dateText(a.goalEndDate)}까지` : null,
   ].filter(Boolean);
-  const split = macroSplit(t.carbs, t.protein, t.fat);
   const sign = t.delta > 0 ? '+' : t.delta < 0 ? '−' : '';
   const rule = ageRule(p.age);
 
@@ -338,17 +338,19 @@ function PlanCard({ day, unit, onOpenGoal, c }: { day: Stats; unit: WeightUnit; 
               c={c}
             />
           </View>
-          <Text style={{ color: c.ink, fontSize: 14, fontVariant: ['tabular-nums'] }}>
-            탄수화물 {t.carbs}g {split.c}% · 단백질 {t.protein}g {split.p}% · 지방 {t.fat}g {split.f}%
-          </Text>
+          {/* 탄 · 단 · 지 막대(웹 PlanStats MacroBar) */}
+          <MacroBar carbs={t.carbs} protein={t.protein} fat={t.fat} c={c} />
           <Text style={[st.small, { color: c.muted }]}>
             단백질은 체중 1kg 당 {t.proteinPerKg}g · 지방은 {Math.round(t.fatShare * 100)}% · 탄수화물은 나머지. 운동 · 투구를 적은 날은 쓴 만큼 더해요.
           </Text>
           {p.forecast.length > 1 && p.etaWeeks !== null && a.targetWeightKg !== null ? (
-            <Text style={[st.small, { color: c.muted }]}>
-              계획대로면 약 {p.etaWeeks}주, {dateText(periodDate(day.today, p.etaWeeks))}쯤 {kgText(a.targetWeightKg, unit)}
-              {t.paceKg ? ` · ${paceText(t.paceKg, unit)}씩` : ''}
-            </Text>
+            <View style={{ backgroundColor: c.page, borderRadius: 14, padding: 10, gap: 4 }}>
+              <WeightForecast points={p.forecast} c={c} />
+              <Text style={[st.small, { color: c.muted, textAlign: 'center' }]}>
+                계획대로면 약 <Text style={{ color: c.ink, fontWeight: '600' }}>{p.etaWeeks}주</Text>, {dateText(periodDate(day.today, p.etaWeeks))}쯤 {kgText(a.targetWeightKg, unit)}
+                {t.paceKg ? ` · ${paceText(t.paceKg, unit)}씩` : ''}
+              </Text>
+            </View>
           ) : null}
           <Text style={[st.small, { color: c.muted }]}>
             계산에 쓴 몸: {body.weightKg !== null ? kgText(body.weightKg, unit) : `${kgText(t.weightKg, unit)}(짐작)`}

@@ -39,7 +39,7 @@ import { DateNavButton } from '~/shell/mini-calendar';
  * 이 화면을 띄우고(page.tsx → OpenNative), 카드 · 그래프 재료는 웹과 같은 곳에서 읽는다(app/actions/app-analysis.ts → lib/report/analysis-data.ts).
  *
  * 웹과 같은 차례: 하이라이트(오늘만) → 부하 지수 → (투구) 이번 주 · 마지막 투구 · 최고 구속 → 잘 던진 날 / (트레이닝) 최근 4주 → 그래프.
- * 그래프의 날을 톡 치면 그날까지의 기록으로 분석을 다시 연다(웹은 마우스로 누를 때만). 웹과 다른 것: 그래프 기간은 4주 · 12주만('기간 설정' 없음),
+ * 그래프의 날을 톡 치면 그날까지의 기록으로 분석을 다시 연다(웹은 마우스로 누를 때만). 그래프 기간은 웹처럼 4주 · 12주 · 기간 설정,
  * 구속 · 무게는 설정의 단위(웹 useSpeedUnit · 무게 단위와 같다).
  */
 type LoadResult = ({ ok: true } & AppAnalysis) | { ok: false; to: string };
