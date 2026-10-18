@@ -672,7 +672,9 @@ function Run({
           </Pressable>
           {/* 진행 막대 · 목록 단추 — 누르면 오늘 목록. 운동마다 한 칸이 세트를 남길수록 찬다 */}
           <Pressable onPress={() => openSheet('list')} accessibilityRole="button" accessibilityLabel="오늘 운동 목록 열기" style={s.progress}>
-            <View style={[s.listPill, { backgroundColor: c.sky + '1f' }]}>
+            <View style={[s.listPill, { backgroundColor: c.sky + '1f', flexDirection: 'row', alignItems: 'center', gap: 4 }]}>
+              {/* 웹 ListOrdered 그림 */}
+              <SymbolView name="list.number" size={13} tintColor={c.sky} />
               <Text style={[s.smallBold, { color: c.sky }]}>
                 목록 {at + 1}/{list.length}
               </Text>
