@@ -14,6 +14,7 @@ import { act, leave } from '~/mechanics/parts';
 import type { Palette } from '~/lib/ui';
 import { Fold, s } from './screen';
 import { fromApp } from '~/shell/web-nav';
+import { MuscleChips } from '~/armcare/muscle-info';
 
 /**
  * 암케어 전체 화면(native/src/app/training-armcare.tsx)의 조각 — 웹 armcare-today.tsx(체크 목록 · 이번 주) · my-routines.tsx · rehab-card.tsx(겉) ·
@@ -63,9 +64,7 @@ function ExerciseRow({
           </Text>
           {ex.prescription ? <Text style={[s.smallBold, { color: c.muted }]}>{ex.prescription}</Text> : null}
           {warning ? <Text style={[s.small, { color: c.warn }]}>{warning}</Text> : null}
-          {ex.targetMuscles.length ? (
-            <Text style={[s.small, { color: c.sky }]}>{ex.targetMuscles.slice(0, 2).join(' · ')}</Text>
-          ) : null}
+          {ex.targetMuscles.length ? <MuscleChips muscles={ex.targetMuscles} max={2} c={c} /> : null}
           <Text style={[s.tiny, { color: c.muted }]}>{meta}</Text>
           {/* 부위별 보강에서만(루틴 목록을 넘긴 곳) — 웹 AddToRoutine 처럼 운동 줄 안 [담기] */}
           <AddToRoutine exerciseId={ex.id} title={ex.title} c={c} />

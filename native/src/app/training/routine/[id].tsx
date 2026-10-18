@@ -24,12 +24,13 @@ import { act } from '~/mechanics/parts';
 import { usePalette, type Palette } from '~/lib/ui';
 import { s } from '~/training/screen';
 import { READABLE } from '~/lib/layout';
+import { MuscleChips } from '~/armcare/muscle-info';
 
 /**
  * 내 루틴 만들기 · 고치기(앱 화면) — 웹 /training/routine/new · /training/routine/<id>(app/(app)/training/routine/[id]/routine-builder.tsx)를 옮겼다.
  * 고르는 목록 · 담은 운동은 웹과 같은 곳에서(app-training-parts.loadAppRoutine → lib/armcare/routine-builder-load.ts), 저장 · 지우기도 웹과 같은
  * armcare.saveMyArmcareRoutine · deleteMyArmcareRoutine. 이름 · 운동 수 · 세트 규칙은 저장하는 쪽과 같은 것(lib/armcare/my-routines.ts)으로 먼저 막는다.
- * 저장하거나 지우면 닫는다 — 암케어 화면이 돌아올 때 다시 받는다. 근육을 누르면 뜨는 3D 그림 · 설명은 웹에만 있다(여기는 이름만).
+ * 저장하거나 지우면 닫는다 — 암케어 화면이 돌아올 때 다시 받는다. 근육 칩을 누르면 설명 창(웹 MuscleInfo 의 글 — 3D 그림은 웹에만).
  */
 type Loaded = Awaited<ReturnType<typeof loadAppRoutine>>;
 type Filter = 'all' | ArmcareAreaKey;
@@ -288,7 +289,7 @@ function PickRow({ e, inside, disabled, onToggle, c }: { e: BuilderExercise; ins
             {method ? <Text style={[s.tiny, { color: c.sky, fontWeight: '600' }]}>{`  ${method}`}</Text> : null}
           </Text>
           {line ? <Text style={[s.tiny, { color: c.muted }]}>{line}</Text> : null}
-          {ex.targetMuscles.length ? <Text style={[s.small, { color: c.sky }]}>{ex.targetMuscles.slice(0, 2).join(' · ')}</Text> : null}
+          {ex.targetMuscles.length ? <MuscleChips muscles={ex.targetMuscles} max={2} c={c} /> : null}
         </View>
         <Pressable
           onPress={onToggle}
