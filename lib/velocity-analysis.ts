@@ -1,4 +1,5 @@
 import type { AnalyzeResult, Approach } from '@/lib/velocity-engine/analyze-frames';
+import type { AbsAnalysis } from '@/lib/abs/analysis';
 import type { DistanceReport } from '@/lib/velocity-engine/analyze-distance';
 import { INPUT_SIZE_MISMATCH } from '@/lib/velocity-engine/validate';
 import type { FrameTiming, LiveReport } from '@/lib/velocity-engine/live-meter';
@@ -80,6 +81,8 @@ export type AnalysisJson = {
    * 위로 던진 각. 관리자가 다시 잴 때 거리를 여기서 꺼낸다. 1.x 로 잰 공은 없음.
    */
   distance?: Omit<DistanceReport, 'seeds' | 'seedFrame' | 'timingMs' | 'shaky' | 'path' | 'preSize'> | null;
+  /** ABS(볼 · 스트라이크 자동 판정) — 보정 · 깊이 · 통과점 · 판정(lib/abs/analysis.ts). ABS 세션의 공만, 2026-10-18 */
+  abs?: AbsAnalysis | null;
 };
 
 /**
@@ -138,6 +141,8 @@ export function analysisOf(
           shakePx: dist.shakePx,
           stabilized: dist.stabilized,
           stabResidPx: dist.stabResidPx,
+          /* ABS 재판정용 궤적 스냅샷(lib/abs/analysis.ts) — 잰 공에만 */
+          fit: dist.fit ?? null,
         }
       : null,
     ruler: d ? d.ruler : null,

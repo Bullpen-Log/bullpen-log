@@ -16,6 +16,7 @@
  * 달리 거리 하나만 정한다 — 깊이의 비율은 궤적이 정하고, 수십 장의 덩어리 지름으로 그 크기 하나를 맞춰 흔들림이 작다(밖 2.5%).
  */
 import type { AnalyzeResult, CapturedFrame, Approach } from './analyze-frames.ts';
+import type { FitSnapshot } from '../abs/analysis.ts';
 import { BALL_DIAMETER_M, type BallObservation } from './geometry.ts';
 import {
   reject,
@@ -171,6 +172,11 @@ export type DistanceReport = {
   /** 흔들림을 바로잡았나(stabilize.ts) · 맞춘 정밀도(분석 px, 블록 잔차 RMS 의 가운데 값) */
   stabilized: boolean;
   stabResidPx: number | null;
+  /**
+   * 맞춘 궤적 스냅샷(매개변수 7 · te · 공기저항 배율 · 숙임 · 분석 카메라 · 공분산) — ABS(lib/abs)가 영상 없이 통과점을 다시 구할 때 쓴다(2026-10-18).
+   * 잰 공에만 있다. 값 계산에는 쓰이지 않는다.
+   */
+  fit?: FitSnapshot | null;
   /** 씨앗 후보 수 · 고른 씨앗 장면 */
   seeds: number;
   seedFrame: number | null;
@@ -613,6 +619,15 @@ export function analyzeByDistance(input: DistanceInput): DistanceResult {
     }
     fit = fitTrajectory(used, te, cam, opts);
     report.te = te;
+    /* ABS 가 영상 없이 궤적을 다시 돌릴 스냅샷 — 값 계산엔 안 쓴다(lib/abs/analysis.ts) */
+    report.fit = {
+      p: fit.p.slice(),
+      te,
+      dragScaleM: Dm,
+      tiltRad: tilt,
+      cam: { f: cam.f, cx: cam.cx, cy: cam.cy },
+      cov: fit.covariance,
+    };
     {
       const lastO = used[used.length - 1];
       report.endSizeRatio = Math.round((lastO.diam / dAtDm) * 100) / 100;
