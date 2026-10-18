@@ -1,7 +1,9 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useVideoPlayer, VideoView, type VideoPlayer } from 'expo-video';
 import { useMemo, useState } from 'react';
+import * as Haptics from 'expo-haptics';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Icon } from '~/shell/icon';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { usePalette } from '~/lib/ui';
 import { dateKeyOf } from '~/pitch/api';
@@ -119,12 +121,48 @@ function Compare({ a, b, bottom }: { a: Pick; b: Pick; bottom: number }) {
     setRate(r);
     both.forEach((p) => (p.playbackRate = r));
   };
+  /*
+   * 기준점 — 웹 compare-view: 한쪽씩 ◀ ▶(한 장면)로 같은 동작(예: 앞발 착지)에 맞추고 '기준점'을 눌러 두면,
+   * 아래 '기준점'이 둘을 각자 그 자리로 되돌린다. 한 장면 = 1/60초(대부분 60fps 로 찍는다).
+   */
+  const [marks, setMarks] = useState<[number, number]>([0, 0]);
+  const nudge = (p: VideoPlayer, dir: 1 | -1) => {
+    p.pause();
+    p.currentTime = Math.max(0, p.currentTime + dir / 60);
+  };
+  const mark = (i: 0 | 1) => {
+    const t = both[i].currentTime;
+    setMarks((m) => (i === 0 ? [t, m[1]] : [m[0], t]));
+    void Haptics.selectionAsync();
+  };
+  const toMarks = () =>
+    both.forEach((p, i) => {
+      p.pause();
+      p.currentTime = marks[i];
+    });
 
   return (
     <View style={{ flex: 1 }}>
       <View style={styles.split}>
-        <Side player={pa} label={a.label} error={ua.error} ready={!!ua.uri} />
-        <Side player={pb} label={b.label} error={ub.error} ready={!!ub.uri} />
+        <Side player={pa} side="A" label={a.label} error={ua.error} ready={!!ua.uri} />
+        <Side player={pb} side="B" label={b.label} error={ub.error} ready={!!ub.uri} />
+      </View>
+      {/* 한쪽씩 맞추기 — ◀ ▶ 한 장면 · 기준점(웹 compare-view 각 칸 밑) */}
+      <View style={styles.sides}>
+        {([pa, pb] as const).map((p, i) => (
+          <View key={i} style={styles.sideCtl}>
+            <Pressable accessibilityRole="button" accessibilityLabel={`${i ? 'B' : 'A'}면 한 프레임 뒤로`} onPress={() => nudge(p, -1)} style={styles.step}>
+              <Icon name="chevron-left" size={16} color="#fff" />
+            </Pressable>
+            <Pressable accessibilityRole="button" accessibilityLabel={`${i ? 'B' : 'A'}면 한 프레임 앞으로`} onPress={() => nudge(p, 1)} style={styles.step}>
+              <Icon name="chevron-right" size={16} color="#fff" />
+            </Pressable>
+            <Pressable accessibilityRole="button" accessibilityLabel={`${i ? 'B' : 'A'}면 기준점 지정`} onPress={() => mark(i as 0 | 1)} style={[styles.step, { flex: 1, flexDirection: 'row', gap: 4 }]}>
+              <Icon name="flag" size={14} color="#fff" />
+              <Text style={{ color: '#fff', fontSize: 12 }}>기준점</Text>
+            </Pressable>
+          </View>
+        ))}
       </View>
       <View style={[styles.controls, { paddingBottom: bottom + 12 }]}>
         <View style={styles.rates}>
@@ -141,14 +179,18 @@ function Compare({ a, b, bottom }: { a: Pick; b: Pick; bottom: number }) {
           ))}
         </View>
         <View style={styles.rates}>
+          <Pressable accessibilityRole="button" accessibilityLabel="두 영상을 각자의 기준점으로" onPress={toMarks} style={[styles.ctl, { flex: 1, flexDirection: 'row', gap: 6 }]}>
+            <Icon name="flag" size={16} color="#fff" />
+            <Text style={styles.ctlText}>기준점</Text>
+          </Pressable>
           <Pressable accessibilityRole="button" onPress={restart} style={[styles.ctl, { flex: 1 }]}>
             <Text style={styles.ctlText}>처음으로</Text>
           </Pressable>
-          <Pressable accessibilityRole="button" onPress={playAll} style={[styles.ctl, styles.ctlMain, { flex: 1 }]}>
+          <Pressable accessibilityRole="button" onPress={playAll} style={[styles.ctl, styles.ctlMain, { flex: 1.4 }]}>
             <Text style={[styles.ctlText, { color: '#000' }]}>같이 재생 · 멈춤</Text>
           </Pressable>
         </View>
-        <Text style={styles.hint}>한쪽만 누르면 그쪽만 멈춰요. 던지는 순간을 맞춘 뒤 같이 재생하세요.</Text>
+        <Text style={styles.hint}>각 화면의 ◀ ▶로 두 영상을 같은 동작(예: 앞발 착지)에 맞추고 ‘기준점’을 누르세요. 화면을 누르면 그쪽만 재생 · 멈춤.</Text>
       </View>
     </View>
   );
@@ -159,7 +201,7 @@ function setup(p: VideoPlayer) {
   p.loop = true;
 }
 
-function Side({ player, label, error, ready }: { player: VideoPlayer; label: string; error: string | null; ready: boolean }) {
+function Side({ player, side, label, error, ready }: { player: VideoPlayer; side: 'A' | 'B'; label: string; error: string | null; ready: boolean }) {
   return (
     <Pressable
       accessibilityRole="button"
@@ -174,9 +216,12 @@ function Side({ player, label, error, ready }: { player: VideoPlayer; label: str
       ) : (
         <ActivityIndicator color="#fff" />
       )}
-      <Text style={styles.sideLabel} numberOfLines={1}>
-        {label}
-      </Text>
+      <View style={styles.sideHead}>
+        <Text style={[styles.sideBadge, side === 'A' ? { backgroundColor: '#0a84d6', color: '#fff' } : { backgroundColor: '#fff', color: '#000' }]}>{side}</Text>
+        <Text style={styles.sideLabel} numberOfLines={1}>
+          {label}
+        </Text>
+      </View>
     </Pressable>
   );
 }
@@ -193,11 +238,13 @@ const styles = StyleSheet.create({
   primaryText: { color: '#fff', fontSize: 17, fontWeight: '600' },
   split: { flex: 1, flexDirection: 'row', gap: 2 },
   side: { flex: 1, backgroundColor: '#111', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+  sideHead: { position: 'absolute', top: 8, left: 8, right: 8, flexDirection: 'row', alignItems: 'center', gap: 6 },
+  sideBadge: { width: 22, height: 22, borderRadius: 6, overflow: 'hidden', textAlign: 'center', lineHeight: 22, fontSize: 12, fontWeight: '800' },
+  sides: { flexDirection: 'row', gap: 8, paddingHorizontal: 16, paddingTop: 10 },
+  sideCtl: { flex: 1, flexDirection: 'row', gap: 4 },
+  step: { minWidth: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.14)' },
   sideLabel: {
-    position: 'absolute',
-    top: 8,
-    left: 8,
-    right: 8,
+    flex: 1,
     color: '#fff',
     fontSize: 13,
     fontWeight: '600',
