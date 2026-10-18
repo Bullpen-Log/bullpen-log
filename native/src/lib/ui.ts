@@ -41,8 +41,9 @@ const DARK: typeof LIGHT = {
   line: '#38383a',
   /* 진한 선 — 사이트 --color-line-strong(작은 그래프 바탕 · 화살표) */
   lineStrong: '#48484a',
-  sky: '#0a84ff',
-  danger: '#ff453a',
+  /* 사이트 다크도 #0a84d6(단추 바탕 — 흰 글자 대비를 라이트와 같게) · 위험 #f87171 */
+  sky: '#0a84d6',
+  danger: '#f87171',
   chip: '#2c2c2e',
   warn: '#fcd34d',
   warnBg: '#2a1e08',
