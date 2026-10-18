@@ -33,25 +33,42 @@ export default function NewArticleScreen() {
   const field = { backgroundColor: c.card, color: c.ink };
   return (
     <KeyboardAvoidingView behavior="padding" style={{ flex: 1, backgroundColor: c.page }}>
-      <Bar back="자료실" title="글쓰기" right={<BarButton label="올리기" onPress={submit} disabled={send.busy} c={c} />} c={c} />
+      <Bar back="자료실" title="자료 등록" right={<BarButton label="올리기" onPress={submit} disabled={send.busy} c={c} />} c={c} />
       <ScrollView contentContainerStyle={[{ padding: 16, gap: 8, paddingBottom: inset.bottom + 32 }, READABLE]} keyboardShouldPersistTaps="handled">
+        {/* 웹 board/new 폼과 같은 차례 · 이름 · 도움말 · 예시 글 — 제목 → 태그 → 자료 링크 → 내용 */}
         <Text style={[s.label, { color: c.muted }]}>제목</Text>
-        <TextInput value={title} onChangeText={setTitle} maxLength={150} placeholderTextColor={c.muted} style={[s.input, field]} />
-        <Text style={[s.label, { color: c.muted }]}>내용</Text>
-        <TextInput value={content} onChangeText={setContent} multiline placeholderTextColor={c.muted} style={[s.area, field]} />
-        <Text style={[s.label, { color: c.muted }]}>원문 링크(선택)</Text>
+        <TextInput
+          value={title}
+          onChangeText={setTitle}
+          maxLength={150}
+          placeholder="투구 시 어깨 외회전 각도와 구속의 상관관계"
+          placeholderTextColor={c.muted}
+          style={[s.input, field]}
+        />
+        <Text style={[s.label, { color: c.muted, marginTop: 8 }]}>태그</Text>
+        <TextInput value={tags} onChangeText={setTags} placeholder="어깨, 바이오메카닉스, 회복" placeholderTextColor={c.muted} style={[s.input, field]} />
+        <Text style={{ color: c.muted, fontSize: 13, paddingHorizontal: 4 }}>쉼표로 구분해 최대 5개까지 입력할 수 있어요.</Text>
+        <Text style={[s.label, { color: c.muted, marginTop: 8 }]}>자료 링크 (선택)</Text>
         <TextInput
           value={link}
           onChangeText={setLink}
-          placeholder="https://"
+          placeholder="https://pubmed.ncbi.nlm.nih.gov/..."
           placeholderTextColor={c.muted}
           keyboardType="url"
           autoCapitalize="none"
           autoCorrect={false}
           style={[s.input, field]}
         />
-        <Text style={[s.label, { color: c.muted }]}>태그(쉼표로 나눠 5개까지, 선택)</Text>
-        <TextInput value={tags} onChangeText={setTags} placeholder="투구역학, 하체" placeholderTextColor={c.muted} style={[s.input, field]} />
+        <Text style={{ color: c.muted, fontSize: 13, paddingHorizontal: 4 }}>원문이나 참고 페이지 주소를 넣어 주세요.</Text>
+        <Text style={[s.label, { color: c.muted, marginTop: 8 }]}>내용</Text>
+        <TextInput
+          value={content}
+          onChangeText={setContent}
+          multiline
+          placeholder="자료의 핵심 내용과 느낀 점을 정리해 보세요."
+          placeholderTextColor={c.muted}
+          style={[s.area, field]}
+        />
         {send.error ? <Text style={{ color: c.danger, fontSize: 14, marginTop: 8 }}>{send.error}</Text> : null}
       </ScrollView>
     </KeyboardAvoidingView>
