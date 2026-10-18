@@ -6,3 +6,6 @@ export * from './rules.ts';
 export * from './zone.ts';
 export * from './cross.ts';
 export * from './judge.ts';
+export * from './calib.ts';
+export * from './plate-detect.ts';
+export * from './stability.ts';
