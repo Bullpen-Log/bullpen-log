@@ -98,7 +98,6 @@ export const monthOf = (dateKey: string) => dateKey.slice(0, 7);
 /**
  * 영상 달력 칸의 장면 그림 — 그날 대표 영상(쉬는 날 기록 빼고 처음 올린 영상, 웹 video-calendar repOf)의 썸네일 주소.
  * 받은 주소는 앱이 쥐고 있어 달을 오가도 다시 묻지 않는다(서명 주소라 앱을 다시 켜면 새로 받는다).
- * 웹에서 고른 대표(★)는 아직 안 읽는다 — 처음 영상으로 보인다.
  */
 const thumbUrls = new Map<string, string | null>();
 /** 영상 경로 → 장면 그림 주소(목록 줄 · 달력 칸이 같이 쓴다). 못 받았거나 그림이 없는 영상은 빠진다 */
@@ -129,11 +128,17 @@ export function usePathThumbs(paths: string[]): Record<string, string> {
 }
 
 export function useDayThumbs(logs: PitchLog[] | null): Record<string, string> {
-  const reps = new Map<string, string>();
+  const pick = useFeatured();
+  const paths = new Map<string, string[]>();
   for (const l of logs ?? []) {
     if (isRestSession(l.sessionType) || !l.videoPaths.length) continue;
     const day = l.date.slice(0, 10);
-    if (!reps.has(day)) reps.set(day, l.videoPaths[0]);
+    paths.set(day, [...(paths.get(day) ?? []), ...l.videoPaths]);
+  }
+  const reps = new Map<string, string>();
+  for (const [day, ps] of paths) {
+    const r = repOf(ps, pick[day]);
+    if (r) reps.set(day, r);
   }
   const urls = usePathThumbs([...reps.values()]);
   const out: Record<string, string> = {};
@@ -175,3 +180,55 @@ export function useVelocityDays(): VelocityDays | null {
   }, []);
   return v;
 }
+
+/**
+ * 그날의 대표 영상(★) — app.loadAppFeatured(웹 DailyFeaturedVideo). 고르지 않은 날은 그날 처음 올린 영상이 대표다.
+ * 고르기는 setFeatured(웹 featured-video.setFeaturedVideo 와 같은 동작) — 바로 바꿔 보이고, 실패하면 되돌린다.
+ */
+let featured: Record<string, string> | null = null;
+const featuredListeners = new Set<() => void>();
+const emitFeatured = () => featuredListeners.forEach((l) => l());
+let featuredLoading: Promise<void> | null = null;
+export function reloadFeatured(): Promise<void> {
+  featuredLoading ??= rpc<{ ok: true; featured: Record<string, string> } | { ok: false; error: string }>('app.loadAppFeatured')
+    .then((r) => {
+      if (!r.ok) return;
+      featured = r.featured;
+      emitFeatured();
+    })
+    .catch(() => undefined)
+    .finally(() => {
+      featuredLoading = null;
+    });
+  return featuredLoading;
+}
+export function useFeatured(): Record<string, string> {
+  const v = useSyncExternalStore(
+    (l) => {
+      featuredListeners.add(l);
+      return () => featuredListeners.delete(l);
+    },
+    () => featured
+  );
+  useEffect(() => {
+    if (!featured) void reloadFeatured();
+  }, []);
+  return v ?? EMPTY_FEATURED;
+}
+const EMPTY_FEATURED: Record<string, string> = {};
+export async function setFeatured(date: string, path: string): Promise<boolean> {
+  const before = featured;
+  featured = { ...(featured ?? {}), [date]: path };
+  emitFeatured();
+  try {
+    const r = await rpc<{ videoPath: string } | { error: string }>('featured-video.setFeaturedVideo', date, path);
+    if ('error' in r) throw new Error(r.error);
+    return true;
+  } catch {
+    featured = before;
+    emitFeatured();
+    return false;
+  }
+}
+/** 그날 대표 — 고른 것이 그날 영상에 있으면 그것, 아니면 처음 영상 */
+export const repOf = (paths: string[], pick: string | undefined) => (pick && paths.includes(pick) ? pick : (paths[0] ?? null));

@@ -9,7 +9,7 @@ import { LogList } from './log-list';
 import { MonthGrid } from './month-grid';
 import { PitchDayPanel } from './day-panel';
 import { PitchTodayCard } from './today-card';
-import { monthOf, useAllLogs, useDayThumbs, useMonth } from './store';
+import { monthOf, reloadFeatured, useAllLogs, useDayThumbs, useMonth } from './store';
 
 import { READABLE_WIDE, TwoColumns } from '~/lib/layout';
 import { useOnTabActive, useRetapTop } from '~/shell/tab-pager';
@@ -33,7 +33,7 @@ export function PitchTab({ today, bottom, onWeb }: { today: string; bottom: numb
   const { logs, error, reload } = useMonth(month);
   const thumbs = useDayThumbs(logs);
   /* 탭을 옮겼다 돌아오면 새로 받는다(판은 붙어 있다) */
-  useOnTabActive(() => void reload());
+  useOnTabActive(() => void Promise.all([reload(), reloadFeatured()]));
   const all = useAllLogs(view === 'list');
   /* 지금 탭(투구)을 다시 누르면 맨 위로 */
   const scrollRef = useRef<ScrollViewInstance>(null);

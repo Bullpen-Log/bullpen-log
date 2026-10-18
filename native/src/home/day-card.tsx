@@ -17,7 +17,7 @@ import { openCheckin } from '~/shell/web-nav';
 import { loadDay, type DayDetail } from './api';
 import { DayEvents, useDayEventCount } from './events';
 import { PitchVideo } from '~/pitch/video';
-import { useVelocityDays } from '~/pitch/store';
+import { useFeatured, useVelocityDays } from '~/pitch/store';
 
 /**
  * 홈 달력 밑 그날 칸 — 웹 day-summary.tsx(요약 카드) · day-detail.tsx(자세히 카드)와 같은 두 카드.
@@ -87,6 +87,7 @@ export function DayCards({
   const ahead = date > today;
   /* 같이 만든 투구 기록을 지워도 측정 세션은 남는다 — 그래도 카메라 줄은 보인다(웹 PitchDetail) */
   const vday = useVelocityDays()?.[date];
+  const pick = useFeatured()[date];
   const camera =
     vday && vday.n > 0 ? (
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
@@ -231,15 +232,17 @@ export function DayCards({
             videos ? (
               /* 두 개까지 그 자리에서 튼다 — 더 있으면 투구 탭에서(웹 VideoDetail) */
               <View style={{ gap: 12 }}>
-                {logs
-                  .flatMap((l) => (isRestSession(l.sessionType) ? [] : l.videoPaths))
-                  .slice(0, 2)
-                  .map((p, i) => (
+                {/* 대표로 고른 것을 먼저(웹 VideoDetail — 고른 영상이 기록에서 빠졌을 수도 있어 확인한다) */}
+                {(() => {
+                  const all = logs.flatMap((l) => (isRestSession(l.sessionType) ? [] : l.videoPaths));
+                  const ordered = pick && all.includes(pick) ? [pick, ...all.filter((v) => v !== pick)] : all;
+                  return ordered.slice(0, 2).map((p, i) => (
                     <View key={p} style={{ gap: 6 }}>
                       <PitchVideo path={p} />
-                      <Text style={{ color: c.muted, fontSize: 12 }}>영상 {i + 1}</Text>
+                      <Text style={{ color: c.muted, fontSize: 12 }}>{i === 0 && pick === p ? '대표 영상' : `영상 ${i + 1}`}</Text>
                     </View>
-                  ))}
+                  ));
+                })()}
                 {videos > 2 ? <Text style={{ color: c.muted, fontSize: 12 }}>외 {videos - 2}개는 투구 기록에서 볼 수 있어요.</Text> : null}
               </View>
             ) : vday?.clips ? (

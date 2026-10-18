@@ -12,7 +12,7 @@ import { Icon } from '~/shell/icon';
 import { fadeIn, rowIn } from '~/shell/motion';
 import { Press } from '~/shell/press';
 import type { PitchLog } from './api';
-import { usePathThumbs, useVelocityDays } from './store';
+import { repOf, setFeatured, useFeatured, usePathThumbs, useVelocityDays } from './store';
 import { PitchVideo } from './video';
 
 /**
@@ -35,7 +35,8 @@ export function PitchDayPanel({ date, logs }: { date: string; logs: PitchLog[] }
   const measured = useVelocityDays()?.[date];
   const throwing = logs.filter((l) => !isRestSession(l.sessionType));
   const paths = throwing.flatMap((l) => l.videoPaths);
-  const rep = paths[0] ?? null;
+  const rep = repOf(paths, useFeatured()[date]);
+  const [tools, setTools] = useState(false);
   const [picked, setPicked] = useState<string | null>(null);
   const playing = picked && paths.includes(picked) ? picked : rep;
   const thumbs = usePathThumbs(paths.length > 1 ? paths : []);
@@ -103,6 +104,33 @@ export function PitchDayPanel({ date, logs }: { date: string; logs: PitchLog[] }
       ) : (
         <View style={{ padding: 20, gap: 12 }}>
           <PitchVideo key={playing} path={playing} />
+          {/* 영상 관리 — 웹 DayPanel 휴대폰의 접힌 줄. 여럿인 날 지금 영상을 대표(★)로(달력 칸 · 홈 그날 칸이 그 영상을 띄운다) */}
+          {paths.length > 1 ? (
+            <View style={{ gap: 8 }}>
+              <Press accessibilityRole="button" accessibilityState={{ expanded: tools }} onPress={() => setTools((v) => !v)} style={styles.toolsBtn}>
+                <Text style={{ color: c.muted, fontSize: 12, fontWeight: '600' }}>영상 관리</Text>
+                <View style={{ transform: [{ rotate: tools ? '180deg' : '0deg' }] }}>
+                  <Icon name="chevron-down" size={14} color={c.muted} />
+                </View>
+              </Press>
+              {tools ? (
+                <Animated.View entering={fadeIn} style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                  {playing !== rep ? (
+                    <Press
+                      accessibilityRole="button"
+                      onPress={() => void setFeatured(date, playing)}
+                      style={[styles.toolBtn, { borderColor: c.lineStrong, backgroundColor: c.card }]}
+                    >
+                      <Icon name="star" size={16} color={c.ink} />
+                      <Text style={{ color: c.ink, fontSize: 15, fontWeight: '500' }}>이 영상을 대표로</Text>
+                    </Press>
+                  ) : (
+                    <Text style={{ color: c.muted, fontSize: 12 }}>지금 영상이 대표예요. 달력 칸에 이 영상이 떠요.</Text>
+                  )}
+                </Animated.View>
+              ) : null}
+            </View>
+          ) : null}
           {log && logs.length > 1 ? (
             <Text style={{ color: c.muted, fontSize: 12 }}>
               {paths.length > 1 ? `영상 ${paths.indexOf(playing) + 1} · ` : ''}
@@ -164,5 +192,7 @@ const styles = StyleSheet.create({
   gridCell: { width: '50%', padding: 4 },
   thumbBtn: { borderRadius: 12, borderWidth: 1, overflow: 'hidden' },
   thumb: { aspectRatio: 16 / 9, alignItems: 'center', justifyContent: 'center' },
+  toolsBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, minHeight: 40, marginVertical: -4, alignSelf: 'flex-start' },
+  toolBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 40, paddingHorizontal: 12, borderRadius: 12, borderWidth: 1 },
   thumbFoot: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 8, paddingVertical: 6 },
 });

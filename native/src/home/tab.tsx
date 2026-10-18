@@ -14,7 +14,7 @@ import { fadeIn, Pulse, viewSwap } from '~/shell/motion';
 import { openCheckin } from '~/shell/web-nav';
 import { ApiError, call, dateKeyOf } from '~/pitch/api';
 import { MonthGrid } from '~/pitch/month-grid';
-import { monthOf, reloadVelocityDays, useAllLogs, useMonth, useVelocityDays } from '~/pitch/store';
+import { monthOf, reloadFeatured, reloadVelocityDays, useAllLogs, useMonth, useVelocityDays } from '~/pitch/store';
 import { loadHome, type AppHome, type HomeRing } from './api';
 import { DayCards, layoutMove, resetDayCache } from './day-card';
 import { reloadEvents, resetEventsCache, useEventCounts } from './events';
@@ -114,7 +114,7 @@ export function HomeTab({
 
   /* 위에 쌓인 앱 화면(체크인 · 투구 기록 · 운동)에서 돌아오면 다시 받는다 — 링이 방금 남긴 것을 따라오게(처음 한 번은 위 효과가 받는다) */
   /* 탭을 옮겼다 돌아오면(판은 붙어 있다) 새로 받는다 — 다른 탭에서 남긴 것이 링 · 달력에 바로 */
-  useOnTabActive(() => void Promise.all([refresh(), reload(), reloadEvents(), reloadVelocityDays()]));
+  useOnTabActive(() => void Promise.all([refresh(), reload(), reloadEvents(), reloadVelocityDays(), reloadFeatured()]));
   const focused = useRef(false);
   useFocusEffect(
     useCallback(() => {

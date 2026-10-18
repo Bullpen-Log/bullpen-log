@@ -219,6 +219,17 @@ export async function loadAppTraining(): Promise<
  * 날짜별 구속 측정 요약(공 수 · 최고 · 클립 수 · 지문) — 웹 홈 · 투구 달력과 같은 loadVelocityByDate. 앱 달력의 영상 점(클립도 셈)과
  * 그날 칸의 '카메라로 잰 공' 줄이 쓴다. 측정만 남은 날도 달력에 칠한다(웹 홈과 같다).
  */
+/**
+ * 그날의 대표 영상(★) — 웹 투구 탭 영상 달력 · 홈 그날 칸이 읽는 DailyFeaturedVideo. 날짜 → 영상 경로.
+ * 고르기는 featured-video.setFeaturedVideo(웹과 같은 동작)로.
+ */
+export async function loadAppFeatured(): Promise<{ ok: true; featured: Record<string, string> } | { ok: false; error: string }> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: '로그인이 필요해요.' };
+  const rows = await prisma.dailyFeaturedVideo.findMany({ where: { userId: user.id }, select: { date: true, videoPath: true } });
+  return { ok: true, featured: Object.fromEntries(rows.map((r) => [toDateKey(r.date), r.videoPath])) };
+}
+
 export async function loadAppVelocityDays(): Promise<
   { ok: true; days: Record<string, { n: number; max: number; clips: number; sig: string }> } | { ok: false; error: string }
 > {
