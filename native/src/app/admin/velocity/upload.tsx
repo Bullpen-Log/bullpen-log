@@ -177,7 +177,7 @@ export default function VelocityUploadScreen() {
   const pending = items.filter((it) => it.state === 'ready' || (it.state === 'error' && it.pitchId)).length;
   return (
     <KeyboardAvoidingView behavior="padding" style={{ flex: 1, backgroundColor: c.page }}>
-      <Bar back="구속 측정 관리자" title="영상 올리기" right={done ? <BarButton label="완료" onPress={() => router.back()} c={c} /> : undefined} c={c} />
+      <Bar back="구속 측정" title="영상 올리기" right={done ? <BarButton label="완료" onPress={() => router.back()} c={c} /> : undefined} c={c} />
       <ScrollView contentContainerStyle={[{ padding: 16, gap: 12, paddingBottom: inset.bottom + 32 }, READABLE]} keyboardShouldPersistTaps="handled">
         <Text style={{ color: c.muted, fontSize: 15, lineHeight: 21, paddingHorizontal: 4 }}>
           투구 영상을 고르고 스피드건 값을 적어 올려요. 카메라 값은 PC 에서 &apos;다시 재기&apos;로 채워요.

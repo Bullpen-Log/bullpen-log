@@ -26,7 +26,7 @@ export default function VelocityDayScreen() {
   const day = data?.day;
   return (
     <View style={{ flex: 1, backgroundColor: c.page }}>
-      <Bar back="구속 측정 관리자" title={date ?? ''} c={c} />
+      <Bar back="구속 측정" title={date ?? ''} c={c} />
       {!data ? (
         <LoadState error={error} onRetry={() => void reload()} c={c} />
       ) : !day ? (
