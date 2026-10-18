@@ -2,7 +2,7 @@ import * as Haptics from 'expo-haptics';
 import { SymbolView } from 'expo-symbols';
 import { type Href, router } from 'expo-router';
 import { AddToRoutine } from '~/armcare/add-to-routine';
-import { useState, useSyncExternalStore } from 'react';
+import { useState, useSyncExternalStore, type ReactNode } from 'react';
 import { Image, Pressable, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
 import { ARMCARE_AREAS, ARMCARE_MUSCLES, areaOfMuscle, type ArmcareArea, type ArmcareAreaKey } from '@/lib/armcare/anatomy';
 import type { ArmcareExerciseView } from '@/app/(app)/training/armcare-media';
@@ -15,6 +15,7 @@ import type { Palette } from '~/lib/ui';
 import { Fold, s } from './screen';
 import { fromApp } from '~/shell/web-nav';
 import { MuscleChips } from '~/armcare/muscle-info';
+import { AREA_DETAILS } from '@/lib/armcare/details';
 
 /**
  * 암케어 전체 화면(native/src/app/training-armcare.tsx)의 조각 — 웹 armcare-today.tsx(체크 목록 · 이번 주) · my-routines.tsx · rehab-card.tsx(겉) ·
@@ -483,29 +484,59 @@ export function AreaCard({
               </Text>
             ))}
           </View>
-          <View style={s.wrap}>
-            {muscles.map((m) => (
-              <Text key={m.name} style={[s.smallBold, s.tag, { color: c.sky, backgroundColor: c.sky + '1a' }]}>
-                {m.name}
-              </Text>
-            ))}
-          </View>
-          <Fold label={`${area.label} 자세히`} c={c}>
-            {area.injuries.map((i) => (
-              <Text key={i.name} style={[s.small, { color: c.ink }]}>
-                <Text style={{ fontWeight: '700' }}>{i.name}</Text> {i.desc}
-              </Text>
-            ))}
-            {area.notes.map((n) => (
-              <Text key={n} style={[s.small, { color: c.muted }]}>
-                {n}
-              </Text>
-            ))}
-            {muscles.map((m) => (
-              <Text key={m.name} style={[s.small, { color: c.ink }]}>
-                <Text style={{ fontWeight: '700', color: c.sky }}>{m.name}</Text> {m.does}
-              </Text>
-            ))}
+          {/* 근육 — 누르면 그 근육 설명(웹 InfoButton muscle) */}
+          <MuscleChips muscles={muscles.map((m) => m.name)} highlight={muscles.map((m) => m.name)} c={c} />
+          {/* 부위 자세히 — 웹 armcare-info-body AreaInfo 의 차례 · 글(lib/armcare/details AREA_DETAILS) */}
+          <Fold label={`${area.label} 자세히 보기`} c={c}>
+            {AREA_DETAILS[area.key] ? (
+              <>
+                <AreaSection title="던질 때 하는 일" c={c}>
+                  <Text style={[st.areaBody, { color: c.ink }]}>{AREA_DETAILS[area.key].role}</Text>
+                </AreaSection>
+                <AreaSection title="왜 챙겨야 하나요" c={c}>
+                  <Text style={[st.areaBody, { color: c.ink }]}>{AREA_DETAILS[area.key].why}</Text>
+                </AreaSection>
+              </>
+            ) : null}
+            <AreaSection title="흔한 부상" c={c}>
+              {area.injuries.map((i) => (
+                <View key={i.name} style={{ gap: 2 }}>
+                  <Text style={[s.smallBold, { color: c.warn }]}>{i.name}</Text>
+                  <Text style={[s.small, { color: c.ink, opacity: 0.75 }]}>{i.desc}</Text>
+                </View>
+              ))}
+            </AreaSection>
+            <AreaSection title="이 부위의 근육" c={c}>
+              {muscles.map((m) => (
+                <Text key={m.name} style={[s.small, { color: c.ink }]}>
+                  <Text style={{ fontWeight: '700', color: c.sky }}>{m.name}</Text> {m.does}
+                </Text>
+              ))}
+            </AreaSection>
+            {area.notes.length ? (
+              <AreaSection title="알아 두기" c={c}>
+                {area.notes.map((n) => (
+                  <Text key={n} style={[s.small, { color: c.ink }]}>
+                    · {n}
+                  </Text>
+                ))}
+              </AreaSection>
+            ) : null}
+            {AREA_DETAILS[area.key] ? (
+              <>
+                <AreaSection title="이런 신호가 있으면 더 챙기세요" c={c}>
+                  {AREA_DETAILS[area.key].signs.map((sign) => (
+                    <Text key={sign} style={[s.small, { color: c.ink }]}>
+                      · {sign}
+                    </Text>
+                  ))}
+                </AreaSection>
+                <AreaSection title="이렇게 키워요" c={c}>
+                  <Text style={[st.areaBody, { color: c.ink }]}>{AREA_DETAILS[area.key].train}</Text>
+                </AreaSection>
+              </>
+            ) : null}
+            <Text style={[s.tiny, { color: c.muted }]}>운동이 부상을 막아 준다는 보장은 없어요. 통증이 이어지면 쉬고 진료를 받으세요.</Text>
           </Fold>
           <Text style={[s.smallBold, { color: c.muted }]}>운동</Text>
           {count === 0 ? (
@@ -521,6 +552,15 @@ export function AreaCard({
   );
 }
 
+function AreaSection({ title, children, c }: { title: string; children: ReactNode; c: Palette }) {
+  return (
+    <View style={{ gap: 6 }}>
+      <Text style={[s.smallBold, { color: c.ink }]}>{title}</Text>
+      {children}
+    </View>
+  );
+}
+
 /** 어깨 · 팔꿈치 차례의 부위들 */
 export const AREAS_BY_JOINT = (['어깨', '팔꿈치'] as const).map((joint) => ({
   joint,
@@ -528,6 +568,7 @@ export const AREAS_BY_JOINT = (['어깨', '팔꿈치'] as const).map((joint) => 
 }));
 
 const st = StyleSheet.create({
+  areaBody: { fontSize: 14, lineHeight: 21 },
   row: { borderRadius: 16, borderWidth: 1, overflow: 'hidden' },
   rowHead: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, paddingHorizontal: 12, paddingVertical: 12 },
   checkHit: { width: 32, height: 44, marginTop: -8, marginLeft: -4, alignItems: 'center', justifyContent: 'center' },
