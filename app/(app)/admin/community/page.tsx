@@ -1,3 +1,6 @@
+import { headers } from 'next/headers';
+import { expoLevel } from '@/lib/app-env';
+import { OpenNative } from '@/app/(session)/velocity/open-native';
 import Link from 'next/link';
 import { Check, ChevronRight, Eye, EyeOff, Flag } from '@/components/icon';
 import { prisma } from '@/lib/prisma';
@@ -30,6 +33,7 @@ export default async function CommunityAdminPage({
   searchParams: Promise<Search>;
 }) {
   await requireAdmin();
+  if (expoLevel((await headers()).get('user-agent')) >= 8) return <OpenNative path="/admin/community" cover={false} />;
   const sp = await searchParams;
   const all = sp.all === '1';
 

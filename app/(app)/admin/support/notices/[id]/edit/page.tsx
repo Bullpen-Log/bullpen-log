@@ -1,3 +1,6 @@
+import { headers } from 'next/headers';
+import { expoLevel } from '@/lib/app-env';
+import { OpenNative } from '@/app/(session)/velocity/open-native';
 import { notFound } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
 import { requireAdmin } from '@/lib/dal';
@@ -12,6 +15,7 @@ export default async function EditNoticePage({
 }) {
   const { id } = await params;
   await requireAdmin();
+  if (expoLevel((await headers()).get('user-agent')) >= 8) return <OpenNative path={`/admin/notice?id=${id}`} cover={false} />;
 
   const notice = await prisma.supportNotice.findUnique({
     where: { id },

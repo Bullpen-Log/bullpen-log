@@ -225,20 +225,41 @@ export async function createNotice(
 }
 
 async function tryCreateNotice(formData: FormData): Promise<SupportState> {
+  const r = await writeNotice(formData, null);
+  if ('error' in r) return { error: r.error };
+  redirect(`/support/notices/${r.id}`);
+}
+
+/**
+ * 공지 만들기(id null) · 고치기 — 웹 폼(tryCreateNotice · tryUpdateNotice, 끝나면 그 공지로 redirect)과 앱(saveAppNotice, 번호를 돌려줌)이 같이 쓴다.
+ * 관리자만, 같은 검사(readNotice).
+ */
+async function writeNotice(formData: FormData, id: string | null): Promise<{ id: string } | { error: string }> {
   const user = await getCurrentUser();
   if (!user) return { error: LOGIN_NEEDED };
   if (user.role !== 'ADMIN') return { error: ADMIN_ONLY };
 
   const read = readNotice(formData);
-  if ('error' in read) return { error: read.error };
+  if ('error' in read) return { error: read.error ?? '처리하지 못했어요.' };
 
-  const notice = await prisma.supportNotice.create({
-    data: { authorId: user.id, ...read.data },
+  if (id == null) {
+    const notice = await prisma.supportNotice.create({
+      data: { authorId: user.id, ...read.data },
+      select: { id: true },
+    });
+    revalidateNotices();
+    return { id: notice.id };
+  }
+
+  const exists = await prisma.supportNotice.findUnique({
+    where: { id },
     select: { id: true },
   });
+  if (!exists) return { error: '공지를 찾을 수 없어요.' };
 
-  revalidateNotices();
-  redirect(`/support/notices/${notice.id}`);
+  await prisma.supportNotice.update({ where: { id }, data: read.data });
+  revalidateNotices(id);
+  return { id };
 }
 
 export async function updateNotice(
@@ -249,24 +270,9 @@ export async function updateNotice(
 }
 
 async function tryUpdateNotice(formData: FormData): Promise<SupportState> {
-  const user = await getCurrentUser();
-  if (!user) return { error: LOGIN_NEEDED };
-  if (user.role !== 'ADMIN') return { error: ADMIN_ONLY };
-
-  const id = String(formData.get('id') ?? '');
-  const read = readNotice(formData);
-  if ('error' in read) return { error: read.error };
-
-  const exists = await prisma.supportNotice.findUnique({
-    where: { id },
-    select: { id: true },
-  });
-  if (!exists) return { error: '공지를 찾을 수 없어요.' };
-
-  await prisma.supportNotice.update({ where: { id }, data: read.data });
-
-  revalidateNotices(id);
-  redirect(`/support/notices/${id}`);
+  const r = await writeNotice(formData, String(formData.get('id') ?? ''));
+  if ('error' in r) return { error: r.error };
+  redirect(`/support/notices/${r.id}`);
 }
 
 export async function deleteNotice(formData: FormData) {
@@ -411,4 +417,14 @@ export async function deleteAppNotice(id: unknown) {
   return (await removeNotice(user, String(id ?? '')))
     ? { ok: true as const }
     : fail('지우지 못했어요.');
+}
+
+/** 공지 쓰기 · 고치기(관리자, 앱 native/src/app/admin/notice.tsx) — id 가 있으면 고친다. 같은 검사 · 같은 쓰기(writeNotice) */
+export async function saveAppNotice(input: { id?: unknown; title?: unknown; body?: unknown; pinned?: unknown }) {
+  const fd = new FormData();
+  fd.set('title', String(input?.title ?? ''));
+  fd.set('body', String(input?.body ?? ''));
+  if (input?.pinned === true) fd.set('pinned', 'on');
+  const r = await writeNotice(fd, input?.id ? String(input.id) : null);
+  return 'error' in r ? fail(r.error) : { ok: true as const, id: r.id };
 }

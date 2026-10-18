@@ -1,3 +1,6 @@
+import { headers } from 'next/headers';
+import { expoLevel } from '@/lib/app-env';
+import { OpenNative } from '@/app/(session)/velocity/open-native';
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { ArrowLeft, GitCommitHorizontal } from '@/components/icon';
@@ -34,6 +37,7 @@ export default async function PatchNotePage({
   if (user.role !== 'ADMIN') redirect('/today');
 
   const { id } = await params;
+  if (expoLevel((await headers()).get('user-agent')) >= 8) return <OpenNative path={`/admin/patch-notes/${id}`} cover={false} />;
   const note = await prisma.patchNote.findUnique({ where: { id } });
   if (!note) notFound();
 

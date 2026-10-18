@@ -1,12 +1,12 @@
 import { ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { loadAppNotices } from '@/app/actions/support';
-import { Bar, BarButton, leave, LoadState, NoticeRows, s, useLoad } from '~/community/parts';
+import { type Href, router } from 'expo-router';
+import { Bar, BarButton, LoadState, NoticeRows, s, useLoad } from '~/community/parts';
 import { usePalette } from '~/lib/ui';
 
 /**
- * 공지 전체(앱 화면) — 웹 app/(app)/support/notices/page.tsx. 고정 공지가 먼저, 그다음 새 글 순. 관리자의 '공지 쓰기'는 웹 관리 화면
- * (/admin/support/notices/new)으로 — 긴 글 쓰기 · 고정 스위치는 웹 폼 하나만 둔다.
+ * 공지 전체(앱 화면) — 웹 app/(app)/support/notices/page.tsx. 고정 공지가 먼저, 그다음 새 글 순. 관리자의 '공지 쓰기'는 앱 쓰기 화면(admin/notice.tsx).
  */
 type Loaded = Awaited<ReturnType<typeof loadAppNotices>>;
 
@@ -20,7 +20,7 @@ export default function NoticesScreen() {
       <Bar
         back="고객센터"
         title="공지"
-        right={data?.isAdmin ? <BarButton label="공지 쓰기" onPress={() => leave('/admin/support/notices/new')} c={c} /> : undefined}
+        right={data?.isAdmin ? <BarButton label="공지 쓰기" onPress={() => router.push('/admin/notice' as Href)} c={c} /> : undefined}
         c={c}
       />
       {!data ? (

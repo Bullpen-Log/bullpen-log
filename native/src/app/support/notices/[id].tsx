@@ -1,10 +1,10 @@
 import * as Haptics from 'expo-haptics';
 import { SymbolView } from 'expo-symbols';
-import { router, useLocalSearchParams } from 'expo-router';
+import { type Href, router, useLocalSearchParams } from 'expo-router';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { loadAppNotice } from '@/app/actions/support';
-import { Badge, Bar, call, leave, LoadState, s, useLoad } from '~/community/parts';
+import { Badge, Bar, call, LoadState, s, useLoad } from '~/community/parts';
 import { usePalette } from '~/lib/ui';
 
 /**
@@ -52,7 +52,7 @@ export default function NoticeScreen() {
           <Text style={[s.meta, { color: c.muted }]}>{notice.at}</Text>
           {data.isAdmin ? (
             <View style={styles.admin}>
-              <Pressable accessibilityRole="button" onPress={() => leave(`/admin/support/notices/${notice.id}/edit`)} style={[styles.adminBtn, { backgroundColor: c.chip }]}>
+              <Pressable accessibilityRole="button" onPress={() => router.push(`/admin/notice?id=${notice.id}` as Href)} style={[styles.adminBtn, { backgroundColor: c.chip }]}>
                 <SymbolView name="pencil" size={14} tintColor={c.ink} />
                 <Text style={{ color: c.ink, fontSize: 15, fontWeight: '600' }}>수정</Text>
               </Pressable>

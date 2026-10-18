@@ -1,3 +1,6 @@
+import { headers } from 'next/headers';
+import { expoLevel } from '@/lib/app-env';
+import { OpenNative } from '@/app/(session)/velocity/open-native';
 import Link from 'next/link';
 import { ChevronRight, Flag, Megaphone, MessagesSquare } from '@/components/icon';
 import { prisma } from '@/lib/prisma';
@@ -26,6 +29,7 @@ export default async function AdminSupportPage({
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
   await requireAdmin();
+  if (expoLevel((await headers()).get('user-agent')) >= 8) return <OpenNative path="/admin/support" cover={false} />;
   const filter = readFilter((await searchParams).status);
 
   const [inquiries, counts, notices] = await Promise.all([
