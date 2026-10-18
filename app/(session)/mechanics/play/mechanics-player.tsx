@@ -111,7 +111,7 @@ export function MechanicsPlayer({
 
   /** 세션을 마친다 — 실패하면 끝 화면으로 넘어가지 않고 다시 저장하게 한다 */
   const finish = async () => {
-    const res = await orOffline(finishMechanicsSession({ partial }), {
+    const res = await orOffline(finishMechanicsSession({ partial, session: sessionNumber }), {
       error: OFFLINE_MESSAGE,
     });
     if ('error' in res) {

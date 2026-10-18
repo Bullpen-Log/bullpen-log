@@ -140,8 +140,20 @@ export async function addToTodayPlan(exerciseId: string): Promise<Result> {
 
   const { date, plan } = await loadToday(user.id);
   if (!plan) return { error: '오늘 만들어 둔 일정이 없어요.' };
-  if (plan.picks.some((p) => p.exerciseId === exerciseId)) {
+  const existing = plan.picks.find((p) => p.exerciseId === exerciseId);
+  if (existing?.manual) {
     return { error: '이미 오늘 목록에 있어요.' };
+  }
+  /*
+   * 저장된 자동 고름인데 몸 상태가 바뀌어 화면에서 빠진 것(lib/report/today-data.ts planned — 안전하지 않고 · 안 했고 · 직접 넣지 않은 고름)을
+   * 다시 넣으면, 새로 붙이지 않고 그 자리를 직접 넣은 것으로 바꾼다. 예전엔 '이미 있어요'로 막혀 다시 넣을 길이 없었다(목록에 안 보이는데).
+   */
+  if (existing) {
+    await savePlan(user.id, date, {
+      ...plan,
+      picks: plan.picks.map((p) => (p.exerciseId === exerciseId ? { ...p, manual: true } : p)),
+    });
+    return { ok: true };
   }
 
   const exercise = await prisma.exerciseVideo.findUnique({

@@ -90,3 +90,10 @@
 - **폰 영상 썸네일 한 장을 서버에(P3)** — 2026-10-16 엔지니어링 검토 D14 에서 미룸(D1 의 캘린더 썸네일도 이 뒤). 폰 영상은 썸네일이 아예 없어 목록 · 캘린더에 아이콘만 뜬다.
   한 장면 JPEG(수십 KB)를 서버 썸네일 자리(pitchThumbPath 가 폰 경로에도 자리를 줌)에 올리면 모든 기기에 그림이 뜬다 — 영상이 아니라 정지 화면이지만 10-10 '서버에 안 둠' 결정이 그림까지 말한 건지 먼저 정한다.
   시작점: components/video-upload.tsx 폰 가지(263-281)에서 captureThumbnail + thumb-upload. 노력 S(사람 ~반나절 / CC ~1시간).
+
+## 앱 — Expo(React Native) 전환(2026-10-17 엔지니어링 검토)
+
+- **안드로이드 앱(Expo)** — 2026-10-17 검토 D1 에서 미룸(iOS 먼저). Expo 화면 코드는 안드로이드에서도 돌게 짜 두고, 남는 일은 네이티브 부품의 Kotlin 판이다 —
+  카메라(DualCamera · ShootCamera) · 폰 영상 저장(LocalVideo) Expo 모듈, 안드로이드 폰 시험 · Play 스토어. 노력 L(CC 1~2주 + 폰 시험).
+  다시 볼 때: iOS Expo 판이 출시된 뒤. 시작점: native/ 의 Expo 모듈 Swift 를 기준으로 Kotlin, 먼저 안드로이드 WebView 가 구속 엔진(숨은 웹뷰 계산기, D5)의
+  WebCodecs · onnxruntime-web WASM · 워커를 돌리는지 확인.

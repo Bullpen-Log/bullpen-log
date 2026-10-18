@@ -425,8 +425,8 @@ export function addOutingLog(
 ): OutingTotals | null {
   const load = outingLoadOf(log);
   if (load <= 0) return prev;
-  const nearMax =
-    log.sessionType === '경기' || Math.round(intensityOf(log)) >= NEAR_MAX_INTENSITY;
+  /* 경기도 고른 강도대로 — 늘 전력으로 보던 것을 뺐다(2026-10-18 사용자) */
+  const nearMax = Math.round(intensityOf(log)) >= NEAR_MAX_INTENSITY;
   return {
     pitches: (prev?.pitches ?? 0) + log.pitchCount,
     load: (prev?.load ?? 0) + load,

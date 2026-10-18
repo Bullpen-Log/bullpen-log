@@ -13,6 +13,7 @@ import {
   passwordFingerprint,
 } from '@/lib/session';
 import {
+  MAX_NICKNAME,
   MAX_WEIGHT_KG,
   MIN_WEIGHT_KG,
   checkOptionalNumber,
@@ -32,9 +33,6 @@ export type AuthState =
   { error?: string; field?: string; values?: FormValues } | undefined;
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-/** 이름 길이의 위 한계 — 가입 화면의 maxLength(app/login/auth-form.tsx)와 같은 선. 손으로 만든 요청이 아무 길이나 넣지 못하게 */
-const MAX_NICKNAME = 20;
 
 /**
  * 가입 첫 화면에서 이메일을 미리 본다 — 형식이 맞는지, 이미 가입된 것은 아닌지.

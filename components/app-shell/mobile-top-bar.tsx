@@ -1,6 +1,12 @@
 'use client';
 
-import { useEffect, useLayoutEffect, useState, useSyncExternalStore, type RefObject } from 'react';
+import {
+  useEffect,
+  useLayoutEffect,
+  useState,
+  useSyncExternalStore,
+  type RefObject,
+} from 'react';
 import { ChevronLeft } from '@/components/icon';
 import { goBack } from '@/components/back-link';
 import { barSnapshot, serverBarSnapshot, subscribeBar } from '@/lib/nav-state';
@@ -46,7 +52,11 @@ export function MobileTopBar({
     (isTrainingSubView(pathname, searchParams.get('view'))
       ? { href: TRAINING_HOME_HREF, label: '트레이닝' }
       : null);
-  const home = pathname === '/today';
+  /* 투구 기록 팝업(/pitch-log/<날짜>) 동안은 팝업 전 화면의 막대 그대로 — 판(tab-pager)과 같은 규칙(그리는 도중 상태 보정, 2026-10-17) */
+  const popup = pathname.startsWith('/pitch-log/');
+  const [shownPath, setShownPath] = useState(pathname);
+  if (!popup && shownPath !== pathname) setShownPath(pathname);
+  const home = shownPath === '/today';
   /*
    * 기록 · 트레이닝 · 영양 탭 첫 화면은 막대를 안 그린다(같은 날 김민: "앱 이름 · 프로필 설정 줄은 홈에만") — 그 탭의 큰 제목이 맨 위.
    * 하위 화면('‹ 뒤로'가 있는 곳)은 그대로. 시계 자리 칠과 그만큼의 빈칸은 남긴다.
@@ -57,7 +67,9 @@ export function MobileTopBar({
    * (globals.css [data-panel][data-bare]).
    */
   /* 구속 측정 관리자는 투구 탭의 한 보기(머리 · 고르개가 같다 — pitch-log-heading)라 투구처럼 막대 없이(2026-10-15 김민) */
-  const bare = !back && ['/videos', '/nutrition', '/training', '/admin/velocity'].includes(pathname);
+  const bare =
+    !back &&
+    ['/videos', '/nutrition', '/training', '/admin/velocity'].includes(shownPath);
   /* 숨기기는 첫 화면들만 — '‹ 뒤로'가 있는 화면은 돌아갈 길을 늘 보인다. 알림 창이 열려 있으면 안 숨긴다 */
   const hidden = useBarHidden(!back && !bare && panel == null);
   /*

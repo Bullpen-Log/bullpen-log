@@ -1,14 +1,15 @@
 'use server';
 
+import { Prisma } from '@prisma/client';
 import { appNow } from '@/lib/clock';
 import { revalidatePath } from 'next/cache';
 import { prisma } from '@/lib/prisma';
 import { getCurrentUser } from '@/lib/dal';
 import { toDateKey } from '@/lib/pitch-stats';
 import { dbDate, isNutritionDate, keyOfDbDate } from '@/lib/nutrition/days';
-import { loadNutritionDay, recentWeightKg } from '@/lib/nutrition/load';
+import { loadNutritionDay, recentWeightKg, toProfile } from '@/lib/nutrition/load';
 import { STEP_KCAL } from '@/lib/nutrition/weight-goal';
-import { cleanDietPrefs, type DietPrefs } from '@/lib/nutrition/diet-prefs';
+import { cleanDietPrefs, toDietPrefs, type DietPrefs } from '@/lib/nutrition/diet-prefs';
 import {
   MAX_HEIGHT_CM,
   MAX_WEIGHT_KG,
@@ -18,8 +19,11 @@ import {
 } from '@/lib/profile';
 import { buildProfileData, type ProfileInput } from '@/lib/nutrition/profile-save';
 import {
+  EMPTY_ANSWERS,
+  answersOfProfile,
   fieldOfNutritionError,
   readNutritionAnswers,
+  type NutritionAnswers,
   toDietPrefsRaw,
   toProfileInput,
   type FormLike,
@@ -50,6 +54,7 @@ import {
   MACRO_MAX,
   isMealKey,
   isSex,
+  type Sex,
   type EntrySource,
   ENTRY_SOURCES,
 } from '@/lib/nutrition/meta';
@@ -498,14 +503,16 @@ export async function eatPlanItems(
     return { ok: false, error: '먹은 것을 다시 골라 주세요.' };
   }
   const where = { userId_date: { userId: user.id, date: dbDate(date) } };
-  const row = await prisma.mealPlan.findUnique({ where, select: { items: true } });
+  const row = await prisma.mealPlan.findUnique({ where, select: { id: true, items: true, updatedAt: true } });
   if (!row) return { ok: false, error: '식단이 없어요. 새로고침해 주세요.' };
   const items = parsePlanItems(row.items);
   const want = new Set(keys.filter((k): k is string => typeof k === 'string'));
   const eat = items.filter((i) => want.has(i.key) && !i.done);
   if (eat.length === 0) return { ok: true };
 
-  const rows = [];
+  const rows: Prisma.MealEntryCreateManyInput[] = [];
+  /* 실제로 기록을 만든 줄만 '먹음'으로 — 값이 깨져 건너뛴 줄이 기록 없이 계획에서 사라지지 않게 */
+  const done = new Set<string>();
   for (const i of eat) {
     const food = cleanFood({
       source: i.source,
@@ -521,15 +528,27 @@ export async function eatPlanItems(
     const amount = cleanAmount(i.amount);
     if (typeof food === 'string' || amount === null) continue;
     rows.push({ userId: user.id, date: dbDate(date), meal: i.meal, amount, ...food });
+    done.add(i.key);
   }
-  const done = new Set(eat.map((i) => i.key));
-  await prisma.$transaction([
-    prisma.mealEntry.createMany({ data: rows }),
-    prisma.mealPlan.update({
-      where,
-      data: { items: items.map((i) => (done.has(i.key) ? { ...i, done: true } : i)) },
-    }),
-  ]);
+  if (rows.length === 0) return { ok: false, error: '이 음식은 기록할 수 없어요. 끼니에서 직접 담아 주세요.' };
+  /*
+   * 읽은 뒤 그새 바뀌었으면(폰 · 웹에서 같이 누름, 두 번 누름) 쓰지 않는다 — 둘 다 '안 먹음'을 보고 기록을 두 번 만들고, 늦은 쪽이
+   * 앞쪽의 '먹음'을 되돌렸다. updatedAt 이 읽은 값일 때만 계획을 고치고, 그때만 기록을 만든다(한 트랜잭션).
+   */
+  const CHANGED = 'meal-plan-changed';
+  try {
+    await prisma.$transaction(async (tx) => {
+      const claimed = await tx.mealPlan.updateMany({
+        where: { id: row.id, updatedAt: row.updatedAt },
+        data: { items: items.map((i) => (done.has(i.key) ? { ...i, done: true } : i)) },
+      });
+      if (claimed.count === 0) throw new Error(CHANGED);
+      await tx.mealEntry.createMany({ data: rows });
+    });
+  } catch (e) {
+    if (e instanceof Error && e.message === CHANGED) return { ok: false, error: '식단이 방금 바뀌었어요. 새로고침해 주세요.' };
+    throw e;
+  }
   revalidatePath(PATH);
   return { ok: true };
 }
@@ -928,6 +947,12 @@ export async function finishNutritionSetup(raw: {
     return { ok: false, error: answers, field: 'kcalTarget' };
 
   const today = toDateKey(appNow());
+  /*
+   * 체중 화면은 참조값(최근 30일 기록 ?? 내 정보)이 없을 때만 보인다(setup-wizard askBody) — 참조값과 같으면 사용자가 다시 재지 않은
+   * 값이라 오늘 체중 기록으로는 만들지 않는다(옛 값이 오늘 점으로 찍히고 stale 권유가 비켜 갔다, 2026-10-17). 내 정보의 몸무게는 그대로 맞춘다.
+   */
+  const refKg = (await recentWeightKg(user.id, today)) ?? user.weightKg;
+  const weightEntered = refKg === null || refKg !== weightKg;
   const body: OnboardingBody = {
     age: ageOn(user.birthDate, today),
     sex: isSex(user.sex) ? user.sex : null,
@@ -965,15 +990,58 @@ export async function finishNutritionSetup(raw: {
       update: data,
       create: { userId: user.id, ...data },
     }),
-    prisma.dailyNutrition.upsert({
-      where: { userId_date: { userId: user.id, date: dbDate(today) } },
-      update: { weightKg },
-      create: { userId: user.id, date: dbDate(today), weightKg },
-    }),
+    ...(weightEntered
+      ? [
+          prisma.dailyNutrition.upsert({
+            where: { userId_date: { userId: user.id, date: dbDate(today) } },
+            update: { weightKg },
+            create: { userId: user.id, date: dbDate(today), weightKg },
+          }),
+        ]
+      : []),
   ]);
   await dropAvoidedFromTodayPlan(user.id, prefs);
   revalidatePath(PATH);
   /* 내 정보의 키 · 몸무게가 바뀌었고, 막대 · 탭의 영양 잠금(흐림 · 자물쇠)도 걷혀야 한다 — 둘 다 레이아웃이 내려보낸다 */
   revalidatePath('/', 'layout');
   return { ok: true };
+}
+
+/**
+ * 아이폰 앱(native/src/app/setup/nutrition.tsx)의 영양 첫 설정을 열 때 — 웹 /nutrition/setup(page.tsx)이 넘기는 것과 같은 값. 줄이 없으면
+ * 빈 답(목표 카드부터 고르게), 있으면 정해 둔 목표 · 취향으로 채운 답. 저장은 웹과 같은 finishNutritionSetup.
+ */
+export async function loadAppNutritionSetup(): Promise<
+  | {
+      ok: true;
+      today: string;
+      name: string;
+      age: number | null;
+      sex: Sex | null;
+      heightCm: number | null;
+      weightKg: number | null;
+      hasProfile: boolean;
+      initial: NutritionAnswers;
+    }
+  | { ok: false; to: string }
+> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, to: '/login' };
+  const today = toDateKey(appNow());
+  const [row, recent] = await Promise.all([
+    prisma.nutritionProfile.findUnique({ where: { userId: user.id } }),
+    recentWeightKg(user.id, today),
+  ]);
+  const age = ageOn(user.birthDate, today);
+  return {
+    ok: true,
+    today,
+    name: user.nickname,
+    age,
+    sex: isSex(user.sex) ? user.sex : null,
+    heightCm: user.heightCm,
+    weightKg: recent ?? user.weightKg,
+    hasProfile: row !== null,
+    initial: row === null ? EMPTY_ANSWERS : answersOfProfile(toProfile(row), toDietPrefs(row), age),
+  };
 }

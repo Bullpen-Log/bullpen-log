@@ -22,10 +22,11 @@ import {
   subscribeUnits,
   toLength,
   toWeight,
-} from '@/lib/units';
+} from '@/lib/units-storage';
 import {
   MAX_AGE,
   MAX_HEIGHT_CM,
+  MAX_NICKNAME,
   MAX_WEIGHT_KG,
   MIN_AGE,
   MIN_HEIGHT_CM,
@@ -263,6 +264,7 @@ export function ProfileForm({
             name="nickname"
             type="text"
             defaultValue={pick('nickname', nickname)}
+            maxLength={MAX_NICKNAME}
             autoComplete="nickname"
             minLength={2}
             required

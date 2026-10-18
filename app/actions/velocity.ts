@@ -4,7 +4,9 @@ import { phoneVideoPath } from '@/lib/phone-video-path';
 import { Prisma } from '@prisma/client';
 import { revalidatePath } from 'next/cache';
 import { prisma } from '@/lib/prisma';
-import { appNowMs } from '@/lib/clock';
+import { appNow, appNowMs } from '@/lib/clock';
+import { toDateKey } from '@/lib/pitch-stats';
+import { featureLocks } from '@/lib/feature-locks';
 import { getCurrentUser } from '@/lib/dal';
 import {
   MAX_VIDEO_BYTES,
@@ -220,6 +222,26 @@ export async function loadCalibration(): Promise<{ fit: CalFit; pairs: CalPair[]
     })
     .map((r) => ({ measured: r.rawKmh, gun: r.gunKmh as number }));
   return { fit: fitCalibration(pairs), pairs };
+}
+
+/**
+ * 아이폰 앱(native/) 구속 측정 화면이 열 때 — 웹 페이지(app/(session)/velocity/page.tsx)가 서버에서 넘기는 것과 같은 것.
+ * today 는 시험 계정 날짜(simDate)까지 맞춘 오늘이라 저장 날짜로 그대로 쓴다.
+ */
+export async function loadVelocityStart(): Promise<
+  | { ok: true; isAdmin: boolean; pitchLocked: boolean; today: string; fit: CalFit }
+  | { ok: false; error: string }
+> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: '로그인이 필요해요.' };
+  const { fit } = await loadCalibration();
+  return {
+    ok: true,
+    isAdmin: user.role === 'ADMIN',
+    pitchLocked: featureLocks(user).pitch,
+    today: toDateKey(appNow()),
+    fit,
+  };
 }
 
 export async function saveVelocitySession(

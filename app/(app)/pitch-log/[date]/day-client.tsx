@@ -8,7 +8,7 @@ import { ArrowLeft, House, Plus, type LucideIcon } from '@/components/icon';
 import { Baseball } from '@/components/baseball-icon';
 import { Button, FormError } from '@/components/ui';
 import { usePlaybackUrls } from '@/components/use-playback-urls';
-import { isFutureDateKey } from '@/lib/pitch-stats';
+import { removePhoneVideos } from '@/lib/local-video';
 import { ArmStatusNote } from '@/components/arm-status-note';
 import { NutritionLineNote } from '@/components/nutrition-line';
 import type { NutritionLine } from '@/lib/nutrition/nudge';
@@ -17,7 +17,11 @@ import { EntryForm, type DrillPrefill } from '../entry-form';
 import { DayRecord } from '../day-record';
 import type { Log } from '../types';
 import { VelocitySection } from '../velocity-section';
-import type { LogPrefill, VelocitySessionView } from '@/lib/velocity-meta';
+import {
+  VELOCITY_MEMO_MARK,
+  type LogPrefill,
+  type VelocitySessionView,
+} from '@/lib/velocity-meta';
 import { useDayModal } from './day-modal';
 
 const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'];
@@ -119,7 +123,8 @@ export function DayClient({
   /* 기록이 없는 날은 폼이 처음부터 열려 있다 — 그러려고 들어온 것이다. */
   const [formOpen, setFormOpen] = useState(initialLogs.length === 0);
 
-  const future = isFutureDateKey(date);
+  /* '오늘'은 서버가 정한다(todayKey) — 기기 시계로 재면 날짜가 틀린 폰 · 자정 넘어 수화된 탭에서 오늘 폼이 사라졌다(2026-10-17) */
+  const future = date > todayKey;
   /* 아직 안 남긴 구속 측정이 있으면 폼을 그 값으로 펴 둔다(그러려고 들어온 것이다) */
   const fromVelocity = !future && velocityPrefill != null;
   const logs = initialLogs;
@@ -137,6 +142,14 @@ export function DayClient({
   const drillAddId = fromDrill && drillMode === 'add' ? (catchLog?.id ?? null) : null;
 
   const videoPaths = useMemo(() => logs.flatMap((l) => l.videoPaths), [logs]);
+  /* 옛 카메라 기록(memo 가 [구속 측정]) — 이 기록만 세션과 함께 지워지고 투구수가 맞춰진다(lib/velocity-sync.ts). 지우기 확인 글이 가른다 */
+  const legacyLogIds = useMemo(
+    () =>
+      new Set(
+        logs.filter((l) => l.memo?.startsWith(VELOCITY_MEMO_MARK)).map((l) => l.id)
+      ),
+    [logs]
+  );
   const {
     urls: playbackUrls,
     loading: urlsLoading,
@@ -189,9 +202,12 @@ export function DayClient({
         return;
       }
       if (editingId === id) setEditingId(null);
+      /* 이 폰에 둔 영상(local- 경로)은 서버가 못 지운다 — 기록과 함께 폰에서도 뺀다(남으면 앱 용량만 늘었다, 2026-10-17). 웹에서는 아무 일도 안 한다 */
+      const gone = logs.find((l) => l.id === id)?.videoPaths ?? [];
+      void removePhoneVideos(gone).catch(() => undefined);
       quietRefresh(router);
     },
-    [router, editingId]
+    [router, editingId, logs]
   );
 
   return (
@@ -243,7 +259,11 @@ export function DayClient({
       {date === todayKey && nutritionLine && <NutritionLineNote line={nutritionLine} />}
 
       {/* 카메라 구속 측정 — 공마다 구종 · 코스 · 결과를 고치고 지운다 */}
-      <VelocitySection sessions={velocity} isAdmin={isAdmin} />
+      <VelocitySection
+        sessions={velocity}
+        isAdmin={isAdmin}
+        legacyLogIds={legacyLogIds}
+      />
 
       {logs.map((log) =>
         drillAddId === log.id && drillPrefill ? (
@@ -263,7 +283,9 @@ export function DayClient({
               initial={{
                 ...log,
                 pitchCount: log.pitchCount + drillPrefill.pitchCount,
-                memo: log.memo ? `${log.memo} · ${drillPrefill.memo}` : drillPrefill.memo,
+                memo: log.memo
+                  ? `${log.memo} · ${drillPrefill.memo}`
+                  : drillPrefill.memo,
               }}
               onSaved={handleDrillAddSaved}
               onError={setError}
@@ -312,13 +334,19 @@ export function DayClient({
               <h2 className="font-bold text-ink">
                 {`메커니즘 드릴 공 ${drillPrefill.pitchCount}회`}
               </h2>
-              <p className="mt-1 text-sm text-muted">오늘 캐치볼 기록이 있어요. 어떻게 남길까요?</p>
+              <p className="mt-1 text-sm text-muted">
+                오늘 캐치볼 기록이 있어요. 어떻게 남길까요?
+              </p>
             </div>
             <div className="flex flex-wrap gap-2">
               <Button type="button" onClick={() => setDrillMode('add')}>
                 캐치볼 기록에 더하기
               </Button>
-              <Button type="button" variant="secondary" onClick={() => setDrillMode('new')}>
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => setDrillMode('new')}
+              >
                 새 기록으로
               </Button>
             </div>
@@ -332,8 +360,8 @@ export function DayClient({
                   : drillNew && drillPrefill
                     ? `드릴 공 ${drillPrefill.pitchCount}회 기록하기`
                     : logs.length > 0
-                    ? '기록 추가'
-                    : '이날 기록하기'}
+                      ? '기록 추가'
+                      : '이날 기록하기'}
               </h2>
               {logs.length > 0 && !fromVelocity && (
                 <button

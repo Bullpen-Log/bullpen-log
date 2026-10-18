@@ -2,7 +2,7 @@ import 'server-only';
 import { appNow } from '@/lib/clock';
 import { prisma } from '@/lib/prisma';
 import { hasPain, pickCheckinParts } from '@/lib/checkin';
-import { toDateKey } from '@/lib/pitch-stats';
+import { dateKeyOf, toDateKey } from '@/lib/pitch-stats';
 import { planSummaries, trainingSummaries } from '@/lib/report/training-history';
 import { loadVelocityByDate } from '@/lib/velocity-load';
 
@@ -138,8 +138,13 @@ export async function loadPitchHistory(
 /** 처음에 읽어 올 개월 수. 이보다 옛날 달은 넘길 때 그 달만 받아 온다. */
 const INITIAL_MONTHS = 13;
 
-/** ?date=2026-08-04 처럼 넘어온 값만 받는다. 형식이 아니면 null(오늘로 연다). */
+/**
+ * ?date=2026-08-04 처럼 넘어온 값만 받는다. 형식이 아니거나 없는 날(2026-09-32 — 모양만 맞으면 읽다가 Invalid Date 로 던졌다)이면
+ * null(오늘로 연다). 앱 분석(app/actions/app-analysis.ts)도 이것으로 본다.
+ */
 export function readDateParam(raw: string | string[] | undefined): string | null {
   const value = Array.isArray(raw) ? raw[0] : raw;
-  return value && /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : null;
+  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+  const [y, m, d] = value.split('-').map(Number);
+  return dateKeyOf(y, m - 1, d) === value ? value : null;
 }

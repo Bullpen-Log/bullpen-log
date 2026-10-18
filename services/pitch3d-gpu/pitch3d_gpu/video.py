@@ -69,6 +69,24 @@ def probe(path: str) -> tuple[int, int, float]:
         return (h, w, fps) if turn in (90, 270) else (w, h, fps)
 
 
+def device_info(path: str) -> dict:
+    """영상 머리의 기종 · 촬영 fps — 엔진이 기종별 초점 표(lib/pitch-3d/focal-table.ts)를 찾는다.
+
+    기종은 아이폰 · 아이패드가 적는 com.apple.quicktime.model(예: 'iPhone 15 Pro Max'), fps 는 트랙의 정해진 값(240 · 120 — 평균은 장면을
+    빠뜨리면 151 처럼 나와 모드를 못 가린다). 화면 녹화 · 다른 폰은 기종이 없어 None — 엔진이 예전처럼 1배 사전을 쓴다. 못 읽어도 분석은 막지 않는다.
+    """
+    try:
+        import av
+
+        with av.open(path, options={"ignore_editlist": "1"}) as c:
+            s = c.streams.video[0]
+            rate = s.guessed_rate or s.base_rate or s.average_rate
+            model = c.metadata.get("com.apple.quicktime.model")
+            return {"model": str(model)[:80] if model else None, "fps": float(rate) if rate else None}
+    except Exception:  # noqa: BLE001 — 머리를 못 읽으면 표 없이 간다
+        return {"model": None, "fps": None}
+
+
 def decode(
     path: str,
     fps: float,

@@ -232,8 +232,8 @@ export type CalibInput = {
   /** 사람 크기(px) — 다시 비춤 오차를 사람 비율로 */
   personSide: number;
   personBack: number;
-  /** 초점 사전(선택) — 렌즈를 알 때만(FOCAL_PRIOR_1X) */
-  focalPrior?: FocalPrior;
+  /** 초점 사전(선택) — 렌즈를 알 때만(FOCAL_PRIOR_1X). 기종 · fps 를 알면 카메라마다(focal-table.ts) */
+  focalPrior?: FocalPriors;
 };
 
 export type Calibration = {
@@ -262,7 +262,10 @@ const FOCAL_MIN = 0.35;
  * 늘 켜지 않는 까닭: 줌으로 찍은 영상(합성 시험의 '멀리 줌', 초점 2배 남짓)을 1배 쪽으로 끌어 망친다.
  */
 export type FocalPrior = { k: number; sigma: number };
+/** 두 카메라에 같은 사전 하나, 또는 카메라마다 */
+export type FocalPriors = FocalPrior | { side?: FocalPrior; back?: FocalPrior };
 export const FOCAL_PRIOR_1X: FocalPrior = { k: 0.78, sigma: 0.25 };
+const priorOf = (p: FocalPriors | undefined, cam: 'side' | 'back') => (p && 'k' in p ? p : p?.[cam]);
 function focalPriorCost(f: number, longSide: number, p?: FocalPrior) {
   if (!p) return 0;
   const z = Math.log(f / longSide / p.k) / p.sigma;
@@ -453,8 +456,8 @@ function fastEval(fs: number, fb: number, R: Mat3, t: Vec3, P: Packed, X: Float6
   const prior =
     rangeCost(fs, Math.max(P.input.sideSize.W, P.input.sideSize.H)) +
     rangeCost(fb, Math.max(P.input.backSize.W, P.input.backSize.H)) +
-    focalPriorCost(fs, Math.max(P.input.sideSize.W, P.input.sideSize.H), P.input.focalPrior) +
-    focalPriorCost(fb, Math.max(P.input.backSize.W, P.input.backSize.H), P.input.focalPrior);
+    focalPriorCost(fs, Math.max(P.input.sideSize.W, P.input.sideSize.H), priorOf(P.input.focalPrior, 'side')) +
+    focalPriorCost(fb, Math.max(P.input.backSize.W, P.input.backSize.H), priorOf(P.input.focalPrior, 'back'));
   const robust = sw > 0 ? Math.sqrt(rs2 / sw) : 1;
   return { cost: (robust / REPROJ_UNIT) ** 2 + (rigidity / RIGID_UNIT) ** 2 + prior, reproj, rigidity };
 }

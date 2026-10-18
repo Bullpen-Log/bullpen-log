@@ -7,19 +7,15 @@ import { PAGE_TITLE_LINE } from '@/components/ui';
 import { NavTitle } from '@/components/nav-title';
 import { AnalysisLink } from '@/components/analysis-link';
 import { OpenCheckinButton } from '@/components/notice-bell';
-import { loadTodayCoreCached, type UserForToday } from '@/lib/report/today-data';
-import { TRAINING_SCREEN_TEXT, trainingScreenOf } from '@/lib/report/training-screen';
-import { STATE_NOTICE_TEXT, stateNoticeOf } from '@/lib/report/state-notice';
-import { PROGRAMS_ENABLED } from '@/lib/program/program';
-import { activeProgram, buildProgramDay, programTodayOf } from '@/lib/program/load';
-import { loadArmcareToday, type UserForArmcare } from '@/lib/armcare/today';
-import { ARMCARE_KIND_TEXT } from '@/lib/armcare/routine';
-import { ARMCARE_AREAS, ARMCARE_CATEGORY } from '@/lib/armcare/anatomy';
-import { loadArmcareCoverage } from '@/lib/armcare/coverage-load';
+import { ARMCARE_CATEGORY } from '@/lib/armcare/anatomy';
 import { visibleExercises } from '@/lib/library-cache';
-import { loadMechanicsProgram } from '@/lib/mechanics/load';
-import { mechanicsLevel } from '@/lib/mechanics/levels';
-import { MECHANICS_FOLD_TEXT, foldSession } from '@/lib/mechanics/program';
+import {
+  armcareCardData,
+  mechanicsCardData,
+  workoutCardData,
+  type HomeUser,
+  type TrainingCard,
+} from '@/lib/report/training-home-data';
 import { DrillThrowNoteCard } from './drill-throw-note';
 import { shiftDateKey, toDateKey } from '@/lib/pitch-stats';
 import { dbDate, keyOfDbDate } from '@/lib/nutrition/days';
@@ -27,9 +23,6 @@ import { TRAINING_PART_HREF, type TrainingPart } from '@/lib/training-part';
 import { StartWorkout } from './start-workout';
 import { TrainingDayStrip } from './day-strip';
 import { loadTrainingStrip } from '@/lib/training-week';
-import { withJosa } from '@/lib/korean';
-
-type HomeUser = UserForToday & UserForArmcare & { id: string };
 
 /**
  * 트레이닝 홈 — 트레이닝 · 암케어 · 메커니즘을 앱 카드 셋으로(2026-10-04).
@@ -249,275 +242,67 @@ async function SafeCard({
 
 /* ─────────────────────────────── 카드 셋 ─────────────────────────────── */
 
-/**
- * 트레이닝 — 오늘 일정 한 줄과 [시작](운동 판으로 곧장).
- *
- * 차례(2판 P6-4 · P6-6): 마침 > 멈춤 > 근력 프로그램 날 > 일정 없음 > 상태 바뀜 > 남은 운동 없음 > 보통. 프로그램이 오늘
- * 주인이면(트레이닝 화면과 같은 판정 — lib/report/training-screen.ts) 그날 운동은 프로그램이라 프로그램 이름 · 일차와 프로그램 [시작]을 낸다
- * (사용자 결정 D6). 마침 · 멈춤이 먼저인 까닭: 마친 날은 무엇이든 마친 것이고, 멈춘 날은 프로그램도 기다린다(painWait).
+/*
+ * 카드 셋의 판정(무엇을 보일지)은 lib/report/training-home-data.ts — 아이폰 앱 트레이닝 탭(app.loadAppTraining)과 같이 쓴다. 여기서는 그리기만.
  */
 async function WorkoutCard({ user, today }: { user: HomeUser; today: Date }) {
-  /*
-   * 오늘 판 · 진행 중인 프로그램을 오늘 셈과 같이 읽는다 — 예전엔 오늘 셈을 기다린 뒤에 읽어 왕복이 하나 더 쌓였다(2026-10-15 탭 전환
-   * 속도). 오늘 판은 지난 판 닫기와 상관없는 오늘 줄이다. 프로그램은 오늘 셈이 지난 판을 닫으며 차례를 넘겼을 수 있어, 닫은 판이
-   * 있었으면(드묾) 한 번 더 읽는다.
-   */
-  const [core, session, programFirst] = await Promise.all([
-    /* 홈 탭(@home)과 같은 요청에서 같은 셈이 두 번 돌지 않게 캐시 함수로(2026-10-16 점검 13번 — 탭 판 넷이 늘 함께 그려진다) */
-    loadTodayCoreCached(user),
-    prisma.trainingSession.findUnique({
-      where: {
-        userId_date: { userId: user.id, date: new Date(`${toDateKey(today)}T00:00:00.000Z`) },
-      },
-      select: { status: true },
-    }),
-    PROGRAMS_ENABLED ? activeProgram(user.id) : Promise.resolve(null),
-  ]);
-  const programRow =
-    PROGRAMS_ENABLED && core.closedSessions > 0 ? await activeProgram(user.id) : programFirst;
-  const count = core.shownPicks.length;
-
-  if (session?.status === 'FINISHED') {
-    return <AppCard app="today" tone="done" status="오늘 운동을 마쳤어요" />;
-  }
-  if (core.picked.halted) {
-    return <AppCard app="today" tone="warn" status="오늘은 운동을 처방하지 않았어요" />;
-  }
-  /* 프로그램 날은 트레이닝 화면의 프로그램 카드와 같은 길(buildProgramDay — 판정 · 오늘 판 · 중재) */
-  const programView = programRow ? await buildProgramDay(core, programRow, user) : null;
-  const screen = trainingScreenOf({
-    halted: core.picked.halted,
-    daily: programView?.arbitration.daily,
-    savedPlan: core.savedPlan,
-    shownCount: count,
-    /* 할 프로그램 운동이 없는 날(다 빠짐)은 일정 만들기가 매일 일정을 짠다 — 프로그램 날로 보지 않는다(트레이닝 화면과 같은 값, 2판 P6 검토) */
-    programWork: programView ? programTodayOf(programView) != null : false,
-  });
-  if (programView && screen.programOwns) {
-    const active = programView.todayState === 'active';
-    /* 하는 날인데 그날 운동이 하나도 없으면(모두 빠짐) 프로그램 시작이 트레이닝으로 되돌려 보낸다 — 단추 대신 › 로 프로그램 카드에 가게 */
-    const canStart =
-      active || (programView.decision.kind === 'go' && programView.rows.length > 0);
-    const dayLabel =
-      programView.arbitration.program?.today?.label ?? programView.dayLabel;
-    return (
-      <AppCard
-        app="today"
-        status={`${programView.plan.def.name} · ${dayLabel}`}
-        action={
-          canStart ? <StartWorkout compact program resume={active} /> : undefined
-        }
-      />
-    );
-  }
-  if (!screen.usesPlan || !core.savedPlan) {
-    return (
-      <AppCard
-        app="today"
-        status={
-          screen.stalePlan
-            ? TRAINING_SCREEN_TEXT.stalePlanHome
-            : '오늘 일정을 아직 안 만들었어요'
-        }
-      />
-    );
-  }
-  /*
-   * 상태 바뀜(2판 P6-6) — 트레이닝 화면의 띠와 같은 함수(lib/report/state-notice.ts). 한 번 눌러 다시 만들 수 있는 날만 주의 색 한 줄로 알리고
-   * (운동 중 · 체크인 없는 날은 홈에서 할 것이 없어 보통 카드), 카드를 누르면 띠가 있는 트레이닝 화면으로 간다. [시작]은 그대로 둔다 — 알림은
-   * 다시 만들기를 권할 뿐이고, 무리인 운동은 안전 재검사가 이미 뺐다. '일정 없음' 뒤인 까닭: 바뀜은 저장한 일정이 있어야 견준다.
-   */
-  const notice = stateNoticeOf(core.stateChanges, {
-    programOwns: screen.programOwns,
-    droppedForSafety: core.droppedForSafety,
-    session: session?.status === 'ACTIVE' ? 'active' : 'none',
-    checkedIn: core.hasCheckinToday,
-  });
-  if (notice.kind === 'remake' && notice.canRemake) {
-    return (
-      <AppCard
-        app="today"
-        tone="warn"
-        status={STATE_NOTICE_TEXT.home}
-        action={count > 0 ? <StartWorkout compact resume={false} /> : undefined}
-      />
-    );
-  }
-  if (count === 0) {
-    return <AppCard app="today" status="일정에 남은 운동이 없어요" />;
-  }
-  return (
-    <AppCard
-      app="today"
-      status={`${core.savedPlan.theme.label} · ${count}종목 · 약 ${core.shownMinutes}분`}
-      action={<StartWorkout compact resume={session?.status === 'ACTIVE'} />}
-    />
-  );
+  return <CardView card={await workoutCardData(user, today)} />;
 }
-
-/**
- * 암케어 — 오늘 루틴(재활 중이면 재활) 한 줄과 [시작](따라 하기로 곧장). 밑에 내 팔 지도의 '2주째 안 한 곳'을 한 줄
- * 띄우고 누르면 부위별 보강(내 팔 지도)으로 간다(lib/armcare/coverage-load.ts — 아픈 곳은 뺀다).
- */
 async function ArmcareCard({ user, today }: { user: HomeUser; today: Date }) {
-  /* 오늘 루틴과 내 팔 지도를 같이 읽는다(예전엔 루틴을 기다린 뒤 지도를 읽었다 — 2026-10-15 탭 전환 속도) */
-  const [data, map] = await Promise.all([
-    loadArmcareToday(user, today),
-    visibleExercises().then((lib) => loadArmcareCoverage(user.id, toDateKey(today), lib)),
-  ]);
-  const gapLine =
-    map.gaps.length > 0 && data.decision.kind !== 'rest' ? (
-      <Link
-        href="/training?view=armcare&tab=guide"
-        className={`relative z-10 -my-1 inline-flex min-h-10 items-center gap-0.5 text-xs font-semibold ${APPS.armcare.ink}`}
-      >
-        {map.coverage.total === 0 ? '여기부터 해 보세요' : '2주째 안 한 곳'}:{' '}
-        {map.gaps.map((key) => ARMCARE_AREAS.find((a) => a.key === key)?.label ?? key).join(' · ')}
-        <ChevronRight aria-hidden className="h-3.5 w-3.5" />
-      </Link>
-    ) : null;
-
-  if (data.rehab) {
-    return <AppCard app="armcare" status="재활 중이에요 · 오늘 재활 보기" />;
-  }
-  if (!data.hasCheckinToday) {
-    return (
-      <AppCard
-        app="armcare"
-        status="체크인을 남기면 오늘 루틴을 짜요"
-        action={
-          <OpenCheckinButton
-            className={`inline-flex min-h-10 items-center rounded-full px-4 text-sm font-bold text-white ${APPS.armcare.button}`}
-          >
-            체크인
-          </OpenCheckinButton>
-        }
-      >
-        {gapLine}
-      </AppCard>
-    );
-  }
-  if (data.decision.kind === 'rest') {
-    return <AppCard app="armcare" tone="warn" status="오늘은 팔을 쉬는 날이에요" />;
-  }
-  if (!data.routine) {
-    return (
-      <AppCard app="armcare" status="오늘 루틴을 아직 안 만들었어요">
-        {gapLine}
-      </AppCard>
-    );
-  }
-  const items = data.routine.items;
-  const done = items.filter((it) => data.doneToday.has(it.exerciseId)).length;
-  const label = ARMCARE_KIND_TEXT[data.routine.kind].label;
-  if (items.length > 0 && done >= items.length) {
-    return (
-      <AppCard app="armcare" tone="done" status={`오늘 ${withJosa(label, '을/를')} 마쳤어요`}>
-        {gapLine}
-      </AppCard>
-    );
-  }
-  return (
-    <AppCard
-      app="armcare"
-      status={`${label} · ${items.length}개 · 약 ${data.routine.estimatedMinutes}분`}
-      action={
-        <StartLink
-          app="armcare"
-          href={`/armcare/play/today?d=${data.todayKey}`}
-          label={done > 0 ? '이어서' : '시작'}
-        />
-      }
-    >
-      {gapLine}
-    </AppCard>
-  );
+  return <CardView card={await armcareCardData(user, today)} />;
+}
+async function MechanicsCard({ userId }: { userId: string }) {
+  return <CardView card={await mechanicsCardData(userId)} />;
 }
 
-/** 메커니즘 — 고른 수준의 다음 세션과 12칸 진행(수준을 안 골랐으면 고르라고) */
-async function MechanicsCard({ userId }: { userId: string }) {
-  const { program, session, doneToday, painFold, throwNote } = await loadMechanicsProgram(userId);
-  /* 드릴로 던진 공을 투구 기록에 남기라는 한 줄(2026-10-16) — 남기거나 닫으면 사라진다 */
-  const throwLine = throwNote ? <DrillThrowNoteCard note={throwNote} className="mt-3" /> : null;
-  if (!program?.level) {
-    return <AppCard app="mechanics" status="수준을 골라 투구 메커니즘 프로그램을 시작해 보세요" />;
-  }
-  const level = mechanicsLevel(program.level);
-  const done = new Set(program.finishedToday ? [] : doneToday);
-  const completed = program.week == null;
-  const bars = (
-    <div className="grid grid-cols-12 gap-0.5" aria-label={`${level.name} ${program.total}번 중 ${program.index}번 마침`}>
-      {Array.from({ length: program.total }, (_, i) => (
+function CardView({ card }: { card: TrainingCard }) {
+  const { app, action } = card;
+  const button =
+    action?.kind === 'workout' ? (
+      <StartWorkout compact program={action.program} resume={action.resume} />
+    ) : action?.kind === 'link' ? (
+      <StartLink app={app} href={action.href} label={action.label} />
+    ) : action?.kind === 'checkin' ? (
+      <OpenCheckinButton
+        className={`inline-flex min-h-10 items-center rounded-full px-4 text-sm font-bold text-white ${APPS[app].button}`}
+      >
+        {action.label}
+      </OpenCheckinButton>
+    ) : undefined;
+  const bars = card.bars ? (
+    <div className="grid grid-cols-12 gap-0.5" aria-label={card.bars.label}>
+      {Array.from({ length: card.bars.total }, (_, i) => (
         <span
           key={i}
           className={`h-1.5 rounded-full ${
-            i < program.index ? APPS.mechanics.bar : i === program.index ? APPS.mechanics.barSoft : 'bg-surface-2'
+            i < card.bars!.index ? APPS[app].bar : i === card.bars!.index ? APPS[app].barSoft : 'bg-surface-2'
           }`}
         />
       ))}
     </div>
-  );
-  /*
-   * 어깨 · 팔꿈치가 아픈 날(2판 P6-5, D5) · 팔을 다 쓴 날 · 통증 확인 전(2판 P6 검토, lib/mechanics/fold.ts) — 프로그램 칸처럼 팔에 싣는 드릴은
-   * 접고 무브먼트만 권한다. 까닭 머리말은 fold.cause. 펼치기('그래도 하기' — 성인의 통증 날만)는 프로그램 칸에 있어서, 할 드릴이 없으면 단추 없이
-   * 카드를 누르면 그리로 간다. 다 마친 수준 · 오늘 마친 날은 예전 줄 그대로.
-   */
-  const fold = painFold && !completed && !program.finishedToday ? painFold : null;
-  const { open } = foldSession(session, fold);
-  if (fold) {
-    const openLeft = open.filter((s) => !done.has(s.guideId));
-    /* 무브먼트만 하고 마친 날은 세션 수가 그대로라 finishedToday 가 아니다 — 그래서 여기서 '마쳤어요'를 따로 말한다 */
-    const openDone = open.length > 0 && openLeft.length === 0;
-    return (
-      <AppCard
-        app="mechanics"
-        tone={openDone ? 'done' : 'warn'}
-        status={
-          openLeft.length > 0
-            ? MECHANICS_FOLD_TEXT.homeOpen(fold.cause, open.length)
-            : openDone
-              ? MECHANICS_FOLD_TEXT.homeOpenDone
-              : MECHANICS_FOLD_TEXT.homeAllFolded
-        }
-        action={
-          openLeft.length > 0 ? (
-            <StartLink
-              app="mechanics"
-              href="/mechanics/play"
-              label={open.some((s) => done.has(s.guideId)) ? '이어서' : '시작'}
-            />
-          ) : undefined
-        }
-      >
-        {bars}
-        {throwLine}
-      </AppCard>
-    );
-  }
-  const started = session.some((s) => done.has(s.guideId));
-  return (
-    <AppCard
-      app="mechanics"
-      tone={program.finishedToday || completed ? 'done' : 'normal'}
-      status={
-        completed
-          ? `${level.name} 프로그램을 마쳤어요`
-          : program.finishedToday
-            ? '오늘 세션을 마쳤어요'
-            : `${level.name} ${program.index + 1}번 세션 · 드릴 ${session.length}개 · 15~20분`
-      }
-      action={
-        session.length > 0 ? (
-          <StartLink
-            app="mechanics"
-            href="/mechanics/play"
-            label={program.finishedToday ? '하나 더' : started ? '이어서' : '시작'}
-          />
-        ) : undefined
-      }
+  ) : null;
+  const gap = card.gap ? (
+    <Link
+      href={card.gap.href}
+      className={`relative z-10 -my-1 inline-flex min-h-10 items-center gap-0.5 text-xs font-semibold ${APPS[app].ink}`}
     >
+      {card.gap.text}
+      <ChevronRight aria-hidden className="h-3.5 w-3.5" />
+    </Link>
+  ) : null;
+  /* 드릴로 던진 공을 투구 기록에 남기라는 한 줄(2026-10-16) — 남기거나 닫으면 사라진다 */
+  const throwLine = card.throwNote ? <DrillThrowNoteCard note={card.throwNote} className="mt-3" /> : null;
+  const below = bars || gap || throwLine ? (
+    <>
       {bars}
+      {gap}
       {throwLine}
+    </>
+  ) : undefined;
+  /* 수준을 안 고른 메커니즘 카드는 예전처럼 드릴 한 줄만 밑에 따로(카드 밖) — 같은 자리라 그대로 안에 둔다 */
+  return (
+    <AppCard app={app} tone={card.tone} status={card.status} action={button}>
+      {below}
     </AppCard>
   );
 }

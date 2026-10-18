@@ -1689,6 +1689,19 @@ dialog:not([open]) {
       z-index: 2147483000;
     }
   }
+  /*
+   * 판 넘기기 트랙(휴대폰 · 패드, 위 [data-pager-track])은 transform 이라, 그 안의 창은 화면이 아니라 4판 폭 트랙에 붙는다 —
+   * 닫히는 0.2초 동안 투구 · 트레이닝 · 영양 판의 시트가 화면 밖으로 튀었다(2026-10-17 QA). 트랙 좌표에서 지금 판 자리(= 화면)를 준다:
+   * 왼쪽 = 판 번호 × 25% − 패드의 왼쪽 탭 막대(트랙이 그만큼 비켜 있다), 오른쪽 = 남은 판 × 25%. 위아래는 트랙 = 화면 높이(100dvh).
+   */
+  @media not all and (min-width: 36rem) and (hover: hover) and (pointer: fine) {
+    @layer base {
+      [data-pager-track] dialog:not([open]) {
+        left: calc(var(--i, 0) * 25% - var(--rail, 0px));
+        right: calc((3 - var(--i, 0)) * 25%);
+      }
+    }
+  }
   dialog:not([open]) {
     animation: dialog-shade-out 200ms ease-in both;
   }
@@ -3567,6 +3580,16 @@ html[data-dualcam] [data-finder] > video {
   height: 2.25rem;
   touch-action: pan-x;
 }
+/* 아직 안 고름 — 손잡이를 숨긴다(미리 골라 둔 값처럼 안 보이게, 2026-10-18 사용자: "미리 고르는 건 아니지") */
+.checkin-range-unset {
+  accent-color: var(--color-line);
+}
+.checkin-range-unset::-webkit-slider-thumb {
+  opacity: 0;
+}
+.checkin-range-unset::-moz-range-thumb {
+  opacity: 0;
+}
 
 /*
  * 고르는 칩 줄 — 휴대폰에서는 같은 너비 칸으로(2026-10-13 사용자: "기본적인 줄맞춤도 안 되어 있다").
@@ -3787,4 +3810,15 @@ html[data-dualcam] [data-finder] > video {
     transition-delay: 0ms !important;
     scroll-behavior: auto !important;
   }
+}
+
+/*
+ * Expo 앱 탭 — 새 아이폰 앱(native/, <html data-shell="expo">, lib/native-app.ts)은 아래 탭 막대를 앱이 그린다(투구 탭은 앱 화면,
+ * 홈 · 트레이닝 · 영양은 이 웹 화면). 웹 탭 막대를 숨기고, 탭 위에 띄우던 것들은 앱 막대(49pt + 홈 막대 자리) 위로.
+ */
+html[data-shell='expo'] nav[data-mobile-tabs] {
+  display: none;
+}
+html[data-shell='expo'] {
+  --tab-bar-top: calc(env(safe-area-inset-bottom) + 3.0625rem);
 }

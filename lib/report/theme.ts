@@ -17,6 +17,7 @@ import {
 import { dayKindOf, type DayKind } from '@/lib/engine/microcycle';
 import {
   HEAVY_EQUIPMENT,
+  INTENSITY_CAP,
   intensityLevel,
   minutesForSets,
   type Prescription,
@@ -1835,6 +1836,26 @@ function mix(id: string, seed: string): number {
   return h;
 }
 
+/** 근력 날 첫 칸의 무거운 복합 운동 — 그날 쪽 스트렝스, 강도 '높음' 이상, 몸 전체를 쓰는 계열 */
+const ANCHOR_PATTERNS: Partial<Record<ThemeKey, { category: string; patterns: string[] }>> = {
+  lower: { category: '하체 스트렝스', patterns: ['스쿼트', '힌지', '런지'] },
+  upper: { category: '상체 스트렝스', patterns: ['밀기', '당기기'] },
+};
+
+export function isStrengthAnchor(
+  ex: { category: string; intensity: string; movementPattern?: string | null },
+  theme: ThemeKey
+): boolean {
+  const a = ANCHOR_PATTERNS[theme];
+  return (
+    a != null &&
+    ex.category === a.category &&
+    ex.movementPattern != null &&
+    a.patterns.includes(ex.movementPattern) &&
+    intensityLevel(ex.intensity) >= INTENSITY_CAP.STRENGTH
+  );
+}
+
 /**
  * 테마와 시간에 맞춰 오늘의 운동을 고른다.
  *
@@ -2033,6 +2054,16 @@ export function pickForTheme<T extends ThemedExercise>({
         ...pool.filter((ex) => ex.category === mainFirst),
         ...pool.filter((ex) => ex.category !== mainFirst),
       ];
+    }
+    /*
+     * 근력 날의 첫 스트렝스는 무거운 복합 운동 하나(anchorOf). 차례가 '오래 안 한 것 · 씨앗'뿐이라 운동 표가 줄자(2026-10-14 '나중에 촬영'
+     * 63개) 상급 · 장비 전부 · 60분 하체 날에 월 싯 · 카프 레이즈 같은 가벼운 것만 다섯이 나왔다(2026-10-18, 무거운 하체 16개가 후보에 있었는데).
+     * 그 칸의 차례에서 가장 앞의 하나만 올린다 — 날마다 다른 무거운 운동이 오고, 나머지 차례 · 계열 규칙은 그대로다. 안전 거르기가 무거운
+     * 것을 뺀 날(등판 창 · 컨디션)은 후보에 없으니 아무 일도 없다. 오늘 파워를 고른 날은 파워가 먼저라 건드리지 않는다.
+     */
+    if (spec.slot === 'main' && mainFirst !== '파워' && goalName === '근력 향상') {
+      const anchor = pool.find((ex) => isStrengthAnchor(ex, theme));
+      if (anchor) pool = [anchor, ...pool.filter((ex) => ex !== anchor)];
     }
 
     /*

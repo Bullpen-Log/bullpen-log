@@ -1,16 +1,12 @@
 /**
  * 구속 측정 설정 — 카메라를 켜기 전에 고르는 것들과 스트라이크 존 자리.
  *
- * 브라우저(localStorage)에 남겨 두어 다음에 "지난 설정 그대로 쓸까요?"로 바로 카메라까지 간다.
- * 폰마다 자리가 달라(삼각대 높이 · 거리) 계정이 아니라 기기에 둔다.
+ * 기기에 남겨 두어 다음에 "지난 설정 그대로 쓸까요?"로 바로 카메라까지 간다. 폰마다 자리가 달라(삼각대 높이 · 거리) 계정이 아니라
+ * 기기에 둔다 — 웹은 lib/velocity-storage.ts(localStorage), 아이폰 앱(native/)은 앱 저장소. 이 파일은 계산만 둔다(앱도 같이 쓴다).
  */
 
 import type { Approach } from '@/lib/velocity-engine/analyze-frames';
 import { DEFAULT_SESSION_TYPE, isRestSession, isSessionType } from '@/lib/session-type';
-
-export const SETUP_KEY = 'bullpen-velocity-setup';
-/** 같은 탭 안에서 설정이 바뀌었다고 알리는 신호 — storage 이벤트는 다른 탭에만 간다 */
-export const SETUP_CHANGE_EVENT = 'bullpen:velocity-setup';
 
 export type CameraPos = 'behind-pitcher' | 'behind-catcher';
 
@@ -230,82 +226,56 @@ export const isRect = (z: unknown): z is ZoneRect =>
     return typeof v === 'number' && Number.isFinite(v) && v >= 0 && v <= 1;
   });
 
-export function loadSetup(): VelocitySetup | null {
-  if (typeof window === 'undefined') return null;
-  try {
-    const raw = localStorage.getItem(SETUP_KEY);
-    if (!raw) return null;
-    const p = JSON.parse(raw) as Partial<VelocitySetup>;
-    if (p.cameraPos !== 'behind-pitcher' && p.cameraPos !== 'behind-catcher')
-      return null;
-    /* 포수 뒤는 더는 고를 수 없다(CAMERA_OPTIONS) — 지난 설정이 포수 뒤였으면 투수 뒤로, 존도 투수 뒤 기본으로 */
-    if (p.cameraPos === 'behind-catcher') {
-      p.cameraPos = 'behind-pitcher';
-      p.zone = undefined;
-    }
-    return {
-      sessionType:
-        typeof p.sessionType === 'string' &&
-        isSessionType(p.sessionType) &&
-        !isRestSession(p.sessionType)
-          ? p.sessionType
-          : DEFAULT_SESSION_TYPE,
-      cameraPos: p.cameraPos,
-      net: false,
-      /* 예전(모양 · 크기가 자유롭던 때)에 놓은 존도 규격에 맞춘다 */
-      zone: fitZone(
-        isRect(p.zone) ? centerZone(p.zone) : defaultZone(p.cameraPos),
-        p.cameraPos
-      ),
-      voice: p.voice === true,
-      useCal: p.useCal !== false,
-      releaseDistM:
-        typeof p.releaseDistM === 'number' &&
-        p.releaseDistM >= RELEASE_DIST_MIN &&
-        p.releaseDistM <= RELEASE_DIST_MAX
-          ? p.releaseDistM
-          : DEFAULT_SETUP.releaseDistM,
-      targetDistM:
-        typeof p.targetDistM === 'number' &&
-        p.targetDistM >= TARGET_DIST_MIN &&
-        p.targetDistM <= TARGET_DIST_MAX
-          ? p.targetDistM
-          : DEFAULT_SETUP.targetDistM,
-      /* 공마다 공 크기로 거리 어림은 뺐다(2026-10-15 사용자: "기준 20m · 줄자만") — 옛 설정에 켜져 있어도 끔 */
-      distAuto: false,
-      distTape: p.distTape === true,
-      /* 측정은 늘 자동(2026-10-15 사용자: "항상 자동으로") — 옛 설정의 수동도 자동으로 */
-      autoMode: true,
-      calibSave: p.calibSave === true,
-      clipZone: p.clipZone !== false,
-      recordMode: p.recordMode === true,
-      diagHud: p.diagHud === true,
-      savedAt: typeof p.savedAt === 'string' ? p.savedAt : '',
-    };
-  } catch {
+/** 저장해 둔 설정(JSON 을 푼 값) → 지금 규칙에 맞춘 설정. 꼴이 틀리면 null — 웹 · 앱 저장소가 같이 쓴다 */
+export function parseSetup(raw: unknown): VelocitySetup | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const p = { ...(raw as Partial<VelocitySetup>) };
+  if (p.cameraPos !== 'behind-pitcher' && p.cameraPos !== 'behind-catcher')
     return null;
+  /* 포수 뒤는 더는 고를 수 없다(CAMERA_OPTIONS) — 지난 설정이 포수 뒤였으면 투수 뒤로, 존도 투수 뒤 기본으로 */
+  if (p.cameraPos === 'behind-catcher') {
+    p.cameraPos = 'behind-pitcher';
+    p.zone = undefined;
   }
-}
-
-export function saveSetup(setup: Omit<VelocitySetup, 'savedAt'>): VelocitySetup {
-  const full = { ...setup, savedAt: new Date().toISOString() };
-  try {
-    localStorage.setItem(SETUP_KEY, JSON.stringify(full));
-  } catch {
-    /* 사생활 보호 모드 등 — 이번만 쓴다 */
-  }
-  window.dispatchEvent(new Event(SETUP_CHANGE_EVENT));
-  return full;
-}
-
-/** 저장된 설정을 지운다 — 다음 측정 때 처음부터 다시 묻는다 */
-export function clearSetup() {
-  try {
-    localStorage.removeItem(SETUP_KEY);
-  } catch {
-    /* 위와 같다 */
-  }
-  window.dispatchEvent(new Event(SETUP_CHANGE_EVENT));
+  return {
+    sessionType:
+      typeof p.sessionType === 'string' &&
+      isSessionType(p.sessionType) &&
+      !isRestSession(p.sessionType)
+        ? p.sessionType
+        : DEFAULT_SESSION_TYPE,
+    cameraPos: p.cameraPos,
+    net: false,
+    /* 예전(모양 · 크기가 자유롭던 때)에 놓은 존도 규격에 맞춘다 */
+    zone: fitZone(
+      isRect(p.zone) ? centerZone(p.zone) : defaultZone(p.cameraPos),
+      p.cameraPos
+    ),
+    voice: p.voice === true,
+    useCal: p.useCal !== false,
+    releaseDistM:
+      typeof p.releaseDistM === 'number' &&
+      p.releaseDistM >= RELEASE_DIST_MIN &&
+      p.releaseDistM <= RELEASE_DIST_MAX
+        ? p.releaseDistM
+        : DEFAULT_SETUP.releaseDistM,
+    targetDistM:
+      typeof p.targetDistM === 'number' &&
+      p.targetDistM >= TARGET_DIST_MIN &&
+      p.targetDistM <= TARGET_DIST_MAX
+        ? p.targetDistM
+        : DEFAULT_SETUP.targetDistM,
+    /* 공마다 공 크기로 거리 어림은 뺐다(2026-10-15 사용자: "기준 20m · 줄자만") — 옛 설정에 켜져 있어도 끔 */
+    distAuto: false,
+    distTape: p.distTape === true,
+    /* 측정은 늘 자동(2026-10-15 사용자: "항상 자동으로") — 옛 설정의 수동도 자동으로 */
+    autoMode: true,
+    calibSave: p.calibSave === true,
+    clipZone: p.clipZone !== false,
+    recordMode: p.recordMode === true,
+    diagHud: p.diagHud === true,
+    savedAt: typeof p.savedAt === 'string' ? p.savedAt : '',
+  };
 }
 
 /**

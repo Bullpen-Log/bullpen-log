@@ -1,5 +1,6 @@
 'use client';
 
+import { SETUP_KEY, loadDistMemory, loadFov, loadSetup, saveDistMemory, saveFov, saveSetup } from '@/lib/velocity-storage';
 import {
   startTransition,
   useEffect,
@@ -73,21 +74,11 @@ import {
   type AnalysisJson,
   distanceMismatch,
 } from '@/lib/velocity-analysis';
-import {
-  SPEED_DISTANCE_EXPONENT,
-  rejudgeSize,
-  type DistanceReport,
-} from '@/lib/velocity-engine/analyze-distance';
+import { type DistanceReport } from '@/lib/velocity-engine/analyze-distance';
 import {
   SESSION_DIST_MIN,
-  loadDistMemory,
   medianOf,
-  saveDistMemory,
-  sessionCorrection,
-  sessionDistOf,
   TAPE_WARN,
-  type DistMemory,
-  type SizeSample,
 } from '@/lib/velocity-session-distance';
 import {
   SegmentedRecorder,
@@ -99,6 +90,18 @@ import { VELOCITY_ENGINE_VERSION } from '@/lib/velocity-engine/version';
 import { reject } from '@/lib/velocity-engine/validate';
 import { uploadAttemptClip, uploadClip } from '@/lib/velocity-clip-upload';
 import {
+  SIZE_OUTLIER_FIX,
+  judgeBySession,
+  lowConfidenceFix,
+  measuredFields,
+  sessionDistanceOf,
+  sizeOutlier,
+  stdCorrection,
+  steadied,
+  withSessionDistance,
+  type SessionPitchCore,
+} from '@/lib/velocity-session';
+import {
   VelocityTutorial,
   setTutorialHidden,
   useTutorialHidden,
@@ -106,8 +109,6 @@ import {
 import {
   applyCalibration,
   calibrationText,
-  loadFov,
-  saveFov,
   type CalFit,
 } from '@/lib/velocity-calibration';
 import {
@@ -131,11 +132,8 @@ import {
   frameRectToView,
   viewRectToFrame,
   visibleFrameRect,
-  loadSetup,
   RELEASE_DIST_MAX,
   RELEASE_DIST_MIN,
-  saveSetup,
-  SETUP_KEY,
   setupSummary,
   TARGET_DIST_MAX,
   TARGET_DIST_MIN,
@@ -324,7 +322,7 @@ const toDraftPitch = (p: LocalPitch): DraftPitch => {
 const revokeClips = (p: { clip?: LocalClip }) => {
   if (p.clip) URL.revokeObjectURL(p.clip.url);
 };
-type LocalPitch = SavePitchInput & {
+type LocalPitch = SavePitchInput & Pick<SessionPitchCore, 'dist' | 'auto' | 'std'> & {
   id: number;
   /** 엔진이 본 자료 — 잰 순간의 스트라이크 존(zoneRect)도 실려 영상에 겹쳐 그린다 */
   analysis?: AnalysisJson | null;
@@ -342,134 +340,7 @@ type LocalPitch = SavePitchInput & {
   hitT?: number | null;
   /** 결과 화면이 영상 속 공으로 맞춘 클립 시각 − 궤적 시각 — 저장할 때 공 길을 클립 시각으로 남긴다 */
   clipOffset?: number | null;
-  /** 구속을 낸 거리 — 결과 화면에 '거리 22.4m(공 크기)'로 보인다. from 은 세션 거리(아래 withSessionDistance)로 옮겼으면 어디서 */
-  dist?: { m: number; auto: boolean; from?: 'session' | 'memory' | null } | null;
-  /**
-   * 공 크기로 어림한 거리로 잰 처음 값 — 세션 거리로 옮길 때 여기서 다시 낸다. clean 은 끝이 깨끗했나(맞고 튄 공으로 끝을 정하고 이어
-   * 찾은 것이 없다) — 세션 거리는 이런 공에만 쓴다
-   */
-  auto?: {
-    distM: number;
-    kmh: number;
-    releaseKmh: number | null;
-    errorKmh: number;
-    clean: boolean;
-  } | null;
-  /**
-   * 기준 20m(또는 줄자 거리)로 잰 공의 처음 값 — 세션 거리 보정(withSessionDistance · sessionCorrection, 엔진 2.4 1단계)으로 옮길 때
-   * 여기서 다시 낸다. size 는 깨끗한 공인지 가리는 재료(공 크기 거리 · 기울기 · 이어 찾기 · 끝 · 믿음 · 공 길 장면 수)
-   */
-  std?: {
-    kmh: number;
-    releaseKmh: number | null;
-    errorKmh: number;
-    size: SizeSample;
-  } | null;
 };
-/**
- * 세션 거리(규칙 · 숫자는 lib/velocity-session-distance.ts) — 끝이 깨끗한 공(맞고 튄 공으로 끝, 이어 찾기 없음)에만 쓴다. 실내(흰 천 ·
- * 포수)는 공마다 끝 판정이 흔들리고 그 공의 거리가 그것을 메워, 세션 거리로 옮기면 오히려 5.5 → 8.2 로 나빴다. 세션 거리와 8% 넘게
- * 다른 공도 다른 일(폰을 옮김 등)이라 제 거리를 둔다. 영상 파일은 파일끼리 따로 세고 지난 세션 거리도 안 쓴다 — 찍은 자리를 모른다.
- * 공을 더하거나 지울 때마다 다시 센다.
- */
-const SESSION_DIST_TOL = 0.08;
-/** 기준 20m 로 잰 공들의 세션 보정(공 크기 가운데 값) — 그 출처의 공이 셋 미만이면 null */
-function stdCorrection(list: LocalPitch[], source: LocalPitch['source']) {
-  return sessionCorrection(
-    list.filter((p) => p.std && p.source === source).map((p) => p.std!.size),
-    STANDARD_TARGET_DIST_M,
-    SPEED_DISTANCE_EXPONENT
-  );
-}
-/**
- * 세션 거리 보정이 걸렸으면(위 stdCorrection apply) 공 크기 판정을 그 거리로 다시 한다(엔진 2.5.3 rejudgeSize). 기준 20m 와 견주면 실제 22.5m
- * 자리의 빠른 공이 '15% 넘게 다름'으로 '낮음'이 돼 빠졌다(10-03 밖 121 · 124 · 132 — 세션 거리로 옮긴 값은 스피드건과 2.5km/h 안).
- * 값은 이 거리로 옮겨 보이므로(withSessionDistance) 판정 거리 = 값을 낸 거리다. 줄자 세션은 넣은 거리가 곧 기준이라 그대로.
- */
-function judgeBySession<T extends ScreenResult>(
-  result: T,
-  list: LocalPitch[],
-  source: LocalPitch['source'],
-  tape: boolean
-): T {
-  if (tape) return result;
-  const c = stdCorrection(list, source);
-  return c?.apply ? rejudgeSize(result, c.m) : result;
-}
-/** 저장할 세션의 거리 · 출처 — 줄자가 이기고, 기준 20m 세션은 보정이 걸렸으면 그 가운데 값(엔진 2.4 1단계) */
-function sessionDistanceOf(
-  list: LocalPitch[],
-  s: { cameraPos: string; distAuto: boolean; distTape: boolean; targetDistM: number }
-): { distanceM: number | null; distanceSource: string | null } {
-  if (s.cameraPos !== 'behind-pitcher')
-    return { distanceM: null, distanceSource: null };
-  if (s.distAuto) return { distanceM: null, distanceSource: 'auto' };
-  if (s.distTape) return { distanceM: s.targetDistM, distanceSource: 'tape' };
-  const c = stdCorrection(list, 'camera') ?? stdCorrection(list, 'file');
-  return c?.apply
-    ? { distanceM: c.m, distanceSource: 'session-size' }
-    : { distanceM: STANDARD_TARGET_DIST_M, distanceSource: 'default' };
-}
-function withSessionDistance(
-  list: LocalPitch[],
-  memory: DistMemory | null,
-  /** 줄자로 잰 세션 — 기준 20m 공의 세션 보정을 하지 않는다(줄자가 이긴다) */
-  tape = false
-): LocalPitch[] {
-  const cleanOf = (source: LocalPitch['source']) =>
-    list.filter((p) => p.auto?.clean && p.source === source).map((p) => p.auto!.distM);
-  const sess = {
-    camera: sessionDistOf(cleanOf('camera'), memory),
-    file: sessionDistOf(cleanOf('file'), null),
-  };
-  const corr = {
-    camera: tape ? null : stdCorrection(list, 'camera'),
-    file: tape ? null : stdCorrection(list, 'file'),
-  };
-  const r1 = (v: number) => Math.round(v * 10) / 10;
-  return list.map((p) => {
-    /*
-     * 기준 20m 로 잰 공 — 깨끗한 공 셋부터 공 크기 가운데 값이 기준과 3% 넘게(15% 안) 다르면 그 거리로 옮긴다(2.4.0). 안 걸리면
-     * 처음 값 그대로(다시 낸다 — 공을 지워 보정이 풀려도 돌아오게)
-     */
-    if (p.std) {
-      const c = corr[p.source];
-      const on = c != null && c.apply;
-      const use = on ? c.m : STANDARD_TARGET_DIST_M;
-      const k = on ? c.k : 1;
-      const distance = p.analysis?.distance;
-      return {
-        ...p,
-        rawKmh: r1(p.std.kmh * k),
-        errorKmh: r1(p.std.errorKmh * k),
-        releaseKmh: p.std.releaseKmh != null ? r1(p.std.releaseKmh * k) : null,
-        dist: { m: r1(use), auto: false, from: on ? ('session' as const) : null },
-        analysis:
-          p.analysis && distance
-            ? { ...p.analysis, distance: { ...distance, distanceM: r1(use) } }
-            : p.analysis,
-      };
-    }
-    if (!p.auto) return p;
-    const s = sess[p.source];
-    const on =
-      s != null && p.auto.clean && Math.abs(p.auto.distM / s.m - 1) <= SESSION_DIST_TOL;
-    const use = on ? s.m : p.auto.distM;
-    const k = (use / p.auto.distM) ** SPEED_DISTANCE_EXPONENT;
-    const distance = p.analysis?.distance;
-    return {
-      ...p,
-      rawKmh: r1(p.auto.kmh * k),
-      errorKmh: r1(p.auto.errorKmh * k),
-      releaseKmh: p.auto.releaseKmh != null ? r1(p.auto.releaseKmh * k) : null,
-      dist: { m: r1(use), auto: true, from: on ? s.from : null },
-      analysis:
-        p.analysis && distance
-          ? { ...p.analysis, distance: { ...distance, distanceM: r1(use) } }
-          : p.analysis,
-    };
-  });
-}
 /**
  * 저장할 분석에 결과 화면의 공 길을 싣는다 — [클립 시각, x, y, 지름](장면 비율, 160점까지). 결과 화면이 영상 속 공으로 맞췄으면
  * 그 시각(trailAligned), 아니면 클립의 eventSec 로 어림한 시각. 저장한 공을 목록에서 '잰 직후처럼' 다시 볼 때 쓴다.
@@ -509,8 +380,6 @@ function trailOf(result: ScreenResult): TrailPoint[] | null {
 /** 카메라 실시간 결과에는 촬영 조건 알림(live)이 붙는다(lib/velocity-engine/live-meter.ts) — 영상 파일 결과에는 없다 */
 type ScreenResult = AnalyzeResult & { live?: LiveReport };
 
-/** 세션 안 공 크기 거리의 허용 흩어짐(가운데 값 대비) — addResult */
-const SESSION_SIZE_SPREAD = 0.09;
 /** 앱 카메라의 셔터 · ISO 를 세션 기기 글에 — ' · 셔터 1/500 ISO 320'(2.4.2) */
 const exposureText = (e: { shutterSec: number | null; iso: number | null } | null) =>
   e?.shutterSec
@@ -521,32 +390,6 @@ const exposureText = (e: { shutterSec: number | null; iso: number | null } | nul
 function rejectTitle(r: ScreenResult): string {
   if (!r.measure.ok && r.measure.code === 'LOW_CONFIDENCE') return '측정 불가';
   return r.live?.ball?.strong ? '공은 봤는데 못 쟀어요' : '재지 않았어요';
-}
-
-/** 믿음이 모자란 까닭에 맞춘 다음 할 일 — 엔진이 남긴 거리 판단(analyze-distance.ts report)에서 읽는다 */
-/** 흔들림을 배경으로 재서 바로잡아 '보통'이 된 공 — 손에 든 폰(엔진 2.5.1) */
-function steadied(r: ScreenResult): boolean {
-  const d = 'distance' in r ? (r.distance as DistanceReport | undefined) : undefined;
-  return r.measure.ok && r.measure.confidence === 'medium' && !!d?.shaky && !!d.stabilized;
-}
-
-function lowConfidenceFix(
-  r: ScreenResult,
-  source: 'camera' | 'file',
-  approaching: boolean
-): string {
-  const d = 'distance' in r ? (r.distance as DistanceReport | undefined) : undefined;
-  if (approaching)
-    return '포수 뒤에서는 정확하게 잴 수 없어요. 투수 뒤에 폰을 두고 재 주세요.';
-  if (d?.shaky) return '폰이 흔들렸어요. 삼각대에 단단히 고정하고 다시 던져 주세요.';
-  /* 흰 과녁 천 · 밝은 벽 앞에서는 공이 끝에서 배경에 묻혀 엔진이 끝을 짐작으로 잇는다(10-09 실내 14구 중 12구) — 흰 배경 앞은 재지 않는다 */
-  if ((d?.extended ?? 0) > 0)
-    return '흰 배경 앞에서는 공이 끝에서 배경에 묻혀 잴 수 없어요. 공 뒤에 어두운 천을 두거나 어두운 쪽을 향해 던져 주세요.';
-  if (d?.impact === 'end')
-    return '공이 닿는 곳(미트 · 그물)이 화면에서 안 보였어요. 공이 닿는 곳까지 화면에 들어오게 해 주세요.';
-  if (source === 'file')
-    return '공이 잡힌 구간이 짧거나 흐려요. 60fps 이상, 공이 닿는 곳까지 찍힌 영상으로 다시 재 주세요.';
-  return '공이 잡힌 구간이 짧거나 흐렸어요. 초점과 밝기를 확인하고 다시 던져 주세요.';
 }
 
 /* 관리자 점프의 '예시 공' — 화면(세션 · 요약 · 이전 공)을 자료 없이도 확인할 수 있게 */
@@ -744,8 +587,12 @@ export function VelocityScreen({
   });
   /* 녹화기 · 그 상태(찍는 시간 · 조각 · 올림) — 녹화 중이 아니면 null */
   const recorderRef = useRef<SegmentedRecorder | null>(null);
-  /* 세션 통째 녹화(관리자 · 보정용 저장 · 앱 카메라, 엔진 2.7) — 측정 시작에 켜고 종료 · 저장 · 나가기에 끈다 */
+  /*
+   * 세션 통째 녹화(관리자 · 앱 카메라, 엔진 2.7) — 측정 시작 왼쪽 위 '세션 녹화' 단추로 켜고(2026-10-17 사용자: "시작하기 전에 옆에 따로
+   * 켜기 버튼"), 측정 시작에 녹화를 시작해 종료 · 저장 · 나가기에 끈다. 1분에 100MB 남짓이라 기억하지 않는다 — 화면을 열 때마다 꺼진 채.
+   */
   const sessionRecRef = useRef<DualSessionRecorder | null>(null);
+  const [sessionRecWanted, setSessionRecWanted] = useState(false);
   const [rec, setRec] = useState<RecorderState | null>(null);
   const recording =
     rec != null &&
@@ -936,7 +783,8 @@ export function VelocityScreen({
   const [effortPct, setEffortPct] = useState<number | null>(null);
   const [effortMissing, setEffortMissing] = useState(false);
   const [saving, startSaving] = useTransition();
-  const [saved, setSaved] = useState(false);
+  /* 저장한 세션의 날짜 — '기록 남기기' 링크가 그날로(되살린 세션은 오늘이 아닐 수 있다). 없으면 null */
+  const [saved, setSaved] = useState<string | null>(null);
   /* 저장하지 않은 공이 있을 때 나가기 — 묻는 창(앱의 영어 시스템 창 대신) */
   const [askLeave, setAskLeave] = useState(false);
   const [askClear, setAskClear] = useState(false);
@@ -1066,40 +914,18 @@ export function VelocityScreen({
       speak('측정 불가');
       return;
     }
-    /*
-     * 같은 세션의 공 크기 거리 — 앞서 기록한 공 셋 이상의 가운데 값에서 SESSION_SIZE_SPREAD 넘게 튀면 이 공의 끝(그물 · 미트에 닿은 때)을
-     * 잘못 잡은 것이다. 10-12 밖 22구: 정상 공은 가운데 값 ±8.1% 안, 스피드건과 13% 갈린 공이 −10.4%(10-03 밖 13개는 ±6.6% 안).
-     */
-    const sizeNow = (result as { distance?: DistanceReport }).distance?.sizeDistM;
-    const sizes = pitches
-      .filter((p) => p.source === source)
-      .map(
-        (p) =>
-          (p.analysis as { distance?: { sizeDistM?: unknown } } | null | undefined)
-            ?.distance?.sizeDistM
-      )
-      .filter((v): v is number => typeof v === 'number' && v > 0)
-      .sort((a, b) => a - b);
-    if (!calibOn && sizeNow != null && sizes.length >= 3) {
-      const n = sizes.length;
-      const mid = n % 2 ? sizes[(n - 1) / 2] : (sizes[n / 2 - 1] + sizes[n / 2]) / 2;
-      if (Math.abs(sizeNow / mid - 1) > SESSION_SIZE_SPREAD) {
-        setLast({
-          ...result,
-          measure: {
-            ok: false,
-            ...reject('LOW_CONFIDENCE'),
-            fix: '이 공은 앞 공들과 거리 판독이 달라 잴 수 없었어요. 폰과 미트 자리는 그대로 두고 다시 던져 주세요.',
-          },
-        });
-        dropAttempt(meta?.id, 'session-size');
-        speak('측정 불가');
-        return;
-      }
+    /* 같은 세션의 공 크기 거리에서 튄 공 — 끝을 잘못 잡았다(lib/velocity-session.ts sizeOutlier) */
+    if (!calibOn && sizeOutlier(result, pitches, source)) {
+      setLast({
+        ...result,
+        measure: { ok: false, ...reject('LOW_CONFIDENCE'), fix: SIZE_OUTLIER_FIX },
+      });
+      dropAttempt(meta?.id, 'session-size');
+      speak('측정 불가');
+      return;
     }
     setLast(result);
     const m = result.measure;
-    const r = result.release;
     /*
      * 거리 — 공 크기로 어림하라 했는데 못 했으면(공이 덜 잡힘) 그 까닭을, 넣은 거리가 공 크기로 본 거리와 많이 다르면 다시 재 보라고
      * 알린다(사용자 2026-10-07: 기본 20m 그대로 재 실제 22.5m 와 12% 갈렸다).
@@ -1165,17 +991,7 @@ export function VelocityScreen({
     const added: Omit<LocalPitch, 'id'> = {
       source,
       clip: earlyClip,
-      rawKmh: m.kmh,
-      errorKmh: m.errorKmh,
-      confidence: m.confidence,
-      releaseKmh: r?.releaseKmh ?? null,
-      releaseDxCm: r?.dxCm ?? null,
-      releaseDyCm: r?.dyCm ?? null,
-      releaseDistM: r?.distanceM ?? m.detail.releaseDistanceM,
-      travelM: m.detail.travelM,
-      durationSec: m.detail.durationSec,
-      frames: m.detail.frames,
-      fps: result.fps,
+      ...measuredFields(result, distAuto),
       analysis: {
         ...analysisOf(result, approach),
         /* 클립은 카메라 장면 그대로라 이 존을 영상 위에 그대로 얹는다. 영상 파일은 장면이 달라 싣지 않는다 */
@@ -1211,34 +1027,6 @@ export function VelocityScreen({
       ],
       trail: trailOf(result),
       hitT: meta?.hitT ?? null,
-      dist: dist ? { m: dist.distanceM, auto: dist.distanceSource === 'ball' } : null,
-      auto:
-        dist?.distanceSource === 'ball'
-          ? {
-              distM: dist.distanceM,
-              kmh: m.kmh,
-              releaseKmh: r?.releaseKmh ?? null,
-              errorKmh: m.errorKmh,
-              clean: dist.impact === 'rebound' && dist.extended === 0,
-            }
-          : null,
-      /* 기준 20m(또는 줄자)로 잰 공 — 세션 거리 보정의 재료(2.4.0). 줄자 세션은 7% 경고에만 쓴다 */
-      std:
-        dist && dist.distanceSource === 'input' && !distAuto
-          ? {
-              kmh: m.kmh,
-              releaseKmh: r?.releaseKmh ?? null,
-              errorKmh: m.errorKmh,
-              size: {
-                sizeDistM: dist.sizeDistM,
-                sizeSlope: dist.sizeSlope,
-                extended: dist.extended,
-                impact: dist.impact,
-                confidence: m.confidence,
-                frames: m.detail.frames,
-              },
-            }
-          : null,
       ...EMPTY_EDIT,
       zone: guessedZone,
     };
@@ -1250,7 +1038,7 @@ export function VelocityScreen({
         distTape
       )
     );
-    setSaved(false);
+    setSaved(null);
     setResultOpen(true);
     /* 앱(아이폰)에서도 떨린다 — 아이폰 알림 떨림(성공), 웹은 짧은 진동(lib/haptics.ts) */
     haptic('success');
@@ -1618,7 +1406,7 @@ export function VelocityScreen({
     void requestPermission();
     setError(null);
     setLast(null);
-    setSaved(false);
+    setSaved(null);
     setShowCamera(true);
     capture.setManual(!autoMode);
     setLive(true);
@@ -1665,11 +1453,15 @@ export function VelocityScreen({
     if (pitches.length > 0) setSummaryOpen(true);
   };
   /*
-   * 세션 통째 녹화(엔진 2.7 1단계, lib/velocity-dual-recorder.ts) — 관리자가 '정확도 보정용 저장'을 켠 채 앱 카메라로 잴 때, 앱이 쥔
+   * 세션 통째 녹화(엔진 2.7 1단계, lib/velocity-dual-recorder.ts) — 관리자가 '세션 녹화' 단추를 켠 채 앱 카메라로 잴 때, 앱이 쥔
    * 최근 영상을 6초마다 잘라 서버 녹화(엔진 개발용 녹화와 같은 표 · 편집기)로 올린다. 알림이 침묵해 놓친 공의 영상이 남는다.
    */
   const startSessionRecording = async (capture: DualCapture | LiveCapture) => {
-    if (!calibOn || !(capture instanceof DualCapture) || sessionRecRef.current) return;
+    if (!isAdmin || !sessionRecWanted || sessionRecRef.current) return;
+    if (!(capture instanceof DualCapture)) {
+      setToast('세션 녹화는 앱 카메라에서만 돼요');
+      return;
+    }
     const recorder = new DualSessionRecorder(
       {
         cameraNow: () => capture.cameraNow(),
@@ -1716,7 +1508,7 @@ export function VelocityScreen({
       setRec(null);
       return;
     }
-    setToast('세션 녹화를 시작했어요(보정용)');
+    setToast('세션 녹화를 시작했어요');
   };
   const stopSessionRecording = async () => {
     const recorder = sessionRecRef.current;
@@ -1830,6 +1622,9 @@ export function VelocityScreen({
     attemptIdsRef.current.clear();
     sessionAttemptIdsRef.current = [];
     void clearDraft();
+    /* 되살린 세션의 날짜 · 맥락도 비운다 — 남으면 다음 세션이 옛 날짜로 저장됐다(2026-10-17) */
+    setDraftDate(null);
+    setDraftMeta(null);
   };
   /* 닫기 — 첫 화면이면 구속 측정을 떠나고, 그 밖이면 첫 화면으로. 저장하지 않은 공이 있으면 한 번 묻는다(말없이 사라지지 않게) */
   const leave = () => {
@@ -2084,6 +1879,16 @@ export function VelocityScreen({
   const editingPitch =
     editing == null ? null : (pitches.find((p) => p.id === editing) ?? null);
 
+  /*
+   * 저장 · 맡길 때 쓸 맥락 — 되살린 세션에 새로 잰 공이 없으면 그때의 맥락. 예전엔 '카메라가 꺼져 있을 때만'이라, 이어 재기 화면이
+   * 카메라를 저절로 켜면 공 하나 안 쟀는데도 오늘 카메라 설정(화각 · 기기 · 폰 자리)으로 덮였다(2026-10-17 금윤호 버그 사냥).
+   * 새 공을 재면 그 카메라가 지금 맥락이라 sessionContext().
+   */
+  const restoredIdsRef = useRef(new Set<number>());
+  const contextNow = (): SessionContext =>
+    draftMeta && pitches.every((p) => p.sample || restoredIdsRef.current.has(p.id))
+      ? draftMeta
+      : sessionContext();
   /* 세션의 측정 맥락 — 저장할 때 · 폰에 맡길 때 같이 */
   const sessionContext = (): SessionContext => {
     const longSide = camera ? Math.max(camera.width, camera.height) : null;
@@ -2137,12 +1942,25 @@ export function VelocityScreen({
    * 메모리를 던다(지금 보는 공 · 막 잰 공은 재생이 끊기지 않게 그대로). 예시 공은 맡기지 않는다.
    */
   const storedRef = useRef(new Map<number, { src: Blob; stored: Blob }>());
+  /*
+   * 공이 있다가 없어졌을 때만 폰 임시 저장을 지운다 — 마지막 공을 지우면 효과가 그냥 끝나 임시 저장이 남고, 다음에 열 때 지운 공이
+   * 되살아났다(2026-10-17). 처음(loadDraft 전, 공 0개)에는 지우지 않아 되살리기와 겹치지 않는다.
+   */
+  const hadRealRef = useRef(false);
   useEffect(() => {
     const real = pitches.filter((p) => !p.sample);
-    if (real.length === 0) return;
+    if (real.length === 0) {
+      if (hadRealRef.current) {
+        hadRealRef.current = false;
+        storedRef.current.clear();
+        void clearDraft();
+      }
+      return;
+    }
+    hadRealRef.current = true;
     void saveDraft<DraftPitch, SessionContext>({
       date: draftDate ?? today,
-      meta: camera == null && draftMeta ? draftMeta : sessionContext(),
+      meta: contextNow(),
       pitches: real.map(toDraftPitch),
       savedAt: Date.now(),
     });
@@ -2208,6 +2026,7 @@ export function VelocityScreen({
         };
       });
       setPitches((prev) => (prev.length ? prev : restored));
+      restoredIdsRef.current = new Set(restored.map((p) => p.id));
       setDraftDate(d.date);
       setDraftMeta(d.meta);
       setToast(`저장하지 않은 공 ${restored.length}개를 이어서 담았어요`);
@@ -2248,15 +2067,17 @@ export function VelocityScreen({
       return;
     }
     setError(null);
+    /* 날짜는 저장 직전에 한 번 잡는다 — 성공 처리 · 안내 링크가 같은 날을 본다 */
+    const date = draftDate ?? today;
     startSaving(async () => {
       let res: Awaited<ReturnType<typeof saveVelocitySession>>;
       try {
         res = await saveVelocitySession({
-          date: draftDate ?? today,
+          date,
           sessionType,
           effortPct,
-          /* 되살린 세션을 카메라를 켜기 전에 저장하면 그때의 맥락으로 */
-          ...(camera == null && draftMeta ? draftMeta : sessionContext()),
+          /* 되살린 세션에 새 공이 없으면 그때의 맥락으로 */
+          ...contextNow(),
           pitches: pitches.map((p) => ({
             rawKmh: p.rawKmh,
             errorKmh: p.errorKmh,
@@ -2351,7 +2172,9 @@ export function VelocityScreen({
       }
       for (const p of pitches) revokeClips(p);
       await clearDraft();
-      setSaved(true);
+      setDraftDate(null);
+      setDraftMeta(null);
+      setSaved(date);
       setPitches([]);
       attemptIdsRef.current.clear();
       sessionAttemptIdsRef.current = [];
@@ -2443,7 +2266,7 @@ export function VelocityScreen({
       })),
     ]);
     setLast(null);
-    setSaved(false);
+    setSaved(null);
     setToast(`예시 공 ${SAMPLE_PITCHES.length}개를 넣었어요(저장은 안 돼요)`);
   };
   const clearSamplePitches = () => {
@@ -2468,8 +2291,8 @@ export function VelocityScreen({
     !fileBusy &&
     !(live && !showCamera) &&
     phase == null;
-  /* 첫 화면 기록 단추의 숫자 — 가장 최근 세션의 최고 구속 */
-  const latestMax = history.length ? shown(history[history.length - 1].maxKmh) : null;
+  /* 첫 화면 기록 단추의 숫자 — 가장 최근 세션의 최고 구속(maxKmh 는 이미 보정된 값 — lib/velocity-load.ts, 한 번 더 걸면 기록 시트와 어긋난다) */
+  const latestMax = history.length ? history[history.length - 1].maxKmh : null;
   const lastTip = tipIndex >= tipsCount(choices) - 1;
   /* 안내창 카드 밑 단추(김민: "다음 버튼은 창에다가, 셔터로 하니까 헷갈려") — 셔터는 첫 화면의 측정 시작과 측정에만 */
   const guideLabel = showAsk
@@ -2532,6 +2355,8 @@ export function VelocityScreen({
       ? `카메라 화면이 잘려 와서(${camera.width}×${camera.height}) 값이 부정확할 수 있어요.`
       : null;
   const speedNum = (kmh: number) => Math.round(toSpeed(kmh, unit) * 10) / 10;
+  /* 관리자 '세션 녹화' 칩 — 측정 시작 전엔 켜기 단추, 측정 중엔 녹화 상태(결과가 떠 있으면 숨김). 알림창은 그만큼 위로 */
+  const recChip = step === 'measure' && isAdmin && !recOn && (!live || (rec != null && !resultShown));
   const levelOk = !level.supported || level.ok;
   const targetText =
     choices.cameraPos === 'behind-pitcher' ? '릴리스 포인트' : '미트가 오는 자리';
@@ -3202,7 +3027,7 @@ export function VelocityScreen({
                     standardNote ||
                     cropNote ||
                     (isAdmin && !native)) && (
-                    <div className={`space-y-2 px-4 ${resultShown || cardUp ? '' : 'pb-3'}`}>
+                    <div className={`space-y-2 px-4 ${recChip ? 'pb-14' : resultShown || cardUp ? '' : 'pb-3'}`}>
                       {/* 초당 장면 · 잘림 — 측정 화면에서만(수평 · 존은 오른쪽 위 주황 표시로 충분), 결과가 떠 있으면 결과의 알림이 말한다 */}
                       {step === 'measure' &&
                         !resultShown &&
@@ -3237,7 +3062,7 @@ export function VelocityScreen({
                             떴다(측정 화면은 (app) 밖이다). 주소로 곧장 가면 팝업 없이 그날 화면이 뜬다.
                           */}
                           <a
-                            href={`/pitch-log/${today}`}
+                            href={`/pitch-log/${saved}`}
                             className="ml-auto font-semibold text-sky"
                           >
                             기록 남기기
@@ -3604,6 +3429,41 @@ export function VelocityScreen({
                   <span
                     className={`h-1.5 w-1.5 rounded-full transition-colors ${showCamera ? 'bg-white/35' : 'bg-white'}`}
                   />
+                </div>
+              )}
+              {recChip && (
+                <div className="absolute bottom-full left-4 mb-2">
+                  {!live ? (
+                    <button
+                      type="button"
+                      aria-pressed={sessionRecWanted}
+                      onClick={() => {
+                        if (!sessionRecWanted && cameraOn && !appCapture) {
+                          setToast('세션 녹화는 앱 카메라에서만 돼요');
+                          return;
+                        }
+                        setSessionRecWanted(!sessionRecWanted);
+                      }}
+                      className={`inline-flex h-10 items-center gap-2 rounded-full border px-3.5 text-sm font-medium backdrop-blur transition-colors ${
+                        sessionRecWanted
+                          ? 'border-red-400/70 bg-red-500/85 text-white'
+                          : 'border-white/25 bg-black/55 text-white/85'
+                      }`}
+                    >
+                      <span
+                        aria-hidden
+                        className={`h-2.5 w-2.5 rounded-full ${sessionRecWanted ? 'bg-white' : 'bg-red-400'}`}
+                      />
+                      {sessionRecWanted ? '세션 녹화 켬' : '세션 녹화 끔'}
+                    </button>
+                  ) : (
+                    rec && (
+                      <span className="inline-flex h-8 items-center gap-1.5 rounded-full bg-red-500/85 px-3 text-xs font-medium tabular-nums text-white">
+                        <span aria-hidden className="h-2 w-2 rounded-full bg-white motion-safe:animate-pulse" />
+                        녹화 중 · 올림 {rec.uploaded}/{rec.parts}
+                      </span>
+                    )
+                  )}
                 </div>
               )}
               <input
@@ -4015,7 +3875,7 @@ export function VelocityScreen({
       <BottomSheet
         open={sheet === 'save'}
         onClose={() => setSheet('none')}
-        title="오늘 투구 기록으로 남기기"
+        title="세션 저장하기"
       >
         {stats && (
           <div className="space-y-4">
@@ -4284,11 +4144,15 @@ function Shutter({
       onClick={onClick}
       disabled={disabled}
       aria-label={label}
-      className="group relative flex h-[4.75rem] w-[4.75rem] items-center justify-center rounded-full bg-[#3a3a3c] transition-opacity disabled:opacity-35"
+      className="group relative flex h-[4.75rem] w-[4.75rem] items-center justify-center rounded-full border-[5px] border-white transition-opacity disabled:opacity-35"
     >
+      {/*
+       * 운동 영상 촬영 단추(mobile/ios/App/App/ShootCameraPlugin.swift recordButton)와 똑같이 — 76 원 · 흰 테두리 5 · 안쪽 빨강(systemRed)
+       * 58 원, 멈춤이면 30 네모(모서리 7), 0.18초(2026-10-17 사용자: "운동 영상 촬영할 때 빨간 버튼이랑 완전 똑같이")
+       */}
       <span
-        className={`flex items-center justify-center bg-[#ff3b30] text-white shadow-[0_0_0_3px_#1c1c1e] motion-safe:transition-[width,height,border-radius,scale] duration-300 ease-[cubic-bezier(0.2,0.9,0.3,1)] group-active:scale-90 ${
-          stop ? 'h-9 w-9 rounded-[0.65rem]' : 'h-[3.9rem] w-[3.9rem] rounded-full'
+        className={`flex items-center justify-center bg-[#ff3b30] text-white motion-safe:transition-[width,height,border-radius] motion-safe:duration-[180ms] motion-safe:ease-in-out ${
+          stop ? 'h-[1.875rem] w-[1.875rem] rounded-[7px]' : 'h-[3.625rem] w-[3.625rem] rounded-full'
         }`}
       >
         {state === 'busy' ? (

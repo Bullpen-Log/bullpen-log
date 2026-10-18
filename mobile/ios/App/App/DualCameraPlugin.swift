@@ -359,6 +359,8 @@ public class DualCameraPlugin: CAPPlugin, CAPBridgedPlugin {
     }
 }
 
+// 여기부터 끝까지는 Expo 앱(native/modules/dual-camera/ios/DualCameraCore.swift)과 같은 코드다 — 고칠 때 두 파일을 같이(통합 시험 [13]).
+
 // MARK: - 카메라 둘
 
 struct DualCameraError: Error {

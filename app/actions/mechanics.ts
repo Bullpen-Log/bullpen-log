@@ -158,6 +158,8 @@ export async function recordMechanicsDrill(input: {
  */
 export async function finishMechanicsSession(opts?: {
   partial?: boolean;
+  /** 마치는 세션의 차례(sessionsDone + 1, 화면이 열 때 받은 값) — 응답이 끊겨 '다시 저장'을 눌러도 한 번만 센다 */
+  session?: number;
 }): Promise<
   | { ok: true; advice: ReturnType<typeof levelAdvice>; throwNote: DrillThrowNote | null }
   | { error: string }
@@ -172,6 +174,14 @@ export async function finishMechanicsSession(opts?: {
   if (opts?.partial === true) {
     revalidatePath(PROGRAM_PATH);
     return { ok: true, advice: null, throwNote };
+  }
+  /*
+   * 이미 센 세션 — 저장은 됐는데 응답이 끊겨 화면이 '다시 저장'을 보였다. 또 올리면 세션이 두 번 세져 다음 수준이 일찍 온다.
+   * 차례를 안 보내는 옛 화면은 예전처럼 센다.
+   */
+  if (typeof opts?.session === 'number' && program.sessionsDone >= opts.session) {
+    revalidatePath(PROGRAM_PATH);
+    return { ok: true, advice: levelAdvice(state), throwNote };
   }
   const next = finishState(state, false);
   await prisma.mechanicsProgram.update({

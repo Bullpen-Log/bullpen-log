@@ -88,7 +88,17 @@ export function TabPager({
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const index = order.findIndex((h) => base(h) === pathname);
+  const view = searchParams.get('view');
+  /*
+   * 투구 기록 팝업(/pitch-log/<날짜>, @modal 가로채기)이 떠도 밑의 판은 그대로 — 팝업 전 주소를 쥔다(그리는 도중 상태 보정, day-modal 과
+   * 같은 꼴). 전에는 index 가 -1 → html[data-pager='page'] → 트랙이 display:none 으로 팝업 뒤가 비고(PC 는 바닥글이 막 뒤로 올라옴),
+   * 닫으면 판의 스크롤 자리를 잃었다(2026-10-17). 주소로 곧장 들어온 하드 로드는 쥔 주소도 팝업 주소라 지금처럼 children 전체 화면.
+   */
+  const popup = pathname.startsWith('/pitch-log/');
+  const [shown, setShown] = useState({ pathname, view });
+  if (!popup && (shown.pathname !== pathname || shown.view !== view))
+    setShown({ pathname, view });
+  const index = order.findIndex((h) => base(h) === shown.pathname);
   const tabMode = index >= 0;
   const track = useRef<HTMLDivElement>(null);
   const [ghost, setGhost] = useState<{ item: NavItem } | null>(null);
@@ -97,6 +107,18 @@ export function TabPager({
   useEffect(() => {
     latest.current = { pathname, index, tabs, camera, order };
   }, [pathname, index, tabs, camera, order]);
+  /*
+   * 판마다 마지막 주소 — 아이폰 탭 막대처럼 하위 화면(암케어 · 메커니즘 · 영양 날짜 …)을 두고 다른 탭에 갔다 오면 그 화면 그대로 돌아온다.
+   * 판은 주소를 바꿔도 다시 안 받아 보던 화면이 남아 있는데, 돌아올 때 탭 주소(?view=home)로만 바꿔 주소와 화면이 어긋났다(2026-10-17
+   * 금윤호 버그 사냥 · 김민 "iOS 처럼"). 지금 탭을 한 번 더 누르면 첫 화면으로 가는 것은 하단 탭이 한다(mobile-tabs onClick).
+   */
+  const lastUrl = useRef<Record<number, string>>({});
+  useEffect(() => {
+    const i = order.findIndex((h) => base(h) === pathname);
+    if (i < 0) return;
+    const q = searchParams.toString();
+    lastUrl.current[i] = q ? `${pathname}?${q}` : pathname;
+  }, [pathname, searchParams, order]);
 
   /* 틀에 알린다 — 판 넘기기인지(판이 굴러간다 · 본문 여백 없음) 하위 화면인지(창이 굴러간다) */
   useLayoutEffect(() => {
@@ -123,7 +145,7 @@ export function TabPager({
     const commit = (i: number) => {
       const href = hrefOf(i);
       /* state 는 null — Next 의 state 객체를 그대로 넘기면 Next 가 제 것으로 보고 usePathname 을 안 바꾼다(2026-10-15 시험) */
-      window.history.replaceState(null, '', href);
+      window.history.replaceState(null, '', lastUrl.current[i] ?? href);
       window.dispatchEvent(new CustomEvent(TAB_CHOSEN_EVENT, { detail: href }));
     };
     /* i 번째 판으로 미끄러진다(지금 --dx 에서) */
@@ -190,7 +212,8 @@ export function TabPager({
     const onDown = (e: TouchEvent) => {
       const old = drag.current;
       /* 끌던 손가락이 이미 떨어졌으면(끝 알림을 놓침 — 손가락 밑 노드가 다시 그려지면 track 까지 안 온다) 3초를 기다리지 않고 푼다 */
-      const lost = old != null && !Array.from(e.touches).some((t) => t.identifier === old.id);
+      const lost =
+        old != null && !Array.from(e.touches).some((t) => t.identifier === old.id);
       if (old && (!old.on || lost || e.timeStamp - old.t > 3000)) {
         drag.current = null;
         if (old.on) {
@@ -318,7 +341,11 @@ export function TabPager({
              * 손가락뿐이라 검은 판이 화면을 덮은 채 남았다(2026-10-16). 넘어갔으면 이 틀이 사라져 아무 일도 없다.
              */
             window.setTimeout(() => {
-              if (!el.isConnected || location.pathname === new URL(cam.href, location.href).pathname) return;
+              if (
+                !el.isConnected ||
+                location.pathname === new URL(cam.href, location.href).pathname
+              )
+                return;
               trans('');
               setDx(0);
               setGhost(null);
@@ -390,7 +417,7 @@ export function TabPager({
              */
             data-bare={
               base(order[i]) === '/today' ||
-              (i === index && isTrainingSubView(pathname, searchParams.get('view')))
+              (i === index && isTrainingSubView(shown.pathname, shown.view))
                 ? undefined
                 : ''
             }

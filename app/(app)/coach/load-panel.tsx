@@ -3,11 +3,10 @@ import {
   ACWR_ZONES,
   CHRONIC_WINDOW_DAYS,
   describeRatio,
-  type AcwrTrendPoint,
-  type AcwrZone,
 } from '@/lib/pitch-stats';
 import { StatusChip, TONE } from './parts';
 import { LoadTrend } from './load-trend';
+import type { AnalysisOverview, LoadView } from '@/lib/report/analysis-overview';
 
 /**
  * 부하 지수 둘 — 투구와 운동.
@@ -21,53 +20,7 @@ import { LoadTrend } from './load-trend';
  * 투수에게 팔은 다른 부위와 다르다.
  */
 
-export type LoadView = {
-  /** '투구' 또는 '운동' */
-  name: string;
-  /** 무엇을 재는 값인지 한 줄로 */
-  what: string;
-  /** 지수. 아직 못 내면 null */
-  ratio: number | null;
-  zone: AcwrZone | null;
-  /** 지수를 못 낼 때 — 며칠 쌓였고 며칠 더 필요한지 */
-  historyDays: number;
-  daysNeeded: number;
-  /** 문진 추정치가 섞여 있는가 */
-  estimated: boolean;
-  realWeight: number;
-  /** 기록이 하나라도 있는가 */
-  hasRecords: boolean;
-  /** 지수를 못 낼 때 대신 보여줄 안내 */
-  emptyHint: string;
-  /** 지금 계산되고 있는 급성·만성 부하 — "어떻게 나온 숫자인가"에 쓴다 */
-  acute: number;
-  chronic: number;
-  /**
-   * 이 구간에서 무엇을 하라는 조언.
-   *
-   * 투구와 운동이 다르다. 투구 쪽 문구를 운동에 그대로 쓰면 "투구량을 줄이세요"가
-   * 운동 부하 밑에 붙는다 — 운동을 많이 한 사람에게 던지는 것을 줄이라는 말이 된다.
-   */
-  advice: string;
-  /** 최근 2주 지수 흐름. 요일 때문에 오르내리는 것을 보여주려고 함께 낸다. */
-  trend: AcwrTrendPoint[];
-  /**
-   * 이 구간이 무슨 뜻인지 한 줄로.
-   *
-   * 조언과 같은 이유로 갈라 둔다. 예전에는 지수 구간표(ACWR_ZONES)의 문장을
-   * 둘 다 썼는데, 그 문장이 투구용이라 운동 부하 밑에 "던지고 있습니다"가
-   * 붙었다.
-   */
-  meaning: string;
-};
-
-/**
- * 이 날 수 이상 쉬는 날 없이 던졌으면 지수 옆에 알린다.
- *
- * 사흘은 흔하다 — 그것까지 알리면 잔소리가 되어 결국 아무도 안 읽는다.
- * 일주일을 하루도 안 쉬었으면 그때부터는 말할 값어치가 있다.
- */
-const STREAK_WARNING = 7;
+/* LoadView(지수 한 장의 재료)와 경고 문턱은 lib/report/analysis-overview.ts 로 옮겼다 — 앱 분석 화면과 같은 값(2026-10-18) */
 
 /** 지수를 크게 보여주는 쪽 */
 function Primary({ view }: { view: LoadView }) {
@@ -152,19 +105,16 @@ function Primary({ view }: { view: LoadView }) {
 export function LoadPanel({
   which,
   view,
-  /** 최근 28일 중 투구 기록이 빠진 날 수. 투구 칸에서만 온다. */
-  missingDays,
-  missingWarningAt,
-  /** 최근 4주 최장 연투 일수. 투구 칸에서만 온다. */
-  throwStreak,
+  /** 투구 칸 경고 — 기록 빠진 날 · 최장 연투(값이 있을 때만 띄운다, 문턱은 analysis-overview.ts). 투구 칸에서만 온다. */
+  notices,
 }: {
   which: 'pitching' | 'training';
   view: LoadView;
-  missingDays?: number;
-  missingWarningAt?: number;
-  throwStreak?: number;
+  notices?: AnalysisOverview['notices'];
 }) {
   const isPitching = which === 'pitching';
+  const missingDays = notices?.missingDays ?? null;
+  const throwStreak = notices?.throwStreak ?? null;
 
   return (
     /* 평평한 흰 면 — 은은한 빛 그라데이션(bg-spotlight)은 AI 템플릿의 카드 같았다(2026-10-04) */
@@ -175,10 +125,7 @@ export function LoadPanel({
         기록이 빠진 날이 많으면 지수가 실제보다 낮게 나온다.
         낮은 숫자는 "더 던져도 된다"는 뜻으로 읽히므로 그냥 두면 안 된다.
       */}
-      {isPitching &&
-        missingDays != null &&
-        missingWarningAt != null &&
-        missingDays >= missingWarningAt && (
+      {isPitching && missingDays != null && (
           <p className="border-t border-warn-line bg-warn-bg px-(--block-pad) py-3 text-xs leading-relaxed text-warn">
             기록 없는 날이 {missingDays}일이라 지수가 낮게 나올 수 있어요.{' '}
             <Link href="/today" className="font-semibold text-sky-strong">
@@ -194,7 +141,7 @@ export function LoadPanel({
         보고 나면 한참 아래 작은 카드에 있는 연투 숫자는 눈에 안 들어온다.
         그래서 지수 옆에 붙인다.
       */}
-      {isPitching && throwStreak != null && throwStreak >= STREAK_WARNING && (
+      {isPitching && throwStreak != null && (
         <p className="border-t border-warn-line bg-warn-bg px-(--block-pad) py-3 text-xs leading-relaxed text-warn">
           최근 4주에 {throwStreak}일 연속으로 던진 구간이 있어요. 지수가 높지 않아도
           쉬는 날을 넣어 주세요.

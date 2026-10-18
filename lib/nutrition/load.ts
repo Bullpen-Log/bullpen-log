@@ -129,8 +129,10 @@ export type NutritionDay = {
   } | null;
   /** 전날 먹은 것 — '어제와 같이' 담기에 쓴다 */
   yesterday: MealEntryView[];
-  /** 목표 계산에 쓴 몸 정보 — 목표 설정 창이 미리 계산해 보여 준다 */
+  /** 목표 계산에 쓴 몸 정보(보는 날 기준) */
   body: Body;
+  /** 오늘 기준 몸 — 목표 창 · 내 계획은 이것으로(서버 saveNutritionProfile 이 오늘 체중 · 나이로 검사한다). 오늘을 보면 body 와 같다 */
+  todayBody: Body;
   /** 식약처 검색을 쓸 수 있나(인증키가 있나) */
   mfds: boolean;
   /** 식약처 둘러보기의 분류 → 세부 칸 → 음식 수(음식 창이 빈 칸을 숨기고 숫자를 단다) */
@@ -262,7 +264,11 @@ export async function loadNutritionDay(
    * 한 번에 읽도록 둘을 덮는 범위. 예전 띠는 고른 날이 든 한 주(일~토)였다.
    */
   const todayKey = toDateKey(appNow());
-  const stripKeys = stripDays(date, todayKey, shiftDateKey(todayKey, -NUTRITION_BACK_DAYS));
+  const stripKeys = stripDays(
+    date,
+    todayKey,
+    shiftDateKey(todayKey, -NUTRITION_BACK_DAYS)
+  );
   const stripStart = stripKeys[0];
   const stripEnd = stripKeys[stripKeys.length - 1];
   const rangeStart = weekStart < stripStart ? weekStart : stripStart;
@@ -341,7 +347,8 @@ export async function loadNutritionDay(
     prisma.userFood.findMany({
       where: { userId },
       orderBy: { updatedAt: 'desc' },
-      take: 100,
+      /* 저장 한도(app/actions/nutrition.ts saveUserFood, 300)와 같게 — 100 이면 나머지는 보이지도 지워지지도 않았다(2026-10-17) */
+      take: 300,
     }),
     prisma.mealCombo.findMany({
       where: { userId },
@@ -447,6 +454,18 @@ export async function loadNutritionDay(
     age: ageOn(user.birthDate, date),
     sex: isSex(user.sex) ? user.sex : null,
   };
+  /*
+   * 오늘 기준 몸 — 지난 날을 보며 목표를 고치면 화면은 그날의 체중 · 나이로 범위를 보였는데 서버는 오늘 것으로 검사해 '범위 안인데 막혔다'
+   * (2026-10-17). 목표 창 · 내 계획은 todayBody 를 쓴다.
+   */
+  const todayBody: Body = isToday
+    ? body
+    : {
+        weightKg: (await recentWeightKg(user.id, todayKey)) ?? user.weightKg,
+        heightCm: user.heightCm,
+        age: ageOn(user.birthDate, todayKey),
+        sex: body.sex,
+      };
   const burnItems = burnByDay.get(date) ?? [];
   const targets = computeTargets(profile, body, totalBurn(burnItems));
 
@@ -630,6 +649,7 @@ export async function loadNutritionDay(
     combos: comboRows.map(comboView).filter((c): c is MealComboView => c !== null),
     yesterday,
     body,
+    todayBody,
     mfds: mfdsEnabled(),
     browseSubs: mfdsSubCounts(),
     popular,

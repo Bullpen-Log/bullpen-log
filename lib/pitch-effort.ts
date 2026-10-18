@@ -20,8 +20,16 @@ import {
  * 순수 파일 — server-only · prisma · 날짜 함수 없음. 화면(클라이언트)과 서버, 자체 시험이 그대로 부른다.
  */
 
-/** 입력 칩 — 50~100% 10% 간격. 그 사이와 50 밑(캐치볼 몸풀기)은 ±5% 로 맞춘다 */
-export const EFFORT_CHIPS = [50, 60, 70, 80, 90, 100] as const;
+/**
+ * 입력 칩 — 화면은 1~10, 값은 그 × 10 의 %(10 · 20 … 100). 2026-10-18 사용자: "50~100% 를 1~10 으로 다시".
+ * 저장 · 계산은 그대로 체감 강도 %(effortPct)라 부하 · 추천 엔진은 바뀌지 않는다.
+ */
+export const EFFORT_CHIPS = [10, 20, 30, 40, 50, 60, 70, 80, 90, 100] as const;
+
+/** % → 화면의 1~10 글 — 90 → '9', 85(예전 % 로 고른 기록) → '8.5' */
+export function effortScaleText(pct: number): string {
+  return String(Math.round(pct) / 10);
+}
 
 /** 5% 칸에 맞춘다(83 → 85 · 82 → 80). 범위 검사는 부르는 쪽이 먼저 한다 */
 export function snapEffortPct(pct: number): number {
@@ -140,13 +148,13 @@ export function derivedEffortText(
  * 있으면 그것, 옛 기록은 intensity × 10). 칸 색 · '강도 80% 이상' 같은 문턱도 이 % 로 견준다.
  * ------------------------------------------------------------------ */
 
-/** 기록 한 건의 체감 강도 글 — '85%'. 쉰 날 · 강도를 안 적은 기록은 null */
+/** 기록 한 건의 강도 글 — 1~10('9', 예전 85% 기록은 '8.5'). 쉰 날 · 강도를 안 적은 기록은 null(2026-10-18 1~10 으로 되돌림) */
 export function effortText(log: {
   intensity: number;
   effortPct?: number | null;
 }): string | null {
   const read = readEffort(log);
-  return read ? `${read.pct}%` : null;
+  return read ? effortScaleText(read.pct) : null;
 }
 
 /** 여러 기록(같은 날) 가운데 가장 센 체감 강도(%) — 달력 칸 색 · 그날 요약. 던진 기록이 없으면 0 */

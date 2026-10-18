@@ -81,7 +81,8 @@ export const MAX_HIGHLIGHTS = 3;
  */
 export type HighlightPart = 'home' | 'pitch' | 'training';
 export function partOf(key: Highlight['key']): HighlightPart {
-  if (key === 'load' || key === 'gap' || key === 'velocity' || key === 'away') return 'pitch';
+  if (key === 'load' || key === 'gap' || key === 'velocity' || key === 'away')
+    return 'pitch';
   if (key === 'training') return 'training';
   return 'home';
 }
@@ -119,7 +120,10 @@ function runBack(start: string, ok: (key: string) => boolean) {
   return n;
 }
 
-export function buildHighlights(input: HighlightInput, part?: HighlightPart): Highlight[] {
+export function buildHighlights(
+  input: HighlightInput,
+  part?: HighlightPart
+): Highlight[] {
   const { today, load, pitchesByDay, velocityByDay, conditionByDay } = input;
   const week = days(today, -6, 0);
   const lastWeek = days(today, -13, -7);
@@ -203,6 +207,10 @@ export function buildHighlights(input: HighlightInput, part?: HighlightPart): Hi
       minSpan: 6,
     };
     const prev3 = maxOf(days(today, -27, -7).map((k) => velocityByDay[k]));
+    /* '첫 기록'은 구속을 잰 날이 통틀어 하루일 때만 — 두 번째 날에도 일주일 내내 '첫 기록'이라 했다(2026-10-17) */
+    const measuredDays = Object.keys(velocityByDay).filter(
+      (k) => velocityByDay[k] != null
+    ).length;
     if (input.bestBefore == null || bestWeek > input.bestBefore) {
       out.push({
         key: 'velocity',
@@ -210,7 +218,9 @@ export function buildHighlights(input: HighlightInput, part?: HighlightPart): Hi
         label: '구속',
         text:
           input.bestBefore == null
-            ? '첫 구속 기록이에요. {speed}'
+            ? measuredDays > 1
+              ? '이번 주 최고 구속 {speed}'
+              : '첫 구속 기록이에요. {speed}'
             : '최고 구속 {speed}, 새 기록이에요.',
         speed: bestWeek,
         href: ANALYSIS,

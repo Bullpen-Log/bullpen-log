@@ -8,13 +8,16 @@ import { dbDate } from '@/lib/nutrition/days';
 import { getCurrentUser } from '@/lib/dal';
 import {
   checkOptionalNumber,
+  MAX_NICKNAME,
   MAX_WEIGHT_KG,
   MIN_WEIGHT_KG,
   isSex,
+  toDateInputValue,
   validateProfile,
+  type Sex,
 } from '@/lib/profile';
 import { withInput, type FormValues } from '@/lib/form-values';
-import { deleteVideos, forgetPlaybackUrls, isOwnAvatarPath } from '@/lib/storage';
+import { createAvatarUrl, deleteVideos, forgetPlaybackUrls, isOwnAvatarPath } from '@/lib/storage';
 
 export type ProfileState =
   | {
@@ -40,6 +43,10 @@ async function tryUpdateProfile(formData: FormData): Promise<ProfileState> {
   const nickname = String(formData.get('nickname') ?? '').trim();
   if (nickname.length < 2) {
     return { error: '닉네임은 2자 이상이어야 해요.' };
+  }
+  /* 가입(20자)과 같은 선 — 내 정보에만 위 한계가 없어 아무 길이나 저장됐다(2026-10-17) */
+  if (nickname.length > MAX_NICKNAME) {
+    return { error: `닉네임은 ${MAX_NICKNAME}자까지예요.` };
   }
 
   const checked = validateProfile(
@@ -166,4 +173,48 @@ export async function saveAvatar(path: string | null): Promise<ProfileState> {
   revalidatePath('/', 'layout');
 
   return { success: path ? '사진을 바꿨어요.' : '사진을 지웠어요.' };
+}
+
+/* ─────────────────────────────── 아이폰 앱 ─────────────────────────────── */
+
+export type AppProfile = {
+  email: string;
+  nickname: string;
+  /** YYYY-MM-DD, 안 적었으면 '' */
+  birthDate: string;
+  sex: Sex | null;
+  heightCm: number | null;
+  weightKg: number | null;
+  isAdmin: boolean;
+  /** 지금 사진의 임시 주소 — 없으면 글자 아바타 */
+  avatarUrl: string | null;
+  today: string;
+};
+
+/**
+ * 아이폰 앱(native/src/app/profile.tsx)의 내 정보 — 웹 내 정보 창(components/profile-panel.tsx)이 레이아웃에서 받는 것과 같은 값.
+ * /api/rpc/profile.loadAppProfile 로 부른다.
+ */
+export async function loadAppProfile(): Promise<({ ok: true } & AppProfile) | { ok: false; to: string }> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, to: '/login' };
+  return {
+    ok: true,
+    email: user.email,
+    nickname: user.nickname,
+    birthDate: user.birthDate ? toDateInputValue(user.birthDate) : '',
+    sex: isSex(user.sex) ? user.sex : null,
+    heightCm: user.heightCm,
+    weightKg: user.weightKg,
+    isAdmin: user.role === 'ADMIN',
+    avatarUrl: await createAvatarUrl(user.avatarPath),
+    today: toDateKey(appNow()),
+  };
+}
+
+/** 앱의 내 정보 저장 — 웹 폼(updateProfile)과 같은 칸 · 같은 검사. 앱은 FormData 를 못 보내 칸을 글자로 받아 폼으로 바꾼다(키 cm · 몸무게 kg) */
+export async function updateAppProfile(fields: Record<string, unknown>): Promise<ProfileState> {
+  const form = new FormData();
+  for (const k of ['nickname', 'birthDate', 'sex', 'heightCm', 'weightKg']) form.set(k, String(fields?.[k] ?? ''));
+  return tryUpdateProfile(form);
 }

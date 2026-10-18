@@ -12,8 +12,9 @@ import {
   sleepLevelFromQuality,
   validateCheckin,
   validateCheckinDate,
+  type CheckinPartKey,
 } from '@/lib/checkin';
-import { parseBodySpots, partsFromSpots } from '@/lib/body-spots';
+import { cleanBodySpots, parseBodySpots, partsFromSpots, spotOf } from '@/lib/body-spots';
 import { withInput, type FormValues } from '@/lib/form-values';
 
 export type CheckinState =
@@ -91,6 +92,10 @@ async function trySaveCheckin(formData: FormData): Promise<CheckinState> {
    */
   const sleepQualityRaw = String(formData.get('sleepQuality') ?? '').trim();
   const sleepQuality = sleepQualityRaw === '' ? null : Number(sleepQualityRaw);
+  /* 3판 흐름(웹 · 앱)은 잠을 꼭 고른다 — 안 고른 날이 '보통'으로 저장돼 짧은 밤 규칙이 꺼졌다(2026-10-18 사용자: "미리 고르는 건 아니지") */
+  if (sleepQuality == null && formData.get('flow') === '3') {
+    return { error: '어젯밤 잠을 골라 주세요.' };
+  }
   if (
     sleepQuality != null &&
     !(
@@ -107,6 +112,12 @@ async function trySaveCheckin(formData: FormData): Promise<CheckinState> {
     (name) => formData.getAll(name).map(String),
     checked.value
   );
+  /* 어깨 · 팔꿈치가 '통증'이면 정도는 꼭 — 안 고른 날을 '심함'으로 어림하던 것을 없앴다(2026-10-18 사용자: "통증 표시하면 필수로") */
+  if (checked.value.shoulder === '통증' || checked.value.elbow === '통증') {
+    /* 아픈 자리도 꼭 — 자리가 없으면 '던질 때만'이어도 가벼운 통증 루틴 대신 쉬기가 나왔다(canDoPainRoutine) */
+    if (armPain.armPainSpots.length === 0) return { error: '어깨 · 팔꿈치 어디가 아픈지 골라 주세요.' };
+    if (armPain.armPainLevel == null) return { error: '어깨 · 팔꿈치가 얼마나 아픈지 골라 주세요.' };
+  }
 
   const note = String(formData.get('note') ?? '').trim();
   if (note.length > CHECKIN_NOTE_MAX) {
@@ -145,4 +156,52 @@ async function trySaveCheckin(formData: FormData): Promise<CheckinState> {
   /* 체크인 관문은 모든 화면의 틀(레이아웃)에 있다. 거기도 오늘 체크인을 알아야 한다. */
   revalidatePath('/', 'layout');
   return { success: '오늘 체크인을 저장했어요.', savedDate: dateKey };
+}
+
+/**
+ * 아이폰 앱(native/src/app/checkin.tsx) 체크인 — 앱은 폼(FormData)을 못 보내 JSON 으로 받아, 웹 흐름(components/checkin-flow/flow.tsx)이
+ * 보내는 것과 같은 폼 칸으로 옮겨 같은 저장(trySaveCheckin)을 탄다. 앱은 몸 그림 대신 다섯 부위를 고른다(몸 그림 근육은 비움).
+ */
+export async function saveAppCheckin(input: {
+  date: unknown;
+  condition: unknown;
+  sleepQuality: unknown;
+  parts: unknown;
+  armSpots: unknown;
+  armLevel: unknown;
+  note: unknown;
+}): Promise<CheckinState> {
+  const fd = new FormData();
+  fd.set('flow', '3');
+  fd.set('date', String(input?.date ?? ''));
+  fd.set('condition', String(input?.condition ?? ''));
+  if (input?.sleepQuality != null) fd.set('sleepQuality', String(input.sleepQuality));
+  const parts = (input?.parts ?? {}) as Record<string, unknown>;
+  for (const p of CHECKIN_PARTS) if (typeof parts[p.key] === 'string') fd.set(p.key, parts[p.key] as string);
+  fd.set('armpain', '1');
+  if (Array.isArray(input?.armSpots)) for (const s of input.armSpots) fd.append('armPainSpots', String(s));
+  if (input?.armLevel != null) fd.set('armPainLevel', String(input.armLevel));
+  fd.set('note', typeof input?.note === 'string' ? input.note : '');
+  /*
+   * 웹 몸 그림으로 고른 근육(bodySpots)을 지키기 — 앱은 다섯 부위만 고르니, 앱이 그대로 둔 부위의 근육은 남기고 바꾼 부위의 근육만
+   * 버린다(남기면 그 근육이 부위 칸을 도로 올려 앱에서 '정상'으로 낮춘 것이 안 먹는다). 안 보내면 trySaveCheckin 이 {} 로 덮는다.
+   */
+  const user = await getCurrentUser();
+  const dateKey = String(input?.date ?? '');
+  if (user && validateCheckinDate(dateKey)) {
+    const row = await prisma.dailyCheckin.findUnique({
+      where: { userId_date: { userId: user.id, date: new Date(`${dateKey}T00:00:00.000Z`) } },
+    });
+    if (row) {
+      const stored = pickCheckinParts(row as Partial<Record<CheckinPartKey, string>>);
+      const kept = Object.fromEntries(
+        Object.entries(cleanBodySpots(row.bodySpots)).filter(([id]) => {
+          const part = spotOf(id)?.def.part;
+          return part != null && (fd.get(part) ?? '정상') === stored[part];
+        })
+      );
+      fd.set('bodySpots', JSON.stringify(kept));
+    }
+  }
+  return trySaveCheckin(fd);
 }

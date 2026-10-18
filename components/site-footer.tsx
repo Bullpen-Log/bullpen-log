@@ -1,12 +1,9 @@
 import Link from 'next/link';
 import { Wordmark } from '@/components/logo';
+import { CONTACT, MEDICAL_NOTICE } from '@/lib/site-info';
 
-/** 문의 메일 — 이용약관 · 개인정보 처리방침의 '문의'와 같은 주소 */
-export const CONTACT = 'bullpenlog.com@gmail.com';
-
-/** 의료 안내 — 꼬리말과 설정 창 '정보'(휴대폰은 꼬리말이 없다)가 같이 쓴다 */
-export const MEDICAL_NOTICE =
-  '투구 계획과 운동 제안은 남긴 기록을 바탕으로 계산한 참고 자료이며, 의학적 진단이나 처방이 아닙니다. 통증이 있으면 수치와 관계없이 던지지 말고 전문의와 상담하세요.';
+/* 문의 메일 · 의료 안내는 앱(native/)도 쓰니 lib/site-info.ts 에 둔다 — 예전처럼 여기서도 가져갈 수 있게 다시 내보낸다 */
+export { CONTACT, MEDICAL_NOTICE };
 
 /**
  * 화면 맨 밑 — 웹사이트라면 흔히 두는 것을 짧게(사용자 요청, 2026-09-27).

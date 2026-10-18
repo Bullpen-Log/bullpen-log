@@ -13,13 +13,12 @@ import { Button, Field, Input, Textarea } from '@/components/ui';
 import { Segmented } from '@/components/segmented';
 import { VideoUpload, type UploadedVideo } from '@/components/video-upload';
 import { usePlaybackUrls } from '@/components/use-playback-urls';
-import { FilmingGuide } from '@/components/filming-guide';
 import { IntensityGuide } from '@/components/intensity-guide';
 import { EffortChips, focusEffortChips } from '@/components/effort-chips';
 import { makePitchThumb } from '@/lib/pitch-thumbs';
 import { dateKeyLabel } from '@/lib/pitch-stats';
-import { derivedEffortText, readEffort } from '@/lib/pitch-effort';
-import { DEFAULT_SESSION_TYPE, SESSION_TYPES, isRestSession } from '@/lib/session-type';
+import { readEffort } from '@/lib/pitch-effort';
+import { SESSION_TYPES, isRestSession } from '@/lib/session-type';
 import type { LogPrefill } from '@/lib/velocity-meta';
 import {
   GOOD_DAY_MIN,
@@ -39,7 +38,7 @@ import {
   subscribeUnits,
   toSpeed,
   type SpeedUnit,
-} from '@/lib/units';
+} from '@/lib/units-storage';
 import { haptic } from '@/lib/haptics';
 import { CHECK_CONNECTION } from '@/lib/offline';
 import { isPhoneVideoPath, removePhoneVideos } from '@/lib/local-video';
@@ -66,7 +65,8 @@ function discardUploads(paths: string[]) {
 }
 
 const EMPTY_FORM = {
-  sessionType: DEFAULT_SESSION_TYPE as string,
+  /* 비워 두고 꼭 고르게 — 예전엔 '불펜'이 미리 골라져 캐치볼도 불펜으로 저장됐다(2026-10-18 사용자: "비워둬") */
+  sessionType: '' as string,
   pitchCount: '',
   /*
    * 체감 강도(%) — 기본값 없이 비워 둔다(2판 D2). 예전 1~10 막대는 5 에서 시작해 운영 기록의 3분의 2가 손대지 않은 5 였고,
@@ -565,6 +565,10 @@ export function EntryForm({
       );
       return;
     }
+    if (!form.sessionType) {
+      onError('투구 종류를 골라 주세요.');
+      return;
+    }
     /* 던진 날인데 체감 강도를 안 골랐다 — 서버까지 가지 않고 그 칸으로 보낸다(서버도 같은 말로 막는다) */
     if (!isRestSession(form.sessionType) && form.effortPct == null) {
       onError(undefined);
@@ -704,9 +708,15 @@ export function EntryForm({
                   placeholder="45"
                   required
                 />
+                {/* 구속 측정으로 채운 투구 수는 잰 공만이다 — 못 잰 공을 알린다(2026-10-18 사용자) */}
+                {!initial && prefill?.missed ? (
+                  <p className="mt-1.5 text-xs text-warn">
+                    못 잰 공 {prefill.missed}개는 빠졌어요. 실제로 던진 수가 다르면 고쳐 주세요.
+                  </p>
+                ) : null}
               </Field>
               {/*
-                체감 강도(%) — 투구수 옆 반 칸이 아니라 한 줄을 다 쓴다. 칩 여섯이 넓은 화면의 반의반 칸에는 안 들어간다.
+                강도(1~10) — 투구수 옆 반 칸이 아니라 한 줄을 다 쓴다. 칩 열이 넓은 화면의 반의반 칸에는 안 들어간다.
                 강도는 부하 지수 · 휴식일 · 세게 던진 날을 정하는 값이라, 감으로 찍으면 그 뒤 계산이 전부 흔들린다.
                 고르는 자리 바로 밑에 기준을 둔다. Field(label)로 감싸지 않는다 — 단추 여럿을 label 이 감싸면 이름을
                 눌러도 첫 칩이 눌린다.
@@ -720,12 +730,6 @@ export function EntryForm({
                     setForm({ ...form, effortPct: pct });
                   }}
                   invalid={effortMissing}
-                  /* '예전에 적은 강도 9에서 계산한 값이에요.' — 고르면 사라진다 */
-                  note={
-                    keepsLegacyEffort
-                      ? `예전에 적은 ${derivedEffortText(initialEffort)}한 값이에요.`
-                      : null
-                  }
                 />
                 <IntensityGuide kind="pitch" />
               </div>
@@ -753,8 +757,6 @@ export function EntryForm({
               }
             >
               <div className="space-y-3">
-                {/* 올리기 전에 촬영 조건을 한 번 보고 가도록 바로 위에 둔다. */}
-                {!resting && <FilmingGuide />}
                 <VideoUpload
                   videos={shownVideos}
                   onChange={changeVideos}
@@ -876,8 +878,6 @@ export function EntryForm({
               }
             >
               <div className="space-y-3">
-                {/* 올리기 전에 촬영 조건을 한 번 보고 가도록 바로 위에 둔다. */}
-                {!resting && <FilmingGuide />}
                 <VideoUpload
                   videos={shownVideos}
                   onChange={changeVideos}

@@ -7,6 +7,7 @@ import { SHOOT_PLAN } from '@/lib/shoot/plan';
 import { loadShootChecks, loadShootExercises } from '@/lib/shoot/load';
 import {
   BUCKET_LABEL,
+  carriedOver,
   clockText,
   countOf,
   cursorOf,
@@ -19,7 +20,8 @@ import {
   type Count,
   type ShootCheckView,
 } from '@/lib/shoot/progress';
-import { ALL_STATIONS, SESSION_MINUTES, WRAP_MINUTES } from '@/lib/shoot/schedule';
+import { ALL_STATIONS, SESSION_MINUTES, WRAP_MINUTES, weekLabel } from '@/lib/shoot/schedule';
+import { crewsOf } from '@/lib/shoot/crews';
 import { toDateKey } from '@/lib/pitch-stats';
 
 /**
@@ -53,7 +55,8 @@ export async function ShootOverview({
     return s === 'redo' || s === 'later';
   });
   const weeks = plan.weeks.map((w) => {
-    const its = weekItems(w);
+    /* 미룬 영상 칸은 다른 주에서 미룬 것까지 센다(그 칸 끝에 모인다 — progress.ts carriedOver) */
+    const its = w.deferred ? [...weekItems(w), ...carriedOver(plan, w.week, checks)] : weekItems(w);
     const count = countOf(its, checks);
     const cur = cursorOf(w, checks);
     return { w, count, cur, total: its.length };
@@ -65,7 +68,8 @@ export async function ShootOverview({
   ].filter((n): n is { label: string; next: (typeof weeks)[number] } => !!n.next);
   const kindCount = (k: 'exercise' | 'drill' | 'warmup') =>
     items.filter((i) => (i.kind ?? 'exercise') === k).length;
-  const indoorWeeks = plan.weeks.filter((w) => !w.outdoor).map((w) => w.week);
+  const indoorWeeks = plan.weeks.filter((w) => !w.outdoor && !w.deferred).map((w) => w.week);
+  const planWeeks = plan.weeks.filter((w) => !w.deferred).length;
   const outdoorWeeks = plan.weeks.filter((w) => w.outdoor).map((w) => w.week);
   const span = (ws: number[]) => (ws.length ? `${ws[0]}~${ws[ws.length - 1]}주` : '');
   const sessions = sessionsOf(checkList, toDateKey);
@@ -102,7 +106,7 @@ export async function ShootOverview({
       <BackLink href="/admin">관리자</BackLink>
       <PageHeading
         title="트레이닝 영상 촬영"
-        description={`실내 ${span(indoorWeeks)} 운동 ${kindCount('exercise')}개 · 야외 ${span(outdoorWeeks)} 투구 드릴 ${kindCount('drill')}개와 워밍업 ${kindCount('warmup')}개를 우리 영상으로 찍어요. 주 1회 3시간 · ${plan.weeks.length}주 계획.`}
+        description={`실내 ${span(indoorWeeks)} 운동 ${kindCount('exercise')}개 · 야외 ${span(outdoorWeeks)} 투구 드릴 ${kindCount('drill')}개와 워밍업 ${kindCount('warmup')}개를 우리 영상으로 찍어요. 주 1회 3시간 · ${planWeeks}주 계획.`}
       />
 
       {/* ── 게이지 + 이어 찍기 ── */}
@@ -131,7 +135,7 @@ export async function ShootOverview({
               {nexts.map(({ label, next }) => (
                 <div key={label} className="space-y-3 rounded-2xl bg-sky/8 p-4">
                   <p className="text-xs font-semibold text-sky-strong">
-                    다음 {label} 촬영 · {next.w.week}주차 {next.count.done}/{next.total}
+                    다음 {label} 촬영 · {weekLabel(next.w)} {next.count.done}/{next.total}
                   </p>
                   <p className="text-base font-bold break-keep text-ink">
                     <span className="text-numeric mr-2 text-muted">{next.cur.current!.no}</span>
@@ -143,7 +147,7 @@ export async function ShootOverview({
                       {next.count.done > 0 ? '이어 찍기' : '촬영 시작'}
                     </ButtonLink>
                     <ButtonLink href={`/admin/shoot/${next.w.week}`} variant="secondary">
-                      {next.w.week}주차 시간표
+                      {weekLabel(next.w)} 시간표
                     </ButtonLink>
                   </div>
                 </div>
@@ -164,12 +168,18 @@ export async function ShootOverview({
         <h2 className="text-sm font-bold text-ink">주차별</h2>
         <ul className="grid gap-block sm:grid-cols-2 desk:grid-cols-3 xl:grid-cols-4">
           {weeks.map(({ w, count, cur, total }, i) => {
+            /* 2026-10-18 사용자: 다 찍은 주는 '완료'. 미룬 영상 칸은 남은 수 */
             const state =
-              count.done === total
-                ? '다 찍음'
-                : count.done + count.redo + count.later > 0
-                  ? '진행 중'
-                  : '예정';
+              total > 0 && count.done === total
+                ? '완료'
+                : w.deferred
+                  ? total > 0
+                    ? `미룸 ${total - count.done}개`
+                    : '비어 있음'
+                  : count.done + count.redo + count.later > 0
+                    ? '진행 중'
+                    : '예정';
+            const crews = crewsOf(w);
             return (
               <li
                 key={w.week}
@@ -182,7 +192,7 @@ export async function ShootOverview({
                 >
                   <span className="flex items-center justify-between gap-2">
                     <span className="flex items-center gap-2 text-base font-bold text-ink">
-                      {w.week}주차
+                      {weekLabel(w)}
                       {w.outdoor && (
                         <span className="rounded-full bg-ink/6 px-2 py-0.5 text-caption font-semibold text-muted">
                           야외
@@ -191,9 +201,9 @@ export async function ShootOverview({
                     </span>
                     <span
                       className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${
-                        state === '다 찍음'
+                        state === '완료'
                           ? 'bg-sky text-white'
-                          : state === '진행 중'
+                          : state === '진행 중' || w.deferred
                             ? 'bg-sky/12 text-sky-strong'
                             : 'bg-ink/6 text-muted'
                       }`}
@@ -206,7 +216,7 @@ export async function ShootOverview({
                     redo={count.redo}
                     later={count.later}
                     total={total}
-                    label={`${w.week}주차 진행`}
+                    label={`${weekLabel(w)} 진행`}
                   />
                   <span className="flex items-baseline justify-between text-xs text-muted">
                     <span>
@@ -214,7 +224,11 @@ export async function ShootOverview({
                       {total}
                     </span>
                     <span className="tabular-nums">
-                      계획 {clockText(w.end)} · 자리 {w.stations.length}곳
+                      {w.deferred
+                        ? '미룸으로 체크하면 여기로'
+                        : crews.length
+                          ? `${crews.join(' · ')} 동시 · 계획 ${clockText(w.end)}`
+                          : `계획 ${clockText(w.end)} · 자리 ${w.stations.length}곳`}
                     </span>
                   </span>
                   {cur.current && count.done > 0 && (

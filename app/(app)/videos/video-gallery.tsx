@@ -429,7 +429,8 @@ export function VideoGallery({
             </button>
           ))}
         </div>
-        {videoCount >= 2 && (
+        {/* 고르는 중에는 늘 보인다 — 거름으로 영상이 1개 이하가 되면 '그만두기'까지 사라져 고르기에서 못 나왔다(2026-10-17) */}
+        {(selecting || videoCount >= 2) && (
           <button
             type="button"
             onClick={() => {

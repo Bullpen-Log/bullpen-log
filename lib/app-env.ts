@@ -16,6 +16,27 @@
 /** 앱 껍데기가 User-Agent 에 덧붙이는 표시 */
 export const NATIVE_UA_MARK = 'BullpenLogApp';
 
+/**
+ * 새 아이폰 앱(Expo, native/ — 'BullpenLogApp/2.0 BullpenNative/1', native/src/lib/site.ts APP_UA)의 표시. 네이티브로 옮긴 화면(구속 측정)은
+ * 사이트 안에서 눌러도 앱 화면으로 넘긴다 — 사이트 안 이동은 페이지를 새로 안 불러 앱이 주소로 가로채지 못한다(2026-10-18).
+ */
+export const EXPO_UA_MARK = 'BullpenNative/';
+
+export function isExpoUserAgent(userAgent: string | null | undefined): boolean {
+  return !!userAgent && userAgent.includes(EXPO_UA_MARK);
+}
+
+/**
+ * 새 앱이 아는 앱 화면의 판(BullpenNative/<n>) — 사이트가 앱 화면으로 넘기기 전에 그 판이 그 화면을 아는지 본다. 사이트는 바로 배포되고
+ * 앱은 폰에 깔린 판이 늦게 바뀌어서, 모르는 판에 넘기면 화면이 사라진다. 판: 1 구속 측정 · 투구 그날, 2 운동 진행(/workout),
+ * 3 암케어 따라 하기(/armcare/<id>), 4 메커니즘 따라 하기(/mechanics), 5 분석(/analysis), 6 커뮤니티 · 고객센터(/community · /support),
+ * 7 라이브러리(/library/training · /library/mechanics) · 자료실(/board).
+ */
+export function expoLevel(userAgent: string | null | undefined): number {
+  const m = userAgent ? /BullpenNative\/(\d+)/.exec(userAgent) : null;
+  return m ? Number(m[1]) : 0;
+}
+
 /** 서버 — 요청 머리의 User-Agent 로 판단한다 */
 export function isNativeUserAgent(userAgent: string | null | undefined): boolean {
   return !!userAgent && userAgent.includes(NATIVE_UA_MARK);

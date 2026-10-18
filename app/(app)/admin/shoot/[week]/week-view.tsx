@@ -27,7 +27,8 @@ import {
   type ShootCheckView,
   type ShootStatus,
 } from '@/lib/shoot/progress';
-import type { PlanItem } from '@/lib/shoot/schedule';
+import { weekLabel, type PlanItem } from '@/lib/shoot/schedule';
+import { crewsOf } from '@/lib/shoot/crews';
 
 type Filter = 'all' | 'open' | 'done';
 
@@ -56,7 +57,7 @@ export function WeekView({ data, me }: { data: ShootWeekData; me: string }) {
     [carried]
   );
   const count = countOf(items, map);
-  const { current, next } = cursorOfList(queue, map);
+  const { current, next } = cursorOfList(queue, map, null, !!week.deferred);
   /* 메인 '올릴 차례' · '다시 찍기' 목록에서 #6-12 로 오면 그 운동 창을 연다 — 처음 한 번만(올린 뒤 다시 그려져도 또 열지 않게) */
   const hashDone = useRef(false);
   const showDetail = detail.show;
@@ -80,6 +81,20 @@ export function WeekView({ data, me }: { data: ShootWeekData; me: string }) {
     () => [...new Set(items.flatMap((it) => it.equipment))].filter((e) => e !== '맨몸'),
     [items]
   );
+  /* 두 사람이 나눠 찍는 주(lib/shoot/crews.ts) — 촬영 모드도 사람마다(?crew=A) */
+  const crews = crewsOf(week);
+  const crewOf = useMemo(
+    () => new Map(week.stations.flatMap((s) => s.items.map((it) => [it.exerciseId, s.crew] as const))),
+    [week]
+  );
+  const runHref = (crew?: string, at?: string) => {
+    const q = new URLSearchParams();
+    if (crew) q.set('crew', crew);
+    if (at) q.set('at', at);
+    const s = q.toString();
+    return `/admin/shoot/${week.week}/run${s ? `?${s}` : ''}`;
+  };
+  const label = weekLabel(week);
 
   const show = (it: PlanItem) => {
     const st = stateOf(it, map);
@@ -106,15 +121,21 @@ export function WeekView({ data, me }: { data: ShootWeekData; me: string }) {
   return (
     <>
       <PageHeading
-        title={`${week.week}주차 촬영${week.outdoor ? ' · 야외' : ''}`}
-        description={`${items.length}개 · 계획 0:15~${clockText(week.end)} · 자리 ${week.stations.length}곳${carried.length ? ` · 앞 주에서 넘어온 것 ${carried.length}개` : ''}`}
+        title={week.deferred ? label : `${label} 촬영${week.outdoor ? ' · 야외' : ''}`}
+        description={
+          week.deferred
+            ? `미룬 운동을 모아 둔 곳이에요 · ${items.length + carried.length}개`
+            : `${items.length}개 · 계획 0:15~${clockText(week.end)} · ${crews.length ? `${crews.join(' · ')} 두 사람이 공간을 나눠 동시에` : `자리 ${week.stations.length}곳`}${carried.length ? ` · 앞 주에서 넘어온 것 ${carried.length}개` : ''}`
+        }
         action={
           /* 휴대폰은 진행 칸의 큰 [이어 찍기] 하나만 — ButtonLink 의 inline-flex 가 hidden 을 이겨서 감싼다 */
-          <div className="hidden desk:block">
-            <ButtonLink href={`/admin/shoot/${week.week}/run`}>
-              <Clapperboard aria-hidden className="h-4 w-4" />
-              촬영 모드
-            </ButtonLink>
+          <div className="hidden gap-2 desk:flex">
+            {(crews.length ? crews : [undefined]).map((c) => (
+              <ButtonLink key={c ?? 'all'} href={runHref(c)}>
+                <Clapperboard aria-hidden className="h-4 w-4" />
+                {c ? `${c} 촬영 모드` : '촬영 모드'}
+              </ButtonLink>
+            ))}
           </div>
         }
       />
@@ -125,9 +146,9 @@ export function WeekView({ data, me }: { data: ShootWeekData; me: string }) {
         value={String(week.week)}
         onChange={(v) => router.push(`/admin/shoot/${v}`)}
         options={weeks.map((w) => ({
-          value: String(w),
-          label: `${w}주차`,
-          href: `/admin/shoot/${w}`,
+          value: String(w.week),
+          label: w.label,
+          href: `/admin/shoot/${w.week}`,
         }))}
         size="md"
         settleKey={week.week}
@@ -181,13 +202,14 @@ export function WeekView({ data, me }: { data: ShootWeekData; me: string }) {
             {count.later ? ` · 미룬 것 ${count.later}개가 남아 있어요` : ''}.
           </p>
         )}
-        <ButtonLink
-          href={`/admin/shoot/${week.week}/run`}
-          className="h-14 w-full text-base desk:hidden"
-        >
-          <Clapperboard aria-hidden className="h-5 w-5" />
-          {count.done > 0 ? '이어 찍기' : '촬영 모드로 시작'}
-        </ButtonLink>
+        <div className={`grid gap-2 desk:hidden ${crews.length > 1 ? 'grid-cols-2' : ''}`}>
+          {(crews.length ? crews : [undefined]).map((c) => (
+            <ButtonLink key={c ?? 'all'} href={runHref(c)} className="h-14 w-full text-base">
+              <Clapperboard aria-hidden className="h-5 w-5" />
+              {c ? `${c} 촬영` : count.done > 0 ? '이어 찍기' : '촬영 모드로 시작'}
+            </ButtonLink>
+          ))}
+        </div>
       </section>
 
       {/* ── 챙길 기구 · 자리 순서 ── */}
@@ -251,7 +273,13 @@ export function WeekView({ data, me }: { data: ShootWeekData; me: string }) {
               className="overflow-hidden rounded-2xl border border-line bg-surface"
             >
               <header className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-b border-line px-4 py-3">
-                <h3 className="text-sm font-bold text-ink">
+                <h3 className="flex items-center gap-2 text-sm font-bold text-ink">
+                  {s.crew && (
+                    <span className="rounded-full bg-sky/12 px-2 py-0.5 text-caption font-semibold text-sky-strong">
+                      {s.crew}
+                    </span>
+                  )}
+                  {s.space && <span className="font-medium text-muted">{s.space} ·</span>}
                   {s.warmup ? '몸풀기 · 가벼운 모빌리티 · 스트레칭' : s.station}
                 </h3>
                 <p className="flex items-center gap-3 text-xs tabular-nums text-muted">
@@ -286,10 +314,12 @@ export function WeekView({ data, me }: { data: ShootWeekData; me: string }) {
           <section className="overflow-hidden rounded-2xl border border-dashed border-line-strong bg-surface">
             <header className="border-b border-line px-4 py-3">
               <h3 className="text-sm font-bold text-ink">
-                앞 주에서 넘어온 것 {carried.length}개
+                {week.deferred ? '다른 주에서 미룬 것' : '앞 주에서 넘어온 것'} {carried.length}개
               </h3>
               <p className="mt-0.5 text-xs text-muted">
-                이 주 계획을 다 찍은 뒤 이어 찍어요. 번호는 원래 주차 번호예요.
+                {week.deferred
+                  ? '미룸으로 체크하면 여기로 모여요. 번호는 원래 주차 번호예요.'
+                  : '이 주 계획을 다 찍은 뒤 이어 찍어요. 번호는 원래 주차 번호예요.'}
               </p>
             </header>
             <ol className="divide-y divide-line">
@@ -332,7 +362,7 @@ export function WeekView({ data, me }: { data: ShootWeekData; me: string }) {
             it={open}
             info={infos[open.exerciseId]}
             check={map.get(open.exerciseId)}
-            runHref={`/admin/shoot/${week.week}/run?at=${open.no}`}
+            runHref={runHref(crewOf.get(open.exerciseId), open.no)}
             onSet={(status, note) =>
               set(open.exerciseId, status, {
                 note,

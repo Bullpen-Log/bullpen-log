@@ -1,6 +1,7 @@
 'use client';
 
 import type { CSSProperties } from 'react';
+import { agoText, spokenDay } from '@/lib/report/trends';
 import { formatSpeed } from '@/lib/units';
 import { useSpeedUnit } from '@/components/use-units';
 import {
@@ -13,7 +14,7 @@ import {
   type LucideIcon,
 } from '@/components/icon';
 import { REST_SESSION_TYPE } from '@/lib/session-type';
-import { maxEffortPct } from '@/lib/pitch-effort';
+import { effortScaleText, maxEffortPct } from '@/lib/pitch-effort';
 import { Baseball } from '@/components/baseball-icon';
 import type { Log } from '@/app/(app)/pitch-log/types';
 import type { PlanDaySummary, TrainingDaySummary } from '@/lib/report/training-history';
@@ -78,34 +79,8 @@ export function firstFocus(f: DayFacts): DayFocus {
   return ORDER.find((k) => has[k]) ?? 'pitch';
 }
 
-const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'];
-
-/**
- * '9월 24일 (수)'.
- *
- * UTC 로 읽는 이유: 날짜 키는 그냥 달력의 칸 이름이지 시각이 아니다. 지역
- * 시간으로 새 Date 를 만들면 시간대에 따라 하루 밀려 요일이 틀어진다.
- */
-export function spokenDay(dateKey: string) {
-  const d = new Date(`${dateKey}T00:00:00.000Z`);
-  return `${d.getUTCMonth() + 1}월 ${d.getUTCDate()}일 (${WEEKDAYS[d.getUTCDay()]})`;
-}
-
-/** '오늘' · '어제' · '3일 전' · '2주 전' — 오늘에서 얼마나 떨어졌나 */
-export function agoText(date: string, today: string) {
-  if (date === today) return '오늘';
-  const days = Math.round(
-    (Date.parse(`${today}T00:00:00.000Z`) - Date.parse(`${date}T00:00:00.000Z`)) /
-      86_400_000
-  );
-  /* 앞날 — 홈 캘린더는 일정을 적으러 앞날도 연다 */
-  if (days === -1) return '내일';
-  if (days < 0) return -days < 60 ? `${-days}일 뒤` : `${Math.floor(-days / 30)}달 뒤`;
-  if (days === 1) return '어제';
-  if (days < 7) return `${days}일 전`;
-  if (days < 60) return `${Math.floor(days / 7)}주 전`;
-  return `${Math.floor(days / 30)}달 전`;
-}
+/* '9월 24일 (수)' · '3일 전' — 아이폰 앱 분석 화면도 쓰는 lib/report/trends.ts 로 옮겼다(2026-10-18). 부르는 곳은 그대로 여기서 받는다 */
+export { agoText, spokenDay };
 
 /**
  * 캘린더 옆의 '그날' 칸 — 고른 날에 무엇을 남겼는지 한눈에 보는 요약.
@@ -175,7 +150,7 @@ export function DaySummary({
       sub: rested
         ? '쉬는 날로 남김'
         : [
-            effortPct > 0 ? `강도 ${effortPct}%` : null,
+            effortPct > 0 ? `강도 ${effortScaleText(effortPct)}` : null,
             topVelocity != null ? `최고 ${formatSpeed(topVelocity, speedUnit)}` : null,
             logs.length > 0 && velocity && velocity.n > 0
               ? `카메라 ${velocity.n}구`

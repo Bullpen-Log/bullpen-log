@@ -6,6 +6,9 @@ import { redirect, RedirectType } from 'next/navigation';
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { getCurrentUser } from '@/lib/dal';
+import { featureLocks } from '@/lib/feature-locks';
+import { ageOn } from '@/lib/nutrition/targets';
+import { hasFinishedBasics } from '@/lib/program/load';
 import { toDateKey } from '@/lib/pitch-stats';
 import { pickMany } from '@/lib/exercise-meta';
 import { ALWAYS_OWNED, SELECTABLE_EQUIPMENT } from '@/lib/report/equipment';
@@ -68,6 +71,8 @@ import type { ReportFacts } from '@/lib/report/facts';
 import type { PitchPlan } from '@/lib/report/plan';
 import { validateWorkoutBaseline } from '@/lib/baseline';
 import {
+  answersOfUser,
+  type TrainingSetupAnswers,
   checkTrainingAnswers,
   formOfRows,
   ownedEquipmentToSave,
@@ -153,6 +158,45 @@ export async function saveOwnedEquipment(formData: FormData) {
   revalidatePath('/training');
   /* 누른 화면으로 돌아간다 — 같은 주소라 기록(뒤로 가기)에 한 칸 더 쌓지 않는다 */
   redirect(back, RedirectType.replace);
+}
+
+/*
+ * 아이폰 앱(native/src/app/training/settings.tsx)의 트레이닝 설정 — 웹 saveTrainingSettings · saveOwnedEquipment 와 같은 칸 · 같은 거름
+ * (readTrainingProfile · readOwnedEquipment)을 JSON 으로 받는다. 웹은 저장 뒤 redirect 하지만 앱은 결과로 받는다(화면을 앱이 쥔다).
+ */
+type AppSettingsResult = { ok: true } | { ok: false; error: string };
+
+export async function saveAppTrainingLevel(level: unknown): Promise<AppSettingsResult> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: '로그인이 필요해요.' };
+  const fd = new FormData();
+  fd.set('trainingLevel', typeof level === 'string' ? level : '');
+  const data = readTrainingProfile(fd);
+  if (!data.trainingLevel) return { ok: false, error: '경력을 골라 주세요.' };
+  await prisma.user.update({ where: { id: user.id }, data });
+  revalidatePath('/today');
+  revalidatePath('/training');
+  return { ok: true };
+}
+
+export async function saveAppOwnedEquipment(names: unknown): Promise<AppSettingsResult> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: '로그인이 필요해요.' };
+  const fd = new FormData();
+  if (Array.isArray(names)) for (const n of names) if (typeof n === 'string') fd.append('ownedEquipment', n);
+  await prisma.user.update({ where: { id: user.id }, data: readOwnedEquipment(fd) });
+  revalidatePath('/today');
+  revalidatePath('/training');
+  return { ok: true };
+}
+
+/** 앱 트레이닝 설정 화면을 열 때 — 지금 경력 · 가진 장비(한 번도 안 골랐으면 빈 목록, 웹처럼 화면이 전부 켜서 보인다) */
+export async function loadAppTrainingSettings(): Promise<
+  { ok: true; trainingLevel: string | null; ownedEquipment: string[] } | { ok: false; to: string }
+> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, to: '/login' };
+  return { ok: true, trainingLevel: user.trainingLevel ?? null, ownedEquipment: user.ownedEquipment ?? [] };
 }
 
 /**
@@ -518,6 +562,23 @@ export async function generateTodayPlan(formData: FormData) {
 }
 
 /**
+ * 아이폰 앱(native/src/app/training-today.tsx)의 일정 만들기 — 앱은 폼(FormData)을 못 보내 [이름, 값] 줄로 받아, 웹 폼(components/training-forms.tsx
+ * PlanForm 의 자동 맞춤 · 상태 바뀜 띠의 remakeFieldsOf)이 보내는 것과 같은 칸으로 옮겨 같은 만들기(generateTodayPlan)를 탄다. 돌아갈 곳은 늘
+ * '/training' — 끝나면 웹처럼 redirect 하고, 앱은 그 답을 '만들었어요'로 받아 다시 읽는다. 글자 아닌 줄은 버린다(검사는 generateTodayPlan 이 한다).
+ */
+export async function generateAppTodayPlan(fields: unknown) {
+  const user = await getCurrentUser();
+  if (!user) redirect('/login');
+  const formData = new FormData();
+  if (Array.isArray(fields))
+    for (const f of fields)
+      if (Array.isArray(f) && typeof f[0] === 'string' && typeof f[1] === 'string' && f[0] !== 'returnTo')
+        formData.append(f[0], f[1]);
+  formData.set('returnTo', '/training');
+  return generateTodayPlan(formData);
+}
+
+/**
  * 자동 맞춤 — 오늘 방향(목표·시간)을 규칙 초안으로 정한다(lib/report/auto-setup.ts).
  * 2026-10-07 AI 를 뺐다(사용자) — 예전에는 이 울타리 안에서 AI 가 골랐다.
  *
@@ -634,5 +695,28 @@ function programScoreInputOf(
       const id = pinned[v];
       return id ? byId.get(id) : undefined;
     }),
+  };
+}
+
+/**
+ * 아이폰 앱(native/src/app/setup/training.tsx)의 트레이닝 첫 설정을 열 때 — 웹 /training/setup(page.tsx)이 넘기는 것과 같은 값. 체중은
+ * 넘기지 않는다(운동 소모 끼움은 2026-10-12 에 뺐다). 저장은 웹과 같은 finishTrainingSetup.
+ */
+export async function loadAppTrainingSetup(): Promise<
+  | { ok: true; name: string; age: number | null; askHand: boolean; hasSetup: boolean; basicsDone: boolean; initial: TrainingSetupAnswers }
+  | { ok: false; to: string }
+> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, to: '/login' };
+  const hasSetup = !featureLocks(user).training;
+  return {
+    ok: true,
+    name: user.nickname,
+    age: ageOn(user.birthDate, toDateKey(appNow())),
+    askHand: user.throwingHand == null,
+    hasSetup,
+    /* 다시 온 사람만 — 처음 온 사람은 탭이 잠겨 있어 프로그램을 한 적이 없다(웹 page.tsx 와 같다) */
+    basicsDone: hasSetup ? await hasFinishedBasics(user.id) : false,
+    initial: answersOfUser(user),
   };
 }

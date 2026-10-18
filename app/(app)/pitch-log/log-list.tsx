@@ -6,7 +6,7 @@ import { useSpeedUnit } from '@/components/use-units';
 import Link from 'next/link';
 import { ChevronDown, ChevronRight, Film } from '@/components/icon';
 import { REST_SESSION_TYPE, SESSION_TYPES } from '@/lib/session-type';
-import { effortText, readEffort } from '@/lib/pitch-effort';
+import { effortScaleText, effortText, readEffort } from '@/lib/pitch-effort';
 import type { Log } from './types';
 import { OPEN_POPUP_TYPES } from '@/lib/transition-types';
 
@@ -111,7 +111,7 @@ export function LogList({ logs }: { logs: Log[] }) {
   const chips: { key: Filter; label: string; count: number }[] = [
     { key: 'all', label: '전체', count: counts.all },
     { key: 'video', label: '영상 있는 날', count: counts.video },
-    { key: 'hard', label: `강도 ${HARD_EFFORT_PCT}% 이상`, count: counts.hard },
+    { key: 'hard', label: `강도 ${effortScaleText(HARD_EFFORT_PCT)} 이상`, count: counts.hard },
     ...SESSION_TYPES.map((t) => ({
       key: t.name as Filter,
       label: t.name,

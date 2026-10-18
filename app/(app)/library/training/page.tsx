@@ -1,12 +1,10 @@
 import { prisma } from '@/lib/prisma';
-import { OLD_OWN_VIDEOS } from '@/lib/shoot/plan';
+import { headers } from 'next/headers';
 import { requireUser } from '@/lib/dal';
-import { allExercises } from '@/lib/library-cache';
-import { favoriteExerciseIds } from '@/lib/favorites';
-import { exerciseNotes } from '@/lib/exercise-notes';
-import { createPlaybackUrls } from '@/lib/storage';
-import { referenceThumbUrl } from '@/lib/reference-video';
-import { TrainingClient, type ExerciseItem, type WarmupFolder } from './training-client';
+import { expoLevel } from '@/lib/app-env';
+import { OpenNative } from '@/app/(session)/velocity/open-native';
+import { loadExerciseLibrary } from '@/lib/library-load';
+import { TrainingClient, type ExerciseItem } from './training-client';
 import { BodyPartsProvider } from '@/components/body-parts';
 import { throwingSide } from '@/lib/armcare/muscle-map';
 import { ArmcareInfoProvider } from '@/app/(app)/training/armcare-info';
@@ -14,25 +12,10 @@ import { ArmcareInfoProvider } from '@/app/(app)/training/armcare-info';
 export default async function TrainingPage() {
   const user = await requireUser();
 
+  /* 새 아이폰 앱(Expo)이 라이브러리를 아는 판(BullpenNative/7 부터)이면 앱 화면으로 연다(native/src/app/library/training.tsx) */
+  if (expoLevel((await headers()).get('user-agent')) >= 7) return <OpenNative path="/library/training" cover={false} />;
+
   const isAdmin = user.role === 'ADMIN';
-
-  /*
-   * 누가 보든 같은 목록이라 캐시에서 꺼낸다 (lib/library-cache.ts).
-   *
-   * 숨긴 운동은 관리자에게만 보인다. 숨김은 지우기 대신 쓰는 것이라, 되돌릴
-   * 사람에게는 보여야 하고 나머지에게는 안 보여야 한다.
-   */
-  const all = await allExercises();
-  const rows = isAdmin ? all : all.filter((ex) => ex.hiddenAt == null);
-
-  /*
-   * 새로 넣은 것이 위로 오게 뒤집는다.
-   *
-   * 캐시가 들고 있는 배열을 그대로 reverse 하면 캐시 자체가 뒤집힌다 —
-   * 운동을 고르는 규칙이 등록순을 기준으로 로테이션을 돌리므로, 그 순간
-   * 일정 만들기가 엉뚱하게 바뀐다. 반드시 복사해서 뒤집는다.
-   */
-  const exercises = [...rows].reverse();
 
   /*
    * 지우기 전에 보여줄 '이 운동을 한 기록 수'.
@@ -41,90 +24,15 @@ export default async function TrainingPage() {
    * 있는데 모든 사람의 화면에 그 값이 실려 나갔다. 관리자일 때만, 그것도
    * 한 번의 집계로 센다.
    */
-  const usedCounts = new Map<string, number>();
-  if (isAdmin) {
-    const counted = await prisma.userExerciseLog.groupBy({
-      by: ['exerciseId'],
-      _count: { _all: true },
-    });
-    for (const row of counted) usedCounts.set(row.exerciseId, row._count._all);
-  }
-
-  /*
-   * 별과 내 메모는 사람마다 다르다 — 캐시에 넣지 않고 여기서 읽는다.
-   * 메모는 운동 중에 쓴 것이다(app/(session)/workout/run/exercise-note.tsx).
-   */
-  const [favoriteIds, notes, routines] = await Promise.all([
-    favoriteExerciseIds(user.id),
-    exerciseNotes(user.id),
-    prisma.warmupRoutine.findMany({
-      where: { hiddenAt: null },
-      orderBy: { sortOrder: 'asc' },
-      select: {
-        kind: true,
-        name: true,
-        description: true,
-        items: { orderBy: { sortOrder: 'asc' }, select: { exerciseId: true } },
-      },
-    }),
+  const [{ exercises, warmupFolders }, counted] = await Promise.all([
+    /* 목록 · 별 · 내 메모 · 워밍업 폴더 — 앱(app-library.ts)과 같은 함수 */
+    loadExerciseLibrary(user.id, isAdmin),
+    isAdmin
+      ? prisma.userExerciseLog.groupBy({ by: ['exerciseId'], _count: { _all: true } })
+      : Promise.resolve([]),
   ]);
-
-  /*
-   * 워밍업 칸은 루틴 폴더로 — 그날 루틴마다 하나, 안에는 공통(몸 데우기 · 동적 가동) 뒤에 그날 것(2026-10-16 김민: "워밍업 영상 안에
-   * 폴더 넷"). 담긴 운동은 제 분류(모빌리티 · 파워 …)에 그대로 있고 여기서는 모아 보이기만 한다.
-   */
-  const common = routines.find((r) => r.kind === 'COMMON')?.items.map((i) => i.exerciseId) ?? [];
-  const warmupFolders: WarmupFolder[] = routines
-    .filter((r) => r.kind !== 'COMMON')
-    .map((r) => ({
-      kind: r.kind,
-      name: r.name,
-      description: r.description,
-      exerciseIds: [...common, ...r.items.map((i) => i.exerciseId)],
-    }));
-
-  // 미리보기 이미지 주소는 한 번의 요청으로 모아서 받는다.
-  const thumbUrls = await createPlaybackUrls(
-    exercises.map((ex) => ex.thumbPath).filter((p): p is string => !!p)
-  );
-
-  const items: ExerciseItem[] = exercises.map((ex) => ({
-    favorite: favoriteIds.has(ex.id),
-    note: notes.get(ex.id) ?? null,
-    id: ex.id,
-    title: ex.title,
-    category: ex.category,
-    bodyParts: ex.bodyParts,
-    intensity: ex.intensity,
-    difficulty: ex.difficulty,
-    equipment: ex.equipment,
-    /* 마이그레이션 전에 캐시에 담긴 줄에는 이 칸이 없을 수 있다(lib/library-cache.ts) */
-    targetMuscles: ex.targetMuscles ?? [],
-    videoPath: ex.videoPath,
-    /* 한 달 전에 찍어 다시 찍을 영상은 '촬영 전'으로 센다(lib/shoot/plan.ts OLD_OWN_VIDEOS) */
-    source:
-      ex.source === 'OWN' && ex.videoPath && OLD_OWN_VIDEOS.has(ex.videoPath) ? 'RETAKE' : ex.source,
-    referenceVideoId: ex.referenceVideoId,
-    /* 캐시가 이미 문자열로 바꿔 둔다 (lib/library-cache.ts) */
-    hiddenAt: ex.hiddenAt,
-    aspectRatio: ex.aspectRatio,
-    // 지우기 전에 보여줄 숫자. 관리자만 지울 수 있어 다른 사람에게는 안 쓴다.
-    usedCount: usedCounts.get(ex.id) ?? 0,
-    sets: ex.sets,
-    reps: ex.reps,
-    holdSeconds: ex.holdSeconds,
-    restSeconds: ex.restSeconds,
-    perSide: ex.perSide,
-    /*
-     * 참고 영상의 미리보기는 유튜브가 공개한 고정 주소를 그대로 쓴다.
-     * 우리 저장소에 담아 두지 않으므로 발급받을 주소도 없다.
-     */
-    thumbUrl: ex.referenceVideoId
-      ? referenceThumbUrl(ex.referenceVideoId)
-      : ex.thumbPath
-        ? (thumbUrls[ex.thumbPath] ?? null)
-        : null,
-  }));
+  const usedCounts = new Map(counted.map((row) => [row.exerciseId, row._count._all]));
+  const items: ExerciseItem[] = exercises.map((ex) => ({ ...ex, usedCount: usedCounts.get(ex.id) ?? 0 }));
 
   // 제목과 탭은 라이브러리 레이아웃이 그린다.
   /*

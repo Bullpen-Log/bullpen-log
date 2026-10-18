@@ -40,16 +40,25 @@ export async function sendClip(
     if (!videoPath) {
       try {
         const video = new File([clip.video], 'clip.mp4', { type: 'video/mp4' });
-        videoPath = await uploadToStorage(video, ENDPOINT, (pct) =>
-          onProgress((pct / 100) * VIDEO_SHARE)
-        );
-        if (clip.thumb) {
-          const thumb = new File([clip.thumb], 'thumb.jpg', { type: 'image/jpeg' });
-          // 이미지는 없어도 된다 — 실패하면 영상만 붙인다
-          thumbPath = await uploadToStorage(thumb, ENDPOINT, () => {}, 'thumbnail').catch(
-            () => null
+        /* 첫 장면 이미지는 영상과 같이 보낸다(2026-10-18 — 영상 뒤에 따로 보내 그만큼 기다렸다). 이미지는 없어도 된다 — 실패하면 영상만 붙인다 */
+        const thumbing = clip.thumb
+          ? uploadToStorage(
+              new File([clip.thumb], 'thumb.jpg', { type: 'image/jpeg' }),
+              ENDPOINT,
+              () => {},
+              'thumbnail'
+            ).catch(() => null)
+          : Promise.resolve(null);
+        try {
+          videoPath = await uploadToStorage(video, ENDPOINT, (pct) =>
+            onProgress((pct / 100) * VIDEO_SHARE)
           );
+        } catch (err) {
+          // 영상이 못 올라갔으면 같이 올라간 이미지는 치운다(붙이지 않을 것이라)
+          void thumbing.then((p) => p && void orOffline(discardShootUpload([p]), null));
+          throw err;
         }
+        thumbPath = await thumbing;
         await markUploaded(clip.exerciseId, clip.savedAt, { videoPath, thumbPath });
       } catch (err) {
         return {

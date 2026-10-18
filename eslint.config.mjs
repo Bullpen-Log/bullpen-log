@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     'out/**',
     'build/**',
     'next-env.d.ts',
+    /* 아이폰 앱(Expo)은 제 린트를 쓴다 — cd native && npx expo lint */
+    'native/**',
   ]),
   /*
    * 아이콘은 components/icon.tsx 에서만 받는다(2026-10-14, docs/designs/icon-system.md) — 굵기 · 크기 규칙이 한 곳에 있어야

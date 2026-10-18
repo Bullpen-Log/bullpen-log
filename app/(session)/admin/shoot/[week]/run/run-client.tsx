@@ -29,11 +29,13 @@ import {
   clockText,
   countOf,
   cursorOfList,
+  openAfter,
   paceMinutes,
   stateOf,
   weekItems,
 } from '@/lib/shoot/progress';
 import { toDateKey } from '@/lib/pitch-stats';
+import { weekLabel } from '@/lib/shoot/schedule';
 
 /**
  * 촬영 모드 — 찍는 동안 휴대폰 한 손으로.
@@ -53,10 +55,13 @@ export function RunClient({
   data,
   me,
   startAt,
+  crew = null,
 }: {
   data: ShootWeekData;
   me: string;
   startAt: string | null;
+  /** 두 사람이 나눠 찍는 주에서 이 사람 몫만 돌 때('A') */
+  crew?: string | null;
 }) {
   const { week, carried, infos } = data;
   const { map, set, adopt, toast, undo, closeToast, error, clearError } = useShootChecks(
@@ -79,17 +84,18 @@ export function RunClient({
   const list = useModalState<'list'>();
   useWakeLock(true);
 
-  const { current, next } = cursorOfList(queue, map, pickId);
+  const laterOpen = !!week.deferred;
+  const { current, next } = cursorOfList(queue, map, pickId, laterOpen);
   const count = countOf(items, map);
-  /* 다음 뒤로 셋 — '그다음' 줄 */
+  /* 다음 뒤로 셋 — '그다음' 줄(지금 운동 뒤의 차례로) */
   const after = current
-    ? queue
-        .filter((it) => {
-          const st = stateOf(it, map);
-          return it !== current && (st === 'todo' || st === 'redo');
-        })
-        .slice(1, 4)
+    ? openAfter(queue, map, current.exerciseId, laterOpen).slice(1, 4)
     : [];
+  /*
+   * 찍거나 미루거나 영상을 붙이면 지금 운동 바로 다음 차례로 — 고른 운동을 그냥 풀면(null) 목록 처음의 안 찍은 것으로 돌아가,
+   * 중간부터 찍던 사람이 매번 다시 골라야 했다(2026-10-18 사용자).
+   */
+  const nextPick = (id: string) => openAfter(queue, map, id, laterOpen)[0]?.exerciseId ?? null;
 
   /* 계획 대비 — 30초마다 다시 셈한다 */
   const [now, setNow] = useState(() => Date.now());
@@ -142,10 +148,10 @@ export function RunClient({
     </p>
   );
 
-  // 붙인 운동이 목록에서 고른 운동이었을 때만 고른 것을 푼다(다시 올리기로 다른 운동이 붙어도 지금 운동은 그대로)
+  // 붙인 운동이 목록에서 고른 운동이었을 때만 그 바로 다음 차례로 옮긴다(다시 올리기로 다른 운동이 붙어도 지금 운동은 그대로)
   const clips = useClipFlow({
     adopt,
-    onAttached: (id) => setPickId((p) => (p === id ? null : p)),
+    onAttached: (id) => setPickId((p) => (p === id ? nextPick(id) : p)),
   });
   const clipTarget = current
     ? {
@@ -159,13 +165,13 @@ export function RunClient({
   function shoot() {
     if (!current) return;
     haptic('success');
-    setPickId(null);
+    setPickId(nextPick(current.exerciseId));
     void set(current.exerciseId, 'done', { label: `${current.no} 찍음` });
   }
   function postpone() {
     if (!current) return;
     haptic('light');
-    setPickId(null);
+    setPickId(nextPick(current.exerciseId));
     void set(current.exerciseId, 'later', {
       label: `${current.no} 미룸 · 목록 끝 '미룬 것'에서 다시`,
     });
@@ -203,7 +209,8 @@ export function RunClient({
           </Link>
           <div className="min-w-0 flex-1">
             <p className="flex items-center gap-2 text-sm font-bold text-ink">
-              {week.week}주차 촬영
+              {weekLabel(week)}
+              {crew ? ` · ${crew}` : ''} 촬영
               <span className="text-xs font-medium tabular-nums text-muted">
                 {count.done} / {count.total}
               </span>
@@ -517,7 +524,7 @@ export function RunClient({
       <Modal
         open={list.open}
         onClose={list.close}
-        title={`${week.week}주차 목록`}
+        title={`${weekLabel(week)}${crew ? ` · ${crew}` : ''} 목록`}
         description="누르면 그 운동을 먼저 찍어요"
         origin={list.origin}
       >

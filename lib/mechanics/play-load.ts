@@ -1,0 +1,71 @@
+import 'server-only';
+import type { getCurrentUser } from '@/lib/dal';
+import { loadMechanicsProgram, type SessionDrillView } from '@/lib/mechanics/load';
+import { mechanicsLevel } from '@/lib/mechanics/levels';
+import { playItemsFor, resumeAt } from '@/lib/mechanics/program';
+
+/**
+ * 메커니즘 세션 따라 하기에 무엇을 띄울지 — 웹 화면(app/(session)/mechanics/play/page.tsx)과 아이폰 앱 화면(app/actions/app-mechanics.ts →
+ * native/src/app/mechanics.tsx)이 같이 쓴다. 둘이 따로 고르면 아픈 날 접는 드릴 · 이어서 할 자리가 두 화면에서 달라진다.
+ *
+ * 열 수 없으면 갈 곳(to)을 돌려준다 — 웹은 그리로 redirect, 앱은 화면을 닫고 웹을 그리로 보낸다.
+ * 'use server' 파일에 두지 않는다 — user 를 받는 함수가 거기 있으면 누구나 부를 수 있는 입구가 된다.
+ */
+
+export const MECHANICS_BACK = '/training?view=mechanics';
+
+type PlayUser = NonNullable<Awaited<ReturnType<typeof getCurrentUser>>>;
+
+/** 따라 하기 화면(MechanicsPlayer)이 받는 것 그대로 */
+export type MechanicsPlay = {
+  backHref: string;
+  items: SessionDrillView[];
+  startAt: number;
+  label: string;
+  sessionNumber: number;
+  isAdmin: boolean;
+  partial: boolean;
+  painLabel: string | null;
+};
+
+/**
+ * 세션은 이 화면을 열 때 한 번 짜서 넘긴다 — 도중에 단계가 올라도 하던 차례가 바뀌지 않는다(서버 동작이 화면을 다시
+ * 그리지 않는다, app/actions/mechanics.ts). 오늘 마친 세션이 없으면 오늘 이미 한 드릴부터는 건너뛴다(이어서 하기).
+ *
+ * 어깨 · 팔꿈치가 아픈 날(2판 P6-5, 사용자 결정 D5 — lib/mechanics/program.ts playItemsFor): ?anyway=1 이 없으면 무브먼트
+ * 드릴만, 그 '다른 드릴' · 도구도 무브먼트만 넘긴다. 접은 드릴이 있었으면 마쳐도 세션 수를 안 올린다(partial). 할 드릴이
+ * 없으면 프로그램 칸으로 돌려보낸다(거기에 '그래도 하기'가 있다). ?anyway=1 이면 세션 그대로, 팔에 싣는 드릴마다 주의 한 줄.
+ * 2판 P6 검토 — 오늘 팔을 다 쓴 날 · 통증 확인 전 · 성장기 통증 날도 접고(lib/mechanics/fold.ts mechanicsFoldOf), 그날은 ?anyway=1 을 무시한다.
+ */
+export async function loadMechanicsPlay(
+  user: PlayUser,
+  anywayParam: unknown
+): Promise<({ ok: true } & MechanicsPlay) | { ok: false; to: string }> {
+  const { program, session, doneToday, painFold } = await loadMechanicsProgram(user.id);
+  if (!program || session.length === 0) return { ok: false, to: MECHANICS_BACK };
+
+  /*
+   * 펼칠 수 있는 날만 ?anyway=1 을 받는다 — 팔을 다 쓴 날 · 통증 확인 전 · 성장기 통증 날은 주소에 붙여 와도 무브먼트만(2판 P6 검토,
+   * lib/mechanics/fold.ts — 등판 보호 · 안전 층은 '그래도 하기'로 못 넘긴다).
+   */
+  const anyway = anywayParam === '1' && painFold?.canUnfold !== false;
+  const { items, partial } = playItemsFor(session, painFold, anyway);
+  if (items.length === 0) return { ok: false, to: MECHANICS_BACK };
+
+  const done = new Set(program.finishedToday ? [] : doneToday);
+
+  return {
+    ok: true,
+    backHref: MECHANICS_BACK,
+    items,
+    startAt: resumeAt(items, done),
+    label:
+      program.level && program.week
+        ? `${mechanicsLevel(program.level).name} ${program.index + 1}번 세션`
+        : `${program.sessionsDone + 1}번째 세션`,
+    sessionNumber: program.sessionsDone + 1,
+    isAdmin: user.role === 'ADMIN',
+    partial,
+    painLabel: painFold && anyway ? painFold.label : null,
+  };
+}

@@ -1,4 +1,3 @@
-import { appNowMs } from '@/lib/clock';
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getCurrentUser } from '@/lib/dal';
@@ -51,6 +50,8 @@ const DUPLICATE_WINDOW_MS = 2 * 60 * 1000;
 function checkEntry(
   body: Record<string, unknown>
 ): { error: string } | { entry: CheckedEntry; legacyEffort: boolean } {
+  /* 투구 종류는 꼭 — 비면 '불펜'으로 넣던 것을 없앴다(2026-10-18 사용자). 캐치볼이 불펜 날로 셈됐다 */
+  if (String(body.sessionType ?? '').trim() === '') return { error: '투구 종류를 골라 주세요.' };
   const checkedType = validateSessionType(String(body.sessionType ?? ''));
   if ('error' in checkedType) return checkedType;
 
@@ -320,7 +321,8 @@ export async function POST(req: Request) {
       where: {
         userId: user.id,
         date: parsedDate,
-        createdAt: { gte: new Date(appNowMs() - DUPLICATE_WINDOW_MS) },
+        /* createdAt 은 DB 의 실제 시각 — 시뮬레이션 날짜(appNow)와 견주면 안 된다(lib/clock.ts) */
+        createdAt: { gte: new Date(Date.now() - DUPLICATE_WINDOW_MS) },
         ...checked,
         videoPaths: { equals: paths },
       },
