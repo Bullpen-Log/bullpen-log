@@ -48,7 +48,7 @@ export default function PitchDayScreen() {
       [
         `${at.getUTCMonth() + 1}월 ${at.getUTCDate()}일 (${WEEKDAYS[at.getUTCDay()]}) · ${label}`,
         videos.length ? `올려둔 영상 ${videos.length}개도 함께 지워져요.` : null,
-        '되돌릴 수 없어요. 수치만 고치려면 기록 고치기를 눌러주세요.',
+        '되돌릴 수 없어요. 수치만 고치려면 기록 고치기를 눌러 주세요.',
       ]
         .filter(Boolean)
         .join('\n\n'),

@@ -470,12 +470,12 @@ function Run({
     const w = noInput ? null : weight === '' ? null : storedKg(fromWeight(Number(weight), wUnit));
     const n = noInput ? plannedAmount(ex) : count === '' ? null : Number(count);
     if (!noInput && ex.needsWeight && (w == null || w <= 0)) {
-      setError('무게를 적어주세요.');
+      setError('무게를 적어 주세요.');
       setField('weight');
       return;
     }
     if (n == null || n <= 0) {
-      setError(ex.isHold ? `${timeLabel}을 적어주세요.` : '횟수를 적어주세요.');
+      setError(ex.isHold ? `${timeLabel}을 적어 주세요.` : '횟수를 적어 주세요.');
       setField('count');
       return;
     }

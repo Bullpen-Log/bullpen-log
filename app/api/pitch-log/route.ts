@@ -107,7 +107,7 @@ function checkEntry(
     }
     if (value < MIN_VELOCITY || value > MAX_VELOCITY) {
       return {
-        error: `${label}은 ${MIN_VELOCITY}~${MAX_VELOCITY} km/h 사이로 입력해 주세요. 단위가 mph 라면 km/h 로 바꿔서 넣어주세요`,
+        error: `${label}은 ${MIN_VELOCITY}~${MAX_VELOCITY} km/h 사이로 입력해 주세요. 단위가 mph 라면 km/h 로 바꿔서 넣어 주세요`,
       };
     }
     return { value };

@@ -162,7 +162,7 @@ function checkEdit(edit: PitchEdit): { error: string } | PitchEdit {
   }
   const gunKmh = optional(edit.gunKmh, MIN_KMH, MAX_KMH);
   if (edit.gunKmh != null && gunKmh == null) {
-    return { error: `스피드건 값은 ${MIN_KMH}~${MAX_KMH} km/h 사이로 넣어주세요.` };
+    return { error: `스피드건 값은 ${MIN_KMH}~${MAX_KMH} km/h 사이로 넣어 주세요.` };
   }
   const memo = String(edit.memo ?? '').trim();
   if (memo.length > MEMO_MAX)

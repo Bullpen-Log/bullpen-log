@@ -341,7 +341,7 @@ export function WarmupClient({
     return (
       <EmptyState
         title="워밍업 루틴이 없어요"
-        description="루틴은 설치할 때 함께 만들어져요. 이 화면이 비어 있으면 관리자에게 알려주세요."
+        description="루틴은 설치할 때 함께 만들어져요. 이 화면이 비어 있으면 관리자에게 알려 주세요."
       />
     );
   }

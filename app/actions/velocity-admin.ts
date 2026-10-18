@@ -84,7 +84,7 @@ export async function adminUpdateVelocityPitch(
       if (gun == null) {
         return {
           ok: false,
-          error: `스피드건 값은 ${MIN_KMH}~${MAX_KMH} km/h 사이로 넣어주세요.`,
+          error: `스피드건 값은 ${MIN_KMH}~${MAX_KMH} km/h 사이로 넣어 주세요.`,
         };
       }
       data.gunKmh = Math.round(gun * 10) / 10;
@@ -500,7 +500,7 @@ export async function adminUpdateVelocityAttempt(
       if (gun == null)
         return {
           ok: false,
-          error: `스피드건 값은 ${MIN_KMH}~${MAX_KMH} km/h 사이로 넣어주세요.`,
+          error: `스피드건 값은 ${MIN_KMH}~${MAX_KMH} km/h 사이로 넣어 주세요.`,
         };
       data.gunKmh = Math.round(gun * 10) / 10;
     }

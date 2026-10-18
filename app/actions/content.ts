@@ -112,7 +112,7 @@ async function tryCreateExercise(formData: FormData): Promise<ActionState> {
   }
   // 올린 영상의 경로만 받는다. 다른 폴더를 가리키면 거부한다.
   if (!videoPath || !isLibraryPath(videoPath)) {
-    return { error: '영상을 올려주세요.' };
+    return { error: '영상을 올려 주세요.' };
   }
 
   // 목록에 없는 값이 섞여 들어오지 않도록 서버에서 다시 거른다.
@@ -262,7 +262,7 @@ async function tryUpdateExercise(formData: FormData): Promise<ActionState> {
   const newThumbRaw = String(formData.get('thumbPath') ?? '').trim();
   const replacing = Boolean(newVideo);
   if (replacing && !isLibraryPath(newVideo)) {
-    return { error: '영상을 다시 올려주세요.' };
+    return { error: '영상을 다시 올려 주세요.' };
   }
   const videoPath = replacing ? newVideo : existing.videoPath;
   const thumbPath = replacing
@@ -355,7 +355,7 @@ async function tryCreateGuide(formData: FormData): Promise<ActionState> {
     return { error: '알 수 없는 카테고리입니다.' };
   }
   if (!videoPath || !isLibraryPath(videoPath)) {
-    return { error: '영상을 올려주세요.' };
+    return { error: '영상을 올려 주세요.' };
   }
 
   const sortOrder = sortOrderRaw ? Number.parseInt(sortOrderRaw, 10) : 0;
@@ -451,7 +451,7 @@ async function tryUpdateGuide(formData: FormData): Promise<ActionState> {
   const newThumbRaw = String(formData.get('thumbPath') ?? '').trim();
   const replacing = Boolean(newVideo);
   if (replacing && !isLibraryPath(newVideo)) {
-    return { error: '영상을 다시 올려주세요.' };
+    return { error: '영상을 다시 올려 주세요.' };
   }
   const videoPath = replacing ? newVideo : existing.videoPath;
   const thumbPath = replacing

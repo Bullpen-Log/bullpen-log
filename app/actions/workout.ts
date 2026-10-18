@@ -330,9 +330,9 @@ export async function logSet(input: SetInput): Promise<SetResult> {
           : undefined;
 
   /* 바벨·덤벨은 무게를 안 적으면 남길 수 없다 — 몇 kg 을 들었는지가 곧 그날의 운동이다 */
-  if (ex.needsWeight && w == null) return { error: '무게를 적어주세요.' };
+  if (ex.needsWeight && w == null) return { error: '무게를 적어 주세요.' };
   if (reps == null && hold == null) {
-    return { error: ex.isHold ? '버틴 시간을 적어주세요.' : '횟수를 적어주세요.' };
+    return { error: ex.isHold ? '버틴 시간을 적어 주세요.' : '횟수를 적어 주세요.' };
   }
 
   let setNo = whole(input.setNo, AMOUNT_LIMITS.sets);

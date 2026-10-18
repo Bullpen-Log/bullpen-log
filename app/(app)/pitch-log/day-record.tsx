@@ -241,7 +241,7 @@ export function DayRecord({
                 올려둔 영상 {log.videoPaths.length}개도 함께 지워져요.
               </p>
             )}
-            <p className="text-muted">되돌릴 수 없어요. 수치만 고치려면 기록 고치기를 눌러주세요.</p>
+            <p className="text-muted">되돌릴 수 없어요. 수치만 고치려면 기록 고치기를 눌러 주세요.</p>
           </div>
         }
         confirmLabel="지우기"

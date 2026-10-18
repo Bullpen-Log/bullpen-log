@@ -392,7 +392,7 @@ export function PlanForm({
                   onChange={(e) => setClashKept(e.currentTarget.checked)}
                   className="mt-0.5 h-4 w-4 shrink-0 rounded border-warn-line accent-sky"
                 />
-                알겠어요. 그래도 {clash.kind} 운동으로 만들어주세요
+                알겠어요. 그래도 {clash.kind} 운동으로 만들어 주세요
               </label>
             </div>
           )}
@@ -475,7 +475,7 @@ export function PlanForm({
                   value="on"
                   className="mt-0.5 h-4 w-4 shrink-0 rounded border-warn-line accent-sky"
                 />
-                그래도 고른 대로 만들어주세요
+                그래도 고른 대로 만들어 주세요
               </label>
             </div>
           )}

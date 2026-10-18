@@ -35,7 +35,7 @@ export async function updateWarmupRoutine(
   const description = String(formData.get('description') ?? '').trim();
 
   if (!id) return { error: '어느 루틴인지 알 수 없습니다.' };
-  if (!name) return { error: '이름을 적어주세요.' };
+  if (!name) return { error: '이름을 적어 주세요.' };
 
   await prisma.warmupRoutine.update({ where: { id }, data: { name, description } });
   revalidatePath(PATH);
