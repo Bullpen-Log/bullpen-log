@@ -81,8 +81,11 @@ export type AppArmcareTodayTab = {
   tab: 'today';
   dateKey: string;
   custom: AppArmcareCustom;
-  /** '팔이 아프면 · 재활 프로그램' 줄 — 재활 중이 아닐 때만(웹과 같다) */
-  rehabStart: boolean;
+  /**
+   * '팔이 아프면 · 재활 프로그램' 줄 — 재활 중이 아닐 때만(웹과 같다). 시작 화면이 미리 골라 둘 오늘 체크인의 아픈 자리 · 정도와 나이
+   * (웹 armcare-section.tsx 의 RehabStartLine 과 같은 값). 옛 앱은 참 · 거짓으로만 본다.
+   */
+  rehabStart: { age: number | null; area: ArmcareAreaKey | null; level: 1 | 2 | 3 | null } | null;
   routines: AppMyRoutine[];
   routineMax: number;
   painToday: boolean;
@@ -211,7 +214,14 @@ export async function loadAppArmcareTab(
     tab: 'today',
     dateKey: data.todayKey,
     custom,
-    rehabStart: REHAB_ENABLED && !data.rehab,
+    rehabStart:
+      REHAB_ENABLED && !data.rehab
+        ? {
+            age: data.facts.profile.age,
+            area: data.armPain?.spots[0] ?? null,
+            level: data.armPain?.level === 1 || data.armPain?.level === 2 || data.armPain?.level === 3 ? data.armPain.level : null,
+          }
+        : null,
     routines,
     routineMax: MY_ROUTINE_MAX,
     painToday: data.decision.kind === 'rest',

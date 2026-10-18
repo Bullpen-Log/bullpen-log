@@ -115,7 +115,7 @@ function TodayTab({ data, fresh, reload, c }: { data: AppArmcareTodayTab; fresh:
         ) : (
           <CustomRoutine custom={custom} dateKey={data.dateKey} fresh={fresh} reload={reload} c={c} />
         )}
-        {data.rehabStart ? <WebRow label="팔이 아프면 · 재활 프로그램" href="/training?view=armcare&rehab=start" c={c} /> : null}
+        {data.rehabStart ? <RehabStartRow start={data.rehabStart} c={c} /> : null}
       </View>
 
       <View style={{ gap: 10 }}>
@@ -301,5 +301,21 @@ function GuideTab({ data, scroll, c }: { data: AppArmcareGuideTab; scroll: RefOb
         <Text style={[s.tiny, { color: c.muted }]}>근육을 아직 적지 않은 암케어 운동 {data.untagged}개는 여기 나오지 않아요.</Text>
       ) : null}
     </View>
+  );
+}
+
+/** '팔이 아프면 · 재활 프로그램' 줄 — 앱 시작 화면(rehab-start.tsx)으로. 오늘 체크인의 아픈 자리 · 정도 · 나이를 미리 넘긴다 */
+function RehabStartRow({ start, c }: { start: NonNullable<AppArmcareTodayTab['rehabStart']>; c: Palette }) {
+  const q = new URLSearchParams();
+  if (start.age != null) q.set('age', String(start.age));
+  if (start.area) q.set('area', start.area);
+  if (start.level) q.set('level', String(start.level));
+  return (
+    <Pressable onPress={() => router.push(`/rehab-start?${q}` as Href)} accessibilityRole="button" style={[s.webRow, { backgroundColor: c.card }]}>
+      <Text style={[s.body, { color: c.ink, flex: 1 }]}>
+        팔이 아프면 · <Text style={{ color: c.sky, fontWeight: '600' }}>재활 프로그램</Text>
+      </Text>
+      <SymbolView name="chevron.right" size={13} weight="semibold" tintColor={c.muted} />
+    </Pressable>
   );
 }
