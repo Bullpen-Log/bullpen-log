@@ -12,7 +12,7 @@ import { useRouter } from 'next/navigation';
 import { Check, ChevronLeft, X } from '@/components/icon';
 import { saveCheckin } from '@/app/actions/checkin';
 import { OFFLINE_MESSAGE, orOffline } from '@/lib/action-offline';
-import { PAIN_FORCED_CONDITION, armPainJointsToday } from '@/lib/checkin';
+import { ARM_PAIN_SPOTS, PAIN_FORCED_CONDITION, armPainJointsToday } from '@/lib/checkin';
 import { partsFromSpots, type BodySpots } from '@/lib/body-spots';
 import { shiftDateKey } from '@/lib/pitch-stats';
 import { buzz, haptic } from '@/lib/haptics';
@@ -38,7 +38,8 @@ import type { CheckinFlowContext, CheckinPrefill } from './types';
  */
 
 export type Answers = {
-  condition: number;
+  /** 안 고르면 null — 미리 고르지 않는다(2026-10-18 사용자: 기본값 7 이 그대로 저장돼 낮은 날 규칙이 꺼졌다) */
+  condition: number | null;
   /** '몸에 불편한 곳이 있어요' — 컨디션 PAIN_FORCED_CONDITION 이하면 켜진 것으로 본다(effectivePain) */
   painOn: boolean;
   spots: BodySpots;
@@ -55,14 +56,14 @@ const DRAFT_KEY = 'bullpen-checkin-draft';
 const DONE_MS = 1500;
 /** 화면 전환 시간 — steps 의 duration 과 같아야 한다 */
 const SLIDE_MS = 260;
-/** 아무것도 안 적었을 때 — 컨디션은 보통의 위(7), 잠은 보통(3) */
+/** 아무것도 안 적었을 때 — 컨디션 · 잠은 비워 두고 직접 고르게 한다(2026-10-18 사용자: "미리 고르는 건 아니지") */
 const DEFAULT: Answers = {
-  condition: 7,
+  condition: null,
   painOn: false,
   spots: {},
   armSpots: [],
   armLevel: null,
-  sleepQuality: 3,
+  sleepQuality: null,
   note: '',
 };
 
@@ -179,7 +180,8 @@ export function CheckinFlow({
     setView((v) => (v.cur === next ? v : { cur: next, prev: v.cur, dir }));
   };
 
-  const forcedPain = answers != null && answers.condition <= PAIN_FORCED_CONDITION;
+  const forcedPain =
+    answers != null && answers.condition != null && answers.condition <= PAIN_FORCED_CONDITION;
   const painOn = answers != null && (forcedPain || answers.painOn);
   const steps: StepKey[] = [
     'welcome',
@@ -287,12 +289,27 @@ export function CheckinFlow({
     answers != null &&
     answers.armLevel === 3 &&
     armPainJointsToday(partsFromSpots(answers.spots)).length > 0;
-  /* 어깨 · 팔꿈치가 '통증'이면 얼마나 아픈지(정도)를 꼭 고른다 — 안 고르면 '다음'이 잠긴다(2026-10-18 사용자: "통증 표시하면 필수로") */
-  const needArmLevel =
-    view.cur === 'pain' &&
-    answers != null &&
-    answers.armLevel == null &&
-    armPainJointsToday(partsFromSpots(answers.spots)).length > 0;
+  /*
+   * 꼭 골라야 '다음'이 눌린다(2026-10-18 사용자) — 컨디션 · 잠은 미리 고르지 않고, 어깨 · 팔꿈치가 '통증'이면 아픈 자리와 정도를 둘 다.
+   * 자리를 안 고르면 '던질 때만' 이어도 가벼운 통증 루틴 대신 쉬기가 나왔다(lib/checkin.ts canDoPainRoutine) — "무조건 알아야지".
+   */
+  const painJoints = answers ? armPainJointsToday(partsFromSpots(answers.spots)) : [];
+  const missing =
+    answers == null
+      ? null
+      : view.cur === 'condition' && answers.condition == null
+        ? '오늘 컨디션을 골라 주세요'
+        : view.cur === 'sleep' && answers.sleepQuality == null
+          ? '어젯밤 잠을 골라 주세요'
+          : view.cur === 'pain' &&
+              painJoints.length > 0 &&
+              !answers.armSpots.some((s) =>
+                painJoints.some((j) => ARM_PAIN_SPOTS[j].some((x) => x.key === s))
+              )
+            ? '어디가 아픈지 골라 주세요'
+            : view.cur === 'pain' && painJoints.length > 0 && answers.armLevel == null
+              ? '얼마나 아픈지 골라 주세요'
+              : null;
   useEffect(() => {
     if (view.cur !== 'done' || restCard) return;
     const t = window.setTimeout(finish, DONE_MS);
@@ -335,7 +352,7 @@ export function CheckinFlow({
       case 'sleep':
         return (
           <SleepStep
-            value={answers.sleepQuality ?? DEFAULT.sleepQuality!}
+            value={answers.sleepQuality}
             onChange={(sleepQuality) => patch({ sleepQuality })}
           />
         );
@@ -487,9 +504,9 @@ export function CheckinFlow({
               </button>
             </div>
           )}
-          {needArmLevel && (
+          {missing && (
             <p className="mb-2 text-center text-sm font-medium text-danger" aria-live="polite">
-              얼마나 아픈지 골라 주세요
+              {missing}
             </p>
           )}
           <div className="flex items-center gap-2">
@@ -504,7 +521,7 @@ export function CheckinFlow({
             <button
               type="button"
               onClick={next}
-              disabled={pending || needArmLevel}
+              disabled={pending || missing != null}
               className="flex h-14 flex-1 items-center justify-center rounded-2xl bg-sky text-lg font-bold text-white transition-colors hover:bg-sky-strong disabled:opacity-60"
             >
               {view.cur === 'memo'

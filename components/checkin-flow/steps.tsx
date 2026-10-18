@@ -20,7 +20,7 @@ import {
   type BodySpots,
   type SpotSide,
 } from '@/lib/body-spots';
-import { BodySpotPicker } from '@/components/body-spot-picker';
+import { BodySpotPicker, needsLevelChoice } from '@/components/body-spot-picker';
 import { useState } from 'react';
 import { Search } from '@/components/icon';
 import { Chip } from '@/components/day-card';
@@ -32,6 +32,9 @@ import { OutlinePerson, SleepPicture } from './pictures';
  */
 
 const TITLE = 'text-2xl font-bold leading-tight text-ink';
+/** 안 고른 슬라이더가 놓일 자리(손잡이는 숨김) — 가운데쯤 */
+const UNSET_CONDITION = 6;
+const UNSET_SLEEP = 3;
 
 const bandWord = (score: number) =>
   CONDITION_BANDS.find((b) => b.key === conditionBand(score))?.label ?? '';
@@ -46,7 +49,8 @@ export function ConditionStep({
   yesterday,
   usual,
 }: {
-  value: number;
+  /** 안 고르면 null — 손잡이를 숨기고 '밀어서 골라요' */
+  value: number | null;
   onChange: (v: number) => void;
   painOn: boolean;
   /** 컨디션이 낮아 확인이 켜진 채 고정 */
@@ -55,9 +59,15 @@ export function ConditionStep({
   yesterday: number | null;
   usual: number | null;
 }) {
-  const band = conditionBand(value);
-  const tone =
-    band === 'sick' ? 'text-warn' : band === 'good' ? 'text-sky' : 'text-ink';
+  const unset = value == null;
+  const band = conditionBand(value ?? UNSET_CONDITION);
+  const tone = unset
+    ? 'text-muted'
+    : band === 'sick'
+      ? 'text-warn'
+      : band === 'good'
+        ? 'text-sky'
+        : 'text-ink';
   return (
     <div className="flex h-full flex-col">
       <h1 className={TITLE}>오늘 컨디션은 어때요?</h1>
@@ -70,27 +80,31 @@ export function ConditionStep({
             className={`text-6xl font-black tabular-nums leading-none ${tone}`}
             aria-hidden
           >
-            {value}
+            {unset ? '?' : value}
           </p>
-          <p className={`text-lg font-semibold ${tone}`}>{bandWord(value)}</p>
+          <p className={`text-lg font-semibold ${tone}`}>
+            {value == null ? '밀어서 골라요' : bandWord(value)}
+          </p>
         </div>
         <input
           type="range"
           min={MIN_CONDITION}
           max={MAX_CONDITION}
           step={1}
-          value={value}
+          value={value ?? UNSET_CONDITION}
           onChange={(e) => onChange(Number(e.target.value))}
+          /* 숨은 손잡이 자리를 그대로 누르면 change 가 안 와 그 값을 못 고른다 — 누름으로도 고른다 */
+          onClick={(e) => unset && onChange(Number(e.currentTarget.value))}
           aria-label="오늘 컨디션"
-          aria-valuetext={`${value}점, ${bandWord(value)}`}
-          className="checkin-range w-full max-w-xs"
+          aria-valuetext={value == null ? '아직 안 고름' : `${value}점, ${bandWord(value)}`}
+          className={`checkin-range w-full max-w-xs ${unset ? 'checkin-range-unset' : ''}`}
         />
         <ol
           className="flex w-full max-w-xs justify-between text-caption text-muted"
           aria-hidden
         >
           {CONDITION_BANDS.map((b) => (
-            <li key={b.key} className={b.key === band ? 'font-semibold text-sky' : ''}>
+            <li key={b.key} className={!unset && b.key === band ? 'font-semibold text-sky' : ''}>
               {b.label}
             </li>
           ))}
@@ -162,7 +176,7 @@ export function PainStep({
   /* 몸 그림이 가리키는 근육 — 이름 목록에서 고른 것도 같은 자리로(그림이 그 근육을 비추고 정도 단추가 뜬다) */
   const [active, setActive] = useState<string | null>(null);
   const pickByName = (id: string) => {
-    if (!spots[id]) onSpots({ ...spots, [id]: '뻐근' });
+    if (!spots[id] && !needsLevelChoice(id)) onSpots({ ...spots, [id]: '뻐근' });
     setActive(id);
   };
   return (
@@ -353,7 +367,7 @@ function ArmDetail({
             </Chip>
           ))}
         </div>
-        <p className="text-caption text-muted">여러 개 · 몰라도 돼요</p>
+        <p className="text-caption text-muted">여러 개 골라도 돼요</p>
       </div>
       {showLevel && (
         <div className="space-y-1.5">
@@ -380,34 +394,38 @@ export function SleepStep({
   value,
   onChange,
 }: {
-  value: number;
+  /** 안 고르면 null — 손잡이를 숨기고 '밀어서 골라요' */
+  value: number | null;
   onChange: (v: number) => void;
 }) {
-  const word = SLEEP_QUALITY_LEVELS[value - 1] ?? '';
+  const unset = value == null;
+  const shown = value ?? UNSET_SLEEP;
+  const word = unset ? '밀어서 골라요' : (SLEEP_QUALITY_LEVELS[shown - 1] ?? '');
   return (
     <div className="flex h-full flex-col">
       <h1 className={TITLE}>어젯밤 잠은요?</h1>
       <div className="flex flex-1 flex-col items-center justify-center gap-6 py-4">
         {/* 누운 사람과 달 — 잘 잔 만큼 달이 찬다(pictures.tsx) */}
-        <SleepPicture quality={value} className="h-32 w-full max-w-xs" />
-        <p className="text-3xl font-black text-sky">{word}</p>
+        <SleepPicture quality={shown} className="h-32 w-full max-w-xs" />
+        <p className={`text-3xl font-black ${unset ? 'text-muted' : 'text-sky'}`}>{word}</p>
         <input
           type="range"
           min={1}
           max={SLEEP_QUALITY_LEVELS.length}
           step={1}
-          value={value}
+          value={shown}
           onChange={(e) => onChange(Number(e.target.value))}
+          onClick={(e) => unset && onChange(Number(e.currentTarget.value))}
           aria-label="어젯밤 수면의 질"
-          aria-valuetext={word}
-          className="checkin-range w-full max-w-xs"
+          aria-valuetext={unset ? '아직 안 고름' : word}
+          className={`checkin-range w-full max-w-xs ${unset ? 'checkin-range-unset' : ''}`}
         />
         <ol
           className="flex w-full max-w-xs justify-between text-caption text-muted"
           aria-hidden
         >
           {SLEEP_QUALITY_LEVELS.map((w, i) => (
-            <li key={w} className={i + 1 === value ? 'font-semibold text-sky' : ''}>
+            <li key={w} className={!unset && i + 1 === value ? 'font-semibold text-sky' : ''}>
               {w}
             </li>
           ))}

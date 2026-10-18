@@ -3580,6 +3580,16 @@ html[data-dualcam] [data-finder] > video {
   height: 2.25rem;
   touch-action: pan-x;
 }
+/* 아직 안 고름 — 손잡이를 숨긴다(미리 골라 둔 값처럼 안 보이게, 2026-10-18 사용자: "미리 고르는 건 아니지") */
+.checkin-range-unset {
+  accent-color: var(--color-line);
+}
+.checkin-range-unset::-webkit-slider-thumb {
+  opacity: 0;
+}
+.checkin-range-unset::-moz-range-thumb {
+  opacity: 0;
+}
 
 /*
  * 고르는 칩 줄 — 휴대폰에서는 같은 너비 칸으로(2026-10-13 사용자: "기본적인 줄맞춤도 안 되어 있다").

@@ -50,6 +50,8 @@ const DUPLICATE_WINDOW_MS = 2 * 60 * 1000;
 function checkEntry(
   body: Record<string, unknown>
 ): { error: string } | { entry: CheckedEntry; legacyEffort: boolean } {
+  /* 투구 종류는 꼭 — 비면 '불펜'으로 넣던 것을 없앴다(2026-10-18 사용자). 캐치볼이 불펜 날로 셈됐다 */
+  if (String(body.sessionType ?? '').trim() === '') return { error: '투구 종류를 골라 주세요.' };
   const checkedType = validateSessionType(String(body.sessionType ?? ''));
   if ('error' in checkedType) return checkedType;
 

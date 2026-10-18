@@ -2343,10 +2343,10 @@ export function decideToday(plan: ProgramPlan, s: TodaySignals): TodayDecision {
   if (outingGuess && hasPower) adjust.power = { kind: 'lighter' };
   /* 부하 '주의' — 파워 칸을 뺀다 */
   if (s.loadCaution) adjust.power = { kind: 'drop', reason: '부하 주의' };
-  /* 불펜 날 — 회전 던지기를 뺀다(몸통 칸) */
-  if (s.bullpenToday && items.some((x) => x.variant === 'rotationalThrow')) {
-    adjust[SLOT_OF.rotationalThrow] = { kind: 'drop', reason: '오늘 불펜' };
-  }
+  /*
+   * 불펜 날에 회전 던지기를 빼던 규칙은 2026-10-18 뺐다(사용자: "투구랑 메디신볼 던지기는 크게 상관없지 않아?") — 두 손으로 몸통 · 엉덩이
+   * 힘을 쓰는 던지기라 팔 부담이 작다. 팔을 아끼는 날(오늘 세게 던짐 · 팔 예산)은 아래 규칙 · 중재가 그대로 뺀다.
+   */
   /* 부위 통증 — 그 칸은 그날 대체(없으면 화면이 '오늘 뺌'으로) */
   for (const slot of s.painSlots) {
     if (adjust[slot]?.kind !== 'drop')

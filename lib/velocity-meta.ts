@@ -170,6 +170,11 @@ export type LogPrefill = {
   effortPct: number | null;
   maxVelocity: number;
   avgVelocity: number;
+  /**
+   * 그 세션들에서 공을 봤는데 못 잰 시도 수(VelocityAttempt — 이어진 공 없음 · 공 길 장면 1장 이상). 투구 수(pitchCount)는 잰 공만이라
+   * 그만큼 빠진다 — 폼이 '못 잰 공 N개는 빠졌어요'로 알린다(2026-10-18 사용자). 부르는 쪽이 DB 에서 세어 채운다(withMissedAttempts).
+   */
+  missed?: number;
 };
 
 /** 세션들 → 채울 값. 공 수는 더하고, 최고 · 평균은 summarize 와 같은 규칙, 종류 · 강도는 마지막 세션 것. 잰 공이 없으면 null */

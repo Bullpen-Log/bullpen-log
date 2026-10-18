@@ -10,7 +10,7 @@ import { dbDate, isNutritionDate, keyOfDbDate } from '@/lib/nutrition/days';
 import { prisma } from '@/lib/prisma';
 import { isOutingTitle, sortEvents, type CalendarEventView } from '@/lib/calendar-event';
 import { gatherFactsAndPlan } from '@/lib/report/gather';
-import { loadVelocityDay } from '@/lib/velocity-load';
+import { loadVelocityDay, withMissedAttempts } from '@/lib/velocity-load';
 import { logPrefillOf, unloggedSessions, type LogPrefill, type VelocitySessionView } from '@/lib/velocity-meta';
 import { loadNutritionDay } from '@/lib/nutrition/load';
 import type { Food, MealEntryView } from '@/lib/nutrition/meta';
@@ -256,7 +256,10 @@ export async function loadAppVelocityDay(
   return {
     ok: true,
     sessions,
-    prefill: logPrefillOf(unloggedSessions(sessions, logs.map((l) => l.createdAt.toISOString()))),
+    prefill: await withMissedAttempts(
+      user.id,
+      logPrefillOf(unloggedSessions(sessions, logs.map((l) => l.createdAt.toISOString())))
+    ),
   };
 }
 

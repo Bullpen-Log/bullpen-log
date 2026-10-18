@@ -1022,10 +1022,8 @@ check(
     LEGACY,
     sig({ nextDay: 14, bullpenToday: true, lastProgramDate: '2026-10-07' })
   );
-  check(
-    '5주 불펜 날 = 회전 던지기 뺌',
-    bp5.kind === 'go' && bp5.adjust.core?.kind === 'drop'
-  );
+  /* 불펜 날 회전 던지기 빼기는 2026-10-18 뺐다(사용자) — 몸통 칸 그대로 */
+  check('5주 불펜 날 = 회전 던지기 그대로(2026-10-18)', bp5.kind === 'go' && !bp5.adjust.core);
   const bp2 = decideToday(LEGACY, sig({ bullpenToday: true }));
   check('2주 불펜 날 = 항회전은 그대로', bp2.kind === 'go' && !bp2.adjust.core);
   const pain = decideToday(LEGACY, sig({ painSlots: ['singleLeg'], loadCaution: true }));
@@ -1413,9 +1411,9 @@ console.log('\n4-3) 중재 신호(2판 P6-2)');
       sig({ nextDay: rotDay.d, bullpenToday: true, armSpent: true })
     );
     check(
-      `4-3 (라) 불펜 + 팔 다 씀(${rotDay.k} ${rotDay.d}일차) — 불펜 규칙의 몸통 칸 빼기는 그대로, 회전 던지기는 뺄 변형에도 든다(읽는 쪽은 칸 빼기를 먼저 본다)`,
+      `4-3 (라) 불펜 + 팔 다 씀(${rotDay.k} ${rotDay.d}일차) — 불펜이라고 몸통 칸을 빼지는 않고(2026-10-18), 팔을 다 썼으니 회전 던지기는 뺄 변형에 든다`,
       bp.kind === 'go' &&
-        bp.adjust.core?.kind === 'drop' &&
+        !bp.adjust.core &&
         (bp.deferVariants ?? []).includes('rotationalThrow')
     );
   } else check('4-3 (라) 회전 던지기 든 날이 있다', false);
