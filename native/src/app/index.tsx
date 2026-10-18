@@ -81,6 +81,25 @@ const NATIVE_ROUTES = [
   /^\/(signup|account)$/,
 ];
 const isNativePath = (path: string) => NATIVE_PATHS.has(path) || NATIVE_ROUTES.some((r) => r.test(path));
+/**
+ * 웹 주소 → 같은 앱 화면(있으면). 사이트 페이지마다의 OpenNative 와 같은 짝 — 앱 탭 · 카드에서 누른 웹 주소가 앱 화면이 있는 곳이면 웹을 그리지 않고
+ * 바로 연다(예전엔 웹 페이지를 서버에서 그린 뒤 앱 화면으로 넘겨 한 번 더 기다렸다). '?web=1'(일부러 웹)은 건드리지 않는다.
+ */
+function nativeOfWeb(href: string): string | null {
+  if (/[?&]web=1\b/.test(href)) return null;
+  if (isNativePath(href)) return href;
+  const [path, q] = href.split('?');
+  const day = /^\/pitch-log\/(\d{4}-\d{2}-\d{2})$/.exec(path)?.[1];
+  if (day) return `/pitch/${day}`;
+  const lab = /^\/videos\/lab(\/guide|\/[0-9a-f-]{36})?$/.exec(path);
+  if (lab) return `/lab${lab[1] ?? ''}`;
+  const setup: Record<string, string> = { '/videos/setup': '/setup/pitch', '/training/setup': '/setup/training', '/nutrition/setup': '/setup/nutrition' };
+  if (setup[path]) return setup[path];
+  if (path === '/workout/warmup') return '/warmup';
+  const view = path === '/coach' ? new URLSearchParams(q ?? '').get('view') : null;
+  if (view === 'pitch' || view === 'training') return `/analysis?view=${view}`;
+  return null;
+}
 function openNative(path: string) {
   /* 같은 주소만 1.5초 안에 한 번 — 예전엔 어느 주소든 막아, 앱 화면을 닫자마자 다른 앱 화면을 열면 말없이 안 열렸다 */
   if (path === lastOpen.path && Date.now() - lastOpen.at < 1500) return;
@@ -246,6 +265,8 @@ export default function SiteScreen() {
   };
   /* 투구 탭(앱 화면)에서 아직 웹인 화면(투구 분석 · 3D 동작 분석)으로 — 앱 화면을 바로 걷고 웹이 그 주소로 간다 */
   const openWeb = (href: string) => {
+    const native = nativeOfWeb(href);
+    if (native && isNativePath(native)) return openNative(native);
     setPath(href.split('?')[0]);
     setSearch(href.split('?')[1] ?? '');
     goWeb(href);
