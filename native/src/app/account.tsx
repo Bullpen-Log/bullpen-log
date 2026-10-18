@@ -131,17 +131,17 @@ function LeaveForm({ c }: { c: Palette }) {
   };
 
   const ask = () =>
-    Alert.alert('정말 탈퇴할까요?', '투구 기록 · 영상 · 체크인 · 운동 기록이 모두 지워지고 되돌릴 수 없어요.', [
+    Alert.alert('정말 탈퇴할까요?', '되돌릴 수 없어요. 같은 이메일로 다시 가입해도 예전 기록은 돌아오지 않아요.', [
       { text: '취소', style: 'cancel' },
       { text: '탈퇴', style: 'destructive', onPress: () => void leave() },
     ]);
 
   return (
-    <Section title="회원 탈퇴" footer="지금까지 남긴 것이 전부 사라져요. 확인란에 탈퇴 두 글자를 그대로 적어 주세요." c={c}>
+    <Section title="회원 탈퇴" footer="되돌릴 수 없어요. 투구 기록과 올려둔 영상, 컨디션 체크인, 운동 기록, 남긴 글이 모두 지워져요. 같은 이메일로 다시 가입해도 예전 기록은 돌아오지 않아요. 확인 칸에 탈퇴 두 글자를 그대로 적어 주세요." c={c}>
       <Field value={password} onChange={setPassword} placeholder="비밀번호" kind="current" c={c} />
       <Field value={word} onChange={setWord} placeholder="탈퇴" kind="text" c={c} />
       <Result msg={msg} c={c} />
-      <Button label={busy ? '탈퇴하는 중…' : '탈퇴하기'} onPress={ask} disabled={busy || word.trim() !== '탈퇴' || !password} danger c={c} />
+      <Button label={busy ? '처리 중…' : '탈퇴하고 모든 기록 지우기'} onPress={ask} disabled={busy || word.trim() !== '탈퇴' || !password} danger c={c} />
     </Section>
   );
 }

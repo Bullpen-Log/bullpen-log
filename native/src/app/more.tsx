@@ -7,6 +7,7 @@ import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-na
 import Animated, { useAnimatedStyle, useSharedValue, withTiming, Easing } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useMenu, type MenuGroup } from '~/shell/menu-store';
+import { DEFAULT_TABS } from '~/shell/tab-bar';
 import { leaveTo } from '~/shell/web-nav';
 
 /**
@@ -32,15 +33,15 @@ const ICON: Record<string, SFSymbol> = {
   community: 'bubble.left.and.bubble.right.fill',
   support: 'lifepreserver.fill',
 };
-/** 하단 탭에도 있는 메뉴 — 폴더에서 뺀다(웹 inTabBar 와 같은 넷) */
-const TAB_ICONS = new Set(['home', 'baseball', 'dumbbell', 'utensils']);
+/** 하단 탭에도 있는 메뉴 항목 — 폴더에서 뺀다(웹 detail-menu.tsx inTabBar: 같은 길이 두 번). 잠기면 주소가 바뀌어 이름 · 그림으로 견준다(네이티브3) */
+const inTabBar = (it: { label: string; icon: string }) => DEFAULT_TABS.some((t) => t.label === it.label && t.icon === it.icon);
 const FG = '#ffffff';
 
 /** 제목 없는 묶음(홈 · 투구 · …)은 한 판으로 이어 붙인다 — 묶음마다 한 줄이면 칸이 비었다(웹과 같다) */
 function folderGroups(groups: MenuGroup[]): MenuGroup[] {
   const out: MenuGroup[] = [];
   for (const g of groups) {
-    const items = g.items.filter((it) => !TAB_ICONS.has(it.icon));
+    const items = g.items.filter((it) => !inTabBar(it));
     if (!items.length) continue;
     const last = out[out.length - 1];
     if (!g.title && last && !last.title) last.items = [...last.items, ...items];

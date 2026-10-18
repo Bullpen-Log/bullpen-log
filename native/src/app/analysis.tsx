@@ -5,7 +5,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View, type ScrollViewInstance } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ACWR_ZONES, CHRONIC_WINDOW_DAYS, describeRatio, shiftDateKey } from '@/lib/pitch-stats';
-import { formatSpeed } from '@/lib/units';
+import { formatSpeed, type SpeedUnit } from '@/lib/units';
 import {
   ANALYSIS_METRICS,
   METRIC_SPECS,
@@ -26,6 +26,9 @@ import type { TrainingReview } from '@/lib/report/training-review';
 import { LoadTrend, TrendCardView, toneColor } from '~/analysis/charts';
 import { MiniChart } from '~/home/feed';
 import { leave } from '~/mechanics/parts';
+import { usePrefs } from '~/lib/prefs';
+import { loadJson, saveJson } from '~/lib/store';
+import { useWeightUnit } from '~/lib/weight-unit';
 import { rpc, RpcError } from '~/lib/rpc';
 import { usePalette, type Palette } from '~/lib/ui';
 import { READABLE } from '~/lib/layout';
@@ -36,12 +39,13 @@ import { READABLE } from '~/lib/layout';
  *
  * 웹과 같은 차례: 하이라이트(오늘만) → 부하 지수 → (투구) 이번 주 · 마지막 투구 · 최고 구속 → 잘 던진 날 / (트레이닝) 최근 4주 → 그래프.
  * 그래프의 날을 톡 치면 그날까지의 기록으로 분석을 다시 연다(웹은 마우스로 누를 때만). 웹과 다른 것: 그래프 기간은 4주 · 12주만('기간 설정' 없음),
- * 구속 단위는 km/h 만(앱이 아직 단위를 안 고른다).
+ * 구속 · 무게는 설정의 단위(웹 useSpeedUnit · 무게 단위와 같다).
  */
 type LoadResult = ({ ok: true } & AppAnalysis) | { ok: false; to: string };
 type Kind = 'pitch' | 'training';
 
 const TITLE: Record<Kind, string> = { pitch: '투구 분석', training: '트레이닝 분석' };
+const BACK: Record<Kind, string> = { pitch: '투구 기록', training: '트레이닝' };
 
 export default function AnalysisScreen() {
   const c = usePalette();
@@ -97,13 +101,15 @@ export default function AnalysisScreen() {
 
   const header = (
     <View style={[s.header, { paddingTop: inset.top + 4, backgroundColor: c.page, borderBottomColor: c.line }]}>
-      <Pressable onPress={() => router.back()} accessibilityRole="button" accessibilityLabel="뒤로" style={s.iconBtn}>
+      {/* 웹처럼 돌아갈 곳 이름(coach/page.tsx '‹ 투구 기록' · '‹ 트레이닝') */}
+      <Pressable onPress={() => router.back()} accessibilityRole="button" accessibilityLabel={`뒤로 · ${BACK[view]}`} style={[s.iconBtn, s.backBtn]}>
         <SymbolView name="chevron.left" size={20} weight="semibold" tintColor={c.sky} />
+        <Text numberOfLines={1} style={[s.backText, { color: c.sky }]}>{BACK[view]}</Text>
       </Pressable>
       <Text accessibilityRole="header" numberOfLines={1} style={[s.headTitle, { color: c.ink }]}>
         {TITLE[view]}
       </Text>
-      <View style={s.iconBtn}>{waiting ? <ActivityIndicator /> : null}</View>
+      <View style={[s.iconBtn, s.backBtn, { justifyContent: 'flex-end' }]}>{waiting ? <ActivityIndicator /> : null}</View>
     </View>
   );
 
@@ -193,8 +199,8 @@ export default function AnalysisScreen() {
 
 /* ----------------------------- 하이라이트(웹 app/(app)/today/highlights.tsx) ----------------------------- */
 
-function fill(h: Highlight) {
-  return h.text.replace('{speed}', formatSpeed(h.speed, 'kmh') ?? '').replace('{diff}', formatSpeed(h.diff, 'kmh') ?? '');
+function fill(h: Highlight, unit: SpeedUnit) {
+  return h.text.replace('{speed}', formatSpeed(h.speed, unit) ?? '').replace('{diff}', formatSpeed(h.diff, unit) ?? '');
 }
 
 /** 카드를 누르면 그 자세한 화면 — 그날 투구는 앱 화면, 나머지는 화면을 닫고 웹으로 */
@@ -205,6 +211,8 @@ function openHref(href: string) {
 }
 
 function Highlights({ items, c }: { items: Highlight[]; c: Palette }) {
+  /* 구속은 설정의 단위로(웹 useSpeedUnit 과 같다) */
+  const speed = usePrefs().speed;
   return (
     <View style={{ gap: 10 }}>
       <Text accessibilityRole="header" style={[s.section, { color: c.ink }]}>
@@ -220,7 +228,7 @@ function Highlights({ items, c }: { items: Highlight[]; c: Palette }) {
         >
           <View style={{ flex: 1, gap: 2 }}>
             <Text style={[s.smallBold, { color: h.warn ? c.warn : c.muted }]}>{h.label}</Text>
-            <Text style={[s.body, { color: c.ink }]}>{fill(h)}</Text>
+            <Text style={[s.body, { color: c.ink }]}>{fill(h, speed)}</Text>
           </View>
           {h.chart ? <MiniChart chart={h.chart} warn={h.warn} /> : null}
           {h.href ? <SymbolView name="chevron.right" size={13} weight="semibold" tintColor={c.muted} /> : null}
@@ -373,6 +381,7 @@ function StatCell({
 
 function Stats({ overview, c }: { overview: AnalysisOverview; c: Palette }) {
   const { week, last, best } = overview;
+  const speed = usePrefs().speed;
   const bestNote = best ? best.note : overview.bestEmpty;
   return (
     <View style={[s.statRow, { backgroundColor: c.line }]}>
@@ -387,7 +396,7 @@ function Stats({ overview, c }: { overview: AnalysisOverview; c: Palette }) {
       />
       <StatCell
         label="개인 최고 구속"
-        value={best ? (formatSpeed(best.value, 'kmh') ?? '—') : '—'}
+        value={best ? (formatSpeed(best.value, speed) ?? '—') : '—'}
         tone="neutral"
         footer={<Text style={[s.tiny, { color: noteColor(bestNote, c) }]}>{bestNote.text}</Text>}
         c={c}
@@ -559,9 +568,23 @@ const PERIODS = [
   { value: '12w', label: '12주', days: 84 },
 ] as const;
 type Period = (typeof PERIODS)[number]['value'];
+const RANGE_KEY = 'bullpen-trends-range';
 
 function Trends({ data, onJump, c }: { data: AppAnalysis; onJump: (day: string) => void; c: Palette }) {
-  const [period, setPeriod] = useState<Period>('4w');
+  const [period, setPeriodState] = useState<Period>('4w');
+  const speed = usePrefs().speed;
+  const weight = useWeightUnit();
+  /* 고른 기간은 이 폰에 기억한다 — 웹 그래프와 같은 열쇠 · 모양(today/home-trends.tsx RANGE_KEY). 앱은 4주 · 12주만이라 웹의 '기간 설정'으로 남긴 값은 4주로 */
+  useEffect(() => {
+    let alive = true;
+    void loadJson(RANGE_KEY).then((v) => {
+      const saved = (v as { period?: string } | null)?.period;
+      if (alive && PERIODS.some((x) => x.value === saved)) setPeriodState(saved as Period);
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
   const p = PERIODS.find((x) => x.value === period)!;
   const today = data.today;
   const range = { from: shiftDateKey(today, -(p.days - 1)), to: today };
@@ -595,7 +618,9 @@ function Trends({ data, onJump, c }: { data: AppAnalysis; onJump: (day: string) 
                 onPress={() => {
                   if (on) return;
                   void Haptics.selectionAsync();
-                  setPeriod(x.value);
+                  setPeriodState(x.value);
+                  const days = PERIODS.find((y) => y.value === x.value)!.days;
+                  void saveJson(RANGE_KEY, { period: x.value, from: shiftDateKey(today, -(days - 1)), to: today });
                 }}
                 accessibilityRole="tab"
                 accessibilityState={{ selected: on }}
@@ -610,7 +635,7 @@ function Trends({ data, onJump, c }: { data: AppAnalysis; onJump: (day: string) 
       {/* 기간을 바꾸면 새로 그린다(key) */}
       <View key={period} style={s.row}>
         {specs.map((m) => {
-          const fmt = (v: number) => formatMetric(m.key, v, 'kmh', 'kg');
+          const fmt = (v: number) => formatMetric(m.key, v, speed, weight);
           return (
             <TrendCardView
               key={m.key}
@@ -637,6 +662,8 @@ const s = StyleSheet.create({
   centerBox: { alignItems: 'center', justifyContent: 'center', padding: 24, gap: 16 },
   header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 4, paddingBottom: 6, borderBottomWidth: StyleSheet.hairlineWidth },
   iconBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  backBtn: { width: 104, flexDirection: 'row', justifyContent: 'flex-start', gap: 2, paddingLeft: 4 },
+  backText: { fontSize: 17 },
   headTitle: { flex: 1, fontSize: 17, fontWeight: '700', textAlign: 'center' },
   content: { paddingHorizontal: 16, paddingTop: 16, gap: 20 },
   notice: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 12, paddingLeft: 14, paddingRight: 4 },
