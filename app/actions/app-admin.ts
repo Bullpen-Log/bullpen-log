@@ -120,6 +120,7 @@ export async function loadAppAdminSupport(filter: unknown) {
       select: {
         id: true,
         title: true,
+        category: true,
         status: true,
         createdAt: true,
         user: { select: { nickname: true } },
@@ -142,6 +143,8 @@ export async function loadAppAdminSupport(filter: unknown) {
     inquiries: inquiries.map((q) => ({
       id: q.id,
       title: q.title,
+      /** 종류 열쇠 — 앱이 inquiryCategoryLabel 로 배지(웹 문의 줄과 같게) */
+      category: q.category,
       status: INQUIRY_STATUS[q.status as InquiryStatusKey]?.label ?? q.status,
       open: q.status === 'OPEN',
       nickname: q.user.nickname,

@@ -210,11 +210,38 @@ export function InquiryRows({
         </Text>
         <StatusBadge status={q.status} c={c} />
       </View>
-      <Text style={[s.meta, { color: c.muted }]}>
-        {[inquiryCategoryLabel(q.category), q.date, q.replyCount > 0 ? `답글 ${q.replyCount}` : null].filter(Boolean).join(' · ')}
-      </Text>
+      <InquiryMeta category={q.category} date={q.date} replies={q.replyCount} c={c} />
     </Row>
   ));
+}
+
+/** 문의 줄 밑 한 줄 — 웹 support-inquiry-rows.tsx 와 같게: 종류 배지 · (관리자 목록이면) 닉네임 · 날짜 · 말풍선 + 답글 수 */
+export function InquiryMeta({
+  category,
+  nickname,
+  date,
+  replies,
+  c,
+}: {
+  category: string;
+  nickname?: string | null;
+  date: string;
+  replies: number;
+  c: Palette;
+}) {
+  return (
+    <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', columnGap: 10, rowGap: 4 }}>
+      <Badge text={inquiryCategoryLabel(category)} c={c} />
+      {nickname ? <Text style={[s.meta, { color: c.ink }]}>{nickname}</Text> : null}
+      <Text style={[s.meta, { color: c.muted }]}>{date}</Text>
+      {replies > 0 ? (
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }} accessibilityLabel={`답글 ${replies}`}>
+          <SymbolView name="bubble.left" size={13} tintColor={c.muted} />
+          <Text style={[s.meta, { color: c.muted }]}>{replies}</Text>
+        </View>
+      ) : null}
+    </View>
+  );
 }
 
 export const s = StyleSheet.create({
