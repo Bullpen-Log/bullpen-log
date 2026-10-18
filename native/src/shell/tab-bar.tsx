@@ -3,7 +3,8 @@ import { emitRetap } from './tab-pager';
 import { GlassView, isLiquidGlassAvailable } from 'expo-glass-effect';
 import { useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import Animated, { useAnimatedStyle, useSharedValue, withDelay, withSequence, withSpring } from 'react-native-reanimated';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import Animated, { runOnJS, useAnimatedStyle, useSharedValue, withDelay, withSequence, withSpring } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { usePalette, useTheme } from '~/lib/ui';
 import { Icon, type IconName } from '~/shell/icon';
@@ -77,16 +78,62 @@ export function TabBar({ tabs, active, onPress }: { tabs: ShellTab[]; active: st
   useEffect(() => {
     if (first.current) {
       first.current = false;
-      pos.value = index;
+      pos.set(index);
       return;
     }
-    pos.value = withSpring(index, POS_SPRING);
+    pos.set(withSpring(index, POS_SPRING));
     /* 옮기는 동안 렌즈로 부풀었다 닿으면 가라앉는다(웹 영상의 '약간의 탄성') */
-    lift.value = withSequence(withSpring(1, LIFT_SPRING), withDelay(160, withSpring(0, LIFT_SPRING)));
+    lift.set(withSequence(withSpring(1, LIFT_SPRING), withDelay(160, withSpring(0, LIFT_SPRING))));
   }, [index, pos, lift]);
   useEffect(() => {
-    shown.value = withSpring(showLens ? 1 : 0, LIFT_SPRING);
+    shown.set(withSpring(showLens ? 1 : 0, LIFT_SPRING));
   }, [showLens, shown]);
+
+  /*
+   * 길게 눌러 끌기 — 웹 mobile-tabs startHold: 0.28초 누르면 렌즈가 부푼 채 손가락을 따라오고(칸을 넘을 때마다 톡), 놓은 칸으로 간다.
+   * 짧게 누르기 · 지금 탭 다시 누르기는 그대로(이 손동작은 길게 누를 때만 켜진다).
+   */
+  const under = useSharedValue(-1);
+  const haptic = (kind: 'medium' | 'selection' | 'light') =>
+    void (kind === 'selection' ? Haptics.selectionAsync() : Haptics.impactAsync(kind === 'medium' ? Haptics.ImpactFeedbackStyle.Medium : Haptics.ImpactFeedbackStyle.Light));
+  const drop = (i: number) => {
+    const t = tabs[i];
+    if (!t || t.href === active) {
+      pos.set(withSpring(index, POS_SPRING));
+      return;
+    }
+    haptic('light');
+    onPress(t);
+  };
+  const n = tabs.length;
+  const cellAt = (x: number) => {
+    'worklet';
+    return Math.max(0, Math.min(n - 1, x / Math.max(1, cell) - 0.5));
+  };
+  const drag = Gesture.Pan()
+    .enabled(cell > 0)
+    .activateAfterLongPress(280)
+    .onStart((e) => {
+      const p = cellAt(e.x);
+      under.set(Math.round(p));
+      pos.set(p);
+      lift.set(withSpring(1, LIFT_SPRING));
+      runOnJS(haptic)('medium');
+    })
+    .onUpdate((e) => {
+      const p = cellAt(e.x);
+      pos.set(p);
+      if (Math.round(p) !== under.get()) {
+        under.set(Math.round(p));
+        runOnJS(haptic)('selection');
+      }
+    })
+    .onEnd((e, ok) => {
+      const i = Math.round(cellAt(e.x));
+      lift.set(withSpring(0, LIFT_SPRING));
+      pos.set(withSpring(ok ? i : index, POS_SPRING));
+      if (ok) runOnJS(drop)(i);
+    });
 
   const lensStyle = useAnimatedStyle(() => ({
     opacity: shown.value,
@@ -112,10 +159,10 @@ export function TabBar({ tabs, active, onPress }: { tabs: ShellTab[]; active: st
             accessibilityState={{ selected: on }}
             accessibilityLabel={t.locked ? `${t.label}(설정 전)` : t.label}
             onPressIn={() => {
-              if (!on) lift.value = withSpring(0.3, LIFT_SPRING);
+              if (!on) lift.set(withSpring(0.3, LIFT_SPRING));
             }}
             onPressOut={() => {
-              if (!on) lift.value = withSpring(0, LIFT_SPRING);
+              if (!on) lift.set(withSpring(0, LIFT_SPRING));
             }}
             onPress={() => {
               /* 떨림은 탭을 옮길 때만(웹 mobile-tabs) — 지금 탭을 다시 누르면 맨 위로 굴린다 */
@@ -141,15 +188,22 @@ export function TabBar({ tabs, active, onPress }: { tabs: ShellTab[]; active: st
     </>
   );
 
+  /* 손동작은 유리 판 안쪽 줄에 — 유리(GlassView) 바깥에 걸면 손가락이 안 온다 */
+  const row = (
+    <GestureDetector gesture={drag}>
+      <View collapsable={false} style={styles.row}>{body}</View>
+    </GestureDetector>
+  );
+
   return (
     <View pointerEvents="box-none" style={[styles.wrap, { paddingBottom: gap, paddingLeft: Math.max(20, inset.left), paddingRight: Math.max(20, inset.right) }]}>
       <View style={[styles.shadow, { shadowColor: col.shadow }]} onLayout={(e) => setWidth(e.nativeEvent.layout.width)}>
         {glass ? (
           <GlassView glassEffectStyle="regular" colorScheme={theme === 'light' ? 'light' : 'dark'} style={styles.pill}>
-            {body}
+            {row}
           </GlassView>
         ) : (
-          <View style={[styles.pill, { backgroundColor: col.base, borderColor: col.edge, borderWidth: 1 }]}>{body}</View>
+          <View style={[styles.pill, { backgroundColor: col.base, borderColor: col.edge, borderWidth: 1 }]}>{row}</View>
         )}
       </View>
     </View>
@@ -168,7 +222,8 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 10 },
   },
   pill: { flexDirection: 'row', padding: PAD, borderRadius: 999, overflow: 'hidden' },
-  lens: { position: 'absolute', top: PAD, left: PAD, height: ITEM_H, borderRadius: 999 },
+  row: { flex: 1, flexDirection: 'row' },
+  lens: { position: 'absolute', top: 0, left: 0, height: ITEM_H, borderRadius: 999 },
   item: { flex: 1, height: ITEM_H, alignItems: 'center', justifyContent: 'center', gap: 2, paddingTop: 2, borderRadius: 999 },
   label: { fontSize: 10 },
 });

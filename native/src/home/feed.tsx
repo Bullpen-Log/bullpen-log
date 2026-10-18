@@ -8,7 +8,8 @@ import type { FeedItem, FeedVariant } from '@/lib/report/feed-items';
 import type { HighlightChart } from '@/lib/report/highlights';
 import { formatSpeed } from '@/lib/units';
 import { usePrefs } from '~/lib/prefs';
-import { usePalette, type Palette } from '~/lib/ui';
+import { usePalette, withAlpha, type Palette } from '~/lib/ui';
+import { useTabActive } from '~/shell/tab-pager';
 import { Icon } from '~/shell/icon';
 import { useHomeSwipe } from './camera-swipe';
 
@@ -67,12 +68,14 @@ export function FeedCard({ items, onOpen }: { items: FeedItem[]; onOpen: (item: 
   }, [w]);
 
   /* 저절로 넘기기 */
+  /* 다른 탭을 보는 동안은 멈춘다(웹 판의 data-active 가 빠지면 멈춤) */
+  const tabActive = useTabActive();
   useEffect(() => {
-    if (n < 2 || !w || reduce || manual || held || moving != null) return;
+    if (n < 2 || !w || reduce || manual || held || moving != null || !tabActive) return;
     const dwell = items[at(pos)]?.tone === 'none' ? DWELL_NONE_MS : DWELL_MS;
     const t = setTimeout(() => go(1), dwell);
     return () => clearTimeout(t);
-  }, [n, w, reduce, manual, held, moving, pos, items, at, go]);
+  }, [n, w, reduce, manual, held, moving, pos, items, at, go, tabActive]);
 
   const posSV = useSharedValue(0);
   useEffect(() => {
@@ -173,10 +176,10 @@ export function FeedCard({ items, onOpen }: { items: FeedItem[]; onOpen: (item: 
 function Dot({ on, c }: { on: boolean; c: Palette }) {
   const width = useSharedValue(on ? 20 : 8);
   useEffect(() => {
-    width.value = withTiming(on ? 20 : 8, { duration: 300, easing: Easing.out(Easing.quad) });
+    width.set(withTiming(on ? 20 : 8, { duration: 300, easing: Easing.out(Easing.quad) }));
   }, [on, width]);
   const style = useAnimatedStyle(() => ({ width: width.value }));
-  return <Animated.View style={[styles.dot, { backgroundColor: on ? c.sky : 'rgba(29,29,31,0.2)' }, style]} />;
+  return <Animated.View style={[styles.dot, { backgroundColor: on ? c.sky : withAlpha(c.ink, 0.2) }, style]} />;
 }
 
 function FeedLabel({ item, c }: { item: FeedItem; c: Palette }) {
