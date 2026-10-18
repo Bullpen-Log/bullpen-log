@@ -96,8 +96,12 @@ function nativeOfWeb(href: string): string | null {
   const setup: Record<string, string> = { '/videos/setup': '/setup/pitch', '/training/setup': '/setup/training', '/nutrition/setup': '/setup/nutrition' };
   if (setup[path]) return setup[path];
   if (path === '/workout/warmup') return '/warmup';
-  const view = path === '/coach' ? new URLSearchParams(q ?? '').get('view') : null;
-  if (view === 'pitch' || view === 'training') return `/analysis?view=${view}`;
+  const sp = new URLSearchParams(q ?? '');
+  const view = path === '/coach' ? sp.get('view') : null;
+  /* '그날 분석'(?date=YYYY-MM-DD)은 그 날짜째 — 네이티브3 분석 화면이 받는다 */
+  const date = sp.get('date');
+  if (view === 'pitch' || view === 'training')
+    return `/analysis?view=${view}${date && /^\d{4}-\d{2}-\d{2}$/.test(date) ? `&date=${date}` : ''}`;
   return null;
 }
 function openNative(path: string) {
@@ -370,6 +374,8 @@ export default function SiteScreen() {
       search?: string;
       groups?: MenuGroup[];
       nickname?: unknown;
+      avatarUrl?: unknown;
+      isAdmin?: unknown;
       pitches?: unknown;
       uploads?: unknown;
     };
@@ -387,7 +393,13 @@ export default function SiteScreen() {
     }
     if (msg.t === 'tabbar') return setBarOn(msg.on === true);
     if (msg.t === 'adopt' && msg.items) return void adoptWebValues(msg.items, WEB_RAW_KEYS).then(reloadPrefs);
-    if (msg.t === 'menu' && Array.isArray(msg.groups)) return setMenu({ groups: msg.groups, nickname: String(msg.nickname ?? '') });
+    if (msg.t === 'menu' && Array.isArray(msg.groups))
+      return setMenu({
+        groups: msg.groups,
+        nickname: String(msg.nickname ?? ''),
+        avatarUrl: typeof msg.avatarUrl === 'string' ? msg.avatarUrl : null,
+        isAdmin: msg.isAdmin === true,
+      });
     if (msg.t === 'webfront') return setWebFront(msg.on === true);
     if (msg.t === 'loc') {
       if (typeof msg.path === 'string' && isLoginPath(msg.path)) {

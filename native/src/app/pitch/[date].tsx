@@ -1,12 +1,13 @@
 import { type Href, router, useLocalSearchParams } from 'expo-router';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { SymbolView } from 'expo-symbols';
+import { ActionSheetIOS, Alert, Pressable, ScrollView, StyleSheet, Text, View, type TextStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { isRestSession } from '@/lib/session-type';
 import { effortText } from '@/lib/pitch-effort';
-import { formatSpeed } from '@/lib/units';
+import { formatSpeed, round1, speedLabel, toSpeed } from '@/lib/units';
 import { usePrefs } from '~/lib/prefs';
 import { LocalVideo } from '../../../modules/local-video';
-import { usePalette } from '~/lib/ui';
+import { TYPE, usePalette, type Palette } from '~/lib/ui';
 import { ApiError, dateKeyOf, deleteLog, isPhoneVideoPath, phoneAssetId } from '~/pitch/api';
 import { monthOf, refreshMonth, useMonth } from '~/pitch/store';
 import { PitchVideo } from '~/pitch/video';
@@ -65,54 +66,95 @@ export default function PitchDayScreen() {
               {logs && day.length === 0 ? (
                 <Text style={{ color: c.muted, fontSize: 15, textAlign: 'center', paddingVertical: 32 }}>이날은 기록이 없어요.</Text>
               ) : null}
-              {day.map((l) => (
-                <View key={l.id} style={[styles.card, { backgroundColor: c.card }]}>
-                  <View style={styles.cardHead}>
-                    <Text style={[styles.type, { color: c.ink }]}>
-                      {l.sessionType}
-                      {isRestSession(l.sessionType) ? '' : ` · ${l.pitchCount}구`}
-                    </Text>
-                    <Pressable
-                      accessibilityRole="button"
-                      hitSlop={8}
-                      onPress={() => router.push({ pathname: '/pitch/edit' as Href as never, params: { date, id: l.id } })}
-                    >
-                      <Text style={[styles.action, { color: c.sky }]}>고치기</Text>
-                    </Pressable>
-                    <Pressable accessibilityRole="button" hitSlop={8} onPress={() => remove(l.id, l.videoPaths)}>
-                      <Text style={[styles.action, { color: c.danger }]}>지우기</Text>
-                    </Pressable>
+              {day.map((l) => {
+                const rested = isRestSession(l.sessionType);
+                const eff = effortText({ intensity: l.intensity ?? 0, effortPct: l.effortPct });
+                const cues = (
+                  [
+                    ['좋았던 것', l.cuesGood],
+                    ['아쉬웠던 것', l.cuesBad],
+                  ] as const
+                ).filter(([, list]) => list.length > 0);
+                const menu = () =>
+                  ActionSheetIOS.showActionSheetWithOptions(
+                    {
+                      title: rested ? '쉬는 날' : `${l.sessionType} ${l.pitchCount}구`,
+                      options: ['기록 고치기', '기록 지우기', '취소'],
+                      destructiveButtonIndex: 1,
+                      cancelButtonIndex: 2,
+                    },
+                    (i) => {
+                      if (i === 0) router.push({ pathname: '/pitch/edit' as Href as never, params: { date, id: l.id } });
+                      if (i === 1) remove(l.id, l.videoPaths);
+                    }
+                  );
+                return (
+                  <View key={l.id} style={[styles.card, { backgroundColor: c.card, boxShadow: c.float }]}>
+                    {/* 그날의 수치 — 구속이 있으면 최고 구속을, 없으면 투구 수를 크게(웹 day-record.tsx) */}
+                    <View style={styles.cardHead}>
+                      <View style={{ flex: 1, gap: 12 }}>
+                        <Text style={[TYPE.num, { fontSize: 24, color: rested ? c.muted : c.sky }]}>
+                          {rested ? (
+                            '쉬는 날'
+                          ) : l.maxVelocity != null ? (
+                            <>
+                              {round1(toSpeed(l.maxVelocity, speed))}
+                              <Text style={{ fontSize: 14, color: c.muted, fontWeight: '500' }}> {speedLabel(speed)} 최고</Text>
+                            </>
+                          ) : (
+                            <>
+                              {l.pitchCount}
+                              <Text style={{ fontSize: 14, color: c.muted, fontWeight: '500' }}> 구</Text>
+                            </>
+                          )}
+                        </Text>
+                        <View style={styles.badges}>
+                          {rested ? (
+                            <Badge c={c}>던지지 않았어요</Badge>
+                          ) : (
+                            <>
+                              <Badge c={c} strong>
+                                {l.sessionType}
+                              </Badge>
+                              <Badge c={c}>{l.pitchCount}구</Badge>
+                              {eff ? <Badge c={c}>강도 {eff}</Badge> : null}
+                              {l.satisfaction != null ? <Badge c={c}>만족도 {l.satisfaction}/5</Badge> : null}
+                              {l.avgVelocity != null ? <Badge c={c}>평균 {formatSpeed(l.avgVelocity, speed)}</Badge> : null}
+                            </>
+                          )}
+                        </View>
+                      </View>
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel="기록 고치기 · 지우기"
+                        onPress={menu}
+                        hitSlop={6}
+                        style={({ pressed }) => [styles.more, pressed && { backgroundColor: c.chip }]}
+                      >
+                        <SymbolView name="ellipsis" size={18} tintColor={c.muted} />
+                      </Pressable>
+                    </View>
+                    {/* 그날의 느낀점 — 영상보다 위(다시 여는 까닭은 대개 '그날 뭐라고 적었더라'), 남긴 것이 없으면 그리지 않는다 */}
+                    {l.memo || cues.length ? (
+                      <View style={[styles.feel, { backgroundColor: c.skyTint }]}>
+                        <Text style={{ color: c.sky, fontSize: 12, fontWeight: '500' }}>그날의 느낀점</Text>
+                        {l.memo ? <Text style={[styles.memo, { color: c.ink }]}>{l.memo}</Text> : null}
+                        {cues.map(([title, list]) => (
+                          <Text key={title} style={{ color: c.muted, fontSize: 12 }}>
+                            {title} <Text style={{ color: c.ink }}>{list.join(' · ')}</Text>
+                          </Text>
+                        ))}
+                      </View>
+                    ) : null}
+                    {l.videoPaths.map((p, i) => (
+                      <View key={p} style={{ gap: 6 }}>
+                        {l.videoPaths.length > 1 ? <Text style={{ color: c.muted, fontSize: 12, fontWeight: '500' }}>영상 {i + 1}</Text> : null}
+                        <PitchVideo path={p} />
+                      </View>
+                    ))}
                   </View>
-                  {!isRestSession(l.sessionType) ? (
-                    <Text style={[styles.meta, { color: c.muted }]}>
-                      {[
-                        effortText({ intensity: l.intensity ?? 0, effortPct: l.effortPct })
-                    ? `강도 ${effortText({ intensity: l.intensity ?? 0, effortPct: l.effortPct })}`
-                    : null,
-                        l.maxVelocity ? `최고 ${formatSpeed(l.maxVelocity, speed)}` : null,
-                        l.avgVelocity ? `평균 ${formatSpeed(l.avgVelocity, speed)}` : null,
-                      ]
-                        .filter(Boolean)
-                        .join(' · ') || ' '}
-                    </Text>
-                  ) : null}
-                  {l.satisfaction != null || l.cuesGood.length || l.cuesBad.length ? (
-                    <Text style={[styles.meta, { color: c.muted }]}>
-                      {[
-                        l.satisfaction != null ? `만족도 ${l.satisfaction}` : null,
-                        l.cuesGood.length ? `좋았던 것 ${l.cuesGood.join(' · ')}` : null,
-                        l.cuesBad.length ? `아쉬웠던 것 ${l.cuesBad.join(' · ')}` : null,
-                      ]
-                        .filter(Boolean)
-                        .join('  ')}
-                    </Text>
-                  ) : null}
-                  {l.memo ? <Text style={[styles.memo, { color: c.ink }]}>{l.memo}</Text> : null}
-                  {l.videoPaths.map((p) => (
-                    <PitchVideo key={p} path={p} />
-                  ))}
-                </View>
-              ))}
+                );
+              })}
             </>
           }
           right={
@@ -138,12 +180,22 @@ const styles = StyleSheet.create({
   back: { minWidth: 96, height: 44, justifyContent: 'center' },
   backText: { fontSize: 17 },
   barTitle: { fontSize: 17, fontWeight: '600' },
-  card: { borderRadius: 20, padding: 16, gap: 10 },
-  cardHead: { flexDirection: 'row', alignItems: 'center', gap: 16 },
-  type: { flex: 1, fontSize: 20, fontWeight: '700' },
-  action: { fontSize: 15, fontWeight: '600' },
-  meta: { fontSize: 15 },
-  memo: { fontSize: 15, lineHeight: 21 },
+  card: { borderRadius: 20, padding: 20, gap: 20 },
+  cardHead: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
+  badges: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  more: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', marginRight: -6, marginTop: -6 },
+  feel: { borderRadius: 12, padding: 16, gap: 8 },
+  memo: { fontSize: 15, lineHeight: 22 },
   add: { height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center', marginTop: 8 },
   addText: { color: '#fff', fontSize: 17, fontWeight: '600' },
 });
+
+/** 배지 — 웹 Badge(테두리 · 작은 글자). strong 은 종류(짙은 하늘 글자) */
+function Badge({ c, strong, children }: { c: Palette; strong?: boolean; children: React.ReactNode }) {
+  const text: TextStyle = { color: strong ? c.skyStrong : c.ink, fontSize: 12, fontWeight: strong ? '600' : '500' };
+  return (
+    <View style={{ borderWidth: 1, borderColor: strong ? c.skyTint : c.line, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 3 }}>
+      <Text style={text}>{children}</Text>
+    </View>
+  );
+}

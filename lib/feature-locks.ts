@@ -75,7 +75,8 @@ export function featureOfPath(pathname: string): FeatureKey | null {
   if (
     p.startsWith('/videos') ||
     p.startsWith('/pitch-log') ||
-    p.startsWith('/velocity')
+    p.startsWith('/velocity') ||
+    p.startsWith('/abs')
   )
     return 'pitch';
   if (

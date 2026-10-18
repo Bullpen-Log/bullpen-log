@@ -184,6 +184,18 @@ export const NAV_GROUPS: NavGroup[] = [
         appOrAdmin: true,
         lock: 'pitch',
       },
+      /*
+       * ABS(볼 · 스트라이크 자동 판정) — 구속 측정과 같은 카메라 화면을 판정 모드로 연다(2026-10-18 사용자: "별개의 기능으로 따로도 쓸 수 있어야").
+       * 검문 2(docs/designs/abs-single-camera.md)를 지날 때까지 관리자만.
+       */
+      {
+        href: '/abs',
+        label: 'ABS 판정',
+        icon: 'target',
+        appOrAdmin: true,
+        adminOnly: true,
+        lock: 'pitch',
+      },
     ],
   },
   /*

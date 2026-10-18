@@ -5,6 +5,8 @@ import { Maximize2, Pencil, X, ZoomIn } from 'lucide-react';
 import { CountUp } from '@/components/onboarding/count-up';
 import { PITCH_TYPES } from '@/lib/velocity-meta';
 import type { CameraPos } from '@/lib/velocity-setup';
+import type { AbsAnalysis, FitSnapshot } from '@/lib/abs/analysis';
+import { VerdictCard } from '@/components/abs/verdict-card';
 import { ClipPlayer, Tracer, trailZoom, type TrailPoint } from './clip-player';
 import type { MeasurePhase } from './measure-progress';
 
@@ -40,7 +42,12 @@ export function PitchResult({
   busy,
   gunText,
   onGun,
+  abs,
+  absFit,
 }: {
+  /** ABS 판정(analysis.abs) — 있으면 구속 위에 판정 카드. absFit 은 3D 둘러보기용 궤적 스냅샷(analysis.distance.fit) */
+  abs?: AbsAnalysis | null;
+  absFit?: FitSnapshot | null;
   /** 공이 바뀌면 바뀌는 값 — 영상 기다림을 새로 센다 */
   pitchKey: number | string;
   /** 몇 구째 */
@@ -194,6 +201,11 @@ export function PitchResult({
       </div>
 
       <div className="shrink-0 px-5 pb-[max(1rem,env(safe-area-inset-bottom))] pt-4">
+        {abs && (
+          <div className="mb-3">
+            <VerdictCard abs={abs} fit={absFit ?? null} compact />
+          </div>
+        )}
         <p className="text-numeric text-7xl leading-none motion-safe:animate-fade-in">
           {/* 0 에서 잰 값까지 올라가며 — 소수 자리는 받은 값 그대로 */}
           <CountUp

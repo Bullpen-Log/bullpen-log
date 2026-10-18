@@ -1,6 +1,7 @@
 import * as Haptics from 'expo-haptics';
 import { SymbolView } from 'expo-symbols';
 import { type Href, router } from 'expo-router';
+import { AddToRoutine } from '~/armcare/add-to-routine';
 import { useState, useSyncExternalStore } from 'react';
 import { Image, Pressable, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
 import { ARMCARE_AREAS, ARMCARE_MUSCLES, areaOfMuscle, type ArmcareArea, type ArmcareAreaKey } from '@/lib/armcare/anatomy';
@@ -66,6 +67,8 @@ function ExerciseRow({
             <Text style={[s.small, { color: c.sky }]}>{ex.targetMuscles.slice(0, 2).join(' · ')}</Text>
           ) : null}
           <Text style={[s.tiny, { color: c.muted }]}>{meta}</Text>
+          {/* 부위별 보강에서만(루틴 목록을 넘긴 곳) — 웹 AddToRoutine 처럼 운동 줄 안 [담기] */}
+          <AddToRoutine exerciseId={ex.id} title={ex.title} c={c} />
         </View>
         {ex.thumbUrl ? <Image source={{ uri: ex.thumbUrl }} style={st.thumb} /> : null}
       </View>
@@ -82,7 +85,7 @@ function ExerciseRow({
       {open ? (
         <View style={{ gap: 10, paddingHorizontal: 12, paddingBottom: 12 }}>
           <ExerciseMedia path={ex.videoPath} referenceVideoId={ex.referenceVideoId} thumbUrl={ex.thumbUrl} aspectRatio={ex.aspectRatio} />
-          <HowTo exerciseId={ex.id} method={ex.method} c={c} />
+          <HowTo exerciseId={ex.id} method={ex.method} inline c={c} />
         </View>
       ) : null}
     </View>
@@ -302,19 +305,34 @@ export function RoutineCard({ routine: r, dateKey, fresh, open, onToggle, onChan
 }
 
 /** 오늘 재활 겉 모습(웹 rehab-card.tsx 접힌 카드) — 시작은 앱 따라 하기(/armcare/rehab), 자세히는 앱 화면(/rehab — 시험 · 매주 확인은 거기서 웹으로) */
+/**
+ * 재활 카드 위 한 줄(진료 > 쉬는 날 > 낮추기 > 단계 시험 > 매주 확인 > 정도 낮아짐) — 웹 rehab-card.tsx 의 TopLine 처럼 단계 시험 · 매주 확인 줄에는
+ * 오른쪽 [시험하기] · [확인하기](앱 화면 rehab-test · rehab-weekly). 진료 줄은 경고색.
+ */
+export function RehabLine({ line, bg, c }: { line: NonNullable<AppRehabSummary['line']>; bg: string; c: Palette }) {
+  if (line.kind === 'refer') return <Text style={[s.body, s.box, { color: c.warn, backgroundColor: c.warnBg }]}>{line.text}</Text>;
+  const action =
+    line.kind === 'stage-test' ? { label: '시험하기', href: '/rehab-test' } : line.kind === 'weekly' ? { label: '확인하기', href: '/rehab-weekly' } : null;
+  return (
+    <View style={[s.box, { backgroundColor: bg, flexDirection: 'row', alignItems: 'center', gap: 8 }]}>
+      <Text style={[s.body, { color: c.ink, flex: 1 }]}>{line.text}</Text>
+      {action ? (
+        <Pressable onPress={() => router.push(action.href as Href)} accessibilityRole="button" style={[s.textBtn, { minHeight: 44, justifyContent: 'center' }]}>
+          <Text style={[s.smallBold, { color: c.sky }]}>{action.label}</Text>
+        </Pressable>
+      ) : null}
+    </View>
+  );
+}
+
 export function RehabCard({ rehab, dateKey, c }: { rehab: AppRehabSummary; dateKey: string; c: Palette }) {
-  const refer = rehab.line?.kind === 'refer';
   return (
     <View style={[s.card, { backgroundColor: c.card, borderWidth: 1, borderColor: c.sky + '40' }]}>
       <View style={{ gap: 2 }}>
         <Text style={[s.smallBold, { color: c.muted }]}>재활 프로그램 · {rehab.day}일째</Text>
         <Text style={[s.title, { color: c.ink }]}>{rehab.title}</Text>
       </View>
-      {rehab.line ? (
-        <Text style={[s.body, s.box, refer ? { color: c.warn, backgroundColor: c.warnBg } : { color: c.ink, backgroundColor: c.page }]}>
-          {rehab.line.text}
-        </Text>
-      ) : null}
+      {rehab.line ? <RehabLine line={rehab.line} bg={c.page} c={c} /> : null}
       {rehab.today ? (
         <View style={[st.todayBox, { backgroundColor: rehab.today.warn ? c.warnBg : c.sky + '14' }]}>
           <View style={{ flex: 1, gap: 2 }}>

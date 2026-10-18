@@ -1,14 +1,15 @@
+import { SymbolView } from 'expo-symbols';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import * as WebBrowser from 'expo-web-browser';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Animated, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { EXERCISE_NOTE_MAX, cleanExerciseNote } from '@/lib/exercise-meta';
 import { referenceEmbedUrl, referenceWatchUrl } from '@/lib/reference-video';
 import { rpc } from '~/lib/rpc';
 import { SITE_URL } from '~/lib/site';
 import type { Palette } from '~/lib/ui';
-import { call } from '~/pitch/api';
+import { call, loadMe } from '~/pitch/api';
 
 /** 운동 진행 화면(native/src/app/workout.tsx)의 작은 조각 — 웹 app/(session)/workout/run/session-client.tsx 의 같은 이름 부품을 옮겼다 */
 
@@ -30,6 +31,7 @@ export function RestPill({ seconds, target, c }: { seconds: number; target: numb
       accessibilityLabel={`쉰 시간 ${clockText(seconds)}${target != null ? `, 권장 쉬는 시간 ${clockText(target)}` : ''}`}
       style={[s.rest, { backgroundColor: c.chip }]}
     >
+      <SymbolView name="timer" size={16} tintColor={over ? c.sky : c.muted} />
       <Text style={[s.restClock, { color: c.ink }]}>{clockText(seconds)}</Text>
       <Text style={[s.small, { color: over ? c.sky : c.muted, fontWeight: over ? '700' : '400' }]}>
         {target == null ? '쉬는 중' : `권장 ${clockText(target)}`}
@@ -38,21 +40,38 @@ export function RestPill({ seconds, target, c }: { seconds: number; target: numb
   );
 }
 
-/** 처방 세트 수만큼의 점 — 남긴 세트만큼 찬다. 처방보다 더 하면 점이 늘어난다(더 한 것도 한 것이다) */
+/** 처방 세트 수만큼의 점 — 남긴 세트만큼 찬다. 처방보다 더 하면 점이 늘어난다(더 한 것도 한 것이다). 칠해지는 순간 한 번 톡 커진다(웹 finish-pop) */
 export function SetDots({ planned, done, c }: { planned: number; done: number; c: Palette }) {
   const total = Math.max(planned, done);
+  const all = done >= planned;
   return (
     <View style={s.dotsRow}>
       <View style={s.dots}>
         {Array.from({ length: total }, (_, i) => (
-          <View key={i} style={[s.dot, { backgroundColor: i < done ? c.sky : c.line }]} />
+          <Pop key={`${i}-${i < done}`} on={i < done}>
+            <View style={[s.dot, { backgroundColor: i < done ? c.sky : c.line }]} />
+          </Pop>
         ))}
       </View>
-      <Text style={[s.small, { color: done >= planned ? c.sky : c.muted, fontWeight: done >= planned ? '700' : '400' }]}>
-        {done >= planned ? `✓ ${planned}세트 다 했어요` : `${planned}세트 중 ${done}세트`}
-      </Text>
+      <Pop key={`all-${all}`} on={all}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+          {all ? <SymbolView name="checkmark" size={12} weight="bold" tintColor={c.sky} /> : null}
+          <Text style={[s.small, { color: all ? c.sky : c.muted, fontWeight: all ? '700' : '400' }]}>
+            {all ? `${planned}세트 다 했어요` : `${planned}세트 중 ${done}세트`}
+          </Text>
+        </View>
+      </Pop>
     </View>
   );
+}
+
+/** on 으로 새로 그려질 때 0.6 → 1 로 한 번 튀어 커진다(웹 finish-pop) */
+function Pop({ on, children }: { on: boolean; children: React.ReactNode }) {
+  const [v] = useState(() => new Animated.Value(on ? 0 : 1));
+  useEffect(() => {
+    if (on) Animated.spring(v, { toValue: 1, friction: 5, tension: 160, useNativeDriver: true }).start();
+  }, [on, v]);
+  return <Animated.View style={{ transform: [{ scale: v.interpolate({ inputRange: [0, 1], outputRange: [0.6, 1] }) }] }}>{children}</Animated.View>;
 }
 
 const PAD_KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '.', '0'] as const;
@@ -268,6 +287,22 @@ export function NoteBox({
  * 자세 영상 — 직접 찍은 영상은 라이브러리 재생 주소(/api/library/video-url, 웹 components/library-video.tsx 와 같은 small 판)로 틀고,
  * 유튜브 참고 영상은 공식 삽입 재생기를 작은 웹뷰로(우리 사이트를 주소로 둔다 — 유튜브가 출처 없는 삽입을 막는다).
  */
+/** 관리자인가 — 앱을 켤 때 한 번 받은 나(app.loadAppMe, ~/pitch/api loadMe). 받기 전 · 실패면 아님 */
+function useIsAdmin() {
+  const [admin, setAdmin] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    loadMe().then(
+      (me) => alive && setAdmin(me.isAdmin),
+      () => undefined
+    );
+    return () => {
+      alive = false;
+    };
+  }, []);
+  return admin;
+}
+
 export function ExerciseVideo({
   path,
   referenceVideoId,
@@ -277,6 +312,7 @@ export function ExerciseVideo({
   referenceVideoId: string | null;
   aspectRatio: number | null;
 }) {
+  const admin = useIsAdmin();
   if (path) return <LibraryClip path={path} aspectRatio={aspectRatio} />;
   /* 유튜브 영상 번호만(11자) — 이 글이 사이트 주소(baseUrl)로 도는 웹뷰에 그대로 들어가니, 다른 글자가 섞인 번호는 그리지 않는다 */
   if (!referenceVideoId || !/^[A-Za-z0-9_-]{11}$/.test(referenceVideoId)) return null;
@@ -292,13 +328,16 @@ export function ExerciseVideo({
           style={{ backgroundColor: '#000' }}
         />
       </View>
-      <Pressable
-        onPress={() => void WebBrowser.openBrowserAsync(referenceWatchUrl(referenceVideoId))}
-        accessibilityRole="link"
-        style={s.noteAdd}
-      >
-        <Text style={[s.small, { color: '#0a84d6' }]}>유튜브에서 열기 ↗</Text>
-      </Pressable>
+      {/* 관리자만 — 웹 components/library-video.tsx 와 같다(2026-10-04 '앱 안에 머물기': 일반 사용자는 유튜브로 나가지 않게) */}
+      {admin ? (
+        <Pressable
+          onPress={() => void WebBrowser.openBrowserAsync(referenceWatchUrl(referenceVideoId))}
+          accessibilityRole="link"
+          style={s.noteAdd}
+        >
+          <Text style={[s.small, { color: '#0a84d6' }]}>유튜브에서 열기 ↗</Text>
+        </Pressable>
+      ) : null}
     </View>
   );
 }

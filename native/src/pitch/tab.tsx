@@ -1,20 +1,15 @@
 import { type Href, router } from 'expo-router';
 import { useState } from 'react';
-import {
-  Pressable,
-  RefreshControl,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { SymbolView } from 'expo-symbols';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { isRestSession } from '@/lib/session-type';
 import { effortText } from '@/lib/pitch-effort';
 import { formatSpeed } from '@/lib/units';
 import { usePrefs } from '~/lib/prefs';
 import { EMPTY_FIND, filterLogs, isFindActive, type FindQuery } from '@/lib/pitch-find';
-import { usePalette } from '~/lib/ui';
+import { PRESSED, SPACE, usePalette } from '~/lib/ui';
+import { AnalysisPill, PageHead, Segmented, ToolCircle } from '~/shell/heading';
 import { dateKeyOf } from './api';
 import { MonthGrid } from './month-grid';
 import { FindBar } from './find-bar';
@@ -32,149 +27,127 @@ const effortOf = (l: { intensity: number | null; effortPct: number | null }) =>
  * 웹 투구 탭(app/(app)/videos)과 같은 규칙.
  */
 export function PitchTab({ today, bottom, onWeb }: { today: string; bottom: number; onWeb: (href: string) => void }) {
+  void onWeb;
   const c = usePalette();
   const speed = usePrefs().speed;
   const inset = useSafeAreaInsets();
+  /* [캘린더 | 목록] — 웹 투구 탭 고르개(pitch-log-heading.tsx PITCH_VIEW_OPTIONS). 찾기는 목록에만(웹 video-gallery 와 같다) */
+  const [view, setView] = useState<'calendar' | 'list'>('calendar');
   const [month, setMonth] = useState(monthOf(today));
-  const { logs, loading, error, reload } = useMonth(month);
-  /* 찾기 — 조건이 켜지면 모든 기록에서 거른다(달 대신) */
+  const { logs, error } = useMonth(month);
   const [q, setQ] = useState<FindQuery>(EMPTY_FIND);
+  const all = useAllLogs(view === 'list');
   const finding = isFindActive(q);
-  const all = useAllLogs(finding);
-
-  const list = finding
-    ? filterLogs([...(all.logs ?? [])].reverse(), q)
-    : [...(logs ?? [])].reverse();
+  const allLogs = [...(all.logs ?? [])].reverse();
+  const list = finding ? filterLogs(allLogs, q) : allLogs;
   const thisYear = today.slice(0, 4);
+  /* 달 묶음 — 웹 목록처럼 '2026년 10월' 머리 밑에 그달 기록(새것 먼저) */
+  const groups: { key: string; items: typeof list }[] = [];
+  for (const l of list) {
+    const key = l.date.slice(0, 7);
+    const g = groups[groups.length - 1];
+    if (g?.key === key) g.items.push(l);
+    else groups.push({ key, items: [l] });
+  }
+
+  const row = (l: (typeof list)[number]) => (
+    <Pressable
+      key={l.id}
+      onPress={() => router.push(`/pitch/${dateKeyOf(l.date)}` as Href)}
+      style={({ pressed }) => [styles.row, { backgroundColor: c.card, boxShadow: c.float }, pressed && PRESSED]}
+    >
+      <Text style={[styles.rowDate, { color: c.muted }]}>
+        {l.date.slice(0, 4) !== thisYear ? `${l.date.slice(2, 4)}.` : ''}
+        {Number(l.date.slice(5, 7))}/{Number(l.date.slice(8, 10))}
+      </Text>
+      <Text style={[styles.rowMain, { color: c.ink }]} numberOfLines={1}>
+        {l.sessionType}
+        {isRestSession(l.sessionType) ? '' : ` · ${l.pitchCount}구`}
+        {effortOf(l) ? ` · 강도 ${effortOf(l)}` : ''}
+        {l.maxVelocity ? ` · ${formatSpeed(l.maxVelocity, speed)}` : ''}
+      </Text>
+      {l.videoPaths.length ? <SymbolView name="video.fill" size={14} tintColor={c.sky} /> : null}
+      <Text style={{ color: c.muted, fontSize: 17 }}>›</Text>
+    </Pressable>
+  );
 
   return (
     <ScrollView
       style={{ flex: 1, backgroundColor: c.page }}
-      contentContainerStyle={[{
-        paddingTop: inset.top + 12,
-        paddingBottom: bottom + 24,
-        paddingHorizontal: 16,
-        gap: 16,
-      }, READABLE_WIDE]}
-      refreshControl={
-        <RefreshControl refreshing={loading && logs != null} onRefresh={reload} />
-      }
+      contentContainerStyle={[
+        { paddingTop: inset.top + SPACE.section, paddingBottom: bottom + 24, paddingHorizontal: SPACE.side, gap: SPACE.gap },
+        READABLE_WIDE,
+      ]}
     >
-      <View style={styles.head}>
-        <Text style={[styles.title, { color: c.ink }]}>투구 기록</Text>
-        <Pressable
-          accessibilityRole="button"
-          onPress={() => router.push('/velocity')}
-          style={[styles.add, { backgroundColor: c.chip }]}
-        >
-          <Text style={[styles.addText, { color: c.ink }]}>구속 측정</Text>
-        </Pressable>
-        <Pressable
-          accessibilityRole="button"
-          onPress={() =>
-            router.push({
-              pathname: '/pitch/edit' as Href as never,
-              params: { date: today },
-            })
-          }
-          style={[styles.add, { backgroundColor: c.sky }]}
-        >
-          <Text style={styles.addText}>오늘 기록</Text>
-        </Pressable>
-      </View>
+      <PageHead title="투구">
+        <ToolCircle icon="speedometer" label="구속 측정" onPress={() => router.push('/velocity')} />
+        <ToolCircle icon="rotate.3d" label="3D 동작 분석" onPress={() => router.push('/lab' as Href)} />
+        <AnalysisPill view="pitch" />
+      </PageHead>
+      <Segmented
+        label="기록 보기 방식"
+        options={[
+          { value: 'calendar', label: '캘린더' },
+          { value: 'list', label: '목록' },
+        ]}
+        value={view}
+        onChange={setView}
+      />
 
-      {/* 아이패드 가로(~/lib/layout TwoColumns) — 왼쪽 오늘 · 찾기 · 달력, 오른쪽 그달 기록 목록. 좁으면 위아래 그대로 */}
-      <TwoColumns ratio={[1, 1]} gap={16}
+      {/* 아이패드 가로(~/lib/layout TwoColumns) — 왼쪽 오늘 카드 · 가져오기, 오른쪽 캘린더나 목록. 좁으면 위아래 그대로 */}
+      <TwoColumns
+        ratio={[1, 1]}
+        gap={16}
         left={
           <>
-            {!finding ? <PitchTodayCard today={today} /> : null}
-
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
-              {(
-                [
-                  ['2분할 비교', () => router.push('/pitch/compare' as Href)],
-                  ['투구 분석', () => router.push('/analysis?view=pitch' as Href)],
-                  ['3D 동작 분석', () => router.push('/lab' as Href)],
-                ] as const
-              ).map(([label, go]) => (
-                <Pressable key={label} accessibilityRole="button" onPress={go} style={[styles.link, { backgroundColor: c.card }]}>
-                  <Text style={[styles.linkText, { color: c.ink }]}>{label}</Text>
-                </Pressable>
-              ))}
-            </ScrollView>
-
-            <FindBar q={q} onChange={setQ} />
-
-            {finding ? (
-              <Text style={{ color: c.muted, fontSize: 13 }}>
-                {all.logs ? `맞는 기록 ${list.length}건` : '모든 기록을 불러오는 중…'}
-              </Text>
-            ) : (
-              <MonthGrid
-                month={month}
-                today={today}
-                logs={logs}
-                onMonth={setMonth}
-                onDay={(day) => router.push(`/pitch/${day}` as Href)}
-              />
-            )}
+            <PitchTodayCard today={today} />
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => router.push('/pitch/import' as Href)}
+              style={({ pressed }) => [styles.row, { backgroundColor: c.card, boxShadow: c.float }, pressed && PRESSED]}
+            >
+              <SymbolView name="photo.on.rectangle" size={17} tintColor={c.sky} />
+              <Text style={[styles.rowMain, { color: c.ink }]}>지난 영상 가져오기</Text>
+              <Text style={{ color: c.muted, fontSize: 17 }}>›</Text>
+            </Pressable>
           </>
         }
         right={
-          <>
-            {error && !logs ? (
-              <Text style={{ color: c.danger, fontSize: 15 }}>{error}</Text>
-            ) : null}
-
-            <View style={{ gap: 8 }}>
-              {list.map((l) => (
-                <Pressable
-                  key={l.id}
-                  onPress={() => router.push(`/pitch/${dateKeyOf(l.date)}` as Href)}
-                  style={[styles.row, { backgroundColor: c.card }]}
-                >
-                  <Text style={[styles.rowDate, { color: c.muted }]}>
-                    {l.date.slice(0, 4) !== thisYear ? `${l.date.slice(2, 4)}.` : ''}
-                    {Number(l.date.slice(5, 7))}/{Number(l.date.slice(8, 10))}
-                  </Text>
-                  <Text style={[styles.rowMain, { color: c.ink }]} numberOfLines={1}>
-                    {l.sessionType}
-                    {isRestSession(l.sessionType) ? '' : ` · ${l.pitchCount}구`}
-                    {effortOf(l) ? ` · 강도 ${effortOf(l)}` : ''}
-                    {l.maxVelocity ? ` · ${formatSpeed(l.maxVelocity, speed)}` : ''}
-                  </Text>
-                  {l.videoPaths.length ? (
-                    <Text style={{ color: c.sky, fontSize: 13 }}>
-                      영상 {l.videoPaths.length}
-                    </Text>
-                  ) : null}
-                  <Text style={{ color: c.muted, fontSize: 17 }}>›</Text>
-                </Pressable>
-              ))}
-              {!finding ? (
+          view === 'calendar' ? (
+            <>
+              {error && !logs ? <Text style={{ color: c.danger, fontSize: 15 }}>{error}</Text> : null}
+              <MonthGrid month={month} today={today} logs={logs} onMonth={setMonth} onDay={(day) => router.push(`/pitch/${day}` as Href)} />
+            </>
+          ) : (
+            <>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Text style={{ flex: 1, color: c.muted, fontSize: 13 }}>
+                  {all.logs ? (finding ? `맞는 기록 ${list.length}건` : `투구 기록 ${list.length}건`) : '기록을 불러오는 중…'}
+                </Text>
                 <Pressable
                   accessibilityRole="button"
-                  onPress={() => router.push('/pitch/import' as Href)}
-                  style={[styles.row, { backgroundColor: c.card }]}
+                  onPress={() => router.push('/pitch/compare' as Href)}
+                  style={({ pressed }) => [styles.link, { backgroundColor: c.chip }, pressed && { opacity: 0.6 }]}
                 >
-                  <Text style={[styles.rowMain, { color: c.sky }]}>지난 영상 가져오기</Text>
-                  <Text style={{ color: c.muted, fontSize: 17 }}>›</Text>
+                  <Text style={[styles.linkText, { color: c.ink }]}>2분할 비교</Text>
                 </Pressable>
-              ) : null}
-              {(finding ? all.logs : logs) && list.length === 0 ? (
-                <Text
-                  style={{
-                    color: c.muted,
-                    fontSize: 15,
-                    textAlign: 'center',
-                    paddingVertical: 24,
-                  }}
-                >
-                  {finding ? '맞는 기록이 없어요.' : '이 달은 기록이 없어요.'}
+              </View>
+              <FindBar q={q} onChange={setQ} />
+              {groups.map((g) => (
+                <View key={g.key} style={{ gap: 8 }}>
+                  <Text style={{ color: c.ink, fontSize: 15, fontWeight: '700', marginTop: 4 }}>
+                    {g.key.slice(0, 4)}년 {Number(g.key.slice(5, 7))}월 <Text style={{ color: c.muted, fontWeight: '500' }}>{g.items.length}건</Text>
+                  </Text>
+                  {g.items.map(row)}
+                </View>
+              ))}
+              {all.logs && list.length === 0 ? (
+                <Text style={{ color: c.muted, fontSize: 15, textAlign: 'center', paddingVertical: 24 }}>
+                  {finding ? '맞는 기록이 없어요' : '아직 투구 기록이 없어요'}
                 </Text>
               ) : null}
-            </View>
-          </>
+            </>
+          )
         }
       />
     </ScrollView>
@@ -182,15 +155,6 @@ export function PitchTab({ today, bottom, onWeb }: { today: string; bottom: numb
 }
 
 const styles = StyleSheet.create({
-  head: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  title: { flex: 1, fontSize: 34, fontWeight: '700' },
-  add: {
-    height: 40,
-    borderRadius: 20,
-    paddingHorizontal: 16,
-    justifyContent: 'center',
-  },
-  addText: { color: '#fff', fontSize: 15, fontWeight: '600' },
   link: { height: 36, borderRadius: 18, paddingHorizontal: 14, justifyContent: 'center' },
   linkText: { fontSize: 14, fontWeight: '600' },
   week: { width: `${100 / 7}%`, textAlign: 'center', fontSize: 12, paddingBottom: 4 },

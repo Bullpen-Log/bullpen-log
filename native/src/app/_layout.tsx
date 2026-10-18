@@ -2,6 +2,7 @@ import { router, Stack, usePathname } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useTheme } from '~/lib/ui';
 
 /** 사이트 첫 화면이 그려질 때까지 시작 화면을 둔다(index.tsx 가 걷는다) — 흰 화면이 번쩍이지 않게 */
@@ -42,16 +43,25 @@ export default function RootLayout() {
     if (path !== '/') void SplashScreen.hideAsync();
   }, [path]);
   return (
-    <>
+    /* 밀어서 하기(shell/swipe-row.tsx) 같은 손가락 동작 부품은 이 뿌리 안에서만 돈다 */
+    <GestureHandlerRootView style={{ flex: 1 }}>
       {/* 상태바 글자색 — 설정 테마를 따른다(기기 밝기가 아니라) */}
       <StatusBar style={theme === 'light' ? 'dark' : 'light'} />
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="pitch/edit" options={{ presentation: 'modal' }} />
         <Stack.Screen name="pitch/import" options={{ presentation: 'modal' }} />
         <Stack.Screen name="nutrition/add" options={{ presentation: 'modal' }} />
-        <Stack.Screen name="more" options={{ presentation: 'modal' }} />
-        <Stack.Screen name="checkin" options={{ presentation: 'modal' }} />
+        {/* 설정 · 내 정보 — 웹처럼 창으로(더보기 폴더 위에 뜨고 닫으면 폴더가 그대로) */}
+        <Stack.Screen name="settings" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="profile" options={{ presentation: 'modal' }} />
+        {/* 더보기 — 뒤를 덮는 막 + 가운데 유리 폴더(웹 휴대폰 폴더와 같다) */}
+        <Stack.Screen name="more" options={{ presentation: 'transparentModal', animation: 'fade', animationDuration: 200 }} />
+        {/* 알림 종의 오늘 할 일 — 내용만큼만 올라오는 아래 시트(웹 휴대폰 종 시트와 같다) */}
+        <Stack.Screen
+          name="notice"
+          options={{ presentation: 'formSheet', sheetAllowedDetents: 'fitToContents', sheetGrabberVisible: true, sheetCornerRadius: 28 }}
+        />
       </Stack>
-    </>
+    </GestureHandlerRootView>
   );
 }

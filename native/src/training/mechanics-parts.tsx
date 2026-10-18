@@ -657,12 +657,15 @@ function DrillRow({ drill, secondary, c }: { drill: MechanicsDrillView; secondar
   const tools =
     drill.variants.length > 1 ? drill.variants.map((v) => v.tool) : variant.equipment.length > 0 ? variant.equipment : [variant.tool];
   const favorite = fav[variant.id] ?? variant.favorite;
+  const [favError, setFavError] = useState<string | null>(null);
   const toggleFav = async () => {
     if (favBusy) return;
     setFavBusy(true);
+    setFavError(null);
     const res = await act<{ favorite: boolean }>('favorite.toggleDrillFavorite', variant.id);
     setFavBusy(false);
-    if (!('error' in res)) {
+    if ('error' in res) setFavError(res.error);
+    else {
       void Haptics.selectionAsync();
       setFav((f) => ({ ...f, [variant.id]: res.favorite }));
     }
@@ -714,7 +717,7 @@ function DrillRow({ drill, secondary, c }: { drill: MechanicsDrillView; secondar
             thumbUrl={variant.thumbUrl}
             aspectRatio={variant.aspectRatio}
           />
-          <Description key={`d-${variant.id}`} guideId={variant.id} c={c} />
+          <Description key={`d-${variant.id}`} guideId={variant.id} inline c={c} />
           <Pressable
             onPress={() => void toggleFav()}
             disabled={favBusy}
@@ -723,8 +726,10 @@ function DrillRow({ drill, secondary, c }: { drill: MechanicsDrillView; secondar
             style={[s.smallPill, { backgroundColor: favorite ? c.sky + '1a' : c.chip, alignSelf: 'flex-start', opacity: favBusy ? 0.6 : 1 }]}
           >
             <SymbolView name={favorite ? 'star.fill' : 'star'} size={13} tintColor={favorite ? c.sky : c.muted} />
-            <Text style={[s.smallBold, { color: favorite ? c.sky : c.ink }]}>{favorite ? '즐겨찾기 됨' : '즐겨찾기'}</Text>
+            {/* 웹 FavoriteButton(full)과 같은 글 · 실패하면 밑에 한 줄 */}
+            <Text style={[s.smallBold, { color: favorite ? c.sky : c.ink }]}>{favorite ? '즐겨찾기 해제' : '즐겨찾기에 담기'}</Text>
           </Pressable>
+          {favError ? <Text style={[s.small, { color: c.danger }]}>{favError}</Text> : null}
         </View>
       ) : null}
     </View>

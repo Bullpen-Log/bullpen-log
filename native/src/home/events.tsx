@@ -22,6 +22,17 @@ import { READABLE } from '~/lib/layout';
  */
 const days = new Map<string, CalendarEventView[]>();
 export const resetEventsCache = () => days.clear();
+/** 그날 일정 수 — 그날 칸의 '일정' 아이콘을 칠할지(받아 두면 일정 칸이 펴질 때 바로 보인다). 못 받으면 null */
+export async function countDayEvents(date: string): Promise<number | null> {
+  try {
+    const r = await rpc<{ ok: true; events: CalendarEventView[] } | { ok: false; error: string }>('app.loadAppDayEvents', date);
+    if (!r.ok) return null;
+    days.set(date, r.events);
+    return r.events.length;
+  } catch {
+    return null;
+  }
+}
 
 type SaveResult = { ok: true; event: CalendarEventView } | { ok: false; error: string };
 

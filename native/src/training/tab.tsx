@@ -2,15 +2,18 @@ import { SymbolView, type SFSymbol } from 'expo-symbols';
 import * as Haptics from 'expo-haptics';
 import { type Href, router, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, type ScrollViewInstance, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { CardAction, TrainingCard } from '@/lib/report/training-home-data';
+import type { TrainingWeekCounts } from '@/lib/report/training-week-counts';
+import type { TrainingStripDay } from '@/lib/training-week';
+import { ThrowNoteCard } from '~/mechanics/parts';
 import { TRAINING_PART_HREF, type TrainingPart } from '@/lib/training-part';
 import { rpc, RpcError } from '~/lib/rpc';
 import { REST_DAY } from '~/training/rest-day';
 import { cacheEpoch, cacheGet, cacheSet } from '~/lib/store';
 import { usePalette } from '~/lib/ui';
-import { fromApp } from '~/shell/web-nav';
+import { fromApp, openCheckin } from '~/shell/web-nav';
 import { READABLE } from '~/lib/layout';
 
 /**
@@ -18,7 +21,7 @@ import { READABLE } from '~/lib/layout';
  * 판정은 lib/report/training-home-data.ts — app.loadAppTraining). [시작]은 운동 판을 열어 앱 운동 화면(/workout)으로, 암케어 · 메커니즘
  * 따라 하기와 각 앱의 전체 화면(카드를 누름)은 아직 웹(onWeb).
  */
-type Loaded = { today: string; cards: TrainingCard[] };
+type Loaded = { today: string; cards: TrainingCard[]; strip?: TrainingStripDay[]; week?: TrainingWeekCounts };
 let cached: Loaded | null = null;
 export const resetTrainingCache = () => {
   cached = null;
@@ -109,7 +112,7 @@ export function TrainingTab({ today, bottom, onWeb }: { today: string; bottom: n
   };
   const act = (a: CardAction) => {
     if (a.kind === 'workout') return void startWorkout(a);
-    if (a.kind === 'checkin') return router.push({ pathname: '/checkin' as Href as never, params: { date: today } });
+    if (a.kind === 'checkin') return openCheckin('/training?view=home');
     /* 암케어 따라 하기는 앱 화면 — 웹(/armcare/play/<id>)을 거치면 한 번 더 읽고 넘긴다 */
     const armcare = /^\/armcare\/play\/([\w-]+)(\?.*)?$/.exec(a.href);
     if (armcare) return router.push(fromApp(`/armcare/${armcare[1]}${armcare[2] ?? ''}`) as Href);
@@ -145,6 +148,10 @@ export function TrainingTab({ today, bottom, onWeb }: { today: string; bottom: n
           <Text style={[styles.chipText, { color: c.ink }]}>분석</Text>
         </Pressable>
       </View>
+
+      {/* 웹 트레이닝 홈과 같은 차례 — 제목 밑 날짜 띠(최근 6주) → 이번 주 한 줄 → 앱 카드 셋 */}
+      {data?.strip?.length ? <DayStrip days={data.strip} today={data.today} c={c} /> : null}
+      {data?.week ? <WeekLine week={data.week} c={c} /> : null}
 
       {error && !data ? <Text style={{ color: c.danger, fontSize: 15 }}>{error}</Text> : null}
       {!data && !error ? <ActivityIndicator style={{ paddingVertical: 24 }} /> : null}
@@ -225,30 +232,85 @@ function Card({
           <Text style={{ color: c.sky, fontSize: 13, fontWeight: '600' }}>{card.gap.text} ›</Text>
         </Pressable>
       ) : null}
-      {card.throwNote ? (
-        <Pressable
-          accessibilityRole="button"
-          onPress={() => {
-            const date = /\/pitch-log\/(\d{4}-\d{2}-\d{2})/.exec(card.throwNote!.href)?.[1];
-            if (!date) return onWeb(card.throwNote!.href);
-            router.push({
-              pathname: '/pitch/edit' as Href as never,
-              params: { date, drill: String(card.throwNote!.throws), pct: String(card.throwNote!.effortPct) },
-            });
-          }}
-          style={[styles.note, { backgroundColor: c.page }]}
-        >
-          <Text style={{ flex: 1, color: c.ink, fontSize: 14 }}>
-            드릴로 공 약 {card.throwNote.throws}회 던졌어요. 투구 기록에 남겨 주세요.
-          </Text>
-          <Text style={{ color: c.sky, fontSize: 14, fontWeight: '600' }}>남기기 ›</Text>
-        </Pressable>
-      ) : null}
+      {/* 웹 트레이닝 홈의 드릴 공 줄과 같은 부품(DRILL_THROW_TEXT 문구 · '이미 넣었어요' · '안 적을래요' 닫기 — mechanics.closeDrillThrowNote) */}
+      {card.throwNote ? <ThrowNoteCard note={card.throwNote} c={c} /> : null}
+    </View>
+  );
+}
+
+/**
+ * 날짜 띠 — 웹 day-strip.tsx(components/date-scroll-strip.tsx)와 같은 최근 6주를 옆으로 굴리는 한 줄. 칸 밑 점은 그날 한 것(운동 · 암케어 ·
+ * 메커니즘), 지난날을 누르면 그날 기록(앱 화면 /training/day/<날짜>), 오늘은 여기(누르지 않음). 처음엔 오늘 쪽(끝)을 보인다.
+ */
+function DayStrip({ days, today, c }: { days: TrainingStripDay[]; today: string; c: ReturnType<typeof usePalette> }) {
+  const ref = useRef<ScrollViewInstance>(null);
+  return (
+    <ScrollView
+      ref={ref}
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      onContentSizeChange={() => ref.current?.scrollToEnd({ animated: false })}
+      contentContainerStyle={{ gap: 6 }}
+    >
+      {days.map((day) => {
+        const on = day.date === today;
+        const [, m, d] = day.date.split('-').map(Number);
+        const week = '일월화수목금토'[new Date(`${day.date}T00:00:00Z`).getUTCDay()];
+        const dots = [day.workout, day.armcare, day.drill];
+        return (
+          <Pressable
+            key={day.date}
+            accessibilityRole="button"
+            accessibilityLabel={`${m}월 ${d}일${on ? ', 오늘' : ''}`}
+            disabled={on}
+            onPress={() => router.push(`/training/day/${day.date}` as Href)}
+            style={[styles.day, { backgroundColor: c.card, borderColor: on ? c.sky : 'transparent' }]}
+          >
+            {/* 1일 칸은 요일 대신 'N월'(웹 date-scroll-strip 과 같다) */}
+            <Text style={{ fontSize: 11, color: on ? c.sky : c.muted }}>{d === 1 ? `${m}월` : week}</Text>
+            <Text style={{ fontSize: 17, fontWeight: on ? '800' : '600', color: on ? c.sky : c.ink, fontVariant: ['tabular-nums'] }}>{d}</Text>
+            <View style={styles.dots}>
+              {dots.map((x, i) => (x ? <View key={i} style={[styles.dot, { backgroundColor: c.sky }]} /> : null))}
+            </View>
+          </Pressable>
+        );
+      })}
+    </ScrollView>
+  );
+}
+
+/** 이번 주 한 줄 — 웹 WeekStrip 과 같은 글('이번 주 운동 N일 · 암케어 N일 · 메커니즘 N일', 다 0 이면 '이번 주는 아직 기록이 없어요.') */
+function WeekLine({ week, c }: { week: TrainingWeekCounts; c: ReturnType<typeof usePalette> }) {
+  const cells: [string, number][] = [
+    ['운동', week.today],
+    ['암케어', week.armcare],
+    ['메커니즘', week.mechanics],
+  ];
+  const none = cells.every(([, n]) => n === 0);
+  return (
+    <View style={[styles.week, { backgroundColor: c.card }]}>
+      {none ? (
+        <Text style={{ color: c.muted, fontSize: 15 }}>이번 주는 아직 기록이 없어요.</Text>
+      ) : (
+        <Text style={{ color: c.muted, fontSize: 15 }}>
+          <Text style={{ color: c.ink, fontWeight: '600' }}>이번 주</Text>
+          {cells.map(([name, n]) => (
+            <Text key={name}>
+              {'   '}
+              {name} <Text style={{ color: c.ink, fontWeight: '600', fontVariant: ['tabular-nums'] }}>{n}일</Text>
+            </Text>
+          ))}
+        </Text>
+      )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  day: { width: 48, minHeight: 64, borderRadius: 14, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center', gap: 2 },
+  dots: { flexDirection: 'row', gap: 2, height: 5 },
+  dot: { width: 5, height: 5, borderRadius: 2.5 },
+  week: { borderRadius: 16, paddingHorizontal: 16, paddingVertical: 14 },
   head: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingBottom: 4 },
   title: { flex: 1, fontSize: 34, fontWeight: '700' },
   chip: { height: 36, borderRadius: 18, paddingHorizontal: 14, justifyContent: 'center' },

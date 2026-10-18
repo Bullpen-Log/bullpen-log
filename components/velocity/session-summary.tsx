@@ -8,6 +8,8 @@ import { Panel, SectionLabel } from './kit';
 import { ZoneGrid } from './pitch-editor';
 import { PrimaryButton } from './setup-steps';
 import type { SessionPitch } from './session-types';
+import type { AbsAnalysis } from '@/lib/abs/analysis';
+import { AbsSummary } from '@/components/abs/abs-summary';
 
 /**
  * 세션 요약 — 가운데 아래 '세션 종료'를 누르면 카메라 대신 폰 틀 안을 채운다.
@@ -31,7 +33,10 @@ export function SessionSummary({
   onEditPitch,
   onDeletePitch,
   saving = false,
+  abs,
 }: {
+  /** ABS 판정이 있는 공들(analysis.abs) — 있으면 숫자 위에 ABS 칸 */
+  abs?: { id: number; abs: AbsAnalysis }[];
   /** 이미 seq 차례 */
   pitches: SessionPitch[];
   unit: SpeedUnit;
@@ -67,6 +72,11 @@ export function SessionSummary({
           </p>
         </header>
 
+        {!empty && abs && abs.length > 0 && (
+          <div className="mt-5 short:mt-4">
+            <AbsSummary items={abs} />
+          </div>
+        )}
         {empty ? (
           <EmptyState />
         ) : (

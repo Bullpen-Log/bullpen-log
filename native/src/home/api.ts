@@ -13,6 +13,8 @@ export type AppHome = {
   today: string;
   rings: HomeRing[];
   checkinDone: boolean;
+  /** 오늘 투구 기록이 있나(쉰 날 줄 포함) — 위 막대 알림 종 */
+  pitchDone: boolean;
   feed: FeedItem[];
   painWords: string[] | null;
   recovering: boolean;

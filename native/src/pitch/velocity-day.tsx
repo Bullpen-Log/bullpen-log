@@ -42,7 +42,7 @@ export function VelocityDay({ date, logCount }: { date: string; logCount: number
   const pf = data.prefill;
 
   return (
-    <View style={[styles.card, { backgroundColor: c.card }]}>
+    <View style={[styles.card, { backgroundColor: c.card, boxShadow: c.float }]}>
       <Text style={[styles.title, { color: c.ink }]}>구속 측정</Text>
       {data.sessions.map((s) => {
         const sum = summarize(s.pitches);

@@ -1,102 +1,163 @@
+import { GlassView, isLiquidGlassAvailable } from 'expo-glass-effect';
 import { SymbolView, type SFSymbol } from 'expo-symbols';
 import { type Href, router } from 'expo-router';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useEffect } from 'react';
+import { Image } from 'expo-image';
+import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import Animated, { useAnimatedStyle, useSharedValue, withTiming, Easing } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { usePalette } from '~/lib/ui';
-import { useMenu } from '~/shell/menu-store';
+import { useMenu, type MenuGroup } from '~/shell/menu-store';
 import { DEFAULT_TABS } from '~/shell/tab-bar';
 import { leaveTo } from '~/shell/web-nav';
-import { READABLE } from '~/lib/layout';
 
 /**
- * 더보기(앱) — 사이트의 메뉴 묶음(lib/nav.ts visibleGroups · 잠김까지, 사이트가 알려 줌)을 아이폰 설정 목록처럼. 누르면 닫고 그곳으로
- * (앱 화면이 있는 곳은 앱 화면 — 껍데기가 가른다). 내 정보 · 설정도 여기서. 예전엔 웹 메뉴를 열었는데, 앱 화면(홈 · 투구 · 영양) 위에서
- * 누르면 그 밑에 깔려 안 보였다.
+ * 더보기(앱) — 웹 휴대폰 더보기 폴더(components/app-shell/detail-menu.tsx · globals.css [data-folder])와 같은 꼴: 화면 전체를 어둡게 덮고
+ * 가운데 반투명 유리 폴더, 그 안에 투명 아이콘(흰 그림) + 이름이 셋씩, 묶음 제목은 흰 글자 60%, 맨 밑에 설정 타일 · 내 정보 줄.
+ * 하단 탭에 있는 넷(홈 · 투구 · 트레이닝 · 영양)은 뺀다. 막을 누르면 닫힌다(아이폰 폴더처럼 닫기 단추 없음).
+ * 목록은 사이트가 알려 준 메뉴 묶음(lib/nav.ts visibleGroups · 잠김까지). 누르면 닫고 그곳으로(앱 화면이 있는 곳은 앱 화면 — 껍데기가 가른다).
  */
 const ICON: Record<string, SFSymbol> = {
-  home: 'house',
-  baseball: 'baseball',
-  dumbbell: 'dumbbell',
-  film: 'film',
+  home: 'house.fill',
+  baseball: 'baseball.fill',
+  dumbbell: 'dumbbell.fill',
+  film: 'film.fill',
   utensils: 'fork.knife',
   target: 'target',
-  book: 'book',
-  settings: 'gearshape',
-  shield: 'shield',
+  book: 'book.fill',
+  settings: 'gearshape.fill',
+  shield: 'shield.fill',
   gauge: 'gauge.with.dots.needle.67percent',
-  clapper: 'movieclapper',
+  clapper: 'movieclapper.fill',
   radar: 'scope',
   body: 'figure.stand',
-  community: 'bubble.left.and.bubble.right',
-  support: 'lifepreserver',
+  community: 'bubble.left.and.bubble.right.fill',
+  support: 'lifepreserver.fill',
 };
-
-/** 하단 탭에도 있는 메뉴 항목 — 웹 휴대폰 더보기 폴더처럼 뺀다(components/app-shell/detail-menu.tsx inTabBar: 같은 길이 두 번). 잠기면 주소가 바뀌어 이름 · 그림으로 견준다 */
+/** 하단 탭에도 있는 메뉴 항목 — 폴더에서 뺀다(웹 detail-menu.tsx inTabBar: 같은 길이 두 번). 잠기면 주소가 바뀌어 이름 · 그림으로 견준다(네이티브3) */
 const inTabBar = (it: { label: string; icon: string }) => DEFAULT_TABS.some((t) => t.label === it.label && t.icon === it.icon);
+const FG = '#ffffff';
+
+/** 제목 없는 묶음(홈 · 투구 · …)은 한 판으로 이어 붙인다 — 묶음마다 한 줄이면 칸이 비었다(웹과 같다) */
+function folderGroups(groups: MenuGroup[]): MenuGroup[] {
+  const out: MenuGroup[] = [];
+  for (const g of groups) {
+    const items = g.items.filter((it) => !inTabBar(it));
+    if (!items.length) continue;
+    const last = out[out.length - 1];
+    if (!g.title && last && !last.title) last.items = [...last.items, ...items];
+    else out.push({ title: g.title, items });
+  }
+  return out;
+}
 
 export default function MoreScreen() {
-  const c = usePalette();
   const inset = useSafeAreaInsets();
-  const { groups, nickname } = useMenu();
-  const go = leaveTo;
+  const { height } = useWindowDimensions();
+  const { groups, nickname, avatarUrl, isAdmin } = useMenu();
+  /* 타일 크기는 화면 높이가 정한다 — 굴리지 않고 한 장에(웹 --tile: clamp(40px, (100dvh − 34rem) / 5, 52px)) */
+  const tile = Math.max(40, Math.min(52, (height - 34 * 16) / 5));
+  const glass = isLiquidGlassAvailable();
 
-  const row = (key: string, label: string, icon: SFSymbol, onPress: () => void, locked = false, last = false) => (
+  /* 하단 탭 '더보기' 자리 쪽에서 부풀어 뜬다(웹 folder-in: 0.55 → 1, 320ms) */
+  const grow = useSharedValue(0);
+  useEffect(() => {
+    grow.value = withTiming(1, { duration: 320, easing: Easing.bezier(0.2, 0.9, 0.3, 1.05) });
+  }, [grow]);
+  const folderStyle = useAnimatedStyle(() => ({ opacity: grow.value, transform: [{ scale: 0.55 + 0.45 * grow.value }] }));
+
+  const close = () => router.back();
+  const open = (href: string) => leaveTo(href);
+  const tileOf = (key: string, label: string, icon: SFSymbol, onPress: () => void, locked = false) => (
     <Pressable
       key={key}
       accessibilityRole="button"
-      accessibilityLabel={locked ? `${label}, 첫 설정이 필요해요` : label}
+      accessibilityLabel={locked ? `${label}(설정 전)` : label}
       onPress={onPress}
-      style={({ pressed }) => [styles.row, pressed && { backgroundColor: c.chip }]}
+      style={({ pressed }) => [styles.tile, pressed && { transform: [{ scale: 0.95 }] }]}
     >
-      <View style={[styles.icon, { backgroundColor: locked ? c.muted : c.sky }]}>
-        <SymbolView name={icon} size={17} tintColor="#fff" />
+      <View style={[styles.icon, { width: tile, height: tile, borderRadius: tile * 0.28, opacity: locked ? 0.55 : 1 }]}>
+        <SymbolView name={icon} size={tile * 0.44} tintColor={FG} />
+        {locked ? (
+          <View style={styles.lock}>
+            <SymbolView name="lock.fill" size={10} tintColor={FG} />
+          </View>
+        ) : null}
       </View>
-      <View style={[styles.rowBody, !last && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: c.line }]}>
-        <Text style={[styles.label, { color: locked ? c.muted : c.ink }]}>{label}</Text>
-        {locked ? <SymbolView name="lock.fill" size={14} tintColor={c.muted} /> : null}
-        <Text style={{ color: c.muted, fontSize: 17 }}>›</Text>
-      </View>
+      <Text numberOfLines={1} style={[styles.tileLabel, locked && { opacity: 0.55 }]}>
+        {label}
+      </Text>
     </Pressable>
   );
 
-  return (
-    <View style={{ flex: 1, backgroundColor: c.page }}>
-      <View style={styles.bar}>
-        <View style={{ width: 44 }} />
-        <Text style={[styles.barTitle, { color: c.ink }]}>더보기</Text>
-        <Pressable accessibilityRole="button" onPress={() => router.back()} hitSlop={10} style={{ width: 44, alignItems: 'flex-end' }}>
-          <Text style={{ color: c.sky, fontSize: 17, fontWeight: '600' }}>완료</Text>
-        </Pressable>
-      </View>
-      <ScrollView contentContainerStyle={[{ padding: 16, gap: 20, paddingBottom: inset.bottom + 24 }, READABLE]}>
-        <View style={[styles.group, { backgroundColor: c.card }]}>
-          {/* 웹처럼 더보기를 닫지 않고 그 위로 연다 — 닫으면 더보기로 돌아온다(detail-menu.tsx '휴대폰은 폴더를 닫지 않는다') */}
-          {row('profile', nickname ? `${nickname} · 내 정보` : '내 정보', 'person.crop.circle', () => router.push('/profile' as Href))}
-          {row('settings', '설정', 'gearshape', () => router.push('/settings' as Href), false, true)}
+  const folders = folderGroups(groups);
+  const body = (
+    <View style={{ padding: 20, gap: 12 }}>
+      {folders.map((g, gi) => (
+        <View key={g.title ?? `g${gi}`} style={[styles.grid, gi > 0 && { marginTop: 4 }]}>
+          {g.title ? <Text style={styles.groupTitle}>{g.title}</Text> : null}
+          {g.items.map((it) => tileOf(it.href, it.label, ICON[it.icon] ?? 'circle.fill', () => open(it.href), it.locked))}
+          {gi === folders.length - 1 ? tileOf('settings', '설정', 'gearshape.fill', () => router.push('/settings' as Href)) : null}
         </View>
-        {groups
-          .map((g) => ({ ...g, items: g.items.filter((it) => !inTabBar(it)) }))
-          .filter((g) => g.items.length > 0)
-          .map((g, gi) => (
-            <View key={gi} style={{ gap: 6 }}>
-              {g.title ? <Text style={[styles.groupTitle, { color: c.muted }]}>{g.title}</Text> : null}
-              <View style={[styles.group, { backgroundColor: c.card }]}>
-                {g.items.map((it, i) => row(it.href, it.label, ICON[it.icon] ?? 'circle', () => go(it.href), it.locked, i === g.items.length - 1))}
-              </View>
-            </View>
-          ))}
-      </ScrollView>
+      ))}
+      {/* 내 정보 — 폴더 밑 줄(웹 Avatar · 닉네임 · '내 정보') */}
+      <Pressable
+        accessibilityRole="button"
+        onPress={() => router.push('/profile' as Href)}
+        style={({ pressed }) => [styles.me, pressed && { backgroundColor: 'rgba(255,255,255,0.1)' }]}
+      >
+        <View style={styles.avatar}>
+          {avatarUrl ? (
+            <Image source={{ uri: avatarUrl }} style={StyleSheet.absoluteFill} contentFit="cover" accessibilityIgnoresInvertColors />
+          ) : (
+            <Text style={{ color: FG, fontSize: 15, fontWeight: '700' }}>{nickname ? nickname.slice(0, 1) : '나'}</Text>
+          )}
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text numberOfLines={1} style={{ color: FG, fontSize: 15, fontWeight: '500' }}>
+            {nickname || '내 정보'}
+          </Text>
+          <Text style={{ color: 'rgba(255,255,255,0.65)', fontSize: 12 }}>{isAdmin ? '관리자' : '내 정보'}</Text>
+        </View>
+      </Pressable>
     </View>
+  );
+
+  return (
+    <Pressable accessibilityLabel="메뉴 닫기" onPress={close} style={[styles.scrim, { paddingTop: inset.top, paddingBottom: inset.bottom }]}>
+      {/* 폴더 안을 눌러도 닫히지 않게 — 안쪽 Pressable 이 누름을 먼저 받는다 */}
+      <Animated.View style={[styles.folderWrap, folderStyle]}>
+        <Pressable accessibilityRole="menu" accessibilityLabel="메뉴" onPress={() => undefined}>
+          {glass ? (
+            <GlassView glassEffectStyle="regular" colorScheme="dark" style={styles.folder}>
+              {body}
+            </GlassView>
+          ) : (
+            <View style={[styles.folder, styles.folderFallback]}>{body}</View>
+          )}
+        </Pressable>
+      </Animated.View>
+    </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
-  bar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 14, paddingBottom: 8 },
-  barTitle: { fontSize: 17, fontWeight: '600' },
-  group: { borderRadius: 14, overflow: 'hidden' },
-  groupTitle: { fontSize: 13, fontWeight: '600', paddingHorizontal: 16 },
-  row: { flexDirection: 'row', alignItems: 'center', paddingLeft: 14, minHeight: 48 },
-  icon: { width: 30, height: 30, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
-  rowBody: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8, marginLeft: 12, paddingRight: 14, minHeight: 48 },
-  label: { flex: 1, fontSize: 17 },
+  scrim: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', alignItems: 'center', justifyContent: 'center' },
+  folderWrap: { width: '88%', maxWidth: 352 },
+  folder: { borderRadius: 36, overflow: 'hidden' },
+  folderFallback: { backgroundColor: 'rgba(60,60,67,0.72)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.22)' },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', rowGap: 12 },
+  groupTitle: { width: '100%', color: 'rgba(255,255,255,0.6)', fontSize: 11, fontWeight: '600', paddingHorizontal: 4, marginBottom: -4 },
+  tile: { width: `${100 / 3}%`, alignItems: 'center', gap: 6, paddingHorizontal: 2 },
+  icon: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.14)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.22)',
+    boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.3)',
+  },
+  lock: { position: 'absolute', right: -4, bottom: -4, width: 20, height: 20, borderRadius: 10, backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center' },
+  tileLabel: { color: 'rgba(255,255,255,0.92)', fontSize: 12, lineHeight: 16, fontWeight: '500', maxWidth: '100%' },
+  me: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 4, paddingTop: 12, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.2)', borderRadius: 16, paddingHorizontal: 4 },
+  avatar: { width: 36, height: 36, borderRadius: 18, overflow: 'hidden', backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center' },
 });
