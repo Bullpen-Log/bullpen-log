@@ -626,8 +626,12 @@
       **사용자 답(2026-10-18)**: KBO · 투수 뒤만 · S/B 둘만 · 3D 포함 · '다음 타자' 단추로 신장(처음 '평균 신장' 고르면 유지) · 실험 촬영 10-19 구속 촬영과 함께.
       **P0 끝(2026-10-18)**: `lib/abs/`(rules · zone · cross · judge · index, 순수) + `npm run abs:test`(38) · `abs:bench`(합성 300구 × 15 시나리오 6초) ·
       `docs/designs/abs-p0-protocol.md`(10-19 촬영 안내 · 체크리스트). 핵심 숫자: 좌우 p95 2cm 됨, 높이는 깊이 단서 σ_D 가 전부(0.1m → 3cm · 0.3m → 7cm),
-      카메라는 축에서 0.5m 비킴(투수 몸통 가림 52% → 14%). 다음: 촬영 자료 받으면 `scripts/abs-p0-score.mts`(옆 240fps 자와 견주기) → 검문 1 → P1(calib ·
-      plate-detect · stability).
+      카메라는 축에서 0.5m 비킴(투수 몸통 가림 52% → 14%).
+      **P1~P3 끝(2026-10-18, "끝까지 진행")**: 보정은 앞변 양끝 + 기울기 센서(오각형은 세로 3.6px 라 버림) · 앞변 찾기 · 삼각대 감시(P1 b85668a2), 깊이 단서(미트 사전값 0.6m
+      σ0.2 + 공 크기) · 타격 가리기 · `analysis.abs` · 재판정, 엔진 접점은 `DistanceReport.fit` · `AnalysisJson.abs` · sanitize 둘뿐(P2 4dec9bf6), 화면 `components/abs/`
+      (종류 단계 스위치(관리자) → 'abs' 단계 → 타자 칩 → 판정 카드 · 3D → 요약 히트맵) + `app/actions/abs.ts` + 처리방침(P3). abs:test 85. **실기기 · 앱 카메라에서는
+      아직 안 돌려 봤다** — 10-19 촬영 때 관리자 계정으로 켜 보고(종류 단계 스위치), 안 되면 '직접 맞추기'. 다음: 촬영 자료 → 채점 도구(옆 240fps 자와 견주기, 자료 모양을
+      보고 만든다) → 검문 1 · 2 → 띠 숫자 · '참고' 배지 정리(P4).
       **구축 프롬프트(2026-10-18, 영어)**: `docs/designs/abs-build-prompt.md` — §0 DECISIONS 채움. 뼈대: `lib/abs/`
       순수 모듈(rules · zone · calib · depth · cross · judge · events · stability · plate-detect) + `npm run abs:test` · `abs:bench` → UI `components/abs/` → 엔진 인자
       (`FitOptions.anchors` · `DistanceInput.depthCues` · `AnalysisJson.abs`)는 P2 끝 한 커밋 + HANDOFF. DB 변경 없음(zone · result · analysis.abs).

@@ -11,6 +11,22 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 ---
 
+## 김민에게 — 2026-10-18 · 금윤호(Claude) — ABS(폰 한 대 볼 · 스트라이크 자동 판정) 1차 — 구속 엔진 · 결과 화면 · 측정 화면에 더하기만 했다
+
+받은 뒤 할 일 없음(DB · 패키지 그대로 — `VelocityPitch.analysis` JSON 의 선택 칸 `abs` · `distance.fit` 만). 설계 `docs/designs/abs-single-camera.md`(P0~P3 결과),
+구축 지시 `docs/designs/abs-build-prompt.md`, 10-19 촬영 안내 `docs/designs/abs-p0-protocol.md`. **네 영역을 고쳤다** — 전부 더하기, 옛 길은 바이트 같음:
+- `lib/velocity-engine/analyze-distance.ts`: `DistanceReport.fit?`(맞춘 매개변수 7 · te · dragScaleM · tiltRad · 분석 카메라 · 공분산) — `finish()` 의 마지막 `fitTrajectory` 뒤 한 블록.
+  값 계산엔 안 쓴다. velocity:engine2-test 75 · accuracy --json 전후 같음.
+- `lib/velocity-analysis.ts`: `AnalysisJson.abs?` · distance 에 `fit`. `lib/velocity-sync.ts`: `sanitizeDistance` 의 `fit` · `sanitizeAnalysis` 의 `abs`(`lib/abs/analysis.ts` 가 거름).
+- `app/(session)/velocity/velocity-screen.tsx`: Step 에 `'abs'`(존 다음, ABS 켰을 때 · 투수 뒤만) · `useAbsSession` 훅 · 종류 단계 카드 밑 'ABS 판정도 해요' 스위치(관리자만) ·
+  `addResult` 에서 `abs.judge()` → `analysis.abs` · `zone`(판정 칸) · `result`(S/B) · 뷰파인더 위 `PlateOverlay` · 측정 중 `BatterChip` · PitchResult 에 `abs` · `absFit` ·
+  SessionSummary 에 `abs`. 관리자 점프의 currentScreen 은 'abs' → 'zone'.
+- `components/velocity/pitch-result.tsx`(`abs` · `absFit` 선택 prop → 구속 위 판정 카드) · `session-summary.tsx`(`abs` 선택 prop → ABS 칸) · `components/icon.tsx`(Box · UserRound) ·
+  `app/(legal)/privacy/privacy-content.tsx`(9조 2026-10-19 줄).
+- 새 파일: `lib/abs/*`(순수, `npm run abs:test` 85 · `abs:bench`), `components/abs/*`, `app/actions/abs.ts`(재판정).
+- **아직 실기기 · 앱 카메라에서 안 돌려 봤다**(플레이트 찾기는 `captureRef.current.snapshot()` 루마를 쓴다 — 앱 카메라 길도 같은 함수). 10-19 촬영 때 켜 본다.
+  구속 측정을 네가 고칠 때 위 접점 넷만 지켜 주면 된다.
+
 ## 금윤호에게 — 2026-10-18 · 김민(Claude, 데스크톱 · 영양 담당) — 앱 틀 `__bpRefresh` 하나 · 아이폰 앱 영양 화면 고침
 
 받은 뒤 할 일 없음(DB · 패키지 그대로). **네 영역(앱 틀 `components/app-shell/expo-tabs.tsx` · 아이폰 앱 껍데기 `native/src/app/index.tsx`)을 조금 고쳤다.**

@@ -194,6 +194,12 @@ export function PrivacyContent() {
           2026년 10월 14일: 3D 동작 분석을 열면서 맡기는 곳에 Modal Labs, Inc.(올린 투구 영상에서
           몸 관절 찾기)를 더했습니다.
         </p>
+        <p>
+          2026년 10월 19일: 구속 측정 안에 ABS(볼 · 스트라이크 자동 판정)를 열었습니다. 투수 뒤에서
+          찍는 공 영상에 타자 · 포수가 함께 찍힐 수 있습니다. 영상과 판정은 세션을 저장한 회원만 볼 수
+          있고, 타자의 이름은 받지 않으며(타자 1 · 2 · 3), 회원이 공이나 세션을 지우면 영상도 함께
+          지워집니다.
+        </p>
       </Article>
 
       <footer className="mt-12 border-t border-line pt-6 text-sm leading-relaxed text-muted">

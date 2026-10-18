@@ -38,6 +38,7 @@ export const ArrowRight = weighted(L.ArrowRight);
 export const ArrowRightLeft = weighted(L.ArrowRightLeft);
 export const ArrowUp = weighted(L.ArrowUp);
 export const ArrowUpDown = weighted(L.ArrowUpDown);
+export const Box = weighted(L.Box);
 export const ArrowUpRight = weighted(L.ArrowUpRight);
 export const Baseball = weighted(BaseballRaw);
 export const Bell = weighted(L.Bell);
@@ -174,6 +175,7 @@ export const Undo2 = weighted(L.Undo2);
 export const Upload = weighted(L.Upload);
 export const UserCog = weighted(L.UserCog);
 export const UserMinus = weighted(L.UserMinus);
+export const UserRound = weighted(L.UserRound);
 export const Utensils = weighted(L.Utensils);
 export const Video = weighted(L.Video);
 export const VideoOff = weighted(L.VideoOff);
@@ -240,6 +242,7 @@ export const ALL_ICONS: Record<string, LucideIcon> = {
   Coffee,
   Columns2,
   Crosshair,
+  Box,
   Database,
   Delete,
   Dumbbell,
@@ -342,6 +345,7 @@ export const ALL_ICONS: Record<string, LucideIcon> = {
   Upload,
   UserCog,
   UserMinus,
+  UserRound,
   Utensils,
   Video,
   VideoOff,

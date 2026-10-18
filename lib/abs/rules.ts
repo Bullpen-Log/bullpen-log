@@ -65,5 +65,5 @@ export const AVERAGE_HEIGHT_CM = 175;
 export const HEIGHT_MIN_CM = 120;
 export const HEIGHT_MAX_CM = 210;
 
-/** ABS 세션 영상 보관(일) — 시작 안내 · 처리방침에 같은 숫자 */
-export const ABS_CLIP_RETENTION_DAYS = 30;
+/** 세션 시작 안내 한 줄 — 처리방침(2026-10-19 줄)과 같은 말. 보관 기간을 따로 약속하지 않는다(지우는 일은 지금도 세션 · 공 지우기뿐) */
+export const ABS_DISCLOSURE = '타자 · 포수가 영상에 찍혀요. 영상은 나만 보고, 세션을 지우면 함께 지워져요.';
