@@ -41,8 +41,18 @@ export default function PitchDayScreen() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const addOpen = !future && (formOpen ?? (logs != null && day.length === 0));
 
-  const remove = (id: string, videos: string[]) =>
-    Alert.alert('이 기록을 지울까요?', videos.length ? '붙인 영상도 같이 지워져요.' : undefined, [
+  /* 웹 day-record ConfirmDialog 와 같은 글 — 무엇이 없어지는지 이름을 대고 한 번 묻는다 */
+  const remove = (id: string, videos: string[], label: string) =>
+    Alert.alert(
+      '이 기록을 지울까요?',
+      [
+        `${at.getUTCMonth() + 1}월 ${at.getUTCDate()}일 (${WEEKDAYS[at.getUTCDay()]}) · ${label}`,
+        videos.length ? `올려둔 영상 ${videos.length}개도 함께 지워져요.` : null,
+        '되돌릴 수 없어요. 수치만 고치려면 기록 고치기를 눌러주세요.',
+      ]
+        .filter(Boolean)
+        .join('\n\n'),
+      [
       { text: '취소', style: 'cancel' },
       {
         text: '지우기',
@@ -115,7 +125,7 @@ export default function PitchDayScreen() {
                     },
                     (i) => {
                       if (i === 0) setEditingId(l.id);
-                      if (i === 1) remove(l.id, l.videoPaths);
+                      if (i === 1) remove(l.id, l.videoPaths, rested ? '쉬는 날' : `${l.sessionType} ${l.pitchCount}구`);
                     }
                   );
                 if (editingId === l.id)
