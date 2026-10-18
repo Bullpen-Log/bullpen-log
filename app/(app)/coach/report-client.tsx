@@ -29,7 +29,7 @@ import {
   summarize,
   type ReportFinding,
 } from '@/lib/pitch-stats';
-import { effortText, scaleToEffortPct } from '@/lib/pitch-effort';
+import { effortText } from '@/lib/pitch-effort';
 import type { Log } from '@/app/(app)/pitch-log/types';
 
 /**
@@ -67,6 +67,9 @@ const TONE_STYLES: Record<
 };
 
 /** 지표 한 줄 — 값과 직전 기간 대비 변화를 함께 보여준다. */
+/** 소수 한 자리 — 1~10 강도 평균(7.33 → 7.3) */
+const round1 = (n: number) => Math.round(n * 10) / 10;
+
 function MetricRow({
   label,
   value,
@@ -348,29 +351,17 @@ export function ReportClient({
 
             <Card>
               <h2 className="text-sm font-bold text-ink">투구 강도</h2>
-              {/*
-                체감 강도 % 로 보인다(2판 D2) — 입력이 % 라 '6.3 / 10' 은 고른 값과 다른 숫자다. 계산(summarize)은 1~10 실수
-                그대로이고 보일 때만 × 10 해 반올림한다. 변화는 보이는 두 % 의 차이(%p)라 화면의 두 숫자와 맞는다.
-              */}
-              <p className="mb-2 mt-1 text-xs text-muted">스스로 매긴 체감 강도 기준</p>
+              {/* 입력과 같은 1~10(2026-10-18 % 에서 되돌림). 계산(summarize)도 1~10 실수 그대로, 보일 때 소수 한 자리 */}
+              <p className="mb-2 mt-1 text-xs text-muted">스스로 매긴 강도(1~10) 기준</p>
               <MetricRow
                 label="평균 강도"
-                value={scaleToEffortPct(current.avgIntensity)}
-                unit="%"
-                delta={
-                  scaleToEffortPct(current.avgIntensity) -
-                  scaleToEffortPct(previous.avgIntensity)
-                }
-                deltaUnit="%p"
+                value={round1(current.avgIntensity)}
+                delta={round1(current.avgIntensity) - round1(previous.avgIntensity)}
                 invert
               />
+              <MetricRow label="최고 강도" value={round1(current.peakIntensity)} />
               <MetricRow
-                label="최고 강도"
-                value={scaleToEffortPct(current.peakIntensity)}
-                unit="%"
-              />
-              <MetricRow
-                label={`이틀 합산 ${scaleToEffortPct(TWO_DAY_INTENSITY_LIMIT)}% 초과`}
+                label={`이틀 합산 ${TWO_DAY_INTENSITY_LIMIT} 초과`}
                 value={fatigueWindows.length}
                 unit="회"
               />
@@ -412,7 +403,7 @@ export function ReportClient({
                       className="rounded-lg border border-warn-line bg-warn-bg px-2.5 py-1 text-caption tabular-nums text-warn"
                     >
                       {formatShortDate(w.firstDay)}→{formatShortDate(w.secondDay)} 합{' '}
-                      {scaleToEffortPct(w.total)}%
+                      {round1(w.total)}
                     </span>
                   ))}
                 </div>

@@ -17,7 +17,7 @@ import { IntensityGuide } from '@/components/intensity-guide';
 import { EffortChips, focusEffortChips } from '@/components/effort-chips';
 import { makePitchThumb } from '@/lib/pitch-thumbs';
 import { dateKeyLabel } from '@/lib/pitch-stats';
-import { derivedEffortText, readEffort } from '@/lib/pitch-effort';
+import { readEffort } from '@/lib/pitch-effort';
 import { DEFAULT_SESSION_TYPE, SESSION_TYPES, isRestSession } from '@/lib/session-type';
 import type { LogPrefill } from '@/lib/velocity-meta';
 import {
@@ -705,7 +705,7 @@ export function EntryForm({
                 />
               </Field>
               {/*
-                체감 강도(%) — 투구수 옆 반 칸이 아니라 한 줄을 다 쓴다. 칩 여섯이 넓은 화면의 반의반 칸에는 안 들어간다.
+                강도(1~10) — 투구수 옆 반 칸이 아니라 한 줄을 다 쓴다. 칩 열이 넓은 화면의 반의반 칸에는 안 들어간다.
                 강도는 부하 지수 · 휴식일 · 세게 던진 날을 정하는 값이라, 감으로 찍으면 그 뒤 계산이 전부 흔들린다.
                 고르는 자리 바로 밑에 기준을 둔다. Field(label)로 감싸지 않는다 — 단추 여럿을 label 이 감싸면 이름을
                 눌러도 첫 칩이 눌린다.
@@ -719,12 +719,6 @@ export function EntryForm({
                     setForm({ ...form, effortPct: pct });
                   }}
                   invalid={effortMissing}
-                  /* '예전에 적은 강도 9에서 계산한 값이에요.' — 고르면 사라진다 */
-                  note={
-                    keepsLegacyEffort
-                      ? `예전에 적은 ${derivedEffortText(initialEffort)}한 값이에요.`
-                      : null
-                  }
                 />
                 <IntensityGuide kind="pitch" />
               </div>

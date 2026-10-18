@@ -14,7 +14,7 @@ import {
   type LucideIcon,
 } from '@/components/icon';
 import { REST_SESSION_TYPE } from '@/lib/session-type';
-import { maxEffortPct } from '@/lib/pitch-effort';
+import { effortScaleText, maxEffortPct } from '@/lib/pitch-effort';
 import { Baseball } from '@/components/baseball-icon';
 import type { Log } from '@/app/(app)/pitch-log/types';
 import type { PlanDaySummary, TrainingDaySummary } from '@/lib/report/training-history';
@@ -150,7 +150,7 @@ export function DaySummary({
       sub: rested
         ? '쉬는 날로 남김'
         : [
-            effortPct > 0 ? `강도 ${effortPct}%` : null,
+            effortPct > 0 ? `강도 ${effortScaleText(effortPct)}` : null,
             topVelocity != null ? `최고 ${formatSpeed(topVelocity, speedUnit)}` : null,
             logs.length > 0 && velocity && velocity.n > 0
               ? `카메라 ${velocity.n}구`

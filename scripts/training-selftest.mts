@@ -12288,8 +12288,8 @@ console.log(
 
   /* 칩과 −/+ */
   check(
-    'D2 쓰기 (칩) 50 · 60 · 70 · 80 · 90 · 100 — 모두 5% 칸 · 받는 범위 안, 오름차순',
-    EFFORT_CHIPS.join(',') === '50,60,70,80,90,100' &&
+    'D2 쓰기 (칩) 1~10 = 10 · 20 … 100% — 모두 5% 칸 · 받는 범위 안, 오름차순(2026-10-18 1~10 으로 되돌림)',
+    EFFORT_CHIPS.join(',') === '10,20,30,40,50,60,70,80,90,100' &&
       EFFORT_CHIPS.every(
         (c) => c % EFFORT_STEP === 0 && c >= MIN_EFFORT_PCT && c <= MAX_EFFORT_PCT
       ),
@@ -12364,14 +12364,14 @@ console.log(
     effortText({ intensity: 7 }),
   ];
   check(
-    'D2 표시 (한 건) 옛 강도 9 → 90% · 85% 로 고름 → 85% · 옛 1 → 10% · 5% → 5% · 쉰 날 · 칸 없는 쉰 날 → 없음 · 칸 없는 옛 7 → 70%',
-    JSON.stringify(texts) === '["90%","85%","10%","5%",null,null,"70%"]',
+    'D2 표시 (한 건, 2026-10-18 1~10) 옛 강도 9 → 9 · 85% 로 고름 → 8.5 · 옛 1 → 1 · 5% → 0.5 · 쉰 날 · 칸 없는 쉰 날 → 없음 · 칸 없는 옛 7 → 7',
+    JSON.stringify(texts) === '["9","8.5","1","0.5",null,null,"7"]',
     JSON.stringify(texts)
   );
 
   const oldBad: string[] = [];
   for (let i = 1; i <= 10; i++) {
-    if (effortText(old(i)) !== `${i * 10}%`)
+    if (effortText(old(i)) !== `${i}`)
       oldBad.push(`${i} → ${effortText(old(i))}`);
     if (maxEffortPct([old(i)]) !== i * 10) oldBad.push(`max ${i}`);
   }

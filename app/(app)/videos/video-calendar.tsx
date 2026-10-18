@@ -20,7 +20,7 @@ import {
   type DayCell,
   type DayMark,
 } from '@/components/month-calendar';
-import { STRONG_EFFORT_PCT, effortText, readEffort } from '@/lib/pitch-effort';
+import { STRONG_EFFORT_PCT, effortScaleText, effortText, readEffort } from '@/lib/pitch-effort';
 import { Card } from '@/components/ui';
 import { Expand } from '@/components/expand';
 import { usePlaybackUrls } from '@/components/use-playback-urls';
@@ -292,7 +292,7 @@ export function VideoCalendar({
         label: '',
         spoken: day.rest
           ? '쉬는 날'
-          : `${kinds} ${day.pitches}구, 강도 ${day.effortPct}%${
+          : `${kinds} ${day.pitches}구, 강도 ${effortScaleText(day.effortPct)}${
               day.paths.length > 0 ? `, 영상 ${day.paths.length}개` : ''
             }`,
       };
