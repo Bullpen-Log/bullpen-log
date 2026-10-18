@@ -48,6 +48,8 @@ const WHEN: Record<string, string> = {
   LOWER: '하체 운동을 하는 날',
   UPPER_PUSH: '미는 운동을 하는 날',
   UPPER_PULL: '당기는 운동을 하는 날',
+  /* 하체 · 상체를 같이 하는 날(lib/workout/warmup-kind.ts FULL) — 빠져서 배지에 'FULL' 이 그대로 떴다 */
+  FULL: '하체 · 상체를 같이 하는 날',
 };
 
 function Thumb({ url, title }: { url: string | null; title: string }) {

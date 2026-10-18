@@ -19,7 +19,7 @@ export type LibraryExercise = Omit<ExerciseItem, 'usedCount'>;
 export async function loadExerciseLibrary(
   userId: string,
   isAdmin: boolean
-): Promise<{ exercises: LibraryExercise[]; warmupFolders: WarmupFolder[] }> {
+): Promise<{ exercises: LibraryExercise[]; warmupFolders: WarmupFolder[]; warmupCommon: WarmupFolder | null }> {
   /* 숨긴 운동은 관리자에게만 — 숨김은 지우기 대신 쓰는 것이라 되돌릴 사람에게는 보여야 한다 */
   const all = await allExercises();
   const rows = isAdmin ? all : all.filter((ex) => ex.hiddenAt == null);
@@ -50,7 +50,8 @@ export async function loadExerciseLibrary(
    * 워밍업 칸은 루틴 폴더로 — 그날 루틴마다 하나, 안에는 공통(몸 데우기 · 동적 가동) 뒤에 그날 것(2026-10-16 김민: "워밍업 영상 안에 폴더 넷").
    * 담긴 운동은 제 분류(모빌리티 · 파워 …)에 그대로 있고 여기서는 모아 보이기만 한다.
    */
-  const common = routines.find((r) => r.kind === 'COMMON')?.items.map((i) => i.exerciseId) ?? [];
+  const commonRoutine = routines.find((r) => r.kind === 'COMMON');
+  const common = commonRoutine?.items.map((i) => i.exerciseId) ?? [];
   const warmupFolders: WarmupFolder[] = routines
     .filter((r) => r.kind !== 'COMMON')
     .map((r) => ({
@@ -63,6 +64,10 @@ export async function loadExerciseLibrary(
 
   return {
     warmupFolders,
+    /* 공통 루틴 따로 — 앱 워밍업 화면이 웹(/library/warmup)처럼 한 장으로 따로 보인다 */
+    warmupCommon: commonRoutine
+      ? { kind: commonRoutine.kind, name: commonRoutine.name, description: commonRoutine.description, exerciseIds: common }
+      : null,
     exercises: exercises.map((ex) => ({
       favorite: favoriteIds.has(ex.id),
       note: notes.get(ex.id) ?? null,
