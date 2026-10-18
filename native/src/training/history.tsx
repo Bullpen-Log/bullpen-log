@@ -121,7 +121,8 @@ export function HistoryPanel({
   return (
     <View style={{ gap: 16 }}>
       {noteBox}
-      <View style={s.row}>
+      {/* 세 칸 높이를 같게(셋째 칸은 밑 줄이 없을 때가 많다 — 가운데로 떠 보였다) */}
+      <View style={[s.row, { alignItems: 'stretch' }]}>
         {[first, second, third].map((x) => (
           <View key={x.label} style={[st.stat, { backgroundColor: c.card }]}>
             <Text style={[s.tiny, { color: c.muted }]}>{x.label}</Text>
