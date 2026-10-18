@@ -42,6 +42,8 @@ export type NutritionDay = {
   browseSubs?: Record<string, Record<string, number>>;
   popular?: RankedFood[];
   favorites?: string[];
+  /** 식단 짜기 카드의 오늘 상태 · 취향 한 줄(웹 PlanCard state) */
+  planState?: string[];
 };
 export type NutritionAnswer = { appetite: number | null; mealAmount: string | null; skippedMeals: string[] };
 type Result = { ok: true } | { ok: false; error: string };

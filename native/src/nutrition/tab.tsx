@@ -253,7 +253,7 @@ export function NutritionTab({ today, bottom, onWebNutrition }: { today: string;
         <View style={[styles.card, { backgroundColor: c.card, height: 180 }]} />
       ) : null}
 
-      {day && isToday && t ? <PlanCard date={date} plan={day.mealPlan} busy={busy} run={run} kcal={t.kcal} protein={t.protein} /> : null}
+      {day && isToday && t ? <PlanCard date={date} plan={day.mealPlan} busy={busy} run={run} kcal={t.kcal} protein={t.protein} state={day.planState ?? null} /> : null}
 
       {/* 끼니 넷 — 한 판 안에 줄로(웹 끼니 칸 ul · 사이 선). 휴대폰은 한 줄로 접어 두고 누르면 편다 */}
       {day ? (
@@ -481,10 +481,13 @@ function PlanCard({
   run,
   kcal,
   protein,
+  state,
 }: {
   date: string;
   kcal: number;
   protein: number;
+  /** 오늘 상태 · 취향 한 줄(웹 PlanCard state) — 옛 서버면 null */
+  state: string[] | null;
   plan: { items: PlanItem[]; context: { place: Place; hot: boolean; variant: number; reasons: string[] } } | null;
   busy: boolean;
   run: (job: () => Promise<string | null>) => Promise<void>;
@@ -565,6 +568,18 @@ function PlanCard({
       </Press>
       {open ? (
         <Animated.View entering={fadeIn} style={{ gap: 12 }}>
+          {state ? (
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', columnGap: 6 }}>
+              {state.length ? <Text style={{ color: c.muted, fontSize: 12 }}>{state.join(' · ')}</Text> : null}
+              <Press
+                accessibilityRole="button"
+                onPress={() => router.push({ pathname: '/nutrition/stats' as Href as never, params: { date, goal: '1', tab: 'diet' } })}
+                hitSlop={10}
+              >
+                <Text style={{ color: c.skyStrong, fontSize: 12, fontWeight: '600' }}>취향 바꾸기</Text>
+              </Press>
+            </View>
+          ) : null}
           <Text style={{ color: c.muted, fontSize: 12, fontWeight: '500' }}>오늘 훈련 장소</Text>
           <View style={styles.grid}>
             {PLAN_PLACES.map((p) => chip(p.key, p.label, place === p.key, () => setPlace(p.key)))}

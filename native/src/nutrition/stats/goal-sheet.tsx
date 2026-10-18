@@ -63,6 +63,7 @@ export function GoalSheet({
   unit,
   onSaved,
   onClose,
+  initialTab = 'goal',
   c,
 }: {
   profile: ProfileSettings;
@@ -75,10 +76,12 @@ export function GoalSheet({
   /** 목표를 저장했다(식단 취향 저장 전이라도) — 부르는 쪽이 다시 받는다 */
   onSaved: () => void;
   onClose: () => void;
+  /** 처음 펼 칸 — 영양 탭 식단 카드의 '취향 바꾸기'는 [식단 취향]부터(웹 GoalSheet initialTab) */
+  initialTab?: SheetTab;
   c: Palette;
 }) {
   const inset = useSafeAreaInsets();
-  const [tab, setTab] = useState<SheetTab>('goal');
+  const [tab, setTab] = useState<SheetTab>(initialTab);
   const [diet, setDiet] = useState<DietDraft>(() => ({
     style: prefs.dietStyle,
     pattern: prefs.mealPattern,

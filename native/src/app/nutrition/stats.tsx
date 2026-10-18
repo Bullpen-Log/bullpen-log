@@ -48,7 +48,7 @@ export default function NutritionStatsScreen() {
   const c = usePalette();
   const inset = useSafeAreaInsets();
   /* goal=1 — 영양 탭 머리의 목표 단추로 왔으면 목표 창부터(웹 머리 단추 = 목표 창) */
-  const params = useLocalSearchParams<{ date?: string; goal?: string }>();
+  const params = useLocalSearchParams<{ date?: string; goal?: string; tab?: string }>();
   const { data, error, reload } = useLoad<Load>('app-nutrition.loadAppNutritionStats', typeof params.date === 'string' ? params.date : null);
   const unit = useWeightUnit();
   const [goalOpen, setGoalOpen] = useState(params.goal === '1');
@@ -119,6 +119,7 @@ export default function NutritionStatsScreen() {
           unit={unit}
           onSaved={changed}
           onClose={() => setGoalOpen(false)}
+          initialTab={params.tab === 'diet' ? 'diet' : 'goal'}
           c={c}
         />
       ) : null}

@@ -22,7 +22,7 @@ import type { Food, MealEntryView, RankedFood } from '@/lib/nutrition/meta';
 import type { MealComboView } from '@/lib/nutrition/combos';
 import type { PlanContext, PlanItem } from '@/lib/nutrition/meal-plan';
 import type { AgeBand } from '@/lib/nutrition/age';
-import type { AvoidKey } from '@/lib/nutrition/diet-prefs';
+import { DIET_STYLES, MEAL_PATTERNS, type AvoidKey } from '@/lib/nutrition/diet-prefs';
 import { shiftDateKey, toDateKey } from '@/lib/pitch-stats';
 import { loadHomeFeed, loadHomeRings, type HomeRing } from '@/lib/report/home-today';
 import { loadTodayCoreCached } from '@/lib/report/today-data';
@@ -165,6 +165,7 @@ export async function loadAppNutrition(date: string): Promise<
       popular: RankedFood[];
       /** ★ 내 음식에 둔 기본 · 식약처 · 바코드 음식의 열쇠('source:id') — 담기 화면의 '내 음식에 두기' */
       favorites: string[];
+      planState: string[];
     }
   | { ok: false; error: string; to?: string }
 > {
@@ -204,6 +205,14 @@ export async function loadAppNutrition(date: string): Promise<
     browseSubs: day.browseSubs,
     popular: day.popular,
     favorites: day.favorites,
+    /* 식단 짜기 카드의 '오늘 상태 · 취향' 한 줄(웹 plan-parts PlanCard state) — 던지는 날 · 입맛 · 잠 · 식단 스타일 · 끼니 구성 */
+    planState: [
+      day.planSignals?.throwKind ? ({ eve: '내일 등판', today: '오늘 던지는 날', after: '던진 뒤' } as const)[day.planSignals.throwKind] : null,
+      day.planSignals?.appetite != null && day.planSignals.appetite <= 2 ? '입맛 없음' : null,
+      day.planSignals?.sleepShort ? '잠 부족' : null,
+      DIET_STYLES.find((x) => x.key === day.prefs.dietStyle)?.label ?? null,
+      MEAL_PATTERNS.find((x) => x.key === day.prefs.mealPattern)?.label ?? null,
+    ].filter((x): x is string => x != null),
   };
 }
 
