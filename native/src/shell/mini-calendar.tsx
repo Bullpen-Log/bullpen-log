@@ -113,12 +113,15 @@ export function DateNavButton({
   min,
   marked,
   onPick,
+  label,
 }: {
   date: string;
   today: string;
   min: string;
   marked: (day: string) => boolean;
   onPick: (day: string) => void;
+  /** 그림 대신 글자 칸(날짜 입력처럼) — 웹 input type=date 자리 */
+  label?: string;
 }) {
   const c = usePalette();
   const ref = useRef<ComponentRef<typeof View>>(null);
@@ -126,20 +129,34 @@ export function DateNavButton({
   const open = () =>
     ref.current?.measureInWindow((x, y, w, h) => {
       const { width } = Dimensions.get('window');
-      setAt({ top: y + h + 8, right: Math.max(12, width - (x + w)) });
+      /* 글자 칸은 왼쪽 끝을 맞춘다(판 폭 296) */
+      setAt({ top: y + h + 8, right: label != null ? Math.max(12, width - x - 296) : Math.max(12, width - (x + w)) });
     });
   return (
     <>
       <View ref={ref} collapsable={false}>
-        <Press
-          accessibilityRole="button"
-          accessibilityLabel="다른 날짜 고르기"
-          accessibilityState={{ expanded: at != null }}
-          onPress={open}
-          style={[styles.navBtn, at && { backgroundColor: withAlpha(c.ink, 0.06) }]}
-        >
-          <Icon name="calendar-days" size={20} color={at ? c.sky : c.muted} />
-        </Press>
+        {label != null ? (
+          <Press
+            accessibilityRole="button"
+            accessibilityLabel={`날짜 ${label}, 바꾸기`}
+            accessibilityState={{ expanded: at != null }}
+            onPress={open}
+            style={[styles.field, { backgroundColor: withAlpha(c.ink, 0.05) }, at && { borderColor: c.sky }]}
+          >
+            <Text style={{ color: c.ink, fontSize: 15, fontVariant: ['tabular-nums'] }}>{label}</Text>
+            <Icon name="calendar-days" size={16} color={c.muted} />
+          </Press>
+        ) : (
+          <Press
+            accessibilityRole="button"
+            accessibilityLabel="다른 날짜 고르기"
+            accessibilityState={{ expanded: at != null }}
+            onPress={open}
+            style={[styles.navBtn, at && { backgroundColor: withAlpha(c.ink, 0.06) }]}
+          >
+            <Icon name="calendar-days" size={20} color={at ? c.sky : c.muted} />
+          </Press>
+        )}
       </View>
       {at ? (
         <Modal visible transparent animationType="none" onRequestClose={() => setAt(null)}>
@@ -175,6 +192,7 @@ const styles = StyleSheet.create({
   cellWrap: { width: '14.28%', padding: 1 },
   cell: { height: 40, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   dot: { position: 'absolute', bottom: 4, width: 4, height: 4, borderRadius: 2 },
+  field: { minHeight: 40, borderRadius: 12, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1, borderColor: 'transparent' },
   navBtn: { width: 40, height: 40, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   pop: { position: 'absolute', width: 296, padding: 12, borderRadius: 20, borderWidth: StyleSheet.hairlineWidth },
 });

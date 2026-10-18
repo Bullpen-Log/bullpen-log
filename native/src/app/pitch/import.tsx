@@ -18,6 +18,9 @@ import { LocalVideo } from '../../../modules/local-video';
 import { ApiError, isPhoneVideoPath, loadMe, phoneAssetId } from '~/pitch/api';
 import { PICK_ORIGINAL, attach, readVideoFacts, useImported } from '~/pitch/attach';
 import { READABLE } from '~/lib/layout';
+import { Bar } from '~/community/parts';
+import { Icon } from '~/shell/icon';
+import { DateNavButton } from '~/shell/mini-calendar';
 
 /**
  * 지난 영상 가져오기(앱) — 웹 app/(app)/videos/import-sheet.tsx 와 같은 규칙(lib/pitch-import.ts): 사진 앱에서 영상 여러 개를 고르면
@@ -29,11 +32,6 @@ const PICK_LIMIT = 20;
 
 type Picked = { item: ImportItem; asset: ImagePicker.ImagePickerAsset };
 
-const shiftDay = (key: string, by: number) => {
-  const d = new Date(`${key}T00:00:00.000Z`);
-  d.setUTCDate(d.getUTCDate() + by);
-  return d.toISOString().slice(0, 10);
-};
 const dateText = (key: string) => `${key.slice(0, 4)}년 ${Number(key.slice(5, 7))}월 ${Number(key.slice(8))}일`;
 const durText = (ms?: number | null) => {
   if (!ms) return '';
@@ -107,75 +105,65 @@ export default function PitchImportScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: c.page }}>
-      <View style={styles.bar}>
-        <Pressable accessibilityRole="button" onPress={() => router.back()} hitSlop={10}>
-          <Text style={[styles.barAction, { color: c.sky }]}>닫기</Text>
-        </Pressable>
-        <Text style={[styles.barTitle, { color: c.ink }]}>지난 영상 가져오기</Text>
-        <View style={{ width: 34 }} />
-      </View>
+      <Bar modal back="투구" title="지난 영상 가져오기" c={c} />
       <ScrollView contentContainerStyle={[{ padding: 16, paddingBottom: inset.bottom + 32, gap: 12 }, READABLE]}>
         {groups.length === 0 ? (
           <View style={{ gap: 12, paddingTop: 8 }}>
-            <Text style={{ color: c.ink, fontSize: 17, lineHeight: 24 }}>
-              사진 앱의 투구 영상을 골라 주세요. 찍은 날짜끼리 묶어 그날 기록으로 남겨요.
+            <Text style={{ color: c.ink, fontSize: 17, fontWeight: '600' }}>사진 앱의 투구 영상을 찍은 날짜로 묶어 기록으로 남겨요</Text>
+            <Text style={{ color: c.muted, fontSize: 15, lineHeight: 22 }}>
+              영상은 찍은 폰의 앱 안에 저장돼요(서버에 올리지 않아요). 한 번에 {PICK_LIMIT}개까지 골라요. 같은 날 영상은 2개씩 한 기록이 돼요.
             </Text>
-            <Text style={{ color: c.muted, fontSize: 15 }}>한 번에 {PICK_LIMIT}개까지, 기록 하나에 영상 두 개까지예요.</Text>
             <Pressable accessibilityRole="button" onPress={pick} disabled={!!busy} style={[styles.primary, { backgroundColor: c.sky }]}>
               <Text style={styles.primaryText}>영상 고르기</Text>
             </Pressable>
           </View>
         ) : (
           <>
-            <Text style={{ color: c.muted, fontSize: 15 }}>
-              {left > 0 ? `${groups.length}개 묶음 중 ${left}개 남았어요.` : `${groups.length}개 묶음을 모두 남겼어요.`}
+            <Text style={{ color: c.muted, fontSize: 15, lineHeight: 22 }}>
+              {left > 0
+                ? `묶음마다 기록 하나가 돼요. 날짜를 못 읽은 영상은 날짜를 정해 주세요. 다른 날 영상이 섞였으면 [따로]로 빼요. ${groups.length}개 묶음 중 ${left}개 남았어요.`
+                : `${groups.length}개 묶음을 모두 남겼어요. 남긴 기록은 캘린더 · 목록에서 보여요.`}
             </Text>
             {groups.map((g) => {
               const saved = done.has(keyOf(g));
               const check = g.items.some(needsDateCheck);
               return (
-                <View key={g.key} style={[styles.card, { backgroundColor: c.card }, saved && { opacity: 0.55 }]}>
-                  {g.date ? (
-                    <View style={styles.dateRow}>
-                      <Text style={[styles.date, { color: c.ink }]}>{dateText(g.date)}</Text>
-                      {check && !saved ? (
-                        <View style={styles.stepper}>
-                          <Step label="하루 앞" text="‹" onPress={() => setGroups(setGroupDate(groups, g.key, shiftDay(g.date!, -1)))} />
-                          <Step
-                            label="하루 뒤"
-                            text="›"
-                            disabled={g.date >= today}
-                            onPress={() => setGroups(setGroupDate(groups, g.key, shiftDay(g.date!, 1)))}
-                          />
-                        </View>
-                      ) : null}
-                    </View>
-                  ) : (
-                    <View style={{ gap: 8 }}>
-                      <Text style={[styles.date, { color: c.danger }]}>찍은 날짜를 못 읽었어요</Text>
-                      <Pressable
-                        accessibilityRole="button"
-                        onPress={() => setGroups(setGroupDate(groups, g.key, today))}
-                        style={[styles.ghost, { backgroundColor: c.chip }]}
-                      >
-                        <Text style={[styles.ghostText, { color: c.ink }]}>날짜 정하기</Text>
-                      </Pressable>
-                    </View>
-                  )}
-                  {check && g.date && !saved ? (
-                    <Text style={{ color: c.muted, fontSize: 13 }}>영상에 찍은 날짜가 없어 고른 날짜예요. 맞는지 확인해 주세요.</Text>
-                  ) : null}
+                <View key={g.key} style={[styles.card, { backgroundColor: c.card, boxShadow: c.float }, saved && { opacity: 0.55 }]}>
+                  {/* 날짜 — 웹 미리보기의 날짜 칸(input type=date, 오늘까지) */}
+                  <View style={styles.dateRow}>
+                    <Text style={{ color: c.ink, fontSize: 15, fontWeight: '600' }}>날짜</Text>
+                    {saved ? (
+                      <Text style={{ color: c.ink, fontSize: 15 }}>{g.date ? dateText(g.date) : ''}</Text>
+                    ) : (
+                      <DateNavButton
+                        label={g.date ? dateText(g.date) : '날짜 정하기'}
+                        date={g.date ?? ''}
+                        today={today}
+                        min="2015-01-01"
+                        marked={() => false}
+                        onPick={(d) => setGroups((prev) => setGroupDate(prev, g.key, d))}
+                      />
+                    )}
+                    {!saved && (!g.date || check) ? <Text style={{ color: c.warn, fontSize: 13 }}>날짜를 확인하세요</Text> : null}
+                  </View>
                   {g.items.map((it) => {
                     const asset = picked.find((p) => p.item.id === it.id)?.asset;
                     return (
-                      <View key={it.id} style={styles.itemRow}>
+                      <View key={it.id} style={[styles.itemRow, { borderTopColor: c.line }]}>
+                        <Icon name="film" size={16} color={c.muted} />
                         <Text style={{ flex: 1, color: c.ink, fontSize: 15 }} numberOfLines={1}>
                           {it.name}
                           {durText(asset?.duration)}
                         </Text>
                         {g.items.length > 1 && !saved ? (
-                          <Pressable accessibilityRole="button" hitSlop={8} onPress={() => setGroups(splitOut(groups, it.id))}>
-                            <Text style={{ color: c.sky, fontSize: 15, fontWeight: '600' }}>따로</Text>
+                          <Pressable
+                            accessibilityRole="button"
+                            accessibilityLabel={`${it.name} 따로 빼기`}
+                            hitSlop={6}
+                            onPress={() => setGroups(splitOut(groups, it.id))}
+                            style={({ pressed }) => [styles.split, pressed && { backgroundColor: c.skyTint }]}
+                          >
+                            <Text style={{ color: c.skyStrong, fontSize: 13, fontWeight: '600' }}>따로</Text>
                           </Pressable>
                         ) : null}
                       </View>
@@ -213,31 +201,11 @@ export default function PitchImportScreen() {
   );
 }
 
-function Step({ label, text, onPress, disabled }: { label: string; text: string; onPress: () => void; disabled?: boolean }) {
-  const c = usePalette();
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      disabled={disabled}
-      onPress={onPress}
-      style={[styles.stepBtn, { backgroundColor: c.chip }, disabled && { opacity: 0.3 }]}
-    >
-      <Text style={{ color: c.sky, fontSize: 22 }}>{text}</Text>
-    </Pressable>
-  );
-}
-
 const styles = StyleSheet.create({
-  bar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 12, paddingBottom: 8 },
-  barAction: { fontSize: 17 },
-  barTitle: { fontSize: 17, fontWeight: '600' },
   card: { borderRadius: 16, padding: 14, gap: 10 },
-  dateRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  date: { fontSize: 17, fontWeight: '700' },
-  stepper: { flexDirection: 'row', gap: 8 },
-  stepBtn: { width: 44, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
-  itemRow: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 32 },
+  dateRow: { flexDirection: 'row', alignItems: 'center', gap: 12, flexWrap: 'wrap' },
+  itemRow: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 40, borderTopWidth: StyleSheet.hairlineWidth },
+  split: { borderRadius: 14, paddingHorizontal: 12, paddingVertical: 6 },
   primary: { height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center' },
   primaryText: { color: '#fff', fontSize: 17, fontWeight: '600' },
   ghost: { height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center' },
