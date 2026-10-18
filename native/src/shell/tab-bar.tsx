@@ -6,7 +6,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, { Easing, runOnJS, useAnimatedStyle, useReducedMotion, useSharedValue, withDelay, withSequence, withSpring, withTiming } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { usePalette, useTheme } from '~/lib/ui';
+import { usePalette, useTheme, withAlpha } from '~/lib/ui';
 import { Icon, type IconName } from '~/shell/icon';
 
 /**
@@ -200,7 +200,7 @@ export function TabBar({ tabs, active, onPress }: { tabs: ShellTab[]; active: st
 
   return (
     <View pointerEvents="box-none" style={[styles.wrap, { paddingBottom: gap, paddingLeft: Math.max(20, inset.left), paddingRight: Math.max(20, inset.right) }]}>
-      <View style={[styles.shadow, { shadowColor: col.shadow }]} onLayout={(e) => setWidth(e.nativeEvent.layout.width)}>
+      <View style={[styles.shadow, { boxShadow: `0 10px 40px ${withAlpha(col.shadow, 0.22)}` }]} onLayout={(e) => setWidth(e.nativeEvent.layout.width)}>
         {glass ? (
           <GlassView glassEffectStyle="regular" colorScheme={theme === 'light' ? 'light' : 'dark'} style={styles.pill}>
             {row}
@@ -216,13 +216,11 @@ export function TabBar({ tabs, active, onPress }: { tabs: ShellTab[]; active: st
 const styles = StyleSheet.create({
   lockBadge: { position: 'absolute', right: -4, bottom: -3, width: 13, height: 13, borderRadius: 7, alignItems: 'center', justifyContent: 'center' },
   wrap: { position: 'absolute', left: 0, right: 0, bottom: 0, alignItems: 'center' },
+  /* 그림자는 boxShadow — 바탕 없는 칸의 shadow* 는 iOS 가 장면마다 속 그림의 모양을 다시 셈했다(유리 알약 뒤라 바탕을 못 깐다) */
   shadow: {
     width: '100%',
     maxWidth: 448,
     borderRadius: 999,
-    shadowOpacity: 0.22,
-    shadowRadius: 20,
-    shadowOffset: { width: 0, height: 10 },
   },
   pill: { flexDirection: 'row', padding: PAD, borderRadius: 999, overflow: 'hidden' },
   row: { flex: 1, flexDirection: 'row' },

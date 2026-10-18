@@ -12,7 +12,7 @@ import { useTheme } from '~/lib/ui';
 SplashScreen.preventAutoHideAsync();
 
 /* 알림 · 딥링크(bullpenlog://profile)로 꺼진 앱을 열어도 밑에 웹 껍데기(index)를 깐다 — 뒤로 가면 탭으로 */
-export const unstable_settings = { initialRouteName: 'index' };
+export const unstable_settings = { anchor: 'index' };
 
 /*
  * 같은 곳으로 0.7초 안에 두 번 미는 것은 한 번으로 — 단추를 두 번 누르면 같은 화면(구속 측정 카메라 · 체크인 · 글 · 분석)이 두 겹 쌓였다.
