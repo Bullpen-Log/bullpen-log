@@ -137,7 +137,7 @@ export default function RehabStartScreen() {
   return (
     <StepFrame
       progress={(step + 1) / STEP_COUNT}
-      counter={`${step + 1}/${STEP_COUNT}`}
+      counter={`${step + 1} / ${STEP_COUNT}`}
       title={title}
       desc={desc}
       problem={error}

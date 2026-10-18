@@ -125,7 +125,7 @@ function Flow({ d }: { d: AppRehabDetail }) {
   return (
     <StepFrame
       progress={(step + 1) / 4}
-      counter={`${step + 1}/4`}
+      counter={`${step + 1} / 4`}
       title={titles[step]}
       desc={descs[step]}
       problem={error}
