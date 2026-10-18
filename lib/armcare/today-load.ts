@@ -14,6 +14,7 @@ import {
   REHAB_STAGES,
   WEEKLY_EVERY_DAYS,
   conditionsFor,
+  firstCkcRecord,
   rehabAvoid,
   rehabNotes,
   rehabTitle,
@@ -22,6 +23,7 @@ import {
   stageTestFor,
   type RehabResult,
   type RehabStage,
+  type StageTest,
 } from '@/lib/armcare/rehab';
 import { shiftDateKey } from '@/lib/pitch-stats';
 import { toArmcareViews } from '@/app/(app)/training/armcare-views';
@@ -73,6 +75,12 @@ export type AppRehabDetail = {
   avoid: string[];
   gate: { ready: boolean; checks: { label: string; ok: boolean }[] };
   hasStageTest: boolean;
+  /** 이 단계에서 다음으로 가는 시험(1~3단계) — 앱 단계 시험 · 매주 확인 ⑤가 적는다 */
+  stageTest: StageTest | null;
+  /** 시작 때 고른 내 활동 — 매주 확인 ③ */
+  activities: string[];
+  /** 팔굽혀 터치 내 첫 기록 */
+  ckcFirst: number | null;
   conditionChoices: { key: string; label: string }[];
   /** 매주 확인 — 지난 확인(날짜 · 다치기 전의 %) · 다음 확인 날(지금 할 수 있으면 null) */
   weekly: { allowed: boolean; last: { date: string; normalPct: number } | null; nextOn: string | null };
@@ -304,6 +312,9 @@ async function rehabSummary(
       avoid: rehabAvoid(program.area, program.condition),
       gate: { ready: status.gate.ready, checks: status.gate.checks },
       hasStageTest: stageTestFor(program.area, program.stage) != null,
+      stageTest: stageTestFor(program.area, program.stage),
+      activities: rehab.activities,
+      ckcFirst: firstCkcRecord(rehab.weeklies),
       conditionChoices: program.condition ? [] : conditionsFor(program.area).map((key) => ({ key, label: REHAB_CONDITIONS[key].label })),
       weekly: {
         allowed: status.weekly.allowed,

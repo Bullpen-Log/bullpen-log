@@ -1,10 +1,13 @@
-import { router, Stack } from 'expo-router';
+import { router, Stack, usePathname } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 
 /** 사이트 첫 화면이 그려질 때까지 시작 화면을 둔다(index.tsx 가 걷는다) — 흰 화면이 번쩍이지 않게 */
 SplashScreen.preventAutoHideAsync();
+
+/* 알림 · 딥링크(bullpenlog://profile)로 꺼진 앱을 열어도 밑에 웹 껍데기(index)를 깐다 — 뒤로 가면 탭으로 */
+export const unstable_settings = { initialRouteName: 'index' };
 
 /*
  * 같은 곳으로 0.7초 안에 두 번 미는 것은 한 번으로 — 단추를 두 번 누르면 같은 화면(구속 측정 카메라 · 체크인 · 글 · 분석)이 두 겹 쌓였다.
@@ -31,6 +34,11 @@ function useSinglePush() {
 
 export default function RootLayout() {
   useSinglePush();
+  /* 딥링크로 앱 화면부터 열면 그 화면이 보이게 시작 화면을 걷는다 — 밑의 웹 껍데기는 가려져 있어 다 그려졌다는 알림이 오지 않았다 */
+  const path = usePathname();
+  useEffect(() => {
+    if (path !== '/') void SplashScreen.hideAsync();
+  }, [path]);
   return (
     <>
       <StatusBar style="auto" />

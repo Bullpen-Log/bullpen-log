@@ -1,6 +1,6 @@
 import * as Haptics from 'expo-haptics';
 import { SymbolView } from 'expo-symbols';
-import { router } from 'expo-router';
+import { type Href, router } from 'expo-router';
 import { useState } from 'react';
 import { Alert, Pressable, RefreshControl, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -16,7 +16,7 @@ import { s, useScreenData } from '~/training/screen';
 /**
  * 재활 자세히(앱 화면) — 웹 rehab-card.tsx 의 [자세히]: 이 단계의 목표 · 오늘 운동 · 피할 것 · 위험 신호 · 다음 단계로 가는 조건 ·
  * 매주 확인 · [진단 받았어요] · [단계 직접 바꾸기] · [그만두기 / 재활 끝내기]. 자료는 암케어 화면과 같은 받기(같은 열쇠라 받아 둔 값이 바로 뜬다).
- * 단계 시험 · 매주 확인 · 투구 복귀표는 아직 웹(질문이 길고 결과가 단계를 바꾼다 — 다음에 옮긴다).
+ * 단계 시험(rehab-test.tsx) · 매주 확인(rehab-weekly.tsx)은 앱 화면, 투구 복귀표(열기 시험 · 던진 날 남기기)는 아직 웹.
  */
 export default function RehabScreen() {
   const c = usePalette();
@@ -162,7 +162,7 @@ function Detail({ rehab, dateKey, reload, c }: { rehab: AppRehabSummary; dateKey
             <Check key={g.label} ok={g.ok} label={g.label} c={c} />
           ))}
           <Check ok={false} label="단계 시험 통과" c={c} />
-          {d.hasStageTest ? <WebButton label={d.gate.ready ? '단계 시험 하기 (웹)' : '조건이 차면 단계 시험'} disabled={!d.gate.ready} onPress={toWeb} c={c} /> : null}
+          {d.hasStageTest ? <AppButton label={d.gate.ready ? '단계 시험 하기' : '조건이 차면 단계 시험'} disabled={!d.gate.ready} onPress={() => router.push('/rehab-test' as Href)} c={c} /> : null}
         </Part>
       ) : (
         <Part title={d.throwing.opened ? '투구 복귀표' : '투구 복귀표를 여는 조건'} c={c}>
@@ -184,7 +184,7 @@ function Detail({ rehab, dateKey, reload, c }: { rehab: AppRehabSummary; dateKey
           {d.weekly.last ? `지난 확인 ${shortDate(d.weekly.last.date)} · 다치기 전의 ${d.weekly.last.normalPct}%` : '일주일마다 팔 상태 · 통증 · 내 활동을 1분 동안 확인해요.'}
         </Text>
         {d.weekly.nextOn ? <Text style={[s.small, { color: c.muted }]}>다음 확인 {shortDate(d.weekly.nextOn)}</Text> : null}
-        {d.weekly.allowed ? <WebButton label="이번 주 확인 (웹)" onPress={toWeb} c={c} /> : null}
+        {d.weekly.allowed ? <AppButton label="이번 주 확인" onPress={() => router.push('/rehab-weekly' as Href)} c={c} /> : null}
       </Part>
 
       <Text style={[s.small, { color: c.muted }]}>담당 의사 · 치료사의 지시가 먼저예요.</Text>
@@ -262,6 +262,14 @@ function WebButton({ label, onPress, disabled, c }: { label: string; onPress: ()
     <Pressable onPress={onPress} disabled={disabled} accessibilityRole="link" style={[s.smallPill, { backgroundColor: c.sky + '1a', alignSelf: 'flex-start', minHeight: 44, paddingHorizontal: 16, opacity: disabled ? 0.5 : 1 }]}>
       <Text style={[s.bodyBold, { color: c.sky }]}>{label}</Text>
       <SymbolView name="arrow.up.right" size={12} tintColor={c.sky} />
+    </Pressable>
+  );
+}
+
+function AppButton({ label, onPress, disabled, c }: { label: string; onPress: () => void; disabled?: boolean; c: Palette }) {
+  return (
+    <Pressable onPress={onPress} disabled={disabled} accessibilityRole="button" style={[s.smallPill, { backgroundColor: c.sky + '1a', alignSelf: 'flex-start', minHeight: 44, paddingHorizontal: 16, opacity: disabled ? 0.5 : 1 }]}>
+      <Text style={[s.bodyBold, { color: c.sky }]}>{label}</Text>
     </Pressable>
   );
 }
