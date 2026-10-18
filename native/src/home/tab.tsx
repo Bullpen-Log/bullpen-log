@@ -1,7 +1,7 @@
 import { type Href, router, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState, Pressable, StyleSheet, Text, View } from 'react-native';
-import Animated, { Easing, useAnimatedRef, useAnimatedScrollHandler, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
+import Animated, { Easing, FadeOut, useAnimatedRef, useAnimatedScrollHandler, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { FeedItem } from '@/lib/report/feed-items';
 import { cacheEpoch, cacheGet, cacheSet } from '~/lib/store';
@@ -276,9 +276,14 @@ export function HomeTab({
             </Animated.View>
           )}
           {selected && calView === 'calendar' ? (
-            <View style={{ marginTop: 16 }} onLayout={(e) => (dayY.current = e.nativeEvent.layout.y)}>
+            /* 닫을 때 옅어지며 빠진다(웹 그날 칸이 접히며 빠지는 0.3초) — 밑 카드는 layout 으로 따라 올라온다 */
+            <Animated.View
+              exiting={FadeOut.duration(200).easing(Easing.in(Easing.ease))}
+              style={{ marginTop: 16 }}
+              onLayout={(e) => (dayY.current = e.nativeEvent.layout.y)}
+            >
               <DayCards date={selected} today={today} logs={dayLogs} onTab={onTab} onClose={() => setSelected(null)} />
-            </View>
+            </Animated.View>
           ) : null}
         </Animated.View>
 
