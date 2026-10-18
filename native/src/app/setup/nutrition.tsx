@@ -16,7 +16,7 @@ import { MAX_HEIGHT_CM, MAX_WEIGHT_KG, MIN_HEIGHT_CM, MIN_WEIGHT_KG, type Sex } 
 import { rpc, RpcError } from '~/lib/rpc';
 import { usePalette } from '~/lib/ui';
 import { useWeightUnit } from '~/lib/weight-unit';
-import { leaveTo } from '~/shell/web-nav';
+import { leaveTo, openWebAfter } from '~/shell/web-nav';
 import { StepFrame, SummaryRows } from '~/setup/frame';
 import { BurnInsert } from '~/setup/inserts';
 import { MacroBar, NumberField, NutritionStepPanel, answerLines, nutritionStepTitle, type StepCtx } from '~/setup/nutrition-steps';
@@ -165,6 +165,8 @@ function Wizard({ today, name, age, sex, heightCm: savedHeight, weightKg: savedW
       const r = await rpc<{ ok: true } | { ok: false; error: string; field?: string }>('nutrition.finishNutritionSetup', { heightCm, weightKg, fields: toFormFields(a) });
       if (r.ok) {
         void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        /* 웹 틀이 잠금을 다시 셈하게 — 안 하면 탭이 잠긴 채 영양을 누르면 첫 설정이 또 열렸다 */
+        openWebAfter('#refresh');
         return leaveTo('/nutrition');
       }
       const field = r.field ?? 'summary';

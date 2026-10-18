@@ -1233,6 +1233,10 @@ console.log('\n■ 나이에 맞춘 영양 기준');
   check('성장기는 1.8 을 넘지 않는다', effectiveProtein(2.2, 15) === 1.8);
   check('성인은 정한 값 그대로', effectiveProtein(2.2, 25) === 2.2);
   check(
+    '성장기 때 저장한 1.5 는 만 18세부터 성인 아래 끝 1.6 으로(2026-10-18 점검)',
+    effectiveProtein(1.5, 18) === 1.6 && effectiveProtein(1.5, 17) === 1.5
+  );
+  check(
     '어린이 감량은 유지로 셈한다',
     effectiveGoal('lose', 11) === 'maintain' && effectiveGoal('lose', 15) === 'lose'
   );

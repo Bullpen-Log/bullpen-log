@@ -25,6 +25,7 @@ import { amountText, kcalText, scaleMacros, type MealKey } from '@/lib/nutrition
 import type { Targets } from '@/lib/nutrition/targets';
 import { EASE } from './shared';
 import { Button } from '@/components/ui';
+import { ConfirmDelete } from '@/components/confirm-delete';
 
 /**
  * 식단 짜기의 화면 부품(lib/nutrition/meal-plan.ts).
@@ -285,14 +286,24 @@ export function PlanCard({
                   >
                     취향 바꾸기
                   </button>
-                  <button
-                    type="button"
-                    onClick={onClear}
-                    className="ml-auto inline-flex min-h-10 items-center gap-1 rounded-full px-3 text-sm font-medium text-danger transition-colors hover:bg-danger-bg desk:rounded-xl"
-                  >
-                    <Trash2 aria-hidden className="h-4 w-4" />
-                    식단 지우기
-                  </button>
+                  {/* 한 번 눌러 계획 전체가 사라졌고, 짜는 중에도 눌려 지운 계획이 되살아날 수 있었다(2026-10-18 점검) */}
+                  {pending ? (
+                    <span className="ml-auto inline-flex min-h-10 items-center gap-1 px-3 text-sm font-medium text-muted">
+                      <Trash2 aria-hidden className="h-4 w-4" />
+                      식단 지우기
+                    </span>
+                  ) : (
+                    <ConfirmDelete
+                      onConfirm={onClear}
+                      ariaLabel="오늘 식단 지우기"
+                      title="오늘 식단을 지울까요?"
+                      detail="먹었어요로 기록한 음식은 그대로 남아요."
+                      className="ml-auto inline-flex min-h-10 items-center gap-1 rounded-full px-3 text-sm font-medium text-danger transition-colors hover:bg-danger-bg desk:rounded-xl"
+                    >
+                      <Trash2 aria-hidden className="h-4 w-4" />
+                      식단 지우기
+                    </ConfirmDelete>
+                  )}
                 </div>
                 <p className="text-xs leading-relaxed text-muted">
                   안 먹은 계획은 먹은 칼로리에 안 들어가요. 끼니 칸의 동그라미를 누르면

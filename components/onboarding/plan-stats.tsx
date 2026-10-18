@@ -19,6 +19,7 @@ import {
   type Preview,
 } from '@/lib/nutrition/onboarding-answers';
 import { dateText } from '@/lib/nutrition/period';
+import { floorNote } from '@/lib/nutrition/targets';
 
 /**
  * 추천 계획 — 기초대사량 · 활동대사량 · 하루 목표(✎) · 탄단지 g · 예상 체중 선.
@@ -84,6 +85,8 @@ export function PlanStats({
           strong
         />
       </div>
+
+      {floorNote(t) && <p className="text-xs break-keep text-muted">{floorNote(t)}</p>}
 
       {/* ── 하루 목표 고치기 ── */}
       {onChange && <KcalEditor p={p} a={a} onChange={onChange} invalid={invalid} />}

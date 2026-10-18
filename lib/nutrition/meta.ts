@@ -62,9 +62,10 @@ export function isGoalKey(v: unknown): v is GoalKey {
  * 적어 둔 운동을 두 번 세게 된다.
  */
 export const ACTIVITIES = [
-  { key: 'low', label: '적음', hint: '주로 앉아서 지내요 · 평소 운동 거의 없음', factor: 1.3 },
-  { key: 'mid', label: '보통', hint: '평소 주 3~4일 운동해요', factor: 1.5 },
-  { key: 'high', label: '많음', hint: '평소 거의 매일 운동해요', factor: 1.7 },
+  /* 2026-10-18 점검: '주 3~4일 운동'만 적혀 있어 앱에 적는 운동까지 여기서 세면 두 번 셌다 — '앱에 안 적는'을 붙인다 */
+  { key: 'low', label: '적음', hint: '주로 앉아서 지내요 · 앱에 안 적는 운동은 거의 없음', factor: 1.3 },
+  { key: 'mid', label: '보통', hint: '앱에 안 적는 운동 · 몸 쓰는 일이 주 3~4일', factor: 1.5 },
+  { key: 'high', label: '많음', hint: '앱에 안 적는 팀 훈련 · 몸 쓰는 일이 거의 매일', factor: 1.7 },
 ] as const;
 
 export type ActivityKey = (typeof ACTIVITIES)[number]['key'];

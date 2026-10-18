@@ -1,6 +1,6 @@
-import type { AgeBand } from '@/lib/nutrition/age';
+import { AGE_RULES, type AgeBand } from '@/lib/nutrition/age';
 import type { GoalKey, MacroKey, Macros, MealKey } from '@/lib/nutrition/meta';
-import type { ThrowGuideKind } from '@/lib/nutrition/guide';
+import { recoveryExamples, type ThrowGuideKind } from '@/lib/nutrition/guide';
 import type { AvoidKey } from '@/lib/nutrition/diet-prefs';
 import { exampleWords } from '@/lib/nutrition/meal-protein';
 
@@ -129,7 +129,6 @@ export const CARB_PER_KG: Record<'rest' | 'train' | 'throw', MacroRange> = {
   train: { lo: 5, hi: 7 },
   throw: { lo: 5, hi: 7 },
 };
-export const PROTEIN_PER_KG: MacroRange = { lo: 1.6, hi: 2.2 };
 export const FAT_PER_KG: MacroRange = { lo: 0.8, hi: 1.2 };
 /** 범위가 목표를 이만큼 넘게 비켜 있으면 목표 쪽으로 당긴다 */
 export const RANGE_SLACK = 0.1;
@@ -220,11 +219,13 @@ function ranges(input: AdviceInput): Advice['range'] {
   let r: Advice['range'];
   if (kg != null && kg > 0) {
     const c = CARB_PER_KG[active];
+    const choices = AGE_RULES[input.body.ageBand].proteinChoices;
     r = {
       carbs: { lo: round10(c.lo * kg), hi: round10(c.hi * kg) },
+      /* 나이 칸의 범위로 — 성장기에게 성인 1.6~2.2 를 보였다(2026-10-18 점검: 성장기 끝은 1.8) */
       protein: {
-        lo: round5(PROTEIN_PER_KG.lo * kg),
-        hi: round5(PROTEIN_PER_KG.hi * kg),
+        lo: round5(choices[0] * kg),
+        hi: round5(choices[choices.length - 1] * kg),
       },
       fat: { lo: round5(FAT_PER_KG.lo * kg), hi: round5(FAT_PER_KG.hi * kg) },
     };
@@ -312,6 +313,8 @@ type Situation = {
   sleepShort: boolean;
   /** 예시 음식 — 못 먹는 것을 피한 말 */
   w: ReturnType<typeof exampleWords>;
+  /** 회복식 보기 하나 — 적은 g 을 채우는 조합(guide.ts recoveryExamples, 영양 탭 가이드와 같은 목록) */
+  recovery: string;
 };
 
 export type HeadlineRule = {
@@ -341,7 +344,8 @@ export function afterWorkoutProtein(
           : '웨이트 뒤 단백질이 근육을 키워요. 늦었으면 자기 전에.',
       }
     : {
-        headline: `운동 뒤 1시간 안에 단백질 ${fmtRange(after)} · ${w.solid} + ${w.milk}`,
+        /* 보기는 적은 g 을 채워야 한다 — 달걀 2개 + 우유 1컵은 19g 이었다(2026-10-18 점검). 2컵이면 25g · 두부 반 모 + 두유 2팩 25g */
+        headline: `운동 뒤 1시간 안에 단백질 ${fmtRange(after)} · ${w.solid} + ${w.milk} 2컵`,
         why: power ? '파워 운동 뒤 단백질이 근육을 지켜요.' : '웨이트 뒤 단백질이 근육을 키워요.',
       };
 }
@@ -365,7 +369,7 @@ export const HEADLINE_RULES: readonly HeadlineRule[] = [
             why: '던진 날 밤의 단백질이 팔 회복을 돕고 잠도 깊게 해요.',
           }
         : {
-            headline: `던진 뒤 1시간 안에 단백질 ${fmtRange(s.after)} · ${s.w.milk} 2컵 + 바나나`,
+            headline: `던진 뒤 1시간 안에 단백질 ${fmtRange(s.after)} · ${s.recovery}`,
             why: '던진 뒤 바로 단백질과 탄수화물을 같이 먹으면 팔이 빨리 회복돼요.',
           },
   },
@@ -383,9 +387,13 @@ export const HEADLINE_RULES: readonly HeadlineRule[] = [
               headline: '던지기 3시간 전 밥 한 공기 · 담백한 반찬으로',
               why: '던지기 전에는 소화가 빠른 탄수화물이 힘이 돼요.',
             }
-          : {
-              headline: `던진 뒤 1시간 안에 단백질 ${fmtRange(s.after)} · ${s.w.milk} 2컵 + 바나나`,
-              why: '던진 뒤 바로 단백질과 탄수화물을 같이 먹으면 팔이 빨리 회복돼요.',
+          : /*
+             * 오후인데 아직 투구 기록이 없다 — 던지기 전일 수 있다. 영양 탭 가이드('3~4시간 전에 든든히')와 반대로 '던진 뒤'를 말했다
+             * (2026-10-18 점검). 던진 뒤 기록을 남기면 'after-throw' 줄로 바뀐다.
+             */
+            {
+              headline: `던지기 전이면 1시간 전엔 ${s.w.light} 한 가지`,
+              why: '던지기 직전에는 소화가 빠른 것이 힘이 돼요. 던진 뒤 투구 기록을 남기면 회복식을 알려 드려요.',
             },
   },
   {
@@ -585,6 +593,7 @@ function headlineOf(
     appetite: input.checkin?.appetite ?? null,
     sleepShort: input.checkin?.sleepShort ?? false,
     w: exampleWords(input.avoid),
+    recovery: recoveryExamples(input.body.ageBand, input.avoid)[0] ?? '밥 1공기 + 두부 반 모',
   };
   const rule = HEADLINE_RULES.find((r) => r.when(s))!;
   return { ...rule.say(s), rule: rule.key };

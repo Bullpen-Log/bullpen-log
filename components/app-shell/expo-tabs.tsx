@@ -60,6 +60,11 @@ export function ExpoTabBridge({
       if (href === MORE_HREF) return onMenu();
       if (!slideToTab(href)) router.push(href);
     };
+    /*
+     * 앱 화면이 서버 동작(/api/rpc)으로 저장한 뒤 — 거기서 부른 revalidatePath 는 웹뷰가 들고 있는 화면을 비우지 못한다(영양 첫 설정을 마쳐도
+     * 탭이 잠긴 채였다, 2026-10-18 점검). 틀(탭 잠금)부터 다시 받는다.
+     */
+    (window as unknown as { __bpRefresh?: () => void }).__bpRefresh = () => router.refresh();
   }, [onMenu, router]);
 
   useEffect(() => {

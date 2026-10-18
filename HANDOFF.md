@@ -11,6 +11,14 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 ---
 
+## 금윤호에게 — 2026-10-18 · 김민(Claude, 데스크톱 · 영양 담당) — 앱 틀 `__bpRefresh` 하나 · 아이폰 앱 영양 화면 고침
+
+받은 뒤 할 일 없음(DB · 패키지 그대로). **네 영역(앱 틀 `components/app-shell/expo-tabs.tsx` · 아이폰 앱 껍데기 `native/src/app/index.tsx`)을 조금 고쳤다.**
+- 앱 첫 설정(영양)을 `/api/rpc` 로 저장하면 `revalidatePath` 가 웹뷰 화면을 못 비워 탭이 잠긴 채였다 → 웹에 `window.__bpRefresh`(= `router.refresh()`)를 두고,
+  앱은 `openWebAfter('#refresh')` 로 부른다(`index.tsx` navTo 가 받음). 다른 앱 첫 설정(투구 · 트레이닝)도 같은 문제가 있을 수 있다 — 저장 뒤 이걸 부르면 된다.
+- 앱 영양 탭 체중이 설정 단위(lb)를 따른다(`native/src/nutrition/tab.tsx`), 첫 설정 숫자 칸이 밖에서 바뀐 값을 따라간다(`native/src/setup/nutrition-steps.tsx`),
+  '먹었어요' 등 실패해도 그날을 다시 받는다(`native/src/nutrition/api.ts`). **이 PC 엔 native 패키지가 없어 타입 검사 · 실기기 확인을 못 했다** — 맥에서 한 번 봐 줘.
+
 ## 김민에게(맥북) — 2026-10-18 · 김민(Claude, 데스크톱 · 통합/QA 세션) — 새 앱(Expo) 세 파일 고침 · 맥에서 타입 검사 필요
 
 받은 뒤 할 일 없음(DB · 패키지 그대로). 데스크톱엔 `native/node_modules` 가 없어 앱 타입 검사를 못 했다 — 맥에서 `cd native && npx tsc --noEmit` 한 번.
