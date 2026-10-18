@@ -65,7 +65,7 @@ export default function LabGuideScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: c.page }}>
-      <Bar back="3D 동작 분석" title="촬영 안내" c={c} />
+      <Bar back="3D 분석" title="촬영 안내" c={c} />
       <ScrollView ref={scroll} contentContainerStyle={[{ padding: 16, gap: 12, paddingBottom: inset.bottom + 32 }, READABLE]}>
         <Text style={{ color: c.muted, fontSize: 15, lineHeight: 21, paddingHorizontal: 4 }}>이대로 찍으면 3D 가 가장 정확해요.</Text>
         {section('checklist', <Checklist hand={hand} c={c} />)}
