@@ -4,6 +4,18 @@ import { useEffect, useRef } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { MORE_HREF, type NavGroup, type NavItem } from '@/lib/nav';
 import { slideToTab } from '@/components/tab-pager';
+import { applyTheme, THEME_CHOICES, type ThemeChoice } from '@/lib/theme';
+import {
+  applyLengthUnit,
+  applySpeedUnit,
+  applyWeightUnit,
+  LENGTH_UNITS,
+  SPEED_UNITS,
+  WEIGHT_UNITS,
+  type LengthUnit,
+  type SpeedUnit,
+  type WeightUnit,
+} from '@/lib/units-storage';
 
 /**
  * 새 아이폰 앱(Expo, native/)의 앱 탭 막대와 잇는다 — 앱이 아래 탭을 그리고(투구 탭은 앱 화면), 이 웹 화면은 홈 · 트레이닝 · 영양을 맡는다.
@@ -13,6 +25,7 @@ import { slideToTab } from '@/components/tab-pager';
  *            { t: 'webfront', on: false }(설정 창을 닫았다 — 앱이 덮었던 앱 화면을 다시 보인다)
  *   앱 → 웹: window.__bpTab(href) — 판 넘기기(slideToTab)로 옮기고, 못 하면(하위 화면) 이동. 더보기는 메뉴를 연다.
  *            window.__bpOpen('settings' | 'profile') — 설정 · 내 정보 창(웹 틀의 창이라 주소가 없다 — /profile 은 홈으로 간다)
+ *            window.__bpPrefs({ theme, length, weight, speed }) — 앱 설정 화면(native/src/app/settings.tsx)에서 고른 테마 · 단위를 웹에도 바로 칠한다
  * 새 앱이 아니면 아무것도 안 한다. 웹 탭 막대는 globals.css 'Expo 앱 탭'이 숨긴다.
  */
 type RN = { postMessage(s: string): void };
@@ -77,6 +90,17 @@ export function ExpoTabBridge({
       })
     );
   }, [groups, nickname]);
+
+  useEffect(() => {
+    if (!isExpo()) return;
+    const has = <T extends string>(list: readonly { value: T }[], v: unknown): v is T => list.some((o) => o.value === v);
+    (window as unknown as { __bpPrefs?: (p: Record<string, unknown>) => void }).__bpPrefs = (p) => {
+      if (has<ThemeChoice>(THEME_CHOICES, p.theme)) applyTheme(p.theme);
+      if (has<LengthUnit>(LENGTH_UNITS, p.length)) applyLengthUnit(p.length);
+      if (has<WeightUnit>(WEIGHT_UNITS, p.weight)) applyWeightUnit(p.weight);
+      if (has<SpeedUnit>(SPEED_UNITS, p.speed)) applySpeedUnit(p.speed);
+    };
+  }, []);
 
   useEffect(() => {
     if (!isExpo()) return;

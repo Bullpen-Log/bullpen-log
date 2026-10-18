@@ -66,7 +66,7 @@ export default function MoreScreen() {
       <ScrollView contentContainerStyle={{ padding: 16, gap: 20, paddingBottom: inset.bottom + 24 }}>
         <View style={[styles.group, { backgroundColor: c.card }]}>
           {row('profile', nickname ? `${nickname} · 내 정보` : '내 정보', 'person.crop.circle', () => (router.back(), router.push('/profile' as Href)))}
-          {row('settings', '설정', 'gearshape', () => go('#settings'), false, true)}
+          {row('settings', '설정', 'gearshape', () => (router.back(), router.push('/settings' as Href)), false, true)}
         </View>
         {groups.map((g, gi) => (
           <View key={gi} style={{ gap: 6 }}>

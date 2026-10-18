@@ -26,7 +26,7 @@ import {
   warmupLine,
 } from '@/lib/program/program';
 import { UNIT_KG, UNIT_LB, roundForDisplay, weightKindOf } from '@/lib/program/next-weight';
-import { formatWeight, fromWeight, round1, toWeight, type WeightUnit } from '@/lib/units';
+import { formatWeight, fromWeight, round1, toWeight } from '@/lib/units';
 import { newRecord } from '@/lib/workout/bests';
 import { REST_CLOCK_LIMIT_SECONDS, restSeconds } from '@/lib/workout/rest';
 import { placeExercise, type SwapMode } from '@/lib/workout/swap';
@@ -41,6 +41,7 @@ import { TRAINING_HOME_HREF } from '@/lib/training-part';
 import { drainOutbox, onSent, outbox, withPending, type ShownSet } from '~/workout/outbox';
 import { ExerciseVideo, NoteBox, NumberPad, RestPill, RirQuestion, SetDots } from '~/workout/parts';
 import { FinishSheet, ListSheet, SwapSheet } from '~/workout/sheets';
+import { useWeightUnit } from '~/lib/weight-unit';
 
 /**
  * 운동 진행(앱 화면) — 웹 app/(session)/workout/run/session-client.tsx 를 옮겼다. 사이트의 운동 화면이 앱(BullpenNative/2 부터)이면 이 화면을
@@ -128,23 +129,6 @@ const asksReserve = (ex: RunExercise) => asksReserveFor(ex.programSlot, ex.plann
 /** 지금 보던 운동을 이 판 번호로 적어 두는 곳 — 앱이 메모리 탓에 다시 켜져도 보던 운동으로 돌아온다(웹 sessionStorage 와 같은 몫) */
 const atKey = (sessionId: string) => `bullpen-workout-at:${sessionId}`;
 
-/**
- * 무게 단위 — 웹 설정이 정한 값(웹뷰 localStorage 'bullpen-unit-weight')을 앱 저장소의 같은 이름에서 읽는다. 저장은 늘 kg.
- * ponytail: 껍데기가 이 값을 앱 저장소로 옮겨 줘야 lb 가 보인다(지금은 없으면 kg) — index.tsx 의 웹 값 옮기기에 이 이름을 더하면 된다.
- */
-function useWeightUnit(): WeightUnit {
-  const [unit, setUnit] = useState<WeightUnit>('kg');
-  useEffect(() => {
-    AsyncStorage.getItem('bullpen-unit-weight').then(
-      (raw) => {
-        const v = raw?.replace(/"/g, '');
-        if (v === 'kg' || v === 'lb') setUnit(v);
-      },
-      () => undefined
-    );
-  }, []);
-  return unit;
-}
 
 /**
  * 마지막 세트로부터 흐른 시간(초) — 거꾸로 내려가지 않고 0:00 부터 올라간다. 10분이 넘으면 null(시계를 거둔다, lib/workout/rest.ts).

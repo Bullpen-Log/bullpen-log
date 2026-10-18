@@ -9,7 +9,7 @@ import {
   type ComponentType,
   type Ref,
 } from 'react';
-import { Alert, AppState, Pressable, StyleSheet, Text, View, useColorScheme } from 'react-native';
+import { Alert, AppState, Pressable, StyleSheet, Text, View } from 'react-native';
 import {
   WebView,
   type WebViewMessageEvent,
@@ -32,6 +32,8 @@ import { resetNutritionStore } from '~/nutrition/api';
 import { useWebNav } from '~/shell/web-nav';
 import { setMenu, useMenu, type MenuGroup } from '~/shell/menu-store';
 import { adoptWebValues, cacheClear, loadJson, saveJson } from '~/lib/store';
+import { onPrefsChange, PREF_KEYS, reloadPrefs } from '~/lib/prefs';
+import { useTheme } from '~/lib/ui';
 import { clearDraft } from '~/velocity/draft';
 import { rpc } from '~/lib/rpc';
 import { drainOutbox, setOutboxOwner } from '~/workout/outbox';
@@ -104,8 +106,8 @@ function tabOf(path: string, tabs: ShellTab[]): string | null {
  * lib/store.ts adoptWebValues). 같은 번들 ID 라 옛 앱의 웹 저장소 · 로그인 쿠키는 그대로 남아 있다.
  */
 const WEB_JSON_KEYS = ['bullpen-velocity-setup'];
-/** 웹 설정 창이 고치는 글자 값 — 늘 웹을 따른다(운동 진행 화면의 kg · lb, lib/units-storage.ts WEIGHT_KEY) */
-const WEB_RAW_KEYS = ['bullpen-unit-weight'];
+/** 테마 · 단위(글자 값, ~/lib/prefs) — 웹을 열 때마다 웹 값을 따른다. 앱 설정 화면에서 바꾸면 웹에도 같이 칠해 둘이 늘 같다 */
+const WEB_RAW_KEYS = Object.values(PREF_KEYS);
 const WEB_KEYS = [...WEB_JSON_KEYS, ...WEB_RAW_KEYS];
 const ADOPT_WEB_VALUES = `(function(){try{var o={};${JSON.stringify(WEB_KEYS)}.forEach(function(k){o[k]=localStorage.getItem(k)});window.ReactNativeWebView&&window.ReactNativeWebView.postMessage(JSON.stringify({t:'adopt',items:o}))}catch(e){}})();true;`;
 /*
@@ -154,7 +156,7 @@ export default function SiteScreen() {
   /** 바꾸면 웹뷰를 새로 그린다 — 다시 불러오기(react-native-webview 14 의 WebView 는 ref 를 안 받는다) */
   const [load, setLoad] = useState(0);
   const [failed, setFailed] = useState(false);
-  const dark = useColorScheme() === 'dark';
+  const dark = useTheme() !== 'light';
   const web = useRef<WebViewHandle>(null);
   /** 사이트 테마의 바탕색 — 오래 뒤에 있다 돌아와 다시 그리는 동안 흰 화면이 번쩍이지 않게(옛 앱의 bullpenTheme 과 같은 일) */
   const [pageColor, setPageColor] = useState<string | null>(null);
@@ -262,6 +264,17 @@ export default function SiteScreen() {
     };
   });
   useWebNav(useCallback((href: string) => navTo.current(href), []));
+  /* 앱 설정 화면에서 고른 테마 · 단위를 웹에도 — 웹 다리(expo-tabs.tsx __bpPrefs)가 없는 화면이면 저장소에만 두고 다음에 열 때 칠해진다 */
+  useEffect(
+    () =>
+      onPrefsChange((p) => {
+        const keys = Object.fromEntries(Object.entries(p).map(([k, v]) => [PREF_KEYS[k as keyof typeof PREF_KEYS], v]));
+        web.current?.injectJavaScript(
+          `(function(){var p=${JSON.stringify(p)};if(window.__bpPrefs)window.__bpPrefs(p);else{var k=${JSON.stringify(keys)};for(var i in k)try{localStorage.setItem(i,k[i])}catch(e){}}})();true;`
+        );
+      }),
+    []
+  );
 
   const hideSplash = useCallback(() => {
     void SplashScreen.hideAsync();
@@ -338,7 +351,7 @@ export default function SiteScreen() {
       return;
     }
     if (msg.t === 'tabbar') return setBarOn(msg.on === true);
-    if (msg.t === 'adopt' && msg.items) return void adoptWebValues(msg.items, WEB_RAW_KEYS);
+    if (msg.t === 'adopt' && msg.items) return void adoptWebValues(msg.items, WEB_RAW_KEYS).then(reloadPrefs);
     if (msg.t === 'menu' && Array.isArray(msg.groups)) return setMenu({ groups: msg.groups, nickname: String(msg.nickname ?? '') });
     if (msg.t === 'webfront') return setWebFront(msg.on === true);
     if (msg.t === 'loc') {

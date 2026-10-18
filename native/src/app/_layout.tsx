@@ -2,6 +2,7 @@ import { router, Stack, usePathname } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
+import { useTheme } from '~/lib/ui';
 
 /** 사이트 첫 화면이 그려질 때까지 시작 화면을 둔다(index.tsx 가 걷는다) — 흰 화면이 번쩍이지 않게 */
 SplashScreen.preventAutoHideAsync();
@@ -36,12 +37,14 @@ export default function RootLayout() {
   useSinglePush();
   /* 딥링크로 앱 화면부터 열면 그 화면이 보이게 시작 화면을 걷는다 — 밑의 웹 껍데기는 가려져 있어 다 그려졌다는 알림이 오지 않았다 */
   const path = usePathname();
+  const theme = useTheme();
   useEffect(() => {
     if (path !== '/') void SplashScreen.hideAsync();
   }, [path]);
   return (
     <>
-      <StatusBar style="auto" />
+      {/* 상태바 글자색 — 설정 테마를 따른다(기기 밝기가 아니라) */}
+      <StatusBar style={theme === 'light' ? 'dark' : 'light'} />
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="pitch/edit" options={{ presentation: 'modal' }} />
         <Stack.Screen name="pitch/import" options={{ presentation: 'modal' }} />

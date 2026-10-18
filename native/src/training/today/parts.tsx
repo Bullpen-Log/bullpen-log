@@ -1,8 +1,6 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SymbolView, type SFSymbol } from 'expo-symbols';
-import { useEffect, useState, type ReactNode } from 'react';
+import { type ReactNode } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
-import type { WeightUnit } from '@/lib/units';
 import type { Palette } from '~/lib/ui';
 
 /** 트레이닝 '운동' 화면(native/src/app/training-today.tsx)의 작은 조각 · 모양 — 웹 app/(app)/training/* 의 카드 모양을 앱 모양으로 */
@@ -22,23 +20,7 @@ export type TodayActions = {
   web: (href: string) => void;
 };
 
-/**
- * 무게 단위 — 웹 설정이 정한 값(앱 저장소의 'bullpen-unit-weight', 운동 진행 화면과 같은 읽기). 없으면 kg.
- * ponytail: native/src/app/workout.tsx 의 것과 같은 몇 줄 — 셋째 화면이 쓰면 ~/lib 로 옮긴다.
- */
-export function useWeightUnit(): WeightUnit {
-  const [unit, setUnit] = useState<WeightUnit>('kg');
-  useEffect(() => {
-    AsyncStorage.getItem('bullpen-unit-weight').then(
-      (raw) => {
-        const v = raw?.replace(/"/g, '');
-        if (v === 'kg' || v === 'lb') setUnit(v);
-      },
-      () => undefined
-    );
-  }, []);
-  return unit;
-}
+export { useWeightUnit } from '~/lib/weight-unit';
 
 export function Card({ c, children, tone }: { c: Palette; children: ReactNode; tone?: 'warn' | 'sky' | 'done' }) {
   return (

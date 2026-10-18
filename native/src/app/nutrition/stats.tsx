@@ -1,4 +1,3 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Haptics from 'expo-haptics';
 import { useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
@@ -20,6 +19,7 @@ import { WeekChart, WeightTrend } from '~/nutrition/stats/charts';
 import { GoalSheet, kgText, paceText } from '~/nutrition/stats/goal-sheet';
 import { cacheGet, cacheSet } from '~/lib/store';
 import { usePalette, type Palette } from '~/lib/ui';
+import { useWeightUnit } from '~/lib/weight-unit';
 
 /**
  * 영양 목표 · 통계(앱 화면) — 웹 영양 탭의 통계 열(app/(app)/nutrition/nutrition-view.tsx: 체중 카드 → 최근 7일 → 내 계획)과 목표 창을 옮겼다.
@@ -31,23 +31,6 @@ type Load = Awaited<ReturnType<typeof loadAppNutritionStats>>;
 type Stats = Extract<Load, { ok: true }>;
 type Result = { ok: true } | { ok: false; error: string };
 
-/**
- * 무게 단위 — 웹 설정이 정한 값(앱 저장소 'bullpen-unit-weight', 껍데기가 웹에서 옮겨 둔다). 저장은 늘 kg.
- * ponytail: 운동 진행 화면(app/workout.tsx)의 같은 갈고리를 옮겨 적었다 — 세 번째로 쓰이면 ~/lib 로 뺀다.
- */
-function useWeightUnit(): WeightUnit {
-  const [unit, setUnit] = useState<WeightUnit>('kg');
-  useEffect(() => {
-    AsyncStorage.getItem('bullpen-unit-weight').then(
-      (raw) => {
-        const v = raw?.replace(/"/g, '');
-        if (v === 'kg' || v === 'lb') setUnit(v);
-      },
-      () => undefined
-    );
-  }, []);
-  return unit;
-}
 
 /* '그대로 둘게요' — 웹은 그 브라우저 localStorage 에 14일, 앱은 받아 둔 값 칸에 같은 꼴('오늘:다음 조정')로(로그아웃하면 지워져 다음 사람에게 안 남는다) */
 const SNOOZE_KEY = 'weight-suggest-snooze';
