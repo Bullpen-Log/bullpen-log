@@ -2712,7 +2712,7 @@
       {
        "exerciseId": "cd0cf6df-e3b5-4b6c-876e-5b56fabe21b0",
        "no": "3-45",
-       "title": "스탠딩 케이블 로테이션",
+       "title": "TRX 로테이션",
        "station": "케이블",
        "bucket": "코어",
        "equipment": [
@@ -3859,7 +3859,7 @@
       {
        "exerciseId": "f70c850d-d583-474d-832d-7667a2efb843",
        "no": "4-34",
-       "title": "케이블 래디얼 디비에이션",
+       "title": "덤벨 래디얼 디비에이션",
        "station": "케이블",
        "bucket": "전완 · 팔꿈치",
        "equipment": [
@@ -3875,7 +3875,7 @@
       {
        "exerciseId": "7ed34709-2841-430c-89d1-b7f6c676c167",
        "no": "4-35",
-       "title": "케이블 울나 디비에이션",
+       "title": "덤벨 울나 디비에이션",
        "station": "케이블",
        "bucket": "전완 · 팔꿈치",
        "equipment": [
@@ -3891,7 +3891,7 @@
       {
        "exerciseId": "9e9805c1-024a-4656-ba69-411d6df282e1",
        "no": "4-36",
-       "title": "케이블 전완 프로네이션·수피네이션",
+       "title": "덤벨 전완 프로네이션·수피네이션",
        "station": "케이블",
        "bucket": "전완 · 팔꿈치",
        "equipment": [
