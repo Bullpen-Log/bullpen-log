@@ -1,4 +1,5 @@
 import * as Haptics from 'expo-haptics';
+import { SymbolView, type SFSymbol } from 'expo-symbols';
 import { useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -40,9 +41,9 @@ export default function AccountScreen() {
       <Bar back="내 정보" title="계정" c={c} />
       <ScrollView contentContainerStyle={[{ padding: 16, gap: 22, paddingBottom: inset.bottom + 32 }, READABLE]} keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets>
         <View style={[st.group, { backgroundColor: c.card }]}>
-          <ActionRow label={leaving ? '로그아웃하는 중…' : '로그아웃'} onPress={() => void logout()} disabled={leaving} c={c} />
-          <ActionRow label="비밀번호 바꾸기" onPress={() => setOpen(open === 'pw' ? null : 'pw')} expanded={open === 'pw'} c={c} />
-          <ActionRow label="회원 탈퇴" danger onPress={() => setOpen(open === 'leave' ? null : 'leave')} expanded={open === 'leave'} last c={c} />
+          <ActionRow symbol="rectangle.portrait.and.arrow.right" label={leaving ? '로그아웃하는 중…' : '로그아웃'} onPress={() => void logout()} disabled={leaving} c={c} />
+          <ActionRow symbol="key.fill" label="비밀번호 바꾸기" onPress={() => setOpen(open === 'pw' ? null : 'pw')} expanded={open === 'pw'} c={c} />
+          <ActionRow symbol="person.fill.badge.minus" label="회원 탈퇴" danger onPress={() => setOpen(open === 'leave' ? null : 'leave')} expanded={open === 'leave'} last c={c} />
         </View>
         {msg ? <Text accessibilityRole="alert" style={{ color: c.danger, fontSize: 15, fontWeight: '600', paddingHorizontal: 4 }}>{msg}</Text> : null}
         {open === 'pw' ? <PasswordForm onDone={() => setOpen(null)} c={c} /> : null}
@@ -52,7 +53,8 @@ export default function AccountScreen() {
   );
 }
 
-function ActionRow({ label, onPress, danger, expanded, disabled, last, c }: { label: string; onPress: () => void; danger?: boolean; expanded?: boolean; disabled?: boolean; last?: boolean; c: Palette }) {
+/** 계정 줄 — 웹 account-actions ActionRow 처럼 왼쪽 색 원 + 흰 그림(IconCircle — 하늘, 탈퇴는 빨강) */
+function ActionRow({ symbol, label, onPress, danger, expanded, disabled, last, c }: { symbol: SFSymbol; label: string; onPress: () => void; danger?: boolean; expanded?: boolean; disabled?: boolean; last?: boolean; c: Palette }) {
   return (
     <Pressable
       accessibilityRole="button"
@@ -61,6 +63,9 @@ function ActionRow({ label, onPress, danger, expanded, disabled, last, c }: { la
       disabled={disabled}
       style={({ pressed }) => [st.row, { opacity: disabled ? 0.6 : pressed ? 0.6 : 1 }, !last && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: c.line }]}
     >
+      <View style={[st.circle, { backgroundColor: danger ? c.danger : c.sky }]}>
+        <SymbolView name={symbol} size={15} tintColor="#fff" />
+      </View>
       <Text style={{ color: danger ? c.danger : c.ink, fontSize: 16, flex: 1 }}>{label}</Text>
       <Text style={{ color: c.muted, fontSize: 18 }}>{expanded ? '⌄' : '›'}</Text>
     </Pressable>
@@ -197,6 +202,7 @@ function Button({ label, onPress, disabled, danger, c }: { label: string; onPres
 }
 
 const st = StyleSheet.create({
+  circle: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
   group: { borderRadius: 14, overflow: 'hidden' },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, minHeight: 50 },
   input: { fontSize: 17, paddingHorizontal: 16, minHeight: 50, borderRadius: 12 },
