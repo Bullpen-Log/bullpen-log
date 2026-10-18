@@ -213,6 +213,12 @@ import {
 } from '@/components/velocity/session-types';
 import { SessionHistory } from '@/components/velocity/session-history';
 import { backTooSoon, previousUrl } from '@/lib/nav-state';
+import { useAbsSession } from '@/components/abs/use-abs-session';
+import { AbsSetupCard } from '@/components/abs/abs-setup-card';
+import { PlateOverlay } from '@/components/abs/plate-overlay';
+import { BatterChip } from '@/components/abs/batter-chip';
+import { Switch } from '@/components/switch';
+import { focalPxFromFov as absFocalPxFromFov } from '@/lib/velocity-engine/geometry';
 
 /**
  * 구속 측정 화면 — Smart Scout · PitchLab 의 흐름을 우리 모양(아이폰 느낌)으로.
@@ -238,6 +244,8 @@ export type Step =
   | 'tips'
   | 'align'
   | 'zone'
+  /** ABS(볼 · 스트라이크 자동 판정) 설정 — 존 다음, ABS 를 켰을 때만(components/abs) */
+  | 'abs'
   | 'measure'
   | 'lens';
 
@@ -252,6 +260,7 @@ const CAMERA_STEPS: ReadonlySet<Step> = new Set<Step>([
   'tips',
   'align',
   'zone',
+  'abs',
   'measure',
   'lens',
 ]);
@@ -264,6 +273,7 @@ const BACK_OF: Partial<Record<Step, { to: Step; label: string }>> = {
   camera: { to: 'type', label: '종류' },
   align: { to: 'camera', label: '카메라 위치' },
   zone: { to: 'align', label: '수평' },
+  abs: { to: 'zone', label: '존' },
   lens: { to: 'measure', label: '측정' },
 };
 type LocalClip = { url: string; blob: Blob; durationSec: number; eventSec: number };
@@ -479,7 +489,10 @@ export function VelocityScreen({
   history = [],
   initialStep = 'home',
   resume = false,
+  absMode = false,
 }: {
+  /** ABS 판정 모드(/abs) — ABS 가 켜진 채 열고 제목 · 셔터 글이 '판정'. 흐름 · 엔진은 구속 측정 그대로 */
+  absMode?: boolean;
   isAdmin: boolean;
   native: boolean;
   today: string;
@@ -759,13 +772,42 @@ export function VelocityScreen({
    * 정보 판이 카메라를 가려 수평계가 꺼지지만 삼각대라 그대로다 — 마지막 값을 쥔다.
    */
   const tiltRef = useRef<number | null>(null);
+  /* 마지막 숙임을 상태로도(ABS 보정 — 수평계가 꺼진 세션 중에도 그 값을 쓴다) */
+  const [absTilt, setAbsTilt] = useState<number | null>(null);
   useEffect(() => {
     if (level.pitch == null) return;
     const tilt = (-level.pitch * Math.PI) / 180;
     if (tiltRef.current != null && Math.abs(tiltRef.current - tilt) < 1e-6) return;
     tiltRef.current = tilt;
+    setAbsTilt(tilt);
     captureRef.current?.setTilt(tilt);
   }, [level.pitch]);
+  /*
+   * ABS(볼 · 스트라이크 자동 판정, 관리자 · 투수 뒤) — 설정 · 플레이트 보정 · 판정은 components/abs/use-abs-session.ts. 엔진 결과가 올 때(addResult)
+   * judge() 로 analysis.abs 를 만들고 코스 · 결과를 채운다. 초점거리는 세션 저장 입력(focalPx)과 같은 셈.
+   */
+  const abs = useAbsSession({
+    enabled: isAdmin,
+    camera: camera ? { width: camera.width, height: camera.height } : null,
+    focalPx: camera
+      ? focalRatio
+        ? focalRatio * Math.max(camera.width, camera.height)
+        : absFocalPxFromFov(Math.max(camera.width, camera.height), fov)
+      : null,
+    tiltRad: level.pitch != null ? (-level.pitch * Math.PI) / 180 : absTilt,
+    rollRad: level.roll != null ? (level.roll * Math.PI) / 180 : null,
+    zoneRect: zone,
+    detecting: step === 'abs',
+    live: step === 'measure' && live,
+    snapshot: () => captureRef.current?.snapshot() ?? null,
+  });
+  /* /abs 로 열었으면 ABS 를 켜 둔다(저장된 설정이 꺼져 있어도) — 설정을 읽은 뒤 한 박자 뒤 */
+  const absSetOn = abs.setOn;
+  useEffect(() => {
+    if (!absMode) return;
+    const t = setTimeout(() => absSetOn(true), 50);
+    return () => clearTimeout(t);
+  }, [absMode, absSetOn]);
   const fit = calibration;
   const shown = (raw: number) =>
     useCal && fit.n > 0 ? applyCalibration(raw, fit) : raw;
@@ -988,12 +1030,23 @@ export function VelocityScreen({
         };
       }
     }
+    /* ABS — 보정이 있고 궤적 스냅샷이 있으면 판정(components/abs). 코스는 짐작 대신 판정 칸, 결과는 S/B */
+    const absJudged =
+      source === 'camera' && 'distance' in result && result.distance
+        ? abs.judge({
+            distance: result.distance as DistanceReport,
+            track: result.track,
+            analyzeSize: result.analyzeSize,
+            sourceSize: result.sourceSize,
+          })
+        : null;
     const added: Omit<LocalPitch, 'id'> = {
       source,
       clip: earlyClip,
       ...measuredFields(result, distAuto),
       analysis: {
         ...analysisOf(result, approach),
+        abs: absJudged,
         /* 클립은 카메라 장면 그대로라 이 존을 영상 위에 그대로 얹는다. 영상 파일은 장면이 달라 싣지 않는다 */
         zoneRect: source === 'camera' ? activeZone : null,
         /* 기준 조건 밖에서 잰 공 — 다른 폰 · 다른 조건의 값과 견줄 때 가른다 */
@@ -1028,7 +1081,8 @@ export function VelocityScreen({
       trail: trailOf(result),
       hitT: meta?.hitT ?? null,
       ...EMPTY_EDIT,
-      zone: guessedZone,
+      zone: absJudged?.verdict ? absJudged.verdict.cell : guessedZone,
+      result: absJudged?.verdict?.call ?? null,
     };
     const memory = loadDistMemory();
     setPitches((prev) =>
@@ -1276,6 +1330,11 @@ export function VelocityScreen({
     void requestPermission();
     setZone(activeZone);
     persistSetup();
+    captureRef.current?.setApproach(approach);
+    /* ABS 를 켰으면 존 다음에 플레이트 · 신장 단계 하나 더(투수 뒤만) */
+    setStep(abs.on && choices.cameraPos === 'behind-pitcher' ? 'abs' : 'measure');
+  };
+  const goMeasureFromAbs = () => {
     captureRef.current?.setApproach(approach);
     setStep('measure');
   };
@@ -2199,7 +2258,9 @@ export function VelocityScreen({
         ? live
           ? 'live'
           : 'measure'
-        : step;
+        : step === 'abs'
+          ? 'zone'
+          : step;
   const jumpTo = (key: VelocityScreenKey) => {
     setSheet('none');
     setViewPitch(null);
@@ -2312,7 +2373,7 @@ export function VelocityScreen({
     else setTipIndex(tipIndex + 1);
   };
   /* 카메라 무대 위 가운데 — 단계 이름(측정은 세션 중 상태가 대신) */
-  const stageTitle = step === 'home' ? { n: '', label: '구속 측정' } : null;
+  const stageTitle = step === 'home' ? { n: '', label: absMode ? 'ABS 판정' : '구속 측정' } : null;
   /*
    * 셔터 — 첫 화면은 '측정 시작'(안내창을 연다). 안내창 · 수평 · 존 동안은 흐리게 자리만 지킨다(앞으로 가기는 카드 안 단추 — 김민:
    * "다음 버튼은 창에다가, 셔터로 하니까 헷갈려"). 측정 단계의 셔터는 아래 막대의 다른 갈래가 그린다.
@@ -2322,10 +2383,10 @@ export function VelocityScreen({
       <Shutter
         onClick={() => setStep('type')}
         disabled={step !== 'home' || fileBusy}
-        label="측정 시작"
+        label={absMode ? '판정 시작' : '측정 시작'}
       />
       <span className={`${SIDE_LABEL} transition-opacity ${step === 'home' ? '' : 'opacity-35'}`}>
-        측정 시작
+        {absMode ? '판정 시작' : '측정 시작'}
       </span>
     </div>
   );
@@ -2441,8 +2502,30 @@ export function VelocityScreen({
         />
       )}
 
+      {/* ABS — 플레이트 앞변 · 존 상자(설정 단계는 손잡이, 측정 중엔 옅게) */}
+      {abs.on &&
+        cameraOn &&
+        frameSize &&
+        finderSize &&
+        (step === 'abs' || (step === 'measure' && showCamera && !summaryOpen)) && (
+          <PlateOverlay
+            ends={abs.ends}
+            poly={abs.zonePoly}
+            frame={frameSize}
+            view={finderSize}
+            manual={step === 'abs' && abs.manual}
+            onEnds={abs.setEnds}
+            dim={step === 'measure'}
+          />
+        )}
+      {abs.on && cameraOn && step === 'measure' && live && !summaryOpen && !resultShown && (
+        <div className="absolute left-3 top-[calc(5.75rem+env(safe-area-inset-top))] z-10">
+          <BatterChip batter={abs.batter} height={abs.setup.height} onNext={abs.nextBatter} />
+        </div>
+      )}
+
       {/* 표적 — 릴리스 포인트 */}
-      {cameraOn && step !== 'zone' && step !== 'lens' && !(live && !showCamera) && (
+      {cameraOn && step !== 'zone' && step !== 'abs' && step !== 'lens' && !(live && !showCamera) && (
         <div aria-hidden className="pointer-events-none absolute inset-0 text-white">
           <div
             className={`absolute left-1/2 top-1/2 h-28 w-28 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 transition-colors ${
@@ -2735,11 +2818,25 @@ export function VelocityScreen({
                     subtitle="자리는 릴리스 표적 바로 밑에 고정돼요. 두 손가락으로 벌리거나 모서리 손잡이로 크기만 맞춰요."
                     footer={
                       <PrimaryButton onClick={goMeasure} disabled={!cameraOn}>
-                        완료
+                        {abs.on && choices.cameraPos === 'behind-pitcher' ? '다음' : '완료'}
                         <ChevronRight aria-hidden className="h-4 w-4" />
                       </PrimaryButton>
                     }
                   />
+                ) : step === 'abs' ? (
+                  <GuideCard
+                    key="abs"
+                    title="ABS · 홈플레이트와 타자"
+                    subtitle="존 밑에 흰 홈플레이트가 보여야 해요. 찾으면 존 상자가 플레이트 위에 그려져요."
+                    footer={
+                      <PrimaryButton onClick={goMeasureFromAbs} disabled={!cameraOn || !abs.calib?.ok}>
+                        완료
+                        <ChevronRight aria-hidden className="h-4 w-4" />
+                      </PrimaryButton>
+                    }
+                  >
+                    <AbsSetupCard abs={abs} tiltKnown={absTilt != null || level.pitch != null} />
+                  </GuideCard>
                 ) : step === 'type' ? (
                   <GuideCard
                     key="type"
@@ -2760,6 +2857,18 @@ export function VelocityScreen({
                       value={sessionType}
                       onChange={setSessionType}
                     />
+                    {/* ABS(볼 · 스트라이크 자동 판정) — 관리자 · 투수 뒤만. 검문 2 뒤 모두에게(docs/designs/abs-single-camera.md) */}
+                    {isAdmin && (
+                      <label className="mt-3 flex items-center justify-between gap-3 rounded-2xl bg-surface-2 px-4 py-3">
+                        <span className="min-w-0">
+                          <span className="block text-sm font-semibold text-ink">ABS 판정도 해요</span>
+                          <span className="block text-footnote text-muted">
+                            홈플레이트가 보이게 두면 공마다 스트라이크 · 볼을 판정해요(참고용).
+                          </span>
+                        </span>
+                        <Switch checked={abs.setup.on} onChange={abs.setOn} ariaLabel="ABS 판정" />
+                      </label>
+                    )}
                   </GuideCard>
                 ) : step === 'camera' ? (
                   <GuideCard
@@ -3203,6 +3312,8 @@ export function VelocityScreen({
                 clip={replayClip(shownPitch)}
                 trail={shownPitch.trail ?? null}
                 frame={shownPitch.analysis?.analyzeSize ?? null}
+                abs={shownPitch.analysis?.abs ?? null}
+                absFit={shownPitch.analysis?.distance?.fit ?? null}
                 cameraPos={choices.cameraPos}
                 pitchType={shownPitch.pitchType}
                 onPitchType={(pitchType) => patch(shownPitch.id, { pitchType })}
@@ -3294,6 +3405,9 @@ export function VelocityScreen({
                   }}
                   /* 지우기는 공을 눌러 여는 편집 시트에 — 줄에 단추가 셋이면 폰 폭에서 구종 글자가 잘린다 */
                   saving={saving}
+                  abs={pitches
+                    .filter((p) => p.analysis?.abs)
+                    .map((p) => ({ id: p.id, abs: p.analysis!.abs! }))}
                 />
               </div>
               {error && (

@@ -2,6 +2,7 @@ import 'server-only';
 import { prisma } from '@/lib/prisma';
 import { deleteVideos } from '@/lib/storage';
 import { VELOCITY_MEMO_MARK } from '@/lib/velocity-meta';
+import { sanitizeAbs, sanitizeFitSnapshot } from '@/lib/abs/analysis';
 
 /**
  * 구속 측정 세션의 뒷정리 — 본인 액션(app/actions/velocity.ts)과 관리자 액션(velocity-admin.ts)이 같이 쓴다.
@@ -201,6 +202,8 @@ export function sanitizeDistance(raw: unknown): Record<string, unknown> | null {
     shakePx: n(d.shakePx),
     stabilized: d.stabilized === true,
     stabResidPx: n(d.stabResidPx),
+    /* ABS 재판정용 궤적 스냅샷 — 없으면 null */
+    fit: sanitizeFitSnapshot(d.fit),
   };
 }
 
@@ -273,6 +276,8 @@ export function sanitizeAnalysis(raw: unknown): Record<string, unknown> | null {
           .map((q) => q.map((v) => Math.round(v * 100000) / 100000))
       : null,
     trailAligned: a.trailAligned === true,
+    /* ABS 판정(lib/abs/analysis.ts) — ABS 세션의 공만 */
+    abs: sanitizeAbs(a.abs),
   };
   return JSON.stringify(out).length > 40_000 ? null : out;
 }

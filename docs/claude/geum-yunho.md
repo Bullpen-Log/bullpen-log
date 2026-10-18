@@ -618,6 +618,23 @@
       규칙: 아이콘은 `@/components/icon` 에서만(150종 · 굵기 2.5, eslint 가 lucide 직접 import 를 막음), 원은 `components/icon-circle.tsx`(44 · 56, sky · danger · tint).
       새 화면에 아이콘을 쓸 때 `lucide-react` 를 직접 부르지 말 것 — 없으면 icon.tsx 에 한 줄. 남은 것: 아이폰 앱만 SF Symbols SVG(사용자가 맥에서 내보내야 함) ·
       구속 측정 27개 파일(김민 작업 중, eslint ignores 셋) · 김민 답 둘. **사용자 규칙(같은 날): 프롬프트를 만들어 달라면 영어로.**
+  20. **폰 한 대 ABS(볼 · 스트라이크 자동 판정) 계획서(2026-10-17, 사용자: "카메라 한 대만 · 타자 신장으로 존 · 3D 로 둘러보기 · 전략적으로 중요").
+      계획만, 코드 없음.** 전체는 claude.ai 문서 '불펜로그 ABS 계획서'(https://claude.ai/code/artifact/f6987cc0-0fc1-4443-940c-1a4163f68724), 요약은
+      `docs/designs/abs-single-camera.md`. 결론: 투수 뒤 3~5 m · 2배 한 대로 좌우 ±2 cm, 높이는 ±3 노림(실측 전 ±4~8 — 통과 순간 = 깊이가 난제, 단서 셋:
+      투수 발 · 포수 발 · 옆 1 m 시차). **만들기 전 P0 실험**(폰 두 대 · 옆 240fps 자 · 30~50구: 통과 장면 차 < 0.3장 · 공 보임 > 90%). 반박 검토 둘 반영.
+      사용자가 정할 것 여덟(규칙 · 자리 · 판정 표시 · 이름 · 신장 · 3D · 모드 · 촬영일). 답이 오면 P0 부터.
+      **사용자 답(2026-10-18)**: KBO · 투수 뒤만 · S/B 둘만 · 3D 포함 · '다음 타자' 단추로 신장(처음 '평균 신장' 고르면 유지) · 실험 촬영 10-19 구속 촬영과 함께.
+      **P0 끝(2026-10-18)**: `lib/abs/`(rules · zone · cross · judge · index, 순수) + `npm run abs:test`(38) · `abs:bench`(합성 300구 × 15 시나리오 6초) ·
+      `docs/designs/abs-p0-protocol.md`(10-19 촬영 안내 · 체크리스트). 핵심 숫자: 좌우 p95 2cm 됨, 높이는 깊이 단서 σ_D 가 전부(0.1m → 3cm · 0.3m → 7cm),
+      카메라는 축에서 0.5m 비킴(투수 몸통 가림 52% → 14%).
+      **P1~P3 끝(2026-10-18, "끝까지 진행")**: 보정은 앞변 양끝 + 기울기 센서(오각형은 세로 3.6px 라 버림) · 앞변 찾기 · 삼각대 감시(P1 b85668a2), 깊이 단서(미트 사전값 0.6m
+      σ0.2 + 공 크기) · 타격 가리기 · `analysis.abs` · 재판정, 엔진 접점은 `DistanceReport.fit` · `AnalysisJson.abs` · sanitize 둘뿐(P2 4dec9bf6), 화면 `components/abs/`
+      (종류 단계 스위치(관리자) → 'abs' 단계 → 타자 칩 → 판정 카드 · 3D → 요약 히트맵) + `app/actions/abs.ts` + 처리방침(P3). abs:test 85. **실기기 · 앱 카메라에서는
+      아직 안 돌려 봤다** — 10-19 촬영 때 관리자 계정으로 켜 보고(종류 단계 스위치), 안 되면 '직접 맞추기'. 다음: 촬영 자료 → 채점 도구(옆 240fps 자와 견주기, 자료 모양을
+      보고 만든다) → 검문 1 · 2 → 띠 숫자 · '참고' 배지 정리(P4).
+      **구축 프롬프트(2026-10-18, 영어)**: `docs/designs/abs-build-prompt.md` — §0 DECISIONS 채움. 뼈대: `lib/abs/`
+      순수 모듈(rules · zone · calib · depth · cross · judge · events · stability · plate-detect) + `npm run abs:test` · `abs:bench` → UI `components/abs/` → 엔진 인자
+      (`FitOptions.anchors` · `DistanceInput.depthCues` · `AnalysisJson.abs`)는 P2 끝 한 커밋 + HANDOFF. DB 변경 없음(zone · result · analysis.abs).
 
 - **클라우드 식단 짜기 정확도 2차 — 끝남(2026-10-04 맡김 → 10-06 main 합침 · 메인 검토 반영). 지금 클라우드가 할 일은 아래 '3차' 줄.**
   (아래는 2차 메모 그대로 — 규칙은 3차에도 같다.) 사용자가 클라우드 세션을 열어 "메모대로 해 줘"라고 하면 이것을 했다. 지난 클라우드 작업(틀 85 → 167 · 시험 382, 커밋 8e1fbd5 · 46cc794 · 96dae5d)을 메인이 세 갈래로 검토했고,

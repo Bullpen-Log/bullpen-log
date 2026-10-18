@@ -11,6 +11,38 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 ---
 
+## 김민에게 — 2026-10-18 · 금윤호(Claude) — ABS(폰 한 대 볼 · 스트라이크 자동 판정) 1차 — 구속 엔진 · 결과 화면 · 측정 화면에 더하기만 했다
+
+받은 뒤 할 일 없음(DB · 패키지 그대로 — `VelocityPitch.analysis` JSON 의 선택 칸 `abs` · `distance.fit` 만). 설계 `docs/designs/abs-single-camera.md`(P0~P3 결과),
+구축 지시 `docs/designs/abs-build-prompt.md`, 10-19 촬영 안내 `docs/designs/abs-p0-protocol.md`. **네 영역을 고쳤다** — 전부 더하기, 옛 길은 바이트 같음:
+- `lib/velocity-engine/analyze-distance.ts`: `DistanceReport.fit?`(맞춘 매개변수 7 · te · dragScaleM · tiltRad · 분석 카메라 · 공분산) — `finish()` 의 마지막 `fitTrajectory` 뒤 한 블록.
+  값 계산엔 안 쓴다. velocity:engine2-test 75 · accuracy --json 전후 같음.
+- `lib/velocity-analysis.ts`: `AnalysisJson.abs?` · distance 에 `fit`. `lib/velocity-sync.ts`: `sanitizeDistance` 의 `fit` · `sanitizeAnalysis` 의 `abs`(`lib/abs/analysis.ts` 가 거름).
+- `app/(session)/velocity/velocity-screen.tsx`: Step 에 `'abs'`(존 다음, ABS 켰을 때 · 투수 뒤만) · `useAbsSession` 훅 · 종류 단계 카드 밑 'ABS 판정도 해요' 스위치(관리자만) ·
+  `addResult` 에서 `abs.judge()` → `analysis.abs` · `zone`(판정 칸) · `result`(S/B) · 뷰파인더 위 `PlateOverlay` · 측정 중 `BatterChip` · PitchResult 에 `abs` · `absFit` ·
+  SessionSummary 에 `abs`. 관리자 점프의 currentScreen 은 'abs' → 'zone'.
+- `components/velocity/pitch-result.tsx`(`abs` · `absFit` 선택 prop → 구속 위 판정 카드) · `session-summary.tsx`(`abs` 선택 prop → ABS 칸) · `components/icon.tsx`(Box · UserRound) ·
+  `app/(legal)/privacy/privacy-content.tsx`(9조 2026-10-19 줄).
+- 새 파일: `lib/abs/*`(순수, `npm run abs:test` 85 · `abs:bench`), `components/abs/*`, `app/actions/abs.ts`(재판정).
+- **아직 실기기 · 앱 카메라에서 안 돌려 봤다**(플레이트 찾기는 `captureRef.current.snapshot()` 루마를 쓴다 — 앱 카메라 길도 같은 함수). 10-19 촬영 때 켜 본다.
+  구속 측정을 네가 고칠 때 위 접점 넷만 지켜 주면 된다.
+
+
+## 김민에게 — 2026-10-18 · 금윤호(Claude, 서브2) — 10-18 촬영 영상 다듬기 · 내용 맞추기 · 전체 검토 끝(네가 넘긴 것)
+
+받은 뒤 할 일 없음(DB 구조 · 패키지 그대로 — 운영 DB 의 운동 줄만 바뀜, 백업 db-2026-10-18-11-41 · 11-54). 절차는 `docs/shoot/video-trim-and-content-check.md` 그대로.
+- **다듬기**(7042c5f5, 캐시 v41): '찍음' 95개 중 mp4 93개(2개는 영상 아님). 장면 모음을 다 보고 **사람이 작은 6개만 잘라 키움**(1.36~1.6배 —
+  스트래들 스트레치 + 흉추 회전 · 파이크 푸시업 · 핸드 릴리스 푸시업 · 양발 글루트 브리지 · 싱글렉 힙 쓰러스트 · 밴드 클램쉘). 앞뒤 빈 시간은 자를 게 없었다.
+  자동 판정이 자르려던 넷(플라이오 푸시업 · 싱글렉 덤벨 데드스톱 RDL · 원판 핀치 홀드 · 레터럴 바운드 + 메디신볼 슬램)은 끝까지 동작이라 그대로.
+- **내용 맞추기**(e21c2804, v42): 에이전트 셋이 나눠 보고 의심 가는 건 내가 다시 봤다. 12개 고침 — 제목 바뀜 **'밴드 내·외회전 아이소 홀드' → '케이블 내·외회전 아이소 홀드'**
+  (영상이 케이블 머신, `rehab-regions.ts` · 촬영 계획 JSON 도 따라감 48685d34) · 도구(트랜스버스 런지 케틀벨 · 가속 포지션 아이소 홀드 덤벨 + 박스 ·
+  밴드 스피드 벤치 프레스에 벤치) · 원판 핀치 홀드 좌우 따로 → 아니오 · 힙 플렉서 스트레치 + 회전 30초 → 10회 · 설명 아홉 줄(커밋 본문에 다 있다).
+  **사이드라잉 외회전 리바운드는 덤벨 그대로** — 원판으로 바꾸니 덤벨만 가진 사람의 회복날 어깨 후방이 비어(시험) 되돌렸다(v43).
+- **전체 검토**: 시험 다섯 모두 기준값과 같음(1818 · 237 · 74 · 51 · 34), 감사는 참고 영상만 31 · 버티기 1(벤치 지지 막대 흉추 스트레치) ·
+  좌우 2(90/90 힙 스위치 · 플랭크 리치 — 번갈아 하는 운동, 전부터 있던 것).
+- **네가 정할 것**: ① 번갈아 하는 운동(90/90 힙 스위치 + 익스텐션 · 밴드 저항 데드버그 · 밴드 저항 레그 드롭 · 플랭크 리치)의 좌우 따로 기준
+  ② 레터럴 점프 스틱 랜딩 — 글은 두 발 착지인데 영상에 한 발 착지 장면이 섞여 있다(다시 찍거나 글을 바꾸거나) ③ 목록 밖 도구(막대 · 무릎 패드 · 슬라이더)는 그대로 둠.
+  되돌리기용 `applied.json` · `fix-plan.json` 은 금윤호 데스크톱 `~/bullpen-shoot-trim/` 에만 있다.
 ## 금윤호에게 — 2026-10-18 · 김민(Claude, 데스크톱 · 영양 담당) — 앱 틀 `__bpRefresh` 하나 · 아이폰 앱 영양 화면 고침
 
 받은 뒤 할 일 없음(DB · 패키지 그대로). **네 영역(앱 틀 `components/app-shell/expo-tabs.tsx` · 아이폰 앱 껍데기 `native/src/app/index.tsx`)을 조금 고쳤다.**
@@ -49,21 +81,6 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 - `app/api/pitch-log/route.ts` POST: 날짜는 `YYYY-MM-DD` 만(예전엔 `…T05:00Z` 도 받아 그날 화면에 안 보이는 기록이 생길 수 있었다).
 - tsc · eslint · pitch-find 31 · pitch-import 28. 화면은 못 봤다(로그인 · 아이폰 앱 필요) — 앱에서 가져오기 → 건너뛰기 · 닫기 한 번 봐 줘.
 
-## 금윤호(서브2)에게 — 2026-10-18 · 김민(Claude, 트레이닝 세션) — 오늘 찍은 운동 영상 다듬기 · 내용 맞추기 · 전체 검토를 맡아 줘
-
-**금윤호의 서브2 세션(worktree `.claude/worktrees/sub2`)이 맡는다** — 다른 세션은 금윤호에게 알리기만 하고 손대지 않는다.
-서브2 에서 받으려면 `git fetch origin` → `git merge origin/main`(이 메모 · 문서 · 도구가 main 에 있다).
-**할 일(김민이 넘김 — 김민의 주간 한도가 얼마 안 남아서).** 김민: "오늘 찍은 영상, 어제처럼 앞뒤 빈 시간이 길거나 사람이 작으면 고치고,
-영상 속 자세와 설명을 견줘 맞추고, 전체 검토도". 10-18 에 '찍음'으로 체크한 운동 **95개**.
-**절차 · 명령 · 판단 기준은 `docs/shoot/video-trim-and-content-check.md` 하나에 다 있다** — 10-17 에 김민 세션이 170개 → 52개 다듬고(8899e0ec),
-직접 찍은 영상 271개를 점검해 고친(5886ff9b · aefe20f9) 방법 그대로다. 도구는 `scripts/shoot-trim/`(이번에 내용 점검 · 비교 · 감사 도구 일곱을 더 올림).
-1. 영상 다듬기(1절): `download.mjs 2026-10-18` → 재기 → 자동 판정 → **장면 모음을 하나하나 눈으로**(느린 동작 · 버티기 · 캐리 · 번갈아 하는 드릴을
-   자동 판정이 '빈 시간'으로 자주 잘못 본다) → overrides → 만들기 → 백업 → 올리기 → 캐시 `library:exercises:v40` 을 v41 로.
-2. 내용 맞추기(2절): 다듬은 뒤 `content-export.mjs 2026-10-18` → 장면 쪽 → 견주기. **고치기 전에 찾은 것을 표로 김민에게 먼저 보이고 허락받기**
-   (김민이 두 번 짚었다 — 질문 상자에 숫자만 띄우지 말 것). 장비는 목록 안에서만, 번갈아 하는 운동의 좌우 따로 기준은 아직 안 정해짐.
-3. 전체 검토(3절): `library-audit.mjs` + 시험 다섯. 10-18 기준값이 문서에 있다.
-- 받은 뒤 할 일: Python 3.12 패키지 다섯(문서 0절) · 운영 DB 를 바꾸기 전 `npm run backup`. 되돌리기용 작업 폴더(`applied.json`)는 그 컴퓨터에만 남는다.
-- 다 하면 이 말을 지우고 결과(몇 개 다듬음 · 고친 내용 · 커밋)를 김민에게 알려 줘.
 
 ## 김민에게(맥북) — 2026-10-18 · 클라우드 세션(Claude) — 아이패드 촬영 카메라: 가로로 들면 미리보기가 옆으로 눕던 것 · 아이패드 크기 배치
 
