@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { appNowMs } from '@/lib/clock';
 import { prisma } from '@/lib/prisma';
 import { getCurrentUser } from '@/lib/dal';
 import { deleteVideos, isOwnedBy } from '@/lib/storage';
@@ -203,7 +204,8 @@ export async function GET(req: Request) {
   }
 
   const month = new URL(req.url).searchParams.get('month');
-  if (month != null && !/^\d{4}-\d{2}$/.test(month)) {
+  /* 달은 01~12 만 — 2026-13 은 모양이 맞아도 Invalid Date 로 Prisma 가 던져 500 이었다(2026-10-18) */
+  if (month != null && !/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) {
     return NextResponse.json(
       { error: '달은 2026-08 형식이어야 해요' },
       { status: 400 }
@@ -275,7 +277,12 @@ export async function POST(req: Request) {
     }
 
     const parsedDate = new Date(date);
-    if (Number.isNaN(parsedDate.getTime())) {
+    /* 날짜 키(YYYY-MM-DD)인데 없는 날(2026-02-31)이면 Date 가 3월로 넘겨 다른 날에 저장됐다 — 되돌려 맞춰 본다(2026-10-18) */
+    const asKey = typeof date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(date);
+    if (
+      Number.isNaN(parsedDate.getTime()) ||
+      (asKey && parsedDate.toISOString().slice(0, 10) !== date)
+    ) {
       return NextResponse.json({ error: '날짜가 올바르지 않아요' }, { status: 400 });
     }
 
@@ -321,8 +328,8 @@ export async function POST(req: Request) {
       where: {
         userId: user.id,
         date: parsedDate,
-        /* createdAt 은 DB 의 실제 시각 — 시뮬레이션 날짜(appNow)와 견주면 안 된다(lib/clock.ts) */
-        createdAt: { gte: new Date(Date.now() - DUPLICATE_WINDOW_MS) },
+        /* pitchLog.createdAt 은 시험 계정이면 앱 시계로 적힌다(lib/prisma.ts TIME_FIELDS) — 그래서 appNowMs 와 견준다(2026-10-18, 하루 Date.now 로 잘못 바꿨던 것 되돌림) */
+        createdAt: { gte: new Date(appNowMs() - DUPLICATE_WINDOW_MS) },
         ...checked,
         videoPaths: { equals: paths },
       },
@@ -482,7 +489,8 @@ export async function DELETE(req: Request) {
 
   try {
     const { id } = await req.json();
-    if (!id) {
+    /* 글자만 — 객체를 보내면 Prisma 거름({ not: … })으로 읽혀 아무 기록이나 찾아 지웠다(본인 것만이지만, 2026-10-18) */
+    if (typeof id !== 'string' || !id) {
       return NextResponse.json({ error: 'id가 필요해요' }, { status: 400 });
     }
 

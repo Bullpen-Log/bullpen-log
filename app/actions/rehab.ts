@@ -1,6 +1,6 @@
 'use server';
 
-import { appNow } from '@/lib/clock';
+import { appNow, appNowMs } from '@/lib/clock';
 import { revalidatePath } from 'next/cache';
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
@@ -682,8 +682,8 @@ export async function logRehabThrow(input: {
   const memo = throwMemo(step, input.pain);
   const date = dayStart(todayKey);
   const duplicate = await prisma.pitchLog.findFirst({
-    /* createdAt 은 DB 의 실제 시각 — 시뮬레이션 날짜(appNow)와 견주면 안 된다(lib/clock.ts, 2026-10-18) */
-    where: { userId: user.id, date, memo, createdAt: { gte: new Date(Date.now() - THROW_DUPLICATE_MS) } },
+    /* pitchLog.createdAt 은 시험 계정이면 앱 시계로 적힌다(lib/prisma.ts TIME_FIELDS) — 그래서 appNowMs 와 견준다(2026-10-18, 하루 Date.now 로 잘못 바꿨던 것 되돌림) */
+    where: { userId: user.id, date, memo, createdAt: { gte: new Date(appNowMs() - THROW_DUPLICATE_MS) } },
     select: { id: true },
   });
   if (!duplicate) {
