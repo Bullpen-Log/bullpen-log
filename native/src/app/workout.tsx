@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Haptics from 'expo-haptics';
 import { SymbolView } from 'expo-symbols';
-import { router, Stack } from 'expo-router';
+import { type Href, router, Stack } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import {
   ActivityIndicator,
@@ -647,6 +647,9 @@ function Run({
          * 축하 화면으로(이 판 번호로)
          */
         const to = e.to && !e.to.startsWith('/training') ? e.to : `/workout/done?id=${sessionId}`;
+        /* 축하 화면은 앱 화면으로(판 7) — 이 화면을 바꿔서, 웹을 거치지 않고 */
+        const doneId = /^\/workout\/done\?id=([\w-]+)/.exec(to)?.[1];
+        if (doneId) return router.replace(`/workout-done?id=${doneId}` as Href);
         return leave(to);
       }
       setEnding(false);

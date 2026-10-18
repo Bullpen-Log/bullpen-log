@@ -68,6 +68,8 @@ const NATIVE_ROUTES = [
   /^\/support(\/notices(\/[\w-]+)?|\/inquiries(\/[\w-]+)?)?$/,
   /^\/library\/(training|mechanics)$/,
   /^\/board(\/[\w-]+)?$/,
+  /^\/warmup$/,
+  /^\/workout-done\?id=[\w-]+$/,
 ];
 const isNativePath = (path: string) => NATIVE_PATHS.has(path) || NATIVE_ROUTES.some((r) => r.test(path));
 function openNative(path: string) {
