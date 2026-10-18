@@ -116,6 +116,8 @@ function Muscle3D({ name, onPick, c }: { name: string; onPick: (muscle: string) 
   const web = useRef<WebViewHandle>(null);
   const [first] = useState(name);
   const [ready, setReady] = useState(false);
+  /* 웹 쪽이 뜨면 제 '불러오는 중'을 그리므로 앱 돌개는 페이지가 뜨기 전까지만 */
+  const [loaded, setLoaded] = useState(false);
   const [gone, setGone] = useState(false);
   const url = `${SITE_URL}/embed/muscle?m=${encodeURIComponent(first)}&bg=${encodeURIComponent(c.card)}`;
   /* 창 안에서 다른 근육으로 바꾸면(위 칩 · 3D 누름) 그림도 그 근육으로 */
@@ -155,11 +157,12 @@ function Muscle3D({ name, onPick, c }: { name: string; onPick: (muscle: string) 
         /* 이 칸은 3D 하나만 — 다른 주소로 옮겨 가지 않는다 */
         onShouldStartLoadWithRequest={(r) => r.url === url || r.url === 'about:blank'}
         onMessage={onMessage}
+        onLoadEnd={() => setLoaded(true)}
         onError={() => setGone(true)}
         onHttpError={() => setGone(true)}
         onContentProcessDidTerminate={() => web.current?.reload()}
       />
-      {!ready ? (
+      {!ready && !loaded ? (
         <View style={[StyleSheet.absoluteFill, { alignItems: 'center', justifyContent: 'center' }]} pointerEvents="none">
           <ActivityIndicator color={c.muted} />
         </View>
