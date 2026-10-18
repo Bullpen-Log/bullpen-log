@@ -160,40 +160,46 @@ console.log('\n[7] 서버 동작 · API — 모든 쓰기 입구가 로그인한
   const AUTH = /\b(getCurrentUser|requireUser|requireAdmin|assertAdmin|requireAdminUser)\(/;
   /* 로그인 전에 부르는 것 — 가입 · 로그인 · 로그아웃 */
   const PUBLIC = new Set(['auth.ts:checkSignupEmail', 'auth.ts:signup', 'auth.ts:login', 'auth.ts:logout']);
-  /*
-   * 확인을 하는 다른 동작에 그대로 넘기는 것 — 앱 입구용 얇은 껍데기(2026-10-18 앱 판 9). 넘겨받는 쪽이 로그인 · 관리자를 본다:
-   * toggleUserRole · deleteUser · updatePatchNote(assertAdmin), tryUpdateProfile(getCurrentUser), tryUpdateNotice → writeNotice(getCurrentUser + ADMIN)
-   */
-  const DELEGATES = new Set([
-    'app-admin.ts:setAppUserRole',
-    'app-admin.ts:deleteAppUser',
-    'app-admin.ts:saveAppPatchNote',
-    'profile.ts:updateAppProfile',
-    'support.ts:updateNotice',
-    'support.ts:saveAppNotice',
-  ]);
   const open: string[] = [];
   let seen = 0;
+  /* 함수 몸통 = 다음 최상위 function 앞까지 — export 든 아니든(파일 안 도우미 admin() · writeNotice 꼴도) */
+  const FN = /^(export )?(?:async )?function (\w+)/gm;
+  const fns: { file: string; name: string; exported: boolean; body: string }[] = [];
   for (const f of readdirSync(new URL('../app/actions/', import.meta.url))) {
     if (!/\.tsx?$/.test(f)) continue;
     const text = src(`app/actions/${f}`);
-    /* 함수 몸통 = 다음 export 앞까지 — 서버 동작 파일은 export 함수가 차례로 놓인다 */
-    const parts = text.split(/\nexport async function /).slice(1);
-    for (const body of parts) {
-      const name = body.slice(0, body.search(/[(<]/));
-      seen++;
-      if (PUBLIC.has(`${f}:${name}`) || DELEGATES.has(`${f}:${name}`)) continue;
-      /*
-       * 같은 파일 안 도우미(ensureUser 꼴)를 거치면 그 도우미가 확인한다 — 이름에 user · admin 이 든 도우미를 부르면 넘긴다.
-       * 앱 입구 파일(app-*.ts)의 `await admin()` 도우미도(getCurrentUser + ADMIN, 2026-10-18)
-       */
-      if (
-        !AUTH.test(body) &&
-        !/\b(own|ensure|load)\w*(User|Admin|Owner)\w*\(/.test(body) &&
-        !/\bawait admin\(\)/.test(body)
-      )
-        open.push(`${f}:${name}`);
+    const heads = [...text.matchAll(FN)];
+    heads.forEach((m, i) =>
+      fns.push({ file: f, name: m[2], exported: !!m[1], body: text.slice(m.index, heads[i + 1]?.index ?? text.length) })
+    );
+  }
+  /* 확인을 거치는 함수 = 몸통이 직접 확인하거나, 확인을 거치는 다른 함수(같은 파일 도우미 · 다른 동작 파일의 export)를 부름.
+     이름이 겹치면 모두 확인할 때만 믿는다. 한 단계씩 넓혀 더 늘지 않을 때까지 */
+  const guarded = new Set(fns.filter((x) => AUTH.test(x.body)).map((x) => `${x.file}:${x.name}`));
+  const byName = new Map<string, typeof fns>();
+  for (const x of fns) byName.set(x.name, [...(byName.get(x.name) ?? []), x]);
+  for (let grew = true; grew; ) {
+    grew = false;
+    for (const x of fns) {
+      const key = `${x.file}:${x.name}`;
+      if (guarded.has(key)) continue;
+      const calls = [...x.body.slice(x.body.indexOf('{')).matchAll(/\b(\w+)\(/g)].map((m) => m[1]);
+      const viaGuarded = calls.some((c) => {
+        const defs = (byName.get(c) ?? []).filter((d) => d.file === x.file || d.exported);
+        return defs.length > 0 && defs.every((d) => guarded.has(`${d.file}:${d.name}`));
+      });
+      if (viaGuarded) {
+        guarded.add(key);
+        grew = true;
+      }
     }
+  }
+  for (const x of fns.filter((x) => x.exported && /^export async function/.test(x.body))) {
+    seen++;
+    const key = `${x.file}:${x.name}`;
+    if (PUBLIC.has(key)) continue;
+    /* 같은 파일 안 도우미(ensureUser 꼴)를 거치면 그 도우미가 확인한다 — 이름에 user · admin 이 든 도우미를 부르면 넘긴다 */
+    if (!guarded.has(key) && !/\b(own|ensure|load)\w*(User|Admin|Owner)\w*\(/.test(x.body)) open.push(key);
   }
   /* 함수를 하나도 못 읽으면 시험이 아무것도 안 본 것 — 지금 백몇십 개 */
   check(`app/actions 의 export 함수는 모두 로그인 확인을 거친다(읽은 함수 ${seen}개)`, seen > 100 && open.length === 0, open.join(', '));

@@ -48,6 +48,15 @@
 - **제공**: `getCurrentUser`/`requireUser`/`requireAdmin`(`lib/dal.ts`) · `featureLocks`.
 - **불변식(제안)**: ① 관리자 확인은 `requireAdmin` 하나 ② 잠긴 기능의 **쓰기 동작**은 서버에서도 막는다(화면만 막으면 옛 탭 · 앱이 우회).
 
+### 아이폰 앱(Expo) ↔ 서버(2026-10-18 더함)
+- **입구**: `POST /api/rpc/<파일>.<함수>`(`app/api/rpc/[action]/route.ts`) — 허용 목록 `app/api/rpc/registry.ts` 의 서버 동작만. 몸은 JSON `{ args: [...] }`
+  또는 폼(multipart, `__args`). 답 `{ ok, result }` · redirect 는 `{ ok, redirect }` · 404 unknown-action · 426 update(`x-bullpen-app` 이 `MIN_APP_API` 밑이거나 없음).
+- **로그인**: 웹과 같은 `session` 쿠키(앱이 웹뷰 쿠키를 앱 요청 저장소로 옮김). 권한은 각 동작이 확인 — 허용 목록에 넣어도 열리는 면이 늘지 않는다.
+- **약속**: ① 앱이 부르는 동작의 인자 · 답 모양은 `scripts/native-api-shapes.json` 에 적힌 대로 — 바꾸면 `native-api:test` 가 실패, 앱을 맞추고 `--update`,
+  깔린 앱이 깨지면 `APP_API_LEVEL`(막아야 하면 `MIN_APP_API`) ② 서버 동작은 지우지 말고 더하기만(DB 규칙과 같은 원리) ③ 새 동작 파일은 허용 목록에 한 줄
+  (통합 시험 [12] 가 빠뜨림을 잡음) ④ 앱이 쓰는 `@/lib` 파일에는 서버 · 브라우저 전용 코드를 넣지 않는다(`shared-lib:test`).
+- **오프라인**: 앱 세트 · 암케어 체크 대기열(`native-outbox:test`) — 계정이 바뀌어도 앞사람 것을 안 보냄, 서버 오류 한 줄이 뒤를 막지 않음.
+
 ## 4-2. 이벤트 · 다시 그리기
 
 서버 동작이 `revalidatePath` 를 하나라도 부르면 지금 경로가 다시 그려지고, 탭 넷이 한 레이아웃의 병렬 자리라 같이 새로 그려진다. 그래서 '다른 탭' 반영은 대체로 되지만,

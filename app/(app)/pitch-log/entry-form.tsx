@@ -41,7 +41,7 @@ import {
 } from '@/lib/units-storage';
 import { haptic } from '@/lib/haptics';
 import { CHECK_CONNECTION } from '@/lib/offline';
-import { isPhoneVideoPath, removePhoneVideos } from '@/lib/local-video';
+import { discardPhoneVideos, isPhoneVideoPath, removePhoneVideos } from '@/lib/local-video';
 
 /**
  * 하루치 투구를 남기는 입력 폼. 새로 남길 때와 고칠 때 모두 쓴다.
@@ -56,10 +56,14 @@ import { isPhoneVideoPath, removePhoneVideos } from '@/lib/local-video';
  */
 function discardUploads(paths: string[]) {
   if (paths.length === 0) return;
+  /* 폰 영상은 서버에 파일이 없다 — 어느 기록에도 안 붙은 것만 폰에서 지운다(예전엔 저장 없이 닫으면 앱 안에 남았다) */
+  if (paths.some(isPhoneVideoPath)) void discardPhoneVideos(paths);
+  const server = paths.filter((p) => !isPhoneVideoPath(p));
+  if (server.length === 0) return;
   void fetch('/api/pitch-log/discard', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ paths }),
+    body: JSON.stringify({ paths: server }),
     keepalive: true,
   }).catch(() => {});
 }
@@ -357,6 +361,7 @@ export function EntryForm({
   onSaved,
   onError,
   onCancel,
+  onSavingChange,
   isAdmin = false,
 }: {
   date: string;
@@ -377,6 +382,8 @@ export function EntryForm({
   onSaved: () => Promise<void> | void;
   onError: (message?: string) => void;
   onCancel?: () => void;
+  /** 저장 중인지 바깥에 알린다 — 가져오기 시트가 그동안 건너뛰기 · 닫기를 막는다(폰 영상이 저장 도중 지워지지 않게) */
+  onSavingChange?: (saving: boolean) => void;
   /** 관리자 영상은 폰이 아니라 늘 서버에 — 앱을 다시 깔면 폰 안 영상이 지워진다(2026-10-16 김민: 관리자가 올리는 건 Supabase 에) */
   isAdmin?: boolean;
 }) {
@@ -434,6 +441,9 @@ export function EntryForm({
         }))
   );
   const [saving, setSaving] = useState(false);
+  useEffect(() => {
+    onSavingChange?.(saving);
+  }, [saving, onSavingChange]);
   /*
    * '더 적기' — 구속 · 영상 · 만족도 · 메모(2026-10-15 사용자 "투구 파트도 우리 시스템에 맞게"). 꼭 적을 것(종류 · 투구수 · 체감 강도)만
    * 펴 두고 나머지는 접는다 — 예전엔 칸 열 개가 한꺼번에 떠 저장 단추까지 한참 굴렸다. 고칠 때 이미 적은 것이 있으면 펴서 연다.
@@ -616,6 +626,11 @@ export function EntryForm({
       }
       /* 새로 올린 영상은 이제 기록에 붙었다 — 폼을 닫아도 지우지 않는다 */
       freshRef.current.clear();
+      /* 고치며 뺀 폰 영상은 이 폰에서도 지운다(서버는 파일이 없어 미리보기만 지운다). 다른 폰의 영상이면 아무 일 없다 */
+      if (editing) {
+        const kept = new Set(videos.map((v) => v.path));
+        void removePhoneVideos(initial!.videoPaths.filter((p) => isPhoneVideoPath(p) && !kept.has(p)));
+      }
       clearDraft(draftKey);
       setRestored(false);
 

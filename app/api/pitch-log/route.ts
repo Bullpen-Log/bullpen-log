@@ -276,13 +276,15 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: '날짜가 필요해요' }, { status: 400 });
     }
 
-    const parsedDate = new Date(date);
-    /* 날짜 키(YYYY-MM-DD)인데 없는 날(2026-02-31)이면 Date 가 3월로 넘겨 다른 날에 저장됐다 — 되돌려 맞춰 본다(2026-10-18) */
-    const asKey = typeof date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(date);
-    if (
-      Number.isNaN(parsedDate.getTime()) ||
-      (asKey && parsedDate.toISOString().slice(0, 10) !== date)
-    ) {
+    /*
+     * 날짜는 'YYYY-MM-DD' 만 — 한국 날짜를 UTC 자정으로 둔다. 예전엔 Date 로 읽히는 것은 다 받아 '…T05:00Z' 같은 시각이
+     * 그대로 남았고, 그날 화면(자정으로 찾음)에는 안 보이는데 달 합계에는 들어갔다(2026-10-18 점검).
+     */
+    const parsedDate =
+      typeof date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(date)
+        ? new Date(`${date}T00:00:00.000Z`)
+        : new Date(NaN);
+    if (Number.isNaN(parsedDate.getTime()) || parsedDate.toISOString().slice(0, 10) !== date) {
       return NextResponse.json({ error: '날짜가 올바르지 않아요' }, { status: 400 });
     }
 

@@ -6666,16 +6666,37 @@ console.log(
   ): RehabCheckinLike[] => [
     { date: '2026-06-15', shoulder, elbow, armPainLevel: level },
   ];
-  const byCheckin = (level: number | null) =>
-    status([], '2026-06-15', {}, checkin(level));
+  const byCheckin = (level: number | null, over: Partial<RehabProgramLike> = {}) =>
+    status([], '2026-06-15', over, checkin(level));
+  const plainDay = (s: ReturnType<typeof byCheckin>) =>
+    !s.lowered && s.rest === null && s.refer === null;
+  const worseDay = (s: ReturnType<typeof byCheckin>) => s.rest != null && s.refer != null;
+  /* 2026-10-16 김민: 체크인 통증은 재활을 시작한 정도와 견준다 — 같거나 덜하면 평소 날, 더 아프거나 모르면 쉬기 + 진료 */
   check(
-    "체크인 — 그 관절 '통증' · 던질 때만 → 한 칸 낮춤, 평소에도 · 밤에도 · 모름 → 쉬기 + 진료",
-    byCheckin(1).lowered &&
-      byCheckin(1).rest === null &&
-      [2, 3, null].every(
-        (lv) => byCheckin(lv).rest != null && byCheckin(lv).refer != null
-      )
+    "체크인 — 시작 정도(보통)와 같거나 덜 아프면 평소 날, 더 아프거나(밤에도) 정도를 모르면 쉬기 + 진료",
+    plainDay(byCheckin(1)) &&
+      plainDay(byCheckin(2)) &&
+      worseDay(byCheckin(3)) &&
+      worseDay(byCheckin(null))
   );
+  check(
+    "체크인 — 가벼움으로 시작했으면 '평소에도'는 더 아픈 날, 심함으로 시작했으면 '밤에도'도 평소 날",
+    plainDay(byCheckin(1, { severity: 'mild', stage: 3 })) &&
+      worseDay(byCheckin(2, { severity: 'mild', stage: 3 })) &&
+      plainDay(byCheckin(3, { severity: 'severe', stage: 1 }))
+  );
+  {
+    /* 서버 동작(DB)은 여기서 못 돌려 소스로 지킨다 — 앱 · 웹이 같은 동작을 쓴다(2026-10-16 김민) */
+    const src = readFileSync(new URL('../app/actions/rehab.ts', import.meta.url), 'utf8');
+    check(
+      '재활 서버 — 쉬는 날 세션 저장을 막고, 단계는 한 칸씩 · 진료 권유 · 밤 통증 중엔 못 올리고, 끝내기는 투구 복귀표를 연 뒤',
+      src.includes('if (before.rest) return { error: before.rest };') &&
+        src.includes("if (to !== program.stage + 1) return { error: '단계는 한 칸씩 올려요.' };") &&
+        src.includes('if (status.refer) return') &&
+        src.includes('if (status.nightHold)') &&
+        /reason === 'done'[\s\S]{0,300}throwingOpenedOn\(active\.program, weeklies\)/.test(src)
+    );
+  }
   check(
     '체크인 — 다른 관절(팔꿈치) 통증은 어깨 재활을 바꾸지 않는다',
     status([], '2026-06-15', {}, checkin(2, '정상', '통증')).rest === null &&
@@ -7279,15 +7300,28 @@ console.log(
     [wk('2026-06-08', { worstPain: 5 })],
     [ses('2026-06-05', 'red', { stage: 3 })]
   );
+  /* 2026-10-16 김민: 같은 주(확인 앞 7일)의 빨강 세션과 그 주 '최고 통증 5 이상'은 한 번 아픈 것 — 한 번만 센다 */
   check(
-    '한 단계 내림 — 14일 안에 한 칸 낮춤 두 번(빨강 + 최고 통증 5) → 3단계 → 2단계 · 보통 → 심함, 그 단계 날은 오늘 · 줄인 날 0',
-    step.program.stage === 2 &&
-      step.program.severity === 'severe' &&
-      step.program.stageStartedOn === '2026-06-08' &&
-      step.program.stageShortenDays === 0 &&
-      step.outcomes[0].record.steppedDown &&
-      !step.outcomes[0].record.lowered,
+    '한 칸 낮춤 — 같은 주의 빨강 세션 + 최고 통증 5 는 한 번으로 센다(단계 · 정도 그대로)',
+    step.program.stage === 3 &&
+      step.program.severity === 'moderate' &&
+      !step.outcomes[0].record.steppedDown,
     step.outcomes[0].lines.join(' / ')
+  );
+  const step2 = runWeeklies(
+    P3,
+    [wk('2026-06-15', { worstPain: 5 })],
+    [ses('2026-06-05', 'red', { stage: 3 })]
+  );
+  check(
+    '한 단계 내림 — 14일 안에 따로 아픈 두 번(빨강 + 7일 넘어 최고 통증 5) → 3단계 → 2단계 · 보통 → 심함, 그 단계 날은 오늘 · 줄인 날 0',
+    step2.program.stage === 2 &&
+      step2.program.severity === 'severe' &&
+      step2.program.stageStartedOn === '2026-06-15' &&
+      step2.program.stageShortenDays === 0 &&
+      step2.outcomes[0].record.steppedDown &&
+      !step2.outcomes[0].record.lowered,
+    step2.outcomes[0].lines.join(' / ')
   );
   const stepWith = (redOn: string) =>
     runWeeklies(
@@ -7320,7 +7354,8 @@ console.log(
   const s1Step = runWeeklies(
     prog({ stage: 1, severity: 'moderate' }),
     [wk('2026-06-08', { worstPain: 6 })],
-    [ses('2026-06-06', 'red', { stage: 1 })]
+    /* 같은 주가 아닌 빨강(7일 앞) — 같은 주면 한 번으로 센다 */
+    [ses('2026-06-01', 'red', { stage: 1 })]
   );
   check(
     '1단계 — 낮추기 조건이면 진료 권유, 한 단계 내림 조건이면 정도만 한 칸 올림(단계는 1 그대로)',
