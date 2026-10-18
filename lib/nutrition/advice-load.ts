@@ -1,5 +1,5 @@
 import 'server-only';
-import { cache } from 'react';
+import { requestCache as cache } from '@/lib/request-cache';
 import { prisma } from '@/lib/prisma';
 import { isShortSleep } from '@/lib/checkin';
 import { loadDayDetailCached, type DayDetailUser } from '@/lib/day-detail';
