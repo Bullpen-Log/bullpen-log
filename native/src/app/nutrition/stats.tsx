@@ -1,7 +1,7 @@
 import * as Haptics from 'expo-haptics';
 import { type Href, router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { loadAppNutritionStats } from '@/app/actions/app-nutrition';
 import { ageRule } from '@/lib/nutrition/age';
@@ -11,13 +11,13 @@ import { answersOfProfile, periodDate, previewOfProfile, type OnboardingBody } f
 import { dateText } from '@/lib/nutrition/period';
 import { computeTargets } from '@/lib/nutrition/targets';
 import { STEP_KCAL, goalCopy, planOnSave } from '@/lib/nutrition/weight-goal';
-import type { WeightUnit } from '@/lib/units';
+import { fromWeight, round1, toWeight, type WeightUnit } from '@/lib/units';
 import { Bar, BarButton, LoadState, call, useLoad } from '~/community/parts';
 import { refreshNutritionDays } from '~/nutrition/api';
 import { WeekChart, WeightTrend } from '~/nutrition/stats/charts';
 import { GoalSheet, kgText, paceText } from '~/nutrition/stats/goal-sheet';
 import { cacheGet, cacheSet } from '~/lib/store';
-import { usePalette, type Palette } from '~/lib/ui';
+import { usePalette, withAlpha, type Palette } from '~/lib/ui';
 import { useWeightUnit } from '~/lib/weight-unit';
 import { READABLE } from '~/lib/layout';
 import { WeightForecast } from '~/shell/weight-forecast';
@@ -205,6 +205,30 @@ function WeightCard({
   const hasStatus = copy.label !== null || copy.sentence !== null;
   const latest = day.weightKg ?? day.weights.at(-1)?.kg ?? null;
 
+  /* 체중 적기 — 웹 WeightCard 처럼 이 카드 맨 위(설정 단위로 적고 저장은 kg). 저장된 값과 같으면 [저장]을 숨긴다 */
+  const shown = (kg: number | null) => (kg === null ? '' : String(round1(toWeight(kg, unit))));
+  const [text, setText] = useState(shown(day.weightKg));
+  const [base, setBase] = useState({ saved: day.weightKg, unit });
+  if (base.saved !== day.weightKg || base.unit !== unit) {
+    setBase({ saved: day.weightKg, unit });
+    setText(shown(day.weightKg));
+  }
+  const parsed = text.trim() === '' ? null : Number(text);
+  const valid = parsed === null || (Number.isFinite(parsed) && parsed > 0);
+  const nextKg = parsed === null ? null : Math.round(fromWeight(parsed, unit) * 10) / 10;
+  const changed = valid && shown(nextKg) !== shown(day.weightKg);
+  async function saveWeightNow() {
+    if (!changed || busy) return;
+    setError(null);
+    setBusy(true);
+    const res = await call<Result>('nutrition.setWeight', day.date, nextKg);
+    setBusy(false);
+    if (!res.ok) return setError(res.error);
+    void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    refreshNutritionDays(day.date);
+    onChanged();
+  }
+
   return (
     <View style={[st.card, { backgroundColor: c.card }]}>
       <View style={st.cardHead}>
@@ -213,6 +237,27 @@ function WeightCard({
           {latest !== null ? `${day.weightKg === null ? '최근' : day.date === day.today ? '오늘' : '이날'} ${kgText(latest, unit)}` : ''}
           {day.weightFrom === 'checkin' ? ' · 체크인에 적은 값' : ''}
         </Text>
+      </View>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+        <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', borderRadius: 12, borderWidth: 1, borderColor: c.line, backgroundColor: withAlpha(c.ink, 0.03), paddingHorizontal: 14 }}>
+          <TextInput
+            value={text}
+            onChangeText={(v) => setText(v.replace(/,/g, '.').replace(/[^\d.]/g, ''))}
+            keyboardType="decimal-pad"
+            accessibilityLabel={`체중(${unit})`}
+            placeholder={t.weightKg ? shown(t.weightKg) : '예) 78.5'}
+            placeholderTextColor={withAlpha(c.muted, 0.6)}
+            returnKeyType="done"
+            onSubmitEditing={() => void saveWeightNow()}
+            style={{ flex: 1, height: 44, fontSize: 15, color: c.ink, fontVariant: ['tabular-nums'] }}
+          />
+          <Text style={{ color: c.muted, fontSize: 15 }}>{unit}</Text>
+        </View>
+        {changed ? (
+          <Pressable accessibilityRole="button" onPress={() => void saveWeightNow()} disabled={busy} style={[st.weightSave, { backgroundColor: c.sky }, busy && { opacity: 0.5 }]}>
+            <Text style={{ color: '#fff', fontSize: 15, fontWeight: '600' }}>{busy ? '저장 중' : '저장'}</Text>
+          </Pressable>
+        ) : null}
       </View>
 
       {hasStatus ? (
@@ -382,6 +427,7 @@ function PlanStat({ label, value, sub, strong, c }: { label: string; value: numb
 }
 
 const st = StyleSheet.create({
+  weightSave: { height: 44, borderRadius: 22, paddingHorizontal: 18, alignItems: 'center', justifyContent: 'center' },
   card: { borderRadius: 20, padding: 16, gap: 10 },
   cardHead: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 },
   cardTitle: { fontSize: 17, fontWeight: '700' },

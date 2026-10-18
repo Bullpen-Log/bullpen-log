@@ -1,13 +1,11 @@
 import { SymbolView } from 'expo-symbols';
 import { type Href, router } from 'expo-router';
 import { useRef, useState } from 'react';
-import { Alert, Pressable, RefreshControl, ScrollView, type ScrollViewInstance, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, Pressable, RefreshControl, ScrollView, type ScrollViewInstance, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MEALS, amountText, entryMacros, mealLabel, stepAmount, type EntryEdit, type MealEntryView, type MealKey } from '@/lib/nutrition/meta';
 import { mealProtein } from '@/lib/nutrition/meal-protein';
 import { shiftDateKey } from '@/lib/pitch-stats';
-import { fromWeight, round1, toWeight } from '@/lib/units';
-import { useWeightUnit } from '~/lib/weight-unit';
 import { usePalette, withAlpha } from '~/lib/ui';
 import Animated from 'react-native-reanimated';
 import Svg, { Circle } from 'react-native-svg';
@@ -20,13 +18,13 @@ import { DateNavButton } from '~/shell/mini-calendar';
 import { useTabIntent } from '~/shell/tab-intent';
 import { PLAN_PLACES, type PlanItem } from '@/lib/nutrition/meal-plan';
 import type { Place } from '@/lib/nutrition/meal-templates';
-import { clearPlan, eatPlan, editEntries, makePlan, saveWeight, useNutritionDay } from './api';
+import { clearPlan, eatPlan, editEntries, makePlan, useNutritionDay } from './api';
 import { READABLE } from '~/lib/layout';
 import { NutritionCheckinCard } from './checkin-card';
 import { useOnTabActive, useRetapTop } from '~/shell/tab-pager';
 
 /**
- * 영양 탭(앱 화면) — 웹 영양 탭의 '기록' 쪽: 오늘 먹은 것과 목표(kcal · 탄 · 단 · 지) · 끼니마다 담은 음식(양 바꾸기 · 지우기) · 체중.
+ * 영양 탭(앱 화면) — 웹 영양 탭의 '기록' 쪽: 오늘 먹은 것과 목표(kcal · 탄 · 단 · 지) · 끼니마다 담은 음식(양 바꾸기 · 지우기). 체중은 웹처럼 통계(/nutrition/stats).
  * 담기는 음식 고르기 화면(/nutrition/add — 검색 · 최근 · 내 음식 · 바코드), 식단 짜기는 이 탭 안, 목표 · 통계는 /nutrition/stats. 첫 설정만 웹(onWebNutrition).
  * 날짜는 오늘부터 지난 6주까지 ‹ › 로.
  */
@@ -43,11 +41,9 @@ export function NutritionTab({ today, bottom, onWebNutrition }: { today: string;
   const [editing, setEditing] = useState<MealKey | null>(null);
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
   const [date, setDateRaw] = useState(today);
-  const [weightText, setWeightText] = useState<string | null>(null);
-  /* 날을 바꾸면 적던 체중은 버린다 — 다른 날에 저장되지 않게 */
+  /* 날을 바꾸면 펴 둔 편집은 버린다 — 다른 날에 저장되지 않게 */
   const setDate = (d: string) => {
     setDateRaw(d);
-    setWeightText(null);
     setEditing(null);
     setDrafts({});
   };
@@ -63,8 +59,6 @@ export function NutritionTab({ today, bottom, onWebNutrition }: { today: string;
   const [busy, setBusy] = useState(false);
   /* 펴 둔 끼니(휴대폰 웹처럼 한 줄로 접어 두고 누르면 편다) */
   const [openMeals, setOpenMeals] = useState<MealKey[]>([]);
-  /* 체중은 설정 단위(kg · lb)로 보이고 적는다 — 저장은 늘 kg(2026-10-18 점검: lb 쓰는 사람의 160 이 160kg 으로 저장됐다) */
-  const unit = useWeightUnit();
 
   if (to)
     return (
@@ -118,18 +112,6 @@ export function NutritionTab({ today, bottom, onWebNutrition }: { today: string;
     setEditing(null);
     setDrafts({});
     if (edits.length) void run(() => editEntries(date, edits));
-  };
-
-  const saveW = () => {
-    if (weightText == null) return;
-    const typed = weightText.trim() ? Number.parseFloat(weightText.replace(',', '.')) : null;
-    if (typed != null && !Number.isFinite(typed)) return Alert.alert('체중을 숫자로 적어 주세요.');
-    const kg = typed == null ? null : Math.round(fromWeight(typed, unit) * 10) / 10;
-    void run(async () => {
-      const err = await saveWeight(date, kg);
-      if (!err) setWeightText(null);
-      return err;
-    });
   };
 
   const strip = day?.strip ?? [];
@@ -420,28 +402,6 @@ export function NutritionTab({ today, bottom, onWebNutrition }: { today: string;
               </View>
             );
           })}
-        </View>
-      ) : null}
-
-      {day ? (
-        <View style={[styles.card, { backgroundColor: c.card, boxShadow: c.float }]}>
-          <Text style={[styles.mealTitle, { color: c.ink }]}>체중</Text>
-          <View style={styles.weightRow}>
-            <TextInput
-              value={weightText ?? (day.weightKg != null ? String(round1(toWeight(day.weightKg, unit))) : '')}
-              onChangeText={setWeightText}
-              keyboardType="decimal-pad"
-              placeholder={unit}
-              placeholderTextColor={c.muted}
-              style={[styles.input, { backgroundColor: withAlpha(c.ink, 0.04), color: c.ink }]}
-            />
-            <Text style={{ color: c.muted, fontSize: 17 }}>{unit}</Text>
-            {weightText != null ? (
-              <Pressable accessibilityRole="button" onPress={saveW} disabled={busy} style={[styles.save, { backgroundColor: c.sky }]}>
-                <Text style={styles.primaryText}>저장</Text>
-              </Pressable>
-            ) : null}
-          </View>
         </View>
       ) : null}
     </ScrollView>
