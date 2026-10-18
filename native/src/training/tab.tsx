@@ -25,7 +25,7 @@ import { Icon, type IconName } from '~/shell/icon';
 /**
  * 트레이닝 탭 첫 화면(앱 화면) — 웹 트레이닝 홈(app/(app)/training/training-home.tsx)과 같은 앱 카드 셋(오늘 운동 · 암케어 · 메커니즘,
  * 판정은 lib/report/training-home-data.ts — app.loadAppTraining). [시작]은 운동 판을 열어 앱 운동 화면(/workout)으로, 암케어 · 메커니즘
- * 따라 하기와 각 앱의 전체 화면(카드를 누름)은 아직 웹(onWeb).
+ * 따라 하기 · 각 앱의 전체 화면(카드를 누름)도 앱 화면(/armcare · /mechanics · /training-*), 앱 화면이 없는 곳만 onWeb.
  */
 type Loaded = { today: string; cards: TrainingCard[]; strip?: TrainingStripDay[]; week?: TrainingWeekCounts };
 let cached: Loaded | null = null;

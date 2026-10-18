@@ -30,7 +30,7 @@ import { useOnTabActive, useRetapTop } from '~/shell/tab-pager';
 /**
  * 홈 탭(앱 화면) — 웹 홈(app/(app)/today/home-page.tsx)과 같은 차례: 링 넷 → 요약 칸 → (알림 카드) → 투구 달력 → 고른 날 칸.
  * 숫자는 웹과 같은 서버 셈(app.loadAppHome). 받아 둔 값을 먼저 그리고 뒤에서 새로 받는다(검토 D10).
- * 아직 웹인 것(체크인 흐름 · 분석 · 달력 일정)은 onWeb 으로 웹 화면을 연다.
+ * 아직 웹인 것(체크인 흐름 · 잠긴 탭의 첫 설정)은 onWeb 으로 웹 화면을 연다 — 분석 · 그날 화면처럼 앱 화면이 있는 주소는 껍데기가 앱 화면으로 바꿔 연다(index.tsx nativeOfWeb).
  */
 let cached: AppHome | null = null;
 /** 로그아웃 — 앞사람 홈을 지운다 */
