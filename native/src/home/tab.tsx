@@ -22,6 +22,7 @@ import { RecentList } from './recent-list';
 import { Press } from '~/shell/press';
 import { FeedCard } from './feed';
 import { RingsCard } from './rings';
+import { AllDone } from './all-done';
 import { CameraSwipe } from './camera-swipe';
 import { READABLE } from '~/lib/layout';
 import { useOnTabActive, useRetapTop } from '~/shell/tab-pager';
@@ -223,6 +224,8 @@ export function HomeTab({
         {home ? (
           <>
             <RingsCard rings={home.rings} onPress={openRing} />
+            {/* 넷이 다 차면 하루 한 번 축하(웹 all-done — 앱은 화면 가운데) */}
+            <AllDone allDone={home.rings.every((r) => r.value >= 1)} day={today} />
             <View style={{ marginTop: SPACE.section }}>
               <FeedCard items={home.feed} onOpen={openFeed} />
             </View>

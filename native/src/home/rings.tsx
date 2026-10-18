@@ -81,6 +81,8 @@ function Ring({ value, icon }: { value: number; icon: IconName }) {
           strokeWidth={7}
           stroke={c.sky}
           strokeLinecap="round"
+          /* 0% 면 둥근 끝이 점으로 남는다 — 아예 안 그린다(웹 today-rings) */
+          strokeOpacity={v > 0 ? 1 : 0}
           strokeDasharray={`${LEN} ${LEN}`}
           animatedProps={arc}
           transform="rotate(-90 32 32)"
