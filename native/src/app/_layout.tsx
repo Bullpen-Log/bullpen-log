@@ -60,7 +60,7 @@ export default function RootLayout() {
         <Stack.Screen name="settings" options={{ presentation: 'modal' }} />
         <Stack.Screen name="profile" options={{ presentation: 'modal' }} />
         {/* 더보기 — 뒤를 덮는 막 + 가운데 유리 폴더(웹 휴대폰 폴더와 같다) */}
-        <Stack.Screen name="more" options={{ presentation: 'transparentModal', animation: 'fade', animationDuration: 200 }} />
+        <Stack.Screen name="more" options={{ presentation: 'transparentModal', animation: 'none' }} />
         {/* 알림 종의 오늘 할 일 — 내용만큼만 올라오는 아래 시트(웹 휴대폰 종 시트와 같다) */}
         <Stack.Screen
           name="notice"

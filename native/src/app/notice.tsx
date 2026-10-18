@@ -56,37 +56,43 @@ export default function NoticeScreen() {
 
   return (
     <ScrollView style={{ backgroundColor: c.card }} contentContainerStyle={{ padding: 20, paddingBottom: inset.bottom + 20, gap: 12 }}>
-      <View style={{ gap: 2 }}>
-        <Text style={[styles.title, { color: c.ink }]}>오늘 할 일</Text>
-        <Text style={{ color: c.muted, fontSize: 15 }}>{spokenDay(p.date)}</Text>
+      {/* 머리 — 웹 Modal 시트: 제목 17 굵게 + 오른쪽 닫기 ✕(44) */}
+      <View style={styles.head}>
+        <Text accessibilityRole="header" style={[styles.title, { color: c.ink }]}>
+          오늘 할 일
+        </Text>
+        <Pressable accessibilityRole="button" accessibilityLabel="닫기" onPress={() => router.back()} style={({ pressed }) => [styles.close, { backgroundColor: c.chip }, pressed && { opacity: 0.55 }]}>
+          <Icon name="x" size={18} color={c.muted} />
+        </Pressable>
       </View>
+      <Text style={{ color: c.muted, fontSize: 15, marginTop: -8 }}>{spokenDay(p.date)}</Text>
 
       {allDone ? (
         <View style={{ flexDirection: 'row', gap: 10, alignItems: 'center', paddingVertical: 12 }}>
           <Icon name="circle-check" color={c.ok} size={22} />
           <View style={{ flex: 1 }}>
             <Text style={{ color: c.ink, fontSize: 15, fontWeight: '600' }}>지금은 알림이 없어요</Text>
-            <Text style={{ color: c.muted, fontSize: 13, marginTop: 2 }}>오늘 체크인과 투구 기록을 다 남겼어요.</Text>
+            <Text style={{ color: c.muted, fontSize: 12, marginTop: 2 }}>오늘 체크인과 투구 기록을 다 남겼어요.</Text>
           </View>
         </View>
       ) : null}
 
       {!checkinDone ? (
         <Item c={c} icon="clipboard-list" title="오늘 체크인을 아직 안 했어요" body="몇 초면 끝나요. 오늘 운동 추천에 바로 반영해요.">
-          <Pill c={c} label="체크인하기 ›" primary onPress={() => openCheckin()} />
+          <Pill c={c} label="체크인하기" chevron primary onPress={() => openCheckin()} />
         </Item>
       ) : null}
 
       {!pitchDone && locked ? (
         <Item c={c} icon="target" title="투구 기록을 아직 시작하지 않았어요" body="몇 가지만 알려 주면 투구 기록을 시작할 수 있어요.">
-          <Pill c={c} label="투구 기록 설정하기 ›" primary onPress={() => go('/setup/pitch')} />
+          <Pill c={c} label="투구 기록 설정하기" chevron primary onPress={() => go('/setup/pitch')} />
         </Item>
       ) : null}
 
       {!pitchDone && !locked ? (
         <Item c={c} icon="target" title="오늘 투구 기록이 아직 없어요" body="남기지 않으면 안 던진 날로 봐요. 쉬었으면 한 번만 눌러 두세요.">
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
-            <Pill c={c} label="기록하기 ›" primary onPress={() => go(`/pitch/${p.date}`)} />
+            <Pill c={c} label="기록하기" chevron primary onPress={() => go(`/pitch/${p.date}`)} />
             <Pill c={c} label={resting ? '남기는 중…' : '오늘 안 던졌어요'} disabled={resting} onPress={() => void rest()} />
             {resting ? <ActivityIndicator color={c.muted} /> : null}
           </View>
@@ -112,13 +118,13 @@ function Item({ c, icon, title, body, children }: { c: Palette; icon: 'clipboard
         <Icon name={icon} color={c.sky} size={16} />
         <Text style={{ flex: 1, color: c.ink, fontSize: 15, fontWeight: '600' }}>{title}</Text>
       </View>
-      <Text style={{ color: c.muted, fontSize: 13, lineHeight: 19, marginTop: 4, marginBottom: 10 }}>{body}</Text>
+      <Text style={{ color: c.muted, fontSize: 12, lineHeight: 18, marginTop: 4, marginBottom: 10 }}>{body}</Text>
       {children}
     </View>
   );
 }
 
-function Pill({ c, label, primary, disabled, onPress }: { c: Palette; label: string; primary?: boolean; disabled?: boolean; onPress: () => void }) {
+function Pill({ c, label, primary, disabled, chevron, onPress }: { c: Palette; label: string; primary?: boolean; disabled?: boolean; chevron?: boolean; onPress: () => void }) {
   return (
     <Pressable
       accessibilityRole="button"
@@ -126,15 +132,18 @@ function Pill({ c, label, primary, disabled, onPress }: { c: Palette; label: str
       onPress={onPress}
       style={({ pressed }) => [
         styles.pill,
-        { backgroundColor: primary ? c.sky : c.chip, opacity: disabled ? 0.5 : pressed ? 0.7 : 1 },
+        { backgroundColor: primary ? c.sky : c.chip, opacity: disabled ? 0.5 : pressed ? 0.55 : 1 },
       ]}
     >
       <Text style={{ color: primary ? '#fff' : c.ink, fontSize: 15, fontWeight: primary ? '600' : '500' }}>{label}</Text>
+      {chevron ? <Icon name="chevron-right" size={16} color={primary ? '#fff' : c.ink} /> : null}
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
-  title: { fontSize: 22, fontWeight: '800', letterSpacing: -0.6 },
-  pill: { minHeight: 44, borderRadius: 22, paddingHorizontal: 16, justifyContent: 'center', alignSelf: 'flex-start' },
+  head: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  title: { fontSize: 17, fontWeight: '700' },
+  close: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center', margin: 6, marginRight: -6 },
+  pill: { minHeight: 44, borderRadius: 22, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start' },
 });

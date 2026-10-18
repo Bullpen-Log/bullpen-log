@@ -42,6 +42,7 @@ import { sendCheck } from '~/armcare/send';
 import { PitchTab } from '~/pitch/tab';
 import { DEFAULT_TABS, TAB_BAR_HEIGHT, TabBar, type ShellTab } from '~/shell/tab-bar';
 import { TabPager } from '~/shell/tab-pager';
+import { ClockVeil } from '~/shell/clock-veil';
 
 type WebViewHandle = { injectJavaScript(script: string): void };
 /* react-native-webview 14 의 타입은 ref 를 안 받지만 실제 부품은 forwardRef 다(velocity/engine.tsx 와 같다) */
@@ -529,6 +530,8 @@ export default function SiteScreen() {
           ]}
         />
       ) : null}
+      {/* 홈 밖의 탭은 위 막대가 없어 시계 자리를 막으로 덮는다(웹 data-top-veil) */}
+      {today && pagerOn && pagerIndex !== 0 ? <ClockVeil /> : null}
       {/*
         웹 창(설정 · 내 정보 — 웹 틀의 폴더 모양 창)이 앞에 떠 있는 동안은 숨긴다 — 그 창을 닫는 바깥 막은 아래쪽 띠뿐인데 이 막대가 그 띠를
         덮어, 앱에서는 창을 닫을 자리가 없었다(2026-10-18 시뮬레이터에서 확인). 창이 닫히면 웹이 알려(webfront false) 다시 보인다.

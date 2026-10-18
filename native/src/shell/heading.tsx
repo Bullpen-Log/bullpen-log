@@ -105,7 +105,7 @@ export function Segmented<V extends string>({
             }}
             style={st.segItem}
           >
-            <Text style={{ color: c.ink, opacity: on ? 1 : 0.75, fontSize: 15, fontWeight: on ? '600' : '500' }}>{o.label}</Text>
+            <Text style={{ color: c.ink, opacity: on ? 1 : 0.75, fontSize: 12, fontWeight: on ? '600' : '500' }}>{o.label}</Text>
           </Pressable>
         );
       })}
