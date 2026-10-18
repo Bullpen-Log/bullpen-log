@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useRef, type ReactNode } from 'react';
 import { StyleSheet, View, useWindowDimensions } from 'react-native';
+import { usePalette } from '~/lib/ui';
 import Animated, { Easing, useAnimatedStyle, useReducedMotion, useSharedValue, withTiming } from 'react-native-reanimated';
 
 /**
@@ -27,10 +28,33 @@ export function useOnTabActive(cb: () => void) {
   }, [active]);
 }
 
+/*
+ * 지금 탭을 다시 누름 — 그 탭의 첫 화면을 맨 위로(웹 mobile-tabs onClick). 보이는 판만 듣는다(useRetapTop).
+ */
+const retaps = new Set<() => void>();
+export const emitRetap = () => retaps.forEach((f) => f());
+/** 판 안의 ScrollView 를 맨 위로 굴리게 — ref 의 scrollTo 를 부른다 */
+export function useRetapTop(scrollTo: () => void) {
+  const active = useTabActive();
+  const latest = useRef(scrollTo);
+  useEffect(() => {
+    latest.current = scrollTo;
+  });
+  useEffect(() => {
+    if (!active) return;
+    const f = () => latest.current();
+    retaps.add(f);
+    return () => {
+      retaps.delete(f);
+    };
+  }, [active]);
+}
+
 const EASE = Easing.bezier(0.32, 0.72, 0, 1);
 
 export function TabPager({ index, visible, slots }: { index: number; visible: boolean; slots: (ReactNode | null)[] }) {
   const { width } = useWindowDimensions();
+  const c = usePalette();
   const reduce = useReducedMotion();
   const x = useSharedValue(-index * width);
   /* 숨었다가 나타날 때 · 폭이 바뀔 때는 미끄러지지 않고 바로 그 자리 */
@@ -45,7 +69,8 @@ export function TabPager({ index, visible, slots }: { index: number; visible: bo
     <View pointerEvents={visible ? 'box-none' : 'none'} style={[StyleSheet.absoluteFill, { opacity: visible ? 1 : 0 }]}>
       <Animated.View style={[styles.track, { width: width * slots.length }, track]}>
         {slots.map((s, i) => (
-          <View key={i} style={{ width, height: '100%' }} pointerEvents={visible && i === index ? 'box-none' : 'none'}>
+          /* 아직 안 붙은 판은 바탕색 판 — 밑의 웹이 비치지 않게 */
+          <View key={i} style={{ width, height: '100%', backgroundColor: s ? undefined : c.page }} pointerEvents={visible && i === index ? 'box-none' : 'none'}>
             <ActiveCtx.Provider value={visible && i === index}>{s}</ActiveCtx.Provider>
           </View>
         ))}

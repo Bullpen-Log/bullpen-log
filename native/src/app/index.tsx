@@ -264,6 +264,24 @@ export default function SiteScreen() {
   const [seen, setSeen] = useState({ home: false, pitch: false, training: false, nutrition: false });
   if ((showHome && !seen.home) || (showPitch && !seen.pitch) || (showTraining && !seen.training) || (showNutrition && !seen.nutrition))
     setSeen({ home: seen.home || showHome, pitch: seen.pitch || showPitch, training: seen.training || showTraining, nutrition: seen.nutrition || showNutrition });
+  /*
+   * 웹처럼 판 넷을 다 띄워 둔다(웹 @home · @videos · @training · @nutrition 이 늘 떠 있다 — 판 사이를 넘길 때 옆 판이 비지 않게).
+   * 처음 연 판이 먼저 그려진 뒤 1.2초에 나머지를 붙인다(첫 화면을 늦추지 않게). 잠긴 탭은 붙이지 않는다(웹은 잠금 판).
+   */
+  useEffect(() => {
+    if (!pagerOn || (seen.home && seen.pitch && seen.training && seen.nutrition)) return;
+    const t = setTimeout(
+      () =>
+        setSeen((s) => ({
+          home: true,
+          pitch: s.pitch || !pitchTab?.locked,
+          training: s.training || !trainingTab?.locked,
+          nutrition: s.nutrition || !nutritionTab?.locked,
+        })),
+      1200
+    );
+    return () => clearTimeout(t);
+  }, [pagerOn, seen, pitchTab?.locked, trainingTab?.locked, nutritionTab?.locked]);
 
   const goWeb = (href: string) =>
     web.current?.injectJavaScript(`window.__bpTab && window.__bpTab(${JSON.stringify(href)});true;`);

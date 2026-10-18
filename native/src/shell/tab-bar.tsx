@@ -1,4 +1,5 @@
 import * as Haptics from 'expo-haptics';
+import { emitRetap } from './tab-pager';
 import { GlassView, isLiquidGlassAvailable } from 'expo-glass-effect';
 import { useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
@@ -109,7 +110,7 @@ export function TabBar({ tabs, active, onPress }: { tabs: ShellTab[]; active: st
             key={t.href}
             accessibilityRole="tab"
             accessibilityState={{ selected: on }}
-            accessibilityLabel={t.locked ? `${t.label}, 잠김` : t.label}
+            accessibilityLabel={t.locked ? `${t.label}(설정 전)` : t.label}
             onPressIn={() => {
               if (!on) lift.value = withSpring(0.3, LIFT_SPRING);
             }}
@@ -117,12 +118,22 @@ export function TabBar({ tabs, active, onPress }: { tabs: ShellTab[]; active: st
               if (!on) lift.value = withSpring(0, LIFT_SPRING);
             }}
             onPress={() => {
-              void Haptics.selectionAsync();
+              /* 떨림은 탭을 옮길 때만(웹 mobile-tabs) — 지금 탭을 다시 누르면 맨 위로 굴린다 */
+              if (!on) void Haptics.selectionAsync();
+              else emitRetap();
               onPress(t);
             }}
-            style={({ pressed }) => [styles.item, t.locked && { opacity: 0.45 }, pressed && { transform: [{ scale: 0.94 }] }]}
+            style={({ pressed }) => [styles.item, t.locked && { opacity: 0.55 }, pressed && { transform: [{ scale: 0.94 }] }]}
           >
-            <Icon name={GLYPH[t.icon] ?? 'house'} size={26} color={color} />
+            <View>
+              <Icon name={GLYPH[t.icon] ?? 'house'} size={26} color={color} />
+              {/* 잠긴 탭 — 그림 오른쪽 아래 12px 자물쇠(웹 glyphs NavGlyph) */}
+              {t.locked ? (
+                <View style={[styles.lockBadge, { backgroundColor: col.lens }]}>
+                  <Icon name="lock" size={9} color={color} strokeWidth={3} />
+                </View>
+              ) : null}
+            </View>
             <Text style={[styles.label, { color, fontWeight: on ? '600' : '500' }]}>{t.label}</Text>
           </Pressable>
         );
@@ -146,6 +157,7 @@ export function TabBar({ tabs, active, onPress }: { tabs: ShellTab[]; active: st
 }
 
 const styles = StyleSheet.create({
+  lockBadge: { position: 'absolute', right: -4, bottom: -3, width: 13, height: 13, borderRadius: 7, alignItems: 'center', justifyContent: 'center' },
   wrap: { position: 'absolute', left: 0, right: 0, bottom: 0, alignItems: 'center' },
   shadow: {
     width: '100%',

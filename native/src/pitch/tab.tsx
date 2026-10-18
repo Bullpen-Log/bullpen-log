@@ -1,6 +1,6 @@
 import { type Href, router } from 'expo-router';
-import { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text } from 'react-native';
+import { useRef, useState } from 'react';
+import { Pressable, ScrollView, type ScrollViewInstance, StyleSheet, Text } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PRESSED, SPACE, usePalette } from '~/lib/ui';
 import { Icon } from '~/shell/icon';
@@ -11,7 +11,7 @@ import { PitchTodayCard } from './today-card';
 import { monthOf, useAllLogs, useDayThumbs, useMonth } from './store';
 
 import { READABLE_WIDE, TwoColumns } from '~/lib/layout';
-import { useOnTabActive } from '~/shell/tab-pager';
+import { useOnTabActive, useRetapTop } from '~/shell/tab-pager';
 
 /**
  * 투구 탭(앱 화면) — 찾기 · 달력(그날 공 수 · 영상 점) + 그달 기록 목록 · 지난 영상 가져오기. 날짜를 누르면 그날 화면(/pitch/[date]).
@@ -29,9 +29,13 @@ export function PitchTab({ today, bottom, onWeb }: { today: string; bottom: numb
   /* 탭을 옮겼다 돌아오면 새로 받는다(판은 붙어 있다) */
   useOnTabActive(() => void reload());
   const all = useAllLogs(view === 'list');
+  /* 지금 탭(투구)을 다시 누르면 맨 위로 */
+  const scrollRef = useRef<ScrollViewInstance>(null);
+  useRetapTop(() => scrollRef.current?.scrollTo({ y: 0, animated: true }));
 
   return (
     <ScrollView
+      ref={scrollRef}
       style={{ flex: 1, backgroundColor: c.page }}
       contentContainerStyle={[
         { paddingTop: inset.top + SPACE.section, paddingBottom: bottom + 24, paddingHorizontal: SPACE.side, gap: SPACE.gap },

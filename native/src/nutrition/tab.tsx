@@ -1,7 +1,7 @@
 import { SymbolView } from 'expo-symbols';
 import { type Href, router } from 'expo-router';
-import { useState } from 'react';
-import { Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
+import { useRef, useState } from 'react';
+import { Alert, Pressable, RefreshControl, ScrollView, type ScrollViewInstance, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MEALS, amountText, entryMacros, mealLabel, stepAmount, type EntryEdit, type MealEntryView, type MealKey } from '@/lib/nutrition/meta';
 import { mealProtein } from '@/lib/nutrition/meal-protein';
@@ -14,7 +14,7 @@ import type { Place } from '@/lib/nutrition/meal-templates';
 import { clearPlan, eatPlan, editEntries, makePlan, saveWeight, useNutritionDay } from './api';
 import { READABLE } from '~/lib/layout';
 import { NutritionCheckinCard } from './checkin-card';
-import { useOnTabActive } from '~/shell/tab-pager';
+import { useOnTabActive, useRetapTop } from '~/shell/tab-pager';
 
 /**
  * 영양 탭(앱 화면) — 웹 영양 탭의 '기록' 쪽: 오늘 먹은 것과 목표(kcal · 탄 · 단 · 지) · 끼니마다 담은 음식(양 바꾸기 · 지우기) · 체중.
@@ -43,6 +43,10 @@ export function NutritionTab({ today, bottom, onWebNutrition }: { today: string;
   };
   const { day, error, to, loading, reload } = useNutritionDay(date);
   /* 탭을 옮겼다 돌아오면 새로 받는다(1번 판 넘기기 — 판이 붙어 있어 마운트로는 안 받는다) */
+  /* 지금 탭(영양)을 다시 누르면 맨 위로(1번 세션 — 앱 틀) */
+  const topRef = useRef<ScrollViewInstance>(null);
+  useRetapTop(() => topRef.current?.scrollTo({ y: 0, animated: true }));
+
   useOnTabActive(() => void reload());
   const [busy, setBusy] = useState(false);
   /* 체중은 설정 단위(kg · lb)로 보이고 적는다 — 저장은 늘 kg(2026-10-18 점검: lb 쓰는 사람의 160 이 160kg 으로 저장됐다) */
@@ -116,6 +120,7 @@ export function NutritionTab({ today, bottom, onWebNutrition }: { today: string;
 
   return (
     <ScrollView
+      ref={topRef}
       style={{ flex: 1, backgroundColor: c.page }}
       contentContainerStyle={[{ paddingTop: inset.top + 12, paddingBottom: bottom + 24, paddingHorizontal: 16, gap: 16 }, READABLE]}
       refreshControl={<RefreshControl refreshing={loading && day != null} onRefresh={reload} />}

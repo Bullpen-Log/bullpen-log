@@ -24,7 +24,7 @@ import { FeedCard } from './feed';
 import { RingsCard } from './rings';
 import { CameraSwipe } from './camera-swipe';
 import { READABLE } from '~/lib/layout';
-import { useOnTabActive } from '~/shell/tab-pager';
+import { useOnTabActive, useRetapTop } from '~/shell/tab-pager';
 
 /**
  * 홈 탭(앱 화면) — 웹 홈(app/(app)/today/home-page.tsx)과 같은 차례: 링 넷 → 요약 칸 → (알림 카드) → 투구 달력 → 고른 날 칸.
@@ -182,6 +182,8 @@ export function HomeTab({
    * 위 막대 밑에 그날 칸 머리가 오도록.
    */
   const scrollRef = useAnimatedRef<Animated.ScrollView>();
+  /* 지금 탭(홈)을 다시 누르면 맨 위로 */
+  useRetapTop(() => scrollRef.current?.scrollTo({ y: 0, animated: true }));
   const viewH = useRef(0);
   const dayY = useRef(0);
   const calY = useRef(0);
@@ -201,7 +203,7 @@ export function HomeTab({
       params: { date: today, checkin: home?.checkinDone ? '1' : '0', pitch: home?.pitchDone ? '1' : '0', locked: home?.pitchLocked ? '1' : '0' },
     });
   /* 종의 주황 점 — 체크인 · 오늘 투구 중 남은 것이 있으면(웹 notice-bell pendingCount) */
-  const pending = home ? (home.checkinDone ? 0 : 1) + (home.pitchDone ? 0 : 1) : 0;
+  const pending = home ? (home.checkinDone ? 0 : 1) + (home.pitchDone || home.pitchLocked ? 0 : 1) : 0;
 
   return (
     <CameraSwipe enabled={!home?.pitchLocked}>

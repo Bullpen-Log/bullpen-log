@@ -15,7 +15,7 @@ import { cacheEpoch, cacheGet, cacheSet } from '~/lib/store';
 import { usePalette } from '~/lib/ui';
 import { fromApp, openCheckin } from '~/shell/web-nav';
 import { READABLE } from '~/lib/layout';
-import { useOnTabActive } from '~/shell/tab-pager';
+import { useOnTabActive, useRetapTop } from '~/shell/tab-pager';
 
 /**
  * 트레이닝 탭 첫 화면(앱 화면) — 웹 트레이닝 홈(app/(app)/training/training-home.tsx)과 같은 앱 카드 셋(오늘 운동 · 암케어 · 메커니즘,
@@ -139,8 +139,13 @@ export function TrainingTab({ today, bottom, onWeb }: { today: string; bottom: n
     onWeb(TRAINING_PART_HREF[app]);
   };
 
+  /* 지금 탭(트레이닝)을 다시 누르면 맨 위로(1번 세션 — 앱 틀) */
+  const topRef = useRef<ScrollViewInstance>(null);
+  useRetapTop(() => topRef.current?.scrollTo({ y: 0, animated: true }));
+
   return (
     <ScrollView
+      ref={topRef}
       style={{ flex: 1, backgroundColor: c.page }}
       contentContainerStyle={[{ paddingTop: inset.top + 12, paddingBottom: bottom + 24, paddingHorizontal: 16, gap: 12 }, READABLE]}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={pull} />}
