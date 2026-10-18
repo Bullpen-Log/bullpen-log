@@ -52,7 +52,8 @@ const DARK: typeof LIGHT = {
   warnLine: '#78350f',
   dangerBg: '#2a1010',
   dangerLine: '#7f1d1d',
-  raised: '#3b4a63',
+  /* 사이트 :root[data-theme='dark'] --color-raised(네이비는 #3b4a63) */
+  raised: '#636366',
   float: FLOAT_DARK,
 };
 /* 네이비 — 사이트 :root[data-theme='navy'](바탕 · 카드 · 선) + 어두운 테마가 같이 쓰는 글자 · 상태색 */

@@ -1,4 +1,3 @@
-import * as Haptics from 'expo-haptics';
 import { SymbolView } from 'expo-symbols';
 import { type Href, router, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
@@ -21,7 +20,7 @@ import { cacheEpoch, cacheGet, cacheSet } from '~/lib/store';
 import { usePalette, type Palette } from '~/lib/ui';
 import { READABLE } from '~/lib/layout';
 import { Icon } from '~/shell/icon';
-import { PageHead } from '~/shell/heading';
+import { PageHead, Segmented } from '~/shell/heading';
 
 /**
  * 암케어 · 메커니즘 전체 화면(native/src/app/training-armcare.tsx · training-mechanics.tsx)의 같은 틀 — 머리(‹ · 제목) · 두 칸 고르개 ·
@@ -174,26 +173,8 @@ export function Screen<K extends string>({
             </Pressable>
           ) : null}
         </PageHead>
-        <View accessibilityRole="tablist" style={[s.segment, { backgroundColor: c.chip }]}>
-          {tabs.map((t) => {
-            const on = t.value === tab;
-            return (
-              <Pressable
-                key={t.value}
-                onPress={() => {
-                  if (on) return;
-                  void Haptics.selectionAsync();
-                  onTab(t.value);
-                }}
-                accessibilityRole="tab"
-                accessibilityState={{ selected: on }}
-                style={[s.segItem, on && { backgroundColor: c.card }]}
-              >
-                <Text style={[s.bodyBold, { color: c.ink, fontWeight: on ? '700' : '500' }]}>{t.label}</Text>
-              </Pressable>
-            );
-          })}
-        </View>
+        {/* 웹 Segmented(흰 칸이 미끄러짐) — 다른 탭 고르개와 같은 부품 */}
+        <Segmented label={title} size="md" value={tab} onChange={onTab} options={tabs} />
         {state.failed ? (
           <View style={[s.notice, { backgroundColor: c.danger + '14' }]}>
             <Text style={[s.small, { color: c.danger, flex: 1 }]}>{state.failed}</Text>
