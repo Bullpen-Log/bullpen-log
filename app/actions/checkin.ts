@@ -108,6 +108,13 @@ async function trySaveCheckin(formData: FormData): Promise<CheckinState> {
     (name) => formData.getAll(name).map(String),
     checked.value
   );
+  /* 어깨 · 팔꿈치가 '통증'이면 정도는 꼭 — 안 고른 날을 '심함'으로 어림하던 것을 없앴다(2026-10-18 사용자: "통증 표시하면 필수로") */
+  if (
+    (checked.value.shoulder === '통증' || checked.value.elbow === '통증') &&
+    armPain.armPainLevel == null
+  ) {
+    return { error: '어깨 · 팔꿈치가 얼마나 아픈지 골라 주세요.' };
+  }
 
   const note = String(formData.get('note') ?? '').trim();
   if (note.length > CHECKIN_NOTE_MAX) {

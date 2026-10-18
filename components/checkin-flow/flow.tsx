@@ -287,6 +287,12 @@ export function CheckinFlow({
     answers != null &&
     answers.armLevel === 3 &&
     armPainJointsToday(partsFromSpots(answers.spots)).length > 0;
+  /* 어깨 · 팔꿈치가 '통증'이면 얼마나 아픈지(정도)를 꼭 고른다 — 안 고르면 '다음'이 잠긴다(2026-10-18 사용자: "통증 표시하면 필수로") */
+  const needArmLevel =
+    view.cur === 'pain' &&
+    answers != null &&
+    answers.armLevel == null &&
+    armPainJointsToday(partsFromSpots(answers.spots)).length > 0;
   useEffect(() => {
     if (view.cur !== 'done' || restCard) return;
     const t = window.setTimeout(finish, DONE_MS);
@@ -481,6 +487,11 @@ export function CheckinFlow({
               </button>
             </div>
           )}
+          {needArmLevel && (
+            <p className="mb-2 text-center text-sm font-medium text-danger" aria-live="polite">
+              얼마나 아픈지 골라 주세요
+            </p>
+          )}
           <div className="flex items-center gap-2">
             <button
               type="button"
@@ -493,7 +504,7 @@ export function CheckinFlow({
             <button
               type="button"
               onClick={next}
-              disabled={pending}
+              disabled={pending || needArmLevel}
               className="flex h-14 flex-1 items-center justify-center rounded-2xl bg-sky text-lg font-bold text-white transition-colors hover:bg-sky-strong disabled:opacity-60"
             >
               {view.cur === 'memo'
