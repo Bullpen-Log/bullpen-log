@@ -29,7 +29,11 @@ export type PitchEntry = {
   date: string;
   sessionType: string;
   pitchCount: number;
-  effortPct: number | null;
+  /** 체감 강도(%) — 옛 기록(1~10 만 있음)을 손대지 않고 고치면 빼고 intensity 를 보낸다(웹 entry-form 과 같다) */
+  effortPct?: number | null;
+  intensity?: number;
+  /** 고칠 때 열 때의 영상 목록 — 서버가 이 폼에서 뺀 것만 지운다(다른 기기에서 더한 영상은 남김) */
+  baseVideoPaths?: string[];
   maxVelocity: number | null;
   avgVelocity: number | null;
   memo: string;
@@ -82,6 +86,21 @@ export const loadMonth = (month: string) => call<PitchLog[]>(`/api/pitch-log?mon
 export const loadAll = () => call<PitchLog[]>('/api/pitch-log', { method: 'GET' });
 export const createLog = (e: PitchEntry) => call<PitchLog>('/api/pitch-log', { method: 'POST', body: e });
 export const updateLog = (id: string, e: PitchEntry) => call<PitchLog>('/api/pitch-log', { method: 'PATCH', body: { id, ...e } });
+
+/**
+ * 어느 기록에도 안 붙은 폰 영상 경로만 돌려준다(/api/pitch-log/discard 의 orphans) — 저장은 됐는데 답만 못 받은 기록(신호 끊김)의
+ * 영상을 취소 · 끌어 닫기가 지우지 않게. 서버에 못 물으면 null(아무것도 안 지운다).
+ */
+export async function phoneOrphans(paths: string[]): Promise<string[] | null> {
+  const local = paths.filter(isPhoneVideoPath);
+  if (!local.length) return [];
+  try {
+    const r = await call<{ orphans?: string[] }>('/api/pitch-log/discard', { method: 'POST', body: { paths: local } });
+    return local.filter((p) => (r.orphans ?? []).includes(p));
+  } catch {
+    return null;
+  }
+}
 export const deleteLog = (id: string) => call<{ ok: true }>('/api/pitch-log', { method: 'DELETE', body: { id } });
 
 /** 서버 영상의 재생 주소(서명, 잠깐 쓰는 것) — 폰 영상은 빼고 묻는다 */

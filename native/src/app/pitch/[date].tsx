@@ -2,6 +2,9 @@ import { type Href, router, useLocalSearchParams } from 'expo-router';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { isRestSession } from '@/lib/session-type';
+import { effortText } from '@/lib/pitch-effort';
+import { formatSpeed } from '@/lib/units';
+import { usePrefs } from '~/lib/prefs';
 import { LocalVideo } from '../../../modules/local-video';
 import { usePalette } from '~/lib/ui';
 import { ApiError, dateKeyOf, deleteLog, isPhoneVideoPath, phoneAssetId } from '~/pitch/api';
@@ -14,6 +17,7 @@ const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'];
 
 export default function PitchDayScreen() {
   const c = usePalette();
+  const speed = usePrefs().speed;
   const inset = useSafeAreaInsets();
   const { date } = useLocalSearchParams<{ date: string }>();
   const { logs, error } = useMonth(monthOf(date));
@@ -77,9 +81,11 @@ export default function PitchDayScreen() {
             {!isRestSession(l.sessionType) ? (
               <Text style={[styles.meta, { color: c.muted }]}>
                 {[
-                  l.effortPct ? `체감 강도 ${l.effortPct}%` : null,
-                  l.maxVelocity ? `최고 ${l.maxVelocity}km/h` : null,
-                  l.avgVelocity ? `평균 ${l.avgVelocity}km/h` : null,
+                  effortText({ intensity: l.intensity ?? 0, effortPct: l.effortPct })
+                    ? `강도 ${effortText({ intensity: l.intensity ?? 0, effortPct: l.effortPct })}`
+                    : null,
+                  l.maxVelocity ? `최고 ${formatSpeed(l.maxVelocity, speed)}` : null,
+                  l.avgVelocity ? `평균 ${formatSpeed(l.avgVelocity, speed)}` : null,
                 ]
                   .filter(Boolean)
                   .join(' · ') || ' '}
