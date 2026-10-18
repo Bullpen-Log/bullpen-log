@@ -6,6 +6,9 @@ import { redirect, RedirectType } from 'next/navigation';
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { getCurrentUser } from '@/lib/dal';
+import { featureLocks } from '@/lib/feature-locks';
+import { ageOn } from '@/lib/nutrition/targets';
+import { hasFinishedBasics } from '@/lib/program/load';
 import { toDateKey } from '@/lib/pitch-stats';
 import { pickMany } from '@/lib/exercise-meta';
 import { ALWAYS_OWNED, SELECTABLE_EQUIPMENT } from '@/lib/report/equipment';
@@ -68,6 +71,8 @@ import type { ReportFacts } from '@/lib/report/facts';
 import type { PitchPlan } from '@/lib/report/plan';
 import { validateWorkoutBaseline } from '@/lib/baseline';
 import {
+  answersOfUser,
+  type TrainingSetupAnswers,
   checkTrainingAnswers,
   formOfRows,
   ownedEquipmentToSave,
@@ -690,5 +695,28 @@ function programScoreInputOf(
       const id = pinned[v];
       return id ? byId.get(id) : undefined;
     }),
+  };
+}
+
+/**
+ * 아이폰 앱(native/src/app/setup/training.tsx)의 트레이닝 첫 설정을 열 때 — 웹 /training/setup(page.tsx)이 넘기는 것과 같은 값. 체중은
+ * 넘기지 않는다(운동 소모 끼움은 2026-10-12 에 뺐다). 저장은 웹과 같은 finishTrainingSetup.
+ */
+export async function loadAppTrainingSetup(): Promise<
+  | { ok: true; name: string; age: number | null; askHand: boolean; hasSetup: boolean; basicsDone: boolean; initial: TrainingSetupAnswers }
+  | { ok: false; to: string }
+> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, to: '/login' };
+  const hasSetup = !featureLocks(user).training;
+  return {
+    ok: true,
+    name: user.nickname,
+    age: ageOn(user.birthDate, toDateKey(appNow())),
+    askHand: user.throwingHand == null,
+    hasSetup,
+    /* 다시 온 사람만 — 처음 온 사람은 탭이 잠겨 있어 프로그램을 한 적이 없다(웹 page.tsx 와 같다) */
+    basicsDone: hasSetup ? await hasFinishedBasics(user.id) : false,
+    initial: answersOfUser(user),
   };
 }

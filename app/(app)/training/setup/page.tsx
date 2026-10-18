@@ -1,4 +1,7 @@
+import { headers } from 'next/headers';
 import { appNow } from '@/lib/clock';
+import { expoLevel } from '@/lib/app-env';
+import { OpenNative } from '@/app/(session)/velocity/open-native';
 import { requireUser } from '@/lib/dal';
 import { featureLocks } from '@/lib/feature-locks';
 import { recentWeightKg } from '@/lib/nutrition/load';
@@ -24,6 +27,8 @@ import { TrainingSetupWizard } from './training-setup-wizard';
  */
 export default async function TrainingSetupPage() {
   const user = await requireUser();
+  /* 새 아이폰 앱(Expo)이 첫 설정을 아는 판(BullpenNative/7 부터)이면 앱 화면으로 연다(native/src/app/setup/training.tsx) */
+  if (expoLevel((await headers()).get('user-agent')) >= 7) return <OpenNative path="/setup/training" cover={false} />;
   const today = toDateKey(appNow());
   const hasSetup = !featureLocks(user).training;
   const [recent, basicsDone] = await Promise.all([

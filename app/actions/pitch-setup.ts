@@ -5,7 +5,9 @@ import { revalidatePath } from 'next/cache';
 import { prisma } from '@/lib/prisma';
 import { getCurrentUser } from '@/lib/dal';
 import { validatePitchSetup } from '@/lib/baseline';
-import { formOfFields, readPitchAnswers } from '@/lib/pitching/setup-answers';
+import { formOfFields, pitchAnswersOf, readPitchAnswers, type PitchSetupAnswers } from '@/lib/pitching/setup-answers';
+import { toDateKey } from '@/lib/pitch-stats';
+import { ageOn } from '@/lib/nutrition/targets';
 
 /**
  * 투구 기록 첫 설정(/videos/setup)의 저장 — 던지는 손 · 평소 투구량 셋 · 목표 구속을 한 번에(User 한 줄).
@@ -55,4 +57,22 @@ export async function finishPitchSetup(
   revalidatePath('/today');
   revalidatePath('/', 'layout');
   return { ok: true };
+}
+
+/**
+ * 아이폰 앱(native/src/app/setup/pitch.tsx)의 투구 첫 설정을 열 때 — 웹 /videos/setup(page.tsx)이 넘기는 것과 같은 값(이름 · 만 나이 · 마친
+ * 적이 있나 · 계정 값으로 채운 답). 저장은 웹과 같은 finishPitchSetup.
+ */
+export async function loadAppPitchSetup(): Promise<
+  { ok: true; name: string; age: number | null; done: boolean; initial: PitchSetupAnswers } | { ok: false; to: string }
+> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, to: '/login' };
+  return {
+    ok: true,
+    name: user.nickname,
+    age: ageOn(user.birthDate, toDateKey(appNow())),
+    done: user.pitchSetupAt !== null,
+    initial: pitchAnswersOf(user),
+  };
 }

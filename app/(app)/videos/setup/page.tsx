@@ -1,4 +1,7 @@
+import { headers } from 'next/headers';
 import { appNow } from '@/lib/clock';
+import { expoLevel } from '@/lib/app-env';
+import { OpenNative } from '@/app/(session)/velocity/open-native';
 import { requireUser } from '@/lib/dal';
 import { toDateKey } from '@/lib/pitch-stats';
 import { ageOn } from '@/lib/nutrition/targets';
@@ -15,6 +18,8 @@ import { PitchSetupWizard } from './pitch-setup-wizard';
  */
 export default async function PitchSetupPage() {
   const user = await requireUser();
+  /* 새 아이폰 앱(Expo)이 첫 설정을 아는 판(BullpenNative/7 부터)이면 앱 화면으로 연다(native/src/app/setup/pitch.tsx) */
+  if (expoLevel((await headers()).get('user-agent')) >= 7) return <OpenNative path="/setup/pitch" cover={false} />;
   const age = ageOn(user.birthDate, toDateKey(appNow()));
   return (
     <PitchSetupWizard
