@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useSyncExternalStore } from 'react';
-import type { EntryEdit, Food, MealEntryView, MealKey } from '@/lib/nutrition/meta';
+import type { EntryEdit, Food, MealEntryView, MealKey, RankedFood } from '@/lib/nutrition/meta';
+import type { ComboItem, MealComboView } from '@/lib/nutrition/combos';
+import type { FoodCategory } from '@/lib/nutrition/foods';
 import type { PlanContext, PlanItem } from '@/lib/nutrition/meal-plan';
 import type { Place } from '@/lib/nutrition/meal-templates';
 import type { AgeBand } from '@/lib/nutrition/age';
@@ -35,6 +37,10 @@ export type NutritionDay = {
   hasProfile?: boolean;
   advice?: { headline: string | null; score: number | null; highlight: boolean } | null;
   guide?: { badge: string; title: string; lines: string[]; notes: string[]; hint: string | null } | null;
+  /** 음식 담기 — 자주 먹는 조합 · 분류 둘러보기의 세부 칸 수 · 인기(웹 food-sheet). 옛 서버 · 폰에 남은 옛 자료는 없다 */
+  combos?: MealComboView[];
+  browseSubs?: Record<string, Record<string, number>>;
+  popular?: RankedFood[];
 };
 export type NutritionAnswer = { appetite: number | null; mealAmount: string | null; skippedMeals: string[] };
 type Result = { ok: true } | { ok: false; error: string };
@@ -174,6 +180,16 @@ export const makePlan = (date: string, place: Place, hot: boolean, variant: numb
 /** 계획 줄을 먹은 기록으로 — 같은 줄을 두 번 눌러도 한 번 */
 export const eatPlan = (date: string, keys: string[]) => act(date, 'nutrition.eatPlanItems', date, keys);
 export const clearPlan = (date: string) => act(date, 'nutrition.clearMealPlan', date);
+
+/** 조합 — 저장 · 지우기 · 담은 횟수(웹과 같은 서버 동작 nutrition.saveMealCombo · deleteMealCombo · markComboUsed) */
+export const saveCombo = (date: string, name: string, meal: MealKey, items: ComboItem[]) => act(date, 'nutrition.saveMealCombo', { name, meal, items });
+export const deleteCombo = (date: string, id: string) => act(date, 'nutrition.deleteMealCombo', id);
+export const markComboUsed = (id: string) => rpc('nutrition.markComboUsed', id).catch(() => undefined);
+
+/** 식약처 품목대표 둘러보기 — 웹 음식 창 [전체 음식]과 같은 /api/nutrition/browse(40줄씩, 분류 · 세부 칸) */
+export type BrowsePage = { items: { food: Food; category: FoodCategory }[]; total: number; next: number | null };
+export const browseMfds = (cat: FoodCategory | 'all', offset: number, sub: string | null) =>
+  call<BrowsePage>(`/api/nutrition/browse?cat=${encodeURIComponent(cat)}&offset=${offset}${sub ? `&sub=${encodeURIComponent(sub)}` : ''}`, { method: 'GET' });
 
 /** 식약처 — 품목대표(바로) 먼저, 상품까지는 뒤에(1~13초) */
 export const searchMfdsReps = (q: string) =>

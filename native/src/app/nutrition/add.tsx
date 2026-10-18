@@ -4,11 +4,14 @@ import { type Href, router, useFocusEffect, useLocalSearchParams } from 'expo-ro
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { BASIC_FOODS, basicAliases } from '@/lib/nutrition/foods';
+import { BASIC_FOODS, STARTER_FOOD_IDS, basicAliases, basicFood } from '@/lib/nutrition/foods';
+import { COMBO_TOP, comboFood, findCombo, itemsFromEntries, orderCombos, type MealComboView } from '@/lib/nutrition/combos';
 import { matchScore } from '@/lib/nutrition/hangul';
 import { isMealKey, mealLabel, QUICK_AMOUNTS, stepAmount, type Food, type MealKey } from '@/lib/nutrition/meta';
-import { usePalette } from '~/lib/ui';
-import { addFoods, replaceEntry, replacePlan, saveMyFood, searchMfds, searchMfdsReps, useNutritionDay } from '~/nutrition/api';
+import { usePalette, withAlpha } from '~/lib/ui';
+import { addFoods, deleteCombo, markComboUsed, replaceEntry, replacePlan, saveCombo, saveMyFood, searchMfds, searchMfdsReps, useNutritionDay } from '~/nutrition/api';
+import { BrowseAll, ComboButton, ComboRow, SaveCombo } from '~/nutrition/add-parts';
+import { Segmented } from '~/shell/heading';
 import { CustomFood } from '~/nutrition/custom-food';
 import { takeScanned } from '~/nutrition/scanned';
 import { READABLE } from '~/lib/layout';
@@ -20,7 +23,8 @@ import { READABLE } from '~/lib/layout';
  * 바꾸기 모드(entry=먹은 줄 id 또는 plan=식단 줄 key, name=옛 이름): 웹 음식 창의 '‘○○’ 바꾸기'처럼 고르면 그 줄이 바뀌고 창이 닫힌다.
  * 목록에 없으면 직접 입력(웹 CustomEntry — 찾던 말을 이름에 미리, 내 음식 저장 스위치).
  * 어제와 같이 담기(웹과 같다 — 전날 그 끼니에 먹은 것을 같은 양으로 한 번에).
- * 조합 · 분류 둘러보기는 아직 웹.
+ * 찾지 않을 때는 웹 음식 창처럼: 위에 자주 먹는 조합 셋 · 어제와 같이 · '이 끼니를 조합으로 저장', 밑에 [최근 | 내 음식 | 전체 음식]
+ * (내 음식 = 조합 · 내 음식, 전체 음식 = 인기 · 분류 · 세부 칸 · 식약처 둘러보기).
  */
 const LIMIT = 30;
 
@@ -42,6 +46,8 @@ export default function NutritionAddScreen() {
   const [quick, setQuick] = useState<string | null>(null);
   const [customOpen, setCustomOpen] = useState(false);
   const [customBusy, setCustomBusy] = useState(false);
+  const [tab, setTab] = useState<'recent' | 'mine' | 'all'>('recent');
+  const [savedName, setSavedName] = useState<string | null>(null);
 
   /* 바코드 화면에서 돌아오면 찾은 음식을 고른 것으로 */
   const [scanned, setScanned] = useState<Food | null>(null);
@@ -182,6 +188,39 @@ export default function NutritionAddScreen() {
     setAdded((a) => [...a, `어제 ${mealLabel(mealKey)} ${yesterday.length}가지`]);
   };
 
+  /* 조합 — 이 끼니에 저장한 것 먼저, 그다음 자주 담은 것(웹 orderCombos). 창을 연 때의 차례로 둔다 */
+  const comboList = useMemo(() => orderCombos(day?.combos ?? [], mealKey), [day?.combos, mealKey]);
+  const current = (day?.entries ?? []).filter((e) => e.meal === mealKey);
+  const currentItems = useMemo(() => itemsFromEntries(current), [current]);
+  const canSaveCombo = currentItems.length >= 2 && !findCombo(comboList, currentItems);
+  const addCombo = async (cb: MealComboView) => {
+    if (quick) return;
+    setQuick(`combo:${cb.id}`);
+    setError(null);
+    const err = await addFoods(date, mealKey, cb.items.map((i) => ({ food: comboFood(i), amount: i.amount })));
+    setQuick(null);
+    if (err) return setError(err);
+    void markComboUsed(cb.id);
+    void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    setAdded((a) => [...a, cb.name]);
+  };
+  const removeCombo = async (cb: MealComboView) => {
+    const err = await deleteCombo(date, cb.id);
+    if (err) setError(err);
+  };
+  const onSaveCombo = async (name: string) => {
+    setError(null);
+    const err = await saveCombo(date, name, mealKey, currentItems);
+    if (err) {
+      setError(err);
+      return false;
+    }
+    void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    setSavedName(name);
+    return true;
+  };
+  const starters = useMemo(() => STARTER_FOOD_IDS.map(basicFood).filter((f): f is Food => f !== null), []);
+
   const custom = (
     <View style={{ gap: 8, paddingTop: 8 }}>
       <Pressable
@@ -206,7 +245,7 @@ export default function NutritionAddScreen() {
     </View>
   );
 
-  const row = (f: Food, key: string) => (
+  const row = (f: Food, key: string, hideNote = false) => (
     <Pressable
       key={key}
       accessibilityRole="button"
@@ -223,7 +262,7 @@ export default function NutritionAddScreen() {
         </Text>
         <Text style={{ color: c.muted, fontSize: 13 }} numberOfLines={1}>
           {f.servingLabel} · {Math.round(f.kcal)}kcal{f.protein != null ? ` · 단백질 ${Math.round(f.protein)}g` : ''}
-          {f.note ? ` · ${f.note}` : ''}
+          {f.note && !hideNote ? ` · ${f.note}` : ''}
         </Text>
       </View>
       <Pressable
@@ -318,7 +357,7 @@ export default function NutritionAddScreen() {
             />
           </View>
           {error ? <Text style={{ color: c.danger, fontSize: 14, paddingHorizontal: 20, paddingBottom: 6 }}>{error}</Text> : null}
-          <ScrollView contentContainerStyle={[{ padding: 16, paddingTop: 0, gap: 6, paddingBottom: inset.bottom + 24 }, READABLE]} keyboardShouldPersistTaps="handled">
+          <ScrollView contentContainerStyle={[{ padding: 16, paddingTop: 0, gap: 6, paddingBottom: inset.bottom + 24 }, READABLE]} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
             {q.trim() ? (
               <>
                 {local.map((f, i) => row(f, `l${i}`))}
@@ -345,6 +384,11 @@ export default function NutritionAddScreen() {
               </>
             ) : (
               <>
+                {!replacing
+                  ? comboList.slice(0, COMBO_TOP).map((cb) => (
+                      <ComboButton key={cb.id} combo={cb} busy={quick === `combo:${cb.id}`} onAdd={() => void addCombo(cb)} c={c} />
+                    ))
+                  : null}
                 {!replacing && yesterday.length > 0 ? (
                   <Pressable
                     accessibilityRole="button"
@@ -365,11 +409,66 @@ export default function NutritionAddScreen() {
                     )}
                   </Pressable>
                 ) : null}
-                {day?.recent.length ? <Text style={[styles.section, { color: c.muted }]}>최근 먹은 것</Text> : null}
-                {day?.recent.slice(0, LIMIT).map((f, i) => row(f, `r${i}`))}
-                {day?.mine.length ? <Text style={[styles.section, { color: c.muted }]}>내 음식</Text> : null}
-                {day?.mine.slice(0, LIMIT).map((f, i) => row(f, `y${i}`))}
+                {replacing ? null : savedName ? (
+                  <View style={[styles.row, { backgroundColor: withAlpha(c.ok, 0.1) }]}>
+                    <Text style={{ color: c.ok, fontSize: 15 }} numberOfLines={1}>
+                      ✓ ‘{savedName}’ 조합으로 저장했어요
+                    </Text>
+                  </View>
+                ) : canSaveCombo ? (
+                  <SaveCombo label={mealLabel(mealKey)} items={currentItems} onSave={onSaveCombo} c={c} />
+                ) : null}
+                <View style={{ paddingVertical: 6 }}>
+                  <Segmented
+                    label="음식 고르는 곳"
+                    options={[
+                      { value: 'recent', label: '최근' },
+                      { value: 'mine', label: '내 음식' },
+                      { value: 'all', label: '전체 음식' },
+                    ]}
+                    value={tab}
+                    onChange={setTab}
+                  />
+                </View>
                 {!day ? <ActivityIndicator style={{ padding: 16 }} /> : null}
+                {day && tab === 'recent' ? (
+                  day.recent.length === 0 ? (
+                    <>
+                      <Text style={[styles.section, { color: c.muted }]}>아직 기록이 없어요. 선수들이 자주 먹는 것부터 골라 보세요.</Text>
+                      {starters.map((f, i) => row(f, `s${i}`))}
+                    </>
+                  ) : (
+                    day.recent.slice(0, LIMIT).map((f, i) => row(f, `r${i}`))
+                  )
+                ) : null}
+                {day && tab === 'mine' ? (
+                  day.mine.length === 0 && (replacing || comboList.length === 0) ? (
+                    <Text style={{ color: c.muted, fontSize: 15, padding: 12, textAlign: 'center', lineHeight: 21 }}>
+                      직접 만든 음식과 저장한 조합이 여기 모여요.
+                    </Text>
+                  ) : (
+                    <>
+                      {!replacing && comboList.length > 0 ? (
+                        <>
+                          <Text style={[styles.section, { color: c.muted }]}>조합</Text>
+                          {comboList.map((cb) => (
+                            <ComboRow
+                              key={cb.id}
+                              combo={cb}
+                              busy={quick === `combo:${cb.id}`}
+                              onAdd={() => void addCombo(cb)}
+                              onRemove={() => void removeCombo(cb)}
+                              c={c}
+                            />
+                          ))}
+                        </>
+                      ) : null}
+                      {day.mine.length > 0 && !replacing && comboList.length > 0 ? <Text style={[styles.section, { color: c.muted }]}>음식</Text> : null}
+                      {day.mine.slice(0, LIMIT).map((f, i) => row(f, `y${i}`))}
+                    </>
+                  )
+                ) : null}
+                {day && tab === 'all' ? <BrowseAll popular={day.popular ?? []} browseSubs={day.browseSubs ?? {}} mfds={day.mfds} row={row} c={c} /> : null}
                 {custom}
               </>
             )}

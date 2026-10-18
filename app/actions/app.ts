@@ -18,7 +18,8 @@ import { logPrefillOf, unloggedSessions, type LogPrefill, type VelocitySessionVi
 import { loadNutritionDay } from '@/lib/nutrition/load';
 import { loadAdvice } from '@/lib/nutrition/advice-load';
 import { serviceHour } from '@/lib/nutrition/advice-input';
-import type { Food, MealEntryView } from '@/lib/nutrition/meta';
+import type { Food, MealEntryView, RankedFood } from '@/lib/nutrition/meta';
+import type { MealComboView } from '@/lib/nutrition/combos';
 import type { PlanContext, PlanItem } from '@/lib/nutrition/meal-plan';
 import type { AgeBand } from '@/lib/nutrition/age';
 import type { AvoidKey } from '@/lib/nutrition/diet-prefs';
@@ -158,6 +159,10 @@ export async function loadAppNutrition(date: string): Promise<
       advice: { headline: string | null; score: number | null; highlight: boolean } | null;
       /** 던지는 날 가이드(웹 GuideCard) — 그날은 할 일 한 줄 대신 이것 */
       guide: { badge: string; title: string; lines: string[]; notes: string[]; hint: string | null } | null;
+      /** 음식 담기 화면 — 자주 먹는 조합 · 분류 둘러보기의 세부 칸 수 · 인기(웹 food-sheet 와 같은 값) */
+      combos: MealComboView[];
+      browseSubs: Record<string, Record<string, number>>;
+      popular: RankedFood[];
     }
   | { ok: false; error: string; to?: string }
 > {
@@ -193,6 +198,9 @@ export async function loadAppNutrition(date: string): Promise<
     hasProfile: day.hasProfile,
     advice: advice ? { headline: advice.headline, score: advice.score, highlight: advice.highlight } : null,
     guide: day.guide ? { badge: day.guide.badge, title: day.guide.title, lines: day.guide.lines, notes: day.guide.notes, hint: day.guide.hint } : null,
+    combos: day.combos,
+    browseSubs: day.browseSubs,
+    popular: day.popular,
   };
 }
 
