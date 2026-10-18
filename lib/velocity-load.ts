@@ -6,6 +6,7 @@ import { isRect } from '@/lib/velocity-setup';
 import { distanceMismatch, replayOf } from '@/lib/velocity-analysis';
 import type {
   DayClip,
+  LogPrefill,
   PitchClipView,
   VelocityDayFact,
   VelocitySessionView,
@@ -248,4 +249,24 @@ export async function loadVelocityByDate(
   }
   for (const [key, h] of Object.entries(hash)) out[key].sig = (h >>> 0).toString(36);
   return out;
+}
+
+/**
+ * 구속 세션으로 채운 투구 기록에 '못 잰 공 수'를 더한다(LogPrefill.missed). 공을 봤는데 못 잰 시도(이어진 공 없음 · 공 길 장면 1장 이상 —
+ * 0장은 헛알림에 가깝다)만 센다. 공을 아예 못 본 투구는 시도로도 안 남아 셀 수 없다 — 그래서 폼 글이 '던진 수가 다르면 고쳐 주세요'를 붙인다.
+ */
+export async function withMissedAttempts(
+  userId: string,
+  prefill: LogPrefill | null
+): Promise<LogPrefill | null> {
+  if (!prefill || prefill.sessionIds.length === 0) return prefill;
+  const missed = await prisma.velocityAttempt.count({
+    where: {
+      userId,
+      sessionId: { in: prefill.sessionIds },
+      pitchId: null,
+      trackFrames: { gt: 0 },
+    },
+  });
+  return { ...prefill, missed };
 }

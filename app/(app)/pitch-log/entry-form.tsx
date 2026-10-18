@@ -703,6 +703,12 @@ export function EntryForm({
                   placeholder="45"
                   required
                 />
+                {/* 구속 측정으로 채운 투구 수는 잰 공만이다 — 못 잰 공을 알린다(2026-10-18 사용자) */}
+                {!initial && prefill?.missed ? (
+                  <p className="mt-1.5 text-xs text-warn">
+                    못 잰 공 {prefill.missed}개는 빠졌어요. 실제로 던진 수가 다르면 고쳐 주세요.
+                  </p>
+                ) : null}
               </Field>
               {/*
                 강도(1~10) — 투구수 옆 반 칸이 아니라 한 줄을 다 쓴다. 칩 열이 넓은 화면의 반의반 칸에는 안 들어간다.

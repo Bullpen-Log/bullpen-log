@@ -101,6 +101,11 @@ export function VelocityDay({ date, logCount }: { date: string; logCount: number
           <Text style={styles.prefillText}>측정한 {pf.pitchCount}구 기록 남기기</Text>
         </Pressable>
       ) : null}
+      {pf?.missed ? (
+        <Text style={{ color: c.warn, fontSize: 13 }}>
+          못 잰 공 {pf.missed}개는 빠졌어요. 실제로 던진 수가 다르면 기록에서 고쳐 주세요.
+        </Text>
+      ) : null}
       {pf ? <Text style={{ color: c.muted, fontSize: 13 }}>기록으로 남기기 전에는 이 공이 팔 부하 · 휴식에 안 들어가요.</Text> : null}
     </View>
   );

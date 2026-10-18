@@ -92,6 +92,10 @@ async function trySaveCheckin(formData: FormData): Promise<CheckinState> {
    */
   const sleepQualityRaw = String(formData.get('sleepQuality') ?? '').trim();
   const sleepQuality = sleepQualityRaw === '' ? null : Number(sleepQualityRaw);
+  /* 3판 흐름(웹 · 앱)은 잠을 꼭 고른다 — 안 고른 날이 '보통'으로 저장돼 짧은 밤 규칙이 꺼졌다(2026-10-18 사용자: "미리 고르는 건 아니지") */
+  if (sleepQuality == null && formData.get('flow') === '3') {
+    return { error: '어젯밤 잠을 골라 주세요.' };
+  }
   if (
     sleepQuality != null &&
     !(
@@ -109,11 +113,10 @@ async function trySaveCheckin(formData: FormData): Promise<CheckinState> {
     checked.value
   );
   /* 어깨 · 팔꿈치가 '통증'이면 정도는 꼭 — 안 고른 날을 '심함'으로 어림하던 것을 없앴다(2026-10-18 사용자: "통증 표시하면 필수로") */
-  if (
-    (checked.value.shoulder === '통증' || checked.value.elbow === '통증') &&
-    armPain.armPainLevel == null
-  ) {
-    return { error: '어깨 · 팔꿈치가 얼마나 아픈지 골라 주세요.' };
+  if (checked.value.shoulder === '통증' || checked.value.elbow === '통증') {
+    /* 아픈 자리도 꼭 — 자리가 없으면 '던질 때만'이어도 가벼운 통증 루틴 대신 쉬기가 나왔다(canDoPainRoutine) */
+    if (armPain.armPainSpots.length === 0) return { error: '어깨 · 팔꿈치 어디가 아픈지 골라 주세요.' };
+    if (armPain.armPainLevel == null) return { error: '어깨 · 팔꿈치가 얼마나 아픈지 골라 주세요.' };
   }
 
   const note = String(formData.get('note') ?? '').trim();

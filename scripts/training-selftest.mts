@@ -988,20 +988,21 @@ console.log('\n[안전] 몸이 안 좋은 날 무거운 운동이 섞이지 않�
     outing(1, 7, 35).key
   );
 
-  // 경기는 강도와 상관없이 전력으로 본다.
-  const game = planFor({
-    person: {
-      condition: 8,
-      pitches: [40, 0, 0, 0, 0, 0, 0],
-      intensity: 5,
-      sessionType: '경기',
-      baselineDailyLoad: 300,
-    },
-  }).theme;
+  // 경기도 고른 강도대로 본다(2026-10-18 사용자) — 강도 5 로 40구는 2,000 이라 세게 던진 날이 아니고, 강도 9 면 3,600 이라 회복.
+  const gameAt = (intensity: number) =>
+    planFor({
+      person: {
+        condition: 8,
+        pitches: [40, 0, 0, 0, 0, 0, 0],
+        intensity,
+        sessionType: '경기',
+        baselineDailyLoad: 300,
+      },
+    }).theme;
   check(
-    '어제 경기 40구(강도 5로 적음) → 회복·재생 데이',
-    game.key === 'recovery',
-    game.key
+    '어제 경기 40구 — 강도 5(2,000)는 회복 아님, 강도 9(3,600)는 회복·재생 데이',
+    gameAt(5).key !== 'recovery' && gameAt(9).key === 'recovery',
+    `${gameAt(5).key} · ${gameAt(9).key}`
   );
 }
 {
@@ -3013,8 +3014,8 @@ console.log('\n[전력 환산] 휴식일이 강도를 반영하는가');
     `강도 1 → ${stressFactor(1)}`
   );
 
-  // 경기는 강도를 낮게 적어도 전력으로 본다 — 던질 양도 강도도 못 정한다.
-  check('경기는 강도와 무관하게 전력', stressFactor(3, '경기') === 1);
+  // 경기도 고른 강도대로 본다(2026-10-18 사용자 — 예전엔 늘 전력이었다).
+  check('경기도 고른 강도대로', stressFactor(3, '경기') === 0.6 && stressFactor(10, '경기') === 1);
   check(
     '불펜은 강도를 반영',
     stressFactor(3, '불펜') === 0.6,
@@ -10730,12 +10731,12 @@ console.log(
     todayLog: { pitches: 85, intensity: 7, sessionType: '경기' },
   });
   check(
-    'P2 (견주기) 오늘 경기 85구 → lastThrow 와 hardOuting(theme.ts 의 hardOuting 과 같은 판단)',
+    'P2 (견주기) 오늘 경기 85구(강도 7) → lastThrow 와 hardOuting(theme.ts 의 hardOuting 과 같은 판단) — 경기도 고른 강도대로라 "팔 부담이 큰"',
     game.some((c) => c.key === 'lastThrow') &&
       game.some(
         (c) =>
           c.key === 'hardOuting' &&
-          c.text === '오늘 거의 전력으로 85구를 던진 기록이 들어왔어요'
+          c.text === '오늘 팔 부담이 큰 85구 기록이 들어왔어요'
       ),
     textsOf(game)
   );
@@ -11629,10 +11630,10 @@ console.log(
       JSON.stringify(mixed)
     );
     check(
-      'D2 (경계) 전력 환산의 반올림 — 7.5(75%) → 8 칸 0.9, 8.5(85%) → 9 칸 0.95, 경기는 % 와 상관없이 1',
+      'D2 (경계) 전력 환산의 반올림 — 7.5(75%) → 8 칸 0.9, 8.5(85%) → 9 칸 0.95, 경기도 고른 % 대로(30% → 3 칸 0.6, 2026-10-18)',
       stressFactor(intensityOf({ intensity: 8, effortPct: 75 })) === 0.9 &&
         stressFactor(intensityOf({ intensity: 9, effortPct: 85 })) === 0.95 &&
-        stressFactor(intensityOf({ intensity: 3, effortPct: 30 }), '경기') === 1
+        stressFactor(intensityOf({ intensity: 3, effortPct: 30 }), '경기') === 0.6
     );
     const twoDays = (a: number, b: number) =>
       findFatigueWindows(
@@ -11661,11 +11662,11 @@ console.log(
 
   /* ── ② 세게 던진 날 몫(outingLoadOf) ── */
   check(
-    'D2 (몫) outingLoadOf — 투구수 × 체감 %, 경기는 100%, 0구 · 쉰 날은 0 · 문턱 2,700 = 30구 × 90%',
+    'D2 (몫) outingLoadOf — 투구수 × 체감 %, 경기도 고른 % 대로(2026-10-18), 0구 · 쉰 날은 0 · 문턱 2,700 = 30구 × 90%',
     outingLoadOf(pctLog(day, 30, 90)) === 2700 &&
       outingLoadOf(logOn(day, 30, 7)) === 2100 &&
-      outingLoadOf(pctLog(day, 20, 50, '경기')) === 2000 &&
-      outingLoadOf({ ...logOn(day, 35, 3), sessionType: '경기' }) === 3500 &&
+      outingLoadOf(pctLog(day, 20, 50, '경기')) === 1000 &&
+      outingLoadOf({ ...logOn(day, 35, 3), sessionType: '경기' }) === 1050 &&
       outingLoadOf(logOn(day, 0, 0)) === 0 &&
       HARD_OUTING_MIN_LOAD === 2700 &&
       HARD_OUTING_MIN_LOAD === 30 * NEAR_MAX_EFFORT_PCT
@@ -11746,14 +11747,15 @@ console.log(
       name: '경기 20구(체감 60%)',
       logs: [pctLog(yesterday, 20, 60, '경기')],
       hard: false,
-      load: 2000,
+      load: 1200,
       pitches: 20,
     },
     {
-      name: '경기 35구(체감 60%)',
-      logs: [pctLog(yesterday, 35, 60, '경기')],
+      /* 2026-10-18 부터 경기도 고른 % 대로 — 35구 60% 는 2,100 이라 세게가 아니고, 80% 면 2,800 */
+      name: '경기 35구(체감 80%)',
+      logs: [pctLog(yesterday, 35, 80, '경기')],
       hard: true,
-      load: 3500,
+      load: 2800,
       pitches: 35,
     },
     {
@@ -11774,7 +11776,7 @@ console.log(
       name: '경기 25구 + 캐치볼 20구 50%',
       logs: [pctLog(yesterday, 25, 80, '경기'), pctLog(yesterday, 20, 50, '캐치볼')],
       hard: true,
-      load: 3500,
+      load: 3000,
       pitches: 45,
     },
     {
@@ -11802,7 +11804,7 @@ console.log(
       name: '옛 기록 경기 20구(강도 5)',
       logs: [{ ...logOn(yesterday, 20, 5), sessionType: '경기' }],
       hard: false,
-      load: 2000,
+      load: 1000,
       pitches: 20,
     },
   ];
@@ -11816,7 +11818,7 @@ console.log(
     );
   });
   check(
-    'D2 (판정 표) 30구×90% 세게 · 30 · 31구×85% 와 85% 20+10 세게(P3 검토 — 옛 규칙의 날) · 29구×85% · 80% 아님 · 경기 20구 아님 · 경기 35구 60% 세게 · 60구×50% · 40구×70% 세게 · 경기 25 + 캐치볼 20 세게(45구) · 옛 강도 9 30구 세게 · 옛 8 · 29구 아님 · 그날 공의 합(pitches)까지',
+    'D2 (판정 표) 30구×90% 세게 · 30 · 31구×85% 와 85% 20+10 세게(P3 검토 — 옛 규칙의 날) · 29구×85% · 80% 아님 · 경기 20구 아님 · 경기 35구 80% 세게(경기도 고른 % 대로) · 60구×50% · 40구×70% 세게 · 경기 25 + 캐치볼 20 세게(45구) · 옛 강도 9 30구 세게 · 옛 8 · 29구 아님 · 그날 공의 합(pitches)까지',
     wrong.length === 0,
     wrong
       .map(
@@ -11858,7 +11860,8 @@ console.log(
     /* 옛 규칙을 여기 그대로 옮겨 둔다(facts.ts 의 2026-10-12 전 nearMaxByDay) — 새 규칙이 그보다 좁아지지 않는지 견준다 */
     const oldRuleHard = (logs: PitchLogLike[]) =>
       logs
-        .filter((l) => l.sessionType === '경기' || Math.round(l.intensity) >= 9)
+        /* 옛 규칙의 '경기면 늘 전력'은 2026-10-18 사용자 결정으로 뺐다(경기도 고른 강도대로) — 그 몫은 견주지 않는다 */
+        .filter((l) => Math.round(l.intensity) >= 9)
         .reduce((sum, l) => sum + l.pitchCount, 0) >= HARD_OUTING_MIN_PITCHES;
     const sessionTypes = ['경기', '불펜', '라이브', '캐치볼'];
     const counts = [0, 10, 20, 25, 27, 29, 30, 31, 35, 40, 60, 90];
@@ -11890,7 +11893,7 @@ console.log(
       }
     }
     check(
-      `D2 (옛 날 지킴) 옛 기록 ${combos}가지 — 옛 규칙(경기 · 강도 9~10 · 30구)으로 세게 던진 날은 하나도 빠지지 않는다(새로 드는 날 ${gained})`,
+      `D2 (옛 날 지킴) 옛 기록 ${combos}가지 — 옛 규칙(강도 9~10 · 30구, 경기 몫은 2026-10-18 뺌)으로 세게 던진 날은 하나도 빠지지 않는다(새로 드는 날 ${gained})`,
       lost === 0 && gained > 0,
       lostCases.join(' / ')
     );
@@ -11946,10 +11949,10 @@ console.log(
     const light = themeOf([pctLog(yesterday, 60, 50)]);
     const near = themeOf([pctLog(yesterday, 40, 90)]);
     check(
-      'D2 (이유 글) 경기 · 평균 90% 이상은 "거의 전력으로", 많이 가볍게(60구 50%)는 "팔 부담이 컸어요" — 둘 다 회복',
+      'D2 (이유 글) 평균 90% 이상은 "거의 전력으로", 많이 가볍게(60구 50%)와 경기 85구 70%(경기도 고른 강도대로)는 "팔 부담이 컸어요" — 모두 회복',
       game.key === 'recovery' &&
         game.reason ===
-          '오늘 거의 전력으로 85구를 던지셨어요. 오늘과 내일은 가볍게 풀고, 모레부터 무게를 다시 올려요.' &&
+          '오늘 85구를 던져 팔 부담이 컸어요. 오늘과 내일은 가볍게 풀고, 모레부터 무게를 다시 올려요.' &&
         near.reason.startsWith('어제 거의 전력으로 40구를') &&
         light.key === 'recovery' &&
         light.reason ===
@@ -12250,15 +12253,15 @@ console.log(
     JSON.stringify(legacyRow)
   );
 
-  /* 입력이 세게 던진 날까지 — 30구에 85% 는 2,550(아님), 90% 는 2,700(세게). 경기는 고른 % 와 상관없이 100% */
+  /* 입력이 세게 던진 날까지 — 30구에 85% 는 2,550(아님), 90% 는 2,700(세게). 경기도 고른 % 대로(2026-10-18) */
   const loadOf = (pct: number, sessionType = '불펜') =>
     outingLoadOf({ pitchCount: 30, sessionType, ...effortFields(pct) });
   check(
-    'D2 쓰기 (세게 던진 날) 30구 85% → 2,550 < 2,700 · 90% → 2,700 · 경기 30구 50% → 3,000',
+    'D2 쓰기 (세게 던진 날) 30구 85% → 2,550 < 2,700 · 90% → 2,700 · 경기 30구 50% → 1,500(경기도 고른 % 대로)',
     loadOf(85) === 2550 &&
       loadOf(85) < HARD_OUTING_MIN_LOAD &&
       loadOf(90) === HARD_OUTING_MIN_LOAD &&
-      loadOf(50, '경기') === 3000,
+      loadOf(50, '경기') === 1500,
     `${loadOf(85)} · ${loadOf(90)} · ${loadOf(50, '경기')}`
   );
 
@@ -12855,7 +12858,8 @@ console.log(
           yesterday: { throwPlan: '오늘 등판' },
           logs: [{ daysAgo: 1, pitches: 60, intensity: 9, sessionType: '경기' }],
         },
-        expect: { days: 1, source: 'log', pitches: 60, load: 6000 },
+        /* 경기도 고른 강도대로(2026-10-18) — 60구 × 90% */
+        expect: { days: 1, source: 'log', pitches: 60, load: 5400 },
       },
       {
         name: "사흘 전 불펜 40구 70% + 어제 '오늘 등판' 답 (답이 더 가깝다)",
@@ -15495,7 +15499,7 @@ console.log(
         facts: factsOf(null, '오늘 등판', [
           { daysAgo: 1, pitches: 60, intensity: 9, sessionType: '경기' },
         ]),
-        want: { lastSource: 'log', daysSinceLast: 1, lastPitches: 60, lastLoad: 6000 },
+        want: { lastSource: 'log', daysSinceLast: 1, lastPitches: 60, lastLoad: 5400 },
       },
     ];
     for (const r of rows) {
