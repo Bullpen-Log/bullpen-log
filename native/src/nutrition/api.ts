@@ -139,6 +139,11 @@ export const addFoods = (date: string, meal: MealKey, items: { food: Food; amoun
   );
 /** 끼니 편집의 '완료' — 고친 줄만 한 번에(웹과 같은 서버 동작) */
 export const editEntries = (date: string, edits: EntryEdit[]) => act(date, 'nutrition.editMealEntries', edits);
+/** 바꾸기 — 먹은 줄 · 식단 줄을 다른 음식으로(끼니 · 날짜 · 줄 이름은 그대로, 웹과 같은 서버 동작) */
+export const replaceEntry = (date: string, id: string, food: Food, amount: number) =>
+  act(date, 'nutrition.replaceMealEntry', id, toFoodInput(food), amount);
+export const replacePlan = (date: string, key: string, food: Food, amount: number) =>
+  act(date, 'nutrition.replacePlanItem', date, key, toFoodInput(food), amount);
 export const saveWeight = (date: string, kg: number | null) => act(date, 'nutrition.setWeight', date, kg);
 /* 식단 짜기(오늘만) — 웹과 같은 서버 셈(lib/nutrition/meal-plan.ts). variant 를 올리면 다른 식단 */
 export const makePlan = (date: string, place: Place, hot: boolean, variant: number) =>

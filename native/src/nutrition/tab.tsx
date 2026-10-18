@@ -78,12 +78,17 @@ export function NutritionTab({ today, bottom, onWebNutrition }: { today: string;
     setEditing(meal);
     setDrafts({});
   };
-  const draftOf = (e: MealEntryView): Draft => drafts[e.id] ?? { amount: e.amount, meal: e.meal, remove: false };
+  const draftOf = (e: MealEntryView): Draft => {
+    const d = drafts[e.id];
+    if (!d) return { amount: e.amount, meal: e.meal, remove: false };
+    /* 바꾸기 뒤(NaN)는 새 음식의 양 */
+    return Number.isNaN(d.amount) ? { ...d, amount: e.amount } : d;
+  };
   const finishEdit = (list: MealEntryView[]) => {
     const edits: EntryEdit[] = [];
     for (const e of list) {
-      const d = drafts[e.id];
-      if (!d) continue;
+      if (!drafts[e.id]) continue;
+      const d = draftOf(e);
       if (d.remove) edits.push({ id: e.id, remove: true });
       else if (d.amount !== e.amount || d.meal !== e.meal)
         edits.push({ id: e.id, ...(d.amount !== e.amount ? { amount: d.amount } : {}), ...(d.meal !== e.meal ? { meal: d.meal } : {}) });
@@ -221,11 +226,30 @@ export function NutritionTab({ today, bottom, onWebNutrition }: { today: string;
                   )}
                 </View>
                 {planned.length ? (
-                  <PlanRows items={planned} onEat={(keys) => run(() => eatPlan(date, keys))} busy={busy} />
+                  <PlanRows
+                    items={planned}
+                    onEat={(keys) => run(() => eatPlan(date, keys))}
+                    onReplace={(it) => router.push({ pathname: '/nutrition/add' as Href as never, params: { date, meal: meal.key, plan: it.key, name: it.name } })}
+                    busy={busy}
+                  />
                 ) : null}
                 {list.map((e) =>
                   isEditing ? (
-                    <EditRow key={e.id} entry={e} draft={draftOf(e)} onChange={(d) => setDrafts((all) => ({ ...all, [e.id]: d }))} />
+                    <EditRow
+                      key={e.id}
+                      entry={e}
+                      draft={draftOf(e)}
+                      onChange={(d) => setDrafts((all) => ({ ...all, [e.id]: d }))}
+                      onReplace={() => {
+                        /* 바꾸면 그 줄의 고친 양은 버린다(새 음식의 양을 따른다 — 웹 rowSig) · 옮기기 · 지우기는 그대로 */
+                        setDrafts((all) => {
+                          const d = all[e.id];
+                          if (!d) return all;
+                          return { ...all, [e.id]: { ...d, amount: NaN } };
+                        });
+                        router.push({ pathname: '/nutrition/add' as Href as never, params: { date, meal: meal.key, entry: e.id, name: e.name } });
+                      }}
+                    />
                   ) : (
                     /* 줄을 누르면 그 끼니가 편집 모양이 된다(웹 MealSection onEdit) */
                     <EntryRow key={e.id} entry={e} onPress={() => startEdit(meal.key)} />
@@ -382,7 +406,18 @@ function PlanCard({
 }
 
 /** 끼니 칸 안의 계획 줄 — 흐린 줄, 동그라미 = 먹었어요, 끼니째 '모두 먹었어요' */
-function PlanRows({ items, onEat, busy }: { items: PlanItem[]; onEat: (keys: string[]) => void; busy: boolean }) {
+function PlanRows({
+  items,
+  onEat,
+  onReplace,
+  busy,
+}: {
+  items: PlanItem[];
+  onEat: (keys: string[]) => void;
+  /** 이름을 누르면 다른 음식으로 바꾸기(웹 PlanBlock onReplace) */
+  onReplace: (item: PlanItem) => void;
+  busy: boolean;
+}) {
   const c = usePalette();
   return (
     <View style={{ gap: 2 }}>
@@ -396,9 +431,11 @@ function PlanRows({ items, onEat, busy }: { items: PlanItem[]; onEat: (keys: str
             hitSlop={8}
             style={[styles.eat, { borderColor: c.sky }]}
           />
-          <Text style={{ flex: 1, color: c.ink, fontSize: 15 }} numberOfLines={1}>
-            식단 · {p.name}
-          </Text>
+          <Pressable accessibilityRole="button" accessibilityLabel={`${p.name} 다른 음식으로 바꾸기`} onPress={() => onReplace(p)} style={{ flex: 1 }}>
+            <Text style={{ color: c.ink, fontSize: 15 }} numberOfLines={1}>
+              식단 · {p.name}
+            </Text>
+          </Pressable>
           <Text style={{ color: c.muted, fontSize: 14 }}>
             {p.amount !== 1 ? `${amountText(p.amount)} · ` : ''}
             {kcalText(p.kcal * p.amount)}
@@ -451,7 +488,18 @@ function EntryRow({ entry, onPress }: { entry: MealEntryView; onPress: () => voi
 }
 
 /** 끼니 편집의 한 줄 — 웹 nutrition-view.tsx EditRow 와 같은 칸: 양 −/+ · 다른 끼니로 옮기기 · 지우기(되살리기) */
-function EditRow({ entry, draft, onChange }: { entry: MealEntryView; draft: Draft; onChange: (d: Draft) => void }) {
+function EditRow({
+  entry,
+  draft,
+  onChange,
+  onReplace,
+}: {
+  entry: MealEntryView;
+  draft: Draft;
+  onChange: (d: Draft) => void;
+  /** 이름을 누르면 다른 음식으로 바꾸기(지운 줄은 못 바꾼다) */
+  onReplace: () => void;
+}) {
   const c = usePalette();
   const moved = draft.meal !== entry.meal;
   const move = () =>
@@ -468,15 +516,22 @@ function EditRow({ entry, draft, onChange }: { entry: MealEntryView; draft: Draf
     );
   return (
     <View style={styles.entry}>
-      <View style={{ flex: 1, opacity: draft.remove ? 0.45 : 1 }}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`${entry.name} 다른 음식으로 바꾸기`}
+        disabled={draft.remove}
+        onPress={onReplace}
+        style={{ flex: 1, opacity: draft.remove ? 0.45 : 1 }}
+      >
         <Text style={{ color: c.ink, fontSize: 15, textDecorationLine: draft.remove ? 'line-through' : 'none' }} numberOfLines={1}>
           {entry.name}
         </Text>
         <Text style={{ color: c.muted, fontSize: 13 }} numberOfLines={1}>
           {kcalText(entry.kcal * draft.amount)}
           {moved && !draft.remove ? <Text style={{ color: c.sky, fontWeight: '600' }}> · {mealLabel(draft.meal)}으로 옮김</Text> : null}
+          {!draft.remove ? <Text style={{ color: c.sky }}> · 바꾸기</Text> : null}
         </Text>
-      </View>
+      </Pressable>
       {draft.remove ? (
         <Pressable accessibilityRole="button" onPress={() => onChange({ ...draft, remove: false })} style={styles.textBtn}>
           <Text style={{ color: c.sky, fontSize: 14, fontWeight: '600' }}>되살리기</Text>

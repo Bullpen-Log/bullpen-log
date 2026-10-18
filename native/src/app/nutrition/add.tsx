@@ -1,3 +1,4 @@
+import { SymbolView } from 'expo-symbols';
 import * as Haptics from 'expo-haptics';
 import { type Href, router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -7,7 +8,7 @@ import { BASIC_FOODS, basicAliases } from '@/lib/nutrition/foods';
 import { matchScore } from '@/lib/nutrition/hangul';
 import { isMealKey, mealLabel, QUICK_AMOUNTS, stepAmount, type Food, type MealKey } from '@/lib/nutrition/meta';
 import { usePalette } from '~/lib/ui';
-import { addFoods, searchMfds, searchMfdsReps, useNutritionDay } from '~/nutrition/api';
+import { addFoods, replaceEntry, replacePlan, searchMfds, searchMfdsReps, useNutritionDay } from '~/nutrition/api';
 import { takeScanned } from '~/nutrition/scanned';
 import { READABLE } from '~/lib/layout';
 
@@ -15,12 +16,14 @@ import { READABLE } from '~/lib/layout';
  * 음식 담기(앱) — 웹 영양 탭 음식 창의 첫 판: 찾기(기본 음식 · 내 음식 → 식약처 품목대표 → 식약처 상품, 웹과 같은 순서) · 최근 먹은 것 ·
  * 내 음식 · 바코드(앱 카메라 — 웹은 아이폰 사파리에서 바코드를 못 읽었다). 줄을 누르면 양(¼인분 단위)을 정해 담고, 줄 옆 + 한 번이면 1인분.
  * 웹 food-sheet.tsx 처럼 담아도 창을 닫지 않는다(한 끼는 보통 여러 가지) — 아래에 '○○ 담았어요'를 모아 보여 주고 '다 했어요'로 닫는다.
+ * 바꾸기 모드(entry=먹은 줄 id 또는 plan=식단 줄 key, name=옛 이름): 웹 음식 창의 '‘○○’ 바꾸기'처럼 고르면 그 줄이 바뀌고 창이 닫힌다.
  * 조합 · 어제와 같이 · 직접 적기 · 분류 둘러보기는 아직 웹.
  */
 const LIMIT = 30;
 
 export default function NutritionAddScreen() {
-  const { date, meal } = useLocalSearchParams<{ date: string; meal: string }>();
+  const { date, meal, entry, plan, name: oldName } = useLocalSearchParams<{ date: string; meal: string; entry?: string; plan?: string; name?: string }>();
+  const replacing = entry || plan ? { entry, plan, name: oldName ?? '' } : null;
   const c = usePalette();
   const inset = useSafeAreaInsets();
   const mealKey: MealKey = isMealKey(meal) ? meal : 'snack';
@@ -81,10 +84,21 @@ export default function NutritionAddScreen() {
   }, [q, day?.mfds]);
   const shownMfds = mfds && mfds.q === q.trim() ? mfds : null;
 
+  /* 바꾸기 모드면 그 줄을 바꾸고 닫는다 */
+  const replaceWith = (f: Food, a: number) =>
+    replacing?.entry ? replaceEntry(date, replacing.entry, f, a) : replacePlan(date, replacing?.plan ?? '', f, a);
+
   const save = async () => {
     if (!chosen || saving) return;
     setSaving(true);
     setError(null);
+    if (replacing) {
+      const err = await replaceWith(chosen, amount);
+      setSaving(false);
+      if (err) return setError(err);
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      return router.back();
+    }
     const err = await addFoods(date, mealKey, [{ food: chosen, amount }]);
     setSaving(false);
     if (err) return setError(err);
@@ -99,6 +113,13 @@ export default function NutritionAddScreen() {
     if (quick) return;
     setQuick(key);
     setError(null);
+    if (replacing) {
+      const err = await replaceWith(f, 1);
+      setQuick(null);
+      if (err) return setError(err);
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      return router.back();
+    }
     const err = await addFoods(date, mealKey, [{ food: f, amount: 1 }]);
     setQuick(null);
     if (err) return setError(err);
@@ -128,12 +149,18 @@ export default function NutritionAddScreen() {
       </View>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={`${f.name} 1인분 담기`}
+        accessibilityLabel={replacing ? `${f.name}(으)로 바꾸기` : `${f.name} 1인분 담기`}
         onPress={() => void quickAdd(f, key)}
         hitSlop={8}
         style={styles.plus}
       >
-        {quick === key ? <ActivityIndicator /> : <Text style={{ color: c.sky, fontSize: 24 }}>+</Text>}
+        {quick === key ? (
+          <ActivityIndicator />
+        ) : replacing ? (
+          <SymbolView name="arrow.triangle.2.circlepath" size={18} tintColor={c.sky} />
+        ) : (
+          <Text style={{ color: c.sky, fontSize: 24 }}>+</Text>
+        )}
       </Pressable>
     </Pressable>
   );
@@ -144,7 +171,9 @@ export default function NutritionAddScreen() {
         <Pressable accessibilityRole="button" onPress={() => router.back()} hitSlop={10}>
           <Text style={[styles.barAction, { color: c.sky }]}>{added.length ? '다 했어요' : '닫기'}</Text>
         </Pressable>
-        <Text style={[styles.barTitle, { color: c.ink }]}>{mealLabel(mealKey)}에 담기</Text>
+        <Text style={[styles.barTitle, { color: c.ink, flexShrink: 1 }]} numberOfLines={1}>
+          {replacing ? `‘${replacing.name}’ 바꾸기` : `${mealLabel(mealKey)}에 담기`}
+        </Text>
         <Pressable accessibilityRole="button" onPress={() => router.push('/nutrition/barcode' as Href)} hitSlop={10}>
           <Text style={[styles.barAction, { color: c.sky }]}>바코드</Text>
         </Pressable>
@@ -191,7 +220,7 @@ export default function NutritionAddScreen() {
               <Text style={{ color: c.ink, fontSize: 16, fontWeight: '600' }}>다른 음식</Text>
             </Pressable>
             <Pressable accessibilityRole="button" onPress={save} disabled={saving} style={[styles.primary, { backgroundColor: c.sky }, saving && { opacity: 0.5 }]}>
-              <Text style={styles.primaryText}>{saving ? '담는 중' : '담기'}</Text>
+              <Text style={styles.primaryText}>{saving ? (replacing ? '바꾸는 중' : '담는 중') : replacing ? '바꾸기' : '담기'}</Text>
             </Pressable>
           </View>
         </View>
@@ -246,7 +275,7 @@ export default function NutritionAddScreen() {
           </ScrollView>
         </>
       )}
-      {added.length > 0 ? (
+      {added.length > 0 && !replacing ? (
         <View style={[styles.added, { backgroundColor: c.card, borderTopColor: c.line, paddingBottom: inset.bottom + 10 }]}>
           <Text style={{ color: c.ok, fontSize: 16 }}>✓</Text>
           <Text style={{ flex: 1, color: c.ink, fontSize: 15 }} numberOfLines={1}>
