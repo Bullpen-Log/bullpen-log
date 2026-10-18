@@ -19,6 +19,7 @@ import { COMMENT_BODY_MAX, REPORT_DETAIL_MAX, REPORT_REASONS, postCategoryLabel,
 import type { loadAppCommunityPost } from '@/app/actions/community';
 import { Badge, Bar, call, categoryColor, Chip, LoadState, s, useBusy, useLoad } from '~/community/parts';
 import { usePalette, type Palette } from '~/lib/ui';
+import { READABLE } from '~/lib/layout';
 
 /**
  * 글 하나(앱 화면) — 웹 app/(app)/community/[id]/page.tsx 를 옮겼다. 본문 · 좋아요 · 신고 · 댓글, 관리자는 가리기 · 되살리기까지.
@@ -117,7 +118,7 @@ export default function CommunityPostScreen() {
   return (
     <KeyboardAvoidingView behavior="padding" style={{ flex: 1, backgroundColor: c.page }}>
       <Bar back="커뮤니티" c={c} />
-      <ScrollView ref={scroll} contentContainerStyle={{ padding: 16, gap: 16, paddingBottom: 24 }} keyboardShouldPersistTaps="handled">
+      <ScrollView ref={scroll} contentContainerStyle={[{ padding: 16, gap: 16, paddingBottom: 24 }, READABLE]} keyboardShouldPersistTaps="handled">
         <View style={{ gap: 12, opacity: post.hidden ? 0.7 : 1 }}>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
             <Badge text={postCategoryLabel(post.category)} color={categoryColor(post.category, c)} c={c} />
@@ -267,7 +268,7 @@ function ReportSheet({ target, c, onClose, onDone }: { target: Target; c: Palett
             <Text style={{ color: c.danger, fontSize: 17, fontWeight: '700', opacity: send.busy ? 0.4 : 1 }}>보내기</Text>
           </Pressable>
         </View>
-        <ScrollView contentContainerStyle={{ padding: 16, gap: 8, paddingBottom: inset.bottom + 24 }} keyboardShouldPersistTaps="handled">
+        <ScrollView contentContainerStyle={[{ padding: 16, gap: 8, paddingBottom: inset.bottom + 24 }, READABLE]} keyboardShouldPersistTaps="handled">
           <Text style={[s.label, { color: c.muted }]}>왜 신고하나요?</Text>
           <View accessibilityRole="radiogroup" style={s.chips}>
             {REPORT_REASONS.map((r) => (

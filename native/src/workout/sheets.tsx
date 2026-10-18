@@ -10,6 +10,7 @@ import type { RunExercise } from '@/lib/workout/run-exercises';
 import { rpc } from '~/lib/rpc';
 import type { Palette } from '~/lib/ui';
 import type { ShownSet } from './outbox';
+import { READABLE } from '~/lib/layout';
 
 /**
  * 운동 진행 화면의 아래 시트 셋 — 오늘 목록(웹 exercise-sheet.tsx) · 마치기(finish-sheet.tsx) · 교체(swap-sheet.tsx). Sheet 는 트레이닝 운동 화면의 시트도 쓴다.
@@ -45,7 +46,7 @@ export function Sheet({
             <SymbolView name="xmark.circle.fill" size={28} tintColor={c.muted} />
           </Pressable>
         </View>
-        <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={st.scroll}>
+        <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={[st.scroll, READABLE]}>
           {children}
         </ScrollView>
         {footer ? <View style={[st.footer, { paddingBottom: Math.max(16, inset.bottom), borderTopColor: c.line }]}>{footer}</View> : null}

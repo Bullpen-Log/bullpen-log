@@ -7,6 +7,7 @@ import { accountForm, logoutNow, type AccountResult } from '~/account/session';
 import { Bar } from '~/community/parts';
 import { usePalette, type Palette } from '~/lib/ui';
 import { leaveTo } from '~/shell/web-nav';
+import { READABLE } from '~/lib/layout';
 
 /**
  * 계정(앱 화면) — 웹 내 정보 창의 계정 줄 셋(app/(app)/profile/account-actions.tsx)을 옮겼다: 로그아웃 · 비밀번호 바꾸기 · 회원 탈퇴.
@@ -37,7 +38,7 @@ export default function AccountScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: c.page }}>
       <Bar back="내 정보" title="계정" c={c} />
-      <ScrollView contentContainerStyle={{ padding: 16, gap: 22, paddingBottom: inset.bottom + 32 }} keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets>
+      <ScrollView contentContainerStyle={[{ padding: 16, gap: 22, paddingBottom: inset.bottom + 32 }, READABLE]} keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets>
         <View style={[st.group, { backgroundColor: c.card }]}>
           <ActionRow label={leaving ? '로그아웃하는 중…' : '로그아웃'} onPress={() => void logout()} disabled={leaving} c={c} />
           <ActionRow label="비밀번호 바꾸기" onPress={() => setOpen(open === 'pw' ? null : 'pw')} expanded={open === 'pw'} c={c} />

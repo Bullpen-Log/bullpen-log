@@ -18,6 +18,7 @@ import { leave } from '~/mechanics/parts';
 import { rpc, RpcError } from '~/lib/rpc';
 import { cacheEpoch, cacheGet, cacheSet } from '~/lib/store';
 import { usePalette, type Palette } from '~/lib/ui';
+import { READABLE } from '~/lib/layout';
 
 /**
  * 암케어 · 메커니즘 전체 화면(native/src/app/training-armcare.tsx · training-mechanics.tsx)의 같은 틀 — 머리(‹ · 제목) · 두 칸 고르개 ·
@@ -139,7 +140,7 @@ export function Screen<K extends string>({
       <ScrollView
         ref={scrollRef}
         style={s.fill}
-        contentContainerStyle={[s.content, { paddingBottom: Math.max(24, inset.bottom + 16) }]}
+        contentContainerStyle={[s.content, { paddingBottom: Math.max(24, inset.bottom + 16) }, READABLE]}
         refreshControl={<RefreshControl refreshing={state.refreshing} onRefresh={state.refresh} />}
       >
         <View accessibilityRole="tablist" style={[s.segment, { backgroundColor: c.chip }]}>

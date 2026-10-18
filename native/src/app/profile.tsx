@@ -16,6 +16,7 @@ import { usePalette, type Palette } from '~/lib/ui';
 import { useWeightUnit } from '~/lib/weight-unit';
 import { setMenuNickname } from '~/shell/menu-store';
 import { leaveTo } from '~/shell/web-nav';
+import { READABLE } from '~/lib/layout';
 
 /**
  * 내 정보(앱 화면) — 웹 내 정보 창(components/profile-panel.tsx)의 사진 · 기본 정보 · 몸을 옮겼다. 저장은 같은 검사의 profile.updateAppProfile,
@@ -80,7 +81,7 @@ function Body({ p, reload, c }: { p: AppProfile; reload: () => void; c: Palette 
   };
 
   return (
-    <ScrollView contentContainerStyle={{ padding: 16, gap: 22, paddingBottom: inset.bottom + 32 }} keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets>
+    <ScrollView contentContainerStyle={[{ padding: 16, gap: 22, paddingBottom: inset.bottom + 32 }, READABLE]} keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets>
       <Avatar nickname={p.nickname} url={p.avatarUrl} reload={reload} c={c} />
 
       <Group title="기본 정보" footer="생년월일로 안전한 투구수 한도와 영양 기준을, 성별로 영양 목표를 정해요." c={c}>

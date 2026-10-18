@@ -20,6 +20,7 @@ import { GoalSheet, kgText, paceText } from '~/nutrition/stats/goal-sheet';
 import { cacheGet, cacheSet } from '~/lib/store';
 import { usePalette, type Palette } from '~/lib/ui';
 import { useWeightUnit } from '~/lib/weight-unit';
+import { READABLE } from '~/lib/layout';
 
 /**
  * 영양 목표 · 통계(앱 화면) — 웹 영양 탭의 통계 열(app/(app)/nutrition/nutrition-view.tsx: 체중 카드 → 최근 7일 → 내 계획)과 목표 창을 옮겼다.
@@ -64,7 +65,7 @@ export default function NutritionStatsScreen() {
         <LoadState error={error} onRetry={() => void reload()} c={c} />
       ) : (
         <ScrollView
-          contentContainerStyle={{ padding: 16, gap: 16, paddingBottom: inset.bottom + 24 }}
+          contentContainerStyle={[{ padding: 16, gap: 16, paddingBottom: inset.bottom + 24 }, READABLE]}
           refreshControl={
             <RefreshControl
               refreshing={pulling}

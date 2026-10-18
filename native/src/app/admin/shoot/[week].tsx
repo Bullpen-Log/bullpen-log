@@ -16,6 +16,7 @@ import { rpc } from '~/lib/rpc';
 import { leaveTo } from '~/shell/web-nav';
 import { STATE_LABEL, StackBar, StatePill, stampText, statePill } from '~/shoot/parts';
 import { usePalette, type Palette } from '~/lib/ui';
+import { READABLE } from '~/lib/layout';
 
 /**
  * 주차 시간표(관리자, 앱) — 웹 app/(app)/admin/shoot/[week]/week-view.tsx 를 옮겼다. 자리별로 번호 · 운동 · 시범 방법, 왼쪽 동그라미 = 찍음 ↔ 대기,
@@ -115,7 +116,7 @@ function WeekBody({ data, me, at, reload, c }: { data: Data; me: string; at: str
   return (
     <>
       <ScrollView
-        contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: inset.bottom + 32 }}
+        contentContainerStyle={[{ padding: 16, gap: 12, paddingBottom: inset.bottom + 32 }, READABLE]}
         refreshControl={<RefreshControl refreshing={false} onRefresh={() => void reload()} />}
       >
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
@@ -385,7 +386,7 @@ function DetailSheet({
           <Text style={{ color: c.sky, fontSize: 17 }}>닫기</Text>
         </Pressable>
       </View>
-      <ScrollView contentContainerStyle={{ padding: 16, paddingTop: 4, gap: 14, paddingBottom: inset.bottom + 32 }} keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerStyle={[{ padding: 16, paddingTop: 4, gap: 14, paddingBottom: inset.bottom + 32 }, READABLE]} keyboardShouldPersistTaps="handled">
         <View accessibilityRole="radiogroup" style={s.chips}>
           {(['todo', 'done', 'redo', 'later'] as const).map((v) => (
             <Chip

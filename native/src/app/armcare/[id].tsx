@@ -16,6 +16,7 @@ import { rpc, RpcError } from '~/lib/rpc';
 import { usePalette, type Palette } from '~/lib/ui';
 import { leaveTo } from '~/shell/web-nav';
 import { SetDots } from '~/workout/parts';
+import { READABLE, useBarSide } from '~/lib/layout';
 
 /**
  * 암케어 따라 하기(앱 화면) — 웹 app/(session)/armcare/play/[id]/armcare-player.tsx 를 옮겼다. 사이트의 따라 하기가 앱(BullpenNative/3 부터)이면
@@ -185,6 +186,8 @@ function Player({ title, backHref, dateKey, notice, items, rehabCheck, inApp, c 
   /* 앱 화면에서 열었으면 그냥 뒤로(그 화면이 다시 보인다) — 웹에서 넘어왔으면 웹을 돌아갈 칸으로(~/shell/web-nav fromApp) */
   const close = () => (inApp ? router.back() : leave(backHref));
   const inset = useSafeAreaInsets();
+  /* 아이패드 — 바닥 막대 안 단추를 본문 폭으로(~/lib/layout) */
+  const barSide = useBarSide(12);
   const [state, dispatch] = useReducer((st: State, a: Action) => reduce(st, a, items), items, initState);
 
   /* 큰 단추는 운동이 바뀌어도 같은 자리라, 마지막 '세트 끝'을 두 번 누르면 둘째 탭이 다음 운동의 1세트로 들어갔다 — 0.45초 안의 둘째 탭은 버린다 */
@@ -410,7 +413,7 @@ function Player({ title, backHref, dateKey, notice, items, rehabCheck, inApp, c 
     const count = state.done.filter(Boolean).length;
     const all = count === items.length;
     return shell(
-      <ScrollView style={s.fill} contentContainerStyle={[s.finish, { paddingBottom: Math.max(24, inset.bottom + 16) }]}>
+      <ScrollView style={s.fill} contentContainerStyle={[s.finish, { paddingBottom: Math.max(24, inset.bottom + 16) }, READABLE]}>
         {count > 0 ? (
           <View style={[s.doneMark, { backgroundColor: c.sky }]}>
             <SymbolView name="checkmark" size={36} weight="bold" tintColor="#fff" />
@@ -445,7 +448,7 @@ function Player({ title, backHref, dateKey, notice, items, rehabCheck, inApp, c 
 
   return shell(
     <>
-      <ScrollView ref={scrollRef} style={s.fill} contentContainerStyle={s.content}>
+      <ScrollView ref={scrollRef} style={s.fill} contentContainerStyle={[s.content, READABLE]}>
         {notice ? (
           <View style={[s.notice, { backgroundColor: c.warnBg }]}>
             <SymbolView name="exclamationmark.triangle.fill" size={14} tintColor={c.warn} />
@@ -477,7 +480,7 @@ function Player({ title, backHref, dateKey, notice, items, rehabCheck, inApp, c 
       </ScrollView>
 
       {/* 누르는 막대 — 엄지가 닿는 아래에 */}
-      <View style={[s.bottom, { paddingBottom: Math.max(12, inset.bottom), backgroundColor: c.card, borderTopColor: c.line }]}>
+      <View style={[s.bottom, { paddingBottom: Math.max(12, inset.bottom), paddingHorizontal: barSide, backgroundColor: c.card, borderTopColor: c.line }]}>
         {toast ? (
           <Text key={state.justDone?.at} accessibilityRole="alert" style={[s.bodyBold, s.center, { color: c.sky }]}>
             ✓ {toast} 완료

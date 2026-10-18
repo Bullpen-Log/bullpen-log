@@ -3,6 +3,7 @@ import { type ReactNode } from 'react';
 import { KeyboardAvoidingView, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { Palette } from '~/lib/ui';
+import { READABLE } from '~/lib/layout';
 
 /**
  * 첫 설정(앱 화면 — native/src/app/setup)의 틀 — 웹 components/onboarding/step-card.tsx 와 같은 차례: 위에 진행 막대 · n/전체,
@@ -38,7 +39,7 @@ export function StepFrame({
         </View>
         <Text style={{ color: c.muted, fontSize: 13, fontVariant: ['tabular-nums'] }}>{counter}</Text>
       </View>
-      <ScrollView contentContainerStyle={{ padding: 20, gap: 20, paddingBottom: 32 }} keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerStyle={[{ padding: 20, gap: 20, paddingBottom: 32 }, READABLE]} keyboardShouldPersistTaps="handled">
         <View style={{ gap: 8 }}>
           <Text accessibilityRole="header" style={{ color: c.ink, fontSize: 26, fontWeight: '700', lineHeight: 33 }}>
             {title}

@@ -19,6 +19,7 @@ import { Lab3D, type Lab3DHandle, type LabTransport } from '~/lab/lab-3d';
 import { rpc, RpcError } from '~/lib/rpc';
 import { usePalette, type Palette } from '~/lib/ui';
 import { leaveTo } from '~/shell/web-nav';
+import { READABLE_WIDE, TwoColumns, useTwoColumns, WIDE_MAX } from '~/lib/layout';
 
 /**
  * 3D 동작 분석 결과(앱 화면) — 웹 /videos/lab/[id](app/(app)/videos/lab/[id]/lab-detail.tsx)를 옮겼다(2026-10-18 김민: 길 B). 사이트의 결과 화면이
@@ -35,6 +36,7 @@ export default function LabScreen() {
   const c = usePalette();
   const inset = useSafeAreaInsets();
   const { width } = useWindowDimensions();
+  const two = useTwoColumns();
   const { id } = useLocalSearchParams<{ id: string }>();
   const [data, setData] = useState<AppLabDetail | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
@@ -145,11 +147,13 @@ export default function LabScreen() {
     );
 
   const r = data.result;
-  const boxW = width - 32;
+  /* 3D 칸 폭(처음 높이 어림) — 본문 폭(READABLE_WIDE), 두 칸이면 왼쪽 칸(3 : 2, 사이 20) */
+  const bodyW = Math.min(width, WIDE_MAX) - 32;
+  const boxW = two ? ((bodyW - 20) * 3) / 5 : bodyW;
   return (
     <View style={[s.fill, { backgroundColor: c.page }]}>
       {header}
-      <ScrollView ref={scroll} contentContainerStyle={{ padding: 16, paddingBottom: inset.bottom + 32, gap: 20 }}>
+      <ScrollView ref={scroll} contentContainerStyle={[{ padding: 16, paddingBottom: inset.bottom + 32, gap: 20 }, READABLE_WIDE]}>
         <View style={{ gap: 6 }}>
           <View style={s.row}>
             <Text style={[s.title, { color: c.ink }]}>{data.title}</Text>
@@ -158,80 +162,88 @@ export default function LabScreen() {
           {data.chips.length > 0 && <Text style={[s.small, { color: c.muted }]}>{data.chips.join(' · ')}</Text>}
         </View>
 
-        <View style={{ gap: 8 }}>
-          {r?.handNote && <Text style={[s.small, { color: c.muted }]}>{r.handNote}</Text>}
-          {r ? (
-            <Lab3D ref={lab} id={data.id} width={boxW} bg={c.page} onTransport={onTransport} />
-          ) : (
-            data.waiting && <Waiting waiting={data.waiting} onWeb={toWeb} />
-          )}
-          {r?.stale && (
-            <Pressable onPress={toWeb} accessibilityRole="button" style={[s.notice, { backgroundColor: c.card, borderColor: c.line }]}>
-              <Text style={[s.small, { color: c.ink, flex: 1 }]}>엔진이 나아졌어요. 다시 분석하면 새 엔진으로 볼 수 있어요.</Text>
-              <Text style={[s.smallBold, { color: c.sky }]}>웹에서 분석하기</Text>
-            </Pressable>
-          )}
-        </View>
-
-        <View style={{ gap: 8 }}>
-          <Text style={[s.section, { color: c.ink }]}>원본 영상</Text>
-          <View style={{ flexDirection: 'row', gap: 8 }}>
-            {data.videos.map((v) => (
-              <View key={v.view} style={{ flex: 1, gap: 4 }}>
-                <Text style={[s.small, { color: c.muted }]}>{v.label}</Text>
-                {v.url ? (
-                  <SourceVideo uri={v.url} view={v.view} onPlayer={register} />
-                ) : (
-                  <View style={[s.video, s.centerBox, { backgroundColor: c.chip }]}>
-                    <Text style={[s.small, { color: c.muted }]}>영상 없음</Text>
-                  </View>
-                )}
-              </View>
-            ))}
-          </View>
-          {r && <Text style={[s.small, { color: c.muted }]}>영상은 3D 를 따라가요. 멈추거나 끌면 같은 장면에 서요.</Text>}
-        </View>
-
-        {r && r.mech.items.length > 0 && <MechList c={c} mech={r.mech} onJump={jump} />}
-
-        <View style={{ gap: 8 }}>
-          <Text style={[s.section, { color: c.ink }]}>숫자</Text>
-          {r ? (
+        {/* 아이패드 가로(~/lib/layout TwoColumns) — 왼쪽 3D, 오른쪽 원본 영상 · 점검 · 숫자(웹 결과 화면의 PC 배치). 좁으면 위아래 그대로 */}
+        <TwoColumns
+          left={
+                <View style={{ gap: 8 }}>
+                  {r?.handNote && <Text style={[s.small, { color: c.muted }]}>{r.handNote}</Text>}
+                  {r ? (
+                    <Lab3D ref={lab} id={data.id} width={boxW} bg={c.page} onTransport={onTransport} />
+                  ) : (
+                    data.waiting && <Waiting waiting={data.waiting} onWeb={toWeb} />
+                  )}
+                  {r?.stale && (
+                    <Pressable onPress={toWeb} accessibilityRole="button" style={[s.notice, { backgroundColor: c.card, borderColor: c.line }]}>
+                      <Text style={[s.small, { color: c.ink, flex: 1 }]}>엔진이 나아졌어요. 다시 분석하면 새 엔진으로 볼 수 있어요.</Text>
+                      <Text style={[s.smallBold, { color: c.sky }]}>웹에서 분석하기</Text>
+                    </Pressable>
+                  )}
+                </View>
+          }
+          right={
             <>
-              <Text style={[s.small, { color: c.muted }]}>숫자는 아직 참고용이에요. 누르면 그 순간으로 가요.</Text>
-              <View style={[s.list, { backgroundColor: c.card }]}>
-                {r.rows.map((m, i) => (
-                  <Pressable
-                    key={m.key}
-                    onPress={() => jump(m.frame)}
-                    accessibilityRole="button"
-                    style={({ pressed }) => [s.metric, i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.line }, pressed && { opacity: 0.6 }]}
-                  >
-                    <View style={{ flex: 1, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6 }}>
-                      <Text style={[s.body, { color: c.ink }]}>{m.label}</Text>
-                      {m.experimental && <Tag c={c} text="실험" />}
-                      {m.check && <Tag c={c} text="확인 필요" warn />}
+                    <View style={{ gap: 8 }}>
+                      <Text style={[s.section, { color: c.ink }]}>원본 영상</Text>
+                      <View style={{ flexDirection: 'row', gap: 8 }}>
+                        {data.videos.map((v) => (
+                          <View key={v.view} style={{ flex: 1, gap: 4 }}>
+                            <Text style={[s.small, { color: c.muted }]}>{v.label}</Text>
+                            {v.url ? (
+                              <SourceVideo uri={v.url} view={v.view} onPlayer={register} />
+                            ) : (
+                              <View style={[s.video, s.centerBox, { backgroundColor: c.chip }]}>
+                                <Text style={[s.small, { color: c.muted }]}>영상 없음</Text>
+                              </View>
+                            )}
+                          </View>
+                        ))}
+                      </View>
+                      {r && <Text style={[s.small, { color: c.muted }]}>영상은 3D 를 따라가요. 멈추거나 끌면 같은 장면에 서요.</Text>}
                     </View>
-                    <Text style={[s.numeric, { color: c.ink }]}>
-                      {m.value}
-                      {m.unit}
-                      <Text style={[s.small, { color: c.muted }]}>
-                        {' '}±{m.pm}
-                        {m.unit}
-                      </Text>
-                    </Text>
-                  </Pressable>
-                ))}
-              </View>
-              {r.warnings && (
-                <Text style={[s.small, { color: c.warn }]}>두 영상 사이 각도 · 초점 · 장면 수 때문에 오차 범위를 넓힌 값이 있어요.</Text>
-              )}
-              <Text style={[s.small, { color: c.muted }]}>{r.engineLine}</Text>
+
+                    {r && r.mech.items.length > 0 && <MechList c={c} mech={r.mech} onJump={jump} />}
+
+                    <View style={{ gap: 8 }}>
+                      <Text style={[s.section, { color: c.ink }]}>숫자</Text>
+                      {r ? (
+                        <>
+                          <Text style={[s.small, { color: c.muted }]}>숫자는 아직 참고용이에요. 누르면 그 순간으로 가요.</Text>
+                          <View style={[s.list, { backgroundColor: c.card }]}>
+                            {r.rows.map((m, i) => (
+                              <Pressable
+                                key={m.key}
+                                onPress={() => jump(m.frame)}
+                                accessibilityRole="button"
+                                style={({ pressed }) => [s.metric, i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.line }, pressed && { opacity: 0.6 }]}
+                              >
+                                <View style={{ flex: 1, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6 }}>
+                                  <Text style={[s.body, { color: c.ink }]}>{m.label}</Text>
+                                  {m.experimental && <Tag c={c} text="실험" />}
+                                  {m.check && <Tag c={c} text="확인 필요" warn />}
+                                </View>
+                                <Text style={[s.numeric, { color: c.ink }]}>
+                                  {m.value}
+                                  {m.unit}
+                                  <Text style={[s.small, { color: c.muted }]}>
+                                    {' '}±{m.pm}
+                                    {m.unit}
+                                  </Text>
+                                </Text>
+                              </Pressable>
+                            ))}
+                          </View>
+                          {r.warnings && (
+                            <Text style={[s.small, { color: c.warn }]}>두 영상 사이 각도 · 초점 · 장면 수 때문에 오차 범위를 넓힌 값이 있어요.</Text>
+                          )}
+                          <Text style={[s.small, { color: c.muted }]}>{r.engineLine}</Text>
+                        </>
+                      ) : (
+                        <Text style={[s.small, { color: c.muted }]}>결과가 나오면 여기에 지표가 와요.</Text>
+                      )}
+                    </View>
             </>
-          ) : (
-            <Text style={[s.small, { color: c.muted }]}>결과가 나오면 여기에 지표가 와요.</Text>
-          )}
-        </View>
+          }
+        />
       </ScrollView>
     </View>
   );

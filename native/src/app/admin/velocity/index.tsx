@@ -5,6 +5,7 @@ import type { loadAppVelocityAdmin } from '@/app/actions/app-admin';
 import { Bar, leave, LoadState, Row, s, useLoad } from '~/community/parts';
 import { usePalette, type Palette } from '~/lib/ui';
 import { signed } from '~/velocity/signed';
+import { READABLE } from '~/lib/layout';
 
 /**
  * 구속 측정 관리자(앱) — 웹 app/(app)/admin/velocity/mobile-admin.tsx 의 휴대폰 화면을 옮겼다: [영상 올리기] · 녹화 · 측정 시작 · 숫자 셋 ·
@@ -23,7 +24,7 @@ export default function VelocityAdminScreen() {
         <LoadState error={error} onRetry={() => void reload()} c={c} />
       ) : (
         <ScrollView
-          contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: inset.bottom + 32 }}
+          contentContainerStyle={[{ padding: 16, gap: 12, paddingBottom: inset.bottom + 32 }, READABLE]}
           refreshControl={<RefreshControl refreshing={false} onRefresh={() => void reload()} />}
         >
           <Pressable accessibilityRole="button" onPress={() => router.push('/admin/velocity/upload' as Href)} style={[s.pill, { minHeight: 56, backgroundColor: c.sky }]}>

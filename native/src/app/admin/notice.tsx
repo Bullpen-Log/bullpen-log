@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { NOTICE_BODY_MAX, NOTICE_TITLE_MAX } from '@/lib/support';
 import { Bar, BarButton, call, s, useBusy } from '~/community/parts';
 import { usePalette } from '~/lib/ui';
+import { READABLE } from '~/lib/layout';
 
 /**
  * 공지 쓰기 · 고치기(앱 화면, 관리자) — 웹 components/support/support-notice-form.tsx: 제목 · 내용 · 맨 위에 고정, 같은 한도 · 같은 서버 검사
@@ -57,7 +58,7 @@ export default function NoticeFormScreen() {
       {!ready ? (
         <ActivityIndicator style={{ marginTop: 40 }} />
       ) : (
-        <ScrollView contentContainerStyle={{ padding: 16, gap: 8, paddingBottom: inset.bottom + 32 }} keyboardShouldPersistTaps="handled">
+        <ScrollView contentContainerStyle={[{ padding: 16, gap: 8, paddingBottom: inset.bottom + 32 }, READABLE]} keyboardShouldPersistTaps="handled">
           <Text style={[s.label, { color: c.muted }]}>제목</Text>
           <TextInput
             value={title}

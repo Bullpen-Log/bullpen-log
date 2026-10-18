@@ -19,6 +19,7 @@ import { forHand, LAB_MAX_VIDEO_MB, type LabHand } from '@/lib/pitch-lab-meta';
 import { Bar, s } from '~/community/parts';
 import { loadJson, saveJson } from '~/lib/store';
 import { usePalette, type Palette } from '~/lib/ui';
+import { READABLE } from '~/lib/layout';
 
 /**
  * 3D 동작 분석 촬영 안내(앱 화면) — 웹 app/(app)/videos/lab/guide/ 를 옮겼다. 글 · 근거는 둘이 같이 쓰는 lib/pitch-lab-guide.ts 한 곳,
@@ -65,7 +66,7 @@ export default function LabGuideScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: c.page }}>
       <Bar back="3D 동작 분석" title="촬영 안내" c={c} />
-      <ScrollView ref={scroll} contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: inset.bottom + 32 }}>
+      <ScrollView ref={scroll} contentContainerStyle={[{ padding: 16, gap: 12, paddingBottom: inset.bottom + 32 }, READABLE]}>
         <Text style={{ color: c.muted, fontSize: 15, lineHeight: 21, paddingHorizontal: 4 }}>이대로 찍으면 3D 가 가장 정확해요.</Text>
         {section('checklist', <Checklist hand={hand} c={c} />)}
         {section(

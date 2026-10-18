@@ -10,6 +10,7 @@ import { Bar } from '~/community/parts';
 import { ChipRow, EXERCISE_LIST, FoldHead, ItemRow, SearchField, recall, remember, type Exercise } from '~/library/parts';
 import { usePalette } from '~/lib/ui';
 import { useScreenData } from '~/training/screen';
+import { READABLE } from '~/lib/layout';
 
 /**
  * 운동 영상 라이브러리(앱 화면) — 웹 /library/training(training-client.tsx)을 옮겼다. 사이트의 그 주소가 앱(BullpenNative/7 부터)이면 이 화면을
@@ -115,7 +116,7 @@ export default function ExerciseLibraryScreen() {
           keyExtractor={(ex) => ex.id}
           keyboardDismissMode="on-drag"
           keyboardShouldPersistTaps="handled"
-          contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: inset.bottom + 32 }}
+          contentContainerStyle={[{ paddingHorizontal: 16, paddingBottom: inset.bottom + 32 }, READABLE]}
           ListHeaderComponent={<Text style={{ color: c.muted, fontSize: 13, paddingBottom: 8 }}>{matched.length}개</Text>}
           ListEmptyComponent={
             <View style={{ alignItems: 'center', gap: 12, paddingTop: 32 }}>
@@ -149,7 +150,7 @@ export default function ExerciseLibraryScreen() {
       ) : (
         <ScrollView
           keyboardDismissMode="on-drag"
-          contentContainerStyle={{ paddingHorizontal: 16, gap: 10, paddingBottom: inset.bottom + 32 }}
+          contentContainerStyle={[{ paddingHorizontal: 16, gap: 10, paddingBottom: inset.bottom + 32 }, READABLE]}
           refreshControl={<RefreshControl refreshing={state.refreshing} onRefresh={() => void state.refresh()} />}
         >
           {TRAINING_CATEGORIES.map(({ name }) => {

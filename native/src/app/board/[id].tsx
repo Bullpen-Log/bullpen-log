@@ -7,6 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { loadAppArticle } from '@/app/actions/board';
 import { Bar, BarButton, call, LoadState, s, useBusy, useLoad } from '~/community/parts';
 import { usePalette } from '~/lib/ui';
+import { READABLE } from '~/lib/layout';
 
 /**
  * 자료실 글 하나(앱 화면) — 웹 app/(app)/board/[id]/page.tsx 를 옮겼다. 웹처럼 열 때 조회수가 오른다(board.loadAppArticle). 원문 링크는 앱 안
@@ -56,7 +57,7 @@ export default function ArticleScreen() {
       ) : !a ? (
         <Text style={{ color: c.muted, fontSize: 15, textAlign: 'center', padding: 32 }}>없는 글이에요.</Text>
       ) : (
-        <ScrollView contentContainerStyle={{ padding: 16, gap: 16, paddingBottom: inset.bottom + 40 }}>
+        <ScrollView contentContainerStyle={[{ padding: 16, gap: 16, paddingBottom: inset.bottom + 40 }, READABLE]}>
           {a.tags.length > 0 ? <Text style={{ color: c.sky, fontSize: 14 }}>{a.tags.map((t) => `#${t}`).join(' ')}</Text> : null}
           <Text selectable style={{ color: c.ink, fontSize: 24, fontWeight: '700', lineHeight: 31 }}>
             {a.title}

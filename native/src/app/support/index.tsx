@@ -7,6 +7,7 @@ import { FAQ } from '@/lib/support';
 import type { loadAppSupport } from '@/app/actions/support';
 import { Bar, InquiryRows, LoadState, NoticeRows, s, useLoad } from '~/community/parts';
 import { usePalette, type Palette } from '~/lib/ui';
+import { READABLE } from '~/lib/layout';
 
 /**
  * 고객센터(앱 화면) — 웹 app/(app)/support/page.tsx 를 옮겼다. 공지 · 자주 묻는 질문 · 내 1:1 문의 · 메일을 묶음 하나씩, '무슨 일이 있나 →
@@ -25,7 +26,7 @@ export default function SupportScreen() {
       {!data ? (
         <LoadState error={error} onRetry={() => void reload()} c={c} />
       ) : (
-        <ScrollView contentContainerStyle={{ padding: 16, gap: 22, paddingBottom: inset.bottom + 32 }}>
+        <ScrollView contentContainerStyle={[{ padding: 16, gap: 22, paddingBottom: inset.bottom + 32 }, READABLE]}>
           <Section title="공지" more={data.notices.length ? () => router.push('/support/notices' as Href) : undefined} c={c}>
             {data.notices.length === 0 ? <Empty text="아직 올라온 공지가 없어요." c={c} /> : <NoticeRows rows={data.notices} c={c} />}
           </Section>

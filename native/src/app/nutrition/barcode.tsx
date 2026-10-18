@@ -10,6 +10,7 @@ import { rpc } from '~/lib/rpc';
 import { usePalette } from '~/lib/ui';
 import { lookupBarcode, toFoodInput } from '~/nutrition/api';
 import { putScanned } from '~/nutrition/scanned';
+import { READABLE } from '~/lib/layout';
 
 /**
  * 바코드로 담기(앱 카메라) — 웹 barcode-panel.tsx 와 같은 길: 읽은 숫자 → /api/nutrition/barcode(내 음식 → Open Food Facts) →
@@ -175,7 +176,7 @@ function ManualFood({ code, name: initialName, onRescan }: { code: string; name:
   return (
     <ScrollView
       style={{ flex: 1, backgroundColor: c.card, marginTop: 8, borderTopLeftRadius: 20, borderTopRightRadius: 20 }}
-      contentContainerStyle={{ padding: 16, gap: 10, paddingBottom: inset.bottom + 24 }}
+      contentContainerStyle={[{ padding: 16, gap: 10, paddingBottom: inset.bottom + 24 }, READABLE]}
       keyboardShouldPersistTaps="handled"
     >
       <Text style={{ color: c.ink, fontSize: 17, fontWeight: '700' }}>처음 보는 바코드예요</Text>

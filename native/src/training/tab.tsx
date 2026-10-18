@@ -11,6 +11,7 @@ import { REST_DAY } from '~/training/rest-day';
 import { cacheEpoch, cacheGet, cacheSet } from '~/lib/store';
 import { usePalette } from '~/lib/ui';
 import { fromApp } from '~/shell/web-nav';
+import { READABLE } from '~/lib/layout';
 
 /**
  * 트레이닝 탭 첫 화면(앱 화면) — 웹 트레이닝 홈(app/(app)/training/training-home.tsx)과 같은 앱 카드 셋(오늘 운동 · 암케어 · 메커니즘,
@@ -135,7 +136,7 @@ export function TrainingTab({ today, bottom, onWeb }: { today: string; bottom: n
   return (
     <ScrollView
       style={{ flex: 1, backgroundColor: c.page }}
-      contentContainerStyle={{ paddingTop: inset.top + 12, paddingBottom: bottom + 24, paddingHorizontal: 16, gap: 12 }}
+      contentContainerStyle={[{ paddingTop: inset.top + 12, paddingBottom: bottom + 24, paddingHorizontal: 16, gap: 12 }, READABLE]}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={pull} />}
     >
       <View style={styles.head}>

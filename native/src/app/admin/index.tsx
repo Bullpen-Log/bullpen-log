@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { loadAppAdmin } from '@/app/actions/app-admin';
 import { Badge, Bar, call, LoadState, Row, s, useLoad } from '~/community/parts';
 import { usePalette, type Palette } from '~/lib/ui';
+import { READABLE } from '~/lib/layout';
 
 /**
  * 관리자(앱 화면) — 웹 app/(app)/admin/page.tsx: 요약 넷 · 관리 메뉴(소통 · 커뮤니티 신고 · 패치노트는 앱, 구속 측정 · 촬영 관리자는 웹) ·
@@ -25,7 +26,7 @@ export default function AdminScreen() {
         <LoadState error={error} onRetry={() => void reload()} c={c} />
       ) : (
         <ScrollView
-          contentContainerStyle={{ padding: 16, gap: 22, paddingBottom: inset.bottom + 32 }}
+          contentContainerStyle={[{ padding: 16, gap: 22, paddingBottom: inset.bottom + 32 }, READABLE]}
           refreshControl={<RefreshControl refreshing={false} onRefresh={() => void reload()} />}
         >
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>

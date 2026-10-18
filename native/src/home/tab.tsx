@@ -13,6 +13,7 @@ import { DayCard, resetDayCache } from './day-card';
 import { resetEventsCache } from './events';
 import { FeedCard } from './feed';
 import { RingsCard } from './rings';
+import { READABLE } from '~/lib/layout';
 
 /**
  * 홈 탭(앱 화면) — 웹 홈(app/(app)/today/home-page.tsx)과 같은 차례: 링 넷 → 요약 칸 → (알림 카드) → 투구 달력 → 고른 날 칸.
@@ -123,7 +124,7 @@ export function HomeTab({
   return (
     <ScrollView
       style={{ flex: 1, backgroundColor: c.page }}
-      contentContainerStyle={{ paddingTop: inset.top + 12, paddingBottom: bottom + 24, paddingHorizontal: 16, gap: 16 }}
+      contentContainerStyle={[{ paddingTop: inset.top + 12, paddingBottom: bottom + 24, paddingHorizontal: 16, gap: 16 }, READABLE]}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={pull} />}
     >
       <View style={styles.head}>

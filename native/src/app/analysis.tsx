@@ -28,6 +28,7 @@ import { MiniChart } from '~/home/feed';
 import { leave } from '~/mechanics/parts';
 import { rpc, RpcError } from '~/lib/rpc';
 import { usePalette, type Palette } from '~/lib/ui';
+import { READABLE } from '~/lib/layout';
 
 /**
  * 투구 분석 · 트레이닝 분석(앱 화면) — 웹 /coach?view=…&date=…(app/(app)/coach/page.tsx)를 옮겼다. 사이트의 분석 화면이 앱(BullpenNative/5 부터)이면
@@ -133,7 +134,7 @@ export default function AnalysisScreen() {
       <ScrollView
         ref={scroll}
         style={s.fill}
-        contentContainerStyle={[s.content, { paddingBottom: Math.max(24, inset.bottom + 16) }]}
+        contentContainerStyle={[s.content, { paddingBottom: Math.max(24, inset.bottom + 16) }, READABLE]}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}

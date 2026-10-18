@@ -8,6 +8,7 @@ import { REPLY_BODY_MAX, inquiryCategoryLabel } from '@/lib/support';
 import type { loadAppInquiry } from '@/app/actions/support';
 import { Badge, Bar, call, LoadState, s, StatusBadge, useBusy, useLoad } from '~/community/parts';
 import { usePalette } from '~/lib/ui';
+import { READABLE } from '~/lib/layout';
 
 /**
  * 문의 한 건의 대화(앱 화면) — 웹 app/(app)/support/inquiries/[id]/page.tsx. 물음이 맨 위, 그 밑에 답글이 시간순, 운영자 답은 하늘색.
@@ -63,7 +64,7 @@ export default function InquiryScreen() {
   return (
     <KeyboardAvoidingView behavior="padding" style={{ flex: 1, backgroundColor: c.page }}>
       <Bar back={q.staff ? '뒤로' : '1:1 문의'} c={c} />
-      <ScrollView ref={scroll} contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: 24 }} keyboardShouldPersistTaps="handled">
+      <ScrollView ref={scroll} contentContainerStyle={[{ padding: 16, gap: 12, paddingBottom: 24 }, READABLE]} keyboardShouldPersistTaps="handled">
         {/* 물음 */}
         <View style={[s.group, { backgroundColor: c.card, padding: 16, gap: 10 }]}>
           <View style={{ flexDirection: 'row', gap: 6 }}>
