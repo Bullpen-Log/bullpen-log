@@ -218,6 +218,8 @@ export async function saveRehabSession(input: {
     weeklies,
     todayKey: dateKey,
   });
+  /* 쉬는 날은 세션을 남기지 않는다 — 화면(play-load)과 같은 규칙을 서버도 지킨다(앱 · 웹이 이 동작을 같이 쓴다) */
+  if (before.rest) return { error: before.rest };
   const session = buildRehabSession({
     ...program,
     lowered: before.lowered,
@@ -281,26 +283,39 @@ export async function changeRehabStage(input: {
     return { error: '바꿀 단계를 다시 골라 주세요.' };
   }
   const todayKey = toDateKey(appNow());
+  if (input.via !== 'test' && input.via !== 'direct') return { error: '잘못된 요청이에요.' };
 
-  if (input.via === 'test') {
-    if (to !== program.stage + 1) return { error: '단계 시험은 한 칸씩 올려요.' };
-    const test = stageTestFor(program.area, program.stage);
-    if (!test) return { error: '이 단계는 단계 시험이 없어요.' };
+  /*
+   * 내리기는 언제나. 올리기는 한 칸씩, 진료 권유 중 · 심함 밤 통증으로 1단계에 머무는 동안은 막는다(2026-10-16 김민 — 설계 8-5 의
+   * '직접 바꾸기는 언제나'를 바꿈: 심함 1단계에서 4단계로 바로 가 끝낼 수 있었다).
+   */
+  if (to > program.stage) {
+    if (to !== program.stage + 1) return { error: '단계는 한 칸씩 올려요.' };
     const { sessions, checkins, weeklies } = await loadRehabRecords(
       user.id,
       active.id,
       todayKey
     );
     const status = rehabStatus({ program, sessions, checkins, weeklies, todayKey });
-    if (!status.gate.ready) {
-      return {
-        error: '아직 올리는 조건이 다 차지 않았어요.',
-        fails: status.gate.checks.filter((c) => !c.ok).map((c) => c.label),
-      };
+    if (status.refer) return { error: `지금은 올릴 수 없어요. ${status.refer}` };
+    if (status.nightHold) {
+      return { error: '밤이나 쉴 때 아픈 것이 7일 없을 때까지 1단계에 머물러요.' };
     }
-    const judged = judgeStageTest(test, input.test ?? {});
-    if (!judged.pass)
-      return { error: '단계 시험을 통과하지 못했어요.', fails: judged.fails };
+    if (input.via === 'test') {
+      const test = stageTestFor(program.area, program.stage);
+      if (!test) return { error: '이 단계는 단계 시험이 없어요.' };
+      if (!status.gate.ready) {
+        return {
+          error: '아직 올리는 조건이 다 차지 않았어요.',
+          fails: status.gate.checks.filter((c) => !c.ok).map((c) => c.label),
+        };
+      }
+      const judged = judgeStageTest(test, input.test ?? {});
+      if (!judged.pass)
+        return { error: '단계 시험을 통과하지 못했어요.', fails: judged.fails };
+    }
+  } else if (input.via === 'test') {
+    return { error: '단계 시험은 한 칸씩 올려요.' };
   }
 
   await prisma.userRehabProgram.update({
@@ -777,6 +792,13 @@ export async function endRehab(reason: 'done' | 'stopped'): Promise<Result> {
     return {
       error: '재활은 4단계에서 끝낼 수 있어요. 그만두려면 [그만두기]를 눌러 주세요.',
     };
+  }
+  if (reason === 'done') {
+    /* 끝내기는 투구 복귀표를 연 뒤에만 — 던지기를 한 번도 시험하지 않고 '다 나음'으로 끝나지 않게(2026-10-16 김민) */
+    const { weeklies } = await loadRehabRecords(user.id, active.id, toDateKey(appNow()));
+    if (!throwingOpenedOn(active.program, weeklies)) {
+      return { error: '투구 복귀표를 연 뒤에 끝낼 수 있어요. 그만두려면 [그만두기]를 눌러 주세요.' };
+    }
   }
   await prisma.userRehabProgram.update({
     where: { id: active.id },
