@@ -26,6 +26,8 @@ export type VideoDay = {
   effortPct: number;
   videos: number;
   thumb: string | null;
+  /** 체크인 메모를 남긴 날 — 오른쪽 위 쪽지 */
+  noted?: boolean;
 };
 
 export function VideoCell({ d }: { d: VideoDay }) {
@@ -35,6 +37,7 @@ export function VideoCell({ d }: { d: VideoDay }) {
       <>
         {!d.isFuture ? <View style={[StyleSheet.absoluteFill, { backgroundColor: withAlpha(c.chip, 0.5) }]} /> : null}
         <DayNum d={d} color={d.isFuture ? withAlpha(c.muted, 0.35) : c.muted} ring={c.sky} />
+        {d.noted ? <NoteMark color={c.muted} /> : null}
       </>
     );
   }
@@ -49,6 +52,7 @@ export function VideoCell({ d }: { d: VideoDay }) {
         <Shade />
         <DayNum d={d} color="#fff" ring="#fff" bold shadow />
         <Text style={[styles.cornerCount, styles.shadow]}>{d.pitches}구</Text>
+        {d.noted ? <NoteMark color="#fff" shadow /> : null}
         {d.videos > 1 ? (
           <View style={styles.films}>
             <Icon name="film" size={10} color="#fff" />
@@ -71,7 +75,17 @@ export function VideoCell({ d }: { d: VideoDay }) {
       <Text numberOfLines={1} style={[styles.midCount, { color: d.rest ? c.muted : ink }]}>
         {d.rest ? '휴식' : `${d.pitches}구`}
       </Text>
+      {d.noted ? <NoteMark color={strong ? '#fff' : c.muted} shadow={strong} /> : null}
     </>
+  );
+}
+
+/** 메모 쪽지 — 오른쪽 위 12px(웹 NoteMark) */
+function NoteMark({ color, shadow = false }: { color: string; shadow?: boolean }) {
+  return (
+    <View accessibilityLabel="메모 있음" style={[styles.note, shadow && styles.noteShadow]}>
+      <Icon name="sticky-note" size={12} color={color} />
+    </View>
   );
 }
 
@@ -108,6 +122,8 @@ function Shade() {
 
 const styles = StyleSheet.create({
   noThumb: { alignItems: 'center', justifyContent: 'center' },
+  note: { position: 'absolute', right: 4, top: 4 },
+  noteShadow: { shadowColor: '#000', shadowOpacity: 0.5, shadowRadius: 2, shadowOffset: { width: 0, height: 1 } },
   dayText: { fontSize: 12, lineHeight: 16, fontVariant: ['tabular-nums'] },
   dayPos: { position: 'absolute', left: 6, top: 4 },
   today: { position: 'absolute', left: 2, top: 2, minWidth: 22, height: 22, borderRadius: 11, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center' },

@@ -230,6 +230,14 @@ export async function loadAppFeatured(): Promise<{ ok: true; featured: Record<st
   return { ok: true, featured: Object.fromEntries(rows.map((r) => [toDateKey(r.date), r.videoPath])) };
 }
 
+/** 체크인 메모를 남긴 날 — 투구 달력 칸의 작은 쪽지(웹 videos-page noteDays). 하루 한 줄이라 전부 읽어도 가볍다 */
+export async function loadAppNoteDays(): Promise<{ ok: true; days: string[] } | { ok: false; error: string }> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: '로그인이 필요해요.' };
+  const rows = await prisma.dailyCheckin.findMany({ where: { userId: user.id, note: { not: null } }, select: { date: true, note: true } });
+  return { ok: true, days: rows.filter((r) => r.note?.trim()).map((r) => toDateKey(r.date)) };
+}
+
 export async function loadAppVelocityDays(): Promise<
   { ok: true; days: Record<string, { n: number; max: number; clips: number; sig: string }> } | { ok: false; error: string }
 > {

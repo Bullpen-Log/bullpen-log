@@ -77,6 +77,7 @@ export function MonthGrid({
   compact = false,
   video = false,
   thumbs,
+  notes,
   events,
   clips,
   headerAction,
@@ -97,6 +98,8 @@ export function MonthGrid({
   video?: boolean;
   /** 날짜 → 그날 대표 영상 장면 주소(video 일 때) */
   thumbs?: Record<string, string>;
+  /** 체크인 메모를 남긴 날 — 칸 오른쪽 위 작은 쪽지(웹 NoteMark, video 일 때) */
+  notes?: Set<string> | null;
   /** 날짜 → 그날 일정 수 — 칸 밑 짧은 막대(웹 events, 둘 넘으면 점 하나 더) */
   events?: Record<string, number>;
   /** 날짜 → 구속 측정 클립 수 — 영상 점에 같이 센다(웹 dayHas: 투구 영상 + 구속 클립) */
@@ -236,6 +239,7 @@ export function MonthGrid({
                       effortPct: effort ?? 0,
                       videos: paths.length,
                       thumb: thumbs?.[day] ?? null,
+                      noted: notes?.has(day) ?? false,
                     }}
                   />
                 </Press>

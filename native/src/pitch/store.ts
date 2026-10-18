@@ -232,3 +232,29 @@ export async function setFeatured(date: string, path: string): Promise<boolean> 
 }
 /** 그날 대표 — 고른 것이 그날 영상에 있으면 그것, 아니면 처음 영상 */
 export const repOf = (paths: string[], pick: string | undefined) => (pick && paths.includes(pick) ? pick : (paths[0] ?? null));
+
+/** 체크인 메모를 남긴 날(app.loadAppNoteDays) — 투구 달력 칸의 쪽지. 탭을 다시 볼 때 reloadNoteDays */
+let noteDays: Set<string> | null = null;
+const noteListeners = new Set<() => void>();
+export function reloadNoteDays(): Promise<void> {
+  return rpc<{ ok: true; days: string[] } | { ok: false; error: string }>('app.loadAppNoteDays')
+    .then((r) => {
+      if (!r.ok) return;
+      noteDays = new Set(r.days);
+      noteListeners.forEach((l) => l());
+    })
+    .catch(() => undefined);
+}
+export function useNoteDays(): Set<string> | null {
+  const v = useSyncExternalStore(
+    (l) => {
+      noteListeners.add(l);
+      return () => noteListeners.delete(l);
+    },
+    () => noteDays
+  );
+  useEffect(() => {
+    if (!noteDays) void reloadNoteDays();
+  }, []);
+  return v;
+}
