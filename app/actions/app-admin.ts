@@ -228,6 +228,8 @@ export async function loadAppPatchNotes() {
     notes: notes.map((n) => ({
       id: n.id,
       day: spokenDay(n.day),
+      /* 'YYYY-MM-DD' — 앱이 순서 · 달 묶음 · 찾기에 쓴다(웹 patch-note-list 와 같은 거르기) */
+      dayKey: n.day,
       author: n.authorName,
       commits: n.commitCount,
       insertions: n.insertions,
