@@ -253,7 +253,7 @@ export function NutritionTab({ today, bottom, onWebNutrition }: { today: string;
         <View style={[styles.card, { backgroundColor: c.card, height: 180 }]} />
       ) : null}
 
-      {day && isToday && t ? <PlanCard date={date} plan={day.mealPlan} busy={busy} run={run} kcal={t.kcal} protein={t.protein} state={day.planState ?? null} /> : null}
+      {day && isToday && t ? <PlanCard date={date} plan={day.mealPlan} busy={busy} run={run} kcal={t.kcal} protein={t.protein} state={day.planState ?? null} ageBand={day.ageBand} /> : null}
 
       {/* 끼니 넷 — 한 판 안에 줄로(웹 끼니 칸 ul · 사이 선). 휴대폰은 한 줄로 접어 두고 누르면 편다 */}
       {day ? (
@@ -482,13 +482,16 @@ function PlanCard({
   kcal,
   protein,
   state,
+  ageBand,
 }: {
   date: string;
   kcal: number;
   protein: number;
   /** 오늘 상태 · 취향 한 줄(웹 PlanCard state) — 옛 서버면 null */
   state: string[] | null;
-  plan: { items: PlanItem[]; context: { place: Place; hot: boolean; variant: number; reasons: string[] } } | null;
+  /** 성장기 단백질 한 줄(웹 childNote) */
+  ageBand?: string;
+  plan: { items: PlanItem[]; context: { place: Place; hot: boolean; variant: number; reasons: string[]; target?: { kcal: number; protein: number } } } | null;
   busy: boolean;
   run: (job: () => Promise<string | null>) => Promise<void>;
 }) {
@@ -497,45 +500,6 @@ function PlanCard({
   const [hot, setHot] = useState(plan?.context.hot ?? false);
   /* 아직 안 짰으면 한 줄 '오늘 식단 짜기'로 접어 두고 누르면 펴진다(웹 plan-parts PlanCard 휴대폰) */
   const [open, setOpen] = useState(false);
-  if (plan) {
-    const left = plan.items.filter((p) => !p.done).length;
-    return (
-      <View style={[styles.card, { backgroundColor: c.card }]}>
-        <Text style={[styles.mealTitle, { color: c.ink }]}>오늘 식단</Text>
-        <Text style={{ color: c.muted, fontSize: 14 }}>
-          {left > 0 ? `먹을 것 ${left}가지 남았어요 · 끼니 칸의 동그라미를 누르면 먹은 기록이 돼요.` : '식단을 다 먹었어요.'}
-        </Text>
-        {plan.context.reasons.slice(0, 3).map((r, i) => (
-          <Text key={i} style={{ color: c.muted, fontSize: 13 }}>
-            · {r}
-          </Text>
-        ))}
-        <View style={styles.weightRow}>
-          <Pressable
-            accessibilityRole="button"
-            disabled={busy}
-            onPress={() => run(() => makePlan(date, plan.context.place, plan.context.hot, plan.context.variant + 1))}
-            style={[styles.ghostBtn, { backgroundColor: c.chip }]}
-          >
-            <Text style={{ color: c.ink, fontSize: 15, fontWeight: '600' }}>다른 식단으로</Text>
-          </Pressable>
-          <Pressable
-            accessibilityRole="button"
-            disabled={busy}
-            onPress={() =>
-              Alert.alert('오늘 식단을 지울까요?', '먹은 기록은 그대로 남아요.', [
-                { text: '취소', style: 'cancel' },
-                { text: '지우기', style: 'destructive', onPress: () => void run(() => clearPlan(date)) },
-              ])
-            }
-            style={[styles.ghostBtn, { backgroundColor: c.chip }]}
-          >
-            <Text style={{ color: c.danger, fontSize: 15, fontWeight: '600' }}>지우기</Text>
-          </Pressable>
-        </View>
-      </View>
-    );
-  }
   const chip = (key: string, label: string, on: boolean, press: () => void) => (
     <View key={key} style={styles.gridCell}>
       <Press
@@ -553,6 +517,110 @@ function PlanCard({
       </Press>
     </View>
   );
+  /* 오늘 상태 · 취향 한 줄 + [취향 바꾸기](웹 PlanCard state · onOpenPrefs) — 짜기 전 · 짠 뒤 둘 다 */
+  const openPrefs = () => router.push({ pathname: '/nutrition/stats' as Href as never, params: { date, goal: '1', tab: 'diet' } });
+  const stateLine = state ? (
+    <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', columnGap: 6 }}>
+      {state.length ? <Text style={{ color: c.muted, fontSize: 12 }}>{state.join(' · ')}</Text> : null}
+      <Press accessibilityRole="button" onPress={openPrefs} hitSlop={10}>
+        <Text style={{ color: c.skyStrong, fontSize: 12, fontWeight: '600' }}>취향 바꾸기</Text>
+      </Press>
+    </View>
+  ) : null;
+  const envChips = (
+    <>
+      <Text style={{ color: c.muted, fontSize: 12, fontWeight: '500' }}>오늘 훈련 장소</Text>
+      <View style={styles.grid}>
+        {PLAN_PLACES.map((p) => chip(p.key, p.label, place === p.key, () => setPlace(p.key)))}
+        {chip('hot', '더운 날 야외', hot, () => setHot((h) => !h))}
+      </View>
+    </>
+  );
+  if (plan) {
+    /* 웹 PlanCard '짜 둔 계획': 머리 한 줄(남은 계획 kcal · 단백질 · 가지) + [다른 식단으로] + 펼치기(까닭 · 조건 · 다시 짜기 · 지우기) */
+    const left = plan.items.filter((p) => !p.done);
+    const total = plan.items.reduce(
+      (a, p) => ({ kcal: a.kcal + p.kcal * p.amount, protein: a.protein + (p.protein ?? 0) * p.amount }),
+      { kcal: 0, protein: 0 }
+    );
+    const childNote = ageBand != null && ageBand !== 'adult' && total.protein > (plan.context.target?.protein || 1) * 1.3;
+    return (
+      <View style={[styles.card, { backgroundColor: c.card, gap: 8 }]}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text style={{ color: c.ink, fontSize: 15, fontWeight: '700' }}>오늘 식단</Text>
+            <Text style={{ color: c.muted, fontSize: 12, fontVariant: ['tabular-nums'] }}>
+              {left.length > 0 ? `남은 계획 ${kcalText(total.kcal)} · 단백질 ${Math.round(total.protein)}g · ${left.length}가지` : '계획한 것을 다 먹었어요'}
+            </Text>
+          </View>
+          <Press
+            accessibilityRole="button"
+            disabled={busy}
+            onPress={() => run(() => makePlan(date, plan.context.place, plan.context.hot, plan.context.variant + 1))}
+            style={{ flexDirection: 'row', alignItems: 'center', gap: 4, minHeight: 40, paddingHorizontal: 8, opacity: busy ? 0.6 : 1 }}
+          >
+            <Icon name="refresh-cw" size={14} color={c.sky} />
+            <Text style={{ color: c.sky, fontSize: 12, fontWeight: '600' }}>다른 식단으로</Text>
+          </Press>
+          <Press
+            accessibilityRole="button"
+            accessibilityLabel={open ? '까닭 · 조건 접기' : '까닭 · 조건 보기'}
+            accessibilityState={{ expanded: open }}
+            onPress={() => setOpen((v) => !v)}
+            style={{ width: 40, height: 40, alignItems: 'center', justifyContent: 'center', marginRight: -8 }}
+          >
+            <View style={{ transform: [{ rotate: open ? '180deg' : '0deg' }] }}>
+              <Icon name="chevron-down" size={16} color={c.muted} />
+            </View>
+          </Press>
+        </View>
+        {open ? (
+          <Animated.View entering={fadeIn} style={{ gap: 12 }}>
+            <View style={{ gap: 4 }}>
+              {[...plan.context.reasons, ...(childNote ? ['성장기에는 단백질이 목표보다 조금 많아도 괜찮아요. 밥 · 반찬을 골고루 먹는 것이 먼저예요.'] : [])].map((r, i) => (
+                <Text key={i} style={{ color: c.muted, fontSize: 12, lineHeight: 18 }}>
+                  <Text style={{ color: c.sky }}>· </Text>
+                  {r}
+                </Text>
+              ))}
+            </View>
+            {stateLine}
+            {envChips}
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8 }}>
+              <Press
+                accessibilityRole="button"
+                disabled={busy}
+                onPress={() => run(() => makePlan(date, place, hot, plan.context.variant))}
+                style={[styles.ghostBtn, { backgroundColor: c.sky, opacity: busy ? 0.6 : 1 }]}
+              >
+                <Text style={{ color: '#fff', fontSize: 15, fontWeight: '600' }}>이 조건으로 다시 짜기</Text>
+              </Press>
+              <Press accessibilityRole="button" onPress={openPrefs} style={{ minHeight: 40, justifyContent: 'center', paddingHorizontal: 8 }}>
+                <Text style={{ color: c.skyStrong, fontSize: 15, fontWeight: '500' }}>취향 바꾸기</Text>
+              </Press>
+              <Press
+                accessibilityRole="button"
+                disabled={busy}
+                onPress={() =>
+                  Alert.alert('오늘 식단을 지울까요?', '먹었어요로 기록한 음식은 그대로 남아요.', [
+                    { text: '취소', style: 'cancel' },
+                    { text: '지우기', style: 'destructive', onPress: () => void run(() => clearPlan(date)) },
+                  ])
+                }
+                style={{ marginLeft: 'auto', flexDirection: 'row', alignItems: 'center', gap: 4, minHeight: 40, paddingHorizontal: 8, opacity: busy ? 0.6 : 1 }}
+              >
+                <Icon name="trash2" size={16} color={c.danger} />
+                <Text style={{ color: c.danger, fontSize: 15, fontWeight: '500' }}>식단 지우기</Text>
+              </Press>
+            </View>
+            <Text style={{ color: c.muted, fontSize: 12, lineHeight: 18 }}>
+              안 먹은 계획은 먹은 칼로리에 안 들어가요. 끼니 칸의 동그라미를 누르면 먹은 것으로 기록돼요.
+            </Text>
+          </Animated.View>
+        ) : null}
+      </View>
+    );
+  }
   return (
     <View style={[styles.card, { backgroundColor: c.card, boxShadow: c.float }]}>
       <Press accessibilityRole="button" accessibilityState={{ expanded: open }} onPress={() => setOpen((v) => !v)} style={styles.planHead}>
@@ -568,23 +636,8 @@ function PlanCard({
       </Press>
       {open ? (
         <Animated.View entering={fadeIn} style={{ gap: 12 }}>
-          {state ? (
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', columnGap: 6 }}>
-              {state.length ? <Text style={{ color: c.muted, fontSize: 12 }}>{state.join(' · ')}</Text> : null}
-              <Press
-                accessibilityRole="button"
-                onPress={() => router.push({ pathname: '/nutrition/stats' as Href as never, params: { date, goal: '1', tab: 'diet' } })}
-                hitSlop={10}
-              >
-                <Text style={{ color: c.skyStrong, fontSize: 12, fontWeight: '600' }}>취향 바꾸기</Text>
-              </Press>
-            </View>
-          ) : null}
-          <Text style={{ color: c.muted, fontSize: 12, fontWeight: '500' }}>오늘 훈련 장소</Text>
-          <View style={styles.grid}>
-            {PLAN_PLACES.map((p) => chip(p.key, p.label, place === p.key, () => setPlace(p.key)))}
-            {chip('hot', '더운 날 야외', hot, () => setHot((h) => !h))}
-          </View>
+          {stateLine}
+          {envChips}
           <Press
             accessibilityRole="button"
             disabled={busy}
