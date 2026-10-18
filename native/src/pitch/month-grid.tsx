@@ -136,6 +136,17 @@ export function MonthGrid({
   }, [month]);
 
   const [y, m] = month.split('-').map(Number);
+  const monthStats = useMemo(() => {
+    let days = 0;
+    let videos = 0;
+    for (const [k, list] of byDay) {
+      if (!k.startsWith(month)) continue;
+      const thrown = list.filter((l) => !isRestSession(l.sessionType));
+      if (thrown.length) days += 1;
+      videos += thrown.reduce((n, l) => n + l.videoPaths.length, 0);
+    }
+    return { days, videos };
+  }, [byDay, month]);
   const last = !allowFuture && month >= monthOf(today);
   return (
     <Animated.View layout={LinearTransition.duration(380).easing(SLIDE)} style={[styles.card, { backgroundColor: c.card, boxShadow: c.float }]}>
@@ -282,6 +293,15 @@ export function MonthGrid({
         </View>
       </Press>
       {legend ? (
+        video ? (
+          /* 투구 탭 달력 — 이 달 던진 날 · 올린 영상(웹 video-calendar monthStats) */
+          <Animated.View entering={fadeIn} style={styles.legend}>
+            <Text style={[styles.legendText, { color: c.muted }]}>
+              이 달 투구 <Text style={{ color: c.ink, fontWeight: '600' }}>{monthStats.days}</Text>일 · 영상{' '}
+              <Text style={{ color: c.ink, fontWeight: '600' }}>{monthStats.videos}</Text>개
+            </Text>
+          </Animated.View>
+        ) : (
         <Animated.View entering={fadeIn} style={styles.legend}>
           {/* 웹 범례와 같은 차례 — 강도 낮음 · 보통 · 높음(12×20) · 쉬는 날 · 영상 · 일정 */}
           <Text style={[styles.legendText, { color: c.muted }]}>강도</Text>
@@ -306,6 +326,7 @@ export function MonthGrid({
             </View>
           ) : null}
         </Animated.View>
+        )
       ) : null}
     </Animated.View>
   );

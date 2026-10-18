@@ -1,4 +1,7 @@
-import { type Href, router, useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
+import { useState } from 'react';
+import Animated from 'react-native-reanimated';
+import { fadeIn } from '~/shell/motion';
 import { ActionSheetIOS, Alert, Pressable, ScrollView, StyleSheet, Text, View, type TextStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { isRestSession } from '@/lib/session-type';
@@ -14,6 +17,10 @@ import { monthOf, refreshMonth, useMonth } from '~/pitch/store';
 import { PitchVideo } from '~/pitch/video';
 import { VelocityDay } from '~/pitch/velocity-day';
 import { READABLE_WIDE, TwoColumns } from '~/lib/layout';
+import { withAlpha } from '~/lib/ui';
+import { toDateKey } from '@/lib/pitch-stats';
+import { cachedArmStatus } from '~/pitch/today-card';
+import { EntryForm } from './edit';
 
 /** 그날 화면(앱) — 그날 기록들(종류 · 공 수 · 강도 · 구속 · 메모 · 영상) · 고치기 · 지우기 · 새 기록. 웹 app/(app)/pitch-log/[date] 의 첫 판 */
 const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'];
@@ -26,6 +33,13 @@ export default function PitchDayScreen() {
   const { logs, error } = useMonth(monthOf(date));
   const day = (logs ?? []).filter((l) => dateKeyOf(l.date) === date);
   const at = new Date(`${date}T00:00:00.000Z`);
+  const today = toDateKey(new Date());
+  const future = date > today;
+  const arm = date === today ? cachedArmStatus(today) : null;
+  /* 웹 day-client: 기록이 없는 날은 폼을 펴 둔 채로('이날 기록하기'), 있으면 '+ 이 날짜에 기록 추가' 를 눌러 편다. 고치기도 그 자리에서 */
+  const [formOpen, setFormOpen] = useState<boolean | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const addOpen = !future && (formOpen ?? (logs != null && day.length === 0));
 
   const remove = (id: string, videos: string[]) =>
     Alert.alert('이 기록을 지울까요?', videos.length ? '붙인 영상도 같이 지워져요.' : undefined, [
@@ -62,15 +76,26 @@ export default function PitchDayScreen() {
           </Press>
         </View>
       </View>
-      <ScrollView contentContainerStyle={[{ padding: 16, paddingBottom: inset.bottom + 32, gap: 12 }, READABLE_WIDE]}>
+      <ScrollView
+        keyboardShouldPersistTaps="handled"
+        automaticallyAdjustKeyboardInsets
+        contentContainerStyle={[{ padding: 16, paddingTop: 4, paddingBottom: inset.bottom + 32, gap: 12 }, READABLE_WIDE]}
+      >
+        <Text style={{ color: c.muted, fontSize: 15 }}>
+          {future ? '아직 오지 않은 날이에요' : day.length > 0 ? `${day.length}건의 기록` : '이 날은 아직 기록이 없어요'}
+        </Text>
+        {future ? (
+          <Text style={[styles.well, { color: c.muted, backgroundColor: withAlpha(c.chip, 0.5) }]}>
+            앞으로 올 날짜에는 기록할 수 없어요.{'\n'}던지고 나서 그날 또는 그 뒤에 남겨주세요.
+          </Text>
+        ) : null}
+        {arm ? <ArmChip c={c} status={arm} /> : null}
         {/* 아이패드 가로(~/lib/layout TwoColumns) — 왼쪽 그날 기록 · 새 기록, 오른쪽 구속 측정. 좁으면 위아래 그대로 */}
         <TwoColumns ratio={[1, 1]} gap={12}
           left={
             <>
+              <VelocityDay date={date} logCount={day.length} />
               {error && !logs ? <Text style={{ color: c.danger, fontSize: 15 }}>{error}</Text> : null}
-              {logs && day.length === 0 ? (
-                <Text style={{ color: c.muted, fontSize: 15, textAlign: 'center', paddingVertical: 32 }}>이날은 기록이 없어요.</Text>
-              ) : null}
               {day.map((l) => {
                 const rested = isRestSession(l.sessionType);
                 const eff = effortText({ intensity: l.intensity ?? 0, effortPct: l.effortPct });
@@ -89,9 +114,19 @@ export default function PitchDayScreen() {
                       cancelButtonIndex: 2,
                     },
                     (i) => {
-                      if (i === 0) router.push({ pathname: '/pitch/edit' as Href as never, params: { date, id: l.id } });
+                      if (i === 0) setEditingId(l.id);
                       if (i === 1) remove(l.id, l.videoPaths);
                     }
+                  );
+                if (editingId === l.id)
+                  return (
+                    <View key={l.id} style={[styles.formBox, { backgroundColor: c.card, borderColor: c.line }]}>
+                      <View style={{ gap: 4 }}>
+                        <Text style={[styles.formTitle, { color: c.ink }]}>기록 수정</Text>
+                        <Text style={{ color: c.muted, fontSize: 15 }}>영상도 함께 바꿀 수 있어요</Text>
+                      </View>
+                      <EntryForm date={date} editing={l} imported={[]} inline={{ onDone: () => setEditingId(null), onCancel: () => setEditingId(null) }} />
+                    </View>
                   );
                 return (
                   <View key={l.id} style={[styles.card, { backgroundColor: c.card, boxShadow: c.float }]}>
@@ -164,14 +199,24 @@ export default function PitchDayScreen() {
           }
           right={
             <>
-              <VelocityDay date={date} logCount={day.length} />
-              <Pressable
-                accessibilityRole="button"
-                onPress={() => router.push({ pathname: '/pitch/edit' as Href as never, params: { date } })}
-                style={[styles.add, { backgroundColor: c.sky }]}
-              >
-                <Text style={styles.addText}>새 기록 남기기</Text>
-              </Pressable>
+              {future || !logs ? null : addOpen ? (
+                <View style={[styles.formBox, { backgroundColor: c.card, borderColor: c.line }]}>
+                  <View style={styles.formHead}>
+                    <Text style={[styles.formTitle, { color: c.ink }]}>{day.length > 0 ? '기록 추가' : '이날 기록하기'}</Text>
+                    {day.length > 0 ? (
+                      <Press accessibilityRole="button" onPress={() => setFormOpen(false)} style={styles.formCancel}>
+                        <Text style={{ color: c.muted, fontSize: 12 }}>취소</Text>
+                      </Press>
+                    ) : null}
+                  </View>
+                  <EntryForm key={`${date}:${day.length}`} date={date} imported={[]} inline={{ onDone: () => setFormOpen(null) }} />
+                </View>
+              ) : (
+                <Press accessibilityRole="button" onPress={() => setFormOpen(true)} style={[styles.add, { backgroundColor: c.skyTint }]}>
+                  <Icon name="plus" size={16} color={c.skyStrong} />
+                  <Text style={{ color: c.skyStrong, fontSize: 15, fontWeight: '500' }}>이 날짜에 기록 추가</Text>
+                </Press>
+              )}
             </>
           }
         />
@@ -192,16 +237,56 @@ const styles = StyleSheet.create({
   more: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', marginRight: -6, marginTop: -6 },
   feel: { borderRadius: 12, padding: 16, gap: 8 },
   memo: { fontSize: 15, lineHeight: 22 },
-  add: { height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center', marginTop: 8 },
-  addText: { color: '#fff', fontSize: 17, fontWeight: '600' },
+  add: { minHeight: 48, borderRadius: 24, flexDirection: 'row', gap: 8, alignItems: 'center', justifyContent: 'center' },
+  formBox: { borderRadius: 20, borderWidth: StyleSheet.hairlineWidth, padding: 20, gap: 16 },
+  formHead: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 },
+  formTitle: { fontSize: 17, fontWeight: '700' },
+  formCancel: { minHeight: 40, marginVertical: -8, paddingHorizontal: 12, justifyContent: 'center', borderRadius: 12 },
+  well: { borderRadius: 12, paddingHorizontal: 16, paddingVertical: 32, textAlign: 'center', fontSize: 15, lineHeight: 22, overflow: 'hidden' },
+  armChip: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 40, paddingHorizontal: 12, borderRadius: 20, borderWidth: 1 },
 });
 
-/** 배지 — 웹 Badge(테두리 · 작은 글자). strong 은 종류(짙은 하늘 글자) */
+/** 배지 — 웹 Badge(휴대폰: 옅은 회색 면 · 작은 회색 글자). strong 은 종류(하늘 면 · 짙은 하늘 글자) */
 function Badge({ c, strong, children }: { c: Palette; strong?: boolean; children: React.ReactNode }) {
-  const text: TextStyle = { color: strong ? c.skyStrong : c.ink, fontSize: 12, fontWeight: strong ? '600' : '500' };
+  const text: TextStyle = { color: strong ? c.skyStrong : c.muted, fontSize: 12, fontWeight: strong ? '600' : '400' };
   return (
-    <View style={{ borderWidth: 1, borderColor: strong ? c.skyTint : c.line, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 3 }}>
+    <View style={{ backgroundColor: strong ? c.skyTint : withAlpha(c.ink, 0.06), borderRadius: 999, paddingHorizontal: 12, paddingVertical: 4 }}>
       <Text style={text}>{children}</Text>
+    </View>
+  );
+}
+
+/** 오늘 팔 상태 한 줄 칩 — 웹 ArmStatusNote compact: '● 팔 안전 최근 1주가 …' 한 줄(머리글은 부하 지수를 떼고), 누르면 머리 · 까닭 */
+function ArmChip({ c, status }: { c: Palette; status: { level: 'danger' | 'caution' | 'safe'; headline: string; details: string[] } }) {
+  const [open, setOpen] = useState(false);
+  const tone = { danger: c.danger, caution: c.warn, safe: c.ok }[status.level];
+  const box = { danger: [c.dangerBg, c.dangerLine], caution: [c.warnBg, c.warnLine], safe: [withAlpha(c.chip, 0.5), c.line] }[status.level];
+  const word = { danger: '위험', caution: '주의', safe: '안전' }[status.level];
+  const short = status.headline.replace(/\s*\(부하 지수 [\d.]+\)/, '');
+  return (
+    <View>
+      <Press
+        accessibilityRole="button"
+        accessibilityState={{ expanded: open }}
+        accessibilityLabel={`팔 ${word}. ${short}`}
+        onPress={() => setOpen((v) => !v)}
+        style={[styles.armChip, { backgroundColor: box[0], borderColor: box[1] }]}
+      >
+        <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: tone }} />
+        <Text style={{ color: tone, fontSize: 12, fontWeight: '700' }}>팔 {word}</Text>
+        <Text numberOfLines={1} style={{ flex: 1, color: c.ink, fontSize: 12 }}>{short}</Text>
+        <View style={{ transform: [{ rotate: open ? '180deg' : '0deg' }] }}>
+          <Icon name="chevron-down" size={14} color={c.muted} />
+        </View>
+      </Press>
+      {open ? (
+        <Animated.View entering={fadeIn} style={{ gap: 2, paddingHorizontal: 12, paddingTop: 8 }}>
+          <Text style={{ color: c.ink, fontSize: 12, fontWeight: '600', lineHeight: 18 }}>{status.headline}</Text>
+          {status.details.map((d) => (
+            <Text key={d} style={{ color: c.muted, fontSize: 12, lineHeight: 18 }}>{d}</Text>
+          ))}
+        </Animated.View>
+      ) : null}
     </View>
   );
 }

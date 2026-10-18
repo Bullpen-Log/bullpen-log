@@ -61,15 +61,23 @@ export function Segmented<V extends string>({
   value,
   onChange,
   label,
+  size = 'sm',
+  flow = false,
 }: {
   options: readonly { value: V; label: string }[];
+  /** 고른 것이 없으면(빈 값) 흰 표시를 숨긴다 */
   value: V;
   onChange: (v: V) => void;
   label: string;
+  /** md = 글자 14(웹 size='md' — 폼 안 강도 · 만족도) */
+  size?: 'sm' | 'md';
+  /** 칸을 글자 폭만큼(웹 layout='flow' — 단위 고르기처럼 오른쪽에 작게) */
+  flow?: boolean;
 }) {
   const c = usePalette();
   const [w, setW] = useState(0);
-  const index = Math.max(0, options.findIndex((o) => o.value === value));
+  const found = options.findIndex((o) => o.value === value);
+  const index = Math.max(0, found);
   const cell = w > 0 ? (w - PAD * 2 - GAP * (options.length - 1)) / options.length : 0;
   const reduce = useReducedMotion();
   const x = useSharedValue(index);
@@ -83,9 +91,9 @@ export function Segmented<V extends string>({
       accessibilityRole="radiogroup"
       accessibilityLabel={label}
       onLayout={(e) => setW(e.nativeEvent.layout.width)}
-      style={[st.seg, { backgroundColor: c.chip }]}
+      style={[st.seg, { backgroundColor: c.chip }, flow && { alignSelf: 'flex-start' }]}
     >
-      {cell > 0 ? (
+      {cell > 0 && found >= 0 ? (
         <Animated.View
           pointerEvents="none"
           style={[st.thumb, { width: cell, backgroundColor: c.raised, boxShadow: '0 1px 3px rgba(0,0,0,0.12), 0 1px 1px rgba(0,0,0,0.04)' }, thumb]}
@@ -103,9 +111,9 @@ export function Segmented<V extends string>({
               void Haptics.selectionAsync();
               onChange(o.value);
             }}
-            style={st.segItem}
+            style={[st.segItem, flow && { flex: 0, minWidth: 52, paddingHorizontal: 10 }]}
           >
-            <Text style={{ color: c.ink, opacity: on ? 1 : 0.75, fontSize: 12, fontWeight: on ? '600' : '500' }}>{o.label}</Text>
+            <Text style={{ color: c.ink, opacity: on ? 1 : 0.75, fontSize: size === 'md' ? 14 : 12, fontWeight: on ? '600' : '500', fontVariant: ['tabular-nums'] }}>{o.label}</Text>
           </Pressable>
         );
       })}

@@ -1,12 +1,13 @@
 import { type Href, router } from 'expo-router';
-import { useRef, useState } from 'react';
-import { Pressable, ScrollView, type ScrollViewInstance, StyleSheet, Text } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { Pressable, ScrollView, type ScrollViewInstance, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PRESSED, SPACE, usePalette } from '~/lib/ui';
 import { Icon } from '~/shell/icon';
 import { AnalysisPill, PageHead, Segmented, ToolCircle } from '~/shell/heading';
 import { LogList } from './log-list';
 import { MonthGrid } from './month-grid';
+import { PitchDayPanel } from './day-panel';
 import { PitchTodayCard } from './today-card';
 import { monthOf, useAllLogs, useDayThumbs, useMonth } from './store';
 
@@ -24,6 +25,11 @@ export function PitchTab({ today, bottom, onWeb }: { today: string; bottom: numb
   /* [캘린더 | 목록] — 웹 투구 탭 고르개(pitch-log-heading.tsx PITCH_VIEW_OPTIONS). 찾기는 목록에만(웹 video-gallery 와 같다) */
   const [view, setView] = useState<'calendar' | 'list'>('calendar');
   const [month, setMonth] = useState(monthOf(today));
+  /* 고른 날 — 밑에 그날 칸(웹 video-calendar). 펴지면 320ms 뒤 화면 밖이면 굴려 보인다 */
+  const [selected, setSelected] = useState<string | null>(null);
+  const panelY = useRef(0);
+  const viewH = useRef(0);
+  const scrollY = useRef(0);
   const { logs, error, reload } = useMonth(month);
   const thumbs = useDayThumbs(logs);
   /* 탭을 옮겼다 돌아오면 새로 받는다(판은 붙어 있다) */
@@ -32,10 +38,22 @@ export function PitchTab({ today, bottom, onWeb }: { today: string; bottom: numb
   /* 지금 탭(투구)을 다시 누르면 맨 위로 */
   const scrollRef = useRef<ScrollViewInstance>(null);
   useRetapTop(() => scrollRef.current?.scrollTo({ y: 0, animated: true }));
+  useEffect(() => {
+    if (!selected) return;
+    const t = setTimeout(() => {
+      /* 칸 위치는 오른쪽 열 기준이라 대략 — 밑으로 잘리면 그 칸 머리가 화면 위쪽에 오게 */
+      const top = panelY.current;
+      if (top + 160 > scrollY.current + viewH.current) scrollRef.current?.scrollTo({ y: Math.max(0, top - 80), animated: true });
+    }, 320);
+    return () => clearTimeout(t);
+  }, [selected]);
 
   return (
     <ScrollView
       ref={scrollRef}
+      onLayout={(e) => (viewH.current = e.nativeEvent.layout.height)}
+      onScroll={(e) => (scrollY.current = e.nativeEvent.contentOffset.y)}
+      scrollEventThrottle={32}
       style={{ flex: 1, backgroundColor: c.page }}
       contentContainerStyle={[
         { paddingTop: inset.top + SPACE.section, paddingBottom: bottom + 24, paddingHorizontal: SPACE.side, gap: SPACE.gap },
@@ -79,7 +97,25 @@ export function PitchTab({ today, bottom, onWeb }: { today: string; bottom: numb
           view === 'calendar' ? (
             <>
               {error && !logs ? <Text style={{ color: c.danger, fontSize: 15 }}>{error}</Text> : null}
-              <MonthGrid video thumbs={thumbs} month={month} today={today} logs={logs} onMonth={setMonth} onDay={(day) => router.push(`/pitch/${day}` as Href)} />
+              <MonthGrid
+                video
+                thumbs={thumbs}
+                month={month}
+                today={today}
+                logs={logs}
+                selected={selected}
+                onMonth={(m) => {
+                  setMonth(m);
+                  setSelected(null);
+                }}
+                onDay={(day) => setSelected((cur) => (cur === day ? null : day))}
+              />
+              {/* 날을 누르면 밑에 그날 칸이 펴진다(웹 video-calendar DayPanel) — 같은 날을 다시 누르면 닫힘 */}
+              {selected ? (
+                <View onLayout={(e) => (panelY.current = e.nativeEvent.layout.y)}>
+                  <PitchDayPanel key={selected} date={selected} logs={(logs ?? []).filter((l) => l.date.slice(0, 10) === selected)} />
+                </View>
+              ) : null}
             </>
           ) : (
             <LogList logs={all.logs} />

@@ -1,8 +1,11 @@
+import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
+import Animated from 'react-native-reanimated';
 import {
   ActivityIndicator,
+  Alert,
   KeyboardAvoidingView,
   Pressable,
   ScrollView,
@@ -14,7 +17,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { EFFORT_CHIPS, effortScaleText, readEffort, snapEffortPct } from '@/lib/pitch-effort';
 import { fromSpeed, round1, speedLabel, toSpeed } from '@/lib/units';
-import { usePrefs } from '~/lib/prefs';
+import { setPref, usePrefs } from '~/lib/prefs';
 import { SESSION_TYPES, isRestSession } from '@/lib/session-type';
 import {
   GOOD_DAY_MIN,
@@ -25,7 +28,10 @@ import {
 } from '@/lib/pitch-satisfaction';
 import { LocalVideo } from '../../../modules/local-video';
 import { PICK_ORIGINAL, attach, markImported } from '~/pitch/attach';
-import { TYPE, usePalette } from '~/lib/ui';
+import { usePalette, withAlpha, type Palette } from '~/lib/ui';
+import { fadeIn } from '~/shell/motion';
+import { Press } from '~/shell/press';
+import { Segmented } from '~/shell/heading';
 import { Icon } from '~/shell/icon';
 import {
   ApiError,
@@ -118,15 +124,18 @@ export default function PitchEditScreen() {
   );
 }
 
-function EntryForm({
+export function EntryForm({
   date,
   editing,
   imported,
   importKey,
   drillPrefill,
   velocityPrefill,
+  inline,
 }: {
   date: string;
+  /** 그날 화면 안에 펴 두는 폼(웹 day-client) — 위 막대 · 굴리기 없이, 저장 · 취소는 부르는 쪽이 받는다 */
+  inline?: { onDone: () => void; onCancel?: () => void };
   editing?: PitchLog;
   imported: string[];
   importKey?: string;
@@ -195,9 +204,20 @@ function EntryForm({
           editing.cuesBad.length ||
           editing.videoPaths.length)
       ) ||
-      vp?.maxVelocity != null ||
-      !!drillPrefill
+      !!vp ||
+      !!drillPrefill ||
+      imported.length > 0
   );
+  const [effortMissing, setEffortMissing] = useState(false);
+  const [cuesOpen, setCuesOpen] = useState((editing?.cuesGood.length ?? 0) + (editing?.cuesBad.length ?? 0) > 0);
+  /* 단위를 바꾸면 적어 둔 숫자를 새 단위로 다시 쓴다(들고 있는 값은 화면 단위라서) */
+  const switchUnit = (next: 'kmh' | 'mph') => {
+    if (next === unit) return;
+    const conv = (v: string) => (v.trim() === '' || !Number.isFinite(Number(v)) ? v : String(round1(toSpeed(fromSpeed(Number(v), unit), next))));
+    setMaxV(conv);
+    setAvgV(conv);
+    setPref('speed', next);
+  };
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -230,6 +250,15 @@ function EntryForm({
     if (v.fresh && isPhoneVideoPath(v.path)) void LocalVideo.remove({ ids: [phoneAssetId(v.path)] }).catch(() => undefined);
   };
 
+  /* 저장돼 있던 영상은 묻고 뺀다(웹 confirmRemove) — 새로 넣은 것은 바로 */
+  const confirmDrop = (v: Video) => {
+    if (v.fresh) return dropVideo(v);
+    Alert.alert('이 영상을 뺄까요?', '저장돼 있던 영상이에요. 빼면 되돌릴 수 없어요.', [
+      { text: '취소', style: 'cancel' },
+      { text: '빼기', style: 'destructive', onPress: () => dropVideo(v) },
+    ]);
+  };
+
   /* 두 번 눌러도 한 번만 — busy(상태)는 다시 그려진 뒤에야 바뀌어, 빨리 두 번 누르면 둘 다 지나갔다 */
   const inFlight = useRef(false);
   /* 저장했거나 [취소]가 직접 정리했으면 닫힐 때 다시 지우지 않는다(아래 닫힘 정리) */
@@ -237,7 +266,22 @@ function EntryForm({
   const save = async () => {
     if (busy || inFlight.current) return;
     if (!type) return setError('투구 종류를 골라 주세요.');
-    if (!rest && effort == null) return setError('체감 강도를 골라 주세요.');
+    if (!rest && effort == null) {
+      setEffortMissing(true);
+      return setError('체감 강도를 골라 주세요.');
+    }
+    /* 구속은 30~200km/h(웹 SPEED_MIN · MAX) — 접힌 칸이면 펴서 알린다 */
+    for (const [label, v] of [
+      ['최고 구속', maxV],
+      ['평균 구속', avgV],
+    ] as const) {
+      if (rest || !v.trim()) continue;
+      const kmh = fromSpeed(Number.parseFloat(v), unit);
+      if (!Number.isFinite(kmh) || kmh < 30 || kmh > 200) {
+        setMore(true);
+        return setError(`${label}는 ${Math.round(toSpeed(30, unit))}~${Math.round(toSpeed(200, unit))}${speedLabel(unit)} 사이로 적어 주세요.`);
+      }
+    }
     const entry: PitchEntry = {
       date,
       sessionType: type,
@@ -269,8 +313,10 @@ function EntryForm({
         if (importKey) markImported(importKey);
       }
       savedRef.current = true;
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       await refreshMonth(monthOf(date));
-      router.back();
+      if (inline) inline.onDone();
+      else router.back();
     } catch (e) {
       setError(e instanceof ApiError ? e.message : '저장하지 못했어요. 적은 것은 그대로 있어요.');
     } finally {
@@ -300,11 +346,246 @@ function EntryForm({
     if (busy || inFlight.current) return;
     savedRef.current = true; // 아래에서 직접 정리 — 닫힐 때 한 번 더 하지 않게
     void dropUnsaved(videos);
-    router.back();
+    if (inline) inline.onCancel?.();
+    else router.back();
   };
 
   const at = new Date(`${date}T00:00:00.000Z`);
-  const input = [styles.input, { backgroundColor: c.card, color: c.ink }];
+  const input = [styles.input, { backgroundColor: withAlpha(c.ink, 0.05), color: c.ink }];
+  const typeHint = SESSION_TYPES.find((t) => t.name === type)?.hint;
+  const offChip = effort != null && !(EFFORT_CHIPS as readonly number[]).includes(effort);
+
+  const fields = (
+    <View style={{ gap: 20 }}>
+      <Field c={c} label="투구 종류" hint={typeHint}>
+        <TypeGrid value={type} onChange={setType} />
+      </Field>
+
+      {!rest ? (
+        <>
+          <Field c={c} label="투구수">
+            <TextInput value={count} onChangeText={setCount} keyboardType="number-pad" placeholder="45" placeholderTextColor={c.muted} style={input} />
+          </Field>
+          {/* 강도 1~10 — 고르개(웹 effort-chips.tsx Segmented) · 밑에 기준표(웹 IntensityGuide). 칸 n = n × 10% 로 저장 */}
+          <View style={{ gap: 12 }}>
+            <View style={{ gap: 8 }}>
+              <Text style={[styles.label, { color: c.muted }]}>강도</Text>
+              <Segmented
+                label="강도"
+                size="md"
+                options={EFFORT_CHIPS.map((v) => ({ value: String(v), label: effortScaleText(v) }))}
+                value={effort == null ? '' : String(effort)}
+                onChange={(v) => {
+                  setEffortMissing(false);
+                  setEffort(Number(v));
+                }}
+              />
+              {effortMissing ? (
+                <Text accessibilityRole="alert" style={{ color: c.danger, fontSize: 12 }}>
+                  체감 강도를 골라 주세요.
+                </Text>
+              ) : offChip ? (
+                <Text style={{ color: withAlpha(c.muted, 0.8), fontSize: 12 }}>지금 {effortScaleText(effort)} · 칩을 누르면 바뀌어요</Text>
+              ) : null}
+            </View>
+            <IntensityGuide c={c} />
+          </View>
+        </>
+      ) : null}
+
+      {!rest ? (
+        <Press
+          accessibilityRole="button"
+          accessibilityState={{ expanded: more }}
+          onPress={() => setMore((o) => !o)}
+          style={[styles.fold, { backgroundColor: withAlpha(c.ink, 0.05) }]}
+        >
+          <Text style={{ color: c.skyStrong, fontSize: 15, fontWeight: '600' }}>더 적기</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, flexShrink: 1 }}>
+            <Text style={{ color: c.muted, fontSize: 13 }} numberOfLines={1}>
+              구속 · 영상 · 만족도 · 메모
+            </Text>
+            <View style={{ transform: [{ rotate: more ? '180deg' : '0deg' }] }}>
+              <Icon name="chevron-down" size={16} color={c.muted} />
+            </View>
+          </View>
+        </Press>
+      ) : null}
+
+      {rest || more ? (
+        <Animated.View entering={fadeIn} style={{ gap: 20 }}>
+          {!rest ? (
+            <>
+              <View style={styles.pair}>
+                <Field c={c} label={`최고 구속 (${speedLabel(unit)})`} hint="스피드건이 없으면 비워두세요." style={{ flex: 1 }}>
+                  <TextInput
+                    value={maxV}
+                    onChangeText={setMaxV}
+                    keyboardType="decimal-pad"
+                    placeholder={String(Math.round(toSpeed(138, unit)))}
+                    placeholderTextColor={c.muted}
+                    style={input}
+                  />
+                </Field>
+                <Field c={c} label={`평균 구속 (${speedLabel(unit)})`} hint="비워두셔도 돼요." style={{ flex: 1 }}>
+                  <TextInput
+                    value={avgV}
+                    onChangeText={setAvgV}
+                    keyboardType="decimal-pad"
+                    placeholder={String(Math.round(toSpeed(132, unit)))}
+                    placeholderTextColor={c.muted}
+                    style={input}
+                  />
+                </Field>
+              </View>
+              {/* 단위를 칸 바로 밑에서(웹 SpeedUnitSwitch) — 바꾸면 앱 전체 표시 단위가 바뀐다. 적은 숫자는 그 단위로 다시 보인다 */}
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                <Text style={{ flex: 1, color: c.muted, fontSize: 12 }}>스피드건이 mph 면 단위를 바꿔 적어요</Text>
+                <Segmented
+                  label="구속 단위"
+                  flow
+                  options={[
+                    { value: 'kmh', label: 'km/h' },
+                    { value: 'mph', label: 'mph' },
+                  ]}
+                  value={unit}
+                  onChange={(v) => switchUnit(v)}
+                />
+              </View>
+            </>
+          ) : null}
+
+          {isRatedSession(type) ? (
+            <View style={{ gap: 8 }}>
+              <Text style={[styles.label, { color: c.muted }]}>투구 만족도</Text>
+              <Segmented
+                label="투구 만족도"
+                size="md"
+                options={SATISFACTION_OPTIONS.map((o) => ({ value: o.value, label: o.label }))}
+                value={satisfaction == null ? '' : String(satisfaction)}
+                onChange={(v) => setSatisfaction(Number(v))}
+              />
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 4 }}>
+                <Text style={{ color: withAlpha(c.muted, 0.7), fontSize: 12 }}>1 {SATISFACTION_ENDS.low}</Text>
+                <Text style={{ color: withAlpha(c.muted, 0.7), fontSize: 12 }}>{SATISFACTION_ENDS.high} 5</Text>
+              </View>
+              <Press accessibilityRole="button" accessibilityState={{ expanded: cuesOpen }} onPress={() => setCuesOpen((o) => !o)} style={styles.cueToggle}>
+                <Text style={{ color: c.sky, fontSize: 15, fontWeight: '500' }}>느낀 점 더하기</Text>
+                <View style={{ transform: [{ rotate: cuesOpen ? '180deg' : '0deg' }] }}>
+                  <Icon name="chevron-down" size={16} color={c.sky} />
+                </View>
+              </Press>
+              {cuesOpen ? (
+                <Animated.View entering={fadeIn} style={{ gap: 12 }}>
+                  {(
+                    [
+                      ['good', '좋았던 것', good],
+                      ['bad', '아쉬웠던 것', bad],
+                    ] as const
+                  ).map(([side, label, list]) => (
+                    <View key={side} style={{ gap: 8 }}>
+                      <Text style={{ color: c.muted, fontSize: 12 }}>{label}</Text>
+                      <View style={styles.chips}>
+                        {PITCH_CUES.map((cue) => {
+                          const on = list.includes(cue);
+                          return (
+                            <Press
+                              key={cue}
+                              select
+                              selected={on}
+                              accessibilityRole="checkbox"
+                              accessibilityState={{ checked: on }}
+                              onPress={() => toggleCue(cue, side)}
+                              style={[styles.chip, chipLook(c, on)]}
+                            >
+                              {on ? <Icon name="check" size={14} color={c.skyStrong} /> : null}
+                              <Text style={chipText(c, on)}>{cue}</Text>
+                            </Press>
+                          );
+                        })}
+                      </View>
+                    </View>
+                  ))}
+                </Animated.View>
+              ) : null}
+            </View>
+          ) : null}
+
+          {/* 영상 — 쉰 날에도 이미 붙은 것은 뺄 수 있게 보인다(웹) */}
+          {!rest || videos.length ? (
+            <Field c={c} label="투구 영상" hint={rest ? '쉰 날에는 새로 올릴 수 없어요. 이미 붙어 있는 영상은 뺄 수 있어요.' : '폰에 있는 영상을 바로 올리거나 지금 찍을 수 있어요.'}>
+              <View style={{ gap: 8 }}>
+                {videos.map((v) => (
+                  <View key={v.path} style={[styles.videoRow, { backgroundColor: withAlpha(c.ink, 0.05) }]}>
+                    <Icon name="film" size={16} color={c.muted} />
+                    <Text style={{ flex: 1, color: c.ink, fontSize: 15 }}>{v.name}</Text>
+                    <Press accessibilityRole="button" accessibilityLabel={`${v.name} 빼기`} onPress={() => confirmDrop(v)} style={styles.dropBtn}>
+                      <Icon name="x" size={16} color={c.danger} />
+                    </Press>
+                  </View>
+                ))}
+                {!rest && videos.length < MAX_VIDEOS ? (
+                  <View style={styles.pair}>
+                    <Press accessibilityRole="button" onPress={() => pick(true)} disabled={!!busy} style={[styles.ghost, { backgroundColor: withAlpha(c.ink, 0.06) }]}>
+                      <Icon name="camera" size={16} color={c.ink} />
+                      <Text style={[styles.ghostText, { color: c.ink }]}>촬영하기</Text>
+                    </Press>
+                    <Press accessibilityRole="button" onPress={() => pick(false)} disabled={!!busy} style={[styles.ghost, { backgroundColor: withAlpha(c.ink, 0.06) }]}>
+                      <Icon name="image-plus" size={16} color={c.ink} />
+                      <Text style={[styles.ghostText, { color: c.ink }]}>앨범에서</Text>
+                    </Press>
+                  </View>
+                ) : null}
+              </View>
+            </Field>
+          ) : null}
+
+          <Field
+            c={c}
+            label={rest ? '메모' : '특이사항 · 느낀점'}
+            hint={isRatedSession(type) && (satisfaction ?? 0) >= GOOD_DAY_MIN && !memo.trim() ? '잘 던진 날 남긴 메모는 다음에 던지는 날 홈에 다시 띄워 드려요.' : undefined}
+          >
+            <TextInput
+              value={memo}
+              onChangeText={setMemo}
+              multiline
+              placeholder={rest ? '어깨가 뻐근해서 쉼' : '릴리즈 포인트가 일정했고 5회부터 팔이 무거워짐'}
+              placeholderTextColor={c.muted}
+              style={[input, styles.memo]}
+            />
+          </Field>
+        </Animated.View>
+      ) : null}
+
+      {busy ? (
+        <View style={styles.busy}>
+          <ActivityIndicator />
+          <Text style={{ color: c.muted, fontSize: 15 }}>{busy}</Text>
+        </View>
+      ) : null}
+      {error ? <Text style={{ color: c.danger, fontSize: 15 }}>{error}</Text> : null}
+      {/* 저장 — 웹 '10월 4일 기록 저장' · '수정 저장' */}
+      <View style={{ gap: 8 }}>
+        <Press
+          accessibilityRole="button"
+          onPress={() => void save()}
+          disabled={!!busy}
+          style={[styles.save, { backgroundColor: c.sky }, busy ? { opacity: 0.5 } : null]}
+        >
+          <Text style={styles.saveText}>
+            {busy === '저장하는 중' ? '저장 중…' : busy ? '영상 올리는 중… 끝나면 저장할 수 있어요' : editing ? '수정 저장' : `${at.getUTCMonth() + 1}월 ${at.getUTCDate()}일 기록 저장`}
+          </Text>
+        </Press>
+        {inline?.onCancel ? (
+          <Press accessibilityRole="button" onPress={cancel} disabled={!!busy} style={[styles.cancel, { backgroundColor: withAlpha(c.ink, 0.06) }]}>
+            <Text style={{ color: c.ink, fontSize: 15, fontWeight: '500' }}>취소</Text>
+          </Press>
+        ) : null}
+      </View>
+    </View>
+  );
+
+  if (inline) return fields;
   return (
     <KeyboardAvoidingView behavior="padding" style={{ flex: 1, backgroundColor: c.page }}>
       {/* 저장 · 영상 넣는 중에는 끌어 닫기를 막는다 */}
@@ -314,187 +595,99 @@ function EntryForm({
           <Text style={[styles.barAction, { color: c.sky }]}>취소</Text>
         </Pressable>
         <Text style={[styles.barTitle, { color: c.ink }]}>
-          {at.getUTCMonth() + 1}월 {at.getUTCDate()}일 {editing ? '기록 고치기' : '새 기록'}
+          {at.getUTCMonth() + 1}월 {at.getUTCDate()}일 {editing ? '기록 수정' : '기록하기'}
         </Text>
         <View style={{ width: 44 }} />
       </View>
-      <ScrollView contentContainerStyle={[{ padding: 16, paddingBottom: inset.bottom + 32, gap: 8 }, READABLE]} keyboardShouldPersistTaps="handled">
-        <Text style={[styles.label, { color: c.muted }]}>종류</Text>
-        <Chips items={SESSION_TYPES.map((t) => t.name)} value={type} onChange={setType} />
-
-        {!rest ? (
-          <>
-            <Text style={[styles.label, { color: c.muted }]}>투구 수</Text>
-            <TextInput value={count} onChangeText={setCount} keyboardType="number-pad" placeholder="예: 40" placeholderTextColor={c.muted} style={input} />
-            <Text style={[styles.label, { color: c.muted }]}>강도</Text>
-            {/* 1~10(2026-10-18 웹과 같게) — 칩 n 은 n × 10% 로 저장된다 */}
-            {/* 열 칸 한 줄(웹 effort-chips.tsx) — 칸 n = n × 10% */}
-            <View accessibilityRole="radiogroup" accessibilityLabel="강도" style={styles.effortRow}>
-              {EFFORT_CHIPS.map((v) => {
-                const on = effort === v;
-                return (
-                  <Pressable
-                    key={v}
-                    accessibilityRole="radio"
-                    accessibilityState={{ selected: on }}
-                    accessibilityLabel={`강도 ${effortScaleText(v)}`}
-                    onPress={() => setEffort(v)}
-                    style={[styles.effortCell, { backgroundColor: on ? c.sky : c.chip }]}
-                  >
-                    <Text style={[TYPE.num, { fontSize: 15, color: on ? '#fff' : c.ink }]}>{effortScaleText(v)}</Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-            {effort != null && !(EFFORT_CHIPS as readonly number[]).includes(effort) ? (
-              <Text style={{ color: c.muted, fontSize: 12 }}>지금 {effortScaleText(effort)} · 칩을 누르면 바뀌어요</Text>
-            ) : null}
-          </>
-        ) : null}
-
-        {!rest ? (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityState={{ expanded: more }}
-            onPress={() => setMore((o) => !o)}
-            style={({ pressed }) => [styles.fold, { borderColor: c.line }, pressed && { opacity: 0.6 }]}
-          >
-            <Text style={{ color: c.sky, fontSize: 15, fontWeight: '600' }}>{more ? '접기' : '더 적기'}</Text>
-            <Text style={{ color: c.muted, fontSize: 13, flex: 1 }} numberOfLines={1}>
-              {more ? '' : '구속 · 만족도 · 느낀점 · 영상'}
-            </Text>
-            <Icon name={more ? 'chevron-up' : 'chevron-down'} size={16} color={c.muted} />
-          </Pressable>
-        ) : null}
-
-        {rest || more ? (
-          <>
-            {!rest ? (
-                <View style={styles.pair}>
-                  <View style={{ flex: 1, gap: 8 }}>
-                    <Text style={[styles.label, { color: c.muted }]}>최고 구속({speedLabel(unit)})</Text>
-                    <TextInput value={maxV} onChangeText={setMaxV} keyboardType="decimal-pad" placeholder="선택" placeholderTextColor={c.muted} style={input} />
-                  </View>
-                  <View style={{ flex: 1, gap: 8 }}>
-                    <Text style={[styles.label, { color: c.muted }]}>평균 구속({speedLabel(unit)})</Text>
-                    <TextInput value={avgV} onChangeText={setAvgV} keyboardType="decimal-pad" placeholder="선택" placeholderTextColor={c.muted} style={input} />
-                  </View>
-                </View>
-            ) : null}
-
-            {isRatedSession(type) ? (
-              <>
-                <Text style={[styles.label, { color: c.muted }]}>투구 만족도</Text>
-                <Chips
-                  items={SATISFACTION_OPTIONS.map((o) => o.label)}
-                  value={satisfaction == null ? null : String(satisfaction)}
-                  onChange={(v) => setSatisfaction(satisfaction === Number(v) ? null : Number(v))}
-                />
-                <Text style={{ color: c.muted, fontSize: 12 }}>
-                  1 {SATISFACTION_ENDS.low} · {SATISFACTION_ENDS.high} 5
-                </Text>
-                {(
-                  [
-                    ['good', '좋았던 것', good],
-                    ['bad', '아쉬웠던 것', bad],
-                  ] as const
-                ).map(([side, label, list]) => (
-                  <View key={side} style={{ gap: 8 }}>
-                    <Text style={[styles.label, { color: c.muted }]}>{label}</Text>
-                    <View style={styles.chips}>
-                      {PITCH_CUES.map((cue) => {
-                        const on = list.includes(cue);
-                        return (
-                          <Pressable
-                            key={cue}
-                            accessibilityRole="checkbox"
-                            accessibilityState={{ checked: on }}
-                            onPress={() => toggleCue(cue, side)}
-                            style={[styles.chip, { backgroundColor: on ? c.sky : c.chip }]}
-                          >
-                            <Text style={[styles.chipText, { color: on ? '#fff' : c.ink }]}>{cue}</Text>
-                          </Pressable>
-                        );
-                      })}
-                    </View>
-                  </View>
-                ))}
-              </>
-            ) : null}
-
-            <Text style={[styles.label, { color: c.muted }]}>
-              {rest ? '메모' : '특이사항 · 느낀점'}
-            </Text>
-            {isRatedSession(type) && (satisfaction ?? 0) >= GOOD_DAY_MIN && !memo.trim() ? (
-              <Text style={{ color: c.muted, fontSize: 12 }}>잘 던진 날 남긴 메모는 다음에 던지는 날 홈에 다시 띄워 드려요.</Text>
-            ) : null}
-            <TextInput value={memo} onChangeText={setMemo} multiline placeholder="오늘 던진 느낌" placeholderTextColor={c.muted} style={[input, styles.memo]} />
-
-            {!rest ? (
-              <>
-                <Text style={[styles.label, { color: c.muted }]}>영상(두 개까지)</Text>
-                {videos.map((v) => (
-                  <View key={v.path} style={[styles.videoRow, { backgroundColor: c.card }]}>
-                    <Text style={{ flex: 1, color: c.ink, fontSize: 15 }}>{v.name}</Text>
-                    <Pressable accessibilityRole="button" hitSlop={8} onPress={() => dropVideo(v)}>
-                      <Text style={{ color: c.danger, fontSize: 15, fontWeight: '600' }}>빼기</Text>
-                    </Pressable>
-                  </View>
-                ))}
-                {videos.length < MAX_VIDEOS ? (
-                  <View style={styles.pair}>
-                    <Pressable accessibilityRole="button" onPress={() => pick(true)} disabled={!!busy} style={[styles.ghost, { backgroundColor: c.chip }]}>
-                      <Text style={[styles.ghostText, { color: c.ink }]}>촬영하기</Text>
-                    </Pressable>
-                    <Pressable accessibilityRole="button" onPress={() => pick(false)} disabled={!!busy} style={[styles.ghost, { backgroundColor: c.chip }]}>
-                      <Text style={[styles.ghostText, { color: c.ink }]}>앨범에서</Text>
-                    </Pressable>
-                  </View>
-                ) : null}
-              </>
-            ) : null}
-          </>
-        ) : null}
-
-        {busy ? (
-          <View style={styles.busy}>
-            <ActivityIndicator />
-            <Text style={{ color: c.muted, fontSize: 15 }}>{busy}</Text>
-          </View>
-        ) : null}
-        {error ? <Text style={{ color: c.danger, fontSize: 15 }}>{error}</Text> : null}
-        {/* 저장 — 맨 밑 큰 단추(웹 폼과 같은 자리) */}
-        <Pressable
-          accessibilityRole="button"
-          onPress={save}
-          disabled={!!busy}
-          style={({ pressed }) => [styles.save, { backgroundColor: c.sky }, (busy || pressed) && { opacity: busy ? 0.5 : 0.85 }]}
-        >
-          <Text style={styles.saveText}>{editing ? '고친 내용 저장' : '저장'}</Text>
-        </Pressable>
+      <ScrollView contentContainerStyle={[{ padding: 16, paddingBottom: inset.bottom + 32 }, READABLE]} keyboardShouldPersistTaps="handled">
+        {fields}
       </ScrollView>
     </KeyboardAvoidingView>
   );
 }
 
-function Chips({ items, value, onChange }: { items: readonly string[]; value: string | null; onChange: (v: string) => void }) {
-  const c = usePalette();
+/** 폼 칸 — 이름(12) 위 · 힌트(12) 밑(웹 Field) */
+function Field({ c, label, hint, style, children }: { c: Palette; label: string; hint?: string; style?: object; children: React.ReactNode }) {
   return (
-    <View style={styles.chips}>
-      {items.map((it) => {
-        const on = it === value;
+    <View style={[{ gap: 8 }, style]}>
+      <Text style={[styles.label, { color: c.muted }]}>{label}</Text>
+      {children}
+      {hint ? <Text style={{ color: c.muted, fontSize: 12, lineHeight: 17 }}>{hint}</Text> : null}
+    </View>
+  );
+}
+
+/* 고르는 알약 — 웹 chipClass: 회색 알약, 고른 것은 하늘 테두리 · 옅은 하늘 · 짙은 하늘 굵게 */
+const chipLook = (c: Palette, on: boolean) => ({
+  borderColor: on ? c.sky : 'transparent',
+  backgroundColor: on ? withAlpha(c.sky, 0.1) : withAlpha(c.ink, 0.06),
+});
+const chipText = (c: Palette, on: boolean) => ({ fontSize: 15, color: on ? c.skyStrong : withAlpha(c.ink, 0.8), fontWeight: on ? ('600' as const) : ('400' as const) });
+
+/** 투구 종류 — 같은 폭 칸 격자(웹 chip-grid: 칸 하나 84px 이상) */
+function TypeGrid({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const c = usePalette();
+  const [w, setW] = useState(0);
+  const cols = w ? Math.max(1, Math.floor((w + 8) / (84 + 8))) : 4;
+  return (
+    <View accessibilityRole="radiogroup" accessibilityLabel="투구 종류" onLayout={(e) => setW(e.nativeEvent.layout.width)} style={styles.typeGrid}>
+      {SESSION_TYPES.map((t) => {
+        const on = value === t.name;
         return (
-          <Pressable
-            key={it}
-            accessibilityRole="radio"
-            accessibilityState={{ selected: on }}
-            onPress={() => onChange(it)}
-            style={[styles.chip, { backgroundColor: on ? c.sky : c.chip }]}
-          >
-            <Text style={[styles.chipText, { color: on ? '#fff' : c.ink }]}>{it}</Text>
-          </Pressable>
+          <View key={t.name} style={{ width: `${100 / cols}%`, padding: 4 }}>
+            <Press
+              select
+              selected={on}
+              accessibilityRole="radio"
+              accessibilityState={{ selected: on }}
+              onPress={() => onChange(t.name)}
+              style={[styles.typeChip, chipLook(c, on)]}
+            >
+              <Text style={chipText(c, on)}>{t.name}</Text>
+            </Press>
+          </View>
         );
       })}
+    </View>
+  );
+}
+
+/* 강도 기준표 — 웹 components/intensity-guide.tsx 투구 띠(접힘) */
+const PITCH_LEVELS = [
+  { range: '1 – 2', label: '몸 푸는 정도', detail: '가까운 거리 캐치볼. 숨이 차지 않고 팔에 힘을 거의 안 써요.' },
+  { range: '3 – 4', label: '편하게', detail: '롱토스 워밍업, 가벼운 플랫. 폼을 확인하는 정도로 던져요.' },
+  { range: '5 – 6', label: '절반쯤 힘', detail: '불펜 초반이나 폼 점검. 여유 있게 던지지만 제대로 된 투구 동작이에요.' },
+  { range: '7 – 8', label: '세게', detail: '불펜 본 세션, 라이브. 경기와 비슷하지만 아직 여유가 남아 있어요.' },
+  { range: '9 – 10', label: '전력', detail: '경기, 최고 구속 측정. 더 세게는 못 던져요.' },
+] as const;
+function IntensityGuide({ c }: { c: Palette }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <View style={[styles.guide, { borderColor: c.line, backgroundColor: withAlpha(c.chip, 0.25) }]}>
+      <Press accessibilityRole="button" accessibilityState={{ expanded: open }} onPress={() => setOpen((o) => !o)} style={styles.guideHead}>
+        <Icon name="info" size={14} color={c.sky} />
+        <Text style={{ flex: 1, color: c.muted, fontSize: 12 }}>강도를 어떻게 정하나요?</Text>
+        <View style={{ transform: [{ rotate: open ? '180deg' : '0deg' }] }}>
+          <Icon name="chevron-down" size={14} color={c.muted} />
+        </View>
+      </Press>
+      {open ? (
+        <Animated.View entering={fadeIn} style={{ gap: 12, borderTopWidth: StyleSheet.hairlineWidth, borderColor: c.line, padding: 12 }}>
+          {PITCH_LEVELS.map((l) => (
+            <View key={l.range} style={{ flexDirection: 'row', gap: 12 }}>
+              <Text style={{ width: 56, color: c.sky, fontSize: 12, fontWeight: '700', fontVariant: ['tabular-nums'] }}>{l.range}</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: c.ink, fontSize: 12, fontWeight: '600' }}>{l.label}</Text>
+                <Text style={{ color: c.muted, fontSize: 11, lineHeight: 16, marginTop: 2 }}>{l.detail}</Text>
+              </View>
+            </View>
+          ))}
+          <Text style={[styles.warnBox, { color: c.warn, backgroundColor: c.warnBg, borderColor: c.warnLine }]}>
+            <Text style={{ fontWeight: '700' }}>느낌보다 팔에 가는 부담은 커요.</Text> 절반 힘으로 던져도 팔꿈치에는 최고의 75% 가 걸려요. 가볍게 느껴져도 던진 만큼 적어
+            주세요.
+          </Text>
+        </Animated.View>
+      ) : null}
     </View>
   );
 }
@@ -503,20 +696,25 @@ const styles = StyleSheet.create({
   bar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingBottom: 8 },
   barAction: { fontSize: 17 },
   barTitle: { fontSize: 17, fontWeight: '600' },
-  label: { fontSize: 13, fontWeight: '600', marginTop: 10 },
-  input: { minHeight: 48, borderRadius: 12, paddingHorizontal: 14, fontSize: 17 },
-  memo: { minHeight: 96, paddingTop: 12, textAlignVertical: 'top' },
-  pair: { flexDirection: 'row', gap: 8 },
+  label: { fontSize: 12, fontWeight: '500' },
+  input: { minHeight: 48, borderRadius: 12, paddingHorizontal: 16, fontSize: 16 },
+  memo: { minHeight: 104, paddingTop: 12, textAlignVertical: 'top' },
+  pair: { flexDirection: 'row', gap: 12 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  chip: { minHeight: 40, paddingHorizontal: 16, borderRadius: 20, justifyContent: 'center' },
-  chipText: { fontSize: 15, fontWeight: '600' },
-  videoRow: { flexDirection: 'row', alignItems: 'center', minHeight: 48, borderRadius: 12, paddingHorizontal: 14 },
-  ghost: { flex: 1, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center' },
-  ghostText: { fontSize: 17, fontWeight: '600' },
-  busy: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingTop: 8 },
-  effortRow: { flexDirection: 'row', gap: 4 },
-  effortCell: { flex: 1, height: 40, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-  fold: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 48, marginTop: 12, borderTopWidth: StyleSheet.hairlineWidth },
-  save: { height: 52, borderRadius: 26, alignItems: 'center', justifyContent: 'center', marginTop: 20 },
-  saveText: { color: '#fff', fontSize: 17, fontWeight: '700' },
+  chip: { flexDirection: 'row', alignItems: 'center', gap: 4, minHeight: 40, paddingHorizontal: 16, borderRadius: 20, borderWidth: 1 },
+  typeGrid: { flexDirection: 'row', flexWrap: 'wrap', margin: -4 },
+  typeChip: { minHeight: 40, borderRadius: 20, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  videoRow: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 48, borderRadius: 12, paddingLeft: 14 },
+  dropBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  ghost: { flex: 1, height: 48, borderRadius: 24, flexDirection: 'row', gap: 6, alignItems: 'center', justifyContent: 'center' },
+  ghostText: { fontSize: 15, fontWeight: '600' },
+  busy: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  fold: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, minHeight: 48, borderRadius: 16, paddingHorizontal: 16 },
+  cueToggle: { flexDirection: 'row', alignItems: 'center', gap: 4, minHeight: 40, alignSelf: 'flex-start' },
+  guide: { borderRadius: 12, borderWidth: StyleSheet.hairlineWidth },
+  guideHead: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, paddingVertical: 10 },
+  warnBox: { fontSize: 11, lineHeight: 16, borderWidth: 1, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8, overflow: 'hidden' },
+  save: { minHeight: 52, borderRadius: 26, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 16 },
+  saveText: { color: '#fff', fontSize: 17, fontWeight: '700', textAlign: 'center' },
+  cancel: { minHeight: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
 });

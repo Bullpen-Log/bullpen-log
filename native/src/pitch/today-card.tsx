@@ -29,6 +29,8 @@ let cached: Today | null = null;
 export const resetPitchTodayCache = () => {
   cached = null;
 };
+/** 받아 둔 오늘 팔 상태(그날 화면 머리 한 줄 — 웹 ArmStatusNote compact). 투구 탭이 받은 뒤에만 있다 */
+export const cachedArmStatus = (today: string) => (cached?.today === today ? cached.status : null);
 const LEVEL = { danger: '위험', caution: '주의', safe: '안전' } as const;
 
 export function PitchTodayCard({ today }: { today: string }) {
@@ -96,7 +98,7 @@ export function PitchTodayCard({ today }: { today: string }) {
     ? { label: `측정한 ${data.unloggedVelocity}구 기록 남기기`, go: () => router.push(`/pitch/${data.today}` as Href) }
     : {
         label: data.logged ? `오늘 ${data.logged.pitches}구 · 기록 더하기` : '오늘 기록 남기기',
-        go: () => router.push({ pathname: '/pitch/edit' as Href as never, params: { date: data.today } }),
+        go: () => router.push(`/pitch/${data.today}` as Href),
       };
   const answer = data.throwCard.plan;
 

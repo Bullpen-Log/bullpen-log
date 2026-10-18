@@ -430,7 +430,7 @@ function FirstDayCard({
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
             <Pressable
               accessibilityRole="button"
-              onPress={() => router.push({ pathname: '/pitch/edit' as Href as never, params: { date: today } })}
+              onPress={() => router.push(`/pitch/${today}` as Href)}
               style={[styles.pill, { backgroundColor: c.sky }]}
             >
               <Text style={styles.pillText}>오늘 투구 남기기</Text>
