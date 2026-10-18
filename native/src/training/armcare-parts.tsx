@@ -301,7 +301,7 @@ export function RoutineCard({ routine: r, dateKey, fresh, open, onToggle, onChan
   );
 }
 
-/** 오늘 재활 겉 모습(웹 rehab-card.tsx 접힌 카드) — 시작은 앱 따라 하기(/armcare/rehab), 자세히 · 시험 · 매주 확인은 웹 */
+/** 오늘 재활 겉 모습(웹 rehab-card.tsx 접힌 카드) — 시작은 앱 따라 하기(/armcare/rehab), 자세히는 앱 화면(/rehab — 시험 · 매주 확인은 거기서 웹으로) */
 export function RehabCard({ rehab, dateKey, c }: { rehab: AppRehabSummary; dateKey: string; c: Palette }) {
   const refer = rehab.line?.kind === 'refer';
   return (
@@ -338,9 +338,13 @@ export function RehabCard({ rehab, dateKey, c }: { rehab: AppRehabSummary; dateK
         </View>
       ) : null}
       <Text style={[s.small, { color: c.muted }]}>{rehab.progress}</Text>
-      <Pressable onPress={() => leave('/training?view=armcare')} accessibilityRole="link" style={[st.disclose, { borderTopColor: c.line, paddingHorizontal: 0 }]}>
-        <Text style={[s.smallBold, { color: c.sky, flex: 1 }]}>자세히 · 단계 시험 · 매주 확인은 웹에서</Text>
-        <SymbolView name="arrow.up.right" size={12} tintColor={c.sky} />
+      <Pressable
+        onPress={() => (rehab.detail ? router.push('/rehab' as Href) : leave('/training?view=armcare'))}
+        accessibilityRole={rehab.detail ? 'button' : 'link'}
+        style={[st.disclose, { borderTopColor: c.line, paddingHorizontal: 0 }]}
+      >
+        <Text style={[s.smallBold, { color: c.sky, flex: 1 }]}>{rehab.detail ? '자세히' : '자세히 · 단계 시험 · 매주 확인은 웹에서'}</Text>
+        <SymbolView name={rehab.detail ? 'chevron.right' : 'arrow.up.right'} size={12} tintColor={c.sky} />
       </Pressable>
     </View>
   );

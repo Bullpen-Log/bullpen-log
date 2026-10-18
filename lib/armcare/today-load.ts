@@ -8,7 +8,22 @@ import { AFTER_THROWING_TEXT, ARMCARE_KIND_TEXT, armcareMinutes, type ArmcareKin
 import { loadArmcareCoverage, type ArmPainLine } from '@/lib/armcare/coverage-load';
 import { loadMyRoutines } from '@/lib/armcare/my-routines-store';
 import { MY_ROUTINE_MAX } from '@/lib/armcare/my-routines';
-import { REHAB_ENABLED, REHAB_STAGES, rehabTitle, sessionResultText, severityLabel, type RehabResult } from '@/lib/armcare/rehab';
+import {
+  REHAB_CONDITIONS,
+  REHAB_ENABLED,
+  REHAB_STAGES,
+  WEEKLY_EVERY_DAYS,
+  conditionsFor,
+  rehabAvoid,
+  rehabNotes,
+  rehabTitle,
+  sessionResultText,
+  severityLabel,
+  stageTestFor,
+  type RehabResult,
+  type RehabStage,
+} from '@/lib/armcare/rehab';
+import { shiftDateKey } from '@/lib/pitch-stats';
 import { toArmcareViews } from '@/app/(app)/training/armcare-views';
 import type { ArmcareExerciseView } from '@/app/(app)/training/armcare-media';
 
@@ -47,6 +62,22 @@ export type AppRehabSummary = {
   /** 진행 한 줄 — '깨끗한 세션 2/3 · 이 단계 5/14일' · 4단계는 공 운동 날 수 */
   progress: string;
   items: AppArmcareItem[];
+  /** 앱 재활 자세히(native/src/app/rehab.tsx) — 웹 rehab-card.tsx 의 [자세히]에 그리는 것. 옛 앱은 안 읽는다 */
+  detail?: AppRehabDetail;
+};
+
+export type AppRehabDetail = {
+  stage: RehabStage;
+  goal: string;
+  notes: string[];
+  avoid: string[];
+  gate: { ready: boolean; checks: { label: string; ok: boolean }[] };
+  hasStageTest: boolean;
+  conditionChoices: { key: string; label: string }[];
+  /** 매주 확인 — 지난 확인(날짜 · 다치기 전의 %) · 다음 확인 날(지금 할 수 있으면 null) */
+  weekly: { allowed: boolean; last: { date: string; normalPct: number } | null; nextOn: string | null };
+  /** 4단계 — 투구 복귀표를 열었나 · 공 운동 통증 없는 날 */
+  throwing: { opened: boolean; painFreeBallDays: number; needed: number } | null;
 };
 
 export type AppArmcareCustom =
@@ -266,5 +297,20 @@ async function rehabSummary(
     estimatedMinutes: session.estimatedMinutes,
     progress,
     items,
+    detail: {
+      stage: program.stage,
+      goal: REHAB_STAGES[program.stage].goal,
+      notes: [...rehabNotes(program.area, program.condition), ...session.notes],
+      avoid: rehabAvoid(program.area, program.condition),
+      gate: { ready: status.gate.ready, checks: status.gate.checks },
+      hasStageTest: stageTestFor(program.area, program.stage) != null,
+      conditionChoices: program.condition ? [] : conditionsFor(program.area).map((key) => ({ key, label: REHAB_CONDITIONS[key].label })),
+      weekly: {
+        allowed: status.weekly.allowed,
+        last: status.weekly.last ? { date: status.weekly.last.date, normalPct: status.weekly.last.normalPct } : null,
+        nextOn: status.weekly.allowed ? null : shiftDateKey(status.weekly.last?.date ?? program.startedOn, WEEKLY_EVERY_DAYS),
+      },
+      throwing: t ? { opened: t.openedOn != null, painFreeBallDays: t.painFreeBallDays, needed: t.needed } : null,
+    },
   };
 }
