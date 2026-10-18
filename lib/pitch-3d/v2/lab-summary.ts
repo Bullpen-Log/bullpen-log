@@ -161,16 +161,19 @@ export function labWaitingText(
       active: true,
       canStart: false,
     };
-  if (job?.status === 'failed' && job.fail)
-    return { title: job.fail.reason, line: '고칠 점과 다시 분석은 웹 화면에서 볼 수 있어요.', active: false, canStart: true };
+  if (job?.status === 'failed' && job.fail) return { title: job.fail.reason, line: null, active: false, canStart: true };
   if (!hasVideos) return { title: '옆 · 뒤 영상이 다 있어야 해요', line: null, active: false, canStart: false };
   return {
     title: '아직 3D 분석을 하지 않았어요',
-    line: '분석은 웹 화면에서 동의를 확인하고 걸 수 있어요.',
+    line: '아래 동의를 확인하고 분석을 걸면 1~2분 뒤 여기에 인형이 움직여요.',
     active: false,
     canStart: true,
   };
 }
+
+/** 분석 걸기 동의 글(핵심 5, 글자 그대로 — 바꾸면 처리방침 쪽과 맞춰야 한다). 웹 analysis-v2 · 앱 결과 화면이 같이 쓴다 */
+export const CONSENT_TEXT =
+  '선수(미성년이면 보호자)에게 영상을 해외 분석 서버(미국)로 보내는 동의를 받았어요.';
 
 /** 카드 · 머리의 상태 표시(웹 V2StatusBadge · 앱 결과 화면) — 없으면 null */
 export function labStatusLabel(

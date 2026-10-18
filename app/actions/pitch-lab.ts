@@ -43,6 +43,7 @@ import {
 import {
   isLabId,
   LAB_VIEWS,
+  forHand,
   labCardChips,
   labHandOf,
   labMetaChips,
@@ -50,6 +51,7 @@ import {
   readLabMeta,
 } from '@/lib/pitch-lab-meta';
 import { MECH_FOCUS_POINTS } from '@/lib/pitch-3d/v2/mech-judge';
+import { LAB_FAIL_FIX, type LabGuideSection } from '@/lib/pitch-lab-guide';
 import { trainingGuides } from '@/lib/library-cache';
 import { drillPicksFor, groupDrills, type DrillPick } from '@/lib/mechanics/drills';
 import {
@@ -357,6 +359,11 @@ export type AppLabDetail = {
   } | null;
   /** 결과가 없을 때 3D 칸의 글 */
   waiting: ReturnType<typeof labWaitingText> | null;
+  /**
+   * 분석 걸기(앱) — 서버 GPU 가 설정돼 있고 두 영상이 다 있을 때만. 영상 탓으로 실패했으면 다음에 고칠 것 한 줄 · 촬영 안내의 칸(lib/pitch-lab-guide.ts).
+   * 검사 · 동의 · 비용 지키기는 웹과 같은 requestPitch3dV2 가 한다.
+   */
+  request: { enabled: boolean; videoFault: boolean; fix: string | null; fixSection: LabGuideSection | null };
 };
 
 /**
@@ -417,6 +424,16 @@ export async function loadAppLabDetail(input: {
     })),
     result: summary,
     waiting: result ? null : labWaitingText(job, now, hasVideos),
+    request: (() => {
+      const fault = job?.status === 'failed' && job.fail && V2_VIDEO_FAULT.has(job.fail.code) ? job.fail.code : null;
+      const fix = fault ? LAB_FAIL_FIX[fault] : undefined;
+      return {
+        enabled: isPitch3dV2Configured() && hasVideos,
+        videoFault: fault != null,
+        fix: fix ? forHand(fix.fix, hand) : null,
+        fixSection: fix?.section ?? null,
+      };
+    })(),
   };
 }
 

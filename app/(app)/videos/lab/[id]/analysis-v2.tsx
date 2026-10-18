@@ -13,16 +13,15 @@ import {
 } from '@/lib/pitch-3d/v2/contract';
 import { LAB_FAIL_FIX, labGuideHref } from '@/lib/pitch-lab-guide';
 import { forHand, type LabHand } from '@/lib/pitch-lab-meta';
-import { labStatusLabel } from '@/lib/pitch-3d/v2/lab-summary';
+import { CONSENT_TEXT, labStatusLabel } from '@/lib/pitch-3d/v2/lab-summary';
 
 /**
  * v2 분석의 상태 조각들(화면 결정 4~8) — 결과 화면(lab-detail.tsx)과 목록 카드(lab-client.tsx)가 쓴다.
  * 3D 는 body-3d.tsx, 상태 흐름은 use-v2-analysis.ts.
  */
 
-/** 동의 글(핵심 5, 글자 그대로 — 바꾸면 처리방침 쪽과 맞춰야 한다) */
-export const CONSENT_TEXT =
-  '선수(미성년이면 보호자)에게 영상을 해외 분석 서버(미국)로 보내는 동의를 받았어요.';
+/** 동의 글 — 앱 결과 화면과 같은 글(lib/pitch-3d/v2/lab-summary.ts) */
+export { CONSENT_TEXT };
 
 /** 카드 · 머리의 상태 표시 — 앱 결과 화면과 같은 말(lib/pitch-3d/v2/lab-summary.ts) */
 export const v2StatusLabel = labStatusLabel;

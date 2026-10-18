@@ -1,6 +1,6 @@
 import * as Haptics from 'expo-haptics';
 import { SymbolView } from 'expo-symbols';
-import { router, useLocalSearchParams } from 'expo-router';
+import { type Href, router, useLocalSearchParams } from 'expo-router';
 import { useVideoPlayer, VideoView, type VideoPlayer } from 'expo-video';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
@@ -15,6 +15,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { AppLabDetail } from '@/app/actions/pitch-lab';
+import { CONSENT_TEXT } from '@/lib/pitch-3d/v2/lab-summary';
 import { Lab3D, type Lab3DHandle, type LabTransport } from '~/lab/lab-3d';
 import { rpc, RpcError } from '~/lib/rpc';
 import { usePalette, type Palette } from '~/lib/ui';
@@ -27,7 +28,7 @@ import { leaveTo } from '~/shell/web-nav';
  * 서버 app/actions/pitch-lab.ts loadAppLabDetail).
  *
  * 원본 영상 두 칸은 3D 시계를 따라간다(웹과 같은 규칙): 멈춤 · 끌기 때 그 시각에 서고, 재생 때 같은 빠르기로 튼다.
- * 웹과 다른 것: 분석 걸기 · 동의 · 촬영 안내는 앱에 없다 — '웹에서 분석하기'가 웹 결과 화면(?web=1)으로 보낸다(GPU 비용 · 동의 글은 한 곳에서).
+ * 분석 걸기도 앱에서(판 9 — RequestPanel): 동의 글은 웹과 같은 한 곳(lab-summary CONSENT_TEXT), 비용 지키기 · 동의 확인은 서버 requestPitch3dV2.
  */
 type LoadResult = AppLabDetail | { ok: false; to: string };
 
@@ -111,7 +112,6 @@ export default function LabScreen() {
     lab.current?.seek(frame);
     scroll.current?.scrollTo({ y: 0, animated: true });
   };
-  const toWeb = () => typeof id === 'string' && leaveTo(`/videos/lab/${id}?web=1`);
 
   const header = (
     <View style={[s.header, { paddingTop: inset.top + 4, backgroundColor: c.page, borderBottomColor: c.line }]}>
@@ -163,13 +163,20 @@ export default function LabScreen() {
           {r ? (
             <Lab3D ref={lab} id={data.id} width={boxW} bg={c.page} onTransport={onTransport} />
           ) : (
-            data.waiting && <Waiting waiting={data.waiting} onWeb={toWeb} />
+            data.waiting && <Waiting waiting={data.waiting} />
           )}
-          {r?.stale && (
-            <Pressable onPress={toWeb} accessibilityRole="button" style={[s.notice, { backgroundColor: c.card, borderColor: c.line }]}>
+          {r?.stale && !active && (
+            <View style={[s.notice, { backgroundColor: c.card, borderColor: c.line }]}>
               <Text style={[s.small, { color: c.ink, flex: 1 }]}>엔진이 나아졌어요. 다시 분석하면 새 엔진으로 볼 수 있어요.</Text>
-              <Text style={[s.smallBold, { color: c.sky }]}>웹에서 분석하기</Text>
-            </Pressable>
+            </View>
+          )}
+          {r && active && (
+            <View style={[s.notice, { backgroundColor: c.card, borderColor: c.line }]}>
+              <Text style={[s.small, { color: c.ink, flex: 1 }]}>다시 분석 중이에요. 끝날 때까지 이전 결과를 보여 줘요.</Text>
+            </View>
+          )}
+          {!active && typeof id === 'string' && (
+            <RequestPanel id={id} req={data.request} hasResult={!!r || !!data.status} onStarted={() => setTries((n) => n + 1)} c={c} />
           )}
         </View>
 
@@ -259,18 +266,86 @@ function SourceVideo({
   return <VideoView player={player} style={s.video} contentFit="contain" nativeControls={false} pointerEvents="none" />;
 }
 
-/** 결과가 없을 때 3D 칸 — 분석 전 · 기다림 · 실패(웹 V2EmptyWell 과 같은 말). 분석 걸기는 웹에서 */
-function Waiting({ waiting, onWeb }: { waiting: NonNullable<AppLabDetail['waiting']>; onWeb: () => void }) {
+/** 결과가 없을 때 3D 칸 — 분석 전 · 기다림 · 실패(웹 V2EmptyWell 과 같은 말). 분석 걸기는 밑의 RequestPanel */
+function Waiting({ waiting }: { waiting: NonNullable<AppLabDetail['waiting']> }) {
   return (
     <View style={[s.well]} accessibilityLiveRegion="polite">
       {waiting.active ? <ActivityIndicator color="#c7cfdd" /> : <SymbolView name="rotate.3d" size={26} tintColor="#8b93a7" />}
       <Text style={[s.bodyBold, s.center, { color: '#e8eef7' }]}>{waiting.title}</Text>
       {waiting.line && <Text style={[s.small, s.center, { color: '#9aa3b8' }]}>{waiting.line}</Text>}
-      {waiting.canStart && (
-        <Pressable onPress={onWeb} accessibilityRole="button" style={s.wellBtn}>
-          <Text style={[s.bodyBold, { color: '#e8eef7' }]}>웹에서 분석하기</Text>
-        </Pressable>
-      )}
+    </View>
+  );
+}
+
+/**
+ * 분석 걸기 — 웹 analysis-v2.tsx V2RequestRow 와 같은 규칙: 동의 확인 + 단추, 영상 탓 실패면 고칠 것 한 줄 · '다른 영상으로 올리기' · '같은 영상으로 다시'.
+ * 검사 · 같은 영상 다시 막기 · 하루 실패 10번 · 동의 확인은 서버 requestPitch3dV2(웹과 같은 동작)가 한다. 걸면 다시 읽어 기다림 칸 · 5초 묻기로 이어진다.
+ */
+function RequestPanel({ id, req, hasResult, onStarted, c }: { id: string; req: AppLabDetail['request']; hasResult: boolean; onStarted: () => void; c: Palette }) {
+  const [consent, setConsent] = useState(false);
+  const [need, setNeed] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  if (!req.enabled) return null;
+  const submit = async () => {
+    if (!consent) return setNeed(true);
+    setNeed(false);
+    setError(null);
+    setBusy(true);
+    try {
+      const r = await rpc<{ job: unknown } | { error: string }>('pitch-lab.requestPitch3dV2', { id, consent: true });
+      if ('error' in r) return setError(r.error);
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      onStarted();
+    } catch {
+      setError('신호가 약해 보내지 못했어요. 다시 해 주세요.');
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <View style={{ gap: 10 }}>
+      {req.fix ? (
+        <View style={[s.notice, { backgroundColor: c.card, borderColor: c.line, flexDirection: 'column', alignItems: 'flex-start', gap: 4 }]}>
+          <Text style={[s.small, { color: c.ink }]}>{req.fix}</Text>
+          {req.fixSection ? (
+            <Pressable onPress={() => router.push(`/lab/guide?s=${req.fixSection}` as Href)} accessibilityRole="link" hitSlop={6}>
+              <Text style={[s.smallBold, { color: c.sky }]}>촬영 안내 보기 ›</Text>
+            </Pressable>
+          ) : null}
+        </View>
+      ) : null}
+      <Pressable
+        accessibilityRole="checkbox"
+        accessibilityState={{ checked: consent, disabled: busy }}
+        onPress={() => {
+          setConsent((v) => !v);
+          setNeed(false);
+        }}
+        style={{ flexDirection: 'row', gap: 12, alignItems: 'flex-start' }}
+      >
+        <View style={{ width: 22, height: 22, borderRadius: 6, marginTop: 1, borderWidth: 2, borderColor: need ? c.danger : consent ? c.sky : c.line, backgroundColor: consent ? c.sky : 'transparent', alignItems: 'center', justifyContent: 'center' }}>
+          {consent ? <SymbolView name="checkmark" size={12} weight="bold" tintColor="#fff" /> : null}
+        </View>
+        <Text style={[s.small, { flex: 1, color: need ? c.danger : c.ink, lineHeight: 20 }]}>{CONSENT_TEXT}</Text>
+      </Pressable>
+      <View style={{ flexDirection: 'row', gap: 8 }}>
+        {req.videoFault ? (
+          <>
+            <Pressable onPress={() => router.push('/lab' as Href)} accessibilityRole="button" style={[s.pill, { flex: 1, backgroundColor: c.card }]}>
+              <Text style={[s.bodyBold, { color: c.ink }]}>다른 영상으로 올리기</Text>
+            </Pressable>
+            <Pressable onPress={() => void submit()} disabled={busy} accessibilityRole="button" style={[s.pill, { flex: 1, backgroundColor: c.card, opacity: busy ? 0.5 : 1 }]}>
+              <Text style={[s.bodyBold, { color: c.ink }]}>{busy ? '거는 중' : '같은 영상으로 다시'}</Text>
+            </Pressable>
+          </>
+        ) : (
+          <Pressable onPress={() => void submit()} disabled={busy} accessibilityRole="button" style={[s.pill, { flex: 1, backgroundColor: c.sky, opacity: busy ? 0.5 : 1 }]}>
+            <Text style={[s.bodyBold, { color: '#fff' }]}>{busy ? '거는 중' : hasResult ? '다시 분석' : '3D 분석(서버)'}</Text>
+          </Pressable>
+        )}
+      </View>
+      {error ? <Text style={[s.smallBold, { color: c.danger }]}>{error}</Text> : null}
     </View>
   );
 }
@@ -399,5 +474,4 @@ const s = StyleSheet.create({
     gap: 8,
     paddingHorizontal: 24,
   },
-  wellBtn: { marginTop: 6, minHeight: 44, paddingHorizontal: 18, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.12)', justifyContent: 'center' },
 });
