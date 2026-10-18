@@ -1,5 +1,4 @@
 import * as Haptics from 'expo-haptics';
-import { SymbolView } from 'expo-symbols';
 import { type Href, router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -10,13 +9,15 @@ import { leave } from '~/mechanics/parts';
 import { rpc, RpcError } from '~/lib/rpc';
 import { REST_DAY } from '~/training/rest-day';
 import { cacheEpoch, cacheGet, cacheSet } from '~/lib/store';
-import { usePalette, type Palette } from '~/lib/ui';
+import { usePalette } from '~/lib/ui';
 import { useWebNav, openCheckin } from '~/shell/web-nav';
-import { BigButton, s, WebRows, type TodayActions } from '~/training/today/parts';
+import { BigButton, s, type TodayActions } from '~/training/today/parts';
 import { DoneView, HaltedCard, MakeCard, NoticeBand, OutingRow, PlanBody, PrefsCard, ProgramDayRow } from '~/training/today/plan';
 import { ProgramCardView, ProgramDoneView } from '~/training/today/program';
 import { ProgramStartView } from '~/training/today/program-start';
 import { READABLE } from '~/lib/layout';
+import { Icon } from '~/shell/icon';
+import { PageHead } from '~/shell/heading';
 import { useRememberPart } from '~/training/remember';
 
 /**
@@ -37,13 +38,6 @@ const KEY = 'training-today';
 /* 메모리에 둔 마지막 값 — 로그인 세대(cacheEpoch)가 같을 때만 쓴다(로그아웃 뒤 다른 사람에게 앞사람 운동이 비치지 않게) */
 let memory: { epoch: number; data: TrainingToday } | null = null;
 const remembered = () => (memory?.epoch === cacheEpoch() ? memory.data : null);
-
-const WEEKDAY = '일월화수목금토';
-/** 날짜 키의 월 · 일 · 요일 — 폰의 시간대와 상관없이 그 날로 */
-const dayOf = (key: string) => {
-  const [y, m, d] = key.split('-').map(Number);
-  return { month: m, day: d, week: WEEKDAY[new Date(Date.UTC(y, m - 1, d)).getUTCDay()] };
-};
 
 export default function TrainingTodayScreen() {
   useRememberPart('today');
@@ -158,19 +152,28 @@ export default function TrainingTodayScreen() {
     web: leave,
   };
 
+  /* 웹 휴대폰 위 막대의 '‹ 트레이닝'(back-link) — 제목은 본문 큰 제목(PageHeading)이 맡는다 */
   const header = (
-    <View style={[s.header, { paddingTop: inset.top + 4, backgroundColor: c.page, borderBottomColor: c.line }]}>
-      <Pressable onPress={() => router.back()} accessibilityRole="button" accessibilityLabel="뒤로" style={s.iconBtn}>
-        <SymbolView name="chevron.left" size={20} weight="semibold" tintColor={c.sky} />
-      </Pressable>
-      <Text accessibilityRole="header" numberOfLines={1} style={[s.headTitle, { color: c.ink }]}>
-        오늘 운동
-      </Text>
-      {/* 웹 오늘 운동 머리 오른쪽의 톱니(트레이닝 설정 · 장비)와 같은 자리 */}
-      <Pressable onPress={() => router.push('/training/settings' as Href)} accessibilityRole="button" accessibilityLabel="트레이닝 설정" style={s.iconBtn}>
-        <SymbolView name="gearshape" size={20} tintColor={c.sky} />
+    <View style={[st.bar, { paddingTop: inset.top + 4, backgroundColor: c.page }]}>
+      <Pressable onPress={() => router.back()} accessibilityRole="button" accessibilityLabel="트레이닝으로 돌아가기" style={({ pressed }) => [st.back, pressed && { opacity: 0.6 }]}>
+        <Icon name="chevron-left" size={24} color={c.sky} />
+        <Text style={{ color: c.sky, fontSize: 17 }}>트레이닝</Text>
       </Pressable>
     </View>
+  );
+  /* 큰 제목 '트레이닝' + 오른쪽 '설정' 알약(웹 training-page PageHeading · TrainingSettingsButton pill) */
+  const heading = (
+    <PageHead title="트레이닝">
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="트레이닝 설정"
+        onPress={() => router.push('/training/settings' as Href)}
+        style={({ pressed }) => [st.pill, { backgroundColor: c.chip }, pressed && { opacity: 0.6 }]}
+      >
+        <Icon name="settings2" size={16} color={c.sky} />
+        <Text style={{ color: c.ink, fontSize: 15, fontWeight: '600' }}>설정</Text>
+      </Pressable>
+    </PageHead>
   );
 
   if (!data) {
@@ -218,7 +221,7 @@ export default function TrainingTodayScreen() {
           />
         }
       >
-        <Strip data={data} c={c} />
+        {heading}
         {failed ? <Text style={[s.small, { color: c.danger }]}>{failed}</Text> : null}
 
         {data.programCard ? <ProgramCardView p={data.programCard} c={c} a={actions} /> : null}
@@ -267,48 +270,16 @@ export default function TrainingTodayScreen() {
           <PlanBody plan={b.plan} make={b.make} data={data} c={c} a={actions} />
         ) : null}
 
-        <WebRows c={c} rows={[{ label: '트레이닝 설정 · 장비', href: '/training/settings', onPress: (href) => router.push(href as Href) }]} />
       </ScrollView>
     </View>
   );
 }
 
-/** 최근 7일 — 칸 밑 점은 그날 한 것(운동 · 암케어 · 메커니즘, 웹 날짜 띠와 같은 셋). 지난날을 누르면 그날 기록(앱 화면 /training/day/<날짜>) */
-function Strip({ data, c }: { data: TrainingToday; c: Palette }) {
-  const d = dayOf(data.today);
-  return (
-    <View style={{ gap: 8 }}>
-      <Text style={[s.cardTitle, { color: c.ink }]}>
-        {d.month}월 {d.day}일 {d.week}요일
-      </Text>
-      <View style={st.strip}>
-        {data.strip.map((day) => {
-          const on = day.date === data.today;
-          const date = dayOf(day.date);
-          const dots = [day.workout, day.armcare, day.drill];
-          return (
-            <Pressable
-              key={day.date}
-              accessibilityRole="button"
-              accessibilityLabel={`${date.month}월 ${date.day}일`}
-              disabled={on}
-              onPress={() => router.push(`/training/day/${day.date}` as Href)}
-              style={[st.day, { backgroundColor: on ? c.sky : c.card }]}
-            >
-              <Text style={[s.tiny, { color: on ? '#fff' : c.muted }]}>{date.week}</Text>
-              <Text style={[s.bodyBold, s.num, { color: on ? '#fff' : c.ink }]}>{date.day}</Text>
-              <View style={st.dots}>
-                {dots.map((x, i) => (x ? <View key={i} style={[st.dot, { backgroundColor: on ? '#fff' : c.sky }]} /> : null))}
-              </View>
-            </Pressable>
-          );
-        })}
-      </View>
-    </View>
-  );
-}
 
 const st = StyleSheet.create({
+  bar: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, minHeight: 44 },
+  back: { flexDirection: 'row', alignItems: 'center', minHeight: 44 },
+  pill: { height: 44, borderRadius: 22, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', gap: 6 },
   strip: { flexDirection: 'row', gap: 6 },
   day: { flex: 1, minHeight: 64, borderRadius: 14, alignItems: 'center', justifyContent: 'center', gap: 2 },
   dots: { flexDirection: 'row', gap: 2, height: 5 },

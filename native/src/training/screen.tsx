@@ -20,6 +20,8 @@ import { rpc, RpcError } from '~/lib/rpc';
 import { cacheEpoch, cacheGet, cacheSet } from '~/lib/store';
 import { usePalette, type Palette } from '~/lib/ui';
 import { READABLE } from '~/lib/layout';
+import { Icon } from '~/shell/icon';
+import { PageHead } from '~/shell/heading';
 
 /**
  * 암케어 · 메커니즘 전체 화면(native/src/app/training-armcare.tsx · training-mechanics.tsx)의 같은 틀 — 머리(‹ · 제목) · 두 칸 고르개 ·
@@ -145,21 +147,12 @@ export function Screen<K extends string>({
   const inset = useSafeAreaInsets();
   return (
     <View style={[s.fill, { backgroundColor: c.page }]}>
-      <View style={[s.header, { paddingTop: inset.top + 4, backgroundColor: c.page, borderBottomColor: c.line }]}>
-        <Pressable onPress={() => router.back()} accessibilityRole="button" accessibilityLabel="트레이닝으로" style={s.iconBtn}>
-          <SymbolView name="chevron.left" size={20} weight="semibold" tintColor={c.sky} />
+      {/* 웹 휴대폰 위 막대의 '‹ 트레이닝'(back-link) — 제목은 본문 큰 제목이 맡는다 */}
+      <View style={[st.bar, { paddingTop: inset.top + 4, backgroundColor: c.page }]}>
+        <Pressable onPress={() => router.back()} accessibilityRole="button" accessibilityLabel="트레이닝으로 돌아가기" style={({ pressed }) => [st.back, pressed && { opacity: 0.6 }]}>
+          <Icon name="chevron-left" size={24} color={c.sky} />
+          <Text style={{ color: c.sky, fontSize: 17 }}>트레이닝</Text>
         </Pressable>
-        <Text accessibilityRole="header" numberOfLines={1} style={[s.headTitle, { color: c.ink }]}>
-          {title}
-        </Text>
-        {/* 웹 암케어 머리의 트레이닝 설정(휴대폰 '설정' 알약)과 같은 자리 — 앱 설정 화면 */}
-        {settings ? (
-          <Pressable onPress={() => router.push('/training/settings' as Href)} accessibilityRole="button" accessibilityLabel="트레이닝 설정" style={s.iconBtn}>
-            <SymbolView name="gearshape" size={20} tintColor={c.sky} />
-          </Pressable>
-        ) : (
-          <View style={s.iconBtn} />
-        )}
       </View>
       <ScrollView
         ref={scrollRef}
@@ -167,6 +160,20 @@ export function Screen<K extends string>({
         contentContainerStyle={[s.content, { paddingBottom: Math.max(24, inset.bottom + 16) }, READABLE]}
         refreshControl={<RefreshControl refreshing={state.refreshing} onRefresh={state.refresh} />}
       >
+        {/* 큰 제목 + 오른쪽 '설정' 알약(웹 training-page PageHeading · TrainingSettingsButton pill — 암케어만) */}
+        <PageHead title={title}>
+          {settings ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="트레이닝 설정"
+              onPress={() => router.push('/training/settings' as Href)}
+              style={({ pressed }) => [st.pill, { backgroundColor: c.chip }, pressed && { opacity: 0.6 }]}
+            >
+              <Icon name="settings2" size={16} color={c.sky} />
+              <Text style={{ color: c.ink, fontSize: 15, fontWeight: '600' }}>설정</Text>
+            </Pressable>
+          ) : null}
+        </PageHead>
         <View accessibilityRole="tablist" style={[s.segment, { backgroundColor: c.chip }]}>
           {tabs.map((t) => {
             const on = t.value === tab;
@@ -305,4 +312,10 @@ export const s = StyleSheet.create({
   body: { fontSize: 15, lineHeight: 21 },
   bodyBold: { fontSize: 15, fontWeight: '600', lineHeight: 21 },
   center: { textAlign: 'center' },
+});
+
+const st = StyleSheet.create({
+  bar: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, minHeight: 44 },
+  back: { flexDirection: 'row', alignItems: 'center', minHeight: 44 },
+  pill: { height: 44, borderRadius: 22, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', gap: 6 },
 });
