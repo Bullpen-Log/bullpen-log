@@ -11,7 +11,7 @@ import { Icon } from '~/shell/icon';
  * - 영상 없이 남긴 날: 체감 강도로 칠하고 왼쪽 위 날짜 · 가운데 아래 'N구'. 쉬는 날은 안쪽 점선 · '휴식'.
  * - 아무것도 없는 지난날: 옅은 회색 판 · 날짜만. 앞날은 더 옅은 날짜만.
  * - 오늘은 날짜에 파란 테두리 원(어두운 바탕이면 흰 원).
- * 장면 그림을 아직 못 받았으면 강도 칠한 칸으로 보이다가 받으면 옅게 바뀐다(160ms).
+ * 장면 그림이 없으면(아직 · 못 만듦) 옅은 하늘 판에 필름 — 웹 Thumb 과 같다. 받으면 옅게 바뀐다(160ms).
  */
 const BAND_ALPHA = { strong: 0.7, mid: 0.4, light: 0.15 } as const;
 
@@ -38,10 +38,14 @@ export function VideoCell({ d }: { d: VideoDay }) {
       </>
     );
   }
-  if (d.thumb) {
+  if (d.videos > 0 && !d.rest) {
     return (
       <>
-        <Image source={{ uri: d.thumb }} contentFit="cover" transition={160} style={StyleSheet.absoluteFill} />
+        {/* 장면 그림이 없거나 아직이면 옅은 하늘 판 + 필름(웹 Thumb) — 영상이 있는 날임은 늘 보인다 */}
+        <View style={[StyleSheet.absoluteFill, styles.noThumb, { backgroundColor: withAlpha(c.skyTint, 0.7) }]}>
+          <Icon name="film" size={16} color={withAlpha(c.sky, 0.7)} />
+        </View>
+        {d.thumb ? <Image source={{ uri: d.thumb }} contentFit="cover" transition={160} style={StyleSheet.absoluteFill} /> : null}
         <Shade />
         <DayNum d={d} color="#fff" ring="#fff" bold shadow />
         <Text style={[styles.cornerCount, styles.shadow]}>{d.pitches}구</Text>
@@ -103,6 +107,7 @@ function Shade() {
 }
 
 const styles = StyleSheet.create({
+  noThumb: { alignItems: 'center', justifyContent: 'center' },
   dayText: { fontSize: 12, lineHeight: 16, fontVariant: ['tabular-nums'] },
   dayPos: { position: 'absolute', left: 6, top: 4 },
   today: { position: 'absolute', left: 2, top: 2, minWidth: 22, height: 22, borderRadius: 11, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center' },
