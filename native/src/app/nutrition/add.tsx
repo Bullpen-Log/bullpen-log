@@ -8,7 +8,8 @@ import { BASIC_FOODS, basicAliases } from '@/lib/nutrition/foods';
 import { matchScore } from '@/lib/nutrition/hangul';
 import { isMealKey, mealLabel, QUICK_AMOUNTS, stepAmount, type Food, type MealKey } from '@/lib/nutrition/meta';
 import { usePalette } from '~/lib/ui';
-import { addFoods, replaceEntry, replacePlan, searchMfds, searchMfdsReps, useNutritionDay } from '~/nutrition/api';
+import { addFoods, replaceEntry, replacePlan, saveMyFood, searchMfds, searchMfdsReps, useNutritionDay } from '~/nutrition/api';
+import { CustomFood } from '~/nutrition/custom-food';
 import { takeScanned } from '~/nutrition/scanned';
 import { READABLE } from '~/lib/layout';
 
@@ -17,7 +18,8 @@ import { READABLE } from '~/lib/layout';
  * 내 음식 · 바코드(앱 카메라 — 웹은 아이폰 사파리에서 바코드를 못 읽었다). 줄을 누르면 양(¼인분 단위)을 정해 담고, 줄 옆 + 한 번이면 1인분.
  * 웹 food-sheet.tsx 처럼 담아도 창을 닫지 않는다(한 끼는 보통 여러 가지) — 아래에 '○○ 담았어요'를 모아 보여 주고 '다 했어요'로 닫는다.
  * 바꾸기 모드(entry=먹은 줄 id 또는 plan=식단 줄 key, name=옛 이름): 웹 음식 창의 '‘○○’ 바꾸기'처럼 고르면 그 줄이 바뀌고 창이 닫힌다.
- * 조합 · 어제와 같이 · 직접 적기 · 분류 둘러보기는 아직 웹.
+ * 목록에 없으면 직접 입력(웹 CustomEntry — 찾던 말을 이름에 미리, 내 음식 저장 스위치).
+ * 조합 · 어제와 같이 · 분류 둘러보기는 아직 웹.
  */
 const LIMIT = 30;
 
@@ -37,6 +39,8 @@ export default function NutritionAddScreen() {
   /* 이 창에서 담은 음식 이름 — 웹 '담았어요' 줄 */
   const [added, setAdded] = useState<string[]>([]);
   const [quick, setQuick] = useState<string | null>(null);
+  const [customOpen, setCustomOpen] = useState(false);
+  const [customBusy, setCustomBusy] = useState(false);
 
   /* 바코드 화면에서 돌아오면 찾은 음식을 고른 것으로 */
   const [scanned, setScanned] = useState<Food | null>(null);
@@ -126,6 +130,49 @@ export default function NutritionAddScreen() {
     void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setAdded((a) => [...a, f.name]);
   };
+
+  /* 직접 입력 — 담기(또는 바꾸기)가 된 뒤에만 내 음식에 저장(웹: 실패해도 · 두 번 눌러도 내 음식이 두 줄 생기지 않게) */
+  const addCustom = async (food: Food, save: boolean) => {
+    if (customBusy) return;
+    setCustomBusy(true);
+    setError(null);
+    const err = replacing ? await replaceWith(food, 1) : await addFoods(date, mealKey, [{ food, amount: 1 }]);
+    if (err) {
+      setCustomBusy(false);
+      return setError(err);
+    }
+    const saveErr = save ? await saveMyFood(food) : null;
+    setCustomBusy(false);
+    void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    if (replacing) return router.back();
+    setAdded((a) => [...a, food.name]);
+    setCustomOpen(false);
+    if (saveErr) setError(`${food.name} 내 음식에 저장하지 못했어요. ${saveErr}`);
+  };
+
+  const custom = (
+    <View style={{ gap: 8, paddingTop: 8 }}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityState={{ expanded: customOpen }}
+        onPress={() => setCustomOpen((o) => !o)}
+        style={[styles.customBtn, { borderColor: customOpen ? c.sky : c.line }]}
+      >
+        <Text style={{ color: customOpen ? c.sky : c.muted, fontSize: 15 }}>
+          ✎ {q.trim() ? `‘${q.trim()}’ 직접 입력` : '목록에 없으면 직접 입력'}
+        </Text>
+      </Pressable>
+      {customOpen ? (
+        <CustomFood
+          key={q.trim()}
+          initialName={q.trim()}
+          busy={customBusy}
+          submitLabel={replacing ? '이 음식으로 바꾸기' : `${mealLabel(mealKey)}에 담기`}
+          onSubmit={(food, save) => void addCustom(food, save)}
+        />
+      ) : null}
+    </View>
+  );
 
   const row = (f: Food, key: string) => (
     <Pressable
@@ -257,6 +304,7 @@ export default function NutritionAddScreen() {
                 ) : local.length === 0 ? (
                   <Text style={{ color: c.muted, fontSize: 15, padding: 8, textAlign: 'center' }}>‘{q.trim()}’에 맞는 음식이 없어요.</Text>
                 ) : null}
+                {custom}
                 <Text style={{ color: c.muted, fontSize: 12, lineHeight: 17, paddingTop: 8 }}>
                   {day?.mfds
                     ? '식약처 자료는 식품의약품안전처 식품영양성분 데이터베이스(공공데이터포털)에서 가져와요.'
@@ -270,6 +318,7 @@ export default function NutritionAddScreen() {
                 {day?.mine.length ? <Text style={[styles.section, { color: c.muted }]}>내 음식</Text> : null}
                 {day?.mine.slice(0, LIMIT).map((f, i) => row(f, `y${i}`))}
                 {!day ? <ActivityIndicator style={{ padding: 16 }} /> : null}
+                {custom}
               </>
             )}
           </ScrollView>
@@ -304,6 +353,7 @@ const styles = StyleSheet.create({
   primary: { flex: 1, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center' },
   primaryText: { color: '#fff', fontSize: 17, fontWeight: '600' },
   plus: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
+  customBtn: { minHeight: 48, borderRadius: 14, borderWidth: 1, borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center' },
   added: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, paddingTop: 10, borderTopWidth: StyleSheet.hairlineWidth },
   done: { height: 40, borderRadius: 20, paddingHorizontal: 16, alignItems: 'center', justifyContent: 'center' },
 });
