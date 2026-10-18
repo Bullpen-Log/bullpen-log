@@ -94,7 +94,8 @@ export const allExercises = unstable_cache(
   /* :v34 — 2026-10-16 불안정 지면 스냅다운을 '나중에 촬영'으로(scripts/library-later-snapdown-2026-10-16.mjs). */
   /* :v35 — 같은 날 백 페달도 '나중에 촬영'으로. */
   /* :v37 — 2026-10-17 촬영 영상 52개를 다듬은 판(앞뒤 빈 시간 · 작은 사람)으로 경로 바꿈(scripts/shoot-trim/apply.mjs). */
-  ['library:exercises:v37'],
+  /* :v38 — 2026-10-18 직접 찍은 영상과 어긋난 운동 43개의 설명 · 도구 · 좌우 · 버티기/횟수를 영상대로 고침. */
+  ['library:exercises:v38'],
   { tags: [LIBRARY_TAG] }
 );
 
