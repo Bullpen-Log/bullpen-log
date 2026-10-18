@@ -16,6 +16,8 @@ import { Press } from '~/shell/press';
 import { openCheckin } from '~/shell/web-nav';
 import { loadDay, type DayDetail } from './api';
 import { DayEvents, useDayEventCount } from './events';
+import { PitchVideo } from '~/pitch/video';
+import { useVelocityDays } from '~/pitch/store';
 
 /**
  * 홈 달력 밑 그날 칸 — 웹 day-summary.tsx(요약 카드) · day-detail.tsx(자세히 카드)와 같은 두 카드.
@@ -65,6 +67,7 @@ export function DayCards({
     error: null,
   }));
   const [picked, setPicked] = useState<{ date: string; focus: Focus } | null>(null);
+  const [retry, setRetry] = useState(0);
 
   useEffect(() => {
     let alive = true;
@@ -79,20 +82,32 @@ export function DayCards({
     return () => {
       alive = false;
     };
-  }, [date, today]);
+  }, [date, today, retry]);
 
   const ahead = date > today;
+  /* 같이 만든 투구 기록을 지워도 측정 세션은 남는다 — 그래도 카메라 줄은 보인다(웹 PitchDetail) */
+  const vday = useVelocityDays()?.[date];
+  const camera =
+    vday && vday.n > 0 ? (
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+        <Icon name="camera" size={14} color={c.sky} />
+        <Text style={{ flex: 1, color: c.muted, fontSize: 12 }}>
+          카메라로 잰 공 {vday.n}구 · 최고 {formatSpeed(vday.max, speed)}
+          {vday.clips > 0 ? ` · 영상 ${vday.clips}개는 그날 화면에서 봐요` : ''}
+        </Text>
+      </View>
+    ) : null;
   const d = state.date === date ? (state.detail ?? days.get(date) ?? null) : (days.get(date) ?? null);
   const eventCount = useDayEventCount(date) ?? 0;
   const videos = logs.reduce((n, l) => n + l.videoPaths.length, 0);
   const doneEx = d?.training.exercises.filter((e) => e.done) ?? [];
   const pain = d?.checkin?.parts.some((p) => p.value === '통증') ?? false;
   const has: Record<Focus, boolean> = {
-    pitch: logs.length > 0,
+    pitch: logs.length > 0 || (vday?.n ?? 0) > 0,
     training: doneEx.length > 0 || d?.training.intensity != null,
     nutrition: (d?.nutrition.kcal ?? 0) > 0,
     checkin: d?.checkin != null,
-    video: videos > 0,
+    video: videos > 0 || (vday?.clips ?? 0) > 0,
     schedule: eventCount > 0,
   };
   /* 처음 펼칠 것 — 남긴 것 가운데 가장 앞, 아무것도 없으면 투구(앞날이면 일정 — 웹 firstFocus 와 같다) */
@@ -160,8 +175,8 @@ export function DayCards({
             <Text style={{ color: c.muted, fontWeight: '400' }}> · {TITLES[focus]}</Text>
           </Text>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginLeft: 'auto' }}>
-            {!ahead && (focus === 'pitch' || focus === 'training') ? (
-              <Press accessibilityRole="link" onPress={() => router.push(`/analysis?view=${focus}&date=${date}` as Href)} style={styles.headLink}>
+            {!ahead && focus !== 'schedule' ? (
+              <Press accessibilityRole="link" onPress={() => router.push(`/analysis?view=${focus === 'training' ? 'training' : 'pitch'}&date=${date}` as Href)} style={styles.headLink}>
                 <Text style={{ color: c.muted, fontSize: 14, fontWeight: '500' }}>그날 분석</Text>
               </Press>
             ) : null}
@@ -181,9 +196,13 @@ export function DayCards({
             <Empty c={c}>아직 오지 않은 날이에요. 일정을 적어 둘 수 있어요.</Empty>
           ) : focus === 'pitch' ? (
             logs.length === 0 ? (
-              <Empty c={c}>이 날 남긴 투구가 없어요.</Empty>
+              <View style={{ gap: 12 }}>
+                {camera}
+                <Empty c={c}>이 날 남긴 투구가 없어요.</Empty>
+              </View>
             ) : (
               <View style={{ gap: 12 }}>
+                {camera}
                 {logs.map((l, i) => {
                   const rest = isRestSession(l.sessionType);
                   return (
@@ -210,15 +229,36 @@ export function DayCards({
             )
           ) : focus === 'video' ? (
             videos ? (
-              <View style={{ gap: 6 }}>
-                <Text style={{ color: c.ink, fontSize: 15, fontWeight: '600' }}>영상 {videos}개</Text>
-                <Text style={{ color: c.muted, fontSize: 13 }}>그날 화면에서 크게 보고 느리게 볼 수 있어요.</Text>
+              /* 두 개까지 그 자리에서 튼다 — 더 있으면 투구 탭에서(웹 VideoDetail) */
+              <View style={{ gap: 12 }}>
+                {logs
+                  .flatMap((l) => (isRestSession(l.sessionType) ? [] : l.videoPaths))
+                  .slice(0, 2)
+                  .map((p, i) => (
+                    <View key={p} style={{ gap: 6 }}>
+                      <PitchVideo path={p} />
+                      <Text style={{ color: c.muted, fontSize: 12 }}>영상 {i + 1}</Text>
+                    </View>
+                  ))}
+                {videos > 2 ? <Text style={{ color: c.muted, fontSize: 12 }}>외 {videos - 2}개는 투구 기록에서 볼 수 있어요.</Text> : null}
               </View>
+            ) : vday?.clips ? (
+              <Text style={{ color: c.muted, fontSize: 13 }}>구속 측정 영상 {vday.clips}개는 그날 화면에서 공마다 볼 수 있어요.</Text>
             ) : (
               <Empty c={c}>이 날 올린 영상이 없어요.</Empty>
             )
           ) : !d ? (
-            state.error ? <Text style={{ color: c.danger, fontSize: 15 }}>{state.error}</Text> : <Waiting c={c} />
+            state.error ? (
+              /* 웹 day-detail — 못 불러왔으면 한 줄 + 다시 불러오기 */
+              <View style={{ alignItems: 'center', gap: 8, paddingVertical: 12 }}>
+                <Text style={{ color: c.muted, fontSize: 15 }}>이 날 내용을 불러오지 못했어요.</Text>
+                <Press accessibilityRole="button" onPress={() => setRetry((n) => n + 1)} style={[styles.retry, { backgroundColor: c.chip }]}>
+                  <Text style={{ color: c.ink, fontSize: 15, fontWeight: '600' }}>다시 불러오기</Text>
+                </Press>
+              </View>
+            ) : (
+              <Waiting c={c} />
+            )
           ) : focus === 'training' ? (
             <TrainingDetail d={d} c={c} />
           ) : focus === 'nutrition' ? (
@@ -239,7 +279,7 @@ function tabLink(focus: Focus, date: string, today: string, empty: boolean): { h
   if (focus === 'training')
     return { href: isToday ? '/training' : `/training/day/${date}`, label: empty ? (isToday ? '오늘 운동하러 가기' : '이 날 운동 채우기') : '트레이닝에서 자세히' };
   if (focus === 'nutrition') return { href: '/nutrition', label: empty ? '식단 기록하러 가기' : '영양 탭에서 자세히' };
-  if (focus === 'video') return { href: `/pitch/${date}`, label: empty ? '투구 탭으로' : '그날 화면에서 보기' };
+  if (focus === 'video') return { href: `/pitch/${date}`, label: empty ? '투구 탭으로' : '투구 탭에서 보기' };
   return null;
 }
 function go(href: string, onTab: (href: string) => void) {
@@ -415,6 +455,7 @@ function Waiting({ c }: { c: Palette }) {
 }
 
 const styles = StyleSheet.create({
+  retry: { minHeight: 44, paddingHorizontal: 18, borderRadius: 22, justifyContent: 'center' },
   card: { borderRadius: 20, overflow: 'hidden' },
   head: { flexDirection: 'row', alignItems: 'flex-start', paddingHorizontal: 20, paddingTop: 16, paddingBottom: 12 },
   close: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', marginRight: -12, marginTop: -8 },

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useReducer, useSyncExternalStore } from 'react';
 import { isRestSession } from '@/lib/session-type';
 import { cacheEpoch, cacheGet, cacheSet } from '~/lib/store';
+import { rpc } from '~/lib/rpc';
 import { isPhoneVideoPath, loadAll, loadMonth, serverThumbUrls, type PitchLog } from './api';
 
 /**
@@ -138,4 +139,39 @@ export function useDayThumbs(logs: PitchLog[] | null): Record<string, string> {
   const out: Record<string, string> = {};
   for (const [day, p] of reps) if (urls[p]) out[day] = urls[p];
   return out;
+}
+
+/**
+ * 날짜별 구속 측정 요약 — app.loadAppVelocityDays(웹 loadVelocityByDate). 달력 영상 점(클립도 셈) · 홈 그날 칸 '카메라로 잰 공' 줄.
+ * 한 번 받고, 탭을 다시 볼 때 reloadVelocityDays 로 새로 받는다.
+ */
+export type VelocityDays = Record<string, { n: number; max: number; clips: number; sig: string }>;
+let velocityDays: VelocityDays | null = null;
+const velocityListeners = new Set<() => void>();
+let velocityLoading: Promise<void> | null = null;
+export function reloadVelocityDays(): Promise<void> {
+  velocityLoading ??= rpc<{ ok: true; days: VelocityDays } | { ok: false; error: string }>('app.loadAppVelocityDays')
+    .then((r) => {
+      if (!r.ok) return;
+      velocityDays = r.days;
+      velocityListeners.forEach((l) => l());
+    })
+    .catch(() => undefined)
+    .finally(() => {
+      velocityLoading = null;
+    });
+  return velocityLoading;
+}
+export function useVelocityDays(): VelocityDays | null {
+  const v = useSyncExternalStore(
+    (l) => {
+      velocityListeners.add(l);
+      return () => velocityListeners.delete(l);
+    },
+    () => velocityDays
+  );
+  useEffect(() => {
+    if (!velocityDays) void reloadVelocityDays();
+  }, []);
+  return v;
 }

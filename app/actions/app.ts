@@ -12,7 +12,7 @@ import { dbDate, isNutritionDate, keyOfDbDate } from '@/lib/nutrition/days';
 import { prisma } from '@/lib/prisma';
 import { isOutingTitle, sortEvents, type CalendarEventView } from '@/lib/calendar-event';
 import { gatherFactsAndPlan } from '@/lib/report/gather';
-import { loadVelocityDay, withMissedAttempts } from '@/lib/velocity-load';
+import { loadVelocityByDate, loadVelocityDay, withMissedAttempts } from '@/lib/velocity-load';
 import { logPrefillOf, unloggedSessions, type LogPrefill, type VelocitySessionView } from '@/lib/velocity-meta';
 import { loadNutritionDay } from '@/lib/nutrition/load';
 import type { Food, MealEntryView } from '@/lib/nutrition/meta';
@@ -200,6 +200,18 @@ export async function loadAppTraining(): Promise<
   const last = readTrainingPart((await cookies()).get(TRAINING_PART_COOKIE)?.value);
   if (last) cards.sort((a, b) => Number(b.app === last) - Number(a.app === last));
   return { ok: true, today: todayKey, cards, strip, week };
+}
+
+/**
+ * 날짜별 구속 측정 요약(공 수 · 최고 · 클립 수 · 지문) — 웹 홈 · 투구 달력과 같은 loadVelocityByDate. 앱 달력의 영상 점(클립도 셈)과
+ * 그날 칸의 '카메라로 잰 공' 줄이 쓴다. 측정만 남은 날도 달력에 칠한다(웹 홈과 같다).
+ */
+export async function loadAppVelocityDays(): Promise<
+  { ok: true; days: Record<string, { n: number; max: number; clips: number; sig: string }> } | { ok: false; error: string }
+> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: '로그인이 필요해요.' };
+  return { ok: true, days: await loadVelocityByDate(user.id) };
 }
 
 /**

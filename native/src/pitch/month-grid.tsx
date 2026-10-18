@@ -78,6 +78,7 @@ export function MonthGrid({
   video = false,
   thumbs,
   events,
+  clips,
   headerAction,
   legendExtra = false,
   onMonth,
@@ -98,6 +99,8 @@ export function MonthGrid({
   thumbs?: Record<string, string>;
   /** 날짜 → 그날 일정 수 — 칸 밑 짧은 막대(웹 events, 둘 넘으면 점 하나 더) */
   events?: Record<string, number>;
+  /** 날짜 → 구속 측정 클립 수 — 영상 점에 같이 센다(웹 dayHas: 투구 영상 + 구속 클립) */
+  clips?: Record<string, number>;
   /** 머리 오른쪽 ‹ › 앞에 둘 단추(홈의 목록 보기 — 웹 headerAction) */
   headerAction?: ReactNode;
   /** 범례에 '일정'까지(홈) */
@@ -190,7 +193,7 @@ export function MonthGrid({
           const dayLogs = byDay.get(day) ?? [];
           const count = dayLogs.reduce((n, l) => n + l.pitchCount, 0);
           const rest = dayLogs.length > 0 && dayLogs.every((l) => isRestSession(l.sessionType));
-          const hasVideo = dayLogs.some((l) => l.videoPaths.length > 0);
+          const hasVideo = dayLogs.some((l) => l.videoPaths.length > 0) || (clips?.[day] ?? 0) > 0;
           const effort = dayLogs.length && !rest ? Math.max(0, ...dayLogs.map((l) => readEffort({ intensity: l.intensity ?? 0, effortPct: l.effortPct })?.pct ?? 0)) : null;
           const strong = effort != null && effort >= STRONG_EFFORT_PCT;
           const isToday = day === today;
