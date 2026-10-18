@@ -19,6 +19,7 @@ import {
   SymptomChips,
 } from '~/training/mechanics-parts';
 import { Fold, Screen, s, useJump, useScreenData } from '~/training/screen';
+import { useRememberPart } from '~/training/remember';
 
 /**
  * 메커니즘(앱 화면) — 웹 /training?view=mechanics(&tab=elements&el=…)(app/(app)/training/training-page.tsx 의 mechanics 칸 · mechanics-section.tsx)를
@@ -34,6 +35,7 @@ const TABS = [
 type Tab = (typeof TABS)[number]['value'];
 
 export default function TrainingMechanicsScreen() {
+  useRememberPart('mechanics');
   const c = usePalette();
   const params = useLocalSearchParams<{ tab?: string; el?: string }>();
   const [tab, setTab] = useState<Tab>(params.tab === 'elements' ? 'elements' : 'program');

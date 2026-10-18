@@ -13,6 +13,7 @@ import { usePalette, type Palette } from '~/lib/ui';
 import { openCheckin } from '~/shell/web-nav';
 import { AREAS_BY_JOINT, AreaCard, Checklist, GapCard, PainNote, RehabCard, RoutineCard, WeekDots, openPlay } from '~/training/armcare-parts';
 import { Fold, Screen, SectionHead, WebRow, s, useJump, useScreenData } from '~/training/screen';
+import { useRememberPart } from '~/training/remember';
 
 /**
  * 암케어(앱 화면) — 웹 /training?view=armcare(&tab=guide)(app/(app)/training/training-page.tsx 의 armcare 칸 · armcare-section.tsx)를 옮겼다.
@@ -28,6 +29,7 @@ const TABS = [
 type Tab = (typeof TABS)[number]['value'];
 
 export default function TrainingArmcareScreen() {
+  useRememberPart('armcare');
   const c = usePalette();
   const params = useLocalSearchParams<{ tab?: string }>();
   const [tab, setTab] = useState<Tab>(params.tab === 'guide' ? 'guide' : 'today');

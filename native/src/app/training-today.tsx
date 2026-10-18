@@ -17,6 +17,7 @@ import { DoneView, HaltedCard, MakeCard, NoticeBand, OutingRow, PlanBody, PrefsC
 import { ProgramCardView, ProgramDoneView } from '~/training/today/program';
 import { ProgramStartView } from '~/training/today/program-start';
 import { READABLE } from '~/lib/layout';
+import { useRememberPart } from '~/training/remember';
 
 /**
  * 트레이닝 '운동' 앱 화면 — 웹 /training(기본 칸, app/(app)/training/training-page.tsx)을 옮겼다. 앱 트레이닝 탭(native/src/training/tab.tsx)의 운동
@@ -45,6 +46,7 @@ const dayOf = (key: string) => {
 };
 
 export default function TrainingTodayScreen() {
+  useRememberPart('today');
   const c = usePalette();
   const inset = useSafeAreaInsets();
   const params = useLocalSearchParams<{ today?: string }>();

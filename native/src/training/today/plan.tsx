@@ -2,7 +2,7 @@ import { type Href, router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { SymbolView } from 'expo-symbols';
 import { useRef, useState } from 'react';
-import { Alert, Image, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Image, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { NO_WORKOUT_KIND, WORKOUT_KINDS } from '@/lib/checkin';
 import { formatAmount } from '@/lib/exercise-meta';
 import { formatSummary, volumeIn } from '@/lib/workout/summarize';
@@ -14,6 +14,7 @@ import { ExerciseMedia } from '~/armcare/parts';
 import { act } from '~/mechanics/parts';
 import type { Palette } from '~/lib/ui';
 import { Sheet, TRAINING_LEVELS } from '~/workout/sheets';
+import { SwipeRow } from '~/shell/swipe-row';
 import { AddSheet, PlanForm } from './forms';
 import { BigButton, Card, Chip, LinkRow, s, useWeightUnit, type TodayActions } from './parts';
 
@@ -331,26 +332,17 @@ export function PlanBody({
       setError(res.error);
     } else setLocal((l) => ({ ...l, fav: { ...l.fav, [r.id]: res.favorite } }));
   };
-  const remove = (r: TodayRow) =>
-    Alert.alert(`${r.title}`, '오늘 목록에서 뺄까요? 완료 표시도 같이 지워요.', [
-      { text: '취소', style: 'cancel' },
-      {
-        text: '빼기',
-        style: 'destructive',
-        onPress: () => {
-          void (async () => {
-            setError(null);
-            setLocal((l) => ({ ...l, gone: [...l.gone, r.id] }));
-            const res = await act<{ ok: true }>('plan-edit.removeFromTodayPlan', r.id);
-            if ('error' in res) {
-              setLocal((l) => ({ ...l, gone: l.gone.filter((x) => x !== r.id) }));
-              return setError(res.error);
-            }
-            await a.reload();
-          })();
-        },
-      },
-    ]);
+  /* 웹처럼 밀어서 [빼기]를 누르면 바로 뺀다(묻지 않음) — 실패하면 되돌리고 알린다 */
+  const remove = async (r: TodayRow) => {
+    setError(null);
+    setLocal((l) => ({ ...l, gone: [...l.gone, r.id] }));
+    const res = await act<{ ok: true }>('plan-edit.removeFromTodayPlan', r.id);
+    if ('error' in res) {
+      setLocal((l) => ({ ...l, gone: l.gone.filter((x) => x !== r.id) }));
+      return setError(res.error);
+    }
+    await a.reload();
+  };
 
   const list = (
     <View style={{ gap: 12 }}>
@@ -376,7 +368,7 @@ export function PlanBody({
             {g.label} <Text style={[s.tiny, { color: c.muted }]}>{g.hint}</Text>
           </Text>
           {g.items.map((r) => (
-            <ExerciseRow key={r.id} r={r} unit={unit} c={c} onToggle={() => void toggle(r)} onStar={() => void star(r)} onRemove={() => remove(r)} />
+            <ExerciseRow key={r.id} r={r} unit={unit} c={c} onToggle={() => void toggle(r)} onStar={() => void star(r)} onRemove={() => void remove(r)} />
           ))}
         </View>
       ))}
@@ -485,7 +477,7 @@ export function PlanBody({
   );
 }
 
-/** 운동 한 줄 — 누르면 체크, 오른쪽 별 · 빼기, 밑에 지난번 · 영상(웹 CheckRow + RowFooter) */
+/** 운동 한 줄 — 누르면 체크, 왼쪽으로 밀면 [즐겨찾기 | 빼기](웹 휴대폰 SwipeRow — 공통 틀 ~/shell/swipe-row), 밑에 지난번 · 영상(웹 CheckRow + RowFooter) */
 function ExerciseRow({
   r,
   unit,
@@ -505,65 +497,71 @@ function ExerciseRow({
   const last = r.last ? formatAmount(r.last, unit) : null;
   const hasVideo = Boolean(r.videoPath || r.referenceVideoId);
   return (
-    <View style={[st.ex, { backgroundColor: r.done ? `${c.sky}14` : c.card, borderColor: r.done ? c.sky : c.card }]}>
-      <View style={s.row}>
-        <Pressable
-          accessibilityRole="checkbox"
-          accessibilityState={{ checked: r.done }}
-          accessibilityLabel={r.title}
-          onPress={onToggle}
-          style={[s.row, { flex: 1, minWidth: 0, minHeight: 56 }]}
-        >
-          <SymbolView name={r.done ? 'checkmark.circle.fill' : 'circle'} size={24} tintColor={r.done ? c.sky : c.muted} />
-          {r.thumbUrl ? <Image source={{ uri: r.thumbUrl }} style={[st.thumb, { backgroundColor: c.line }]} /> : null}
-          <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
-            <Text numberOfLines={2} style={[s.bodyBold, { color: c.ink }]}>
-              {r.title}
-            </Text>
-            <Text numberOfLines={1} style={[s.tiny, { color: c.muted }]}>
-              {r.category}
-              {r.manual ? ' · 직접 넣음' : ''}
-            </Text>
-            {r.prescription ? <Text style={[s.small, { color: c.ink }]}>{r.prescription}</Text> : null}
-            {r.reason ? <Text style={[s.tiny, { color: c.sky }]}>{r.reason}</Text> : null}
-            {r.unsafe ? <Text style={[s.tiny, { color: c.warn }]}>오늘 몸 상태에는 권하지 않는 운동이에요</Text> : null}
-          </View>
-        </Pressable>
-        <View>
-          <Pressable accessibilityRole="button" accessibilityLabel={`${r.title} ${r.favorite ? '즐겨찾기 빼기' : '즐겨찾기'}`} onPress={onStar} style={st.icon}>
-            <SymbolView name={r.favorite ? 'star.fill' : 'star'} size={18} tintColor={r.favorite ? '#ff9500' : c.muted} />
-          </Pressable>
-          <Pressable accessibilityRole="button" accessibilityLabel={`${r.title} 목록에서 빼기`} onPress={onRemove} style={st.icon}>
-            <SymbolView name="xmark" size={15} tintColor={c.muted} />
-          </Pressable>
-        </View>
-      </View>
-      {last || hasVideo ? (
-        <View style={[s.between, s.divider, { borderTopColor: c.line, minHeight: 40 }]}>
-          <Text numberOfLines={1} style={[s.tiny, { flex: 1, color: c.muted }]}>
-            {last && r.last ? (
-              <>
-                지난번 {shortDate(r.last.date)} · <Text style={{ color: c.ink, fontWeight: '600' }}>{last}</Text>
-              </>
-            ) : null}
-          </Text>
-          {hasVideo ? (
-            <Pressable accessibilityRole="button" accessibilityState={{ expanded: open }} onPress={() => setOpen((v) => !v)} style={st.lineBtn}>
-              <Text style={[s.smallBold, { color: c.sky }]}>{open ? '접기' : '영상'}</Text>
+    <View style={st.swipe}>
+      <SwipeRow
+        actions={[
+          { label: r.favorite ? '즐겨찾기 해제' : '즐겨찾기', color: '#ff9500', onPress: onStar },
+          { label: '빼기', color: '#ff3b30', onPress: onRemove },
+        ]}
+      >
+        <View style={[st.ex, { backgroundColor: r.done ? `${c.sky}14` : c.card, borderColor: r.done ? c.sky : c.card }]}>
+          <View style={s.row}>
+            <Pressable
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: r.done }}
+              accessibilityLabel={r.title}
+              accessibilityActions={[
+                { name: 'favorite', label: r.favorite ? '즐겨찾기 해제' : '즐겨찾기' },
+                { name: 'remove', label: '목록에서 빼기' },
+              ]}
+              onAccessibilityAction={(e) => (e.nativeEvent.actionName === 'favorite' ? onStar() : e.nativeEvent.actionName === 'remove' ? onRemove() : undefined)}
+              onPress={onToggle}
+              style={[s.row, { flex: 1, minWidth: 0, minHeight: 56 }]}
+            >
+              <SymbolView name={r.done ? 'checkmark.circle.fill' : 'circle'} size={24} tintColor={r.done ? c.sky : c.muted} />
+              {r.thumbUrl ? <Image source={{ uri: r.thumbUrl }} style={[st.thumb, { backgroundColor: c.line }]} /> : null}
+              <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
+                <Text numberOfLines={2} style={[s.bodyBold, { color: c.ink }]}>
+                  {r.title}
+                </Text>
+                <Text numberOfLines={1} style={[s.tiny, { color: c.muted }]}>
+                  {r.category}
+                  {r.manual ? ' · 직접 넣음' : ''}
+                </Text>
+                {r.prescription ? <Text style={[s.small, { color: c.ink }]}>{r.prescription}</Text> : null}
+                {r.reason ? <Text style={[s.tiny, { color: c.sky }]}>{r.reason}</Text> : null}
+                {r.unsafe ? <Text style={[s.tiny, { color: c.warn }]}>오늘 몸 상태에는 권하지 않는 운동이에요</Text> : null}
+              </View>
             </Pressable>
+          </View>
+          {last || hasVideo ? (
+            <View style={[s.between, s.divider, { borderTopColor: c.line, minHeight: 40 }]}>
+              <Text numberOfLines={1} style={[s.tiny, { flex: 1, color: c.muted }]}>
+                {last && r.last ? (
+                  <>
+                    지난번 {shortDate(r.last.date)} · <Text style={{ color: c.ink, fontWeight: '600' }}>{last}</Text>
+                  </>
+                ) : null}
+              </Text>
+              {hasVideo ? (
+                <Pressable accessibilityRole="button" accessibilityState={{ expanded: open }} onPress={() => setOpen((v) => !v)} style={st.lineBtn}>
+                  <Text style={[s.smallBold, { color: c.sky }]}>{open ? '접기' : '영상'}</Text>
+                </Pressable>
+              ) : null}
+            </View>
+          ) : null}
+          {open ? (
+            <View style={{ gap: 10, paddingBottom: 6 }}>
+              <ExerciseMedia path={r.videoPath} referenceVideoId={r.referenceVideoId} thumbUrl={r.thumbUrl} aspectRatio={r.aspectRatio} />
+              {r.description ? (
+                <Text selectable style={[s.body, { color: c.ink }]}>
+                  {r.description}
+                </Text>
+              ) : null}
+            </View>
           ) : null}
         </View>
-      ) : null}
-      {open ? (
-        <View style={{ gap: 10, paddingBottom: 6 }}>
-          <ExerciseMedia path={r.videoPath} referenceVideoId={r.referenceVideoId} thumbUrl={r.thumbUrl} aspectRatio={r.aspectRatio} />
-          {r.description ? (
-            <Text selectable style={[s.body, { color: c.ink }]}>
-              {r.description}
-            </Text>
-          ) : null}
-        </View>
-      ) : null}
+      </SwipeRow>
     </View>
   );
 }
@@ -679,9 +677,9 @@ const st = StyleSheet.create({
   line: { minHeight: 40, flexDirection: 'row', alignItems: 'center', gap: 12 },
   lineCard: { minHeight: 52, borderRadius: 16, flexDirection: 'row', alignItems: 'center', gap: 10, paddingLeft: 16, paddingRight: 6, paddingVertical: 6 },
   lineBtn: { minHeight: 44, paddingHorizontal: 12, justifyContent: 'center' },
-  ex: { borderRadius: 16, borderWidth: 1, paddingLeft: 12, paddingRight: 2, paddingVertical: 4, gap: 4 },
+  ex: { borderRadius: 16, borderWidth: 1, paddingLeft: 12, paddingRight: 12, paddingVertical: 4, gap: 4 },
   thumb: { width: 64, height: 48, borderRadius: 10 },
-  icon: { width: 44, height: 40, alignItems: 'center', justifyContent: 'center' },
+  swipe: { borderRadius: 16, overflow: 'hidden' },
   level: { flex: 1, height: 40, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   add: { minHeight: 52, borderRadius: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
   input: { minHeight: 80, borderRadius: 12, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 10, fontSize: 15, textAlignVertical: 'top' },
