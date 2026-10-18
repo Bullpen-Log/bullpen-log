@@ -194,7 +194,7 @@ export const REHAB_REGIONS: Record<ArmcareAreaKey, RegionSpec> = {
       [
         '어깨 외전 아이소메트릭 프레스',
         '어깨 내회전 아이소메트릭 프레스',
-        '밴드 내·외회전 아이소 홀드',
+        '케이블 내·외회전 아이소 홀드',
         '밴드 스캡 핀치',
         '크로스바디 스트레치',
       ],
