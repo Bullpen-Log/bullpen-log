@@ -1896,6 +1896,16 @@ dialog[data-drawer]::backdrop {
     background: transparent;
   }
   /*
+   * 막을 누르면 닫힘 — 아이폰 WebKit 은 누를 수 있어 보이지 않는 요소(그냥 div · 창 자신)에는 click 을 안 보내, 막을 눌러도 안 닫혔다
+   * (아이폰 앱의 설정 · 내 정보 창, 2026-10-18 시뮬레이터에서 확인). cursor: pointer 가 그 요소를 누를 수 있는 것으로 만든다.
+   */
+  dialog[data-drawer],
+  dialog[data-look='folder'],
+  dialog[data-drawer] [data-scrim],
+  dialog[data-look='folder'] [data-scrim] {
+    cursor: pointer;
+  }
+  /*
    * 폴더 안에서는 초점 테두리를 그리지 않는다(2026-10-14 사용자 "파란 테두리 절대 안 나오게") — 휴대폰은 손가락으로만 고르고,
    * 열 때 초점은 폴더 자체로 간다(app-shell fitFolder). 누를 때 깜빡이는 회색 칠도 뺀다.
    */
