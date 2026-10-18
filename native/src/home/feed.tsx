@@ -10,6 +10,7 @@ import { formatSpeed } from '@/lib/units';
 import { usePrefs } from '~/lib/prefs';
 import { usePalette, type Palette } from '~/lib/ui';
 import { Icon } from '~/shell/icon';
+import { useHomeSwipe } from './camera-swipe';
 
 /**
  * 홈 요약 칸 — 웹 app/(app)/today/feed-card.tsx 와 같은 꼴 · 같은 움직임.
@@ -87,15 +88,21 @@ export function FeedCard({ items, onOpen }: { items: FeedItem[]; onOpen: (item: 
     },
     [go]
   );
-  const pan = Gesture.Pan()
-    .enabled(n > 1 && moving == null)
+  /* 요약 칸 위의 옆 손가락은 늘 이 칸 몫 — 홈의 구속 측정 쓸기가 안 받는다(웹 data-no-swipe). 넘길 장이 없을 때도 막기만 한다 */
+  const homeSwipe = useHomeSwipe();
+  const canMove = n > 1 && moving == null;
+  let pan = Gesture.Pan()
     .activeOffsetX([-6, 6])
     .failOffsetY([-12, 12])
-    .onBegin(() => runOnJS(setHeld)(true))
+    .onBegin(() => {
+      if (canMove) runOnJS(setHeld)(true);
+    })
     .onUpdate((e) => {
+      if (!canMove) return;
       x.set(-posSV.get() * w + Math.max(-w, Math.min(w, e.translationX)));
     })
     .onEnd((e) => {
+      if (!canMove) return;
       const far = Math.abs(e.translationX) > w * SNAP_RATIO || Math.abs(e.velocityX) > FLICK_SPEED;
       if (far) {
         runOnJS(onSwiped)(e.translationX < 0 ? 1 : -1);
@@ -105,6 +112,7 @@ export function FeedCard({ items, onOpen }: { items: FeedItem[]; onOpen: (item: 
       }
     })
     .onFinalize(() => runOnJS(setHeld)(false));
+  if (homeSwipe) pan = pan.blocksExternalGesture(homeSwipe);
 
   const track = useAnimatedStyle(() => ({ transform: [{ translateX: x.value }] }));
 

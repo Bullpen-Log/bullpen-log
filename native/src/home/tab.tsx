@@ -20,6 +20,7 @@ import { DayCards, layoutMove, resetDayCache } from './day-card';
 import { resetEventsCache } from './events';
 import { FeedCard } from './feed';
 import { RingsCard } from './rings';
+import { CameraSwipe } from './camera-swipe';
 import { READABLE } from '~/lib/layout';
 import { useOnTabActive } from '~/shell/tab-pager';
 
@@ -191,6 +192,7 @@ export function HomeTab({
   const pending = home ? (home.checkinDone ? 0 : 1) + (home.pitchDone ? 0 : 1) : 0;
 
   return (
+    <CameraSwipe enabled={!home?.pitchLocked}>
     <View style={{ flex: 1, backgroundColor: c.page }}>
       <Animated.ScrollView
         ref={scrollRef}
@@ -284,6 +286,7 @@ export function HomeTab({
         </Pressable>
       </Animated.View>
     </View>
+    </CameraSwipe>
   );
 }
 
