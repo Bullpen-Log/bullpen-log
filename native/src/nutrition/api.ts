@@ -109,7 +109,11 @@ export function refreshNutritionDays(date: string) {
 async function act(date: string, name: string, ...args: unknown[]): Promise<string | null> {
   try {
     const res = await rpc<Result>(name, ...args);
-    if (!res.ok) return res.error;
+    /* 실패해도 그날을 다시 받는다 — '식단이 방금 바뀌었어요'(동시 누름 막기) 뒤 옛 계획이 남아 다시 눌러도 같은 오류였다(2026-10-18 점검) */
+    if (!res.ok) {
+      void refreshDay(date);
+      return res.error;
+    }
     await refreshDay(date);
     return null;
   } catch (e) {

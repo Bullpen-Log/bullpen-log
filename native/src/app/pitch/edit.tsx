@@ -1,5 +1,5 @@
 import * as ImagePicker from 'expo-image-picker';
-import { router, useLocalSearchParams } from 'expo-router';
+import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -12,7 +12,9 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { EFFORT_CHIPS, snapEffortPct } from '@/lib/pitch-effort';
+import { EFFORT_CHIPS, effortScaleText, readEffort, snapEffortPct } from '@/lib/pitch-effort';
+import { fromSpeed, round1, speedLabel, toSpeed } from '@/lib/units';
+import { usePrefs } from '~/lib/prefs';
 import { SESSION_TYPES, isRestSession } from '@/lib/session-type';
 import {
   GOOD_DAY_MIN,
@@ -30,6 +32,7 @@ import {
   isPhoneVideoPath,
   loadMe,
   phoneAssetId,
+  phoneOrphans,
   updateLog,
   type PitchEntry,
   type PitchLog,
@@ -43,6 +46,16 @@ import { READABLE } from '~/lib/layout';
  */
 const MAX_VIDEOS = 2;
 type Video = { path: string; name: string; fresh?: boolean };
+
+/**
+ * 저장 없이 닫을 때 이번에 넣은 폰 영상을 지운다 — 어느 기록에도 안 붙은 것만(서버에 묻는다). 저장은 됐는데 신호가 끊겨 답만 못 받은
+ * 기록의 영상을 지우던 것(2026-10-18 점검). 서버에 못 물으면 안 지운다.
+ */
+async function dropUnsaved(videos: Video[]) {
+  const fresh = videos.filter((v) => v.fresh && isPhoneVideoPath(v.path)).map((v) => v.path);
+  const orphans = await phoneOrphans(fresh);
+  if (orphans?.length) await LocalVideo.remove({ ids: orphans.map(phoneAssetId) }).catch(() => undefined);
+}
 
 export default function PitchEditScreen() {
   /* videos · importKey = 지난 영상 가져오기(pitch/import)가 폰에 넣은 영상 경로를 붙여 연다 — 저장하면 그 묶음을 '남김'으로 */
@@ -129,6 +142,11 @@ function EntryForm({
   const c = usePalette();
   const inset = useSafeAreaInsets();
   const vp = velocityPrefill;
+  /* 구속 단위 — 설정의 km/h | mph(저장은 늘 km/h, 웹 entry-form 과 같다) */
+  const unit = usePrefs().speed;
+  const shownSpeed = (kmh: number | null | undefined) => (kmh == null ? '' : String(round1(toSpeed(kmh, unit))));
+  /* 옛 기록(체감 강도 % 없음)은 1~10 × 10 으로 채운다(웹 readEffort) — 예전엔 비어 열려 메모만 고쳐도 강도를 다시 골라야 했다 */
+  const initialEffort = editing ? readEffort({ intensity: editing.intensity ?? 0, effortPct: editing.effortPct }) : null;
   /* 비워 두고 꼭 고르게(2026-10-18 사용자) — 예전엔 '불펜'이 미리 골라져 있었다 */
   const [type, setType] = useState<string>(editing?.sessionType ?? vp?.sessionType ?? (drillPrefill ? '캐치볼' : ''));
   const [count, setCount] = useState(
@@ -140,13 +158,11 @@ function EntryForm({
           ? String(drillPrefill.pitchCount)
           : ''
   );
-  const [effort, setEffort] = useState<number | null>(editing?.effortPct ?? vp?.effortPct ?? drillPrefill?.effortPct ?? null);
-  const [maxV, setMaxV] = useState(
-    editing?.maxVelocity != null ? String(editing.maxVelocity) : vp?.maxVelocity != null ? String(vp.maxVelocity) : ''
+  const [effort, setEffort] = useState<number | null>(
+    editing ? (initialEffort?.pct ?? null) : (vp?.effortPct ?? drillPrefill?.effortPct ?? null)
   );
-  const [avgV, setAvgV] = useState(
-    editing?.avgVelocity != null ? String(editing.avgVelocity) : vp?.avgVelocity != null ? String(vp.avgVelocity) : ''
-  );
+  const [maxV, setMaxV] = useState(shownSpeed(editing ? editing.maxVelocity : vp?.maxVelocity));
+  const [avgV, setAvgV] = useState(shownSpeed(editing ? editing.avgVelocity : vp?.avgVelocity));
   const [memo, setMemo] = useState(editing?.memo ?? drillPrefill?.memo ?? '');
   /* 투구 만족도 · 좋았던 · 아쉬웠던 감각(불펜 · 라이브 · 경기만 — 웹 entry-form 과 같다, lib/pitch-satisfaction.ts) */
   const [satisfaction, setSatisfaction] = useState<number | null>(editing?.satisfaction ?? null);
@@ -194,8 +210,10 @@ function EntryForm({
     if (v.fresh && isPhoneVideoPath(v.path)) void LocalVideo.remove({ ids: [phoneAssetId(v.path)] }).catch(() => undefined);
   };
 
+  /* 두 번 눌러도 한 번만 — busy(상태)는 다시 그려진 뒤에야 바뀌어, 빨리 두 번 누르면 둘 다 지나갔다 */
+  const inFlight = useRef(false);
   const save = async () => {
-    if (busy) return;
+    if (busy || inFlight.current) return;
     if (!type) return setError('투구 종류를 골라 주세요.');
     if (!rest && effort == null) return setError('체감 강도를 골라 주세요.');
     const entry: PitchEntry = {
@@ -203,18 +221,24 @@ function EntryForm({
       sessionType: type,
       pitchCount: rest ? 0 : Number.parseInt(count, 10),
       effortPct: rest ? null : effort,
-      maxVelocity: rest || !maxV ? null : Number.parseFloat(maxV),
-      avgVelocity: rest || !avgV ? null : Number.parseFloat(avgV),
+      maxVelocity: rest || !maxV ? null : round1(fromSpeed(Number.parseFloat(maxV), unit)),
+      avgVelocity: rest || !avgV ? null : round1(fromSpeed(Number.parseFloat(avgV), unit)),
       memo,
       videoPaths: videos.map((v) => v.path),
       ...(isRatedSession(type) ? { satisfaction, cuesGood: good, cuesBad: bad } : {}),
       ...(!editing && vp?.sessionIds.length ? { velocitySessionIds: vp.sessionIds } : {}),
     };
+    /* 옛 기록의 채워 둔 강도를 그대로 두었으면 옛 1~10 을 보낸다 — 서버가 % 칸을 비운 채 둔다(웹과 같다) */
+    if (editing && initialEffort?.derivedFrom != null && effort === initialEffort.pct && !rest) {
+      delete entry.effortPct;
+      entry.intensity = initialEffort.derivedFrom;
+    }
+    inFlight.current = true;
     setBusy('저장하는 중');
     setError(null);
     try {
       if (editing) {
-        await updateLog(editing.id, entry);
+        await updateLog(editing.id, { ...entry, baseVideoPaths: editing.videoPaths });
         /* 고치며 뺀 폰 영상은 폰에서도 지운다(웹 entry-form 과 같다) */
         const gone = editing.videoPaths.filter((p) => isPhoneVideoPath(p) && !entry.videoPaths.includes(p)).map(phoneAssetId);
         if (gone.length) void LocalVideo.remove({ ids: gone }).catch(() => undefined);
@@ -228,6 +252,7 @@ function EntryForm({
     } catch (e) {
       setError(e instanceof ApiError ? e.message : '저장하지 못했어요. 적은 것은 그대로 있어요.');
     } finally {
+      inFlight.current = false;
       setBusy(null);
     }
   };
@@ -244,15 +269,16 @@ function EntryForm({
   useEffect(
     () => () => {
       if (savedRef.current) return;
-      const fresh = videosRef.current.filter((v) => v.fresh && isPhoneVideoPath(v.path)).map((v) => phoneAssetId(v.path));
-      if (fresh.length) void LocalVideo.remove({ ids: fresh }).catch(() => undefined);
+      void dropUnsaved(videosRef.current);
     },
     []
   );
 
   const cancel = () => {
-    const fresh = videos.filter((v) => v.fresh && isPhoneVideoPath(v.path)).map((v) => phoneAssetId(v.path));
-    if (fresh.length) void LocalVideo.remove({ ids: fresh }).catch(() => undefined);
+    /* 저장 · 영상 넣는 중에는 닫지 않는다 — 저장 도중 닫으면 곧 기록에 붙을 영상을 지웠다 */
+    if (busy || inFlight.current) return;
+    savedRef.current = true; // 아래에서 직접 정리 — 닫힐 때 한 번 더 하지 않게
+    void dropUnsaved(videos);
     router.back();
   };
 
@@ -260,8 +286,10 @@ function EntryForm({
   const input = [styles.input, { backgroundColor: c.card, color: c.ink }];
   return (
     <KeyboardAvoidingView behavior="padding" style={{ flex: 1, backgroundColor: c.page }}>
+      {/* 저장 · 영상 넣는 중에는 끌어 닫기를 막는다 */}
+      <Stack.Screen options={{ gestureEnabled: !busy }} />
       <View style={[styles.bar, { paddingTop: 12 }]}>
-        <Pressable accessibilityRole="button" onPress={cancel} hitSlop={10}>
+        <Pressable accessibilityRole="button" onPress={cancel} disabled={!!busy} hitSlop={10}>
           <Text style={[styles.barAction, { color: c.sky }]}>취소</Text>
         </Pressable>
         <Text style={[styles.barTitle, { color: c.ink }]}>
@@ -279,19 +307,23 @@ function EntryForm({
           <>
             <Text style={[styles.label, { color: c.muted }]}>투구 수</Text>
             <TextInput value={count} onChangeText={setCount} keyboardType="number-pad" placeholder="예: 40" placeholderTextColor={c.muted} style={input} />
-            <Text style={[styles.label, { color: c.muted }]}>체감 강도</Text>
+            <Text style={[styles.label, { color: c.muted }]}>강도</Text>
+            {/* 1~10(2026-10-18 웹과 같게) — 칩 n 은 n × 10% 로 저장된다 */}
             <Chips
-              items={EFFORT_CHIPS.map((v) => `${v}%`)}
-              value={effort == null ? null : `${effort}%`}
-              onChange={(v) => setEffort(Number.parseInt(v, 10))}
+              items={EFFORT_CHIPS.map((v) => effortScaleText(v))}
+              value={effort == null ? null : effortScaleText(effort)}
+              onChange={(v) => setEffort(Math.round(Number(v) * 10))}
             />
+            {effort != null && !(EFFORT_CHIPS as readonly number[]).includes(effort) ? (
+              <Text style={{ color: c.muted, fontSize: 12 }}>지금 {effortScaleText(effort)} · 칩을 누르면 바뀌어요</Text>
+            ) : null}
             <View style={styles.pair}>
               <View style={{ flex: 1, gap: 8 }}>
-                <Text style={[styles.label, { color: c.muted }]}>최고 구속(km/h)</Text>
+                <Text style={[styles.label, { color: c.muted }]}>최고 구속({speedLabel(unit)})</Text>
                 <TextInput value={maxV} onChangeText={setMaxV} keyboardType="decimal-pad" placeholder="선택" placeholderTextColor={c.muted} style={input} />
               </View>
               <View style={{ flex: 1, gap: 8 }}>
-                <Text style={[styles.label, { color: c.muted }]}>평균 구속(km/h)</Text>
+                <Text style={[styles.label, { color: c.muted }]}>평균 구속({speedLabel(unit)})</Text>
                 <TextInput value={avgV} onChangeText={setAvgV} keyboardType="decimal-pad" placeholder="선택" placeholderTextColor={c.muted} style={input} />
               </View>
             </View>

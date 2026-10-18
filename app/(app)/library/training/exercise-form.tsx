@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState, useState } from 'react';
+import { useActionState, useEffect, useState } from 'react';
 import { useFormStatus } from 'react-dom';
 import { Film, RefreshCw } from '@/components/icon';
 import {
@@ -98,12 +98,16 @@ export function ExerciseForm({
       setVideos([]);
       if (editing) {
         setReplacing(false);
-        onDone?.();
       } else {
         setFormKey((k) => k + 1);
       }
     }
   }
+
+  /* 수정 저장에 성공하면 부모가 닫는다 — 그리는 도중에 부모 상태를 바꾸면 React 가 경고했다(2026-10-18) */
+  useEffect(() => {
+    if (editing && state?.success) onDone?.();
+  }, [editing, state, onDone]);
 
   /*
    * 오류로 되돌아왔을 때 방금 보낸 내용을 그대로 다시 보여준다.

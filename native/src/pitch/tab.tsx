@@ -10,6 +10,9 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { isRestSession } from '@/lib/session-type';
+import { effortText } from '@/lib/pitch-effort';
+import { formatSpeed } from '@/lib/units';
+import { usePrefs } from '~/lib/prefs';
 import { EMPTY_FIND, filterLogs, isFindActive, type FindQuery } from '@/lib/pitch-find';
 import { usePalette } from '~/lib/ui';
 import { dateKeyOf } from './api';
@@ -17,7 +20,12 @@ import { MonthGrid } from './month-grid';
 import { FindBar } from './find-bar';
 import { PitchTodayCard } from './today-card';
 import { monthOf, useAllLogs, useMonth } from './store';
+
 import { READABLE_WIDE, TwoColumns } from '~/lib/layout';
+
+/** 강도 글 1~10(웹 effortText — 옛 기록은 intensity 로) */
+const effortOf = (l: { intensity: number | null; effortPct: number | null }) =>
+  effortText({ intensity: l.intensity ?? 0, effortPct: l.effortPct });
 
 /**
  * 투구 탭(앱 화면) — 찾기 · 달력(그날 공 수 · 영상 점) + 그달 기록 목록 · 지난 영상 가져오기. 날짜를 누르면 그날 화면(/pitch/[date]).
@@ -25,6 +33,7 @@ import { READABLE_WIDE, TwoColumns } from '~/lib/layout';
  */
 export function PitchTab({ today, bottom, onWeb }: { today: string; bottom: number; onWeb: (href: string) => void }) {
   const c = usePalette();
+  const speed = usePrefs().speed;
   const inset = useSafeAreaInsets();
   const [month, setMonth] = useState(monthOf(today));
   const { logs, loading, error, reload } = useMonth(month);
@@ -131,8 +140,8 @@ export function PitchTab({ today, bottom, onWeb }: { today: string; bottom: numb
                   <Text style={[styles.rowMain, { color: c.ink }]} numberOfLines={1}>
                     {l.sessionType}
                     {isRestSession(l.sessionType) ? '' : ` · ${l.pitchCount}구`}
-                    {l.effortPct ? ` · ${l.effortPct}%` : ''}
-                    {l.maxVelocity ? ` · ${l.maxVelocity}km/h` : ''}
+                    {effortOf(l) ? ` · 강도 ${effortOf(l)}` : ''}
+                    {l.maxVelocity ? ` · ${formatSpeed(l.maxVelocity, speed)}` : ''}
                   </Text>
                   {l.videoPaths.length ? (
                     <Text style={{ color: c.sky, fontSize: 13 }}>

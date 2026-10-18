@@ -157,6 +157,8 @@ export type RehabStatus = {
   refer: string | null;
   /** 심함 — 밤 · 쉴 때 통증이 7일 없을 때까지 1단계에 머무는 중 */
   nightHold: boolean;
+  /** 최근 7일 밤 · 쉴 때 통증이 없다(체크인 정도 3 · 매주 확인) — 투구 복귀표가 본다 */
+  nightPainFree: boolean;
   gate: StageGate;
   /** 매주 확인 — 할 때가 됐나 · 지금 할 수 있나 · 가장 최근 것 */
   weekly: WeeklyDueState & { last: RehabWeeklyLike | null };
@@ -213,6 +215,8 @@ const REFER_WINDOW_DAYS = 14;
 const REFER_RED_COUNT = 3;
 /** 한 칸 낮춘 뒤 이만큼 초록이면 원래 단계로 */
 export const RETURN_GREENS = 3;
+/** 재활을 시작한 정도 ↔ 체크인 팔 통증 정도(1 던질 때만 · 2 평소에도 · 3 쉬어도 · 밤에도) */
+const SEVERITY_LEVEL: Record<RehabSeverity, number> = { mild: 1, moderate: 2, severe: 3 };
 
 /**
  * 지금 상태 — 쉬는 날인가 · 낮춘 날인가 · 진료를 권할까 · 단계를 올릴 수 있는가 · 카드 한 줄.
@@ -287,10 +291,18 @@ export function rehabStatus({
   if (!rest && program.stage >= 2 && last && daysBetween(last.date, todayKey) === 1) {
     rest = '오늘은 쉬는 날이에요. 2단계부터는 하루 걸러 해요.';
   }
+  /*
+   * 체크인 통증은 재활을 시작할 때의 정도와 견준다(2026-10-16 김민) — 재활은 아픈 사람이 하는 것이라, 시작 때와 같거나 덜
+   * 아픈 날은 평소 날이다(세션 끝 3문항이 그날 통증을 다시 본다). 예전에는 '평소에도'(정도 2)면 매일 쉬기 · 진료, '던질 때만'(1)이면
+   * 매일 낮춘 날이라 보통 · 가벼움으로 시작한 사람이 단계를 못 올렸다. 더 아파졌거나 정도를 모르면(옛 기록) 쉬기 · 진료.
+   */
+  const levelToday = todayCheckin?.armPainLevel ?? null;
+  const worseToday =
+    jointPainToday && (levelToday == null || levelToday > SEVERITY_LEVEL[program.severity]);
   let refer: string | null = null;
-  if (jointPainToday && todayCheckin?.armPainLevel !== 1) {
-    rest = '오늘 체크인에 평소에도 아프다고 하셨어요. 오늘은 쉬어요.';
-    refer = '평소에도 아프거나 밤에도 아프면 진료를 받아보세요.';
+  if (worseToday) {
+    rest = '오늘 체크인에 시작할 때보다 더 아프다고 하셨어요. 오늘은 쉬어요.';
+    refer = '시작할 때보다 더 아프면 진료를 받아보세요.';
   }
 
   /*
@@ -306,15 +318,12 @@ export function rehabStatus({
     ? inStage.filter((s) => s.date > lowerOn && s.result === 'green').length
     : 0;
   const loweredBySession = lowerOn != null && greensSince < RETURN_GREENS;
-  const loweredByCheckin = jointPainToday && todayCheckin?.armPainLevel === 1;
-  const lowered = loweredBySession || loweredByCheckin;
+  const lowered = loweredBySession;
   const loweredReason = loweredBySession
     ? program.stage === 1
       ? '1단계에서도 아팠어요. 아프지 않은 범위에서만 해요.'
       : `한 칸 낮춰 하는 중이에요. 초록 ${RETURN_GREENS - greensSince}번 더면 돌아가요.`
-    : loweredByCheckin
-      ? '오늘 체크인에 던질 때 아프다고 하셨어요. 한 칸 낮춰 해요.'
-      : null;
+    : null;
 
   /* 진료 권유 */
   const recent = sorted.filter((s) => {
@@ -376,6 +385,7 @@ export function rehabStatus({
     loweredReason,
     refer,
     nightHold,
+    nightPainFree,
     gate,
     weekly: { ...weekly, last: lastWeekly },
     eased,

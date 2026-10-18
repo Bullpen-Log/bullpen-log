@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState, useSyncExternalStore } from 'react';
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { useRouter } from 'next/navigation';
 import { Modal } from '@/components/modal';
 import { Button } from '@/components/ui';
@@ -18,10 +18,13 @@ import {
   type ImportItem,
 } from '@/lib/pitch-import';
 import {
+  discardPhoneVideos,
   localVideoAvailable,
   removePhoneVideos,
   saveBlobToPhone,
 } from '@/lib/local-video';
+import { makePitchThumb } from '@/lib/pitch-thumbs';
+import { phoneVideoPath } from '@/lib/phone-video-path';
 import { quietRefresh } from '@/lib/quiet-refresh';
 import { appNow, appNowMs } from '@/lib/clock';
 import { dateKeyLabel, toDateKey } from '@/lib/pitch-stats';
@@ -100,21 +103,24 @@ function ImportSheet({ onClose }: { onClose: () => void }) {
   const [placed, setPlaced] = useState<Placed | null>(null);
   const [placing, setPlacing] = useState<{ n: number; pct: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [checked, setChecked] = useState(false);
+  /* 묶음 폼이 저장하는 중 — 그동안 건너뛰기 · 닫기를 막는다(저장 도중 폰 영상이 지워지지 않게) */
+  const [formSaving, setFormSaving] = useState(false);
   const todayKey = toDateKey(appNow());
   const inputRef = useRef<HTMLInputElement>(null);
 
-  /* 지난번 가져오다 만 영상(앱이 죽어 번호만 남음) — 시트를 열 때 한 번 정리 */
-  if (!checked) {
-    setChecked(true);
+  /*
+   * 지난번 가져오다 만 영상(앱이 죽어 번호만 남음) — 시트를 열 때 한 번 정리. 저장은 됐는데 앱이 죽어 목록에만 남은 것도 있어
+   * 서버가 '어느 기록에도 없음'이라고 답한 것만 지운다. 서버에 못 물으면 목록을 그대로 둔다(다음에 다시).
+   */
+  useEffect(() => {
     const left = readPending();
-    if (left.length > 0) {
-      writePending([]);
-      void removePhoneVideos(left)
-        .then(() => toast(`지난번 가져오다 만 영상 ${left.length}개를 정리했어요`))
-        .catch(() => undefined);
-    }
-  }
+    if (left.length === 0) return;
+    void discardPhoneVideos(left).then((gone) => {
+      if (gone == null) return;
+      writePending(readPending().filter((p) => !left.includes(p)));
+      if (gone.length > 0) toast(`지난번 가져오다 만 영상 ${gone.length}개를 정리했어요`);
+    });
+  }, []);
 
   const pick = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files ?? []).filter((f) =>
@@ -162,16 +168,22 @@ function ImportSheet({ onClose }: { onClose: () => void }) {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ localId }),
-        });
-        const data = (await res.json().catch(() => ({}))) as {
+        }).catch(() => null);
+        const data = (await res?.json().catch(() => ({}))) as {
           path?: string;
           error?: string;
         };
-        if (!res.ok || !data.path)
-          throw new Error(data.error ?? '영상을 기록에 붙이지 못했어요.');
+        if (!res?.ok || !data?.path) {
+          /* 폰에는 넣었는데 경로를 못 받았다 — 어디에도 안 적혀 영영 남으니 바로 지운다 */
+          const stray = phoneVideoPath('x', localId);
+          if (stray) await removePhoneVideos([stray]);
+          throw new Error(data?.error ?? '영상을 기록에 붙이지 못했어요. 신호를 확인하고 다시 해 보세요.');
+        }
         paths.push(data.path);
         writePending([...readPending(), data.path]);
         previewUrls[data.path] = URL.createObjectURL(file);
+        /* 목록 · 캘린더 그림 — 없으면 목록이 영상을 통째로 읽어 폰이 버거워진다(가져온 원본은 크다). 기다리지 않는다 */
+        void makePitchThumb(data.path, file);
       }
       setPlaced({ paths, previewUrls });
     } catch (err) {
@@ -187,11 +199,14 @@ function ImportSheet({ onClose }: { onClose: () => void }) {
     }
   };
 
-  /** 폰에서 지우고 미정 목록에서도 뺀다 */
+  /**
+   * 미정 목록에서 빼고, 어느 기록에도 안 붙은 것만 폰에서 지운다 — 저장이 실제로는 됐는데 답만 못 받은 묶음(신호 끊김)을
+   * 건너뛰거나 닫아도 그 기록의 영상은 남는다. 서버에 못 물으면 목록에 그대로 둬 다음에 시트를 열 때 다시 본다.
+   */
   const forget = async (paths: string[]) => {
     if (paths.length === 0) return;
-    writePending(readPending().filter((p) => !paths.includes(p)));
-    await removePhoneVideos(paths).catch(() => undefined);
+    const gone = await discardPhoneVideos(paths);
+    if (gone != null) writePending(readPending().filter((p) => !paths.includes(p)));
   };
 
   const release = (p: Placed | null) => {
@@ -208,6 +223,7 @@ function ImportSheet({ onClose }: { onClose: () => void }) {
   };
 
   const skip = async () => {
+    if (formSaving) return;
     await forget(placed?.paths ?? []);
     release(placed);
     setPlaced(null);
@@ -217,7 +233,7 @@ function ImportSheet({ onClose }: { onClose: () => void }) {
 
   /** 어디서든 닫기 — 넣었지만 저장 안 한 묶음 영상은 지우고, 하나라도 남겼으면 화면을 새로 받는다 */
   const close = async () => {
-    if (placing) return;
+    if (placing || formSaving) return;
     if (step === 'form') await forget(placed?.paths ?? []);
     release(placed);
     if (saved > 0) quietRefresh(router);
@@ -366,6 +382,7 @@ function ImportSheet({ onClose }: { onClose: () => void }) {
               importPrefill={prefill}
               onSaved={onSaved}
               onError={(m) => setError(m ?? null)}
+              onSavingChange={setFormSaving}
             />
           )}
           <div className="flex items-center justify-between gap-2 border-t border-line pt-3">
@@ -374,7 +391,7 @@ function ImportSheet({ onClose }: { onClose: () => void }) {
             </span>
             <button
               type="button"
-              disabled={!!placing}
+              disabled={!!placing || formSaving}
               onClick={() => void skip()}
               className="rounded-full px-3 py-2 text-footnote font-semibold text-muted transition-colors hover:text-ink disabled:opacity-50"
             >

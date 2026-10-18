@@ -11,7 +11,6 @@ import {
   formatSleepHours,
   mealSummary,
   pickCheckinParts,
-  sleepQualityWord,
   sorenessWord,
 } from '@/lib/checkin';
 import { dbDate } from '@/lib/nutrition/days';
@@ -219,8 +218,7 @@ export async function loadDayDetail(
      * 그날 운동이 왜 가벼웠는지 돌아볼 때 먼저 찾는다. 안 적은 날은 줄을 만들지 않는다.
      */
     /* 3판(2026-10-13)부터는 수면의 질 1~5 — 잔 시간 · 근육통은 옛 기록에만 있다 */
-    const sleepQuality = sleepQualityWord(checkin.sleepQuality);
-    if (sleepQuality) details.push({ label: '수면', value: sleepQuality });
+    /* 수면의 질은 위 줄(컨디션 옆 '수면' 칸)이 이미 보인다 — 여기 또 넣으면 두 번 나왔다(2026-10-18) */
     if (checkin.sleepHours != null)
       details.push({ label: '잔 시간', value: formatSleepHours(checkin.sleepHours) });
     const soreness = sorenessWord(checkin.soreness);

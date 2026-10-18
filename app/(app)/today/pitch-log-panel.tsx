@@ -310,6 +310,23 @@ export function PitchLogPanel({
   );
 
   /*
+   * 주소의 ?date= 가 바뀌면(하위 화면의 '‹ 9월 달력'으로 돌아옴) 그날로 옮긴다 — 홈 판은 판 넘기기 동안 마운트된 채라 useState 첫 값만
+   * 쓰면 옛 날이 열린 채였다(2026-10-18). 처음 그릴 때도 같은 규칙으로 줄을 고른다(앞날은 일정, 그 밖은 그날 남긴 것 가운데 첫 줄).
+   * (그리는 도중 상태 보정)
+   */
+  const [seenInitial, setSeenInitial] = useState<string | null | undefined>(undefined);
+  if (initialDate !== seenInitial) {
+    setSeenInitial(initialDate);
+    if (initialDate) {
+      setSelectedDate(initialDate);
+      const [y, m] = initialDate.split('-').map(Number);
+      if (month.getFullYear() !== y || month.getMonth() !== m - 1)
+        setMonth(new Date(y, m - 1, 1));
+      setFocus(initialDate > today ? 'schedule' : firstFocus(factsOf(initialDate)));
+    }
+  }
+
+  /*
    * 날짜를 누르면 옆 칸이 그날로 열린다(이미 열려 있으면 그날로 바뀐다).
    *
    * 예전에는 곧바로 그날 화면으로 넘어갔다. 그런데 달력은 이 칸 저 칸 눌러보며

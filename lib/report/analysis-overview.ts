@@ -21,6 +21,7 @@ import {
 } from '@/lib/pitch-stats';
 import { TRAINING_ADVICE, TRAINING_MEANING, type TrainingLoad } from '@/lib/training-load';
 import type { Tone } from '@/components/tone';
+import { loadSignalOf } from '@/lib/report/arm-status';
 
 /**
  * 분석 화면 윗부분의 숫자 — 부하 지수 둘 · 이번 주 투구 · 마지막 투구 · 개인 최고 구속. 웹(app/(app)/coach/overview.tsx)과 아이폰 앱
@@ -87,7 +88,27 @@ export type LoadView = {
    * 붙었다.
    */
   meaning: string;
+  /**
+   * 배지 · 한 줄을 홈 요약 칸 · 팔 상태와 같은 판정(lib/report/arm-status.ts loadSignalOf)으로 — 투구만.
+   * 지수 구간만 보면 평소 양이 적은 사람 · 문진 추정 중에 홈은 '주의'인데 여기는 '위험'이었다(2026-10-18 통합 점검).
+   */
+  signal?: { label: string; tone: Tone; line: string };
 };
+
+/** 투구 지수의 배지 · 한 줄 — 홈 · 팔 상태와 같은 말. 지수를 못 내면 없음 */
+function pitchSignal(acwr: Parameters<typeof loadSignalOf>[0]): LoadView['signal'] {
+  if (acwr.ratio == null || !acwr.zone) return undefined;
+  const sig = loadSignalOf(acwr);
+  const tone: Tone =
+    sig.level === 'danger'
+      ? ACWR_ZONES.danger.tone
+      : sig.level === 'caution'
+        ? ACWR_ZONES.caution.tone
+        : sig.kind === 'lowBase'
+          ? 'neutral'
+          : ACWR_ZONES[acwr.zone].tone;
+  return { label: sig.label || ACWR_ZONES[acwr.zone].label, tone, line: sig.plain };
+}
 
 /**
  * 이 날 수 이상 쉬는 날 없이 던졌으면 지수 옆에 알린다.
@@ -233,6 +254,7 @@ export function analysisOverviewOf({
     emptyHint: hasRecords
       ? '지수는 최근 부하를 평소 부하와 견주는 값이에요. 비교할 기준이 아직 없어요.'
       : '투구를 남기면 부하 지수가 나와요.',
+    signal: pitchSignal(acwr),
   };
   const trainingView: LoadView = {
     name: '운동',

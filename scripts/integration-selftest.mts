@@ -162,18 +162,44 @@ console.log('\n[7] 서버 동작 · API — 모든 쓰기 입구가 로그인한
   const PUBLIC = new Set(['auth.ts:checkSignupEmail', 'auth.ts:signup', 'auth.ts:login', 'auth.ts:logout']);
   const open: string[] = [];
   let seen = 0;
+  /* 함수 몸통 = 다음 최상위 function 앞까지 — export 든 아니든(파일 안 도우미 admin() · writeNotice 꼴도) */
+  const FN = /^(export )?(?:async )?function (\w+)/gm;
+  const fns: { file: string; name: string; exported: boolean; body: string }[] = [];
   for (const f of readdirSync(new URL('../app/actions/', import.meta.url))) {
     if (!/\.tsx?$/.test(f)) continue;
     const text = src(`app/actions/${f}`);
-    /* 함수 몸통 = 다음 export 앞까지 — 서버 동작 파일은 export 함수가 차례로 놓인다 */
-    const parts = text.split(/\nexport async function /).slice(1);
-    for (const body of parts) {
-      const name = body.slice(0, body.search(/[(<]/));
-      seen++;
-      if (PUBLIC.has(`${f}:${name}`)) continue;
-      /* 같은 파일 안 도우미(ensureUser 꼴)를 거치면 그 도우미가 확인한다 — 이름에 user · admin 이 든 도우미를 부르면 넘긴다 */
-      if (!AUTH.test(body) && !/\b(own|ensure|load)\w*(User|Admin|Owner)\w*\(/.test(body)) open.push(`${f}:${name}`);
+    const heads = [...text.matchAll(FN)];
+    heads.forEach((m, i) =>
+      fns.push({ file: f, name: m[2], exported: !!m[1], body: text.slice(m.index, heads[i + 1]?.index ?? text.length) })
+    );
+  }
+  /* 확인을 거치는 함수 = 몸통이 직접 확인하거나, 확인을 거치는 다른 함수(같은 파일 도우미 · 다른 동작 파일의 export)를 부름.
+     이름이 겹치면 모두 확인할 때만 믿는다. 한 단계씩 넓혀 더 늘지 않을 때까지 */
+  const guarded = new Set(fns.filter((x) => AUTH.test(x.body)).map((x) => `${x.file}:${x.name}`));
+  const byName = new Map<string, typeof fns>();
+  for (const x of fns) byName.set(x.name, [...(byName.get(x.name) ?? []), x]);
+  for (let grew = true; grew; ) {
+    grew = false;
+    for (const x of fns) {
+      const key = `${x.file}:${x.name}`;
+      if (guarded.has(key)) continue;
+      const calls = [...x.body.slice(x.body.indexOf('{')).matchAll(/\b(\w+)\(/g)].map((m) => m[1]);
+      const viaGuarded = calls.some((c) => {
+        const defs = (byName.get(c) ?? []).filter((d) => d.file === x.file || d.exported);
+        return defs.length > 0 && defs.every((d) => guarded.has(`${d.file}:${d.name}`));
+      });
+      if (viaGuarded) {
+        guarded.add(key);
+        grew = true;
+      }
     }
+  }
+  for (const x of fns.filter((x) => x.exported && /^export async function/.test(x.body))) {
+    seen++;
+    const key = `${x.file}:${x.name}`;
+    if (PUBLIC.has(key)) continue;
+    /* 같은 파일 안 도우미(ensureUser 꼴)를 거치면 그 도우미가 확인한다 — 이름에 user · admin 이 든 도우미를 부르면 넘긴다 */
+    if (!guarded.has(key) && !/\b(own|ensure|load)\w*(User|Admin|Owner)\w*\(/.test(x.body)) open.push(key);
   }
   /* 함수를 하나도 못 읽으면 시험이 아무것도 안 본 것 — 지금 백몇십 개 */
   check(`app/actions 의 export 함수는 모두 로그인 확인을 거친다(읽은 함수 ${seen}개)`, seen > 100 && open.length === 0, open.join(', '));
@@ -331,7 +357,10 @@ console.log('\n[12] 앱 입구 — 아이폰 앱(native/)이 부르는 /api/rpc 
     '약속 번호가 낮거나 머리가 없으면 액션을 부르기 전에 426(옛 판 앱 · 남의 사이트에서 쿠키로 부르기 막기)',
     route.indexOf('MIN_APP_API') > -1 && route.indexOf('status: 426') > -1 && route.indexOf('status: 426') < route.indexOf('await fn(')
   );
-  check('이름 고르기는 모듈 자신의 export 만(프로토타입 이름 제외)', /Object\.hasOwn\(mod, name\)/.test(route));
+  check(
+    '이름 고르기는 모듈 자신의 export 만, 모듈 이름도 허용 목록 자신의 것만(프로토타입 이름 제외)',
+    /Object\.hasOwn\(mod, name\)/.test(route) && /Object\.hasOwn\(RPC_MODULES, key\)/.test(route)
+  );
   check('redirect() · notFound() 를 삼키지 않고 앱이 알아듣는 답으로 바꾼다', route.includes("'NEXT_REDIRECT;'") && route.includes("'NEXT_HTTP_ERROR_FALLBACK;'"));
   check(
     '약속 번호 읽기: 없음 · 글자 · 0 · 음수는 0, 숫자는 그 수',

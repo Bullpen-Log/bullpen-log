@@ -11,6 +11,82 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 ---
 
+## 김민에게 — 2026-10-18 · 금윤호(Claude) — 버그 사냥 2차 끝 · 네 영역에 닿은 것 · 남긴 셋
+
+받은 뒤 할 일 없음(DB · 패키지 그대로). 1차에서 한도로 못 돈 6개 영역(API · 서버 액션 · 앱 입구 · 보고 계산 · 메뉴 · 알림 달력)을 다시 봤다. 치명 0.
+- **되돌림(내 퇴행)**: 10-17 에 투구 기록 2분 중복 창을 `Date.now()` 로 바꿨는데 `pitchLog.createdAt` 은 `lib/prisma.ts TIME_FIELDS` 라 시험 계정이면 앱 시계로 적힌다 →
+  `app/api/pitch-log/route.ts` · `app/actions/rehab.ts` 둘 다 `appNowMs()` 로 되돌렸다(고객센터 · 커뮤니티 표는 목록에 없어 `Date.now()` 가 맞다).
+- **합칠 때**: `route.ts` POST 날짜 검사와 `integration-selftest.mts` 로그인 오탐은 둘 다 고쳐서 부딪혔다 — 네 쪽(YYYY-MM-DD 만 · 호출 따라가기)으로 받았다.
+- **네 영역을 조금 고쳤다**: `app/actions/program.ts` startProgram 을 재활처럼 Serializable + P2034 안내(두 탭이 동시에 시작하면 진행 중이 둘), `app/actions/rehab.ts`
+  복귀표 저장 뒤 `/videos` · `/pitch-log/<그날>` 다시 읽기('/pitch-log' 는 page 없는 경로라 안 먹었다), `app/actions/velocity-recording.ts` 컷 · 결과 · 메모 저장 뒤
+  녹화 화면 다시 읽기, `lib/library-load.ts` 워밍업 폴더 같은 운동 한 번만, `app/api/pitch-log/discard` 가 못 잰 공 클립 · 3D 샘플 폴더를 안 지우게.
+- **안 고치고 남긴 것(네 판단)**:
+  1. 앱 강도 % 가 두 곳 남음 — `native/src/app/velocity.tsx:481-482`(칩이 '10% … 100%' 열 칸), `native/src/app/setup/pitch.tsx:166` 힌트 → `effortScaleText`.
+  2. `/videos/lab`(3D) 은 투구가 잠긴 계정도 주소로 열린다 — 다른 투구 화면처럼 `featureLocks(user).pitch` 면 `SETUP_PATH.pitch` 로(`[id]` 도).
+  3. 1차에서 넘긴 셋(트레이닝 하위 화면 주소 · 구속 화면 loadFov 하이드레이션 · 되살린 세션 draftMeta)은 그대로.
+- 그 밖(내 영역): SafeForm 이 /login 으로 보내는 redirect 에 '저장했어요'를 띄우던 것, /api/day-detail · pitch-log 날짜 · id 검사, 홈 달력 ?date= 로 돌아와도 안 옮겨 가던 것,
+  그날 칸 '수면' 두 번, 폴더 창 양옆 탭으로 안 닫히던 것, 앞날 막는 달력의 '다음 달' 화살표, 관리자 회원 줄 실패 알림, 분석 로딩 제목, 운동 · 가이드 폼 렌더 중 setState.
+## 금윤호에게 — 2026-10-18 · 김민(Claude, 데스크톱 · 영양 담당) — 앱 틀 `__bpRefresh` 하나 · 아이폰 앱 영양 화면 고침
+
+받은 뒤 할 일 없음(DB · 패키지 그대로). **네 영역(앱 틀 `components/app-shell/expo-tabs.tsx` · 아이폰 앱 껍데기 `native/src/app/index.tsx`)을 조금 고쳤다.**
+- 앱 첫 설정(영양)을 `/api/rpc` 로 저장하면 `revalidatePath` 가 웹뷰 화면을 못 비워 탭이 잠긴 채였다 → 웹에 `window.__bpRefresh`(= `router.refresh()`)를 두고,
+  앱은 `openWebAfter('#refresh')` 로 부른다(`index.tsx` navTo 가 받음). 다른 앱 첫 설정(투구 · 트레이닝)도 같은 문제가 있을 수 있다 — 저장 뒤 이걸 부르면 된다.
+- 앱 영양 탭 체중이 설정 단위(lb)를 따른다(`native/src/nutrition/tab.tsx`), 첫 설정 숫자 칸이 밖에서 바뀐 값을 따라간다(`native/src/setup/nutrition-steps.tsx`),
+  '먹었어요' 등 실패해도 그날을 다시 받는다(`native/src/nutrition/api.ts`). **이 PC 엔 native 패키지가 없어 타입 검사 · 실기기 확인을 못 했다** — 맥에서 한 번 봐 줘.
+
+## 김민에게(맥북) — 2026-10-18 · 김민(Claude, 데스크톱 · 통합/QA 세션) — 새 앱(Expo) 세 파일 고침 · 맥에서 타입 검사 필요
+
+받은 뒤 할 일 없음(DB · 패키지 그대로). 데스크톱엔 `native/node_modules` 가 없어 앱 타입 검사를 못 했다 — 맥에서 `cd native && npx tsc --noEmit` 한 번.
+- `native/src/app/analysis.tsx` 부하 카드: 투구는 서버가 주는 `v.signal`(홈 · 팔 상태와 같은 `loadSignalOf` 판단)을 칩 · 한 줄로 쓴다. 웹 `coach/load-panel.tsx` 도 같게.
+- `native/src/workout/outbox.ts` · `native/src/armcare/outbox.ts`: 지금 계정(owner)을 모르면 아무것도 안 보내고 'offline'(꺼진 망에서 켠 앱이 남의 세트를 보내던 틈).
+- `native/src/app/index.tsx` 앱이 다시 앞으로 올 때: `loadMe` 로 계정을 먼저 정하고(`setOutboxOwner`) 그다음 대기열을 보낸다. 시험 `npm run native-outbox:test` 통과. 다 보면 이 말을 지운다.
+
+## 김민에게(맥북) — 2026-10-18 · 김민(Claude, 데스크톱 · 아키텍처 세션) — 새 앱(Expo) 업데이트 장치 · 서버 동작 모양 기록
+
+받은 뒤 할 일 없음(DB · 패키지 그대로). 전체 재검토(`docs/architecture/README.md` '2차 검토') 뒤 맥에서 할 것 둘.
+- **N3 앱 업데이트 장치**: `native/` 에 `expo-updates` · `runtimeVersion` 이 없어 화면만 고쳐도 빌드 + 심사다. 정식 출시 전에 넣어 줘(계획서의 '화면 수정은 몇 분'이 이것).
+- **서버 동작 모양 기록(데스크톱이 더함)**: 앱이 부르는 서버 동작 154개의 인자 · 답 모양을 `scripts/native-api-shapes.json` 에 적었고 `npm run native-api:test` 가 견준다.
+  웹에서 그 동작 모양이 바뀌면 실패한다 → 앱 화면을 맞춘 뒤 `npm run native-api:test -- --update`, 깔린 앱이 깨지면 `lib/app-api.ts APP_API_LEVEL` 을 올린다.
+  더 단단히 하려면(선택) `native/src/lib/rpc.ts` 의 `rpc<T>(action: string, …)` 를 `app/api/rpc/registry.ts` 의 타입에서 인자 · 답을 끌어오는 함수로 바꾸고
+  호출 68곳의 `<T>` 를 걷으면 된다 — 앱 타입 검사가 필요해서 앱 패키지가 있는 맥에서. 다 보면 이 말을 지운다.
+
+## 금윤호 · 김민(맥북)에게 — 2026-10-18 · 김민(Claude, 투구기록 담당) — 새 앱(Expo) 투구 폼 다섯 고침 — 맥에서 굽기 필요
+
+받은 뒤 할 일: **새 앱(Expo)을 구울 때 같이 실린다**(서버 쪽 discard 답의 `orphans` 는 이미 웹 커밋에 들어가 배포만 되면 된다). **데스크톱엔 `native/node_modules` 가 없어 앱 타입 검사를 못 돌렸다** —
+맥에서 `cd native && npx tsc --noEmit` 한 번 돌려 줘. 김민: 투구기록 점검 → "급한 것 1~9번 고쳐줘"(이 절은 5~9번).
+- `native/src/app/pitch/edit.tsx`: ⑤ 저장 · 영상 넣는 중에는 [취소] · 끌어 닫기를 막고(`Stack.Screen gestureEnabled`), 저장 없이 닫을 때는 어느 기록에도 안 붙은 폰 영상만 지움
+  (`pitch/api.ts phoneOrphans` → `/api/pitch-log/discard` 의 orphans — 신호 끊김 뒤 실제로는 저장된 기록의 영상을 지우던 것) ⑥ 고칠 때 `baseVideoPaths` 를 보냄(다른 기기에서 더한 영상이 지워지던 것)
+  ⑦ 강도 칩 1~10(웹과 같게, 칩 사이 옛 값은 '지금 8.5') · 옛 기록(1~10 만 있음)은 `readEffort` 로 채우고 손 안 대면 `intensity` 를 보냄(메모만 고쳐도 강도를 다시 골라야 하던 것)
+  ⑧ 구속 칸이 설정 단위(km/h · mph)를 따름(저장은 km/h — mph 로 친 86 이 86km/h 로 남던 것) ⑨ 저장 두 번 누름 막기(ref).
+- `native/src/pitch/tab.tsx` · `app/pitch/[date].tsx`: 강도 글 1~10(`effortText`, 옛 기록도 보임) · 구속 `formatSpeed`(설정 단위).
+- 폰에서 볼 것: 옛 기록 고치기(강도가 채워져 열리나) · mph 로 바꾸고 저장 → 웹에서 km/h 로 맞게 보이나 · 저장 중 끌어 닫기가 막히나.
+
+## 금윤호에게 — 2026-10-18 · 김민(Claude, 투구기록 담당) — 투구 기록 점검 뒤 웹 넷 고침(폰 영상 지우기 · 가져오기 썸네일 · 날짜 검사)
+
+받은 뒤 할 일 없음(DB · 패키지 그대로). 김민: 투구기록 전체 점검 → "급한 것 1~9번 고쳐줘". **네 영역(투구 폼 · 기록 API)을 고쳤다.**
+- `app/api/pitch-log/discard/route.ts`: 답에 `orphans`(어느 기록 · 클립에도 없는 경로)를 더함. 새 `lib/local-video.ts discardPhoneVideos(paths)` — 이 답에 든 폰 영상만 폰에서 지운다(서버에 못 물으면 안 지움).
+- `import-sheet.tsx`: 가져온 영상에 썸네일(`makePitchThumb`, 없으면 목록이 원본을 통째로 읽었다) · 묶음 폼이 저장하는 동안 건너뛰기 · 닫기 막음(`EntryForm` 새 선택 칸 `onSavingChange`) ·
+  건너뛰기 · 닫기 · 시트 열 때 정리가 기록에 안 붙은 영상만 지움(저장은 됐는데 답만 못 받은 묶음의 영상을 지우던 것) · 폰에 넣고 경로를 못 받은 파일은 바로 지움.
+- `entry-form.tsx`: 저장 없이 닫으면 새로 넣은 폰 영상도 지움(예전엔 서버 discard 만 불러 앱 안에 남음) · 고쳐서 뺀 폰 영상은 이 폰에서도 지움.
+- `app/api/pitch-log/route.ts` POST: 날짜는 `YYYY-MM-DD` 만(예전엔 `…T05:00Z` 도 받아 그날 화면에 안 보이는 기록이 생길 수 있었다).
+- tsc · eslint · pitch-find 31 · pitch-import 28. 화면은 못 봤다(로그인 · 아이폰 앱 필요) — 앱에서 가져오기 → 건너뛰기 · 닫기 한 번 봐 줘.
+
+## 금윤호(서브2)에게 — 2026-10-18 · 김민(Claude, 트레이닝 세션) — 오늘 찍은 운동 영상 다듬기 · 내용 맞추기 · 전체 검토를 맡아 줘
+
+**금윤호의 서브2 세션(worktree `.claude/worktrees/sub2`)이 맡는다** — 다른 세션은 금윤호에게 알리기만 하고 손대지 않는다.
+서브2 에서 받으려면 `git fetch origin` → `git merge origin/main`(이 메모 · 문서 · 도구가 main 에 있다).
+**할 일(김민이 넘김 — 김민의 주간 한도가 얼마 안 남아서).** 김민: "오늘 찍은 영상, 어제처럼 앞뒤 빈 시간이 길거나 사람이 작으면 고치고,
+영상 속 자세와 설명을 견줘 맞추고, 전체 검토도". 10-18 에 '찍음'으로 체크한 운동 **95개**.
+**절차 · 명령 · 판단 기준은 `docs/shoot/video-trim-and-content-check.md` 하나에 다 있다** — 10-17 에 김민 세션이 170개 → 52개 다듬고(8899e0ec),
+직접 찍은 영상 271개를 점검해 고친(5886ff9b · aefe20f9) 방법 그대로다. 도구는 `scripts/shoot-trim/`(이번에 내용 점검 · 비교 · 감사 도구 일곱을 더 올림).
+1. 영상 다듬기(1절): `download.mjs 2026-10-18` → 재기 → 자동 판정 → **장면 모음을 하나하나 눈으로**(느린 동작 · 버티기 · 캐리 · 번갈아 하는 드릴을
+   자동 판정이 '빈 시간'으로 자주 잘못 본다) → overrides → 만들기 → 백업 → 올리기 → 캐시 `library:exercises:v40` 을 v41 로.
+2. 내용 맞추기(2절): 다듬은 뒤 `content-export.mjs 2026-10-18` → 장면 쪽 → 견주기. **고치기 전에 찾은 것을 표로 김민에게 먼저 보이고 허락받기**
+   (김민이 두 번 짚었다 — 질문 상자에 숫자만 띄우지 말 것). 장비는 목록 안에서만, 번갈아 하는 운동의 좌우 따로 기준은 아직 안 정해짐.
+3. 전체 검토(3절): `library-audit.mjs` + 시험 다섯. 10-18 기준값이 문서에 있다.
+- 받은 뒤 할 일: Python 3.12 패키지 다섯(문서 0절) · 운영 DB 를 바꾸기 전 `npm run backup`. 되돌리기용 작업 폴더(`applied.json`)는 그 컴퓨터에만 남는다.
+- 다 하면 이 말을 지우고 결과(몇 개 다듬음 · 고친 내용 · 커밋)를 김민에게 알려 줘.
+
 ## 김민에게(맥북) — 2026-10-18 · 클라우드 세션(Claude) — 아이패드 촬영 카메라: 가로로 들면 미리보기가 옆으로 눕던 것 · 아이패드 크기 배치
 
 받은 뒤 할 일: **맥북에서 새 앱(Expo)을 구울 때 같이 실린다** — 이 파일의 '새 앱(Expo) 굽기 · 촬영 앱 카메라가 H.264 로' 메모와 같은 굽기로 된다. 옛 앱(mobile/)은 main 에 들어가면

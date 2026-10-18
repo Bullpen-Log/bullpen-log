@@ -42,7 +42,13 @@ export function SafeForm({
         try {
           result = await orOffline(action(formData), OFFLINE);
         } catch (signal) {
-          if (doneToast) toast(doneToast);
+          /*
+           * 다른 화면으로 보내는 redirect 만 성공이다 — 로그인이 풀려 /login 으로 가거나 notFound 면 저장되지 않았다. 예전엔 그때도
+           * '저장했어요'가 떴다(2026-10-18). 신호 글: 'NEXT_REDIRECT;<type>;<url>;<status>;'(app/api/rpc 와 같은 읽기)
+           */
+          const digest = (signal as { digest?: unknown } | null)?.digest;
+          const to = typeof digest === 'string' && digest.startsWith('NEXT_REDIRECT;') ? digest.split(';')[2] : null;
+          if (doneToast && to != null && !to.startsWith('/login')) toast(doneToast);
           throw signal;
         }
         if (result === OFFLINE) setError(OFFLINE_MESSAGE);

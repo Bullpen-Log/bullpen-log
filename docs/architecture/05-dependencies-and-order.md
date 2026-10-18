@@ -29,7 +29,8 @@ flowchart BT
 
 **공통 파일**: `prisma/schema.prisma` · `lib/dal.ts` · `lib/prisma.ts` · `lib/clock*.ts` · `lib/checkin.ts` · `lib/report/gather.ts` · `lib/report/facts.ts` · `lib/pitch-stats.ts` ·
 `lib/feature-locks.ts` · `lib/nav.ts` · `lib/storage.ts` · `lib/library-cache.ts` · `components/app-shell.tsx` · `components/ui.tsx` · `components/icon.tsx` · `app/globals.css` ·
-`app/(app)/layout.tsx` · `package.json` · `HANDOFF.md`.
+`app/(app)/layout.tsx` · `package.json` · `HANDOFF.md` ·
+`app/api/rpc/registry.ts` · `lib/app-api.ts` · `lib/app-env.ts` · `scripts/native-api-shapes.json`(2026-10-18 — 앱과 맞추는 약속).
 
 1. 기능 세션은 공통 파일을 **고치기 전에** 이 통합 세션에 무엇을 왜 바꾸는지 알린다(또는 사용자에게 "통합 검토 받기"). 더하기(새 export · 선택 칸)는 알림만, 이름 바꾸기 · 지우기 · 뜻 바꾸기는 검토 뒤.
 2. 한 공통 파일은 한 번에 한 세션만 고친다 — 시작할 때 `git pull`, 끝나면 바로 커밋 · 올리기(오래 쥐지 않음).
@@ -60,6 +61,8 @@ flowchart BT
 - 남의 데이터는 [04](04-interfaces.md) 제공 함수로. 강도는 `effortPctOf`, 날짜는 `todayKey`/`keyOfDbDate`/`dbDateOf`(만들어진 뒤), 체중은 `getBodyWeight`(만들어진 뒤).
 - 쓰기 동작을 새로 만들면: 소유 확인 · 잠금 확인 · 멱등(같은 요청 두 번) · 무효화 표 한 줄.
 - 끝: 해당 셀프테스트 + 통합 시험 · `npx tsc --noEmit` · 바꾼 파일 eslint · 공통 파일을 건드렸으면 HANDOFF 한 줄.
+- 서버 동작(`app/actions`)을 고쳤으면 `npm run native-api:test` 도 — 앱이 부르는 동작의 모양이 바뀌면 여기서 잡힌다(2026-10-18).
+- **올리기 전에 `npm run integration:test` 를 돌린다** — 10-17 에 통과로 고친 [7] 이 다음 날 다시 빨간불이었는데 아무도 몰랐다.
 
 ## 5-5. 큰 파일 나누기 계획(2026-10-16 — 앱 틀은 나눔 8c705920, 구속 측정 화면은 아직)
 

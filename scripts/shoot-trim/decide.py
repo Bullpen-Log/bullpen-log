@@ -27,7 +27,11 @@ MARGIN = 0.12
 ZOOM_MAX = 1.6
 APPROACH = 1.45
 
-FONT = 'C:/Windows/Fonts/malgun.ttf'
+# 한글 글꼴 — 윈도(맑은 고딕) · 맥(애플 SD 고딕)
+FONT = next(
+    (p for p in ('C:/Windows/Fonts/malgun.ttf', '/System/Library/Fonts/AppleSDGothicNeo.ttc', '/Library/Fonts/AppleGothic.ttf') if os.path.exists(p)),
+    'C:/Windows/Fonts/malgun.ttf',
+)
 
 
 def smooth(xs, n):

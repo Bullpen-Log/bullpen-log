@@ -74,7 +74,9 @@ export async function POST(
 function lookup(action: string): ((...a: unknown[]) => Promise<unknown>) | null {
   const dot = action.lastIndexOf('.');
   if (dot <= 0) return null;
-  const mod = RPC_MODULES[action.slice(0, dot)];
+  const key = action.slice(0, dot);
+  /* 모듈 이름도 허용 목록 자신의 것만 — 'constructor.assign' 처럼 Object 의 것을 고르지 못하게(2026-10-18 통합 점검) */
+  const mod = Object.hasOwn(RPC_MODULES, key) ? RPC_MODULES[key] : undefined;
   const name = action.slice(dot + 1);
   if (!mod || !Object.hasOwn(mod, name)) return null;
   const fn = mod[name];

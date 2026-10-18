@@ -29,11 +29,16 @@ export async function POST(req: Request) {
   const own = [...new Set(asked)]
     .slice(0, MAX_PATHS)
     .filter(
-      (p) => isOwnedBy(p, user.id) && !isOwnAvatarPath(p, user.id) && !p.includes('..')
+      (p) =>
+        isOwnedBy(p, user.id) &&
+        !isOwnAvatarPath(p, user.id) &&
+        !p.includes('..') &&
+        /* 3D 분석 샘플 폴더는 기록 폼이 올린 것이 아니다 — 지우지 않는다(2026-10-18) */
+        !p.includes('/pitch-lab/')
     );
   if (own.length === 0) return NextResponse.json({ deleted: 0 });
 
-  const [logs, clips, parts] = await Promise.all([
+  const [logs, clips, parts, attempts] = await Promise.all([
     prisma.pitchLog.findMany({
       where: { userId: user.id, videoPaths: { hasSome: own } },
       select: { videoPaths: true },
@@ -50,10 +55,16 @@ export async function POST(req: Request) {
       where: { path: { in: own } },
       select: { path: true },
     }),
+    /* 못 잰 공의 클립(VelocityAttempt) — 같은 폴더에 있다(2026-10-18 전엔 안 봐서 지워질 수 있었다) */
+    prisma.velocityAttempt.findMany({
+      where: { userId: user.id, clipPath: { in: own } },
+      select: { clipPath: true },
+    }),
   ]);
   const used = new Set<string>([
     ...logs.flatMap((l) => l.videoPaths),
     ...parts.map((p) => p.path),
+    ...attempts.map((a) => a.clipPath).filter((p): p is string => p != null),
     ...clips
       .flatMap((c) => [c.clipPath, c.wideClipPath])
       .filter((p): p is string => p != null),
@@ -61,5 +72,6 @@ export async function POST(req: Request) {
   const orphans = own.filter((p) => !used.has(p));
   if (orphans.length > 0) await deleteVideos(orphans);
 
-  return NextResponse.json({ deleted: orphans.length });
+  /* orphans — 어느 기록 · 클립에도 없는 경로. 폰 영상(local-)은 서버에 파일이 없어, 부르는 쪽이 이것만 폰에서 지운다(lib/local-video.ts discardPhoneVideos) */
+  return NextResponse.json({ deleted: orphans.length, orphans });
 }

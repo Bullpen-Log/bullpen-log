@@ -4,6 +4,8 @@ import { Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Switch, Text,
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MEALS, amountText, entryMacros, type MealEntryView } from '@/lib/nutrition/meta';
 import { shiftDateKey } from '@/lib/pitch-stats';
+import { fromWeight, round1, toWeight } from '@/lib/units';
+import { useWeightUnit } from '~/lib/weight-unit';
 import { usePalette } from '~/lib/ui';
 import { PLAN_PLACES, type PlanItem } from '@/lib/nutrition/meal-plan';
 import type { Place } from '@/lib/nutrition/meal-templates';
@@ -35,6 +37,8 @@ export function NutritionTab({ today, bottom, onWebNutrition }: { today: string;
   };
   const { day, error, to, loading, reload } = useNutritionDay(date);
   const [busy, setBusy] = useState(false);
+  /* 체중은 설정 단위(kg · lb)로 보이고 적는다 — 저장은 늘 kg(2026-10-18 점검: lb 쓰는 사람의 160 이 160kg 으로 저장됐다) */
+  const unit = useWeightUnit();
 
   if (to)
     return (
@@ -68,8 +72,9 @@ export function NutritionTab({ today, bottom, onWebNutrition }: { today: string;
 
   const saveW = () => {
     if (weightText == null) return;
-    const kg = weightText.trim() ? Number.parseFloat(weightText) : null;
-    if (kg != null && !Number.isFinite(kg)) return Alert.alert('체중을 숫자로 적어 주세요.');
+    const typed = weightText.trim() ? Number.parseFloat(weightText.replace(',', '.')) : null;
+    if (typed != null && !Number.isFinite(typed)) return Alert.alert('체중을 숫자로 적어 주세요.');
+    const kg = typed == null ? null : Math.round(fromWeight(typed, unit) * 10) / 10;
     void run(async () => {
       const err = await saveWeight(date, kg);
       if (!err) setWeightText(null);
@@ -182,14 +187,14 @@ export function NutritionTab({ today, bottom, onWebNutrition }: { today: string;
           <Text style={[styles.mealTitle, { color: c.ink }]}>체중</Text>
           <View style={styles.weightRow}>
             <TextInput
-              value={weightText ?? (day.weightKg != null ? String(day.weightKg) : '')}
+              value={weightText ?? (day.weightKg != null ? String(round1(toWeight(day.weightKg, unit))) : '')}
               onChangeText={setWeightText}
               keyboardType="decimal-pad"
-              placeholder="kg"
+              placeholder={unit}
               placeholderTextColor={c.muted}
               style={[styles.input, { backgroundColor: c.page, color: c.ink }]}
             />
-            <Text style={{ color: c.muted, fontSize: 17 }}>kg</Text>
+            <Text style={{ color: c.muted, fontSize: 17 }}>{unit}</Text>
             {weightText != null ? (
               <Pressable accessibilityRole="button" onPress={saveW} disabled={busy} style={[styles.save, { backgroundColor: c.sky }]}>
                 <Text style={styles.primaryText}>저장</Text>

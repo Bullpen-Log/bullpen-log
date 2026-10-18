@@ -219,10 +219,14 @@ export default function SiteScreen() {
   useEffect(() => {
     const sub = AppState.addEventListener('change', (st) => {
       if (st !== 'active') return;
-      drainQueues();
       resetMe();
+      /* 계정을 먼저 안 뒤 보낸다 — 꺼진 망에서 켜 첫 loadMe 가 실패했으면 여기서 처음 계정이 정해진다(2026-10-18 통합 점검) */
       void loadMe().then(
-        (m) => setToday(m.today),
+        (m) => {
+          setToday(m.today);
+          setOutboxOwner(m.userId);
+          drainQueues();
+        },
         () => undefined
       );
     });
@@ -283,7 +287,11 @@ export default function SiteScreen() {
   const navTo = useRef<(href: string) => void>(() => undefined);
   useEffect(() => {
     navTo.current = (href) => {
-      if (href === '#settings' || href === '#profile') {
+      if (href === '#refresh') {
+        /* 앱 화면이 저장해 웹 틀(탭 잠금 · 목록)이 바뀌었다 — 웹이 다시 받으면 탭 목록을 새로 알린다 */
+        setWebNutrition(false);
+        web.current?.injectJavaScript('window.__bpRefresh && window.__bpRefresh();true;');
+      } else if (href === '#settings' || href === '#profile') {
         /* 앞으로 내는 것은 웹이 창을 연 뒤 알린다(webfront true) — 연결이 없는 웹 화면이면 아무 일도 안 일어나고 갇히지 않는다 */
         web.current?.injectJavaScript(`window.__bpOpen && window.__bpOpen('${href.slice(1)}');true;`);
       } else if (isNativePath(href)) openNative(href);

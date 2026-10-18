@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState, useState } from 'react';
+import { useActionState, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { ChevronDown, ChevronUp, Pencil, Plus, X } from '@/components/icon';
 import {
@@ -71,10 +71,14 @@ function Thumb({ url, title }: { url: string | null; title: string }) {
 
 /** 이름과 한 줄 설명을 고치는 칸 */
 function NameForm({ routine, onDone }: { routine: RoutineCard; onDone: () => void }) {
-  const [state, action] = useActionState(
+  const [state, action, pending] = useActionState(
     guardFormAction(updateWarmupRoutine),
     undefined
   );
+  /* 고치면 닫아 카드 머리에 새 이름이 보이게 — 예전엔 폼이 열린 채라 저장이 됐는지 몰랐다(2026-10-18) */
+  useEffect(() => {
+    if (state && 'success' in state && state.success) onDone();
+  }, [state, onDone]);
 
   return (
     <form action={action} className="space-y-3">
@@ -87,7 +91,9 @@ function NameForm({ routine, onDone }: { routine: RoutineCard; onDone: () => voi
       </Field>
       <FormError>{state?.error}</FormError>
       <div className="flex items-center gap-2">
-        <Button type="submit">저장</Button>
+        <Button type="submit" disabled={pending}>
+          {pending ? '저장 중…' : '저장'}
+        </Button>
         <button
           type="button"
           onClick={onDone}

@@ -1,11 +1,19 @@
 'use client';
 
-import { useActionState, useRef, useState } from 'react';
+import { useActionState, useEffect, useRef, useState } from 'react';
 import { useFormStatus } from 'react-dom';
 import { ShieldCheck, ShieldOff, Trash2 } from '@/components/icon';
 import { deleteUser, toggleUserRole, type AdminState } from '@/app/actions/admin';
 import { guardFormAction } from '@/lib/action-offline';
 import { ConfirmDialog } from '@/components/confirm-delete';
+import { toast } from '@/components/toast';
+
+/* 실패(신호 끊김 · 이미 지워진 회원)를 한 줄로 알린다 — 예전엔 state 를 버려 창만 닫히고 아무 말이 없었다(2026-10-18) */
+function useErrorToast(state: AdminState) {
+  useEffect(() => {
+    if (state?.error) toast(state.error, 'error');
+  }, [state]);
+}
 
 /** 묻는 창에 띄울 것 — 제목 · 무엇이 바뀌는지 · 확인 단추 글 */
 type Ask = { title: string; detail: string; confirmLabel: string };
@@ -75,10 +83,11 @@ export function RoleToggle({
   isAdmin: boolean;
   disabled: boolean;
 }) {
-  const [, formAction] = useActionState<AdminState, FormData>(
+  const [state, formAction] = useActionState<AdminState, FormData>(
     guardFormAction(toggleUserRole),
     undefined
   );
+  useErrorToast(state);
 
   if (disabled) {
     return <span className="text-xs text-muted/50">본인</span>;
@@ -129,10 +138,11 @@ export function DeleteUser({
   nickname: string;
   disabled: boolean;
 }) {
-  const [, formAction] = useActionState<AdminState, FormData>(
+  const [state, formAction] = useActionState<AdminState, FormData>(
     guardFormAction(deleteUser),
     undefined
   );
+  useErrorToast(state);
 
   if (disabled) return null;
 
