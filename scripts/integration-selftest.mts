@@ -160,6 +160,18 @@ console.log('\n[7] 서버 동작 · API — 모든 쓰기 입구가 로그인한
   const AUTH = /\b(getCurrentUser|requireUser|requireAdmin|assertAdmin|requireAdminUser)\(/;
   /* 로그인 전에 부르는 것 — 가입 · 로그인 · 로그아웃 */
   const PUBLIC = new Set(['auth.ts:checkSignupEmail', 'auth.ts:signup', 'auth.ts:login', 'auth.ts:logout']);
+  /*
+   * 확인을 하는 다른 동작에 그대로 넘기는 것 — 앱 입구용 얇은 껍데기(2026-10-18 앱 판 9). 넘겨받는 쪽이 로그인 · 관리자를 본다:
+   * toggleUserRole · deleteUser · updatePatchNote(assertAdmin), tryUpdateProfile(getCurrentUser), tryUpdateNotice → writeNotice(getCurrentUser + ADMIN)
+   */
+  const DELEGATES = new Set([
+    'app-admin.ts:setAppUserRole',
+    'app-admin.ts:deleteAppUser',
+    'app-admin.ts:saveAppPatchNote',
+    'profile.ts:updateAppProfile',
+    'support.ts:updateNotice',
+    'support.ts:saveAppNotice',
+  ]);
   const open: string[] = [];
   let seen = 0;
   for (const f of readdirSync(new URL('../app/actions/', import.meta.url))) {
@@ -170,9 +182,17 @@ console.log('\n[7] 서버 동작 · API — 모든 쓰기 입구가 로그인한
     for (const body of parts) {
       const name = body.slice(0, body.search(/[(<]/));
       seen++;
-      if (PUBLIC.has(`${f}:${name}`)) continue;
-      /* 같은 파일 안 도우미(ensureUser 꼴)를 거치면 그 도우미가 확인한다 — 이름에 user · admin 이 든 도우미를 부르면 넘긴다 */
-      if (!AUTH.test(body) && !/\b(own|ensure|load)\w*(User|Admin|Owner)\w*\(/.test(body)) open.push(`${f}:${name}`);
+      if (PUBLIC.has(`${f}:${name}`) || DELEGATES.has(`${f}:${name}`)) continue;
+      /*
+       * 같은 파일 안 도우미(ensureUser 꼴)를 거치면 그 도우미가 확인한다 — 이름에 user · admin 이 든 도우미를 부르면 넘긴다.
+       * 앱 입구 파일(app-*.ts)의 `await admin()` 도우미도(getCurrentUser + ADMIN, 2026-10-18)
+       */
+      if (
+        !AUTH.test(body) &&
+        !/\b(own|ensure|load)\w*(User|Admin|Owner)\w*\(/.test(body) &&
+        !/\bawait admin\(\)/.test(body)
+      )
+        open.push(`${f}:${name}`);
     }
   }
   /* 함수를 하나도 못 읽으면 시험이 아무것도 안 본 것 — 지금 백몇십 개 */

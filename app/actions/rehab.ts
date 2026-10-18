@@ -1,6 +1,6 @@
 'use server';
 
-import { appNow, appNowMs } from '@/lib/clock';
+import { appNow } from '@/lib/clock';
 import { revalidatePath } from 'next/cache';
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
@@ -682,7 +682,8 @@ export async function logRehabThrow(input: {
   const memo = throwMemo(step, input.pain);
   const date = dayStart(todayKey);
   const duplicate = await prisma.pitchLog.findFirst({
-    where: { userId: user.id, date, memo, createdAt: { gte: new Date(appNowMs() - THROW_DUPLICATE_MS) } },
+    /* createdAt 은 DB 의 실제 시각 — 시뮬레이션 날짜(appNow)와 견주면 안 된다(lib/clock.ts, 2026-10-18) */
+    where: { userId: user.id, date, memo, createdAt: { gte: new Date(Date.now() - THROW_DUPLICATE_MS) } },
     select: { id: true },
   });
   if (!duplicate) {
@@ -703,7 +704,9 @@ export async function logRehabThrow(input: {
     });
   }
   refresh();
-  revalidatePath('/pitch-log');
+  /* 투구 기록 탭 · 그날 화면 — '/pitch-log' 는 page 가 없는 경로라 아무것도 새로 읽지 않았다(2026-10-18) */
+  revalidatePath('/videos');
+  revalidatePath(`/pitch-log/${todayKey}`);
   return { ok: true };
 }
 
@@ -716,7 +719,7 @@ export async function markRehabThrowLaterPain(): Promise<Result> {
   const last = await prisma.pitchLog.findFirst({
     where: { userId: user.id, date: { gte: dayStart(active.program.startedOn) }, memo: { startsWith: THROW_TAG } },
     orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
-    select: { id: true, memo: true },
+    select: { id: true, memo: true, date: true },
   });
   const parsed = parseThrowMemo(last?.memo);
   if (!last || !parsed) return { error: '던진 기록이 아직 없어요.' };
@@ -727,7 +730,8 @@ export async function markRehabThrowLaterPain(): Promise<Result> {
     });
   }
   refresh();
-  revalidatePath('/pitch-log');
+  revalidatePath('/videos');
+  revalidatePath(`/pitch-log/${toDateKey(last.date)}`);
   return { ok: true };
 }
 
