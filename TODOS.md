@@ -42,6 +42,13 @@
 - **영양이 암케어 · 메커니즘 시간도 읽기(P3)** — 지금은 TrainingSession.activeSeconds(운동 판)만 소모로 센다. 암케어(DailyArmcare) ·
   메커니즘(MechanicsProgram)에는 한 시간이 안 남아 셀 수 없다. 다시 볼 때: 암케어 · 메커니즘 플레이어가 마친 시각 · 걸린 시간을 남기게 되면.
 
+## 영양 '순간에 한 줄'(2026-10-16)에서 미룬 것
+
+설계 `docs/designs/nutrition-moments.md`. 지금은 ① 투구 회복식 · ② 운동 뒤 단백질만, 표 없이.
+- **③ 등판 전 저녁 한 줄** — 던지는 일정 카드에 '오늘 · 내일 등판'을 답한 직후 그 카드 밑(`app/actions/day-cards.ts setThrowPlan` ·
+  `guide.ts` 'eve' · 'today'). 최근 30일 그 답이 0건이라 미뤘다. 다시 볼 때: 던지는 일정 답이 쌓이기 시작하면.
+- **반응 세기(`NutritionNudge` 표 · [도움 돼요])** — DB 구조를 안 바꾸려고 뺐다. 다시 볼 때: 인터뷰가 긍정이고 사용자가 늘어 숫자가 판정에 쓸모 있어지면.
+
 ## 재활
 
 - **투구 복귀표 기록을 제 칸에(P3)** — 2026-10-09 트레이닝 검토 3-⑧. 던진 날을 투구 기록(PitchLog)의 메모 꼬리표('재활 투구 복귀표 N칸 · …')로
@@ -71,3 +78,22 @@
   heavy 는 2D 가 더 정확하지만 2~3배 느려, 폰에서 0.25배 재생과 겹치면 다시 장면을 빠뜨릴 수 있다.
   다시 볼 때: 1~2단계가 끝나 실제 샘플 돌리기로 견줄 수 있을 때. 시작점: lib/pose/extract.ts 의 MODEL_URL 을 선택 인자로, 같은 샘플을
   full · heavy 로 돌려 뼈 길이 흔들림 · 다시 비춤 오차 · 분석 시간을 견준다(데스크톱 · 폰 하나씩). 노력 S.
+
+## 투구 기록 — 느낌으로 찾기 · 과거 영상 가져오기 (설계: docs/designs/pitch-log-findability.md)
+
+- **사진 앱에 한 벌 남기기(P3)** — 2026-10-16 엔지니어링 검토 D12 에서 미룸. 폰에 넣은 투구 영상은 앱 안 폴더에만 있어 앱을 지우거나 폰을 바꾸면 사라진다(서버 저장은 유료 요금제 뒤).
+  10-10 '앱 안에만 · 사진 앱에도 두지 않는다' 결정과 부딪힌다 — 그 결정 이유를 먼저 확인한다. 다시 볼 때: 베타 시작 뒤 3개월 안에 "앱을 지우거나 폰을 바꿔 영상을 잃었다"는 사람이 한 명이라도 나오면.
+  시작점: mobile/ios/App/App/LocalVideoPlugin.swift keep 뒤 PHAssetChangeRequest.creationRequestForAssetFromVideo + Info.plist 사진 쓰기 문구(맥 굽기). 노력 S(사람 ~1일 / CC ~40분 + 맥).
+- **기록당 영상 상한 2 올리기(P3)** — 2026-10-16 엔지니어링 검토 D13 에서 미룸. 과거 가져오기는 같은 날 영상이 셋 넘으면 기록을 2 · 2 · 1 로 나눈다.
+  다시 볼 때: 숙제(갤러리 과거 영상 10개 기억 적기)에서 같은 날 3개 넘게 찍은 날이 나오면. 시작점: app/api/pitch-log/route.ts MAX_VIDEOS + components/video-upload.tsx 칸 수 +
+  그날 화면(day-record.tsx) · 홈 요약 · 비교 고르개의 영상 칸 모양(금윤호 영역 — HANDOFF). 노력 M(사람 ~1일 / CC ~45분).
+- **폰 영상 썸네일 한 장을 서버에(P3)** — 2026-10-16 엔지니어링 검토 D14 에서 미룸(D1 의 캘린더 썸네일도 이 뒤). 폰 영상은 썸네일이 아예 없어 목록 · 캘린더에 아이콘만 뜬다.
+  한 장면 JPEG(수십 KB)를 서버 썸네일 자리(pitchThumbPath 가 폰 경로에도 자리를 줌)에 올리면 모든 기기에 그림이 뜬다 — 영상이 아니라 정지 화면이지만 10-10 '서버에 안 둠' 결정이 그림까지 말한 건지 먼저 정한다.
+  시작점: components/video-upload.tsx 폰 가지(263-281)에서 captureThumbnail + thumb-upload. 노력 S(사람 ~반나절 / CC ~1시간).
+
+## 앱 — Expo(React Native) 전환(2026-10-17 엔지니어링 검토)
+
+- **안드로이드 앱(Expo)** — 2026-10-17 검토 D1 에서 미룸(iOS 먼저). Expo 화면 코드는 안드로이드에서도 돌게 짜 두고, 남는 일은 네이티브 부품의 Kotlin 판이다 —
+  카메라(DualCamera · ShootCamera) · 폰 영상 저장(LocalVideo) Expo 모듈, 안드로이드 폰 시험 · Play 스토어. 노력 L(CC 1~2주 + 폰 시험).
+  다시 볼 때: iOS Expo 판이 출시된 뒤. 시작점: native/ 의 Expo 모듈 Swift 를 기준으로 Kotlin, 먼저 안드로이드 WebView 가 구속 엔진(숨은 웹뷰 계산기, D5)의
+  WebCodecs · onnxruntime-web WASM · 워커를 돌리는지 확인.

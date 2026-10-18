@@ -1,5 +1,5 @@
-import { appNowMs } from '@/lib/clock';
 import { NextResponse } from 'next/server';
+import { appNowMs } from '@/lib/clock';
 import { prisma } from '@/lib/prisma';
 import { getCurrentUser } from '@/lib/dal';
 import { deleteVideos, isOwnedBy } from '@/lib/storage';
@@ -51,6 +51,8 @@ const DUPLICATE_WINDOW_MS = 2 * 60 * 1000;
 function checkEntry(
   body: Record<string, unknown>
 ): { error: string } | { entry: CheckedEntry; legacyEffort: boolean } {
+  /* 투구 종류는 꼭 — 비면 '불펜'으로 넣던 것을 없앴다(2026-10-18 사용자). 캐치볼이 불펜 날로 셈됐다 */
+  if (String(body.sessionType ?? '').trim() === '') return { error: '투구 종류를 골라 주세요.' };
   const checkedType = validateSessionType(String(body.sessionType ?? ''));
   if ('error' in checkedType) return checkedType;
 
@@ -66,11 +68,11 @@ function checkEntry(
 
   if (!resting) {
     if (Number.isNaN(pitchCount)) {
-      return { error: '투구수를 올바르게 입력해주세요' };
+      return { error: '투구수를 올바르게 입력해 주세요' };
     }
     if (pitchCount < 1) {
       return {
-        error: '투구수는 1개 이상이어야 합니다. 안 던진 날은 종류에서 휴식을 고르세요',
+        error: '투구수는 1개 이상이어야 해요. 안 던진 날은 종류에서 휴식을 고르세요',
       };
     }
     if (pitchCount > MAX_PITCH_COUNT) {
@@ -101,11 +103,11 @@ function checkEntry(
     if (raw === '' || raw == null) return { value: null };
     const value = Number.parseFloat(String(raw));
     if (Number.isNaN(value) || value <= 0) {
-      return { error: `${label}을 숫자로 입력해주세요` };
+      return { error: `${label}을 숫자로 입력해 주세요` };
     }
     if (value < MIN_VELOCITY || value > MAX_VELOCITY) {
       return {
-        error: `${label}은 ${MIN_VELOCITY}~${MAX_VELOCITY} km/h 사이로 입력해주세요. 단위가 mph 라면 km/h 로 바꿔서 넣어주세요`,
+        error: `${label}은 ${MIN_VELOCITY}~${MAX_VELOCITY} km/h 사이로 입력해 주세요. 단위가 mph 라면 km/h 로 바꿔서 넣어주세요`,
       };
     }
     return { value };
@@ -202,9 +204,10 @@ export async function GET(req: Request) {
   }
 
   const month = new URL(req.url).searchParams.get('month');
-  if (month != null && !/^\d{4}-\d{2}$/.test(month)) {
+  /* 달은 01~12 만 — 2026-13 은 모양이 맞아도 Invalid Date 로 Prisma 가 던져 500 이었다(2026-10-18) */
+  if (month != null && !/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) {
     return NextResponse.json(
-      { error: '달은 2026-08 형식이어야 합니다' },
+      { error: '달은 2026-08 형식이어야 해요' },
       { status: 400 }
     );
   }
@@ -242,6 +245,23 @@ function nextMonthStart(month: string) {
   return new Date(Date.UTC(y, m, 1));
 }
 
+/**
+ * 구속 측정으로 채운 기록이면 그 세션들을 이 기록에 잇는다(2026-10-16 — 측정은 투구 기록을 만들지 않고, 투구 탭 카드가 '아직 안 남긴
+ * 측정'을 알린다. 이으면 그 알림이 사라진다). 본인 것 · 같은 날 · 아직 안 이어진 세션만 — 못 이어도 기록 저장은 끝났다.
+ */
+async function linkVelocitySessions(raw: unknown, userId: string, date: Date, logId: string) {
+  const ids = Array.isArray(raw)
+    ? raw.filter((x): x is string => typeof x === 'string').slice(0, 20)
+    : [];
+  if (ids.length === 0) return;
+  await prisma.velocitySession
+    .updateMany({
+      where: { id: { in: ids }, userId, date, pitchLogId: null },
+      data: { pitchLogId: logId },
+    })
+    .catch((err: unknown) => console.error('[POST /api/pitch-log] 구속 세션 잇기 실패', err));
+}
+
 export async function POST(req: Request) {
   const user = await getCurrentUser();
   if (!user) {
@@ -256,8 +276,15 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: '날짜가 필요해요' }, { status: 400 });
     }
 
-    const parsedDate = new Date(date);
-    if (Number.isNaN(parsedDate.getTime())) {
+    /*
+     * 날짜는 'YYYY-MM-DD' 만 — 한국 날짜를 UTC 자정으로 둔다. 예전엔 Date 로 읽히는 것은 다 받아 '…T05:00Z' 같은 시각이
+     * 그대로 남았고, 그날 화면(자정으로 찾음)에는 안 보이는데 달 합계에는 들어갔다(2026-10-18 점검).
+     */
+    const parsedDate =
+      typeof date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(date)
+        ? new Date(`${date}T00:00:00.000Z`)
+        : new Date(NaN);
+    if (Number.isNaN(parsedDate.getTime()) || parsedDate.toISOString().slice(0, 10) !== date) {
       return NextResponse.json({ error: '날짜가 올바르지 않아요' }, { status: 400 });
     }
 
@@ -303,13 +330,17 @@ export async function POST(req: Request) {
       where: {
         userId: user.id,
         date: parsedDate,
+        /* pitchLog.createdAt 은 시험 계정이면 앱 시계로 적힌다(lib/prisma.ts TIME_FIELDS) — 그래서 appNowMs 와 견준다(2026-10-18, 하루 Date.now 로 잘못 바꿨던 것 되돌림) */
         createdAt: { gte: new Date(appNowMs() - DUPLICATE_WINDOW_MS) },
         ...checked,
         videoPaths: { equals: paths },
       },
       orderBy: { createdAt: 'desc' },
     });
-    if (duplicate) return NextResponse.json(duplicate, { status: 200 });
+    if (duplicate) {
+      await linkVelocitySessions(body.velocitySessionIds, user.id, parsedDate, duplicate.id);
+      return NextResponse.json(duplicate, { status: 200 });
+    }
 
     const log = await prisma.pitchLog.create({
       data: {
@@ -320,6 +351,7 @@ export async function POST(req: Request) {
         videoPaths: paths,
       },
     });
+    await linkVelocitySessions(body.velocitySessionIds, user.id, parsedDate, log.id);
 
     return NextResponse.json(log, { status: 201 });
   } catch (error) {
@@ -432,16 +464,7 @@ export async function PATCH(req: Request) {
       });
 
       if (removed.length > 0) {
-        /*
-         * 뺀 영상의 폼 분석을 지운다.
-         *
-         * 안 지우면 어느 기록에도 안 붙은 분석이 남아, 지난 세션과 견주는
-         * 자리에 사라진 영상의 값이 계속 끼어든다.
-         */
-        await prisma.poseAnalysis.deleteMany({
-          where: { userId: user.id, videoPath: { in: removed } },
-        });
-        // 저장소에 못 찾는 파일이 쌓이지 않게 함께 지운다.
+        // 저장소에 못 찾는 파일이 쌓이지 않게 함께 지운다(옛 폼 분석 표 PoseAnalysis 는 2026-10-16 에 지웠다).
         await deleteVideos(removed);
       }
 
@@ -468,7 +491,8 @@ export async function DELETE(req: Request) {
 
   try {
     const { id } = await req.json();
-    if (!id) {
+    /* 글자만 — 객체를 보내면 Prisma 거름({ not: … })으로 읽혀 아무 기록이나 찾아 지웠다(본인 것만이지만, 2026-10-18) */
+    if (typeof id !== 'string' || !id) {
       return NextResponse.json({ error: 'id가 필요해요' }, { status: 400 });
     }
 

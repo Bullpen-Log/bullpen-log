@@ -79,7 +79,7 @@ export function Toaster() {
         자리 — 시계 밑, 위 막대 위에 겹쳐 뜬다(아이폰의 알림 배너 자리). popover 의 기본 칸(가운데 · 테두리 · 바탕)은 걷는다.
         보일 때(data-show) 위에서 내려오며 진해지고, 사라질 때는 빠르게 옅어진다.
       */
-      className="pointer-events-none fixed inset-x-0 z-100 top-[calc(env(safe-area-inset-top)+0.5rem)] bottom-auto m-0 mx-auto flex w-max max-w-[calc(100vw-2rem)] -translate-y-3 items-center gap-2 overflow-visible border-0 bg-transparent p-0 opacity-0 transition-[opacity,translate] duration-150 ease-out data-show:translate-y-0 data-show:opacity-100 data-show:duration-200 motion-reduce:translate-y-0 desk:top-4"
+      className="pointer-events-none fixed inset-x-0 z-100 pad:left-(--rail) top-[calc(env(safe-area-inset-top)+0.5rem)] bottom-auto m-0 mx-auto flex w-max max-w-[calc(100vw-2rem)] -translate-y-3 items-center gap-2 overflow-visible border-0 bg-transparent p-0 opacity-0 transition-[opacity,translate] duration-150 ease-out data-show:translate-y-0 data-show:opacity-100 data-show:duration-200 motion-reduce:translate-y-0 desk:top-4"
     >
       {item && (
         <span

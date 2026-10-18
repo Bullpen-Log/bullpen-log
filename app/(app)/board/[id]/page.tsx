@@ -1,3 +1,6 @@
+import { headers } from 'next/headers';
+import { expoLevel } from '@/lib/app-env';
+import { OpenNative } from '@/app/(session)/velocity/open-native';
 import { notFound } from 'next/navigation';
 import { ChevronRight, ExternalLink, Eye, Trash2 } from '@/components/icon';
 import { prisma } from '@/lib/prisma';
@@ -25,6 +28,8 @@ export default async function ArticleDetailPage({
 }) {
   const { id } = await params;
   const user = await requireUser();
+  /* 새 아이폰 앱(Expo)이 자료실을 아는 판(BullpenNative/7 부터)이면 앱 화면으로 연다(native/src/app/board/[id].tsx) — 조회수는 앱 화면이 올린다 */
+  if (expoLevel((await headers()).get('user-agent')) >= 7) return <OpenNative path={`/board/${id}`} cover={false} />;
 
   const exists = await prisma.article.findUnique({
     where: { id },
@@ -113,7 +118,7 @@ export default async function ArticleDetailPage({
         </a>
       )}
 
-      <div className="whitespace-pre-wrap text-[15px] leading-[1.9] text-ink/90">
+      <div className="whitespace-pre-wrap text-subhead leading-[1.9] text-ink/90">
         {article.content}
       </div>
     </article>

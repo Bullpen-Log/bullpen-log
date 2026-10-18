@@ -19,7 +19,7 @@ import type { OutingNextSource } from '@/lib/engine/outing';
 import { INTENSITY_CAP, intensityLevel, type BodyPart } from '@/lib/exercise-meta';
 import { YOUTH_AGE_THRESHOLD } from '@/lib/report/plan';
 import { BEGINNER_LEVEL_NAME } from '@/lib/report/personalize';
-import { belowUsualCondition, type ReportFacts } from '@/lib/report/facts';
+import { belowUsualCondition, todayPrefsOf, type ReportFacts } from '@/lib/report/facts';
 import type { PitchPlan } from '@/lib/report/plan';
 
 /**
@@ -633,7 +633,7 @@ export function selectCandidates<T extends ExerciseLike>({
    * 선호로 후보를 걸러버리면 "하체만 하고 싶다"고 고른 날 어깨 회복 운동이
    * 사라지는데, 그건 사용자가 바란 것도 아니고 몸에 좋지도 않다.
    */
-  const wanted = new Set(today?.preferredParts ?? []);
+  const wanted = new Set(todayPrefsOf(facts).preferredParts);
   if (wanted.size > 0) {
     basis.push(`오늘 하고 싶은 부위(${[...wanted].join('·')})를 먼저 골라 담음`);
     pool = [

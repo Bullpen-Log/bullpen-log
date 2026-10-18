@@ -6,7 +6,7 @@ import { useSpeedUnit } from '@/components/use-units';
 import Link from 'next/link';
 import { ChevronDown, ChevronRight, Film } from '@/components/icon';
 import { REST_SESSION_TYPE, SESSION_TYPES } from '@/lib/session-type';
-import { effortText, readEffort } from '@/lib/pitch-effort';
+import { effortScaleText, effortText, readEffort } from '@/lib/pitch-effort';
 import type { Log } from './types';
 import { OPEN_POPUP_TYPES } from '@/lib/transition-types';
 
@@ -111,7 +111,7 @@ export function LogList({ logs }: { logs: Log[] }) {
   const chips: { key: Filter; label: string; count: number }[] = [
     { key: 'all', label: '전체', count: counts.all },
     { key: 'video', label: '영상 있는 날', count: counts.video },
-    { key: 'hard', label: `강도 ${HARD_EFFORT_PCT}% 이상`, count: counts.hard },
+    { key: 'hard', label: `강도 ${effortScaleText(HARD_EFFORT_PCT)} 이상`, count: counts.hard },
     ...SESSION_TYPES.map((t) => ({
       key: t.name as Filter,
       label: t.name,
@@ -147,7 +147,7 @@ export function LogList({ logs }: { logs: Log[] }) {
           >
             {c.label}
             <span
-              className={`text-numeric text-[13px] leading-none ${
+              className={`text-numeric text-footnote leading-none ${
                 filter === c.key ? 'text-sky-strong' : 'text-line-strong'
               }`}
             >
@@ -176,7 +176,7 @@ export function LogList({ logs }: { logs: Log[] }) {
                     open ? '' : '-rotate-90'
                   }`}
                 />
-                <span className="text-[13px] font-semibold text-ink">
+                <span className="text-footnote font-semibold text-ink">
                   {spokenMonth(group.month)}
                 </span>
                 <span className="text-numeric text-sm leading-none text-muted">
@@ -200,7 +200,7 @@ export function LogList({ logs }: { logs: Log[] }) {
                         >
                           <span className="min-w-0 flex-1">
                             <span className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-                              <span className="text-[13px] font-semibold text-ink">
+                              <span className="text-footnote font-semibold text-ink">
                                 {spokenDate(key)}
                               </span>
                               <span className="text-xs text-muted">
@@ -216,7 +216,7 @@ export function LogList({ logs }: { logs: Log[] }) {
                                 )}
                               </span>
                               {log.videoPaths.length > 0 && (
-                                <span className="inline-flex items-center gap-0.5 text-[11px] text-sky-strong">
+                                <span className="inline-flex items-center gap-0.5 text-caption text-sky-strong">
                                   <Film aria-hidden className="h-3 w-3" />
                                   {log.videoPaths.length}
                                 </span>

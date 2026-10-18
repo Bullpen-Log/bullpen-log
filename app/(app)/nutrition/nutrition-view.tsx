@@ -1,7 +1,6 @@
 'use client';
 
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import {
   useEffect,
   useOptimistic,
@@ -18,10 +17,6 @@ import {
   CalendarDays,
   Check,
   ChevronDown,
-  ChevronLeft,
-  ChevronRight,
-  ChevronsLeft,
-  ChevronsRight,
   Minus,
   Plus,
   Settings2,
@@ -29,8 +24,12 @@ import {
   X,
 } from '@/components/icon';
 import { MiniCalendar } from '@/components/mini-calendar';
+import { CountUp } from '@/components/onboarding/count-up';
+import { DateScrollStrip } from '@/components/date-scroll-strip';
 import { useWeightUnit } from '@/components/use-units';
 import { Segmented } from '@/components/segmented';
+import { PAGE_TITLE_LINE, Button, ButtonLink } from '@/components/ui';
+import { NavTitle } from '@/components/nav-title';
 import { MyPlanCard } from '@/components/nutrition/my-plan-card';
 import { useLocalChoice } from '@/components/nutrition/use-local-choice';
 import { fromWeight, toWeight } from '@/lib/units';
@@ -216,8 +215,8 @@ export function NutritionView({
 }: {
   day: NutritionDay;
   today: string;
-  /** 오늘 영양 조언(lib/nutrition/advice.ts) — 홈 카드와 같은 셈. 지난 날은 할 일이 없어 카드를 안 그린다 */
-  advice: Advice;
+  /** 오늘 영양 조언(lib/nutrition/advice.ts) — 홈 카드와 같은 셈. 지난 날은 할 일이 없어 안 셈한다(null) */
+  advice: Advice | null;
   /** 영양 추세 카드 글(lib/nutrition/fuel-check.ts fuelCardOf, 2판 P6-7) — 오늘을 볼 때 깃발이 섰을 때만 */
   fuel?: FuelCard | null;
 }) {
@@ -385,7 +384,8 @@ export function NutritionView({
 
   function clearPlan() {
     setError(null);
-    startTransition(async () => {
+    /* 짜기와 같은 줄에 세운다 — 따로 돌면 서버 차례에 따라 지운 계획이 되살아났다 */
+    startPlan(async () => {
       applyPlan({ type: 'clear' });
       report(await orOffline(clearMealPlan(day.date), OFFLINE));
     });
@@ -409,18 +409,22 @@ export function NutritionView({
         휴대폰에서는 제목 · 날짜 · 목표가 한 줄이고(목표 단추는 그림만), 날짜 띠는 맨 뒤로
         보내 밑줄을 통째로 쓴다(order-last). 넓은 화면(lg)에서는 띠가 제자리로 돌아와 같은
         줄에 선다 — 예전에는 띠가 따로 한 줄(57px + 간격)을 차지해 오른쪽 절반이 비었다.
+        2026-10-14 휴대폰에서 띠를 숨겼다가 2026-10-15 사용자 "제목 밑 최근 날짜 보기를 다시" — 휴대폰도 제목 밑에 보인다
+        (트레이닝 홈도 같은 띠, training/day-strip.tsx).
       */}
-      <header className="flex flex-wrap items-end gap-x-3 gap-y-3 pb-1 sm:gap-x-4 desk:pb-4">
+      <header className="flex flex-wrap items-center desk:items-end gap-x-3 gap-y-3 pb-1 sm:gap-x-4 desk:pb-4">
         {/* 머리글은 휴대폰에서 뺀다 — 제목 줄에 날짜 · 목표가 같이 서서, 넣으면 목표 단추가 밑줄로 밀린다 */}
-        <div className="space-y-2 desk:space-y-1">
-          <h1 className="text-heading page-title text-ink">영양</h1>
+        <div className="space-y-1">
+          <h1 className={`text-heading page-title text-ink ${PAGE_TITLE_LINE}`}>영양</h1>
+          {/* 다른 탭(PageHeading)처럼 큰 제목이 가려지면 위 막대에 작은 제목 */}
+          <NavTitle title="영양" />
         </div>
-        <DateNav date={day.date} today={today} calendar={day.calendar} />
         <WeekStrip
           strip={day.strip}
           date={day.date}
           today={today}
-          className="order-last w-full max-lg:hidden sm:max-w-xl lg:order-none lg:w-auto lg:flex-1"
+          end={<DateNav date={day.date} today={today} calendar={day.calendar} />}
+          className="order-last w-full sm:max-w-xl lg:order-none lg:w-auto lg:flex-1"
         />
         <button
           type="button"
@@ -449,14 +453,14 @@ export function NutritionView({
       {error && (
         <div
           role="alert"
-          className="motion-safe:animate-fade-in flex items-start gap-2 rounded-xl border border-danger-line bg-danger-bg px-4 py-3 text-sm text-danger"
+          className="motion-safe:animate-fade-in flex items-start gap-2 rounded-2xl border border-danger-line bg-danger-bg p-(--block-pad) text-sm text-danger"
         >
           <p className="flex-1">{error}</p>
           <button
             type="button"
             onClick={() => setError(null)}
             aria-label="닫기"
-            className="-m-1 rounded-md p-1 hover:bg-danger/10"
+            className="-m-1 rounded-lg p-1 hover:bg-danger/10"
           >
             <X aria-hidden className="h-4 w-4" />
           </button>
@@ -472,17 +476,17 @@ export function NutritionView({
       */}
       {!day.onboarded && (
         /* 한 줄 띠(2026-10-14 김민: 핵심만) — 설명 줄 · '목표 창에서'는 뺐다(목표 창은 머리의 목표 단추로) */
-        <div className="flex items-center gap-3 rounded-2xl border border-sky/30 bg-sky-tint px-4 py-2.5">
+        <div className="flex items-center gap-3 rounded-2xl border border-sky/30 bg-sky-tint p-(--block-pad)">
           <p className="min-w-0 flex-1 text-sm text-ink break-keep">
             {day.hasProfile ? '새 계획 화면으로 목표를 다시 정해 볼까요?' : '열 가지 질문으로 내 계획을 만들어요.'}
           </p>
           <div className="flex shrink-0 items-center">
-            <Link
+            <ButtonLink
               href="/nutrition/setup"
-              className="rounded-xl bg-sky px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-sky-strong"
+              size="sm"
             >
               시작하기
-            </Link>
+            </ButtonLink>
           </div>
         </div>
       )}
@@ -560,7 +564,13 @@ export function NutritionView({
                 key={m.key}
                 meal={m.key}
                 entries={entries.filter((e) => e.meal === m.key)}
-                protein={mealProtein(m.key, entries, t.protein, t.ageBand)}
+                protein={mealProtein(
+                  m.key,
+                  entries,
+                  t.protein,
+                  t.ageBand,
+                  day.prefs.avoid
+                )}
                 dailyProtein={t.protein}
                 onOpen={(e) =>
                   setSheet({
@@ -656,7 +666,7 @@ export function NutritionView({
           profile={day.profile}
           prefs={day.prefs}
           today={today}
-          body={day.body}
+          body={day.todayBody}
           assumed={t.assumed}
         />
       )}
@@ -670,8 +680,7 @@ export function NutritionView({
  * 날짜를 옮기는 길은 넷이다 — 멀리 갈수록 쓰는 길이 다르다.
  *
  *   하루      제목 옆 화살표 · PC 는 키보드 ← →
- *   이번 주   날짜 띠의 칸을 누른다
- *   몇 주     띠 양끝의 겹화살표, 휴대폰은 띠를 옆으로 민다
+ *   몇 주     날짜 띠(최근 6주)를 옆으로 굴려 칸을 누른다
  *   먼 날     날짜 제목을 누르면 작은 달력이 뜬다 — 적은 날에 점이 찍혀 있다
  *
  * 예전에는 화살표 하나라, 지난달 것을 보려면 서른 번을 눌러야 했다.
@@ -681,10 +690,15 @@ const hrefOf = (d: string, today: string) =>
   d === today ? '/nutrition' : `/nutrition?date=${d}`;
 const oldest = (today: string) => shiftDateKey(today, -NUTRITION_BACK_DAYS);
 
-/** PC 에서 ← → 로 하루씩. 글을 적는 중이거나 창이 떠 있으면 가만히 둔다. */
+/**
+ * PC 에서 ← → 로 하루씩. 글을 적는 중이거나 창이 떠 있으면 가만히 둔다.
+ * 영양 탭을 보고 있을 때만 — 탭 넷이 늘 떠 있어(components/tab-pager.tsx) 홈 · 트레이닝 · 녹화 편집기의 ← → 까지 가로챘다(2026-10-16 점검).
+ */
 function useArrowKeys(date: string, today: string) {
   const router = useRouter();
+  const here = usePathname() === '/nutrition';
   useEffect(() => {
+    if (!here) return;
     function onKey(e: KeyboardEvent) {
       if (e.defaultPrevented || e.altKey || e.ctrlKey || e.metaKey || e.shiftKey)
         return;
@@ -705,7 +719,7 @@ function useArrowKeys(date: string, today: string) {
     }
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [date, today, router]);
+  }, [date, today, router, here]);
 }
 
 function DateNav({
@@ -719,10 +733,6 @@ function DateNav({
   calendar: Record<string, number>;
 }) {
   const router = useRouter();
-  const prev = shiftDateKey(date, -1);
-  const next = shiftDateKey(date, 1);
-  const arrow =
-    'flex h-9 w-9 items-center justify-center rounded-lg text-muted transition-colors hover:bg-surface-2 hover:text-ink';
 
   /*
    * 작은 달력 판.
@@ -762,261 +772,104 @@ function DateNav({
   }, [picker]);
 
   return (
-    <nav aria-label="날짜" className="flex items-center gap-1">
-      {prev >= oldest(today) ? (
-        <Link
-          href={hrefOf(prev, today)}
-          scroll={false}
-          data-nav="none"
-          aria-label="전날"
-          className={arrow}
-        >
-          <ChevronLeft aria-hidden className="h-5 w-5" />
-        </Link>
-      ) : (
-        <span aria-hidden className={`${arrow} opacity-30`}>
-          <ChevronLeft className="h-5 w-5" />
-        </span>
-      )}
-      <span ref={box} className="relative">
-        <button
-          type="button"
-          onClick={() => (picker === 'open' ? close() : setPicker('open'))}
-          aria-expanded={picker === 'open'}
-          aria-haspopup="dialog"
-          aria-label={`${dayTitle(date)}, 다른 날짜 고르기`}
-          className={`inline-flex min-w-[7.5rem] items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-sm font-semibold text-ink tabular-nums transition-colors sm:min-w-[8.5rem] ${
-            picker === 'open' ? 'bg-surface-2' : 'hover:bg-surface-2'
+    <span ref={box} className="relative">
+      <button
+        type="button"
+        onClick={() => (picker === 'open' ? close() : setPicker('open'))}
+        aria-expanded={picker === 'open'}
+        aria-haspopup="dialog"
+        aria-label={`${dayTitle(date)}, 다른 날짜 고르기`}
+        className={`flex h-10 w-10 items-center justify-center rounded-lg transition-colors ${
+          picker === 'open' ? 'bg-surface-2' : 'hover:bg-surface-2'
+        }`}
+      >
+        <CalendarDays
+          aria-hidden
+          className={`h-5 w-5 transition-colors ${picker === 'open' ? 'text-sky' : 'text-muted'}`}
+        />
+      </button>
+      {picker !== 'closed' && (
+        <div
+          role="dialog"
+          aria-label="날짜 고르기"
+          data-mini-calendar
+          data-no-swipe
+          className={`absolute right-0 top-full z-30 mt-2 w-[18.5rem] origin-top-right rounded-2xl border border-line bg-surface p-3 shadow-lg ${
+            picker === 'closing'
+              ? 'pointer-events-none motion-safe:animate-[month-fade-out_120ms_ease-in_both]'
+              : 'motion-safe:animate-fade-in'
           }`}
         >
-          <CalendarDays
-            aria-hidden
-            className={`h-4 w-4 transition-colors ${picker === 'open' ? 'text-sky' : 'text-muted'}`}
+          <MiniCalendar
+            value={date}
+            today={today}
+            min={oldest(today)}
+            max={today}
+            marked={(d) => (calendar[d] ?? 0) > 0}
+            onPick={(d) => {
+              close();
+              if (d !== date) router.push(hrefOf(d, today), { scroll: false });
+            }}
           />
-          {dayTitle(date)}
-        </button>
-        {picker !== 'closed' && (
-          <div
-            role="dialog"
-            aria-label="날짜 고르기"
-            data-mini-calendar
-            className={`absolute left-1/2 top-full z-30 mt-2 w-[18.5rem] -translate-x-1/2 origin-top rounded-2xl border border-line bg-surface p-3 shadow-lg ${
-              picker === 'closing'
-                ? 'pointer-events-none motion-safe:animate-[month-fade-out_120ms_ease-in_both]'
-                : 'motion-safe:animate-fade-in'
-            }`}
-          >
-            <MiniCalendar
-              value={date}
-              today={today}
-              min={oldest(today)}
-              max={today}
-              marked={(d) => (calendar[d] ?? 0) > 0}
-              onPick={(d) => {
-                close();
-                if (d !== date) router.push(hrefOf(d, today), { scroll: false });
-              }}
-            />
-          </div>
-        )}
-      </span>
-      {date < today ? (
-        <Link
-          href={hrefOf(next, today)}
-          scroll={false}
-          data-nav="none"
-          aria-label="다음날"
-          className={arrow}
-        >
-          <ChevronRight aria-hidden className="h-5 w-5" />
-        </Link>
-      ) : (
-        <span aria-hidden className={`${arrow} opacity-30`}>
-          <ChevronRight className="h-5 w-5" />
-        </span>
+        </div>
       )}
-      {date !== today && (
-        <Link
-          href="/nutrition"
-          scroll={false}
-          data-nav="none"
-          className="ml-1 rounded-lg px-2 py-1 text-xs font-medium text-sky transition-colors hover:bg-sky-tint"
-        >
-          오늘로
-        </Link>
-      )}
-    </nav>
+    </span>
   );
 }
 
-const WEEKDAY_SHORT = ['일', '월', '화', '수', '목', '금', '토'];
-
 /**
- * 날짜 띠 — 고른 날이 든 한 주(일~토).
+ * 날짜 띠 — 최근 6주를 옆으로 굴리는 한 줄(components/date-scroll-strip.tsx, 트레이닝과 같은 띠).
  *
  * 칸마다 그날 먹은 양이 목표의 얼마인지 가는 막대로 보여 준다. 어느 날을 비웠는지가
- * 한눈에 보여, 빠뜨린 날로 곧장 간다. 휴대폰은 띠를 옆으로 밀면 한 주씩 넘어간다.
+ * 한눈에 보여, 빠뜨린 날로 곧장 간다. 2026-10-15 사용자 "좌우로 긴 것 스크롤 가능하게" — 예전에는 한 주(일~토)와 겹화살표였다.
  */
 function WeekStrip({
   strip,
   date,
   today,
   className = '',
+  end,
 }: {
   strip: DaySummary[];
   date: string;
   today: string;
   /** 놓일 자리(머리 줄 안에서의 순서 · 폭) */
   className?: string;
+  /** 띠 끝 — 더 옛날을 고르는 달력 그림(DateNav) */
+  end?: React.ReactNode;
 }) {
-  const router = useRouter();
-  const start = useRef<{ x: number; y: number } | null>(null);
-  const swiped = useRef(false);
-
-  const back = shiftDateKey(date, -7);
-  const prevWeek = back >= oldest(today) ? back : null;
-  /* 다음 주가 아직 안 왔으면 오늘로 — 오늘이 이 띠에 없을 때만 */
-  const ahead = shiftDateKey(date, 7);
-  const nextWeek =
-    ahead <= today ? ahead : strip.some((d) => d.date === today) ? null : today;
-
-  const go = (d: string | null) => {
-    if (d) router.push(hrefOf(d, today), { scroll: false });
-  };
-  const edge =
-    'flex w-8 shrink-0 items-center justify-center rounded-lg text-muted transition-colors hover:bg-surface-2 hover:text-ink';
-
+  const byDate = new Map(strip.map((d) => [d.date, d]));
   return (
-    <div
-      className={`flex touch-pan-y items-stretch gap-1 ${className}`}
-      onPointerDown={(e) => {
-        swiped.current = false;
-        start.current =
-          e.pointerType === 'mouse' ? null : { x: e.clientX, y: e.clientY };
+    <DateScrollStrip
+      days={strip.map((d) => d.date)}
+      date={date}
+      today={today}
+      end={end}
+      hrefOf={(d) => hrefOf(d, today)}
+      labelOf={(d) => {
+        const kcal = byDate.get(d)?.kcal ?? 0;
+        return kcal > 0 ? `${kcalText(kcal)}kcal 먹음` : '기록 없음';
       }}
-      onPointerUp={(e) => {
-        const s = start.current;
-        start.current = null;
-        if (!s) return;
-        const dx = e.clientX - s.x;
-        if (Math.abs(dx) > 50 && Math.abs(e.clientY - s.y) < 40) {
-          swiped.current = true;
-          go(dx > 0 ? prevWeek : nextWeek);
-        }
+      mark={(d, selected) => {
+        const s = byDate.get(d);
+        const pct = s && s.target > 0 ? Math.min(100, (s.kcal / s.target) * 100) : 0;
+        const over = !!s && s.kcal > s.target;
+        return (
+          <span
+            aria-hidden
+            className={`mt-1 h-1 w-6 overflow-hidden rounded-full ${selected ? 'bg-white/30' : 'bg-line'}`}
+          >
+            <span
+              className={`block h-full rounded-full motion-safe:transition-[width] duration-500 ${EASE} ${
+                selected ? 'bg-white' : over ? 'bg-warn' : 'bg-sky'
+              }`}
+              style={{ width: `${pct}%` }}
+            />
+          </span>
+        );
       }}
-      /* 밀었을 때는 손가락이 떨어진 칸이 눌린 것으로 치지 않는다 */
-      onClickCapture={(e) => {
-        if (swiped.current) {
-          e.preventDefault();
-          e.stopPropagation();
-          swiped.current = false;
-        }
-      }}
-    >
-      {prevWeek ? (
-        <Link
-          href={hrefOf(prevWeek, today)}
-          scroll={false}
-          data-nav="none"
-          aria-label="한 주 전"
-          className={edge}
-        >
-          <ChevronsLeft aria-hidden className="h-4 w-4" />
-        </Link>
-      ) : (
-        <span aria-hidden className={`${edge} opacity-30`}>
-          <ChevronsLeft className="h-4 w-4" />
-        </span>
-      )}
-
-      <ol className="grid flex-1 grid-cols-7 gap-1">
-        {strip.map((d) => {
-          const future = d.date > today;
-          const selected = d.date === date;
-          const isToday = d.date === today;
-          const pct = d.target > 0 ? Math.min(100, (d.kcal / d.target) * 100) : 0;
-          const over = d.kcal > d.target;
-          const dayNo = Number(d.date.slice(8));
-          const weekday =
-            WEEKDAY_SHORT[new Date(`${d.date}T00:00:00.000Z`).getUTCDay()];
-          const face = (
-            <>
-              <span
-                className={`text-[11px] ${selected ? 'text-white/80' : 'text-muted'}`}
-              >
-                {weekday}
-              </span>
-              <span
-                className={`text-sm font-semibold tabular-nums ${
-                  selected ? 'text-white' : isToday ? 'text-sky' : 'text-ink'
-                }`}
-              >
-                {dayNo}
-              </span>
-              <span
-                aria-hidden
-                className={`mt-1 h-1 w-6 overflow-hidden rounded-full ${
-                  selected ? 'bg-white/30' : 'bg-line'
-                }`}
-              >
-                <span
-                  className={`block h-full rounded-full transition-[width] duration-500 ${EASE} ${
-                    selected ? 'bg-white' : over ? 'bg-warn' : 'bg-sky'
-                  }`}
-                  style={{ width: `${pct}%` }}
-                />
-              </span>
-            </>
-          );
-          const cell =
-            'flex flex-col items-center rounded-xl py-1.5 transition-[background-color,transform] duration-200 motion-safe:active:scale-95';
-          return (
-            <li key={d.date}>
-              {future ? (
-                <span aria-disabled className={`${cell} opacity-35`}>
-                  {face}
-                </span>
-              ) : (
-                <Link
-                  href={hrefOf(d.date, today)}
-                  scroll={false}
-                  data-nav="none"
-                  aria-current={selected ? 'date' : undefined}
-                  aria-label={`${dayTitle(d.date)}, ${
-                    d.kcal > 0 ? `${kcalText(d.kcal)}kcal 먹음` : '기록 없음'
-                  }`}
-                  className={`${cell} ${
-                    selected
-                      ? 'bg-sky shadow-sm'
-                      : isToday
-                        ? 'ring-1 ring-sky/40 hover:bg-surface-2'
-                        : 'hover:bg-surface-2'
-                  }`}
-                >
-                  {face}
-                </Link>
-              )}
-            </li>
-          );
-        })}
-      </ol>
-
-      {nextWeek ? (
-        <Link
-          href={hrefOf(nextWeek, today)}
-          scroll={false}
-          data-nav="none"
-          aria-label={nextWeek === today ? '오늘로' : '한 주 뒤'}
-          className={edge}
-        >
-          <ChevronsRight aria-hidden className="h-4 w-4" />
-        </Link>
-      ) : (
-        <span aria-hidden className={`${edge} opacity-30`}>
-          <ChevronsRight className="h-4 w-4" />
-        </span>
-      )}
-    </div>
+      className={className}
+    />
   );
 }
 
@@ -1071,7 +924,7 @@ function GuideCard({
           <span className="rounded-full border border-sky/30 bg-sky-tint px-2.5 py-0.5 text-xs font-semibold text-ink">
             {guide.badge}
           </span>
-          <h2 id="throw-guide-title" className="text-[15px] font-bold text-ink">
+          <h2 id="throw-guide-title" className="text-subhead font-bold text-ink">
             {guide.title}
           </h2>
         </div>
@@ -1119,7 +972,7 @@ function GuideCard({
                 className="h-1.5 overflow-hidden rounded-full bg-surface-2"
               >
                 <div
-                  className={`h-full rounded-full bg-cat-recovery transition-[width] duration-500 ${EASE}`}
+                  className={`h-full rounded-full bg-sky motion-safe:transition-[width] duration-500 ${EASE}`}
                   style={{ width: share(recovery.protein, guide.recoveryProtein) }}
                 />
               </div>
@@ -1138,7 +991,7 @@ function GuideCard({
           </p>
           <div aria-hidden className="h-1.5 overflow-hidden rounded-full bg-surface-2">
             <div
-              className={`h-full rounded-full bg-cat-power transition-[width] duration-500 ${EASE}`}
+              className={`h-full rounded-full bg-sky motion-safe:transition-[width] duration-500 ${EASE}`}
               style={{ width: share(carbsEaten, carbsTarget) }}
             />
           </div>
@@ -1176,7 +1029,7 @@ function GuideCard({
             {guide.hint && (
               <p className="text-xs leading-relaxed text-muted">{guide.hint}</p>
             )}
-            <p className="text-[11px] leading-relaxed text-muted">{GUIDE_DISCLAIMER}</p>
+            <p className="text-caption leading-relaxed text-muted">{GUIDE_DISCLAIMER}</p>
           </div>
         </div>
       </div>
@@ -1233,8 +1086,8 @@ function TodayCard({
   gaps: MacroGaps;
   day: NutritionDay;
   today: string;
-  /** 오늘 영양 조언(lib/nutrition/advice.ts) — 할 일 한 줄 · 균형 점수. 지난 날은 쓰지 않는다 */
-  advice: Advice;
+  /** 오늘 영양 조언(lib/nutrition/advice.ts) — 할 일 한 줄 · 균형 점수. 지난 날은 셈하지 않는다(null) */
+  advice: Advice | null;
   /** 던지는 날 가이드(GuideCard bare) — 그날은 할 일 한 줄 대신 이것이 선다 */
   guide?: React.ReactNode;
   /** 휴대폰에서 체중 카드로 가려면 통계 쪽을 먼저 펴야 한다 */
@@ -1253,7 +1106,7 @@ function TodayCard({
   /* 먹은 만큼 차는 링 — 0~100. 넘치면 링은 한 바퀴, 색은 경고 */
   const share = t.kcal > 0 ? Math.round((eaten.kcal / t.kcal) * 100) : 0;
   const ring = Math.min(100, share);
-  const headline = isToday && !guide ? advice.headline : null;
+  const headline = isToday && !guide ? (advice?.headline ?? null) : null;
 
   return (
     <section
@@ -1291,9 +1144,9 @@ function TodayCard({
           <h2 id="today-nutrition-title" className="text-xs text-muted">
             {!isToday ? '이날 먹은 열량' : over ? '목표보다 더 먹었어요' : '남은 열량'}
           </h2>
-          <p className="text-numeric text-[1.75rem] leading-tight text-ink">
+          <p className="text-numeric text-3xl leading-tight text-ink">
             <span className={`transition-colors ${over ? 'text-warn' : ''}`}>
-              {kcalText(isToday ? Math.abs(left) : eaten.kcal)}
+              <CountUp value={isToday ? Math.abs(left) : eaten.kcal} format={kcalText} from={0.7} />
             </span>
             <span className="ml-1 text-sm font-semibold text-muted">kcal</span>
           </p>
@@ -1310,10 +1163,10 @@ function TodayCard({
             )}
           </p>
         </div>
-        {isToday && advice.score !== null && (
+        {isToday && advice && advice.score !== null && (
           <div className="shrink-0 text-right">
             <p className="text-numeric text-xl leading-none text-ink">{advice.score}</p>
-            <p className="mt-1 text-[11px] text-muted">균형</p>
+            <p className="mt-1 text-caption text-muted">균형</p>
           </div>
         )}
       </div>
@@ -1341,7 +1194,7 @@ function TodayCard({
               </div>
               <div className="h-1.5 overflow-hidden rounded-full bg-surface-2">
                 <div
-                  className={`h-full rounded-full ${m.bar} transition-[width] duration-500 ${EASE}`}
+                  className={`h-full rounded-full ${m.bar} motion-safe:transition-[width] duration-500 ${EASE}`}
                   style={{ width: `${Math.min(100, goal > 0 ? (got / goal) * 100 : 0)}%` }}
                 />
               </div>
@@ -1352,8 +1205,8 @@ function TodayCard({
 
       {headline && (
         <p
-          className={`border-t border-line pt-3 text-[15px] leading-snug font-semibold ${
-            advice.highlight ? 'text-sky-strong' : 'text-ink'
+          className={`border-t border-line pt-3 text-subhead leading-snug font-semibold ${
+            advice?.highlight ? 'text-sky-strong' : 'text-ink'
           }`}
         >
           {headline}
@@ -1387,7 +1240,7 @@ function TodayCard({
                 });
               });
             }}
-            className="-my-2 inline-flex min-h-10 items-center rounded-md px-1 font-semibold text-sky-strong underline-offset-2 hover:underline"
+            className="-my-2 inline-flex min-h-10 items-center rounded-lg px-1 font-semibold text-sky-strong underline-offset-2 hover:underline"
           >
             보기
           </a>
@@ -1577,7 +1430,7 @@ function MealSection({
             aria-expanded={shown}
             className="flex min-h-10 min-w-0 flex-1 items-center gap-2 text-left"
           >
-            <span className="shrink-0 text-[15px] font-bold text-ink">{label}</span>
+            <span className="shrink-0 text-subhead font-bold text-ink">{label}</span>
             <span
               className={`ml-auto truncate text-xs tabular-nums ${p.done ? 'text-ok' : 'text-muted'}`}
             >
@@ -1592,7 +1445,7 @@ function MealSection({
           </button>
         ) : (
           <>
-            <span className="text-[15px] font-bold text-ink">{label}</span>
+            <span className="text-subhead font-bold text-ink">{label}</span>
             <button
               type="button"
               onClick={onOpen}
@@ -1609,7 +1462,7 @@ function MealSection({
           shown ? 'flex' : 'hidden'
         }`}
       >
-        <h2 className="hidden shrink-0 text-[15px] font-bold text-ink desk:block">{label}</h2>
+        <h2 className="hidden shrink-0 text-subhead font-bold text-ink desk:block">{label}</h2>
         {/*
           끼니별 단백질 — 세 끼는 한 끼 목표와 견주어 숫자 밑에 가는 막대를 둔다(머리 줄 높이 36px 안이라
           칸이 커지지 않는다). 목표의 8할을 넘기면 초록 + 체크. 간식은 숫자만.
@@ -1643,8 +1496,8 @@ function MealSection({
                 className="mt-1 h-1 w-24 overflow-hidden rounded-full bg-surface-2"
               >
                 <div
-                  className={`h-full rounded-full transition-[width,background-color] duration-500 ${EASE} ${
-                    p.done ? 'bg-ok' : 'bg-cat-lower'
+                  className={`h-full rounded-full motion-safe:transition-[width,background-color] duration-500 ${EASE} ${
+                    p.done ? 'bg-ok' : 'bg-sky'
                   }`}
                   style={{ width: `${Math.min(100, (p.protein / p.goal) * 100)}%` }}
                 />
@@ -1659,14 +1512,14 @@ function MealSection({
                 <button
                   type="button"
                   onClick={() => setEditing(false)}
-                  className="motion-safe:animate-fade-in inline-flex h-9 items-center rounded-lg px-2.5 text-xs font-medium text-muted transition-colors hover:bg-surface-2 hover:text-ink"
+                  className="motion-safe:animate-fade-in inline-flex h-10 items-center rounded-lg px-2.5 text-xs font-medium text-muted transition-colors hover:bg-surface-2 hover:text-ink"
                 >
                   취소
                 </button>
                 <button
                   type="button"
                   onClick={finish}
-                  className="motion-safe:animate-fade-in inline-flex h-9 items-center rounded-lg px-2.5 text-sm font-semibold text-sky transition-colors hover:bg-sky-tint"
+                  className="motion-safe:animate-fade-in inline-flex h-10 items-center rounded-lg px-2.5 text-sm font-semibold text-sky transition-colors hover:bg-sky-tint"
                 >
                   완료
                 </button>
@@ -1678,14 +1531,14 @@ function MealSection({
                   onClick={startEdit}
                   disabled={editable.length === 0 && plan.length === 0}
                   aria-label={`${label} 편집`}
-                  className="inline-flex h-9 items-center rounded-lg px-2.5 text-xs font-medium text-muted transition-colors hover:bg-surface-2 hover:text-ink disabled:opacity-40"
+                  className="inline-flex h-10 items-center rounded-lg px-2.5 text-xs font-medium text-muted transition-colors hover:bg-surface-2 hover:text-ink disabled:opacity-40"
                 >
                   편집
                 </button>
                 <button
                   type="button"
                   onClick={onOpen}
-                  className="inline-flex h-9 items-center gap-1 rounded-lg px-2.5 text-sm font-medium text-sky transition-colors hover:bg-sky-tint"
+                  className="inline-flex h-10 items-center gap-1 rounded-lg px-2.5 text-sm font-medium text-sky transition-colors hover:bg-sky-tint"
                 >
                   <Plus aria-hidden className="h-4 w-4" />
                   담기
@@ -1744,7 +1597,7 @@ function MealSection({
             <button
               type="button"
               onClick={toggleAllRemoved}
-              className={`-mr-2 inline-flex h-9 shrink-0 items-center rounded-lg px-2.5 text-xs font-medium transition-colors ${
+              className={`-mr-2 inline-flex h-10 shrink-0 items-center rounded-lg px-2.5 text-xs font-medium transition-colors ${
                 allRemoved
                   ? 'text-sky hover:bg-sky-tint'
                   : 'text-danger hover:bg-danger-bg'
@@ -2160,13 +2013,13 @@ function WeightCard({
             {unit}
           </span>
         </label>
-        <button
+        <Button
           type="submit"
           disabled={!changed || pending}
-          className="rounded-xl bg-sky px-4 py-2.5 text-sm font-semibold text-white transition-[background-color,opacity] hover:bg-sky-strong disabled:opacity-40"
+          size="sm"
         >
           {pending ? '저장 중…' : '저장'}
-        </button>
+        </Button>
       </form>
       {error && (
         <p role="alert" className="text-xs text-danger">
@@ -2185,7 +2038,7 @@ function WeightCard({
         >
           {copy.label && <p className="text-xs text-muted">{copy.label}</p>}
           {copy.number && (
-            <p className="text-[1.75rem] font-bold leading-tight tabular-nums text-ink">
+            <p className="text-3xl font-bold leading-tight tabular-nums text-ink">
               {copy.number}
             </p>
           )}
@@ -2207,7 +2060,7 @@ function WeightCard({
                 <button
                   type="button"
                   onClick={() => writeSnooze(null)}
-                  className="-my-2 min-h-10 rounded-md px-1 font-semibold text-sky-strong underline-offset-2 hover:underline"
+                  className="-my-2 min-h-10 rounded-lg px-1 font-semibold text-sky-strong underline-offset-2 hover:underline"
                 >
                   다시 보기
                 </button>
@@ -2217,14 +2070,14 @@ function WeightCard({
                 key="actions"
                 className="motion-safe:animate-fade-in space-y-1.5 pt-1.5"
               >
-                <button
+                <Button
                   type="button"
                   onClick={act}
                   disabled={stepping}
-                  className="min-h-11 w-full rounded-xl bg-sky px-4 py-2.5 text-sm font-semibold text-white transition-[background-color,opacity] hover:bg-sky-strong disabled:opacity-60"
+                  className="w-full"
                 >
                   {stepping ? '바꾸는 중…' : STEP_LABEL[copy.action]}
-                </button>
+                </Button>
                 {copy.action === 'maintain' && keepBase !== t.base && (
                   <p className="text-center text-xs text-muted tabular-nums">
                     하루 목표가 {kcalText(t.base)} → {kcalText(keepBase)}kcal로 바뀌어요
@@ -2263,7 +2116,7 @@ function WeightCard({
         targetKg={plan.targetKg}
       />
       {hasStatus && (
-        <p className="break-keep text-[11px] leading-relaxed text-muted">{copy.foot}</p>
+        <p className="break-keep text-caption leading-relaxed text-muted">{copy.foot}</p>
       )}
     </section>
   );

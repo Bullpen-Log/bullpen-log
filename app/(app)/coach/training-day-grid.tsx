@@ -72,7 +72,7 @@ export function TrainingDayGrid({
 
       {STRIPS.map((strip) => (
         <div key={strip.label} className="flex items-center gap-2">
-          <span className="w-11 shrink-0 text-[11px] font-semibold text-ink">
+          <span className="w-11 shrink-0 text-caption font-semibold text-ink">
             {strip.label}
           </span>
           {weeks.map((week, i) => (
@@ -96,7 +96,7 @@ export function TrainingDayGrid({
         </div>
       ))}
 
-      <p aria-live="polite" className="pt-1 pl-13 text-[11px] text-muted">
+      <p aria-live="polite" className="pt-1 pl-13 text-caption text-muted">
         {day ? (
           <>
             <span className="font-semibold text-ink">{dayLabel(day.date)}</span>

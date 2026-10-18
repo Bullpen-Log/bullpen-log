@@ -27,6 +27,8 @@ import {
 } from '@/app/actions/mechanics';
 import { guideDescription } from '@/app/actions/content';
 import { FilmVerdictButtons } from '@/app/(app)/training/film-verdict';
+import { DrillThrowNoteCard } from '@/app/(app)/training/drill-throw-note';
+import type { DrillThrowNote } from '@/lib/mechanics/program';
 import { josa } from '@/lib/korean';
 
 /**
@@ -66,6 +68,8 @@ export function MechanicsPlayer({
   const [done, setDone] = useState<boolean[]>(() => items.map((_, i) => i < startAt));
   /* 세션을 마친 뒤 서버가 돌려준 권하기 — 끝 화면이 단추와 함께 보인다 */
   const [advice, setAdvice] = useState<ReturnType<typeof levelAdvice>>(null);
+  /* 드릴로 던진 공을 투구 기록에 남기라는 카드(2026-10-16) — 마친 뒤 서버가 셈한다 */
+  const [throwNote, setThrowNote] = useState<DrillThrowNote | null>(null);
   const [finished, setFinished] = useState(false);
   /* 마치기 저장이 실패했나 — 끝 화면 대신 다시 저장 단추를 둔다(안 그러면 세션 수가 안 올라 같은 세션이 또 나왔다) */
   const [finishFailed, setFinishFailed] = useState(false);
@@ -107,7 +111,7 @@ export function MechanicsPlayer({
 
   /** 세션을 마친다 — 실패하면 끝 화면으로 넘어가지 않고 다시 저장하게 한다 */
   const finish = async () => {
-    const res = await orOffline(finishMechanicsSession({ partial }), {
+    const res = await orOffline(finishMechanicsSession({ partial, session: sessionNumber }), {
       error: OFFLINE_MESSAGE,
     });
     if ('error' in res) {
@@ -117,6 +121,7 @@ export function MechanicsPlayer({
     }
     setFinishFailed(false);
     setAdvice(res.advice);
+    setThrowNote(res.throwNote);
     setFinished(true);
   };
 
@@ -167,6 +172,7 @@ export function MechanicsPlayer({
       {finished ? (
         <FinishView
           advice={advice}
+          throwNote={throwNote}
           sessionNumber={sessionNumber}
           backHref={backHref}
           count={done.filter(Boolean).length}
@@ -482,12 +488,15 @@ function Description({ guideId }: { guideId: string }) {
 /** 세션 끝 — 권할 것이 있으면 다음 · 아래 수준 카드, 여섯 번째마다 찍어서 견주기 */
 function FinishView({
   advice,
+  throwNote,
   sessionNumber,
   backHref,
   count,
   partial,
 }: {
   advice: ReturnType<typeof levelAdvice>;
+  /** 드릴로 던진 공 — 투구 기록에 남기라는 카드(없으면 null) */
+  throwNote: DrillThrowNote | null;
   /** 방금 마친 세션이 몇 번째인가(수준과 상관없이) — 여섯 번째마다 찍어서 견주라고 한다 */
   sessionNumber: number;
   backHref: string;
@@ -515,14 +524,16 @@ function FinishView({
           )}
         </div>
 
+        {throwNote && <DrillThrowNoteCard note={throwNote} plainLink />}
+
         {!partial && advice?.to && <LevelOffer kind={advice.kind} to={advice.to} />}
 
         {!partial && filmPrompt(sessionNumber) === 'compare' && (
-          <div className="space-y-3 rounded-2xl bg-surface px-4 py-4">
-            <p className="text-base font-bold break-keep text-ink">세션 {sessionNumber}번 — 찍어서 견줘 볼 때예요</p>
+          <div className="space-y-3 rounded-2xl bg-surface p-(--block-pad)">
+            <p className="text-base font-bold break-keep text-ink">세션 {sessionNumber}번 · 찍어서 견줘 볼 때예요</p>
             <p className="text-sm break-keep text-muted">
-              같은 자리에서 다시 찍어 투구 기록에 남기고, 처음 영상과 2분할 비교로 나란히 놓아 보세요. 구속도 같이
-              재 두면 바뀐 것이 효과가 있었는지 알 수 있어요.
+              같은 자리에서 다시 찍어 처음 영상과 2분할로 견줘 보세요. 구속도 재 두면
+              효과를 알 수 있어요.
             </p>
             <Link
               href="/videos?compare=1"
@@ -571,7 +582,7 @@ function LevelOffer({ kind, to }: { kind: 'done' | 'up' | 'down'; to: Parameters
         ? '여러 요소에서 ‘쉬움’이 서로 다른 날 쌓였어요. 드릴이 편해졌다면 다음 수준이 더 맞을 수 있어요.'
         : '4주 동안 12번을 다 했어요. 편하지 않았다면 프로그램 칸에서 같은 수준을 한 번 더 해도 돼요.';
   return (
-    <div className="space-y-3 rounded-2xl bg-surface px-4 py-4">
+    <div className="space-y-3 rounded-2xl bg-surface p-(--block-pad)">
       {state === 'changed' ? (
         <p className="text-sm font-semibold break-keep text-ink">
           {level.name} 프로그램으로 바꿨어요. 다음은 {level.name} 1번 세션이에요.

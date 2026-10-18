@@ -9,9 +9,12 @@
  */
 import {
   analyzeByDistance,
+  rejudgeSize,
   SPEED_DISTANCE_EXPONENT,
 } from '../lib/velocity-engine/analyze-distance.ts';
 import { DRAG_K } from '../lib/velocity-engine/trajectory-fit.ts';
+import { cameraNowOf, clipSpanOf, coveredBy, nextSweepWindow } from '../lib/velocity-engine/sweep.ts';
+import { findThrowRun, netInputSize } from '../lib/velocity-engine/ball-net.ts';
 import { alignTrail, type TrailPoint } from '../lib/velocity-tracer.ts';
 import {
   cleanSize,
@@ -536,6 +539,124 @@ console.log(
     cleanSize(clean(21, { sizeDistM: null })) == null,
     '공 크기 거리가 없으면 깨끗한 공이 아님'
   );
+}
+
+console.log('\n▶ 조용할 때 훑기 · 세션 녹화의 순수 셈(2.7 — lib/velocity-engine/sweep.ts)');
+if (!only || 'sweep'.includes(only)) {
+  /* 앱 카메라 시계 역산 — clip({ atSec: 1e9, beforeSec: 1e9 }) 가 돌려준 조각의 eventSec = at − 조각 시작 */
+  const span = clipSpanOf(1e9, { eventSec: 1e9 - 362814.1, durationSec: 7.75 });
+  check(
+    Math.abs(span.start - 362814.1) < 1e-6 && Math.abs(span.end - 362821.85) < 1e-6,
+    `조각 시작 · 끝 역산 — ${span.start.toFixed(2)} ~ ${span.end.toFixed(2)}(카메라 시계)`
+  );
+  const anchor = { cam: 362821.85, perf: 1000 };
+  check(Math.abs(cameraNowOf(anchor, 4000) - 362824.85) < 1e-9, '짝 뒤 3초 → 카메라 시계 +3');
+  const first = nextSweepWindow(null, 100);
+  check(
+    first != null && Math.abs(first.to - 99.6) < 1e-9 && Math.abs(first.from - 93.6) < 1e-9,
+    `처음 창 — 지금 − 0.4초에서 뒤로 6초(${first?.from} ~ ${first?.to})`
+  );
+  const next = nextSweepWindow(99.6, 105);
+  check(
+    next != null && Math.abs(next.from - 98.6) < 1e-9 && Math.abs(next.to - 104.6) < 1e-9,
+    `다음 창 — 훑은 끝 − 겹침 1초부터, 5초 뒤면 빈틈 없이 이어짐(${next?.from} ~ ${next?.to})`
+  );
+  check(nextSweepWindow(99.6, 100.8) == null, '2초가 안 되면 안 훑는다(겹침 1초 포함)');
+  const long = nextSweepWindow(80, 100);
+  check(long != null && Math.abs(long.from - 93.6) < 1e-9, '오래 쉬었으면 뒤쪽 6초만');
+  check(
+    coveredBy(5, [{ start: 4.4, end: 6.6 }]) && !coveredBy(7, [{ start: 4.4, end: 6.6 }]),
+    '찾은 공이 재는 중 · 최근 창 안이면 겹침'
+  );
+}
+
+console.log('\n▶ 학습 공 감지 모델의 순수 셈(2.7.1 — lib/velocity-engine/ball-net.ts)');
+if (!only || 'ballnet'.includes(only)) {
+  const sz = netInputSize(1080, 1920);
+  check(sz.h === 736 && sz.w === 416 && sz.w % 32 === 0, `세로 1080×1920 → 입력 ${sz.w}×${sz.h}(긴 변 736 · 32 의 배수)`);
+  const szL = netInputSize(1920, 1080);
+  check(szL.w === 736 && szL.h === 416, '가로 영상도 같은 규칙');
+  /* 날아가는 공: 0.2초마다 자리가 움직이고 지름이 줄어드는 표본 넷 */
+  const fly = [0, 0.2, 0.4, 0.6].map((t, i) => ({ t: 1 + t, x: 200 - 30 * i, y: 300 - 10 * i, d: 30 - 6 * i, score: 0.8 }));
+  const run = findThrowRun(fly);
+  check(run != null && run.t === 1 && run.n === 4, '0.2초마다 움직이며 작아지는 표본 넷 → 공, 첫 표본 시각');
+  /* 제자리 밝기 변화(그물 흔들림 · 노출) — 자리가 안 움직이면 공이 아니다 */
+  const still = [0, 0.2, 0.4, 0.6].map((t) => ({ t: 1 + t, x: 200, y: 300, d: 12, score: 0.9 }));
+  check(findThrowRun(still) == null, '제자리에서 점수만 높은 표본은 공이 아님');
+  /* 점수가 문턱 밑이면 안 셈 · 둘뿐이면 안 셈 */
+  check(findThrowRun(fly.map((h) => ({ ...h, score: 0.3 }))) == null, '문턱(0.5) 밑 점수는 안 셈');
+  check(findThrowRun(fly.slice(0, 2)) == null, '표본 둘로는 공이라 하지 않음');
+  /* 커지는 덩어리(다가오는 몸 · 손)는 안 잇는다 — 지름 1.35배 넘게 커지면 끊김 */
+  const grow = [0, 0.2, 0.4, 0.6].map((t, i) => ({ t: 1 + t, x: 200 + 30 * i, y: 300, d: 10 * (i + 1), score: 0.8 }));
+  check(findThrowRun(grow) == null, '표본마다 커지는 덩어리는 공이 아님');
+  /* 앞의 헛 표본 하나 뒤에 진짜 공 — 공 묶음을 돌려준다 */
+  const noisy = [{ t: 0.3, x: 50, y: 50, d: 8, score: 0.7 }, ...fly];
+  const run2 = findThrowRun(noisy);
+  check(run2 != null && run2.t === 1, '앞의 헛 표본 하나는 건너뛰고 뒤의 공 묶음');
+  /* 촘촘한 2차 표본(1/15초) — 먼 공은 한 표본에 2~3px 만 움직인다: 최소 거리가 간격에 비례(바닥 2px) */
+  const far = [0, 1, 2, 3, 4].map((i) => ({ t: 2 + i / 15, x: 100 - 2.5 * i, y: 150 - 0.5 * i, d: 6, score: 0.7 }));
+  check(findThrowRun(far) != null, '1/15초 간격 · 2.5px 씩 움직이는 먼 공 묶음도 공');
+  const dup = [...fly, { ...fly[1] }];
+  check(findThrowRun(dup)?.n === 4, '같은 시각 표본이 두 번 들어와도 하나로 셈');
+}
+
+console.log('\n▶ 세션 거리로 공 크기 다시 판정(2.5.3 — analyze-distance.ts rejudgeSize)');
+if (!only || 'rejudge'.includes(only)) {
+  /* 그물이 24m 인데 기준 20m 로 잰 공 — 공 크기 거리가 기준과 15% 넘게 달라 '낮음'. 세션 거리(공 크기 가운데 값)로 다시 판정하면 '높음' */
+  const { frames } = render({ kmh: 125, launchDeg: 1, sideDeg: -0.6, D: 24, tiltDeg: 0, seed: 41 });
+  const r20 = analyzeByDistance({
+    frames,
+    width: W,
+    height: H,
+    sourceWidth: 1080,
+    sourceHeight: 1920,
+    focalPx: (F * 1080) / W,
+    distanceM: 20,
+    fps: FPS,
+  });
+  const d = r20.distance;
+  const size = d.sizeDistM ?? 0;
+  check(
+    r20.measure.ok && r20.measure.confidence === 'low' && d.why === 'size-mismatch' && size / 20 > 1.15,
+    `기준 20m — 공 크기 ${size}m · 믿음 ${r20.measure.ok ? r20.measure.confidence : r20.measure.code} · ${d.why}`
+  );
+  check(
+    d.preSize?.confidence === 'high' && d.sizeRefM === 20 && d.calibEligible === false,
+    `판정 전 믿음 '${d.preSize?.confidence}' · 기준 거리 ${d.sizeRefM}m 를 남긴다`
+  );
+  const ref = Math.round(size * 10) / 10;
+  const re = rejudgeSize(r20, ref);
+  check(
+    re.measure.ok &&
+      r20.measure.ok &&
+      re.measure.confidence === 'high' &&
+      re.distance.why == null &&
+      re.distance.sizeRefM === ref &&
+      re.distance.calibEligible === true &&
+      re.measure.kmh === r20.measure.kmh &&
+      re.measure.errorKmh === d.preSize?.errorKmh,
+    `세션 거리 ${ref}m 로 다시 — 믿음 '${re.measure.ok ? re.measure.confidence : '-'}' · 값 그대로 ${re.measure.ok ? re.measure.kmh : '-'} · ± ${re.measure.ok ? re.measure.errorKmh : '-'}`
+  );
+  check(
+    r20.measure.ok && r20.measure.confidence === 'low' && d.sizeRefM === 20,
+    '다시 판정해도 처음 결과는 그대로(새 결과를 돌려줌)'
+  );
+  const back = rejudgeSize(re, 20);
+  check(
+    back.measure.ok &&
+      r20.measure.ok &&
+      back.measure.confidence === 'low' &&
+      back.measure.errorKmh === r20.measure.errorKmh &&
+      back.distance.why === 'size-mismatch',
+    '20m 로 되돌려 판정하면 처음과 같다(판정 전 값에서 시작)'
+  );
+  const far = rejudgeSize(re, ref * 0.8).measure;
+  check(
+    far.ok && far.confidence === 'low',
+    `세션 거리와도 15% 넘게 다르면(${(ref * 0.8).toFixed(1)}m) 그대로 '낮음'`
+  );
+  const failed = rejudgeSize({ ...r20, measure: { ok: false, code: 'NOT_ENOUGH_FRAMES', message: '' } } as typeof r20, ref);
+  check(!failed.measure.ok, '못 잰 공은 그대로');
 }
 
 console.log(

@@ -24,11 +24,21 @@ export async function priorBests(
   const midnight = new Date(`${toDateKey(before)}T00:00:00.000Z`);
   const ids = [...exerciseIds];
 
-  const [sets, logs] = await Promise.all([
+  /*
+   * 횟수 최고는 맨몸 세트(무게 없음 · 0)끼리만 — 무게 세트까지 섞으면 가벼운 무게로 많이 한 횟수가 맨몸 '새 최고'의
+   * 기준이 돼 진짜 최고를 놓쳤다(2026-10-16 점검 A5, bests.ts 의 맨몸 비교와 같은 기준). 기록 줄도 무게 없는 줄만.
+   */
+  const bodyweight = { OR: [{ weightKg: null }, { weightKg: 0 }] };
+  const [sets, bwSets, logs, bwLogs] = await Promise.all([
     prisma.userExerciseSet.groupBy({
       by: ['exerciseId'],
       where: { userId, exerciseId: { in: ids }, date: { lt: midnight } },
-      _max: { weightKg: true, reps: true, holdSeconds: true },
+      _max: { weightKg: true, holdSeconds: true },
+    }),
+    prisma.userExerciseSet.groupBy({
+      by: ['exerciseId'],
+      where: { userId, exerciseId: { in: ids }, date: { lt: midnight }, ...bodyweight },
+      _max: { reps: true },
     }),
     prisma.userExerciseLog.groupBy({
       by: ['exerciseId'],
@@ -38,9 +48,22 @@ export async function priorBests(
         completed: true,
         date: { lt: midnight },
       },
-      _max: { weightKg: true, repsDone: true, holdSecondsDone: true },
+      _max: { weightKg: true, holdSecondsDone: true },
+    }),
+    prisma.userExerciseLog.groupBy({
+      by: ['exerciseId'],
+      where: {
+        userId,
+        exerciseId: { in: ids },
+        completed: true,
+        date: { lt: midnight },
+        ...bodyweight,
+      },
+      _max: { repsDone: true },
     }),
   ]);
+  const bwReps = new Map(bwSets.map((s) => [s.exerciseId, s._max.reps]));
+  const bwRepsDone = new Map(bwLogs.map((l) => [l.exerciseId, l._max.repsDone]));
 
   const larger = (a: number | null | undefined, b: number | null | undefined) =>
     a == null ? (b ?? null) : b == null ? a : Math.max(a, b);
@@ -48,7 +71,7 @@ export async function priorBests(
   for (const s of sets) {
     result.set(s.exerciseId, {
       weightKg: s._max.weightKg,
-      reps: s._max.reps,
+      reps: bwReps.get(s.exerciseId) ?? null,
       holdSeconds: s._max.holdSeconds,
     });
   }
@@ -56,7 +79,7 @@ export async function priorBests(
     const had = result.get(l.exerciseId);
     result.set(l.exerciseId, {
       weightKg: larger(had?.weightKg, l._max.weightKg),
-      reps: larger(had?.reps, l._max.repsDone),
+      reps: larger(had?.reps, bwRepsDone.get(l.exerciseId)),
       holdSeconds: larger(had?.holdSeconds, l._max.holdSecondsDone),
     });
   }

@@ -28,8 +28,29 @@ import { useBoxSize } from '@/components/use-box-size';
 import { MiniCalendar } from '@/components/mini-calendar';
 import { Segmented } from '@/components/segmented';
 import { useSpeedUnit, useWeightUnit } from '@/components/use-units';
-import { round1, speedLabel, toSpeed, toWeight } from '@/lib/units';
 import { shiftDateKey } from '@/lib/pitch-stats';
+import {
+  CONDITION_DOMAIN,
+  METRIC_SPECS,
+  barDomain,
+  daysBetween,
+  daysOf,
+  formatMetric,
+  lineDomain,
+  shortDate,
+  slotsOf,
+  tickText,
+  trendCardOf,
+  trendValues,
+  withAnd,
+  xTickText,
+  xTicksOf,
+  type Change,
+  type Domain,
+  type MetricKey,
+  type Range,
+  type Slot,
+} from '@/lib/report/trends';
 import type { Log } from '@/app/(app)/pitch-log/types';
 import type { TrainingDaySummary } from '@/lib/report/training-history';
 import { spokenDay, type CheckinDay, type NutritionDay } from './day-summary';
@@ -61,54 +82,6 @@ const PERIODS = [
   { value: 'custom', label: '기간 설정' },
 ] as const;
 type Period = (typeof PERIODS)[number]['value'];
-
-/** 그래프가 보여 줄 기간(YYYY-MM-DD, 양 끝 포함) */
-type Range = { from: string; to: string };
-
-/** 그래프의 한 칸 — 하루, 또는 한 주(일곱 날) */
-type Slot = { days: string[]; start: string; end: string };
-
-/** 두 날 사이가 며칠인가 (b − a) */
-function daysBetween(a: string, b: string) {
-  return Math.round(
-    (Date.parse(`${b}T00:00:00Z`) - Date.parse(`${a}T00:00:00Z`)) / 86_400_000
-  );
-}
-
-/** 그 기간의 모든 날 */
-function daysOf({ from, to }: Range) {
-  return Array.from({ length: daysBetween(from, to) + 1 }, (_, i) =>
-    shiftDateKey(from, i)
-  );
-}
-
-/**
- * 기간을 그래프 칸으로 나눈다 — 45일까지는 하루씩, 그보다 길면 한 주씩.
- *
- * 한 주는 끝날에서 거꾸로 이레씩 묶는다(마지막 칸이 '이번 주'가 되게). 맨 앞 칸은 기간
- * 시작보다 앞선 날을 빼서 이레가 안 될 수 있다. 하루씩으로 석 달을 그리면 막대가 90개라
- * 한 칸이 실처럼 가늘어진다.
- */
-function slotsOf(range: Range): { slots: Slot[]; daily: boolean } {
-  const span = daysBetween(range.from, range.to) + 1;
-  if (span <= 45) {
-    return {
-      daily: true,
-      slots: daysOf(range).map((d) => ({ days: [d], start: d, end: d })),
-    };
-  }
-  const weeks = Math.ceil(span / 7);
-  return {
-    daily: false,
-    slots: Array.from({ length: weeks }, (_, i) => {
-      const end = shiftDateKey(range.to, -(weeks - 1 - i) * 7);
-      const days = Array.from({ length: 7 }, (_, k) => shiftDateKey(end, k - 6)).filter(
-        (d) => d >= range.from
-      );
-      return { days, start: days[0], end };
-    }),
-  };
-}
 
 /*
  * 고른 기간을 이 기기에 적어 둔다 — 홈을 다시 열어도 그 기간으로.
@@ -178,140 +151,18 @@ function readRange(
   }
 }
 
-type MetricKey = 'pitches' | 'velocity' | 'condition' | 'weight' | 'kcal' | 'training';
-type Combine = 'sum' | 'avg' | 'max' | 'last';
+/** 그래프 한 장 — 셈(lib/report/trends.ts METRIC_SPECS)에 카드 제목 앞 그림 · 글자색 토큰을 붙인다. 그래프는 currentColor 로 칠한다 */
+const ICONS: Record<MetricKey, LucideIcon> = {
+  pitches: Baseball,
+  velocity: Gauge,
+  condition: HeartPulse,
+  weight: Scale,
+  kcal: Flame,
+  training: Dumbbell,
+};
+const METRICS = METRIC_SPECS.map((m) => ({ ...m, tone: 'text-sky', icon: ICONS[m.key] }));
 
-/**
- * 그래프 한 장.
- *
- * agg — 한 주를 한 칸으로 묶을 때: 투구수 · 운동은 더하고, 컨디션 · 체중 · 칼로리는
- * 적은 날의 평균, 구속은 그 주의 최고.
- * total — 기간 전체를 한 숫자로: 합 · 최고 · 평균 · 가장 최근(체중).
- * change — 앞 기간과 견주는 법: 양은 몇 % 달라졌나, 수치는 얼마나 달라졌나.
- * tone — 글자색 토큰. 그래프는 currentColor 로 칠해 칸마다 색 하나만 정하면 된다.
- * 라이브러리 카테고리 색을 빌려 쓴다(컨디션 = 회복의 초록 등).
- */
-const METRICS: {
-  key: MetricKey;
-  label: string;
-  kind: 'bar' | 'line';
-  agg: Combine;
-  total: Combine;
-  change: 'pct' | 'diff';
-  tone: string;
-  /** 카드 제목 앞 그림 — 건강 앱의 항목 머리처럼(2026-10-04) */
-  icon: LucideIcon;
-}[] = [
-  {
-    key: 'pitches',
-    label: '투구수',
-    kind: 'bar',
-    agg: 'sum',
-    total: 'sum',
-    change: 'pct',
-    tone: 'text-sky',
-    icon: Baseball,
-  },
-  {
-    key: 'velocity',
-    label: '최고 구속',
-    kind: 'line',
-    agg: 'max',
-    total: 'max',
-    change: 'diff',
-    tone: 'text-sky',
-    icon: Gauge,
-  },
-  {
-    key: 'condition',
-    label: '컨디션',
-    kind: 'line',
-    agg: 'avg',
-    total: 'avg',
-    change: 'diff',
-    tone: 'text-sky',
-    icon: HeartPulse,
-  },
-  {
-    key: 'weight',
-    label: '체중',
-    kind: 'line',
-    agg: 'avg',
-    total: 'last',
-    change: 'diff',
-    tone: 'text-sky',
-    icon: Scale,
-  },
-  {
-    key: 'kcal',
-    label: '먹은 칼로리',
-    kind: 'bar',
-    agg: 'avg',
-    total: 'avg',
-    change: 'pct',
-    tone: 'text-sky',
-    icon: Flame,
-  },
-  {
-    key: 'training',
-    label: '운동',
-    kind: 'bar',
-    agg: 'sum',
-    total: 'sum',
-    change: 'pct',
-    tone: 'text-sky',
-    icon: Dumbbell,
-  },
-];
-
-function combine(values: (number | null)[], how: Combine): number | null {
-  const got = values.filter((v): v is number => v != null);
-  if (got.length === 0) return null;
-  switch (how) {
-    case 'sum':
-      return got.reduce((a, b) => a + b, 0);
-    case 'avg':
-      return got.reduce((a, b) => a + b, 0) / got.length;
-    case 'max':
-      return Math.max(...got);
-    case 'last':
-      return got[got.length - 1];
-  }
-}
-
-/** 큰 숫자 옆의 작은 말 — 그 숫자가 무엇을 센 것인지 */
-function noteOf(key: MetricKey, got: number[], fmt: (v: number) => [string, string]) {
-  /* 평균은 그래프 위 이름표 대신 여기 글로 — 건강 앱이 '일평균'을 숫자 밑에 쓰듯(2026-10-04) */
-  const mean = (vs: number[]) => vs.reduce((a, b) => a + b, 0) / vs.length;
-  switch (key) {
-    case 'pitches': {
-      const thrown = got.filter((v) => v > 0);
-      return `${thrown.length}일 던짐 · 평균 ${fmt(mean(thrown)).join('')}`;
-    }
-    case 'velocity':
-      return `${got.length}일 잼 · 평균 ${fmt(mean(got)).join('')}`;
-    case 'condition':
-      return `${got.length}일 평균`;
-    case 'weight':
-      return '가장 최근';
-    case 'kcal':
-      return `하루 평균 · ${got.length}일`;
-    case 'training':
-      return `${got.length}일 운동`;
-  }
-}
-
-/** '이전 4주와' · '앞 83일과' — 마지막 글자에 받침이 있으면 '과', 없으면 '와' */
-function withAnd(word: string) {
-  const code = word.charCodeAt(word.length - 1) - 0xac00;
-  const hasFinal = code >= 0 && code <= 11171 && code % 28 !== 0;
-  return `${word}${hasFinal ? '과' : '와'}`;
-}
-
-/** 9/3 */
-function shortDate(key: string) {
-  return `${Number(key.slice(5, 7))}/${Number(key.slice(8, 10))}`;
-}
+export type { MetricKey };
 
 export function HomeTrends({
   today,
@@ -321,6 +172,7 @@ export function HomeTrends({
   nutritionByDay,
   checkinByDay,
   weightByDay,
+  metrics: only,
   onJump,
 }: {
   today: string;
@@ -332,9 +184,12 @@ export function HomeTrends({
   checkinByDay: Record<string, CheckinDay>;
   /** 날짜별 체중(kg) — 영양 탭에 적은 것이 체크인보다 앞선다 */
   weightByDay: Record<string, number>;
+  /** 그릴 그래프 — 투구 분석은 투구수 · 최고 구속, 트레이닝 분석은 운동만(2026-10-14). 안 주면 여섯 장 다 */
+  metrics?: MetricKey[];
   /** 캘린더가 그날을 고른다 */
   onJump: (date: string) => void;
 }) {
+  const shownMetrics = only ? METRICS.filter((m) => only.includes(m.key)) : METRICS;
   const speedUnit = useSpeedUnit();
   const weightUnit = useWeightUnit();
 
@@ -350,36 +205,13 @@ export function HomeTrends({
   );
 
   /* 날짜 → 값. 기록이 없는 날은 null(0 과 다르다 — '쉰 날'과 '안 적은 날'은 다르다) */
-  const valueOf = useMemo(() => {
-    const pitches: Record<string, number> = {};
-    const velocity: Record<string, number> = {};
-    for (const l of logs) {
-      const day = l.date.slice(0, 10);
-      pitches[day] = (pitches[day] ?? 0) + l.pitchCount;
-      if (l.maxVelocity != null) {
-        velocity[day] = Math.max(velocity[day] ?? 0, l.maxVelocity);
-      }
-    }
-    return (key: MetricKey, day: string): number | null => {
-      switch (key) {
-        case 'pitches':
-          return pitches[day] ?? null;
-        case 'velocity':
-          return velocity[day] ?? null;
-        case 'condition':
-          return checkinByDay[day]?.condition ?? null;
-        case 'weight':
-          return weightByDay[day] ?? null;
-        case 'kcal':
-          return nutritionByDay[day]?.kcal || null;
-        case 'training':
-          return trainingByDay[day]?.count || null;
-      }
-    };
-  }, [logs, checkinByDay, weightByDay, nutritionByDay, trainingByDay]);
+  const valueOf = useMemo(
+    () => trendValues({ logs, checkinByDay, weightByDay, nutritionByDay, trainingByDay }),
+    [logs, checkinByDay, weightByDay, nutritionByDay, trainingByDay]
+  );
 
   /* 기록이 하나라도 있는 날 — 기간 고르는 작은 달력에 점을 찍는다 */
-  const hasRecord = (day: string) => METRICS.some((m) => valueOf(m.key, day) != null);
+  const hasRecord = (day: string) => shownMetrics.some((m) => valueOf(m.key, day) != null);
 
   /* 보여 줄 기간 — 4주 · 12주는 오늘로 끝나고, '기간 설정'은 고른 대로 */
   const range: Range =
@@ -408,22 +240,7 @@ export function HomeTrends({
   }, [range.from, span, earliest]);
 
   /** 값을 화면 글자로 — 단위는 고른 것(km/h · mph, kg · lb)을 따른다 */
-  const format = (key: MetricKey, v: number): [string, string] => {
-    switch (key) {
-      case 'pitches':
-        return [Math.round(v).toLocaleString('ko-KR'), '구'];
-      case 'velocity':
-        return [String(round1(toSpeed(v, speedUnit))), speedLabel(speedUnit)];
-      case 'condition':
-        return [String(round1(v)), '/10'];
-      case 'weight':
-        return [String(round1(toWeight(v, weightUnit))), weightUnit];
-      case 'kcal':
-        return [Math.round(v).toLocaleString('ko-KR'), 'kcal'];
-      case 'training':
-        return [String(Math.round(v)), '개'];
-    }
-  };
+  const format = (key: MetricKey, v: number) => formatMetric(key, v, speedUnit, weightUnit);
 
   const periodName = period === '4w' ? '4주' : period === '12w' ? '12주' : `${span}일`;
   const endsToday = range.to === today;
@@ -433,13 +250,12 @@ export function HomeTrends({
 
   return (
     /*
-      h-full · flex-col — 옆의 분석 칸과 위아래 끝을 맞춘다. 두 칸은 한 줄(grid)에서 같은
-      높이로 늘어나고, 그래프 상자가 남는 높이를 채운다(flex-1 · 줄은 똑같이 나눈다).
-      분석이 길면 그래프가 그만큼 커진다.
+      분석 밑에 쌓인다(2026-10-14) — 예전엔 분석 옆에서 그 높이만큼 늘어났는데, 장 수가 한두 장이면 카드 하나가 900px 넘게
+      늘어나 장 수를 고른 화면(metrics)은 카드 높이를 못박는다.
     */
     <section
       aria-labelledby="trends-title"
-      className="@container flex h-full flex-col gap-4 pt-6"
+      className="@container flex flex-col gap-4"
     >
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div className="min-w-0">
@@ -520,19 +336,17 @@ export function HomeTrends({
       */}
       <div
         key={`${range.from}~${range.to}`}
-        className="grid min-h-0 flex-1 auto-rows-fr grid-cols-2 gap-3 @3xl:grid-cols-3"
+        className={`grid gap-3 ${
+          shownMetrics.length === 1
+            ? 'auto-rows-[12rem] grid-cols-1 desk:auto-rows-[14rem]'
+            : shownMetrics.length === 2
+              ? 'auto-rows-[12rem] grid-cols-2 desk:auto-rows-[14rem]'
+              : 'min-h-0 flex-1 auto-rows-fr grid-cols-2 @3xl:grid-cols-3'
+        }`}
       >
-        {METRICS.map((m) => {
-          const values = days.map((d) => valueOf(m.key, d));
-          const got = values.filter((v): v is number => v != null);
-          const now = combine(values, m.total);
-          const then = before
-            ? combine(
-                before.map((d) => valueOf(m.key, d)),
-                m.total
-              )
-            : null;
+        {shownMetrics.map((m) => {
           const fmt = (v: number) => format(m.key, v);
+          const card = trendCardOf(m, valueOf, days, before, slots, fmt, periodName);
           return (
             <TrendCell
               key={m.key}
@@ -541,15 +355,10 @@ export function HomeTrends({
               kind={m.kind}
               tone={m.tone}
               slots={slots}
-              points={slots.map((s) =>
-                combine(
-                  s.days.map((d) => valueOf(m.key, d)),
-                  m.agg
-                )
-              )}
-              value={now == null ? null : fmt(now)}
-              note={got.length > 0 ? noteOf(m.key, got, fmt) : ''}
-              change={changeOf(m.change, now, then, fmt, periodName)}
+              points={card.points}
+              value={card.value}
+              note={card.note}
+              change={card.change}
               format={fmt}
               fixedDomain={m.key === 'condition' ? CONDITION_DOMAIN : null}
               daily={daily}
@@ -624,7 +433,7 @@ function RangeEnd({
         aria-expanded={open}
         aria-haspopup="dialog"
         aria-label={`${label} ${spokenDay(value)}, 다른 날 고르기`}
-        className={`inline-flex min-h-9 items-center gap-1.5 rounded-lg border px-3 text-sm font-semibold tabular-nums text-ink transition-colors ${
+        className={`inline-flex min-h-10 items-center gap-1.5 rounded-lg border px-3 text-sm font-semibold tabular-nums text-ink transition-colors ${
           open
             ? 'border-sky bg-sky-tint'
             : 'border-line-strong bg-surface hover:border-sky'
@@ -660,37 +469,6 @@ function RangeEnd({
       )}
     </span>
   );
-}
-
-type Change = { dir: -1 | 0 | 1; text: string; spoken: string };
-
-/** 앞 기간보다 얼마나 달라졌나. 어느 한쪽이라도 기록이 없으면 견주지 않는다. */
-function changeOf(
-  how: 'pct' | 'diff',
-  now: number | null,
-  then: number | null,
-  fmt: (v: number) => [string, string],
-  periodName: string
-): Change | null {
-  if (now == null || then == null) return null;
-  let dir: -1 | 0 | 1;
-  let text: string;
-  if (how === 'pct') {
-    if (then <= 0) return null;
-    const pct = Math.round(((now - then) / then) * 100);
-    dir = pct > 0 ? 1 : pct < 0 ? -1 : 0;
-    text = `${Math.abs(pct)}%`;
-  } else {
-    const [shown, unit] = fmt(Math.abs(now - then));
-    dir = Number(shown) === 0 ? 0 : now > then ? 1 : -1;
-    text = unit === '/10' ? shown : `${shown}${unit}`;
-  }
-  const verb = dir > 0 ? '늘었어요' : dir < 0 ? '줄었어요' : '같아요';
-  return {
-    dir,
-    text,
-    spoken: `이전 ${periodName}보다 ${dir === 0 ? '' : `${text} `}${verb}`,
-  };
 }
 
 function TrendCell({
@@ -752,7 +530,7 @@ function TrendCell({
         {change && hover == null && (
           <span
             title={change.spoken}
-            className={`inline-flex shrink-0 items-center gap-0.5 rounded-full bg-current/10 px-1.5 py-0.5 text-[11px] font-semibold tabular-nums ${tone}`}
+            className={`inline-flex shrink-0 items-center gap-0.5 rounded-full bg-current/10 px-1.5 py-0.5 text-caption font-semibold tabular-nums ${tone}`}
           >
             <Arrow aria-hidden className="h-3 w-3" strokeWidth={2.5} />
             {change.text}
@@ -769,7 +547,7 @@ function TrendCell({
         )}
       </p>
       {/* 숫자 밑 한 줄 — 며칠 · 평균(예전엔 숫자 옆에 붙어 좁은 칸에서 잘렸다). 훑는 동안은 그 날짜 */}
-      <p className="min-h-4 truncate text-[11px] leading-4 text-muted">{shownNote}</p>
+      <p className="min-h-4 truncate text-caption leading-4 text-muted">{shownNote}</p>
       <Chart
         kind={kind}
         tone={tone}
@@ -788,46 +566,6 @@ function TrendCell({
 }
 
 /* ─────────────────────────── 그래프 그리기 ─────────────────────────── */
-
-type Domain = { lo: number; hi: number; ticks: number[] };
-
-/** 컨디션은 늘 0~10 — 칸마다 눈금이 달라지면 높낮이를 견줄 수 없다 */
-const CONDITION_DOMAIN: Domain = { lo: 0, hi: 10, ticks: [0, 5, 10] };
-
-const NICE = [1, 1.2, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10];
-
-/** 막대 — 0 부터, 가장 큰 값을 덮는 반듯한 숫자까지(눈금 0 · 가운데 · 끝) */
-function barDomain(max: number): Domain {
-  const mag = 10 ** Math.floor(Math.log10(Math.max(max, 1)));
-  const hi = (NICE.find((k) => k * mag >= max) ?? 10) * mag;
-  return { lo: 0, hi, ticks: [0, hi / 2, hi] };
-}
-
-const STEPS = [
-  0.1, 0.2, 0.25, 0.5, 1, 2, 2.5, 5, 10, 20, 25, 50, 100, 200, 250, 500, 1000,
-];
-
-/**
- * 선 — 값이 있는 범위만 확대한다(0 부터 그리면 체중 82kg 의 1kg 변화가 안 보인다).
- * 반듯한 간격 두 칸으로 가장 작은 값과 큰 값을 덮는다. 너무 확대해 작은 흔들림이 크게
- * 보이지 않게, 간격은 값의 1%(최소 0.5)보다 작아지지 않는다.
- */
-function lineDomain(min: number, max: number): Domain {
-  const floor = Math.max(Math.abs(max) * 0.01, 0.5);
-  for (const step of STEPS) {
-    if (step < floor) continue;
-    const lo = Math.floor(min / step) * step;
-    if (lo + 2 * step >= max)
-      return { lo, hi: lo + 2 * step, ticks: [lo, lo + step, lo + 2 * step] };
-  }
-  return { lo: min, hi: max + 1, ticks: [min, max + 1] };
-}
-
-/** 눈금 숫자 — 1,500 · 82.5 */
-function tickText(v: number) {
-  const r = round1(v);
-  return Number.isInteger(r) ? r.toLocaleString('ko-KR') : String(r);
-}
 
 function Chart({
   kind,
@@ -892,30 +630,9 @@ function Chart({
   const y = (v: number) => padT + plotH * (1 - (v - dom.lo) / (dom.hi - dom.lo));
   const last = n - 1;
 
-  /*
-   * 가로 눈금 — 처음 · 4분의 1 · 가운데 · 4분의 3 · 끝(4주면 대략 한 주마다). 좁으면 처음과
-   * 끝만. 기간이 오늘로 끝나면 끝 눈금은 '오늘' · '이번 주'.
-   */
-  const xTicks =
-    w < 190 || n < 5
-      ? [...new Set([0, last])]
-      : [
-          ...new Set([
-            0,
-            Math.round(last / 4),
-            Math.round(last / 2),
-            Math.round((last * 3) / 4),
-            last,
-          ]),
-        ];
-  const xText = (i: number) =>
-    i === last
-      ? endsToday
-        ? daily
-          ? '오늘'
-          : '이번 주'
-        : shortDate(slots[i].end)
-      : shortDate(slots[i].start);
+  /* 가로 눈금 — 처음 · 4분의 1 · 가운데 · 4분의 3 · 끝, 좁으면 처음과 끝만(lib/report/trends.ts) */
+  const xTicks = xTicksOf(n, w < 190);
+  const xText = (i: number) => xTickText(i, slots, daily, endsToday);
 
   const pick = (e: PointerEvent<HTMLDivElement>) => {
     const r = e.currentTarget.getBoundingClientRect();
@@ -1003,7 +720,7 @@ function Chart({
                     y={y(t)}
                     textAnchor="start"
                     dominantBaseline="middle"
-                    className="fill-muted text-[10px] tabular-nums"
+                    className="fill-muted text-caption tabular-nums"
                   >
                     {tickText(t)}
                   </text>
@@ -1018,7 +735,7 @@ function Chart({
                 x={i === 0 ? padL : i === last ? w - padR : x(i)}
                 y={h - 3}
                 textAnchor={i === 0 ? 'start' : i === last ? 'end' : 'middle'}
-                className="fill-muted text-[10px] tabular-nums"
+                className="fill-muted text-caption tabular-nums"
               >
                 {xText(i)}
               </text>

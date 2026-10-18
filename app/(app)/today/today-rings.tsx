@@ -1,15 +1,7 @@
-import { appNow } from '@/lib/clock';
 import Link from 'next/link';
 import { Check, HeartPulse, type LucideIcon } from '@/components/icon';
-import { prisma } from '@/lib/prisma';
 import type { requireUser } from '@/lib/dal';
-import { loadDayDetailCached } from '@/lib/day-detail';
-import { SETUP_PATH } from '@/lib/feature-locks';
-import { loadAdvice } from '@/lib/nutrition/advice-load';
-import { serviceHour } from '@/lib/nutrition/advice-input';
-import { dbDate } from '@/lib/nutrition/days';
-import { parsePlanItems } from '@/lib/nutrition/meal-plan';
-import { REST_SESSION_TYPE } from '@/lib/session-type';
+import { loadHomeRings, type HomeRing } from '@/lib/report/home-today';
 import { NAV_ICONS } from '@/components/nav-icons';
 import { OpenCheckinButton } from '@/components/notice-bell';
 import { Card } from '@/components/ui';
@@ -28,7 +20,7 @@ import { RingsStage } from './all-done';
  *   투구 기록이 잠겨 있으면(첫 설정 전, lib/feature-locks.ts) 투구 링은 첫 설정 화면으로 — 기록 창이 어차피 거기로
  *   보내므로 한 번 덜 튄다. 운동 · 영양 링은 그 탭이 스스로 보낸다.
  *
- * 할 일 알림(종)은 '남은 것'을, 이 카드는 '한 만큼'을 보여 준다.
+ * 할 일 알림(종)은 '남은 것'을, 이 카드는 '한 만큼'을 보여 준다. 숫자는 lib/report/home-today.ts(앱 홈과 같이 쓴다).
  */
 export async function TodayRings({
   user,
@@ -41,95 +33,22 @@ export async function TodayRings({
   /** 투구 기록이 잠겨 있다(첫 설정 전) — 투구 링이 설정 화면으로 간다 */
   pitchLocked?: boolean;
 }) {
-  const [detail, logs, advice, mealPlan] = await Promise.all([
-    loadDayDetailCached(user, today),
-    prisma.pitchLog.findMany({
-      where: { userId: user.id, date: dbDate(today) },
-      select: { sessionType: true, pitchCount: true },
-    }),
-    loadAdvice(user, today, today, serviceHour(now())),
-    /* 오늘 식단 계획(영양 탭 '식단 짜기') — 짜 두기만 해도 영양 링이 찬다(2026-10-13 사용자) */
-    prisma.mealPlan.findUnique({
-      where: { userId_date: { userId: user.id, date: dbDate(today) } },
-      select: { items: true },
-    }),
-  ]);
-  const planned = mealPlan != null && parsePlanItems(mealPlan.items).length > 0;
-
-  const exercises = detail.training.exercises;
-  const doneCount = exercises.filter((e) => e.done).length;
-  const rested =
-    logs.length > 0 && logs.every((l) => l.sessionType === REST_SESSION_TYPE);
-  const pitches = logs.reduce((n, l) => n + l.pitchCount, 0);
-  const { kcal, target } = detail.nutrition;
-
-  const items: RingItem[] = [
-    {
-      key: 'checkin',
-      label: '체크인',
-      icon: HeartPulse,
-      value: detail.checkin ? 1 : 0,
-      caption: detail.checkin ? `컨디션 ${detail.checkin.condition}` : '남기기',
-    },
-    {
-      key: 'pitch',
-      label: '투구',
-      icon: NAV_ICONS.baseball,
-      value: logs.length > 0 ? 1 : 0,
-      caption:
-        logs.length === 0
-          ? pitchLocked
-            ? '설정하기'
-            : '남기기'
-          : rested
-            ? '휴식'
-            : `${pitches}구`,
-      href: pitchLocked ? SETUP_PATH.pitch : `/pitch-log/${today}`,
-    },
-    {
-      key: 'training',
-      label: '운동',
-      icon: NAV_ICONS.dumbbell,
-      value: exercises.length > 0 ? doneCount / exercises.length : 0,
-      caption: exercises.length > 0 ? `${doneCount}/${exercises.length}` : '일정 없음',
-      href: '/training',
-    },
-    {
-      key: 'nutrition',
-      label: '영양',
-      icon: NAV_ICONS.utensils,
-      /* 오늘 식단 계획을 짜 두었으면 다 찬 것 — 아니면 예전처럼 균형 점수 · 먹은 칼로리 */
-      value: planned
-        ? 1
-        : advice.score !== null
-          ? advice.score / 100
-          : target.kcal > 0
-            ? kcal / target.kcal
-            : 0,
-      caption: planned
-        ? '계획 완료'
-        : advice.score !== null
-          ? `균형 ${advice.score}`
-          : kcal > 0
-            ? `${kcal.toLocaleString('ko-KR')}kcal`
-            : '남기기',
-      href: '/nutrition',
-    },
-  ];
-
+  const { items, checkinDone } = await loadHomeRings(user, today, pitchLocked);
   return (
     <RingsCard
-      items={items}
-      checkinDone={detail.checkin != null}
+      items={items.map((it) => ({ ...it, icon: RING_ICONS[it.key] }))}
+      checkinDone={checkinDone}
       day={today}
     />
   );
 }
 
-/** 렌더 중에 현재 시각을 직접 읽지 않도록 함수로 감싼다(홈 page.tsx 와 같다) */
-function now() {
-  return appNow();
-}
+const RING_ICONS: Record<HomeRing['key'], LucideIcon> = {
+  checkin: HeartPulse,
+  pitch: NAV_ICONS.baseball,
+  training: NAV_ICONS.dumbbell,
+  nutrition: NAV_ICONS.utensils,
+};
 
 /** 링 하나의 내용 */
 export type RingItem = {
@@ -156,7 +75,7 @@ export function RingsCard({
   day?: string;
 }) {
   return (
-    <Card className="px-2 desk:px-(--block-pad)">
+    <Card className="px-2 desk:px-(--block-pad) pad:flex pad:flex-col pad:justify-center">
       {/* 넷이 다 차면 축하(웹은 카드 안에서 링이 위로 빠지고 체크, 앱은 화면 가운데) — all-done.tsx */}
       <RingsStage
         allDone={day != null && items.every((it) => it.value >= 1)}
@@ -167,7 +86,7 @@ export function RingsCard({
             const face = (
               <>
                 <Ring value={it.value} icon={it.icon} />
-                <span className="mt-2 text-[13px] font-semibold text-ink">
+                <span className="mt-2 text-footnote font-semibold text-ink">
                   {it.label}
                 </span>
                 {/* 링 밑 작은 글(컨디션 7 · 40구 · 3/5 · 균형 80)은 뺐다(2026-10-13 김민 "완료 표시 밑 한 줄 다 없애") — 화면 읽기 글(aria-label)에만 남김 */}

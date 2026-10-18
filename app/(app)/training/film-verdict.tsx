@@ -65,7 +65,7 @@ export function FilmVerdictButtons({
         })}
       </div>
       {saved && (
-        <p className="text-[11px] text-muted">
+        <p className="text-caption text-muted">
           세션 {session}번 결과로 남겼어요. 다시 누르면 바꿔요.
         </p>
       )}

@@ -4,6 +4,7 @@
 결과(2판 찾기, 15구): 골반 스티커 2~4개로 15/15 — K4 골반 − 스티커 +0.9°(|차| 4.4) · 엔진 골반 − 스티커 −10.3°(|차| 10.6, SD 10).
 """
 import os, sys, json, itertools
+from cams import CAMS
 import numpy as np
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import bench as B
@@ -16,7 +17,7 @@ world = json.load(open(os.path.join(WORK, "world.json")))
 S, Rw, Tw = world["scale"], np.array(world["R"]), np.array(world["t"])
 toW = lambda X: (S * (Rw @ np.atleast_2d(X).T).T + Tw).reshape(np.shape(X))
 toC = lambda X: ((Rw.T @ (np.atleast_2d(X) - Tw).T).T / S).reshape(np.shape(X))
-cams = {c: {k: (np.array(v) if isinstance(v, list) else v) for k, v in cal["cams"][c].items()} for c in "1234"}
+cams = {c: {k: (np.array(v) if isinstance(v, list) else v) for k, v in cal["cams"][c].items()} for c in CAMS}
 NOTES = json.load(open(os.path.join(WORK, "..", "session-notes.json"), encoding="utf-8"))["people"][0]
 SHW = NOTES["shoulder_width_cm"] / 100
 PEL = ["L_ASIS", "R_ASIS", "L_PSIS", "R_PSIS"]; SHO = ["L2", "R2"]
@@ -98,7 +99,7 @@ def ray(c, uv):
 OUT = os.path.join(WORK, "fp_overlay"); os.makedirs(OUT, exist_ok=True)
 def overlay(p, C, tt, lH, rH, lS, rS, pel, got):
     import cv2
-    for c in "234":
+    for c in CAMS[1:]:
         cm = C[c]; t2 = tt + cm.off; j = int(np.argmin(np.abs(cm.t - t2)))
         cap = cv2.VideoCapture(os.path.join(WORK, "..", "videos", f"투구{p:02d}_c{c}.mov")); cap.set(cv2.CAP_PROP_POS_FRAMES, j); okf, img = cap.read()
         if not okf: continue
@@ -121,7 +122,7 @@ def overlay(p, C, tt, lH, rH, lS, rS, pel, got):
 out = {}; rows = []
 for p, (r, rec, fl) in P.items():
     off = cal["offsets"][str(p)]; te = np.array(r["t"]) - off["1"]; ev = r["events"]; fp = ev["footPlant"]
-    C = {c: Cam(p, c, cams[c], off[c]) for c in "1234"}
+    C = {c: Cam(p, c, cams[c], off[c]) for c in CAMS}
     tq = rec["tq"]; J = np.array(r["joints"], float)
     jm = json.load(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "..", "..", "lib", "pitch-3d", "v2", "joint-map.json"), encoding="utf-8")); IX = {j["name"]: i for i, j in enumerate(jm["joints"])}
     yE = lambda v: float(-np.degrees(np.arctan2(v[2], v[0])))

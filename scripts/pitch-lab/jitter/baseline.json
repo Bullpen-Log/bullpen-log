@@ -1,5 +1,5 @@
 {
- "savedAt": "2026-10-14T01:50:43.401Z",
+ "savedAt": "2026-10-15T09:46:57.808Z",
  "samples": {
   "6814c10f": {
    "prep": {
@@ -8,25 +8,25 @@
     "amp": []
    },
    "lift": {
-    "max": 0.18,
-    "med": 0.09,
+    "max": 0.22,
+    "med": 0.12,
     "amp": []
    },
    "stride": {
-    "max": 2.28,
-    "med": 0.68,
+    "max": 1.85,
+    "med": 0.29,
     "amp": []
    },
    "follow": {
-    "max": 1.57,
-    "med": 0.53,
+    "max": 1.46,
+    "med": 0.62,
     "amp": []
    }
   },
   "c4d81c82": {
    "prep": {
     "max": 2.58,
-    "med": 0.68,
+    "med": 0.59,
     "amp": []
    },
    "lift": {
@@ -52,40 +52,40 @@
     "amp": []
    },
    "lift": {
-    "max": 0.64,
+    "max": 0.46,
     "med": 0.17,
     "amp": []
    },
    "stride": {
     "max": 1.32,
-    "med": 0.57,
+    "med": 0.61,
     "amp": []
    },
    "follow": {
-    "max": 4.49,
+    "max": 4.56,
     "med": 0.34,
     "amp": []
    }
   },
   "s1": {
    "prep": {
-    "max": 0.23,
+    "max": 0.21,
     "med": 0.05,
     "amp": []
    },
    "lift": {
-    "max": 1.11,
-    "med": 0.22,
+    "max": 1.19,
+    "med": 0.17,
     "amp": []
    },
    "stride": {
-    "max": 1.71,
-    "med": 0.34,
+    "max": 1.46,
+    "med": 0.3,
     "amp": []
    },
    "follow": {
-    "max": 1.78,
-    "med": 0.53,
+    "max": 1.57,
+    "med": 0.39,
     "amp": []
    }
   },
@@ -99,90 +99,89 @@
     ]
    },
    "lift": {
-    "max": 1.26,
+    "max": 1.54,
     "med": 0.35,
     "amp": [
-     "lAn",
      "lHe",
      "lTo"
     ]
    },
    "stride": {
-    "max": 3.36,
-    "med": 0.75,
+    "max": 2.75,
+    "med": 0.6,
     "amp": []
    },
    "follow": {
-    "max": 4.03,
-    "med": 0.68,
+    "max": 2.98,
+    "med": 0.65,
     "amp": []
    }
   },
   "s2": {
    "prep": {
-    "max": 0.28,
+    "max": 0.27,
     "med": 0.03,
     "amp": []
    },
    "lift": {
-    "max": 0.25,
-    "med": 0.09,
+    "max": 0.21,
+    "med": 0.11,
     "amp": []
    },
    "stride": {
-    "max": 2.05,
-    "med": 0.41,
+    "max": 2.13,
+    "med": 0.37,
     "amp": []
    },
    "follow": {
-    "max": 1.9,
-    "med": 0.43,
+    "max": 1.81,
+    "med": 0.44,
     "amp": []
    }
   },
   "s3": {
    "prep": {
-    "max": 0.72,
+    "max": 0.4,
     "med": 0.09,
     "amp": []
    },
    "lift": {
-    "max": 0.71,
-    "med": 0.2,
+    "max": 0.72,
+    "med": 0.22,
     "amp": []
    },
    "stride": {
-    "max": 2.53,
-    "med": 0.48,
+    "max": 2.6,
+    "med": 0.55,
     "amp": [
      "lHe"
     ]
    },
    "follow": {
-    "max": 2.34,
-    "med": 0.62,
+    "max": 2.25,
+    "med": 0.6,
     "amp": []
    }
   },
   "s9": {
    "prep": {
-    "max": 0.36,
+    "max": 0.33,
     "med": 0.03,
     "amp": []
    },
    "lift": {
-    "max": 0.26,
-    "med": 0.08,
+    "max": 0.36,
+    "med": 0.1,
     "amp": []
    },
    "stride": {
-    "max": 1.92,
-    "med": 0.39,
+    "max": 2.13,
+    "med": 0.26,
     "amp": []
    },
    "follow": {
-    "max": 1.98,
-    "med": 0.32,
+    "max": 1.67,
+    "med": 0.31,
     "amp": []
    }
   }
@@ -197,9 +196,9 @@
    },
    "raw": {
     "pop": 0,
-    "speed": 10,
-    "knee": 5,
-    "sep": 13
+    "speed": 9,
+    "knee": 0,
+    "sep": 10
    },
    "man": {
     "pop": 0,
@@ -247,17 +246,17 @@
     "pop": 0,
     "speed": 0,
     "knee": 0,
-    "sep": 14
+    "sep": 13
    },
    "raw": {
     "pop": 0,
     "speed": 0,
     "knee": 0,
-    "sep": 13
+    "sep": 12
    },
    "man": {
     "pop": 0,
-    "speed": 3
+    "speed": 2
    }
   },
   "s10": {
@@ -287,7 +286,7 @@
    },
    "raw": {
     "pop": 0,
-    "speed": 6,
+    "speed": 3,
     "knee": 0,
     "sep": 0
    },
@@ -304,9 +303,9 @@
     "sep": 9
    },
    "raw": {
-    "pop": 2,
-    "speed": 9,
-    "knee": 1,
+    "pop": 0,
+    "speed": 12,
+    "knee": 2,
     "sep": 9
    },
    "man": {
@@ -323,13 +322,13 @@
    },
    "raw": {
     "pop": 0,
-    "speed": 2,
+    "speed": 1,
     "knee": 0,
     "sep": 0
    },
    "man": {
     "pop": 0,
-    "speed": 1
+    "speed": 0
    }
   }
  }

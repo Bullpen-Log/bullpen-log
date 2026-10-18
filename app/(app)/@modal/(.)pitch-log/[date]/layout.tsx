@@ -1,4 +1,6 @@
 import type { ReactNode } from 'react';
+import { headers } from 'next/headers';
+import { isExpoUserAgent } from '@/lib/app-env';
 import { DayModal } from '@/app/(app)/pitch-log/[date]/day-modal';
 
 const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'];
@@ -27,5 +29,7 @@ export default async function PitchDayModalLayout({
   params: Promise<{ date: string }>;
 }) {
   const { date } = await params;
+  /* 새 아이폰 앱(Expo)은 앱 화면으로 연다(page.tsx OpenNative) — 창 틀을 그리지 않는다 */
+  if (isExpoUserAgent((await headers()).get('user-agent'))) return children;
   return <DayModal title={spokenDate(date)}>{children}</DayModal>;
 }

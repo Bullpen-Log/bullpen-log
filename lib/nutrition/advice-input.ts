@@ -117,5 +117,7 @@ export function assembleAdviceInput(a: AssembleArgs): AdviceInput {
     training: trainingKinds(a.detail.training.exercises, a.activeSeconds),
     weight: null,
     hour: a.hour,
+    avoid: n.avoid ?? [],
+    eatenUnknown: n.unknown ?? [],
   };
 }

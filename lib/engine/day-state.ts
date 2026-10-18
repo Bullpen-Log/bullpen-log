@@ -52,10 +52,10 @@ import {
   belowUsualCondition,
   isHardOuting,
   isNearMaxOuting,
+  todayPrefsOf,
   type HardOuting,
   type ReportFacts,
 } from '@/lib/report/facts';
-import type { SessionKind } from '@/lib/program/program';
 import { pendingOuting, type PitchPlan } from '@/lib/report/plan';
 import {
   checkinPartLabel,
@@ -100,8 +100,6 @@ export type ProgramCommitmentInput = {
   totalDays?: number | null;
   /** 마지막으로 마친 날(YYYY-MM-DD), 없으면 null */
   lastDoneDate: string | null;
-  /** 시즌 중 프로그램의 오늘 세션 종류(program.ts inSeasonKind) — 다른 프로그램 · 움직임만 하는 날은 없음 */
-  kind?: SessionKind;
 };
 
 export type ProgramCommitment = ProgramCommitmentInput & {
@@ -430,7 +428,7 @@ export function buildDayState({
       sleepHours: today?.sleepHours ?? null,
       sleepQuality: today?.sleepQuality ?? null,
       sleepShort,
-      preferredWorkout: today?.preferredWorkout ?? null,
+      preferredWorkout: todayPrefsOf(facts).preferredWorkout,
     },
     load: {
       hardOuting: hardOuting ? { ...hardOuting } : null,

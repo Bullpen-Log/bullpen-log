@@ -111,12 +111,19 @@ export async function loadArmcareToday(user: UserForArmcare, today: Date) {
    * 팔 피로 · 팔 통증 자리 · 정도는 리포트 자료(facts)에 없어 예전에는 오늘 체크인 줄을 여기서 한 번 더 읽었다. 2판 P3(2026-10-12)
    * 부터 오늘 상태 한 장(gathered.state)이 같은 줄(gather 가 이미 읽은 것) · 같은 규칙(armPainSpotsFor)으로 실어 오므로 그것을 쓴다.
    */
-  const [gathered, library, saved, logs, rehab] = await Promise.all([
+  const [gathered, library, routines, logs, rehab] = await Promise.all([
     gatherFactsAndPlan(user, today),
     visibleExercises(),
-    prisma.dailyArmcare.findUnique({
-      where: { userId_date: { userId: user.id, date: midnight } },
-      select: { plan: true },
+    /* 오늘 루틴 + 지난 7일 루틴(강화를 몇 번 했나 — STRENGTH_PER_WEEK) */
+    prisma.dailyArmcare.findMany({
+      where: {
+        userId: user.id,
+        date: {
+          gte: new Date(`${shiftDateKey(todayKey, -7)}T00:00:00.000Z`),
+          lte: midnight,
+        },
+      },
+      select: { date: true, plan: true },
     }),
     prisma.userExerciseLog.findMany({
       where: {
@@ -172,6 +179,24 @@ export async function loadArmcareToday(user: UserForArmcare, today: Date) {
    */
   const armPain = state.arm.pain;
 
+  /*
+   * 지난 7일 강화 루틴을 한 날 — 맞춤 루틴이 강화였고 암케어를 하나라도 체크한 날(만들기만 한 날은 안 센다).
+   * ponytail: 내 루틴으로 세게 한 날은 안 센다 — 내 루틴 운동 강도를 읽어 세면 된다(내 루틴을 쓰는 사람이 생기면).
+   */
+  const saved = routines.find((r) => toDateKey(r.date) === todayKey) ?? null;
+  const strengthDays = routines
+    .map((r) => toDateKey(r.date))
+    .filter(
+      (key, i) =>
+        key !== todayKey &&
+        doneDates.has(key) &&
+        readArmcareRoutine(routines[i].plan)?.kind === 'strength'
+    );
+  const recentStrength = {
+    yesterday: strengthDays.includes(shiftDateKey(todayKey, -1)),
+    last7: strengthDays.length,
+  };
+
   return {
     todayKey,
     midnight,
@@ -187,6 +212,7 @@ export async function loadArmcareToday(user: UserForArmcare, today: Date) {
       armFatigue: state.arm.fatigue,
       armPain,
       state,
+      recentStrength,
     }),
     /**
      * 오늘 팔 통증 자리 · 정도 — 어깨 · 팔꿈치가 '통증'인 날만, 아니면 null. 통증 루틴(만들기)과 안내 시트가

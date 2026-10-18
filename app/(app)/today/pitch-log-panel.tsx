@@ -1,13 +1,11 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ChartLine } from '@/components/icon';
+import { CalendarDays, ChartLine, List } from '@/components/icon';
 import { Card, FormError } from '@/components/ui';
-import { toDateKey } from '@/lib/pitch-stats';
 import { readEffort } from '@/lib/pitch-effort';
 import { REST_SESSION_TYPE } from '@/lib/session-type';
 import { LegendSwatch, MonthCalendar, type DayMark } from '@/components/month-calendar';
-import { Segmented } from '@/components/segmented';
 import { LogList } from '@/app/(app)/pitch-log/log-list';
 import type { Log } from '@/app/(app)/pitch-log/types';
 import type { PlanDaySummary, TrainingDaySummary } from '@/lib/report/training-history';
@@ -25,11 +23,12 @@ import {
 import { DayDetailBlock } from './day-detail';
 import { useEventAlarms } from './event-alarms';
 
-/** [캘린더 | 목록] — 같은 기록을 다르게 보는 두 방식 */
-const VIEW_OPTIONS = [
-  { value: 'calendar', label: '캘린더' },
-  { value: 'list', label: '목록' },
-] as const;
+/**
+ * 캘린더 ↔ 목록 그림 단추 — 달 화살표와 같은 크기 · 모양이되 회색(보기 바꾸기는 달 넘기기보다 덜 쓰는 일이라, 같은 파랑이면
+ * 세 번째 화살표처럼 읽혔다 — 2026-10-16 디자인 점검)
+ */
+const VIEW_BUTTON =
+  'grid h-10 w-10 place-items-center rounded-full text-muted transition-colors hover:text-ink desk:h-8 desk:w-8 desk:rounded-lg desk:border desk:border-line desk:hover:border-sky desk:hover:text-sky';
 
 /**
  * 투구 일지 — 홈의 가운데 자리.
@@ -142,7 +141,14 @@ export function PitchLogPanel({
     return [...initialLogs, ...olderLogs.filter((l) => !seen.has(l.id))];
   }, [initialLogs, olderLogs]);
   const [view, setView] = useState<'calendar' | 'list'>('calendar');
-  const [error, setError] = useState<string>();
+  /* 한 번이라도 보기를 바꿨나 — 바꾼 뒤에만 들어오는 보기에 옅게 바꾸기(view-swap)를 붙인다(처음 그릴 땐 안 움직임) */
+  const [swapped, setSwapped] = useState(false);
+  const swapTo = (next: 'calendar' | 'list') => {
+    setSwapped(true);
+    setView(next);
+  };
+  /* 옛 달 받기에 실패한 달 — 그 달을 볼 때만 글을 보인다(다른 달로 넘기거나 다시 받으면 사라진다, 2026-10-17 전에는 세션 내내 남았다) */
+  const [errorMonth, setErrorMonth] = useState<string>();
 
   /*
    * 이미 받아 온 달들. 같은 달을 두 번 받지 않으려고 둔다. 처음 받아 온
@@ -189,31 +195,27 @@ export function PitchLogPanel({
    * 오면(그리는 도중에 앞 값과 견주는 방법) 달라진 날만 골라 버린다 — 다른 날 요약은
    * 그대로 두어 괜히 다시 받느라 깜빡이지 않게.
    */
-  const [seenCheckins, setSeenCheckins] = useState(checkinByDay);
-  if (seenCheckins !== checkinByDay) {
-    setSeenCheckins(checkinByDay);
-    const changed = new Set(
-      [...Object.keys(seenCheckins), ...Object.keys(checkinByDay)].filter(
-        (d) => JSON.stringify(seenCheckins[d]) !== JSON.stringify(checkinByDay[d])
-      )
-    );
-    if (changed.size > 0) {
-      setDetails((prev) =>
-        Object.fromEntries(Object.entries(prev).filter(([d]) => !changed.has(d)))
-      );
-    }
-  }
-
   /*
    * 구속 측정이 바뀐 날도 그렇다 — 그날 화면(팝업)에서 공을 지우면 홈 영상 칸의 칩이 지운 공을 그대로 보였다. 그날 요약의
    * 지문(sig — 구종 · 코스 · 구속 · 클립)이 달라진 날만 버린다. 구종만 고쳐도 바뀐다.
+   *
+   * 운동 · 일정 · 영양도 같다(2026-10-16) — 판 넘기기로 홈이 내내 살아 있어, 영양 탭에서 점심을 담고 홈으로 오면 위 아이콘은
+   * 새 kcal 인데 밑 칸 끼니 목록은 옛것이었다.
    */
-  const [seenVelocity, setSeenVelocity] = useState(velocityByDay);
-  if (seenVelocity !== velocityByDay) {
-    setSeenVelocity(velocityByDay);
+  const dayMaps: Record<string, unknown>[] = [
+    checkinByDay,
+    velocityByDay,
+    trainingByDay,
+    planByDay,
+    nutritionByDay,
+  ];
+  const [seenMaps, setSeenMaps] = useState(dayMaps);
+  if (dayMaps.some((m, i) => m !== seenMaps[i])) {
+    setSeenMaps(dayMaps);
+    const days = new Set([...dayMaps, ...seenMaps].flatMap((m) => Object.keys(m)));
     const changed = new Set(
-      [...Object.keys(seenVelocity), ...Object.keys(velocityByDay)].filter(
-        (d) => JSON.stringify(seenVelocity[d]) !== JSON.stringify(velocityByDay[d])
+      [...days].filter((d) =>
+        dayMaps.some((m, i) => JSON.stringify(m[d]) !== JSON.stringify(seenMaps[i][d]))
       )
     );
     if (changed.size > 0) {
@@ -249,24 +251,39 @@ export function PitchLogPanel({
   /*
    * 좁은 화면에서는 그날 칸이 달력 밑에서 펴진다. 달력이 화면을 거의 채우고 있어서,
    * 펴진 칸이 화면 밖이면 거기까지만 살짝 굴려 보여 준다(이미 보이면 가만히 둔다).
-   * 하단 탭이 덮는 자리(칸의 scroll-mb — 아이폰 앱은 홈 막대 자리까지)도 화면 밖으로 친다.
+   * 하단 탭이 덮는 자리(칸의 scroll-mb = --tab-bar-top + 0.5rem)도 화면 밖으로 친다.
+   * 그날 칸은 펴지는 움직임(0.3초) · 그날 자세히를 받아 온 뒤에 더 길어지므로, 1.5초 동안 크기가 바뀔 때마다 다시 본다
+   * (2026-10-16 — 예전엔 0.32초에 한 번만 재서 칸이 하단 탭 밑에 숨었다).
    */
   useEffect(() => {
     if (!selectedDate || window.matchMedia('(min-width: 1024px)').matches) return;
+    const el = panelRef.current;
+    if (!el) return;
     const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    const timer = window.setTimeout(() => {
-      const el = panelRef.current;
-      const covered = el ? parseFloat(getComputedStyle(el).scrollMarginBottom) || 0 : 0;
-      if (el && el.getBoundingClientRect().bottom + covered > window.innerHeight) {
+    const check = () => {
+      const covered = parseFloat(getComputedStyle(el).scrollMarginBottom) || 0;
+      if (el.getBoundingClientRect().bottom + covered > window.innerHeight + 1) {
         el.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'nearest' });
       }
-    }, 320);
-    return () => window.clearTimeout(timer);
+    };
+    /* 크기가 멈춘 뒤 한 번만(펴지는 동안 장면마다 부드러운 굴림을 새로 걸면 덜컹인다) */
+    let timer = window.setTimeout(check, 320);
+    const grow = new ResizeObserver(() => {
+      window.clearTimeout(timer);
+      timer = window.setTimeout(check, 120);
+    });
+    grow.observe(el);
+    const stop = window.setTimeout(() => grow.disconnect(), 1500);
+    return () => {
+      window.clearTimeout(timer);
+      window.clearTimeout(stop);
+      grow.disconnect();
+    };
   }, [selectedDate]);
 
   // 넘어온 날짜가 지난달이면 달력도 그 달을 펴야 한다.
   const [month, setMonth] = useState(() => {
-    const [y, m] = (initialDate ?? toDateKey(new Date())).split('-').map(Number);
+    const [y, m] = (initialDate ?? today).split('-').map(Number);
     return new Date(y, m - 1, 1);
   });
 
@@ -291,6 +308,23 @@ export function PitchLogPanel({
       eventsByDay,
     ]
   );
+
+  /*
+   * 주소의 ?date= 가 바뀌면(하위 화면의 '‹ 9월 달력'으로 돌아옴) 그날로 옮긴다 — 홈 판은 판 넘기기 동안 마운트된 채라 useState 첫 값만
+   * 쓰면 옛 날이 열린 채였다(2026-10-18). 처음 그릴 때도 같은 규칙으로 줄을 고른다(앞날은 일정, 그 밖은 그날 남긴 것 가운데 첫 줄).
+   * (그리는 도중 상태 보정)
+   */
+  const [seenInitial, setSeenInitial] = useState<string | null | undefined>(undefined);
+  if (initialDate !== seenInitial) {
+    setSeenInitial(initialDate);
+    if (initialDate) {
+      setSelectedDate(initialDate);
+      const [y, m] = initialDate.split('-').map(Number);
+      if (month.getFullYear() !== y || month.getMonth() !== m - 1)
+        setMonth(new Date(y, m - 1, 1));
+      setFocus(initialDate > today ? 'schedule' : firstFocus(factsOf(initialDate)));
+    }
+  }
 
   /*
    * 날짜를 누르면 옆 칸이 그날로 열린다(이미 열려 있으면 그날로 바뀐다).
@@ -341,7 +375,16 @@ export function PitchLogPanel({
    * 처음 받아 온 범위보다 옛날 달로 넘어가면 그 달만 따로 받아 온다.
    * 한 번 받은 달은 다시 받지 않는다.
    */
+  /*
+   * 서버가 새 기록을 보내면(저장 · 지우기 뒤) 받아 둔 옛 달도 다시 받는다 — 예전에는 옛 달에서 고치거나 지운 기록이
+   * 달력에 그대로 남았다(2026-10-16). 보고 있는 달은 곧바로, 다른 달은 다시 넘겨 올 때.
+   */
+  const seenInitialLogs = useRef(initialLogs);
   useEffect(() => {
+    if (seenInitialLogs.current !== initialLogs) {
+      seenInitialLogs.current = initialLogs;
+      loadedMonths.current.clear();
+    }
     if (monthKey >= loadedFrom || loadedMonths.current.has(monthKey)) return;
     loadedMonths.current.add(monthKey);
     let cancelled = false;
@@ -350,23 +393,24 @@ export function PitchLogPanel({
       .then((res) => (res.ok ? res.json() : Promise.reject(new Error())))
       .then((older: Log[]) => {
         if (cancelled) return;
-        // 이미 가진 것과 겹칠 수 있어(영상 있는 기록) id 로 합친다.
-        setOlderLogs((prev) => {
-          const seen = new Set(prev.map((l) => l.id));
-          return [...prev, ...older.filter((l) => !seen.has(l.id))];
-        });
+        setErrorMonth((m) => (m === monthKey ? undefined : m));
+        // 그 달 것은 새로 받은 것으로 갈아 끼운다(지운 기록이 남지 않게). 처음 범위와 겹치는 것은 logs 가 id 로 거른다.
+        setOlderLogs((prev) => [
+          ...prev.filter((l) => !l.date.startsWith(monthKey)),
+          ...older,
+        ]);
       })
       .catch(() => {
-        if (cancelled) return;
-        // 다시 넘어오면 한 번 더 받아볼 수 있게 표시를 지운다.
+        // 다시 넘어오면 한 번 더 받아볼 수 있게 표시를 지운다 — 다른 달로 넘긴 뒤 실패해도 지워야 그 달을 다시 받는다.
         loadedMonths.current.delete(monthKey);
-        setError('그 달 기록을 불러오지 못했어요. 잠시 후 다시 시도해주세요.');
+        if (cancelled) return;
+        setErrorMonth(monthKey);
       });
 
     return () => {
       cancelled = true;
     };
-  }, [monthKey, loadedFrom]);
+  }, [monthKey, loadedFrom, initialLogs]);
 
   /**
    * 달력에 칠할 것.
@@ -428,7 +472,7 @@ export function PitchLogPanel({
   const shownFacts = useMemo(() => factsOf(shownDate), [factsOf, shownDate]);
 
   return (
-    <div className="space-y-3">
+    <div className="stack-block">
       {/*
         제목을 없앴다. 예전에는 '투구 일지'라는 이름과 그 밑에 설명 글이 있었는데,
         이 덩이가 이미 홈의 맨 앞이라 스스로 무엇인지 보여준다 — 이름표가 없어도
@@ -441,20 +485,31 @@ export function PitchLogPanel({
         미끄러진다. 예전에는 버튼 색만 켜고 꺼서, 같은 모양의 상자인데 여기만
         움직임이 달랐다.
       */}
-      <div className="flex justify-end px-1">
-        <Segmented
-          label="기록 보기 방식"
-          value={view}
-          onChange={setView}
-          options={VIEW_OPTIONS}
-          tone="raised"
-          itemClassName="px-4 py-1.5"
-        />
-      </div>
+      <FormError>
+        {errorMonth === monthKey
+          ? '그 달 기록을 불러오지 못했어요. 잠시 후 다시 시도해 주세요.'
+          : undefined}
+      </FormError>
 
-      <FormError>{error}</FormError>
-
-      {view === 'list' && <LogList logs={logs} />}
+      {/*
+        보기 전환은 달력 머리의 목록 그림 · 목록 머리의 달력 그림으로(2026-10-16 — 예전 [캘린더 | 목록] 고르개가 카드 위에 제목 없이 혼자 떠 있었다)
+      */}
+      {view === 'list' && (
+        <div className={`stack-block ${swapped ? 'view-swap' : ''}`}>
+          <div className="flex items-center justify-between px-1">
+            <h2 className="text-subhead font-semibold text-ink">최근 기록</h2>
+            <button
+              type="button"
+              aria-label="캘린더로 보기"
+              onClick={() => swapTo('calendar')}
+              className={VIEW_BUTTON}
+            >
+              <CalendarDays aria-hidden className="h-5 w-5 desk:h-4 desk:w-4" />
+            </button>
+          </div>
+          <LogList logs={logs} />
+        </div>
+      )}
 
       {/*
         옛날 달을 받아 오는 동안 '지난 기록 불러오는 중…'을 띄웠었는데 뺐다.
@@ -462,7 +517,7 @@ export function PitchLogPanel({
         가렸다. 기록은 받아지는 대로 칸에 채워진다.
       */}
       {view === 'calendar' && (
-        <div>
+        <div className={swapped ? 'view-swap' : undefined}>
           {/*
             lg:items-stretch — 캘린더와 옆 그날 칸의 위아래 끝을 맞춘다. 캘린더가 줄어들면
             (compact) 그날 칸도 함께 줄어든다.
@@ -482,6 +537,16 @@ export function PitchLogPanel({
                 compact={panelOpen}
                 allowFuture
                 events={eventCounts}
+                headerAction={
+                  <button
+                    type="button"
+                    aria-label="목록으로 보기"
+                    onClick={() => swapTo('list')}
+                    className={`${VIEW_BUTTON} mr-1`}
+                  >
+                    <List aria-hidden className="h-5 w-5 desk:h-4 desk:w-4" />
+                  </button>
+                }
               >
                 <span>강도</span>
                 <LegendSwatch className="h-3 w-5 rounded bg-sky/15">낮음</LegendSwatch>
@@ -511,23 +576,27 @@ export function PitchLogPanel({
               들어오는 것으로 보인다. 칸 안의 글은 처음부터 제 폭(20rem)으로 그려 두고
               바깥 틀만 넓어지게 해서, 들어오는 동안 글이 접혔다 펴지며 흔들리지 않는다.
 
-              좁은 화면: 달력 밑에서 높이가 펴진다(grid-rows 0fr → 1fr). 위에 두면
-              달력이 아래로 밀려 내려가, 방금 누른 칸이 화면 밖으로 나간다.
+              좁은 화면: 달력 밑에 자리가 바로 생기고, 안의 칸만 옅어짐 + 10px 올라오며(220ms) 들어온다.
+              위에 두면 달력이 아래로 밀려 내려가, 방금 누른 칸이 화면 밖으로 나간다.
+              예전엔 높이(grid-rows)를 300ms 움직였는데 장면마다 배치를 다시 셈하고 '움직임 줄이기'도 안 봤다(2026-10-16 움직임 점검).
+              움직임 줄이기면 넓은 화면의 폭도 바로 바뀐다.
             */}
             <div
               ref={panelRef}
               aria-hidden={!panelOpen}
               inert={!panelOpen}
-              className={`grid scroll-mb-[calc(3.5rem+env(safe-area-inset-bottom))] overflow-hidden transition-[grid-template-rows,width,margin,opacity] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] lg:block lg:shrink-0 ${
+              className={`grid scroll-mb-[calc(var(--tab-bar-top)+0.5rem)] overflow-hidden lg:block lg:shrink-0 motion-safe:lg:transition-[width,margin] motion-safe:lg:duration-300 motion-safe:lg:ease-[cubic-bezier(0.22,1,0.36,1)] ${
                 panelOpen
-                  ? 'mt-4 grid-rows-[1fr] opacity-100 lg:ml-4 lg:mt-0 lg:w-[20rem]'
-                  : 'mt-0 grid-rows-[0fr] opacity-0 lg:ml-0 lg:w-0'
+                  ? 'mt-4 grid-rows-[1fr] lg:ml-4 lg:mt-0 lg:w-[20rem]'
+                  : 'mt-0 grid-rows-[0fr] lg:ml-0 lg:w-0'
               }`}
             >
               <div className="min-h-0 lg:h-full lg:w-[20rem]">
                 <div
-                  className={`transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] lg:h-full ${
-                    panelOpen ? 'translate-x-0' : 'lg:translate-x-8'
+                  className={`motion-safe:transition-[opacity,translate] motion-safe:duration-[220ms] motion-safe:ease-[cubic-bezier(0.22,1,0.36,1)] lg:h-full ${
+                    panelOpen
+                      ? 'translate-y-0 opacity-100 lg:translate-x-0'
+                      : 'translate-y-2.5 opacity-0 lg:translate-x-8 lg:translate-y-0'
                   }`}
                 >
                   <DaySummary

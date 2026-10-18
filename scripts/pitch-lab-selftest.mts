@@ -3,7 +3,9 @@
  *
  *   npm run pitch-lab:test
  */
-import { isLabId, isLabView, labMetaChips, readLabMeta } from '../lib/pitch-lab-meta.ts';
+import { isLabId, isLabView, labCardChips, labMetaChips, readLabMeta } from '../lib/pitch-lab-meta.ts';
+import { LAB_FAIL_FIX, LAB_GUIDE_CHECKS, labGuideHref } from '../lib/pitch-lab-guide.ts';
+import { V2_VIDEO_FAULT } from '../lib/pitch-3d/v2/contract.ts';
 
 let passed = 0;
 let failed = 0;
@@ -38,6 +40,7 @@ const m = readLabMeta(
     hand: 'L',
     heightCm: 182,
     distanceM: 6.5,
+    distances: { side: 5, back: 4.5, front: 3 },
     memo: '  직구, 세게  ',
     files: { side: { name: 'a.mp4', size: 1000 }, back: { name: 'b.mp4', size: 2000 } },
   },
@@ -51,6 +54,9 @@ check(
     m.hand === 'L' &&
     m.heightCm === 182 &&
     m.distanceM === 6.5 &&
+    m.distances.side === 5 &&
+    m.distances.back === 4.5 &&
+    !('front' in m.distances) &&
     m.memo === '직구, 세게' &&
     m.files.side?.name === 'a.mp4' &&
     m.files.back?.size === 2000
@@ -62,6 +68,7 @@ const bad = readLabMeta(
     hand: 'X',
     heightCm: 900,
     distanceM: -1,
+    distances: { side: 0, back: 'x' },
     memo: 'x'.repeat(900),
     files: { side: { name: '', size: 5 }, front: { name: 'c', size: 1 } },
     createdAt: 7,
@@ -74,6 +81,7 @@ check(
     bad.hand === 'R' &&
     bad.heightCm === null &&
     bad.distanceM === null &&
+    Object.keys(bad.distances).length === 0 &&
     (bad.memo?.length ?? 0) === 500 &&
     Object.keys(bad.files).length === 0 &&
     bad.createdAt === NOW
@@ -83,14 +91,47 @@ check('null · 문자열도 받음', readLabMeta(null, NOW).hand === 'R' && read
 check(
   '카드 표시',
   labMetaChips(m).join(' · ') ===
-    '마운드 · 한 대로 나눠 찍음 · 슬로모 240 · 왼손 · 원본 · 키 182cm · 거리 6.5m',
+    '마운드 · 한 대로 나눠 찍음 · 슬로모 240 · 왼손 · 키 182cm · 옆 5m · 뒤 4.5m',
   labMetaChips(m).join(' · ')
 );
 /* 마커 샘플(2026-10-12) — 종류를 읽고 표시 맨 앞에 '마커' */
 check('종류 — 없으면 일반 샘플', readLabMeta({}, NOW).kind === 'sample');
 check('종류 — 마커', readLabMeta({ kind: 'marker' }, NOW).kind === 'marker');
 check('마커 표시가 맨 앞', labMetaChips(readLabMeta({ kind: 'marker' }, NOW))[0] === '마커');
+check(
+  '카드 표시 — 동시 촬영 · 원본은 안 적고, 폰마다 거리가 없으면 옛 한 칸 거리',
+  labMetaChips(readLabMeta({ synced: true, screenRecorded: false, distanceM: 6 }, NOW)).join(' · ') ===
+    '마운드 · 슬로모 모름 · 오른손 · 거리 6m'
+);
 check('표시 글에 줄표 없음', !labMetaChips(d).some((t) => t.includes('—')));
+check(
+  '목록 카드 — 기본값 · 모름 · 키 · 거리는 빼고 다를 때만',
+  labCardChips(m).join(' · ') === '한 대로 나눠 찍음 · 왼손' &&
+    labCardChips(readLabMeta({ synced: true, screenRecorded: false, distanceM: 6 }, NOW)).length === 0,
+  labCardChips(m).join(' · ')
+);
+
+/* 촬영 안내(2026-10-15) — lib/pitch-lab-guide.ts */
+check(
+  '촬영 안내 — 영상 탓 실패마다 고칠 것이 있음',
+  [...V2_VIDEO_FAULT].every((code) => LAB_FAIL_FIX[code]?.fix),
+  [...V2_VIDEO_FAULT].filter((code) => !LAB_FAIL_FIX[code]).join(', ')
+);
+check(
+  '촬영 안내 — 확인 목록 열쇠가 겹치지 않음',
+  new Set(LAB_GUIDE_CHECKS.map((c) => c.id)).size === LAB_GUIDE_CHECKS.length
+);
+const guideTexts = [
+  ...LAB_GUIDE_CHECKS.map((c) => c.title),
+  ...Object.values(LAB_FAIL_FIX).map((f) => f?.fix ?? ''),
+];
+check('촬영 안내 — 글에 줄표 없음', !guideTexts.some((t) => t.includes('—')));
+check(
+  '촬영 안내 — 해요체로 끝남',
+  guideTexts.filter((t) => t.endsWith('.')).every((t) => /요\.$/.test(t)),
+  guideTexts.filter((t) => t.endsWith('.') && !/요\.$/.test(t)).join(' / ')
+);
+check('촬영 안내 주소', labGuideHref() === '/videos/lab/guide' && labGuideHref('frame') === '/videos/lab/guide#frame');
 
 console.log(`\n통과 ${passed} · 실패 ${failed}`);
 if (failed > 0) process.exit(1);

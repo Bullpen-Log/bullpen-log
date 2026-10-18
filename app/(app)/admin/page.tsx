@@ -1,3 +1,6 @@
+import { headers } from 'next/headers';
+import { expoLevel } from '@/lib/app-env';
+import { OpenNative } from '@/app/(session)/velocity/open-native';
 import Link from 'next/link';
 import { ChevronRight, Clapperboard, Gauge, ScrollText } from '@/components/icon';
 import { prisma } from '@/lib/prisma';
@@ -24,6 +27,8 @@ async function countRecentSignups() {
 
 export default async function AdminPage() {
   const admin = await requireAdmin();
+  /* 앱(BullpenNative/8 부터)은 앱 관리자 화면 — native/src/app/admin */
+  if (expoLevel((await headers()).get('user-agent')) >= 8) return <OpenNative path="/admin" cover={false} />;
 
   const [users, recentSignups, totalLogs, totalArticles, totalVideos] =
     await Promise.all([

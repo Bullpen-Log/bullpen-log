@@ -214,7 +214,7 @@ export function SpinAxisGraphic({
 export function SpinAxisNote({ tone = 'dark' }: { tone?: 'dark' | 'light' }) {
   return (
     <p className={`text-xs ${tone === 'dark' ? 'text-white/55' : 'text-muted'}`}>
-      회전축은 구종 기준 전형값이에요 — 카메라는 회전을 재지 않아요
+      회전축은 구종마다 흔한 값이에요. 카메라는 회전을 재지 않아요
     </p>
   );
 }

@@ -5,9 +5,8 @@ import type { ReactNode } from 'react';
 import { getCurrentUser } from '@/lib/dal';
 import { toDateKey } from '@/lib/pitch-stats';
 import { AnalysisView } from '@/app/(app)/today/analysis-view';
+import { readDateParam } from '@/app/(app)/today/history';
 import { isAnalysisTab } from '@/app/(app)/today/analysis-tabs';
-
-const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 /**
  * 홈 분석 칸 — 고른 날·칸의 분석을 서버에서 그려 돌려준다.
@@ -24,7 +23,7 @@ export async function analysisFor(date: string, tab: string): Promise<ReactNode>
     return <Notice>로그인이 풀렸어요. 다시 로그인하면 분석을 볼 수 있어요.</Notice>;
   }
   const today = toDateKey(appNow());
-  if (!DATE_RE.test(date) || date > today || !isAnalysisTab(tab)) {
+  if (readDateParam(date) == null || date > today || !isAnalysisTab(tab)) {
     return <Notice>이 날의 분석은 볼 수 없어요.</Notice>;
   }
   return <AnalysisView user={user} date={date} today={today} tab={tab} />;

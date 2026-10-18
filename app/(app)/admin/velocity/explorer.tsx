@@ -878,7 +878,7 @@ export function VelocityExplorer({
                   href={explorerHref(c)}
                   prefetch={false}
                   aria-current={last ? 'location' : undefined}
-                  className={`inline-flex h-7 items-center gap-1.5 rounded-md px-1.5 transition-colors hover:bg-surface-2 ${
+                  className={`inline-flex h-7 items-center gap-1.5 rounded-lg px-1.5 transition-colors hover:bg-surface-2 ${
                     last ? 'font-semibold text-ink' : 'text-muted'
                   }`}
                 >
@@ -917,7 +917,7 @@ export function VelocityExplorer({
               aria-label="큰 아이콘"
               title="큰 아이콘"
               onClick={() => saveView('icons')}
-              className={`inline-flex h-7 w-8 items-center justify-center rounded-md transition-colors ${
+              className={`inline-flex h-7 w-8 items-center justify-center rounded-lg transition-colors ${
                 view === 'icons' ? 'bg-sky-tint text-sky' : 'text-muted hover:text-ink'
               }`}
             >
@@ -930,7 +930,7 @@ export function VelocityExplorer({
               aria-label="자세히"
               title="자세히"
               onClick={() => saveView('details')}
-              className={`inline-flex h-7 w-8 items-center justify-center rounded-md transition-colors ${
+              className={`inline-flex h-7 w-8 items-center justify-center rounded-lg transition-colors ${
                 view === 'details'
                   ? 'bg-sky-tint text-sky'
                   : 'text-muted hover:text-ink'
@@ -1378,7 +1378,7 @@ function TreeRow({
         prefetch={false}
         aria-current={active ? 'page' : undefined}
         title={label}
-        className={`flex h-7 min-w-0 flex-1 items-center gap-1.5 rounded-md px-1.5 text-sm transition-colors ${
+        className={`flex h-7 min-w-0 flex-1 items-center gap-1.5 rounded-lg px-1.5 text-sm transition-colors ${
           active ? 'bg-sky-tint font-semibold text-sky' : 'text-ink hover:bg-surface-2'
         }`}
       >

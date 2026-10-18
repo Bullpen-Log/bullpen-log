@@ -1,36 +1,7 @@
-import { UserCog } from '@/components/icon';
 import { Speed } from '@/components/speed';
-import { estimateDailyLoad } from '@/lib/baseline';
-import { LOOKBACK_DAYS } from '@/lib/report/gather';
-import {
-  CHRONIC_WINDOW_DAYS,
-  TWO_DAY_INTENSITY_LIMIT,
-  buildDateRange,
-  buildDateRangeOffset,
-  acwrTrend,
-  computeAcwr,
-  pitchLoadByDay,
-  countMissingDays,
-  countSessionTypes,
-  dailyLoad,
-  findFatigueWindows,
-  formatShortDate,
-  groupByDay,
-  longestThrowStreak,
-  MISSING_DAYS_WARNING,
-  summarize,
-  toDateKey,
-} from '@/lib/pitch-stats';
-import {
-  TRAINING_ADVICE,
-  TRAINING_MEANING,
-  type TrainingLoad,
-} from '@/lib/training-load';
-import { ACWR_ZONES } from '@/lib/pitch-stats';
-import { scaleToEffortPct } from '@/lib/pitch-effort';
-import { TrendChart, type TrendPoint } from './trend-chart';
-import { LoadPanel, type LoadView } from './load-panel';
-import { Delta, MetricHelp, StatCard, TONE, type Tone } from './parts';
+import type { AnalysisOverview, StatNote } from '@/lib/report/analysis-overview';
+import { LoadPanel } from './load-panel';
+import { Delta, StatCard, TONE } from './parts';
 import type { CoachView } from './tabs';
 
 /**
@@ -42,8 +13,10 @@ import type { CoachView } from './tabs';
  * 뒷받침으로 내렸다.
  *
  *   지금 조심할 것 — 투구·운동 부하 지수 (걱정스러운 쪽이 크게)
- *   뒷받침 넷      — 이번 주 투구 / 이번 주 운동 / 마지막 투구 / 최고 구속
- *   28일 추이
+ *   뒷받침 셋      — 이번 주 투구 / 마지막 투구 / 최고 구속
+ *
+ * 28일 추이 그래프 · 지표 설명 · 생년월일 안내는 2026-10-14 걷었다(사용자 "너무 조잡해 · 중요한 내용만") — 추이는 옆의
+ * 그래프(투구수 · 최고 구속)가 같은 것을 보인다.
  *
  * 프로필 카드는 뺐다. 이름과 나이는 이 화면을 열 때 알고 싶은 것이 아니다.
  * 구속 카드도 뺐다 — 스피드건이 없는 사용자가 대부분이라 크게 둘 값이 아니다.
@@ -51,250 +24,48 @@ import type { CoachView } from './tabs';
  * 아래에 이어지는 리포트와 같은 자료를 쓰므로 두 부분이 서로 다른 말을 하지 않는다.
  */
 
-/** 직전 기간 대비 변화율(%). 견줄 것이 없으면 null */
-function changeRate(current: number, previous: number) {
-  if (previous <= 0) return null;
-  return ((current - previous) / previous) * 100;
+/** 숫자 칸 밑 한 줄(lib/report/analysis-overview.ts StatNote) */
+function Note({ note }: { note: StatNote }) {
+  const cls =
+    note.tone === 'warn' ? TONE.warn.text : note.tone === 'muted' ? 'text-muted' : 'text-muted/60';
+  return <span className={`text-xs ${cls}`}>{note.text}</span>;
 }
 
-/** 마지막으로 던진 날로부터 며칠 지났는지 */
-function daysSince(dateKey: string, todayKey: string) {
-  const [fy, fm, fd] = dateKey.split('-').map(Number);
-  const [ty, tm, td] = todayKey.split('-').map(Number);
-  return Math.floor((Date.UTC(ty, tm - 1, td) - Date.UTC(fy, fm - 1, fd)) / 86_400_000);
-}
-
-export type OverviewLog = {
-  date: string;
-  sessionType: string;
-  pitchCount: number;
-  intensity: number;
-  /** 체감 강도 5~100%(2판 D2). 옛 기록 · 쉰 날은 null — groupByDay(intensityOf)가 intensity 로 메운다 */
-  effortPct?: number | null;
-  maxVelocity: number | null;
-  avgVelocity: number | null;
-};
-
-export type OverviewUser = {
-  nickname: string;
-  birthDate: Date | null;
-  heightCm: number | null;
-  targetVelocity: number | null;
-  baselineFreq: string | null;
-  baselineVolume: string | null;
-  baselineIntensity: string | null;
-};
-
+/**
+ * 숫자는 lib/report/analysis-overview.ts 가 셈한다 — 아이폰 앱 분석 화면(native/src/app/analysis.tsx)과 같은 값(2026-10-18).
+ * 여기서는 그리기만.
+ */
 export function StatsOverview({
-  logs,
-  training,
-  bestVelocity,
-  user,
-  today,
-  totalRecords,
+  overview,
   view,
 }: {
-  /**
-   * 최근 기록. 화면이 쓰는 만큼만 온다(today/analysis-view.tsx 의 LOOKBACK_DAYS).
-   * 전체 기간이 필요한 개인 최고 구속은 따로 받는다.
-   */
-  logs: OverviewLog[];
-  /** 전체 기간 개인 최고 구속. 한 번도 안 적었으면 null */
-  bestVelocity: { value: number; date: string } | null;
-  /** 운동 부하. 투구와 합치지 않고 나란히 둔다. */
-  training: TrainingLoad;
-  user: OverviewUser;
-  today: Date;
-  /** 기록이 하나라도 있는지 판단할 전체 건수 */
-  totalRecords: number;
+  overview: AnalysisOverview;
   /** 어느 칸을 보고 있는가 */
   view: CoachView;
 }) {
-  const todayKey = toDateKey(today);
-  const byDay = groupByDay(logs);
-
-  const last7 = buildDateRange(7, today);
-  const prev7 = buildDateRangeOffset(7, 7, today);
-  const last28 = buildDateRange(CHRONIC_WINDOW_DAYS, today);
-
-  const current = summarize(byDay, last7);
-  const previous = summarize(byDay, prev7);
-  // 가입 문진 추정치가 있으면 기록 첫날부터 지수가 나온다.
-  const seedDailyLoad = estimateDailyLoad(user);
-  /*
-   * 부하 지수는 다른 화면과 같은 기간에서 낸다.
-   *
-   * 예전에는 이 화면만 기록 전부로 계산했다. 그러면 오래 쓴 사람에게 홈·트레이닝
-   * (45일 기준)과 여기가 미세하게 다른 숫자를 보여준다. 같은 이름의 값이
-   * 화면마다 다르면 어느 쪽을 믿어야 할지 알 수 없다.
-   */
-  const acwrFrom = toDateKey(new Date(today.getTime() - LOOKBACK_DAYS * 86400000));
-  const acwrByDay = groupByDay(
-    logs.filter((l) => toDateKey(new Date(l.date)) >= acwrFrom)
-  );
-  const pitchLoads = pitchLoadByDay(acwrByDay);
-  const acwr = computeAcwr(pitchLoads, today, { seedDailyLoad });
-  /*
-   * 최근 2주 지수 흐름. 지수 하나만 보여주면 그 값이 요일 때문에 오르내린다는
-   * 것을 알 수가 없어서 함께 낸다.
-   */
-  const acwrHistory = acwrTrend(pitchLoads, today, 14, { seedDailyLoad });
-  const fatigue = findFatigueWindows(byDay, last28);
-  /*
-   * 최근 4주에 무엇을 하며 지냈는지.
-   * 같은 800구라도 경기 위주였는지 불펜 위주였는지에 따라 몸에 남는 것이 다르다.
-   */
-  const sessionCounts = countSessionTypes(
-    logs.map((l) => ({
-      date: l.date,
-      sessionType: l.sessionType,
-      pitchCount: l.pitchCount,
-    })),
-    last28
-  );
-  const streak = longestThrowStreak(byDay, last28);
-
-  const lastThrowKey = [...byDay.keys()].sort().at(-1);
-  const restDays = lastThrowKey ? daysSince(lastThrowKey, todayKey) : null;
-
-  // 그래프에서 고를 수 있는 네 가지를 한 번에 만들어 둔다.
-  const chartPoints: TrendPoint[] = last28.map((key, i) => {
-    const window = last28.slice(Math.max(0, i - 6), i + 1);
-    const rollingLoad = window.reduce((sum, k) => {
-      const day = byDay.get(k);
-      return sum + (day ? dailyLoad(day) : 0);
-    }, 0);
-    const day = byDay.get(key);
-    return {
-      label: formatShortDate(key),
-      pitches: day?.pitchCount ?? 0,
-      /* 그날 체감 강도(투구수 가중평균, 1~10 실수)를 % 로 — 입력과 같은 눈금이라야 85% 로 고른 날이 85 로 보인다 */
-      effortPct: day ? scaleToEffortPct(day.intensity) : 0,
-      // 안 던진 날은 null 이어야 선이 끊긴다. 0으로 두면 구속이 떨어진 것처럼 보인다.
-      maxVelocity: day?.maxVelocity ?? null,
-      rollingLoad,
-    };
-  });
-
-  const hasRecords = totalRecords > 0;
-  /*
-   * 최근 28일 중 기록이 아예 없는 날.
-   * 쉰 날을 '휴식'으로 적어 둔 것은 여기 들어가지 않는다 — 그건 진짜 0이다.
-   */
-  const missingDays = countMissingDays(byDay, last28);
-
-  const restTone: Tone =
-    restDays == null
-      ? 'neutral'
-      : restDays === 0
-        ? 'warn'
-        : restDays >= 7
-          ? 'info'
-          : 'good';
-
-  /*
-   * 부하 지수 둘. 합치지 않고 나란히 둔다 —
-   * 투구는 '투구수 × 강도', 운동은 '분 × 강도'라 단위가 다르다.
-   */
-  const pitchingView: LoadView = {
-    name: '투구',
-    what: '지금 던지는 양이 평소보다 얼마나 많은지',
-    ratio: acwr.ratio,
-    zone: acwr.zone,
-    historyDays: acwr.historyDays,
-    daysNeeded: acwr.daysNeeded,
-    estimated: acwr.estimated,
-    realWeight: acwr.realWeight,
-    acute: acwr.acute,
-    chronic: acwr.chronic,
-    advice: acwr.zone ? ACWR_ZONES[acwr.zone].advice : '',
-    trend: acwrHistory,
-    meaning: acwr.zone ? ACWR_ZONES[acwr.zone].meaning : '',
-    hasRecords,
-    emptyHint: hasRecords
-      ? '지수는 최근 부하를 평소 부하와 견주는 값이에요. 비교할 기준이 아직 없어요.'
-      : '투구를 기록하면 이곳에 부하 지수가 표시돼요.',
-  };
-  const trainingView: LoadView = {
-    name: '운동',
-    what: '지금 하는 운동량이 평소보다 얼마나 많은지',
-    ratio: training.ratio,
-    zone: training.zone,
-    historyDays: training.historyDays,
-    daysNeeded: training.daysNeeded,
-    estimated: training.estimated,
-    realWeight: training.realWeight,
-    acute: training.acute,
-    chronic: training.chronic,
-    advice: training.zone ? TRAINING_ADVICE[training.zone] : '',
-    trend: training.trend,
-    meaning: training.zone ? TRAINING_MEANING[training.zone] : '',
-    hasRecords: training.historyDays > 0,
-    /*
-     * 투구와 마찬가지로, 문진에 '평소 웨이트 빈도'를 답하면 첫날부터 나온다.
-     * 안 답한 사람에게는 그 길이 있다는 것을 알려준다.
-     */
-    emptyHint:
-      training.historyDays > 0
-        ? '평소 운동량과 견줄 기준이 아직 없어요. 내 정보에서 평소 웨이트 횟수를 답하면 바로 나와요.'
-        : '트레이닝에서 운동을 마쳤다고 표시하면 여기에 나와요.',
-  };
-
+  const { week, last, best } = overview;
   return (
-    <div className="space-y-6">
+    <div className="stack-block">
       {/* ── 투구 ────────────────────────────────────────────── */}
       {view === 'pitch' && (
         <>
-          <LoadPanel
-            which="pitching"
-            view={pitchingView}
-            missingDays={missingDays}
-            missingWarningAt={MISSING_DAYS_WARNING}
-            throwStreak={streak}
-          />
+          <LoadPanel which="pitching" view={overview.pitching} notices={overview.notices} />
 
-          {/* 셋이라 두 칸으로 두면 남는 칸이 회색 덩이로 보인다 */}
-          <section className="grid gap-px overflow-hidden rounded-2xl border border-line bg-line @md:grid-cols-3">
+          {/* 셋을 늘 한 줄로(휴대폰도 — 세로로 쌓으면 숫자 셋이 화면 한 장을 차지했다, 2026-10-14) */}
+          <section className="grid grid-cols-3 gap-px overflow-hidden rounded-2xl border border-line bg-line">
             <StatCard
               label="이번 주 투구"
-              value={current.totalPitches}
+              value={week.total}
               unit="구"
-              tone={
-                current.totalPitches > previous.totalPitches * 1.3 ? 'warn' : 'neutral'
-              }
-              footer={
-                <Delta
-                  percent={changeRate(current.totalPitches, previous.totalPitches)}
-                  invert
-                />
-              }
+              tone={week.tone}
+              footer={<Delta delta={week.delta} />}
             />
             <StatCard
               label="마지막 투구"
-              value={restDays == null ? '—' : restDays === 0 ? '오늘' : restDays}
-              unit={restDays == null || restDays === 0 ? '' : '일 전'}
-              tone={restTone}
-              footer={
-                /*
-              이틀 연속 높은 강도로 던진 것이 연투 일수보다 먼저다.
-              사흘 가볍게 던진 것보다 이틀 세게 던진 쪽이 팔에 남는다.
-            */
-                fatigue.length > 0 ? (
-                  <span className={`text-xs ${TONE.warn.text}`}>
-                    이틀 연속 과부하 {fatigue.length}회
-                  </span>
-                ) : streak >= 3 ? (
-                  <span className={`text-xs ${TONE.warn.text}`}>
-                    최장 {streak}일 연투
-                  </span>
-                ) : lastThrowKey ? (
-                  <span className="text-xs text-muted">
-                    최근 4주 최장 연투 {streak}일
-                  </span>
-                ) : (
-                  <span className="text-xs text-muted/60">기록 없음</span>
-                )
-              }
+              value={last.restDays == null ? '—' : last.restDays === 0 ? '오늘' : last.restDays}
+              unit={last.restDays == null || last.restDays === 0 ? '' : '일 전'}
+              tone={last.tone}
+              footer={<Note note={last.note} />}
             />
             {/*
           구속은 크게 두지 않는다. 스피드건이 없어 못 적는 사용자가 대부분이라,
@@ -308,73 +79,12 @@ export function StatsOverview({
                * 값이라 서버가 그리는 이 화면은 알 수 없어서, 그 한 조각만
                * 화면 쪽 부품(Speed)에 맡긴다.
                */
-              value={bestVelocity ? <Speed kmh={bestVelocity.value} /> : '—'}
+              value={best ? <Speed kmh={best.value} /> : '—'}
               unit=""
-              footer={
-                bestVelocity ? (
-                  /* 목표 구속은 2026-10-10 부터 사용자가 적지 않는다 — 나중에 앱이 계산해 보여 준다 */
-                  <span className="text-xs text-muted">
-                    {`${formatShortDate(bestVelocity.date)} 기록`}
-                  </span>
-                ) : (
-                  <span className="text-xs text-muted/60">
-                    스피드건이 없으면 비워두세요
-                  </span>
-                )
-              }
+              footer={<Note note={best ? best.note : overview.bestEmpty} />}
             />
           </section>
 
-          {/* 지표가 어떻게 나오는 숫자인지 — 안 적어두면 그냥 믿거나 그냥 무시한다 */}
-          <MetricHelp
-            twoDayLimit={TWO_DAY_INTENSITY_LIMIT}
-            show={['이번 주 투구', '마지막 투구', '개인 최고 구속']}
-          />
-
-          {/* ── 최근 28일 추이 ──────────────────────────────────── */}
-          <div className="min-w-0 rounded-2xl border border-line bg-surface p-(--block-pad)">
-            <div className="mb-5 min-w-0">
-              <h2 className="text-base font-bold text-ink">최근 28일 추이</h2>
-              {/*
-            무엇을 하며 지냈는지 한 줄로 먼저 보여준다. 그래프는 얼마나
-            던졌는지는 알려주지만 무엇을 했는지는 알려주지 않는다.
-          */}
-              {sessionCounts.length > 0 ? (
-                <p className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-muted">
-                  {sessionCounts.map((t, i) => (
-                    <span key={t.name} className="whitespace-nowrap">
-                      {i > 0 && <span className="mr-1.5 text-line-strong">·</span>}
-                      <span className="text-ink">{t.name}</span>{' '}
-                      {t.pitches > 0 ? `${t.count}회 (${t.pitches}구)` : `${t.count}일`}
-                    </span>
-                  ))}
-                </p>
-              ) : (
-                <p className="mt-1 text-xs leading-relaxed text-muted">
-                  보고 싶은 항목을 골라보세요.
-                </p>
-              )}
-            </div>
-            <TrendChart points={chartPoints} />
-          </div>
-
-          {/* ── 생년월일 안내 ───────────────────────────────────── */}
-          {!user.birthDate && (
-            /*
-              예전에는 눌러서 내 정보 화면으로 가는 링크였다. 그 화면이 창으로
-              바뀌면서 갈 곳이 없어졌으므로, 어디서 고치는지만 알려준다.
-            */
-            <div className="flex items-center gap-4 rounded-2xl border border-sky-soft/60 bg-sky/5 p-(--block-pad)">
-              <UserCog className="h-5 w-5 shrink-0 text-sky" />
-              <span className="min-w-0 flex-1 text-sm leading-relaxed text-ink/90">
-                생년월일이 아직 등록되지 않았어요. 나이에 맞는 안전한 투구수를
-                계산하려면 필요해요.
-              </span>
-              <span className="shrink-0 text-xs font-medium tracking-normal break-keep text-sky">
-                위쪽 내 사진에서 입력
-              </span>
-            </div>
-          )}
         </>
       )}
 
@@ -386,7 +96,7 @@ export function StatsOverview({
         둘 다 최근 4주 카드와 부위 추이 표에 그대로 들어가 있어서, 남겨 두면
         같은 숫자를 두 번 보여주게 된다.
       */}
-      {view === 'training' && <LoadPanel which="training" view={trainingView} />}
+      {view === 'training' && <LoadPanel which="training" view={overview.training} />}
     </div>
   );
 }

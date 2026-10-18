@@ -1,8 +1,8 @@
 'use client';
 
 import { useState, useTransition } from 'react';
-import { AlertCircle, Play } from '@/components/icon';
-import { Card } from '@/components/ui';
+import { AlertCircle, ChevronDown, Play } from '@/components/icon';
+import { Card, Button } from '@/components/ui';
 import { Modal, useModalState } from '@/components/modal';
 import { ConfirmDialog } from '@/components/confirm-delete';
 import { DisclosureButton } from '@/components/disclosure';
@@ -11,7 +11,6 @@ import { SafeForm } from '@/components/safe-form';
 import { OpenCheckinButton } from '@/components/notice-bell';
 import { OFFLINE_MESSAGE, orOffline } from '@/lib/action-offline';
 import { withJosa } from '@/lib/korean';
-import { LastOutingAsk } from './last-outing-ask';
 import {
   overrideProgramRest,
   programChoices,
@@ -57,7 +56,7 @@ export function ProgramCard({ props }: { props: ProgramCardProps }) {
 
   const going = p.kind === 'go';
   const finishedToday = p.todayState === 'finished';
-  const resting = p.kind === 'rest' || p.kind === 'spacing' || p.kind === 'painWait';
+  const resting = p.kind === 'rest' || p.kind === 'painWait';
   const preview = !going || finishedToday;
 
   const title = finishedToday
@@ -75,21 +74,19 @@ export function ProgramCard({ props }: { props: ProgramCardProps }) {
   const sub =
     p.kind === 'rest'
       ? p.restText
-      : p.kind === 'spacing'
-        ? '어제 프로그램을 했어요. 하루 쉬고 이어 가요.'
-        : p.kind === 'painWait'
-          ? `통증 기록이 있어 ${withJosa(p.dayLabel, '은/는')} 기다려요.`
-          : p.kind === 'otherMode'
-            ? `${withJosa(p.dayLabel, '은/는')} 다음에 해요.`
-            : p.kind === 'needCheckin'
-              ? '체크인을 남기면 오늘 몸 상태에 맞춰 정해요.'
-              : null;
+      : p.kind === 'painWait'
+        ? `통증 기록이 있어 ${withJosa(p.dayLabel, '은/는')} 기다려요.`
+        : p.kind === 'otherMode'
+          ? `${withJosa(p.dayLabel, '은/는')} 다음에 해요.`
+          : p.kind === 'needCheckin'
+            ? '체크인을 남기면 오늘 몸 상태에 맞춰 정해요.'
+            : null;
 
   return (
     <Card className="space-y-3">
       <div className="space-y-1">
         <p className="text-xs font-semibold text-muted">
-          {p.basics ? '기본기 프로그램' : p.inSeason ? '시즌 중 프로그램' : '근력 · 파워 프로그램'}
+          {p.basics ? '기본기 프로그램' : '근력 · 파워 프로그램'}
         </p>
         <p className="text-heading text-xl text-ink">{title}</p>
         {sub && <p className="text-sm text-muted">{sub}</p>}
@@ -101,8 +98,6 @@ export function ProgramCard({ props }: { props: ProgramCardProps }) {
           )}
       </div>
 
-      {p.askLastOuting && !finishedToday && <LastOutingAsk today={p.askLastOuting} />}
-
       {going && !finishedToday && p.caution && (
         <p className="flex items-start gap-1.5 text-sm text-ink">
           <AlertCircle aria-hidden className="mt-0.5 h-4 w-4 shrink-0 text-warn" />
@@ -110,20 +105,25 @@ export function ProgramCard({ props }: { props: ProgramCardProps }) {
         </p>
       )}
 
-      {going && !finishedToday && (
+      {/* 하는 날인데 할 운동이 다 빠지면 단추 대신 한 줄 — 서버(startProgramWorkout)가 어차피 트레이닝으로 돌려보낸다(2026-10-16 검토 9) */}
+      {going && !finishedToday && !p.canStart && (
+        <p className="text-sm text-muted">오늘은 할 수 있는 운동이 없어요. 뺀 까닭은 아래에 있어요.</p>
+      )}
+      {going && !finishedToday && p.canStart && (
         <SafeForm action={startProgramWorkout}>
-          <button
+          <Button
             type="submit"
-            className="flex w-full items-center justify-center gap-2 rounded-2xl bg-sky py-4 text-base font-bold text-white transition-transform motion-safe:active:scale-[0.98]"
+            size="lg"
+            className="w-full pad:w-auto pad:px-8"
           >
             <Play aria-hidden className="h-5 w-5" />
             {p.todayState === 'active' ? '운동 이어서 하기' : '운동 시작'}
-          </button>
+          </Button>
         </SafeForm>
       )}
 
       {p.kind === 'needCheckin' && (
-        <OpenCheckinButton className="min-h-11 w-full rounded-2xl bg-sky py-3 text-base font-bold text-white">
+        <OpenCheckinButton className="min-h-11 w-full rounded-2xl bg-sky py-3 text-base font-bold text-white pad:w-auto pad:px-8">
           체크인 하기
         </OpenCheckinButton>
       )}
@@ -138,7 +138,7 @@ export function ProgramCard({ props }: { props: ProgramCardProps }) {
                 className="flex min-h-12 w-full items-center gap-3 py-2 text-left"
               >
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-[15px] text-ink">
+                  <span className="block truncate text-subhead text-ink">
                     {r.optional && (
                       <span className="mr-1.5 rounded-full bg-ink/6 px-1.5 py-0.5 text-xs font-semibold text-muted">
                         선택
@@ -150,7 +150,7 @@ export function ProgramCard({ props }: { props: ProgramCardProps }) {
                     <span className="block text-xs text-muted">{r.contrast}</span>
                   )}
                   {r.tag && (
-                    <span className="mt-0.5 inline-block rounded-md bg-ink/6 px-1.5 text-[11px] text-muted">
+                    <span className="mt-0.5 inline-block rounded-lg bg-ink/6 px-1.5 text-caption text-muted">
                       {r.tag}
                     </span>
                   )}
@@ -160,7 +160,7 @@ export function ProgramCard({ props }: { props: ProgramCardProps }) {
                     <span className="text-numeric text-base font-bold text-sky-strong">
                       {kgText(r.kg)}kg
                       {r.perHand && (
-                        <span className="ml-1 text-[11px] font-medium text-muted">
+                        <span className="ml-1 text-caption font-medium text-muted">
                           한 손
                         </span>
                       )}
@@ -223,23 +223,7 @@ export function ProgramCard({ props }: { props: ProgramCardProps }) {
             onClick={() => setAhead((v) => !v)}
             label={`앞으로 할 세션 · ${p.upcoming.length}회`}
           />
-          {ahead && (
-            <ol className="space-y-3 px-(--block-pad) pb-3">
-              {p.upcoming.map((u) => (
-                <li key={u.day}>
-                  <p className="text-sm font-semibold text-ink">{u.label}</p>
-                  <ul className="mt-1 space-y-0.5">
-                    {u.items.map((it, i) => (
-                      <li key={i} className="flex gap-2 text-sm">
-                        <span className="min-w-0 flex-1 truncate text-ink">{it.title}</span>
-                        <span className="shrink-0 text-xs text-muted">{it.line}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </li>
-              ))}
-            </ol>
-          )}
+          {ahead && <UpcomingSessions sessions={p.upcoming} />}
         </div>
       )}
 
@@ -254,7 +238,8 @@ export function ProgramCard({ props }: { props: ProgramCardProps }) {
             <p className="text-sm text-muted">
               {p.name} · {p.subtitle}
             </p>
-            {going && !finishedToday && (
+            {/* 운동 중인 날은 숨긴다 — 서버(skipProgramDay)도 거절한다(2026-10-16 점검 A4) */}
+            {going && !finishedToday && p.todayState !== 'active' && (
               <MoreRow onClick={() => setConfirm('skip')}>이 날 건너뛰기</MoreRow>
             )}
             <MoreRow onClick={() => setRepin(true)}>고정 운동 바꾸기</MoreRow>
@@ -419,7 +404,7 @@ function RepinSheet({
               >
                 <span className="min-w-0">
                   <span className="block text-xs text-muted">{x.label}</span>
-                  <span className="block truncate text-[15px] text-ink">
+                  <span className="block truncate text-subhead text-ink">
                     {x.title ?? '고를 수 있는 운동이 없어요'}
                   </span>
                 </span>
@@ -444,7 +429,7 @@ function RepinSheet({
                 onClick={() => choose(c.id)}
                 className="flex min-h-12 w-full items-center justify-between gap-3 text-left disabled:opacity-50"
               >
-                <span className="truncate text-[15px] text-ink">{c.title}</span>
+                <span className="truncate text-subhead text-ink">{c.title}</span>
                 {current?.title === c.title && (
                   <span className="text-xs text-muted">지금</span>
                 )}
@@ -455,5 +440,86 @@ function RepinSheet({
       )}
       {error && <ErrorLine>{error}</ErrorLine>}
     </Modal>
+  );
+}
+
+/**
+ * 앞으로 할 세션 — 세션마다 한 줄(이름 + 운동 몇 개 요약)을 눌러 펴면 운동마다 썸네일 · 이름 · 칸 · 양. 처방 한 줄은 운동을 누르면
+ * 보인다(2026-10-15 김민: "남은 세션이 글자로 쫙 써져 무슨 운동인지 알 수가 없다"). 바로 다음 세션만 펴서 시작한다.
+ */
+function UpcomingSessions({ sessions }: { sessions: ProgramCardProps['upcoming'] }) {
+  const [open, setOpen] = useState<number | null>(sessions[0]?.day ?? null);
+  const [line, setLine] = useState<string | null>(null);
+  return (
+    <ol className="divide-y divide-line border-t border-line">
+      {sessions.map((u) => {
+        const shown = open === u.day;
+        const names = u.items.map((it) => it.title);
+        return (
+          <li key={u.day}>
+            <button
+              type="button"
+              aria-expanded={shown}
+              onClick={() => setOpen(shown ? null : u.day)}
+              className="flex min-h-12 w-full items-center gap-3 px-(--block-pad) py-2 text-left"
+            >
+              <span className="min-w-0 flex-1">
+                <span className="block text-subhead font-semibold text-ink">{u.label}</span>
+                {!shown && (
+                  <span className="block truncate text-xs text-muted">
+                    {names.slice(0, 3).join(' · ')}
+                    {names.length > 3 ? ` 외 ${names.length - 3}` : ''}
+                  </span>
+                )}
+              </span>
+              <span className="shrink-0 text-xs text-muted">{u.items.length}개</span>
+              <ChevronDown
+                aria-hidden
+                className={`h-4 w-4 shrink-0 text-muted transition-transform motion-safe:duration-200 ${shown ? 'rotate-180' : ''}`}
+              />
+            </button>
+            {shown && (
+              <ul className="space-y-1 px-(--block-pad) pb-3 motion-safe:animate-fade-in">
+                {u.items.map((it, i) => {
+                  const key = `${u.day}-${i}`;
+                  return (
+                    <li key={key}>
+                      <button
+                        type="button"
+                        aria-expanded={line === key}
+                        onClick={() => setLine(line === key ? null : key)}
+                        className="flex min-h-14 w-full items-center gap-3 rounded-xl py-1 text-left"
+                      >
+                        {it.thumbUrl ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={it.thumbUrl}
+                            alt=""
+                            loading="lazy"
+                            className="h-12 w-16 shrink-0 rounded-xl object-cover ring-1 ring-line"
+                          />
+                        ) : (
+                          <span aria-hidden className="h-12 w-16 shrink-0 rounded-xl bg-ink/6" />
+                        )}
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-subhead text-ink">{it.title}</span>
+                          {it.title !== it.slotLabel && (
+                            <span className="block truncate text-caption text-muted">{it.slotLabel}</span>
+                          )}
+                        </span>
+                        <span className="shrink-0 text-numeric text-sm font-semibold text-ink">{it.amount}</span>
+                      </button>
+                      {line === key && (
+                        <p className="pb-1 pl-19 text-xs text-muted motion-safe:animate-fade-in">{it.line}</p>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </li>
+        );
+      })}
+    </ol>
   );
 }

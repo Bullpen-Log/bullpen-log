@@ -2,9 +2,10 @@
 
 import { redirect } from 'next/navigation';
 import bcrypt from 'bcryptjs';
+import { BLOCKED_TEXT, blockedMinutes, clearFails, noteFail } from '@/lib/rate-limit';
 import { prisma } from '@/lib/prisma';
 import { getCurrentUser } from '@/lib/dal';
-import { deleteUserFiles, deleteVideos } from '@/lib/storage';
+import { deleteUserCompletely } from '@/lib/delete-user';
 import {
   createSession,
   deleteSession,
@@ -12,6 +13,7 @@ import {
   passwordFingerprint,
 } from '@/lib/session';
 import {
+  MAX_NICKNAME,
   MAX_WEIGHT_KG,
   MIN_WEIGHT_KG,
   checkOptionalNumber,
@@ -31,9 +33,6 @@ export type AuthState =
   { error?: string; field?: string; values?: FormValues } | undefined;
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-/** 이름 길이의 위 한계 — 가입 화면의 maxLength(app/login/auth-form.tsx)와 같은 선. 손으로 만든 요청이 아무 길이나 넣지 못하게 */
-const MAX_NICKNAME = 20;
 
 /**
  * 가입 첫 화면에서 이메일을 미리 본다 — 형식이 맞는지, 이미 가입된 것은 아닌지.
@@ -223,8 +222,11 @@ async function tryLogin(formData: FormData): Promise<AuthState> {
   const password = String(formData.get('password') ?? '');
 
   if (!email || !password) {
-    return { error: '이메일과 비밀번호를 입력해주세요.' };
+    return { error: '이메일과 비밀번호를 입력해 주세요.' };
   }
+
+  const blocked = await blockedMinutes(email);
+  if (blocked) return { error: BLOCKED_TEXT(blocked) };
 
   const user = await prisma.user.findUnique({
     where: { email },
@@ -233,8 +235,10 @@ async function tryLogin(formData: FormData): Promise<AuthState> {
 
   // 이메일이 없는 경우와 비밀번호가 틀린 경우를 구분하지 않는다.
   if (!user || !(await bcrypt.compare(password, user.password))) {
+    await noteFail(email);
     return { error: '이메일 또는 비밀번호가 올바르지 않아요.' };
   }
+  await clearFails(email);
 
   /*
    * '자동 로그인'을 켜고 왔는가.
@@ -288,7 +292,7 @@ export async function changePassword(
   const confirm = String(formData.get('newPasswordConfirm') ?? '');
 
   if (!current || !next) {
-    return { error: '지금 비밀번호와 새 비밀번호를 모두 입력해주세요.' };
+    return { error: '지금 비밀번호와 새 비밀번호를 모두 입력해 주세요.' };
   }
   if (next.length < MIN_PASSWORD) {
     return { error: `새 비밀번호는 ${MIN_PASSWORD}자 이상이어야 해요.` };
@@ -304,7 +308,10 @@ export async function changePassword(
     where: { id: user.id },
     select: { password: true },
   });
+  const blocked = await blockedMinutes(user.id);
+  if (blocked) return { error: BLOCKED_TEXT(blocked) };
   if (!row || !(await bcrypt.compare(current, row.password))) {
+    await noteFail(user.id);
     return { error: '지금 비밀번호가 맞지 않아요.' };
   }
 
@@ -351,31 +358,22 @@ export async function deleteAccount(
     return { error: '확인란에 탈퇴 두 글자를 그대로 적어주세요.' };
   }
   if (!password) {
-    return { error: '비밀번호를 입력해주세요.' };
+    return { error: '비밀번호를 입력해 주세요.' };
   }
 
   const row = await prisma.user.findUnique({
     where: { id: user.id },
     select: { password: true },
   });
+  const blocked = await blockedMinutes(user.id);
+  if (blocked) return { error: BLOCKED_TEXT(blocked) };
   if (!row || !(await bcrypt.compare(password, row.password))) {
+    await noteFail(user.id);
     return { error: '비밀번호가 맞지 않아요.' };
   }
 
-  /*
-   * 올려둔 영상을 먼저 챙겨 지운다. 회원을 지우면 기록이 함께 사라져(Cascade)
-   * 경로를 알 길이 없어지고, 파일만 저장소에 남는다.
-   */
-  const logs = await prisma.pitchLog.findMany({
-    where: { userId: user.id },
-    select: { videoPaths: true },
-  });
-  const paths = logs.flatMap((l) => l.videoPaths);
-  if (paths.length > 0) await deleteVideos(paths);
-  /* 그 밖의 파일(프로필 사진 · 구속 측정 클립 · 저장하지 않은 올린 파일)까지 — 폴더를 통째로 */
-  await deleteUserFiles(user.id);
-
-  await prisma.user.delete({ where: { id: user.id } });
+  /* 파일 · 기록을 통째로(관리자의 회원 지우기와 같은 길 — lib/delete-user.ts) */
+  await deleteUserCompletely(user.id);
   await deleteSession();
   redirect('/login');
 }

@@ -1,6 +1,8 @@
-import type { AgeBand } from '@/lib/nutrition/age';
-import type { GoalKey, Macros, MealKey } from '@/lib/nutrition/meta';
-import type { ThrowGuideKind } from '@/lib/nutrition/guide';
+import { AGE_RULES, type AgeBand } from '@/lib/nutrition/age';
+import type { GoalKey, MacroKey, Macros, MealKey } from '@/lib/nutrition/meta';
+import { recoveryExamples, type ThrowGuideKind } from '@/lib/nutrition/guide';
+import type { AvoidKey } from '@/lib/nutrition/diet-prefs';
+import { exampleWords } from '@/lib/nutrition/meal-protein';
 
 /**
  * 오늘의 영양 조언 — 홈 카드와 영양 탭 맨 위가 같이 쓰는 순수 계산(DB · 화면 없음).
@@ -69,6 +71,13 @@ export type AdviceInput = {
   weight: { status: string; suggestion: { step: number } | null } | null;
   /** 지금 시각(한국, 0~23시) — 저녁에 "아침을 챙기세요"라고 하지 않게 */
   hour: number;
+  /** 못 먹는 것(식단 취향) — 예시 음식에서 뺀다(meal-protein.ts exampleWords). 없으면 빈 배열 */
+  avoid?: readonly AvoidKey[];
+  /**
+   * 적은 음식 가운데 값을 모르는 영양소(식약처 '수집' · 바코드 제품의 빈칸 — eaten 에는 0 으로 들어갔다). 2026-10-16 점검:
+   * 탭은 '모름'으로 보이는데 조언은 '탄수화물 N g 더' · 점수 깎기를 했다. 이 영양소는 더 먹을 양 · 점수에서 뺀다.
+   */
+  eatenUnknown?: readonly MacroKey[];
 };
 
 /* ─────────────────────────── 출력 ─────────────────────────── */
@@ -120,7 +129,6 @@ export const CARB_PER_KG: Record<'rest' | 'train' | 'throw', MacroRange> = {
   train: { lo: 5, hi: 7 },
   throw: { lo: 5, hi: 7 },
 };
-export const PROTEIN_PER_KG: MacroRange = { lo: 1.6, hi: 2.2 };
 export const FAT_PER_KG: MacroRange = { lo: 0.8, hi: 1.2 };
 /** 범위가 목표를 이만큼 넘게 비켜 있으면 목표 쪽으로 당긴다 */
 export const RANGE_SLACK = 0.1;
@@ -211,11 +219,13 @@ function ranges(input: AdviceInput): Advice['range'] {
   let r: Advice['range'];
   if (kg != null && kg > 0) {
     const c = CARB_PER_KG[active];
+    const choices = AGE_RULES[input.body.ageBand].proteinChoices;
     r = {
       carbs: { lo: round10(c.lo * kg), hi: round10(c.hi * kg) },
+      /* 나이 칸의 범위로 — 성장기에게 성인 1.6~2.2 를 보였다(2026-10-18 점검: 성장기 끝은 1.8) */
       protein: {
-        lo: round5(PROTEIN_PER_KG.lo * kg),
-        hi: round5(PROTEIN_PER_KG.hi * kg),
+        lo: round5(choices[0] * kg),
+        hi: round5(choices[choices.length - 1] * kg),
       },
       fat: { lo: round5(FAT_PER_KG.lo * kg), hi: round5(FAT_PER_KG.hi * kg) },
     };
@@ -251,11 +261,16 @@ export function estimatedEatenShare(
 function moreToEat(input: AdviceInput): MoreToEat | null {
   const t = input.target;
   if (input.eaten) {
-    /* 기록에서 뺀 값은 음수도 그대로 — 목표를 넘겼으면 그만큼(화면은 0 밑을 '충분'으로 보인다) */
+    /*
+     * 기록에서 뺀 값은 음수도 그대로 — 목표를 넘겼으면 그만큼(화면은 0 밑을 '충분'으로 보인다).
+     * 값을 모르는 영양소는 0(더 먹으라고 안 한다) — 실제로는 더 먹었을 수 있다.
+     */
+    const left = (k: MacroKey, unit: number) =>
+      input.eatenUnknown?.includes(k) ? 0 : roundTo(t[k] - input.eaten![k], unit);
     return {
-      carbs: roundTo(t.carbs - input.eaten.carbs, 10),
-      protein: roundTo(t.protein - input.eaten.protein, 5),
-      fat: roundTo(t.fat - input.eaten.fat, 5),
+      carbs: left('carbs', 10),
+      protein: left('protein', 5),
+      fat: left('fat', 5),
       basis: 'logged',
     };
   }
@@ -296,6 +311,10 @@ type Situation = {
   skipped: MealKey[];
   appetite: number | null;
   sleepShort: boolean;
+  /** 예시 음식 — 못 먹는 것을 피한 말 */
+  w: ReturnType<typeof exampleWords>;
+  /** 회복식 보기 하나 — 적은 g 을 채우는 조합(guide.ts recoveryExamples, 영양 탭 가이드와 같은 목록) */
+  recovery: string;
 };
 
 export type HeadlineRule = {
@@ -306,8 +325,30 @@ export type HeadlineRule = {
   say: (s: Situation) => { headline: string; why: string };
 };
 
-const AFTER_SNACK = '우유 2컵 + 바나나';
-const LATE_PROTEIN = '자기 전 우유 · 요거트';
+/**
+ * 웨이트 · 파워 운동 뒤 단백질 한 줄 — 홈 조언('strength' 규칙)과 운동 끝 축하 화면(lib/nutrition/nudge.ts)이 같이 쓴다.
+ * 두 곳의 글이 어긋나지 않게 한 곳에 둔다.
+ */
+export function afterWorkoutProtein(
+  after: MacroRange,
+  late: boolean,
+  power: boolean,
+  avoid: readonly AvoidKey[] = []
+) {
+  const w = exampleWords(avoid);
+  return late
+    ? {
+        headline: `${w.late}로 단백질 ${fmtRange(after)}`,
+        why: power
+          ? '파워 운동 뒤 단백질이 근육을 지켜요. 늦었으면 자기 전에.'
+          : '웨이트 뒤 단백질이 근육을 키워요. 늦었으면 자기 전에.',
+      }
+    : {
+        /* 보기는 적은 g 을 채워야 한다 — 달걀 2개 + 우유 1컵은 19g 이었다(2026-10-18 점검). 2컵이면 25g · 두부 반 모 + 두유 2팩 25g */
+        headline: `운동 뒤 1시간 안에 단백질 ${fmtRange(after)} · ${w.solid} + ${w.milk} 2컵`,
+        why: power ? '파워 운동 뒤 단백질이 근육을 지켜요.' : '웨이트 뒤 단백질이 근육을 키워요.',
+      };
+}
 
 /**
  * 할 일 상황표 — 위가 이긴다. 던진 뒤 회복식 → 던지는 날(오전 던지기 전 · 오후 던진 뒤) → 등판 전날 → 운동 뒤 단백질(파워 ·
@@ -324,11 +365,11 @@ export const HEADLINE_RULES: readonly HeadlineRule[] = [
     say: (s) =>
       s.late
         ? {
-            headline: `던진 뒤라 ${LATE_PROTEIN}로 단백질 ${fmtRange(s.after)}`,
+            headline: `던진 뒤라 ${s.w.late}로 단백질 ${fmtRange(s.after)}`,
             why: '던진 날 밤의 단백질이 팔 회복을 돕고 잠도 깊게 해요.',
           }
         : {
-            headline: `던진 뒤 1시간 안에 단백질 ${fmtRange(s.after)} · ${AFTER_SNACK}`,
+            headline: `던진 뒤 1시간 안에 단백질 ${fmtRange(s.after)} · ${s.recovery}`,
             why: '던진 뒤 바로 단백질과 탄수화물을 같이 먹으면 팔이 빨리 회복돼요.',
           },
   },
@@ -338,7 +379,7 @@ export const HEADLINE_RULES: readonly HeadlineRule[] = [
     say: (s) =>
       s.late
         ? {
-            headline: `던졌으면 ${LATE_PROTEIN}로 단백질 ${fmtRange(s.after)}`,
+            headline: `던졌으면 ${s.w.late}로 단백질 ${fmtRange(s.after)}`,
             why: '늦게 던진 날은 자기 전 단백질이 회복식이에요.',
           }
         : s.input.hour < 12
@@ -346,9 +387,13 @@ export const HEADLINE_RULES: readonly HeadlineRule[] = [
               headline: '던지기 3시간 전 밥 한 공기 · 담백한 반찬으로',
               why: '던지기 전에는 소화가 빠른 탄수화물이 힘이 돼요.',
             }
-          : {
-              headline: `던진 뒤 1시간 안에 단백질 ${fmtRange(s.after)} · ${AFTER_SNACK}`,
-              why: '던진 뒤 바로 단백질과 탄수화물을 같이 먹으면 팔이 빨리 회복돼요.',
+          : /*
+             * 오후인데 아직 투구 기록이 없다 — 던지기 전일 수 있다. 영양 탭 가이드('3~4시간 전에 든든히')와 반대로 '던진 뒤'를 말했다
+             * (2026-10-18 점검). 던진 뒤 기록을 남기면 'after-throw' 줄로 바뀐다.
+             */
+            {
+              headline: `던지기 전이면 1시간 전엔 ${s.w.light} 한 가지`,
+              why: '던지기 직전에는 소화가 빠른 것이 힘이 돼요. 던진 뒤 투구 기록을 남기면 회복식을 알려 드려요.',
             },
   },
   {
@@ -357,11 +402,11 @@ export const HEADLINE_RULES: readonly HeadlineRule[] = [
     say: (s) =>
       s.late
         ? {
-            headline: '자기 전 바나나 한 개 + 우유 한 컵',
+            headline: `자기 전 바나나 한 개 + ${s.w.milk} 한 컵`,
             why: '내일 등판이라 오늘 밤 탄수화물이 내일 힘이 돼요.',
           }
         : {
-            headline: '저녁에 밥 · 면 · 고구마 한 가지 더',
+            headline: `저녁에 ${s.w.carbs} 한 가지 더`,
             why: '내일 등판이라 오늘 저녁 탄수화물이 내일 힘이 돼요.',
           },
   },
@@ -369,22 +414,13 @@ export const HEADLINE_RULES: readonly HeadlineRule[] = [
     key: 'strength',
     when: (s) =>
       s.input.training.some((t) => t.kind === 'strength' || t.kind === 'power'),
-    say: (s) => {
-      const power = s.input.training.some((t) => t.kind === 'power');
-      return s.late
-        ? {
-            headline: `${LATE_PROTEIN}로 단백질 ${fmtRange(s.after)}`,
-            why: power
-              ? '파워 운동 뒤 단백질이 근육을 지켜요. 늦었으면 자기 전에.'
-              : '웨이트 뒤 단백질이 근육을 키워요. 늦었으면 자기 전에.',
-          }
-        : {
-            headline: `운동 뒤 1시간 안에 단백질 ${fmtRange(s.after)} · 달걀 2개 + 우유`,
-            why: power
-              ? '파워 운동 뒤 단백질이 근육을 지켜요.'
-              : '웨이트 뒤 단백질이 근육을 키워요.',
-          };
-    },
+    say: (s) =>
+      afterWorkoutProtein(
+        s.after,
+        s.late,
+        s.input.training.some((t) => t.kind === 'power'),
+        s.input.avoid
+      ),
   },
   {
     key: 'aerobic',
@@ -392,7 +428,7 @@ export const HEADLINE_RULES: readonly HeadlineRule[] = [
     say: (s) =>
       s.late
         ? {
-            headline: '자기 전 바나나 한 개 + 우유 한 컵',
+            headline: `자기 전 바나나 한 개 + ${s.w.milk} 한 컵`,
             why: '유산소를 오래 하면 탄수화물이 먼저 비어요.',
           }
         : {
@@ -403,16 +439,16 @@ export const HEADLINE_RULES: readonly HeadlineRule[] = [
   {
     key: 'skipped-breakfast',
     when: (s) => s.skipped.includes('breakfast') && s.input.hour < 11,
-    say: () => ({
-      headline: '지금 우유 한 컵 + 바나나 · 점심을 든든히',
+    say: (s) => ({
+      headline: `지금 ${s.w.milk} 한 컵 + 바나나 · 점심을 든든히`,
       why: '아침을 걸렀으면 점심 전에 조금이라도 채우는 게 좋아요.',
     }),
   },
   {
     key: 'skipped-lunch',
     when: (s) => s.skipped.includes('lunch') && s.input.hour >= 13 && s.input.hour < 17,
-    say: () => ({
-      headline: '지금 삼각김밥 + 우유 · 저녁을 든든히',
+    say: (s) => ({
+      headline: `지금 ${s.w.grab} + ${s.w.milk} · 저녁을 든든히`,
       why: '점심을 걸렀으면 저녁 전에 조금이라도 채우는 게 좋아요.',
     }),
   },
@@ -422,11 +458,11 @@ export const HEADLINE_RULES: readonly HeadlineRule[] = [
     say: (s) =>
       s.late
         ? {
-            headline: '자기 전 우유 · 요거트처럼 잘 넘어가는 것 한 가지',
+            headline: `${s.w.late}처럼 잘 넘어가는 것 한 가지`,
             why: '입맛이 없는 날은 한 번에 많이보다 조금씩 자주가 나아요.',
           }
         : {
-            headline: '조금씩 자주 · 우유 · 바나나 · 요거트처럼 잘 넘어가는 것',
+            headline: `조금씩 자주 · ${s.w.soft}처럼 잘 넘어가는 것`,
             why: '입맛이 없는 날은 한 번에 많이보다 조금씩 자주가 나아요.',
           },
   },
@@ -437,7 +473,7 @@ export const HEADLINE_RULES: readonly HeadlineRule[] = [
     say: (s) =>
       s.late
         ? {
-            headline: `${LATE_PROTEIN}로 단백질 한 번 더 · 카페인은 그만`,
+            headline: `${s.w.late}로 단백질 한 번 더 · 카페인은 그만`,
             why: '잠이 짧은 날은 몸이 다 못 쉬어요. 자기 전 단백질이 돕고, 늦은 카페인은 오늘 밤도 짧게 해요.',
           }
         : {
@@ -456,11 +492,11 @@ export const HEADLINE_RULES: readonly HeadlineRule[] = [
           : '체크인의 끼니 양으로 어림한 양이에요.';
       return s.late
         ? {
-            headline: `${LATE_PROTEIN}로 단백질 ${Math.min(30, g)}g`,
+            headline: `${s.w.late}로 단백질 ${Math.min(30, g)}g`,
             why: basis,
           }
         : {
-            headline: `오늘 단백질 ${g}g 더 · 닭가슴살 한 조각 또는 달걀 2개`,
+            headline: `오늘 단백질 ${g}g 더 · ${s.w.proteinOr}`,
             why: basis,
           };
     },
@@ -474,7 +510,7 @@ export const HEADLINE_RULES: readonly HeadlineRule[] = [
           ? '적은 것으로 보면 탄수화물이 아직 모자라요.'
           : '체크인의 끼니 양으로 어림한 양이에요.';
       return s.late
-        ? { headline: '자기 전 바나나 한 개 + 우유 한 컵', why: basis }
+        ? { headline: `자기 전 바나나 한 개 + ${s.w.milk} 한 컵`, why: basis }
         : { headline: `오늘 탄수화물 ${s.more!.carbs}g 더 · 밥 한 공기쯤`, why: basis };
     },
   },
@@ -499,12 +535,12 @@ export const HEADLINE_RULES: readonly HeadlineRule[] = [
     say: (s) =>
       s.late
         ? {
-            headline: '자기 전 우유 한 컵 + 바나나',
+            headline: `자기 전 ${s.w.milk} 한 컵 + 바나나`,
             why: '증량 중이라 자기 전 한 끼가 하루를 채워요.',
           }
         : {
-            headline: '끼니마다 밥 반 공기 더 · 자기 전 우유',
-            why: '증량 중이라 끼니 사이를 채우는 게 핵심이에요.',
+            headline: `끼니마다 밥 반 공기 더 · 자기 전 ${s.w.milk}`,
+            why: '증량 중이라 끼니 사이도 채워야 해요.',
           },
   },
   {
@@ -513,7 +549,7 @@ export const HEADLINE_RULES: readonly HeadlineRule[] = [
     say: (s) =>
       s.late
         ? {
-            headline: '자기 전엔 물 한 컵 · 배고프면 요거트 하나',
+            headline: `자기 전엔 물 한 컵 · 배고프면 ${s.w.cup} 하나`,
             why: '감량 중이어도 끼니는 다 챙기고 밤 간식만 가볍게.',
           }
         : {
@@ -524,10 +560,16 @@ export const HEADLINE_RULES: readonly HeadlineRule[] = [
   {
     key: 'default',
     when: () => true,
+    /* 늦은 시각이라도 자료가 없으면(기록 · 끼니 답 둘 다 없음) '다 챙겼어요'라고 하지 않는다 — 안 먹은 날에도 칭찬했다(2026-10-16 베타 100명) */
     say: (s) =>
-      s.late
+      s.late && s.more === null
         ? {
-            headline: '오늘 몫은 다 챙겼어요 · 자기 전 우유 한 컵',
+            headline: '오늘 먹은 걸 한 번 적어 볼까요',
+            why: '먹은 걸 적으면 남은 양을 알려 드려요.',
+          }
+        : s.late
+        ? {
+            headline: `오늘 몫은 다 챙겼어요 · 자기 전 ${s.w.milk} 한 컵`,
             why: '오늘은 특별히 더할 게 없어요.',
           }
         : {
@@ -550,6 +592,8 @@ function headlineOf(
     skipped: input.checkin?.meals.skipped ?? [],
     appetite: input.checkin?.appetite ?? null,
     sleepShort: input.checkin?.sleepShort ?? false,
+    w: exampleWords(input.avoid),
+    recovery: recoveryExamples(input.body.ageBand, input.avoid)[0] ?? '밥 1공기 + 두부 반 모',
   };
   const rule = HEADLINE_RULES.find((r) => r.when(s))!;
   return { ...rule.say(s), rule: rule.key };
@@ -591,13 +635,13 @@ function scoreOf(input: AdviceInput): { score: number | null; parts: Advice['par
       score: closeness(input.eaten.kcal, t.kcal * pace),
       note: `${Math.round(input.eaten.kcal)} / ${t.kcal}kcal${paceNote}`,
     });
-    parts.push({
+    if (!input.eatenUnknown?.includes('protein')) parts.push({
       key: 'protein',
       label: '단백질',
       score: closeness(input.eaten.protein, t.protein * pace),
       note: `${Math.round(input.eaten.protein)} / ${t.protein}g`,
     });
-    parts.push({
+    if (!input.eatenUnknown?.includes('carbs')) parts.push({
       key: 'carbs',
       label: '탄수화물',
       score: closeness(input.eaten.carbs, t.carbs * pace),

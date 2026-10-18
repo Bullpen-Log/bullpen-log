@@ -1,6 +1,7 @@
 import 'server-only';
 import { prisma } from '@/lib/prisma';
 import { createPlaybackUrls } from '@/lib/storage';
+import { cutTarget, parseBallLabel, type BallLabel } from '@/lib/velocity-ball-label';
 
 /**
  * 엔진 개발용 녹화 읽기(관리자) — 목록(/admin/velocity/recordings)과 편집기(/admin/velocity/recordings/<id>).
@@ -148,6 +149,8 @@ export type RecordingCutRow = {
 };
 
 export type RecordingDetail = {
+  /** 사람이 찍은 공 자리 — 컷 id 로(없는 컷은 칸 없음) */
+  labels: Record<string, BallLabel>;
   id: string;
   date: string;
   createdAt: string;
@@ -171,12 +174,20 @@ export async function loadVelocityRecording(
     },
   });
   if (!r) return null;
-  const [user, urls] = await Promise.all([
+  const [user, urls, labelRows] = await Promise.all([
     prisma.user.findUnique({ where: { id: r.userId }, select: { nickname: true } }),
     createPlaybackUrls(r.parts.map((p) => p.path)).catch(
       () => ({}) as Record<string, string>
     ),
+    prisma.velocityBallLabel.findMany({
+      where: { target: { in: r.cuts.map((c) => cutTarget(c.id)) } },
+    }),
   ]);
+  const labels: Record<string, BallLabel> = {};
+  for (const l of labelRows) {
+    const parsed = parseBallLabel({ sourceW: l.sourceW, sourceH: l.sourceH, frames: l.frames });
+    if (parsed) labels[l.target.slice('cut:'.length)] = parsed;
+  }
   const partIndex = new Map(r.parts.map((p) => [p.id, p.index]));
   return {
     id: r.id,
@@ -187,6 +198,7 @@ export async function loadVelocityRecording(
     memo: r.memo,
     userName: user?.nickname ?? null,
     meta: toRecordingMeta(r.meta),
+    labels,
     parts: r.parts.map((p) => ({
       id: p.id,
       index: p.index,

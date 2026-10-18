@@ -634,6 +634,18 @@ export function twoBoneIk(top: Vec3, midP: Vec3, end: Vec3, target: Vec3, hint?:
 export const kneePole = (hip: Vec3, knee: Vec3, axis: Vec3 | undefined): Vec3 | undefined =>
   axis ? cross(unit(sub(knee, hip), [0, -1, 0]), axis) : undefined;
 
+/**
+ * 발목 목표를 엉덩이에서 reach 안으로 — 다리를 엔진의 그 장면 엉덩이 → 발목 거리보다 더 펴지 않는다. 화면 골반이 엔진보다 늦게 돌거나(앞엉덩이가
+ * 30~45mm 어긋남) 땅에 묶을 자리가 멀면, 발목을 그 자리에 두려고 무릎을 펴고(엔진 47~50° → 화면 26~30°, 샘플 3) 닿지 않으면 정강이를 늘렸다
+ * (250 → 317mm, 샘플 4, 2026-10-15 김민 "앞무릎이 이상"). 발은 그 자리 쪽으로 닿는 만큼만 가고, 엉덩이가 따라오면 자리에 닿는다.
+ */
+const REACH_SLACK = 0.005;
+function reachCap(hip: Vec3, target: Vec3, reach: number): Vec3 {
+  const v = sub(target, hip);
+  const d = norm(v);
+  return d > reach && d > 1e-9 ? add(hip, scale(v, reach / d)) : target;
+}
+
 /** 무릎이 굽는 쪽이 발끝 방향에서 벗어날 수 있는 만큼 — 경첩이라 정강이 돌림 · 발끝 벌림만큼만 */
 const KNEE_TOE_MAX = 60;
 /**
@@ -1097,9 +1109,19 @@ export function kinematicTrack(
      * 손이 한 장면에 뒤집혔다(2026-10-09 샘플 4 글러브 손 한 장면 78°). 흐림은 손 확신 0.1 아래부터 — 글러브 손은 영상과 잘 맞아도 확신이
      * 0.3~0.5 라, 0.2 ~ 0.6 으로 깎으면 굽은 손목이 늘 곧게 펴져 글러브가 영상에서 4~9% 벗어났다(2026-10-10 좌투 샘플).
      */
+    /*
+     * 몸에 가려진 구간 — 앞뒤 HAND_HIDDEN_WIN 장면 손 확신의 가운데값이 낮으면 그 안에서 한두 장면 반짝 잡힌 손 점은 안 믿는다. 가려진 글러브 손이
+     * 한두 장면만 확신 0.3~0.4 로 잡히면 그 장면만 손목을 엔진 쪽으로 꺾었다 곧바로 펴, 화면 손가락이 원 결과보다 더 흔들렸다(2026-10-15 샘플 s9
+     * 착지 233~240장면 손가락 2.9% · 원 1.7%). 보이는 구간(가운데값이 높음)은 예전 그대로.
+     */
+    const handSeen = smooth1(
+      medianFilter(wHandOnly, HAND_HIDDEN_WIN).map((m) => clamp((m - 0.1) / 0.15, 0, 1)),
+      frames.map(() => 1)
+    );
     const handOk = flexW.map(
       (v, k) =>
         clamp((wHandOnly[k] - 0.1) / 0.25, 0, 1) *
+        handSeen[k] *
         clamp((rad(110) - Math.abs(v)) / rad(40), 0, 1) *
         clamp((rad(70) - Math.abs(devW[k])) / rad(30), 0, 1)
     );
@@ -1191,6 +1213,22 @@ export function kinematicTrack(
       refs[k][side === 'L' ? 'upperArmL' : 'upperArmR'] = nw;
       refs[k][side === 'L' ? 'forearmL' : 'forearmR'] = nw;
       refs[k][side === 'L' ? 'handL' : 'handR'] = hw;
+    }
+    /*
+     * 몸에 가려진 구간(handSeen 낮음)은 손 세 점의 손목 기준 자리 · 손바닥 폭 축을 앞뒤로 더 다듬는다 — 손이 안 보이면 손 각은 고정인데, 엔진 아래팔에
+     * 각도 모델의 굽는 축을 수직으로 붙이는 사이 두 축이 거의 나란해지면 손이 아래팔 둘레로 휙 돌았다(2026-10-15 s9 글러브 손가락). 보이는 구간은 그대로.
+     */
+    if (handSeen.some((v) => v < 1)) {
+      const hk = side === 'L' ? 'handL' : 'handR';
+      const rows = out.map((fr, k) => [Idx, Mid, Pk].flatMap((j) => sub(fr[j], fr[Wr])).concat(refs[k][hk] ?? [0, 0, 0]));
+      const sm = smoothMulti(rows, frames.map(() => 1), HAND_HIDDEN_SMOOTH, HAND_HIDDEN_SMOOTH);
+      for (let k = 0; k < n; k++) {
+        const h = 1 - handSeen[k];
+        if (!(h > 0)) continue;
+        const mix = (i: number): Vec3 => [0, 1, 2].map((d) => rows[k][i + d] * (1 - h) + sm[k][i + d] * h) as Vec3;
+        [Idx, Mid, Pk].forEach((j, i) => (out[k][j] = add(out[k][Wr], mix(i * 3))));
+        if (refs[k][hk]) refs[k][hk] = unit(mix(9), refs[k][hk]!);
+      }
     }
   }
 
@@ -1299,6 +1337,16 @@ export function kinematicTrack(
       frames.map(() => 1)
     );
     const toeDir = toeDirOf[side];
+    /*
+     * 땅에 닿기 앞뒤 CONTACT_FOLLOW 장면은(풀리는 몫 포함) 엉덩이 돌림 한계가 손을 써도 원 발목을 따른다 — 묶인 동안은 어차피 엔진 자리에 못 박히는데, 그 바로 앞에서
+     * 각도 모델로 바꾸면 발이 9cm 비켰다가 묶일 때 되돌아와 착지 직전에 걸렸다(2026-10-15 샘플 4: 앞무릎이 착지 무렵 뒤를 봄 · 비틀림 −177°).
+     */
+    const nearContact = frames.map((_, k) => {
+      let d = Infinity;
+      for (const c of contacts) if (c.side === side) d = Math.min(d, k < c.from ? c.from - k : k > c.to ? k - c.to : 0);
+      const t = clamp((d - CONTACT_FOLLOW[0]) / CONTACT_FOLLOW[1], 0, 1);
+      return 1 - t * t * (3 - 2 * t);
+    });
     /* 발목 자리 — 팔의 손목처럼 원 발목을 다듬은 세상 자리(무릎은 각에서 굽은 쪽만) — 골반 틀 안 자리면 땅에 선 발이 화면 골반을 따라 흔들렸다 */
     const anS = smoothMulti(
       frames.map((fr) => fr[An]),
@@ -1319,8 +1367,13 @@ export function kinematicTrack(
       let sw = toWorld(M, s);
       let K = add(Hpt, scale(uw, Lt));
       let A = add(K, scale(sw, Ls));
-      const ank = add(scale(A, 1 - wFollow[k]), scale(anS[k], wFollow[k]));
-      const target = add(scale(ank, 1 - wAnk[k]), scale(frames[k][An], wAnk[k]));
+      const wF = Math.max(wFollow[k], nearContact[k]);
+      const ank = add(scale(A, 1 - wF), scale(anS[k], wF));
+      const target = reachCap(
+        Hpt,
+        add(scale(ank, 1 - wAnk[k]), scale(frames[k][An], wAnk[k])),
+        Math.min(norm(sub(frames[k][An], frames[k][Hp])) + REACH_SLACK, (Lt + Ls) * 0.999)
+      );
       K = twoBoneIk(Hpt, K, A, target, kneePole(Hpt, K, nw));
       A = target;
       const K2 = kneeTowardToes(Hpt, K, A, toeDir[k]);
@@ -1388,7 +1441,13 @@ export function kinematicTrack(
        * 한꺼번에 옮겨, 그 원본과 섞으면 무릎 · 발목이 한 장면에 튀었다(2026-10-10 샘플 다섯 중 무릎 · 발목 자리 튐 대부분이 묶음 경계).
        */
       const at = k < c.from ? c.from : k > c.to ? c.to : k;
-      const target = add(scale(out[k][An], 1 - w), scale(frames[at][An], w));
+      const hipK = out[k][Hp];
+      const legK = norm(sub(out[k][Kn], hipK)) + norm(sub(out[k][An], out[k][Kn]));
+      const target = reachCap(
+        hipK,
+        add(scale(out[k][An], 1 - w), scale(frames[at][An], w)),
+        Math.min(norm(sub(frames[k][An], frames[k][Hp])) + REACH_SLACK, legK * 0.999)
+      );
       const shift = sub(target, out[k][An]);
       out[k][Kn] = twoBoneIk(
         out[k][Hp],
@@ -1443,5 +1502,11 @@ export function kinematicTrack(
 }
 
 /** 땅에 묶인 구간 경계 앞뒤로 발 방향을 다듬는 장면 수 · 가우스 폭(장면) */
+/** 손이 몸에 가려졌는지 볼 때 앞뒤 장면 수(가운데값 창 반쪽) */
+const HAND_HIDDEN_WIN = 6;
+/** 가려진 손을 다듬는 가우스 폭(장면) */
+const HAND_HIDDEN_SMOOTH = 8;
 const FOOT_EASE = 6;
+/** 땅에 닿은 구간에서 [0] 장면 안은 원 발목을 그대로 따르고, 그 뒤 [1] 장면 동안 smoothstep 으로 풀린다 */
+const CONTACT_FOLLOW = [16, 12] as const;
 const FOOT_SIGMA = 2;

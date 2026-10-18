@@ -1,7 +1,7 @@
 'use client';
 
 import { ViewTransition, type ReactNode } from 'react';
-import { OPEN_POPUP, QUIET_REFRESH } from '@/lib/transition-types';
+import { OPEN_POPUP, QUIET_REFRESH, TAB_SWIPE } from '@/lib/transition-types';
 import { takeLeaveTop } from '@/lib/nav-state';
 
 /**
@@ -51,10 +51,15 @@ export function MainTransition({ children }: { children: ReactNode }) {
   return (
     <ViewTransition
       name="app-main"
-      share="page"
-      enter="page"
-      exit="page"
-      update={{ [QUIET_REFRESH]: 'none', [OPEN_POPUP]: 'none', default: 'auto' }}
+      share={{ [TAB_SWIPE]: 'none', default: 'page' }}
+      enter={{ [TAB_SWIPE]: 'none', default: 'page' }}
+      exit={{ [TAB_SWIPE]: 'none', default: 'page' }}
+      update={{
+        [QUIET_REFRESH]: 'none',
+        [OPEN_POPUP]: 'none',
+        [TAB_SWIPE]: 'none',
+        default: 'auto',
+      }}
       onUpdate={endNavMotion}
       onShare={endNavMotion}
       onEnter={endNavMotion}

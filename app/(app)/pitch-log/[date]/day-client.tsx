@@ -6,17 +6,22 @@ import { useRouter } from 'next/navigation';
 import { quietRefresh } from '@/lib/quiet-refresh';
 import { ArrowLeft, House, Plus, type LucideIcon } from '@/components/icon';
 import { Baseball } from '@/components/baseball-icon';
-import { FormError } from '@/components/ui';
+import { Button, FormError } from '@/components/ui';
 import { usePlaybackUrls } from '@/components/use-playback-urls';
-import { isFutureDateKey } from '@/lib/pitch-stats';
-import { maxEffortPct, scaleToEffortPct } from '@/lib/pitch-effort';
-import { REST_SESSION_TYPE } from '@/lib/session-type';
-import { PlanNote, type PlanNoteData } from '@/components/plan-note';
-import { EntryForm } from '../entry-form';
+import { removePhoneVideos } from '@/lib/local-video';
+import { ArmStatusNote } from '@/components/arm-status-note';
+import { NutritionLineNote } from '@/components/nutrition-line';
+import type { NutritionLine } from '@/lib/nutrition/nudge';
+import type { ArmStatus } from '@/lib/report/arm-status';
+import { EntryForm, type DrillPrefill } from '../entry-form';
 import { DayRecord } from '../day-record';
 import type { Log } from '../types';
 import { VelocitySection } from '../velocity-section';
-import type { VelocitySessionView } from '@/lib/velocity-meta';
+import {
+  VELOCITY_MEMO_MARK,
+  type LogPrefill,
+  type VelocitySessionView,
+} from '@/lib/velocity-meta';
 import { useDayModal } from './day-modal';
 
 const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'];
@@ -84,24 +89,32 @@ function BackLink({
 export function DayClient({
   date,
   todayKey,
-  todayPlan,
-  todayLimits,
+  todayStatus,
+  nutritionLine = null,
   initialLogs,
   velocity,
+  velocityPrefill = null,
+  drillPrefill = null,
+  isAdmin = false,
 }: {
   date: string;
   todayKey: string;
-  /** 오늘 날짜일 때만 들어온다 */
-  todayPlan: PlanNoteData | null;
-  /** 오늘 계획의 상한 — 남긴 기록이 넘었는지 견준다. 오늘 날짜일 때만 들어온다 */
-  todayLimits: {
-    throwing: boolean;
-    maxPitches: number | null;
-    maxIntensity: number | null;
-  } | null;
+  /** 지금 팔 상태(위험 · 주의 · 안전) — 오늘 날짜일 때만 들어온다 */
+  todayStatus: ArmStatus | null;
+  /** 던진 뒤 회복식 한 줄 — 오늘 던진 기록이 있을 때만 */
+  nutritionLine?: NutritionLine | null;
   initialLogs: Log[];
   /** 카메라로 잰 구속 — 세션과 공 하나하나. 없으면 빈 배열 */
   velocity: VelocitySessionView[];
+  /** 아직 투구 기록으로 안 남긴 구속 측정 값 — 있으면 새 기록 폼이 이 값으로 채워져 열린다 */
+  velocityPrefill?: LogPrefill | null;
+  /**
+   * 메커니즘 드릴로 던진 공(트레이닝의 '드릴로 공 N회 던졌어요' 카드에서 왔을 때) — 오늘 캐치볼 기록이 있으면 더할지 새로 남길지
+   * 묻고, 없으면 새 기록 폼을 그 값으로 채워 연다. 구속 측정 값이 있으면 그쪽이 먼저.
+   */
+  drillPrefill?: DrillPrefill | null;
+  /** 관리자 — 구속 공 고치기에 스피드건 값 칸 */
+  isAdmin?: boolean;
 }) {
   const router = useRouter();
   const modal = useDayModal();
@@ -110,52 +123,63 @@ export function DayClient({
   /* 기록이 없는 날은 폼이 처음부터 열려 있다 — 그러려고 들어온 것이다. */
   const [formOpen, setFormOpen] = useState(initialLogs.length === 0);
 
-  const future = isFutureDateKey(date);
+  /* '오늘'은 서버가 정한다(todayKey) — 기기 시계로 재면 날짜가 틀린 폰 · 자정 넘어 수화된 탭에서 오늘 폼이 사라졌다(2026-10-17) */
+  const future = date > todayKey;
+  /* 아직 안 남긴 구속 측정이 있으면 폼을 그 값으로 펴 둔다(그러려고 들어온 것이다) */
+  const fromVelocity = !future && velocityPrefill != null;
   const logs = initialLogs;
 
   /*
-   * 계획을 넘겼는지 본다 — 오늘 남긴 기록을 모두 합쳐서(쉰 날 표시는 빼고).
-   *
-   * 계획만 세워주고 지켰는지 아무도 안 보면 그 계획은 장식이다. 저장을 막지는
-   * 않는다 — 이미 던진 것을 못 적게 하면 기록이 사라질 뿐이다. 예전에는 홈의 '오늘
-   * 투구' 상자가 견줬는데 그 상자가 알림(종)으로 옮겨 가서 여기서 견준다.
+   * 드릴 공: 저장하면(drillDone) 다시 권하지 않는다 — 새로 읽어도 서버가 카드가 닫혔으면 안 보내지만, 그 전에 두 번 남기지 않게.
+   * 오늘 캐치볼 기록이 있으면 먼저 고르게 한다(같은 캐치볼을 두 줄로 나누지 않게) — 'add' 는 그 기록의 수정 폼에 공 수 · 메모를 더해 연다.
    */
-  const thrown = logs.filter((l) => l.sessionType !== REST_SESSION_TYPE);
-  const overText = (() => {
-    if (!todayLimits || thrown.length === 0) return null;
-    if (!todayLimits.throwing) return '오늘은 쉬는 것이 계획이었어요.';
-    const total = thrown.reduce((sum, l) => sum + l.pitchCount, 0);
-    /*
-     * 체감 강도는 % 로 견준다(2판 D2) — 계획 상한은 1~10 이라 × 10. 입력이 5% 칸이라 1~10 으로 견주던 때와 넘었는지가
-     * 같다(75% 는 예전에도 8 로 남아 7 을 넘었다). 글도 고른 값과 같은 % 로 보인다.
-     */
-    const topEffort = maxEffortPct(thrown);
-    const capPct =
-      todayLimits.maxIntensity != null
-        ? scaleToEffortPct(todayLimits.maxIntensity)
-        : null;
-    const parts = [
-      todayLimits.maxPitches != null && total > todayLimits.maxPitches
-        ? `계획보다 ${total - todayLimits.maxPitches}구 많아요`
-        : null,
-      capPct != null && topEffort > capPct ? `계획 강도(${capPct}%)를 넘었어요` : null,
-    ].filter(Boolean);
-    return parts.length ? `${parts.join(' · ')}.` : null;
-  })();
+  const [drillDone, setDrillDone] = useState(false);
+  const [drillMode, setDrillMode] = useState<'new' | 'add' | null>(null);
+  const fromDrill = !future && drillPrefill != null && !drillDone && !fromVelocity;
+  const catchLog = logs.find((l) => l.sessionType === '캐치볼') ?? null;
+  const drillChoosing = fromDrill && catchLog != null && drillMode == null;
+  const drillNew = fromDrill && (catchLog == null || drillMode === 'new');
+  const drillAddId = fromDrill && drillMode === 'add' ? (catchLog?.id ?? null) : null;
 
   const videoPaths = useMemo(() => logs.flatMap((l) => l.videoPaths), [logs]);
+  /* 옛 카메라 기록(memo 가 [구속 측정]) — 이 기록만 세션과 함께 지워지고 투구수가 맞춰진다(lib/velocity-sync.ts). 지우기 확인 글이 가른다 */
+  const legacyLogIds = useMemo(
+    () =>
+      new Set(
+        logs.filter((l) => l.memo?.startsWith(VELOCITY_MEMO_MARK)).map((l) => l.id)
+      ),
+    [logs]
+  );
   const {
     urls: playbackUrls,
     loading: urlsLoading,
     ready: urlsReady,
   } = usePlaybackUrls(videoPaths);
 
-  const handleSaved = useCallback(() => {
-    setEditingId(null);
-    setFormOpen(false);
+  /*
+   * 저장한 폼만 닫는다. 하나로 묶었더니 다른 기록을 고쳐 저장할 때 적던 '기록 추가' 폼까지 닫혀, 적던 값 · 올리던 영상이
+   * 사라졌다(2026-10-16).
+   */
+  const afterSave = () => {
     setError(undefined);
     quietRefresh(router);
-  }, [router]);
+  };
+  const handleEditSaved = () => {
+    setEditingId(null);
+    afterSave();
+  };
+  /* 드릴 공을 캐치볼 기록에 더해 저장 */
+  const handleDrillAddSaved = () => {
+    setDrillDone(true);
+    setDrillMode(null);
+    afterSave();
+  };
+  const handleAddSaved = () => {
+    setFormOpen(false);
+    setDrillDone(true);
+    setDrillMode(null);
+    afterSave();
+  };
 
   const handleDelete = useCallback(
     async (id: string) => {
@@ -169,18 +193,21 @@ export function DayClient({
       } catch {
         /* 신호가 끊겨 요청 자체가 실패 — 예전에는 확인 창이 아무 말 없이 떠 있었다(잡지 않은 오류) */
         setError(
-          '신호가 약해 기록을 지우지 못했어요. 신호가 잡히면 다시 시도해주세요.'
+          '신호가 약해 기록을 지우지 못했어요. 신호가 잡히면 다시 시도해 주세요.'
         );
         return;
       }
       if (!res.ok) {
-        setError('기록을 지우지 못했어요. 잠시 뒤에 다시 시도해주세요.');
+        setError('기록을 지우지 못했어요. 잠시 뒤에 다시 시도해 주세요.');
         return;
       }
       if (editingId === id) setEditingId(null);
+      /* 이 폰에 둔 영상(local- 경로)은 서버가 못 지운다 — 기록과 함께 폰에서도 뺀다(남으면 앱 용량만 늘었다, 2026-10-17). 웹에서는 아무 일도 안 한다 */
+      const gone = logs.find((l) => l.id === id)?.videoPaths ?? [];
+      void removePhoneVideos(gone).catch(() => undefined);
       quietRefresh(router);
     },
-    [router, editingId]
+    [router, editingId, logs]
   );
 
   return (
@@ -189,14 +216,17 @@ export function DayClient({
         돌아갈 곳을 맨 위에 둔다 — 홈 달력과 투구 기록 둘 다. 예전에는 홈 달력 하나라,
         투구 기록 탭에서 들어온 사람도 홈으로 떨어졌다. 팝업이면 연 화면 쪽이 '돌아가기'다.
       */}
-      <nav aria-label="돌아갈 곳" className="flex flex-wrap items-center gap-2">
-        <BackLink href={`/today?date=${date}`} from="/today" icon={House}>
-          홈 달력
-        </BackLink>
-        <BackLink href={`/videos?date=${date}`} from="/videos" icon={Baseball}>
-          투구 기록
-        </BackLink>
-      </nav>
+      {/* 팝업이면 창의 닫기가 '돌아가기'라 두지 않는다(2026-10-15 — 창 머리 밑 칩 줄이 한 줄을 차지했다). 주소로 곧장 들어온 쪽만 */}
+      {!modal && (
+        <nav aria-label="돌아갈 곳" className="flex flex-wrap items-center gap-2">
+          <BackLink href={`/today?date=${date}`} from="/today" icon={House}>
+            홈 달력
+          </BackLink>
+          <BackLink href={`/videos?date=${date}`} from="/videos" icon={Baseball}>
+            투구 기록
+          </BackLink>
+        </nav>
+      )}
 
       <div className={modal ? '' : 'border-b border-line pb-6'}>
         {/* 팝업이면 날짜는 창 머리가 보여 준다 — 두 번 적지 않는다 */}
@@ -222,20 +252,47 @@ export function DayClient({
         </p>
       )}
 
-      {date === todayKey && todayPlan && <PlanNote plan={todayPlan} />}
-
-      {/* 계획을 넘겼으면 알린다. 막지는 않고 알리기만 한다. */}
-      {overText && (
-        <p className="rounded-lg border border-warn-line bg-warn-bg px-3 py-2 text-xs leading-relaxed text-warn">
-          {overText} 내일 계획에 반영돼요. 어깨나 팔꿈치가 무거우면 체크인에 남겨주세요.
-        </p>
+      {date === todayKey && todayStatus && (
+        <ArmStatusNote status={todayStatus} compact />
       )}
 
+      {date === todayKey && nutritionLine && <NutritionLineNote line={nutritionLine} />}
+
       {/* 카메라 구속 측정 — 공마다 구종 · 코스 · 결과를 고치고 지운다 */}
-      <VelocitySection sessions={velocity} />
+      <VelocitySection
+        sessions={velocity}
+        isAdmin={isAdmin}
+        legacyLogIds={legacyLogIds}
+      />
 
       {logs.map((log) =>
-        editingId === log.id ? (
+        drillAddId === log.id && drillPrefill ? (
+          <div
+            key={log.id}
+            className="space-y-4 rounded-2xl border border-line bg-surface-2 p-(--block-pad)"
+          >
+            <div>
+              <h2 className="font-bold text-ink">캐치볼 기록에 드릴 공 더하기</h2>
+              <p className="mt-1 text-sm text-muted">
+                {`투구수 ${log.pitchCount} → ${log.pitchCount + drillPrefill.pitchCount}구로 채웠어요`}
+              </p>
+            </div>
+            <EntryForm
+              isAdmin={isAdmin}
+              date={date}
+              initial={{
+                ...log,
+                pitchCount: log.pitchCount + drillPrefill.pitchCount,
+                memo: log.memo
+                  ? `${log.memo} · ${drillPrefill.memo}`
+                  : drillPrefill.memo,
+              }}
+              onSaved={handleDrillAddSaved}
+              onError={setError}
+              onCancel={() => setDrillMode(null)}
+            />
+          </div>
+        ) : editingId === log.id ? (
           <div
             key={log.id}
             className="space-y-4 rounded-2xl border border-line bg-surface-2 p-(--block-pad)"
@@ -245,9 +302,10 @@ export function DayClient({
               <p className="mt-1 text-sm text-muted">영상도 함께 바꿀 수 있어요</p>
             </div>
             <EntryForm
+              isAdmin={isAdmin}
               date={date}
               initial={log}
-              onSaved={handleSaved}
+              onSaved={handleEditSaved}
               onError={setError}
               onCancel={() => setEditingId(null)}
             />
@@ -270,26 +328,66 @@ export function DayClient({
 
       {/* 기록 추가 — 기록이 없는 날은 처음부터 열려 있다 */}
       {!future &&
-        (formOpen ? (
+        (drillChoosing && drillPrefill ? (
+          <div className="space-y-3 rounded-2xl border border-line bg-surface-2 p-(--block-pad)">
+            <div>
+              <h2 className="font-bold text-ink">
+                {`메커니즘 드릴 공 ${drillPrefill.pitchCount}회`}
+              </h2>
+              <p className="mt-1 text-sm text-muted">
+                오늘 캐치볼 기록이 있어요. 어떻게 남길까요?
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button type="button" onClick={() => setDrillMode('add')}>
+                캐치볼 기록에 더하기
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => setDrillMode('new')}
+              >
+                새 기록으로
+              </Button>
+            </div>
+          </div>
+        ) : formOpen || fromVelocity || drillNew ? (
           <div className="space-y-4 rounded-2xl border border-line bg-surface-2 p-(--block-pad)">
             <div className="flex items-start justify-between gap-3">
               <h2 className="font-bold text-ink">
-                {logs.length > 0 ? '기록 추가' : '이날 기록하기'}
+                {fromVelocity
+                  ? `구속 측정 ${velocityPrefill.pitchCount}구 기록하기`
+                  : drillNew && drillPrefill
+                    ? `드릴 공 ${drillPrefill.pitchCount}회 기록하기`
+                    : logs.length > 0
+                      ? '기록 추가'
+                      : '이날 기록하기'}
               </h2>
-              {logs.length > 0 && (
+              {logs.length > 0 && !fromVelocity && (
                 <button
                   type="button"
-                  onClick={() => setFormOpen(false)}
-                  className="text-xs text-muted transition-colors hover:text-ink"
+                  onClick={() => {
+                    /* 드릴 공 폼을 닫으면: 캐치볼이 있으면 고르기로 돌아가고, 없으면 이번엔 안 남기는 것 */
+                    if (drillNew) {
+                      if (catchLog) setDrillMode(null);
+                      else setDrillDone(true);
+                    }
+                    setFormOpen(false);
+                  }}
+                  className="-my-2 inline-flex min-h-10 items-center px-3 text-xs text-muted transition-colors hover:text-ink"
                 >
                   취소
                 </button>
               )}
             </div>
             <EntryForm
-              key={date}
+              isAdmin={isAdmin}
+              /* 측정을 남기면 채울 값이 바뀌어(없어져) 폼을 새로 연다 */
+              key={`${date}:${velocityPrefill?.sessionIds.join(',') ?? ''}:${drillNew ? 'drill' : ''}`}
               date={date}
-              onSaved={handleSaved}
+              prefill={fromVelocity ? velocityPrefill : null}
+              drillPrefill={drillNew ? drillPrefill : null}
+              onSaved={handleAddSaved}
               onError={setError}
             />
           </div>
@@ -297,7 +395,7 @@ export function DayClient({
           <button
             type="button"
             onClick={() => setFormOpen(true)}
-            className="flex w-full items-center justify-center gap-2 rounded-2xl bg-sky-tint desk:border desk:border-dashed desk:border-sky-soft px-4 py-3.5 text-sm font-medium text-sky-strong transition-colors hover:bg-sky-tint/70"
+            className="flex w-full items-center justify-center gap-2 rounded-full bg-sky-tint desk:rounded-xl desk:border desk:border-dashed desk:border-sky-soft px-4 py-3.5 text-sm font-medium text-sky-strong transition-colors hover:bg-sky-tint/70"
           >
             <Plus className="h-4 w-4" />이 날짜에 기록 추가
           </button>

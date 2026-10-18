@@ -1,0 +1,59 @@
+import * as Haptics from 'expo-haptics';
+import { type Href, router } from 'expo-router';
+import { useState } from 'react';
+import { KeyboardAvoidingView, ScrollView, Text, TextInput } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Bar, BarButton, call, s, useBusy } from '~/community/parts';
+import { usePalette } from '~/lib/ui';
+import { READABLE } from '~/lib/layout';
+
+/**
+ * 자료실 글쓰기(앱 화면, 관리자) — 웹 app/(app)/board/new 를 옮겼다. 제목 · 내용 · 원문 링크 · 태그(쉼표, 5개까지), 같은 서버 검사
+ * (board.createAppArticle → saveArticle). 올리면 그 글로 바꿔 연다. 못 올리면 적은 글은 그대로 남는다.
+ */
+export default function NewArticleScreen() {
+  const c = usePalette();
+  const inset = useSafeAreaInsets();
+  const [title, setTitle] = useState('');
+  const [content, setContent] = useState('');
+  const [link, setLink] = useState('');
+  const [tags, setTags] = useState('');
+  const send = useBusy();
+
+  const submit = () =>
+    send.run(async () => {
+      if (!title.trim() || !content.trim()) return '제목과 내용을 입력해 주세요.';
+      const r = await call<{ ok: true; id: string }>('board.createAppArticle', { title, content, attachmentUrl: link, tags });
+      if (!r.ok) return r.error;
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      router.replace(`/board/${r.id}` as Href);
+      return null;
+    });
+
+  const field = { backgroundColor: c.card, color: c.ink };
+  return (
+    <KeyboardAvoidingView behavior="padding" style={{ flex: 1, backgroundColor: c.page }}>
+      <Bar back="자료실" title="글쓰기" right={<BarButton label="올리기" onPress={submit} disabled={send.busy} c={c} />} c={c} />
+      <ScrollView contentContainerStyle={[{ padding: 16, gap: 8, paddingBottom: inset.bottom + 32 }, READABLE]} keyboardShouldPersistTaps="handled">
+        <Text style={[s.label, { color: c.muted }]}>제목</Text>
+        <TextInput value={title} onChangeText={setTitle} maxLength={150} placeholderTextColor={c.muted} style={[s.input, field]} />
+        <Text style={[s.label, { color: c.muted }]}>내용</Text>
+        <TextInput value={content} onChangeText={setContent} multiline placeholderTextColor={c.muted} style={[s.area, field]} />
+        <Text style={[s.label, { color: c.muted }]}>원문 링크(선택)</Text>
+        <TextInput
+          value={link}
+          onChangeText={setLink}
+          placeholder="https://"
+          placeholderTextColor={c.muted}
+          keyboardType="url"
+          autoCapitalize="none"
+          autoCorrect={false}
+          style={[s.input, field]}
+        />
+        <Text style={[s.label, { color: c.muted }]}>태그(쉼표로 나눠 5개까지, 선택)</Text>
+        <TextInput value={tags} onChangeText={setTags} placeholder="투구역학, 하체" placeholderTextColor={c.muted} style={[s.input, field]} />
+        {send.error ? <Text style={{ color: c.danger, fontSize: 14, marginTop: 8 }}>{send.error}</Text> : null}
+      </ScrollView>
+    </KeyboardAvoidingView>
+  );
+}

@@ -95,6 +95,6 @@ export function ErrorDigest({ digest }: { digest?: string }) {
  */
 export function Skeleton({ className = '' }: { className?: string }) {
   return (
-    <div aria-hidden className={`animate-pulse rounded-xl bg-line ${className}`} />
+    <div aria-hidden className={`motion-safe:animate-pulse rounded-xl bg-line ${className}`} />
   );
 }

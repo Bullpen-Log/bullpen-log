@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, type ReactNode } from 'react';
+import { useFormStatus } from 'react-dom';
 import { OFFLINE_MESSAGE, orOffline } from '@/lib/action-offline';
 import { toast } from '@/components/toast';
 
@@ -41,19 +42,42 @@ export function SafeForm({
         try {
           result = await orOffline(action(formData), OFFLINE);
         } catch (signal) {
-          if (doneToast) toast(doneToast);
+          /*
+           * 다른 화면으로 보내는 redirect 만 성공이다 — 로그인이 풀려 /login 으로 가거나 notFound 면 저장되지 않았다. 예전엔 그때도
+           * '저장했어요'가 떴다(2026-10-18). 신호 글: 'NEXT_REDIRECT;<type>;<url>;<status>;'(app/api/rpc 와 같은 읽기)
+           */
+          const digest = (signal as { digest?: unknown } | null)?.digest;
+          const to = typeof digest === 'string' && digest.startsWith('NEXT_REDIRECT;') ? digest.split(';')[2] : null;
+          if (doneToast && to != null && !to.startsWith('/login')) toast(doneToast);
           throw signal;
         }
         if (result === OFFLINE) setError(OFFLINE_MESSAGE);
         else if (doneToast) toast(doneToast);
       }}
     >
-      {children}
+      <WhileSending>{children}</WhileSending>
       {error && (
         <p role="alert" className="mt-2 text-center text-xs text-danger">
           {error}
         </p>
       )}
     </form>
+  );
+}
+
+/**
+ * 보내는 동안 안의 단추 · 칸을 잠근다 — 신호가 약하면 [운동 시작]이 몇 초 동안 반응이 없어 여러 번 눌렸고, 누를 때마다 서버
+ * 동작이 따로 돌았다(2026-10-16). fieldset 의 disabled 가 안의 모든 단추를 한 번에 막는다(display: contents 라 모양은 그대로).
+ */
+function WhileSending({ children }: { children: ReactNode }) {
+  const { pending } = useFormStatus();
+  return (
+    <fieldset
+      disabled={pending}
+      aria-busy={pending || undefined}
+      className="contents [&:disabled_button]:opacity-60"
+    >
+      {children}
+    </fieldset>
   );
 }

@@ -17,6 +17,7 @@ import {
   type BallObservation,
 } from '../lib/velocity-engine/geometry.ts';
 import { applyCalibration, fitCalibration } from '../lib/velocity-calibration.ts';
+import { logPrefillOf, unloggedSessions, type VelocitySessionView } from '../lib/velocity-meta.ts';
 
 let passed = 0;
 let failed = 0;
@@ -520,6 +521,42 @@ console.log(
     `×${fitClean.scale} → ×${wild.scale}`
   );
 }
+/* 구속 측정은 별개 기록(2026-10-16) — 아직 안 남긴 세션 · 채울 값 */
+{
+  const pitch = (kmh: number, excluded = false) =>
+    ({ kmh, result: null, releaseDxCm: null, releaseDyCm: null, excluded }) as unknown as VelocitySessionView['pitches'][number];
+  const session = (id: string, createdAt: string, kmhs: number[], extra: Partial<VelocitySessionView> = {}) =>
+    ({
+      id,
+      createdAt,
+      pitchLogId: null,
+      sessionType: '불펜',
+      effortPct: 80,
+      pitches: kmhs.map((k) => pitch(k)),
+      ...extra,
+    }) as unknown as VelocitySessionView;
+  const a = session('a', '2026-10-16T01:00:00.000Z', [120, 124]);
+  const b = session('b', '2026-10-16T03:00:00.000Z', [126], { sessionType: '라이브', effortPct: 90 });
+  const linked = session('c', '2026-10-16T02:00:00.000Z', [130], { pitchLogId: 'log' });
+  const left = unloggedSessions([a, linked, b], ['2026-10-16T02:30:00.000Z']);
+  check(
+    '안 남긴 측정 — 이어진 세션은 빼고, 그 뒤에 그날 기록을 따로 적었으면 남긴 것으로 본다',
+    left.length === 1 && left[0].id === 'b'
+  );
+  const fill = logPrefillOf([a, b]);
+  check(
+    '채울 값 — 공 수는 더하고 최고 · 평균은 잰 공, 종류 · 강도는 마지막 세션, 세션 번호를 든다',
+    fill != null &&
+      fill.pitchCount === 3 &&
+      fill.maxVelocity === 126 &&
+      fill.avgVelocity === 123.3 &&
+      fill.sessionType === '라이브' &&
+      fill.effortPct === 90 &&
+      fill.sessionIds.join() === 'a,b'
+  );
+  check('채울 값 — 세션이 없으면 null', logPrefillOf([]) === null);
+}
+
 console.log(`\n${'═'.repeat(50)}`);
 console.log(`통과 ${passed} / 실패 ${failed}`);
 console.log(`${'═'.repeat(50)}\n`);

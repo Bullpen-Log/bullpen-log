@@ -4,6 +4,9 @@ import { phoneVideoPath } from '@/lib/phone-video-path';
 import { Prisma } from '@prisma/client';
 import { revalidatePath } from 'next/cache';
 import { prisma } from '@/lib/prisma';
+import { appNow, appNowMs } from '@/lib/clock';
+import { toDateKey } from '@/lib/pitch-stats';
+import { featureLocks } from '@/lib/feature-locks';
 import { getCurrentUser } from '@/lib/dal';
 import {
   MAX_VIDEO_BYTES,
@@ -18,7 +21,6 @@ import {
   sanitizeAnalysis,
   sanitizeDistance,
   syncVelocitySession,
-  velocityLogMemo,
 } from '@/lib/velocity-sync';
 import { isRestSession, validateSessionType } from '@/lib/session-type';
 import { readEffortInput } from '@/lib/pitch-effort';
@@ -48,6 +50,27 @@ export type VelocityActionResult = { ok: true } | { ok: false; error: string };
 const MIN_KMH = 30;
 const MAX_KMH = 200;
 const MAX_PITCHES = 200;
+/** 같은 세션을 다시 저장한 것으로 보는 시간 — 끊긴 응답에 다시 누르는 사이(투구 기록 API 의 2분보다 넉넉히: 클립까지 올리느라 오래 걸린다) */
+const DUPLICATE_SESSION_MS = 10 * 60_000;
+
+/**
+ * 방금 같은 세션을 저장했나 — 같은 날, DUPLICATE_SESSION_MS 안에, 원래 잰 값(rawKmh)이 같은 차례로 같은 세션. 저장은 됐는데 답만 못 받아
+ * 다시 누르면 세션이 둘이 되어 투구 탭 카드가 공 수를 두 배로 채웠다(2026-10-16 통합 검토 — 투구 기록 API 의 같은 값 막기와 같은 꼴).
+ * 서로 다른 두 세션의 잰 값이 소수점까지 같은 차례일 일은 없다. 시각은 앱 시계(시험 계정은 createdAt 도 그 시계로 적힌다 — lib/prisma.ts).
+ */
+async function recentSameSession(userId: string, date: Date, rawKmhs: number[]) {
+  const rows = await prisma.velocitySession.findMany({
+    where: { userId, date, createdAt: { gte: new Date(appNowMs() - DUPLICATE_SESSION_MS) } },
+    select: { id: true, pitches: { select: { id: true, rawKmh: true }, orderBy: { seq: 'asc' } } },
+    orderBy: { createdAt: 'desc' },
+  });
+  return (
+    rows.find(
+      (r) =>
+        r.pitches.length === rawKmhs.length && r.pitches.every((p, i) => p.rawKmh === rawKmhs[i])
+    ) ?? null
+  );
+}
 const MEMO_MAX = 500;
 /** 보정식을 맞출 때 보는 최근 짝 수 */
 const CAL_PAIR_LIMIT = 200;
@@ -128,14 +151,14 @@ function checkEdit(edit: PitchEdit): { error: string } | PitchEdit {
   const pitchType =
     edit.pitchType == null || edit.pitchType === '' ? null : String(edit.pitchType);
   if (pitchType != null && !PITCH_TYPE_KEYS.includes(pitchType)) {
-    return { error: '구종 값이 올바르지 않습니다.' };
+    return { error: '구종 값이 올바르지 않아요.' };
   }
   const zone = optional(edit.zone, ZONE_MIN, ZONE_MAX);
   if (edit.zone != null && zone == null)
-    return { error: '코스는 1~9 사이여야 합니다.' };
+    return { error: '코스는 1~9 사이여야 해요.' };
   const result = edit.result == null || edit.result === '' ? null : String(edit.result);
   if (result != null && !PITCH_RESULT_KEYS.includes(result)) {
-    return { error: '결과 값이 올바르지 않습니다.' };
+    return { error: '결과 값이 올바르지 않아요.' };
   }
   const gunKmh = optional(edit.gunKmh, MIN_KMH, MAX_KMH);
   if (edit.gunKmh != null && gunKmh == null) {
@@ -143,7 +166,7 @@ function checkEdit(edit: PitchEdit): { error: string } | PitchEdit {
   }
   const memo = String(edit.memo ?? '').trim();
   if (memo.length > MEMO_MAX)
-    return { error: `메모는 ${MEMO_MAX}자까지 적을 수 있습니다.` };
+    return { error: `메모는 ${MEMO_MAX}자까지 적을 수 있어요.` };
   return {
     pitchType,
     zone: zone == null ? null : Math.round(zone),
@@ -201,22 +224,42 @@ export async function loadCalibration(): Promise<{ fit: CalFit; pairs: CalPair[]
   return { fit: fitCalibration(pairs), pairs };
 }
 
+/**
+ * 아이폰 앱(native/) 구속 측정 화면이 열 때 — 웹 페이지(app/(session)/velocity/page.tsx)가 서버에서 넘기는 것과 같은 것.
+ * today 는 시험 계정 날짜(simDate)까지 맞춘 오늘이라 저장 날짜로 그대로 쓴다.
+ */
+export async function loadVelocityStart(): Promise<
+  | { ok: true; isAdmin: boolean; pitchLocked: boolean; today: string; fit: CalFit }
+  | { ok: false; error: string }
+> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: '로그인이 필요해요.' };
+  const { fit } = await loadCalibration();
+  return {
+    ok: true,
+    isAdmin: user.role === 'ADMIN',
+    pitchLocked: featureLocks(user).pitch,
+    today: toDateKey(appNow()),
+    fit,
+  };
+}
+
 export async function saveVelocitySession(
   input: SaveSessionInput
 ): Promise<VelocityActionResult & { sessionId?: string; pitchIds?: string[] }> {
   const user = await getCurrentUser();
-  if (!user) return { ok: false, error: '로그인이 필요합니다.' };
+  if (!user) return { ok: false, error: '로그인이 필요해요.' };
 
   if (!/^\d{4}-\d{2}-\d{2}$/.test(input.date))
-    return { ok: false, error: '날짜가 올바르지 않습니다.' };
+    return { ok: false, error: '날짜가 올바르지 않아요.' };
   const at = new Date(`${input.date}T00:00:00.000Z`);
   if (Number.isNaN(at.getTime()))
-    return { ok: false, error: '날짜가 올바르지 않습니다.' };
+    return { ok: false, error: '날짜가 올바르지 않아요.' };
 
   const type = validateSessionType(String(input.sessionType ?? ''));
   if ('error' in type) return { ok: false, error: type.error };
   if (isRestSession(type.value))
-    return { ok: false, error: '쉬는 날에는 구속을 남길 수 없습니다.' };
+    return { ok: false, error: '쉬는 날에는 구속을 남길 수 없어요.' };
 
   /* 투구 기록 API 와 같은 규칙 — % 를 받으면 1~10 도 같이, 옛 1~10 만 오면 % 는 비운다(lib/pitch-effort.ts) */
   const effort = readEffortInput(
@@ -225,17 +268,17 @@ export async function saveVelocitySession(
   );
   if ('error' in effort) return { ok: false, error: effort.error };
   const fovDeg = num(input.fovDeg, 30, 120);
-  if (fovDeg == null) return { ok: false, error: '화각이 올바르지 않습니다.' };
+  if (fovDeg == null) return { ok: false, error: '화각이 올바르지 않아요.' };
 
   const mode = 'pitch';
   const cameraPos =
     input.cameraPos === 'behind-catcher' ? 'behind-catcher' : 'behind-pitcher';
 
   if (!Array.isArray(input.pitches) || input.pitches.length === 0) {
-    return { ok: false, error: '잰 공이 없습니다.' };
+    return { ok: false, error: '잰 공이 없어요.' };
   }
   if (input.pitches.length > MAX_PITCHES) {
-    return { ok: false, error: `한 번에 ${MAX_PITCHES}구까지 저장할 수 있습니다.` };
+    return { ok: false, error: `한 번에 ${MAX_PITCHES}구까지 저장할 수 있어요.` };
   }
 
   /* 보정식은 저장하는 순간의 짝으로 — 세션에 박아 두어 나중에 되짚는다. 보정을 껐으면 ×1 +0 */
@@ -257,11 +300,11 @@ export async function saveVelocitySession(
     if (p.manual) {
       /* 수기 — 관리자만. 스피드건 값이 곧 구속이고 카메라 값 칸은 비운다 */
       if (user.role !== 'ADMIN')
-        return { ok: false, error: '수기 입력은 관리자만 할 수 있습니다.' };
+        return { ok: false, error: '수기 입력은 관리자만 할 수 있어요.' };
       const edit = checkEdit(p);
       if ('error' in edit) return { ok: false, error: edit.error };
       if (edit.gunKmh == null)
-        return { ok: false, error: '수기로 올리려면 스피드건 값이 있어야 합니다.' };
+        return { ok: false, error: '수기로 올리려면 스피드건 값이 있어야 해요.' };
       pitches.push({
         rawKmh: edit.gunKmh,
         kmh: edit.gunKmh,
@@ -287,7 +330,7 @@ export async function saveVelocitySession(
     if (rawKmh == null)
       return {
         ok: false,
-        error: `구속 값이 ${MIN_KMH}~${MAX_KMH} km/h 를 벗어났습니다.`,
+        error: `구속 값이 ${MIN_KMH}~${MAX_KMH} km/h 를 벗어났어요.`,
       };
     const edit = checkEdit(p);
     if ('error' in edit) return { ok: false, error: edit.error };
@@ -316,31 +359,21 @@ export async function saveVelocitySession(
     });
   }
 
-  const kmhs = pitches.map((p) => p.kmh);
-  const maxVelocity = Math.max(...kmhs);
-  const avgVelocity =
-    Math.round((kmhs.reduce((s, v) => s + v, 0) / kmhs.length) * 10) / 10;
+  /*
+   * 2026-10-16 사용자 결정: 구속 측정은 별개 기록 — 투구 기록을 만들지 않는다(예전엔 저장마다 새 투구 기록을 만들어, 같은 불펜을 손으로도
+   * 적으면 투구 수 · 부하가 두 번 셌다). 고른 종류 · 체감 강도는 세션에 두고, 투구 탭 '오늘' 카드 → 그날 화면이 이 값으로 채운 기록을 권한다
+   * (lib/velocity-meta.ts unloggedSessions · logPrefillOf). 기록을 남기면 그 기록이 이 세션을 잇는다(app/api/pitch-log POST).
+   */
+  const same = await recentSameSession(user.id, at, pitches.map((p) => p.rawKmh));
+  if (same) return { ok: true, sessionId: same.id, pitchIds: same.pitches.map((p) => p.id) };
 
-  const session = await prisma.$transaction(async (tx) => {
-    const log = await tx.pitchLog.create({
+  const session = await prisma.velocitySession.create({
       data: {
         userId: user.id,
         date: at,
         sessionType: type.value,
-        pitchCount: pitches.length,
-        intensity: effort.intensity,
+        /* 옛 화면이 1~10 만 보내면 % 는 비운다 — 기록 폼이 그때 고르게 한다 */
         effortPct: effort.effortPct,
-        maxVelocity,
-        avgVelocity,
-        memo: velocityLogMemo(pitches.length),
-        videoPaths: [],
-      },
-    });
-    return tx.velocitySession.create({
-      data: {
-        userId: user.id,
-        date: at,
-        pitchLogId: log.id,
         fovDeg,
         calScale: fit.scale,
         calOffset: fit.offset,
@@ -375,7 +408,6 @@ export async function saveVelocitySession(
         id: true,
         pitches: { select: { id: true }, orderBy: { seq: 'asc' } },
       },
-    });
   });
 
   /*
@@ -420,7 +452,7 @@ export async function updateVelocityPitch(
   edit: PitchEdit
 ): Promise<VelocityActionResult> {
   const user = await getCurrentUser();
-  if (!user) return { ok: false, error: '로그인이 필요합니다.' };
+  if (!user) return { ok: false, error: '로그인이 필요해요.' };
   const checked = checkEdit(edit);
   if ('error' in checked) return { ok: false, error: checked.error };
 
@@ -433,7 +465,7 @@ export async function updateVelocityPitch(
       session: { select: { date: true } },
     },
   });
-  if (!row) return { ok: false, error: '공을 찾을 수 없습니다.' };
+  if (!row) return { ok: false, error: '공을 찾을 수 없어요.' };
 
   /*
    * 수기 공은 스피드건 값이 곧 구속이다 — 건 값만 고치면 구속 · 투구 기록의 최고 · 평균이 옛 값으로 남았다(관리자 쪽
@@ -456,7 +488,7 @@ export async function updateVelocityPitch(
 
 export async function deleteVelocityPitch(id: string): Promise<VelocityActionResult> {
   const user = await getCurrentUser();
-  if (!user) return { ok: false, error: '로그인이 필요합니다.' };
+  if (!user) return { ok: false, error: '로그인이 필요해요.' };
 
   const row = await prisma.velocityPitch.findFirst({
     where: { id, userId: user.id },
@@ -468,7 +500,7 @@ export async function deleteVelocityPitch(id: string): Promise<VelocityActionRes
       session: { select: { date: true } },
     },
   });
-  if (!row) return { ok: false, error: '공을 찾을 수 없습니다.' };
+  if (!row) return { ok: false, error: '공을 찾을 수 없어요.' };
 
   await deleteVelocityPitchRow(row);
   revalidateDay(row.session.date.toISOString().slice(0, 10));
@@ -477,13 +509,13 @@ export async function deleteVelocityPitch(id: string): Promise<VelocityActionRes
 
 export async function deleteVelocitySession(id: string): Promise<VelocityActionResult> {
   const user = await getCurrentUser();
-  if (!user) return { ok: false, error: '로그인이 필요합니다.' };
+  if (!user) return { ok: false, error: '로그인이 필요해요.' };
 
   const session = await prisma.velocitySession.findFirst({
     where: { id, userId: user.id },
     select: { id: true, date: true },
   });
-  if (!session) return { ok: false, error: '세션을 찾을 수 없습니다.' };
+  if (!session) return { ok: false, error: '세션을 찾을 수 없어요.' };
 
   await deleteVelocitySessionRows(id);
   revalidateDay(session.date.toISOString().slice(0, 10));
@@ -515,22 +547,22 @@ export async function createClipUpload(
   bytes: number
 ): Promise<ClipUploadTarget> {
   const user = await getCurrentUser();
-  if (!user) return { ok: false, error: '로그인이 필요합니다.' };
+  if (!user) return { ok: false, error: '로그인이 필요해요.' };
   if (!isStorageConfigured())
-    return { ok: false, error: '영상 저장소가 설정되지 않았습니다.' };
+    return { ok: false, error: '영상 저장소가 설정되지 않았어요.' };
   if (!/^video\//.test(String(mime)))
-    return { ok: false, error: '영상 파일만 올릴 수 있습니다.' };
+    return { ok: false, error: '영상 파일만 올릴 수 있어요.' };
   if (!(bytes > 0 && bytes <= MAX_VIDEO_BYTES)) {
     return {
       ok: false,
-      error: `클립은 ${Math.round(MAX_VIDEO_BYTES / 1024 / 1024)}MB 까지 올릴 수 있습니다.`,
+      error: `클립은 ${Math.round(MAX_VIDEO_BYTES / 1024 / 1024)}MB 까지 올릴 수 있어요.`,
     };
   }
   const row = await prisma.velocityPitch.findFirst({
     where: { id: pitchId, userId: user.id },
     select: { id: true },
   });
-  if (!row) return { ok: false, error: '공을 찾을 수 없습니다.' };
+  if (!row) return { ok: false, error: '공을 찾을 수 없어요.' };
   const ext = /mp4/.test(mime) ? 'mp4' : /quicktime/.test(mime) ? 'mov' : 'webm';
   try {
     const target = await createUploadTarget(user.id, `clip.${ext}`);
@@ -538,7 +570,7 @@ export async function createClipUpload(
   } catch (e) {
     return {
       ok: false,
-      error: e instanceof Error ? e.message : '업로드 주소를 만들지 못했습니다.',
+      error: e instanceof Error ? e.message : '업로드 주소를 만들지 못했어요.',
     };
   }
 }
@@ -558,13 +590,13 @@ export async function attachClip(
   kind: 'main' | 'wide' = 'main'
 ): Promise<{ ok: true; path: string } | { ok: false; error: string }> {
   const user = await getCurrentUser();
-  if (!user) return { ok: false, error: '로그인이 필요합니다.' };
+  if (!user) return { ok: false, error: '로그인이 필요해요.' };
   const path =
     typeof info.localId === 'string'
       ? (phoneVideoPath(user.id, info.localId) ?? '')
       : String(info.path ?? '');
   if (!path || !isOwnedBy(path, user.id))
-    return { ok: false, error: '클립 경로가 올바르지 않습니다.' };
+    return { ok: false, error: '클립 경로가 올바르지 않아요.' };
   const row = await prisma.velocityPitch.findFirst({
     where: { id: pitchId, userId: user.id },
     select: {
@@ -574,7 +606,7 @@ export async function attachClip(
       session: { select: { date: true } },
     },
   });
-  if (!row) return { ok: false, error: '공을 찾을 수 없습니다.' };
+  if (!row) return { ok: false, error: '공을 찾을 수 없어요.' };
   const bytes = Math.round(num(info.bytes, 0, MAX_VIDEO_BYTES) ?? 0);
   const sec = optional(info.sec, 0, 600);
   const mime = String(info.mime ?? '').slice(0, 80) || null;
@@ -611,7 +643,8 @@ export async function attachClip(
 export type AttemptInput = {
   /** YYYY-MM-DD */
   date: string;
-  kind: 'ball' | 'motion';
+  /** 'seed' = 앱의 공 후보(2026-10-16) · 'sweep' = 조용할 때 훑기가 뒤늦게 찾은 공(2.7) */
+  kind: 'ball' | 'motion' | 'seed' | 'sweep';
   /** 알림 시각(앱 카메라 시계 초) · 세기 */
   atSec: number | null;
   strength: number | null;
@@ -624,6 +657,8 @@ export type AttemptInput = {
   confidence: string | null;
   /** 엔진의 거리 보고(DistanceReport) — 못 잰 까닭을 되짚는 숫자들만 남긴다(sanitizeDistance) */
   distance?: unknown;
+  /** 알림 때 폰 발열 상태(0 보통 ~ 3 아주 뜨거움, 옛 앱은 없음) — analysis.thermal 로 */
+  thermal?: number | null;
 };
 
 /**
@@ -634,11 +669,11 @@ export async function recordVelocityAttempt(
   input: AttemptInput
 ): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
   const user = await getCurrentUser();
-  if (!user) return { ok: false, error: '로그인이 필요합니다.' };
+  if (!user) return { ok: false, error: '로그인이 필요해요.' };
   if (!/^\d{4}-\d{2}-\d{2}$/.test(String(input.date)))
-    return { ok: false, error: '날짜가 올바르지 않습니다.' };
+    return { ok: false, error: '날짜가 올바르지 않아요.' };
   const at = new Date(`${input.date}T00:00:00.000Z`);
-  if (Number.isNaN(at.getTime())) return { ok: false, error: '날짜가 올바르지 않습니다.' };
+  if (Number.isNaN(at.getTime())) return { ok: false, error: '날짜가 올바르지 않아요.' };
   const ok = input.ok === true;
   const distance = sanitizeDistance(input.distance);
   const confidence = String(input.confidence ?? '');
@@ -646,7 +681,10 @@ export async function recordVelocityAttempt(
     data: {
       userId: user.id,
       date: at,
-      kind: input.kind === 'ball' ? 'ball' : 'motion',
+      kind:
+        input.kind === 'ball' || input.kind === 'seed' || input.kind === 'sweep'
+          ? input.kind
+          : 'motion',
       atSec: optional(input.atSec, 0, 1_000_000),
       strength: optional(input.strength, 0, 1_000_000),
       ok,
@@ -655,7 +693,14 @@ export async function recordVelocityAttempt(
       trackFrames: Math.round(num(input.trackFrames, 0, 10_000) ?? 0),
       rawKmh: optional(input.rawKmh, 0, 300),
       confidence: ['high', 'medium', 'low'].includes(confidence) ? confidence : null,
-      analysis: distance ? ({ distance } as Prisma.InputJsonValue) : undefined,
+      analysis: (() => {
+        const thermal = optional(input.thermal, 0, 3);
+        if (!distance && thermal == null) return undefined;
+        return {
+          ...(distance ? { distance } : {}),
+          ...(thermal != null ? { thermal: Math.round(thermal) } : {}),
+        } as Prisma.InputJsonValue;
+      })(),
       engineVersion: VELOCITY_ENGINE_VERSION,
     },
     select: { id: true },
@@ -674,24 +719,24 @@ export async function createAttemptClipUpload(
   bytes: number
 ): Promise<ClipUploadTarget> {
   const user = await getCurrentUser();
-  if (!user) return { ok: false, error: '로그인이 필요합니다.' };
+  if (!user) return { ok: false, error: '로그인이 필요해요.' };
   if (user.role !== 'ADMIN')
     return { ok: false, error: '못 잰 공의 클립은 관리자의 보정용 저장에서만 올라가요.' };
   if (!isStorageConfigured())
-    return { ok: false, error: '영상 저장소가 설정되지 않았습니다.' };
+    return { ok: false, error: '영상 저장소가 설정되지 않았어요.' };
   if (!/^video\//.test(String(mime)))
-    return { ok: false, error: '영상 파일만 올릴 수 있습니다.' };
+    return { ok: false, error: '영상 파일만 올릴 수 있어요.' };
   if (!(bytes > 0 && bytes <= MAX_VIDEO_BYTES)) {
     return {
       ok: false,
-      error: `클립은 ${Math.round(MAX_VIDEO_BYTES / 1024 / 1024)}MB 까지 올릴 수 있습니다.`,
+      error: `클립은 ${Math.round(MAX_VIDEO_BYTES / 1024 / 1024)}MB 까지 올릴 수 있어요.`,
     };
   }
   const row = await prisma.velocityAttempt.findFirst({
     where: { id: attemptId, userId: user.id },
     select: { id: true },
   });
-  if (!row) return { ok: false, error: '시도를 찾을 수 없습니다.' };
+  if (!row) return { ok: false, error: '시도를 찾을 수 없어요.' };
   const ext = /mp4/.test(mime) ? 'mp4' : /quicktime/.test(mime) ? 'mov' : 'webm';
   try {
     const target = await createUploadTarget(user.id, `attempt.${ext}`);
@@ -699,7 +744,7 @@ export async function createAttemptClipUpload(
   } catch (e) {
     return {
       ok: false,
-      error: e instanceof Error ? e.message : '업로드 주소를 만들지 못했습니다.',
+      error: e instanceof Error ? e.message : '업로드 주소를 만들지 못했어요.',
     };
   }
 }
@@ -710,15 +755,15 @@ export async function attachAttemptClip(
   info: { path: string; bytes: number; sec: number | null; mime: string; eventSec: number | null }
 ): Promise<{ ok: true; path: string } | { ok: false; error: string }> {
   const user = await getCurrentUser();
-  if (!user) return { ok: false, error: '로그인이 필요합니다.' };
+  if (!user) return { ok: false, error: '로그인이 필요해요.' };
   const path = String(info.path ?? '');
   if (!path || !isOwnedBy(path, user.id))
-    return { ok: false, error: '클립 경로가 올바르지 않습니다.' };
+    return { ok: false, error: '클립 경로가 올바르지 않아요.' };
   const row = await prisma.velocityAttempt.findFirst({
     where: { id: attemptId, userId: user.id },
     select: { id: true, clipPath: true, date: true },
   });
-  if (!row) return { ok: false, error: '시도를 찾을 수 없습니다.' };
+  if (!row) return { ok: false, error: '시도를 찾을 수 없어요.' };
   await prisma.velocityAttempt.update({
     where: { id: attemptId },
     data: {

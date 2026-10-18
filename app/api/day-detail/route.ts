@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { getCurrentUser } from '@/lib/dal';
-import { isFutureDateKey } from '@/lib/pitch-stats';
+import { dateKeyOf, isFutureDateKey } from '@/lib/pitch-stats';
 import { loadDayDetail } from '@/lib/day-detail';
 
 /**
@@ -15,7 +15,9 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: '로그인이 필요해요.' }, { status: 401 });
 
   const date = req.nextUrl.searchParams.get('date') ?? '';
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || isFutureDateKey(date)) {
+  /* 모양만 맞고 없는 날(2026-13-01 · 2026-02-30)은 Date 가 넘겨 버리거나 Invalid 라 되돌려 맞춰 본다(2026-10-18) */
+  const [y, m, d] = date.split('-').map(Number);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || dateKeyOf(y, m - 1, d) !== date || isFutureDateKey(date)) {
     return NextResponse.json({ error: '날짜가 올바르지 않아요.' }, { status: 400 });
   }
   /* 구속 측정 클립 — 그날 클립이 있다고 캘린더가 알 때만 청한다(서명 왕복이 든다) */

@@ -1,4 +1,5 @@
-import { shiftDateKey, type AcwrZone } from '@/lib/pitch-stats';
+import { shiftDateKey } from '@/lib/pitch-stats';
+import { loadSignalOf, type LoadLike } from '@/lib/report/arm-status';
 import { LOW_CONDITION_THRESHOLD } from '@/lib/report/theme';
 
 /**
@@ -52,7 +53,8 @@ export type HighlightInput = {
   /** 오늘 YYYY-MM-DD(한국 시각) */
   today: string;
   /** 투구 부하 지수(lib/report/facts.ts 의 load) */
-  load: { zone: AcwrZone | null; ratio: number | null };
+  /** 투구 부하 지수(facts.load) — 판정은 arm-status.ts loadSignalOf(팔 상태 · 홈 부하 장과 같은 말) */
+  load: LoadLike;
   /** 날짜별 던진 공 수 — 최근 28일 이상 */
   pitchesByDay: Record<string, number>;
   /** 가장 최근에 남긴 투구 기록 날(쉬는 날로 남긴 것도). 없으면 null */
@@ -67,6 +69,8 @@ export type HighlightInput = {
   checkinDays: string[];
   /** 운동한 날 — 최근 14일 이상 */
   workoutDays: string[];
+  /** 어제 '오늘 등판'이라 답했는데 어제 투구 기록이 한 줄도 없다(outingOf(facts).claimedYesterdayNoLog) */
+  claimedYesterdayNoLog?: boolean;
 };
 
 export const MAX_HIGHLIGHTS = 3;
@@ -77,12 +81,11 @@ export const MAX_HIGHLIGHTS = 3;
  */
 export type HighlightPart = 'home' | 'pitch' | 'training';
 export function partOf(key: Highlight['key']): HighlightPart {
-  if (key === 'load' || key === 'gap' || key === 'velocity' || key === 'away') return 'pitch';
+  if (key === 'load' || key === 'gap' || key === 'velocity' || key === 'away')
+    return 'pitch';
   if (key === 'training') return 'training';
   return 'home';
 }
-/** 투구 기록이 이만큼 비면 남기라고 한다 — 안 남긴 날은 쉰 날로 쳐서 부하가 틀어진다 */
-export const GAP_DAYS = 3;
 /** 이보다 오래 비었으면 잔소리 대신 '오랜만이에요' */
 export const AWAY_DAYS = 30;
 /** 체크인 연속은 이레마다 한 번 말한다(매일 같은 말이면 '변화'가 아니다) */
@@ -117,7 +120,10 @@ function runBack(start: string, ok: (key: string) => boolean) {
   return n;
 }
 
-export function buildHighlights(input: HighlightInput, part?: HighlightPart): Highlight[] {
+export function buildHighlights(
+  input: HighlightInput,
+  part?: HighlightPart
+): Highlight[] {
   const { today, load, pitchesByDay, velocityByDay, conditionByDay } = input;
   const week = days(today, -6, 0);
   const lastWeek = days(today, -13, -7);
@@ -125,15 +131,19 @@ export function buildHighlights(input: HighlightInput, part?: HighlightPart): Hi
 
   /* ── 안전 ── */
 
-  /* 투구 부담이 평소(4주)보다 크게 늘었다 — 부하 지수의 주의 · 위험 구간 */
-  if ((load.zone === 'caution' || load.zone === 'danger') && load.ratio != null) {
+  /*
+   * 투구 부담이 평소(4주)보다 크게 늘었다 — 판정은 loadSignalOf(팔 상태와 같은 말). 평소 양이 아주 적어 지수가 흔들리는 사람(lowBase)은 안 띄우고,
+   * 문진 추정 중의 위험은 주의 글로(2026-10-16 베타 100명: 복귀자가 캐치볼 20구에 '부담 262% 커요 · 쉬거나 줄여요').
+   */
+  const ls = loadSignalOf(load);
+  if ((ls.kind === 'caution' || ls.kind === 'danger') && load.ratio != null) {
     const pct = Math.max(1, Math.round((load.ratio - 1) * 100));
     out.push({
       key: 'load',
       warn: true,
       label: '투구량',
       text: `최근 1주 투구 부담이 평소보다 ${pct}% 커요. ${
-        load.zone === 'danger' ? '며칠은 쉬거나 줄여요.' : '며칠은 가볍게 던져요.'
+        ls.kind === 'danger' ? '며칠은 쉬거나 줄여요.' : '며칠은 가볍게 던져요.'
       }`,
       href: `${ANALYSIS}?view=pitch`,
       chart: {
@@ -170,15 +180,17 @@ export function buildHighlights(input: HighlightInput, part?: HighlightPart): Hi
     });
   }
 
-  /* 투구 기록이 비었다 — 안 남긴 날은 쉰 날로 쳐서 부하 지수가 틀어진다 */
-  const gap = input.lastLogDate ? daysAgo(today, input.lastLogDate) : null;
-  if (gap != null && gap >= GAP_DAYS && gap <= AWAY_DAYS) {
+  /*
+   * 어제 등판한다고 답했는데 어제 투구 기록이 없다 — 그 등판의 공 수를 몰라 부하가 비어 있다(lib/engine/outing.ts claimedYesterdayNoLog).
+   * 예전엔 '3일째 투구 기록이 없어요'를 띄웠는데, 주 1회 경기만 던지는 사회인은 안 던지는 날마다 잔소리를 들었다(2026-10-16 베타 100명).
+   */
+  if (input.claimedYesterdayNoLog) {
     out.push({
       key: 'gap',
       warn: false,
       label: '투구 기록',
-      text: `${gap}일째 투구 기록이 없어요. 안 던진 날도 남겨야 부하가 맞아요.`,
-      href: `/pitch-log/${today}`,
+      text: '어제 등판 기록이 없어요. 몇 구 던졌는지 남겨요.',
+      href: `/pitch-log/${shiftDateKey(today, -1)}`,
       chart: null,
     });
   }
@@ -195,6 +207,10 @@ export function buildHighlights(input: HighlightInput, part?: HighlightPart): Hi
       minSpan: 6,
     };
     const prev3 = maxOf(days(today, -27, -7).map((k) => velocityByDay[k]));
+    /* '첫 기록'은 구속을 잰 날이 통틀어 하루일 때만 — 두 번째 날에도 일주일 내내 '첫 기록'이라 했다(2026-10-17) */
+    const measuredDays = Object.keys(velocityByDay).filter(
+      (k) => velocityByDay[k] != null
+    ).length;
     if (input.bestBefore == null || bestWeek > input.bestBefore) {
       out.push({
         key: 'velocity',
@@ -202,7 +218,9 @@ export function buildHighlights(input: HighlightInput, part?: HighlightPart): Hi
         label: '구속',
         text:
           input.bestBefore == null
-            ? '첫 구속 기록이에요. {speed}'
+            ? measuredDays > 1
+              ? '이번 주 최고 구속 {speed}'
+              : '첫 구속 기록이에요. {speed}'
             : '최고 구속 {speed}, 새 기록이에요.',
         speed: bestWeek,
         href: ANALYSIS,
@@ -237,13 +255,13 @@ export function buildHighlights(input: HighlightInput, part?: HighlightPart): Hi
     });
   }
 
-  /* 투구가 평소보다 적다 — 쉬다 돌아온 사람은 한꺼번에 늘리면 다친다 */
-  if (load.zone === 'low') {
+  /* 투구가 평소보다 적다 — 늘리라고는 하지 않는다(주 1회 던지는 사람은 경기 전날마다 낮다 — 2026-10-16 베타 100명) */
+  if (ls.kind === 'low') {
     out.push({
       key: 'load',
       warn: false,
       label: '투구량',
-      text: '최근 1주 투구가 평소보다 적어요. 다시 늘릴 땐 조금씩 올려요.',
+      text: '최근 1주 투구가 평소보다 적어요.',
       href: `${ANALYSIS}?view=pitch`,
       chart: null,
     });
@@ -271,13 +289,14 @@ export function buildHighlights(input: HighlightInput, part?: HighlightPart): Hi
 
   /* ── 달라진 게 없을 때 ── */
 
+  const gap = input.lastLogDate ? daysAgo(today, input.lastLogDate) : null;
   if (gap != null && gap > AWAY_DAYS && (!part || part === 'pitch')) {
     return [
       {
         key: 'away',
         warn: false,
         label: '투구 기록',
-        text: '오랜만이에요. 오늘 기록부터 남겨 볼까요?',
+        text: '며칠 기록이 비었어요. 오늘 것부터 남겨요.',
         href: `/pitch-log/${today}`,
         chart: null,
       },

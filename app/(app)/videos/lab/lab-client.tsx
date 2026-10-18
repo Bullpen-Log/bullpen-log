@@ -3,14 +3,24 @@
 import { useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Film, Play, Rotate3d, Trash2, Upload } from '@/components/icon';
-import { BackLink, Card, EmptyState, PageHeading } from '@/components/ui';
+import { Camera, ChevronRight, Film, Play, Rotate3d, Trash2, Upload } from '@/components/icon';
+import { BackLink, ButtonLink, Card, EmptyState, PageHeading } from '@/components/ui';
 import { Segmented } from '@/components/segmented';
 import { DisclosureButton } from '@/components/disclosure';
 import { ErrorLine } from '@/components/error-line';
 import { ConfirmDialog } from '@/components/confirm-delete';
 import { uploadToStorage } from '@/components/video-upload';
 import { readVideoFps } from '@/lib/velocity-engine/video-fps';
+import { readVideoLens } from '@/lib/velocity-engine/video-lens';
+import {
+  fileFingerprint,
+  labPairBlock,
+  labVideoBlock,
+  type LabCapture,
+  type LabVideoInfo,
+} from '@/lib/pitch-lab-guard';
+import { readLabFileFacts } from '@/lib/pitch-lab-file';
+import { LAB_GUIDE_HREF, labGuideHref } from '@/lib/pitch-lab-guide';
 import { OFFLINE_MESSAGE, orOffline } from '@/lib/action-offline';
 import { quietRefresh } from '@/lib/quiet-refresh';
 import { removeLabSample, saveLabSample } from '@/app/actions/pitch-lab';
@@ -19,8 +29,10 @@ import {
   LAB_MAX_VIDEO_BYTES,
   LAB_MAX_VIDEO_MB,
   LAB_VIEWS,
-  LAB_VIEW_LABELS,
-  labMetaChips,
+  labSideBase,
+  labViewLabel,
+  type LabHand,
+  labCardChips,
   type LabGround,
   type LabMeta,
   type LabView,
@@ -30,26 +42,87 @@ import { V2StatusBadge } from './[id]/analysis-v2';
 
 /**
  * 투구 분석(베타) 화면 — 위: 옆 · 뒤 영상 짝 올리기, 아래: 올린 샘플(나란히 재생 · 3D 분석 · 지우기).
- * 겉은 단순하게 — 촬영 정보는 기본값(동시 촬영 · 화면 녹화 · 오른손)으로 두고 '촬영 정보'를 펴야 보인다.
+ * 겉은 단순하게 — 촬영 정보는 기본값(마운드 · 오른손)으로 두고 '촬영 정보'를 펴야 보인다.
+ *
+ * 2026-10-15 사용자: "녹화 영상 금지, 두 번 따로 촬영도 금지, 무조건 동시에" — '동시에 두 대 | 한 대로 나눠' · '화면 녹화 | 원본' 고르기를
+ * 없앴다. 올리는 샘플은 늘 동시 촬영 · 원본이고, 화면 녹화는 이름 · 파일로, 따로 찍은 짝은 두 영상의 찍은 시각으로 막는다
+ * (lib/pitch-lab-guard.ts labVideoBlock · labPairBlock, 시각 · 렌즈는 lib/pitch-lab-file.ts). 서버(saveLabSample)도 한 번 더 본다.
  */
 
-const SYNC_OPTIONS = [
-  { value: 'yes', label: '동시에 두 대' },
-  { value: 'no', label: '한 대로 나눠' },
-] as const;
 const FPS_OPTIONS = [
   { value: 'unknown', label: '모름' },
   { value: '120', label: '120' },
   { value: '240', label: '240' },
 ] as const;
-const SOURCE_OPTIONS = [
-  { value: 'screen', label: '화면 녹화' },
-  { value: 'original', label: '원본' },
-] as const;
 const HAND_OPTIONS = [
   { value: 'R', label: '오른손' },
   { value: 'L', label: '왼손' },
 ] as const;
+
+type VideoBox = { shortSide: number | null; aspect: number | null; durationSec: number | null };
+const NO_BOX: VideoBox = { shortSide: null, aspect: null, durationSec: null };
+
+/** 영상의 짧은 변 · 모양 · 길이 — 브라우저가 머리만 읽는다(못 읽는 코덱이면 null, 그 칸으로는 안 막는다) */
+function readVideoBox(file: File): Promise<VideoBox> {
+  return new Promise((resolve) => {
+    const v = document.createElement('video');
+    const url = URL.createObjectURL(file);
+    let done = false;
+    const finish = (r: VideoBox) => {
+      if (done) return;
+      done = true;
+      URL.revokeObjectURL(url);
+      v.removeAttribute('src');
+      resolve(r);
+    };
+    v.preload = 'metadata';
+    v.muted = true;
+    v.onloadedmetadata = () =>
+      finish({
+        shortSide: v.videoWidth > 0 ? Math.min(v.videoWidth, v.videoHeight) : null,
+        aspect:
+          v.videoWidth > 0 && v.videoHeight > 0
+            ? Math.max(v.videoWidth, v.videoHeight) / Math.min(v.videoWidth, v.videoHeight)
+            : null,
+        durationSec: Number.isFinite(v.duration) && v.duration > 0 ? v.duration : null,
+      });
+    v.onerror = () => finish(NO_BOX);
+    setTimeout(() => finish(NO_BOX), 5000);
+    v.src = url;
+  });
+}
+
+/**
+ * 올리기 전 검사 재료(lib/pitch-lab-guard.ts labVideoBlock · labPairBlock) — GPU 를 안 쓴다.
+ * 렌즈 정보는 두 읽기 중 하나라도 찾으면 있음, 파일 머리를 못 읽었으면 모름(null — 그 칸으로는 안 막는다).
+ */
+async function probeLabVideo(
+  file: File
+): Promise<{ info: LabVideoInfo; capture: Omit<LabCapture, 'fp'> }> {
+  const [fps, box, lens, facts] = await Promise.all([
+    readVideoFps(file),
+    readVideoBox(file),
+    readVideoLens(file).catch(() => null),
+    readLabFileFacts(file),
+  ]);
+  const lensSeen = lens != null && (lens.lens != null || lens.focal35 != null);
+  return {
+    info: {
+      name: file.name,
+      fps,
+      shortSide: box.shortSide,
+      durationSec: box.durationSec,
+      focal35: lens?.focal35 ?? null,
+      aspect: box.aspect,
+      hasLens: lensSeen || facts?.hasLens ? true : facts ? false : null,
+    },
+    capture: {
+      startMs: facts?.startMs ?? null,
+      timeSource: facts?.timeSource ?? null,
+      durationSec: facts?.durationSec ?? box.durationSec,
+    },
+  };
+}
 
 const WHEN = new Intl.DateTimeFormat('ko-KR', {
   timeZone: 'Asia/Seoul',
@@ -63,9 +136,12 @@ const WHEN = new Intl.DateTimeFormat('ko-KR', {
 export function LabClient({
   samples,
   defaultHeightCm,
+  defaultHand,
 }: {
   samples: LabSample[];
   defaultHeightCm: number | null;
+  /** 가입 때 고른 던지는 손 — 올리기 칸의 처음 값 · 옆 폰 자리(우투 3루 · 좌투 1루) */
+  defaultHand: LabHand;
 }) {
   const [tab, setTab] = useState<'sample' | 'marker'>('sample');
   const normal = samples.filter((s) => s.meta?.kind !== 'marker');
@@ -77,8 +153,8 @@ export function LabClient({
         <BackLink href="/videos">투구</BackLink>
         <PageHeading
           kicker="베타"
-          title="투구 분석"
-          description="옆 · 뒤 영상을 짝으로 올려 두면 3D 분석을 만들어 시험해요."
+          title="3D 동작 분석"
+          description="같은 공을 옆과 뒤에서 함께 찍어 올리면 몸의 움직임을 3D 로 보여 줘요."
         />
       </div>
       {/*
@@ -96,12 +172,21 @@ export function LabClient({
           ]}
         />
       )}
-      {tab === 'sample' && <UploadCard defaultHeightCm={defaultHeightCm} />}
+      {tab === 'sample' && (
+        <UploadCard defaultHeightCm={defaultHeightCm} defaultHand={defaultHand} />
+      )}
       {shown.length === 0 ? (
         <EmptyState
           icon={<Rotate3d />}
-          title="아직 올린 샘플이 없어요"
-          description="같은 공을 옆(3루 쪽)과 뒤(2루 쪽)에서 찍은 영상을 짝으로 올려 주세요."
+          title="아직 올린 영상이 없어요"
+          description={`같은 공을 옆(${labSideBase(defaultHand)} 쪽)과 뒤(2루 쪽)에서 찍은 영상을 짝으로 올려 주세요.`}
+          action={
+            tab === 'sample' ? (
+              <ButtonLink href={LAB_GUIDE_HREF} variant="secondary">
+                촬영 안내 보기
+              </ButtonLink>
+            ) : undefined
+          }
         />
       ) : (
         <div className="space-y-2">
@@ -110,7 +195,7 @@ export function LabClient({
               key={s.id}
               sample={s}
               n={shown.length - i}
-              label={tab === 'marker' ? '마커 샘플' : '샘플'}
+              label={tab === 'marker' ? '마커 샘플' : '투구'}
             />
           ))}
         </div>
@@ -121,31 +206,46 @@ export function LabClient({
 
 /* ─────────────────────────── 올리기 ─────────────────────────── */
 
-function UploadCard({ defaultHeightCm }: { defaultHeightCm: number | null }) {
+function UploadCard({
+  defaultHeightCm,
+  defaultHand,
+}: {
+  defaultHeightCm: number | null;
+  defaultHand: LabHand;
+}) {
   const router = useRouter();
   const [files, setFiles] = useState<Partial<Record<LabView, File>>>({});
   const [infoOpen, setInfoOpen] = useState(false);
-  const [synced, setSynced] = useState<'yes' | 'no'>('yes');
   const [fps, setFps] = useState<'unknown' | '120' | '240'>('unknown');
-  const [source, setSource] = useState<'screen' | 'original'>('screen');
-  const [hand, setHand] = useState<'R' | 'L'>('R');
+  const [hand, setHand] = useState<LabHand>(defaultHand);
   const [ground, setGround] = useState<LabGround>('mound');
   const [height, setHeight] = useState(defaultHeightCm ? String(defaultHeightCm) : '');
-  const [distance, setDistance] = useState('');
+  /* 폰마다 투수까지(m) — 1배여도 폰마다 화각이 달라 두 대를 따로 적는다 */
+  const [distance, setDistance] = useState<Record<LabView, string>>({ side: '', back: '' });
   const [memo, setMemo] = useState('');
   const [progress, setProgress] = useState<{ view: LabView; percent: number } | null>(
     null
   );
   /* 고른 영상의 초당 장수(파일 머리에서 — 못 읽으면 null) */
   const [fpsOf, setFpsOf] = useState<Partial<Record<LabView, number | null>>>({});
+  /* 고른 영상의 지문(같은 영상 다시 막기) · 찍은 시각(따로 찍은 짝 막기) — 검사가 끝나야 생긴다 */
+  const [capOf, setCapOf] = useState<Partial<Record<LabView, LabCapture & { fp: string }>>>({});
   const [error, setError] = useState<string>();
+  /* 고른 영상이 올리기 전 검사에 걸렸나 — 오류 밑에 촬영 안내로 가는 길을 붙인다 */
+  const [blocked, setBlocked] = useState(false);
   const [, start] = useTransition();
 
   const busy = progress != null;
-  const ready = LAB_VIEWS.every((v) => files[v]) && !busy;
+  /* 옆 · 뒤가 같은 공을 동시에 찍은 짝인가(같은 파일 · 찍은 시각) — 아니면 올리지 않는다 */
+  const pairBlock =
+    files.side && files.back && capOf.side && capOf.back
+      ? labPairBlock(capOf.side, capOf.back)
+      : null;
+  const ready = LAB_VIEWS.every((v) => files[v] && capOf[v]) && !pairBlock && !busy;
 
   const pick = (view: LabView, file: File | undefined) => {
     setError(undefined);
+    setBlocked(false);
     if (!file) return;
     if (file.size > LAB_MAX_VIDEO_BYTES) {
       setError(`영상은 ${LAB_MAX_VIDEO_MB}MB 이하만 올릴 수 있어요.`);
@@ -153,14 +253,28 @@ function UploadCard({ defaultHeightCm }: { defaultHeightCm: number | null }) {
     }
     setFiles((f) => ({ ...f, [view]: file }));
     setFpsOf((m) => ({ ...m, [view]: undefined }));
+    setCapOf((m) => ({ ...m, [view]: undefined }));
+    /*
+     * 올리기 전 검사(GPU 0원) — 화면 녹화 · 30fps 급 · 낮은 해상도 · 줌 · 너무 짧으면 고른 것을 되돌리고 까닭 + 다시 찍기 안내.
+     * 2026-10-14 사용자: 이상한 영상으로 계속 실패해 GPU 비용이 나가지 않게.
+     */
+    void Promise.all([probeLabVideo(file), fileFingerprint(file)]).then(([probe, fp]) => {
+      const block = labVideoBlock(probe.info);
+      if (block) {
+        setFiles((f) => (f[view] === file ? { ...f, [view]: undefined } : f));
+        setError(`${labViewLabel(view, hand)} 영상: ${block}`);
+        setBlocked(true);
+        return;
+      }
+      setCapOf((m) => ({ ...m, [view]: { ...probe.capture, fp } }));
+    });
     void readVideoFps(file).then((v) => {
       setFpsOf((m) => {
         const next = { ...m, [view]: v };
-        /* 두 영상 다 고속(원본 슬로모)이면 촬영 정보를 저절로 — 슬로모 배수 · 원본 */
+        /* 두 영상 다 고속(원본 슬로모)이면 촬영 정보의 슬로모 배수를 저절로 */
         const both = LAB_VIEWS.map((x) => next[x]);
         if (both.every((x): x is number => x != null && x >= 100)) {
           setFps(Math.min(...both) >= 200 ? '240' : '120');
-          setSource('original');
         }
         return next;
       });
@@ -168,15 +282,20 @@ function UploadCard({ defaultHeightCm }: { defaultHeightCm: number | null }) {
   };
   const known = LAB_VIEWS.map((v) => fpsOf[v]).filter((x): x is number => x != null);
   const slow = known.filter((x) => x <= 65);
+  /*
+   * 2026-10-15 사용자: "에어드롭으로 옮길 때 프레임이 떨어진다" — 슬로모를 다른 폰으로 옮기며 원본이 바뀐 경우를 짚어 준다.
+   * 30fps 급은 올리기 전 검사가 이미 막고, 60fps · 두 영상 차이는 알림만(60fps 원본도 있어서).
+   */
   const fpsWarn =
     slow.length > 0
-      ? `초당 ${Math.round(Math.min(...slow))}장 영상이에요. 공을 놓는 순간 팔이 번지고, 슬로모를 내보낸 영상은 두 영상의 시간이 어긋나 3D가 덜 정확해요. 240fps 슬로모로 찍어 사진 앱의 원본 그대로 올려 주세요.`
+      ? `초당 ${Math.round(Math.min(...slow))}장 영상이에요. 슬로 모션으로 찍었다면 다른 폰으로 옮기며 원본이 바뀐 거예요. AirDrop 은 옵션에서 모든 사진 데이터를 켜고 다시 옮겨 주세요.`
       : known.length === 2 && Math.abs(known[0] - known[1]) > 0.1 * Math.max(...known)
-        ? `두 영상의 초당 장수가 달라요(옆 ${Math.round(known[0])} · 뒤 ${Math.round(known[1])}). 같은 설정으로 찍으면 더 정확해요.`
+        ? `두 영상의 초당 장수가 달라요(옆 ${Math.round(known[0])} · 뒤 ${Math.round(known[1])}). 같은 설정으로 찍었다면 옮기며 한쪽 원본이 바뀐 거예요. 촬영 안내의 영상 옮기기를 봐 주세요.`
         : null;
 
   const upload = async () => {
     setError(undefined);
+    setBlocked(false);
     const id = crypto.randomUUID();
     try {
       for (const view of LAB_VIEWS) {
@@ -189,20 +308,36 @@ function UploadCard({ defaultHeightCm }: { defaultHeightCm: number | null }) {
         );
       }
       const meta: Omit<LabMeta, 'createdAt'> = {
-        synced: synced === 'yes',
+        /* 늘 두 폰 동시 촬영 · 원본(2026-10-15) — 서버도 다르면 받지 않는다 */
+        synced: true,
         slowmoFps: fps === 'unknown' ? null : (Number(fps) as 120 | 240),
-        screenRecorded: source === 'screen',
+        screenRecorded: false,
         hand,
         ground,
         heightCm: height ? Number(height) : null,
-        distanceM: distance ? Number(distance) : null,
+        distanceM: null,
+        distances: Object.fromEntries(
+          LAB_VIEWS.filter((v) => distance[v]).map((v) => [v, Number(distance[v])])
+        ),
         memo: memo.trim() || null,
         /* 화면에서 올리는 것은 늘 일반 샘플 — 마커 샘플은 3~4대 영상이라 스크립트로 올린다 */
         kind: 'sample',
         files: Object.fromEntries(
           LAB_VIEWS.map((v) => [
             v,
-            { name: files[v]?.name ?? '', size: files[v]?.size ?? 0 },
+            {
+              name: files[v]?.name ?? '',
+              size: files[v]?.size ?? 0,
+              fp: capOf[v]?.fp,
+              /* 찍은 시각 · 출처 · 길이 — 서버가 짝을 한 번 더 본다(못 읽었으면 빼고) */
+              ...(capOf[v]?.startMs != null
+                ? {
+                    at: new Date(capOf[v].startMs).toISOString(),
+                    src: capOf[v].timeSource ?? undefined,
+                  }
+                : {}),
+              ...(capOf[v]?.durationSec != null ? { dur: capOf[v].durationSec } : {}),
+            },
           ])
         ),
       };
@@ -214,6 +349,7 @@ function UploadCard({ defaultHeightCm }: { defaultHeightCm: number | null }) {
         return;
       }
       setFiles({});
+      setCapOf({});
       setMemo('');
       start(() => quietRefresh(router));
     } catch (err) {
@@ -226,23 +362,39 @@ function UploadCard({ defaultHeightCm }: { defaultHeightCm: number | null }) {
   return (
     <Card className="space-y-4">
       <div className="space-y-1">
-        <p className="text-base font-semibold text-ink">샘플 올리기</p>
-        <p className="text-xs text-muted">
-          영상 하나에 {LAB_MAX_VIDEO_MB}MB까지예요. 카메라는 1배(기본 렌즈)로 찍어 주세요. 분석이 1배로 계산해요.
-        </p>
-        <p className="text-xs text-muted">
-          240fps 슬로모로 찍어, 내보내거나 화면 녹화하지 말고 원본 그대로 올리면 가장 정확해요.
+        <p className="text-base font-semibold text-ink">영상 올리기</p>
+        <p className="text-xs break-keep text-muted">
+          두 폰으로 같은 공을 동시에 찍은 원본만 올릴 수 있어요. 영상 하나에 {LAB_MAX_VIDEO_MB}MB까지예요.
         </p>
       </div>
+
+      {/*
+        촬영 안내(2026-10-15 사용자: "우리가 가장 잘 인식할 수 있는 조건을 참고해서 촬영할 수 있게") — 예전 두 줄 안내(1배 · 240fps 원본)를
+        한 화면(/videos/lab/guide)으로 늘렸다. 요점 다섯을 한 줄로 보이고 누르면 그 화면.
+      */}
+      <Link
+        href={LAB_GUIDE_HREF}
+        className="flex min-h-14 items-center gap-3 rounded-2xl bg-sky-tint px-3 py-2.5 text-left"
+      >
+        <Camera aria-hidden className="h-5 w-5 shrink-0 text-sky" />
+        <span className="min-w-0 flex-1 space-y-0.5">
+          <span className="block text-sm font-semibold text-ink">촬영 안내</span>
+          <span className="block text-xs break-keep text-muted">
+            두 대 동시에 · 240fps 슬로 모션 · 1배 · 삼각대 · 원본 그대로
+          </span>
+        </span>
+        <ChevronRight aria-hidden className="h-4 w-4 shrink-0 text-muted" />
+      </Link>
 
       <div className="grid grid-cols-2 gap-2">
         {LAB_VIEWS.map((view) => (
           <FilePick
             key={view}
-            label={LAB_VIEW_LABELS[view]}
+            label={labViewLabel(view, hand)}
             file={files[view]}
             disabled={busy}
             percent={progress?.view === view ? progress.percent : null}
+            fps={files[view] ? fpsOf[view] : undefined}
             onPick={(f) => pick(view, f)}
           />
         ))}
@@ -264,28 +416,12 @@ function UploadCard({ defaultHeightCm }: { defaultHeightCm: number | null }) {
                 options={LAB_GROUND_OPTIONS}
               />
             </Row>
-            <Row label="촬영">
-              <Segmented
-                label="촬영"
-                value={synced}
-                onChange={setSynced}
-                options={SYNC_OPTIONS}
-              />
-            </Row>
             <Row label="슬로모(초당 장수)">
               <Segmented
                 label="슬로모"
                 value={fps}
                 onChange={setFps}
                 options={FPS_OPTIONS}
-              />
-            </Row>
-            <Row label="영상">
-              <Segmented
-                label="영상"
-                value={source}
-                onChange={setSource}
-                options={SOURCE_OPTIONS}
               />
             </Row>
             <Row label="던지는 손">
@@ -303,12 +439,22 @@ function UploadCard({ defaultHeightCm }: { defaultHeightCm: number | null }) {
                 onChange={setHeight}
                 placeholder="175"
               />
-              <NumberField
-                label="폰까지 거리(m)"
-                value={distance}
-                onChange={setDistance}
-                placeholder="모름"
-              />
+            </div>
+            <div className="space-y-1">
+              <div className="grid grid-cols-2 gap-2">
+                {LAB_VIEWS.map((v) => (
+                  <NumberField
+                    key={v}
+                    label={`${v === 'side' ? '옆 폰' : '뒤 폰'}까지 거리(m)`}
+                    value={distance[v]}
+                    onChange={(x) => setDistance((d) => ({ ...d, [v]: x }))}
+                    placeholder="모름"
+                  />
+                ))}
+              </div>
+              <p className="text-xs break-keep text-muted">
+                폰마다 투수까지 따로 재서 적어 주세요. 같은 1배여도 폰마다 찍히는 크기가 달라요.
+              </p>
             </div>
             <label className="block space-y-1">
               <span className="text-xs text-muted">메모</span>
@@ -325,12 +471,28 @@ function UploadCard({ defaultHeightCm }: { defaultHeightCm: number | null }) {
       </div>
 
       {fpsWarn && (
-        <p role="status" className="rounded-xl bg-warn-bg px-3 py-2 text-xs text-warn">
-          {fpsWarn}
-        </p>
+        <div role="status" className="space-y-1 rounded-xl bg-warn-bg px-3 py-2 text-xs text-warn">
+          <p className="break-keep">{fpsWarn}</p>
+          <Link href={labGuideHref('move')} className="block font-semibold underline-offset-2">
+            원본 그대로 옮기는 법 ›
+          </Link>
+        </div>
       )}
 
       {error && <ErrorLine>{error}</ErrorLine>}
+      {pairBlock && (
+        <>
+          <ErrorLine>{pairBlock}</ErrorLine>
+          <Link href={labGuideHref('steps')} className="-mt-2 block text-sm font-medium text-sky">
+            두 폰으로 동시에 찍는 법 보기 ›
+          </Link>
+        </>
+      )}
+      {error && blocked && (
+        <Link href={labGuideHref('checklist')} className="-mt-2 block text-sm font-medium text-sky">
+          어떻게 찍으면 되는지 촬영 안내 보기 ›
+        </Link>
+      )}
 
       <button
         type="button"
@@ -352,12 +514,15 @@ function FilePick({
   file,
   disabled,
   percent,
+  fps,
   onPick,
 }: {
   label: string;
   file: File | undefined;
   disabled: boolean;
   percent: number | null;
+  /** 고른 영상의 초당 장수(읽는 중 undefined · 못 읽음 null) — 옮기다 슬로모가 풀렸는지 바로 보이게 */
+  fps?: number | null;
   onPick: (file: File | undefined) => void;
 }) {
   return (
@@ -381,10 +546,17 @@ function FilePick({
           ? `${file.name} · ${(file.size / 1024 / 1024).toFixed(1)}MB`
           : '눌러서 고르기'}
       </span>
+      {file && fps != null && (
+        <span
+          className={`text-numeric rounded-full px-2 text-xs font-semibold ${fps >= 100 ? 'bg-ok/10 text-ok' : 'bg-warn-bg text-warn'}`}
+        >
+          {Math.round(fps)}fps
+        </span>
+      )}
       {percent != null && (
         <span
           aria-hidden
-          className="absolute inset-x-0 bottom-0 h-1 bg-sky transition-[width]"
+          className="absolute inset-x-0 bottom-0 h-1 bg-sky motion-safe:transition-[width]"
           style={{ width: `${percent}%` }}
         />
       )}
@@ -479,12 +651,15 @@ function SampleCard({
   const cells = [
     ...LAB_VIEWS.map((view) => ({
       key: view,
-      label: (marker ? (view === 'side' ? '① ' : '② ') : '') + LAB_VIEW_LABELS[view],
+      label: (marker ? (view === 'side' ? '① ' : '② ') : '') + labViewLabel(view, meta?.hand ?? 'R'),
       url: sample.videos[view]?.url ?? null,
     })),
     ...sample.extras.map((x) => ({
       key: x.key,
-      /* 실제 자리는 정답지 계산으로 확인(scripts/pitch-lab/markers/selfcal/README.md) — cam3 아이폰 11 이 홈 쪽 정면, cam4 SE2 가 1루 쪽 */
+      /*
+       * 실제 자리는 정답지 계산으로 확인(scripts/pitch-lab/markers/selfcal/README.md) — 10-12 는 cam3 아이폰 11 · 10-16(세 대)은 cam3 15 Pro Max 가
+       * 홈 쪽 정면(김민 — 계획서의 대각이 아니라 정면에 둠), cam4 SE2 가 1루 쪽. 기종 · 자리는 샘플 메모에.
+       */
       label: x.key === 'cam3' ? '③ 홈 쪽 정면' : '④ 1루 쪽',
       url: x.url,
     })),
@@ -494,7 +669,7 @@ function SampleCard({
       {/* 한 줄 — 이름 · 날짜 · 표시 · 메모(한 줄로 자름) · 상태. 줄을 누르면 결과 화면, 오른쪽은 영상 펴기 · 지우기 */}
       <div className="flex items-center gap-2">
         <Link href={`/videos/lab/${sample.id}`} className="min-w-0 flex-1 space-y-0.5">
-          <p className="truncate text-[15px] font-semibold text-ink">
+          <p className="truncate text-subhead font-semibold text-ink">
             {label} {n}
             {meta?.createdAt && (
               <span className="ml-2 text-xs font-normal text-muted">
@@ -502,11 +677,14 @@ function SampleCard({
               </span>
             )}
           </p>
-          {/* 마커 샘플은 표시가 모두 같아 메모(투구 번호)만 — 한 줄이라도 짧게 */}
-          {meta?.kind !== 'marker' && (
-            <p className="truncate text-xs text-muted">
-              {meta ? labMetaChips(meta).join(' · ') : '올리다 멈췄어요'}
-            </p>
+          {/* 마커 샘플은 표시가 모두 같아 메모(투구 번호)만. 일반 샘플도 기본값과 다른 것만(전부는 결과 화면 머리) */}
+          {!meta ? (
+            <p className="truncate text-xs text-muted">올리다 멈췄어요</p>
+          ) : (
+            meta.kind !== 'marker' &&
+            labCardChips(meta).length > 0 && (
+              <p className="truncate text-xs text-muted">{labCardChips(meta).join(' · ')}</p>
+            )
           )}
           {meta?.memo && <p className="truncate text-xs text-ink/80">{meta.memo}</p>}
           <V2StatusBadge job={sample.v2.job} now={now} />

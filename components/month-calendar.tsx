@@ -1,7 +1,13 @@
 'use client';
 
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
-import { ChartLine, ChevronDown, ChevronLeft, ChevronRight, Info } from '@/components/icon';
+import {
+  ChartLine,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  Info,
+} from '@/components/icon';
 import { dateKeyOf, toDateKey } from '@/lib/pitch-stats';
 import { STRONG_EFFORT_PCT, effortBand } from '@/lib/pitch-effort';
 
@@ -59,6 +65,16 @@ export function effortClass(effortPct: number) {
   return 'bg-sky/15 text-ink';
 }
 
+/**
+ * 오늘 표시 — 숫자에 파란 테두리 원 + 굵게(2026-10-16 사용자: 홈 · 투구 달력 · 날짜 띠 세 곳을 같게). 고른 날은 칸 테두리(달력) · 파란 채움(날짜 띠).
+ * light = 진한 칸 · 영상 위라 흰 글자일 때.
+ */
+export function todayMarkClass(light = false) {
+  return `grid h-6 w-6 place-items-center rounded-full font-bold ring-[1.5px] ring-inset ${
+    light ? 'text-white ring-white' : 'text-sky ring-sky'
+  }`;
+}
+
 /** 색을 안 채우는 날 — 남긴 것은 있다는 뜻으로 점선만 준다(휴대폰은 바탕 없이, PC 는 회색 칸). */
 const OUTLINE_CLASS = 'border-dashed border-line-strong text-muted desk:bg-surface-2';
 
@@ -75,6 +91,7 @@ export function MonthCalendar({
   flags,
   allowFuture = false,
   events,
+  headerAction,
   children,
 }: {
   month: Date;
@@ -120,6 +137,8 @@ export function MonthCalendar({
   allowFuture?: boolean;
   /** 날짜마다 일정 수 — 칸 밑에 짧은 막대(홈 캘린더만) */
   events?: Record<string, number>;
+  /** 머리 줄 화살표 앞에 붙는 것(홈 — 목록 보기 단추) */
+  headerAction?: ReactNode;
   /** 달력 아래 범례 */
   children?: ReactNode;
 }) {
@@ -213,13 +232,28 @@ export function MonthCalendar({
     stage.getBoundingClientRect();
     stage.style.height = `${to}px`;
 
-    const done = (e: TransitionEvent) => {
-      if (e.target !== stage || e.propertyName !== 'height') return;
+    const release = () => {
       stage.style.height = '';
       stage.removeEventListener('transitionend', done);
+      stage.removeEventListener('transitioncancel', done);
+      window.clearTimeout(fallback);
+    };
+    const done = (e: TransitionEvent) => {
+      if (e.target !== stage || e.propertyName !== 'height') return;
+      release();
     };
     stage.addEventListener('transitionend', done);
-    return () => stage.removeEventListener('transitionend', done);
+    /*
+     * 끝 알림만 믿으면 안 된다 — 넘긴 직후 다른 화면으로 가 판이 숨으면 전환이 취소돼 transitionend 가 안 오고, 박아 둔 높이가
+     * 그대로 남아 돌아와도 달력이 굳어 있었다(2026-10-16). 취소 알림 · 늦은 시계로도 푼다.
+     */
+    stage.addEventListener('transitioncancel', done);
+    const fallback = window.setTimeout(release, 1000);
+    return () => {
+      stage.removeEventListener('transitionend', done);
+      stage.removeEventListener('transitioncancel', done);
+      window.clearTimeout(fallback);
+    };
   }, [monthTime]);
 
   const grid = {
@@ -259,6 +293,7 @@ export function MonthCalendar({
           onPick={(next) => onMonthChange(() => next)}
         />
         <div className="flex gap-1">
+          {headerAction}
           <button
             type="button"
             aria-label="이전 달"
@@ -274,12 +309,18 @@ export function MonthCalendar({
           <button
             type="button"
             aria-label="다음 달"
+            /* 앞날을 막는 달력은 이번 달 뒤로 못 간다 — 빠른 이동(MonthJump)과 같은 규칙(2026-10-18 전엔 빈 앞 달로 계속 넘어갔다) */
+            disabled={
+              !allowFuture &&
+              dateKeyOf(month.getFullYear(), month.getMonth(), 1).slice(0, 7) >=
+                todayKey.slice(0, 7)
+            }
             onClick={() =>
               onMonthChange(
                 (prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1)
               )
             }
-            className="grid h-10 w-10 place-items-center rounded-full text-sky transition-colors desk:h-8 desk:w-8 desk:rounded-lg desk:border desk:border-line desk:text-muted desk:hover:border-sky desk:hover:text-sky"
+            className="grid h-10 w-10 place-items-center rounded-full text-sky transition-colors desk:h-8 desk:w-8 desk:rounded-lg desk:border desk:border-line desk:text-muted desk:hover:border-sky desk:hover:text-sky disabled:opacity-30 disabled:pointer-events-none"
           >
             <ChevronRight className="h-5 w-5 desk:h-4 desk:w-4" />
           </button>
@@ -295,7 +336,7 @@ export function MonthCalendar({
           {WEEKDAYS.map((w) => (
             <div
               key={w}
-              className="pb-1 text-center text-[11px] font-medium text-muted"
+              className="pb-1 text-center text-caption font-medium text-muted"
             >
               {w}
             </div>
@@ -362,12 +403,12 @@ export function MonthCalendar({
                 className="h-3.5 w-3.5 transition-transform group-open:rotate-180"
               />
             </summary>
-            <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-2 pt-1 text-[11px] text-muted">
+            <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-2 pt-1 text-caption text-muted">
               {children}
             </div>
           </details>
           <div
-            className={`hidden flex-wrap items-center gap-x-3 gap-y-2 border-t border-line pt-4 text-[11px] text-muted desk:flex ${
+            className={`hidden flex-wrap items-center gap-x-3 gap-y-2 border-t border-line pt-4 text-caption text-muted desk:flex ${
               low ? 'desk-low:pt-3' : ''
             }`}
           >
@@ -496,7 +537,7 @@ function DayGrid({
             onClick={() => onSelect(key)}
             aria-label={label}
             aria-pressed={isSelected}
-            className={`relative flex flex-col items-center justify-center gap-0.5 rounded-lg border text-sm transition-[color,background-color,border-color,min-height] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+            className={`relative flex flex-col items-center justify-center gap-0.5 rounded-lg border text-sm motion-safe:transition-[color,background-color,border-color,min-height] motion-safe:duration-300 motion-safe:ease-[cubic-bezier(0.22,1,0.36,1)] ${
               compact
                 ? 'min-h-[2.75rem] sm:min-h-[3rem]'
                 : 'min-h-[3.25rem] sm:min-h-[4rem]'
@@ -520,25 +561,20 @@ function DayGrid({
                       : 'text-ink desk:bg-surface-2 desk:text-muted desk:hover:text-ink'
             }`}
           >
-            {/*
-              오늘은 숫자를 파란 동그라미에 — 아이폰 달력처럼(예전 굵은 밑줄). 진한 칸(흰 글자) 위에서는
-              흰 동그라미에 파란 숫자로 뒤집어 보이게.
-            */}
+            {/* 오늘은 숫자에 파란 테두리 원 — 진한 칸(흰 글자) 위에서는 흰 테두리(todayMarkClass) */}
             <span
               className={
                 isToday
-                  ? `grid h-6 w-6 place-items-center rounded-full text-[13px] font-bold ${
+                  ? `text-footnote ${todayMarkClass(
                       mark?.effortPct != null && mark.effortPct >= STRONG_EFFORT_PCT
-                        ? 'bg-surface text-sky'
-                        : 'bg-sky text-white'
-                    }`
+                    )}`
                   : 'font-medium'
               }
             >
               {day}
             </span>
             {mark && (
-              <span className="max-w-full truncate px-0.5 text-[10px] leading-none opacity-80 sm:text-[11px]">
+              <span className="max-w-full truncate px-0.5 text-[10px] leading-none opacity-80 sm:text-caption">
                 {mark.label}
               </span>
             )}

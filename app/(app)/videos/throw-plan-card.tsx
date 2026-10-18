@@ -8,6 +8,7 @@ import { OFFLINE_MESSAGE, orOffline } from '@/lib/action-offline';
 import { Chip, DayCard } from '@/components/day-card';
 import { OpenCheckinButton } from '@/components/notice-bell';
 import { buzz } from '@/lib/haptics';
+import { Button } from '@/components/ui';
 
 export type ThrowCardData = {
   /** 오늘 체크인 줄의 던지는 일정 — 없으면 null */
@@ -110,14 +111,14 @@ function PlanForm({
           )}
         </p>
       )}
-      <button
+      <Button
         type="button"
         disabled={pending || plan == null}
         onClick={save}
-        className="inline-flex min-h-11 w-full items-center justify-center rounded-full bg-sky px-5 text-sm font-semibold text-white transition-[background-color,opacity] hover:bg-sky-strong disabled:opacity-60 desk:min-h-10 desk:w-auto desk:rounded-xl"
+        className="w-full pad:w-auto pad:px-6 desk:min-h-10 desk:w-auto"
       >
         {pending ? '저장 중…' : '저장'}
-      </button>
+      </Button>
     </div>
   );
 }

@@ -1,5 +1,6 @@
 'use server';
 
+import { revalidatePath } from 'next/cache';
 import { appNow } from '@/lib/clock';
 import { getCurrentUser } from '@/lib/dal';
 import { prisma } from '@/lib/prisma';
@@ -57,6 +58,7 @@ export async function saveCalendarEvent(
     const row = await prisma.calendarEvent.create({
       data: { ...data, userId: user.id },
     });
+    refreshAfterEvent();
     return { ok: true, event: view(row) };
   }
   if (typeof id !== 'string') return NOT_FOUND;
@@ -67,6 +69,7 @@ export async function saveCalendarEvent(
   });
   if (count === 0) return NOT_FOUND;
   const row = await prisma.calendarEvent.findUniqueOrThrow({ where: { id } });
+  refreshAfterEvent();
   return { ok: true, event: view(row) };
 }
 
@@ -77,5 +80,14 @@ export async function deleteCalendarEvent(
   if (!user) return NEED_LOGIN;
   if (typeof id !== 'string') return NOT_FOUND;
   await prisma.calendarEvent.deleteMany({ where: { id, userId: user.id } });
+  refreshAfterEvent();
   return { ok: true };
+}
+
+/**
+ * 일정은 홈 달력만의 것이 아니다 — 트레이닝 엔진이 달력의 다음 등판을 읽어(facts.condition.outingCalendar) 오늘 일정 · 상태 띠가 바뀐다.
+ * 그래서 탭 넷이 함께 새로 그려지게 한다(체크인 저장과 같은 길, 2026-10-16 통합 시험).
+ */
+function refreshAfterEvent() {
+  revalidatePath('/', 'layout');
 }

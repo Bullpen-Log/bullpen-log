@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Check, ChevronDown, Search, X } from '@/components/icon';
 import type { ClipOption } from './compare-view';
 
@@ -45,10 +46,16 @@ export function ClipPicker({
    * 붙인 목록(약 300px)이 잘려 날짜를 거의 고를 수 없었다. 누른 단추 밑(모자라면 위)에 띄우고, 폭은 적어도 240px.
    */
   const [place, setPlace] = useState<React.CSSProperties>({});
+  /*
+   * 목록은 body 로 낸다 — 판 넘기기(tab-pager) 트랙의 transform 안에서는 fixed 가 화면이 아니라 4판 폭 트랙 기준이라 목록이
+   * 화면 하나만큼 왼쪽에 떴다(2026-10-16). 크게 보기(검은 화면) 안에서 열었으면 어두운 색을 그대로 가져간다.
+   */
+  const [dark, setDark] = useState(false);
   const toggle = () => {
     if (open) return setOpen(false);
     const next = placeUnder(buttonRef.current);
     if (next) setPlace(next);
+    setDark(!!buttonRef.current?.closest('.theme-dark'));
     setOpen(true);
   };
   /*
@@ -69,13 +76,14 @@ export function ClipPicker({
       if (e.key === 'Escape') setOpen(false);
     };
     const vv = window.visualViewport;
-    window.addEventListener('scroll', follow, { passive: true });
+    /* capture — 판 넘기기에서는 창이 아니라 판이 굴러간다(스크롤은 올라오지 않아 붙잡아서 듣는다) */
+    window.addEventListener('scroll', follow, { capture: true, passive: true });
     window.addEventListener('resize', follow);
     vv?.addEventListener('resize', follow);
     window.addEventListener('keydown', onKey);
     return () => {
       cancelAnimationFrame(frame);
-      window.removeEventListener('scroll', follow);
+      window.removeEventListener('scroll', follow, { capture: true });
       window.removeEventListener('resize', follow);
       vv?.removeEventListener('resize', follow);
       window.removeEventListener('keydown', onKey);
@@ -122,89 +130,92 @@ export function ClipPicker({
         <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted" />
       </button>
 
-      {open && (
-        <>
-          {/* 바깥을 눌러 닫기 */}
-          <button
-            type="button"
-            aria-label="선택창 닫기"
-            onClick={() => setOpen(false)}
-            className="fixed inset-0 z-40 cursor-default"
-          />
+      {open &&
+        createPortal(
+          /* 크게 보기(z-60) 위에 뜨게 z 를 그보다 높게 */
+          <div className={dark ? 'theme-dark contents' : 'contents'}>
+            {/* 바깥을 눌러 닫기 */}
+            <button
+              type="button"
+              aria-label="선택창 닫기"
+              onClick={() => setOpen(false)}
+              className="fixed inset-0 z-[65] cursor-default"
+            />
 
-          <div
-            style={place}
-            className="fixed z-50 overflow-hidden rounded-xl border border-line-strong bg-surface shadow-2xl"
-          >
-            <div className="flex items-center gap-1.5 border-b border-line px-2 py-2">
-              <Search className="h-3.5 w-3.5 shrink-0 text-muted" />
-              <input
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="날짜 검색"
-                aria-label="날짜로 검색"
-                className="min-w-0 flex-1 bg-transparent text-xs text-ink placeholder:text-muted/60 focus:outline-none"
-              />
-              {query && (
-                <button
-                  type="button"
-                  onClick={() => setQuery('')}
-                  aria-label="검색어 지우기"
-                  className="shrink-0 text-muted hover:text-ink"
-                >
-                  <X className="h-3.5 w-3.5" />
-                </button>
-              )}
-            </div>
+            <div
+              style={place}
+              className="fixed z-[70] overflow-hidden rounded-xl border border-line-strong bg-surface shadow-2xl"
+            >
+              <div className="flex items-center gap-1.5 border-b border-line px-2 py-2">
+                <Search className="h-3.5 w-3.5 shrink-0 text-muted" />
+                <input
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="날짜 검색"
+                  aria-label="날짜로 검색"
+                  className="min-w-0 flex-1 bg-transparent text-xs text-ink placeholder:text-muted/60 focus:outline-none"
+                />
+                {query && (
+                  <button
+                    type="button"
+                    onClick={() => setQuery('')}
+                    aria-label="검색어 지우기"
+                    className="shrink-0 text-muted hover:text-ink"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                )}
+              </div>
 
-            <div className="max-h-64 overflow-y-auto overscroll-contain">
-              {groups.length === 0 ? (
-                <p className="px-3 py-6 text-center text-xs text-muted">
-                  일치하는 날짜가 없어요
-                </p>
-              ) : (
-                groups.map(([month, items]) => (
-                  <div key={month}>
-                    <p className="sticky top-0 bg-surface-2 px-3 py-1 text-[10px] font-medium tracking-wider text-muted">
-                      {month.replace('-', '. ')}
-                    </p>
-                    {items.map((c) => (
-                      <button
-                        key={c.id}
-                        type="button"
-                        onClick={() => {
-                          onSelect(c.id);
-                          setOpen(false);
-                          setQuery('');
-                        }}
-                        className={`flex w-full items-start gap-2 px-3 py-2 text-left transition-colors hover:bg-surface-2 ${
-                          c.id === selectedId ? 'bg-sky/10' : ''
-                        }`}
-                      >
-                        <span className="min-w-0 flex-1">
-                          <span className="block text-xs text-ink">
-                            {shortDate(c.date)} · {c.label}
+              <div className="max-h-64 overflow-y-auto overscroll-contain">
+                {groups.length === 0 ? (
+                  <p className="px-3 py-6 text-center text-xs text-muted">
+                    일치하는 날짜가 없어요
+                  </p>
+                ) : (
+                  groups.map(([month, items]) => (
+                    <div key={month}>
+                      <p className="sticky top-0 bg-surface-2 px-3 py-1 text-caption font-medium tracking-wider text-muted">
+                        {month.replace('-', '. ')}
+                      </p>
+                      {items.map((c) => (
+                        <button
+                          key={c.id}
+                          type="button"
+                          onClick={() => {
+                            onSelect(c.id);
+                            setOpen(false);
+                            setQuery('');
+                          }}
+                          className={`flex w-full items-start gap-2 px-3 py-2 text-left transition-colors hover:bg-surface-2 ${
+                            c.id === selectedId ? 'bg-sky/10' : ''
+                          }`}
+                        >
+                          <span className="min-w-0 flex-1">
+                            <span className="block text-xs text-ink">
+                              {shortDate(c.date)} · {c.label}
+                            </span>
+                            <span className="mt-0.5 block truncate text-caption text-muted">
+                              {c.summary}
+                            </span>
                           </span>
-                          <span className="mt-0.5 block truncate text-[10px] text-muted">
-                            {c.summary}
-                          </span>
-                        </span>
-                        {c.id === selectedId && (
-                          <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-sky" />
-                        )}
-                      </button>
-                    ))}
-                  </div>
-                ))
-              )}
-            </div>
+                          {c.id === selectedId && (
+                            <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-sky" />
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  ))
+                )}
+              </div>
 
-            <p className="border-t border-line px-3 py-1.5 text-[10px] text-muted">
-              전체 {clips.length}개
-            </p>
-          </div>
-        </>
-      )}
+              <p className="border-t border-line px-3 py-1.5 text-caption text-muted">
+                전체 {clips.length}개
+              </p>
+            </div>
+          </div>,
+          document.body
+        )}
     </div>
   );
 }

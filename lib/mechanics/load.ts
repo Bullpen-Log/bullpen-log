@@ -3,7 +3,7 @@ import 'server-only';
 import { appNow } from '@/lib/clock';
 import { prisma } from '@/lib/prisma';
 import { favoriteDrillIds } from '@/lib/favorites';
-import { visibleGuides } from '@/lib/library-cache';
+import { allGuides, trainingGuides } from '@/lib/library-cache';
 import { createPlaybackUrls } from '@/lib/storage';
 import { shiftDateKey, toDateKey } from '@/lib/pitch-stats';
 import { dbDate, keyOfDbDate } from '@/lib/nutrition/days';
@@ -14,9 +14,12 @@ import { MECHANICS_PAIN_WINDOW_DAYS, mechanicsFoldOf } from '@/lib/mechanics/fol
 import {
   buildLevelSession,
   canUseVariant,
+  drillThrowNote,
   levelAdvice,
   readProgramState,
+  type DrillThrowNote,
   type FilmNote,
+  type ProgramState,
   type MechanicsPainFold,
   type SessionItem,
 } from '@/lib/mechanics/program';
@@ -100,6 +103,8 @@ export async function loadMechanicsProgram(userId: string): Promise<{
   doneToday: string[];
   /** 오늘 팔에 싣는 드릴을 접는가(까닭 · 펼칠 수 있나 포함) — 아니면 null */
   painFold: MechanicsPainFold | null;
+  /** 오늘 드릴로 던진 공을 투구 기록에 남기라는 알림 — 없으면 null(drillThrowNote) */
+  throwNote: DrillThrowNote | null;
 }> {
   const now = appNow();
   const todayKey = toDateKey(now);
@@ -111,7 +116,7 @@ export async function loadMechanicsProgram(userId: string): Promise<{
   foldRead.catch(() => {});
   const [row, guides, favorites, logs, user, setup] = await Promise.all([
     prisma.mechanicsProgram.findUnique({ where: { userId } }),
-    visibleGuides(),
+    trainingGuides(),
     favoriteDrillIds(userId),
     prisma.userDrillLog.findMany({
       where: { userId, date: dbDate(todayKey), done: true },
@@ -129,7 +134,7 @@ export async function loadMechanicsProgram(userId: string): Promise<{
     }),
   ]);
   const [checkins, pitchesToday] = await foldRead;
-  if (!row) return { program: null, session: [], doneToday: [], painFold: null };
+  if (!row) return { program: null, session: [], doneToday: [], painFold: null, throwNote: null };
 
   const ownThumbs = await createPlaybackUrls(
     guides.filter((g) => !g.referenceVideoId && g.thumbPath).map((g) => g.thumbPath as string)
@@ -179,10 +184,20 @@ export async function loadMechanicsProgram(userId: string): Promise<{
     const ids = item.alternatives.flatMap((a) => a.variants.map((v) => v.id));
     if (!done.has(item.guideId) && ids.some((id) => done.has(id))) doneToday.push(item.guideId);
   }
+  const guideById = new Map(guides.map((g) => [g.id, g] as const));
   return {
     program,
     session,
     doneToday,
+    throwNote: drillThrowNote({
+      throwLog: state.throwLog,
+      todayKey,
+      doneToday: [...done].flatMap((id) => {
+        const g = guideById.get(id);
+        return g ? [{ category: g.category, stage: g.stage }] : [];
+      }),
+      pitchedToday: pitchesToday.reduce((sum, p) => sum + p.pitchCount, 0),
+    }),
     painFold: mechanicsFoldOf({
       todayKey,
       checkins: checkins.map((c) => ({ ...c, date: keyOfDbDate(c.date) })),
@@ -190,4 +205,32 @@ export async function loadMechanicsProgram(userId: string): Promise<{
       age: user?.birthDate ? ageFromBirthDate(user.birthDate, now) : null,
     }),
   };
+}
+
+/**
+ * 오늘 드릴로 던진 공 알림만 — 세션 끝 화면(finishMechanicsSession)이 마친 뒤에 부른다. 프로그램 칸 · 트레이닝 홈은 loadMechanicsProgram 의
+ * throwNote(같은 식). 숨긴 · 나중에 촬영 드릴도 '했다'면 센다(visibleGuides 가 아니라 전체 캐시).
+ */
+export async function loadDrillThrowNote(
+  userId: string,
+  state: ProgramState,
+  todayKey: string
+): Promise<DrillThrowNote | null> {
+  if (state.throwLog?.on !== todayKey || state.throwLog.closed) return null;
+  const date = dbDate(todayKey);
+  const [logs, pitched, guides] = await Promise.all([
+    prisma.userDrillLog.findMany({ where: { userId, date, done: true }, select: { guideId: true } }),
+    prisma.pitchLog.aggregate({ where: { userId, date }, _sum: { pitchCount: true } }),
+    allGuides(),
+  ]);
+  const byId = new Map(guides.map((g) => [g.id, g] as const));
+  return drillThrowNote({
+    throwLog: state.throwLog,
+    todayKey,
+    doneToday: logs.flatMap((l) => {
+      const g = byId.get(l.guideId);
+      return g ? [{ category: g.category, stage: g.stage }] : [];
+    }),
+    pitchedToday: pitched._sum.pitchCount ?? 0,
+  });
 }

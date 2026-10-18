@@ -43,6 +43,11 @@ export type PitchEvents = {
   direction: 1 | -1;
   kneeUp: PitchEvent | null;
   footPlant: PitchEvent | null;
+  /**
+   * 앞발이 처음 땅에 닿은 순간 — 화면 · 지표가 '착지'로 쓴다(2026-10-16 김민: 드라이브라인 · 트레드처럼 '지면에 닿는 순간').
+   * footPlant(발목이 디딘 높이로 내려온 순간)는 3D 엔진이 앞발을 땅에 묶는 데 그대로 쓴다. 늘 footPlant 와 같거나 앞이다.
+   */
+  footContact: PitchEvent | null;
   release: PitchEvent | null;
 };
 
@@ -65,8 +70,20 @@ const RELEASE_EXT_RATIO = 0.8;
  * (발끝이 지면에 닿는 프레임과 대조해 맞춘 값)
  */
 const PLANT_SPEED_RATIO = 0.2;
-/** 착지 = 디딘 높이에서 이만큼(몸통 길이 배수) 안으로 발목이 내려온 첫 순간 — 화면 아래로 +, 키의 약 3% */
-const PLANT_Y_TOL = 0.1;
+/** 착지 = 디딘 높이에서 이만큼(몸통 길이 배수) 안으로 발목이 내려온 첫 순간 — 화면 아래로 + */
+const PLANT_Y_TOL = 0.03;
+/**
+ * 속도로 찾은 착지에서 발목이 디딘 높이보다 이만큼(몸통 길이 배수) 넘게 위일 때만 옮긴다 — 이미 디딘 발은 2D 점이 몇 px 흔들려도 그대로.
+ * 실험실 8샘플: 늦게 잡히던 다섯은 0.11 ~ 1.1, 제대로 잡히던 셋은 0 밑.
+ */
+const PLANT_AIR_GATE = 0.08;
+/**
+ * 첫 닿음(footContact) = 앞발이 내딛기 최고 속도의 이 비율까지 느려지는 순간(두 장면 사이는 선으로 나눔) — 닿으면 땅이 발을 붙잡아 앞으로 가기가 확 준다.
+ * 마커 촬영 15구(2026-10-12, 네 대 교차 뒤꿈치 · 발끝 높이가 정답, 거친 30fps): 발목 기준 착지(footPlant)는 첫 닿음보다 가운데 93ms 늦었고(평균 절대 99),
+ * 이 비율로 가운데 +21ms · 평균 절대 26ms. 2D 발 점 높이로는 못 잡는다 — 발이 땅 위 몇 cm 로 미끄러져 들어와 옆 영상에서 몇 px 차이다(평균 절대 65).
+ * 비율은 장면 수로 다듬은 속도라 fps 가 오르면 이르게 잡힌다(60fps −6 · 120fps −22ms) — 서버의 순간 찾기는 늘 거친 30fps.
+ */
+const CONTACT_SPEED_RATIO = 0.5;
 
 /** 투구로 인정할 최소 팔 전방 신전 (몸통 길이 배수) */
 const MIN_THROW_EXT = 0.4;
@@ -134,6 +151,7 @@ export function detectPitchEvents(
     direction: 1,
     kneeUp: null,
     footPlant: null,
+    footContact: null,
     release: null,
   });
 
@@ -429,6 +447,7 @@ export function detectPitchEvents(
   }
 
   let footPlant: PitchEvent | null = null;
+  let footContact: PitchEvent | null = null;
   let plantIdx = -1;
   if (peakIdx >= 0 && peakV > 0) {
     for (let i = peakIdx + 1; i <= releaseIdx; i++) {
@@ -451,12 +470,14 @@ export function detectPitchEvents(
       .filter((v): v is number => v != null)
       .sort((a, b) => a - b);
     const planted = win.length >= 3 ? win[Math.floor((win.length - 1) * 0.75)] : null;
-    const y0 = ys[plantIdx];
     /*
-     * 분명히 공중일 때만(디딘 높이보다 PLANT_Y_TOL 의 2.5배 넘게 위) 옮긴다 — 거의 닿은 발을 한두 장면 옮기면 화면 녹화(확대 정도 모름)에서는
-     * 카메라 맞추기가 흔들려 결과가 통째로 달라졌다(2026-10-09 샘플 4: 한 장면 옮겨 초점 1872 → 1817).
+     * 속도로 찾은 순간 발이 아직 떠 있으면(PLANT_AIR_GATE) 디딘 높이(착지 ~ 릴리스 발목 높이의 아래쪽 4분위)에서 몸통 길이의 PLANT_Y_TOL 안으로 내려온 첫 장면.
+     * 2026-10-15 김민: "샘플 4 · 2 착지 판정 순간에 왼발이 한참 떠 있다" — 앞으로 가기를 멈춘 뒤에도 발이 0.3~0.4초 더 내려왔는데
+     * (샘플 4 몸통의 약 16%), 예전엔 '분명히 공중'(몸통의 25% 넘게 위)일 때만 옮겨 그대로 묶였다. 그 문턱은 10-09 에 한 장면 옮김이
+     * 화면 녹화의 카메라 맞추기를 흔든다고 둔 것인데, 착지가 실제보다 0.3초 이르면 그쪽이 더 크게 틀린다.
      */
-    if (planted != null && y0 != null && y0 < planted - 2.5 * PLANT_Y_TOL * trunk) {
+    const y0 = ys[plantIdx];
+    if (planted != null && y0 != null && y0 < planted - PLANT_AIR_GATE * trunk) {
       for (let i = plantIdx; i <= releaseIdx; i++) {
         const y = ys[i];
         if (y != null && y >= planted - PLANT_Y_TOL * trunk) {
@@ -466,6 +487,20 @@ export function detectPitchEvents(
       }
     }
     footPlant = { t: frames[plantIdx].t, confidence: px(plantIdx, leadAnkleIdx)?.v ?? 0 };
+
+    /* 첫 닿음(CONTACT_SPEED_RATIO) — 내딛기 최고 속도 뒤 ~ 발목 기준 착지 사이 */
+    footContact = footPlant;
+    for (let i = peakIdx + 1; i <= plantIdx; i++) {
+      const v = forwardV[i];
+      if (v == null || v > peakV * CONTACT_SPEED_RATIO) continue;
+      const v0 = forwardV[i - 1];
+      const a = v0 != null && v0 > v ? (v0 - peakV * CONTACT_SPEED_RATIO) / (v0 - v) : 1;
+      footContact = {
+        t: frames[i - 1].t + Math.min(1, Math.max(0, a)) * (frames[i].t - frames[i - 1].t),
+        confidence: px(i, leadAnkleIdx)?.v ?? 0,
+      };
+      break;
+    }
   }
 
   // 6) 니업 — 착지 전 구간에서 리드 무릎이 골반보다 가장 높이 올라간 순간.
@@ -509,6 +544,7 @@ export function detectPitchEvents(
     direction,
     kneeUp,
     footPlant,
+    footContact,
     release,
   };
 }

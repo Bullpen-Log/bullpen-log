@@ -1,4 +1,4 @@
-import type { CheckinLike, ReportFacts } from '@/lib/report/facts';
+import { todayPrefsOf, type CheckinLike, type ReportFacts } from '@/lib/report/facts';
 import type { PitchPlan } from '@/lib/report/plan';
 import {
   CHECKIN_PARTS,
@@ -213,7 +213,7 @@ export function decideAutoFence({
   /* 목표마다 오늘 시간의 바탕 — 아래의 '실제로 줄어드는가' 검사와 시간 목록이 같은 값을 본다(위 끝으로 누른 뒤의 값) */
   const baseOf = (goal: string) => baseMinutesFor(goal, defaultMinutes, weeklyCap);
   const today = facts.condition.today;
-  const preferred = today?.preferredWorkout ?? null;
+  const preferred = todayPrefsOf(facts).preferredWorkout;
   const rules: string[] = [];
 
   /*

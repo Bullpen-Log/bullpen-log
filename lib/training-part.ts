@@ -47,6 +47,21 @@ export const TRAINING_PART_HREF: Record<TrainingPart, string> = {
  */
 export const TRAINING_HOME_HREF = '/training?view=home';
 
+/**
+ * 트레이닝 탭 안의 하위 화면(오늘 운동 · 암케어 · 메커니즘 — 주소는 /training, view 가 home · last 가 아님)인가. 이 화면은 '‹ 트레이닝'
+ * 막대가 서는데, 그 사실을 '‹ 뒤로'(BackLink)가 그려진 뒤에야 알면 첫 화면에서 막대 · 여백이 늦게 붙어 본문이 한 번 밀렸다(2026-10-15 김민
+ * "본문 밀리는 것도 없애 줘") — 주소만으로 처음부터 안다(app-shell MobileTopBar · tab-pager).
+ */
+export const isTrainingSubView = (pathname: string, view: string | null) =>
+  pathname === '/training' && view !== 'home' && view !== 'last';
+
+/** 트레이닝 날짜 띠 · 간이 달력으로 넘겨 볼 수 있는 날 수 — 그 앞은 홈 캘린더에서 */
+export const TRAINING_CALENDAR_BACK_DAYS = 365;
+
+/** 날짜 띠 · 간이 달력에서 고른 날 — 오늘은 트레이닝 홈, 지난날은 그날 운동 기록 */
+export const trainingDayHref = (date: string, today: string) =>
+  date === today ? TRAINING_HOME_HREF : `/training/day/${date}`;
+
 /** 주소나 쿠키에서 온 값 — 칸 이름이 아니면 null */
 export function readTrainingPart(
   value: string | null | undefined

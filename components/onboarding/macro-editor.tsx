@@ -14,6 +14,7 @@ import {
   kcalText,
 } from '@/lib/nutrition/meta';
 import { kcalOfMacros } from '@/lib/nutrition/onboarding';
+import { floorNote } from '@/lib/nutrition/targets';
 import type { NutritionAnswers, Preview } from '@/lib/nutrition/onboarding-answers';
 
 /**
@@ -45,6 +46,9 @@ export function MacroEditor({
           <strong className="font-semibold text-ink">{kcalText(t.base)}kcal</strong>
           {t.manual ? ' · 직접 정함' : ''}
         </p>
+        {floorNote(t) && (
+          <p className="mt-1 text-xs break-keep text-muted">{floorNote(t)}</p>
+        )}
         <div className="mt-2">
           <MacroBar carbs={t.carbs} protein={t.protein} fat={t.fat} compact />
         </div>
@@ -126,7 +130,7 @@ function GramRow({
         <span className="flex items-center gap-2 text-xs font-medium text-muted">
           {label}
           {manual && (
-            <span className="rounded-full bg-sky/15 px-2 py-0.5 text-[11px] font-medium text-sky-strong">
+            <span className="rounded-full bg-sky/15 px-2 py-0.5 text-caption font-medium text-sky-strong">
               직접 · 계산 {Math.round(auto)}g
             </span>
           )}
@@ -149,7 +153,7 @@ function GramRow({
               setFocused(false);
               setText(String(Math.round(value)));
             }}
-            className={`${INPUT_LARGE} pr-10 text-lg tabular-nums`}
+            className={`${INPUT_LARGE} pr-10 tabular-nums`}
             {...invalidProps(invalid)}
           />
           <span

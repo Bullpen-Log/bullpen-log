@@ -114,8 +114,9 @@ public class DualCameraPlugin: CAPPlugin, CAPBridgedPlugin {
         )
         let preview = DualCameraPlugin.rect(call.getObject("preview"))
         let controller = DualCameraController()
-        controller.onThrow = { [weak self] at, strength, kind in
-            self?.notifyListeners("throw", data: ["atSec": at, "strength": strength, "kind": kind])
+        controller.onThrow = { [weak self] at, strength, kind, thermal in
+            /* thermal — ProcessInfo.ThermalState(0 보통 · 1 따뜻 · 2 뜨거움 · 3 아주 뜨거움). 시도 기록에 남겨 발열 탓인지 가린다 */
+            self?.notifyListeners("throw", data: ["atSec": at, "strength": strength, "kind": kind, "thermal": thermal])
         }
         controller.onError = { [weak self] message in
             self?.notifyListeners("error", data: ["message": message])
@@ -358,6 +359,8 @@ public class DualCameraPlugin: CAPPlugin, CAPBridgedPlugin {
     }
 }
 
+// 여기부터 끝까지는 Expo 앱(native/modules/dual-camera/ios/DualCameraCore.swift)과 같은 코드다 — 고칠 때 두 파일을 같이(통합 시험 [13]).
+
 // MARK: - 카메라 둘
 
 struct DualCameraError: Error {
@@ -431,7 +434,8 @@ final class DualCameraController: NSObject, AVCaptureVideoDataOutputSampleBuffer
     /// 광각도 같이면 AVCaptureMultiCamSession, 일반만이면 AVCaptureSession — start 가 정한다
     private(set) var session = AVCaptureSession()
     let trigger = MotionTrigger()
-    var onThrow: ((Double, Double, String) -> Void)?
+    /// 알림 — 시각 · 세기 · 종류('ball' · 'motion' · 'skip' = 발열로 쉰 움직임) · 폰 발열 상태(ProcessInfo.ThermalState rawValue)
+    var onThrow: ((Double, Double, String, Int) -> Void)?
     var onError: ((String) -> Void)?
     /// 실제로 받은 초당 장면 수 · 그 사이 버린 장면 수 — 1초마다. 약속한 60 과 달리 처리가 밀리면 장면을 버린다(구형 폰 · 개발용 빌드)
     /// 1초마다 — 받은 장면 수 · 버린 수 · 지금 셔터(초) · ISO(엔진 2.4 B1: 세션에 남긴다)
@@ -896,10 +900,10 @@ final class DualCameraController: NSObject, AVCaptureVideoDataOutputSampleBuffer
         if prefer > fps {
             let pool = enough.isEmpty ? candidates : enough
             let same = pool.filter {
-                area(-e) == area(best) && sharp(-e) == sharp(best) && -e.0.isVideoBinned == best.0.isVideoBinned
-                    && -e.3 >= Double(prefer) - 0.5
+                area($0) == area(best) && sharp($0) == sharp(best) && $0.0.isVideoBinned == best.0.isVideoBinned
+                    && $0.3 >= Double(prefer) - 0.5
             }
-            if let hi = same.max(by: { -e.3 < .3 }) {
+            if let hi = same.max(by: { $0.3 < $1.3 }) {
                 chosen = hi
                 want = Double(prefer)
             }
@@ -1084,11 +1088,15 @@ final class DualCameraController: NSObject, AVCaptureVideoDataOutputSampleBuffer
                 #endif
                 if hit.kind == "end" {
                     noteBallEnd(hit)
-                } else if hit.kind == "motion",
-                          ProcessInfo.processInfo.thermalState.rawValue >= ProcessInfo.ThermalState.serious.rawValue {
-                    /* 폰이 뜨겁다 — 움직임으로 조용히 재 보는 일(영상 받기 · 계산)은 쉬고 확실한 공만 알린다 */
                 } else {
-                    onThrow?(hit.atSec, hit.strength, hit.kind)
+                    /*
+                     * 폰이 아주 뜨거울 때(critical)만 움직임으로 조용히 재 보는 일(영상 받기 · 계산)을 쉰다 — 쉰 것도 'skip' 으로 알려 시도 기록에
+                     * 남긴다. 예전엔 '뜨거움(serious)'부터 쉬었는데, 한낮 밖에서 10분쯤 재면 그렇게 돼 움직임으로 잡던 공(10-16 첫 세션 6구 중 4구)이
+                     * 통째로 사라졌다(2026-10-16 김민: 저장하고 이어서 재니 거의 안 잡힘).
+                     */
+                    let heat = ProcessInfo.processInfo.thermalState.rawValue
+                    let skip = hit.kind == "motion" && heat >= ProcessInfo.ThermalState.critical.rawValue
+                    onThrow?(hit.atSec, hit.strength, skip ? "skip" : hit.kind, heat)
                 }
             }
         } else if output === wideOutput {
@@ -1167,7 +1175,7 @@ final class DualCameraController: NSObject, AVCaptureVideoDataOutputSampleBuffer
         guard let since = fakeArmedAt, t - since > 8 else { return }
         fakeDone = true
         print(String(format: "[cam] fake throw at %.2f (wall %.3f)", t, Date().timeIntervalSince1970))
-        onThrow?(t - 0.05, 10, "ball")
+        onThrow?(t - 0.05, 10, "ball", ProcessInfo.processInfo.thermalState.rawValue)
     }
 
     private static var probeDone = false
@@ -1877,8 +1885,16 @@ final class MotionTrigger {
     private var shifts: [(Int, Int)] = []
     private var cums: [(Double, Double)] = []
     private var frame = 0
+    /*
+     * 두 번째 길 — 0.2초 전 장면과 견준다(2026-10-16). 투수 1m 뒤 폰에서 공은 화면에서 거의 제자리에 머문 채 작아지며 날아간다. 세 장면
+     * 차이는 앞 장면에도 같은 자리에 공(더 크게)이 있어 테두리만 남아, 놓은 직후의 큰 공이 덩어리로 안 잡혔다(10-16 IMG_7873 7구 중
+     * 3구를 공으로 못 알아챔). 0.2초 전에는 그 자리에 공이 없어(아직 손에) 원판 그대로 보인다. 같은 문(6장 · 줄어듦 · 직선 · 가운데)을 지나야 알린다.
+     */
+    private var hist: [(t: Double, g: [UInt8], cx: Double, cy: Double)] = []
+    private var tracksOld: [[Point]] = []
     private var tracks: [[Point]] = []
     private var lastHit = -Double.infinity
+    private var lastSeed = -Double.infinity
     /// 알린 공의 길 — 알린 뒤에도 이어 가다 3장 넘게 안 이어지면 'end' 를 한 번 알린다(앱이 클립을 거기서 일찍 끊는다)
     private var follow: [Point]?
 
@@ -1974,6 +1990,8 @@ final class MotionTrigger {
             shifts = []
             cums = []
             tracks = []
+            hist = []
+            tracksOld = []
         }
         let n = gw * gh
         var g = [UInt8](repeating: 0, count: n)
@@ -1999,6 +2017,8 @@ final class MotionTrigger {
         times.append(t)
         shifts.append(sh)
         cums.append((c0.0 + Double(sh.0), c0.1 + Double(sh.1)))
+        hist.append((t, g, c0.0 + Double(sh.0), c0.1 + Double(sh.1)))
+        while let h0 = hist.first, h0.t < t - 0.6 { hist.removeFirst() }
         frame += 1
         if grids.count > 3 {
             grids.removeFirst()
@@ -2015,6 +2035,7 @@ final class MotionTrigger {
         let fb = frame - 1
         guard tb >= quietUntil else {
             tracks.removeAll()
+            tracksOld.removeAll()
             motionQuietSince = tb
             return nil
         }
@@ -2080,9 +2101,12 @@ final class MotionTrigger {
         if Double(over) / Double(n) > MotionTrigger.GLOBAL_FRACTION {
             /* 초점 · 노출 · 폰 흔들림 — 공도 움직임도 아니다(따라가던 공은 여기서 끝으로 본다) */
             tracks.removeAll()
+            tracksOld.removeAll()
             motionQuietSince = tb
             return endFollow(MotionTrigger.END_GLOBAL)
         }
+
+        trackOld(fb: fb, tb: tb, offX: offX, offY: offY, mx: mx, my: my, moved: Double(over) / Double(n))
 
         /* 덩어리(4이웃) */
         var seen = [Bool](repeating: false, count: n)
@@ -2122,7 +2146,9 @@ final class MotionTrigger {
             tracks.removeAll()
             /* 따라가던 공이 그물에 맞아 그물이 흔들린다 — 거기가 끝 */
             if let end = endFollow(MotionTrigger.END_NET) { return end }
-            return armed ? motionHit(energy: energy, t: tb) : nil
+            guard armed else { return nil }
+            if let hit = oldHit(fb: fb, tb: tb, receding: receding) { return hit }
+            return motionHit(energy: energy, t: tb)
         }
         var points: [Point] = []
         for bl in blobs where bl.area >= 2 && bl.area <= maxArea {
@@ -2187,13 +2213,156 @@ final class MotionTrigger {
         }
 
         guard armed else { return nil }
-        if tb - lastHit >= MotionTrigger.REST_SEC, let (hit, tr) = ballHit(fb: fb, receding: receding) {
+        if tb - lastHit >= MotionTrigger.REST_SEC, let (hit, tr) = ballHit(fb: fb, receding: receding, in: tracks) {
             lastHit = tb
             tracks.removeAll()
+            tracksOld.removeAll()
             follow = tr
             return hit
         }
+        if tb - lastHit >= MotionTrigger.REST_SEC, tb - lastSeed >= MotionTrigger.REST_SEC,
+           let (hit, _) = ballHit(fb: fb, receding: receding, in: tracks, strict: false),
+           hit.areaFirst >= MotionTrigger.SEED_MIN_AREA {
+            return seed(hit, tb: tb)
+        }
+        if let hit = oldHit(fb: fb, tb: tb, receding: receding) { return hit }
         return motionHit(energy: energy, t: tb)
+    }
+
+    /// 두 번째 길(0.2초 전 장면과 견줌)에서 본 공을 알린다 — 첫 길과 같은 문. 이 공은 세 장면 차이로 이어 가지 못해 'end' 를 내지 않는다
+    /// (앱이 클립을 기본 길이로 자른다 — 공이 끝까지 담긴다)
+    private func oldHit(fb: Int, tb: Double, receding: Bool) -> Hit? {
+        guard tb - lastHit >= MotionTrigger.REST_SEC, tb - lastSeed >= MotionTrigger.REST_SEC,
+              let (hit, _) = ballHit(fb: fb, receding: receding, in: tracksOld, strict: false),
+              hit.areaFirst >= MotionTrigger.SEED_MIN_AREA
+        else { return nil }
+        return seed(hit, tb: tb)
+    }
+
+    /*
+     * 공 후보(seed) — 두 번째 길 · 길 뒷부분에서 본 공. 진짜 공을 많이 더 잡지만(10-16 7구 중 3구) 사람 · 장갑도 가끔 지나간다. 화면에 띄우지
+     * 않고 사이트가 그 시각으로 재 보게 하고(공 길이 나오면 그때 보인다), 헛것이면 조용히 넘긴다. 'end' 는 내지 않는다(이어 가지 못한다).
+     */
+    private func seed(_ hit: Hit, tb: Double) -> Hit {
+        /* 확실한 공과 달리 움직임 알림은 막지 않는다(헛 후보가 뒤따르는 진짜 던짐의 움직임 알림을 4초 막지 않게) */
+        lastSeed = tb
+        tracks.removeAll()
+        tracksOld.removeAll()
+        follow = nil
+        return Hit(kind: "seed", atSec: hit.atSec, strength: hit.strength, length: hit.length, areaFirst: hit.areaFirst,
+                   areaLast: hit.areaLast, x: hit.x, y: hit.y)
+    }
+
+    /// 길 앞에서 떼어 볼 장면 수(손 · 공 덩어리가 먼저 붙은 길) · 알릴 수 있는 가장 긴 길(진짜 공은 6~12장 안에 문을 지난다 — 길게 이어진
+    /// 뒤에 늦게 지나는 것은 알린 공의 남은 길이거나 굴러가는 공)
+    static let SUFFIX_MAX = 3
+    /// 공 후보의 처음 넓이 바닥(줄인 칸) — 공은 놓은 직후 146~368칸(10-16), 걸어가는 사람 · 장갑의 헛것은 72 · 86칸이었다
+    static let SEED_MIN_AREA = 100.0
+    static let MAX_HIT_LENGTH = 20
+    /// 두 번째 길의 0.2초 · 덩어리 수 상한(잎 · 그물이 0.2초 사이에 더 많이 바뀐다)
+    static let OLD_SEC = 0.2
+    static let MAX_BLOBS_OLD = 120
+
+    /// 가운데 장면(b)을 0.2초 전 장면과 견줘 작고 옹골진 덩어리를 tracksOld 에 잇는다 — 첫 길과 같은 덩어리 · 잇기 문
+    private func trackOld(fb: Int, tb: Double, offX: Double, offY: Double, mx: Int, my: Int, moved: Double) {
+        guard let old = hist.last(where: { $0.t <= tb - MotionTrigger.OLD_SEC + 1e-6 }), grids.count == 3 else {
+            tracksOld.removeAll()
+            return
+        }
+        let n = gw * gh
+        /* b(x) ≈ old(x + (b 의 누적 밀림 − old 의 누적 밀림)) */
+        let dx = Int((offX - old.cx).rounded()), dy = Int((offY - old.cy).rounded())
+        var d = [UInt8](repeating: 0, count: n)
+        var sum = 0
+        grids[1].withUnsafeBufferPointer { b in
+            old.g.withUnsafeBufferPointer { o in
+                d.withUnsafeMutableBufferPointer { dp in
+                    for j in 0..<gh {
+                        let jo = j + dy
+                        guard jo >= 0, jo < gh else { continue }
+                        for i in 0..<gw {
+                            let io = i + dx
+                            guard io >= 0, io < gw else { continue }
+                            let m = abs(Int(b[j * gw + i]) - Int(o[jo * gw + io]))
+                            dp[j * gw + i] = UInt8(m)
+                            sum += m
+                        }
+                    }
+                }
+            }
+        }
+        let thr = max(12, Int((Double(sum) / Double(n) * 4).rounded()))
+        let maxArea = max(40, n / 250)
+        var seen = [Bool](repeating: false, count: n)
+        var stack: [Int] = []
+        var points: [Point] = []
+        var count = 0
+        for j in my..<(gh - my) {
+            for i in mx..<(gw - mx) {
+                let k0 = j * gw + i
+                guard !seen[k0], Int(d[k0]) > thr else { continue }
+                var bl = Blob()
+                stack.removeAll(keepingCapacity: true)
+                stack.append(k0)
+                seen[k0] = true
+                while let k = stack.popLast() {
+                    let x = k % gw, y = k / gw
+                    bl.area += 1
+                    bl.sx += Double(x)
+                    bl.sy += Double(y)
+                    bl.minX = min(bl.minX, x); bl.maxX = max(bl.maxX, x)
+                    bl.minY = min(bl.minY, y); bl.maxY = max(bl.maxY, y)
+                    if bl.area > maxArea * 4 { continue }
+                    for nb in [k - 1, k + 1, k - gw, k + gw] {
+                        guard nb >= 0, nb < n, !seen[nb], Int(d[nb]) > thr else { continue }
+                        let nx = nb % gw
+                        guard abs(nx - x) <= 1, nx >= mx, nx < gw - mx, nb / gw >= my, nb / gw < gh - my else { continue }
+                        seen[nb] = true
+                        stack.append(nb)
+                    }
+                }
+                count += 1
+                if count > MotionTrigger.MAX_BLOBS_OLD {
+                    tracksOld.removeAll()
+                    return
+                }
+                guard bl.area >= 2, bl.area <= maxArea else { continue }
+                let w = bl.maxX - bl.minX + 1, h = bl.maxY - bl.minY + 1
+                let fill = Double(bl.area) / Double(w * h)
+                guard Double(max(w, h)) / Double(min(w, h)) <= 3, fill >= 0.3 else { continue }
+                let rx = bl.sx / Double(bl.area), ry = bl.sy / Double(bl.area)
+                points.append(Point(f: fb, t: tb, x: rx + offX, y: ry + offY, a: Double(bl.area), fill: fill, moved: moved, rx: rx, ry: ry))
+            }
+        }
+        /* 잇기 — 첫 길과 같다(직전 두 장면 안에 끝난 길 · 예상 자리에 가까움 · 넓이 3배 안) */
+        let maxStep = Double(max(gw, gh)) * 0.06
+        var used = [Bool](repeating: false, count: points.count)
+        var kept: [[Point]] = []
+        for var tr in tracksOld {
+            guard let last = tr.last, fb - last.f <= 2 else { continue }
+            var px = last.x, py = last.y
+            if tr.count >= 2 {
+                let prev = tr[tr.count - 2]
+                let df = Double(max(1, last.f - prev.f))
+                px += (last.x - prev.x) / df * Double(fb - last.f)
+                py += (last.y - prev.y) / df * Double(fb - last.f)
+            }
+            var best = -1
+            var bestD = maxStep * Double(fb - last.f)
+            for (k, p) in points.enumerated() where !used[k] {
+                let r = p.a / last.a
+                guard r > 0.33, r < 3 else { continue }
+                let dd = hypot(p.x - px, p.y - py)
+                if dd <= bestD { bestD = dd; best = k }
+            }
+            if best >= 0 {
+                used[best] = true
+                tr.append(points[best])
+            }
+            kept.append(tr)
+        }
+        for (k, p) in points.enumerated() where !used[k] && kept.count < 80 { kept.append([p]) }
+        tracksOld = kept
     }
 
     /// 공 끝의 까닭(Hit.strength) — 이어지지 않음(작아져 놓침) · 화면이 통째로 바뀜 · 덩어리가 넘침(그물이 흔들림)
@@ -2212,8 +2381,17 @@ final class MotionTrigger {
     }
 
     /// 확실한 공 — 6장 넘게 이은 길이 투수 뒤면 0.35배 밑으로 줄고(포수 뒤면 2.5배 넘게 크고), 거의 직선으로 갈 때
-    private func ballHit(fb: Int, receding: Bool) -> (Hit, [Point])? {
-        for tr in tracks where tr.count >= MotionTrigger.MIN_LENGTH && tr.last?.f == fb {
+    private func ballHit(fb: Int, receding: Bool, in tracks: [[Point]], strict: Bool = true) -> (Hit, [Point])? {
+        /*
+         * 길의 뒷부분만으로도 본다(2026-10-16) — 놓기 직전의 손 · 공 덩어리가 먼저 길을 시작해 공을 가져가면, 그 길은 손에서 공으로 꺾여
+         * '직선' 문에서 떨어지고 공은 제 길을 못 만들었다(10-16 IMG_7873 6번 111km/h: 손 2장 → 공 4장, 꺾임 12칸).
+         */
+        let suffixes = tracks.lazy
+            .filter { $0.count >= MotionTrigger.MIN_LENGTH && $0.last?.f == fb }
+            .flatMap { tr in
+                (0...(strict ? 0 : min(MotionTrigger.SUFFIX_MAX, tr.count - MotionTrigger.MIN_LENGTH))).lazy.map { Array(tr[$0...]) }
+            }
+        for tr in suffixes where tr.count <= MotionTrigger.MAX_HIT_LENGTH {
             let first = tr[0], last = tr[tr.count - 1]
             /* 빠진 장면이 많지 않게 · 처음 두 장 · 끝 두 장의 넓이 */
             guard last.f - first.f <= tr.count + 2 else { continue }
@@ -2224,7 +2402,7 @@ final class MotionTrigger {
             let wobble = MotionTrigger.wobble(tr)
             if tr.count == MotionTrigger.MIN_LENGTH {
                 debug?("TRACK \(first.t) " + tr.map { String(format: "%.1f:%.1f:%.0f", $0.x, $0.y, $0.a) }.joined(separator: " ")
-                       + String(format: " W=%.2f", wobble))
+                       + String(format: " W=%.2f M=%.4f", wobble, tr.reduce(0, { $0 + $1.moved }) / Double(tr.count)))
             }
             guard Double(trend) >= 0.6 * Double(tr.count - 1), wobble <= MotionTrigger.MAX_WOBBLE else { continue }
             /*

@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState, useState } from 'react';
+import { useActionState, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { ChevronDown, ChevronUp, Pencil, Plus, X } from '@/components/icon';
 import {
@@ -57,12 +57,12 @@ function Thumb({ url, title }: { url: string | null; title: string }) {
       src={url}
       alt=""
       aria-hidden
-      className="h-10 w-16 shrink-0 rounded-md bg-surface-2 object-cover"
+      className="h-10 w-16 shrink-0 rounded-lg bg-surface-2 object-cover"
     />
   ) : (
     <span
       aria-hidden
-      className="flex h-10 w-16 shrink-0 items-center justify-center rounded-md bg-surface-2 text-[10px] text-muted"
+      className="flex h-10 w-16 shrink-0 items-center justify-center rounded-lg bg-surface-2 text-[10px] text-muted"
     >
       {title.slice(0, 2)}
     </span>
@@ -71,10 +71,14 @@ function Thumb({ url, title }: { url: string | null; title: string }) {
 
 /** 이름과 한 줄 설명을 고치는 칸 */
 function NameForm({ routine, onDone }: { routine: RoutineCard; onDone: () => void }) {
-  const [state, action] = useActionState(
+  const [state, action, pending] = useActionState(
     guardFormAction(updateWarmupRoutine),
     undefined
   );
+  /* 고치면 닫아 카드 머리에 새 이름이 보이게 — 예전엔 폼이 열린 채라 저장이 됐는지 몰랐다(2026-10-18) */
+  useEffect(() => {
+    if (state && 'success' in state && state.success) onDone();
+  }, [state, onDone]);
 
   return (
     <form action={action} className="space-y-3">
@@ -87,7 +91,9 @@ function NameForm({ routine, onDone }: { routine: RoutineCard; onDone: () => voi
       </Field>
       <FormError>{state?.error}</FormError>
       <div className="flex items-center gap-2">
-        <Button type="submit">저장</Button>
+        <Button type="submit" disabled={pending}>
+          {pending ? '저장 중…' : '저장'}
+        </Button>
         <button
           type="button"
           onClick={onDone}
@@ -166,7 +172,7 @@ function Picker({
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-sm text-ink">{ex.title}</span>
                   {ex.prescription && (
-                    <span className="block truncate text-[11px] text-muted">
+                    <span className="block truncate text-caption text-muted">
                       {ex.prescription}
                     </span>
                   )}
@@ -209,7 +215,7 @@ function RoutineBlock({
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <h2 className="text-base font-bold text-ink">{routine.name}</h2>
-              <span className="rounded-md border border-line-strong bg-surface-2 px-2 py-0.5 text-[11px] text-muted">
+              <span className="rounded-lg border border-line-strong bg-surface-2 px-2 py-0.5 text-caption text-muted">
                 {WHEN[routine.kind] ?? routine.kind}
               </span>
             </div>
@@ -243,14 +249,14 @@ function RoutineBlock({
               key={item.exerciseId}
               className="flex items-center gap-2.5 rounded-xl border border-line px-2.5 py-2"
             >
-              <span className="w-4 shrink-0 text-center text-[11px] text-muted">
+              <span className="w-4 shrink-0 text-center text-caption text-muted">
                 {i + 1}
               </span>
               <Thumb url={item.thumbUrl} title={item.title} />
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-sm text-ink">{item.title}</span>
                 {item.prescription && (
-                  <span className="block truncate text-[11px] text-muted">
+                  <span className="block truncate text-caption text-muted">
                     {item.prescription}
                   </span>
                 )}
@@ -275,7 +281,7 @@ function RoutineBlock({
                         type="submit"
                         disabled={off}
                         aria-label={`${item.title} ${label}`}
-                        className="grid h-11 w-11 place-items-center rounded-md text-muted transition-colors hover:text-sky disabled:opacity-30 desk:h-auto desk:w-auto desk:p-1.5"
+                        className="grid h-11 w-11 place-items-center rounded-lg text-muted transition-colors hover:text-sky disabled:opacity-30 desk:h-auto desk:w-auto desk:p-1.5"
                       >
                         <Icon className="h-3.5 w-3.5" />
                       </button>
@@ -287,7 +293,7 @@ function RoutineBlock({
                     <button
                       type="submit"
                       aria-label={`${item.title} 빼기`}
-                      className="grid h-11 w-11 place-items-center rounded-md text-muted transition-colors hover:text-warn desk:h-auto desk:w-auto desk:p-1.5"
+                      className="grid h-11 w-11 place-items-center rounded-lg text-muted transition-colors hover:text-warn desk:h-auto desk:w-auto desk:p-1.5"
                     >
                       <X className="h-3.5 w-3.5" />
                     </button>
@@ -343,8 +349,8 @@ export function WarmupClient({
       <div className="rounded-2xl border border-sky-soft/50 bg-sky-tint p-(--block-pad)">
         <p className="text-sm font-bold text-sky-strong">워밍업은 고정이에요</p>
         <p className="mt-1.5 text-xs leading-relaxed text-ink/80">
-          날마다 새로 뽑지 않아요. 운동을 시작하면 본운동 전에 오늘 목적에 맞는 루틴
-          하나와 전신 루틴이 떠요. 체크만 하고, 운동 시간과 운동량에는 안 들어가요.
+          날마다 새로 뽑지 않아요. 운동을 시작하면 본운동 전에 공통 루틴(몸 데우기 · 동적
+          가동)과 오늘 목적에 맞는 루틴 하나가 차례로 떠요. 체크만 하고, 운동 시간과 운동량에는 안 들어가요.
         </p>
         <p className="mt-2 text-xs leading-relaxed text-muted">
           회복하는 날에는 워밍업이 아예 나오지 않아요.

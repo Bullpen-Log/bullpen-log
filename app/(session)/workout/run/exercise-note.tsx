@@ -90,7 +90,7 @@ export function ExerciseNote({
             type="button"
             onClick={() => setDraft(null)}
             disabled={saving}
-            className="rounded-lg px-2.5 py-1.5 text-xs font-semibold text-muted transition-colors active:text-ink disabled:opacity-40"
+            className="inline-flex min-h-10 items-center rounded-lg px-3 text-xs font-semibold text-muted transition-colors active:text-ink disabled:opacity-40"
           >
             취소
           </button>
@@ -98,7 +98,7 @@ export function ExerciseNote({
             type="button"
             onClick={save}
             disabled={saving}
-            className="rounded-lg bg-sky px-3.5 py-1.5 text-xs font-bold text-white transition-transform disabled:opacity-60 motion-safe:active:scale-95"
+            className="inline-flex min-h-10 items-center rounded-lg bg-sky px-3.5 text-xs font-bold text-white transition-transform disabled:opacity-60 motion-safe:active:scale-95"
           >
             {saving ? '저장 중…' : '저장'}
           </button>
@@ -119,11 +119,11 @@ export function ExerciseNote({
           onChange={(e) => setDraft({ exerciseId, text: e.target.value })}
           maxLength={EXERCISE_NOTE_MAX}
           rows={3}
-          aria-label="이 운동에 대한 내 메모"
+          aria-label="이 운동 메모"
           placeholder="예: 그립 한 칸 넓게, 벤치 등받이 3칸"
           className="mt-2 w-full resize-y rounded-lg border border-line bg-surface px-3 py-2 text-sm leading-relaxed text-ink outline-none transition-colors placeholder:text-muted focus:border-sky"
         />
-        <p className="mt-1 flex gap-2 text-[11px] leading-relaxed text-muted">
+        <p className="mt-1 flex gap-2 text-caption leading-relaxed text-muted">
           <span className="flex-1 break-keep">
             다음에 이 운동을 할 때와 라이브러리에서 보여요. 비우고 저장하면 지워져요.
           </span>
@@ -142,7 +142,7 @@ export function ExerciseNote({
       <button
         type="button"
         onClick={open}
-        className="mt-2 inline-flex items-center gap-1.5 rounded-lg py-1 text-xs text-muted transition-colors hover:text-sky active:text-sky"
+        className="mt-1 inline-flex min-h-10 items-center gap-1.5 rounded-lg text-xs text-muted transition-colors hover:text-sky active:text-sky"
       >
         <NotebookPen aria-hidden className="h-3.5 w-3.5" />이 운동에 내 메모 남기기
       </button>
@@ -155,7 +155,7 @@ export function ExerciseNote({
       onClick={open}
       className="mt-3 block w-full rounded-xl border border-line bg-surface px-3 py-2.5 text-left transition-colors active:bg-surface-2"
     >
-      <span className="flex items-center gap-1.5 text-[11px] font-semibold text-muted">
+      <span className="flex items-center gap-1.5 text-caption font-semibold text-muted">
         <NotebookPen aria-hidden className="h-3.5 w-3.5" />내 메모
         <span className="ml-auto inline-flex items-center gap-1 font-normal">
           <Pencil aria-hidden className="h-3 w-3" />

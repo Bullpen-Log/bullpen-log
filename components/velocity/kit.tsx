@@ -8,7 +8,7 @@ import { Button } from '@/components/ui';
  * 화면마다 라벨 · 카드 · 숫자 줄을 따로 만들면 한 앱처럼 안 보인다.
  *
  * 크기 규칙(폰 기준): 큰 단추 48px(h-12) · 아이콘 단추 48px · 칩 40px(min-h-10) · 목록 줄 56px(min-h-14),
- * 글자는 제목 text-heading · 본문 text-sm · 보조 text-xs · 숫자 text-display.
+ * 글자는 제목 text-heading · 본문 text-sm · 보조 text-xs · 숫자 text-numeric(앱의 둥근 숫자).
  */
 
 const join = (...c: (string | false | undefined | null)[]) =>
@@ -26,7 +26,7 @@ export function StepBar({ step, total }: { step: number; total: number }) {
       className="h-1.5 overflow-hidden rounded-full bg-ink/10"
     >
       <span
-        className="block h-full rounded-full bg-sky transition-[width] duration-[280ms] ease-out"
+        className="block h-full rounded-full bg-sky motion-safe:transition-[width] duration-[280ms] ease-out"
         style={{ width: `${Math.min(100, Math.max(0, (step / total) * 100))}%` }}
       />
     </div>
@@ -78,11 +78,11 @@ export function StatRow({
       {items.map((it) => (
         <div key={it.label} className="px-2 py-3 text-center">
           <dt className="text-xs text-muted">{it.label}</dt>
-          <dd className="text-display mt-0.5 text-2xl leading-none tabular-nums text-ink">
+          <dd className="text-numeric mt-0.5 text-2xl leading-none text-ink">
             {it.value}
             {/* 단위는 제 줄에 — 네 칸이면 "km/h" 가 숫자 옆에서 갈렸다 */}
             {it.unit && (
-              <span className="mt-1 block font-sans text-[11px] leading-none text-muted">
+              <span className="mt-1 block font-sans text-caption leading-none text-muted">
                 {it.unit}
               </span>
             )}

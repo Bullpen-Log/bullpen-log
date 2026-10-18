@@ -16,8 +16,8 @@ export const TRAINING_CATEGORIES = [
    * 어느 테마의 구성(lib/report/theme.ts 의 COMPOSITIONS)에도 이 이름이 없어서
    * 저절로 빠진다. 따로 막는 코드가 없는 것은 실수가 아니라 이 구조 때문이다.
    *
-   * 워밍업은 고정 루틴 넷(하체·상체 밀기·상체 당기기·전신)에 담아 두고,
-   * 운동을 시작할 때 그날 목적에 맞는 것과 전신 것을 보여준다.
+   * 워밍업은 고정 루틴(공통 + 하체·상체 밀기·상체 당기기·전신)에 담아 두고,
+   * 운동을 시작할 때 공통 것과 그날 목적에 맞는 것을 보여준다. 담는 운동은 다른 분류에 있어도 된다(2026-10-16).
    */
   { name: '워밍업', tone: 'mobility' },
   { name: '하체 스트렝스', tone: 'lower' },
@@ -40,13 +40,33 @@ export const TRAINING_CATEGORIES = [
    * 운동 중에는 분으로 받는다.
    */
   { name: '유산소', tone: 'recovery' },
+  /*
+   * 나중에 촬영 — 영상이 아직 없어 뒤로 미룬 운동(2026-10-14 사용자). 워밍업처럼 어느 테마의 구성에도 없어 일정에 안 뽑히고,
+   * 새 일정 · 암케어 · 재활 · 루틴이 보는 visibleExercises(lib/library-cache.ts)에서도 빠진다. 운동 영상 화면에만 이 칸으로 보인다.
+   * 원래 분류는 lib/shoot/later.json — 찍으면 scripts/library-later-2026-10-14.mjs --restore 로 되돌린다.
+   */
+  { name: '나중에 촬영', tone: 'recovery' },
 ] as const satisfies readonly { name: string; tone: CategoryTone }[];
+
+/** 나중에 촬영할 운동의 분류 이름 — 추천 · 루틴에서 빠진다 */
+export const LATER_CATEGORY = '나중에 촬영';
 
 /** 투구 메커니즘 하위 카테고리 */
 export const MECHANICS_CATEGORIES = [
   { name: '스로잉 드릴', tone: 'power' },
   { name: '메디신볼 드릴', tone: 'core' },
   { name: '무브먼트 패턴 드릴', tone: 'mobility' },
+  /*
+   * 근력 · 안정 — 동작을 익히는 드릴이 아니라 그 자세를 버티는 힘(TKE 버티기 · 아이소메트릭 · 밴드 저항 · 워터백/워터볼). 2026-10-16 사용자가
+   * '메커니즘에 새 칸'으로 정했다(docs/mechanics/drill-review-2026-10-16.md). 팔에 싣지 않는다(lib/mechanics/program.ts isArmLoaded).
+   */
+  { name: '근력 · 안정 드릴', tone: 'lower' },
+  /*
+   * 나중에 촬영 — 영상이 아직 없어 뒤로 미룬 드릴(2026-10-14 사용자, 운동의 같은 칸과 같은 뜻). 드릴 영상 화면에는 이 칸으로 보이고,
+   * 트레이닝(메커니즘 프로그램 · 요소별 드릴 · 3D 결과 화면의 드릴)이 보는 trainingGuides(lib/library-cache.ts)에서는 빠진다.
+   * 원래 분류는 lib/shoot/later-drills.json — 찍으면 scripts/drills-later-2026-10-14.mjs --restore 로 되돌린다.
+   */
+  { name: '나중에 촬영', tone: 'recovery' },
 ] as const satisfies readonly { name: string; tone: CategoryTone }[];
 
 export const TRAINING_CATEGORY_NAMES: readonly string[] = TRAINING_CATEGORIES.map(
@@ -55,3 +75,15 @@ export const TRAINING_CATEGORY_NAMES: readonly string[] = TRAINING_CATEGORIES.ma
 export const MECHANICS_CATEGORY_NAMES: readonly string[] = MECHANICS_CATEGORIES.map(
   (c) => c.name
 );
+
+/**
+ * 두 분류에 함께 드는 운동 — DB 의 분류(category)는 하나라 더 드는 분류를 여기 적는다(2026-10-16 김민: "박스 스쿼트는 스트렝스 · 파워 공통").
+ * 근력 프로그램의 본운동 칸(lib/program/program.ts VARIANT_RULES)이 inCategory 로 본다. 매일 일정(lib/report/theme.ts)은 아직 DB 분류만 본다.
+ */
+export const ALSO_IN: Readonly<Record<string, readonly string[]>> = {
+  '박스 스쿼트': ['하체 스트렝스'],
+};
+
+export function inCategory(ex: { title: string; category: string }, category: string): boolean {
+  return ex.category === category || (ALSO_IN[ex.title]?.includes(category) ?? false);
+}

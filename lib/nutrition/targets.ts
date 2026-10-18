@@ -126,6 +126,8 @@ export type Targets = {
   assumed: Assumed[];
   /** 하루 칼로리를 직접 정했나 */
   manual: boolean;
+  /** 하루 칼로리 · 단백질을 바닥까지 올렸나(성인 기초대사량 · 미성년 나이 규칙 — 아래 computeTargets) */
+  floored: boolean;
   /** 계산에 쓴 나이 칸 — 어린이 · 성장기 · 성인 */
   ageBand: AgeBand;
   /** 계산에 쓴 단백질(체중 1kg 당) — 나이 범위로 당긴 값 */
@@ -207,7 +209,17 @@ export function computeTargets(
   const adjust = manual
     ? 0
     : effectiveAdjust(profile.kcalAdjust, body.age, goal, delta);
-  const base = profile.kcalTarget ?? round10(bmr * activity.factor + delta) + adjust;
+  const wanted = profile.kcalTarget ?? round10(bmr * activity.factor + delta) + adjust;
+  /*
+   * 바닥(2026-10-16 점검). 성인은 기초대사량 밑으로 내려가지 않는다 — 운동선수에게 그 밑은 에너지 부족(RED-S)이다
+   * (활동 적음 · 감량이면 계산값도 밑으로 갔다). 미성년은 직접 정한 값도 나이 규칙의 계산(감량 없이 — 성장기 감량 −200 은
+   * 그대로) 밑으로 내려가지 않는다 — '성장기에게 덜 먹어라 금지'를 직접 입력(1,000kcal 까지)이 우회하던 것.
+   */
+  const kcalFloor =
+    rule.band === 'adult'
+      ? round10(bmr)
+      : round10(bmr * activity.factor + Math.min(0, delta));
+  const base = Math.max(kcalFloor, wanted);
   const paceKg =
     body.age === null || rule.band === 'child' ? null : goal === 'maintain' ? 0 : rate;
   const burn = Math.max(0, Math.round(burnKcal));
@@ -215,7 +227,11 @@ export function computeTargets(
 
   const proteinAuto = Math.round(proteinPerKg * weightKg);
   const proteinManual = profile.proteinTargetG !== null;
-  const protein = Math.round(profile.proteinTargetG ?? proteinAuto);
+  /* 미성년은 직접 정한 단백질도 나이 범위 아래 끝 밑으로 내려가지 않는다(위 칼로리 바닥과 같은 까닭) */
+  const proteinFloor =
+    rule.band === 'adult' ? 0 : Math.round(rule.proteinChoices[0] * weightKg);
+  const proteinWanted = Math.round(profile.proteinTargetG ?? proteinAuto);
+  const protein = Math.max(proteinFloor, proteinWanted);
   const fatShare = fatShareOf(profile.macroPreset);
   const fatAuto = Math.round(Math.max((kcal * fatShare) / 9, 0.8 * weightKg));
   const fatManual = profile.fatTargetG !== null;
@@ -234,6 +250,7 @@ export function computeTargets(
     weightKg,
     assumed,
     manual,
+    floored: base > wanted || protein > proteinWanted,
     ageBand: rule.band,
     proteinPerKg,
     proteinAuto,
@@ -246,4 +263,14 @@ export function computeTargets(
     adjust,
     paceKg,
   };
+}
+
+/**
+ * 바닥까지 올렸을 때 한 줄(웹 내 계획 · 첫 설정 계획 · 탄단지 g, 앱 첫 설정이 같이 쓴다). 낮게 적은 값이 몰래 바뀌면 고장처럼 보였다(2026-10-18 점검).
+ */
+export function floorNote(t: Pick<Targets, 'floored' | 'ageBand'>): string | null {
+  if (!t.floored) return null;
+  return t.ageBand === 'adult'
+    ? '기초대사량보다 낮게 잡지 않아요.'
+    : '성장기는 계산한 목표보다 낮게 잡지 않아요.';
 }

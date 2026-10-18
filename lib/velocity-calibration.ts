@@ -7,10 +7,8 @@
  *
  * 짝은 공마다 DB 에 있다(VelocityPitch.rawKmh · gunKmh). 서버가 그 사람 것을 모아 식을 맞추고
  * (app/actions/velocity.ts), 세션을 저장할 때 그때의 식을 세션에 박아 둔다. 화각은 기기마다
- * 달라 브라우저(localStorage)에 둔다.
+ * 달라 기기에 둔다(웹 lib/velocity-storage.ts loadFov).
  */
-
-export const FOV_KEY = 'bullpen-velocity-fov';
 
 export type CalPair = {
   /** 카메라로 잰 값(km/h, 보정 전) */
@@ -27,24 +25,6 @@ export type CalFit = {
 };
 
 export const NO_CALIBRATION: CalFit = { scale: 1, offset: 0, n: 0 };
-
-export function loadFov(fallback: number): number {
-  if (typeof window === 'undefined') return fallback;
-  try {
-    const n = Number(localStorage.getItem(FOV_KEY));
-    return n >= 30 && n <= 120 ? n : fallback;
-  } catch {
-    return fallback;
-  }
-}
-
-export function saveFov(fovDeg: number) {
-  try {
-    localStorage.setItem(FOV_KEY, String(fovDeg));
-  } catch {
-    /* 사생활 보호 모드 등 — 저장이 안 되면 이번만 쓴다 */
-  }
-}
 
 /**
  * 짝으로 보정식을 맞춘다 — 비율 하나(건 값 ≈ a × 카메라 값), a 는 짝마다의 '건 ÷ 카메라' 의 가운데 값.

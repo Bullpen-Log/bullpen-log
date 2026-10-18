@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { backTooSoon } from '@/lib/nav-state';
 import { ChevronLeft } from '@/components/icon';
 
 /**
@@ -20,7 +21,7 @@ export function LegalBackLink({ fallback }: { fallback: string }) {
         if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || !cameFromThisSite())
           return;
         e.preventDefault();
-        router.back();
+        if (!backTooSoon()) router.back();
       }}
       /*
        * 휴대폰은 아이폰 내비 막대의 '‹ 돌아가기'(테두리 없는 파란 글, 누르는 자리 44px — 2026-10-04 '앱 안에 머물기'),

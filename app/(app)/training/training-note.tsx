@@ -5,6 +5,8 @@ import { Check, Pencil } from '@/components/icon';
 import { saveTrainingNote } from '@/app/actions/exercise-log';
 import { OFFLINE_MESSAGE, orOffline } from '@/lib/action-offline';
 import { IntensityGuide } from '@/components/intensity-guide';
+import { haptic } from '@/lib/haptics';
+import { Button } from '@/components/ui';
 
 /**
  * 오늘 운동이 어땠는지 — 하루에 하나.
@@ -34,20 +36,32 @@ export function TrainingNote({
 }) {
   const saved = intensity != null;
   const [editing, setEditing] = useState(!saved);
-  const [value, setValue] = useState(intensity ?? 5);
+  /*
+   * 고른 적 없으면 null — 예전엔 기본 5 가 메모만 적어도 '강도 5' 로 저장돼, 힘듦 급증 규칙(2판 P2 · P4)의 입력이
+   * 고르지 않은 값으로 채워졌다(2026-10-16 점검 A2). 슬라이더는 가운데(5)에 두고 보이되, 움직여야 값이 된다.
+   */
+  const [value, setValue] = useState<number | null>(intensity);
+  const shown = value ?? 5;
   const [text, setText] = useState(memo ?? '');
   const [error, setError] = useState<string>();
   const [pending, startTransition] = useTransition();
 
   const save = () => {
     setError(undefined);
+    if (value == null) {
+      setError('운동 강도를 먼저 골라 주세요. 슬라이더를 움직이면 돼요.');
+      return;
+    }
     startTransition(async () => {
       /* 신호가 끊겨도 적던 메모는 남기고 한 줄로 알린다(lib/action-offline.ts) */
       const res = await orOffline(saveTrainingNote(value, text, dateKey), {
         error: OFFLINE_MESSAGE,
       });
       if ('error' in res) setError(res.error);
-      else setEditing(false);
+      else {
+        haptic('success');
+        setEditing(false);
+      }
     });
   };
 
@@ -70,7 +84,7 @@ export function TrainingNote({
           <button
             type="button"
             onClick={() => setEditing(true)}
-            className="ml-auto inline-flex items-center gap-1 rounded-lg border border-line-strong px-2.5 py-1 text-xs text-ink transition-colors hover:border-sky hover:text-sky"
+            className="-my-2 ml-auto inline-flex min-h-10 items-center gap-1 rounded-lg border border-line-strong px-3 text-xs text-ink transition-colors hover:border-sky hover:text-sky"
           >
             <Pencil className="h-3 w-3" />
             고치기
@@ -102,7 +116,7 @@ export function TrainingNote({
 
       <div className="space-y-2">
         <label htmlFor="training-intensity" className="text-sm font-medium text-ink">
-          운동 강도 · {value} / 10
+          운동 강도 · {value == null ? '아직 안 골랐어요' : `${value} / 10`}
         </label>
         <input
           id="training-intensity"
@@ -110,14 +124,14 @@ export function TrainingNote({
           min={1}
           max={10}
           step={1}
-          value={value}
+          value={shown}
           onChange={(e) => setValue(Number(e.target.value))}
           style={
-            { '--range-pct': `${((value - 1) / 9) * 100}%` } as React.CSSProperties
+            { '--range-pct': `${((shown - 1) / 9) * 100}%` } as React.CSSProperties
           }
           className="range"
         />
-        <div className="flex justify-between text-[11px] text-muted">
+        <div className="flex justify-between text-caption text-muted">
           <span>1 아주 가벼움</span>
           <span>10 최대</span>
         </div>
@@ -136,20 +150,20 @@ export function TrainingNote({
           value={text}
           onChange={(e) => setText(e.target.value)}
           rows={3}
-          placeholder="안 적어도 돼요. 무거웠던 곳, 잘 된 것 같은 동작 같은 걸 남겨두면 나중에 도움이 돼요."
+          placeholder="무거웠던 곳, 잘 된 동작 (안 적어도 돼요)"
           className="w-full resize-y rounded-xl border border-line bg-surface-2 px-3.5 py-2.5 text-sm text-ink outline-none transition-colors placeholder:text-muted focus:border-sky"
         />
       </label>
 
       <div className="flex flex-wrap items-center gap-3">
-        <button
+        <Button
           type="button"
           onClick={save}
           disabled={pending}
-          className="rounded-xl bg-sky px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-sky-strong disabled:opacity-60"
+          size="sm"
         >
           {pending ? '저장 중…' : saved ? '고쳐서 저장' : '오늘 운동 기록 저장'}
-        </button>
+        </Button>
         {saved && (
           <button
             type="button"

@@ -32,7 +32,7 @@ const INTENSITY_STYLE: Record<string, string> = {
 };
 
 const chip =
-  'inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] leading-none font-medium';
+  'inline-flex items-center gap-1 rounded-lg px-1.5 py-0.5 text-caption leading-none font-medium';
 
 /** 운동 한 줄의 부가 정보 */
 export function ExerciseBadges({
@@ -76,7 +76,7 @@ export function ExerciseBadges({
             type="button"
             onClick={(e) => open(bodyParts, part, e)}
             aria-label={`${part}, 3D로 보기`}
-            className="inline-flex min-h-6 items-center gap-0.5 rounded-full bg-surface-2 px-2 py-0.5 text-[11px] font-medium text-ink/80 ring-sky transition-shadow hover:ring-1 relative before:absolute before:-inset-x-0.5 before:-inset-y-2"
+            className="inline-flex min-h-6 items-center gap-0.5 rounded-full bg-surface-2 px-2 py-0.5 text-caption font-medium text-ink/80 ring-sky transition-shadow hover:ring-1 relative before:absolute before:-inset-x-0.5 before:-inset-y-2"
           >
             {part}
             <span aria-hidden className="opacity-60">
@@ -86,7 +86,7 @@ export function ExerciseBadges({
         ))}
 
       {rest.length > 0 && (
-        <span className="text-[11px] leading-none text-muted">{rest.join(' · ')}</span>
+        <span className="text-caption leading-none text-muted">{rest.join(' · ')}</span>
       )}
     </span>
   );
@@ -123,7 +123,7 @@ export function DrillBadges({
       {stage && <span className={`${chip} bg-surface-2 text-ink`}>{stage}</span>}
 
       {equipment.length > 0 && (
-        <span className="inline-flex items-center gap-1 text-[11px] leading-none text-muted">
+        <span className="inline-flex items-center gap-1 text-caption leading-none text-muted">
           <Dumbbell aria-hidden className="h-3 w-3" />
           {equipment.join(' · ')}
         </span>

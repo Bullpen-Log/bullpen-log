@@ -55,7 +55,7 @@ export function MetaFilter({
     <div className="space-y-3.5 desk:space-y-3.5">
       {groups.map((group) => (
         <div key={group.key}>
-          <p className="mb-2 text-xs font-semibold tracking-normal text-muted desk:text-[11px] desk:font-medium">
+          <p className="mb-2 text-xs font-semibold tracking-normal text-muted desk:text-caption desk:font-medium">
             {group.label}
           </p>
           <div className="chip-grid flex flex-wrap gap-1.5">
@@ -68,7 +68,7 @@ export function MetaFilter({
                   onClick={() => toggle(group.key, option)}
                   aria-pressed={on}
                   /* 휴대폰은 테두리 없는 알약(고른 것은 파랑으로 두름), PC 는 예전 네모 칩 */
-                  className={`min-h-10 rounded-full border px-3.5 text-[13px] transition-colors desk:min-h-0 desk:rounded-lg desk:px-2.5 desk:py-1.5 desk:text-xs ${
+                  className={`min-h-10 rounded-full border px-3.5 text-footnote transition-colors desk:min-h-0 desk:rounded-lg desk:px-2.5 desk:py-1.5 desk:text-xs ${
                     on
                       ? 'border-sky bg-sky/10 font-semibold text-sky desk:font-medium'
                       : 'border-transparent bg-ink/6 text-ink/80 desk:border-line desk:bg-surface-2 desk:text-muted desk:hover:border-sky-soft desk:hover:text-ink'
@@ -100,7 +100,7 @@ export function MetaFilter({
           <SlidersHorizontal aria-hidden className="h-4 w-4" />
           필터
           {count > 0 && (
-            <span className="grid h-5 min-w-5 place-items-center rounded-full bg-white px-1 text-[11px] font-bold text-sky tabular-nums">
+            <span className="grid h-5 min-w-5 place-items-center rounded-full bg-white px-1 text-caption font-bold text-sky tabular-nums">
               {count}
             </span>
           )}

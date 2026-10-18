@@ -11,11 +11,9 @@ import {
   THROWING_PAIN_RULES,
   THROWING_STEPS,
   THROW_PAIN_OPTIONS,
-  judgeThrowingOpen,
   throwingFrequency,
   type RehabConditionKey,
   type RehabSeverity,
-  type SidePair,
   type ThrowPain,
   type ThrowRecord,
   type ThrowingNext,
@@ -44,64 +42,20 @@ export type RehabThrowingView = {
   todayKey: string;
 };
 
-/** 투구 복귀표 열기 시험에 적는 것 */
-export type ThrowingDraft = {
-  push: [string, string];
-  drop: [string, string];
-  wall: [string, string];
-  pain: number | null;
-};
-
-export const emptyThrowingDraft = (): ThrowingDraft => ({
-  push: ['', ''],
-  drop: ['', ''],
-  wall: ['', ''],
-  pain: null,
-});
-
-const pairOf = ([a, b]: [string, string]): SidePair | null => {
-  const injured = num(a);
-  const other = num(b);
-  return injured == null || other == null ? null : { injured, other };
-};
-
-/** 판정 · 저장할 만큼 적었나 */
-export function throwingFilled(d: ThrowingDraft, hasPlyo: boolean): boolean {
-  return (
-    pairOf(d.push) != null &&
-    d.pain != null &&
-    (!hasPlyo || (pairOf(d.drop) != null && pairOf(d.wall) != null))
-  );
-}
-
-/** 적은 것 → 서버에 보낼 값(플라이오볼이 없으면 볼 드롭 · 벽 던지기는 null) */
-export function throwingInput(d: ThrowingDraft, hasPlyo: boolean) {
-  return {
-    push: pairOf(d.push)!,
-    drop: hasPlyo ? pairOf(d.drop) : null,
-    wall: hasPlyo ? pairOf(d.wall) : null,
-    pain: d.pain ?? 0,
-  };
-}
-
-/** 지금 적은 것으로 연다면 — 화면에서 미리 판정한다(서버가 다시 본다) */
-export function judgeThrowingDraft(
-  view: RehabThrowingView,
-  d: ThrowingDraft,
-  normalPct: number,
-  confidence: number
-) {
-  return judgeThrowingOpen({
-    severity: view.severity,
-    painFreeBallDays: view.painFreeBallDays,
-    daysSinceStart: view.daysSinceStart,
-    condition: view.condition,
-    hasPlyo: view.hasPlyo,
-    ...throwingInput(d, view.hasPlyo),
-    normalPct,
-    confidence,
-  });
-}
+export {
+  emptyThrowingDraft,
+  judgeThrowingDraft,
+  throwingFilled,
+  throwingInput,
+  type ThrowingDraft,
+} from '@/lib/armcare/rehab-throwing-draft';
+import {
+  emptyThrowingDraft,
+  judgeThrowingDraft,
+  throwingFilled,
+  throwingInput,
+  type ThrowingDraft,
+} from '@/lib/armcare/rehab-throwing-draft';
 
 /**
  * 투구 복귀표 열기 시험 칸(가이드라인 9절 마지막 줄) — 4단계 카드의 열기 시트와 4단계 매주 확인의 ⑤가 같이 쓴다.
@@ -338,13 +292,13 @@ export function ThrowingProgram({
       </ol>
       {next && (
         <div className="space-y-2">
-          <button
+          <Button
             type="button"
             onClick={onLog}
-            className="flex min-h-11 w-full items-center justify-center rounded-full bg-sky text-sm font-bold text-white"
+            className="w-full"
           >
             오늘 던진 것 남기기
-          </button>
+          </Button>
           {lastRecent && <LaterPainButton />}
         </div>
       )}

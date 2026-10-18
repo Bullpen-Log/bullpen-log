@@ -5,7 +5,12 @@ import { Flame, ShieldCheck } from '@/components/icon';
 import { CountUp } from '@/components/onboarding/count-up';
 import { pitchingBurn, trainingBurn } from '@/lib/nutrition/burn';
 import { kcalText } from '@/lib/nutrition/meta';
-import { REST_REQUIREMENTS, dailyPitchCap } from '@/lib/report/plan';
+import {
+  REST_REQUIREMENTS,
+  REST_REQUIREMENTS_YOUTH,
+  YOUTH_REST_TABLE_THROUGH_AGE,
+  dailyPitchCap,
+} from '@/lib/report/plan';
 
 /**
  * 끼움 화면 — 질문 사이에 앱이 답으로 셈한 숫자를 보여 준다(인아웃의 '격려 화면' 자리에, 글 대신 실제 함수값).
@@ -63,7 +68,7 @@ export function InsertCard({
 
 /**
  * 투구 첫 설정의 첫 화면 — 미성년자(만 19세 미만 · 나이 모름)는 '{나이}세는 하루 {한도}구까지예요', 성인은 한도 대신
- * 오늘 양을 무엇으로 정하는지(2026-10-12 사용자: "만 21세 120구는 이상해 — 미성년자만 제한, 성인은 다른 문구로").
+ * 지금 팔 상태를 무엇으로 보는지(2026-10-12 사용자: "만 21세 120구는 이상해 — 미성년자만 제한, 성인은 다른 문구로").
  */
 export function PitchCapInsert({
   age,
@@ -73,18 +78,25 @@ export function PitchCapInsert({
   active: boolean;
 }) {
   const cap = dailyPitchCap(age);
-  const rests = REST_REQUIREMENTS.filter((r) => r.restDays > 0)
+  /*
+   * 휴식표는 팔 상태가 실제로 쓰는 표와 같게 — 만 14세 이하는 어린 표(21구부터 1일), 그 밖은 15~18세 표(31구부터 1일). 표의 minPitches 는
+   * '이만큼부터'라 '넘게'가 아니라 '부터'. 성인은 팔 상태가 휴식표를 안 봐(2026-10-16 사용자 결정) 이 줄을 안 보인다.
+   */
+  const table =
+    age != null && age <= YOUTH_REST_TABLE_THROUGH_AGE ? REST_REQUIREMENTS_YOUTH : REST_REQUIREMENTS;
+  const rests = table
+    .filter((r) => r.restDays > 0)
     .slice()
     .sort((a, b) => a.minPitches - b.minPitches);
-  const restLine = `한 번에 ${rests[0].minPitches}구 넘게 던지면 ${rests[0].restDays}일, ${rests[rests.length - 1].minPitches}구 넘게 던지면 ${rests[rests.length - 1].restDays}일은 전력으로 던지지 않아요.`;
+  const restLine = `한 번에 ${rests[0].minPitches}구부터 ${rests[0].restDays}일, ${rests[rests.length - 1].minPitches}구부터 ${rests[rests.length - 1].restDays}일은 전력으로 던지지 않아요.`;
   if (cap == null) {
     return (
       <InsertCard
         icon={<ShieldCheck aria-hidden />}
-        headline={<>오늘 던질 양은 내 기록으로 정해요</>}
+        headline={<>지금 팔 상태를 알려 드려요</>}
         lines={[
-          '평소 던지던 양과 최근 몇 주의 부하를 견줘, 갑자기 늘지 않게 오늘 양을 알려 드려요.',
-          restLine,
+          '평소 던지던 양과 최근 몇 주의 부하를 견줘 지금 팔 상태를 보여 줘요.',
+          '세게 던진 날 · 갑자기 늘어난 날을 알려 줘요.',
           '팀 · 지도자의 지침이 먼저예요.',
         ]}
       />
@@ -104,7 +116,7 @@ export function PitchCapInsert({
       }
       lines={[
         restLine,
-        '투구를 적으면 홈이 오늘 던질 수 있는 양과 쉬어야 할 날을 매일 알려 드려요.',
+        '투구를 적으면 매일 팔 상태를 보여 줘요.',
         '기준은 유소년 투구수 가이드(Pitch Smart)예요. 팀 · 지도자의 지침이 먼저예요.',
       ]}
     />
@@ -150,7 +162,7 @@ export function BurnInsert({
             <CountUp value={total} active={active} />
             kcal
           </strong>
-          이 더해져요. 따로 적을 것은 없어요 — 트레이닝 · 투구 기록에서 가져와요.
+          이 더해져요. 따로 적을 건 없어요. 트레이닝 · 투구 기록에서 가져와요.
         </>,
         '던지는 날 앞뒤 끼니는 거르지 않는 것이 먼저예요. 영양 탭이 그날 가이드를 줘요.',
       ]}

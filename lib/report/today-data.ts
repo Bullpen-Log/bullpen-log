@@ -1,4 +1,6 @@
 import 'server-only';
+import { requestCache as cache } from '@/lib/request-cache';
+import { appNow } from '@/lib/clock';
 import { prisma } from '@/lib/prisma';
 import { pickWorkoutKind } from '@/lib/checkin';
 import { toDateKey } from '@/lib/pitch-stats';
@@ -55,32 +57,54 @@ export type UserForToday = {
   ownedEquipment: string[];
 };
 
+/**
+ * 한 요청 안에서 loadTodayCore 를 한 번만 — 홈의 요약 칸(feed.tsx)과 캘린더 밑 카드(page.tsx)가 같이 부른다. 예전에는 두 파일이
+ * 저마다 cache 를 만들어 홈을 열 때마다 이 무거운 셈이 두 번 돌았다. 같은 user 객체(레이아웃이 읽어 둔 것, lib/dal.ts)면 처음 것을 돌려준다.
+ */
+export const loadTodayCoreCached = cache((user: UserForToday) =>
+  loadTodayCore(user, appNow())
+);
+
 export async function loadTodayCore(user: UserForToday, today: Date) {
   const todayKey = toDateKey(today);
   const midnight = new Date(`${todayKey}T00:00:00.000Z`);
 
   /*
-   * 종료를 안 누르고 떠난 지난 판을 먼저 닫는다(lib/workout/close-stale.ts).
+   * 종료를 안 누르고 떠난 지난 판을 닫는다(lib/workout/close-stale.ts).
    *
-   * 그래야 그 판의 세트가 운동 기록으로 접혀, 아래에서 셈하는 운동 부하와 홈·
-   * 트레이닝 화면에 어제 한 것이 들어간다. 홈·트레이닝·[운동 시작]이 모두 여기를
-   * 지난다. 지난 날짜의 열린 판이 없으면 조회 한 번으로 끝난다.
+   * 그래야 그 판의 세트가 운동 기록으로 접혀, 운동 부하와 홈·트레이닝 화면에 어제 한 것이 들어간다. 홈·트레이닝·[운동 시작]이
+   * 모두 여기를 지난다. 지난 날짜의 열린 판이 없으면 조회 한 번으로 끝난다.
+   *
+   * 아래 조회와 같이 돌리고, 닫기가 끝나야 이 함수가 끝난다(2026-10-15 탭 전환 속도 — 예전엔 닫기를 먼저 기다려 왕복이 하나
+   * 더 쌓였다). 같이 돌려도 되는 까닭: 닫기가 쓰는 것은 지난 날짜의 운동 기록(UserExerciseLog) · 판(TrainingSession) · 프로그램
+   * 차례인데, 아래 조회는 그것을 읽지 않는다(투구 · 체크인 · 메모 · 달력 · 일정 카드 · 재활 · 오늘 날짜의 운동 기록 · 암케어).
+   * 지난 운동 기록을 읽는 부하 · 프로그램은 이 함수가 끝난 뒤에 읽는다.
    */
-  await closeAbandonedSessions(user.id, today);
+  const closing = closeAbandonedSessions(user.id, today);
 
-  const { facts, plan, state, hasLogs } = await gatherFactsAndPlan(user, today);
   /*
-   * 한 번이라도 투구를 남긴 적이 있나 — hasLogs 는 최근 45일 안만 봐서, 시즌을 쉬다 돌아온 사람에게도 홈의 '여기부터
-   * 시작하세요'(처음 온 사람 안내)가 떴다. 최근 기록이 있으면 묻지 않는다.
+   * 닫은 뒤의 조회는 서로 기다리지 않는다 — facts 를 쓰는 것은 아래 계산뿐이라, 투구 계획 · 기록 유무 · 오늘 자료를 한꺼번에
+   * 읽는다(예전에는 셋을 차례로 기다려 홈 · 트레이닝을 열 때마다 왕복이 셋 쌓였다).
    */
-  const everLogged =
-    hasLogs ||
-    (await prisma.pitchLog.findFirst({
+  const [
+    { facts, plan, state, hasLogs },
+    anyLog,
+    library,
+    doneLogs,
+    todaySetup,
+    armcareToday,
+    myRoutines,
+    closedSessions,
+  ] = await Promise.all([
+    gatherFactsAndPlan(user, today),
+    /*
+     * 한 번이라도 투구를 남긴 적이 있나 — hasLogs 는 최근 45일 안만 봐서, 시즌을 쉬다 돌아온 사람에게도 홈의 '여기부터
+     * 시작하세요'(처음 온 사람 안내)가 떴다. 기다리지 않으려고 같이 묻고, 최근 기록이 있으면 아래에서 이 답은 안 본다.
+     */
+    prisma.pitchLog.findFirst({
       where: { userId: user.id },
       select: { id: true },
-    })) !== null;
-
-  const [library, doneLogs, todaySetup, armcareToday, myRoutines] = await Promise.all([
+    }),
     /*
      * 거르는 데 필요한 항목만 가져온다.
      *
@@ -129,7 +153,9 @@ export async function loadTodayCore(user: UserForToday, today: Date) {
       where: { userId: user.id },
       select: { items: true },
     }),
+    closing,
   ]);
+  const everLogged = hasLogs || anyLog !== null;
 
   /*
    * 만들어 둔 일정을 읽기만 한다. 화면을 열 때 새로 만들지 않는다.
@@ -295,18 +321,24 @@ export async function loadTodayCore(user: UserForToday, today: Date) {
   const shownPicks = [...planned, ...strays];
 
   const byId = new Map(library.map((ex) => [ex.id, ex]));
-  const shownMinutes = Math.round(
-    shownPicks.reduce((sum, p) => {
-      const ex = byId.get(p.exerciseId);
-      if (!ex) return sum;
-      /* 트레이닝 화면 목록 · 운동 시작과 같은 세트 · 횟수로 센다(처방 한 길 — lib/report/volume.ts planPrescription) */
-      return sum + estimateMinutes(planPrescription(ex, savedPlan));
-    }, 0)
-  );
+  const minutesOf = (picks: typeof shownPicks) =>
+    Math.round(
+      picks.reduce((sum, p) => {
+        const ex = byId.get(p.exerciseId);
+        if (!ex) return sum;
+        /* 트레이닝 화면 목록 · 운동 시작과 같은 세트 · 횟수로 센다(처방 한 길 — lib/report/volume.ts planPrescription) */
+        return sum + estimateMinutes(planPrescription(ex, savedPlan));
+      }, 0)
+    );
+  const shownMinutes = minutesOf(shownPicks);
+  /* 아직 안 한 운동의 분 — 홈 요약 칸 '남은 운동' */
+  const leftMinutes = minutesOf(shownPicks.filter((p) => !doneIds.has(p.exerciseId)));
 
   return {
     todayKey,
     midnight,
+    /** 이번에 닫은 지난 판 수 — 0 이 아니면 그 판이 넘긴 프로그램 차례를 다시 읽어야 한다(트레이닝 홈 WorkoutCard) */
+    closedSessions,
     facts,
     plan,
     /**
@@ -341,6 +373,7 @@ export async function loadTodayCore(user: UserForToday, today: Date) {
      * 홈과 트레이닝이 같은 숫자를 말해야 하므로 여기서 한 번만 센다.
      */
     shownMinutes,
+    leftMinutes,
     /** 오늘 체크인을 남겼는가. 안 남기면 안전 규칙 두 가지가 빠진다. */
     hasCheckinToday: facts.condition.today != null,
     /** 오늘 고른 운동 종류 — 파워 / 웨이트 / 회복. 안 골랐으면 null */

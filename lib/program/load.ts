@@ -1,4 +1,5 @@
 import 'server-only';
+import { referenceThumbUrl } from '@/lib/reference-video';
 import { appNow } from '@/lib/clock';
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
@@ -11,12 +12,12 @@ import {
   type ProgramSessionToday,
 } from '@/lib/engine/arbiter';
 import { dayKindOf } from '@/lib/engine/microcycle';
-import { lastOutingDateOf } from '@/lib/engine/outing';
 import { withProgramCommitment } from '@/lib/engine/day-state';
 import { lastStrengthDates } from '@/lib/report/gather';
 import { loadHoldProgress } from '@/lib/nutrition/fuel-load';
 import { droppedOnlyForArmFatigue, selectCandidates } from '@/lib/report/prescription';
 import { LOW_CONDITION_THRESHOLD, painRecoveryReason } from '@/lib/report/theme';
+import { equipmentForToday } from '@/lib/report/equipment';
 import type { loadTodayCore } from '@/lib/report/today-data';
 import type { CachedExercise } from '@/lib/library-cache';
 import { readFrozenPlan } from '@/lib/workout/session-plan';
@@ -27,8 +28,8 @@ import {
 } from '@/lib/report/daily-plan';
 import { estimate1RM } from '@/lib/workout/history';
 import { toDateKey } from '@/lib/pitch-stats';
-import type { ReportFacts } from '@/lib/report/facts';
 import {
+  ARM_ACCESSORIES,
   ARM_DEFER_REASON,
   CAUTION_TEXT,
   TM_LOOKBACK_DAYS,
@@ -40,26 +41,37 @@ import {
   dayLabel,
   dayPlan,
   decideToday,
-  inSeasonKind,
   isOptionalProgramExercise,
+  isYouthAge,
+  accessoryOccurrence,
+  accessoryWithFallback,
   lighterRx,
   painSlotsOf,
+  pickSubstitute,
   parseProgram,
   planSubtitle,
   prescriptionLine,
   programSignalsOf,
   readPinned,
+  BASICS_ROTATION,
+  basicsPool,
+  ROTATING_VARIANTS,
+  rotatedPick,
+  fixedIdsOnDay,
+  withoutFixed,
+  jumpFitsWeek,
+  weekOfDay,
+  variantTurn,
   restTextOf,
   usedVariants,
   variantCandidates,
   variantLabel,
   warmupLine,
-  withKind,
+  youthRx,
   type ItemRx,
   type Pinned,
   type ProgramPlan,
   type RecoveryReason,
-  type SessionKind,
   type SlotAdjust,
   type SlotKind,
   type TodayDecision,
@@ -93,7 +105,11 @@ type TodayCore = Awaited<ReturnType<typeof loadTodayCore>>;
 export type ProgramDayCore = Pick<
   TodayCore,
   'todayKey' | 'midnight' | 'facts' | 'plan' | 'state' | 'library' | 'hasCheckinToday'
-> & { picked: Pick<TodayCore['picked'], 'halted'> };
+> & {
+  picked: Pick<TodayCore['picked'], 'halted'>;
+  /** 오늘 고른 장비(DailyTrainingSetup) — 없으면 가진 장비 그대로(2026-10-16 검토 15a). 안 넘기는 곳(training-setup.ts)은 예전과 같다 */
+  todaySetup?: Pick<NonNullable<TodayCore['todaySetup']>, 'availableEquipment'> | null;
+};
 
 /** 진행 중인 프로그램(한 사람 하나) */
 export async function activeProgram(userId: string): Promise<ProgramRow | null> {
@@ -349,8 +365,8 @@ export type ProgramDayView = {
   arbitration: Arbitration;
   /** 오늘 이 프로그램의 판(열었거나 마침)과 그 판의 운동 — 없으면 null */
   session: (ProgramSessionToday & { exercises: ProgramTodayExercise[] }) | null;
-  /** 시즌 중 선발인데 마지막 등판 날을 모른다 — 카드가 물어본다(오늘 날짜 키). 그 밖엔 null */
-  askLastOuting: string | null;
+  /** 오늘 일차부터 끝까지 그날 칸마다 고른 운동(dayPlan(plan, day).items 차례) — '앞으로 할 세션' 미리보기 */
+  ahead: { day: number; exercises: (CachedExercise | null)[] }[];
 };
 
 export function progressOf(
@@ -369,8 +385,8 @@ export async function buildProgramDay(
   row: ProgramRow,
   user: { id: string; ownedEquipment: string[]; trainingLevel: string | null }
 ): Promise<ProgramDayView | null> {
-  const basePlan = parseProgram(row.programKey);
-  if (!basePlan) return null;
+  const plan = parseProgram(row.programKey);
+  if (!plan) return null;
   const todayKey = core.todayKey;
   const facts = core.facts;
   const [typesToday, session, lastProgramDate, strengthDates] = await Promise.all([
@@ -385,10 +401,6 @@ export async function buildProgramDay(
      */
     lastStrengthDates(user.id, core.midnight),
   ]);
-
-  /* 시즌 중 프로그램이면 오늘 세션 종류를 얹는다(null = 움직임만 하는 날 — 판정이 쉬게 하고, 넘기면 번갈아 차례대로) */
-  const kind = inSeasonKindOf(basePlan, facts, lastProgramDate, row.nextDay);
-  const plan = withKind(basePlan, kind);
 
   /*
    * 등판 답은 오늘 상태 한 장에서 — 매일 일정 · 투구 계획 · 암케어가 읽는 것과 같은 답(자체 시험 엇갈림 표가 같은 함수를 부른다).
@@ -430,34 +442,119 @@ export async function buildProgramDay(
   const pinned = readPinned(row.pinned);
   /* 다 끝났으면 마지막 날 목록(그리지는 않는다) */
   const items = dayPlan(plan, day).items;
-  const owned = user.ownedEquipment;
+  /* 오늘 고른 장비가 있으면 그것으로 — 헬스장에서만 되는 운동은 가진 장비가 없을 때처럼 대체된다(lib/report/equipment.ts 와 같은 규칙) */
+  const owned = equipmentForToday(user.ownedEquipment, core.todaySetup?.availableEquipment);
   /* 기본기는 고르는 규칙이 다르다(바벨 없이) — 다시 고정 · 그날 대체도 같은 규칙으로 */
   const audience = audienceOf(plan.def);
+  /* 성장기(만 16세 미만) — 매우 높음 빼고 고르고, 남기는 개수를 늘린다 */
+  const youth = isYouthAge(facts.profile.age);
 
   /* 고정 운동이 숨겨졌으면 같은 칸에서 다시 고른다(§3) — 고르기만(읽기). 다시 고정할 것을 적는 일은 pinnedFor 가 한다 */
-  const pinnedOf = (
+  const anchorOf = (
     v: VariantKey
   ): { ex: CachedExercise | null; repinned: boolean } => {
     const id = pinned[v];
     const ex = id ? byId.get(id) : undefined;
     if (ex) return { ex, repinned: false };
     const next =
-      variantCandidates(v, core.library, owned, user.trainingLevel, audience)[0] ?? null;
+      variantCandidates(v, core.library, owned, user.trainingLevel, audience, youth)[0] ?? null;
     return { ex: next, repinned: next != null };
+  };
+  /* 보조 칸은 세션마다 다른 운동(program.ts ROTATING_VARIANTS) — 고정 운동을 첫째로 같은 칸 후보를 그 칸이 나온 차례대로 */
+  const pinnedOf = (v: VariantKey, d = day): { ex: CachedExercise | null; repinned: boolean } => {
+    const got = anchorOf(v);
+    if (!got.ex) return got;
+    /* 성장기는 돌리는 후보에서도 매우 높음을 뺀다 — 고정 운동만 빼고 돌린 차례에는 들어오던 것 */
+    const pool = variantCandidates(v, core.library, owned, user.trainingLevel, audience, youth);
+    /* 기본기는 일곱 칸 모두, 셋을 돌린다(program.ts BASICS_ROTATION) — 1~2주는 쉬운 동작에서, 3~4주는 기본 동작에서(basicsPool) */
+    if (audience === 'basics') {
+      const week = weekOfDay(plan, d);
+      const list = basicsPool(pool, v, week);
+      /* 점검 세션(12번)의 스쿼트 · 밀기는 돌리지 않고 기본 동작 하나로 — 끝까지 하는 세트라 월 싯 같은 버티기가 걸리지 않게, 다음에도 견줄 수 있게 */
+      if ((v === 'squat' || v === 'push') && dayPlan(plan, d).label === '점검')
+        return { ex: list[0] ?? got.ex, repinned: got.repinned };
+      return {
+        ex: rotatedPick(week <= 2 || !list.some((e) => e.id === got.ex!.id) ? null : got.ex, list, variantTurn(plan, d, v), BASICS_ROTATION) ?? got.ex,
+        repinned: got.repinned,
+      };
+    }
+    if (!ROTATING_VARIANTS.includes(v)) return got;
+    /* 같은 날 고정 칸(본운동 · 플라이오 푸시업)에 나온 운동은 빼고 돌린다(program.ts fixedIdsOnDay) — 다 빠지면 그대로 */
+    const free = withoutFixed(got.ex, pool, fixedIdsOnDay(plan, d, (x) => anchorOf(x).ex));
+    /* 점프는 주마다 단계(jumpFitsWeek) — 1~2주에 뎁스 · 바운드가 안 나오게. 맞는 것이 없으면 그대로 */
+    if (v === 'jump') {
+      const week = weekOfDay(plan, d);
+      const fit = free.pool.filter((e) => jumpFitsWeek(e, week));
+      if (fit.length > 0) {
+        const anchor = free.anchor && jumpFitsWeek(free.anchor, week) ? free.anchor : null;
+        return { ex: rotatedPick(anchor, fit, variantTurn(plan, d, v)), repinned: got.repinned };
+      }
+    }
+    return { ex: rotatedPick(free.anchor, free.pool, variantTurn(plan, d, v)) ?? got.ex, repinned: got.repinned };
   };
   const repin: Pinned = {};
   const pinnedFor = (
     v: VariantKey
   ): { ex: CachedExercise | null; repinned: boolean } => {
     const got = pinnedOf(v);
-    if (got.repinned && got.ex) repin[v] = got.ex.id;
+    /* 다시 고정은 고정 운동(첫째)만 — 돌린 차례의 운동을 고정으로 적지 않는다 */
+    const anchor = anchorOf(v);
+    if (anchor.repinned && anchor.ex) repin[v] = anchor.ex.id;
     return got;
   };
+
+  /*
+   * 보조 메뉴 칸 — 고정이 아니라 그 칸 후보를 사람 · 프로그램마다 섞은 차례로 세션마다 다음 것(program.ts accessoryPick, 2026-10-14 사용자:
+   * "보조운동은 다양하고 세션마다 다른 걸로"). 그날 본운동과 같은 운동은 안 고른다.
+   */
+  /* 그날(d) 보조 메뉴 칸에서 고른 운동 — 오늘 판과 '앞으로 할 세션' 미리보기가 같은 고르기를 쓴다 */
+  const accessoriesOn = (d: number, dayItems: typeof items) => {
+    const mainIds = new Set(
+      dayItems.filter((x) => !x.assist).flatMap((x) => {
+        const ex = pinnedOf(x.variant, d).ex;
+        return ex ? [ex.id] : [];
+      })
+    );
+    const accessoryOf = new Map<VariantKey, CachedExercise | null>();
+    /* 장비가 없어 비슷한 칸에서 대신 고른 칸(ACCESSORY_FALLBACK) — 화면에 '대체 · 장비' */
+    const gearSubstituted = new Set<VariantKey>();
+    /* 같은 날 같은 운동이 두 칸에 안 나오게 — 본운동 · 앞 칸에서 고른 것 */
+    const usedToday = new Set(mainIds);
+    for (const x of dayItems) {
+      if (!x.assist || accessoryOf.has(x.variant)) continue;
+      const { ex, substituted } = accessoryWithFallback(
+        x.variant,
+        (v) => variantCandidates(v, core.library, owned, user.trainingLevel, audience, youth),
+        `${user.id}|${row.startedAt.toISOString()}|${x.variant}`,
+        accessoryOccurrence(plan, d, x.variant),
+        usedToday
+      );
+      accessoryOf.set(x.variant, ex);
+      if (substituted) gearSubstituted.add(x.variant);
+    }
+    return { accessoryOf, gearSubstituted };
+  };
+  const { accessoryOf, gearSubstituted } = accessoriesOn(day, items);
+  const exOf = (v: VariantKey) => (accessoryOf.has(v) ? (accessoryOf.get(v) ?? null) : pinnedFor(v).ex);
+  /*
+   * 앞으로 할 세션의 운동 — 오늘 판과 같은 고르기(고정 · 돌리는 보조 · 보조 메뉴)로 미리 이름을 정한다(2026-10-15 김민: "남은 세션이
+   * 글자로 쫙 써져 무슨 운동인지 모른다"). 그날 몸 상태로 빼거나 바꾸는 것은 그날 가서 정해지니 여기엔 없다.
+   */
+  const ahead = Array.from({ length: Math.max(0, plan.totalDays - day + 1) }, (_, k) => day + k).map((d) => {
+        const dayItems = dayPlan(plan, d).items;
+        const acc = accessoriesOn(d, dayItems);
+        return {
+          day: d,
+          exercises: dayItems.map((x) =>
+            acc.accessoryOf.has(x.variant) ? (acc.accessoryOf.get(x.variant) ?? null) : pinnedOf(x.variant, d).ex
+          ),
+        };
+      });
 
   /* 대체할 칸과 그 까닭 — 자체 시험 엇갈림 표와 같은 함수(program.ts painSlotsOf) */
   const { painSlots, slotReasons } = painSlotsOf(
     items,
-    (v) => pinnedFor(v).ex,
+    exOf,
     safeIds,
     armFatigueOnlyIds
   );
@@ -473,7 +570,6 @@ export async function buildProgramDay(
     nextDay: row.nextDay,
     totalDays: plan.totalDays,
     lastDoneDate: keyOf(row.lastDoneDate),
-    kind: plan.kind,
   });
   const sessionToday: ProgramSessionToday | null =
     session?.program?.key === row.programKey
@@ -514,7 +610,6 @@ export async function buildProgramDay(
       (zone == null && facts.patterns.lastThrowDate != null),
     painSlots,
     slotReasons,
-    ...(basePlan.def.inSeason ? { inSeasonMove: kind === null } : {}),
     ...arbiter.signals,
   });
 
@@ -562,10 +657,7 @@ export async function buildProgramDay(
     dropped: [],
     repin,
     arbitration,
-    askLastOuting:
-      basePlan.def.inSeason === 'starter' && decision.kind !== 'done' && lastOutingDateOf(facts) == null
-        ? todayKey
-        : null,
+    ahead,
     session:
       sessionToday && session
         ? {
@@ -598,7 +690,9 @@ export async function buildProgramDay(
   for (const rx of items) {
     const { slot, variant } = rx;
     const a = adjust[slot];
-    const { ex: pinnedEx, repinned } = pinnedFor(variant);
+    const { ex: pinnedEx, repinned } = rx.assist
+      ? { ex: accessoryOf.get(variant) ?? null, repinned: false }
+      : pinnedFor(variant);
     if (!pinnedEx) {
       view.dropped.push({
         slot,
@@ -608,24 +702,29 @@ export async function buildProgramDay(
       });
       continue;
     }
+    /* 같은 날 같은 운동은 한 번 — 메디신볼이 없어 메디신볼 칸이 플라이오 푸시업이 되면 플라이오 푸시업 칸과 겹친다(2026-10-16) */
+    if (chosen.some((c) => c.ex.id === pinnedEx.id)) {
+      view.dropped.push({ slot, title: pinnedEx.title, reason: '같은 운동을 이미 해요' });
+      continue;
+    }
     if (a?.kind === 'drop') {
       view.dropped.push({ slot, title: pinnedEx.title, reason: a.reason });
       continue;
     }
     /* 대체보다 먼저 — 그 칸의 대체 후보도 같은 변형(메디신볼)이라 대체하면 또 던진다 */
-    if (deferred.includes(variant)) {
+    /* 팔을 아끼는 날은 팔 보조(삼두 · 이두 · 전완)도 뺀다 — 던지는 변형만 빼던 것에 더해(2026-10-14) */
+    if (deferred.includes(variant) || (deferred.length > 0 && ARM_ACCESSORIES.includes(variant))) {
       view.dropped.push({ slot, title: pinnedEx.title, reason: ARM_DEFER_REASON });
       continue;
     }
     /* 대체는 그 운동이 통증 부위에 걸릴 때만 — 같은 칸의 다른 운동(스쿼트 · 힌지처럼 한 날 둘)은 그대로 */
     if (a?.kind === 'substitute' && !safeIds.has(pinnedEx.id)) {
-      const sub = variantCandidates(
-        variant,
-        core.library,
-        owned,
-        user.trainingLevel,
-        audience
-      ).find((c) => c.id !== pinnedEx.id && safeIds.has(c.id));
+      /* 고정 운동 · 같은 날 다른 칸이 이미 고른 운동은 건너뛴다(2026-10-16 검토 8) */
+      const sub = pickSubstitute(
+        variantCandidates(variant, core.library, owned, user.trainingLevel, audience, youth),
+        new Set([pinnedEx.id, ...chosen.map((c) => c.ex.id)]),
+        safeIds
+      );
       if (!sub) {
         view.dropped.push({ slot, title: pinnedEx.title, reason: '오늘 몸 상태' });
         continue;
@@ -643,7 +742,15 @@ export async function buildProgramDay(
       });
       continue;
     }
-    chosen.push({ rx, ex: pinnedEx, substituteFor: null, repinned });
+    chosen.push({
+      rx,
+      ex: pinnedEx,
+      substituteFor:
+        rx.assist && gearSubstituted.has(variant)
+          ? { title: variantLabel(variant, audience), reason: SUBSTITUTE_REASON.gear }
+          : null,
+      repinned,
+    });
   }
 
   const pctIds = chosen.filter((c) => c.rx.mode === 'pct').map((c) => c.ex.id);
@@ -665,7 +772,9 @@ export async function buildProgramDay(
   for (const c of chosen) {
     const a = adjust[c.rx.slot] ?? null;
     const lighter = a?.kind === 'lighter' || (a?.kind === 'substitute' && a.lighter === true);
-    const rx = lighter ? lighterRx(c.rx) : c.rx;
+    const base = lighter ? lighterRx(c.rx) : c.rx;
+    /* 성장기는 남기는 개수를 늘린다(program.ts youthRx) — 프로그램 칸의 처방이 운동 화면 · 다음 무게까지 이것으로 간다 */
+    const rx = youth ? youthRx(base) : base;
     const { suggestion, kgs } = weighItem(rx, c.ex, {
       adjusted: lighter,
       gapDays,
@@ -756,10 +865,6 @@ export type ProgramCardProps = {
   basics: boolean;
   /** '12회 · 주 3번 · 4주' */
   subtitle: string;
-  /** 시즌 중 프로그램인가 — 카드 머리가 '시즌 중 프로그램' */
-  inSeason: boolean;
-  /** 마지막 등판을 물을 날(오늘 날짜 키) — ProgramDayView.askLastOuting */
-  askLastOuting: string | null;
   kind: TodayDecision['kind'];
   todayState: ProgramDayView['todayState'];
   day: number;
@@ -770,6 +875,8 @@ export type ProgramCardProps = {
   total: number;
   caution: string | null;
   restText: string | null;
+  /** [운동 시작]을 둘 수 있나 — 매일 일정이 프로그램 날로 보는 조건과 같다(programTodayOf). 하는 날인데 할 운동이 다 빠지면 false */
+  canStart: boolean;
   rows: {
     id: string;
     title: string;
@@ -796,8 +903,33 @@ export type ProgramCardProps = {
    * 앞으로 할 세션 — 다음 일차부터 끝까지, 그날 운동(고정 운동 이름 · 없으면 칸 이름)과 처방 한 줄(2026-10-14 김민: "현재 세션밖에 안
    * 나와 추후에 어떤 세션을 하는지 모른다"). 무게는 그날 기록으로 정해지니 넣지 않는다.
    */
-  upcoming: { day: number; label: string; items: { title: string; line: string }[] }[];
+  upcoming: {
+    day: number;
+    label: string;
+    items: {
+      /** 운동 id — 운동을 못 고른 칸(장비 없음)은 null, 이름 자리에 칸 이름 */
+      id: string | null;
+      title: string;
+      /** 칸 이름(스쿼트 · 보조 밀기 …) */
+      slotLabel: string;
+      /** 짧은 양 — '3 × 5' 또는 '4세트' */
+      amount: string;
+      /** 처방 한 줄(누르면 보임) */
+      line: string;
+      /** 썸네일 저장소 경로 — 페이지가 서명해 thumbUrl 을 채운다 */
+      thumbPath: string | null;
+      /** 썸네일 주소 — 참고 영상이면 그 그림, 저장소 그림은 페이지가 채움 */
+      thumbUrl: string | null;
+    }[];
+  }[];
 };
+
+/** 오늘 줄과 같은 짧은 양 — 세트가 다 같으면 '3 × 5', 다르면 '4세트' */
+function amountOf(rx: ItemRx): string {
+  const n = rx.sets.length;
+  const same = rx.sets.every((x) => x.reps === rx.sets[0].reps && x.pct === rx.sets[0].pct && !x.plus);
+  return same ? `${n} × ${rx.reps}` : `${n}세트`;
+}
 
 export function programCardProps(
   view: ProgramDayView,
@@ -812,20 +944,17 @@ export function programCardProps(
     name: plan.def.name,
     basics: audience === 'basics',
     subtitle: planSubtitle(plan),
-    inSeason: plan.def.inSeason != null,
-    askLastOuting: view.askLastOuting,
     kind: view.decision.kind,
     todayState: view.todayState,
     day: view.day,
     dayLabel: view.dayLabel,
-    /* 시즌 중 다음 세션 종류는 그날 상태로 정해서 아직 모른다 — 번호만 */
-    nextLabel:
-      nextDay > plan.totalDays ? null : plan.def.inSeason ? `${nextDay}번 세션` : dayLabel(plan, nextDay),
+    nextLabel: nextDay > plan.totalDays ? null : dayLabel(plan, nextDay),
     completed: view.completed,
     skipped: view.skipped,
     total: plan.totalDays,
     caution: view.caution,
     restText: view.restText,
+    canStart: programTodayOf(view) != null,
     rows: view.rows.map((r) => ({
       id: r.exercise.id,
       title: r.exercise.title,
@@ -853,14 +982,24 @@ export function programCardProps(
       title: pinned[v] ? (byId.get(pinned[v] as string) ?? null) : null,
     })),
     /* 시즌 중은 세션 종류를 그날 상태(등판 며칠 뒤 · 어제 몇 구)로 정해 앞날을 모른다 — 오늘 종류로 앞날을 다 그리면 틀린다 */
-    upcoming: (plan.def.inSeason ? [] : Array.from({ length: Math.max(0, plan.totalDays - nextDay + 1) }, (_, k) => nextDay + k)).map((d) => ({
-      day: d,
-      label: dayLabel(plan, d),
-      items: dayPlan(plan, d).items.map((rx) => ({
-        title: (pinned[rx.variant] && byId.get(pinned[rx.variant] as string)) || variantLabel(rx.variant, audience),
-        line: prescriptionLine(rx),
+    upcoming: view.ahead
+      .filter((a) => a.day >= nextDay)
+      .map((a) => ({
+        day: a.day,
+        label: dayLabel(plan, a.day),
+        items: dayPlan(plan, a.day).items.map((rx, i) => {
+          const ex = a.exercises[i] ?? null;
+          return {
+            id: ex?.id ?? null,
+            title: ex?.title ?? variantLabel(rx.variant, audience),
+            slotLabel: variantLabel(rx.variant, audience),
+            amount: amountOf(rx),
+            line: prescriptionLine(rx),
+            thumbPath: ex?.referenceVideoId ? null : (ex?.thumbPath ?? null),
+            thumbUrl: ex?.referenceVideoId ? referenceThumbUrl(ex.referenceVideoId) : null,
+          };
+        }),
       })),
-    })),
   };
 }
 
@@ -940,26 +1079,3 @@ export async function programResult(
   };
 }
 
-/**
- * 시즌 중 프로그램의 오늘 세션 종류(program.ts inSeasonKind) — 재료는 facts(마지막 경기 날 · 어제 · 그저께 투구 수)와 마지막 프로그램 날.
- * 시즌 중이 아니면 undefined, 움직임만 하는 날이면 null.
- */
-export function inSeasonKindOf(
-  plan: ProgramPlan,
-  facts: ReportFacts,
-  lastProgramDate: string | null,
-  nextDay: number
-): SessionKind | null | undefined {
-  const role = plan.def.inSeason;
-  if (!role) return undefined;
-  const lastGame = lastOutingDateOf(facts);
-  const pitchesAgo = (n: number) =>
-    facts.patterns.recentOutings.find((o) => o.daysAgo === n)?.pitches ?? 0;
-  return inSeasonKind(role, {
-    daysSinceGame: lastGame ? daysBetween(lastGame, facts.asOf) : null,
-    pitchesYesterday: pitchesAgo(1),
-    pitchesTwoDaysAgo: pitchesAgo(2),
-    daysSinceLift: lastProgramDate ? daysBetween(lastProgramDate, facts.asOf) : null,
-    day: nextDay,
-  });
-}

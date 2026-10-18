@@ -1,3 +1,6 @@
+import { headers } from 'next/headers';
+import { expoLevel } from '@/lib/app-env';
+import { OpenNative } from '@/app/(session)/velocity/open-native';
 import Link from 'next/link';
 import { Eye, Paperclip } from '@/components/icon';
 import { prisma } from '@/lib/prisma';
@@ -16,6 +19,8 @@ function formatDate(date: Date) {
 
 export default async function BoardPage() {
   const user = await requireUser();
+  /* 새 아이폰 앱(Expo)이 자료실을 아는 판(BullpenNative/7 부터)이면 앱 화면으로 연다(native/src/app/board) */
+  if (expoLevel((await headers()).get('user-agent')) >= 7) return <OpenNative path="/board" cover={false} />;
   /*
    * 자료실은 운영자가 자료를 올리는 곳이다. 누구나 쓸 수 있게 열어두면 신고·차단
    * 같은 것이 곧 필요해지는데, 지금 그것을 감당할 준비가 안 되어 있다.

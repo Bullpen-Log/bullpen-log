@@ -45,7 +45,7 @@ import {
   type V2Input,
   type V2Obs,
 } from '@/lib/pitch-3d/v2/contract';
-import { dropLegOverlaps } from '@/lib/pitch-3d/v2/clean2d';
+import { dropLegOverlaps, fixShoulderSwaps } from '@/lib/pitch-3d/v2/clean2d';
 import { phaseOf, templateFill } from '@/lib/pitch-3d/v2/motion-template';
 import { byTime, medianStepOf, obsAt, toPoseTrack } from '@/lib/pitch-3d/v2/track';
 
@@ -140,6 +140,10 @@ const ARM_SMOOTH = 0.4;
 /** 다리 점 튐 거르기 — 햄펠(앞뒤 장면 수 · MAD 배) · 가우스 폭(장면) */
 const LEG_HAMPEL = [4, 2] as const;
 const LEG_SIGMA = 1.5;
+/** 착지 무렵 앞다리 다시 놓기의 다리 길이 배율 범위 · 시간 다듬기 폭(장면) · 구간 앞뒤로 섞는 장면 수 — 마커 13구 배율 0.9~1.0 */
+const LEG_SCALE_RANGE = [0.85, 1.05] as const;
+const LEG_SCALE_SIGMA = 2;
+const LEG_SCALE_EASE = 4;
 /** 몸통 · 머리 점 다듬기 폭 — 착지 → 릴리스 장면 수의 비(그 구간 ≈ 0.17초라 0.06 ≈ 10ms) */
 const TRUNK_SIGMA = 0.06;
 const TRUNK_JOINTS = [
@@ -240,6 +244,71 @@ export function fixHingeFlips(X: Vec3[][], U: Vec3): number {
         fr[K] = mirrorAcross(fr[K], fr[Hp], fr[An]);
         fixed++;
       }
+    }
+  }
+  return fixed;
+}
+
+/** 무릎을 '안 보임'으로 보는 확신(0~100) · 이을 수 있는 가장 긴 안 보인 구간(장면) */
+const KNEE_SEEN_CONF = 15;
+const KNEE_GAP_MAX = 40;
+/**
+ * 안 보인 장면의 무릎이 굽는 쪽 잇기 — 무릎이 두 영상 모두에서 안 보이고(확신 KNEE_SEEN_CONF 밑) 다리가 거의 펴지면 무릎이 엉덩이 → 발목 축
+ * 둘레 어느 쪽에 있어도 관찰과 뼈 길이가 맞아, 맞추기가 무릎을 축 둘레로 크게 돌렸다(2026-10-15 김민 "샘플 4 왼무릎 · 샘플 3 오른무릎이 이상":
+ * 샘플 4 착지 직전 4장면에 30 → −32 → +126 → +106 → −79°, 샘플 3 착지 뒤 한 장면 −147°). 화면은 뒤로 간 무릎을 접고 굽힘을 다듬다 다리를
+ * 거의 편 모양(엔진 24~34° → 화면 2~6°)으로 그렸다. 그래서 안 보인 구간은 앞뒤 보인 장면의 굽는 쪽(골반 앞 방향에서 잰 각)을 이어 채운다 —
+ * 굽힘 · 엉덩이 → 무릎 · 무릎 → 발목 길이는 그대로(축 둘레로만 돌림). 구간 양 끝이 다 보여야 하고 KNEE_GAP_MAX 장면까지만(긴 가림은 틀 채우기 그대로).
+ * fixHingeFlips 의 무릎 뒤집기는 골반 앞에서 많이 뒤(−0.3)이고 덜 굽었을 때만이라 이것(옆으로 · 비스듬히 뒤로 도는 것)을 못 잡았다.
+ */
+export function fixUnseenKneeTwist(X: Vec3[][], U: Vec3, conf: number[][]): number {
+  let fixed = 0;
+  const n = X.length;
+  const wrap = (a: number) => Math.atan2(Math.sin(a), Math.cos(a));
+  for (const [Hp, K, An] of [
+    [V2J.lHip, V2J.lKn, V2J.lAn],
+    [V2J.rHip, V2J.rKn, V2J.rAn],
+  ] as const) {
+    const geo = X.map((fr) => {
+      const ha = sub(fr[An], fr[Hp]);
+      const len = norm(ha);
+      if (len < 1e-9) return null;
+      const e = scale(ha, 1 / len);
+      const v = sub(fr[K], fr[Hp]);
+      const along = dot(v, e);
+      const off = sub(v, scale(e, along));
+      const r = norm(off);
+      const fwd0 = cross(sub(fr[V2J.lHip], fr[V2J.rHip]), U);
+      const fwd = sub(fwd0, scale(e, dot(fwd0, e)));
+      if (r < 1e-9 || norm(fwd) < 1e-9) return null;
+      const f = normalize(fwd);
+      const s = cross(e, f);
+      return { e, along, r, f, s, a: Math.atan2(dot(off, s), dot(off, f)) };
+    });
+    const seen = (k: number) => geo[k] != null && conf[k][K] >= KNEE_SEEN_CONF;
+    let k = 0;
+    while (k < n) {
+      if (seen(k)) {
+        k++;
+        continue;
+      }
+      let end = k;
+      while (end + 1 < n && !seen(end + 1)) end++;
+      const before = k - 1;
+      const after = end + 1;
+      if (before >= 0 && after < n && end - k + 1 <= KNEE_GAP_MAX) {
+        const a0 = geo[before]!.a;
+        const d = wrap(geo[after]!.a - a0);
+        for (let q = k; q <= end; q++) {
+          const g = geo[q];
+          if (!g) continue;
+          const want = a0 + (d * (q - before)) / (after - before);
+          if (Math.abs(wrap(want - g.a)) < 1e-6) continue;
+          const dir = add(scale(g.f, Math.cos(want)), scale(g.s, Math.sin(want)));
+          X[q][K] = add(add(X[q][Hp], scale(g.e, g.along)), scale(dir, g.r));
+          fixed++;
+        }
+      }
+      k = end + 1;
     }
   }
   return fixed;
@@ -424,6 +493,20 @@ function decimate(n: number, max: number, must: (number | null)[]): number[] {
   return [...set].sort((a, b) => a - b);
 }
 
+/** 두 뼈 IK — 엉덩이 H · 발목 A 사이에 넙다리 l1 · 정강이 l2 로 무릎을, 구부러지는 쪽은 엉덩이에서 dir 쪽. 닿지 않으면 곧게 편다 */
+function kneeIk(H: Vec3, A: Vec3, l1: number, l2: number, dir: Vec3): Vec3 {
+  const ha = sub(A, H);
+  const d = norm(ha);
+  if (d < 1e-9) return add(H, scale(dir, l1));
+  const u = scale(ha, 1 / d);
+  if (d >= l1 + l2) return add(H, scale(u, l1));
+  const a = (l1 * l1 - l2 * l2 + d * d) / (2 * d);
+  const h = Math.sqrt(Math.max(0, l1 * l1 - a * a));
+  const p = sub(dir, scale(u, dot(dir, u)));
+  const v = norm(p) > 1e-9 ? scale(p, 1 / norm(p)) : null;
+  return v ? add(H, add(scale(u, a), scale(v, h))) : add(H, scale(u, a));
+}
+
 const percentile = (xs: number[], p: number) => {
   if (xs.length === 0) return 0;
   const s = [...xs].sort((a, b) => a - b);
@@ -457,9 +540,14 @@ function fitOnce(raw: V2Input): {
   result: Pitch3dV2Result;
   debug?: FitDebug;
 } {
-  /* 2D 모델 버릇 걷기(clean2d.ts) — 한 영상 안에서 겹쳐 찍힌 다리 */
-  const cleanSide = dropLegOverlaps(raw.side);
-  const cleanBack = dropLegOverlaps(raw.back);
+  /* 2D 모델 버릇 걷기(clean2d.ts) — 한 영상 안에서 겹쳐 찍힌 다리 · 미리 바꿔 찍힌 어깨 이름 */
+  /* dropped 는 다리만 센다(결과 품질 legOverlaps) */
+  const clean = (t: V2Input['side']) => {
+    const legs = dropLegOverlaps(t);
+    return { track: fixShoulderSwaps(legs.track).track, dropped: legs.dropped };
+  };
+  const cleanSide = clean(raw.side);
+  const cleanBack = clean(raw.back);
   const input: V2Input = { ...raw, side: cleanSide.track, back: cleanBack.track };
   const jobId = input.jobId;
   const core = analyzePitch3dCore({
@@ -666,6 +754,8 @@ function fitOnce(raw: V2Input): {
           const A = view === 'side' ? sideObs[k] : backObs[k];
           const B = view === 'side' ? backObs[k] : sideObs[k];
           const [pA, pB] = view === 'side' ? [ps, pb] : [pb, ps];
+          /* 착지 무렵 앞다리는 core 가 앞다리 규칙으로 놓았다(analyze.ts leadPlaced) — 뒤 영상 세로를 다시 견주지 않는다 */
+          if (core.leadPlaced[k][a] || core.leadPlaced[k][b]) continue;
           if (A[a].v < SEEN || A[b].v < SEEN || d2(A[a], A[b]) >= LEG_OVERLAP * pA) continue;
           if (B[a].v < SEEN || B[b].v < SEEN || d2(B[a], B[b]) < LEG_OVERLAP * pB) continue;
           const camA = view === 'side' ? cal.side : cal.back;
@@ -1027,6 +1117,8 @@ function fitOnce(raw: V2Input): {
    * 장면에 나중 자리로 한 번에 붙어 13 · 9.5cm 튀었고(땅에 박힘), 축발은 흔들리는 점이 문턱(키의 3%)을 넘는 순간 풀려 계속 움직였다.
    * 축발을 착지까지 내내 묶지 않는 까닭은 그대로다(보폭 끝 끌림 — 합성 정답 축발은 착지 0.15초 전부터 14cm 끌린다).
    */
+  /* 앞발을 묶기 전 목표(관찰 방향) — 맞춘 뒤 착지 무렵 앞다리 다시 놓기가 읽는다 */
+  const observed = target.map((fr) => fr.map((v) => [...v] as Vec3));
   const pinned: boolean[][] = Array.from({ length: n }, () =>
     new Array<boolean>(N_V2_JOINTS).fill(false)
   );
@@ -1180,6 +1272,11 @@ function fitOnce(raw: V2Input): {
     contacts.sort((a, b) => a.from - b.from);
   }
 
+  const leadL = core.hand !== 'L';
+  const [ldHip, ldKn, ldAn, ldHe, ldTo] = leadL
+    ? [V2J.lHip, V2J.lKn, V2J.lAn, V2J.lHe, V2J.lTo]
+    : [V2J.rHip, V2J.rKn, V2J.rAn, V2J.rHe, V2J.rTo];
+
   /*
    * ── 자리 기반 맞추기 ──
    * 되풀이마다 관찰로 당김 → 시간 매끈 → 뼈 길이 투영(앞 · 뒤 두 번 훑음) 차례 — 뼈 투영이 마지막이라 매 되풀이 끝에 길이가 맞는다
@@ -1247,6 +1344,76 @@ function fitOnce(raw: V2Input): {
   for (let it = 0; it < POLISH; it++) for (let k = 0; k < n; k++) projectBones(k);
   fixHingeFlips(X, U);
 
+  /*
+   * 착지 무렵 앞다리 다시 놓기(맞춘 뒤) — 엉덩이 · 몸통 · 팔은 그대로 두고 앞무릎 · 앞발목만, 무릎 각도를 관찰(observed — 앞발을 묶기 전 목표의 넙다리 ·
+   * 정강이 방향)대로.
+   * - 묶인 앞발 장면: 무릎 각도는 '엉덩이 ↔ 묶인 앞발 거리'와 넙다리 · 정강이 길이로만 정해진다. 뼈 길이는 클립 전체(다리 들기 · 내딛기가 대부분)에서
+   *   재는데, 2D 모델 점이 관절 중심이 아니라 자세마다 조금씩 달라 디딘 앞다리에서는 6% 길었다(마커 13구: 엉덩이 ↔ 발목 0.682 vs 정답 0.678m 로 맞는데
+   *   넙다리 0.375 vs 0.353 · 정강이 0.402 vs 0.379) — 무릎이 착지 뒤 15° · 릴리스에 7° 더 굽었다. 장면마다 '관찰 각도가 나오는 다리 길이 배율'을 풀어
+   *   시간으로 다듬고(LEG_SCALE_RANGE 안) 무릎만 두 뼈 IK 로 놓는다(구부러지는 쪽은 관찰 무릎 쪽). 배율 하나로는 릴리스에 엉덩이가 앞발에서 멀어져
+   *   무릎이 펴졌고, 맞추기 안에서 길이를 바꾸면 골반이 4cm 끌려 몸통 축이 바뀌어 레이백이 1~4° 따라 움직였다(10-12 마커).
+   * - 아직 안 묶인 장면(착지 무렵): 관찰 다리가 뼈보다 길면(착지 순간 2D 발목 점이 미끄러짐 — 세 대 교차 정답도 정강이가 0.42 → 0.53m) 맞추기가 무릎을
+   *   펴서 착지 무릎이 8° 펴졌다 — 엉덩이에서 관찰 방향으로 넙다리 · 정강이를 이어 발목을 놓는다(배율은 묶인 장면들의 가운데값).
+   * 구간은 core 의 앞다리 규칙 구간 ~ 릴리스 뒤 (착지 → 릴리스)의 절반, 앞뒤 LEG_SCALE_EASE 장면에 걸쳐 섞는다. 뒤꿈치 · 발끝은 발목과 같이 옮긴다.
+   */
+  {
+    let from = -1;
+    let to = -1;
+    for (let k = 0; k < n; k++)
+      if (core.leadPlaced[k][ldKn] || core.leadPlaced[k][ldAn]) {
+        if (from < 0) from = k;
+        to = k;
+      }
+    if (from >= 0) {
+      const span = core.evIdx.release - core.evIdx.footPlant;
+      to = Math.min(to, core.evIdx.release + Math.round(span / 2));
+      const L1 = lengthOf.get('thigh')!;
+      const L2 = lengthOf.get('shank')!;
+      const E = LEG_SCALE_EASE;
+      const k0 = Math.max(0, from - E);
+      const k1 = Math.min(n - 1, to + E);
+      const dirs = (k: number) => {
+        const O = observed[k];
+        return [normalize(sub(O[ldKn], O[ldHip])), normalize(sub(O[ldAn], O[ldKn]))] as const;
+      };
+      /* 묶인 장면의 배율 — 관찰 각도(넙다리 · 정강이 사이)가 나오는 길이 = 엉덩이 ↔ 발목 거리 ÷ (단위 길이 다리의 그 각도 거리) */
+      const raw: (number | null)[] = [];
+      for (let k = k0; k <= k1; k++) {
+        if (!pinned[k][ldAn]) {
+          raw.push(null);
+          continue;
+        }
+        const [dT, dS] = dirs(k);
+        const reach = norm(add(scale(dT, L1), scale(dS, L2)));
+        raw.push(norm(sub(X[k][ldAn], X[k][ldHip])) / Math.max(1e-9, reach));
+      }
+      const seen = raw.filter((v): v is number => v != null);
+      if (seen.length >= 3 || raw.some((v) => v == null)) {
+        const clamp = (v: number) => Math.max(LEG_SCALE_RANGE[0], Math.min(LEG_SCALE_RANGE[1], v));
+        const runC = seen.length >= 3 ? clamp(median(seen)) : 1;
+        const sm = gaussSmooth(raw.map((v) => (v == null ? runC : clamp(v))), LEG_SCALE_SIGMA);
+        for (let k = k0; k <= k1; k++) {
+          const w = k < from ? 1 - (from - k) / (E + 1) : k > to ? 1 - (k - to) / (E + 1) : 1;
+          const c = 1 + (sm[k - k0] - 1) * w;
+          const l1 = L1 * c;
+          const l2 = L2 * c;
+          const fr = X[k];
+          const Hp = fr[ldHip];
+          const [dT, dS] = dirs(k);
+          const A = pinned[k][ldAn]
+            ? fr[ldAn]
+            : add(fr[ldAn], scale(sub(add(Hp, add(scale(dT, l1), scale(dS, l2))), fr[ldAn]), w));
+          const dA = sub(A, fr[ldAn]);
+          const K = kneeIk(Hp, A, l1, l2, dT);
+          fr[ldKn] = add(fr[ldKn], scale(sub(K, fr[ldKn]), w));
+          fr[ldAn] = A;
+          fr[ldHe] = add(fr[ldHe], dA);
+          fr[ldTo] = add(fr[ldTo], dA);
+        }
+      }
+    }
+  }
+
   /* ── 확신 · 다시 비춤 ── */
   const ps = core.side.person;
   const pb = core.back.person;
@@ -1279,6 +1446,8 @@ function fitOnce(raw: V2Input): {
     }
     conf.push(row);
   }
+  /* 안 보인 무릎이 축 둘레로 돈 것 잇기(fixUnseenKneeTwist) — 확신은 그대로(안 보인 건 안 보인 것) */
+  fixUnseenKneeTwist(X, U, conf);
   /*
    * 장면 확신 = min(몸 17관절 평균, 던지는 팔 셋(어깨 · 팔꿈치 · 손목) 평균) — 릴리스 근처 팔 흐림은 드러나고, 닫힌 자세에서 먼 쪽 관절
    * 몇 개가 가려진 것만으로는 엷어지지 않게(가장 낮은 다섯의 평균으로 하면 합성 '실제처럼'에서 거의 전 구간이 엷어졌다).
@@ -1336,7 +1505,7 @@ function fitOnce(raw: V2Input): {
   const metrics = computeMetrics(
     fitted17,
     { ...core.axes, hand: core.hand, height: H },
-    core.evIdx,
+    { ...core.evIdx, footPlant: core.evIdx.footContact },
     core.factors,
     core.plantMs
   );
@@ -1345,6 +1514,7 @@ function fitOnce(raw: V2Input): {
   const { origin, ground, R3, axes } = core;
   const keep = decimate(n, MAX_V2_FRAMES, [
     core.evIdx.footPlant,
+    core.evIdx.footContact,
     core.evIdx.release,
     core.evIdx.kneeUp,
   ]);
@@ -1398,6 +1568,7 @@ function fitOnce(raw: V2Input): {
     events: {
       kneeUp: remap(core.evIdx.kneeUp),
       footPlant: remap(core.evIdx.footPlant)!,
+      footContact: remap(core.evIdx.footContact)!,
       release: remap(core.evIdx.release)!,
     },
     metrics,

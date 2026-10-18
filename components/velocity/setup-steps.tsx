@@ -19,15 +19,12 @@ import {
   RotateCw,
 } from 'lucide-react';
 import {
-  CAMERA_OPTIONS,
-  NET_OPTIONS,
   setupSummary,
   type CameraPos,
   type VelocitySetup,
   type ZoneRect,
 } from '@/lib/velocity-setup';
 import { PITCH_OK_DEG, type DeviceLevel } from '@/lib/use-device-level';
-import { Segmented } from '@/components/segmented';
 import { BottomSheet } from './pitch-editor';
 import { SectionLabel, StepBar } from './kit';
 
@@ -60,21 +57,73 @@ export function StepShell({
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pb-4 pt-2 short:pt-1">
-        <StepBar step={step} total={total} />
-        <h2 className="mt-5 text-2xl font-bold leading-tight text-ink short:mt-3 short:text-xl">
+        {/* 진행 띠 + 'n/전체' — 체크인 흐름의 머리와 같은 줄(components/checkin-flow/flow.tsx) */}
+        <div className="flex items-center gap-3">
+          <div className="min-w-0 flex-1">
+            <StepBar step={step} total={total} />
+          </div>
+          <span className="shrink-0 text-xs tabular-nums text-muted" aria-hidden>
+            {step}/{total}
+          </span>
+        </div>
+        <h2 className="text-heading mt-6 text-2xl leading-tight text-ink short:mt-3 short:text-xl">
           {title}
         </h2>
         {subtitle && (
-          <p className="mt-1.5 text-sm leading-relaxed text-muted short:mt-1 short:leading-snug">
+          <p className="mt-1.5 text-subhead leading-snug text-muted short:mt-1">
             {subtitle}
           </p>
         )}
-        <div className="mt-5 short:mt-3">{children}</div>
+        <div className="mt-6 short:mt-3">{children}</div>
       </div>
       {/* 아래 막대 — 체크인 흐름과 같이 테두리 없이 맨바탕 위에 */}
       <div className="flex shrink-0 items-center gap-2 px-5 pb-[max(1rem,env(safe-area-inset-bottom))] pt-2">
         {footer}
       </div>
+    </div>
+  );
+}
+
+/**
+ * 카메라 위 안내창 — 구속 측정 첫 화면이 카메라가 된 뒤(2026-10-15 김민: "카메라처럼, 측정 시작을 누르면 그 위로 안내창 · 밑의
+ * 촬영 단추는 가리지 않게") 설정 단계(지난 설정 · 종류 · 카메라 위치 · 주의사항)와 수평 · 존 안내를 뷰파인더 위 카드로 띄운다.
+ * 앞으로 가기 단추는 카드 안(footer — 김민: "다음 버튼은 창에다가, 셔터로 하니까 헷갈려"), 돌아가기는 위 줄 ‹. 세로가 모자라면 카드
+ * 안에서만 굴린다.
+ */
+export function GuideCard({
+  step,
+  total,
+  title,
+  subtitle,
+  children,
+  footer,
+}: {
+  step?: number;
+  total?: number;
+  title: string;
+  subtitle?: string;
+  children?: React.ReactNode;
+  /** 카드 밑 단추 줄 — 다음 · 완료 · 이 설정으로 시작 */
+  footer?: React.ReactNode;
+}) {
+  return (
+    <div className="pointer-events-auto max-h-full overflow-y-auto overscroll-contain rounded-3xl bg-page px-5 pb-5 pt-4 text-ink shadow-2xl motion-safe:animate-sheet-up">
+      {step != null && total != null && (
+        <div className="flex items-center gap-3">
+          <div className="min-w-0 flex-1">
+            <StepBar step={step} total={total} />
+          </div>
+          <span className="shrink-0 text-xs tabular-nums text-muted" aria-hidden>
+            {step}/{total}
+          </span>
+        </div>
+      )}
+      <h2 className="text-heading mt-4 text-xl leading-tight text-ink">{title}</h2>
+      {subtitle && (
+        <p className="mt-1.5 text-subhead leading-snug text-muted">{subtitle}</p>
+      )}
+      {children && <div className="mt-4">{children}</div>}
+      {footer && <div className="mt-5 flex items-center gap-2">{footer}</div>}
     </div>
   );
 }
@@ -150,84 +199,6 @@ export function AskPreviousStep({
 
 export type Choices = { cameraPos: CameraPos; net: boolean };
 
-const NET_VALUES = [
-  { value: 'yes', label: '네트 있음' },
-  { value: 'no', label: '네트 없음' },
-] as const;
-
-export function ChoicesStep({
-  value,
-  onChange,
-  onNext,
-}: {
-  value: Choices;
-  onChange: (next: Choices) => void;
-  onNext: () => void;
-}) {
-  /* 고르는 줄은 앱의 Segmented(캘린더 | 목록과 같은 부품). 고른 것의 설명 한 줄이 밑에 붙는다 */
-  return (
-    <StepShell
-      step={2}
-      total={5}
-      title="어디서 잴까요?"
-      subtitle="고른 대로 계산 방향과 안내가 달라져요."
-      footer={
-        <PrimaryButton onClick={onNext}>
-          다음
-          <ChevronRight aria-hidden className="h-4 w-4" />
-        </PrimaryButton>
-      }
-    >
-      <div className="space-y-5">
-        <ChoiceRow
-          label="카메라 위치"
-          hint={CAMERA_OPTIONS.find((o) => o.key === value.cameraPos)?.hint}
-        >
-          <Segmented
-            label="카메라 위치"
-            value={value.cameraPos}
-            onChange={(cameraPos) => onChange({ ...value, cameraPos })}
-            options={CAMERA_OPTIONS.map((o) => ({ value: o.key, label: o.label }))}
-            size="md"
-            tone="raised"
-          />
-        </ChoiceRow>
-        <ChoiceRow
-          label="네트"
-          hint={NET_OPTIONS.find((o) => o.key === value.net)?.hint}
-        >
-          <Segmented
-            label="네트"
-            value={value.net ? 'yes' : 'no'}
-            onChange={(v) => onChange({ ...value, net: v === 'yes' })}
-            options={NET_VALUES}
-            size="md"
-            tone="raised"
-          />
-        </ChoiceRow>
-      </div>
-    </StepShell>
-  );
-}
-
-function ChoiceRow({
-  label,
-  hint,
-  children,
-}: {
-  label: string;
-  hint?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div>
-      <SectionLabel>{label}</SectionLabel>
-      {children}
-      <p className="mt-2 min-h-4 px-0.5 text-xs leading-relaxed text-muted">{hint}</p>
-    </div>
-  );
-}
-
 /**
  * 거리 한 칸(m) — 엔진 2.0 은 이 거리로 구속의 크기를 정한다(투수 뒤: 카메라 → 공이 닿는 곳, 포수 뒤: 카메라 → 릴리스).
  * 빼기 · 더하기는 0.5m, 숫자 칸은 0.1m 까지. 누르는 단추는 48px(폰 화면 규격).
@@ -302,10 +273,9 @@ export type Tip = {
   art: React.ReactNode;
 };
 
-/** 고른 설정에 맞는 주의사항 카드들 — 팝업(components/velocity/tips-popup.tsx)이 그린다 */
+/** 고른 설정에 맞는 주의사항 카드들 — 카메라 위 안내창(components/velocity/tips-popup.tsx TipsCard)이 그린다 */
 export function tipsFor(c: Choices): Tip[] {
   const behind = c.cameraPos === 'behind-pitcher';
-  const who = '투수';
   return [
     {
       key: 'tripod',
@@ -315,23 +285,7 @@ export function tipsFor(c: Choices): Tip[] {
       art: <ArtTripod />,
     },
     ...(behind
-      ? [
-          {
-            key: 'distance',
-            title: '거리를 줄자로 재면 더 정확해요',
-            short:
-              '그물(미트)까지 거리는 공 크기로 어림해요. 줄자로 재서 넣으면 오차가 절반 밑으로 줄어요.',
-            long: '구속은 공이 날아가는 길을 장면마다 찾아 물리(공기저항 · 중력)에 맞춘 뒤, 공이 그물 · 미트에 닿은 때의 거리로 크기를 정해요. 그 거리는 공 크기(지름 7.3cm)로 어림해요. 밖 실험 영상에서 평균 2~3km/h 차이였어요. 줄자로 폰 렌즈에서 공이 닿는 곳까지 재서 거리 단계나 설정의 직접 넣기에 적으면 1km/h 안팎으로 좋아져요. 넣은 거리는 곧 자라서 20m 를 21m 로 적으면 값이 5% 높게 나와요. 공 크기 어림은 화각을 알아야 해서 아이폰 카메라 앱 영상과 앱 카메라에서 잘 맞고, 웹 카메라는 렌즈 보정을 하면 맞아요.',
-            art: <ArtTape />,
-          },
-          {
-            key: 'camera',
-            title: '2배 줌 그대로 두세요',
-            short: '앱이 2배 줌을 걸어요. 먼 공도 크게 찍혀 그물까지 따라가요.',
-            long: '2배 줌이면 20m 앞의 공도 화면에서 두 배 크게 찍혀, 공이 그물 · 미트에 닿을 때까지 따라가요. 앱이 카메라를 켤 때 2배를 걸고, 안 되는 기기는 1배로 재요(밖에서는 값이 거의 같고, 실내 흰 천 앞에서는 덜 정확해요). 카메라 앱으로 찍어 영상 파일로 잴 때도 2배로 찍으세요. 앱 카메라는 손떨림 보정을 켜고, 그만큼 좁아진 화각을 셈해요. 카메라 앱의 손떨림 보정은 기본 그대로 두고 향상된 손떨림 보정만 끄세요. HDR · 시네마틱 같은 밝기 자동 처리도 끄세요.',
-            art: <ArtCamera zoom2 />,
-          },
-        ]
+      ? []
       : [
           {
             key: 'lens',
@@ -350,59 +304,50 @@ export function tipsFor(c: Choices): Tip[] {
             art: <ArtCamera />,
           },
         ]),
-    {
-      key: 'place',
-      title: behind ? `${who} 바로 뒤 1m 이내` : '포수 뒤, 네트에서 1~3m',
-      short: behind
-        ? '던지는 방향을 정면으로 보게 두세요. 옆에서 찍으면 못 재요.'
-        : '포수 · 미트 뒤에서 마운드를 정면으로 보게 두세요. 카메라에서 릴리스 지점까지 거리를 설정에 적어요.',
-      long: behind
-        ? '공이 카메라에서 멀어지며 작아지는 모습(뒤에서 정면)으로 날아가는 길을 맞춰요. 옆에서 찍으면 공이 화면을 가로지르며 번져 못 재요. 1m 를 넘게 떨어지면 릴리스 쪽 공이 작게 찍혀 앞부분을 놓쳐요. 공이 날아가는 선과 카메라의 시선이 나란할수록 정확해요. 카메라를 던지는 팔 쪽으로 30cm 쯤 옮겨 릴리스가 화면 안 가운데 쪽에 오게 하세요.'
-        : '포수 뒤에서는 공이 카메라 쪽으로 다가오며 커지는 크기로 거리를 재요. 잴 만큼 커지는 것은 마지막 4m 안이라, 설정의 "카메라에서 릴리스 지점까지" 거리만큼 공기저항을 되돌려 릴리스 구속을 내요. 줄자나 걸음으로 재서 적어 두세요(정규 마운드 · 홈 뒤 1.8m 면 약 18.5m). 네트 바로 뒤에 붙이면 그물코가 공을 가려요. 조금 떨어져서 초점이 네트가 아니라 마운드에 맞게 하세요. 포수 뒤 촬영은 아직 스피드건으로 맞춰 본 영상이 없어요.',
-      art: <ArtDistance behind={behind} />,
-    },
-    {
-      key: 'target',
-      title: behind ? '릴리스 포인트를 표적에' : '미트가 오는 자리를 표적에',
-      short: '높이를 맞춰 공을 놓는 지점이 화면 한가운데 표적에 오게 하세요.',
-      long: behind
-        ? '손을 떠난 공이 둥글게 보이며 작아지기 시작하는 순간을 "던졌다"로 봐요. 릴리스가 화면 밖이거나 아래 끝에 걸리면 공을 늦게 알아채요. 삼각대 높이를 릴리스 높이(어깨 위)에 맞춰 릴리스가 화면 안 가운데 쪽에 오게 하세요.'
-        : '공이 마지막에 오는 자리(미트)가 가운데 근처에 오게 높이를 맞추세요. 스트라이크 존은 다음 단계에서 화면 위에 따로 놓아요.',
-      art: <ArtTarget />,
-    },
+    /*
+     * 투수 뒤의 자리(1m · 정면) · 거리(20m · 줄자) · 표적은 카메라 위치 단계와 수평 단계 안내가 한 번씩 말한다(2026-10-15 사용자:
+     * "중복 설명 없게 한 번만"). 포수 뒤만 따로 안내가 필요하다.
+     */
+    ...(behind
+      ? []
+      : [
+          {
+            key: 'place',
+            title: '포수 뒤, 네트에서 1~3m',
+            short:
+              '포수 · 미트 뒤에서 마운드를 정면으로 보게 두세요. 카메라에서 릴리스 지점까지 거리를 설정에 적어요.',
+            long: '포수 뒤에서는 공이 카메라 쪽으로 다가오며 커지는 크기로 거리를 재요. 잴 만큼 커지는 것은 마지막 4m 안이라, 설정의 "카메라에서 릴리스 지점까지" 거리만큼 공기저항을 되돌려 릴리스 구속을 내요. 줄자나 걸음으로 재서 적어 두세요(정규 마운드 · 홈 뒤 1.8m 면 약 18.5m). 네트 바로 뒤에 붙이면 그물코가 공을 가려요. 조금 떨어져서 초점이 네트가 아니라 마운드에 맞게 하세요.',
+            art: <ArtDistance behind={false} />,
+          },
+          {
+            key: 'target',
+            title: '미트가 오는 자리를 표적에',
+            short: '높이를 맞춰 미트가 화면 한가운데 표적 근처에 오게 하세요.',
+            long: '공이 마지막에 오는 자리(미트)가 가운데 근처에 오게 높이를 맞추세요. 스트라이크 존은 다음 단계에서 화면 위에 따로 놓아요.',
+            art: <ArtTarget />,
+          },
+        ]),
     {
       key: 'level',
       title: '폰을 수평으로',
       short: "카메라 화면 왼쪽 위 수평계가 초록 '수평'이 되게 맞추세요.",
-      long: '옆으로 기울면 공이 화면을 비스듬히 지나가고 스트라이크 존 격자도 기울어요. 삼각대 헤드를 돌려 좌우 기울기를 1.5° 안으로 맞추세요 — 수평계의 선이 양쪽 눈금과 나란해지면 초록이 돼요. 앞뒤는 표적을 맞추느라 조금(10° 안) 숙이거나 젖혀도 괜찮아요. 폰이 기울기 값을 주지 않는 기기면 수평계가 안 뜨고, 그때는 눈으로 맞추세요.',
+      long: '옆으로 기울면 공이 화면을 비스듬히 지나가고 스트라이크 존 격자도 기울어요. 삼각대 헤드를 돌려 좌우 기울기를 1.5° 안으로 맞추세요. 수평계의 선이 양쪽 눈금과 나란해지면 초록이 돼요. 앞뒤는 표적을 맞추느라 조금(10° 안) 숙이거나 젖혀도 괜찮아요. 폰이 기울기 값을 주지 않는 기기면 수평계가 안 뜨고, 그때는 눈으로 맞추세요.',
       art: <ArtLevel />,
     },
     {
       key: 'light',
-      title: c.net ? '밝은 곳, 네트에 붙이지 않기' : '밝은 곳, 단순한 배경',
+      title: '밝은 곳, 단순한 배경',
       short:
         '밝을수록 셔터가 빨라져 공이 덜 번져요. 역광을 피하고, 흰 공 · 어두운 배경이 가장 잘 잡혀요.',
-      long:
-        '공은 배경보다 밝게 찍혀야 찾을 수 있어요. 해를 마주 보면 공이 검게 찍혀 못 찾고, 흰 벽 · 밝은 하늘이 배경이면 공과 구분이 안 돼요. 그물 · 초록 펜스 · 어두운 실내 벽이 좋은 배경이에요. 어두우면 카메라가 셔터를 길게 열어 공이 길게 번지고 자리를 잘못 잡아요. 낮의 야외나 밝은 실내에서 재세요. 형광등 · LED 아래에서는 조명 깜빡임(60Hz)으로 밝기가 프레임마다 흔들릴 수 있어요. 때가 탄 공보다 흰 공이 정확해요.' +
-        (c.net
-          ? ' 네트가 있으면 초점을 고정해요(수동초점) — 자동초점이면 카메라가 눈앞의 그물코에 초점을 맞춰 공이 흐려져요. 그래도 네트에서 30cm 이상 떨어지세요.'
-          : ' 네트가 없으면 자동초점으로 둬요.'),
+      long: '공은 배경보다 밝게 찍혀야 찾을 수 있어요. 해를 마주 보면 공이 검게 찍혀 못 찾고, 흰 벽 · 밝은 하늘이 배경이면 공과 구분이 안 돼요. 그물 · 초록 펜스 · 어두운 실내 벽이 좋은 배경이에요. 어두우면 카메라가 셔터를 길게 열어 공이 길게 번지고 자리를 잘못 잡아요. 낮의 야외나 밝은 실내에서 재세요. 형광등 · LED 아래에서는 조명 깜빡임(60Hz)으로 밝기가 프레임마다 흔들릴 수 있어요. 때가 탄 공보다 흰 공이 정확해요. 카메라 바로 앞에 그물이 있으면 초점이 그물에 잡힐 수 있으니 그물에서 30cm 이상 떨어지세요.',
       art: <ArtLight />,
     },
     {
       key: 'fps',
       title: '고속 촬영 · 1080p 이상',
-      short: '앱은 폰의 고속 촬영을 써요. 웹에서는 슬로모션 영상 파일로 재요.',
-      long: '공은 손을 떠나 0.5~1초 동안 그물까지 날아가요. 초당 60장이면 그 길이 30~60장에 담겨 물리 궤적을 정확히 맞춰요. 초당 30장이면 장수가 반이라 덜 정확해요(값에 알림이 붙어요). 120 · 240장으로 찍혀도 60장 남짓으로 솎아 재요. 해상도는 1080p 이상. 낮으면 그물 쪽 먼 공이 몇 픽셀로 줄어 끝까지 못 따라가요. 웹 브라우저 카메라는 대개 30~60장이라, 웹에서는 폰 카메라 앱으로 2배 줌 · 60fps 로 찍은 파일을 골라 재세요.',
+      short: '앱이 1080p · 60fps 로 찍어요. 공이 날아가는 길을 장면마다 담아요.',
+      long: '공은 손을 떠나 0.5~1초 동안 그물까지 날아가요. 초당 60장이면 그 길이 30~60장에 담겨 물리 궤적을 정확히 맞춰요. 초당 30장이면 장수가 반이라 덜 정확해요(값에 알림이 붙어요). 120 · 240장으로 찍혀도 60장 남짓으로 솎아 재요. 해상도는 1080p 이상. 낮으면 그물 쪽 먼 공이 몇 픽셀로 줄어 끝까지 못 따라가요.',
       art: <ArtFps />,
-    },
-    {
-      key: 'gun',
-      title: '스피드건이 있으면 짝을 맞추세요',
-      short:
-        '같은 공의 스피드건 값을 적어 두면, 5개 이상 쌓일 때 남은 차이를 보정식이 흡수해요.',
-      long: '공을 잰 뒤 공 카드에서 스피드건 값을 적고 저장하면 짝이 쌓여요. 3개까지는 평균 차이만, 그 뒤로는 기울기까지 맞춰요(설정 → 스피드건 보정 적용). 우리 값도 스피드건처럼 릴리스 쪽 수평 속도라 그대로 견주면 돼요. 같은 날 · 같은 자리 · 같은 거리 설정의 짝이어야 해요. 거리를 다시 쟀으면 그 뒤의 짝만 믿으세요.',
-      art: <ArtGun />,
     },
   ];
 }
@@ -480,7 +425,7 @@ export function TipsStep({
             className="flex h-8 items-center px-[3px]"
           >
             <span
-              className={`block h-2 rounded-full transition-all ${k === i ? 'w-5 bg-sky' : 'w-2 bg-line-strong'}`}
+              className={`block h-2 rounded-full transition-[width,background-color] ${k === i ? 'w-5 bg-sky' : 'w-2 bg-line-strong'}`}
             />
           </button>
         ))}
@@ -701,41 +646,6 @@ function ArtFps() {
   );
 }
 
-/** 거리 — 폰에서 그물까지 줄자 */
-function ArtTape() {
-  return (
-    <svg
-      viewBox="0 0 200 150"
-      className={ART}
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="4"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden
-    >
-      <rect x="14" y="30" width="60" height="100" rx="10" fill="white" />
-      <circle cx="44" cy="80" r="17" strokeDasharray="5 5" />
-      <circle cx="44" cy="80" r="11" fill="white" />
-      <path d="M74 80h56" />
-      <path d="M80 72v16M96 74v12M112 72v16M128 74v12" />
-      <rect x="140" y="44" width="44" height="72" rx="4" fill="white" />
-      <path d="M140 62h44M140 80h44M140 98h44M155 44v72M169 44v72" strokeWidth="2" />
-      <text
-        x="100"
-        y="142"
-        textAnchor="middle"
-        fontSize="13"
-        fontWeight="700"
-        fill="#b45309"
-        stroke="none"
-      >
-        폰 → 그물 20m
-      </text>
-    </svg>
-  );
-}
-
 /** 렌즈 보정 — 줄자 끝의 공과 화면의 원 */
 function ArtLens() {
   return (
@@ -853,61 +763,6 @@ function ArtCamera({ zoom2 = false }: { zoom2?: boolean }) {
         stroke="none"
       >
         손떨림 보정 끔
-      </text>
-    </svg>
-  );
-}
-
-/** 스피드건 짝 — 건 값과 카메라 값이 나란히 */
-function ArtGun() {
-  return (
-    <svg
-      viewBox="0 0 200 150"
-      className={ART}
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="4"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden
-    >
-      <rect x="22" y="40" width="64" height="44" rx="8" fill="white" />
-      <path d="M46 84v34h18V84" />
-      <path d="M86 52h14M86 72h14" />
-      <rect x="120" y="30" width="58" height="96" rx="10" fill="white" />
-      <text
-        x="54"
-        y="68"
-        textAnchor="middle"
-        fontSize="15"
-        fontWeight="800"
-        fill="currentColor"
-        stroke="none"
-      >
-        132
-      </text>
-      <text
-        x="149"
-        y="72"
-        textAnchor="middle"
-        fontSize="15"
-        fontWeight="800"
-        fill="#0ea5e9"
-        stroke="none"
-      >
-        131
-      </text>
-      <path d="M134 94l10 10 18-20" stroke="#16a34a" />
-      <text
-        x="100"
-        y="142"
-        textAnchor="middle"
-        fontSize="13"
-        fontWeight="700"
-        fill="#b45309"
-        stroke="none"
-      >
-        짝 5개부터
       </text>
     </svg>
   );

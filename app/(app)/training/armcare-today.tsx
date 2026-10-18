@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useTransition } from 'react';
-import Link from 'next/link';
 import { unstable_rethrow } from 'next/navigation';
 import { Check, ChevronRight, Play, RefreshCw } from '@/components/icon';
 import { setExerciseDone } from '@/app/actions/exercise-log';
@@ -9,12 +8,17 @@ import { makeArmcareRoutine } from '@/app/actions/armcare';
 import { CHECK_CONNECTION } from '@/lib/offline';
 import { ExerciseBadges } from '@/components/meta-badges';
 import { findArmcareArea, type ArmcareAreaKey } from '@/lib/armcare/anatomy';
-import { ARMCARE_KIND_TEXT, type ArmcareKind } from '@/lib/armcare/routine';
+import {
+  AFTER_THROWING_TEXT,
+  ARMCARE_KIND_TEXT,
+  type ArmcareKind,
+} from '@/lib/armcare/routine';
 import { MuscleChips } from '@/components/muscle-chips';
 import { ExerciseMedia, type ArmcareExerciseView } from './armcare-media';
 import { ArmPainGuideButton, type ArmPainView } from './arm-pain-guide';
 import { CheckRow } from './check-row';
 import { buzz } from '@/lib/haptics';
+import { Button, ButtonLink } from '@/components/ui';
 
 export type ArmcareTodayItem = {
   area: ArmcareAreaKey;
@@ -46,7 +50,7 @@ export function ArmcareToday({
   /** 이 화면이 보여 주는 날(YYYY-MM-DD) — 체크와 따라하기가 이 날에 남긴다 */
   dateKey: string;
   /** 지금 몸 상태로 권하는 루틴과 그 까닭 */
-  decision: { kind: ArmcareKind; reason: string };
+  decision: { kind: ArmcareKind; reason: string; afterThrowing?: true };
   /** 오늘 만들어 둔 루틴. 없으면 아직 안 만든 날 */
   routine: {
     kind: ArmcareKind;
@@ -78,6 +82,11 @@ export function ArmcareToday({
       </div>
     ) : null;
 
+  /* 등판 날(아직 안 던짐) — 루틴은 그대로, 던진 뒤에 하라고 한 줄 */
+  const afterThrowing = decision.afterThrowing ? (
+    <p className="text-sm font-semibold break-keep text-ink">{AFTER_THROWING_TEXT}</p>
+  ) : null;
+
   const make = () => {
     setError(undefined);
     startMaking(async () => {
@@ -104,15 +113,15 @@ export function ArmcareToday({
           <p className="text-sm font-semibold break-keep text-sky-strong">
             {decision.reason}
           </p>
+          {afterThrowing}
           {guide}
-          <button
+          <Button
             type="button"
             onClick={make}
             disabled={making}
-            className="rounded-xl bg-sky px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-sky-strong disabled:opacity-60"
           >
             {making ? '만드는 중…' : '맞춤 루틴 만들기'}
-          </button>
+          </Button>
           {error && <p className="text-sm text-danger">{error}</p>}
         </section>
       </div>
@@ -148,6 +157,7 @@ export function ArmcareToday({
         <p className="text-sm font-semibold break-keep text-sky-strong">
           {routine.reason}
         </p>
+        {afterThrowing}
         {guide}
         {/* 빠진 부위 같은 안내는 접어 둔다 — 늘 보일 만큼 급하지 않다 */}
         {routine.notes.length > 0 && (
@@ -178,18 +188,18 @@ export function ArmcareToday({
         )}
         <div className="flex flex-wrap items-center gap-3 border-t border-sky-soft/30 pt-3">
           {/* 한 운동씩 크게 따라 하기 — 목록을 읽지 않아도 된다 (armcare/play) */}
-          <Link
+          <ButtonLink
             href={`/armcare/play/today?d=${dateKey}`}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-sky px-3.5 py-2 text-sm font-semibold text-white transition-colors hover:bg-sky-strong"
+            size="sm"
           >
             <Play aria-hidden className="h-4 w-4" />
             따라하기
-          </Link>
+          </ButtonLink>
           <button
             type="button"
             onClick={make}
             disabled={making}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-line-strong px-3 py-1.5 text-xs font-semibold text-ink transition-colors hover:border-sky hover:text-sky disabled:opacity-60"
+            className="inline-flex min-h-10 items-center gap-1.5 rounded-lg border border-line-strong px-3 text-xs font-semibold text-ink transition-colors hover:border-sky hover:text-sky disabled:opacity-60"
           >
             <RefreshCw aria-hidden className="h-3.5 w-3.5" />
             {making ? '만드는 중…' : '다시 만들기'}
@@ -242,7 +252,7 @@ export function WeekDots({ week }: { week: { key: string; done: boolean }[] }) {
           return (
             <li key={d.key} className="space-y-1">
               <span
-                className={`mx-auto grid h-7 w-7 place-items-center rounded-full text-[11px] font-bold ${
+                className={`mx-auto grid h-7 w-7 place-items-center rounded-full text-caption font-bold ${
                   d.done
                     ? 'bg-sky text-white'
                     : isToday
@@ -253,7 +263,7 @@ export function WeekDots({ week }: { week: { key: string; done: boolean }[] }) {
                 {d.done ? '✓' : ''}
               </span>
               <span
-                className={`block text-[11px] ${isToday ? 'font-bold text-ink' : 'text-muted'}`}
+                className={`block text-caption ${isToday ? 'font-bold text-ink' : 'text-muted'}`}
               >
                 {isToday ? '오늘' : WEEKDAYS[new Date(y, m - 1, dd).getDay()]}
               </span>
@@ -377,7 +387,7 @@ export function Checklist({
         </div>
         <div className="mt-3 h-2 overflow-hidden rounded-full bg-surface-2">
           <div
-            className="h-full rounded-full bg-sky transition-[width] duration-300"
+            className="h-full rounded-full bg-sky motion-safe:transition-[width] duration-300"
             style={{ width: `${items.length ? (doneCount / items.length) * 100 : 0}%` }}
           />
         </div>
@@ -386,7 +396,7 @@ export function Checklist({
       {dayChanged && (
         <p className="rounded-lg border border-warn-line bg-warn-bg px-4 py-3 text-sm leading-relaxed break-keep text-warn">
           날짜가 바뀌었어요. 이 목록의 체크는 {monthDay(shownDate)} 기록으로 남아요.{' '}
-          <button type="button" onClick={showToday} className="font-semibold text-sky-strong">
+          <button type="button" onClick={showToday} className="-my-2 inline-flex min-h-10 items-center font-semibold text-sky-strong">
             오늘 목록 보기
           </button>
         </p>
@@ -407,7 +417,7 @@ export function Checklist({
           >
             {area && (
               <div className="flex flex-wrap items-baseline gap-x-2 px-1">
-                <h2 className="flex items-center gap-2 text-heading text-[15px] text-ink">
+                <h2 className="flex items-center gap-2 text-heading text-subhead text-ink">
                   {area.label}
                 </h2>
               </div>

@@ -12,6 +12,7 @@ import {
 } from 'react';
 import { createPortal, useFormStatus } from 'react-dom';
 import { CalendarDays, Info } from '@/components/icon';
+import { useTodayKey } from '@/components/use-today-key';
 import { MiniCalendar } from '@/components/mini-calendar';
 import { useModalState } from '@/components/modal';
 import { LegalSheet, wantsNewTab, type LegalDoc } from '@/components/legal-sheet';
@@ -30,10 +31,7 @@ import {
 import { Chips } from '@/components/onboarding/choices';
 import { NumberUnitField } from '@/components/onboarding/number-unit-field';
 import { RevealField } from '@/components/onboarding/reveal-field';
-import {
-  useStepWizard,
-  type WizardProblem,
-} from '@/components/onboarding/use-step-wizard';
+import { useStepWizard } from '@/components/onboarding/use-step-wizard';
 import {
   MAX_AGE,
   MAX_HEIGHT_CM,
@@ -42,10 +40,17 @@ import {
   MIN_HEIGHT_CM,
   MIN_WEIGHT_KG,
   SEX_OPTIONS,
-  ageFromBirthDate,
-  parseBirthDate,
-  type Sex,
 } from '@/lib/profile';
+import {
+  EMAIL_RE,
+  EMPTY_SIGNUP as EMPTY,
+  SIGNUP_STEPS as STEPS,
+  checkSignupStep as checkStep,
+  heightOk,
+  stepOfField,
+  type SignupAnswers,
+  type SignupStep as StepKey,
+} from '@/lib/signup-check';
 
 /**
  * 로그인 · 회원가입.
@@ -193,7 +198,7 @@ function LoginForm({
       <StepCard
         titleKey="login"
         title="로그인"
-        desc="다시 오신 걸 환영해요. 기록을 이어서 관리하려면 로그인하세요."
+        desc="기록을 이어서 보려면 로그인해 주세요."
         focusHeading={focusHeading}
         footer={
           <>
@@ -288,139 +293,8 @@ function LoginForm({
 
 /* ─────────────────────────── 회원가입 — 답 · 차례 ─────────────────────────── */
 
-type SignupAnswers = {
-  nickname: string;
-  email: string;
-  /** 'YYYY-MM-DD' */
-  birthDate: string;
-  sex: Sex | null;
-  heightCm: number | null;
-  weightKg: number | null;
-  password: string;
-  passwordConfirm: string;
-  agreeTerms: boolean;
-  agreePrivacy: boolean;
-};
-
-const EMPTY: SignupAnswers = {
-  nickname: '',
-  email: '',
-  birthDate: '',
-  sex: null,
-  heightCm: null,
-  weightKg: null,
-  password: '',
-  passwordConfirm: '',
-  agreeTerms: false,
-  agreePrivacy: false,
-};
-
-type StepKey = 'name' | 'birth' | 'body' | 'terms';
-
-/**
- * 화면 차례 — 답에 따라 생기고 빠지는 화면이 없어 늘 넷이다(소속은 2026-10-10 에 뺐다 — 계산에 안 쓴다).
- * 비밀번호는 2026-10-12 에 첫 화면으로 옮겼다(사용자: "이름, 이메일, 비밀번호까지 한 번에").
- */
-const STEPS: StepKey[] = ['name', 'birth', 'body', 'terms'];
-
-/** 칸이 있는 화면 — 서버가 어느 칸을 막았는지(AuthState.field) 알려 주면 그 화면으로 돌아간다 */
-const FIELD_STEP: Record<string, StepKey> = {
-  nickname: 'name',
-  email: 'name',
-  birthDate: 'birth',
-  sex: 'birth',
-  heightCm: 'body',
-  weightKg: 'body',
-  password: 'name',
-  passwordConfirm: 'name',
-  agreeTerms: 'terms',
-  agreePrivacy: 'terms',
-};
-
 /** 어느 칸의 문제도 아닌 것(신호 끊김) — 빨갛게 칠할 칸은 없고, 마지막 화면의 보내기 단추 곁에 까닭만 보인다 */
 const WHOLE_FORM = 'form';
-
-function stepOfField(field: string): StepKey {
-  return FIELD_STEP[field] ?? 'terms';
-}
-
-/** 키 · 몸무게가 범위 안인가 — 서버(lib/profile.ts)와 같은 선. 몸무게 칸은 키가 이 선을 넘어야 펴진다 */
-function heightOk(h: number | null): h is number {
-  return h !== null && Number.isInteger(h) && h >= MIN_HEIGHT_CM && h <= MAX_HEIGHT_CM;
-}
-function weightOk(kg: number | null): kg is number {
-  return kg !== null && kg >= MIN_WEIGHT_KG && kg <= MAX_WEIGHT_KG;
-}
-
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-/**
- * 한 화면을 넘어가도 되는가 — 서버(app/actions/auth.ts · lib/profile.ts · lib/baseline.ts)와 같은 기준을 먼저 본다.
- * 여기서 놓치면 여섯 화면을 다 지나 마지막에야 막힌다. 두 칸 화면은 두 칸 모두 맞아야 넘어간다.
- *
- * 브라우저의 기본 검사는 쓰지 않는다(폼이 noValidate). 모든 화면이 한 폼 안에 있어서, 기본 검사를 켜 두면 아직
- * 안 보인 화면의 빈칸 때문에 '다음'이 막힌다.
- */
-function checkStep(
-  key: StepKey,
-  a: SignupAnswers,
-  today: string
-): WizardProblem | null {
-  switch (key) {
-    case 'name': {
-      const nickname = a.nickname.trim();
-      if (!nickname) return { error: '뭐라고 부를지 적어 주세요.', field: 'nickname' };
-      if (nickname.length < 2)
-        return { error: '이름은 2자 이상이어야 해요.', field: 'nickname' };
-      const email = a.email.trim();
-      if (!email) return { error: '이메일을 적어 주세요.', field: 'email' };
-      if (!EMAIL_RE.test(email))
-        return { error: '올바른 이메일 형식이 아니에요.', field: 'email' };
-      if (a.password.length < 8)
-        return { error: '비밀번호는 8자 이상이어야 해요.', field: 'password' };
-      if (!a.passwordConfirm)
-        return { error: '비밀번호를 한 번 더 적어 주세요.', field: 'passwordConfirm' };
-      if (a.password !== a.passwordConfirm)
-        return { error: '비밀번호가 일치하지 않아요.', field: 'passwordConfirm' };
-      return null;
-    }
-    case 'birth': {
-      if (!a.birthDate) return { error: '생년월일을 골라 주세요.', field: 'birthDate' };
-      const parsed = parseBirthDate(a.birthDate);
-      if (!parsed)
-        return { error: '생년월일을 올바르게 골라 주세요.', field: 'birthDate' };
-      const age = ageFromBirthDate(parsed);
-      if (a.birthDate > today || age < MIN_AGE || age > MAX_AGE) {
-        return { error: '생년월일을 다시 확인해 주세요.', field: 'birthDate' };
-      }
-      if (!a.sex) return { error: '성별을 골라 주세요.', field: 'sex' };
-      return null;
-    }
-    case 'body':
-      if (a.heightCm === null) return { error: '키를 적어 주세요.', field: 'heightCm' };
-      if (!heightOk(a.heightCm)) {
-        return {
-          error: `키는 ${MIN_HEIGHT_CM}~${MAX_HEIGHT_CM}cm 사이로 적어 주세요.`,
-          field: 'heightCm',
-        };
-      }
-      if (a.weightKg === null)
-        return { error: '몸무게를 적어 주세요.', field: 'weightKg' };
-      if (!weightOk(a.weightKg)) {
-        return {
-          error: `몸무게는 ${MIN_WEIGHT_KG}~${MAX_WEIGHT_KG}kg 사이로 적어 주세요.`,
-          field: 'weightKg',
-        };
-      }
-      return null;
-    case 'terms':
-      if (!a.agreeTerms)
-        return { error: '이용약관에 동의해 주세요.', field: 'agreeTerms' };
-      if (!a.agreePrivacy)
-        return { error: '개인정보 처리방침에 동의해 주세요.', field: 'agreePrivacy' };
-      return null;
-  }
-}
 
 /* ─────────────────────────── 회원가입 — 부품 ─────────────────────────── */
 
@@ -572,7 +446,7 @@ function BirthDateField({
         aria-haspopup="dialog"
         aria-expanded={open}
         {...invalidProps(invalid)}
-        className={`flex w-full items-center justify-between gap-2 rounded-xl border bg-surface-2 px-4 py-3.5 text-left text-[15px] transition-colors focus:border-sky focus:outline-none ${
+        className={`flex w-full items-center justify-between gap-2 rounded-xl border bg-surface-2 px-4 py-3.5 text-left text-subhead transition-colors focus:border-sky focus:outline-none ${
           invalid ? 'border-danger' : open ? 'border-sky' : 'border-line'
         }`}
       >
@@ -782,7 +656,7 @@ function SignupWizard({
       case 'terms':
         return {
           title: '약관을 확인해 주세요',
-          desc: '두 가지 모두 동의해야 시작할 수 있어요. 눌러서 내용을 볼 수 있어요.',
+          desc: '둘 다 동의하면 시작해요. 누르면 내용을 볼 수 있어요.',
         };
     }
   }
@@ -948,7 +822,9 @@ function SignupWizard({
                       onChange={(e) => setShowPassword(e.target.checked)}
                       className="h-4 w-4 cursor-pointer accent-sky"
                     />
-                    <span className="text-sm text-muted select-none">비밀번호 표시</span>
+                    <span className="text-sm text-muted select-none">
+                      비밀번호 표시
+                    </span>
                   </label>
                 </div>
               </div>
@@ -1033,7 +909,6 @@ function SignupWizard({
           </div>
         )}
 
-
         {/*
           5 동의 두 가지. 받는 정보를 보면 그냥 넘어갈 수준이 아니다 — 생년월일, 키, 몸무게, 통증 부위, 투구 기록, 영상.
           통증 기록은 건강에 관한 정보라 따로 동의를 받는다. 미리 체크해 두지 않는다. '모두 동의'는 둘을 한 번에
@@ -1042,7 +917,7 @@ function SignupWizard({
         {panel(
           'terms',
           <div className="rounded-2xl border border-line bg-surface-2/60 p-3">
-            <label className="flex cursor-pointer items-center gap-3 rounded-xl px-1 py-2 text-[15px] font-semibold text-ink">
+            <label className="flex cursor-pointer items-center gap-3 rounded-xl px-1 py-2 text-subhead font-semibold text-ink">
               <input
                 type="checkbox"
                 checked={answers.agreeTerms && answers.agreePrivacy}
@@ -1101,7 +976,12 @@ function SignupWizard({
 /* ─────────────────────────── 둘을 잇는 것 ─────────────────────────── */
 
 /** today 는 생년월일에서 미래 날짜를 못 고르게 막는 데 쓴다. */
-export function AuthForm({ today }: { today: string }) {
+export function AuthForm({ today: serverToday }: { today: string }) {
+  /*
+   * 이 화면은 빌드 때 미리 만들어진다(app/login/page.tsx) — 서버가 준 날짜는 배포 날짜라, 가입 마법사의 생년월일 한계 · '앞으로 올 날'
+   * 검사가 며칠 지나면 어긋났다(2026-10-17). 붙은 뒤에는 브라우저 날짜로(useSyncExternalStore — 수화 어긋남 없음).
+   */
+  const today = useTodayKey(serverToday);
   const [mode, setMode] = useState<'login' | 'signup'>('login');
   /* 로그인 ↔ 가입을 바꾼 뒤인가 — 처음 들어왔을 때는 초점을 옮기지 않는다 */
   const [switched, setSwitched] = useState(false);

@@ -140,12 +140,12 @@ function Stat({
 }) {
   return (
     <div className="min-w-0 rounded-xl bg-surface-2 px-3 py-2.5">
-      <p className="text-[11px] text-muted">{label}</p>
+      <p className="text-caption text-muted">{label}</p>
       <p className="mt-0.5 truncate text-base font-bold tabular-nums text-ink">
         {value}
       </p>
       {sub && (
-        <p className="mt-0.5 truncate text-[11px] tabular-nums text-muted">{sub}</p>
+        <p className="mt-0.5 truncate text-caption tabular-nums text-muted">{sub}</p>
       )}
     </div>
   );
@@ -199,7 +199,7 @@ function VolumeTrend({
 
   return (
     <div>
-      <div className="flex min-h-4 items-baseline justify-between gap-2 text-[11px] text-muted">
+      <div className="flex min-h-4 items-baseline justify-between gap-2 text-caption text-muted">
         {picked ? (
           <>
             <span>{dayLabel(picked.date)}</span>
@@ -296,7 +296,7 @@ export function ExerciseHistoryView({
 
   const noteBox = note && (
     <div className="rounded-xl border border-line bg-surface-2 px-3 py-2.5">
-      <p className="flex items-center gap-1.5 text-[11px] font-semibold text-muted">
+      <p className="flex items-center gap-1.5 text-caption font-semibold text-muted">
         <NotebookPen aria-hidden className="h-3.5 w-3.5" />내 메모
       </p>
       <p className="mt-1 whitespace-pre-wrap break-keep text-sm leading-relaxed text-ink">
@@ -395,7 +395,7 @@ export function ExerciseHistoryView({
       )}
 
       <div>
-        <p className="mb-1.5 text-[11px] font-semibold text-muted">최근 기록</p>
+        <p className="mb-1.5 text-caption font-semibold text-muted">최근 기록</p>
         <ul className="divide-y divide-line rounded-xl border border-line">
           {days.slice(0, limit).map((day) => (
             <li key={day.date} className="px-3 py-2">
@@ -404,7 +404,7 @@ export function ExerciseHistoryView({
                   {dayLabel(day.date)}
                 </span>
                 {day.volume != null && (
-                  <span className="shrink-0 text-[11px] tabular-nums text-muted">
+                  <span className="shrink-0 text-caption tabular-nums text-muted">
                     {day.approx && '약 '}
                     {volumeText(kind, day.volume, unit)}
                   </span>

@@ -16,10 +16,11 @@ import {
 import {
   MonthCalendar,
   effortClass,
+  todayMarkClass,
   type DayCell,
   type DayMark,
 } from '@/components/month-calendar';
-import { STRONG_EFFORT_PCT, effortText, readEffort } from '@/lib/pitch-effort';
+import { STRONG_EFFORT_PCT, effortScaleText, effortText, readEffort } from '@/lib/pitch-effort';
 import { Card } from '@/components/ui';
 import { Expand } from '@/components/expand';
 import { usePlaybackUrls } from '@/components/use-playback-urls';
@@ -186,7 +187,7 @@ export function VideoCalendar({
         }
       } catch {
         undo();
-        setError('대표 영상을 저장하지 못했어요. 잠시 후 다시 시도해주세요.');
+        setError('대표 영상을 저장하지 못했어요. 잠시 후 다시 시도해 주세요.');
       }
     });
   };
@@ -291,7 +292,7 @@ export function VideoCalendar({
         label: '',
         spoken: day.rest
           ? '쉬는 날'
-          : `${kinds} ${day.pitches}구, 강도 ${day.effortPct}%${
+          : `${kinds} ${day.pitches}구, 강도 ${effortScaleText(day.effortPct)}${
               day.paths.length > 0 ? `, 영상 ${day.paths.length}개` : ''
             }`,
       };
@@ -340,12 +341,12 @@ export function VideoCalendar({
             <span aria-hidden className="absolute inset-0 bg-surface-2/70" />
           )}
           <span
-            className={`absolute left-1.5 top-1 text-xs ${
+            className={`absolute text-xs ${
               cell.isFuture
-                ? 'text-muted/35'
+                ? 'left-1.5 top-1 text-muted/35'
                 : cell.isToday
-                  ? 'font-bold text-sky'
-                  : 'font-medium text-muted'
+                  ? `left-0.5 top-0.5 ${todayMarkClass()}`
+                  : 'left-1.5 top-1 font-medium text-muted'
             }`}
           >
             {cell.day}
@@ -361,21 +362,23 @@ export function VideoCalendar({
             aria-hidden
             className={`absolute inset-0 ${
               day.rest
-                ? 'm-1 rounded-md border border-dashed border-line-strong bg-surface-2'
+                ? 'm-1 rounded-lg border border-dashed border-line-strong'
                 : effortClass(day.effortPct)
             }`}
           />
           <span
-            className={`absolute left-1.5 top-1 text-xs font-medium ${
-              !day.rest && day.effortPct >= STRONG_EFFORT_PCT
-                ? 'text-white'
-                : 'text-ink'
-            } ${cell.isToday ? 'font-bold underline underline-offset-2' : ''}`}
+            className={`absolute text-xs ${
+              cell.isToday
+                ? `left-0.5 top-0.5 ${todayMarkClass(!day.rest && day.effortPct >= STRONG_EFFORT_PCT)}`
+                : `left-1.5 top-1 font-medium ${
+                    !day.rest && day.effortPct >= STRONG_EFFORT_PCT ? 'text-white' : 'text-ink'
+                  }`
+            }`}
           >
             {cell.day}
           </span>
           <span
-            className={`absolute inset-x-0 bottom-1.5 truncate px-1 text-center text-[11px] font-semibold leading-none sm:bottom-2 sm:text-xs ${
+            className={`absolute inset-x-0 bottom-1.5 truncate px-1 text-center text-caption font-semibold leading-none sm:bottom-2 sm:text-xs ${
               day.rest
                 ? 'text-muted'
                 : day.effortPct >= STRONG_EFFORT_PCT
@@ -405,17 +408,17 @@ export function VideoCalendar({
           className="pointer-events-none absolute inset-x-0 bottom-0 h-8 bg-gradient-to-t from-black/60 to-transparent"
         />
         <span
-          className={`absolute left-1.5 top-1 text-xs font-bold text-white drop-shadow ${
-            cell.isToday ? 'underline underline-offset-2' : ''
+          className={`absolute text-xs text-white drop-shadow ${
+            cell.isToday ? `left-0.5 top-0.5 ${todayMarkClass(true)}` : 'left-1.5 top-1 font-bold'
           }`}
         >
           {cell.day}
         </span>
-        <span className="absolute bottom-1 left-1.5 text-[11px] font-semibold leading-none text-white drop-shadow sm:text-xs">
+        <span className="absolute bottom-1 left-1.5 text-caption font-semibold leading-none text-white drop-shadow sm:text-xs">
           {day.pitches}구
         </span>
         {day.paths.length > 1 && (
-          <span className="absolute bottom-1 right-1 inline-flex items-center gap-0.5 rounded-md bg-black/60 px-1 py-0.5 text-[10px] font-semibold leading-none text-white">
+          <span className="absolute bottom-1 right-1 inline-flex items-center gap-0.5 rounded-lg bg-black/60 px-1 py-0.5 text-caption font-semibold leading-none text-white">
             <Film aria-hidden className="h-2.5 w-2.5" />
             {day.paths.length}
           </span>
@@ -428,11 +431,11 @@ export function VideoCalendar({
   const shownDay = shown ? days.get(shown) : undefined;
 
   return (
-    <div className="space-y-4">
+    <div className="stack-block">
       {error && (
         <p
           role="alert"
-          className="rounded-lg border border-danger-line bg-danger-bg px-3 py-2 text-xs text-danger"
+          className="rounded-2xl border border-danger-line bg-danger-bg p-(--block-pad) text-xs text-danger"
         >
           {error}
         </p>
@@ -448,7 +451,7 @@ export function VideoCalendar({
         캘린더 머리와 꼬리 · 밑 여백). 칸은 화면 높이에서 이만큼을 뺀 나머지를 나눠 가진다
         (globals.css 의 cal-cell-fit). 세로가 낮은 PC(desk-low)는 여백을 줄여 이 값도 작다.
       */}
-      <div className="grid gap-block [--cal-chrome:31rem] xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)] xl:items-start desk-low:[--cal-chrome:21.5rem]">
+      <div className="grid gap-block [--cal-chrome:31rem] lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)] lg:items-start desk-low:[--cal-chrome:21.5rem]">
         <Card>
           <MonthCalendar
             month={month}
@@ -471,7 +474,7 @@ export function VideoCalendar({
         <div ref={panelRef} className="scroll-mt-20">
           {/* 나란히 둘 때 아무 날도 안 골랐으면 오른쪽이 비지 않게 — 무엇이 여기 뜨는지 */}
           {selected == null && (
-            <p className="hidden rounded-2xl empty-well px-6 py-16 text-center text-sm leading-relaxed text-muted xl:block">
+            <p className="hidden rounded-2xl empty-well px-6 py-16 text-center text-sm leading-relaxed text-muted lg:block">
               날짜를 누르면 그날 남긴 투구와
               <br />
               영상이 여기에 펴져요.
@@ -525,7 +528,7 @@ function Thumb({
     return (
       <>
         {loaded !== url && (
-          <span aria-hidden className="absolute inset-0 animate-pulse bg-surface-2" />
+          <span aria-hidden className="absolute inset-0 motion-safe:animate-pulse bg-surface-2" />
         )}
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
@@ -599,7 +602,7 @@ function DayPanel({
         <Link
           href={`/pitch-log/${date}`}
           transitionTypes={OPEN_POPUP_TYPES}
-          className="mt-2 inline-flex items-center gap-1 rounded-lg px-2 py-1 text-sm font-semibold text-sky-strong transition-colors hover:bg-sky-tint"
+          className="mt-2 inline-flex min-h-10 items-center gap-1 rounded-lg px-3 text-sm font-semibold text-sky-strong transition-colors hover:bg-sky-tint"
         >
           <LinkPending className="h-3.5 w-3.5">
             <Plus aria-hidden className="h-3.5 w-3.5" />
@@ -645,11 +648,11 @@ function DayPanel({
 
   return (
     /*
-      세로가 낮은 PC 에서 캘린더 옆에 설 때(xl)는 화면 밑을 넘지 않는다 — 기록이 여럿이거나 메모가
+      세로가 낮은 PC 에서 캘린더 옆에 설 때(lg)는 화면 밑을 넘지 않는다 — 기록이 여럿이거나 메모가
       길어 넘치는 날만 이 칸 안에서 굴린다. 10.75rem 은 위 막대 · 제목 · 밑 여백이다.
     */
-    <section className="motion-safe:animate-fade-in overflow-hidden rounded-2xl border border-line bg-surface desk-low:xl:max-h-[calc(100dvh-12.5rem)] desk-low:xl:overflow-y-auto">
-      <header className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-b border-line px-5 py-3 desk-low:py-2">
+    <section className="motion-safe:animate-fade-in overflow-hidden rounded-2xl border border-line bg-surface desk-low:lg:max-h-[calc(100dvh-12.5rem)] desk-low:lg:overflow-y-auto">
+      <header className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-b border-line px-(--block-pad) py-3 desk-low:py-2">
         <h3 className="text-sm font-bold text-ink">
           {spokenDate(date)}
           <span className="font-normal text-muted">
@@ -669,7 +672,7 @@ function DayPanel({
         <Link
           href={`/pitch-log/${date}`}
           transitionTypes={OPEN_POPUP_TYPES}
-          className="group inline-flex items-center gap-1 rounded-lg px-2 py-1 text-sm font-semibold text-sky-strong transition-colors hover:bg-sky-tint"
+          className="group -my-1 inline-flex min-h-10 items-center gap-1 rounded-lg px-2 text-sm font-semibold text-sky-strong transition-colors hover:bg-sky-tint"
         >
           <span className="desk:hidden">자세히</span>
           <span className="hidden desk:inline">
@@ -689,10 +692,10 @@ function DayPanel({
         {day.logs.map((l, i) => (
           <li
             key={l.id}
-            className="motion-safe:animate-row-in flex flex-wrap items-baseline gap-x-3 gap-y-1 px-5 py-2.5 desk-low:py-2"
+            className="motion-safe:animate-row-in flex flex-wrap items-baseline gap-x-3 gap-y-1 px-(--block-pad) py-2.5 desk-low:py-2"
             style={{ '--row': i } as React.CSSProperties}
           >
-            <span className="rounded-md bg-surface-2 px-1.5 py-0.5 text-[11px] font-semibold text-muted">
+            <span className="rounded-lg bg-surface-2 px-1.5 py-0.5 text-caption font-semibold text-muted">
               {l.sessionType}
             </span>
             {l.sessionType === REST_SESSION_TYPE ? (
@@ -722,7 +725,7 @@ function DayPanel({
 
       {!playing || day.paths.length === 0 ? (
         !day.rest && (
-          <p className="px-5 py-4 text-xs text-muted">
+          <p className="px-(--block-pad) py-4 text-xs text-muted">
             이 날은 올린 영상이 없어요. 기록을 고칠 때 영상을 함께 올릴 수 있어요.
           </p>
         )
@@ -730,7 +733,7 @@ function DayPanel({
         <div
           className={`grid gap-4 p-(--block-pad) desk-low:gap-3 ${
             day.paths.length > 1
-              ? 'lg:grid-cols-[minmax(0,1fr)_14rem] xl:grid-cols-1'
+              ? 'md:grid-cols-[minmax(0,1fr)_14rem] lg:grid-cols-1'
               : ''
           }`}
         >
@@ -828,7 +831,7 @@ function DayPanel({
           </div>
 
           {day.paths.length > 1 && (
-            <ul className="grid grid-cols-2 content-start gap-2 lg:grid-cols-1 xl:grid-cols-3 desk-low:xl:grid-cols-4">
+            <ul className="grid grid-cols-2 content-start gap-2 md:grid-cols-1 lg:grid-cols-3 desk-low:lg:grid-cols-4">
               {day.paths.map((path, i) => {
                 const on = path === playing;
                 return (

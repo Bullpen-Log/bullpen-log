@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, type ReactNode } from 'react';
+import { haptic } from '@/lib/haptics';
 
 /**
  * 오류 한 줄 — 새 오류가 뜨면 그 자리가 보이게 굴려 온다(components/ui.tsx 의 FormError 가 쓴다).
@@ -13,6 +14,8 @@ export function ErrorLine({ children }: { children: ReactNode }) {
   const text = typeof children === 'string' ? children : '';
 
   useEffect(() => {
+    /* 실패도 손으로 알린다 — 아이폰 알림 떨림(실패). 저장이 막혔는데 아무 느낌이 없어 다시 누르곤 했다(2026-10-16) */
+    haptic('error');
     const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     ref.current?.scrollIntoView({
       block: 'nearest',

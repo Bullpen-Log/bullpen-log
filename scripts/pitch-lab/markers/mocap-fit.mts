@@ -7,6 +7,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fitPitch3dV2 } from '../../../lib/pitch-3d/v2/fit.ts';
 import { pickSegment } from '../../../lib/pitch-3d/v2/run-node.ts';
+import { cameraFocalPriors } from '../../../lib/pitch-3d/focal-table.ts';
 
 const dir = process.argv[2];
 const segOnly = process.argv.includes('--segment-only');
@@ -57,8 +58,11 @@ const { result } = fitPitch3dV2({
   slowmoFps: tr.meta.slowmo_fps === 120 || tr.meta.slowmo_fps === 240 ? tr.meta.slowmo_fps : null,
   screenRecorded: tr.meta.screen_recorded === true,
   events: seg.events,
-  /* 1배로 찍었다고 알면 초점 사전(tracks.meta.focal_prior — 마커 채점 bench.py 가 넣는다) */
-  ...(tr.meta.focal_prior ? { focalPrior: tr.meta.focal_prior } : {}),
+  /*
+   * 1배로 찍었다고 알면 초점 사전(tracks.meta.focal_prior — 마커 채점 bench.py 가 넣는다). 기종 · fps(tracks.meta.devices — 서버의 pipeline.py
+   * device_info 와 같은 값)가 있으면 서버처럼 카메라마다 표 값(focal-table.ts)
+   */
+  ...(tr.meta.devices ? { focalPrior: cameraFocalPriors(true, tr.meta.devices) } : tr.meta.focal_prior ? { focalPrior: tr.meta.focal_prior } : {}),
   ...(motionTemplate ? { motionTemplate } : {}),
 } as never);
 writeFileSync(join(dir, 'result.json'), JSON.stringify(result));

@@ -136,7 +136,7 @@ export function TrainingSetupWizard({
       case 'workoutFreq':
         return {
           title: '일주일에 몇 번 해요?',
-          desc: '운동 부하 지수의 시작점이에요. 기록이 쌓이면 이 답은 자리를 비켜요.',
+          desc: '기록이 쌓이기 전까지 운동 부하 지수를 이 값으로 셈해요.',
         };
       case 'equipment':
         return {
@@ -162,8 +162,8 @@ export function TrainingSetupWizard({
         return {
           title: `${name ? `${name} 님의 ` : ''}트레이닝 설정이에요`,
           desc: hasSetup
-            ? '저장하면 트레이닝 탭이 이 값으로 운동을 골라요. 언제든 트레이닝 설정에서 고칠 수 있어요.'
-            : '시작하면 트레이닝 탭이 열려요. 언제든 트레이닝 설정에서 고칠 수 있어요.',
+            ? '저장하면 트레이닝 탭이 이 값으로 운동을 골라요. 트레이닝 설정에서 고칠 수 있어요.'
+            : '시작하면 트레이닝 탭이 열려요.',
         };
     }
   }

@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useState, useTransition } from 'react';
 import { unstable_rethrow } from 'next/navigation';
-import { AlertTriangle, Search, Star, X } from '@/components/icon';
+import { AlertTriangle, Search, Star } from '@/components/icon';
+import { Modal } from '@/components/modal';
 import { Segmented } from '@/components/segmented';
 import { matchesSearch } from '@/lib/korean';
 import {
@@ -53,6 +54,7 @@ const PAGE = 30;
  * SwapSheetView 가 한다. 나눠 두면 서버 없이도 창의 모양을 띄워 볼 수 있다.
  */
 export function SwapSheet({
+  open,
   sessionId,
   current,
   mode,
@@ -60,6 +62,8 @@ export function SwapSheet({
   onDone,
   onClose,
 }: {
+  /** 열림 — 닫힐 때 시트가 내려가도록 부모가 잠시 붙들어 둔다(components/modal.tsx useLinger) */
+  open: boolean;
   sessionId: string;
   /** 바꿀(또는 뒤에 더할) 운동 */
   current: RunExercise;
@@ -137,6 +141,7 @@ export function SwapSheet({
 
   return (
     <SwapSheetView
+      open={open}
       current={current}
       mode={mode}
       inPlanIds={inPlanIds}
@@ -154,6 +159,7 @@ export function SwapSheet({
 
 /** 교체 창의 모양. 무엇을 보여 줄지는 SwapSheet 가 받아 넘긴다. */
 export function SwapSheetView({
+  open,
   current,
   mode,
   inPlanIds,
@@ -166,6 +172,7 @@ export function SwapSheetView({
   onPick,
   onClose,
 }: {
+  open: boolean;
   current: { id: string; title: string };
   mode: SwapMode;
   inPlanIds: string[];
@@ -231,16 +238,16 @@ export function SwapSheetView({
             )}
             <span className="min-w-0 break-keep">{p.title}</span>
           </p>
-          <p className="mt-0.5 text-[11px] leading-relaxed break-keep text-muted">
+          <p className="mt-0.5 text-caption leading-relaxed break-keep text-muted">
             {sub}
           </p>
           {p.prescription && (
-            <p className="text-[11px] leading-relaxed text-muted/80">
+            <p className="text-caption leading-relaxed text-muted/80">
               {p.prescription}
             </p>
           )}
           {unsafe && !halted && (
-            <p className="mt-1 flex items-start gap-1 text-[11px] leading-relaxed text-warn">
+            <p className="mt-1 flex items-start gap-1 text-caption leading-relaxed text-warn">
               <AlertTriangle aria-hidden className="mt-0.5 h-3 w-3 shrink-0" />
               오늘 몸 상태로는 넣을 수 없는 운동이에요
             </p>
@@ -250,7 +257,7 @@ export function SwapSheetView({
           type="button"
           onClick={() => onPick(p.id)}
           disabled={off || pending}
-          className={`shrink-0 rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors disabled:cursor-not-allowed ${
+          className={`inline-flex min-h-10 shrink-0 items-center rounded-lg border px-3 text-xs font-semibold transition-colors disabled:cursor-not-allowed ${
             off
               ? 'border-line bg-surface-2 text-muted'
               : 'border-sky bg-sky text-white active:bg-sky-strong disabled:opacity-60'
@@ -274,48 +281,22 @@ export function SwapSheetView({
   const favoritePicks = pickable(choices?.favoriteIds ?? []);
   const recentPicks = pickable(choices?.recentIds ?? []);
 
+  /*
+   * 앱의 다른 창과 같은 시트(components/modal.tsx) — 끌어내려 닫기 · ESC · 뒤 화면 막기 · 닫힐 때 내려가는 움직임 · 자판 위로 올라가기가
+   * 같이 온다(2026-10-16 UI 검토, 예전엔 손으로 만든 div 시트). 고르개 · 찾기 칸은 굴러가지 않게 toolbar 로.
+   */
   return (
-    /*
-     * 자판이 떠 있으면 보이는 자리(--vvh · --kb, components/viewport-vars.tsx)에 맞춘다 — 아이폰은 자판이 올라와도
-     * 화면에 붙인 창이 그대로라, 메모 · 찾기를 쓰는 동안 시트 아래쪽이 자판 뒤에 숨었다(2026-10-03 점검).
-     * 자판이 없으면 예전처럼 화면 전체(--kb 0, --vvh 없음).
-     */
-    <div className="fixed inset-x-0 bottom-[var(--kb,0px)] z-50 flex h-[var(--vvh,100dvh)] flex-col justify-end">
-      {/* 바깥을 눌러도 닫힌다 */}
-      <button
-        type="button"
-        aria-label="닫기"
-        onClick={onClose}
-        data-press-none
-        className="absolute inset-0 bg-black/40 motion-safe:animate-[backdrop-in_260ms_ease-out]"
-      />
-
-      <div className="relative flex max-h-[85%] flex-col overflow-hidden rounded-t-[28px] bg-surface shadow-2xl motion-safe:animate-[sheet-in_380ms_cubic-bezier(0.32,0.72,0,1)]">
-        <div className="shrink-0 border-b border-line px-4 pb-3">
-          <div
-            aria-hidden
-            className="mx-auto mt-2 mb-1 h-[5px] w-9 rounded-full bg-ink/15"
-          />
-          <div className="flex items-center justify-between gap-3">
-            <p className="text-base font-bold text-ink">
-              {mode === 'replace' ? '운동 교체' : '운동 추가'}
-            </p>
-            <button
-              type="button"
-              onClick={onClose}
-              aria-label="교체 창 닫기"
-              className="-mr-2 grid h-11 w-11 shrink-0 place-items-center text-muted transition-colors hover:text-ink"
-            >
-              <span className="grid h-8 w-8 place-items-center rounded-full bg-ink/6">
-                <X className="h-4 w-4" />
-              </span>
-            </button>
-          </div>
-          <p className="mt-0.5 text-[11px] leading-relaxed break-keep text-muted">
-            {mode === 'replace'
-              ? `‘${current.title}’ 대신 할 운동을 고르세요.`
-              : `이미 세트를 남긴 운동이라 그대로 두고, 고른 운동을 ‘${current.title}’ 바로 다음에 더해요.`}
-          </p>
+    <Modal
+      open={open}
+      onClose={onClose}
+      title={mode === 'replace' ? '운동 교체' : '운동 추가'}
+      description={
+        mode === 'replace'
+          ? `‘${current.title}’ 대신 할 운동을 고르세요.`
+          : `이미 세트를 남긴 운동이라 그대로 두고, 고른 운동을 ‘${current.title}’ 바로 다음에 더해요.`
+      }
+      toolbar={
+        <>
           <Segmented
             role="tablist"
             label="운동 고르는 방법"
@@ -323,7 +304,6 @@ export function SwapSheetView({
             onChange={setTab}
             options={TABS}
             size="sm"
-            className="mt-2.5"
           />
           {tab === 'search' && (
             <label className="mt-2.5 flex items-center gap-2 rounded-xl border border-line bg-surface-2 px-3 py-2">
@@ -341,93 +321,92 @@ export function SwapSheetView({
               />
             </label>
           )}
-        </div>
+        </>
+      }
+    >
+      <div className="-mx-2">
+        {(error || halted) && (
+          <p
+            role="alert"
+            className="mb-3 rounded-lg bg-warn-bg px-3 py-2 text-xs leading-relaxed break-keep text-warn"
+          >
+            {error ?? halted}
+          </p>
+        )}
 
-        {/* 아래 여백은 홈 막대만큼 — 자판이 떠 있으면(--kb) 홈 막대는 자판 뒤라 더하지 않는다 */}
-        <div className="min-h-0 flex-1 overflow-y-auto px-3 pt-3 pb-[max(1rem,calc(env(safe-area-inset-bottom)-var(--kb,0px)))]">
-          {(error || halted) && (
-            <p
-              role="alert"
-              className="mb-3 rounded-lg bg-warn-bg px-3 py-2 text-xs leading-relaxed break-keep text-warn"
-            >
-              {error ?? halted}
-            </p>
-          )}
-
-          {loadError ? (
+        {loadError ? (
+          <p className="rounded-xl bg-surface-2 px-4 py-6 text-center text-xs leading-relaxed break-keep text-muted">
+            {loadError}
+          </p>
+        ) : !choices || !library ? (
+          <p className="px-4 py-8 text-center text-xs text-muted">불러오는 중…</p>
+        ) : tab === 'similar' ? (
+          choices.similar.length === 0 ? (
             <p className="rounded-xl bg-surface-2 px-4 py-6 text-center text-xs leading-relaxed break-keep text-muted">
-              {loadError}
-            </p>
-          ) : !choices || !library ? (
-            <p className="px-4 py-8 text-center text-xs text-muted">불러오는 중…</p>
-          ) : tab === 'similar' ? (
-            choices.similar.length === 0 ? (
-              <p className="rounded-xl bg-surface-2 px-4 py-6 text-center text-xs leading-relaxed break-keep text-muted">
-                {halted
-                  ? '오늘은 운동을 더하거나 바꿀 수 없어요.'
-                  : '오늘 장비와 몸 상태로 할 수 있는 비슷한 운동을 찾지 못했어요. ‘찾기’에서 골라 주세요.'}
-              </p>
-            ) : (
-              <ul className="space-y-1.5">
-                {choices.similar.flatMap(({ id, reason }) => {
-                  const p = byId.get(id);
-                  return p ? [row(p, reason)] : [];
-                })}
-              </ul>
-            )
-          ) : tab === 'mine' ? (
-            favoritePicks.length === 0 && recentPicks.length === 0 ? (
-              <p className="rounded-xl bg-surface-2 px-4 py-6 text-center text-xs leading-relaxed break-keep text-muted">
-                아직 즐겨찾기도 최근에 한 운동도 없어요. 운동 이름 옆의 ☆ 를 누르면 여기
-                모여요.
-              </p>
-            ) : (
-              <div className="space-y-4">
-                {favoritePicks.length > 0 && (
-                  <section>
-                    <p className="mb-1.5 px-1 text-[11px] font-semibold text-muted">
-                      즐겨찾기
-                    </p>
-                    <ul className="space-y-1.5">
-                      {favoritePicks.map((p) => row(p, kind(p)))}
-                    </ul>
-                  </section>
-                )}
-                {recentPicks.length > 0 && (
-                  <section>
-                    <p className="mb-1.5 px-1 text-[11px] font-semibold text-muted">
-                      최근에 한 운동
-                    </p>
-                    <ul className="space-y-1.5">
-                      {recentPicks.map((p) => row(p, kind(p)))}
-                    </ul>
-                  </section>
-                )}
-              </div>
-            )
-          ) : matched.length === 0 ? (
-            <p className="rounded-xl bg-surface-2 px-4 py-6 text-center text-xs text-muted">
-              ‘{query.trim()}’에 맞는 운동이 없어요.
+              {halted
+                ? '오늘은 운동을 더하거나 바꿀 수 없어요.'
+                : '오늘 장비와 몸 상태로 할 수 있는 비슷한 운동을 찾지 못했어요. ‘찾기’에서 골라 주세요.'}
             </p>
           ) : (
-            <>
-              <ul className="space-y-1.5">
-                {matched.slice(0, limit).map((p) => row(p, kind(p)))}
-              </ul>
-              {matched.length > limit && (
-                <MoreButton
-                  count={matched.length - limit}
-                  onClick={() => setLimit((n) => n + PAGE)}
-                />
+            <ul className="space-y-1.5">
+              {choices.similar.flatMap(({ id, reason }) => {
+                const p = byId.get(id);
+                return p ? [row(p, reason)] : [];
+              })}
+            </ul>
+          )
+        ) : tab === 'mine' ? (
+          favoritePicks.length === 0 && recentPicks.length === 0 ? (
+            <p className="rounded-xl bg-surface-2 px-4 py-6 text-center text-xs leading-relaxed break-keep text-muted">
+              아직 즐겨찾기도 최근에 한 운동도 없어요. 운동 이름 옆의 ☆ 를 누르면 여기
+              모여요.
+            </p>
+          ) : (
+            <div className="space-y-4">
+              {favoritePicks.length > 0 && (
+                <section>
+                  <p className="mb-1.5 px-1 text-caption font-semibold text-muted">
+                    즐겨찾기
+                  </p>
+                  <ul className="space-y-1.5">
+                    {favoritePicks.map((p) => row(p, kind(p)))}
+                  </ul>
+                </section>
               )}
-            </>
-          )}
-
-          <p className="mt-3 px-2 text-center text-[11px] leading-relaxed break-keep text-muted/80">
-            바꾼 운동은 오늘 운동에만 반영돼요. 트레이닝 화면의 일정은 그대로예요.
+              {recentPicks.length > 0 && (
+                <section>
+                  <p className="mb-1.5 px-1 text-caption font-semibold text-muted">
+                    최근에 한 운동
+                  </p>
+                  <ul className="space-y-1.5">
+                    {recentPicks.map((p) => row(p, kind(p)))}
+                  </ul>
+                </section>
+              )}
+            </div>
+          )
+        ) : matched.length === 0 ? (
+          <p className="rounded-xl bg-surface-2 px-4 py-6 text-center text-xs text-muted">
+            ‘{query.trim()}’에 맞는 운동이 없어요.
           </p>
-        </div>
+        ) : (
+          <>
+            <ul className="space-y-1.5">
+              {matched.slice(0, limit).map((p) => row(p, kind(p)))}
+            </ul>
+            {matched.length > limit && (
+              <MoreButton
+                count={matched.length - limit}
+                onClick={() => setLimit((n) => n + PAGE)}
+              />
+            )}
+          </>
+        )}
+
+        <p className="mt-3 px-2 text-center text-caption leading-relaxed break-keep text-muted/80">
+          바꾼 운동은 오늘 운동에만 반영돼요. 트레이닝 화면의 일정은 그대로예요.
+        </p>
       </div>
-    </div>
+    </Modal>
   );
 }

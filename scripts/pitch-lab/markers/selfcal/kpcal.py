@@ -9,7 +9,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 WORK = os.environ.get("MARKER_WORK", os.path.join(os.getcwd(), "work"))  # 영상 · 찾은 자료 폴더(저장소 밖) — 기본은 지금 폴더/work
 # 몸 · 발 관절(COCO-WholeBody): 어깨 5 6 · 팔꿈치 7 8 · 손목 9 10 · 엉덩이 11 12 · 무릎 13 14 · 발목 15 16 · 엄지발가락 17 20 · 뒤꿈치 19 22 · 코 0 · 귀 3 4
 JOINTS = [0, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 19, 20, 22]
-CAMS = "1234"
+from cams import CAMS, PAIRS
 
 
 def load_kp(p, c):
@@ -73,7 +73,7 @@ if __name__ == "__main__":
     p = int(sys.argv[1])
     ds = {c: load_kp(p, c) for c in CAMS}
     res = {}
-    for a, b in [("1", "2"), ("1", "3"), ("1", "4"), ("2", "3"), ("2", "4"), ("3", "4")]:
+    for a, b in PAIRS:
         o, n, coarse = sync_pair(ds[a], ds[b])
         res[a + b] = o
         print(f"{a}{b}: {o:+.4f}s  inliers {n}  (거친 {coarse[1]:+.3f} · {coarse[0]})", flush=True)

@@ -55,6 +55,6 @@ export function validateSessionType(
 ): { error: string } | { value: SessionTypeName } {
   const trimmed = raw.trim();
   if (!trimmed) return { value: DEFAULT_SESSION_TYPE };
-  if (!isSessionType(trimmed)) return { error: '투구 종류를 다시 선택해주세요.' };
+  if (!isSessionType(trimmed)) return { error: '투구 종류를 다시 선택해 주세요.' };
   return { value: trimmed };
 }

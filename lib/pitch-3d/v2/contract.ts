@@ -116,11 +116,11 @@ export type V2Input = {
   /** 시험용(합성 투수) — 화면 녹화 · 슬로모 · 아는 순간. GPU 는 원본 영상이라 안 준다 */
   screenRecorded?: boolean;
   slowmoFps?: number | null;
-  events?: { kneeUp?: number | null; footPlant: number; release: number };
+  events?: { kneeUp?: number | null; footPlant: number; footContact?: number; release: number };
   /** 통계 움직임 틀(motion-template.ts) — 두 영상 다 안 보인 관절 짐작. 없으면 예전 채우기 */
   motionTemplate?: MotionTemplate;
-  /** 초점 사전(선택) — '1배로 찍음'처럼 렌즈를 알 때만(lib/pitch-3d/camera.ts FOCAL_PRIOR_1X). 없으면 예전과 같다 */
-  focalPrior?: { k: number; sigma: number };
+  /** 초점 사전(선택) — '1배로 찍음'처럼 렌즈를 알 때만(lib/pitch-3d/camera.ts FOCAL_PRIOR_1X), 기종 · fps 를 알면 카메라마다(focal-table.ts). 없으면 예전과 같다 */
+  focalPrior?: { k: number; sigma: number } | { side?: { k: number; sigma: number }; back?: { k: number; sigma: number } };
 };
 
 /* ───────────────────────────── 결과 ───────────────────────────── */
@@ -128,11 +128,13 @@ export type V2Input = {
 export type V2FailCode =
   | 'video'
   | 'short'
+  | 'framing'
   | 'events'
   | 'sync'
   | 'range'
   | 'calibration'
   | 'fit'
+  | 'pair'
   | 'gpu'
   | 'gpu-auth'
   | 'upload'
@@ -145,11 +147,14 @@ export type V2Stage = 'download' | 'pose' | 'segment' | 'fit' | 'upload';
 export const V2_FAIL_TEXT: Record<V2FailCode, string> = {
   video: '영상을 읽지 못했어요. 원본 파일(HEVC · 5~6초)로 다시 올려 주세요.',
   short: FAIL_TEXT.short,
+  /* GPU 가 거친 2D 에서 일찍 멈춤(pipeline.py FRAMING_*) — 투수가 작거나 잘 안 보여 끝까지 돌려도 틀린다 */
+  framing: '투수가 작게 찍혔거나 잘 안 보여요. 투수가 화면 높이의 절반쯤 되게, 몸이 다 나오게 다시 찍어 주세요.',
   events: FAIL_TEXT.events,
   sync: FAIL_TEXT.sync,
   range: FAIL_TEXT.range,
   calibration: FAIL_TEXT.calibration,
   fit: '몸을 맞추지 못했어요. 영상을 바꿔 다시 해 주세요.',
+  pair: '옆과 뒤 영상이 같은 공을 찍은 것 같지 않아요. 두 폰으로 같은 공을 동시에 찍은 영상을 올려 주세요.',
   gpu: '분석 서버가 응답하지 않아요. 잠시 뒤 다시 해 주세요.',
   'gpu-auth': '서버 키 설정을 확인해 주세요.',
   upload: '결과를 저장하지 못했어요. 다시 분석해 주세요.',
@@ -161,12 +166,27 @@ export const V2_FAIL_TEXT: Record<V2FailCode, string> = {
 export const V2_VIDEO_FAULT: ReadonlySet<V2FailCode> = new Set<V2FailCode>([
   'video',
   'short',
+  'framing',
   'events',
   'sync',
   'range',
   'calibration',
   'fit',
+  'pair',
 ]);
+
+/**
+ * 옆 · 뒤가 같은 공이 아닌 짝(따로 찍음)을 '측정 불가'로 — 맞춘 뒤 숫자 셋 중 하나라도 넘으면(2026-10-15 김민: "동일 투구가 아니면 측정 불가").
+ * 다른 공끼리면 3D 가 두 영상에 같이 맞지 않아 다시 비춤 오차가 커지고, 시간 맞추기도 덜 맞는다.
+ * 잰 것: 마커 샘플(같은 투수 · 4대 동시 촬영) 16구로 옆 i + 뒤 j 짝 256개 — 진짜 짝 15 · 다른 공 짝 210(+15 는 원래 실패),
+ * 실험실 진짜 짝 8. 진짜 짝 최대 = 다시 비춤 2.0% · 시간 맞추기 0.009 · 맞춘 뒤 다시 비춤 2.0% → 여유를 두고 2.4 · 0.011 · 2.4.
+ * 같은 투수의 다른 공 210 중 131(62%)을 잡는다(원래 실패 15 를 더하면 225 중 146) — 나머지는 동작이 거의 같아 숫자로 못 가른다.
+ * 올리기 전 촬영 시각 검사(lib/pitch-lab-guard.ts labPairBlock)가 앞에서 대부분을 막고, 이것은 시각이 지워진 영상의 뒷문이다.
+ */
+export const PAIR_LIMIT = { reprojPct: 2.4, syncCost: 0.011, fitReprojPct: 2.4 } as const;
+export function pairMismatch(q: { reprojPct: number; syncCost: number }, fit: { reprojPct: number }): boolean {
+  return q.reprojPct > PAIR_LIMIT.reprojPct || q.syncCost > PAIR_LIMIT.syncCost || fit.reprojPct > PAIR_LIMIT.fitReprojPct;
+}
 
 export type V2FitQuality = {
   /** 맞춘 뒤 뼈 길이 흔들림(%) — 고정 뼈 길이라 0 에 가깝다(핵심 합격 1% 밑) */
@@ -206,7 +226,11 @@ export type Pitch3dV2Ok = {
   conf: number[][];
   /** 확신 낮은 장면 구간 [시작, 끝](끝 포함) — 재생 막대에 엷은 회색(화면 결정 13) */
   lowConf: [number, number][];
-  events: { kneeUp: number | null; footPlant: number; release: number };
+  /**
+   * footPlant = 앞발 발목이 디딘 높이로 내려온 장면(엔진 · 화면 모델이 발을 묶는 기준), footContact = 앞발이 처음 닿은 장면(사용자에게 보이는
+   * '착지' · 착지 지표 · 점검, footPlant 와 같거나 앞). footContact 가 없는 옛 결과는 footPlant 로 본다(plantFrame) — 10-15 판의 footFlat 은 안 읽는다.
+   */
+  events: { kneeUp: number | null; footPlant: number; footContact?: number; release: number };
   /** v1 정의 그대로(0-3절 결정 ④ 대기) */
   metrics: Metric[];
   quality: Pitch3dQuality;
@@ -339,6 +363,7 @@ export function readPitch3dV2Result(raw: unknown): Pitch3dV2Result | null {
   if (
     !e ||
     !okIdx(e.footPlant) ||
+    !(e.footContact === undefined || okIdx(e.footContact)) ||
     !okIdx(e.release) ||
     !(e.kneeUp === null || okIdx(e.kneeUp))
   )
@@ -490,9 +515,25 @@ export function canRequestV2(
 }
 
 /** 새 작업(queued) — 이전 결과(shownJobId)는 이어 보인다 */
+/**
+ * 작업에 적는 엔진 판 — 약속 판(PITCH3D_V2_VERSION, 손으로 올림) + 분석 서버의 엔진 지문(build.json, GET /engine). '같은 영상 다시 막기'가
+ * 이것으로 견준다 — 약속 판만 보면 엔진을 고쳐 다시 올려도 판이 그대로라 한 번 실패한 영상이 영영 막혔다(2026-10-16 통합 검토). 지문을 못 읽으면
+ * 약속 판만(예전과 같음).
+ */
+export function engineKeyOf(build: string | null): string {
+  return build ? `${PITCH3D_V2_VERSION}+${build}` : PITCH3D_V2_VERSION;
+}
+
 export function newV2Job(
   prev: Pitch3dV2Job | null,
-  input: { jobId: string; requestedBy: string; consentAt: string; now: string }
+  input: {
+    jobId: string;
+    requestedBy: string;
+    consentAt: string;
+    now: string;
+    /** engineKeyOf — 안 주면 약속 판 */
+    engine?: string;
+  }
 ): Pitch3dV2Job {
   return {
     status: 'queued',
@@ -500,7 +541,7 @@ export function newV2Job(
     requestedAt: input.now,
     requestedBy: input.requestedBy,
     consentAt: input.consentAt,
-    engine: PITCH3D_V2_VERSION,
+    engine: input.engine ?? PITCH3D_V2_VERSION,
     gpuCallId: null,
     startedAt: null,
     finishedAt: null,
@@ -599,3 +640,8 @@ export function v2WaitingText(job: Pitch3dV2Job, nowMs: number): string {
   if (min < 10) return '조금 더 걸리고 있어요. 화면을 떠나도 분석은 계속돼요.';
   return '15분이 지나면 멈추고 다시 할 수 있어요.';
 }
+
+/** 사용자에게 보이는 '착지' 장면 — 앞발이 처음 닿은 장면(옛 결과는 발목이 닿은 장면) */
+export const plantFrame = (e: { footPlant: number; footContact?: number }): number => e.footContact ?? e.footPlant;
+/** 화면에 보이는 순간 — '착지'만 앞발이 처음 닿은 장면으로 */
+export const shownEvents = <E extends { footPlant: number; footContact?: number }>(e: E): E => ({ ...e, footPlant: plantFrame(e) });

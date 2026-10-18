@@ -1,15 +1,18 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Check, Trophy } from '@/components/icon';
-import { buzz } from '@/lib/haptics';
+import { haptic } from '@/lib/haptics';
 import { useWeightUnit } from '@/components/use-units';
 import { formatSeconds } from '@/lib/exercise-meta';
 import { formatWeight, type WeightUnit } from '@/lib/units';
 import { formatSummary, volumeIn, type ExerciseSummary } from '@/lib/workout/summarize';
 import type { NewRecord } from '@/lib/workout/bests';
 import { EffortCard } from './effort-card';
+import { CountUp } from '@/components/onboarding/count-up';
+import { NutritionLineNote } from '@/components/nutrition-line';
+import type { NutritionLine } from '@/lib/nutrition/nudge';
 
 export type DoneRow = {
   id: string;
@@ -44,7 +47,10 @@ export function DoneClient({
   rows,
   program = null,
   askEffort = null,
+  nutritionLine = null,
 }: {
+  /** 운동 뒤 단백질 한 줄 — 웨이트 · 파워를 한 오늘 판일 때만(lib/nutrition/nudge.ts) */
+  nutritionLine?: NutritionLine | null;
   /** 힘듦 칩을 보일 판 — null 이면 그날 강도를 이미 남겨 묻지 않는다(page.tsx 가 DailyTrainingNote 유무로 정한다) */
   askEffort?: { sessionId: string } | null;
   /** 근력 · 파워 프로그램 날이면 — 일차 넘김 · 고비 한 줄 · 운동별 추천 → 실제(설계 §13-9) */
@@ -68,18 +74,23 @@ export function DoneClient({
   const unit = useWeightUnit();
   const records = rows.filter((r) => r.record);
 
-  /* 체크가 뜨는 순간에 맞춰 떤다 — 축하는 손으로도 */
+  /* 체크가 뜨는 순간에 맞춰 떤다 — 축하는 손으로도. 세 숫자는 그 줄이 떠오를 때(rise-in 750ms) 0 에서 올라간다 */
+  const [counting, startCount] = useState(false);
   useEffect(() => {
-    const t = window.setTimeout(() => buzz([15, 120, 15]), 550);
-    return () => window.clearTimeout(t);
+    const t = window.setTimeout(() => haptic('success'), 550);
+    const c = window.setTimeout(() => startCount(true), 750);
+    return () => {
+      window.clearTimeout(t);
+      window.clearTimeout(c);
+    };
   }, []);
 
   const numbers = [
-    { label: '운동 시간', value: `${minutes}`, unit: '분' },
-    { label: '세트', value: `${setCount}`, unit: '세트' },
+    { label: '운동 시간', value: minutes, unit: '분' },
+    { label: '세트', value: setCount, unit: '세트' },
     {
       label: '볼륨',
-      value: volumeKg > 0 ? volumeIn(volumeKg, unit).toLocaleString('ko-KR') : '—',
+      value: volumeKg > 0 ? volumeIn(volumeKg, unit) : null,
       unit: volumeKg > 0 ? unit : '',
     },
   ];
@@ -135,7 +146,7 @@ export function DoneClient({
               <div key={n.label} className="px-1 text-center">
                 <dt className="text-xs text-muted">{n.label}</dt>
                 <dd className="text-numeric mt-1.5 text-2xl leading-none text-ink">
-                  {n.value}
+                  {n.value == null ? '—' : <CountUp value={n.value} active={counting} duration={900} />}
                   <span className="ml-0.5 font-sans text-xs font-medium text-muted">
                     {n.unit}
                   </span>
@@ -150,7 +161,7 @@ export function DoneClient({
                 근력 · 파워 프로그램
               </h2>
               <div className="mt-2 space-y-2 rounded-2xl bg-surface px-4 py-3">
-                <p className="text-[15px] font-semibold text-ink">{program.headline}</p>
+                <p className="text-subhead font-semibold text-ink">{program.headline}</p>
                 {program.lifts.length > 0 && (
                   <ul className="divide-y divide-line">
                     {program.lifts.map((l) => (
@@ -185,7 +196,7 @@ export function DoneClient({
                         <Trophy aria-hidden className="h-4 w-4" />
                       </span>
                       <span className="min-w-0 flex-1">
-                        <span className="block truncate text-[15px] font-semibold text-ink">
+                        <span className="block truncate text-subhead font-semibold text-ink">
                           {title}
                         </span>
                         {record.before != null && (
@@ -209,10 +220,10 @@ export function DoneClient({
             <ul className="mt-2 divide-y divide-line overflow-hidden rounded-2xl bg-surface">
               {rows.map((r) => (
                 <li key={r.id} className="flex items-center gap-3 px-4 py-3">
-                  <span className="min-w-0 flex-1 truncate text-[15px] text-ink">
+                  <span className="min-w-0 flex-1 truncate text-subhead text-ink">
                     {r.title}
                   </span>
-                  <span className="shrink-0 text-[13px] tabular-nums text-muted">
+                  <span className="shrink-0 text-footnote tabular-nums text-muted">
                     {formatSummary(r.summary, unit)}
                   </span>
                 </li>
@@ -223,6 +234,11 @@ export function DoneClient({
       </div>
 
       <div className="shrink-0 px-5 pt-3 pb-[max(1rem,env(safe-area-inset-bottom))]">
+        {nutritionLine && (
+          <div className="mx-auto mb-3 max-w-md">
+            <NutritionLineNote line={nutritionLine} />
+          </div>
+        )}
         {askEffort && <EffortCard sessionId={askEffort.sessionId} />}
         <Link
           href="/training"

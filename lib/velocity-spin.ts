@@ -40,7 +40,7 @@ const RIGHT: Record<Exclude<PitchTypeKey, 'other'>, Seed> = {
     efficiencyPct: 95,
     rpm: [2100, 2400],
     movement: '위로 뜨는 힘 · 팔쪽으로 살짝',
-    note: '거의 순수한 백스핀 — 회전이 많을수록 덜 떨어져요',
+    note: '거의 백스핀이에요. 회전이 많을수록 덜 떨어져요',
   },
   'two-seam': {
     clock: '1:30',
@@ -61,14 +61,14 @@ const RIGHT: Record<Exclude<PitchTypeKey, 'other'>, Seed> = {
     efficiencyPct: 30,
     rpm: [2200, 2600],
     movement: '글러브쪽으로 미끄러짐',
-    note: '거의 총알 회전 — 효율이 낮아 옆으로 늦게 꺾여요',
+    note: '총알 회전에 가까워요. 효율이 낮아 늦게 꺾여요',
   },
   curve: {
     clock: '7:00',
     efficiencyPct: 80,
     rpm: [2300, 2700],
     movement: '아래로 떨어지며 글러브쪽으로',
-    note: '톱스핀 — 12-6 커브면 6:00, 옆으로 갈수록 7시 쪽',
+    note: '톱스핀이에요. 12-6 커브면 6시, 옆으로 갈수록 7시 쪽',
   },
   changeup: {
     clock: '2:00',
@@ -82,7 +82,7 @@ const RIGHT: Record<Exclude<PitchTypeKey, 'other'>, Seed> = {
     efficiencyPct: 60,
     rpm: [1200, 1500],
     movement: '끝에서 뚝 떨어짐',
-    note: '회전이 적어 뜨는 힘이 약해요 — 직구처럼 오다 가라앉아요',
+    note: '회전이 적어 뜨는 힘이 약해요. 직구처럼 오다 가라앉아요',
   },
 };
 

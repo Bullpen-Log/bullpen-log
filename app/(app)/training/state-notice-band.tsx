@@ -10,6 +10,7 @@ import {
   moreText,
   type StateNotice,
 } from '@/lib/report/state-notice';
+import { Button } from '@/components/ui';
 
 /**
  * 상태 바뀜 띠 — 트레이닝 일정 카드 위(트레이닝 추천 2판 P6-6, 2026-10-13).
@@ -74,12 +75,11 @@ export function StateNoticeBand({
 function RemakeButton() {
   const { pending } = useFormStatus();
   return (
-    <button
+    <Button
       type="submit"
       disabled={pending}
-      className="min-h-11 rounded-xl bg-sky px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-sky-strong disabled:opacity-60 desk:min-h-0"
     >
       {pending ? STATE_NOTICE_TEXT.remaking : STATE_NOTICE_TEXT.remake}
-    </button>
+    </Button>
   );
 }

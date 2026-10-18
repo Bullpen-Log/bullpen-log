@@ -148,12 +148,11 @@ export function MiniCalendar({
       </div>
 
       <div className="grid grid-cols-7 gap-0.5">
-        {WEEKDAYS.map((w, i) => (
+        {WEEKDAYS.map((w) => (
           <span
             key={w}
-            className={`pb-1 text-center text-[11px] font-medium ${
-              i === 0 ? 'text-red-600/70' : i === 6 ? 'text-blue-400/70' : 'text-muted'
-            }`}
+            /* 요일은 모두 회색 — 일 빨강 · 토 파랑을 뺐다(2026-10-16 '색 줄이기', 홈 · 투구 달력과 같게) */
+            className="pb-1 text-center text-caption font-medium text-muted"
           >
             {w}
           </span>

@@ -3,6 +3,8 @@
 import { useState } from 'react';
 import { ChevronRight, Film, RotateCcw, Trash2 } from 'lucide-react';
 import { Badge, Button } from '@/components/ui';
+import { BallLabelDialog } from './ball-labeler';
+import { pitchTarget } from '@/lib/velocity-ball-label';
 import {
   adminApplyMeasurement,
   adminDeleteCalibRun,
@@ -367,6 +369,8 @@ export function PitchPreview({
 }) {
   const [gun, setGun] = useState(p.gunKmh == null ? '' : String(p.gunKmh));
   const [re, setRe] = useState<Remeasure>({ kind: 'idle' });
+  /* 공 자리 찍기(학습 모델 2판 자료, ball-labeler.tsx) — 엔진이 못 잰 클립도 같은 도구로 */
+  const [labeling, setLabeling] = useState(false);
 
   const best = p.releaseKmh ?? p.kmh;
   const diff = p.gunKmh == null ? null : Math.round((best - p.gunKmh) * 10) / 10;
@@ -616,6 +620,28 @@ export function PitchPreview({
               : '이 영상으로 다시 재기'}
           </Button>
         )}
+        {p.clipUrl && (
+          <Button
+            type="button"
+            variant="secondary"
+            className="h-9 px-3 py-0 text-xs"
+            onClick={() => setLabeling(true)}
+          >
+            공 자리 찍기
+          </Button>
+        )}
+        {labeling && p.clipUrl && (
+          <BallLabelDialog
+            target={pitchTarget(p.id)}
+            src={p.clipUrl}
+            fps={a?.fps ?? p.fps ?? 60}
+            startSec={Math.max(0, (p.clipEventSec ?? 0.25) - 0.25)}
+            endSec={p.clipSec}
+            title={`${pitchName(p)} · ${sessionName(s)}`}
+            onClose={() => setLabeling(false)}
+            onSaved={() => undefined}
+          />
+        )}
         {p.clipPath && (
           <Button
             type="button"
@@ -650,7 +676,7 @@ export function PitchPreview({
       {re.kind === 'running' && (
         <div className="h-1.5 overflow-hidden rounded-full bg-surface-2">
           <div
-            className="h-full rounded-full bg-sky transition-[width] duration-200"
+            className="h-full rounded-full bg-sky motion-safe:transition-[width] duration-200"
             style={{ width: `${Math.round(re.ratio * 100)}%` }}
           />
         </div>
@@ -1140,11 +1166,25 @@ export function AttemptsPanel({
         /* 화면이 버린 공(측정 불가) — 엔진은 쟀지만 믿음이 낮았거나 세션 안 거리 판독이 튀었다(2.4.1) */
         const low = attempts.filter((a) => a.why === 'low-confidence').length;
         const jump = attempts.filter((a) => a.why === 'session-size').length;
-        return low + jump > 0 ? (
-          <p className="text-xs text-muted">
-            측정 불가로 버린 공 — 믿음 낮음 {low}번 · 세션 거리 판독 튐 {jump}번
-          </p>
-        ) : null;
+        /* 움직임 알림인데 공 길이 없음 · 발열로 쉼 · 뜨거움 이상에서 온 알림(2026-10-16 부터 남긴다) */
+        const noBall = attempts.filter((a) => a.why === 'no-ball').length;
+        const heatSkip = attempts.filter((a) => a.why === 'heat-skip').length;
+        const hot = attempts.filter((a) => (a.thermal ?? 0) >= 2).length;
+        return (
+          <>
+            {low + jump > 0 && (
+              <p className="text-xs text-muted">
+                측정 불가로 버린 공 — 믿음 낮음 {low}번 · 세션 거리 판독 튐 {jump}번
+              </p>
+            )}
+            {noBall + heatSkip + hot > 0 && (
+              <p className="text-xs text-muted">
+                움직임 알림에서 공 못 찾음 {noBall}번 · 발열로 쉼 {heatSkip}번 · 폰이 뜨거울 때 온
+                알림 {hot}번
+              </p>
+            )}
+          </>
+        );
       })()}
       <ul className="divide-y divide-line">
         {attempts.map((a) => (
@@ -1172,6 +1212,7 @@ function AttemptRow({
     a.sizeSlope != null ? `기울기 ${a.sizeSlope}` : null,
     a.extended ? `이어 붙임 ${a.extended}장` : null,
     a.strength ? `세기 ${a.strength.toFixed(1)}` : null,
+    a.thermal != null ? `발열 ${['보통', '따뜻', '뜨거움', '아주 뜨거움'][a.thermal] ?? a.thermal}` : null,
   ]
     .filter(Boolean)
     .join(' · ');
@@ -1188,7 +1229,7 @@ function AttemptRow({
           {a.ok ? `잼 ${a.rawKmh == null ? '—' : a.rawKmh.toFixed(1)}` : '못 잼'}
         </Badge>
         <span className="text-muted">
-          {a.kind === 'ball' ? '공 알림' : '움직임'} · {a.nickname}
+          {a.kind === 'ball' ? '공 알림' : a.kind === 'seed' ? '공 후보' : a.kind === 'sweep' ? '훑기' : '움직임'} · {a.nickname}
         </span>
         {a.pitch && (
           <span className="text-muted">
@@ -1216,7 +1257,7 @@ function AttemptRow({
             inputMode="decimal"
             value={gun}
             onChange={(e) => setGun(e.target.value)}
-            className="h-8 w-20 rounded-md border border-line bg-surface px-2 text-ink"
+            className="h-8 w-20 rounded-lg border border-line bg-surface px-2 text-ink"
             placeholder="km/h"
           />
           <Button

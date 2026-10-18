@@ -1,3 +1,6 @@
+import { headers } from 'next/headers';
+import { expoLevel } from '@/lib/app-env';
+import { OpenNative } from '@/app/(session)/velocity/open-native';
 import { redirect } from 'next/navigation';
 import { requireUser } from '@/lib/dal';
 import { prisma } from '@/lib/prisma';
@@ -15,6 +18,7 @@ import { PatchNoteList, type PatchRow } from './patch-note-list';
 export default async function PatchNotesPage() {
   const user = await requireUser();
   if (user.role !== 'ADMIN') redirect('/today');
+  if (expoLevel((await headers()).get('user-agent')) >= 8) return <OpenNative path="/admin/patch-notes" cover={false} />;
 
   const notes = await prisma.patchNote.findMany({
     orderBy: [{ day: 'desc' }, { authorName: 'asc' }],

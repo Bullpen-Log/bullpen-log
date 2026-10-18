@@ -6,6 +6,7 @@ import { isRect } from '@/lib/velocity-setup';
 import { distanceMismatch, replayOf } from '@/lib/velocity-analysis';
 import type {
   DayClip,
+  LogPrefill,
   PitchClipView,
   VelocityDayFact,
   VelocitySessionView,
@@ -68,6 +69,8 @@ export async function loadVelocityDay(
     net: s.net,
     device: s.device,
     createdAt: s.createdAt.toISOString(),
+    sessionType: s.sessionType,
+    effortPct: s.effortPct,
     pitches: s.pitches.map((p) => ({
       id: p.id,
       seq: p.seq,
@@ -168,6 +171,7 @@ export async function loadVelocityHistory(userId: string): Promise<VelocityHisto
       mode: true,
       cameraPos: true,
       net: true,
+      sessionType: true,
       pitchLog: { select: { sessionType: true } },
       pitches: { select: { kmh: true, pitchType: true } },
     },
@@ -182,7 +186,8 @@ export async function loadVelocityHistory(userId: string): Promise<VelocityHisto
         id: s.id,
         date: s.date.toISOString().slice(0, 10),
         createdAt: s.createdAt.toISOString(),
-        sessionType: s.pitchLog?.sessionType ?? null,
+        /* 2026-10-16 부터 세션에 — 옛 세션은 같이 만든 투구 기록의 칸 */
+        sessionType: s.sessionType ?? s.pitchLog?.sessionType ?? null,
         mode: s.mode,
         cameraPos: s.cameraPos,
         net: s.net,
@@ -202,22 +207,35 @@ export async function loadVelocityByDate(
   userId: string,
   from?: Date
 ): Promise<Record<string, VelocityDayFact>> {
-  const rows = await prisma.velocityPitch.findMany({
-    where: { userId, ...(from ? { session: { date: { gte: from } } } : {}) },
-    select: {
-      id: true,
-      kmh: true,
-      pitchType: true,
-      zone: true,
-      clipPath: true,
-      session: { select: { date: true } },
-    },
-    orderBy: { id: 'asc' },
-  });
+  /*
+   * 공과 세션 날짜를 같이 읽는다 — 공 조회 안에 세션을 끼워(select session) 읽으면 Prisma 가 공을 다 읽은 뒤에 세션을 또
+   * 물어 왕복이 둘이었다(2026-10-15 탭 전환 속도 — 투구 탭 · 홈 캘린더의 가장 긴 조회).
+   */
+  const [rows, sessions] = await Promise.all([
+    prisma.velocityPitch.findMany({
+      where: { userId, ...(from ? { session: { date: { gte: from } } } : {}) },
+      select: {
+        id: true,
+        kmh: true,
+        pitchType: true,
+        zone: true,
+        clipPath: true,
+        sessionId: true,
+      },
+      orderBy: { id: 'asc' },
+    }),
+    prisma.velocitySession.findMany({
+      where: { userId, ...(from ? { date: { gte: from } } : {}) },
+      select: { id: true, date: true },
+    }),
+  ]);
+  const dateOf = new Map(sessions.map((s) => [s.id, s.date]));
   const out: Record<string, VelocityDayFact> = {};
   const hash: Record<string, number> = {};
   for (const r of rows) {
-    const key = r.session.date.toISOString().slice(0, 10);
+    const date = dateOf.get(r.sessionId);
+    if (!date) continue;
+    const key = date.toISOString().slice(0, 10);
     const cur = out[key] ?? { n: 0, max: 0, clips: 0, sig: '' };
     cur.n += 1;
     cur.max = Math.max(cur.max, r.kmh);
@@ -231,4 +249,24 @@ export async function loadVelocityByDate(
   }
   for (const [key, h] of Object.entries(hash)) out[key].sig = (h >>> 0).toString(36);
   return out;
+}
+
+/**
+ * 구속 세션으로 채운 투구 기록에 '못 잰 공 수'를 더한다(LogPrefill.missed). 공을 봤는데 못 잰 시도(이어진 공 없음 · 공 길 장면 1장 이상 —
+ * 0장은 헛알림에 가깝다)만 센다. 공을 아예 못 본 투구는 시도로도 안 남아 셀 수 없다 — 그래서 폼 글이 '던진 수가 다르면 고쳐 주세요'를 붙인다.
+ */
+export async function withMissedAttempts(
+  userId: string,
+  prefill: LogPrefill | null
+): Promise<LogPrefill | null> {
+  if (!prefill || prefill.sessionIds.length === 0) return prefill;
+  const missed = await prisma.velocityAttempt.count({
+    where: {
+      userId,
+      sessionId: { in: prefill.sessionIds },
+      pitchId: null,
+      trackFrames: { gt: 0 },
+    },
+  });
+  return { ...prefill, missed };
 }

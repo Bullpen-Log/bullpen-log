@@ -1,5 +1,8 @@
 import { notFound } from 'next/navigation';
+import { headers } from 'next/headers';
 import { requireAdmin } from '@/lib/dal';
+import { expoLevel } from '@/lib/app-env';
+import { OpenNative } from '@/app/(session)/velocity/open-native';
 import { BackLink } from '@/components/ui';
 import { loadShootWeek } from '@/lib/shoot/load';
 import { WeekView } from './week-view';
@@ -15,6 +18,9 @@ export default async function ShootWeekPage({
 }) {
   const me = await requireAdmin();
   const n = Number((await params).week);
+  /* 새 아이폰 앱(판 9~)은 앱 화면(native/src/app/admin/shoot/[week].tsx) */
+  if (Number.isInteger(n) && expoLevel((await headers()).get('user-agent')) >= 9)
+    return <OpenNative path={`/admin/shoot/${n}`} cover={false} />;
   const data = Number.isInteger(n) ? await loadShootWeek(n) : null;
   if (!data) notFound();
   return (

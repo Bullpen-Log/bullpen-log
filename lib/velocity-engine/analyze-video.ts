@@ -2,6 +2,19 @@
 
 import { prepareDetachedVideo, waitForFirstFrame } from './video-open.ts';
 import { toLuma } from './detect.ts';
+import {
+  BALL_NET_THRESHOLD,
+  DENSE_MAX_SEEDS,
+  DENSE_SPAN_SEC,
+  DENSE_STEP_SEC,
+  NET_FRAME_GAP_SEC,
+  NET_STEP_SEC,
+  findThrowRun,
+  loadBallNet,
+  netInputSize,
+  type BallNet,
+  type NetHit,
+} from './ball-net.ts';
 import { boxLumaOfSample, lumaOfSample } from './luma-plane.ts';
 import { lumaInWorker, lumaPoolSize, warmLumaPool } from './luma-pool.ts';
 import {
@@ -207,10 +220,10 @@ export type VideoAnalyzeResult = AnalyzeResult & { video: VideoAnalysisInfo; dis
  * 설정이라 막으면 대부분 못 잰다) 신뢰도를 '중간' 밑으로 두고 SDR 로 찍기를 권한다.
  */
 const HDR_NOTE =
-  'HDR 영상이라 값이 조금 어긋날 수 있어요. 설정 › 카메라 › 비디오 녹화에서 HDR 비디오를 끄고 찍으면 더 정확합니다.';
+  'HDR 영상이라 값이 조금 어긋날 수 있어요. 설정 › 카메라 › 비디오 녹화에서 HDR 비디오를 끄고 찍으면 더 정확해요.';
 
 /** 보정한 조건의 초당 장면 수 — 60fps 영상(59.94 · 가변 60 포함). 240fps 는 노출 번짐이 달라 합성 시험에서 +3% */
-/* 2.4.2: 앱 카메라가 되면 120fps 로 찍는다(dual-capture PREFER_FPS) — 60 과 같은 노출 셈이라 보정 안으로. 240 은 그대로 밖 */
+/* 2.4.2 ~ 2.5.1 의 앱 카메라는 되면 120fps 로 찍었다(2.5.2 부터 60) — 그 영상 · 파일로 재는 120 도 60 과 같은 노출 셈이라 보정 안으로. 240 은 그대로 밖 */
 const CALIBRATED_FPS: [number, number] = [50, 125];
 
 /**
@@ -255,6 +268,128 @@ function sameExact(a: ArrayLike<number>, b: ArrayLike<number>): boolean {
 
 /** 지금 시각(ms) — 걸린 시간 재기용 */
 const now = () => (typeof performance !== 'undefined' ? performance.now() : Date.now());
+
+/**
+ * 거친 훑기만 — 영상에서 날아가는 공이 있었나, 있었으면 언제(초). 조용할 때 훑기(dual-capture.ts, 2.7)가 앱이 쥔 지난 몇 초를 자른 조각에
+ * 쓴다: 공을 믿었으면(accepted) 그 시각으로 보통 공 알림처럼 다시 잰다. 하드웨어 디코더 길만 — 못 열면 null(훑기는 조용히 건너뛴다).
+ */
+export type ThrowLocation = {
+  ballT: number;
+  accepted: boolean;
+  peak: number | null;
+  duration: number;
+  /** 무엇이 찾았나 — 학습 모델(ball-net.ts, 2.7.1) 또는 밝기 차 거친 훑기 */
+  via: 'net' | 'coarse';
+  /** 모델 길에서 본 표본 수 · 문턱을 넘은 표본 수 */
+  hits?: number;
+  strong?: number;
+  ms: number;
+};
+
+export async function locateThrow(options: {
+  file: File;
+  fovDeg?: number;
+  focalPerLongSide?: number | null;
+  approach?: Approach;
+  /** 'auto'(기본) = 모델을 받았으면 모델, 아니면 거친 훑기 · 'coarse' = 늘 거친 훑기 · 'net' = 모델만(없으면 null) */
+  detector?: 'auto' | 'net' | 'coarse';
+  /** 모델 입력 세 장면 사이 간격(초) — 영상 fps 를 알면 1/fps. 기본 1/60 */
+  frameGapSec?: number;
+}): Promise<ThrowLocation | null> {
+  const dec = await openDecoder(options.file).catch(() => null);
+  if (!dec) return null;
+  const t0 = now();
+  try {
+    const { width: sourceW, height: sourceH, duration } = dec;
+    if (!sourceW || !sourceH || !(duration > 0)) return null;
+    const approach = options.approach ?? 'receding';
+    const detector = options.detector ?? 'auto';
+    if (detector !== 'coarse') {
+      const net = await loadBallNet();
+      if (net) {
+        const r = await locateByNet(dec, net, duration, options.frameGapSec ?? NET_FRAME_GAP_SEC);
+        return { ...r, duration, via: 'net', ms: now() - t0 };
+      }
+      if (detector === 'net') return null;
+    }
+    const focalLong = options.focalPerLongSide
+      ? options.focalPerLongSide * Math.max(sourceW, sourceH)
+      : focalPxFromFov(Math.max(sourceW, sourceH), options.fovDeg ?? DEFAULT_FOV_DEG);
+    const timing = { findMs: 0, seeks: 0, seekWaitMs: 0, drawMs: 0 };
+    const plan = await planFromCoarse(
+      { width: sourceW, height: sourceH, draws: (seeks, w, h) => dec.coarse(seeks, w, h) },
+      duration,
+      null,
+      approach,
+      focalLong / sourceW,
+      timing
+    );
+    return plan.ball
+      ? { ballT: plan.ball.t, accepted: plan.ball.accepted, peak: plan.peak, duration, via: 'coarse', ms: now() - t0 }
+      : { ballT: NaN, accepted: false, peak: plan.peak, duration, via: 'coarse', ms: now() - t0 };
+  } finally {
+    dec.dispose();
+  }
+}
+
+/**
+ * 학습 모델로 날아간 공 찾기 — NET_STEP_SEC(0.2초)마다 연속 세 장면을 디코더에서 긴 변 736 밝기로 꺼내(칸 평균) 모델에 넣고, 장면마다 가장 센
+ * 봉우리를 모아 findThrowRun 으로 '이어 날아간' 묶음을 찾는다. 6초 조각이면 표본 30 · 장면 90 — 데스크톱 크롬 2~3초(거친 훑기와 비슷).
+ */
+async function locateByNet(
+  dec: { width: number; height: number; coarse(seeks: number[], w: number, h: number): AsyncGenerator<Float32Array | null> },
+  net: BallNet,
+  duration: number,
+  gap: number
+): Promise<{ ballT: number; accepted: boolean; peak: number | null; hits: number; strong: number }> {
+  const { w, h } = netInputSize(dec.width, dec.height);
+  const hits: NetHit[] = [];
+  /* 표본 시각들(세 장면의 첫 장면 시각)마다 모델 한 번 — 봉우리는 셋째(현재) 장면의 것 */
+  const pass = async (centers: number[]) => {
+    const seeks = centers.flatMap((t) => [t, t + gap, t + 2 * gap]);
+    let tri: Float32Array[] = [];
+    let k = 0;
+    for await (const luma of dec.coarse(seeks, w, h)) {
+      if (!luma) break;
+      tri.push(luma);
+      if (tri.length === 3) {
+        const c = centers[k++];
+        const r = await net.detect(tri as [Float32Array, Float32Array, Float32Array], w, h);
+        hits.push({ t: c + 2 * gap, ...r });
+        tri = [];
+      }
+    }
+  };
+  const coarseCenters: number[] = [];
+  for (let t = 0.02; t + 2 * gap < duration; t += NET_STEP_SEC) coarseCenters.push(t);
+  await pass(coarseCenters);
+  let run = findThrowRun(hits);
+  if (!run) {
+    /* 센 표본은 있는데 묶음이 안 됨 — 가장 센 몇 개 둘레를 촘촘히(짧은 조각 · 빠른 공은 0.2초 표본이 비행 중 2~3개뿐) */
+    const seeds = hits
+      .filter((x) => x.score >= BALL_NET_THRESHOLD)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, DENSE_MAX_SEEDS);
+    const dense = new Set<number>();
+    for (const s of seeds)
+      for (let t = s.t - 2 * gap - DENSE_SPAN_SEC; t <= s.t - 2 * gap + DENSE_SPAN_SEC + 1e-9; t += DENSE_STEP_SEC) {
+        const c = Math.round(t * 1000) / 1000;
+        if (c >= 0 && c + 2 * gap < duration && !coarseCenters.some((x) => Math.abs(x - c) < 0.02)) dense.add(c);
+      }
+    if (dense.size) {
+      await pass([...dense].sort((a, b) => a - b));
+      run = findThrowRun(hits);
+    }
+  }
+  const best = hits.reduce<NetHit | null>((a, b) => (a == null || b.score > a.score ? b : a), null);
+  return {
+    ballT: run ? run.t : NaN,
+    accepted: run != null,
+    peak: best ? best.t : null,
+    hits: hits.length,
+    strong: hits.filter((x) => x.score >= BALL_NET_THRESHOLD).length,
+  };
+}
 
 export async function analyzeVideo(options: AnalyzeOptions): Promise<VideoAnalyzeResult> {
   const startedAt = now();
@@ -321,14 +456,14 @@ export async function analyzeVideo(options: AnalyzeOptions): Promise<VideoAnalyz
     prepareDetachedVideo(v);
     v.src = url;
     video = v;
-    if ((await waitForFirstFrame(v, 30_000)) !== 'ok') throw new Error('영상을 열지 못했습니다.');
+    if ((await waitForFirstFrame(v, 30_000)) !== 'ok') throw new Error('영상을 열지 못했어요.');
     return v;
   };
 
   try {
     const sourceW = dec?.width ?? (await getVideo()).videoWidth;
     const sourceH = dec?.height ?? (await getVideo()).videoHeight;
-    if (!sourceW || !sourceH) throw new Error('영상 크기를 읽지 못했습니다.');
+    if (!sourceW || !sourceH) throw new Error('영상 크기를 읽지 못했어요.');
 
     const scale = analyzeScale(sourceW, sourceH);
     const width = Math.round(sourceW * scale);
@@ -338,7 +473,7 @@ export async function analyzeVideo(options: AnalyzeOptions): Promise<VideoAnalyz
     canvas.width = width;
     canvas.height = height;
     const ctx = canvas.getContext('2d', { willReadFrequently: true });
-    if (!ctx) throw new Error('화면을 준비하지 못했습니다.');
+    if (!ctx) throw new Error('화면을 준비하지 못했어요.');
 
     /* 되감아 그린다. 표가 있으면 늘 그 장면의 한가운데를 짚는다(경계에 걸려 앞 · 뒤 장면을 오가지 않게) */
     const seekTo = async (t: number) => {
@@ -600,7 +735,7 @@ export async function analyzeVideo(options: AnalyzeOptions): Promise<VideoAnalyz
       }
     }
     onProgress?.(1);
-    if (!first) throw firstError instanceof Error ? firstError : new Error('영상을 재지 못했습니다.');
+    if (!first) throw firstError instanceof Error ? firstError : new Error('영상을 재지 못했어요.');
 
     const { result, window } = first;
     const notes: string[] = [];

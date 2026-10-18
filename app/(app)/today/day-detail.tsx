@@ -196,7 +196,7 @@ export function DayDetailBlock({
           그날 요약이 와 있을 때만 — 투구 기록의 메모는 그 기록 줄에 그대로 있다(둘 다 있으면 출처가 다른 두 줄).
         */}
         {!ahead && focus !== 'checkin' && detail?.checkin?.note && (
-          <p className="mb-4 flex gap-1.5 rounded-xl bg-surface-2 px-4 py-3 text-[13px] leading-relaxed break-keep text-ink/80">
+          <p className="mb-4 flex gap-1.5 rounded-xl bg-surface-2 px-4 py-3 text-footnote leading-relaxed break-keep text-ink/80">
             <StickyNote
               aria-hidden
               className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted"
@@ -266,7 +266,7 @@ function Waiting() {
       {[80, 60, 70].map((w) => (
         <div
           key={w}
-          className="h-4 animate-pulse rounded bg-surface-2"
+          className="h-4 motion-safe:animate-pulse rounded bg-surface-2"
           style={{ width: `${w}%` }}
         />
       ))}
@@ -311,7 +311,7 @@ function Fact({
 }) {
   return (
     <div>
-      <dt className="text-[11px] text-muted">{label}</dt>
+      <dt className="text-caption text-muted">{label}</dt>
       <dd
         className={`tabular-nums ${strong ? 'text-lg font-bold text-ink' : 'text-sm font-semibold text-ink'}`}
       >
@@ -377,7 +377,7 @@ function PitchDetail({
                 </dl>
               )}
               {l.memo?.trim() && (
-                <p className="mt-2 flex gap-1.5 text-[13px] leading-relaxed break-keep text-ink/80">
+                <p className="mt-2 flex gap-1.5 text-footnote leading-relaxed break-keep text-ink/80">
                   <StickyNote
                     aria-hidden
                     className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted"
@@ -469,7 +469,7 @@ function TrainingDetail({
       )}
 
       {training.memo?.trim() && (
-        <p className="flex gap-1.5 rounded-xl bg-surface-2 px-4 py-3 text-[13px] leading-relaxed break-keep text-ink/80">
+        <p className="flex gap-1.5 rounded-xl bg-surface-2 px-4 py-3 text-footnote leading-relaxed break-keep text-ink/80">
           <StickyNote aria-hidden className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted" />
           <span className="line-clamp-3">{training.memo}</span>
         </p>
@@ -520,7 +520,7 @@ function NutritionDetail({ n }: { n: DayDetail['nutrition'] }) {
         </p>
         <div className="h-2 overflow-hidden rounded-full bg-surface-2">
           <div
-            className={`h-full rounded-full transition-[width] duration-500 ${
+            className={`h-full rounded-full motion-safe:transition-[width] duration-500 ${
               n.kcal > n.target.kcal ? 'bg-warn' : 'bg-sky'
             }`}
             style={{ width: pct(n.kcal, n.target.kcal) }}
@@ -530,7 +530,7 @@ function NutritionDetail({ n }: { n: DayDetail['nutrition'] }) {
           {MACROS.map((m) => (
             <div key={m.key} className="space-y-1">
               <div className="flex items-baseline justify-between gap-1">
-                <dt className="text-[11px] text-muted">{m.label}</dt>
+                <dt className="text-caption text-muted">{m.label}</dt>
                 <dd className="text-xs tabular-nums text-muted">
                   <b className="font-semibold text-ink">{n[m.key]}</b>/{n.target[m.key]}
                   g
@@ -558,7 +558,7 @@ function NutritionDetail({ n }: { n: DayDetail['nutrition'] }) {
               <span className="w-8 shrink-0 text-xs font-semibold text-muted">
                 {m.label}
               </span>
-              <span className="min-w-0 flex-1 text-[13px] break-keep text-ink">
+              <span className="min-w-0 flex-1 text-footnote break-keep text-ink">
                 {m.items
                   .map(
                     (it) => `${it.name}${it.amount === '1인분' ? '' : ` ${it.amount}`}`
@@ -625,7 +625,7 @@ function CheckinDetail({ c, isToday }: { c: DayDetail['checkin']; isToday: boole
         </dl>
       )}
       {c.note && (
-        <p className="flex gap-1.5 rounded-xl bg-surface-2 px-4 py-3 text-[13px] leading-relaxed break-keep text-ink/80">
+        <p className="flex gap-1.5 rounded-xl bg-surface-2 px-4 py-3 text-footnote leading-relaxed break-keep text-ink/80">
           <StickyNote aria-hidden className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted" />
           <span className="line-clamp-3">{c.note}</span>
         </p>

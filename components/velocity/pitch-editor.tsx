@@ -40,9 +40,12 @@ export function PitchEditorFields({
   value,
   onChange,
   focusGun = false,
+  showGun = false,
 }: {
   value: PitchEdit;
   onChange: (next: PitchEdit) => void;
+  /** 스피드건 값 칸 — 관리자만(2026-10-15 사용자: "스피드건 있는 사람이 이걸 왜 쓰겠냐") */
+  showGun?: boolean;
   /** 결과 화면의 '스피드건 값 넣기'로 열었다 — 스피드건 칸을 맨 위에 두고 초점을 준다 */
   focusGun?: boolean;
 }) {
@@ -117,31 +120,35 @@ export function PitchEditorFields({
         </div>
       </Field>
 
-      <Field
-        label="스피드건 값"
-        hint="같이 쟀으면 적어요 — 보정에 쓰여요"
-        className={focusGun ? 'order-first' : ''}
-      >
-        <div className="relative">
-          <input
-            ref={gunRef}
-            inputMode="decimal"
-            value={gunText}
-            onChange={(e) => {
-              /* 숫자와 점 하나만 */
-              const [whole, ...rest] = e.target.value.replace(/[^\d.]/g, '').split('.');
-              const t = rest.length ? `${whole}.${rest.join('')}` : whole;
-              setGunText(t);
-              set({ gunKmh: textToGun(t, unit) });
-            }}
-            placeholder={unit === 'mph' ? '예) 86' : '예) 138'}
-            className="h-12 w-full rounded-2xl border border-transparent bg-ink/5 px-4 pr-14 text-base tabular-nums text-ink placeholder:text-muted/60 focus:border-sky focus:bg-surface focus:outline-none"
-          />
-          <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-xs text-muted">
-            {speedLabel(unit)}
-          </span>
-        </div>
-      </Field>
+      {showGun && (
+        <Field
+          label="스피드건 값"
+          hint="같이 쟀으면 적어요. 보정에 쓰여요."
+          className={focusGun ? 'order-first' : ''}
+        >
+          <div className="relative">
+            <input
+              ref={gunRef}
+              inputMode="decimal"
+              value={gunText}
+              onChange={(e) => {
+                /* 숫자와 점 하나만 */
+                const [whole, ...rest] = e.target.value
+                  .replace(/[^\d.]/g, '')
+                  .split('.');
+                const t = rest.length ? `${whole}.${rest.join('')}` : whole;
+                setGunText(t);
+                set({ gunKmh: textToGun(t, unit) });
+              }}
+              placeholder={unit === 'mph' ? '예) 86' : '예) 138'}
+              className="h-12 w-full rounded-2xl border border-transparent bg-ink/5 px-4 pr-14 text-base tabular-nums text-ink placeholder:text-muted/60 focus:border-sky focus:bg-surface focus:outline-none"
+            />
+            <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-xs text-muted">
+              {speedLabel(unit)}
+            </span>
+          </div>
+        </Field>
+      )}
 
       <Field label="메모">
         <input

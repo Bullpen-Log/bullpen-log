@@ -5,6 +5,9 @@
  * 왔다. 2026-10-08 부터 구속 측정은 새 앱이면 이 부품의 일반 카메라 하나로 잰다(손떨림 보정 — 웹 카메라는 못 켠다). 광각은 찍지
  * 않는다(설정 '광각 영상도 같이 저장'을 없앴다).
  */
+import { nativeApi } from '@/lib/native-bridge';
+import { nativeSupports } from '@/lib/native-api';
+
 export const DUAL_CAMERA_PLUGIN = 'DualCamera';
 
 type CapacitorLike = { isPluginAvailable?: (name: string) => boolean };
@@ -62,8 +65,9 @@ export function dualCameraStatus(): Promise<DualStatus> {
       settle({ supported: false, reason: isAppShell() ? 'old-app' : 'web' })
     );
   }
-  statusPromise = callDualCamera<DualStatus>('status')
-    .then((s) =>
+  /* 부품 판도 같이 묻는다 — isOldApp 이 그것으로 가린다(lib/native-api.ts) */
+  statusPromise = Promise.all([callDualCamera<DualStatus>('status'), nativeApi()])
+    .then(([s]) =>
       settle({
         supported: s?.supported === true,
         reason: s?.supported === true ? undefined : (s?.reason ?? 'error'),
@@ -83,8 +87,13 @@ export const dualStatusNow = () => statusNow;
  * 앱 카메라가 없는 옛 앱인가 — 부품이 없거나(2026-10-03 전) 일반 하나로 켜기를 모르는(single 칸이 없는, 2026-10-08 전) 앱. 새 앱인데
  * 이 폰에서 못 켠 것(single false) · 상태를 못 읽은 것(error)과 가른다 — 옛 앱만 업데이트하면 앱 카메라(기준 조건)로 잰다.
  */
-export const isOldApp = (s: DualStatus | null) =>
-  s != null && (s.reason === 'old-app' || (s.reason !== 'error' && s.reason !== 'web' && s.single === undefined));
+export const isOldApp = (s: DualStatus | null) => {
+  if (s == null || s.reason === 'web') return false;
+  /* 판을 아는 앱(BullpenNative info, 2026-10-16 부터)은 표로 — 모르면 예전 짐작 */
+  const has = nativeSupports('appCamera');
+  if (has != null) return !has;
+  return s.reason === 'old-app' || (s.reason !== 'error' && s.single === undefined);
+};
 
 /**
  * 켜 보니 안 됐다(하드웨어 몫이 넘침 등) — 이 기기는 안 되는 것으로 기억한다(앱을 다시 열 때까지). single 이면 일반 카메라

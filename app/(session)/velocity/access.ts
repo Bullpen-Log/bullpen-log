@@ -5,7 +5,7 @@ import { isNativeUserAgent } from '@/lib/app-env';
 import { featureLocks } from '@/lib/feature-locks';
 
 /**
- * 불펜 벨로시티를 열 수 있나 — 홈(/velocity)과 측정(/velocity/measure)이 같은 규칙을 쓴다.
+ * 불펜 벨로시티(/velocity)를 열 수 있나.
  *
  * 앱(스마트폰 네이티브 껍데기) 안에서만 연다. 폰의 고속 촬영이 있어야 공이 날아가는 모습이
  * 담기는데, 웹 브라우저의 카메라는 30~60fps 까지만 주어서다. 관리자는 웹에서도 연다(사용자

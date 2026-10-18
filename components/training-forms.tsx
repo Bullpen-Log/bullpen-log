@@ -27,6 +27,7 @@ import {
 } from '@/lib/report/theme';
 import { SafeForm } from '@/components/safe-form';
 import { SwitchRow } from '@/components/switch';
+import { Button } from '@/components/ui';
 
 /**
  * 트레이닝 설정과 일정 만들기 폼.
@@ -59,13 +60,9 @@ function SubmitButton({
 }) {
   const { pending } = useFormStatus();
   return (
-    <button
-      type="submit"
-      disabled={pending}
-      className="rounded-xl bg-sky px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-sky-strong disabled:opacity-60"
-    >
+    <Button type="submit" disabled={pending}>
       {pending ? busy : label}
-    </button>
+    </Button>
   );
 }
 
@@ -259,9 +256,8 @@ export function PlanForm({
     return (
       <div className="space-y-2 rounded-xl border border-line bg-surface-2 px-4 py-3">
         <p className="text-sm font-bold text-ink">오늘 체크인을 먼저 남겨주세요</p>
-        <p className="text-[13px] leading-relaxed text-muted">
-          운동 일정은 오늘 몸 상태를 보고 짜요. 체크인이 없으면 통증이나 뻐근한 곳을
-          모른 채 짜게 돼요. 30초면 돼요.
+        <p className="text-footnote leading-relaxed text-muted">
+          오늘 몸 상태를 보고 짜요. 30초면 돼요.
         </p>
         {/*
           체크인할 길.
@@ -275,7 +271,7 @@ export function PlanForm({
           옮겨 가면서 말할 자리가 없어졌다 — 창은 어디서나 같은 것이 뜬다.
         */}
         {checkinAction ?? (
-          <OpenCheckinButton className="min-h-10 rounded-xl bg-sky px-4 text-sm font-semibold text-white transition-colors hover:bg-sky-strong">
+          <OpenCheckinButton className="min-h-10 rounded-full bg-sky px-4 text-sm font-semibold text-white transition-colors hover:bg-sky-strong desk:rounded-xl">
             오늘 체크인하기
           </OpenCheckinButton>
         )}
@@ -315,7 +311,7 @@ export function PlanForm({
       <CheckboxGroup
         name="availableEquipment"
         label="오늘 쓸 수 있는 장비"
-        hint="오늘 실제로 쓸 수 있는 것만 켜주세요. 아무것도 안 켜면 맨몸 운동만 나와요."
+        hint="안 켜면 맨몸 운동만 나와요."
         options={choices}
         selected={equipmentSelected}
       />
@@ -352,9 +348,8 @@ export function PlanForm({
 
       {mode === 'auto' ? (
         <>
-          <p className="text-[13px] leading-relaxed text-muted">
-            오늘 체크인 · 최근 투구 · 운동 기록을 보고 목표와 시간을 정해요. 장비만
-            골라주세요.
+          <p className="text-footnote leading-relaxed text-muted">
+            목표 · 시간은 앱이 정해요.
           </p>
 
           {/*
@@ -368,7 +363,7 @@ export function PlanForm({
               <p className="text-sm font-bold text-warn">
                 {clash.kind} 운동을 하고 싶다고 하셨는데, {clash.reason}.
               </p>
-              <p className="text-[13px] leading-relaxed text-warn">
+              <p className="text-footnote leading-relaxed text-warn">
                 자동 맞춤은 몸 상태에 맞춰 {clash.fallbackLabel} 위주로 만들어요.{' '}
                 {clash.kind} 운동을 하고 싶으면 ‘직접 고르기’에서 만들 수 있어요.
               </p>
@@ -382,11 +377,11 @@ export function PlanForm({
               <p className="text-sm font-bold text-warn">
                 {clash.kind} 운동을 하고 싶다고 하셨는데, {clash.reason}.
               </p>
-              <p className="text-[13px] leading-relaxed text-warn">
+              <p className="text-footnote leading-relaxed text-warn">
                 그래서 기본은 {clash.fallbackLabel} 위주로 만들어요. 몸이 괜찮으면
                 원하는 대로 만들어도 돼요.
               </p>
-              <label className="flex items-start gap-2.5 text-[13px] font-medium leading-relaxed text-warn">
+              <label className="flex items-start gap-2.5 text-footnote font-medium leading-relaxed text-warn">
                 <input
                   type="checkbox"
                   name="overrideCondition"
@@ -410,7 +405,7 @@ export function PlanForm({
             key="goal"
             name="trainingGoal"
             label="오늘 훈련 목표"
-            hint="같은 시간을 어디에 더 쓸지 정해요. 몸 상태가 안 좋은 날에는 목표와 상관없이 회복이 먼저예요."
+            hint="몸 상태가 안 좋은 날은 회복이 먼저예요."
             options={TRAINING_GOALS.map((g) => ({ name: g.name, desc: g.desc }))}
             selected={pickedGoal}
             onChange={setPickedGoal}
@@ -429,7 +424,7 @@ export function PlanForm({
               key={`focus-${pickedGoal}`}
               name="trainingFocus"
               label="오늘 할 부위"
-              hint="안 고르면 최근 기록을 보고 상체·하체를 번갈아 골라요. 몸 상태가 안 좋은 날은 회복이 먼저예요."
+              hint="안 고르면 상체 · 하체를 번갈아 골라요."
               options={focusChoices.map((f) => ({
                 name: f.label,
                 value: f.key,

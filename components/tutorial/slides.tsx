@@ -2,6 +2,7 @@ import {
   CalendarDays,
   ChefHat,
   ClipboardCheck,
+  Bell,
   Columns2,
   Dumbbell,
   Flag,
@@ -9,7 +10,6 @@ import {
   Grid2x2,
   LockKeyhole,
   PencilLine,
-  RefreshCw,
   ScanBarcode,
   Settings,
   Smartphone,
@@ -24,7 +24,7 @@ import type { TutorialSlide } from './tutorial-dialog';
  * 튜토리얼 글감 다섯 벌 — 기본 투어 둘(웹 · 앱)과 탭 튜토리얼 셋(투구 기록 · 트레이닝 · 영양).
  *
  * 웹과 앱(아이폰 웹뷰)은 생김새가 달라 투어가 따로다 — 웹은 오른쪽 위 막대 · 메뉴(네모 넷) · 미니 사이드바 · 큰 사이드바,
- * 앱은 아래 탭 · 더보기 · 당겨서 새로고침(lib/nav.ts · components/app-shell.tsx · components/pull-to-refresh.tsx).
+ * 앱은 아래 탭 · 더보기 · 알림(lib/nav.ts · components/app-shell.tsx).
  * 이름은 사용자가 부르는 대로(docs/claude/geum-yunho.md 1절).
  *
  * 탭 튜토리얼은 그 탭의 첫 설정을 마친 직후 한 번 뜬다(components/tutorial/tab-tutorial.tsx). 글은 그 탭의 화면 그대로 —
@@ -50,9 +50,9 @@ function Art({ icon: Icon }: { icon: LucideIcon }) {
 export const tourWebSlides: TutorialSlide[] = [
   {
     key: 'welcome',
-    title: '불펜로그에 오신 걸 환영해요',
-    body: '투구 · 트레이닝 · 영양을 한곳에 적고, 그날 몸 상태에 맞춘 운동과 조언을 받아요. 어디에 무엇이 있는지 짧게 알려 드릴게요.',
-    note: '오른쪽 위 X 로 언제든 건너뛸 수 있어요.',
+    title: '불펜로그 둘러보기',
+    body: '투구 · 트레이닝 · 영양을 한곳에 적고, 그날 몸 상태로 운동과 조언을 받아요.',
+    note: '오른쪽 위 X 로 건너뛸 수 있어요.',
     art: <Art icon={Sparkles} />,
   },
   {
@@ -71,8 +71,8 @@ export const tourWebSlides: TutorialSlide[] = [
   {
     key: 'checkin',
     title: '매일 체크인부터',
-    body: '들어오면 오늘 몸 상태를 먼저 물어요. 컨디션 · 수면 · 통증을 적으면 그날 운동과 조언이 거기에 맞춰져요. 몇 초면 끝나요.',
-    note: '건너뛰어도 오른쪽 위 알림(종)에서 언제든 할 수 있어요.',
+    body: '들어오면 오늘 몸 상태를 먼저 물어요. 컨디션 · 수면 · 통증을 적으면 그날 운동과 조언이 바뀌어요.',
+    note: '건너뛰어도 오른쪽 위 종에서 할 수 있어요.',
     art: <Art icon={ClipboardCheck} />,
   },
   {
@@ -89,9 +89,9 @@ export const tourWebSlides: TutorialSlide[] = [
 export const tourAppSlides: TutorialSlide[] = [
   {
     key: 'welcome',
-    title: '불펜로그에 오신 걸 환영해요',
-    body: '투구 · 트레이닝 · 영양을 한곳에 적고, 그날 몸 상태에 맞춘 운동과 조언을 받아요. 어디에 무엇이 있는지 짧게 알려 드릴게요.',
-    note: '오른쪽 위 X 로 언제든 건너뛸 수 있어요.',
+    title: '불펜로그 둘러보기',
+    body: '투구 · 트레이닝 · 영양을 한곳에 적고, 그날 몸 상태로 운동과 조언을 받아요.',
+    note: '오른쪽 위 X 로 건너뛸 수 있어요.',
     art: <Art icon={Sparkles} />,
   },
   {
@@ -102,16 +102,16 @@ export const tourAppSlides: TutorialSlide[] = [
   },
   {
     key: 'refresh',
-    title: '당겨서 새로고침 · 알림',
-    body: '화면 맨 위에서 아래로 당기면 새로 받아요. 다른 기기에서 남긴 기록도 그렇게 봐요. 오른쪽 위 종을 누르면 오늘 남은 일이 보여요.',
+    title: '알림',
+    body: '오른쪽 위 종을 누르면 오늘 남은 일이 보여요.',
     note: '종 옆 톱니가 설정, 사진이 내 정보예요.',
-    art: <Art icon={RefreshCw} />,
+    art: <Art icon={Bell} />,
   },
   {
     key: 'checkin',
     title: '매일 체크인부터',
-    body: '들어오면 오늘 몸 상태를 먼저 물어요. 컨디션 · 수면 · 통증을 적으면 그날 운동과 조언이 거기에 맞춰져요. 몇 초면 끝나요.',
-    note: '건너뛰어도 종에서 언제든 할 수 있어요.',
+    body: '들어오면 오늘 몸 상태를 먼저 물어요. 컨디션 · 수면 · 통증을 적으면 그날 운동과 조언이 바뀌어요.',
+    note: '건너뛰어도 종에서 할 수 있어요.',
     art: <Art icon={ClipboardCheck} />,
   },
   {
@@ -167,7 +167,7 @@ export const trainingSlides: TutorialSlide[] = [
     key: 'checkin',
     title: '체크인을 먼저 하면 일정이 나와요',
     body: '오늘 몸 상태를 적으면 거기에 맞춘 오늘 운동 일정을 만들어요. 통증이 있거나 기록이 모자란 날은 가볍게 가거나 쉬라고 해요.',
-    note: '체크인은 오른쪽 위 알림(종)에서 언제든 해요.',
+    note: '체크인은 오른쪽 위 종에서 해요.',
     art: <Art icon={ClipboardCheck} />,
   },
   {
@@ -210,7 +210,7 @@ export const nutritionSlides: TutorialSlide[] = [
   {
     key: 'goal',
     title: '내 계획과 목표 창',
-    body: '통계에서 내 계획을 보면 목표 · 탄단지 나누기 · 예상 체중이 있어요. 제목 옆 목표 단추로 언제든 목표를 다시 정해요.',
+    body: '통계에서 내 계획을 보면 목표 · 탄단지 나누기 · 예상 체중이 있어요. 제목 옆 목표 단추로 다시 정해요.',
     art: <Art icon={Target} />,
   },
 ];

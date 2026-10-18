@@ -301,7 +301,7 @@ function Dialog({
                 className="flex h-6 w-6 items-center justify-center"
               >
                 <span
-                  className={`block h-1.5 rounded-full transition-all ${
+                  className={`block h-1.5 rounded-full transition-[width,background-color] ${
                     i === index ? 'w-5 bg-sky' : 'w-1.5 bg-line-strong'
                   }`}
                 />

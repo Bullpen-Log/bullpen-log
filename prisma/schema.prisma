@@ -115,8 +115,14 @@ model User {
   userExerciseLogs  UserExerciseLog[]
   workoutSessions   TrainingSession[]
   articles          Article[]
+  supportInquiries  SupportInquiry[]
+  supportReplies    SupportReply[]    @relation("SupportReplyAuthor")
+  supportNotices    SupportNotice[]   @relation("SupportNoticeAuthor")
+  communityPosts    CommunityPost[]
+  communityComments CommunityComment[]
+  communityLikes    CommunityLike[]
+  communityReports  CommunityReport[] @relation("CommunityReporter")
   checkins          DailyCheckin[]
-  aiReports         AiReport[]
   trainingSetups    DailyTrainingSetup[]
   armcareRoutines   DailyArmcare[]
   myArmcareRoutines UserArmcareRoutine[]
@@ -131,33 +137,6 @@ model User {
   calendarEvents    CalendarEvent[]
   mealPlans         MealPlan[]
   dailyNutrition    DailyNutrition[]
-}
-
-/**
- * 생성된 AI 리포트. 한 번 만든 리포트는 그대로 보관해
- * 다시 열어도 같은 내용과 같은 근거가 보이게 한다.
- */
-model AiReport {
-  id           String   @id @default(uuid())
-  userId       String
-  /// 리포트 기준일
-  asOf         DateTime @db.Date
-  /// 통증 등으로 투구 계획을 내지 않은 리포트인가
-  halted       Boolean  @default(false)
-  haltReason   String?  @db.Text
-  /// AI가 쓴 본문. 계획이 멈춘 리포트에는 없다(AI를 부르지 않음).
-  body         Json?
-  /// 생성 시점의 수치와 계획. 근거를 나중에도 그대로 보여주기 위해 함께 저장한다.
-  facts        Json
-  plan         Json
-  model        String
-  inputTokens  Int      @default(0)
-  outputTokens Int      @default(0)
-  createdAt    DateTime @default(now())
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, asOf])
-  @@index([userId, asOf])
 }
 
 /// 하루 한 번 남기는 몸상태 체크인. 운동 처방과 리포트의 입력이 된다.
@@ -387,26 +366,15 @@ model DailyCheckin {
   /// 전부 고르지 않아도 된다(비어 있으면 안 적은 것). 간편 체크인은 위의 몸 상태·
   /// 컨디션·수면만 받고, 여기는 더 적고 싶은 날에만 채운다.
   /// 1~5 척도는 모두 '클수록 그 느낌이 강하다'로 읽는다(피로 5 = 몹시 피곤).
-  /// 기분만 반대로 클수록 좋다 — 화면에 말로 적어 두어 헷갈리지 않게 한다.
 
   /// 잔 시간(시간). 0.5 단위. 3판(2026-10-13)부터 안 씀 — sleepQuality 로
   sleepHours   Float?
-  /// 전신 피로 1~5 — 3판부터 안 씀(읽지도 쓰지도 않음)
-  fatigue      Int?
   /// 전신 근육통 1~5 — 3판부터 안 씀(통증 · 수면 신호로 대신)
   soreness     Int?
   /// 던지는 팔의 피로 1~5 — 3판부터 묻지 않음(팔 통증 정도에서 어림, lib/checkin.ts armFatigueFromPain)
   armFatigue   Int?
-  /// 스트레스 1~5
-  stress       Int?
-  /// 기분 1(나쁨)~5(좋음)
-  mood         Int?
   /// 오늘 잰 몸무게. 저장은 늘 kg
   bodyWeightKg Float?
-  /// 아침 안정시 심박수(bpm)
-  restingHr    Int?
-  /// 물을 얼마나 마셨나: 충분 / 보통 / 부족
-  hydration    String?
   /// 끼니를 얼마나 챙겼나: 잘 먹음 / 보통 / 부족. 2026-09-30 화면에서 뺐다가 2026-10-07 간편 체크인에 되살림 —
   /// 영양 조언(lib/nutrition/advice.ts, 홈 카드)이 음식 기록 없이도 오늘 몇 g 더 먹을지 어림하는 데 쓴다.
   nutrition    String?
@@ -492,6 +460,8 @@ model UserDrillLog {
 
   @@id([userId, guideId, date])
   @@index([userId, date])
+  // 2026-10-16 통합 검토 — 드릴을 지울 때 이어 지우기가 찾는 칸
+  @@index([guideId])
 }
 
 /**
@@ -537,6 +507,8 @@ model UserExerciseFavorite {
 
   @@id([userId, exerciseId])
   @@index([userId])
+  // 2026-10-16 통합 검토 — 운동을 지울 때 이어 지우기가 찾는 칸
+  @@index([exerciseId])
 }
 
 /**
@@ -582,6 +554,8 @@ model UserDrillFavorite {
 
   @@id([userId, guideId])
   @@index([userId])
+  // 2026-10-16 통합 검토 — 드릴을 지울 때 이어 지우기가 찾는 칸
+  @@index([guideId])
 }
 
 model PitchLog {
@@ -615,8 +589,10 @@ model PitchLog {
   createdAt   DateTime @default(now())
 
   user             User              @relation(fields: [userId], references: [id], onDelete: Cascade)
-  poseAnalyses     PoseAnalysis[]
   velocitySessions VelocitySession[]
+
+  // 2026-10-16 통합 검토 — 홈 · 투구 · 트레이닝이 화면마다 [userId, date] 로 십여 번 읽는데 색인이 하나도 없어 표 전체를 훑었다
+  @@index([userId, date])
 }
 
 /**
@@ -668,6 +644,10 @@ model VelocitySession {
   /// 원본 프레임 크기
   frameW         Int?
   frameH         Int?
+  // 측정 때 고른 투구 종류 · 체감 강도(5~100%) — 2026-10-16 부터 측정은 투구 기록을 만들지 않고, 투구 탭 카드가 이 값으로 기록을 채운다
+  // (사용자 결정: 구속 측정은 별개 기록, 투구 기록을 남길 때 참고만). 옛 세션은 null — 이어진 투구 기록의 칸을 본다
+  sessionType    String?
+  effortPct      Int?
   createdAt  DateTime @default(now())
 
   user     User           @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -676,6 +656,8 @@ model VelocitySession {
   attempts VelocityAttempt[]
 
   @@index([userId, date])
+  // 2026-10-16 통합 검토 — 투구 기록을 지울 때 이어진 세션의 pitchLogId 를 비우는(SetNull) 찾기 · 측정 → 기록 잇기
+  @@index([pitchLogId])
 }
 
 /**
@@ -794,43 +776,6 @@ model VelocityAttempt {
   @@index([userId, date])
   @@index([date])
   @@index([sessionId])
-}
-
-/**
- * 폼 분석 결과. 영상 하나당 최신 분석 1개를 보관해 다시 열 때
- * 재분석 없이 바로 보여주고, 지난 세션과의 변화 비교에 쓴다.
- * 측면 촬영이 아니거나 인식이 나쁜 분석은 저장하지 않는다(비교 오염 방지).
- */
-model PoseAnalysis {
-  id               String   @id @default(uuid())
-  userId           String
-  pitchLogId       String
-  /// PitchLog.videoPaths 중 어떤 영상의 분석인지
-  videoPath        String   @unique
-  /// 화면 표기용 좌/우투 (사용자가 전환 버튼으로 고칠 수 있음)
-  throwingSide     String
-  /// 실제 측정에 쓴 팔 (인식 라벨 기준)
-  wristSide        String
-  leadSide         String
-  direction        Int
-  quality          Float
-  coverage         Float
-  /// 자동 감지된 구간 (초)
-  kneeUpT          Float?
-  footPlantT       Float?
-  releaseT         Float?
-  /// 사용자가 프레임으로 직접 보정한 구간 (초)
-  kneeUpManualT    Float?
-  footPlantManualT Float?
-  releaseManualT   Float?
-  /// 지표 배열 [{key,label,phase,value,display,reason,confidence}]
-  metrics          Json
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
-
-  pitchLog PitchLog @relation(fields: [pitchLogId], references: [id], onDelete: Cascade)
-
-  @@index([userId])
 }
 
 /// 영상 탭에서 고른 그날의 대표 투구 영상. 홈 캘린더에서 날짜를 누르면 이 영상을 띄운다.
@@ -990,6 +935,10 @@ model UserExerciseLog {
   exercise ExerciseVideo @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
 
   @@id([userId, exerciseId, date])
+  // 2026-10-16 통합 검토 — 날짜 범위 조회(지난 운동 · 부하 · 암케어)는 기본 키(userId, exerciseId, date)로 못 좁힌다. exerciseId 는 운동을 지울 때
+  // 이어 지우기(relationMode prisma — DB 외래키가 없어 Prisma 가 찾아 지운다)가 표 전체를 훑지 않게
+  @@index([userId, date])
+  @@index([exerciseId])
 }
 
 /**
@@ -1196,6 +1145,9 @@ model Article {
   createdAt     DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // 2026-10-16 통합 검토 — 탈퇴 때 이어 지우기가 찾는 칸
+  @@index([userId])
 }
 
 /// 관리자가 공용 내용을 바꿀 때마다 한 줄씩 쌓이는 기록 — '패치노트'.
@@ -1438,8 +1390,6 @@ model DailyNutrition {
   skippedMeals String[] @default([])
   /// 영양 탭 카드에 답한 때 — null 이면 아직 안 물었다(아무것도 안 고른 답과 가른다). 서버가 appNow() 로 적는다
   answeredAt DateTime?
-  /// 그날 사진으로 음식을 알아본 횟수(영양 로드맵 7번 — AI 를 부르므로 하루 상한을 센다). 이 칸만 있는 줄은 체중이 비어 있다 — 체중을 읽는 곳은 모두 weightKg 가 있는 줄만 본다.
-  photoCalls Int     @default(0)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -1571,6 +1521,160 @@ model VelocityRecordingCut {
 
   @@index([recordingId])
   @@index([partId])
+}
+
+/**
+ * 사람이 찍은 공 자리(공 감지 학습 모델 2판 자료, services/velocity-detector/pull-labels.mjs 가 내려받는다).
+ * 녹화 컷(VelocityRecordingCut) 또는 측정 클립(VelocityPitch) 하나에 하나 — 관계를 걸지 않고 target 글자로 가리킨다(원본이 지워지면 줄만 남는다).
+ */
+model VelocityBallLabel {
+  id        String   @id @default(uuid())
+  /// 'cut:<VelocityRecordingCut.id>' 또는 'pitch:<VelocityPitch.id>'
+  target    String   @unique
+  /// 영상 원본 크기(px) — 공 좌표의 기준
+  sourceW   Int
+  sourceH   Int
+  /// [{ t, ball }] — t 는 조각 · 클립 파일의 시각(초), ball 은 [x, y, 지름](원본 px) 또는 null(공 없는 장면)
+  frames    Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+
+// ── 고객센터(2026-10-17 1판 — 틀) ──────────────────────────────────────────────
+
+/// 1:1 문의의 상태 — 접수됨 → 운영자가 답하면 답변 완료 → 쓴 사람 · 운영자가 닫으면 종료(lib/support.ts INQUIRY_STATUS)
+enum InquiryStatus {
+  OPEN
+  ANSWERED
+  CLOSED
+}
+
+/// 공지 — 운영자가 쓴다. pinned 는 맨 위 고정.
+model SupportNotice {
+  id        String   @id @default(uuid())
+  authorId  String?
+  title     String
+  body      String   @db.Text
+  pinned    Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  /// 글쓴 관리자가 지워져도 공지는 남는다(SetNull, 2026-10-17 — Cascade 였을 때 계정과 함께 사라졌다)
+  author User? @relation("SupportNoticeAuthor", fields: [authorId], references: [id], onDelete: SetNull)
+
+  @@index([pinned, createdAt])
+  @@index([authorId])
+}
+
+/// 1:1 문의 — 쓴 사람과 운영자가 답글(SupportReply)을 주고받는다. category 는 lib/support.ts INQUIRY_CATEGORIES 의 key.
+model SupportInquiry {
+  id        String        @id @default(uuid())
+  userId    String
+  category  String
+  title     String
+  body      String        @db.Text
+  status    InquiryStatus @default(OPEN)
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  user    User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  replies SupportReply[]
+
+  @@index([userId, createdAt])
+  @@index([status, createdAt])
+}
+
+/// 문의의 답글 — fromStaff 가 참이면 운영자의 답.
+model SupportReply {
+  id        String   @id @default(uuid())
+  inquiryId String
+  authorId  String?
+  fromStaff Boolean  @default(false)
+  body      String   @db.Text
+  createdAt DateTime @default(now())
+
+  inquiry SupportInquiry @relation(fields: [inquiryId], references: [id], onDelete: Cascade)
+  /// 답글 쓴 사람이 지워져도 대화는 남는다(SetNull) — 운영자 답이 사라지면 '답변 완료'인데 답이 없는 문의가 됐다
+  author  User?          @relation("SupportReplyAuthor", fields: [authorId], references: [id], onDelete: SetNull)
+
+  @@index([inquiryId, createdAt])
+  @@index([authorId])
+}
+
+// ── 커뮤니티(2026-10-17 1판 — 틀) ──────────────────────────────────────────────
+
+/// 글 — category 는 lib/community.ts POST_CATEGORIES 의 key. hiddenAt 은 운영자가 가린 때(신고 처리) — 목록 · 상세에서 안 보인다.
+model CommunityPost {
+  id        String    @id @default(uuid())
+  userId    String
+  category  String
+  title     String
+  body      String    @db.Text
+  hiddenAt  DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  user     User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  comments CommunityComment[]
+  likes    CommunityLike[]
+  reports  CommunityReport[]
+
+  @@index([createdAt])
+  @@index([category, createdAt])
+  @@index([userId])
+}
+
+model CommunityComment {
+  id        String    @id @default(uuid())
+  postId    String
+  userId    String
+  body      String    @db.Text
+  hiddenAt  DateTime?
+  createdAt DateTime  @default(now())
+
+  post    CommunityPost     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user    User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reports CommunityReport[]
+
+  @@index([postId, createdAt])
+  @@index([userId])
+}
+
+/// 좋아요 — 한 사람이 한 글에 한 번.
+model CommunityLike {
+  postId    String
+  userId    String
+  createdAt DateTime @default(now())
+
+  post CommunityPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([postId, userId])
+  @@index([userId])
+}
+
+/// 신고 — 글 또는 댓글 하나(둘 중 하나만 채운다). reason 은 lib/community.ts REPORT_REASONS 의 key. resolvedAt 은 운영자가 처리한 때.
+model CommunityReport {
+  id         String    @id @default(uuid())
+  reporterId String
+  postId     String?
+  commentId  String?
+  reason     String
+  detail     String?   @db.Text
+  resolvedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  reporter User              @relation("CommunityReporter", fields: [reporterId], references: [id], onDelete: Cascade)
+  /* 글 · 댓글이 지워져도 신고 기록은 남는다(SetNull) — 관리자 화면이 '이미 지워졌어요'로 보인다 */
+  post     CommunityPost?    @relation(fields: [postId], references: [id], onDelete: SetNull)
+  comment  CommunityComment? @relation(fields: [commentId], references: [id], onDelete: SetNull)
+
+  /* 같은 사람이 같은 글 · 댓글을 두 번 신고하지 못하게(NULL 은 서로 다른 값으로 친다) */
+  @@unique([reporterId, postId])
+  @@unique([reporterId, commentId])
+  @@index([resolvedAt, createdAt])
+  @@index([reporterId])
 }
 
 // ── 트레이닝 영상 촬영(관리자) ───────────────────────────────────────────────

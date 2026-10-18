@@ -3,6 +3,7 @@ import { unstable_cache, updateTag } from 'next/cache';
 import type { ExerciseVideo, MechanicsGuide } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { clearPlaybackUrlCache } from '@/lib/storage';
+import { LATER_CATEGORY } from '@/lib/categories';
 
 /**
  * 운동·드릴 목록을 한 번만 읽어 두고 돌려쓴다.
@@ -88,7 +89,15 @@ export const allExercises = unstable_cache(
    * 오늘의 암케어가 루틴을 못 짠다. 관리자가 운동을 하나 저장해야(clearLibraryCache)
    * 풀리는데, 그것을 기다릴 일이 아니다.
    */
-  ['library:exercises:v25'],
+  /* :v30 — 2026-10-15 파워에 회전 메디신볼 던지기 6 · 한 발 점프 2 · 상체 플라이오 2(scripts/library-power-plyo-2026-10-15.mjs). */
+  /* :v32 — 2026-10-16 회전 메디신볼 던지기 6개를 좌우 각각(perSide)으로 — 투수 파워의 던지기 양 */
+  /* :v34 — 2026-10-16 불안정 지면 스냅다운을 '나중에 촬영'으로(scripts/library-later-snapdown-2026-10-16.mjs). */
+  /* :v35 — 같은 날 백 페달도 '나중에 촬영'으로. */
+  /* :v37 — 2026-10-17 촬영 영상 52개를 다듬은 판(앞뒤 빈 시간 · 작은 사람)으로 경로 바꿈(scripts/shoot-trim/apply.mjs). */
+  /* :v38 — 2026-10-18 직접 찍은 영상과 어긋난 운동 43개의 설명 · 도구 · 좌우 · 버티기/횟수를 영상대로 고침. */
+  /* :v39 — 같은 날 제목이 영상과 다른 넷(케이블 → 덤벨 셋 · TRX 로테이션) · 바텀업 캐리 설명을 영상대로. */
+  /* :v40 — 2026-10-18 회전 운동 셋(케이블 와이드 스탠스 로테이션 · TRX 로테이션 · 케이블 안티 로테이션 홀드)을 좌우 따로로. */
+  ['library:exercises:v40'],
   { tags: [LIBRARY_TAG] }
 );
 
@@ -110,19 +119,28 @@ export const allGuides = unstable_cache(
    * :v3 — 같은 날 빈자리를 채우는 드릴 12개를 더했다(scripts/mechanics-add-drills-2026-10-04.mjs).
    * :v8 — 2026-10-09 겹치는 메디신볼 드릴 13개를 숨겼다(51 → 38).
    * :v9 — 같은 날 '스플릿 스탠스 발목 등척 밀기'를 운동 라이브러리 파워로 옮기고 '등척'을 '아이소메트릭'으로.
+   * :v10 — 2026-10-14 드릴 37개를 '나중에 촬영'으로(scripts/drills-later-2026-10-14.mjs).
+   * :v12 — 2026-10-16 주 요소 19묶음 · 새 분류 '근력 · 안정 드릴'(scripts/mechanics-reclass-2026-10-16.mjs).
    */
-  ['library:guides:v9'],
+  ['library:guides:v12'],
   { tags: [LIBRARY_TAG] }
 );
 
-/** 숨기지 않은 드릴만 — 투구 드릴 화면 · 메커니즘이 보는 목록 */
+/** 숨기지 않은 드릴만 — 투구 드릴 영상 화면이 보는 목록('나중에 촬영' 칸도 보인다) */
 export async function visibleGuides(): Promise<CachedGuide[]> {
   return (await allGuides()).filter((g) => g.hiddenAt == null);
 }
 
-/** 숨기지 않은 운동만. 새 일정에 나갈 수 있는 것들이다. */
+/** 트레이닝이 고를 수 있는 드릴 — 숨긴 것과 '나중에 촬영'(영상 전)을 뺀다. 운동의 visibleExercises 와 같은 규칙 */
+export async function trainingGuides(): Promise<CachedGuide[]> {
+  return (await visibleGuides()).filter((g) => g.category !== LATER_CATEGORY);
+}
+
+/** 숨기지 않은 운동만. 새 일정에 나갈 수 있는 것들이다. '나중에 촬영'(영상 전)도 뺀다 — lib/categories.ts LATER_CATEGORY */
 export async function visibleExercises(): Promise<CachedExercise[]> {
-  return (await allExercises()).filter((ex) => ex.hiddenAt == null);
+  return (await allExercises()).filter(
+    (ex) => ex.hiddenAt == null && ex.category !== LATER_CATEGORY
+  );
 }
 
 /**

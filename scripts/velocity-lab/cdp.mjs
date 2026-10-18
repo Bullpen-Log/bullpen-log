@@ -43,10 +43,10 @@ function engineModules(dir) {
       continue; /* 지울 수 없는 문법(매개변수 속성)을 쓰는 파일 — 영상 길에서 안 쓴다 */
     }
     if (/from\s+'@\//.test(js)) continue; /* 별칭(@/)을 쓰는 파일(dual-capture) */
-    mods[f.replace(/\.ts$/, '')] = js.replace(
-      /from\s+'\.\/([\w-]+)\.ts'/g,
-      (_, n) => `from '@@${n}@@'`
-    );
+    mods[f.replace(/\.ts$/, '')] = js
+      .replace(/from\s+'\.\/([\w-]+)\.ts'/g, (_, n) => `from '@@${n}@@'`)
+      /* 하드웨어 디코더 길(analyze-video openDecoder)이 부르는 패키지 — 쪽에 따로 올린 것으로(아래 MEDIABUNNY) */
+      .replace(/import\('mediabunny'\)/g, "import('@@mediabunny@@')");
   }
   const order = [];
   const deps = (n) => [...mods[n].matchAll(/'@@([\w-]+)@@'/g)].map((m) => m[1]);
@@ -142,9 +142,18 @@ export async function open({
       /* 쪽이 아직 */
     }
   }
+  /*
+   * mediabunny 를 같이 올린다(2026-10-16) — 없으면 엔진의 디코더 길이 늘 실패해 되감기 길(<video>)로만 쟀다. 앱은 2.3.15 부터 디코더 길이고,
+   * 두 길은 공 덩어리 크기가 2% 남짓 달라(BLOB_SIZE_RATIO 1.163 · 1.185) 공 크기 거리 · 세션 거리 보정이 앱과 어긋났다. LAB_FRAMES=seek 이면 예전처럼.
+   */
+  const bunny = process.env.LAB_FRAMES === 'seek'
+    ? null
+    : readFileSync(join(REPO, 'node_modules/mediabunny/dist/bundles/mediabunny.mjs'), 'utf8');
   const version = await evaluate(`(async () => {
     const list = ${JSON.stringify(engineModules(resolve(engine)))};
     const urls = {};
+    const bunny = ${JSON.stringify(bunny)};
+    if (bunny) urls['mediabunny'] = URL.createObjectURL(new Blob([bunny], { type: 'text/javascript' }));
     window.__m = {};
     for (const [n, code0] of list) {
       let code = code0;

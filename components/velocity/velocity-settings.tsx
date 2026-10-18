@@ -1,26 +1,19 @@
 'use client';
 
+import { SETUP_CHANGE_EVENT, SETUP_KEY, clearSetup, loadFov, loadSetup, saveFov, saveSetup } from '@/lib/velocity-storage';
 import { useMemo, useState, useSyncExternalStore } from 'react';
 import { AlertTriangle, Settings2 } from 'lucide-react';
 import { Segmented } from '@/components/segmented';
-import { Button } from '@/components/ui';
+import { Switch } from '@/components/switch';
 import {
   calibrationText,
-  loadFov,
-  saveFov,
   type CalFit,
 } from '@/lib/velocity-calibration';
 import { DEFAULT_FOV_DEG } from '@/lib/velocity-engine/analyze-frames';
 import {
   CAMERA_OPTIONS,
-  clearSetup,
   DEFAULT_SETUP,
   defaultZone,
-  loadSetup,
-  NET_OPTIONS,
-  saveSetup,
-  SETUP_CHANGE_EVENT,
-  SETUP_KEY,
   type VelocitySetup,
   approachOf,
   RELEASE_DIST_MIN,
@@ -32,7 +25,7 @@ import {
   loadLens,
   type LensCalibration,
 } from '@/lib/velocity-lens';
-import { applySpeedUnit, SPEED_UNITS } from '@/lib/units';
+import { applySpeedUnit, SPEED_UNITS } from '@/lib/units-storage';
 import { useSpeedUnit } from '@/components/use-units';
 import { BottomSheet } from './pitch-editor';
 import { Panel, SectionLabel } from './kit';
@@ -59,21 +52,10 @@ export type SettingsValues = Pick<
   | 'clipZone'
 > & { fovDeg: number };
 
-const NET_VALUES = [
-  { value: 'yes', label: '네트 있음' },
-  { value: 'no', label: '네트 없음' },
-] as const;
-
 /** 그물까지 거리 — 공 크기로 어림(기본) · 줄자로 잰 값(측정 2단계와 같은 칸) */
 export const DIST_MODES = [
   { value: 'auto', label: '자동' },
   { value: 'manual', label: '직접 넣기' },
-] as const;
-/** 측정의 폰 자리 단계 — 관리자(기준 20m · 줄자 · 공마다 공 크기)와 일반(기준 20m · 줄자). 기준 20m 는 세션마다 공 크기로 맞춘다(엔진 2.4 1단계) */
-export const DIST_MODES_ADMIN = [
-  { value: 'standard', label: '기준 20m' },
-  { value: 'manual', label: '줄자' },
-  { value: 'auto', label: '공마다 공 크기' },
 ] as const;
 export const TAPE_MODES = [
   { value: 'standard', label: '기준 20m' },
@@ -85,12 +67,15 @@ export function VelocitySettingsFields({
   onChange,
   calibration,
   showChoices = true,
+  isAdmin = false,
 }: {
   values: SettingsValues;
   onChange: (patch: Partial<SettingsValues>) => void;
   calibration: CalFit;
   /** 녹화 종류 · 카메라 위치 · 네트도 여기서 바꿀까 — 측정 중에는 숨긴다 */
   showChoices?: boolean;
+  /** 관리자 — '스피드건 보정 적용' 줄(일반 사용자는 스피드건 짝을 안 쓴다, 2026-10-15) */
+  isAdmin?: boolean;
 }) {
   /* 구속 단위 — 앱 전체의 단위 설정(내 정보 · 투구 기록)과 같은 값. 여기서 바꾸면 거기도 바뀐다 */
   const speedUnit = useSpeedUnit();
@@ -103,10 +88,7 @@ export function VelocitySettingsFields({
       <div>
         <SectionLabel>측정</SectionLabel>
         <Panel className="divide-y divide-line">
-          <ChoiceRow
-            title="구속 단위"
-            hint="앱 전체에 적용돼요 — 투구 기록 · 내 정보도 같은 단위로 보여요."
-          >
+          <ChoiceRow title="구속 단위" hint="투구 기록 · 내 정보도 같은 단위로 보여요.">
             <Segmented
               label="구속 단위"
               value={speedUnit}
@@ -121,7 +103,7 @@ export function VelocitySettingsFields({
           </ChoiceRow>
           <ToggleRow
             title="소리로 구속 알려주기"
-            hint="공을 잴 때마다 폰이 숫자를 읽어요. 카메라를 볼 필요 없이 던질 수 있어요."
+            hint="잴 때마다 폰이 숫자를 읽어 줘요."
             checked={values.voice}
             onChange={(voice) => {
               onChange({ voice });
@@ -132,41 +114,36 @@ export function VelocitySettingsFields({
               }
             }}
           />
-          <ToggleRow
-            title="자동 측정"
-            hint="켜 두면 공마다 알아서 잡아요. 끄면 공마다 '다음 공'을 눌러 기다려요."
-            checked={values.autoMode}
-            onChange={(autoMode) => onChange({ autoMode })}
-          />
+          {/* 자동 측정 줄은 뺐다 — 측정은 늘 자동(2026-10-15 사용자) */}
           {/* 관리자 스위치(정확도 보정용 저장 · 엔진 개발용 녹화)는 측정 화면 왼쪽 관리자 단추의 '관리자 설정'으로 옮겼다(2026-10-03) */}
           <ToggleRow
             title="영상에 스트라이크 존 표시"
-            hint="저장된 공 영상(▶ · 구속 측정 관리자)을 볼 때 잰 순간의 스트라이크 존과 짐작한 코스 칸을 겹쳐 보여요. 영상 파일은 그대로예요."
+            hint="공 영상을 볼 때 존과 코스 칸을 겹쳐 보여요."
             checked={values.clipZone}
             onChange={(clipZone) => onChange({ clipZone })}
           />
           {/* 광각 영상도 같이 저장은 없앴다 — 늘 끔(2026-10-08 사용자: 광각과 함께면 측정 카메라가 720p 로 떨어진다) */}
-          <ToggleRow
-            title="스피드건 보정 적용"
-            hint={
-              calibration.n > 0
-                ? `내 짝 ${calibration.n}개로 맞춘 식 ${calibrationText(calibration)}`
-                : '아직 짝이 없어요 — 공에 스피드건 값을 적고 저장하면 쌓여요.'
-            }
-            checked={values.useCal}
-            disabled={calibration.n === 0}
-            onChange={(useCal) => onChange({ useCal })}
-          />
+          {isAdmin && (
+            <ToggleRow
+              title="스피드건 보정 적용"
+              hint={
+                calibration.n > 0
+                  ? `스피드건 짝 ${calibration.n}개 · ${calibrationText(calibration)}`
+                  : '공에 스피드건 값을 적고 저장하면 쌓여요.'
+              }
+              checked={values.useCal && calibration.n > 0}
+              disabled={calibration.n === 0}
+              onChange={(useCal) => onChange({ useCal })}
+            />
+          )}
           {/* 투수 뒤 거리는 기준 20m 고정(lib/velocity-setup.ts STANDARD_TARGET_DIST_M) — 관리자는 측정의 '폰 자리' 단계에서 바꾼다 */}
           <label className="flex min-h-14 items-center justify-between gap-3 px-4 py-3">
             <span className="min-w-0">
-              <span className="block text-sm text-ink">카메라 가로 화각</span>
-              <span className="block text-xs leading-snug text-muted">
-                {approachOf(values) === 'receding'
-                  ? values.distAuto
-                    ? '아이폰 후면 기본 카메라 약 69°. 거리를 공 크기로 어림해서 화각이 맞아야 해요. 렌즈 보정을 하면 이 값 대신 잰 초점거리를 써요.'
-                    : '아이폰 후면 기본 카메라 약 69°. 구속은 넣은 거리로 재서 화각의 영향은 작아요.'
-                  : '아이폰 후면 기본 카메라 약 69°. 포수 뒤는 공 크기로 거리를 재서 화각이 맞아야 해요. 렌즈 보정을 하면 이 값 대신 잰 초점거리를 써요.'}
+              <span className="block text-subhead text-ink">카메라 가로 화각</span>
+              <span className="mt-0.5 block text-footnote leading-snug text-muted">
+                {approachOf(values) === 'receding' && !values.distAuto
+                  ? '아이폰 기본 카메라는 약 69°예요.'
+                  : '아이폰 기본 카메라는 약 69°예요. 렌즈 보정을 하면 잰 값을 써요.'}
               </span>
             </span>
             <span className="inline-flex shrink-0 items-center gap-1 text-sm">
@@ -189,7 +166,7 @@ export function VelocitySettingsFields({
           {approachOf(values) === 'approaching' && (
             <DistanceRow
               title="카메라에서 릴리스 지점까지"
-              hint="공기저항을 이 거리만큼 되돌려 릴리스 구속을 내요. 줄자로 폰에서 투수가 공을 놓는 자리까지 재서 넣어 주세요. 정규 마운드에서 홈 뒤 1.8m 면 약 18.5m예요."
+              hint="줄자로 폰에서 공을 놓는 자리까지 재요. 홈 뒤 1.8m면 약 18.5m예요."
               value={values.releaseDistM}
               min={RELEASE_DIST_MIN}
               max={RELEASE_DIST_MAX}
@@ -199,7 +176,8 @@ export function VelocitySettingsFields({
         </Panel>
       </div>
 
-      {showChoices && (
+      {/* 촬영 칸 — 카메라 위치가 하나뿐이고 네트는 더 묻지 않아(2026-10-15) 고를 것이 있을 때만 */}
+      {showChoices && CAMERA_OPTIONS.length > 1 && (
         <div>
           <SectionLabel>촬영</SectionLabel>
           <Panel className="divide-y divide-line">
@@ -208,19 +186,10 @@ export function VelocitySettingsFields({
                 label="카메라 위치"
                 value={values.cameraPos}
                 onChange={(cameraPos) => onChange({ cameraPos })}
-                options={CAMERA_OPTIONS.map((o) => ({ value: o.key, label: o.label }))}
-                size="sm"
-              />
-            </ChoiceRow>
-            <ChoiceRow
-              title="네트"
-              hint={NET_OPTIONS.find((o) => o.key === values.net)?.hint}
-            >
-              <Segmented
-                label="네트"
-                value={values.net ? 'yes' : 'no'}
-                onChange={(v) => onChange({ net: v === 'yes' })}
-                options={NET_VALUES}
+                options={CAMERA_OPTIONS.map((o) => ({
+                  value: o.key,
+                  label: o.label,
+                }))}
                 size="sm"
               />
             </ChoiceRow>
@@ -250,8 +219,10 @@ function DistanceRow({
   return (
     <label className="flex min-h-14 items-center justify-between gap-3 px-4 py-3">
       <span className="min-w-0">
-        <span className="block text-sm text-ink">{title}</span>
-        <span className="block text-xs leading-snug text-muted">{hint}</span>
+        <span className="block text-subhead text-ink">{title}</span>
+        <span className="mt-0.5 block text-footnote leading-snug text-muted">
+          {hint}
+        </span>
       </span>
       <span className="inline-flex shrink-0 items-center gap-1 text-sm">
         <input
@@ -295,10 +266,12 @@ function ToggleRow({
       }`}
     >
       <span className="min-w-0">
-        <span className={`block text-sm ${disabled ? 'text-muted' : 'text-ink'}`}>
+        <span className={`block text-subhead ${disabled ? 'text-muted' : 'text-ink'}`}>
           {title}
         </span>
-        <span className="block text-xs leading-snug text-muted">{hint}</span>
+        <span className="mt-0.5 block text-footnote leading-snug text-muted">
+          {hint}
+        </span>
         {warning && (
           <span
             role="alert"
@@ -309,13 +282,8 @@ function ToggleRow({
           </span>
         )}
       </span>
-      <input
-        type="checkbox"
-        checked={checked}
-        disabled={disabled}
-        onChange={(e) => onChange(e.target.checked)}
-        className="h-6 w-6 shrink-0 accent-sky"
-      />
+      {/* 앱의 스위치(아이폰 설정 모양) — 예전에는 브라우저 기본 체크 상자였다 */}
+      <Switch checked={checked} disabled={disabled} onChange={onChange} />
     </label>
   );
 }
@@ -331,9 +299,9 @@ function ChoiceRow({
 }) {
   return (
     <div className="px-4 py-3">
-      <p className="text-sm text-ink">{title}</p>
+      <p className="text-subhead text-ink">{title}</p>
       <div className="mt-2">{children}</div>
-      {hint && <p className="mt-2 text-xs leading-snug text-muted">{hint}</p>}
+      {hint && <p className="mt-2 text-footnote leading-snug text-muted">{hint}</p>}
     </div>
   );
 }
@@ -389,10 +357,13 @@ export function useStoredSetup(): VelocitySetup | null {
  */
 export function VelocitySettingsButton({
   calibration,
+  isAdmin = false,
   className = '',
   label = '불펜 벨로시티 설정',
 }: {
   calibration: CalFit;
+  /** 관리자 — '스피드건 보정 적용' 줄 */
+  isAdmin?: boolean;
   className?: string;
   label?: string;
 }) {
@@ -457,52 +428,52 @@ export function VelocitySettingsButton({
       >
         <Settings2 aria-hidden className="h-4 w-4" />
       </button>
-      <BottomSheet
-        open={open}
-        onClose={() => setOpen(false)}
-        title="불펜 벨로시티 설정"
-      >
+      <BottomSheet open={open} onClose={() => setOpen(false)} title="구속 측정 설정">
         <div className="space-y-5">
           <VelocitySettingsFields
             values={values}
             onChange={change}
             calibration={calibration}
+            isAdmin={isAdmin}
           />
-          <div className="flex flex-wrap gap-2">
-            <Button
-              variant="secondary"
-              className="h-12 rounded-full px-4 text-sm"
-              onClick={() =>
-                saveSetup({
-                  sessionType: base.sessionType,
-                  cameraPos: base.cameraPos,
-                  net: base.net,
-                  zone: defaultZone(base.cameraPos),
-                  voice: base.voice,
-                  useCal: base.useCal,
-                  releaseDistM: base.releaseDistM,
-                  targetDistM: base.targetDistM,
-                  distAuto: base.distAuto,
-                  distTape: base.distTape,
-                  autoMode: base.autoMode,
-                  calibSave: base.calibSave,
-                  clipZone: base.clipZone,
-                  recordMode: base.recordMode,
-                  diagHud: base.diagHud,
-                })
-              }
-            >
-              스트라이크 존 자리 초기화
-            </Button>
-            <Button
-              variant="secondary"
-              className="h-12 rounded-full px-4 text-sm"
-              onClick={() => clearSetup()}
-            >
-              저장된 설정 지우기
-            </Button>
+          <div>
+            <SectionLabel>이 기기</SectionLabel>
+            <Panel className="divide-y divide-line">
+              <button
+                type="button"
+                className="flex min-h-12 w-full items-center px-4 py-3 text-left text-subhead text-sky transition-colors active:bg-ink/6"
+                onClick={() =>
+                  saveSetup({
+                    sessionType: base.sessionType,
+                    cameraPos: base.cameraPos,
+                    net: base.net,
+                    zone: defaultZone(base.cameraPos),
+                    voice: base.voice,
+                    useCal: base.useCal,
+                    releaseDistM: base.releaseDistM,
+                    targetDistM: base.targetDistM,
+                    distAuto: base.distAuto,
+                    distTape: base.distTape,
+                    autoMode: base.autoMode,
+                    calibSave: base.calibSave,
+                    clipZone: base.clipZone,
+                    recordMode: base.recordMode,
+                    diagHud: base.diagHud,
+                  })
+                }
+              >
+                스트라이크 존 자리 초기화
+              </button>
+              <button
+                type="button"
+                className="flex min-h-12 w-full items-center px-4 py-3 text-left text-subhead text-danger transition-colors active:bg-ink/6"
+                onClick={() => clearSetup()}
+              >
+                저장된 설정 지우기
+              </button>
+            </Panel>
           </div>
-          <p className="text-xs leading-relaxed text-muted">
+          <p className="-mt-2 px-1 text-footnote leading-snug text-muted">
             이 설정은 이 기기에만 남아요. 지우면 다음 측정 때 처음부터 다시 물어요.
           </p>
         </div>

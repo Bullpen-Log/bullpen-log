@@ -13,6 +13,7 @@ import {
   GOAL_LABELS,
   PLUS_RESERVE,
   PROGRAM_MIN_AGE,
+  RECOMMENDED_EQUIPMENT,
   TM_LOOKBACK_DAYS,
   equipmentBlock,
   profileBlock,
@@ -22,6 +23,8 @@ import {
   type ProgramGoal,
   type VariantKey,
 } from '@/lib/program/program';
+import { haptic } from '@/lib/haptics';
+import { Button } from '@/components/ui';
 
 /**
  * 근력 · 파워 프로그램 입구 한 줄 + 고르기 · 시작 시트(설계 §13-12 · 18).
@@ -37,11 +40,11 @@ import {
  */
 
 const GOALS: { value: ProgramGoal; label: string }[] = (
-  ['base', 'strength', 'power', 'inSeason'] as const
+  ['base', 'strength', 'power'] as const
 ).map((g) => ({ value: g, label: GOAL_LABELS[g] }));
 
 export type ProgramStartProps = {
-  /** 고를 수 있는 프로그램(lib/program/program.ts 의 programChoiceList) — 성인 일곱 + 기본기 */
+  /** 고를 수 있는 프로그램(lib/program/program.ts 의 programChoiceList) — 성인 다섯 + 기본기 */
   programs: ProgramChoice[];
   /** 생년월일이 없는가(가입 때 받지만 옛 계정에는 없을 수 있다) */
   needBirth: boolean;
@@ -60,6 +63,35 @@ export type ProgramStartProps = {
 };
 
 /** 'YYYY-MM-DD' → 오늘 만 나이. 모양이 아니면 null */
+/**
+ * 기본기 4주를 보이나 — 웨이트 경력 입문, 또는 나이로 성인 프로그램이 막힌 사람(그때는 기본기가 고를 수 있는 유일한 프로그램이다 —
+ * 막힘 글도 '기본기 4주로 자세부터 익혀요'라 가리면 갈 곳이 없다).
+ */
+function offersBasics(props: ProgramStartProps) {
+  return props.level === '입문' || props.blocked != null;
+}
+
+/** '4주 · 주 2~3번' — 목록 · 소개가 같이 쓴다 */
+function perWeekText(p: ProgramChoice) {
+  const n =
+    p.perWeek.length > 1 ? `${Math.min(...p.perWeek)}~${Math.max(...p.perWeek)}` : p.perWeek[0];
+  return `${p.weeks.length}주 · 주 ${n}번`;
+}
+
+/**
+ * 고르기 목록의 두 줄 — 무엇을(summary) · 이런 분께(fit). 2026-10-16 김민: "고를 때 이게 뭔지 알기 쉽지 않다 — 길게 말고
+ * 핵심만, 뭘 왜 하는 건지". 처음엔 하루 짜임(how) · 왜(why)까지 네 줄이었는데 프로그램마다 200자 남짓이라 목록 한 장이 글 덩어리였다
+ * (같은 날 UI 검토). 하루 짜임 · 왜는 줄을 누르면 나오는 소개(step 'intro')에 그대로 있다 — 지우지 않고 한 번 누른 뒤로 옮겼다.
+ */
+function ProgramGist({ p }: { p: ProgramChoice }) {
+  return (
+    <span className="mt-0.5 block space-y-0.5 text-xs break-keep">
+      <span className="block text-ink/80">{p.summary}</span>
+      {p.fit && <span className="block text-muted">이런 분께 · {p.fit}</span>}
+    </span>
+  );
+}
+
 function ageOf(birth: string): number | null {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(birth)) return null;
   const [by, bm, bd] = birth.split('-').map(Number);
@@ -83,12 +115,10 @@ export function ProgramStart({ props }: { props: ProgramStartProps }) {
   const adultCount = props.programs.filter((p) => p.audience === 'adult').length;
   /*
    * 만 12세 이하는 기본기도 못 한다 — 카드를 안 그린다(시트 목록에는 남아 누르면 까닭을 본다).
-   * 웨이트 경력이 입문 · 초급인 사람에게만 카드를 보인다(2026-10-12 사용자) — 그 위는 시트 목록에서만 고른다.
+   * 기본기는 웨이트 경력이 입문인 사람에게만 권한다(2026-10-16 김민 — 10-12 의 '입문 · 초급'에서 줄임). 카드 · 시트 목록 둘 다.
    */
   const showBasics =
-    basicsChoice != null &&
-    props.basicsBlocked == null &&
-    (props.level === '입문' || props.level === '초급');
+    basicsChoice != null && props.basicsBlocked == null && offersBasics(props);
   /* 성인 프로그램이 막힌 사람에게는 기본기가 먼저다 */
   const recommend = showBasics && props.blocked != null;
 
@@ -100,15 +130,15 @@ export function ProgramStart({ props }: { props: ProgramStartProps }) {
     >
       <span className="min-w-0 flex-1">
         <span className="flex flex-wrap items-center gap-1.5">
-          <span className="text-[15px] font-semibold text-ink">{basicsChoice.name}</span>
+          <span className="text-subhead font-semibold text-ink">{basicsChoice.name}</span>
           {recommend && (
-            <span className="rounded-md bg-sky px-1.5 py-0.5 text-[10px] font-semibold text-white">
+            <span className="rounded-lg bg-sky px-1.5 py-0.5 text-caption font-semibold text-white">
               추천
             </span>
           )}
         </span>
         <span className="block text-xs text-muted break-keep">
-          처음이거나 만 {BASICS_MIN_AGE}~{PROGRAM_MIN_AGE - 1}세 · 무게 없이 자세부터 · 주{' '}
+          웨이트가 처음이면 · 무게 없이 자세부터 · 주{' '}
           {basicsChoice.perWeek[basicsChoice.perWeek.length - 1]}번 약 35분
         </span>
       </span>
@@ -125,7 +155,7 @@ export function ProgramStart({ props }: { props: ProgramStartProps }) {
         className="flex min-h-12 w-full items-center gap-3 rounded-2xl bg-surface px-(--block-pad) text-left"
       >
         <span className="min-w-0 flex-1">
-          <span className="block text-[15px] font-semibold text-ink">
+          <span className="block text-subhead font-semibold text-ink">
             근력 · 파워 프로그램
           </span>
           <span className="block text-xs text-muted break-keep">
@@ -267,7 +297,10 @@ function StartSheet({
         { error: OFFLINE_MESSAGE }
       );
       if ('error' in r) setError(r.error);
-      else onClose();
+      else {
+        haptic('success');
+        onClose();
+      }
     });
 
   /*
@@ -301,7 +334,9 @@ function StartSheet({
             ? pins != null && changing == null
             : true;
 
-  const basicsChoices = props.programs.filter((p) => p.audience === 'basics');
+  const basicsChoices = offersBasics(props)
+    ? props.programs.filter((p) => p.audience === 'basics')
+    : [];
   const shown = props.programs.filter((p) => p.audience === 'adult' && p.goal === goal);
   const changingLabel = pins?.find((x) => x.variant === changing)?.label ?? '';
 
@@ -344,16 +379,14 @@ function StartSheet({
               >
                 <span className="min-w-0 flex-1">
                   <span className="flex flex-wrap items-center gap-1.5">
-                    <span className="text-[15px] font-semibold text-ink">{p.name}</span>
+                    <span className="text-subhead font-semibold text-ink">{p.name}</span>
                     {props.blocked && !props.basicsBlocked && (
-                      <span className="rounded-md bg-sky px-1.5 py-0.5 text-[10px] font-semibold text-white">
+                      <span className="rounded-lg bg-sky px-1.5 py-0.5 text-caption font-semibold text-white">
                         추천
                       </span>
                     )}
                   </span>
-                  <span className="block text-xs text-muted break-keep">
-                    처음이거나 만 {BASICS_MIN_AGE}~{PROGRAM_MIN_AGE - 1}세 · {p.summary}
-                  </span>
+                  <ProgramGist p={p} />
                 </span>
                 <ChevronRight aria-hidden className="h-4 w-4 shrink-0 text-muted" />
               </button>
@@ -379,12 +412,11 @@ function StartSheet({
                     className="flex min-h-14 w-full items-center gap-3 py-2 text-left"
                   >
                     <span className="min-w-0 flex-1">
-                      <span className="block text-[15px] font-semibold text-ink">
-                        {p.name}
+                      <span className="flex items-baseline justify-between gap-2">
+                        <span className="text-subhead font-semibold text-ink">{p.name}</span>
+                        <span className="shrink-0 text-caption text-muted">{perWeekText(p)}</span>
                       </span>
-                      <span className="block text-xs text-muted break-keep">
-                        {p.summary}
-                      </span>
+                      <ProgramGist p={p} />
                     </span>
                     <ChevronRight aria-hidden className="h-4 w-4 shrink-0 text-muted" />
                   </button>
@@ -397,13 +429,13 @@ function StartSheet({
         {step === 'intro' && choice && (
           <div className="space-y-3">
             <div className="space-y-1">
+              {/* 겉은 무엇 · 이런 분께만, 하루 짜임(how) · 왜(why)는 '자세히 보기' 안으로(2026-10-16 — 설명이 4줄이었다) */}
               <p className="text-sm text-ink break-keep">{choice.summary}</p>
+              {choice.fit && (
+                <p className="text-sm text-muted break-keep">이런 분께 · {choice.fit}</p>
+              )}
               <p className="text-xs text-muted">
-                {choice.weeks.length}주 · 주{' '}
-                {choice.perWeek.length > 1
-                  ? `${Math.min(...choice.perWeek)}~${Math.max(...choice.perWeek)}`
-                  : choice.perWeek[0]}
-                번 · {choice.origin}
+                {perWeekText(choice)} · {choice.origin}
               </p>
             </div>
             <div className="-mx-1 rounded-xl bg-ink/4">
@@ -414,6 +446,12 @@ function StartSheet({
               />
               {weeksOpen && (
                 <div className="space-y-2 px-3 pb-3 text-xs leading-relaxed break-keep">
+                  {(choice.how || choice.why) && (
+                    <div className="space-y-1 text-ink/85">
+                      {choice.how && <p>{choice.how}</p>}
+                      {choice.why && <p>{choice.why}</p>}
+                    </div>
+                  )}
                   <ul className="space-y-1 text-muted">
                     {choice.detail.map((d) => (
                       <li key={d}>{d}</li>
@@ -432,7 +470,7 @@ function StartSheet({
                 {required.map((e) => (
                   <span
                     key={e}
-                    className="rounded-full border border-line-strong px-2.5 py-1 text-xs font-semibold text-ink"
+                    className="inline-flex min-h-10 items-center rounded-full border border-line-strong px-3 text-xs font-semibold text-ink"
                   >
                     {e}
                   </span>
@@ -446,13 +484,14 @@ function StartSheet({
             {choiceBlocked ? (
               <Blocked {...choiceBlocked} />
             ) : (
-              <button
+              <Button
                 type="button"
                 onClick={next}
-                className="min-h-12 w-full rounded-2xl bg-sky text-base font-bold text-white"
+                size="lg"
+                className="w-full"
               >
                 이걸로 할래요
-              </button>
+              </Button>
             )}
             <button
               type="button"
@@ -498,7 +537,7 @@ function StartSheet({
                   onClick={() => setLevel(l.name)}
                   className={`flex min-h-12 w-full items-center justify-between rounded-xl border px-3 text-left ${level === l.name ? 'border-sky bg-sky/8' : 'border-line'}`}
                 >
-                  <span className="text-[15px] text-ink">{l.name}</span>
+                  <span className="text-subhead text-ink">{l.name}</span>
                   <span className="text-xs text-muted">{l.desc}</span>
                 </button>
               ))}
@@ -542,6 +581,11 @@ function StartSheet({
             {missing.length > 0 && owned.length > 0 && (
               <p className="text-sm text-muted">{missing.join(', ')}도 있어야 해요.</p>
             )}
+            {!basics && (
+              <p className="text-xs text-muted">
+                권장: {RECOMMENDED_EQUIPMENT.join(' · ')}. 있으면 보조 운동이 다양해져요.
+              </p>
+            )}
           </div>
         )}
 
@@ -573,7 +617,7 @@ function StartSheet({
                           );
                           setChanging(null);
                         }}
-                        className="flex min-h-12 w-full items-center text-left text-[15px] text-ink"
+                        className="flex min-h-12 w-full items-center text-left text-subhead text-ink"
                       >
                         {c.title}
                       </button>
@@ -592,7 +636,7 @@ function StartSheet({
                   >
                     <span className="min-w-0">
                       <span className="block text-xs text-muted">{x.label}</span>
-                      <span className="block truncate text-[15px] text-ink">
+                      <span className="block truncate text-subhead text-ink">
                         {x.title ?? '할 수 있는 운동이 없어요'}
                       </span>
                     </span>
@@ -634,6 +678,16 @@ function StartSheet({
                   ? `기준 무게는 시작 전 ${TM_LOOKBACK_DAYS / 7}주 기록으로 정해요. 기록이 없으면 첫날 ${PLUS_RESERVE}개 남는 무게로 정해요.`
                   : '기록이 없으면 처음엔 몇 개 남는 무게로 맞추고, 그 뒤부터 추천해요.'}
             </p>
+            {/* 권장 장비(메디신볼 · 박스)가 빠졌으면 — 막지는 않고, 비슷한 운동으로 바꿔 넣는다 */}
+            {!basics &&
+              RECOMMENDED_EQUIPMENT.some((e) => !(props.owned.length > 0 ? props.owned : owned).includes(e)) && (
+                <p className="text-muted break-keep">
+                  {RECOMMENDED_EQUIPMENT.filter((e) => !(props.owned.length > 0 ? props.owned : owned).includes(e)).join(
+                    ' · '
+                  )}
+                  가 있으면 보조 운동이 다양해져요. 없으면 비슷한 운동으로 바꿔 넣어요.
+                </p>
+              )}
           </div>
         )}
 
@@ -641,21 +695,24 @@ function StartSheet({
 
         {step !== 'list' && step !== 'intro' && (
           <div className="flex gap-2">
-            <button
+            <Button
               type="button"
+              variant="secondary"
+              size="lg"
               onClick={() => (changing ? setChanging(null) : back())}
-              className="min-h-12 flex-1 rounded-2xl bg-ink/6 text-base font-medium text-ink"
+              className="flex-1"
             >
               뒤로
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
               disabled={!canNext || pending}
               onClick={step === 'summary' ? submit : next}
-              className="min-h-12 flex-[2] rounded-2xl bg-sky text-base font-bold text-white disabled:opacity-40"
+              size="lg"
+              className="flex-[2]"
             >
               {step === 'summary' ? (pending ? '시작하는 중…' : '시작') : '다음'}
-            </button>
+            </Button>
           </div>
         )}
       </div>

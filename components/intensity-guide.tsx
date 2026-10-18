@@ -45,32 +45,32 @@ import { ChevronDown, Info } from '@/components/icon';
 export type IntensityKind = 'pitch' | 'training';
 
 /*
- * 투구는 체감 강도 %(2판 D2, 2026-10-12 — 입력은 components/effort-chips.tsx). 띠는 예전 1~10 의 두 칸씩을 × 10 한 것이라
- * 뜻이 그대로다(5 – 6 '절반쯤 힘' = 50–60%). 운동(TRAINING_LEVELS)은 1~10 그대로 — 운동 끝 힘듦 · 부하 배수가 그 눈금을 읽는다.
+ * 투구도 1~10(2026-10-18 % 에서 되돌림 — 입력은 components/effort-chips.tsx, 저장은 그 × 10 %). 운동(TRAINING_LEVELS)도 1~10 —
+ * 운동 끝 힘듦 · 부하 배수가 그 눈금을 읽는다.
  */
 const PITCH_LEVELS = [
   {
-    range: '10–20%',
+    range: '1 – 2',
     label: '몸 푸는 정도',
     detail: '가까운 거리 캐치볼. 숨이 차지 않고 팔에 힘을 거의 안 써요.',
   },
   {
-    range: '30–40%',
+    range: '3 – 4',
     label: '편하게',
     detail: '롱토스 워밍업, 가벼운 플랫. 폼을 확인하는 정도로 던져요.',
   },
   {
-    range: '50–60%',
+    range: '5 – 6',
     label: '절반쯤 힘',
     detail: '불펜 초반이나 폼 점검. 여유 있게 던지지만 제대로 된 투구 동작이에요.',
   },
   {
-    range: '70–80%',
+    range: '7 – 8',
     label: '세게',
     detail: '불펜 본 세션, 라이브. 경기와 비슷하지만 아직 여유가 남아 있어요.',
   },
   {
-    range: '90–100%',
+    range: '9 – 10',
     label: '전력',
     detail: '경기, 최고 구속 측정. 더 세게는 못 던져요.',
   },
@@ -118,9 +118,7 @@ export function IntensityGuide({ kind }: { kind: IntensityKind }) {
       >
         <Info className="h-3.5 w-3.5 shrink-0 text-sky" />
         <span className="flex-1 text-xs text-muted">
-          {kind === 'pitch'
-            ? '체감 강도를 어떻게 정하나요?'
-            : '강도를 어떻게 정하나요?'}
+          강도를 어떻게 정하나요?
         </span>
         <ChevronDown
           className={`h-3.5 w-3.5 shrink-0 text-muted transition-transform ${open ? 'rotate-180' : ''}`}
@@ -142,7 +140,7 @@ export function IntensityGuide({ kind }: { kind: IntensityKind }) {
                   <span className="block text-xs font-semibold text-ink">
                     {l.label}
                   </span>
-                  <span className="mt-0.5 block text-[11px] leading-relaxed text-muted">
+                  <span className="mt-0.5 block text-caption leading-relaxed text-muted">
                     {l.detail}
                   </span>
                 </span>
@@ -155,17 +153,16 @@ export function IntensityGuide({ kind }: { kind: IntensityKind }) {
               낮게 적고 싶은 마음을 막는 한 줄. 이 숫자로 휴식일이 정해지므로
               "살살 던졌다"고 낮춰 적으면 덜 쉬라는 답이 돌아온다.
             */
-            <p className="rounded-lg border border-warn-line bg-warn-bg px-3 py-2 text-[11px] leading-relaxed text-warn">
-              <strong>느낌보다 팔에 가는 부담은 커요.</strong> 연구에 따르면 절반 힘으로
-              던져도 구속은 최고의 80%가 나오고, 팔꿈치에 걸리는 힘은 75%나 돼요. 가볍게
-              느껴져도 실제로 던진 만큼 적어주세요.
+            <p className="rounded-lg border border-warn-line bg-warn-bg px-3 py-2 text-caption leading-relaxed text-warn">
+              <strong>느낌보다 팔에 가는 부담은 커요.</strong> 절반 힘으로 던져도 팔꿈치에는
+              최고의 75% 가 걸려요. 가볍게 느껴져도 던진 만큼 적어 주세요.
             </p>
           ) : (
             /*
               끝나자마자 물으면 마지막 운동으로 답하기 쉽다. 안전과 걸린 문제는
               아니라서 경고 색이 아니라 안내 색으로 둔다.
             */
-            <p className="rounded-lg border border-sky-soft/60 bg-sky-tint px-3 py-2 text-[11px] leading-relaxed text-sky-strong">
+            <p className="rounded-lg border border-sky-soft/60 bg-sky-tint px-3 py-2 text-caption leading-relaxed text-sky-strong">
               <strong>오늘 운동 전체를 합쳐서 떠올려 주세요.</strong> 마지막 운동이
               아니라 처음부터 끝까지 합친 느낌이 기준이에요.
             </p>

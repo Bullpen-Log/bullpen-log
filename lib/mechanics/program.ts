@@ -61,6 +61,13 @@ export function isFilmVerdict(value: unknown): value is FilmVerdict {
   return value === 'better' || value === 'same' || value === 'unsure';
 }
 
+/**
+ * 오늘 드릴로 던진 공을 투구 기록에 남겼나(2026-10-16 사용자: "기록에 바로 넣으면 투구 기록과 겹치니 카드로 알리고, 투구 기록하면 없어지게").
+ * on: 그날 처음 스로잉 드릴을 한 날 · base: 그때 그날 투구 기록의 투구수 합 — 그 뒤 합이 늘면(새 기록 · 기존 기록에 더하기) 남긴 것으로 본다.
+ * PitchLog 에 고친 시각이 없어 시각으로는 못 가린다. closed: '이미 넣었어요 · 안 적을래요'로 그날 닫음.
+ */
+export type ThrowLog = { on: string; base: number; closed: boolean };
+
 /** MechanicsProgram.progress 에 두는 것 */
 export type ProgramState = {
   /** 고른 수준 — 안 골랐으면 null */
@@ -70,6 +77,8 @@ export type ProgramState = {
   feels: FeelCounts;
   /** 찍어서 견준 결과 — 세션 번호 순. 2026-10-09 앞에 쓴 줄에는 없다(빈 목록) */
   films: FilmNote[];
+  /** 오늘 드릴로 던진 공의 기록 알림 — 2026-10-16 앞에 쓴 줄 · 스로잉 드릴을 안 한 날은 null */
+  throwLog: ThrowLog | null;
 };
 
 /** 다음 수준을 권하는 데 필요한 '쉬움' 날 수(요소마다) · 그런 요소 수 */
@@ -136,6 +145,12 @@ export function withFilm(films: readonly FilmNote[], note: FilmNote): FilmNote[]
  * DB 의 progress(Json) → 진행. 지금 모양은 { v: 2, level, index, feels, films }. 옛 모양(요소 이름이 맨 위에 있고 stage 를 둔
  * 것)은 수준을 안 고른 것으로 읽는다 — 옛 '단계'는 새 수준과 뜻이 달라 옮기지 않는다. films 가 없는 줄은 빈 목록.
  */
+function readThrowLog(raw: unknown): ThrowLog | null {
+  const v = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
+  const on = dayOf(v.on);
+  return on ? { on, base: countOf(v.base), closed: v.closed === true } : null;
+}
+
 export function readProgramState(json: unknown): ProgramState {
   const raw = (json && typeof json === 'object' ? json : {}) as Record<string, unknown>;
   if (raw.v !== 2) return freshState(null);
@@ -145,18 +160,97 @@ export function readProgramState(json: unknown): ProgramState {
     index: level ? countOf(raw.index, SESSIONS_PER_LEVEL) : 0,
     feels: readFeels((raw.feels && typeof raw.feels === 'object' ? raw.feels : {}) as Record<string, unknown>),
     films: readFilms(raw.films),
+    throwLog: readThrowLog(raw.throwLog),
   };
 }
 
 /** 진행 → DB 에 쓸 Json */
 export function programStateJson(state: ProgramState) {
-  return { v: 2, level: state.level, index: state.index, feels: state.feels, films: state.films };
+  return {
+    v: 2,
+    level: state.level,
+    index: state.index,
+    feels: state.feels,
+    films: state.films,
+    throwLog: state.throwLog,
+  };
 }
 
-/** 새로 시작하는 수준 — 세션 0, 느낌도 처음부터(다른 수준의 쉬움을 끌고 오지 않는다). 견준 결과는 부르는 쪽이 이어 붙인다 */
+/** 새로 시작하는 수준 — 세션 0, 느낌도 처음부터(다른 수준의 쉬움을 끌고 오지 않는다). 견준 결과 · 던진 공 알림은 부르는 쪽이 이어 붙인다 */
 export function freshState(level: LevelKey | null): ProgramState {
-  return { level, index: 0, feels: readFeels({}), films: [] };
+  return { level, index: 0, feels: readFeels({}), films: [], throwLog: null };
 }
+
+/* ------------------------- 드릴로 던진 공 알림(2026-10-16) ------------------------- */
+
+/** 스로잉 드릴인가 — 투구 기록에 남길 공은 이것만(메디신볼은 투구가 아니라 뺀다) */
+export const isThrowingDrill = (category: string) => category === THROWING;
+
+/** 처음 스로잉 드릴을 한 때 — 그날 처음이면 그때 투구수 합을 기억한다(이미 기억했으면 그대로) */
+export function withThrowLog(state: ProgramState, todayKey: string, pitchedToday: number): ProgramState {
+  if (state.throwLog?.on === todayKey) return state;
+  return { ...state, throwLog: { on: todayKey, base: Math.max(0, Math.floor(pitchedToday)), closed: false } };
+}
+
+/**
+ * 투구 기록 칸에 미리 채울 체감 강도 — 단계마다 하는 세기의 위쪽 끝(STAGE_TEMPO: 기초 50~60 · 연결 60~70 · 통합 60~75%).
+ * 부하를 덜 세지 않게 위쪽으로 잡는다.
+ */
+export const DRILL_THROW_EFFORT: Record<DrillStage, number> = { 기초: 60, 연결: 70, 통합: 75 };
+
+export type DrillThrowNote = {
+  throws: number;
+  effortPct: number;
+  /** 투구 기록 화면 — 그날 기록 칸이 채워져 열린다(drillThrowHref) */
+  href: string;
+};
+
+/**
+ * 오늘 드릴로 던진 공을 투구 기록에 남기라고 알릴까 — 알릴 것이 없으면 null.
+ * throws: 오늘 '했다'로 남은 스로잉 드릴마다 처방 세트 × 횟수(doseOf — 실제로 몇 번 던졌는지는 모른다, 어림).
+ * 오늘 처음 스로잉 드릴을 한 뒤 투구 기록의 합이 늘었거나(남겼다) 닫았으면 null.
+ */
+export function drillThrowNote({
+  throwLog,
+  todayKey,
+  doneToday,
+  pitchedToday,
+}: {
+  throwLog: ThrowLog | null;
+  todayKey: string;
+  /** 오늘 '했다'로 남은 드릴의 분류 · 단계 */
+  doneToday: readonly { category: string; stage: string | null }[];
+  /** 지금 오늘 투구 기록의 투구수 합 */
+  pitchedToday: number;
+}): DrillThrowNote | null {
+  if (!throwLog || throwLog.on !== todayKey || throwLog.closed) return null;
+  if (pitchedToday > throwLog.base) return null;
+  const throwing = doneToday.filter((d) => isThrowingDrill(d.category));
+  if (throwing.length === 0) return null;
+  const stages = throwing.map((d) =>
+    (DRILL_STAGE_NAMES as readonly string[]).includes(d.stage ?? '') ? (d.stage as DrillStage) : '기초'
+  );
+  const throws = throwing.reduce((sum, d, i) => {
+    const dose = doseOf(d.category, stages[i]);
+    return sum + dose.sets * dose.reps;
+  }, 0);
+  const effortPct = Math.max(...stages.map((s) => DRILL_THROW_EFFORT[s]));
+  return { throws, effortPct, href: drillThrowHref(todayKey, throws, effortPct) };
+}
+
+/** 알림 글 — 해요체 · 줄표 없이 */
+export const DRILL_THROW_TEXT = {
+  line: (n: number) => `드릴로 공을 약 ${n}회 던졌어요`,
+  record: '투구 기록에 남기기',
+  done: '이미 넣었어요',
+  skip: '안 적을래요',
+  /** 투구 기록 칸에 미리 채울 메모 */
+  memo: (n: number) => `메커니즘 드릴 ${n}회`,
+} as const;
+
+/** 투구 기록 화면으로 — 그날 기록 칸이 캐치볼 · 투구수 · 체감 강도 · 메모로 채워져 열린다(app/(app)/pitch-log/[date]/load.ts) */
+export const drillThrowHref = (todayKey: string, throws: number, effortPct: number) =>
+  `/pitch-log/${todayKey}?drill=${throws}&pct=${effortPct}`;
 
 /**
  * 느낌 하나를 센다(today = 'YYYY-MM-DD'). 저절로 수준을 바꾸지 않는다.
@@ -261,6 +355,7 @@ export type SessionItem = {
 const MOVEMENT = '무브먼트 패턴 드릴';
 const MEDBALL = '메디신볼 드릴';
 const THROWING = '스로잉 드릴';
+const STRENGTH = '근력 · 안정 드릴';
 
 export type Dose = { sets: number; reps: number };
 
@@ -281,6 +376,8 @@ const DOSES: Record<string, Record<DrillStage, Dose>> = {
   [MOVEMENT]: { 기초: MOVEMENT_DOSE, 연결: MOVEMENT_DOSE, 통합: MOVEMENT_DOSE },
   [MEDBALL]: { 기초: MEDBALL_DOSE, 연결: MEDBALL_DOSE, 통합: MEDBALL_DOSE },
   [THROWING]: { 기초: THROWING_DOSE, 연결: THROWING_DOSE, 통합: THROWING_DOSE },
+  /* 근력 · 안정은 무브먼트와 같은 양 — 버티는 드릴은 '회'를 '초'로 읽게 설명에 적혀 있다 */
+  [STRENGTH]: { 기초: MOVEMENT_DOSE, 연결: MOVEMENT_DOSE, 통합: MOVEMENT_DOSE },
 };
 
 /** 단계마다 어떻게 할지 — 따라 하기의 처방 밑 한 줄. 스로잉은 [T7] 의 세 걸음 */
@@ -298,6 +395,7 @@ export const STAGE_TEMPO: Record<DrillStage, string> = {
 const CATEGORY_TEMPO: Record<string, string> = {
   [MEDBALL]: '처음 몇 번은 동작을 익히고, 몸에 익으면 빠르게 던져요',
   [MOVEMENT]: '처음에는 천천히 정확하게, 익숙해지면 속도를 올려요',
+  [STRENGTH]: '자세를 정확히 잡고, 버티는 동안 흔들리지 않게 해요',
 };
 
 /** 이만큼 세션마다 영상을 찍어 처음과 견주게 한다(2분할 비교) */
@@ -395,12 +493,15 @@ export function buildLevelSession({
       picks.push({ drill, variant: own, replaced: null, need: [] });
       continue;
     }
-    /* 이 드릴을 할 장비가 없다 — 같은 요소 · 같은 단계의 할 수 있는 드릴로 */
+    /*
+     * 이 드릴을 할 장비가 없다 — 같은 주 요소 · 같은 단계의 할 수 있는 드릴로. 보조로만 그 요소를 쓰는 드릴은 넣지 않는다 — 주 요소가 달라져
+     * 세션의 투구 차례(하체 → 상체)가 깨지고 그 요소가 빠졌다(2026-10-16, 맨몸 · 야구공만인 고급 9 · 12번째). 없으면 그대로 두고 알린다.
+     */
     const need = missingGear(drill.variants[0], owned);
     const alt = isElementName(element)
-      ? candidates(drills, element, stageOf(drill))
-          .flat()
-          .find((d) => !used.has(d.title) && usableVariant(d, owned))
+      ? candidates(drills, element, stageOf(drill))[0].find(
+          (d) => !used.has(d.title) && usableVariant(d, owned)
+        )
       : undefined;
     const altVariant = alt ? usableVariant(alt, owned) : null;
     if (alt && altVariant) {
@@ -436,13 +537,13 @@ export function buildLevelSession({
 /* -------------------------- 팔이 아픈 날 접기(D5) -------------------------- */
 
 /**
- * 팔에 싣는 드릴인가 — 고른 도구의 분류(MechanicsGuide.category)가 무브먼트 패턴 드릴이 아니면 다 그렇다고 본다.
+ * 팔에 싣는 드릴인가 — 고른 도구의 분류(MechanicsGuide.category)가 무브먼트 패턴 · 근력 · 안정 드릴이 아니면 다 그렇다고 본다.
  * 스로잉 드릴은 공을 던지고, 메디신볼 드릴은 공을 던지거나 내리친다. 분류 이름은 DB 글자라 모르는 분류(새 분류 · 오타)가
  * 오면 접는 쪽이 안전하다. 이름(P1~P5)이나 동작 묶음으로 가르지 않는다 — 한 묶음에 스로잉 · 메디신볼 도구가 섞여 있다
  * (운영 DB 98묶음 중 11). 메커니즘 화면 · 따라 하기 · 시험이 모두 이 하나를 쓴다.
  */
 export function isArmLoaded(category: string): boolean {
-  return category !== MOVEMENT;
+  return category !== MOVEMENT && category !== STRENGTH;
 }
 
 /**

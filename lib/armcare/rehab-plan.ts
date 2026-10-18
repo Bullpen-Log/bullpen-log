@@ -293,7 +293,9 @@ export function rehabStartBlock({
     age != null &&
     age < REHAB_YOUTH_AGE &&
     REHAB_REGIONS[area].youthNeedsDiagnosis &&
-    !condition
+    !condition &&
+    /* 고를 병명이 없는 부위(팔꿈치 바깥쪽)는 막지 않고 진료 안내만 — rehabStartNotice(2026-10-18 김민) */
+    conditionsFor(area).length > 0
   ) {
     return {
       kind: 'xray',
@@ -301,6 +303,33 @@ export function rehabStartBlock({
     };
   }
   return null;
+}
+
+/**
+ * 시작은 되지만 먼저 알릴 것 — 18세 미만 + 진단을 받아야 하는 부위인데 고를 병명이 없는 곳(팔꿈치 바깥쪽).
+ * 2026-10-18 김민: "진료를 먼저 받으라고 안내하고 앱 재활도 열어줘" — 예전엔 '진단을 받으면 병명으로 시작'이라 했지만
+ * 그 부위의 병명이 없어 영영 못 열었다.
+ */
+export function rehabStartNotice({
+  age,
+  area,
+  condition,
+}: {
+  age: number | null;
+  area: ArmcareAreaKey;
+  condition: RehabConditionKey | null;
+}): string | null {
+  if (
+    age == null ||
+    age < ARM_PAIN_ROUTINE_MIN_AGE ||
+    age >= REHAB_YOUTH_AGE ||
+    !REHAB_REGIONS[area].youthNeedsDiagnosis ||
+    condition ||
+    conditionsFor(area).length > 0
+  ) {
+    return null;
+  }
+  return `18세 미만이 ${withJosa(areaLabel(area), '이/가')} 아프면 진료를 먼저 받아 보세요. 성장판 · 연골이 다쳤을 수 있어요. 시작은 할 수 있지만 의사 · 치료사의 지시가 먼저예요.`;
 }
 
 /* ─────────────────────────────── 단계별 운동 ─────────────────────────────── */
@@ -695,7 +724,7 @@ export function sessionResultText(
   const after = afterBadSession(s);
   switch (s.result) {
     case 'green':
-      return '초록이에요. 잘했어요. 다음에도 이대로 해요.';
+      return '초록이에요. 다음에도 이 강도로 해요.';
     case 'yellow':
       return '노랑이에요. 다음에도 같은 운동을 다시 해요. 아직 올리지 않아요.';
     case 'refer':

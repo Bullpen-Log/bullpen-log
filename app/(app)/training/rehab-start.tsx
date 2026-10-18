@@ -8,6 +8,7 @@ import { Button, Input } from '@/components/ui';
 import { ErrorLine } from '@/components/error-line';
 import { OFFLINE_MESSAGE, orOffline } from '@/lib/action-offline';
 import { ARM_PAIN_LEVELS } from '@/lib/checkin';
+import { toDateKey } from '@/lib/pitch-stats';
 import type { ArmcareAreaKey } from '@/lib/armcare/anatomy';
 import {
   REHAB_ACTIVITY_MAX_LENGTH,
@@ -22,6 +23,7 @@ import {
   rehabNotes,
   rehabSeverity,
   rehabStartBlock,
+  rehabStartNotice,
   rehabTitle,
   severityLabel,
   startStage,
@@ -388,9 +390,11 @@ function Summary({
   activities: string[];
 }) {
   const block = rehabStartBlock({ age, area, condition });
+  const notice = rehabStartNotice({ age, area, condition });
   const severity = rehabSeverity({ level, worst, condition });
   const stage = startStage(severity);
-  const today = new Date().toISOString().slice(0, 10);
+  /* 한국 날짜 — toISOString 은 UTC 라 한국 0~9시에 어제가 됐다(2026-10-16 통합 시험) */
+  const today = toDateKey(new Date());
   const throwing = rehabFacts(
     {
       area,
@@ -409,6 +413,12 @@ function Summary({
 
   return (
     <section className="space-y-4 text-sm leading-relaxed break-keep">
+      {notice && (
+        <p className="flex items-start gap-2 rounded-xl border border-warn-line bg-warn-bg px-3.5 py-2.5 text-warn">
+          <Stethoscope aria-hidden className="mt-0.5 h-4 w-4 shrink-0" />
+          <span>{notice}</span>
+        </p>
+      )}
       {severity === 'severe' && (
         <p className="flex items-start gap-2 rounded-xl border border-warn-line bg-warn-bg px-3.5 py-2.5 text-warn">
           <Stethoscope aria-hidden className="mt-0.5 h-4 w-4 shrink-0" />

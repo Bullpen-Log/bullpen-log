@@ -18,8 +18,8 @@ export const SHOOT_CAMERA_PLUGIN = 'ShootCamera';
 /** 찍을 수 있는 가장 긴 길이(초) — 영상 하나는 3분 안에 찍는다(촬영 계획) */
 export const MAX_RECORD_SECONDS = 180;
 
-/** 한 번에 넘겨받는 크기 — 앱 쪽 상한 4MB 안 */
-const CHUNK = 2 * 1024 * 1024;
+/** 한 번에 넘겨받는 크기 — 앱 쪽 상한(4MB) 그대로. 오가는 횟수가 반으로 줄어 넘겨받기가 빨라진다(2026-10-18, 2MB 에서) */
+const CHUNK = 4 * 1024 * 1024;
 
 type Bridge = {
   isPluginAvailable?: (name: string) => boolean;

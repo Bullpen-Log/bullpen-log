@@ -1,4 +1,4 @@
-import { add, type Vec3 } from '@/lib/pitch-3d/linalg';
+import { add, norm, scale, sub, type Vec3 } from '@/lib/pitch-3d/linalg';
 import { V2J, type Pitch3dV2Ok, type V2Contact } from '@/lib/pitch-3d/v2/contract';
 import {
   kinematicTrack,
@@ -285,6 +285,51 @@ export function despike(frames: Vec3[][], hand: 'R' | 'L', release: number): Vec
 }
 
 /**
+ * 가려진 앞발 일찍 묶기(화면만) — 엔진은 앞발이 묶을 자리 근처로 와야 땅에 묶는데, 착지 무렵 앞발이 가려지거나 번져 메워 넣은 발(확신 LEAD_HIDDEN_CONF
+ * 밑)이 그 자리에서 떨어져 있으면 6~17장면 늦게 묶여, 그사이 디딘 발이 옆으로 15~35cm 미끄러지다 툭 붙었다(2026-10-15 실험실 샘플 2 · 4 · 5 · 10).
+ * 그 앞발 묶음을 착지(footPlant)까지 앞으로 늘리고(발 전체가 닿는 때까지만 늘리면 뒤꿈치 ~ 발바닥 사이에 16cm 가 남았다), 늘린 장면의 앞발(발목 · 뒤꿈치 · 발끝)은 묶일 자리(원래 묶음 첫 장면)에 둔다 —
+ * 무릎은 화면이 두 마디로 다시 접고 발끝 쪽으로 맞춘다(kinematicTrack). 엔진에서 하면 무릎이 엉덩이와 묶인 발 사이에 끼여 꺾였다(마커 · 샘플 10).
+ * 잘 보이는 앞발(마커 투구 등)은 엔진이 구르며 자리 잡는 때를 맞게 잡으니 그대로.
+ */
+export function pinLeadEarly(
+  raw: Vec3[][],
+  conf: number[][],
+  contacts: V2Contact[],
+  result: Pick<Pitch3dV2Ok, 'hand' | 'events'>
+): { raw: Vec3[][]; contacts: V2Contact[] } {
+  const lead = result.hand === 'L' ? 'R' : 'L';
+  const foot = lead === 'L' ? [V2J.lAn, V2J.lHe, V2J.lTo] : [V2J.rAn, V2J.rHe, V2J.rTo];
+  const fp = result.events.footPlant;
+  const i = contacts.findIndex((c) => c.side === lead && c.from > fp && c.from <= result.events.release);
+  if (i < 0) return { raw, contacts };
+  const c = contacts[i];
+  const seen: number[] = [];
+  for (let k = fp; k < c.from; k++) seen.push(Math.max(...foot.map((j) => conf[k]?.[j] ?? 0)));
+  if (!seen.length || median(seen) >= LEAD_HIDDEN_CONF) return { raw, contacts };
+  const out = raw.map((fr) => fr.slice());
+  /*
+   * 묶일 자리가 그 장면 엉덩이에서 엔진 다리(엉덩이 → 발목 거리)보다 멀면 그쪽으로 닿는 만큼만 — 그대로 두면 화면이 정강이를 늘려 발을 닿게 해
+   * 무릎이 펴졌다(2026-10-15 김민 "샘플 4 왼무릎이 이상": 착지 무렵 정강이 250 → 317mm, 엔진 무릎 24~34° 가 화면 2~6°). 엉덩이가 나아가며 발이 자리에 닿는다.
+   */
+  const [an] = foot;
+  const hip = lead === 'L' ? V2J.lHip : V2J.rHip;
+  for (let k = fp; k < c.from; k++) {
+    const reach = norm(sub(raw[k][an], raw[k][hip])) + REACH_SLACK;
+    const to = sub(raw[c.from][an], raw[k][hip]);
+    const d = norm(to);
+    const shift: Vec3 = d > reach ? scale(to, reach / d - 1) : [0, 0, 0];
+    for (const j of foot) out[k][j] = add(raw[c.from][j], shift);
+  }
+  const cs = contacts.slice();
+  cs[i] = { ...c, from: fp };
+  return { raw: out, contacts: cs };
+}
+/** 이 확신(0~100) 밑이면 메워 넣은 앞발로 본다 — 엔진이 관찰 없이 채운 관절은 30 */
+const LEAD_HIDDEN_CONF = 40;
+/** 다리를 엔진의 엉덩이 → 발목 거리보다 더 펴도 되는 몫(키 1 기준, 0.5%) */
+const REACH_SLACK = 0.005;
+
+/**
  * 보기용 관절 — 결과 하나와 던진 곳(마운드 · 평지) · 키(m).
  */
 export function displayTrack(
@@ -297,7 +342,8 @@ export function displayTrack(
   );
   let conf = result.conf;
   const n = raw.length;
-  const contacts = readContacts(result);
+  let contacts = readContacts(result);
+  ({ raw, contacts } = pinLeadEarly(raw, conf, contacts, result));
   const ai = opts.ai ? readAiJoints(result) : null;
   if (ai) ({ frames: raw, conf } = blendAi(raw, ai, conf, contacts, readAiMiss(result), readAiGate(result)));
   /*

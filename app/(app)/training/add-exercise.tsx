@@ -17,6 +17,7 @@ import {
   type Prescription,
 } from '@/lib/exercise-meta';
 import { MoreButton } from '@/components/disclosure';
+import { haptic } from '@/lib/haptics';
 
 /**
  * 목록에 운동을 더하는 창.
@@ -134,7 +135,7 @@ export function AddExercise({
       if ('error' in res) {
         setAdded((prev) => prev.filter((x) => x !== id));
         setError(res.error);
-      }
+      } else haptic('success');
     });
   };
 
@@ -262,7 +263,7 @@ export function AddExercise({
                         하고 말고는 본인이 정한다.
                       */}
                       {(notSafe || missing.length > 0) && (
-                        <p className="flex items-start gap-1.5 text-[11px] leading-relaxed text-warn">
+                        <p className="flex items-start gap-1.5 text-caption leading-relaxed text-warn">
                           <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" />
                           {[
                             notSafe ? '오늘 몸 상태에는 권하지 않는 운동이에요' : null,

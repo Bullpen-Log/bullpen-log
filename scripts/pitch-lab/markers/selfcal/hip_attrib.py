@@ -3,6 +3,7 @@
   MARKER_WORK=.../work_v2 python hip_attrib.py [옆 뒤]   (기본 1 2)
 """
 import os, sys, json
+from cams import CAMS
 import numpy as np
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import bench as B
@@ -13,7 +14,7 @@ WORK = B.WORK
 CS, CB = (sys.argv[1], sys.argv[2]) if len(sys.argv) > 2 else ("1", "2")
 cal = json.load(open(os.path.join(WORK, "cal16b.json")))
 toW = B.world_of(os.path.join(WORK, "cal16b.json"), os.path.join(WORK, "world.json"))
-cams = {c: {k: (np.array(v) if isinstance(v, list) else v) for k, v in cal["cams"][c].items()} for c in "1234"}
+cams = {c: {k: (np.array(v) if isinstance(v, list) else v) for k, v in cal["cams"][c].items()} for c in CAMS}
 FPS = json.load(open(os.path.join(WORK, "fp_stickers.json")))
 PS = [p for p in range(2, 17) if str(p) in FPS]
 yaw = lambda v: float(np.degrees(np.arctan2(v[1], v[0])))

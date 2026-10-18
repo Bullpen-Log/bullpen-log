@@ -1,5 +1,6 @@
 import { toDateKey } from '@/lib/pitch-stats';
 import { AuthForm } from './auth-form';
+import { NativeLoginBridge } from './native-login';
 
 /** 렌더 중에 현재 시각을 직접 읽지 않도록 함수로 감싼다. */
 function todayKey() {
@@ -30,9 +31,13 @@ function todayKey() {
  */
 export default function LoginPage() {
   return (
-    /* 평평한 바탕 — 하늘색 빛 그라데이션(bg-spotlight)은 AI 템플릿의 첫 화면 같았다(2026-10-04 'AI 티 줄이기') */
-    <main className="seam-hero flex min-h-[calc(100dvh-env(safe-area-inset-top)-env(safe-area-inset-bottom))] items-center justify-center px-5 py-4 short:py-3 max-md:items-stretch sm:px-8 sm:py-6 md:py-10 md:short:py-4">
-      <AuthForm today={todayKey()} />
-    </main>
+    <>
+      {/* 새 아이폰 앱은 로그인 · 가입을 앱 화면으로 연다 — 그 앱이면 이 폼은 숨기고 앱에 알린다(native-login.tsx) */}
+      <NativeLoginBridge />
+      {/* 평평한 바탕 — 하늘색 빛 그라데이션(bg-spotlight)은 AI 템플릿의 첫 화면 같았다(2026-10-04 'AI 티 줄이기') */}
+      <main className="[html[data-native-login]_&]:invisible seam-hero flex min-h-[calc(100dvh-env(safe-area-inset-top)-env(safe-area-inset-bottom))] items-center justify-center px-5 py-4 short:py-3 max-md:items-stretch sm:px-8 sm:py-6 md:py-10 md:short:py-4">
+        <AuthForm today={todayKey()} />
+      </main>
+    </>
   );
 }

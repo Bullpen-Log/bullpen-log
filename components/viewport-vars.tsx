@@ -19,11 +19,17 @@ export function ViewportVars() {
     if (!vv) return;
     const root = document.documentElement;
     let raf = 0;
+    /* 지난번에 쓴 값 — 같으면 안 쓴다. <html> 의 변수를 쓰면 문서 전체의 스타일을 다시 셈해서, 굴릴 때마다(visualViewport
+       scroll) 같은 값을 다시 쓰던 것이 스크롤을 무겁게 했다 */
+    let last = '';
     const apply = () => {
       raf = 0;
       if (vv.scale > 1.01) return;
       /* 120px 아래 차이는 주소창이 접혔다 펴진 것 — 자판이 아니다 */
       const hidden = Math.round(window.innerHeight - vv.height - vv.offsetTop);
+      const key = hidden > 120 ? `${hidden}:${Math.round(vv.height)}` : 'none';
+      if (key === last) return;
+      last = key;
       if (hidden > 120) {
         root.style.setProperty('--kb', `${hidden}px`);
         root.style.setProperty('--vvh', `${Math.round(vv.height)}px`);

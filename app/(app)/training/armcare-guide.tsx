@@ -98,7 +98,7 @@ export function ArmcareGuide({
   return (
     <MyRoutinesProvider routines={routines}>
       <ArmcareInfoProvider side={side}>
-        <div className="space-y-6">
+        <div className="stack-page">
           <p className="text-sm break-keep text-muted">
             근육을 누르거나 부위를 펼쳐 보세요.
           </p>
@@ -171,7 +171,7 @@ function PainNote({ pain, onArea }: { pain: PainLine; onArea: (key: ArmcareAreaK
             key={s.key}
             type="button"
             onClick={() => onArea(s.key)}
-            className="inline-flex min-h-9 items-center gap-0.5 rounded-full bg-surface px-3 text-xs font-semibold text-warn"
+            className="inline-flex min-h-10 items-center gap-0.5 rounded-full bg-surface px-3 text-xs font-semibold text-warn"
           >
             {s.label} 보기
             <ChevronRight aria-hidden className="h-3.5 w-3.5" />
@@ -269,11 +269,11 @@ function AreaCard({
         type="button"
         onClick={onToggle}
         aria-expanded={open}
-        className="flex w-full items-center gap-3 px-4 py-4 text-left transition-colors hover:bg-surface-2"
+        className="flex w-full items-center gap-3 px-(--block-pad) py-4 text-left transition-colors hover:bg-surface-2"
       >
         {/* 제목 밑 설명 한 줄(던질 때 하는 일)은 뺐다 — 2026-09-26 사용자분 */}
         <span className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-2">
-          <span className="flex items-center gap-2 text-[15px] font-bold text-ink">
+          <span className="flex items-center gap-2 text-subhead font-bold text-ink">
             {area.label}
           </span>
           <span className="text-xs text-muted">운동 {count}개</span>
@@ -287,7 +287,7 @@ function AreaCard({
       </button>
 
       {open && (
-        <div className="space-y-4 border-t border-line px-4 py-4">
+        <div className="space-y-4 border-t border-line p-(--block-pad)">
           {/*
             부상과 근육은 이름만 칩으로 — 설명은 '자세히 보기' 창에 둔다. 펼치자마자 글이
             몇 문단씩 나오면 읽지 않고 닫는다(2026-09-26 사용자분). 근육 칩을 누르면 그
@@ -308,7 +308,7 @@ function AreaCard({
               <InfoButton
                 key={name}
                 target={{ kind: 'muscle', name }}
-                className="rounded-full bg-sky-tint px-2.5 py-1 text-xs font-semibold text-sky-strong transition-colors hover:bg-sky hover:text-white"
+                className="inline-flex min-h-10 items-center rounded-full bg-sky-tint px-3 text-xs font-semibold text-sky-strong transition-colors hover:bg-sky hover:text-white"
               >
                 {name} ›
               </InfoButton>
@@ -322,7 +322,7 @@ function AreaCard({
           <div className="space-y-2">
             <h3 className="text-xs font-semibold text-muted">운동</h3>
             {count === 0 ? (
-              <p className="text-[13px] text-muted">
+              <p className="text-footnote text-muted">
                 이 부위를 키우는 운동이 아직 없어요.
               </p>
             ) : (
@@ -363,7 +363,7 @@ function GuideExercise({
           <span className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
             <span className="text-sm font-bold break-keep text-ink">{ex.title}</span>
             {secondary && (
-              <span className="text-[10px] font-medium text-muted">함께 쓰는 운동</span>
+              <span className="text-caption font-medium text-muted">함께 쓰는 운동</span>
             )}
             <AddToRoutine exerciseId={ex.id} title={ex.title} />
           </span>

@@ -5,9 +5,12 @@ import { requireUser } from '@/lib/dal';
 import { featureLocks, SETUP_PATH } from '@/lib/feature-locks';
 import { gatherFactsAndPlan } from '@/lib/report/gather';
 import { toDateKey } from '@/lib/pitch-stats';
-import { intensityRangeText, pitchRangeText } from '@/lib/report/plan';
-import type { PlanNoteData } from '@/components/plan-note';
-import { loadVelocityDay } from '@/lib/velocity-load';
+import { armStatusOf } from '@/lib/report/arm-status';
+import { loadVelocityDay, withMissedAttempts } from '@/lib/velocity-load';
+import { logPrefillOf, unloggedSessions } from '@/lib/velocity-meta';
+import { pitchNutritionLine } from '@/lib/nutrition/nudge';
+import { DRILL_THROW_TEXT, readProgramState } from '@/lib/mechanics/program';
+import { loadDrillThrowNote } from '@/lib/mechanics/load';
 import type { DayClient } from './day-client';
 
 /**
@@ -20,7 +23,36 @@ const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 export type PitchDayData = Parameters<typeof DayClient>[0];
 
-export async function loadPitchDay(date: string): Promise<PitchDayData | null> {
+/**
+ * 트레이닝의 '드릴로 공 N회 던졌어요' 카드가 붙여 오는 ?drill= → 새 기록 칸에 채울 값(2026-10-16). 오늘 날짜일 때만.
+ * 숫자는 주소가 아니라 카드와 같은 판정(loadDrillThrowNote)에서 다시 읽는다 — 주소는 아무나 고칠 수 있고, 저장한 뒤
+ * 다시 열거나 새로고침해도 카드가 닫혔으면(오늘 투구가 기준보다 늘었으면) 채우지 않는다.
+ */
+async function drillPrefillOf(
+  userId: string,
+  search: { drill?: string | string[] } | undefined,
+  date: string,
+  todayKey: string
+) {
+  if (!search?.drill || date !== todayKey) return null;
+  const program = await prisma.mechanicsProgram.findUnique({
+    where: { userId },
+    select: { progress: true },
+  });
+  if (!program) return null;
+  const note = await loadDrillThrowNote(userId, readProgramState(program.progress), todayKey);
+  if (!note) return null;
+  return {
+    pitchCount: note.throws,
+    effortPct: note.effortPct,
+    memo: DRILL_THROW_TEXT.memo(note.throws),
+  };
+}
+
+export async function loadPitchDay(
+  date: string,
+  search?: { drill?: string | string[] }
+): Promise<PitchDayData | null> {
   if (!DATE_RE.test(date)) return null;
 
   /*
@@ -38,56 +70,47 @@ export async function loadPitchDay(date: string): Promise<PitchDayData | null> {
   const now = appNow();
   const todayKey = toDateKey(now);
 
-  const [logs, { plan }, velocity] = await Promise.all([
+  const [logs, gathered, velocity, nutritionLine, drillPrefill] = await Promise.all([
     prisma.pitchLog.findMany({
       where: { userId: user.id, date: at },
       orderBy: { createdAt: 'asc' },
     }),
     /*
-     * 오늘 던질 양. 오늘 날짜일 때만 쓴다 — 지난 날짜에 지금 계산한 값을
-     * 그때 계획인 양 보여줄 수는 없다. 그날 아침의 계획은 남겨두지 않는다.
+     * 지금 팔 상태(위험 · 주의 · 안전, lib/report/arm-status.ts) — 오늘 날짜일 때만. 지난 날짜에 지금 상태를 그때 상태인 양
+     * 보일 수는 없다. 오늘 기록까지 넣어 센다 — 남기고 나면(quietRefresh) 방금 던진 양이 곧바로 상태에 든다.
+     * 예전엔 오늘 기록을 뺀 아침 계획('40~55구 · 강도 60~80%')과 '계획보다 N구 많아요'였다(2026-10-14 사용자: 몇 구를
+     * 던지라고 하지 말고 위험한지 안전한지만).
      */
-    gatherFactsAndPlan(user, now, { excludeToday: true }),
+    date === todayKey ? gatherFactsAndPlan(user, now) : null,
     /* 카메라로 잰 구속 — 세션과 공 하나하나(그날 화면의 '구속 측정' 칸) */
     loadVelocityDay(user.id, at),
+    /* 던진 뒤 회복식 한 줄 — 오늘 불펜 · 라이브 · 경기 기록이 있을 때만(lib/nutrition/nudge.ts). 저장 뒤 quietRefresh 로 곧바로 뜬다 */
+    pitchNutritionLine(user, date, todayKey),
+    /* 메커니즘 드릴로 던진 공 — 트레이닝 카드에서 왔고 그 카드가 아직 살아 있을 때만 */
+    drillPrefillOf(user.id, search, date, todayKey),
   ]);
 
-  const todayPlanDay = plan.today;
-  const todayPlan: PlanNoteData | null =
-    date === todayKey && todayPlanDay && !plan.halted
-      ? {
-          throwing: todayPlanDay.throwing,
-          pitches: pitchRangeText(todayPlanDay),
-          intensity: intensityRangeText(todayPlanDay),
-          reason: todayPlanDay.reason,
-          /*
-           * 등판 날(양은 경기가 정함 — 2판 P3). 큰 등판 다음 날이라 쉬는 날로 남은 등판 날(throwing false)은 '휴식'으로 그리고
-           * 까닭('오늘 등판은 권하지 않아요')을 보인다 — '등판'이라고 쓰면 권하지 않는다는 까닭과 서로 다른 말을 한다.
-           */
-          game: todayPlanDay.outing === 'game' && todayPlanDay.throwing,
-        }
-      : null;
-
-  /*
-   * 오늘 계획의 상한 — 남긴 기록이 계획을 넘었는지 견준다. 계획 글(todayPlan)과 같은
-   * 조건일 때만 준다. 예전에는 홈의 '오늘 투구' 상자가 견줬는데, 그 상자가 알림(종)으로
-   * 옮겨 가면서 오늘 투구는 이 화면에서 남긴다.
-   */
-  const todayLimits =
-    date === todayKey && todayPlanDay && !plan.halted
-      ? {
-          throwing: todayPlanDay.throwing,
-          maxPitches: todayPlanDay.maxPitches,
-          maxIntensity: todayPlanDay.maxIntensity,
-        }
-      : null;
+  const todayStatus = gathered ? armStatusOf(gathered.facts) : null;
 
   return {
     date,
     todayKey,
-    todayPlan,
-    todayLimits,
+    todayStatus,
+    nutritionLine,
     initialLogs: logs.map((log) => ({ ...log, date: log.date.toISOString() })),
     velocity,
+    /* 아직 투구 기록으로 안 남긴 구속 측정 — 새 기록 폼을 그 값으로 채워 연다(2026-10-16, 투구 탭 '오늘' 카드가 여기로 데려온다) */
+    velocityPrefill: await withMissedAttempts(
+      user.id,
+      logPrefillOf(
+        unloggedSessions(
+          velocity,
+          logs.map((l) => l.createdAt.toISOString())
+        )
+      )
+    ),
+    /* 스피드건 값 칸은 관리자만(2026-10-15 사용자) */
+    isAdmin: user.role === 'ADMIN',
+    drillPrefill,
   };
 }

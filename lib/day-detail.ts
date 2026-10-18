@@ -1,7 +1,7 @@
 import 'server-only';
-import { cache } from 'react';
+import { requestCache as cache } from '@/lib/request-cache';
 import { prisma } from '@/lib/prisma';
-import { sessionBurnMixes } from '@/lib/nutrition/burn-load';
+import { burnMixesInRange } from '@/lib/nutrition/burn-load';
 import type { AgeBand } from '@/lib/nutrition/age';
 import { trainingDay, type TrainingDayDetail } from '@/lib/report/training-history';
 import {
@@ -11,7 +11,6 @@ import {
   formatSleepHours,
   mealSummary,
   pickCheckinParts,
-  sleepQualityWord,
   sorenessWord,
 } from '@/lib/checkin';
 import { dbDate } from '@/lib/nutrition/days';
@@ -20,12 +19,15 @@ import {
   amountText,
   isMealKey,
   isSex,
+  missingMacros,
   type GoalKey,
+  type MacroKey,
   type MealKey,
 } from '@/lib/nutrition/meta';
 import { ageOn, computeTargets } from '@/lib/nutrition/targets';
 import { pitchingBurn, totalBurn, trainingBurn } from '@/lib/nutrition/burn';
 import { recentWeightKg, toProfile } from '@/lib/nutrition/load';
+import { toDietPrefs, type AvoidKey } from '@/lib/nutrition/diet-prefs';
 import { loadVelocityClipsDay } from '@/lib/velocity-load';
 import type { DayClip } from '@/lib/velocity-meta';
 
@@ -59,6 +61,10 @@ export type DayDetail = {
     /** 계산에 쓴 목표 · 나이 칸(영양 조언 lib/nutrition/advice.ts 가 읽는다) */
     goal: GoalKey;
     ageBand: AgeBand;
+    /** 못 먹는 것(식단 취향) — 영양 조언이 예시 음식에서 뺀다 */
+    avoid?: AvoidKey[];
+    /** 값을 모르는 음식이 섞인 영양소(합에는 0 으로 들어갔다) — 영양 조언이 '더 먹을 양' · 점수에서 뺀다 */
+    unknown?: MacroKey[];
     /** 끼니별 — 먹은 것이 있는 끼니만 */
     meals: {
       meal: MealKey;
@@ -120,6 +126,7 @@ export async function loadDayDetail(
     recentKg,
     clips,
     mealRow,
+    mixes,
   ] = await Promise.all([
     trainingDay(user.id, date),
     prisma.mealEntry.findMany({ where, orderBy: { createdAt: 'asc' } }),
@@ -148,13 +155,14 @@ export async function loadDayDetail(
         answeredAt: true,
       },
     }),
+    /* 운동마다의 강도 · 세트 — 판 조회와 같이(판을 기다렸다 읽으면 왕복이 하나 더 쌓였다) */
+    burnMixesInRange(user.id, day, day),
   ]);
 
   /* ── 영양: 합과 그날 목표 ── */
   const weightKg = recentKg ?? user.weightKg;
   const burnKg = weightKg ?? 75;
-  /* 운동마다의 강도 · 세트로 셈한다(lib/nutrition/burn.ts trainingBurn) */
-  const mixes = await sessionBurnMixes(sessions.map((s) => s.id));
+  /* 운동마다의 강도 · 세트로 셈한다(lib/nutrition/burn.ts trainingBurn, mixes 는 위 조회) */
   const burn = totalBurn(
     [
       ...sessions.map((s) => trainingBurn(s.activeSeconds, burnKg, mixes.get(s.id))),
@@ -175,8 +183,10 @@ export async function loadDayDetail(
   );
 
   const sum = { kcal: 0, carbs: 0, protein: 0, fat: 0 };
+  const unknown = new Set<MacroKey>();
   const byMeal = new Map<MealKey, DayDetail['nutrition']['meals'][number]>();
   for (const e of meals) {
+    for (const k of missingMacros(e)) unknown.add(k);
     const kcal = e.kcal * e.amount;
     sum.kcal += kcal;
     sum.carbs += (e.carbs ?? 0) * e.amount;
@@ -208,8 +218,7 @@ export async function loadDayDetail(
      * 그날 운동이 왜 가벼웠는지 돌아볼 때 먼저 찾는다. 안 적은 날은 줄을 만들지 않는다.
      */
     /* 3판(2026-10-13)부터는 수면의 질 1~5 — 잔 시간 · 근육통은 옛 기록에만 있다 */
-    const sleepQuality = sleepQualityWord(checkin.sleepQuality);
-    if (sleepQuality) details.push({ label: '수면', value: sleepQuality });
+    /* 수면의 질은 위 줄(컨디션 옆 '수면' 칸)이 이미 보인다 — 여기 또 넣으면 두 번 나왔다(2026-10-18) */
     if (checkin.sleepHours != null)
       details.push({ label: '잔 시간', value: formatSleepHours(checkin.sleepHours) });
     const soreness = sorenessWord(checkin.soreness);
@@ -261,6 +270,8 @@ export async function loadDayDetail(
       weightKg,
       goal: targets.goal,
       ageBand: targets.ageBand,
+      avoid: toDietPrefs(profileRow).avoid,
+      unknown: [...unknown],
       meals: MEALS.map((m) => byMeal.get(m.key))
         .filter((m): m is NonNullable<typeof m> => m != null)
         .map((m) => ({ ...m, kcal: Math.round(m.kcal) })),

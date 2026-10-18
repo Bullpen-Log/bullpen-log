@@ -4,8 +4,25 @@
     {
       "name": "bullpen-log-dev",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev"],
+      "runtimeArgs": [
+        "run",
+        "dev"
+      ],
       "port": 3000
+    },
+    {
+      "name": "bullpen-native-metro",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "--prefix",
+        "native",
+        "run",
+        "start",
+        "--",
+        "--port",
+        "8081"
+      ],
+      "port": 8081
     }
   ]
 }

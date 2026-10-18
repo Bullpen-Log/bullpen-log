@@ -111,6 +111,19 @@ export function pointOnRayAtDistance(r: { o: Vec3; d: Vec3 }, P: Vec3, L: number
   return norm(sub(a, near)) <= norm(sub(b, near)) ? a : b;
 }
 
+/**
+ * 한 영상의 시선과 다른 영상의 '세로줄 면'(그 카메라 중심과 화면 가로 xb 를 지나는 면)이 만나는 점 — 다른 영상은 가로 자리만 믿을 때
+ * (가려진 다리의 세로 자리를 2D 모델이 지어냈을 때, analyze.ts 착지 무렵 앞다리). 시선이 면과 거의 나란하거나(84° 넘게) 카메라 뒤면 null.
+ */
+export function rayColumn(a: Camera, oa: Obs, b: Camera, xb: number): Vec3 | null {
+  const r = ray(a, oa.x, oa.y);
+  const n = normalize(mulV(transpose(b.R), [b.f, 0, -(xb - b.cx)]));
+  const den = dot(n, r.d);
+  if (Math.abs(den) < 0.1) return null;
+  const s = dot(n, sub(cameraCenter(b), r.o)) / den;
+  return s > 0 ? add(r.o, scale(r.d, s)) : null;
+}
+
 /* ───────────────────────────── 본질 행렬 ───────────────────────────── */
 
 type Pair = { a: [number, number]; b: [number, number]; w: number };
@@ -219,8 +232,8 @@ export type CalibInput = {
   /** 사람 크기(px) — 다시 비춤 오차를 사람 비율로 */
   personSide: number;
   personBack: number;
-  /** 초점 사전(선택) — 렌즈를 알 때만(FOCAL_PRIOR_1X) */
-  focalPrior?: FocalPrior;
+  /** 초점 사전(선택) — 렌즈를 알 때만(FOCAL_PRIOR_1X). 기종 · fps 를 알면 카메라마다(focal-table.ts) */
+  focalPrior?: FocalPriors;
 };
 
 export type Calibration = {
@@ -249,7 +262,10 @@ const FOCAL_MIN = 0.35;
  * 늘 켜지 않는 까닭: 줌으로 찍은 영상(합성 시험의 '멀리 줌', 초점 2배 남짓)을 1배 쪽으로 끌어 망친다.
  */
 export type FocalPrior = { k: number; sigma: number };
+/** 두 카메라에 같은 사전 하나, 또는 카메라마다 */
+export type FocalPriors = FocalPrior | { side?: FocalPrior; back?: FocalPrior };
 export const FOCAL_PRIOR_1X: FocalPrior = { k: 0.78, sigma: 0.25 };
+const priorOf = (p: FocalPriors | undefined, cam: 'side' | 'back') => (p && 'k' in p ? p : p?.[cam]);
 function focalPriorCost(f: number, longSide: number, p?: FocalPrior) {
   if (!p) return 0;
   const z = Math.log(f / longSide / p.k) / p.sigma;
@@ -440,8 +456,8 @@ function fastEval(fs: number, fb: number, R: Mat3, t: Vec3, P: Packed, X: Float6
   const prior =
     rangeCost(fs, Math.max(P.input.sideSize.W, P.input.sideSize.H)) +
     rangeCost(fb, Math.max(P.input.backSize.W, P.input.backSize.H)) +
-    focalPriorCost(fs, Math.max(P.input.sideSize.W, P.input.sideSize.H), P.input.focalPrior) +
-    focalPriorCost(fb, Math.max(P.input.backSize.W, P.input.backSize.H), P.input.focalPrior);
+    focalPriorCost(fs, Math.max(P.input.sideSize.W, P.input.sideSize.H), priorOf(P.input.focalPrior, 'side')) +
+    focalPriorCost(fb, Math.max(P.input.backSize.W, P.input.backSize.H), priorOf(P.input.focalPrior, 'back'));
   const robust = sw > 0 ? Math.sqrt(rs2 / sw) : 1;
   return { cost: (robust / REPROJ_UNIT) ** 2 + (rigidity / RIGID_UNIT) ** 2 + prior, reproj, rigidity };
 }

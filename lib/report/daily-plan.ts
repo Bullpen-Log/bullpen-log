@@ -63,7 +63,7 @@ import {
   type ScoredCandidate,
 } from '@/lib/report/score';
 import { shiftDateKey } from '@/lib/pitch-stats';
-import type { ReportFacts } from '@/lib/report/facts';
+import { todayPrefsOf, type ReportFacts } from '@/lib/report/facts';
 import type { PitchPlan } from '@/lib/report/plan';
 import type { AutoCaution, AutoRecord } from '@/lib/report/auto-setup';
 import type { PlanSwap } from '@/lib/report/plan-swaps';
@@ -577,7 +577,7 @@ export function buildDailyPlan<T extends ExerciseLike>({
    * override 는 "몸 상태 경고를 봤고 그래도 하겠다"는 뜻이다. 일정을 만들 때
    * 폼에서 넘어온다 — 오늘 하루만의 결정이라 저장해 두지 않는다.
    */
-  const preferredWorkout = facts.condition.today?.preferredWorkout ?? null;
+  const preferredWorkout = todayPrefsOf(facts).preferredWorkout;
   /* 목표를 안 고른 날은 오늘 고른 운동 종류를 따른다(goalForUnchosen) */
   const goalName = trainingGoal ?? goalForUnchosen(preferredWorkout);
   /* 목표에 없는 부위는 여기서 걸러 둔다 — 아래로는 유효한 값만 흐른다 */
@@ -722,8 +722,13 @@ export function buildDailyPlan<T extends ExerciseLike>({
     doneIds: new Set<string>(),
     recentIds: orderRecentIds,
     sessionsAgo,
+    /*
+     * 보강 칸은 가장 최근 세션에 한 것을 다시 안 고른다(theme.ts lastSessionIds). 세션 번호는 운동한 날을 최근 순으로 센 것이라
+     * (gather.ts exerciseSessionsAgo) 오늘 아직 안 했으면 바로 앞 세션이 0 이다 — 그래서 1 이 아니라 가장 작은 번호.
+     */
+    lastSessionIds: lastSessionIdsOf(sessionsAgo),
     rotationSeed: rotationSeed ?? facts.asOf,
-    preferredParts: facts.condition.today?.preferredParts ?? [],
+    preferredParts: todayPrefsOf(facts).preferredParts,
     preferredWorkout,
     goal: goal.name,
     focus,
@@ -956,7 +961,7 @@ function programDayPlan<T extends ExerciseLike>({
     },
     goal: null,
     focus: null,
-    preferredWorkout: facts.condition.today?.preferredWorkout ?? null,
+    preferredWorkout: todayPrefsOf(facts).preferredWorkout,
     requestedMinutes,
     minutes: requestedMinutes,
     estimatedMinutes,
@@ -1268,3 +1273,10 @@ export type StrengthHistory = StrengthDates & {
   /** 자동 맞춤이 오늘 고를 시간의 위 끝(weeklyMinutesCap) — 지난주 일정이 없으면 null */
   weeklyMinutesCap: number | null;
 };
+
+/** 가장 최근 세션(오늘 아직 안 했으면 바로 앞 세션)에 한 운동 — 세션 번호(exerciseSessionsAgo)가 가장 작은 것 */
+export function lastSessionIdsOf(sessionsAgo: Map<string, number> | undefined): Set<string> {
+  if (!sessionsAgo || sessionsAgo.size === 0) return new Set();
+  const min = Math.min(...sessionsAgo.values());
+  return new Set([...sessionsAgo].filter(([, n]) => n === min).map(([id]) => id));
+}

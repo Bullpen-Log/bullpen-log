@@ -31,6 +31,7 @@ import {
   findPainKeywords,
   isHardOuting,
   isNearMaxOuting,
+  todayPrefsOf,
   usualConditionOf,
   type CalendarEventLike,
   type CheckinLike,
@@ -95,6 +96,7 @@ import {
   sleepLevelFromQuality,
   sleepQualityOf,
   sleepQualityWord,
+  sorenessFromParts,
   nextOutingWindow as checkinNextOutingWindow,
   saysNoOuting,
   todayOutingRole,
@@ -177,7 +179,7 @@ import {
   movementKeyOf,
   type ClassifiableExercise,
 } from '../lib/engine/exercise-class.ts';
-import { TRAINING_CATEGORY_NAMES } from '../lib/categories.ts';
+import { ALSO_IN, TRAINING_CATEGORY_NAMES } from '../lib/categories.ts';
 import {
   ESTIMATE_LOOKBACK_DAYS,
   ESTIMATE_MIN_GAMES,
@@ -420,6 +422,7 @@ import {
   rehabFacts,
   rehabSeverity,
   rehabStartBlock,
+  rehabStartNotice,
   rehabStatus,
   stageExercises,
   stageMinDays,
@@ -489,6 +492,7 @@ import {
   type PlanScoreInput,
   type ProgramTodayExercise,
   type ProgramTodayInput,
+  lastSessionIdsOf,
 } from '../lib/report/daily-plan.ts';
 import {
   DEFAULT_GOAL,
@@ -542,6 +546,7 @@ import {
   parseProgram,
   patternsOfProgramDay,
   pickPinned,
+  ACCESSORY_KEYS,
   programKeyOf,
   programSignalsOf,
   restTextOf,
@@ -984,20 +989,21 @@ console.log('\n[안전] 몸이 안 좋은 날 무거운 운동이 섞이지 않�
     outing(1, 7, 35).key
   );
 
-  // 경기는 강도와 상관없이 전력으로 본다.
-  const game = planFor({
-    person: {
-      condition: 8,
-      pitches: [40, 0, 0, 0, 0, 0, 0],
-      intensity: 5,
-      sessionType: '경기',
-      baselineDailyLoad: 300,
-    },
-  }).theme;
+  // 경기도 고른 강도대로 본다(2026-10-18 사용자) — 강도 5 로 40구는 2,000 이라 세게 던진 날이 아니고, 강도 9 면 3,600 이라 회복.
+  const gameAt = (intensity: number) =>
+    planFor({
+      person: {
+        condition: 8,
+        pitches: [40, 0, 0, 0, 0, 0, 0],
+        intensity,
+        sessionType: '경기',
+        baselineDailyLoad: 300,
+      },
+    }).theme;
   check(
-    '어제 경기 40구(강도 5로 적음) → 회복·재생 데이',
-    game.key === 'recovery',
-    game.key
+    '어제 경기 40구 — 강도 5(2,000)는 회복 아님, 강도 9(3,600)는 회복·재생 데이',
+    gameAt(5).key !== 'recovery' && gameAt(9).key === 'recovery',
+    `${gameAt(5).key} · ${gameAt(9).key}`
   );
 }
 {
@@ -1129,13 +1135,12 @@ console.log('\n[안전] 몸이 안 좋은 날 무거운 운동이 섞이지 않�
 {
   const { picked } = planFor({ person: { condition: 8 }, level: '입문' });
   const maxed = picked.candidates.filter((e) => intensityLevel(e.intensity) > 4);
-  const hard = picked.candidates.filter(
-    (e) => e.difficulty === '상급' || e.difficulty === '중급'
-  );
+  /* 2026-10-14 사용자: 입문도 중급까지(personalize.ts) — 상급만 빠진다 */
+  const hard = picked.candidates.filter((e) => e.difficulty === '상급');
   check('경력 입문 → 최대 강도 제외', maxed.length === 0);
   check(
-    '경력 입문 → 초급 난이도만',
-    hard.length === 0,
+    '경력 입문 → 상급 난이도는 빠짐(중급까지)',
+    hard.length === 0 && picked.candidates.some((e) => e.difficulty === '중급'),
     `후보 ${picked.candidates.length}개`
   );
 }
@@ -2958,8 +2963,18 @@ console.log('\n[투구일지] 기록 방식이 부하를 왜곡하지 않는가'
    */
   const week = ['2026-06-08', '2026-06-09', '2026-06-10'];
   check(
-    '기록이 없는 날을 센다',
-    countMissingDays(groupByDay([log(30, 7)]), week) === 2
+    '기록이 없는 날을 센다(첫 기록 뒤의 빈 날)',
+    countMissingDays(
+      groupByDay([{ ...log(30, 7), date: '2026-06-01' }, log(30, 7)]),
+      week
+    ) === 2
+  );
+  /* 2026-10-16 베타 100명: 가입 2주차에게 '28일 중 14일 기록이 없어요' — 첫 기록 앞은 아직 안 쓴 날 */
+  check(
+    '첫 기록 앞의 날은 빠진 날이 아니다(6월 9일 첫 기록이면 8일은 안 세고 10일만) · 기록이 없으면 0',
+    countMissingDays(groupByDay([log(30, 7)]), week) === 0 &&
+      countMissingDays(groupByDay([{ ...log(30, 7), date: '2026-06-09' }]), week) === 1 &&
+      countMissingDays(groupByDay([]), week) === 0
   );
   check(
     '쉰 날을 적어두면 빠진 날이 아니다',
@@ -3000,8 +3015,8 @@ console.log('\n[전력 환산] 휴식일이 강도를 반영하는가');
     `강도 1 → ${stressFactor(1)}`
   );
 
-  // 경기는 강도를 낮게 적어도 전력으로 본다 — 던질 양도 강도도 못 정한다.
-  check('경기는 강도와 무관하게 전력', stressFactor(3, '경기') === 1);
+  // 경기도 고른 강도대로 본다(2026-10-18 사용자 — 예전엔 늘 전력이었다).
+  check('경기도 고른 강도대로', stressFactor(3, '경기') === 0.6 && stressFactor(10, '경기') === 1);
   check(
     '불펜은 강도를 반영',
     stressFactor(3, '불펜') === 0.6,
@@ -3663,14 +3678,14 @@ console.log('\n[워밍업] 일정에 워밍업을 안 넣는가');
    *
    * 예전에는 이것들이 워밍업 구간으로만 들어갈 수 있었다. 워밍업을 없애면서
    * 거르개를 같이 걷어내지 않으면, 어느 구간에도 못 들어가 영영 안 나온다.
-   * 암케어는 뺀다 — 일정이 아니라 암케어 화면에서 쓴다(아래 5번).
+   * 암케어는 뺀다 — 일정이 아니라 암케어 화면에서 쓴다(아래 5번). '나중에 촬영'(일부러 일정에서 뺀 것, 2026-10-14) ·
+   * '워밍업'(워밍업 루틴에서만 쓴다)도 뺀다 — 2026-10-18 '1/7' 실패는 이 여섯이었다.
    */
   {
     const veryLow = library.filter(
       (ex) =>
         ex.intensity === '매우 낮음' &&
-        ex.category !== '모빌리티' &&
-        ex.category !== '암케어'
+        !['모빌리티', '암케어', '나중에 촬영', '워밍업'].includes(ex.category)
     );
     const reachable = veryLow.filter((ex) =>
       compositionFor('assist', DEFAULT_GOAL).some((sp) =>
@@ -3849,6 +3864,38 @@ console.log('\n[회복날] 가벼운 것만 · 가동성 중심 · 유산소는 
     '유산소가 들어가도 → 시간은 ±15% 안',
     Math.abs(later.estimatedMinutes - minutes) <= minutes * 0.15,
     `${minutes}분 → ${later.estimatedMinutes}분`
+  );
+}
+
+console.log('\n[보강 칸] 바로 앞 세션에 한 보강은 다시 안 고른다(2026-10-16 트레이닝 50명 — 맨몸이면 같은 보강이 매일)');
+{
+  const bw = library.filter((e) => e.category !== '나중에 촬영' && e.equipment.every((q) => q === '맨몸'));
+  const minutes = effectiveMinutes('assist', 60);
+  const run = (candidates: typeof bw, last?: Set<string>) =>
+    pickForTheme({ candidates, theme: 'assist', minutes, doneIds: new Set<string>(), lastSessionIds: last })
+      .picks.filter((p) => p.slot === 'prehab')
+      .map((p) => p.exercise.id);
+  const first = run(bw);
+  const next = run(bw, new Set(first));
+  /* 보강 후보가 하나뿐이면 다음 세션엔 그 칸을 쉰다(이틀에 한 번) */
+  const solo = bw.filter((e) => e.category !== '회복 및 보강' || e.id === first[0]);
+  const solo1 = run(solo);
+  const solo2 = run(solo, new Set(first.slice(0, 1)));
+  check(
+    '보강: 앞 세션 것은 빼고 고름 · 후보가 하나뿐이면 다음 세션은 보강 없음 · 앞 세션 기록이 없으면 그대로',
+    first.length > 0 &&
+      next.every((id) => !first.includes(id)) &&
+      solo1.join() === first[0] &&
+      solo2.length === 0,
+    `${first.length} → ${next.length} · 하나뿐 ${solo1.length} → ${solo2.length}`
+  );
+  /* 세션 번호는 운동한 날을 최근 순으로 센 것 — 오늘 아직 안 했으면 바로 앞 세션이 0 이라 '가장 작은 번호'가 앞 세션이다 */
+  const ago = new Map([['a', 0], ['b', 0], ['c', 2]]);
+  check(
+    '보강: 앞 세션 = 세션 번호가 가장 작은 것(0 이든 1 이든) · 기록이 없으면 빈 집합',
+    [...lastSessionIdsOf(ago)].sort().join() === 'a,b' &&
+      [...lastSessionIdsOf(new Map([['x', 1], ['y', 3]]))].join() === 'x' &&
+      lastSessionIdsOf(undefined).size === 0
   );
 }
 
@@ -5520,6 +5567,45 @@ console.log('\n[암케어] 부위·근육 · 오늘의 루틴 · 부하');
   );
   const calm = decide({ condition: 8, pitches: rested });
   check('일주일 넘게 안 던짐 → 강화', calm.kind === 'strength', calm.reason);
+  /* 강화는 7일에 3번까지 · 이틀 연속 안 함(2026-10-16 김민) — 나머지 날은 회복 */
+  const withStrength = (yesterday: boolean, last7: number) => {
+    const f = factsFor({ condition: 8, pitches: rested });
+    return decideArmcare({
+      facts: f,
+      plan: buildPitchPlan(f),
+      armFatigue: null,
+      recentStrength: { yesterday, last7 },
+    });
+  };
+  const afterStrength = withStrength(true, 1);
+  check(
+    '어제 강화 루틴 → 오늘은 회복',
+    afterStrength.kind === 'recovery' && afterStrength.reason === '어제 강화 루틴 → 회복 루틴',
+    afterStrength.reason
+  );
+  const weekFull = withStrength(false, 3);
+  check(
+    '최근 7일 강화 3번 → 회복',
+    weekFull.kind === 'recovery' && weekFull.reason.includes('최근 7일 강화 3번'),
+    weekFull.reason
+  );
+  check(
+    '최근 7일 강화 2번 · 어제는 안 함 → 강화',
+    withStrength(false, 2).kind === 'strength'
+  );
+  check(
+    '강화 횟수보다 몸 상태 까닭이 먼저 읽힌다',
+    (() => {
+      const f = factsFor({ condition: 8, pitches: rested });
+      const d = decideArmcare({
+        facts: f,
+        plan: buildPitchPlan(f),
+        armFatigue: 4,
+        recentStrength: { yesterday: true, last7: 3 },
+      });
+      return d.kind === 'recovery' && d.reason.startsWith("팔 피로");
+    })()
+  );
   const threeDays = decide({ condition: 8, pitches: [0, 0, 40, 0, 0, 0, 0] });
   check(
     '사흘 전 40구 → 강화',
@@ -6191,10 +6277,10 @@ console.log('\n[암케어] 부위·근육 · 오늘의 루틴 · 부하');
     levelAdvice(1, { spots: ['elbow-inner'], age: 14 }),
   ];
   check(
-    "안내 시트 — '오늘은'은 정도 1 + 자리 + 15세 이상만 루틴, 그 밖은 진료 권유 · 위험 신호 5 · 맺음말",
+    "안내 시트 — '오늘은'은 정도 1 + 자리 + 15세 이상만 루틴, 그 밖은 진료 권유 · 위험 신호 10(2026-10-18 가이드라인 2절 다섯 더함) · 맺음말",
     advices[0].routine &&
       advices.slice(1).every((a) => !a.routine && a.text.includes('진료')) &&
-      RED_FLAGS.length === 5 &&
+      RED_FLAGS.length === 10 &&
       DISCLAIMER.includes('참고용') &&
       DISCLAIMER.includes('병원'),
     advices.map((a) => `${a.routine ? '루틴' : '쉬기'}:${a.text}`).join(' / ')
@@ -6391,9 +6477,13 @@ console.log(
       block(16, 'shoulder-back') === null &&
       block(null, 'elbow-outer') === null
   );
+  /* 2026-10-18 김민: 팔꿈치 바깥쪽은 고를 병명이 없어 영영 못 열었다 — 진료 먼저 안내하고 연다(rehabStartNotice) */
   check(
-    '시작 — 18세 미만 팔꿈치 바깥쪽 · 뒤쪽은 진단 없이 막음(X-ray), 진단이 있으면 · 18세 · 안쪽은 연다',
-    block(17, 'elbow-outer') === 'xray' &&
+    '시작 — 18세 미만 팔꿈치 뒤쪽은 진단 없이 막음(X-ray), 바깥쪽은 열고 진료 먼저 안내, 진단이 있으면 · 18세 · 안쪽은 연다',
+    block(17, 'elbow-outer') === null &&
+      (rehabStartNotice({ age: 17, area: 'elbow-outer', condition: null }) ?? '').includes('진료를 먼저') &&
+      rehabStartNotice({ age: 18, area: 'elbow-outer', condition: null }) === null &&
+      rehabStartNotice({ age: 17, area: 'elbow-inner', condition: null }) === null &&
       block(17, 'elbow-back') === 'xray' &&
       block(17, 'elbow-back', 'posterior-impingement') === null &&
       block(18, 'elbow-outer') === null &&
@@ -6581,16 +6671,43 @@ console.log(
   ): RehabCheckinLike[] => [
     { date: '2026-06-15', shoulder, elbow, armPainLevel: level },
   ];
-  const byCheckin = (level: number | null) =>
-    status([], '2026-06-15', {}, checkin(level));
+  const byCheckin = (level: number | null, over: Partial<RehabProgramLike> = {}) =>
+    status([], '2026-06-15', over, checkin(level));
+  const plainDay = (s: ReturnType<typeof byCheckin>) =>
+    !s.lowered && s.rest === null && s.refer === null;
+  const worseDay = (s: ReturnType<typeof byCheckin>) => s.rest != null && s.refer != null;
+  /* 2026-10-16 김민: 체크인 통증은 재활을 시작한 정도와 견준다 — 같거나 덜하면 평소 날, 더 아프거나 모르면 쉬기 + 진료 */
   check(
-    "체크인 — 그 관절 '통증' · 던질 때만 → 한 칸 낮춤, 평소에도 · 밤에도 · 모름 → 쉬기 + 진료",
-    byCheckin(1).lowered &&
-      byCheckin(1).rest === null &&
-      [2, 3, null].every(
-        (lv) => byCheckin(lv).rest != null && byCheckin(lv).refer != null
-      )
+    "체크인 — 시작 정도(보통)와 같거나 덜 아프면 평소 날, 더 아프거나(밤에도) 정도를 모르면 쉬기 + 진료",
+    plainDay(byCheckin(1)) &&
+      plainDay(byCheckin(2)) &&
+      worseDay(byCheckin(3)) &&
+      worseDay(byCheckin(null))
   );
+  check(
+    "체크인 — 가벼움으로 시작했으면 '평소에도'는 더 아픈 날, 심함으로 시작했으면 '밤에도'도 평소 날",
+    plainDay(byCheckin(1, { severity: 'mild', stage: 3 })) &&
+      worseDay(byCheckin(2, { severity: 'mild', stage: 3 })) &&
+      plainDay(byCheckin(3, { severity: 'severe', stage: 1 }))
+  );
+  {
+    /* 서버 동작(DB)은 여기서 못 돌려 소스로 지킨다 — 앱 · 웹이 같은 동작을 쓴다(2026-10-16 김민) */
+    const src = readFileSync(new URL('../app/actions/rehab.ts', import.meta.url), 'utf8');
+    check(
+      '재활 서버 — 쉬는 날 세션 저장을 막고, 단계는 한 칸씩 · 진료 권유 · 밤 통증 중엔 못 올리고, 끝내기는 투구 복귀표를 연 뒤',
+      src.includes('if (before.rest) return { error: before.rest };') &&
+        src.includes("if (to !== program.stage + 1) return { error: '단계는 한 칸씩 올려요.' };") &&
+        src.includes('if (status.refer) return') &&
+        src.includes('if (status.nightHold)') &&
+        /reason === 'done'[\s\S]{0,300}throwingOpenedOn\(active\.program, weeklies\)/.test(src)
+    );
+    check(
+      '재활 서버 — 투구 복귀표 열기 · 던진 것 남기기는 쉬는 날 · 진료 권유 · 밤 통증이면 막는다(같은 throwBlock)',
+      (src.match(/const notToday = throwBlock\(/g) ?? []).length === 2 &&
+        src.includes('if (status.refer) return `오늘은 던지지 않아요.') &&
+        src.includes('if (!status.nightPainFree)')
+    );
+  }
   check(
     '체크인 — 다른 관절(팔꿈치) 통증은 어깨 재활을 바꾸지 않는다',
     status([], '2026-06-15', {}, checkin(2, '정상', '통증')).rest === null &&
@@ -7194,15 +7311,28 @@ console.log(
     [wk('2026-06-08', { worstPain: 5 })],
     [ses('2026-06-05', 'red', { stage: 3 })]
   );
+  /* 2026-10-16 김민: 같은 주(확인 앞 7일)의 빨강 세션과 그 주 '최고 통증 5 이상'은 한 번 아픈 것 — 한 번만 센다 */
   check(
-    '한 단계 내림 — 14일 안에 한 칸 낮춤 두 번(빨강 + 최고 통증 5) → 3단계 → 2단계 · 보통 → 심함, 그 단계 날은 오늘 · 줄인 날 0',
-    step.program.stage === 2 &&
-      step.program.severity === 'severe' &&
-      step.program.stageStartedOn === '2026-06-08' &&
-      step.program.stageShortenDays === 0 &&
-      step.outcomes[0].record.steppedDown &&
-      !step.outcomes[0].record.lowered,
+    '한 칸 낮춤 — 같은 주의 빨강 세션 + 최고 통증 5 는 한 번으로 센다(단계 · 정도 그대로)',
+    step.program.stage === 3 &&
+      step.program.severity === 'moderate' &&
+      !step.outcomes[0].record.steppedDown,
     step.outcomes[0].lines.join(' / ')
+  );
+  const step2 = runWeeklies(
+    P3,
+    [wk('2026-06-15', { worstPain: 5 })],
+    [ses('2026-06-05', 'red', { stage: 3 })]
+  );
+  check(
+    '한 단계 내림 — 14일 안에 따로 아픈 두 번(빨강 + 7일 넘어 최고 통증 5) → 3단계 → 2단계 · 보통 → 심함, 그 단계 날은 오늘 · 줄인 날 0',
+    step2.program.stage === 2 &&
+      step2.program.severity === 'severe' &&
+      step2.program.stageStartedOn === '2026-06-15' &&
+      step2.program.stageShortenDays === 0 &&
+      step2.outcomes[0].record.steppedDown &&
+      !step2.outcomes[0].record.lowered,
+    step2.outcomes[0].lines.join(' / ')
   );
   const stepWith = (redOn: string) =>
     runWeeklies(
@@ -7235,7 +7365,8 @@ console.log(
   const s1Step = runWeeklies(
     prog({ stage: 1, severity: 'moderate' }),
     [wk('2026-06-08', { worstPain: 6 })],
-    [ses('2026-06-06', 'red', { stage: 1 })]
+    /* 같은 주가 아닌 빨강(7일 앞) — 같은 주면 한 번으로 센다 */
+    [ses('2026-06-01', 'red', { stage: 1 })]
   );
   check(
     '1단계 — 낮추기 조건이면 진료 권유, 한 단계 내림 조건이면 정도만 한 칸 올림(단계는 1 그대로)',
@@ -8492,7 +8623,20 @@ console.log(
         ? { painSlots: [], slotReasons: {} }
         : painSlotsOf(
             programDayPlan(program531, 1).items,
-            (v) => (programPinned[v] ? { id: programPinned[v] } : null),
+            /*
+             * 보조 메뉴 칸은 고정이 아니라 세션마다 바뀐다(앱 load.ts accessoryPick, 2026-10-14) — 이 표는 그 칸에서 가장 센 후보가 나온 날
+             * (팔 피로에 걸릴 수 있는 최악의 날)로 잰다. 가벼운 것이 나온 날은 대체 없이 그대로다.
+             */
+            (v) => {
+              if (ACCESSORY_KEYS.includes(v)) {
+                const all = [...new Set(library.flatMap((e) => e.equipment))];
+                const ex = [...variantCandidates(v, library, all, null)].sort(
+                  (x, y) => intensityLevel(y.intensity) - intensityLevel(x.intensity) || x.id.localeCompare(y.id)
+                )[0];
+                return ex ? { id: ex.id } : null;
+              }
+              return programPinned[v] ? { id: programPinned[v] } : null;
+            },
             programSafeIds,
             droppedOnlyForArmFatigue(programSafeInput)
           );
@@ -8693,13 +8837,16 @@ console.log(
        * 테마는 그대로 근력이다(안전 층만 — 상체날이면 가벼운 밀기 · 당기기가 남는다), 프로그램은 그날 그 칸을 대체한다(이 표는
        * painSlots 를 [] 로 두어 'go' 그대로). 입력도 옮겼다 — 예전 HIGH_ARM_FATIGUE + 1 을 extras 로 장에만 실었는데 이제 오늘 체크인에.
        */
+      /*
+       * 2026-10-14 — 531 첫날(스쿼트 날)에 보조 밀기(덤벨 벤치)가 생겨, 팔 피로 '심함'이면 그 칸을 '팔 피로'로 대체한다(벤치 날과 같은 규칙).
+       */
       person: { today: { armFatigue: SEVERE_ARM_FATIGUE } },
       expect: {
         theme: 'strength',
         pitchPlan: 'throw',
         nutrition: 'none',
         armcare: 'recovery',
-        program: 'go',
+        program: 'go+대체:팔 피로',
         safety: 'none',
       },
     },
@@ -10630,12 +10777,12 @@ console.log(
     todayLog: { pitches: 85, intensity: 7, sessionType: '경기' },
   });
   check(
-    'P2 (견주기) 오늘 경기 85구 → lastThrow 와 hardOuting(theme.ts 의 hardOuting 과 같은 판단)',
+    'P2 (견주기) 오늘 경기 85구(강도 7) → lastThrow 와 hardOuting(theme.ts 의 hardOuting 과 같은 판단) — 경기도 고른 강도대로라 "팔 부담이 큰"',
     game.some((c) => c.key === 'lastThrow') &&
       game.some(
         (c) =>
           c.key === 'hardOuting' &&
-          c.text === '오늘 거의 전력으로 85구를 던진 기록이 들어왔어요'
+          c.text === '오늘 팔 부담이 큰 85구 기록이 들어왔어요'
       ),
     textsOf(game)
   );
@@ -11529,10 +11676,10 @@ console.log(
       JSON.stringify(mixed)
     );
     check(
-      'D2 (경계) 전력 환산의 반올림 — 7.5(75%) → 8 칸 0.9, 8.5(85%) → 9 칸 0.95, 경기는 % 와 상관없이 1',
+      'D2 (경계) 전력 환산의 반올림 — 7.5(75%) → 8 칸 0.9, 8.5(85%) → 9 칸 0.95, 경기도 고른 % 대로(30% → 3 칸 0.6, 2026-10-18)',
       stressFactor(intensityOf({ intensity: 8, effortPct: 75 })) === 0.9 &&
         stressFactor(intensityOf({ intensity: 9, effortPct: 85 })) === 0.95 &&
-        stressFactor(intensityOf({ intensity: 3, effortPct: 30 }), '경기') === 1
+        stressFactor(intensityOf({ intensity: 3, effortPct: 30 }), '경기') === 0.6
     );
     const twoDays = (a: number, b: number) =>
       findFatigueWindows(
@@ -11561,11 +11708,11 @@ console.log(
 
   /* ── ② 세게 던진 날 몫(outingLoadOf) ── */
   check(
-    'D2 (몫) outingLoadOf — 투구수 × 체감 %, 경기는 100%, 0구 · 쉰 날은 0 · 문턱 2,700 = 30구 × 90%',
+    'D2 (몫) outingLoadOf — 투구수 × 체감 %, 경기도 고른 % 대로(2026-10-18), 0구 · 쉰 날은 0 · 문턱 2,700 = 30구 × 90%',
     outingLoadOf(pctLog(day, 30, 90)) === 2700 &&
       outingLoadOf(logOn(day, 30, 7)) === 2100 &&
-      outingLoadOf(pctLog(day, 20, 50, '경기')) === 2000 &&
-      outingLoadOf({ ...logOn(day, 35, 3), sessionType: '경기' }) === 3500 &&
+      outingLoadOf(pctLog(day, 20, 50, '경기')) === 1000 &&
+      outingLoadOf({ ...logOn(day, 35, 3), sessionType: '경기' }) === 1050 &&
       outingLoadOf(logOn(day, 0, 0)) === 0 &&
       HARD_OUTING_MIN_LOAD === 2700 &&
       HARD_OUTING_MIN_LOAD === 30 * NEAR_MAX_EFFORT_PCT
@@ -11646,14 +11793,15 @@ console.log(
       name: '경기 20구(체감 60%)',
       logs: [pctLog(yesterday, 20, 60, '경기')],
       hard: false,
-      load: 2000,
+      load: 1200,
       pitches: 20,
     },
     {
-      name: '경기 35구(체감 60%)',
-      logs: [pctLog(yesterday, 35, 60, '경기')],
+      /* 2026-10-18 부터 경기도 고른 % 대로 — 35구 60% 는 2,100 이라 세게가 아니고, 80% 면 2,800 */
+      name: '경기 35구(체감 80%)',
+      logs: [pctLog(yesterday, 35, 80, '경기')],
       hard: true,
-      load: 3500,
+      load: 2800,
       pitches: 35,
     },
     {
@@ -11674,7 +11822,7 @@ console.log(
       name: '경기 25구 + 캐치볼 20구 50%',
       logs: [pctLog(yesterday, 25, 80, '경기'), pctLog(yesterday, 20, 50, '캐치볼')],
       hard: true,
-      load: 3500,
+      load: 3000,
       pitches: 45,
     },
     {
@@ -11702,7 +11850,7 @@ console.log(
       name: '옛 기록 경기 20구(강도 5)',
       logs: [{ ...logOn(yesterday, 20, 5), sessionType: '경기' }],
       hard: false,
-      load: 2000,
+      load: 1000,
       pitches: 20,
     },
   ];
@@ -11716,7 +11864,7 @@ console.log(
     );
   });
   check(
-    'D2 (판정 표) 30구×90% 세게 · 30 · 31구×85% 와 85% 20+10 세게(P3 검토 — 옛 규칙의 날) · 29구×85% · 80% 아님 · 경기 20구 아님 · 경기 35구 60% 세게 · 60구×50% · 40구×70% 세게 · 경기 25 + 캐치볼 20 세게(45구) · 옛 강도 9 30구 세게 · 옛 8 · 29구 아님 · 그날 공의 합(pitches)까지',
+    'D2 (판정 표) 30구×90% 세게 · 30 · 31구×85% 와 85% 20+10 세게(P3 검토 — 옛 규칙의 날) · 29구×85% · 80% 아님 · 경기 20구 아님 · 경기 35구 80% 세게(경기도 고른 % 대로) · 60구×50% · 40구×70% 세게 · 경기 25 + 캐치볼 20 세게(45구) · 옛 강도 9 30구 세게 · 옛 8 · 29구 아님 · 그날 공의 합(pitches)까지',
     wrong.length === 0,
     wrong
       .map(
@@ -11758,7 +11906,8 @@ console.log(
     /* 옛 규칙을 여기 그대로 옮겨 둔다(facts.ts 의 2026-10-12 전 nearMaxByDay) — 새 규칙이 그보다 좁아지지 않는지 견준다 */
     const oldRuleHard = (logs: PitchLogLike[]) =>
       logs
-        .filter((l) => l.sessionType === '경기' || Math.round(l.intensity) >= 9)
+        /* 옛 규칙의 '경기면 늘 전력'은 2026-10-18 사용자 결정으로 뺐다(경기도 고른 강도대로) — 그 몫은 견주지 않는다 */
+        .filter((l) => Math.round(l.intensity) >= 9)
         .reduce((sum, l) => sum + l.pitchCount, 0) >= HARD_OUTING_MIN_PITCHES;
     const sessionTypes = ['경기', '불펜', '라이브', '캐치볼'];
     const counts = [0, 10, 20, 25, 27, 29, 30, 31, 35, 40, 60, 90];
@@ -11790,7 +11939,7 @@ console.log(
       }
     }
     check(
-      `D2 (옛 날 지킴) 옛 기록 ${combos}가지 — 옛 규칙(경기 · 강도 9~10 · 30구)으로 세게 던진 날은 하나도 빠지지 않는다(새로 드는 날 ${gained})`,
+      `D2 (옛 날 지킴) 옛 기록 ${combos}가지 — 옛 규칙(강도 9~10 · 30구, 경기 몫은 2026-10-18 뺌)으로 세게 던진 날은 하나도 빠지지 않는다(새로 드는 날 ${gained})`,
       lost === 0 && gained > 0,
       lostCases.join(' / ')
     );
@@ -11846,10 +11995,10 @@ console.log(
     const light = themeOf([pctLog(yesterday, 60, 50)]);
     const near = themeOf([pctLog(yesterday, 40, 90)]);
     check(
-      'D2 (이유 글) 경기 · 평균 90% 이상은 "거의 전력으로", 많이 가볍게(60구 50%)는 "팔 부담이 컸어요" — 둘 다 회복',
+      'D2 (이유 글) 평균 90% 이상은 "거의 전력으로", 많이 가볍게(60구 50%)와 경기 85구 70%(경기도 고른 강도대로)는 "팔 부담이 컸어요" — 모두 회복',
       game.key === 'recovery' &&
         game.reason ===
-          '오늘 거의 전력으로 85구를 던지셨어요. 오늘과 내일은 가볍게 풀고, 모레부터 무게를 다시 올려요.' &&
+          '오늘 85구를 던져 팔 부담이 컸어요. 오늘과 내일은 가볍게 풀고, 모레부터 무게를 다시 올려요.' &&
         near.reason.startsWith('어제 거의 전력으로 40구를') &&
         light.key === 'recovery' &&
         light.reason ===
@@ -12150,15 +12299,15 @@ console.log(
     JSON.stringify(legacyRow)
   );
 
-  /* 입력이 세게 던진 날까지 — 30구에 85% 는 2,550(아님), 90% 는 2,700(세게). 경기는 고른 % 와 상관없이 100% */
+  /* 입력이 세게 던진 날까지 — 30구에 85% 는 2,550(아님), 90% 는 2,700(세게). 경기도 고른 % 대로(2026-10-18) */
   const loadOf = (pct: number, sessionType = '불펜') =>
     outingLoadOf({ pitchCount: 30, sessionType, ...effortFields(pct) });
   check(
-    'D2 쓰기 (세게 던진 날) 30구 85% → 2,550 < 2,700 · 90% → 2,700 · 경기 30구 50% → 3,000',
+    'D2 쓰기 (세게 던진 날) 30구 85% → 2,550 < 2,700 · 90% → 2,700 · 경기 30구 50% → 1,500(경기도 고른 % 대로)',
     loadOf(85) === 2550 &&
       loadOf(85) < HARD_OUTING_MIN_LOAD &&
       loadOf(90) === HARD_OUTING_MIN_LOAD &&
-      loadOf(50, '경기') === 3000,
+      loadOf(50, '경기') === 1500,
     `${loadOf(85)} · ${loadOf(90)} · ${loadOf(50, '경기')}`
   );
 
@@ -12188,8 +12337,8 @@ console.log(
 
   /* 칩과 −/+ */
   check(
-    'D2 쓰기 (칩) 50 · 60 · 70 · 80 · 90 · 100 — 모두 5% 칸 · 받는 범위 안, 오름차순',
-    EFFORT_CHIPS.join(',') === '50,60,70,80,90,100' &&
+    'D2 쓰기 (칩) 1~10 = 10 · 20 … 100% — 모두 5% 칸 · 받는 범위 안, 오름차순(2026-10-18 1~10 으로 되돌림)',
+    EFFORT_CHIPS.join(',') === '10,20,30,40,50,60,70,80,90,100' &&
       EFFORT_CHIPS.every(
         (c) => c % EFFORT_STEP === 0 && c >= MIN_EFFORT_PCT && c <= MAX_EFFORT_PCT
       ),
@@ -12264,14 +12413,14 @@ console.log(
     effortText({ intensity: 7 }),
   ];
   check(
-    'D2 표시 (한 건) 옛 강도 9 → 90% · 85% 로 고름 → 85% · 옛 1 → 10% · 5% → 5% · 쉰 날 · 칸 없는 쉰 날 → 없음 · 칸 없는 옛 7 → 70%',
-    JSON.stringify(texts) === '["90%","85%","10%","5%",null,null,"70%"]',
+    'D2 표시 (한 건, 2026-10-18 1~10) 옛 강도 9 → 9 · 85% 로 고름 → 8.5 · 옛 1 → 1 · 5% → 0.5 · 쉰 날 · 칸 없는 쉰 날 → 없음 · 칸 없는 옛 7 → 7',
+    JSON.stringify(texts) === '["9","8.5","1","0.5",null,null,"7"]',
     JSON.stringify(texts)
   );
 
   const oldBad: string[] = [];
   for (let i = 1; i <= 10; i++) {
-    if (effortText(old(i)) !== `${i * 10}%`)
+    if (effortText(old(i)) !== `${i}`)
       oldBad.push(`${i} → ${effortText(old(i))}`);
     if (maxEffortPct([old(i)]) !== i * 10) oldBad.push(`max ${i}`);
   }
@@ -12755,7 +12904,8 @@ console.log(
           yesterday: { throwPlan: '오늘 등판' },
           logs: [{ daysAgo: 1, pitches: 60, intensity: 9, sessionType: '경기' }],
         },
-        expect: { days: 1, source: 'log', pitches: 60, load: 6000 },
+        /* 경기도 고른 강도대로(2026-10-18) — 60구 × 90% */
+        expect: { days: 1, source: 'log', pitches: 60, load: 5400 },
       },
       {
         name: "사흘 전 불펜 40구 70% + 어제 '오늘 등판' 답 (답이 더 가깝다)",
@@ -13801,6 +13951,18 @@ console.log(
       armTired.reason === "오늘 등판 · 팔 피로 '심함' → 회복 루틴",
     `${armThrew.reason} | ${armTired.reason}`
   );
+  /* 등판 날(아직 안 던짐)만 '던진 뒤에 하세요' — 루틴 종류 · 까닭은 그대로(2026-10-16 김민) */
+  check(
+    "암케어 등판 날 — 아직 안 던졌으면 afterThrowing, 던진 기록이 있거나 불펜 · 평소 날이면 없음",
+    armC1.kind !== 'rest' &&
+      armC1.afterThrowing === true &&
+      armThrew.kind !== 'rest' &&
+      armThrew.afterThrowing === undefined &&
+      (() => {
+        const pen = armOf({ today: { throwPlan: '오늘 불펜' } });
+        return pen.kind !== 'rest' && pen.afterThrowing === undefined;
+      })()
+  );
   const armPen = armOf({ today: { throwPlan: '오늘 불펜' } });
   const armPain = armOf({ today: { throwPlan: '오늘 등판', shoulder: '통증' } });
   check(
@@ -13832,19 +13994,18 @@ console.log(
         planSrc
       )
   );
+  /*
+   * 2026-10-14 사용자: 화면은 몇 구를 던지라고 하지 않고 지금 팔 상태(위험 · 주의 · 안전)만 보인다(lib/report/arm-status.ts).
+   * 예전 이 칸은 홈 계획 줄 · 투구 기록 '오늘 계획'이 등판 날을 '등판'으로 그리는지 봤다 — 이제 그 숫자 칸이 없다.
+   */
   const shown = [
-    readFileSync(new URL('../app/(app)/today/page.tsx', import.meta.url), 'utf8'),
-    readFileSync(
-      new URL('../app/(app)/pitch-log/[date]/load.ts', import.meta.url),
-      'utf8'
-    ),
-    readFileSync(new URL('../components/plan-note.tsx', import.meta.url), 'utf8'),
-  ];
+    'app/(app)/today/home-page.tsx',
+    'app/(app)/pitch-log/[date]/load.ts',
+    'app/(app)/videos/videos-page.tsx',
+  ].map((f) => readFileSync(new URL(`../${f}`, import.meta.url), 'utf8'));
   check(
-    "뒤집기 (화면) 홈 계획 줄 · 투구 기록 '오늘 계획'이 등판 날을 '등판'으로 그린다(빈 범위 ' · ' 를 안 보인다)",
-    /day\.outing === 'game'/.test(shown[0]) &&
-      /game: todayPlanDay\.outing === 'game'/.test(shown[1]) &&
-      /plan\.game/.test(shown[2])
+    '뒤집기 (화면) 홈 · 그날 화면 · 투구 기록 탭은 권하는 투구수(pitchRangeText · intensityRangeText) 대신 지금 팔 상태(armStatusOf)를 보인다',
+    shown.every((src) => !/pitchRangeText|intensityRangeText/.test(src) && /armStatusOf\(/.test(src))
   );
   const reasons = [c1Today?.reason ?? '', owed.plan.today?.reason ?? ''];
   check(
@@ -14552,7 +14713,7 @@ console.log(
     s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
   const srcOf = (p: string) =>
     readFileSync(new URL(`../${p}`, import.meta.url), 'utf8');
-  const homeSrc = stripComments(srcOf('app/(app)/today/page.tsx'));
+  const homeSrc = stripComments(srcOf('app/(app)/today/home-page.tsx'));
   check(
     "검토 (홈) 잘 던진 날 메모가 답 글자 목록 대신 todayOutingRole(facts 의 오늘 · 어제 답)로 — 어제 '내일 등판' + 오늘 답 없음(C4)도 등판 날",
     !/PRE_THROW_PLANS/.test(homeSrc) &&
@@ -14561,12 +14722,10 @@ console.log(
       )
   );
   check(
-    "검토 (홈) 계획 줄 — 등판 날 고정 글('양은 경기가 정해요')이 까닭(day.reason)을 덮지 않는다 · 투구 기록 '오늘 계획'은 던지는 등판 날만 '등판'",
-    /if \(day\.outing === 'game'\) \{/.test(homeSrc) &&
-      /sub: day\.reason \}/.test(homeSrc) &&
-      /game: todayPlanDay\.outing === 'game' && todayPlanDay\.throwing/.test(
-        srcOf('app/(app)/pitch-log/[date]/load.ts')
-      )
+    /* 2026-10-14 부터 홈 첫날 카드 · 그날 화면은 '오늘 N~M구' 계획 줄 대신 지금 팔 상태(armStatusOf)를 보인다 — 옛 계획 줄 검사는 그 배선 검사로 바꿈 */
+    "검토 (홈) 첫날 카드와 그날 화면은 권하는 투구수 대신 지금 팔 상태(armStatusOf) — 홈은 facts, 그날 화면은 gathered.facts 로",
+    /status=\{armStatusOf\(facts\)\}/.test(homeSrc) &&
+      /armStatusOf\(gathered\.facts\)/.test(srcOf('app/(app)/pitch-log/[date]/load.ts'))
   );
   const gatherSrc = srcOf('lib/report/gather.ts');
   /*
@@ -15386,7 +15545,7 @@ console.log(
         facts: factsOf(null, '오늘 등판', [
           { daysAgo: 1, pitches: 60, intensity: 9, sessionType: '경기' },
         ]),
-        want: { lastSource: 'log', daysSinceLast: 1, lastPitches: 60, lastLoad: 6000 },
+        want: { lastSource: 'log', daysSinceLast: 1, lastPitches: 60, lastLoad: 5400 },
       },
     ];
     for (const r of rows) {
@@ -15800,8 +15959,8 @@ console.log(
     json([fpNone.checkin, fpSev.checkin])
   );
   check(
-    'P4 팔 피로 규칙 (라) 지문 — FINGERPRINT_KEYS 는 그대로(안쪽 칸이라) — 바깥 칸 10개',
-    FINGERPRINT_KEYS.length === 10 &&
+    'P4 팔 피로 규칙 (라) 지문 — FINGERPRINT_KEYS 는 그대로(안쪽 칸이라) — 바깥 칸 12개(10-16 나이 구간 · 경력 더함)',
+    FINGERPRINT_KEYS.length === 12 &&
       !(FINGERPRINT_KEYS as readonly string[]).includes('armFatigue')
   );
   const words = (a: ReturnType<typeof fpOf>, b: ReturnType<typeof fpOf>) =>
@@ -16312,8 +16471,8 @@ console.log(
     ["'2~3일 뒤' → '없음'", { throwPlan: '2~3일 뒤' }, { throwPlan: '없음' }],
   ];
   check(
-    'P4 등판 창 (바) 지문 — 창이 열리거나 닫히는 답 바뀜은 모두 바뀐 줄을 낸다(지문 칸 throwPlan 그대로 — FINGERPRINT_KEYS 10개)',
-    FINGERPRINT_KEYS.length === 10 &&
+    'P4 등판 창 (바) 지문 — 창이 열리거나 닫히는 답 바뀜은 모두 바뀐 줄을 낸다(지문 칸 throwPlan 그대로 — FINGERPRINT_KEYS 12개)',
+    FINGERPRINT_KEYS.length === 12 &&
       fpPairs.every(
         ([, a, b]) =>
           diffFingerprintChanges(fpOf({ today: a }), fpOf({ today: b })).length > 0
@@ -19171,7 +19330,7 @@ console.log(
         /outingLineOf\(outing\)/.test(comp) &&
         /<OpenCheckinButton[\s\S]*?바꾸기[\s\S]*?<\/OpenCheckinButton>/.test(comp)
     );
-    const page = strip('app/(app)/training/page.tsx');
+    const page = strip('app/(app)/training/training-page.tsx');
     const at = page.indexOf('<OutingLine outing={core.state.outing} />');
     check(
       'P4 화면 (사) 트레이닝 화면 — 오늘 상태 한 장의 등판 칸으로 한 번만 그리고, 일정 카드 묶음(halted · 만들기 전 · 일정) 바로 위',
@@ -19834,21 +19993,23 @@ console.log(
         [...new Set(library.flatMap((e) => e.equipment))],
         null
       );
+      /* 531 둘째 날의 메디신볼은 2026-10-16(84120a40) 빠졌다 — 메디신볼이 남은 웨스트사이드 셋째 날(메디신볼 · 플라이오 푸시업)로 본다 */
+      const medDay = parseProgram('ws4sb')!;
       const day2 = (p: RP) => {
         const f = rFacts(p);
         const input = { facts: f, plan: buildPitchPlan(f), library, partsOnly: true };
         const safe = new Set(selectCandidates(input).candidates.map((e) => e.id));
         const slots = painSlotsOf(
-          programDayPlan(program, 2).items,
+          programDayPlan(medDay, 3).items,
           (v) => (realPinned[v] ? { id: realPinned[v] } : null),
           safe,
           droppedOnlyForArmFatigue(input)
         );
         return {
           slots,
-          decision: decideToday(program, {
+          decision: decideToday(medDay, {
             ...baseSig,
-            nextDay: 2,
+            nextDay: 3,
             painSlots: slots.painSlots,
             slotReasons: slots.slotReasons,
           }),
@@ -19858,7 +20019,7 @@ console.log(
       const calm = day2({ armFatigue: 3 });
       const reasons = Object.values(sev.slots.slotReasons);
       check(
-        "검토 (마) 실제 표 · 531 둘째 날 — 팔 피로 '심함'이면 메디신볼 칸이 '대체 · 팔 피로'(통증 부위 아님), '보통'이면 대체 없음",
+        "검토 (마) 실제 표 · 웨스트사이드 셋째 날 — 팔 피로 '심함'이면 메디신볼 칸이 '대체 · 팔 피로'(통증 부위 아님), '보통'이면 대체 없음",
         sev.slots.painSlots.includes('power') &&
           reasons.length > 0 &&
           reasons.every((r) => r === SUBSTITUTE_REASON.armFatigue) &&
@@ -20743,11 +20904,12 @@ console.log(
   );
   const strong = parseProgram('stronglifts-5x5');
   check(
-    'P5 도우미 (다) 스트롱리프트 A 날 = 스쿼트 · 밀기 · 당기기, B 날 = 스쿼트 · 힌지(몸통 버티기는 열쇠 없음)',
+    /* 2026-10-15 — B 날은 스쿼트 대신 데드리프트 3세트 · 오버헤드 프레스 · 보조 가로 당기기(투수 맞춤) */
+    'P5 도우미 (다) 스트롱리프트 A 날 = 스쿼트 · 밀기 · 당기기, B 날 = 힌지 · 밀기 · 당기기(몸통 · 팔 보조는 열쇠 없음)',
     strong != null &&
       json([...patternsOfProgramDay(strong, 1)].sort()) ===
         json(['당기기', '밀기', '스쿼트']) &&
-      json([...patternsOfProgramDay(strong, 2)].sort()) === json(['스쿼트', '힌지']),
+      json([...patternsOfProgramDay(strong, 2)].sort()) === json(['당기기', '밀기', '힌지']),
     strong
       ? `${json([...patternsOfProgramDay(strong, 1)])} | ${json([...patternsOfProgramDay(strong, 2)])}`
       : '키 없음'
@@ -20763,7 +20925,17 @@ console.log(
     /* 큰 하체 · 한 다리 · 밀기 · 당기기 · 점프는 후보 전부, 메디신볼 · 회전 던지기 · 몸통 버티기는 먼저 고르는 것(고정 기본값) */
     const strict = ['squat', 'hinge', 'push', 'pull', 'singleLeg', 'jump'].includes(v);
     const looked = strict ? cands : cands.slice(0, 1);
-    const wrong = looked.filter((e) => movementKeyOf(e) !== want);
+    /*
+     * 회전 던지기는 라이브러리에 돌려 던지는 메디신볼이 없으면 돌리는 코어(케이블 · 랜드마인 로테이션)로 채운다(2026-10-14 — 위아래 슬램을
+     * 회전으로 고르던 것을 고침). 코어는 열쇠가 없고(null), 그 날은 exerciseOf 로 그 운동의 열쇠를 쓴다(아래).
+     */
+    const wrong = looked.filter(
+      (e) =>
+        movementKeyOf(e) !== want &&
+        !(v === 'rotationalThrow' && e.category === '코어') &&
+        /* 두 분류에 드는 운동(박스 스쿼트)은 patternsOfProgramDay 가 칸의 열쇠로 본다 */
+        !ALSO_IN[e.title]
+    );
     variantSeen.push(`${v} ${looked.length}`);
     if (wrong.length > 0)
       variantWrong.push(`${v}: ${wrong.map((e) => e.title).join(', ')}`);
@@ -22141,7 +22313,7 @@ console.log(
      */
     const SITES: [string, [RegExp, number][]][] = [
       [
-        'app/(app)/training/page.tsx',
+        'app/(app)/training/training-page.tsx',
         [
           [/planPrescription\(ex, savedPlan\)/g, 1],
           [/planPrescription\(raw, savedPlan\)/g, 1],
@@ -23007,7 +23179,7 @@ console.log(
         .replace(/^\s*\/\/.*$/gm, '');
     const setup = strip('app/actions/training-setup.ts');
     const today = strip('lib/report/today-data.ts');
-    const page = strip('app/(app)/training/page.tsx');
+    const page = strip('app/(app)/training/training-page.tsx');
     const form = strip('components/training-forms.tsx');
     const tool = strip('scripts/training-baseline.mts');
     check(
@@ -24383,6 +24555,15 @@ console.log(
         { patternsDone14d: new Map([['스쿼트', 2]]) },
         {},
       ],
+      /* 2026-10-14 — 밀기 · 당기기는 짝보다 덜 한 쪽 +1(1 대 1로) */
+      [
+        '2주 밀기 3 · 당기기 5 → 벤치(밀기) +1',
+        bench,
+        { patternsDone14d: new Map([['밀기', 3], ['당기기', 5]]) },
+        { pattern: 1 },
+      ],
+      ['2주 밀기 5 · 당기기 3 → 벤치 없음', bench, { patternsDone14d: new Map([['밀기', 5], ['당기기', 3]]) }, {}],
+      ['2주 밀기 4 · 당기기 4 → 없음', bench, { patternsDone14d: new Map([['밀기', 4], ['당기기', 4]]) }, {}],
       ['마친 날 없음(null) → 꺼짐', rdl, { patternsDone14d: null }, {}],
       ['고립(컬) → 없음(큰 계열만)', curl, { patternsDone14d: new Map() }, {}],
       [
@@ -24704,9 +24885,10 @@ console.log(
         { patterns: ['스쿼트', '밀기'], inDays: 1 },
       ],
       [
-        '오늘 마침 → 모레',
+        '오늘 마침 → 내일(간격 없음)',
         nx({ daysSinceLastDone: 0 }),
-        { patterns: ['스쿼트', '밀기'], inDays: 2 },
+        /* 10-16 부터 프로그램에 간격 쉬는 날이 없다 — 오늘 마쳤어도 다음은 내일 */
+        { patterns: ['스쿼트', '밀기'], inDays: 1 },
       ],
       ['열쇠 없음', nx({}, new Set()), null],
     ];
@@ -26738,7 +26920,7 @@ console.log(
         .replace(/\/\*[\s\S]*?\*\//g, '')
         .replace(/\{\/\*[\s\S]*?\*\/\}/g, '')
         .replace(/^\s*\/\/.*$/gm, '');
-    const page = strip('app/(app)/training/page.tsx');
+    const page = strip('app/(app)/training/training-page.tsx');
     const list = strip('app/(app)/training/exercise-list.tsx');
     const row = strip('app/(app)/training/check-row.tsx');
     check(
@@ -27387,12 +27569,13 @@ console.log(
       (_, i) => programDaySlotsOf('stronglifts-5x5', i + 1)?.heavyLower === true
     ).every(Boolean);
     const press = programDaySlotsOf('531', 2);
+    /* 531 밀기 날의 준비 메디신볼은 2026-10-16(84120a40) 뺐다 — 큰 하체도 팔 던지기도 없는 날 */
     check(
-      `P6-1 (가) 프로그램 일차 칸 — ${programs}개 프로그램 · ${days}일차가 dayPlan 과 같다(큰 하체 ${heavyDays} · 없음 ${lightDays} · 팔 던지기 든 날 ${armDays}), 스트롱리프트는 매일 큰 하체, 5/3/1 2일차(밀기)는 큰 하체 없이 메디신볼`,
+      `P6-1 (가) 프로그램 일차 칸 — ${programs}개 프로그램 · ${days}일차가 dayPlan 과 같다(큰 하체 ${heavyDays} · 없음 ${lightDays} · 팔 던지기 든 날 ${armDays}), 스트롱리프트는 매일 큰 하체, 5/3/1 2일차(밀기)는 큰 하체 · 팔 던지기 없음`,
       bad.length === 0 &&
         slEvery &&
         press?.heavyLower === false &&
-        press.armThrows.join() === 'medball' &&
+        press.armThrows.length === 0 &&
         heavyDays > 0 &&
         lightDays > 0 &&
         armDays > 0 &&
@@ -27409,10 +27592,10 @@ console.log(
     );
     const throwEx = library.find((e) => isArmPlyo(e));
     const jumpEx = library.find((e) => e.category === '파워' && !isArmPlyo(e));
-    const asJump = programDaySlotsOf('531', 2, (v) =>
+    const asJump = programDaySlotsOf('basics-4w', 1, (v) =>
       v === 'medball' ? jumpEx : null
     );
-    const asThrow = programDaySlotsOf('531', 2, (v) =>
+    const asThrow = programDaySlotsOf('basics-4w', 1, (v) =>
       v === 'medball' ? throwEx : null
     );
     check(
@@ -27852,9 +28035,9 @@ console.log(
         }
       }
     check(
-      'P6-1 (다) 프로그램 변형 미루기 — WS4SB 2일차(점프 · 회전 던지기)는 회전 던지기만, 모든 일차에서 다 쓴 날 = 그날 팔 던지기 · 아닌 날 = 없음',
+      'P6-1 (다) 프로그램 변형 미루기 — WS4SB 2일차(점프 · 회전 던지기 · 앞으로 던지기, 2026-10-16)는 던지기 둘만, 모든 일차에서 다 쓴 날 = 그날 팔 던지기 · 아닌 날 = 없음',
       mixed.variants.includes('jump') &&
-        same(programDeferVariants(mixed, spentB), ['rotationalThrow']) &&
+        same(programDeferVariants(mixed, spentB), ['rotationalThrow', 'medball']) &&
         programDeferVariants(null, spentB).length === 0 &&
         badDays.length === 0,
       badDays.slice(0, 5).join(' · ')
@@ -28009,14 +28192,15 @@ console.log(
       { prog: ws2, programDecision: 'go', override: true, mechanics: true }
     ).r;
     scene(
-      "C 오늘 등판 + '그래도 오늘 할래요'(D24) → 프로그램은 하되 회전 던지기는 오늘 뺌(점프는 남김) · 메커니즘 접고 못 펼침",
+      "C 오늘 등판 + '그래도 오늘 할래요'(D24) → 프로그램은 하되 던지기(회전 · 앞으로)는 오늘 뺌(점프는 남김) · 메커니즘 접고 못 펼침",
       c,
       c.top === 'outing' &&
         same(c.applied, ['outing', 'choice', 'program']) &&
         c.program?.role === 'owns' &&
-        same(c.programAdjust.deferVariants, ['rotationalThrow']) &&
+        same(c.programAdjust.deferVariants, ['rotationalThrow', 'medball']) &&
         same(keysOf(c), [
           'programVariant:rotationalThrow',
+          'programVariant:medball',
           'mechanicsThrows',
           'armcareStrength',
         ]) &&
@@ -28747,7 +28931,7 @@ console.log(
     for (const key of [
       '531',
       'stronglifts-5x5',
-      'french-contrast',
+      'pitcher-power',
       'basics-4w',
       'offseason-strength-power',
     ]) {
@@ -28840,27 +29024,29 @@ console.log(
       logs: [{ daysAgo: 0, pitches: 40, intensity: 9, sessionType: '불펜' }],
       today: {},
     };
+    /* 메디신볼 · 플라이오 푸시업이 든 날 — 531 2일차의 메디신볼이 2026-10-16(84120a40) 빠져 웨스트사이드 셋째 날로 */
     const run = (o: Partial<Run> = {}): Run => ({
-      key: '531',
-      nextDay: 2,
+      key: 'ws4sb',
+      nextDay: 3,
       lastDoneDate: sKey(3),
       lastLowerKey: null,
       override: false,
       ...o,
     });
+    const ARM_DAY_DEFER = ['medball', 'plyoPush'];
     const a = cardAndArbiter(hardPen, run());
     const a2 = cardAndArbiter(hardPen, run({ override: true }));
     check(
-      "P6-2 (다) A 오늘 불펜 40구 90% + 5/3/1 2일차(메디신볼) — 카드는 쉬는 날('오늘 많이 던졌어요'), 넘기면 하는 날에 메디신볼만 빼고 주의 '팔 아낌', 중재는 같은 날 프로그램 날 · 같은 변형을 뺀다",
+      "P6-2 (다) A 오늘 불펜 40구 90% + 웨스트사이드 3일차(메디신볼 · 플라이오 푸시업) — 카드는 쉬는 날('오늘 많이 던졌어요'), 넘기면 하는 날에 메디신볼만 빼고 주의 '팔 아낌', 중재는 같은 날 프로그램 날 · 같은 변형을 뺀다",
       a.decision.kind === 'rest' &&
         a.decision.reason === 'hardToday' &&
         restTextOf(a.decision.reason) === '오늘 많이 던졌어요' &&
         a.r.program?.role === 'none' &&
         a2.decision.kind === 'go' &&
-        same(a2.decision.deferVariants, ['medball']) &&
+        same(a2.decision.deferVariants, ARM_DAY_DEFER) &&
         a2.decision.caution === 'armRest' &&
         a2.r.program?.role === 'owns' &&
-        same(a2.r.programAdjust.deferVariants, ['medball']) &&
+        same(a2.r.programAdjust.deferVariants, ARM_DAY_DEFER) &&
         a2.r.deferred.some(
           (x) => x.key === 'programVariant' && x.variant === 'medball'
         ),
@@ -28894,7 +29080,7 @@ console.log(
       run({ key: 'stronglifts-5x5', lastLowerKey: Y, lastDoneDate: Y })
     );
     check(
-      "P6-2 (다) C 어제 매일 일정이 하체 날 + 스트롱리프트(매일 스쿼트) — 카드는 큰 하체를 빼지 않고 가볍게 + 주의 '어제 하체'(중재와 같은 글), 어제가 프로그램 날이면 간격(하체 신호 없음)",
+      "P6-2 (다) C 어제 매일 일정이 하체 날 + 스트롱리프트(매일 스쿼트) — 카드는 큰 하체를 빼지 않고 가볍게 + 주의 '어제 하체'(중재와 같은 글), 어제가 프로그램 날이어도 간격 없이 하는 날(10-16 — 하체 신호는 없음)",
       c.made.signals.heavyLowerYesterday &&
         c.decision.kind === 'go' &&
         c.decision.adjust.bigLower?.kind === 'lighter' &&
@@ -28903,7 +29089,7 @@ console.log(
         c.r.programAdjust.lighterBigLower &&
         c.r.why.includes(CAUTION_TEXT.lowerBudget) &&
         !d.made.signals.heavyLowerYesterday &&
-        d.decision.kind === 'spacing',
+        d.decision.kind === 'go',
       json({ c: c.decision, d: d.decision.kind })
     );
     const e = cardAndArbiter(
@@ -28921,17 +29107,17 @@ console.log(
      * 오늘 프로그램 판을 연 뒤 세게 던진 불펜을 적은 날 — 그날은 프로그램 것이라 쉬라고 하지 않는다(중재 fromSession 과 같은 규칙). 팔 예산은
      * 그대로라 메디신볼은 뺀다(얼린 판은 그대로 — 카드 목록만).
      */
-    const f = cardAndArbiter(hardPen, run({ session: { state: 'active', day: 2 } }));
+    const f = cardAndArbiter(hardPen, run({ session: { state: 'active', day: 3 } }));
     const fRec = cardAndArbiter(
       { name: "오늘 '회복' 고름", today: { preferredWorkout: '회복' } },
-      run({ session: { state: 'finished', day: 2 }, nextDay: 3 })
+      run({ session: { state: 'finished', day: 3 }, nextDay: 4 })
     );
     check(
       "P6-2 (다) E 오늘 프로그램 판이 있는 날 — 세게 던진 불펜 · '회복' 고름을 뒤에 적어도 카드는 쉬라고 하지 않고(중재도 오늘 판으로 프로그램 날), 팔 예산은 그대로 메디신볼을 뺀다",
       !f.made.signals.hardToday &&
         f.made.signals.armSpent &&
         f.decision.kind === 'go' &&
-        same(f.decision.deferVariants, ['medball']) &&
+        same(f.decision.deferVariants, ARM_DAY_DEFER) &&
         f.r.program?.role === 'owns' &&
         f.r.program.roleWhy === 'session' &&
         !fRec.made.signals.choseRecovery &&
@@ -29631,7 +29817,7 @@ console.log(
     const HARD_PEN = '어제 불펜 40구 90%';
     const hardPen = { days: 0, recovery: 0, program: 0 };
     const runs: { key: string; nextDay: number; lastDoneDate: string | null }[] = [];
-    for (const key of ['531', 'stronglifts-5x5', 'french-contrast', 'basics-4w']) {
+    for (const key of ['531', 'stronglifts-5x5', 'pitcher-power', 'basics-4w']) {
       const program = parseProgram(key);
       if (!program) continue;
       for (const d of [1, 2, 3, Math.ceil(program.totalDays / 2)])
@@ -29793,12 +29979,8 @@ console.log(
     }
     check(
       `P6-3 (아) 중재 → 매일 일정 격자 ${seen.combos}가지(사람 ${people.length} × 프로그램 · 일차 ${runs.length} × 어제 하체 × 넘김) — 프로그램 날(${seen.program}, 넘긴 날 ${seen.forcedProgram})은 일정 운동이 모두 그날 프로그램 운동, 멈춤(${seen.off})은 멈춤, 하체가 막힌 날 무거운 하체 0(예산이 없었으면 들던 ${seen.lowerBit}가지), 팔을 다 쓴 날은 넘겨도 팔 플라이오 0(예산이 없었으면 들던 ${seen.armBit}가지)`,
-      bad.length === 0 &&
-        seen.program > 0 &&
-        seen.forcedProgram > 0 &&
-        seen.off > 0 &&
-        seen.lowerBit > 0 &&
-        seen.armBit > 0,
+      /* lowerBit · armBit 는 10-16 간격 쉬는 날을 없앤 뒤 이 격자에서 0 — 어제 프로그램 날이 이제 프로그램 날이라 매일 일정 길로 안 간다(세기만) */
+      bad.length === 0 && seen.program > 0 && seen.forcedProgram > 0 && seen.off > 0,
       bad.slice(0, 4).join(' ‖ ')
     );
     check(
@@ -30153,7 +30335,7 @@ console.log(
         /exercises: \[\.\.\.view\.session\.exercises\],/.test(fromBody) &&
         !/role !== 'program'|role === 'program'/.test(load + fromBody)
     );
-    const page = strip('app/(app)/training/page.tsx');
+    const page = strip('app/(app)/training/training-page.tsx');
     const slot = [
       '{picked.halted ? (',
       ') : screen.programOwns ? (',
@@ -30186,10 +30368,11 @@ console.log(
         ),
       slot.join(' · ')
     );
-    const home = strip('app/(app)/training/training-home.tsx');
+    /* 카드 판정은 2026-10-18(0126c867) lib/report/training-home-data.ts 로 옮겼다 — 웹 카드 · 아이폰 앱이 같이 쓴다 */
+    const home = strip('lib/report/training-home-data.ts');
     const card = home.slice(
-      home.indexOf('async function WorkoutCard'),
-      home.indexOf('async function ArmcareCard')
+      home.indexOf('export async function workoutCardData'),
+      home.indexOf('export async function armcareCardData')
     );
     const order = [
       "session?.status === 'FINISHED'",
@@ -30208,9 +30391,9 @@ console.log(
           card
         ) &&
         /buildProgramDay\(core, programRow, user\)/.test(card) &&
-        /<StartWorkout compact program resume=\{active\} \/>/.test(card) &&
-        /* P6 로 바뀜(P6-6) — 상태 바뀜 카드(주의 색 한 줄)도 [시작]을 그대로 둬 셋째 시작 단추가 생겼다(알림은 다시 만들기를 권할 뿐) */
-        card.split('<StartWorkout').length === 4,
+        /* 프로그램 날 [시작] = 프로그램 운동 시작(program: true), 상태 바뀜 · 보통 카드는 매일 일정 시작 — 세 시작 단추 */
+        /action: canStart \? \{ kind: 'workout', program: true, resume: active \} : null,/.test(card) &&
+        card.split("kind: 'workout'").length === 4,
       order.join(' · ')
     );
     const start = strip('app/(app)/training/start-workout.tsx');
@@ -30377,14 +30560,15 @@ console.log(
         .replace(/^\s*\/\/.*$/gm, '');
     const load = strip('lib/mechanics/load.ts');
     const play = strip('app/(session)/mechanics/play/page.tsx');
+    const playLoad = strip('lib/mechanics/play-load.ts');
     const player = strip('app/(session)/mechanics/play/mechanics-player.tsx');
     const action = strip('app/actions/mechanics.ts');
     const finish = action.slice(
       action.indexOf('export async function finishMechanicsSession')
     );
     const card = strip('app/(app)/training/mechanics-program.tsx');
-    const home = strip('app/(app)/training/training-home.tsx');
-    const homeCard = home.slice(home.indexOf('async function MechanicsCard'));
+    const home = strip('lib/report/training-home-data.ts');
+    const homeCard = home.slice(home.indexOf('export async function mechanicsCardData'));
     const dayState = strip('lib/engine/day-state.ts');
     const arbiter = strip('lib/engine/arbiter.ts');
     const rows: [string, boolean][] = [
@@ -30397,19 +30581,21 @@ console.log(
           ) &&
           /select: \{ ownedEquipment: true, birthDate: true \}/.test(load) &&
           /painFold: mechanicsFoldOf\(\{/.test(load) &&
-          /painFold: null \}/.test(load),
+          /painFold: null(, throwNote: null)? \}/.test(load),
       ],
       [
         '따라 하기 — ?anyway=1 이 아니면(또는 못 펼치는 날이면) playItemsFor 가 무브먼트만, 비면 프로그램 칸으로, 시작 자리는 resumeAt',
-        /\.anyway === '1' && painFold\?\.canUnfold !== false/.test(play) &&
-          /playItemsFor\(session, painFold, anyway\)/.test(play) &&
-          /if \(items\.length === 0\) redirect\(BACK\)/.test(play) &&
-          /startAt=\{resumeAt\(items, done\)\}/.test(play) &&
-          /partial=\{partial\}/.test(play),
+        /* 2026-10-18(3a266d6c) 판정이 lib/mechanics/play-load.ts 로 — 웹 페이지 · 아이폰 앱이 같이 쓴다 */
+        /anywayParam === '1' && painFold\?\.canUnfold !== false/.test(playLoad) &&
+          /playItemsFor\(session, painFold, anyway\)/.test(playLoad) &&
+          /items\.length === 0/.test(playLoad) &&
+          /startAt: resumeAt\(items, done\)/.test(playLoad) &&
+          /startAt=\{play\.startAt\}/.test(play) &&
+          /partial=\{play\.partial\}/.test(play),
       ],
       [
         '마치기 — 반만 마치면 진행 · 세션 수 · 마친 날을 그대로(update 앞에서 돌아감), 다 마치면 finishState',
-        /finishMechanicsSession\(\{ partial \}\)/.test(player) &&
+        /finishMechanicsSession\(\{ partial(, session: sessionNumber)? \}\)/.test(player) &&
           /opts\?\.partial === true/.test(finish) &&
           finish.indexOf('opts?.partial === true') <
             finish.indexOf('prisma.mechanicsProgram.update') &&
@@ -30879,11 +31065,11 @@ console.log(
         .replace(/\{\/\*[\s\S]*?\*\/\}/g, '')
         .replace(/\/\*[\s\S]*?\*\//g, '')
         .replace(/^\s*\/\/.*$/gm, '');
-    const page = strip('app/(app)/training/page.tsx');
-    const home = strip('app/(app)/training/training-home.tsx');
+    const page = strip('app/(app)/training/training-page.tsx');
+    const home = strip('lib/report/training-home-data.ts');
     const homeCard = home.slice(
-      home.indexOf('async function WorkoutCard'),
-      home.indexOf('async function ArmcareCard')
+      home.indexOf('export async function workoutCardData'),
+      home.indexOf('export async function armcareCardData')
     );
     const band = strip('app/(app)/training/state-notice-band.tsx');
     const today = strip('lib/report/today-data.ts');
@@ -30923,7 +31109,7 @@ console.log(
           at(homeCard, 'stateNoticeOf(core.stateChanges') <
             at(homeCard, 'count === 0') &&
           /notice\.kind === 'remake' && notice\.canRemake/.test(homeCard) &&
-          /status=\{STATE_NOTICE_TEXT\.home\}/.test(homeCard) &&
+          /card\('today', STATE_NOTICE_TEXT\.home,/.test(homeCard) &&
           /session: session\?\.status === 'ACTIVE' \? 'active' : 'none'/.test(homeCard),
       ],
       [
@@ -31120,7 +31306,7 @@ console.log(
     const prog = strip('lib/program/load.ts');
     const nw = strip('lib/program/next-weight.ts');
     const fuel = strip('lib/nutrition/fuel-load.ts');
-    const page = strip('app/(app)/nutrition/page.tsx');
+    const page = strip('app/(app)/nutrition/nutrition-page.tsx');
     const view = strip('app/(app)/nutrition/nutrition-view.tsx');
     const nload = strip('lib/nutrition/load.ts');
     const homeDir = new URL('../app/(app)/today/', import.meta.url);
@@ -32122,10 +32308,10 @@ console.log(
 );
 {
   check(
-    '3판 (띠) 1~3 아파요 · 4~7 보통이에요 · 8~10 좋아요 — 띠 셋이 1~10 을 빈틈없이 나눈다',
+    '3판 (띠) 1~4 아파요 · 5~7 보통이에요 · 8~10 좋아요 — 띠 셋이 1~10 을 빈틈없이 나눈다(아파요 끝 = 낮은 날 문턱, 2026-10-16 D4)',
     CONDITION_BANDS.length === 3 &&
-      [1, 2, 3].every((n) => conditionBand(n) === 'sick') &&
-      [4, 5, 6, 7].every((n) => conditionBand(n) === 'normal') &&
+      [1, 2, 3, 4].every((n) => conditionBand(n) === 'sick') &&
+      [5, 6, 7].every((n) => conditionBand(n) === 'normal') &&
       [8, 9, 10].every((n) => conditionBand(n) === 'good') &&
       PAIN_FORCED_CONDITION === 3 &&
       LOW_CONDITION_THRESHOLD === 4
@@ -32228,9 +32414,15 @@ console.log(
     lastLogDate: null,
     velocityByDay: {},
     bestBefore: null,
+    bestBeforeDate: null,
+    lastOutingAdjusted: null,
+    missingDays: 0,
     conditionByDay: {},
     usualCondition: null,
     checkinDays: [],
+    sleepByDay: {},
+    painRecentParts: [],
+    painToday: false,
     workoutDays: [],
     workout: null,
     nutrition: {
@@ -32239,6 +32431,9 @@ console.log(
       parts: [],
       todayKcal: 0,
       targetKcal: 2400,
+      protein: 0,
+      targetProtein: 0,
+      mealsToday: 0,
       week: null,
     },
     highlights: [],
@@ -32259,6 +32454,33 @@ console.log(
       empty[4].href === '/training' &&
       empty[5].href === '/nutrition'
   );
+  /* 2026-10-16 베타 100명: 영양을 안 적는 사람도 오늘 할 일 한 줄은 본다(점수 없이) */
+  const nutriOnly = buildFeedItems({
+    ...base(),
+    nutrition: { ...base().nutrition, headline: '끼니마다 단백질 한 가지 · 밥은 평소대로' },
+  })[5];
+  check(
+    '홈 요약 (영양 · 기록 없음) 오늘 조언 한 줄이 있으면 기록 없음 대신 그 줄 — 점수 없이 "적으면 더 맞춰 드려요"',
+    nutriOnly.tone === 'today' &&
+      nutriOnly.label === '영양' &&
+      nutriOnly.text === '끼니마다 단백질 한 가지 · 밥은 평소대로' &&
+      nutriOnly.sub === '적으면 더 맞춰 드려요',
+    `${nutriOnly.label} · ${nutriOnly.text} · ${nutriOnly.sub}`
+  );
+  const nutriWeek = buildFeedItems({
+    ...base(),
+    nutrition: {
+      ...base().nutrition,
+      headline: '끼니마다 단백질 한 가지 · 밥은 평소대로',
+      week: { avgKcal: 2400, days: 3 },
+    },
+  })[5];
+  check(
+    '홈 요약 (영양 · 오늘 기록 없음 · 지난 7일 있음) 오늘 조언이 장의 글, 7일 평균은 다음 후보로',
+    nutriWeek.text === '끼니마다 단백질 한 가지 · 밥은 평소대로' &&
+      nutriWeek.variants.some((v) => v.id === 'week-avg' && v.text === '최근 7일 평균 2,400kcal'),
+    nutriWeek.variants.map((v) => `${v.id}:${v.text}`).join(' | ')
+  );
 
   const full = buildFeedItems({
     ...base(),
@@ -32271,13 +32493,24 @@ console.log(
     usualCondition: 7,
     checkinDays: [T, '2026-10-13', '2026-10-12'],
     workoutDays: [T, '2026-10-12'],
-    workout: { label: '하체 근력', minutes: 40, done: 2, total: 6, goal: '근력 향상' },
+    workout: {
+      label: '하체 근력',
+      minutes: 40,
+      done: 2,
+      total: 6,
+      goal: '근력 향상',
+      programDay: null,
+      leftMinutes: 25,
+    },
     nutrition: {
       score: 82,
       headline: '저녁에 단백질 한 번 더',
       parts: ['탄수화물 +30g', '단백질 충분', '지방 충분'],
       todayKcal: 1800,
       targetKcal: 2400,
+      protein: 90,
+      targetProtein: 130,
+      mealsToday: 3,
       week: { avgKcal: 2000, days: 5 },
     },
   });
@@ -32292,7 +32525,8 @@ console.log(
       full[1].speed === 131.2 &&
       full[1].diff === 3.2 &&
       full[1].text.includes('+{diff}') &&
-      full[1].sub === '역대 최고 133km/h' &&
+      full[1].sub === '역대 최고 {best}' &&
+      full[1].best === 133 &&
       full[2].text === '1.02 · 적정' &&
       full[3].text === '오늘 컨디션 8/10' &&
       full[3].sub === '평소 7보다 좋아요 · 체크인 3일째' &&
@@ -32333,7 +32567,8 @@ console.log(
       past[0].href === '/coach' &&
       past[1].text === '최근 6주 최고 {speed}' &&
       past[1].speed === 127.5 &&
-      past[1].sub === '역대 최고 130km/h' &&
+      past[1].sub === '역대 최고 {best}' &&
+      past[1].best === 130 &&
       past[2].text === '0.60 · 부하 낮음' &&
       past[3].text === '최근 7일 평균 7/10' &&
       past[3].sub === '체크인 2일 연속 · 오늘은 아직' &&
@@ -32390,6 +32625,18 @@ console.log(
       hl[0].tone === 'today' &&
       hl[0].text === '오늘 60구 던졌어요.'
   );
+  /* 2026-10-16 베타 100명: 하이라이트가 덮은 뒤 기본 글을 떠서 같은 글이 두 번 돌고 원래 숫자 줄이 사라졌다 */
+  check(
+    '홈 요약 (하이라이트 후보) 둘째 후보는 원래 숫자 줄 — 부하 장 [하이라이트, 1.60 · …], 투구량 장(past) [하이라이트, 마지막 투구 …], 기록 없던 구속 장은 \'기록 없음\'을 안 돌림',
+    hl[2].variants[0].text === hl[2].text &&
+      hl[2].variants[1]?.id === 'base' &&
+      hl[2].variants[1].text.startsWith('1.60 · ') &&
+      past[0].variants[1]?.id === 'base' &&
+      past[0].variants[1].text !== past[0].variants[0].text &&
+      past[0].variants[1].text.includes('30구') &&
+      hl[1].variants.every((v) => v.id !== 'base'),
+    `${hl[2].variants.map((v) => v.text).join(' | ')} / ${past[0].variants.map((v) => v.text).join(' | ')} / ${hl[1].variants.map((v) => v.id).join(',')}`
+  );
 
   /* 구속 — 오늘이 역대 최고 · 3주 전보다 떨어진 날 · 최근 6주는 없고 옛 최고만 */
   const bestToday = buildFeedItems({
@@ -32404,7 +32651,8 @@ console.log(
     '홈 요약 (구속 셋) 3주 전 136.5 보다 낮으면 −{diff} 1.5 · 역대 136.5, 최근 6주가 비고 옛 최고만 있으면 past 글 한 줄(그래프 없음)',
     bestToday[1].text.includes('−{diff}') &&
       bestToday[1].diff === 1.5 &&
-      bestToday[1].sub === '역대 최고 136.5km/h' &&
+      bestToday[1].sub === '역대 최고 {best}' &&
+      bestToday[1].best === 136.5 &&
       onlyOld[1].tone === 'past' &&
       onlyOld[1].speed === 128 &&
       onlyOld[1].chart === null &&
@@ -32425,6 +32673,285 @@ console.log(
       oldCheckin[3].sub === '오늘 체크인을 남겨요' &&
       oldCheckin[4].tone === 'past' &&
       oldCheckin[4].text === '최근 14일 중 1일 운동했어요.'
+  );
+
+  /* ═══ 후보(variants) — 장마다 보여줄 수 있는 말 여럿, 자료 있는 것만(2026-10-14 2판) ═══ */
+  const ids = (it: FeedItem) => it.variants.map((v) => v.id);
+  const sameAsFirst = (it: FeedItem) => {
+    const v = it.variants[0];
+    return (
+      v != null &&
+      v.text === it.text &&
+      v.sub === it.sub &&
+      v.speed === it.speed &&
+      v.diff === it.diff &&
+      !!v.warn === !!it.warn &&
+      v.chart === it.chart
+    );
+  };
+  check(
+    '홈 요약 (후보) 모든 장에 후보가 하나 이상, [0] 은 장의 글과 같다 — 빈 계정은 장마다 딱 하나(기록 없음)',
+    empty.every(
+      (i) => i.variants.length === 1 && i.variants[0].id === 'base' && sameAsFirst(i)
+    ) &&
+      full.every((i) => i.variants.length >= 1 && sameAsFirst(i)) &&
+      past.every((i) => sameAsFirst(i))
+  );
+  check(
+    '홈 요약 (후보 · 다 있음) 투구량 · 구속 · 운동 · 영양에 후보 3개 이상 · 컨디션 2개 이상, 후보 id 는 겹치지 않는다',
+    [full[0], full[1], full[4], full[5]].every((i) => i.variants.length >= 3) &&
+      full[3].variants.length >= 2 &&
+      full.every((i) => new Set(ids(i)).size === i.variants.length)
+  );
+  check(
+    '홈 요약 (후보 · 투구량) 이번 주 75구 vs 지난 주 50구 → "이번 주 +50%", 4주 최다 10월 2일 50구 · 던진 날 3일, 연속 1일은 후보 아님',
+    full[0].variants.find((v) => v.id === 'week-vs-last')?.text === '이번 주 +50%' &&
+      full[0].variants.find((v) => v.id === 'month-max')?.text ===
+        '4주 최다 10월 2일 · 50구' &&
+      full[0].variants.find((v) => v.id === 'month-max')?.sub ===
+        '던진 날 3일 · 하루 평균 42구' &&
+      !ids(full[0]).includes('streak')
+  );
+  const wk = buildFeedItems({
+    ...base(),
+    pitchesByDay: {
+      [T]: 40,
+      '2026-10-13': 30,
+      '2026-10-12': 20,
+      '2026-10-05': 60,
+      '2026-10-04': 40,
+    },
+    lastLogDate: T,
+    lastOutingAdjusted: 52,
+  });
+  check(
+    '홈 요약 (후보 · 투구량) 이번 주 90구 · 지난 주 100구 → "이번 주 −10%", 3일 연속 · 마지막 휴식 10월 11일, 전력 환산 52구',
+    wk[0].variants.find((v) => v.id === 'week-vs-last')?.text === '이번 주 −10%' &&
+      wk[0].variants.find((v) => v.id === 'week-vs-last')?.sub ===
+        '이번 주 90구 · 지난 주 100구' &&
+      wk[0].variants.find((v) => v.id === 'streak')?.text === '3일 연속 던졌어요' &&
+      wk[0].variants.find((v) => v.id === 'streak')?.sub === '마지막 휴식 10월 11일' &&
+      wk[0].variants.find((v) => v.id === 'adjusted')?.text === '전력 환산 52구'
+  );
+  const vel = buildFeedItems({
+    ...base(),
+    velocityByDay: { [T]: 131, '2026-10-06': 129.5, '2026-09-10': 127.5 },
+    bestBefore: 133,
+    bestBeforeDate: '2026-08-20',
+    pitchesByDay: { [T]: 10 },
+    lastLogDate: T,
+  });
+  check(
+    '홈 요약 (후보 · 구속) 4주 전(9월 10일 주) 127.5 → 이번 주 131 "4주 전보다 +{diff}" 3.5, 역대 최고 133 · 8월 20일, 3번 재고 평균 129.3, 130 넘긴 날 1일',
+    vel[1].variants.find((v) => v.id === 'trend')?.text === '4주 전보다 +{diff}' &&
+      vel[1].variants.find((v) => v.id === 'trend')?.diff === 3.5 &&
+      vel[1].variants.find((v) => v.id === 'best-day')?.speed === 133 &&
+      vel[1].variants.find((v) => v.id === 'best-day')?.sub === '8월 20일에 세웠어요' &&
+      vel[1].variants.find((v) => v.id === 'measured')?.sub ===
+        '날 최고의 평균 {best}' &&
+      vel[1].variants.find((v) => v.id === 'measured')?.best === 129.3 &&
+      vel[1].variants.find((v) => v.id === 'over-130')?.text === '{best} 넘긴 날 1일' &&
+      vel[1].variants.find((v) => v.id === 'over-130')?.best === 130
+  );
+  const ld = buildFeedItems({
+    ...base(),
+    load: { zone: 'optimal', ratio: 1.0 },
+    missingDays: 12,
+    pitchesByDay: { [T]: 10 },
+    lastLogDate: T,
+  });
+  check(
+    '홈 요약 (후보 · 부하) 실제 공 수 — 최근 7일 10구 · 4주 평균 주 3구(부하 단위 아님, 2026-10-16 베타 100명), 28일 중 12일 빈 날 안내(열흘부터 — 분석 화면과 같은 문턱) — 빈 날이 많으면 늘릴 몫(room) 없음, 위험 구간(1.6)도 없음',
+    ld[2].variants.find((v) => v.id === 'acute-chronic')?.text === '최근 7일 10구' &&
+      ld[2].variants.find((v) => v.id === 'acute-chronic')?.sub === '4주 평균 주 3구' &&
+      !ids(ld[2]).includes('room') &&
+      ld[2].variants.find((v) => v.id === 'missing')?.text ===
+        '28일 중 12일 기록이 없어요' &&
+      !ids(hl[2]).includes('room') &&
+      !ids(buildFeedItems({ ...base(), load: { zone: 'optimal', ratio: 1.0 }, missingDays: 9, pitchesByDay: { [T]: 10 }, lastLogDate: T })[2]).includes('missing')
+  );
+  /* 2026-10-16 베타 시뮬 뒤 — '적정 상한까지 +N%'는 지수 적정 · 성인 · 빈 날 7일 밑일 때만(기록을 빼먹어 낮은 지수 · 성장기에 '늘려도 돼요' 금지) */
+  const roomOf = (o: { age?: number | null; zone?: 'low' | 'optimal'; ratio?: number; missingDays?: number }) =>
+    buildFeedItems({
+      ...base(),
+      age: o.age === undefined ? 25 : o.age,
+      load: { zone: o.zone ?? 'optimal', ratio: o.ratio ?? 1.0 },
+      missingDays: o.missingDays ?? 2,
+      pitchesByDay: { [T]: 10 },
+      lastLogDate: T,
+    })[2].variants.find((v) => v.id === 'room')?.text;
+  check(
+    '홈 요약 (후보 · 부하) 성인 · 적정 1.0 · 빈 날 2일 → 적정 상한까지 +30%, 15세 · 나이 모름 · 지수 낮음(0.4) · 빈 날 9일은 없음',
+    roomOf({}) === '적정 상한까지 +30%' &&
+      roomOf({ age: 15 }) === undefined &&
+      roomOf({ age: null }) === undefined &&
+      roomOf({ zone: 'low', ratio: 0.4 }) === undefined &&
+      roomOf({ missingDays: 9 }) === undefined
+  );
+  const cond = buildFeedItems({
+    ...base(),
+    conditionByDay: { [T]: 7, '2026-10-13': 9, '2026-10-12': 5, '2026-10-11': 6 },
+    checkinDays: [T, '2026-10-13', '2026-10-12', '2026-10-11', '2026-10-02'],
+    sleepByDay: { [T]: 2, '2026-10-13': 4, '2026-10-12': 5 },
+  });
+  check(
+    '홈 요약 (후보 · 컨디션) 이번 주 최고 9(화) · 최저 5(월), 어젯밤 뒤척임 · 잘 잔 날 2일 · 셋째 줄 "가장 센 운동은 빼요", 이번 달 체크인 5일',
+    cond[3].variants.find((v) => v.id === 'week-hi-lo')?.text ===
+      '이번 주 최고 9(화) · 최저 5(월)' &&
+      cond[3].variants.find((v) => v.id === 'sleep')?.text === '어젯밤 뒤척임' &&
+      cond[3].variants.find((v) => v.id === 'sleep')?.sub === '7일 중 잘 잔 날 2일' &&
+      cond[3].variants.find((v) => v.id === 'sleep')?.detail ===
+        '오늘 가장 센 운동은 빼요' &&
+      cond[3].variants.find((v) => v.id === 'month-checkins')?.text ===
+        '이번 달 체크인 5일' &&
+      !ids(full[3]).includes('sleep')
+  );
+  const painy = buildFeedItems({
+    ...base(),
+    conditionByDay: { [T]: 6 },
+    checkinDays: [T],
+    painRecentParts: ['어깨', '팔꿈치'],
+  });
+  const painHl = buildFeedItems({
+    ...base(),
+    conditionByDay: { [T]: 6 },
+    checkinDays: [T],
+    painToday: true,
+    highlights: [
+      {
+        key: 'condition',
+        warn: true,
+        label: '컨디션',
+        text: '컨디션이 사흘째 낮아요.',
+        href: '/coach',
+        chart: null,
+      },
+    ],
+  });
+  check(
+    '홈 요약 (후보 · 통증) 통증은 맨 앞이고 장의 글도 그것 — "최근 7일 통증 · 어깨 · 팔꿈치" 경고색, 하이라이트가 있으면 하이라이트 → 통증 → 기본',
+    painy[3].variants[0].id === 'pain-recent' &&
+      painy[3].text === '최근 7일 통증 · 어깨 · 팔꿈치' &&
+      painy[3].warn === true &&
+      painy[3].variants[1].id === 'base' &&
+      painHl[3].variants[0].id === 'highlight' &&
+      painHl[3].text === '컨디션이 사흘째 낮아요.' &&
+      painHl[3].variants[1].id === 'pain-today' &&
+      painHl[3].variants[2].id === 'base'
+  );
+  const wo = buildFeedItems({
+    ...base(),
+    workoutDays: [T, '2026-10-13', '2026-10-12', '2026-10-06'],
+    workout: {
+      label: '근력 · 시즌 중',
+      minutes: 45,
+      done: 1,
+      total: 5,
+      goal: null,
+      programDay: 7,
+      leftMinutes: 32,
+    },
+  });
+  check(
+    '홈 요약 (후보 · 운동) 프로그램 7번 세션, 남은 운동 4개 · 약 32분, 3일 연속, 이번 주 3일 · 지난 주 1일; 오늘 없음 fixture 는 "마지막 운동 10월 12일"',
+    wo[4].variants.find((v) => v.id === 'program')?.text ===
+      '근력 · 시즌 중 7번 세션' &&
+      wo[4].variants.find((v) => v.id === 'left')?.text === '남은 운동 4개' &&
+      wo[4].variants.find((v) => v.id === 'left')?.sub === '약 32분' &&
+      wo[4].variants.find((v) => v.id === 'streak')?.text === '3일 연속 운동했어요' &&
+      wo[4].variants.find((v) => v.id === 'week-vs-last')?.text ===
+        '이번 주 3일 · 지난 주 1일' &&
+      past[4].variants.find((v) => v.id === 'last')?.text === '마지막 운동 10월 12일'
+  );
+  check(
+    '홈 요약 (후보 · 영양) 오늘 600kcal 남음, 단백질 90g / 130g · 40g 더, 7일 평균 2,000kcal · 목표의 83%, 3끼',
+    full[5].variants.find((v) => v.id === 'left-kcal')?.text ===
+      '오늘 600kcal 남았어요' &&
+      full[5].variants.find((v) => v.id === 'protein')?.text === '단백질 90g / 130g' &&
+      full[5].variants.find((v) => v.id === 'protein')?.sub === '40g 더 먹어요' &&
+      full[5].variants.find((v) => v.id === 'week-avg')?.sub ===
+        '목표의 83% · 5일 기록' &&
+      full[5].variants.find((v) => v.id === 'meals')?.text === '오늘 3끼 적었어요' &&
+      !ids(past[5]).includes('left-kcal')
+  );
+  const tooLong = [full, wk, vel, ld, cond, painy, wo]
+    .flat()
+    .flatMap((i) => i.variants)
+    .filter((v) => v.id !== 'base' && v.id !== 'highlight')
+    .filter(
+      (v) =>
+        v.text.length > 22 || (v.sub?.length ?? 0) > 26 || (v.detail?.length ?? 0) > 28
+    )
+    .map((v) => `${v.id}:${v.text}`);
+  check(
+    `홈 요약 (후보 · 글 길이 — 기본 글 빼고) 큰 글 ≤ 22자 · 밑줄 ≤ 26자 · 셋째 줄 ≤ 28자 — 넘친 것: ${tooLong.join(', ') || '없음'}`,
+    tooLong.length === 0
+  );
+}
+
+/* ═══════════════════ [통합 2026-10-16] 체크인 3판 — 근육통은 몸 그림으로 어림 · 트레이닝 카드 답은 체크인 없이도 ═══════════════════ */
+console.log('\n[통합 2026-10-16] 근육통 어림(sorenessFromParts) · 카드 답(todayPrefsOf)');
+{
+  const ok5 = { shoulder: '정상', elbow: '정상', wrist: '정상', lowerBack: '정상', lowerBody: '정상' };
+  check(
+    '근육통 어림 — 부위 칸이 없으면 null(옛 facts · 손 체크인), 다 정상이면 1 없음, 뻐근 · 통증 부위 수 + 1, 다섯이어도 5 심함',
+    sorenessFromParts({}) === null &&
+      sorenessFromParts(ok5) === 1 &&
+      sorenessFromParts({ ...ok5, lowerBody: '뻐근' }) === 2 &&
+      sorenessFromParts({ ...ok5, lowerBody: '뻐근', lowerBack: '통증' }) === 3 &&
+      sorenessFromParts({ ...ok5, lowerBody: '뻐근', lowerBack: '뻐근', shoulder: '뻐근' }) ===
+        HIGH_SORENESS &&
+      sorenessFromParts({
+        ...ok5,
+        lowerBody: '뻐근',
+        lowerBack: '뻐근',
+        shoulder: '뻐근',
+        wrist: '뻐근',
+      }) === SEVERE_SORENESS &&
+      sorenessFromParts({
+        shoulder: '통증',
+        elbow: '통증',
+        wrist: '통증',
+        lowerBack: '통증',
+        lowerBody: '통증',
+      }) === SEVERE_SORENESS
+  );
+  const factsWith = (extra: Partial<Parameters<typeof buildFacts>[0]>) =>
+    buildFacts({
+      nickname: '시험',
+      age: 22,
+      heightCm: 180,
+      logs: [],
+      checkins: [],
+      memos: [],
+      today: TODAY,
+      ...extra,
+    });
+  const noCheckin = factsWith({
+    todayPrefs: { preferredParts: ['하체'], preferredWorkout: '회복' },
+  });
+  const legacy = factsWith({});
+  check(
+    '카드 답 — 체크인이 없어도 todayPrefsOf 가 카드 답을 낸다, 넘기지 않으면 칸이 없고(옛 facts 와 같음) 빈 답',
+    noCheckin.condition.today === null &&
+      todayPrefsOf(noCheckin).preferredWorkout === '회복' &&
+      todayPrefsOf(noCheckin).preferredParts.join() === '하체' &&
+      !('prefsToday' in legacy.condition) &&
+      todayPrefsOf(legacy).preferredWorkout === null &&
+      todayPrefsOf(legacy).preferredParts.length === 0
+  );
+  const src = (f: string) => readFileSync(new URL(`../${f}`, import.meta.url), 'utf-8');
+  check(
+    '카드 답 · 근육통 읽기 — 계획 쪽은 오늘 체크인의 preferred* 를 직접 안 읽고, gather 가 근육통을 어림하고, 3판 저장이 옛 칸 셋을 비운다',
+    [
+      'lib/report/daily-plan.ts',
+      'lib/report/auto-setup.ts',
+      'lib/engine/day-state.ts',
+      'lib/report/prescription.ts',
+      'lib/armcare/routine.ts',
+    ].every((f) => !/today\??\.preferred(Workout|Parts)/.test(src(f))) &&
+      src('lib/report/gather.ts').includes('c.soreness ?? sorenessFromParts(c)') &&
+      /soreness: null,\s*sleepHours: null,\s*armFatigue: null/.test(src('app/actions/checkin.ts'))
   );
 }
 

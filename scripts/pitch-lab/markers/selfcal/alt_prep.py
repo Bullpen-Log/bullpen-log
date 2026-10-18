@@ -6,6 +6,7 @@ B = ViTPose++-H COCO17: 몸 17 만 바꿈(발 · 손 · 얼굴은 RTMW)
 점수는 관절마다 RTMW 점수 분포에 순위로 맞춘다(엔진 문턱이 같은 몫을 거르게) — 모델 자신의 확신 순서는 그대로.
 """
 import os, sys, json
+from cams import CAMS
 import numpy as np
 
 SC = os.path.dirname(os.path.abspath(__file__))
@@ -53,7 +54,7 @@ def build(tag):
 def k4(tag, cal):
     os.environ["KP_DIR"] = f"kp_{tag}"
     from recon import kp3d
-    cams = {c: {k: (np.array(v) if isinstance(v, list) else v) for k, v in cal["cams"][c].items()} for c in "1234"}
+    cams = {c: {k: (np.array(v) if isinstance(v, list) else v) for k, v in cal["cams"][c].items()} for c in CAMS}
     out = os.path.join(WORK, f"rec_{tag}")
     os.makedirs(out, exist_ok=True)
     for p in range(1, 17):
@@ -67,7 +68,7 @@ def direct2d(cal):
     """카메라마다 스티커 3D 를 영상에 비춘 점 ↔ 2D 관절 거리의 흔들림(px, 투구 가운데) — 2D 모델끼리 같은 잣대"""
     from kpba import proj
     from bench import MARK_OF, NAMES as V2N, RTMW
-    cams = {c: {k: (np.array(v) if isinstance(v, list) else v) for k, v in cal["cams"][c].items()} for c in "1234"}
+    cams = {c: {k: (np.array(v) if isinstance(v, list) else v) for k, v in cal["cams"][c].items()} for c in CAMS}
     J = {n: RTMW[V2N.index(n)] for n in MARK_OF}
     res = {}
     tags = [("RTMW", "kp")] + [(t, f"kp_{t}") for t in "ABC" if os.path.isdir(os.path.join(WORK, f"kp_{t}"))]

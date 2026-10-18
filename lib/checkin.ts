@@ -149,7 +149,7 @@ export function validateCheckin(
   for (const part of CHECKIN_PARTS) {
     const value = (raw[part.key] ?? '').trim();
     if (!(BODY_FEELINGS as readonly string[]).includes(value)) {
-      return { error: `${part.label} 상태를 선택해주세요.` };
+      return { error: `${part.label} 상태를 선택해 주세요.` };
     }
     parts[part.key] = value;
   }
@@ -172,7 +172,7 @@ export function validateCheckin(
   const sleepRaw = raw.sleep.trim();
   const sleep = sleepRaw === '' ? '보통' : sleepRaw;
   if (!(SLEEP_LEVELS as readonly string[]).includes(sleep)) {
-    return { error: '수면 상태를 선택해주세요.' };
+    return { error: '수면 상태를 선택해 주세요.' };
   }
 
   return {
@@ -410,7 +410,7 @@ export function mealSummary(
  * 그 밖은 지금처럼 쉬기)와 안내 시트(app/(app)/training/arm-pain-guide.tsx). 자리 값은 암케어 부위 키
  * (lib/armcare/anatomy.ts)라 부위의 흔한 부상 · 증상을 그대로 꺼내 쓴다.
  *
- * 정도를 안 고른 날은 쉬는 쪽으로 본다 — 모르면 보수적으로. 트레이닝 일정 · 투구 계획은 이 두 칸을 읽지 않는다
+ * 정도를 안 고른 날은 쉬는 쪽으로 본다 — 모르면 보수적으로. 2026-10-18 부터는 통증이면 정도가 필수라(체크인 화면 · 저장 · 앱) 옛 기록에만 해당한다. 트레이닝 일정 · 투구 계획은 이 두 칸을 읽지 않는다
  * (통증이면 지금처럼 관절 단위로 피하고 멈춘다).
  */
 
@@ -584,7 +584,7 @@ export function canDoPainRoutine({
  * 2026-09-30 에 뺐다(사용자: "사용하지 않는 굳이 필요없는 건 빼줘") — 전신 피로 · 스트레스 · 기분 ·
  * 아침 심박 · 수분 · 식사. 어느 계산도 읽지 않고 홈 달력에 보이기만 하던 칸들이다(먹은 것은 영양 탭이
  * 끼니별로 받는다). 잔 시간 · 근육통도 같이 뺐다가 같은 날 되살렸다 — 트레이닝 추천이 읽게 연결해서
- * (위 구간). DB 칸(DailyCheckin 의 fatigue · stress · mood · restingHr · hydration · nutrition)과 그동안
+ * (위 구간). DB 칸(DailyCheckin 의 nutrition — fatigue · stress · mood · restingHr · hydration 은 2026-10-16 에 지웠다)과 그동안
  * 적은 값은 그대로 있다 — 여기서 읽지도 쓰지도 않을 뿐이라, 저장해도 예전 값이 지워지지 않는다.
  * 다시 쓰려면 아래 목록과 폼(components/checkin-form.tsx)에 칸을 되살리면 된다.
  */
@@ -848,7 +848,7 @@ export function parseCheckinDetail(
       bodyWeightKg < CHECKIN_WEIGHT_MIN_KG ||
       bodyWeightKg > CHECKIN_WEIGHT_MAX_KG)
   ) {
-    return { error: '몸무게를 다시 확인해주세요.' };
+    return { error: '몸무게를 다시 확인해 주세요.' };
   }
 
   const appetiteNum = Number(get('appetite'));
@@ -942,10 +942,14 @@ export function sleepLevelFromQuality(q: number): (typeof SLEEP_LEVELS)[number] 
   return q >= 4 ? '충분' : '보통';
 }
 
-/** 컨디션 1~10 의 세 띠 — 화면의 그림(아픔 · 보통 · 건강)과 말. 문턱(LOW_CONDITION_THRESHOLD)은 그대로 */
+/**
+ * 컨디션 1~10 의 세 띠 — 화면의 그림(아픔 · 보통 · 건강)과 말. '아파요' 띠의 끝 = 엔진의 낮은 날 문턱(LOW_CONDITION_THRESHOLD 4).
+ * 예전엔 1~3 이라 4 를 고르면 화면은 '보통이에요'인데 엔진은 회복 날로 짰다(2026-10-16 통합 검토 D4 — 엔진 문턱 대신 화면을 맞췄다,
+ * 문턱을 내리면 이미 맞춰 둔 추천이 바뀐다). 통증 화면을 켜 두는 선(PAIN_FORCED_CONDITION 3)은 사용자 결정이라 그대로.
+ */
 export const CONDITION_BANDS = [
-  { key: 'sick', label: '아파요', min: 1, max: 3 },
-  { key: 'normal', label: '보통이에요', min: 4, max: 7 },
+  { key: 'sick', label: '아파요', min: 1, max: 4 },
+  { key: 'normal', label: '보통이에요', min: 5, max: 7 },
   { key: 'good', label: '좋아요', min: 8, max: 10 },
 ] as const;
 export type ConditionBand = (typeof CONDITION_BANDS)[number]['key'];
@@ -973,6 +977,19 @@ export function armFatigueFromPain(c: {
   const level = c.armPainLevel ?? null;
   if (level == null) return SEVERE_ARM_FATIGUE;
   return level >= 2 ? SEVERE_ARM_FATIGUE : 3;
+}
+
+/**
+ * 몸 그림(다섯 부위 칸) → 옛 전신 근육통 눈금(1~5). 3판은 근육통을 묻지 않는다 — 그래서 근육통 규칙(prescription · theme ·
+ * day-state · 암케어 · 프로그램)이 새 기록에서 한 번도 안 걸렸다(2026-10-16 사용자 결정: 다시 묻지 않고 몸 그림으로 어림).
+ * 뻐근하거나 아픈 부위 수 0 '없음' · 1 '조금' · 2 '보통' · 3 '많이'(HIGH — 가장 센 운동 뺌) · 4~5 '심함'(SEVERE — 회복 날).
+ * 통증 부위도 센다 — 통증 규칙이 그 부위를 따로 빼고, 여기서는 몸 전체가 얼마나 지쳤나만 본다.
+ * 부위 칸이 하나도 없으면(옛 facts · 자가 시험의 손 체크인) null. 적어 둔 근육통이 있으면 그것이 먼저다(gather.ts).
+ */
+export function sorenessFromParts(c: Partial<CheckinParts>): number | null {
+  if (!CHECKIN_PARTS.some((p) => c[p.key] != null)) return null;
+  const n = CHECKIN_PARTS.filter((p) => c[p.key] === '뻐근' || c[p.key] === '통증').length;
+  return Math.min(n + 1, SORENESS_LEVELS.length);
 }
 
 export type CheckinSignals = {

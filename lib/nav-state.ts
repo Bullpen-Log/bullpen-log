@@ -98,9 +98,22 @@ export function clearBarBack(href: string) {
 /* ── 3. 화면 이동 방향 ── */
 
 /** fade = 하단 탭 · 메뉴처럼 옆으로 나란한 곳으로 — 옅어지며 바뀐다 */
-export type NavDirection = 'push' | 'pop' | 'fade' | 'none';
+/** zoom = 홈에서 구속 측정으로(멀리서 튀어나옴, components/tab-pager.tsx). 탭 사이는 전환이 없다 — 판 넘기기가 주소만 바꾼다 */
+export type NavDirection = 'push' | 'pop' | 'fade' | 'none' | 'zoom';
 
 /** '‹ 뒤로'가 router.back() 을 부르기 직전에 켠다 — 뒤따르는 popstate 를 '앱 안의 뒤로'로 읽게 */
+/*
+ * 뒤로를 막 눌렀나 — 빠르게 두 번 누르면 첫 뒤로가 화면을 바꾸기 전이라 router.back() 이 두 번 불려 두 칸 뒤로(앱이면 첫 화면
+ * 밖으로) 갔다(2026-10-16). 0.8초 안의 둘째 뒤로는 버린다. 부르면 '지금 눌렀다'로 적는다.
+ */
+let backAt = 0;
+export function backTooSoon(): boolean {
+  const now = Date.now();
+  if (now - backAt < 800) return true;
+  backAt = now;
+  return false;
+}
+
 let backPressed = false;
 export function markBackPressed() {
   backPressed = true;

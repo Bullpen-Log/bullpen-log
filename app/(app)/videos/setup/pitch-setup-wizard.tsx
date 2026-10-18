@@ -12,7 +12,6 @@ import { useStepWizard } from '@/components/onboarding/use-step-wizard';
 import { finishPitchSetup } from '@/app/actions/pitch-setup';
 import { OFFLINE_MESSAGE, orOffline } from '@/lib/action-offline';
 import { BASELINE_MIX, MIX_COUNTS, THROWING_HANDS, mixDailyLoad } from '@/lib/baseline';
-import { scaleToEffortPct } from '@/lib/pitch-effort';
 import {
   checkPitchStep,
   pitchStepOfField,
@@ -131,15 +130,15 @@ export function PitchSetupWizard({
         /* 성인(만 19세 이상)은 나이 한도가 없다 — lib/report/plan.ts ADULT_AGE */
         if (age !== null && age >= ADULT_AGE)
           return {
-            title: `${who}오늘 던질 양을 알려 드려요`,
-            desc: '투구를 적기 시작하면 홈이 오늘 던질 수 있는 양과 쉬어야 할 날을 알려 드려요. 그러려면 세 가지만 물을게요.',
+            title: `${who}지금 팔 상태를 알려 드려요`,
+            desc: '투구를 적으면 지금 팔이 위험한지 안전한지 보여 줘요. 세 가지만 물을게요.',
           };
         return {
           title: `${who}먼저 하루 투구 한도예요`,
           desc:
             age === null
-              ? '나이로 정해지는 숫자예요. 내 정보에 생년월일을 적으면 나이에 맞는 한도로 바뀌어요. 투구를 적기 시작하면 홈이 오늘 던질 수 있는 양과 쉬어야 할 날을 알려 드려요. 그러려면 세 가지만 물을게요.'
-              : '나이로 정해지는 숫자예요. 투구를 적기 시작하면 홈이 오늘 던질 수 있는 양과 쉬어야 할 날을 알려 드려요. 그러려면 세 가지만 물을게요.',
+              ? '나이로 정해지는 숫자예요. 내 정보에 생년월일을 적으면 나이에 맞게 바뀌어요.'
+              : '나이로 정해지는 숫자예요.',
         };
       case 'hand':
         return {
@@ -149,14 +148,14 @@ export function PitchSetupWizard({
       case 'pitching':
         return {
           title: '평소 얼마나 던져요?',
-          desc: '보통 한 주에 종류별로 몇 번 던지는지 골라 주세요. 첫날부터 투구 부하 지수를 낼 수 있어요. 기록이 쌓이면 이 답은 자리를 비켜요.',
+          desc: '보통 한 주에 종류별로 몇 번 던지는지 골라 주세요. 기록이 쌓이기 전까지 투구 부하 지수를 이 값으로 셈해요.',
         };
       case 'summary':
         return {
           title: `${name ? `${name} 님의 ` : ''}투구 설정이에요`,
           desc: done
-            ? '저장하면 투구 탭과 홈이 이 값으로 셈해요. 언제든 내 정보에서 고칠 수 있어요.'
-            : '시작하면 투구 탭이 열려요. 언제든 내 정보에서 고칠 수 있어요.',
+            ? '저장하면 투구 탭과 홈이 이 값으로 셈해요. 내 정보에서 고칠 수 있어요.'
+            : '시작하면 투구 탭이 열려요.',
         };
     }
   }
@@ -261,8 +260,8 @@ export function PitchSetupWizard({
                   value={a[field]}
                   onChange={(v) => w.patch({ [field]: v })}
                   invalid={invalid(field)}
-                  /* 강도는 1~10 표(BASELINE_MIX)를 입력과 같은 체감 강도 % 로 보인다(9 → 90%) */
-                  hint={`한 번에 보통 ${t.pitches}구, 강도 ${scaleToEffortPct(t.intensity)}% 정도로 셈해요.`}
+                  /* 강도는 입력과 같은 1~10(2026-10-18 % 에서 되돌림) */
+                  hint={`한 번에 보통 ${t.pitches}구, 강도 ${t.intensity} 정도로 셈해요.`}
                 />
               );
             })}
@@ -281,8 +280,7 @@ export function PitchSetupWizard({
                   </span>
                 </p>
                 <p className="mt-1 text-xs leading-relaxed break-keep text-muted">
-                  첫날부터 이 값에서 투구 부하 지수를 시작해요. 기록이 쌓일수록 이
-                  짐작은 자리를 비켜요.
+                  기록이 쌓이기 전까지 투구 부하 지수를 이 값으로 셈해요.
                 </p>
               </div>
             )}
@@ -324,7 +322,7 @@ export function PitchSetupWizard({
             <p className="text-xs leading-relaxed break-keep text-muted">
               {done
                 ? '저장하면 내 정보의 같은 칸도 이 값으로 바뀌어요.'
-                : '시작하면 투구 탭이 열리고, 사용법을 짧게 안내해요.'}
+                : '시작하면 투구 탭이 열려요. 설정은 내 정보에서 고칠 수 있어요.'}
             </p>
           </div>
         )}

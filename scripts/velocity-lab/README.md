@@ -44,6 +44,14 @@ node scripts/velocity-lab/app-rerun.mts --date=<날짜> --d=18.5
 node scripts/velocity-lab/session-audit.mts ~/bullpen-velocity-lab/device/<세션> --d=20
 ```
 
+```bash
+# 10) 엔진 개발용 녹화(관리자 › 구속 측정 › 엔진 개발용 녹화) 받기 — 조각 영상 + 공 표시(스피드건 · 손에서 떠난 때)
+node --env-file=.env scripts/velocity-lab/download-recording.mjs --id=49def374
+# 11) 스피드건 비교표 — 앱과 같은 조건으로 재고 화면 규칙(높음만 기록 · 세션 거리 보정)을 묶음마다 적용(엔진을 고칠 때 전 · 후)
+node scripts/velocity-lab/gun-table.mjs --files=2026-10-03,2026-10-06 --live=2026-10-07,2026-10-09 --rec=rec-49def374
+#    카메라 앱 영상에 앱 공 알림 시각을 씨앗으로: 5) 의 출력을 파일로 두고 --trig=<그 파일>. 엔진 복사본은 --engine=<폴더>
+```
+
 맥에서 폰에 바로 깔기(개발용 빌드, 1~2분 — TestFlight 30~50분 대신):
 
 ```bash
@@ -63,6 +71,10 @@ xcrun devicectl device process launch --device <폰 UDID> --console --terminate-
 `luma(t)`)을 직접 부른다.
 
 ## 함정
+
+- **장면은 앱과 같은 디코더 길(mediabunny)로 푼다**(2026-10-16 부터 — cdp.mjs 가 mediabunny 를 쪽에 같이 올린다). 그 전에는 늘 되감기 길이라
+  공 크기 거리가 2% 남짓 짧게 나왔다. 예전 길로 견주려면 `LAB_FRAMES=seek`. 결과의 `video.timing.decoded`(푼 장면 수)가 0 이면 되감기 길이다.
+- ball-trigger 출력의 `seed` 는 공 후보(2.6.1) — 앱은 화면에 안 띄우고 그 시각으로 재 본다. `ball` 만 바로 보이는 알림이다.
 
 - **크롬을 여러 개 같이 돌리면 값이 흔들린다.** 되감기가 앞 장면을 다시 내줘 장면이 겹친다(같은 엔진인데 실내 18개 중 7개가
   다르게 나왔다). 차례로 돌리고, 줄 끝에 `겹친 장면 N` 이 찍히면 그 값은 버리고 다시 돌린다. 꼭 같이 돌려야 하면 `--port` 를 달리.

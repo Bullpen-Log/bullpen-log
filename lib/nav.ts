@@ -36,6 +36,9 @@ export type NavIconName =
   | 'radar'
   /* 투구 분석(3D, 실험실) — 서 있는 사람 */
   | 'body'
+  /* 커뮤니티 — 말풍선 둘 · 고객센터 — 구명 튜브(2026-10-17) */
+  | 'community'
+  | 'support'
   | 'menu';
 
 export type NavItem = {
@@ -183,9 +186,14 @@ export const NAV_GROUPS: NavGroup[] = [
       },
     ],
   },
-  /* 투구 분석 — 옆 · 뒤 두 영상으로 3D 분석(실험실, 2026-10-13 김민 '더보기에 투구분석'). 아직 관리자만 연다(videos/lab/page.tsx requireAdmin) */
+  /*
+   * 3D 동작 분석 — 옆 · 뒤 두 영상으로 3D(2026-10-13 김민 '더보기에 투구분석'). 2026-10-14 이름을 바꾸고('투구 분석'은 기록 분석 /coach 와
+   * 헷갈렸다) 일반 사용자에게도 연다 — 사람마다 자기 영상만(lib/pitch-lab.ts ownerIds), GPU 비용은 lib/pitch-lab-guard.ts.
+   */
   {
-    items: [{ href: '/videos/lab', label: '투구 분석', icon: 'body', adminOnly: true, lock: 'pitch' }],
+    items: [
+      { href: '/videos/lab', label: '3D 동작 분석', icon: 'body', lock: 'pitch' },
+    ],
   },
   {
     title: '라이브러리',
@@ -208,6 +216,17 @@ export const NAV_GROUPS: NavGroup[] = [
         icon: 'book',
         tone: 'upper',
       },
+    ],
+  },
+  /*
+   * 소통 — 커뮤니티(글 · 댓글 · 좋아요 · 신고)와 고객센터(공지 · 자주 묻는 질문 · 1:1 문의), 2026-10-17 1판(틀). 매일 쓰는 곳은 아니라
+   * 라이브러리 뒤. 잠금 없음 — 가입하면 바로 열린다.
+   */
+  {
+    title: '소통',
+    items: [
+      { href: '/community', label: '커뮤니티', icon: 'community' },
+      { href: '/support', label: '고객센터', icon: 'support' },
     ],
   },
   {
@@ -233,6 +252,14 @@ export const NAV_GROUPS: NavGroup[] = [
         href: '/admin/shoot',
         label: '영상 촬영',
         icon: 'clapper',
+        tone: 'armcare',
+        adminOnly: true,
+      },
+      /* 1:1 문의 답하기 · 공지 쓰기 · 커뮤니티 신고 처리(2026-10-17) */
+      {
+        href: '/admin/support',
+        label: '소통 관리',
+        icon: 'support',
         tone: 'armcare',
         adminOnly: true,
       },
@@ -270,8 +297,7 @@ export const MORE_HREF = '/more';
  * 어긋나면 좁힌 PC 창에서 막대는 보이는데 연출이 안 돌거나 그 반대가 된다.
  * px 가 아니라 rem 으로 적는 것도 CSS 와 같게 하려는 것이다.
  */
-export const DESK_MEDIA =
-  '(min-width: 36rem) and (hover: hover) and (pointer: fine)';
+export const DESK_MEDIA = '(min-width: 36rem) and (hover: hover) and (pointer: fine)';
 
 /**
  * 메뉴 주소 말고도 그 탭에 속하는 주소 — 거기 있을 때도 그 탭에 불이 들어온다.

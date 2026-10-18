@@ -169,7 +169,7 @@ export function AvatarPicker({
             type="button"
             disabled={working}
             onClick={() => fileRef.current?.click()}
-            className="inline-flex items-center gap-1.5 rounded-xl border border-line-strong px-3 py-2 text-xs font-semibold text-ink transition-colors hover:bg-surface-2 disabled:opacity-50"
+            className="inline-flex min-h-10 items-center gap-1.5 rounded-xl border border-line-strong px-3 text-xs font-semibold text-ink transition-colors hover:bg-surface-2 disabled:opacity-50"
           >
             <Camera aria-hidden className="h-3.5 w-3.5" />
             {preview ? '사진 바꾸기' : '사진 올리기'}
@@ -180,7 +180,7 @@ export function AvatarPicker({
               type="button"
               disabled={working}
               onClick={remove}
-              className="inline-flex items-center gap-1.5 rounded-xl border border-line px-3 py-2 text-xs text-muted transition-colors hover:border-danger-line hover:text-danger disabled:opacity-50"
+              className="inline-flex min-h-10 items-center gap-1.5 rounded-xl border border-line px-3 text-xs text-muted transition-colors hover:border-danger-line hover:text-danger disabled:opacity-50"
             >
               <Trash2 aria-hidden className="h-3.5 w-3.5" />
               지우기
@@ -197,6 +197,9 @@ export function AvatarPicker({
         ref={fileRef}
         type="file"
         accept="image/*"
+        /* Tab 차례에서 뺀다 — 보이는 단추가 대신 누른다(이름 없는 칸에 초점이 멈췄다) */
+        tabIndex={-1}
+        aria-label="프로필 사진 파일 고르기"
         className="sr-only"
         onChange={(e) => {
           const file = e.target.files?.[0];
@@ -222,7 +225,11 @@ export function AvatarPicker({
 function explain(e: unknown) {
   if (e instanceof UnreadableImageError) return e.message;
   const message = e instanceof Error ? e.message : '';
-  if (/Server Action|was not found on the server|Failed to find Server Action/i.test(message)) {
+  if (
+    /Server Action|was not found on the server|Failed to find Server Action/i.test(
+      message
+    )
+  ) {
     return '앱이 새로 바뀌었어요. 새로고침(F5)한 뒤 다시 골라주세요.';
   }
   if (/Failed to fetch|NetworkError|Load failed/i.test(message)) {

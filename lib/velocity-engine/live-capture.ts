@@ -132,7 +132,8 @@ export type CameraInfo = {
  * 결과에 붙는 번호 — 나중에 오는 영상 클립(onClip)과 짝을 맞춘다. hitT 는 클립의 eventSec 에 해당하는 궤적 시각(CaptureJob.hitT,
  * 동시 촬영은 클립 시각 그대로) — 클립 시각 = eventSec + (궤적 시각 − hitT). 모르면 null.
  */
-export type ResultMeta = { id: number; triggerT: number; hitT: number | null };
+/** late — 조용할 때 훑기가 뒤늦게 찾은 공(dual-capture.ts, 2.7). 화면이 '뒤늦게 찾은 공' 표시를 붙인다 */
+export type ResultMeta = { id: number; triggerT: number; hitT: number | null; late?: boolean };
 
 /** 공 하나의 영상 클립 — 던진 순간을 담은 3초 조각. eventSec = 클립 안에서 던진 시각 */
 export type PitchClip = {
@@ -698,7 +699,7 @@ export class LiveCapture {
     if (!navigator.mediaDevices?.getUserMedia) {
       this.setStatus('off');
       throw new Error(
-        '이 브라우저는 카메라를 쓸 수 없습니다. 앱이나 최신 브라우저에서 열어 주세요.'
+        '이 브라우저는 카메라를 쓸 수 없어요. 앱이나 최신 브라우저에서 열어 주세요.'
       );
     }
 
@@ -730,12 +731,12 @@ export class LiveCapture {
       if (name === 'NotAllowedError') {
         this.setStatus('off');
         throw new Error(
-          '카메라 사용을 허용해 주세요. 브라우저 주소창 옆 자물쇠에서 바꿀 수 있습니다.'
+          '카메라 사용을 허용해 주세요. 브라우저 주소창 옆 자물쇠에서 바꿀 수 있어요.'
         );
       }
       if (name === 'NotFoundError') {
         this.setStatus('off');
-        throw new Error('쓸 수 있는 카메라가 없습니다.');
+        throw new Error('쓸 수 있는 카메라가 없어요.');
       }
       /* 제약이 안 맞았으면(오래된 브라우저) 후면 카메라만 청해 다시 — 어떤 조건에서도 카메라는 켜져야 한다 */
       try {
@@ -745,7 +746,7 @@ export class LiveCapture {
         });
       } catch {
         this.setStatus('off');
-        throw new Error('카메라를 켜지 못했습니다.');
+        throw new Error('카메라를 켜지 못했어요.');
       }
     }
 
@@ -760,7 +761,7 @@ export class LiveCapture {
     if (!(await this.readVideoSize())) {
       checkAborted();
       this.stop();
-      throw new Error('카메라 화면 크기를 읽지 못했습니다.');
+      throw new Error('카메라 화면 크기를 읽지 못했어요.');
     }
     checkAborted();
 
@@ -1193,7 +1194,7 @@ export class LiveCapture {
     this.publish();
     if (m.type === 'result') this.handlers.onResult(this.withInfo(m.result), meta);
     /* 계산 워커의 오류 글(자바스크립트 말)은 보이지 않는다 */
-    else this.handlers.onError('계산하지 못했습니다.');
+    else this.handlers.onError('계산하지 못했어요.');
   }
 
   /** 결과에 장면 받는 길 · 장면 형식을 붙인다(분석 JSON 에 남아 실제 폰에서 어떻게 도는지 되짚는다) */
@@ -1366,7 +1367,7 @@ export class LiveCapture {
       try {
         this.handlers.onResult(this.withInfo(analyzeJob(job, camera)), meta);
       } catch {
-        this.handlers.onError('계산하지 못했습니다.');
+        this.handlers.onError('계산하지 못했어요.');
       } finally {
         this.pending = Math.max(0, this.pending - 1);
         /* 카메라를 껐거나 다시 켰으면(판단이 바뀜) 옛 판단을 건드리지 않는다 */

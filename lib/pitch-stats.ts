@@ -436,12 +436,18 @@ export const MISSING_DAYS_WARNING = 10;
  * 보여주면 "더 던져도 된다"는 뜻으로 읽힌다.
  *
  * 쉰 날을 적어 둔 것은 빠진 날이 아니다. 그건 진짜 0이다.
+ *
+ * 첫 기록 앞의 날은 빠진 날이 아니라 아직 안 쓴 날이다 — 가입 2주차 사람에게 '28일 중 14일 기록이 없어요'가 떴다(2026-10-16 베타 100명).
+ * byDay 는 창(dateKeys)보다 길게 넘겨야 창 앞머리의 진짜 빈 날을 센다(facts · 분석 화면 모두 그렇다).
  */
 export function countMissingDays(
   byDay: Map<string, DayTotals>,
   dateKeys: string[]
 ): number {
-  return dateKeys.filter((key) => !byDay.has(key)).length;
+  let first: string | null = null;
+  for (const key of byDay.keys()) if (first == null || key < first) first = key;
+  if (first == null) return 0;
+  return dateKeys.filter((key) => key >= first && !byDay.has(key)).length;
 }
 
 export function findFatigueWindows(
@@ -842,30 +848,27 @@ export const INTENSITY_STRESS_FACTOR: Record<number, number> = {
 export const MIN_STRESS_FACTOR = 0.4;
 
 /**
- * 경기는 강도와 상관없이 전력으로 본다.
- *
- * 연구가 거듭 말하는 것이 "선수의 체감 노력은 실제 부하와 맞지 않는다"는
- * 것인데, 경기에서 특히 그렇다. 던질 양도 강도도 내가 정할 수 없고, 지고 있으면
- * 힘이 더 들어간다. 게다가 휴식일 표 자체가 경기 기준으로 만들어진 것이라,
- * 경기에 계수를 곱하면 그 표를 만든 전제를 흔드는 셈이 된다.
+ * 강도 → 부하 계수. 경기도 고른 강도대로 본다(2026-10-18 사용자: "경기더라도 짧게 던질 수 있고 선발 · 불펜이 다르다 —
+ * 무조건 100% 면 안 된다"). 예전에는 경기를 늘 1(전력)로 봤다 — 체감이 실제 부하보다 낮게 나오고 휴식일 표가 경기 기준이라서.
+ * sessionType 은 부르는 쪽 모양을 지키려고 남긴다.
  */
-export function stressFactor(intensity: number, sessionType?: string): number {
-  if (sessionType === '경기') return 1;
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- 부르는 쪽 모양(effortAdjustedPitches)을 지키려고 남긴 칸
+export function stressFactor(intensity: number, _sessionType?: string): number {
   const rounded = Math.round(intensity);
   if (rounded <= 0) return 0; // 안 던진 날
   return INTENSITY_STRESS_FACTOR[Math.min(10, rounded)] ?? MIN_STRESS_FACTOR;
 }
 
 /**
- * 세게 던진 날을 가리는 몫 — 투구수 × 체감 강도(%). 경기는 체감과 상관없이 100%(stressFactor 와 같은 판단: 경기는 던질
- * 양도 강도도 내가 못 정하고, 체감이 실제 부하보다 낮게 나온다). 단위는 '%·구' — 30구 × 90% = 2,700.
+ * 세게 던진 날을 가리는 몫 — 투구수 × 체감 강도(%). 경기도 고른 강도대로(2026-10-18 사용자 — 예전엔 경기를 늘 100%로 봤다).
+ * 단위는 '%·구' — 30구 × 90% = 2,700.
  * 날마다 더해 lib/report/facts.ts 의 HARD_OUTING_MIN_LOAD 와 견준다. 쉰 날 · 0구는 0.
  */
 export function outingLoadOf(
   log: EffortLike & { pitchCount: number; sessionType?: string }
 ): number {
   if (log.pitchCount <= 0) return 0;
-  return log.pitchCount * (log.sessionType === '경기' ? 100 : effortPctOf(log));
+  return log.pitchCount * effortPctOf(log);
 }
 
 /** 한 세션을 '전력으로 던졌다면 몇 구에 해당하는가'로 바꾼다. */

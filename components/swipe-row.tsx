@@ -93,6 +93,8 @@ export function SwipeRow({
       </div>
       <div
         ref={front}
+        /* 탭 쓸기(components/tab-pager.tsx)에 알린다 — 닫혀 있으면 왼쪽으로 미는 것만 이 줄 몫(오른쪽은 이전 탭으로), 열려 있으면 양쪽 다 */
+        data-swipe-claim={open ? 'all' : 'left'}
         className="relative touch-pan-y"
         onPointerDown={(e) => {
           if (e.pointerType !== 'touch') return;
@@ -114,6 +116,8 @@ export function SwipeRow({
           if (!d.axis) {
             if (Math.abs(dx) < SLOP && Math.abs(dy) < SLOP) return;
             d.axis = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y';
+            /* 닫힌 줄을 오른쪽으로 미는 것은 탭 쓸기 몫 — 줄은 안 움직인다 */
+            if (d.axis === 'x' && !open && dx > 0) d.axis = 'y';
             if (d.axis === 'x') {
               /* 줄 밖으로 손가락이 나가도 계속 받는다 — 잡을 수 없는 누름(이미 끝남)이면 그냥 둔다 */
               try {

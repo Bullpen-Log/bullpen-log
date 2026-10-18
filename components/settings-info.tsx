@@ -4,6 +4,7 @@ import { ChevronRight } from '@/components/icon';
 import { Modal, useModalState } from '@/components/modal';
 import { LegalSheet, type LegalDoc } from '@/components/legal-sheet';
 import { CONTACT } from '@/components/site-footer';
+import { MODEL_CREDITS as CREDITS, MODEL_CREDIT_CHANGES, MODEL_CREDIT_INTRO } from '@/lib/site-info';
 
 type Sheet = LegalDoc | 'credit';
 
@@ -77,35 +78,12 @@ export function SettingsInfoRows() {
   );
 }
 
-/*
- * 출처 글 — public/models/ATTRIBUTION.txt 와 같은 내용. 따옴표 안 문구는 원저작자가 정한 그대로 둔다(번역하지 않는다).
- */
-const CREDITS: { quote: string; note: string }[] = [
-  {
-    quote: 'Z-Anatomy - The libre 3D atlas of anatomy - CC-BY-SA 4.0',
-    note: 'github.com/Z-Anatomy/Models-of-human-anatomy',
-  },
-  {
-    quote: 'BodyParts3D - The Database Center for Life Science - CC-BY-SA 2.1 Japan',
-    note: 'creativecommons.org/licenses/by-sa/2.1/jp',
-  },
-  {
-    quote:
-      'BodyParts3D, (c) The Database Center for Life Science licensed under CC Attribution 4.0 International',
-    note: 'dbarchive.biosciencedbc.jp/en/bodyparts3d',
-  },
-  {
-    quote: 'Fit Mit With anatomy atlas (CC BY-SA 4.0)',
-    note: 'github.com/slfresh/fitmitwith-anatomy-atlas',
-  },
-];
 
 function ModelCreditBody() {
   return (
     <div className="space-y-5 text-sm leading-relaxed break-keep text-ink">
       <p className="text-muted">
-        암케어 · 부위별 보강의 3D 근육 지도는 아래 자료를 고쳐 만들었어요. 이 모델 파일은 크리에이티브 커먼즈
-        저작자표시-동일조건변경허락 4.0(CC BY-SA 4.0)으로 쓰고, 불펜로그의 나머지는 따로예요.
+        {MODEL_CREDIT_INTRO}
       </p>
       <ul className="divide-y divide-line overflow-hidden rounded-xl bg-surface-2">
         {CREDITS.map((c) => (
@@ -118,8 +96,7 @@ function ModelCreditBody() {
       <div className="space-y-1.5">
         <p className="font-semibold">바꾼 것</p>
         <p className="text-muted">
-          팔 관리 지도는 상체 근육 · 뼈 · 머리와 손만 남기고 다리와 결합 조직을 뺐어요. 전신 지도는 결합 조직만
-          뺐어요. 둘 다 파일을 가볍게 줄였고 근육 이름은 그대로예요. 해부학 전문가의 검토는 받지 않았어요.
+          {MODEL_CREDIT_CHANGES}
         </p>
       </div>
       <a

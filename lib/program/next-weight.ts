@@ -51,8 +51,15 @@ export const UNIT_KG: Record<Exclude<WeightKind, 'none'>, number> = {
   machine: 2.5,
 };
 
-/** 화면 단위가 lb 일 때의 한 단위 — 원판 · 덤벨 모두 5lb */
-export const UNIT_LB = 5;
+/**
+ * 화면 단위가 lb 일 때의 한 단위 — 원판 5lb, 덤벨 · 케틀벨 2.5lb. 덤벨 2kg 걸음(4.4lb)을 5lb 로 반올림하면 24kg · 26kg 이 둘 다 55lb 로
+ * 보여 한 걸음이 사라진다(2026-10-16 검토 10).
+ */
+export const UNIT_LB: Record<Exclude<WeightKind, 'none'>, number> = {
+  barbell: 5,
+  dumbbell: 2.5,
+  machine: 5,
+};
 
 export type HistoryEntry = {
   /** 'YYYY-MM-DD' */
@@ -267,7 +274,15 @@ export function suggestWeight(input: WeightInput): WeightSuggestion {
   }
 
   /* ⑦ 단위 반올림 — 올림이 반올림으로 사라지지 않게 위에서 이미 한 단위를 보장했다 */
-  return { kg: roundToUnit(kg, input.kind), reason, notes };
+  let rounded = roundToUnit(kg, input.kind);
+  /*
+   * 내림도 한 단위는 보장한다 — 덤벨 20kg · 바벨 25kg 이하는 ×0.95 가 반올림에서 원래 무게로 돌아와, 줄에는 '−5%' 가
+   * 뜨는데 숫자는 그대로였다(2026-10-16 점검 A3). 가벼운 주 · 컨디션 −10% 가 함께 걸려 이미 내려갔으면 더 안 내린다.
+   */
+  if (reason.code === 'missTwice' && rounded >= W && notes.length === 0) {
+    rounded = Math.max(unit, roundToUnit(W, input.kind) - unit);
+  }
+  return { kg: rounded, reason, notes };
 }
 
 /* ─────────────────────────── % 방식(5/3/1 · 저거넛 · 텍사스 · 프렌치 컨트라스트) ─────────────────────────── */
@@ -473,10 +488,11 @@ export function weighItem(
   };
 }
 
-/** lb 로 보는 사람의 화면 값 — kg 추천을 lb 로 바꿔 5lb 단위로 */
-export function roundForDisplay(kg: number, unit: 'kg' | 'lb'): number {
+/** lb 로 보는 사람의 화면 값 — kg 추천을 lb 로 바꿔 장비 단위(UNIT_LB)로. 장비를 안 주면 원판(5lb) */
+export function roundForDisplay(kg: number, unit: 'kg' | 'lb', kind: WeightKind = 'barbell'): number {
   if (unit === 'kg') return kg;
-  return Math.round((kg * 2.20462) / UNIT_LB) * UNIT_LB;
+  const step = kind === 'none' ? UNIT_LB.barbell : UNIT_LB[kind];
+  return Math.round((kg * 2.20462) / step) * step;
 }
 
 /* ─────────────────────────── 까닭 문구(§13-10) ─────────────────────────── */

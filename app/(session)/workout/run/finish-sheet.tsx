@@ -1,7 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { Check, X } from '@/components/icon';
+import { Check } from '@/components/icon';
+import { Modal } from '@/components/modal';
 import { summarizeSets } from '@/lib/workout/summarize';
 import { IntensityGuide } from '@/components/intensity-guide';
 import type { RunSet } from './session-client';
@@ -18,6 +19,7 @@ import type { RunSet } from './session-client';
  * 트레이닝 추천 2판 P2) — 그래서 이제 여기서는 막지 않는다.
  */
 export function FinishSheet({
+  open,
   sets,
   startedAt,
   priorSeconds,
@@ -28,6 +30,8 @@ export function FinishSheet({
   error,
   program = null,
 }: {
+  /** 열림 — 닫힐 때 시트가 내려가도록 부모가 잠시 붙들어 둔다(components/modal.tsx useLinger) */
+  open: boolean;
   sets: RunSet[];
   /**
    * 근력 · 파워 프로그램 날이면 — 다음 일차로 가는지(처방 세트 절반) 한 줄과 아직 안 답한 '몇 개 더?'(설계 §13-7 · 9).
@@ -73,172 +77,140 @@ export function FinishSheet({
   );
   const exerciseCount = summarizeSets(sets).length;
 
-  return (
-    /*
-     * 자판이 떠 있으면 보이는 자리(--vvh · --kb, components/viewport-vars.tsx)에 맞춘다 — 아이폰은 자판이 올라와도
-     * 화면에 붙인 창이 그대로라, 메모 · 찾기를 쓰는 동안 시트 아래쪽이 자판 뒤에 숨었다(2026-10-03 점검).
-     * 자판이 없으면 예전처럼 화면 전체(--kb 0, --vvh 없음).
-     */
-    <div className="fixed inset-x-0 bottom-[var(--kb,0px)] z-50 flex h-[var(--vvh,100dvh)] flex-col justify-end">
+  /*
+   * 앱의 다른 창과 같은 시트(components/modal.tsx) — 끌어내려 닫기 · ESC · 뒤 화면 막기 · 닫힐 때 내려가는 움직임 · 자판 위로 올라가기가
+   * 같이 온다(2026-10-16 UI 검토, 예전엔 손으로 만든 div 시트). 마치기 단추는 굴러가지 않게 footer 로.
+   */
+  const footer = (
+    <div className="space-y-2">
+      {error && (
+        <p className="rounded-xl bg-warn-bg px-3 py-2 text-center text-xs text-warn">
+          {error}
+        </p>
+      )}
+      {/*
+        단추를 꺼야 할 때는 이유를 적는다 — 말없이 꺼 두면 고장 난 줄 안다. 무엇을 하면 켜지는지가 단추 바로
+        위에 있어야 한다. 강도만 안 골랐으면 켜 둔다(마친 뒤 칩이 한 번 더 묻는다).
+      */}
+      {pendingCount > 0 ? (
+        <p className="text-center text-xs leading-relaxed text-warn">
+          아직 못 보낸 세트가 {pendingCount}개 있어요. 신호가 잡혀 저절로 보내지면 마칠
+          수 있어요.
+        </p>
+      ) : (
+        memoNeedsIntensity && (
+          <p className="text-center text-xs text-muted">
+            느낀점을 남기려면 강도도 골라 주세요.
+          </p>
+        )
+      )}
       <button
         type="button"
-        aria-label="닫기"
+        onClick={() =>
+          !memoNeedsIntensity && pendingCount === 0 && onFinish(intensity, memo)
+        }
+        disabled={busy || memoNeedsIntensity || pendingCount > 0}
+        className="flex h-[72px] w-full items-center justify-center gap-2 rounded-full bg-sky text-lg font-bold text-white transition disabled:opacity-40 motion-safe:active:scale-[0.98]"
+      >
+        <Check className="h-6 w-6" />
+        {busy ? '정리 중' : '운동 마치기'}
+      </button>
+      <button
+        type="button"
         onClick={onClose}
-        data-press-none
-        className="absolute inset-0 bg-black/40 motion-safe:animate-[backdrop-in_260ms_ease-out]"
-      />
+        disabled={busy}
+        className="min-h-11 w-full rounded-full text-sm font-semibold text-sky transition-opacity disabled:opacity-40 active:opacity-60"
+      >
+        더 하기
+      </button>
+    </div>
+  );
 
-      {/* 아래에서 올라오는 시트 — 앱의 다른 창(components/modal.tsx)과 같은 모양 · 움직임 */}
-      <div className="relative flex max-h-[92%] flex-col rounded-t-[28px] bg-surface shadow-2xl motion-safe:animate-[sheet-in_380ms_cubic-bezier(0.32,0.72,0,1)]">
-        <div
-          aria-hidden
-          className="mx-auto mt-2 h-[5px] w-9 shrink-0 rounded-full bg-ink/15"
-        />
-        <div className="flex shrink-0 items-start justify-between gap-3 px-5 pt-3">
-          <div className="min-w-0">
-            <p className="text-xl font-bold text-ink">오늘 운동을 마칠까요?</p>
-            <p className="mt-0.5 text-sm text-muted tabular-nums">
-              {sets.length > 0
-                ? `운동 ${exerciseCount}개 · ${sets.length}세트 · ${minutes}분`
-                : `${minutes}분`}
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      title="오늘 운동을 마칠까요?"
+      description={
+        sets.length > 0
+          ? `운동 ${exerciseCount}개 · ${sets.length}세트 · ${minutes}분`
+          : `${minutes}분`
+      }
+      footer={footer}
+    >
+      {program && (
+        <div className="mb-5 space-y-1 rounded-2xl bg-ink/6 px-4 py-3 text-sm leading-relaxed">
+          <p className={program.reached ? 'font-semibold text-ink' : 'text-ink'}>
+            {program.line}
+          </p>
+          {program.unanswered.length > 0 && (
+            <p className="text-muted">
+              아직 안 답한 &lsquo;몇 개 더?&rsquo;: {program.unanswered.join(', ')}
             </p>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="닫기"
-            className="-mt-1 -mr-2 grid h-11 w-11 shrink-0 place-items-center text-muted transition-colors hover:text-ink"
-          >
-            <span className="grid h-8 w-8 place-items-center rounded-full bg-ink/6">
-              <X className="h-4 w-4" />
-            </span>
-          </button>
+          )}
         </div>
+      )}
+      {sets.length === 0 && (
+        <p className="mb-5 rounded-2xl bg-ink/6 px-4 py-3 text-sm leading-relaxed text-muted">
+          남긴 세트가 없어요. 이대로 마치면 오늘은 기록이 남지 않아요.
+        </p>
+      )}
 
-        <div className="flex-1 overflow-y-auto px-5 pt-4 pb-4">
-          {program && (
-            <div className="mb-5 space-y-1 rounded-2xl bg-ink/6 px-4 py-3 text-sm leading-relaxed">
-              <p className={program.reached ? 'font-semibold text-ink' : 'text-ink'}>
-                {program.line}
-              </p>
-              {program.unanswered.length > 0 && (
-                <p className="text-muted">
-                  아직 안 답한 &lsquo;몇 개 더?&rsquo;: {program.unanswered.join(', ')}
-                </p>
-              )}
-            </div>
-          )}
-          {sets.length === 0 && (
-            <p className="mb-5 rounded-2xl bg-ink/6 px-4 py-3 text-sm leading-relaxed text-muted">
-              남긴 세트가 없어요. 이대로 마치면 오늘은 기록이 남지 않아요.
-            </p>
-          )}
+      {/* ── 체감 강도 ── */}
+      <p className="text-base font-bold text-ink">
+        오늘 얼마나 힘들었나요?
+        <span className="ml-1.5 text-xs font-semibold text-muted">선택</span>
+      </p>
+      <p className="mt-0.5 text-xs leading-relaxed text-muted">
+        얼마나 힘들었는지 골라요. 운동 부하를 이 숫자로 셈해요(나중에 골라도 돼요).
+      </p>
 
-          {/* ── 체감 강도 ── */}
-          <p className="text-base font-bold text-ink">
-            오늘 얼마나 힘들었나요?
-            <span className="ml-1.5 text-xs font-semibold text-muted">선택</span>
-          </p>
-          <p className="mt-0.5 text-xs leading-relaxed text-muted">
-            운동 전체가 얼마나 힘들었는지 골라요. 이 숫자로 운동 부하를 계산해요. 안
-            골라도 마친 뒤 화면에서 한 번만 누르면 돼요.
-          </p>
-
-          {/*
+      {/*
             1~10 을 눌러서 고른다.
             밀대(slider)는 엄지로 정확한 칸에 세우기가 어렵고, 손을 대는 순간
             어딘가가 골라져 '안 고름'을 남길 수가 없다.
           */}
-          <div className="mt-3 grid grid-cols-10 gap-1">
-            {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
-              <button
-                key={n}
-                type="button"
-                /* 한 번 고른 뒤 같은 것을 또 눌러도 안 비워진다 — 필수이므로 */
-                onClick={() => setIntensity(n)}
-                aria-pressed={intensity === n}
-                className={`h-11 rounded-full text-sm font-semibold tabular-nums transition ${
-                  intensity === n
-                    ? 'bg-sky text-white motion-safe:scale-105'
-                    : 'bg-ink/6 text-ink active:bg-ink/12'
-                }`}
-              >
-                {n}
-              </button>
-            ))}
-          </div>
-          <div className="mt-1.5 flex justify-between px-1 text-[11px] text-muted">
-            <span>1 아주 가벼움</span>
-            <span>10 최대</span>
-          </div>
-
-          {/* 감으로 찍으면 그 뒤 계산이 전부 흔들린다 — 고르는 자리 바로 밑에 기준을 둔다 */}
-          <div className="mt-2">
-            <IntensityGuide kind="training" />
-          </div>
-
-          <label className="mt-4 block space-y-1.5">
-            <span className="text-sm font-medium text-ink">
-              느낀점
-              <span className="ml-1.5 text-[11px] font-normal text-muted">선택</span>
-            </span>
-            <textarea
-              value={memo}
-              onChange={(e) => setMemo(e.target.value)}
-              rows={2}
-              placeholder="안 적어도 돼요. 무거웠던 곳, 잘 된 동작 같은 것."
-              className="w-full resize-y rounded-2xl bg-ink/6 px-4 py-3 text-sm text-ink outline-none transition placeholder:text-muted focus:bg-surface focus:ring-2 focus:ring-sky"
-            />
-          </label>
-        </div>
-
-        {/*
-          ── 마치기 ──
-          아래 여백은 홈 막대만큼 — 자판이 떠 있으면(--kb) 홈 막대는 자판 뒤라 그만큼 빼서 단추가 자판에 붙는다.
-        */}
-        <div className="shrink-0 space-y-2 px-4 pt-2 pb-[max(0.75rem,calc(env(safe-area-inset-bottom)-var(--kb,0px)))]">
-          {error && (
-            <p className="rounded-xl bg-warn-bg px-3 py-2 text-center text-xs text-warn">
-              {error}
-            </p>
-          )}
-          {/*
-            단추를 꺼야 할 때는 이유를 적는다 — 말없이 꺼 두면 고장 난 줄 안다. 무엇을 하면 켜지는지가 단추 바로
-            위에 있어야 한다. 강도만 안 골랐으면 켜 둔다(마친 뒤 칩이 한 번 더 묻는다).
-          */}
-          {pendingCount > 0 ? (
-            <p className="text-center text-xs leading-relaxed text-warn">
-              아직 못 보낸 세트가 {pendingCount}개 있어요. 신호가 잡혀 저절로 보내지면
-              마칠 수 있어요.
-            </p>
-          ) : (
-            memoNeedsIntensity && (
-              <p className="text-center text-xs text-muted">
-                느낀점을 남기려면 강도도 골라 주세요.
-              </p>
-            )
-          )}
+      <div className="mt-3 grid grid-cols-10 gap-1">
+        {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
           <button
+            key={n}
             type="button"
-            onClick={() =>
-              !memoNeedsIntensity && pendingCount === 0 && onFinish(intensity, memo)
-            }
-            disabled={busy || memoNeedsIntensity || pendingCount > 0}
-            className="flex h-[72px] w-full items-center justify-center gap-2 rounded-full bg-sky text-lg font-bold text-white transition disabled:opacity-40 motion-safe:active:scale-[0.98]"
+            /* 한 번 고른 뒤 같은 것을 또 눌러도 안 비워진다 — 필수이므로 */
+            onClick={() => setIntensity(n)}
+            aria-pressed={intensity === n}
+            className={`h-11 rounded-full text-sm font-semibold tabular-nums transition ${
+              intensity === n
+                ? 'bg-sky text-white motion-safe:scale-105'
+                : 'bg-ink/6 text-ink active:bg-ink/12'
+            }`}
           >
-            <Check className="h-6 w-6" />
-            {busy ? '정리 중' : '운동 마치기'}
+            {n}
           </button>
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={busy}
-            className="min-h-11 w-full rounded-full text-sm font-semibold text-sky transition-opacity disabled:opacity-40 active:opacity-60"
-          >
-            더 하기
-          </button>
-        </div>
+        ))}
       </div>
-    </div>
+      <div className="mt-1.5 flex justify-between px-1 text-caption text-muted">
+        <span>1 아주 가벼움</span>
+        <span>10 최대</span>
+      </div>
+
+      {/* 감으로 찍으면 그 뒤 계산이 전부 흔들린다 — 고르는 자리 바로 밑에 기준을 둔다 */}
+      <div className="mt-2">
+        <IntensityGuide kind="training" />
+      </div>
+
+      <label className="mt-4 block space-y-1.5">
+        <span className="text-sm font-medium text-ink">
+          느낀점
+          <span className="ml-1.5 text-caption font-normal text-muted">선택</span>
+        </span>
+        <textarea
+          value={memo}
+          onChange={(e) => setMemo(e.target.value)}
+          rows={2}
+          placeholder="안 적어도 돼요. 무거웠던 곳, 잘 된 동작 같은 것."
+          className="w-full resize-y rounded-2xl bg-ink/6 px-4 py-3 text-sm text-ink outline-none transition placeholder:text-muted focus:bg-surface focus:ring-2 focus:ring-sky"
+        />
+      </label>
+    </Modal>
   );
 }

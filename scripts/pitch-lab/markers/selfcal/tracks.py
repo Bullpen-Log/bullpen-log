@@ -4,6 +4,7 @@
 색 = 몸 쪽(노랑 왼쪽 · 분홍 오른쪽).
 """
 import os, sys, json
+from cams import CAMS
 import numpy as np
 from scipy.optimize import linear_sum_assignment
 
@@ -107,7 +108,7 @@ def at(tr, tq, maxgap=2.5 / 240):
 
 if __name__ == "__main__":
     p = int(sys.argv[1])
-    for c in "1234":
+    for c in CAMS:
         trs = build(p, c)
         L = [len(t["t"]) for t in trs]
         by = {}

@@ -7,7 +7,8 @@ import numpy as np
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from kpcal import load_kp, sample
-from match import F_of, epi, CAMS
+from match import F_of, epi
+from cams import CAMS, FREE, PAIRS
 
 
 def score(da, db, F, o, step=2, thr=0.6):
@@ -32,21 +33,21 @@ def scan(da, db, F, lo, hi, dt, step):
 def sync(p, cams):
     ds = {c: load_kp(p, c) for c in CAMS}
     pr = {}
-    for a, b in [("1", "2"), ("1", "3"), ("1", "4"), ("2", "3"), ("2", "4"), ("3", "4")]:
+    for a, b in PAIRS:
         F = F_of(cams[a], cams[b])
         s, o = scan(ds[a], ds[b], F, -1.3, 1.3, 1 / 120, 4)
         s, o = scan(ds[a], ds[b], F, o - 1 / 120, o + 1 / 120, 1 / 960, 1)
         pr[a + b] = (o, s)
     A, y, w = [], [], []
     for ab, (o, s) in pr.items():
-        row = np.zeros(3)
-        if ab[1] != "1": row["234".index(ab[1])] += 1
-        if ab[0] != "1": row["234".index(ab[0])] -= 1
+        row = np.zeros(len(FREE))
+        if ab[1] != "1": row[FREE.index(ab[1])] += 1
+        if ab[0] != "1": row[FREE.index(ab[0])] -= 1
         A.append(row); y.append(o); w.append(1 / max(s, 0.5))
     W = np.sqrt(np.array(w))[:, None]
     x = np.linalg.lstsq(np.array(A) * W, np.array(y) * W[:, 0], rcond=None)[0]
     res = np.array(A) @ x - np.array(y)
-    return {"1": 0.0, "2": float(x[0]), "3": float(x[1]), "4": float(x[2])}, pr, float(np.abs(res).max())
+    return {"1": 0.0, **{c: float(x[i]) for i, c in enumerate(FREE)}}, pr, float(np.abs(res).max())
 
 
 if __name__ == "__main__":
@@ -56,5 +57,5 @@ if __name__ == "__main__":
     for p in [int(x) for x in sys.argv[2].split(",")]:
         o, pr, worst = sync(p, cams)
         out[str(p)] = o
-        print(f"투구 {p}: " + " ".join(f"{c}:{o[c]:+.4f}" for c in "234") + f"  닫힘 최대 {worst * 1000:.1f}ms  짝 에피 " + " ".join(f"{k}:{v[1]:.1f}" for k, v in pr.items()), flush=True)
+        print(f"투구 {p}: " + " ".join(f"{c}:{o[c]:+.4f}" for c in FREE) + f"  닫힘 최대 {worst * 1000:.1f}ms  짝 에피 " + " ".join(f"{k}:{v[1]:.1f}" for k, v in pr.items()), flush=True)
     json.dump(out, open(sys.argv[3], "w"), indent=1)

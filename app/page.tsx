@@ -15,13 +15,13 @@ import { isNativeUserAgent } from '@/lib/app-env';
  * '또 그 화면'이 먼저 보였다. 이제 하는 일을 말하는 제목, 앱 안 화면과 같은 모양의 예시 카드, 실제로 하는 일을 숫자로
  * 쓴 세 줄. 아이콘과 빛 그라데이션은 뺐다.
  *
- * 예시 카드의 숫자는 예시다(그렇게 적어 둔다). 모양은 홈 리포트의 '오늘 · 내일' 줄과 투구 기록 달력의 칸을 따른다.
+ * 예시 카드의 숫자는 예시다(그렇게 적어 둔다). 모양은 투구 기록의 '지금 팔 상태' 칸과 투구 기록 달력의 칸을 따른다.
  * 휴대폰에서는 단추가 화면 바닥에 붙어 있다 — 소개를 다 읽기 전에도 엄지 밑에 있다.
  */
 const POINTS: { title: string; body: string }[] = [
   {
-    title: '어제 72구 던졌으면, 오늘은 35~50구',
-    body: '최근 7일과 28일 투구량을 견줘서 오늘과 내일 던질 양을 정해요.',
+    title: '어제 72구 던졌으면, 오늘은 주의',
+    body: '최근 7일과 28일 투구량을 견줘서 지금 팔이 위험한지 안전한지 알려 줘요.',
   },
   {
     title: '어깨가 아프다고 남기면, 그 부위 운동은 빼요',
@@ -68,11 +68,11 @@ export default async function LandingPage() {
           오늘 할 일을 정해 줘요.
         </h1>
         <p className="mt-3 text-base leading-relaxed break-keep text-muted">
-          투수를 위한 훈련 일지예요. 투구수 · 강도 · 몸 상태를 남기면 던질 양과 운동을
-          골라 줘요.
+          투수를 위한 훈련 일지예요. 투구수 · 강도 · 몸 상태를 남기면 팔 상태를 알려 주고
+          운동을 골라 줘요.
         </p>
 
-        {/* 예시 카드 — 앱 안 화면과 같은 모양(홈 리포트의 오늘 · 내일 줄, 투구 기록 달력 칸) */}
+        {/* 예시 카드 — 앱 안 화면과 같은 모양(투구 기록의 지금 팔 상태, 투구 기록 달력 칸) */}
         <figure className="mt-8 rounded-2xl bg-surface p-4">
           <div className="flex items-center justify-between">
             <p className="text-sm font-bold text-ink">이번 주</p>
@@ -94,19 +94,15 @@ export default async function LandingPage() {
               </li>
             ))}
           </ol>
-          <div className="mt-4 space-y-2">
-            <div className="flex items-center gap-3 rounded-xl bg-surface-2 px-4 py-3">
-              <span className="w-10 text-sm font-bold text-ink">오늘</span>
-              <span className="text-numeric text-xl leading-none text-sky tabular-nums">
-                35~50구
-              </span>
-              <span className="text-xs text-muted">강도 6~8</span>
-            </div>
-            <div className="flex items-center gap-3 rounded-xl bg-surface-2 px-4 py-3">
-              <span className="w-10 text-sm font-bold text-ink">내일</span>
-              <span className="text-sm font-medium text-sky-strong">휴식</span>
-              <span className="ml-auto text-xs text-muted">이틀 연속은 쉬어요</span>
-            </div>
+          <div className="mt-4 space-y-1 rounded-xl border border-warn-line bg-warn-bg px-4 py-3">
+            <p className="flex items-center gap-1.5 text-xs text-muted">
+              <span aria-hidden className="h-2 w-2 rounded-full bg-warn" />
+              지금 팔 상태
+              <span className="font-bold text-warn">주의</span>
+            </p>
+            <p className="text-sm font-semibold break-keep text-ink">
+              2일 전 72구 던진 뒤 회복 중이에요. 전력 투구는 1일 뒤부터예요.
+            </p>
           </div>
           <figcaption className="mt-3 text-xs text-muted/70">
             예시 화면이에요.
@@ -116,7 +112,7 @@ export default async function LandingPage() {
         <ul className="mt-8 divide-y divide-line">
           {POINTS.map((p) => (
             <li key={p.title} className="py-4 first:pt-0">
-              <p className="text-[15px] font-semibold break-keep text-ink">{p.title}</p>
+              <p className="text-subhead font-semibold break-keep text-ink">{p.title}</p>
               <p className="mt-1 text-sm leading-relaxed break-keep text-muted">
                 {p.body}
               </p>

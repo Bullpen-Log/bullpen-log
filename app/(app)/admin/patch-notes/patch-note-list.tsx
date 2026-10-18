@@ -204,7 +204,7 @@ function Row({ row, at }: { row: PatchRow; at: number }) {
             {areas.map((a) => (
               <span
                 key={a}
-                className="rounded-md border border-line-strong px-1.5 py-0.5 text-[10px] text-muted"
+                className="rounded-lg border border-line-strong px-1.5 py-0.5 text-[10px] text-muted"
               >
                 {a}
               </span>
@@ -246,7 +246,7 @@ function Chips({
 }) {
   return (
     <div className="flex items-center gap-1.5">
-      <span className="inline-flex items-center gap-1 text-[11px] text-muted">
+      <span className="inline-flex items-center gap-1 text-caption text-muted">
         {icon}
         {label}
       </span>

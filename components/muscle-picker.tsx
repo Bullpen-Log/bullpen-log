@@ -52,7 +52,7 @@ export function MusclePicker({
           const muscles = ARMCARE_MUSCLES.filter((m) => m.area === area.key);
           return (
             <div key={area.key} className="space-y-1">
-              <p className="text-[11px] font-medium text-muted">{area.label}</p>
+              <p className="text-caption font-medium text-muted">{area.label}</p>
               <div className="flex flex-wrap gap-1.5">
                 {muscles.map((m) => {
                   const order = picked.indexOf(m.name);

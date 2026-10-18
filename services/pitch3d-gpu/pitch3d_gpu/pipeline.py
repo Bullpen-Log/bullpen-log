@@ -19,6 +19,10 @@ COARSE_FPS = 30.0  # 거친 1차는 30fps 면 시간 맞추기에 충분(v1 이 
 FINE_FPS = 120.0
 MAX_FRAMES = 600  # E-CAP — TS contract MAX_V2_FRAMES 와 같은 값
 MAX_VIDEO_SEC = 20.0  # 검토 4절 '너무 김' — 처음 20초만(투구 한 번은 5~6초)
+# 일찍 멈추기(2026-10-14 사용자: 이상한 영상으로 GPU 비용이 새지 않게) — 거친 2D 에서 투수가 이만큼 못 되면 고운 2D · 맞추기를 건너뛰고 'framing'.
+# 문턱은 끝까지 돌려도 틀릴 영상만 — 실험실 샘플 1 옆(화면 녹화, 투수 292px)도 결과는 나왔다. 마커 촬영은 367~495px.
+FRAMING_MIN_SEEN = 0.3  # 몸이 보인 장면 비율(앞뒤로 길게 찍어도 걸리지 않게 낮게)
+FRAMING_MIN_HEIGHT_PX = 200  # 몸 높이(px) 중앙값
 DOWNLOAD_RETRY = (1.0, 3.0)
 UPLOAD_RETRY = (1.0, 3.0)
 V2_VERSION = "2.0.0"
@@ -26,11 +30,12 @@ V2_VERSION = "2.0.0"
 Report = Callable[[str, dict], None]
 
 
-def fit_payload(job: dict, fine: dict, seg: dict, pose_name: str) -> dict:
+def fit_payload(job: dict, fine: dict, seg: dict, pose_name: str, devices: dict | None = None) -> dict:
     """fit 입력 — 촬영 정보(손 · 키 · 슬로모 · 화면 녹화)와 segment 순간을 함께 넘긴다.
 
     슬로모 · 화면 녹화를 빼면 엔진이 4~8배 느린 영상 시간을 실제로 알아 '착지 → 릴리스'가 그만큼 길게 나왔다(2026-10-08 샘플 셋 0.5~1초).
     segment 순간을 빼면 잘라 낸 구간에서 다시 찾다 실패했다(같은 날 샘플 1 · 3).
+    devices = 영상 머리의 기종 · fps(video.device_info) — 표에 있는 카메라는 엔진이 잰 초점으로 좁게 잡는다(lib/pitch-3d/focal-table.ts).
     """
     meta = job.get("meta") or {}
     slowmo = meta.get("slowmoFps")
@@ -47,6 +52,7 @@ def fit_payload(job: dict, fine: dict, seg: dict, pose_name: str) -> dict:
         # 렌즈 — 안내서대로 1배가 기본(2026-10-13 사용자). 엔진이 초점을 폰 1배 둘레로 잡는다(lib/pitch-3d/camera.ts FOCAL_PRIOR_1X,
         # 마커 채점 관절 오차 3.6 → 3.3cm). 줌으로 찍은 샘플만 meta.lens = "zoom" 으로 끈다.
         "lens": "zoom" if meta.get("lens") == "zoom" else "1x",
+        **({"devices": devices} if devices else {}),
     }
 
 
@@ -161,6 +167,8 @@ def run_job(
             try:
                 sw, sh, sfps = video.probe(side_path)
                 bw, bh, bfps = video.probe(back_path)
+                devices = {"side": video.device_info(side_path), "back": video.device_info(back_path)}
+                print(f"[pitch3d device] {json.dumps(devices, ensure_ascii=False)}")
                 coarse = {
                     "side": video.decode(side_path, COARSE_FPS, 0.0, MAX_VIDEO_SEC),
                     "back": video.decode(back_path, COARSE_FPS, 0.0, MAX_VIDEO_SEC),
@@ -177,6 +185,8 @@ def run_job(
             mark("pose")
             for name, tr in tracks.items():
                 print(f"[pitch3d pose] {name}: {track_summary(tr)}")
+            if any(framing_bad(tr) for tr in tracks.values()):
+                raise StepFail("framing", "pose")
 
             # 영상 fps 도 넘긴다 — 구간 상한(600장)을 실제로 풀 장면 수로 센다(30fps 로 구운 슬로모션은 120 가정의 네 배 길이까지 담긴다)
             seg = engine.run(
@@ -197,7 +207,7 @@ def run_job(
                 "side": pose.track(fine_side, sw, sh, min(FINE_FPS, sfps)),
                 "back": pose.track(fine_back, bw, bh, min(FINE_FPS, bfps)),
             }
-            result = engine.run("fit", fit_payload(job, fine, seg, getattr(pose, "name", "rtmw")))
+            result = engine.run("fit", fit_payload(job, fine, seg, getattr(pose, "name", "rtmw"), devices))
             # AI 스켈레톤 보정(실험, sam3d.py) — 켰을 때만, 못 하면 그대로(분석은 막지 않는다). 단계 이름은 fit 안에(화면의 단계 표를 안 바꾼다)
             if use_ai and result.get("ok"):
                 t_ai = time.time()
@@ -267,11 +277,11 @@ def run_job(
         return {"status": "failed", "code": parsed.get("code", "internal"), "stage": parsed.get("stage", "fit"), "stages": stages}
 
 
-def track_summary(track: dict) -> str:
-    """로그용 — 장면 수 · 사람이 보인 장면 비율 · 몸 17점 확신 평균 · 사람 높이(px) 중앙값."""
+def track_stats(track: dict) -> tuple[float, float, float]:
+    """(사람이 보인 장면 비율, 몸 17점 확신 평균, 사람 높이(px) 중앙값) — 장면이 없으면 (0, 0, 0)."""
     fr = track.get("frames", [])
     if not fr:
-        return "frames 0"
+        return 0.0, 0.0, 0.0
     confs = []
     heights = []
     seen = 0
@@ -287,9 +297,24 @@ def track_summary(track: dict) -> str:
                 heights.append(max(ys) - min(ys))
     heights.sort()
     med = heights[len(heights) // 2] if heights else 0
+    return seen / len(fr), sum(confs) / len(confs), float(med)
+
+
+def framing_bad(track: dict) -> bool:
+    """투수가 너무 작거나 거의 안 보이나(일찍 멈추기, FRAMING_*)."""
+    seen, _, height = track_stats(track)
+    return seen < FRAMING_MIN_SEEN or height < FRAMING_MIN_HEIGHT_PX
+
+
+def track_summary(track: dict) -> str:
+    """로그용 — 장면 수 · 사람이 보인 장면 비율 · 몸 17점 확신 평균 · 사람 높이(px) 중앙값."""
+    fr = track.get("frames", [])
+    if not fr:
+        return "frames 0"
+    seen, conf, med = track_stats(track)
     return (
         f"frames {len(fr)} · {fr[0]['t']:.2f}~{fr[-1]['t']:.2f}s · fps {track.get('fps')} · W×H {track.get('W')}×{track.get('H')} · "
-        f"seen {seen / len(fr):.0%} · conf {sum(confs) / len(confs):.2f} · height {med:.0f}px"
+        f"seen {seen:.0%} · conf {conf:.2f} · height {med:.0f}px"
     )
 
 

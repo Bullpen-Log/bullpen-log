@@ -1,4 +1,7 @@
+import { headers } from 'next/headers';
 import { requireAdmin } from '@/lib/dal';
+import { expoLevel } from '@/lib/app-env';
+import { OpenNative } from '@/app/(session)/velocity/open-native';
 import {
   loadVelocityAdminCalibRun,
   loadVelocityAdminDay,
@@ -27,6 +30,14 @@ export default async function VelocityAdminPage({
   const sp = await searchParams;
   const one = (v: string | string[] | undefined) => (typeof v === 'string' ? v : null);
   let path: ExplorerPath = parseExplorerPath(one(sp.area), one(sp.at), one(sp.run));
+  /*
+   * 새 아이폰 앱(판 9~)은 휴대폰 화면(첫 화면 · 그날 공)을 앱 화면으로(native/src/app/admin/velocity/*). 탐색기의 다른 폴더(연 · 월 · 보정 · 차수)와
+   * 다시 재기 · 보정은 브라우저 영상 엔진이라 웹 그대로.
+   */
+  if (expoLevel((await headers()).get('user-agent')) >= 9) {
+    if (path.level === 'root' || (path.level === 'area' && path.area === 'orig')) return <OpenNative path="/admin/velocity" cover={false} />;
+    if (path.level === 'day' && path.area === 'orig') return <OpenNative path={`/admin/velocity/${path.date}`} cover={false} />;
+  }
 
   /* 날짜 폴더(원본 · 보정)와 차수 폴더는 그날 자료가 있어야 한다 — 보정 재측정 단추가 그날 클립을 쓴다 */
   const dayDate = path.level === 'day' || path.level === 'run' ? path.date : null;

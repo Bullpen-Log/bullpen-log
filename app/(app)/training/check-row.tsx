@@ -51,7 +51,7 @@ export function CheckRow({
 }) {
   const spoken = [title, prescription, note, warning].filter(Boolean).join(', ');
   return (
-    <div className={`relative flex items-start gap-3 px-4 py-4 ${className}`}>
+    <div className={`relative flex items-start gap-3 px-(--block-pad) py-4 ${className}`}>
       <button
         type="button"
         role="checkbox"
@@ -75,7 +75,7 @@ export function CheckRow({
         <span className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
           <span
             aria-hidden
-            className={`text-[15px] font-bold tracking-[-0.01em] break-keep ${
+            className={`text-subhead font-bold tracking-[-0.01em] break-keep ${
               done ? 'text-sky-strong' : 'text-ink'
             }`}
           >
@@ -105,7 +105,7 @@ export function CheckRow({
         {warning && (
           <span
             aria-hidden
-            className="flex items-start gap-1.5 text-[11px] leading-relaxed text-warn"
+            className="flex items-start gap-1.5 text-caption leading-relaxed text-warn"
           >
             <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" />
             {warning}

@@ -14,6 +14,8 @@ import {
   Target,
   Utensils,
   type LucideIcon,
+  LifeBuoy,
+  MessagesSquare,
 } from '@/components/icon';
 import type { NavIconName } from '@/lib/nav';
 
@@ -42,6 +44,8 @@ export const NAV_TINT: Record<NavIconName, [string, string]> = {
   gauge: ['#6b7180', '#2c313b'],
   clapper: ['#6b7180', '#2c313b'],
   settings: ['#6b7180', '#2c313b'],
+  community: ['#c4a7ff', '#7c3aed'],
+  support: ['#5fd3c8', '#0f8f86'],
   menu: ['#6b7180', '#2c313b'],
 };
 
@@ -59,5 +63,7 @@ export const NAV_ICONS: Record<NavIconName, LucideIcon> = {
   clapper: Clapperboard,
   radar: Radar,
   body: PersonStanding,
+  community: MessagesSquare,
+  support: LifeBuoy,
   menu: Menu,
 };

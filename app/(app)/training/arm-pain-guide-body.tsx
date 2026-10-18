@@ -12,6 +12,7 @@ import {
 } from '@/lib/armcare/pain-guide';
 import { REHAB_ENABLED } from '@/lib/armcare/rehab';
 import type { ArmPainView } from './arm-pain-guide';
+import { ButtonLink } from '@/components/ui';
 
 /**
  * 팔 통증 안내 시트의 본문 — 시트를 처음 열 때 받아 온다(arm-pain-guide.tsx 의 dynamic).
@@ -47,18 +48,17 @@ export function ArmPainGuideBody({
 
       <RedFlags />
 
-      <section className="space-y-2.5 rounded-2xl bg-surface-2 px-4 py-3.5">
+      <section className="space-y-2.5 rounded-2xl bg-surface-2 p-(--block-pad)">
         <h3 className="text-xs font-bold text-sky-strong">오늘은</h3>
         <p className="text-ink">{advice.text}</p>
         {advice.routine && routineHref && (
-          <Link
+          <ButtonLink
             href={routineHref}
             onClick={onGo}
-            className="inline-flex min-h-11 items-center gap-1.5 rounded-full bg-sky px-5 text-sm font-semibold text-white transition-colors hover:bg-sky-strong"
           >
             <Play aria-hidden className="h-4 w-4" />
             통증 루틴 하기
-          </Link>
+          </ButtonLink>
         )}
       </section>
 

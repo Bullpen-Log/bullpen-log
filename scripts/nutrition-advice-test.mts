@@ -17,6 +17,7 @@ import {
   type MealCheck,
   type TrainingKind,
 } from '../lib/nutrition/advice.ts';
+import { exampleWords, foodsProtein } from '../lib/nutrition/meal-protein.ts';
 
 let pass = 0;
 let fail = 0;
@@ -159,6 +160,20 @@ check(
   lateAfter.headline?.includes('자기 전') === true,
   lateAfter.headline ?? ''
 );
+/* 2026-10-16 베타 100명: 아무것도 안 적은 밤에도 '오늘 몫은 다 챙겼어요'라고 칭찬했다 */
+const lateBlank = buildAdvice({ ...base, hour: 22 });
+const lateFull = buildAdvice({
+  ...base,
+  hour: 22,
+  eaten: { kcal: 3000, carbs: 400, protein: 150, fat: 85 },
+});
+check(
+  '밤에 기록 · 끼니 답이 없으면 칭찬 대신 적어 보자고 · 다 먹었으면 그대로 칭찬',
+  lateBlank.headline?.includes('다 챙겼어요') === false &&
+    lateBlank.headline?.includes('적어') === true &&
+    lateFull.headline?.includes('다 챙겼어요') === true,
+  `${lateBlank.headline} / ${lateFull.headline}`
+);
 const lateGain = buildAdvice({
   ...base,
   hour: 23,
@@ -187,6 +202,8 @@ check(
       skipped: [],
       appetite: 1,
       sleepShort: true,
+      w: exampleWords(),
+      recovery: '밥 1공기 + 닭가슴살 1팩',
     };
     const h = r.say(s).headline;
     return !h.includes('1시간') && !h.includes('운동 뒤');
@@ -427,6 +444,121 @@ console.log('\n■ [메모 2] 성장기 금지어 — 어떤 상황에서도 없
     `상황 ${n.toLocaleString('ko-KR')}가지 — 성장기 '덜 · 가볍게 · 줄이 · 빼고 · 적게 먹' 0 · 감량 '굶 · 거르' 0 · 상표 · 보충제 0 · 60자 밑 · 줄표 없음`,
     bad.length === 0,
     bad.slice(0, 3).join(' | ')
+  );
+}
+
+console.log('\n■ 못 먹는 것(식단 취향)은 예시 음식에 안 나온다 — 2026-10-16 점검');
+{
+  /* 꼬리표별로 글에 나오면 안 되는 말. '두유'는 '우유'를 품지 않는다 */
+  const WORDS: Record<string, RegExp> = {
+    dairy: /우유|요거트|요구르트/,
+    egg: /달걀/,
+    chicken: /닭/,
+    seafood: /생선|참치|고등어|삼각김밥/,
+    wheat: /· 면 ·|식빵/,
+  };
+  const AVOIDS: NonNullable<AdviceInput['avoid']>[] = [
+    ['dairy'],
+    ['egg'],
+    ['dairy', 'egg'],
+    ['dairy', 'egg', 'chicken', 'seafood', 'wheat'],
+  ];
+  const bad: string[] = [];
+  let n = 0;
+  for (const avoid of AVOIDS)
+    for (const throwKind of KINDS)
+      for (const hour of HOURS)
+        for (const training of TRAININGS)
+          for (const meals of MEALS)
+            for (const goal of GOALS)
+              for (const eaten of [null, EATENS[1]])
+                for (const appetite of [null, 1])
+                  for (const sleepShort of [false, true]) {
+                    n++;
+                    const a = buildAdvice({
+                      ...base,
+                      hour,
+                      throwKind,
+                      training,
+                      body: { weightKg: 70, ageBand: 'adult', goal },
+                      checkin: { meals, appetite, sleepShort },
+                      eaten,
+                      eatenMeals: eaten ? { lunch: eaten.kcal } : {},
+                      avoid,
+                    });
+                    const text = `${a.headline}`;
+                    for (const k of avoid)
+                      if (WORDS[k].test(text)) bad.push(`${avoid.join('+')}: ${text}`);
+                    if (text.length > 60) bad.push(`60자 넘음: ${text}`);
+                  }
+  check(
+    `상황 ${n.toLocaleString('ko-KR')}가지 — 뺀 음식(우유 · 달걀 · 닭 · 생선 · 면)이 할 일 줄에 0 · 60자 밑`,
+    bad.length === 0,
+    bad.slice(0, 3).join(' | ')
+  );
+  check(
+    '아무것도 안 뺐으면 보기 음식 — 운동 뒤 달걀 2개 + 우유 2컵 · 던진 뒤 밥 1공기 + 닭가슴살 1팩',
+    buildAdvice({
+      ...base,
+      training: [{ kind: 'strength', minutes: 60 }],
+    }).headline?.endsWith('달걀 2개 + 우유 2컵') === true &&
+      buildAdvice({ ...base, throwKind: 'after' }).headline?.endsWith(
+        '밥 1공기 + 닭가슴살 1팩'
+      ) === true
+  );
+}
+
+console.log('\n■ 2026-10-18 점검 — 등판 날 오후 · 보기 g · 성장기 범위');
+{
+  const pm = buildAdvice({ ...base, throwKind: 'today', hour: 15 });
+  check(
+    "오늘 등판 · 오후 · 아직 투구 기록 없음 — '던진 뒤'가 아니라 던지기 전(탭 가이드와 같은 쪽)",
+    !/던진 뒤/.test(pm.headline ?? '') && /던지기 전/.test(pm.headline ?? ''),
+    pm.headline ?? ''
+  );
+  check(
+    '운동 뒤 보기는 한 끼 아래 끝(20g)을 채운다 — 달걀 2개 + 우유 2컵 · 두부 반 모 + 두유 2팩',
+    foodsProtein([
+      ['egg', 2],
+      ['milk', 2],
+    ]) >= 20 &&
+      foodsProtein([
+        ['tofu', 1],
+        ['soy-milk', 2],
+      ]) >= 20
+  );
+  const teen = buildAdvice({
+    ...base,
+    target: { ...base.target, protein: 90 },
+    body: { weightKg: 60, ageBand: 'teen', goal: 'maintain' },
+  });
+  check(
+    '성장기 단백질 범위는 성장기 칸(1.3~1.8g/kg) — 60kg 은 위 끝 110g 안팎, 성인 2.2(130g)가 아니다',
+    teen.range.protein.hi <= 110,
+    JSON.stringify(teen.range.protein)
+  );
+}
+
+console.log('\n■ 값을 모르는 영양소는 더 먹을 양 · 점수에서 뺀다 — 2026-10-16 점검');
+{
+  /* 탄수화물을 모르는 음식(식약처 '수집')만 적은 날 — 합의 탄수화물 0 은 '안 먹음'이 아니다 */
+  const eaten = { kcal: 1500, carbs: 0, protein: 80, fat: 50 };
+  const known = buildAdvice({ ...base, eaten, eatenMeals: { lunch: 1500 } });
+  const blind = buildAdvice({
+    ...base,
+    eaten,
+    eatenMeals: { lunch: 1500 },
+    eatenUnknown: ['carbs'],
+  });
+  check(
+    "모르는 탄수화물은 '더 먹을 양' 0 · '탄수화물 N g 더' 줄 없음 · 점수 조각에서 빠짐",
+    known.more?.carbs === 400 &&
+      blind.more?.carbs === 0 &&
+      blind.more?.protein === known.more?.protein &&
+      !/탄수화물 \d+g 더/.test(blind.headline ?? '') &&
+      !blind.parts.some((p) => p.key === 'carbs') &&
+      known.parts.some((p) => p.key === 'carbs'),
+    `${known.headline} → ${blind.headline}`
   );
 }
 

@@ -19,6 +19,7 @@ import {
   type Preview,
 } from '@/lib/nutrition/onboarding-answers';
 import { dateText } from '@/lib/nutrition/period';
+import { floorNote } from '@/lib/nutrition/targets';
 
 /**
  * 추천 계획 — 기초대사량 · 활동대사량 · 하루 목표(✎) · 탄단지 g · 예상 체중 선.
@@ -85,6 +86,8 @@ export function PlanStats({
         />
       </div>
 
+      {floorNote(t) && <p className="text-xs break-keep text-muted">{floorNote(t)}</p>}
+
       {/* ── 하루 목표 고치기 ── */}
       {onChange && <KcalEditor p={p} a={a} onChange={onChange} invalid={invalid} />}
 
@@ -143,14 +146,14 @@ function Stat({
         strong ? 'border-sky/40 bg-sky/10' : 'border-line bg-surface-2/60'
       }`}
     >
-      <p className="truncate text-[11px] font-medium text-muted">{label}</p>
+      <p className="truncate text-caption font-medium text-muted">{label}</p>
       <p
         className={`text-heading mt-1 text-xl leading-none break-keep sm:text-2xl ${strong ? 'text-sky-strong' : 'text-ink'}`}
       >
         {value}
         <span className="ml-0.5 text-xs font-normal text-muted">kcal</span>
       </p>
-      <p className="mt-1.5 truncate text-[11px] text-muted">{sub}</p>
+      <p className="mt-1.5 truncate text-caption text-muted">{sub}</p>
     </div>
   );
 }
@@ -214,7 +217,7 @@ function KcalEditor({
               onFocus={() => setFocused(true)}
               onBlur={() => setFocused(false)}
               placeholder={String(p.auto.base)}
-              className={`${INPUT_LARGE} pr-14 text-lg tabular-nums`}
+              className={`${INPUT_LARGE} pr-14 tabular-nums`}
               {...invalidProps(invalid)}
             />
             <span
@@ -290,9 +293,9 @@ export function MacroBar({
               className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${c.cls}`}
             />
             <div className="min-w-0">
-              <dt className="truncate text-[11px] text-muted">{c.label}</dt>
+              <dt className="truncate text-caption text-muted">{c.label}</dt>
               <dd
-                className={`tabular-nums text-ink ${compact ? 'text-sm' : 'text-[15px] font-semibold'}`}
+                className={`tabular-nums text-ink ${compact ? 'text-sm' : 'text-subhead font-semibold'}`}
               >
                 {Math.round(c.g)}g{' '}
                 <span className="text-xs font-normal text-muted">{c.pct}%</span>

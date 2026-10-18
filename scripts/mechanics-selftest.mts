@@ -38,7 +38,9 @@ import {
   foldSession,
   freshState,
   isArmLoaded,
+  drillThrowNote,
   levelAdvice,
+  withThrowLog,
   mechanicsPainFold,
   playItemsFor,
   programStateJson,
@@ -64,8 +66,9 @@ function ok(cond: boolean, name: string, detail = '') {
 const prisma = new PrismaClient({
   adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }),
 });
+/* 앱의 trainingGuides(lib/library-cache.ts)와 같게 — 숨긴 것 · '나중에 촬영'(영상 전, 2026-10-14) 드릴은 빼고 */
 const rows = await prisma.mechanicsGuide.findMany({
-  where: { hiddenAt: null },
+  where: { hiddenAt: null, category: { not: '나중에 촬영' } },
   orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
 });
 await prisma.$disconnect();
@@ -128,13 +131,20 @@ for (const lv of MECHANICS_LEVELS) {
     ok(mains.size === 6, `${lv.name} ${weeks}주차: 여섯 요소가 다 나옴`, [...mains].join());
   });
 }
-/* 입문은 맨몸 · 야구공만으로 다 할 수 있어야 한다 */
+/*
+ * 입문은 맨몸 · 야구공 · 밴드로 다 할 수 있어야 한다 — 밴드는 2026-10-16 부터(브레이크 기초 드릴이 맨몸으로는 없어 '지지 홀드 TKE', 사용자 결정)
+ */
+const INTRO_GEAR = new Set(['밴드']);
 for (const titles of MECHANICS_LEVELS[0].blocks.flat()) {
   for (const t of titles) {
     const d = byTitle.get(t);
-    ok(d != null && d.variants.some((v) => canUseVariant(v, FREE)), `입문은 맨몸 · 야구공으로: ${t}`);
+    ok(d != null && d.variants.some((v) => canUseVariant(v, INTRO_GEAR)), `입문은 맨몸 · 야구공 · 밴드로: ${t}`);
   }
 }
+ok(
+  !isArmLoaded('근력 · 안정 드릴') && !isArmLoaded('무브먼트 패턴 드릴') && isArmLoaded('스로잉 드릴') && isArmLoaded('모르는 분류'),
+  '팔에 싣는 분류 — 근력 · 안정 · 무브먼트는 아님, 모르는 분류는 싣는 쪽'
+);
 /* 단계 구성 — 입문은 기초만, 고급은 통합이 가장 많다 */
 const stageCount = (key: string, stage: string) =>
   (MECHANICS_LEVELS.find((l) => l.key === key)?.blocks.flat(2) ?? []).filter(
@@ -230,21 +240,62 @@ for (const [gearLabel, owned] of gearSets) {
 }
 console.log(`세션 ${built}개 — 장비 때문에 바꿔 넣은 칸 ${replaced} · 못 하는 도구로 남은 칸 ${lacking}`);
 ok(buildLevelSession({ drills, level: 'intro', index: 12 }).length === 0, '다 마친 뒤에는 빈 세션');
-/* 맨몸 · 야구공만 가진 사람도 모든 수준을 할 수 있어야 한다(바꿔 넣기 포함) */
+/*
+ * 맨몸 · 야구공(+ 밴드)만 가진 사람도 모든 수준을 할 수 있어야 한다(바꿔 넣기 포함). 바꿔 넣기는 같은 주 요소에서만이라(2026-10-16) 세션에는
+ * 그렇게 바꿀 드릴이 있는 것만 둔다. 밴드는 입문 브레이크 칸(지지 홀드 TKE) 때문 — 밴드가 없으면 그 칸만 알림이 뜬다.
+ */
 {
   let total = 0;
   let can = 0;
+  const bandOnly: string[] = [];
   for (const lv of MECHANICS_LEVELS) {
     for (let i = 0; i < SESSIONS_PER_LEVEL; i++) {
-      for (const it of buildLevelSession({ drills, level: lv.key, index: i, owned: FREE })) {
+      for (const it of buildLevelSession({ drills, level: lv.key, index: i, owned: INTRO_GEAR })) {
         total += 1;
         const v = variantOf(it.guideId);
-        if (v && canUseVariant(v, FREE)) can += 1;
+        if (v && canUseVariant(v, INTRO_GEAR)) can += 1;
+      }
+      for (const it of buildLevelSession({ drills, level: lv.key, index: i, owned: FREE })) {
+        const v = variantOf(it.guideId);
+        if (!(v && canUseVariant(v, FREE))) bandOnly.push(`${lv.name} ${i + 1}: ${it.title}`);
       }
     }
   }
-  console.log(`맨몸 · 야구공만: 할 수 있는 칸 ${can}/${total}`);
-  ok(can === total, '맨몸 · 야구공만 가져도 모든 칸을 할 수 있음', `${can}/${total}`);
+  console.log(`맨몸 · 야구공 · 밴드: 할 수 있는 칸 ${can}/${total}`);
+  ok(can === total, '맨몸 · 야구공 · 밴드만 가져도 모든 칸을 할 수 있음', `${can}/${total}`);
+  ok(
+    bandOnly.every((x) => x.endsWith('지지 홀드 TKE') && x.startsWith('입문')),
+    '밴드도 없으면 못 하는 칸은 입문의 지지 홀드 TKE 뿐',
+    bandOnly.filter((x) => !x.endsWith('지지 홀드 TKE')).join(' / ')
+  );
+}
+
+/* ── 드릴로 던진 공 알림(2026-10-16) — 투구 기록에 바로 넣지 않고 카드로, 투구 기록의 합이 늘면 사라짐 ── */
+{
+  const T = '2026-10-16';
+  const throwing = { category: '스로잉 드릴', stage: '연결' };
+  const s0 = freshState('intermediate');
+  const s1 = withThrowLog(s0, T, 30);
+  ok(s1.throwLog?.on === T && s1.throwLog.base === 30 && !s1.throwLog.closed, '그날 처음 스로잉 드릴 — 그때 투구 합을 기억');
+  ok(withThrowLog(s1, T, 80).throwLog?.base === 30, '같은 날 두 번째부터는 처음 합 그대로');
+  ok(withThrowLog(s1, '2026-10-17', 0).throwLog?.on === '2026-10-17', '다음 날은 새로');
+  const back = readProgramState(programStateJson(s1));
+  ok(JSON.stringify(back.throwLog) === JSON.stringify(s1.throwLog), '진행 Json 을 지나도 그대로');
+  ok(readProgramState({ v: 2, level: 'intro', index: 0, feels: {}, films: [] }).throwLog === null, '옛 줄은 알림 없음');
+  const note = (over: Partial<Parameters<typeof drillThrowNote>[0]>) =>
+    drillThrowNote({ throwLog: s1.throwLog, todayKey: T, doneToday: [throwing, throwing], pitchedToday: 30, ...over });
+  const n = note({});
+  ok(n?.throws === 40 && n.effortPct === 70 && n.href === `/pitch-log/${T}?drill=40&pct=70`, '스로잉 드릴 둘 × 2세트 × 10회 = 40회 · 연결 70%', JSON.stringify(n));
+  ok(
+    note({ doneToday: [throwing, { category: '스로잉 드릴', stage: '통합' }, { category: '메디신볼 드릴', stage: '통합' }] })?.effortPct === 75,
+    '체감 강도는 가장 높은 단계의 위쪽 끝 · 메디신볼은 안 셈'
+  );
+  ok(note({ doneToday: [{ category: '메디신볼 드릴', stage: '기초' }, { category: '무브먼트 패턴 드릴', stage: '기초' }] }) === null, '스로잉 드릴이 없으면 알림 없음');
+  ok(note({ pitchedToday: 70 }) === null, '드릴 뒤 투구 기록의 합이 늘면 사라짐(새 기록 · 더하기)');
+  ok(note({ pitchedToday: 30 }) != null, '아침에 적어 둔 불펜(합 그대로)이면 그대로 뜸');
+  ok(note({ throwLog: { ...s1.throwLog!, closed: true } }) === null, '닫았으면 사라짐');
+  ok(note({ todayKey: '2026-10-17' }) === null, '다른 날 기억이면 알림 없음');
+  ok(note({ throwLog: null }) === null, '스로잉 드릴을 한 기억이 없으면 알림 없음');
 }
 
 /* ── 진행 읽기 · 쓰기 ── */
@@ -338,8 +389,8 @@ console.log('\n[2판 P6-5] 어깨 · 팔꿈치 통증 날 접기 · 펼치기 ·
   ok(
     drills
       .flatMap((d) => d.variants)
-      .every((v) => [MOVE, THROW, MED].includes(v.category)),
-    '라이브러리 드릴 분류는 셋 중 하나(새 분류가 생기면 다 접힌다 — 알아채려고)',
+      .every((v) => [MOVE, THROW, MED, '근력 · 안정 드릴'].includes(v.category)),
+    '라이브러리 드릴 분류는 넷 중 하나(새 분류가 생기면 다 접힌다 — 알아채려고, 근력 · 안정은 2026-10-16)',
     [...new Set(drills.flatMap((d) => d.variants.map((v) => v.category)))].join(' · ')
   );
 

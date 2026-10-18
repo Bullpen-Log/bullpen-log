@@ -11,6 +11,799 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 ---
 
+## 금윤호에게 — 2026-10-18 · 김민(Claude, 데스크톱 · 영양 담당) — 앱 틀 `__bpRefresh` 하나 · 아이폰 앱 영양 화면 고침
+
+받은 뒤 할 일 없음(DB · 패키지 그대로). **네 영역(앱 틀 `components/app-shell/expo-tabs.tsx` · 아이폰 앱 껍데기 `native/src/app/index.tsx`)을 조금 고쳤다.**
+- 앱 첫 설정(영양)을 `/api/rpc` 로 저장하면 `revalidatePath` 가 웹뷰 화면을 못 비워 탭이 잠긴 채였다 → 웹에 `window.__bpRefresh`(= `router.refresh()`)를 두고,
+  앱은 `openWebAfter('#refresh')` 로 부른다(`index.tsx` navTo 가 받음). 다른 앱 첫 설정(투구 · 트레이닝)도 같은 문제가 있을 수 있다 — 저장 뒤 이걸 부르면 된다.
+- 앱 영양 탭 체중이 설정 단위(lb)를 따른다(`native/src/nutrition/tab.tsx`), 첫 설정 숫자 칸이 밖에서 바뀐 값을 따라간다(`native/src/setup/nutrition-steps.tsx`),
+  '먹었어요' 등 실패해도 그날을 다시 받는다(`native/src/nutrition/api.ts`). **이 PC 엔 native 패키지가 없어 타입 검사 · 실기기 확인을 못 했다** — 맥에서 한 번 봐 줘.
+
+## 김민에게(맥북) — 2026-10-18 · 김민(Claude, 데스크톱 · 아키텍처 세션) — 새 앱(Expo) 업데이트 장치 · 서버 동작 모양 기록
+
+받은 뒤 할 일 없음(DB · 패키지 그대로). 전체 재검토(`docs/architecture/README.md` '2차 검토') 뒤 맥에서 할 것 둘.
+- **N3 앱 업데이트 장치**: `native/` 에 `expo-updates` · `runtimeVersion` 이 없어 화면만 고쳐도 빌드 + 심사다. 정식 출시 전에 넣어 줘(계획서의 '화면 수정은 몇 분'이 이것).
+- **서버 동작 모양 기록(데스크톱이 더함)**: 앱이 부르는 서버 동작 154개의 인자 · 답 모양을 `scripts/native-api-shapes.json` 에 적었고 `npm run native-api:test` 가 견준다.
+  웹에서 그 동작 모양이 바뀌면 실패한다 → 앱 화면을 맞춘 뒤 `npm run native-api:test -- --update`, 깔린 앱이 깨지면 `lib/app-api.ts APP_API_LEVEL` 을 올린다.
+  더 단단히 하려면(선택) `native/src/lib/rpc.ts` 의 `rpc<T>(action: string, …)` 를 `app/api/rpc/registry.ts` 의 타입에서 인자 · 답을 끌어오는 함수로 바꾸고
+  호출 68곳의 `<T>` 를 걷으면 된다 — 앱 타입 검사가 필요해서 앱 패키지가 있는 맥에서. 다 보면 이 말을 지운다.
+
+## 금윤호 · 김민(맥북)에게 — 2026-10-18 · 김민(Claude, 투구기록 담당) — 새 앱(Expo) 투구 폼 다섯 고침 — 맥에서 굽기 필요
+
+받은 뒤 할 일: **새 앱(Expo)을 구울 때 같이 실린다**(서버 쪽 discard 답의 `orphans` 는 이미 웹 커밋에 들어가 배포만 되면 된다). **데스크톱엔 `native/node_modules` 가 없어 앱 타입 검사를 못 돌렸다** —
+맥에서 `cd native && npx tsc --noEmit` 한 번 돌려 줘. 김민: 투구기록 점검 → "급한 것 1~9번 고쳐줘"(이 절은 5~9번).
+- `native/src/app/pitch/edit.tsx`: ⑤ 저장 · 영상 넣는 중에는 [취소] · 끌어 닫기를 막고(`Stack.Screen gestureEnabled`), 저장 없이 닫을 때는 어느 기록에도 안 붙은 폰 영상만 지움
+  (`pitch/api.ts phoneOrphans` → `/api/pitch-log/discard` 의 orphans — 신호 끊김 뒤 실제로는 저장된 기록의 영상을 지우던 것) ⑥ 고칠 때 `baseVideoPaths` 를 보냄(다른 기기에서 더한 영상이 지워지던 것)
+  ⑦ 강도 칩 1~10(웹과 같게, 칩 사이 옛 값은 '지금 8.5') · 옛 기록(1~10 만 있음)은 `readEffort` 로 채우고 손 안 대면 `intensity` 를 보냄(메모만 고쳐도 강도를 다시 골라야 하던 것)
+  ⑧ 구속 칸이 설정 단위(km/h · mph)를 따름(저장은 km/h — mph 로 친 86 이 86km/h 로 남던 것) ⑨ 저장 두 번 누름 막기(ref).
+- `native/src/pitch/tab.tsx` · `app/pitch/[date].tsx`: 강도 글 1~10(`effortText`, 옛 기록도 보임) · 구속 `formatSpeed`(설정 단위).
+- 폰에서 볼 것: 옛 기록 고치기(강도가 채워져 열리나) · mph 로 바꾸고 저장 → 웹에서 km/h 로 맞게 보이나 · 저장 중 끌어 닫기가 막히나.
+
+## 금윤호에게 — 2026-10-18 · 김민(Claude, 투구기록 담당) — 투구 기록 점검 뒤 웹 넷 고침(폰 영상 지우기 · 가져오기 썸네일 · 날짜 검사)
+
+받은 뒤 할 일 없음(DB · 패키지 그대로). 김민: 투구기록 전체 점검 → "급한 것 1~9번 고쳐줘". **네 영역(투구 폼 · 기록 API)을 고쳤다.**
+- `app/api/pitch-log/discard/route.ts`: 답에 `orphans`(어느 기록 · 클립에도 없는 경로)를 더함. 새 `lib/local-video.ts discardPhoneVideos(paths)` — 이 답에 든 폰 영상만 폰에서 지운다(서버에 못 물으면 안 지움).
+- `import-sheet.tsx`: 가져온 영상에 썸네일(`makePitchThumb`, 없으면 목록이 원본을 통째로 읽었다) · 묶음 폼이 저장하는 동안 건너뛰기 · 닫기 막음(`EntryForm` 새 선택 칸 `onSavingChange`) ·
+  건너뛰기 · 닫기 · 시트 열 때 정리가 기록에 안 붙은 영상만 지움(저장은 됐는데 답만 못 받은 묶음의 영상을 지우던 것) · 폰에 넣고 경로를 못 받은 파일은 바로 지움.
+- `entry-form.tsx`: 저장 없이 닫으면 새로 넣은 폰 영상도 지움(예전엔 서버 discard 만 불러 앱 안에 남음) · 고쳐서 뺀 폰 영상은 이 폰에서도 지움.
+- `app/api/pitch-log/route.ts` POST: 날짜는 `YYYY-MM-DD` 만(예전엔 `…T05:00Z` 도 받아 그날 화면에 안 보이는 기록이 생길 수 있었다).
+- tsc · eslint · pitch-find 31 · pitch-import 28. 화면은 못 봤다(로그인 · 아이폰 앱 필요) — 앱에서 가져오기 → 건너뛰기 · 닫기 한 번 봐 줘.
+
+## 금윤호(서브2)에게 — 2026-10-18 · 김민(Claude, 트레이닝 세션) — 오늘 찍은 운동 영상 다듬기 · 내용 맞추기 · 전체 검토를 맡아 줘
+
+**금윤호의 서브2 세션(worktree `.claude/worktrees/sub2`)이 맡는다** — 다른 세션은 금윤호에게 알리기만 하고 손대지 않는다.
+서브2 에서 받으려면 `git fetch origin` → `git merge origin/main`(이 메모 · 문서 · 도구가 main 에 있다).
+**할 일(김민이 넘김 — 김민의 주간 한도가 얼마 안 남아서).** 김민: "오늘 찍은 영상, 어제처럼 앞뒤 빈 시간이 길거나 사람이 작으면 고치고,
+영상 속 자세와 설명을 견줘 맞추고, 전체 검토도". 10-18 에 '찍음'으로 체크한 운동 **95개**.
+**절차 · 명령 · 판단 기준은 `docs/shoot/video-trim-and-content-check.md` 하나에 다 있다** — 10-17 에 김민 세션이 170개 → 52개 다듬고(8899e0ec),
+직접 찍은 영상 271개를 점검해 고친(5886ff9b · aefe20f9) 방법 그대로다. 도구는 `scripts/shoot-trim/`(이번에 내용 점검 · 비교 · 감사 도구 일곱을 더 올림).
+1. 영상 다듬기(1절): `download.mjs 2026-10-18` → 재기 → 자동 판정 → **장면 모음을 하나하나 눈으로**(느린 동작 · 버티기 · 캐리 · 번갈아 하는 드릴을
+   자동 판정이 '빈 시간'으로 자주 잘못 본다) → overrides → 만들기 → 백업 → 올리기 → 캐시 `library:exercises:v40` 을 v41 로.
+2. 내용 맞추기(2절): 다듬은 뒤 `content-export.mjs 2026-10-18` → 장면 쪽 → 견주기. **고치기 전에 찾은 것을 표로 김민에게 먼저 보이고 허락받기**
+   (김민이 두 번 짚었다 — 질문 상자에 숫자만 띄우지 말 것). 장비는 목록 안에서만, 번갈아 하는 운동의 좌우 따로 기준은 아직 안 정해짐.
+3. 전체 검토(3절): `library-audit.mjs` + 시험 다섯. 10-18 기준값이 문서에 있다.
+- 받은 뒤 할 일: Python 3.12 패키지 다섯(문서 0절) · 운영 DB 를 바꾸기 전 `npm run backup`. 되돌리기용 작업 폴더(`applied.json`)는 그 컴퓨터에만 남는다.
+- 다 하면 이 말을 지우고 결과(몇 개 다듬음 · 고친 내용 · 커밋)를 김민에게 알려 줘.
+
+## 김민에게(맥북) — 2026-10-18 · 클라우드 세션(Claude) — 아이패드 촬영 카메라: 가로로 들면 미리보기가 옆으로 눕던 것 · 아이패드 크기 배치
+
+받은 뒤 할 일: **맥북에서 새 앱(Expo)을 구울 때 같이 실린다** — 이 파일의 '새 앱(Expo) 굽기 · 촬영 앱 카메라가 H.264 로' 메모와 같은 굽기로 된다. 옛 앱(mobile/)은 main 에 들어가면
+GitHub '아이폰 앱 굽기'가 저절로 굽는다. **리눅스 클라우드라 Swift 를 컴파일해 보지 못했다** — 굽다가 오류가 나면 그 줄을 고쳐 줘.
+- 까닭: 아이패드는 앱이 모든 방향 · 화면 나누기를 받아 촬영 화면의 '세로 고정'이 먹지 않는다. 가로로 들면 화면(단추)은 돌고 미리보기 판은 세로 그대로라
+  옆으로 누워 보였다(찍힌 영상 방향은 원래 맞았다).
+- 고침(두 파일 같게 — `native/modules/shoot-camera/ios/ShootRecorderViewController.swift` · `mobile/ios/App/App/ShootCameraPlugin.swift`):
+  아이패드는 `supportedInterfaceOrientations` = `.all`(아이폰은 그대로 세로), iOS 17+ 는 `RotationCoordinator.videoRotationAngleForHorizonLevelPreview` 를
+  KVO 로 따라 미리보기 연결 각도를 바꾸고(애플 AVCam 과 같은 방식), iOS 16 은 화면 방향으로 `videoOrientation`. 눕혀 둔 아이패드(iOS 16)의 녹화 방향은 화면 방향을 따른다.
+- (같은 날 더) 아이패드 크기 배치: 셔터 92pt · 글자 · 렌즈 고르개를 키우고, 가로로 들면 렌즈 · 셔터 · 취소를 오른쪽 세로 줄로(`viewWillLayoutSubviews` 가
+  `bottomLayout` ↔ `sideLayout` 을 바꿈, 아이폰은 그대로). 웹 촬영 모드(`run-client.tsx`)는 아이패드(`pad:`)에서 두 칸(지금 운동 | 다음 · 그다음) · 큰 글자 · 큰 아래 단추.
+- 구운 뒤 아이패드에서 볼 것: 관리자 → 영상 촬영 → 촬영 모드 [영상 찍기] → 세로 · 가로 · 찍는 중에 돌리기에서 미리보기가 똑바로 서는지 · 단추 줄 자리 · 찍은 영상 방향.
+  아이폰은 예전과 같아야 한다.
+  다 보면 이 말을 지운다.
+
+## 김민에게(맥북) — 2026-10-18 · 김민(Claude, 데스크탑 트레이닝 세션) — 새 앱(Expo) 굽기: 촬영 앱 카메라가 H.264 로 찍게 바뀜
+
+데스크탑에서 앱 네이티브 코드를 고쳤는데 맥이 없어 못 구웠다 — **맥북에서 받아(`git pull`) 새 앱을 평소처럼 구워 TestFlight 에 올려 줘.**
+- 바뀐 파일: `native/modules/shoot-camera/ios/ShootRecorderViewController.swift`(커밋 b7cec1d6). 촬영 모드 앱 카메라가 H.264 · 1080p · 60fps 8Mbps ·
+  1초 키프레임 · 일반 색(sRGB)으로 찍는다(`applyUploadSettings`). 그러면 사이트 편집 창이 다시 만들지 않고 잘라 붙여 올리기가 10~20초 빨라진다.
+- **데스크탑에서 컴파일해 보지 못했다** — 굽다가 Swift 오류가 나면 그 줄을 고쳐 줘(쓴 API: `availableVideoCodecTypes` · `supportedOutputSettingsKeys(for:)` ·
+  `setOutputSettings(_:for:)` · `activeColorSpace` · `automaticallyConfiguresCaptureDeviceForWideColor`).
+- 옛 앱(mobile/ `ShootCameraPlugin.swift`)도 같게 고쳤다 — 그쪽은 GitHub '아이폰 앱 굽기'가 저절로 굽는다.
+- 구운 뒤 폰에서 볼 것: 관리자 → 영상 촬영 → 촬영 모드 [영상 찍기] → 찍고 나면 '가져오는 중' 뒤 편집 창의 [올리기]가 예전보다 빨리 끝나는지 · 색이 바래지 않는지.
+  다 보면 이 말을 지운다.
+
+## 금윤호에게 — 2026-10-18 · 김민(Claude, 투구기록 담당) — 투구 강도를 다시 1~10 으로(화면만, 저장은 그대로 %)
+
+받은 뒤 할 일 없음(DB · 패키지 그대로). 김민: "투구기록에 강도가 50프로부터 100까지 있는데 1~10으로 다시 바꿔줘". **네 영역(투구 폼 · 구속 측정 저장 시트 · 홈 · 투구 달력 · 분석)의 보이는 글을 바꿨다.**
+- 칩(`components/effort-chips.tsx`): 50~100% 여섯 + −/+ 5% → **1~10 열 칸**(−/+ 뺌). 값은 그대로 체감 강도 %(칩 n = n × 10%)로 넘겨 저장 · 부하 · 추천 엔진은 안 바뀐다.
+  `EFFORT_CHIPS` = 10 · 20 … 100. 구속 측정 저장 시트(`velocity-screen.tsx`)도 같은 부품이라 저절로 1~10.
+- 보이는 글: `lib/pitch-effort.ts` 새 `effortScaleText(pct)`(90 → '9', 예전 85% 기록 → '8.5') — `effortText` 가 이것을 쓴다(목록 · 달력 · 그날 화면 · 분석 한꺼번에).
+  홈 그날 요약 · 투구 달력 읽어 주는 글 · 목록 '강도 8 이상' · 투구 첫 설정 힌트 · 분석 평균 · 최고 · 이틀 합산(소수 한 자리, % 없이).
+  기준표(`intensity-guide.tsx`) 투구 띠도 1 – 2 … 9 – 10. 폼의 '예전에 적은 강도 9에서 계산한 값이에요' 줄은 뺐다(칩 9 가 바로 골라져서).
+- 예전에 % 로 고른 칩 사이 값(85%)은 칩이 모두 빈 채 밑에 '지금 8.5 · 칩을 누르면 바뀌어요'. 그대로 저장하면 85 가 남는다.
+- 시험 training 1818 통과(칩 · 표시 기대값 셋을 1~10 으로). 화면은 임시 경로로 휴대폰 375 만 봤다(칩 30px 폭 열 칸 한 줄) — 폰에서 투구 기록 폼 한 번 봐 줘.
+
+## 금윤호에게 — 2026-10-18 · 김민(Claude, 트레이닝 세션) — 체크인 미리 고름 없앰 · 팔 통증 자리 필수 · 경기도 고른 강도대로 · 못 잰 공 알림
+
+받은 뒤 할 일 없음. 네 영역 파일을 고쳤다 — 사용자가 하나씩 정했다("미리 고르는 건 아니지" · "통증 자리는 무조건 알아야지" · "경기도 짧게 던질 수 있다").
+- 체크인(`components/checkin-flow/flow.tsx` · `steps.tsx` · `app/globals.css` · `app/actions/checkin.ts`): 컨디션 · 잠은 미리 골라 두지 않는다(손잡이 숨김 '밀어서 골라요',
+  고르기 전 '다음' 잠김). 어깨 · 팔꿈치 '통증'이면 아픈 자리 · 정도 둘 다 필수('몰라도 돼요' 뺌). 서버도 3판 흐름에서 잠 · 자리 · 정도가 없으면 막는다.
+- 몸 그림(`components/body-spot-picker.tsx`): 어깨 · 팔꿈치 근육은 눌러도 '뻐근'으로 안 골라지고 뻐근해요 · 아파요를 고른다(needsLevelChoice).
+- 아이폰 앱(`native/src/app/checkin.tsx` · `native/src/pitch/velocity-day.tsx`): 잠 · 자리 필수, 구속 카드에 '못 잰 공 N개는 빠졌어요'. 앱은 새로 구워야 들어간다.
+- 투구 기록 폼(`app/(app)/pitch-log/entry-form.tsx`, 너 · 구속 측정 쪽): 구속 측정으로 채운 투구 수 밑에 '못 잰 공 N개는 빠졌어요'. 셈은 `lib/velocity-load.ts withMissedAttempts`
+  (VelocityAttempt — 이어진 공 없음 · 공 길 장면 1장 이상).
+- 투구 기록 종류(`entry-form.tsx` · `app/api/pitch-log/route.ts` · `native/src/app/pitch/edit.tsx`): '불펜'이 미리 골라져 있던 것을 비워 두고 꼭 고르게
+  (서버도 빈 종류를 막는다). 프로그램의 '불펜 날 회전 던지기 빼기'는 뺐다(`lib/program/program.ts` — 두 손 몸통 던지기라 팔 부담이 작다, 사용자).
+- **경기 강도**(`lib/pitch-stats.ts` stressFactor · outingLoadOf, `lib/report/facts.ts` nearMax): 경기도 고른 체감 강도대로 셈한다(예전엔 늘 100%). 세게 던진 날 · 부하 · 휴식이
+  강도를 낮게 고른 경기에서 가벼워진다. 시험 기대값을 같이 고침(training 1818 · 그 밖 시험 모두 통과).
+
+## 금윤호에게 — 2026-10-18 · 김민(Claude, 트레이닝 세션) — 체크인: 어깨 · 팔꿈치 '통증'이면 정도(얼마나 아픈지) 필수
+
+받은 뒤 할 일 없음. 네 영역 파일을 고쳤다 — 사용자: "통증 표시하면 얼마나 아픈지 정도를 필수로".
+- `components/checkin-flow/flow.tsx`: 통증 화면에서 어깨 · 팔꿈치가 '통증'인데 정도를 안 골랐으면 '다음'이 잠기고 위에 빨간 한 줄('얼마나 아픈지 골라 주세요').
+- `app/actions/checkin.ts` trySaveCheckin: 같은 경우 저장을 막고 오류 글(웹 · 앱 둘 다 이 길).
+- `native/src/app/checkin.tsx` save: 같은 경우 저장 전에 오류 글. 앱은 새로 구워야 들어간다(서버가 먼저 막으니 그 전에도 오류 글은 뜬다).
+- 옛 기록(정도 없음)은 지금처럼 '심함'으로 읽는다(lib/checkin.ts armFatigueFromPain).
+
+## 금윤호에게 — 2026-10-18 · 김민(Claude, 데스크톱 · 3D 담당) — 3D 엔진: 기종별 초점 표(120fps 셋) · 분석 서버가 영상의 기종 · fps 를 읽음 · 서버에도 올림
+
+받은 뒤 할 일 없음(DB · 패키지 그대로). **네 영역(3D 엔진 · GPU 파이프라인)을 고쳤다.**
+김민: "카메라 보정 튼튼하게". 자기 보정은 초점이 거의 안 정해져(두 폰이 같은 투수를 겨눔) 몇 장면에도 흔들렸다.
+- 새 `lib/pitch-3d/focal-table.ts`: 기종(영상 머리 com.apple.quicktime.model) · 촬영 fps 별 초점 — 지금은 10-16 막대 · 바닥 보정으로 잰 120fps 셋
+  (아이패드 10 · SE2 · 15 Pro Max, 폭 3%). `camera.ts` 초점 사전이 카메라마다 다를 수 있다(`FocalPriors` = 하나 또는 `{ side, back }`).
+  표에 없는 카메라 · 화면 녹화 · 줌은 예전처럼 1배 사전 — 그래서 대부분의 영상은 그대로다.
+- 서버: `video.py device_info`(PyAV 로 기종 · 정해진 fps) → `pipeline.py fit_payload` 의 `devices` → `run-node.ts` 가 표를 찾는다. 로그 `[pitch3d device]`.
+  묶음 목록(`scripts/pitch3d-bundle.mjs`)에 focal-table.ts 를 더했다.
+- 10-16 마커 13구: 초점 오차 옆 −9.4 → −0.2%, 관절 3.3/3.0 → 2.4/2.6cm, 몸통이 도는 때 오차 2.9 → 1.0%, 착지 때 상체 3.7 → 1.0°, 레이백 4.7 → 2.9°.
+  나빠진 것: 드리프트 판정 10 → 9/13(경계의 한 구), 착지 골반 수평(화면에 안 냄) 0.7 → 3.4°.
+- 240fps 값은 넣어 보고 뺐다(10-12 공식 채점 레이백 5.2 → 8.3°) — 10-12 공식 채점 · 실험실 240fps 샘플은 예전과 같다. 자세한 것은 selfcal/README.md 끝 절.
+- 시험 v1 71 · v2 326/327(실패는 예전 어깨 3.0% 하나) · GPU selfcheck 42 · 떨림 검사 나빠짐 없음 · 묶음 --check 같음.
+- 분석 서버(Modal)에도 올렸다(같은 날) — 새로 분석하는 영상부터.
+
+## 금윤호에게 — 2026-10-17 · 김민(Claude, 데스크톱 · 3D 담당) — 3D 엔진 팔 좌우 고침이 튀는 바꿈을 막는다 · 분석 서버에도 올림
+
+받은 뒤 할 일 없음(DB · 패키지 그대로). **네 영역(3D 엔진)을 고쳤다** — `lib/pitch-3d/analyze.ts` repairLabels 의 `REPAIR_MAX_JUMP`(5).
+김민: 10-16 마커 투구 5 몸통이 깨지는 원인 → 실험실 샘플 7 · 9 니업 몸통 흔들림. 원인 하나: repairLabels 가 빠른 구간 밖에서는 팔 바꿈을 다시 비춤만으로 받아,
+한 장면 팔 이름을 바꾼 쪽이 앞뒤 장면과 크게 끊겨도(280px, 원래 16px) 뒤집었다 → 어깨선이 몇 장면 튐.
+- 고침: 어느 구간에서든 팔을 뒤집은 쪽이 앞뒤와 원래보다 5배 넘게 끊기면 안 뒤집는다(다리 · 빠른 구간 규칙은 그대로).
+- 결과: 샘플 7 · 9 어깨선 떨림 2.86 → 0.50 · 3.65 → 0.66°, 10-16 투구 5(초점 앎) 몸통 −17.2 → −2.3°. 막힌 바꿈은 마커 정답에 비춰 모두 틀린 바꿈.
+  떨림 검사 9샘플 나빠짐 없음(좌투 샘플 3 같음) · 10-16 판정 그대로. 10-12 공식 점수는 3.23 → 3.37cm(거의 p8 · p9) — 고침이 아니라 자기 보정이
+  몇 장면에도 흔들리는 탓(줄자 보정이면 15구 모두 고치기 전후 같음). 그래서 채점 기준을 다시 저장했다(selfcal/README.md 끝 절).
+- 시험 v1 71 · v2 319/320 — 실패 하나는 '실제처럼 · 결과 카메라로 다시 비춘 어깨 3% 안'이 2.4 → 3.0%. 막힌 건 옆 영상 i220 하나(합성은 뒤 영상에만 바꿈을 넣음)라
+  막은 게 맞고, 보정이 조금 달라진 여파라 시험은 그대로 뒀다.
+- 분석 서버(Modal)에도 올렸다(같은 날, `npm run pitch3d:bundle` → `modal deploy app.py`) — 새로 분석하는 영상부터.
+
+## 금윤호에게 — 2026-10-17 · 김민(Claude, 데스크톱 · 구속측정 엔진) — 측정 화면: 관리자 '세션 녹화' 켜기 단추
+
+받은 뒤 할 일 없음. **네 영역(측정 화면 `app/(session)/velocity/velocity-screen.tsx`)을 고쳤다**(6e72a24c).
+- 김민: "세션 통째 녹화는 관리자만 가능한데 시작하기 전에 옆에 따로 켜기 버튼이 있어야". 측정 단계에서 측정 시작 전 셔터 줄 위 왼쪽에 관리자만 보이는 칩
+  '세션 녹화 끔/켬', 측정 중엔 같은 자리에 '녹화 중 · 올림 n/m'. 세션 녹화는 이제 **이 칩으로만** 켜진다(예전: 보정용 저장을 켜면 저절로).
+  1분 100MB 남짓이라 기억하지 않는다 — 화면을 열 때마다 꺼진 채. 웹 카메라면 "앱 카메라에서만 돼요". 칩이 뜨면 카메라 위 알림창을 그만큼(pb-14) 올린다.
+- 화면은 로그인 · 카메라가 있어야 해 브라우저로 못 봤다(tsc · eslint 만). 새 Expo 앱(`native/`)의 측정 화면에는 세션 녹화가 아직 없다.
+
+## 금윤호에게 — 2026-10-17 밤 · 김민(Claude, 트레이닝 세션) — 오늘 찍은 운동 영상 52개를 다듬은 판으로 바꿈(운영 DB · 저장소)
+
+받은 뒤 할 일 없음. 같이 쓰는 운동 라이브러리를 바꿔서 알린다(AGENTS.md 3번). 김민: "영상 앞뒤 2초 넘는 빈 시간을 자르고, 사람이 작으면 크게 보이게 잘라 줘".
+- 10-17 '찍음' 영상 170개를 보고 52개를 새로 만들었다(앞뒤 자름 18 · 화면 잘라 키움 38, 1920×1080 · 소리 없음 · 화면 비율 그대로). 새 이름 `library/<새 uuid>` 로 올리고
+  운동의 videoPath · thumbPath 만 바꿨다. **옛 파일은 저장소에 그대로**(지우지 않음). 재생용 줄인 판 `library-720/<새 uuid>.mp4` 도 같이 올렸다. 캐시 `library:exercises:v37`.
+- 앱 안 영상 묶음에는 새 uuid 가 없다 — 앱이 처음 볼 때 받는다. 다음에 맥에서 앱을 구울 때 `npm run library:bundle` 을 돌리면 들어간다.
+- 도구 `scripts/shoot-trim/`(내려받기 → 재기 → 판정 · 장면 모음 → 만들기 → 올리기). 되돌리기는 `apply.mjs <작업 폴더> --revert` 인데 작업 폴더(applied.json)가 김민 데스크톱에만 있다. 백업 db-2026-10-17-13-56.
+
+## 금윤호에게 — 2026-10-17 · 김민(Claude, UI/UX 세션) — 체크인 첫 화면 로그아웃 단추 뺌 · 시작 연출 script · 아이폰 창 닫힘 자리
+
+받은 뒤 할 일 없음(DB · 패키지 그대로). **네 영역(체크인 흐름 · 시작 연출)을 고쳤다.** 김민: UI 버그 점검 뒤 "다 고쳐줘".
+- `components/checkin-flow/flow.tsx`: 첫 화면의 '로그인 · 회원가입 화면으로'를 뺐다 — '오늘은 건너뛰기' 바로 옆에서 누르면 묻지 않고 로그아웃됐다(이름은 '화면으로'). 로그아웃은 내 정보에서.
+- `components/app-splash.tsx`: `<script>`(data-splash 표시)를 서버 그림 · 붙는 중에만 그린다(`useSyncExternalStore` 서버 값). 클라이언트 이동으로 (app) 에 들어올 때(체크인 건너뛰기 → 홈) React 가
+  'Encountered a script tag' 콘솔 오류를 냈다 — 그 경로의 표시는 원래도 효과(useEffect)가 달았다.
+- `app/globals.css` 사파리용 닫히는 창 규칙(`@supports not (overlay: auto)`) 밑에 한 묶음: 판 넘기기 트랙(transform) 안의 창은 fixed 가 4판 폭 트랙에 붙어, 닫히는 0.2초 동안
+  투구 · 트레이닝 · 영양 판의 시트가 화면 밖으로 튈 수 있었다 → 트랙 좌표의 지금 판 자리(`--i` × 25% − `--rail`). 크롬에서 같은 값을 넣어 판 넷 모두 화면 자리와 같음을 쟀다. **아이폰에서는 아직 안 봤다.**
+
+## 금윤호에게 — 2026-10-17 · 김민(Claude, 데스크톱 · 3D 담당) — 3D 엔진 상하체 분리 고침(뒤 영상 엉덩이 겹침) · 분석 서버에도 올림
+
+받은 뒤 할 일 없음(DB · 패키지 그대로). **네 영역(3D 엔진)을 고쳤다** — `lib/pitch-3d/analyze.ts` 의 `fillBackHipGaps`(시험 `scripts/pitch-3d-selftest.mts` 8개).
+김민: "상하체 분리부터". 10-16 마커 13구로 찾은 원인: 착지 직후 뒤(2루) 영상에서 두 엉덩이가 앞뒤로 겹치면 2D 모델이 **좌우 순서를 늦게 바꾼다**
+(정답 간격이 +2 → −5% 로 지나는 동안 관찰은 +3~5% 에 머물다 한 번에 뒤집힘, 가운데 점은 맞음) → 골반이 착지 직후 10~18° 늦게 돌아 분리가 12° 작았다.
+- 고침: 뒤 영상 엉덩이 간격이 가장 넓은 간격의 60% 밑이고 '0 을 지나야 하는데 한쪽에 머문' 구간만, 앞뒤 믿을 장면 사이를 시간으로 잇는다(2D 가 깨끗하면 안 건드림).
+- 결과(13구, 앱 − 정답): 분리 크기 −11.9 → −5.8° · **분리 판정 7/13 → 10/13** · 분리 시점 상관 0.30 → 0.71. 앞다리 · 관절 오차(3.2/3.1cm) 그대로.
+  10-12 마커 15구(골반 스티커 정답): 골반 5.04 → 4.88° · 분리 5.37 → 5.17°. 시험 v1 71 · v2 320, 떨림 검사(데스크톱 샘플 1개) 나빠짐 없음.
+- 남은 것: 엔진이 스스로 잡은 카메라 보정이 착지 30% 뒤 골반을 4~6° 늦게 만든다(진짜 보정이면 분리 −3.4° · 판정 11/13) — 다음에 보정 계산을 손볼 예정.
+- 분석 서버(Modal)에도 올렸다(같은 날) — 새로 분석하는 영상부터.
+
+## 금윤호에게 — 2026-10-16 밤 · 김민(Claude, 데스크톱 · 트레이닝) — 운동 라이브러리에 큰 메디신볼 던지기 셋을 더함(운영 DB) · 캐시 v36
+
+받은 뒤 할 일 없음(DB 구조 · 패키지 그대로, 운동 줄만 더함). **같이 쓰는 운동 라이브러리에 더했다**(AGENTS 3번 — 알림). 김민: 트레이닝 50명 시뮬
+(`docs/qa/2026-10-16-training-50.md`) 뒤 "투구 드릴에 메디신볼 드릴 많으니까 큰 메디신볼 쓰는 걸로 몇 개 넣어".
+- 투구 드릴 셋을 운동(파워 · 메디신볼)으로 복사 — 헤비 메디신볼 힌지 토스(큰 공) · 힌지 오버더톱 슬램(큰 공) · 스플릿 스탠스 슬램(큰 공). 같은 참고 영상 · 설명
+  (10-15 회전 던지기 여섯과 같은 방식, 백업 `db-2026-10-16-14-41.json`, `scripts/library-medball-big-2026-10-16.mjs`). **드릴 쪽 영상을 찍어 올리면 이 복사본은 안 따라간다.**
+- 근력 프로그램 메디신볼 칸(`lib/program/program.ts` medball 규칙)이 힌지 계열도 받는다 — 메디신볼이 있으면 그 칸 운동이 2 → 5개.
+- 트레이닝만(네 영역 아님): 기본기 던지기 칸 3~4주는 강도 높음까지(`basicsPool`), 매일 일정 보강 칸은 가장 최근 세션에 한 것을 다시 안 고름
+  (`theme.ts` lastSessionIds · `daily-plan.ts lastSessionIdsOf`). 시험 program 236 · training 실패 20(전과 같음).
+
+## 금윤호에게 — 2026-10-16 밤(4) · 김민(Claude, 데스크톱 · 구속측정 엔진) — 공 자리 찍기(학습 모델 2판 라벨 도구) · 받으면 `npx prisma generate`
+
+받은 뒤 할 일: **`npx prisma generate`** — 새 표 `VelocityBallLabel`(마이그레이션 `20261016150000_velocity_ball_label`, 더하기만 · DB 에 적용함, 백업 `db-2026-10-16-14-30.json`).
+네 영역(측정 화면 · Swift)은 안 건드렸다 — 관리자 구속 측정 화면 · 엔진 폴더만.
+- 관리자 녹화 편집기의 공마다 [공 자리 찍기], 탐색기 공 미리보기에도 [공 자리 찍기](`app/(app)/admin/velocity/ball-labeler.tsx`): 장면을 넘기며 공 가운데 · 가장자리를
+  눌러 저장(컷 · 클립마다 `VelocityBallLabel` 한 줄, 장면 시각 · 공 [x, y, 지름] 원본 px). 엔진이 못 잰 10-06 · 10-07 클립도 같은 도구로 찍는다.
+- `services/velocity-detector/pull-labels.mjs` 가 서버 라벨 + 영상을 받아 1판과 같은 `labels.json`(detector-v2) 로 — `train.py --dataset detector-v2` 가 그대로 읽는다.
+  자세한 것은 `docs/velocity/engine-2.7-plan.md` '5단계 2판 ②'. 시험으로 10-16 녹화 한 컷(12장면)을 찍어 둔 줄이 하나 있다.
+
+## 금윤호에게 — 2026-10-16 밤(3) · 김민(Claude, 데스크톱 · 구속측정 엔진) — 엔진 2.7.1: 조용할 때 훑기가 학습 모델로 공을 찾는다
+
+받은 뒤 할 일 없음(DB · 패키지 · Swift 그대로 — onnxruntime-web 은 npm 에 안 넣고 jsDelivr 판 고정 주소에서 받는다, `lib/velocity-engine/ball-net.ts`).
+**네 영역(구속 측정 — 앱 카메라 길)의 `dual-capture.ts` 두 줄(arm 때 모델 미리 받기 · 로그에 via)과 `analyze-video.ts locateThrow` 를 고쳤다.**
+- 훑기(sweep)가 공을 알아채는 눈이 밝기 차 거친 훑기 → 학습 모델(MobileNetV3-small 열지도, 입력 긴 변 736 · 연속 세 장면). 모델 · 런타임을 못 받으면 예전 길(via 'coarse').
+  실제 클립 43개에서 모델 43/43 · 알림 시각 0.9초 안 24/24(거친 훑기 37/43 · 20/24). 알림 길 · 파일 길의 계산은 안 바뀌어 값 · 보정 짝 그대로(2.7.1).
+- 모델 파일 `public/velocity-detector/ball-v1.onnx`(177KB) — 사이트 배포에 실린다. WASM 런타임 14MB 는 첫 arm 때 받고 브라우저가 캐시한다(LTE 면 10초쯤).
+- **폰에서 봐 줄 것**: 콘솔 `[velo] sweep … (net)` 이 찍히나(안 찍히고 coarse 면 런타임을 못 받은 것) · 훑기 한 번이 몇 초인가(2.5초 넘으면 다음 하나를 쉬는 규칙이 있다).
+  자세한 것은 `docs/velocity/engine-2.7-plan.md` '5단계 2판 ①'. 알림(MotionTrigger)을 모델로 바꾸는 CoreML 길은 김민이 맥북에서 직접 한다(2026-10-16 사용자) — 같은 ONNX 에서.
+
+## 금윤호에게 — 2026-10-16 밤 · 김민(Claude, 데스크톱 · 3D 담당) — 3D 엔진 착지 무렵 앞다리(앞무릎) 고침 · 분석 서버에도 올림
+
+받은 뒤 할 일 없음(DB · 패키지 그대로). **네 영역(3D 엔진)을 고쳤다** — `lib/pitch-3d/analyze.ts` · `camera.ts` · `v2/fit.ts`. 김민: "앞다리(착지 뒤 무릎) 엔진 오류부터".
+10-16 마커 13구(카메라 세 대 정답)로 찾은 원인 둘:
+- 착지 때 뒤(2루) 영상에서 앞다리가 축다리 · 몸에 가려 2D 모델이 **세로 자리를 지어낸다**(정답을 뒤 영상에 비추니 가로 오차 90% 2%, 세로 8~18%). 엔진이 그 점을 버리고
+  옆 시선 위에 뼈 길이로 놓아 착지 앞발목이 3루 쪽으로 15cm 가 갔다 → `analyze.ts` 의 `leadPlaced`: 착지 무렵 앞다리는 두 영상이 맞으면 그대로 교차, 아니면
+  옆 영상 두 좌표 + 뒤 영상 가로만(`camera.ts rayColumn`). v2 맞추기는 이 관절을 한 영상 다리 겹침 가르기에서 뺀다.
+- 디딘 앞다리 뼈 길이가 6% 길게 잡혀(2D 점이 관절 중심이 아니라 자세마다 다름) 묶인 앞발과 엉덩이 사이에서 무릎이 더 굽었다 → `fit.ts` 가 맞춘 **뒤에**
+  앞무릎 · 앞발목만 다시 놓는다(관찰 각도가 나오는 다리 길이 배율을 장면마다 풀어 두 뼈 IK, 엉덩이 · 몸통 · 팔은 그대로 — 맞추기 안에서 바꾸면 골반이 끌려 레이백이 움직였다).
+- 결과(13구, 앱 − 정답): 앞무릎 착지 −12.1 → −1.7° · 릴리스 +6.6 → +0.2° · 착지 뒤 더 굽음 +15.4 → +0.4° → **앞다리 버티기 판정 3/13 → 10/13**.
+  앞발 자리가 바로잡혀 착지 때 몸통 열림 +5.4 → −2.9° · 골반 열림 +7.6 → −0.1° · 골반 기울기 3.3 → 0.6°. 관절 오차 3.2/3.1 → 3.2/3.1cm 그대로.
+  10-12 마커 15구 채점 · 떨림 검사(데스크톱 샘플 1개) 나빠짐 없음(분리 4.8 → 5.4° 는 고치기 전 엔진도 같다 — 예전 변경). 시험 v1 63 · v2 320.
+- 분석 서버(Modal)에도 올렸다(같은 날, `npm run pitch3d:bundle` → `modal deploy app.py`) — 새로 분석하는 영상부터. 실험실 실제 영상 7개는 맥북에만 있어 떨림 검사는 그쪽에서 한 번 돌려 줘.
+
+## 금윤호에게 — 2026-10-16 밤(2) · 김민(Claude, 데스크톱 · 구속측정 엔진) — 공 감지 학습 모델 1판(Modal) · 4단계는 안 만듦
+
+받은 뒤 할 일 없음(DB · 패키지 · Swift 그대로 — 새 폴더 `services/velocity-detector/` 와 문서만). 네 영역 코드는 안 건드렸다.
+- 2.7 계획 4단계(공 크기 깊이를 궤적에)는 스피드건 짝 21구로 셈해 보니 오차 2.69 → 3.01% 로 나빠져 **안 만들었다**(`docs/velocity/engine-2.7-plan.md` 4단계 절).
+- 5단계 1판: 엔진이 믿은 공 자리를 라벨로(37클립 · 장면 3,266) MobileNetV3-small 열지도 모델을 Modal T4 에서 학습(5.5분). 시험 클립 8개에서 재현율 90%(지름 8px
+  넘으면 95~97%) · 헛 알림 2.9% — 그 헛 알림은 모두 **실제로 공이 있는 릴리스 직후 장면**(엔진 라벨이 빈 곳)이라 모델이 엔진보다 공을 더 찾는다.
+  모양 · 명령 · 다음 단계는 `services/velocity-detector/README.md` · 계획 문서 5단계 절. 무게(ONNX 177KB)는 Modal 볼륨 `bullpen-ball-detector-data` /out/v1.
+- **(김민이 맥북에서 직접 하기로 함 — 2026-10-16 사용자)** 폰에 넣으려면 ONNX → CoreML(coremltools, 맥) → `DualCameraPlugin.swift` MotionTrigger 의 공 알림을 모델 봉우리로. 그 전에 폰에서 이 모델
+  한 장면 추론 시간(목표 60fps 의 반, 8ms 안)을 재 보는 것이 첫걸음. 사용자가 시키면 내가 사이트 쪽(onnxruntime-web 로 훑기)을 먼저 해 볼 수도 있다.
+
+## 금윤호에게 — 2026-10-16 밤 · 김민(Claude, 데스크톱 · 베타 시뮬 QA) — 홈 요약 칸 · 하이라이트 · 투구 폼 · 분석을 고쳤다(베타 100명 결과)
+
+받은 뒤 할 일 없음(DB · 패키지 그대로). **네 영역(홈 · 투구 기록 폼 · 투구 분석)을 고쳤다.** 김민: 베타 100명 보고서(`docs/qa/2026-10-16-beta-100-weighted.md`) 뒤
+"계획대로 1번부터 고쳐줘" — 계획 `docs/qa/2026-10-16-beta-fix-plan.md`.
+- **부하 판정 하나로**: `lib/report/arm-status.ts loadSignalOf` — 홈 부하 장(`feed-items.ts`)과 하이라이트(`highlights.ts`)가 팔 상태와 같은 판정을 쓴다
+  (평소 양이 적은 복귀자 · 문진 추정 중의 '위험'은 주의로, '적어요'는 늘리라고 안 함). 그래서 `HighlightInput.load` · `FeedInput.load` 는 facts.load 통째로.
+- **`loadHighlights` 셋째 인자가 facts**(예전 facts.load) — `feed.tsx` · `analysis-view.tsx` 를 고쳤다. '3일째 투구 기록이 없어요'를 지우고, 어제 '오늘 등판'이라
+  답했는데 어제 기록이 없을 때만 '어제 등판 기록이 없어요'(`outingOf(facts).claimedYesterdayNoLog`). 주말만 던지는 사람이 매일 잔소리를 들었다.
+- 홈 요약 칸: 하이라이트가 덮은 장의 둘째 후보가 하이라이트 글 그대로 돌던 것 → 원래 숫자 줄('1.62 · 위험' · '마지막 투구 80구'). 부하 장 '주 2,400구 · 평소 …'(부하 단위를
+  '구'로 적음) → '최근 7일 N구 · 4주 평균 주 N구'(실제 공 수, `FeedInput.acuteChronic` 지움). 빈 날 후보는 열흘부터(`MISSING_DAYS_WARNING`).
+- `lib/pitch-stats.ts countMissingDays`: 첫 기록 앞의 날은 안 센다(가입 2주차에게 '28일 중 14일 기록이 없어요'). 분석 부하 카드 '며칠만 더' → '한 달쯤'.
+- 영양 장: 오늘 기록이 없어도 오늘 조언 한 줄(점수 없이, 7일 평균은 다음 후보로) · 7일 평균은 두 끼 이상 적은 날만 · 밤에 자료가 없으면 '다 챙겼어요' 대신
+  '오늘 먹은 걸 한 번 적어 볼까요'(`lib/nutrition/advice.ts`). 영양 담당이 남긴 `feed.tsx` kcal × amount 한 줄은 여전히 네 몫이라 안 건드렸다.
+- 투구 기록 폼(`entry-form.tsx`): 신호가 끊겨 저장 못 하면 적은 내용을 이 폰에 남겨 두고 다시 열면 되살림(지우기 단추), 구속 칸 밑 km/h ↔ mph 스위치
+  (`day-record.tsx` · `videos-client.tsx` 는 단위대로 보임). 첫 설정 휴식표(`insert-cards.tsx`)는 나이대 표로, 성장기 팔 상태에 '전력 투구는 N일 뒤' 신호.
+- 시험: arm-status 34 · highlights 25 · integration 28 · nutrition 494 · advice 46 · training 실패 20(고치기 전과 같은 목록). 화면은 로그인이 필요해 못 봤다 —
+  홈 요약 칸(부하 · 영양 장 넘기기) · 투구 폼(비행기 모드로 저장 → 다시 열기)을 폰에서 한 번 봐 줘.
+
+## 금윤호에게 — 2026-10-16 밤 · 김민(Claude, 데스크톱 · 구속측정 엔진) — 구속 엔진 2.7.0: 조용할 때 훑기 · 세션 통째 녹화(관리자) — 놓치는 공 줄이기
+
+받은 뒤 할 일 없음(DB · 패키지 · Swift 그대로 — 사이트 쪽만, 빌드 없이 배포). **네 영역(구속 측정 — 앱 카메라 길 · 측정 화면 · 시도 기록)을 고쳤다.**
+김민: "공도 인식을 못해, 다음에도 또 이러면 어떡해" → 계획 `docs/velocity/engine-2.7-plan.md`(1 · 2단계 끝, 3~6단계는 Swift · 학습 모델).
+- 왜: 10-16 세션 저장 뒤 이어 재니 앱 알림이 거의 안 왔다(공 2 · 움직임 0) — 같은 조건 녹화 7구는 엔진에 넣으면 6구 '높음'. 알아채기가 구멍.
+- **조용할 때 훑기**(`dual-capture.ts` sweep · `analyze-video.ts locateThrow` · `lib/velocity-engine/sweep.ts`): armed 이고 재는 중이 없으면 5초마다 지난 6초(겹침 1초)를
+  앱에서 잘라 거친 훑기만 — 공을 믿었으면 그 시각으로 움직임 알림과 같은 길로 잰다(`onThrow(t, 'sweep')`, 안 보이게 시작해 공 길이 나오면 결과 + '뒤늦게 찾은 공' 알림,
+  `ResultMeta.late`). 재는 중 · 최근 5초 창의 공은 건너뛰고, 훑기가 2.5초 넘으면 다음 하나는 쉰다. `DualCapture.setSweep(false)` 로 끌 수 있다(기본 켬).
+  10-16 · 10-09 앱 클립 20개: 훑기가 공을 20/20 찾았고, 그 길로 잰 값은 10-16 밖 6구 모두 '높음' · 알림 길과 1km/h 안(실내 10-09 는 알림 길처럼 '낮음').
+- **앱 카메라 시계**: 알림 atSec 을 `performance.now()` 와 짝짓고, 알림 전엔 `clip({ atSec: 1e9, beforeSec: 1e9, afterSec: 0 })` 한 번으로 쥔 조각 전부의 시작을 역산
+  (`anchorClock`, 앱이 5초 상한까지 기다렸다 돌려줌 · 파일은 안 읽고 discard). **Swift 에 `now`(CACurrentMediaTime) 하나만 더해 주면 이 5초가 없어진다** — 다음 빌드 때.
+  `cutRange(from, to)` = clip(atSec: from, beforeSec: 0, afterSec: to − from) + readDualClip.
+- **세션 통째 녹화**(`lib/velocity-dual-recorder.ts` DualSessionRecorder): 관리자 · '정확도 보정용 저장' 켬 · 앱 카메라일 때 세션 시작(arm)에 켜고 종료 · 저장 · 나가기에 끈다.
+  6초마다 잘라 서버 녹화(VelocityRecording — 엔진 개발용 녹화와 같은 표 · 편집기)로 올린다. meta `sessionRecording: true` · `cameraClockStart`(알림 atSec 과 같은 시계).
+  조각 약 10MB(14Mbps) — LTE 면 1분 100MB 쯤(김민이 알고 고른 2번 방식). 올리기가 3개 넘게 밀리면 그 조각은 건너뛴다.
+- 시도 기록 kind 에 'sweep'(`app/actions/velocity.ts`), 관리자 시도 표 '훑기'(`explorer-panels.tsx` 한 줄). 측정 화면: `startSessionRecording · stopSessionRecording` ·
+  결과 알림 한 줄 · `sessionRecRef`.
+- 시험 engine2 65(새 7 — 시계 역산 · 훑기 창) · test 48 · detect 15 · video 59 · live 61 · tsc · eslint. **실제 폰에서는 아직 안 봤다** — 다음 현장에서 콘솔 `[velo] sweep …` ·
+  관리자 녹화 목록(조각 수) · 시도 표 '훑기' 줄을 봐 줘. 사용자가 다음에 하라고 한 것: 3단계(셔터 상한 1/2000 · 가속도 3축 · 고도, Swift) · 5단계 공 감지 학습 모델(Modal 학습 · CoreML).
+
+## 금윤호에게 — 2026-10-16 · 김민(Claude, 데스크톱 · 앱 틀) — 숨은 판의 막대 제목 · '‹ 뒤로'가 지금 화면을 덮던 것
+
+받은 뒤 할 일 없음. **네 영역(앱 틀)을 고쳤다** — `components/nav-title.tsx`(0fd91c17) · `components/back-link.tsx`(c09cef2f): 가장 가까운 `[data-panel]` 에
+`data-active` 가 없으면 막대에 쓰지 않고, 판이 숨으면 걷고, 다시 보이면 다시 잰다(MutationObserver). 라이브러리 · 투구 분석에 '영양' 같은 탭 이름이,
+암케어에서 하단 탭으로 옮긴 투구 · 홈에 '‹ 트레이닝'이 남던 것. **판 안에서 막대 · 전역 상태에 쓰는 새 부품도 같은 함정이다.**
+
+## 금윤호에게 — 2026-10-16 · 김민(Claude, 데스크톱 · 투구기록 담당) — 투구 기록 화면 버그 다섯 고침(2분할 비교 · 접힌 구속 칸 · 새 기록 폼 · 마지막 투구 · 홈 캘린더)
+
+받은 뒤 할 일 없음(DB · 패키지 그대로). **네 영역(투구 탭 · 그날 화면 · 입력 폼 · 홈 캘린더 · 투구 분석)을 고쳤다.** 김민: 투구기록 점검 뒤 "화면 버그 5개부터 고쳐줘".
+- **2분할 비교(휴대폰 · 패드)**: 판 넘기기 트랙의 transform 안에서는 fixed 가 화면이 아니라 4판 폭 트랙에 붙고 트랙 층에 갇힌다 — 비교하기 막대가 화면 밖,
+  날짜 목록이 한 화면만큼 왼쪽, 크게 보기가 반쪽이었다. 고른 둘 막대(`video-gallery.tsx`) · 날짜 목록(`clip-picker.tsx`, 크게 보기 안이면 `.theme-dark` 를 가져가고 z 70)은
+  `createPortal(…, document.body)`. 크게 보기(`compare-view.tsx`)는 재생기를 따로 만든 상자(host)에 늘 그리고 **상자째** body ↔ 제자리로 옮긴다 — portal 을 켰다 끄면
+  영상이 새로 붙어 장면 · 프레임 재기가 끊기고, 트랙 transform 을 끄면 휴대폰 화면(layout viewport)이 넓어졌다. **트랙 안에 새 fixed 를 둘 때 같은 함정이다.**
+- **입력 폼(`entry-form.tsx`)**: `noValidate` — 접힌 '더 적기' 안 구속 칸이 범위 밖이면 브라우저가 말없이 저장을 막았다. 이제 handleSubmit 이 펴고 한국어로 알린다.
+- **그날 화면(`day-client.tsx`)**: 저장 콜백을 셋으로(고치기 · 드릴 공 더하기 · 새 기록) — 하나였을 때 다른 기록을 고쳐 저장하면 쓰던 새 기록 폼까지 닫혔다(네 드릴 흐름은 그대로).
+- **투구 분석(`coach/overview.tsx`)**: '마지막 투구'가 쉰 날(0구)을 셌다 → `pitchCount > 0` 만.
+- **홈 캘린더(`today/pitch-log-panel.tsx`)**: 그날 요약 버리기를 체크인 · 구속에 운동 · 일정 · 영양까지(판 넘기기로 홈이 살아 있어 옛 끼니 목록이 남았다),
+  옛 달 기록은 서버가 새 기록을 보내면 그 달을 다시 받아 갈아 끼운다(고치거나 지운 것이 남았다).
+- 확인: tsc · eslint, 1 · 2번은 임시 경로로 휴대폰 375 에서 잼(크게 보기 375×812 · 위아래 막대 위 · 같은 영상 그대로). 3~5번은 로그인이 필요해 화면은 못 봤다 — 폰에서 한 번 봐 줘.
+
+## 금윤호에게 · 김민(맥북)에게도 — 2026-10-16 · 김민(Claude, 데스크톱 · 통합 세션) — 앱 틀 app-shell.tsx 를 components/app-shell/ 여섯 파일로 나눴다
+
+받은 뒤 할 일 없음(DB · 패키지 그대로). **네가 앱 틀을 고치던 중이면 받기 전에 알려 줘** — 합칠 때 크게 부딪힌다(내용은 그대로라 옮긴 파일에 같은 줄로 다시 넣으면 된다).
+커밋 8c705920 — 옮기기만(원래 본문 줄이 한 번씩 그대로 · tsc 0 · eslint 0 · next build 통과). 바깥에서 부르는 것은 `AppNav` 하나라 import 는 그대로.
+- `components/app-shell.tsx`(1,362줄): AppNav 와 그 혼자 쓰는 것(DOCK_OPEN_MS · DOCK_CLOSE_MS · HURRY_RATE · Place · Choreo · TimerName · REST_THUMB · DOCK_FALLBACK · within)
+- `components/app-shell/`: `mobile-tabs.tsx`(MobileTabs · TabFace · CHOSEN_TIMEOUT_MS) · `mobile-top-bar.tsx`(MobileTopBar · useBarHidden) · `detail-menu.tsx`(DetailMenu · inTabBar) ·
+  `dock.tsx`(QuickBar · MenuSquares · DockGrid) · `glyphs.tsx`(NavGlyph · TopIcon · Tip · Squares · SettingsCog · Avatar) · `shared.tsx`(useIsActive · MENU_PATHS · DOCK_HOVER_MS · FlyKind · Anchor · flyStyle · growStyle)
+- 앞으로 앱 틀에 새 부품을 더할 때는 이 폴더에 새 파일로(`docs/architecture/05-dependencies-and-order.md` 5-5). 브라우저 · 폰 화면은 못 봤다 — 하단 탭 끌기 · 도크 팝업 · 휴대폰 위 막대 한 번 봐 줘.
+
+## 금윤호에게 — 2026-10-16 · 김민(Claude, 데스크톱 · 통합 세션) — 안 쓰는 표 둘 · 칸 여섯 지움(2단계) · 받으면 `npx prisma generate`
+
+**받은 뒤 할 일: `npx prisma generate`** — 스키마에서 `AiReport` · `PoseAnalysis` 표와 `DailyCheckin.fatigue · stress · mood · restingHr · hydration` ·
+`DailyNutrition.photoCalls` 를 뺐다(김민 결정 — 코드에서 읽는 곳 0, 값은 AI 리포트 8줄 · 체크인 옛 값 몇 개뿐). AGENTS 2번대로 2단계:
+① 776fcbbc 가 스키마 · 코드에서 빼고 배포됨 ② **같은 날 DB 에서도 지웠다**(마이그레이션 `20261016140000_drop_unused_tables_columns`, 적용함).
+지운 값은 `~/bullpen-log-backups/dropped-2026-10-16.json`(AI 리포트 8줄 · 체크인 옛 값 3줄 — 일반 백업은 Prisma 클라이언트 기준이라 스키마에서 뺀 표가 안 들어가서 따로 떴다).
+**네 가지(브랜치)에서 이 표 · 칸을 쓰고 있으면** 받은 뒤 지워 줘 — 2단계 뒤에는 DB 에 없다. 투구 기록 영상 빼기(`app/api/pitch-log` PATCH)가 지우던 옛 폼 분석 줄도 걷었다.
+
+## 금윤호에게 — 2026-10-16 · 김민(Claude, 데스크톱 · 통합 세션) — 탈퇴 · 회원 지우기를 한 함수로(lib/delete-user.ts)
+
+받은 뒤 할 일 없음(DB 구조 그대로). 본인 탈퇴(`app/actions/auth.ts deleteAccount`)와 관리자의 회원 지우기(`app/actions/admin.ts deleteUser`)가 따로 지워
+조금씩 달라서(관리자 쪽은 투구 영상 경로를 안 챙김) `deleteUserCompletely` 하나로 모았다. 파일 먼저 · DB 나중(DB 가 실패하면 다시 지우면 되고, 반대면 주인 없는 영상이 남는다).
+User 관계가 없는 표: `VelocityRecording`(조각 · 표시 딸림)은 지우고 — 파일이 그 관리자 폴더라 같이 사라져 줄만 남았다 — `VelocityCalibRun` · `ShootCheck` 는 팀 자료라 남긴다.
+**새 표에 userId 를 두고 @relation 을 안 달면** 통합 시험 [11] 이 실패한다 — `lib/delete-user.ts` 에서 지우거나 시험의 KEEP 에 까닭과 함께 더해 줘.
+운영 DB 라 실제로 지워 보지는 못했다(tsc · 통합 시험만).
+
+## 금윤호에게 — 2026-10-16 · 김민(Claude, 데스크톱 · 통합 세션) — 구속 측정 저장을 두 번 눌러도 세션 하나
+
+받은 뒤 할 일 없음. **네 영역(`app/actions/velocity.ts saveVelocitySession`)에 한 단계 더했다**(be138b11): 10분 안에 같은 날 · 같은 차례의 잰 값(rawKmh)으로
+만든 세션이 있으면 새로 안 만들고 그 세션 번호 · 공 번호를 돌려준다(끊긴 응답에 다시 누르면 세션이 둘 → 투구 탭 카드가 공 수를 두 배로 채웠다).
+클립 올리기는 돌려준 공 번호로 그대로 붙는다. 통합 시험 [10] 이 이 순서를 지킨다.
+
+## 금윤호에게 — 2026-10-16 · 김민(Claude, 데스크톱 · 통합 세션) — 3D '같은 영상 다시 막기'가 엔진 지문으로 판을 견준다
+
+받은 뒤 할 일 없음(DB · 패키지 · 분석 서버 그대로). **네 영역(3D 분석 요청 · 약속)을 조금 고쳤다.**
+- 예전엔 영상 탓으로 실패한 영상을 `PITCH3D_V2_VERSION`('2.0.0', 손으로 올리는 상수)으로 막아서, 엔진을 고쳐 Modal 에 올려도 판이 그대로라 영영 막혔다.
+  이제 작업 판 = `engineKeyOf(build)` = `2.0.0+<build.json 지문>`(`lib/pitch-3d/v2/contract.ts`, 지문은 `getEngineBuild` — 5분 기억, 못 읽으면 '2.0.0'만).
+  job.json 의 `engine` · `_guard.json` 실패 기록이 이 값이라, 엔진을 다시 올리면 실패한 영상도 한 번 더 해 볼 수 있다. GPU 로 보내는 `engine` 은 그대로 '2.0.0'.
+- 확인: Modal v41(10-16 11:48) 지문 `7897975fbc95` = 지금 main 묶음 지문 — 서버 엔진은 최신이다. 이번에 `contract.ts` 를 고쳐 묶음 지문은 `fd55228af55b` 가 되지만
+  서버 동작은 같아서 **다시 올리지 않았다**(올리면 기존 결과가 모두 '예전 엔진' 띠를 단다) — 다음에 엔진을 고칠 때 같이 올라간다.
+- `pipeline.py` 의 `meta.lens` · `distances` 를 웹이 안 보내는 것은 문제 아님 — 줌 영상은 올리기 전에 막혀 늘 1배, 거리는 기록용. 시험 pitch3d:v2 320.
+
+## 금윤호에게 — 2026-10-16 · 김민(Claude, 데스크톱 · 통합 세션) — DB 색인 8개 더함 · 받으면 `npx prisma generate`
+
+받은 뒤 할 일: **`npx prisma generate`**(색인만이라 코드는 그대로 돈다 — 스키마와 맞추려고). 마이그레이션 `20261016130000_user_date_fk_indexes`, DB 에 적용함
+(백업 `db-2026-10-16-10-22.json`). 더하기만 했다 — 지운 색인 · 칸 없음.
+- 날짜 범위 조회: `PitchLog [userId, date]`(색인이 하나도 없어 화면마다 표 전체를 훑었다 — 10-15 클라우드 메모의 할 일, 그 메모는 지웠다) ·
+  `UserExerciseLog [userId, date]`.
+- 이어 지우기 · 비우기 칸(relationMode prisma 라 DB 외래키가 없어 Prisma 가 찾아 지운다): `UserExerciseLog [exerciseId]` · `UserExerciseFavorite [exerciseId]` ·
+  `UserDrillFavorite [guideId]` · `UserDrillLog [guideId]` · `VelocitySession [pitchLogId]`(투구 기록 지울 때 SetNull · 측정 → 기록 잇기) · `Article [userId]`.
+- 알림: `migrate diff` 가 `VelocityAttempt` 외래키 셋을 지우라고 계속 낸다(예전부터 DB 에만 있는 것) — 넣지 않았다. 마이그레이션을 만들 때 그 셋은 빼 줘.
+
+## 금윤호에게 — 2026-10-16 · 김민(Claude, 데스크톱 · 통합 세션) — 컨디션 '아파요' 띠 1~4 · 체중 한 곳 · 달력 일정 다시 그리기 · 재활 시작 한국 날짜
+
+받은 뒤 할 일 없음(DB · 패키지 그대로). 통합 시험(`npm run integration:test`, 23개)의 빈틈을 고치고 김민이 정한 것. **네 영역(체크인 · 영양 · 홈 달력 · 재활)을 조금 고쳤다.**
+- 컨디션: `lib/checkin.ts CONDITION_BANDS` 의 '아파요'를 1~3 → **1~4**(엔진 낮은 날 문턱 `LOW_CONDITION_THRESHOLD` 4 와 같게 — 4 를 고르면 화면은 '보통이에요'인데
+  엔진은 회복 날로 짰다). 엔진 문턱은 그대로, 통증 화면 강제(`PAIN_FORCED_CONDITION` 3)도 그대로. 네 셀프테스트의 띠 시험 기대값을 같이 고쳤다.
+- 체중: 프로필에서 몸무게를 바꾸면 오늘 `DailyNutrition.weightKg` 도 쓰고(`profile.ts`, 바꿨을 때만), 영양 탭에서 **오늘** 체중을 적으면 `User.weightKg` 도 쓴다
+  (`nutrition.ts setWeight`). 영양은 최근 30일 기록을 먼저 읽어 프로필만 고치면 한 달 동안 옛 체중으로 셌다.
+- 달력 일정 저장 · 지우기(`calendar-event.ts`)가 `revalidatePath('/', 'layout')` — 트레이닝 엔진이 달력의 다음 등판을 읽어서.
+- `training/rehab-start.tsx` 의 오늘을 `toDateKey(new Date())` 로(UTC 라 한국 0~9시에 어제였다).
+- 나이 띠(트레이닝 16 · 영양 17 · 투구 한도 19)는 김민 결정으로 그대로 — 통합 시험이 '어긋남은 16 · 17세뿐'을 지킨다.
+
+## 금윤호에게 — 2026-10-16 · 김민(Claude, 데스크톱 · 구속측정 엔진) — 구속 엔진 2.6.0: 세션 거리로 공 크기 다시 판정 · 덩어리 배율 1.163
+
+받은 뒤 할 일 없음(DB · 패키지 그대로). **네 영역(구속 측정)을 고쳤다.** 김민: "구속측정 엔진 성능을 올려 안정성 · 정확성을". 1배 줌은 엔진 개선에 반영하지 않는다(김민 결정 — 모두 2배 줌 기준).
+- 오차표 `docs/velocity/accuracy-2026-10-16.md`: 2배 줌 스피드건 짝 35구를 지금 엔진으로 앱 규칙(높음만 기록 · 세션 거리 보정)대로 다시 잼. 엔진은 91% 를 재는데 앱에는 26% 만 남았다.
+  공 크기 거리를 기준 20m 와만 견줘 실제 22.5m 자리의 빠른 공이 '15% 넘게 다름'으로 측정 불가가 됐다.
+- 엔진(`analyze-distance.ts`): 공 크기 판정을 `judgeSize` 로 떼고 `rejudgeSize(result, refM)` 를 내보낸다 — 판정 전 믿음을 `DistanceReport.preSize` 에 두고, 판정한 거리는 `sizeRefM`(분석 JSON · DB 까지).
+  `BLOB_SIZE_RATIO` 1.185 → 1.163(디코더 길에서는 장면이 노드 실험대와 같다).
+- 측정 화면(`velocity-screen.tsx`): `addResult` 첫 줄 `judgeBySession` — 세션 거리 보정이 걸렸으면 그 거리로 다시 판정. 거리 알림 · `distanceMismatch`(`lib/velocity-analysis.ts`)도 `sizeRefM` 기준.
+- 결과(실제로 다시 잼): 기록 9 → 14구, 110km/h 이상 3 → 7구 · 평균 차이 +0.1 · MAE 2.4km/h. 구속 값은 한 공도 안 바뀜. 보정 짝 묶음이 2.6 으로 새로 시작(2.5 짝은 없었음).
+- 10-12 클립 22구는 `local-…`(폰 안)이라 서버에 없어 못 썼다. 다음 현장 측정은 관리자 보정용 저장을 켜서 클립을 서버에 남겨 줘. 실제 폰에서는 아직 안 봤다.
+
+
+## 금윤호에게 — 2026-10-16 · 김민(Claude, 데스크톱 · 메커니즘 담당) — 투구 기록 그날 화면에 '드릴로 던진 공' 채우기 · 캐치볼에 더하기
+
+받은 뒤 할 일 없음(DB · 패키지 그대로). **네 영역(투구 기록 그날 화면 · 입력 폼)을 고쳤다.** 김민: 드릴로 던진 공을 기록에 바로 넣으면 손으로 적은 투구와
+겹치니, 트레이닝에 '드릴로 공 약 N회 던졌어요' 카드를 띄우고 투구 기록을 남기면 사라지게(메커니즘 쪽은 d6ebbae5).
+- 카드의 [투구 기록에 남기기] → `/pitch-log/<오늘>?drill=N&pct=P`. `[date]/load.ts drillPrefillOf` 가 **주소 숫자를 믿지 않고** 카드와 같은 판정
+  (`lib/mechanics/load.ts loadDrillThrowNote`)으로 다시 읽는다 — 카드가 닫혔으면(오늘 투구 합이 드릴 시작 때보다 늘었으면) 채우지 않아 새로고침해도 두 번 안 남긴다.
+  두 `page.tsx`(페이지 · `@modal` 팝업)가 `searchParams` 를 받아 넘긴다.
+- `entry-form.tsx`: 선택 칸 `drillPrefill`(`DrillPrefill` 타입 export) — 캐치볼 · 투구수 · 체감 강도 · 메모('메커니즘 드릴 N회')로 채워 '더 적기'를 펴서 연다. 구속 측정 `prefill` 이 먼저.
+- `day-client.tsx`: 오늘 캐치볼 기록이 있으면 먼저 고르기 카드 [캐치볼 기록에 더하기 | 새 기록으로] — 더하기는 그 기록의 수정 폼을 공 수 · 메모를 더한 값으로 연다.
+  저장하면 다시 권하지 않는다(`drillDone`).
+- (알림) `training/training-home.tsx` 의 카드 줄(`DrillThrowNoteCard`)을 다시 넣었다 — 667e6ec5 에서 빠졌었다.
+- 화면은 로그인이 필요해 브라우저로 못 봤다 — 드릴 세션 뒤 트레이닝 카드 → 그날 화면을 폰에서 한 번 봐 줘.
+
+## 금윤호에게 — 2026-10-16 · 김민(Claude, UI/UX 세션) — 판 넘기기는 처음 연 탭만 그림 · 아이폰 햅틱 · 글 접기 · 운동 중 시트를 Modal 로
+
+받은 뒤 할 일 없음(DB · 패키지 그대로). **네 영역(앱 틀 · 판 넘기기 · 홈 · 투구 기록 폼 · 영양 · 구속 측정 진동 한 줄)을 고쳤다.** 김민: UI/UX 검토 뒤 "1 · 3 · 4 · 5 진행".
+- **판 넘기기**: 처음 연 탭만 그리던 것(c6066e7f)은 같은 날 되돌렸다(김민: "처음 접속하면 탭 사이 이동이 길다"). `app/(app)/@*/default.tsx` 가
+  예전처럼 탭 넷을 다 그리되 `Suspense` 로 감싸 처음 연 탭이 먼저 뜨고 나머지는 뒤따라 들어온다. 움직임 줄이기면 판이 미끄러지지 않고 바로 옮긴다.
+- **원래 있던 문제(실제 사이트에서도 재현)**: 탭을 옮긴 뒤 `router.refresh()`(당겨서 새로고침 · quietRefresh · revalidate)가 불리면 Next 가 페이지 전체를 다시 연다(MPA reload —
+  replaceState 로 canonicalUrl 만 바뀌고 트리는 그대로라 숨은 판을 새 주소로 다시 받다 어긋나는 것으로 보임). 김민에게 따로 고치는 세션 카드를 올려 두었다.
+- 홈 요약 칸(`feed-card.tsx`): 판의 `data-active` 가 빠지면 자동 넘김을 멈춘다(다른 탭을 보는 동안 3초마다 다시 그렸다).
+- **햅틱**: 완료 순간 `buzz` → `haptic('success')`(체크인 저장 · 오늘 링 다 채움 · 운동 끝 · 새 기록 · 구속 결과 · 바코드 — 예전 `[15,120,15]` 는 아이폰 앱에서 0.5초 띄운 톡 둘),
+  저장 성공(투구 기록 폼 · 음식 담기/바꾸기 · 목표 · 프로그램 시작 · 운동 메모 · 운동 더하기), `ErrorLine` 이 뜨면 `haptic('error')`, 하단 탭 · 날짜 띠 짧게 누름 `selection`,
+  하단 탭 알약에 `data-press-none`(공용 옅어짐 · 작아짐 · 렌즈 세 겹이었다). `velocity-screen.tsx` 는 결과 진동 한 줄만.
+- **Modal**(`components/modal.tsx`): 선택 칸 `toolbar`(제목 밑 고정) · `footer`(바닥 고정), `useLinger(open)`(닫히는 움직임을 보이게 잠시 붙듦), 끌어 닫기는 손 떼기 직전 100ms
+  빠르기 · 위로 끌면 고무줄. 운동 중 시트 셋(`workout/run/exercise-sheet · swap-sheet · finish-sheet`)을 Modal 로 옮겼다(끌어 닫기 · ESC · 닫힘 움직임 · 자판 위로).
+- 새 부품 `components/fold-note.tsx`(FoldNote — 겉은 '자세히' 한 줄): 홈 통증 확인 카드(안전 문장은 접지 않음 · '종에서 체크인' 안내 → [오늘 체크인하기] 단추) · 메커니즘 카드 ·
+  영양 목표 창 계산 내역. 프로그램 고르기 목록은 두 줄(무엇 · 이런 분께), 트레이닝 일정 만들기 설명 문장을 짧게.
+- 폰에서 봐 주면 좋은 것: 하단 탭 첫 누름(로딩 한 번) · 운동 중 시트 끌어 닫기 · 진동 느낌. 커밋 c6066e7f ~ e1c611a0(이 푸시).
+- (같은 날 더) **같은 정보 두 번 정리**(김민이 고름): '오늘' 표시를 홈 달력 · 투구 달력(`video-calendar.tsx`) · 날짜 띠 셋 다 숫자에 파란 테두리 원 + 굵게
+  (`month-calendar.tsx todayMarkClass`, 투구 달력 쉬는 날 칸은 회색 바탕을 빼고 점선만). 트레이닝 홈 · 그날 기록 · 영양 머리의 날짜 달력을 날짜 띠 끝 작은 그림으로
+  (`DateScrollStrip end`, 영양 DateNav 는 그림만 — 날짜 글 · ‹ › · '오늘로' 뺌). 그날 화면 팔 상태는 한 줄 칩(`ArmStatusNote compact`, 누르면 머리 · 까닭),
+  휴대폰 더보기 폴더에서 하단 탭 넷 타일 뺌(`app-shell.tsx inTabBar`), 트레이닝 홈 '트레이닝' 카드 → '오늘 운동'. 날짜 띠가 옆 판에서 고른 날을 못 맞추던 것도 고침.
+- (같은 날 더) 색 줄이기: 트레이닝 앱 얼굴색 셋(`--color-app-*`)을 sky 하나로, 영양 탄 · 단 · 끼니 단백질 막대 sky, 작은 달력 요일 회색. 큰 숫자 올라가기:
+  `components/onboarding/count-up.tsx` 가 화면에 들어온 뒤 시작(IntersectionObserver) — 영양 남은 열량 · 운동 끝 세 숫자(`done-client.tsx`, 떠오른 뒤) ·
+  구속 결과(`components/velocity/pitch-result.tsx`). 홈 달력: [캘린더 | 목록] 고르개를 달력 머리 목록 그림으로(`MonthCalendar headerAction`, 목록 보기는 '최근 기록' + 달력 그림),
+  날짜를 누르면 그날 칸이 하단 탭 위까지 보이게(`pitch-log-panel.tsx` — 칸이 자라는 동안 다시 잼, scroll-mb = `--tab-bar-top`).
+- (같은 날 더) 움직임 점검(design-motion-principles) 뒤 고침: 홈 그날 칸은 높이를 움직이지 않고 안 칸만 옅어짐 + 올라오기(220ms, `motion-safe`) · 달력 칸 높이 변화도
+  `motion-safe` · 달력 ↔ 목록은 바꿀 때만 `view-swap`(globals.css) · 팔 상태 칩은 `<details>` → `Expand` · **요약 칸(`feed-card.tsx`) 자동 넘김: 움직임 줄이기면 안 넘김,
+  손가락으로 누르는 동안 멈춤, 직접 한 번 넘기면 그 뒤로 안 넘김**(10-14 의 '10초 쉬기'를 바꿈 — 김민 승인) · `CountUp` 은 움직이는 숫자를 화면 읽기에서 숨기고 끝값만,
+  `from` 비율(영양 · 구속 0.7, 운동 끝 0).
+- (같은 날 더) **화면 글 다듬기(김민: "AI 같은 느낌 나는 글 고쳐줘")** — 글만, 동작 · 값 그대로. 줄표(—) 17곳 → 두 문장, '~습니다'체 96줄 → 해요체(구속 측정 저장 ·
+  거부 · 카메라 오류 글 — `app/actions/velocity.ts` · `lib/velocity-engine/*` 메시지 · 업로드, 엔진 2.6.2 '글만'), '환영해요' · '완료!' · 👏 · 홈 다 채움 축하 이모지(→ 파란 점),
+  '자리를 비켜요' · '연구에 따르면' · '이곳에 ~표시돼요' 같은 직역투, '위험한지 안전한지 알려 드려요' · '언제든 ~고칠 수 있어요' 반복, 긴 안내 몇 줄, '해주세요' → '해 주세요'(41곳).
+  **화면 글을 시험이 찾는 곳은 없었다**(training:test 실패 20 은 고치기 전과 같음 · highlights · arm-status · velocity engine2 통과). 구속 자동 메모(`lib/velocity-sync.ts`)는 옛 기록을 알아보는 표시라 그대로.
+- (같은 날 더) **움직임 줄이기 안전망**(`app/globals.css` 끝): 기기에서 움직임 줄이기를 켜면 CSS transition · animation 을 곧바로 끝 모습으로(0.01ms — transitionend 는 그대로 옴),
+  로딩 돌개(`.animate-spin`)만 뺀다. 진행 막대의 폭 · 높이 움직임 27곳 · 로딩 반짝임(`animate-pulse`) 7곳에 `motion-safe:`, `transition-all` 5곳 → 바뀌는 속성만.
+  **새 움직임을 넣을 때도 `motion-safe:` 를 붙여 줘** — 안전망은 빠뜨린 곳을 위한 것이다. 막대는 끝이 둥글어 폭 그대로(늘이기면 끝이 찌그러짐).
+- (같은 날 더) **디자인 점검 남은 여섯 고침**(김민: "다 고쳐줘"): 부하 지수 큰 숫자 검정(`coach/load-panel.tsx` — 상태 색은 배지 · 한 줄) · 체크인 첫 화면 체크 원 빛 번짐 뺌 ·
+  트레이닝 홈 '이번 주' 운동을 한 날 수로(`training-home.tsx`, 단위 '일' 하나) · **투구 탭 머리**: 구속 측정 · 3D 를 제목 줄 오른쪽('분석' 앞)으로, 휴대폰은 그림만 있는
+  40px 동그라미(`pitch-log-heading.tsx` — `PitchControls` 지움, `PitchLogHeading` 이 `canMeasure` 를 받음 · 구속 측정 관리자 두 곳도 같이) ·
+  **모서리**: `rounded-md` → `lg`(작은 배지는 알약 모양이 됨), 카드인데 3xl 이던 셋 → 2xl, 시트 · 창 · 고르개의 3xl 은 그대로 ·
+  **단추**: 공용 `Button` · `ButtonLink` 에 `size`(sm 40 · md 44 · lg 48px, 기본 md 는 예전과 같음) — 네 탭의 손으로 만든 파란 단추 28개를 옮겼다(휴대폰 알약 · PC 둥근 모서리).
+  **새 파란 단추는 손으로 만들지 말고 `Button size=…` 을 써 줘.** 홈 요약 칸 점 28×44 · 바코드 닫기 · 식단 줄 단추 40px. 커밋 4811a42e ~ 18026ab1.
+- (같은 날 더) **화면 글 많은 곳 다섯 줄임**(김민: "찾은 다섯 개 다 줄여줘" — 휴대폰 375 로 화면마다 보이는 글을 잰 뒤, 글은 지우지 않고 '자세히' 뒤로):
+  투구 분석 아래(`coach/good-days.tsx` 찾는 법을 '어떻게 찾나요' 안으로 · `load-panel.tsx` 기록 빠짐 알림 한 문장 · `load-trend.tsx` 흐름 설명 한 문장, 643 → 410자) ·
+  3D 동작 분석 목록 카드(`lib/pitch-lab-meta.ts` 새 `labCardChips` — 기본값과 다른 것만, 결과 화면 머리는 `labMetaChips` 그대로, 609 → 429자) ·
+  메커니즘 첫 화면 · 내 루틴 만들기 목록(`armcare-media.tsx` ExerciseMedia 에 선택 칸 `extra`) · 근력 프로그램 상세 창(트레이닝 쪽). 커밋 0c88b8a4 ~ (이 커밋).
+
+## 금윤호에게 — 2026-10-16 · 김민(Claude, 데스크톱 · 3D 담당) — 3D 결과의 '착지'를 앞발이 처음 닿은 순간으로(events.footContact) · footFlat 지움
+
+받은 뒤 할 일 없음(DB · 패키지 그대로). **네 영역(3D 엔진 · 결과 화면)을 고쳤다** — 10-15 의 footFlat 메모를 대신한다(그 메모는 지웠다).
+김민: "드라이브라인 · 트레드처럼 지면에 닿는 순간". 점검 기준표(`scripts/pitch-lab/obp/norms.py`)가 드라이브라인 fp_10(체중 10% = 첫 닿음)이라 이제 같은 순간이다.
+- `detectPitchEvents` 가 `footContact`(앞발이 내딛기 최고 속도의 50% 까지 느려진 순간, 두 장면 사이는 선으로 나눔)를 낸다. `footFlat` 은 지웠다.
+  엔진이 앞발을 묶는 `footPlant`(발목 기준)는 그대로 — footContact 는 늘 그와 같거나 앞이다.
+- 마커 15구(네 대 교차 뒤꿈치 · 발끝 높이가 정답, 서버와 같은 거친 30fps): footPlant 는 첫 닿음보다 가운데 93ms 늦었고(평균 절대 99),
+  footContact 는 가운데 +21 · 평균 절대 26ms. 2D 발 점 높이로 찾기는 안 됐다(발이 땅 위 몇 cm 로 미끄러져 들어와 평균 절대 65ms).
+- 결과 `events.footContact` 는 선택 칸. `plantFrame` · `shownEvents`(contract.ts)가 읽고, 옛 결과(footContact 없음 · 10-15 판 footFlat)는 footPlant 로 본다.
+  '착지' 칩 · 이름표 · 착지 지표(분리 · 앞무릎 · 보폭 · 착지 → 릴리스) · 메커니즘 점검이 첫 닿음을 쓴다.
+- 분석 서버(Modal)에도 올렸다(같은 날, `npm run pitch3d:bundle` → `modal deploy app.py`). 시험 `pitch3d:v2-test` 319(새 2) · v1 63.
+
+## 금윤호에게 — 2026-10-16 · 김민(Claude, 데스크톱 · 메커니즘 담당) — 투구 드릴 40줄의 요소 · 분류를 바꿨다(운영 DB) · 새 분류 '근력 · 안정 드릴'
+
+받은 뒤 할 일 없음(DB 구조 · 패키지 그대로, 드릴 줄의 값만 — 캐시 `library:guides:v12`). **같이 쓰는 드릴 라이브러리를 바꿨다**(AGENTS 3번 — 알림).
+김민: "요소별 드릴이 맞게 들어갔는지 심층 분석 · 고쳐줘". 원본(Paradigm 강좌의 P1~P5 · 트레드 · 드라이브라인 설명 · 영상 장면)과 견줘
+주 요소가 다른 19묶음을 고치고, 버티기 · 저항 · 물주머니 드릴 16묶음을 새 분류 '근력 · 안정 드릴'로(백업 `db-2026-10-16-02-34.json`,
+`scripts/mechanics-reclass-2026-10-16.mjs`, 되돌리기 `--restore`). 근거 · 표는 `docs/mechanics/drill-review-2026-10-16.md`.
+- **네 영역(촬영 관리자)과 닿는 곳**: `lib/shoot/later-drills.json` 의 '나중에 촬영' 드릴 4개(워터백 고관절 신전 · 밴드 저항 레터럴 푸시 투 베이스 ·
+  불안정 드라이브 레그 · 스플릿 스탠스 무릎 아이소메트릭 프레스)의 원래 분류를 '근력 · 안정 드릴'로 바꿨다 — 찍어서 `--restore` 하면 그 분류로 간다.
+  `lib/shoot/schedule.ts` 의 Bucket · `progress.ts` 의 이름표는 이 분류를 모른다(야외 계획을 다시 뽑으면 무브먼트로 묶인다) — 지금 계획 JSON 은 그대로라
+  안 고쳤다. 다시 뽑을 일이 있으면 그때 한 줄씩 더해 줘. shoot:test 72 통과.
+- 드릴 영상 목록이 분류 3칸 대신 **요소 6칸 + 근력 · 안정 + 나중에 촬영**으로 나온다(종류는 필터 · 펼친 카드). 관리자 등록 폼에서 종류를 고른다.
+
+## 금윤호에게 — 2026-10-16 · 김민(Claude, 데스크톱 · 영양 담당) — 홈 요약 칸 '최근 7일 평균 kcal' 이 양을 안 곱함 · 영양 한 줄이 네 그날 화면에 · day-detail 칸 둘
+
+**받은 뒤 할 일: 네 파일 한 줄 고치기**(김민이 네 영역이라 안 건드렸다). 영양 전체 점검(`docs/reviews/nutrition-2026-10-16.md`)에서 나왔다.
+- `app/(app)/today/feed.tsx` 46~58줄: 최근 7일 식사를 `select: { date: true, kcal: true }` 로 읽어 `m.kcal` 만 더한다. `MealEntry.kcal` 은 **1인분 값**이라
+  1.5인분을 담으면 1인분으로 센다 → 요약 칸 영양 장의 '최근 7일 평균 · 목표의 N%'가 틀린다. 고치기: select 에 `amount: true`, 더할 때 `m.kcal * m.amount`.
+- 알림(할 일 없음): 10-16 커밋 cf0db02b 가 네 `pitch-log/[date]/load.ts` · `day-client.tsx` 에 '던진 뒤 회복식' 한 줄(`components/nutrition-line.tsx`)을 넣었는데
+  그때 HANDOFF 를 못 적었다. 오늘 날짜 · 불펜 · 라이브 · 경기 기록이 있을 때만 뜬다(`lib/nutrition/nudge.ts`).
+- 알림(할 일 없음): `lib/day-detail.ts` 의 `nutrition` 에 선택 칸 둘을 더했다 — `avoid`(식단 취향의 못 먹는 것) · `unknown`(값을 모르는 탄 · 단 · 지).
+  홈 영양 조언이 예시 음식에서 못 먹는 것을 빼고, 모르는 영양소로 '더 먹을 양'을 셈하지 않게. 아무것도 안 뺀 사람의 홈 글은 그대로다.
+
+## 금윤호에게 — 2026-10-16 · 김민(Claude, 데스크톱 · 통합 세션) — 구속 측정은 투구 기록을 만들지 않는다 · 받으면 `npx prisma generate`
+
+받은 뒤 할 일: **`npx prisma generate`** — `VelocitySession.sessionType String?` · `effortPct Int?` 를 더했다(마이그레이션
+`20261016120000_velocity_session_type_effort`, DB 에 적용함, 백업 `db-2026-10-16-02-51.json`). 비워 둘 수 있어 옛 코드도 돈다. **네 영역(구속 측정 저장 · 화면 글)을 고쳤다.**
+- 김민 결정: 구속 측정은 별개 기록, 투구 기록을 남길 때 참고만. `saveVelocitySession` 이 더는 PitchLog 를 만들지 않고 종류 · 체감 강도를 세션에 둔다
+  (같은 불펜을 손으로도 적으면 투구 수 · 부하가 두 번 셌다).
+- 투구 탭 '오늘' 카드: 오늘 측정 중 기록으로 안 남긴 공이 있으면 한 줄 + 단추 '측정한 N구 기록 남기기' → 그날 화면이 새 기록 폼을 측정값(종류 · 공 수 ·
+  최고/평균 · 강도)으로 채워 연다. 저장하면 POST 가 `velocitySessionIds` 로 그 세션을 기록에 잇는다(`pitchLogId`). 규칙은 `lib/velocity-meta.ts`
+  `unloggedSessions` · `logPrefillOf`(시험 velocity:test 3개).
+- 남기기 전에는 그 공이 팔 부하 · 휴식에 안 들어간다(카드가 그렇게 알린다). 옛 세션(같이 만든 기록이 있음)은 그대로 — `syncVelocitySession` 은 표시 메모가 있는 옛 기록만 다룬다.
+- 측정 화면 글 둘: 종류 단계 '투구 기록을 남길 때 이 종류로 채워요.', 저장 뒤 '저장했어요. 투구 기록으로도 남겨 주세요. [기록 남기기]'.
+- 알림: `migrate diff` 가 `VelocityAttempt` 외래키 셋을 지우라고 낸다(예전부터 DB 에만 있는 것) — 이번 마이그레이션에는 안 넣었다.
+- 화면은 브라우저로 못 봤다(로그인 필요) — 폰에서 측정 → 투구 탭 카드 → 기록 남기기를 한 번 봐 줘.
+
+## 금윤호에게 — 2026-10-16 · 김민(Claude, 데스크톱 · 통합 세션) — 체크인 3판 뒤 꺼져 있던 근육통 규칙 되살림 · 카드 답이 체크인 없는 날에도 들어감
+
+받은 뒤 할 일 없음(DB · 패키지 그대로). **네 영역(트레이닝 엔진 · 암케어 읽기)을 조금 고쳤다.** 통합 검토(`docs/architecture/README.md` P0 1 · 2번)에서 나온 것.
+- 3판은 근육통을 묻지 않는데 읽는 규칙(prescription · theme · day-state · 암케어 · 프로그램 · auto-setup · volume)이 그대로라 새 기록에서는 한 번도 안 걸렸다.
+  김민 결정: 다시 묻지 않고 몸 그림으로 어림 — `lib/checkin.ts sorenessFromParts`(뻐근 · 통증 부위 수 0 없음 · 1 조금 · 2 보통 · 3 많이 · 4~5 심함).
+  `gather.ts` 가 `c.soreness ?? sorenessFromParts(c)` 로 넣어 엔진 쪽 읽는 곳은 손대지 않았다. 잘 던진 날(`good-days-load.ts`)도 같은 어림.
+- 3판 저장(`app/actions/checkin.ts`)이 옛 칸 `soreness` · `sleepHours` · `armFatigue` 를 비운다 — 같은 날 2판으로 적은 값이 남아 엔진이 읽었다.
+- 트레이닝 탭 카드 답은 체크인 줄이 있는 날만 facts 에 합쳐져, 체크인 없이 카드만 답하면 버려졌다 → facts 에 `condition.prefsToday`(gather 가 넘길 때만 칸이 생김)
+  + 읽기 `todayPrefsOf(facts)`(`lib/report/facts.ts`). daily-plan 셋 · auto-setup · day-state · prescription · armcare/routine 이 이것으로 읽는다.
+  **새로 '하고 싶은 운동'을 읽을 때는 `facts.condition.today?.preferred*` 대신 `todayPrefsOf(facts)` 를 써 줘**(셀프테스트가 그 다섯 파일을 본다).
+- 시험: training:test 새 3개 통과, 실패 19개는 고치기 전(a70d2ecf)과 같은 목록. 화면 · 실제 계정으로는 안 봤다.
+
+## 금윤호에게 — 2026-10-15 · 김민(Claude, 맥북) — 구속 앱 카메라 '되면 120fps'를 뺐다(엔진 2.5.2) · 첫 화면을 카메라로
+
+받은 뒤 할 일 없음(DB · 패키지 · 앱 굽기 그대로). **네 영역(구속 측정)을 고쳤다.**
+- `lib/velocity-engine/dual-capture.ts`: `preferFps: 120`(2.4.2)을 청하지 않는다 — 모든 폰 1080p 60 으로 통일(김민: "60 으로 통일"). 까닭: 120 을 내는
+  폰과 60 만 내는 폰이 다른 조건으로 재고(10-08 '같은 기준 조건' 원칙), 120 실제 영상은 아직 검증 전이고, 스피드건 보정 짝에 60 · 120 공이 섞였다.
+  셔터 상한 1/500 · 시간 기준 문턱(2.4.2)은 그대로. Swift 의 `pick(prefer:)` 는 남겨 둠(칸이 없으면 60). 측정 화면의 '1080 · 60 을 못 내 120 으로
+  켰어요' 안내도 모자랄 때만 뜨게 고쳤다.
+- 같은 날: 구속 측정 첫 화면이 카메라(`/velocity` = `velocity-screen.tsx`, 옛 `velocity-home.tsx` 지움) — 셔터 '측정 시작' → 카메라 위 안내창(지난 설정 ·
+  종류 · 카메라 위치 · 주의사항 · 수평 · 존, 다음 단추는 창 안), 셔터는 빨간 원(`Shutter`), 주의사항 창(<dialog>)은 `TipsCard` 로. 커밋 e7712b1b ~ fce50da0.
+
+## 김민에게 — 2026-10-15 밤 · 금윤호(Claude) — 탭 쓸기를 '판 넘기기'로 갈아탔다(병렬 경로 — 탭 넷이 늘 떠 있다, 로딩 0) — 네 3판 tab-swipe.tsx 를 지웠다
+
+받은 뒤 할 일 없음(DB · 패키지 그대로). 사용자(인스타 영상 비교): "천천히 끌면 로딩이 다 보이고 제목 높이도 안 맞는다 — 인스타처럼 이질감 없이".
+네 3판(사본 가리개)까지 포함해 '이동을 빨리 하고 가리는' 방식으로는 천천히 끌 때 옆에 진짜 화면이 없는 게 드러나, **방식을 바꿨다**.
+- **틀**: `app/(app)/layout.tsx` 에 병렬 경로 자리 넷 `@home · @videos · @training · @nutrition`. 각 자리의 `default.tsx` 가 주소와 상관없이 그 탭을
+  그려 처음부터 넷이 다 떠 있고(잠긴 탭은 `components/tab-locked.tsx`), 한 번 그려진 판은 주소가 바뀌어도 그대로 산다(판마다 제 스크롤 자리).
+  탭 화면 파일은 `today/home-page.tsx` · `videos/videos-page.tsx` · `training/training-page.tsx` · `nutrition/nutrition-page.tsx` 로 이름이 바뀌었고
+  (같은 폴더의 부품 · import 는 그대로), 탭 주소의 `page.tsx` 는 빈 쪽이다 — **없애면 안 된다**(병렬 경로는 맞는 쪽이 없으면 지난 하위 화면을 그대로
+  둔다, 시험으로 확인). `@home/today/loading.tsx` · `@nutrition/nutrition/loading.tsx` 로 옮겼다.
+- **`components/tab-pager.tsx`**(새): 네 판을 가로 트랙에 두고 옆으로 민다. 놓으면 `history.replaceState(null, '', href)` 로 주소만 — Next 가
+  `usePathname` 에 반영하되 다시 받지 않는다(state 에 Next 것을 넘기면 안 바뀐다). 손가락 받기(touchmove 막기 · LOCK_RATIO · claim · settleFor)는 네
+  3판 그대로 옮겼다. 하단 탭 누름(`slideToTab`) · 렌즈 신호(`TAB_CHOSEN_EVENT`)도 그대로. 홈 → 오른쪽 구속 측정(zoom)도 그대로.
+- **스크롤이 창 → 판**(`lib/scroller.ts` — `activeScroller()` · `scrollTopNow()` · `scrollToTop()` · `onAnyScroll()`): 위 막대 숨기기 · 당겨서 새로고침 ·
+  탭 다시 눌러 맨 위가 이걸 본다. 창 스크롤을 직접 읽는 네 부품이 있으면 여기로 바꿔 줘. `html[data-pager]` = tabs(탭 첫 화면: 창 안 굴러감 ·
+  본문 여백 0 · 비우개 숨김) | page(하위 화면: 예전대로). PC(desk)는 지금 판만 보이고 창이 굴러간다.
+- 위 막대는 네 탭 모두에(예전 bare 걷음) — 탭마다 본문이 같은 높이에서 시작한다.
+- **값**: 홈을 열 때 네 탭의 조회가 같이 돈다(판마다 Suspense 라 홈이 먼저 뜬다). `npm run tabs:timing` 으로 첫 로드가 얼마나 늘었는지 한 번 재
+  보고 싶다 — 네가 줄여 둔 조회가 여기서 효과를 본다. 많이 늘면 default.tsx 를 '처음 갈 때 그리기'로 바꿀 수 있다.
+- 폰에서 봐 주면 좋은 것: 네 탭 쓸기(천천히 · 빠르게), 위 막대 숨기기, 당겨서 새로고침, 트레이닝 안 암케어 → ‹ 뒤로, 잠긴 계정의 판, 투구 기록
+  날짜 팝업 열고 닫기, 설정 창.
+
+## 금윤호에게 — 2026-10-15 · 김민(Claude, 맥북) — 3D 엔진: 뒤 영상이 어깨 이름을 미리 바꿔 찍은 장면 바로잡기
+
+받은 뒤 할 일 없음(DB · 패키지 그대로). **네 영역(엔진 `lib/pitch-3d/v2/clean2d.ts` · `fit.ts`)을 고쳤다** — 분석 서버(Modal)에 올려야 새 분석에 들어간다.
+김민: "샘플 1 착지 때 오른팔이 실제보다 올라가 있고 벌어져 있다". 뒤(2루) 영상 RTMW 가 몸통이 도는 동안 두 어깨가 실제로 엇갈리기 6장면 전에
+어깨 · 팔꿈치 이름을 미리 바꿔 찍고 두 손목은 공 위에 겹쳤다 → 엔진 좌우 고침(repairLabels)은 손목이 겹쳐 30% 를 못 넘고 앞뒤 장면도 같이 틀려 못 고침 →
+3D 던지는 어깨가 몸 가운데로, 팔꿈치가 뒤 영상에서 50~108px 벗어남.
+- `fixShoulderSwaps`: 두 어깨가 키의 13% 넘게 떨어져 있고 두 손목이 겹친 채 어깨 이름 하나가 한 장면에 키의 10% 넘게 뛰어 다른 어깨 자리를 차지하면, 실제로
+  엇갈릴 때(두 어깨 5% 안)까지 팔 이름을 서로 바꾸고 바꾼 뒤에도 겹친 가짜 쪽만 안 보임으로. 샘플 1 뒤 영상 7장면에서 팔꿈치 50~108 → 3~24px · 어깨 45~60 → 28~42px.
+- 실험실 8샘플 · 마커 15구 · 합성 시험에서 걸리는 건 샘플 1 의 7장면뿐(실제 엇갈림은 어깨 사이 7~12% 라 안 걸림, 갈라진 손목은 repairLabels 에 맡김).
+  숨기기만 하면 팔꿈치 10px 나아지고 어깨 15px 나빠졌고, 앞단(core)에서 숨기면 카메라가 흔들려 좌우 고침이 엉뚱한 곳에서 14번 걸렸다 — 그래서 바로잡기.
+- 시험 v2 314(새 4). 떨림 검사는 끔 · 켬이 같다.
+
+## 금윤호에게 — 2026-10-15 · 김민(Claude, 클라우드) — 탭 전환 빠르게: 서버 조회 차례 기다림 줄임 · DB 연결 20 · 탭 쓸기 · 탭 누름
+
+받은 뒤 할 일 없음(DB 구조 · 패키지 그대로). 사용자: "탭 전환을 더 빠르게 — 서버 시간을 재서 줄이자". **네 영역(홈 · 트레이닝 · 영양 · 앱 틀)을 고쳤다.**
+- 조회 차례 기다림(앞 조회가 끝나야 다음을 시작)을 같이 돌게: `loadTodayCore` 의 지난 판 닫기(닫기가 쓰는 표를 같이 읽지 않음 — 주석),
+  홈 요약 칸(`feed.tsx` — 오늘 셈과 하이라이트 · 영양 · 그날 요약을 같이, `loadHighlights` 가 부하 지수를 약속으로 받음), 운동 소모 세트
+  (`burnMixesInRange` — 판을 기다리지 않고 날짜로, `sessionBurnMixes` 지움), 날짜별 구속(`loadVelocityByDate` 왕복 2 → 1), 트레이닝 홈
+  카드(오늘 판 · 프로그램 · 내 팔 지도를 같이 — 지난 판을 닫았으면 프로그램만 다시 읽음, `loadTodayCore` 가 `closedSessions` 를 돌려줌),
+  사용자 읽기(`lib/dal.ts` — 시험 계정 날짜 ensureSim 과 사용자 조회를 같이, 둘 다 끝난 뒤 돌려줌 · `lib/session.ts readSession`).
+- 영양 탭은 지난 날짜를 볼 때 조언을 셈하지 않는다(`advice` null).
+- `lib/prisma.ts`: pg 연결 10 → 20(화면 하나가 조회 14~50개를 한꺼번에 내 줄을 섰다). 풀러(6543) 손님 한도 안. 'too many clients' 가 보이면 이것부터 내려 줘.
+  `PRISMA_TIMING=1` 이면 조회마다 걸린 시간을 찍는다. 재는 도구 `npm run tabs:timing -- --email=<이메일>`(빌드한 서버에 RSC 요청, 사용법은 그 파일 머리).
+- 남긴 것(DB 구조 바꿈이라 너와 맞춘 뒤): `PitchLog` 에 색인이 하나도 없다 — `@@index([userId, date])` 하나로 투구 조회 십여 개가 표 전체를
+  안 훑게 된다. `UserExerciseLog` 도 날짜 범위 조회에 `[userId, date]` 색인이 없다. 둘 다 더하기라 안전하지만 백업 · 알림 뒤에.
+- 탭 쓸기(`components/tab-swipe.tsx`)는 손가락을 터치 이벤트로(아이폰이 세로 스크롤로 빼앗던 것) · 사본 껍데기 div(연달아 쓸면 빈 화면이던 것) ·
+  손 떼자마자 새 화면을 부르고 빠르기를 이어받음. 하단 탭을 누르면(`slideToTab`) 쓸기처럼 누르는 순간 밀린다.
+- (같은 날 더) 하단 탭(`app-shell.tsx` TabFace): 이름 굵기를 렌즈가 선 칸(`selected`)으로 — `slideToTab` 이 링크를 안 따라 pending 이 안 켜져 0.3초 뒤에 굵어졌다.
+  렌즈가 닿을 때 아이콘 8% 커짐(`tab-lens.ts` ICON_LIFT)은 0 으로(사용자: "선택되고 0.3초 뒤 아이콘이 움직여"). 아이콘 + 이름을 `pt-[2px]` 로 내려 렌즈 위아래 여백을 맞춤.
+- (같은 날 더) 제목 밑 날짜 띠(사용자: "영양 위 최근 날짜 보기를 트레이닝 · 영양 둘 다"): 영양은 휴대폰에서도 다시 보임(10-14 에 숨긴 것), 트레이닝 홈 ·
+  그날 기록(`/training/day/[date]`)에 같은 모양 띠(`training/day-strip.tsx` · `lib/training-week.ts` — 운동 · 암케어 · 메커니즘 한 날을 점으로, 오늘은 홈).
+- (같은 날 더) 트레이닝 제목 옆 간이 달력(`training/date-nav.tsx` — 영양 DateNav 와 같은 판, 점은 열 때 `app/actions/training-days.ts` 로 1년치). 트레이닝 홈 머리는
+  PageHeading 대신 영양처럼 제목 · 달력 · 분석 한 줄(`training-home.tsx`). 그날 기록 화면은 달력 그림만.
+- (같은 날 더) 날짜 띠를 한 주 + 겹화살표 → 최근 6주를 옆으로 굴리는 한 줄로(사용자: "좌우로 긴 것 스크롤 가능하게"). 공용 `components/date-scroll-strip.tsx` ·
+  범위 `lib/date-strip.ts stripDays`. 영양 `NutritionDay.strip` 이 7일 → 42일(`lib/nutrition/load.ts` — 식사 · 운동 읽는 범위도 그만큼 넓어짐), `loadTrainingWeek` → `loadTrainingStrip`.
+- (같은 날 더) **네 영역(구속 측정 화면)을 앱 모양으로 손봤다** — 사용자: "구속측정 인터페이스를 지금 우리 시스템에 맞게, 너무 조잡해". 엔진 · 저장 · 동작은 그대로, 그리기 · 글만.
+  첫 화면(`velocity-home.tsx` · `session-history.tsx` — 큰 제목, 마지막 세션 최고 큰 숫자 한 장 + 그래프, 최근 세션 5줄, 로고 카드 뺌) · 설정 단계(`setup-art.tsx` OptionCards 를
+  앱 고르기 카드 같은 한 줄로, '이럴 때' 줄 뺌, `setup-steps.tsx` StepShell 에 'n/5') · 카메라 화면(수평 · 존은 셔터 대신 파란 [다음 ›], 측정 셔터 글자 뺌) ·
+  세션 요약(숫자 넷 줄 → 큰 숫자 한 장) · 설정 시트(체크 상자 → `components/switch.tsx`, 아래 단추 둘 → 목록 줄, 제목 '구속 측정 설정'). 구속 숫자는 Bebas(`text-display`) → `text-numeric`.
+  실제 카메라 · 아이폰 앱으로는 못 봤다(미리보기는 가짜 카메라) — 폰에서 측정 한 번 봐 줘.
+- (같은 날 더) **구속 측정 설정을 줄였다**(사용자 지시 여섯): ① 거리는 [기준 20m | 줄자] 둘만 — 관리자의 '공마다 공 크기'(`distAuto`)를 걷고 저장된 값도 늘 끔
+  (`lib/velocity-setup.ts` loadSetup, `DIST_MODES_ADMIN` 지움) ② 네트 단계 · 설정 줄을 없앴다 — 늘 `net: false`(자동초점), 단계는 종류 → 카메라 위치(여기서 [카메라 켜기]) → 수평 → 존, 4단계
+  ③ 측정은 늘 자동(`autoMode` 늘 true, 설정의 '자동 측정' 줄 · 아래 막대의 자동/수동 단추 뺌) — 그 자리에 [초점] 단추(`refocus`), 위 줄 재초점은 측정 밖 단계만
+  ④ 영상 파일로 재기 단추는 관리자만 ⑤ 주의사항 카드에서 '2배 줌 그대로' · '거리' · '자리' · '표적' · '스피드건 짝'을 뺐다(자리 · 거리는 카메라 위치 단계에서 한 번만 말한다),
+  튜토리얼 '먼저 준비할 것' 장도 뺌 ⑥ 지난 설정 요약은 종류 · 카메라 두 칸.
+- (같은 날 더) 스피드건은 관리자만: 설정의 '스피드건 보정 적용' 줄(`VelocitySettingsFields` · `VelocitySettingsButton` 의 `isAdmin`) · 공 고치기의 스피드건 값 칸
+  (`PitchEditorFields` 의 `showGun`, 측정 화면 · 그날 화면 `VelocitySection isAdmin` — load.ts 가 `isAdmin` 을 실음) · 결과 화면 '스피드건 값 넣기' 단추.
+- (같은 날 더) **네 영역(투구 탭)을 앱 모양으로 정리했다** — 사용자: "투구 파트도 우리 시스템에 맞게, 캘린더만 지금처럼 크게". 캘린더는 그대로.
+  머리(`pitch-log-heading.tsx`): 구속 측정 · 3D 동작 분석 흰 카드 단추 줄 → 고르개 옆 40px 칩(휴대폰 '3D 분석'). 목록(`video-gallery.tsx`): 2열 카드 →
+  한 줄(작은 썸네일 · 날짜 · 종류 · 구속 · 강도 · ›), 정렬은 select, 종류 거르기는 가로로 미는 칩 한 줄, 대표 별은 줄 오른쪽. 그날 화면: 연필 · 휴지통 원 둘 →
+  ⋯ 하나(동작 시트, `day-record.tsx`), 빈 '메모 없어요' · '영상 없어요' 상자 뺌, 팝업에서는 [홈 달력][투구 기록] 칩 줄 숨김(창 닫기가 돌아가기), 팔 상태는
+  머리 한 줄(`ArmStatusNote compact` — 새 선택 칸). 입력 폼(`entry-form.tsx`): 종류 · 투구수 · 체감 강도만 펴 두고 구속 · 영상 · 만족도 · 메모는 '더 적기'
+  안으로(고칠 때 적은 게 있으면 펴서 열림, 접어도 올리던 영상 · 글은 그대로). 쉬는 날은 메모를 바로 보인다.
+
+## 금윤호에게 — 2026-10-15 · 김민(Claude, 맥북) — 파워 운동 10개 더함 · 촬영 계획 2~5주 다시 짬 · 드릴 영상이 파워 복사본에도 붙음
+
+받은 뒤 할 일 없음(DB 구조 · 패키지 그대로, 운동 줄만 더함 — 운동 캐시 v30). **네 영역(촬영 관리자)을 고쳤다.**
+- 운동 라이브러리 파워에 회전 메디신볼 던지기 6(투구 드릴 복사 — 같은 참고 영상 · 설명) · 한 발 점프 2 · 상체 플라이오 2(c410746b, `scripts/library-power-plyo-2026-10-15.mjs`).
+- 촬영 계획: 찍은 1주차는 그대로, 2~5주를 새 넷(싱글렉 브로드 점프 · 싱글렉 박스 점프 · 인클라인 플라이오 푸시업 · 플라이오 푸시업)을 넣어 다시 나눴다
+  (`shoot:plan --from=2 --planned --sessions=4 --pace=1.07 --add=…`, LW=3 SP=1.6 — 새 인자 `--add`). **2주차부터 번호가 바뀌었다**(체크는 id 로 그대로).
+  끝 2:54 · 3:02 · 2:57 · 2:50, 하체 29~31.5. 3시간 안에 드는 나눔은 한 주에 하체가 36.5 로 몰려, 시험 기준을 '3시간 + 5분'으로 늘렸다.
+- 회전 던지기 복사본 여섯은 야외 6 · 7주에 드릴로 이미 있다 — `attachShootClip` 이 드릴 영상을 붙이면 같은 참고 영상(또는 같은 영상 경로)인 파워 운동에도 붙인다.
+
+## 금윤호에게 — 2026-10-15 · 김민(Claude, 클라우드) — 워터백 운동 · 드릴을 '나중에 촬영'으로(스크립트만, DB 는 아직)
+
+받은 뒤 할 일 없음(DB 구조 · 패키지 그대로). 사용자: "워터백이 없어 — 영상 촬영 · 운동 목록에서 전부 나중에 촬영으로, 워터볼은 그대로".
+**같이 쓰는 운동 · 드릴 라이브러리의 분류를 바꾼다**(AGENTS 3번 — 알림). 10-14 운동 63 · 드릴 37 과 같은 방식이다.
+- 촬영 계획(`lib/shoot/plan-data.json`)에는 이미 워터백 운동이 없다(워터볼 7개만 — 그대로 둠). 계획 번호는 안 바뀐다.
+- `scripts/library-waterbag-later-2026-10-15.mjs`: 도구에 '워터백'이 있거나 이름에 든 운동 · 드릴을 '나중에 촬영'으로, 원래 분류는
+  `lib/shoot/later.json` · `later-drills.json` 에 더하고 캐시 이름(`library:exercises` · `library:guides`)을 하나씩 올린다.
+  맥북에서 돌려 보니(10-15, 백업 `db-2026-10-15-04-59.json`) **옮길 것 0개** — 워터백 운동은 없고, 워터백 드릴 하나(다이내믹 고관절 신전 + 워터백)는
+  10-14 에 이미 '나중에 촬영'이었다. DB · json · 캐시 그대로.
+  계획에 든 것이 나오면 스크립트가 멈춘다. 되돌리기는 10-14 스크립트의 `--restore 이름…`.
+
+## 금윤호에게 — 2026-10-15 · 김민(Claude, 클라우드) — 3D 동작 분석: 화면 녹화 · 따로 찍은 짝 금지(두 폰 동시 촬영만) · 촬영 모드 되돌리기 알림 자리
+
+받은 뒤 할 일 없음(DB 구조 · 패키지 그대로 — meta.json 의 files 에 선택 칸 at · src · dur 만). **네 영역(실험실 올리기 · 촬영 모드)을 고쳤다.**
+사용자: "녹화 영상 금지, 두 번 따로 촬영도 금지, 무조건 동시에", "AirDrop 으로 옮기면 프레임이 떨어진다 — 원본 유지하며 옮기는 법도".
+- 올리기 칸의 '동시에 두 대 | 한 대로 나눠' · '화면 녹화 | 원본' 고르기를 뺐다(늘 synced true · screenRecorded false).
+- 새 `lib/pitch-lab-file.ts`: 파일 머리(moov)에서 찍은 시각(아이폰 creationdate · mvhd) · 길이 · 렌즈 정보를 읽는다.
+  `lib/pitch-lab-guard.ts`: 이름 바꾼 화면 녹화(렌즈 없음 + 화면 비율 + 100fps 밑) 막기, `labPairBlock`(같은 파일 · 찍은 시각 차가 긴 영상 길이 + 3초 넘으면 막음,
+  출처가 다르면 30분 배수 시간대 어긋남은 봐줌), `labMetaBlock`(서버 `saveLabSample` 이 다시 봄 — 막히면 정보 없는 새 폴더를 `deleteUnsavedLabSample` 로 지움).
+- 고른 영상 밑에 초당 장수 표시, 30fps 막기 · 60fps 알림에 'AirDrop 은 옵션에서 모든 사진 데이터'. 촬영 안내에 '영상 옮기기' 칸 · 확인 목록 10번째.
+- (같은 날 더) 촬영 정보의 '폰까지 거리'를 폰마다 두 칸으로(`LabMeta.distances` { side · back } — 사용자: "1배여도 폰마다 크기가 다름"). 옛 한 칸 `distanceM` 은 읽기만.
+  기록 · 표시만 하고 3D 계산에는 아직 안 넘긴다. 카드 표시에서 늘 같은 '동시 촬영' · '원본'은 뺐다(옛 샘플의 '한 대로 나눠 찍음' · '화면 녹화'만 남음).
+- (같은 날 더) **네 앱 틀(`components/app-shell.tsx` MobileTopBar)을 고쳤다** — 사용자(Claude · 인스타 앱 화면을 보이며): "노치 밑에 선이 그어지고 흐린 게 퀄리티가 떨어진다".
+  시계 자리 92% 판 · 막대의 바탕 · 굴리면 나오던 밑줄(`useScrolledFromTop` 지움)을 걷고, 막 하나(`[data-top-veil]`, globals.css)가 시계 자리 + 막대를 덮고 밑 1.5rem 동안
+  흐림 · 바탕색이 같이 옅어진다. 막대가 보이면 막대 자리는 불투명(구속 측정처럼 — 글자 겹침 때문), 막대가 숨거나 없는 탭이면 시계 자리까지 줄고 거의 투명(흐림 세 겹이 위로 갈수록 겹침). `data-safe-area` 는 높이 표시로만 남김. **아이폰 앱에서 흐림이 깜빡이면 그 판의 backdrop-filter 만 빼 줘.**
+- 촬영 모드(`run-client.tsx`) 되돌리기 알림을 아래 막대 높이를 재서 그 위 8px 에, 주차 화면은 하단 탭 위(`undo-toast.tsx` 기본 자리).
+- 시험 `pitch3d:v2-test` 310(새 27 — 가짜 mov 머리 읽기 포함) · `pitch-lab:test` 16. 실제 아이폰 화면 녹화 · AirDrop 받은 파일로는 못 봤다.
+
+## 금윤호에게 — 2026-10-15 · 김민(Claude, 클라우드) — 3D 동작 분석에 촬영 안내 화면(`/videos/lab/guide`)
+
+받은 뒤 할 일 없음(DB · 패키지 그대로). **네 영역(실험실 화면 · 결과 화면 실패 칸)을 고쳤다.** 사용자: "우리가 가장 잘 인식할 수 있는 조건을 사용자가 참고해서 촬영할 수 있게".
+- 새 화면 `app/(app)/videos/lab/guide/`: 찍기 전 확인 9개(체크는 그 폰 localStorage) · 폰 두 대 자리 그림(옆 3루 쪽 4~6m · 뒤 2루 쪽 4~5m · 90°) ·
+  화면에 담기 그림 셋 · 폰 설정(아이폰 · 갤럭시) · 찍는 순서 · 올리기 · 실패 까닭별 고칠 것. 글 · 근거는 `lib/pitch-lab-guide.ts`(순수) 한 곳 —
+  조건은 엔진이 실제로 막는 곳(`pitch-lab-guard.ts` labVideoBlock · `pipeline.py` FRAMING_* · `analyze.ts` FAIL_TEXT · 기준 축)에서 가져왔다.
+  **문턱(30fps · 720 · 1배 · 2초 · 200px · 60~120°)을 바꾸면 안내 글도 같이 봐 줘.**
+- 입구 넷: 올리기 칸 위 '촬영 안내' 줄(예전 두 줄 안내를 대신함) · 빈 목록의 '촬영 안내 보기' · 올리기 전 검사에 걸린 오류 밑 링크 ·
+  결과 화면 실패 칸(`analysis-v2.tsx` V2EmptyWell — 영상 탓 실패면 `LAB_FAIL_FIX` 의 고칠 것 한 줄 + 안내의 그 칸으로, 서버 탓이면 예전 그대로).
+- 시험 `pitch-lab:test` 16(새 5 — 영상 탓 실패마다 고칠 것 · 해요체 · 줄표 없음). 화면은 임시 경로로 휴대폰 375 · 320 · PC 1536 · 어두운 테마(넘침 0, 체크 저장 · 새로고침 뒤 남음).
+
+## 금윤호에게 — 2026-10-15 새벽 · 김민(Claude, 맥북) — 전체 검토 뒤 고침: 홈 · 트레이닝 조회 · 앱 틀 버그 · 아이패드 배치 · 간격
+
+받은 뒤 할 일 없음(DB · 패키지 그대로). 김민: "화면 속도 · 버그 · 공백 전부 검토 → 다 고쳐줘". **네 영역을 많이 고쳤다** — 커밋 셋.
+- 82e38e43 앱 틀: 아이패드 위 막대 · 시계 자리 · 비교 막대 · 알림이 왼쪽 탭 막대(--rail) 밑에 깔리던 것(뒤로를 누르면 홈 탭이 눌림), 첫 체크인 '고쳤어요',
+  새로고침 돌개가 시계 자리 밑에 가림, 탭 쓸기 · 새로고침이 트레이닝 하위 화면에서도 걸림(`barSnapshot().back` 이면 안 받음), 다시 쓸 때 자리표시 사라짐,
+  잠긴 구속 측정으로 zoom 전환, 사파리 두 손가락 확대(`touch-pinch-zoom`). 위 막대 · 시계 자리 뒤 흐림은 다시 뺐다(바탕 92%).
+- 2ee298a1 배치: 아이패드에서 꽉 찬 단추 · 고르개가 늘어나던 것(pad:w-auto), 투구 달력 두 칸 기준 xl → lg(홈과 같게), 섹션 · 카드 간격 토큰, 경고 상자 모양,
+  카드 여백 `--block-pad`(공용 `training/check-row.tsx` 포함), 글자 크기 대괄호 → 토큰.
+- 4d5c7d50 조회: `loadTodayCoreCached`(홈 본문 · 요약 칸이 같은 계산을 두 번 하던 것) · `loadTodayCore` 안 조회를 한 번에 · 트레이닝 탭 앞 조회 셋을 같이 ·
+  홈 마지막 기록 날을 조회 하나로 · 홈 달력은 몸무게 안 읽음(`loadPitchHistory(…, { weights: false })`). 남은 것: `buildProgramDay` 가 오늘 세션을 또 읽음 ·
+  `training-home.tsx` 의 `loadTodayCore` 는 캐시 안 씀 · 투구 탭 '오늘' 카드를 Suspense 로(VideosClient props 를 바꿔야 해서 둠).
+
+## 금윤호에게 — 2026-10-15 · 김민(Claude, 맥북) — 네 탭 쓸기(tab-swipe.tsx) · 위 막대 흐림을 고쳤다
+
+받은 뒤 할 일 없음. 김민: "스와이프로 화면을 넘기는데 버그가 심하고 전체적으로 버벅인다". 자세한 건 커밋 5f2b5dc7.
+- `components/tab-swipe.tsx`: 손가락을 스스로 받는 부품(touch-action 을 따로 둔 것 — 홈 그래프 훑기 · 밀어서 지우기 · 3D 돌리기 · 영상 편집) ·
+  창/시트 안 · 당겨서 새로고침 중에는 안 받음, 비스듬한 스크롤은 쓸기 아님(옆이 세로의 1.4배) · 잡은 자리부터 따라옴, 8초 안 오면 제자리로.
+  네 2판(776d17e8)과 합칠 때 구조(바로 push · 화면 전환이 이어 밂 · WAIT_MS)는 네 것 그대로 두고 위 것만 얹었다.
+  **새로 가로로 끄는 부품은 touch-action 만 주면 저절로 빠진다.**
+- `MobileTopBar` · 시계 자리 흐림 blur-xl → blur-md, 바탕 75 → 85%(굴릴 때 장면마다 다시 셈하는 몫). 하단 탭도 28 → 20px.
+
+## 금윤호에게 — 2026-10-15 · 김민(Claude, 맥북) — `DualCameraPlugin.swift` 빌드 깨짐 세 줄 고침(2.4.2 커밋의 `$0` · `$1` 이 `-e` 로 들어감)
+
+받은 뒤 할 일 없음. 네 10-13 커밋(ce99a9a8, `pick(prefer:)`)에서 클로저의 `$0` · `$1` 이 `-e` 로 바뀌어 있어(`area(-e)` · `-e.3 < .3`) 맥에서
+앱 빌드가 `'.3' is not a valid floating point literal` 로 실패했다 — 세 줄만 원래 뜻으로 되살렸다(`area($0)` · `$0.3 >= …` · `$0.3 < $1.3`).
+TestFlight 굽기도 이 줄 때문에 실패했을 것이다. 셸에서 `$0` 이 지워진 듯하니 Swift 를 heredoc 으로 넣을 때 조심.
+
+
+## 금윤호에게 — 2026-10-14 밤 · 김민(Claude, 클라우드) — 휴대폰 하단 탭을 iOS 26 탭 막대처럼(어두운 유리 · 움직이는 유리 렌즈)
+
+받은 뒤 할 일 없음(DB · 패키지 그대로 — 새 패키지 없이 스프링을 직접 짰다). **네 영역(앱 틀 `components/app-shell.tsx` MobileTabs)을 고쳤다.** 사용자가 iOS 26 탭 막대
+화면 녹화를 주며 "최대한 같은 스타일 · 애니메이션으로".
+- 휴대폰 알약: 어두운 유리(짙은 회색 72% + 뒤 흐림 · 얇은 흰 테두리 · 위 1px 빛), 흰 아이콘 · 흰 이름(하늘색 켜짐 뺌 — 지금 탭은 굵은 이름 + `aria-current`).
+  **패드 왼쪽 막대는 밝은 모양 그대로**(`pad:` 로 되돌림), 움직임만 같다. 크기(칸 52px · 알약 62px · `--tab-bar-top`)는 그대로.
+- 선택 표시는 탭마다의 배경 + 화면 전환(`tab-indicator`)이 아니라 **렌즈 하나**(`[data-tab-lens]`). 움직임은 새 `components/tab-lens.ts`(`useTabLens` — 자리 · 부풂 · 보임
+  세 스프링, CSS 변수만 장면마다 씀, 멈추면 rAF 도 멈춤). 누르는 순간 옮기고(`chosen`, 주소가 바뀌면 지움 · 8초 안 오면 지금 화면으로), 옮기는 동안 유리 렌즈로
+  부풀었다 가라앉는다. 길게 눌러 끌기는 렌즈가 손가락을 따라온다(`DragThumb` 지움). 더보기가 열리면 렌즈가 더보기에.
+- 렌즈 자리는 CSS 만(`--p` × 칸 폭, 칸 폭이 같아서) — 서버 HTML 부터 맞는 자리. **`--n` 은 count-up 이 `@property`(inherits: false)로 잡고 있어 못 쓴다** — 칸 수는 `--tab-count`.
+  `globals.css` 의 `::view-transition-group(tab-indicator)` 규칙은 지웠다(이름표가 없어짐).
+- 확인(가짜 탭 임시 경로 · 헤드리스 크롬 390 · 320 · 아이패드 820): 첫 그림 자리 = 칸, 홈 → 트레이닝 0.7초에 닿고 6% 넘침, 80ms 간격 세 번 연속 누름 순간이동 없음 · 끝 칸 = 주소,
+  끌기 · 더보기 · 스크롤(막대 그대로) · 움직임 줄이기(바로 옮김). **실제 아이폰 앱(WKWebView)에서는 못 봤다** — 렌즈 부풂 · 막대 뒤 흐림 깜빡임이 없는지 봐 줘.
+- 합치면서 **네 `components/tab-swipe.tsx` 에 한 줄**: 본문 쓸기로 넘어가는 순간 `TAB_CHOSEN_EVENT`(tab-lens.ts)를 보내고 MobileTabs 가 누른 탭처럼 받는다 —
+  렌즈가 화면을 기다리지 않고 본문과 같이 옆 칸으로 간다(시험: 손 뗀 순간 움직이고 주소는 0.3~0.7초 뒤, 덜 쓸면 안 움직임).
+
+## 김민에게 — 2026-10-14 밤 · 금윤호(Claude) — 휴대폰 틀 셋: 위 막대가 인스타처럼(숨기기 · 반투명 · 로고 가운데) · 탭 쓸기 · 더보기 폴더 테마색 — 네 app-shell 을 만졌다
+
+받은 뒤 할 일 없음(DB · 패키지 그대로). 사용자(인스타 영상으로): "로고 가운데, 아래로 굴리면 위가 사라지며 노치까지 본문, 올리면 반투명으로 다시,
+탭은 터치한 만큼 따라오다 넘어가게, 메뉴 아이콘 배경은 테마에 맞게". 모두 휴대폰만 — PC 막대 · 도크 · 팝업은 안 건드렸다.
+- **위 막대**(`MobileTopBar`): sticky → fixed 반투명 유리(bg-page/75 + backdrop-blur). `useBarHidden` — 아래로 굴리면 `data-hidden` 으로 위로
+  미끄러져 숨고(본문이 시계 자리 밑으로 흐리게 비친다 — `data-safe-area` 도 같은 유리), 위로 굴리면 돌아온다. '‹ 뒤로' 화면 · 알림 창 열림은 안 숨김.
+  홈은 로고가 가운데. **뒤 흐림을 다시 켰다** — 네가 MobileTopBar 에서 뺐던 그 깜빡임(흐린 면 위로 무언가 움직일 때)이 앱에서 다시 보이면
+  `backdrop-blur-xl` 둘(막대 · 시계 자리)을 빼면 된다.
+- **탭 쓸기**(`components/tab-swipe.tsx`, 새): 첫 화면 넷(홈 → 투구 → 트레이닝 → 영양)에서 본문(main)을 옆으로 끌면 손가락을 따라오고, 옆에서
+  다음 탭의 자리표시(바탕 판 + 아이콘 · 이름 + 뼈대 줄)가 같이 들어온다. 놓으면 폭 1/4 또는 빠르면 끝까지 밀린 뒤 `router.push`, 새 화면이
+  그려지면 자리표시가 옅어지며 걷힌다. 탭마다 다른 화면이라 인스타처럼 옆 화면을 미리 띄우진 못했다(사용자가 고른 방식). layout 의 main 에
+  `touch-pan-y`. 안 받는 곳: 가로 스크롤 칸 · `data-no-swipe`(홈 요약 칸) · 입력칸 · 왼쪽 끝 16px. **네 부품 가운데 가로로 끄는 것이 더 있으면
+  `data-no-swipe` 를 달아 줘**(3D 인형 돌리기 · 구속 측정 화면은 app/(session) 이라 밖).
+- **더보기 폴더 테마색**(`globals.css` 의 `--folder-fg` · `--tile-*`, `app-icon.tsx` clear 가 읽음): 화이트는 더 흰 반투명 폴더 + 옅은 하늘색 타일 +
+  짙은 하늘 글리프, 네이비는 네이비 반투명, 다크는 그대로.
+- 폰에서 봐 주면 좋은 것: 홈을 굴릴 때 막대가 부드럽게 숨고 돌아오는지(깜빡임 없이), 홈에서 옆으로 끌어 투구로 넘어가는지, 홈 요약 칸을 옆으로
+  쓸 때 탭이 안 넘어가는지.
+## 금윤호에게 — 2026-10-14 밤 · 김민(Claude, 데스크톱) — '3D 동작 분석'으로 이름 바꾸고 일반 사용자에게 엶 · 투구 탭 머리 배치
+
+받은 뒤 할 일 없음(DB 구조 · 패키지 그대로). **네 영역(투구 탭 · 실험실 화면 · 메뉴 · 저장소 · 처리방침)을 고쳤다.**
+- 이름: '투구 분석'(실험실) → **'3D 동작 분석'**('투구 분석'은 기록 분석 /coach 제목과 겹쳤다). 메뉴 · 목록 · 결과 화면 · 촬영 안내 한 줄. 카드의 '샘플 N' 은 '투구 N'.
+- 투구 탭 머리(`videos-client.tsx`): 제목 옆은 '분석' 하나, 고르개 밑에 [구속 측정 | 3D 동작 분석] 반반(PC 는 고르개 줄 오른쪽 글 단추). 휴대폰 '⋯' 시트를 걷었다 —
+  2분할 비교는 목록 보기 안 단추(video-gallery.tsx 에 원래 있음)로. `canAnalyze` prop 없앰.
+- 일반 사용자에게: 메뉴 adminOnly 뺌, 두 페이지 · 서버 동작 · 올리기 주소가 `requireUser`. 사람마다 자기 폴더만(`lib/pitch-lab.ts` `LabViewer` · `ownerIds`) —
+  관리자는 예전처럼 관리자끼리(마커 샘플 포함), 일반 사용자의 영상은 관리자도 안 본다. 일반 사용자가 보낸 `kind: 'marker'` 는 sample 로.
+- 탈퇴: `lib/storage.ts deleteUserFiles` 가 한 층만 지워 `{id}/pitch-lab/…` 영상이 남았다 → 하위 폴더 3층까지 지운다.
+- 처리방침: 맡기는 곳에 Modal Labs, Inc.(영상에서 관절 찾기) · 바뀐 날 10-14 · 변경 기록 한 줄.
+- 확인: 임시 경로로 투구 머리(375 · 1536×700 · 1920×960), /privacy. 3D 화면 자체는 로그인이 필요해 못 봤다 — 일반 계정으로 올리기 · 분석 한 번 봐 주면 좋다.
+
+## 금윤호에게 — 2026-10-14 밤 · 김민(Claude, 데스크톱) — 투구 분석 GPU 비용 지키기(올리기 전 검사 · 같은 영상 · 하루 실패 10번 · 일찍 멈추기)
+
+받은 뒤 할 일 없음(DB 구조 · 패키지 그대로). **네 영역(실험실 화면 · v2 약속 · GPU 파이프라인)을 고쳤다.** 사용자: "이상한 영상으로 계속 실패해 그래픽 비용이
+많이 나가는 게 걱정" → 셋 + 일찍 멈추기. 규칙은 `lib/pitch-lab-guard.ts`(순수, 시험은 `pitch3d:v2-test` 'GPU 비용 지키기' 17개).
+- 올리기 전(`lab-client.tsx` pick): 폰이 파일 머리만 읽어 화면 녹화(이름) · 30fps 급 · 짧은 변 720 밑 · 줌/광각(35mm 환산 20~32 밖) · 2초 밑이면 고른 것을
+  되돌리고 까닭 한 줄. 지문(크기 + 앞뒤 1MB SHA-256)을 `meta.files[v].fp` 에(옛 샘플은 없다). 못 읽은 칸으로는 안 막는다.
+- 분석 걸기(`requestPitch3dV2`): 같은 엔진 판에서 영상 탓(V2_VIDEO_FAULT)으로 실패한 샘플 · 지문은 GPU 를 안 부르고 막음(엔진 판이 바뀌면 다시 됨),
+  하루(한국 날짜) 실패 10번이면 막음 — GPU 를 못 부른 실패(gpu · gpu-auth)는 안 셈. 기록은 `{관리자}/pitch-lab/_guard.json`(폴더가 아닌 파일이라 샘플 목록에 안 섞임),
+  세는 곳은 `checkPitch3dV2` 가 실패로 바뀔 때(`countFail`).
+- 새 실패 코드 `framing`(영상 탓): GPU 가 거친 2D 에서 투수 높이 중앙값 200px 밑이거나 보인 장면 30% 밑이면 고운 2D · 맞추기 전에 멈춘다(`pipeline.py`
+  `framing_bad`, selfcheck 5개). **Modal 에 아직 안 올렸다** — 사용자가 "배포해줘" 하면 `modal deploy`. 안 올려도 웹 쪽은 그대로 돈다(코드가 안 올 뿐).
+- 브라우저로 올리기 화면은 못 눌러 봤다(관리자 로그인 필요) — tsc · eslint · 시험만. 화면 녹화 · 1배 아닌 영상을 골라 막히는지 한 번 봐 주면 좋다.
+
+## 금윤호에게 — 2026-10-14 · 김민(Claude) — 촬영 계획을 한 회 3시간쯤으로 다시 짬(실내 2~5주 · 야외 6~7주)
+
+받은 뒤 할 일 없음. 사용자: "한 세션에 60개 정도로" → "3시간 정도로 맞춰서 다시". 찍은 1주차(43개 · 체크 43)는 그대로.
+- 실내 284개를 4회로: 2주 67 · 3주 73 · 4주 72 · 5주 72(끝 2:49~2:56, 하체 부하 27.5~30.5). `npm run shoot:plan -- --from=2 --planned --sessions=4 --pace=1.07`
+  + `LW=3 SP=1.6`(하체 무게 · 자리 벌점 — 견준 12가지 중 3시간에 가장 맞고 하체가 고름). 새 인자: `--planned`(지금 계획에 든 운동만 — 지운 · 뺀 것이
+  DB 에 남아도 안 되살림), `--sessions=N`.
+- 야외 83개를 2회로: 6주 41 · 7주 42(예전 8~10주, 각 2:10쯤 — 드릴이 모자라 3시간을 못 채움). `npm run shoot:outdoor -- --sessions=2`,
+  이 도구가 '나중에 촬영' 드릴을 읽던 것도 막았다.
+- **2주차부터 번호가 다 바뀌었다**(체크는 운동 id 로 붙어 그대로). shoot:test 72 통과 — 끝 시각 기준을 '2:50 안' → '3시간 안'(사용자), 실내 5주 · 야외 6 · 7주.
+  아티팩트 '운동 영상 촬영 계획'은 옛 번호다.
+
+## 금윤호에게 — 2026-10-14 · 김민(Claude, 클라우드) — 투구 드릴 37개를 '나중에 촬영'으로 · 야외 촬영 계획에서 뺌
+
+받은 뒤 할 일 없음(DB 구조 · 패키지 그대로). 사용자: 드릴 37개를 "운동영상 및 트레이닝에서 모두 나중에 촬영으로 보내고 운동영상 촬영일정에서도 제거".
+**같이 쓰는 드릴 라이브러리 분류를 바꾼다**(AGENTS 3번 — 알림). 운동 63개 때와 같은 방식이다.
+- 드릴 분류에도 `나중에 촬영`(`lib/categories.ts` MECHANICS_CATEGORIES 끝). 드릴 영상 화면에는 그 칸으로 보이고(비면 안 보임), 트레이닝(메커니즘 프로그램 ·
+  요소별 드릴 · 3D 결과 화면 드릴)은 새 `trainingGuides()`(`lib/library-cache.ts`)로 그 칸을 뺀다. 드릴 기록 저장 · 설명 펼치기는 그대로 `visibleGuides()`. 캐시 `library:guides:v11`.
+- 원래 분류 `lib/shoot/later-drills.json`(스로잉 16 · 메디신볼 14 · 무브먼트 7). **운영 DB 에 적용함**(데스크톱, 백업 `db-2026-10-14-14-06.json`,
+  `scripts/drills-later-2026-10-14.mjs --apply` — 37개). v10 은 적용 전 내용이 담겼을 수 있어 v11 로 올렸다. 되돌리기는 `--restore 이름…`.
+- 촬영 계획: 야외 8~10주에서 37개를 빼고 남은 83개로 야외 3주를 다시 짰다(`buildOutdoorWeeks`, 주마다 약 1:35 — **8~10주 번호가 바뀜**, 체크는 id 로 붙어 그대로). 실내 1~7주는 그대로.
+  shoot:test 70 통과 · 2 실패(예전부터 — 실내 하체 · 같은 부위 연속).
+
+## 김민에게 — 2026-10-14 · 금윤호(Claude) — 휴대폰 더보기를 아이폰 앱 폴더처럼(클리어 아이콘 · 반투명 폴더 · 뒤 흐림) — 네 app-icon.tsx 를 만졌다
+
+받은 뒤 할 일 없음(DB · 패키지 그대로). 사용자(영상 둘로): "아이폰 앱 폴더 느낌, 애플 폴더보다 상하로 길게, 폴더는 반투명 · 뒤는 비치게, 앱 색은 빼고
+로고만 흰색". iOS 26 '클리어' 모드다. **네 10-13 유리 아이콘(색 그라데이션)은 지우지 않았다** — `AppIcon look="tint"` 로 그대로 있고, 더보기만 `look="clear"` 를 쓴다.
+쓸 데 없으면 tint 가지를 지워도 된다.
+- `components/app-icon.tsx`: `look: 'tint' | 'clear'`, `active`. clear = 흰 14%(지금 화면 28%) 판 + 뒤 흐림 + 위 1px 빛 + 흰 테두리 + 흰 글리프.
+- `components/app-shell.tsx` DetailMenu 휴대폰 가지: 아래 시트 → dialog 가 화면 전체 흐린 막(`data-scrim`, 누르면 닫힘) + 가운데 유리 폴더(`data-folder`) + 위 흰 '메뉴'.
+  손잡이 · X 는 없다 — 막 누르기 · Esc · **화면 어디서든 누른 채 아래로 끌면 폴더가 따라 내려오다 아래로 미끄러져 닫힌다**(dialog 의 startDrag, `data-dismiss=down`).
+  3열, 타일 크기는 화면 높이가 정한다(`--tile` 44~58px — 관리자 14개도 굴리지 않고 한 장, SE 667px 까지). 홈 타일은 휴대폰에 없고(하단 탭에 있다) '설정' 타일이
+  들어왔다(`onSettings`). **휴대폰 위 막대 오른쪽은 종만** — 톱니 · 내 정보 단추를 뺐다(MobileTopBar 의 그 props 도). **PC 팝업(desk:)은 안 건드렸다.**
+- `app/globals.css` 휴대폰 `dialog[data-drawer]`: 막(검정 50% + blur 18px) · `[data-folder]`(흰 16% · 어두운 테마 14% · blur 28px · 36px) · 하단 탭 쪽에서 0.55 → 1 로
+  부풀어 뜸(320ms) · 줄이기면 옅어지기만. ::backdrop 에 blur 를 안 건 이유: 아이폰 WebKit 에서 판별 불가 → dialog 자신이 막.
+- **아이폰 앱에서 봐 주면 좋은 것**: 더보기를 열 때 뒤가 흐려지는지(WKWebView backdrop-filter — 네가 MobileTopBar 에서 겪은 깜빡임이 여기도 나는지. 막은
+  정적이라 괜찮을 거라 봤다), 하단 탭 자리에서 부풀어 뜨는지, 막을 누르면 닫히는지, 14개(관리자)일 때 폴더가 한 장에 들어가는지(375×812 에선 629/700px).
+
+## 금윤호에게 — 2026-10-14 · 김민(Claude, 클라우드) — 분석 화면을 투구 분석 · 트레이닝 분석 둘로 가르고 줄였다
+
+받은 뒤 할 일 없음(DB · 패키지 그대로). 사용자: "투구 · 트레이닝 분석, 그래프가 너무 조잡 · 중요한 것만 · 투구에서 누르면 투구만, 트레이닝에서 누르면 트레이닝만".
+- `/coach?view=pitch` = '투구 분석'(‹ 투구 기록), `?view=training` = '트레이닝 분석'(‹ 트레이닝). 투구 · 트레이닝 고르개를 걷었다(`analysis-block.tsx`).
+- 투구: 하이라이트 · 부하 지수 · 이번 주 · 마지막 투구 · 최고 구속 · 잘 던진 날 + 그래프 둘(투구수 · 최고 구속). 뺀 것: 28일 추이(`trend-chart.tsx`) · 기간별 기록
+  (`report-client.tsx` — 투구량 · 강도 · 코멘트 · 메모) · 지표 설명 · 생년월일 안내.
+- 트레이닝: 하이라이트 · 운동 부하 지수 · '최근 4주' 한 장(운동한 날 · 암케어 한 날 + 주별 막대) + 그래프 하나(운동). '투구와 운동' 격자(`training-day-grid.tsx`) 뺌.
+- 부하 지수 카드는 큰 숫자 · 상태 · 한 줄 뜻 · 2주 흐름만(게이지 · 조언 · '어떻게 나온 숫자' 접이 뺌 — `parts.tsx` 의 ZoneGauge · LoadIndexHelp · MetricHelp 지움).
+  그래프(`home-trends.tsx`)에 `metrics` 인자(안 주면 여섯 장 다).
+- 화면은 클라우드라 못 봤다(.env 없음). 폰에서 두 분석 화면을 한 번 봐 줘.
+
+## 금윤호에게 — 2026-10-14 · 김민(Claude, 클라우드) — '오늘 N~M구 던지세요'를 없애고 '지금 팔 상태 위험 · 주의 · 안전'으로
+
+받은 뒤 할 일 없음(DB · 패키지 그대로). **네 영역(투구 기록 탭 · 그날 화면 · 홈 첫날 카드)을 고쳤다.** 사용자: "몇 구를 던져라 이런 식이 아니라
+지금이 위험한 상태인지 안전한 상태인지 알려 줘".
+- 새 순수 함수 `lib/report/arm-status.ts armStatusOf(facts)` — 통증 · 재활 · 큰 등판의 여파(휴식표, `pendingOuting`) · 성장기 하루 한도를 넘김 ·
+  3일 넘는 연투 · 부하 지수로 신호를 모아 가장 센 것 하나를 머리로(위험 > 주의 > 안전). 오늘 던진 기록까지 넣은 facts 를 받는다(excludeToday 안 씀) —
+  던지고 남기면 곧바로 바뀐다. 화면 부품 `components/arm-status-note.tsx`. 시험 `npm run arm-status:test`(19).
+- 바뀐 화면: 투구 기록 '오늘' 카드(`videos/page.tsx` · `today-card.tsx`), 그날 화면(`pitch-log/[date]/load.ts` · `day-client.tsx` — '오늘 계획' 칸과
+  '계획보다 N구 많아요' 줄을 걷음, `components/plan-note.tsx` 지움), 홈 첫날 카드(`first-day-card.tsx` props `range · intensity · note` → `status`),
+  투구 첫 설정 · 소개 화면 글.
+- **투구 계획 계산(`buildPitchPlan`)은 그대로다** — 매일 운동 · 암케어 · 오늘 상태 한 장이 '오늘 공을 쉬는 날인가'를 거기서 읽는다. 화면만 숫자를 안 보인다.
+- `training:test` 의 '뒤집기 (화면) 홈 계획 줄' 시험을 '화면은 권하는 투구수 대신 armStatusOf 를 보인다'로 바꿨다(지운 plan-note.tsx 를 읽던 것).
+  클라우드엔 `.env` 가 없어 training:test · 화면은 못 돌려 봤다 — 폰에서 투구 기록 탭 '오늘' 카드 한 번 봐 줘.
+
+## 금윤호에게 — 2026-10-14 · 김민(Claude) — 운동 63개를 새 분류 '나중에 촬영'으로 · 촬영 계획에서 뺌(운영 DB)
+
+받은 뒤 할 일 없음. 사용자: "전부 다 나중에 촬영할거야. 운동 카테고리에서 새로 만들어서 … 촬영일정에서는 전부 삭제 · 어느 카테고리였는지 기억하게".
+사용자가 고름: 촬영 전까지 추천에서 뺀다. 백업 `db-2026-10-14-13-07.json`, 스크립트 `scripts/library-later-2026-10-14.mjs`.
+- `lib/categories.ts` 에 `나중에 촬영`(LATER_CATEGORY) — 어느 테마에도 없어 일정에 안 뽑히고, `visibleExercises`(새 일정 · 암케어 · 재활 · 루틴)에서도 뺀다.
+  운동 영상 화면(allExercises)에는 그 칸으로 보인다. **원래 분류는 `lib/shoot/later.json`**(하체 10 · 상체 7 · 모빌리티 6 · 파워 7 · 코어 4 · 암케어 22 ·
+  회복 및 보강 7). 찍으면 `--restore 이름…` 으로 되돌린다.
+- 촬영 계획에서 60개 뺌(셋은 원래 숨김이라 계획에 없었음), 실내 387 → 327. 풀업 · 친업 설명에 '맨몸으로 안 되면 어시스트 머신이나 밴드 보조' 한 줄. 캐시 v28.
+- **시험이 드러낸 것(기준은 안 고쳤다)**: shoot:test 2(계획 균형 — 5주차 무거운 하체 8 > 7 · 같은 부위 4개 연속), training:test 새로 5(실제 운동 표를 읽음 —
+  암케어 근육 '대원근' 운동 0 · '매우 낮음' 회복 보강 1/6 · 4일 이상 뒤 하체 날 무거운 하체 0 · P5 점수 표본). 사용자에게 알리고 다시 짤지 묻는 중.
+
+## 금윤호에게 — 2026-10-14 · 김민(Claude) — 운동 7개 분류 · 도구 바꿈 · 토 워크 둘을 촬영 계획에서 뺌(운영 DB)
+
+받은 뒤 할 일 없음. 사용자 지시, 백업 `db-2026-10-14-13-01.json`, 스크립트 `scripts/library-edit-2026-10-14.mjs`.
+- 분류: 프론트 레이즈 드롭 캐치 → 암케어 · 스피드 밴드 로우 → 파워 · 트랜스버스 런지 → 하체 스트렝스(계열 런지) · 덤벨 해머 컬 → 상체 스트렝스(계열 고립,
+  재활 표는 이름으로 찾아 그대로 돈다).
+- 덤벨 → 케이블(이름 · 도구 · 설명): 케이블 울나 디비에이션 · 케이블 래디얼 디비에이션 · 케이블 전완 프로네이션·수피네이션. 유튜브 참고 영상은 아직 덤벨 영상.
+- 촬영 계획: 리버스 토 워크(2-02) · 토 워크(2-07)를 뺐다(라이브러리에는 남김), 실내 389 → 387. 5주차 '덤벨 · 케틀벨' 자리를 덤벨 다섯 → 케이블 셋
+  차례로 다시 놓았다(5-19~5-26 번호가 바뀜 — 같은 준비물은 한 번에 시험). 캐시 `library:exercises:v27`.
+
+## 금윤호에게 — 2026-10-14 · 김민(Claude) — 운동 14개를 라이브러리 · 촬영 계획에서 지웠다(운영 DB)
+
+받은 뒤 할 일 없음. 사용자: "트레이닝 파트에서 이것들 전부 삭제해줘. 운동영상과 촬영목록에서도". **같이 쓰는 운동 라이브러리를 지웠다**(AGENTS 3번 — 알림).
+- 지운 것(모두 참고 영상뿐 · 기록 · 즐겨찾기 · 루틴 · 세트 · 촬영 체크 0, 백업 `db-2026-10-14-12-55.json`): 싱글렉 덤벨 데드스톱 RDL (반대손) ·
+  슬랜트보드 발목 모빌리티 · 하프닐링 밴드 발목 디스트랙션 · 원판 고블렛 스쿼트 프라잉 · 수파인 밴드 힙 디스트랙션 · 90/90 페일즈·레일즈 ·
+  쿼드 힙 플렉서 스트레치 · 워터백 레터럴 홉 + 사이드 벤드 · 워터백 레터럴 홉 스틱 랜딩 · 사이드라잉 내회전 · 덤벨 컬 에센트릭 오버로드 ·
+  튜빙 리스트 익스텐션 / 전완 프로네이션 / 전완 수피네이션 (두꺼운 그립). 스크립트 `scripts/library-delete-2026-10-14.mjs`.
+- 촬영 계획 `lib/shoot/plan-data.json` · `refs.json` 에서 뺐다(다시 뽑지 않고 그 줄만 — 다른 번호는 그대로라 2-28 · 3-40 · 4-05 … 자리가 빈다).
+  실내 403 → 389개(shoot:test 고침). `lib/armcare/rehab-regions.ts` 의 이름 둘(사이드라잉 내회전 · 덤벨 컬 에센트릭 오버로드) 뺌, 캐시 `library:exercises:v26`.
+- 참고: `npm run training:test` 2개 실패는 이 일과 무관 — 오늘 네 홈 · 투구 기록 화면 글 변경(889d011b 근처)을 '뒤집기 (화면)' · '검토 (홈) 계획 줄' 시험이 본다.
+
 ## 김민에게 — 2026-10-14 · 금윤호(Claude) — 아이콘 체계: 아이콘은 `components/icon.tsx` 하나에서 받는다(굵기 2.5) · 색 원 부품 · 네 영역(앱 틀 · 더보기)을 만졌다
 
 받은 뒤 할 일 없음(DB · 패키지 그대로). 제안서 `docs/designs/icon-system.md` 의 1~4단계를 했다('한 것' 절). **네가 답하기 전에 `app-icon.tsx` ·
@@ -40,6 +833,36 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 - 엔진 2.5.1: 흔들림을 바로잡은 공(shaky · stabilized)은 '낮음' 대신 '보통'까지(`analyze-distance.ts`), 측정 화면은 그 공을 기록하고
   '폰이 흔들려 바로잡아 잰 값' 알림(`velocity-screen.tsx` steadied). 못 바로잡은 흔들림은 그대로 측정 불가. 보정 짝은 '높음'만이라 빠진다.
   engine2-test 에 '바로잡은 흔들린 공은 보통' 한 줄.
+
+## 금윤호에게 — 2026-10-14 · 김민(Claude, 맥북) — 근력 프로그램 보조: 보조 밀기 · 세로 당기기 칸 · 로우 순서
+
+받은 뒤 할 일 없음(DB 그대로 — 고정 운동 Json 에 새 칸이 생기면 처음 볼 때 저절로 고른다). 김민: "모든 세션에 바벨 로우가 맞아? 보조로 밀기는 안 해?"
+- `lib/program/program.ts`: 새 변형 둘 — `pullVertical`(세로 당기기: 친업 · 풀업 · 풀다운) · `pushAssist`(보조 밀기: 덤벨 벤치 · 푸시업, 머리 위로 미는 것 제외).
+  당기기(`pull`) 순서를 가슴 대는 덤벨 로우 · 한 팔 덤벨 로우 · 케이블 로우 먼저, 바벨 로우 맨 뒤로(허리 부담).
+- 5/3/1 · BBB · 저거넛(`waveDay`): 벤치 없는 날 보조 밀기 2×10, 당기기는 힌지 없는 날을 세어 로우 ↔ 세로 당기기(3×8) 번갈아, 힌지 날은 늘 로우,
+  BBB 에도 한 다리 3×8. 철봉이 없으면 세로 당기기 날은 로우로(`load.ts` pinnedOf).
+- 네 시험 `training-selftest` C5(팔 피로 '심함')의 프로그램 기대값을 'go' → 'go+대체:팔 피로' 로 — 531 첫날에 보조 밀기가 생겨 그 칸이 대체된다.
+- (같은 날 더) 프로그램 보조 칸은 **세션마다 다른 운동**(`ROTATING_VARIANTS` · `rotatedPick` · `variantTurn`, `load.ts` pinnedOf 가 고정 운동을 첫째로 돌림 —
+  다시 고정은 고정 운동만). 회전 던지기 칸이 오버헤드 · 푸시 슬램을 고르던 것을 고침(이름에 회전 동작이 든 메디신볼만, 없으면 케이블 · 랜드마인 로테이션) —
+  네 시험 'P5 도우미 (다)' 에 회전 던지기를 코어로 채운 경우를 허용했다. 불펜 짧은 상체 날에 회전 던지기 2×3.
+- (같은 날 더) **매일 일정 고르기 점수**(`lib/report/score.ts`, 네 영역): 'pattern' 항목에 밀기 · 당기기 균형 +1(`SCORE_POINTS.patternBalance`) —
+  2주 동안 짝보다 덜 한 쪽을 앞으로(김민: 밀기 · 당기기 1 대 1, 머리 위로 미는 것은 그대로 둠). 이유 글 '2주 동안 당기기를 덜 해서 앞에 뒀어요.' 시험 표에 셋 더함.
+
+
+## 금윤호에게 — 2026-10-14 · 김민(Claude, 맥북) — 화면 점검 뒤 디자인만 손봄(글자 크기 이름 · 누르는 자리 40px · 글 규칙 · 카드 여백)
+
+받은 뒤 할 일 없음(DB · 패키지 그대로). **네 영역 파일이 많이 바뀌었다(줄 단위 클래스만).** 김민: 탭 전체 점검 → "디자인적인 것만 수정".
+- **글자 크기 이름**(`app/globals.css` @theme): `text-caption` 11px · `text-footnote` 13px · `text-subhead` 15px — `text-[11px]` · `[13px]` · `[15px]` 271곳을 이 이름으로
+  바꿨다(크기는 그대로, 휴대폰 · PC 고정). **새 화면은 대괄호 대신 이 셋과 text-xs/sm/base 만 써 줘.** 10px 이하(탭 이름표 · 작은 배지)와 12 · 14 · 17 · 28px 몇 곳은 그대로.
+- **누르는 자리 40px**(휴대폰, PC 는 간격 단위로 32px): 홈 요약 칸 ‹ › · 트레이닝 홈 '2주째' 줄 · 운동 진행의 교체 · 추가 · 되돌리기 · 메모 단추 · 교체 시트 · 암케어 따라하기 ·
+  다시 만들기 · 부위 칩 · 체크인 통증 칩 · 질문 카드 '나중에' · 알약 · 그날 팝업 취소 · 캘린더 '자세히' · 영양 끼니 편집 · 담기 · 날짜 화살표 · 내 정보 사진 단추 ·
+  분석 '자세히' 접이 · 기간 단추 · 메모 날짜 칩.
+- **글**: 화면에 보이던 줄표(—)를 마침표 · 가운뎃점으로(구속 측정 화면 · 측정 팁 · 설정, 메커니즘, 잘 던진 날, 영양 첫 설정 · 목표 창, 데생 인형 이름표 풀이),
+  문장 속 굵게 셋(운동 진행 둘 · 잘 던진 날), 트레이닝 홈 '회복 루틴를' → `withJosa`.
+- **카드 여백 규격**: 부하 지수 카드(`load-panel.tsx` rounded-3xl · px-6 py-7 → rounded-2xl · `p-(--block-pad)`), 분석 숫자 칸 · 운동 완료 카드 · 메커니즘 세션 끝 카드.
+- 트레이닝 질문 카드('오늘 하고 싶은 운동')도 `folded` — 영양 · 투구와 같게 접힌 알약으로 시작(일정 카드 안에서 카드가 겹쳐 보이던 것).
+- 화면 구성을 빼거나 옮기는 것(분석 28일 추이 · 하이라이트, 홈 요약 칸 겹침, 설정 길, 체크인 표시)은 안 건드렸다 — 점검 보고는 김민에게.
+
 
 ## 김민에게 — 2026-10-14 · 금윤호(Claude) — 아이콘 체계 제안서(앱을 아이폰 느낌으로) — 읽고 답해 줘
 
@@ -152,6 +975,9 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 - `score-all.mjs` · `jitter/score.mjs`: 윈도우에서 `--import` 절대 경로가 안 먹어 엔진이 안 돌고 옛 결과를 채점하던 것을 `pathToFileURL` 로 고침(맥은 영향 없음).
 - **착지 골반 −10° 의 원인(밤)**: 뒤 카메라의 RTMW 2D 엉덩이(착지 때 2~3cm 치우침 · SD 10~15px). 옆1+뒤2 교차 −14.5° 인데 뒤 2D 만 K4 비춤으로 바꾸면 −1.0°,
   옆을 바꾸면 그대로. 두 대로는 가려낼 셋째 시선이 없다 — 셋째 영상 없이는 엔진으로 못 고친다(README 끝 절 · `selfcal/hip_attrib.py`).
+- **실험실 샘플 1 백스윙 뒤 팔꿈치 꺾임(밤)**: 가짜 접힘이다 — 영상에선 팔이 곧다. 옆 영상(투수 296px)이 팔을 못 보다가(지어낸 점 0.3~0.4) 팔이
+  카메라를 향해 뻗은 장면(원근 압축, 확신 0.5~0.8)에서 교차가 팔꿈치를 83° 로 접는다. 네 가지 고침(시선 추정점 표시 · 깊이 함께 풀기 · 시각 창 넓히기 · 원근 압축 알아채기)을 해 봤지만
+  효과 없거나 마커 레이백이 나빠져 모두 되돌렸다(README 끝 절). 두 영상으로는 한계 — 셋째 영상 또는 팔을 구간째 함께 푸는 맞추기가 남은 길.
 
 ## 김민(맥북)에게 — 2026-10-14 · 김민(Claude, 데스크톱) — 스티커 찾기 2판(정답 늘림) · 착지 골반 정답 15구 · 낮에 적은 'K4 +24.6°' 는 틀렸음
 
@@ -778,3 +1604,23 @@ ink 쪽으로 — 어렵다면 B 만). 나는 Swift 를 굽지 못해 손대지 
   화면 '(지난 세션 + 공 크기)'). 사파리 밖 13개 흉내로 첫 두 공 평균 오차 2.1 → 1.6~1.9km/h(폰 자리가 같거나 2% 안). 3개째부터는
   이번 세션 값만 써서 저장값은 기억과 상관없다. 시험 `npm run velocity:engine2-test` 27개.
 
+## 금윤호에게 — 2026-10-17 · 김민(Claude, 데스크톱 · 투구기록 담당) — 투구 탭 목록에 '느낌으로 찾기' 줄
+
+설계 · 검토 기록: `docs/designs/pitch-log-findability.md`(이 커밋에 같이 올림 — 결정 D1~D16, 작업 T1~T8). 투구 탭은 금윤호 영역이라 알림.
+
+- **새 파일** `lib/pitch-find.ts`(거르기 순수 함수) · `scripts/pitch-find-selftest.mts`(`npm run pitch-find:test`, 31) · `app/(app)/videos/find-bar.tsx`(검색 칸 · 날짜 점프 · 만족 칩 둘 · 감각 칩 여덟).
+- **고친 파일** `video-gallery.tsx`: 찾기 줄을 머리 밑에, 조건이 켜지면 달 접기가 풀리고 '투구 기록 N건'이 맞는 수로. 날짜 점프는 그 달을 펴고 `data-date` 줄로 굴린다. 맞는 기록 0 이면 '맞는 기록이 없어요'. `videos-client.tsx` `VideoLog` 에 `satisfaction · cuesGood · cuesBad`, `videos-page.tsx` select 에 셋 추가(DB 그대로).
+- 감각 칩은 눌러서 돈다: 끔 → 좋았던(채움 sky) → 아쉬웠던(테두리 sky + '아쉬움' 글자) → 끔. 켠 칩끼리 AND. 옛 기록(칸 null)은 칩에서 빠지고 검색 · 날짜로는 나온다.
+- 확인: tsc · eslint · 임시 경로(375 · PC)에서 칩 세 상태 · 검색 · 날짜 점프 · 달 접기. 실제 계정 · 폰에서는 아직 안 봄.
+- 다음 커밋(같은 날 두 번째): 과거 영상 가져오기 — 아래.
+
+## 금윤호에게 — 2026-10-17 · 김민(Claude, 데스크톱 · 투구기록 담당) — 과거 영상 가져오기(아이폰 앱만)
+
+- **새 파일** `app/(app)/videos/import-sheet.tsx`(`ImportEntry` 단추 + 시트: 영상 여러 개 고르기 → 찍은 날짜로 묶음 미리보기([따로] · 날짜 고치기) → 묶음마다 기존 폼 → 저장 · [이 묶음 건너뛰기] → 'N개 묶음 중 M개를 남겼어요') ·
+  `lib/pitch-import.ts`(묶기 순수 함수) · `scripts/pitch-import-selftest.mts`(`npm run pitch-import:test`, 28 — 가짜 mov 바이트로 `readLabFileFacts` 날짜까지).
+- **고친 파일** `entry-form.tsx`: 선택 칸 `importPrefill`(영상 경로 · 미리보기 주소) — 있으면 영상을 붙인 채 '더 적기'를 펴고 폰 초안을 안 읽는다(prefill 과 같은 규칙). 가져온 영상을 폼에서 빼면 `removePhoneVideos` 로 폰에서도 지운다.
+  `videos-client.tsx`: '오늘' 카드 밑에 `<ImportEntry />`(앱 안 · LocalVideo 부품 있을 때만 보임, 웹은 안 보임). `video-upload.tsx` 는 안 건드렸다(시트가 제 입력칸을 씀).
+- 규칙: 폰에 넣는 때는 그 묶음 폼이 열릴 때 · 저장 안 하고 닫으면 그 묶음 영상만 지움 · 화면 다시 받기(quietRefresh)는 시트가 닫힐 때 한 번 · 폰에 넣기 전 영상 번호를 localStorage `bullpen-import-pending` 에 적고
+  저장 · 건너뛰기 · 그만두기 때 지움 — 앱이 죽어 남은 번호는 다음에 시트를 열 때 지우고 '지난번 가져오다 만 영상 N개를 정리했어요'. 가져오는 영상은 줄이지 않는다(shrinkVideo 안 탐). 날짜는 creationdate → mvhd → 파일 시각(오늘이면 못 믿음) → 없음(적어야 함).
+- 확인: tsc · eslint · 두 셀프테스트 · 브라우저 임시 경로(가짜 LocalVideo 부품)로 고르기 → 묶음(1 · 2 · 1 · 날짜 없음) → [따로] → 날짜 넣기 → 폼 단계(영상 붙음 · 건너뛰기 단추)까지. **저장은 안 눌렀다**(운영 DB). 실제 아이폰 앱에서 끝까지(저장 · 건너뛰기 · 그만두기 · 앱 죽인 뒤 정리) 봐야 한다 — 시험 계획 `~/.gstack/projects/Bullpen-Log-bullpen-log/PC-main-eng-review-test-plan-20261016-233505.md`(김민 PC).
+- 기존 폼 회귀(구속 범위 · 저장 콜백 · 신호 끊김 · 2분 중복)는 코드만 읽어 확인(폼 저장은 운영 DB 라 안 눌렀다). 이상하면 `importPrefill` 가지만 보면 된다.

@@ -1,10 +1,11 @@
 'use client';
 
-import { Children, useEffect, type ReactNode } from 'react';
+import { Children, useEffect, useRef, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ChevronLeft } from '@/components/icon';
 import {
+  backTooSoon,
   clearBarBack,
   markBackPressed,
   previousUrl,
@@ -23,6 +24,7 @@ type Router = ReturnType<typeof useRouter>;
  * 화면을 목적지로 갈아 끼운다 — 아이폰의 '위로 가기'처럼 기록이 쌓이지 않는다. 어느 쪽이든 밀려 나가며 바뀐다(pop).
  */
 export function goBack(router: Router, href: string) {
+  if (backTooSoon()) return;
   const prev = previousUrl();
   setNavDirection('pop');
   if (prev && sameScreen(prev, href)) {
@@ -46,18 +48,33 @@ function textOf(children: ReactNode): string {
  *
  * 휴대폰에서는 위 막대 왼쪽에 선다(components/app-shell.tsx MobileTopBar — 이 단추가 적어 둔 것을 읽는다). 본문 안의
  * 줄은 숨긴다 — 예전에는 본문 맨 위에 있어 스크롤하면 사라졌다. PC 는 막대가 다르므로 본문 줄 그대로.
+ *
+ * 판 넘기기(components/tab-pager.tsx)의 숨은 판(data-active 없음) 안에서는 막대에 쓰지 않고, 판이 숨으면 걷는다 —
+ * 트레이닝 하위 화면(암케어)에서 하단 탭으로 옮기면 투구 · 홈 막대에 '‹ 트레이닝'이 남았다(2026-10-16, NavTitle 과 같은 까닭).
  */
 export function BackLink({ href, children }: { href: string; children: ReactNode }) {
   const router = useRouter();
   const label = textOf(children);
+  const ref = useRef<HTMLAnchorElement>(null);
 
   useEffect(() => {
-    setBarBack({ href, label });
-    return () => clearBarBack(href);
+    const panel = ref.current?.closest('[data-panel]');
+    const shown = () => !panel || panel.hasAttribute('data-active');
+    if (shown()) setBarBack({ href, label });
+    const mo = new MutationObserver(() =>
+      shown() ? setBarBack({ href, label }) : clearBarBack(href)
+    );
+    if (panel)
+      mo.observe(panel, { attributes: true, attributeFilter: ['data-active'] });
+    return () => {
+      mo.disconnect();
+      clearBarBack(href);
+    };
   }, [href, label]);
 
   return (
     <Link
+      ref={ref}
       href={href}
       data-nav="pop"
       onClick={(e) => {

@@ -12,7 +12,7 @@ import {
 } from '@/lib/checkin';
 import { yesterdayArmLoadOf } from '@/lib/engine/arm-load';
 import { HEAVY_EQUIPMENT, intensityLevel, minutesForSets } from '@/lib/exercise-meta';
-import type { ReportFacts } from '@/lib/report/facts';
+import { todayPrefsOf, type ReportFacts } from '@/lib/report/facts';
 import { pendingOuting, type PitchPlan } from '@/lib/report/plan';
 import type { DayState } from '@/lib/engine/day-state';
 import { withJosa } from '@/lib/korean';
@@ -64,7 +64,15 @@ export type ArmcareDecision =
       kind: ArmcareKind;
       /** 화면 맨 위의 한 줄 — '어제 85구 · 팔 피로 많이 → 회복 루틴' */
       reason: string;
+      /** 오늘 등판인데 아직 안 던진 날 — 루틴은 그대로, 화면에 AFTER_THROWING_TEXT 한 줄 */
+      afterThrowing?: true;
     };
+
+/**
+ * 등판 날 안내 — 2026-10-16 김민: 등판 날은 루틴을 바꾸지 않고 '던진 뒤에 하세요' 한 줄만(던지기 전 루틴은 만들지 않는다).
+ * 경기 전에 회전근개를 지치게 하지 않으려는 것이다.
+ */
+export const AFTER_THROWING_TEXT = '오늘은 던진 뒤에 하세요.';
 
 /**
  * 팔 피로가 이 값 이상이면 회복으로 간다 — '많이'(4)·'심함'(5). 값과 까닭은 lib/checkin.ts 한 곳(2026-10-12, 2판 P3 에서 옮김 —
@@ -78,6 +86,15 @@ export { HIGH_ARM_FATIGUE, SEVERE_ARM_FATIGUE };
 const LOW_CONDITION = LOW_CONDITION_THRESHOLD;
 
 /**
+ * 강화 루틴은 최근 7일(오늘 빼고)에 이만큼까지, 어제 했으면 오늘은 회복 — 2026-10-16 김민: "강화는 주 2~3번, 이틀 연속 금지,
+ * 나머지 날은 회복 루틴으로". 회전근개 근력 운동은 48시간 쉬어야 다시 세게 할 수 있다(투수 표준 프로그램도 주 3번).
+ */
+export const STRENGTH_PER_WEEK = 3;
+
+/** 최근 강화 루틴을 한 날 — 맞춤 루틴이 강화였고 암케어를 하나라도 체크한 날(lib/armcare/today.ts 가 센다) */
+export type RecentStrength = { yesterday: boolean; last7: number };
+
+/**
  * 오늘 어떤 루틴을 할지 정한다.
  *
  * 회복의 까닭이 여럿이면 앞의 둘만 적는다. 다섯을 늘어놓으면 무엇 때문인지 오히려
@@ -89,6 +106,7 @@ export function decideArmcare({
   armFatigue,
   armPain = null,
   state = null,
+  recentStrength = null,
 }: {
   facts: ReportFacts;
   plan: PitchPlan;
@@ -104,6 +122,8 @@ export function decideArmcare({
    * 오늘 등판이면 강화 대신 회복 루틴(아래 signals 맨 앞). 투구 계획 · 매일 일정과 같은 날을 말하게(엇갈림 표 C1 · C4).
    */
   state?: Pick<DayState, 'outing'> | null;
+  /** 최근 강화 루틴(STRENGTH_PER_WEEK) — 안 주면 세지 않는다(시험 · 옛 호출) */
+  recentStrength?: RecentStrength | null;
 }): ArmcareDecision {
   /*
    * 통증은 고를 수 있는 것이 아니다. 운동 일정이 멈추는 것과 같은 조건이고
@@ -141,9 +161,9 @@ export function decideArmcare({
    * 오늘 등판(체크인 '오늘 등판', 또는 어제 '내일 등판' + 오늘 답 없음 — 2판 P3). 기록이 아직 없어도 던질 날이라 등판 날 아침에
    * 강화 루틴을 내지 않는다. 오늘 던진 기록이 이미 있으면 그 기록(아래 '오늘 N구')이 같은 말을 하니 두 번 적지 않는다.
    */
-  if (state?.outing.role === 'game' && !(pitches > 0 && p.restDays === 0)) {
-    signals.push('오늘 등판');
-  }
+  const afterThrowing =
+    state?.outing.role === 'game' && !(pitches > 0 && p.restDays === 0);
+  if (afterThrowing) signals.push('오늘 등판');
   /*
    * 어제 팔 부담 — 근력 프로그램의 '경기 다음 날' · 매일 일정의 날 종류(R1 의 어제 쪽 · R2 · R3')와 같은 함수(2판 P4 커밋 F, D3).
    * 어제 던졌어도 가볍게만 던졌으면(캐치볼 20구 · 경기 15구) 여기서는 회복으로 안 간다 — 아래 휴식표가 아직 쉬라고 할 때만.
@@ -198,14 +218,20 @@ export function decideArmcare({
     signals.push(`전신 근육통 '${soreWord}'`);
   }
   if (plan.recovering) signals.push('최근 통증 기록');
-  if (facts.condition.today?.preferredWorkout === '회복') {
+  if (todayPrefsOf(facts).preferredWorkout === '회복') {
     signals.push('오늘은 회복을 고르심');
+  }
+  /* 강화 횟수는 맨 뒤 — 몸 상태 까닭이 있으면 그것이 먼저 읽힌다 */
+  if (recentStrength?.yesterday) signals.push('어제 강화 루틴');
+  else if (recentStrength && recentStrength.last7 >= STRENGTH_PER_WEEK) {
+    signals.push(`최근 7일 강화 ${recentStrength.last7}번`);
   }
 
   if (signals.length > 0) {
     return {
       kind: 'recovery',
       reason: `${signals.slice(0, 2).join(' · ')} → 회복 루틴`,
+      ...(afterThrowing ? { afterThrowing: true as const } : {}),
     };
   }
   return {

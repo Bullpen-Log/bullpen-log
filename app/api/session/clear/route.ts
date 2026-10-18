@@ -10,6 +10,13 @@ import { deleteSession } from '@/lib/session';
  * 세션을 발견하면 여기를 거쳐 쿠키를 지우고 나간다.
  */
 export async function GET(request: Request) {
+  /*
+   * 밖의 사이트가 이 주소로 보내면(링크 · 리다이렉트) 쿠키를 지우지 않는다 — 강제 로그아웃(CSRF).
+   * 우리 서버의 redirect 로 온 요청은 same-origin, 주소창에 직접 치면 none. 머리가 없는 옛 브라우저는 그대로 둔다.
+   */
+  if (request.headers.get('sec-fetch-site') === 'cross-site') {
+    return NextResponse.redirect(new URL('/login', request.url));
+  }
   await deleteSession();
   return NextResponse.redirect(new URL('/login', request.url));
 }

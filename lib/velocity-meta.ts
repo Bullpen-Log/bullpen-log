@@ -142,8 +142,55 @@ export type VelocitySessionView = {
   net: boolean;
   device: string | null;
   createdAt: string;
+  /** 측정 때 고른 투구 종류 · 체감 강도(%) — 2026-10-16 부터. 옛 세션은 null(그때는 이어진 투구 기록에 적었다) */
+  sessionType: string | null;
+  effortPct: number | null;
   pitches: VelocityPitchView[];
 };
+
+/**
+ * 투구 기록으로 아직 안 남긴 구속 세션(2026-10-16 사용자 결정 — 측정은 별개 기록, 투구 탭 카드가 알린다). 이어진 기록이 없고, 그 세션 뒤에
+ * 그날 남긴 투구 기록도 없는 것 — 측정하고 나서 손으로 따로 적었으면 남긴 것으로 본다. createdAt 은 둘 다 toISOString 꼴이라 글자로 견준다.
+ */
+export function unloggedSessions<S extends { pitchLogId: string | null; createdAt: string }>(
+  sessions: readonly S[],
+  logCreatedAts: readonly string[]
+): S[] {
+  return sessions.filter(
+    (s) => s.pitchLogId == null && !logCreatedAts.some((c) => c > s.createdAt)
+  );
+}
+
+/** 구속 세션으로 채운 투구 기록 — 그날 화면의 새 기록 폼이 받는다 */
+export type LogPrefill = {
+  /** 저장하면 이 세션들을 새 기록에 잇는다 */
+  sessionIds: string[];
+  sessionType: string | null;
+  pitchCount: number;
+  effortPct: number | null;
+  maxVelocity: number;
+  avgVelocity: number;
+  /**
+   * 그 세션들에서 공을 봤는데 못 잰 시도 수(VelocityAttempt — 이어진 공 없음 · 공 길 장면 1장 이상). 투구 수(pitchCount)는 잰 공만이라
+   * 그만큼 빠진다 — 폼이 '못 잰 공 N개는 빠졌어요'로 알린다(2026-10-18 사용자). 부르는 쪽이 DB 에서 세어 채운다(withMissedAttempts).
+   */
+  missed?: number;
+};
+
+/** 세션들 → 채울 값. 공 수는 더하고, 최고 · 평균은 summarize 와 같은 규칙, 종류 · 강도는 마지막 세션 것. 잰 공이 없으면 null */
+export function logPrefillOf(sessions: readonly VelocitySessionView[]): LogPrefill | null {
+  const sum = summarize(sessions.flatMap((s) => s.pitches));
+  if (!sum) return null;
+  const last = sessions[sessions.length - 1];
+  return {
+    sessionIds: sessions.map((s) => s.id),
+    sessionType: last.sessionType,
+    pitchCount: sum.n,
+    effortPct: last.effortPct,
+    maxVelocity: sum.max,
+    avgVelocity: sum.avg,
+  };
+}
 
 /** '투구 · 투수 뒤 · 네트 있음' — 세션 머리 한 줄 */
 export function sessionSetupText(s: { cameraPos: string; net: boolean }) {

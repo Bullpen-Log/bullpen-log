@@ -1,33 +1,20 @@
-import { Info, Monitor, Ruler, SlidersHorizontal } from '@/components/icon';
+import { Info, Monitor, Ruler } from '@/components/icon';
 import { MEDICAL_NOTICE } from '@/components/site-footer';
 import { SettingsInfoRows } from '@/components/settings-info';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { UnitToggle } from '@/components/unit-toggle';
-import { TrainingSettingsForm } from '@/components/training-forms';
-
-export type SettingsData = {
-  trainingLevel: string | null;
-  ownedEquipment: string[];
-};
 
 /**
  * 설정 — 톱니를 누르면 뜨는 창의 알맹이.
  *
- * 어쩌다 한 번 고치는 것만 둔다. 화면을 밝게 볼지 어둡게 볼지, 그리고 운동을
- * 고를 때 쓰는 기준.
+ * 어쩌다 한 번 고치는 것만 둔다. 화면을 밝게 볼지 어둡게 볼지 · 단위 · 정보.
+ * 웨이트 경력 · 장비는 트레이닝 탭의 '트레이닝 설정'에만 둔다(2026-10-15 김민 — 같은 칸이 두 곳에 있었다).
  *
  * 몸에 대한 값(키·생년월일·목표 구속·평소 문진)과 계정은 여기 없다. 그것은
  * '내 정보' 창이 통째로 맡는다 — 성격이 다른 둘을 한 창에 밀어 넣으면 무엇을
  * 고치러 왔는지와 상관없이 매번 전부를 지나야 한다.
  */
-export function SettingsPanel({
-  data,
-  /** 저장하고 나서 돌아올 화면 — 창을 연 그 화면 그대로. */
-  returnTo,
-}: {
-  data: SettingsData;
-  returnTo: string;
-}) {
+export function SettingsPanel() {
   return (
     <div className="space-y-8 desk:space-y-6">
       {/* ── 화면 ────────────────────────────────── */}
@@ -48,20 +35,6 @@ export function SettingsPanel({
           desc="보여주는 방식만 바뀌어요. 저장은 늘 cm · kg 이라 지난 기록도 그대로예요."
         />
         <UnitToggle />
-      </section>
-
-      {/* ── 트레이닝 ────────────────────────────── */}
-      <section className={`${SECTION} space-y-4`}>
-        <SectionHead
-          icon={<SlidersHorizontal className="h-4 w-4" />}
-          title="트레이닝"
-          desc="운동을 고를 때 쓰는 기준이에요. 오늘 쓸 장비는 일정을 만들 때 따로 골라요."
-        />
-        <TrainingSettingsForm
-          trainingLevel={data.trainingLevel}
-          ownedEquipment={data.ownedEquipment}
-          returnTo={returnTo}
-        />
       </section>
 
       {/*
@@ -105,7 +78,7 @@ function SectionHead({
 }) {
   return (
     <div className="flex items-start gap-3">
-      <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-[9px] bg-sky text-white desk:rounded-lg desk:border desk:border-line-strong desk:bg-transparent desk:text-muted">
+      <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-[28%] bg-sky text-white desk:rounded-lg desk:border desk:border-line-strong desk:bg-transparent desk:text-muted">
         {icon}
       </span>
       <div className="min-w-0">

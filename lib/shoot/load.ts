@@ -11,6 +11,7 @@ import {
   type ShootCheckView,
 } from '@/lib/shoot/progress';
 import { SHOOT_PLAN, itemOf, weekOf } from '@/lib/shoot/plan';
+import { weekLabel } from '@/lib/shoot/schedule';
 import refsData from '@/lib/shoot/refs.json';
 import { WARMUP_ROUTINE_LABEL, isWarmupId, warmupOf, warmupRowId } from '@/lib/shoot/warmups';
 import type { PlanItem, PlanWeek } from '@/lib/shoot/schedule';
@@ -253,8 +254,8 @@ export type ShootWeekData = {
   carried: { week: number; item: PlanItem }[];
   infos: Record<string, ShootExerciseInfo>;
   checks: ShootCheckView[];
-  /** 고를 수 있는 주차들 */
-  weeks: number[];
+  /** 고를 수 있는 주차들 — 이름은 weekLabel(미룬 영상 칸은 '미룬 영상') */
+  weeks: { week: number; label: string }[];
 };
 
 export async function loadShootWeek(n: number): Promise<ShootWeekData | null> {
@@ -266,7 +267,7 @@ export async function loadShootWeek(n: number): Promise<ShootWeekData | null> {
     carriedOver(SHOOT_PLAN, n, map).map((it) => it.exerciseId)
   );
   const carried = SHOOT_PLAN.weeks
-    .filter((w) => w.week < n)
+    .filter((w) => w.week < n || week.deferred)
     .flatMap((w) =>
       weekItems(w)
         .filter((it) => carriedItems.has(it.exerciseId))
@@ -282,6 +283,6 @@ export async function loadShootWeek(n: number): Promise<ShootWeekData | null> {
     carried,
     infos: Object.fromEntries(infos),
     checks,
-    weeks: SHOOT_PLAN.weeks.map((w) => w.week),
+    weeks: SHOOT_PLAN.weeks.map((w) => ({ week: w.week, label: weekLabel(w) })),
   };
 }

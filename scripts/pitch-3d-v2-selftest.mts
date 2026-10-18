@@ -12,6 +12,7 @@ import {
   MAX_V2_FRAMES,
   MAX_V2_RESULT_BYTES,
   N_V2_JOINTS,
+  engineKeyOf,
   newV2Job,
   PITCH3D_V2_VERSION,
   readPitch3dV2Job,
@@ -37,6 +38,19 @@ import { add, cross, dot, norm, normalize, scale, sub, type Vec3 } from '../lib/
 import { pickSegment, readV2Events, runFit, segmentWindow } from '../lib/pitch-3d/v2/run-node.ts';
 import { toPoseTrack } from '../lib/pitch-3d/v2/track.ts';
 import {
+  DAILY_FAIL_LIMIT,
+  fileFingerprint,
+  guardBlock,
+  labMetaBlock,
+  labPairBlock,
+  labVideoBlock,
+  readLabGuard,
+  recordFail,
+  seoulDay,
+} from '../lib/pitch-lab-guard.ts';
+import { parseAppleDate, readLabFileFacts } from '../lib/pitch-lab-file.ts';
+import { readLabMeta } from '../lib/pitch-lab-meta.ts';
+import {
   base,
   cameras,
   EV,
@@ -45,6 +59,7 @@ import {
   type Scenario,
 } from './pitch-lab/synth.mts';
 import { makeV2Track } from './pitch-lab/synth-v2.mts';
+import { fixShoulderSwaps } from '../lib/pitch-3d/v2/clean2d.ts';
 import { footJump, footSway, gapWristError, hipSnap, junkGloveError, leadGapJump } from './pitch-lab/gap-check.mts';
 import { blendAi, despike, displayTrack, readAiGate, readAiJoints, readAiMiss } from '../lib/pitch-3d/v2/display.ts';
 import { mannequinTrack, smoothForMannequin, type MannequinJoints, type MannequinTrack } from '../lib/pitch-3d/v2/mannequin-prep.ts';
@@ -356,6 +371,14 @@ console.log('■ 작업 상태(job.json)');
   const T0 = Date.parse('2026-10-08T05:00:00.000Z');
   const iso = (ms: number) => new Date(ms).toISOString();
   check('없음 → 걸 수 있음', 'ok' in canRequestV2(null, T0));
+  /* 엔진 판 = 약속 판 + 서버 지문 — 엔진을 다시 올리면 판이 바뀌어 같은 영상 다시 막기가 풀린다(2026-10-16) */
+  check(
+    '엔진 판 — 지문이 있으면 약속 판+지문, 없으면 약속 판, 다른 지문이면 다른 판',
+    engineKeyOf(null) === PITCH3D_V2_VERSION &&
+      engineKeyOf('abc123') === `${PITCH3D_V2_VERSION}+abc123` &&
+      engineKeyOf('abc123') !== engineKeyOf('def456') &&
+      newV2Job(null, { jobId: JOB_ID, requestedBy: 'a', consentAt: iso(T0), now: iso(T0), engine: 'k' }).engine === 'k'
+  );
   const q = newV2Job(null, {
     jobId: JOB_ID,
     requestedBy: 'admin1',
@@ -763,6 +786,13 @@ console.log('■ node 실행기(segment · fit)');
       JSON.stringify(seg.back)
     );
     check('순간을 찾았다(착지 < 릴리스)', seg.events.footPlant < seg.events.release);
+    /* 화면 · 지표의 '착지' = 첫 닿음(2026-10-16) — 발목 기준 착지와 같거나 앞, 마커 15구에서 앞선 몫은 0.15초 안 */
+    const fc = seg.events.footContact;
+    check(
+      '첫 닿음: 발목 기준 착지와 같거나 0.15초 안으로 앞',
+      fc != null && fc <= seg.events.footPlant && seg.events.footPlant - fc < 0.15,
+      `${fc} · ${seg.events.footPlant}`
+    );
   }
   check('segment: 입력 모양이 틀리면 video', !pickSegment({ side: null, back: {} }).ok);
   {
@@ -873,8 +903,9 @@ console.log('■ node 실행기(segment · fit)');
     }
     const seg5 = pickSegment({ side: s5.track, back: b5.track });
     check(
-      '착지 뒤에도 내려오는 앞발 — 착지를 발이 땅 가까이 온 때로(0.06 ~ 0.14초 늦게)',
-      seg5.ok && seg5.events.footPlant - fp0 > 0.06 && seg5.events.footPlant - fp0 < 0.14,
+      /* 발은 LIFT(0.12초) 뒤 땅 — 디딘 높이 몸통의 3% 안(2026-10-15)이라 2D 흔들림에 두 장면쯤 더 늦을 수 있다 */
+      '착지 뒤에도 내려오는 앞발 — 착지를 발이 땅에 닿은 때로(0.06 ~ 0.18초 늦게)',
+      seg5.ok && seg5.events.footPlant - fp0 > 0.06 && seg5.events.footPlant - fp0 < 0.18,
       seg5.ok ? `${(seg5.events.footPlant - fp0).toFixed(3)}초` : seg5.code
     );
   }
@@ -906,6 +937,11 @@ console.log('■ node 실행기(segment · fit)');
   /* segment 가 찾은 순간을 fit 이 넘겨받는다 — 잘라 낸 구간에서 다시 찾다 실패한 2026-10-08 샘플 1 · 3 */
   check('fit 입력 순간: 착지 < 릴리스면 그대로', readV2Events({ kneeUp: 1, footPlant: 2, release: 2.5 })?.release === 2.5);
   check('fit 입력 순간: 뒤바뀌거나 없으면 버림(다시 찾기)', !readV2Events({ footPlant: 2, release: 1 }) && !readV2Events(null));
+  check(
+    'fit 입력 순간: 첫 닿음은 착지와 같거나 앞일 때만',
+    readV2Events({ footPlant: 2, footContact: 1.9, release: 2.5 })?.footContact === 1.9 &&
+      readV2Events({ footPlant: 2, footContact: 2.1, release: 2.5 })?.footContact === undefined
+  );
   if (seg.ok) {
     const withEv = JSON.parse(
       runFit({ side: s.track, back: b.track, hand: 'R', jobId: JOB_ID, poseModel: 'synth', screenRecorded: true, slowmoFps: 240, events: seg.events })
@@ -2966,6 +3002,237 @@ console.log('■ 점검 카드 드릴 고르기(drillPicksFor) — 쉬운 단계
     p.items.map((x) => x.title).join(' · ')
   );
   check('점검 카드: 드릴이 없는 요소는 빈 목록', drillPicksFor(drills, '스로잉').count === 0 && drillPicksFor(drills, '스로잉').items.length === 0);
+}
+
+{
+  console.log('■ GPU 비용 지키기(pitch-lab-guard) — 올리기 전 검사 · 같은 영상 · 하루 실패 상한');
+  const ok = { name: 'IMG_0412.MOV', fps: 240, shortSide: 1080, durationSec: 6, focal35: 24 };
+  check('원본 240fps 1080p 1배 6초 → 통과', labVideoBlock(ok) === null);
+  check('화면 녹화(ScreenRecording_…) → 막음', labVideoBlock({ ...ok, name: 'ScreenRecording_10-08-2026 10-17-43_1.mov' }) !== null);
+  check('30fps → 막음 · 60fps → 통과', labVideoBlock({ ...ok, fps: 29.97 }) !== null && labVideoBlock({ ...ok, fps: 60 }) === null);
+  check('606p(샘플 1 옆 화면 녹화 크기) → 막음', labVideoBlock({ ...ok, shortSide: 606 }) !== null);
+  check(
+    '2배(48mm) · 0.5배(13mm) → 막음, 옛 1배 26mm → 통과',
+    labVideoBlock({ ...ok, focal35: 48 }) !== null && labVideoBlock({ ...ok, focal35: 13 }) !== null && labVideoBlock({ ...ok, focal35: 26 }) === null
+  );
+  check('1.5초 → 막음', labVideoBlock({ ...ok, durationSec: 1.5 }) !== null);
+  check('못 읽은 칸은 막지 않음', labVideoBlock({ name: 'a.mov', fps: null, shortSide: null, durationSec: null, focal35: null }) === null);
+
+  const t0 = Date.parse('2026-10-14T14:00:00Z'); // 한국 23시
+  check('한국 날짜(UTC 14시 = 23시 · 15시 = 다음 날)', seoulDay(t0) === '2026-10-14' && seoulDay(t0 + 3600_000) === '2026-10-15');
+  let g = readLabGuard(null);
+  const fp = 'a'.repeat(64);
+  for (let i = 0; i < DAILY_FAIL_LIMIT - 1; i++) g = recordFail(g, { nowMs: t0, code: 'internal', fps: [], engine: '2.0.0' });
+  check('9번 실패 → 아직 걸 수 있음', guardBlock(g, { nowMs: t0, fps: [], engine: '2.0.0' }) === null);
+  g = recordFail(g, { nowMs: t0, code: 'gpu', fps: [], engine: '2.0.0' });
+  check('GPU 를 못 부른 실패(gpu)는 안 셈', g.fails === DAILY_FAIL_LIMIT - 1);
+  g = recordFail(g, { nowMs: t0, code: 'events', fps: [fp], engine: '2.0.0' });
+  check('10번 → 오늘은 막음', g.fails === DAILY_FAIL_LIMIT && guardBlock(g, { nowMs: t0, fps: [], engine: '2.0.0' }) !== null);
+  check('다음 날(한국)이면 다시 걸 수 있음(같은 영상 빼고)', guardBlock(g, { nowMs: t0 + 3600_000, fps: [], engine: '2.0.0' }) === null);
+  check('영상 탓 실패의 파일은 다음 날에도 같은 엔진이면 막음', guardBlock(g, { nowMs: t0 + 86400_000, fps: [fp], engine: '2.0.0' }) !== null);
+  check('엔진 판이 바뀌면 같은 파일도 다시', guardBlock(g, { nowMs: t0 + 86400_000, fps: [fp], engine: '2.0.1' }) === null);
+  const g2 = recordFail(readLabGuard(null), { nowMs: t0, code: 'timeout', fps: [fp], engine: '2.0.0' });
+  check('영상 탓이 아닌 실패(timeout)는 파일을 막지 않음', guardBlock(g2, { nowMs: t0, fps: [fp], engine: '2.0.0' }) === null);
+  check('저장된 기록 다시 읽기(모양이 틀린 칸은 버림)', readLabGuard({ ...g, failed: [...g.failed, { fp: 1 }] }).failed.length === 1);
+  const big = new Uint8Array(3 << 20).map((_, i) => i % 251);
+  const f1 = await fileFingerprint(new Blob([big]));
+  const big2 = big.slice();
+  big2[big2.length - 1] ^= 1;
+  check(
+    '지문: 같은 파일 같음 · 끝 1바이트가 다르면 다름 · 64자',
+    f1 === (await fileFingerprint(new Blob([big]))) && f1 !== (await fileFingerprint(new Blob([big2]))) && f1.length === 64
+  );
+}
+
+{
+  console.log('■ 화면 녹화 · 따로 찍은 짝 막기(2026-10-15) — labVideoBlock · labPairBlock · labMetaBlock · 파일 머리 읽기');
+  const cam = { name: 'IMG_0412.MOV', fps: 240, shortSide: 1080, durationSec: 6, focal35: 24, aspect: 16 / 9, hasLens: true };
+  const screen = { name: 'IMG_0413.MP4', fps: 59.8, shortSide: 886, durationSec: 9, focal35: null, aspect: 1920 / 886, hasLens: false };
+  check('이름을 바꾼 아이폰 화면 녹화(렌즈 없음 · 2.17 · 60fps) → 막음', labVideoBlock(screen) !== null);
+  check('렌즈 정보가 있는 카메라 영상 → 통과', labVideoBlock(cam) === null && labVideoBlock({ ...screen, hasLens: true }) === null);
+  check('안드로이드 카메라(렌즈 정보 없음 · 16:9 · 60fps) → 통과', labVideoBlock({ ...screen, aspect: 16 / 9, shortSide: 1080 }) === null);
+  check('화면 모양이어도 슬로모(240fps)면 통과', labVideoBlock({ ...screen, fps: 240, shortSide: 1080 }) === null);
+  check('파일 머리를 못 읽었으면(hasLens 모름) 통과', labVideoBlock({ ...screen, hasLens: null }) === null);
+  check('아이패드 화면 녹화(1.44) → 막음', labVideoBlock({ ...screen, aspect: 2360 / 1640, shortSide: 1640 }) !== null);
+
+  const t = Date.parse('2026-10-15T05:00:00Z');
+  const A = (startMs: number | null, durationSec = 6, timeSource: 'apple' | 'mvhd' | null = 'apple', fp?: string) => ({
+    startMs,
+    durationSec,
+    timeSource,
+    fp,
+  });
+  check('같은 파일을 두 칸에 → 막음', labPairBlock(A(t, 6, 'apple', 'f'.repeat(64)), A(t, 6, 'apple', 'f'.repeat(64))) !== null);
+  check('두 폰 녹화 시작이 2초 차 → 통과', labPairBlock(A(t), A(t + 2000)) === null);
+  const split = labPairBlock(A(t), A(t + 40_000));
+  check('40초 뒤에 따로 찍음 → 막음(40초)', split !== null && split.includes('40초'), split ?? '');
+  check('한쪽은 끝 시각(mvhd = 시작 + 6초) → 통과', labPairBlock(A(t, 6, 'apple'), A(t + 7000, 6, 'mvhd')) === null);
+  check('시간대를 잘못 적은 기기(9시간 · 출처 다름) → 통과', labPairBlock(A(t, 6, 'apple'), A(t + 9 * 3600_000 + 1500, 6, 'mvhd')) === null);
+  check('출처가 같은데 9시간 차 → 막음', labPairBlock(A(t), A(t + 9 * 3600_000)) !== null);
+  check('시각을 못 읽으면 막지 않음', labPairBlock(A(null), A(t + 40_000)) === null);
+  const days = labPairBlock(A(t), A(t + 3 * 86400_000));
+  check('며칠 차는 일로', days !== null && days.includes('3일'), days ?? '');
+
+  const at = (ms: number) => new Date(ms).toISOString();
+  const okRaw = {
+    synced: true,
+    screenRecorded: false,
+    files: {
+      side: { name: 'IMG_1.MOV', size: 1, at: at(t), src: 'apple', dur: 6 },
+      back: { name: 'IMG_2.MOV', size: 1, at: at(t + 1500), src: 'apple', dur: 6 },
+    },
+  };
+  const metaOf = (raw: unknown) => readLabMeta(raw, at(t));
+  check('서버: 동시 촬영 · 원본 · 2초 차 → 저장', labMetaBlock(okRaw, metaOf(okRaw)) === null);
+  check('서버: 한 대로 나눠(synced false) → 막음', labMetaBlock({ ...okRaw, synced: false }, metaOf({ ...okRaw, synced: false })) !== null);
+  const oldClient = { ...okRaw, screenRecorded: undefined };
+  check('서버: 화면 녹화 고르기가 없거나 true(옛 화면) → 막음', labMetaBlock(oldClient, metaOf(oldClient)) !== null && labMetaBlock({ ...okRaw, screenRecorded: true }, metaOf(okRaw)) !== null);
+  const named = { ...okRaw, files: { ...okRaw.files, back: { ...okRaw.files.back, name: 'ScreenRecording_1.MP4' } } };
+  check('서버: 화면 녹화 이름 → 막음', labMetaBlock(named, metaOf(named)) !== null);
+  const far = { ...okRaw, files: { ...okRaw.files, back: { ...okRaw.files.back, at: at(t + 60_000) } } };
+  check('서버: 찍은 시각 1분 차 → 막음', labMetaBlock(far, metaOf(far)) !== null);
+  check('정보에 찍은 시각 · 출처 · 길이가 남음', metaOf(okRaw).files.back?.src === 'apple' && metaOf(okRaw).files.back?.dur === 6 && metaOf(okRaw).files.back?.at === at(t + 1500));
+
+  check('아이폰 시각 글(+0900 · 쌍점 없음)', parseAppleDate('2026-10-15T14:00:00+0900') === t && parseAppleDate('xx') === null);
+
+  /* 가짜 mov — ftyp · mdat(앞) · moov(뒤: mvhd + meta(hdlr · keys · ilst)) */
+  const enc = new TextEncoder();
+  const be = (n: number, len = 4) => Array.from({ length: len }, (_, i) => (n / 2 ** (8 * (len - 1 - i))) & 255);
+  const box = (type: string, ...parts: (number[] | Uint8Array)[]) => {
+    const body = parts.flatMap((p) => Array.from(p));
+    return [...be(8 + body.length), ...enc.encode(type), ...body];
+  };
+  const MAC = 2082844800;
+  const mvhd = (createdSec: number) =>
+    box('mvhd', [0, 0, 0, 0], be(createdSec + MAC), be(createdSec + MAC), be(600), be(600 * 6), new Array(80).fill(0));
+  const keys = ['com.apple.quicktime.creationdate', 'com.apple.quicktime.camera.lens_model', 'com.apple.quicktime.camera.focal_length.35mm_equivalent'];
+  const meta = box(
+    'meta',
+    box('hdlr', new Array(8).fill(0), enc.encode('mdta'), new Array(13).fill(0)),
+    box('keys', [0, 0, 0, 0], be(keys.length), ...keys.map((k) => box('mdta', enc.encode(k)))),
+    box(
+      'ilst',
+      [1, 2, 3].flatMap((i) => {
+        const value =
+          i === 1
+            ? box('data', be(1), be(0), enc.encode('2026-10-15T14:00:00+0900'))
+            : i === 2
+              ? box('data', be(1), be(0), enc.encode('iPhone 15 Pro Max back camera 6.765mm f/1.78'))
+              : box('data', be(21), be(0), be(24, 2));
+        return [...be(8 + value.length), ...be(i), ...value];
+      })
+    )
+  );
+  const movie = (withMeta: boolean) =>
+    new Blob([
+      new Uint8Array(box('ftyp', enc.encode('qt  '), be(0))),
+      new Uint8Array(box('mdat', new Uint8Array(5000))),
+      new Uint8Array(box('moov', mvhd(Math.floor((t + 9000) / 1000)), ...(withMeta ? [meta] : []))),
+    ]);
+  const f1 = await readLabFileFacts(movie(true));
+  check(
+    '파일 머리: 아이폰 녹화 시작 · 길이 6초 · 렌즈 있음',
+    f1 != null && f1.startMs === t && f1.timeSource === 'apple' && f1.durationSec === 6 && f1.hasLens,
+    JSON.stringify(f1)
+  );
+  const f2 = await readLabFileFacts(movie(false));
+  check(
+    '파일 머리: 아이폰 정보가 없으면 mvhd 시각 · 렌즈 없음',
+    f2 != null && f2.startMs === t + 9000 && f2.timeSource === 'mvhd' && !f2.hasLens,
+    JSON.stringify(f2)
+  );
+  check('파일 머리: moov 가 없으면 null', (await readLabFileFacts(new Blob([new Uint8Array(box('mdat', new Uint8Array(10)))]))) === null);
+}
+
+/* 어깨 이름 뒤바뀜 — 떨어진 두 어깨의 이름이 미리 바뀌면 엇갈릴 때까지 그 영상 팔 이름을 바로잡음, 실제 엇갈림 · 가까운 어깨 · 갈라진 손목은 그대로 */
+{
+  const body = (lx: number, rx: number, extra: Record<number, [number, number]> = {}) => {
+    const p = Array.from({ length: 25 }, () => [500, 500, 0.9] as [number, number, number]);
+    p[V2J.nose] = [450, 100, 0.9];
+    p[V2J.lAn] = [430, 800, 0.9];
+    p[V2J.rAn] = [470, 800, 0.9];
+    p[V2J.lSh] = [lx, 300, 0.9];
+    p[V2J.rSh] = [rx, 300, 0.9];
+    for (const [j, xy] of Object.entries(extra)) p[Number(j)] = [xy[0], xy[1], 0.9];
+    return p;
+  };
+  /* 두 손목은 공 위에 겹침(샘플 1) — merged 가 false 면 갈라진 손목(엔진 좌우 고침이 맡는 꼴) */
+  const tr = (xs: [number, number][], merged = true) => ({
+    W: 1000,
+    H: 1000,
+    fps: 60,
+    frames: xs.map(([l, r], k) => ({ t: k / 60, p: body(l, r, merged ? { [V2J.lWr]: [380, 200], [V2J.rWr]: [384, 202] } : { [V2J.lWr]: [600, 300], [V2J.rWr]: [300, 300] }) })),
+  });
+  /* 사람 키 700px — 두 어깨 130px(19%) 떨어진 채 왼 이름이 오른 어깨 자리로 뛰고, 4장면 뒤 실제로 엇갈림(두 점 20px) */
+  const swapped = fixShoulderSwaps(tr([[520, 390], [520, 390], [395, 515], [400, 512], [410, 500], [440, 460], [450, 470], [455, 480]]));
+  const rx = swapped.track.frames.map((f) => f.p[V2J.rSh][0]);
+  const lWrHid = swapped.track.frames.map((f) => f.p[V2J.lWr][2] < 0.3);
+  const rWrSeen = swapped.track.frames.every((f) => f.p[V2J.rWr][2] >= 0.3);
+  check(
+    '어깨 이름 뒤바뀜: 미리 바뀐 장면부터 엇갈림 전까지 이름을 바로잡고 겹친 가짜 손목만 안 보임',
+    swapped.dropped === 3 &&
+      rx.join() === [390, 390, 395, 400, 410, 460, 470, 480].join() &&
+      lWrHid.join() === [false, false, true, true, true, false, false, false].join() &&
+      rWrSeen,
+    `${swapped.dropped} · 오른 어깨 x ${rx.join()} · 왼 손목 숨김 ${lWrHid.join()}`
+  );
+  /* 실제 엇갈림 — 두 어깨가 60px(9%)로 가까울 때 이름이 자리를 바꿈 */
+  const real = fixShoulderSwaps(tr([[490, 430], [490, 430], [432, 488], [430, 492]]));
+  check('어깨 이름 뒤바뀜: 가까운 두 어깨의 실제 엇갈림은 그대로', real.dropped === 0, String(real.dropped));
+  /* 한 장면만 겹쳤다 돌아옴 — 그 장면만 */
+  const blip = fixShoulderSwaps(tr([[520, 390], [520, 390], [392, 392], [518, 391], [519, 390]]));
+  check('어깨 이름 뒤바뀜: 한 장면 겹침은 그 장면만', blip.dropped === 1, String(blip.dropped));
+  const split = fixShoulderSwaps(tr([[520, 390], [520, 390], [395, 515], [400, 512]], false));
+  check('어깨 이름 뒤바뀜: 손목이 갈라져 있으면 엔진 좌우 고침에 맡김', split.dropped === 0, String(split.dropped));
+}
+
+{
+  /* 옆 · 뒤가 같은 공이 아니면 측정 불가(contract.ts pairMismatch, 2026-10-15) — 잰 진짜 짝 가장 큰 값은 통과, 다른 공 짝 예는 걸림 */
+  const { pairMismatch, readPitch3dV2Result, v2Fail, V2_VIDEO_FAULT } = await import('@/lib/pitch-3d/v2/contract');
+  check('같은 공 판정: 진짜 짝 가장 큰 값(2.0% · 0.009 · 2.0%)은 통과', !pairMismatch({ reprojPct: 2.0, syncCost: 0.009 }, { reprojPct: 2.0 }));
+  check('같은 공 판정: 다른 공 짝(5.1% · 0.02 · 2.7%)은 측정 불가', pairMismatch({ reprojPct: 5.1, syncCost: 0.02 }, { reprojPct: 2.7 }));
+  const failed = readPitch3dV2Result(JSON.parse(JSON.stringify(v2Fail('00000000-0000-4000-8000-000000000000', 'pair', 'fit'))));
+  check(
+    "같은 공 판정: 'pair' 실패를 읽고 영상 탓으로 본다",
+    failed?.ok === false && failed.code === 'pair' && V2_VIDEO_FAULT.has('pair')
+  );
+}
+
+{
+  /* 기종별 초점 표(lib/pitch-3d/focal-table.ts, 2026-10-17) — 표 찾기 · 1배 · 줌 · 카메라마다 사전 */
+  const { fpsMode, devicePrior, cameraFocalPriors } = await import('@/lib/pitch-3d/focal-table');
+  const { FOCAL_PRIOR_1X } = await import('@/lib/pitch-3d/camera');
+  check('초점 표: fps 모드(240 · 59.94 → 60, 장면을 빠뜨린 평균 151 은 모름)', fpsMode(240) === 240 && fpsMode(59.94) === 60 && fpsMode(151) === null && fpsMode(null) === null);
+  const pm = devicePrior({ model: ' iphone 15  pro max ', fps: 119.88 });
+  check('초점 표: 기종 · fps 로 찾는다(대소문자 · 빈칸 무시)', pm?.k === 0.7967 && pm.sigma === 0.03, JSON.stringify(pm));
+  check('초점 표: 같은 기종도 표에 없는 fps(240)면 없음', devicePrior({ model: 'iPhone 15 Pro Max', fps: 240 }) === null);
+  check('초점 표: 표에 없는 기종 · 기종 없음(화면 녹화)은 없음', devicePrior({ model: 'iPhone 13', fps: 240 }) === null && devicePrior({ model: null, fps: 60 }) === null);
+  check(
+    '초점 표: 줌이면 사전 없음 · 표에 하나도 없으면 예전 1배 사전 하나',
+    cameraFocalPriors(false, { side: { model: 'iPad (10th generation)', fps: 120 } }) === undefined &&
+      cameraFocalPriors(true, { side: { model: null, fps: 60 }, back: null }) === FOCAL_PRIOR_1X
+  );
+  const mix = cameraFocalPriors(true, { side: { model: 'iPad (10th generation)', fps: 120 }, back: { model: null, fps: 60 } });
+  check('초점 표: 한 대만 표에 있으면 그 카메라만 표 값 · 다른 카메라는 1배', !!mix && !('k' in mix) && mix.side?.k === 0.8558 && mix.back === FOCAL_PRIOR_1X);
+  /* 엔진 — 카메라마다 준 사전은 그 카메라 초점만 끈다(합성 투수: 옆만 진짜보다 15% 크게 좁은 사전) */
+  const sc = { ...base, name: '초점 표' };
+  const { side: camS, back: camB } = cameras(sc);
+  const s = makeV2Track(sc, camS, sc.side, 'side', 71);
+  const b = makeV2Track(sc, camB, sc.back, 'back', 72);
+  const events = { kneeUp: s.toMedia(EV.kneeUp), footPlant: s.toMedia(EV.footPlant), release: s.toMedia(EV.release) };
+  const ks = (focalPrior?: { side?: { k: number; sigma: number }; back?: { k: number; sigma: number } }) => {
+    const { result } = fitPitch3dV2({ side: s.track, back: b.track, hand: sc.hand, heightCm: 183, jobId: JOB_ID, poseModel: 'synth', screenRecorded: true, slowmoFps: 240, events, focalPrior });
+    return result.ok && result.cameras
+      ? { s: result.cameras.side.f / Math.max(s.track.W, s.track.H), b: result.cameras.back.f / Math.max(b.track.W, b.track.H) }
+      : null;
+  };
+  const free = ks();
+  const pulled = ks({ side: { k: sc.side.k * 1.15, sigma: 0.01 } });
+  check(
+    '초점 표: 옆 사전은 옆 초점만 끈다(뒤는 그대로)',
+    !!free && !!pulled && Math.abs(pulled.s / (sc.side.k * 1.15) - 1) < 0.03 && Math.abs(pulled.b / free.b - 1) < 0.05,
+    free && pulled ? `옆 ${free.s.toFixed(3)} → ${pulled.s.toFixed(3)}(사전 ${(sc.side.k * 1.15).toFixed(3)}) · 뒤 ${free.b.toFixed(3)} → ${pulled.b.toFixed(3)}` : '실패'
+  );
 }
 
 console.log(`\n통과 ${passed} · 실패 ${failed}`);

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useEffect, useRef, useState, useTransition } from 'react';
 import { unstable_rethrow } from 'next/navigation';
 import { ChevronDown, Play, X } from '@/components/icon';
 import { setExerciseDone } from '@/app/actions/exercise-log';
@@ -127,6 +127,14 @@ export function ExerciseChecklist({
    * 부모가 새 목록을 주면(운동을 더했거나 일정을 다시 만들었을 때) 그것을 따른다.
    * 안 그러면 방금 더한 운동이 목록에 안 나타난다.
    */
+  /*
+   * 서버가 마지막으로 확인해 준 체크 상태(운동 id → done). 저장이 실패해 되돌릴 때 '누르기 전 값'이 아니라 이 값으로 돌린다 —
+   * 그사이 부모가 새 목록을 줬으면(다른 기기에서 체크 · 일정 다시 만들기) 누르기 전 값은 이미 옛것이다(2026-10-16 점검 14).
+   */
+  const serverDone = useRef(new Map(exercises.map((e) => [e.id, e.done])));
+  useEffect(() => {
+    serverDone.current = new Map(exercises.map((e) => [e.id, e.done]));
+  }, [exercises]);
   const [seen, setSeen] = useState(exercises);
   if (seen !== exercises) {
     setSeen(exercises);
@@ -136,31 +144,40 @@ export function ExerciseChecklist({
   const doneCount = items.filter((e) => e.done).length;
   const allDone = items.length > 0 && doneCount === items.length;
 
+  /* 저장이 가는 중인 줄. 빨리 두 번 누르면 두 요청이 엇갈려 화면과 서버가 반대가 됐다 — 그 줄은 답이 올 때까지 안 받는다 */
+  const pending = useRef(new Set<string>());
+
   const toggle = (id: string) => {
+    if (pending.current.has(id)) return;
     const target = items.find((e) => e.id === id);
     if (!target) return;
     const next = !target.done;
 
+    pending.current.add(id);
     setItems((prev) => prev.map((e) => (e.id === id ? { ...e, done: next } : e)));
     setError(undefined);
 
     const undo = (message: string) => {
-      setItems((prev) => prev.map((e) => (e.id === id ? { ...e, done: !next } : e)));
+      const back = serverDone.current.get(id) ?? !next;
+      setItems((prev) => prev.map((e) => (e.id === id ? { ...e, done: back } : e)));
       setError(message);
     };
     startTransition(async () => {
       try {
         const res = await setExerciseDone(id, next, dateKey);
         if ('error' in res) undo(res.error);
+        else serverDone.current.set(id, next);
       } catch (err) {
         unstable_rethrow(err);
         undo(OFFLINE);
+      } finally {
+        pending.current.delete(id);
       }
     });
   };
 
   return (
-    <div className="space-y-3">
+    <div className="stack-block">
       {/* 진행 상황 */}
       <div className="rounded-2xl border border-line bg-surface p-(--block-pad)">
         <div className="flex items-baseline justify-between gap-3">
@@ -169,12 +186,12 @@ export function ExerciseChecklist({
             <span className="text-muted">/{items.length}</span> 완료
           </p>
           {allDone && (
-            <span className="text-sm font-semibold text-sky">전부 마쳤어요 👏</span>
+            <span className="text-sm font-semibold text-sky">전부 마쳤어요</span>
           )}
         </div>
         <div className="mt-3 h-2 overflow-hidden rounded-full bg-surface-2">
           <div
-            className="h-full rounded-full bg-sky transition-[width] duration-300"
+            className="h-full rounded-full bg-sky motion-safe:transition-[width] duration-300"
             style={{ width: `${items.length ? (doneCount / items.length) * 100 : 0}%` }}
           />
         </div>
@@ -190,9 +207,8 @@ export function ExerciseChecklist({
           아직 하나도 안 눌렀을 때만 말한다. 다 하고 나서까지 잔소리할 일이 아니다.
         */}
         {doneCount === 0 && items.length > 0 && (
-          <p className="mt-3 text-[11px] leading-relaxed text-muted">
-            마친 운동은 눌러서 표시해주세요. 표시해야 운동 부하에 들어가고 다음 일정에서
-            같은 부위가 겹치지 않아요.
+          <p className="mt-3 text-caption leading-relaxed text-muted">
+            마친 운동을 눌러 표시해 주세요. 운동 부하와 다음 일정에 들어가요.
           </p>
         )}
       </div>
@@ -216,7 +232,7 @@ export function ExerciseChecklist({
         return (
           <section key={slot} className="space-y-2.5">
             <div className="flex flex-wrap items-baseline gap-x-2 px-1">
-              <h2 className="text-heading text-[15px] text-ink">{label}</h2>
+              <h2 className="text-heading text-subhead text-ink">{label}</h2>
               <span className="text-xs text-muted">{hint}</span>
             </div>
             <ExerciseList items={group} onToggle={toggle} onRemove={remove} />
@@ -249,7 +265,7 @@ function RowFooter({ ex }: { ex: TodayExercise }) {
   if (!text && !hasVideo) return null;
   return (
     <div className="border-t border-line">
-      <div className="flex min-h-10 items-center gap-2 pr-1.5 pl-4 text-xs">
+      <div className="flex min-h-10 items-center gap-2 pr-1.5 pl-(--block-pad) text-xs">
         {text ? (
           <span className="min-w-0 flex-1 truncate">
             <span className="text-muted">지난번 {shortDate(last.date)}</span>
@@ -273,7 +289,7 @@ function RowFooter({ ex }: { ex: TodayExercise }) {
         )}
       </div>
       {open && (
-        <div className="space-y-3 px-4 pb-4">
+        <div className="space-y-3 px-(--block-pad) pb-(--block-pad)">
           <LibraryVideo
             path={ex.videoPath}
             referenceVideoId={ex.referenceVideoId}
@@ -360,7 +376,7 @@ function ExerciseList({
                       <CategoryBadge name={ex.category} />
                       {/* 참고 영상인지는 밑의 '참고 영상 보기' 단추가 알린다(ExerciseVideo) */}
                       {ex.manual && (
-                        <span className="text-[10px] font-medium text-muted">
+                        <span className="text-caption font-medium text-muted">
                           직접 넣음
                         </span>
                       )}

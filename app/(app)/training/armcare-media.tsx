@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useState, useTransition, type ReactNode } from 'react';
 import { unstable_rethrow } from 'next/navigation';
 import { Info, Scan } from '@/components/icon';
 import { LibraryVideo } from '@/components/library-video';
@@ -107,8 +107,11 @@ export function DescriptionText({
 export function ExerciseMedia({
   exercise,
   showMuscleButton = false,
+  extra,
 }: {
   exercise: ArmcareExerciseView;
+  /** 펼친 칸 맨 위에 더 보일 것 — 목록 줄에서 뺀 강도 · 수준 · 장비 같은 곁 정보(루틴 만들기) */
+  extra?: ReactNode;
   /**
    * 옆에 '근육 위치' 단추 — 누르면 이 운동이 쓰는 근육 모두가 3D 그림·설명 창으로 뜬다
    * (armcare-info.tsx, 2026-09-26 사용자분: 간편하게). 루틴의 체크 목록에서만 켠다 —
@@ -168,6 +171,7 @@ export function ExerciseMedia({
       </div>
       {open && (
         <div className="space-y-3 px-4 pb-4">
+          {extra}
           {(exercise.videoPath || exercise.referenceVideoId) && (
             <LibraryVideo
               path={exercise.videoPath}
@@ -197,10 +201,10 @@ export function MethodNote({ method }: { method: ArmcareMethodKey | null }) {
   const m = methodByKey(method);
   return (
     <div className="space-y-2 rounded-xl border border-sky-soft/60 bg-sky-tint/50 px-3.5 py-3">
-      <p className="text-[13px] font-bold break-keep text-sky-strong">
+      <p className="text-footnote font-bold break-keep text-sky-strong">
         {m.label} 방식 <span className="font-medium text-muted">· {m.cue}</span>
       </p>
-      <dl className="grid grid-cols-[4.5em_1fr] gap-x-3 gap-y-1.5 text-[13px] leading-relaxed break-keep">
+      <dl className="grid grid-cols-[4.5em_1fr] gap-x-3 gap-y-1.5 text-footnote leading-relaxed break-keep">
         <dt className="font-semibold text-sky-strong">하는 법</dt>
         <dd className="text-ink/85">{m.what}</dd>
         <dt className="font-semibold text-sky-strong">왜</dt>

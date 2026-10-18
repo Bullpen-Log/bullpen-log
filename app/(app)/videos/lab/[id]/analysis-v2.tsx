@@ -11,32 +11,20 @@ import {
   v2WaitingText,
   type Pitch3dV2Job,
 } from '@/lib/pitch-3d/v2/contract';
+import { LAB_FAIL_FIX, labGuideHref } from '@/lib/pitch-lab-guide';
+import { forHand, type LabHand } from '@/lib/pitch-lab-meta';
+import { CONSENT_TEXT, labStatusLabel } from '@/lib/pitch-3d/v2/lab-summary';
 
 /**
  * v2 분석의 상태 조각들(화면 결정 4~8) — 결과 화면(lab-detail.tsx)과 목록 카드(lab-client.tsx)가 쓴다.
  * 3D 는 body-3d.tsx, 상태 흐름은 use-v2-analysis.ts.
  */
 
-/** 동의 글(핵심 5, 글자 그대로 — 바꾸면 처리방침 쪽과 맞춰야 한다) */
-export const CONSENT_TEXT =
-  '선수(미성년이면 보호자)에게 영상을 해외 분석 서버(미국)로 보내는 동의를 받았어요.';
+/** 동의 글 — 앱 결과 화면과 같은 글(lib/pitch-3d/v2/lab-summary.ts) */
+export { CONSENT_TEXT };
 
-/** 카드 · 머리의 상태 표시 — 없으면 null */
-export function v2StatusLabel(
-  job: Pitch3dV2Job | null,
-  now: number
-): { text: string; tone: 'sky' | 'muted' | 'warn' } | null {
-  if (!job) return null;
-  if (isV2JobActive(job, now)) return { text: '3D 분석 중', tone: 'sky' };
-  if (job.status === 'done') return { text: '3D 결과 있음', tone: 'muted' };
-  if (job.status === 'failed')
-    return {
-      text: job.fail?.code === 'timeout' ? '3D 시간 초과' : '3D 실패',
-      tone: 'warn',
-    };
-  /* queued · running 인데 15분 지남 — 다음 물음이 timeout 으로 돌린다 */
-  return { text: '3D 시간 초과', tone: 'warn' };
-}
+/** 카드 · 머리의 상태 표시 — 앱 결과 화면과 같은 말(lib/pitch-3d/v2/lab-summary.ts) */
+export const v2StatusLabel = labStatusLabel;
 
 export function V2StatusBadge({ job, now }: { job: Pitch3dV2Job | null; now: number }) {
   const s = v2StatusLabel(job, now);
@@ -63,15 +51,20 @@ export function V2EmptyWell({
   loading,
   v2Enabled,
   hasVideos,
+  hand,
 }: {
   job: Pitch3dV2Job | null;
   now: number;
   loading: boolean;
   v2Enabled: boolean;
   hasVideos: boolean;
+  /** 던지는 손 — 고칠 안내의 옆 폰 자리(우투 3루 · 좌투 1루) */
+  hand: LabHand;
 }) {
   let title: string;
   let line: string | null = null;
+  /* 영상 탓 실패면 촬영 안내의 그 칸으로(lib/pitch-lab-guide.ts LAB_FAIL_FIX) */
+  let guide: string | null = null;
   if (loading) {
     title = '결과를 불러오는 중이에요';
   } else if (job && isV2JobActive(job, now)) {
@@ -79,13 +72,18 @@ export function V2EmptyWell({
     line = '화면을 떠나도 분석은 계속돼요. 돌아오면 이어서 보여요.';
   } else if (job?.status === 'failed' && job.fail) {
     title = job.fail.reason;
-    line = V2_VIDEO_FAULT.has(job.fail.code)
-      ? '영상 탓일 수 있어요. 밝은 곳 · 원본 파일 · 삼각대 · 두 폰 60~120° 로 다시 찍어 올려 주세요.'
-      : '서버 쪽 문제예요. 아래에서 다시 분석할 수 있어요.';
+    const fix = LAB_FAIL_FIX[job.fail.code];
+    if (V2_VIDEO_FAULT.has(job.fail.code)) {
+      line =
+        (fix ? forHand(fix.fix, hand) : null) ?? '영상 탓일 수 있어요. 밝은 곳 · 원본 파일 · 삼각대 · 두 폰 60~120° 로 다시 찍어 올려 주세요.';
+      guide = labGuideHref(fix?.section ?? 'checklist');
+    } else {
+      line = '서버 쪽 문제예요. 아래에서 다시 분석할 수 있어요.';
+    }
   } else if (!v2Enabled) {
-    title = '서버 분석 설정이 없어요';
-    line =
-      '관리자가 PITCH3D_GPU_URL · KEY · SECRET 을 넣으면 여기서 3D 분석을 걸 수 있어요.';
+    /* 서버 설정(PITCH3D_GPU_*)이 없는 곳 — 일반 사용자도 보므로 설정 이름은 안 쓴다 */
+    title = '지금은 3D 분석을 쓸 수 없어요';
+    line = '잠시 뒤 다시 와 주세요.';
   } else if (!hasVideos) {
     title = '옆 · 뒤 영상이 다 있어야 해요';
   } else {
@@ -103,6 +101,14 @@ export function V2EmptyWell({
         <p className="max-w-sm text-xs leading-relaxed text-[#9aa3b8] break-keep">
           {line}
         </p>
+      )}
+      {guide && (
+        <Link
+          href={guide}
+          className="mt-1 flex min-h-10 items-center rounded-full bg-white/10 px-4 text-sm font-semibold text-[#e8eef7]"
+        >
+          촬영 안내 보기
+        </Link>
       )}
     </div>
   );
@@ -149,7 +155,7 @@ export function V2RequestRow({
     <div className="space-y-3">
       {active && hasResult && (
         <p className="rounded-xl bg-sky-tint px-3 py-2 text-xs text-sky break-keep">
-          다시 분석 중이에요 — 끝날 때까지 이전 결과를 보고 있어요.
+          다시 분석 중이에요. 끝날 때까지 이전 결과를 보여 줘요.
         </p>
       )}
       {stale && !active && (

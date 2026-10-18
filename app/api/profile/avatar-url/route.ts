@@ -24,7 +24,7 @@ export async function POST(req: Request) {
 
   if (!isStorageConfigured()) {
     return NextResponse.json(
-      { error: '저장소가 아직 설정되지 않았어요. 관리자에게 문의해주세요.' },
+      { error: '저장소가 아직 설정되지 않았어요. 관리자에게 문의해 주세요.' },
       { status: 503 }
     );
   }

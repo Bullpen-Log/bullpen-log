@@ -2,6 +2,7 @@
 
 import { appNow } from '@/lib/clock';
 import { revalidatePath } from 'next/cache';
+import { Prisma } from '@prisma/client';
 import { redirect } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
 import { requireUser } from '@/lib/dal';
@@ -18,12 +19,13 @@ import {
   readFrozenPlan,
   type FrozenPlan,
 } from '@/lib/workout/session-plan';
-import { openSession } from '@/lib/workout/open-session';
+import { isOpenSession, openSession } from '@/lib/workout/open-session';
 import {
   PROGRAMS_ENABLED,
   VARIANT_KEYS,
   audienceOf,
   checkEligibility,
+  isYouthAge,
   parseProgram,
   pickPinned,
   programDef,
@@ -107,45 +109,64 @@ export async function startProgram(input: {
   /* 고정 운동 — 보낸 것 중 후보에 있는 것만 지키고, 나머지는 규칙대로 고른다(안 쓰는 변형도 골라 둔다 — 해가 없다) */
   const library = await visibleExercises();
   const keep: Pinned = readPinned(input.pinned ?? {});
-  const pinned = pickPinned(library, ownedEquipment, trainingLevel, keep, audience);
+  const pinned = pickPinned(
+    library,
+    ownedEquipment,
+    trainingLevel,
+    keep,
+    audience,
+    isYouthAge(birthDate ? ageFromBirthDate(birthDate, now) : null)
+  );
 
-  const result = await prisma.$transaction(async (tx) => {
-    /* 진행 중은 한 사람 하나 — Prisma 가 조건 붙은 유일 규칙을 못 적어 트랜잭션 안에서 본다(재활과 같다) */
-    const existing = await tx.userTrainingProgram.findFirst({
-      where: { userId: user.id, status: 'active' },
-      select: { id: true, programKey: true },
-    });
-    /* 모르는 키의 줄(지운 프로그램)은 이어 갈 수 없다 — 바뀜으로 닫고 새로 시작한다 */
-    if (existing && parseProgram(existing.programKey) == null) {
-      await tx.userTrainingProgram.update({
-        where: { id: existing.id },
-        data: { status: 'stopped', endedAt: appNow(), endReason: 'switched' },
-      });
-    } else if (existing) return 'exists' as const;
-    await tx.userTrainingProgram.create({
-      data: {
-        userId: user.id,
-        programKey,
-        /* 시즌은 묻지 않는다(2026-10-10) — 칸은 옛 줄 때문에 남기고 늘 'off' */
-        season: 'off',
-        pinned,
+  /* 직렬화 — 두 탭 · 재시도가 동시에 오면 둘 다 '없음'을 보고 진행 중이 둘 생겼다(재활 rehab.ts 와 같은 꼴, 2026-10-18) */
+  let result: 'exists' | 'created';
+  try {
+    result = await prisma.$transaction(
+      async (tx) => {
+        /* 진행 중은 한 사람 하나 — Prisma 가 조건 붙은 유일 규칙을 못 적어 트랜잭션 안에서 본다(재활과 같다) */
+        const existing = await tx.userTrainingProgram.findFirst({
+          where: { userId: user.id, status: 'active' },
+          select: { id: true, programKey: true },
+        });
+        /* 모르는 키의 줄(지운 프로그램)은 이어 갈 수 없다 — 바뀜으로 닫고 새로 시작한다 */
+        if (existing && parseProgram(existing.programKey) == null) {
+          await tx.userTrainingProgram.update({
+            where: { id: existing.id },
+            data: { status: 'stopped', endedAt: appNow(), endReason: 'switched' },
+          });
+        } else if (existing) return 'exists' as const;
+        await tx.userTrainingProgram.create({
+          data: {
+            userId: user.id,
+            programKey,
+            /* 시즌은 묻지 않는다(2026-10-10) — 칸은 옛 줄 때문에 남기고 늘 'off' */
+            season: 'off',
+            pinned,
+          },
+        });
+        const profile: {
+          birthDate?: Date;
+          trainingLevel?: string;
+          ownedEquipment?: string[];
+        } = {};
+        if (!user.birthDate && birthDate) profile.birthDate = birthDate;
+        if (!user.trainingLevel && trainingLevel) profile.trainingLevel = trainingLevel;
+        if (user.ownedEquipment.length === 0 && ownedEquipment.length > 0) {
+          profile.ownedEquipment = ownedEquipment;
+        }
+        if (Object.keys(profile).length > 0) {
+          await tx.user.update({ where: { id: user.id }, data: profile });
+        }
+        return 'created' as const;
       },
-    });
-    const profile: {
-      birthDate?: Date;
-      trainingLevel?: string;
-      ownedEquipment?: string[];
-    } = {};
-    if (!user.birthDate && birthDate) profile.birthDate = birthDate;
-    if (!user.trainingLevel && trainingLevel) profile.trainingLevel = trainingLevel;
-    if (user.ownedEquipment.length === 0 && ownedEquipment.length > 0) {
-      profile.ownedEquipment = ownedEquipment;
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
+    );
+  } catch (e) {
+    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2034') {
+      return { error: '다른 곳에서 동시에 시작하고 있어요. 다시 눌러 주세요.' };
     }
-    if (Object.keys(profile).length > 0) {
-      await tx.user.update({ where: { id: user.id }, data: profile });
-    }
-    return 'created' as const;
-  });
+    throw e;
+  }
   if (result === 'exists') return { error: '이미 진행 중인 프로그램이 있어요.' };
 
   revalidatePath('/training');
@@ -180,7 +201,8 @@ export async function programChoices(input: {
       library,
       owned,
       level,
-      def ? audienceOf(def) : 'adult'
+      def ? audienceOf(def) : 'adult',
+      isYouthAge(user.birthDate ? ageFromBirthDate(user.birthDate) : null)
     ).map((e) => ({
       id: e.id,
       title: e.title,
@@ -195,7 +217,12 @@ export async function previewPinned(input: {
   ownedEquipment?: string[] | null;
   trainingLevel?: string | null;
 }): Promise<{
-  pinned: { variant: VariantKey; label: string; id: string | null; title: string | null }[];
+  pinned: {
+    variant: VariantKey;
+    label: string;
+    id: string | null;
+    title: string | null;
+  }[];
 }> {
   const user = await requireUser();
   const owned =
@@ -207,7 +234,14 @@ export async function previewPinned(input: {
   const byId = new Map(library.map((e) => [e.id, e.title]));
   const def = programDef(input.programId);
   const audience = def ? audienceOf(def) : 'adult';
-  const pinned = pickPinned(library, owned, level, {}, audience);
+  const pinned = pickPinned(
+    library,
+    owned,
+    level,
+    {},
+    audience,
+    isYouthAge(user.birthDate ? ageFromBirthDate(user.birthDate) : null)
+  );
   return {
     pinned: (def ? usedVariants(def) : VARIANT_KEYS).map((v) => ({
       variant: v,
@@ -237,7 +271,8 @@ export async function startProgramWorkout() {
   const open = await prisma.trainingSession.findUnique({
     where: { userId_date: { userId: user.id, date: core.midnight } },
   });
-  if (open?.status === 'ACTIVE') redirect('/workout/run');
+  /* 목록을 못 읽는 판은 열린 판으로 보지 않는다 — 운동 화면이 닫고 새로 연다(2026-10-16 점검 12번, lib/workout/open-session.ts) */
+  if (isOpenSession(open)) redirect('/workout/run');
 
   /* 오늘 이미 마친 이 프로그램 판을 다시 열면 그 판의 목록 그대로(다음 일차 목록을 섞지 않는다). 다른 프로그램 판이면 아래 판정이 '기다림'으로 막는다 */
   const kept = open ? readFrozenPlan(open.plan) : null;
@@ -246,7 +281,8 @@ export async function startProgramWorkout() {
   }
 
   const view = await buildProgramDay(core, row, user);
-  if (!view || view.decision.kind !== 'go' || view.rows.length === 0) redirect('/training');
+  if (!view || view.decision.kind !== 'go' || view.rows.length === 0)
+    redirect('/training');
 
   /* 관리자 숨김으로 다시 고른 것은 지금 저장한다(§3) */
   if (Object.keys(view.repin).length > 0) {
@@ -266,7 +302,6 @@ export async function startProgramWorkout() {
       day: view.day,
       week: weekOfDay(view.plan, view.day),
       gapDays: view.decision.gapDays,
-      ...(view.plan.kind ? { kind: view.plan.kind } : {}),
     },
     exercises: view.rows.map((r) =>
       freezeProgramExercise(r.exercise, r.rx, {
@@ -302,7 +337,24 @@ export async function skipProgramDay(input: { day: number }): Promise<Result> {
   const row = await activeProgram(user.id);
   if (!row) return { error: '진행 중인 프로그램이 없어요.' };
   const total = parseProgram(row.programKey)?.totalDays;
-  if (total == null) return { error: '이 프로그램은 더 이어 갈 수 없어요. 새로 골라 주세요.' };
+  if (total == null)
+    return { error: '이 프로그램은 더 이어 갈 수 없어요. 새로 골라 주세요.' };
+  /*
+   * 그 일차의 판이 열려 있으면 건너뛰지 않는다 — 넘겨 버리면 판은 nextDay 가 안 맞아 일차를 못 넘기고(lib/program/advance.ts)
+   * 그날은 '건너뜀'으로 셈됐다(2026-10-16 점검 A4). 마치거나 그만둔 뒤에 건너뛴다.
+   */
+  const open = await prisma.trainingSession.findFirst({
+    where: { userId: user.id, status: 'ACTIVE' },
+    select: { plan: true },
+  });
+  const openProgram = open ? readFrozenPlan(open.plan)?.program : null;
+  if (
+    openProgram &&
+    openProgram.key === row.programKey &&
+    openProgram.day === input.day
+  ) {
+    return { error: '운동 중인 날은 건너뛸 수 없어요. 먼저 마치거나 그만둬 주세요.' };
+  }
   /* 화면이 본 일차일 때만 — 두 번 눌러도 한 번 */
   const moved = await prisma.userTrainingProgram.updateMany({
     where: { id: row.id, status: 'active', nextDay: input.day },
@@ -348,7 +400,8 @@ export async function repinProgramExercise(input: {
     library,
     user.ownedEquipment,
     user.trainingLevel,
-    def ? audienceOf(def) : 'adult'
+    def ? audienceOf(def) : 'adult',
+    isYouthAge(user.birthDate ? ageFromBirthDate(user.birthDate) : null)
   ).some((e) => e.id === input.exerciseId);
   if (!ok) return { error: '이 칸에 넣을 수 없는 운동이에요.' };
   await prisma.userTrainingProgram.update({

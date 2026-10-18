@@ -15,7 +15,7 @@ import { Segmented } from '@/components/segmented';
 import { hasWebGL } from '@/components/three-stage';
 import { CHIP_BASE, CHIP_ON } from '@/components/velocity/kit';
 import type { Vec3 } from '@/lib/pitch-3d/linalg';
-import type { Pitch3dV2Ok } from '@/lib/pitch-3d/v2/contract';
+import { shownEvents, type Pitch3dV2Ok } from '@/lib/pitch-3d/v2/contract';
 import { displayTrack } from '@/lib/pitch-3d/v2/display';
 import type { LabGround } from '@/lib/pitch-lab-meta';
 import { canonicalFrames, mannequinFrames } from '@/lib/pitch-3d/v2/mannequin-frames';
@@ -25,6 +25,9 @@ import { mannequinTrack } from '@/lib/pitch-3d/v2/mannequin-prep';
 import { createFigure } from './mannequin/figure';
 import { createOverlay, measureHex } from './mannequin/overlay';
 import { buildStage } from './stage';
+
+/** 3D 화면의 기준 키(m) — 이 키 사람이 화면을 꽉 채우고, 작은 사람은 그만큼 작게 보인다 */
+const REF_HEIGHT_M = 2.0;
 
 /**
  * 투구 3D 보기(설계 pitch-3d-quality.md 0절 · 화면 결정 9~16 · 데생 인형 pitch-3d-mannequin.md §6) — 데생 인형(몸통 · 팔다리 · 신발 · 글러브 · 공)을
@@ -189,7 +192,7 @@ export const Body3D = forwardRef<
       const labelEls = Array.from({ length: 1 }, () => {
         const el = document.createElement('div');
         el.className =
-          'absolute left-0 top-0 whitespace-nowrap rounded py-[2px] pl-1 pr-[5px] text-[11px] font-semibold leading-none text-white tabular-nums will-change-transform';
+          'absolute left-0 top-0 whitespace-nowrap rounded py-[2px] pl-1 pr-[5px] text-caption font-semibold leading-none text-white tabular-nums will-change-transform';
         /* 짧은 이름 + 숫자로 작게(사용자 2026-10-13: 상자가 커서 투구 폼이 가렸다) */
         el.style.background = 'rgba(12,16,22,.55)';
         el.style.borderLeft = '3px solid #fff';
@@ -336,7 +339,12 @@ export const Body3D = forwardRef<
       let tween: { t: number; from: Three.Vector3; to: Three.Vector3 } | null = null;
       const moveTo = (name: ViewName, animate: boolean) => {
         const dir = viewDir(name).normalize();
-        const dist = fitDist(dir);
+        /*
+         * 키만큼 크게 · 작게(2026-10-15 김민: "사용자 키에 맞게 — 지금은 전부 똑같다"). 장면은 '키 = 1'이라 몸에 맞춘 거리면 누구든
+         * 같은 크기로 보였다 — 기준 키(REF_HEIGHT_M) 사람에게 맞춘 거리로 두면 몸은 키에 비례해 보이고 마운드 · 격자(실제 크기 ÷ 키)는
+         * 늘 같은 크기다. 기준을 넉넉히(2m) 잡아 키 큰 사람도 화면 밖으로 안 나간다.
+         */
+        const dist = fitDist(dir) * (REF_HEIGHT_M / mann.H);
         controls.minDistance = dist * 0.35;
         controls.maxDistance = dist * 3;
         const to = target.clone().addScaledVector(dir, dist);
@@ -380,7 +388,7 @@ export const Body3D = forwardRef<
       };
       const refreshOverlay = () => {
         const J = mann.joints[cur];
-        labels = ov.update(J, mann.frames[cur], labelValues(measureAngles(J), momentOf(cur, result.events), result.metrics));
+        labels = ov.update(J, mann.frames[cur], labelValues(measureAngles(J), momentOf(cur, shownEvents(result.events)), result.metrics));
         labelsVersion++;
         if (!isPlaying) setSaid(labels.map((l) => `${l.name} ${labelText(l.key, l.value)}${l.off && l.table != null ? ` (결과 표 ${Math.round(l.table)}°)` : ''}`));
       };
@@ -499,7 +507,7 @@ export const Body3D = forwardRef<
             el.style.cursor = L.off ? 'pointer' : '';
             el.title =
               L.off && L.table != null
-                ? `${L.name} · 결과 표 값 ${Math.round(L.table)}° — 화면 자세와 ${Math.round(Math.abs(L.value - L.table))}° 달라요`
+                ? `${L.name} · 결과 표 값 ${Math.round(L.table)}° · 화면 자세와 ${Math.round(Math.abs(L.value - L.table))}° 달라요`
                 : L.name;
           }
           el.style.display = '';
@@ -621,7 +629,7 @@ export const Body3D = forwardRef<
 
   const lowSpan = result.lowConf.find(([a, b]) => frame >= a && frame <= b);
   const eventAt = (Object.keys(EVENT_LABELS) as (keyof typeof EVENT_LABELS)[]).find(
-    (k) => result.events[k] === frame
+    (k) => shownEvents(result.events)[k] === frame
   );
   const analysisOn = status === 'ready';
   const label = `투구 3D 모션, ${playing ? '재생 중' : '멈춤'}${eventAt ? ` · ${EVENT_LABELS[eventAt]}` : ''}${
@@ -725,14 +733,14 @@ export const Body3D = forwardRef<
         </div>
         <div className="ml-auto flex gap-1.5">
           {(['kneeUp', 'footPlant', 'release'] as const)
-            .filter((k) => result.events[k] != null)
+            .filter((k) => shownEvents(result.events)[k] != null)
             .map((k) => (
               <button
                 key={k}
                 type="button"
-                onClick={() => seek(result.events[k]!)}
+                onClick={() => seek(shownEvents(result.events)[k]!)}
                 className={
-                  frame === result.events[k] ? `${CHIP_BASE} ${CHIP_ON}` : CHIP_BASE
+                  frame === shownEvents(result.events)[k] ? `${CHIP_BASE} ${CHIP_ON}` : CHIP_BASE
                 }
               >
                 {EVENT_LABELS[k]}
@@ -809,7 +817,7 @@ function Scrubber({
         />
       </div>
       {(['kneeUp', 'footPlant', 'release'] as const).map((k) => {
-        const at = result.events[k];
+        const at = shownEvents(result.events)[k];
         if (at == null) return null;
         return (
           <span

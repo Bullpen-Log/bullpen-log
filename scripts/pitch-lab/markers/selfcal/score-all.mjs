@@ -5,7 +5,7 @@
  *   npm run pitch3d:marker-score -- --save  지금 값을 새 기준으로 저장(좋아졌을 때만 — 사람이 판단)
  *
  * 영상 · 2D · 정답 자료는 저장소 밖(MARKER_SESSION, 기본 ~/bullpen-marker-lab/2026-10-12 — README '다시 돌리는 차례')이라 없으면 건너뛴다.
- * 파이썬은 MARKER_PY(기본: 세션 위 .venv). 엔진 입력에는 이 촬영이 1배라 초점 사전을 준다(bench.py FOCAL_PRIOR).
+ * 파이썬은 MARKER_PY(기본: 세션 위 .venv). 엔진 입력에는 이 촬영이 1배라 초점 사전을 준다(bench.py FOCAL_PRIOR), 기종 · fps 도 서버처럼 넣는다(DEVICES).
  */
 import { execFileSync, spawn } from 'node:child_process';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
@@ -30,6 +30,18 @@ const py = (...args) => execFileSync(PY, [join(HERE, 'bench.py'), ...args], { cw
 
 console.log('1/3 엔진 입력 만들기');
 py('tracks', ALL.join(','));
+/*
+ * 서버처럼 영상 머리의 기종 · fps 를 넣는다(pipeline.py device_info → 엔진이 기종별 초점 표 lib/pitch-3d/focal-table.ts 를 찾는다).
+ * 값은 이 촬영 원본(videos/투구NN_c1 · c2.mov)의 com.apple.quicktime.model 과 트랙 fps 를 읽은 것.
+ */
+const DEVICES = { side: { model: 'iPad (10th generation)', fps: 240 }, back: { model: 'iPhone 15 Pro Max', fps: 240 } };
+for (const p of ALL) {
+  const f = join(SESSION, 'work', 'bench', `p${String(p).padStart(2, '0')}`, 'tracks.json');
+  if (!existsSync(f)) continue;
+  const tr = JSON.parse(readFileSync(f, 'utf8'));
+  tr.meta.devices = DEVICES;
+  writeFileSync(f, JSON.stringify(tr));
+}
 console.log('2/3 엔진 돌리기(투구 16개 함께)');
 await Promise.all(
   ALL.map(

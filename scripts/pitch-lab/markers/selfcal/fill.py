@@ -16,7 +16,7 @@ from kpba import proj, tri
 from tracks import load_det
 
 WORK = os.environ.get("MARKER_WORK", os.path.join(os.getcwd(), "work"))
-CAMS = "1234"
+from cams import CAMS
 MAX_GAP = 4  # 이만큼 빈 장면까지 예측을 이어 본다
 REPROJ = 4.0  # px
 JUMP = 0.08  # 단위(보정) — 아래 scale 로 m 환산해 쓴다

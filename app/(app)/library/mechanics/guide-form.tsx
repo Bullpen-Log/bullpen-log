@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState, useState } from 'react';
+import { useActionState, useEffect, useState } from 'react';
 import { useFormStatus } from 'react-dom';
 import { Film, RefreshCw } from '@/components/icon';
 import { createGuide, updateGuide, type ActionState } from '@/app/actions/content';
@@ -9,6 +9,7 @@ import { Button, Field, FormError, Input, Textarea } from '@/components/ui';
 import { CheckboxGroup, RadioGroup } from '@/components/choice-inputs';
 import { kept, keptAll } from '@/lib/form-values';
 import { VideoUpload, type UploadedVideo } from '@/components/video-upload';
+import { MECHANICS_CATEGORY_NAMES } from '@/lib/categories';
 import {
   DRILL_EQUIPMENT,
   DRILL_STAGES,
@@ -18,6 +19,8 @@ import {
 
 /** 주 요소 고르기 칸 — 요소마다 한 줄 뜻을 붙인다 */
 const FOCUS_OPTIONS = FOCUS_POINTS.map((name) => ({ name, desc: FOCUS_POINT_DESC[name] }));
+/** 종류 고르기 칸 — 목록이 요소로 칸을 나눠(2026-10-16) 등록할 때 종류를 따로 고른다 */
+const CATEGORY_OPTIONS = MECHANICS_CATEGORY_NAMES.map((name) => ({ name }));
 
 /** 수정할 때 폼에 채워 넣을 기존 값 */
 export type GuideDraft = {
@@ -44,10 +47,14 @@ function SubmitButton({ label }: { label: string }) {
 
 export function GuideForm({
   category,
+  focus,
   initial,
   onDone,
 }: {
+  /** 미리 고를 종류 — 요소 칸에서 열면 빈 글(고르게 둔다) */
   category: string;
+  /** 미리 고를 주 요소 — 요소 칸에서 열 때 */
+  focus?: string;
   /** 주어지면 등록이 아니라 수정 폼이 된다. */
   initial?: GuideDraft;
   onDone?: () => void;
@@ -73,12 +80,16 @@ export function GuideForm({
       setVideos([]);
       if (editing) {
         setReplacing(false);
-        onDone?.();
       } else {
         setFormKey((k) => k + 1);
       }
     }
   }
+
+  /* 수정 저장에 성공하면 부모가 닫는다 — 그리는 도중에 부모 상태를 바꾸면 React 가 경고했다(2026-10-18) */
+  useEffect(() => {
+    if (editing && state?.success) onDone?.();
+  }, [editing, state, onDone]);
 
   /*
    * 오류로 되돌아왔을 때 방금 보낸 내용을 그대로 다시 보여준다.
@@ -93,7 +104,6 @@ export function GuideForm({
 
   return (
     <form key={formKey} action={formAction} className="space-y-5">
-      <input type="hidden" name="category" value={initial?.category ?? category} />
       {initial && <input type="hidden" name="id" value={initial.id} />}
 
       <FormError>{state?.error}</FormError>
@@ -103,7 +113,16 @@ export function GuideForm({
         </p>
       )}
 
-      <Field label={`드릴 이름 · ${initial?.category ?? category}`}>
+      <RadioGroup
+        name="category"
+        label="종류 · 필수"
+        options={CATEGORY_OPTIONS}
+        selected={String(pick('category', initial?.category ?? category) ?? '') || null}
+        required
+        compact
+      />
+
+      <Field label="드릴 이름">
         <Input
           name="title"
           defaultValue={pick('title', initial?.title)}
@@ -193,7 +212,7 @@ export function GuideForm({
           label="주 요소 · 필수"
           hint="이 드릴이 투구의 어느 부분을 가장 키우는지 고르세요."
           options={FOCUS_OPTIONS}
-          selected={String(pick('focusMain', initial?.focusPoints[0]) ?? '') || null}
+          selected={String(pick('focusMain', initial?.focusPoints[0] ?? focus) ?? '') || null}
           required
         />
 

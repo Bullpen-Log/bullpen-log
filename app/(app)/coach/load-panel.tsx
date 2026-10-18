@@ -1,14 +1,12 @@
 import Link from 'next/link';
 import {
-  ACWR_TARGET_MAX,
   ACWR_ZONES,
   CHRONIC_WINDOW_DAYS,
   describeRatio,
-  type AcwrTrendPoint,
-  type AcwrZone,
 } from '@/lib/pitch-stats';
-import { LoadIndexHelp, StatusChip, TONE, ZoneGauge } from './parts';
+import { StatusChip, TONE } from './parts';
 import { LoadTrend } from './load-trend';
+import type { AnalysisOverview, LoadView } from '@/lib/report/analysis-overview';
 
 /**
  * 부하 지수 둘 — 투구와 운동.
@@ -22,68 +20,23 @@ import { LoadTrend } from './load-trend';
  * 투수에게 팔은 다른 부위와 다르다.
  */
 
-export type LoadView = {
-  /** '투구' 또는 '운동' */
-  name: string;
-  /** 무엇을 재는 값인지 한 줄로 */
-  what: string;
-  /** 지수. 아직 못 내면 null */
-  ratio: number | null;
-  zone: AcwrZone | null;
-  /** 지수를 못 낼 때 — 며칠 쌓였고 며칠 더 필요한지 */
-  historyDays: number;
-  daysNeeded: number;
-  /** 문진 추정치가 섞여 있는가 */
-  estimated: boolean;
-  realWeight: number;
-  /** 기록이 하나라도 있는가 */
-  hasRecords: boolean;
-  /** 지수를 못 낼 때 대신 보여줄 안내 */
-  emptyHint: string;
-  /** 지금 계산되고 있는 급성·만성 부하 — "어떻게 나온 숫자인가"에 쓴다 */
-  acute: number;
-  chronic: number;
-  /**
-   * 이 구간에서 무엇을 하라는 조언.
-   *
-   * 투구와 운동이 다르다. 투구 쪽 문구를 운동에 그대로 쓰면 "투구량을 줄이세요"가
-   * 운동 부하 밑에 붙는다 — 운동을 많이 한 사람에게 던지는 것을 줄이라는 말이 된다.
-   */
-  advice: string;
-  /** 최근 2주 지수 흐름. 요일 때문에 오르내리는 것을 보여주려고 함께 낸다. */
-  trend: AcwrTrendPoint[];
-  /**
-   * 이 구간이 무슨 뜻인지 한 줄로.
-   *
-   * 조언과 같은 이유로 갈라 둔다. 예전에는 지수 구간표(ACWR_ZONES)의 문장을
-   * 둘 다 썼는데, 그 문장이 투구용이라 운동 부하 밑에 "던지고 있습니다"가
-   * 붙었다.
-   */
-  meaning: string;
-};
-
-/**
- * 이 날 수 이상 쉬는 날 없이 던졌으면 지수 옆에 알린다.
- *
- * 사흘은 흔하다 — 그것까지 알리면 잔소리가 되어 결국 아무도 안 읽는다.
- * 일주일을 하루도 안 쉬었으면 그때부터는 말할 값어치가 있다.
- */
-const STREAK_WARNING = 7;
+/* LoadView(지수 한 장의 재료)와 경고 문턱은 lib/report/analysis-overview.ts 로 옮겼다 — 앱 분석 화면과 같은 값(2026-10-18) */
 
 /** 지수를 크게 보여주는 쪽 */
 function Primary({ view }: { view: LoadView }) {
   const zone = view.zone ? ACWR_ZONES[view.zone] : null;
 
   return (
-    <div className="space-y-4 px-6 py-7 sm:px-8">
+    <div className="space-y-4 p-(--block-pad)">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-[11px] font-medium tracking-normal text-muted">
+          <p className="text-xs font-medium tracking-normal text-muted">
             {view.name} 부하 지수
           </p>
-          <p className="mt-1 text-[11px] leading-relaxed text-muted/70">{view.what}</p>
         </div>
-        {zone ? (
+        {view.signal ? (
+          <StatusChip tone={view.signal.tone}>{view.signal.label}</StatusChip>
+        ) : zone ? (
           <StatusChip tone={zone.tone}>{zone.label}</StatusChip>
         ) : (
           <StatusChip tone="neutral">쌓는 중</StatusChip>
@@ -94,49 +47,28 @@ function Primary({ view }: { view: LoadView }) {
         <>
           <div>
             <p className="flex items-baseline gap-2">
-              <span
-                className={`text-numeric text-5xl leading-none tabular-nums sm:text-6xl ${TONE[zone.tone].text}`}
-              >
+              {/* 큰 숫자는 검정 — 상태 색은 위 배지 · 밑 한 줄이 말한다(2026-10-16 디자인 점검 '색 줄이기') */}
+              <span className="text-numeric text-5xl leading-none tabular-nums text-ink sm:text-6xl">
                 {view.ratio.toFixed(2)}
               </span>
-              <span className="text-sm text-muted">
-                / {ACWR_TARGET_MAX.toFixed(2)} 이하 권장
-              </span>
             </p>
-            <p className={`mt-1.5 text-sm font-medium ${TONE[zone.tone].text}`}>
-              {describeRatio(view.ratio)}
-              <span className="ml-1.5 font-normal text-muted">· {view.meaning}</span>
-            </p>
-            {/* 문진 추정치가 섞여 있는 동안에는 그 사실을 숨기지 않는다. */}
+            {/* 투구는 홈 · 팔 상태와 같은 한 줄(view.signal), 운동은 지수 구간 그대로 */}
+            {view.signal ? (
+              <p className={`mt-1.5 text-sm font-medium ${TONE[view.signal.tone].text}`}>{view.signal.line}</p>
+            ) : (
+              <p className={`mt-1.5 text-sm font-medium ${TONE[zone.tone].text}`}>
+                {describeRatio(view.ratio)}
+                <span className="ml-1.5 font-normal text-muted">· {view.meaning}</span>
+              </p>
+            )}
+            {/* 문진 추정치가 섞여 있는 동안에는 그 사실을 숨기지 않는다 — 단정하지 않게 한 줄로 */}
             {view.estimated && (
-              <p className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-line-strong bg-surface-2 px-2.5 py-1 text-[11px] text-muted">
-                문진 추정 기준 · 실측 반영 {Math.round(view.realWeight * 100)}%
-                <span className="text-muted/60">· 기록할수록 정확해져요</span>
+              <p className="mt-2 text-xs text-muted">
+                아직 기록이 적어 숫자가 크게 흔들려요. 한 달쯤 기록이 쌓이면 자리를 잡아요.
               </p>
             )}
           </div>
 
-          <ZoneGauge ratio={view.ratio} activeZone={view.zone} />
-          <p className="text-xs leading-relaxed text-muted">
-            {view.advice}
-            {/*
-              평소치가 아직 문진 추정일 때는 조언을 단정하지 않는다.
-
-              가입 첫날에 52구를 한 번 남겼더니 지수가 1.42(주의)가 되면서
-              "이번 주는 투구수나 강도를 조금 낮추는 편이 안전합니다"가 떴다.
-              실측이 7%뿐인데 처음 쓰는 사람에게는 앱이 "무리했다"고 말한
-              것으로 읽힌다. 리포트를 쓰는 AI 에게는 이미 같은 조건에서
-              단정하지 말라고 일러두고 있었는데, 규칙으로 내는 이 문장에는
-              그 장치가 없었다.
-            */}
-            {view.estimated && (
-              <span className="text-muted/70">
-                {' '}
-                다만 아직 평소치가 문진 추정이라 이 숫자는 크게 흔들려요. 며칠만 더
-                남기면 자리를 잡아요.
-              </span>
-            )}
-          </p>
           {/* 최근 2주 흐름 — 건강 앱 그래프처럼(load-trend.tsx) */}
           <LoadTrend trend={view.trend} />
         </>
@@ -155,7 +87,7 @@ function Primary({ view }: { view: LoadView }) {
                   }}
                 />
               </div>
-              <p className="text-[11px] tabular-nums text-muted/70">
+              <p className="text-caption tabular-nums text-muted/70">
                 기록 {view.historyDays}일 / {CHRONIC_WINDOW_DAYS}일 · {view.daysNeeded}
                 일 더 필요
               </p>
@@ -180,36 +112,29 @@ function Primary({ view }: { view: LoadView }) {
 export function LoadPanel({
   which,
   view,
-  /** 최근 28일 중 투구 기록이 빠진 날 수. 투구 칸에서만 온다. */
-  missingDays,
-  missingWarningAt,
-  /** 최근 4주 최장 연투 일수. 투구 칸에서만 온다. */
-  throwStreak,
+  /** 투구 칸 경고 — 기록 빠진 날 · 최장 연투(값이 있을 때만 띄운다, 문턱은 analysis-overview.ts). 투구 칸에서만 온다. */
+  notices,
 }: {
   which: 'pitching' | 'training';
   view: LoadView;
-  missingDays?: number;
-  missingWarningAt?: number;
-  throwStreak?: number;
+  notices?: AnalysisOverview['notices'];
 }) {
   const isPitching = which === 'pitching';
+  const missingDays = notices?.missingDays ?? null;
+  const throwStreak = notices?.throwStreak ?? null;
 
   return (
     /* 평평한 흰 면 — 은은한 빛 그라데이션(bg-spotlight)은 AI 템플릿의 카드 같았다(2026-10-04) */
-    <section className="overflow-hidden rounded-3xl border border-line bg-surface">
+    <section className="overflow-hidden rounded-2xl border border-line bg-surface">
       <Primary view={view} />
 
       {/*
         기록이 빠진 날이 많으면 지수가 실제보다 낮게 나온다.
         낮은 숫자는 "더 던져도 된다"는 뜻으로 읽히므로 그냥 두면 안 된다.
       */}
-      {isPitching &&
-        missingDays != null &&
-        missingWarningAt != null &&
-        missingDays >= missingWarningAt && (
-          <p className="border-t border-warn-line bg-warn-bg px-6 py-3 text-[11px] leading-relaxed text-warn sm:px-8">
-            최근 {CHRONIC_WINDOW_DAYS}일 중 {missingDays}일은 기록이 없어 안 던진 날로
-            셌어요. 그래서 지수가 낮게 나올 수 있어요. 던진 날이 있으면{' '}
+      {isPitching && missingDays != null && (
+          <p className="border-t border-warn-line bg-warn-bg px-(--block-pad) py-3 text-xs leading-relaxed text-warn">
+            기록 없는 날이 {missingDays}일이라 지수가 낮게 나올 수 있어요.{' '}
             <Link href="/today" className="font-semibold text-sky-strong">
               투구 일지
             </Link>
@@ -223,22 +148,13 @@ export function LoadPanel({
         보고 나면 한참 아래 작은 카드에 있는 연투 숫자는 눈에 안 들어온다.
         그래서 지수 옆에 붙인다.
       */}
-      {isPitching && throwStreak != null && throwStreak >= STREAK_WARNING && (
-        <p className="border-t border-warn-line bg-warn-bg px-6 py-3 text-[11px] leading-relaxed text-warn sm:px-8">
+      {isPitching && throwStreak != null && (
+        <p className="border-t border-warn-line bg-warn-bg px-(--block-pad) py-3 text-xs leading-relaxed text-warn">
           최근 4주에 {throwStreak}일 연속으로 던진 구간이 있어요. 지수가 높지 않아도
           쉬는 날을 넣어 주세요.
         </p>
       )}
 
-      {/* 어떻게 나온 숫자인지 — 안 적어두면 그냥 믿거나 그냥 무시한다 */}
-      <div className="px-6 pb-4 sm:px-8">
-        <LoadIndexHelp
-          which={which}
-          acute={view.acute}
-          chronic={view.chronic}
-          activeZone={view.zone ?? undefined}
-        />
-      </div>
     </section>
   );
 }

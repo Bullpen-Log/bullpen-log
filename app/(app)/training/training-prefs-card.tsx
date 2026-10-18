@@ -7,6 +7,7 @@ import { saveTrainingPrefs } from '@/app/actions/day-cards';
 import { OFFLINE_MESSAGE, orOffline } from '@/lib/action-offline';
 import { Chip, DayCard } from '@/components/day-card';
 import { buzz } from '@/lib/haptics';
+import { Button } from '@/components/ui';
 
 /**
  * 트레이닝 탭 — '오늘 하고 싶은 운동이 있나요?' 카드(체크인 3판, 2026-10-13).
@@ -36,6 +37,7 @@ export function TrainingPrefsCard({
       title="오늘 하고 싶은 운동이 있나요?"
       hint="고르면 그쪽으로 일정을 짜요. 아픈 날은 고른 것과 상관없이 회복으로 가요."
       answer={summary}
+      folded
     >
       {(close) => <PrefsForm day={day} initial={answer} parts={parts} onDone={close} />}
     </DayCard>
@@ -117,14 +119,14 @@ function PrefsForm({
         </div>
       )}
       {error && <p className="text-xs text-danger">{error}</p>}
-      <button
+      <Button
         type="button"
         disabled={pending}
         onClick={save}
-        className="inline-flex min-h-11 w-full items-center justify-center rounded-full bg-sky px-5 text-sm font-semibold text-white transition-[background-color,opacity] hover:bg-sky-strong disabled:opacity-60 desk:min-h-10 desk:w-auto desk:rounded-xl"
+        className="w-full pad:w-auto pad:px-6 desk:min-h-10 desk:w-auto"
       >
         {pending ? '저장 중…' : '이대로 할래요'}
-      </button>
+      </Button>
     </div>
   );
 }

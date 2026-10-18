@@ -14,6 +14,7 @@ import {
   type OnboardingBody,
 } from '@/lib/nutrition/onboarding-answers';
 import { dateText } from '@/lib/nutrition/period';
+import { floorNote } from '@/lib/nutrition/targets';
 
 /**
  * '내 계획' — 영양 탭(통계 열 맨 위)의 카드. 가입 끼움 '추천 계획'과 같은 부품(components/onboarding/plan-stats.tsx)이라
@@ -36,11 +37,12 @@ export function MyPlanCard({
 }) {
   const unit = useWeightUnit();
   const [open, setOpen] = useState(false);
+  /* 오늘 기준 몸 — 지난 날을 보더라도 계획은 오늘 몸으로(목표 창 · 서버 검사와 같은 값) */
   const body: OnboardingBody = {
-    age: day.body.age,
-    sex: day.body.sex,
-    heightCm: day.body.heightCm,
-    weightKg: day.body.weightKg,
+    age: day.todayBody.age,
+    sex: day.todayBody.sex,
+    heightCm: day.todayBody.heightCm,
+    weightKg: day.todayBody.weightKg,
     level: null,
   };
   const p = previewOfProfile(day.profile, body);
@@ -64,6 +66,11 @@ export function MyPlanCard({
           <p className="mt-0.5 text-sm tabular-nums text-ink">
             하루 {p.targets.kcal.toLocaleString()}kcal · 단백질 {p.targets.protein}g
           </p>
+          {floorNote(p.targets) && (
+            <p className="mt-0.5 text-xs break-keep text-muted">
+              {floorNote(p.targets)}
+            </p>
+          )}
           {parts.length > 0 && (
             <p className="mt-0.5 text-xs leading-relaxed break-keep text-muted">
               {parts.join(' · ')}

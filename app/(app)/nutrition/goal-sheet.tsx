@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useTransition, type ReactNode } from 'react';
+import { FoldNote } from '@/components/fold-note';
 import { Check } from '@/components/icon';
 import { Modal } from '@/components/modal';
 import { Segmented } from '@/components/segmented';
@@ -66,6 +67,8 @@ import { shiftDateKey } from '@/lib/pitch-stats';
 import { saveDietPrefs, saveNutritionProfile } from '@/app/actions/nutrition';
 import { OFFLINE_MESSAGE, orOffline } from '@/lib/action-offline';
 import type { Origin } from './shared';
+import { haptic } from '@/lib/haptics';
+import { Button } from '@/components/ui';
 
 /**
  * 영양 목표 정하기.
@@ -360,8 +363,10 @@ export function GoalSheet({
         }),
         { ok: false as const, error: OFFLINE_MESSAGE }
       );
-      if (prefsRes.ok) onClose();
-      else {
+      if (prefsRes.ok) {
+        haptic('success');
+        onClose();
+      } else {
         setTab('diet');
         setError(prefsRes.error);
       }
@@ -505,7 +510,7 @@ export function GoalSheet({
                   rule.band === 'child'
                     ? rule.goalHint.lose
                     : rule.band === 'teen'
-                      ? '성장기라 감량 카드는 없어요 — 자라는 몸에서 빼면 키 · 회복이 먼저 손해를 봐요.'
+                      ? '성장기라 감량 카드는 없어요. 자라는 몸에서 빼면 키 · 회복이 먼저 손해를 봐요.'
                       : undefined
                 }
               >
@@ -814,7 +819,7 @@ export function GoalSheet({
                   <button
                     type="button"
                     onClick={() => setCleared(true)}
-                    className="-my-2 min-h-10 rounded-md px-1 font-semibold text-sky-strong underline-offset-2 hover:underline"
+                    className="-my-2 min-h-10 rounded-lg px-1 font-semibold text-sky-strong underline-offset-2 hover:underline"
                   >
                     조정 지우기
                   </button>
@@ -826,25 +831,28 @@ export function GoalSheet({
                   </p>
                 )
               )}
-              <p className="text-xs leading-relaxed text-muted">
-                {showPlan && body.age !== null && !manual && (
-                  <>
-                    숫자는 처음엔 어림잡은 값이에요. 체중 흐름을 보고 맞춰 가요.
-                    <br />
-                  </>
-                )}
-                기초대사량 {kcalText(preview.bmr)}kcal ({rule.bmrName}) · 활동대사량{' '}
-                {kcalText(preview.tdee)}kcal (×{' '}
-                {ACTIVITIES.find((a) => a.key === activity)?.factor ?? 1.5})
-                <br />
-                나이 기준: {rule.label}
-                {rule.band !== 'adult' && ' · 자라는 몸에 맞춰 셈해요'}
-                <br />
-                계산에 쓴 몸: {bodyLine}
-                {assumed.length > 0 && '. 내 정보에서 채우면 더 정확해져요.'}
-                <br />
-                성별·키·몸무게·생년월일은 내 정보(오른쪽 위 내 사진)에서 바꿔요.
-              </p>
+              {/* 계산 내역은 접어 둔다(2026-10-16 UI 검토 — 미리보기 밑에 다섯 줄이 늘 떠 있었다). 휴대폰 위 막대엔 이제 내 사진이 없어 길 안내도 고쳤다 */}
+              <FoldNote tone="muted" label="계산 내역">
+                <p className="text-xs leading-relaxed text-muted">
+                  {showPlan && body.age !== null && !manual && (
+                    <>
+                      숫자는 처음엔 어림잡은 값이에요. 체중 흐름을 보고 맞춰 가요.
+                      <br />
+                    </>
+                  )}
+                  기초대사량 {kcalText(preview.bmr)}kcal ({rule.bmrName}) · 활동대사량{' '}
+                  {kcalText(preview.tdee)}kcal (×{' '}
+                  {ACTIVITIES.find((a) => a.key === activity)?.factor ?? 1.5})
+                  <br />
+                  나이 기준: {rule.label}
+                  {rule.band !== 'adult' && ' · 자라는 몸에 맞춰 셈해요'}
+                  <br />
+                  계산에 쓴 몸: {bodyLine}
+                  {assumed.length > 0 && '. 내 정보에서 채우면 더 정확해져요.'}
+                  <br />
+                  성별 · 키 · 몸무게 · 생년월일은 더보기 › 내 정보에서 바꿔요.
+                </p>
+              </FoldNote>
             </section>
           </div>
         ) : (
@@ -860,14 +868,15 @@ export function GoalSheet({
           </p>
         )}
 
-        <button
+        <Button
           type="button"
           onClick={save}
           disabled={pending}
-          className="min-h-12 w-full rounded-xl bg-sky py-3.5 text-base font-semibold text-white transition-[background-color,opacity] hover:bg-sky-strong disabled:opacity-60"
+          size="lg"
+          className="w-full"
         >
           {pending ? '저장 중…' : '저장'}
-        </button>
+        </Button>
       </div>
     </Modal>
   );
@@ -910,7 +919,7 @@ function Stat({
 }) {
   return (
     <div>
-      <dt className="text-[11px] text-muted">{label}</dt>
+      <dt className="text-caption text-muted">{label}</dt>
       <dd
         className={strong ? 'text-base font-bold text-ink' : 'font-semibold text-ink'}
       >
@@ -946,10 +955,7 @@ function DietPanel({
   const style = DIET_STYLES.find((x) => x.key === draft.style);
   return (
     <div key="diet" role="tabpanel" className="motion-safe:animate-fade-in space-y-6">
-      <p className="text-xs leading-relaxed text-muted">
-        &lsquo;오늘 식단 짜기&rsquo;가 여기 정한 대로 끼니를 짜요. 칼로리 · 단백질은
-        [목표] 칸에서 정해요.
-      </p>
+      <p className="text-xs leading-relaxed text-muted">칼로리 · 단백질은 [목표] 칸에서 정해요.</p>
 
       <Row label="식단 스타일" hint={style?.hint}>
         <ChoiceChips

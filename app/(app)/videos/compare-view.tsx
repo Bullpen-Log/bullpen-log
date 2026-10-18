@@ -1,6 +1,14 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from 'react';
+import { createPortal } from 'react-dom';
 import {
   ChevronLeft,
   ChevronRight,
@@ -46,6 +54,8 @@ function firstFrameSrc(url: string | undefined) {
  * 한 번도 재생하지 않은 영상의 자리 옮기기. 길이(메타데이터)를 받기 전에 currentTime 을 주면
  * 아이폰은 그냥 버려서, 재생 전 프레임 이동 · 기준점 되돌리기가 안 먹었다 — 받은 뒤에 옮긴다(2026-10-03).
  */
+const noopSubscribe = () => () => {};
+
 function seekTo(video: HTMLVideoElement, time: number) {
   if (video.readyState >= HTMLMediaElement.HAVE_METADATA) {
     video.currentTime = time;
@@ -177,7 +187,7 @@ function ComparePane({
       {/* 측정 중에는 화면별로 되돌리기·지우기를 둔다. */}
       {drawing && (
         <div className="flex items-center gap-1.5 border-t border-line px-2 py-1.5">
-          <span className="text-[10px] text-muted">
+          <span className="text-caption text-muted">
             {side}면 측정 {shapes.length}
           </span>
           <button
@@ -202,7 +212,7 @@ function ComparePane({
       )}
 
       {clip && (
-        <p className="truncate border-t border-line px-2 py-1.5 text-[10px] text-muted sm:text-[11px]">
+        <p className="truncate border-t border-line px-2 py-1.5 text-caption text-muted">
           {clip.summary}
         </p>
       )}
@@ -230,14 +240,14 @@ function ComparePane({
           onClick={onMark}
           title="지금 화면을 기준점으로 지정"
           aria-label={`${side}면 기준점 지정`}
-          className="flex h-11 min-w-0 flex-1 items-center justify-center gap-1 rounded-lg border border-line text-[11px] desk:h-9 text-muted transition-colors hover:border-sky hover:text-sky"
+          className="flex h-11 min-w-0 flex-1 items-center justify-center gap-1 rounded-lg border border-line text-caption desk:h-9 text-muted transition-colors hover:border-sky hover:text-sky"
         >
           <Flag className="h-3.5 w-3.5 shrink-0" />
           <span className="truncate">기준점</span>
         </button>
       </div>
 
-      <div className="border-t border-line px-2 py-1 text-[10px] tabular-nums text-muted">
+      <div className="border-t border-line px-2 py-1 text-caption tabular-nums text-muted">
         {formatTime(current)} · 기준 {formatTime(mark)}
       </div>
     </div>
@@ -308,6 +318,24 @@ export function CompareView({
       root.style.overflow = previous;
     };
   }, [expanded]);
+
+  /*
+   * 재생기는 늘 따로 만든 상자(host)에 그리고, 크게 볼 때는 그 상자만 body 로 옮긴다(작게 보면 제자리 slot 으로).
+   * 판 넘기기(tab-pager) 트랙은 transform 이 있어 그 안의 fixed 가 화면이 아니라 4판 폭 트랙에 붙고(검은 화면이 트랙 전체로
+   * 퍼져 A 칸이 반만 보였다), 트랙 층에 갇혀 위 · 아래 막대가 그 위를 덮었다(2026-10-16). 상자째 옮기므로 React 는 다시 그리지
+   * 않는다 — portal 을 켰다 껐다 하면 영상이 새로 붙어 보던 장면 · 프레임 재기가 끊긴다. 트랙의 transform 을 끄면 휴대폰 화면이 넓어졌다.
+   */
+  const mounted = useSyncExternalStore(noopSubscribe, () => true, () => false);
+  const [host] = useState(() =>
+    typeof document === 'undefined' ? null : document.createElement('div')
+  );
+  const slotRef = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    if (!host || !mounted) return;
+    const to = expanded ? document.body : slotRef.current;
+    if (to && host.parentElement !== to) to.appendChild(host);
+  }, [host, mounted, expanded]);
+  useEffect(() => () => host?.remove(), [host]);
 
   // 영상을 바꾸면 기준점도 함께 처음으로 되돌린다.
   const selectA = (id: string) => {
@@ -393,7 +421,8 @@ export function CompareView({
     );
   }
 
-  return (
+  /* 서버 그림에는 문서가 없어 slot 만 — 붙은 뒤에 재생기를 그린다 */
+  const player = (
     <div
       className={
         expanded
@@ -408,7 +437,7 @@ export function CompareView({
       {expanded && (
         <div className="flex shrink-0 items-center gap-3 px-1">
           <span className="text-sm text-ink">2분할 비교</span>
-          <span className="hidden text-[11px] text-muted sm:inline">Esc 키로 닫기</span>
+          <span className="hidden text-caption text-muted sm:inline">Esc 키로 닫기</span>
           <button
             type="button"
             onClick={() => setExpanded(false)}
@@ -586,7 +615,7 @@ export function CompareView({
                 type="button"
                 onClick={() => setSpeed(s)}
                 aria-pressed={speed === s}
-                className={`px-2 text-[11px] transition-colors sm:px-2.5 sm:text-xs ${
+                className={`px-2 text-caption transition-colors sm:px-2.5 sm:text-xs ${
                   i > 0 ? 'border-l border-line' : ''
                 } ${
                   speed === s
@@ -615,4 +644,6 @@ export function CompareView({
       </details>
     </div>
   );
+
+  return <div ref={slotRef}>{mounted && host && createPortal(player, host)}</div>;
 }

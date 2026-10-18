@@ -262,7 +262,7 @@ function GoalKindStep({ ctx }: { ctx: StepCtx }) {
     p.age === null
       ? '생년월일을 모르면 성인 기준으로 보여요.'
       : band === 'teen'
-        ? '성장기(만 13~17세) 기준이에요. 감량 카드는 없어요 — 자라는 몸에서 빼면 키 · 뼈 · 회복이 먼저 손해를 봐요.'
+        ? '성장기(만 13~17세) 기준이에요. 감량 카드는 없어요. 자라는 몸에서 빼면 키 · 뼈 · 회복이 먼저 손해를 봐요.'
         : band === 'child'
           ? '어린이(만 12세 이하) 기준이에요. 증량과 유지만 있어요.'
           : undefined;
@@ -347,7 +347,7 @@ function TargetWeightStep({ ctx }: { ctx: StepCtx }) {
         </TextButton>
         {a.targetSkipped && (
           <span className="motion-safe:animate-fade-in text-xs text-muted">
-            속도만으로 계획해요. 영양 탭에서 언제든 정할 수 있어요.
+            속도만으로 계획해요. 영양 탭에서 정할 수 있어요.
           </span>
         )}
       </div>
@@ -406,15 +406,15 @@ function PaceStep({ ctx }: { ctx: StepCtx }) {
         current !== null && (
           <p className="rounded-2xl border border-line bg-surface-2/60 px-4 py-3 text-sm leading-relaxed break-keep text-ink">
             {p.targets.ageBand === 'teen' ? '성장기라 ' : ''}
-            {pace(current)} 한 가지예요 — 하루 {sign}
-            {kcalText(Math.abs(paceDelta(p.age, p.goal, current)))}kcal. 자라는 몸에
+            {pace(current)} 한 가지예요. 하루 {sign}
+            {kcalText(Math.abs(paceDelta(p.age, p.goal, current)))}kcal 로, 자라는 몸에
             맞춘 속도예요.
           </p>
         )
       )}
 
       {p.etaWeeks !== null && a.targetWeightKg !== null && (
-        <p className="text-[15px] leading-relaxed break-keep text-ink">
+        <p className="text-subhead leading-relaxed break-keep text-ink">
           계획대로면 약{' '}
           <strong className="text-heading text-xl text-sky-strong">
             {p.etaWeeks}주
@@ -436,7 +436,7 @@ function PaceStep({ ctx }: { ctx: StepCtx }) {
         hint={
           a.goalEndDate && needed !== null
             ? tooFast
-              ? `${dateText(a.goalEndDate)}까지는 ${paceText(needed, unit)}이 필요해요 — 몸에 무리라 가장 빠른 속도(${pace(fastest!)})로 두었어요.${p.etaWeeks !== null ? ` 그러면 약 ${p.etaWeeks}주예요.` : ''}`
+              ? `${dateText(a.goalEndDate)}까지는 ${paceText(needed, unit)}이 필요해요. 몸에 무리라 가장 빠른 속도(${pace(fastest!)})로 두었어요.${p.etaWeeks !== null ? ` 그러면 약 ${p.etaWeeks}주예요.` : ''}`
               : `${dateText(a.goalEndDate)}까지 ${pace(current ?? 0)}이면 닿아요. 식단 짜기도 이 날짜를 봐요.`
             : '날짜를 고르면 거기에 맞는 속도를 골라 드려요. 없으면 속도만으로 가요.'
         }
@@ -571,7 +571,7 @@ function AvoidStep({ ctx }: { ctx: StepCtx }) {
         </label>
       ) : (
         <p className="text-xs leading-relaxed break-keep text-muted">
-          성장기는 보충식품 없이 음식으로 채워요 — 식단에 쉐이크 · 바는 넣지 않아요.
+          성장기는 보충식품 없이 음식으로 채워요. 식단에 쉐이크 · 바는 넣지 않아요.
         </p>
       )}
     </div>

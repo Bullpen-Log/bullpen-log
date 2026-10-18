@@ -145,11 +145,11 @@ export function OptionCards<V extends string>({
             >
               <span className="min-w-0 flex-1">
                 <span
-                  className={`flex items-center gap-2 text-[15px] font-semibold break-keep ${on ? 'text-sky-strong' : 'text-ink'}`}
+                  className={`flex items-center gap-2 text-subhead font-semibold break-keep ${on ? 'text-sky-strong' : 'text-ink'}`}
                 >
                   {o.label}
                   {o.badge && (
-                    <span className="rounded-full bg-sky/15 px-2 py-0.5 text-[11px] font-medium text-sky-strong">
+                    <span className="rounded-full bg-sky/15 px-2 py-0.5 text-caption font-medium text-sky-strong">
                       {o.badge}
                     </span>
                   )}

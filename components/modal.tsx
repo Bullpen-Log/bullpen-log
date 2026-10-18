@@ -64,6 +64,21 @@ export function useModalState<T>() {
 }
 
 /**
+ * 열림이 꺼진 뒤에도 CLOSE_MS 동안 붙들어 둔다 — `{open && <창/>}` 으로 그리는 곳이 닫히는 움직임을 보이게
+ * (`{shown && <창 open={open}/>}`). 꺼지자마자 떼면 시트가 내려가지 않고 뚝 사라진다(운동 중 시트 셋, 2026-10-16).
+ */
+export function useLinger(open: boolean) {
+  const [shown, setShown] = useState(open);
+  if (open && !shown) setShown(true);
+  useEffect(() => {
+    if (open || !shown) return;
+    const id = setTimeout(() => setShown(false), CLOSE_MS);
+    return () => clearTimeout(id);
+  }, [open, shown]);
+  return shown;
+}
+
+/**
  * 가운데에 뜨는 작은 창.
  *
  * 브라우저가 원래 가진 <dialog> 를 쓴다. 직접 만들면 다음을 전부 손으로 해야
@@ -82,11 +97,22 @@ export function Modal({
   size = 'default',
   origin,
   bigClose = false,
+  look = 'sheet',
+  toolbar,
+  footer,
   children,
 }: {
   open: boolean;
   onClose: () => void;
   title: string;
+  /**
+   * 휴대폰에서의 모양(PC 는 둘 다 가운데 창).
+   *   sheet   아래에서 올라오는 시트(기본)
+   *   folder  더보기 메뉴와 같은 폴더 — 화면 전체 흐린 막 + 가운데 반투명 유리 판, 제목은 판 위 글자, X · 손잡이 없음(2026-10-14 사용자
+   *           "내 정보 · 설정을 메뉴와 똑같은 느낌으로, X 없이"). 막을 누르거나 제목 줄을 끌어내려 닫는다. 색 · 자리는 globals.css 의
+   *           dialog[data-look='folder'](더보기의 dialog[data-drawer] 규칙과 같은 묶음), 안의 줄 · 입력칸은 같은 파일의 '폴더 안의 내용'.
+   */
+  look?: 'sheet' | 'folder';
   /** 제목 밑 한 줄 설명. 없으면 안 그린다. */
   description?: string;
   /**
@@ -113,9 +139,15 @@ export function Modal({
   origin?: { x: number; y: number } | null;
   /** 닫기(X)를 크게 — 체크인 창(2026-10-13 사용자: "체크인의 x 를 키워줘"). 휴대폰 48px · PC 40px */
   bigClose?: boolean;
+  /** 제목 밑에 붙어 굴러가지 않는 칸(고르개 · 찾기 칸) — 본문만 굴러간다. 운동 교체 창이 쓴다(2026-10-16) */
+  toolbar?: ReactNode;
+  /** 바닥에 붙어 굴러가지 않는 칸(마치기 같은 큰 단추) — 자판이 뜨면 자판 위로. 운동 마치기 창이 쓴다(2026-10-16) */
+  footer?: ReactNode;
   children: ReactNode;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
+  /* 폴더 모양의 판 — 끌어내릴 때 창(막) 대신 이것이 움직인다 */
+  const folderRef = useRef<HTMLDivElement>(null);
   /*
    * 누름이 배경에서 시작했나 — 배경을 '눌렀다 뗀' 것만 닫는다. 창 안에서 글자를 끌어 고르다 배경에서 놓아도 click 은
    * 창(dialog) 자신에게 와서, 예전에는 그대로 닫혀 적던 기록 · 올린 영상 목록이 사라졌다.
@@ -144,6 +176,8 @@ export function Modal({
     const el = ref.current;
     if (!el) return;
     if (open && !el.open) {
+      el.removeAttribute('data-dismiss');
+      folderRef.current?.style.removeProperty('transform');
       el.showModal();
 
       const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -176,6 +210,7 @@ export function Modal({
     if (!open && el.open) {
       /* 끌어내리다 놓아 닫을 때 — 남은 자리(인라인 transform)를 지워야 닫히는 움직임이 거기서 이어진다 */
       el.style.transform = '';
+      folderRef.current?.style.removeProperty('transform');
       el.close();
     }
   }, [open, origin]);
@@ -184,34 +219,71 @@ export function Modal({
    * 휴대폰 시트를 끌어내려 닫기 — 손잡이 · 제목 줄을 잡고 아래로 끌면 따라 내려오고, 충분히(110px) 내리거나 빠르게
    * 튕기면 닫힌다. 덜 내리면 제자리로 돌아간다. 아이폰 시트처럼(2026-10-01 '애플처럼'). 단추를 잡은 것은 끌기가 아니다.
    */
-  const drag = useRef<{ id: number; y: number; t: number; dy: number } | null>(null);
+  const drag = useRef<{
+    id: number;
+    y: number;
+    dy: number;
+    /* 손 떼기 직전의 빠르기(px/ms) — 처음부터 평균 내면 천천히 끌다 휙 튕긴 것을 못 알아챘다(2026-10-16) */
+    vy: number;
+    py: number;
+    pt: number;
+  } | null>(null);
+  /* 손가락 자리는 장면마다 한 번만 그린다 */
+  const dragFrame = useRef(0);
   const startDrag = (e: React.PointerEvent<HTMLDivElement>) => {
     if (
       !isPhone() ||
       (e.target as HTMLElement).closest('button, a, input, textarea, select')
     )
       return;
-    drag.current = { id: e.pointerId, y: e.clientY, t: performance.now(), dy: 0 };
+    /* 끄는 중의 둘째 손가락은 무시한다 — 덮어쓰면 첫 손가락을 뗄 때 아무도 안 받아 시트가 내려간 채 남는다 */
+    if (drag.current) return;
+    drag.current = {
+      id: e.pointerId,
+      y: e.clientY,
+      dy: 0,
+      vy: 0,
+      py: e.clientY,
+      pt: e.timeStamp,
+    };
+    /* 끄는 동안 폴더 흐림을 끈다(globals.css [data-dragging]) — 흐린 폴더를 움직이면 아이폰이 버벅였다 */
+    ref.current?.setAttribute('data-dragging', '');
     e.currentTarget.setPointerCapture(e.pointerId);
   };
   const moveDrag = (e: React.PointerEvent<HTMLDivElement>) => {
     const d = drag.current;
-    const el = ref.current;
+    const el = folderRef.current ?? ref.current;
     if (!d || !el || e.pointerId !== d.id) return;
-    d.dy = Math.max(0, e.clientY - d.y);
-    el.style.transform = `translateY(${d.dy}px)`;
+    const raw = e.clientY - d.y;
+    /* 위로 끌면 고무줄처럼 조금만 따라온다(아이폰 시트) — 예전엔 꿈쩍도 안 해 끌리는 줄을 몰랐다 */
+    d.dy = raw >= 0 ? raw : -Math.min(24, -raw * 0.25);
+    const dt = e.timeStamp - d.pt;
+    if (dt > 0) d.vy = 0.7 * ((e.clientY - d.py) / dt) + 0.3 * d.vy;
+    d.py = e.clientY;
+    d.pt = e.timeStamp;
+    if (!dragFrame.current)
+      dragFrame.current = requestAnimationFrame(() => {
+        dragFrame.current = 0;
+        if (drag.current)
+          el.style.transform = `translate3d(0, ${drag.current.dy}px, 0)`;
+      });
   };
   const endDrag = (e: React.PointerEvent<HTMLDivElement>) => {
     const d = drag.current;
-    const el = ref.current;
+    const el = folderRef.current ?? ref.current;
     if (!d || !el || e.pointerId !== d.id) return;
     drag.current = null;
-    const speed = d.dy / Math.max(1, performance.now() - d.t);
-    if (d.dy > 110 || (d.dy > 30 && speed > 0.6)) {
+    cancelAnimationFrame(dragFrame.current);
+    dragFrame.current = 0;
+    ref.current?.removeAttribute('data-dragging');
+    const speed = e.timeStamp - d.pt < 100 ? d.vy : 0;
+    if (d.dy > 110 || (d.dy > 30 && speed > 0.5)) {
+      /* 폴더는 아래로 미끄러져 닫힌다(globals.css [data-dismiss='down']) — 인라인 자리는 닫는 순간 지운다 */
+      if (folderRef.current) ref.current?.setAttribute('data-dismiss', 'down');
       onClose();
       return;
     }
-    if (d.dy > 0) {
+    if (d.dy !== 0) {
       el.animate(
         [{ transform: `translateY(${d.dy}px)` }, { transform: 'translateY(0)' }],
         {
@@ -276,8 +348,9 @@ export function Modal({
       ref={ref}
       /* 출발점이 있는 창만 날아온다(PC). 없으면 제자리에서 떠오른다 */
       data-pop={origin ? '' : undefined}
-      /* 휴대폰에서는 아래에서 올라오는 시트(globals.css) — PC 에서는 아무 뜻 없다 */
-      data-sheet=""
+      /* 휴대폰에서는 아래에서 올라오는 시트(globals.css) — PC 에서는 아무 뜻 없다. 폴더 모양은 data-look 으로 */
+      data-sheet={look === 'sheet' ? '' : undefined}
+      data-look={look === 'folder' ? 'folder' : undefined}
 
       /*
        * ESC 를 눌러 브라우저가 스스로 닫은 경우에도 부모에게 알린다.
@@ -317,12 +390,13 @@ export function Modal({
        * 안쪽 상자를 눌렀을 때와 이렇게 구분된다.
        */
       onPointerDown={(e) => {
-        pressedBackdrop.current = e.target === ref.current;
+        pressedBackdrop.current = isBackdrop(e.target, ref.current, look === 'folder');
       }}
       onClick={(e) => {
         const fromBackdrop = pressedBackdrop.current;
         pressedBackdrop.current = false;
-        if (e.target === ref.current && fromBackdrop) onClose();
+        if (isBackdrop(e.target, ref.current, look === 'folder') && fromBackdrop)
+          onClose();
       }}
       /*
        * m-auto 가 창을 화면 가운데로 보낸다.
@@ -355,48 +429,61 @@ export function Modal({
           : size === 'wide'
             ? 'desk:max-h-[min(85dvh,48rem)] desk:w-[min(62rem,calc(100vw-1.5rem))]'
             : 'desk:max-h-[min(85dvh,48rem)] desk:w-[min(38rem,calc(100vw-1.5rem))]'
-      } bg-surface p-0 text-ink shadow-2xl backdrop:bg-black/40`}
+      } ${look === 'folder' ? 'bg-transparent shadow-none backdrop:bg-transparent desk:bg-surface desk:shadow-2xl desk:backdrop:bg-black/40' : 'bg-surface shadow-2xl backdrop:bg-black/40'} p-0 text-ink`}
     >
-      {/* 손잡이 · 제목 줄 — 휴대폰은 여기를 잡고 끌어내려 닫는다(startDrag) */}
-      <div
-        className="shrink-0 touch-none desk:touch-auto"
-        onPointerDown={startDrag}
-        onPointerMove={moveDrag}
-        onPointerUp={endDrag}
-        onPointerCancel={endDrag}
-      >
-        <div
-          aria-hidden
-          className="mx-auto mt-2 h-[5px] w-9 rounded-full bg-ink/15 desk:hidden"
-        />
-        <div className="flex shrink-0 items-start gap-3 px-5 pt-3 pb-2 desk:border-b desk:border-line desk:py-4">
-          <div className="min-w-0 flex-1">
-            <h2 className="text-base font-bold text-ink">{title}</h2>
-            {description && (
-              <p className="mt-0.5 text-xs leading-relaxed text-muted">{description}</p>
-            )}
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="닫기"
-            /* 폰은 손가락 크기(44px) — 28px 라 창마다 닫기가 잘 안 눌렸다. PC 는 예전 크기 */
-            className={
-              bigClose
-                ? '-mr-3 -mt-3 grid h-12 w-12 shrink-0 place-items-center rounded-xl text-muted transition-colors hover:bg-surface-2 hover:text-ink desk:-mr-2 desk:-mt-2 desk:h-10 desk:w-10'
-                : '-mr-3 -mt-3 grid h-11 w-11 shrink-0 place-items-center rounded-lg text-muted transition-colors hover:bg-surface-2 hover:text-ink desk:-mr-1 desk:-mt-1 desk:h-7 desk:w-7'
-            }
-          >
-            <X
-              className={
-                bigClose ? 'h-7 w-7 desk:h-6 desk:w-6' : 'h-5 w-5 desk:h-4 desk:w-4'
-              }
-            />
-          </button>
-        </div>
-      </div>
-
       {/*
+        폴더 모양 — 바깥 div 는 화면 전체 막(data-scrim, 누르면 닫힘), 그 가운데에 폴더(data-folder)와 그 위 제목. PC 는 두 겹이
+        contents 로 사라져 예전 창 그대로. 시트 모양은 두 겹이 없다(folder 가 아니면 그냥 children).
+      */}
+      <FolderFrame folder={look === 'folder'} title={title} folderRef={folderRef}>
+        {/* 손잡이 · 제목 줄 — 휴대폰은 여기를 잡고 끌어내려 닫는다(startDrag). 폴더 모양은 손잡이 · X 없이 제목만(PC 는 그대로) */}
+        <div
+          className="shrink-0 touch-none desk:touch-auto"
+          onPointerDown={startDrag}
+          onPointerMove={moveDrag}
+          onPointerUp={endDrag}
+          onPointerCancel={endDrag}
+        >
+          <div
+            aria-hidden
+            className={`mx-auto mt-2 h-[5px] w-9 rounded-full bg-ink/15 desk:hidden ${look === 'folder' ? 'hidden' : ''}`}
+          />
+          <div
+            className={`flex shrink-0 items-start gap-3 px-5 pt-3 pb-2 desk:border-b desk:border-line desk:py-4 ${look === 'folder' ? 'hidden desk:flex' : ''}`}
+          >
+            <div className="min-w-0 flex-1">
+              <h2 className="text-base font-bold text-ink">{title}</h2>
+              {description && (
+                <p className="mt-0.5 text-xs leading-relaxed text-muted">
+                  {description}
+                </p>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="닫기"
+              /* 폰은 손가락 크기(44px) — 28px 라 창마다 닫기가 잘 안 눌렸다. PC 는 예전 크기 */
+              className={
+                bigClose
+                  ? '-mr-3 -mt-3 grid h-12 w-12 shrink-0 place-items-center rounded-xl text-muted transition-colors hover:bg-surface-2 hover:text-ink desk:-mr-2 desk:-mt-2 desk:h-10 desk:w-10'
+                  : '-mr-3 -mt-3 grid h-11 w-11 shrink-0 place-items-center rounded-lg text-muted transition-colors hover:bg-surface-2 hover:text-ink desk:-mr-1 desk:-mt-1 desk:h-7 desk:w-7'
+              }
+            >
+              <X
+                className={
+                  bigClose ? 'h-7 w-7 desk:h-6 desk:w-6' : 'h-5 w-5 desk:h-4 desk:w-4'
+                }
+              />
+            </button>
+          </div>
+          {/* 폴더 모양(휴대폰) — 제목은 판 위에 있으니(FolderFrame) 여기는 잡고 끌어내리는 빈 띠만. 더보기처럼 손잡이 그림은 없다 */}
+          {look === 'folder' && <div aria-hidden className="h-4 desk:hidden" />}
+        </div>
+
+        {toolbar && <div className="shrink-0 px-5 pb-3 desk:pt-4">{toolbar}</div>}
+
+        {/*
         내용이 길면 여기서만 굴러간다.
 
         높이를 따로 적지 않고 제 내용만큼 차지하되, 창이 모자라면 줄어들어
@@ -422,10 +509,76 @@ export function Modal({
         overscroll-contain — 끝까지 굴린 뒤 더 밀어도 뒤 화면이 따라 굴러가거나 고무줄처럼 튕기지 않게(2026-10-03
         아이폰 점검).
       */}
-      <div className="no-scrollbar relative min-h-0 flex-auto overflow-y-auto overscroll-contain px-5 pt-3 pb-[calc(1.25rem+env(safe-area-inset-bottom))] desk:py-5">
-        {/* 내용의 제 높이를 재는 자리(위 'page' 창의 높이 잇기) */}
-        <div ref={contentRef}>{children}</div>
-      </div>
+        <div
+          className={`no-scrollbar relative min-h-0 flex-auto overflow-y-auto overscroll-contain px-5 pt-3 desk:py-5 ${look === 'folder' ? 'pb-5' : footer ? 'pb-3' : 'pb-[calc(1.25rem+env(safe-area-inset-bottom))]'}`}
+        >
+          {/* 내용의 제 높이를 재는 자리(위 'page' 창의 높이 잇기) */}
+          <div ref={contentRef}>{children}</div>
+        </div>
+        {footer && (
+          <div className="shrink-0 px-4 pt-2 pb-[calc(0.75rem+env(safe-area-inset-bottom))] desk:px-5 desk:pb-5">
+            {footer}
+          </div>
+        )}
+      </FolderFrame>
     </dialog>
+  );
+}
+
+/**
+ * 배경(막)을 눌렀나 — 창 자신이거나, 폴더 모양의 화면 전체 막(data-scrim). 폴더 모양이면 폴더(data-folder) 밖 창 안 어디든 —
+ * 폴더 양옆 틈은 폭 전체 감싸개가 받아 막으로 안 쳐 닫히지 않았다(2026-10-18, 더보기 detail-menu 의 inFolder 와 같은 규칙)
+ */
+function isBackdrop(
+  t: EventTarget | null,
+  dialog: HTMLDialogElement | null,
+  folder = false
+) {
+  if (t === dialog || (t instanceof HTMLElement && t.hasAttribute('data-scrim')))
+    return true;
+  return (
+    folder &&
+    t instanceof Element &&
+    dialog != null &&
+    dialog.contains(t) &&
+    !t.closest('[data-folder]')
+  );
+}
+
+/**
+ * 폴더 모양의 두 겹 — 막(data-scrim) 안에 제목 + 폴더(data-folder). 시트 모양이면 children 그대로.
+ * 폴더는 tabIndex -1 로 처음 초점을 받는다(첫 입력칸 · 단추에 초점 테두리가 뜨지 않게 — 더보기와 같다).
+ */
+function FolderFrame({
+  folder,
+  title,
+  folderRef,
+  children,
+}: {
+  folder: boolean;
+  title: string;
+  folderRef: React.RefObject<HTMLDivElement | null>;
+  children: ReactNode;
+}) {
+  if (!folder) return <>{children}</>;
+  return (
+    <div data-scrim className="grid h-full w-full place-items-center desk:contents">
+      <div className="flex w-full max-w-full flex-col items-center gap-2.5 desk:contents">
+        <span
+          aria-hidden
+          className="text-[15px] font-semibold tracking-tight text-(--folder-fg)/90 desk:hidden"
+        >
+          {title}
+        </span>
+        <div
+          ref={folderRef}
+          data-folder
+          tabIndex={-1}
+          className="relative flex max-h-[calc(var(--vvh,100dvh)-env(safe-area-inset-top)-env(safe-area-inset-bottom)-6.25rem)] flex-col outline-none desk:contents"
+        >
+          {children}
+        </div>
+      </div>
+    </div>
   );
 }

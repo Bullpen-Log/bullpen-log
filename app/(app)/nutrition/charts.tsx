@@ -49,10 +49,10 @@ export function WeekChart({
               scroll={false}
               data-nav="none"
               aria-label={`${d.date}, ${kcalText(d.kcal)}kcal 먹음, 목표 ${kcalText(d.target)}kcal`}
-              className="group relative flex h-full flex-1 items-end rounded-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky"
+              className="group relative flex h-full flex-1 items-end rounded-lg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky"
             >
               <span
-                className={`block w-full rounded-t-md transition-[height,background-color] duration-500 ${EASE} ${
+                className={`block w-full rounded-t-md motion-safe:transition-[height,background-color] duration-500 ${EASE} ${
                   sel
                     ? over
                       ? 'bg-warn'
@@ -76,7 +76,7 @@ export function WeekChart({
         {week.map((d) => (
           <span
             key={d.date}
-            className={`flex-1 text-center text-[11px] ${
+            className={`flex-1 text-center text-caption ${
               d.date === selected ? 'font-semibold text-ink' : 'text-muted'
             }`}
           >
@@ -272,7 +272,7 @@ export function WeightTrend({
               x={targetIn ? PAD : PAD + 11}
               y={targetTextY}
               textAnchor="start"
-              className="fill-current text-[10px] font-semibold tabular-nums"
+              className="fill-current text-caption font-semibold tabular-nums"
             >
               목표 {r1(target)}
             </text>

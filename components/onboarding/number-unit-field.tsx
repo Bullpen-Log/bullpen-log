@@ -17,7 +17,7 @@ import {
   toWeight,
   type LengthUnit,
   type WeightUnit,
-} from '@/lib/units';
+} from '@/lib/units-storage';
 
 /**
  * 키 · 체중 칸 — 보이는 숫자는 고른 단위(cm｜in · kg｜lb), 서버로 가는 값은 늘 cm · kg(숨은 칸).
@@ -129,7 +129,7 @@ export function NumberUnitField({
             setText(fmt(value));
           }}
           placeholder={fmt(placeholder)}
-          className={`${INPUT_LARGE} pr-14 text-lg tabular-nums`}
+          className={`${INPUT_LARGE} pr-14 tabular-nums`}
           {...invalidProps(invalid)}
         />
         <span

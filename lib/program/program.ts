@@ -7,17 +7,19 @@ import {
   movementKeyOf,
   type ClassifiableExercise,
 } from '@/lib/engine/exercise-class';
+import { ALSO_IN, inCategory } from '@/lib/categories';
 import { intensityLevel } from '@/lib/exercise-meta';
 import { canDo } from '@/lib/report/equipment';
 import { filterByLevel } from '@/lib/report/personalize';
+import { YOUTH_AGE_THRESHOLD } from '@/lib/report/plan';
 import { withJosa } from '@/lib/korean';
 
 /**
  * 근력 · 파워 프로그램 — 프로그램 목록 · 시작 자격 · 운동 고정 · 오늘 판정 · 일차 넘기기. 순수 함수만(DB 를 모른다).
  *
  * 안전 · 화면 규칙: docs/designs/pitcher-strength-power-programs.md. 프로그램 목록은 이 파일의 PROGRAMS.
- * 2026-10-07 사용자: "실제 있는 프로그램을 기반으로" — 스트롱리프트 5×5 · 5/3/1 BBB · 5/3/1 · (텍사스 메소드 — 2026-10-14 지움: 주 3번 무거운 스쿼트라 투구 일정과 부딪힘) ·
- * 저거넛 5회 파도 · WS4SB · 프렌치 컨트라스트. 모두 원본의 첫 4주. 투수라서 원본과 다르게 한 곳에는 '투수 맞춤' 주석을 단다.
+ * 2026-10-07 사용자: "실제 있는 프로그램을 기반으로" — 스트롱리프트 5×5 · 5/3/1 · (텍사스 메소드 — 2026-10-14 지움: 주 3번 무거운 스쿼트라 투구 일정과 부딪힘) ·
+ * 저거넛 5회 파도 · WS4SB · 투수 파워(2026-10-16 프렌치 컨트라스트 대신). 모두 4주. 투수라서 원본과 다르게 한 곳에는 '투수 맞춤' 주석을 단다.
  * 옛 '비시즌 근력 → 파워'(8주)는 목록에서 숨기고, 진행 중인 줄만 같은 모양(LEGACY)으로 이어 간다.
  * 2026-10-09 기본기 4주(BASICS) — 성장기 · 입문용, 무게 추천 없이 횟수 · 세트로만(docs/designs/youth-beginner-path.md).
  *
@@ -35,48 +37,105 @@ export type VariantKey =
   | 'squat'
   | 'hinge'
   | 'push'
+  /* 머리 위 밀기(오버헤드 프레스) — 스트롱리프트 B 날. 벤치(push)와 따로 고정해야 두 무게가 따로 오른다 */
+  | 'ohp'
   | 'pull'
   | 'singleLeg'
   | 'jump'
   | 'medball'
   | 'antiRotation'
-  | 'rotationalThrow';
+  | 'rotationalThrow'
+  /* 플라이오 푸시업 — 상체를 빠르게 미는 맨몸 파워(웨스트사이드 파워 상체 반복 날, 2026-10-16 김민 '파워 비중 늘리기') */
+  | 'plyoPush'
+  /* 보조 메뉴 칸(ACCESSORY_KEYS) — 고정하지 않고 세션마다 후보를 돌며 고른다(accessoryPick) */
+  /* 몸통 안정(플랭크 · 데드버그 · 버드독 · 캐리) — 몸통 버티기(돌지 않게)와 한 쌍으로 날마다 둘(2026-10-16 김민) */
+  | 'coreStab'
+  | 'hpull'
+  | 'vpull'
+  | 'pushAcc'
+  | 'hamstring'
+  | 'scap'
+  | 'triceps'
+  | 'biceps'
+  | 'forearm';
 
 export const VARIANT_KEYS: readonly VariantKey[] = [
   'squat',
   'hinge',
   'push',
+  'ohp',
   'pull',
   'singleLeg',
   'jump',
   'medball',
   'antiRotation',
   'rotationalThrow',
+  'plyoPush',
 ];
 
 export const VARIANT_LABELS: Record<VariantKey, string> = {
   squat: '스쿼트',
   hinge: '힌지',
   push: '밀기',
+  ohp: '머리 위 밀기',
   pull: '당기기',
   singleLeg: '한 다리',
   jump: '점프',
   medball: '메디신볼',
   antiRotation: '몸통 버티기',
+  coreStab: '몸통 안정',
   rotationalThrow: '회전 던지기',
+  plyoPush: '플라이오 푸시업',
+  hpull: '가로 당기기',
+  vpull: '세로 당기기',
+  pushAcc: '보조 밀기',
+  hamstring: '햄스트링 · 둔근',
+  scap: '어깨 뒤쪽',
+  triceps: '삼두',
+  biceps: '이두',
+  forearm: '전완',
 };
+
+/**
+ * 보조 메뉴 칸 — 시작할 때 고정하지 않는다(VARIANT_KEYS 에 없어 고르기 화면 · pickPinned 가 안 본다). 세션마다 그 칸 후보 전체를
+ * 사람마다 섞은 차례로 돌아 한 바퀴 전에는 같은 운동이 다시 안 나온다(accessoryPick). 2026-10-14 사용자: "보조운동은 다양하고 세션마다
+ * 다른 걸로 · 바벨 로우만 나오면 안 된다".
+ */
+export const ACCESSORY_KEYS: readonly VariantKey[] = [
+  'coreStab',
+  'hpull',
+  'vpull',
+  'pushAcc',
+  'hamstring',
+  'scap',
+  'triceps',
+  'biceps',
+  'forearm',
+];
 
 /** 변형 → 칸 종류. 그날 조정(가볍게 · 빼기 · 대체)과 '몇 개 더?'는 칸 종류로 정한다. */
 export const SLOT_OF: Record<VariantKey, SlotKind> = {
   squat: 'bigLower',
   hinge: 'bigLower',
   push: 'pushPull',
+  ohp: 'pushPull',
   pull: 'pushPull',
   singleLeg: 'singleLeg',
   jump: 'power',
   medball: 'power',
   antiRotation: 'core',
+  coreStab: 'core',
   rotationalThrow: 'core',
+  plyoPush: 'power',
+  /* 팔 · 어깨 보조도 상체 칸 — 그날 조정(팔 피로 · 통증으로 가볍게 · 빼기)을 같이 받는다 */
+  hpull: 'pushPull',
+  vpull: 'pushPull',
+  pushAcc: 'pushPull',
+  hamstring: 'singleLeg',
+  scap: 'pushPull',
+  triceps: 'pushPull',
+  biceps: 'pushPull',
+  forearm: 'pushPull',
 };
 
 /** 무게를 드는 칸 */
@@ -87,10 +146,33 @@ export const WEIGHTED_SLOTS: readonly SlotKind[] = [
 ];
 
 /**
- * 시작에 꼭 있어야 하는 장비(§1) — 모든 프로그램이 같다. 트랩바는 '바벨'에 들어간다(§13-21).
- * 메디신볼은 2026-10-14 에 뺐다(김민 — 못 던지는 환경일 수 있다). 없으면 메디신볼 칸은 빠지고, 있어도 선택 운동이다(isOptionalProgramExercise).
+ * 시작에 꼭 있어야 하는 장비(§1) — 모든 성인 프로그램이 같다. 트랩바는 '바벨'에 들어간다(§13-21).
+ * 2026-10-16 김민: 바벨 · 덤벨만으로는 너무 적다 → 일반 헬스장 장비(바벨 · 원판 · 덤벨 · 벤치 · 철봉 · 밴드 · 케이블). 실제 운동 표로 세니
+ * 바벨 · 덤벨만이면 세로 당기기 · 삼두 후보가 0, 회전 던지기가 1(세션마다 같은 운동)이었고, 이 일곱이면 모든 칸이 둘 넘게(햄스트링 2 ·
+ * 메디신볼 칸은 아래 대체) 되어 같은 운동이 연달아 안 나온다. 박스 · 메디신볼은 헬스장에 없는 곳이 많아 넣지 않았다.
+ * 메디신볼은 2026-10-14 에 뺐다(김민 — 못 던지는 환경일 수 있다). 없으면 메디신볼 칸은 플라이오 푸시업으로, 있어도 선택 운동이다(isOptionalProgramExercise).
+ * 이미 진행 중인 프로그램은 막지 않는다 — 시작할 때만 본다(checkEligibility).
  */
-export const REQUIRED_EQUIPMENT: readonly string[] = ['바벨', '덤벨'];
+export const REQUIRED_EQUIPMENT: readonly string[] = [
+  '바벨',
+  '원판',
+  '덤벨',
+  '벤치',
+  '철봉',
+  '밴드',
+  '케이블',
+];
+/**
+ * 기본기 4주의 필수 장비 — 기본 근력 운동(스쿼트 · 힌지 · 밀기 · 당기기 · 한 다리)이 되게(2026-10-16 김민). 맨몸만이면 당기기 후보가 0,
+ * 힌지가 1이었다. 밴드 · 덤벨이면 일곱 칸 모두 셋 넘게. 메디신볼은 못 던지는 곳이 많아 넣지 않는다(없으면 던지기 칸은 점프).
+ */
+export const BASICS_REQUIRED_EQUIPMENT: readonly string[] = ['덤벨', '밴드'];
+
+/**
+ * 있으면 좋은 장비(필수 아님) — 메디신볼이 있으면 메디신볼 · 회전 던지기 칸이 실제 던지기로, 박스가 있으면 점프가 다양해진다(2026-10-16,
+ * 벤치 · 밴드는 필수로 올림). 시작 시트가 '권장'으로 보여 준다.
+ */
+export const RECOMMENDED_EQUIPMENT: readonly string[] = ['메디신볼', '박스'];
 
 /**
  * 선택 운동 — 메디신볼을 던지는 칸(메디신볼 · 회전 던지기)은 건너뛰어도 된다(2026-10-14 김민: 못 던지는 환경일 수 있다).
@@ -120,16 +202,13 @@ export const TM_LOOKBACK_DAYS = 42;
 
 export type ProgramId =
   | 'stronglifts-5x5'
-  | '531-bbb'
   | '531'
   | 'juggernaut-5s'
   | 'ws4sb'
-  | 'french-contrast'
+  | 'pitcher-power'
   | 'offseason-strength-power'
-  | 'basics-4w'
-  | 'inseason-starter'
-  | 'inseason-reliever';
-export type ProgramGoal = 'base' | 'strength' | 'power' | 'inSeason';
+  | 'basics-4w';
+export type ProgramGoal = 'base' | 'strength' | 'power';
 /**
  * 누구의 프로그램인가 — adult: 만 18세 이상 · 입문 아님(설계 D10), basics: 만 13세부터 · 경력 상관없이(기본기 4주).
  * 고르기 화면 · 시작 자격 · 운동 고르기 규칙이 이것으로 갈린다.
@@ -141,76 +220,11 @@ export const GOAL_LABELS: Record<ProgramGoal, string> = {
   base: '기초',
   strength: '근력',
   power: '파워',
-  inSeason: '시즌 중',
 };
-
-/*
- * 시즌 중 프로그램(2026-10-14 김민 — 선발 · 불펜을 나눠서). 세션 번호가 아니라 오늘 상태(마지막 등판에서 며칠 · 어제 몇 구)로 그날 세션 종류를
- * 고른다(inSeasonKind). 근거: 에릭 크레시의 시즌 중 글 — 선발은 등판 다음 날 하체 무겁게 · 이틀 뒤 움직임만 · 사흘 뒤 상체 무겁게, 불펜은 긴
- * 운동(전신 15~17세트) 하나와 짧은 운동 둘(하체 · 상체 위주 8~12세트)을 어제 던진 공 수(20구)로 고른다. 시즌 중에는 머리 위로 당기기를 주 1번
- * 넘게 하지 않고 로우를 더 한다(팔꿈치) — 우리 당기기 칸은 원래 로우를 먼저 고른다(VARIANT_RULES.pull).
- */
-export type InSeasonRole = 'starter' | 'reliever';
-export type SessionKind = 'lower' | 'upper' | 'full' | 'shortLower' | 'shortUpper';
-export const SESSION_KIND_LABELS: Record<SessionKind, string> = {
-  lower: '하체 날',
-  upper: '상체 날',
-  full: '전신 날',
-  shortLower: '짧은 하체 날',
-  shortUpper: '짧은 상체 날',
-};
-/** 오늘 상태를 모를 때(목록 · 화면 미리 보기 · 옛 판)의 차례 */
-const KIND_CYCLE: Record<InSeasonRole, readonly SessionKind[]> = {
-  starter: ['lower', 'upper'],
-  reliever: ['shortLower', 'shortUpper'],
-};
-
-export type InSeasonInput = {
-  /** 마지막 경기(등판)에서 며칠 — 어제 1, 기록 없으면 null(facts.patterns.gameDates) */
-  daysSinceGame: number | null;
-  /** 어제 · 그저께 던진 공 수(투구 기록, 없으면 0) */
-  pitchesYesterday: number;
-  pitchesTwoDaysAgo: number;
-  /** 마지막 프로그램 세션에서 며칠 — 없으면 null */
-  daysSinceLift: number | null;
-  /** 다음 세션 번호 — 번갈아 고를 때 */
-  day: number;
-};
-
-/** 불펜이 '많이 던졌다'고 보는 공 수 — 크레시: 20구 넘으면 선발의 등판 다음 날처럼 */
-export const RELIEVER_HEAVY_PITCHES = 20;
-
-/**
- * 오늘의 시즌 중 세션 종류 — null 이면 움직임 운동만 하는 날(웨이트 없음). 등판 날 · 등판 전날은 decideToday 의 경기 규칙이 쉬게 한다.
- *   선발: 등판 다음 날 하체 · 이틀 뒤 움직임 · 사흘 뒤 상체 · 나흘 뒤(5일 간격) 짧은 하체 · 등판 기록이 없거나 더 쉬었으면 전신
- *   불펜: 어제 20구 넘게 → 하체 · 그저께 20구 넘게 던지고 어제 쉼 → 움직임 · 어제 안 던졌고 사흘 넘게 안 들었으면 전신 · 그 밖은 짧은 하체 ↔ 짧은 상체
- */
-export function inSeasonKind(role: InSeasonRole, x: InSeasonInput): SessionKind | null {
-  if (role === 'starter') {
-    const d = x.daysSinceGame;
-    if (d === 1) return 'lower';
-    if (d === 2) return null;
-    if (d === 3) return 'upper';
-    if (d === 4) return 'shortLower';
-    return 'full';
-  }
-  if (x.pitchesYesterday > RELIEVER_HEAVY_PITCHES) return 'lower';
-  if (x.pitchesYesterday === 0 && x.pitchesTwoDaysAgo > RELIEVER_HEAVY_PITCHES) return null;
-  if (x.pitchesYesterday === 0 && (x.daysSinceLift == null || x.daysSinceLift >= 3)) return 'full';
-  return cycle(KIND_CYCLE.reliever, x.day);
-}
-
-/** 오늘 세션 종류를 얹은 계획 — dayPlan · dayLabel 이 그 종류로 만든다(시즌 중이 아니면 그대로) */
-export function withKind(plan: ProgramPlan, kind: SessionKind | null | undefined): ProgramPlan {
-  return plan.def.inSeason && kind ? { ...plan, kind } : plan;
-}
-
-const kindOf = (plan: ProgramPlan, day: number): SessionKind | undefined =>
-  plan.def.inSeason ? (plan.kind ?? cycle(KIND_CYCLE[plan.def.inSeason], day)) : undefined;
 
 /**
  * 무게를 정하는 방식(lib/program/next-weight.ts).
- *   pct     — 기준 무게(TM)의 몇 %. TM 은 시작 전 기록으로 정해 4주 동안 그대로(5/3/1 · 저거넛 · 프렌치 컨트라스트)
+ *   pct     — 기준 무게(TM)의 몇 %. TM 은 시작 전 기록으로 정해 4주 동안 그대로(5/3/1 · 저거넛)
  *   linear  — 다 채우면 다음 회차 한 칸(스트롱리프트)
  *   reserve — '몇 개 남기고' + 지난 기록(보조 운동 · 최고까지 올리기 · 옛 프로그램)
  *   none    — 무게 없음(점프 · 메디신볼 · 몸통)
@@ -233,10 +247,12 @@ type Item = {
   sets: readonly SetRx[];
   /** 세트 사이 쉬는 시간(초) */
   rest: number;
-  /** 앞 운동과 묶음 — 한 세트씩 번갈아 바로 이어서(대비 · 프렌치 컨트라스트) */
+  /** 앞 운동과 묶음 — 한 세트씩 번갈아 바로 이어서(지금 쓰는 프로그램은 없다 — 2026-10-16 프렌치 컨트라스트를 지움) */
   group?: boolean;
   /** 준비 세트로 올라가 본 세트 하나(WS4SB 최대 노력) */
   top?: boolean;
+  /** 보조 운동 — 세션마다 같은 칸 후보에서 돌아가며 고른다(assistFor). 본운동은 고정 그대로 */
+  assist?: boolean;
 };
 
 type DayBuild = { label: string | null; items: readonly Item[] };
@@ -247,8 +263,16 @@ export type ProgramDef = {
   name: string;
   /** 원작자 · 원래 이름 */
   origin: string;
-  /** 카드 한 줄 */
+  /** 카드 한 줄 — 무엇을 어떻게 하나 */
   summary: string;
+  /**
+   * 고르기 목록의 두 줄 — 왜 하나(무엇이 좋아지나) · 이런 분께(2026-10-16 김민: "고를 때 이게 뭔지 알기 쉽지 않다 — 길게 말고 핵심만,
+   * 뭘 왜 하는 건지"). 옛 프로그램(목록에서 숨김)은 없다.
+   */
+  why?: string;
+  fit?: string;
+  /** 하루가 어떻게 짜이나 — 목록 · 소개의 한 줄(같은 날 '조금만 더 자세히') */
+  how?: string;
   /** '자세히' — 원본에서 가져온 것 · 투수라서 바꾼 것 */
   detail: readonly string[];
   weeks: number;
@@ -257,16 +281,8 @@ export type ProgramDef = {
   lightWeeks: readonly number[];
   /** 그 주로 넘어가는 날 끝 화면의 한 줄(옛 프로그램의 5주 '파워 블록') */
   weekNotes?: Readonly<Record<number, string>>;
-  /** day = 프로그램 안 일차(1부터), light = 가벼운 주(lightWeeks), kind = 시즌 중 프로그램의 그날 세션 종류(inSeasonKind) */
-  build: (
-    day: number,
-    week: number,
-    perWeek: PerWeek,
-    light: boolean,
-    kind?: SessionKind
-  ) => DayBuild;
-  /** 시즌 중 프로그램 — 그날 운동을 세션 번호가 아니라 오늘 상태로 고른다(inSeasonKind) */
-  inSeason?: InSeasonRole;
+  /** day = 프로그램 안 일차(1부터), light = 가벼운 주(lightWeeks) */
+  build: (day: number, week: number, perWeek: PerWeek, light: boolean) => DayBuild;
   /** 없으면 adult */
   audience?: ProgramAudience;
   /** 시작에 꼭 있어야 하는 장비 — 없으면 REQUIRED_EQUIPMENT(바벨 · 덤벨) */
@@ -292,35 +308,77 @@ const item = (
   mode: WeightMode,
   sets: readonly SetRx[],
   rest: number,
-  extra: { group?: boolean; top?: boolean } = {}
+  extra: { group?: boolean; top?: boolean; assist?: boolean } = {}
 ): Item => ({ variant, mode, sets, rest, ...extra });
 
-/** 보조 운동 — 가벼운 주는 2세트 · 4개 남기고 */
-const assist = (
-  variant: VariantKey,
-  n: number,
-  count: number,
-  light: boolean,
-  rest = 90
-): Item =>
-  item(variant, 'reserve', light ? reps(2, count, 4) : reps(n, count, 2), rest);
+/** 보조 메뉴 한 칸의 횟수 — 큰 동작은 8~10회, 팔 · 어깨 뒤쪽 · 전완은 12~15회 */
+const ACC_REPS: Partial<Record<VariantKey, number>> = {
+  hpull: 10,
+  vpull: 8,
+  pushAcc: 10,
+  hamstring: 8,
+  singleLeg: 8,
+  scap: 12,
+  triceps: 12,
+  biceps: 12,
+  forearm: 15,
+};
 
-/* 투수 맞춤: 날마다 끝에 몸통 버티기 하나(원본의 보조 운동 자리) */
-const coreItem = (light = false): Item =>
-  item('antiRotation', 'none', light ? reps(2, 10) : reps(3, 10), 60);
+/**
+ * 그날 보조 메뉴(2026-10-14 사용자와 정함) — 본운동에 맞춰 칸 넷, 각 2~3세트. 웬들러 원칙대로 당기기는 날마다(밀기보다 많이), 그날
+ * 본운동과 같은 근육은 피한다(벤치 날은 보조 밀기 대신 삼두 · 어깨 뒤쪽).
+ *   스쿼트 날  가로 당기기 · 보조 밀기 · 햄스트링 · 몸통
+ *   벤치 날    세로 당기기 · 어깨 뒤쪽 · 삼두 · 몸통
+ *   힌지 날    가로 당기기 · 보조 밀기 · 한 다리 · 전완
+ * 한 날에 스쿼트와 벤치가 같이 있으면(주 2번) 스쿼트 날 메뉴에서 보조 밀기를 이두로. 회전 던지기를 한 날은 그것이 몸통 칸이라 몸통을 뺀다.
+ */
+function accessoryMenu(
+  lifts: readonly VariantKey[],
+  sets: number,
+  light: boolean,
+  hasThrow = false
+): Item[] {
+  const first = lifts[0];
+  let keys: VariantKey[] =
+    first === 'push'
+      ? ['vpull', 'scap', 'triceps', 'antiRotation']
+      : first === 'hinge'
+        ? ['hpull', 'pushAcc', 'singleLeg', 'forearm']
+        : ['hpull', 'pushAcc', 'hamstring', 'antiRotation'];
+  if (first !== 'push' && lifts.includes('push')) keys = keys.map((k) => (k === 'pushAcc' ? 'biceps' : k));
+  return keys.flatMap((k) =>
+    k === 'antiRotation'
+      ? /* 회전 던지기를 한 날은 그것이 돌리는 몸통 — 몸통 안정만 */
+        coreItems().slice(hasThrow ? 1 : 0)
+      : [
+          item(k, 'reserve', light ? reps(2, ACC_REPS[k] ?? 10, 4) : reps(sets, ACC_REPS[k] ?? 10, 2), 75, {
+            assist: true,
+          }),
+        ]
+  );
+}
+
+/* 투수 맞춤: 날마다 끝에 몸통 둘(원본의 보조 운동 자리) — 돌지 않게 버티기 + 몸통 안정, 각 2세트(2026-10-16 김민: 3세트 하나 → 2세트 둘) */
+const coreItems = (): Item[] => [
+  item('antiRotation', 'none', reps(2, 10), 60, { assist: true }),
+  item('coreStab', 'none', reps(2, 10), 60, { assist: true }),
+];
 
 /* ─────────────────────────────── 기초 ─────────────────────────────── */
 
 const STRONGLIFTS: ProgramDef = {
   id: 'stronglifts-5x5',
   goal: 'base',
-  name: '스트롱리프트 5×5',
+  name: '5×5 기초 근력',
   origin: 'StrongLifts 5×5 · 메흐디 하딤',
   summary: '매번 5회 5세트, 다 채우면 다음에 무게를 올려요',
+  how: 'A 날은 스쿼트 · 벤치 · 로우, B 날은 데드리프트 · 오버헤드 프레스예요. 두 날을 번갈아 해요',
+  why: '웨이트를 제대로 시작할 때 많이 하는 프로그램이에요. 큰 운동 몇 개만 반복해서 하체랑 몸통 힘부터 올려요',
+  fit: '웨이트를 해 봤지만 무게를 꾸준히 올려 본 적은 없는 분',
   detail: [
-    'A 날(스쿼트 · 밀기 · 당기기)과 B 날(스쿼트 · 데드리프트)을 번갈아 해요.',
+    'A 날(스쿼트 · 벤치 프레스 · 바벨 로우)과 B 날(데드리프트 · 오버헤드 프레스)을 번갈아 해요. 투수에 맞춰 스쿼트는 A 날만, B 날은 데드리프트를 3세트로 해요.',
     '다 채우면 다음 회차에 2.5kg(데드리프트 5kg)을 올리고, 세 번 연속 못 채우면 10% 낮춰요.',
-    '투수에 맞춰 오버헤드 프레스는 빼고 밀기는 벤치 프레스로 해요. 날마다 몸통 버티기를 더했어요.',
+    '본운동 뒤 짧은 보조(A 날 세로 당기기 · 삼두, B 날 가로 당기기 · 이두, 날마다 몸통)를 2세트씩 하고, 보조는 세션마다 바뀌어요.',
   ],
   weeks: 4,
   perWeek: [3],
@@ -329,18 +387,26 @@ const STRONGLIFTS: ProgramDef = {
     const a = day % 2 === 1;
     return {
       label: a ? 'A 날' : 'B 날',
-      /* 투수 맞춤: B 날의 오버헤드 프레스는 뺀다 — 밀기가 매 회차면 벤치 무게가 원본보다 세 배 빨리 오른다 */
+      /*
+       * 원본 그대로 B 날 오버헤드 프레스(2026-10-14 사용자: 투수도 머리 위 운동을 한다 — 예전엔 뺐다). 벤치(push)와 따로 고정(ohp)이라 무게가
+       * 따로 오른다. 투수 맞춤(2026-10-15 사용자): 스쿼트는 A 날만 — 원본은 매 세션 스쿼트라 투구와 겹쳐 다리가 쉬지 못한다. B 날은 그 자리를
+       * 데드리프트 3세트(원본 1세트)로. 본운동 뒤 짧은 보조 2세트(웬들러 원칙대로 당기기는 날마다 — A 날은 로우가 본운동이라 세로 당기기) · 몸통.
+       */
       items: a
         ? [
             item('squat', 'linear', reps(5, 5), 180),
             item('push', 'linear', reps(5, 5), 120),
             item('pull', 'linear', reps(5, 5), 120),
-            coreItem(),
+            item('vpull', 'reserve', reps(2, 8, 2), 75, { assist: true }),
+            item('triceps', 'reserve', reps(2, 12, 2), 60, { assist: true }),
+            ...coreItems(),
           ]
         : [
-            item('squat', 'linear', reps(5, 5), 180),
-            item('hinge', 'linear', reps(1, 5), 180),
-            coreItem(),
+            item('hinge', 'linear', reps(3, 5), 180),
+            item('ohp', 'linear', reps(5, 5), 120),
+            item('hpull', 'reserve', reps(2, 10, 2), 75, { assist: true }),
+            item('biceps', 'reserve', reps(2, 12, 2), 60, { assist: true }),
+            ...coreItems(),
           ],
     };
   },
@@ -371,97 +437,75 @@ const WAVE_JUGGERNAUT_5S: readonly (readonly SetRx[])[] = [
   [at(5, 0.4), at(5, 0.5), at(5, 0.6)],
 ];
 
-/** BBB 5×10 의 TM % — 4주(가볍게)는 하지 않는다 */
-const BBB_PCT = [0.5, 0.6, 0.6];
 
 function waveDay(
   wave: readonly (readonly SetRx[])[],
-  bbb: boolean,
   primer: boolean
 ): ProgramDef['build'] {
   return (day, week, perWeek, light) => {
     const lifts = mainLifts(day, perWeek);
     /*
-     * 원저자 권장: 들기 전에 뛰고 던지기. 밀기 날은 메디신볼, 힌지 날은 회전 던지기(2026-10-14 김민 — 투구는 회전이라 주 1번 이상
-     * 회전 파워를. 주 3번 · 2번 모두 힌지 날이 주 1번), 나머지는 점프. 근력이 목적이라 워밍업으로만 — 2세트 × 3회 · 60초
+     * 원저자 권장: 들기 전에 뛰고 던지기. 힌지 날은 회전 던지기(2026-10-14 김민 — 투구는 회전이라 주 1번 이상 회전 파워를.
+     * 주 3번 · 2번 모두 힌지 날이 주 1번), 스쿼트 날은 점프. 근력이 목적이라 워밍업으로만 — 2세트 × 3회 · 60초
      * (2026-10-14 김민: "파워가 목적이 아니잖아"). 저거넛은 넣지 않는다(primer false).
+     * 밀기 날의 메디신볼은 뺐다(2026-10-16 김민) — 워밍업 루틴을 만들면 그 자리에 넣는다.
      */
-    const items: Item[] = primer
-      ? [
-          item(
-            lifts[0] === 'push' ? 'medball' : lifts[0] === 'hinge' ? 'rotationalThrow' : 'jump',
-            'none',
-            reps(2, 3),
-            60
-          ),
-        ]
-      : [];
-    lifts.forEach((v, i) => {
-      const extra = bbb && i === 0 && !light ? pctSets(5, 10, BBB_PCT[week - 1]) : [];
-      items.push(item(v, 'pct', [...wave[week - 1], ...extra], v === 'push' ? 150 : 180));
+    const items: Item[] =
+      primer && lifts[0] !== 'push'
+        ? [item(lifts[0] === 'hinge' ? 'rotationalThrow' : 'jump', 'none', reps(2, 3), 60)]
+        : [];
+    lifts.forEach((v) => {
+      items.push(item(v, 'pct', wave[week - 1], v === 'push' ? 150 : 180));
     });
-    if (bbb) {
-      items.push(assist('pull', 5, 10, light));
-    } else {
-      items.push(assist('pull', 3, 10, light), assist('singleLeg', 3, 8, light));
-    }
-    /* 몸통 칸은 하루 하나 — 회전 던지기를 한 날은 그것이 몸통 운동(옛 프로그램의 파워 블록과 같다) */
-    if (items[0].variant !== 'rotationalThrow') items.push(coreItem(light));
+    /*
+     * 보조 메뉴(accessoryMenu) — 칸마다 3세트. 몸통 칸은 하루 하나 — 회전 던지기를 한 날은 그것이
+     * 몸통 운동(옛 프로그램의 파워 블록과 같다).
+     */
+    items.push(...accessoryMenu(lifts, 3, light, items[0]?.variant === 'rotationalThrow'));
     return { label: null, items };
   };
 }
-
-const BBB_531: ProgramDef = {
-  id: '531-bbb',
-  goal: 'base',
-  name: '5/3/1 BBB',
-  origin: "5/3/1 Boring But Big · 짐 웬들러",
-  summary: '5/3/1 뒤에 같은 운동을 10회씩 5세트 더 해 근육을 키워요',
-  detail: [
-    '본 운동은 5/3/1 과 같고, 그 뒤에 같은 운동을 가볍게(기준 무게의 50~60%) 10회씩 5세트 더 해요.',
-    '%는 기준 무게(추정 최대의 90%)의 비율이에요. 기준 무게는 시작 전 기록으로 정하고 4주 동안 그대로예요.',
-    '4주는 가볍게 해요. 투수에 맞춰 + 세트는 2개 남기고 멈춰요.',
-  ],
-  weeks: 4,
-  perWeek: [2, 3],
-  lightWeeks: [4],
-  build: waveDay(WAVE_531, true, true),
-};
 
 /* ─────────────────────────────── 근력 ─────────────────────────────── */
 
 const W531: ProgramDef = {
   id: '531',
   goal: 'strength',
-  name: '5/3/1',
+  name: '5/3/1 근력',
   origin: '5/3/1 · 짐 웬들러',
   summary: '1주 5회, 2주 3회, 3주 5·3·1회, 4주는 가볍게 해요',
+  how: '큰 운동은 하루 3세트뿐이에요. 마지막 세트만 2개 남을 때까지 많이 해요',
+  why: '무게를 천천히 올리는 대신 오래 꾸준히 늘어요. 하루 운동량이 적어서 공 던지는 주에도 부담이 덜해요',
+  fit: '매번 무게를 올리기가 버거워진 분',
   detail: [
     '본 운동 3세트의 마지막(+)은 할 수 있는 만큼 하되 2개 남기고 멈춰요.',
     '%는 기준 무게(추정 최대의 90%)의 비율이에요. 기준 무게는 시작 전 기록으로 정하고 4주 동안 그대로예요.',
-    '원저자 권장대로 들기 전에 워밍업으로 점프나 메디신볼을 가볍게 해요(힌지 날은 회전 던지기). 보조로 당기기 · 한 다리 · 몸통을 해요.',
+    '원저자 권장대로 스쿼트 날은 들기 전에 워밍업으로 점프를 가볍게 해요(힌지 날은 회전 던지기). 보조는 그날 본운동에 맞춘 넷(당기기는 날마다 · 보조 밀기나 삼두 · 다리나 전완 · 몸통)이고, 세션마다 다른 운동이 나와요.',
   ],
   weeks: 4,
   perWeek: [2, 3],
   lightWeeks: [4],
-  build: waveDay(WAVE_531, false, true),
+  build: waveDay(WAVE_531, true),
 };
 
 const JUGGERNAUT: ProgramDef = {
   id: 'juggernaut-5s',
   goal: 'strength',
-  name: '저거넛 5회 파도',
+  name: '저거넛 근력',
   origin: 'Juggernaut Method 5s wave · 채드 웨슬리 스미스',
   summary: '쌓기, 세게, 기록 내기, 가볍게 순서로 4주를 가요',
+  how: '처음 2주는 세트를 많이 쌓고, 3주째에 기록을 내 봐요',
+  why: '운동량이 많은 편이에요. 힘도 늘지만 시즌 내내 버티는 체력을 만드는 데 좋아요',
+  fit: '운동량을 견딜 수 있고 기록을 내 보고 싶은 분',
   detail: [
     '1주는 5회를 여러 세트 쌓고, 2주는 무게를 올리고, 3주는 + 세트로 기록을 내고, 4주는 가볍게 해요.',
     '%는 기준 무게(추정 최대의 90%)의 비율이에요. + 세트는 2개 남기고 멈춰요.',
-    '보조로 당기기 · 한 다리 · 몸통을 해요.',
+    '보조는 그날 본운동에 맞춘 넷(당기기는 날마다 · 보조 밀기나 삼두 · 다리나 전완 · 몸통)이고, 세션마다 다른 운동이 나와요.',
   ],
   weeks: 4,
   perWeek: [2, 3],
   lightWeeks: [4],
-  build: waveDay(WAVE_JUGGERNAUT_5S, false, false),
+  build: waveDay(WAVE_JUGGERNAUT_5S, false),
 };
 
 /* ─────────────────────────────── 파워 ─────────────────────────────── */
@@ -469,105 +513,148 @@ const JUGGERNAUT: ProgramDef = {
 const WS4SB: ProgramDef = {
   id: 'ws4sb',
   goal: 'power',
-  name: '웨스트사이드 포 스키니 배스터즈',
+  name: '웨스트사이드 파워',
   origin: 'Westside for Skinny Bastards · 조 디프랑코',
   summary: '최고 기록 날과 점프 날로 힘과 탄력을 같이 길러요',
+  how: '매번 점프나 던지기로 먼저 몸을 빠르게 써요. 무거운 날엔 3~5회 최고 무게까지 들어요',
+  why: '무겁게 드는 힘과 빠르게 쓰는 힘을 같이 키워요. 구속을 올리고 싶을 때 맞아요',
+  fit: '근력 바탕이 있고 폭발력을 더 키우고 싶은 분',
   detail: [
     '웨스트사이드를 운동선수용으로 바꾼 프로그램이에요. 1회 최대 대신 3~5회 최대, 속도 스쿼트 대신 점프를 해요.',
-    '무거운 날은 준비 세트로 올라가 본 세트 하나를 1개 남기고 해요. 운동은 매주 스쿼트와 힌지를 바꿔요.',
-    '주 3번이면 상체를 여러 번 하는 날이 더해져요.',
+    '무거운 날은 점프 · 던지기 뒤에 준비 세트로 올라가 본 세트 하나를 1개 남기고 해요. 운동은 매주 스쿼트와 힌지를 바꿔요.',
+    '점프 날은 점프 · 회전 던지기 · 앞으로 던지기가 중심이에요. 주 3번이면 상체를 여러 번 하는 날이 더해지고, 플라이오 푸시업으로 시작해요.',
+    '빠르게 하는 동작은 2 · 3주에 한 세트 늘고 4주에 줄어요.',
   ],
   weeks: 4,
   perWeek: [2, 3],
   lightWeeks: [],
   build: (day, week, perWeek) => {
+    /*
+     * 파워 비중(2026-10-16 김민 "파워 비중이 너무 낮다" — 세트로 무거운 날 18% · 점프 날 50% · 상체 날 15%, 한 주 27%). 보조를 덜어 낸 자리에
+     * 던지기 · 점프 · 플라이오 푸시업을 넣어 한 주 40%쯤, 세션 길이는 그대로. 주마다: 2 · 3주 파워 세트 +1, 4주 -1(점프 단계는 jumpFitsWeek).
+     * 점프 날 던지기는 늘리지 않는다 — 한 번에 28개(회전 좌우 3 × 3 + 앞으로 2 × 5), 투수 파워의 '30개 안팎'(10-16) 안.
+     */
+    const plus = [0, 1, 1, -1][week - 1];
+    const pw = (n: number) => Math.max(2, n + plus);
+    const main = (['squat', 'hinge', 'squat', 'hinge'] as const)[week - 1];
     const heavy: DayBuild = {
       label: '무거운 날',
       items: [
-        item('jump', 'none', reps(3, 3), 90),
-        item(
-          (['squat', 'hinge', 'squat', 'hinge'] as const)[week - 1],
-          'reserve',
-          [{ reps: week <= 2 ? 5 : 3, reserve: 1 }],
-          180,
-          { top: true }
-        ),
-        assist('singleLeg', 3, 8, false),
-        assist('pull', 3, 10, false),
-        coreItem(),
+        item('jump', 'none', reps(pw(3), 3), 90),
+        /* 들기 전에 던지기 — 무거운 날도 빠르게 하는 동작을 둘 */
+        item('medball', 'none', reps(pw(3), 3), 90),
+        item(main, 'reserve', [{ reps: week <= 2 ? 5 : 3, reserve: 1 }], 180, { top: true }),
+        /* 보조 셋 + 몸통 하나(예전 넷 + 몸통 둘 · 전완에서 줄임) */
+        item('hpull', 'reserve', reps(3, ACC_REPS.hpull ?? 10, 2), 75, { assist: true }),
+        item('pushAcc', 'reserve', reps(3, ACC_REPS.pushAcc ?? 10, 2), 75, { assist: true }),
+        main === 'squat'
+          ? item('hamstring', 'reserve', reps(3, ACC_REPS.hamstring ?? 8, 2), 75, { assist: true })
+          : item('singleLeg', 'reserve', reps(3, ACC_REPS.singleLeg ?? 8, 2), 75, { assist: true }),
+        coreItems()[0],
       ],
     };
     const jumps: DayBuild = {
       label: '점프 날',
       items: [
-        item('jump', 'none', reps(5, 3), 90),
-        /* 회전 던지기 — 투구는 회전이라 주 1번 이상(2026-10-14). 앞으로 던지기는 상체 반복 날에 */
-        item('rotationalThrow', 'none', reps(4, 3), 90),
-        assist('singleLeg', 3, 10, false),
-        assist('push', 3, 10, false),
-        assist('pull', 3, 10, false),
+        item('jump', 'none', reps(pw(5), 3), 90),
+        /* 회전 던지기 — 투구는 회전이라 주 1번 이상(2026-10-14). 회전 던지기가 이날의 몸통 칸 */
+        item('rotationalThrow', 'none', reps(3, 3), 90),
+        item('medball', 'none', reps(2, 5), 90),
+        /* 점프 날 보조 둘 — 한 다리 · 세로 당기기 */
+        item('singleLeg', 'reserve', reps(3, 10, 2), 75, { assist: true }),
+        item('vpull', 'reserve', reps(3, 8, 2), 75, { assist: true }),
       ],
     };
     const upper: DayBuild = {
       label: '상체 반복 날',
       items: [
-        item('medball', 'none', reps(3, 5), 90),
-        assist('push', 3, 12, false),
-        assist('pull', 4, 10, false),
-        coreItem(),
+        item('medball', 'none', reps(pw(3), 5), 90),
+        item('plyoPush', 'none', reps(pw(3), 5), 90),
+        /* 당기기를 밀기보다 많이(가로 · 세로 둘), 팔은 주마다 삼두 · 이두 번갈아 하나, 몸통 하나 */
+        item('pushAcc', 'reserve', reps(3, 12, 2), 75, { assist: true }),
+        item('hpull', 'reserve', reps(3, 10, 2), 75, { assist: true }),
+        item('vpull', 'reserve', reps(3, 8, 2), 75, { assist: true }),
+        item(week % 2 === 1 ? 'triceps' : 'biceps', 'reserve', reps(2, 12, 2), 60, { assist: true }),
+        coreItems()[0],
       ],
     };
     return cycle(perWeek === 3 ? [heavy, jumps, upper] : [heavy, jumps], day);
   },
 };
 
-/** 프렌치 컨트라스트 — 무겁게(추정 최대의 %) · 횟수 · 묶음 수, 주마다 */
-const CONTRAST_WEEKS = [
-  { max: 0.8, count: 3, rounds: 3 },
-  { max: 0.85, count: 3, rounds: 4 },
-  { max: 0.88, count: 2, rounds: 4 },
-  { max: 0.7, count: 3, rounds: 2 },
+/*
+ * 투수 파워(2026-10-16 김민 — 컨트라스트 대신). 투구 구속 트레이닝에서 흔히 쓰는 차례: 던지기(면마다 가볍게 · 많이) → 점프 → 근력(유지,
+ * 몇 개 남기고) → 보조. 회전 던지기는 날마다(투구는 회전), 큰 하체는 주 2번(스쿼트 날 · 힌지 날), 셋째 날은 큰 하체 없이 밀기 · 한 다리.
+ * 주마다 던지기 2 → 3 → 3세트(한 번에 22 → 33개) · 점프 3 → 4 → 4세트, 근력 5 → 4 → 3회(2개 남기고), 4주는 가볍게(세트 줄이고 4개 남기고).
+ */
+/* sets = 점프 세트, throws = 던지기 세트(회전 좌우 3회씩 + 앞 · 위로 5회 — 한 번에 22 → 33 → 33 → 22개, 2026-10-16 김민: "60개는 많다, 30개쯤") */
+const POWER_WEEKS = [
+  { sets: 3, throws: 2, lift: 5 },
+  { sets: 4, throws: 3, lift: 4 },
+  { sets: 4, throws: 3, lift: 3 },
+  { sets: 2, throws: 2, lift: 5 },
 ];
 
-const FRENCH_CONTRAST: ProgramDef = {
-  id: 'french-contrast',
+const PITCHER_POWER: ProgramDef = {
+  id: 'pitcher-power',
   goal: 'power',
-  name: '프렌치 컨트라스트',
-  origin: 'French Contrast · 칼 디츠',
-  summary: '무겁게 들고 바로 점프, 메디신볼까지 한 묶음으로 해요',
+  name: '투수 파워',
+  origin: '투구 구속 트레이닝 원칙 · 메디신볼 · 점프 · 근력 유지',
+  summary: '메디신볼을 여러 방향으로 던지고 뛴 뒤, 근력은 유지해요',
+  how: '매번 메디신볼 던지기로 시작해요. 스쿼트 날엔 점프도 해요',
+  why: '메디신볼 던지기가 중심이에요. 투구할 때처럼 몸을 돌려 던지는 힘을 키우고, 근력은 떨어지지 않을 만큼만 해요',
+  fit: '시즌을 앞두고 구속에 가까운 힘을 쓰고 싶은 분',
   detail: [
-    '무겁게(추정 최대의 80~88%, 기준 무게로는 89~98%) → 20초 → 점프 5회 → 20초 → 메디신볼 5회가 한 묶음이에요. 묶음 사이는 3분 쉬어요.',
-    '원본의 넷째 · 다섯째 동작(무게 들고 점프, 도움 받는 점프)은 우리 장비에 맞춰 메디신볼 하나로 합쳤어요. 힌지 날은 회전 던지기예요.',
-    '4주는 가볍게 해요.',
+    '날마다 메디신볼 던지기로 시작해요. 돌려 던지기는 좌우 각각, 앞 · 위로 던지기까지 한 번에 30개쯤을 가볍게, 매번 최대 속도로 던져요.',
+    '점프는 스쿼트 날에 해요. 1~2주는 박스 · 브로드 점프, 3주부터 바운드 · 뎁스 점프까지 올려요. 큰 운동은 2개 남기고 3세트만 해서 근력을 지켜요.',
+    '당기기를 밀기보다 많이 해요(투수 어깨).',
+    '주마다 던지기 세트가 늘고 근력 횟수는 5회에서 3회로 줄어요. 4주는 가볍게 해요.',
   ],
   weeks: 4,
   perWeek: [2, 3],
   lightWeeks: [4],
-  build: (day, week, _perWeek, light) => {
-    const w = CONTRAST_WEEKS[week - 1];
-    /* 힌지 묶음의 끝은 회전 던지기 — 투구는 회전이라 주 1번 이상(2026-10-14) */
-    const bundle = (v: VariantKey): Item[] => [
-      item(v, 'pct', pctSets(w.rounds, w.count, w.max / TM_RATIO), 20),
-      item('jump', 'none', reps(w.rounds, 5), 20, { group: true }),
-      item(v === 'hinge' ? 'rotationalThrow' : 'medball', 'none', reps(w.rounds, 5), 180, {
-        group: true,
-      }),
-    ];
-    return day % 2 === 1
-      ? {
-          label: 'A 날',
-          items: [
-            ...bundle('squat'),
-            assist('singleLeg', 3, 6, light),
-            assist('pull', 3, 8, light),
-            coreItem(light),
-          ],
-        }
-      : {
-          label: 'B 날',
-          /* 몸통 칸은 하루 하나 — 회전 던지기가 몸통 운동 */
-          items: [...bundle('hinge'), assist('push', 3, 8, light)],
-        };
+  build: (day, week, perWeek, light) => {
+    const w = POWER_WEEKS[week - 1];
+    const lift = (v: VariantKey): Item => item(v, 'reserve', reps(light ? 2 : 3, w.lift, light ? 4 : 2), 150);
+    /* 회전 던지기는 좌우 각각(라이브러리 perSide) — 앞 · 위로 던지기와 합쳐 한 번에 30개 안팎 */
+    const throwRot = item('rotationalThrow', 'none', reps(w.throws, 3), 60);
+    const throwFront = item('medball', 'none', reps(w.throws, 5), 60);
+    /* 당기기 ≥ 밀기(투수 어깨) — 스쿼트 날 보조 밀기는 세로 당기기로 */
+    const pullForPush = (xs: Item[]): Item[] =>
+      xs.map((x) => (x.variant === 'pushAcc' ? { ...x, variant: 'vpull', sets: reps(x.sets.length, ACC_REPS.vpull ?? 8, x.sets[0].reserve) } : x));
+    const squatDay: DayBuild = {
+      label: '스쿼트 날',
+      items: [
+        throwRot,
+        throwFront,
+        item('jump', 'none', reps(w.sets, 3), 75),
+        lift('squat'),
+        ...pullForPush(accessoryMenu(['squat'], 2, light, true)),
+      ],
+    };
+    /* 힌지 날 — 앞 · 위로 던지기. 주 2번이면 밀기도 여기서(밀기를 주 1번은 하게) — 그때 보조 밀기는 세로 당기기로(당기기 ≥ 밀기) */
+    const hingeAcc = accessoryMenu(['hinge'], 2, light, true);
+    const hingeDay: DayBuild = {
+      label: '힌지 날',
+      items: [
+        throwRot,
+        throwFront,
+        lift('hinge'),
+        ...(perWeek === 2 ? [lift('push'), ...pullForPush(hingeAcc)] : hingeAcc),
+      ],
+    };
+    const upperDay: DayBuild = {
+      label: '밀기 · 한 다리 날',
+      /* 점프는 스쿼트 날만 — 다리를 매일 뛰지 않게, 한 시간 안 */
+      items: [
+        throwRot,
+        throwFront,
+        lift('push'),
+        item('singleLeg', 'reserve', reps(2, 6, light ? 4 : 2), 90),
+        ...accessoryMenu(['push'], 2, light, true),
+      ],
+    };
+    return cycle(perWeek === 3 ? [squatDay, hingeDay, upperDay] : [squatDay, hingeDay], day);
   },
 };
 
@@ -642,7 +729,8 @@ const LEGACY: ProgramDef = {
  *
  * 무게를 올려 주지 않는다 — 모두 mode 'none'(무게 추천 · '몇 개 더?' 없음). 청소년 웨이트는 감독 아래에서 안전하다는
  * 근거(Lloyd 2014, 설계 D10)와 부딪히지 않게 횟수 · 세트로만 올린다: 1주 2세트 × 8회 → 2주 세트 +1 → 3주 횟수 +2 → 4주 가볍게.
- * 날마다 같은 일곱(전신) — 처음 배우는 사람은 같은 동작을 자주 하는 편이 자세가 빨리 익는다(Faigenbaum 2009).
+ * 날마다 같은 일곱 칸(전신) — 칸마다 운동 셋을 세션마다 돌린다(BASICS_ROTATION, 2026-10-16 김민 '같은 운동 연속 반복 금지').
+ * 처음 배우는 사람은 같은 동작을 자주 하는 편이 자세가 빨리 익어(Faigenbaum 2009) 셋만 돌려 사흘마다 다시 만나게 했다.
  * 몸 상태 규칙(통증 멈춤 · 경기 앞뒤 쉼 · 회복 데이 가볍게)은 성인 프로그램과 같은 decideToday 를 탄다.
  */
 const BASICS_WEEKS: readonly { sets: number; count: number }[] = [
@@ -656,29 +744,41 @@ const BASICS: ProgramDef = {
   id: 'basics-4w',
   goal: 'base',
   audience: 'basics',
-  required: [],
+  required: BASICS_REQUIRED_EQUIPMENT,
   name: '기본기 4주',
   origin: '성장기 · 입문 투수용 맨몸 · 가벼운 저항',
   summary: '무게 없이 자세부터 익혀요. 횟수와 세트만 조금씩 늘려요',
+  how: '매번 7가지 동작을 운동만 바꿔 가며 해요. 처음 2주는 쉬운 동작이에요',
+  why: '무게보다 자세부터 잡는 4주예요. 12번 중 10번 넘게 하면 다른 프로그램을 시작할 수 있어요',
+  fit: '웨이트가 처음인 분',
   detail: [
-    '날마다 같은 일곱 가지를 해요. 던지기(메디신볼이 없으면 점프) · 스쿼트 · 밀기 · 힌지 · 당기기 · 한 다리 · 몸통 버티기예요.',
-    '2주차에 세트가 하나 늘고, 3주차에 횟수가 둘 늘어요. 4주는 가볍게 해요.',
+    '날마다 일곱 가지를 해요. 던지기(메디신볼이 없으면 점프) · 스쿼트 · 밀기 · 힌지 · 당기기 · 한 다리 · 몸통 버티기예요. 세션마다 다른 운동으로 바꿔 가며 해요.',
+    '1~2주는 쉬운 동작으로 자세를 익히고, 3~4주에 기본 동작으로 올라가요. 2주차에 세트가 하나 늘고, 3주차에 횟수가 둘 늘어요.',
+    '4주는 가볍게 하고, 마지막 세션에 스쿼트 · 밀기를 자세가 무너지기 전까지 해 봐요.',
     '무게는 추천하지 않아요. 덤벨이나 밴드를 쓰면 같은 자세가 끝까지 유지되는 가장 가벼운 것으로 해요.',
-    '다 마치면 성인은 근력 · 파워 프로그램이 열려요. 만 18세 전이면 코치나 트레이너와 함께 무게를 시작해요.',
+    '12번 중 10번 넘게 하면 성인은 근력 · 파워 프로그램이 열려요. 만 18세 전이면 코치나 트레이너와 함께 무게를 시작해요.',
   ],
   weeks: 4,
   perWeek: [3],
   lightWeeks: [4],
-  build: (_day, week) => {
+  build: (day, week) => {
     const w = BASICS_WEEKS[week - 1];
-    const lift = (v: VariantKey) => item(v, 'none', reps(w.sets, w.count), 60);
+    /* 무게는 추천하지 않되 얼마나 힘들게는 알려 준다 — 2개 남기고(2026-10-16 검토 ⑤) */
+    const lift = (v: VariantKey) => item(v, 'none', reps(w.sets, w.count, 2), 60);
+    /*
+     * 마지막 세션(4주 셋째)은 점검 — 스쿼트 · 밀기 한 세트를 자세가 무너지기 전까지(2026-10-16 검토 ④). 4주차가 1주차와 같은 2×8 로만
+     * 끝나 넘어갈 준비가 됐는지 알 길이 없었다. 적은 횟수는 세트 기록에 남는다.
+     */
+    const check = week === 4 && day % 3 === 0;
+    const tested = (v: VariantKey) =>
+      check ? item(v, 'none', [...reps(w.sets - 1, w.count, 2), { reps: w.count, plus: true }], 90) : lift(v);
     return {
-      label: null,
+      label: check ? '점검' : null,
       items: [
         /* 던지기 · 점프는 지치기 전에 맨 앞 */
         item('medball', 'none', reps(w.sets, 5), 90),
-        lift('squat'),
-        lift('push'),
+        tested('squat'),
+        tested('push'),
         lift('hinge'),
         lift('pull'),
         lift('singleLeg'),
@@ -690,115 +790,13 @@ const BASICS: ProgramDef = {
 
 /* ─────────────────────────────── 시즌 중 ─────────────────────────────── */
 
-/* 시즌 중은 매 세트 3개 남기고(여유를 넉넉히) — 세트는 비시즌의 절반쯤, 한 번 35~40분 안 */
-const keep = (variant: VariantKey, n: number, count: number, rest = 120): Item =>
-  item(variant, 'reserve', reps(n, count, 3), rest);
-
-/** 시즌 중 하루 — 큰 하체는 주마다 힌지 ↔ 스쿼트, 당기기는 밀기 세트 이상 */
-function inSeasonDay(kind: SessionKind, week: number): DayBuild {
-  const big: VariantKey = week % 2 === 1 ? 'hinge' : 'squat';
-  const label = SESSION_KIND_LABELS[kind];
-  switch (kind) {
-    /* 하체 무겁게 + 상체 가볍게(크레시: 등판 다음 날) — 13세트 */
-    case 'lower':
-      return {
-        label,
-        items: [
-          item('jump', 'none', reps(2, 3), 90),
-          keep(big, 3, 5, 180),
-          keep('singleLeg', 2, 6, 90),
-          keep('push', 2, 8, 90),
-          keep('pull', 2, 10, 90),
-          coreItem(true),
-        ],
-      };
-    /* 상체 무겁게 + 하체 가볍게 + 적은 메디신볼(크레시: 사흘 뒤) — 회전 던지기가 몸통 칸, 11세트 */
-    case 'upper':
-      return {
-        label,
-        items: [
-          item('rotationalThrow', 'none', reps(2, 3), 90),
-          keep('push', 3, 6, 150),
-          keep('pull', 4, 8, 90),
-          keep('singleLeg', 2, 8, 90),
-        ],
-      };
-    /* 긴 전신(크레시: 불펜의 긴 운동 15~17세트) */
-    case 'full':
-      return {
-        label,
-        items: [
-          item('jump', 'none', reps(2, 3), 90),
-          keep(big, 3, 5, 180),
-          keep('push', 3, 6, 150),
-          keep('pull', 3, 8, 90),
-          keep('singleLeg', 2, 6, 90),
-          coreItem(true),
-        ],
-      };
-    /* 짧은 하체 위주(8~12세트) */
-    case 'shortLower':
-      return {
-        label,
-        items: [keep(big, 3, 5, 180), keep('singleLeg', 2, 6, 90), keep('pull', 2, 10, 90), coreItem(true)],
-      };
-    /* 짧은 상체 위주(8~12세트) */
-    case 'shortUpper':
-      return {
-        label,
-        items: [keep('push', 3, 6, 150), keep('pull', 3, 8, 90), keep('singleLeg', 2, 8, 90), coreItem(true)],
-      };
-  }
-}
-
-const INSEASON_STARTER: ProgramDef = {
-  id: 'inseason-starter',
-  goal: 'inSeason',
-  name: '시즌 중 · 선발',
-  origin: '에릭 크레시의 시즌 중 선발 투수 원칙',
-  summary: '등판 다음 날 하체, 사흘 뒤 상체. 등판 날짜에 맞춰 세션이 바뀌어요',
-  detail: [
-    '등판 다음 날은 하체를 무겁게 · 상체는 가볍게, 이틀 뒤는 움직임 운동만, 사흘 뒤는 상체를 무겁게 · 하체는 가볍게 해요. 등판 전날과 등판 날은 쉬어요.',
-    '등판 사이가 길면(나흘 뒤) 짧은 하체를 더하고, 등판 기록이 없으면 전신으로 해요. 경기를 투구 기록에 남겨야 날짜를 알아요.',
-    '시즌 중이라 세트는 적게, 매 세트 3개 남기고 멈춰요. 당기기는 로우 위주로 해요.',
-  ],
-  weeks: 4,
-  perWeek: [2],
-  lightWeeks: [],
-  inSeason: 'starter',
-  build: (day, week, _perWeek, _light, kind) =>
-    inSeasonDay(kind ?? cycle(KIND_CYCLE.starter, day), week),
-};
-
-const INSEASON_RELIEVER: ProgramDef = {
-  id: 'inseason-reliever',
-  goal: 'inSeason',
-  name: '시즌 중 · 불펜',
-  origin: '에릭 크레시의 시즌 중 구원 투수 원칙',
-  summary: '어제 던진 공 수로 그날 세션이 정해져요',
-  detail: [
-    '어제 20구 넘게 던졌으면 하체를 무겁게 하고, 다음 날은 움직임 운동만 해요.',
-    '적게 던졌거나 안 던졌으면 짧은 하체 · 짧은 상체를 번갈아 하고, 사흘 넘게 쉬었으면 전신으로 해요.',
-    '시즌 중이라 세트는 적게, 매 세트 3개 남기고 멈춰요. 당기기는 로우 위주로 해요.',
-  ],
-  weeks: 4,
-  perWeek: [3],
-  lightWeeks: [],
-  inSeason: 'reliever',
-  build: (day, week, _perWeek, _light, kind) =>
-    inSeasonDay(kind ?? cycle(KIND_CYCLE.reliever, day), week),
-};
-
 /** 고르기 화면의 차례 — 기본기는 화면이 따로 맨 위에 둔다(audience) */
 export const PROGRAMS: readonly ProgramDef[] = [
   STRONGLIFTS,
-  BBB_531,
   W531,
   JUGGERNAUT,
   WS4SB,
-  FRENCH_CONTRAST,
-  INSEASON_STARTER,
-  INSEASON_RELIEVER,
+  PITCHER_POWER,
   BASICS,
 ];
 const ALL_PROGRAMS: readonly ProgramDef[] = [...PROGRAMS, LEGACY];
@@ -812,8 +810,6 @@ export type ProgramPlan = {
   perWeek: PerWeek;
   totalWeeks: number;
   totalDays: number;
-  /** 시즌 중 프로그램의 오늘 세션 종류(withKind) — 없으면 세션 번호로 번갈아 */
-  kind?: SessionKind;
 };
 
 /** DB 의 programKey — 주 3번은 id 그대로, 주 2번은 'id:2'(DB 구조를 바꾸지 않으려고 키에 싣는다) */
@@ -870,6 +866,8 @@ export type ItemRx = {
   group: boolean;
   /** 최고까지 올리기(준비 세트 + 본 세트 하나) */
   top: boolean;
+  /** 보조 운동 — 그날 운동을 돌아가며 고른다(assistFor) */
+  assist: boolean;
 };
 
 /** 본 세트 — % 가 가장 높은 세트 중 마지막(5/3/1 의 + 세트). % 가 없으면 마지막 세트 */
@@ -894,6 +892,7 @@ function toRx(x: Item, light: boolean): ItemRx {
     light,
     group: x.group === true,
     top: x.top === true,
+    assist: x.assist === true,
   };
 }
 
@@ -905,7 +904,7 @@ export function dayPlan(
   const d = Math.min(plan.totalDays, Math.max(1, day));
   const week = weekOfDay(plan, d);
   const light = isLightWeek(plan, week);
-  const built = plan.def.build(d, week, plan.perWeek, light, kindOf(plan, d));
+  const built = plan.def.build(d, week, plan.perWeek, light);
   return { label: built.label, items: built.items.map((x) => toRx(x, light)) };
 }
 
@@ -926,12 +925,24 @@ export const VARIANT_MOVEMENT_KEY: Record<VariantKey, string | null> = {
   squat: '스쿼트',
   hinge: '힌지',
   push: '밀기',
+  ohp: '밀기',
   pull: '당기기',
   singleLeg: '런지',
   jump: LOWER_POWER_KEY,
   medball: UPPER_POWER_KEY,
   antiRotation: null,
+  coreStab: null,
   rotationalThrow: UPPER_POWER_KEY,
+  /* 플라이오 푸시업도 팔 플라이오(isArmPlyo — 파워 · 밀기) — 팔을 다 쓴 날 던지기와 같이 미룬다(ARM_THROW_VARIANTS) */
+  plyoPush: UPPER_POWER_KEY,
+  hpull: '당기기',
+  vpull: '당기기',
+  pushAcc: '밀기',
+  hamstring: '힌지',
+  scap: null,
+  triceps: null,
+  biceps: null,
+  forearm: null,
 };
 
 /**
@@ -946,13 +957,14 @@ export const VARIANT_MOVEMENT_KEY: Record<VariantKey, string | null> = {
 export function patternsOfProgramDay(
   plan: ProgramPlan | null,
   day: number,
-  exerciseOf?: (variant: VariantKey) => ClassifiableExercise | null | undefined
+  exerciseOf?: (variant: VariantKey) => (ClassifiableExercise & { title?: string }) | null | undefined
 ): Set<string> {
   const out = new Set<string>();
   if (!plan) return out;
   for (const x of dayPlan(plan, day).items) {
     const ex = exerciseOf?.(x.variant);
-    const key = ex ? movementKeyOf(ex) : VARIANT_MOVEMENT_KEY[x.variant];
+    /* 두 분류에 드는 운동(박스 스쿼트 — 파워)은 그 칸의 열쇠로 — 본운동 칸에서는 스트렝스 계열이다 */
+    const key = ex && !(ex.title && ALSO_IN[ex.title]) ? movementKeyOf(ex) : VARIANT_MOVEMENT_KEY[x.variant];
     if (key != null) out.add(key);
   }
   return out;
@@ -966,15 +978,11 @@ export function variantLabel(v: VariantKey, audience: ProgramAudience = 'adult')
 /** 이 프로그램이 쓰는 변형 — 시작 시트 · 고정 운동 바꾸기는 이것만 보여 준다 */
 export function usedVariants(def: ProgramDef): VariantKey[] {
   const used = new Set<VariantKey>();
-  const kinds: readonly (SessionKind | undefined)[] = def.inSeason
-    ? (Object.keys(SESSION_KIND_LABELS) as SessionKind[])
-    : [undefined];
   for (const perWeek of def.perWeek) {
     for (let day = 1; day <= def.weeks * perWeek; day++) {
       const week = Math.ceil(day / perWeek);
-      for (const kind of kinds)
-        for (const x of def.build(day, week, perWeek, def.lightWeeks.includes(week), kind).items)
-          used.add(x.variant);
+      for (const x of def.build(day, week, perWeek, def.lightWeeks.includes(week)).items)
+        used.add(x.variant);
     }
   }
   return VARIANT_KEYS.filter((v) => used.has(v));
@@ -982,7 +990,7 @@ export function usedVariants(def: ProgramDef): VariantKey[] {
 
 /*
  * 이름표 — 'N번 세션'(2026-10-14 김민: 'N주차 · M일차' 대신 세션으로). 프로그램은 달력이 아니라 차례로 나아간다 — 마친 세션만큼 넘어가고,
- * 막는 것은 '이틀 연달아'뿐이라(decideToday spacing) 몸 상태에 따라 당겨 하거나 미뤄 4주 앞뒤로 맞출 수 있다. 주차는 이름표에서 빼고
+ * 막는 날은 통증 · 경기 앞뒤뿐이라(decideToday) 몸 상태에 따라 날마다 이어 하거나 미뤄 4주 앞뒤로 맞출 수 있다. 주차는 이름표에서 빼고
  * 가벼운 주(lightWeeks) · 처방에만 쓴다(세션 차례로 셈 — weekOfDay).
  */
 export function dayLabel(plan: ProgramPlan, day: number): string {
@@ -1045,8 +1053,16 @@ export function prescriptionLine(
   const side = opts.perSide ? ' (좌우 각각)' : '';
   const n = rx.sets.length;
   if (rx.mode === 'none') {
+    /* 기본기 점검 세트('+') — 앞 세트는 그대로, 마지막은 자세가 무너지기 전까지 */
+    if (rx.sets[n - 1].plus) {
+      return n > 1
+        ? `${n - 1}세트 × ${rx.sets[0].reps}회 · 마지막 세트는 자세가 무너지기 전까지${side}`
+        : `1세트 · 자세가 무너지기 전까지${side}`;
+    }
     const base = `${n}세트 × ${rx.sets[0].reps}회${side}`;
-    return rx.slot === 'power' ? `${base} · 최대 속도 · 충분히 쉬고` : base;
+    if (rx.slot === 'power') return `${base} · 최대 속도 · 충분히 쉬고`;
+    /* 무게 없이도 여유는 알려 준다(기본기, SetRx.reserve) */
+    return rx.sets[0].reserve != null ? `${base} · ${rx.sets[0].reserve}개 남기고` : base;
   }
   if (rx.top) {
     return `준비 세트로 올려 ${rx.reps}회 1세트${side} · ${rx.reserve ?? 1}개 남기고`;
@@ -1058,7 +1074,8 @@ export function prescriptionLine(
       ? `${base} · 가볍게 · ${rx.reserve}개 남기고`
       : `${base} · ${rx.reserve}개 남기고`;
   }
-  if (rx.mode === 'linear') return `${n}세트 × ${rx.reps}회${side} · 다 채우면 다음에 올려요`;
+  if (rx.mode === 'linear')
+    return `${n}세트 × ${rx.reps}회${side} · ${rx.reserve != null ? `${rx.reserve}개 남기고 · ` : ''}다 채우면 다음에 올려요`;
   const kgs = opts.kgs;
   const same = (i: number, j: number) =>
     rx.sets[i].reps === rx.sets[j].reps &&
@@ -1077,7 +1094,8 @@ export function prescriptionLine(
     parts.push(`${count} ${amount}`);
     i = j + 1;
   }
-  const plus = rx.sets.some((s) => s.plus) ? ` · +는 ${PLUS_RESERVE}개 남기고` : '';
+  /* 성장기(youthRx)면 reserve 가 + 세트의 남김이다 */
+  const plus = rx.sets.some((s) => s.plus) ? ` · +는 ${rx.reserve ?? PLUS_RESERVE}개 남기고` : '';
   return `${parts.join(' → ')}${side}${plus}`;
 }
 
@@ -1088,6 +1106,9 @@ export type ProgramChoice = Pick<
   ProgramDef,
   'id' | 'goal' | 'name' | 'origin' | 'summary' | 'detail' | 'perWeek'
 > & {
+  why: string | null;
+  fit: string | null;
+  how: string | null;
   /** 주마다 본 운동 한 줄 — '1주 · 스쿼트 5회 65% → 5회 75% → 5회+ 85%' */
   weeks: string[];
   /** 기준 무게(% 방식)를 쓰는가 — 요약의 무게 안내가 다르다 */
@@ -1118,6 +1139,9 @@ export function programChoiceList(): ProgramChoice[] {
       name: def.name,
       origin: def.origin,
       summary: def.summary,
+      why: def.why ?? null,
+      fit: def.fit ?? null,
+      how: def.how ?? null,
       detail: def.detail,
       perWeek: def.perWeek,
       weeks,
@@ -1132,7 +1156,26 @@ export function programChoiceList(): ProgramChoice[] {
 
 /* ─────────────────────────── 시작 자격(§1) ─────────────────────────── */
 
-export const PROGRAM_MIN_AGE = 18;
+/**
+ * 근력 · 파워 프로그램의 아래 끝 — 2026-10-14 사용자: "중학생들도 다 웨이트 할 수 있어"(예전 18). 만 16세 미만은 성장기 규칙을 같이 건다
+ * (매일 일정과 같은 선 lib/report/plan.ts YOUTH_AGE_THRESHOLD): 강도 '매우 높음' 운동은 안 고르고(variantCandidates youth), 본 세트 ·
+ * + 세트 · 직선 증량도 YOUTH_RESERVE 개 남기고(youthRx).
+ */
+export const PROGRAM_MIN_AGE = 13;
+
+/** 성장기 처방에서 남기는 개수 — 매일 일정의 CAUTIOUS_RESERVE(lib/workout/free-weight.ts)와 같다 */
+export const YOUTH_RESERVE = 3;
+
+/** 성장기인가 — 매일 일정과 같은 선(만 16세 미만). 나이를 모르면 아니다 */
+export function isYouthAge(age: number | null | undefined): boolean {
+  return age != null && age < YOUTH_AGE_THRESHOLD;
+}
+
+/** 성장기 처방 — 무게를 드는 칸은 YOUTH_RESERVE 개 남기고(% 방식의 + 세트 · 직선 증량 포함). 무게 없는 칸(none)은 그대로 */
+export function youthRx(rx: ItemRx): ItemRx {
+  if (rx.mode === 'none') return rx;
+  return { ...rx, reserve: Math.max(rx.reserve ?? 0, YOUTH_RESERVE) };
+}
 /** 기본기 4주의 아래 끝(2026-10-09 사용자) */
 export const BASICS_MIN_AGE = 13;
 
@@ -1201,7 +1244,7 @@ export function profileBlock(input: {
  * 시작할 수 있는가. 묻는 차례는 시작 시트의 차례(§13-12)와 같다 — 생년월일 · 경력 · 장비.
  * 시즌은 2026-10-10 에 묻지 않기로 했다(사용자: "시즌 정하는 건 다 빼").
  * 고르기 카드는 프로필로 이미 아는 막힘만 보고(나이 · 경력 — profileBlock), 나머지는 시트에서 받는다.
- * 기본기는 꼭 있어야 하는 장비가 없다(맨몸).
+ * 기본기는 덤벨 · 밴드(BASICS_REQUIRED_EQUIPMENT).
  */
 export function checkEligibility(input: EligibilityInput): Eligibility {
   const audience = input.audience ?? 'adult';
@@ -1228,7 +1271,7 @@ export function checkEligibility(input: EligibilityInput): Eligibility {
   }
   const gear = equipmentBlock(
     input.ownedEquipment,
-    audience === 'basics' ? [] : REQUIRED_EQUIPMENT
+    audience === 'basics' ? BASICS_REQUIRED_EQUIPMENT : REQUIRED_EQUIPMENT
   );
   if (gear) return { ok: false, kind: 'blocked', ...gear };
   return { ok: true };
@@ -1265,7 +1308,8 @@ export function equipmentBlock(
  */
 export function basicsDoneEnough(plan: ProgramPlan, nextDay: number, skippedDays: number): boolean {
   const did = Math.min(plan.totalDays, nextDay - 1) - skippedDays;
-  return did >= Math.ceil(plan.totalDays / 2);
+  /* 12번 중 10번(2026-10-16 검토 ③ — 예전 절반 6번은 화면 글 '다 마치면'과 어긋났다) */
+  return did >= plan.totalDays - 2;
 }
 
 /* ─────────────────────────── 운동 고정(§3 · U6) ─────────────────────────── */
@@ -1303,12 +1347,20 @@ type VariantRule = {
 
 const isWeighted = (ex: PinnableExercise) =>
   ex.equipment.some((e) => ['바벨', '덤벨', '케틀벨', '원판', '케이블'].includes(e));
+/*
+ * 근력 보조(당기기 · 보조 밀기 · 햄스트링) — 무게를 올려 갈 수 있는 것만. 풀업 · 친업은 맨몸이라도 든다. 2026-10-16 김민: 밴드 · 튜빙 ·
+ * 맨몸 회복형(하프닐링 밴드 풀다운 · 인클라인 푸시업 · 햄스트링 다이버 · 보수볼 RDL)이 근력 프로그램 보조로 나왔다 — 그건 암케어 · 회복 몫.
+ */
+const loadableAccessory = (ex: PinnableExercise) =>
+  (isWeighted(ex) || /풀업|친업/.test(ex.title)) &&
+  intensityLevel(ex.intensity) >= 3 &&
+  !/보수볼/.test(ex.title);
 
 const VARIANT_RULES: Record<VariantKey, VariantRule> = {
   /* 큰 하체는 두 발로, 무게를 들고, 강도 '높음' 이상 — 바벨을 먼저 */
   squat: {
     match: (ex) =>
-      ex.category === '하체 스트렝스' &&
+      inCategory(ex, '하체 스트렝스') &&
       ex.movementPattern === '스쿼트' &&
       !ex.perSide &&
       isWeighted(ex) &&
@@ -1317,13 +1369,14 @@ const VARIANT_RULES: Record<VariantKey, VariantRule> = {
   },
   hinge: {
     match: (ex) =>
-      ex.category === '하체 스트렝스' &&
+      inCategory(ex, '하체 스트렝스') &&
       ex.movementPattern === '힌지' &&
       !ex.perSide &&
       isWeighted(ex) &&
       intensityLevel(ex.intensity) >= 4,
     /* 데드리프트 · RDL 이 큰 힌지다 — 힙 쓰러스트는 보조라 뒤로 */
-    rank: (ex) => [/데드리프트|RDL/.test(ex.title) ? 0 : 1, BARBELL_FIRST(ex)],
+    /* 원본(5×5 · 5/3/1)의 큰 힌지는 데드리프트 — RDL 은 그다음(2026-10-14) */
+    rank: (ex) => [/데드리프트/.test(ex.title) ? 0 : /RDL/.test(ex.title) ? 1 : 2, BARBELL_FIRST(ex)],
   },
   /*
    * 밀기는 바벨 벤치 프레스를 먼저(2026-10-14 김민: "벤치를 덤벨 프레스로 바꿀 필요 없다 — 벤치도 중요하다". 예전엔 어깨 보호로 덤벨을 먼저 골랐다).
@@ -1332,7 +1385,7 @@ const VARIANT_RULES: Record<VariantKey, VariantRule> = {
    */
   push: {
     match: (ex) =>
-      ex.category === '상체 스트렝스' &&
+      inCategory(ex, '상체 스트렝스') &&
       ex.movementPattern === '밀기' &&
       !ex.perSide &&
       isWeighted(ex) &&
@@ -1344,23 +1397,41 @@ const VARIANT_RULES: Record<VariantKey, VariantRule> = {
       BARBELL_FIRST(ex),
     ],
   },
-  /* 당기기는 무거운 것이 적어 '중간'까지 받는다. 덤벨 · 바벨 로우를 철봉보다 먼저(무게 흐름을 보려고) */
+  /* 머리 위 밀기 — 바벨(밀리터리 프레스)을 먼저, 없으면 덤벨 숄더 프레스 */
+  ohp: {
+    match: (ex) =>
+      inCategory(ex, '상체 스트렝스') &&
+      ex.movementPattern === '밀기' &&
+      OVERHEAD_PRESS.test(ex.title) &&
+      isWeighted(ex) &&
+      intensityLevel(ex.intensity) >= 3,
+    rank: (ex) => [ex.perSide ? 1 : 0, BARBELL_FIRST(ex)],
+  },
+  /*
+   * 당기기(로우) — 스트롱리프트 본운동. 바벨 로우를 먼저(원본 그대로 — 2026-10-15 사용자: '허리 부담이라 바벨 로우는 맨 뒤' 규칙을 없앰).
+   * 무거운 것이 적어 '중간'까지 받는다. 버티기(아이소) · 빠르게(스피드) · 풀오버 · 풀다운(세로 당기기 칸의 것)은 뒤로.
+   */
   pull: {
     match: (ex) =>
-      ex.category === '상체 스트렝스' &&
+      inCategory(ex, '상체 스트렝스') &&
       ex.movementPattern === '당기기' &&
       isWeighted(ex) &&
       intensityLevel(ex.intensity) >= 3,
-    rank: (ex) => [ex.perSide ? 1 : 0, -intensityLevel(ex.intensity)],
+    rank: (ex) => [
+      /로우/.test(ex.title) && !/아이소|스피드/.test(ex.title) ? 0 : 1,
+      BARBELL_FIRST(ex),
+      ex.perSide ? 1 : 0,
+      -intensityLevel(ex.intensity),
+    ],
   },
   singleLeg: {
     match: (ex) =>
-      ex.category === '하체 스트렝스' &&
+      inCategory(ex, '하체 스트렝스') &&
       ex.movementPattern === '런지' &&
-      isWeighted(ex) &&
-      intensityLevel(ex.intensity) >= 3,
-    /* 스플릿 스쿼트 · 리버스 런지가 무게를 올려 가기 좋은 한쪽 하체다 */
+      loadableAccessory(ex),
+    /* 스플릿 스쿼트 · 리버스 런지가 무게를 올려 가기 좋은 한쪽 하체다. 불안정 지면(보수볼)은 빠진다(보조 칸은 차례를 섞어 rank 가 안 막는다) */
     rank: (ex) => [
+      /보수볼/.test(ex.title) ? 1 : 0,
       /스플릿 스쿼트|리버스 런지/.test(ex.title) ? 0 : 1,
       ex.equipment.includes('덤벨') ? 0 : 1,
       -intensityLevel(ex.intensity),
@@ -1369,16 +1440,22 @@ const VARIANT_RULES: Record<VariantKey, VariantRule> = {
   /* 파워 점프는 맨몸 · 박스로 뛰는 것 — 두 발 점프를 먼저 */
   jump: {
     match: (ex) =>
-      ex.category === '파워' &&
+      inCategory(ex, '파워') &&
       (ex.movementPattern === '스쿼트' || ex.movementPattern === '런지') &&
       ex.equipment.every((e) => e === '맨몸' || e === '박스'),
     rank: (ex) => [ex.perSide ? 1 : 0, ex.title.includes('점프') ? 0 : 1],
   },
   medball: {
-    match: (ex) => ex.category === '파워' && ex.equipment.includes('메디신볼'),
-    /* 던지기(밀기 · 당기기 계열)를 먼저, 회전은 5~8주 몸통 칸이 쓰므로 뒤로, 뛰며 던지는 것은 맨 뒤 */
+    /* 앞 · 위로 던지기 — 돌려 던지기(회전)는 회전 던지기 칸 몫이라 뺀다(2026-10-16: 투수 파워에서 두 칸이 같은 회전 토스를 고르던 것) */
+    match: (ex) =>
+      inCategory(ex, '파워') &&
+      ex.equipment.includes('메디신볼') &&
+      /* 뛰며 던지는 것(바운드 + 슬램)도 뺀다 — 점프는 점프 칸 몫(투수 파워 밀기 날에 다리를 또 뛰던 것) */
+      /* 힌지 = 엉덩이를 펴며 앞으로 던지기(헤비 메디신볼 힌지 토스, 2026-10-16 — 이 칸이 운동 둘만 번갈아 나와 큰 공 드릴을 옮겼다) */
+      (ex.movementPattern === '밀기' || ex.movementPattern === '당기기' || ex.movementPattern === '힌지'),
+    /* 던지기(밀기 · 당기기 · 힌지 계열)를 먼저, 뛰며 던지는 것은 맨 뒤 */
     rank: (ex) => [
-      ex.movementPattern === '밀기' || ex.movementPattern === '당기기'
+      ex.movementPattern === '밀기' || ex.movementPattern === '당기기' || ex.movementPattern === '힌지'
         ? 0
         : ex.movementPattern === '회전'
           ? 1
@@ -1387,7 +1464,7 @@ const VARIANT_RULES: Record<VariantKey, VariantRule> = {
   },
   antiRotation: {
     match: (ex) =>
-      ex.category === '코어' &&
+      inCategory(ex, '코어') &&
       [...ANTI_ROTATION_WORDS, ...ANTI_ROTATION_FALLBACK_WORDS].some((w) =>
         ex.title.includes(w)
       ),
@@ -1397,17 +1474,103 @@ const VARIANT_RULES: Record<VariantKey, VariantRule> = {
     ],
   },
   /* 회전 던지기 — 메디신볼을 먼저, 없으면 돌리는 코어 */
+  /*
+   * 회전 던지기 — 이름에 회전 동작이 든 메디신볼 던지기(스쿱 · 사이드 · 로테이셔널)를 먼저. 2026-10-14 라이브러리에는 그런 던지기가 없고
+   * 오버헤드 · 푸시 슬램이 '회전'으로 적혀 이 칸에 들어왔다(위아래로 던지는 것이라 회전이 아니다) — 그래서 이름도 본다. 없으면 돌리는 코어
+   * (케이블 · 랜드마인 로테이션을 앉아서 비트는 러시안 트위스트보다 먼저).
+   * 2026-10-15 투구 드릴의 회전 던지기 6개를 파워로 복사했다(scripts/library-power-plyo-2026-10-15.mjs) — 이름이 '… 스로우 · 토스 · 숏풋'이라
+   * 그 낱말도 본다(슬램은 여전히 빠진다).
+   */
+  /* 플라이오 푸시업 — 바닥(맨몸)을 먼저, 없으면 인클라인(박스). 밴드 보조(매우 높음)는 뺀다 */
+  plyoPush: {
+    match: (ex) =>
+      inCategory(ex, '파워') &&
+      ex.movementPattern === '밀기' &&
+      ex.title.includes('플라이오 푸시업') &&
+      intensityLevel(ex.intensity) <= intensityLevel('높음'),
+    rank: (ex) => [ex.title.includes('인클라인') ? 1 : 0],
+  },
   rotationalThrow: {
     match: (ex) =>
-      (ex.category === '파워' &&
+      (inCategory(ex, '파워') &&
         ex.equipment.includes('메디신볼') &&
-        ex.movementPattern === '회전') ||
-      (ex.category === '코어' &&
+        ex.movementPattern === '회전' &&
+        /로테이션|로테이셔널|회전|스쿱|사이드|쉿|스로우|토스|숏풋/.test(ex.title)) ||
+      (inCategory(ex, '코어') &&
         ROTATION_WORDS.some((w) => ex.title.includes(w)) &&
         !ANTI_ROTATION_WORDS.some((w) => ex.title.includes(w))),
-    rank: (ex) => [ex.category === '파워' ? 0 : 1],
+    rank: (ex) => [inCategory(ex, '파워') ? 0 : 1, /트위스트/.test(ex.title) ? 1 : 0],
+  },
+  /*
+   * 보조 메뉴 칸(ACCESSORY_KEYS) — 고르기 차례(rank)는 쓰지 않는다(accessoryPick 이 사람마다 섞는다). 버티기(아이소 · 홀드)는 처방이
+   * '세트 × 회'라 빠진다. 팔 · 어깨 뒤쪽은 암케어 운동도 쓴다 — 무게 · 횟수로 하는 것만(에센트릭 오버로드 · 아이소메트릭 프레스는 암케어 몫).
+   */
+  /* 몸통 안정 — 앞 · 옆으로 버티는 것(플랭크 · 데드버그 · 버드독 · 캐리 · 베어). 돌거나 돌지 않게 버티는 것(몸통 버티기 칸)은 뺀다 */
+  coreStab: {
+    match: (ex) =>
+      inCategory(ex, '코어') &&
+      /플랭크|데드버그|버드독|캐리|베어|바디 소|겟업|레그 드롭|스터 더 팟/.test(ex.title) &&
+      !ANTI_ROTATION_WORDS.some((w) => ex.title.includes(w)) &&
+      !ROTATION_WORDS.some((w) => ex.title.includes(w)),
+    rank: () => [],
+  },
+  hpull: {
+    match: (ex) =>
+      inCategory(ex, '상체 스트렝스') &&
+      ex.movementPattern === '당기기' &&
+      !VERTICAL_PULL.test(ex.title) &&
+      !ex.title.includes('풀오버') &&
+      loadableAccessory(ex),
+    rank: () => [],
+  },
+  vpull: {
+    match: (ex) =>
+      inCategory(ex, '상체 스트렝스') && ex.movementPattern === '당기기' && VERTICAL_PULL.test(ex.title) && loadableAccessory(ex),
+    rank: () => [],
+  },
+  /* 보조 밀기 — 덤벨 · 케이블 · 푸시업 종류(바벨은 본운동 몫). 머리 위 프레스도 든다(2026-10-14 사용자: 투수도 머리 위 운동을 한다) */
+  pushAcc: {
+    match: (ex) =>
+      inCategory(ex, '상체 스트렝스') && ex.movementPattern === '밀기' && !ex.equipment.includes('바벨') && loadableAccessory(ex),
+    rank: () => [],
+  },
+  hamstring: {
+    match: (ex) =>
+      inCategory(ex, '하체 스트렝스') && ex.movementPattern === '힌지' && !ex.equipment.includes('바벨') && loadableAccessory(ex),
+    rank: () => [],
+  },
+  scap: {
+    match: (ex) => ARM_ACCESSORY_CATEGORIES.includes(ex.category) && SCAP_WORDS.test(ex.title),
+    rank: () => [],
+  },
+  triceps: {
+    match: (ex) =>
+      ARM_ACCESSORY_CATEGORIES.includes(ex.category) &&
+      /트라이셉스|푸시다운|킥백/.test(ex.title) &&
+      !/리스트|힙|레그/.test(ex.title) &&
+      /* 강도 '낮음'(덤벨 킥백 · 밴드 푸시다운)은 프로그램에 안 넣는다 — 2026-10-16 김민 */
+      intensityLevel(ex.intensity) >= 3,
+    rank: () => [],
+  },
+  biceps: {
+    match: (ex) =>
+      ARM_ACCESSORY_CATEGORIES.includes(ex.category) &&
+      /컬/.test(ex.title) &&
+      !/노르딕|레그|핑거|리스트|드롭 캐치|에센트릭/.test(ex.title),
+    rank: () => [],
+  },
+  forearm: {
+    match: (ex) =>
+      ARM_ACCESSORY_CATEGORIES.includes(ex.category) &&
+      /리스트 (익스텐션|플렉션)|전완|디비에이션|파머스|바텀업/.test(ex.title) &&
+      !/에센트릭|아이소메트릭/.test(ex.title),
+    rank: () => [],
   },
 };
+
+const VERTICAL_PULL = /풀업|친업|풀다운/;
+const ARM_ACCESSORY_CATEGORIES = ['상체 스트렝스', '암케어'];
+const SCAP_WORDS = /페이스 ?풀|풀 어파트|리버스 플라이|리어델트|[YTW] 레이즈|튜빙 W/;
 
 /*
  * 기본기(성장기 · 입문)의 고르기 — 바벨 · 원판 · 케이블 없이, 강도 '매우 높음' · 난이도 상급은 빼고. 2026-10-09 라이브러리를
@@ -1515,8 +1678,9 @@ const BASICS_RULES: Record<VariantKey, VariantRule> = {
       wordRank(ex.title, ['포고', '버티컬 점프', '브로드 점프']),
     ],
   },
+  /* 캐리는 뺀다 — 처방이 '세트 × 회'라 '파머스 캐리 8회'가 됐다(거리 · 시간이 맞다, 2026-10-16 검토 ⑥) */
   antiRotation: {
-    match: (ex) => VARIANT_RULES.antiRotation.match(ex) && basicFit(ex),
+    match: (ex) => VARIANT_RULES.antiRotation.match(ex) && basicFit(ex) && !ex.title.includes('캐리'),
     rank: VARIANT_RULES.antiRotation.rank,
   },
 };
@@ -1540,11 +1704,50 @@ export function variantCandidates<T extends PinnableExercise>(
   owned: readonly string[],
   trainingLevel: string | null,
   /** 기본기는 다른 규칙(BASICS_RULES) — 바벨 없이, 가벼운 것부터 */
-  audience: ProgramAudience = 'adult'
+  audience: ProgramAudience = 'adult',
+  /** 성장기(isYouthAge) — 강도 '매우 높음'은 빼고 고른다 */
+  youth = false
 ): T[] {
   const ownedSet = new Set(owned);
   const rule = (audience === 'basics' ? BASICS_RULES : VARIANT_RULES)[variant];
-  const usable = library.filter((ex) => rule.match(ex) && canDo(ex, ownedSet));
+  const usable = library.filter(
+    (ex) =>
+      rule.match(ex) &&
+      canDo(ex, ownedSet) &&
+      (!youth || intensityLevel(ex.intensity) < intensityLevel('매우 높음'))
+  );
+  /*
+   * 메디신볼이 없어 메디신볼 칸 후보가 하나도 없으면 상체를 빠르게 밀고 당기는 파워로 — 같은 '상체를 빠르게 쓰는' 동작이라 그날 목적에
+   * 맞는다(2026-10-16 김민, 아래 거르기). 기본기는 제 규칙(맨몸 점프)이 있다.
+   */
+  /*
+   * 기본기 당기기 — 맨몸뿐이면 당기기 후보가 없어 4주 내내 당기기 0번(푸시업만)이었다(2026-10-16 검토 ①). 등 · 견갑을 맨몸으로 끄는
+   * 암케어 운동으로 채운다.
+   */
+  if (usable.length === 0 && variant === 'pull' && audience === 'basics') {
+    usable.push(
+      ...library.filter(
+        (ex) =>
+          inCategory(ex, '암케어') && /쿼드러펫 [YT] 레이즈|프론 슈퍼맨/.test(ex.title) && canDo(ex, ownedSet)
+      )
+    );
+  }
+  /*
+   * 메디신볼이 없으면 상체를 빠르게 밀고 당기는 파워(바벨 없이) — 플라이오 푸시업 · 밴드 스피드 벤치 프레스 · 스피드 밴드 로우. 예전엔 플라이오
+   * 푸시업만이라 박스 없는 초급은 하나뿐이었다(2026-10-16 트레이닝 50명 — 12세션 내내 같은 운동). 바벨 로우(펜들레이)는 무게 운동이라 뺀다.
+   */
+  if (usable.length === 0 && variant === 'medball' && audience !== 'basics') {
+    usable.push(
+      ...library.filter(
+        (ex) =>
+          inCategory(ex, '파워') &&
+          (ex.movementPattern === '밀기' || ex.movementPattern === '당기기') &&
+          !ex.equipment.includes('메디신볼') &&
+          !ex.equipment.includes('바벨') &&
+          canDo(ex, ownedSet)
+      )
+    );
+  }
   const leveled = filterByLevel(usable, trainingLevel).pool;
   /* filterByLevel 이 경력 순으로 세운 것을 지키며, 같은 경력 안에서 변형 규칙의 차례로 */
   const levelRank = new Map(leveled.map((ex, i) => [ex.id, i]));
@@ -1555,7 +1758,132 @@ export function variantCandidates<T extends PinnableExercise>(
   );
 }
 
+/**
+ * 그날 대체 운동 — 같은 칸 후보에서 고정 운동 · 같은 날 다른 칸이 이미 고른 운동을 빼고 오늘 할 수 있는 첫 것(2026-10-16 검토 8:
+ * 대체가 다른 칸의 운동과 겹쳐 한 날에 같은 운동이 두 번 나왔다). 없으면 null.
+ */
+export function pickSubstitute<T extends { id: string }>(
+  candidates: readonly T[],
+  skipIds: ReadonlySet<string>,
+  safeIds: ReadonlySet<string>
+): T | null {
+  return candidates.find((c) => !skipIds.has(c.id) && safeIds.has(c.id)) ?? null;
+}
+
 export type Pinned = Partial<Record<VariantKey, string>>;
+
+/**
+ * 세션마다 돌리는 보조 칸(2026-10-14 김민: "4주 고정이면 안 돼 — 세션마다 다르게"). 본 운동(스쿼트 · 힌지 · 밀기)은 무게 흐름(TM · 직선 증량)
+ * 때문에 그대로 두고, 나머지는 같은 칸의 후보를 그 칸이 나올 때마다 다음 것으로 바꾼다. 고정 운동(pinned)이 첫째. 기본기는 일곱 칸 모두 돌린다(BASICS_ROTATION).
+ */
+export const ROTATING_VARIANTS: readonly VariantKey[] = [
+  /* 당기기(pull)는 뺀다 — 이제 스트롱리프트의 본운동(바벨 로우 5×5 직선 증량)뿐이라 돌리면 무게 흐름이 끊긴다. 보조 당기기는 hpull · vpull(accessoryPick) */
+  'singleLeg',
+  'jump',
+  'medball',
+  'antiRotation',
+  'rotationalThrow',
+];
+/** 한 칸에서 돌리는 운동 수 — 후보 순서(변형 규칙)의 앞에서 이만큼 */
+export const ROTATION_MAX = 6;
+/**
+ * 기본기 4주는 일곱 칸 모두 세션마다 돌린다(2026-10-16 김민 "같은 운동을 연속으로 반복하지 말라고 했잖아" — 예전엔 12번이 같은
+ * 일곱이었다). 무게를 올리지 않으니 본 운동도 돌려도 끊길 흐름이 없다. 셋만 돌려 사흘에 한 번 같은 동작이 돌아온다 — 연달아는
+ * 안 하되 처음 배우는 동작을 자주 다시 만나게.
+ */
+export const BASICS_ROTATION = 3;
+
+/**
+ * 기본기의 주차별 돌리는 후보(2026-10-16 검토 ② — 예전엔 처음 고정된 운동이 4주 내내였고, 돌리기를 넣은 뒤에는 쉬운 것과 어려운 것이
+ * 섞여 돌았다). 1~2주는 쉬운 동작(난이도 초급 · 강도 중간 이하 — 인클라인 푸시업 · 글루트 브리지 · 맨몸 스쿼트)을 쉬운 것부터, 맞는 것이
+ * 없으면 후보 그대로. 3~4주는 강도 중간까지(던지기 칸은 높음까지)에서 변형 규칙의 차례(푸시업 · RDL · 고블렛). 던지기 칸은 3~4주에 돌려 던지기를 앞으로 — 투구는 회전이라.
+ * 돌리는 차례의 첫째(고정 운동)는 3~4주에만 앞에 둔다(load.ts pinnedOf).
+ */
+export function basicsPool<T extends PinnableExercise>(pool: readonly T[], variant: VariantKey, week: number): T[] {
+  if (week <= 2) {
+    const easy = pool.filter(
+      (ex) => ex.difficulty === '초급' && intensityLevel(ex.intensity) <= intensityLevel('중간')
+    );
+    const list = easy.length > 0 ? easy : [...pool];
+    return list
+      .map((ex, i) => ({ ex, i }))
+      .sort((a, b) => intensityLevel(a.ex.intensity) - intensityLevel(b.ex.intensity) || a.i - b.i)
+      .map((x) => x.ex);
+  }
+  /*
+   * 3~4주도 강도 '중간'까지 — 돌리기에 덤벨 프론트 스쿼트 · 불가리안 스플릿 스쿼트 · 브로드 점프(높음)가 들어와 입문자의 12번 점검(끝까지
+   * 하는 세트)에까지 걸렸다. 맞는 것이 없으면 후보 그대로.
+   * 던지기 칸만 '높음'까지 — 덤벨 · 밴드뿐이면 맨몸 점프로 대신하는데 중간 이하는 로우 포고 홉 하나라 12번 내내 같았다(2026-10-16 트레이닝
+   * 50명). 버티컬 · 브로드 점프가 같이 돈다. 1~2주는 그대로 쉬운 것만. 점검 세션은 스쿼트 · 밀기만 보아 상관없다.
+   */
+  const cap = variant === 'medball' ? '높음' : '중간';
+  const mid = pool.filter((ex) => intensityLevel(ex.intensity) <= intensityLevel(cap));
+  pool = mid.length > 0 ? mid : pool;
+  if (variant === 'medball') {
+    /* 슬램은 '회전'으로 적혀 있어도 위아래로 던지는 것이라 빼고 센다(rotationalThrow 규칙과 같은 까닭) */
+    const spins = (ex: T) => Number(ex.movementPattern === '회전' && !ex.title.includes('슬램'));
+    return [...pool].sort((a, b) => spins(b) - spins(a));
+  }
+  return [...pool];
+}
+
+/** 이 세션 앞에서 그 칸이 나온 세션 수 — 돌리는 차례 */
+export function variantTurn(plan: ProgramPlan, day: number, variant: VariantKey): number {
+  let n = 0;
+  for (let d = 1; d < day; d++) if (dayPlan(plan, d).items.some((x) => x.variant === variant)) n++;
+  return n;
+}
+
+/** 그 차례의 운동 — 고정 운동을 첫째로, 같은 칸 후보를 차례로(앞에서 ROTATION_MAX 개). 후보가 없으면 고정 운동 */
+export function rotatedPick<T extends { id: string }>(
+  anchor: T | null,
+  candidates: readonly T[],
+  turn: number,
+  max = ROTATION_MAX
+): T | null {
+  const list = [...(anchor ? [anchor] : []), ...candidates.filter((c) => c.id !== anchor?.id)].slice(
+    0,
+    max
+  );
+  return list.length ? list[turn % list.length] : null;
+}
+
+/**
+ * 그날 돌리지 않는 칸(본운동 · 플라이오 푸시업)에 나온 운동 — 돌리는 칸은 이것을 빼고 고른다(2026-10-16 트레이닝 50명: 메디신볼이 없으면
+ * 메디신볼 칸 대체가 플라이오 푸시업이라 웨스트사이드 파워의 플라이오 푸시업 칸과 같은 날 두 번 나왔다). 보조 메뉴 칸은 따로 막는다(accessoryWithFallback).
+ */
+export function fixedIdsOnDay(
+  plan: ProgramPlan,
+  day: number,
+  exerciseOf: (v: VariantKey) => { id: string } | null
+): Set<string> {
+  const out = new Set<string>();
+  for (const x of dayPlan(plan, day).items) {
+    if (x.assist || ROTATING_VARIANTS.includes(x.variant)) continue;
+    const ex = exerciseOf(x.variant);
+    if (ex) out.add(ex.id);
+  }
+  return out;
+}
+
+/** 돌리는 칸 후보에서 그날 고정 칸 운동을 뺀다 — 다 빠지면 그대로 둔다(칸을 비우지 않는다) */
+export function withoutFixed<T extends { id: string }>(
+  anchor: T | null,
+  pool: readonly T[],
+  fixed: ReadonlySet<string>
+): { anchor: T | null; pool: T[] } {
+  const rest = pool.filter((e) => !fixed.has(e.id));
+  if (rest.length === 0) return { anchor, pool: [...pool] };
+  return { anchor: anchor && fixed.has(anchor.id) ? null : anchor, pool: rest };
+}
+
+/**
+ * 점프 단계(2026-10-16) — 1~2주는 착지 충격이 작은 점프만(뎁스 · 드롭 · 바운드 · 강도 '매우 높음' 빼고), 3주부터 다. 돌리는 점프 칸(load.ts pinnedOf)이 본다.
+ */
+const ADVANCED_JUMP = /뎁스|드롭|바운드/;
+export function jumpFitsWeek(ex: { title: string; intensity: string }, week: number): boolean {
+  return week >= 3 || (!ADVANCED_JUMP.test(ex.title) && intensityLevel(ex.intensity) < 5);
+}
 
 /** 시작할 때 9개를 고른다. 후보가 없는 변형은 비워 둔다 — 그 칸은 그날 대체 규칙으로 간다. */
 export function pickPinned<T extends PinnableExercise>(
@@ -1563,11 +1891,12 @@ export function pickPinned<T extends PinnableExercise>(
   owned: readonly string[],
   trainingLevel: string | null,
   keep: Pinned = {},
-  audience: ProgramAudience = 'adult'
+  audience: ProgramAudience = 'adult',
+  youth = false
 ): Pinned {
   const out: Pinned = {};
   for (const v of VARIANT_KEYS) {
-    const candidates = variantCandidates(v, library, owned, trainingLevel, audience);
+    const candidates = variantCandidates(v, library, owned, trainingLevel, audience, youth);
     const kept = keep[v];
     if (kept && candidates.some((c) => c.id === kept)) {
       out[v] = kept;
@@ -1576,6 +1905,83 @@ export function pickPinned<T extends PinnableExercise>(
     if (candidates[0]) out[v] = candidates[0].id;
   }
   return out;
+}
+
+/** 문자열 → 32비트 수(FNV-1a) — 보조 칸을 사람마다 다른 차례로 섞을 때 */
+function hash32(text: string): number {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < text.length; i++) h = Math.imul(h ^ text.charCodeAt(i), 0x01000193);
+  return h >>> 0;
+}
+
+/**
+ * 보조 칸의 그날 운동 — 그 칸 후보 전체를 사람(seed)마다 섞은 차례에서 occurrence 번째(0부터). 한 바퀴를 다 돌기 전에는 같은 운동이
+ * 다시 안 나온다. 버티기(아이소 · 홀드)는 '세트 × 회' 처방이라 빼고(몸통 칸은 둔다), 그날 본운동(exclude)과 같은 운동도 뺀다.
+ * 같은 입력이면 늘 같은 답 — 운동 화면 · 다시 열기 · 미리보기가 어긋나지 않는다.
+ */
+export function accessoryPick<T extends PinnableExercise>(
+  variant: VariantKey,
+  candidates: readonly T[],
+  seed: string,
+  occurrence: number,
+  exclude: ReadonlySet<string> = new Set()
+): T | null {
+  const holdsOk = variant === 'antiRotation';
+  const pool = candidates
+    .filter((c) => !exclude.has(c.id) && (holdsOk || !/아이소|홀드/.test(c.title)))
+    .map((c) => ({ c, k: hash32(`${seed}|${c.id}`) }))
+    .sort((a, b) => a.k - b.k || a.c.id.localeCompare(b.c.id))
+    .map((x) => x.c);
+  return pool.length > 0 ? pool[Math.max(0, occurrence) % pool.length] : null;
+}
+
+/**
+ * 보조 칸의 그날 운동 — 그 칸에서 고르고(accessoryPick), 가진 장비로 할 것이 없으면 비슷한 칸(ACCESSORY_FALLBACK)에서 차례로. 대신 골랐으면
+ * substituted 가 참(화면 '대체 · 장비'). 고른 운동은 used 에 넣는다 — 같은 날 두 칸에 같은 운동이 안 나오게.
+ */
+export function accessoryWithFallback<T extends PinnableExercise>(
+  variant: VariantKey,
+  candidatesOf: (v: VariantKey) => readonly T[],
+  seed: string,
+  occurrence: number,
+  used: Set<string>
+): { ex: T | null; substituted: boolean } {
+  const tries = [{ variant, only: ACCESSORY_ONLY[variant] }, ...(ACCESSORY_FALLBACK[variant] ?? [])];
+  for (const [i, { variant: v, only }] of tries.entries()) {
+    const pool = candidatesOf(v).filter((c) => !only || only.test(c.title));
+    const ex = accessoryPick(v, pool, seed, occurrence, used);
+    if (ex) {
+      used.add(ex.id);
+      return { ex, substituted: i > 0 };
+    }
+  }
+  return { ex: null, substituted: false };
+}
+
+/**
+ * 보조를 같은 운동으로 이어 가는 주 수 — 2주 동안 같은 운동으로 무게를 올리고, 다음 2주에 그 칸 다음 운동으로 바꾼다(2026-10-16 김민 —
+ * 세션마다 바꾸면 무게를 못 올린다).
+ */
+export const ACCESSORY_BLOCK_WEEKS = 2;
+
+/**
+ * 그날 그 칸의 차례(accessoryPick 의 occurrence). 2주 묶음마다 하나씩 나아가고, 같은 묶음 안에서도 본운동이 다른 날(5/3/1 의 스쿼트 날 ·
+ * 데드 날 가로 당기기)은 다른 차례라 다른 운동이 나온다 — 같은 날 종류는 2주 동안 같은 운동.
+ */
+export function accessoryOccurrence(plan: ProgramPlan, day: number, variant: VariantKey): number {
+  const mainsOf = (d: number) =>
+    dayPlan(plan, d)
+      .items.filter((x) => !x.assist)
+      .map((x) => x.variant)
+      .join();
+  const kinds: string[] = [];
+  for (let d = 1; d <= plan.totalDays; d++) {
+    if (!dayPlan(plan, d).items.some((x) => x.assist && x.variant === variant)) continue;
+    const k = mainsOf(d);
+    if (!kinds.includes(k)) kinds.push(k);
+  }
+  const block = Math.floor((weekOfDay(plan, day) - 1) / ACCESSORY_BLOCK_WEEKS);
+  return block * kinds.length + Math.max(0, kinds.indexOf(mainsOf(day)));
 }
 
 /** 저장된 pinned 를 읽는다(Json). 모르는 키 · 문자열이 아닌 값은 버린다. */
@@ -1674,11 +2080,6 @@ export type TodaySignals = {
    * 가볍게 한다 — P4 결정 '짐작은 가볍게 하는 쪽에만'(쉬게 하지 않는다).
    */
   softOutingNear?: boolean;
-  /**
-   * 시즌 중 프로그램의 움직임 운동만 하는 날(inSeasonKind 가 null — 선발의 등판 이틀 뒤, 불펜의 많이 던진 이틀 뒤). 쉬는 날(rest 'inSeasonMove')이고
-   * 넘길 수 있다. 시즌 중이 아니면 안 준다.
-   */
-  inSeasonMove?: boolean;
 };
 
 /**
@@ -1688,13 +2089,45 @@ export type TodaySignals = {
  * 코어를 고정했으면 던지지 않는다 — 고정 운동을 알면 programArbiterSignals 가 그 운동으로 가른다(armThrows).
  * lib/engine/arbiter.ts 가 같은 상수를 다시 내보낸다(한 곳 — 중재가 이 파일을 부르므로 여기 둔다).
  */
-export const ARM_THROW_VARIANTS: readonly VariantKey[] = ['medball', 'rotationalThrow'];
+/** 팔 보조 — 팔을 아끼는 날(deferVariants 가 있는 날) 같이 빠진다 */
+export const ARM_ACCESSORIES: readonly VariantKey[] = ['triceps', 'biceps', 'forearm'];
+
+export const ARM_THROW_VARIANTS: readonly VariantKey[] = ['medball', 'rotationalThrow', 'plyoPush'];
 
 /** 팔을 아끼는 날 뺀 변형의 줄 표시 — 카드의 '오늘 뺌: 메디신볼 체스트 패스 · 팔 아끼는 날' */
 export const ARM_DEFER_REASON = '팔 아끼는 날';
 
 /** 그날 대체한 칸 · 운동의 까닭 — 화면 꼬리표 '대체 · …'에 그대로 붙는다 */
-export const SUBSTITUTE_REASON = { pain: '통증 부위', armFatigue: '팔 피로' } as const;
+export const SUBSTITUTE_REASON = { pain: '통증 부위', armFatigue: '팔 피로', gear: '장비' } as const;
+
+/**
+ * 보조 칸에 가진 장비로 할 운동이 하나도 없을 때 대신 고르는 비슷한 칸 — 앞에서부터 본다(2026-10-15 사용자: "프로그램은 본운동 장비만 있으면
+ * 되게, 보조는 장비가 없으면 비슷한 걸로"). 바벨 · 덤벨만 있으면 세로 당기기(철봉 · 케이블 · 밴드)와 삼두(케이블 · 벤치 · 밴드)가 빈다.
+ * 화면에는 '대체 · 장비'와 '오늘은 세로 당기기 대신이에요'가 붙는다.
+ */
+/* 보조 칸에서 먼저 고르는 것 — 몸통 버티기는 팔로프 · 찹 · 리프트(밴드 · 케이블)를 먼저, 없으면 대신(ACCESSORY_FALLBACK) */
+const ACCESSORY_ONLY: Partial<Record<VariantKey, RegExp>> = {
+  antiRotation: new RegExp(ANTI_ROTATION_WORDS.join('|')),
+};
+
+export const ACCESSORY_FALLBACK: Partial<
+  Record<VariantKey, readonly { variant: VariantKey; only?: RegExp }[]>
+> = {
+  /* 로우까지 다 쓰면 어깨 뒤쪽(덤벨 레이즈) — 등 위쪽을 같이 쓴다 */
+  vpull: [{ variant: 'hpull' }, { variant: 'scap' }],
+  hpull: [{ variant: 'vpull' }, { variant: 'scap' }],
+  scap: [{ variant: 'hpull' }],
+  /* 삼두는 삼두를 많이 쓰는 푸시업 종류부터, 없으면 보조 밀기 */
+  triceps: [{ variant: 'pushAcc', only: /푸시업/ }, { variant: 'pushAcc' }],
+  biceps: [{ variant: 'hpull' }, { variant: 'vpull' }],
+  forearm: [{ variant: 'biceps' }],
+  pushAcc: [{ variant: 'triceps' }],
+  hamstring: [{ variant: 'singleLeg' }],
+  /* 밴드 · 케이블이 없으면 캐리 · 사이드 플랭크 같은 몸통 버티기 대신(같은 날 몸통 안정과 겹치지 않는 것) */
+  antiRotation: [{ variant: 'antiRotation' }],
+  coreStab: [{ variant: 'antiRotation' }],
+  singleLeg: [{ variant: 'hamstring' }],
+};
 
 /**
  * 그날 대체할 칸 — 고정 운동(pinnedOf)이 안전 거르기(partsOnly)를 못 지난 칸과 그 까닭. 앱(lib/program/load.ts)과 자체 시험이 이 함수
@@ -1788,8 +2221,7 @@ export type RestReason =
   | 'gameTomorrow'
   | 'gameYesterday'
   | 'hardToday'
-  | 'chooseRecovery'
-  | 'inSeasonMove';
+  | 'chooseRecovery';
 
 export type CautionCode =
   | 'armRest'
@@ -1817,6 +2249,7 @@ export type TodayDecision =
   | { kind: 'needCheckin'; day: number }
   | { kind: 'painWait'; day: number }
   | { kind: 'otherMode'; day: number }
+  /** 더는 내지 않는다(2026-10-16 검토 4 — 어제 했어도 오늘 할 수 있다). 중재(lib/engine/arbiter.ts)가 읽는 이름이라 남긴다 */
   | { kind: 'spacing'; day: number }
   | { kind: 'rest'; day: number; reason: RestReason; canOverride: true }
   | {
@@ -1843,7 +2276,7 @@ export function daysBetween(fromKey: string, toKey: string): number {
 /**
  * 오늘 프로그램 날인가, 무엇을 바꾸는가.
  *
- * 프로그램은 스스로 진행한다(D22). 기다리는 것은 통증 멈춤 · 경기 앞뒤(넘길 수 있음) · 어제 프로그램 날뿐이고,
+ * 프로그램은 스스로 진행한다(D22). 기다리는 것은 통증 멈춤 · 경기 앞뒤(넘길 수 있음)뿐이고,
  * 나머지 나쁜 날은 진행하되 주의 한 줄과 칸 조정으로 알린다(§4 · §5 · §6).
  *
  * 2판 P6-2(2026-10-13) — 중재(lib/engine/arbiter.ts)가 정한 하루를 프로그램 카드도 같은 말로 하게 신호 다섯을 더 받는다(모두 선택 칸,
@@ -1859,24 +2292,20 @@ export function decideToday(plan: ProgramPlan, s: TodaySignals): TodayDecision {
   if (!s.checkedIn) return { kind: 'needCheckin', day };
   if (s.otherWorkoutStarted) return { kind: 'otherMode', day };
 
+  /* 쉰 날 수는 무게 추천(쉰 기간)에만 — 어제 했어도 오늘 다음 세션을 할 수 있다(2026-10-16 검토 4). 오늘 이미 했으면 여기 오지 않는다. */
   const gapDays = s.lastProgramDate ? daysBetween(s.lastProgramDate, s.today) : null;
-  /* 프로그램 날은 하루 한 번, 어제가 프로그램 날이면 오늘은 아님(§6). 오늘 이미 했으면 여기 오지 않는다. */
-  if (gapDays === 1) return { kind: 'spacing', day };
 
-  /* 시즌 중은 등판 다음 날이 하체 날이다(크레시) — 어제 팔 부담으로 쉬지 않는다. 등판 날 · 전날은 그대로 쉰다 */
   const restReason: RestReason | null = s.gameToday
     ? 'gameToday'
     : s.gameTomorrow
       ? 'gameTomorrow'
-      : s.gameYesterday && !plan.def.inSeason
+      : s.gameYesterday
         ? 'gameYesterday'
         : s.hardToday
           ? 'hardToday'
           : s.choseRecovery
             ? 'chooseRecovery'
-            : s.inSeasonMove && plan.def.inSeason
-              ? 'inSeasonMove'
-              : null;
+            : null;
   if (restReason && !s.override) {
     return { kind: 'rest', day, reason: restReason, canOverride: true };
   }
@@ -1914,10 +2343,10 @@ export function decideToday(plan: ProgramPlan, s: TodaySignals): TodayDecision {
   if (outingGuess && hasPower) adjust.power = { kind: 'lighter' };
   /* 부하 '주의' — 파워 칸을 뺀다 */
   if (s.loadCaution) adjust.power = { kind: 'drop', reason: '부하 주의' };
-  /* 불펜 날 — 회전 던지기를 뺀다(몸통 칸) */
-  if (s.bullpenToday && items.some((x) => x.variant === 'rotationalThrow')) {
-    adjust[SLOT_OF.rotationalThrow] = { kind: 'drop', reason: '오늘 불펜' };
-  }
+  /*
+   * 불펜 날에 회전 던지기를 빼던 규칙은 2026-10-18 뺐다(사용자: "투구랑 메디신볼 던지기는 크게 상관없지 않아?") — 두 손으로 몸통 · 엉덩이
+   * 힘을 쓰는 던지기라 팔 부담이 작다. 팔을 아끼는 날(오늘 세게 던짐 · 팔 예산)은 아래 규칙 · 중재가 그대로 뺀다.
+   */
   /* 부위 통증 — 그 칸은 그날 대체(없으면 화면이 '오늘 뺌'으로) */
   for (const slot of s.painSlots) {
     if (adjust[slot]?.kind !== 'drop')
@@ -2037,7 +2466,6 @@ export const REST_TEXT: Record<RestReason, string> = {
   gameYesterday: '어제 팔 부담이 컸어요',
   hardToday: '오늘 많이 던졌어요',
   chooseRecovery: '오늘 회복을 골랐어요',
-  inSeasonMove: '오늘은 움직임 운동만 하는 날이에요',
 };
 
 /**
@@ -2069,8 +2497,6 @@ export type SessionProgramTag = {
   week: number;
   /** 운동 시작 때 판정한 쉰 기간(일) — 운동 중 [교체]의 무게가 카드와 같게. 2026-10-07 앞의 판에는 없다 */
   gapDays?: number | null;
-  /** 시즌 중 프로그램이면 운동 시작 때 고른 세션 종류 — 교체 · 축하 화면이 같은 날을 다시 짓게 */
-  kind?: SessionKind;
 };
 
 /** 얼린 목록의 program 을 읽는다. 모양이 아니면 null(프로그램 아닌 날) */
@@ -2089,7 +2515,6 @@ export function readSessionProgram(value: unknown): SessionProgramTag | null {
     day: v.day as number,
     week: v.week as number,
     ...(typeof v.gapDays === 'number' ? { gapDays: v.gapDays } : {}),
-    ...(typeof v.kind === 'string' && v.kind in SESSION_KIND_LABELS ? { kind: v.kind } : {}),
   };
 }
 

@@ -24,6 +24,8 @@ import type { Place } from '@/lib/nutrition/meal-templates';
 import { amountText, kcalText, scaleMacros, type MealKey } from '@/lib/nutrition/meta';
 import type { Targets } from '@/lib/nutrition/targets';
 import { EASE } from './shared';
+import { Button } from '@/components/ui';
+import { ConfirmDelete } from '@/components/confirm-delete';
 
 /**
  * 식단 짜기의 화면 부품(lib/nutrition/meal-plan.ts).
@@ -165,20 +167,20 @@ export function PlanCard({
             <button
               type="button"
               onClick={onOpenPrefs}
-              className="-my-2 inline-flex min-h-10 items-center rounded-md px-1 font-semibold text-sky-strong underline-offset-2 hover:underline"
+              className="-my-2 inline-flex min-h-10 items-center rounded-lg px-1 font-semibold text-sky-strong underline-offset-2 hover:underline"
             >
               취향 바꾸기
             </button>
           </p>
           {envChips}
-          <button
+          <Button
             type="button"
             disabled={pending}
             onClick={() => onMake({ place, hot, variant: 0 })}
-            className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-full bg-sky px-5 text-sm font-semibold text-white transition-[background-color,opacity] hover:bg-sky-strong disabled:opacity-60 desk:w-auto desk:rounded-xl"
+            className="w-full pad:w-auto pad:px-6 desk:w-auto"
           >
             {pending ? '짜는 중…' : '식단 짜기'}
-          </button>
+          </Button>
         </div>
       </section>
     );
@@ -213,7 +215,7 @@ export function PlanCard({
             type="button"
             disabled={pending}
             onClick={() => onMake({ place, hot, variant: context.variant + 1 })}
-            className="inline-flex h-9 shrink-0 items-center gap-1 rounded-lg px-2.5 text-xs font-semibold text-sky transition-colors hover:bg-sky-tint disabled:opacity-60"
+            className="inline-flex h-10 shrink-0 items-center gap-1 rounded-lg px-2.5 text-xs font-semibold text-sky transition-colors hover:bg-sky-tint disabled:opacity-60"
           >
             <RefreshCw
               aria-hidden
@@ -228,7 +230,7 @@ export function PlanCard({
           aria-expanded={open}
           aria-controls="plan-card-more"
           aria-label={open ? '까닭 · 조건 접기' : '까닭 · 조건 보기'}
-          className="-mr-2 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-muted transition-colors hover:bg-surface-2 hover:text-ink"
+          className="-mr-2 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-muted transition-colors hover:bg-surface-2 hover:text-ink"
         >
           <ChevronDown
             aria-hidden
@@ -269,14 +271,14 @@ export function PlanCard({
               <>
                 {envChips}
                 <div className="flex flex-wrap items-center gap-2">
-                  <button
+                  <Button
                     type="button"
                     disabled={pending}
                     onClick={() => onMake({ place, hot, variant: context.variant })}
-                    className="inline-flex min-h-10 items-center gap-1.5 rounded-full bg-sky px-4 text-sm font-semibold text-white transition-[background-color,opacity] hover:bg-sky-strong disabled:opacity-60 desk:rounded-xl"
+                    size="sm"
                   >
                     이 조건으로 다시 짜기
-                  </button>
+                  </Button>
                   <button
                     type="button"
                     onClick={onOpenPrefs}
@@ -284,14 +286,24 @@ export function PlanCard({
                   >
                     취향 바꾸기
                   </button>
-                  <button
-                    type="button"
-                    onClick={onClear}
-                    className="ml-auto inline-flex min-h-10 items-center gap-1 rounded-full px-3 text-sm font-medium text-danger transition-colors hover:bg-danger-bg desk:rounded-xl"
-                  >
-                    <Trash2 aria-hidden className="h-4 w-4" />
-                    식단 지우기
-                  </button>
+                  {/* 한 번 눌러 계획 전체가 사라졌고, 짜는 중에도 눌려 지운 계획이 되살아날 수 있었다(2026-10-18 점검) */}
+                  {pending ? (
+                    <span className="ml-auto inline-flex min-h-10 items-center gap-1 px-3 text-sm font-medium text-muted">
+                      <Trash2 aria-hidden className="h-4 w-4" />
+                      식단 지우기
+                    </span>
+                  ) : (
+                    <ConfirmDelete
+                      onConfirm={onClear}
+                      ariaLabel="오늘 식단 지우기"
+                      title="오늘 식단을 지울까요?"
+                      detail="먹었어요로 기록한 음식은 그대로 남아요."
+                      className="ml-auto inline-flex min-h-10 items-center gap-1 rounded-full px-3 text-sm font-medium text-danger transition-colors hover:bg-danger-bg desk:rounded-xl"
+                    >
+                      <Trash2 aria-hidden className="h-4 w-4" />
+                      식단 지우기
+                    </ConfirmDelete>
+                  )}
                 </div>
                 <p className="text-xs leading-relaxed text-muted">
                   안 먹은 계획은 먹은 칼로리에 안 들어가요. 끼니 칸의 동그라미를 누르면
@@ -330,7 +342,7 @@ export function PlanBlock({
           type="button"
           onClick={() => onEat(items.map((i) => i.key))}
           aria-label={`${meal === 'snack' ? '간식' : '이 끼니'} 식단 모두 먹었어요`}
-          className="-mr-1 inline-flex h-9 shrink-0 items-center gap-1 rounded-lg px-2 text-xs font-semibold text-sky transition-colors hover:bg-sky-tint"
+          className="-mr-1 inline-flex h-10 shrink-0 items-center gap-1 rounded-lg px-2 text-xs font-semibold text-sky transition-colors hover:bg-sky-tint"
         >
           <Check aria-hidden className="h-3.5 w-3.5" />
           모두 먹었어요
@@ -347,7 +359,7 @@ export function PlanBlock({
               type="button"
               onClick={() => onEat([item.key])}
               aria-label={`${item.name} 먹었어요`}
-              className="group -ml-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sky/60 transition-colors hover:text-sky motion-safe:active:scale-90"
+              className="group -ml-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sky/60 transition-colors hover:text-sky motion-safe:active:scale-90"
             >
               <Circle aria-hidden className="h-5 w-5 group-hover:hidden" />
               <Check

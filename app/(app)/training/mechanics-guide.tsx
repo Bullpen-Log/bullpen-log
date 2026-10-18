@@ -67,7 +67,7 @@ export function MechanicsGuide({
   };
 
   return (
-    <div className="space-y-6">
+    <div className="stack-page">
       <section className="space-y-3">
         <div className="flex items-center justify-between gap-3 px-1">
           <h2 className="text-heading text-lg text-ink">투구의 흐름</h2>

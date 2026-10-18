@@ -25,6 +25,8 @@ export const APP_INIT_SCRIPT = `(function () {
     if ((navigator.userAgent || '').indexOf('BullpenLogApp') < 0) return;
     var root = document.documentElement;
     root.setAttribute('data-app', 'native');
+    /* 새 아이폰 앱(Expo) — 아래 탭 막대를 앱이 그린다(components/app-shell/expo-tabs.tsx · globals.css 'Expo 앱 탭') */
+    if ((navigator.userAgent || '').indexOf('BullpenNative/') >= 0) root.setAttribute('data-shell', 'expo');
     var call = function (plugin, method, options) {
       var cap = window.Capacitor;
       if (cap && cap.nativePromise) cap.nativePromise(plugin, method, options).catch(function () {});

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type ComponentProps } from 'react';
 import { Maximize2, Pencil, X, ZoomIn } from 'lucide-react';
+import { CountUp } from '@/components/onboarding/count-up';
 import { PITCH_TYPES } from '@/lib/velocity-meta';
 import type { CameraPos } from '@/lib/velocity-setup';
 import { ClipPlayer, Tracer, trailZoom, type TrailPoint } from './clip-player';
@@ -193,8 +194,14 @@ export function PitchResult({
       </div>
 
       <div className="shrink-0 px-5 pb-[max(1rem,env(safe-area-inset-bottom))] pt-4">
-        <p className="text-display text-7xl leading-none tabular-nums motion-safe:animate-fade-in">
-          {speed}
+        <p className="text-numeric text-7xl leading-none motion-safe:animate-fade-in">
+          {/* 0 에서 잰 값까지 올라가며 — 소수 자리는 받은 값 그대로 */}
+          <CountUp
+            value={speed}
+            duration={600}
+            from={0.7}
+            format={(n) => n.toFixed(String(speed).split('.')[1]?.length ?? 0)}
+          />
           <span className="ml-2 text-xl text-white/70">{unit}</span>
         </p>
         <p className="mt-1.5 text-sm text-white/75">{sub}</p>

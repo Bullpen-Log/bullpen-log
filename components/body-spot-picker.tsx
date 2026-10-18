@@ -6,6 +6,7 @@ import dynamic from 'next/dynamic';
 import {
   SPOT_LEVELS,
   spotLabel,
+  spotOf,
   type BodySpots,
   type SpotLevel,
 } from '@/lib/body-spots';
@@ -15,12 +16,21 @@ const BodySpot3D = dynamic(
   () => import('@/components/body-spot-3d').then((m) => m.BodySpot3D),
   {
     ssr: false,
-    loading: () => <div className="h-full w-full animate-pulse rounded-2xl bg-ink/6" />,
+    loading: () => <div className="h-full w-full motion-safe:animate-pulse rounded-2xl bg-ink/6" />,
   }
 );
 
 /**
- * 3D 몸에서 불편한 근육 고르기 — 누르면 '뻐근'으로 골라지고, 밑 줄에서 정도를 바꾸거나 뺀다.
+ * 어깨 · 팔꿈치 근육은 누르기만 해서는 안 골라진다 — 뻐근 · 아파요를 꼭 고른다(2026-10-18 사용자). 예전엔 '뻐근'이 먼저 골라져,
+ * 아픈데 그대로 넘기면 통증 질문 · 통증 규칙(팔 쉬기 · 암케어)이 하나도 안 걸렸다.
+ */
+export function needsLevelChoice(id: string): boolean {
+  const part = spotOf(id)?.def.part;
+  return part === 'shoulder' || part === 'elbow';
+}
+
+/**
+ * 3D 몸에서 불편한 근육 고르기 — 누르면 '뻐근'으로 골라지고(어깨 · 팔꿈치는 정도를 먼저 고른다), 밑 줄에서 정도를 바꾸거나 뺀다.
  * 값은 부모가 쥔다(체크인 폼이 부위 칸을 여기서 계산해 보낸다 — lib/body-spots.ts partsFromSpots).
  */
 export function BodySpotPicker({
@@ -47,7 +57,7 @@ export function BodySpotPicker({
   const setActive = controlled ? onActiveChange : setActiveOwn;
   const tap = (id: string) => {
     setActive(id);
-    if (!spots[id]) onChange({ ...spots, [id]: '뻐근' });
+    if (!spots[id] && !needsLevelChoice(id)) onChange({ ...spots, [id]: '뻐근' });
   };
   const set = (id: string, level: SpotLevel | null) => {
     const next = { ...spots };
@@ -67,9 +77,12 @@ export function BodySpotPicker({
         <BodySpot3D spots={spots} active={active} onTap={tap} />
       </div>
 
-      {active && activeLevel ? (
+      {active && (activeLevel || needsLevelChoice(active)) ? (
         <div className="flex flex-wrap items-center gap-2 rounded-xl bg-surface px-3 py-2 desk:border desk:border-line">
-          <span className="text-sm font-semibold text-ink">{spotLabel(active)}</span>
+          <span className="text-sm font-semibold text-ink">
+            {spotLabel(active)}
+            {!activeLevel && <span className="ml-1.5 font-normal text-danger">골라 주세요</span>}
+          </span>
           <div
             className="ml-auto flex gap-1.5"
             role="radiogroup"
@@ -82,7 +95,7 @@ export function BodySpotPicker({
                 role="radio"
                 aria-checked={activeLevel === lv}
                 onClick={() => set(active, lv)}
-                className={`inline-flex min-h-10 items-center rounded-full px-3.5 text-[13px] transition-colors desk:min-h-0 desk:py-1 desk:text-xs ${
+                className={`inline-flex min-h-10 items-center rounded-full px-3.5 text-footnote transition-colors desk:min-h-0 desk:py-1 desk:text-xs ${
                   activeLevel === lv
                     ? lv === '통증'
                       ? 'bg-danger-bg font-semibold text-danger'
@@ -96,7 +109,7 @@ export function BodySpotPicker({
             <button
               type="button"
               onClick={() => set(active, null)}
-              className="inline-flex min-h-10 items-center rounded-full bg-ink/6 px-3 text-[13px] text-muted desk:min-h-0 desk:py-1 desk:text-xs"
+              className="inline-flex min-h-10 items-center rounded-full bg-ink/6 px-3 text-footnote text-muted desk:min-h-0 desk:py-1 desk:text-xs"
             >
               빼기
             </button>

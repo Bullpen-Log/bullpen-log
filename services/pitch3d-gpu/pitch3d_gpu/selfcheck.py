@@ -17,7 +17,7 @@ from pathlib import Path
 
 from . import engine
 from .mapping import JOINT_MAP, N_JOINTS, RTMW_INDEX, RTMW_TOTAL, V2_NAMES, to_v2_points
-from .pipeline import MAX_FRAMES, _decimate, fit_payload, sanity_track
+from .pipeline import framing_bad, MAX_FRAMES, _decimate, fit_payload, sanity_track
 from .video import upright_turn
 
 passed = 0
@@ -63,6 +63,9 @@ check("슬로모 · 화면 녹화를 엔진에 넘긴다(빼면 착지 → 릴�
 check("segment 순간을 넘긴다", _fp["events"] == {"footPlant": 1.0, "release": 1.2})
 _fp2 = fit_payload({"jobId": "j", "meta": {"slowmoFps": 999}}, {"side": 1, "back": 2}, {}, "rtmw")
 check("모르는 슬로모 값 · 정보 없음은 None · 원본", _fp2["slowmoFps"] is None and _fp2["screenRecorded"] is False and _fp2["hand"] == "R")
+_dev = {"side": {"model": "iPhone 15 Pro Max", "fps": 240.0}, "back": {"model": None, "fps": 60.0}}
+check("영상 머리의 기종 · fps 를 엔진에 넘긴다(기종별 초점 표)", fit_payload({"jobId": "j", "meta": {}}, {"side": 1, "back": 2}, {}, "rtmw", _dev)["devices"] == _dev)
+check("기종 정보가 없으면 칸을 안 만든다(엔진은 예전처럼 1배 사전)", "devices" not in _fp2)
 
 
 class FakePose:
@@ -80,6 +83,23 @@ class _F:
 t = FakePose().track([_F(0.0), _F(1 / 60)], 1080, 1920, 60.0)
 sanity_track(t)
 check("가짜 관절로 엔진 입력 모양(V2Track)", len(t["frames"]) == 2)
+
+print("■ 일찍 멈추기(framing) — 투수가 작거나 안 보이면 고운 2D 전에")
+
+
+def _tr(height_px: float, seen_every: int) -> dict:
+    frames = []
+    for k in range(60):
+        v = 0.9 if k % seen_every == 0 else 0.1
+        frames.append({"t": k / 30, "p": [[100.0, 300.0 + height_px * j / 16, v] for j in range(17)] + [[0.0, 0.0, 0.0]] * (N_JOINTS - 17)})
+    return {"W": 1080, "H": 1920, "fps": 30.0, "frames": frames}
+
+
+check("투수 292px · 다 보임(실험실 샘플 1 옆) → 그대로", not framing_bad(_tr(292, 1)))
+check("투수 150px → 멈춤", framing_bad(_tr(150, 1)))
+check("다섯 장면에 한 번만 보임(20%) → 멈춤", framing_bad(_tr(400, 5)))
+check("두 장면에 한 번 보임(50%) → 그대로", not framing_bad(_tr(400, 2)))
+check("장면 없음 → 멈춤", framing_bad({"W": 1, "H": 1, "fps": 30, "frames": []}))
 
 print("■ 영상 회전(display matrix) → 바로 세우기")
 check(

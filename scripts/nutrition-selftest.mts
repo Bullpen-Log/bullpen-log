@@ -72,6 +72,7 @@ import {
   findMfdsReps,
 } from '../lib/nutrition/mfds-reps.ts';
 import {
+  RECOVERY_EXAMPLES,
   recoveryEaten,
   riceBowls,
   throwDayGuide,
@@ -142,6 +143,9 @@ import {
 } from '../lib/nutrition/combos.ts';
 import {
   MEAL_PROTEIN_RANGE,
+  exampleWords,
+  foodsProtein,
+  hasAvoided,
   mealProtein,
   mealProteinGoal,
   proteinTip,
@@ -272,6 +276,42 @@ console.log('\n■ 목표 계산');
   const manual = computeTargets({ ...profile, kcalTarget: 2400 }, body, 200);
   check('직접 정한 칼로리가 계산을 이긴다', manual.base === 2400 && manual.manual);
   check('직접 정해도 운동한 만큼은 더한다', manual.kcal === 2600);
+
+  /* 2026-10-16 점검: 바닥 — 성인 기초대사량 · 미성년은 나이 규칙 계산 밑으로 안 내려간다 */
+  const small = { weightKg: 50, heightCm: 160, age: 30, sex: 'F' as const };
+  const smallLose = computeTargets(
+    { ...profile, goal: 'lose', activity: 'low' },
+    small,
+    0
+  );
+  check(
+    '성인 감량 · 활동 적음이어도 운동 전 목표는 기초대사량 밑으로 안 간다(50kg 여 1,150 → 기초대사량)',
+    smallLose.base >= smallLose.bmr && smallLose.floored,
+    `${smallLose.base} / ${smallLose.bmr}`
+  );
+  const adultLow = computeTargets({ ...profile, kcalTarget: 1000 }, body, 0);
+  check(
+    '성인이 직접 정한 값도 기초대사량 밑이면 기초대사량으로',
+    adultLow.base === Math.round(adultLow.bmr / 10) * 10 && adultLow.floored
+  );
+  const teenBody = { weightKg: 60, heightCm: 172, age: 15, sex: 'M' as const };
+  const teenAuto = computeTargets(profile, teenBody, 0);
+  const teenLow = computeTargets(
+    { ...profile, kcalTarget: 1000, proteinTargetG: 10 },
+    teenBody,
+    0
+  );
+  check(
+    '성장기가 직접 정한 1,000kcal · 단백질 10g 은 나이 규칙 계산까지 올린다(덜 먹어라 금지)',
+    teenLow.base === teenAuto.base &&
+      teenLow.protein >= Math.round(1.3 * 60) &&
+      teenLow.floored,
+    `${teenLow.base} / ${teenAuto.base} · ${teenLow.protein}g`
+  );
+  check(
+    '바닥보다 높으면 그대로 — 직접 정한 값 · 보통 계산은 바닥 표시가 없다',
+    !manual.floored && !t.floored && !lose.floored
+  );
 
   const blank = computeTargets(
     DEFAULT_PROFILE,
@@ -957,25 +997,51 @@ console.log('\n■ 던지는 날 가이드');
       )?.lines.some((l) => l.includes('아직 등판 전이라면'))
   );
   check(
-    '보기로 든 조합은 첫 줄의 단백질을 실제로 채운다(기본 음식 값으로)',
+    '보기로 든 조합은 첫 줄의 단백질을 실제로 채운다(기본 음식 값으로 — 못 먹는 것을 뺀 사람의 대신 보기까지 모두)',
     (() => {
-      const p = (id: string) => BASIC_FOODS.find((f) => f.id === id)?.protein ?? 0;
-      const others = [
-        p('rice') + p('chicken-breast-pack'),
-        p('milk') * 2 + p('egg') * 2 + p('banana'),
-        p('triangle-gimbap') * 2 + p('egg') * 2,
-      ];
-      const kids = [
-        p('rice') + p('egg') * 2,
-        p('milk') * 2 + p('banana'),
-        p('triangle-gimbap') + p('egg') * 2,
-      ];
       /* 그 밖은 목표 20~25g(체중 92kg 까지), 어린이는 15g 을 기준으로 — 8할이면 챙긴 것이다 */
-      return (
-        others.every((g) => Math.round(g) >= 25 * 0.8) &&
-        kids.every((g) => Math.round(g) >= 15 * 0.8)
+      const short = [
+        ...RECOVERY_EXAMPLES.other.filter(
+          (e) => Math.round(foodsProtein(e.items)) < 25 * 0.8
+        ),
+        ...RECOVERY_EXAMPLES.child.filter(
+          (e) => Math.round(foodsProtein(e.items)) < 15 * 0.8
+        ),
+      ];
+      const unknown = [...RECOVERY_EXAMPLES.other, ...RECOVERY_EXAMPLES.child].filter(
+        (e) => e.items.some(([id]) => !BASIC_FOODS.some((f) => f.id === id))
       );
+      return short.length === 0 && unknown.length === 0;
     })()
+  );
+  const allergic = throwDayGuide(sig({ pitches: game(80) }), {
+    ...adult,
+    avoid: ['dairy', 'egg', 'chicken', 'seafood'],
+  });
+  const kidAllergic = throwDayGuide(sig({ pitches: game(40) }), {
+    weightKg: 35,
+    ageBand: 'child',
+    goal: 'maintain',
+    avoid: ['dairy', 'egg'],
+  });
+  check(
+    '못 먹는 것(우유 · 달걀 · 닭 · 생선)을 뺀 사람에게는 회복식 보기 · 성장기 덧말에서 뺀다 — 콩 보기는 남는다',
+    Boolean(
+      allergic &&
+      !/우유|달걀|닭|고등어|삼각김밥/.test(allergic.lines[1]) &&
+      allergic.lines[1].includes('두부') &&
+      kidAllergic &&
+      !/우유|달걀|요구르트/.test(
+        [...kidAllergic.lines, ...kidAllergic.notes].join(' ')
+      ) &&
+      kidAllergic.lines[1].split(' · ').length >= 2
+    ),
+    `${allergic?.lines[1]} / ${kidAllergic?.lines[1]}`
+  );
+  check(
+    '아무것도 안 뺐으면 회복식 보기는 예전 그대로',
+    throwDayGuide(sig({ pitches: game(80) }), adult)?.lines[1] ===
+      '예) 밥 1공기 + 닭가슴살 1팩 · 우유 2컵 + 삶은 달걀 2개 + 바나나 · 삼각김밥 2개 + 삶은 달걀 2개'
   );
   check(
     '입맛이 없는 날(적음 이하)만 덧말',
@@ -1166,6 +1232,10 @@ console.log('\n■ 나이에 맞춘 영양 기준');
   );
   check('성장기는 1.8 을 넘지 않는다', effectiveProtein(2.2, 15) === 1.8);
   check('성인은 정한 값 그대로', effectiveProtein(2.2, 25) === 2.2);
+  check(
+    '성장기 때 저장한 1.5 는 만 18세부터 성인 아래 끝 1.6 으로(2026-10-18 점검)',
+    effectiveProtein(1.5, 18) === 1.6 && effectiveProtein(1.5, 17) === 1.5
+  );
   check(
     '어린이 감량은 유지로 셈한다',
     effectiveGoal('lose', 11) === 'maintain' && effectiveGoal('lose', 15) === 'lose'
@@ -1510,12 +1580,13 @@ console.log('\n■ 체중 목표와 조정');
       baseOf({ goal: 'lose', weeklyRateKg: 0.25 }, ageless) === 2350
   );
   check(
-    '가벼운 성인의 감량도 예전 숫자 그대로(1180)',
+    /* 예전 1180 은 기초대사량(1214) 밑이었다 — 2026-10-16 점검으로 바닥을 둔다(에너지 부족) */
+    '가벼운 성인의 감량은 기초대사량에서 멈춘다(예전 1180 → 1210)',
     computeTargets(
       { ...P, goal: 'lose', activity: 'low' },
       { weightKg: 50, heightCm: 160, age: 25, sex: 'F' },
       0
-    ).base === 1180
+    ).base === 1210
   );
   const paceOf = (p: Partial<ProfileSettings>, b: Body = man) =>
     computeTargets({ ...P, ...p }, b, 0).paceKg;
@@ -2467,6 +2538,25 @@ console.log('\n■ 끼니별 단백질(로드맵 5번)');
     '모자란 것이 없으면 예시도 없다',
     proteinTip(0) === null && proteinTip(-3) === null
   );
+  {
+    /* 2026-10-16 점검: 달걀 · 유제품을 뺀 사람에게도 '달걀 2개 · 우유 1컵'을 권했다 */
+    const tips = [6, 12, 17, 25, 40].map((g) => proteinTip(g, ['egg', 'dairy']));
+    const w = exampleWords(['egg', 'dairy']);
+    check(
+      '못 먹는 것(달걀 · 유제품)을 뺀 사람의 끼니 예시 · 글 속 음식에 달걀 · 우유 · 요거트가 없다',
+      tips.every((t) => t !== null && !/달걀|우유|요거트/.test(t.label)) &&
+        !/달걀|우유|요거트/.test(Object.values(w).join(' ')) &&
+        hasAvoided([['egg', 2]], ['egg']) &&
+        !hasAvoided([['tofu', 1]], ['egg', 'dairy']),
+      tips.map((t) => t?.label).join(' · ')
+    );
+    check(
+      '아무것도 안 뺐으면 글 속 음식은 예전 그대로(우유 · 달걀 2개 · 닭가슴살 한 조각 또는 달걀 2개)',
+      exampleWords().milk === '우유' &&
+        exampleWords().solid === '달걀 2개' &&
+        exampleWords().proteinOr === '닭가슴살 한 조각 또는 달걀 2개'
+    );
+  }
   check(
     '예시의 단백질은 기본 음식 목록 값과 같다(달걀 2개 = 12.6g → 13g)',
     proteinTip(12)?.label === '달걀 2개' && proteinTip(12)?.protein === 13

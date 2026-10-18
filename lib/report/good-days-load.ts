@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { dbDate } from '@/lib/nutrition/days';
 import { shiftDateKey, toDateKey } from '@/lib/pitch-stats';
 import { RATED_SESSION_TYPES } from '@/lib/pitch-satisfaction';
+import { sorenessFromParts } from '@/lib/checkin';
 import {
   GOOD_DAYS_NEEDED,
   buildGoodDays,
@@ -60,6 +61,9 @@ export async function loadGoodDays(
         soreness: true,
         shoulder: true,
         elbow: true,
+        wrist: true,
+        lowerBack: true,
+        lowerBody: true,
       },
     }),
     prisma.userExerciseLog.findMany({
@@ -78,7 +82,12 @@ export async function loadGoodDays(
   const days = buildGoodDays(
     {
       logs: logs.map((l) => ({ ...l, date: toDateKey(l.date) })),
-      checkins: checkins.map((c) => ({ ...c, date: toDateKey(c.date) })),
+      /* 근육통 — 3판은 묻지 않아 몸 그림 부위 수로 어림한다(트레이닝 엔진과 같은 규칙, lib/checkin.ts sorenessFromParts) */
+      checkins: checkins.map((c) => ({
+        ...c,
+        date: toDateKey(c.date),
+        soreness: c.soreness ?? sorenessFromParts(c),
+      })),
       workouts: workouts.map((w) => ({
         date: toDateKey(w.date),
         category: w.exercise.category,

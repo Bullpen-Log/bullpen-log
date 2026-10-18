@@ -16,7 +16,8 @@ import { SESSION_MINUTES, WRAP_MINUTES, type ShootPlan } from '../lib/shoot/sche
 const write = process.argv.includes('--write');
 const drills = await prisma.mechanicsGuide
   .findMany({
-    where: { hiddenAt: null },
+    /* '나중에 촬영'(영상 전으로 미룬 37개, lib/shoot/later-drills.json)은 촬영 계획에서 뺀다 */
+    where: { hiddenAt: null, category: { not: '나중에 촬영' } },
     select: { id: true, title: true, category: true, equipment: true, stage: true, source: true, videoPath: true },
   })
   .then((rs) => rs.map(({ source, videoPath, ...d }) => ({ ...d, oldVideo: source === 'OWN' ? videoPath : null })));
@@ -28,9 +29,12 @@ const current = JSON.parse(readFileSync(url, 'utf8')) as ShootPlan;
 const indoor = current.weeks.filter((w) => !w.outdoor);
 const firstWeek = Math.max(0, ...indoor.map((w) => w.week)) + 1;
 let weeks = buildOutdoorWeeks(drills, [], { ...OUTDOOR_DEFAULT, firstWeek });
-for (let n = OUTDOOR_DEFAULT.sessions; n <= 12; n++) {
+/* --sessions=2 — 회 수를 정한다(2026-10-14 사용자: 한 회에 60개쯤) */
+const sessionsArg = process.argv.find((x) => x.startsWith('--sessions='));
+const forced = sessionsArg ? Number(sessionsArg.slice(11)) : null;
+for (let n = forced ?? OUTDOOR_DEFAULT.sessions; n <= 12; n++) {
   weeks = buildOutdoorWeeks(drills, [], { ...OUTDOOR_DEFAULT, firstWeek, sessions: n });
-  if (weeks.every((w) => w.end <= SESSION_MINUTES - WRAP_MINUTES)) break;
+  if (forced != null || weeks.every((w) => w.end <= SESSION_MINUTES - WRAP_MINUTES)) break;
 }
 const clock = (m: number) => `${Math.floor(m / 60)}:${String(Math.round(m % 60)).padStart(2, '0')}`;
 for (const w of weeks) {

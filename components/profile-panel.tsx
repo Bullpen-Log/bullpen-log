@@ -12,17 +12,7 @@ export type ProfileData = {
   sex: Sex | null;
   heightCm: number | null;
   weightKg: number | null;
-  wingspanCm: number | null;
   targetVelocity: number | null;
-  dailyWorkoutMinutes: number | null;
-  baseline: {
-    baselineFreq: string | null;
-    baselineVolume: string | null;
-    baselineIntensity: string | null;
-    baselineWorkoutFreq: string | null;
-    throwingHand: string | null;
-    competitionLevel: string | null;
-  };
   isAdmin: boolean;
 };
 
@@ -63,9 +53,6 @@ export function ProfilePanel({
           sex={data.sex}
           heightCm={data.heightCm}
           weightKg={data.weightKg}
-          wingspanCm={data.wingspanCm}
-          dailyWorkoutMinutes={data.dailyWorkoutMinutes}
-          baseline={data.baseline}
           today={today}
         />
       </div>

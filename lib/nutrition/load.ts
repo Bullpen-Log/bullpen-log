@@ -2,9 +2,10 @@ import 'server-only';
 import { appNow } from '@/lib/clock';
 import { prisma } from '@/lib/prisma';
 import { isShortSleep } from '@/lib/checkin';
-import { sessionBurnMixes } from '@/lib/nutrition/burn-load';
+import { burnMixesInRange } from '@/lib/nutrition/burn-load';
 import { shiftDateKey, toDateKey } from '@/lib/pitch-stats';
 import { NUTRITION_BACK_DAYS, dbDate, keyOfDbDate } from '@/lib/nutrition/days';
+import { stripDays } from '@/lib/date-strip';
 import {
   ENTRY_SOURCES,
   isActivityKey,
@@ -91,8 +92,7 @@ export type NutritionDay = {
   /** 고른 날까지 7일 — 아래 '최근 7일' 그래프 */
   week: DaySummary[];
   /**
-   * 고른 날이 든 한 주(일~토) — 위쪽 날짜 띠. 달력처럼 일요일부터라, 이 주 안에서
-   * 날짜를 옮겨도 띠가 흔들리지 않는다. 앞날도 칸은 있다(누를 수는 없다).
+   * 위쪽 날짜 띠 — 최근 6주(옛 날 → 오늘, lib/date-strip.ts). 옆으로 굴려 본다. 오늘 뒤의 날은 없다.
    */
   strip: DaySummary[];
   /** 고른 날까지 56일의 체중 — 그래프와 추세가 읽는다(목표 계산의 체중은 여전히 30일 안에서 고른다) */
@@ -129,8 +129,10 @@ export type NutritionDay = {
   } | null;
   /** 전날 먹은 것 — '어제와 같이' 담기에 쓴다 */
   yesterday: MealEntryView[];
-  /** 목표 계산에 쓴 몸 정보 — 목표 설정 창이 미리 계산해 보여 준다 */
+  /** 목표 계산에 쓴 몸 정보(보는 날 기준) */
   body: Body;
+  /** 오늘 기준 몸 — 목표 창 · 내 계획은 이것으로(서버 saveNutritionProfile 이 오늘 체중 · 나이로 검사한다). 오늘을 보면 body 와 같다 */
+  todayBody: Body;
   /** 식약처 검색을 쓸 수 있나(인증키가 있나) */
   mfds: boolean;
   /** 식약처 둘러보기의 분류 → 세부 칸 → 음식 수(음식 창이 빈 칸을 숨기고 숫자를 단다) */
@@ -257,9 +259,18 @@ export async function loadNutritionDay(
   /* 체중은 추세 창(56일)만큼 읽는다 — 목표 계산의 체중은 그 가운데 최근 30일에서 고른다(아래 recent30) */
   const trendStart = shiftDateKey(date, -(TREND_DAYS - 1));
   const recentStart = shiftDateKey(date, -RECENT_DAYS);
-  /* 날짜 띠(일~토)와 7일 그래프를 한 번에 읽도록 둘을 덮는 범위 */
-  const stripStart = shiftDateKey(date, -new Date(`${date}T00:00:00.000Z`).getUTCDay());
-  const stripEnd = shiftDateKey(stripStart, 6);
+  /*
+   * 날짜 띠(최근 6주를 옆으로 굴리는 한 줄, lib/date-strip.ts — 2026-10-15 사용자 "좌우로 긴 것 스크롤 가능하게")와 7일 그래프를
+   * 한 번에 읽도록 둘을 덮는 범위. 예전 띠는 고른 날이 든 한 주(일~토)였다.
+   */
+  const todayKey = toDateKey(appNow());
+  const stripKeys = stripDays(
+    date,
+    todayKey,
+    shiftDateKey(todayKey, -NUTRITION_BACK_DAYS)
+  );
+  const stripStart = stripKeys[0];
+  const stripEnd = stripKeys[stripKeys.length - 1];
   const rangeStart = weekStart < stripStart ? weekStart : stripStart;
   const rangeEnd = date > stripEnd ? date : stripEnd;
   /* 운동 기록은 식사 확인의 14일까지 — 그날그날의 목표(운동한 만큼 더한 것)를 알아야 '목표만큼 먹었나'를 본다 */
@@ -267,7 +278,7 @@ export async function loadNutritionDay(
   const burnStart = intakeStart < rangeStart ? intakeStart : rangeStart;
   const userId = user.id;
   /* 던지는 날 가이드는 오늘에만 뜬다 — 지난 날을 볼 때는 그 몫의 체크인을 읽지 않는다 */
-  const isToday = date === toDateKey(appNow());
+  const isToday = date === todayKey;
 
   const [
     profileRow,
@@ -284,6 +295,7 @@ export async function loadNutritionDay(
     planRows,
     mealPlanRow,
     nutritionToday,
+    mixes,
   ] = await Promise.all([
     prisma.nutritionProfile.findUnique({ where: { userId } }),
     prisma.mealEntry.findMany({
@@ -335,7 +347,8 @@ export async function loadNutritionDay(
     prisma.userFood.findMany({
       where: { userId },
       orderBy: { updatedAt: 'desc' },
-      take: 100,
+      /* 저장 한도(app/actions/nutrition.ts saveUserFood, 300)와 같게 — 100 이면 나머지는 보이지도 지워지지도 않았다(2026-10-17) */
+      take: 300,
     }),
     prisma.mealCombo.findMany({
       where: { userId },
@@ -385,6 +398,8 @@ export async function loadNutritionDay(
           },
         })
       : null,
+    /* 판마다 운동 강도 · 세트 — 판 조회와 같이(판을 기다렸다 읽으면 왕복이 하나 더 쌓였다) */
+    burnMixesInRange(userId, dbDate(burnStart), dbDate(rangeEnd)),
   ]);
 
   const calendar: Record<string, number> = {};
@@ -420,8 +435,7 @@ export async function loadNutritionDay(
     if (!item) return;
     burnByDay.set(day, [...(burnByDay.get(day) ?? []), item]);
   };
-  /* 운동마다의 강도 · 세트로 셈한다(lib/nutrition/burn.ts trainingBurn) */
-  const mixes = await sessionBurnMixes(sessions.map((s) => s.id));
+  /* 운동마다의 강도 · 세트로 셈한다(lib/nutrition/burn.ts trainingBurn, mixes 는 위 조회) */
   for (const s of sessions)
     pushBurn(
       keyOfDbDate(s.date),
@@ -440,6 +454,18 @@ export async function loadNutritionDay(
     age: ageOn(user.birthDate, date),
     sex: isSex(user.sex) ? user.sex : null,
   };
+  /*
+   * 오늘 기준 몸 — 지난 날을 보며 목표를 고치면 화면은 그날의 체중 · 나이로 범위를 보였는데 서버는 오늘 것으로 검사해 '범위 안인데 막혔다'
+   * (2026-10-17). 목표 창 · 내 계획은 todayBody 를 쓴다.
+   */
+  const todayBody: Body = isToday
+    ? body
+    : {
+        weightKg: (await recentWeightKg(user.id, todayKey)) ?? user.weightKg,
+        heightCm: user.heightCm,
+        age: ageOn(user.birthDate, todayKey),
+        sex: body.sex,
+      };
   const burnItems = burnByDay.get(date) ?? [];
   const targets = computeTargets(profile, body, totalBurn(burnItems));
 
@@ -525,9 +551,7 @@ export async function loadNutritionDay(
   const week = Array.from({ length: WEEK_DAYS }, (_, i) =>
     summarize(shiftDateKey(weekStart, i))
   );
-  const strip = Array.from({ length: 7 }, (_, i) =>
-    summarize(shiftDateKey(stripStart, i))
-  );
+  const strip = stripKeys.map(summarize);
 
   /* ── 최근 먹은 것 — 같은 음식은 가장 최근 한 번만 ── */
   const seen = new Set<string>();
@@ -593,7 +617,12 @@ export async function loadNutritionDay(
             })),
         },
         /* 체중을 모르면(짐작 75kg) g 을 말하지 않는다 */
-        { weightKg: bodyKg, ageBand: targets.ageBand, goal: targets.goal }
+        {
+          weightKg: bodyKg,
+          ageBand: targets.ageBand,
+          goal: targets.goal,
+          avoid: toDietPrefs(profileRow).avoid,
+        }
       )
     : null;
 
@@ -620,6 +649,7 @@ export async function loadNutritionDay(
     combos: comboRows.map(comboView).filter((c): c is MealComboView => c !== null),
     yesterday,
     body,
+    todayBody,
     mfds: mfdsEnabled(),
     browseSubs: mfdsSubCounts(),
     popular,

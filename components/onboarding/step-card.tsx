@@ -67,7 +67,7 @@ export function StepCard({
      * 단계마다 높이가 달라 로고 · 막대 · 단추가 매번 위아래로 튀었다. 이제 제목 묶음은 위에,
      * 단추 줄은 아래에 붙는다(칸 묶음이 남는 높이를 가진다).
      */
-    <section className="relative flex flex-col max-md:min-h-full max-md:flex-1 md:overflow-hidden md:rounded-[28px] md:border md:border-line md:bg-surface md:shadow-[0_1px_2px_rgb(15_23_42/0.04)]">
+    <section className="relative flex flex-col max-md:min-h-full max-md:flex-1 md:overflow-hidden md:rounded-3xl md:border md:border-line md:bg-surface md:shadow-[0_1px_2px_rgb(15_23_42/0.04)]">
       {progress != null && (
         <div
           aria-hidden
@@ -95,7 +95,7 @@ export function StepCard({
               {title}
             </h1>
             {desc && (
-              <p className="mt-2.5 max-w-md text-sm leading-relaxed break-keep text-muted md:mt-4 md:text-[15px] md:short:mt-2.5">
+              <p className="mt-2.5 max-w-md text-sm leading-relaxed break-keep text-muted md:mt-4 md:text-subhead md:short:mt-2.5">
                 {desc}
               </p>
             )}
@@ -145,8 +145,14 @@ export function TextButton({
   );
 }
 
-/** 글을 치는 큰 칸 — 가입 · 온보딩의 입력칸에 덧붙인다(components/ui Input) */
-export const INPUT_LARGE = 'py-3.5 text-[15px] aria-invalid:border-danger';
+/**
+ * 글을 치는 큰 칸 — 가입 · 온보딩의 입력칸에 덧붙인다(components/ui Input).
+ *
+ * 여기에 text-lg 같은 큰 글자 클래스를 더하지 않는다. cn 은 합치기만 해서 CSS 차례상 text-subhead · text-sm 이 이기고(실제로는 15px),
+ * globals.css 의 '손가락 화면 입력칸 16px' 규칙은 text-lg 가 붙은 칸을 건너뛴다 → 아이폰이 칸을 누를 때 화면을 확대하고,
+ * 앱(확대 막힘)에서는 되돌릴 수도 없었다(2026-10-16 영양 첫 설정 키 · 몸무게 칸).
+ */
+export const INPUT_LARGE = 'py-3.5 text-subhead aria-invalid:border-danger';
 
 /** 막힌 까닭을 적는 줄의 id — 문제의 칸이 aria-describedby 로 가리킨다 */
 export const PROBLEM_ID = 'onboarding-problem';
@@ -168,7 +174,7 @@ export function ProblemLine({ seq, children }: { seq: number; children: ReactNod
       key={seq}
       id={PROBLEM_ID}
       role="alert"
-      className="mt-4 flex items-start gap-1.5 text-[13px] leading-5 text-danger md:text-sm"
+      className="mt-4 flex items-start gap-1.5 text-footnote leading-5 text-danger md:text-sm"
     >
       <CircleAlert aria-hidden className="mt-0.5 h-4 w-4 shrink-0" />
       {children}

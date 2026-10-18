@@ -65,15 +65,15 @@ export async function uploadClip(
       xhr.onload = () =>
         xhr.status >= 200 && xhr.status < 300
           ? resolve()
-          : reject(new Error('클립 업로드에 실패했습니다.'));
+          : reject(new Error('클립 업로드에 실패했어요.'));
       xhr.onerror = () =>
-        reject(new Error('네트워크 오류로 클립을 올리지 못했습니다.'));
+        reject(new Error('네트워크 오류로 클립을 올리지 못했어요.'));
       xhr.send(blob);
     });
   } catch (e) {
     return {
       ok: false,
-      error: e instanceof Error ? e.message : '클립을 올리지 못했습니다.',
+      error: e instanceof Error ? e.message : '클립을 올리지 못했어요.',
     };
   }
 
@@ -124,12 +124,12 @@ export async function uploadAttemptClip(
       xhr.onload = () =>
         xhr.status >= 200 && xhr.status < 300
           ? resolve()
-          : reject(new Error('클립 업로드에 실패했습니다.'));
-      xhr.onerror = () => reject(new Error('네트워크 오류로 클립을 올리지 못했습니다.'));
+          : reject(new Error('클립 업로드에 실패했어요.'));
+      xhr.onerror = () => reject(new Error('네트워크 오류로 클립을 올리지 못했어요.'));
       xhr.send(blob);
     });
   } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : '클립을 올리지 못했습니다.' };
+    return { ok: false, error: e instanceof Error ? e.message : '클립을 올리지 못했어요.' };
   }
   try {
     return await attachAttemptClip(attemptId, {

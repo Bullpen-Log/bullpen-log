@@ -7,15 +7,16 @@ import { ErrorLine } from '@/components/error-line';
 import type { LabSample } from '@/lib/pitch-lab';
 import {
   LAB_VIEWS,
-  LAB_VIEW_LABELS,
+  labViewLabel,
   labMetaChips,
   type LabGround,
   type LabView,
 } from '@/lib/pitch-lab-meta';
 import type { Pitch3dV2Ok } from '@/lib/pitch-3d/v2/contract';
-import type { Metric, MetricKey } from '@/lib/pitch-3d/metrics';
+import { labHandNote, labTitle, metricRows, type LabMetricRow } from '@/lib/pitch-3d/v2/lab-summary';
 import { V2EmptyWell, V2RequestRow, V2StatusBadge } from './analysis-v2';
-import { MechCard, type DrillPicks } from './mech-card';
+import { MechCard } from './mech-card';
+import type { DrillPicks } from '@/lib/pitch-3d/v2/lab-summary';
 import type { Body3DHandle, Transport } from './body-3d';
 import { useV2Analysis } from './use-v2-analysis';
 
@@ -28,57 +29,13 @@ const Body3D = dynamic(() => import('./body-3d').then((m) => m.Body3D), { ssr: f
  * 원본 영상은 3D 시계를 따라간다(결정 12): 멈춤 · 끌기 때 currentTime, 재생 때 playbackRate. 숫자를 누르면 그 순간으로 가고 3D 가 보이게 올린다.
  */
 
-const WHEN = new Intl.DateTimeFormat('ko-KR', {
-  timeZone: 'Asia/Seoul',
-  month: 'long',
-  day: 'numeric',
-  hour: '2-digit',
-  minute: '2-digit',
-  hourCycle: 'h23',
-});
-
-const LABELS: Record<MetricKey, string> = {
-  trunkForwardTilt: '몸통 앞 기울기 · 릴리스',
-  trunkLateralTilt: '몸통 옆 기울기 · 릴리스',
-  separationMax: '골반-어깨 꼬임 최대',
-  separationAtPlant: '골반-어깨 꼬임 · 착지',
-  leadKneeAtPlant: '앞 무릎 굽힘 · 착지',
-  leadKneeAtRelease: '앞 무릎 굽힘 · 릴리스',
-  strideLength: '보폭(키 대비)',
-  strideOffset: '디딤 방향(+ 열림)',
-  shoulderAbduction: '팔 높이 · 어깨 벌림',
-  maxExternalRotation: '어깨 외회전 최대',
-  plantToRelease: '착지 → 릴리스',
-};
-
-/** 겉에 보이는 지표(나머지는 '자세히') */
-/**
- * 숫자 칸에 보이는 것 — 메커니즘 점검이 판정에 쓰는 것(상하체 분리 · 앞다리 버티기의 앞무릎)과 보폭 · 디딤 방향(같은 날 김민 '중요한 것'). 2026-10-14 김민: "숫자에 잡다한 게
- * 많다, 분석에 쓰는 것만". 나머지 지표는 결과에 그대로 있다(인형 이름표 · 시험이 읽음).
- */
-const MAIN: MetricKey[] = ['separationMax', 'leadKneeAtPlant', 'leadKneeAtRelease', 'strideLength', 'strideOffset'];
-
-/** 지표 → 보여 줄 순간 */
-const MOMENT: Record<MetricKey, 'footPlant' | 'release'> = {
-  trunkForwardTilt: 'release',
-  trunkLateralTilt: 'release',
-  separationMax: 'footPlant',
-  separationAtPlant: 'footPlant',
-  leadKneeAtPlant: 'footPlant',
-  leadKneeAtRelease: 'release',
-  strideLength: 'footPlant',
-  strideOffset: 'footPlant',
-  shoulderAbduction: 'release',
-  maxExternalRotation: 'release',
-  plantToRelease: 'release',
-};
-
 export function LabDetail({
   sample,
   v2Enabled,
   engineBuild = null,
   drillPicks = {},
   preview,
+  ownerHeightCm = null,
 }: {
   sample: LabSample;
   v2Enabled: boolean;
@@ -88,6 +45,8 @@ export function LabDetail({
   drillPicks?: DrillPicks;
   /** 개발 확인용 결과(서버를 안 부른다) */
   preview?: Pitch3dV2Ok | null;
+  /** 샘플에 키가 없을 때 쓸 올린 사람의 키(내 샘플일 때만, page.tsx) */
+  ownerHeightCm?: number | null;
 }) {
   const v2 = useV2Analysis(sample.id, sample.v2.job, preview);
   const [now, setNow] = useState(() => Date.now());
@@ -141,20 +100,15 @@ export function LabDetail({
    * 머리 칩(labMetaChips)에 '마운드' · '평지'가 보인다.
    */
   const ground: LabGround = meta?.ground ?? 'mound';
-  const main = result
-    ? MAIN.map((k) => result.metrics.find((m) => m.key === k)).filter(
-        (m): m is Metric => m != null
-      )
-    : [];
+  /* 숫자 칸 — 이름 · 차례 · 그 순간은 앱 화면과 같이(lib/pitch-3d/v2/lab-summary.ts) */
+  const main = result ? metricRows(result) : [];
 
   return (
     <div className="stack-page">
       <div className="space-y-2">
-        <BackLink href="/videos/lab">투구 분석</BackLink>
+        <BackLink href="/videos/lab">3D 동작 분석</BackLink>
         <PageHeading
-          title={
-            meta?.createdAt ? `${WHEN.format(new Date(meta.createdAt))} 샘플` : '샘플'
-          }
+          title={labTitle(meta?.createdAt)}
           description={meta ? labMetaChips(meta).join(' · ') : undefined}
           action={<V2StatusBadge job={v2.job} now={now} />}
           inlineAction
@@ -162,12 +116,9 @@ export function LabDetail({
       </div>
 
       <div className="desk:grid desk:grid-cols-[3fr_2fr] desk:items-start desk:gap-8">
-        <div ref={stage} className="stack-block desk:sticky desk:top-4">
-          {result && meta && result.hand !== meta.hand && (
-            <p className="text-xs text-muted break-keep">
-              영상으로 보면 {result.hand === 'L' ? '왼손' : '오른손'} 투수라{' '}
-              {result.hand === 'L' ? '왼손' : '오른손'}으로 분석했어요.
-            </p>
+        <div ref={stage} className="stack-block desk:sticky desk:top-(--desk-veil-solid)">
+          {result && labHandNote(result.hand, meta?.hand) && (
+            <p className="text-xs text-muted break-keep">{labHandNote(result.hand, meta?.hand)}</p>
           )}
           {result ? (
             <Body3D
@@ -175,7 +126,7 @@ export function LabDetail({
               result={result}
               onTransport={onTransport}
               ground={ground}
-              heightCm={meta?.heightCm ?? null}
+              heightCm={meta?.heightCm ?? ownerHeightCm}
             />
           ) : (
             <V2EmptyWell
@@ -184,6 +135,7 @@ export function LabDetail({
               loading={v2.loading}
               v2Enabled={v2Enabled}
               hasVideos={hasVideos}
+              hand={meta?.hand ?? 'R'}
             />
           )}
           <V2RequestRow
@@ -210,7 +162,7 @@ export function LabDetail({
                 const v = sample.videos[view];
                 return (
                   <div key={view} className="space-y-1">
-                    <p className="text-xs text-muted">{LAB_VIEW_LABELS[view]}</p>
+                    <p className="text-xs text-muted">{labViewLabel(view, meta?.hand ?? 'R')}</p>
                     {v?.url ? (
                       <video
                         ref={(el) => {
@@ -233,7 +185,7 @@ export function LabDetail({
             </div>
             {result && (
               <p className="text-xs text-muted">
-                영상은 3D 를 따라가요 — 멈추거나 끌면 같은 장면, 재생하면 같은 속도.
+                영상은 3D 를 따라가요. 멈추거나 끌면 같은 장면에 서요.
               </p>
             )}
           </section>
@@ -241,7 +193,7 @@ export function LabDetail({
           {result && (
             <MechCard
               result={result}
-              heightCm={meta?.heightCm ?? null}
+              heightCm={meta?.heightCm ?? ownerHeightCm}
               drillPicks={drillPicks}
               onJump={jump}
             />
@@ -264,11 +216,7 @@ export function LabDetail({
                 </p>
                 <ul className="divide-y divide-line">
                   {main.map((m) => (
-                    <MetricRow
-                      key={m.key}
-                      m={m}
-                      onClick={() => jump(result.events[MOMENT[m.key]])}
-                    />
+                    <MetricRow key={m.key} m={m} onClick={() => jump(m.frame)} />
                   ))}
                 </ul>
                 {result.warnings.length > 0 && (
@@ -290,8 +238,8 @@ export function LabDetail({
   );
 }
 
-function MetricRow({ m, onClick }: { m: Metric; onClick: () => void }) {
-  const unit = m.unit === 'deg' ? '°' : m.unit === 'pct' ? '%' : 'ms';
+function MetricRow({ m, onClick }: { m: LabMetricRow; onClick: () => void }) {
+  const unit = m.unit;
   return (
     <li>
       <button
@@ -300,7 +248,7 @@ function MetricRow({ m, onClick }: { m: Metric; onClick: () => void }) {
         className="flex min-h-11 w-full items-baseline justify-between gap-3 py-1.5 text-left transition-colors active:bg-ink/4 desk:hover:bg-surface-2"
       >
         <span className="min-w-0 text-sm text-ink break-keep">
-          {LABELS[m.key]}
+          {m.label}
           {m.experimental && (
             <span className="ml-1.5 rounded-full bg-ink/8 px-1.5 text-xs text-muted">
               실험

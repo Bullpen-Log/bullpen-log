@@ -20,6 +20,7 @@ export function TrainingSettingsButton({
   trainingLevel,
   ownedEquipment,
   returnTo = '/training',
+  pill = false,
 }: {
   trainingLevel: string | null;
   ownedEquipment: string[];
@@ -28,6 +29,8 @@ export function TrainingSettingsButton({
    * app/actions/training-setup.ts 의 RETURN_TO 목록이 정한다.
    */
   returnTo?: string;
+  /** 휴대폰 제목 오른쪽 알약 — 투구의 '분석'(components/analysis-link.tsx)과 같은 모양, 글은 '설정' */
+  pill?: boolean;
 }) {
   const [open, setOpen] = useState(false);
 
@@ -36,10 +39,14 @@ export function TrainingSettingsButton({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-line-strong px-3 py-2 text-sm font-medium text-ink transition-colors hover:border-sky hover:text-sky"
+        className={
+          pill
+            ? 'inline-flex h-11 shrink-0 items-center gap-1.5 rounded-full bg-surface-2 px-4 text-sm font-semibold text-ink transition-opacity active:opacity-60'
+            : 'inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-line-strong px-3 py-2 text-sm font-medium text-ink transition-colors hover:border-sky hover:text-sky'
+        }
       >
-        <Settings2 className="h-4 w-4" />
-        트레이닝 설정
+        <Settings2 aria-hidden className={pill ? 'h-4 w-4 text-sky' : 'h-4 w-4'} />
+        {pill ? '설정' : '트레이닝 설정'}
       </button>
 
       <Modal open={open} onClose={() => setOpen(false)} title="트레이닝 설정">

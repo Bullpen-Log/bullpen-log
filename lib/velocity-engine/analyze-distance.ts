@@ -86,10 +86,13 @@ export type DistanceInput = {
  * 덩어리 지름 ÷ 실제 공 지름 — 차이 그림의 덩어리는 번짐 · 그늘 · 문턱으로 공보다 크게 잡힌다(132 를 확대해 반높이 폭과 견주면 약
  * 1.3배). 공 크기로 어림한 거리를 스피드건에 맞는 거리에 맞춘 값(2026-10-07, 아이폰 15 Pro Max 2배, 분석 720, 밖 12개 — 그물 밑으로
  * 빠진 111 뺌). 영상을 푸는 길마다 덩어리가 조금씩 달라 맞는 값이 갈린다: 노드 실험대(장면 묶음) 1.163, 크롬 '파일로 재기' 1.174,
- * 사파리(웹킷 — 앱) 1.194, 흩어짐은 모두 2~3%. 둘 사이 1.185 로 두면 거리 입력 없이 사파리 평균 오차 2.5km/h(치우침 −0.8), 크롬
- * 2.2(+1.1). 실내(흰 천)는 흩어짐 10% 남짓. 한 폰 · 한 스피드건으로 정했다.
+ * 사파리(웹킷 — 앱) 1.194, 흩어짐은 모두 2~3%. 둘 사이 1.185 로 두었다(2.1.1). 실내(흰 천)는 흩어짐 10% 남짓. 한 폰 · 한 스피드건으로 정했다.
+ *
+ * 2.6.0 — 1.163 으로. 2.3.15 부터 앱 · 브라우저 모두 하드웨어 디코더로 밝기 면을 바로 읽어 장면이 노드 실험대와 한 자리도 다르지 않다 —
+ * 캔버스 길마다 갈리던 덩어리 크기가 없어져 노드 실험대 값(1.163)이 맞는다. 디코더 길로 다시 잰 10-03 밖 13구: 1.185 면 공 크기 가운데 값
+ * 23.0m 로 세션 거리 보정 뒤 평균 +2.5km/h, 1.163 이면 22.6m · 스피드건에 맞는 거리(22.4~22.5m)와 1% 안.
  */
-export const BLOB_SIZE_RATIO = 1.185;
+export const BLOB_SIZE_RATIO = 1.163;
 /**
  * 거리를 바꿀 때 구속이 바뀌는 지수 — 구속 ∝ D^1.076. 거리만큼 배율이 바뀌고(1), 공기저항 배율(dragScaleM = D)이 함께 바뀌어 되돌린
  * 릴리스 속력이 조금 더 붙는다(밖 · 실내 6개를 20m · 22.8m 로 재 견줌, 영상마다 1.075~1.078). 화면이 세션 거리로 값을 옮길 때 쓴다.
@@ -126,6 +129,10 @@ export type DistanceReport = {
   inputDistM: number;
   /** 공 크기로 어림한 거리(m) — 맞춘 깊이 비율에 잰 덩어리 지름을 견준다(BLOB_SIZE_RATIO). 공이 8장 넘게 안 잡혔으면 null */
   sizeDistM: number | null;
+  /** 공 크기 판정을 한 기준 거리(m) — 넣은 거리, 화면이 세션 거리로 다시 판정했으면 그 거리(rejudgeSize, 2.5.3). 거리 자동 · 못 쟀으면 없다 */
+  sizeRefM?: number;
+  /** 공 크기 판정 전의 믿음 · ± · 까닭 — rejudgeSize 가 여기서 다시 시작한다. 쟀을 때만 */
+  preSize?: { confidence: Confidence; errorKmh: number; why: string | null };
   /** 구속을 낸 거리가 어디서 왔나 — 'input' 넣은 거리, 'ball' 공 크기 어림 */
   distanceSource: 'input' | 'ball';
   tiltRad: number;
@@ -818,40 +825,13 @@ export function analyzeByDistance(input: DistanceInput): DistanceResult {
       out = keep.out;
     }
   }
-  {
-    const s = report.sizeDistM;
-    const off = !input.autoDistance && s != null ? Math.abs(s / D - 1) : 0;
-    /* 튕김을 못 본 끝은 공이 그물 · 미트 앞에서 끊겼을 수도 있다 — 공 크기 거리가 넣은 거리와 더 가깝게 맞을 때만 믿는다 */
-    const endUnseen =
-      !input.autoDistance &&
-      report.impact === 'end' &&
-      (s == null || off > END_SIZE_AGREE);
-    if ((off > INPUT_SIZE_MISMATCH || endUnseen) && out.measure.ok) {
-      const m = out.measure;
-      m.confidence = 'low';
-      m.errorKmh = Math.max(m.errorKmh, round1(m.kmh * off));
-    }
-    /*
-     * 2.4.1 — 쟀어도 약한 데가 있으면 까닭 한 토막(why)을 남긴다(받는 쪽은 그대로 — 화면 규칙이 정한다). 시도 기록 · 분석 JSON 에 실린다.
-     * calibEligible — 스피드건 짝으로 쓸 만한 공인가: 믿음 높음 · 이어 찾기 없음 · 끝 튕김 봄 · 공 크기 거리가 넣은 거리와 15% 안.
-     * 공마다 공 크기로 거리를 어림한 공은 아니다(비율 보정은 거리 · 화각 같은 크기 오차를 메우는데, 그 공은 이미 크기를 스스로 맞췄다).
-     */
-    if (out.measure.ok) {
-      const fq = out.measure.detail.fitQuality;
-      if (report.why == null) {
-        if (off > INPUT_SIZE_MISMATCH) report.why = 'size-mismatch';
-        else if (endUnseen) report.why = 'end-unseen';
-        else if ((report.extended ?? 0) > 8) report.why = 'extended';
-        /* 맞음새 = 1 − 잔차 ÷ (4σ) 라 잔차 2.5σ 넘음(0.375 밑)도 여기에 든다 */
-        else if (fq < 0.6) report.why = 'fit-quality';
-      }
-      report.calibEligible =
-        !input.autoDistance &&
-        out.measure.confidence === 'high' &&
-        (report.extended ?? 0) === 0 &&
-        report.impact === 'rebound' &&
-        off <= INPUT_SIZE_MISMATCH;
-    }
+  if (out.measure.ok) {
+    report.preSize = {
+      confidence: out.measure.confidence,
+      errorKmh: out.measure.errorKmh,
+      why: report.why ?? null,
+    };
+    judgeSize(out, input.autoDistance ? null : D);
   }
   /* 자동이면 공 크기로 어림한 거리로 다시 — 넣은 거리로 잰 값이 그럴 수 없는 구속이어도(거리가 크게 틀림) 다시 본다 */
   const sized = report.sizeDistM;
@@ -862,6 +842,68 @@ export function analyzeByDistance(input: DistanceInput): DistanceResult {
     (out.measure.ok || out.measure.code === 'IMPLAUSIBLE_SPEED')
   )
     out = finish(sized, true);
+  return out;
+}
+
+/**
+ * 공 크기 판정 — 공 크기 거리가 기준 거리(refM)와 15% 넘게 다르면(INPUT_SIZE_MISMATCH), 또는 튕김을 못 본 끝인데 10% 넘게 다르면(END_SIZE_AGREE)
+ * '낮음' · ± 를 그 차이만큼. 까닭 한 토막(why) · 보정 짝 자격(calibEligible)도 여기서 정한다. refM 이 null 이면 거리 자동 — 견주지 않는다.
+ * 판정 전 값(report.preSize)에서 시작하므로 몇 번 불러도 같다(rejudgeSize).
+ */
+function judgeSize(out: DistanceResult, refM: number | null) {
+  const m = out.measure;
+  const report = out.distance;
+  const pre = report.preSize;
+  if (!m.ok || !pre) return;
+  m.confidence = pre.confidence;
+  m.errorKmh = pre.errorKmh;
+  report.why = pre.why ?? undefined;
+  const s = report.sizeDistM;
+  const off = refM != null && s != null ? Math.abs(s / refM - 1) : 0;
+  /* 튕김을 못 본 끝은 공이 그물 · 미트 앞에서 끊겼을 수도 있다 — 공 크기 거리가 기준 거리와 더 가깝게 맞을 때만 믿는다 */
+  const endUnseen = refM != null && report.impact === 'end' && (s == null || off > END_SIZE_AGREE);
+  if (off > INPUT_SIZE_MISMATCH || endUnseen) {
+    m.confidence = 'low';
+    m.errorKmh = Math.max(m.errorKmh, round1(m.kmh * off));
+  }
+  /*
+   * 2.4.1 — 쟀어도 약한 데가 있으면 까닭 한 토막(why)을 남긴다(받는 쪽은 그대로 — 화면 규칙이 정한다). 시도 기록 · 분석 JSON 에 실린다.
+   * calibEligible — 스피드건 짝으로 쓸 만한 공인가: 믿음 높음 · 이어 찾기 없음 · 끝 튕김 봄 · 공 크기 거리가 기준 거리와 15% 안.
+   * 공마다 공 크기로 거리를 어림한 공은 아니다(비율 보정은 거리 · 화각 같은 크기 오차를 메우는데, 그 공은 이미 크기를 스스로 맞췄다).
+   */
+  if (report.why == null) {
+    if (off > INPUT_SIZE_MISMATCH) report.why = 'size-mismatch';
+    else if (endUnseen) report.why = 'end-unseen';
+    else if ((report.extended ?? 0) > 8) report.why = 'extended';
+    /* 맞음새 = 1 − 잔차 ÷ (4σ) 라 잔차 2.5σ 넘음(0.375 밑)도 여기에 든다 */
+    else if (m.detail.fitQuality < 0.6) report.why = 'fit-quality';
+  }
+  report.calibEligible =
+    refM != null &&
+    m.confidence === 'high' &&
+    (report.extended ?? 0) === 0 &&
+    report.impact === 'rebound' &&
+    off <= INPUT_SIZE_MISMATCH;
+  if (refM != null) report.sizeRefM = refM;
+}
+
+/**
+ * 세션 거리가 정해진 뒤(화면의 세션 거리 보정, 2.4.0) 공 크기 판정을 그 거리로 다시 한다(2.5.3). 기준 20m 로 재면 실제 22.5m 자리에서
+ * 공 크기 거리 23~24.5m 인 공이 '15% 넘게 다름'으로 빠졌는데, 세션 거리와는 3~9% 였고 세션 거리로 옮긴 값이 스피드건과 2.5km/h 안이었다
+ * (10-03 밖 121 · 124 · 132 · 113). 구속 값은 그대로 — 판정만 바뀐다. 넣은 거리로 잰 공만(거리 자동 · 1.x · 못 잰 공은 그대로 돌려준다).
+ */
+export function rejudgeSize<T extends AnalyzeResult & { distance?: DistanceReport }>(
+  result: T,
+  refM: number
+): T {
+  const d = result.distance;
+  if (!result.measure.ok || !d?.preSize || d.distanceSource !== 'input' || !(refM > 0)) return result;
+  const out = {
+    ...result,
+    measure: { ...result.measure, detail: { ...result.measure.detail } },
+    distance: { ...d },
+  };
+  judgeSize(out as DistanceResult, refM);
   return out;
 }
 

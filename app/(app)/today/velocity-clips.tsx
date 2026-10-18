@@ -1,5 +1,6 @@
 'use client';
 
+import { SETUP_CHANGE_EVENT, loadSetup } from '@/lib/velocity-storage';
 import { useState, useSyncExternalStore } from 'react';
 import { RotateCw } from '@/components/icon';
 import { formatSpeed } from '@/lib/units';
@@ -8,8 +9,6 @@ import { ClipPlayer } from '@/components/velocity/clip-player';
 import { pitchTypeLabel, type DayClip } from '@/lib/velocity-meta';
 import {
   DEFAULT_SETUP,
-  SETUP_CHANGE_EVENT,
-  loadSetup,
   type CameraPos,
 } from '@/lib/velocity-setup';
 

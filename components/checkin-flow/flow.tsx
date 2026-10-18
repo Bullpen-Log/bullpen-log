@@ -1,15 +1,21 @@
 'use client';
 
-import { useEffect, useMemo, useState, useTransition, type ReactNode } from 'react';
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useTransition,
+  type ReactNode,
+} from 'react';
 import { useRouter } from 'next/navigation';
 import { Check, ChevronLeft, X } from '@/components/icon';
 import { saveCheckin } from '@/app/actions/checkin';
-import { logout } from '@/app/actions/auth';
 import { OFFLINE_MESSAGE, orOffline } from '@/lib/action-offline';
-import { PAIN_FORCED_CONDITION } from '@/lib/checkin';
+import { ARM_PAIN_SPOTS, PAIN_FORCED_CONDITION, armPainJointsToday } from '@/lib/checkin';
 import { partsFromSpots, type BodySpots } from '@/lib/body-spots';
 import { shiftDateKey } from '@/lib/pitch-stats';
-import { buzz } from '@/lib/haptics';
+import { buzz, haptic } from '@/lib/haptics';
 import { useTodayKey } from '@/components/use-today-key';
 import { writeCheckinSkip } from '@/components/checkin-skip';
 import { ConditionStep, MemoStep, PainStep, SleepStep } from './steps';
@@ -32,7 +38,8 @@ import type { CheckinFlowContext, CheckinPrefill } from './types';
  */
 
 export type Answers = {
-  condition: number;
+  /** 안 고르면 null — 미리 고르지 않는다(2026-10-18 사용자: 기본값 7 이 그대로 저장돼 낮은 날 규칙이 꺼졌다) */
+  condition: number | null;
   /** '몸에 불편한 곳이 있어요' — 컨디션 PAIN_FORCED_CONDITION 이하면 켜진 것으로 본다(effectivePain) */
   painOn: boolean;
   spots: BodySpots;
@@ -49,14 +56,14 @@ const DRAFT_KEY = 'bullpen-checkin-draft';
 const DONE_MS = 1500;
 /** 화면 전환 시간 — steps 의 duration 과 같아야 한다 */
 const SLIDE_MS = 260;
-/** 아무것도 안 적었을 때 — 컨디션은 보통의 위(7), 잠은 보통(3) */
+/** 아무것도 안 적었을 때 — 컨디션 · 잠은 비워 두고 직접 고르게 한다(2026-10-18 사용자: "미리 고르는 건 아니지") */
 const DEFAULT: Answers = {
-  condition: 7,
+  condition: null,
   painOn: false,
   spots: {},
   armSpots: [],
   armLevel: null,
-  sleepQuality: 3,
+  sleepQuality: null,
   note: '',
 };
 
@@ -173,7 +180,8 @@ export function CheckinFlow({
     setView((v) => (v.cur === next ? v : { cur: next, prev: v.cur, dir }));
   };
 
-  const forcedPain = answers != null && answers.condition <= PAIN_FORCED_CONDITION;
+  const forcedPain =
+    answers != null && answers.condition != null && answers.condition <= PAIN_FORCED_CONDITION;
   const painOn = answers != null && (forcedPain || answers.painOn);
   const steps: StepKey[] = [
     'welcome',
@@ -191,7 +199,9 @@ export function CheckinFlow({
     view.cur === 'welcome' ? 0 : view.cur === 'done' ? questions.length : qIdx + 1;
 
   /* 초안 — 고치는 날(오늘 체크인이 있음)은 안 적는다. 저장 뒤에도 안 적는다(saved) */
-  const [saved, setSaved] = useState(false);
+  /* 저장했으면 처음 체크인인지 고친 것인지 — 저장 뒤 화면을 다시 받으면(revalidatePath) existing 이 오늘 것으로 차서, 그걸 보면
+     첫 체크인도 '고쳤어요'가 떴다. 그래서 저장하기 전에 정해 둔다 */
+  const [saved, setSaved] = useState<false | 'new' | 'edit'>(false);
   useEffect(() => {
     if (!today || !answers || existing || saved) return;
     writeDraft(today, answers);
@@ -204,6 +214,7 @@ export function CheckinFlow({
 
   const submit = () => {
     if (!today || !answers) return;
+    const wasEdit = existing != null;
     start(async () => {
       setError(null);
       const fd = new FormData();
@@ -227,8 +238,8 @@ export function CheckinFlow({
         return;
       }
       clearDraft(today);
-      setSaved(true);
-      buzz(30);
+      setSaved(wasEdit ? 'edit' : 'new');
+      haptic('success');
       go('done', 1);
     });
   };
@@ -254,7 +265,11 @@ export function CheckinFlow({
     go('sleep', 1);
   };
 
+  /* 한 번만 — 완료 화면을 연달아 누르면 홈 이동 · 창 닫기가 여러 번 불렸다 */
+  const left = useRef(false);
   const finish = () => {
+    if (left.current) return;
+    left.current = true;
     if (variant === 'page') router.replace('/');
     else onDone?.();
   };
@@ -264,16 +279,44 @@ export function CheckinFlow({
     else onSkip?.();
   };
 
-  /* 완료 화면 — 1.5초 뒤 홈으로. 손대면 멈춘다. 가만히도 아픈 날(정도 3)은 쉬라는 카드라 저절로 안 넘어간다 */
-  const restCard = painOn && answers?.armLevel === 3;
-  const [hold, setHold] = useState(false);
+  /*
+   * 완료 화면 — 1.5초 뒤 홈으로, 누르면 바로 홈으로. 가만히도 아픈 날(정도 3)은 쉬라는 카드라 저절로 안 넘어간다.
+   * 예전에는 손대면 멈췄는데(hold) 완료 화면엔 단추가 없어, 누르는 순간 그 화면에 갇혀 멈춘 것처럼 보였다(2026-10-16 김민).
+   */
+  /* 어깨 · 팔꿈치가 '통증'일 때만 — 서버(parseArmPain)와 같은 규칙. 관절을 뻐근으로 내리거나 빼도 armLevel 은 남아 있어 카드가 떴다(2026-10-17) */
+  const restCard =
+    painOn &&
+    answers != null &&
+    answers.armLevel === 3 &&
+    armPainJointsToday(partsFromSpots(answers.spots)).length > 0;
+  /*
+   * 꼭 골라야 '다음'이 눌린다(2026-10-18 사용자) — 컨디션 · 잠은 미리 고르지 않고, 어깨 · 팔꿈치가 '통증'이면 아픈 자리와 정도를 둘 다.
+   * 자리를 안 고르면 '던질 때만' 이어도 가벼운 통증 루틴 대신 쉬기가 나왔다(lib/checkin.ts canDoPainRoutine) — "무조건 알아야지".
+   */
+  const painJoints = answers ? armPainJointsToday(partsFromSpots(answers.spots)) : [];
+  const missing =
+    answers == null
+      ? null
+      : view.cur === 'condition' && answers.condition == null
+        ? '오늘 컨디션을 골라 주세요'
+        : view.cur === 'sleep' && answers.sleepQuality == null
+          ? '어젯밤 잠을 골라 주세요'
+          : view.cur === 'pain' &&
+              painJoints.length > 0 &&
+              !answers.armSpots.some((s) =>
+                painJoints.some((j) => ARM_PAIN_SPOTS[j].some((x) => x.key === s))
+              )
+            ? '어디가 아픈지 골라 주세요'
+            : view.cur === 'pain' && painJoints.length > 0 && answers.armLevel == null
+              ? '얼마나 아픈지 골라 주세요'
+              : null;
   useEffect(() => {
-    if (view.cur !== 'done' || restCard || hold) return;
+    if (view.cur !== 'done' || restCard) return;
     const t = window.setTimeout(finish, DONE_MS);
     return () => window.clearTimeout(t);
     // finish 는 변수 둘(variant · onDone)만 보는 함수라 매번 새로 만들어도 같은 일을 한다
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [view.cur, restCard, hold]);
+  }, [view.cur, restCard]);
 
   if (!today || !answers) {
     return <div className={variant === 'page' ? 'flex-1' : 'h-[min(78dvh,42rem)]'} />;
@@ -309,7 +352,7 @@ export function CheckinFlow({
       case 'sleep':
         return (
           <SleepStep
-            value={answers.sleepQuality ?? DEFAULT.sleepQuality!}
+            value={answers.sleepQuality}
             onChange={(sleepQuality) => patch({ sleepQuality })}
           />
         );
@@ -326,10 +369,9 @@ export function CheckinFlow({
           <Done
             today={today}
             days={[...ctx.streakDays, today]}
-            edit={existing != null && !saved ? false : existing != null}
+            edit={saved ? saved === 'edit' : existing != null}
             rest={restCard}
             onHome={finish}
-            onHold={() => setHold(true)}
           />
         );
     }
@@ -370,7 +412,9 @@ export function CheckinFlow({
             <button
               type="button"
               onClick={() => go('welcome', -1)}
-              className="-ml-2 inline-flex min-h-12 items-center gap-0.5 rounded-full px-2 text-base font-medium text-muted transition-colors hover:text-ink"
+              /* 저장 중에는 잠근다 — 그 사이 첫 화면으로 가면 실패 글(메모 화면 안)을 볼 길이 없었다 */
+              disabled={pending}
+              className="-ml-2 inline-flex min-h-12 items-center gap-0.5 rounded-full px-2 text-base font-medium text-muted transition-colors hover:text-ink disabled:opacity-50"
             >
               <ChevronLeft aria-hidden className="h-5 w-5" />
               처음으로
@@ -388,7 +432,7 @@ export function CheckinFlow({
           >
             {/* 한 페이지 = 전체의 1/질문 수 — 지금 페이지까지 정확히 그만큼 찬다(칸 표시 없이 띠 하나) */}
             <div
-              className="h-full rounded-full bg-sky transition-[width] duration-[280ms] ease-out"
+              className="h-full rounded-full bg-sky motion-safe:transition-[width] duration-[280ms] ease-out"
               style={{ width: `${(filled / questions.length) * 100}%` }}
             />
           </div>
@@ -397,13 +441,14 @@ export function CheckinFlow({
 
       {/* 가운데 — 화면 둘을 겹쳐 두고 전환한다 */}
       <div className="relative min-h-0 flex-1 overflow-hidden">
+        {/* 두 판의 key 는 화면 이름 — 나가는 판이 같은 노드로 남아(phase 만 leave 로) 3D 몸 · 찾기 칸이 다시 마운트되지 않는다(2026-10-17 전엔 깜빡였다) */}
         {view.prev && (
-          <Pane key={`leave-${view.prev}`} phase="leave" dir={view.dir}>
+          <Pane key={view.prev} phase="leave" dir={view.dir}>
             {render(view.prev)}
           </Pane>
         )}
         <Pane
-          key={`cur-${view.cur}`}
+          key={view.cur}
           phase={view.prev ? 'enter' : 'idle'}
           dir={view.dir}
         >
@@ -426,17 +471,12 @@ export function CheckinFlow({
           >
             {existing ? '고치기 시작' : '시작'}
           </button>
-          {/* 고치는 날은 아래 글 단추가 없다 — 로그인 화면은 필요 없고 닫기는 오른쪽 위(X)에 있다(2026-10-13 사용자) */}
+          {/*
+            고치는 날은 아래 글 단추가 없다 — 닫기는 오른쪽 위(X)에 있다(2026-10-13 사용자).
+            '로그인 · 회원가입 화면으로'는 뺐다(2026-10-17 김민) — 건너뛰기 바로 옆에서 누르면 묻지 않고 로그아웃됐다. 로그아웃은 설정에서.
+          */}
           {!existing && (
-            <div className="flex items-center justify-center gap-4 text-sm text-muted">
-              <form action={logout}>
-                <button
-                  type="submit"
-                  className="min-h-11 underline-offset-2 hover:underline"
-                >
-                  로그인 · 회원가입 화면으로
-                </button>
-              </form>
+            <div className="flex items-center justify-center text-sm text-muted">
               <button
                 type="button"
                 onClick={skipToday}
@@ -464,6 +504,11 @@ export function CheckinFlow({
               </button>
             </div>
           )}
+          {missing && (
+            <p className="mb-2 text-center text-sm font-medium text-danger" aria-live="polite">
+              {missing}
+            </p>
+          )}
           <div className="flex items-center gap-2">
             <button
               type="button"
@@ -476,7 +521,7 @@ export function CheckinFlow({
             <button
               type="button"
               onClick={next}
-              disabled={pending}
+              disabled={pending || missing != null}
               className="flex h-14 flex-1 items-center justify-center rounded-2xl bg-sky text-lg font-bold text-white transition-colors hover:bg-sky-strong disabled:opacity-60"
             >
               {view.cur === 'memo'
@@ -543,11 +588,11 @@ function Pane({
 function Welcome({ nickname, edit }: { nickname: string; edit: boolean }) {
   return (
     <div className="flex h-full flex-col items-center justify-center text-center">
-      <div className="grid h-24 w-24 place-items-center rounded-full bg-sky text-white shadow-[0_12px_32px_-12px_var(--color-sky)]">
+      <div className="grid h-24 w-24 place-items-center rounded-full bg-sky text-white">
         <Check aria-hidden className="h-12 w-12" />
       </div>
       <h1 className="mt-7 text-2xl font-bold text-ink">
-        {edit ? '오늘 체크인을 고칠게요' : `다시 돌아오신 걸 환영해요 ${nickname}`}
+        {edit ? '오늘 체크인을 고칠게요' : `${nickname}님, 오늘 몸은 어때요?`}
       </h1>
       <p className="mt-2 text-base text-muted">
         {edit ? '바꿀 것만 고치고 끝까지 가면 돼요' : '오늘 몸 상태를 20초만 적어요'}
@@ -566,20 +611,19 @@ function Done({
   edit,
   rest,
   onHome,
-  onHold,
 }: {
   today: string;
   days: string[];
   edit: boolean;
   rest: boolean;
   onHome: () => void;
-  onHold: () => void;
 }) {
   const streak = streakOf(days, today);
   return (
     <div
       className="flex h-full flex-col items-center justify-center text-center"
-      onPointerDown={onHold}
+      /* 쉬라는 카드는 단추로 나간다 — 카드 글을 읽으려고 누른 손에 넘어가지 않게 */
+      onClick={rest ? undefined : onHome}
     >
       <div className="relative h-24 w-24">
         <svg aria-hidden viewBox="0 0 100 100" className="absolute inset-0 -rotate-90">
@@ -611,7 +655,7 @@ function Done({
         </span>
       </div>
       <p className="mt-6 text-2xl font-bold text-ink">
-        {edit ? '고쳤어요' : '체크인 완료!'}
+        {edit ? '고쳤어요' : '체크인했어요'}
       </p>
       {streak >= 1 && (
         <p className="rise-in mt-1 text-base font-semibold text-sky [--rise-delay:600ms]">
@@ -622,8 +666,8 @@ function Done({
         <div className="rise-in mt-6 w-full max-w-sm space-y-3 rounded-2xl border border-warn-line bg-warn-bg p-4 text-left [--rise-delay:700ms]">
           <p className="text-sm font-bold text-warn">오늘은 던지지 말고 쉬어요</p>
           <p className="text-sm leading-relaxed text-ink/80">
-            가만히 있어도 아픈 날이에요. 던지는 것은 미루고, 트레이닝 탭의 암케어에서
-            오늘 할 것을 봐요. 며칠 이어지면 진료를 받아요.
+            가만히 있어도 아픈 날이에요. 트레이닝 탭 암케어만 하고, 며칠 이어지면 진료를
+            받아요.
           </p>
           <div className="flex flex-wrap gap-2">
             <a
@@ -643,7 +687,7 @@ function Done({
         </div>
       ) : (
         <p className="rise-in mt-4 text-sm text-muted [--rise-delay:700ms]">
-          오늘 기록에 맞춰 준비할게요
+          오늘 운동과 조언에 바로 반영해요
         </p>
       )}
     </div>

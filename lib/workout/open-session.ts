@@ -9,6 +9,21 @@ import {
 } from '@/lib/workout/session-plan';
 
 /**
+ * 이어서 할 수 있는 열린 판인가 — ACTIVE 이고 찍어 둔 목록을 읽을 수 있고 비어 있지 않다.
+ *
+ * 목록을 못 읽는 ACTIVE 판은 '열린 판'으로 보지 않는다. 그렇게 보면 [운동 시작]이 운동 화면으로 보내고, 운동 화면은
+ * 목록이 없어 트레이닝으로 되돌려 보내 둘 사이를 맴돌았다(2026-10-16 점검 12). 운동 화면이 그 판을 닫고(ABANDONED),
+ * 여기서는 없는 셈 쳐 upsert 가 새 목록으로 다시 연다.
+ */
+export function isOpenSession(
+  open: Pick<TrainingSession, 'status' | 'plan'> | null
+): boolean {
+  if (open?.status !== 'ACTIVE') return false;
+  const plan = readFrozenPlan(open.plan);
+  return plan != null && plan.exercises.length > 0;
+}
+
+/**
  * 오늘 판을 연다(새로 만들거나, 닫은 판을 다시 연다). 갈 화면을 돌려준다.
  *
  * 트레이닝의 [운동 시작](app/actions/workout.ts 의 startWorkout)과 프로그램의 [운동 시작](app/actions/program.ts)이

@@ -22,27 +22,17 @@ import {
   subscribeUnits,
   toLength,
   toWeight,
-} from '@/lib/units';
+} from '@/lib/units-storage';
 import {
   MAX_AGE,
   MAX_HEIGHT_CM,
+  MAX_NICKNAME,
   MAX_WEIGHT_KG,
-  MAX_WINGSPAN_CM,
   MIN_AGE,
   MIN_HEIGHT_CM,
   MIN_WEIGHT_KG,
-  MIN_WINGSPAN_CM,
   SEX_OPTIONS,
 } from '@/lib/profile';
-import {
-  BASELINE_WORKOUT_FREQ_NAMES,
-  THROWING_HANDS,
-} from '@/lib/baseline';
-import {
-  DEFAULT_WORKOUT_MINUTES,
-  nearestMinutesChoice,
-  WORKOUT_MINUTES_CHOICES,
-} from '@/lib/report/theme';
 
 function SubmitButton() {
   const { pending } = useFormStatus();
@@ -63,7 +53,7 @@ function SubmitButton() {
  * 단위를 바꾸면 적어 둔 값도 같이 환산해 보여준다. 숫자를 그대로 두고 단위만
  * 바꾸면 180cm 가 180inch(4.6m)가 되어 버린다.
  *
- * 키·몸무게·윙스팬이 하는 일이 같아 한 부품으로 둔다. 다른 것은 어느 단위를
+ * 키·몸무게가 하는 일이 같아 한 부품으로 둔다. 다른 것은 어느 단위를
  * 따르는지와 범위뿐이다.
  */
 function BodyField({
@@ -222,9 +212,6 @@ export function ProfileForm({
   sex,
   heightCm,
   weightKg,
-  wingspanCm,
-  dailyWorkoutMinutes,
-  baseline,
   /** 오늘 날짜(YYYY-MM-DD). 미래 날짜를 못 고르게 막는 데 쓴다. */
   today,
 }: {
@@ -234,16 +221,6 @@ export function ProfileForm({
   sex: string | null;
   heightCm: number | null;
   weightKg: number | null;
-  wingspanCm: number | null;
-  dailyWorkoutMinutes: number | null;
-  baseline: {
-    baselineFreq: string | null;
-    baselineVolume: string | null;
-    baselineIntensity: string | null;
-    baselineWorkoutFreq: string | null;
-    throwingHand: string | null;
-    competitionLevel: string | null;
-  };
   today: string;
 }) {
   const [state, formAction] = useActionState<ProfileState, FormData>(
@@ -269,9 +246,6 @@ export function ProfileForm({
   /* 소속 칸이 나이에 맞춰 바뀌도록 생년월일을 따라 쥔다(칸 자체는 그대로 폼이 보낸다) */
   const [birth, setBirth] = useState(() => pick('birthDate', birthDate));
 
-  const minutes = `${nearestMinutesChoice(dailyWorkoutMinutes ?? DEFAULT_WORKOUT_MINUTES)}분`;
-  const names = (list: readonly string[]) => list.map((value) => ({ value }));
-
   /*
    * 아이폰 설정 목록처럼 — 묶음마다 '이름 · 값' 줄(2026-10-04 '앱 느낌' 4단계, components/settings-list.tsx). 예전에는 이름표
    * 밑에 상자 칸 · 칩 묶음이 하나씩 쌓인 긴 웹 폼이었다. 칸 이름 · 보내는 값은 그대로라 저장(updateProfile)은 바뀌지 않는다 —
@@ -290,6 +264,7 @@ export function ProfileForm({
             name="nickname"
             type="text"
             defaultValue={pick('nickname', nickname)}
+            maxLength={MAX_NICKNAME}
             autoComplete="nickname"
             minLength={2}
             required
@@ -311,7 +286,7 @@ export function ProfileForm({
 
       <ListGroup
         title="몸"
-        footer="키는 영상에서 잰 보폭을 견줄 때 써요. 윙스팬은 양팔을 벌린 길이예요."
+        footer="키는 영상에서 잰 보폭을 견줄 때 써요."
       >
         <BodyField
           name="heightCm"
@@ -329,50 +304,6 @@ export function ProfileForm({
           kind="weight"
           min={MIN_WEIGHT_KG}
           max={MAX_WEIGHT_KG}
-        />
-        <BodyField
-          name="wingspanCm"
-          label="윙스팬"
-          base={pick('wingspanCm', wingspanCm)}
-          kind="length"
-          min={MIN_WINGSPAN_CM}
-          max={MAX_WINGSPAN_CM}
-        />
-      </ListGroup>
-
-      <ListGroup
-        title="운동"
-        footer="하루 운동 시간에 맞춰 운동 개수를 정해요. 웨이트 경력 · 장비는 설정 › 트레이닝에서 골라요."
-      >
-        <SelectRow
-          label="하루 운동 시간"
-          name="dailyWorkoutMinutes"
-          options={names(WORKOUT_MINUTES_CHOICES.map((m) => `${m}분`))}
-          /* 예전에 고를 수 있던 15·20·30분이 저장돼 있으면 짝이 없다 — 가장 가까운 값을 짚는다 */
-          defaultValue={pick('dailyWorkoutMinutes', minutes)}
-        />
-        <SelectRow
-          label="던지는 손"
-          name="throwingHand"
-          options={names(THROWING_HANDS)}
-          defaultValue={pick('throwingHand', baseline.throwingHand)}
-        />
-      </ListGroup>
-
-      {/* 평소 웨이트 문진 — 운동 부하 지수의 추정 기준선. 평소 투구량(종류별 주당 횟수)은 투구 기록 첫 설정에서만 고친다(2026-10-11) */}
-      <ListGroup
-        title="평소 투구 · 웨이트"
-        footer="이 답으로 투구 · 운동 부하 지수를 기록 첫날부터 계산해요. 상황이 바뀌면 언제든 고칠 수 있어요."
-      >
-        <a href="/videos/setup" className="flex min-h-12 items-center gap-3 px-4 text-sm text-ink">
-          <span className="shrink-0">평소 투구량</span>
-          <span className="flex-1 text-right text-muted">투구 설정에서 고치기 ›</span>
-        </a>
-        <SelectRow
-          label="웨이트 횟수"
-          name="baselineWorkoutFreq"
-          options={names(BASELINE_WORKOUT_FREQ_NAMES)}
-          defaultValue={pick('baselineWorkoutFreq', baseline.baselineWorkoutFreq)}
         />
       </ListGroup>
 

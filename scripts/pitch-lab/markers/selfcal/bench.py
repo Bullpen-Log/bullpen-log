@@ -12,6 +12,7 @@
 비교는 투구마다 닮음 변환(회전 · 이동 · 크기)으로 맞춘 뒤 — 엔진은 키 = 1000 단위라 크기를 모른다. 크기 오차는 따로(뼈 길이 비율).
 """
 import json, os, sys
+from cams import CAMS
 import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -95,15 +96,15 @@ def k4_robust(p, cal, tq, thr=0.5, tol=12.0):
     sys.path.insert(0, HERE)
     from kpba import proj, tri
     from tracks import load_kp_full
-    cams = {c: {k: (np.array(v) if isinstance(v, list) else v) for k, v in cal["cams"][c].items()} for c in "1234"}
+    cams = {c: {k: (np.array(v) if isinstance(v, list) else v) for k, v in cal["cams"][c].items()} for c in CAMS}
     off = cal["offsets"][str(p)]
-    raw = {c: load_kp_full(p, c) for c in "1234"}
+    raw = {c: load_kp_full(p, c) for c in CAMS}
     out = {}
     for n, (kn, sd) in K4_OF.items():
         j = {"ear": (3, 4), "sho": (5, 6), "elb": (7, 8), "wri": (9, 10), "hip": (11, 12), "kne": (13, 14), "ank": (15, 16),
              "toe": (17, 20), "heel": (19, 22)}[kn][0 if sd == "L" else 1]
         S = {}
-        for c in "1234":
+        for c in CAMS:
             t, kp, sc = raw[c]
             tt = tq + off[c]
             i = np.clip(np.searchsorted(t, tt) - 1, 0, len(t) - 2)
@@ -111,7 +112,7 @@ def k4_robust(p, cal, tq, thr=0.5, tol=12.0):
             S[c] = (kp[i, j] * (1 - w) + kp[i + 1, j] * w, (sc[i, j] > thr * SCORE_SCALE) & (sc[i + 1, j] > thr * SCORE_SCALE) & (tt >= t[0]) & (tt <= t[-1]))
         X = np.full((len(tq), 3), np.nan)
         for k in range(len(tq)):
-            vis = [(c, S[c][0][k]) for c in "1234" if S[c][1][k]]
+            vis = [(c, S[c][0][k]) for c in CAMS if S[c][1][k]]
             while len(vis) >= 2:
                 Y = tri(cams, vis)
                 err = [float(np.linalg.norm(proj(cams[c], Y[None])[0] - uv)) for c, uv in vis]
