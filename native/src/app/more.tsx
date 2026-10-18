@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { usePalette } from '~/lib/ui';
 import { useMenu } from '~/shell/menu-store';
 import { leaveTo } from '~/shell/web-nav';
+import { READABLE } from '~/lib/layout';
 
 /**
  * 더보기(앱) — 사이트의 메뉴 묶음(lib/nav.ts visibleGroups · 잠김까지, 사이트가 알려 줌)을 아이폰 설정 목록처럼. 누르면 닫고 그곳으로
@@ -63,7 +64,7 @@ export default function MoreScreen() {
           <Text style={{ color: c.sky, fontSize: 17, fontWeight: '600' }}>완료</Text>
         </Pressable>
       </View>
-      <ScrollView contentContainerStyle={{ padding: 16, gap: 20, paddingBottom: inset.bottom + 24 }}>
+      <ScrollView contentContainerStyle={[{ padding: 16, gap: 20, paddingBottom: inset.bottom + 24 }, READABLE]}>
         <View style={[styles.group, { backgroundColor: c.card }]}>
           {row('profile', nickname ? `${nickname} · 내 정보` : '내 정보', 'person.crop.circle', () => (router.back(), router.push('/profile' as Href)))}
           {row('settings', '설정', 'gearshape', () => (router.back(), router.push('/settings' as Href)), false, true)}

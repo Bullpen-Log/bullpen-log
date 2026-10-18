@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { POST_BODY_MAX, POST_CATEGORIES, POST_TITLE_MAX, type PostCategory } from '@/lib/community';
 import { Bar, BarButton, call, Chip, s, useBusy } from '~/community/parts';
 import { usePalette } from '~/lib/ui';
+import { READABLE } from '~/lib/layout';
 
 /**
  * 글쓰기(앱 화면) — 웹 app/(app)/community/new/community-post-form.tsx 를 옮겼다. 구분 · 제목 · 내용, 같은 한도 · 같은 서버 검사
@@ -33,7 +34,7 @@ export default function NewPostScreen() {
   return (
     <KeyboardAvoidingView behavior="padding" style={{ flex: 1, backgroundColor: c.page }}>
       <Bar back="커뮤니티" title="글쓰기" right={<BarButton label="올리기" onPress={submit} disabled={send.busy} c={c} />} c={c} />
-      <ScrollView contentContainerStyle={{ padding: 16, gap: 8, paddingBottom: inset.bottom + 32 }} keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerStyle={[{ padding: 16, gap: 8, paddingBottom: inset.bottom + 32 }, READABLE]} keyboardShouldPersistTaps="handled">
         <Text style={[s.label, { color: c.muted }]}>구분</Text>
         <View accessibilityRole="radiogroup" style={s.chips}>
           {POST_CATEGORIES.map((k) => (

@@ -11,6 +11,7 @@ import { Bar, BarButton, Chip, s } from '~/community/parts';
 import { PICK_ORIGINAL } from '~/pitch/attach';
 import { rpc } from '~/lib/rpc';
 import { usePalette, type Palette } from '~/lib/ui';
+import { READABLE } from '~/lib/layout';
 
 /**
  * 구속 측정 관리자의 '영상 올리기'(앱) — 웹 app/(app)/admin/velocity/mobile-upload.tsx 를 옮겼다: 사진 앱의 투구 영상 여러 개를 골라 스피드건 값만
@@ -177,7 +178,7 @@ export default function VelocityUploadScreen() {
   return (
     <KeyboardAvoidingView behavior="padding" style={{ flex: 1, backgroundColor: c.page }}>
       <Bar back="구속 측정 관리자" title="영상 올리기" right={done ? <BarButton label="완료" onPress={() => router.back()} c={c} /> : undefined} c={c} />
-      <ScrollView contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: inset.bottom + 32 }} keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerStyle={[{ padding: 16, gap: 12, paddingBottom: inset.bottom + 32 }, READABLE]} keyboardShouldPersistTaps="handled">
         <Text style={{ color: c.muted, fontSize: 15, lineHeight: 21, paddingHorizontal: 4 }}>
           투구 영상을 고르고 스피드건 값을 적어 올려요. 카메라 값은 PC 에서 &apos;다시 재기&apos;로 채워요.
         </Text>

@@ -36,6 +36,7 @@ import { shiftDateKey } from '@/lib/pitch-stats';
 import { fromWeight, round1, toWeight, type WeightUnit } from '@/lib/units';
 import { call } from '~/community/parts';
 import type { Palette } from '~/lib/ui';
+import { READABLE } from '~/lib/layout';
 
 /**
  * 영양 목표(앱) — 웹 목표 창(app/(app)/nutrition/goal-sheet.tsx)을 옮겼다. 고르는 즉시 아래 '이렇게 먹어요' 숫자가 바뀐다(같은 computeTargets ·
@@ -327,7 +328,7 @@ export function GoalSheet({
             <SymbolView name="xmark.circle.fill" size={28} tintColor={c.muted} />
           </Pressable>
         </View>
-        <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 16, gap: 20, paddingBottom: 24 }}>
+        <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={[{ padding: 16, gap: 20, paddingBottom: 24 }, READABLE]}>
           <Choices
             label="영양 목표 칸"
             options={[

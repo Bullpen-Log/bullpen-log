@@ -6,6 +6,7 @@ import { Bar, LoadState, Row, s, useLoad } from '~/community/parts';
 import { leaveTo } from '~/shell/web-nav';
 import { ShootGauge, StackBar, StatePill } from '~/shoot/parts';
 import { usePalette, type Palette } from '~/lib/ui';
+import { READABLE } from '~/lib/layout';
 
 /**
  * 트레이닝 영상 촬영 — 관리자 첫 화면(앱). 웹 app/(app)/admin/shoot/overview.tsx 의 휴대폰 부분(게이지 · 다음 촬영 · 주차 · 손볼 것)과 같은 자료
@@ -24,7 +25,7 @@ export default function ShootHomeScreen() {
         <LoadState error={error} onRetry={() => void reload()} c={c} />
       ) : (
         <ScrollView
-          contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: inset.bottom + 32 }}
+          contentContainerStyle={[{ padding: 16, gap: 12, paddingBottom: inset.bottom + 32 }, READABLE]}
           refreshControl={<RefreshControl refreshing={false} onRefresh={() => void reload()} />}
         >
           <Text style={{ color: c.muted, fontSize: 15, lineHeight: 21, paddingHorizontal: 4 }}>{data.description}</Text>

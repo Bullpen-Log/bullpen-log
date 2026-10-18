@@ -2,18 +2,23 @@ import { type Href, router, useLocalSearchParams } from 'expo-router';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { isRestSession } from '@/lib/session-type';
+import { effortText } from '@/lib/pitch-effort';
+import { formatSpeed } from '@/lib/units';
+import { usePrefs } from '~/lib/prefs';
 import { LocalVideo } from '../../../modules/local-video';
 import { usePalette } from '~/lib/ui';
 import { ApiError, dateKeyOf, deleteLog, isPhoneVideoPath, phoneAssetId } from '~/pitch/api';
 import { monthOf, refreshMonth, useMonth } from '~/pitch/store';
 import { PitchVideo } from '~/pitch/video';
 import { VelocityDay } from '~/pitch/velocity-day';
+import { READABLE_WIDE, TwoColumns } from '~/lib/layout';
 
 /** 그날 화면(앱) — 그날 기록들(종류 · 공 수 · 강도 · 구속 · 메모 · 영상) · 고치기 · 지우기 · 새 기록. 웹 app/(app)/pitch-log/[date] 의 첫 판 */
 const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'];
 
 export default function PitchDayScreen() {
   const c = usePalette();
+  const speed = usePrefs().speed;
   const inset = useSafeAreaInsets();
   const { date } = useLocalSearchParams<{ date: string }>();
   const { logs, error } = useMonth(monthOf(date));
@@ -51,65 +56,78 @@ export default function PitchDayScreen() {
         </Text>
         <View style={styles.back} />
       </View>
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: inset.bottom + 32, gap: 12 }}>
-        {error && !logs ? <Text style={{ color: c.danger, fontSize: 15 }}>{error}</Text> : null}
-        {logs && day.length === 0 ? (
-          <Text style={{ color: c.muted, fontSize: 15, textAlign: 'center', paddingVertical: 32 }}>이날은 기록이 없어요.</Text>
-        ) : null}
-        {day.map((l) => (
-          <View key={l.id} style={[styles.card, { backgroundColor: c.card }]}>
-            <View style={styles.cardHead}>
-              <Text style={[styles.type, { color: c.ink }]}>
-                {l.sessionType}
-                {isRestSession(l.sessionType) ? '' : ` · ${l.pitchCount}구`}
-              </Text>
+      <ScrollView contentContainerStyle={[{ padding: 16, paddingBottom: inset.bottom + 32, gap: 12 }, READABLE_WIDE]}>
+        {/* 아이패드 가로(~/lib/layout TwoColumns) — 왼쪽 그날 기록 · 새 기록, 오른쪽 구속 측정. 좁으면 위아래 그대로 */}
+        <TwoColumns ratio={[1, 1]} gap={12}
+          left={
+            <>
+              {error && !logs ? <Text style={{ color: c.danger, fontSize: 15 }}>{error}</Text> : null}
+              {logs && day.length === 0 ? (
+                <Text style={{ color: c.muted, fontSize: 15, textAlign: 'center', paddingVertical: 32 }}>이날은 기록이 없어요.</Text>
+              ) : null}
+              {day.map((l) => (
+                <View key={l.id} style={[styles.card, { backgroundColor: c.card }]}>
+                  <View style={styles.cardHead}>
+                    <Text style={[styles.type, { color: c.ink }]}>
+                      {l.sessionType}
+                      {isRestSession(l.sessionType) ? '' : ` · ${l.pitchCount}구`}
+                    </Text>
+                    <Pressable
+                      accessibilityRole="button"
+                      hitSlop={8}
+                      onPress={() => router.push({ pathname: '/pitch/edit' as Href as never, params: { date, id: l.id } })}
+                    >
+                      <Text style={[styles.action, { color: c.sky }]}>고치기</Text>
+                    </Pressable>
+                    <Pressable accessibilityRole="button" hitSlop={8} onPress={() => remove(l.id, l.videoPaths)}>
+                      <Text style={[styles.action, { color: c.danger }]}>지우기</Text>
+                    </Pressable>
+                  </View>
+                  {!isRestSession(l.sessionType) ? (
+                    <Text style={[styles.meta, { color: c.muted }]}>
+                      {[
+                        effortText({ intensity: l.intensity ?? 0, effortPct: l.effortPct })
+                    ? `강도 ${effortText({ intensity: l.intensity ?? 0, effortPct: l.effortPct })}`
+                    : null,
+                        l.maxVelocity ? `최고 ${formatSpeed(l.maxVelocity, speed)}` : null,
+                        l.avgVelocity ? `평균 ${formatSpeed(l.avgVelocity, speed)}` : null,
+                      ]
+                        .filter(Boolean)
+                        .join(' · ') || ' '}
+                    </Text>
+                  ) : null}
+                  {l.satisfaction != null || l.cuesGood.length || l.cuesBad.length ? (
+                    <Text style={[styles.meta, { color: c.muted }]}>
+                      {[
+                        l.satisfaction != null ? `만족도 ${l.satisfaction}` : null,
+                        l.cuesGood.length ? `좋았던 것 ${l.cuesGood.join(' · ')}` : null,
+                        l.cuesBad.length ? `아쉬웠던 것 ${l.cuesBad.join(' · ')}` : null,
+                      ]
+                        .filter(Boolean)
+                        .join('  ')}
+                    </Text>
+                  ) : null}
+                  {l.memo ? <Text style={[styles.memo, { color: c.ink }]}>{l.memo}</Text> : null}
+                  {l.videoPaths.map((p) => (
+                    <PitchVideo key={p} path={p} />
+                  ))}
+                </View>
+              ))}
+            </>
+          }
+          right={
+            <>
+              <VelocityDay date={date} logCount={day.length} />
               <Pressable
                 accessibilityRole="button"
-                hitSlop={8}
-                onPress={() => router.push({ pathname: '/pitch/edit' as Href as never, params: { date, id: l.id } })}
+                onPress={() => router.push({ pathname: '/pitch/edit' as Href as never, params: { date } })}
+                style={[styles.add, { backgroundColor: c.sky }]}
               >
-                <Text style={[styles.action, { color: c.sky }]}>고치기</Text>
+                <Text style={styles.addText}>새 기록 남기기</Text>
               </Pressable>
-              <Pressable accessibilityRole="button" hitSlop={8} onPress={() => remove(l.id, l.videoPaths)}>
-                <Text style={[styles.action, { color: c.danger }]}>지우기</Text>
-              </Pressable>
-            </View>
-            {!isRestSession(l.sessionType) ? (
-              <Text style={[styles.meta, { color: c.muted }]}>
-                {[
-                  l.effortPct ? `체감 강도 ${l.effortPct}%` : null,
-                  l.maxVelocity ? `최고 ${l.maxVelocity}km/h` : null,
-                  l.avgVelocity ? `평균 ${l.avgVelocity}km/h` : null,
-                ]
-                  .filter(Boolean)
-                  .join(' · ') || ' '}
-              </Text>
-            ) : null}
-            {l.satisfaction != null || l.cuesGood.length || l.cuesBad.length ? (
-              <Text style={[styles.meta, { color: c.muted }]}>
-                {[
-                  l.satisfaction != null ? `만족도 ${l.satisfaction}` : null,
-                  l.cuesGood.length ? `좋았던 것 ${l.cuesGood.join(' · ')}` : null,
-                  l.cuesBad.length ? `아쉬웠던 것 ${l.cuesBad.join(' · ')}` : null,
-                ]
-                  .filter(Boolean)
-                  .join('  ')}
-              </Text>
-            ) : null}
-            {l.memo ? <Text style={[styles.memo, { color: c.ink }]}>{l.memo}</Text> : null}
-            {l.videoPaths.map((p) => (
-              <PitchVideo key={p} path={p} />
-            ))}
-          </View>
-        ))}
-        <VelocityDay date={date} logCount={day.length} />
-        <Pressable
-          accessibilityRole="button"
-          onPress={() => router.push({ pathname: '/pitch/edit' as Href as never, params: { date } })}
-          style={[styles.add, { backgroundColor: c.sky }]}
-        >
-          <Text style={styles.addText}>새 기록 남기기</Text>
-        </Pressable>
+            </>
+          }
+        />
       </ScrollView>
     </View>
   );

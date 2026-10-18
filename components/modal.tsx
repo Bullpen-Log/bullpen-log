@@ -264,7 +264,8 @@ export function Modal({
     if (!dragFrame.current)
       dragFrame.current = requestAnimationFrame(() => {
         dragFrame.current = 0;
-        if (drag.current) el.style.transform = `translate3d(0, ${drag.current.dy}px, 0)`;
+        if (drag.current)
+          el.style.transform = `translate3d(0, ${drag.current.dy}px, 0)`;
       });
   };
   const endDrag = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -389,12 +390,13 @@ export function Modal({
        * 안쪽 상자를 눌렀을 때와 이렇게 구분된다.
        */
       onPointerDown={(e) => {
-        pressedBackdrop.current = isBackdrop(e.target, ref.current);
+        pressedBackdrop.current = isBackdrop(e.target, ref.current, look === 'folder');
       }}
       onClick={(e) => {
         const fromBackdrop = pressedBackdrop.current;
         pressedBackdrop.current = false;
-        if (isBackdrop(e.target, ref.current) && fromBackdrop) onClose();
+        if (isBackdrop(e.target, ref.current, look === 'folder') && fromBackdrop)
+          onClose();
       }}
       /*
        * m-auto 가 창을 화면 가운데로 보낸다.
@@ -523,9 +525,24 @@ export function Modal({
   );
 }
 
-/** 배경(막)을 눌렀나 — 창 자신이거나, 폴더 모양의 화면 전체 막(data-scrim) */
-function isBackdrop(t: EventTarget | null, dialog: HTMLDialogElement | null) {
-  return t === dialog || (t instanceof HTMLElement && t.hasAttribute('data-scrim'));
+/**
+ * 배경(막)을 눌렀나 — 창 자신이거나, 폴더 모양의 화면 전체 막(data-scrim). 폴더 모양이면 폴더(data-folder) 밖 창 안 어디든 —
+ * 폴더 양옆 틈은 폭 전체 감싸개가 받아 막으로 안 쳐 닫히지 않았다(2026-10-18, 더보기 detail-menu 의 inFolder 와 같은 규칙)
+ */
+function isBackdrop(
+  t: EventTarget | null,
+  dialog: HTMLDialogElement | null,
+  folder = false
+) {
+  if (t === dialog || (t instanceof HTMLElement && t.hasAttribute('data-scrim')))
+    return true;
+  return (
+    folder &&
+    t instanceof Element &&
+    dialog != null &&
+    dialog.contains(t) &&
+    !t.closest('[data-folder]')
+  );
 }
 
 /**

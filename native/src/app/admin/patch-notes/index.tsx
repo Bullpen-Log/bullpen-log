@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { loadAppPatchNotes } from '@/app/actions/app-admin';
 import { Bar, LoadState, Row, s, useLoad } from '~/community/parts';
 import { usePalette } from '~/lib/ui';
+import { READABLE } from '~/lib/layout';
 
 /**
  * 패치노트(앱 화면, 관리자) — 웹 app/(app)/admin/patch-notes/page.tsx: 한 줄 = 한 사람의 하루(첫 커밋 제목 · 커밋 수 · 고친 줄 · 메모 있음).
@@ -22,7 +23,7 @@ export default function PatchNotesScreen() {
         <LoadState error={error} onRetry={() => void reload()} c={c} />
       ) : (
         <ScrollView
-          contentContainerStyle={{ padding: 16, paddingBottom: inset.bottom + 32 }}
+          contentContainerStyle={[{ padding: 16, paddingBottom: inset.bottom + 32 }, READABLE]}
           refreshControl={<RefreshControl refreshing={false} onRefresh={() => void reload()} />}
         >
           {data.notes.length === 0 ? (

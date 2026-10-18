@@ -81,6 +81,12 @@ r = await drainOutbox(async (p) => {
 ok(sent.length === 1 && !('owner' in sent[0]), 'A 로 돌아오면 보내고, 계정 표시(owner)는 빼고 보낸다');
 setOutboxOwner(null);
 outbox.add(set(4));
+sent = [];
+r = await drainOutbox(async (p) => {
+  sent.push(p);
+  return { sets: [] };
+}, () => undefined);
+ok(r === 'offline' && sent.length === 0, '지금 계정을 모르면 아무것도 안 보낸다(꺼진 망에서 켜 계정을 못 읽은 앱)');
 setOutboxOwner('C');
 sent = [];
 await drainOutbox(async (p) => {
@@ -121,17 +127,23 @@ cr = await drainChecks(async () => {
   throw err('offline');
 }, () => undefined);
 ok(cr === 'offline' && checks().includes('c'), '암케어: 신호 없음이면 남긴다');
-for (let i = 0; i < 7; i++) {
+for (let i = 0; i < 20; i++) {
   await drainChecks(async () => {
     throw err('server');
   }, () => undefined);
 }
-ok(checks().includes('c'), '암케어: 서버 오류 일곱 번까지는 남긴다');
+ok(checks().includes('c'), '암케어: 서버가 잠깐 멈춘 오류(server)는 몇 번이든 남긴다');
+for (let i = 0; i < 7; i++) {
+  await drainChecks(async () => {
+    throw err('bad-body');
+  }, () => undefined);
+}
+ok(checks().includes('c'), '암케어: 정해진 오류(bad-body)도 일곱 번까지는 남긴다');
 let rejected: unknown = null;
 await drainChecks(async () => {
-  throw err('server');
+  throw err('bad-body');
 }, (_p, res) => (rejected = res));
-ok(!checks().includes('c') && typeof rejected === 'object' && rejected != null && 'error' in rejected, '암케어: 여덟 번째에 빼고 오류로 알린다');
+ok(!checks().includes('c') && typeof rejected === 'object' && rejected != null && 'error' in rejected, '암케어: 정해진 오류 여덟 번째에 빼고 오류로 알린다');
 checkOutbox.add(check('d', '2026-10-18T10:05:00.000Z'));
 setOutboxOwner('B');
 const sentChecks: PendingCheck[] = [];

@@ -13,6 +13,7 @@ import { act } from '~/mechanics/parts';
 import { usePalette, type Palette } from '~/lib/ui';
 import { openPlay } from '~/training/armcare-parts';
 import { s, useScreenData } from '~/training/screen';
+import { READABLE } from '~/lib/layout';
 
 /**
  * 재활 자세히(앱 화면) — 웹 rehab-card.tsx 의 [자세히]: 이 단계의 목표 · 오늘 운동 · 피할 것 · 위험 신호 · 다음 단계로 가는 조건 ·
@@ -29,7 +30,7 @@ export default function RehabScreen() {
     <View style={{ flex: 1, backgroundColor: c.page }}>
       <Bar back="암케어" title="재활 프로그램" c={c} />
       <ScrollView
-        contentContainerStyle={{ padding: 16, gap: 18, paddingBottom: inset.bottom + 32 }}
+        contentContainerStyle={[{ padding: 16, gap: 18, paddingBottom: inset.bottom + 32 }, READABLE]}
         refreshControl={<RefreshControl refreshing={state.refreshing} onRefresh={() => void state.refresh()} />}
       >
         {rehab?.detail && data ? (

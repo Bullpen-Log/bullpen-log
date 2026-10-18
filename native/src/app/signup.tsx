@@ -23,6 +23,7 @@ import { SITE_URL } from '~/lib/site';
 import { usePalette, type Palette } from '~/lib/ui';
 import { useWeightUnit } from '~/lib/weight-unit';
 import { leaveTo } from '~/shell/web-nav';
+import { READABLE } from '~/lib/layout';
 
 /**
  * 가입(앱 화면) — 웹 가입 네 화면(app/login/auth-form.tsx)을 옮겼다: 이름 · 이메일 · 비밀번호 → 생년월일 · 성별 → 키 · 몸무게 → 약관.
@@ -120,7 +121,7 @@ export default function SignupScreen() {
         <View style={{ width: `${((index + 1) / SIGNUP_STEPS.length) * 100}%`, height: '100%', backgroundColor: c.sky, borderRadius: 2 }} />
       </View>
 
-      <ScrollView ref={scroll} contentContainerStyle={{ padding: 20, gap: 20, paddingBottom: inset.bottom + 32 }} keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets>
+      <ScrollView ref={scroll} contentContainerStyle={[{ padding: 20, gap: 20, paddingBottom: inset.bottom + 32 }, READABLE]} keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets>
         <View style={{ gap: 6 }}>
           <Text style={{ color: c.ink, fontSize: 30, fontWeight: '800' }}>{TITLES[step].title}</Text>
           <Text style={{ color: c.muted, fontSize: 16 }}>{TITLES[step].desc}</Text>

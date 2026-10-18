@@ -8,6 +8,7 @@ import { isMealKey, mealLabel, type Food, type MealKey } from '@/lib/nutrition/m
 import { usePalette } from '~/lib/ui';
 import { addFoods, searchMfds, searchMfdsReps, useNutritionDay } from '~/nutrition/api';
 import { takeScanned } from '~/nutrition/scanned';
+import { READABLE } from '~/lib/layout';
 
 /**
  * 음식 담기(앱) — 웹 영양 탭 음식 창의 첫 판: 찾기(기본 음식 · 내 음식 → 식약처 품목대표 → 식약처 상품, 웹과 같은 순서) · 최근 먹은 것 ·
@@ -181,7 +182,7 @@ export default function NutritionAddScreen() {
               style={[styles.input, { backgroundColor: c.card, color: c.ink }]}
             />
           </View>
-          <ScrollView contentContainerStyle={{ padding: 16, paddingTop: 0, gap: 6, paddingBottom: inset.bottom + 24 }} keyboardShouldPersistTaps="handled">
+          <ScrollView contentContainerStyle={[{ padding: 16, paddingTop: 0, gap: 6, paddingBottom: inset.bottom + 24 }, READABLE]} keyboardShouldPersistTaps="handled">
             {q.trim() ? (
               <>
                 {local.map((f, i) => row(f, `l${i}`))}

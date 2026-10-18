@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { loadAppAdminSupport } from '@/app/actions/app-admin';
 import { Badge, Bar, BarButton, Chip, LoadState, Row, s, useLoad } from '~/community/parts';
 import { usePalette } from '~/lib/ui';
+import { READABLE } from '~/lib/layout';
 
 /**
  * 소통 관리(앱 화면, 관리자) — 웹 app/(app)/admin/support/page.tsx: 상태별 1:1 문의(누르면 앱 문의 화면 — 관리자도 답하고 닫는다) ·
@@ -25,7 +26,7 @@ export default function AdminSupportScreen() {
         <LoadState error={error} onRetry={() => void reload()} c={c} />
       ) : (
         <ScrollView
-          contentContainerStyle={{ padding: 16, gap: 20, paddingBottom: inset.bottom + 32 }}
+          contentContainerStyle={[{ padding: 16, gap: 20, paddingBottom: inset.bottom + 32 }, READABLE]}
           refreshControl={<RefreshControl refreshing={false} onRefresh={() => void reload()} />}
         >
           <View style={{ gap: 10 }}>

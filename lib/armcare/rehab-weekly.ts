@@ -51,6 +51,8 @@ export const DROP_NORMAL_PCT = 15;
 export const CALM_PAIN = 3;
 /** 이 날 수 안에 한 칸 낮춤이 두 번이면 한 단계 내림(가이드라인 10절) */
 export const STEP_DOWN_WINDOW_DAYS = 14;
+/** 매주 확인이 덮는 날 — 그 안의 낮추는 세션과 같은 통증으로 본다 */
+const WEEK_DAYS = 7;
 /** [정리] 두 확인이 이만큼 안에 있어야 '이어서'로 본다 — 한 주를 건너뛴 것까지 */
 export const WEEKLY_LINK_DAYS = 14;
 /** [정리] 이만큼(다치기 전 대비 %) 이상이면 '나아짐 없음' 진료 권유를 하지 않는다 — 투구 복귀표를 여는 선과 같다 */
@@ -187,16 +189,26 @@ export function weeklyOutcome({
 
   /* 낮추기 · 한 단계 내림 */
   const thisLower = weekly.worstPain >= RED_PAIN;
+  /*
+   * 매주 확인의 '최고 통증 5 이상'은 그 주(확인 앞 7일) 안에 낮추는 세션이 이미 있으면 같은 통증이라 한 번만 센다(2026-10-16 김민) —
+   * 빨강 세션 하나와 그 주 확인이 두 번으로 세어 한 번 아팠는데 단계가 내려가고 정도가 '심함'으로 바뀌었다.
+   */
+  const lowerSessions = sessions.filter((s) => inStage(s) && afterBadSession(s)?.lower);
+  const sessionLowerBefore = (date: string) =>
+    lowerSessions.some((s) => {
+      const gap = daysBetween(s.date, date);
+      return gap >= 0 && gap < WEEK_DAYS;
+    });
   const lowerCount =
-    sessions.filter(
-      (s) =>
-        inStage(s) && within(s.date, STEP_DOWN_WINDOW_DAYS) && afterBadSession(s)?.lower
-    ).length +
+    lowerSessions.filter((s) => within(s.date, STEP_DOWN_WINDOW_DAYS)).length +
     prevs.filter(
       (w) =>
-        inStage(w) && within(w.date, STEP_DOWN_WINDOW_DAYS) && w.worstPain >= RED_PAIN
+        inStage(w) &&
+        within(w.date, STEP_DOWN_WINDOW_DAYS) &&
+        w.worstPain >= RED_PAIN &&
+        !sessionLowerBefore(w.date)
     ).length +
-    (thisLower ? 1 : 0);
+    (thisLower && !sessionLowerBefore(weekly.date) ? 1 : 0);
   const normalDrop =
     prev != null && prev.normalPct - weekly.normalPct >= DROP_NORMAL_PCT;
   const stepDown = lowerCount >= 2 || normalDrop;

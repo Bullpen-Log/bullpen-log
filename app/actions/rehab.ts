@@ -38,6 +38,7 @@ import {
   type RehabFeel,
   type RehabLeftover,
   type RehabResult,
+  type RehabStatus,
   type RehabStage,
   type RehabWeeklyLike,
   type RehabWeeklyTest,
@@ -218,6 +219,8 @@ export async function saveRehabSession(input: {
     weeklies,
     todayKey: dateKey,
   });
+  /* 쉬는 날은 세션을 남기지 않는다 — 화면(play-load)과 같은 규칙을 서버도 지킨다(앱 · 웹이 이 동작을 같이 쓴다) */
+  if (before.rest) return { error: before.rest };
   const session = buildRehabSession({
     ...program,
     lowered: before.lowered,
@@ -281,26 +284,39 @@ export async function changeRehabStage(input: {
     return { error: '바꿀 단계를 다시 골라 주세요.' };
   }
   const todayKey = toDateKey(appNow());
+  if (input.via !== 'test' && input.via !== 'direct') return { error: '잘못된 요청이에요.' };
 
-  if (input.via === 'test') {
-    if (to !== program.stage + 1) return { error: '단계 시험은 한 칸씩 올려요.' };
-    const test = stageTestFor(program.area, program.stage);
-    if (!test) return { error: '이 단계는 단계 시험이 없어요.' };
+  /*
+   * 내리기는 언제나. 올리기는 한 칸씩, 진료 권유 중 · 심함 밤 통증으로 1단계에 머무는 동안은 막는다(2026-10-16 김민 — 설계 8-5 의
+   * '직접 바꾸기는 언제나'를 바꿈: 심함 1단계에서 4단계로 바로 가 끝낼 수 있었다).
+   */
+  if (to > program.stage) {
+    if (to !== program.stage + 1) return { error: '단계는 한 칸씩 올려요.' };
     const { sessions, checkins, weeklies } = await loadRehabRecords(
       user.id,
       active.id,
       todayKey
     );
     const status = rehabStatus({ program, sessions, checkins, weeklies, todayKey });
-    if (!status.gate.ready) {
-      return {
-        error: '아직 올리는 조건이 다 차지 않았어요.',
-        fails: status.gate.checks.filter((c) => !c.ok).map((c) => c.label),
-      };
+    if (status.refer) return { error: `지금은 올릴 수 없어요. ${status.refer}` };
+    if (status.nightHold) {
+      return { error: '밤이나 쉴 때 아픈 것이 7일 없을 때까지 1단계에 머물러요.' };
     }
-    const judged = judgeStageTest(test, input.test ?? {});
-    if (!judged.pass)
-      return { error: '단계 시험을 통과하지 못했어요.', fails: judged.fails };
+    if (input.via === 'test') {
+      const test = stageTestFor(program.area, program.stage);
+      if (!test) return { error: '이 단계는 단계 시험이 없어요.' };
+      if (!status.gate.ready) {
+        return {
+          error: '아직 올리는 조건이 다 차지 않았어요.',
+          fails: status.gate.checks.filter((c) => !c.ok).map((c) => c.label),
+        };
+      }
+      const judged = judgeStageTest(test, input.test ?? {});
+      if (!judged.pass)
+        return { error: '단계 시험을 통과하지 못했어요.', fails: judged.fails };
+    }
+  } else if (input.via === 'test') {
+    return { error: '단계 시험은 한 칸씩 올려요.' };
   }
 
   await prisma.userRehabProgram.update({
@@ -573,6 +589,17 @@ export async function saveRehabWeekly(input: {
 /* ─────────────────────────────── 투구 복귀표 열기 ─────────────────────────────── */
 
 /**
+ * 오늘은 던지지 않는 날인가 — 투구 복귀표를 열 때와 던진 것을 남길 때 같은 규칙(2026-10-18 김민). 한 번 열면 그 뒤 쉬는 날 ·
+ * 진료 권유 · 밤 통증이 생겨도 계속 던지게 했다. 화면에는 까닭 한 줄.
+ */
+function throwBlock(status: RehabStatus): string | null {
+  if (status.refer) return `오늘은 던지지 않아요. ${status.refer}`;
+  if (status.rest) return `오늘은 던지지 않아요. ${status.rest}`;
+  if (!status.nightPainFree) return '밤이나 쉴 때 아픈 날이 있어 던지지 않아요. 7일 없으면 다시 던져요.';
+  return null;
+}
+
+/**
  * 4단계 카드의 [투구 복귀표 열기] — 앉아서 한 팔 메디신볼 밀기 · (플라이오볼이 있으면) 프론 볼 드롭 · 한 팔 90/90 벽 던지기 ·
  * 시험 중 통증을 받고, 정상 대비 % · 자신감은 지난 7일 안의 매주 확인 것을 쓴다(없으면 화면이 매주 확인부터 연다).
  *
@@ -602,8 +629,10 @@ export async function openThrowingProgram(input: {
     return { error: '시험 기록을 모두 적어 주세요.' };
 
   const todayKey = toDateKey(appNow());
-  const { sessions, weeklies } = await loadRehabRecords(user.id, active.id, todayKey);
+  const { sessions, checkins, weeklies } = await loadRehabRecords(user.id, active.id, todayKey);
   if (throwingOpenedOn(program, weeklies)) return { ok: true };
+  const notToday = throwBlock(rehabStatus({ program, sessions, checkins, weeklies, todayKey }));
+  if (notToday) return { error: notToday };
   const recent = weeklies.at(-1);
   if (!recent || daysBetween(recent.date, todayKey) >= WEEKLY_EVERY_DAYS) {
     return { error: '먼저 이번 주 확인을 해 주세요.' };
@@ -676,12 +705,17 @@ export async function logRehabThrow(input: {
   if (!Number.isFinite(pitches) || pitches < 1 || pitches > 150) return { error: '공 수를 1~150 사이로 적어 주세요.' };
 
   const todayKey = toDateKey(appNow());
-  const { weeklies } = await loadRehabRecords(user.id, active.id, todayKey);
+  const { sessions, checkins, weeklies } = await loadRehabRecords(user.id, active.id, todayKey);
   if (!throwingOpenedOn(active.program, weeklies)) return { error: '먼저 투구 복귀표를 열어 주세요.' };
+  const notToday = throwBlock(
+    rehabStatus({ program: active.program, sessions, checkins, weeklies, todayKey })
+  );
+  if (notToday) return { error: notToday };
 
   const memo = throwMemo(step, input.pain);
   const date = dayStart(todayKey);
   const duplicate = await prisma.pitchLog.findFirst({
+    /* pitchLog.createdAt 은 시험 계정이면 앱 시계로 적힌다(lib/prisma.ts TIME_FIELDS) — 그래서 appNowMs 와 견준다(2026-10-18, 하루 Date.now 로 잘못 바꿨던 것 되돌림) */
     where: { userId: user.id, date, memo, createdAt: { gte: new Date(appNowMs() - THROW_DUPLICATE_MS) } },
     select: { id: true },
   });
@@ -703,7 +737,9 @@ export async function logRehabThrow(input: {
     });
   }
   refresh();
-  revalidatePath('/pitch-log');
+  /* 투구 기록 탭 · 그날 화면 — '/pitch-log' 는 page 가 없는 경로라 아무것도 새로 읽지 않았다(2026-10-18) */
+  revalidatePath('/videos');
+  revalidatePath(`/pitch-log/${todayKey}`);
   return { ok: true };
 }
 
@@ -716,7 +752,7 @@ export async function markRehabThrowLaterPain(): Promise<Result> {
   const last = await prisma.pitchLog.findFirst({
     where: { userId: user.id, date: { gte: dayStart(active.program.startedOn) }, memo: { startsWith: THROW_TAG } },
     orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
-    select: { id: true, memo: true },
+    select: { id: true, memo: true, date: true },
   });
   const parsed = parseThrowMemo(last?.memo);
   if (!last || !parsed) return { error: '던진 기록이 아직 없어요.' };
@@ -727,7 +763,8 @@ export async function markRehabThrowLaterPain(): Promise<Result> {
     });
   }
   refresh();
-  revalidatePath('/pitch-log');
+  revalidatePath('/videos');
+  revalidatePath(`/pitch-log/${toDateKey(last.date)}`);
   return { ok: true };
 }
 
@@ -777,6 +814,13 @@ export async function endRehab(reason: 'done' | 'stopped'): Promise<Result> {
     return {
       error: '재활은 4단계에서 끝낼 수 있어요. 그만두려면 [그만두기]를 눌러 주세요.',
     };
+  }
+  if (reason === 'done') {
+    /* 끝내기는 투구 복귀표를 연 뒤에만 — 던지기를 한 번도 시험하지 않고 '다 나음'으로 끝나지 않게(2026-10-16 김민) */
+    const { weeklies } = await loadRehabRecords(user.id, active.id, toDateKey(appNow()));
+    if (!throwingOpenedOn(active.program, weeklies)) {
+      return { error: '투구 복귀표를 연 뒤에 끝낼 수 있어요. 그만두려면 [그만두기]를 눌러 주세요.' };
+    }
   }
   await prisma.userRehabProgram.update({
     where: { id: active.id },

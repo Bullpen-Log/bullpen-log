@@ -4,6 +4,7 @@ import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
 import {
   ActivityIndicator,
+  AppState,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -18,6 +19,7 @@ import { leave } from '~/mechanics/parts';
 import { rpc, RpcError } from '~/lib/rpc';
 import { cacheEpoch, cacheGet, cacheSet } from '~/lib/store';
 import { usePalette, type Palette } from '~/lib/ui';
+import { READABLE } from '~/lib/layout';
 
 /**
  * 암케어 · 메커니즘 전체 화면(native/src/app/training-armcare.tsx · training-mechanics.tsx)의 같은 틀 — 머리(‹ · 제목) · 두 칸 고르개 ·
@@ -88,6 +90,19 @@ export function useScreenData<T>(action: string, arg: string, key: string) {
     };
   }, [key, load]);
 
+  /*
+   * 앱이 다시 앞에 오면 다시 받는다(2026-10-18 김민) — 밤새 열어 둔 암케어 목록이 어제 날짜로 체크를 남겼다. 받는 동안은 fresh 를
+   * 꺼 체크 · 만들기를 막는다(받아 둔 값이 어제 것일 수 있다).
+   */
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (st) => {
+      if (st !== 'active') return;
+      setFresh(false);
+      void load();
+    });
+    return () => sub.remove();
+  }, [load]);
+
   /* 따라 하기 · 체크인(앱 화면)에서 돌아오면 다시 받는다 — 체크 · 진행이 바로 바뀌게 */
   const focused = useRef(false);
   useFocusEffect(
@@ -139,7 +154,7 @@ export function Screen<K extends string>({
       <ScrollView
         ref={scrollRef}
         style={s.fill}
-        contentContainerStyle={[s.content, { paddingBottom: Math.max(24, inset.bottom + 16) }]}
+        contentContainerStyle={[s.content, { paddingBottom: Math.max(24, inset.bottom + 16) }, READABLE]}
         refreshControl={<RefreshControl refreshing={state.refreshing} onRefresh={state.refresh} />}
       >
         <View accessibilityRole="tablist" style={[s.segment, { backgroundColor: c.chip }]}>

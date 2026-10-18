@@ -123,7 +123,8 @@ export function goalKindHint(kind: GoalKind, age: number | null): string {
         ? '지금 몸으로 시즌을 버텨요'
         : '자라는 만큼 먹으며 시즌을 버텨요';
     case 'lose':
-      return '천천히 빼요 · 하루 −300kcal부터';
+      /* 성인 감량 기본 속도(주 0.35kg)가 하루 −400 이다 — 글이 −300 이라 어긋났다(2026-10-18 점검) */
+      return '천천히 빼요 · 하루 −400kcal쯤';
     case 'lean':
       return '감량에 단백질 2.2g/kg · 힘은 지키고 군살만';
   }

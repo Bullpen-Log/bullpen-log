@@ -1,5 +1,7 @@
 import { headers } from 'next/headers';
+import { redirect } from 'next/navigation';
 import { requireUser } from '@/lib/dal';
+import { featureLocks, SETUP_PATH } from '@/lib/feature-locks';
 import { expoLevel } from '@/lib/app-env';
 import { OpenNative } from '@/app/(session)/velocity/open-native';
 import { listLabSamples } from '@/lib/pitch-lab';
@@ -16,6 +18,8 @@ import { LabClient } from './lab-client';
  */
 export default async function PitchLabPage() {
   const user = await requireUser();
+  /* 투구 첫 설정 전이면 다른 투구 화면처럼 설정으로 */
+  if (featureLocks(user).pitch) redirect(SETUP_PATH.pitch);
   /* 새 아이폰 앱(판 9~)은 앱 화면(native/src/app/lab/index.tsx)으로 */
   if (expoLevel((await headers()).get('user-agent')) >= 9) return <OpenNative path="/lab" cover={false} />;
   const samples = await listLabSamples(user);

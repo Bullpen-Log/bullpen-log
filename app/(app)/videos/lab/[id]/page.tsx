@@ -1,8 +1,9 @@
 import { headers } from 'next/headers';
-import { notFound } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 import { expoLevel } from '@/lib/app-env';
 import { OpenNative } from '@/app/(session)/velocity/open-native';
 import { requireUser } from '@/lib/dal';
+import { featureLocks, SETUP_PATH } from '@/lib/feature-locks';
 import { loadLabSample } from '@/lib/pitch-lab';
 import { isLabId } from '@/lib/pitch-lab-meta';
 import { getEngineBuild, isPitch3dV2Configured } from '@/lib/pitch-3d/v2/gpu-client';
@@ -25,6 +26,8 @@ export default async function LabSamplePage({
   searchParams: Promise<{ web?: string }>;
 }) {
   const user = await requireUser();
+  /* 투구 첫 설정 전이면 다른 투구 화면처럼 설정으로 */
+  if (featureLocks(user).pitch) redirect(SETUP_PATH.pitch);
   const { id } = await params;
   if (!isLabId(id)) notFound();
   /*

@@ -8,6 +8,7 @@ import { Bar, LoadState, s, useLoad } from '~/community/parts';
 import { UrlVideo } from '~/pitch/video';
 import { usePalette, type Palette } from '~/lib/ui';
 import { signed } from '~/velocity/signed';
+import { READABLE } from '~/lib/layout';
 
 /**
  * 구속 측정 관리자(앱) — 그날 공(최근부터). 웹 mobile-admin.tsx MobileDay 를 옮겼다: 누르면 영상(일반 · 광각)이 펼쳐진다(그때 받는다 —
@@ -32,7 +33,7 @@ export default function VelocityDayScreen() {
         <Text style={{ color: c.muted, fontSize: 15, textAlign: 'center', padding: 24 }}>그날 기록을 찾지 못했어요.</Text>
       ) : (
         <ScrollView
-          contentContainerStyle={{ padding: 16, gap: 8, paddingBottom: inset.bottom + 32 }}
+          contentContainerStyle={[{ padding: 16, gap: 8, paddingBottom: inset.bottom + 32 }, READABLE]}
           refreshControl={<RefreshControl refreshing={false} onRefresh={() => void reload()} />}
         >
           <Text style={{ color: c.muted, fontSize: 15, paddingHorizontal: 4, marginBottom: 4, fontVariant: ['tabular-nums'] }}>

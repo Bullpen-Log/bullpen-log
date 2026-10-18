@@ -15,6 +15,7 @@ import { usePalette, type Palette } from '~/lib/ui';
 import { useWeightUnit } from '~/lib/weight-unit';
 import { leaveTo } from '~/shell/web-nav';
 import { s } from '~/training/screen';
+import { READABLE } from '~/lib/layout';
 
 /**
  * 운동 끝 — 축하 화면(앱 화면). 웹 app/(session)/workout/done/done-client.tsx 를 옮겼다. 운동 화면에서 [운동 마치기]가 되면 이리 온다
@@ -99,7 +100,7 @@ export default function WorkoutDoneScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: c.page }}>
-      <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingTop: inset.top + 40, paddingBottom: 24, gap: 24 }}>
+      <ScrollView contentContainerStyle={[{ paddingHorizontal: 20, paddingTop: inset.top + 40, paddingBottom: 24, gap: 24 }, READABLE]}>
         <View style={{ alignItems: 'center', gap: 6 }}>
           <Animated.View
             style={[st.check, { backgroundColor: c.sky, transform: [{ scale: pop.interpolate({ inputRange: [0, 1], outputRange: [0.4, 1] }) }], opacity: pop }]}

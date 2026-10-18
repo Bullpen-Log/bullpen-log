@@ -12,6 +12,7 @@ import { Bar } from '~/community/parts';
 import { EXERCISE_LIST, Tags, recall, useStar, type Exercise } from '~/library/parts';
 import { HistoryPanel } from '~/training/history';
 import { s, useScreenData } from '~/training/screen';
+import { READABLE } from '~/lib/layout';
 
 /**
  * 운동 하나(앱 화면) — 웹 운동 영상 라이브러리에서 카드를 펼친 것(training-client.tsx ExerciseDetail)을 옮겼다. 영상(누르면 튼다) · 이름 · 부위 ·
@@ -59,7 +60,7 @@ function Body({ item, c }: { item: Exercise; c: Palette }) {
   const rx = formatPrescription(item);
 
   return (
-    <ScrollView contentContainerStyle={{ padding: 16, gap: 16, paddingBottom: inset.bottom + 40 }}>
+    <ScrollView contentContainerStyle={[{ padding: 16, gap: 16, paddingBottom: inset.bottom + 40 }, READABLE]}>
       <ExerciseMedia path={item.videoPath} referenceVideoId={item.referenceVideoId} thumbUrl={item.thumbUrl} aspectRatio={item.aspectRatio} />
       <View style={[s.row, { alignItems: 'flex-start' }]}>
         <View style={{ flex: 1, gap: 6 }}>

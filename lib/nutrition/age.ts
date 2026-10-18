@@ -133,13 +133,14 @@ export function ageRule(age: number | null): AgeRule {
  *
  * null 은 '아직 안 정함' — 나이에 맞는 기본값을 쓴다. 정해 둔 값은 성인이면 그대로,
  * 18세 밑이면 그 나이의 범위 안으로 당긴다(성인 때 기본값 1.8 을 저장해 둔 중학생이
- * 그대로 1.8 을 먹게 두지 않는다).
+ * 그대로 1.8 을 먹게 두지 않는다). 성인은 아래 끝(1.6)만 당긴다 — 성장기 때 저장한 1.5 가 만 18세 뒤에도
+ * 남았다(2026-10-18 점검). 성인 화면의 고르개는 1.6 부터라 그 밑은 성장기 때 값뿐이다.
  */
 export function effectiveProtein(perKg: number | null, age: number | null) {
   const rule = ageRule(age);
   if (perKg === null) return rule.proteinDefault;
-  if (rule.band === 'adult') return perKg;
   const lo = rule.proteinChoices[0];
+  if (rule.band === 'adult') return Math.max(lo, perKg);
   const hi = rule.proteinChoices[rule.proteinChoices.length - 1];
   return Math.min(hi, Math.max(lo, perKg));
 }

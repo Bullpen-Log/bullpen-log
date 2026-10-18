@@ -1,5 +1,5 @@
 import 'server-only';
-import { cache } from 'react';
+import { requestCache as cache } from '@/lib/request-cache';
 import { appNow } from '@/lib/clock';
 import { prisma } from '@/lib/prisma';
 import { pickWorkoutKind } from '@/lib/checkin';

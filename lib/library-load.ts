@@ -57,7 +57,8 @@ export async function loadExerciseLibrary(
       kind: r.kind,
       name: r.name,
       description: r.description,
-      exerciseIds: [...common, ...r.items.map((i) => i.exerciseId)],
+      /* 공통과 그날 루틴에 같은 운동이 담겨도 한 번만 — 두 번 나와 key 가 겹치고 펼친 카드가 둘 떴다(2026-10-18) */
+      exerciseIds: [...new Set([...common, ...r.items.map((i) => i.exerciseId)])],
     }));
 
   return {

@@ -10,6 +10,7 @@ import { Bar } from '~/community/parts';
 import { THEME_OPTIONS, setPref, usePrefs, type Prefs } from '~/lib/prefs';
 import { SITE_URL } from '~/lib/site';
 import { usePalette, type Palette } from '~/lib/ui';
+import { READABLE } from '~/lib/layout';
 
 /**
  * 설정(앱 화면) — 웹 설정 창(components/settings-panel.tsx)을 옮겼다: 화면 테마 · 단위(길이 · 무게 · 구속) · 정보(약관 · 개인정보 · 3D 모델 출처 · 문의).
@@ -30,7 +31,7 @@ export default function SettingsScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: c.page }}>
       <Bar back="더보기" title="설정" c={c} />
-      <ScrollView contentContainerStyle={{ padding: 16, gap: 24, paddingBottom: inset.bottom + 32 }}>
+      <ScrollView contentContainerStyle={[{ padding: 16, gap: 24, paddingBottom: inset.bottom + 32 }, READABLE]}>
         <Section icon="circle.lefthalf.filled" title="화면" desc="밝게 볼지 어둡게 볼지 골라요. 자동은 기기 설정을 따라요. 이 기기에만 적용돼요." c={c}>
           <Segmented options={THEME_OPTIONS} value={prefs.theme} onChange={(v) => pick('theme', v)} c={c} />
         </Section>

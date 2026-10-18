@@ -68,6 +68,11 @@ export async function startVelocityRecording(input: {
   return { ok: true, id: row.id };
 }
 
+/* 녹화 편집 화면(관리자) — 컷 · 결과 · 메모를 쓰면 다시 읽게. 예전엔 30초 라우터 캐시 동안 옛 컷이 보였다(2026-10-18) */
+function revalidateRecording() {
+  revalidatePath('/admin/velocity/recordings/[id]', 'page');
+}
+
 async function ownRecording(recordingId: string, userId: string) {
   return prisma.velocityRecording.findFirst({
     where: { id: String(recordingId), userId },
@@ -266,12 +271,14 @@ export async function saveRecordingCut(
           : {}),
       },
     });
+    revalidateRecording();
     return { ok: true, id: String(input.id) };
   }
   const row = await prisma.velocityRecordingCut.create({
     data: { ...data, recordingId: String(input.recordingId), partId: part.id },
     select: { id: true },
   });
+  revalidateRecording();
   return { ok: true, id: row.id };
 }
 
@@ -316,6 +323,7 @@ export async function saveRecordingCutResult(
       analysis,
     },
   });
+  if (done.count > 0) revalidateRecording();
   return done.count > 0 ? { ok: true } : { ok: false, error: '공을 찾을 수 없어요.' };
 }
 
@@ -324,6 +332,7 @@ export async function deleteRecordingCut(cutId: string): Promise<RecordingResult
   if (!user) return { ok: false, error: '관리자만 고칠 수 있어요.' };
   await prisma.velocityRecordingCut.deleteMany({ where: { id: String(cutId) } });
   await prisma.velocityBallLabel.deleteMany({ where: { target: cutTarget(String(cutId)) } });
+  revalidateRecording();
   return { ok: true };
 }
 
@@ -354,6 +363,8 @@ export async function saveRecordingMemo(
     where: { id: String(recordingId) },
     data: { memo: memo.trim() ? memo.trim().slice(0, 500) : null },
   });
+  revalidateRecording();
+  revalidatePath('/admin/velocity/recordings');
   return { ok: true };
 }
 

@@ -4,6 +4,7 @@ import type { loadAppNotices } from '@/app/actions/support';
 import { type Href, router } from 'expo-router';
 import { Bar, BarButton, LoadState, NoticeRows, s, useLoad } from '~/community/parts';
 import { usePalette } from '~/lib/ui';
+import { READABLE } from '~/lib/layout';
 
 /**
  * 공지 전체(앱 화면) — 웹 app/(app)/support/notices/page.tsx. 고정 공지가 먼저, 그다음 새 글 순. 관리자의 '공지 쓰기'는 앱 쓰기 화면(admin/notice.tsx).
@@ -26,7 +27,7 @@ export default function NoticesScreen() {
       {!data ? (
         <LoadState error={error} onRetry={() => void reload()} c={c} />
       ) : (
-        <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: inset.bottom + 32 }}>
+        <ScrollView contentContainerStyle={[{ padding: 16, paddingBottom: inset.bottom + 32 }, READABLE]}>
           {data.notices.length === 0 ? (
             <View style={{ padding: 24, gap: 8, alignItems: 'center' }}>
               <Text style={[s.title, { color: c.ink }]}>아직 올라온 공지가 없어요</Text>

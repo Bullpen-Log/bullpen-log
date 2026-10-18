@@ -16,6 +16,7 @@ import {
 } from '@/lib/checkin';
 import { rpc, RpcError } from '~/lib/rpc';
 import { usePalette } from '~/lib/ui';
+import { READABLE } from '~/lib/layout';
 
 /**
  * 체크인(앱 화면) — 웹 3판 흐름(components/checkin-flow)과 같은 신호 셋: 컨디션 1~10 · 어젯밤 수면의 질 1~5 · 불편한 곳 · 메모.
@@ -158,7 +159,7 @@ export default function CheckinScreen() {
           </Pressable>
         </View>
       ) : (
-        <ScrollView contentContainerStyle={{ padding: 16, gap: 10, paddingBottom: inset.bottom + 32 }} keyboardShouldPersistTaps="handled">
+        <ScrollView contentContainerStyle={[{ padding: 16, gap: 10, paddingBottom: inset.bottom + 32 }, READABLE]} keyboardShouldPersistTaps="handled">
           <Text style={[styles.q, { color: c.ink }]}>오늘 컨디션은 어때요?</Text>
           <Text style={{ color: c.muted, fontSize: 14 }}>
             {condition == null

@@ -23,6 +23,7 @@ import { ExerciseMedia } from '~/armcare/parts';
 import { act, Description, FilmVerdictButtons, leave, LevelOffer, ThrowNoteCard } from '~/mechanics/parts';
 import { rpc, RpcError } from '~/lib/rpc';
 import { usePalette, type Palette } from '~/lib/ui';
+import { READABLE, useBarSide } from '~/lib/layout';
 
 /**
  * 메커니즘 세션 따라 하기(앱 화면) — 웹 app/(session)/mechanics/play/mechanics-player.tsx 를 옮겼다. 사이트의 따라 하기가 앱(BullpenNative/4 부터)이면
@@ -126,6 +127,8 @@ function Player({ backHref, items, startAt, label, sessionNumber, partial, painL
   /* 앱 화면에서 열었으면 그냥 뒤로(그 화면이 다시 보인다) — 웹에서 넘어왔으면 웹을 돌아갈 칸으로(~/shell/web-nav fromApp) */
   const close = () => (inApp ? router.back() : leave(backHref));
   const inset = useSafeAreaInsets();
+  /* 아이패드 — 바닥 막대 안 단추를 본문 폭으로(~/lib/layout) */
+  const barSide = useBarSide(12);
   const [index, setIndex] = useState(startAt);
   const [done, setDone] = useState<boolean[]>(() => items.map((_, i) => i < startAt));
   /* 세션을 마친 뒤 서버가 돌려준 권하기 · 드릴로 던진 공 카드 — 끝 화면이 보인다 */
@@ -253,7 +256,7 @@ function Player({ backHref, items, startAt, label, sessionNumber, partial, painL
   if (finished) {
     const count = done.filter(Boolean).length;
     return shell(
-      <ScrollView style={s.fill} contentContainerStyle={[s.finish, { paddingBottom: Math.max(24, inset.bottom + 16) }]}>
+      <ScrollView style={s.fill} contentContainerStyle={[s.finish, { paddingBottom: Math.max(24, inset.bottom + 16) }, READABLE]}>
         <View style={[s.doneMark, { backgroundColor: c.sky }]}>
           <SymbolView name="checkmark" size={32} weight="bold" tintColor="#fff" />
         </View>
@@ -292,13 +295,13 @@ function Player({ backHref, items, startAt, label, sessionNumber, partial, painL
 
   return shell(
     <>
-      <ScrollView ref={scrollRef} style={s.fill} contentContainerStyle={s.content}>
+      <ScrollView ref={scrollRef} style={s.fill} contentContainerStyle={[s.content, READABLE]}>
         {/* 드릴마다 새로 그린다(key) — 앞 드릴의 영상이 다음 드릴에서 돌고 설명 칸이 펼친 채 남지 않게 */}
         <DrillView key={item.guideId} item={item} view={view} alt={choices[index].alt} onChoose={choose} painLabel={painLabel} c={c} />
       </ScrollView>
 
       {/* 누르는 막대 — 엄지가 닿는 아래에 */}
-      <View style={[s.bottom, { paddingBottom: Math.max(12, inset.bottom), backgroundColor: c.card, borderTopColor: c.line }]}>
+      <View style={[s.bottom, { paddingBottom: Math.max(12, inset.bottom), paddingHorizontal: barSide, backgroundColor: c.card, borderTopColor: c.line }]}>
         {/* 세트 세기 — 한 세트를 마칠 때마다 누른다. 다시 누르면 그 앞까지로 */}
         <View accessibilityLabel="마친 세트" style={s.setRow}>
           {Array.from({ length: view.sets }, (_, i) => {

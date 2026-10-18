@@ -214,6 +214,32 @@ export async function libraryPrune(keep: string[]): Promise<void> {
   await call('libraryPrune', { keep }).catch(() => undefined);
 }
 
+/**
+ * 기록에 안 붙은 폰 영상만 지운다 — 서버(app/api/pitch-log/discard)가 '어느 기록에도 없음'이라고 답한 것만.
+ * 저장이 실제로는 됐는데 답만 못 받은 경우(신호 끊김)에 그 기록의 영상을 지우지 않게 한다(2026-10-18 점검).
+ * 서버에 못 물으면 null — 아무것도 안 지운다(남는 편이 기록 영상을 잃는 것보다 낫다).
+ */
+export async function discardPhoneVideos(paths: string[]): Promise<string[] | null> {
+  const local = paths.filter(isPhoneVideoPath);
+  if (!local.length) return [];
+  try {
+    const res = await fetch('/api/pitch-log/discard', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ paths: local }),
+    });
+    if (!res.ok) return null;
+    const data = (await res.json().catch(() => ({}))) as { orphans?: unknown };
+    const orphans = Array.isArray(data.orphans)
+      ? local.filter((p) => (data.orphans as unknown[]).includes(p))
+      : [];
+    await removePhoneVideos(orphans);
+    return orphans;
+  } catch {
+    return null;
+  }
+}
+
 /** 이 폰의 앱 안 영상 지우기 — 기록에 붙이기 전에 뺀 것. 앱이 아니면 아무것도 안 한다 */
 export async function removePhoneVideos(paths: string[]): Promise<void> {
   const local = paths.filter(isPhoneVideoPath);

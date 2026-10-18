@@ -42,6 +42,7 @@ import { drainOutbox, onSent, outbox, withPending, type ShownSet } from '~/worko
 import { ExerciseVideo, NoteBox, NumberPad, RestPill, RirQuestion, SetDots } from '~/workout/parts';
 import { FinishSheet, ListSheet, SwapSheet } from '~/workout/sheets';
 import { useWeightUnit } from '~/lib/weight-unit';
+import { READABLE, useBarSide } from '~/lib/layout';
 
 /**
  * 운동 진행(앱 화면) — 웹 app/(session)/workout/run/session-client.tsx 를 옮겼다. 사이트의 운동 화면이 앱(BullpenNative/2 부터)이면 이 화면을
@@ -171,6 +172,8 @@ function Run({
 }: RunPayload & { c: Palette }) {
   const inset = useSafeAreaInsets();
   const { height } = useWindowDimensions();
+  /* 아이패드 — 바닥 막대 안 단추를 본문 폭으로(~/lib/layout) */
+  const barSide = useBarSide(12);
   /* 낮은 화면(아이폰 SE) — 숫자판을 연 동안 판 · 무게 · 횟수 · [세트 완료]가 한 화면에 들어오게(웹 short:) */
   const short = height < 700;
   /* 서버에 저장이 끝난 세트 — 서버가 돌려준 것만 넣는다 */
@@ -704,7 +707,7 @@ function Run({
           </View>
         ) : null}
 
-        <ScrollView ref={scrollRef} style={s.fill} contentContainerStyle={s.content} keyboardShouldPersistTaps="handled">
+        <ScrollView ref={scrollRef} style={s.fill} contentContainerStyle={[s.content, READABLE]} keyboardShouldPersistTaps="handled">
           <Text style={[s.smallBold, { color: c.muted }]}>{ex.category}</Text>
           <View style={s.titleRow}>
             <Text style={[s.title, { color: c.ink }]}>{ex.title}</Text>
@@ -851,7 +854,7 @@ function Run({
 
         {/* ─────────── 아래: 누르는 곳 ─────────── 자판이 떠 있는 동안은 감춘다(메모를 쓰는 중) */}
         {!keyboard ? (
-          <View style={[s.bottom, { paddingBottom: Math.max(12, inset.bottom), backgroundColor: c.card, borderTopColor: c.line }]}>
+          <View style={[s.bottom, { paddingBottom: Math.max(12, inset.bottom), paddingHorizontal: barSide, backgroundColor: c.card, borderTopColor: c.line }]}>
             {rest != null && !(pad && short) ? <RestPill seconds={rest} target={restTarget} c={c} /> : null}
             {error ? <Text style={[s.error, { color: c.danger, backgroundColor: c.danger + '14' }]}>{error}</Text> : null}
 

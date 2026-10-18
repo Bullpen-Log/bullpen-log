@@ -1,4 +1,4 @@
-# 1. 전체 시스템 아키텍처 (초안 v0 · 2026-10-16)
+# 1. 전체 시스템 아키텍처 (v1 · 2026-10-18 — 1-6 Expo 앱 더함)
 
 ## 1-1. 기술 스택
 
@@ -8,7 +8,8 @@
 | DB | Supabase Postgres + Prisma 7.9(adapter-pg, 풀 20 · 풀러 6543) | **개발 DB = 운영 DB**, `relationMode = "prisma"`(DB 외래키 없음), 마이그레이션 89개 |
 | 파일 | Supabase Storage 비공개 버킷 `pitch-videos` 하나 | 서명 주소로 올리고 받음(`lib/storage.ts`) |
 | 인증 | 자체 JWT(jose) 쿠키 + bcrypt, `lib/dal.ts` | 미들웨어 없음 — 쪽 · 동작마다 `getCurrentUser`/`requireUser` |
-| 앱 | Capacitor iOS 껍데기(`mobile/`) | **원격 사이트를 띄운다**(`bullpen-log.vercel.app/today`), UA `BullpenLogApp`, 네이티브 부품 넷 |
+| 앱(옛) | Capacitor iOS 껍데기(`mobile/`) | **원격 사이트를 띄운다**(`bullpen-log.vercel.app/today`), UA `BullpenLogApp`, 네이티브 부품 넷 |
+| 앱(새) | Expo 58 · React Native 0.88(`native/`, 약 3만 줄, 김민 영역) | 옮긴 화면은 네이티브, 나머지는 웹뷰. 서버는 `/api/rpc` 로 서버 동작을 부름 — 1-6 |
 | GPU | Modal(`services/pitch3d-gpu`) — RTMW 2D + node 로 TS 엔진 실행 | 3D 동작 분석 전용, 웹과는 HTTP + 서명 주소 |
 | 배포 | Vercel `icn1`(서울), `npm run build` 가 `prisma migrate deploy` 포함 | main 에 올리면 운영 DB 에 마이그레이션 |
 | 시험 | npm 스크립트 · 순수 노드 셀프테스트 약 30개 | 테스트 프레임워크 · CI 시험 없음. 일부는 운영 DB 읽기 |
@@ -22,14 +23,16 @@ app/
   (session)/        전체 화면 흐름: workout · armcare · mechanics · checkin · velocity · admin/shoot run
   (legal)/          약관 · 처리방침
   actions/          서버 동작 33파일(카테고리별)
-  api/              day-detail · library · nutrition · pitch-lab · pitch-log · profile · session · sim-offset
+  actions/app*.ts    앱 전용 얇은 껍데기(웹 로더를 감싸 JSON 으로) 11파일
+  api/              day-detail · library · nutrition · pitch-lab · pitch-log · profile · session · sim-offset · rpc(앱 입구)
   login/            가입 · 로그인
 components/         공용 UI(ui.tsx · icon.tsx · app-shell.tsx …) + 카테고리 하위 폴더
 lib/                도메인 로직(순수 함수 다수) — 아래 1-3
 prisma/             schema.prisma(1,619줄 · 44모델) · migrations/
 scripts/            셀프테스트 · 백업 · 패치노트 · 실험 도구
 services/pitch3d-gpu/  Modal 파이썬 + 묶은 TS 엔진(engine/ 는 .gitignore)
-mobile/             Capacitor iOS · Swift 부품
+mobile/             Capacitor iOS · Swift 부품(옛 앱, 새 앱이 나갈 때까지)
+native/             Expo 앱 — src/app(화면) · src/lib(rpc · 대기열) · modules/(Swift 카메라 부품)
 docs/               설계(designs/) · 이 문서(architecture/) · Claude 메모(claude/)
 ```
 
@@ -76,3 +79,29 @@ docs/               설계(designs/) · 이 문서(architecture/) · Claude 메�
 
 **안 됨 · 대기**: Modal 재배포(footFlat · 어깨 바로잡기 · framing) · PitchLog 색인 · 영양 2차(당류 · 나트륨) · 끼니 알림(앱) · 성장기 메커니즘
 '그래도 하기' 사용자 확인 · 실기기 확인 다수(체크인 흐름 · 가입 · 탭 판 · 구속 카메라) · 시험 DB(개발 = 운영) · 큰 파일 나누기 · 옛 체크인 칸 정리.
+
+## 1-6. 아이폰 앱 두 개와 서버 입구(2026-10-18 더함)
+
+```mermaid
+flowchart LR
+  N[Expo 앱 native/] -->|POST /api/rpc/파일.함수 · 쿠키 session · 머리 x-bullpen-app| R[app/api/rpc/route.ts]
+  R -->|허용 목록 registry.ts| A[app/actions/* 서버 동작]
+  N -->|웹뷰 · UA BullpenNative/n| W[웹 화면 Next]
+  N -->|import 순수 계산| L[lib/*.ts]
+  W --> A
+  A --> DB[(Supabase)]
+```
+
+- **서버 동작 한 벌을 웹 · 앱이 같이 쓴다.** 앱 전용 `app/actions/app*.ts` 는 웹 로더를 감싸 JSON 으로 돌려주는 껍데기(대부분 30~60줄, DB 를 직접
+  읽는 것은 관리자 · 홈 둘). 로그인 확인은 동작마다 그대로(통합 시험 [7] — 2026-10-18 부터 파일 안 도우미 · 한 단계 위임을 따라감).
+- **판 번호가 둘이다.** 헷갈리기 쉬우니 구분한다.
+
+  | 번호 | 어디 | 뜻 | 올리는 때 |
+  |---|---|---|---|
+  | `APP_API_LEVEL` · `MIN_APP_API` | `lib/app-api.ts` | 서버 동작의 인자 · 답 모양 약속. 낮으면 `/api/rpc` 가 426 | 앱이 부르는 동작 모양을 깔린 앱이 못 알아듣게 바꿀 때 |
+  | `BullpenNative/<n>` | `native/src/lib/site.ts` APP_UA ↔ `lib/app-env.ts` | 앱이 아는 네이티브 화면 판. 사이트가 앱 화면으로 넘기기 전에 봄 | 앱에 화면을 옮겨 넣을 때 |
+
+- **모양 기록**: 앱이 부르는 서버 동작 154개의 인자 · 답 모양을 `scripts/native-api-shapes.json` 에 적어 두고 `npm run native-api:test` 가 견준다
+  (바뀌면 실패 → 앱을 맞추고 `-- --update`, 깔린 앱이 깨지면 `APP_API_LEVEL`). 앱 코드의 `rpc<T>()` 는 답 모양을 손으로 적어 앱 타입 검사로는 못 잡기 때문.
+- **공용 계산 경계**: 앱은 `@/lib/…` 순수 파일을 그대로 쓴다. 서버 · 브라우저 전용이 섞이면 `npm run shared-lib:test` 가 잡는다.
+- **아직 없는 것**: 앱 업데이트 장치(`expo-updates` — 지금은 화면을 고쳐도 빌드 + 심사), 데스크톱의 앱 타입 · 린트 검사(`native/node_modules` 없음).

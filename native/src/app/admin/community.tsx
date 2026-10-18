@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { loadAppCommunityReports } from '@/app/actions/app-admin';
 import { Badge, Bar, call, Chip, LoadState, s, useLoad } from '~/community/parts';
 import { usePalette, type Palette } from '~/lib/ui';
+import { READABLE } from '~/lib/layout';
 
 /**
  * 커뮤니티 신고(앱 화면, 관리자) — 웹 app/(app)/admin/community/page.tsx: 처리 전이 먼저(전체면 처리한 것까지). 글 · 댓글은 지우지 않고
@@ -26,7 +27,7 @@ export default function AdminCommunityScreen() {
         <LoadState error={error} onRetry={() => void reload()} c={c} />
       ) : (
         <ScrollView
-          contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: inset.bottom + 32 }}
+          contentContainerStyle={[{ padding: 16, gap: 12, paddingBottom: inset.bottom + 32 }, READABLE]}
           refreshControl={<RefreshControl refreshing={false} onRefresh={() => void reload()} />}
         >
           <Text style={{ color: c.muted, fontSize: 15, lineHeight: 21, paddingHorizontal: 4 }}>신고된 글 · 댓글을 보고 가리거나 그대로 둬요. 처리하면 목록에서 내려가요.</Text>

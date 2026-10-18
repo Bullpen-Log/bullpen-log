@@ -1,6 +1,6 @@
 import * as Haptics from 'expo-haptics';
 import { SymbolView } from 'expo-symbols';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Pressable, Switch, Text, TextInput, View } from 'react-native';
 import { effectiveRate, paceDelta, ageRule } from '@/lib/nutrition/age';
 import { AVOIDS, DIET_STYLES, MEAL_PATTERNS } from '@/lib/nutrition/diet-prefs';
@@ -19,6 +19,7 @@ import {
 import { dateText, neededRate } from '@/lib/nutrition/period';
 import { MAX_WEIGHT_KG, MIN_WEIGHT_KG } from '@/lib/profile';
 import { fromWeight, round1, toWeight, type WeightUnit } from '@/lib/units';
+import { floorNote } from '@/lib/nutrition/targets';
 import type { Palette } from '~/lib/ui';
 import { ChoiceChips } from '~/setup/frame';
 
@@ -237,6 +238,15 @@ export function NumberField({
 }) {
   const shown = (v: number | null) => (v === null ? '' : String(kind === 'weight' && unit !== 'cm' ? round1(toWeight(v, unit)) : v));
   const [text, setText] = useState(() => shown(value));
+  /*
+   * 값이 밖에서 바뀌면(목표 체중 '나중에 정할게요' → '되돌리기') 칸 글도 따라간다 — 적는 중에는 안 건드린다. 웹은 useSyncedText 가 같은 일을 한다
+   * (2026-10-18 점검: 칸에는 숫자가 보이는데 값은 비어 '적어 주세요'가 떴다).
+   */
+  const focused = useRef(false);
+  const synced = shown(value);
+  useEffect(() => {
+    if (!focused.current) setText(synced);
+  }, [synced]);
   return (
     <View style={{ gap: 6 }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: c.card, borderRadius: 14, borderWidth: 1, borderColor: invalid ? c.danger : c.line, paddingHorizontal: 16 }}>
@@ -248,6 +258,8 @@ export function NumberField({
             if (t.trim() === '' || !Number.isFinite(n)) return onChange(null);
             onChange(kind === 'weight' && unit !== 'cm' ? Math.round(fromWeight(n, unit) * 10) / 10 : kind === 'length' ? Math.round(n) : n);
           }}
+          onFocus={() => (focused.current = true)}
+          onBlur={() => (focused.current = false)}
           keyboardType="decimal-pad"
           placeholder={String(placeholder)}
           placeholderTextColor={c.muted}
@@ -548,6 +560,7 @@ function PlanStep({ ctx }: { ctx: StepCtx }) {
         <Stat label="활동대사량" value={t.tdee} sub={`× ${activity.factor} ${activity.label}`} c={c} />
         <Stat label="하루 목표" value={t.base} sub={t.manual ? '직접 정함' : t.delta === 0 ? '유지' : `${sign}${kcalText(Math.abs(t.delta))} 목표`} strong c={c} />
       </View>
+      {floorNote(t) ? <Text style={{ color: c.muted, fontSize: 13 }}>{floorNote(t)}</Text> : null}
       {open ? (
         <View style={{ backgroundColor: c.card, borderRadius: 16, padding: 14, gap: 8 }}>
           <Text style={{ color: c.muted, fontSize: 13, fontWeight: '600' }}>하루 목표(운동 전)</Text>
@@ -622,6 +635,7 @@ function MacroEditStep({ ctx }: { ctx: StepCtx }) {
           하루 <Text style={{ color: c.ink, fontWeight: '700' }}>{kcalText(t.base)}kcal</Text>
           {t.manual ? ' · 직접 정함' : ''}
         </Text>
+        {floorNote(t) ? <Text style={{ color: c.muted, fontSize: 13 }}>{floorNote(t)}</Text> : null}
         <MacroBar carbs={t.carbs} protein={t.protein} fat={t.fat} c={c} />
       </View>
       <GramRow

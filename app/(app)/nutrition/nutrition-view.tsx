@@ -384,7 +384,8 @@ export function NutritionView({
 
   function clearPlan() {
     setError(null);
-    startTransition(async () => {
+    /* 짜기와 같은 줄에 세운다 — 따로 돌면 서버 차례에 따라 지운 계획이 되살아났다 */
+    startPlan(async () => {
       applyPlan({ type: 'clear' });
       report(await orOffline(clearMealPlan(day.date), OFFLINE));
     });
