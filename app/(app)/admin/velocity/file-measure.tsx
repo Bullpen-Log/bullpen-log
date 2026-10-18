@@ -125,7 +125,7 @@ export function FileMeasure({
   }
 
   async function measure() {
-    if (!file) return setError('영상 파일을 골라주세요.');
+    if (!file) return setError('영상 파일을 골라 주세요.');
     if (fps === 'reading') return setError('영상의 fps 를 읽는 중이에요. 잠깐 뒤 다시 눌러 주세요.');
     if (typeof fps !== 'number' || !measurable)
       return setError(unmeasurableWhy ?? '이 영상은 카메라로 잴 수 없어요.');

@@ -56,7 +56,7 @@ async function decode(file: Blob): Promise<Decoded> {
   } catch {
     URL.revokeObjectURL(url);
     throw new UnreadableImageError(
-      '이 사진은 열 수 없어요. JPG나 PNG 사진으로 골라주세요. (아이폰 HEIC 사진은 PC 에서 열리지 않을 수 있어요)'
+      '이 사진은 열 수 없어요. JPG나 PNG 사진으로 골라 주세요. (아이폰 HEIC 사진은 PC 에서 열리지 않을 수 있어요)'
     );
   }
 }
@@ -66,7 +66,7 @@ export async function shrinkImage(file: Blob): Promise<Blob> {
   const image = await decode(file);
   try {
     if (!image.width || !image.height) {
-      throw new UnreadableImageError('사진 크기를 읽지 못했어요. 다른 사진으로 골라주세요.');
+      throw new UnreadableImageError('사진 크기를 읽지 못했어요. 다른 사진으로 골라 주세요.');
     }
     const scale = Math.min(1, SHORT_SIDE_PX / Math.min(image.width, image.height));
     const width = Math.max(1, Math.round(image.width * scale));

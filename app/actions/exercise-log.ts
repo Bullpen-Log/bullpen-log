@@ -187,7 +187,7 @@ export async function saveTrainingNote(
   const user = await requireUser();
 
   const value = positiveNumber(intensity, 10);
-  if (value == null) return { error: '운동 강도를 1~10 중에서 골라주세요.' };
+  if (value == null) return { error: '운동 강도를 1~10 중에서 골라 주세요.' };
 
   const text = typeof memo === 'string' ? memo.trim().slice(0, 1000) : '';
   /* 화면이 준 날(자정을 넘겨 저장해도 그 목록의 날) — 체크(saveDone)와 같은 선으로 본다: 앞날 · 7일 넘은 날은 안 받는다 */
