@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { RefreshControl, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { loadAppAdminSupport } from '@/app/actions/app-admin';
-import { Badge, Bar, BarButton, Chip, LoadState, Row, s, useLoad } from '~/community/parts';
+import { Badge, Bar, BarButton, Chip, InquiryMeta, LoadState, Row, s, useLoad } from '~/community/parts';
 import { usePalette } from '~/lib/ui';
 import { READABLE } from '~/lib/layout';
 
@@ -50,7 +50,12 @@ export default function AdminSupportScreen() {
                       </Text>
                       <Badge text={q.status} color={q.open ? c.sky : undefined} c={c} />
                     </View>
-                    <Text style={[s.meta, { color: c.muted }]}>{[q.nickname, q.date, q.replies > 0 ? `답글 ${q.replies}` : null].filter(Boolean).join(' · ')}</Text>
+                    {/* 옛 서버(종류 칸 없음)면 '기타' 배지 대신 예전 글 줄 */}
+                    {q.category ? (
+                      <InquiryMeta category={q.category} nickname={q.nickname} date={q.date} replies={q.replies} c={c} />
+                    ) : (
+                      <Text style={[s.meta, { color: c.muted }]}>{[q.nickname, q.date, q.replies > 0 ? `답글 ${q.replies}` : null].filter(Boolean).join(' · ')}</Text>
+                    )}
                   </Row>
                 ))}
               </View>

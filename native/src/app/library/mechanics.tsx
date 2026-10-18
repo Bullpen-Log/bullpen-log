@@ -6,7 +6,7 @@ import { LATER_CATEGORY } from '@/lib/categories';
 import { DRILL_STAGE_NAMES, FOCUS_POINTS } from '@/lib/exercise-meta';
 import { matchesSearch } from '@/lib/korean';
 import { Bar } from '~/community/parts';
-import { ChipRow, DRILL_LIST, FoldHead, ItemRow, SearchField, recall, remember, type Drill } from '~/library/parts';
+import { ChipRow, DRILL_LIST, FoldHead, ItemRow, SearchField, recall, remember, type Drill, WarmupLink } from '~/library/parts';
 import { usePalette } from '~/lib/ui';
 import { useScreenData } from '~/training/screen';
 import { READABLE } from '~/lib/layout';
@@ -142,6 +142,7 @@ export default function DrillLibraryScreen() {
           contentContainerStyle={[{ paddingHorizontal: 16, gap: 10, paddingBottom: inset.bottom + 32 }, READABLE]}
           refreshControl={<RefreshControl refreshing={state.refreshing} onRefresh={() => void state.refresh()} />}
         >
+          <WarmupLink c={c} />
           {SECTIONS.map((name) => {
             const list = bySection.get(name) ?? [];
             if (list.length === 0) return null;

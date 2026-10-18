@@ -1,6 +1,7 @@
 import * as Haptics from 'expo-haptics';
 import { SymbolView } from 'expo-symbols';
 import { useState } from 'react';
+import { router, type Href } from 'expo-router';
 import { Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import type { LibraryExercise } from '@/lib/library-load';
 import type { GuideItem } from '@/app/(app)/library/mechanics/mechanics-client';
@@ -203,3 +204,24 @@ export const st = StyleSheet.create({
   foldOpen: { borderBottomLeftRadius: 0, borderBottomRightRadius: 0 },
   tag: { fontSize: 13, fontWeight: '600', borderRadius: 10, paddingHorizontal: 9, paddingVertical: 3, overflow: 'hidden' },
 });
+
+/** 운동 영상 · 투구 드릴 목록 맨 위 — 웹 라이브러리 탭(app/(app)/library/tabs.tsx)의 셋째 칸 '워밍업 루틴'으로 가는 줄 */
+export function WarmupLink({ c }: { c: Palette }) {
+  return (
+    <Pressable
+      accessibilityRole="link"
+      onPress={() => router.push('/library/warmup' as Href)}
+      style={({ pressed }) => [
+        { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 56, borderRadius: 14, paddingHorizontal: 14 },
+        { backgroundColor: pressed ? c.chip : c.card },
+      ]}
+    >
+      <SymbolView name="flame" size={18} tintColor={c.sky} />
+      <View style={{ flex: 1 }}>
+        <Text style={{ color: c.ink, fontSize: 15, fontWeight: '700' }}>워밍업 루틴</Text>
+        <Text style={{ color: c.muted, fontSize: 13 }}>본운동 전에 하는 고정 묶음</Text>
+      </View>
+      <SymbolView name="chevron.right" size={13} weight="semibold" tintColor={c.muted} />
+    </Pressable>
+  );
+}

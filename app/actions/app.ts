@@ -127,6 +127,10 @@ export async function loadAppNutrition(date: string): Promise<
       /** 끼니마다 단백질 목표 · 모자랄 때 예시(lib/nutrition/meal-protein.ts mealProtein)에 — 웹 끼니 칸과 같은 값 */
       ageBand: AgeBand;
       avoid: AvoidKey[];
+      /** '오늘 식욕 · 끼니는요?' 카드의 답(오늘 · 답했을 때만, 웹 nutrition-checkin-card.tsx 와 같은 값) */
+      checkinAnswers: { appetite: number | null; mealAmount: string | null; skippedMeals: string[] } | null;
+      /** 전날 먹은 것 — 담기 화면의 '어제 아침과 같이 담기'(웹 food-sheet.tsx 와 같은 값) */
+      yesterday: MealEntryView[];
     }
   | { ok: false; error: string; to?: string }
 > {
@@ -149,6 +153,8 @@ export async function loadAppNutrition(date: string): Promise<
     mealPlan: day.mealPlan,
     ageBand: t.ageBand,
     avoid: day.prefs.avoid,
+    checkinAnswers: day.checkinAnswers,
+    yesterday: day.yesterday,
   };
 }
 
