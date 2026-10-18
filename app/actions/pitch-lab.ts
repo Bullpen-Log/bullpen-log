@@ -1,7 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { requireUser } from '@/lib/dal';
+import { getCurrentUser, requireUser } from '@/lib/dal';
 import {
   createV2ResultUploadUrl,
   deleteLabSample,
@@ -10,6 +10,7 @@ import {
   seesMarkerSamples,
   labVideoUrls,
   loadLabGuard,
+  loadLabSample,
   loadLabJob,
   loadLabMetaRaw,
   loadV2Result,
@@ -38,7 +39,22 @@ import {
   isPitch3dV2Configured,
   startGpuJob,
 } from '@/lib/pitch-3d/v2/gpu-client';
-import { isLabId, readLabMeta } from '@/lib/pitch-lab-meta';
+import { isLabId, LAB_VIEWS, labMetaChips, labViewLabel, readLabMeta } from '@/lib/pitch-lab-meta';
+import { MECH_FOCUS_POINTS } from '@/lib/pitch-3d/v2/mech-judge';
+import { trainingGuides } from '@/lib/library-cache';
+import { drillPicksFor, groupDrills, type DrillPick } from '@/lib/mechanics/drills';
+import {
+  labHandNote,
+  labStatusLabel,
+  labTitle,
+  labWaitingText,
+  MECH_STATUS_TEXT,
+  mechDrills,
+  mechSummary,
+  metricRows,
+  type LabMechItem,
+  type LabMetricRow,
+} from '@/lib/pitch-3d/v2/lab-summary';
 
 /**
  * 3D 동작 분석(베타, 옛 이름 투구 분석 실험실)의 서버 동작 — 로그인한 누구나(2026-10-14 일반 사용자에게 엶). 사람마다 자기 폴더만,
@@ -303,4 +319,94 @@ export async function loadPitch3dV2(input: {
   } catch {
     return { error: '분석 결과를 불러오지 못했어요.' };
   }
+}
+
+/** 아이폰 앱 결과 화면(native/src/app/lab/[id].tsx)이 받는 것 — 3D 는 웹 embed 화면(app/embed/lab/[id])이 그리고, 앱은 그 둘레만 */
+export type AppLabDetail = {
+  ok: true;
+  id: string;
+  title: string;
+  chips: string[];
+  status: { text: string; tone: 'sky' | 'muted' | 'warn' } | null;
+  videos: { view: 'side' | 'back'; label: string; url: string | null }[];
+  /** 보여 줄 결과가 있으면 그 둘레(3D 는 embed 가 같은 결과를 그린다) */
+  result: {
+    handNote: string | null;
+    rows: LabMetricRow[];
+    mech: {
+      tentative: boolean;
+      items: (LabMechItem & {
+        /** '고칠 점' · '보통' …(앱이 계산 파일을 안 끌어오게 글로) */
+        statusText: string;
+        drills: { elementKey: string | null; count: number; items: DrillPick[] } | null;
+      })[];
+    };
+    warnings: boolean;
+    engineLine: string;
+    /** 결과가 지금 분석 서버보다 옛 엔진 — 다시 분석은 웹에서 */
+    stale: boolean;
+  } | null;
+  /** 결과가 없을 때 3D 칸의 글 */
+  waiting: ReturnType<typeof labWaitingText> | null;
+};
+
+/**
+ * 아이폰 앱 3D 동작 분석 결과 화면 — 웹 /videos/lab/[id](page.tsx · lab-detail.tsx)와 같은 샘플 · 결과 · 판정. 로그인이 없으면 { ok:false, to }.
+ * 분석 걸기(GPU 비용 · 동의)는 앱에서 안 하고 웹 화면으로 보낸다. /api/rpc/pitch-lab.loadAppLabDetail 로 부른다.
+ */
+export async function loadAppLabDetail(input: {
+  id: string;
+}): Promise<AppLabDetail | { ok: false; to: string }> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, to: '/login' };
+  if (!isLabId(input?.id)) return { ok: false, to: LAB_PATH };
+  const sample = await loadLabSample(input.id, user);
+  if (!sample) return { ok: false, to: LAB_PATH };
+  const meta = sample.meta;
+  const job = sample.v2.job;
+  const now = Date.now();
+  const shown = job?.shownJobId ?? null;
+  const raw = shown ? await loadV2Result(sample.ownerId, sample.id, shown).catch(() => null) : null;
+  const parsed = raw ? readPitch3dV2Result(raw) : null;
+  const result = parsed?.ok ? parsed : null;
+  const heightCm = meta?.heightCm ?? (sample.ownerId === user.id ? (user.heightCm ?? null) : null);
+  const hasVideos = Boolean(sample.videos.side?.url && sample.videos.back?.url);
+  const hand = meta?.hand ?? 'R';
+
+  let summary: AppLabDetail['result'] = null;
+  if (result) {
+    const [guides, engineBuild] = await Promise.all([trainingGuides(), getEngineBuild()]);
+    const drills = groupDrills(guides);
+    const picks = Object.fromEntries(MECH_FOCUS_POINTS.map((f) => [f, drillPicksFor(drills, f)]));
+    const mech = mechSummary(result, heightCm);
+    summary = {
+      handNote: labHandNote(result.hand, meta?.hand),
+      rows: metricRows(result),
+      mech: {
+        tentative: mech.tentative,
+        items: mech.items.map((it) => ({
+          ...it,
+          statusText: MECH_STATUS_TEXT[it.status],
+          drills: mechDrills(it.focus, picks),
+        })),
+      },
+      warnings: result.warnings.length > 0,
+      engineLine: `엔진 v2 ${result.version} · 뼈 흔들림 ${result.fit.boneCvPct}% · 다시 비춤 ${result.fit.reprojPct}%`,
+      stale: engineBuild != null && result.engine.build !== engineBuild,
+    };
+  }
+  return {
+    ok: true,
+    id: sample.id,
+    title: labTitle(meta?.createdAt),
+    chips: meta ? labMetaChips(meta) : [],
+    status: labStatusLabel(job, now),
+    videos: LAB_VIEWS.map((view) => ({
+      view,
+      label: labViewLabel(view, hand),
+      url: sample.videos[view]?.url ?? null,
+    })),
+    result: summary,
+    waiting: result ? null : labWaitingText(job, now, hasVideos),
+  };
 }

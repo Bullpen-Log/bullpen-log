@@ -13,6 +13,7 @@ import {
 } from '@/lib/pitch-3d/v2/contract';
 import { LAB_FAIL_FIX, labGuideHref } from '@/lib/pitch-lab-guide';
 import { forHand, type LabHand } from '@/lib/pitch-lab-meta';
+import { labStatusLabel } from '@/lib/pitch-3d/v2/lab-summary';
 
 /**
  * v2 분석의 상태 조각들(화면 결정 4~8) — 결과 화면(lab-detail.tsx)과 목록 카드(lab-client.tsx)가 쓴다.
@@ -23,22 +24,8 @@ import { forHand, type LabHand } from '@/lib/pitch-lab-meta';
 export const CONSENT_TEXT =
   '선수(미성년이면 보호자)에게 영상을 해외 분석 서버(미국)로 보내는 동의를 받았어요.';
 
-/** 카드 · 머리의 상태 표시 — 없으면 null */
-export function v2StatusLabel(
-  job: Pitch3dV2Job | null,
-  now: number
-): { text: string; tone: 'sky' | 'muted' | 'warn' } | null {
-  if (!job) return null;
-  if (isV2JobActive(job, now)) return { text: '3D 분석 중', tone: 'sky' };
-  if (job.status === 'done') return { text: '3D 결과 있음', tone: 'muted' };
-  if (job.status === 'failed')
-    return {
-      text: job.fail?.code === 'timeout' ? '3D 시간 초과' : '3D 실패',
-      tone: 'warn',
-    };
-  /* queued · running 인데 15분 지남 — 다음 물음이 timeout 으로 돌린다 */
-  return { text: '3D 시간 초과', tone: 'warn' };
-}
+/** 카드 · 머리의 상태 표시 — 앱 결과 화면과 같은 말(lib/pitch-3d/v2/lab-summary.ts) */
+export const v2StatusLabel = labStatusLabel;
 
 export function V2StatusBadge({ job, now }: { job: Pitch3dV2Job | null; now: number }) {
   const s = v2StatusLabel(job, now);

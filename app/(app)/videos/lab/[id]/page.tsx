@@ -1,4 +1,7 @@
+import { headers } from 'next/headers';
 import { notFound } from 'next/navigation';
+import { expoLevel } from '@/lib/app-env';
+import { OpenNative } from '@/app/(session)/velocity/open-native';
 import { requireUser } from '@/lib/dal';
 import { loadLabSample } from '@/lib/pitch-lab';
 import { isLabId } from '@/lib/pitch-lab-meta';
@@ -16,12 +19,20 @@ import { LabDetail } from './lab-detail';
  */
 export default async function LabSamplePage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ web?: string }>;
 }) {
   const user = await requireUser();
   const { id } = await params;
   if (!isLabId(id)) notFound();
+  /*
+   * 새 아이폰 앱(Expo)이 3D 결과 화면을 아는 판(BullpenNative/8 부터)이면 앱 화면으로 연다(native/src/app/lab/[id].tsx — 둘레는 앱, 3D 칸은
+   * app/embed/lab/[id] 웹뷰). 앱 화면의 '웹에서 분석하기'(분석 걸기 · 동의 · 촬영 안내는 웹에만)는 ?web=1 로 와서 여기를 건너뛴다.
+   */
+  if ((await searchParams).web !== '1' && expoLevel((await headers()).get('user-agent')) >= 8)
+    return <OpenNative path={`/lab/${id}`} cover={false} />;
   const [sample, guides, engineBuild] = await Promise.all([
     loadLabSample(id, user),
     trainingGuides(),
