@@ -64,6 +64,10 @@ export default function AdminScreen() {
           <Text style={[s.meta, { color: c.muted, paddingHorizontal: 4 }]}>
             트레이닝 영상 {data.content.videos} · 자료실 글 {data.content.articles} · 투구 기록 {data.content.logs}
           </Text>
+          {/* 웹 관리자 맨 밑 안내와 같은 말(해요체) — 회원 줄을 누르면 권한 · 삭제가 뜬다 */}
+          <Text style={[s.meta, { color: c.muted, paddingHorizontal: 4, lineHeight: 19 }]}>
+            내 계정은 실수로 잠기지 않게 권한 변경과 삭제를 막아 두었어요. 회원을 삭제하면 그 회원의 투구 기록과 게시글도 함께 지워지고 되돌릴 수 없어요.
+          </Text>
         </ScrollView>
       )}
     </View>
