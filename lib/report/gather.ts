@@ -1,5 +1,5 @@
 import 'server-only';
-import { cache } from 'react';
+import { requestCache as cache } from '@/lib/request-cache';
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import {

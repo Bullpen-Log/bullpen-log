@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { APP_API_HEADER, MIN_APP_API, appApiLevelOf } from '@/lib/app-api';
 import { RPC_MODULES } from '../registry';
+import { runWithRequestCache } from '@/lib/request-cache';
 
 /**
  * 아이폰 앱(native/, Expo)이 서버 액션을 부르는 입구 — POST /api/rpc/<파일>.<함수>(2026-10-17 엔지니어링 검토 D2).
@@ -44,7 +45,12 @@ export async function POST(
   }
 
   try {
-    const result = await fn(...args);
+    /*
+     * 읽기(load…)는 한 요청 안에서 같은 읽기를 한 번만(lib/request-cache.ts — React cache 가 라우트 핸들러에서는 안 먹는다).
+     * 쓰는 동작은 쓴 뒤 다시 읽을 수 있어 그대로 둔다(웹 서버 동작과 같은 뜻).
+     */
+    const run = () => fn(...args);
+    const result = await (/\.load[A-Z]/.test(action) ? runWithRequestCache(run) : run());
     return NextResponse.json({ ok: true, result: result ?? null });
   } catch (e) {
     const digest =

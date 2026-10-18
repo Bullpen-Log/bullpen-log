@@ -192,6 +192,38 @@ export async function loadTrainingToday(user: TodayUser, today: Date): Promise<T
     }),
   ]);
   const { savedPlan, picked, doneIds, shownPicks, droppedForSafety } = core;
+  /*
+   * 그릴 운동만 자세히 — 일정에 담긴 것과 오늘 마친 것(웹과 같은 까닭). 지난 양 · 오늘 마친 세트는 프로그램과 상관없어 여기서 바로
+   * 읽기 시작한다(예전엔 프로그램 줄 → 프로그램 하루를 다 기다린 뒤 읽어 왕복이 하나 더 쌓였다, 2026-10-18 앱 화면 속도).
+   */
+  const needed = [...new Set([...shownPicks.map((p) => p.exerciseId), ...doneIds])];
+  const detailed = needed.length ? await exercisesByIds(needed) : [];
+  const byId = new Map(detailed.map((ex) => [ex.id, ex]));
+  const full = shownPicks
+    .map((p) => ({
+      slot: p.slot,
+      manual: p.manual === true,
+      unsafe: p.unsafe,
+      score: 'score' in p ? p.score : undefined,
+      ex: byId.get(p.exerciseId),
+    }))
+    .filter((p): p is typeof p & { ex: NonNullable<(typeof p)['ex']> } => p.ex != null);
+
+  const pastAmountsP = recentAmounts(
+    user.id,
+    full.map((p) => p.ex.id),
+    today
+  );
+  const doneSetsP =
+    todaySession?.status === 'FINISHED'
+      ? prisma.userExerciseSet.findMany({
+          where: { sessionId: todaySession.id },
+          select: { exerciseId: true, weightKg: true, reps: true, holdSeconds: true },
+        })
+      : Promise.resolve([]);
+  /* 아래에서 기다리기 전에 실패해도 '처리 안 된 실패'로 서버가 넘어지지 않게 — 실패는 아래 Promise.all 이 그대로 받는다 */
+  pastAmountsP.catch(() => {});
+  doneSetsP.catch(() => {});
   const programRow = PROGRAMS_ENABLED ? await activeProgram(user.id) : null;
   /* 기본기 4주를 마쳤나 — 웹 페이지와 같다(성인 입문만, 진행 중인 줄이 없으면 미리 같이 묻는다) */
   const asksBasics = PROGRAMS_ENABLED && user.trainingLevel === '입문';
@@ -220,20 +252,6 @@ export async function loadTrainingToday(user: TodayUser, today: Date): Promise<T
     checkedIn: core.hasCheckinToday,
   });
 
-  /* 그릴 운동만 자세히 — 일정에 담긴 것과 오늘 마친 것(웹과 같은 까닭) */
-  const needed = [...new Set([...shownPicks.map((p) => p.exerciseId), ...doneIds])];
-  const detailed = needed.length ? await exercisesByIds(needed) : [];
-  const byId = new Map(detailed.map((ex) => [ex.id, ex]));
-  const full = shownPicks
-    .map((p) => ({
-      slot: p.slot,
-      manual: p.manual === true,
-      unsafe: p.unsafe,
-      score: 'score' in p ? p.score : undefined,
-      ex: byId.get(p.exerciseId),
-    }))
-    .filter((p): p is typeof p & { ex: NonNullable<(typeof p)['ex']> } => p.ex != null);
-
   const [thumbUrls, pastAmounts, doneSets] = await Promise.all([
     createPlaybackUrls(
       [
@@ -241,17 +259,8 @@ export async function loadTrainingToday(user: TodayUser, today: Date): Promise<T
         ...(programCard?.upcoming.flatMap((u) => u.items.map((it) => it.thumbPath)) ?? []),
       ].filter((p): p is string => !!p)
     ),
-    recentAmounts(
-      user.id,
-      full.map((p) => p.ex.id),
-      today
-    ),
-    finished && todaySession
-      ? prisma.userExerciseSet.findMany({
-          where: { sessionId: todaySession.id },
-          select: { exerciseId: true, weightKg: true, reps: true, holdSeconds: true },
-        })
-      : Promise.resolve([]),
+    pastAmountsP,
+    doneSetsP,
   ]);
   for (const it of programCard?.upcoming.flatMap((u) => u.items) ?? []) {
     if (it.thumbPath) it.thumbUrl = thumbUrls[it.thumbPath] ?? null;

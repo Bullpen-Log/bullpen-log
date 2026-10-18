@@ -1,5 +1,5 @@
 import 'server-only';
-import { cache } from 'react';
+import { requestCache as cache } from '@/lib/request-cache';
 import { prisma } from '@/lib/prisma';
 import { burnMixesInRange } from '@/lib/nutrition/burn-load';
 import type { AgeBand } from '@/lib/nutrition/age';
