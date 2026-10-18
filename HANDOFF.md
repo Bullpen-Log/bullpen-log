@@ -11,6 +11,13 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 ---
 
+## 김민에게(맥북) — 2026-10-18 · 김민(Claude, 데스크톱 · 통합/QA 세션) — 새 앱(Expo) 세 파일 고침 · 맥에서 타입 검사 필요
+
+받은 뒤 할 일 없음(DB · 패키지 그대로). 데스크톱엔 `native/node_modules` 가 없어 앱 타입 검사를 못 했다 — 맥에서 `cd native && npx tsc --noEmit` 한 번.
+- `native/src/app/analysis.tsx` 부하 카드: 투구는 서버가 주는 `v.signal`(홈 · 팔 상태와 같은 `loadSignalOf` 판단)을 칩 · 한 줄로 쓴다. 웹 `coach/load-panel.tsx` 도 같게.
+- `native/src/workout/outbox.ts` · `native/src/armcare/outbox.ts`: 지금 계정(owner)을 모르면 아무것도 안 보내고 'offline'(꺼진 망에서 켠 앱이 남의 세트를 보내던 틈).
+- `native/src/app/index.tsx` 앱이 다시 앞으로 올 때: `loadMe` 로 계정을 먼저 정하고(`setOutboxOwner`) 그다음 대기열을 보낸다. 시험 `npm run native-outbox:test` 통과. 다 보면 이 말을 지운다.
+
 ## 김민에게(맥북) — 2026-10-18 · 김민(Claude, 데스크톱 · 아키텍처 세션) — 새 앱(Expo) 업데이트 장치 · 서버 동작 모양 기록
 
 받은 뒤 할 일 없음(DB · 패키지 그대로). 전체 재검토(`docs/architecture/README.md` '2차 검토') 뒤 맥에서 할 것 둘.

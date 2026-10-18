@@ -100,6 +100,8 @@ export async function drainChecks<R>(
   draining = true;
   try {
     await loaded;
+    /* 지금 계정을 모르면 보내지 않는다 — 암케어 체크는 세션에 안 묶여 다른 계정에 그대로 남는다(2026-10-18 통합 점검). 다음 기회에 */
+    if (!outboxOwner()) return 'offline';
     for (;;) {
       const owner = outboxOwner();
       /* 지금 계정 것(또는 계정을 모르고 담은 것)만 — 다른 계정 것은 그 사람이 다시 로그인할 때까지 둔다 */

@@ -81,6 +81,12 @@ r = await drainOutbox(async (p) => {
 ok(sent.length === 1 && !('owner' in sent[0]), 'A 로 돌아오면 보내고, 계정 표시(owner)는 빼고 보낸다');
 setOutboxOwner(null);
 outbox.add(set(4));
+sent = [];
+r = await drainOutbox(async (p) => {
+  sent.push(p);
+  return { sets: [] };
+}, () => undefined);
+ok(r === 'offline' && sent.length === 0, '지금 계정을 모르면 아무것도 안 보낸다(꺼진 망에서 켜 계정을 못 읽은 앱)');
 setOutboxOwner('C');
 sent = [];
 await drainOutbox(async (p) => {

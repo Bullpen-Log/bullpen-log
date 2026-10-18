@@ -127,6 +127,8 @@ export async function drainOutbox<R>(
   draining = true;
   try {
     await loaded;
+    /* 지금 계정을 모르면 보내지 않는다 — 계정 없이 담은 줄이 다른 사람 쿠키로 나갈 수 있다(2026-10-18 통합 점검). 다음 기회에 */
+    if (!owner) return 'offline';
     for (;;) {
       /* 지금 계정 것(또는 계정을 모르고 담은 옛 줄)만 — 다른 계정 것은 그 사람이 다시 로그인할 때까지 둔다 */
       const next = [...items]

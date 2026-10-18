@@ -248,7 +248,13 @@ function LoadCard({ v, notices, c }: { v: LoadView; notices?: AnalysisOverview['
       <View style={{ padding: 16, gap: 14 }}>
         <View style={s.between}>
           <Text style={[s.smallBold, { color: c.muted }]}>{v.name} 부하 지수</Text>
-          {zone ? <StatusChip tone={zone.tone} label={zone.label} c={c} /> : <StatusChip tone="neutral" label="쌓는 중" c={c} />}
+          {v.signal ? (
+            <StatusChip tone={v.signal.tone} label={v.signal.label} c={c} />
+          ) : zone ? (
+            <StatusChip tone={zone.tone} label={zone.label} c={c} />
+          ) : (
+            <StatusChip tone="neutral" label="쌓는 중" c={c} />
+          )}
         </View>
 
         {v.ratio != null && zone ? (
@@ -256,10 +262,15 @@ function LoadCard({ v, notices, c }: { v: LoadView; notices?: AnalysisOverview['
             <View style={{ gap: 6 }}>
               {/* 큰 숫자는 검정 — 상태 색은 위 배지 · 밑 한 줄이 말한다(웹과 같다) */}
               <Text style={[s.ratio, { color: c.ink }]}>{v.ratio.toFixed(2)}</Text>
-              <Text style={[s.bodyBold, { color: toneColor(zone.tone, c) }]}>
-                {describeRatio(v.ratio)}
-                <Text style={[s.body, { color: c.muted }]}> · {v.meaning}</Text>
-              </Text>
+              {/* 투구는 홈 · 팔 상태와 같은 한 줄(v.signal — 서버가 loadSignalOf 로), 운동은 지수 구간 그대로 */}
+              {v.signal ? (
+                <Text style={[s.bodyBold, { color: toneColor(v.signal.tone, c) }]}>{v.signal.line}</Text>
+              ) : (
+                <Text style={[s.bodyBold, { color: toneColor(zone.tone, c) }]}>
+                  {describeRatio(v.ratio)}
+                  <Text style={[s.body, { color: c.muted }]}> · {v.meaning}</Text>
+                </Text>
+              )}
               {v.estimated ? (
                 <Text style={[s.small, { color: c.muted }]}>아직 기록이 적어 숫자가 크게 흔들려요. 한 달쯤 기록이 쌓이면 자리를 잡아요.</Text>
               ) : null}

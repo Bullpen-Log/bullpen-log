@@ -219,10 +219,14 @@ export default function SiteScreen() {
   useEffect(() => {
     const sub = AppState.addEventListener('change', (st) => {
       if (st !== 'active') return;
-      drainQueues();
       resetMe();
+      /* 계정을 먼저 안 뒤 보낸다 — 꺼진 망에서 켜 첫 loadMe 가 실패했으면 여기서 처음 계정이 정해진다(2026-10-18 통합 점검) */
       void loadMe().then(
-        (m) => setToday(m.today),
+        (m) => {
+          setToday(m.today);
+          setOutboxOwner(m.userId);
+          drainQueues();
+        },
         () => undefined
       );
     });
