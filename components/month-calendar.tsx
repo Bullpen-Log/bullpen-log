@@ -1,7 +1,13 @@
 'use client';
 
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
-import { ChartLine, ChevronDown, ChevronLeft, ChevronRight, Info } from '@/components/icon';
+import {
+  ChartLine,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  Info,
+} from '@/components/icon';
 import { dateKeyOf, toDateKey } from '@/lib/pitch-stats';
 import { STRONG_EFFORT_PCT, effortBand } from '@/lib/pitch-effort';
 
@@ -303,12 +309,18 @@ export function MonthCalendar({
           <button
             type="button"
             aria-label="다음 달"
+            /* 앞날을 막는 달력은 이번 달 뒤로 못 간다 — 빠른 이동(MonthJump)과 같은 규칙(2026-10-18 전엔 빈 앞 달로 계속 넘어갔다) */
+            disabled={
+              !allowFuture &&
+              dateKeyOf(month.getFullYear(), month.getMonth(), 1).slice(0, 7) >=
+                todayKey.slice(0, 7)
+            }
             onClick={() =>
               onMonthChange(
                 (prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1)
               )
             }
-            className="grid h-10 w-10 place-items-center rounded-full text-sky transition-colors desk:h-8 desk:w-8 desk:rounded-lg desk:border desk:border-line desk:text-muted desk:hover:border-sky desk:hover:text-sky"
+            className="grid h-10 w-10 place-items-center rounded-full text-sky transition-colors desk:h-8 desk:w-8 desk:rounded-lg desk:border desk:border-line desk:text-muted desk:hover:border-sky desk:hover:text-sky disabled:opacity-30 disabled:pointer-events-none"
           >
             <ChevronRight className="h-5 w-5 desk:h-4 desk:w-4" />
           </button>
@@ -554,7 +566,7 @@ function DayGrid({
               className={
                 isToday
                   ? `text-footnote ${todayMarkClass(
-                      mark?.effortPct != null && mark.effortPct >= STRONG_EFFORT_PCT,
+                      mark?.effortPct != null && mark.effortPct >= STRONG_EFFORT_PCT
                     )}`
                   : 'font-medium'
               }
