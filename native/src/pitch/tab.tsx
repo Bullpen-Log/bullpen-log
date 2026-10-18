@@ -1,6 +1,5 @@
 import { type Href, router } from 'expo-router';
 import { useState } from 'react';
-import { SymbolView } from 'expo-symbols';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { isRestSession } from '@/lib/session-type';
@@ -9,6 +8,7 @@ import { formatSpeed } from '@/lib/units';
 import { usePrefs } from '~/lib/prefs';
 import { EMPTY_FIND, filterLogs, isFindActive, type FindQuery } from '@/lib/pitch-find';
 import { PRESSED, SPACE, usePalette } from '~/lib/ui';
+import { Icon } from '~/shell/icon';
 import { AnalysisPill, PageHead, Segmented, ToolCircle } from '~/shell/heading';
 import { dateKeyOf } from './api';
 import { MonthGrid } from './month-grid';
@@ -66,7 +66,7 @@ export function PitchTab({ today, bottom, onWeb }: { today: string; bottom: numb
         {effortOf(l) ? ` · 강도 ${effortOf(l)}` : ''}
         {l.maxVelocity ? ` · ${formatSpeed(l.maxVelocity, speed)}` : ''}
       </Text>
-      {l.videoPaths.length ? <SymbolView name="video.fill" size={14} tintColor={c.sky} /> : null}
+      {l.videoPaths.length ? <Icon name="film" size={15} color={c.sky} /> : null}
       <Text style={{ color: c.muted, fontSize: 17 }}>›</Text>
     </Pressable>
   );
@@ -80,8 +80,8 @@ export function PitchTab({ today, bottom, onWeb }: { today: string; bottom: numb
       ]}
     >
       <PageHead title="투구">
-        <ToolCircle icon="speedometer" label="구속 측정" onPress={() => router.push('/velocity')} />
-        <ToolCircle icon="rotate.3d" label="3D 동작 분석" onPress={() => router.push('/lab' as Href)} />
+        <ToolCircle icon="radar" label="구속 측정" onPress={() => router.push('/velocity')} />
+        <ToolCircle icon="rotate3d" label="3D 동작 분석" onPress={() => router.push('/lab' as Href)} />
         <AnalysisPill view="pitch" />
       </PageHead>
       <Segmented
@@ -106,7 +106,7 @@ export function PitchTab({ today, bottom, onWeb }: { today: string; bottom: numb
               onPress={() => router.push('/pitch/import' as Href)}
               style={({ pressed }) => [styles.row, { backgroundColor: c.card, boxShadow: c.float }, pressed && PRESSED]}
             >
-              <SymbolView name="photo.on.rectangle" size={17} tintColor={c.sky} />
+              <Icon name="image-plus" size={18} color={c.sky} />
               <Text style={[styles.rowMain, { color: c.ink }]}>지난 영상 가져오기</Text>
               <Text style={{ color: c.muted, fontSize: 17 }}>›</Text>
             </Pressable>

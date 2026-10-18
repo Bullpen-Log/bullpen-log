@@ -1,5 +1,4 @@
 import { type Href, router, useLocalSearchParams } from 'expo-router';
-import { SymbolView } from 'expo-symbols';
 import { ActionSheetIOS, Alert, Pressable, ScrollView, StyleSheet, Text, View, type TextStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { isRestSession } from '@/lib/session-type';
@@ -8,6 +7,7 @@ import { formatSpeed, round1, speedLabel, toSpeed } from '@/lib/units';
 import { usePrefs } from '~/lib/prefs';
 import { LocalVideo } from '../../../modules/local-video';
 import { TYPE, usePalette, type Palette } from '~/lib/ui';
+import { Icon } from '~/shell/icon';
 import { ApiError, dateKeyOf, deleteLog, isPhoneVideoPath, phoneAssetId } from '~/pitch/api';
 import { monthOf, refreshMonth, useMonth } from '~/pitch/store';
 import { PitchVideo } from '~/pitch/video';
@@ -131,7 +131,7 @@ export default function PitchDayScreen() {
                         hitSlop={6}
                         style={({ pressed }) => [styles.more, pressed && { backgroundColor: c.chip }]}
                       >
-                        <SymbolView name="ellipsis" size={18} tintColor={c.muted} />
+                        <Icon name="ellipsis" size={20} color={c.muted} />
                       </Pressable>
                     </View>
                     {/* 그날의 느낀점 — 영상보다 위(다시 여는 까닭은 대개 '그날 뭐라고 적었더라'), 남긴 것이 없으면 그리지 않는다 */}

@@ -1,20 +1,21 @@
 import { type Href, router, useFocusEffect } from 'expo-router';
-import { SymbolView } from 'expo-symbols';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState, Pressable, StyleSheet, Text, View } from 'react-native';
-import Animated, { useAnimatedScrollHandler, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
+import Animated, { useAnimatedRef, useAnimatedScrollHandler, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { FeedItem } from '@/lib/report/feed-items';
 import { cacheEpoch, cacheGet, cacheSet } from '~/lib/store';
 import { PRESSED, SPACE, usePalette } from '~/lib/ui';
+import { Icon } from '~/shell/icon';
 import { REST_SESSION_TYPE } from '@/lib/session-type';
 import { Wordmark } from '~/shell/wordmark';
+import { Pulse } from '~/shell/motion';
 import { openCheckin } from '~/shell/web-nav';
 import { ApiError, call, dateKeyOf } from '~/pitch/api';
 import { MonthGrid } from '~/pitch/month-grid';
 import { monthOf, useMonth } from '~/pitch/store';
 import { loadHome, type AppHome, type HomeRing } from './api';
-import { DayCard, resetDayCache } from './day-card';
+import { DayCards, layoutMove, resetDayCache } from './day-card';
 import { resetEventsCache } from './events';
 import { FeedCard } from './feed';
 import { RingsCard } from './rings';
@@ -38,7 +39,6 @@ export function HomeTab({
   bottom,
   onWeb,
   onTab,
-  onWebHome,
 }: {
   today: string;
   bottom: number;
@@ -46,8 +46,6 @@ export function HomeTab({
   onWeb: (href: string) => void;
   /** 다른 탭으로(트레이닝 · 영양) */
   onTab: (href: string) => void;
-  /** 웹 홈을 연다(일정 · 자세한 그날 칸) — 홈 탭을 다시 누르면 앱 홈 */
-  onWebHome: () => void;
 }) {
   const c = usePalette();
   const inset = useSafeAreaInsets();
@@ -150,6 +148,24 @@ export function HomeTab({
 
   const dayLogs = (logs ?? []).filter((l) => dateKeyOf(l.date) === selected);
 
+  /*
+   * 날을 고르면 그날 칸이 화면 밖일 때 320ms 뒤 부드럽게 굴려 보이게(웹 pitch-log-panel.tsx — 펴지는 움직임이 끝난 뒤).
+   * 위 막대 밑에 그날 칸 머리가 오도록.
+   */
+  const scrollRef = useAnimatedRef<Animated.ScrollView>();
+  const viewH = useRef(0);
+  const dayY = useRef(0);
+  const calY = useRef(0);
+  useEffect(() => {
+    if (!selected) return;
+    const t = setTimeout(() => {
+      const top = calY.current + dayY.current;
+      const visibleBottom = lastY.value + viewH.current - (bottom + 24);
+      if (top + 160 > visibleBottom) scrollRef.current?.scrollTo({ y: Math.max(0, top - inset.top - BAR_H - 16), animated: true });
+    }, 320);
+    return () => clearTimeout(t);
+  }, [selected, bottom, inset.top, lastY, scrollRef]);
+
   const openNotice = () =>
     router.push({
       pathname: '/notice' as Href as never,
@@ -161,55 +177,68 @@ export function HomeTab({
   return (
     <View style={{ flex: 1, backgroundColor: c.page }}>
       <Animated.ScrollView
+        ref={scrollRef}
         onScroll={onScroll}
+        onLayout={(e) => (viewH.current = e.nativeEvent.layout.height)}
         scrollEventThrottle={16}
         style={{ flex: 1 }}
-        contentContainerStyle={[
-          { paddingTop: inset.top + BAR_H + SPACE.section, paddingBottom: bottom + 24, paddingHorizontal: SPACE.side, gap: SPACE.gap },
-          READABLE,
-        ]}
+        contentContainerStyle={[{ paddingTop: inset.top + BAR_H + SPACE.section, paddingBottom: bottom + 24, paddingHorizontal: SPACE.side }, READABLE]}
       >
+        {/* 웹 홈과 같은 차례 · 간격: 링 → 24 → 요약 칸 → 24 → 달력(+ 16 그날 칸 둘) → 24 → 알림 · 첫날 카드 */}
         {home ? (
           <>
             <RingsCard rings={home.rings} onPress={openRing} />
-            <FeedCard items={home.feed} onOpen={openFeed} />
+            <View style={{ marginTop: SPACE.section }}>
+              <FeedCard items={home.feed} onOpen={openFeed} />
+            </View>
           </>
         ) : error ? (
           <Text style={{ color: c.danger, fontSize: 15 }}>{error}</Text>
         ) : (
-          <View style={[styles.card, { backgroundColor: c.card, boxShadow: c.float, height: 260 }]} />
+          /* 불러오는 동안 — 웹 @home/today/loading.tsx 의 뼈대(216 · 180)가 숨 쉬듯 옅어졌다 진해짐 */
+          <>
+            <Pulse style={[styles.card, { height: 142, backgroundColor: c.line }]} />
+            <Pulse style={[styles.card, { height: 201, marginTop: SPACE.section, backgroundColor: c.line }]} />
+          </>
         )}
 
-        {/* 홈 달력은 앞날 · 다음 달도 열린다 — 일정을 미리 적는 곳(엔진이 다음 등판을 읽는다, 웹 allowFuture) */}
-        <MonthGrid
-          month={month}
-          today={today}
-          logs={logs}
-          selected={selected}
-          allowFuture
-          onMonth={setMonth}
-          onDay={(day) => setSelected((cur) => (cur === day ? null : day))}
-        />
-        {selected ? <DayCard date={selected} today={today} logs={dayLogs} onTab={onTab} onClose={() => setSelected(null)} /> : null}
+        <Animated.View layout={layoutMove} style={{ marginTop: SPACE.section }} onLayout={(e) => (calY.current = e.nativeEvent.layout.y)}>
+          {/* 홈 달력은 앞날 · 다음 달도 열린다 — 일정을 미리 적는 곳(엔진이 다음 등판을 읽는다, 웹 allowFuture). 날을 고르면 칸이 납작해진다(웹 compact) */}
+          <MonthGrid
+            month={month}
+            today={today}
+            logs={logs}
+            selected={selected}
+            allowFuture
+            compact={selected != null}
+            onMonth={setMonth}
+            onDay={(day) => setSelected((cur) => (cur === day ? null : day))}
+          />
+          {selected ? (
+            <View style={{ marginTop: 16 }} onLayout={(e) => (dayY.current = e.nativeEvent.layout.y)}>
+              <DayCards date={selected} today={today} logs={dayLogs} onTab={onTab} onClose={() => setSelected(null)} />
+            </View>
+          ) : null}
+        </Animated.View>
 
         {/* 캘린더 밑 — 알림 카드 · 첫날 카드(웹 home-page.tsx TodayBody 와 같은 차례) */}
-        {home?.painWords ? (
-          <Warn
-            title="지금 통증이 있으신가요?"
-            body="통증이 있으면 던지지 말고 전문의와 상담하세요."
-            why={`최근 투구 일지 메모에 ‘${home.painWords.join(', ')}’ 같은 말이 있었어요. 통증인지 알 수 없어서, 확인될 때까지 투구는 쉬고 운동은 회복 · 가동성만 골랐어요. 체크인을 남기면 바로 평소 계획으로 돌아가요.`}
-            action="오늘 체크인하기"
-            onPress={() => openCheckin()}
-          />
+        {home?.painWords || home?.recovering || home?.firstDay ? (
+          <Animated.View layout={layoutMove} style={{ marginTop: SPACE.section, gap: SPACE.gap }}>
+            {home.painWords ? (
+              <Warn
+                title="지금 통증이 있으신가요?"
+                body="통증이 있으면 던지지 말고 전문의와 상담하세요."
+                why={`최근 투구 일지 메모에 ‘${home.painWords.join(', ')}’ 같은 말이 있었어요. 통증인지 알 수 없어서, 확인될 때까지 투구는 쉬고 운동은 회복 · 가동성만 골랐어요. 체크인을 남기면 바로 평소 계획으로 돌아가요.`}
+                action="오늘 체크인하기"
+                onPress={() => openCheckin()}
+              />
+            ) : null}
+            {home.recovering ? <Warn title="오늘은 회복 운동만 골랐어요" body="최근 체크인에 통증이 있어서 무게 운동은 뺐어요." /> : null}
+            {home.firstDay ? (
+              <FirstDayCard today={today} status={home.firstDay} locked={home.pitchLocked} onTab={onTab} onRested={() => void refresh()} />
+            ) : null}
+          </Animated.View>
         ) : null}
-        {home?.recovering ? <Warn title="오늘은 회복 운동만 골랐어요" body="최근 체크인에 통증이 있어서 무게 운동은 뺐어요." /> : null}
-        {home?.firstDay ? (
-          <FirstDayCard today={today} status={home.firstDay} locked={home.pitchLocked} onTab={onTab} onRested={() => void refresh()} />
-        ) : null}
-
-        <Pressable accessibilityRole="button" onPress={onWebHome} style={styles.webLink}>
-          <Text style={{ color: c.muted, fontSize: 14 }}>웹 홈 달력으로 보기 ›</Text>
-        </Pressable>
       </Animated.ScrollView>
 
       {/* 위 막대 — 홈은 로고가 가운데, 오른쪽은 알림 종만(웹 2026-10-14 "인스타처럼"). 시계 자리는 늘 막대 색으로 덮는다 */}
@@ -223,7 +252,7 @@ export function HomeTab({
           hitSlop={6}
           style={({ pressed }) => [styles.bell, pressed && { backgroundColor: c.chip }]}
         >
-          <SymbolView name="bell" size={20} tintColor={c.muted} />
+          <Icon name="bell" size={19} color={c.muted} />
           {pending > 0 ? <View style={[styles.dot, { backgroundColor: c.warn, borderColor: c.page }]} /> : null}
         </Pressable>
       </Animated.View>

@@ -8,6 +8,8 @@ const LIGHT = {
   ink: '#1d1d1f',
   muted: '#6e6e73',
   line: '#e5e5ea',
+  /* 진한 선 — 사이트 --color-line-strong(작은 그래프 바탕 · 화살표) */
+  lineStrong: '#c7c7cc',
   sky: '#0a84d6',
   danger: '#d70015',
   chip: '#e5e5ea',
@@ -37,6 +39,8 @@ const DARK: typeof LIGHT = {
   ink: '#f5f5f7',
   muted: '#98989d',
   line: '#38383a',
+  /* 진한 선 — 사이트 --color-line-strong(작은 그래프 바탕 · 화살표) */
+  lineStrong: '#48484a',
   sky: '#0a84ff',
   danger: '#ff453a',
   chip: '#2c2c2e',
@@ -58,6 +62,8 @@ const NAVY: typeof LIGHT = {
   ink: '#e8eef7',
   muted: '#94a3b8',
   line: '#2a3648',
+  /* 진한 선 — 사이트 --color-line-strong(작은 그래프 바탕 · 화살표) */
+  lineStrong: '#44556e',
   sky: '#0a84d6',
   danger: '#f87171',
   chip: '#1e293b',
@@ -101,3 +107,9 @@ export const SPACE = { pad: 20, gap: 16, section: 24, side: 16 } as const;
 
 /** 누르면 살짝 눌림 — 사이트 카드의 [data-pressed] scale(0.985) */
 export const PRESSED = { transform: [{ scale: 0.985 }] } satisfies ViewStyle;
+
+/** '#0a84d6' + 0.4 → 'rgba(10,132,214,0.4)' — 웹의 bg-sky/40 · ink/8 같은 투명 색 */
+export const withAlpha = (hex: string, a: number) => {
+  const n = parseInt(hex.slice(1, 7), 16);
+  return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
+};

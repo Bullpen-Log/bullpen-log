@@ -491,7 +491,7 @@ export default function SiteScreen() {
       />
       {showHome && today ? (
         <View style={StyleSheet.absoluteFill}>
-          <HomeTab today={today} bottom={TAB_BAR_HEIGHT} onWeb={openWeb} onTab={goTab} onWebHome={() => setWebHome(true)} />
+          <HomeTab today={today} bottom={TAB_BAR_HEIGHT} onWeb={openWeb} onTab={goTab} />
         </View>
       ) : null}
       {showTraining && today ? (

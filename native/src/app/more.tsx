@@ -1,11 +1,11 @@
 import { GlassView, isLiquidGlassAvailable } from 'expo-glass-effect';
-import { SymbolView, type SFSymbol } from 'expo-symbols';
 import { type Href, router } from 'expo-router';
 import { useEffect } from 'react';
 import { Image } from 'expo-image';
 import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withTiming, Easing } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Icon, type IconName } from '~/shell/icon';
 import { useMenu, type MenuGroup } from '~/shell/menu-store';
 import { DEFAULT_TABS } from '~/shell/tab-bar';
 import { leaveTo } from '~/shell/web-nav';
@@ -16,22 +16,24 @@ import { leaveTo } from '~/shell/web-nav';
  * 하단 탭에 있는 넷(홈 · 투구 · 트레이닝 · 영양)은 뺀다. 막을 누르면 닫힌다(아이폰 폴더처럼 닫기 단추 없음).
  * 목록은 사이트가 알려 준 메뉴 묶음(lib/nav.ts visibleGroups · 잠김까지). 누르면 닫고 그곳으로(앱 화면이 있는 곳은 앱 화면 — 껍데기가 가른다).
  */
-const ICON: Record<string, SFSymbol> = {
-  home: 'house.fill',
-  baseball: 'baseball.fill',
-  dumbbell: 'dumbbell.fill',
-  film: 'film.fill',
-  utensils: 'fork.knife',
+/* 웹 nav-icons.tsx NAV_ICONS 와 같은 선 그림 */
+const ICON: Record<string, IconName> = {
+  home: 'house',
+  baseball: 'baseball',
+  dumbbell: 'dumbbell',
+  film: 'film',
+  utensils: 'utensils',
   target: 'target',
-  book: 'book.fill',
-  settings: 'gearshape.fill',
-  shield: 'shield.fill',
-  gauge: 'gauge.with.dots.needle.67percent',
-  clapper: 'movieclapper.fill',
-  radar: 'scope',
-  body: 'figure.stand',
-  community: 'bubble.left.and.bubble.right.fill',
-  support: 'lifepreserver.fill',
+  book: 'book-open',
+  settings: 'settings',
+  shield: 'shield',
+  gauge: 'gauge',
+  clapper: 'clapperboard',
+  radar: 'radar',
+  body: 'person-standing',
+  community: 'messages-square',
+  support: 'life-buoy',
+  menu: 'menu',
 };
 /** 하단 탭에도 있는 메뉴 항목 — 폴더에서 뺀다(웹 detail-menu.tsx inTabBar: 같은 길이 두 번). 잠기면 주소가 바뀌어 이름 · 그림으로 견준다(네이티브3) */
 const inTabBar = (it: { label: string; icon: string }) => DEFAULT_TABS.some((t) => t.label === it.label && t.icon === it.icon);
@@ -67,7 +69,7 @@ export default function MoreScreen() {
 
   const close = () => router.back();
   const open = (href: string) => leaveTo(href);
-  const tileOf = (key: string, label: string, icon: SFSymbol, onPress: () => void, locked = false) => (
+  const tileOf = (key: string, label: string, icon: IconName, onPress: () => void, locked = false) => (
     <Pressable
       key={key}
       accessibilityRole="button"
@@ -76,10 +78,10 @@ export default function MoreScreen() {
       style={({ pressed }) => [styles.tile, pressed && { transform: [{ scale: 0.95 }] }]}
     >
       <View style={[styles.icon, { width: tile, height: tile, borderRadius: tile * 0.28, opacity: locked ? 0.55 : 1 }]}>
-        <SymbolView name={icon} size={tile * 0.44} tintColor={FG} />
+        <Icon name={icon} size={tile * 0.5} color={FG} />
         {locked ? (
           <View style={styles.lock}>
-            <SymbolView name="lock.fill" size={10} tintColor={FG} />
+            <Icon name="lock" size={11} color={FG} />
           </View>
         ) : null}
       </View>
@@ -95,8 +97,8 @@ export default function MoreScreen() {
       {folders.map((g, gi) => (
         <View key={g.title ?? `g${gi}`} style={[styles.grid, gi > 0 && { marginTop: 4 }]}>
           {g.title ? <Text style={styles.groupTitle}>{g.title}</Text> : null}
-          {g.items.map((it) => tileOf(it.href, it.label, ICON[it.icon] ?? 'circle.fill', () => open(it.href), it.locked))}
-          {gi === folders.length - 1 ? tileOf('settings', '설정', 'gearshape.fill', () => router.push('/settings' as Href)) : null}
+          {g.items.map((it) => tileOf(it.href, it.label, ICON[it.icon] ?? 'menu', () => open(it.href), it.locked))}
+          {gi === folders.length - 1 ? tileOf('settings', '설정', 'settings', () => router.push('/settings' as Href)) : null}
         </View>
       ))}
       {/* 내 정보 — 폴더 밑 줄(웹 Avatar · 닉네임 · '내 정보') */}

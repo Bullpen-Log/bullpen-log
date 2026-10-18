@@ -1,6 +1,5 @@
 import * as Haptics from 'expo-haptics';
 import { type Href, router, useLocalSearchParams } from 'expo-router';
-import { SymbolView } from 'expo-symbols';
 import { useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -8,6 +7,7 @@ import { REST_SESSION_TYPE } from '@/lib/session-type';
 import { ApiError, call } from '~/pitch/api';
 import { openCheckin } from '~/shell/web-nav';
 import { usePalette, type Palette } from '~/lib/ui';
+import { Icon } from '~/shell/icon';
 
 /**
  * 알림 종의 '오늘 할 일' — 웹 휴대폰 위 막대 종의 아래 시트(components/notice-bell.tsx NoticePanel variant sheet)와 같은 칸:
@@ -63,7 +63,7 @@ export default function NoticeScreen() {
 
       {allDone ? (
         <View style={{ flexDirection: 'row', gap: 10, alignItems: 'center', paddingVertical: 12 }}>
-          <SymbolView name="checkmark.circle.fill" tintColor={c.ok} size={22} />
+          <Icon name="circle-check" color={c.ok} size={22} />
           <View style={{ flex: 1 }}>
             <Text style={{ color: c.ink, fontSize: 15, fontWeight: '600' }}>지금은 알림이 없어요</Text>
             <Text style={{ color: c.muted, fontSize: 13, marginTop: 2 }}>오늘 체크인과 투구 기록을 다 남겼어요.</Text>
@@ -72,7 +72,7 @@ export default function NoticeScreen() {
       ) : null}
 
       {!checkinDone ? (
-        <Item c={c} icon="list.clipboard" title="오늘 체크인을 아직 안 했어요" body="몇 초면 끝나요. 오늘 운동 추천에 바로 반영해요.">
+        <Item c={c} icon="clipboard-list" title="오늘 체크인을 아직 안 했어요" body="몇 초면 끝나요. 오늘 운동 추천에 바로 반영해요.">
           <Pill c={c} label="체크인하기 ›" primary onPress={() => openCheckin()} />
         </Item>
       ) : null}
@@ -105,11 +105,11 @@ export default function NoticeScreen() {
   );
 }
 
-function Item({ c, icon, title, body, children }: { c: Palette; icon: 'list.clipboard' | 'target'; title: string; body: string; children: React.ReactNode }) {
+function Item({ c, icon, title, body, children }: { c: Palette; icon: 'clipboard-list' | 'target'; title: string; body: string; children: React.ReactNode }) {
   return (
     <View style={{ borderRadius: 16, padding: 16, backgroundColor: c.page }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-        <SymbolView name={icon} tintColor={c.sky} size={16} />
+        <Icon name={icon} color={c.sky} size={16} />
         <Text style={{ flex: 1, color: c.ink, fontSize: 15, fontWeight: '600' }}>{title}</Text>
       </View>
       <Text style={{ color: c.muted, fontSize: 13, lineHeight: 19, marginTop: 4, marginBottom: 10 }}>{body}</Text>

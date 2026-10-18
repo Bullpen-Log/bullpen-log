@@ -1,6 +1,5 @@
 import * as ImagePicker from 'expo-image-picker';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
-import { SymbolView } from 'expo-symbols';
 import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -27,6 +26,7 @@ import {
 import { LocalVideo } from '../../../modules/local-video';
 import { PICK_ORIGINAL, attach, markImported } from '~/pitch/attach';
 import { TYPE, usePalette } from '~/lib/ui';
+import { Icon } from '~/shell/icon';
 import {
   ApiError,
   createLog,
@@ -362,7 +362,7 @@ function EntryForm({
             <Text style={{ color: c.muted, fontSize: 13, flex: 1 }} numberOfLines={1}>
               {more ? '' : '구속 · 만족도 · 느낀점 · 영상'}
             </Text>
-            <SymbolView name={more ? 'chevron.up' : 'chevron.down'} size={13} tintColor={c.muted} />
+            <Icon name={more ? 'chevron-up' : 'chevron-down'} size={16} color={c.muted} />
           </Pressable>
         ) : null}
 

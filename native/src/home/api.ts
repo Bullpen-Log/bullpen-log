@@ -31,13 +31,26 @@ export async function loadHome(): Promise<AppHome> {
 export type DayDetail = {
   date: string;
   training: {
-    exercises: { id: string; title: string; done: boolean; planned: string | null; weightKg: number | null }[];
+    exercises: {
+      id: string;
+      title: string;
+      category: string;
+      done: boolean;
+      planned: string | null;
+      setsDone: number | null;
+      repsDone: number | null;
+      holdSecondsDone: number | null;
+      weightKg: number | null;
+    }[];
     intensity: number | null;
+    memo?: string | null;
   };
   nutrition: {
     kcal: number;
+    carbs: number;
     protein: number;
-    target: { kcal: number; protein: number };
+    fat: number;
+    target: { kcal: number; carbs: number; protein: number; fat: number };
     meals: { meal: string; label: string; kcal: number; items: { name: string; amount: string; kcal: number }[] }[];
   };
   checkin: null | {
@@ -45,6 +58,7 @@ export type DayDetail = {
     sleep: string;
     sleepQuality: number | null;
     parts: { label: string; value: string }[];
+    details: { label: string; value: string }[];
     note: string | null;
   };
 };

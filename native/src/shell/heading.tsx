@@ -1,9 +1,9 @@
 import { type Href, router } from 'expo-router';
-import { SymbolView, type SFSymbol } from 'expo-symbols';
 import { useEffect, useState, type ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 import { TYPE, usePalette } from '~/lib/ui';
+import { Icon, type IconName } from '~/shell/icon';
 
 /**
  * 탭 첫 화면 머리 — 웹 휴대폰과 같은 꼴(components/ui.tsx PageHeading inlineAction · analysis-link.tsx · segmented.tsx):
@@ -30,14 +30,14 @@ export function AnalysisPill({ view }: { view: 'pitch' | 'training' }) {
       onPress={() => router.push(`/analysis?view=${view}` as Href)}
       style={({ pressed }) => [st.pill, { backgroundColor: c.chip }, pressed && { opacity: 0.6 }]}
     >
-      <SymbolView name="chart.bar.fill" size={15} tintColor={c.sky} />
+      <Icon name="chart-no-axes-column" size={16} color={c.sky} />
       <Text style={{ color: c.ink, fontSize: 15, fontWeight: '600' }}>분석</Text>
     </Pressable>
   );
 }
 
 /** 그림만 있는 40pt 동그라미 도구 단추(웹 투구 머리의 구속 측정 · 3D 동작 분석) */
-export function ToolCircle({ icon, label, onPress }: { icon: SFSymbol; label: string; onPress: () => void }) {
+export function ToolCircle({ icon, label, onPress }: { icon: IconName; label: string; onPress: () => void }) {
   const c = usePalette();
   return (
     <Pressable
@@ -47,7 +47,7 @@ export function ToolCircle({ icon, label, onPress }: { icon: SFSymbol; label: st
       hitSlop={4}
       style={({ pressed }) => [st.circle, { backgroundColor: c.chip }, pressed && { opacity: 0.6 }]}
     >
-      <SymbolView name={icon} size={17} tintColor={c.skyStrong} />
+      <Icon name={icon} size={16} color={c.skyStrong} />
     </Pressable>
   );
 }

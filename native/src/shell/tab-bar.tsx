@@ -1,11 +1,11 @@
 import * as Haptics from 'expo-haptics';
 import { GlassView, isLiquidGlassAvailable } from 'expo-glass-effect';
-import { SymbolView, type SFSymbol } from 'expo-symbols';
 import { useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withDelay, withSequence, withSpring } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { usePalette, useTheme } from '~/lib/ui';
+import { Icon, type IconName } from '~/shell/icon';
 
 /**
  * 앱 아래 탭 막대 — 웹 휴대폰 탭 막대(components/app-shell/mobile-tabs.tsx · app/globals.css [data-tab-bar] · components/tab-lens.ts)와 같은 모양 ·
@@ -24,12 +24,13 @@ export const DEFAULT_TABS: ShellTab[] = [
   { href: '/more', label: '더보기', icon: 'menu' },
 ];
 
-const SYMBOL: Record<string, SFSymbol> = {
-  home: 'house.fill',
-  baseball: 'baseball.fill',
-  dumbbell: 'dumbbell.fill',
-  utensils: 'fork.knife',
-  menu: 'square.grid.2x2.fill',
+/* 웹 하단 탭과 같은 선 그림(nav-icons.tsx · glyphs.tsx Squares) — 26px */
+const GLYPH: Record<string, IconName> = {
+  home: 'house',
+  baseball: 'baseball',
+  dumbbell: 'dumbbell',
+  utensils: 'utensils',
+  menu: 'squares',
 };
 
 /**
@@ -121,7 +122,7 @@ export function TabBar({ tabs, active, onPress }: { tabs: ShellTab[]; active: st
             }}
             style={({ pressed }) => [styles.item, t.locked && { opacity: 0.45 }, pressed && { transform: [{ scale: 0.94 }] }]}
           >
-            <SymbolView name={SYMBOL[t.icon] ?? 'circle.fill'} tintColor={color} size={24} />
+            <Icon name={GLYPH[t.icon] ?? 'house'} size={26} color={color} />
             <Text style={[styles.label, { color, fontWeight: on ? '600' : '500' }]}>{t.label}</Text>
           </Pressable>
         );
