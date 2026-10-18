@@ -1,6 +1,6 @@
 import { router } from 'expo-router';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { Alert, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Linking, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { tiltOf } from '@/lib/device-tilt';
 import { NO_CALIBRATION, type CalFit } from '@/lib/velocity-calibration';
@@ -69,6 +69,8 @@ export default function VelocityScreen() {
   const [zone, setZone] = useState<ZoneRect>(DEFAULT_SETUP.zone);
   const [info, setInfo] = useState<StartInfo | null>(null);
   const [error, setError] = useState<string | null>(null);
+  /** 카메라 권한을 거절했나 — 설정을 바꾸면 iOS 가 앱을 다시 켜므로 돌아와 다시 켜기는 없다 */
+  const [denied, setDenied] = useState(false);
   const [fps, setFps] = useState<{ fps: number; dropped: number } | null>(null);
   const [status, setStatus] = useState<{ status: CaptureStatus; visible: number }>({ status: 'armed', visible: 0 });
   const [notice, setNotice] = useState<string | null>(null);
@@ -206,7 +208,11 @@ export default function VelocityScreen() {
     /* 사이트(dual-capture start)와 같은 옵션 — 투수 뒤라 2배 · 먼 곳만 초점 */
     DualCamera.start({ fps: 60, zoom: 2, armed: false, wide: false, focus: { x: 0.5, y: 0.5 }, focusFar: true })
       .then((i) => alive && setInfo(i))
-      .catch((e: unknown) => alive && setError(e instanceof Error ? e.message : String(e)));
+      .catch((e: unknown) => {
+        if (!alive) return;
+        setDenied((e as { code?: string }).code === 'denied');
+        setError(e instanceof Error ? e.message : String(e));
+      });
     void DualCamera.level({ on: true });
     return () => {
       alive = false;
@@ -346,6 +352,11 @@ export default function VelocityScreen() {
       {blocked ? (
         <Panel inset={inset.bottom} title={blocked}>
           <Button label="닫기" onPress={() => router.back()} />
+        </Panel>
+      ) : error && step !== 'measure' ? (
+        <Panel inset={inset.bottom} title="카메라를 켜지 못했어요" body={error}>
+          {denied ? <Button label="설정 열기" onPress={() => void Linking.openSettings()} /> : null}
+          <Button label="닫기" kind={denied ? 'ghost' : 'primary'} onPress={() => router.back()} />
         </Panel>
       ) : step === 'loading' ? null : step === 'ask' && stored ? (
         <Panel inset={inset.bottom} title="지난 설정으로 할까요?" body={`${stored.sessionType} · 투수 뒤`}>
