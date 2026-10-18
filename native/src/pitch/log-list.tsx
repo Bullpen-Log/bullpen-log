@@ -15,7 +15,7 @@ import { fadeIn, rowIn } from '~/shell/motion';
 import { Press } from '~/shell/press';
 import type { PitchLog } from './api';
 import { FindBar } from './find-bar';
-import { usePathThumbs } from './store';
+import { thumbSource, usePathThumbs, type Thumb } from './store';
 
 /**
  * 투구 목록 — 웹 app/(app)/videos/video-gallery.tsx 와 같은 꼴.
@@ -351,7 +351,7 @@ export function ComparePickBar({ bottom }: { bottom: number }) {
   );
 }
 
-function ClipThumb({ clip, url }: { clip: Clip; url: string | undefined }) {
+function ClipThumb({ clip, url }: { clip: Clip; url: Thumb | undefined }) {
   const c = usePalette();
   if (!clip.path) {
     const strong = !clip.rest && clip.effortPct >= STRONG_EFFORT_PCT;
@@ -370,7 +370,7 @@ function ClipThumb({ clip, url }: { clip: Clip; url: string | undefined }) {
   }
   return (
     <View style={[styles.thumb, { backgroundColor: withAlpha(c.chip, 0.5) }]}>
-      {url ? <Image source={{ uri: url }} contentFit="cover" transition={160} style={StyleSheet.absoluteFill} /> : <Icon name="film" size={20} color={c.lineStrong} />}
+      {url ? <Image source={thumbSource(url)} contentFit="cover" transition={160} style={StyleSheet.absoluteFill} /> : <Icon name="film" size={20} color={c.lineStrong} />}
     </View>
   );
 }

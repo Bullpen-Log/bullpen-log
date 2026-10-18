@@ -12,7 +12,7 @@ import { Icon } from '~/shell/icon';
 import { fadeIn, rowIn } from '~/shell/motion';
 import { Press } from '~/shell/press';
 import type { PitchLog } from './api';
-import { repOf, setFeatured, useFeatured, usePathThumbs, useVelocityDays } from './store';
+import { repOf, setFeatured, thumbSource, useFeatured, usePathThumbs, useVelocityDays } from './store';
 import { PitchVideo } from './video';
 
 /**
@@ -153,7 +153,7 @@ export function PitchDayPanel({ date, logs }: { date: string; logs: PitchLog[] }
                     >
                       <View style={[styles.thumb, { backgroundColor: withAlpha(c.chip, 0.5) }]}>
                         {thumbs[p] ? (
-                          <Image source={{ uri: thumbs[p] }} contentFit="cover" transition={300} style={StyleSheet.absoluteFill} />
+                          <Image source={thumbSource(thumbs[p])} contentFit="cover" transition={300} style={StyleSheet.absoluteFill} />
                         ) : (
                           <Icon name="film" size={16} color={withAlpha(c.sky, 0.7)} />
                         )}

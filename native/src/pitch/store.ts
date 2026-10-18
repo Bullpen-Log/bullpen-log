@@ -2,7 +2,9 @@ import { useCallback, useEffect, useReducer, useSyncExternalStore } from 'react'
 import { isRestSession } from '@/lib/session-type';
 import { cacheEpoch, cacheGet, cacheSet } from '~/lib/store';
 import { rpc } from '~/lib/rpc';
-import { isPhoneVideoPath, loadAll, loadMonth, serverThumbUrls, type PitchLog } from './api';
+import { createVideoPlayer, type VideoThumbnail } from 'expo-video';
+import { LocalVideo } from '../../modules/local-video';
+import { isPhoneVideoPath, loadAll, loadMonth, phoneAssetId, serverThumbUrls, serverVideoUrls, type PitchLog } from './api';
 
 /**
  * 달마다 받은 투구 기록을 앱이 쥐고 있다가 화면을 열면 바로 그린다(검토 D10 '받아 둔 값 먼저') — 그리고 뒤에서 새로 받는다.
@@ -99,35 +101,64 @@ export const monthOf = (dateKey: string) => dateKey.slice(0, 7);
  * 영상 달력 칸의 장면 그림 — 그날 대표 영상(쉬는 날 기록 빼고 처음 올린 영상, 웹 video-calendar repOf)의 썸네일 주소.
  * 받은 주소는 앱이 쥐고 있어 달을 오가도 다시 묻지 않는다(서명 주소라 앱을 다시 켜면 새로 받는다).
  */
-const thumbUrls = new Map<string, string | null>();
-/** 영상 경로 → 장면 그림 주소(목록 줄 · 달력 칸이 같이 쓴다). 못 받았거나 그림이 없는 영상은 빠진다 */
-export function usePathThumbs(paths: string[]): Record<string, string> {
+const thumbUrls = new Map<string, Thumb | null>();
+/** 장면 그림 — 서버에 저장해 둔 그림 주소, 없으면 영상에서 뽑은 한 장면(expo-image 가 둘 다 받는다) */
+export type Thumb = string | VideoThumbnail;
+export const thumbSource = (t: Thumb) => (typeof t === 'string' ? { uri: t } : t);
+/**
+ * 그림이 없는 영상(웹: <video #t=0.5> 로 한 장면) — 재생 주소를 받아 0.5초 장면을 하나 뽑는다. 한 번에 하나씩(재생기를 여럿 띄우지 않게).
+ */
+async function frameThumbs(paths: string[]): Promise<void> {
+  const urls = await serverVideoUrls(paths).catch(() => ({}) as Record<string, string>);
+  for (const p of paths) {
+    /* 폰 영상은 앱 안 영상 폴더의 파일에서(이 폰에 없으면 필름 그림) */
+    const url = isPhoneVideoPath(p) ? await LocalVideo.fileUrl({ id: phoneAssetId(p) }).then((r) => r.url, () => null) : urls[p];
+    if (!url) continue;
+    const player = createVideoPlayer(url);
+    try {
+      const [shot] = await player.generateThumbnailsAsync(0.5, { maxWidth: 320 });
+      if (shot) thumbUrls.set(p, shot);
+    } catch {
+      /* 못 뽑으면 필름 그림 그대로 */
+    } finally {
+      player.release();
+    }
+  }
+}
+/** 영상 경로 → 장면 그림(목록 줄 · 달력 칸이 같이 쓴다). 못 받은 영상은 빠진다 */
+export function usePathThumbs(paths: string[]): Record<string, Thumb> {
   const [, bump] = useReducer((n: number) => n + 1, 0);
-  const want = [...new Set(paths)].filter((p) => !isPhoneVideoPath(p) && !thumbUrls.has(p));
+  const want = [...new Set(paths)].filter((p) => !thumbUrls.has(p));
   const key = want.join('|');
   useEffect(() => {
     if (!key) return;
     const ask = key.split('|');
     let alive = true;
-    void serverThumbUrls(ask)
-      .then((got) => {
+    /* 서버에 저장해 둔 그림 먼저(폰 영상은 서버에 없다) */
+    void serverThumbUrls(ask.filter((p) => !isPhoneVideoPath(p)))
+      .then(async (got) => {
         for (const p of ask) thumbUrls.set(p, got[p] ?? null);
         if (alive) bump();
+        const none = ask.filter((p) => !got[p]);
+        if (none.length) {
+          await frameThumbs(none);
+          if (alive) bump();
+        }
       })
       .catch(() => {});
     return () => {
       alive = false;
     };
   }, [key]);
-  const out: Record<string, string> = {};
+  const out: Record<string, Thumb> = {};
   for (const p of paths) {
-    const url = thumbUrls.get(p);
-    if (url) out[p] = url;
+    const t = thumbUrls.get(p);
+    if (t) out[p] = t;
   }
   return out;
 }
 
-export function useDayThumbs(logs: PitchLog[] | null): Record<string, string> {
+export function useDayThumbs(logs: PitchLog[] | null): Record<string, Thumb> {
   const pick = useFeatured();
   const paths = new Map<string, string[]>();
   for (const l of logs ?? []) {
@@ -141,7 +172,7 @@ export function useDayThumbs(logs: PitchLog[] | null): Record<string, string> {
     if (r) reps.set(day, r);
   }
   const urls = usePathThumbs([...reps.values()]);
-  const out: Record<string, string> = {};
+  const out: Record<string, Thumb> = {};
   for (const [day, p] of reps) if (urls[p]) out[day] = urls[p];
   return out;
 }

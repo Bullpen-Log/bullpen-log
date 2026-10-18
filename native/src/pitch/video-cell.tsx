@@ -1,4 +1,5 @@
 import { Image } from 'expo-image';
+import { thumbSource, type Thumb } from './store';
 import { StyleSheet, Text, View } from 'react-native';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 import { STRONG_EFFORT_PCT, effortBand } from '@/lib/pitch-effort';
@@ -25,7 +26,7 @@ export type VideoDay = {
   pitches: number;
   effortPct: number;
   videos: number;
-  thumb: string | null;
+  thumb: Thumb | null;
   /** 체크인 메모를 남긴 날 — 오른쪽 위 쪽지 */
   noted?: boolean;
 };
@@ -48,7 +49,7 @@ export function VideoCell({ d }: { d: VideoDay }) {
         <View style={[StyleSheet.absoluteFill, styles.noThumb, { backgroundColor: withAlpha(c.skyTint, 0.7) }]}>
           <Icon name="film" size={16} color={withAlpha(c.sky, 0.7)} />
         </View>
-        {d.thumb ? <Image source={{ uri: d.thumb }} contentFit="cover" transition={160} style={StyleSheet.absoluteFill} /> : null}
+        {d.thumb ? <Image source={thumbSource(d.thumb)} contentFit="cover" transition={160} style={StyleSheet.absoluteFill} /> : null}
         <Shade />
         <DayNum d={d} color="#fff" ring="#fff" bold shadow />
         <Text style={[styles.cornerCount, styles.shadow]}>{d.pitches}구</Text>

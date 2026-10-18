@@ -8,7 +8,7 @@ import { Icon } from '~/shell/icon';
 import { fadeIn } from '~/shell/motion';
 import { Press } from '~/shell/press';
 import { dateKeyOf, type PitchLog } from './api';
-import { monthOf } from './store';
+import { monthOf, type Thumb } from './store';
 import { VideoCell } from './video-cell';
 
 /**
@@ -97,7 +97,7 @@ export function MonthGrid({
   /** 투구 탭 영상 달력 — 칸 68 · 테두리 · 그날 영상 장면(웹 video-calendar.tsx). 홈은 강도 칸 */
   video?: boolean;
   /** 날짜 → 그날 대표 영상 장면 주소(video 일 때) */
-  thumbs?: Record<string, string>;
+  thumbs?: Record<string, Thumb>;
   /** 체크인 메모를 남긴 날 — 칸 오른쪽 위 작은 쪽지(웹 NoteMark, video 일 때) */
   notes?: Set<string> | null;
   /** 날짜 → 그날 일정 수 — 칸 밑 짧은 막대(웹 events, 둘 넘으면 점 하나 더) */
