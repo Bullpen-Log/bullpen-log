@@ -87,10 +87,11 @@ export async function call<T extends { ok: boolean }>(action: string, ...args: u
 }
 
 /** 위 막대 — 왼쪽 ‹ 뒤로(이름), 가운데 제목, 오른쪽 동작 하나 */
-export function Bar({ back, title, right, c }: { back: string; title?: string; right?: ReactNode; c: Palette }) {
+/** modal = 아래에서 올라온 창(설정 · 내 정보) — 창은 시계 자리 밑에서 시작해 위 여백을 또 넣으면 80pt 가 비었다 */
+export function Bar({ back, title, right, c, modal = false }: { back: string; title?: string; right?: ReactNode; c: Palette; modal?: boolean }) {
   const inset = useSafeAreaInsets();
   return (
-    <View style={[s.bar, { paddingTop: inset.top, backgroundColor: c.page }]}>
+    <View style={[s.bar, { paddingTop: modal ? 12 : inset.top, backgroundColor: c.page }]}>
       <Pressable accessibilityRole="button" onPress={() => router.back()} hitSlop={10} style={s.side}>
         <Text style={{ color: c.sky, fontSize: 17 }} numberOfLines={1}>
           ‹ {back}

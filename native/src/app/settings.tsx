@@ -30,7 +30,7 @@ export default function SettingsScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: c.page }}>
-      <Bar back="더보기" title="설정" c={c} />
+      <Bar modal back="더보기" title="설정" c={c} />
       <ScrollView contentContainerStyle={[{ padding: 16, gap: 24, paddingBottom: inset.bottom + 32 }, READABLE]}>
         <Section icon="circle.lefthalf.filled" title="화면" desc="밝게 볼지 어둡게 볼지 골라요. 자동은 기기 설정을 따라요. 이 기기에만 적용돼요." c={c}>
           <Segmented options={THEME_OPTIONS} icons={THEME_ICONS} value={prefs.theme} onChange={(v) => pick('theme', v)} c={c} />

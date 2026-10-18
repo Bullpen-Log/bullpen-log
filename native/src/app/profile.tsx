@@ -31,7 +31,7 @@ export default function ProfileScreen() {
   const { data, error, reload } = useLoad<Loaded>('profile.loadAppProfile');
   return (
     <View style={{ flex: 1, backgroundColor: c.page }}>
-      <Bar back="더보기" title="내 정보" c={c} />
+      <Bar modal back="더보기" title="내 정보" c={c} />
       {data ? <Body key={data.today + data.nickname} p={data} reload={reload} c={c} /> : <LoadState error={error} onRetry={reload} c={c} />}
     </View>
   );
