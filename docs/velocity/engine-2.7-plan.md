@@ -38,6 +38,10 @@
 
 ### 1단계 — 세션 녹화(`lib/velocity-dual-recorder.ts` DualSessionRecorder)
 
+> 2026-10-19 고침(금윤호): 조각 6초 → 4초(앱 모듈 `clip` 의 `afterSec` 상한 4 — 6초를 청하면 4초만 와 매번 뒤처지다 8초 버퍼 밖으로 밀려 멎었다, 189초 중 7초),
+> 구간은 `sweep.ts nextRecordCut`(밀리면 건너뛰기 · 실패해도 자리 옮김), 시계를 못 잡고 시작해도 첫 알림에 찍기 시작, 올리기 밀림은 폰에 두고 끝낼 때 올림(LocalVideo),
+> 자르기 · 올리기 시간 제한. 시험 `velocity:engine2-test` 사고 재현 포함.
+
 - `DualCapture.cutRange(from, to)` — 앱에 그 구간을 잘라 달라 해 Blob 으로(과거 구간이라 바로 온다).
 - 6초마다 `[지난 끝, 지금 − 0.4초]` 를 잘라 조각으로 올린다(SegmentedRecorder 와 같은 서버 API · 같은 표 — 관리자 녹화 편집기가 그대로 연다).
   조각 하나 약 10MB(14Mbps). 올리기가 3개 넘게 밀리면 그 조각은 건너뛴다(메모리).

@@ -327,13 +327,13 @@ export class DualCapture {
         const heat = Number(d.thermal);
         const thermal = Number.isFinite(heat) ? heat : null;
         if (!Number.isFinite(at)) return;
+        /* 알림 시각이 곧 앱 카메라 시계 — 훑기 · 세션 녹화의 시계로 짝지어 둔다(sweep.ts). 쉰 알림(skip)도 시각은 맞다 */
+        this.clock = { cam: at, perf: performance.now() };
         /* 앱이 발열로 움직임 재기를 쉬었다 — 재지 않고 시도 기록에만 남긴다 */
         if (d.kind === 'skip') {
           this.reportSkip(at, Number(d.strength) || 0, thermal);
           return;
         }
-        /* 알림 시각이 곧 앱 카메라 시계 — 훑기 · 세션 녹화의 시계로 짝지어 둔다(sweep.ts) */
-        this.clock = { cam: at, perf: performance.now() };
         /* 옛 앱은 kind 가 없다 — 움직임으로 본다 */
         const kind = d.kind === 'ball' || d.kind === 'seed' ? d.kind : 'motion';
         this.onThrow(at, kind, Number(d.strength) || 0, thermal);
@@ -687,6 +687,21 @@ export class DualCapture {
     if (this.anchoring) return this.anchoring;
     const gen = this.gen;
     this.anchoring = (async () => {
+      /* 새 모듈(Expo)은 시계를 바로 준다(now) — 옛 앱(Capacitor)에는 없어 던진다 → 아래 역산으로 */
+      try {
+        const cam = await callDualCamera<unknown>('now');
+        if (typeof cam === 'number' && Number.isFinite(cam) && cam > 0) {
+          if (gen !== this.gen || !this.running) return null;
+          if (!this.clock) this.clock = { cam, perf: performance.now() };
+          return this.clock;
+        }
+      } catch {
+        /* 없는 방법 — 역산으로 */
+      }
+      /*
+       * 역산 — 앱이 쥔 조각 전부를 청해 끝 시각을 읽는다. 앱이 beforeSec 을 4초로 자르는 판(2026-10 의 두 앱 모두)에서는 1e9 가 버퍼 밖이라
+       * 5초를 기다린 뒤 실패한다 — 그러면 null 이고, 첫 알림(throw · seed)이 올 때 위 listen 이 시계를 잡는다(세션 녹화는 그때부터 찍는다).
+       */
       try {
         const at = 1e9;
         const clips = await callDualCamera<{ main: DualClip; wide: DualClip | null }>('clip', {

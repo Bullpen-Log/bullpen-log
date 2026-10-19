@@ -70,8 +70,11 @@ export const RECORD_SEGMENT_SEC = 4;
 export const CLIP_MAX_SEC = 4;
 /** 앱이 쥐고 있는 영상 길이(초) — DualCameraCore.swift SegmentRecorder.keepSec */
 export const CAMERA_KEEP_SEC = 8;
-/** 올리기가 이만큼 밀리면 그 조각은 건너뛴다(메모리) */
-export const RECORD_MAX_PENDING = 3;
+/**
+ * 올리기가 이만큼 밀리면 그 조각은 폰에 두고(새 앱 · 옛 앱 모두 LocalVideo) 끝낸 뒤 올린다 — 폰에 둘 수 없으면 버린다. 조각 7MB × 6 = 42MB 가
+ * 메모리 상한. 3 이었을 때는 와이파이가 느리면(10-19 현장 약 6.5Mbps — 필요한 건 14) 둘에 하나를 버렸다.
+ */
+export const RECORD_MAX_PENDING = 6;
 /** 마지막 조각이 아직 안 닫혔을 수 있다 — 지금에서 이만큼 띄운다 */
 export const RECORD_LAG_SEC = 0.4;
 
