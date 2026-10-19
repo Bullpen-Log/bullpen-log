@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { ChevronDown, Info } from '@/components/icon';
 import { PITCH_EFFORT_ASK, PITCH_EFFORT_INTRO, PITCH_EFFORT_LEVELS, PITCH_EFFORT_WARN } from '@/lib/pitch-effort';
+import { TRAINING_EFFORT_ASK, TRAINING_EFFORT_LEVELS, TRAINING_EFFORT_NOTE } from '@/lib/training-effort';
 
 /**
  * 체감 강도 기준표. 투구용과 운동용이 따로 있다.
@@ -51,33 +52,7 @@ export type IntensityKind = 'pitch' | 'training';
  */
 const PITCH_LEVELS = PITCH_EFFORT_LEVELS;
 
-const TRAINING_LEVELS = [
-  {
-    range: '1 – 2',
-    label: '아주 가벼움',
-    detail: '몸을 푸는 정도로 끝났어요. 끝나고도 피로가 거의 없어요.',
-  },
-  {
-    range: '3 – 4',
-    label: '가벼움',
-    detail: '땀은 났지만 여유가 많았어요. 같은 운동을 한 번 더 해도 될 것 같아요.',
-  },
-  {
-    range: '5 – 6',
-    label: '보통',
-    detail: '평소대로 제대로 한 날이에요. 끝날 즈음 지쳤지만 무리는 아니었어요.',
-  },
-  {
-    range: '7 – 8',
-    label: '힘듦',
-    detail: '후반부는 버티면서 했어요. 끝나고 한동안 쉬어야 했어요.',
-  },
-  {
-    range: '9 – 10',
-    label: '최대',
-    detail: '오늘 쓸 수 있는 힘을 다 썼어요. 한 세트도 더 못 할 것 같아요.',
-  },
-] as const;
+const TRAINING_LEVELS = TRAINING_EFFORT_LEVELS;
 
 export function IntensityGuide({ kind }: { kind: IntensityKind }) {
   const levels = kind === 'pitch' ? PITCH_LEVELS : TRAINING_LEVELS;
@@ -93,7 +68,7 @@ export function IntensityGuide({ kind }: { kind: IntensityKind }) {
       >
         <Info className="h-3.5 w-3.5 shrink-0 text-sky" />
         <span className="flex-1 text-xs text-muted">
-          {kind === 'pitch' ? PITCH_EFFORT_ASK : '강도를 어떻게 정하나요?'}
+          {kind === 'pitch' ? PITCH_EFFORT_ASK : TRAINING_EFFORT_ASK}
         </span>
         <ChevronDown
           className={`h-3.5 w-3.5 shrink-0 text-muted transition-transform ${open ? 'rotate-180' : ''}`}
@@ -138,8 +113,7 @@ export function IntensityGuide({ kind }: { kind: IntensityKind }) {
               아니라서 경고 색이 아니라 안내 색으로 둔다.
             */
             <p className="rounded-lg border border-sky-soft/60 bg-sky-tint px-3 py-2 text-caption leading-relaxed text-sky-strong">
-              <strong>오늘 운동 전체를 합쳐서 떠올려 주세요.</strong> 마지막 운동이
-              아니라 처음부터 끝까지 합친 느낌이 기준이에요.
+              <strong>{TRAINING_EFFORT_NOTE.strong}</strong> {TRAINING_EFFORT_NOTE.rest}
             </p>
           )}
         </div>

@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SymbolView, type SFSymbol } from 'expo-symbols';
 import { matchesSearch } from '@/lib/korean';
 import { summarizeSets } from '@/lib/workout/summarize';
+import { TRAINING_EFFORT_ASK, TRAINING_EFFORT_LEVELS, TRAINING_EFFORT_NOTE, trainingEffortLevel } from '@/lib/training-effort';
 import { equipmentLabel, type SwapMode } from '@/lib/workout/swap';
 import type { SwapChoices, SwapPick } from '@/app/actions/workout';
 import type { RunExercise } from '@/lib/workout/run-exercises';
@@ -194,15 +195,6 @@ function IconButton({
 
 /* ----------------------------- 마치기 ----------------------------- */
 
-/** 운동 체감 강도 기준표 — 웹 components/intensity-guide.tsx TRAINING_LEVELS 그대로(그 파일은 웹 부품이라 못 부른다) */
-export const TRAINING_LEVELS = [
-  { max: 2, label: '아주 가벼움', detail: '몸을 푸는 정도로 끝났어요. 끝나고도 피로가 거의 없어요.' },
-  { max: 4, label: '가벼움', detail: '땀은 났지만 여유가 많았어요. 같은 운동을 한 번 더 해도 될 것 같아요.' },
-  { max: 6, label: '보통', detail: '평소대로 제대로 한 날이에요. 끝날 즈음 지쳤지만 무리는 아니었어요.' },
-  { max: 8, label: '힘듦', detail: '후반부는 버티면서 했어요. 끝나고 한동안 쉬어야 했어요.' },
-  { max: 10, label: '최대', detail: '오늘 쓸 수 있는 힘을 다 썼어요. 한 세트도 더 못 할 것 같아요.' },
-] as const;
-
 /**
  * 마치기 직전 — 체감 강도(선택)와 느낀점. 강도를 안 고르면 축하 화면이 칩 하나로 한 번 더 묻는다(웹과 같다). 느낀점만 적고 강도가 없으면
  * 막는다(강도 없이 온 메모는 서버가 버린다). 못 보낸 세트가 있으면 마치기를 막는다 — 마치면 그 세트는 요약에서 빠지고 판이 닫힌다.
@@ -239,7 +231,7 @@ export function FinishSheet({
   const [openedAt] = useState(() => Date.now());
   const minutes = Math.max(0, Math.round((priorSeconds * 1000 + (openedAt - Date.parse(startedAt))) / 60000));
   const exerciseCount = summarizeSets(sets).length;
-  const level = intensity != null ? TRAINING_LEVELS.find((l) => intensity <= l.max) : null;
+  const level = intensity != null ? trainingEffortLevel(intensity) : null;
   const off = busy || memoNeedsIntensity || pendingCount > 0;
 
   const footer = (
@@ -316,6 +308,7 @@ export function FinishSheet({
           <Text style={{ fontWeight: '700', color: c.ink }}>{level.label}</Text> · {level.detail}
         </Text>
       ) : null}
+      <EffortGuide c={c} />
       <Text style={[st.bodyBold, { color: c.ink, marginTop: 12 }]}>
         느낀점 <Text style={[st.tiny, { color: c.muted, fontWeight: '400' }]}>선택</Text>
       </Text>
@@ -328,6 +321,41 @@ export function FinishSheet({
         style={[st.input, { backgroundColor: c.chip, color: c.ink }]}
       />
     </Sheet>
+  );
+}
+
+/** '강도를 어떻게 정하나요?' — 웹 마치기 창 IntensityGuide(kind training)와 같은 접이: 다섯 단계 + '오늘 운동 전체' 안내 */
+export function EffortGuide({ c }: { c: Palette }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <View style={[st.guide, { borderColor: c.line }]}>
+      <Pressable
+        onPress={() => setOpen((v) => !v)}
+        accessibilityRole="button"
+        accessibilityState={{ expanded: open }}
+        style={st.guideHead}
+      >
+        <SymbolView name="info.circle" size={14} tintColor={c.sky} />
+        <Text style={[st.small, { flex: 1, color: c.muted }]}>{TRAINING_EFFORT_ASK}</Text>
+        <SymbolView name={open ? 'chevron.up' : 'chevron.down'} size={12} tintColor={c.muted} />
+      </Pressable>
+      {open ? (
+        <View style={[st.guideBody, { borderTopColor: c.line }]}>
+          {TRAINING_EFFORT_LEVELS.map((l) => (
+            <View key={l.range} style={{ flexDirection: 'row', gap: 12 }}>
+              <Text style={[st.small, { width: 48, color: c.sky, fontWeight: '700', fontVariant: ['tabular-nums'] }]}>{l.range}</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={[st.small, { color: c.ink, fontWeight: '600' }]}>{l.label}</Text>
+                <Text style={[st.small, { color: c.muted }]}>{l.detail}</Text>
+              </View>
+            </View>
+          ))}
+          <Text style={[st.small, st.guideNote, { color: c.sky, backgroundColor: c.sky + '14' }]}>
+            <Text style={{ fontWeight: '700' }}>{TRAINING_EFFORT_NOTE.strong}</Text> {TRAINING_EFFORT_NOTE.rest}
+          </Text>
+        </View>
+      ) : null}
+    </View>
   );
 }
 
@@ -587,6 +615,10 @@ const st = StyleSheet.create({
   bigText: { color: '#fff', fontSize: 18, fontWeight: '700' },
   textBtn: { minHeight: 44, alignItems: 'center', justifyContent: 'center' },
   note: { borderRadius: 16, paddingHorizontal: 16, paddingVertical: 12, gap: 4, overflow: 'hidden' },
+  guide: { borderRadius: 12, borderWidth: StyleSheet.hairlineWidth, marginTop: 8 },
+  guideHead: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 44, paddingHorizontal: 12 },
+  guideBody: { borderTopWidth: StyleSheet.hairlineWidth, padding: 12, gap: 10 },
+  guideNote: { borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, overflow: 'hidden' },
   question: { fontSize: 17, fontWeight: '700', marginTop: 8 },
   levels: { flexDirection: 'row', gap: 4, marginTop: 8 },
   level: { flex: 1, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },

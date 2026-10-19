@@ -12,7 +12,7 @@ import { cacheEpoch, cacheGet, cacheSet } from '~/lib/store';
 import { usePalette } from '~/lib/ui';
 import { useWebNav, openCheckin } from '~/shell/web-nav';
 import { BigButton, s, type TodayActions } from '~/training/today/parts';
-import { DoneView, HaltedCard, MakeCard, NoticeBand, OutingRow, PlanBody, PrefsCard } from '~/training/today/plan';
+import { DoneView, HaltedCard, MakeCard, NoticeBand, OutingRow, PlanBody } from '~/training/today/plan';
 import { ProgramCardView, ProgramDoneView } from '~/training/today/program';
 import { ProgramStartView } from '~/training/today/program-start';
 import { READABLE } from '~/lib/layout';
@@ -25,9 +25,9 @@ import { useRememberPart } from '~/training/remember';
  * 카드에서 들어온다. 무엇을 그릴지는 웹과 같은 곳에서 읽는다(app/actions/app-training.ts → lib/report/training-today-data.ts).
  *
  * 웹과 같은 차례: 근력 프로그램 카드 → 프로그램 결과 → 상태 바뀜 띠 → 완료 카드 · [운동 시작] → 프로그램 고르기 → 다음 등판 → 일정 자리(멈춤 ·
- * 프로그램 날 한 줄 · 만들기 · 남은 것 없음 · 일정 카드와 체크 목록 · 오늘 운동 메모). 체크 · 별 · 빼기 · 메모 · 일정 만들기(자동 맞춤 · 직접 고르기 ·
+ * 프로그램 날 한 줄 · 만들기 · 남은 것 없음 · 일정 카드와 체크 목록 · 오늘 운동 메모). 체크 · 별 · 빼기 · 메모 · 일정 만들기(자동 맞춤 ·
  * 조건 바꿔 다시 만들기) · 운동 추가 · 오늘 하고 싶은 운동 · 프로그램 고르기 · 시작 · 건너뛰기 · 그만두기 · 고정 운동 바꾸기는 웹과 같은 서버 동작을
- * 부른다(시트). 지난 날 기록은 앱 화면(/training/day/<날짜>), 트레이닝 설정 · 가진 장비는 앱 화면(/training/settings — 머리 톱니 · 맨 밑 줄).
+ * 부른다(시트). 지난 날 기록은 앱 화면(/training/day/<날짜>), 트레이닝 설정은 앱 화면(/training/settings — 머리 톱니).
  *
  * [운동 시작]은 트레이닝 탭과 같은 길(판을 열면 서버가 운동 화면으로 보낸다 → 앱 운동 화면). 운동을 마치면 운동 화면이 웹을 축하 화면으로 보내고
  * 닫는데, 그 화면이 이 화면 밑에 깔리지 않게 이 화면도 같이 닫는다(useWebNav).
@@ -248,22 +248,21 @@ export default function TrainingTodayScreen() {
         {b.kind === 'halted' ? (
           <HaltedCard reason={b.reason} c={c} a={actions} />
         ) : b.kind === 'program' ? null /* 프로그램 날은 위 카드가 다 말한다 — 같은 말 한 줄은 뺐다(2026-10-20 김민) */ : b.kind === 'make' || b.kind === 'empty' ? (
-          <>
-            {data.prefs ? <PrefsCard prefs={data.prefs} today={data.today} c={c} a={actions} /> : null}
-            <MakeCard
-              make={b.make}
-              head={b.kind === 'make' ? '오늘 운동 만들기' : '만들어 둔 일정에 남은 운동이 없어요'}
-              note={
-                b.kind === 'make'
-                  ? b.stale
-                  : b.dropped
-                    ? '몸 상태가 바뀌어 무리인 운동이 모두 빠졌어요.'
-                    : '지금 할 수 있는 운동이 아직 없어요.'
-              }
-              c={c}
-              a={actions}
-            />
-          </>
+          <MakeCard
+            prefs={data.prefs}
+            today={data.today}
+            make={b.make}
+            head={b.kind === 'make' ? '오늘 운동 만들기' : '만들어 둔 일정에 남은 운동이 없어요'}
+            note={
+              b.kind === 'make'
+                ? b.stale
+                : b.dropped
+                  ? '몸 상태가 바뀌어 무리인 운동이 모두 빠졌어요.'
+                  : '지금 할 수 있는 운동이 아직 없어요.'
+            }
+            c={c}
+            a={actions}
+          />
         ) : b.kind === 'plan' ? (
           <PlanBody plan={b.plan} make={b.make} data={data} c={c} a={actions} />
         ) : null}

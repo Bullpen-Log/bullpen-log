@@ -11,7 +11,7 @@ import type { AppArmcareGuideTab, AppArmcareTodayTab, AppRehabSummary, AppRehabT
 import { Bar } from '~/community/parts';
 import { act } from '~/mechanics/parts';
 import { usePalette, type Palette } from '~/lib/ui';
-import { RehabLine, openPlay } from '~/training/armcare-parts';
+import { Checklist, RehabLine, openPlay } from '~/training/armcare-parts';
 import { s, useScreenData } from '~/training/screen';
 import { READABLE } from '~/lib/layout';
 
@@ -34,7 +34,7 @@ export default function RehabScreen() {
         refreshControl={<RefreshControl refreshing={state.refreshing} onRefresh={() => void state.refresh()} />}
       >
         {rehab?.detail && data ? (
-          <Detail rehab={rehab} dateKey={data.dateKey} reload={() => void state.load()} c={c} />
+          <Detail rehab={rehab} dateKey={data.dateKey} fresh={state.fresh} reload={() => void state.load()} c={c} />
         ) : state.data && !rehab ? (
           <Text style={[s.body, { color: c.muted }]}>진행 중인 재활이 없어요.</Text>
         ) : (
@@ -45,7 +45,7 @@ export default function RehabScreen() {
   );
 }
 
-function Detail({ rehab, dateKey, reload, c }: { rehab: AppRehabSummary; dateKey: string; reload: () => void; c: Palette }) {
+function Detail({ rehab, dateKey, fresh, reload, c }: { rehab: AppRehabSummary; dateKey: string; fresh: boolean; reload: () => void; c: Palette }) {
   const d = rehab.detail!;
   const [pick, setPick] = useState<{ kind: 'diagnosis' | 'stage'; value: string | null } | null>(null);
   const [busy, setBusy] = useState(false);
@@ -123,15 +123,8 @@ function Detail({ rehab, dateKey, reload, c }: { rehab: AppRehabSummary; dateKey
 
       {rehab.items.length > 0 ? (
         <Part title="오늘 운동" c={c}>
-          {rehab.items.map((it) => (
-            <View key={it.exercise.id} style={{ flexDirection: 'row', gap: 10, alignItems: 'center' }}>
-              <SymbolView name={it.done ? 'checkmark.circle.fill' : 'circle'} size={18} tintColor={it.done ? c.sky : c.muted} />
-              <Text style={[s.body, { color: c.ink, flex: 1 }]}>
-                {it.exercise.title}
-                {it.note ? <Text style={{ color: c.muted }}> · {it.note}</Text> : null}
-              </Text>
-            </View>
-          ))}
+          {/* 웹 rehab-card 자세히와 같이 여기서도 체크한다(따라 하기와 같은 기록 · 같은 대기열) */}
+          <Checklist items={rehab.items} dateKey={dateKey} fresh={fresh} grouped={false} doneLabel="오늘 재활 운동 끝" onChanged={reload} c={c} />
         </Part>
       ) : null}
 
