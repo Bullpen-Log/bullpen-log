@@ -31,10 +31,11 @@ const SETTLE_MS = 2900;
 const LEAVE_MS = 550;
 const REDUCED_HOLD_MS = 1100;
 /*
- * 큰 B = 화면 긴 변의 16%(웹 app-splash 와 같다, 2026-10-19 김민: "너무 큰 상태에서 작아진다"). 시작 화면(SplashScreen.storyboard)도
- * 그림 높이 = 화면 높이 × 0.32, 그 안의 B 가 그림 높이의 절반이라 같은 크기 · 같은 가운데 — 시작 화면을 걷는 순간 이어진다.
+ * 큰 B = 150pt(웹 app-splash 의 '긴 변 16%'와 거의 같다 — 852 화면 136 · 932 화면 149, 2026-10-19 김민: "너무 큰 상태에서 작아진다").
+ * 시작 화면은 app.json splash imageWidth 300 — 그림(assets/splash.png, 512칸)의 B 가 높이 256칸이라 300 × 256/512 = 150pt, 같은 가운데.
+ * native/ios 는 prebuild 가 만들어(git 밖) storyboard 를 손으로 고쳐도 GitHub 굽기에선 사라진다 — 그래서 고정 크기로 맞춘다.
  */
-const B_OF_LONG_SIDE = 0.16;
+const SPLASH_W = 300;
 const ASPECT = 594 / 613;
 
 /* 사이트(웹 껍데기)가 다 그려졌다는 알림 — 그 전에 걷으면 흰 화면이 번쩍인다. index.tsx · 딥링크 화면이 부른다 */
@@ -70,7 +71,7 @@ export function Intro() {
   const slotRef = useRef<ComponentRef<typeof View>>(null);
   const size = Math.min(width * 0.15, 68);
   const slotH = size * 0.7;
-  const bigH = Math.max(width, height) * B_OF_LONG_SIDE;
+  const bigH = (SPLASH_W * 256) / 512;
   const bigW = bigH * ASPECT;
   /* 타임라인(ms) 하나로 B · 글자를 다 그린다 — 장면마다 다시 그리지 않게 UI 스레드에서 */
   const t = useSharedValue(reduced ? SETTLE_MS : 0);
