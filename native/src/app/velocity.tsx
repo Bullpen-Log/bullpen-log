@@ -55,6 +55,8 @@ import { useAbs } from '~/velocity/abs/use-abs';
 import { PlateOverlay } from '~/velocity/abs/plate-overlay';
 import { AbsSetupBody } from '~/velocity/abs/abs-setup-card';
 import { BatterChip } from '~/velocity/abs/batter-chip';
+import { VerdictCard } from '~/velocity/abs/verdict-card';
+import type { AbsSession } from '~/velocity/abs/use-abs';
 import { focalPxFromFov } from '@/lib/velocity-engine/geometry';
 import { Icon, type IconName } from '~/shell/icon';
 
@@ -143,6 +145,8 @@ export default function VelocityScreen() {
   const todayRef = useRef<string | null>(null);
   const attempts = useRef(new Map<number, Promise<string | null>>());
   const captureRef = useRef<AppCapture | null>(null);
+  /* ABS 판정 함수 — 재기 흐름(한 번 만든 AppCapture)이 지금 값을 읽게 ref 로 */
+  const absRef = useRef<AbsSession | null>(null);
   useEffect(() => {
     ctxRef.current = { cameraPos, zone, info, tape: distTape, distM: distTape ? targetDistM : STANDARD_TARGET_DIST_M };
   }, [zone, info, distTape, targetDistM]);
@@ -224,7 +228,8 @@ export default function VelocityScreen() {
       () => ({ ...SETTINGS, distanceM: distRef.current, tiltRad: tiltRef.current }),
       {
         onResult: (result, meta) => {
-          const out = decide(result, pitchesRef.current, ctxRef.current, meta);
+          const a = absRef.current;
+          const out = decide(result, pitchesRef.current, ctxRef.current, meta, a?.on ? a.judge : undefined);
           if (out.notice) setNotice(out.notice);
           if (out.list) {
             setList(out.list);
@@ -438,6 +443,9 @@ export default function VelocityScreen() {
     detecting: step === 'abs' && !!info,
     live: measuring,
   });
+  useEffect(() => {
+    absRef.current = abs;
+  }, [abs]);
   /* 존 크기 — 손동작을 시작할 때의 크기에 배율을 곱한다(자리는 릴리스 표적 바로 밑에 붙박음, 웹 centerLocked) */
   const growBase = useRef(zone);
   const growZone = (factor: number, startNow: boolean) => {
@@ -671,6 +679,7 @@ export default function VelocityScreen() {
               onPress={() => last && setReplay(last.clip.path)}
               style={styles.result}
             >
+              {last?.analysis?.abs ? <VerdictCard abs={last.analysis.abs} /> : null}
               {last ? (
                 <View style={{ flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between' }}>
                   <Text style={styles.big}>
