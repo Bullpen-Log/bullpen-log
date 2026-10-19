@@ -20,7 +20,7 @@ import {
   type BodySpots,
   type SpotSide,
 } from '@/lib/body-spots';
-import { BodySpotPicker, needsLevelChoice } from '@/components/body-spot-picker';
+import { BodySpotPicker } from '@/components/body-spot-picker';
 import { useState } from 'react';
 import { Search } from '@/components/icon';
 import { Chip } from '@/components/day-card';
@@ -40,6 +40,30 @@ const bandWord = (score: number) =>
   CONDITION_BANDS.find((b) => b.key === conditionBand(score))?.label ?? '';
 
 /** 컨디션 1~10 — 세로 슬라이더, 큰 숫자, 띠의 말(아파요 · 보통이에요 · 좋아요), 어제 · 평소, '불편한 곳' 확인 */
+
+/*
+ * 밀어서 고르기 — 손가락 자리로 값을 바로 셈한다(2026-10-20 김민: "아이패드에서 컨디션 밀어서 고르기 작동 안 됨"). 기본 range 는
+ * touch-action pan-x 라 옆으로 끄는 손가락을 브라우저가 화면 밀기로 가져갔고, 안 고른 동안엔 손잡이가 숨어 잡을 데도 없었다.
+ * 막대 어디를 눌러도 · 끌어도 그 자리 값으로 고른다(키보드 · 화면 읽기는 range 그대로).
+ */
+function rangePointer(min: number, max: number, onChange: (v: number) => void) {
+  const pick = (e: React.PointerEvent<HTMLInputElement>) => {
+    const r = e.currentTarget.getBoundingClientRect();
+    if (r.width <= 0) return;
+    const f = Math.min(1, Math.max(0, (e.clientX - r.left) / r.width));
+    onChange(Math.round(min + f * (max - min)));
+  };
+  return {
+    onPointerDown: (e: React.PointerEvent<HTMLInputElement>) => {
+      e.currentTarget.setPointerCapture(e.pointerId);
+      pick(e);
+    },
+    onPointerMove: (e: React.PointerEvent<HTMLInputElement>) => {
+      if (e.currentTarget.hasPointerCapture(e.pointerId)) pick(e);
+    },
+  };
+}
+
 export function ConditionStep({
   value,
   onChange,
@@ -93,8 +117,7 @@ export function ConditionStep({
           step={1}
           value={value ?? UNSET_CONDITION}
           onChange={(e) => onChange(Number(e.target.value))}
-          /* 숨은 손잡이 자리를 그대로 누르면 change 가 안 와 그 값을 못 고른다 — 누름으로도 고른다 */
-          onClick={(e) => unset && onChange(Number(e.currentTarget.value))}
+          {...rangePointer(MIN_CONDITION, MAX_CONDITION, onChange)}
           aria-label="오늘 컨디션"
           aria-valuetext={value == null ? '아직 안 고름' : `${value}점, ${bandWord(value)}`}
           className={`checkin-range w-full max-w-xs ${unset ? 'checkin-range-unset' : ''}`}
@@ -175,16 +198,14 @@ export function PainStep({
     );
   /* 몸 그림이 가리키는 근육 — 이름 목록에서 고른 것도 같은 자리로(그림이 그 근육을 비추고 정도 단추가 뜬다) */
   const [active, setActive] = useState<string | null>(null);
-  const pickByName = (id: string) => {
-    if (!spots[id] && !needsLevelChoice(id)) onSpots({ ...spots, [id]: '뻐근' });
-    setActive(id);
-  };
+  /* 이름으로 골라도 가리키기만 — 정도는 그림 밑 단추로 고른다(기본 '뻐근' 없음) */
+  const pickByName = (id: string) => setActive(id);
   return (
     <div className="space-y-4">
       <div>
         <h1 className={TITLE}>어디가 불편해요?</h1>
         <p className="mt-1 text-sm text-muted">
-          근육을 눌러 뻐근한지 아픈지 골라요. 돌려 볼 수 있어요.
+          자리를 고르고, 근육을 눌러 뻐근한지 아픈지 골라요.
         </p>
       </div>
       {/* 3D 몸 그림 — 다리까지 보이게 전보다 높게(2026-10-13 사용자: "하단 길이를 조금 더") */}
@@ -415,7 +436,7 @@ export function SleepStep({
           step={1}
           value={shown}
           onChange={(e) => onChange(Number(e.target.value))}
-          onClick={(e) => unset && onChange(Number(e.currentTarget.value))}
+          {...rangePointer(1, SLEEP_QUALITY_LEVELS.length, onChange)}
           aria-label="어젯밤 수면의 질"
           aria-valuetext={unset ? '아직 안 고름' : word}
           className={`checkin-range w-full max-w-xs ${unset ? 'checkin-range-unset' : ''}`}

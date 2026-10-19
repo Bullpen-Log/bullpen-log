@@ -5,8 +5,9 @@ import { X } from '@/components/icon';
 import dynamic from 'next/dynamic';
 import {
   SPOT_LEVELS,
+  SPOT_REGIONS,
+  type SpotRegion,
   spotLabel,
-  spotOf,
   type BodySpots,
   type SpotLevel,
 } from '@/lib/body-spots';
@@ -20,17 +21,9 @@ const BodySpot3D = dynamic(
   }
 );
 
-/**
- * 어깨 · 팔꿈치 근육은 누르기만 해서는 안 골라진다 — 뻐근 · 아파요를 꼭 고른다(2026-10-18 사용자). 예전엔 '뻐근'이 먼저 골라져,
- * 아픈데 그대로 넘기면 통증 질문 · 통증 규칙(팔 쉬기 · 암케어)이 하나도 안 걸렸다.
- */
-export function needsLevelChoice(id: string): boolean {
-  const part = spotOf(id)?.def.part;
-  return part === 'shoulder' || part === 'elbow';
-}
 
 /**
- * 3D 몸에서 불편한 근육 고르기 — 누르면 '뻐근'으로 골라지고(어깨 · 팔꿈치는 정도를 먼저 고른다), 밑 줄에서 정도를 바꾸거나 뺀다.
+ * 3D 몸에서 불편한 근육 고르기 — 위 키워드로 자리를 좁히고, 근육을 누르면 밑 줄에서 뻐근 · 아파요를 고르거나 뺀다(기본값 없음).
  * 값은 부모가 쥔다(체크인 폼이 부위 칸을 여기서 계산해 보낸다 — lib/body-spots.ts partsFromSpots).
  */
 export function BodySpotPicker({
@@ -55,10 +48,10 @@ export function BodySpotPicker({
   const controlled = activeProp !== undefined && onActiveChange !== undefined;
   const active = controlled ? activeProp : activeOwn;
   const setActive = controlled ? onActiveChange : setActiveOwn;
-  const tap = (id: string) => {
-    setActive(id);
-    if (!spots[id] && !needsLevelChoice(id)) onChange({ ...spots, [id]: '뻐근' });
-  };
+  /* 누르면 가리키기만 — 뻐근 · 아파요는 사용자가 고른다(2026-10-20 김민: "기본으로 뻐근해요가 골라지는 것 빼기") */
+  const tap = (id: string) => setActive(id);
+  /* 키워드로 좁히기 — 고르면 그 자리로 다가가고 나머지는 흐려진다 */
+  const [region, setRegion] = useState<SpotRegion | null>(null);
   const set = (id: string, level: SpotLevel | null) => {
     const next = { ...spots };
     if (level) next[id] = level;
@@ -71,13 +64,35 @@ export function BodySpotPicker({
 
   return (
     <div className="space-y-3">
+      <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label="어디쯤이에요?">
+        {[null, ...SPOT_REGIONS].map((r) => {
+          const on = (region?.key ?? null) === (r?.key ?? null);
+          return (
+            <button
+              key={r?.key ?? 'all'}
+              type="button"
+              role="radio"
+              aria-checked={on}
+              onClick={() => {
+                setRegion(r);
+                setActive(null);
+              }}
+              className={`inline-flex min-h-10 items-center rounded-full px-3.5 text-footnote transition-colors desk:min-h-8 desk:text-xs ${
+                on ? 'bg-sky font-semibold text-white' : 'bg-ink/6 text-ink/80'
+              }`}
+            >
+              {r?.label ?? '온몸'}
+            </button>
+          );
+        })}
+      </div>
       <div
         className={`overflow-hidden rounded-2xl bg-surface desk:border desk:border-line ${heightClass ?? 'h-80 desk:h-72'}`}
       >
-        <BodySpot3D spots={spots} active={active} onTap={tap} />
+        <BodySpot3D spots={spots} active={active} onTap={tap} region={region} />
       </div>
 
-      {active && (activeLevel || needsLevelChoice(active)) ? (
+      {active ? (
         <div className="flex flex-wrap items-center gap-2 rounded-xl bg-surface px-3 py-2 desk:border desk:border-line">
           <span className="text-sm font-semibold text-ink">
             {spotLabel(active)}
@@ -119,7 +134,9 @@ export function BodySpotPicker({
         <p className="text-center text-xs text-muted">
           {picked.length
             ? '고른 곳을 누르면 정도를 바꿀 수 있어요.'
-            : '불편한 근육을 눌러 주세요.'}
+            : region
+              ? `${region.label}에서 불편한 근육을 눌러 주세요.`
+              : '먼저 위에서 자리를 고르면 그곳이 크게 보여요.'}
         </p>
       )}
 

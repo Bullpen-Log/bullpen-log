@@ -207,3 +207,25 @@ export function partsFromSpots(spots: BodySpots): Record<CheckinPartKey, string>
   }
   return parts;
 }
+
+/**
+ * 키워드로 좁히기 — 체크인 '어디가 불편해요?'에서 먼저 고르는 자리(2026-10-20 김민: "3D 가 너무 넓어 아픈 곳을 고르기 힘들다 — 키워드를
+ * 주고 그 부위만 확대"). 고르면 3D 가 그 근육들로 다가가고 나머지는 흐리게 · 못 누르게. view 는 그 자리가 잘 보이는 쪽.
+ */
+export type SpotRegion = { key: string; label: string; view: 'front' | 'back'; keys: readonly string[] };
+export const SPOT_REGIONS: readonly SpotRegion[] = [
+  { key: 'neck', label: '목', view: 'front', keys: ['sternocleidomastoid', 'scalenus_anterior', 'scalenus_medius', 'scalenus_posterior', 'splenius_capitis', 'splenius_colli', 'levator_scapulae', 'trapezius_upper'] },
+  { key: 'shoulder', label: '어깨', view: 'front', keys: ['deltoid_anterior', 'deltoid_lateral', 'deltoid_posterior', 'supraspinatus', 'infraspinatus', 'subscapularis', 'teres_minor', 'teres_major', 'coracobrachialis'] },
+  { key: 'chest', label: '가슴', view: 'front', keys: ['pectoralis_major_clavicular', 'pectoralis_major_sternocostal', 'pectoralis_major_abdominal', 'pectoralis_minor', 'serratus_anterior'] },
+  { key: 'upperBack', label: '등 · 날개뼈', view: 'back', keys: ['trapezius_middle', 'trapezius_lower', 'rhomboid_major', 'rhomboid_minor', 'latissimus_dorsi', 'serratus_posterior_superior', 'infraspinatus', 'teres_minor', 'teres_major'] },
+  { key: 'upperArm', label: '위팔', view: 'front', keys: ['biceps_brachii_long', 'biceps_brachii_short', 'brachialis', 'triceps_long', 'triceps_lateral', 'triceps_medial'] },
+  { key: 'elbow', label: '팔꿈치', view: 'front', keys: ['anconeus_muscle', 'brachioradialis_muscle', 'superficial_head_of_pronator_teres', 'deep_head_of_pronator_teres', 'brachialis', 'triceps_medial'] },
+  { key: 'forearm', label: '아래팔 · 손목', view: 'front', keys: keysOfPart('wrist') },
+  { key: 'lowerBack', label: '허리 · 배', view: 'back', keys: keysOfPart('lowerBack') },
+  { key: 'hip', label: '엉덩이 · 고관절', view: 'back', keys: ['gluteus_maximus', 'gluteus_medius', 'gluteus_minimus', 'iliacus', 'psoas_major', 'tensor_fasciae_latae', 'piriformis', 'quadratus_femoris', 'obturator_internus', 'obturator_externus', 'gemellus_superior', 'gemellus_inferior'] },
+  { key: 'thigh', label: '허벅지', view: 'front', keys: ['rectus_femoris', 'vastus_lateralis', 'vastus_medialis', 'vastus_intermedius', 'sartorius', 'biceps_femoris_long', 'biceps_femoris_short', 'semitendinosus', 'semimembranosus', 'adductor_magnus', 'adductor_longus', 'adductor_brevis', 'gracilis', 'pectineus'] },
+  { key: 'lowerLeg', label: '종아리 · 발목', view: 'back', keys: ['gastrocnemius_medial', 'gastrocnemius_lateral', 'soleus', 'plantaris', 'popliteus', 'tibialis_anterior', 'tibialis_posterior', 'fibularis_longus', 'fibularis_brevis', 'fibularis_tertius', 'extensor_digitorum_longus', 'extensor_hallucis_longus', 'flexor_digitorum_longus', 'flexor_hallucis_longus'] },
+];
+function keysOfPart(part: CheckinPartKey): string[] {
+  return MUSCLES.filter((m) => m[2] === part).map((m) => m[0]);
+}
