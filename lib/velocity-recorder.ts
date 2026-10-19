@@ -46,6 +46,9 @@ export type RecorderState = {
   /** 올리는 중인 조각의 % */
   progress: number | null;
   error: string | null;
+  /** 세션 녹화만 — 올리기가 밀려 폰에 둔 조각 수(끝낸 뒤 올린다) · 끝낼 때 아직 올릴 조각 수 */
+  spilled?: number;
+  queued?: number;
 };
 
 function pickMime(): string {
