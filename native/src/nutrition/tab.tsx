@@ -47,7 +47,8 @@ export function NutritionTab({ today, bottom, onWebNutrition }: { today: string;
     setEditing(null);
     setDrafts({});
   };
-  const { day, error, to, loading, reload } = useNutritionDay(date);
+  const { day, error, to, reload } = useNutritionDay(date);
+  const [pulling, setPulling] = useState(false);
   /* 탭을 옮겼다 돌아오면 새로 받는다(1번 판 넘기기 — 판이 붙어 있어 마운트로는 안 받는다) */
   /* 지금 탭(영양)을 다시 누르면 맨 위로(1번 세션 — 앱 틀) */
   const topRef = useRef<ScrollViewInstance>(null);
@@ -124,7 +125,16 @@ export function NutritionTab({ today, bottom, onWebNutrition }: { today: string;
       ref={topRef}
       style={{ flex: 1, backgroundColor: c.page }}
       contentContainerStyle={[{ paddingTop: inset.top + 12, paddingBottom: bottom + 24, paddingHorizontal: 16, gap: 20 }, READABLE]}
-      refreshControl={<RefreshControl refreshing={loading && day != null} onRefresh={reload} />}
+      /* 돌개는 손으로 당겼을 때만 — 탭에 들어올 때 뒤에서 다시 받는 것(loading)에 걸면 돌개만큼 화면이 내려갔다 올라왔다(2026-10-19 김민) */
+      refreshControl={
+        <RefreshControl
+          refreshing={pulling}
+          onRefresh={() => {
+            setPulling(true);
+            void reload().finally(() => setPulling(false));
+          }}
+        />
+      }
       keyboardShouldPersistTaps="handled"
     >
       {/* 머리 — 웹 영양 탭 휴대폰: 큰 제목 · 오른쪽 목표 단추(그림만), 밑에 날짜 띠(최근 6주) */}

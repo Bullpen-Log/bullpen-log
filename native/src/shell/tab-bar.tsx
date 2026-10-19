@@ -1,10 +1,10 @@
 import * as Haptics from 'expo-haptics';
 import { emitRetap } from './tab-pager';
 import { GlassView, isLiquidGlassAvailable } from 'expo-glass-effect';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
-import Animated, { Easing, runOnJS, useAnimatedStyle, useReducedMotion, useSharedValue, withDelay, withSequence, withSpring, withTiming } from 'react-native-reanimated';
+import Animated, { Easing, runOnJS, useAnimatedStyle, useReducedMotion, useSharedValue, withDelay, withSequence, withSpring, withTiming, type SharedValue } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { usePalette, useTheme, withAlpha } from '~/lib/ui';
 import { Icon, type IconName } from '~/shell/icon';
@@ -96,19 +96,8 @@ export function TabBar({ tabs, active, onPress }: { tabs: ShellTab[]; active: st
    * 유리 렌즈 — iOS 26 탭 막대처럼 누르거나 옮기는 동안 고른 칸이 투명한 유리(확대 · 가장자리 빛 굴절)로 바뀌어 막대 밖으로 부푼다(2026-10-19 김민
    * 화면 녹화). 유리는 알파로 숨기면 효과가 꺼져서, 스타일을 'none' ↔ 'clear' 로 바꾸고 iOS 가 맺히고 사라지는 움직임을 그린다.
    */
-  const [hold, setHold] = useState(false);
-  const [pulseAt, setPulseAt] = useState(0);
-  const [pulsing, setPulsing] = useState(false);
-  useEffect(() => {
-    if (!pulseAt) return;
-    const id = setTimeout(() => setPulsing(false), 520);
-    return () => clearTimeout(id);
-  }, [pulseAt]);
-  const lensGlass = hold || pulsing;
-  const pulseGlass = () => {
-    setPulsing(true);
-    setPulseAt(Date.now());
-  };
+  /* 유리 렌즈는 길게 눌러 끄는 동안만(iOS 와 같다) — 짧게 누르면 캡슐만 미끄러진다(2026-10-19 김민: 누를 때마다 렌즈가 튀어 부자연스러움) */
+  const [lensGlass, setHold] = useState(false);
   useEffect(() => {
     if (first.current) {
       first.current = false;
@@ -118,7 +107,6 @@ export function TabBar({ tabs, active, onPress }: { tabs: ShellTab[]; active: st
     pos.set(withSpring(index, POS_SPRING));
     /* 옮기는 동안 렌즈로 부풀었다 닿으면 가라앉는다(웹 영상의 '약간의 탄성') */
     lift.set(withSequence(withSpring(1, LIFT_SPRING), withDelay(160, withSpring(0, LIFT_SPRING))));
-    pulseGlass();
   }, [index, pos, lift]);
   useEffect(() => {
     shown.set(withSpring(showLens ? 1 : 0, LIFT_SPRING));
@@ -216,7 +204,7 @@ export function TabBar({ tabs, active, onPress }: { tabs: ShellTab[]; active: st
       {cell > 0 ? (
         <Animated.View pointerEvents="none" style={[styles.lens, { width: cell, backgroundColor: col.lens, boxShadow: col.lensRim }, lensStyle]} />
       ) : null}
-      {tabs.map((t) => {
+      {tabs.map((t, k) => {
         const on = active === t.href;
         return (
           <Pressable
@@ -226,11 +214,9 @@ export function TabBar({ tabs, active, onPress }: { tabs: ShellTab[]; active: st
             accessibilityLabel={t.locked ? `${t.label}(설정 전)` : t.label}
             onPressIn={() => {
               if (!on) lift.set(withSpring(0.3, LIFT_SPRING));
-              if (!on && glass) setHold(true);
             }}
             onPressOut={() => {
               if (!on) lift.set(withSpring(0, LIFT_SPRING));
-              if (!on && glass) setHold(false);
             }}
             onPress={() => {
               /* 더보기를 열면 네모 넷이 차례로 반 바퀴(웹 glyphs Squares animate-square-spin) */
@@ -242,7 +228,9 @@ export function TabBar({ tabs, active, onPress }: { tabs: ShellTab[]; active: st
             }}
             style={({ pressed }) => [styles.item, t.locked && { opacity: 0.55 }, pressed && { transform: [{ scale: 0.94 }] }]}
           >
-            {face(t, on)}
+            <UnderLens i={k} pos={pos} lift={lift} active={glass && lensGlass}>
+              {face(t, on)}
+            </UnderLens>
           </Pressable>
         );
       })}
@@ -359,4 +347,14 @@ function Square({ at, i, color, spin }: { at: (typeof SQ_AT)[number]; i: number;
   }, [spin, i, r, reduce]);
   const style = useAnimatedStyle(() => ({ transform: [{ rotate: `${r.get()}deg` }] }));
   return <Animated.View style={[{ position: 'absolute', width: 7.2, height: 7.2, borderRadius: 2, borderWidth: 1.9, borderColor: color }, at, style]} />;
+}
+
+/** 렌즈 밑의 원래 아이콘 — 렌즈가 떠 있는 동안 그 칸만 감춘다(렌즈 안에 확대된 한 벌이 있어, 둘이 겹쳐 이름이 두 번 보였다) */
+function UnderLens({ i, pos, lift, active, children }: { i: number; pos: SharedValue<number>; lift: SharedValue<number>; active: boolean; children: ReactNode }) {
+  const style = useAnimatedStyle(() => {
+    if (!active) return { opacity: 1 };
+    const near = Math.max(0, 1 - Math.abs(i - pos.value) * 1.4);
+    return { opacity: 1 - near * Math.min(1, lift.value * 1.5) };
+  });
+  return <Animated.View style={[{ alignItems: 'center', gap: 2 }, style]}>{children}</Animated.View>;
 }
