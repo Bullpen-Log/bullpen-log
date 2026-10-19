@@ -8,6 +8,7 @@ import { AFTER_THROWING_TEXT, ARMCARE_KIND_TEXT, armcareMinutes, type ArmcareKin
 import { loadArmcareCoverage, type ArmPainLine } from '@/lib/armcare/coverage-load';
 import { loadMyRoutines } from '@/lib/armcare/my-routines-store';
 import { MY_ROUTINE_MAX } from '@/lib/armcare/my-routines';
+import { favoriteExerciseIds } from '@/lib/favorites';
 import {
   REHAB_CONDITIONS,
   REHAB_ENABLED,
@@ -170,6 +171,8 @@ export type AppArmcareGuideTab = {
    * '내 루틴에 담기' 창의 루틴 목록(웹 armcare-section.tsx 의 routines 와 같은 값) — 부위 카드의 운동 줄 [담기]. 옛 앱은 안 읽는다.
    */
   routines?: { id: string; name: string; exerciseIds: string[] }[];
+  /** 즐겨찾기한 운동 id — 운동 줄의 별 · 머리의 즐겨찾기 모음(앱, 2026-10-20). 옛 앱은 안 읽는다 */
+  favoriteIds?: string[];
 };
 
 const RESULT_LABEL: Record<RehabResult, string> = { green: '초록', yellow: '노랑', red: '빨강', refer: '진료' };
@@ -184,10 +187,11 @@ export async function loadAppArmcareTab(
     const library = await visibleExercises();
     const armcareLib = library.filter((ex) => ex.category === ARMCARE_CATEGORY);
     const dateKey = toDateKey(today);
-    const [exercises, map, mine] = await Promise.all([
+    const [exercises, map, mine, favorites] = await Promise.all([
       toArmcareViews(armcareLib),
       loadArmcareCoverage(user.id, dateKey, library),
       loadMyRoutines(user.id),
+      favoriteExerciseIds(user.id),
     ]);
     return {
       tab: 'guide',
@@ -201,6 +205,7 @@ export async function loadAppArmcareTab(
       },
       untagged: exercises.filter((ex) => ex.targetMuscles.length === 0).length,
       routines: mine.map((r) => ({ id: r.id, name: r.name, exerciseIds: r.items.map((it) => it.exerciseId) })),
+      favoriteIds: exercises.filter((ex) => favorites.has(ex.id)).map((ex) => ex.id),
     };
   }
 

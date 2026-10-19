@@ -1,5 +1,5 @@
 import { SymbolView } from 'expo-symbols';
-import { type Href, router, useFocusEffect } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
 import {
   ActivityIndicator,
@@ -129,7 +129,7 @@ export function Screen<K extends string>({
   onTab,
   state,
   scrollRef,
-  settings = false,
+  right,
   children,
 }: {
   title: string;
@@ -138,8 +138,8 @@ export function Screen<K extends string>({
   onTab: (t: K) => void;
   state: { data: unknown; failed: string | null; refreshing: boolean; load: () => void; refresh: () => void };
   scrollRef?: RefObject<ScrollViewInstance | null>;
-  /** 머리 오른쪽 트레이닝 설정 — 웹처럼 암케어만(메커니즘은 장비 · 목표 설정을 읽지 않아 웹에도 없다) */
-  settings?: boolean;
+  /** 큰 제목 오른쪽 — 즐겨찾기 모음 같은 단추 */
+  right?: ReactNode;
   children: ReactNode;
 }) {
   const c = usePalette();
@@ -159,20 +159,8 @@ export function Screen<K extends string>({
         contentContainerStyle={[s.content, { paddingBottom: Math.max(24, inset.bottom + 16) }, READABLE]}
         refreshControl={<RefreshControl refreshing={state.refreshing} onRefresh={state.refresh} />}
       >
-        {/* 큰 제목 + 오른쪽 '설정' 알약(웹 training-page PageHeading · TrainingSettingsButton pill — 암케어만) */}
-        <PageHead title={title}>
-          {settings ? (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="트레이닝 설정"
-              onPress={() => router.push('/training/settings' as Href)}
-              style={({ pressed }) => [st.pill, { backgroundColor: c.chip }, pressed && { opacity: 0.6 }]}
-            >
-              <Icon name="settings2" size={16} color={c.sky} />
-              <Text style={{ color: c.ink, fontSize: 15, fontWeight: '600' }}>설정</Text>
-            </Pressable>
-          ) : null}
-        </PageHead>
+        {/* 큰 제목 — 오른쪽 '설정' 알약은 암케어에서도 뺐다(2026-10-20 김민). 오른쪽 자리는 부르는 쪽이 채운다(right) */}
+        <PageHead title={title}>{right}</PageHead>
         {/* 웹 Segmented(흰 칸이 미끄러짐) — 다른 탭 고르개와 같은 부품 */}
         <Segmented label={title} size="md" value={tab} onChange={onTab} options={tabs} />
         {state.failed ? (
@@ -221,16 +209,6 @@ export function useJump(scroll: RefObject<ScrollViewInstance | null>, initial: s
       go(key);
     },
   };
-}
-
-/** 웹으로 가는 줄 — 앱에 아직 없는 것(만들기 · 시험 · 3D 지도 등). 누르면 화면을 닫고 웹이 그 주소로 */
-export function WebRow({ label, href, c }: { label: string; href: string; c: Palette }) {
-  return (
-    <Pressable onPress={() => leave(href)} accessibilityRole="link" style={[s.webRow, { backgroundColor: c.card, boxShadow: c.float }]}>
-      <Text style={[s.body, { color: c.ink, flex: 1 }]}>{label}</Text>
-      <SymbolView name="arrow.up.right" size={13} weight="semibold" tintColor={c.muted} />
-    </Pressable>
-  );
 }
 
 /** 칸 머리 — 큰 제목 · 한 줄 설명 */
@@ -298,5 +276,4 @@ export const s = StyleSheet.create({
 const st = StyleSheet.create({
   bar: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, minHeight: 44 },
   back: { flexDirection: 'row', alignItems: 'center', minHeight: 44 },
-  pill: { height: 44, borderRadius: 22, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', gap: 6 },
 });

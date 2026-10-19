@@ -25,6 +25,7 @@ import { ExerciseMedia } from '~/armcare/parts';
 import { act, Description, FilmVerdictButtons, leave } from '~/mechanics/parts';
 import type { Palette } from '~/lib/ui';
 import { Fold, s } from './screen';
+import { Star } from './fav-button';
 import { fromApp } from '~/shell/web-nav';
 
 /**
@@ -648,28 +649,13 @@ export function ElementCard({
  * 드릴 한 줄 — 이름 · 도구, '자세·영상 보기'를 누르면 도구 칩 · 영상 · 자세 설명 · 즐겨찾기(웹 MechanicsDrill). 영상은 펼친 동안에만.
  * 도구를 바꾸면 그 드릴의 영상 · 설명으로(key).
  */
-function DrillRow({ drill, secondary, c }: { drill: MechanicsDrillView; secondary: boolean; c: Palette }) {
+export function DrillRow({ drill, secondary, start = 0, c }: { drill: MechanicsDrillView; secondary: boolean; start?: number; c: Palette }) {
   const [open, setOpen] = useState(false);
-  const [pick, setPick] = useState(0);
-  const [fav, setFav] = useState<Record<string, boolean>>({});
-  const [favBusy, setFavBusy] = useState(false);
+  /* start — 처음 고른 도구(즐겨찾기 모음은 별을 단 도구부터) */
+  const [pick, setPick] = useState(start);
   const variant = drill.variants[Math.min(pick, drill.variants.length - 1)];
   const tools =
     drill.variants.length > 1 ? drill.variants.map((v) => v.tool) : variant.equipment.length > 0 ? variant.equipment : [variant.tool];
-  const favorite = fav[variant.id] ?? variant.favorite;
-  const [favError, setFavError] = useState<string | null>(null);
-  const toggleFav = async () => {
-    if (favBusy) return;
-    setFavBusy(true);
-    setFavError(null);
-    const res = await act<{ favorite: boolean }>('favorite.toggleDrillFavorite', variant.id);
-    setFavBusy(false);
-    if ('error' in res) setFavError(res.error);
-    else {
-      void Haptics.selectionAsync();
-      setFav((f) => ({ ...f, [variant.id]: res.favorite }));
-    }
-  };
   return (
     <View style={[st.drillRow, { backgroundColor: c.page, borderColor: c.line }]}>
       <View style={[s.row, { alignItems: 'flex-start', padding: 12 }]}>
@@ -681,6 +667,8 @@ function DrillRow({ drill, secondary, c }: { drill: MechanicsDrillView; secondar
           <Text style={[s.small, { color: c.muted }]}>{tools.join(' · ')}</Text>
         </View>
         {variant.thumbUrl ? <Image source={{ uri: variant.thumbUrl }} style={st.thumb} /> : null}
+        {/* 즐겨찾기 — 고른 도구의 드릴에(웹 FavoriteButton 과 같은 서버 동작). 펼치지 않아도 보이게 줄 머리에 둔다(2026-10-20 김민) */}
+        <Star key={variant.id} kind="drill" id={variant.id} initial={variant.favorite} title={drill.title} c={c} />
       </View>
       <Pressable
         onPress={() => setOpen((v) => !v)}
@@ -718,18 +706,6 @@ function DrillRow({ drill, secondary, c }: { drill: MechanicsDrillView; secondar
             aspectRatio={variant.aspectRatio}
           />
           <Description key={`d-${variant.id}`} guideId={variant.id} inline c={c} />
-          <Pressable
-            onPress={() => void toggleFav()}
-            disabled={favBusy}
-            accessibilityRole="button"
-            accessibilityState={{ selected: favorite }}
-            style={[s.smallPill, { backgroundColor: favorite ? c.sky + '1a' : c.chip, alignSelf: 'flex-start', opacity: favBusy ? 0.6 : 1 }]}
-          >
-            <SymbolView name={favorite ? 'star.fill' : 'star'} size={13} tintColor={favorite ? c.sky : c.muted} />
-            {/* 웹 FavoriteButton(full)과 같은 글 · 실패하면 밑에 한 줄 */}
-            <Text style={[s.smallBold, { color: favorite ? c.sky : c.ink }]}>{favorite ? '즐겨찾기 해제' : '즐겨찾기에 담기'}</Text>
-          </Pressable>
-          {favError ? <Text style={[s.small, { color: c.danger }]}>{favError}</Text> : null}
         </View>
       ) : null}
     </View>

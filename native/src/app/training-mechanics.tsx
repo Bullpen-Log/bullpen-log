@@ -1,12 +1,17 @@
 import { router, useLocalSearchParams } from 'expo-router';
-import { useRef, useState, type RefObject } from 'react';
-import { Text, View, type ScrollViewInstance } from 'react-native';
+import { useEffect, useRef, useState, type RefObject } from 'react';
+import { ActivityIndicator, Text, View, type ScrollViewInstance } from 'react-native';
 import { MECHANICS_ELEMENTS, MECHANICS_SYMPTOMS, mechanicsElement } from '@/lib/mechanics/elements';
 import type { AppMechanicsElementsTab, AppMechanicsProgramTab } from '@/lib/mechanics/home-load';
-import { LevelOffer, ThrowNoteCard } from '~/mechanics/parts';
+import { LevelOffer, ThrowNoteCard, leave } from '~/mechanics/parts';
+import { rpc } from '~/lib/rpc';
+import { FavButton } from '~/training/fav-button';
+import { isFav, useFavVersion } from '~/training/favorites';
+import { Sheet } from '~/workout/sheets';
 import { usePalette, type Palette } from '~/lib/ui';
 import {
   CompletedCard,
+  DrillRow,
   ElementCard,
   ElementChain,
   FilmCard,
@@ -47,14 +52,78 @@ export default function TrainingMechanicsScreen() {
     router.setParams({ tab: t });
   };
   const data = state.data && state.data.tab === tab ? state.data : null;
+  const [favOpen, setFavOpen] = useState(false);
   return (
-    <Screen title="메커니즘" tabs={TABS} tab={tab} onTab={pick} state={{ ...state, data }} scrollRef={scroll}>
+    <Screen
+      title="메커니즘"
+      tabs={TABS}
+      tab={tab}
+      onTab={pick}
+      state={{ ...state, data }}
+      scrollRef={scroll}
+      right={<FavButton onPress={() => setFavOpen(true)} c={c} />}
+    >
       {data?.tab === 'program' ? (
         <ProgramTab data={data} reload={state.load} c={c} />
       ) : data?.tab === 'elements' ? (
         <ElementsTab data={data} focus={typeof params.el === 'string' ? params.el : null} scroll={scroll} c={c} />
       ) : null}
+      {favOpen ? <FavSheet elements={data?.tab === 'elements' ? data : null} onClose={() => setFavOpen(false)} c={c} /> : null}
     </Screen>
+  );
+}
+
+/**
+ * 즐겨찾기 모음 — 별을 단 드릴만(2026-10-20 김민: "즐겨찾기한 드릴을 빨리 찾는 입구"). 요소별 드릴 칸의 자료를 쓰고, 프로그램 칸에서 열면 그 자료를
+ * 한 번 받는다. 도구가 여럿인 드릴은 한 도구라도 별이면 보인다. 별을 끄면 목록에서 빠진다.
+ */
+function FavSheet({ elements, onClose, c }: { elements: AppMechanicsElementsTab | null; onClose: () => void; c: Palette }) {
+  const [got, setGot] = useState<AppMechanicsElementsTab | null>(null);
+  const [failed, setFailed] = useState(false);
+  const data = elements ?? got;
+  useFavVersion();
+  useEffect(() => {
+    if (elements) return;
+    let alive = true;
+    rpc<({ ok: true } & AppMechanicsElementsTab) | { ok: false; to: string }>('app-training-parts.loadAppMechanics', 'elements').then(
+      (r) => {
+        if (!alive) return;
+        if (!r.ok) return leave(r.to);
+        setGot(r);
+      },
+      () => alive && setFailed(true)
+    );
+    return () => {
+      alive = false;
+    };
+  }, [elements]);
+  const list = data ? data.drills.filter((d) => d.variants.some((v) => isFav('drill', v.id, v.favorite))) : [];
+  return (
+    <Sheet fit open onClose={onClose} title="즐겨찾기" description="별을 단 드릴" c={c}>
+      {!data ? (
+        failed ? (
+          <Text style={[s.small, { color: c.muted }]}>신호가 약해 불러오지 못했어요.</Text>
+        ) : (
+          <ActivityIndicator style={{ paddingVertical: 24 }} />
+        )
+      ) : list.length === 0 ? (
+        <Text style={[s.body, s.box, { color: c.muted, backgroundColor: c.card }]}>
+          아직 즐겨찾기한 드릴이 없어요. 요소별 드릴에서 드릴 옆 별을 눌러 담아요.
+        </Text>
+      ) : (
+        <View style={{ gap: 10 }}>
+          {list.map((d) => (
+            <DrillRow
+              key={d.title}
+              drill={d}
+              secondary={false}
+              start={Math.max(0, d.variants.findIndex((v) => isFav('drill', v.id, v.favorite)))}
+              c={c}
+            />
+          ))}
+        </View>
+      )}
+    </Sheet>
   );
 }
 

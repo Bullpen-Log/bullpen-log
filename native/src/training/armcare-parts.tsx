@@ -14,6 +14,7 @@ import { act, leave } from '~/mechanics/parts';
 import type { Palette } from '~/lib/ui';
 import { Fold, s } from './screen';
 import { fromApp } from '~/shell/web-nav';
+import { Star } from './fav-button';
 import { Muscle3D, MuscleChips } from '~/armcare/muscle-info';
 import { AREA_DETAILS } from '@/lib/armcare/details';
 
@@ -25,18 +26,21 @@ import { AREA_DETAILS } from '@/lib/armcare/details';
 /** 따라 하기 앱 화면 — 웹 주소 /armcare/play/<id>?… 와 같은 물음 */
 export const openPlay = (id: string, query: string) => router.push(fromApp(query ? `/armcare/${id}?${query}` : `/armcare/${id}`) as Href);
 
-/** 운동 한 줄의 겉 — 이름 · 처방 · 근육 · 강도 · 미리보기, '자세 · 영상'을 누르면 영상과 설명 */
-function ExerciseRow({
+/** 운동 한 줄의 겉 — 이름 · 처방 · 근육 · 강도 · 미리보기 · [별](fav 를 넘긴 곳), '자세 · 영상'을 누르면 영상과 설명 */
+export function ExerciseRow({
   ex,
   note,
   warning,
   check,
+  fav,
   c,
 }: {
   ex: ArmcareExerciseView;
   note?: string | null;
   warning?: string | null;
   check?: { done: boolean; disabled: boolean; onToggle: () => void };
+  /** 서버가 준 즐겨찾기 값 — 넘기면 미리보기 옆에 별(부위별 보강 · 즐겨찾기 모음) */
+  fav?: boolean;
   c: Palette;
 }) {
   const [open, setOpen] = useState(false);
@@ -71,6 +75,7 @@ function ExerciseRow({
           <AddToRoutine exerciseId={ex.id} title={ex.title} c={c} />
         </View>
         {ex.thumbUrl ? <Image source={{ uri: ex.thumbUrl }} style={st.thumb} /> : null}
+        {fav != null ? <Star kind="exercise" id={ex.id} initial={fav} title={ex.title} c={c} /> : null}
       </View>
       <Pressable
         onPress={() => setOpen((v) => !v)}
@@ -392,47 +397,6 @@ export function PainNote({ pain, onArea, c }: { pain: ArmPainLine; onArea: (key:
   );
 }
 
-/** 2주째 비어 있는 부위 — 그 부위로 짠 10분 루틴(앱 따라 하기 /armcare/focus). 다 챙겼으면 칭찬 한 줄 */
-export function GapCard({
-  gaps,
-  allCovered,
-  total,
-  dateKey,
-  c,
-}: {
-  gaps: { key: ArmcareAreaKey; label: string }[];
-  allCovered: boolean;
-  total: number;
-  dateKey: string;
-  c: Palette;
-}) {
-  if (gaps.length === 0) {
-    if (!allCovered) return null;
-    return <Text style={[s.bodyBold, s.box, { color: c.sky, backgroundColor: c.card }]}>✓ 최근 2주 동안 여덟 부위를 모두 챙겼어요</Text>;
-  }
-  const decel = gaps.some((g) => g.key === 'shoulder-back' || g.key === 'elbow-inner');
-  return (
-    <View style={[s.card, { backgroundColor: c.card, boxShadow: c.float }]}>
-      <View style={{ gap: 2 }}>
-        <Text style={[s.bodyBold, { color: c.ink, fontSize: 17 }]}>{total === 0 ? '최근 2주 암케어 기록이 없어요' : '2주째 비어 있어요'}</Text>
-        <Text style={[s.body, { color: c.muted }]}>
-          {gaps.map((g) => g.label).join(' · ')}
-          {decel ? ', 던질 때 팔을 멈춰 주는 곳이에요' : ''}
-          {total === 0 ? '. 여기부터 시작해 보세요.' : ''}
-        </Text>
-      </View>
-      <Pressable
-        onPress={() => openPlay('focus', `areas=${gaps.map((g) => g.key).join(',')}&d=${dateKey}`)}
-        accessibilityRole="button"
-        style={[s.pill, { backgroundColor: c.sky }]}
-      >
-        <SymbolView name="play.fill" size={13} tintColor="#fff" />
-        <Text style={[s.bodyBold, { color: '#fff' }]}>{gaps.length === 1 ? '이곳으로' : `이 ${gaps.length}곳으로`} 10분 루틴</Text>
-      </Pressable>
-    </View>
-  );
-}
-
 /** 그 부위에 드는 운동 — 주로 키우는 것 먼저, 함께 쓰는 것 뒤에(웹 exercisesFor) */
 function exercisesFor(area: ArmcareArea, exercises: ArmcareExerciseView[]) {
   const primary: ArmcareExerciseView[] = [];
@@ -452,10 +416,13 @@ export function AreaCard({
   open,
   onToggle,
   onLayout,
+  favIds,
   c,
 }: {
   area: ArmcareArea;
   exercises: ArmcareExerciseView[];
+  /** 즐겨찾기한 운동 — 넘기면 운동 줄에 별(옛 서버면 없음) */
+  favIds?: readonly string[];
   open: boolean;
   onToggle: () => void;
   onLayout: (e: LayoutChangeEvent) => void;
@@ -544,7 +511,13 @@ export function AreaCard({
             <Text style={[s.small, { color: c.muted }]}>이 부위를 키우는 운동이 아직 없어요.</Text>
           ) : (
             [...primary, ...secondary].map((ex) => (
-              <ExerciseRow key={ex.id} ex={ex} note={secondary.includes(ex) ? '함께 쓰는 운동' : null} c={c} />
+              <ExerciseRow
+                key={ex.id}
+                ex={ex}
+                note={secondary.includes(ex) ? '함께 쓰는 운동' : null}
+                fav={favIds ? favIds.includes(ex.id) : undefined}
+                c={c}
+              />
             ))
           )}
         </View>

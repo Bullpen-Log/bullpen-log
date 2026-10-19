@@ -103,8 +103,8 @@ function now() {
  * (training-home.tsx)의 앱 카드에서 들어가는 따로 된 앱이고, 머리에는 돌아가는 길만 둔다. 보고 있는 앱을 쿠키에
  * 적어 홈이 그 카드를 맨 위에 둔다(remember-app.tsx).
  *
- * 트레이닝 설정은 운동 · 암케어에 둔다 — 운동 목록을 보다가 "이건 장비가 없어서 못 하는데" 싶을 때 여기서 고친다.
- * 메커니즘은 장비 · 목표 설정을 읽지 않아 두지 않는다.
+ * 트레이닝 설정은 운동에만 둔다 — 운동 목록을 보다가 "이건 장비가 없어서 못 하는데" 싶을 때 여기서 고친다.
+ * 메커니즘은 장비 · 목표 설정을 읽지 않아 두지 않고, 암케어에서는 2026-10-20 뺐다(김민).
  */
 function AppHead({
   app,
@@ -206,7 +206,6 @@ export default async function TrainingPage({
         <AppHead
           app="armcare"
           title="암케어"
-          settings={user}
           returnTo={
             tab === 'today'
               ? '/training?view=armcare'
