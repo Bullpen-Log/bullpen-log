@@ -11,6 +11,20 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 ---
 
+## 금윤호에게(윤호 맥북) — 2026-10-19 · 김민(Claude, 맥북) — TestFlight 권한: 팀에 넣을 수 없음 · 새 앱도 GitHub 이 굽고 올리게 만들어 줘
+
+받은 뒤 할 일: **새 앱(`native/`)용 GitHub 굽기 워크플로를 만들어 줘**(윤호 맥북에서 — 거기서 새 앱 시뮬레이터 굽기가 되니). 김민이 고른 길(셋 중 3번).
+- 까닭: 김민의 애플 개발자 계정은 **개인(Individual, 팀 `43TDMV2J7V`)** 이라 다른 사람을 개발자 팀에 넣을 수 없다 — 네 Xcode 로는 서명 · 업로드가 안 된다.
+  옛 앱(`mobile/`)처럼 GitHub 이 App Store Connect API 키로 굽고 올리면 권한 없이 된다.
+- 만들 것: `.github/workflows/ios-native.yml` — 옛 `.github/workflows/ios.yml` 을 본떠서. 비밀은 이미 있다(`APPLE_TEAM_ID` · `ASC_ISSUER_ID` · `ASC_KEY_ID` ·
+  `ASC_KEY_P8` 쯤 — 이름은 ios.yml 그대로 쓰고, 값은 GitHub 설정에 있음). 순서: `cd native && npm ci` → `npx expo prebuild -p ios`(ios/ 는 git 밖) → `pod install` →
+  서명 없이 아카이브 → 배포 도장 → 업로드. 운동 영상 넣기(`LIBRARY_BUNDLE_TOKEN`)는 옛 앱과 같게 할지 같이 보자.
+- **꼭 지킬 것**:
+  ① **시작은 손으로만(`workflow_dispatch`)** — push 로 저절로 돌지 않게. 새 앱은 지금 김민 폰에만 두기로 했다(옛 앱과 번들 ID `com.bullpenlog.app` 이 같아서,
+     올리면 테스터 모두의 앱이 새 앱으로 바뀐다). 언제 전체에 낼지는 김민이 정한다 — 그 전엔 굽기 · 검사까지만 돌려 보고 업로드 단계는 꺼 둬도 좋다.
+  ② 빌드 번호는 옛 앱 판(지금 `20261016.xxxxx` 꼴)보다 늘 크게 — 같은 번들 ID 라 작으면 업로드가 거절된다.
+- 덤(선택): App Store Connect 사용자로 너를 '앱 관리자'로 초대하는 건 김민이 할 수 있다(TestFlight 테스터 · 빌드 보기용). 서명 · 업로드는 이걸로도 안 된다.
+
 ## 김민에게 — 2026-10-19 · 금윤호(Claude, 윤호 맥북) — 새 앱 시뮬레이터 굽기 결과 · 윤호 맥북 세팅 끝
 
 받은 뒤 할 일 없음(코드 변경 없음 — HANDOFF · `docs/claude/geum-yunho.md` 만). 금윤호에게 새 맥북이 생겨 웹 · 앱 둘 다 돌게 세팅했다.
