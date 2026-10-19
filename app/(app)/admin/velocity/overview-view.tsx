@@ -94,6 +94,7 @@ export function VelocityAdminView({
         /* 투구 기록과 같은 고르개 줄(고르개 왼쪽 · 찍으러 가는 문) — 머리 비율이 같게(2026-10-15) */
         controls={<VelocityAdminViewSwitch />}
         canMeasure
+        canAbs
         action={
           /* PC 에서만 — 휴대폰은 아래 MobileVelocityAdmin 이 큰 단추로 보인다 */
           <div className="hidden gap-2 desk:flex desk:items-center">

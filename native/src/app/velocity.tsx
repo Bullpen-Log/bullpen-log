@@ -1,4 +1,4 @@
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { Alert, Linking, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -48,9 +48,9 @@ import {
   ZoneOverlay,
   ZonePinch,
 } from '~/velocity/camera-ui';
-import { TIPS, TIPS_SKIP_KEY, TipsCard } from '~/velocity/tips';
+import { TIPS_SKIP_KEY, TipsCard, tipsFor } from '~/velocity/tips';
 import { SessionRecorder, canRecordSession, type RecState } from '~/velocity/session-recorder';
-import { loadLastMode, modeInfo, saveLastMode, setupKeyOf, type CameraMode } from '~/velocity/mode';
+import { allowedMode, loadLastMode, modeInfo, saveLastMode, setupKeyOf, type CameraMode } from '~/velocity/mode';
 import { ModeSheet } from '~/velocity/mode-sheet';
 import { ModeStrip } from '~/velocity/mode-strip';
 import { useAbs } from '~/velocity/abs/use-abs';
@@ -93,12 +93,19 @@ const discardAll = (list: NativePitch[]) => {
   if (paths.length) void DualCamera.discard({ paths });
 };
 
-/** 'mode' = 모드 고르기 시트(카메라 미리보기 위) — 시트에서 고르면 그 모드의 지난 설정(ask) 또는 첫 설정(type)으로 */
-type Step = 'loading' | 'mode' | 'ask' | 'type' | 'camera' | 'level' | 'zone' | 'abs' | 'measure';
+/**
+ * 'mode' = 모드 고르기 시트(카메라 미리보기 위). 고르면 'guide'(사용 방법 · 주의사항 카드, 오늘 보지 않기면 건너뜀) → 그 모드의
+ * 지난 설정(ask) 또는 첫 설정(type)으로(2026-10-20 김민: 고른 뒤 먼저 사용 방법과 안내사항, 그다음 시작).
+ * 투구 탭의 '구속 측정' · 'ABS 판정' 칸은 ?mode= 로 열어 시트를 건너뛴다.
+ */
+type Step = 'loading' | 'mode' | 'guide' | 'ask' | 'type' | 'camera' | 'level' | 'zone' | 'abs' | 'measure';
 type Start = { isAdmin: boolean; today: string; fit: CalFit };
 
 export default function VelocityScreen() {
   const inset = useSafeAreaInsets();
+  /* 투구 탭에서 모드를 정해 열었나(speed · abs) — 없으면 모드 고르기 시트부터 */
+  const { mode: modeParam } = useLocalSearchParams<{ mode?: string }>();
+  const entryMode: CameraMode | null = modeParam === 'speed' || modeParam === 'abs' ? modeParam : null;
   const engine = useRef<EngineHandle>(null);
   const [start, setStart] = useState<Start | null>(null);
   const [blocked, setBlocked] = useState<string | null>(null);
@@ -183,8 +190,26 @@ export default function VelocityScreen() {
         todayRef.current = res.today;
         setStart({ isAdmin: res.isAdmin, today: res.today, fit: res.fit });
         /* 관리자만 쓰는 모드를 지난 번에 골랐어도 지금 관리자가 아니면 구속 측정으로 */
-        setMode(modeInfo(last).adminOnly && !res.isAdmin ? 'speed' : last);
-        setStep('mode');
+        if (entryMode) {
+          /* 투구 탭에서 모드를 정해 왔으면 시트 없이 안내부터(openMode 와 같은 일 — 그 함수는 이 뒤에 있어 여기서 못 부른다) */
+          const m = allowedMode(entryMode, res.isAdmin);
+          setMode(m);
+          void saveLastMode(m);
+          void Promise.all([loadJson(TIPS_SKIP_KEY), loadJson(setupKeyOf(m))]).then(([skip, raw]) => {
+            if (!alive) return;
+            if (skip !== res.today) {
+              setStep('guide');
+              setTipsAt(0);
+              return;
+            }
+            const s = parseSetup(raw);
+            setStored(s);
+            setStep(s ? 'ask' : 'type');
+          });
+        } else {
+          setMode(allowedMode(last, res.isAdmin));
+          setStep('mode');
+        }
         void loadDraft().then((d) => {
           if (!alive) return;
           if (!d) {
@@ -225,6 +250,8 @@ export default function VelocityScreen() {
     return () => {
       alive = false;
     };
+    // 화면을 열 때 한 번 — 들어온 모드(entryMode)는 주소라 바뀌지 않는다
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   /* 카메라 — 화면을 열면 켜 두고(설정 단계 뒤로 보이게), 알아채기는 측정 단계에서만 */
@@ -335,25 +362,50 @@ export default function VelocityScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step, live, recWanted, start?.isAdmin, info]);
 
-  /**
-   * 모드 고르기(시트) · 바꾸기(띠) — 그 모드의 지난 설정을 읽어 ask 또는 type 으로. 설정 단계 중(camera · level · zone)에 띠로 바꾸면
-   * 공통 단계라 그 자리에서 이어 간다(설계 2-2 — 공통 설정은 다시 묻지 않는다).
-   */
-  const pickMode = (next: CameraMode, from: 'sheet' | 'strip') => {
-    setMode(next);
-    void saveLastMode(next);
-    const inSetup = step === 'camera' || step === 'level' || step === 'zone' || step === 'abs';
-    if (from === 'strip' && (inSetup || step === 'measure')) {
-      /* ABS 설정 단계에서 구속으로 바꾸면 그 단계는 없으니 존으로, 측정 전에 ABS 로 바꾸면 플레이트 단계로(안 가면 보정이 없어 판정이 늘 비었다) */
-      if (step === 'abs' && next === 'speed') setStep('zone');
-      else if (step === 'measure' && !live && next === 'abs') setStep('abs');
-      return;
-    }
+  /* 그 모드의 지난 설정이 있으면 묻고(ask), 없으면 첫 설정(type) */
+  const goSetup = (next: CameraMode) => {
     void loadJson(setupKeyOf(next)).then((raw) => {
       const s = parseSetup(raw);
       setStored(s);
       setStep(s ? 'ask' : 'type');
     });
+  };
+  /** 모드를 정했다(시트 · 투구 탭) — 사용 방법 · 주의사항부터(오늘 보지 않기면 바로 설정) */
+  const openMode = (next: CameraMode, today: string) => {
+    setMode(next);
+    void saveLastMode(next);
+    void loadJson(TIPS_SKIP_KEY).then((d) => {
+      if (d === today) return goSetup(next);
+      setStep('guide');
+      setTipsAt(0);
+    });
+  };
+  /* 안내 카드를 닫았다 — 모드를 막 고른 참이면 설정으로 이어 간다 */
+  const closeTips = () => {
+    setTipsAt(null);
+    if (step === 'guide') goSetup(mode);
+  };
+
+  /**
+   * 모드 고르기(시트) · 바꾸기(띠) — 시트는 안내부터(openMode), 띠는 그 모드의 지난 설정을 읽어 ask 또는 type 으로. 설정 단계 중(camera · level · zone)에
+   * 띠로 바꾸면 공통 단계라 그 자리에서 이어 간다(설계 2-2 — 공통 설정은 다시 묻지 않는다). 안내 중에 바꾸면 카드만 그 모드 것으로.
+   */
+  const pickMode = (next: CameraMode, from: 'sheet' | 'strip') => {
+    if (from === 'sheet') return openMode(next, start?.today ?? '');
+    setMode(next);
+    void saveLastMode(next);
+    if (step === 'guide') {
+      setTipsAt(0);
+      return;
+    }
+    const inSetup = step === 'camera' || step === 'level' || step === 'zone' || step === 'abs';
+    if (inSetup || step === 'measure') {
+      /* ABS 설정 단계에서 구속으로 바꾸면 그 단계는 없으니 존으로, 측정 전에 ABS 로 바꾸면 플레이트 단계로(안 가면 보정이 없어 판정이 늘 비었다) */
+      if (step === 'abs' && next === 'speed') setStep('zone');
+      else if (step === 'measure' && !live && next === 'abs') setStep('abs');
+      return;
+    }
+    goSetup(next);
   };
 
   const begin = (s: Pick<VelocitySetup, 'sessionType' | 'zone' | 'distTape' | 'targetDistM'>) => {
@@ -371,17 +423,19 @@ export default function VelocityScreen() {
       targetDistM: s.targetDistM,
       savedAt: new Date().toISOString(),
     });
-    /* 설정을 마치면 주의사항 — 오늘 '보지 않기'를 눌렀으면 건너뛴다(웹 isTipsSkippedToday) */
-    void loadJson(TIPS_SKIP_KEY).then((d) => d !== start?.today && setTipsAt(0));
+    /* 주의사항은 모드를 고를 때 이미 봤다(guide) — 측정 화면의 주의사항 단추로 다시 본다 */
   };
 
-  /* 위 왼쪽 단추 — 설정 단계면 앞 단계로(맨 앞은 모드 시트), 모드 시트 · 측정이면 닫기 */
-  const PREV: Partial<Record<Step, Step>> = { camera: 'type', level: 'camera', zone: 'level', abs: 'zone', ask: 'mode' };
+  /*
+   * 위 왼쪽 — 늘 닫기(✕, 구속 측정을 떠남), 설정 단계면 그 옆에 앞 단계로(‹). 2026-10-20 김민: 투구 탭에서 들어오면 나가기가 없었다 —
+   * 설정 단계엔 '‹ 앞 단계'뿐이라 몇 번을 눌러야 나갔다.
+   */
+  const PREV: Partial<Record<Step, Step>> = { camera: 'type', level: 'camera', zone: 'level', abs: 'zone', ask: 'mode', guide: 'mode' };
+  const prevStep: Step | null = PREV[step] ?? (step === 'type' ? (stored ? 'ask' : 'mode') : null);
   const back = () => {
-    const prev = PREV[step];
-    if (prev) return setStep(prev);
-    if (step === 'type') return setStep(stored ? 'ask' : 'mode');
-    close();
+    if (!prevStep) return;
+    setTipsAt(null);
+    setStep(prevStep);
   };
   const close = () => {
     if (!pitches.length) return router.back();
@@ -481,6 +535,7 @@ export default function VelocityScreen() {
       .finally(() => setTimeout(() => setFocusBusy(false), 600));
   };
   const showTips = () => setTipsAt(0);
+  const tips = tipsFor(mode);
   const statusDot = status.visible > 0 ? (status.status === 'analyzing' ? '#fbbf24' : RED) : '#34d399';
   const statusText =
     status.visible > 0 ? (status.status === 'analyzing' ? '구속 계산 중' : '투구를 인식했어요') : pitches.length ? `측정 중 · ${pitches.length}구` : '던지면 저절로 재요';
@@ -508,20 +563,21 @@ export default function VelocityScreen() {
           <PlateOverlay ends={abs.ends} poly={abs.zonePoly} frame={frame} view={view} manual={step === 'abs' && abs.manual} onEnds={abs.setEnds} dim={step === 'measure'} />
         ) : null}
 
-        {/* 위 줄 — 뒤로 · 가운데 알약 · 재초점(웹 카메라 앱 꼴) */}
+        {/* 위 줄 — 닫기 · 앞 단계 · 가운데 알약 · 재초점(웹 카메라 앱 꼴) */}
         <View style={[styles.top, { paddingTop: inset.top + 6 }]}>
-          <ChromeButton
-            icon={step === 'measure' || step === 'mode' ? 'x' : 'chevron-left'}
-            label={step === 'measure' || step === 'mode' ? '닫기' : '뒤로'}
-            onPress={back}
-          />
-          <View style={styles.topMid}>
+          <View style={styles.topLeft}>
+            <ChromeButton icon="x" label="구속 측정 나가기" onPress={close} />
+            {prevStep && !blocked ? <ChromeButton icon="chevron-left" label="앞 단계로" onPress={back} /> : null}
+          </View>
+          <View style={styles.topMid} pointerEvents="none">
             {no ? (
               <ChromePill>
                 {no[0]}/{total} · {no[1]}
               </ChromePill>
             ) : step === 'mode' ? (
               <ChromePill>카메라</ChromePill>
+            ) : step === 'guide' ? (
+              <ChromePill>{modeMeta.title} · 사용 방법</ChromePill>
             ) : step === 'ask' ? (
               <ChromePill>{modeMeta.title} · 지난 설정</ChromePill>
             ) : step === 'measure' ? (
@@ -590,12 +646,17 @@ export default function VelocityScreen() {
             />
           ) : tipsAt != null ? (
             <TipsCard
+              tips={tips}
               index={tipsAt}
               onIndex={setTipsAt}
-              action={tipsAt < TIPS.length - 1 ? { label: '다음', onPress: () => setTipsAt(tipsAt + 1) } : { label: '확인', onPress: () => setTipsAt(null) }}
+              action={
+                tipsAt < tips.length - 1
+                  ? { label: '다음', onPress: () => setTipsAt(tipsAt + 1) }
+                  : { label: step === 'guide' ? '시작하기' : '확인', onPress: closeTips }
+              }
               onSkipToday={() => {
                 if (start) void saveJson(TIPS_SKIP_KEY, start.today);
-                setTipsAt(null);
+                closeTips();
               }}
             />
           ) : step === 'loading' || step === 'mode' ? null : step === 'ask' && stored ? (
@@ -901,6 +962,7 @@ const styles = StyleSheet.create({
   zone: { position: 'absolute', borderWidth: 2, borderColor: 'rgba(255,255,255,0.9)', borderRadius: 4, boxShadow: '0 0 0 1px rgba(0,0,0,0.35), inset 0 0 0 1px rgba(0,0,0,0.25)' },
   zoneLine: { position: 'absolute', backgroundColor: 'rgba(255,255,255,0.45)' },
   top: { position: 'absolute', left: 0, right: 0, top: 0, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12 },
+  topLeft: { flexDirection: 'row', gap: 8 },
   topMid: { flex: 1, alignItems: 'center' },
   second: { position: 'absolute', left: 12, right: 12, flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' },
   over: { position: 'absolute', left: 12, right: 12, bottom: 12, alignItems: 'stretch' },

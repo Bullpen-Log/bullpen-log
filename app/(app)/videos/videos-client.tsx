@@ -193,6 +193,7 @@ export function VideosClient({
       <PitchLogHeading
         controls={viewControls}
         canMeasure={canMeasure}
+        canAbs={velocityHref != null}
       />
 
       {/* 오늘 — 계획 한 줄 · 던지는 일정(접힌 알약) · 기록 남기기 */}

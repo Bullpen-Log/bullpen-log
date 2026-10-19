@@ -18,6 +18,7 @@ export default function Loading() {
       <PitchLogHeading
         controls={<VelocityAdminViewSwitch />}
         canMeasure
+        canAbs
         action={<Skeleton className="hidden h-9 w-56 rounded-xl desk:block" />}
       />
       <span className="sr-only">불러오는 중입니다</span>
