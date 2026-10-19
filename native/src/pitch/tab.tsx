@@ -181,30 +181,9 @@ function ToolTile({ icon, label, onPress }: { icon: IconName; label: string; onP
   );
 }
 
-/* 한 주 일곱 칸 — 100/7% 로 두면 소수점 반올림이 쌓여 일곱째 칸(토)이 다음 줄로 넘어갔다(날짜와 요일이 어긋남) */
-const SEVENTH = '14.28%';
 const styles = StyleSheet.create({
   tools: { flexDirection: 'row', gap: 8 },
   tool: { flex: 1, minHeight: 72, borderRadius: 16, alignItems: 'center', justifyContent: 'center', gap: 6, paddingHorizontal: 6 },
-  link: { height: 36, borderRadius: 18, paddingHorizontal: 14, justifyContent: 'center' },
-  linkText: { fontSize: 14, fontWeight: '600' },
-  week: { width: SEVENTH, textAlign: 'center', fontSize: 12, paddingBottom: 4 },
-  cell: {
-    width: SEVENTH,
-    alignItems: 'center',
-    paddingVertical: 4,
-    minHeight: 58,
-  },
   /* 웹 import-sheet ImportEntry — 회색 알약, 가운데 필름 그림 + 글 */
   importBtn: { minHeight: 40, borderRadius: 20, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingHorizontal: 16 },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    minHeight: 52,
-    borderRadius: 14,
-    paddingHorizontal: 14,
-  },
-  rowDate: { fontSize: 13, minWidth: 40, fontVariant: ['tabular-nums'] },
-  rowMain: { flex: 1, fontSize: 15, fontWeight: '600' },
 });

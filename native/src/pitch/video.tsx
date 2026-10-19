@@ -1,6 +1,8 @@
-import { useVideoPlayer, VideoView } from 'expo-video';
+import { useVideoPlayer, VideoView, type VideoPlayer } from 'expo-video';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { usePalette } from '~/lib/ui';
+import { Icon } from '~/shell/icon';
 import { LocalVideo } from '../../modules/local-video';
 import { isPhoneVideoPath, phoneAssetId, serverVideoUrls } from './api';
 
@@ -41,7 +43,8 @@ export function useVideoUri(path: string | null): { uri: string | null; error: s
   return state.path === path ? { uri: state.uri, error: state.error } : { uri: null, error: null };
 }
 
-export function PitchVideo({ path }: { path: string }) {
+/** tools = 속도(¼ · ½ · 1배) · 한 장면 넘기기 줄 — 그날 기록의 영상(웹 day-record 의 PitchVideoPlayer, 처음 ½배) */
+export function PitchVideo({ path, tools }: { path: string; tools?: boolean }) {
   const { uri, error } = useVideoUri(path);
   if (error)
     return (
@@ -55,7 +58,7 @@ export function PitchVideo({ path }: { path: string }) {
         <ActivityIndicator color="#fff" />
       </View>
     );
-  return <Player uri={uri} />;
+  return tools ? <ToolPlayer uri={uri} /> : <Player uri={uri} />;
 }
 
 /** 이미 받은 주소(서명 주소 등)를 바로 튼다 */
@@ -74,7 +77,64 @@ function Player({ uri, start, autoPlay }: { uri: string; start?: number | null; 
   return <VideoView player={player} style={styles.box} nativeControls contentFit="contain" />;
 }
 
+/* 재생기 값은 훅 밖 함수에서 바꾼다(2분할 비교의 nudge 와 같다 — 컴포넌트 안에서 훅 값을 바꾸면 린트가 막는다) */
+function stepFrame(p: VideoPlayer, dir: 1 | -1) {
+  p.pause();
+  p.currentTime = Math.max(0, p.currentTime + dir / 60);
+}
+function setPlayerRate(p: VideoPlayer, r: number) {
+  p.playbackRate = r;
+}
+const RATES = [0.25, 0.5, 1] as const;
+const RATE_TEXT: Record<(typeof RATES)[number], string> = { 0.25: '¼×', 0.5: '½×', 1: '1×' };
+
+/*
+ * 분석용 — 웹 PitchVideoPlayer 의 속도 · 프레임 넘기기. 한 장면 = 1/60초(대부분 60fps 로 찍는다 — 2분할 비교와 같다).
+ * ponytail: 선 · 각도 그리기(웹 VideoCanvas)는 아직 없다 — 크게 보기는 기본 재생기의 전체 화면 단추가 한다.
+ */
+function ToolPlayer({ uri }: { uri: string }) {
+  const c = usePalette();
+  const [rate, setRate] = useState<number>(0.5);
+  const player = useVideoPlayer(uri, (p) => {
+    p.muted = true;
+    p.loop = true;
+    p.playbackRate = 0.5;
+  });
+  const step = (dir: 1 | -1) => stepFrame(player, dir);
+  return (
+    <View style={{ gap: 8 }}>
+      <VideoView player={player} style={styles.box} nativeControls contentFit="contain" />
+      <View style={styles.tools}>
+        <Pressable accessibilityRole="button" accessibilityLabel="한 프레임 뒤로" onPress={() => step(-1)} style={[styles.tool, { backgroundColor: c.chip }]}>
+          <Icon name="chevron-left" size={18} color={c.ink} />
+        </Pressable>
+        <Pressable accessibilityRole="button" accessibilityLabel="한 프레임 앞으로" onPress={() => step(1)} style={[styles.tool, { backgroundColor: c.chip }]}>
+          <Icon name="chevron-right" size={18} color={c.ink} />
+        </Pressable>
+        <View style={{ flex: 1 }} />
+        {RATES.map((r) => (
+          <Pressable
+            key={r}
+            accessibilityRole="radio"
+            accessibilityLabel={`${r}배 속도`}
+            accessibilityState={{ selected: rate === r }}
+            onPress={() => {
+              setRate(r);
+              setPlayerRate(player, r);
+            }}
+            style={[styles.tool, { backgroundColor: rate === r ? c.ink : c.chip }]}
+          >
+            <Text style={{ color: rate === r ? c.page : c.ink, fontSize: 13, fontWeight: '600' }}>{RATE_TEXT[r]}</Text>
+          </Pressable>
+        ))}
+      </View>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
+  tools: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  tool: { minWidth: 44, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 10 },
   box: { width: '100%', aspectRatio: 9 / 16, maxHeight: 420, alignSelf: 'center', borderRadius: 16, backgroundColor: '#000', overflow: 'hidden' },
   center: { alignItems: 'center', justifyContent: 'center', padding: 16 },
   note: { color: 'rgba(255,255,255,0.8)', fontSize: 15, textAlign: 'center' },

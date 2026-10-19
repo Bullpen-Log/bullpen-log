@@ -203,7 +203,7 @@ export default function PitchDayScreen() {
                     {l.videoPaths.map((p, i) => (
                       <View key={p} style={{ gap: 6 }}>
                         {l.videoPaths.length > 1 ? <Text style={{ color: c.muted, fontSize: 12, fontWeight: '500' }}>영상 {i + 1}</Text> : null}
-                        <PitchVideo path={p} />
+                        <PitchVideo path={p} tools />
                       </View>
                     ))}
                   </View>
