@@ -1,14 +1,11 @@
-import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { appNow } from '@/lib/clock';
-import { isExpoUserAgent } from '@/lib/app-env';
 import { toDateKey } from '@/lib/pitch-stats';
 import { SETUP_PATH } from '@/lib/feature-locks';
 import { loadCalibration } from '@/app/actions/velocity';
 import { loadVelocityHistory } from '@/lib/velocity-load';
 import { velocityAccess } from '../velocity/access';
 import { AppOnly } from '../velocity/app-only';
-import { OpenNative } from '../velocity/open-native';
 import { VelocityScreen } from '../velocity/velocity-screen';
 
 /**
@@ -22,7 +19,11 @@ export default async function AbsPage({
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
   const params = await searchParams;
-  if (params.web !== '1' && isExpoUserAgent((await headers()).get('user-agent'))) return <OpenNative path="/abs" />;
+  /*
+   * 새 아이폰 앱(Expo)에도 이 웹 화면을 그대로 그린다 — 앱에 ABS 네이티브 화면이 없어, 구속 측정처럼 앱 화면으로 넘기면(OpenNative) 앱이 모르는
+   * 주소라 아무것도 안 열리고 웹은 뒤로 돌아갔다(2026-10-19 사용자: "메뉴는 있는데 기능이 열리지 않아"). 카메라는 웹뷰 카메라(getUserMedia)라
+   * 앱 카메라(2배 · 손떨림 보정)보다 덜 정확하다 — 화면이 기준 밖 알림으로 알린다. 앱 화면으로 옮기는 건 맥에서 새 앱을 구울 때.
+   */
   const { user, allowed, pitchLocked, isAdmin, native } = await velocityAccess();
   if (pitchLocked) redirect(SETUP_PATH.pitch);
   if (!allowed || !isAdmin) return <AppOnly />;

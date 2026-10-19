@@ -24,7 +24,8 @@ import {
   saveBlobToPhone,
 } from '@/lib/local-video';
 import { makePitchThumb } from '@/lib/pitch-thumbs';
-import { phoneVideoPath } from '@/lib/phone-video-path';
+import { isPhoneVideoPath, phoneVideoPath } from '@/lib/phone-video-path';
+import { uploadToStorage } from '@/components/video-upload';
 import { quietRefresh } from '@/lib/quiet-refresh';
 import { appNow, appNowMs } from '@/lib/clock';
 import { dateKeyLabel, toDateKey } from '@/lib/pitch-stats';
@@ -64,7 +65,7 @@ function writePending(paths: string[]) {
 const noopSubscribe = () => () => {};
 
 /** 투구 탭 '오늘' 카드 밑의 입구 — 앱 안(폰 저장 가능)에서만 보인다 */
-export function ImportEntry() {
+export function ImportEntry({ isAdmin = false }: { isAdmin?: boolean }) {
   const mounted = useSyncExternalStore(
     noopSubscribe,
     () => true,
@@ -82,7 +83,7 @@ export function ImportEntry() {
         <Film aria-hidden className="h-4 w-4" />
         지난 영상 가져오기
       </button>
-      {open && <ImportSheet onClose={() => setOpen(false)} />}
+      {open && <ImportSheet isAdmin={isAdmin} onClose={() => setOpen(false)} />}
     </>
   );
 }
@@ -92,7 +93,7 @@ type Step = 'pick' | 'reading' | 'preview' | 'form' | 'done';
 /** 폰에 넣은 묶음 영상 — 폼에 붙이고, 저장 안 하면 지운다 */
 type Placed = { paths: string[]; previewUrls: Record<string, string> };
 
-function ImportSheet({ onClose }: { onClose: () => void }) {
+function ImportSheet({ isAdmin, onClose }: { isAdmin: boolean; onClose: () => void }) {
   const router = useRouter();
   const [step, setStep] = useState<Step>('pick');
   const filesRef = useRef<File[]>([]);
@@ -161,6 +162,17 @@ function ImportSheet({ onClose }: { onClose: () => void }) {
       for (const [n, item] of group.items.entries()) {
         const file = filesRef.current[item.id];
         setPlacing({ n: n + 1, pct: 0 });
+        if (isAdmin) {
+          /* 관리자는 서버 저장소에(2026-10-19 김민: "관리자 계정으로 기록 · 촬영 · 업로드한 것은 모두 서버에") */
+          const path = await uploadToStorage(file, '/api/pitch-log/upload-url', (pct) =>
+            setPlacing({ n: n + 1, pct })
+          );
+          paths.push(path);
+          writePending([...readPending(), path]);
+          previewUrls[path] = URL.createObjectURL(file);
+          void makePitchThumb(path, file);
+          continue;
+        }
         const localId = await saveBlobToPhone(file, (p) =>
           setPlacing({ n: n + 1, pct: Math.round(p * 100) })
         );
@@ -205,6 +217,14 @@ function ImportSheet({ onClose }: { onClose: () => void }) {
    */
   const forget = async (paths: string[]) => {
     if (paths.length === 0) return;
+    /* 서버에 올린 것(관리자) — 어느 기록에도 안 붙은 것만 서버가 지운다 */
+    const server = paths.filter((p) => !isPhoneVideoPath(p));
+    if (server.length)
+      void fetch('/api/pitch-log/discard', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ paths: server }),
+      }).catch(() => undefined);
     const gone = await discardPhoneVideos(paths);
     if (gone != null) writePending(readPending().filter((p) => !paths.includes(p)));
   };

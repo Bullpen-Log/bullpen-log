@@ -181,6 +181,7 @@
 |---|---|---|
 | 2.6.0 공 크기를 세션 거리로 다시 판정 · 덩어리 배율 1.163 | 끝 · 배포 | `analyze-distance.ts` rejudgeSize · `accuracy-2026-10-16.md`(2배 줌 50구 110+ 11/14 · MAE 2.2) |
 | 2.7.0 조용할 때 훑기(웹 · Capacitor 앱 카메라 길) | 끝 · 배포 | `dual-capture.ts` sweep · `sweep.ts` · `analyze-video.ts` locateThrow |
+| 조용할 때 훑기 — 새 Expo 앱 | **코드 끝(금윤호 10-19, 아래 '① 결과') · 폰 확인 전** | `native/src/velocity/capture.ts` sweep · `engine.tsx` locate · 사이트 `engine-client.tsx` 'locate' |
 | 2.7.0 세션 통째 녹화 — 웹 | 끝 · 배포. 10-17 부터 관리자 칩 '세션 녹화 끔/켬'으로만 켬 | `lib/velocity-dual-recorder.ts` · `velocity-screen.tsx` recChip |
 | 세션 통째 녹화 — 새 Expo 앱 | 끝(김민 10-19, 4초 조각 · DualCamera.now) | `native/src/velocity/session-recorder.ts` |
 | 4단계 공 크기 깊이를 궤적에 | **안 만듦**(짝 21구: 오차 2.69 → 3.01%) | 위 4단계 절 |
@@ -193,17 +194,25 @@
 DB(10-16 밤 뒤, 읽기만): 시도 기록 공 10 · 공 후보 51 · 움직임 8 · **훑기 1** · 2.7.1 로 잰 공 11. 세션 녹화 7개 · 조각 22(새 앱 5개) — **공 표시(컷) 0**.
 실제 폰에서 훑기 · 모델 속도는 아직 제대로 본 적이 없다(웹 길 훑기가 1구 잡은 기록만).
 
-### 가장 큰 빈칸 — 새 Expo 앱에는 훑기 · 학습 모델이 없다
+### 가장 큰 빈칸 — 새 Expo 앱에는 훑기 · 학습 모델이 없다 → ① 로 채움(2026-10-19)
 
-10-18 부터 새 앱에서 구속 측정을 누르면 앱 화면(`native/src/app/velocity.tsx`)으로 가고, 던짐 알아채기는 앱 카메라 알림(`DualCameraCore.swift` MotionTrigger)뿐이다.
-`native/src/velocity/capture.ts` 머리말: "조용할 때 훑기(sweep, 사이트 2.7)는 아직 옮기지 않았다". 즉 2.7.0 · 2.7.1 의 '놓치는 공 줄이기'가 새 앱 사용자에겐 안 닿는다.
+10-18 부터 새 앱에서 구속 측정을 누르면 앱 화면(`native/src/app/velocity.tsx`)으로 가고, 던짐 알아채기는 앱 카메라 알림(`DualCameraCore.swift` MotionTrigger)뿐이었다.
+즉 2.7.0 · 2.7.1 의 '놓치는 공 줄이기'가 새 앱 사용자에겐 안 닿았다. **① 결과(금윤호, 2026-10-19 윤호 맥북)**:
+- 계산기 약속에 '훑기' 한 길(`engine-client.tsx` `{ t: 'locate' }` → `locateThrow` → `{ t: 'located', found }`, 앱 `engine.tsx` `EngineHandle.locate`). 재기와 같은 줄에 선다.
+  계산기가 뜰 때 공 감지 모델(2.7.1)을 미리 받는다 — 앱 첫 실행에 ORT 14MB + 모델.
+- `capture.ts`: 알아채기(armed)가 켜지면 5초마다 `nextSweepWindow`(웹 `sweep.ts` 그대로) 창을 `DualCamera.clip` 으로 잘라 훑고, 공을 믿으면 재는 중 · 최근 창에
+  없을 때만 'sweep' 작업(움직임과 같은 넓은 클립 · 씨앗 없음 · 안 보이게). 시계는 `DualCamera.now` — 없는 옛 판은 훑기 없음. 2.5초 넘으면 다음 하나 쉼.
+  결과 공 메모 '뒤늦게 찾은 공이에요…' · 시도 기록 kind 'sweep'.
+- 앱 모듈 자르기 상한 `afterSec` 4 → **6초**(`DualCameraModule.swift`) — 4초면 5초마다 4초만 훑어 매번 1~2초 빈틈(웹 · 옛 앱은 아직 그 상태 — `sweep.ts` CLIP_MAX_SEC 4 는
+  옛 Capacitor 모듈 기준). 새 앱을 구워야 들어간다(TestFlight 는 김민 결정 뒤, 워크플로 `ios-native.yml`).
+- 확인한 것: tsc · eslint(웹 · 앱) · shared-lib:test · 시뮬레이터 굽기. **폰에서는 안 봤다**(② 현장에서 — 시도 표 '훑기' 줄 · 훑기 한 번 걸린 시간 · 메모 '뒤늦게').
+  사이트 쪽(`engine-client.tsx`)이 배포돼야 앱 훑기가 돈다 — main 에 올리면 Vercel 이 한다.
 
 ### 다음 순서(금윤호)
 
-> 2026-10-19 밤(금윤호): **①은 코드로 끝** — `native/src/velocity/capture.ts` 에 `sweep()`(4초마다 지난 4초 · `DualCamera.now` · 재는 중이면 쉼 · 2.5초 넘으면 하나 건너뜀),
-> `native/src/velocity/engine.tsx` `locate()`, `app/velocity-engine/engine-client.tsx` `{ t: 'locate' }` → `locateThrow` → `{ t: 'located' }`(계산기가 뜰 때 모델도 미리 받음).
-> 찾은 공은 'sweep' 종류로 'motion' 과 같은 넓은 클립을 재고 시도 기록에 'sweep' 으로 남는다. 창은 앱 모듈 상한(`CLIP_MAX_SEC` 4)만큼만 — 웹 훑기도 같이 고쳤다(6초를 청하면
-> 4초만 와 뒤 2초가 늘 비었다). **폰에서 확인(②)은 아직** — 앱을 새로 구워야 들어간다(GitHub `ios-native.yml`). 잰 공 0개의 빈 요약(알아 둘 것 첫 줄)도 고쳤다(웹).
+> 2026-10-19 밤(금윤호 데스크톱): ①은 윤호 맥북 세션이 올렸다(4c8bd1a5 · 70044bed · 02c96403 — 5초마다 지난 6초, 모듈 자르기 상한 4 → 6초, '뒤늦게 찾은 공' 표시).
+> 데스크톱 세션이 같은 걸 동시에 만들다 그쪽을 받았다. 덧붙인 것: 웹 훑기(옛 앱, 상한 4)는 `nextSweepWindow(…, CLIP_MAX_SEC)` 로 창을 상한에 맞춤(6초를 청하면 4초만 와
+> 뒤 2초가 늘 비었다) · 잰 공 0개의 빈 요약(알아 둘 것 첫 줄) 고침. **폰에서 확인(②)은 아직** — 앱을 새로 구워야 들어간다(GitHub `ios-native.yml`).
 
 1. **새 앱에 조용할 때 훑기 옮기기(반나절).** `capture.ts` 에 웹 `DualCapture.sweep()` 과 같은 고리: 재는 중이 없으면 5초마다 `DualCamera.clip` 으로 지난 6초를 잘라
    숨은 웹뷰 엔진(`app/velocity-engine/engine-client.tsx`)에 `locateThrow` 를 부르고, 공을 믿으면 그 시각으로 'motion' 과 같은 길(넓은 클립)로 잰다(kind 'sweep', 결과에 '뒤늦게 찾은 공').

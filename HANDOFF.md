@@ -11,19 +11,24 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 ---
 
-## 김민에게 — 2026-10-19 밤 · 금윤호(Claude) — 엔진 인계 ① 끝: 새 앱에 조용할 때 훑기 · 학습 모델(코드) · 앱 다시 구워야 들어감
+## 김민에게 — 2026-10-19 밤 · 금윤호(Claude, 데스크톱) — 같은 ①을 두 세션이 동시에 했다 → 윤호 맥북 것을 받음 · 내 몫은 웹 훑기 창 · 빈 요약
 
-받은 뒤 할 일 없음(DB · 패키지 그대로). 네 인계 '다음 순서 ①'을 옮겼다 — 폰 확인(②)은 아직(앱 굽기 필요).
-- **앱**(`native/src/velocity/capture.ts`): `armed` 가 켜지면 4초마다 `DualCamera.now()` 로 지난 4초(겹침 1초)를 잘라 숨은 웹뷰의 `locate` 를 부르고, 공을 믿으면
-  'motion' 과 같은 넓은 클립으로 잰다(kind 'sweep' — 서버 `recordVelocityAttempt` 는 이미 받는다). 재는 중 · 훑는 중이면 쉬고, 2.5초 넘게 걸리면 다음 하나를 건너뛴다.
-  순수 셈은 웹 `lib/velocity-engine/sweep.ts`(`nextSweepWindow` · `coveredBy`)를 `@/lib` 로 그대로 쓴다. `sweepOn` 으로 끌 수 있다(화면 스위치는 아직 없음).
-- **앱 ↔ 계산기 약속** 하나 더: `{ t: 'locate', id, opts: { fps, fovDeg, focalPerLongSide, approach } }` + 클립 조각 → `{ t: 'located', id, found: { ballT, accepted, via, ms } | null }`
-  (`native/src/velocity/engine.tsx` `locate()` · `app/velocity-engine/engine-client.tsx`). 계산기가 뜰 때 모델(`ball-v1.onnx`)도 미리 받는다 — 앱 첫 실행에 14MB.
-- **웹 훑기 고침**: 앱 모듈이 한 번에 4초까지만 잘라 줘(`clip` afterSec 상한) 6초를 청하던 웹 훑기는 뒤 2초가 늘 비었다 → `nextSweepWindow(…, CLIP_MAX_SEC)`.
-- **잰 공 0개여도 세션 요약을 띄운다**(웹 `endSession`) — "저장 버튼이 안 보인다" 는 그것이었다(빈 요약 + 구속 측정하기).
-- 네 인계 글 중 바로잡을 것: 10-19 세션 녹화 7개 가운데 금윤호 5개는 **새 앱이 아니라 새 앱 안에서 연 웹 측정 화면**이었다(그래서 2판 라벨용 조각은 네 것 2개뿐).
-- 확인: 웹 tsc · eslint · engine2 84 · velocity 48 통과. 앱은 `native/` 에 의존성을 깔아 `tsc --noEmit` · `expo lint` 둘 다 통과 — 실기기는 못 봤다.
+받은 뒤 할 일 없음. 데스크톱 세션이 ①(새 앱 훑기)을 따로 만들다 맥북 세션이 먼저 올린 것(아래 글, 4c8bd1a5 · 70044bed · 02c96403)과 부딪혀 **그쪽을 통째로 받았다**
+(모듈 상한 6초 · '뒤늦게 찾은 공' 표시까지 있어 더 완전). 내 것에서 남긴 것:
+- **웹 훑기(옛 Capacitor 앱 길)**: 옛 앱 모듈은 한 번에 4초만 잘라 줘 6초를 청하던 창의 뒤 2초가 늘 비었다 → `nextSweepWindow(…, maxSec)` 인자(`sweep.ts`),
+  `dual-capture.ts` 가 `CLIP_MAX_SEC`(4) 로 부른다. 새 앱(상한 6)은 그대로 6초. 시험 한 줄(engine2 84).
+- **잰 공 0개여도 세션 요약을 띄운다**(웹 `velocity-screen.tsx` endSession) — 네 인계 '알아 둘 것' 첫 줄, "저장 버튼이 안 보인다".
+- 바로잡음: 10-19 세션 녹화 7개 가운데 금윤호 5개는 새 앱이 아니라 **새 앱 안에서 연 웹 측정 화면** 것(2판 라벨용 조각은 네 것 2개뿐).
 
+## 김민에게 — 2026-10-19 · 금윤호(Claude, 윤호 맥북) — 네 인계 ① 새 앱에 조용할 때 훑기 옮김 · 앱 모듈 자르기 상한 4 → 6초 — 새 앱 구워야 들어감
+
+받은 뒤 할 일 없음(DB · 패키지 그대로). 네 영역(`native/modules/dual-camera/ios/DualCameraModule.swift` 한 줄 · `native/src/velocity/*` · 사이트 `app/velocity-engine/engine-client.tsx`)을 고쳤다.
+자세한 것은 `docs/velocity/engine-2.7-plan.md` '인계' 절의 '① 결과'.
+- 사이트 계산기(`/velocity-engine`)에 '훑기' 메시지(`locate` → `located`)가 생겼고 뜰 때 공 감지 모델을 미리 받는다 — **사이트가 배포돼야 앱 훑기가 돈다**(옛 앱 · 웹엔 영향 없음).
+- 새 앱 `capture.ts` 가 armed 동안 5초마다 지난 창을 훑어 공을 찾으면 'sweep' 으로 잰다(웹과 같은 규칙 · `sweep.ts` 그대로 씀). 시도 기록 kind 'sweep', 공 메모 '뒤늦게 찾은 공이에요'.
+- **Swift 한 줄**: `clip` 의 `afterSec` 상한 4 → 6(앱이 쥔 8초 안). 4초면 5초마다 4초만 훑어 빈틈이 생겨서. 옛 앱(mobile/) 모듈과 웹 `sweep.ts` CLIP_MAX_SEC 는 안 건드렸다 —
+  옛 앱도 같이 올리면 웹 녹화기 · 훑기 빈틈이 줄 텐데 네 영역이라 둔다.
+- 시뮬레이터 굽기까지 확인(Swift 컴파일 OK). **폰 확인은 ② 현장에서** — 시도 표 '훑기' 줄 · 걸린 시간(2.5초 넘으면 하나 건너뜀) · 헛 알림.
 ## 금윤호에게 — 2026-10-19 · 김민(Claude, 김민 맥북) — 새 앱(Expo) 전환 인계: 이제 윤호 맥북에서 이어서
 
 김민: "이제부터 네이티브 앱 전환은 금윤호 맥북으로 진행할 거라, 지금까지의 진행 상황과 앞으로의 계획을 전달해줘." 받은 뒤 할 일: **아래 1 · 2 를 폰으로**(DB · 패키지 그대로).

@@ -103,7 +103,11 @@ public class DualCameraModule: Module {
                 return promise.reject("args", "atSec 가 없어요.")
             }
             let before = max(0.1, min(4, Self.number(options["beforeSec"]) ?? 0.6))
-            let after = max(0.3, min(4, Self.number(options["afterSec"]) ?? 1.4))
+            /*
+             * 뒤 길이 상한 6초(2026-10-19, 금윤호) — 조용할 때 훑기(capture.ts sweep)가 지난 6초 창을 한 번에 자른다. 4초였을 때는
+             * 5초마다 4초만 훑어 매번 1~2초가 빈틈이었다(옛 Capacitor 앱 · 웹도 같은 상태). 앱이 쥔 영상은 8초(keepSec)라 여유가 있다.
+             */
+            let after = max(0.3, min(6, Self.number(options["afterSec"]) ?? 1.4))
             controller.makeClips(at: at, before: before, after: after) { result in
                 switch result {
                 case .success(let clips):

@@ -77,7 +77,7 @@ export function decide(
   raw: EngineResult,
   list: NativePitch[],
   ctx: SessionCtx,
-  meta: { id: number; clip: Clip }
+  meta: { id: number; clip: Clip; late?: boolean }
 ): { verdict: Verdict; list?: NativePitch[]; notice?: string } {
   const result = judgeBySession(raw as unknown as Result, list, 'camera', ctx.tape);
   const m = result.measure;
@@ -120,6 +120,8 @@ export function decide(
         ? [`공을 미트까지 따라가지 못한 것 같아요(공 크기로 본 거리 ${mismatch.size}m). 최고 · 평균에서 뺐어요.`]
         : []),
       ...(steadied(result) ? ['폰이 흔들려 바로잡아 잰 값이에요.'] : []),
+      /* 조용할 때 훑기(capture.ts sweep)가 찾은 공 — 웹 velocity-screen 과 같은 글 */
+      ...(meta.late ? ['뒤늦게 찾은 공이에요. 알림이 없어 지난 영상을 훑어 쟀어요.'] : []),
     ],
   };
   return { verdict: { kept: true }, list: withSessionDistance([...list, pitch], null, ctx.tape) };
