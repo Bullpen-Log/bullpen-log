@@ -32,9 +32,13 @@ export default function VelocityAdminScreen() {
           <Pressable accessibilityRole="button" onPress={() => router.push('/admin/velocity/upload' as Href)} style={[s.pill, { minHeight: 56, backgroundColor: c.sky }]}>
             <Text style={{ color: '#fff', fontSize: 17, fontWeight: '700' }}>영상 올리기</Text>
           </Pressable>
+          {/* 세션 녹화 — 측정된 공과 따로 본다(웹 목록의 '세션 녹화' 칸, 2026-10-18) */}
+          <Pressable accessibilityRole="button" onPress={() => leave('/admin/velocity/recordings?kind=session')} style={[s.pill, { minHeight: 48, paddingHorizontal: 12, backgroundColor: c.card }]}>
+            <Text style={{ color: c.ink, fontSize: 15, fontWeight: '600' }}>세션 녹화{(data.sessionRecordings ?? 0) > 0 ? ` ${data.sessionRecordings}` : ''}</Text>
+          </Pressable>
           <View style={{ flexDirection: 'row', gap: 8 }}>
-            <Pressable accessibilityRole="button" onPress={() => leave('/admin/velocity/recordings')} style={[s.pill, { flex: 1, minHeight: 48, paddingHorizontal: 12, backgroundColor: c.card }]}>
-              <Text style={{ color: c.ink, fontSize: 15, fontWeight: '600' }}>녹화{data.recordings > 0 ? ` ${data.recordings}` : ''}</Text>
+            <Pressable accessibilityRole="button" onPress={() => leave('/admin/velocity/recordings?kind=dev')} style={[s.pill, { flex: 1, minHeight: 48, paddingHorizontal: 12, backgroundColor: c.card }]}>
+              <Text style={{ color: c.ink, fontSize: 15, fontWeight: '600' }}>개발용 녹화{data.recordings > 0 ? ` ${data.recordings}` : ''}</Text>
             </Pressable>
             <Pressable accessibilityRole="button" onPress={() => router.push('/velocity' as Href)} style={[s.pill, { flex: 1, minHeight: 48, paddingHorizontal: 12, backgroundColor: c.card }]}>
               <Text style={{ color: c.ink, fontSize: 15, fontWeight: '600' }}>측정 시작</Text>

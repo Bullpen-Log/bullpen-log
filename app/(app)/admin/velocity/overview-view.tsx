@@ -1,4 +1,4 @@
-import { Camera, Clapperboard } from 'lucide-react';
+import { Camera, Clapperboard, Film } from 'lucide-react';
 import type {
   AdminCalibRunView,
   AdminDay,
@@ -36,6 +36,7 @@ export function VelocityAdminView({
   run,
   pick,
   recordings = 0,
+  sessionRecordings = 0,
 }: {
   data: AdminOverview;
   path: ExplorerPath;
@@ -46,6 +47,8 @@ export function VelocityAdminView({
   pick: string | null;
   /** 엔진 개발용 녹화 수 — 휴대폰 화면의 단추에 */
   recordings?: number;
+  /** 세션 녹화 수(측정하는 동안 통째로) — 따로 단추 */
+  sessionRecordings?: number;
 }) {
   const { totals, overall, fit } = data;
 
@@ -98,9 +101,18 @@ export function VelocityAdminView({
               <Badge className="tabular-nums">모델 v{data.engineVersion}</Badge>
             </span>
             <FileMeasureButton />
+            {/* 측정하는 동안 통째로 찍은 세션 녹화 — 측정된 공과 따로 본다(2026-10-18) */}
+            <ButtonLink
+              href="/admin/velocity/recordings?kind=session"
+              variant="secondary"
+              className="inline-flex w-full items-center gap-2 sm:w-auto"
+            >
+              <Film aria-hidden className="h-4 w-4" />
+              세션 녹화{sessionRecordings > 0 ? ` ${sessionRecordings}` : ''}
+            </ButtonLink>
             {/* 측정 없이 찍은 원본 영상 — 공마다 범위 · 스피드건 값을 적는 편집기(recordings/) */}
             <ButtonLink
-              href="/admin/velocity/recordings"
+              href="/admin/velocity/recordings?kind=dev"
               variant="secondary"
               className="inline-flex w-full items-center gap-2 sm:w-auto"
             >
@@ -123,7 +135,13 @@ export function VelocityAdminView({
         CSS 로 가른다(서버는 화면 크기를 모른다).
       */}
       <div className="desk:hidden">
-        <MobileVelocityAdmin data={data} path={path} day={day} recordings={recordings} />
+        <MobileVelocityAdmin
+          data={data}
+          path={path}
+          day={day}
+          recordings={recordings}
+          sessionRecordings={sessionRecordings}
+        />
       </div>
 
       <div className="hidden stack-page desk:block">

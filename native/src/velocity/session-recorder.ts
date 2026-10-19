@@ -15,6 +15,12 @@ const TICK_MS = 4000;
 const LAG_SEC = 0.4;
 const MAX_CUT_SEC = 4;
 const MAX_PENDING = 3;
+/*
+ * 앱 카메라가 쥔 영상 길이(DualCameraCore.swift keepSec 8) — 이만큼 넘게 뒤처지면 자를 영상이 이미 없다. 예전엔 자르기가 실패해도
+ * lastEnd 를 그대로 둬 다음 차례도 같은 옛 구간을 자르려다 실패해, 측정 중 한 번 밀리면 첫 8초 뒤로 영상이 하나도 안 올라갔다
+ * (2026-10-19 금윤호 녹화 다섯 — 189초 중 7초). 밀린 만큼은 건너뛰고 버퍼 안으로 돌아온다.
+ */
+const KEEP_SEC = 8;
 
 type Res<T = object> = ({ ok: true } & T) | { ok: false; error: string };
 
@@ -60,8 +66,13 @@ export class SessionRecorder {
   private async tick(final = false) {
     if (this.cutting || this.lastEnd == null) return;
     const to = DualCamera.now!() - LAG_SEC;
+    if (to - this.lastEnd > KEEP_SEC - 1) {
+      this.lastEnd = to - MAX_CUT_SEC;
+      this.set({ failed: this.state.failed + 1, error: '카메라가 밀려 몇 초를 건너뛰었어요.' });
+    }
     const span = Math.min(MAX_CUT_SEC, to - this.lastEnd);
     if (span < (final ? 0.5 : 2)) return;
+    const start = this.lastEnd;
     this.cutting = true;
     try {
       if (this.pending >= MAX_PENDING) {
@@ -80,7 +91,9 @@ export class SessionRecorder {
       this.pending++;
       this.uploads = this.uploads.then(() => this.upload(index, main.path, main.bytes, offsetSec, main.durationSec)).finally(() => this.pending--);
     } catch (e) {
-      this.set({ error: e instanceof Error ? e.message : '영상을 자르지 못했어요.' });
+      /* 이 구간은 버리고 다음으로 — 그대로 두면 같은 구간을 계속 자르려다 실패한다 */
+      this.lastEnd = Math.max(this.lastEnd, start + span);
+      this.set({ failed: this.state.failed + 1, error: e instanceof Error ? e.message : '영상을 자르지 못했어요.' });
     } finally {
       this.cutting = false;
     }

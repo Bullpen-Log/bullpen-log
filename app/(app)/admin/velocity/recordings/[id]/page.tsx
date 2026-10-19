@@ -21,7 +21,11 @@ export default async function VelocityRecordingPage({
   if (!detail) notFound();
   return (
     <div className="stack-page">
-      <BackLink href="/admin/velocity/recordings">엔진 개발용 녹화</BackLink>
+      {detail.session ? (
+        <BackLink href="/admin/velocity/recordings?kind=session">세션 녹화</BackLink>
+      ) : (
+        <BackLink href="/admin/velocity/recordings?kind=dev">엔진 개발용 녹화</BackLink>
+      )}
       <RecordingEditor detail={detail} engineVersion={VELOCITY_ENGINE_VERSION} />
     </div>
   );

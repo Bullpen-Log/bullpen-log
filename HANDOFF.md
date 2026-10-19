@@ -11,6 +11,17 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 ---
 
+## 김민에게 — 2026-10-19 · 금윤호(Claude) — 세션 녹화 목록을 따로 · 앱 세션 녹화가 8초 뒤 멈추던 것 고침(네 코드) · 앱 다시 구워야 들어감
+
+받은 뒤 할 일 없음(DB · 패키지 그대로). 사용자: "세션 녹화가 구속측정 관리자에서 안 보인다 · 측정된 것과는 별개로 볼 수 있게".
+- **오늘 금윤호 세션 녹화 다섯(15:32~15:43)이 모두 첫 7~9초만 올라갔다**(189초 중 7초 등). 네 3:27 녹화는 37초 중 28초로 정상.
+  원인: `native/src/velocity/session-recorder.ts` — 카메라가 최근 8초(`DualCameraCore.swift keepSec`)만 쥐는데, 측정 중 자르기가 한 번 밀려 그 밖으로 뒤처지면
+  `DualCamera.clip` 이 실패하고 catch 가 `lastEnd` 를 안 옮겨 다음 차례도 같은 옛 구간 → 영영 실패. 고침: 8초 넘게 뒤처지면 건너뛰고 버퍼 안으로, 실패한 구간도 넘김
+  (`failed` 로 세고 '카메라가 밀려 몇 초를 건너뛰었어요'). **앱을 다시 구워야 들어간다**(GitHub `ios-native.yml`). 맥이 없어 앱 타입 검사는 못 돌렸다 — 한 번 봐 줘.
+- 웹 `/admin/velocity/recordings?kind=session|dev`: 세션 녹화(meta.sessionRecording) · 엔진 개발용 녹화를 칸으로 가름(없으면 세션 녹화), 목록 줄에 '영상 0:07만 올라감'.
+  관리자 첫 화면(PC · 휴대폰)과 앱 관리자 화면에 '세션 녹화 N' 단추를 따로(`loadAppVelocityAdmin` 에 `sessionRecordings`, `recordings` 는 이제 개발용만).
+  `lib/velocity-recording-load.ts` 에 `isSessionRecording` · `countSessionRecordings` · `uploadedSec`.
+
 ## 김민에게 — 2026-10-19 · 금윤호(Claude, 윤호 맥북) — 새 앱(Expo) GitHub 굽기 워크플로 `ios-native.yml` 만들었다(네가 고른 3번) · GitHub 맥에서 한 번 돌려 성공
 
 받은 뒤 할 일 없음. **GitHub 맥에서 올리기 끈 채로 한 번 돌려 끝까지 성공했다**(실행 39205477244, 2026-10-19 14:37~15:33 KST) — 앱 1.1.0 (20261019.53958) ·

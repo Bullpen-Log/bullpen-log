@@ -11,7 +11,7 @@ import { deleteUser, toggleUserRole } from '@/app/actions/admin';
 import { resolveReport } from '@/app/actions/community';
 import { updatePatchNote } from '@/app/actions/patch-note';
 import { loadVelocityAdminDay, loadVelocityAdminOverview } from '@/lib/velocity-admin-load';
-import { countVelocityRecordings } from '@/lib/velocity-recording-load';
+import { countSessionRecordings, countVelocityRecordings } from '@/lib/velocity-recording-load';
 import { pitchTypeLabel } from '@/lib/velocity-meta';
 
 /**
@@ -278,12 +278,18 @@ export async function saveAppPatchNote(id: unknown, memo: unknown) {
 export async function loadAppVelocityAdmin() {
   const a = await admin();
   if ('ok' in a) return a;
-  const [data, recordings] = await Promise.all([loadVelocityAdminOverview(), countVelocityRecordings()]);
+  const [data, recordings, sessionRecordings] = await Promise.all([
+    loadVelocityAdminOverview(),
+    countVelocityRecordings(),
+    countSessionRecordings(),
+  ]);
   return {
     ok: true as const,
     totals: { pitches: data.totals.pitches, pairs: data.totals.pairs },
     biasKmh: data.overall.biasKmh,
-    recordings,
+    /* 엔진 개발용 녹화 수 · 세션 녹화 수(따로 단추, 2026-10-18) */
+    recordings: recordings - sessionRecordings,
+    sessionRecordings,
     days: data.days.slice(0, 40).map((d) => ({ date: d.date, pitches: d.pitches, clips: d.clips, pairs: d.pairs, maxKmh: d.maxKmh })),
   };
 }
