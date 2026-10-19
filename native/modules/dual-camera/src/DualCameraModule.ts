@@ -10,6 +10,8 @@ declare class DualCameraModule extends NativeModule<DualCameraEvents> {
   setPreview(options: { visible: boolean }): Promise<void>;
   setTrigger(options: { armed?: boolean; roi?: Rect01 }): Promise<void>;
   focus(options: { focus?: Point01; far?: boolean }): Promise<void>;
+  /** 카메라 시계(초) — 알림 atSec 과 같은 시계. 옛 앱 판에는 없다 */
+  now?(): number;
   clip(options: { atSec: number; beforeSec?: number; afterSec?: number }): Promise<{ main: Clip; wide: Clip | null }>;
   read(options: { path: string; offset: number; length?: number }): Promise<{ data: string; size: number; eof: boolean }>;
   discard(options: { paths: string[] }): Promise<void>;

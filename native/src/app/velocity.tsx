@@ -46,6 +46,7 @@ import {
   ZonePinch,
 } from '~/velocity/camera-ui';
 import { TIPS, TIPS_SKIP_KEY, TipsCard } from '~/velocity/tips';
+import { SessionRecorder, canRecordSession, type RecState } from '~/velocity/session-recorder';
 import { Icon, type IconName } from '~/shell/icon';
 
 /**
@@ -271,6 +272,33 @@ export default function VelocityScreen() {
     void DualCamera.setTrigger({ armed });
   }, [step, live, sheet, info]);
 
+  /*
+   * 세션 통째 녹화(관리자) — 측정 시작 전 셔터 줄 위 왼쪽 칩으로 켠다(웹과 같다, 1분 100MB 남짓이라 기억하지 않고 열 때마다 꺼짐).
+   * 측정을 시작하면 녹화를 켜고, 측정을 끝내거나 화면을 떠나면 끈다. 조각은 웹 관리자 → 구속 측정 → 엔진 개발용 녹화에서 본다.
+   */
+  const [recWanted, setRecWanted] = useState(false);
+  const [rec, setRec] = useState<RecState | null>(null);
+  useEffect(() => {
+    if (!(step === 'measure' && live && recWanted && start?.isAdmin && info)) return;
+    const r = new SessionRecorder(setRec);
+    void r.start(sessionDate ?? start.today, {
+      sessionRecording: true,
+      source: 'app',
+      cameraPos,
+      sessionType,
+      zone,
+      distM: distTape ? targetDistM : STANDARD_TARGET_DIST_M,
+      frame: { width: info.mainWidth, height: info.mainHeight, fps: info.mainFps },
+      cameraClockStart: DualCamera.now?.() ?? null,
+    });
+    return () => {
+      if (r.state.phase === 'recording' || r.state.phase === 'starting') void r.stop();
+      else r.abort();
+    };
+    // 녹화는 측정을 켜고 끌 때만 — 존 · 종류를 바꿔도 이어서 녹화한다
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step, live, recWanted, start?.isAdmin, info]);
+
   const begin = (s: Pick<VelocitySetup, 'sessionType' | 'zone' | 'distTape' | 'targetDistM'>) => {
     setSessionType(s.sessionType);
     setZone(s.zone);
@@ -433,6 +461,27 @@ export default function VelocityScreen() {
 
         {/* 카메라 위 안내창 · 결과 — 뷰파인더 아래쪽 */}
         <View style={styles.over} pointerEvents="box-none">
+          {/* 관리자 세션 녹화 — 측정 전엔 켜기 칩, 측정 중엔 녹화 상태(웹 velocity-screen 의 sessionRecWanted 칩) */}
+          {step === 'measure' && start?.isAdmin && canRecordSession() && tipsAt == null ? (
+            !live ? (
+              <Pressable
+                accessibilityRole="switch"
+                accessibilityState={{ checked: recWanted }}
+                onPress={() => setRecWanted((v) => !v)}
+                style={[styles.recChip, recWanted && styles.recChipOn]}
+              >
+                <View style={[styles.recDot, { backgroundColor: recWanted ? '#fff' : '#f87171' }]} />
+                <Text style={styles.recText}>{recWanted ? '세션 녹화 켬' : '세션 녹화 끔'}</Text>
+              </Pressable>
+            ) : rec && rec.phase !== 'idle' ? (
+              <View style={[styles.recChip, styles.recChipOn]}>
+                <View style={[styles.recDot, { backgroundColor: '#fff' }]} />
+                <Text style={styles.recText}>
+                  {rec.phase === 'error' ? `녹화 못 함 · ${rec.error ?? ''}` : `녹화 중 · 올림 ${rec.uploaded}/${rec.parts}${rec.failed ? ` · 실패 ${rec.failed}` : ''}`}
+                </Text>
+              </View>
+            ) : null
+          ) : null}
           {blocked ? (
             <GuideCard title={blocked} footer={<CardButton label="닫기" onPress={() => router.back()} />} />
           ) : error && step !== 'measure' ? (
@@ -754,6 +803,22 @@ const styles = StyleSheet.create({
   bar: { backgroundColor: '#000', paddingTop: 10, flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-around', paddingHorizontal: 12 },
   mid: { alignItems: 'center' },
   row: { flexDirection: 'row', gap: 8 },
+  recChip: {
+    alignSelf: 'flex-start',
+    marginBottom: 10,
+    height: 40,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 14,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.25)',
+    backgroundColor: 'rgba(0,0,0,0.55)',
+  },
+  recChipOn: { borderColor: 'rgba(248,113,113,0.7)', backgroundColor: 'rgba(239,68,68,0.85)' },
+  recDot: { width: 10, height: 10, borderRadius: 5 },
+  recText: { color: '#fff', fontSize: 15, fontWeight: '600' },
   cardLabel: { fontSize: 13, fontWeight: '600', color: '#6e6e73', marginBottom: 8 },
   distRow: { marginTop: 10, gap: 8 },
   distHint: { marginTop: 8, fontSize: 13, lineHeight: 18, color: '#6e6e73' },

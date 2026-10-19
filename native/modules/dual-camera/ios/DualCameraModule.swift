@@ -94,6 +94,9 @@ public class DualCameraModule: Module {
             promise.resolve(nil)
         }
 
+        /// 카메라 시계(초) — 장면 시각 · 던짐 알림 atSec 과 같은 시계(호스트 시계). 세션 통째 녹화가 '지금까지'를 자를 때 쓴다
+        Function("now") { () -> Double in CACurrentMediaTime() }
+
         AsyncFunction("clip") { (options: [String: Any], promise: Promise) in
             guard let controller = self.controller else { return Self.off(promise) }
             guard let at = Self.number(options["atSec"]) else {
