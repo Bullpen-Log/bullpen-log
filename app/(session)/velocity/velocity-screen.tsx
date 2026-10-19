@@ -1503,14 +1503,17 @@ export function VelocityScreen({
     setShowCamera(false);
     setResultOpen(false);
   };
-  /* 세션 종료 — 잰 공이 있으면 종합 화면으로. 거기서 저장하거나(끝) 이어서 잰다 */
+  /*
+   * 세션 종료 — 종합 화면으로. 거기서 저장하거나(끝) 이어서 잰다. 잰 공이 0개여도 띄운다(빈 요약 '잰 공이 없어요' + 구속 측정하기) —
+   * 예전엔 카메라만 꺼져 "저장 버튼이 안 보인다"(2026-10-19 김민). 세션 녹화는 관리자 [세션 녹화] 폴더에 남는다.
+   */
   const endSession = () => {
     captureRef.current?.disarm();
     void stopSessionRecording();
     setLive(false);
     setShowCamera(false);
     setResultOpen(false);
-    if (pitches.length > 0) setSummaryOpen(true);
+    setSummaryOpen(true);
   };
   /*
    * 세션 통째 녹화(엔진 2.7 1단계, lib/velocity-dual-recorder.ts) — 관리자가 '세션 녹화' 단추를 켠 채 앱 카메라로 잴 때, 앱이 쥔

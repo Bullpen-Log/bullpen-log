@@ -47,11 +47,13 @@ export const SWEEP_MIN_SEC = 2;
  */
 export function nextSweepWindow(
   sweptUntil: number | null,
-  cameraNow: number
+  cameraNow: number,
+  /** 창의 가장 긴 길이 — 앱 모듈이 한 번에 잘라 주는 상한(CLIP_MAX_SEC 4)을 넘기면 그만큼만 와 뒤가 빈다(2026-10-19) */
+  maxSec = SWEEP_MAX_SEC
 ): { from: number; to: number } | null {
   const to = cameraNow - SWEEP_LAG_SEC;
-  const from0 = sweptUntil == null ? to - SWEEP_MAX_SEC : sweptUntil - SWEEP_OVERLAP_SEC;
-  const from = Math.max(from0, to - SWEEP_MAX_SEC);
+  const from0 = sweptUntil == null ? to - maxSec : sweptUntil - SWEEP_OVERLAP_SEC;
+  const from = Math.max(from0, to - maxSec);
   return to - from >= SWEEP_MIN_SEC ? { from, to } : null;
 }
 

@@ -200,6 +200,11 @@ DB(10-16 밤 뒤, 읽기만): 시도 기록 공 10 · 공 후보 51 · 움직임
 
 ### 다음 순서(금윤호)
 
+> 2026-10-19 밤(금윤호): **①은 코드로 끝** — `native/src/velocity/capture.ts` 에 `sweep()`(4초마다 지난 4초 · `DualCamera.now` · 재는 중이면 쉼 · 2.5초 넘으면 하나 건너뜀),
+> `native/src/velocity/engine.tsx` `locate()`, `app/velocity-engine/engine-client.tsx` `{ t: 'locate' }` → `locateThrow` → `{ t: 'located' }`(계산기가 뜰 때 모델도 미리 받음).
+> 찾은 공은 'sweep' 종류로 'motion' 과 같은 넓은 클립을 재고 시도 기록에 'sweep' 으로 남는다. 창은 앱 모듈 상한(`CLIP_MAX_SEC` 4)만큼만 — 웹 훑기도 같이 고쳤다(6초를 청하면
+> 4초만 와 뒤 2초가 늘 비었다). **폰에서 확인(②)은 아직** — 앱을 새로 구워야 들어간다(GitHub `ios-native.yml`). 잰 공 0개의 빈 요약(알아 둘 것 첫 줄)도 고쳤다(웹).
+
 1. **새 앱에 조용할 때 훑기 옮기기(반나절).** `capture.ts` 에 웹 `DualCapture.sweep()` 과 같은 고리: 재는 중이 없으면 5초마다 `DualCamera.clip` 으로 지난 6초를 잘라
    숨은 웹뷰 엔진(`app/velocity-engine/engine-client.tsx`)에 `locateThrow` 를 부르고, 공을 믿으면 그 시각으로 'motion' 과 같은 길(넓은 클립)로 잰다(kind 'sweep', 결과에 '뒤늦게 찾은 공').
    새 앱은 `DualCamera.now()` 가 있어 웹의 1e9 시계 역산이 필요 없다. 웹뷰가 ORT(jsDelivr)와 모델(`/velocity-detector/ball-v1.onnx`)을 받으니 앱 첫 실행에 14MB.

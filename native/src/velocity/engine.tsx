@@ -35,9 +35,22 @@ export type EngineResult = {
   [key: string]: unknown;
 };
 
+/** engine-client.tsx LocateOpts 와 같다 — 조용할 때 훑기(2.7)가 클립에서 공이 있는지만 찾을 때 */
+export type LocateOpts = {
+  fps: number;
+  fovDeg: number;
+  focalPerLongSide: number | null;
+  approach: 'receding' | 'approaching';
+};
+
+/** 훑기 답 — ballT 는 클립 시작부터(초), via 는 모델(net) · 거친 훑기(coarse) */
+export type LocateFound = { ballT: number; accepted: boolean; via: string; ms: number };
+
 export type EngineHandle = {
   /** 클립을 재 결과를 돌려준다. onBall — 공 길을 찾은 순간(조용히 재던 클립을 화면에 띄울 때) */
   measure(clip: Clip, opts: MeasureOpts, onBall?: () => void): Promise<{ result: EngineResult; ms: number }>;
+  /** 클립에서 날아간 공이 있는지만 찾는다(재지 않는다) — 없으면 null */
+  locate(clip: Clip, opts: LocateOpts): Promise<LocateFound | null>;
 };
 
 type WebViewHandle = { postMessage(message: string): void };
@@ -54,6 +67,7 @@ type Waiter = {
   onBall?: () => void;
   timer: ReturnType<typeof setTimeout>;
 };
+type Locator = { resolve: (v: LocateFound | null) => void; timer: ReturnType<typeof setTimeout> };
 
 export const VelocityEngine = forwardRef<EngineHandle>(function VelocityEngine(_props, ref) {
   const web = useRef<WebViewHandle>(null);
@@ -62,18 +76,27 @@ export const VelocityEngine = forwardRef<EngineHandle>(function VelocityEngine(_
   const ready = useRef<Promise<void> | null>(null);
   const markReady = useRef<() => void>(() => undefined);
   const waiters = useRef(new Map<number, Waiter>());
+  const locators = useRef(new Map<number, Locator>());
   const nextId = useRef(0);
 
   if (!ready.current) ready.current = new Promise((r) => (markReady.current = r));
 
   const onMessage = useCallback((ev: WebViewMessageEvent) => {
-    let msg: { t: string; id?: number; result?: EngineResult; ms?: number; message?: string };
+    let msg: { t: string; id?: number; result?: EngineResult; ms?: number; message?: string; found?: LocateFound | null };
     try {
       msg = JSON.parse(ev.nativeEvent.data);
     } catch {
       return;
     }
     if (msg.t === 'ready') return markReady.current();
+    if (msg.t === 'located') {
+      const l = msg.id != null ? locators.current.get(msg.id) : undefined;
+      if (!l) return;
+      clearTimeout(l.timer);
+      locators.current.delete(msg.id!);
+      l.resolve(msg.found && Number.isFinite(msg.found.ballT) ? msg.found : null);
+      return;
+    }
     const w = msg.id != null ? waiters.current.get(msg.id) : undefined;
     if (!w) return;
     if (msg.t === 'ball') return w.onBall?.();
@@ -81,6 +104,16 @@ export const VelocityEngine = forwardRef<EngineHandle>(function VelocityEngine(_
     waiters.current.delete(msg.id!);
     if (msg.t === 'result' && msg.result) w.resolve({ result: msg.result, ms: msg.ms ?? 0 });
     else w.reject(new Error(msg.message ?? '영상을 읽지 못했어요'));
+  }, []);
+
+  /* 클립 파일을 1MB 조각으로 웹뷰에 — 재기(opts) · 훑기(locate) 둘 다 같은 길 */
+  const sendClip = useCallback(async (id: number, clip: Clip) => {
+    const post = (m: unknown) => web.current?.postMessage(JSON.stringify(m));
+    const parts = Math.max(1, Math.ceil(clip.bytes / CHUNK));
+    for (let part = 0; part < parts; part++) {
+      const { data } = await DualCamera.read({ path: clip.path, offset: part * CHUNK, length: CHUNK });
+      post({ t: 'clip', id, part, parts, data });
+    }
   }, []);
 
   useImperativeHandle(ref, () => ({
@@ -94,13 +127,23 @@ export const VelocityEngine = forwardRef<EngineHandle>(function VelocityEngine(_
         }, TIMEOUT_MS);
         waiters.current.set(id, { resolve, reject, onBall, timer });
       });
-      const post = (m: unknown) => web.current?.postMessage(JSON.stringify(m));
-      post({ t: 'opts', id, opts });
-      const parts = Math.max(1, Math.ceil(clip.bytes / CHUNK));
-      for (let part = 0; part < parts; part++) {
-        const { data } = await DualCamera.read({ path: clip.path, offset: part * CHUNK, length: CHUNK });
-        post({ t: 'clip', id, part, parts, data });
-      }
+      web.current?.postMessage(JSON.stringify({ t: 'opts', id, opts }));
+      await sendClip(id, clip);
+      return done;
+    },
+    async locate(clip, opts) {
+      await ready.current;
+      const id = ++nextId.current;
+      /* 못 찾은 것과 못 돌아온 것을 가르지 않는다 — 훑기는 조용히 다음 창으로 */
+      const done = new Promise<LocateFound | null>((resolve) => {
+        const timer = setTimeout(() => {
+          locators.current.delete(id);
+          resolve(null);
+        }, TIMEOUT_MS);
+        locators.current.set(id, { resolve, timer });
+      });
+      web.current?.postMessage(JSON.stringify({ t: 'locate', id, opts }));
+      await sendClip(id, clip);
       return done;
     },
   }));
@@ -121,6 +164,11 @@ export const VelocityEngine = forwardRef<EngineHandle>(function VelocityEngine(_
           clearTimeout(w.timer);
           w.reject(new Error('계산기가 멈춰 이번 공은 재지 못했어요'));
           waiters.current.delete(id);
+        }
+        for (const [id, l] of locators.current) {
+          clearTimeout(l.timer);
+          l.resolve(null);
+          locators.current.delete(id);
         }
         setGen((n) => n + 1);
       }}

@@ -573,6 +573,11 @@ if (!only || 'sweep'.includes(only)) {
   check(nextSweepWindow(99.6, 100.8) == null, '2초가 안 되면 안 훑는다(겹침 1초 포함)');
   const long = nextSweepWindow(80, 100);
   check(long != null && Math.abs(long.from - 93.6) < 1e-9, '오래 쉬었으면 뒤쪽 6초만');
+  const capped = nextSweepWindow(80, 100, CLIP_MAX_SEC);
+  check(
+    capped != null && Math.abs(capped.from - 95.6) < 1e-9 && Math.abs(capped.to - 99.6) < 1e-9,
+    `앱 모듈 상한을 주면 뒤쪽 ${CLIP_MAX_SEC}초만(${capped?.from} ~ ${capped?.to}) — 6초를 청하면 4초만 와 뒤가 비었다`
+  );
   check(
     coveredBy(5, [{ start: 4.4, end: 6.6 }]) && !coveredBy(7, [{ start: 4.4, end: 6.6 }]),
     '찾은 공이 재는 중 · 최근 창 안이면 겹침'
