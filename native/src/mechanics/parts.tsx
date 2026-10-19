@@ -15,6 +15,9 @@ import { leaveTo } from '~/shell/web-nav';
 /** 화면을 닫고 웹을 그 주소로 — 껍데기(index.tsx)가 웹뷰를 옮긴다(~/shell/web-nav leaveTo) */
 export const leave = leaveTo;
 
+/** act 가 신호 끊김에 돌려주는 글 — 화면이 웹처럼 앞말('담지 못했어요.')을 붙이고 싶을 때 견준다 */
+export const OFFLINE_TEXT = '인터넷 연결을 확인한 뒤 다시 해 주세요.';
+
 /**
  * 서버 동작 부르기 — 웹 orOffline 처럼 던지지 않고 { error } 로 돌려준다(신호가 끊겨도 화면이 오류로 사라지지 않게). 로그인이 풀렸으면
  * 화면을 닫고 웹을 로그인으로 보낸다.
@@ -27,7 +30,7 @@ export async function act<T extends object>(action: string, ...args: unknown[]):
       leave(e.to ?? '/login');
       return { error: e.message };
     }
-    return { error: e instanceof RpcError && e.code !== 'offline' ? e.message : '인터넷 연결을 확인한 뒤 다시 해 주세요.' };
+    return { error: e instanceof RpcError && e.code !== 'offline' ? e.message : OFFLINE_TEXT };
   }
 }
 

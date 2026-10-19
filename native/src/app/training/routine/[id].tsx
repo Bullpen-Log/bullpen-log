@@ -312,7 +312,8 @@ function PickRow({ e, inside, disabled, onToggle, c }: { e: BuilderExercise; ins
         <View style={{ gap: 10, paddingHorizontal: 12, paddingBottom: 12 }}>
           <Text style={[s.tiny, { color: c.muted }]}>{[`강도 ${ex.intensity}`, ex.difficulty].filter(Boolean).join(' · ')}</Text>
           <ExerciseMedia path={ex.videoPath} referenceVideoId={ex.referenceVideoId} thumbUrl={ex.thumbUrl} aspectRatio={ex.aspectRatio} />
-          <HowTo exerciseId={ex.id} method={ex.method} c={c} />
+          {/* 펼친 칸 안이라 설명을 바로 받아 보인다(웹 armcare-media 와 같다) */}
+          <HowTo exerciseId={ex.id} method={ex.method} inline c={c} />
         </View>
       ) : null}
     </View>
