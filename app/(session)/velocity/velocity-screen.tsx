@@ -1513,7 +1513,7 @@ export function VelocityScreen({
   };
   /*
    * 세션 통째 녹화(엔진 2.7 1단계, lib/velocity-dual-recorder.ts) — 관리자가 '세션 녹화' 단추를 켠 채 앱 카메라로 잴 때, 앱이 쥔
-   * 최근 영상을 6초마다 잘라 서버 녹화(엔진 개발용 녹화와 같은 표 · 편집기)로 올린다. 알림이 침묵해 놓친 공의 영상이 남는다.
+   * 최근 영상을 4초마다 잘라 서버 녹화(엔진 개발용 녹화와 같은 표 · 편집기)로 올린다. 알림이 침묵해 놓친 공의 영상이 남는다.
    */
   const startSessionRecording = async (capture: DualCapture | LiveCapture) => {
     if (!isAdmin || !sessionRecWanted || sessionRecRef.current) return;

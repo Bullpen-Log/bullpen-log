@@ -720,7 +720,7 @@ export class DualCapture {
     });
     if (clips.wide) void callDualCamera('discard', { paths: [clips.wide.path] }).catch(() => undefined);
     const blob = await readDualClip(clips.main);
-    return { blob, ...clipSpanOf(from, clips.main) };
+    return { blob, ...clipSpanOf(from, clips.main, to) };
   }
 
   /** 조용할 때 훑기 켜기 · 끄기(기본 켬) — armed 동안만 돈다 */

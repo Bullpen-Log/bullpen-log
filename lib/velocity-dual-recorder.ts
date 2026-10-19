@@ -7,13 +7,16 @@ import {
   finishVelocityRecording,
   startVelocityRecording,
 } from '@/app/actions/velocity-recording';
-import { RECORD_MAX_PENDING, RECORD_SEGMENT_SEC } from '@/lib/velocity-engine/sweep';
+import { RECORD_MAX_PENDING, RECORD_SEGMENT_SEC, nextRecordCut } from '@/lib/velocity-engine/sweep';
 import type { RecorderApi, RecorderState } from '@/lib/velocity-recorder';
 
 /**
- * 세션 통째 녹화(관리자, 엔진 2.7 1단계) — 앱 카메라로 재는 동안 앱이 쥐고 있는 최근 몇 초를 6초마다 잘라 서버 녹화(VelocityRecording,
- * 엔진 개발용 녹화와 같은 표 · 같은 편집기)로 올린다. 사이트 쪽만이라 앱 빌드 없이 된다(김민이 고른 2번 방식). 조각 하나 약 10MB(14Mbps) —
+ * 세션 통째 녹화(관리자, 엔진 2.7 1단계) — 앱 카메라로 재는 동안 앱이 쥐고 있는 최근 몇 초를 4초마다 잘라 서버 녹화(VelocityRecording,
+ * 엔진 개발용 녹화와 같은 표 · 같은 편집기)로 올린다. 사이트 쪽만이라 앱 빌드 없이 된다(김민이 고른 2번 방식). 조각 하나 약 7MB(14Mbps) —
  * LTE 면 1분 100MB 쯤이라 와이파이용. 올리기가 밀리면(3개 넘게) 그 조각은 건너뛴다(메모리) — 그 구간은 기록에 빈다.
+ *
+ * 2026-10-19: 조각을 6초로 청했는데 앱 모듈은 한 번에 4초까지만 잘라 줘(DualCameraModule.swift) 매번 뒤처지다 앱이 쥔 8초 밖으로 밀려 멎었다
+ * (금윤호 녹화 다섯 — 189초 중 7초). 이제 구간은 sweep.ts nextRecordCut 이 정한다 — 모듈 상한만큼 · 밀리면 건너뛰고 · 실패해도 자리를 옮긴다.
  *
  * 왜: 10-16 세션 저장 뒤 공 알림이 거의 안 왔는데 영상이 없어 왜 못 알아챘는지 볼 수 없었다. 이 녹화가 다음 현장의 '놓친 공' 자료이자
  * 공 감지 학습 모델(2.7 5단계)의 자료가 된다.
@@ -28,8 +31,6 @@ export type DualSessionSource = {
 };
 
 const OFFLINE = '신호가 약해 조각을 올리지 못했어요.';
-/** 마지막 조각이 아직 안 닫혔을 수 있다 — 지금에서 이만큼 띄운다 */
-const LAG_SEC = 0.4;
 
 function putBlob(url: string, blob: Blob, onProgress: (percent: number) => void) {
   return new Promise<void>((resolve, reject) => {
@@ -122,20 +123,29 @@ export class DualSessionRecorder {
     if (this.cutting) return;
     const now = this.source.cameraNow();
     if (now == null || this.lastEnd == null) return;
-    const to = now - LAG_SEC;
-    if (to - this.lastEnd < (final ? 0.5 : RECORD_SEGMENT_SEC * 0.8)) return;
+    const next = nextRecordCut(this.lastEnd, now, final);
+    if (!next) return;
+    const { from, to, skippedSec } = next;
     this.cutting = true;
     this.set({ elapsedSec: (performance.now() - this.startedAt) / 1000 });
     try {
+      if (skippedSec > 0) {
+        /* 앱이 쥔 영상 밖으로 뒤처졌다 — 없는 구간은 버리고 버퍼 안부터 */
+        this.set({
+          failed: this.state.failed + 1,
+          error: `카메라가 밀려 ${Math.round(skippedSec)}초를 건너뛰었어요.`,
+        });
+      }
       if (this.pending >= RECORD_MAX_PENDING) {
         /* 올리기가 밀렸다 — 이 구간은 버린다(메모리). 다음 조각은 여기서 이어진다 */
         this.lastEnd = to;
         this.set({ failed: this.state.failed + 1, error: '올리기가 밀려 조각 하나를 건너뛰었어요.' });
         return;
       }
-      const cut = await this.source.cutRange(this.lastEnd, to);
+      const cut = await this.source.cutRange(from, to);
       if (this.t0 == null) this.t0 = cut.start;
-      this.lastEnd = cut.end;
+      /* 돌아온 끝이 청한 끝보다 앞이면(아직 안 닫힘) 거기서 이어 간다 — 뒤로는 안 간다 */
+      this.lastEnd = Math.max(from, cut.end);
       const index = this.nextIndex++;
       const offsetSec = Math.max(0, cut.start - this.t0);
       this.set({ parts: this.state.parts + 1 });
@@ -145,7 +155,12 @@ export class DualSessionRecorder {
         .finally(() => this.pending--);
     } catch (err) {
       unstable_rethrow(err);
-      this.set({ error: err instanceof Error ? err.message : '영상을 자르지 못했어요.' });
+      /* 이 구간은 버리고 다음으로 — 그대로 두면 다음에도 같은(이미 없는) 자리를 청해 영영 멎는다 */
+      this.lastEnd = to;
+      this.set({
+        failed: this.state.failed + 1,
+        error: err instanceof Error ? err.message : '영상을 자르지 못했어요.',
+      });
     } finally {
       this.cutting = false;
     }
