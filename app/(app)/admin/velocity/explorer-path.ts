@@ -1,13 +1,14 @@
 /**
  * 구속 측정 탐색기의 주소 — 어느 폴더를 보고 있나.
  *
- *   /admin/velocity                                  맨 위 — [원본] · [보정] 두 폴더
+ *   /admin/velocity                                  맨 위 — [원본] · [보정] · [세션 녹화] 세 폴더
  *   /admin/velocity?area=orig                        원본 — 연도 폴더들
  *   /admin/velocity?area=orig&at=2026                2026년 — 월 폴더들
  *   /admin/velocity?area=orig&at=2026-09             9월 — 날짜 폴더들
  *   /admin/velocity?area=orig&at=2026-09-28          28일 — 그날 공 파일들(세션 상관없이, 스피드건 10km/h 그룹)
  *   /admin/velocity?area=calib&at=2026-09-28         보정 › 28일 — 보정 차수 폴더들(1차 · 2차 …)
  *   /admin/velocity?area=calib&at=2026-09-28&run=<id> 그 차수의 결과 파일들(공마다 다시 잰 값)
+ *   /admin/velocity?area=rec&at=2026-10-19           세션 녹화 › 19일 — 그날 녹화 파일들(누르면 미리보기 · 영상 보기는 편집기)
  *   … &pick=<공 id>                                  그 파일을 골라 미리보기에 연다
  *
  * 원본 = 처음 올라온 · 잰 값 그대로. 보정 = 그날 영상들을 나중 모델로 다시 잰 결과가 차수마다 쌓인다
@@ -17,7 +18,8 @@
  * 브라우저(explorer.tsx)가 같이 쓴다.
  */
 
-export type ExplorerArea = 'orig' | 'calib';
+/** 원본(잰 값) · 보정(다시 잰 결과) · 세션 녹화(측정하는 동안 통째로 찍은 영상, 2026-10-19 — 측정 · 원본과 따로) */
+export type ExplorerArea = 'orig' | 'calib' | 'rec';
 
 export type ExplorerPath =
   | { level: 'root' }
@@ -36,7 +38,11 @@ export type ExplorerPath =
 
 const ROOT: ExplorerPath = { level: 'root' };
 
-export const AREA_LABEL: Record<ExplorerArea, string> = { orig: '원본', calib: '보정' };
+export const AREA_LABEL: Record<ExplorerArea, string> = {
+  orig: '원본',
+  calib: '보정',
+  rec: '세션 녹화',
+};
 
 /** 2월 31일 같은 날짜를 걸러낸다 — 되돌려 찍어 같은지 본다 */
 function isRealDate(date: string) {
@@ -53,7 +59,14 @@ export function parseExplorerPath(
   runId?: string | null
 ): ExplorerPath {
   const v = (at ?? '').trim();
-  const a: ExplorerArea | null = area === 'calib' ? 'calib' : area === 'orig' || v ? 'orig' : null;
+  const a: ExplorerArea | null =
+    area === 'calib'
+      ? 'calib'
+      : area === 'rec'
+        ? 'rec'
+        : area === 'orig' || v
+          ? 'orig'
+          : null;
   if (!a) return ROOT;
   if (!v) return { level: 'area', area: a };
   if (/^\d{4}$/.test(v)) return { level: 'year', area: a, year: v };
