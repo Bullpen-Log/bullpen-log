@@ -3,7 +3,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Animated, { Easing, useReducedMotion, useSharedValue, withTiming, useAnimatedStyle } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { Icon } from '~/shell/icon';
-import { MODES, type CameraMode } from './mode';
+import { MODES, MODE_YELLOW, type CameraMode } from './mode';
 
 /**
  * 모드 고르기 시트 — 홈에서 쓸어 카메라가 열리면 미리보기 위 아래쪽에 뜬다(docs/designs/camera-modes.md 2-1).
@@ -63,9 +63,6 @@ export function ModeSheet({
     </Animated.View>
   );
 }
-
-/* 아이폰 카메라의 노란 선택색 — 모드 띠(mode-strip.tsx)와 같다 */
-export const MODE_YELLOW = '#ffd60a';
 
 const styles = StyleSheet.create({
   sheet: {

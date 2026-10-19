@@ -10,6 +10,7 @@ import {
 } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { NAV_ICONS } from '@/components/nav-icons';
+import { Camera } from '@/components/icon';
 import { DESK_MEDIA, MORE_HREF, type NavItem } from '@/lib/nav';
 import { TRAINING_HOME_HREF, isTrainingSubView } from '@/lib/training-part';
 import { barSnapshot, setNavDirection } from '@/lib/nav-state';
@@ -440,9 +441,10 @@ export function TabPager({
         >
           <div className="flex flex-col items-center gap-3">
             <span className="grid h-20 w-20 place-items-center rounded-full bg-white/12">
-              <Icon aria-hidden className="h-10 w-10" />
+              {/* 구속 측정 · ABS 는 카메라가 열린 뒤 모드로 고른다(lib/camera-mode.ts) — 자리표시는 '카메라' */}
+              {ghost.item.href === '/velocity' ? <Camera aria-hidden className="h-10 w-10" /> : <Icon aria-hidden className="h-10 w-10" />}
             </span>
-            <span className="text-lg font-semibold">{ghost.item.label}</span>
+            <span className="text-lg font-semibold">{ghost.item.href === '/velocity' ? '카메라' : ghost.item.label}</span>
           </div>
         </div>
       )}
