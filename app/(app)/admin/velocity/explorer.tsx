@@ -42,6 +42,8 @@ import {
   type ConfidenceKey,
 } from '@/lib/velocity-meta';
 import { reject, type RejectCode } from '@/lib/velocity-engine/validate';
+import type { RecordingListItem } from '@/lib/velocity-recording-load';
+import { clock } from './recordings/recording-list';
 import { quietRefresh } from '@/lib/quiet-refresh';
 import { calibRunName, dayShortLabel, errorTone, hhmm, signed } from './format';
 import {
@@ -73,7 +75,8 @@ import { CalibRunButton } from './calib-run-button';
  *   구속 측정 › 원본 › 2026년 › 9월 › 28일 (일) › 03번 공
  *   구속 측정 › 보정 › 2026년 › 9월 › 28일 (일) › 1차 보정 · 9/28 · v1.4.0 › 03번 공
  *
- * 맨 위는 [원본] · [보정] 두 폴더. 원본은 올라온 · 잰 값 그대로 — 날짜 폴더를 열면 세션 폴더 없이
+ * 맨 위는 [원본] · [보정] · [세션 녹화] 세 폴더(세션 녹화는 측정하는 동안 통째로 찍은 영상 — 날짜 폴더에 녹화 파일, 누르면 미리보기,
+ * '영상 보기'는 녹화 편집기 · 2026-10-19 사용자: "측정된 것 · 원본과 별개로 세션 녹화 폴더"). 원본은 올라온 · 잰 값 그대로 — 날짜 폴더를 열면 세션 폴더 없이
  * 그날 공 파일이 바로 보인다(사용자 요청, 2026-09-28: 날짜에 들어가서 투구별로 또 들어갈 필요 없게).
  * 보정은 그날 영상들을 나중 모델로 다시 잰 결과가 차수마다 폴더로 쌓인다(N차 보정 · 보정일 · 모델).
  * 날짜 폴더의 공과 차수 폴더의 결과는 실제 스피드건 값 10km/h 그룹(140~149 · 130~139 …)으로 묶어
@@ -117,6 +120,14 @@ type Item =
       name: string;
       sub: string;
       row: AdminCalibResultRow;
+    }
+  | {
+      /** 세션 녹화 하나(id 는 녹화의 id) — 영상은 녹화 편집기에서 본다 */
+      kind: 'rec';
+      id: string;
+      name: string;
+      sub: string;
+      rec: RecordingListItem;
     };
 type FolderItem = Extract<Item, { kind: 'folder' }>;
 type FileLike = Exclude<Item, { kind: 'folder' }>;
@@ -312,6 +323,64 @@ function resultItem(row: AdminCalibResultRow): Item {
 
 const single = (items: Item[]): Group[] => [{ key: 'all', label: null, items }];
 
+/* ── 세션 녹화 — 연도 › 월 › 날짜로 묶는다(녹화의 date 는 한국 날짜) ── */
+type RecDay = { date: string; recs: RecordingListItem[] };
+type RecMonth = { key: string; days: RecDay[]; count: number };
+type RecYear = { key: string; months: RecMonth[]; count: number };
+
+function recTreeOf(list: RecordingListItem[]): RecYear[] {
+  const byDay = new Map<string, RecordingListItem[]>();
+  for (const r of list) byDay.set(r.date, [...(byDay.get(r.date) ?? []), r]);
+  const days = [...byDay.entries()]
+    .sort(([a], [b]) => (a < b ? 1 : -1))
+    .map(([date, recs]) => ({
+      date,
+      recs: [...recs].sort((a, b) => (a.createdAt < b.createdAt ? -1 : 1)),
+    }));
+  const years: RecYear[] = [];
+  for (const d of days) {
+    const yKey = d.date.slice(0, 4);
+    const mKey = d.date.slice(0, 7);
+    let y = years.find((x) => x.key === yKey);
+    if (!y) years.push((y = { key: yKey, months: [], count: 0 }));
+    let m = y.months.find((x) => x.key === mKey);
+    if (!m) y.months.push((m = { key: mKey, days: [], count: 0 }));
+    m.days.push(d);
+    m.count += d.recs.length;
+    y.count += d.recs.length;
+  }
+  return years;
+}
+
+/** 녹화 폴더의 통계 — FolderStat 모양에 녹화 수(pitches 자리) · 조각 수(clips 자리)만 */
+const recStat = (recs: RecordingListItem[]): FolderStat => ({
+  ...rootStatEmpty,
+  pitches: recs.length,
+  clips: recs.reduce((s, r) => s + r.parts, 0),
+});
+const recSeconds = (recs: RecordingListItem[]) => recs.reduce((s, r) => s + r.uploadedSec, 0);
+/** 올라간 영상이 녹화 길이보다 3초 넘게 짧다 — 빠진 구간이 있다 */
+const recShort = (r: RecordingListItem) =>
+  r.durationSec != null && r.uploadedSec < r.durationSec - 3;
+
+function recItem(r: RecordingListItem): Item {
+  return {
+    kind: 'rec',
+    id: r.id,
+    name: `${hhmm(r.createdAt)} 녹화`,
+    sub: [
+      `${clock(r.durationSec)} 중 영상 ${clock(r.uploadedSec)}`,
+      `조각 ${r.parts}`,
+      r.userName,
+      r.status !== 'done' ? '끊김' : null,
+      r.memo,
+    ]
+      .filter(Boolean)
+      .join(' · '),
+    rec: r,
+  };
+}
+
 const gunOfItem = (it: Item) =>
   it.kind === 'file'
     ? it.pitch.gunKmh
@@ -360,6 +429,7 @@ export function VelocityExplorer({
   day,
   run,
   initialPick,
+  recordings = [],
 }: {
   tree: AdminTreeYear[];
   /** [보정] 영역 — 연도 › 월 › 날짜 › 차수 요약 */
@@ -373,6 +443,8 @@ export function VelocityExplorer({
   /** 차수 폴더일 때 그 차수의 결과들 */
   run: AdminCalibRunView | null;
   initialPick: string | null;
+  /** 세션 녹화 목록 — [세션 녹화] 폴더 */
+  recordings?: RecordingListItem[];
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -399,6 +471,7 @@ export function VelocityExplorer({
       s.add(`calib:${path.date}`);
     return s;
   });
+  const recTree = useMemo(() => recTreeOf(recordings), [recordings]);
   const toggle = (key: string) =>
     setExpanded((prev) => {
       const next = new Set(prev);
@@ -467,6 +540,22 @@ export function VelocityExplorer({
       ? (run ?? calibDay?.runs.find((r) => r.id === path.runId) ?? null)
       : null;
   const allRuns = useMemo(() => calibTree.flatMap(runsOfYear), [calibTree]);
+  /* 세션 녹화 — 지금 폴더에 든 녹화(영역 · 연도 · 월 · 날짜로 거름) */
+  const recYear = area === 'rec' && atYear ? recTree.find((y) => y.key === atYear) : undefined;
+  const recMonth = recYear && atMonth ? recYear.months.find((m) => m.key === atMonth) : undefined;
+  const recDay = recMonth && atDate ? recMonth.days.find((d) => d.date === atDate) : undefined;
+  const recsHere = useMemo(
+    () =>
+      area !== 'rec'
+        ? []
+        : recordings.filter(
+            (r) =>
+              (!atYear || r.date.startsWith(atYear)) &&
+              (!atMonth || r.date.startsWith(atMonth)) &&
+              (!atDate || r.date === atDate)
+          ),
+    [area, recordings, atYear, atMonth, atDate]
+  );
   /** 이 날짜에 다음 보정이 몇 차가 되는지 — 재측정 확인창에 적는다 */
   const nextPass = atDate
     ? allRuns
@@ -475,6 +564,7 @@ export function VelocityExplorer({
     : undefined;
 
   const folderStat: FolderStat = (() => {
+    if (area === 'rec') return recStat(recsHere);
     switch (path.level) {
       case 'root':
         return rootStat;
@@ -524,6 +614,7 @@ export function VelocityExplorer({
     switch (path.level) {
       case 'root': {
         const last = latestRun(allRuns);
+        const recSec = recSeconds(recordings);
         return single([
           folder({
             id: 'orig',
@@ -542,9 +633,30 @@ export function VelocityExplorer({
             stat: calibStat(allRuns),
             runs: allRuns.length,
           }),
+          folder({
+            id: 'rec',
+            name: AREA_LABEL.rec,
+            sub: recordings.length
+              ? `녹화 ${recordings.length}개 · 영상 ${clock(recSec)}`
+              : '아직 세션 녹화 없음',
+            path: { level: 'area', area: 'rec' },
+            stat: recStat(recordings),
+          }),
         ]);
       }
       case 'area':
+        if (path.area === 'rec')
+          return single(
+            recTree.map((y) =>
+              folder({
+                id: y.key,
+                name: `${y.key}년`,
+                sub: `녹화 ${y.count}개`,
+                path: { level: 'year', area: 'rec', year: y.key },
+                stat: recStat(y.months.flatMap((m) => m.days.flatMap((d) => d.recs))),
+              })
+            )
+          );
         return single(
           path.area === 'orig'
             ? tree.map((y) =>
@@ -569,6 +681,18 @@ export function VelocityExplorer({
               })
         );
       case 'year':
+        if (path.area === 'rec')
+          return single(
+            (recYear?.months ?? []).map((m) =>
+              folder({
+                id: m.key,
+                name: monthName(m.key),
+                sub: `녹화 ${m.count}개`,
+                path: { level: 'month', area: 'rec', year: path.year, month: m.key },
+                stat: recStat(m.days.flatMap((d) => d.recs)),
+              })
+            )
+          );
         return single(
           path.area === 'orig'
             ? (year?.months ?? []).map((m) =>
@@ -598,6 +722,24 @@ export function VelocityExplorer({
               })
         );
       case 'month':
+        if (path.area === 'rec')
+          return single(
+            (recMonth?.days ?? []).map((d) =>
+              folder({
+                id: d.date,
+                name: dayShortLabel(d.date),
+                sub: `녹화 ${d.recs.length}개 · 영상 ${clock(recSeconds(d.recs))}`,
+                path: {
+                  level: 'day',
+                  area: 'rec',
+                  year: path.year,
+                  month: path.month,
+                  date: d.date,
+                },
+                stat: recStat(d.recs),
+              })
+            )
+          );
         return single(
           path.area === 'orig'
             ? (month?.days ?? []).map((d) =>
@@ -634,6 +776,8 @@ export function VelocityExplorer({
               })
         );
       case 'day':
+        /* 세션 녹화 날짜 폴더 — 그날 녹화 파일(시각 차례) */
+        if (path.area === 'rec') return single((recDay?.recs ?? []).map(recItem));
         /* 원본 날짜 폴더 — 세션 폴더 없이 그날 공 전부, 스피드건 그룹으로 */
         if (path.area === 'orig')
           return gunGroups(
@@ -675,6 +819,11 @@ export function VelocityExplorer({
     calibDay,
     day,
     run,
+    recordings,
+    recTree,
+    recYear,
+    recMonth,
+    recDay,
   ]);
 
   /** 스피드건 그룹으로 묶인 폴더인가(원본 날짜 · 보정 차수) */
@@ -683,6 +832,8 @@ export function VelocityExplorer({
 
   /* ── 자세히 보기의 칸 ── */
   const cols: Col[] = useMemo(() => {
+    if (path.level !== 'root' && path.area === 'rec')
+      return path.level === 'day' ? recCols : folderCols('rec');
     switch (path.level) {
       case 'root':
         return folderCols('root');
@@ -763,9 +914,11 @@ export function VelocityExplorer({
     );
   };
 
-  /* 오른쪽 칸 — 고른 공 · 고른 결과 · 차수 정보 · 폴더 통계 */
+  /* 오른쪽 칸 — 고른 공 · 고른 결과 · 고른 녹화 · 차수 정보 · 폴더 통계 */
   const preview = (it: FileLike) =>
-    it.kind === 'file' ? (
+    it.kind === 'rec' ? (
+      <RecPreview key={it.id} rec={it.rec} />
+    ) : it.kind === 'file' ? (
       <PitchPreview
         key={`${it.id}:${it.pitch.gunKmh ?? ''}`}
         session={it.session}
@@ -795,6 +948,8 @@ export function VelocityExplorer({
       onRun={act}
       onDeleted={deletedRun}
     />
+  ) : area === 'rec' ? (
+    <RecFolderPanel title={label(path)} recs={recsHere} />
   ) : (
     <div className="space-y-6">
       <FolderStatPanel
@@ -820,11 +975,13 @@ export function VelocityExplorer({
     runSummary && runSummary.engineVersion !== engineVersion
       ? `모델 v${runSummary.engineVersion} · 지금 v${engineVersion}`
       : `모델 v${runSummary?.engineVersion ?? engineVersion}`;
-  const countWord = area === 'calib' ? '결과' : '공';
+  const countWord = area === 'calib' ? '결과' : area === 'rec' ? '녹화' : '공';
 
   const emptyText = query.trim()
     ? `'${query.trim()}' 이(가) 든 항목이 없어요.`
-    : path.level === 'area' && path.area === 'orig'
+    : path.level === 'area' && path.area === 'rec'
+      ? "아직 세션 녹화가 없어요. 측정 화면의 관리자 칩 '세션 녹화 켬'으로 재면 날짜마다 여기에 쌓여요."
+      : path.level === 'area' && path.area === 'orig'
       ? '아직 잰 자료가 없어요. 구속 측정 시작이나 영상 파일로 재기로 첫 자료를 만들어요.'
       : path.level === 'area'
         ? '아직 보정 재측정이 없어요. 원본의 날짜 폴더에서 보정 재측정을 눌러 그날 영상들을 지금 모델로 다시 재요.'
@@ -1145,6 +1302,69 @@ export function VelocityExplorer({
                 </div>
               );
             })}
+
+          {/* 세션 녹화 — 연도 › 월 › 날짜(잎). 녹화는 트리에 넣지 않는다 */}
+          <TreeRow
+            depth={1}
+            label={AREA_LABEL.rec}
+            count={recordings.length}
+            href={explorerHref({ level: 'area', area: 'rec' })}
+            active={samePath(path, { level: 'area', area: 'rec' })}
+            open={expanded.has('rec')}
+            onToggle={() => toggle('rec')}
+          />
+          {expanded.has('rec') &&
+            recTree.map((y) => {
+              const yKey = `rec:${y.key}`;
+              const yOpen = expanded.has(yKey);
+              const yPath: ExplorerPath = { level: 'year', area: 'rec', year: y.key };
+              return (
+                <div key={yKey}>
+                  <TreeRow
+                    depth={2}
+                    label={`${y.key}년`}
+                    count={y.count}
+                    href={explorerHref(yPath)}
+                    active={samePath(path, yPath)}
+                    open={yOpen}
+                    onToggle={() => toggle(yKey)}
+                  />
+                  {yOpen &&
+                    y.months.map((m) => {
+                      const mKey = `rec:${m.key}`;
+                      const mOpen = expanded.has(mKey);
+                      const mPath: ExplorerPath = { ...yPath, level: 'month', month: m.key };
+                      return (
+                        <div key={mKey}>
+                          <TreeRow
+                            depth={3}
+                            label={monthName(m.key)}
+                            count={m.count}
+                            href={explorerHref(mPath)}
+                            active={samePath(path, mPath)}
+                            open={mOpen}
+                            onToggle={() => toggle(mKey)}
+                          />
+                          {mOpen &&
+                            m.days.map((d) => {
+                              const dPath: ExplorerPath = { ...mPath, level: 'day', date: d.date };
+                              return (
+                                <TreeRow
+                                  key={d.date}
+                                  depth={4}
+                                  label={dayShortLabel(d.date)}
+                                  count={d.recs.length}
+                                  href={explorerHref(dPath)}
+                                  active={samePath(path, dPath)}
+                                />
+                              );
+                            })}
+                        </div>
+                      );
+                    })}
+                </div>
+              );
+            })}
         </aside>
 
         <div className="min-w-0 lg:overflow-y-auto">
@@ -1274,10 +1494,16 @@ export function VelocityExplorer({
           항목 {shownCount}개{shownCount !== total && ` / ${total}개`}
         </span>
         {grouped && <span>그룹 {shown.length}</span>}
-        <span className="tabular-nums">
-          {countWord} {folderStat.pitches} · 짝 {folderStat.pairs} · 클립{' '}
-          {folderStat.clips}
-        </span>
+        {area === 'rec' ? (
+          <span className="tabular-nums">
+            녹화 {recsHere.length} · 영상 {clock(recSeconds(recsHere))} · 조각 {folderStat.clips}
+          </span>
+        ) : (
+          <span className="tabular-nums">
+            {countWord} {folderStat.pitches} · 짝 {folderStat.pairs} · 클립{' '}
+            {folderStat.clips}
+          </span>
+        )}
         {folderStat.biasKmh != null && (
           <span className="tabular-nums">
             편향{' '}
@@ -1411,6 +1637,14 @@ function Tile({
     <>
       {it.kind === 'folder' ? (
         <FolderGlyph className="h-14 w-16" badge={it.run ? 'calib' : null} />
+      ) : it.kind === 'rec' ? (
+        /* 녹화 — 올라간 영상 길이, 빠진 구간이 있으면 흐리게 */
+        <PitchFileGlyph
+          value={clock(it.rec.uploadedSec)}
+          unit="영상"
+          hasClip={it.rec.parts > 0}
+          excluded={recShort(it.rec)}
+        />
       ) : it.kind === 'file' ? (
         <PitchFileGlyph
           value={
@@ -1463,6 +1697,11 @@ function NameCell({ it }: { it: Item }) {
   const icon =
     it.kind === 'folder' ? (
       <FolderGlyph className="h-5 w-6 shrink-0" badge={it.run ? 'calib' : null} />
+    ) : it.kind === 'rec' ? (
+      <FileVideo
+        aria-hidden
+        className={`h-5 w-5 shrink-0 ${recShort(it.rec) ? 'text-warn' : 'text-sky'}`}
+      />
     ) : it.kind === 'file' ? (
       it.pitch.clipPath ? (
         <FileVideo
@@ -1524,7 +1763,7 @@ const sessionCol: Col = {
  *   root: [원본] · [보정]        orig: 원본의 연도 · 월 · 날짜     calib: 보정의 연도 · 월 · 날짜
  *   runs: 보정 날짜 안의 차수 폴더들(모델 · 보정일)
  */
-function folderCols(variant: 'root' | 'orig' | 'calib' | 'runs'): Col[] {
+function folderCols(variant: 'root' | 'orig' | 'calib' | 'runs' | 'rec'): Col[] {
   const num = (
     key: string,
     label: string,
@@ -1587,6 +1826,12 @@ function folderCols(variant: 'root' | 'orig' | 'calib' | 'runs'): Col[] {
         num('pitches', '결과', (s) => s.pitches),
         pairs,
         bias,
+      ];
+    case 'rec':
+      return [
+        nameCol,
+        num('pitches', '녹화', (s) => s.pitches),
+        num('clips', '조각', (s) => s.clips, 'hidden sm:table-cell'),
       ];
     case 'runs':
       return [
@@ -1764,3 +2009,115 @@ const resultCols: Col[] = [
     },
   },
 ];
+
+/* ───────────────────────── 세션 녹화 ───────────────────────── */
+
+const recOf = (it: Item) => (it.kind === 'rec' ? it.rec : null);
+
+/** 세션 녹화 날짜 폴더의 칸 — 시각 · 길이 · 올라간 영상 · 조각 · 누가 */
+const recCols: Col[] = [
+  { ...nameCol, sort: (it) => recOf(it)?.createdAt ?? '' },
+  {
+    key: 'len',
+    label: '녹화 길이',
+    cell: (it) => clock(recOf(it)?.durationSec ?? null),
+    sort: (it) => recOf(it)?.durationSec ?? null,
+  },
+  {
+    key: 'up',
+    label: '올라간 영상',
+    cell: (it) => {
+      const r = recOf(it);
+      if (!r) return '—';
+      return (
+        <span className={`font-semibold ${recShort(r) ? 'text-warn' : 'text-ink'}`}>
+          {clock(r.uploadedSec)}
+        </span>
+      );
+    },
+    sort: (it) => recOf(it)?.uploadedSec ?? null,
+  },
+  {
+    key: 'parts',
+    label: '조각',
+    className: 'hidden sm:table-cell',
+    cell: (it) => dash(recOf(it)?.parts),
+    sort: (it) => recOf(it)?.parts ?? null,
+  },
+  {
+    key: 'who',
+    label: '찍은 사람',
+    className: 'hidden md:table-cell text-muted',
+    cell: (it) => recOf(it)?.userName ?? '—',
+    sort: (it) => recOf(it)?.userName ?? '',
+  },
+];
+
+/** 고른 녹화 — 길이 · 올라간 영상 · 조각, 영상 보기(녹화 편집기) */
+function RecPreview({ rec }: { rec: RecordingListItem }) {
+  const short = recShort(rec);
+  const rows: [string, string, string?][] = [
+    ['찍은 때', `${rec.date} ${hhmm(rec.createdAt)}`],
+    ['찍은 사람', rec.userName ?? '—'],
+    ['녹화 길이', clock(rec.durationSec)],
+    ['올라간 영상', clock(rec.uploadedSec), short ? 'text-warn' : undefined],
+    ['조각', `${rec.parts}개 · ${(rec.bytes / 1024 / 1024).toFixed(1)}MB`],
+    ['적어 둔 공', `${rec.cuts}개${rec.cuts > 0 ? ` (스피드건 ${rec.gunCuts})` : ''}`],
+  ];
+  return (
+    <div className="space-y-4">
+      <div>
+        <h3 className="text-base font-bold text-ink">{hhmm(rec.createdAt)} 세션 녹화</h3>
+        <p className="mt-0.5 text-xs text-muted">측정하는 동안 통째로 찍은 영상 — 측정된 공과 따로 남는다</p>
+      </div>
+      <dl className="divide-y divide-line/70 text-sm">
+        {rows.map(([k, v, tone]) => (
+          <div key={k} className="flex items-center justify-between gap-3 py-1.5">
+            <dt className="text-muted">{k}</dt>
+            <dd className={`font-semibold tabular-nums ${tone ?? 'text-ink'}`}>{v}</dd>
+          </div>
+        ))}
+      </dl>
+      {short && (
+        <p className="rounded-lg bg-warn/10 px-3 py-2 text-xs leading-relaxed text-warn">
+          녹화 길이보다 올라간 영상이 짧아요 — 앱이 조각을 못 올린 구간이 있어요.
+        </p>
+      )}
+      {rec.memo && <p className="text-sm text-ink/80">{rec.memo}</p>}
+      <Link
+        href={`/admin/velocity/recordings/${rec.id}`}
+        className="inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-xl bg-sky px-4 text-sm font-semibold text-white transition-colors hover:bg-sky/90"
+      >
+        <FileVideo aria-hidden className="h-4 w-4" />
+        영상 보기 · 공 범위 잡기
+      </Link>
+    </div>
+  );
+}
+
+/** 세션 녹화 폴더(영역 · 연도 · 월 · 날짜)를 볼 때 오른쪽 칸 */
+function RecFolderPanel({ title, recs }: { title: string; recs: RecordingListItem[] }) {
+  const short = recs.filter(recShort).length;
+  const rows: [string, string][] = [
+    ['녹화', `${recs.length}개`],
+    ['올라간 영상', clock(recSeconds(recs))],
+    ['조각', `${recs.reduce((s, r) => s + r.parts, 0)}개`],
+    ['영상이 빠진 녹화', `${short}개`],
+  ];
+  return (
+    <div className="space-y-4">
+      <div>
+        <h3 className="text-base font-bold text-ink">{title}</h3>
+        <p className="mt-0.5 text-xs text-muted">측정하는 동안 통째로 찍은 영상 · 날짜마다 폴더</p>
+      </div>
+      <dl className="divide-y divide-line/70 text-sm">
+        {rows.map(([k, v]) => (
+          <div key={k} className="flex items-center justify-between gap-3 py-1.5">
+            <dt className="text-muted">{k}</dt>
+            <dd className="font-semibold tabular-nums text-ink">{v}</dd>
+          </div>
+        ))}
+      </dl>
+    </div>
+  );
+}

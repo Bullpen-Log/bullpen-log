@@ -71,11 +71,14 @@ export function PitchFileGlyph({
   value,
   hasClip,
   excluded,
+  unit = 'km/h',
   className = 'h-20 w-16',
 }: {
   value: string;
   hasClip: boolean;
   excluded?: boolean;
+  /** 값 밑 작은 글 — 공은 km/h, 세션 녹화는 '영상' */
+  unit?: string;
   className?: string;
 }) {
   return (
@@ -95,7 +98,7 @@ export function PitchFileGlyph({
       />
       <span className="text-display text-lg leading-none tabular-nums">{value}</span>
       <span className={`mt-0.5 text-xs ${hasClip ? 'text-white/70' : 'text-muted'}`}>
-        km/h
+        {unit}
       </span>
       {hasClip && (
         <span className="absolute bottom-1 left-1 flex h-4 w-4 items-center justify-center rounded-full bg-white/85">

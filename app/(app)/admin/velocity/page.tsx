@@ -7,7 +7,7 @@ import {
   loadVelocityAdminDay,
   loadVelocityAdminOverview,
 } from '@/lib/velocity-admin-load';
-import { countSessionRecordings, countVelocityRecordings } from '@/lib/velocity-recording-load';
+import { countVelocityRecordings, loadVelocityRecordings } from '@/lib/velocity-recording-load';
 import { parseExplorerPath, type ExplorerPath } from './explorer-path';
 import { VelocityAdminView } from './overview-view';
 
@@ -40,14 +40,18 @@ export default async function VelocityAdminPage({
   }
 
   /* 날짜 폴더(원본 · 보정)와 차수 폴더는 그날 자료가 있어야 한다 — 보정 재측정 단추가 그날 클립을 쓴다 */
-  const dayDate = path.level === 'day' || path.level === 'run' ? path.date : null;
-  const [data, day, run, recordings, sessionRecordings] = await Promise.all([
+  const dayDate =
+    (path.level === 'day' && path.area !== 'rec') || path.level === 'run' ? path.date : null;
+  const [data, day, run, recordings, allRecordings] = await Promise.all([
     loadVelocityAdminOverview(),
     dayDate ? loadVelocityAdminDay(dayDate) : Promise.resolve(null),
     path.level === 'run' ? loadVelocityAdminCalibRun(path.runId) : Promise.resolve(null),
     countVelocityRecordings(),
-    countSessionRecordings(),
+    /* 탐색기의 [세션 녹화] 폴더 — 최근 300개(목록 화면과 같은 읽기) */
+    loadVelocityRecordings(),
   ]);
+  const sessionList = allRecordings.filter((r) => r.session);
+  const sessionRecordings = sessionList.length;
 
   /* 지워졌거나 다른 날짜의 차수를 가리키는 주소면 그 날짜의 [보정] 폴더로 */
   if (path.level === 'run' && (!run || run.date !== path.date)) {
@@ -69,6 +73,7 @@ export default async function VelocityAdminPage({
       pick={one(sp.pick)}
       recordings={recordings - sessionRecordings}
       sessionRecordings={sessionRecordings}
+      sessionList={sessionList}
     />
   );
 }
