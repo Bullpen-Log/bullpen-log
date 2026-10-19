@@ -231,6 +231,8 @@ export default function VelocityScreen() {
               setTargetDistM(s.targetDistM);
             });
             draftReady.current = true;
+            /* 투구 탭에서 모드를 정해 와 사용 방법 카드가 떠 있었으면 걷는다 — 이어 재는 측정 화면 위에 남았다 */
+            setTipsAt(null);
             setStep('measure');
             setLive(true);
             setSheet(true);

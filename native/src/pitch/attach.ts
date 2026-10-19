@@ -64,12 +64,12 @@ async function saveToPhone(uri: string): Promise<string> {
 
 /**
  * 고른 영상 하나를 붙일 경로로 — 회원은 폰에 넣고 경로만 받고, 관리자는 서버에 올린다.
- * 관리자도 서버 한도(50MB)를 넘는 원본(60fps · 고화질은 금방 넘는다)은 폰에 넣는다 — 예전엔 서버가 막아 아예 붙지 않았다(2026-10-20 김민:
- * '지난 영상 가져오기에서 첨부가 안 된다').
+ * 관리자 자료는 늘 서버에 둔다(2026-10-20 김민) — 서버 한도(50MB)를 넘으면 폰에 넣지 않고 웹과 같은 안내로 막는다
+ * (웹 components/video-upload.tsx). 크기를 모르면 서버가 서명 주소를 줄 때 한 번 더 본다.
  */
 export async function attach(asset: ImagePicker.ImagePickerAsset, admin: boolean): Promise<string> {
   const size = sizeOf(asset);
-  if (!admin || (size != null && size > SERVER_MAX_BYTES)) {
+  if (!admin) {
     const id = await saveToPhone(asset.uri);
     try {
       return (await uploadUrl({ localId: id })).path;
@@ -78,6 +78,11 @@ export async function attach(asset: ImagePicker.ImagePickerAsset, admin: boolean
       void LocalVideo.remove({ ids: [id] }).catch(() => undefined);
       throw e;
     }
+  }
+  if (size != null && size > SERVER_MAX_BYTES) {
+    throw new ApiError(
+      `50MB 이하만 올릴 수 있어요(고른 영상 ${Math.round(size / 1024 / 1024)}MB). 사진 앱의 '편집'에서 던지는 부분만 남기고 잘라 주세요.`
+    );
   }
   const type = asset.mimeType?.startsWith('video/') ? asset.mimeType : 'video/quicktime';
   const target = await uploadUrl({ fileName: asset.fileName ?? 'pitch.mov', fileSize: size ?? 1, fileType: type });
