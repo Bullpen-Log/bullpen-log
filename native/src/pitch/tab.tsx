@@ -3,8 +3,8 @@ import { useEffect, useRef, useState } from 'react';
 import { Pressable, ScrollView, type ScrollViewInstance, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PRESSED, SPACE, usePalette, withAlpha } from '~/lib/ui';
-import { Icon } from '~/shell/icon';
-import { AnalysisPill, PageHead, Segmented, ToolCircle } from '~/shell/heading';
+import { Icon, type IconName } from '~/shell/icon';
+import { AnalysisPill, PageHead, Segmented } from '~/shell/heading';
 import { ComparePickBar, LogList } from './log-list';
 import { MonthGrid } from './month-grid';
 import { PitchDayPanel } from './day-panel';
@@ -82,10 +82,17 @@ export function PitchTab({ today, bottom, onWeb }: { today: string; bottom: numb
       ]}
     >
       <PageHead title="투구">
-        <ToolCircle icon="radar" label="구속 측정" onPress={() => router.push('/velocity')} />
-        <ToolCircle icon="rotate3d" label="3D 동작 분석" onPress={() => router.push('/lab' as Href)} />
         <AnalysisPill view="pitch" />
       </PageHead>
+      {/*
+        찍으러 가는 문 셋 — 이름까지 보이는 칸(2026-10-20 김민: 제목 옆 작은 그림 동그라미라 3D · 구속 측정 · ABS 를 찾기 어려웠다).
+        구속 측정 · ABS 는 같은 카메라 화면의 두 모드라 그 모드로 바로 연다(모드 고르기 시트를 건너뜀). ABS 는 관리자만(lib/camera-mode.ts adminOnly).
+      */}
+      <View style={styles.tools}>
+        <ToolTile icon="radar" label="구속 측정" onPress={() => router.push('/velocity?mode=speed' as Href)} />
+        {isAdmin ? <ToolTile icon="target" label="ABS 판정" onPress={() => router.push('/velocity?mode=abs' as Href)} /> : null}
+        <ToolTile icon="rotate3d" label="3D 동작 분석" onPress={() => router.push('/lab' as Href)} />
+      </View>
       {/* 관리자는 셋째 칸 '구속 측정 관리자'(웹 videos-client VELOCITY_ADMIN_OPTION) — 누르면 그 화면으로 가고 고른 보기는 그대로 */}
       <Segmented<'calendar' | 'list' | 'velocity'>
         label="기록 보기 방식"
@@ -157,9 +164,28 @@ export function PitchTab({ today, bottom, onWeb }: { today: string; bottom: numb
   );
 }
 
+/** 찍으러 가는 문 하나 — 그림 + 이름, 같은 폭으로 나눠 선다 */
+function ToolTile({ icon, label, onPress }: { icon: IconName; label: string; onPress: () => void }) {
+  const c = usePalette();
+  return (
+    <Pressable
+      accessibilityRole="button"
+      onPress={onPress}
+      style={({ pressed }) => [styles.tool, { backgroundColor: c.card, boxShadow: c.float }, pressed && PRESSED]}
+    >
+      <Icon name={icon} size={22} color={c.sky} />
+      <Text numberOfLines={1} style={{ color: c.ink, fontSize: 13, fontWeight: '600' }}>
+        {label}
+      </Text>
+    </Pressable>
+  );
+}
+
 /* 한 주 일곱 칸 — 100/7% 로 두면 소수점 반올림이 쌓여 일곱째 칸(토)이 다음 줄로 넘어갔다(날짜와 요일이 어긋남) */
 const SEVENTH = '14.28%';
 const styles = StyleSheet.create({
+  tools: { flexDirection: 'row', gap: 8 },
+  tool: { flex: 1, minHeight: 72, borderRadius: 16, alignItems: 'center', justifyContent: 'center', gap: 6, paddingHorizontal: 6 },
   link: { height: 36, borderRadius: 18, paddingHorizontal: 14, justifyContent: 'center' },
   linkText: { fontSize: 14, fontWeight: '600' },
   week: { width: SEVENTH, textAlign: 'center', fontSize: 12, paddingBottom: 4 },

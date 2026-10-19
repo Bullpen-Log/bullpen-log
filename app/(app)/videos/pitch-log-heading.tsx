@@ -6,7 +6,7 @@ import { TAB_SWIPE } from '@/lib/transition-types';
 /* 탭 쓸기(TAB_SWIPE)로 오갈 때는 화면 전환을 걸지 않는다(lib/transition-types.ts) */
 const SWIPE_OFF = { [TAB_SWIPE]: 'none', default: 'auto' };
 import { useRouter } from 'next/navigation';
-import { Radar, Rotate3d } from '@/components/icon';
+import { Radar, Rotate3d, Target } from '@/components/icon';
 import { PageHeading } from '@/components/ui';
 import { Segmented } from '@/components/segmented';
 import { AnalysisLink } from '@/components/analysis-link';
@@ -68,10 +68,11 @@ const TOOL_CHIP =
   'inline-flex h-10 w-10 shrink-0 items-center justify-center gap-1 rounded-full bg-ink/6 text-footnote font-semibold text-ink transition-opacity active:opacity-60 pad:w-auto pad:px-3 desk:h-9 desk:w-auto desk:rounded-lg desk:border desk:border-sky desk:bg-sky-tint desk:px-3 desk:text-xs desk:text-sky-strong desk:hover:bg-sky-tint/70';
 
 /**
- * 구속 측정(앱 안이면 누구나, 웹이면 관리자만 · canMeasure) · 3D 동작 분석(누구나). 링크가 아니라 push 라 뒤로 가기로 그 화면 ·
- * 그 보기로 돌아온다. 휴대폰은 그림만(이름은 aria-label), 패드 · PC 는 이름까지.
+ * 구속 측정(앱 안이면 누구나, 웹이면 관리자만 · canMeasure) · ABS 판정(관리자만 — lib/camera-mode.ts adminOnly · canAbs) · 3D 동작 분석(누구나).
+ * 링크가 아니라 push 라 뒤로 가기로 그 화면 · 그 보기로 돌아온다. 휴대폰은 그림만(이름은 aria-label), 패드 · PC 는 이름까지.
+ * ABS 는 메뉴에만 있어 투구 탭에서 찾기 어려웠다(2026-10-20 김민) — 구속 측정 화면의 ABS 모드(/abs)로 바로 연다.
  */
-function PitchTools({ canMeasure }: { canMeasure: boolean }) {
+function PitchTools({ canMeasure, canAbs }: { canMeasure: boolean; canAbs: boolean }) {
   const router = useRouter();
   return (
     <div className="flex shrink-0 items-center gap-1.5">
@@ -84,6 +85,12 @@ function PitchTools({ canMeasure }: { canMeasure: boolean }) {
         >
           <Radar aria-hidden className="h-4 w-4 text-sky-strong" />
           <span aria-hidden className="hidden pad:inline desk:inline">구속 측정</span>
+        </button>
+      )}
+      {canMeasure && canAbs && (
+        <button type="button" onClick={() => router.push('/abs')} aria-label="ABS 판정" className={TOOL_CHIP}>
+          <Target aria-hidden className="h-4 w-4 text-sky-strong" />
+          <span aria-hidden className="hidden pad:inline desk:inline">ABS 판정</span>
         </button>
       )}
       <button
@@ -134,10 +141,13 @@ export function PitchViewSwitch({
 export function PitchLogHeading({
   controls,
   canMeasure,
+  canAbs = false,
   action,
 }: {
   controls: ReactNode;
   canMeasure: boolean;
+  /** ABS 판정 단추 — 관리자만 */
+  canAbs?: boolean;
   /** 제목 줄 오른쪽 — '분석' 뒤에 붙는다(구속 측정 관리자는 PC 단추들) */
   action?: ReactNode;
 }) {
@@ -156,7 +166,7 @@ export function PitchLogHeading({
           action={
             <div className="flex items-center gap-2">
               <div className="hidden items-center gap-2 desk-low:flex">{controls}</div>
-              <PitchTools canMeasure={canMeasure} />
+              <PitchTools canMeasure={canMeasure} canAbs={canAbs} />
               <AnalysisLink view="pitch" />
               {action}
             </div>

@@ -15,10 +15,8 @@ import {
 import { toDateKey } from '@/lib/pitch-stats';
 import { usePalette } from '~/lib/ui';
 import { LocalVideo } from '../../../modules/local-video';
-import { ApiError, isPhoneVideoPath, loadMe, phoneAssetId } from '~/pitch/api';
-import { PICK_ORIGINAL, attach, readVideoFacts, useImported } from '~/pitch/attach';
-import { READABLE } from '~/lib/layout';
-import { Bar } from '~/community/parts';
+import { isPhoneVideoPath, loadMe, phoneAssetId } from '~/pitch/api';
+import { PICK_ORIGINAL, attach, attachErrorText, readVideoFacts, useImported } from '~/pitch/attach';
 import { Icon } from '~/shell/icon';
 import { DateNavButton } from '~/shell/mini-calendar';
 
@@ -27,6 +25,8 @@ import { DateNavButton } from '~/shell/mini-calendar';
  * 영상 머리의 찍은 날짜로 묶고(기록당 두 개), 묶음마다 [기록 남기기] → 그 날짜 기록 폼에 영상을 붙여 연다.
  * 폰에 넣는 때는 [기록 남기기]를 누를 때(미리보기에서는 안 넣는다 — 틀린 묶음을 [따로] 빼도 지우고 다시 넣을 일이 없다).
  * 폼에서 저장 안 하고 닫으면 폼이 그 영상을 폰에서 지운다(기록 폼의 '이번에 넣은 영상' 규칙).
+ * 내용만큼만 올라오는 아래 시트(_layout formSheet fitToContents — 2026-10-20 김민: 큰 창에 단추 하나만 떠 있었다). 진행 · 오류는 맨 위에
+ * (예전엔 맨 밑이라 묶음이 많으면 화면 밖에서 돌다 실패해 '첨부가 안 된다'로 보였다).
  */
 const PICK_LIMIT = 20;
 
@@ -53,27 +53,38 @@ export default function PitchImportScreen() {
   const done = useImported();
 
   const pick = async () => {
+    if (busy) return;
     setError(null);
-    const res = await ImagePicker.launchImageLibraryAsync({
-      ...PICK_ORIGINAL,
-      allowsMultipleSelection: true,
-      selectionLimit: PICK_LIMIT,
-      orderedSelection: true,
-    });
-    if (res.canceled) return;
-    setBusy('찍은 날짜를 읽는 중');
-    const now = Date.now();
-    const next: Picked[] = [];
-    for (const [i, asset] of res.assets.entries()) {
-      const facts = await readVideoFacts(asset.uri).catch(() => null);
-      /* 사진 선택기는 파일 시각을 안 준다 — 머리에 시각이 없으면 날짜 없음(적어야 함) */
-      const { date, source } = importDateOf(facts, 0, now);
-      next.push({ item: { id: i, name: asset.fileName ?? `영상 ${i + 1}`, date, source }, asset });
+    /*
+     * 고른 뒤 사진 선택기가 원본을 앱으로 복사하는 동안(iCloud 영상은 내려받기까지) 몇 초 ~ 몇십 초 말이 없었다 — 먼저 돌개를 띄워 둔다
+     * (선택기 밑에 깔려 있다가 닫히면 보인다). 선택기가 던지면(iCloud 못 받음 등) 말없이 멈추던 것도 글로 알린다.
+     */
+    setBusy('영상을 가져오는 중');
+    try {
+      const res = await ImagePicker.launchImageLibraryAsync({
+        ...PICK_ORIGINAL,
+        allowsMultipleSelection: true,
+        selectionLimit: PICK_LIMIT,
+        orderedSelection: true,
+      });
+      if (res.canceled || !res.assets?.length) return;
+      setBusy('찍은 날짜를 읽는 중');
+      const now = Date.now();
+      const next: Picked[] = [];
+      for (const [i, asset] of res.assets.entries()) {
+        const facts = await readVideoFacts(asset.uri).catch(() => null);
+        /* 사진 선택기는 파일 시각을 안 준다 — 머리에 시각이 없으면 날짜 없음(적어야 함) */
+        const { date, source } = importDateOf(facts, 0, now);
+        next.push({ item: { id: i, name: asset.fileName ?? `영상 ${i + 1}`, date, source }, asset });
+      }
+      setPickNo((n) => n + 1);
+      setPicked(next);
+      setGroups(groupItems(next.map((p) => p.item)));
+    } catch (e) {
+      setError(attachErrorText(e, '영상을 가져오지 못했어요. 사진 앱에서 영상이 다 받아졌는지 본 뒤 다시 골라 주세요.'));
+    } finally {
+      setBusy(null);
     }
-    setPickNo((n) => n + 1);
-    setPicked(next);
-    setGroups(groupItems(next.map((p) => p.item)));
-    setBusy(null);
   };
 
   const open = async (g: ImportGroup) => {
@@ -95,7 +106,7 @@ export default function PitchImportScreen() {
       /* 반쯤 넣다 막히면 넣은 것도 폰에서 뺀다(다시 누르면 처음부터) */
       const phone = paths.filter(isPhoneVideoPath).map(phoneAssetId);
       if (phone.length) void LocalVideo.remove({ ids: phone }).catch(() => undefined);
-      setError(e instanceof ApiError ? e.message : '영상을 넣지 못했어요.');
+      setError(attachErrorText(e, '영상을 넣지 못했어요.'));
     } finally {
       setBusy(null);
     }
@@ -104,16 +115,33 @@ export default function PitchImportScreen() {
   const left = groups.filter((g) => !done.has(keyOf(g))).length;
 
   return (
-    <View style={{ flex: 1, backgroundColor: c.page }}>
-      <Bar modal back="투구" title="지난 영상 가져오기" c={c} />
-      <ScrollView contentContainerStyle={[{ padding: 16, paddingBottom: inset.bottom + 32, gap: 12 }, READABLE]}>
+    <ScrollView style={{ backgroundColor: c.page }} contentContainerStyle={{ padding: 20, paddingBottom: inset.bottom + 20, gap: 12 }}>
+        {/* 머리 — 알림 시트(notice.tsx)와 같은 꼴: 제목 17 굵게 + 오른쪽 닫기 ✕ */}
+        <View style={styles.head}>
+          <Text accessibilityRole="header" style={{ color: c.ink, fontSize: 17, fontWeight: '700' }}>
+            지난 영상 가져오기
+          </Text>
+          <Pressable accessibilityRole="button" accessibilityLabel="닫기" onPress={() => router.back()} style={({ pressed }) => [styles.close, { backgroundColor: c.chip }, pressed && { opacity: 0.55 }]}>
+            <Icon name="x" size={18} color={c.muted} />
+          </Pressable>
+        </View>
+        {busy ? (
+          <View style={styles.busy}>
+            <ActivityIndicator />
+            <Text style={{ color: c.muted, fontSize: 15 }}>{busy}</Text>
+          </View>
+        ) : null}
+        {error ? (
+          <Text accessibilityRole="alert" style={{ color: c.danger, fontSize: 15, lineHeight: 21 }}>
+            {error}
+          </Text>
+        ) : null}
         {groups.length === 0 ? (
-          <View style={{ gap: 12, paddingTop: 8 }}>
-            <Text style={{ color: c.ink, fontSize: 17, fontWeight: '600' }}>사진 앱의 투구 영상을 찍은 날짜로 묶어 기록으로 남겨요</Text>
+          <View style={{ gap: 12 }}>
             <Text style={{ color: c.muted, fontSize: 15, lineHeight: 22 }}>
-              영상은 찍은 폰의 앱 안에 저장돼요(서버에 올리지 않아요). 한 번에 {PICK_LIMIT}개까지 골라요. 같은 날 영상은 2개씩 한 기록이 돼요.
+              사진 앱의 투구 영상을 찍은 날짜로 묶어 기록으로 남겨요. 한 번에 {PICK_LIMIT}개까지 고르고, 같은 날 영상은 2개씩 한 기록이 돼요.
             </Text>
-            <Pressable accessibilityRole="button" onPress={pick} disabled={!!busy} style={[styles.primary, { backgroundColor: c.sky }]}>
+            <Pressable accessibilityRole="button" onPress={pick} disabled={!!busy} style={[styles.primary, { backgroundColor: c.sky }, busy && { opacity: 0.4 }]}>
               <Text style={styles.primaryText}>영상 고르기</Text>
             </Pressable>
           </View>
@@ -189,19 +217,13 @@ export default function PitchImportScreen() {
             </Pressable>
           </>
         )}
-        {busy ? (
-          <View style={styles.busy}>
-            <ActivityIndicator />
-            <Text style={{ color: c.muted, fontSize: 15 }}>{busy}</Text>
-          </View>
-        ) : null}
-        {error ? <Text style={{ color: c.danger, fontSize: 15 }}>{error}</Text> : null}
-      </ScrollView>
-    </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
+  head: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  close: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center', margin: 6, marginRight: -6 },
   card: { borderRadius: 16, padding: 14, gap: 10 },
   dateRow: { flexDirection: 'row', alignItems: 'center', gap: 12, flexWrap: 'wrap' },
   itemRow: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 40, borderTopWidth: StyleSheet.hairlineWidth },

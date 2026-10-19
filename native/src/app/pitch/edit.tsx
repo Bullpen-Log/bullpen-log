@@ -15,7 +15,16 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { EFFORT_CHIPS, effortScaleText, readEffort, snapEffortPct } from '@/lib/pitch-effort';
+import {
+  EFFORT_CHIPS,
+  PITCH_EFFORT_ASK,
+  PITCH_EFFORT_INTRO,
+  PITCH_EFFORT_LEVELS as PITCH_LEVELS,
+  PITCH_EFFORT_WARN,
+  effortScaleText,
+  readEffort,
+  snapEffortPct,
+} from '@/lib/pitch-effort';
 import { fromSpeed, round1, speedLabel, toSpeed } from '@/lib/units';
 import { setPref, usePrefs } from '~/lib/prefs';
 import { SESSION_TYPES, isRestSession } from '@/lib/session-type';
@@ -27,7 +36,7 @@ import {
   isRatedSession,
 } from '@/lib/pitch-satisfaction';
 import { LocalVideo } from '../../../modules/local-video';
-import { PICK_ORIGINAL, attach, markImported } from '~/pitch/attach';
+import { PICK_ORIGINAL, attach, attachErrorText, markImported } from '~/pitch/attach';
 import { usePalette, withAlpha, type Palette } from '~/lib/ui';
 import { fadeIn } from '~/shell/motion';
 import { Press } from '~/shell/press';
@@ -247,11 +256,13 @@ export function EntryForm({
   const pick = async (camera: boolean) => {
     setError(null);
     const opts: ImagePicker.ImagePickerOptions = { ...PICK_ORIGINAL, videoMaxDuration: 180 };
-    const res = camera
-      ? await ImagePicker.launchCameraAsync(opts)
-      : await ImagePicker.launchImageLibraryAsync({ ...opts, allowsMultipleSelection: true, selectionLimit: MAX_VIDEOS - videos.length });
-    if (res.canceled) return;
+    /* 고른 뒤 선택기가 원본을 복사하는 동안 말이 없었다 — 먼저 띄워 두고, 선택기가 던지면 글로 알린다(가져오기 화면과 같다) */
+    setBusy('영상을 가져오는 중');
     try {
+      const res = camera
+        ? await ImagePicker.launchCameraAsync(opts)
+        : await ImagePicker.launchImageLibraryAsync({ ...opts, allowsMultipleSelection: true, selectionLimit: MAX_VIDEOS - videos.length });
+      if (res.canceled || !res.assets?.length) return;
       const me = await loadMe();
       for (const [i, a] of res.assets.slice(0, MAX_VIDEOS - videos.length).entries()) {
         setBusy(`영상 ${i + 1}/${res.assets.length} 넣는 중`);
@@ -259,7 +270,7 @@ export function EntryForm({
         setVideos((v) => [...v, { path, name: `영상 ${v.length + 1}`, fresh: true }]);
       }
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : '영상을 넣지 못했어요.');
+      setError(attachErrorText(e, '영상을 넣지 못했어요.'));
     } finally {
       setBusy(null);
     }
@@ -734,27 +745,21 @@ function TypeGrid({ value, onChange }: { value: string; onChange: (v: string) =>
   );
 }
 
-/* 강도 기준표 — 웹 components/intensity-guide.tsx 투구 띠(접힘) */
-const PITCH_LEVELS = [
-  { range: '1 – 2', label: '몸 푸는 정도', detail: '가까운 거리 캐치볼. 숨이 차지 않고 팔에 힘을 거의 안 써요.' },
-  { range: '3 – 4', label: '편하게', detail: '롱토스 워밍업, 가벼운 플랫. 폼을 확인하는 정도로 던져요.' },
-  { range: '5 – 6', label: '절반쯤 힘', detail: '불펜 초반이나 폼 점검. 여유 있게 던지지만 제대로 된 투구 동작이에요.' },
-  { range: '7 – 8', label: '세게', detail: '불펜 본 세션, 라이브. 경기와 비슷하지만 아직 여유가 남아 있어요.' },
-  { range: '9 – 10', label: '전력', detail: '경기, 최고 구속 측정. 더 세게는 못 던져요.' },
-] as const;
+/* 강도 기준표 — 웹 components/intensity-guide.tsx 투구 띠(접힘), 글은 lib/pitch-effort.ts 하나 */
 function IntensityGuide({ c }: { c: Palette }) {
   const [open, setOpen] = useState(false);
   return (
     <View style={[styles.guide, { borderColor: c.line, backgroundColor: withAlpha(c.chip, 0.25) }]}>
       <Press accessibilityRole="button" accessibilityState={{ expanded: open }} onPress={() => setOpen((o) => !o)} style={styles.guideHead}>
         <Icon name="info" size={14} color={c.sky} />
-        <Text style={{ flex: 1, color: c.muted, fontSize: 12 }}>강도를 어떻게 정하나요?</Text>
+        <Text style={{ flex: 1, color: c.muted, fontSize: 12 }}>{PITCH_EFFORT_ASK}</Text>
         <View style={{ transform: [{ rotate: open ? '180deg' : '0deg' }] }}>
           <Icon name="chevron-down" size={14} color={c.muted} />
         </View>
       </Press>
       {open ? (
         <Animated.View entering={fadeIn} style={{ gap: 12, borderTopWidth: StyleSheet.hairlineWidth, borderColor: c.line, padding: 12 }}>
+          <Text style={{ color: c.muted, fontSize: 11, lineHeight: 16 }}>{PITCH_EFFORT_INTRO}</Text>
           {PITCH_LEVELS.map((l) => (
             <View key={l.range} style={{ flexDirection: 'row', gap: 12 }}>
               <Text style={{ width: 56, color: c.sky, fontSize: 12, fontWeight: '700', fontVariant: ['tabular-nums'] }}>{l.range}</Text>
@@ -765,8 +770,7 @@ function IntensityGuide({ c }: { c: Palette }) {
             </View>
           ))}
           <Text style={[styles.warnBox, { color: c.warn, backgroundColor: c.warnBg, borderColor: c.warnLine }]}>
-            <Text style={{ fontWeight: '700' }}>느낌보다 팔에 가는 부담은 커요.</Text> 절반 힘으로 던져도 팔꿈치에는 최고의 75% 가 걸려요. 가볍게 느껴져도 던진 만큼 적어
-            주세요.
+            <Text style={{ fontWeight: '700' }}>{PITCH_EFFORT_WARN.strong}</Text> {PITCH_EFFORT_WARN.rest}
           </Text>
         </Animated.View>
       ) : null}

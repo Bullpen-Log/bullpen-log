@@ -186,3 +186,21 @@ export function effortBand(effortPct: number): 'strong' | 'mid' | 'light' {
   if (effortPct >= MID_EFFORT_PCT) return 'mid';
   return 'light';
 }
+
+/*
+ * 강도 기준표의 글 — 웹 components/intensity-guide.tsx · 앱 native/src/app/pitch/edit.tsx 가 같이 읽는다. 2026-10-20 김민: 설명이
+ * '얼마나 세게 던졌나'로 읽혀 틀렸다 → 오늘 던진 뒤 팔이 얼마나 지치고 부담이 갔는지를 묻는 글로. 칩 값 · 저장(%)은 그대로.
+ */
+export const PITCH_EFFORT_ASK = '강도는 팔이 얼마나 지쳤는지로 골라요';
+export const PITCH_EFFORT_INTRO = '오늘 던진 공 전체로 팔이 얼마나 피로했는지, 부하가 얼마나 걸렸는지를 골라요.';
+export const PITCH_EFFORT_LEVELS = [
+  { range: '1 – 2', label: '거의 부담 없음', detail: '팔이 전혀 지치지 않았어요. 가까운 거리 캐치볼 정도예요.' },
+  { range: '3 – 4', label: '가벼운 피로', detail: '팔에 조금 힘이 들어갔지만 금방 풀려요. 롱토스 워밍업 정도예요.' },
+  { range: '5 – 6', label: '적당한 부하', detail: '팔이 적당히 지쳤어요. 불펜 초반이나 폼 점검 정도예요.' },
+  { range: '7 – 8', label: '꽤 지침', detail: '팔이 무겁고 피로가 남아요. 불펜 본 세션, 라이브 정도예요.' },
+  { range: '9 – 10', label: '다 씀', detail: '팔을 다 썼어요. 하루 이틀 쉬어야 할 만큼 부하가 컸어요. 경기 정도예요.' },
+] as const;
+export const PITCH_EFFORT_WARN = {
+  strong: '느낌보다 팔에 가는 부담은 커요.',
+  rest: '절반 힘으로 던져도 팔꿈치에는 최고의 75% 가 걸려요. 덜 지친 것 같아도 던진 만큼 적어 주세요.',
+} as const;

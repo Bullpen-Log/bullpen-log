@@ -242,10 +242,10 @@ const st = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 7,
-    maxWidth: 220,
+    maxWidth: '100%',
   },
   dot: { width: 8, height: 8, borderRadius: 4 },
-  pillText: { color: '#fff', fontSize: 15, fontWeight: '600' },
+  pillText: { color: '#fff', fontSize: 15, fontWeight: '600', flexShrink: 1 },
   shutter: { width: 76, height: 76, borderRadius: 38, borderWidth: 5, borderColor: '#fff', alignItems: 'center', justifyContent: 'center' },
   side: { width: 80, alignItems: 'center' },
   sideBtn: {
