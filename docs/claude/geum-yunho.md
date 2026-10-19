@@ -1400,6 +1400,11 @@
 4. `npm install`(깃 훅이 저절로 연결된다 — 안 됐으면 `git config core.hooksPath .githooks`) → `npx prisma generate`.
    Node 는 24(데스크톱 v24.21.0).
 5. 개발 서버는 `.claude/launch.json` 의 `bullpen-log-dev`(preview_start) — `npm run dev`, 3000번.
+   - **윤호 맥북(2026-10-19 세팅, 사용자가 '윤호 맥북'이라 부름)**: `~/Developer/bullpen-log`, Node 26(brew) · `gh` 있음(yunoyuno05, push 권한 확인) ·
+     Xcode 27.1 · CocoaPods(brew). `.env` 의 `DIRECT_URL` 은 **Session pooler(5432) 주소** — Supabase 'Direct connection'(`db.….supabase.co`)은
+     이 맥의 네트워크에서 P1001 로 막혔다. 새 앱은 `cd native && npm ci && npx expo run:ios --device "iPhone 18 Pro" --no-bundler` 로 굽고
+     화면 서버는 launch.json 의 `bullpen-native-metro`(8081) — 첫 굽기 12분, 다음은 2~3분. 시뮬레이터엔 카메라가 없어 카메라 기능은 실기기로.
+     TestFlight 올리기는 애플 팀 권한이 없어 아직 못 한다(김민에게 물어둠, 2026-10-19).
 6. 스킬 — 노트북에 없으면 **설치할지 사용자에게 먼저 묻는다**(엔진 파일을 내려받는 일이라 허락이 필요하다).
    - **impeccable**(`pbakaus/impeccable`, 데스크톱은 v4.4.0 · 커밋 9d715cc): 사용자 전체 범위 `~/.claude/skills/impeccable`,
      보조 에이전트 넷 `~/.claude/agents/impeccable-*.md`, 엔진 `~/.impeccable/bin/<버전>/impeccable.exe`

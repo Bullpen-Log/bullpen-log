@@ -11,6 +11,16 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 ---
 
+## 김민에게 — 2026-10-19 · 금윤호(Claude, 윤호 맥북) — 새 앱 시뮬레이터 굽기 결과 · 윤호 맥북 세팅 끝
+
+받은 뒤 할 일 없음(코드 변경 없음 — HANDOFF · `docs/claude/geum-yunho.md` 만). 금윤호에게 새 맥북이 생겨 웹 · 앱 둘 다 돌게 세팅했다.
+- `native/` 에서 `npm ci` → `npx tsc --noEmit` 통과 · `npx expo lint` 통과 · `npx expo run:ios`(iPhone 18 Pro 시뮬레이터, iOS 27.1, Xcode 27.1) **Build Succeeded, 오류 0 · 경고 4**
+  (경고는 외부 Pods 것). 네가 맥 없이 고친 Swift 둘(`shoot-camera` H.264 · 아이패드 회전)이 그대로 컴파일됐다. 앱은 시뮬레이터에서 로그인 화면까지 뜬다.
+- **못 한 것**: ① TestFlight 올리기 — 애플 개발자 팀 권한이 금윤호에게 없다(네가 넣어 주거나 네 맥북에서) ② 카메라 기능(촬영 H.264 · 아이패드 회전 · 구속 측정) · 폰에서 봐 달라던
+  것들 — 시뮬레이터에 카메라가 없어 실기기가 있어야 한다 ③ `expo-updates`(N3)는 손 안 댐.
+- 처리한 메모 정리: `__bpRefresh` · '투구 폼 다섯 고침'의 타입 검사 부탁은 끝으로 고쳐 적었고(폰 확인은 남김), 10-16 '홈 요약 칸 kcal × 양' 메모는 이미 고쳐져 있어
+  (`app/(app)/today/history.ts` 108줄이 `m.kcal * m.amount`) 지웠다.
+
 ## 김민에게 — 2026-10-18 · 금윤호(Claude) — ABS(폰 한 대 볼 · 스트라이크 자동 판정) 1차 — 구속 엔진 · 결과 화면 · 측정 화면에 더하기만 했다
 
 받은 뒤 할 일 없음(DB · 패키지 그대로 — `VelocityPitch.analysis` JSON 의 선택 칸 `abs` · `distance.fit` 만). 설계 `docs/designs/abs-single-camera.md`(P0~P3 결과),
@@ -49,7 +59,7 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 - 앱 첫 설정(영양)을 `/api/rpc` 로 저장하면 `revalidatePath` 가 웹뷰 화면을 못 비워 탭이 잠긴 채였다 → 웹에 `window.__bpRefresh`(= `router.refresh()`)를 두고,
   앱은 `openWebAfter('#refresh')` 로 부른다(`index.tsx` navTo 가 받음). 다른 앱 첫 설정(투구 · 트레이닝)도 같은 문제가 있을 수 있다 — 저장 뒤 이걸 부르면 된다.
 - 앱 영양 탭 체중이 설정 단위(lb)를 따른다(`native/src/nutrition/tab.tsx`), 첫 설정 숫자 칸이 밖에서 바뀐 값을 따라간다(`native/src/setup/nutrition-steps.tsx`),
-  '먹었어요' 등 실패해도 그날을 다시 받는다(`native/src/nutrition/api.ts`). **이 PC 엔 native 패키지가 없어 타입 검사 · 실기기 확인을 못 했다** — 맥에서 한 번 봐 줘.
+  '먹었어요' 등 실패해도 그날을 다시 받는다(`native/src/nutrition/api.ts`). 타입 검사는 윤호 맥북에서 통과(10-19) — **실기기 확인은 아직**, 폰에서 한 번 봐 줘.
 
 ## 김민에게(맥북) — 2026-10-18 · 김민(Claude, 데스크톱 · 아키텍처 세션) — 새 앱(Expo) 업데이트 장치 · 서버 동작 모양 기록
 
@@ -62,8 +72,8 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 ## 금윤호 · 김민(맥북)에게 — 2026-10-18 · 김민(Claude, 투구기록 담당) — 새 앱(Expo) 투구 폼 다섯 고침 — 맥에서 굽기 필요
 
-받은 뒤 할 일: **새 앱(Expo)을 구울 때 같이 실린다**(서버 쪽 discard 답의 `orphans` 는 이미 웹 커밋에 들어가 배포만 되면 된다). **데스크톱엔 `native/node_modules` 가 없어 앱 타입 검사를 못 돌렸다** —
-맥에서 `cd native && npx tsc --noEmit` 한 번 돌려 줘. 김민: 투구기록 점검 → "급한 것 1~9번 고쳐줘"(이 절은 5~9번).
+받은 뒤 할 일: **새 앱(Expo)을 구울 때 같이 실린다**(서버 쪽 discard 답의 `orphans` 는 이미 웹 커밋에 들어가 배포만 되면 된다). 앱 타입 검사 · 시뮬레이터 굽기는
+윤호 맥북에서 통과(10-19, 아래 '새 앱 시뮬레이터 굽기 결과'). 김민: 투구기록 점검 → "급한 것 1~9번 고쳐줘"(이 절은 5~9번).
 - `native/src/app/pitch/edit.tsx`: ⑤ 저장 · 영상 넣는 중에는 [취소] · 끌어 닫기를 막고(`Stack.Screen gestureEnabled`), 저장 없이 닫을 때는 어느 기록에도 안 붙은 폰 영상만 지움
   (`pitch/api.ts phoneOrphans` → `/api/pitch-log/discard` 의 orphans — 신호 끊김 뒤 실제로는 저장된 기록의 영상을 지우던 것) ⑥ 고칠 때 `baseVideoPaths` 를 보냄(다른 기기에서 더한 영상이 지워지던 것)
   ⑦ 강도 칩 1~10(웹과 같게, 칩 사이 옛 값은 '지금 8.5') · 옛 기록(1~10 만 있음)은 `readEffort` 로 채우고 손 안 대면 `intensity` 를 보냄(메모만 고쳐도 강도를 다시 골라야 하던 것)
@@ -472,16 +482,6 @@ User 관계가 없는 표: `VelocityRecording`(조각 · 표시 딸림)은 지�
   `lib/shoot/schedule.ts` 의 Bucket · `progress.ts` 의 이름표는 이 분류를 모른다(야외 계획을 다시 뽑으면 무브먼트로 묶인다) — 지금 계획 JSON 은 그대로라
   안 고쳤다. 다시 뽑을 일이 있으면 그때 한 줄씩 더해 줘. shoot:test 72 통과.
 - 드릴 영상 목록이 분류 3칸 대신 **요소 6칸 + 근력 · 안정 + 나중에 촬영**으로 나온다(종류는 필터 · 펼친 카드). 관리자 등록 폼에서 종류를 고른다.
-
-## 금윤호에게 — 2026-10-16 · 김민(Claude, 데스크톱 · 영양 담당) — 홈 요약 칸 '최근 7일 평균 kcal' 이 양을 안 곱함 · 영양 한 줄이 네 그날 화면에 · day-detail 칸 둘
-
-**받은 뒤 할 일: 네 파일 한 줄 고치기**(김민이 네 영역이라 안 건드렸다). 영양 전체 점검(`docs/reviews/nutrition-2026-10-16.md`)에서 나왔다.
-- `app/(app)/today/feed.tsx` 46~58줄: 최근 7일 식사를 `select: { date: true, kcal: true }` 로 읽어 `m.kcal` 만 더한다. `MealEntry.kcal` 은 **1인분 값**이라
-  1.5인분을 담으면 1인분으로 센다 → 요약 칸 영양 장의 '최근 7일 평균 · 목표의 N%'가 틀린다. 고치기: select 에 `amount: true`, 더할 때 `m.kcal * m.amount`.
-- 알림(할 일 없음): 10-16 커밋 cf0db02b 가 네 `pitch-log/[date]/load.ts` · `day-client.tsx` 에 '던진 뒤 회복식' 한 줄(`components/nutrition-line.tsx`)을 넣었는데
-  그때 HANDOFF 를 못 적었다. 오늘 날짜 · 불펜 · 라이브 · 경기 기록이 있을 때만 뜬다(`lib/nutrition/nudge.ts`).
-- 알림(할 일 없음): `lib/day-detail.ts` 의 `nutrition` 에 선택 칸 둘을 더했다 — `avoid`(식단 취향의 못 먹는 것) · `unknown`(값을 모르는 탄 · 단 · 지).
-  홈 영양 조언이 예시 음식에서 못 먹는 것을 빼고, 모르는 영양소로 '더 먹을 양'을 셈하지 않게. 아무것도 안 뺀 사람의 홈 글은 그대로다.
 
 ## 금윤호에게 — 2026-10-16 · 김민(Claude, 데스크톱 · 통합 세션) — 구속 측정은 투구 기록을 만들지 않는다 · 받으면 `npx prisma generate`
 
