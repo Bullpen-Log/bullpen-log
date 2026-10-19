@@ -1,7 +1,8 @@
 import * as Haptics from 'expo-haptics';
 import { useRef, type ReactNode } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text } from 'react-native';
 import ReanimatedSwipeable, { type SwipeableMethods } from 'react-native-gesture-handler/ReanimatedSwipeable';
+import Animated, { useAnimatedStyle, type SharedValue } from 'react-native-reanimated';
 
 /**
  * 밀어서 하기 — 줄을 왼쪽으로 밀면 오른쪽에서 단추(즐겨찾기 · 빼기 …)가 나온다. 웹 components/swipe-row.tsx 와 같은 쓰임(아이폰 메일 · 설정 목록처럼).
@@ -29,8 +30,8 @@ export function SwipeRow({ actions, children }: { actions: SwipeAction[]; childr
       onSwipeableClose={() => {
         if (openRow === me.current) openRow = null;
       }}
-      renderRightActions={() => (
-        <View style={[styles.actions, { width: ACTION_W * actions.length }]}>
+      renderRightActions={(progress) => (
+        <Actions progress={progress} width={ACTION_W * actions.length}>
           {actions.map((a) => (
             <Pressable
               key={a.label}
@@ -46,12 +47,21 @@ export function SwipeRow({ actions, children }: { actions: SwipeAction[]; childr
               </Text>
             </Pressable>
           ))}
-        </View>
+        </Actions>
       )}
     >
       {children}
     </ReanimatedSwipeable>
   );
+}
+
+/**
+ * 단추 칸은 줄 뒤에 깔려 있다(ReanimatedSwipeable 이 absoluteFill 로 둔다) — 줄 바탕이 반투명(체크한 줄의 옅은 하늘색)이면 밀지 않아도 주황 · 빨강
+ * 단추가 비쳐 겹쳐 보였다(2026-10-20 김민). 밀기 시작할 때만 보이게 한다.
+ */
+function Actions({ progress, width, children }: { progress: SharedValue<number>; width: number; children: ReactNode }) {
+  const shown = useAnimatedStyle(() => ({ opacity: progress.value > 0 ? 1 : 0 }));
+  return <Animated.View style={[styles.actions, { width }, shown]}>{children}</Animated.View>;
 }
 
 const styles = StyleSheet.create({

@@ -155,19 +155,6 @@ export function OutingRow({ line, c, a }: { line: OutingLineText; c: Palette; a:
   );
 }
 
-/** 근력 프로그램이 오늘 주인인 날의 일정 자리 한 줄(웹 ProgramDayLine) */
-export function ProgramDayRow({ text, planResting, c }: { text: string; planResting: string | null; c: Palette }) {
-  return (
-    <View style={[st.lineCard, { backgroundColor: c.card, boxShadow: c.float }]}>
-      <SymbolView name="dumbbell.fill" size={16} tintColor={c.sky} />
-      <View style={{ flex: 1 }}>
-        <Text style={[s.bodyBold, { color: c.ink }]}>{text}</Text>
-        {planResting ? <Text style={[s.tiny, { color: c.muted }]}>{planResting}</Text> : null}
-      </View>
-    </View>
-  );
-}
-
 /** 처방을 멈춘 날(웹 멈춤 카드) — 할 일은 체크인 */
 export function HaltedCard({ reason, c, a }: { reason: string; c: Palette; a: TodayActions }) {
   return (
@@ -504,6 +491,8 @@ function ExerciseRow({
           { label: '빼기', color: '#ff3b30', onPress: onRemove },
         ]}
       >
+        {/* 불투명한 바탕 위에 옅은 하늘색 — 반투명 줄이면 밀 때 뒤의 단추가 비친다 */}
+        <View style={{ backgroundColor: c.card, borderRadius: 16 }}>
         <View style={[st.ex, { backgroundColor: r.done ? `${c.sky}14` : c.card, borderColor: r.done ? c.sky : c.card }]}>
           <View style={s.row}>
             <Pressable
@@ -560,6 +549,7 @@ function ExerciseRow({
               ) : null}
             </View>
           ) : null}
+        </View>
         </View>
       </SwipeRow>
     </View>

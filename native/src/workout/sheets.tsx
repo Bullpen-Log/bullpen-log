@@ -24,6 +24,7 @@ export function Sheet({
   footer,
   children,
   c,
+  fit = false,
 }: {
   open: boolean;
   onClose: () => void;
@@ -32,20 +33,41 @@ export function Sheet({
   footer?: ReactNode;
   children: ReactNode;
   c: Palette;
+  /** 내용만큼만 올라오는 시트(뒤를 누르면 닫힘) — 짧은 내용에 화면을 다 덮는 pageSheet 는 빈 곳이 많았다(2026-10-20 김민) */
+  fit?: boolean;
 }) {
   const inset = useSafeAreaInsets();
+  const head = (
+    <View style={st.head}>
+      <View style={{ flex: 1 }}>
+        <Text style={[st.title, { color: c.ink }]}>{title}</Text>
+        {description ? <Text style={[st.desc, { color: c.muted }]}>{description}</Text> : null}
+      </View>
+      <Pressable onPress={onClose} accessibilityRole="button" accessibilityLabel="닫기" style={st.close}>
+        <SymbolView name="xmark.circle.fill" size={28} tintColor={c.muted} />
+      </Pressable>
+    </View>
+  );
+  if (fit)
+    return (
+      <Modal visible={open} transparent animationType="slide" onRequestClose={onClose}>
+        <View style={st.fitWrap}>
+          <Pressable style={st.scrim} onPress={onClose} accessibilityLabel="닫기" />
+          <View style={[st.fitCard, { backgroundColor: c.page, paddingBottom: footer ? 0 : Math.max(16, inset.bottom) }]}>
+            <View style={[st.grabber, { backgroundColor: c.line }]} />
+            {head}
+            <ScrollView style={st.fitScroll} keyboardShouldPersistTaps="handled" contentContainerStyle={[st.scroll, READABLE]}>
+              {children}
+            </ScrollView>
+            {footer ? <View style={[st.footer, { paddingBottom: Math.max(16, inset.bottom), borderTopColor: c.line }]}>{footer}</View> : null}
+          </View>
+        </View>
+      </Modal>
+    );
   return (
     <Modal visible={open} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
       <KeyboardAvoidingView behavior="padding" style={{ flex: 1, backgroundColor: c.page }}>
-        <View style={st.head}>
-          <View style={{ flex: 1 }}>
-            <Text style={[st.title, { color: c.ink }]}>{title}</Text>
-            {description ? <Text style={[st.desc, { color: c.muted }]}>{description}</Text> : null}
-          </View>
-          <Pressable onPress={onClose} accessibilityRole="button" accessibilityLabel="닫기" style={st.close}>
-            <SymbolView name="xmark.circle.fill" size={28} tintColor={c.muted} />
-          </Pressable>
-        </View>
+        {head}
         <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={[st.scroll, READABLE]}>
           {children}
         </ScrollView>
@@ -534,6 +556,11 @@ const st = StyleSheet.create({
   close: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', marginTop: -8, marginRight: -8 },
   scroll: { paddingHorizontal: 20, paddingBottom: 24, gap: 8 },
   footer: { paddingHorizontal: 20, paddingTop: 12, borderTopWidth: StyleSheet.hairlineWidth },
+  fitWrap: { flex: 1, justifyContent: 'flex-end' },
+  scrim: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, backgroundColor: 'rgba(0,0,0,0.35)' },
+  fitCard: { maxHeight: '88%', borderTopLeftRadius: 28, borderTopRightRadius: 28, overflow: 'hidden' },
+  fitScroll: { flexGrow: 0, flexShrink: 1 },
+  grabber: { alignSelf: 'center', width: 36, height: 5, borderRadius: 3, marginTop: 8 },
   error: { fontSize: 13, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, overflow: 'hidden' },
   small: { fontSize: 13, lineHeight: 18 },
   smallBold: { fontSize: 13, fontWeight: '700' },

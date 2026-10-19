@@ -257,12 +257,13 @@ export async function loadTrainingToday(user: TodayUser, today: Date): Promise<T
       [
         ...full.map((p) => p.ex.thumbPath),
         ...(programCard?.upcoming.flatMap((u) => u.items.map((it) => it.thumbPath)) ?? []),
+        ...(programCard?.rows.map((r) => r.thumbPath) ?? []),
       ].filter((p): p is string => !!p)
     ),
     pastAmountsP,
     doneSetsP,
   ]);
-  for (const it of programCard?.upcoming.flatMap((u) => u.items) ?? []) {
+  for (const it of [...(programCard?.upcoming.flatMap((u) => u.items) ?? []), ...(programCard?.rows ?? [])]) {
     if (it.thumbPath) it.thumbUrl = thumbUrls[it.thumbPath] ?? null;
   }
 

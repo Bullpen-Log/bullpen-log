@@ -6,7 +6,7 @@ import { redirect } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
 import { requireUser } from '@/lib/dal';
 import { featureLocks, SETUP_PATH } from '@/lib/feature-locks';
-import { ChevronDown, Dumbbell } from '@/components/icon';
+import { ChevronDown } from '@/components/icon';
 import { createPlaybackUrls } from '@/lib/storage';
 import { referenceThumbUrl } from '@/lib/reference-video';
 import { formatPrescription } from '@/lib/exercise-meta';
@@ -17,7 +17,6 @@ import { loadTodayCore } from '@/lib/report/today-data';
 import { toDateKey } from '@/lib/pitch-stats';
 import { TRAINING_SCREEN_TEXT, trainingScreenOf } from '@/lib/report/training-screen';
 import { remakeFieldsOf, stateNoticeOf } from '@/lib/report/state-notice';
-import { programDayText } from '@/lib/engine/arbiter';
 import { StartWorkout } from './start-workout';
 import { StateNoticeBand } from './state-notice-band';
 import { DoneCard, DoneFold, type DoneLine } from './done-card';
@@ -158,33 +157,6 @@ function AppHead({
           )
         }
       />
-    </div>
-  );
-}
-
-/**
- * 근력 프로그램이 오늘 주인인 날의 일정 자리 한 줄(2판 P6-4, 사용자 결정 D6) — 그날 운동은 맨 위 프로그램 카드가 다 말하고(목록 · 무게 · [운동 시작]),
- * 여기서는 왜 따로 일정을 안 짜는지만 말한다. 글은 중재와 일정 까닭의 한 곳(lib/engine/arbiter.ts programDayText). 바로 위 다음 등판 한 줄
- * (components/outing-line.tsx)과 같은 줄 모양이라 둘이 이어 읽힌다. 그 전에 만든 매일 일정이 남아 있으면 그 일정은 오늘 쉰다고 둘째 줄로 알린다.
- */
-function ProgramDayLine({
-  label,
-  planResting,
-}: {
-  label: string | null;
-  planResting: boolean;
-}) {
-  return (
-    <div className="flex min-h-12 items-center gap-2.5 rounded-2xl border border-line bg-surface px-(--block-pad) py-1.5 text-sm desk:min-h-11">
-      <Dumbbell aria-hidden className="h-4 w-4 shrink-0 text-sky" />
-      <p className="min-w-0 flex-1 break-keep">
-        <span className="block font-semibold text-ink">{programDayText(label)}</span>
-        {planResting && (
-          <span className="block text-xs text-muted">
-            {TRAINING_SCREEN_TEXT.planResting}
-          </span>
-        )}
-      </p>
     </div>
   );
 }
@@ -695,19 +667,10 @@ export default async function TrainingPage({
           </Card>
         ) : screen.programOwns ? (
           /*
-          근력 프로그램 날(2판 P6-4, D6) — 프로그램 카드가 주인이고 일정 자리는 한 줄. 마친 날은 그것도 안 그린다(위 완료 카드와 프로그램 카드가
-          오늘 한 것을 말한다).
+          근력 프로그램 날(2판 P6-4, D6) — 프로그램 카드가 주인이라 일정 자리는 비운다. 예전엔 '오늘은 근력 프로그램 N번 세션 차례라 그 운동을
+          그대로 해요' 한 줄을 두었는데, 위 카드와 같은 말을 되풀이해 뺐다(2026-10-20 김민).
         */
-          done ? null : (
-            <ProgramDayLine
-              label={
-                programView?.arbitration.program?.today?.label ??
-                programView?.dayLabel ??
-                null
-              }
-              planResting={screen.planResting}
-            />
-          )
+          null
         ) : savedPlan == null || screen.stalePlan ? (
           /*
           아직 안 만든 날.

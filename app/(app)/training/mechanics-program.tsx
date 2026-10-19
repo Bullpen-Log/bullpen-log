@@ -21,6 +21,7 @@ import { quietRefresh } from '@/lib/quiet-refresh';
 import {
   MECHANICS_LEVELS,
   PER_WEEK,
+  SESSIONS_PER_LEVEL,
   WEEKS,
   mechanicsLevel,
   type LevelKey,
@@ -68,7 +69,7 @@ export function MechanicsProgram({
         {/* 글은 한 줄만, 나머지는 '자세히' 뒤로(2026-10-16 김민 "화면 글 많은 곳 줄여줘" — 이 화면이 1,500자 · 화면 3장 길이였다) */}
         <Card className="space-y-1">
           <h2 className="text-heading text-lg text-ink">투구 메커니즘 향상 프로그램</h2>
-          <p className="text-sm break-keep text-ink/85">4주 · 주 {PER_WEEK}번 · 한 번에 15~25분이에요.</p>
+          <p className="text-sm break-keep text-ink/85">{SESSIONS_PER_LEVEL}세션 · 한 번에 15~25분이에요.</p>
           <FoldNote tone="muted">
             <p className="text-sm leading-relaxed break-keep text-muted">
               드릴 3~4개를 투구 차례대로 해요. 던지는 날 캐치볼 전에 하면 알맞아요. 처음이면 입문부터.

@@ -6,7 +6,7 @@ import { Alert, Image, Pressable, StyleSheet, Text, View, type LayoutChangeEvent
 import { josa } from '@/lib/korean';
 import { DRILL_STAGES } from '@/lib/exercise-meta';
 import { MECHANICS_ELEMENTS, MECHANICS_OVERVIEW, MECHANICS_SOURCE_NOTE, MECHANICS_SYMPTOMS, sideText, type MechanicsElement } from '@/lib/mechanics/elements';
-import { MECHANICS_LEVELS, PER_WEEK, WEEKS, mechanicsLevel, type LevelKey, type MechanicsLevel } from '@/lib/mechanics/levels';
+import { MECHANICS_LEVELS, PER_WEEK, SESSIONS_PER_LEVEL, WEEKS, mechanicsLevel, type LevelKey, type MechanicsLevel } from '@/lib/mechanics/levels';
 import {
   FILM_EVERY,
   FILM_VERDICTS,
@@ -126,7 +126,7 @@ export function NoProgram({ reload, c }: { reload: Reload; c: Palette }) {
     <View style={{ gap: 12 }}>
       <View style={[s.card, { backgroundColor: c.card, boxShadow: c.float, gap: 6 }]}>
         <Text style={[s.title, { color: c.ink }]}>투구 메커니즘 향상 프로그램</Text>
-        <Text style={[s.body, { color: c.ink }]}>4주 · 주 {PER_WEEK}번 · 한 번에 15~25분이에요.</Text>
+        <Text style={[s.body, { color: c.ink }]}>{SESSIONS_PER_LEVEL}세션 · 한 번에 15~25분이에요.</Text>
         <Fold label="자세히" c={c}>
           <Text style={[s.body, { color: c.muted }]}>드릴 3~4개를 투구 차례대로 해요. 던지는 날 캐치볼 전에 하면 알맞아요. 처음이면 입문부터.</Text>
         </Fold>
