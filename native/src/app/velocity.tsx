@@ -56,6 +56,7 @@ import { PlateOverlay } from '~/velocity/abs/plate-overlay';
 import { AbsSetupBody } from '~/velocity/abs/abs-setup-card';
 import { BatterChip } from '~/velocity/abs/batter-chip';
 import { VerdictCard } from '~/velocity/abs/verdict-card';
+import { AbsSummary } from '~/velocity/abs/abs-summary';
 import type { AbsSession } from '~/velocity/abs/use-abs';
 import { focalPxFromFov } from '@/lib/velocity-engine/geometry';
 import { Icon, type IconName } from '~/shell/icon';
@@ -758,8 +759,11 @@ export default function VelocityScreen() {
               </Text>
             ) : null}
             <ScrollView style={styles.list}>
+              {/* ABS 모드 — 판정이 있는 공으로 요약(웹 session-summary 의 ABS 칸) */}
+              {abs.on ? <AbsSummary items={pitches.flatMap((p) => (p.analysis?.abs ? [{ id: p.id, abs: p.analysis.abs }] : []))} /> : null}
               {pitches.map((p, i) => {
                 const type = PITCH_TYPES.find((t) => t.key === p.pitchType)?.label;
+                const call = p.analysis?.abs?.verdict?.call;
                 return (
                   <View key={p.id} style={styles.listItem}>
                     <Pressable
@@ -769,7 +773,7 @@ export default function VelocityScreen() {
                       style={styles.listRow}
                     >
                       <Text style={styles.listText} numberOfLines={openId === p.id ? undefined : 1}>
-                        {i + 1}. {shownKmh(p, fit).toFixed(1)} km/h{type ? ` · ${type}` : ''}
+                        {i + 1}. {shownKmh(p, fit).toFixed(1)} km/h{call ? ` · ${call === 'strike' ? 'S' : 'B'}` : ''}{type ? ` · ${type}` : ''}
                         {p.notes.length ? ` · ${p.notes[0]}` : ''}
                       </Text>
                       <Text style={styles.chev}>{openId === p.id ? '⌃' : '⌄'}</Text>
@@ -947,7 +951,7 @@ const styles = StyleSheet.create({
   sheet: { backgroundColor: '#f2f2f7', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, gap: 8, maxHeight: '85%' },
   sheetTitle: { fontSize: 22, fontWeight: '700', color: '#1d1d1f' },
   sheetBody: { fontSize: 15, color: '#3a3a3c' },
-  list: { maxHeight: 200 },
+  list: { maxHeight: 280 },
   listRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 44, gap: 8 },
   listText: { flex: 1, fontSize: 15, color: '#1d1d1f' },
   listItem: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#e5e5ea' },
