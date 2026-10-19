@@ -635,6 +635,10 @@
       **구축 프롬프트(2026-10-18, 영어)**: `docs/designs/abs-build-prompt.md` — §0 DECISIONS 채움. 뼈대: `lib/abs/`
       순수 모듈(rules · zone · calib · depth · cross · judge · events · stability · plate-detect) + `npm run abs:test` · `abs:bench` → UI `components/abs/` → 엔진 인자
       (`FitOptions.anchors` · `DistanceInput.depthCues` · `AnalysisJson.abs`)는 P2 끝 한 커밋 + HANDOFF. DB 변경 없음(zone · result · analysis.abs).
+  21. **새 앱 카메라 한 화면 · 두 모드(구속 측정 · ABS, 2026-10-19 윤호 맥북, 사용자: "홈 쓸기로 바로 카메라 · 팝업으로 고르기 · 아이폰 카메라 모드 전환 느낌").
+      2~6단계 끝(커밋 047f2411 ~ 02fb6741 + HANDOFF), 7단계(웹 같은 틀)는 2차.** 설계 · 결정 넷 · 단계표 `docs/designs/camera-modes.md`. 코드 `native/src/velocity/mode*.tsx` ·
+      `native/src/velocity/abs/*`(웹 `components/abs` 의 앱판 — 순수 계산은 같은 `lib/abs`), `native/src/app/velocity.tsx` Step 'mode' · 'abs'. 폰 확인은 사용자 몫(시뮬레이터엔 카메라가
+      없어 가짜 값으로 모양만). 남은 것: 7단계 웹 · 앱 3D 둘러보기 · ABS 를 일반 사용자에게 열 때 mode.ts adminOnly 하나.
 
 - **클라우드 식단 짜기 정확도 2차 — 끝남(2026-10-04 맡김 → 10-06 main 합침 · 메인 검토 반영). 지금 클라우드가 할 일은 아래 '3차' 줄.**
   (아래는 2차 메모 그대로 — 규칙은 3차에도 같다.) 사용자가 클라우드 세션을 열어 "메모대로 해 줘"라고 하면 이것을 했다. 지난 클라우드 작업(틀 85 → 167 · 시험 382, 커밋 8e1fbd5 · 46cc794 · 96dae5d)을 메인이 세 갈래로 검토했고,

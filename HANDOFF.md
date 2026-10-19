@@ -11,6 +11,30 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 ---
 
+## 김민에게 — 2026-10-19 · 금윤호(Claude, 윤호 맥북) — 새 앱 카메라 한 화면 · 두 모드(구속 측정 · ABS 판정) — 네 영역 `native/src/velocity/*` · `app/velocity.tsx` 크게 고침 · 새 앱 구워야 들어감
+
+받은 뒤 할 일 없음(DB · 패키지 · Swift 그대로 — JS 만이라 Metro 로 바로 돈다, TestFlight 는 다음 굽기에). 사용자: "홈에서 오른쪽으로 쓸면 바로 카메라 · 팝업으로 ABS 냐
+구속 측정이냐 고르게 · 아이폰 카메라의 동영상 ↔ 슬로모션 전환 느낌". 설계 `docs/designs/camera-modes.md`(결정 넷 · 단계표 2~5 끝, 7 웹은 2차). 커밋 047f2411 ~ 02fb6741.
+- **틀**(`velocity/mode.ts` · `mode-sheet.tsx` · `mode-strip.tsx`, `app/velocity.tsx`): Step 에 'mode'(처음 — 미리보기 위 모드 고르기 시트, 지난 모드가 먼저 골라짐) ·
+  'abs'(존 다음, ABS 만). 셔터 위 아이폰식 모드 띠 '구속 | ABS'(측정 중 잠금, 설정 단계는 그 자리에서 이어감). 설정은 모드마다 따로(`setupKeyOf`). 홈 쓸기 자리표시가 '카메라'.
+  **ABS 는 관리자만**(일반 사용자는 시트에서 '준비 중', 띠에는 안 보임).
+- **ABS**(`velocity/abs/`): `use-abs.ts` 가 웹 `components/abs/use-abs-session.ts` 의 앱판 — 플레이트 찾기는 `DualCamera.snapshot`(짧은 변 720) 밝기로 0.6초마다,
+  측정 중 5초마다 삼각대 감시, 순수 계산은 웹과 같은 `lib/abs`. 설정은 앱 저장소 'bullpen-abs-setup'. `plate-overlay.tsx`(svg, 직접 맞추기 손잡이) ·
+  `abs-setup-card.tsx` · `batter-chip.tsx` · `verdict-card.tsx` · `abs-summary.tsx`. `session.ts decide` 에 선택 인자 `judgeAbs` — 판정이 `analysis.abs` · 코스는 판정 칸 ·
+  저장 result 'strike' | 'ball'(웹과 같은 모양이라 서버 · 그날 화면은 그대로 읽는다).
+- `camera-ui.tsx` 에 `Segmented` 를 내보냄(velocity.tsx 에서 옮김), `shell/icon.tsx` 에 `user-round`.
+- **시뮬레이터(카메라 없음)로 흐름 · 모양만 봤다.** 폰에서 볼 것: 홈 쓸기 → 모드 시트 · 띠 전환 · ABS 5/5 단계에서 흰 홈플레이트 자동 찾기(안 되면 '직접 맞추기') ·
+  공을 던져 판정 카드(S/B) · 저장 창 요약 · 저장 뒤 그날 화면의 S/B. 3D 둘러보기는 앱에 아직 없다.
+
+## 김민에게 — 2026-10-19 밤 · 금윤호(Claude, 데스크톱) — 같은 ①을 두 세션이 동시에 했다 → 윤호 맥북 것을 받음 · 내 몫은 웹 훑기 창 · 빈 요약
+
+받은 뒤 할 일 없음. 데스크톱 세션이 ①(새 앱 훑기)을 따로 만들다 맥북 세션이 먼저 올린 것(아래 글, 4c8bd1a5 · 70044bed · 02c96403)과 부딪혀 **그쪽을 통째로 받았다**
+(모듈 상한 6초 · '뒤늦게 찾은 공' 표시까지 있어 더 완전). 내 것에서 남긴 것:
+- **웹 훑기(옛 Capacitor 앱 길)**: 옛 앱 모듈은 한 번에 4초만 잘라 줘 6초를 청하던 창의 뒤 2초가 늘 비었다 → `nextSweepWindow(…, maxSec)` 인자(`sweep.ts`),
+  `dual-capture.ts` 가 `CLIP_MAX_SEC`(4) 로 부른다. 새 앱(상한 6)은 그대로 6초. 시험 한 줄(engine2 84).
+- **잰 공 0개여도 세션 요약을 띄운다**(웹 `velocity-screen.tsx` endSession) — 네 인계 '알아 둘 것' 첫 줄, "저장 버튼이 안 보인다".
+- 바로잡음: 10-19 세션 녹화 7개 가운데 금윤호 5개는 새 앱이 아니라 **새 앱 안에서 연 웹 측정 화면** 것(2판 라벨용 조각은 네 것 2개뿐).
+
 ## 김민에게 — 2026-10-19 · 금윤호(Claude, 윤호 맥북) — 네 인계 ① 새 앱에 조용할 때 훑기 옮김 · 앱 모듈 자르기 상한 4 → 6초 — 새 앱 구워야 들어감
 
 받은 뒤 할 일 없음(DB · 패키지 그대로). 네 영역(`native/modules/dual-camera/ios/DualCameraModule.swift` 한 줄 · `native/src/velocity/*` · 사이트 `app/velocity-engine/engine-client.tsx`)을 고쳤다.
@@ -74,6 +98,9 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 - **다음 순서(네 몫)**: ① 새 앱에 훑기 옮기기(웹 `DualCapture.sweep` · `sweep.ts` 그대로, 시계는 `DualCamera.now()`, 반나절) ② 현장 한 번(30~35구 · 110~120 15구+ · 세션 녹화 켬)
   ③ 10-19 세션 녹화 7개(조각 22, 공 표시 0)와 못 잰 옛 클립 16개에 공 자리 찍기 → 2판 재학습(README 명령, Modal 15분) → ONNX 교체 ④ 맥: CoreML 로 MotionTrigger 를 모델로
   ⑤ 같은 빌드에 셔터 1/2000 · 가속도 · 고도 ⑥ 140+ 짝 10~15구(피칭머신 · 빠른 투수) ⑦ 손 감지는 필요할 때만.
+  ⑧ **(10-19 김민 요청 · 작음, 아무 때나)** 세션 거리 보정을 깨끗한 공 **1개부터** — 지금은 3개부터라 줄자 없이 18 · 22m 에서 첫 1~2구가 +12% · −10% 로 나온다.
+  공마다 제 공 크기 거리로 보정하면 짝 21구 오차 3.0%(3개 가운데 값 2.7%, 보정 없음 ~12%). `lib/velocity-session-distance.ts` SESSION_DIST_MIN 3 → 1 + 그때까지 공들의 가운데 값
+  (`sessionDistOf` · `sessionCorrection`), 시험 고치기. 웹 · 새 앱이 `lib/velocity-session.ts` 로 같이 쓰니 한 곳만. 자세한 건 계획 문서 인계 절 8번.
 - 숫자(10-16 밤 뒤 DB, 읽기만): 시도 공 10 · 후보 51 · 움직임 8 · **훑기 1** · 2.7.1 로 잰 공 11 · 사람이 찍은 라벨 1(시험용). 실제 폰에서 훑기 · 모델 속도는 아직 제대로 못 봤다.
 - 고치지 않은 것 하나: 잰 공이 0개면 세션 요약(저장 단추)이 안 뜬다 — 김민이 "저장 버튼이 안 보인다"고 했다. 빈 요약을 띄우자는 제안만 했다.
 

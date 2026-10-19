@@ -1,3 +1,4 @@
+import type { AbsAnalysis } from '@/lib/abs/analysis';
 import type { AnalyzeResult } from '@/lib/velocity-engine/analyze-frames';
 import type { DistanceReport } from '@/lib/velocity-engine/analyze-distance';
 import { focalPxFromFov } from '@/lib/velocity-engine/geometry';
@@ -20,6 +21,7 @@ import { DualCamera, type Clip, type StartInfo } from '../../modules/dual-camera
 import { rpc } from '~/lib/rpc';
 import type { Verdict } from './capture';
 import type { EngineResult } from './engine';
+import type { AbsJudgeSource } from './abs/use-abs';
 
 /**
  * 앱 구속 측정 세션 — 잰 공을 받을지 · 세션 거리 보정 · 저장. 규칙은 웹 측정 화면과 같은 lib/velocity-session.ts(웹 velocity-screen.tsx
@@ -77,7 +79,9 @@ export function decide(
   raw: EngineResult,
   list: NativePitch[],
   ctx: SessionCtx,
-  meta: { id: number; clip: Clip; late?: boolean }
+  meta: { id: number; clip: Clip; late?: boolean },
+  /** ABS 모드면 판정 함수(use-abs judge) — 보정이 있고 궤적 스냅샷이 있으면 analysis.abs 에 싣고 코스는 판정 칸으로(웹과 같다) */
+  judgeAbs?: (r: AbsJudgeSource) => AbsAnalysis | null
 ): { verdict: Verdict; list?: NativePitch[]; notice?: string } {
   const result = judgeBySession(raw as unknown as Result, list, 'camera', ctx.tape);
   const m = result.measure;
@@ -101,6 +105,10 @@ export function decide(
       : null;
   const offStandard = offStandardOf(ctx.info);
   const dist = result.distance;
+  const absJudged =
+    judgeAbs && dist
+      ? judgeAbs({ distance: dist as DistanceReport, track: result.track, analyzeSize: result.analyzeSize, sourceSize: result.sourceSize })
+      : null;
   const mismatch = dist ? distanceMismatch({ distance: dist }) : null;
   const pitch: NativePitch = {
     id: nextId(list),
@@ -110,10 +118,11 @@ export function decide(
     ...measuredFields(result, false),
     analysis: {
       ...analysisOf(result, ctx.cameraPos === 'behind-pitcher' ? 'receding' : 'approaching'),
+      abs: absJudged,
       zoneRect: ctx.zone,
       offStandard,
     },
-    zone,
+    zone: absJudged?.verdict?.cell ?? zone,
     notes: [
       ...(offStandard.length ? [`기준 조건 밖: ${offStandard.join(' · ')}`] : []),
       ...(mismatch
@@ -205,7 +214,7 @@ export async function saveSession(input: {
         fps: p.fps,
         pitchType: p.pitchType ?? null,
         zone: p.zone,
-        result: null,
+        result: p.analysis?.abs?.verdict?.call ?? null,
         gunKmh: null,
         memo: null,
         analysis: p.analysis ?? null,

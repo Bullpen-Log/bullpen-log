@@ -218,7 +218,9 @@ import { useAbsSession } from '@/components/abs/use-abs-session';
 import { AbsSetupCard } from '@/components/abs/abs-setup-card';
 import { PlateOverlay } from '@/components/abs/plate-overlay';
 import { BatterChip } from '@/components/abs/batter-chip';
-import { Switch } from '@/components/switch';
+import { ModeSheet } from '@/components/velocity/mode-sheet';
+import { ModeStrip } from '@/components/velocity/mode-strip';
+import { LAST_MODE_KEY, allowedMode, modeInfo, parseMode, type CameraMode } from '@/lib/camera-mode';
 import { focalPxFromFov as absFocalPxFromFov } from '@/lib/velocity-engine/geometry';
 
 /**
@@ -481,6 +483,14 @@ const readSetupRaw = () => {
     return null;
   }
 };
+/** 지난 번 고른 카메라 모드(lib/camera-mode.ts) — 모드 시트가 먼저 골라 두는 것 */
+const readLastMode = () => {
+  try {
+    return localStorage.getItem(LAST_MODE_KEY);
+  } catch {
+    return null;
+  }
+};
 
 export function VelocityScreen({
   isAdmin,
@@ -492,7 +502,7 @@ export function VelocityScreen({
   resume = false,
   absMode = false,
 }: {
-  /** ABS 판정 모드(/abs) — ABS 가 켜진 채 열고 제목 · 셔터 글이 '판정'. 흐름 · 엔진은 구속 측정 그대로 */
+  /** /abs 딥링크 — ABS 모드로 바로 열고(모드 시트 없이) 제목 · 셔터 글이 '판정'. 흐름 · 엔진은 구속 측정 그대로(lib/camera-mode.ts) */
   absMode?: boolean;
   isAdmin: boolean;
   native: boolean;
@@ -568,6 +578,23 @@ export function VelocityScreen({
   const stored = useMemo(() => (storedRaw ? loadSetup() : null), [storedRaw]);
   const [decided, setDecided] = useState(initialStep !== 'type' && initialStep !== 'home');
   const [step, setStep] = useState<Step>(initialStep);
+  /*
+   * 카메라 모드(구속 측정 · ABS 판정, docs/designs/camera-modes.md) — 열리면 첫 화면 위 모드 시트에서 고른다(지난 번 모드가 먼저 골라짐).
+   * /abs 딥링크 · 미리보기 단계로 열면 시트 없이. 띠(셔터 위)로 바꾸면 카메라는 그대로.
+   */
+  const lastModeRaw = useSyncExternalStore(subscribeStorage, readLastMode, () => null);
+  const [modeChosen, setModeChosen] = useState<CameraMode | null>(absMode ? 'abs' : null);
+  const mode: CameraMode = modeChosen ?? allowedMode(parseMode(lastModeRaw), isAdmin);
+  const [modePicked, setModePicked] = useState(absMode || initialStep !== 'home');
+  const modeMeta = modeInfo(mode);
+  const setMode = (next: CameraMode) => {
+    setModeChosen(next);
+    try {
+      window.localStorage.setItem(LAST_MODE_KEY, next);
+    } catch {
+      /* 저장소 없음 */
+    }
+  };
   const [choices, setChoices] = useState<Choices>({
     cameraPos: DEFAULT_SETUP.cameraPos,
     net: DEFAULT_SETUP.net,
@@ -802,13 +829,12 @@ export function VelocityScreen({
     live: step === 'measure' && live,
     snapshot: () => captureRef.current?.snapshot() ?? null,
   });
-  /* /abs 로 열었으면 ABS 를 켜 둔다(저장된 설정이 꺼져 있어도) — 설정을 읽은 뒤 한 박자 뒤 */
+  /* ABS 켬 · 끔은 모드가 정한다(저장된 설정값은 모드 아래) — 설정을 읽은 뒤 한 박자 뒤 */
   const absSetOn = abs.setOn;
   useEffect(() => {
-    if (!absMode) return;
-    const t = setTimeout(() => absSetOn(true), 50);
+    const t = setTimeout(() => absSetOn(mode === 'abs'), 50);
     return () => clearTimeout(t);
-  }, [absMode, absSetOn]);
+  }, [mode, absSetOn]);
   const fit = calibration;
   const shown = (raw: number) =>
     useCal && fit.n > 0 ? applyCalibration(raw, fit) : raw;
@@ -1339,6 +1365,19 @@ export function VelocityScreen({
     captureRef.current?.setApproach(approach);
     setStep('measure');
   };
+  /* 모드 시트에서 고르기 — 그 모드의 설정 흐름(지난 설정 · 종류)으로 */
+  const pickMode = (next: CameraMode) => {
+    setMode(next);
+    setModePicked(true);
+    setStep('type');
+  };
+  /* 셔터 위 띠로 바꾸기 — 공통 설정은 그대로. ABS 설정 단계에서 구속으로 가면 측정으로, 측정 전에 ABS 로 가면 플레이트 단계로 */
+  const switchMode = (next: CameraMode) => {
+    if (next === mode) return;
+    setMode(next);
+    if (step === 'abs' && next === 'speed') goMeasureFromAbs();
+    else if (step === 'measure' && !live && next === 'abs' && choices.cameraPos === 'behind-pitcher') setStep('abs');
+  };
   const restart = () => {
     captureRef.current?.disarm();
     stopCamera();
@@ -1503,14 +1542,17 @@ export function VelocityScreen({
     setShowCamera(false);
     setResultOpen(false);
   };
-  /* 세션 종료 — 잰 공이 있으면 종합 화면으로. 거기서 저장하거나(끝) 이어서 잰다 */
+  /*
+   * 세션 종료 — 종합 화면으로. 거기서 저장하거나(끝) 이어서 잰다. 잰 공이 0개여도 띄운다(빈 요약 '잰 공이 없어요' + 구속 측정하기) —
+   * 예전엔 카메라만 꺼져 "저장 버튼이 안 보인다"(2026-10-19 김민). 세션 녹화는 관리자 [세션 녹화] 폴더에 남는다.
+   */
   const endSession = () => {
     captureRef.current?.disarm();
     void stopSessionRecording();
     setLive(false);
     setShowCamera(false);
     setResultOpen(false);
-    if (pitches.length > 0) setSummaryOpen(true);
+    setSummaryOpen(true);
   };
   /*
    * 세션 통째 녹화(엔진 2.7 1단계, lib/velocity-dual-recorder.ts) — 관리자가 '세션 녹화' 단추를 켠 채 앱 카메라로 잴 때, 앱이 쥔
@@ -2387,7 +2429,7 @@ export function VelocityScreen({
     else setTipIndex(tipIndex + 1);
   };
   /* 카메라 무대 위 가운데 — 단계 이름(측정은 세션 중 상태가 대신) */
-  const stageTitle = step === 'home' ? { n: '', label: absMode ? 'ABS 판정' : '구속 측정' } : null;
+  const stageTitle = step === 'home' ? { n: '', label: modePicked ? modeMeta.title : '카메라' } : null;
   /*
    * 셔터 — 첫 화면은 '측정 시작'(안내창을 연다). 안내창 · 수평 · 존 동안은 흐리게 자리만 지킨다(앞으로 가기는 카드 안 단추 — 김민:
    * "다음 버튼은 창에다가, 셔터로 하니까 헷갈려"). 측정 단계의 셔터는 아래 막대의 다른 갈래가 그린다.
@@ -2397,10 +2439,10 @@ export function VelocityScreen({
       <Shutter
         onClick={() => setStep('type')}
         disabled={step !== 'home' || fileBusy}
-        label={absMode ? '판정 시작' : '측정 시작'}
+        label={modeMeta.shutter}
       />
       <span className={`${SIDE_LABEL} transition-opacity ${step === 'home' ? '' : 'opacity-35'}`}>
-        {absMode ? '판정 시작' : '측정 시작'}
+        {modeMeta.shutter}
       </span>
     </div>
   );
@@ -2538,6 +2580,8 @@ export function VelocityScreen({
         </div>
       )}
 
+      {/* 모드 고르기 시트 — 열리자마자 미리보기 위(docs/designs/camera-modes.md 2-1). 고르면 그 모드의 설정 흐름으로 */}
+      {step === 'home' && !modePicked && status !== 'starting' && <ModeSheet value={mode} isAdmin={isAdmin} onPick={pickMode} />}
       {/* 표적 — 릴리스 포인트 */}
       {cameraOn && step !== 'zone' && step !== 'abs' && step !== 'lens' && !(live && !showCamera) && (
         <div aria-hidden className="pointer-events-none absolute inset-0 text-white">
@@ -2871,18 +2915,6 @@ export function VelocityScreen({
                       value={sessionType}
                       onChange={setSessionType}
                     />
-                    {/* ABS(볼 · 스트라이크 자동 판정) — 관리자 · 투수 뒤만. 검문 2 뒤 모두에게(docs/designs/abs-single-camera.md) */}
-                    {isAdmin && (
-                      <label className="mt-3 flex items-center justify-between gap-3 rounded-2xl bg-surface-2 px-4 py-3">
-                        <span className="min-w-0">
-                          <span className="block text-sm font-semibold text-ink">ABS 판정도 해요</span>
-                          <span className="block text-footnote text-muted">
-                            홈플레이트가 보이게 두면 공마다 스트라이크 · 볼을 판정해요(참고용).
-                          </span>
-                        </span>
-                        <Switch checked={abs.setup.on} onChange={abs.setOn} ariaLabel="ABS 판정" />
-                      </label>
-                    )}
                   </GuideCard>
                 ) : step === 'camera' ? (
                   <GuideCard
@@ -3543,8 +3575,14 @@ export function VelocityScreen({
           )}
 
           {/* 아래 단추 — 카메라 앱처럼 셋: 보조 · 셔터(다음 · 완료 · 시작 · 종료) · 보조. 렌즈 보정은 판이 대신한다 */}
+          {/* 모드 띠 — 셔터 위(설계 2-2). 측정 중엔 잠금. 모드를 아직 안 골랐으면(시트가 떠 있음) 자리만 */}
           {step !== 'lens' && (
-            <div className="relative z-10 flex shrink-0 items-start justify-between bg-black px-6 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3">
+            <div className="relative z-10 shrink-0 bg-black px-3 pt-1.5">
+              {modePicked ? <ModeStrip value={mode} isAdmin={isAdmin} locked={step === 'measure' && live} onChange={switchMode} /> : <div className="h-8" />}
+            </div>
+          )}
+          {step !== 'lens' && (
+            <div className="relative z-10 flex shrink-0 items-start justify-between bg-black px-6 pb-[max(1rem,env(safe-area-inset-bottom))] pt-1">
               {/* 쪽 점 — 지금 카메라 · 이번 세션 중 어디인지(옆으로 넘길 수 있다는 표시). 검은 막대 위라 내용과 안 겹친다 */}
               {step === 'measure' && live && (
                 <div

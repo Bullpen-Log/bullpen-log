@@ -7,7 +7,7 @@ import Animated, { Easing, runOnJS, useAnimatedStyle, useReducedMotion, useShare
 import { Icon } from '~/shell/icon';
 
 /**
- * 홈에서 오른쪽으로 쓸면 구속 측정 — 웹 components/tab-pager.tsx 의 camera 갈래와 같다.
+ * 홈에서 오른쪽으로 쓸면 카메라(구속 측정 · ABS 판정을 열린 뒤 고른다) — 웹 components/tab-pager.tsx 의 camera 갈래와 같다.
  * - 홈 첫 화면에서만, 오른쪽으로만(왼쪽 · 다른 탭은 쓸기 없음 — 2026-10-15 김민 "구속 측정 쪽 쓸기만").
  * - 손가락을 따라 홈이 밀리고 왼쪽에서 검은 판(레이더 · '구속 측정')이 같이 들어온다.
  * - 폭 1/4 넘게 또는 빠르게 튕기면(0.35px/ms) 끝까지 밀린 뒤 구속 측정으로, 아니면 제자리.
@@ -83,12 +83,12 @@ export function CameraSwipe({ enabled, children }: { enabled: boolean; children:
       <GestureDetector gesture={pan}>
         <View style={{ flex: 1, overflow: 'hidden' }}>
           <Animated.View style={[{ flex: 1 }, content]}>{children}</Animated.View>
-          {/* 구속 측정 자리표시 — 왼쪽에서 손가락을 따라 들어오는 검은 판(웹 data-tab-ghost) */}
+          {/* 카메라 자리표시 — 왼쪽에서 손가락을 따라 들어오는 검은 판(웹 data-tab-ghost). 구속 측정 · ABS 는 열린 뒤 모드로 고른다(velocity/mode-sheet.tsx) */}
           <Animated.View pointerEvents="none" style={[styles.ghost, { left: -width, width }, ghost]}>
             <View style={styles.ghostIcon}>
-              <Icon name="radar" size={40} color="#fff" />
+              <Icon name="camera" size={40} color="#fff" />
             </View>
-            <Text style={styles.ghostText}>구속 측정</Text>
+            <Text style={styles.ghostText}>카메라</Text>
           </Animated.View>
         </View>
       </GestureDetector>

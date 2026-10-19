@@ -212,7 +212,27 @@ export function InfoPill({ children, tone }: { children: ReactNode; tone?: 'warn
   );
 }
 
+/** 두 칸 고르개 — 웹 Segmented(회색 바탕 위 흰 칸) */
+export function Segmented({ items, value, onChange }: { items: { value: string; label: string }[]; value: string; onChange: (v: string) => void }) {
+  return (
+    <View style={st.seg}>
+      {items.map((it) => {
+        const on = it.value === value;
+        return (
+          <Pressable key={it.value} accessibilityRole="radio" accessibilityState={{ selected: on }} onPress={() => onChange(it.value)} style={[st.segItem, on && st.segOn]}>
+            <Text style={[st.segText, on && { fontWeight: '700' }]}>{it.label}</Text>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
+
 const st = StyleSheet.create({
+  seg: { flexDirection: 'row', padding: 3, borderRadius: 14, backgroundColor: '#e5e5ea' },
+  segItem: { flex: 1, minHeight: 40, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
+  segOn: { backgroundColor: '#fff', boxShadow: '0 1px 3px rgba(0,0,0,0.15)' },
+  segText: { fontSize: 15, fontWeight: '500', color: '#1d1d1f' },
   chrome: { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(0,0,0,0.45)', alignItems: 'center', justifyContent: 'center' },
   pill: {
     height: 36,
