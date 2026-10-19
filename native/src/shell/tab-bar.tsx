@@ -55,19 +55,22 @@ function tabColors(theme: 'light' | 'dark' | 'navy', sky: string, muted: string)
   if (theme === 'dark')
     return {
       base: 'rgba(28,28,30,0.88)', edge: 'rgba(255,255,255,0.18)', lens: 'rgba(255,255,255,0.16)', on: '#ffffff', off: 'rgba(255,255,255,0.62)', shadow: '#000000',
-      tint: 'rgba(0,0,0,0.18)', rim: 'inset 0 1px 0 rgba(255,255,255,0.28), inset 0 -1px 0 rgba(255,255,255,0.06), inset 0 0 0 0.5px rgba(255,255,255,0.16)',
+      tint: 'rgba(0,0,0,0.3)', rim: 'inset 0 1px 0 rgba(255,255,255,0.28), inset 0 -1px 0 rgba(255,255,255,0.06), inset 0 0 0 0.5px rgba(255,255,255,0.16)',
       lensRim: 'inset 0 1px 0 rgba(255,255,255,0.22), 0 2px 8px rgba(0,0,0,0.35)', drop: 0.55,
+      glassRim: 'inset 0 1px 1px rgba(255,255,255,0.55), inset 0 0 0 1px rgba(255,255,255,0.22), 0 8px 22px rgba(0,0,0,0.45)',
     };
   if (theme === 'navy')
     return {
       base: 'rgba(20,29,43,0.9)', edge: 'rgba(180,205,240,0.2)', lens: 'rgba(200,220,255,0.16)', on: '#7dd3fc', off: 'rgba(200,220,255,0.6)', shadow: '#030812',
-      tint: 'rgba(14,30,60,0.28)', rim: 'inset 0 1px 0 rgba(200,225,255,0.3), inset 0 -1px 0 rgba(200,225,255,0.06), inset 0 0 0 0.5px rgba(200,225,255,0.16)',
+      tint: 'rgba(14,30,60,0.38)', rim: 'inset 0 1px 0 rgba(200,225,255,0.3), inset 0 -1px 0 rgba(200,225,255,0.06), inset 0 0 0 0.5px rgba(200,225,255,0.16)',
       lensRim: 'inset 0 1px 0 rgba(220,235,255,0.25), 0 2px 8px rgba(0,0,0,0.35)', drop: 0.55,
+      glassRim: 'inset 0 1px 1px rgba(220,235,255,0.55), inset 0 0 0 1px rgba(200,225,255,0.22), 0 8px 22px rgba(0,0,0,0.45)',
     };
   return {
     base: 'rgba(255,255,255,0.86)', edge: 'rgba(255,255,255,0.9)', lens: 'rgba(120,130,150,0.16)', on: sky, off: muted, shadow: '#141e32',
-    tint: undefined, rim: 'inset 0 1px 0 rgba(255,255,255,0.95), inset 0 -1px 0 rgba(255,255,255,0.35), inset 0 0 0 0.5px rgba(255,255,255,0.6)',
+    tint: 'rgba(255,255,255,0.3)', rim: 'inset 0 1px 0 rgba(255,255,255,0.95), inset 0 -1px 0 rgba(255,255,255,0.35), inset 0 0 0 0.5px rgba(255,255,255,0.6)',
     lensRim: 'inset 0 1px 0 rgba(255,255,255,0.7), 0 1px 4px rgba(20,30,50,0.1)', drop: 0.3,
+    glassRim: 'inset 0 1px 1px rgba(255,255,255,0.95), inset 0 -1px 1px rgba(255,255,255,0.5), inset 0 0 0 1px rgba(255,255,255,0.6), 0 6px 18px rgba(20,30,50,0.18)',
   };
 }
 
@@ -89,6 +92,23 @@ export function TabBar({ tabs, active, onPress }: { tabs: ShellTab[]; active: st
   const lift = useSharedValue(0);
   const shown = useSharedValue(showLens ? 1 : 0);
   const first = useRef(true);
+  /*
+   * 유리 렌즈 — iOS 26 탭 막대처럼 누르거나 옮기는 동안 고른 칸이 투명한 유리(확대 · 가장자리 빛 굴절)로 바뀌어 막대 밖으로 부푼다(2026-10-19 김민
+   * 화면 녹화). 유리는 알파로 숨기면 효과가 꺼져서, 스타일을 'none' ↔ 'clear' 로 바꾸고 iOS 가 맺히고 사라지는 움직임을 그린다.
+   */
+  const [hold, setHold] = useState(false);
+  const [pulseAt, setPulseAt] = useState(0);
+  const [pulsing, setPulsing] = useState(false);
+  useEffect(() => {
+    if (!pulseAt) return;
+    const id = setTimeout(() => setPulsing(false), 520);
+    return () => clearTimeout(id);
+  }, [pulseAt]);
+  const lensGlass = hold || pulsing;
+  const pulseGlass = () => {
+    setPulsing(true);
+    setPulseAt(Date.now());
+  };
   useEffect(() => {
     if (first.current) {
       first.current = false;
@@ -98,6 +118,7 @@ export function TabBar({ tabs, active, onPress }: { tabs: ShellTab[]; active: st
     pos.set(withSpring(index, POS_SPRING));
     /* 옮기는 동안 렌즈로 부풀었다 닿으면 가라앉는다(웹 영상의 '약간의 탄성') */
     lift.set(withSequence(withSpring(1, LIFT_SPRING), withDelay(160, withSpring(0, LIFT_SPRING))));
+    pulseGlass();
   }, [index, pos, lift]);
   useEffect(() => {
     shown.set(withSpring(showLens ? 1 : 0, LIFT_SPRING));
@@ -132,6 +153,7 @@ export function TabBar({ tabs, active, onPress }: { tabs: ShellTab[]; active: st
       under.set(Math.round(p));
       pos.set(p);
       lift.set(withSpring(1, LIFT_SPRING));
+      runOnJS(setHold)(true);
       runOnJS(haptic)('medium');
     })
     .onUpdate((e) => {
@@ -145,12 +167,22 @@ export function TabBar({ tabs, active, onPress }: { tabs: ShellTab[]; active: st
     .onEnd((e, ok) => {
       const i = Math.round(cellAt(e.x));
       lift.set(withSpring(0, LIFT_SPRING));
+      runOnJS(setHold)(false);
       pos.set(withSpring(ok ? i : index, POS_SPRING));
       if (ok) runOnJS(drop)(i);
     });
 
+  /* 유리 렌즈 — 막대 밖으로 더 크게 부푼다(영상처럼 위아래로 삐져나옴) */
+  const glassLensStyle = useAnimatedStyle(() => ({
+    transform: [
+      { translateX: pos.value * cell },
+      { scaleX: 1 + 0.32 * lift.value },
+      { scaleY: 1 + 0.55 * lift.value },
+    ],
+  }));
   const lensStyle = useAnimatedStyle(() => ({
-    opacity: shown.value,
+    /* 유리 렌즈가 뜨는 동안 회색 캡슐은 옅어진다 */
+    opacity: shown.value * (glass ? 1 - 0.85 * lift.value : 1),
     transform: [
       { translateX: pos.value * cell },
       { scaleX: 1 + LIFT_SX * lift.value },
@@ -174,9 +206,11 @@ export function TabBar({ tabs, active, onPress }: { tabs: ShellTab[]; active: st
             accessibilityLabel={t.locked ? `${t.label}(설정 전)` : t.label}
             onPressIn={() => {
               if (!on) lift.set(withSpring(0.3, LIFT_SPRING));
+              if (!on && glass) setHold(true);
             }}
             onPressOut={() => {
               if (!on) lift.set(withSpring(0, LIFT_SPRING));
+              if (!on && glass) setHold(false);
             }}
             onPress={() => {
               /* 더보기를 열면 네모 넷이 차례로 반 바퀴(웹 glyphs Squares animate-square-spin) */
@@ -225,12 +259,25 @@ export function TabBar({ tabs, active, onPress }: { tabs: ShellTab[]; active: st
       >
         {glass ? (
           /* iOS 26 진짜 유리 — 누르면 유리가 손가락에 반응(isInteractive), 테마 색을 살짝 얹는다 */
-          <GlassView glassEffectStyle="regular" isInteractive tintColor={col.tint} colorScheme={theme === 'light' ? 'light' : 'dark'} style={styles.pill}>
+          <GlassView glassEffectStyle="clear" isInteractive tintColor={col.tint} colorScheme={theme === 'light' ? 'light' : 'dark'} style={styles.pill}>
             {row}
           </GlassView>
         ) : (
           <View style={[styles.pill, { backgroundColor: col.base, borderColor: col.edge, borderWidth: 1 }]}>{row}</View>
         )}
+        {/* 유리 렌즈 — 알약 밖(잘리지 않게)에서 고른 칸 위에 */}
+        {glass && cell > 0 ? (
+          <Animated.View
+            pointerEvents="none"
+            style={[styles.glassLens, { width: cell }, lensGlass && { boxShadow: col.glassRim }, glassLensStyle]}
+          >
+            <GlassView
+              glassEffectStyle={{ style: lensGlass ? 'clear' : 'none', animate: true, animationDuration: 0.22 }}
+              colorScheme={theme === 'light' ? 'light' : 'dark'}
+              style={[StyleSheet.absoluteFill, { borderRadius: 999 }]}
+            />
+          </Animated.View>
+        ) : null}
         {/* 유리 가장자리 빛 — 위 테두리가 밝게 빛나 두께가 보인다(누르기는 그대로 지나간다) */}
         <View pointerEvents="none" style={[StyleSheet.absoluteFill, { borderRadius: 999, boxShadow: col.rim }]} />
       </View>
@@ -250,6 +297,7 @@ const styles = StyleSheet.create({
   pill: { flexDirection: 'row', padding: PAD, borderRadius: 999, overflow: 'hidden' },
   row: { flex: 1, flexDirection: 'row' },
   lens: { position: 'absolute', top: 0, left: 0, height: ITEM_H, borderRadius: 999 },
+  glassLens: { position: 'absolute', top: PAD, left: PAD, height: ITEM_H, borderRadius: 999 },
   item: { flex: 1, height: ITEM_H, alignItems: 'center', justifyContent: 'center', gap: 2, paddingTop: 2, borderRadius: 999 },
   label: { fontSize: 10 },
 });
