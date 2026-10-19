@@ -82,14 +82,14 @@ export async function startProgram(input: {
     (TRAINING_LEVELS.some((l) => l.name === input.trainingLevel)
       ? (input.trainingLevel ?? null)
       : null);
-  /* 기본기는 아무것도 안 골라도 된다(맨몸만) — 시트의 장비 칸을 지나왔으면(배열) 맨몸으로 저장한다 */
+  /*
+   * 장비는 시작할 때마다 시트에서 고른다(2026-10-20 김민 — 트레이닝 설정의 '가진 장비'를 없앰). 시트가 보낸 것이 이기고, 안 보냈으면
+   * (옛 앱) 저장된 것. 기본기는 아무것도 안 골라도 된다(맨몸만) — 시트의 장비 칸을 지나왔으면(배열) 맨몸으로 저장한다.
+   */
   const ownedEquipment =
-    user.ownedEquipment.length > 0
-      ? user.ownedEquipment
-      : input.ownedEquipment &&
-          (input.ownedEquipment.length > 0 || audience === 'basics')
-        ? [ALWAYS_OWNED, ...pickMany(input.ownedEquipment, SELECTABLE_EQUIPMENT)]
-        : [];
+    input.ownedEquipment && (input.ownedEquipment.length > 0 || audience === 'basics')
+      ? [ALWAYS_OWNED, ...pickMany(input.ownedEquipment, SELECTABLE_EQUIPMENT)]
+      : user.ownedEquipment;
 
   const eligible = checkEligibility({
     audience,
@@ -151,7 +151,7 @@ export async function startProgram(input: {
         } = {};
         if (!user.birthDate && birthDate) profile.birthDate = birthDate;
         if (!user.trainingLevel && trainingLevel) profile.trainingLevel = trainingLevel;
-        if (user.ownedEquipment.length === 0 && ownedEquipment.length > 0) {
+        if (ownedEquipment !== user.ownedEquipment && ownedEquipment.length > 0) {
           profile.ownedEquipment = ownedEquipment;
         }
         if (Object.keys(profile).length > 0) {
@@ -173,6 +173,12 @@ export async function startProgram(input: {
   return { ok: true };
 }
 
+/** 시트에서 고른 장비(배열로 왔으면)가 이긴다 — 시작할 때마다 고른다(2026-10-20). 안 왔으면 저장된 것, 그것도 없으면 맨몸만 */
+function sheetEquipment(saved: string[], input: string[] | null | undefined): string[] {
+  if (Array.isArray(input)) return [ALWAYS_OWNED, ...pickMany(input, SELECTABLE_EQUIPMENT)];
+  return saved.length > 0 ? saved : [ALWAYS_OWNED];
+}
+
 /**
  * 시작 시트 ④ · 고정 운동 바꾸기(§13-17)가 보여 줄 후보. 프로그램을 안 주면 진행 중인 프로그램의 규칙으로(기본기는 바벨 없이).
  */
@@ -186,10 +192,7 @@ export async function programChoices(input: {
 > {
   const user = await requireUser();
   if (!VARIANT_KEYS.includes(input.variant)) return { error: '모르는 칸이에요.' };
-  const owned =
-    user.ownedEquipment.length > 0
-      ? user.ownedEquipment
-      : [ALWAYS_OWNED, ...pickMany(input.ownedEquipment ?? [], SELECTABLE_EQUIPMENT)];
+  const owned = sheetEquipment(user.ownedEquipment, input.ownedEquipment);
   const level = user.trainingLevel ?? input.trainingLevel ?? null;
   const def = input.programId
     ? programDef(input.programId)
@@ -225,10 +228,7 @@ export async function previewPinned(input: {
   }[];
 }> {
   const user = await requireUser();
-  const owned =
-    user.ownedEquipment.length > 0
-      ? user.ownedEquipment
-      : [ALWAYS_OWNED, ...pickMany(input.ownedEquipment ?? [], SELECTABLE_EQUIPMENT)];
+  const owned = sheetEquipment(user.ownedEquipment, input.ownedEquipment);
   const level = user.trainingLevel ?? input.trainingLevel ?? null;
   const library = await visibleExercises();
   const byId = new Map(library.map((e) => [e.id, e.title]));

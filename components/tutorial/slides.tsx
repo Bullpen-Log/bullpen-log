@@ -179,7 +179,7 @@ export const trainingSlides: TutorialSlide[] = [
   {
     key: 'settings',
     title: '트레이닝 설정',
-    body: '운동 · 암케어 화면 오른쪽 위 트레이닝 설정에서 가진 장비와 운동 수준을 고쳐요. 장비를 안 고르면 다 있다고 보고 운동을 골라요.',
+    body: '운동 화면 오른쪽 위 트레이닝 설정에서 운동 수준을 고쳐요. 장비는 오늘 운동을 만들 때 그날 쓸 것만 켜요.',
     note: '고쳐도 이미 만든 오늘 일정은 그대로예요. 새로 받으려면 다시 만들기를 눌러요.',
     art: <Art icon={Settings} />,
   },

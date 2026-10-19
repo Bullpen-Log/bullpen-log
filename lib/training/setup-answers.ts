@@ -1,7 +1,6 @@
 import { BASELINE_WORKOUT_FREQ_NAMES, THROWING_HANDS } from '@/lib/baseline';
-import { pickMany, pickOne } from '@/lib/exercise-meta';
-import { equipmentBlock, profileBlock } from '@/lib/program/program';
-import { ALWAYS_OWNED, SELECTABLE_EQUIPMENT } from '@/lib/report/equipment';
+import { pickOne } from '@/lib/exercise-meta';
+import { profileBlock } from '@/lib/program/program';
 import { TRAINING_LEVEL_NAMES } from '@/lib/report/personalize';
 import {
   DEFAULT_WORKOUT_MINUTES,
@@ -14,11 +13,11 @@ import {
  * (app/actions/training-setup.ts finishTrainingSetup)가 같은 차례 · 같은 검사를 본다.
  *
  * 처음 가입한 사람은 트레이닝 탭이 잠겨 있다(lib/feature-locks.ts, 2026-10-09). 가입에서 받던 웨이트 횟수 · 경력이 여기로
- * 왔고, 운동을 고르는 데 쓰는 장비 · 하루 운동 시간도 여기서 한 번에 받는다 — 읽히는 곳이 이 탭이라서.
+ * 왔고, 운동을 고르는 데 쓰는 하루 운동 시간도 여기서 받는다 — 읽히는 곳이 이 탭이라서. 가진 장비는 2026-10-20 뺐다(김민: 장비는 프로그램
+ * 시작 · 오늘 운동 만들기 때만 고른다 — app/actions/program.ts startProgram · 오늘 운동 만들기의 '오늘 쓸 수 있는 장비').
  *
  *   경력            경력에 비해 이른 운동을 뺀다(lib/report/personalize.ts) · 근력 · 파워 프로그램 자격(lib/program)
  *   웨이트 횟수      운동 부하 지수의 시작 기준선(lib/baseline.ts estimateTrainingDailyLoad)
- *   장비            없는 장비로 하는 운동을 뺀다(lib/report/equipment.ts)
  *   하루 운동 시간   일정을 그 시간에 맞춰 짠다(lib/report/theme.ts)
  *   던지는 손        암케어 · 메커니즘이 어느 팔을 볼지 — 투구 설정 전이라 계정에 없을 때만 묻는다
  *
@@ -28,13 +27,6 @@ import {
 export type TrainingSetupAnswers = {
   trainingLevel: string | null;
   baselineWorkoutFreq: string | null;
-  /** 가진 장비 — 맨몸은 빼고(SELECTABLE_EQUIPMENT 안의 값만). 저장할 때 맨몸이 앞에 붙는다(ownedEquipmentToSave) */
-  ownedEquipment: string[];
-  /**
-   * '맨몸뿐이에요' — 장비를 하나도 안 고른 것이 빠뜨린 것이 아니라 답이라는 표시. 빈 목록을 그대로 저장하면 '맨몸'만
-   * 남아(readOwnedEquipment 와 같은 규칙) 장비 운동이 모두 빠지므로, 화면은 이 표시 없이 빈 채로 넘어가지 않는다.
-   */
-  bodyOnly: boolean;
   /** 하루 운동 시간(분) — 칩의 값이라 글자. WORKOUT_MINUTES_CHOICES 안 */
   dailyWorkoutMinutes: string;
   /** 던지는 손 — 묻는 화면이 있을 때만 검사한다(askHand) */
@@ -44,14 +36,12 @@ export type TrainingSetupAnswers = {
 export const EMPTY_TRAINING_ANSWERS: TrainingSetupAnswers = {
   trainingLevel: null,
   baselineWorkoutFreq: null,
-  ownedEquipment: [],
-  bodyOnly: false,
   dailyWorkoutMinutes: String(DEFAULT_WORKOUT_MINUTES),
   throwingHand: null,
 };
 
 export type TrainingStepKey =
-  'level' | 'workoutFreq' | 'equipment' | 'minutes' | 'hand' | 'burnCard' | 'summary';
+  'level' | 'workoutFreq' | 'minutes' | 'hand' | 'burnCard' | 'summary';
 
 export type TrainingSetupOptions = {
   /** 던지는 손을 여기서도 묻나 — 계정에 없을 때(투구 기록 설정 전)만 */
@@ -65,7 +55,6 @@ export function visibleTrainingSteps({ askHand }: TrainingSetupOptions): Trainin
   return [
     'level',
     'workoutFreq',
-    'equipment',
     'minutes',
     ...(askHand ? (['hand'] as const) : []),
     /* '운동을 적으면 영양이 따라와요'(burnCard)는 2026-10-12 사용자 요청으로 뺐다 — hasWeight 는 옛 호출 때문에 받기만 한다 */
@@ -94,14 +83,6 @@ export function checkTrainingStep(
         return {
           error: '일주일에 몇 번 하는지 골라 주세요.',
           field: 'baselineWorkoutFreq',
-        };
-      }
-      return null;
-    case 'equipment':
-      if (a.ownedEquipment.length === 0 && !a.bodyOnly) {
-        return {
-          error: '가진 장비를 고르거나, 없으면 ‘맨몸뿐이에요’를 눌러 주세요.',
-          field: 'ownedEquipment',
         };
       }
       return null;
@@ -147,8 +128,6 @@ export function trainingStepOfField(field: string): TrainingStepKey | null {
       return 'level';
     case 'baselineWorkoutFreq':
       return 'workoutFreq';
-    case 'ownedEquipment':
-      return 'equipment';
     case 'dailyWorkoutMinutes':
       return 'minutes';
     case 'throwingHand':
@@ -161,21 +140,16 @@ export function trainingStepOfField(field: string): TrainingStepKey | null {
 /**
  * 계정에 있는 값으로 답을 미리 채운다 — 설정을 마치고 다시 온 사람(트레이닝 설정에서 고친 값)이 처음부터 다시 고르지 않게.
  * 처음 온 사람은 모두 비어 있어 EMPTY 와 같다. 저장된 시간이 지금 선택지 밖이면(옛 15 · 30 · 120분) 가장 가까운 값으로.
- * 장비가 '맨몸'만이면 전에 '맨몸뿐이에요'라고 답한 것이다.
  */
 export function answersOfUser(user: {
   trainingLevel: string | null;
   baselineWorkoutFreq: string | null;
-  ownedEquipment: string[];
   dailyWorkoutMinutes: number | null;
   throwingHand: string | null;
 }): TrainingSetupAnswers {
-  const owned = pickMany(user.ownedEquipment, SELECTABLE_EQUIPMENT);
   return {
     trainingLevel: pickOne(user.trainingLevel, TRAINING_LEVEL_NAMES),
     baselineWorkoutFreq: pickOne(user.baselineWorkoutFreq, BASELINE_WORKOUT_FREQ_NAMES),
-    ownedEquipment: owned,
-    bodyOnly: owned.length === 0 && user.ownedEquipment.length > 0,
     dailyWorkoutMinutes: String(
       nearestMinutesChoice(user.dailyWorkoutMinutes ?? DEFAULT_WORKOUT_MINUTES)
     ),
@@ -183,14 +157,9 @@ export function answersOfUser(user: {
   };
 }
 
-/** 저장할 장비 — 맨몸은 언제나 앞에(readOwnedEquipment 와 같은 규칙). 하나도 안 골랐으면 ['맨몸'] */
-export function ownedEquipmentToSave(a: TrainingSetupAnswers): string[] {
-  return [ALWAYS_OWNED, ...pickMany(a.ownedEquipment, SELECTABLE_EQUIPMENT)];
-}
-
 /* ─────────────────────────── 화면 ↔ 서버 ─────────────────────────── */
 
-/** 답을 [이름, 값] 줄로 — 폼처럼 읽히게. 장비는 한 이름에 여러 줄. 던지는 손은 골랐을 때만 */
+/** 답을 [이름, 값] 줄로 — 폼처럼 읽히게. 던지는 손은 골랐을 때만 */
 export function toTrainingFormFields(a: TrainingSetupAnswers): [string, string][] {
   const rows: [string, string][] = [
     ['trainingLevel', a.trainingLevel ?? ''],
@@ -198,7 +167,6 @@ export function toTrainingFormFields(a: TrainingSetupAnswers): [string, string][
     ['dailyWorkoutMinutes', a.dailyWorkoutMinutes],
   ];
   if (a.throwingHand) rows.push(['throwingHand', a.throwingHand]);
-  for (const name of a.ownedEquipment) rows.push(['ownedEquipment', name]);
   return rows;
 }
 
@@ -228,22 +196,15 @@ export function formOfRows(raw: unknown): FormLike | null {
 
 /**
  * 서버가 폼에서 답을 읽는다. 목록 밖의 값은 null 로 읽어 checkTrainingAnswers 가 '골라 주세요'를 내게 둔다.
- * 장비는 목록 안의 것만 남긴다(맨몸 · 모르는 이름은 버린다). 빈 장비는 서버에서는 '맨몸뿐'이다 — 화면이 이미 물었다.
  */
 export function readTrainingAnswers(form: FormLike): TrainingSetupAnswers {
   const str = (name: string) => String(form.get(name) ?? '').trim();
-  const owned = pickMany(
-    form.getAll('ownedEquipment').map(String),
-    SELECTABLE_EQUIPMENT
-  );
   return {
     trainingLevel: pickOne(str('trainingLevel'), TRAINING_LEVEL_NAMES),
     baselineWorkoutFreq: pickOne(
       str('baselineWorkoutFreq'),
       BASELINE_WORKOUT_FREQ_NAMES
     ),
-    ownedEquipment: owned,
-    bodyOnly: owned.length === 0,
     dailyWorkoutMinutes: str('dailyWorkoutMinutes'),
     throwingHand: pickOne(str('throwingHand'), THROWING_HANDS),
   };
@@ -260,10 +221,6 @@ export function trainingAnswerLines(
   const lines = [
     { label: '웨이트 경력', value: a.trainingLevel ?? '아직 안 골랐어요' },
     { label: '일주일에', value: a.baselineWorkoutFreq ?? '아직 안 골랐어요' },
-    {
-      label: '가진 장비',
-      value: a.ownedEquipment.length > 0 ? a.ownedEquipment.join(' · ') : '맨몸뿐',
-    },
     { label: '하루 운동 시간', value: `${a.dailyWorkoutMinutes}분` },
   ];
   if (askHand)
@@ -273,7 +230,7 @@ export function trainingAnswerLines(
 
 /**
  * 근력 · 파워 프로그램을 시작할 수 있나 — 요약 화면의 안내 한두 줄. 시작 자격(lib/program/program.ts checkEligibility)과
- * 같은 함수에서 글을 가져온다: 나이 · 경력(profileBlock), 꼭 있어야 하는 장비(equipmentBlock). 시즌은 시작할 때 묻는다.
+ * 같은 함수에서 글을 가져온다: 나이 · 경력(profileBlock). 장비는 시작할 때 고른다(2026-10-20 — 여기서 묻지 않아 막힘을 미리 말할 수 없다).
  * basicsDone — 기본기 4주를 마친 적이 있나(lib/program/load.ts hasFinishedBasics). 입문이라도 마쳤으면 성인 프로그램이
  * 열리므로(training/page.tsx 와 같은 가름) 다시 온 사람에게 '아직이에요'를 잘못 내지 않게 받는다.
  */
@@ -288,7 +245,7 @@ export function programNote(
       age,
       trainingLevel: a.trainingLevel,
       basicsDone,
-    }) ?? equipmentBlock(ownedEquipmentToSave(a));
+    });
   if (block)
     return `근력 · 파워 프로그램은 아직이에요. ${block.reason} ${block.action}`;
   return '근력 · 파워 프로그램도 바로 시작할 수 있어요. 트레이닝 탭에서 골라요.';

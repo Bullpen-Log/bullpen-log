@@ -15,7 +15,6 @@ import {
   PROGRAM_MIN_AGE,
   RECOMMENDED_EQUIPMENT,
   TM_LOOKBACK_DAYS,
-  equipmentBlock,
   profileBlock,
   type PerWeek,
   type ProgramBlock,
@@ -197,7 +196,8 @@ function StartSheet({
   const steps: Step[] = [
     ...(props.needBirth ? (['birth'] as const) : []),
     ...(props.level == null ? (['level'] as const) : []),
-    ...(props.owned.length === 0 ? (['equipment'] as const) : []),
+    /* 장비는 시작할 때마다 고른다(2026-10-20 김민 — 트레이닝 설정의 '가진 장비'를 없앰). 전에 고른 것을 켜 둔 채로 */
+    'equipment',
     'pins',
     'summary',
   ];
@@ -208,7 +208,9 @@ function StartSheet({
   const [perWeekPick, setPerWeekPick] = useState<PerWeek | null>(null);
   const [birth, setBirth] = useState('');
   const [level, setLevel] = useState<string | null>(props.level);
-  const [owned, setOwned] = useState<string[]>([]);
+  const [owned, setOwned] = useState<string[]>(() =>
+    props.owned.filter((e) => props.equipment.includes(e))
+  );
   const [pins, setPins] = useState<PinView[] | null>(null);
   const [changing, setChanging] = useState<VariantKey | null>(null);
   const [choices, setChoices] = useState<{ id: string; title: string }[] | null>(null);
@@ -235,7 +237,7 @@ function StartSheet({
     ? (perWeekPick ?? (choice.perWeek.includes(3) ? 3 : 2))
     : 3;
 
-  const equipmentForCall = props.owned.length === 0 ? owned : null;
+  const equipmentForCall = owned;
   const levelForCall = props.level == null ? level : null;
 
   const pick = (c: ProgramChoice) => {
@@ -303,13 +305,9 @@ function StartSheet({
       }
     });
 
-  /*
-   * 막힘 — 서버(checkEligibility)와 같은 함수로. 장비가 이미 저장된 사람은 시트에서 장비 칸을 건너뛰므로, 빠진 장비를
-   * 소개 쪽에서 바로 말한다(마지막 [시작]에서야 알게 하지 않는다).
-   */
+  /* 막힘 — 서버(checkEligibility)와 같은 함수로. 장비는 늘 장비 칸에서 고르므로 빠진 장비는 그 칸이 말한다 */
   const choiceBlocked = choice
-    ? ((basics ? props.basicsBlocked : props.blocked) ??
-      (props.owned.length > 0 ? equipmentBlock(props.owned, choice.required) : null))
+    ? ((basics ? props.basicsBlocked : props.blocked) ?? null)
     : null;
   const birthAge = ageOf(birth);
   const birthBlocked =
@@ -548,7 +546,7 @@ function StartSheet({
 
         {step === 'equipment' && (
           <div className="space-y-3">
-            <p className="text-base font-semibold text-ink">가진 장비를 골라 주세요</p>
+            <p className="text-base font-semibold text-ink">쓸 수 있는 장비를 골라 주세요</p>
             <p className="text-xs text-muted">
               {required.length > 0
                 ? `${required.join(' · ')}은 꼭 있어야 해요.`
@@ -680,9 +678,9 @@ function StartSheet({
             </p>
             {/* 권장 장비(메디신볼 · 박스)가 빠졌으면 — 막지는 않고, 비슷한 운동으로 바꿔 넣는다 */}
             {!basics &&
-              RECOMMENDED_EQUIPMENT.some((e) => !(props.owned.length > 0 ? props.owned : owned).includes(e)) && (
+              RECOMMENDED_EQUIPMENT.some((e) => !owned.includes(e)) && (
                 <p className="text-muted break-keep">
-                  {RECOMMENDED_EQUIPMENT.filter((e) => !(props.owned.length > 0 ? props.owned : owned).includes(e)).join(
+                  {RECOMMENDED_EQUIPMENT.filter((e) => !owned.includes(e)).join(
                     ' · '
                   )}
                   가 있으면 보조 운동이 다양해져요. 없으면 비슷한 운동으로 바꿔 넣어요.

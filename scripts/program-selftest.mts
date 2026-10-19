@@ -559,7 +559,7 @@ check('다 맞으면 시작', checkEligibility(base).ok);
   const r12a = checkEligibility({ ...base, age: 12 });
   check('성인 프로그램: 만 12세 → 막힘(13세부터)', !r12a.ok && r12a.kind === 'blocked' && r12a.reason.includes('13세'));
   const r10 = checkEligibility({ ...base, age: 10 });
-  check('성인: 만 10세 → 막힘, 할 일은 직접 고르기', !r10.ok && r10.kind === 'blocked' && r10.action.includes('직접 고르기'));
+  check('성인: 만 10세 → 막힘, 할 일은 오늘 운동 만들기(2026-10-20 직접 고르기를 뺌)', !r10.ok && r10.kind === 'blocked' && r10.action.includes('오늘 운동 만들기'));
   const rNov = checkEligibility({ ...base, trainingLevel: '입문' });
   check('성인 입문 · 기본기 안 마침 → 막힘, 할 일은 기본기', !rNov.ok && rNov.kind === 'blocked' && rNov.action.includes('기본기'));
   check('성인 입문 · 기본기 마침 → 시작', checkEligibility({ ...base, trainingLevel: '입문', basicsDone: true }).ok);

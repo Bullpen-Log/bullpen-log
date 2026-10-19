@@ -4,29 +4,11 @@ import { useRef, useState } from 'react';
 import { useFormStatus } from 'react-dom';
 import { RefreshCw } from '@/components/icon';
 import { CheckboxGroup, RadioGroup } from '@/components/choice-inputs';
-import { Segmented } from '@/components/segmented';
 import { OpenCheckinButton } from '@/components/notice-bell';
 import { SELECTABLE_EQUIPMENT } from '@/lib/report/equipment';
-import {
-  TRAINING_GOALS,
-  TRAINING_GOAL_NAMES,
-  TRAINING_LEVELS,
-  focusesFor,
-  goalForUnchosen,
-  validFocus,
-} from '@/lib/report/personalize';
-import {
-  generateTodayPlan,
-  saveOwnedEquipment,
-  saveTrainingSettings,
-} from '@/app/actions/training-setup';
-import {
-  minutesChoicesFor,
-  nearestMinutesChoice,
-  CONDITIONING_GOAL,
-} from '@/lib/report/theme';
+import { TRAINING_LEVELS } from '@/lib/report/personalize';
+import { generateTodayPlan, saveTrainingSettings } from '@/app/actions/training-setup';
 import { SafeForm } from '@/components/safe-form';
-import { SwitchRow } from '@/components/switch';
 import { Button } from '@/components/ui';
 
 /**
@@ -37,19 +19,11 @@ import { Button } from '@/components/ui';
  * components 에 둔다.
  *
  * 두 덩이로 나눠 놓았다.
- *   경력·가진 장비      — 어쩌다 한 번 고치므로 접어 둔다
- *   오늘 시간·목표·장비 — 일정을 만들 때마다 고르므로 만들기 버튼과 한 폼에 둔다
+ *   경력          — 어쩌다 한 번 고치므로 설정 창에
+ *   오늘 쓸 장비  — 일정을 만들 때마다 고르므로 만들기 버튼과 한 폼에 둔다
  *
- * 목표는 원래 설정 쪽에 있었다. 그런데 한 번 '파워 향상'으로 정해두면 그다음
- * 모든 날이 파워 위주가 된다 — 오늘은 어깨가 뻐근해서 관리에 쓰고 싶은 날도
- * 마찬가지였다. 목표는 날마다 달라지는 것이므로 만들 때 함께 고른다.
+ * 목표 · 시간 · 부위는 자동 맞춤이 정한다(2026-10-20 '직접 고르기'를 뺐다 — '오늘 하고 싶은 운동' 카드와 겹쳤다).
  */
-
-/** 일정을 만드는 두 방식 */
-const PLAN_MODES = [
-  { value: 'auto', label: '자동 맞춤' },
-  { value: 'manual', label: '직접 고르기' },
-] as const;
 
 function SubmitButton({
   label,
@@ -77,33 +51,15 @@ function SubmitButton({
  * 따로 저장했다가 따로 만들게 하면 무엇이 반영된 것인지 알기 어렵다.
  */
 export function PlanForm({
-  owned,
   availableToday,
-  minutes,
-  defaultMinutes,
-  goal,
-  focus,
   generated,
   checkedIn,
   returnTo,
   clash = null,
-  effortSpike = false,
-  preferredWorkout = null,
-  startMode = 'auto',
   checkinAction,
 }: {
-  /** 가지고 있는 장비 (맨몸 포함) */
-  owned: string[];
-  /** 오늘 고른 장비. 안 골랐으면 null */
+  /** 오늘 고른 장비. 안 골랐으면 null — 장비를 다 켜서 보인다 */
   availableToday: string[] | null;
-  /** 이번에 쓸 시간(분) */
-  minutes: number;
-  /** 프로필에 저장된 기본 시간(분) */
-  defaultMinutes: number;
-  /** 지난번에 고른 훈련 목표. 한 번도 안 골랐으면 null */
-  goal: string | null;
-  /** 지난번에 좁힌 부위. 한 번도 안 골랐으면 null */
-  focus: string | null;
   /** 오늘 일정을 이미 만들었는가 */
   generated: boolean;
   /**
@@ -113,42 +69,18 @@ export function PlanForm({
    * 못하므로 만들지 않는다 (2026-09-23 사용자분과 정함). 서버도 같은 것을 본다.
    */
   checkedIn: boolean;
-  /** 만들고 나서 돌아올 화면. 홈과 트레이닝 두 곳에서 쓴다. */
   /**
    * 저장하고 나서 돌아올 화면.
    *
-   * 여기서 좁히지 않는다. 설정이 창으로 열리면서 '지금 보던 화면'이 값이
-   * 되는데, 그 목록을 화면 쪽과 서버 쪽 두 군데에 적어 두면 어긋난다.
-   * 실제로 어디까지 허용할지는 app/actions/training-setup.ts 의 목록이
+   * 여기서 좁히지 않는다. 실제로 어디까지 허용할지는 app/actions/training-setup.ts 의 목록이
    * 정하고, 목록에 없으면 홈으로 떨어진다.
    */
   returnTo: string;
   /**
-   * 오늘 고른 운동 종류가 몸 상태와 부딪힐 때만 들어온다.
-   *
-   * 부딪혀도 막지 않는다. 왜 가벼운 쪽을 권하는지 말하고, 그래도 하겠다면
-   * 하게 한다 — 최종 선택은 사용자 몫이다. (통증만은 예외라, 그날은 애초에
-   * 이 값이 들어오지 않는다.)
+   * 오늘 고른 운동 종류가 몸 상태와 부딪힐 때만 들어온다 — 자동 맞춤은 몸 상태 쪽으로 가고 까닭을 말한다.
+   * (통증만은 예외라, 그날은 애초에 이 값이 들어오지 않는다.)
    */
   clash?: { kind: string; reason: string; fallbackLabel: string } | null;
-  /**
-   * 최근 운동 힘듦 급증인가(운동 끝 힘듦이 7일 평균으로 평소보다 2 이상 높음 — lib/report/today-data.ts, 2판 P5-e).
-   *
-   * 직접 고르기는 그런 날 본운동을 한 세트씩 줄여 만든다(lib/report/volume.ts). 부딪힘 경고와 같이 막지 않는다 — 까닭을 한
-   * 줄로 말하고 '그래도 고른 대로'를 두어(overrideEffort) 고르면 그 몫만 되돌린다. 자동 맞춤은 세트 대신 시간을 줄이고 이유를
-   * 만든 뒤에 말하니 여기서는 아무것도 안 그린다.
-   */
-  effortSpike?: boolean;
-  /**
-   * 오늘 체크인에서 고른 운동 종류(파워·웨이트·회복). 목표를 한 번도 안 고른
-   * 사람의 첫 목표를 정하는 데 쓴다 — 파워를 골랐으면 파워 향상(goalForUnchosen).
-   */
-  preferredWorkout?: string | null;
-  /**
-   * 처음 펼칠 방식. 오늘 직접 골라 만들었으면 다시 만들 때도 그쪽으로 연다.
-   * 아직 안 만든 날은 자동 맞춤이 먼저다 — 장비만 고르면 되는 간편한 쪽이다.
-   */
-  startMode?: 'auto' | 'manual';
   /**
    * 체크인이 없을 때 '체크인 먼저' 안에 놓을 것 — 그 자리에서 체크인 창을 여는 단추.
    *
@@ -164,80 +96,10 @@ export function PlanForm({
   const [open, setOpen] = useState(!generated);
 
   /*
-   * 자동 맞춤 / 직접 고르기.
-   *
-   * 자동 맞춤은 장비만 고른다. 목표·시간·부위는 앱이 오늘 체크인·투구·운동
-   * 기록을 보고 정한다(app/actions/training-setup.ts 의 decideAutoSetup).
-   * 직접 고르기는 예전 그대로다 — 둘 다 남겨 두기로 했다(사용자분과 정함).
+   * 오늘 쓸 수 있는 장비 — 처음엔 다 켜 둔다(2026-10-20 김민: "기본으로 모든 장비 선택"). 가진 장비 설정을 없애
+   * 장비는 여기와 프로그램 시작에서만 고른다. 오늘 이미 골랐으면(다시 만들기) 그 선택을 살린다.
    */
-  const [mode, setMode] = useState<'auto' | 'manual'>(startMode);
-
-  /*
-   * 부딪힘 경고에서 '그래도 고른 운동으로'를 켰는가 — 힘듦 급증 경고를 보일지 가른다. 부딪힌 날의 기본은 회복 · 보조 쪽이라
-   * 본운동이 없어 줄일 세트도 없다. 켜야 근력 날이 되고 그때 세트 줄이기가 뜻을 가진다(아래 effortWarn).
-   */
-  const [clashKept, setClashKept] = useState(false);
-
-  /*
-   * 목표에 따라 고를 수 있는 시간이 다르다.
-   *
-   * 무게를 드는 두 목표는 45·60·75·90분, 컨디셔닝은 45·60·75분이다. 목표를
-   * 바꾸면 시간 칸도 바로 바뀌어야 한다 — 컨디셔닝으로 옮겼는데 90분이 그대로
-   * 남아 있으면 고를 수 없는 조합이 화면에 남는다. 그럴 때는 가장 가까운
-   * 값으로 내려 짚는다(90 → 75).
-   */
-  /*
-   * 지난번에 고른 목표를 짚어 둔다. 없거나 지금 목록에 없는 이름(없앤 '균형 잡힌
-   * 관리' 등)이면 오늘 체크인을 따른다 — 파워를 골랐으면 파워 향상, 아니면 근력
-   * 향상(goalForUnchosen). 그냥 기본 목표를 짚으면 파워를 하고 싶다고 한 첫날에
-   * 근력 향상(파워 0개)으로 만들어졌다 — 폼은 늘 목표를 보내서, 서버의 같은
-   * 규칙(daily-plan)까지 가지 않는다.
-   */
-  const [pickedGoal, setPickedGoal] = useState<string>(() =>
-    goal && TRAINING_GOAL_NAMES.includes(goal)
-      ? goal
-      : goalForUnchosen(preferredWorkout)
-  );
-  const minuteChoices = minutesChoicesFor(pickedGoal);
-  const pickedMinutes = nearestMinutesChoice(minutes, pickedGoal);
-
-  /*
-   * 목표 안에서 부위를 좁힐 수 있는 날인가.
-   *
-   * 근력 향상과 파워 향상만 나눈다. 컨디셔닝은 '고르게'가 그 목표의 뜻이라
-   * 한쪽으로 좁히면 이름과 어긋난다.
-   */
-  const focusChoices = focusesFor(pickedGoal);
-  /*
-   * 지난번에 고른 것을 짚어 둔다.
-   *
-   * 한 번도 안 골랐으면 아무것도 안 짚는다. 그대로 만들면 예전처럼 앱이
-   * 최근 기록을 보고 상체·하체를 번갈아 정한다 — 고르지 않은 것도 하나의
-   * 답이라 아무 쪽이나 미리 찍어 둘 이유가 없다.
-   *
-   * 목표에 없는 값은 validFocus 가 걸러 준다(근력의 '당기기'가 파워에 남지 않게).
-   */
-  const pickedFocus = validFocus(pickedGoal, focus) ?? '';
-
-  /*
-   * 힘듦 급증 경고를 보일 때 — 직접 고르기에서, 줄일 본운동이 있을 수 있는 조합만. 컨디셔닝 목표는 무게 드는 운동이 없어
-   * 줄일 것이 없고, 부딪힌 날은 '그래도'를 켜기 전까지 가벼운 날이다. 회복 날이 될지는 여기서 모른다 — 그날은 서버가 줄이지
-   * 않고 '그래도'를 골랐다는 표시도 안 남긴다(lib/report/daily-plan.ts overrodeEffort).
-   */
-  const effortWarn =
-    effortSpike && pickedGoal !== CONDITIONING_GOAL && (!clash || clashKept);
-
-  const choices = owned.filter((name) => name !== '맨몸');
-  /*
-   * 미리 켜 두지 않는다.
-   *
-   * 예전에는 가진 것을 전부 켜 놓고 시작했다. 그러면 헬스장에 안 가는 날에도
-   * 그대로 만들기를 누르게 되고, 앱은 바벨이 있다고 보고 일정을 짠다. 무엇을
-   * 쓸 수 있는지는 날마다 다르고, 그것은 앱이 아니라 사람이 안다.
-   *
-   * 이미 오늘 고른 적이 있으면(다시 만들기) 그 선택은 그대로 살려 둔다.
-   */
-  const equipmentSelected = availableToday ?? [];
+  const equipmentSelected = availableToday ?? [...SELECTABLE_EQUIPMENT];
 
   if (generated && !open) {
     return (
@@ -262,17 +124,6 @@ export function PlanForm({
             오늘 몸 상태를 보고 짜요. 30초면 돼요.
           </p>
         )}
-        {/*
-          체크인할 길.
-
-          트레이닝 화면은 그 자리에서 체크인 창을 여는 단추를 넘겨준다
-          (app/(app)/training/training-checkin.tsx). 예전에는 홈으로 보내서, 홈에서
-          체크인하고 다시 돌아와 만들기를 눌러야 했다.
-
-          단추를 안 넘긴 곳에서는 그 자리에서 체크인 창을 여는 단추를 둔다. 예전에는
-          홈의 '오늘 할 일' 상자로 가라고 말했는데, 그 상자가 오른쪽 위 알림(종)으로
-          옮겨 가면서 말할 자리가 없어졌다 — 창은 어디서나 같은 것이 뜬다.
-        */}
         {checkinAction ?? (
           <OpenCheckinButton className="min-h-10 rounded-full bg-sky px-4 text-sm font-semibold text-white transition-colors hover:bg-sky-strong desk:rounded-xl">
             오늘 체크인하기
@@ -281,44 +132,6 @@ export function PlanForm({
       </div>
     );
   }
-
-  /*
-   * 가진 장비를 한 번도 안 고른 사람 — 만들기 전에 한 번만 묻는다(2026-10-05 방향 검토 A5).
-   *
-   * 안 고른 채로 두면 '다 있다'로 보고 짜서(lib/report/equipment.ts), 집에서 하는 사람에게 바벨 운동이
-   * 나왔다. 하나도 안 켜고 저장하면 '맨몸'만 남아(readOwnedEquipment) 다시 묻지 않는다. 저장하면 이
-   * 화면으로 돌아와 아래 만들기 폼이 뜬다.
-   */
-  if (owned.length === 0) {
-    return (
-      <SafeForm
-        action={saveOwnedEquipment}
-        className="space-y-4"
-        doneToast="가진 장비를 저장했어요"
-      >
-        <input type="hidden" name="returnTo" value={returnTo} />
-        <CheckboxGroup
-          name="ownedEquipment"
-          label="가진 장비부터 골라 주세요"
-          hint="처음 한 번만 물어요. 없는 장비로 하는 운동은 빼고 짜요. 아무것도 없으면 그대로 저장하세요."
-          options={SELECTABLE_EQUIPMENT}
-        />
-        <SubmitButton label="저장하고 계속" busy="저장 중…" />
-      </SafeForm>
-    );
-  }
-
-  /* 오늘 쓸 수 있는 장비 — 두 방식 모두 사람이 고른다. 앱은 모르는 일이다. */
-  const equipmentField =
-    choices.length > 0 ? (
-      <CheckboxGroup
-        name="availableEquipment"
-        label="오늘 쓸 수 있는 장비"
-        hint="안 켜면 맨몸 운동만 나와요."
-        options={choices}
-        selected={equipmentSelected}
-      />
-    ) : null;
 
   const cancel = generated && (
     <button
@@ -330,186 +143,42 @@ export function PlanForm({
     </button>
   );
 
+  /*
+   * 자동 맞춤 하나 — 목표 · 시간 · 부위는 앱이 오늘 체크인 · 투구 · 운동 기록과 '오늘 하고 싶은 운동' 카드의 답(종류 · 오늘 할 부위)을
+   * 보고 정한다(app/actions/training-setup.ts decideAutoSetup). '직접 고르기'는 그 카드와 겹쳐 2026-10-20 뺐다(김민).
+   */
   return (
     <SafeForm action={generateTodayPlan} className="space-y-4">
       <input type="hidden" name="returnTo" value={returnTo} />
-      <input type="hidden" name="mode" value={mode} />
+      <input type="hidden" name="mode" value="auto" />
 
-      {/*
-        방식 고르기 — 고른 쪽 밑의 알약이 미끄러진다(다른 고르개들과 같은 것).
-        고르개의 칸은 type="button" 이라 폼 안에서 눌러도 일정이 만들어지지 않는다.
-      */}
-      <Segmented
-        label="만드는 방식"
-        value={mode}
-        onChange={setMode}
-        options={PLAN_MODES}
-        size="md"
-        tone="raised"
-        itemClassName="px-3 py-2"
+      <p className="text-footnote leading-relaxed text-muted">목표 · 시간은 앱이 정해요.</p>
+
+      {/* 체크인 · 카드에서 고른 운동이 몸 상태와 부딪히는 날 — 몸 상태에 맞춰 가고 까닭을 말한다 */}
+      {clash && (
+        <div className="space-y-1 rounded-xl border border-warn-line bg-warn-bg px-4 py-3">
+          <p className="text-sm font-bold text-warn">
+            {clash.kind} 운동을 하고 싶다고 하셨는데, {clash.reason}.
+          </p>
+          <p className="text-footnote leading-relaxed text-warn">
+            그래서 몸 상태에 맞춰 {clash.fallbackLabel} 위주로 만들어요.
+          </p>
+        </div>
+      )}
+
+      <CheckboxGroup
+        name="availableEquipment"
+        label="오늘 쓸 수 있는 장비"
+        hint="없는 것은 꺼 주세요. 다 끄면 맨몸 운동만 나와요."
+        options={SELECTABLE_EQUIPMENT}
+        selected={equipmentSelected}
       />
 
-      {mode === 'auto' ? (
-        <>
-          <p className="text-footnote leading-relaxed text-muted">
-            목표 · 시간은 앱이 정해요.
-          </p>
-
-          {/*
-            체크인에서 고른 운동이 몸 상태와 부딪히는 날.
-
-            자동 맞춤은 몸 상태에 맞춰 가고 이유를 말한다(사용자분과 정함). 경고를
-            넘기는 체크는 여기 두지 않는다 — 그건 직접 고르기에서 한다.
-          */}
-          {clash && (
-            <div className="space-y-1 rounded-xl border border-warn-line bg-warn-bg px-4 py-3">
-              <p className="text-sm font-bold text-warn">
-                {clash.kind} 운동을 하고 싶다고 하셨는데, {clash.reason}.
-              </p>
-              <p className="text-footnote leading-relaxed text-warn">
-                자동 맞춤은 몸 상태에 맞춰 {clash.fallbackLabel} 위주로 만들어요.{' '}
-                {clash.kind} 운동을 하고 싶으면 ‘직접 고르기’에서 만들 수 있어요.
-              </p>
-            </div>
-          )}
-        </>
-      ) : (
-        <>
-          {clash && (
-            <div className="space-y-2 rounded-xl border border-warn-line bg-warn-bg px-4 py-3">
-              <p className="text-sm font-bold text-warn">
-                {clash.kind} 운동을 하고 싶다고 하셨는데, {clash.reason}.
-              </p>
-              <p className="text-footnote leading-relaxed text-warn">
-                그래서 기본은 {clash.fallbackLabel} 위주로 만들어요. 몸이 괜찮으면
-                원하는 대로 만들어도 돼요.
-              </p>
-              <label className="flex items-start gap-2.5 text-footnote font-medium leading-relaxed text-warn">
-                <input
-                  type="checkbox"
-                  name="overrideCondition"
-                  value="on"
-                  onChange={(e) => setClashKept(e.currentTarget.checked)}
-                  className="mt-0.5 h-4 w-4 shrink-0 rounded border-warn-line accent-sky"
-                />
-                알겠어요. 그래도 {clash.kind} 운동으로 만들어 주세요
-              </label>
-            </div>
-          )}
-
-          {/*
-            목표를 먼저 고른다. 시간 선택지가 목표에 따라 달라지므로 순서가 이쪽이다.
-
-            설정에 두었을 때는 한 번 정한 것이 계속 따라와 매일 같은 쪽으로만
-            쏠렸다. 지난번에 고른 것을 미리 짚어 두되, 만들 때마다 눈에 보이므로
-            바꾸고 싶은 날에는 바로 바꿀 수 있다.
-          */}
-          <RadioGroup
-            key="goal"
-            name="trainingGoal"
-            label="오늘 훈련 목표"
-            hint="몸 상태가 안 좋은 날은 회복이 먼저예요."
-            options={TRAINING_GOALS.map((g) => ({ name: g.name, desc: g.desc }))}
-            selected={pickedGoal}
-            onChange={setPickedGoal}
-          />
-
-          {/*
-            부위 좁히기 — 고를 수 있는 목표에서만 낸다.
-
-            기본값이 '앱이 정함'이다. 상체·하체를 번갈아 도는 규칙이 대개 옳고,
-            그것을 끄는 것은 "오늘은 당기기만"처럼 뜻이 분명할 때뿐이다. 기본을
-            비워 두면 지금까지 쓰던 사람은 아무것도 달라지지 않는다.
-          */}
-          {focusChoices.length > 0 && (
-            <RadioGroup
-              /* 목표가 바뀌면 선택지가 통째로 달라지므로 다시 그린다 */
-              key={`focus-${pickedGoal}`}
-              name="trainingFocus"
-              label="오늘 할 부위"
-              hint="안 고르면 상체 · 하체를 번갈아 골라요."
-              options={focusChoices.map((f) => ({
-                name: f.label,
-                value: f.key,
-                desc: f.desc,
-              }))}
-              selected={pickedFocus}
-              compact
-            />
-          )}
-
-          <RadioGroup
-            /* 목표가 바뀌면 고른 값도 새로 짚어야 하므로 통째로 다시 그린다 */
-            key={`minutes-${pickedGoal}`}
-            name="minutes"
-            label="오늘 운동 시간"
-            hint={
-              pickedGoal === CONDITIONING_GOAL
-                ? '몸을 다지는 날이라 길게 끌지 않아요. 75분까지 고를 수 있어요.'
-                : undefined
-            }
-            options={minuteChoices.map((m) => ({
-              name: `${m}분`,
-              desc:
-                m === nearestMinutesChoice(defaultMinutes, pickedGoal)
-                  ? '기본값'
-                  : undefined,
-            }))}
-            selected={`${pickedMinutes}분`}
-            compact
-          />
-
-          {/*
-            최근 운동 힘듦 급증(2판 P5-e) — 부딪힘 경고와 같은 꼴로 막지 않고 말한다. 고르는 칸들 밑에 둔다: 목표를
-            컨디셔닝으로 바꾸면 이 상자가 사라지는데, 위에 있으면 누르던 목록이 통째로 밀려 올라간다.
-          */}
-          {effortWarn && (
-            <div className="space-y-2 rounded-xl border border-warn-line bg-warn-bg px-4 py-3 motion-safe:animate-fade-in">
-              <p className="text-sm font-bold text-warn">
-                최근 운동이 평소보다 힘들었다고 하셔서 본운동을 한 세트씩 줄여 만들어요.
-              </p>
-              <label className="flex items-start gap-2.5 text-sm font-medium leading-relaxed text-warn">
-                <input
-                  type="checkbox"
-                  name="overrideEffort"
-                  value="on"
-                  className="mt-0.5 h-4 w-4 shrink-0 rounded border-warn-line accent-sky"
-                />
-                그래도 고른 대로 만들어 주세요
-              </label>
-            </div>
-          )}
-        </>
-      )}
-
-      {/*
-        오늘 쓸 수 있는 장비 — 두 방식이 같은 자리에서 함께 쓴다.
-
-        예전에는 방식마다 따로 그려서, 방식을 바꾸면 이 칸이 새로 만들어지며 골라
-        둔 장비가 지워졌다. 자동 맞춤에서 덤벨·밴드를 켜고 직접 고르기로 넘어가면
-        다시 꺼져 있었다. 방식에 따라 바뀌는 칸들 뒤 한자리에 두면 방식을 오가도
-        그대로 남는다.
-      */}
-      {equipmentField}
-
-      {mode === 'manual' && (
-        /* 아이폰 스위치 한 줄(components/switch.tsx) — 예전 16px 체크 상자는 손가락으로 맞히기 어려웠다 */
-        <SwitchRow name="saveDefaults" value="on">
-          이 시간과 목표를 앞으로도 기본으로 쓰기
-        </SwitchRow>
-      )}
-
       <div className="flex flex-wrap items-center gap-3">
-        {mode === 'auto' ? (
-          <SubmitButton
-            label={generated ? '자동 맞춤으로 다시 만들기' : '자동 맞춤으로 만들기'}
-            busy="오늘 몸 상태에 맞추고 있어요…"
-          />
-        ) : (
-          <SubmitButton
-            label={generated ? '이 조건으로 다시 만들기' : '오늘 운동 일정 만들기'}
-          />
-        )}
+        <SubmitButton
+          label={generated ? '자동 맞춤으로 다시 만들기' : '자동 맞춤으로 만들기'}
+          busy="오늘 몸 상태에 맞추고 있어요…"
+        />
         {cancel}
       </div>
     </SafeForm>
@@ -517,26 +186,15 @@ export function PlanForm({
 }
 
 /**
- * 어쩌다 한 번 고치는 설정 — 경력·목표·가진 장비.
+ * 어쩌다 한 번 고치는 설정 — 웨이트 경력. 홈과 트레이닝 화면의 창 안에서 쓴다.
  *
- * 홈과 트레이닝 화면의 창 안에서 쓴다.
- *
- * 폼을 둘로 나눠 두었다. 예전에는 셋이 한 폼이라, 경력만 고치러 열었다가
- * 저장해도 장비가 함께 저장됐다. 그런데 아직 장비를 안 고른 사람에게는 화면이
- * 전부 켜진 채로 나오므로(안 그러면 저장하는 순간 맨몸 운동만 남는다),
- * 결과적으로 있지도 않은 장비 열여섯 개를 "가지고 있다"고 저장하게 됐다.
- * 그러면 바벨이 없는데 바벨 운동이 나온다.
- *
- * 이제 각자 자기 단추로만 저장된다 — 안 건드린 것은 안 바뀐다.
+ * 가진 장비는 2026-10-20 뺐다(김민: 장비는 프로그램을 시작할 때 · 오늘 운동을 만들 때만 고른다). 저장된 칸(User.ownedEquipment)은 그대로 둔다.
  */
 export function TrainingSettingsForm({
   trainingLevel,
-  ownedEquipment,
   returnTo,
 }: {
   trainingLevel: string | null;
-  ownedEquipment: string[];
-  /** 저장하고 나서 돌아올 화면 */
   /**
    * 저장하고 나서 돌아올 화면.
    *
@@ -547,19 +205,7 @@ export function TrainingSettingsForm({
    */
   returnTo: string;
 }) {
-  /*
-   * 한 번도 안 고른 사람에게는 장비를 전부 켜서 보여준다.
-   *
-   * 빈 목록을 그대로 보여주면, 저장하는 순간 "아무 장비도 없음"이 되어 맨몸
-   * 운동만 나온다. 그래서 전부 켜 두고 없는 것을 끄게 한다 — 다만 그 사실을
-   * 안내에 적어 둔다. 예전에는 이 상태로 다른 것과 한 폼에 묶여 있어서,
-   * 경력만 고치고 저장해도 장비 열여섯 개가 통째로 저장됐다.
-   */
   const levelBox = useRef<HTMLDivElement>(null);
-  const hasChosenEquipment = ownedEquipment.length > 0;
-  const equipmentSelected = hasChosenEquipment
-    ? ownedEquipment
-    : [...SELECTABLE_EQUIPMENT];
 
   return (
     <div className="space-y-6">
@@ -579,30 +225,6 @@ export function TrainingSettingsForm({
             onChange={() => levelBox.current?.closest('form')?.requestSubmit()}
           />
         </div>
-      </SafeForm>
-
-      {/*
-        장비는 자기 폼과 자기 단추를 쓴다. 위에서 경력만 고치고 저장해도
-        여기 값은 그대로 남는다.
-      */}
-      <SafeForm
-        action={saveOwnedEquipment}
-        className="space-y-5 border-t border-line pt-6"
-        doneToast="가진 장비를 저장했어요"
-      >
-        <input type="hidden" name="returnTo" value={returnTo} />
-        <CheckboxGroup
-          name="ownedEquipment"
-          label="가지고 있는 장비"
-          hint={
-            hasChosenEquipment
-              ? '여기서 고른 것 중에 오늘 쓸 수 있는 것을 일정을 만들 때 다시 골라요.'
-              : '아직 고른 적이 없어 전부 켜 두었어요. 없는 것을 꺼야 못 하는 운동이 안 나와요.'
-          }
-          options={SELECTABLE_EQUIPMENT}
-          selected={equipmentSelected}
-        />
-        <SubmitButton label="가진 장비 저장" busy="저장 중…" />
       </SafeForm>
     </div>
   );

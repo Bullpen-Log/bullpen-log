@@ -1,9 +1,9 @@
-import { type Href, router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { SymbolView } from 'expo-symbols';
 import { useRef, useState } from 'react';
 import { Image, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { NO_WORKOUT_KIND, WORKOUT_KINDS } from '@/lib/checkin';
+import { findFocus, focusesFor, goalForUnchosen } from '@/lib/report/personalize';
 import { formatAmount } from '@/lib/exercise-meta';
 import { formatSummary, volumeIn } from '@/lib/workout/summarize';
 import type { OutingLineText } from '@/lib/outing-line';
@@ -168,21 +168,28 @@ export function HaltedCard({ reason, c, a }: { reason: string; c: Palette; a: To
 
 /* ----------------------------- 오늘 하고 싶은 운동 ----------------------------- */
 
-/** '오늘 하고 싶은 운동이 있나요?'(웹 TrainingPrefsCard) — 접힌 한 줄에서 시작, 고르면 일정 만들기가 그쪽으로 짠다 */
+/**
+ * '오늘 하고 싶은 운동이 있나요?'(웹 TrainingPrefsCard) — 접힌 한 줄에서 시작, 고르면 일정 만들기가 그쪽으로 짠다. 종류와 '오늘 할 부위'
+ * (2026-10-20 — 만들기 폼의 '직접 고르기'를 빼고 그 부위 고르기를 여기로, 몸 부위 여러 개 고르기는 뺐다). 부위는 preferredParts 맨 앞의 열쇠로 온다.
+ */
 export function PrefsCard({ prefs, today, c, a }: { prefs: NonNullable<TrainingToday['prefs']>; today: string; c: Palette; a: TodayActions }) {
   const answer = prefs.answer;
+  const saved = answer?.parts.map(findFocus).find((f) => f != null) ?? null;
   const [open, setOpen] = useState(false);
   const [workout, setWorkout] = useState<string | null>(answer?.workout ?? null);
-  const [picked, setPicked] = useState<string[]>(answer?.parts ?? []);
+  const [focus, setFocus] = useState<string | null>(saved?.key ?? null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const summary = answer ? [answer.workout ?? NO_WORKOUT_KIND, ...answer.parts].join(' · ') : null;
+  const summary = answer ? [answer.workout ?? NO_WORKOUT_KIND, ...(saved ? [saved.label] : [])].join(' · ') : null;
+  /* 고른 종류의 목표에 있는 부위만(회복은 부위 없음) — 종류를 바꿔 목록에 없게 된 부위는 안 보낸다 */
+  const focuses = workout === '회복' ? [] : focusesFor(goalForUnchosen(workout));
+  const pickedFocus = focuses.some((f) => f.key === focus) ? focus : null;
 
   const save = async () => {
     if (busy) return;
     setBusy(true);
     setError(null);
-    const r = await act<{ ok: true }>('day-cards.saveTrainingPrefs', { date: today, workout, parts: picked });
+    const r = await act<{ ok: true }>('day-cards.saveTrainingPrefs', { date: today, workout, parts: [], focus: pickedFocus });
     setBusy(false);
     if ('error' in r) return setError(r.error);
     void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -211,17 +218,18 @@ export function PrefsCard({ prefs, today, c, a }: { prefs: NonNullable<TrainingT
           <Text style={[s.tiny, { color: c.muted }]}>
             {WORKOUT_KINDS.find((k) => k.name === workout)?.desc ?? '앱이 투구량과 몸 상태를 보고 골라요.'}
           </Text>
-          {prefs.parts.length > 0 ? (
+          {focuses.length > 0 ? (
             <>
-              <Text style={[s.smallBold, { color: c.muted }]}>하고 싶은 부위 (없어도 돼요)</Text>
+              <Text style={[s.smallBold, { color: c.muted }]}>오늘 할 부위 (안 고르면 상체 · 하체를 번갈아 골라요)</Text>
               <View style={s.chips}>
-                {prefs.parts.map((p) => (
+                {focuses.map((f) => (
                   <Chip
-                    key={p}
+                    key={f.key}
                     c={c}
-                    label={p}
-                    on={picked.includes(p)}
-                    onPress={() => setPicked((cur) => (cur.includes(p) ? cur.filter((x) => x !== p) : [...cur, p]))}
+                    label={f.desc ? `${f.label} · ${f.desc}` : f.label}
+                    on={pickedFocus === f.key}
+                    /* 다시 누르면 비운다 — 앱이 상체 · 하체를 번갈아 정한다 */
+                    onPress={() => setFocus(pickedFocus === f.key ? null : f.key)}
                   />
                 ))}
               </View>
@@ -429,13 +437,6 @@ export function PlanBody({
         </Sheet>
       ) : null}
       {adding ? <AddSheet inPlanIds={all.map((r) => r.id)} onClose={() => setAdding(false)} c={c} a={a} /> : null}
-
-      {plan.noEquipment ? (
-        <Card c={c} tone="warn">
-          <Text style={[s.small, { color: c.warn }]}>장비를 안 골라 전부 있다고 보고 골랐어요.</Text>
-          <LinkRow c={c} label="가진 장비 고르기" onPress={() => router.push('/training/settings' as Href)} />
-        </Card>
-      ) : null}
 
       {/* 마친 날은 목록을 접는다 — 위 완료 카드가 오늘 한 것을 숫자까지 말한다(웹 DoneFold) */}
       {data.done ? (
