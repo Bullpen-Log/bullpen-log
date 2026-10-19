@@ -113,8 +113,8 @@ export function TabBar({ tabs, active, onPress }: { tabs: ShellTab[]; active: st
   }, [showLens, shown]);
 
   /*
-   * 길게 눌러 끌기 — 웹 mobile-tabs startHold: 0.28초 누르면 렌즈가 부푼 채 손가락을 따라오고(칸을 넘을 때마다 톡), 놓은 칸으로 간다.
-   * 짧게 누르기 · 지금 탭 다시 누르기는 그대로(이 손동작은 길게 누를 때만 켜진다).
+   * 눌러 옆으로 밀기 — iOS 26 앱 스토어 탭 막대(2026-10-19 김민 참고 영상)처럼 밀자마자 유리 렌즈가 부푼 채 손가락을 따라오고
+   * (칸을 넘을 때마다 톡), 놓은 칸으로 간다. 짧게 누르기 · 지금 탭 다시 누르기는 그대로.
    */
   const under = useSharedValue(-1);
   const haptic = (kind: 'medium' | 'selection' | 'light') =>
@@ -135,7 +135,9 @@ export function TabBar({ tabs, active, onPress }: { tabs: ShellTab[]; active: st
   };
   const drag = Gesture.Pan()
     .enabled(cell > 0)
-    .activateAfterLongPress(280)
+    /* 눌러서 옆으로 밀면 바로(앱 스토어 탭 막대처럼) — 세로로 밀거나 짧게 누르는 것은 탭 누르기 그대로 */
+    .activeOffsetX([-6, 6])
+    .failOffsetY([-14, 14])
     .onStart((e) => {
       const p = cellAt(e.x);
       under.set(Math.round(p));
@@ -196,7 +198,7 @@ export function TabBar({ tabs, active, onPress }: { tabs: ShellTab[]; active: st
       </>
     );
   };
-  /* 렌즈 안의 아이콘 한 벌 — 렌즈가 옮긴 만큼 거꾸로 밀어 밑의 줄과 겹치게, 렌즈가 부풀면 같이 커져 확대돼 보인다 */
+  /* 렌즈 안의 아이콘 한 벌 — 렌즈가 옮긴 만큼 거꾸로 밀어 밑의 줄과 겹치게, 렌즈가 부풀면 같이 커져 확대돼 보인다. 렌즈 속은 늘 고른 색(파랑) */
   const lensFacesStyle = useAnimatedStyle(() => ({ transform: [{ translateX: -pos.value * cell }] }));
 
   const body = (
@@ -284,7 +286,7 @@ export function TabBar({ tabs, active, onPress }: { tabs: ShellTab[]; active: st
                 <Animated.View style={[styles.lensFaces, { width: cell * tabs.length }, lensFacesStyle]}>
                   {tabs.map((t) => (
                     <View key={t.href} style={[styles.item, { width: cell, flex: 0 }]}>
-                      {face(t, active === t.href)}
+                      {face(t, true)}
                     </View>
                   ))}
                 </Animated.View>

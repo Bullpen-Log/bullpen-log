@@ -19,7 +19,7 @@ import { BullpenMark } from '~/shell/wordmark';
  * 앱 시작 연출 — 웹 components/app-splash.tsx 와 같은 장면 · 같은 때(김민이 다듬은 옛 앱 IntroOverlay 그대로):
  * 큰 B 0.4초 → 1초 동안 작아지며 이름의 B 칸으로(ease-in-out) → 1.25초부터 U · L · … · G 가 0.075초 간격으로 0.65초씩 밀려 나오며 진해짐 →
  * 2.9초에(사이트가 다 그려졌으면) 0.55초 동안 옅어지며 1.06배. 움직임 줄이기면 완성된 이름 1.1초 → 걷힘.
- * 큰 B 는 시작 화면(app.json splash, 화면 폭 · 바탕 #f2f2f7 = 앱 바탕)과 같은 크기 · 자리 · 색이라 시작 화면을 걷는 순간이 이어진다.
+ * 큰 B 는 시작 화면(app.json splash · 바탕 #f2f2f7 = 앱 바탕)과 같은 크기 · 자리 · 색이라 시작 화면을 걷는 순간이 이어진다.
  */
 const LETTERS = ['U', 'L', 'L', 'P', 'E', 'N', ' ', 'L', 'O', 'G'];
 const MOVE_AT = 400;
@@ -31,11 +31,10 @@ const SETTLE_MS = 2900;
 const LEAVE_MS = 550;
 const REDUCED_HOLD_MS = 1100;
 /*
- * 시작 화면 그림(assets/splash.png)은 앱 아이콘과 같은 꼴(B 가 폭의 248/512)이고 화면 폭 가득 그려진다(SplashScreen.storyboard 의 폭 = 화면 폭).
- * iOS 는 앱을 열 때 아이콘을 화면 크기로 키우며 시작 화면으로 넘기는데, 둘의 B 크기가 다르면 B 두 개가 겹쳐 '지지직' 튀었다(2026-10-19 김민).
- * 그래서 큰 B = 화면 폭 × 248/512 — 아이콘에서 이어진 B 가 그대로 이름의 B 칸으로 작아진다.
+ * 큰 B = 화면 긴 변의 16%(웹 app-splash 와 같다, 2026-10-19 김민: "너무 큰 상태에서 작아진다"). 시작 화면(SplashScreen.storyboard)도
+ * 그림 높이 = 화면 높이 × 0.32, 그 안의 B 가 그림 높이의 절반이라 같은 크기 · 같은 가운데 — 시작 화면을 걷는 순간 이어진다.
  */
-const B_OF_WIDTH = 248 / 512;
+const B_OF_LONG_SIDE = 0.16;
 const ASPECT = 594 / 613;
 
 /* 사이트(웹 껍데기)가 다 그려졌다는 알림 — 그 전에 걷으면 흰 화면이 번쩍인다. index.tsx · 딥링크 화면이 부른다 */
@@ -57,7 +56,8 @@ function Letter({ ch, i, t, size, color }: { ch: string; i: number; t: SharedVal
   });
   if (ch === ' ') return <View style={{ width: size * 0.3 }} />;
   return (
-    <Animated.Text style={[{ fontFamily: 'DINCondensed-Bold', fontSize: size, lineHeight: size, letterSpacing: size * 0.02, color }, style]}>{ch}</Animated.Text>
+    /* 정지 모양은 안 보임(opacity 0) — 움직임 스타일이 늦게 붙어도 첫 장면에 이름이 비치지 않게 */
+    <Animated.Text style={[{ fontFamily: 'DINCondensed-Bold', fontSize: size, lineHeight: size, letterSpacing: size * 0.02, color, opacity: 0 }, style]}>{ch}</Animated.Text>
   );
 }
 
@@ -70,7 +70,8 @@ export function Intro() {
   const slotRef = useRef<ComponentRef<typeof View>>(null);
   const size = Math.min(width * 0.15, 68);
   const slotH = size * 0.7;
-  const bigH = (width * B_OF_WIDTH) / ASPECT;
+  const bigH = Math.max(width, height) * B_OF_LONG_SIDE;
+  const bigW = bigH * ASPECT;
   /* 타임라인(ms) 하나로 B · 글자를 다 그린다 — 장면마다 다시 그리지 않게 UI 스레드에서 */
   const t = useSharedValue(reduced ? SETTLE_MS : 0);
   const leave = useSharedValue(0);
@@ -84,13 +85,28 @@ export function Intro() {
   }, []);
   useEffect(() => {
     if (!slot || !themed) return;
-    void SplashScreen.hideAsync();
+    /*
+     * 큰 B 가 그려진 다음 장면에 시작 화면을 걷고, 다 걷힌 뒤에 시계를 돌린다 — 앱이 무겁게 뜨면 걷히는 데 시간이 걸려, 먼저 돌리면
+     * 시작 화면이 걷혔을 때 B 가 이미 작아지는 중이라 툭 튀었다.
+     */
+    let alive = true;
+    let id: ReturnType<typeof setTimeout> | undefined;
     const done = () => setSettled(true);
-    if (reduced) {
-      const id = setTimeout(done, REDUCED_HOLD_MS);
-      return () => clearTimeout(id);
-    }
-    t.set(withTiming(SETTLE_MS, { duration: SETTLE_MS, easing: Easing.linear, reduceMotion: ReduceMotion.Never }, (fin) => fin && runOnJS(done)()));
+    requestAnimationFrame(() =>
+      requestAnimationFrame(() => {
+        void SplashScreen.hideAsync()
+          .catch(() => undefined)
+          .then(() => {
+            if (!alive) return;
+            if (reduced) id = setTimeout(done, REDUCED_HOLD_MS);
+            else t.set(withTiming(SETTLE_MS, { duration: SETTLE_MS, easing: Easing.linear, reduceMotion: ReduceMotion.Never }, (fin) => fin && runOnJS(done)()));
+          });
+      })
+    );
+    return () => {
+      alive = false;
+      if (id) clearTimeout(id);
+    };
   }, [slot, themed, reduced, t]);
 
   /* 다 섰고 사이트도 그려졌으면 걷는다. 사이트가 끝내 안 오면 선 뒤 7초에 걷는다(시작 화면이 하던 10초 상한과 비슷하게) */
@@ -107,17 +123,18 @@ export function Intro() {
   }, [settled, leave]);
 
   const veil = useAnimatedStyle(() => ({ opacity: 1 - leave.get(), transform: [{ scale: 1 + 0.06 * leave.get() }] }));
+  /*
+   * B 는 늘 '가운데 큰 B' 자리에 그리고(정지 모양 = 시작 장면), 움직임만 이름의 B 칸으로 옮기며 줄인다 — 움직임 스타일이 한 장면 늦게
+   * 붙어도 큰 B 가 보일 뿐이다(예전엔 B 를 칸 자리에 그리고 키워 놓아, 첫 장면에 작은 B · 이름이 잠깐 비쳤다).
+   */
   const mark = useAnimatedStyle(() => {
-    if (!slot) return { opacity: 1 };
+    if (!slot) return { transform: [{ translateX: 0 }, { translateY: 0 }, { scale: 1 }] };
     const p = Math.min(1, Math.max(0, (t.get() - MOVE_AT) / MOVE_MS));
     const e = Easing.inOut(Easing.cubic)(p);
-    const sx = slot.x + slot.width / 2;
-    const sy = slot.y + slot.height / 2;
-    const s = bigH / slotH;
-    return {
-      opacity: 1,
-      transform: [{ translateX: (1 - e) * (width / 2 - sx) }, { translateY: (1 - e) * (height / 2 - sy) }, { scale: s + (1 - s) * e }],
-    };
+    const dx = slot.x + slot.width / 2 - width / 2;
+    const dy = slot.y + slot.height / 2 - height / 2;
+    const s = slotH / bigH;
+    return { transform: [{ translateX: e * dx }, { translateY: e * dy }, { scale: 1 + (s - 1) * e }] };
   });
 
   if (gone) return null;
@@ -140,16 +157,9 @@ export function Intro() {
           ))}
         </View>
       </View>
-      {slot ? (
-        <Animated.View style={[{ position: 'absolute', left: slot.x, top: slot.y }, mark]}>
-          <BullpenMark height={slotH} />
-        </Animated.View>
-      ) : (
-        /* 재기 전 — 시작 화면과 같은 큰 B 를 가운데에 */
-        <View style={[StyleSheet.absoluteFill, styles.center]}>
-          <BullpenMark height={bigH} />
-        </View>
-      )}
+      <Animated.View style={[{ position: 'absolute', left: width / 2 - bigW / 2, top: height / 2 - bigH / 2 }, mark]}>
+        <BullpenMark height={bigH} />
+      </Animated.View>
     </Animated.View>
   );
 }
