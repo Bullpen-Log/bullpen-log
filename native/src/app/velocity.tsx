@@ -454,6 +454,15 @@ export default function VelocityScreen() {
       },
     ]);
   };
+  /*
+   * 세션 종료 — 잰 공이 있으면 저장 창, 없으면 측정만 끈다(서버는 공 0개 세션을 안 받는다 — saveVelocitySession).
+   * 예전엔 말없이 꺼져 저장 단추를 찾게 됐다(웹은 빈 요약을 띄운다) — 한 줄로 알린다. 세션 녹화 조각은 녹화기가 따로 올린다.
+   */
+  const endSession = () => {
+    if (pitches.length) return setSheet(true);
+    setLive(false);
+    setNotice(recWanted ? '잰 공이 없어 저장할 게 없어요. 세션 녹화는 따로 올라가요.' : '잰 공이 없어 저장할 게 없어요.');
+  };
   const remove = (id: number) => {
     const gone = pitches.find((p) => p.id === id);
     if (gone) discardAll([gone]);
@@ -788,7 +797,7 @@ export default function VelocityScreen() {
           <>
             <SideButton icon="focus" label="초점" onPress={refocus} busy={focusBusy} disabled={!info} />
             <View style={styles.mid}>
-              <Shutter state="stop" label="세션 종료" onPress={() => (pitches.length ? setSheet(true) : setLive(false))} />
+              <Shutter state="stop" label="세션 종료" onPress={endSession} />
               <ShutterLabel>세션 종료{pitches.length ? ` · ${pitches.length}구` : ''}</ShutterLabel>
             </View>
             <SideButton icon="list" label="이전 공" onPress={() => setSheet(true)} disabled={!pitches.length} badge={pitches.length} />
@@ -797,7 +806,12 @@ export default function VelocityScreen() {
           <>
             <SideButton icon="info" label="주의사항" onPress={showTips} />
             <View style={styles.mid}>
-              <Shutter state="ready" label={modeMeta.shutter} onPress={() => setLive(true)} disabled={!info} />
+              <Shutter state="ready" label={modeMeta.shutter} onPress={() => {
+                  setNotice(null);
+                  setLive(true);
+                }}
+                disabled={!info}
+              />
               <ShutterLabel>{modeMeta.shutter}</ShutterLabel>
             </View>
             <SideButton icon="focus" label="초점" onPress={refocus} busy={focusBusy} disabled={!info} />
