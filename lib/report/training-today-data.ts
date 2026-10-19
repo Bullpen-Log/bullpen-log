@@ -257,12 +257,13 @@ export async function loadTrainingToday(user: TodayUser, today: Date): Promise<T
       [
         ...full.map((p) => p.ex.thumbPath),
         ...(programCard?.upcoming.flatMap((u) => u.items.map((it) => it.thumbPath)) ?? []),
+        ...(programCard?.rows.map((r) => r.thumbPath) ?? []),
       ].filter((p): p is string => !!p)
     ),
     pastAmountsP,
     doneSetsP,
   ]);
-  for (const it of programCard?.upcoming.flatMap((u) => u.items) ?? []) {
+  for (const it of [...(programCard?.upcoming.flatMap((u) => u.items) ?? []), ...(programCard?.rows ?? [])]) {
     if (it.thumbPath) it.thumbUrl = thumbUrls[it.thumbPath] ?? null;
   }
 
@@ -318,8 +319,9 @@ export async function loadTrainingToday(user: TodayUser, today: Date): Promise<T
   const savedMinutes = user.dailyWorkoutMinutes ?? DEFAULT_WORKOUT_MINUTES;
   const make = (minutes: number): TodayMake => ({
     checkedIn: core.hasCheckinToday,
-    needsEquipment: user.ownedEquipment.length === 0,
-    equipment: user.ownedEquipment.filter((name) => name !== '맨몸'),
+    /* 가진 장비 설정을 없앴다(2026-10-20) — 묻지 않고, 오늘 칸에 모든 장비를 켜고 시작한다(앱 PlanForm) */
+    needsEquipment: false,
+    equipment: [...SELECTABLE_EQUIPMENT],
     selected: core.todaySetup?.availableEquipment.length ? core.todaySetup.availableEquipment : [],
     clash: core.workoutClash,
     minutes,
@@ -396,7 +398,8 @@ export async function loadTrainingToday(user: TodayUser, today: Date): Promise<T
                     ? { requested: savedPlan.requestedMinutes, minutes: savedPlan.minutes }
                     : null,
                 droppedForSafety,
-                noEquipment: user.ownedEquipment.length === 0,
+                /* 가진 장비 설정을 없애 '장비를 안 골라…' 알림은 안 낸다(2026-10-20) — 오늘 고른 장비로 짠다 */
+                noEquipment: false,
                 groups,
                 tooFew: picked.tooFew ? { count: picked.candidates.length, min: MIN_CANDIDATES } : null,
               },

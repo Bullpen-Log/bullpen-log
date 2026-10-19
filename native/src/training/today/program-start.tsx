@@ -10,7 +10,6 @@ import {
   PROGRAM_MIN_AGE,
   RECOMMENDED_EQUIPMENT,
   TM_LOOKBACK_DAYS,
-  equipmentBlock,
   profileBlock,
   type PerWeek,
   type ProgramBlock,
@@ -27,7 +26,7 @@ import { BigButton, Chip, LinkRow, s, type TodayActions } from './parts';
 
 /**
  * 근력 · 파워 프로그램 고르기 · 시작(앱 화면) — 웹 app/(app)/training/program-start.tsx 를 옮겼다. 입구 한 줄 + 기본기 카드, 시트는 한 쪽에 하나씩:
- * 목록 → 소개 → [생년월일] [경력] [장비](비었을 때만) → 고정 운동 → 주 몇 번 + 요약 + [시작]. 막힘 글은 서버와 같은 함수(profileBlock · equipmentBlock),
+ * 목록 → 소개 → [생년월일] [경력] 장비(늘 — 전에 고른 것을 켜 둔 채) → 고정 운동 → 주 몇 번 + 요약 + [시작]. 막힘 글은 서버와 같은 함수(profileBlock · equipmentBlock),
  * 저장은 웹과 같은 서버 동작(program.previewPinned · programChoices · startProgram). 고정 운동 바꾸기(진행 중, 웹 program-card.tsx RepinSheet)도 여기.
  */
 
@@ -139,7 +138,8 @@ function StartSheet({
   const steps: Step[] = [
     ...(ps.needBirth ? (['birth'] as const) : []),
     ...(ps.level == null ? (['level'] as const) : []),
-    ...(ps.owned.length === 0 ? (['equipment'] as const) : []),
+    /* 장비는 시작할 때마다 고른다(2026-10-20 김민 — 트레이닝 설정의 '가진 장비'를 없앰). 전에 고른 것을 켜 둔 채로 */
+    'equipment',
     'pins',
     'summary',
   ];
@@ -150,7 +150,7 @@ function StartSheet({
   const [perWeekPick, setPerWeekPick] = useState<PerWeek | null>(null);
   const [birth, setBirth] = useState('');
   const [level, setLevel] = useState<string | null>(ps.level);
-  const [owned, setOwned] = useState<string[]>([]);
+  const [owned, setOwned] = useState<string[]>(() => ps.owned.filter((e) => ps.equipment.includes(e)));
   const [pins, setPins] = useState<PinView[] | null>(null);
   const [changing, setChanging] = useState<VariantKey | null>(null);
   const [choices, setChoices] = useState<{ id: string; title: string }[] | null>(null);
@@ -164,7 +164,7 @@ function StartSheet({
     setError(null);
     setStep(next);
   };
-  const equipmentForCall = ps.owned.length === 0 ? owned : null;
+  const equipmentForCall = owned;
   const levelForCall = ps.level == null ? level : null;
   /* 주 3번이 기본(되는 프로그램만) */
   const perWeek: PerWeek = choice ? (perWeekPick ?? (choice.perWeek.includes(3) ? 3 : 2)) : 3;
@@ -237,10 +237,8 @@ function StartSheet({
       await a.reload();
     });
 
-  /* 막힘 — 서버(checkEligibility)와 같은 함수로. 장비가 이미 저장된 사람은 장비 칸을 건너뛰므로 빠진 장비를 소개 쪽에서 바로 말한다 */
-  const choiceBlocked = choice
-    ? ((basics ? ps.basicsBlocked : ps.blocked) ?? (ps.owned.length > 0 ? equipmentBlock(ps.owned, choice.required) : null))
-    : null;
+  /* 막힘 — 서버(checkEligibility)와 같은 함수로. 장비는 늘 장비 칸에서 고르므로 빠진 장비는 그 칸이 말한다 */
+  const choiceBlocked = choice ? ((basics ? ps.basicsBlocked : ps.blocked) ?? null) : null;
   const birthAge = ageOf(birth);
   const birthBlocked = birthAge == null ? null : profileBlock({ audience, age: birthAge, trainingLevel: null });
   const levelBlocked = profileBlock({ audience, age: null, trainingLevel: level, basicsDone: ps.basicsDone });
@@ -260,8 +258,7 @@ function StartSheet({
   const basicsChoices = offersBasics(ps) ? ps.programs.filter((p) => p.audience === 'basics') : [];
   const shown = ps.programs.filter((p) => p.audience === 'adult' && p.goal === goal);
   const changingLabel = pins?.find((x) => x.variant === changing)?.label ?? '';
-  const ownedNow = ps.owned.length > 0 ? ps.owned : owned;
-  const recommendedMissing = RECOMMENDED_EQUIPMENT.filter((e) => !ownedNow.includes(e));
+  const recommendedMissing = RECOMMENDED_EQUIPMENT.filter((e) => !owned.includes(e));
 
   return (
     <Sheet
@@ -452,7 +449,7 @@ function StartSheet({
 
       {step === 'equipment' ? (
         <>
-          <Text style={[s.cardTitle, { color: c.ink }]}>가진 장비를 골라 주세요</Text>
+          <Text style={[s.cardTitle, { color: c.ink }]}>쓸 수 있는 장비를 골라 주세요</Text>
           <Text style={[s.tiny, { color: c.muted }]}>
             {required.length > 0
               ? `${required.join(' · ')}은 꼭 있어야 해요.`

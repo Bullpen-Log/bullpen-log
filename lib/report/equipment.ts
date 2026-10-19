@@ -26,23 +26,19 @@ export const SELECTABLE_EQUIPMENT = EXERCISE_EQUIPMENT.filter(
  * 오늘 쓸 수 있는 것은 날마다 다르다 — 집에서 하는 날과 헬스장 가는 날이
  * 다르고, 밴드는 가방에 있지만 바벨은 없는 날이 있다.
  *
- * 오늘 것을 안 골랐으면 가진 것을 다 쓸 수 있다고 본다. 매일 고르라고 하면
+ * 오늘 것을 안 골랐으면 가진 것을 다 쓸 수 있다고 본다(가진 것도 안 골랐으면 아무것도 안 거른다). 매일 고르라고 하면
  * 대부분은 안 고를 텐데, 그때 아무것도 못 쓴다고 보면 훈련이 맨몸만 남는다.
  *
- * 오늘 고른 것 중에 가진 것이 아닌 게 있으면 무시한다. 프로필에서 장비를
- * 뺐는데 오늘 목록에는 남아 있는 경우다.
+ * 오늘 고른 것이 있으면 그것이 이긴다(2026-10-20 김민: 가진 장비 설정을 없애고 장비는 프로그램 시작 · 오늘 운동 만들기 때만
+ * 고른다 — 오늘 만들기 칸은 모든 장비를 켜고 시작한다). 예전엔 가진 것과 겹치는 것만 남겼는데, 그러면 설정을 못 고치는 지금은
+ * 헬스장에 간 날 켠 바벨이 말없이 빠졌다.
  */
 export function equipmentForToday(
   owned: string[],
   availableToday: string[] | null | undefined
 ): string[] {
-  if (owned.length === 0) return []; // 가진 장비를 아직 안 골랐으면 아무것도 안 거른다
-  if (!availableToday || availableToday.length === 0) return owned;
-  const has = new Set(owned);
-  return [
-    ALWAYS_OWNED,
-    ...availableToday.filter((name) => name !== ALWAYS_OWNED && has.has(name)),
-  ];
+  if (!availableToday || availableToday.length === 0) return owned; // 비어 있으면 아무것도 안 거른다
+  return [ALWAYS_OWNED, ...availableToday.filter((name) => name !== ALWAYS_OWNED)];
 }
 
 type WithEquipment = { equipment: string[] };

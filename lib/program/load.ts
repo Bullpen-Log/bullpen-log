@@ -896,6 +896,13 @@ export type ProgramCardProps = {
     /** 선택 운동(메디신볼 던지기) — 건너뛰어도 된다 */
     optional: boolean;
     first: boolean;
+    /** 운동 분류 · 영상 — 앱이 줄을 누르면 여는 운동 창(영상 · 설명)에 쓴다(2026-10-20 김민). 썸네일 저장소 경로는 페이지가 서명해 thumbUrl 을 채운다 */
+    category: string;
+    videoPath: string | null;
+    referenceVideoId: string | null;
+    aspectRatio: number | null;
+    thumbPath: string | null;
+    thumbUrl: string | null;
   }[];
   dropped: { title: string; reason: string }[];
   pinned: { variant: VariantKey; label: string; title: string | null }[];
@@ -974,6 +981,12 @@ export function programCardProps(
       contrast: r.contrast,
       optional: isOptionalProgramExercise({ programSlot: { variant: r.variant }, equipment: r.exercise.equipment }),
       first: r.suggestion != null && r.suggestion.kg == null,
+      category: r.exercise.category,
+      videoPath: r.exercise.videoPath,
+      referenceVideoId: r.exercise.referenceVideoId,
+      aspectRatio: r.exercise.aspectRatio ?? null,
+      thumbPath: r.exercise.referenceVideoId ? null : (r.exercise.thumbPath ?? null),
+      thumbUrl: r.exercise.referenceVideoId ? referenceThumbUrl(r.exercise.referenceVideoId) : null,
     })),
     dropped: view.dropped.map((d) => ({ title: d.title, reason: d.reason })),
     pinned: usedVariants(plan.def).map((v) => ({

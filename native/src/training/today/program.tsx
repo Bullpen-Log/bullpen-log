@@ -4,6 +4,8 @@ import { useState } from 'react';
 import { Alert, Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { withJosa } from '@/lib/korean';
 import type { ProgramCardProps, ProgramResult } from '@/lib/program/load';
+import { sessionTitle } from '@/lib/program/program';
+import { ExerciseMedia, HowTo } from '~/armcare/parts';
 import { act } from '~/mechanics/parts';
 import type { Palette } from '~/lib/ui';
 import { BigButton, Card, LinkRow, s, type TodayActions } from './parts';
@@ -33,16 +35,20 @@ export function ProgramCardView({ p, c, a }: { p: ProgramCardProps; c: Palette; 
   const resting = p.kind === 'rest' || p.kind === 'painWait';
   const preview = !going || finishedToday;
 
+  const programName = p.basics ? '기본기 프로그램' : '근력 · 파워 프로그램';
+  const session = sessionTitle(p.dayLabel);
+  /* 하는 날은 한 줄로 '근력 · 파워 프로그램 · 2번째 세션(B)' — 위 작은 글과 겹쳐 '오늘 해요 · 2번 세션 · B 날'로 읽히던 것(2026-10-20 김민) */
+  const oneLine = going && !finishedToday;
   const title = finishedToday
-    ? `오늘 했어요 · ${p.dayLabel}`
+    ? `오늘 했어요 · ${session}`
     : going
-      ? `오늘 해요 · ${p.dayLabel}`
+      ? `${programName} · ${session}`
       : resting
         ? '오늘은 쉬어요'
         : p.kind === 'otherMode'
           ? '오늘은 다른 운동을 했어요'
           : p.kind === 'needCheckin'
-            ? `오늘 할 일 · ${p.dayLabel}`
+            ? `오늘 할 일 · ${session}`
             : '다 마쳤어요';
   const sub =
     p.kind === 'rest'
@@ -79,11 +85,11 @@ export function ProgramCardView({ p, c, a }: { p: ProgramCardProps; c: Palette; 
   return (
     <Card c={c}>
       <View style={{ gap: 4 }}>
-        <Text style={[s.smallBold, { color: c.muted }]}>{p.basics ? '기본기 프로그램' : '근력 · 파워 프로그램'}</Text>
+        {oneLine ? null : <Text style={[s.smallBold, { color: c.muted }]}>{programName}</Text>}
         <Text style={[s.title, { color: c.ink }]}>{title}</Text>
         {sub ? <Text style={[s.body, { color: c.muted }]}>{sub}</Text> : null}
         {(resting || finishedToday || p.kind === 'otherMode') && (p.nextLabel || resting) ? (
-          <Text style={[s.body, { color: c.muted }]}>다음: {finishedToday ? p.nextLabel : p.dayLabel}</Text>
+          <Text style={[s.body, { color: c.muted }]}>다음: {sessionTitle((finishedToday ? p.nextLabel : p.dayLabel) ?? '')}</Text>
         ) : null}
       </View>
 
@@ -114,7 +120,7 @@ export function ProgramCardView({ p, c, a }: { p: ProgramCardProps; c: Palette; 
             <Pressable
               key={r.id}
               accessibilityRole="button"
-              accessibilityHint="무게의 까닭 보기"
+              accessibilityHint="운동 영상 · 설명 보기"
               onPress={() => setWhy(r)}
               style={[st.row, i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.line }]}
             >
@@ -177,6 +183,27 @@ export function ProgramCardView({ p, c, a }: { p: ProgramCardProps; c: Palette; 
 
       {error ? <Text style={[s.small, { color: c.danger }]}>{error}</Text> : null}
 
+      {/* 자주 찾는 셋은 '자세히' 밖에(2026-10-20 김민: "자세히를 눌러야 나와서 못 찾는다") */}
+      <View>
+        <LinkRow c={c} label="고정 운동 바꾸기" onPress={() => setRepin(true)} />
+        <LinkRow c={c} label="몸 상태가 바뀌었으면 체크인 고치기" onPress={a.checkin} />
+        <LinkRow
+          c={c}
+          danger
+          label="그만두기"
+          onPress={() =>
+            confirm(
+              '프로그램을 그만둘까요?',
+              '이 판은 여기서 끝나요. 기록은 남고, 나중에 새로 시작할 수 있어요.',
+              '그만두기',
+              'program.stopProgram',
+              undefined,
+              true
+            )
+          }
+        />
+      </View>
+
       {p.upcoming.length > 0 ? (
         <View style={[s.divider, { borderTopColor: c.line }]}>
           <Fold c={c} open={ahead} onPress={() => setAhead((v) => !v)} label={`앞으로 할 세션 · ${p.upcoming.length}회`} />
@@ -206,31 +233,16 @@ export function ProgramCardView({ p, c, a }: { p: ProgramCardProps; c: Palette; 
                 }
               />
             ) : null}
-            <LinkRow c={c} label="고정 운동 바꾸기" onPress={() => setRepin(true)} />
-            <LinkRow c={c} label="몸 상태가 바뀌었으면 체크인 고치기" onPress={a.checkin} />
-            <LinkRow
-              c={c}
-              danger
-              label="그만두기"
-              onPress={() =>
-                confirm(
-                  '프로그램을 그만둘까요?',
-                  '이 판은 여기서 끝나요. 기록은 남고, 나중에 새로 시작할 수 있어요.',
-                  '그만두기',
-                  'program.stopProgram',
-                  undefined,
-                  true
-                )
-              }
-            />
           </View>
         ) : null}
       </View>
       {repin ? <RepinSheet pinned={p.pinned} onClose={() => setRepin(false)} c={c} a={a} /> : null}
-      <Sheet open={why != null} onClose={() => setWhy(null)} title={why?.title ?? ''} c={c}>
+      {/* 운동 줄 — 내용만큼 올라오는 시트에 영상 · 처방 · 무게 까닭 · 설명(웹 운동 상세와 같은 설명 글). 예전엔 화면을 다 덮는 창에 글 몇 줄이었다(2026-10-20 김민) */}
+      <Sheet fit open={why != null} onClose={() => setWhy(null)} title={why?.title ?? ''} description={why?.category} c={c}>
         {why ? (
           <View style={{ gap: 12 }}>
-            <Text style={[s.body, { color: c.muted }]}>
+            <ExerciseMedia key={why.id} path={why.videoPath} referenceVideoId={why.referenceVideoId} thumbUrl={why.thumbUrl} aspectRatio={why.aspectRatio} />
+            <Text style={[s.bodyBold, { color: c.ink }]}>
               {why.slotLabel} · {why.line}
             </Text>
             {why.substituteFor ? <Text style={[s.body, { color: c.ink }]}>오늘은 {why.substituteFor} 대신이에요.</Text> : null}
@@ -242,6 +254,7 @@ export function ProgramCardView({ p, c, a }: { p: ProgramCardProps; c: Palette; 
               </Text>
             ) : null}
             {why.warmup ? <Text style={[s.body, { color: c.muted }]}>준비: {why.warmup}</Text> : null}
+            <HowTo key={`how-${why.id}`} exerciseId={why.id} method={null} inline c={c} />
           </View>
         ) : null}
       </Sheet>

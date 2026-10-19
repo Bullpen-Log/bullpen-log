@@ -6,7 +6,7 @@ import { redirect } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
 import { requireUser } from '@/lib/dal';
 import { featureLocks, SETUP_PATH } from '@/lib/feature-locks';
-import { ChevronDown, Dumbbell } from '@/components/icon';
+import { ChevronDown } from '@/components/icon';
 import { createPlaybackUrls } from '@/lib/storage';
 import { referenceThumbUrl } from '@/lib/reference-video';
 import { formatPrescription } from '@/lib/exercise-meta';
@@ -17,7 +17,6 @@ import { loadTodayCore } from '@/lib/report/today-data';
 import { toDateKey } from '@/lib/pitch-stats';
 import { TRAINING_SCREEN_TEXT, trainingScreenOf } from '@/lib/report/training-screen';
 import { remakeFieldsOf, stateNoticeOf } from '@/lib/report/state-notice';
-import { programDayText } from '@/lib/engine/arbiter';
 import { StartWorkout } from './start-workout';
 import { StateNoticeBand } from './state-notice-band';
 import { DoneCard, DoneFold, type DoneLine } from './done-card';
@@ -26,7 +25,7 @@ import { readFrozenPlan } from '@/lib/workout/session-plan';
 import { summarizeSets, totalVolumeKg } from '@/lib/workout/summarize';
 import { recentAmounts } from '@/lib/report/exercise-recent';
 import { MIN_CANDIDATES } from '@/lib/report/prescription';
-import { DEFAULT_WORKOUT_MINUTES, SLOT_ORDER } from '@/lib/report/theme';
+import { SLOT_ORDER } from '@/lib/report/theme';
 import { orderSession } from '@/lib/report/exercise-order';
 import { BackLink, Card, PageHeading } from '@/components/ui';
 import { PlanForm } from '@/components/training-forms';
@@ -104,8 +103,8 @@ function now() {
  * (training-home.tsx)의 앱 카드에서 들어가는 따로 된 앱이고, 머리에는 돌아가는 길만 둔다. 보고 있는 앱을 쿠키에
  * 적어 홈이 그 카드를 맨 위에 둔다(remember-app.tsx).
  *
- * 트레이닝 설정은 운동 · 암케어에 둔다 — 운동 목록을 보다가 "이건 장비가 없어서 못 하는데" 싶을 때 여기서 고친다.
- * 메커니즘은 장비 · 목표 설정을 읽지 않아 두지 않는다.
+ * 트레이닝 설정은 운동에만 둔다 — 운동 목록을 보다가 "이건 장비가 없어서 못 하는데" 싶을 때 여기서 고친다.
+ * 메커니즘은 장비 · 목표 설정을 읽지 않아 두지 않고, 암케어에서는 2026-10-20 뺐다(김민).
  */
 function AppHead({
   app,
@@ -117,7 +116,6 @@ function AppHead({
   title: string;
   settings?: {
     trainingLevel: string | null;
-    ownedEquipment: string[];
   };
   /** 설정을 저장한 뒤 돌아올 곳 — 지금 보는 칸 */
   returnTo: string;
@@ -135,7 +133,6 @@ function AppHead({
           <div className="ml-auto">
             <TrainingSettingsButton
               trainingLevel={settings.trainingLevel}
-              ownedEquipment={settings.ownedEquipment}
               returnTo={returnTo}
             />
           </div>
@@ -150,7 +147,6 @@ function AppHead({
             <div className="desk:hidden">
               <TrainingSettingsButton
                 trainingLevel={settings.trainingLevel}
-                ownedEquipment={settings.ownedEquipment}
                 returnTo={returnTo}
                 pill
               />
@@ -158,33 +154,6 @@ function AppHead({
           )
         }
       />
-    </div>
-  );
-}
-
-/**
- * 근력 프로그램이 오늘 주인인 날의 일정 자리 한 줄(2판 P6-4, 사용자 결정 D6) — 그날 운동은 맨 위 프로그램 카드가 다 말하고(목록 · 무게 · [운동 시작]),
- * 여기서는 왜 따로 일정을 안 짜는지만 말한다. 글은 중재와 일정 까닭의 한 곳(lib/engine/arbiter.ts programDayText). 바로 위 다음 등판 한 줄
- * (components/outing-line.tsx)과 같은 줄 모양이라 둘이 이어 읽힌다. 그 전에 만든 매일 일정이 남아 있으면 그 일정은 오늘 쉰다고 둘째 줄로 알린다.
- */
-function ProgramDayLine({
-  label,
-  planResting,
-}: {
-  label: string | null;
-  planResting: boolean;
-}) {
-  return (
-    <div className="flex min-h-12 items-center gap-2.5 rounded-2xl border border-line bg-surface px-(--block-pad) py-1.5 text-sm desk:min-h-11">
-      <Dumbbell aria-hidden className="h-4 w-4 shrink-0 text-sky" />
-      <p className="min-w-0 flex-1 break-keep">
-        <span className="block font-semibold text-ink">{programDayText(label)}</span>
-        {planResting && (
-          <span className="block text-xs text-muted">
-            {TRAINING_SCREEN_TEXT.planResting}
-          </span>
-        )}
-      </p>
     </div>
   );
 }
@@ -200,7 +169,6 @@ export default async function TrainingPage({
   /* 첫 설정 뒤 탭 사용법(TabTutorial)은 2026-10-12 사용자 요청으로 뺐다 — 감싸기 자리만 남긴다 */
   const withTutorial = (node: ReactNode) => node;
   const today = now();
-  const savedMinutes = user.dailyWorkoutMinutes ?? DEFAULT_WORKOUT_MINUTES;
 
   const params = await searchParams;
   /* 예전 [기록] 칸의 주소 — 지난 기록은 이제 홈 캘린더에 있다 */
@@ -234,7 +202,6 @@ export default async function TrainingPage({
         <AppHead
           app="armcare"
           title="암케어"
-          settings={user}
           returnTo={
             tab === 'today'
               ? '/training?view=armcare'
@@ -574,30 +541,19 @@ export default async function TrainingPage({
     <TrainingPrefsCard
       day={core.todayKey}
       answer={core.trainingPrefs}
-      parts={availableParts(core.library)}
     />
   ) : null;
-  const planForm = (generated: boolean, minutes: number) => (
+  const planForm = (generated: boolean) => (
     <PlanForm
-      owned={user.ownedEquipment}
       availableToday={
         core.todaySetup?.availableEquipment.length
           ? core.todaySetup.availableEquipment
           : null
       }
-      minutes={minutes}
-      defaultMinutes={savedMinutes}
-      goal={user.trainingGoal}
-      focus={user.trainingFocus}
       generated={generated}
       checkedIn={core.hasCheckinToday}
       returnTo="/training"
       clash={core.workoutClash}
-      /* 최근 운동 힘듦 급증 — 직접 고르기에 경고 한 줄 · '그래도 고른 대로'(2판 P5-e, lib/report/today-data.ts) */
-      effortSpike={core.effortSpike}
-      preferredWorkout={core.preferredWorkout}
-      /* 오늘 직접 골라 만들었으면 다시 만들 때도 그쪽으로 연다 */
-      startMode={savedPlan && !savedPlan.auto && !savedPlan.program ? 'manual' : 'auto'}
       /*
        * 체크인이 없으면 이 자리에서 체크인 창을 연다 — 홈으로 보내지 않는다.
        * 상세 체크인의 '하고 싶은 부위'는 라이브러리에 실제로 있는 부위만 고른다(홈과 같다).
@@ -610,10 +566,10 @@ export default async function TrainingPage({
     />
   );
   /* 만들기 폼 위에 '오늘 하고 싶은 운동' 카드 — 세 자리(처음 만들기 · 빈 일정 · 조건 바꿔 다시 만들기)가 같이 쓴다 */
-  const planBlock = (generated: boolean, minutes: number) => (
+  const planBlock = (generated: boolean) => (
     <>
       {prefsCard}
-      {planForm(generated, minutes)}
+      {planForm(generated)}
     </>
   );
 
@@ -695,19 +651,10 @@ export default async function TrainingPage({
           </Card>
         ) : screen.programOwns ? (
           /*
-          근력 프로그램 날(2판 P6-4, D6) — 프로그램 카드가 주인이고 일정 자리는 한 줄. 마친 날은 그것도 안 그린다(위 완료 카드와 프로그램 카드가
-          오늘 한 것을 말한다).
+          근력 프로그램 날(2판 P6-4, D6) — 프로그램 카드가 주인이라 일정 자리는 비운다. 예전엔 '오늘은 근력 프로그램 N번 세션 차례라 그 운동을
+          그대로 해요' 한 줄을 두었는데, 위 카드와 같은 말을 되풀이해 뺐다(2026-10-20 김민).
         */
-          done ? null : (
-            <ProgramDayLine
-              label={
-                programView?.arbitration.program?.today?.label ??
-                programView?.dayLabel ??
-                null
-              }
-              planResting={screen.planResting}
-            />
-          )
+          null
         ) : savedPlan == null || screen.stalePlan ? (
           /*
           아직 안 만든 날.
@@ -728,7 +675,7 @@ export default async function TrainingPage({
                 <p className="text-sm text-muted">{TRAINING_SCREEN_TEXT.stalePlan}</p>
               )}
             </div>
-            {planBlock(false, savedMinutes)}
+            {planBlock(false)}
           </Card>
         ) : exercises.length === 0 ? (
           <Card className="space-y-4">
@@ -740,7 +687,7 @@ export default async function TrainingPage({
                 ? '몸 상태가 바뀌어 무리인 운동이 모두 빠졌어요.'
                 : '지금 할 수 있는 운동이 아직 없어요.'}
             </p>
-            {planBlock(false, savedPlan.requestedMinutes)}
+            {planBlock(false)}
           </Card>
         ) : (
           <>
@@ -829,29 +776,10 @@ export default async function TrainingPage({
                   />
                 </summary>
                 <div className="pt-3">
-                  {planBlock(true, savedPlan.requestedMinutes)}
+                  {planBlock(true)}
                 </div>
               </details>
             </Card>
-
-            {/*
-            장비를 한 번도 안 고른 사람에게 알린다.
-
-            안 고르면 '전부 가지고 있다'로 본다 — 빈 목록을 그대로 믿으면 저장도
-            안 한 사람에게 맨몸 운동만 나가기 때문이다. 그 대신, 처음 쓰는 사람은
-            케틀벨도 벤치도 없는데 케틀벨 운동을 받게 된다.
-
-            빠진 것이 없으니 아래의 '장비로 할 수 없는 운동 N개를 뺐습니다'도 안
-            뜬다. 그래서 목록에 없는 장비가 섞인 이유를 알 길이 없었다.
-            아래 안내들과 나란히 두지 않고 목록 위에 두는 이유는, 이것을 볼 사람이
-            처음 쓰는 사람이기 때문이다. 운동 열여섯 개 밑에 있으면 닿지 않는다.
-          */}
-            {user.ownedEquipment.length === 0 && (
-              <p className="rounded-2xl border border-warn-line bg-warn-bg p-(--block-pad) text-footnote text-warn">
-                장비를 안 골라 전부 있다고 보고 골랐어요. 위 ‘트레이닝 설정’에서
-                고르세요.
-              </p>
-            )}
 
             <DoneFold folded={done != null} count={exercises.length}>
               <ExerciseChecklist exercises={exercises} dateKey={core.todayKey}>

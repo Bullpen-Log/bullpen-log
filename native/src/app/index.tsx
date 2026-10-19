@@ -32,7 +32,8 @@ import { TrainingTab, resetTrainingCache } from '~/training/tab';
 import { resetPitchTodayCache } from '~/pitch/today-card';
 import { resetVelocityDayCache } from '~/pitch/velocity-day';
 import { resetNutritionStore } from '~/nutrition/api';
-import { useWebNav } from '~/shell/web-nav';
+import { useWebNav, webArrived } from '~/shell/web-nav';
+import { resetFavorites } from '~/training/favorites';
 import { setMenu, useMenu, type MenuGroup } from '~/shell/menu-store';
 import { adoptWebValues, cacheClear, loadJson, saveJson } from '~/lib/store';
 import { onPrefsChange, PREF_KEYS, reloadPrefs } from '~/lib/prefs';
@@ -155,6 +156,8 @@ const OLD_VELOCITY_SNOOZE = 'bullpen-old-velocity-snooze';
 let askedOldVelocity = false;
 
 const isLoginPath = (p: string) => p === '/login' || p.startsWith('/login/') || p === '/signup';
+/** 웹 체크인 흐름(app/(session)/checkin) — 탭 막대가 없는 화면 */
+const isCheckinPath = (p: string) => p === '/checkin' || p.startsWith('/checkin/');
 
 /** 로그아웃 — 앞사람 기록(메모리 · 폰)을 지운다. 다음 사람이 로그인하면 새로 받는다 */
 function resetAccount() {
@@ -166,6 +169,7 @@ function resetAccount() {
   resetHomeCache();
   resetNutritionStore();
   resetTrainingCache();
+  resetFavorites();
   resetPitchTodayCache();
   resetVelocityDayCache();
   resetImported();
@@ -442,6 +446,7 @@ export default function SiteScreen() {
     if (msg.t === 'path' && typeof msg.path === 'string') {
       setPath(msg.path);
       setSearch(typeof msg.search === 'string' ? msg.search : '');
+      webArrived(msg.path, typeof msg.search === 'string' ? msg.search : '');
       return;
     }
     if (msg.t === 'tabbar') return setBarOn(msg.on === true);
@@ -565,7 +570,11 @@ export default function SiteScreen() {
         웹 창(설정 · 내 정보 — 웹 틀의 폴더 모양 창)이 앞에 떠 있는 동안은 숨긴다 — 그 창을 닫는 바깥 막은 아래쪽 띠뿐인데 이 막대가 그 띠를
         덮어, 앱에서는 창을 닫을 자리가 없었다(2026-10-18 시뮬레이터에서 확인). 창이 닫히면 웹이 알려(webfront false) 다시 보인다.
       */}
-      {barOn && !webFront ? (
+      {/*
+        체크인(웹 (session) 흐름)으로 갈 때는 앱이 주소를 정하는 그 순간 숨긴다 — 웹 틀이 떨어져 '막대 끔'을 알려 오기 전까지 체크인 화면 위에
+        막대가 같이 보였다(2026-10-20 김민: "체크인 고치기를 누르면 체크인과 하단 바가 같이 나온다").
+      */}
+      {barOn && !webFront && !isCheckinPath(path) ? (
         <TabBar
           tabs={tabs}
           active={showPitch ? '/videos' : showHome ? '/today' : showNutrition ? '/nutrition' : showTraining ? (trainingTab?.href ?? active) : active}

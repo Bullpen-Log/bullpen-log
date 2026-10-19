@@ -1475,12 +1475,12 @@ export function steerFromEmptyMain({
     return {
       key: other,
       label: other === 'lower' ? '하체 스트렝스 데이' : '상체 스트렝스 데이',
-      reason: `${day.reason} ${part} 운동이 없어 오늘은 ${otherPart}를 해요. 설정에서 장비를 더하면 ${part} 날이 생겨요.`,
+      reason: `${day.reason} ${part} 운동이 없어 오늘은 ${otherPart}를 해요. 오늘 운동을 만들 때 장비를 더 켜면 ${part} 날이 생겨요.`,
     };
   }
   const why =
     otherCount === 0
-      ? '하체 · 상체 운동이 모두 없어 오늘은 코어와 보강을 해요. 설정에서 장비를 더하면 근력 날이 생겨요.'
+      ? '하체 · 상체 운동이 모두 없어 오늘은 코어와 보강을 해요. 오늘 운동을 만들 때 장비를 더 켜면 근력 날이 생겨요.'
       : blocked
         ? `${part} 운동이 없고 ${otherPart}는 ${STEER_AVOID_WHY[blocked.because]} 쉬어요. 오늘은 코어와 보강을 해요.`
         : `${part} 운동이 없고 ${otherPart}는 어제 했어요. 오늘은 코어와 보강을 해요.`;

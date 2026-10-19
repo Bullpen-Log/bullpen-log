@@ -12,7 +12,7 @@ import { cacheEpoch, cacheGet, cacheSet } from '~/lib/store';
 import { usePalette } from '~/lib/ui';
 import { useWebNav, openCheckin } from '~/shell/web-nav';
 import { BigButton, s, type TodayActions } from '~/training/today/parts';
-import { DoneView, HaltedCard, MakeCard, NoticeBand, OutingRow, PlanBody, PrefsCard, ProgramDayRow } from '~/training/today/plan';
+import { DoneView, HaltedCard, MakeCard, NoticeBand, OutingRow, PlanBody, PrefsCard } from '~/training/today/plan';
 import { ProgramCardView, ProgramDoneView } from '~/training/today/program';
 import { ProgramStartView } from '~/training/today/program-start';
 import { READABLE } from '~/lib/layout';
@@ -247,9 +247,7 @@ export default function TrainingTodayScreen() {
 
         {b.kind === 'halted' ? (
           <HaltedCard reason={b.reason} c={c} a={actions} />
-        ) : b.kind === 'program' ? (
-          <ProgramDayRow text={b.text} planResting={b.planResting} c={c} />
-        ) : b.kind === 'make' || b.kind === 'empty' ? (
+        ) : b.kind === 'program' ? null /* 프로그램 날은 위 카드가 다 말한다 — 같은 말 한 줄은 뺐다(2026-10-20 김민) */ : b.kind === 'make' || b.kind === 'empty' ? (
           <>
             {data.prefs ? <PrefsCard prefs={data.prefs} today={data.today} c={c} a={actions} /> : null}
             <MakeCard

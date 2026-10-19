@@ -998,6 +998,14 @@ export function dayLabel(plan: ProgramPlan, day: number): string {
   return `${day}번 세션${label ? ` · ${label}` : ''}`;
 }
 
+/**
+ * 프로그램 카드 머리에 쓰는 세션 이름 — dayLabel 의 '2번 세션 · B 날'을 '2번째 세션(B)'로, '3번 세션 · 스쿼트 날'은 '3번째 세션 · 스쿼트 날'로
+ * (2026-10-20 김민: "'오늘 해요-2번 세션-B날'이 부자연스럽다"). 다른 글(건너뛰기 확인 · 중재 까닭)은 dayLabel 그대로다.
+ */
+export function sessionTitle(label: string): string {
+  return label.replace(/^(\d+)번 세션/, '$1번째 세션').replace(/ · ([A-Z]) 날$/, '($1)');
+}
+
 /** 세트만 바꾼 처방 — 본 세트 횟수 · 여유를 남은 세트로 다시 정한다(가볍게 · 운동 중 교체) */
 export function withSets(rx: ItemRx, sets: readonly SetRx[]): ItemRx {
   const top = sets[topSetIndex(sets)];
@@ -1218,7 +1226,7 @@ export function profileBlock(input: {
     if (basics && input.age < BASICS_MIN_AGE) {
       return {
         reason: `기본기 4주는 만 ${BASICS_MIN_AGE}세부터 해요.`,
-        action: '직접 고르기의 가벼운 운동으로 몸을 익혀요.',
+        action: '오늘 운동 만들기의 가벼운 운동으로 몸을 익혀요.',
       };
     }
     if (!basics && input.age < PROGRAM_MIN_AGE) {
@@ -1227,7 +1235,7 @@ export function profileBlock(input: {
         action:
           input.age >= BASICS_MIN_AGE
             ? '기본기 4주로 자세부터 익혀요.'
-            : '직접 고르기의 가벼운 운동으로 자세부터 익혀요.',
+            : '오늘 운동 만들기의 가벼운 운동으로 자세부터 익혀요.',
       };
     }
   }
@@ -1297,7 +1305,7 @@ export function equipmentBlock(
   if (missing.length === 0) return null;
   return {
     reason: `${withJosa(missing.join(', '), '이/가')} 있어야 할 수 있어요.`,
-    action: '트레이닝 설정에서 장비를 고치거나, 장비가 생기면 다시 시작해요.',
+    action: '장비 칸에서 더 고르거나, 장비가 생기면 다시 시작해요.',
   };
 }
 

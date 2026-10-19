@@ -3354,19 +3354,19 @@ console.log('\n[오늘 장비] 날마다 다른 장비가 반영되는가');
   );
 
   /*
-   * 설정에서 장비를 뺐는데 오늘 목록에는 남아 있는 경우.
-   * 그대로 두면 없는 기구로 하는 운동이 나온다.
+   * 오늘 고른 것이 이긴다(2026-10-20 — 가진 장비 설정을 없애 오늘 만들기 칸이 모든 장비를 켜고 시작한다). 예전엔 가진 것과 겹치는 것만
+   * 남겨, 설정을 못 고치는 지금은 헬스장 간 날 켠 케이블이 말없이 빠졌다.
    */
   const today = equipmentForToday(owned, ['맨몸', '밴드', '케이블']);
   check(
-    '가진 것이 아닌 장비는 오늘 목록에서도 뺀다',
-    !today.includes('케이블') && today.includes('밴드'),
+    '오늘 고른 장비 그대로 — 가진 것에 없어도 켠 것은 쓴다',
+    today.includes('케이블') && today.includes('밴드') && !today.includes('바벨') && today[0] === '맨몸',
     today.join(',')
   );
 
   check(
-    '가진 장비를 아직 안 골랐으면 아무것도 안 거른다',
-    equipmentForToday([], ['밴드']).length === 0
+    '가진 장비를 안 골랐어도 오늘 고른 것으로 거른다 · 둘 다 없으면 안 거른다',
+    equipmentForToday([], ['밴드']).join(',') === '맨몸,밴드' && equipmentForToday([], null).length === 0
   );
 
   // 헬스장 가는 날과 집에서 하는 날의 훈련이 실제로 달라야 한다.
@@ -4029,6 +4029,22 @@ console.log('\n[자동 맞춤] 규칙이 울타리를 치고 초안을 내는가
     JSON.stringify(plain.minutes)
   );
   check('신호가 없으면 초안은 기본 목표(근력 향상)', plain.draft.goal === DEFAULT_GOAL);
+
+  /* 카드의 '오늘 할 부위'(2026-10-20 — 직접 고르기를 빼고 카드로 옮김, 열쇠를 preferredParts 에 담음) — 몸이 괜찮은 날 자동 맞춤이 그쪽으로 */
+  {
+    const f = factsWith({});
+    const withFocus = {
+      ...f,
+      condition: { ...f.condition, prefsToday: { preferredParts: ['upperPull', '코어'], preferredWorkout: null } },
+    };
+    const pulled = fenceFor(withFocus);
+    const prefs = todayPrefsOf(withFocus);
+    check(
+      '카드 부위 — 자동 맞춤 초안 · 날이 고른 부위로, 부위 열쇠는 몸 부위(preferredParts)로 안 읽힌다',
+      pulled.draft.focus === 'upperPull' && pulled.day.key === 'upper' && prefs.focus === 'upperPull' && prefs.preferredParts.join() === '코어',
+      `${pulled.draft.focus} · ${pulled.day.key} · ${prefs.preferredParts.join()}`
+    );
+  }
 
   /*
    * 예전에는 운동은 했는데 암케어가 0세트면 초안을 컨디셔닝으로 잡았다. 암케어가
@@ -23189,11 +23205,11 @@ console.log(
       )
     );
     check(
-      "P5 힘듦 (사) 화면 길 — 오늘 자료는 멈추지 않은 날의 오늘 상태 한 장 급증을 넘기고, 트레이닝 화면이 폼에 건네고, 폼은 'overrideEffort' 체크 하나 · 컨디셔닝 목표에서는 안 보인다",
+      "P5 힘듦 (사) 화면 길(2026-10-20 직접 고르기를 뺀 뒤) — 오늘 자료는 멈추지 않은 날의 오늘 상태 한 장 급증을 넘기고(서버 · 옛 앱 길), 웹 폼은 자동 맞춤뿐이라 'overrideEffort' 체크가 없다(자동 맞춤은 시간을 줄인다)",
       /effortSpike: !picked\.halted && state\.load\.effortSpike,/.test(today) &&
-        page.includes('effortSpike={core.effortSpike}') &&
-        form.split('name="overrideEffort"').length - 1 === 1 &&
-        /effortSpike && pickedGoal !== CONDITIONING_GOAL/.test(form)
+        !page.includes('effortSpike={core.effortSpike}') &&
+        !form.includes('name="overrideEffort"') &&
+        form.includes('<input type="hidden" name="mode" value="auto" />')
     );
     check(
       'P5 힘듦 (사) 기준선 하루 만들기는 직접 고르기와 같은 짝(줄이기 켬 · 그래도 안 고름)',
@@ -30357,15 +30373,10 @@ console.log(
         /screen\.canStart && <StartWorkout resume=\{resume\} \/>/.test(page) &&
         !/todayState !== 'active'/.test(page) &&
         slot.every((i, k) => i > 0 && (k === 0 || i > slot[k - 1])) &&
-        /done \? null : \(\s*<ProgramDayLine/.test(page) &&
-        /* P6 검토로 바뀜 — 한 줄은 카드와 같은 일차 이름(label) */
-        /\{programDayText\(label\)\}/.test(page) &&
-        /programView\?\.arbitration\.program\?\.today\?\.label \?\?\s*programView\?\.dayLabel \?\?\s*null/.test(
-          page
-        ) &&
-        /startMode=\{savedPlan && !savedPlan\.auto && !savedPlan\.program \? 'manual' : 'auto'\}/.test(
-          page
-        ),
+        /* 2026-10-20 김민 — 프로그램 날 일정 자리의 한 줄(ProgramDayLine)은 카드와 같은 말이라 뺐다, 만들기 폼은 자동 맞춤뿐(startMode 없음) */
+        /\) : screen\.programOwns \? \(\s*null\s*\) : savedPlan == null/.test(page) &&
+        !page.includes('<ProgramDayLine') &&
+        !page.includes('startMode='),
       slot.join(' · ')
     );
     /* 카드 판정은 2026-10-18(0126c867) lib/report/training-home-data.ts 로 옮겼다 — 웹 카드 · 아이폰 앱이 같이 쓴다 */

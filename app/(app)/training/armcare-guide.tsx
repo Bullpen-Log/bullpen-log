@@ -1,8 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import Link from 'next/link';
-import { AlertCircle, Check, ChevronDown, ChevronRight, Play } from '@/components/icon';
+import { AlertCircle, ChevronDown, ChevronRight } from '@/components/icon';
 import { ExerciseBadges } from '@/components/meta-badges';
 import {
   ARMCARE_AREAS,
@@ -46,8 +45,8 @@ export function ArmcareGuide({
   coverage = null,
 }: {
   /**
-   * 내 팔 지도(2026-10-04) — 최근 2주 기록의 진하기 · 비어 있는 부위. 주면 3D 가 처음에 내 기록으로 칠해지고, 맨 위에
-   * '2주째 비어 있어요'와 그 부위로 짠 10분 루틴(/armcare/play/focus) 단추가 선다(lib/armcare/coverage.ts).
+   * 내 팔 지도(2026-10-04) — 최근 2주 기록의 진하기 · 비어 있는 부위. 주면 3D 가 처음에 내 기록으로 칠해진다(lib/armcare/coverage.ts).
+   * 맨 위의 '2주째 비어 있어요' 카드는 2026-10-20 뺐다(김민 — 이 화면에서는 군더더기).
    */
   coverage?:
     | (MapCoverage & {
@@ -104,7 +103,6 @@ export function ArmcareGuide({
           </p>
 
           {coverage?.pain && <PainNote pain={coverage.pain} onArea={showArea} />}
-          {coverage && <GapCard coverage={coverage} />}
 
           <MuscleMapPanel
             side={side}
@@ -183,51 +181,6 @@ function PainNote({ pain, onArea }: { pain: PainLine; onArea: (key: ArmcareAreaK
           평소에도 아프면 보강보다 진료가 먼저예요. 아픈 곳은 빈 곳 보강에서 뺐어요.
         </p>
       )}
-    </div>
-  );
-}
-
-/**
- * 2주째 비어 있는 부위 — 그 부위로 짠 10분 루틴으로 곧장. 던질 때 감속을 맡는 곳(어깨 후방 · 팔꿈치 내측)부터 권한다.
- * 기록이 하나도 없으면 '어디부터'로 그 둘을 권한다. 모두 챙겼으면 한 줄로 칭찬만.
- */
-function GapCard({
-  coverage,
-}: {
-  coverage: MapCoverage & { gaps: ArmcareAreaKey[]; allCovered: boolean; dateKey: string };
-}) {
-  const labels = coverage.gaps.map(
-    (key) => ARMCARE_AREAS.find((a) => a.key === key)?.label ?? key
-  );
-  if (coverage.gaps.length === 0) {
-    if (!coverage.allCovered) return null;
-    return (
-      <p className="flex items-center gap-1.5 rounded-2xl bg-surface px-(--block-pad) py-3 text-sm font-semibold break-keep text-app-armcare">
-        <Check aria-hidden className="h-4 w-4 shrink-0" />
-        최근 2주 동안 여덟 부위를 모두 챙겼어요
-      </p>
-    );
-  }
-  const decel = coverage.gaps.some((k) => k === 'shoulder-back' || k === 'elbow-inner');
-  return (
-    <div className="space-y-3 rounded-2xl bg-surface p-(--block-pad)">
-      <div className="space-y-1">
-        <p className="text-base font-bold break-keep text-ink">
-          {coverage.total === 0 ? '최근 2주 암케어 기록이 없어요' : '2주째 비어 있어요'}
-        </p>
-        <p className="text-sm break-keep text-muted">
-          {labels.join(' · ')}
-          {decel ? ', 던질 때 팔을 멈춰 주는 곳이에요' : ''}
-          {coverage.total === 0 ? '. 여기부터 시작해 보세요.' : ''}
-        </p>
-      </div>
-      <Link
-        href={`/armcare/play/focus?areas=${coverage.gaps.join(',')}&d=${coverage.dateKey}`}
-        className="flex min-h-12 w-full items-center justify-center gap-1.5 rounded-full bg-app-armcare text-base font-bold text-white transition-transform motion-safe:active:scale-[0.98]"
-      >
-        <Play aria-hidden className="h-4 w-4" fill="currentColor" />
-        {coverage.gaps.length === 1 ? '이곳으로' : `이 ${coverage.gaps.length}곳으로`} 10분 루틴
-      </Link>
     </div>
   );
 }

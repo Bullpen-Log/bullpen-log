@@ -10,7 +10,7 @@ import { TrainingSettingsForm } from '@/components/training-forms';
  *
  * 홈에도 같은 것이 상자로 있다. 여기에도 두는 이유는, 설정을 고치고 싶어지는
  * 순간이 대개 여기여서다 — 운동 목록을 보다가 "이건 장비가 없어서 못 하는데"
- * 싶을 때. 그때 홈으로 건너갔다 돌아오게 하면 하던 일을 놓친다.
+ * 싶을 때. 그때 홈으로 건너갔다 돌아오게 하면 하던 일을 놓친다. (가진 장비는 2026-10-20 설정에서 뺐다 — 오늘 운동 만들기에서 고른다.)
  *
  * 고치고 나면 이 화면으로 돌아온다. 이미 만들어 둔 오늘 일정은 그대로다 —
  * 설정을 바꿨다고 눈앞의 목록이 말없이 바뀌면 하던 운동이 어디 갔는지 알 수 없다.
@@ -18,12 +18,10 @@ import { TrainingSettingsForm } from '@/components/training-forms';
  */
 export function TrainingSettingsButton({
   trainingLevel,
-  ownedEquipment,
   returnTo = '/training',
   pill = false,
 }: {
   trainingLevel: string | null;
-  ownedEquipment: string[];
   /**
    * 저장한 뒤 돌아올 곳 — 지금 보고 있는 칸(기록·암케어). 받을 수 있는 값은
    * app/actions/training-setup.ts 의 RETURN_TO 목록이 정한다.
@@ -52,7 +50,6 @@ export function TrainingSettingsButton({
       <Modal open={open} onClose={() => setOpen(false)} title="트레이닝 설정">
         <TrainingSettingsForm
           trainingLevel={trainingLevel}
-          ownedEquipment={ownedEquipment}
           returnTo={returnTo}
         />
       </Modal>

@@ -3,7 +3,6 @@ import { SymbolView } from 'expo-symbols';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, Text, View } from 'react-native';
 import { BASELINE_WORKOUT_FREQ, THROWING_HANDS } from '@/lib/baseline';
-import { SELECTABLE_EQUIPMENT } from '@/lib/report/equipment';
 import { TRAINING_LEVELS } from '@/lib/report/personalize';
 import { WORKOUT_MINUTES_CHOICES } from '@/lib/report/theme';
 import {
@@ -23,7 +22,7 @@ import { leaveTo, openWebAfter } from '~/shell/web-nav';
 import { ChoiceChips, StepFrame, SummaryRows } from '~/setup/frame';
 
 /**
- * 트레이닝 첫 설정(앱 화면) — 웹 app/(app)/training/setup/training-setup-wizard.tsx 를 옮겼다. 경력 → 웨이트 횟수 → 장비 → 하루 운동 시간 →
+ * 트레이닝 첫 설정(앱 화면) — 웹 app/(app)/training/setup/training-setup-wizard.tsx 를 옮겼다. 경력 → 웨이트 횟수 → 하루 운동 시간 →
  * [던지는 손] → 요약 → 저장. 차례 · 검사 · 요약 · 프로그램 안내 · 저장 칸은 웹과 같은 순수 함수(lib/training/setup-answers.ts), 저장은 같은
  * training-setup.finishTrainingSetup. 사이트의 /training/setup 이 앱(BullpenNative/7 부터)이면 이 화면을 띄운다. 저장하면 트레이닝 탭으로.
  */
@@ -118,23 +117,12 @@ function Wizard({ name, age, askHand, hasSetup, basicsDone, initial }: Extract<L
     }
   };
 
-  const toggleEquipment = (value: string) => {
-    const on = !a.ownedEquipment.includes(value);
-    patch({
-      ownedEquipment: on ? [...a.ownedEquipment, value] : a.ownedEquipment.filter((e) => e !== value),
-      /* 장비를 하나라도 켜면 '맨몸뿐'이 아니다 */
-      bodyOnly: on ? false : a.bodyOnly,
-    });
-  };
-
   const heading = (() => {
     switch (step) {
       case 'level':
         return { title: `${who}웨이트는 얼마나 해 봤어요?`, desc: '경력에 비해 이른 운동은 빼고 골라요. 근력 · 파워 프로그램을 시작할 수 있는지도 여기서 봐요.' };
       case 'workoutFreq':
         return { title: '일주일에 몇 번 해요?', desc: '기록이 쌓이기 전까지 운동 부하 지수를 이 값으로 셈해요.' };
-      case 'equipment':
-        return { title: '어떤 장비가 있어요?', desc: '없는 장비로 하는 운동은 빼고 짜요. 집에서 하는 날은 일정을 만들 때 오늘 쓸 것만 다시 골라요.' };
       case 'minutes':
         return { title: '하루에 얼마나 할 수 있어요?', desc: '일정을 이 시간에 맞춰 짜요. 만들 때마다 바꿀 수 있어요.' };
       case 'hand':
@@ -188,29 +176,6 @@ function Wizard({ name, age, askHand, hasSetup, basicsDone, initial }: Extract<L
           hint="이 답과 하루 운동 시간으로 첫날부터 운동 부하 지수를 내요."
           c={c}
         />
-      ) : null}
-      {step === 'equipment' ? (
-        <View style={{ gap: 16 }}>
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-            {SELECTABLE_EQUIPMENT.map((e) => (
-              <Toggle key={e} label={e} on={a.ownedEquipment.includes(e)} invalid={problem?.field === 'ownedEquipment'} onPress={() => toggleEquipment(e)} c={c} />
-            ))}
-          </View>
-          <Text style={{ color: c.muted, fontSize: 13, lineHeight: 18 }}>장비가 없으면 아래 ‘맨몸뿐이에요’를 눌러요. 장비가 생기면 트레이닝 설정에서 더해요.</Text>
-          <View style={{ borderTopWidth: 1, borderTopColor: c.line, paddingTop: 14, gap: 8 }}>
-            <Text style={{ color: c.muted, fontSize: 13, fontWeight: '600' }}>장비가 하나도 없으면</Text>
-            <View style={{ flexDirection: 'row' }}>
-              <Toggle
-                label="맨몸뿐이에요"
-                on={a.bodyOnly}
-                invalid={problem?.field === 'ownedEquipment'}
-                /* '맨몸뿐이에요'를 켜면 골라 둔 장비를 비운다 — 둘이 같이 켜져 있을 수 없다 */
-                onPress={() => patch({ bodyOnly: !a.bodyOnly, ownedEquipment: !a.bodyOnly ? [] : a.ownedEquipment })}
-                c={c}
-              />
-            </View>
-          </View>
-        </View>
       ) : null}
       {step === 'minutes' ? (
         <ChoiceChips
@@ -272,31 +237,6 @@ function OptionCard({ label, hint, on, invalid, onPress, c }: { label: string; h
         <Text style={{ color: c.muted, fontSize: 14, lineHeight: 20 }}>{hint}</Text>
       </View>
       {on ? <SymbolView name="checkmark.circle.fill" size={22} tintColor={c.sky} /> : null}
-    </Pressable>
-  );
-}
-
-/** 여러 개 고르는 칩(웹 MultiChips) */
-function Toggle({ label, on, invalid, onPress, c }: { label: string; on: boolean; invalid: boolean; onPress: () => void; c: Palette }) {
-  return (
-    <Pressable
-      accessibilityRole="checkbox"
-      accessibilityState={{ checked: on }}
-      onPress={() => {
-        void Haptics.selectionAsync();
-        onPress();
-      }}
-      style={{
-        minHeight: 44,
-        borderRadius: 22,
-        borderWidth: 1,
-        borderColor: on ? c.sky : invalid ? c.danger : c.line,
-        backgroundColor: on ? c.sky : c.card,
-        paddingHorizontal: 16,
-        justifyContent: 'center',
-      }}
-    >
-      <Text style={{ color: on ? '#fff' : c.ink, fontSize: 16, fontWeight: '600' }}>{label}</Text>
     </Pressable>
   );
 }
