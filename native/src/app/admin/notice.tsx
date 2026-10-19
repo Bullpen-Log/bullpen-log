@@ -34,7 +34,7 @@ export default function NoticeFormScreen() {
         setTitle(r.notice.title);
         setBody(r.notice.body);
         setPinned(r.notice.pinned);
-      } else setError(r.ok ? '공지를 찾을 수 없어요.' : r.error);
+      } else setError(r.ok ? '공지를 찾을 수 없어요.' : (r.error ?? '로그인이 풀렸어요. 앱을 다시 열어 주세요.'));
       setReady(true);
     });
     return () => {

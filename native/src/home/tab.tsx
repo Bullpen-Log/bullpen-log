@@ -212,7 +212,7 @@ export function HomeTab({
   return (
     <CameraSwipe enabled={!home?.pitchLocked}>
     <View style={{ flex: 1, backgroundColor: c.page }}>
-      <Animated.ScrollView
+      <Animated.ScrollView automaticallyAdjustKeyboardInsets
         ref={scrollRef}
         onScroll={onScroll}
         onLayout={(e) => (viewH.current = e.nativeEvent.layout.height)}

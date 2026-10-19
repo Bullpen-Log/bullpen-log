@@ -260,7 +260,7 @@ export class AppCapture {
   private stopSweep() {
     if (this.sweepTimer) clearInterval(this.sweepTimer);
     this.sweepTimer = null;
-    this.sweeping = false;
+    /* sweeping 은 돌던 sweep() 의 finally 가 내린다 — 여기서 내리면 잠깐 껐다 켤 때 옛 훑기와 새 훑기가 겹쳐 돌았다 */
   }
 
   /**

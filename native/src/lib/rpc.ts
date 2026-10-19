@@ -27,6 +27,8 @@ export function syncSession(): Promise<unknown> {
 }
 
 export function rpc<T>(action: string, ...args: unknown[]): Promise<T> {
+  /* 끝의 undefined 인자는 잘라 보낸다 — JSON 은 undefined 를 null 로 바꿔 '안 넘김'이 '비움'이 됐다(촬영 메모가 지워지던 것) */
+  while (args.length && args[args.length - 1] === undefined) args.pop();
   return call<T>(action, JSON.stringify({ args }), { 'content-type': 'application/json' });
 }
 

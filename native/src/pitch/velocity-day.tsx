@@ -31,22 +31,29 @@ export const resetVelocityDayCache = () => days.clear();
 
 /** 그날 구속 측정(세션 · 공 · 클립 주소) — 그날 화면 구속 칸 · 홈 그날 칸 영상(웹 velocity-clips)이 같이 쓴다. key 가 바뀌면 다시 받는다 */
 export function useVelocityDay(date: string, key: unknown = 0): Loaded | null {
-  const [state, setState] = useState<{ date: string; data: Loaded | null }>(() => ({ date, data: days.get(date) ?? null }));
+  return useVelocityDayState(date, key).data;
+}
+
+/** 실패도 알려 주는 판 — 홈 그날 칸이 '불러오는 중'에 영영 갇히지 않게 */
+export function useVelocityDayState(date: string, key: unknown = 0): { data: Loaded | null; failed: boolean } {
+  const [state, setState] = useState<{ date: string; data: Loaded | null; failed: boolean }>(() => ({ date, data: days.get(date) ?? null, failed: false }));
   useEffect(() => {
     let alive = true;
     rpc<({ ok: true } & Loaded) | { ok: false; error: string }>('app.loadAppVelocityDay', date).then(
       (r) => {
-        if (!r.ok || !alive) return;
+        if (!alive) return;
+        if (!r.ok) return setState((s) => ({ date, data: s.date === date ? s.data : (days.get(date) ?? null), failed: true }));
         days.set(date, r);
-        setState({ date, data: r });
+        setState({ date, data: r, failed: false });
       },
-      () => undefined
+      () => alive && setState((s) => ({ date, data: s.date === date ? s.data : (days.get(date) ?? null), failed: true }))
     );
     return () => {
       alive = false;
     };
   }, [date, key]);
-  return state.date === date ? (state.data ?? days.get(date) ?? null) : (days.get(date) ?? null);
+  const data = state.date === date ? (state.data ?? days.get(date) ?? null) : (days.get(date) ?? null);
+  return { data, failed: state.date === date && state.failed && !data };
 }
 
 type Result = { ok: true } | { ok: false; error: string };

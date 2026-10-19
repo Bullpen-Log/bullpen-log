@@ -203,13 +203,19 @@ export default function SiteScreen() {
   const [search, setSearch] = useState('');
   const [barOn, setBarOn] = useState(false);
   const [today, setToday] = useState<string | null>(null);
+  /* 꺼진 망에서 켜면 실패하고 영영 웹만 보였다 — 8초 뒤 다시(망이 돌아올 때까지 되풀이) */
+  const [meTry, setMeTry] = useState(0);
   useEffect(() => {
-    if (barOn && !today)
-      void loadMe().then(
-        (m) => setToday(m.today),
-        () => undefined
-      );
-  }, [barOn, today]);
+    if (!barOn || today) return;
+    let alive = true;
+    void loadMe().then(
+      (m) => alive && setToday(m.today),
+      () => alive && setTimeout(() => alive && setMeTry((n) => n + 1), 8000)
+    );
+    return () => {
+      alive = false;
+    };
+  }, [barOn, today, meTry]);
   /*
    * 운동 중 신호가 없어 폰에 남은 세트 · 암케어 체크 — 앱을 켤 때 · 다시 볼 때 보낸다(그 화면을 다시 안 열어도 — 암케어 체크는 7일 지나면 버려진다).
    * 서버가 거절한 것은 대기열이 뺀다.
@@ -278,17 +284,29 @@ export default function SiteScreen() {
     if (!pagerOn || (seen.home && seen.pitch && seen.training && seen.nutrition)) return;
     const t = setTimeout(
       () =>
-        setSeen((s) => ({
-          home: true,
-          pitch: s.pitch || !pitchTab?.locked,
-          training: s.training || !trainingTab?.locked,
-          nutrition: s.nutrition || !nutritionTab?.locked,
-        })),
+        setSeen((s) => {
+          const next = {
+            home: true,
+            pitch: s.pitch || !pitchTab?.locked,
+            training: s.training || !trainingTab?.locked,
+            nutrition: s.nutrition || !nutritionTab?.locked,
+          };
+          /* 바뀐 게 없으면 그대로 — 새 객체를 돌려주면 잠긴 탭이 있는 동안 1.2초마다 영영 다시 그렸다 */
+          return next.home === s.home && next.pitch === s.pitch && next.training === s.training && next.nutrition === s.nutrition ? s : next;
+        }),
       1200
     );
     return () => clearTimeout(t);
   }, [pagerOn, seen, pitchTab?.locked, trainingTab?.locked, nutritionTab?.locked]);
 
+  /* 웹뷰를 새로 만들 때(다시 불러오기 · 프로세스 죽음) — 새 웹은 /today 인데 앱 상태가 옛 주소로 남아 탭 불 · 판이 어긋났다 */
+  const resetWebState = () => {
+    setPath('/today');
+    setSearch('');
+    setWebFront(false);
+    setWebHome(false);
+    setWebNutrition(false);
+  };
   const goWeb = (href: string) =>
     web.current?.injectJavaScript(`window.__bpTab && window.__bpTab(${JSON.stringify(href)});true;`);
   const pressTab = (t: ShellTab) => {
@@ -327,6 +345,7 @@ export default function SiteScreen() {
       if (href === '#refresh') {
         /* 앱 화면이 저장해 웹 틀(탭 잠금 · 목록)이 바뀌었다 — 웹이 다시 받으면 탭 목록을 새로 알린다 */
         setWebNutrition(false);
+        setWebHome(false);
         web.current?.injectJavaScript('window.__bpRefresh && window.__bpRefresh();true;');
       } else if (href === '#settings' || href === '#profile') {
         /* 앞으로 내는 것은 웹이 창을 연 뒤 알린다(webfront true) — 연결이 없는 웹 화면이면 아무 일도 안 일어나고 갇히지 않는다 */
@@ -480,6 +499,7 @@ export default function SiteScreen() {
           style={styles.button}
           onPress={() => {
             setFailed(false);
+            resetWebState();
             setLoad((n) => n + 1);
           }}
         >
@@ -521,7 +541,10 @@ export default function SiteScreen() {
           hideSplash();
           setFailed(true);
         }}
-        onContentProcessDidTerminate={() => setLoad((n) => n + 1)}
+        onContentProcessDidTerminate={() => {
+          resetWebState();
+          setLoad((n) => n + 1);
+        }}
       />
       {/* 탭 넷 — 나란히 두고 240ms 에 미끄러진다(웹 tab-pager). 한 번 연 판은 붙여 둬서 굴린 자리가 남는다 */}
       {today ? (

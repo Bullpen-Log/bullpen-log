@@ -33,6 +33,8 @@ export class SessionRecorder {
   private index = 0;
   private timer: ReturnType<typeof setInterval> | null = null;
   private cutting = false;
+  /** 자르는 중인 tick — stop 이 기다린다(안 기다리면 마지막 조각이 끝낸 녹화 뒤에 붙었다) */
+  private cutJob: Promise<void> | null = null;
   private pending = 0;
   private uploads: Promise<void> = Promise.resolve();
   private startedAt = 0;
@@ -57,7 +59,7 @@ export class SessionRecorder {
       /* 켜기 전 영상은 안 담는다 — 첫 조각은 지금부터 */
       this.lastEnd = DualCamera.now!();
       this.set({ phase: 'recording' });
-      this.timer = setInterval(() => void this.tick(), TICK_MS);
+      this.timer = setInterval(() => void (this.cutJob = this.tick()), TICK_MS);
     } catch {
       this.set({ phase: 'error', error: '신호가 약해 녹화를 시작하지 못했어요.' });
     }
@@ -137,7 +139,9 @@ export class SessionRecorder {
     const was = this.state.phase === 'recording';
     this.set({ phase: 'stopping' });
     if (was) {
+      await this.cutJob?.catch(() => undefined);
       await this.tick(true).catch(() => undefined);
+      await this.cutJob?.catch(() => undefined);
       await this.uploads;
     }
     if (this.id)

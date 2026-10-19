@@ -59,6 +59,14 @@ type SetResult = { sets: SavedSet[] } | { error: string };
 /** 화면을 닫고 웹을 그 주소로 — 껍데기(index.tsx)가 웹뷰를 옮긴다(~/shell/web-nav leaveTo) */
 const leave = leaveTo;
 
+/** 새 세트 번호 — 가장 작은 빈 번호(가운데 세트를 지운 뒤 끝 + 1 로 매기면 '몇 개 더?' · 마치기 셈이 처방 마지막 세트를 못 봤다) */
+function nextSetNo(taken: number[]) {
+  const set = new Set(taken);
+  let n = 1;
+  while (set.has(n)) n++;
+  return n;
+}
+
 export default function WorkoutScreen() {
   const c = usePalette();
   const [data, setData] = useState<RunPayload | null>(null);
@@ -493,7 +501,7 @@ function Run({
     }
     const fixing = editIndex >= 0 ? editing : null;
     /* 새 세트의 번호는 여기서 — 폰에만 있는 세트까지 세어야 안 겹치고, 번호를 함께 보내야 다시 보내도 한 줄로 남는다 */
-    const setNo = fixing?.setNo ?? mine.reduce((m, x) => Math.max(m, x.setNo), 0) + 1;
+    const setNo = fixing?.setNo ?? nextSetNo(mine.map((x) => x.setNo));
     if (setNo > AMOUNT_LIMITS.sets) return setError('세트가 너무 많아요.');
     /* 고칠 때는 '몇 개 더?' 답을 그대로 싣는다 — 안 보낸 답이 대기열에 있으면 새 값이 그 답을 덮어 잃는다 */
     const keptRir = fixing ? mine.find((x) => x.setNo === setNo)?.rir : undefined;

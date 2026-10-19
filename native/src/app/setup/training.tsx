@@ -19,7 +19,7 @@ import {
 } from '@/lib/training/setup-answers';
 import { rpc, RpcError } from '~/lib/rpc';
 import { usePalette, type Palette } from '~/lib/ui';
-import { leaveTo } from '~/shell/web-nav';
+import { leaveTo, openWebAfter } from '~/shell/web-nav';
 import { ChoiceChips, StepFrame, SummaryRows } from '~/setup/frame';
 
 /**
@@ -104,6 +104,8 @@ function Wizard({ name, age, askHand, hasSetup, basicsDone, initial }: Extract<L
       const r = await rpc<{ ok: true } | { ok: false; error: string; field?: string }>('training-setup.finishTrainingSetup', toTrainingFormFields(a));
       if (r.ok) {
         void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        /* 웹 틀이 탭 잠금을 다시 읽게(안 하면 앱을 껐다 켤 때까지 탭이 잠긴 채였다 — 영양 첫 설정과 같게) */
+        openWebAfter('#refresh');
         return leaveTo('/training');
       }
       goTo(r.field ? trainingStepOfField(r.field) : null);
