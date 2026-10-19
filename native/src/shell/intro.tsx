@@ -19,7 +19,7 @@ import { BullpenMark } from '~/shell/wordmark';
  * 앱 시작 연출 — 웹 components/app-splash.tsx 와 같은 장면 · 같은 때(김민이 다듬은 옛 앱 IntroOverlay 그대로):
  * 큰 B 0.4초 → 1초 동안 작아지며 이름의 B 칸으로(ease-in-out) → 1.25초부터 U · L · … · G 가 0.075초 간격으로 0.65초씩 밀려 나오며 진해짐 →
  * 2.9초에(사이트가 다 그려졌으면) 0.55초 동안 옅어지며 1.06배. 움직임 줄이기면 완성된 이름 1.1초 → 걷힘.
- * 큰 B 는 시작 화면(app.json splash, 폭 120 · 바탕 #f2f2f7 = 앱 바탕)과 같은 크기 · 자리 · 색이라 시작 화면을 걷는 순간이 이어진다.
+ * 큰 B 는 시작 화면(app.json splash, 폭 280 · 바탕 #f2f2f7 = 앱 바탕)과 같은 크기 · 자리 · 색이라 시작 화면을 걷는 순간이 이어진다.
  */
 const LETTERS = ['U', 'L', 'L', 'P', 'E', 'N', ' ', 'L', 'O', 'G'];
 const MOVE_AT = 400;
@@ -30,9 +30,10 @@ const LETTER_MS = 650;
 const SETTLE_MS = 2900;
 const LEAVE_MS = 550;
 const REDUCED_HOLD_MS = 1100;
-/* 시작 화면 그림(assets/splash.png, 512칸)이 폭 120 으로 그려지고, 그 안의 B 는 높이 255칸(가운데) — 그래서 화면의 B 는 120 × 255/512 ≈ 60pt.
+/* 시작 화면 그림(assets/splash.png, 512칸)이 폭 280 으로 그려지고, 그 안의 B 는 높이 255칸(가운데) — 그래서 화면의 B 는 280 × 255/512 ≈ 140pt
+   (웹 app-splash 의 '긴 변의 16%'와 같은 크기 — 크게 떴다가 이름의 B 칸으로 작아진다, 2026-10-19 김민).
    큰 B 를 이 높이로 시작해야 시작 화면을 걷는 순간 크기가 튀지 않는다(2026-10-19 김민: "처음 B 와 애니메이션 B 크기가 갑자기 바뀐다") */
-const SPLASH_W = 120;
+const SPLASH_W = 280;
 const SPLASH_B_H = (SPLASH_W * 255) / 512;
 const ASPECT = 594 / 613;
 
