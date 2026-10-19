@@ -105,6 +105,12 @@ jobs:
           BUILD="${NOW:0:8}.$((10#${NOW:8:6}))"
           echo "build=$BUILD" >> "$GITHUB_OUTPUT"
           /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BUILD" ios/BullpenLog/Info.plist
+          # 다이나믹 아일랜드 휴식 시계 확장(plugins/rest-activity)도 앱과 같은 번호여야 App Store 가 받는다
+          EXT=ios/RestActivity/RestActivity-Info.plist
+          if [ -f "$EXT" ]; then
+            /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BUILD" "$EXT"
+            /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' ios/BullpenLog/Info.plist)" "$EXT"
+          fi
           echo "빌드 번호 $BUILD · 판 $(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' ios/BullpenLog/Info.plist)"
 
       - name: 앱 굽기 — 서명 없이 아카이브

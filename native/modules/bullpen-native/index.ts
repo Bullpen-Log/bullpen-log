@@ -13,4 +13,7 @@ export const BullpenNative = requireNativeModule<{
   keepAwake(on: boolean): Promise<void>;
   scheduleAlarm(id: string, at: number, title: string, body: string): Promise<{ scheduled: boolean; denied?: boolean }>;
   cancelAlarm(id: string): Promise<void>;
+  /** 세트 사이 휴식 시계를 다이나믹 아일랜드 · 잠금 화면에 — 이 앱 판에 없으면 undefined(옛 앱) */
+  startRest?(sinceMs: number, target: number, exercise: string): Promise<void>;
+  endRest?(): Promise<void>;
 }>('BullpenNative');

@@ -293,6 +293,20 @@ function Run({
   /* 권장 쉬는 시간 — 마지막 세트를 한 운동의 처방 휴식. 참고 글로만(2026-10-12 사용자: 링 · 소리 · 알림 없음) */
   const restTarget = lastSet ? (list.find((e) => e.id === lastSet.exerciseId)?.restSeconds ?? null) : null;
 
+  /*
+   * 같은 휴식 시계를 다이나믹 아일랜드 · 잠금 화면에도(Live Activity, 2026-10-20 김민) — 세트를 남기면 그때부터 올라가고,
+   * 10분이 지나 시계를 거두거나 화면을 나가면 거둔다. 시계는 시스템이 세므로 장면마다 다시 보내지 않는다. 옛 앱엔 함수가 없어 그냥 넘어간다.
+   */
+  const restOn = rest != null;
+  useEffect(() => {
+    if (!restOn || !lastAt) {
+      void BullpenNative.endRest?.().catch(() => undefined);
+      return;
+    }
+    void BullpenNative.startRest?.(Date.parse(lastAt), restTarget ?? 0, ex.title).catch(() => undefined);
+  }, [restOn, lastAt, restTarget, ex.title]);
+  useEffect(() => () => void BullpenNative.endRest?.().catch(() => undefined), []);
+
   const setCounts = useMemo(() => {
     const counts = new Map<string, number>();
     for (const x of sets) counts.set(x.exerciseId, (counts.get(x.exerciseId) ?? 0) + 1);

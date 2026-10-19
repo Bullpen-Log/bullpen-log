@@ -10,6 +10,8 @@ import WebKit
 ///   keepAwake(on)                           화면 꺼짐 막기 켜기 / 끄기(앱이 앞으로 돌아오면 되살린다)
 ///   scheduleAlarm(id, at, title, body)      at(밀리초, Date.now 기준)에 로컬 알림. 같은 id 면 바꾼다. 처음엔 허락을 묻는다
 ///   cancelAlarm(id)                         건 알림 지우기(이미 뜬 것도)
+///   startRest(sinceMs, target, exercise)    세트 사이 휴식 시계를 다이나믹 아일랜드 · 잠금 화면에(RestActivity.swift)
+///   endRest()                               휴식 시계 거두기
 ///
 /// keepAwake · 알림은 옛 Capacitor 앱의 BullpenNativePlugin.swift(mobile/)를 그대로 옮겼다 — 웹뷰 화면은 window.Capacitor 흉내 다리
 /// (native/src/lib/cap-bridge.ts, 2026-10-17 검토 D4)로 부른다.
@@ -132,6 +134,15 @@ public class BullpenNativeModule: Module {
         AsyncFunction("keepAwake") { (on: Bool) in
             self.wantAwake = on
             DispatchQueue.main.async { UIApplication.shared.isIdleTimerDisabled = on }
+        }
+
+        /// 휴식 시계(다이나믹 아일랜드) — sinceMs 는 마지막 세트 시각(밀리초), target 은 권장 쉬는 초(없으면 0). RestActivity.swift
+        AsyncFunction("startRest") { (sinceMs: Double, target: Int, exercise: String) in
+            await RestLive.start(since: Date(timeIntervalSince1970: sinceMs / 1000), target: target, exercise: exercise)
+        }
+
+        AsyncFunction("endRest") {
+            await RestLive.end()
         }
 
         AsyncFunction("scheduleAlarm") { (id: String, at: Double, title: String, body: String, promise: Promise) in
