@@ -197,6 +197,15 @@ export function zoneCellOnScreen(
  * 고정"). 모든 사용자 같은 조건 — 일반 사용자는 이 값으로만 재고(거리 고르기는 관리자의 특수 시험용), 공 크기 거리와 15% 넘게
  * 다르면 그 공은 믿음을 낮추고 최고 · 평균에서 뺀다(엔진 INPUT_SIZE_MISMATCH).
  */
+/**
+ * 거리 고르기는 두 가지뿐(2026-10-19 김민 결정): '18~22m'(계산은 그대로 기준 20m + 세션 보정 ±15% = 17~23m 안) 또는 '줄자로 쟀어요'.
+ * 글을 웹 · 새 앱이 같이 쓴다.
+ */
+export const STANDARD_DIST_LABEL = '18~22m';
+export const STANDARD_DIST_HINT = '폰에서 미트까지 18~22m 면 이대로 두고, 아니면 줄자로 재서 넣어요. 세션마다 공 크기로 거리를 맞춰요.';
+/** 18~22m 를 골랐는데 공 크기 거리가 15% 넘게 다를 때(size-mismatch) */
+export const standardDistMismatchNote = (sizeM: number) => `공 크기로 보니 ${sizeM}m — 18~22m 밖 같아요. 줄자로 재서 넣어 주세요. 최고 · 평균에서 뺐어요.`;
+
 export const STANDARD_TARGET_DIST_M = 20;
 
 export const DEFAULT_SETUP: Omit<VelocitySetup, 'savedAt'> = {

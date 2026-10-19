@@ -10,7 +10,14 @@
  * 3개째부터는 이번 세션 값만 쓰니 저장되는 값은 기억과 상관없다.
  */
 
-export const SESSION_DIST_MIN = 3;
+/**
+ * 깨끗한 공 하나부터 세션 거리를 쓴다(2026-10-19 김민: "공 3개가 아니라 1개만에 바로 보정"). 짝 21구로 재니 공마다 제 거리 3.01% · 셋 가운데 값 2.69% ·
+ * 보정 없음 ~12% — 셋을 기다리는 동안 첫 1~2구가 18m 에서 +12% · 22m 에서 −10% 로 나오는 손해가 훨씬 컸다. 공이 MEMORY_UNTIL 보다 적을 땐
+ * 지난 세션 기억을 섞어 첫 공 하나의 흔들림을 줄인다(계획 문서 인계 절 8번).
+ */
+export const SESSION_DIST_MIN = 1;
+/** 이 수 미만이면(공 1~2개) 지난 세션 거리를 섞는다 — 그 뒤는 이번 세션 가운데 값만 */
+export const MEMORY_UNTIL = 3;
 /** 지난 세션 거리와 '같은 자리'로 볼 차이 — 공 하나의 공 크기 거리는 2~3% 흔들린다 */
 export const MEMORY_TOL = 0.06;
 /** 지난 세션 거리를 공 몇 개 몫으로 섞나 */
@@ -33,15 +40,15 @@ export function medianOf(xs: number[]): number {
   return s.length % 2 ? s[h] : (s[h - 1] + s[h]) / 2;
 }
 
-/** 끝이 깨끗한 공들의 공 크기 거리(m) → 세션 거리. 3개부터 이번 세션 중앙값, 그 전엔 공이 모두 6% 안일 때 지난 세션 거리와 섞음 */
+/** 끝이 깨끗한 공들의 공 크기 거리(m) → 세션 거리. 공 1~2개는 모두 6% 안일 때 지난 세션 거리와 섞고, 그 밖엔 이번 세션 중앙값(공 하나부터) */
 export function sessionDistOf(
   ds: number[],
   memory: DistMemory | null
 ): { m: number; from: 'session' | 'memory' } | null {
-  if (ds.length >= SESSION_DIST_MIN) return { m: medianOf(ds), from: 'session' };
+  if (ds.length < SESSION_DIST_MIN) return null;
   if (
+    ds.length < MEMORY_UNTIL &&
     memory &&
-    ds.length &&
     ds.every((d) => Math.abs(d / memory.distM - 1) <= MEMORY_TOL)
   )
     return {
@@ -50,7 +57,7 @@ export function sessionDistOf(
         (MEMORY_WEIGHT + ds.length),
       from: 'memory',
     };
-  return null;
+  return { m: medianOf(ds), from: 'session' };
 }
 
 /* ───────────────────────── 기준 거리(20m)로 잰 세션의 보정 — 엔진 2.4 1단계 ───────────────────────── */
@@ -90,7 +97,7 @@ export function cleanSize(s: SizeSample): number | null {
 }
 
 /**
- * 세션 보정 — 깨끗한 공 셋부터의 가운데 값 m 과 구속 배율 k = (m ÷ 기준)^exponent(엔진 SPEED_DISTANCE_EXPONENT). 옮길 일이 없으면 null.
+ * 세션 보정 — 깨끗한 공 하나부터(SESSION_DIST_MIN) 그때까지의 가운데 값 m 과 구속 배율 k = (m ÷ 기준)^exponent(엔진 SPEED_DISTANCE_EXPONENT). 옮길 일이 없으면 null.
  * median 은 알리기용으로 늘 돌려준다(줄자 세션의 7% 경고도 이것으로).
  */
 export function sessionCorrection(

@@ -143,7 +143,9 @@ import {
   zoneOfPoint,
   type VelocitySetup,
   type ZoneRect,
+  STANDARD_DIST_HINT,
   STANDARD_TARGET_DIST_M,
+  standardDistMismatchNote,
 } from '@/lib/velocity-setup';
 import { useDeviceLevel } from '@/lib/use-device-level';
 import { SESSION_TYPES, isRestSession } from '@/lib/session-type';
@@ -1013,7 +1015,9 @@ export function VelocityScreen({
       );
     else if (mismatch)
       distNotes.push(
-        `공을 미트까지 따라가지 못한 것 같아요(${bySession ? '세션 거리' : '넣은 거리'} ${mismatch.input}m · 공 크기로 본 거리 ${mismatch.size}m). 값이 틀릴 수 있어 최고 · 평균에서 뺐어요.`
+        !distTape && source === 'camera'
+          ? standardDistMismatchNote(mismatch.size)
+          : `공을 미트까지 따라가지 못한 것 같아요(${bySession ? '세션 거리' : '넣은 거리'} ${mismatch.input}m · 공 크기로 본 거리 ${mismatch.size}m). 값이 틀릴 수 있어 최고 · 평균에서 뺐어요.`
       );
     /* 세션 거리로 다시 판정한 공은 그 거리와 견준다 — 세션 거리 알림이 이미 거리를 말했다 */
     else if (
@@ -2957,10 +2961,7 @@ export function VelocityScreen({
                         size="md"
                       />
                       {!distTape && (
-                        <p className="px-0.5 text-footnote leading-snug text-muted">
-                          {STANDARD_TARGET_DIST_M}m로 재고 세션마다 공 크기로 맞춰요. 줄자로 쟀으면 그
-                          값이 가장 정확해요.
-                        </p>
+                        <p className="px-0.5 text-footnote leading-snug text-muted">{STANDARD_DIST_HINT}</p>
                       )}
                       {distTape && (
                         <DistanceField

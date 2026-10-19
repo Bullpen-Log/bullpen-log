@@ -18,6 +18,7 @@ import {
   approachOf,
   RELEASE_DIST_MIN,
   RELEASE_DIST_MAX,
+  STANDARD_DIST_LABEL,
 } from '@/lib/velocity-setup';
 import {
   LENS_CHANGE_EVENT,
@@ -58,7 +59,7 @@ export const DIST_MODES = [
   { value: 'manual', label: '직접 넣기' },
 ] as const;
 export const TAPE_MODES = [
-  { value: 'standard', label: '기준 20m' },
+  { value: 'standard', label: STANDARD_DIST_LABEL },
   { value: 'tape', label: '줄자로 쟀어요' },
 ] as const;
 

@@ -59,7 +59,7 @@ export type SessionPitchCore = {
  * 공을 더하거나 지울 때마다 다시 센다.
  */
 const SESSION_DIST_TOL = 0.08;
-/** 기준 20m 로 잰 공들의 세션 보정(공 크기 가운데 값) — 그 출처의 공이 셋 미만이면 null */
+/** 기준 20m 로 잰 공들의 세션 보정(공 크기 가운데 값) — 그 출처의 깨끗한 공이 하나도 없으면 null(2026-10-19 부터 공 1개부터) */
 export function stdCorrection(list: SessionPitchCore[], source: SessionPitchCore['source']) {
   return sessionCorrection(
     list.filter((p) => p.std && p.source === source).map((p) => p.std!.size),
@@ -115,7 +115,7 @@ export function withSessionDistance<T extends SessionPitchCore>(
   const r1 = (v: number) => Math.round(v * 10) / 10;
   return list.map((p) => {
     /*
-     * 기준 20m 로 잰 공 — 깨끗한 공 셋부터 공 크기 가운데 값이 기준과 3% 넘게(15% 안) 다르면 그 거리로 옮긴다(2.4.0). 안 걸리면
+     * 기준 20m 로 잰 공 — 깨끗한 공 하나부터(10-19) 공 크기 가운데 값이 기준과 3% 넘게(15% 안) 다르면 그 거리로 옮긴다(2.4.0). 안 걸리면
      * 처음 값 그대로(다시 낸다 — 공을 지워 보정이 풀려도 돌아오게)
      */
     if (p.std) {

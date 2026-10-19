@@ -450,12 +450,12 @@ console.log('\n▶ 세션 거리(측정 화면 — 공 크기 거리를 세션�
   ) =>
     m == null ? r == null : r != null && Math.abs(r.m - m) < 1e-9 && r.from === from;
   check(
-    same(sessionDistOf([21.6], null), null),
-    '기억 없이 공 하나 — 제 거리(세션 거리 없음)'
+    same(sessionDistOf([21.6], null), 21.6, 'session'),
+    '기억 없이 공 하나 — 그 공 거리가 곧 세션 거리(공 1개부터, 2026-10-19 김민)'
   );
   check(
-    same(sessionDistOf([21.6, 22.4], null), null),
-    '기억 없이 공 둘 — 아직 세션 거리 없음'
+    same(sessionDistOf([21.6, 22.4], null), 22.0, 'session'),
+    '기억 없이 공 둘 — 둘의 가운데 값'
   );
   check(
     same(sessionDistOf([21.2, 22.4, 23.3], mem), 22.4, 'session'),
@@ -470,8 +470,8 @@ console.log('\n▶ 세션 거리(측정 화면 — 공 크기 거리를 세션�
     '첫 공이 지난 세션 거리와 6% 안 — 첫 공부터 지난 세션 거리를 공 2개 몫으로 섞음'
   );
   check(
-    same(sessionDistOf([21.6, 23.9], mem), null),
-    '둘 중 하나가 6% 밖(23.9) — 폰을 옮겼을 수 있어 기억을 안 씀'
+    same(sessionDistOf([21.6, 23.9], mem), 22.75, 'session'),
+    '둘 중 하나가 6% 밖(23.9) — 폰을 옮겼을 수 있어 기억을 안 쓰고 이번 세션 둘의 가운데 값'
   );
   check(same(sessionDistOf([], mem), null), '깨끗한 공이 아직 없음 — 기억을 안 씀');
 }
@@ -507,10 +507,13 @@ console.log(
       Math.abs(c.k - 1.05 ** SPEED_DISTANCE_EXPONENT) < 1e-9,
     `10-12 밖 19구 — 가운데 값 21.0m · 배율 ${c?.k.toFixed(4)}(기준 20m 의 −3.7% 치우침이 사라짐)`
   );
-  check(
-    sessionCorrection([clean(21.3), clean(21.1)], 20, SPEED_DISTANCE_EXPONENT) == null,
-    '깨끗한 공 둘 — 아직 보정 없음'
-  );
+  {
+    const two = sessionCorrection([clean(21.3), clean(21.1)], 20, SPEED_DISTANCE_EXPONENT);
+    check(two != null && two.apply && Math.abs(two.m - 21.2) < 1e-9 && two.n === 2, '깨끗한 공 둘 — 가운데 값 21.2m 로 바로 보정(공 1개부터)');
+    const one = sessionCorrection([clean(21.3)], 20, SPEED_DISTANCE_EXPONENT);
+    check(one != null && one.apply && Math.abs(one.m - 21.3) < 1e-9 && one.n === 1, '깨끗한 공 하나 — 그 공 거리로 바로 보정');
+    check(sessionCorrection([], 20, SPEED_DISTANCE_EXPONENT) == null, '깨끗한 공 없음 — 보정 없음');
+  }
   const near = sessionCorrection(
     [clean(20.3), clean(20.4), clean(20.1)],
     20,

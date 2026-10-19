@@ -8,6 +8,8 @@ import { EFFORT_CHIPS, effortScaleText } from '@/lib/pitch-effort';
 import { SESSION_TYPES, isRestSession } from '@/lib/session-type';
 import {
   DEFAULT_SETUP,
+  STANDARD_DIST_HINT,
+  STANDARD_DIST_LABEL,
   STANDARD_TARGET_DIST_M,
   TARGET_DIST_MAX,
   TARGET_DIST_MIN,
@@ -623,7 +625,7 @@ export default function VelocityScreen() {
               <Text style={styles.cardLabel}>폰에서 포수 미트까지</Text>
               <Segmented
                 items={[
-                  { value: 'standard', label: `기준 ${STANDARD_TARGET_DIST_M}m` },
+                  { value: 'standard', label: STANDARD_DIST_LABEL },
                   { value: 'tape', label: '줄자로 쟀어요' },
                 ]}
                 value={distTape ? 'tape' : 'standard'}
@@ -642,7 +644,7 @@ export default function VelocityScreen() {
                   </View>
                 </View>
               ) : (
-                <Text style={styles.distHint}>{STANDARD_TARGET_DIST_M}m로 재고 세션마다 공 크기로 맞춰요. 줄자로 쟀으면 그 값이 가장 정확해요.</Text>
+                <Text style={styles.distHint}>{STANDARD_DIST_HINT}</Text>
               )}
             </GuideCard>
           ) : step === 'level' ? (
