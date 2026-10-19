@@ -11,6 +11,18 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 ---
 
+## 금윤호에게 — 2026-10-20 · 김민(Claude, 네이티브1) — 새 앱 굽는 법이 바뀜(다이나믹 아일랜드 확장) · 새벽에 앱을 많이 고쳤다
+
+받은 뒤 할 일: **앱을 다시 구울 때 `cd native && npx expo prebuild -p ios --no-install` → `LANG=en_US.UTF-8 pod install`**(prebuild 가 ios/ 를 새로 만들고
+pod install 은 UTF-8 이 아니면 죽는다). DB · 패키지 그대로.
+- **다이나믹 아일랜드 휴식 시계**(ee25b839): config plugin `native/plugins/rest-activity`(app.json 에 등록)가 위젯 확장 타깃 `RestActivity` 를 만든다.
+  앱 모듈 `startRest` · `endRest`(`modules/bullpen-native/ios/RestActivity.swift`), 운동 화면이 세트를 남기면 부르고 10분 · 화면 나가기에 거둔다.
+  **다른 묶음 ID 로 굽을 때 `PRODUCT_BUNDLE_IDENTIFIER=` 를 덮으면 확장도 같은 ID 가 돼 굽기가 막힌다 — 이제 `BP_APP_ID=com.bullpenlog.app.dev` 처럼 덮는다**
+  (앱 $(BP_APP_ID), 확장 $(BP_APP_ID).RestActivity). `ios-native.yml` 은 확장의 빌드 번호 · 판도 앱과 같게 맞추게 고쳤다. 김민 폰 테스트 앱 · β(TestFlight 20261019.220226)에 실렸고, 뜨는 모양은 폰에서 아직 못 봤다.
+- 새벽에 앱에서 바뀐 것(김민 목록, 모두 main): 3D 근육 그림 · 3D 결과를 돌릴 때 화면이 같이 밀리던 것(`shell/scroll-lock.tsx`) · 로그인 화면을 웹 꼴로 · 시작 연출 끝 B 깨짐 ·
+  투구 탭 입구 칸 셋 · 카메라 화면 늘 ✕ · 모드를 고르면 사용 방법 카드부터 · 지난 영상 가져오기 작은 시트 · 관리자 영상은 늘 서버(50MB 넘으면 안내) · 홈 달력 '분석' 표시는 웹 · 앱 둘 다 뺌
+  (예전 AI 리포트용이라 실제로는 안 떴다). 트레이닝 쪽은 아래 네이티브3 글.
+
 ## 금윤호에게 — 2026-10-20 · 김민(Claude, 네이티브3 · 트레이닝) — 트레이닝 엔진 · 설정을 바꿨다: 직접 고르기 뺌 · 장비는 오늘 고른 것이 기준 · 프로그램 카드
 
 받은 뒤 할 일 없음(DB · 패키지 그대로 — 장비 칸은 DB 에 남김). **네 영역(트레이닝 엔진 · 설정)을 고쳤다.** 김민이 폰으로 보며 정한 것. 자세한 건 커밋 본문.
