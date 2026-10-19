@@ -13,7 +13,8 @@ import type { TodayGroup, TodayMake, TodayPlan, TodayRow, TrainingToday } from '
 import { ExerciseMedia } from '~/armcare/parts';
 import { act } from '~/mechanics/parts';
 import type { Palette } from '~/lib/ui';
-import { Sheet, TRAINING_LEVELS } from '~/workout/sheets';
+import { EffortGuide, Sheet } from '~/workout/sheets';
+import { trainingEffortLevel } from '@/lib/training-effort';
 import { SwipeRow } from '~/shell/swipe-row';
 import { AddSheet, PlanForm } from './forms';
 import { BigButton, Card, Chip, LinkRow, s, useWeightUnit, type TodayActions } from './parts';
@@ -639,10 +640,10 @@ function NoteView({ note, anyDone, today, c, a }: { note: TrainingToday['note'];
       {/* 웹 IntensityGuide — 고른 칸의 기준을 바로 밑에(마치기 시트와 같은 표) */}
       {value != null ? (
         <Text style={[s.small, { color: c.muted }]}>
-          <Text style={{ fontWeight: '700', color: c.ink }}>{TRAINING_LEVELS.find((l) => value <= l.max)?.label}</Text> ·{' '}
-          {TRAINING_LEVELS.find((l) => value <= l.max)?.detail}
+          <Text style={{ fontWeight: '700', color: c.ink }}>{trainingEffortLevel(value)?.label}</Text> · {trainingEffortLevel(value)?.detail}
         </Text>
       ) : null}
+      <EffortGuide c={c} />
       <Text style={[s.smallBold, { color: c.ink }]}>
         느낀점 <Text style={[s.tiny, { color: c.muted, fontWeight: '400' }]}>선택</Text>
       </Text>
