@@ -8,6 +8,9 @@ import { EFFORT_CHIPS, effortScaleText } from '@/lib/pitch-effort';
 import { SESSION_TYPES, isRestSession } from '@/lib/session-type';
 import {
   DEFAULT_SETUP,
+  STANDARD_TARGET_DIST_M,
+  TARGET_DIST_MAX,
+  TARGET_DIST_MIN,
   ZONE_WIDTH_RANGE,
   centerZone,
   fitZone,
@@ -26,7 +29,24 @@ import { decide, saveSession, shownKmh, statsOf, type NativePitch, type SessionC
 import { clearDraft, loadDraft, saveDraft } from '~/velocity/draft';
 import { ClipModal } from '~/velocity/clip-modal';
 import { PITCH_TYPES } from '@/lib/velocity-meta';
-import { CardButton, ChromeButton, ChromePill, GuideCard, InfoPill, LevelBubble, RED, Shutter, ShutterLabel, SideButton, SideGap } from '~/velocity/camera-ui';
+import {
+  CardButton,
+  ChromeButton,
+  ChromePill,
+  GuideCard,
+  InfoPill,
+  LevelBubble,
+  RED,
+  ReleaseTarget,
+  Shutter,
+  ShutterLabel,
+  SideButton,
+  SideGap,
+  ZoneOverlay,
+  ZonePinch,
+} from '~/velocity/camera-ui';
+import { TIPS, TIPS_SKIP_KEY, TipsCard } from '~/velocity/tips';
+import { Icon, type IconName } from '~/shell/icon';
 
 /**
  * 구속 측정(네이티브) — 3판: 설정(지난 설정 · 종류 · 카메라 자리) → 수평 → 스트라이크 존 → 측정(던짐 알림 → 클립 → 숨은 웹뷰 계산기) →
@@ -89,18 +109,27 @@ export default function VelocityScreen() {
   const [sessionDate, setSessionDate] = useState<string | null>(null);
   /* 측정 시작 셔터를 눌렀나 — 웹처럼 카메라 화면에서 빨간 단추로 시작 */
   const [live, setLive] = useState(false);
+  /* 폰에서 미트까지 — 기준 20m 또는 줄자(웹과 같다, 줄자가 이긴다) */
+  const [distTape, setDistTape] = useState(false);
+  const [targetDistM, setTargetDistM] = useState(STANDARD_TARGET_DIST_M);
+  const distRef = useRef(STANDARD_TARGET_DIST_M);
+  useEffect(() => {
+    distRef.current = distTape ? targetDistM : STANDARD_TARGET_DIST_M;
+  }, [distTape, targetDistM]);
+  /* 주의사항 카드 — 몇 번째 장(null = 닫힘). 설정을 마치면 한 번 뜬다(오늘은 보지 않기면 안 뜸) */
+  const [tipsAt, setTipsAt] = useState<number | null>(null);
   const [focusBusy, setFocusBusy] = useState(false);
 
   /* 재기 흐름(AppCapture)은 한 번 만들어 쥐고, 지금 값은 ref 로 읽는다 */
   const pitchesRef = useRef<NativePitch[]>([]);
-  const ctxRef = useRef<SessionCtx>({ cameraPos, zone, info: null });
+  const ctxRef = useRef<SessionCtx>({ cameraPos, zone, info: null, tape: false, distM: STANDARD_TARGET_DIST_M });
   const tiltRef = useRef<number | null>(null);
   const todayRef = useRef<string | null>(null);
   const attempts = useRef(new Map<number, Promise<string | null>>());
   const captureRef = useRef<AppCapture | null>(null);
   useEffect(() => {
-    ctxRef.current = { cameraPos, zone, info };
-  }, [zone, info]);
+    ctxRef.current = { cameraPos, zone, info, tape: distTape, distM: distTape ? targetDistM : STANDARD_TARGET_DIST_M };
+  }, [zone, info, distTape, targetDistM]);
   const fit = start?.fit ?? NO_CALIBRATION;
   /* 공 목록을 바꾸는 곳은 모두 여기로 — ref(재기 흐름이 읽음) · 화면 · 폰에 맡긴 세션을 같이 */
   const draftReady = useRef(false);
@@ -171,7 +200,7 @@ export default function VelocityScreen() {
     let alive = true;
     const capture = new AppCapture(
       () => engine.current,
-      () => ({ ...SETTINGS, tiltRad: tiltRef.current }),
+      () => ({ ...SETTINGS, distanceM: distRef.current, tiltRad: tiltRef.current }),
       {
         onResult: (result, meta) => {
           const out = decide(result, pitchesRef.current, ctxRef.current, meta);
@@ -242,11 +271,23 @@ export default function VelocityScreen() {
     void DualCamera.setTrigger({ armed });
   }, [step, live, sheet, info]);
 
-  const begin = (s: Pick<VelocitySetup, 'sessionType' | 'zone'>) => {
+  const begin = (s: Pick<VelocitySetup, 'sessionType' | 'zone' | 'distTape' | 'targetDistM'>) => {
     setSessionType(s.sessionType);
     setZone(s.zone);
+    setDistTape(s.distTape);
+    setTargetDistM(s.targetDistM);
     setStep('measure');
-    void saveJson(SETUP_KEY, { ...DEFAULT_SETUP, sessionType: s.sessionType, cameraPos, zone: s.zone, savedAt: new Date().toISOString() });
+    void saveJson(SETUP_KEY, {
+      ...DEFAULT_SETUP,
+      sessionType: s.sessionType,
+      cameraPos,
+      zone: s.zone,
+      distTape: s.distTape,
+      targetDistM: s.targetDistM,
+      savedAt: new Date().toISOString(),
+    });
+    /* 설정을 마치면 주의사항 — 오늘 '보지 않기'를 눌렀으면 건너뛴다(웹 isTipsSkippedToday) */
+    void loadJson(TIPS_SKIP_KEY).then((d) => d !== start?.today && setTipsAt(0));
   };
 
   /* 위 왼쪽 단추 — 설정 단계면 앞 단계로, 측정이면 닫기 */
@@ -317,10 +358,14 @@ export default function VelocityScreen() {
   const stats = statsOf(pitches, fit);
   const frame = info ? { width: info.mainWidth, height: info.mainHeight } : { width: 1080, height: 1920 };
   const zoneView = view.width ? frameRectToView(zone, frame, view) : null;
-  const resizeZone = (dir: 1 | -1) => {
+  /* 존 크기 — 손동작을 시작할 때의 크기에 배율을 곱한다(자리는 릴리스 표적 바로 밑에 붙박음, 웹 centerLocked) */
+  const growBase = useRef(zone);
+  const growZone = (factor: number, startNow: boolean) => {
+    if (startNow) growBase.current = zone;
+    const base = growBase.current;
     const [lo, hi] = ZONE_WIDTH_RANGE[cameraPos];
-    const w = Math.max(lo, Math.min(hi, zone.w * (dir > 0 ? 1.15 : 1 / 1.15)));
-    setZone(fitZone(centerZone({ ...zone, w, h: zone.h * (w / zone.w) }), cameraPos, frame));
+    const w = Math.max(lo, Math.min(hi, base.w * factor));
+    setZone(fitZone(centerZone({ ...base, w, h: base.h * (w / base.w) }), cameraPos, frame));
   };
 
   const setupNo: Partial<Record<Step, [number, string]>> = { type: [1, '투구 종류'], camera: [2, '카메라 자리'], level: [3, '수평'], zone: [4, '스트라이크 존'] };
@@ -334,11 +379,7 @@ export default function VelocityScreen() {
       .catch(() => undefined)
       .finally(() => setTimeout(() => setFocusBusy(false), 600));
   };
-  const showTips = () =>
-    Alert.alert(
-      '주의사항',
-      ['삼각대에 세워 흔들리지 않게 두세요.', '투수 뒤 약 1m, 미트까지 화면에 들어오게요.', '해를 마주 보지 않게, 밝은 곳에서 재요.', '2배 줌 그대로 두세요(앱이 맞춰요).', '미트 뒤 그물이 흔들리면 잘 못 재요.'].join('\n')
-    );
+  const showTips = () => setTipsAt(0);
   const statusDot = status.visible > 0 ? (status.status === 'analyzing' ? '#fbbf24' : RED) : '#34d399';
   const statusText =
     status.visible > 0 ? (status.status === 'analyzing' ? '구속 계산 중' : '투구를 인식했어요') : pitches.length ? `측정 중 · ${pitches.length}구` : '던지면 저절로 재요';
@@ -348,25 +389,18 @@ export default function VelocityScreen() {
       <View style={styles.finder} onLayout={(e) => setView(e.nativeEvent.layout)}>
         <DualCameraPreview style={StyleSheet.absoluteFill} />
         <VelocityEngine ref={engine} />
+        {/* 존 놓기 — 뷰파인더 어디서든 두 손가락으로 벌려 크기 */}
+        {step === 'zone' ? <ZonePinch onGrow={growZone}>{null}</ZonePinch> : null}
+        {/* 릴리스 표적 — 존 놓기 밖의 카메라 단계(웹과 같다) */}
+        {step !== 'zone' && step !== 'loading' && !blocked ? (
+          <ReleaseTarget state={measuring && !sheet ? (status.visible > 0 ? 'capturing' : 'armed') : 'idle'} />
+        ) : null}
         {(step === 'zone' || step === 'measure') && zoneView ? (
-          <View
-            pointerEvents="none"
-            style={[
-              styles.zone,
-              {
-                left: zoneView.x * view.width,
-                top: zoneView.y * view.height,
-                width: zoneView.w * view.width,
-                height: zoneView.h * view.height,
-              },
-            ]}
-          >
-            {/* 존 9칸 격자 — 웹 ZoneOverlay 처럼 */}
-            <View style={[styles.zoneLine, { left: '33.3%', top: 0, bottom: 0, width: 1 }]} />
-            <View style={[styles.zoneLine, { left: '66.6%', top: 0, bottom: 0, width: 1 }]} />
-            <View style={[styles.zoneLine, { top: '33.3%', left: 0, right: 0, height: 1 }]} />
-            <View style={[styles.zoneLine, { top: '66.6%', left: 0, right: 0, height: 1 }]} />
-          </View>
+          <ZoneOverlay
+            editable={step === 'zone'}
+            onGrow={growZone}
+            rect={{ left: zoneView.x * view.width, top: zoneView.y * view.height, width: zoneView.w * view.width, height: zoneView.h * view.height }}
+          />
         ) : null}
 
         {/* 위 줄 — 뒤로 · 가운데 알약 · 재초점(웹 카메라 앱 꼴) */}
@@ -412,6 +446,16 @@ export default function VelocityScreen() {
                 </>
               }
             />
+          ) : tipsAt != null ? (
+            <TipsCard
+              index={tipsAt}
+              onIndex={setTipsAt}
+              action={tipsAt < TIPS.length - 1 ? { label: '다음', onPress: () => setTipsAt(tipsAt + 1) } : { label: '확인', onPress: () => setTipsAt(null) }}
+              onSkipToday={() => {
+                if (start) void saveJson(TIPS_SKIP_KEY, start.today);
+                setTipsAt(null);
+              }}
+            />
           ) : step === 'loading' ? null : step === 'ask' && stored ? (
             <GuideCard
               title="지난 설정으로 바로 시작할까요?"
@@ -431,36 +475,54 @@ export default function VelocityScreen() {
             <GuideCard
               step={2}
               total={4}
-              title="투수 뒤에 폰을 두세요"
-              subtitle="삼각대에 세워 투수 뒤 약 1m 에 두고, 미트까지 화면에 들어오게 해요. 2배 줌 · 기준 거리 20m 로 재요."
+              title="폰은 투수 바로 뒤 1m 안에 둬요"
+              subtitle="던지는 방향을 정면으로 보게 둬요. 멀거나 옆이면 공을 놓쳐요."
               footer={<CardButton label="다음" onPress={() => setStep('level')} />}
-            />
+            >
+              {/* 폰에서 미트까지 — 기준 20m(세션마다 공 크기로 맞춤) 또는 줄자(웹 TAPE_MODES · DistanceField) */}
+              <Text style={styles.cardLabel}>폰에서 포수 미트까지</Text>
+              <Segmented
+                items={[
+                  { value: 'standard', label: `기준 ${STANDARD_TARGET_DIST_M}m` },
+                  { value: 'tape', label: '줄자로 쟀어요' },
+                ]}
+                value={distTape ? 'tape' : 'standard'}
+                onChange={(v) => {
+                  setDistTape(v === 'tape');
+                  if (v !== 'tape') setTargetDistM(STANDARD_TARGET_DIST_M);
+                }}
+              />
+              {distTape ? (
+                <View style={styles.distRow}>
+                  <Text style={styles.distHint}>줄자로 잰 거리 · 5% 틀리면 구속도 5% 틀려요.</Text>
+                  <View style={styles.stepper}>
+                    <StepBtn icon="minus" label="0.5m 줄이기" onPress={() => setTargetDistM((d) => Math.max(TARGET_DIST_MIN, Math.round((d - 0.5) * 2) / 2))} />
+                    <Text style={styles.distValue}>{targetDistM.toFixed(1)}m</Text>
+                    <StepBtn icon="plus" label="0.5m 늘리기" onPress={() => setTargetDistM((d) => Math.min(TARGET_DIST_MAX, Math.round((d + 0.5) * 2) / 2))} />
+                  </View>
+                </View>
+              ) : (
+                <Text style={styles.distHint}>{STANDARD_TARGET_DIST_M}m로 재고 세션마다 공 크기로 맞춰요. 줄자로 쟀으면 그 값이 가장 정확해요.</Text>
+              )}
+            </GuideCard>
           ) : step === 'level' ? (
             <GuideCard
               step={3}
               total={4}
-              ok={!!level}
-              title={level ? '수평이에요' : '폰을 수평으로 맞춰 주세요'}
-              subtitle={
-                tilt
-                  ? `좌우 ${tilt.roll.toFixed(1)}° · 앞뒤 ${tilt.pitch.toFixed(0)}°${level ? '' : '. 좌우 1.5° · 앞뒤 10° 안으로 맞춰요.'}`
-                  : '기울기를 읽는 중이에요.'
-              }
+              title="수평 · 표적 맞추기"
+              subtitle="릴리스 포인트가 가운데 표적에 오게 폰 높이와 방향을 맞춰요."
               footer={<CardButton label="다음" onPress={() => setStep('zone')} />}
-            />
+            >
+              {tilt && !level ? <Text style={styles.warnBox}>아직 기울어 있어요. 그대로 가도 되지만 코스와 궤적이 비뚤게 보여요.</Text> : null}
+            </GuideCard>
           ) : step === 'zone' ? (
             <GuideCard
               step={4}
               total={4}
-              title="스트라이크 존 크기를 맞춰 주세요"
-              subtitle="미트 자리의 존에 맞게 키우거나 줄여요."
-              footer={<CardButton label="완료" onPress={() => begin({ sessionType, zone })} />}
-            >
-              <View style={styles.row}>
-                <CardButton label="작게" tone="quiet" grow onPress={() => resizeZone(-1)} />
-                <CardButton label="크게" tone="quiet" grow onPress={() => resizeZone(1)} />
-              </View>
-            </GuideCard>
+              title="스트라이크 존"
+              subtitle="자리는 릴리스 표적 바로 밑에 고정돼요. 두 손가락으로 벌리거나 모서리 손잡이로 크기만 맞춰요."
+              footer={<CardButton label="완료" onPress={() => begin({ sessionType, zone, distTape, targetDistM })} />}
+            />
           ) : last || notice || (error && step === 'measure') ? (
             /* 방금 공 — 누르면 영상 다시 보기 */
             <Pressable
@@ -692,6 +754,17 @@ const styles = StyleSheet.create({
   bar: { backgroundColor: '#000', paddingTop: 10, flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-around', paddingHorizontal: 12 },
   mid: { alignItems: 'center' },
   row: { flexDirection: 'row', gap: 8 },
+  cardLabel: { fontSize: 13, fontWeight: '600', color: '#6e6e73', marginBottom: 8 },
+  distRow: { marginTop: 10, gap: 8 },
+  distHint: { marginTop: 8, fontSize: 13, lineHeight: 18, color: '#6e6e73' },
+  stepper: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 16 },
+  distValue: { minWidth: 90, textAlign: 'center', fontSize: 28, fontFamily: 'ui-rounded', fontWeight: '700', color: '#1d1d1f', fontVariant: ['tabular-nums'] },
+  stepBtn: { width: 48, height: 48, borderRadius: 24, backgroundColor: 'rgba(29,29,31,0.06)', alignItems: 'center', justifyContent: 'center' },
+  seg: { flexDirection: 'row', padding: 3, borderRadius: 14, backgroundColor: '#e5e5ea' },
+  segItem: { flex: 1, minHeight: 40, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
+  segOn: { backgroundColor: '#fff', boxShadow: '0 1px 3px rgba(0,0,0,0.15)' },
+  segText: { fontSize: 15, fontWeight: '500', color: '#1d1d1f' },
+  warnBox: { borderRadius: 16, backgroundColor: '#fffbeb', color: '#b45309', paddingHorizontal: 16, paddingVertical: 10, fontSize: 14, lineHeight: 20, overflow: 'hidden' },
   button: { minHeight: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 16 },
   primary: { backgroundColor: '#0a84d6' },
   ghost: { backgroundColor: 'rgba(255,255,255,0.14)' },
@@ -713,3 +786,27 @@ const styles = StyleSheet.create({
   chev: { fontSize: 15, color: '#8e8e93' },
   label: { fontSize: 13, fontWeight: '600', color: '#6e6e73', marginTop: 8 },
 });
+
+/** 두 칸 고르개 — 웹 Segmented(회색 바탕 위 흰 칸) */
+function Segmented({ items, value, onChange }: { items: { value: string; label: string }[]; value: string; onChange: (v: string) => void }) {
+  return (
+    <View style={styles.seg}>
+      {items.map((it) => {
+        const on = it.value === value;
+        return (
+          <Pressable key={it.value} accessibilityRole="radio" accessibilityState={{ selected: on }} onPress={() => onChange(it.value)} style={[styles.segItem, on && styles.segOn]}>
+            <Text style={[styles.segText, on && { fontWeight: '700' }]}>{it.label}</Text>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
+
+function StepBtn({ icon, label, onPress }: { icon: IconName; label: string; onPress: () => void }) {
+  return (
+    <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onPress} style={({ pressed }) => [styles.stepBtn, pressed && { opacity: 0.6 }]}>
+      <Icon name={icon} size={20} color="#1d1d1f" />
+    </Pressable>
+  );
+}

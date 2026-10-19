@@ -21,8 +21,8 @@ export function BullpenMark({ height }: { height: number }) {
 export function Wordmark({ size = 24, color }: { size?: number; color: string }) {
   return (
     <View accessible accessibilityRole="header" accessibilityLabel="BULLPEN LOG" style={{ flexDirection: 'row', alignItems: 'flex-end' }}>
-      {/* DIN Condensed 의 글자 상자 밑은 기준선보다 0.2em 쯤 아래 — 그만큼 띄워 로고 바닥을 기준선에 */}
-      <View style={{ marginRight: size * 0.07, marginBottom: size * 0.2 }}>
+      {/* DIN Condensed 의 글자 상자 밑은 기준선보다 0.3em 쯤 아래(시작 연출 화면에서 잼) — 그만큼 띄워 로고 바닥을 기준선에 */}
+      <View style={{ marginRight: size * 0.07, marginBottom: size * 0.3 }}>
         <BullpenMark height={size * 0.7} />
       </View>
       <Text style={{ fontFamily: 'DINCondensed-Bold', fontSize: size, color, letterSpacing: size * 0.02, lineHeight: size }}>ULLPEN LOG</Text>

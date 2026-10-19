@@ -11,6 +11,7 @@ import Animated, {
   withTiming,
   type SharedValue,
 } from 'react-native-reanimated';
+import { prefsReady } from '~/lib/prefs';
 import { usePalette } from '~/lib/ui';
 import { BullpenMark } from '~/shell/wordmark';
 
@@ -71,8 +72,13 @@ export function Intro() {
   const [settled, setSettled] = useState(false);
 
   /* B 칸 자리를 잰 뒤에 시작 화면을 걷고 시계를 돌린다 — 잰 전에는 큰 B 가 시작 화면과 같은 자리에 있다 */
+  /* 앱 테마를 읽기 전엔 기본값(라이트)이라 — 읽은 뒤에 시작 화면을 걷는다(다크에서 흰 판이 번쩍이던 것) */
+  const [themed, setThemed] = useState(false);
   useEffect(() => {
-    if (!slot) return;
+    void prefsReady.then(() => setThemed(true));
+  }, []);
+  useEffect(() => {
+    if (!slot || !themed) return;
     void SplashScreen.hideAsync();
     const done = () => setSettled(true);
     if (reduced) {
@@ -80,7 +86,7 @@ export function Intro() {
       return () => clearTimeout(id);
     }
     t.set(withTiming(SETTLE_MS, { duration: SETTLE_MS, easing: Easing.linear, reduceMotion: ReduceMotion.Never }, (fin) => fin && runOnJS(done)()));
-  }, [slot, reduced, t]);
+  }, [slot, themed, reduced, t]);
 
   /* 다 섰고 사이트도 그려졌으면 걷는다. 사이트가 끝내 안 오면 선 뒤 7초에 걷는다(시작 화면이 하던 10초 상한과 비슷하게) */
   useEffect(() => {
@@ -122,7 +128,7 @@ export function Intro() {
               /* 화면 좌표로 잰다 — 덮개가 화면 전체라 같은 좌표다 */
               slotRef.current?.measureInWindow((x, y, w, h) => setSlot({ x, y, width: w, height: h }))
             }
-            style={{ width: slotH * ASPECT, height: slotH, marginRight: size * 0.07, marginBottom: size * 0.2 }}
+            style={{ width: slotH * ASPECT, height: slotH, marginRight: size * 0.07, marginBottom: size * 0.3 }}
           />
           {LETTERS.map((ch, i) => (
             <Letter key={i} ch={ch} i={i} t={t} size={size} color={c.ink} />

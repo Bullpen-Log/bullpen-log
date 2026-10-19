@@ -1,5 +1,6 @@
 import { useEffect, type ReactNode } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { Icon, type IconName } from '~/shell/icon';
 
@@ -265,6 +266,92 @@ const st = StyleSheet.create({
   levelTick: { position: 'absolute', top: 9.5, width: 4, height: 1 },
   levelLine: { position: 'absolute', left: 6, right: 6, top: 9, height: 2, borderRadius: 1 },
   levelText: { color: '#fff', fontSize: 12, fontWeight: '600', minWidth: 30, fontVariant: ['tabular-nums'] },
+  target: { width: 112, height: 112, borderRadius: 56, borderWidth: 2 },
+  tick: { position: 'absolute', opacity: 0.8 },
+  targetLabel: { position: 'absolute', top: '50%', marginTop: 72, color: 'rgba(255,255,255,0.85)', fontSize: 12, fontWeight: '600', textShadowColor: 'rgba(0,0,0,0.6)', textShadowRadius: 3 },
+  zone: { position: 'absolute', borderWidth: 2, borderColor: 'rgba(255,255,255,0.9)', borderRadius: 4, boxShadow: '0 0 0 1px rgba(0,0,0,0.35), inset 0 0 0 1px rgba(0,0,0,0.25)' },
+  zoneLine: { position: 'absolute', backgroundColor: 'rgba(255,255,255,0.45)' },
+  zoneLabel: { position: 'absolute', bottom: '100%', marginBottom: 6, left: '50%', marginLeft: -60, width: 120, textAlign: 'center', color: '#fff', fontSize: 12, fontWeight: '700', textShadowColor: 'rgba(0,0,0,0.7)', textShadowRadius: 3 },
+  knobHit: { position: 'absolute', right: -30, bottom: -30, width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  knob: { width: 24, height: 24, borderRadius: 12, backgroundColor: '#fff', borderWidth: 2, borderColor: '#0a84d6', boxShadow: '0 2px 6px rgba(0,0,0,0.45)' },
   info: { maxWidth: 260, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 14, backgroundColor: 'rgba(0,0,0,0.55)' },
   infoText: { color: '#fff', fontSize: 12, fontWeight: '600' },
 });
+
+/**
+ * 릴리스 표적 — 웹 velocity-screen '표적 — 릴리스 포인트': 가운데 112 원 · 십자 눈금 · 점, 밑에 '릴리스 포인트'.
+ * 측정 중 기다릴 때는 하늘색 테두리 + 둘레를 살짝 어둡게, 공을 담는 중엔 주황.
+ */
+export function ReleaseTarget({ state }: { state: 'idle' | 'armed' | 'capturing' }) {
+  const color = state === 'armed' ? '#7dd3fc' : state === 'capturing' ? '#fde68a' : 'rgba(255,255,255,0.7)';
+  return (
+    <View pointerEvents="none" style={[StyleSheet.absoluteFill, { alignItems: 'center', justifyContent: 'center' }]}>
+      <View style={[st.target, { borderColor: color }, state === 'armed' && { boxShadow: '0 0 0 9999px rgba(0,0,0,0.15)' }]}>
+        <View style={[st.tick, { top: 0, left: 55, width: 1, height: 12, backgroundColor: color }]} />
+        <View style={[st.tick, { bottom: 0, left: 55, width: 1, height: 12, backgroundColor: color }]} />
+        <View style={[st.tick, { left: 0, top: 55, width: 12, height: 1, backgroundColor: color }]} />
+        <View style={[st.tick, { right: 0, top: 55, width: 12, height: 1, backgroundColor: color }]} />
+        <View style={[st.tick, { left: 53, top: 53, width: 6, height: 6, borderRadius: 3, backgroundColor: color }]} />
+      </View>
+      <Text style={st.targetLabel}>릴리스 포인트</Text>
+    </View>
+  );
+}
+
+/**
+ * 스트라이크 존 — 웹 ZoneOverlay(centerLocked): 자리는 릴리스 표적 바로 밑에 붙박고, 두 손가락으로 벌리거나 오른쪽 아래 손잡이를 끌어 크기만.
+ * 크기는 부르는 쪽이 장면 좌표로 정한다(onGrow 배율 — 손동작 시작 때 크기에 곱함).
+ */
+export function ZoneOverlay({
+  rect,
+  editable,
+  onGrow,
+}: {
+  rect: { left: number; top: number; width: number; height: number };
+  editable: boolean;
+  onGrow: (factor: number, start: boolean) => void;
+}) {
+  const handle = Gesture.Pan()
+    .runOnJS(true)
+    .onStart(() => onGrow(1, true))
+    .onUpdate((e) => {
+      /* 가운데를 두고 양쪽으로 — 끈 만큼의 두 배가 가로 변화(세로로 끌어도 같은 비율로) */
+      const d = Math.max(e.translationX, (e.translationY * rect.width) / Math.max(1, rect.height));
+      onGrow(Math.max(0.05, 1 + (2 * d) / Math.max(1, rect.width)), false);
+    });
+  return (
+    <View pointerEvents="box-none" style={[st.zone, rect]}>
+      <View style={[st.zoneLine, { left: '33.3%', top: 0, bottom: 0, width: 1 }]} />
+      <View style={[st.zoneLine, { left: '66.6%', top: 0, bottom: 0, width: 1 }]} />
+      <View style={[st.zoneLine, { top: '33.3%', left: 0, right: 0, height: 1 }]} />
+      <View style={[st.zoneLine, { top: '66.6%', left: 0, right: 0, height: 1 }]} />
+      {editable ? (
+        <>
+          <Text style={st.zoneLabel} numberOfLines={1}>
+            스트라이크 존
+          </Text>
+          <GestureDetector gesture={handle}>
+            <View accessible accessibilityLabel="존 크기 손잡이" hitSlop={10} style={st.knobHit}>
+              <View style={st.knob} />
+            </View>
+          </GestureDetector>
+        </>
+      ) : null}
+    </View>
+  );
+}
+
+/** 뷰파인더 어디서든 두 손가락으로 벌려 존 크기 */
+export function ZonePinch({ onGrow, children }: { onGrow: (factor: number, start: boolean) => void; children: ReactNode }) {
+  const pinch = Gesture.Pinch()
+    .runOnJS(true)
+    .onStart(() => onGrow(1, true))
+    .onUpdate((e) => onGrow(e.scale, false));
+  return (
+    <GestureDetector gesture={pinch}>
+      <View collapsable={false} style={StyleSheet.absoluteFill}>
+        {children}
+      </View>
+    </GestureDetector>
+  );
+}

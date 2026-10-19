@@ -23,7 +23,7 @@ import type { EngineResult } from './engine';
 
 /**
  * 앱 구속 측정 세션 — 잰 공을 받을지 · 세션 거리 보정 · 저장. 규칙은 웹 측정 화면과 같은 lib/velocity-session.ts(웹 velocity-screen.tsx
- * addResult · save 를 옮김). 앱이 웹과 다른 것: 늘 앱 카메라 · 기준 20m(줄자 · 공마다 공 크기 거리 없음) · 관리자 '정확도 보정용 저장' 없음.
+ * addResult · save 를 옮김). 앱이 웹과 다른 것: 늘 앱 카메라 · 기준 20m 또는 줄자(공마다 공 크기 거리 없음) · 관리자 '정확도 보정용 저장' 없음.
  */
 
 type Result = AnalyzeResult & { distance?: DistanceReport };
@@ -46,6 +46,10 @@ export type SessionCtx = {
   cameraPos: CameraPos;
   zone: ZoneRect;
   info: StartInfo | null;
+  /** 줄자로 잰 거리인가 — 그러면 세션 거리 보정을 안 한다(줄자가 이긴다, 웹과 같다) */
+  tape: boolean;
+  /** 폰에서 미트까지(m) — 기준 20m 또는 줄자 값 */
+  distM: number;
 };
 
 /** 앱 카메라가 기준 조건에서 벗어난 까닭 — lib/velocity-engine/dual-capture.ts dualOffStandard 와 같다(그 파일은 웹 카메라 길이 섞여 앱이 못 부른다) */
@@ -75,7 +79,7 @@ export function decide(
   ctx: SessionCtx,
   meta: { id: number; clip: Clip }
 ): { verdict: Verdict; list?: NativePitch[]; notice?: string } {
-  const result = judgeBySession(raw as unknown as Result, list, 'camera', false);
+  const result = judgeBySession(raw as unknown as Result, list, 'camera', ctx.tape);
   const m = result.measure;
   if (!m.ok) {
     if (m.code === 'CAMERA_SHAKE')
@@ -118,7 +122,7 @@ export function decide(
       ...(steadied(result) ? ['폰이 흔들려 바로잡아 잰 값이에요.'] : []),
     ],
   };
-  return { verdict: { kept: true }, list: withSessionDistance([...list, pitch], null, false) };
+  return { verdict: { kept: true }, list: withSessionDistance([...list, pitch], null, ctx.tape) };
 }
 
 /** 보여 줄 구속 — 그 사람의 스피드건 짝 보정식(웹과 같이 늘 켬) */
@@ -180,8 +184,8 @@ export async function saveSession(input: {
       ...sessionDistanceOf(pitches, {
         cameraPos: ctx.cameraPos,
         distAuto: false,
-        distTape: false,
-        targetDistM: STANDARD_TARGET_DIST_M,
+        distTape: ctx.tape,
+        targetDistM: ctx.tape ? ctx.distM : STANDARD_TARGET_DIST_M,
       }),
       frameW: info?.mainWidth ?? null,
       frameH: info?.mainHeight ?? null,

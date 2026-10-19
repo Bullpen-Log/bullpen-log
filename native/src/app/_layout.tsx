@@ -6,7 +6,8 @@ import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 import { Appearance } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { usePrefs } from '~/lib/prefs';
+import { prefsReady, usePrefs } from '~/lib/prefs';
+import { BullpenNative } from '../../modules/bullpen-native';
 import { useTheme } from '~/lib/ui';
 
 /** 사이트 첫 화면이 그려질 때까지 시작 화면을 둔다(index.tsx 가 걷는다) — 흰 화면이 번쩍이지 않게 */
@@ -53,6 +54,9 @@ export default function RootLayout() {
   const pick = usePrefs().theme;
   useEffect(() => {
     Appearance.setColorScheme(pick === 'system' ? 'unspecified' : pick === 'light' ? 'light' : 'dark');
+    /* 다음 시작 화면도 이 테마로(처음 읽기 전의 기본값은 기억하지 않는다) */
+    /* 옛 앱(부품에 이 기능이 없음)은 건너뛴다 */
+    void prefsReady.then(() => BullpenNative.setLaunchStyle?.(pick));
   }, [pick]);
   return (
     /* 밀어서 하기(shell/swipe-row.tsx) 같은 손가락 동작 부품은 이 뿌리 안에서만 돈다 */
