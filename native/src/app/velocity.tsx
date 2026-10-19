@@ -659,7 +659,7 @@ export default function VelocityScreen() {
                 closeTips();
               }}
             />
-          ) : step === 'loading' || step === 'mode' ? null : step === 'ask' && stored ? (
+          ) : step === 'loading' || step === 'mode' || step === 'guide' ? null : step === 'ask' && stored ? (
             <GuideCard
               title="지난 설정으로 바로 시작할까요?"
               subtitle={`${stored.sessionType} · 투수 뒤 · 2배 줌. 같은 자리에서 같은 방식으로 재면 카메라로 바로 가요.`}
