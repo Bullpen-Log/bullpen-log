@@ -15,7 +15,7 @@ import {
   type DistMemory,
   type SizeSample,
 } from '@/lib/velocity-session-distance';
-import { STANDARD_TARGET_DIST_M } from '@/lib/velocity-setup';
+import { OUT_OF_RANGE_FIX, STANDARD_TARGET_DIST_M, TAPE_MISMATCH_FIX } from '@/lib/velocity-setup';
 import type { AnalysisJson } from '@/lib/velocity-analysis';
 
 type Result = AnalyzeResult & { distance?: DistanceReport };
@@ -59,7 +59,7 @@ export type SessionPitchCore = {
  * 공을 더하거나 지울 때마다 다시 센다.
  */
 const SESSION_DIST_TOL = 0.08;
-/** 기준 20m 로 잰 공들의 세션 보정(공 크기 가운데 값) — 그 출처의 공이 셋 미만이면 null */
+/** 기준 20m 로 잰 공들의 세션 보정(공 크기 가운데 값) — 그 출처의 깨끗한 공이 하나도 없으면 null(2026-10-19 부터 1개부터) */
 export function stdCorrection(list: SessionPitchCore[], source: SessionPitchCore['source']) {
   return sessionCorrection(
     list.filter((p) => p.std && p.source === source).map((p) => p.std!.size),
@@ -115,7 +115,7 @@ export function withSessionDistance<T extends SessionPitchCore>(
   const r1 = (v: number) => Math.round(v * 10) / 10;
   return list.map((p) => {
     /*
-     * 기준 20m 로 잰 공 — 깨끗한 공 셋부터 공 크기 가운데 값이 기준과 3% 넘게(15% 안) 다르면 그 거리로 옮긴다(2.4.0). 안 걸리면
+     * 기준 20m 로 잰 공 — 깨끗한 공 하나부터(2.7.2) 공 크기 가운데 값이 기준과 3% 넘게(15% 안) 다르면 그 거리로 옮긴다(2.4.0). 안 걸리면
      * 처음 값 그대로(다시 낸다 — 공을 지워 보정이 풀려도 돌아오게)
      */
     if (p.std) {
@@ -167,11 +167,15 @@ export function steadied(r: Result): boolean {
 export function lowConfidenceFix(
   r: Result,
   source: 'camera' | 'file',
-  approaching: boolean
+  approaching: boolean,
+  /** 줄자로 잰 세션인가 — 거리가 많이 다를 때 할 말이 다르다 */
+  tape = false
 ): string {
   const d = r.distance;
   if (approaching)
     return '포수 뒤에서는 정확하게 잴 수 없어요. 투수 뒤에 폰을 두고 재 주세요.';
+  /* 공 크기 거리가 넣은 거리와 15% 넘게 다르다(엔진 size-mismatch) — '18~22m' 를 골랐으면 그 밖이니 줄자로(2026-10-19 김민 결정) */
+  if (d?.why === 'size-mismatch') return tape ? TAPE_MISMATCH_FIX : OUT_OF_RANGE_FIX;
   if (d?.shaky) return '폰이 흔들렸어요. 삼각대에 단단히 고정하고 다시 던져 주세요.';
   /* 흰 과녁 천 · 밝은 벽 앞에서는 공이 끝에서 배경에 묻혀 엔진이 끝을 짐작으로 잇는다(10-09 실내 14구 중 12구) — 흰 배경 앞은 재지 않는다 */
   if ((d?.extended ?? 0) > 0)

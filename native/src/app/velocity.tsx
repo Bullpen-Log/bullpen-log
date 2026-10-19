@@ -16,6 +16,8 @@ import {
   fitZone,
   frameRectToView,
   parseSetup,
+  STANDARD_DIST_HINT,
+  TAPE_MODES,
   type CameraPos,
   type VelocitySetup,
   type ZoneRect,
@@ -610,13 +612,10 @@ export default function VelocityScreen() {
               subtitle="던지는 방향을 정면으로 보게 둬요. 멀거나 옆이면 공을 놓쳐요."
               footer={<CardButton label="다음" onPress={() => setStep('level')} />}
             >
-              {/* 폰에서 미트까지 — 기준 20m(세션마다 공 크기로 맞춤) 또는 줄자(웹 TAPE_MODES · DistanceField) */}
+              {/* 폰에서 미트까지 — '18~22m'(기준 20m 로 재고 세션마다 공 크기로 맞춤) 또는 줄자(웹과 같은 글, lib/velocity-setup.ts TAPE_MODES) */}
               <Text style={styles.cardLabel}>폰에서 포수 미트까지</Text>
               <Segmented
-                items={[
-                  { value: 'standard', label: `기준 ${STANDARD_TARGET_DIST_M}m` },
-                  { value: 'tape', label: '줄자로 쟀어요' },
-                ]}
+                items={TAPE_MODES.map((m) => ({ value: m.value, label: m.label }))}
                 value={distTape ? 'tape' : 'standard'}
                 onChange={(v) => {
                   setDistTape(v === 'tape');
@@ -633,7 +632,7 @@ export default function VelocityScreen() {
                   </View>
                 </View>
               ) : (
-                <Text style={styles.distHint}>{STANDARD_TARGET_DIST_M}m로 재고 세션마다 공 크기로 맞춰요. 줄자로 쟀으면 그 값이 가장 정확해요.</Text>
+                <Text style={styles.distHint}>{STANDARD_DIST_HINT}</Text>
               )}
             </GuideCard>
           ) : step === 'level' ? (

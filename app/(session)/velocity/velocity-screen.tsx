@@ -76,7 +76,7 @@ import {
 } from '@/lib/velocity-analysis';
 import { type DistanceReport } from '@/lib/velocity-engine/analyze-distance';
 import {
-  SESSION_DIST_MIN,
+  SESSION_DIST_FULL,
   medianOf,
   TAPE_WARN,
 } from '@/lib/velocity-session-distance';
@@ -144,6 +144,7 @@ import {
   type VelocitySetup,
   type ZoneRect,
   STANDARD_TARGET_DIST_M,
+  STANDARD_DIST_HINT,
 } from '@/lib/velocity-setup';
 import { useDeviceLevel } from '@/lib/use-device-level';
 import { SESSION_TYPES, isRestSession } from '@/lib/session-type';
@@ -976,7 +977,7 @@ export function VelocityScreen({
         measure: {
           ok: false,
           ...reject('LOW_CONFIDENCE'),
-          fix: lowConfidenceFix(result, source, approach === 'approaching'),
+          fix: lowConfidenceFix(result, source, approach === 'approaching', distTape),
         },
       });
       dropAttempt(meta?.id, 'low-confidence');
@@ -1902,12 +1903,12 @@ export function VelocityScreen({
 
   const patch = (id: number, edit: Partial<PitchEdit>) =>
     setPitches((prev) => prev.map((p) => (p.id === id ? { ...p, ...edit } : p)));
-  /* 이번 세션(카메라)의 깨끗한 공이 3개를 넘기면 그 중앙값을 지난 세션 거리로 남긴다 — 다음 세션 첫 공부터 쓴다 */
+  /* 이번 세션(카메라)의 깨끗한 공이 3개(SESSION_DIST_FULL)를 넘기면 그 중앙값을 지난 세션 거리로 남긴다 — 다음 세션 첫 공부터 섞어 쓴다 */
   useEffect(() => {
     const ds = pitches
       .filter((p) => p.auto?.clean && p.source === 'camera')
       .map((p) => p.auto!.distM);
-    if (ds.length >= SESSION_DIST_MIN)
+    if (ds.length >= SESSION_DIST_FULL)
       saveDistMemory({
         distM: Math.round(medianOf(ds) * 100) / 100,
         n: ds.length,
@@ -2958,8 +2959,7 @@ export function VelocityScreen({
                       />
                       {!distTape && (
                         <p className="px-0.5 text-footnote leading-snug text-muted">
-                          {STANDARD_TARGET_DIST_M}m로 재고 세션마다 공 크기로 맞춰요. 줄자로 쟀으면 그
-                          값이 가장 정확해요.
+                          {STANDARD_DIST_HINT}
                         </p>
                       )}
                       {distTape && (

@@ -93,7 +93,7 @@ export function decide(
   if (m.confidence !== 'high' && !steadied(result))
     return {
       verdict: { kept: false, why: 'low-confidence' },
-      notice: `측정 불가 · ${lowConfidenceFix(result, 'camera', ctx.cameraPos !== 'behind-pitcher')}`,
+      notice: `측정 불가 · ${lowConfidenceFix(result, 'camera', ctx.cameraPos !== 'behind-pitcher', ctx.tape)}`,
     };
   if (sizeOutlier(result, list, 'camera'))
     return { verdict: { kept: false, why: 'session-size' }, notice: `측정 불가 · ${SIZE_OUTLIER_FIX}` };

@@ -199,6 +199,24 @@ export function zoneCellOnScreen(
  */
 export const STANDARD_TARGET_DIST_M = 20;
 
+/*
+ * 거리 고르기는 두 가지뿐(2026-10-19 김민 결정 — "선택지를 2개만 주자. 18~22m 아니면 줄자로 재서 넣기"): '18~22m'(기준 20m 로 재고 세션 보정 ±15% =
+ * 17~23m 안에서 엔진이 스스로 맞춘다 — 계산은 그대로) 또는 '줄자로 쟀어요'. 웹 측정 화면 · 설정 시트 · 새 앱이 같은 글을 쓴다(한 곳에 두어 안 어긋나게).
+ * 왜 12~20m 가 아니라 18~22m 인가: 스피드건 짝 2배 줌 자료가 거의 20~22.6m 에서 찍혀 보정 숫자가 거기서 맞춰졌고, 12m 는 120km/h 에서 비행 장면
+ * 18장으로 '깨끗한 공'(20장) 밑이라 세션 보정에도 못 쓴다. 정확도를 정하는 건 범위가 아니라 거리를 아느냐다 — 줄자면 5~40m 어디든.
+ */
+export const STANDARD_DIST_RANGE = [18, 22] as const;
+export const TAPE_MODES = [
+  { value: 'standard', label: `${STANDARD_DIST_RANGE[0]}~${STANDARD_DIST_RANGE[1]}m` },
+  { value: 'tape', label: '줄자로 쟀어요' },
+] as const;
+/** '18~22m' 를 골랐을 때 밑의 안내 */
+export const STANDARD_DIST_HINT = `폰에서 미트까지 ${STANDARD_DIST_RANGE[0]}~${STANDARD_DIST_RANGE[1]}m 면 이대로, 아니면 줄자로 재서 넣어요.`;
+/** '18~22m' 를 골랐는데 공 크기 거리가 기준과 15% 넘게 다를 때(엔진 size-mismatch → '낮음' → 기록 안 함) */
+export const OUT_OF_RANGE_FIX = `${STANDARD_DIST_RANGE[0]}~${STANDARD_DIST_RANGE[1]}m 밖 같아요. 줄자로 재서 넣어 주세요.`;
+/** 줄자 세션인데 공 크기 거리가 줄자 값과 15% 넘게 다를 때 */
+export const TAPE_MISMATCH_FIX = '줄자 거리와 공 크기 거리가 많이 달라요. 줄자 값과 폰 · 미트 자리를 확인해 주세요.';
+
 export const DEFAULT_SETUP: Omit<VelocitySetup, 'savedAt'> = {
   sessionType: DEFAULT_SESSION_TYPE,
   cameraPos: 'behind-pitcher',
