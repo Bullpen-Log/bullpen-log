@@ -166,7 +166,8 @@ export function TrainingTab({ today, bottom, onWeb }: { today: string; bottom: n
           days={data.strip.map((d) => d.date)}
           date={data.today}
           today={data.today}
-          onPick={(d) => router.push(`/training/day/${d}` as Href)}
+          /* 오늘은 이 화면이 그날이다(웹 trainingDayHref — 오늘은 트레이닝 홈) */
+          onPick={(d) => (d === data.today ? undefined : router.push(`/training/day/${d}` as Href))}
           labelOf={(d) => {
             const x = data.strip!.find((y) => y.date === d);
             const done = x ? [x.workout && '운동', x.armcare && '암케어', x.drill && '메커니즘'].filter(Boolean) : [];
