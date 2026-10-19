@@ -47,16 +47,21 @@ import {
 } from '~/velocity/camera-ui';
 import { TIPS, TIPS_SKIP_KEY, TipsCard } from '~/velocity/tips';
 import { SessionRecorder, canRecordSession, type RecState } from '~/velocity/session-recorder';
+import { loadLastMode, modeInfo, saveLastMode, setupKeyOf, type CameraMode } from '~/velocity/mode';
+import { ModeSheet } from '~/velocity/mode-sheet';
+import { ModeStrip } from '~/velocity/mode-strip';
 import { Icon, type IconName } from '~/shell/icon';
 
 /**
- * 구속 측정(네이티브) — 3판: 설정(지난 설정 · 종류 · 카메라 자리) → 수평 → 스트라이크 존 → 측정(던짐 알림 → 클립 → 숨은 웹뷰 계산기) →
- * 세션 저장(체감 강도 · 클립). 잰 공을 받는 규칙 · 세션 거리 보정은 웹과 같은 lib/velocity-session.ts.
+ * 카메라 화면(네이티브) — 모드 둘(구속 측정 · ABS 판정, docs/designs/camera-modes.md)이 같은 카메라 · 같은 틀에서 돈다.
+ * 열리면 미리보기 위에 모드 고르기 시트 → 설정(지난 설정 · 종류 · 카메라 자리) → 수평 → 스트라이크 존 → 측정(던짐 알림 → 클립 →
+ * 숨은 웹뷰 계산기) → 세션 저장(체감 강도 · 클립). 셔터 위 모드 띠로 모드를 바꾼다(측정 중엔 잠금). 잰 공을 받는 규칙 · 세션 거리
+ * 보정은 웹과 같은 lib/velocity-session.ts.
  *
  * 카메라 조건은 웹과 같다(1080p · 60fps · 2배 줌 · 투수 뒤 · 기준 거리 20m — lib/velocity-setup.ts STANDARD_TARGET_DIST_M). 설정은 웹과
- * 같은 꼴로 앱 저장소에 둔다(parseSetup).
+ * 같은 꼴로 앱 저장소에 둔다(parseSetup) — 모드마다 따로(mode.ts setupKeyOf).
+ * ABS 모드의 제 설정 단계(플레이트 · 타자) · 판정 카드는 다음 단계(설계 3~5단계)에서 — 지금은 제목 · 셔터 글만 다르다.
  */
-const SETUP_KEY = 'bullpen-velocity-setup';
 const SETTINGS: Omit<MeasureSettings, 'tiltRad'> = {
   approach: 'receding',
   focalPerLongSide: null,
@@ -76,7 +81,8 @@ const discardAll = (list: NativePitch[]) => {
   if (paths.length) void DualCamera.discard({ paths });
 };
 
-type Step = 'loading' | 'ask' | 'type' | 'camera' | 'level' | 'zone' | 'measure';
+/** 'mode' = 모드 고르기 시트(카메라 미리보기 위) — 시트에서 고르면 그 모드의 지난 설정(ask) 또는 첫 설정(type)으로 */
+type Step = 'loading' | 'mode' | 'ask' | 'type' | 'camera' | 'level' | 'zone' | 'measure';
 type Start = { isAdmin: boolean; today: string; fit: CalFit };
 
 export default function VelocityScreen() {
@@ -86,6 +92,8 @@ export default function VelocityScreen() {
   const [blocked, setBlocked] = useState<string | null>(null);
   const [stored, setStored] = useState<VelocitySetup | null>(null);
   const [step, setStep] = useState<Step>('loading');
+  const [mode, setMode] = useState<CameraMode>('speed');
+  const modeMeta = modeInfo(mode);
   const [sessionType, setSessionType] = useState<string>(DEFAULT_SETUP.sessionType);
   const cameraPos: CameraPos = 'behind-pitcher';
   const [zone, setZone] = useState<ZoneRect>(DEFAULT_SETUP.zone);
@@ -145,24 +153,24 @@ export default function VelocityScreen() {
     else void clearDraft();
   }, [pitches, sessionType, sessionDate]);
 
-  /* 서버(관리자인가 · 오늘 · 보정식)와 지난 설정 */
+  /* 서버(관리자인가 · 오늘 · 보정식)와 지난 모드 — 설정은 모드를 고른 뒤 그 모드 것을 읽는다(pickMode) */
   useEffect(() => {
     let alive = true;
     void Promise.all([
       rpc<{ ok: true; isAdmin: boolean; pitchLocked: boolean; today: string; fit: CalFit } | { ok: false; error: string }>(
         'velocity.loadVelocityStart'
       ),
-      loadJson(SETUP_KEY),
+      loadLastMode(),
     ])
-      .then(([res, raw]) => {
+      .then(([res, last]) => {
         if (!alive) return;
         if (!res.ok) return setBlocked(res.error);
         if (res.pitchLocked) return setBlocked('투구 기록 첫 설정을 먼저 마쳐 주세요.');
         todayRef.current = res.today;
         setStart({ isAdmin: res.isAdmin, today: res.today, fit: res.fit });
-        const s = parseSetup(raw);
-        setStored(s);
-        setStep(s ? 'ask' : 'type');
+        /* 관리자만 쓰는 모드를 지난 번에 골랐어도 지금 관리자가 아니면 구속 측정으로 */
+        setMode(modeInfo(last).adminOnly && !res.isAdmin ? 'speed' : last);
+        setStep('mode');
         void loadDraft().then((d) => {
           if (!alive) return;
           if (!d) {
@@ -170,10 +178,15 @@ export default function VelocityScreen() {
             return;
           }
           const resume = () => {
+            /* 맡겨 둔 세션은 구속 측정 것(초안에 모드가 없다 — ABS 판정은 아직 초안을 안 남긴다) */
+            setMode('speed');
             setList(d.pitches);
             setSessionType(d.sessionType);
             setSessionDate(d.date);
-            if (s) setZone(s.zone);
+            void loadJson(setupKeyOf('speed')).then((raw) => {
+              const s = parseSetup(raw);
+              if (s && alive) setZone(s.zone);
+            });
             draftReady.current = true;
             setStep('measure');
             setLive(true);
@@ -299,13 +312,29 @@ export default function VelocityScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step, live, recWanted, start?.isAdmin, info]);
 
+  /**
+   * 모드 고르기(시트) · 바꾸기(띠) — 그 모드의 지난 설정을 읽어 ask 또는 type 으로. 설정 단계 중(camera · level · zone)에 띠로 바꾸면
+   * 공통 단계라 그 자리에서 이어 간다(설계 2-2 — 공통 설정은 다시 묻지 않는다).
+   */
+  const pickMode = (next: CameraMode, from: 'sheet' | 'strip') => {
+    setMode(next);
+    void saveLastMode(next);
+    const inSetup = step === 'camera' || step === 'level' || step === 'zone';
+    if (from === 'strip' && (inSetup || step === 'measure')) return;
+    void loadJson(setupKeyOf(next)).then((raw) => {
+      const s = parseSetup(raw);
+      setStored(s);
+      setStep(s ? 'ask' : 'type');
+    });
+  };
+
   const begin = (s: Pick<VelocitySetup, 'sessionType' | 'zone' | 'distTape' | 'targetDistM'>) => {
     setSessionType(s.sessionType);
     setZone(s.zone);
     setDistTape(s.distTape);
     setTargetDistM(s.targetDistM);
     setStep('measure');
-    void saveJson(SETUP_KEY, {
+    void saveJson(setupKeyOf(mode), {
       ...DEFAULT_SETUP,
       sessionType: s.sessionType,
       cameraPos,
@@ -318,12 +347,12 @@ export default function VelocityScreen() {
     void loadJson(TIPS_SKIP_KEY).then((d) => d !== start?.today && setTipsAt(0));
   };
 
-  /* 위 왼쪽 단추 — 설정 단계면 앞 단계로, 측정이면 닫기 */
-  const PREV: Partial<Record<Step, Step>> = { camera: 'type', level: 'camera', zone: 'level' };
+  /* 위 왼쪽 단추 — 설정 단계면 앞 단계로(맨 앞은 모드 시트), 모드 시트 · 측정이면 닫기 */
+  const PREV: Partial<Record<Step, Step>> = { camera: 'type', level: 'camera', zone: 'level', ask: 'mode' };
   const back = () => {
     const prev = PREV[step];
     if (prev) return setStep(prev);
-    if (step === 'type' && stored) return setStep('ask');
+    if (step === 'type') return setStep(stored ? 'ask' : 'mode');
     close();
   };
   const close = () => {
@@ -433,16 +462,22 @@ export default function VelocityScreen() {
 
         {/* 위 줄 — 뒤로 · 가운데 알약 · 재초점(웹 카메라 앱 꼴) */}
         <View style={[styles.top, { paddingTop: inset.top + 6 }]}>
-          <ChromeButton icon={step === 'measure' ? 'x' : 'chevron-left'} label={step === 'measure' ? '닫기' : '뒤로'} onPress={back} />
+          <ChromeButton
+            icon={step === 'measure' || step === 'mode' ? 'x' : 'chevron-left'}
+            label={step === 'measure' || step === 'mode' ? '닫기' : '뒤로'}
+            onPress={back}
+          />
           <View style={styles.topMid}>
             {no ? (
               <ChromePill>
                 {no[0]}/4 · {no[1]}
               </ChromePill>
+            ) : step === 'mode' ? (
+              <ChromePill>카메라</ChromePill>
             ) : step === 'ask' ? (
-              <ChromePill>지난 설정</ChromePill>
+              <ChromePill>{modeMeta.title} · 지난 설정</ChromePill>
             ) : step === 'measure' ? (
-              <ChromePill dot={measuring ? statusDot : 'rgba(255,255,255,0.5)'}>{measuring ? statusText : '측정 준비'}</ChromePill>
+              <ChromePill dot={measuring ? statusDot : 'rgba(255,255,255,0.5)'}>{measuring ? statusText : `${modeMeta.title} 준비`}</ChromePill>
             ) : null}
           </View>
           {step !== 'measure' ? <ChromeButton icon="focus" label="초점 다시 맞추기" onPress={refocus} busy={focusBusy} disabled={!info} /> : <View style={{ width: 44 }} />}
@@ -459,6 +494,10 @@ export default function VelocityScreen() {
           </InfoPill>
         </View>
 
+        {/* 모드 고르기 시트 — 열리자마자 미리보기 위(설계 2-1). 고르면 그 모드의 지난 설정 · 첫 설정으로 */}
+        {step === 'mode' && start && !blocked && !error ? (
+          <ModeSheet value={mode} isAdmin={start.isAdmin} bottom={12} onPick={(m) => pickMode(m, 'sheet')} />
+        ) : null}
         {/* 카메라 위 안내창 · 결과 — 뷰파인더 아래쪽 */}
         <View style={styles.over} pointerEvents="box-none">
           {/* 관리자 세션 녹화 — 측정 전엔 켜기 칩, 측정 중엔 녹화 상태(웹 velocity-screen 의 sessionRecWanted 칩) */}
@@ -505,7 +544,7 @@ export default function VelocityScreen() {
                 setTipsAt(null);
               }}
             />
-          ) : step === 'loading' ? null : step === 'ask' && stored ? (
+          ) : step === 'loading' || step === 'mode' ? null : step === 'ask' && stored ? (
             <GuideCard
               title="지난 설정으로 바로 시작할까요?"
               subtitle={`${stored.sessionType} · 투수 뒤 · 2배 줌. 같은 자리에서 같은 방식으로 재면 카메라로 바로 가요.`}
@@ -600,13 +639,19 @@ export default function VelocityScreen() {
               {last ? <Text style={styles.hint}>눌러서 영상 다시 보기</Text> : null}
             </Pressable>
           ) : !live ? (
-            <InfoPill>빨간 단추를 누르면 측정을 시작해요</InfoPill>
+            <InfoPill>빨간 단추를 누르면 {mode === 'abs' ? '판정' : '측정'}을 시작해요</InfoPill>
           ) : null}
         </View>
       </View>
 
-      {/* 아래 검은 막대 — 옆 단추 · 셔터 · 옆 단추(웹 카메라 앱 꼴) */}
+      {/* 아래 검은 막대 — 모드 띠 · 옆 단추 · 셔터 · 옆 단추(웹 카메라 앱 꼴) */}
       <View style={[styles.bar, { paddingBottom: Math.max(inset.bottom, 12) }]}>
+        {start && !blocked && step !== 'loading' && step !== 'mode' ? (
+          <ModeStrip value={mode} isAdmin={start.isAdmin} locked={measuring} onChange={(m) => pickMode(m, 'strip')} />
+        ) : (
+          <View style={{ height: 32 }} />
+        )}
+        <View style={styles.barRow}>
         {step === 'measure' && live ? (
           <>
             <SideButton icon="focus" label="초점" onPress={refocus} busy={focusBusy} disabled={!info} />
@@ -620,8 +665,8 @@ export default function VelocityScreen() {
           <>
             <SideButton icon="info" label="주의사항" onPress={showTips} />
             <View style={styles.mid}>
-              <Shutter state="ready" label="측정 시작" onPress={() => setLive(true)} disabled={!info} />
-              <ShutterLabel>측정 시작</ShutterLabel>
+              <Shutter state="ready" label={modeMeta.shutter} onPress={() => setLive(true)} disabled={!info} />
+              <ShutterLabel>{modeMeta.shutter}</ShutterLabel>
             </View>
             <SideButton icon="focus" label="초점" onPress={refocus} busy={focusBusy} disabled={!info} />
           </>
@@ -634,12 +679,13 @@ export default function VelocityScreen() {
             )}
             {/* 다음 · 완료는 카메라 위 안내창 안 — 셔터는 흐리게 자리만(웹과 같다) */}
             <View style={styles.mid}>
-              <Shutter state="wait" label="설정을 마치면 측정해요" />
-              <ShutterLabel>측정</ShutterLabel>
+              <Shutter state="wait" label={step === 'mode' ? '먼저 무엇을 할지 골라요' : `설정을 마치면 ${mode === 'abs' ? '판정해요' : '측정해요'}`} />
+              <ShutterLabel>{mode === 'abs' ? '판정' : '측정'}</ShutterLabel>
             </View>
             <SideGap />
           </>
         )}
+        </View>
       </View>
 
       <Modal visible={sheet} transparent animationType="slide" onRequestClose={() => setSheet(false)}>
@@ -800,7 +846,8 @@ const styles = StyleSheet.create({
   hint: { color: 'rgba(255,255,255,0.6)', fontSize: 12, fontWeight: '500' },
   error: { color: '#ff6b6b', fontSize: 15, fontWeight: '600' },
   errorDark: { color: '#d70015', fontSize: 15, fontWeight: '600' },
-  bar: { backgroundColor: '#000', paddingTop: 10, flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-around', paddingHorizontal: 12 },
+  bar: { backgroundColor: '#000', paddingTop: 6, paddingHorizontal: 12 },
+  barRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-around', marginTop: 4 },
   mid: { alignItems: 'center' },
   row: { flexDirection: 'row', gap: 8 },
   recChip: {
