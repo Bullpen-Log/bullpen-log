@@ -33,7 +33,7 @@ export default function InquiriesScreen() {
               </Pressable>
             </View>
           ) : (
-            <View style={[s.group, { backgroundColor: c.card }]}>
+            <View style={[s.group, { backgroundColor: c.card, boxShadow: c.float }]}>
               <InquiryRows rows={data.inquiries} c={c} />
             </View>
           )}

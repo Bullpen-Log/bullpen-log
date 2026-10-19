@@ -7,6 +7,7 @@ import { INQUIRY_STATUS, inquiryCategoryLabel, type InquiryStatusKey } from '@/l
 import { rpc, RpcError } from '~/lib/rpc';
 import type { Palette } from '~/lib/ui';
 import { leaveTo } from '~/shell/web-nav';
+import { Icon } from '~/shell/icon';
 
 /**
  * 커뮤니티 · 고객센터 앱 화면(native/src/app/community · support)이 같이 쓰는 조각 — 읽기 · 쓰기 부르기, 위 막대, 줄, 알약.
@@ -87,13 +88,16 @@ export async function call<T extends { ok: boolean }>(action: string, ...args: u
 }
 
 /** 위 막대 — 왼쪽 ‹ 뒤로(이름), 가운데 제목, 오른쪽 동작 하나 */
-export function Bar({ back, title, right, c }: { back: string; title?: string; right?: ReactNode; c: Palette }) {
+/** modal = 아래에서 올라온 창(설정 · 내 정보) — 창은 시계 자리 밑에서 시작해 위 여백을 또 넣으면 80pt 가 비었다 */
+export function Bar({ back, title, right, c, modal = false }: { back: string; title?: string; right?: ReactNode; c: Palette; modal?: boolean }) {
   const inset = useSafeAreaInsets();
   return (
-    <View style={[s.bar, { paddingTop: inset.top, backgroundColor: c.page }]}>
-      <Pressable accessibilityRole="button" onPress={() => router.back()} hitSlop={10} style={s.side}>
-        <Text style={{ color: c.sky, fontSize: 17 }} numberOfLines={1}>
-          ‹ {back}
+    <View style={[s.bar, { paddingTop: modal ? 12 : inset.top, backgroundColor: c.page }]}>
+      {/* 웹 위 막대의 뒤로(back-link.tsx): 화살표 그림 24 + 글 17, 하늘색 */}
+      <Pressable accessibilityRole="button" accessibilityLabel={`${back}(으)로 돌아가기`} onPress={() => router.back()} hitSlop={10} style={({ pressed }) => [s.side, s.backRow, pressed && { opacity: 0.6 }]}>
+        <Icon name="chevron-left" size={24} color={c.sky} />
+        <Text style={{ color: c.sky, fontSize: 17, flexShrink: 1 }} numberOfLines={1}>
+          {back}
         </Text>
       </Pressable>
       <Text style={[s.barTitle, { color: c.ink }]} numberOfLines={1}>
@@ -210,16 +214,44 @@ export function InquiryRows({
         </Text>
         <StatusBadge status={q.status} c={c} />
       </View>
-      <Text style={[s.meta, { color: c.muted }]}>
-        {[inquiryCategoryLabel(q.category), q.date, q.replyCount > 0 ? `답글 ${q.replyCount}` : null].filter(Boolean).join(' · ')}
-      </Text>
+      <InquiryMeta category={q.category} date={q.date} replies={q.replyCount} c={c} />
     </Row>
   ));
+}
+
+/** 문의 줄 밑 한 줄 — 웹 support-inquiry-rows.tsx 와 같게: 종류 배지 · (관리자 목록이면) 닉네임 · 날짜 · 말풍선 + 답글 수 */
+export function InquiryMeta({
+  category,
+  nickname,
+  date,
+  replies,
+  c,
+}: {
+  category: string;
+  nickname?: string | null;
+  date: string;
+  replies: number;
+  c: Palette;
+}) {
+  return (
+    <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', columnGap: 10, rowGap: 4 }}>
+      <Badge text={inquiryCategoryLabel(category)} c={c} />
+      {nickname ? <Text style={[s.meta, { color: c.ink }]}>{nickname}</Text> : null}
+      <Text style={[s.meta, { color: c.muted }]}>{date}</Text>
+      {replies > 0 ? (
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }} accessibilityLabel={`답글 ${replies}`}>
+          <SymbolView name="bubble.left" size={13} tintColor={c.muted} />
+          <Text style={[s.meta, { color: c.muted }]}>{replies}</Text>
+        </View>
+      ) : null}
+    </View>
+  );
 }
 
 export const s = StyleSheet.create({
   bar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, minHeight: 44 },
   side: { width: 96, minHeight: 44, justifyContent: 'center' },
+  backRow: { flexDirection: 'row', alignItems: 'center', gap: 0, marginLeft: -6 },
   barTitle: { flex: 1, textAlign: 'center', fontSize: 17, fontWeight: '600' },
   pill: { minHeight: 44, paddingHorizontal: 24, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
   badge: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 8, paddingVertical: 2, alignSelf: 'flex-start' },

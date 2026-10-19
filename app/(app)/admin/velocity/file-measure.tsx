@@ -125,20 +125,20 @@ export function FileMeasure({
   }
 
   async function measure() {
-    if (!file) return setError('영상 파일을 골라주세요.');
-    if (fps === 'reading') return setError('영상의 fps 를 읽는 중이에요. 잠깐 뒤 다시 눌러주세요.');
+    if (!file) return setError('영상 파일을 골라 주세요.');
+    if (fps === 'reading') return setError('영상의 fps 를 읽는 중이에요. 잠깐 뒤 다시 눌러 주세요.');
     if (typeof fps !== 'number' || !measurable)
       return setError(unmeasurableWhy ?? '이 영상은 카메라로 잴 수 없어요.');
     const fov = Number(fovDeg);
     if (!(fov >= 30 && fov <= 120))
-      return setError('화각은 30~120° 사이로 넣어주세요.');
+      return setError('화각은 30~120° 사이로 넣어 주세요.');
     const dist = Number(releaseDist);
     if (cameraPos === 'behind-catcher' && !(dist >= 3 && dist <= 40)) {
-      return setError('릴리스까지 거리는 3~40m 사이로 넣어주세요.');
+      return setError('릴리스까지 거리는 3~40m 사이로 넣어 주세요.');
     }
     const target = Number(targetDist);
     if (cameraPos === 'behind-pitcher' && !(target >= 5 && target <= 40)) {
-      return setError('그물 · 미트까지 거리는 5~40m 사이로 넣어주세요.');
+      return setError('그물 · 미트까지 거리는 5~40m 사이로 넣어 주세요.');
     }
     setError(null);
     setStage({ kind: 'analyzing', ratio: 0 });
@@ -175,7 +175,7 @@ export function FileMeasure({
 
   async function uploadManual() {
     if (!file || busy) return;
-    if (fps === 'reading') return setError('영상의 fps 를 읽는 중이에요. 잠깐 뒤 다시 눌러주세요.');
+    if (fps === 'reading') return setError('영상의 fps 를 읽는 중이에요. 잠깐 뒤 다시 눌러 주세요.');
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return setError('날짜가 올바르지 않습니다.');
     const gunKmh = gun.trim() === '' ? null : Number(gun);
     if (gunKmh == null || !(gunKmh >= 30 && gunKmh <= 200)) {
@@ -253,7 +253,7 @@ export function FileMeasure({
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return setError('날짜가 올바르지 않습니다.');
     const gunKmh = gun.trim() === '' ? null : Number(gun);
     if (gunKmh != null && !(gunKmh >= 30 && gunKmh <= 200)) {
-      return setError('스피드건 값은 30~200 km/h 사이로 넣어주세요.');
+      return setError('스피드건 값은 30~200 km/h 사이로 넣어 주세요.');
     }
     const fov = Number(fovDeg);
     const dist = cameraPos === 'behind-catcher' ? Number(releaseDist) : null;

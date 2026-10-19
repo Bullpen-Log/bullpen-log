@@ -1,6 +1,7 @@
 import * as Linking from 'expo-linking';
 import { type Href, router } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
+import { markAppReady } from '~/shell/intro';
 import {
   useCallback,
   useEffect,
@@ -21,6 +22,8 @@ import { APP_UA, SITE_HOST, SITE_URL, START_PATH } from '~/lib/site';
 import { CAP_SHIM, handleCapMessage } from '~/lib/cap-bridge';
 import { loadMe, resetMe } from '~/pitch/api';
 import { resetPitchStore } from '~/pitch/store';
+import { resetCompare } from '~/pitch/log-list';
+import { resetLibraryItems } from '~/library/parts';
 import { resetImported } from '~/pitch/attach';
 import { resetScanned } from '~/nutrition/scanned';
 import { HomeTab, resetHomeCache } from '~/home/tab';
@@ -41,6 +44,8 @@ import { drainChecks } from '~/armcare/outbox';
 import { sendCheck } from '~/armcare/send';
 import { PitchTab } from '~/pitch/tab';
 import { DEFAULT_TABS, TAB_BAR_HEIGHT, TabBar, type ShellTab } from '~/shell/tab-bar';
+import { TabPager } from '~/shell/tab-pager';
+import { ClockVeil } from '~/shell/clock-veil';
 
 type WebViewHandle = { injectJavaScript(script: string): void };
 /* react-native-webview 14 의 타입은 ref 를 안 받지만 실제 부품은 forwardRef 다(velocity/engine.tsx 와 같다) */
@@ -68,7 +73,7 @@ const NATIVE_ROUTES = [
   /^\/(mechanics|analysis)(\?[\w=&%.-]*)?$/,
   /^\/community(\/[\w-]+)?(\?[\w=&%.-]*)?$/,
   /^\/support(\/notices(\/[\w-]+)?|\/inquiries(\/[\w-]+)?)?$/,
-  /^\/library\/(training|mechanics)$/,
+  /^\/library\/(training|mechanics|warmup)$/,
   /^\/board(\/[\w-]+)?$/,
   /^\/warmup$/,
   /^\/workout-done\?id=[\w-]+$/,
@@ -96,8 +101,12 @@ function nativeOfWeb(href: string): string | null {
   const setup: Record<string, string> = { '/videos/setup': '/setup/pitch', '/training/setup': '/setup/training', '/nutrition/setup': '/setup/nutrition' };
   if (setup[path]) return setup[path];
   if (path === '/workout/warmup') return '/warmup';
-  const view = path === '/coach' ? new URLSearchParams(q ?? '').get('view') : null;
-  if (view === 'pitch' || view === 'training') return `/analysis?view=${view}`;
+  const sp = new URLSearchParams(q ?? '');
+  const view = path === '/coach' ? sp.get('view') : null;
+  /* '그날 분석'(?date=YYYY-MM-DD)은 그 날짜째 — 네이티브3 분석 화면이 받는다 */
+  const date = sp.get('date');
+  if (view === 'pitch' || view === 'training')
+    return `/analysis?view=${view}${date && /^\d{4}-\d{2}-\d{2}$/.test(date) ? `&date=${date}` : ''}`;
   return null;
 }
 function openNative(path: string) {
@@ -152,6 +161,8 @@ function resetAccount() {
   resetMe();
   setOutboxOwner(null);
   resetPitchStore();
+  resetCompare();
+  resetLibraryItems();
   resetHomeCache();
   resetNutritionStore();
   resetTrainingCache();
@@ -251,6 +262,32 @@ export default function SiteScreen() {
   const showTraining =
     barOn && path === '/training' && (trainingView === 'home' || trainingView === 'last') && !!today && !trainingTab?.locked && !webFront;
   const menu = useMenu();
+  /* 판 넘기기 — 지금 보일 앱 판(없으면 웹이 앞)과 한 번이라도 열린 판(붙여 둠) */
+  const pagerOn = showHome || showPitch || showTraining || showNutrition;
+  const nowIndex = showHome ? 0 : showPitch ? 1 : showTraining ? 2 : showNutrition ? 3 : -1;
+  const [pagerIndex, setPagerIndex] = useState(0);
+  if (nowIndex >= 0 && nowIndex !== pagerIndex) setPagerIndex(nowIndex);
+  const [seen, setSeen] = useState({ home: false, pitch: false, training: false, nutrition: false });
+  if ((showHome && !seen.home) || (showPitch && !seen.pitch) || (showTraining && !seen.training) || (showNutrition && !seen.nutrition))
+    setSeen({ home: seen.home || showHome, pitch: seen.pitch || showPitch, training: seen.training || showTraining, nutrition: seen.nutrition || showNutrition });
+  /*
+   * 웹처럼 판 넷을 다 띄워 둔다(웹 @home · @videos · @training · @nutrition 이 늘 떠 있다 — 판 사이를 넘길 때 옆 판이 비지 않게).
+   * 처음 연 판이 먼저 그려진 뒤 1.2초에 나머지를 붙인다(첫 화면을 늦추지 않게). 잠긴 탭은 붙이지 않는다(웹은 잠금 판).
+   */
+  useEffect(() => {
+    if (!pagerOn || (seen.home && seen.pitch && seen.training && seen.nutrition)) return;
+    const t = setTimeout(
+      () =>
+        setSeen((s) => ({
+          home: true,
+          pitch: s.pitch || !pitchTab?.locked,
+          training: s.training || !trainingTab?.locked,
+          nutrition: s.nutrition || !nutritionTab?.locked,
+        })),
+      1200
+    );
+    return () => clearTimeout(t);
+  }, [pagerOn, seen, pitchTab?.locked, trainingTab?.locked, nutritionTab?.locked]);
 
   const goWeb = (href: string) =>
     web.current?.injectJavaScript(`window.__bpTab && window.__bpTab(${JSON.stringify(href)});true;`);
@@ -313,6 +350,7 @@ export default function SiteScreen() {
 
   const hideSplash = useCallback(() => {
     void SplashScreen.hideAsync();
+    markAppReady();
   }, []);
 
   /** 우리 사이트 밖 주소(유튜브 · 결제 · 메일 등)는 웹뷰에서 열지 않고 폰의 앱 · 사파리로 */
@@ -370,6 +408,8 @@ export default function SiteScreen() {
       search?: string;
       groups?: MenuGroup[];
       nickname?: unknown;
+      avatarUrl?: unknown;
+      isAdmin?: unknown;
       pitches?: unknown;
       uploads?: unknown;
     };
@@ -387,7 +427,13 @@ export default function SiteScreen() {
     }
     if (msg.t === 'tabbar') return setBarOn(msg.on === true);
     if (msg.t === 'adopt' && msg.items) return void adoptWebValues(msg.items, WEB_RAW_KEYS).then(reloadPrefs);
-    if (msg.t === 'menu' && Array.isArray(msg.groups)) return setMenu({ groups: msg.groups, nickname: String(msg.nickname ?? '') });
+    if (msg.t === 'menu' && Array.isArray(msg.groups))
+      return setMenu({
+        groups: msg.groups,
+        nickname: String(msg.nickname ?? ''),
+        avatarUrl: typeof msg.avatarUrl === 'string' ? msg.avatarUrl : null,
+        isAdmin: msg.isAdmin === true,
+      });
     if (msg.t === 'webfront') return setWebFront(msg.on === true);
     if (msg.t === 'loc') {
       if (typeof msg.path === 'string' && isLoginPath(msg.path)) {
@@ -477,26 +523,21 @@ export default function SiteScreen() {
         }}
         onContentProcessDidTerminate={() => setLoad((n) => n + 1)}
       />
-      {showHome && today ? (
-        <View style={StyleSheet.absoluteFill}>
-          <HomeTab today={today} bottom={TAB_BAR_HEIGHT} onWeb={openWeb} onTab={goTab} onWebHome={() => setWebHome(true)} />
-        </View>
+      {/* 탭 넷 — 나란히 두고 240ms 에 미끄러진다(웹 tab-pager). 한 번 연 판은 붙여 둬서 굴린 자리가 남는다 */}
+      {today ? (
+        <TabPager
+          index={pagerIndex}
+          visible={pagerOn}
+          slots={[
+            seen.home ? <HomeTab key="home" today={today} bottom={TAB_BAR_HEIGHT} onWeb={openWeb} onTab={goTab} /> : null,
+            seen.pitch ? <PitchTab key="pitch" today={today} bottom={TAB_BAR_HEIGHT} onWeb={openWeb} /> : null,
+            seen.training ? <TrainingTab key="training" today={today} bottom={TAB_BAR_HEIGHT} onWeb={openWeb} /> : null,
+            seen.nutrition ? <NutritionTab key="nutrition" today={today} bottom={TAB_BAR_HEIGHT} onWebNutrition={() => setWebNutrition(true)} /> : null,
+          ]}
+        />
       ) : null}
-      {showTraining && today ? (
-        <View style={StyleSheet.absoluteFill}>
-          <TrainingTab today={today} bottom={TAB_BAR_HEIGHT} onWeb={openWeb} />
-        </View>
-      ) : null}
-      {showNutrition && today ? (
-        <View style={StyleSheet.absoluteFill}>
-          <NutritionTab today={today} bottom={TAB_BAR_HEIGHT} onWebNutrition={() => setWebNutrition(true)} />
-        </View>
-      ) : null}
-      {showPitch && today ? (
-        <View style={StyleSheet.absoluteFill}>
-          <PitchTab today={today} bottom={TAB_BAR_HEIGHT} onWeb={openWeb} />
-        </View>
-      ) : null}
+      {/* 홈 밖의 탭은 위 막대가 없어 시계 자리를 막으로 덮는다(웹 data-top-veil) */}
+      {today && pagerOn && pagerIndex !== 0 ? <ClockVeil /> : null}
       {/*
         웹 창(설정 · 내 정보 — 웹 틀의 폴더 모양 창)이 앞에 떠 있는 동안은 숨긴다 — 그 창을 닫는 바깥 막은 아래쪽 띠뿐인데 이 막대가 그 띠를
         덮어, 앱에서는 창을 닫을 자리가 없었다(2026-10-18 시뮬레이터에서 확인). 창이 닫히면 웹이 알려(webfront false) 다시 보인다.

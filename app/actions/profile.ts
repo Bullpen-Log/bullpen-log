@@ -81,7 +81,7 @@ async function tryUpdateProfile(formData: FormData): Promise<ProfileState> {
   const rawSex = String(formData.get('sex') ?? '').trim();
   let sexValue = {};
   if (rawSex !== '') {
-    if (!isSex(rawSex)) return { error: '성별을 다시 골라주세요.' };
+    if (!isSex(rawSex)) return { error: '성별을 다시 골라 주세요.' };
     sexValue = { sex: rawSex };
   }
 

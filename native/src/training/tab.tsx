@@ -1,33 +1,42 @@
-import { SymbolView, type SFSymbol } from 'expo-symbols';
+import { SymbolView } from 'expo-symbols';
 import * as Haptics from 'expo-haptics';
 import { type Href, router, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, type ScrollViewInstance, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { CardAction, TrainingCard } from '@/lib/report/training-home-data';
+import type { TrainingWeekCounts } from '@/lib/report/training-week-counts';
+import type { TrainingStripDay } from '@/lib/training-week';
+import { ThrowNoteCard } from '~/mechanics/parts';
 import { TRAINING_PART_HREF, type TrainingPart } from '@/lib/training-part';
 import { rpc, RpcError } from '~/lib/rpc';
 import { REST_DAY } from '~/training/rest-day';
 import { cacheEpoch, cacheGet, cacheSet } from '~/lib/store';
 import { usePalette } from '~/lib/ui';
-import { fromApp } from '~/shell/web-nav';
+import { fromApp, openCheckin } from '~/shell/web-nav';
 import { READABLE } from '~/lib/layout';
+import { useOnTabActive, useRetapTop } from '~/shell/tab-pager';
+import { DateStrip } from '~/shell/date-strip';
+import { DateNavButton } from '~/shell/mini-calendar';
+import { shiftDateKey } from '@/lib/pitch-stats';
+import { AnalysisPill, PageHead } from '~/shell/heading';
+import { Icon, type IconName } from '~/shell/icon';
 
 /**
  * 트레이닝 탭 첫 화면(앱 화면) — 웹 트레이닝 홈(app/(app)/training/training-home.tsx)과 같은 앱 카드 셋(오늘 운동 · 암케어 · 메커니즘,
  * 판정은 lib/report/training-home-data.ts — app.loadAppTraining). [시작]은 운동 판을 열어 앱 운동 화면(/workout)으로, 암케어 · 메커니즘
- * 따라 하기와 각 앱의 전체 화면(카드를 누름)은 아직 웹(onWeb).
+ * 따라 하기 · 각 앱의 전체 화면(카드를 누름)도 앱 화면(/armcare · /mechanics · /training-*), 앱 화면이 없는 곳만 onWeb.
  */
-type Loaded = { today: string; cards: TrainingCard[] };
+type Loaded = { today: string; cards: TrainingCard[]; strip?: TrainingStripDay[]; week?: TrainingWeekCounts };
 let cached: Loaded | null = null;
 export const resetTrainingCache = () => {
   cached = null;
 };
 
-const APP: Record<TrainingPart, { name: string; icon: SFSymbol }> = {
-  today: { name: '오늘 운동', icon: 'dumbbell.fill' },
-  armcare: { name: '암케어', icon: 'cross.case.fill' },
-  mechanics: { name: '메커니즘', icon: 'target' },
+const APP: Record<TrainingPart, { name: string; glyph: IconName }> = {
+  today: { name: '오늘 운동', glyph: 'dumbbell' },
+  armcare: { name: '암케어', glyph: 'shield-plus' },
+  mechanics: { name: '메커니즘', glyph: 'target' },
 };
 
 export function TrainingTab({ today, bottom, onWeb }: { today: string; bottom: number; onWeb: (href: string) => void }) {
@@ -76,6 +85,8 @@ export function TrainingTab({ today, bottom, onWeb }: { today: string; bottom: n
     };
   }, [load, today]);
 
+  /* 탭을 옮겼다 돌아오면 새로 받는다(1번 판 넘기기 — 판이 붙어 있어 마운트로는 안 받는다) */
+  useOnTabActive(() => void load());
   /* 운동 · 체크인(앱 화면)에서 돌아오면 다시 받는다 — '이어서'·'마쳤어요'가 바로 바뀌게 */
   const focused = useRef(false);
   useFocusEffect(
@@ -109,7 +120,7 @@ export function TrainingTab({ today, bottom, onWeb }: { today: string; bottom: n
   };
   const act = (a: CardAction) => {
     if (a.kind === 'workout') return void startWorkout(a);
-    if (a.kind === 'checkin') return router.push({ pathname: '/checkin' as Href as never, params: { date: today } });
+    if (a.kind === 'checkin') return openCheckin('/training?view=home');
     /* 암케어 따라 하기는 앱 화면 — 웹(/armcare/play/<id>)을 거치면 한 번 더 읽고 넘긴다 */
     const armcare = /^\/armcare\/play\/([\w-]+)(\?.*)?$/.exec(a.href);
     if (armcare) return router.push(fromApp(`/armcare/${armcare[1]}${armcare[2] ?? ''}`) as Href);
@@ -133,18 +144,47 @@ export function TrainingTab({ today, bottom, onWeb }: { today: string; bottom: n
     onWeb(TRAINING_PART_HREF[app]);
   };
 
+  /* 지금 탭(트레이닝)을 다시 누르면 맨 위로(1번 세션 — 앱 틀) */
+  const topRef = useRef<ScrollViewInstance>(null);
+  useRetapTop(() => topRef.current?.scrollTo({ y: 0, animated: true }));
+
   return (
     <ScrollView
+      ref={topRef}
       style={{ flex: 1, backgroundColor: c.page }}
       contentContainerStyle={[{ paddingTop: inset.top + 12, paddingBottom: bottom + 24, paddingHorizontal: 16, gap: 12 }, READABLE]}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={pull} />}
     >
-      <View style={styles.head}>
-        <Text style={[styles.title, { color: c.ink }]}>트레이닝</Text>
-        <Pressable accessibilityRole="button" onPress={() => router.push('/analysis?view=training' as Href)} style={[styles.chip, { backgroundColor: c.chip }]}>
-          <Text style={[styles.chipText, { color: c.ink }]}>분석</Text>
-        </Pressable>
-      </View>
+      <PageHead title="트레이닝">
+        <AnalysisPill view="training" />
+      </PageHead>
+
+      {/* 웹 트레이닝 홈과 같은 차례 — 제목 밑 날짜 띠(최근 6주, 칸 밑 점 = 그날 한 것) → 앱 카드 셋 → 이번 주 한 줄 */}
+      {data?.strip?.length ? (
+        <DateStrip
+          days={data.strip.map((d) => d.date)}
+          date={data.today}
+          today={data.today}
+          onPick={(d) => router.push(`/training/day/${d}` as Href)}
+          labelOf={(d) => {
+            const x = data.strip!.find((y) => y.date === d);
+            const done = x ? [x.workout && '운동', x.armcare && '암케어', x.drill && '메커니즘'].filter(Boolean) : [];
+            return done.length ? done.join(' · ') : '기록 없음';
+          }}
+          mark={(d, selected) => {
+            const x = data.strip!.find((y) => y.date === d);
+            const n = x ? [x.workout, x.armcare, x.drill].filter(Boolean).length : 0;
+            return (
+              <View style={styles.dots}>
+                {Array.from({ length: n }, (_, i) => (
+                  <View key={i} style={[styles.dot, { backgroundColor: selected ? '#fff' : c.sky }]} />
+                ))}
+              </View>
+            );
+          }}
+          end={<TrainingDateNav today={data.today} />}
+        />
+      ) : null}
 
       {error && !data ? <Text style={{ color: c.danger, fontSize: 15 }}>{error}</Text> : null}
       {!data && !error ? <ActivityIndicator style={{ paddingVertical: 24 }} /> : null}
@@ -152,6 +192,7 @@ export function TrainingTab({ today, bottom, onWeb }: { today: string; bottom: n
       {data?.cards.map((card) => (
         <Card key={card.app} card={fresh ? card : { ...card, throwNote: null }} busy={starting} onOpen={() => openPart(card.app)} onAction={act} onWeb={onWeb} />
       ))}
+      {data?.week ? <WeekLine week={data.week} c={c} /> : null}
     </ScrollView>
   );
 }
@@ -175,14 +216,14 @@ function Card({
   const label =
     card.action?.kind === 'workout' ? (card.action.resume ? '이어서' : '시작') : card.action ? card.action.label : null;
   return (
-    <View style={[styles.card, { backgroundColor: c.card }]}>
+    <View style={[styles.card, { backgroundColor: c.card, boxShadow: c.float }]}>
       <Pressable accessibilityRole="button" accessibilityLabel={`${a.name}. ${card.status}`} onPress={onOpen} style={styles.row}>
         <View style={[styles.icon, { backgroundColor: c.sky }]}>
-          <SymbolView name={a.icon} size={22} tintColor="#fff" />
+          <Icon name={a.glyph} size={24} color="#fff" />
         </View>
         <View style={{ flex: 1, gap: 2 }}>
           <Text style={[styles.name, { color: c.ink }]}>{a.name}</Text>
-          <Text style={{ color: toneColor, fontSize: 14 }}>
+          <Text style={{ color: toneColor, fontSize: 15 }}>
             {card.tone === 'done' ? '✓ ' : ''}
             {card.status}
           </Text>
@@ -225,38 +266,77 @@ function Card({
           <Text style={{ color: c.sky, fontSize: 13, fontWeight: '600' }}>{card.gap.text} ›</Text>
         </Pressable>
       ) : null}
-      {card.throwNote ? (
-        <Pressable
-          accessibilityRole="button"
-          onPress={() => {
-            const date = /\/pitch-log\/(\d{4}-\d{2}-\d{2})/.exec(card.throwNote!.href)?.[1];
-            if (!date) return onWeb(card.throwNote!.href);
-            router.push({
-              pathname: '/pitch/edit' as Href as never,
-              params: { date, drill: String(card.throwNote!.throws), pct: String(card.throwNote!.effortPct) },
-            });
-          }}
-          style={[styles.note, { backgroundColor: c.page }]}
-        >
-          <Text style={{ flex: 1, color: c.ink, fontSize: 14 }}>
-            드릴로 공 약 {card.throwNote.throws}회 던졌어요. 투구 기록에 남겨 주세요.
-          </Text>
-          <Text style={{ color: c.sky, fontSize: 14, fontWeight: '600' }}>남기기 ›</Text>
-        </Pressable>
-      ) : null}
+      {/* 웹 트레이닝 홈의 드릴 공 줄과 같은 부품(DRILL_THROW_TEXT 문구 · '이미 넣었어요' · '안 적을래요' 닫기 — mechanics.closeDrillThrowNote) */}
+      {card.throwNote ? <ThrowNoteCard note={card.throwNote} c={c} /> : null}
+    </View>
+  );
+}
+
+/** 띠 끝 달력 — 1년 치 한 날에 점(웹 training/date-nav.tsx · training-days.trainingMarkedDays, 열 때 한 번 받는다), 고르면 그날 기록 */
+let markedDays: Set<string> | null = null;
+function TrainingDateNav({ today }: { today: string }) {
+  const [, bump] = useState(0);
+  useEffect(() => {
+    if (markedDays) return;
+    void rpc<string[]>('training-days.trainingMarkedDays').then(
+      (days) => {
+        markedDays = new Set(days);
+        bump((n) => n + 1);
+      },
+      () => undefined
+    );
+  }, []);
+  return (
+    <DateNavButton
+      date={today}
+      today={today}
+      min={shiftDateKey(today, -366)}
+      marked={(d) => markedDays?.has(d) ?? false}
+      onPick={(d) => (d === today ? router.push({ pathname: '/training-today' as Href as never, params: { today } }) : router.push(`/training/day/${d}` as Href))}
+    />
+  );
+}
+
+/** 이번 주 한 줄 — 웹 WeekStrip 과 같은 글('이번 주 운동 N일 · 암케어 N일 · 메커니즘 N일', 다 0 이면 '이번 주는 아직 기록이 없어요.') */
+function WeekLine({ week, c }: { week: TrainingWeekCounts; c: ReturnType<typeof usePalette> }) {
+  const cells: [string, number][] = [
+    ['운동', week.today],
+    ['암케어', week.armcare],
+    ['메커니즘', week.mechanics],
+  ];
+  const none = cells.every(([, n]) => n === 0);
+  return (
+    <View style={[styles.week, { backgroundColor: c.card, boxShadow: c.float }]}>
+      {none ? (
+        <Text style={{ color: c.muted, fontSize: 15 }}>이번 주는 아직 기록이 없어요.</Text>
+      ) : (
+        <Text style={{ color: c.muted, fontSize: 15 }}>
+          <Text style={{ color: c.ink, fontWeight: '600' }}>이번 주</Text>
+          {cells.map(([name, n]) => (
+            <Text key={name}>
+              {'   '}
+              {name} <Text style={{ color: c.ink, fontWeight: '600', fontVariant: ['tabular-nums'] }}>{n}일</Text>
+            </Text>
+          ))}
+        </Text>
+      )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  day: { width: 48, minHeight: 64, borderRadius: 14, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center', gap: 2 },
+  dots: { flexDirection: 'row', gap: 2, height: 6, marginTop: 4, alignItems: 'center' },
+  dot: { width: 6, height: 6, borderRadius: 3 },
+  week: { borderRadius: 16, paddingHorizontal: 16, paddingVertical: 14 },
   head: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingBottom: 4 },
   title: { flex: 1, fontSize: 34, fontWeight: '700' },
   chip: { height: 36, borderRadius: 18, paddingHorizontal: 14, justifyContent: 'center' },
   chipText: { fontSize: 15, fontWeight: '600' },
   card: { borderRadius: 20, padding: 16, gap: 12 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  icon: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  name: { fontSize: 17, fontWeight: '700' },
+  icon: { width: 44, height: 44, borderRadius: 12.3, alignItems: 'center', justifyContent: 'center' },
+  name: { fontSize: 16, fontWeight: '700' },
   start: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 40, borderRadius: 20, paddingHorizontal: 16 },
   startText: { color: '#fff', fontSize: 15, fontWeight: '700' },
   bars: { flexDirection: 'row', gap: 2 },

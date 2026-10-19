@@ -77,7 +77,7 @@ function Body({ initial }: { initial: Extract<Loaded, { ok: true }> }) {
     <ScrollView contentContainerStyle={[{ padding: 16, gap: 10, paddingBottom: inset.bottom + 32 }, READABLE]}>
       <Text style={[st.title, { color: c.ink }]}>웨이트 트레이닝 경력</Text>
       <Text style={[st.hint, { color: c.muted }]}>경력에 비해 이른 운동을 빼는 기준이에요. 고르면 바로 저장돼요.</Text>
-      <View style={[st.group, { backgroundColor: c.card }]}>
+      <View style={[st.group, { backgroundColor: c.card, boxShadow: c.float }]}>
         {TRAINING_LEVELS.map((l, i) => {
           const on = level === l.name;
           return (

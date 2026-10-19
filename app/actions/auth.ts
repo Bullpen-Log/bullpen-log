@@ -355,7 +355,7 @@ export async function deleteAccount(
   const typed = String(formData.get('confirmWord') ?? '').trim();
 
   if (typed !== '탈퇴') {
-    return { error: '확인란에 탈퇴 두 글자를 그대로 적어주세요.' };
+    return { error: '확인란에 탈퇴 두 글자를 그대로 적어 주세요.' };
   }
   if (!password) {
     return { error: '비밀번호를 입력해 주세요.' };

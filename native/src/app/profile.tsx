@@ -8,7 +8,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { AppProfile } from '@/app/actions/profile';
 import { APP_API_HEADER, APP_API_LEVEL } from '@/lib/app-api';
 import { MAX_NICKNAME, SEX_OPTIONS } from '@/lib/profile';
-import { fromWeight, round1, toWeight } from '@/lib/units';
+import { fromLength, fromWeight, round1, toLength, toWeight } from '@/lib/units';
+import { usePrefs } from '~/lib/prefs';
 import { Bar, LoadState, useLoad } from '~/community/parts';
 import { rpc, RpcError, syncSession } from '~/lib/rpc';
 import { SITE_URL } from '~/lib/site';
@@ -21,7 +22,7 @@ import { READABLE } from '~/lib/layout';
 /**
  * 내 정보(앱 화면) — 웹 내 정보 창(components/profile-panel.tsx)의 사진 · 기본 정보 · 몸을 옮겼다. 저장은 같은 검사의 profile.updateAppProfile,
  * 사진은 웹과 같은 길(/api/profile/avatar-url 서명 주소로 PUT → profile.saveAvatar). 비밀번호 · 로그아웃 · 탈퇴는 앱 계정 화면(account.tsx).
- * 키는 늘 cm, 몸무게는 웹 설정의 무게 단위(저장은 kg).
+ * 키 · 몸무게는 설정의 길이 · 무게 단위대로(웹 profile-form.tsx 와 같다, 저장은 cm · kg).
  */
 type Loaded = ({ ok: true } & AppProfile) | { ok: false; to: string };
 
@@ -30,7 +31,7 @@ export default function ProfileScreen() {
   const { data, error, reload } = useLoad<Loaded>('profile.loadAppProfile');
   return (
     <View style={{ flex: 1, backgroundColor: c.page }}>
-      <Bar back="더보기" title="내 정보" c={c} />
+      <Bar modal back="더보기" title="내 정보" c={c} />
       {data ? <Body key={data.today + data.nickname} p={data} reload={reload} c={c} /> : <LoadState error={error} onRetry={reload} c={c} />}
     </View>
   );
@@ -45,7 +46,10 @@ function Body({ p, reload, c }: { p: AppProfile; reload: () => void; c: Palette 
   const [month, setMonth] = useState(m0 ? String(Number(m0)) : '');
   const [day, setDay] = useState(d0 ? String(Number(d0)) : '');
   const [sex, setSex] = useState<string>(p.sex ?? '');
-  const [height, setHeight] = useState(p.heightCm == null ? '' : String(p.heightCm));
+  const lengthUnit = usePrefs().length;
+  /* 키도 적는 그대로 쥐고(단위대로), 보낼 때 cm 로 */
+  const [height, setHeight] = useState<string | null>(null);
+  const shownHeight = height ?? (p.heightCm == null ? '' : String(round1(toLength(p.heightCm, lengthUnit))));
   /* 몸무게는 적는 그대로 쥐고(단위대로), 보낼 때 kg 로 */
   const [weight, setWeight] = useState<string | null>(null);
   const shownWeight = weight ?? (p.weightKg == null ? '' : String(round1(toWeight(p.weightKg, unit))));
@@ -63,7 +67,7 @@ function Body({ p, reload, c }: { p: AppProfile; reload: () => void; c: Palette 
         nickname: nickname.trim(),
         birthDate,
         sex,
-        heightCm: height.trim(),
+        heightCm: shownHeight.trim() === '' ? '' : String(Math.round(fromLength(Number(shownHeight), lengthUnit))),
         weightKg: kg,
       });
       if (r?.error) setMsg({ ok: false, text: r.error });
@@ -114,8 +118,8 @@ function Body({ p, reload, c }: { p: AppProfile; reload: () => void; c: Palette 
 
       <Group title="몸" footer="키는 영상에서 잰 보폭을 견줄 때 써요." c={c}>
         <Row label="키" c={c}>
-          <TextInput value={height} onChangeText={(t) => setHeight(t.replace(/\D/g, '').slice(0, 3))} keyboardType="number-pad" placeholder="입력" placeholderTextColor={c.muted} style={[st.input, { color: c.ink }]} />
-          <Text style={{ color: c.muted, fontSize: 16 }}>cm</Text>
+          <TextInput value={shownHeight} onChangeText={(t) => setHeight(t.replace(/[^\d.]/g, '').slice(0, 5))} keyboardType="decimal-pad" placeholder="입력" placeholderTextColor={c.muted} style={[st.input, { color: c.ink }]} />
+          <Text style={{ color: c.muted, fontSize: 16 }}>{lengthUnit}</Text>
         </Row>
         <Row label="몸무게" last c={c}>
           <TextInput value={shownWeight} onChangeText={(t) => setWeight(t.replace(/[^\d.]/g, ''))} keyboardType="decimal-pad" placeholder="입력" placeholderTextColor={c.muted} style={[st.input, { color: c.ink }]} />
@@ -217,7 +221,7 @@ function Avatar({ nickname, url, reload, c }: { nickname: string; url: string | 
       </View>
       <View style={{ flexDirection: 'row', gap: 20 }}>
         <Pressable accessibilityRole="button" onPress={() => void pick()} disabled={busy} hitSlop={8}>
-          <Text style={{ color: c.sky, fontSize: 15, fontWeight: '600' }}>{shown ? '사진 바꾸기' : '사진 넣기'}</Text>
+          <Text style={{ color: c.sky, fontSize: 15, fontWeight: '600' }}>{shown ? '사진 바꾸기' : '사진 올리기'}</Text>
         </Pressable>
         {shown ? (
           <Pressable accessibilityRole="button" onPress={remove} disabled={busy} hitSlop={8}>
@@ -226,6 +230,8 @@ function Avatar({ nickname, url, reload, c }: { nickname: string; url: string | 
         ) : null}
       </View>
       {error ? <Text style={{ color: c.danger, fontSize: 14 }}>{error}</Text> : null}
+      {/* 웹 avatar-picker 밑 한 줄 */}
+      <Text style={{ color: c.muted, fontSize: 12, textAlign: 'center' }}>사진은 작게 줄여서 올리고, 나만 볼 수 있게 저장해요.</Text>
     </View>
   );
 }
@@ -234,7 +240,7 @@ function Group({ title, footer, children, c }: { title: string; footer?: string;
   return (
     <View style={{ gap: 6 }}>
       <Text style={{ color: c.muted, fontSize: 13, fontWeight: '600', paddingHorizontal: 16 }}>{title}</Text>
-      <View style={{ backgroundColor: c.card, borderRadius: 14, overflow: 'hidden' }}>{children}</View>
+      <View style={{ backgroundColor: c.card, boxShadow: c.float, borderRadius: 14, overflow: 'hidden' }}>{children}</View>
       {footer ? <Text style={{ color: c.muted, fontSize: 13, lineHeight: 18, paddingHorizontal: 16 }}>{footer}</Text> : null}
     </View>
   );

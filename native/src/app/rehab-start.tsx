@@ -137,7 +137,7 @@ export default function RehabStartScreen() {
   return (
     <StepFrame
       progress={(step + 1) / STEP_COUNT}
-      counter={`${step + 1}/${STEP_COUNT}`}
+      counter={`${step + 1} / ${STEP_COUNT}`}
       title={title}
       desc={desc}
       problem={error}
@@ -294,7 +294,7 @@ function Summary({
           {stage}단계 {REHAB_STAGES[stage].name} · 내 활동 {activities.join(' · ')}
         </Text>
       </View>
-      <View style={{ borderRadius: 12, padding: 12, backgroundColor: c.card }}>
+      <View style={{ borderRadius: 12, padding: 12, backgroundColor: c.card, boxShadow: c.float }}>
         <Text style={[body, { color: c.ink }]}>
           {throwing.throwing === 'light'
             ? '가벼운 캐치볼은 이어 가도 돼요(18m 안 · 25개 · 통증 2 이하). 투구 계획은 재활을 마칠 때까지 쉬어요.'

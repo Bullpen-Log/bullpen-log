@@ -31,3 +31,9 @@ export function leaveTo(href: string) {
   else if (router.canGoBack()) router.back();
   openWebAfter(href);
 }
+
+/**
+ * 체크인 — 앱 어디서든 웹의 한 화면 흐름(app/(session)/checkin)을 연다. 앱을 켤 때의 관문도 그 흐름이라, 앱에 따로 그린 폼을 두면
+ * 체크인 화면이 둘이었다(2026-10-18 김민: "웹과 많이 다르다" — 3D 몸 그림 · 쉬라는 카드도 웹에만 있었다). 끝나면 next(없으면 홈)로.
+ */
+export const openCheckin = (next?: string) => leaveTo(next ? `/checkin?next=${encodeURIComponent(next)}` : '/checkin');

@@ -143,7 +143,7 @@ export async function ArmcareSection({
      */
     custom = (
       <Card className="space-y-3">
-        <p className="text-base font-bold text-ink">오늘 체크인을 먼저 남겨주세요</p>
+        <p className="text-base font-bold text-ink">오늘 체크인을 먼저 남겨 주세요</p>
         <TrainingCheckin
           parts={availableParts(library)}
           description="30초면 돼요. 몸 상태를 보고 루틴을 짜요."

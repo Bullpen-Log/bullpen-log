@@ -11,6 +11,89 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 ---
 
+## 금윤호에게 — 2026-10-19 · 김민(Claude, 김민 맥북) — 새 앱(Expo) 전환 인계: 이제 윤호 맥북에서 이어서
+
+김민: "이제부터 네이티브 앱 전환은 금윤호 맥북으로 진행할 거라, 지금까지의 진행 상황과 앞으로의 계획을 전달해줘." 받은 뒤 할 일: **아래 1 · 2 를 폰으로**(DB · 패키지 그대로).
+**전체는 `docs/native-parity/handoff-2026-10-19.md`**(상태 표 · 할 일 차례 · 함정). 화면별 기준은 같은 폴더의 나머지 문서.
+- **오늘 김민이 폰으로 보며 고친 것(모두 main)**: 시작 연출(`native/src/shell/intro.tsx`) · 다크 시작 흰 화면(`prefsReady` · `BullpenNative.setLaunchStyle`) · 시작 화면 그림을
+  아이콘 꼴로(`assets/splash.png`, `app.json` imageWidth 300 = B 150pt — `native/ios` 는 prebuild 가 만들어 손 고친 storyboard 는 GitHub 굽기에 안 실려서 고정 크기로) ·
+  구속 측정 카메라 화면(`camera-ui.tsx` · 릴리스 표적 · 존 두 손가락/손잡이 · 줄자 거리 · 주의사항 카드 `tips.tsx`) · 세션 녹화(`session-recorder.ts` · `DualCamera.now`) ·
+  탭 막대 유리 · 밀면 유리 렌즈(`tab-bar.tsx` — 김민이 '형편없다' 뒤 두 번 고침, **아직 김민 확인 전**) · 카드 그림자 · 영양 들어갈 때 화면 튐.
+- **확인 안 된 것**: 앱 측정 화면으로 저장된 구속 세션이 DB 에 **0**(네 세션 녹화 다섯은 앱 안의 웹 측정 화면이었다). 실제 폰으로 측정 → 저장을 처음 해 봐야 한다.
+- **할 차례**: ① GitHub 로 구운 앱에서 시작 연출 크기 · 다크 시작 확인 ② 앱 측정 실기기 첫 확인(저장 · 클립 · 세션 녹화, DB 읽기만) ③ 앱 측정에 훑기 · 공 감지 모델
+  (김민 구속 인계 ①) ④ 탭 막대 유리는 iOS 26 앱 스토어 탭 막대 기준으로 폰에서 ⑤ 남은 웹 화면 정하기 ⑥ 출시 전 expo-updates · 영상 앱 안에.
+- 김민의 기준은 "웹 앱이랑 똑같이" — 말보다 **김민의 화면 녹화를 장면으로 뽑아 보며** 고치는 게 빨랐다(방법은 문서 3절).
+
+## 김민에게 — 2026-10-19 밤 · 금윤호(Claude) — 세션 녹화 멎음의 진짜 원인은 웹 녹화기(6초 청함 ↔ 모듈 4초 상한) · 웹만 고쳐 앱 굽기 없이 됨
+
+받은 뒤 할 일 없음(DB · 패키지 그대로). 아래 글(같은 날 아침)에서 "앱 녹화기 버그"라 한 것은 **틀렸다** — 금윤호 녹화 다섯은 새 앱 안에서 연 **웹 측정 화면**
+(`lib/velocity-dual-recorder.ts`, meta.app=true · engineVersion 2.7.1)이었고, 그 시간대에 공 측정 클립은 끝까지 잘 잘렸다(3:43~3:47 시도 28건) — 카메라 · 인코더는 멀쩡.
+- **원인**: 웹 녹화기가 6초마다 `cutRange(lastEnd, now−0.4)` 로 ~5.6초를 청하는데 `DualCameraModule.swift clip` 은 `after = min(4, …)` 로 **4초까지만** 잘라 준다 →
+  매번 1.6초씩 뒤처져 셋째 조각부터 앱이 쥔 8초(`keepSec`) 밖 → `clip` 이 nil → "그 순간의 영상이 없어요" → catch 가 `lastEnd` 를 안 옮겨 다음도 같은 자리 → 영영 멎음.
+  조각이 4.5 → 3 → 0.3초로 줄다 끊긴 모양이 그대로 재현된다(시험 `velocity:engine2-test` '옛 셈은 멎는다 — 60초 중 10초').
+- **고침(웹만)**: `sweep.ts` `RECORD_SEGMENT_SEC` 6 → 4(모듈 상한 `CLIP_MAX_SEC` 4 · `CAMERA_KEEP_SEC` 8 상수) · 새 `nextRecordCut` — 한 번에 4초까지, 8초 밖으로 밀리면
+  건너뛰고 버퍼 안부터(failed 로 셈), 실패해도 `lastEnd = to`. `clipSpanOf(at, clip, to)` — eventSec 0(시작을 모름)이면 끝에서 되짚는다. 시험 83 통과.
+- 네 새 앱 녹화기(`native/src/velocity/session-recorder.ts`)는 원래 4초 · 4초라 멀쩡했다(3:27 녹화 37초 중 28초). 아침에 내가 넣은 '밀리면 건너뛰기'는 방어용으로 그대로 둔다.
+- 다음에 모듈을 손볼 때: 구간 자르기용 `after` 상한을 풀거나(`clipRange`) 웹 브리지에 `now()` 를 노출하면 웹 녹화기의 시계 역산(anchorClock)도 없앨 수 있다.
+- **같은 날 밤, 둘 더(내일 현장 대비)**: ① 시계(cameraNow)를 못 잡고 시작하면 `lastEnd` 가 null 이라 '녹화 중 · 0/0' 만 뜨고 영영 안 찍혔다 — 두 앱 모두 `beforeSec` 을
+  4초로 잘라 anchorClock 의 1e9 역산이 5초 기다린 뒤 실패하고, 오늘은 잡음 알림(seed)이 우연히 시계를 잡아 줬다 → 시작은 1.5초만 기다리고, 시계가 잡히는 순간
+  (첫 알림) 그 4초 전부터 찍는다. 칩 글 '녹화 준비 · 첫 알림을 기다려요'. anchorClock 은 새 모듈의 `now` 를 먼저 써 본다(옛 앱은 없어 던짐 → 역산).
+  ② 와이파이가 느리면(오늘 약 6.5Mbps, 필요 14) 밀린 조각을 버렸다 → `RECORD_MAX_PENDING` 3 → 6, 그 위로는 폰(LocalVideo `saveBlobToPhone`)에 두고 끝낼 때 차례로
+  올린 뒤 지운다(`lib/local-video.ts` `loadPhoneAssetBlob` · `removePhoneAssets` 새로). 자르기 15초 · 서버 동작 20초 · 올리기 90초 제한 — 하나가 멈춰도 stop 이 끝난다.
+  **폰에서는 못 돌려 봤다** — 내일 첫 세션은 짧게(30초) 한 번 켜 보고 관리자 '세션 녹화' 칸에서 조각 길이를 확인한 뒤 본 측정을 권한다.
+
+## 김민에게 — 2026-10-19 · 금윤호(Claude) — 세션 녹화 목록을 따로 · 앱 세션 녹화가 8초 뒤 멈추던 것 고침(네 코드) · 앱 다시 구워야 들어감
+
+받은 뒤 할 일 없음(DB · 패키지 그대로). 사용자: "세션 녹화가 구속측정 관리자에서 안 보인다 · 측정된 것과는 별개로 볼 수 있게".
+- **오늘 금윤호 세션 녹화 다섯(15:32~15:43)이 모두 첫 7~9초만 올라갔다**(189초 중 7초 등). 네 3:27 녹화는 37초 중 28초로 정상.
+  원인: `native/src/velocity/session-recorder.ts` — 카메라가 최근 8초(`DualCameraCore.swift keepSec`)만 쥐는데, 측정 중 자르기가 한 번 밀려 그 밖으로 뒤처지면
+  `DualCamera.clip` 이 실패하고 catch 가 `lastEnd` 를 안 옮겨 다음 차례도 같은 옛 구간 → 영영 실패. 고침: 8초 넘게 뒤처지면 건너뛰고 버퍼 안으로, 실패한 구간도 넘김
+  (`failed` 로 세고 '카메라가 밀려 몇 초를 건너뛰었어요'). **앱을 다시 구워야 들어간다**(GitHub `ios-native.yml`). 맥이 없어 앱 타입 검사는 못 돌렸다 — 한 번 봐 줘.
+- 웹 `/admin/velocity/recordings?kind=session|dev`: 세션 녹화(meta.sessionRecording) · 엔진 개발용 녹화를 칸으로 가름(없으면 세션 녹화), 목록 줄에 '영상 0:07만 올라감'.
+  관리자 첫 화면(PC · 휴대폰)과 앱 관리자 화면에 '세션 녹화 N' 단추를 따로(`loadAppVelocityAdmin` 에 `sessionRecordings`, `recordings` 는 이제 개발용만).
+  `lib/velocity-recording-load.ts` 에 `isSessionRecording` · `countSessionRecordings` · `uploadedSec`.
+## 금윤호에게 — 2026-10-19 · 김민(Claude, 데스크톱 · 구속측정 엔진) — 구속 측정 엔진 인계: 지금 상태 · 다음 순서(네가 이어서)
+
+김민: "지금까지 진행상황이랑 앞으로의 계획 금윤호한테 메인으로 전달해줘. 금윤호가 이어서 할거야." 받은 뒤 할 일 없음(DB · 패키지 그대로).
+**전체는 `docs/velocity/engine-2.7-plan.md` 맨 끝 '인계 — 2026-10-19' 절**(상태 표 · 다음 순서 7 · 알아 둘 것). 내 옛 구속 엔진 HANDOFF 글 여섯은 이 한 장으로 합쳤다(이력은 git).
+
+- **된 것(모두 main · 배포)**: 2.6.0 공 크기를 세션 거리로 다시 판정(2배 줌 110+ 11/14 · MAE 2.2) · 2.7.0 조용할 때 훑기 · 세션 통째 녹화 · 2.7.1 훑기가
+  **학습 공 감지 모델**(`services/velocity-detector/`, Modal 학습, `public/velocity-detector/ball-v1.onnx`, onnxruntime-web)로 공을 찾음(클립 43: 43/43) ·
+  2판 라벨 도구(관리자 녹화 편집기 [공 자리 찍기], 표 VelocityBallLabel) · 관리자 '세션 녹화 끔/켬' 칩 · 셔터 모양(운동 촬영 단추와 같게). 4단계(공 크기 깊이)는 자료로 셈해 보니 나빠져 안 만듦.
+- **가장 큰 빈칸**: **새 Expo 앱 측정에는 훑기 · 모델이 없다**(`native/src/velocity/capture.ts` 머리말 "sweep 은 아직 옮기지 않았다"). 새 앱 사용자는 앱 카메라 알림만으로 재서
+  10-16 의 '알림 침묵 → 공 놓침'이 그대로다.
+- **다음 순서(네 몫)**: ① 새 앱에 훑기 옮기기(웹 `DualCapture.sweep` · `sweep.ts` 그대로, 시계는 `DualCamera.now()`, 반나절) ② 현장 한 번(30~35구 · 110~120 15구+ · 세션 녹화 켬)
+  ③ 10-19 세션 녹화 7개(조각 22, 공 표시 0)와 못 잰 옛 클립 16개에 공 자리 찍기 → 2판 재학습(README 명령, Modal 15분) → ONNX 교체 ④ 맥: CoreML 로 MotionTrigger 를 모델로
+  ⑤ 같은 빌드에 셔터 1/2000 · 가속도 · 고도 ⑥ 140+ 짝 10~15구(피칭머신 · 빠른 투수) ⑦ 손 감지는 필요할 때만.
+- 숫자(10-16 밤 뒤 DB, 읽기만): 시도 공 10 · 후보 51 · 움직임 8 · **훑기 1** · 2.7.1 로 잰 공 11 · 사람이 찍은 라벨 1(시험용). 실제 폰에서 훑기 · 모델 속도는 아직 제대로 못 봤다.
+- 고치지 않은 것 하나: 잰 공이 0개면 세션 요약(저장 단추)이 안 뜬다 — 김민이 "저장 버튼이 안 보인다"고 했다. 빈 요약을 띄우자는 제안만 했다.
+
+## 김민에게 — 2026-10-19 · 금윤호(Claude, 윤호 맥북) — 새 앱(Expo) GitHub 굽기 워크플로 `ios-native.yml` 만들었다(네가 고른 3번) · GitHub 맥에서 한 번 돌려 성공
+
+받은 뒤 할 일 없음. **GitHub 맥에서 올리기 끈 채로 한 번 돌려 끝까지 성공했다**(실행 39205477244, 2026-10-19 14:37~15:33 KST) — 앱 1.1.0 (20261019.53958) ·
+com.bullpenlog.app · 최소 iOS 16.4 · 52M, @rpath 부품 다 있음, 시뮬레이터(iPhone 17 Pro)에서 25초 동안 안 꺼짐. 걸린 시간 56분: 아카이브 16분 · 시뮬레이터용으로
+한 번 더 굽기 35분(참고 단계라 Run workflow 에서 끄면 20분쯤). 올리기 단계는 스위치를 안 켜 건너뛰었다(그래서 열쇠는 아직 이 워크플로에서 검사 안 됨 — 처음 켤 때 본다).
+- 네 10-19 메모(TestFlight 권한 · 워크플로 부탁)는 처리해서 지웠다. 지킨 것: ① `workflow_dispatch` 만 — push 로는 안 돈다 ② 빌드 번호는 옛 앱과 같은
+  시각 모양(`20261019.123045`)이라 옛 앱 판보다 늘 크다. prebuild 가 만든 Info.plist 는 CFBundleVersion 이 글자 '1' 이라 PlistBuddy 로 직접 쓴다.
+- **올리기는 Run workflow 화면의 'TestFlight 에 올리기' 스위치(기본 꺼짐)를 켠 실행에서만** — 열쇠는 ios.yml 과 같은 넷(ASC_* · APPLE_TEAM_ID). 켜지 않으면
+  '애플 열쇠 확인' · '올리기' 단계를 건너뛰고 "TestFlight 건너뜀" 알림만 남긴다. 테스터 모두의 앱이 바뀌는 날은 네가 정하고, 그때 스위치를 켠다.
+- 단계: 패키지 → prebuild → pod install → 빌드 번호 → 서명 없이 아카이브(`ios/BullpenLog.xcworkspace` · 스킴 BullpenLog) → 만들어진 앱 확인(아이콘 · `main.jsbundle` ·
+  번들 ID · 빌드 번호) → @rpath 부품 확인 → 시뮬레이터에서 켜 보기(참고용, 스위치로 끌 수 있음) → (켰을 때만) 열쇠 확인 · 올리기 → 실패 주석.
+- **안 넣은 것 — 같이 정하자**: 운동 · 드릴 영상을 앱 안에 넣기(옛 앱의 `fetch-library-videos.mjs` · `LIBRARY_BUNDLE_TOKEN`). 새 앱 `LocalVideoModule` 은 앱 안
+  `LibraryVideos/` 를 찾는데 Expo 프로젝트에 그 폴더를 싣는 길(prebuild 뒤 Xcode 리소스로 넣는 config plugin 또는 스크립트)이 아직 없다. 없어도 앱은 볼 때 받아 폰에 둔다.
+  `expo-updates`(N3)도 그대로.
+- 덤: App Store Connect '앱 관리자' 초대는 TestFlight 빌드 · 테스터 보기용으로 받으면 좋겠다(서명 · 업로드와는 무관한 걸 안다).
+
+## 김민에게 — 2026-10-19 · 금윤호(Claude, 윤호 맥북) — 새 앱 시뮬레이터 굽기 결과 · 윤호 맥북 세팅 끝
+
+받은 뒤 할 일 없음(코드 변경 없음 — HANDOFF · `docs/claude/geum-yunho.md` 만). 금윤호에게 새 맥북이 생겨 웹 · 앱 둘 다 돌게 세팅했다.
+- `native/` 에서 `npm ci` → `npx tsc --noEmit` 통과 · `npx expo lint` 통과 · `npx expo run:ios`(iPhone 18 Pro 시뮬레이터, iOS 27.1, Xcode 27.1) **Build Succeeded, 오류 0 · 경고 4**
+  (경고는 외부 Pods 것). 네가 맥 없이 고친 Swift 둘(`shoot-camera` H.264 · 아이패드 회전)이 그대로 컴파일됐다. 앱은 시뮬레이터에서 로그인 화면까지 뜬다.
+- **못 한 것**: ① TestFlight 올리기 — 애플 개발자 팀 권한이 금윤호에게 없다(→ 같은 날 네 답대로 GitHub 워크플로로, 위 메모) ② 카메라 기능(촬영 H.264 · 아이패드 회전 · 구속 측정) · 폰에서 봐 달라던
+  것들 — 시뮬레이터에 카메라가 없어 실기기가 있어야 한다 ③ `expo-updates`(N3)는 손 안 댐.
+- 처리한 메모 정리: `__bpRefresh` · '투구 폼 다섯 고침'의 타입 검사 부탁은 끝으로 고쳐 적었고(폰 확인은 남김), 10-16 '홈 요약 칸 kcal × 양' 메모는 이미 고쳐져 있어
+  (`app/(app)/today/history.ts` 108줄이 `m.kcal * m.amount`) 지웠다.
+
 ## 김민에게 — 2026-10-18 · 금윤호(Claude) — ABS(폰 한 대 볼 · 스트라이크 자동 판정) 1차 — 구속 엔진 · 결과 화면 · 측정 화면에 더하기만 했다
 
 받은 뒤 할 일 없음(DB · 패키지 그대로 — `VelocityPitch.analysis` JSON 의 선택 칸 `abs` · `distance.fit` 만). 설계 `docs/designs/abs-single-camera.md`(P0~P3 결과),
@@ -49,7 +132,7 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 - 앱 첫 설정(영양)을 `/api/rpc` 로 저장하면 `revalidatePath` 가 웹뷰 화면을 못 비워 탭이 잠긴 채였다 → 웹에 `window.__bpRefresh`(= `router.refresh()`)를 두고,
   앱은 `openWebAfter('#refresh')` 로 부른다(`index.tsx` navTo 가 받음). 다른 앱 첫 설정(투구 · 트레이닝)도 같은 문제가 있을 수 있다 — 저장 뒤 이걸 부르면 된다.
 - 앱 영양 탭 체중이 설정 단위(lb)를 따른다(`native/src/nutrition/tab.tsx`), 첫 설정 숫자 칸이 밖에서 바뀐 값을 따라간다(`native/src/setup/nutrition-steps.tsx`),
-  '먹었어요' 등 실패해도 그날을 다시 받는다(`native/src/nutrition/api.ts`). **이 PC 엔 native 패키지가 없어 타입 검사 · 실기기 확인을 못 했다** — 맥에서 한 번 봐 줘.
+  '먹었어요' 등 실패해도 그날을 다시 받는다(`native/src/nutrition/api.ts`). 타입 검사는 윤호 맥북에서 통과(10-19) — **실기기 확인은 아직**, 폰에서 한 번 봐 줘.
 
 ## 김민에게(맥북) — 2026-10-18 · 김민(Claude, 데스크톱 · 아키텍처 세션) — 새 앱(Expo) 업데이트 장치 · 서버 동작 모양 기록
 
@@ -62,8 +145,8 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 ## 금윤호 · 김민(맥북)에게 — 2026-10-18 · 김민(Claude, 투구기록 담당) — 새 앱(Expo) 투구 폼 다섯 고침 — 맥에서 굽기 필요
 
-받은 뒤 할 일: **새 앱(Expo)을 구울 때 같이 실린다**(서버 쪽 discard 답의 `orphans` 는 이미 웹 커밋에 들어가 배포만 되면 된다). **데스크톱엔 `native/node_modules` 가 없어 앱 타입 검사를 못 돌렸다** —
-맥에서 `cd native && npx tsc --noEmit` 한 번 돌려 줘. 김민: 투구기록 점검 → "급한 것 1~9번 고쳐줘"(이 절은 5~9번).
+받은 뒤 할 일: **새 앱(Expo)을 구울 때 같이 실린다**(서버 쪽 discard 답의 `orphans` 는 이미 웹 커밋에 들어가 배포만 되면 된다). 앱 타입 검사 · 시뮬레이터 굽기는
+윤호 맥북에서 통과(10-19, 아래 '새 앱 시뮬레이터 굽기 결과'). 김민: 투구기록 점검 → "급한 것 1~9번 고쳐줘"(이 절은 5~9번).
 - `native/src/app/pitch/edit.tsx`: ⑤ 저장 · 영상 넣는 중에는 [취소] · 끌어 닫기를 막고(`Stack.Screen gestureEnabled`), 저장 없이 닫을 때는 어느 기록에도 안 붙은 폰 영상만 지움
   (`pitch/api.ts phoneOrphans` → `/api/pitch-log/discard` 의 orphans — 신호 끊김 뒤 실제로는 저장된 기록의 영상을 지우던 것) ⑥ 고칠 때 `baseVideoPaths` 를 보냄(다른 기기에서 더한 영상이 지워지던 것)
   ⑦ 강도 칩 1~10(웹과 같게, 칩 사이 옛 값은 '지금 8.5') · 옛 기록(1~10 만 있음)은 `readEffort` 로 채우고 손 안 대면 `intensity` 를 보냄(메모만 고쳐도 강도를 다시 골라야 하던 것)
@@ -169,14 +252,6 @@ GitHub '아이폰 앱 굽기'가 저절로 굽는다. **리눅스 클라우드�
   막은 게 맞고, 보정이 조금 달라진 여파라 시험은 그대로 뒀다.
 - 분석 서버(Modal)에도 올렸다(같은 날, `npm run pitch3d:bundle` → `modal deploy app.py`) — 새로 분석하는 영상부터.
 
-## 금윤호에게 — 2026-10-17 · 김민(Claude, 데스크톱 · 구속측정 엔진) — 측정 화면: 관리자 '세션 녹화' 켜기 단추
-
-받은 뒤 할 일 없음. **네 영역(측정 화면 `app/(session)/velocity/velocity-screen.tsx`)을 고쳤다**(6e72a24c).
-- 김민: "세션 통째 녹화는 관리자만 가능한데 시작하기 전에 옆에 따로 켜기 버튼이 있어야". 측정 단계에서 측정 시작 전 셔터 줄 위 왼쪽에 관리자만 보이는 칩
-  '세션 녹화 끔/켬', 측정 중엔 같은 자리에 '녹화 중 · 올림 n/m'. 세션 녹화는 이제 **이 칩으로만** 켜진다(예전: 보정용 저장을 켜면 저절로).
-  1분 100MB 남짓이라 기억하지 않는다 — 화면을 열 때마다 꺼진 채. 웹 카메라면 "앱 카메라에서만 돼요". 칩이 뜨면 카메라 위 알림창을 그만큼(pb-14) 올린다.
-- 화면은 로그인 · 카메라가 있어야 해 브라우저로 못 봤다(tsc · eslint 만). 새 Expo 앱(`native/`)의 측정 화면에는 세션 녹화가 아직 없다.
-
 ## 금윤호에게 — 2026-10-17 밤 · 김민(Claude, 트레이닝 세션) — 오늘 찍은 운동 영상 52개를 다듬은 판으로 바꿈(운영 DB · 저장소)
 
 받은 뒤 할 일 없음. 같이 쓰는 운동 라이브러리를 바꿔서 알린다(AGENTS.md 3번). 김민: "영상 앞뒤 2초 넘는 빈 시간을 자르고, 사람이 작으면 크게 보이게 잘라 줘".
@@ -215,25 +290,6 @@ GitHub '아이폰 앱 굽기'가 저절로 굽는다. **리눅스 클라우드�
 - 트레이닝만(네 영역 아님): 기본기 던지기 칸 3~4주는 강도 높음까지(`basicsPool`), 매일 일정 보강 칸은 가장 최근 세션에 한 것을 다시 안 고름
   (`theme.ts` lastSessionIds · `daily-plan.ts lastSessionIdsOf`). 시험 program 236 · training 실패 20(전과 같음).
 
-## 금윤호에게 — 2026-10-16 밤(4) · 김민(Claude, 데스크톱 · 구속측정 엔진) — 공 자리 찍기(학습 모델 2판 라벨 도구) · 받으면 `npx prisma generate`
-
-받은 뒤 할 일: **`npx prisma generate`** — 새 표 `VelocityBallLabel`(마이그레이션 `20261016150000_velocity_ball_label`, 더하기만 · DB 에 적용함, 백업 `db-2026-10-16-14-30.json`).
-네 영역(측정 화면 · Swift)은 안 건드렸다 — 관리자 구속 측정 화면 · 엔진 폴더만.
-- 관리자 녹화 편집기의 공마다 [공 자리 찍기], 탐색기 공 미리보기에도 [공 자리 찍기](`app/(app)/admin/velocity/ball-labeler.tsx`): 장면을 넘기며 공 가운데 · 가장자리를
-  눌러 저장(컷 · 클립마다 `VelocityBallLabel` 한 줄, 장면 시각 · 공 [x, y, 지름] 원본 px). 엔진이 못 잰 10-06 · 10-07 클립도 같은 도구로 찍는다.
-- `services/velocity-detector/pull-labels.mjs` 가 서버 라벨 + 영상을 받아 1판과 같은 `labels.json`(detector-v2) 로 — `train.py --dataset detector-v2` 가 그대로 읽는다.
-  자세한 것은 `docs/velocity/engine-2.7-plan.md` '5단계 2판 ②'. 시험으로 10-16 녹화 한 컷(12장면)을 찍어 둔 줄이 하나 있다.
-
-## 금윤호에게 — 2026-10-16 밤(3) · 김민(Claude, 데스크톱 · 구속측정 엔진) — 엔진 2.7.1: 조용할 때 훑기가 학습 모델로 공을 찾는다
-
-받은 뒤 할 일 없음(DB · 패키지 · Swift 그대로 — onnxruntime-web 은 npm 에 안 넣고 jsDelivr 판 고정 주소에서 받는다, `lib/velocity-engine/ball-net.ts`).
-**네 영역(구속 측정 — 앱 카메라 길)의 `dual-capture.ts` 두 줄(arm 때 모델 미리 받기 · 로그에 via)과 `analyze-video.ts locateThrow` 를 고쳤다.**
-- 훑기(sweep)가 공을 알아채는 눈이 밝기 차 거친 훑기 → 학습 모델(MobileNetV3-small 열지도, 입력 긴 변 736 · 연속 세 장면). 모델 · 런타임을 못 받으면 예전 길(via 'coarse').
-  실제 클립 43개에서 모델 43/43 · 알림 시각 0.9초 안 24/24(거친 훑기 37/43 · 20/24). 알림 길 · 파일 길의 계산은 안 바뀌어 값 · 보정 짝 그대로(2.7.1).
-- 모델 파일 `public/velocity-detector/ball-v1.onnx`(177KB) — 사이트 배포에 실린다. WASM 런타임 14MB 는 첫 arm 때 받고 브라우저가 캐시한다(LTE 면 10초쯤).
-- **폰에서 봐 줄 것**: 콘솔 `[velo] sweep … (net)` 이 찍히나(안 찍히고 coarse 면 런타임을 못 받은 것) · 훑기 한 번이 몇 초인가(2.5초 넘으면 다음 하나를 쉬는 규칙이 있다).
-  자세한 것은 `docs/velocity/engine-2.7-plan.md` '5단계 2판 ①'. 알림(MotionTrigger)을 모델로 바꾸는 CoreML 길은 김민이 맥북에서 직접 한다(2026-10-16 사용자) — 같은 ONNX 에서.
-
 ## 금윤호에게 — 2026-10-16 밤 · 김민(Claude, 데스크톱 · 3D 담당) — 3D 엔진 착지 무렵 앞다리(앞무릎) 고침 · 분석 서버에도 올림
 
 받은 뒤 할 일 없음(DB · 패키지 그대로). **네 영역(3D 엔진)을 고쳤다** — `lib/pitch-3d/analyze.ts` · `camera.ts` · `v2/fit.ts`. 김민: "앞다리(착지 뒤 무릎) 엔진 오류부터".
@@ -247,16 +303,6 @@ GitHub '아이폰 앱 굽기'가 저절로 굽는다. **리눅스 클라우드�
   앞발 자리가 바로잡혀 착지 때 몸통 열림 +5.4 → −2.9° · 골반 열림 +7.6 → −0.1° · 골반 기울기 3.3 → 0.6°. 관절 오차 3.2/3.1 → 3.2/3.1cm 그대로.
   10-12 마커 15구 채점 · 떨림 검사(데스크톱 샘플 1개) 나빠짐 없음(분리 4.8 → 5.4° 는 고치기 전 엔진도 같다 — 예전 변경). 시험 v1 63 · v2 320.
 - 분석 서버(Modal)에도 올렸다(같은 날, `npm run pitch3d:bundle` → `modal deploy app.py`) — 새로 분석하는 영상부터. 실험실 실제 영상 7개는 맥북에만 있어 떨림 검사는 그쪽에서 한 번 돌려 줘.
-
-## 금윤호에게 — 2026-10-16 밤(2) · 김민(Claude, 데스크톱 · 구속측정 엔진) — 공 감지 학습 모델 1판(Modal) · 4단계는 안 만듦
-
-받은 뒤 할 일 없음(DB · 패키지 · Swift 그대로 — 새 폴더 `services/velocity-detector/` 와 문서만). 네 영역 코드는 안 건드렸다.
-- 2.7 계획 4단계(공 크기 깊이를 궤적에)는 스피드건 짝 21구로 셈해 보니 오차 2.69 → 3.01% 로 나빠져 **안 만들었다**(`docs/velocity/engine-2.7-plan.md` 4단계 절).
-- 5단계 1판: 엔진이 믿은 공 자리를 라벨로(37클립 · 장면 3,266) MobileNetV3-small 열지도 모델을 Modal T4 에서 학습(5.5분). 시험 클립 8개에서 재현율 90%(지름 8px
-  넘으면 95~97%) · 헛 알림 2.9% — 그 헛 알림은 모두 **실제로 공이 있는 릴리스 직후 장면**(엔진 라벨이 빈 곳)이라 모델이 엔진보다 공을 더 찾는다.
-  모양 · 명령 · 다음 단계는 `services/velocity-detector/README.md` · 계획 문서 5단계 절. 무게(ONNX 177KB)는 Modal 볼륨 `bullpen-ball-detector-data` /out/v1.
-- **(김민이 맥북에서 직접 하기로 함 — 2026-10-16 사용자)** 폰에 넣으려면 ONNX → CoreML(coremltools, 맥) → `DualCameraPlugin.swift` MotionTrigger 의 공 알림을 모델 봉우리로. 그 전에 폰에서 이 모델
-  한 장면 추론 시간(목표 60fps 의 반, 8ms 안)을 재 보는 것이 첫걸음. 사용자가 시키면 내가 사이트 쪽(onnxruntime-web 로 훑기)을 먼저 해 볼 수도 있다.
 
 ## 금윤호에게 — 2026-10-16 밤 · 김민(Claude, 데스크톱 · 베타 시뮬 QA) — 홈 요약 칸 · 하이라이트 · 투구 폼 · 분석을 고쳤다(베타 100명 결과)
 
@@ -275,26 +321,6 @@ GitHub '아이폰 앱 굽기'가 저절로 굽는다. **리눅스 클라우드�
   (`day-record.tsx` · `videos-client.tsx` 는 단위대로 보임). 첫 설정 휴식표(`insert-cards.tsx`)는 나이대 표로, 성장기 팔 상태에 '전력 투구는 N일 뒤' 신호.
 - 시험: arm-status 34 · highlights 25 · integration 28 · nutrition 494 · advice 46 · training 실패 20(고치기 전과 같은 목록). 화면은 로그인이 필요해 못 봤다 —
   홈 요약 칸(부하 · 영양 장 넘기기) · 투구 폼(비행기 모드로 저장 → 다시 열기)을 폰에서 한 번 봐 줘.
-
-## 금윤호에게 — 2026-10-16 밤 · 김민(Claude, 데스크톱 · 구속측정 엔진) — 구속 엔진 2.7.0: 조용할 때 훑기 · 세션 통째 녹화(관리자) — 놓치는 공 줄이기
-
-받은 뒤 할 일 없음(DB · 패키지 · Swift 그대로 — 사이트 쪽만, 빌드 없이 배포). **네 영역(구속 측정 — 앱 카메라 길 · 측정 화면 · 시도 기록)을 고쳤다.**
-김민: "공도 인식을 못해, 다음에도 또 이러면 어떡해" → 계획 `docs/velocity/engine-2.7-plan.md`(1 · 2단계 끝, 3~6단계는 Swift · 학습 모델).
-- 왜: 10-16 세션 저장 뒤 이어 재니 앱 알림이 거의 안 왔다(공 2 · 움직임 0) — 같은 조건 녹화 7구는 엔진에 넣으면 6구 '높음'. 알아채기가 구멍.
-- **조용할 때 훑기**(`dual-capture.ts` sweep · `analyze-video.ts locateThrow` · `lib/velocity-engine/sweep.ts`): armed 이고 재는 중이 없으면 5초마다 지난 6초(겹침 1초)를
-  앱에서 잘라 거친 훑기만 — 공을 믿었으면 그 시각으로 움직임 알림과 같은 길로 잰다(`onThrow(t, 'sweep')`, 안 보이게 시작해 공 길이 나오면 결과 + '뒤늦게 찾은 공' 알림,
-  `ResultMeta.late`). 재는 중 · 최근 5초 창의 공은 건너뛰고, 훑기가 2.5초 넘으면 다음 하나는 쉰다. `DualCapture.setSweep(false)` 로 끌 수 있다(기본 켬).
-  10-16 · 10-09 앱 클립 20개: 훑기가 공을 20/20 찾았고, 그 길로 잰 값은 10-16 밖 6구 모두 '높음' · 알림 길과 1km/h 안(실내 10-09 는 알림 길처럼 '낮음').
-- **앱 카메라 시계**: 알림 atSec 을 `performance.now()` 와 짝짓고, 알림 전엔 `clip({ atSec: 1e9, beforeSec: 1e9, afterSec: 0 })` 한 번으로 쥔 조각 전부의 시작을 역산
-  (`anchorClock`, 앱이 5초 상한까지 기다렸다 돌려줌 · 파일은 안 읽고 discard). **Swift 에 `now`(CACurrentMediaTime) 하나만 더해 주면 이 5초가 없어진다** — 다음 빌드 때.
-  `cutRange(from, to)` = clip(atSec: from, beforeSec: 0, afterSec: to − from) + readDualClip.
-- **세션 통째 녹화**(`lib/velocity-dual-recorder.ts` DualSessionRecorder): 관리자 · '정확도 보정용 저장' 켬 · 앱 카메라일 때 세션 시작(arm)에 켜고 종료 · 저장 · 나가기에 끈다.
-  6초마다 잘라 서버 녹화(VelocityRecording — 엔진 개발용 녹화와 같은 표 · 편집기)로 올린다. meta `sessionRecording: true` · `cameraClockStart`(알림 atSec 과 같은 시계).
-  조각 약 10MB(14Mbps) — LTE 면 1분 100MB 쯤(김민이 알고 고른 2번 방식). 올리기가 3개 넘게 밀리면 그 조각은 건너뛴다.
-- 시도 기록 kind 에 'sweep'(`app/actions/velocity.ts`), 관리자 시도 표 '훑기'(`explorer-panels.tsx` 한 줄). 측정 화면: `startSessionRecording · stopSessionRecording` ·
-  결과 알림 한 줄 · `sessionRecRef`.
-- 시험 engine2 65(새 7 — 시계 역산 · 훑기 창) · test 48 · detect 15 · video 59 · live 61 · tsc · eslint. **실제 폰에서는 아직 안 봤다** — 다음 현장에서 콘솔 `[velo] sweep …` ·
-  관리자 녹화 목록(조각 수) · 시도 표 '훑기' 줄을 봐 줘. 사용자가 다음에 하라고 한 것: 3단계(셔터 상한 1/2000 · 가속도 3축 · 고도, Swift) · 5단계 공 감지 학습 모델(Modal 학습 · CoreML).
 
 ## 금윤호에게 — 2026-10-16 · 김민(Claude, 데스크톱 · 앱 틀) — 숨은 판의 막대 제목 · '‹ 뒤로'가 지금 화면을 덮던 것
 
@@ -378,18 +404,6 @@ User 관계가 없는 표: `VelocityRecording`(조각 · 표시 딸림)은 지�
 - `training/rehab-start.tsx` 의 오늘을 `toDateKey(new Date())` 로(UTC 라 한국 0~9시에 어제였다).
 - 나이 띠(트레이닝 16 · 영양 17 · 투구 한도 19)는 김민 결정으로 그대로 — 통합 시험이 '어긋남은 16 · 17세뿐'을 지킨다.
 
-## 금윤호에게 — 2026-10-16 · 김민(Claude, 데스크톱 · 구속측정 엔진) — 구속 엔진 2.6.0: 세션 거리로 공 크기 다시 판정 · 덩어리 배율 1.163
-
-받은 뒤 할 일 없음(DB · 패키지 그대로). **네 영역(구속 측정)을 고쳤다.** 김민: "구속측정 엔진 성능을 올려 안정성 · 정확성을". 1배 줌은 엔진 개선에 반영하지 않는다(김민 결정 — 모두 2배 줌 기준).
-- 오차표 `docs/velocity/accuracy-2026-10-16.md`: 2배 줌 스피드건 짝 35구를 지금 엔진으로 앱 규칙(높음만 기록 · 세션 거리 보정)대로 다시 잼. 엔진은 91% 를 재는데 앱에는 26% 만 남았다.
-  공 크기 거리를 기준 20m 와만 견줘 실제 22.5m 자리의 빠른 공이 '15% 넘게 다름'으로 측정 불가가 됐다.
-- 엔진(`analyze-distance.ts`): 공 크기 판정을 `judgeSize` 로 떼고 `rejudgeSize(result, refM)` 를 내보낸다 — 판정 전 믿음을 `DistanceReport.preSize` 에 두고, 판정한 거리는 `sizeRefM`(분석 JSON · DB 까지).
-  `BLOB_SIZE_RATIO` 1.185 → 1.163(디코더 길에서는 장면이 노드 실험대와 같다).
-- 측정 화면(`velocity-screen.tsx`): `addResult` 첫 줄 `judgeBySession` — 세션 거리 보정이 걸렸으면 그 거리로 다시 판정. 거리 알림 · `distanceMismatch`(`lib/velocity-analysis.ts`)도 `sizeRefM` 기준.
-- 결과(실제로 다시 잼): 기록 9 → 14구, 110km/h 이상 3 → 7구 · 평균 차이 +0.1 · MAE 2.4km/h. 구속 값은 한 공도 안 바뀜. 보정 짝 묶음이 2.6 으로 새로 시작(2.5 짝은 없었음).
-- 10-12 클립 22구는 `local-…`(폰 안)이라 서버에 없어 못 썼다. 다음 현장 측정은 관리자 보정용 저장을 켜서 클립을 서버에 남겨 줘. 실제 폰에서는 아직 안 봤다.
-
-
 ## 금윤호에게 — 2026-10-16 · 김민(Claude, 데스크톱 · 메커니즘 담당) — 투구 기록 그날 화면에 '드릴로 던진 공' 채우기 · 캐치볼에 더하기
 
 받은 뒤 할 일 없음(DB · 패키지 그대로). **네 영역(투구 기록 그날 화면 · 입력 폼)을 고쳤다.** 김민: 드릴로 던진 공을 기록에 바로 넣으면 손으로 적은 투구와
@@ -472,16 +486,6 @@ User 관계가 없는 표: `VelocityRecording`(조각 · 표시 딸림)은 지�
   `lib/shoot/schedule.ts` 의 Bucket · `progress.ts` 의 이름표는 이 분류를 모른다(야외 계획을 다시 뽑으면 무브먼트로 묶인다) — 지금 계획 JSON 은 그대로라
   안 고쳤다. 다시 뽑을 일이 있으면 그때 한 줄씩 더해 줘. shoot:test 72 통과.
 - 드릴 영상 목록이 분류 3칸 대신 **요소 6칸 + 근력 · 안정 + 나중에 촬영**으로 나온다(종류는 필터 · 펼친 카드). 관리자 등록 폼에서 종류를 고른다.
-
-## 금윤호에게 — 2026-10-16 · 김민(Claude, 데스크톱 · 영양 담당) — 홈 요약 칸 '최근 7일 평균 kcal' 이 양을 안 곱함 · 영양 한 줄이 네 그날 화면에 · day-detail 칸 둘
-
-**받은 뒤 할 일: 네 파일 한 줄 고치기**(김민이 네 영역이라 안 건드렸다). 영양 전체 점검(`docs/reviews/nutrition-2026-10-16.md`)에서 나왔다.
-- `app/(app)/today/feed.tsx` 46~58줄: 최근 7일 식사를 `select: { date: true, kcal: true }` 로 읽어 `m.kcal` 만 더한다. `MealEntry.kcal` 은 **1인분 값**이라
-  1.5인분을 담으면 1인분으로 센다 → 요약 칸 영양 장의 '최근 7일 평균 · 목표의 N%'가 틀린다. 고치기: select 에 `amount: true`, 더할 때 `m.kcal * m.amount`.
-- 알림(할 일 없음): 10-16 커밋 cf0db02b 가 네 `pitch-log/[date]/load.ts` · `day-client.tsx` 에 '던진 뒤 회복식' 한 줄(`components/nutrition-line.tsx`)을 넣었는데
-  그때 HANDOFF 를 못 적었다. 오늘 날짜 · 불펜 · 라이브 · 경기 기록이 있을 때만 뜬다(`lib/nutrition/nudge.ts`).
-- 알림(할 일 없음): `lib/day-detail.ts` 의 `nutrition` 에 선택 칸 둘을 더했다 — `avoid`(식단 취향의 못 먹는 것) · `unknown`(값을 모르는 탄 · 단 · 지).
-  홈 영양 조언이 예시 음식에서 못 먹는 것을 빼고, 모르는 영양소로 '더 먹을 양'을 셈하지 않게. 아무것도 안 뺀 사람의 홈 글은 그대로다.
 
 ## 금윤호에게 — 2026-10-16 · 김민(Claude, 데스크톱 · 통합 세션) — 구속 측정은 투구 기록을 만들지 않는다 · 받으면 `npx prisma generate`
 

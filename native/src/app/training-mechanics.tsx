@@ -19,6 +19,7 @@ import {
   SymptomChips,
 } from '~/training/mechanics-parts';
 import { Fold, Screen, s, useJump, useScreenData } from '~/training/screen';
+import { useRememberPart } from '~/training/remember';
 
 /**
  * 메커니즘(앱 화면) — 웹 /training?view=mechanics(&tab=elements&el=…)(app/(app)/training/training-page.tsx 의 mechanics 칸 · mechanics-section.tsx)를
@@ -34,6 +35,7 @@ const TABS = [
 type Tab = (typeof TABS)[number]['value'];
 
 export default function TrainingMechanicsScreen() {
+  useRememberPart('mechanics');
   const c = usePalette();
   const params = useLocalSearchParams<{ tab?: string; el?: string }>();
   const [tab, setTab] = useState<Tab>(params.tab === 'elements' ? 'elements' : 'program');
@@ -71,7 +73,7 @@ function ProgramTab({ data, reload, c }: { data: AppMechanicsProgramTab; reload:
         <SessionCard program={program} session={data.session} doneToday={data.doneToday} painFold={data.painFold} c={c} />
       )}
       {!completed && program.advice && program.advice.kind !== 'done' && program.advice.to ? (
-        <LevelOffer kind={program.advice.kind} to={program.advice.to} onChanged={() => void reload()} c={c} />
+        <LevelOffer kind={program.advice.kind} to={program.advice.to} onChanged={() => void reload()} keepLabel="지금 수준 계속" c={c} />
       ) : null}
       <LevelProgress program={program} c={c} />
       <FilmCard sessionsDone={program.sessionsDone} films={program.films} c={c} />
@@ -108,7 +110,7 @@ function ElementsTab({
         투구의 흐름
       </Text>
       <ElementChain current={open} onPick={(name) => openElement(name, null)} c={c} />
-      <View style={[s.card, { backgroundColor: c.card, paddingVertical: 6 }]}>
+      <View style={[s.card, { backgroundColor: c.card, boxShadow: c.float, paddingVertical: 6 }]}>
         <Fold label="왜 순서가 중요한가요" c={c}>
           <OverviewDetail c={c} />
         </Fold>

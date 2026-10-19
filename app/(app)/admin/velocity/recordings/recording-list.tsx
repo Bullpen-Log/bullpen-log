@@ -78,6 +78,12 @@ export function RecordingList({ rows }: { rows: RecordingListItem[] }) {
                             끊김
                           </span>
                         )}
+                        {/* 올라간 영상이 녹화 길이보다 3초 넘게 짧으면 — 앱이 조각을 못 올린 구간이 있다 */}
+                        {r.durationSec != null && r.uploadedSec < r.durationSec - 3 && (
+                          <span className="ml-1.5 text-xs font-normal text-warn">
+                            영상 {clock(r.uploadedSec)}만 올라감
+                          </span>
+                        )}
                       </span>
                       <span className="block truncate text-xs text-muted tabular-nums">
                         조각 {r.parts}개 · {mb(r.bytes)} · 공 {r.cuts}개

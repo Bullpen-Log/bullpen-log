@@ -97,7 +97,7 @@ export function ProgramStartView({ ps, c, a }: { ps: TodayProgramStart; c: Palet
   return (
     <>
       {recommend ? basicsCard : null}
-      <Pressable accessibilityRole="button" onPress={() => setOpening({ with: null })} style={[st.entry, { backgroundColor: c.card }]}>
+      <Pressable accessibilityRole="button" onPress={() => setOpening({ with: null })} style={[st.entry, { backgroundColor: c.card, boxShadow: c.float }]}>
         <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
           <Text style={[s.bodyBold, { color: c.ink }]}>근력 · 파워 프로그램</Text>
           <Text style={[s.tiny, { color: c.muted }]}>
@@ -337,7 +337,7 @@ function StartSheet({
               {ps.blocked.reason} {ps.blocked.action}
             </Text>
           ) : null}
-          <View style={[s.card, { backgroundColor: c.card, paddingVertical: 4, gap: 0 }]}>
+          <View style={[s.card, { backgroundColor: c.card, boxShadow: c.float, paddingVertical: 4, gap: 0 }]}>
             {shown.map((p, i) => (
               <Pressable
                 key={p.id}
@@ -368,7 +368,7 @@ function StartSheet({
               {perWeekText(choice)} · {choice.origin}
             </Text>
           </View>
-          <View style={[s.card, { backgroundColor: c.card, paddingVertical: 4 }]}>
+          <View style={[s.card, { backgroundColor: c.card, boxShadow: c.float, paddingVertical: 4 }]}>
             <Pressable
               accessibilityRole="button"
               accessibilityState={{ expanded: weeksOpen }}
@@ -440,7 +440,7 @@ function StartSheet({
               accessibilityRole="radio"
               accessibilityState={{ selected: level === l.name }}
               onPress={() => setLevel(l.name)}
-              style={[st.option, { backgroundColor: c.card, borderColor: level === l.name ? c.sky : 'transparent' }]}
+              style={[st.option, { backgroundColor: c.card, boxShadow: c.float, borderColor: level === l.name ? c.sky : 'transparent' }]}
             >
               <Text style={[s.bodyBold, { color: c.ink }]}>{l.name}</Text>
               <Text style={[s.tiny, { flex: 1, textAlign: 'right', color: c.muted }]}>{l.desc}</Text>
@@ -554,7 +554,7 @@ function PinList({
   busy?: boolean;
 }) {
   return (
-    <View style={[s.card, { backgroundColor: c.card, paddingVertical: 4, gap: 0 }]}>
+    <View style={[s.card, { backgroundColor: c.card, boxShadow: c.float, paddingVertical: 4, gap: 0 }]}>
       {pins.map((x, i) => (
         <Pressable
           key={x.variant}
@@ -596,7 +596,7 @@ function PickList({
   if (items == null) return <Text style={[s.small, { color: c.muted }]}>불러오는 중…</Text>;
   if (items.length === 0) return <Text style={[s.small, { color: c.muted }]}>{empty}</Text>;
   return (
-    <View style={[s.card, { backgroundColor: c.card, paddingVertical: 4, gap: 0 }]}>
+    <View style={[s.card, { backgroundColor: c.card, boxShadow: c.float, paddingVertical: 4, gap: 0 }]}>
       {items.map((x, i) => (
         <Pressable
           key={x.id}

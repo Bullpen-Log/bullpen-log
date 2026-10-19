@@ -1,7 +1,7 @@
 import * as Haptics from 'expo-haptics';
 import { SymbolView } from 'expo-symbols';
 import { type Href, router } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { josa } from '@/lib/korean';
 import { mechanicsLevel } from '@/lib/mechanics/levels';
@@ -32,23 +32,44 @@ export async function act<T extends object>(action: string, ...args: unknown[]):
 }
 
 /** 자세 설명 — 펼칠 때 받는다(content.guideDescription, 웹 Description 과 같은 길). null 은 못 받은 것 */
-export function Description({ guideId, c }: { guideId: string; c: Palette }) {
-  const [open, setOpen] = useState(false);
+export function Description({ guideId, inline = false, c }: { guideId: string; inline?: boolean; c: Palette }) {
+  /* inline — 이미 '자세·영상 보기'로 펼친 칸 안: 웹 MechanicsDrill 처럼 접지 않고 바로 받아 보인다 */
+  const [open, setOpen] = useState(inline);
   const [got, setGot] = useState<{ text: string | null } | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(inline);
   const failed = got != null && got.text == null;
-  const load = () => {
-    if (loading) return;
-    setLoading(true);
+  const fetchText = () =>
     rpc<string | null>('content.guideDescription', guideId)
       .then(
         (text) => setGot({ text }),
         () => setGot({ text: null })
       )
       .finally(() => setLoading(false));
+  const load = () => {
+    if (loading) return;
+    setLoading(true);
+    void fetchText();
   };
+  useEffect(() => {
+    if (inline) void fetchText();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 처음 그릴 때 한 번
+  }, []);
+  if (inline)
+    return loading ? (
+      <ActivityIndicator />
+    ) : failed ? (
+      <Pressable onPress={load} accessibilityRole="button" style={s.textBtn}>
+        <Text style={[s.small, { color: c.muted }]}>
+          설명을 불러오지 못했어요. <Text style={{ color: c.sky, fontWeight: '700' }}>다시 받기</Text>
+        </Text>
+      </Pressable>
+    ) : got?.text ? (
+      <Text selectable style={[s.body, { color: c.ink }]}>
+        {got.text}
+      </Text>
+    ) : null;
   return (
-    <View style={[s.card, { backgroundColor: c.card }]}>
+    <View style={[s.card, { backgroundColor: c.card, boxShadow: c.float }]}>
       <Pressable
         onPress={() => {
           setOpen((v) => !v);
@@ -109,7 +130,7 @@ export function ThrowNoteCard({ note, c }: { note: DrillThrowNote; c: Palette })
     else setClosed(true);
   };
   return (
-    <View style={[s.note, { backgroundColor: c.card }]}>
+    <View style={[s.note, { backgroundColor: c.card, boxShadow: c.float }]}>
       <Text style={[s.bodyBold, { color: c.ink }]}>{DRILL_THROW_TEXT.line(note.throws)}</Text>
       <View style={s.row}>
         <Pressable
@@ -187,12 +208,15 @@ export function LevelOffer({
   kind,
   to,
   onChanged,
+  keepLabel = '나중에',
   c,
 }: {
   kind: 'done' | 'up' | 'down';
   to: Parameters<typeof mechanicsLevel>[0];
   /** 바꾼 뒤 — 프로그램 칸(앱 화면)은 다시 받는다 */
   onChanged?: () => void;
+  /** 둘째 단추 — 따라 하기 끝 화면은 '나중에'(웹 mechanics-player LevelOffer), 프로그램 칸은 '지금 수준 계속'(웹 mechanics-program AdviceCard) */
+  keepLabel?: string;
   c: Palette;
 }) {
   const [state, setState] = useState<'ask' | 'changed' | 'keep'>('ask');
@@ -225,7 +249,7 @@ export function LevelOffer({
     }
   };
   return (
-    <View style={[s.block, { backgroundColor: c.card }]}>
+    <View style={[s.block, { backgroundColor: c.card, boxShadow: c.float }]}>
       {state === 'changed' ? (
         <Text style={[s.bodyBold, { color: c.ink }]}>
           {level.name} 프로그램으로 바꿨어요. 다음은 {level.name} 1번 세션이에요.
@@ -244,7 +268,7 @@ export function LevelOffer({
               <Text style={[s.bodyBold, { color: '#fff' }]}>{pending ? '바꾸는 중…' : `${level.name} 시작`}</Text>
             </Pressable>
             <Pressable onPress={() => setState('keep')} disabled={pending} accessibilityRole="button" style={[s.cell, { backgroundColor: c.chip }]}>
-              <Text style={[s.bodyBold, { color: c.ink }]}>나중에</Text>
+              <Text style={[s.bodyBold, { color: c.ink }]}>{keepLabel}</Text>
             </Pressable>
           </View>
           {error ? <Text style={[s.small, { color: c.danger }]}>{error}</Text> : null}

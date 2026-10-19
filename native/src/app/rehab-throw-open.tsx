@@ -58,7 +58,7 @@ function OpenForm({ view, recent }: { view: AppRehabThrowing; recent: { normalPc
       next={{ label: busy ? '여는 중…' : '투구 복귀표 열기', onPress: () => void submit(), disabled: !filled || !judged?.pass || busy }}
       c={c}
     >
-      <View style={{ borderRadius: 12, padding: 12, gap: 4, backgroundColor: c.card }}>
+      <View style={{ borderRadius: 12, padding: 12, gap: 4, backgroundColor: c.card, boxShadow: c.float }}>
         <Text style={{ color: c.ink, fontSize: 15 }}>
           이번 주 확인 · 다치기 전의 <Text style={{ fontWeight: '700' }}>{recent.normalPct}%</Text> · 던질 자신감 <Text style={{ fontWeight: '700' }}>{recent.confidence}</Text>
         </Text>

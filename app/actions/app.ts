@@ -4,17 +4,25 @@ import { cookies } from 'next/headers';
 import { unstable_rethrow } from 'next/navigation';
 import { appNow } from '@/lib/clock';
 import { getCurrentUser } from '@/lib/dal';
-import { pickArmPain, pickCheckinParts, validateCheckinDate, type CheckinPartKey } from '@/lib/checkin';
+import { loadTrainingStrip, type TrainingStripDay } from '@/lib/training-week';
+import { loadTrainingWeekCounts, type TrainingWeekCounts } from '@/lib/report/training-week-counts';
+import { pickArmPain, pickCheckinParts, todayOutingRole, validateCheckinDate, type CheckinPartKey } from '@/lib/checkin';
+import { GOOD_DAY_MIN, RATED_SESSION_TYPES } from '@/lib/pitch-satisfaction';
 import { featureLocks, SETUP_PATH } from '@/lib/feature-locks';
 import { dbDate, isNutritionDate, keyOfDbDate } from '@/lib/nutrition/days';
 import { prisma } from '@/lib/prisma';
 import { isOutingTitle, sortEvents, type CalendarEventView } from '@/lib/calendar-event';
 import { gatherFactsAndPlan } from '@/lib/report/gather';
-import { loadVelocityDay, withMissedAttempts } from '@/lib/velocity-load';
+import { loadVelocityByDate, loadVelocityDay, withMissedAttempts } from '@/lib/velocity-load';
 import { logPrefillOf, unloggedSessions, type LogPrefill, type VelocitySessionView } from '@/lib/velocity-meta';
 import { loadNutritionDay } from '@/lib/nutrition/load';
-import type { Food, MealEntryView } from '@/lib/nutrition/meta';
+import { loadAdvice } from '@/lib/nutrition/advice-load';
+import { serviceHour } from '@/lib/nutrition/advice-input';
+import type { Food, MealEntryView, RankedFood } from '@/lib/nutrition/meta';
+import type { MealComboView } from '@/lib/nutrition/combos';
 import type { PlanContext, PlanItem } from '@/lib/nutrition/meal-plan';
+import type { AgeBand } from '@/lib/nutrition/age';
+import { DIET_STYLES, MEAL_PATTERNS, type AvoidKey } from '@/lib/nutrition/diet-prefs';
 import { shiftDateKey, toDateKey } from '@/lib/pitch-stats';
 import { loadHomeFeed, loadHomeRings, type HomeRing } from '@/lib/report/home-today';
 import { loadTodayCoreCached } from '@/lib/report/today-data';
@@ -65,6 +73,8 @@ export async function loadAppHome(): Promise<
       today: string;
       rings: HomeRing[];
       checkinDone: boolean;
+      /** 오늘 투구 기록이 있나(쉰 날 줄 포함) — 앱 위 막대 알림 종 */
+      pitchDone: boolean;
       feed: FeedItem[];
       /** 최근 투구 메모에 통증 같은 말 — 체크인으로 확인할 때까지 투구는 쉬고 운동은 회복만(웹 홈 맨 위 경고 카드) */
       painWords: string[] | null;
@@ -73,6 +83,8 @@ export async function loadAppHome(): Promise<
       /** 투구 기록을 한 번도 안 남긴 사람 — 지금 팔 상태(첫날 카드) */
       firstDay: ArmStatus | null;
       pitchLocked: boolean;
+      /** 지난번 잘 던진 날 남긴 말 — 오늘 던지는 날, 오늘 기록 전에만(웹 home-page.tsx goodNote · good-day-note.tsx) */
+      goodNote: { date: string; sessionType: string; satisfaction: number; memo: string; cuesGood: string[] } | null;
     }
   | { ok: false; error: string }
 > {
@@ -80,10 +92,16 @@ export async function loadAppHome(): Promise<
   if (!user) return { ok: false, error: '로그인이 필요해요.' };
   const today = toDateKey(appNow());
   const locks = featureLocks(user);
-  const [rings, feed, core] = await Promise.all([
+  const [rings, feed, core, goodDay] = await Promise.all([
     loadHomeRings(user, today, locks.pitch),
     loadHomeFeed(user, today),
     loadTodayCoreCached(user),
+    /* 만족도가 높았던 날의 메모 — 5점 먼저, 같은 점수면 최근 것(웹 홈과 같은 조회) */
+    prisma.pitchLog.findFirst({
+      where: { userId: user.id, sessionType: { in: [...RATED_SESSION_TYPES] }, satisfaction: { gte: GOOD_DAY_MIN }, memo: { not: null } },
+      orderBy: [{ satisfaction: 'desc' }, { date: 'desc' }, { createdAt: 'desc' }],
+      select: { date: true, sessionType: true, satisfaction: true, memo: true, cuesGood: true },
+    }),
   ]);
   const { plan, picked, facts } = core;
   return {
@@ -91,11 +109,16 @@ export async function loadAppHome(): Promise<
     today,
     rings: rings.items,
     checkinDone: rings.checkinDone,
+    pitchDone: rings.pitchDone,
     feed,
     painWords: plan.needsPainCheck && !picked.halted ? facts.condition.painWordsInMemo : null,
     recovering: plan.recovering && !plan.needsPainCheck && !picked.halted,
     firstDay: core.everLogged ? null : armStatusOf(facts),
     pitchLocked: locks.pitch,
+    goodNote:
+      goodDay?.memo && goodDay.satisfaction != null && todayOutingRole(facts.condition.throwPlanToday, facts.condition.throwPlanYesterday) != null && !rings.pitchDone
+        ? { date: toDateKey(goodDay.date), sessionType: goodDay.sessionType, satisfaction: goodDay.satisfaction, memo: goodDay.memo, cuesGood: goodDay.cuesGood }
+        : null,
   };
 }
 
@@ -117,6 +140,32 @@ export async function loadAppNutrition(date: string): Promise<
       mfds: boolean;
       /** 그날 짜 둔 식단(먹은 기록과 따로) — 없으면 null */
       mealPlan: { items: PlanItem[]; context: PlanContext } | null;
+      /** 끼니마다 단백질 목표 · 모자랄 때 예시(lib/nutrition/meal-protein.ts mealProtein)에 — 웹 끼니 칸과 같은 값 */
+      ageBand: AgeBand;
+      avoid: AvoidKey[];
+      /** '오늘 식욕 · 끼니는요?' 카드의 답(오늘 · 답했을 때만, 웹 nutrition-checkin-card.tsx 와 같은 값) */
+      checkinAnswers: { appetite: number | null; mealAmount: string | null; skippedMeals: string[] } | null;
+      /** 전날 먹은 것 — 담기 화면의 '어제 아침과 같이 담기'(웹 food-sheet.tsx 와 같은 값) */
+      yesterday: MealEntryView[];
+      /** 제목 밑 날짜 띠(최근 6주 · 날마다 먹은 / 목표 kcal) — 웹 WeekStrip */
+      strip: { date: string; kcal: number; target: number }[];
+      /** 날짜 고르는 작은 달력의 점 — 날짜 → 그날 담은 음식 수(웹 DateNav calendar) */
+      calendar: Record<string, number>;
+      /** 오늘 카드 — 체중 조정 · 짐작한 칸 · 목표를 정했나(웹 TodayCard) */
+      adjust: number;
+      assumed: string[];
+      hasProfile: boolean;
+      /** 오늘 영양 할 일 한 줄 · 균형 점수(웹 TodayCard 의 advice — 오늘만, 지난 날은 null) */
+      advice: { headline: string | null; score: number | null; highlight: boolean } | null;
+      /** 던지는 날 가이드(웹 GuideCard) — 그날은 할 일 한 줄 대신 이것 */
+      guide: { badge: string; title: string; lines: string[]; notes: string[]; hint: string | null } | null;
+      /** 음식 담기 화면 — 자주 먹는 조합 · 분류 둘러보기의 세부 칸 수 · 인기(웹 food-sheet 와 같은 값) */
+      combos: MealComboView[];
+      browseSubs: Record<string, Record<string, number>>;
+      popular: RankedFood[];
+      /** ★ 내 음식에 둔 기본 · 식약처 · 바코드 음식의 열쇠('source:id') — 담기 화면의 '내 음식에 두기' */
+      favorites: string[];
+      planState: string[];
     }
   | { ok: false; error: string; to?: string }
 > {
@@ -124,12 +173,16 @@ export async function loadAppNutrition(date: string): Promise<
   if (!user) return { ok: false, error: '로그인이 필요해요.' };
   if (featureLocks(user).nutrition) return { ok: false, error: '영양 첫 설정을 먼저 해 주세요.', to: SETUP_PATH.nutrition };
   if (!isNutritionDate(date)) return { ok: false, error: '날짜가 올바르지 않아요.' };
-  const day = await loadNutritionDay(user, date);
+  const today = toDateKey(appNow());
+  const [day, advice] = await Promise.all([
+    loadNutritionDay(user, date),
+    date === today ? loadAdvice(user, date, today, serviceHour(appNow())).catch(() => null) : null,
+  ]);
   const t = day.targets;
   return {
     ok: true,
     date,
-    today: toDateKey(appNow()),
+    today,
     targets: { kcal: t.kcal, protein: t.protein, carbs: t.carbs, fat: t.fat, burn: t.burn, base: t.base },
     entries: day.entries,
     weightKg: day.weightKg,
@@ -137,6 +190,29 @@ export async function loadAppNutrition(date: string): Promise<
     mine: day.mine,
     mfds: day.mfds,
     mealPlan: day.mealPlan,
+    ageBand: t.ageBand,
+    avoid: day.prefs.avoid,
+    checkinAnswers: day.checkinAnswers,
+    yesterday: day.yesterday,
+    strip: day.strip.map((d) => ({ date: d.date, kcal: d.kcal, target: d.target })),
+    calendar: day.calendar,
+    adjust: t.adjust,
+    assumed: t.assumed,
+    hasProfile: day.hasProfile,
+    advice: advice ? { headline: advice.headline, score: advice.score, highlight: advice.highlight } : null,
+    guide: day.guide ? { badge: day.guide.badge, title: day.guide.title, lines: day.guide.lines, notes: day.guide.notes, hint: day.guide.hint } : null,
+    combos: day.combos,
+    browseSubs: day.browseSubs,
+    popular: day.popular,
+    favorites: day.favorites,
+    /* 식단 짜기 카드의 '오늘 상태 · 취향' 한 줄(웹 plan-parts PlanCard state) — 던지는 날 · 입맛 · 잠 · 식단 스타일 · 끼니 구성 */
+    planState: [
+      day.planSignals?.throwKind ? ({ eve: '내일 등판', today: '오늘 던지는 날', after: '던진 뒤' } as const)[day.planSignals.throwKind] : null,
+      day.planSignals?.appetite != null && day.planSignals.appetite <= 2 ? '입맛 없음' : null,
+      day.planSignals?.sleepShort ? '잠 부족' : null,
+      DIET_STYLES.find((x) => x.key === day.prefs.dietStyle)?.label ?? null,
+      MEAL_PATTERNS.find((x) => x.key === day.prefs.mealPattern)?.label ?? null,
+    ].filter((x): x is string => x != null),
   };
 }
 
@@ -145,7 +221,16 @@ export async function loadAppNutrition(date: string): Promise<
  * 카드 하나가 실패해도 나머지는 보인다(웹 SafeCard 와 같다). 마지막으로 쓴 앱(쿠키)이 맨 위.
  */
 export async function loadAppTraining(): Promise<
-  { ok: true; today: string; cards: TrainingCard[] } | { ok: false; error: string; to?: string }
+  | {
+      ok: true;
+      today: string;
+      cards: TrainingCard[];
+      /** 제목 밑 날짜 띠(최근 6주, 웹 트레이닝 홈과 같은 lib/training-week.ts loadTrainingStrip) */
+      strip: TrainingStripDay[];
+      /** '이번 주 운동 N일 · 암케어 N일 · 메커니즘 N일'(lib/report/training-week-counts.ts) */
+      week: TrainingWeekCounts;
+    }
+  | { ok: false; error: string; to?: string }
 > {
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: '로그인이 필요해요.' };
@@ -160,14 +245,74 @@ export async function loadAppTraining(): Promise<
       return { app, status: '지금은 불러오지 못했어요. 눌러서 열어 보세요', tone: 'warn', action: null };
     }
   };
-  const cards = await Promise.all([
-    safe('today', () => workoutCardData(user, now)),
-    safe('armcare', () => armcareCardData(user, now)),
-    safe('mechanics', () => mechanicsCardData(user.id)),
+  const todayKey = toDateKey(now);
+  const [cards, strip, week] = await Promise.all([
+    Promise.all([
+      safe('today', () => workoutCardData(user, now)),
+      safe('armcare', () => armcareCardData(user, now)),
+      safe('mechanics', () => mechanicsCardData(user.id)),
+    ]),
+    loadTrainingStrip(user.id, todayKey, todayKey),
+    loadTrainingWeekCounts(user.id, now),
   ]);
   const last = readTrainingPart((await cookies()).get(TRAINING_PART_COOKIE)?.value);
   if (last) cards.sort((a, b) => Number(b.app === last) - Number(a.app === last));
-  return { ok: true, today: toDateKey(now), cards };
+  return { ok: true, today: todayKey, cards, strip, week };
+}
+
+/**
+ * 날짜별 구속 측정 요약(공 수 · 최고 · 클립 수 · 지문) — 웹 홈 · 투구 달력과 같은 loadVelocityByDate. 앱 달력의 영상 점(클립도 셈)과
+ * 그날 칸의 '카메라로 잰 공' 줄이 쓴다. 측정만 남은 날도 달력에 칠한다(웹 홈과 같다).
+ */
+/**
+ * 그날의 대표 영상(★) — 웹 투구 탭 영상 달력 · 홈 그날 칸이 읽는 DailyFeaturedVideo. 날짜 → 영상 경로.
+ * 고르기는 featured-video.setFeaturedVideo(웹과 같은 동작)로.
+ */
+export async function loadAppFeatured(): Promise<{ ok: true; featured: Record<string, string> } | { ok: false; error: string }> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: '로그인이 필요해요.' };
+  const rows = await prisma.dailyFeaturedVideo.findMany({ where: { userId: user.id }, select: { date: true, videoPath: true } });
+  return { ok: true, featured: Object.fromEntries(rows.map((r) => [toDateKey(r.date), r.videoPath])) };
+}
+
+/** 체크인 메모를 남긴 날 — 투구 달력 칸의 작은 쪽지(웹 videos-page noteDays). 하루 한 줄이라 전부 읽어도 가볍다 */
+export async function loadAppNoteDays(): Promise<{ ok: true; days: string[] } | { ok: false; error: string }> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: '로그인이 필요해요.' };
+  const rows = await prisma.dailyCheckin.findMany({ where: { userId: user.id, note: { not: null } }, select: { date: true, note: true } });
+  return { ok: true, days: rows.filter((r) => r.note?.trim()).map((r) => toDateKey(r.date)) };
+}
+
+export async function loadAppVelocityDays(): Promise<
+  { ok: true; days: Record<string, { n: number; max: number; clips: number; sig: string }> } | { ok: false; error: string }
+> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: '로그인이 필요해요.' };
+  return { ok: true, days: await loadVelocityByDate(user.id) };
+}
+
+/**
+ * 앱 홈 달력의 일정 전부 — 웹 홈(home-page.tsx)과 같은 범위 · 같은 상한(3,000). 달력 칸 밑 일정 막대 · 그날 칸 · 알림 다시 걸기가 쓴다.
+ */
+export async function loadAppEvents(): Promise<{ ok: true; events: CalendarEventView[] } | { ok: false; error: string }> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: '로그인이 필요해요.' };
+  const rows = await prisma.calendarEvent.findMany({
+    where: user.role === 'ADMIN' ? { user: { role: 'ADMIN' } } : { userId: user.id },
+    orderBy: { date: 'asc' },
+    take: 3000,
+    select: { id: true, date: true, title: true, time: true, memo: true, remindMin: true, userId: true, user: { select: { nickname: true } } },
+  });
+  return {
+    ok: true,
+    events: sortEvents(
+      rows.map(({ userId, user: owner, ...e }) => ({
+        ...e,
+        date: keyOfDbDate(e.date),
+        ...(userId === user.id ? {} : { owner: owner.nickname }),
+      }))
+    ),
+  };
 }
 
 /**

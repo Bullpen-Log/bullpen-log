@@ -89,22 +89,42 @@ export function ExerciseMedia({
  * 자세 설명 — 펼쳐야 받아 온다(글이 길어 처음부터 펼치지 않는다, 웹 useExerciseDescription 과 같은 길 content.exerciseDescription).
  * null 은 못 받은 것(로그인이 풀림 · 지운 운동), 빈 글은 설명이 없는 운동. 리바운드처럼 방식이 붙은 운동이면 그 방식 설명도.
  */
-export function HowTo({ exerciseId, method, c }: { exerciseId: string; method: ArmcareMethodKey | null; c: Palette }) {
-  const [open, setOpen] = useState(false);
+export function HowTo({
+  exerciseId,
+  method,
+  inline = false,
+  c,
+}: {
+  exerciseId: string;
+  method: ArmcareMethodKey | null;
+  /** 이미 '자세·영상 보기'로 펼친 칸 안 — 웹처럼 접지 않고 바로 받아 보인다(접이 안에 또 접이가 있었다) */
+  inline?: boolean;
+  c: Palette;
+}) {
+  const [open, setOpen] = useState(inline);
   const [got, setGot] = useState<{ text: string | null; failed: boolean } | null>(null);
-  const [loading, setLoading] = useState(false);
+  /* inline 이면 처음부터 받는 중 — 효과 안에서는 받은 뒤에만 상태를 바꾼다 */
+  const [loading, setLoading] = useState(inline);
+  const fetchText = () =>
+    rpc<string | null>('content.exerciseDescription', exerciseId)
+      .then(
+        (text) => setGot({ text, failed: text == null }),
+        () => setGot({ text: null, failed: true })
+      )
+      .finally(() => setLoading(false));
   const load = () => {
     if (loading || (got && !got.failed)) return;
     setLoading(true);
-    rpc<string | null>('content.exerciseDescription', exerciseId).then(
-      (text) => setGot({ text, failed: text == null }),
-      () => setGot({ text: null, failed: true })
-    ).finally(() => setLoading(false));
+    void fetchText();
   };
   const m = method ? methodByKey(method) : null;
+  useEffect(() => {
+    if (inline) void fetchText();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 처음 그릴 때 한 번
+  }, []);
   return (
-    <View style={[s.howTo, { backgroundColor: c.card }]}>
-      <Pressable
+    <View style={[s.howTo, { backgroundColor: c.card, boxShadow: c.float }]}>
+      {inline ? null : <Pressable
         onPress={() => {
           setOpen((v) => !v);
           if (!open) load();
@@ -116,7 +136,7 @@ export function HowTo({ exerciseId, method, c }: { exerciseId: string; method: A
         <SymbolView name="info.circle" size={14} tintColor={c.muted} />
         <Text style={[s.smallBold, { color: c.muted, flex: 1 }]}>자세 설명</Text>
         <SymbolView name={open ? 'chevron.up' : 'chevron.down'} size={12} tintColor={c.muted} />
-      </Pressable>
+      </Pressable>}
       {open ? (
         <View style={{ gap: 12, paddingBottom: 12 }}>
           {loading ? (
@@ -244,7 +264,7 @@ export function RehabCheck({
   }
 
   return (
-    <View style={[s.rehab, { backgroundColor: c.card }]}>
+    <View style={[s.rehab, { backgroundColor: c.card, boxShadow: c.float }]}>
       <Text style={[s.rehabTitle, { color: c.ink }]}>오늘 어땠어요?</Text>
       <View style={{ gap: 6 }}>
         <Text style={[s.bodyBold, { color: c.ink }]}>시작할 때 지난번 운동 뒤 통증이 남아 있었어요?</Text>

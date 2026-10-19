@@ -13,6 +13,7 @@ import { EXERCISE_LIST, Tags, recall, useStar, type Exercise } from '~/library/p
 import { HistoryPanel } from '~/training/history';
 import { s, useScreenData } from '~/training/screen';
 import { READABLE } from '~/lib/layout';
+import { MuscleChips } from '~/armcare/muscle-info';
 
 /**
  * 운동 하나(앱 화면) — 웹 운동 영상 라이브러리에서 카드를 펼친 것(training-client.tsx ExerciseDetail)을 옮겼다. 영상(누르면 튼다) · 이름 · 부위 ·
@@ -83,13 +84,14 @@ function Body({ item, c }: { item: Exercise; c: Palette }) {
       {star.note ? <Text style={[s.small, { color: c.danger }]}>{star.note}</Text> : null}
       <Tags items={[...item.bodyParts, item.intensity, ...(item.difficulty ? [item.difficulty] : []), ...item.equipment]} c={c} />
       {item.targetMuscles.length > 0 ? (
-        <Text style={[s.small, { color: c.muted }]}>
-          키우는 근육 <Text style={{ color: c.ink, fontWeight: '600' }}>{item.targetMuscles.join(' · ')}</Text>
-        </Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <Text style={[s.small, { color: c.muted }]}>키우는 근육</Text>
+          <MuscleChips muscles={item.targetMuscles} c={c} />
+        </View>
       ) : null}
       {rx ? <Text style={[s.bodyBold, { color: c.ink }]}>{rx}</Text> : null}
 
-      <View style={[s.card, { backgroundColor: c.card }]}>
+      <View style={[s.card, { backgroundColor: c.card, boxShadow: c.float }]}>
         {!desc ? (
           <ActivityIndicator />
         ) : desc.failed ? (

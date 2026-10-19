@@ -36,6 +36,14 @@ public class BullpenNativeModule: Module {
         }
         for c in keep where c.name == session { jar.setCookie(c) }
     }
+    static let styleKey = "bullpen-launch-style"
+    static func applyLaunchStyle() {
+        let pick = UserDefaults.standard.string(forKey: styleKey) ?? "light"
+        let style: UIUserInterfaceStyle = pick == "system" ? .unspecified : pick == "light" ? .light : .dark
+        for scene in UIApplication.shared.connectedScenes {
+            for w in (scene as? UIWindowScene)?.windows ?? [] { w.overrideUserInterfaceStyle = style }
+        }
+    }
     private var wantAwake = false
     private let presenter = AlarmPresenter()
 
@@ -43,6 +51,9 @@ public class BullpenNativeModule: Module {
         Name("BullpenNative")
 
         OnCreate {
+            /* 앱 테마로 창을 칠한다 — 시작 화면(SplashScreenBackground 의 라이트 · 다크)이 기기 밝기가 아니라 앱 테마를 따르게.
+               JS 의 설정 읽기(AsyncStorage)는 늦어서, 다크를 골랐는데 흰 시작 화면이 한 번 번쩍였다 */
+            DispatchQueue.main.async { BullpenNativeModule.applyLaunchStyle() }
             UNUserNotificationCenter.current().delegate = self.presenter
             let center = NotificationCenter.default
             center.addObserver(forName: UIApplication.didEnterBackgroundNotification, object: nil, queue: .main) { _ in
@@ -111,6 +122,11 @@ public class BullpenNativeModule: Module {
                     }
                 }
             }
+        }
+
+        /// 앱 테마(light · dark · navy · system)를 기억 — 다음 시작 화면이 이 테마로 뜬다
+        Function("setLaunchStyle") { (pick: String) in
+            UserDefaults.standard.set(pick, forKey: BullpenNativeModule.styleKey)
         }
 
         AsyncFunction("keepAwake") { (on: Bool) in

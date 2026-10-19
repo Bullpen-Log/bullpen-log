@@ -59,20 +59,23 @@ export function PitchVideo({ path }: { path: string }) {
 }
 
 /** 이미 받은 주소(서명 주소 등)를 바로 튼다 */
-export function UrlVideo({ uri }: { uri: string }) {
-  return <Player uri={uri} />;
+/** start = 이 초부터(구속 클립 — 던진 시각 조금 앞, 웹 ClipPlayer), autoPlay = 열자마자 튼다(공 칩을 골랐을 때) */
+export function UrlVideo({ uri, start, autoPlay }: { uri: string; start?: number | null; autoPlay?: boolean }) {
+  return <Player uri={uri} start={start} autoPlay={autoPlay} />;
 }
 
-function Player({ uri }: { uri: string }) {
+function Player({ uri, start, autoPlay }: { uri: string; start?: number | null; autoPlay?: boolean }) {
   const player = useVideoPlayer(uri, (p) => {
     p.muted = true;
     p.loop = true;
+    if (start != null && start > 0) p.currentTime = start;
+    if (autoPlay) p.play();
   });
   return <VideoView player={player} style={styles.box} nativeControls contentFit="contain" />;
 }
 
 const styles = StyleSheet.create({
-  box: { width: '100%', aspectRatio: 9 / 16, maxHeight: 420, borderRadius: 16, backgroundColor: '#000', overflow: 'hidden' },
+  box: { width: '100%', aspectRatio: 9 / 16, maxHeight: 420, alignSelf: 'center', borderRadius: 16, backgroundColor: '#000', overflow: 'hidden' },
   center: { alignItems: 'center', justifyContent: 'center', padding: 16 },
   note: { color: 'rgba(255,255,255,0.8)', fontSize: 15, textAlign: 'center' },
 });

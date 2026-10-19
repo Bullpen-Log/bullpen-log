@@ -1,4 +1,4 @@
-import { type Href, router } from 'expo-router';
+import { type Href, router, useLocalSearchParams } from 'expo-router';
 import { Pressable, RefreshControl, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { loadAppVelocityAdmin } from '@/app/actions/app-admin';
@@ -17,9 +17,11 @@ export default function VelocityAdminScreen() {
   const c = usePalette();
   const inset = useSafeAreaInsets();
   const { data, error, reload } = useLoad<Loaded>('app-admin.loadAppVelocityAdmin');
+  /* 투구 탭 고르개의 셋째 칸에서 왔으면 뒤로 글도 '투구' */
+  const { from } = useLocalSearchParams<{ from?: string }>();
   return (
     <View style={{ flex: 1, backgroundColor: c.page }}>
-      <Bar back="관리자" title="구속 측정 관리자" c={c} />
+      <Bar back={from === 'pitch' ? '투구' : '관리자'} title="구속 측정 관리자" c={c} />
       {!data ? (
         <LoadState error={error} onRetry={() => void reload()} c={c} />
       ) : (
@@ -30,9 +32,13 @@ export default function VelocityAdminScreen() {
           <Pressable accessibilityRole="button" onPress={() => router.push('/admin/velocity/upload' as Href)} style={[s.pill, { minHeight: 56, backgroundColor: c.sky }]}>
             <Text style={{ color: '#fff', fontSize: 17, fontWeight: '700' }}>영상 올리기</Text>
           </Pressable>
+          {/* 세션 녹화 — 측정된 공과 따로 본다(웹 목록의 '세션 녹화' 칸, 2026-10-18) */}
+          <Pressable accessibilityRole="button" onPress={() => leave('/admin/velocity/recordings?kind=session')} style={[s.pill, { minHeight: 48, paddingHorizontal: 12, backgroundColor: c.card }]}>
+            <Text style={{ color: c.ink, fontSize: 15, fontWeight: '600' }}>세션 녹화{(data.sessionRecordings ?? 0) > 0 ? ` ${data.sessionRecordings}` : ''}</Text>
+          </Pressable>
           <View style={{ flexDirection: 'row', gap: 8 }}>
-            <Pressable accessibilityRole="button" onPress={() => leave('/admin/velocity/recordings')} style={[s.pill, { flex: 1, minHeight: 48, paddingHorizontal: 12, backgroundColor: c.card }]}>
-              <Text style={{ color: c.ink, fontSize: 15, fontWeight: '600' }}>녹화{data.recordings > 0 ? ` ${data.recordings}` : ''}</Text>
+            <Pressable accessibilityRole="button" onPress={() => leave('/admin/velocity/recordings?kind=dev')} style={[s.pill, { flex: 1, minHeight: 48, paddingHorizontal: 12, backgroundColor: c.card }]}>
+              <Text style={{ color: c.ink, fontSize: 15, fontWeight: '600' }}>개발용 녹화{data.recordings > 0 ? ` ${data.recordings}` : ''}</Text>
             </Pressable>
             <Pressable accessibilityRole="button" onPress={() => router.push('/velocity' as Href)} style={[s.pill, { flex: 1, minHeight: 48, paddingHorizontal: 12, backgroundColor: c.card }]}>
               <Text style={{ color: c.ink, fontSize: 15, fontWeight: '600' }}>측정 시작</Text>
@@ -48,7 +54,7 @@ export default function VelocityAdminScreen() {
           {data.days.length === 0 ? (
             <Text style={{ color: c.muted, fontSize: 15, textAlign: 'center', padding: 24 }}>아직 올린 공이 없어요.</Text>
           ) : (
-            <View style={[s.group, { backgroundColor: c.card }]}>
+            <View style={[s.group, { backgroundColor: c.card, boxShadow: c.float }]}>
               {data.days.map((d, i) => (
                 <Row key={d.date} onPress={() => router.push(`/admin/velocity/${d.date}` as Href)} last={i === data.days.length - 1} c={c}>
                   <Text style={{ color: c.ink, fontSize: 15, fontWeight: '500', fontVariant: ['tabular-nums'] }}>{d.date}</Text>
@@ -70,7 +76,7 @@ export default function VelocityAdminScreen() {
 
 function Tile({ label, value, unit, c }: { label: string; value: string; unit?: string; c: Palette }) {
   return (
-    <View style={{ flex: 1, borderRadius: 14, paddingVertical: 12, alignItems: 'center', backgroundColor: c.card }}>
+    <View style={{ flex: 1, borderRadius: 14, paddingVertical: 12, alignItems: 'center', backgroundColor: c.card, boxShadow: c.float }}>
       <Text style={[s.meta, { color: c.muted }]}>{label}</Text>
       <Text style={{ color: c.ink, fontSize: 20, fontWeight: '700', marginTop: 2, fontVariant: ['tabular-nums'] }}>
         {value}

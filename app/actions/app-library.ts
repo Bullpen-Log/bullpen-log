@@ -11,7 +11,7 @@ import type { GuideItem } from '@/app/(app)/library/mechanics/mechanics-client';
  * /api/rpc/app-library.loadAppExerciseLibrary · loadAppDrillLibrary 로 부른다.
  */
 export async function loadAppExerciseLibrary(): Promise<
-  { ok: true; exercises: LibraryExercise[]; warmupFolders: WarmupFolder[] } | { ok: false; to: string }
+  { ok: true; exercises: LibraryExercise[]; warmupFolders: WarmupFolder[]; warmupCommon: WarmupFolder | null } | { ok: false; to: string }
 > {
   const user = await getCurrentUser();
   if (!user) return { ok: false, to: '/login' };

@@ -247,7 +247,7 @@ function LeaveForm() {
         />
       </Field>
 
-      <Field label="확인" hint="아래 칸에 탈퇴 두 글자를 그대로 적어주세요.">
+      <Field label="확인" hint="아래 칸에 탈퇴 두 글자를 그대로 적어 주세요.">
         <Input name="confirmWord" type="text" placeholder="탈퇴" required />
       </Field>
 

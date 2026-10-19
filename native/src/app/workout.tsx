@@ -39,7 +39,9 @@ import { usePalette, type Palette } from '~/lib/ui';
 import { leaveTo } from '~/shell/web-nav';
 import { TRAINING_HOME_HREF } from '@/lib/training-part';
 import { drainOutbox, onSent, outbox, withPending, type ShownSet } from '~/workout/outbox';
-import { ExerciseVideo, NoteBox, NumberPad, RestPill, RirQuestion, SetDots } from '~/workout/parts';
+import { NoteBox, NumberPad, RestPill, RirQuestion, SetDots } from '~/workout/parts';
+import { ExerciseMedia } from '~/armcare/parts';
+import { HistoryPanel } from '~/training/history';
 import { FinishSheet, ListSheet, SwapSheet } from '~/workout/sheets';
 import { useWeightUnit } from '~/lib/weight-unit';
 import { READABLE, useBarSide } from '~/lib/layout';
@@ -220,6 +222,7 @@ function Run({
   } | null>(null);
   /* 자세 설명 · 영상 — 운동을 옮겨도 편 채로 둔다(한 번 편 사람은 다음 운동에서도 본다) */
   const [showForm, setShowForm] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
   const [keyboard, setKeyboard] = useState(false);
   const scrollRef = useRef<ScrollViewInstance>(null);
 
@@ -467,12 +470,12 @@ function Run({
     const w = noInput ? null : weight === '' ? null : storedKg(fromWeight(Number(weight), wUnit));
     const n = noInput ? plannedAmount(ex) : count === '' ? null : Number(count);
     if (!noInput && ex.needsWeight && (w == null || w <= 0)) {
-      setError('무게를 적어주세요.');
+      setError('무게를 적어 주세요.');
       setField('weight');
       return;
     }
     if (n == null || n <= 0) {
-      setError(ex.isHold ? `${timeLabel}을 적어주세요.` : '횟수를 적어주세요.');
+      setError(ex.isHold ? `${timeLabel}을 적어 주세요.` : '횟수를 적어 주세요.');
       setField('count');
       return;
     }
@@ -669,7 +672,9 @@ function Run({
           </Pressable>
           {/* 진행 막대 · 목록 단추 — 누르면 오늘 목록. 운동마다 한 칸이 세트를 남길수록 찬다 */}
           <Pressable onPress={() => openSheet('list')} accessibilityRole="button" accessibilityLabel="오늘 운동 목록 열기" style={s.progress}>
-            <View style={[s.listPill, { backgroundColor: c.sky + '1f' }]}>
+            <View style={[s.listPill, { backgroundColor: c.sky + '1f', flexDirection: 'row', alignItems: 'center', gap: 4 }]}>
+              {/* 웹 ListOrdered 그림 */}
+              <SymbolView name="list.number" size={13} tintColor={c.sky} />
               <Text style={[s.smallBold, { color: c.sky }]}>
                 목록 {at + 1}/{list.length}
               </Text>
@@ -698,8 +703,10 @@ function Run({
 
         {/* 못 보낸 세트가 있을 때만 — 신호가 없다는 것과 세트는 안전하다는 것을 같이 말한다 */}
         {pending.length > 0 ? (
-          <View accessibilityRole="alert" style={[s.banner, { backgroundColor: offline ? c.danger + '14' : c.chip }]}>
-            <Text style={[s.small, { color: offline ? c.danger : c.muted }]}>
+          <View accessibilityRole="alert" style={[s.banner, { backgroundColor: offline ? c.warnBg : c.chip, flexDirection: 'row', alignItems: 'center', gap: 8 }]}>
+            {/* 웹과 같은 구름 끊김 그림 · 주의색 — 잃은 것이 아니라 기다리는 것이라 빨강이 아니다 */}
+            <SymbolView name="icloud.slash" size={16} tintColor={offline ? c.warn : c.muted} />
+            <Text style={[s.small, { flex: 1, color: offline ? c.warn : c.muted }]}>
               {offline
                 ? `신호가 없어요. 세트 ${pending.length}개를 폰에 저장해 두었고, 신호가 잡히면 저절로 보내요.`
                 : `세트 ${pending.length}개 보내는 중…`}
@@ -768,21 +775,37 @@ function Run({
             c={c}
           />
 
-          {hasForm ? (
+          {/* 자세 · 영상과 내 기록 — 웹 session-client 와 같은 두 칸(자세 영상이 없는 운동은 내 기록 한 칸). 내 기록은 지금 판을 뺀 지난 기록 */}
+          <View style={s.formRow}>
+            {hasForm ? (
+              <Pressable
+                onPress={() => setShowForm((v) => !v)}
+                accessibilityRole="button"
+                accessibilityState={{ expanded: showForm }}
+                style={[s.formBtn, { backgroundColor: c.card }]}
+              >
+                <Text style={[s.smallBold, { color: showForm ? c.sky : c.ink }]}>{showForm ? '자세 설명 접기' : 'ⓘ 자세·영상 보기'}</Text>
+              </Pressable>
+            ) : null}
             <Pressable
-              onPress={() => setShowForm((v) => !v)}
+              onPress={() => setShowHistory((v) => !v)}
               accessibilityRole="button"
-              accessibilityState={{ expanded: showForm }}
+              accessibilityState={{ expanded: showHistory }}
               style={[s.formBtn, { backgroundColor: c.card }]}
             >
-              <Text style={[s.smallBold, { color: showForm ? c.sky : c.ink }]}>{showForm ? '자세 설명 접기' : 'ⓘ 자세·영상 보기'}</Text>
+              <Text style={[s.smallBold, { color: showHistory ? c.sky : c.ink }]}>{showHistory ? '내 기록 접기' : '내 기록'}</Text>
             </Pressable>
-          ) : null}
+          </View>
           {showForm && hasForm ? (
-            <View style={[s.formBox, { backgroundColor: c.card }]}>
-              {/* 운동마다 새 재생기 — 같은 자리라 앞 운동의 영상이 다음 운동에서도 돌지 않게 */}
-              <ExerciseVideo key={ex.id} path={ex.videoPath} referenceVideoId={ex.referenceVideoId} aspectRatio={ex.aspectRatio} />
+            <View style={[s.formBox, { backgroundColor: c.card, boxShadow: c.float }]}>
+              {/* 운동마다 새 재생기 — 같은 자리라 앞 운동의 영상이 다음 운동에서도 돌지 않게. 웹 LibraryVideo 처럼 미리보기 그림 → 눌러 재생 */}
+              <ExerciseMedia key={ex.id} path={ex.videoPath} referenceVideoId={ex.referenceVideoId} thumbUrl={ex.thumbUrl} aspectRatio={ex.aspectRatio} />
               {ex.description ? <Text style={[s.body, { color: c.ink }]}>{ex.description}</Text> : null}
+            </View>
+          ) : null}
+          {showHistory ? (
+            <View style={[s.formBox, { backgroundColor: c.card, boxShadow: c.float }]}>
+              <HistoryPanel key={ex.id} exerciseId={ex.id} excludeSessionId={sessionId} unit={wUnit} c={c} />
             </View>
           ) : null}
 
@@ -803,7 +826,7 @@ function Run({
             {mine.length === 0 ? (
               <Text style={[s.empty, { backgroundColor: c.card, color: c.muted }]}>첫 세트를 마치면 여기에 쌓여요.</Text>
             ) : (
-              <View style={[s.setList, { backgroundColor: c.card }]}>
+              <View style={[s.setList, { backgroundColor: c.card, boxShadow: c.float }]}>
                 {mine.map((x, i) => {
                   const fixingThis = i === editIndex;
                   return (
@@ -833,7 +856,12 @@ function Run({
                         {x.rir != null ? (
                           <Text style={[s.badge, { backgroundColor: c.chip, color: c.muted }]}>여유 {x.rir >= 4 ? '4+' : x.rir}</Text>
                         ) : null}
-                        {x.pending ? <Text style={[s.tinyBold, { color: c.danger }]}>대기</Text> : null}
+                        {x.pending ? (
+                          <View accessibilityLabel="아직 서버에 안 간 세트" style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
+                            <SymbolView name="icloud.slash" size={11} tintColor={c.warn} />
+                            <Text style={[s.tinyBold, { color: c.warn }]}>대기</Text>
+                          </View>
+                        ) : null}
                         <SymbolView name="pencil" size={14} tintColor={fixingThis ? c.sky : c.muted} />
                       </Pressable>
                       <Pressable
@@ -1079,7 +1107,8 @@ const s = StyleSheet.create({
   optional: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 },
   tag: { fontSize: 12, fontWeight: '700', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10, overflow: 'hidden' },
   textBtn: { minHeight: 40, paddingHorizontal: 8, justifyContent: 'center' },
-  formBtn: { marginTop: 12, minHeight: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
+  formRow: { flexDirection: 'row', gap: 8, marginTop: 12 },
+  formBtn: { flex: 1, minHeight: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
   formBox: { marginTop: 8, borderRadius: 16, padding: 12, gap: 12 },
   empty: { borderRadius: 16, paddingHorizontal: 16, paddingVertical: 14, fontSize: 15, overflow: 'hidden' },
   setList: { borderRadius: 16, overflow: 'hidden' },

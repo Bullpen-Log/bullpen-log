@@ -98,7 +98,7 @@ export function OverviewDetail({ c }: { c: Palette }) {
 
 export function OverviewFold({ c }: { c: Palette }) {
   return (
-    <View style={[s.card, { backgroundColor: c.card, paddingVertical: 6 }]}>
+    <View style={[s.card, { backgroundColor: c.card, boxShadow: c.float, paddingVertical: 6 }]}>
       <Fold label="투구의 흐름 · 왜 순서가 중요한가요" c={c}>
         <OverviewDetail c={c} />
       </Fold>
@@ -124,7 +124,7 @@ function Num({ n, done, c }: { n: number; done?: boolean; c: Palette }) {
 export function NoProgram({ reload, c }: { reload: Reload; c: Palette }) {
   return (
     <View style={{ gap: 12 }}>
-      <View style={[s.card, { backgroundColor: c.card, gap: 6 }]}>
+      <View style={[s.card, { backgroundColor: c.card, boxShadow: c.float, gap: 6 }]}>
         <Text style={[s.title, { color: c.ink }]}>투구 메커니즘 향상 프로그램</Text>
         <Text style={[s.body, { color: c.ink }]}>4주 · 주 {PER_WEEK}번 · 한 번에 15~25분이에요.</Text>
         <Fold label="자세히" c={c}>
@@ -153,7 +153,7 @@ function LevelPicker({ current, index, reload, c }: { current: LevelKey | null; 
       {MECHANICS_LEVELS.map((lv, i) => {
         const on = lv.key === current;
         return (
-          <View key={lv.key} style={[s.card, { backgroundColor: c.card, borderWidth: 1, borderColor: on ? c.sky : c.line }]}>
+          <View key={lv.key} style={[s.card, { backgroundColor: c.card, boxShadow: c.float, borderWidth: 1, borderColor: on ? c.sky : c.line }]}>
             <View style={[s.row, { alignItems: 'flex-start' }]}>
               <View style={[st.bigNum, { backgroundColor: c.sky + '1a' }]}>
                 <Text style={[s.bodyBold, { color: c.sky }]}>{i + 1}</Text>
@@ -216,7 +216,7 @@ export function SessionCard({
   const go = (href: string) => router.push(fromApp(href) as Href);
 
   return (
-    <View style={[s.card, { backgroundColor: c.card }]}>
+    <View style={[s.card, { backgroundColor: c.card, boxShadow: c.float }]}>
       <View style={s.between}>
         <Text style={[s.title, { color: c.ink }]}>{program.finishedToday ? '다음 세션' : '오늘의 세션'}</Text>
         <Text style={[s.tiny, { color: c.muted, flexShrink: 1, textAlign: 'right' }]}>
@@ -314,7 +314,7 @@ export function CompletedCard({ program, reload, c }: { program: MechanicsProgra
   const next = advice?.kind === 'done' && advice.to ? mechanicsLevel(advice.to) : null;
   const target = next ?? down;
   return (
-    <View style={[s.card, { backgroundColor: c.card }]}>
+    <View style={[s.card, { backgroundColor: c.card, boxShadow: c.float }]}>
       <Text style={[s.title, { color: c.ink }]}>{level.name} 프로그램을 마쳤어요</Text>
       <Text style={[s.body, { color: c.muted }]}>
         {down
@@ -334,7 +334,7 @@ export function CompletedCard({ program, reload, c }: { program: MechanicsProgra
 export function LevelProgress({ program, c }: { program: MechanicsProgramView; c: Palette }) {
   const level = mechanicsLevel(program.level!);
   return (
-    <View style={[s.card, { backgroundColor: c.card }]}>
+    <View style={[s.card, { backgroundColor: c.card, boxShadow: c.float }]}>
       <View style={s.between}>
         <Text style={[s.bodyBold, { color: c.ink, fontSize: 17 }]}>{level.name} 프로그램</Text>
         <Text style={[s.small, { color: c.muted }]}>
@@ -371,14 +371,14 @@ export function FilmCard({ sessionsDone, films, c }: { sessionsDone: number; fil
   if (!kind && films.length === 0) return null;
   if (!kind) {
     return (
-      <View style={[s.card, { backgroundColor: c.card }]}>
+      <View style={[s.card, { backgroundColor: c.card, boxShadow: c.float }]}>
         <Text style={[s.bodyBold, { color: c.ink, fontSize: 17 }]}>견준 기록</Text>
         <FilmHistory films={films} c={c} />
       </View>
     );
   }
   return (
-    <View style={[s.card, { backgroundColor: c.card }]}>
+    <View style={[s.card, { backgroundColor: c.card, boxShadow: c.float }]}>
       <View style={[s.row, { alignItems: 'flex-start' }]}>
         <View style={[st.bigNum, { backgroundColor: c.sky + '1a' }]}>
           <SymbolView name="video.fill" size={15} tintColor={c.sky} />
@@ -461,7 +461,7 @@ export function LevelSettings({ current, index, reload, c }: { current: LevelKey
       },
     ]);
   return (
-    <View style={[s.card, { backgroundColor: c.card }]}>
+    <View style={[s.card, { backgroundColor: c.card, boxShadow: c.float }]}>
       <Pressable onPress={() => setOpen((v) => !v)} accessibilityRole="button" accessibilityState={{ expanded: open }} style={[s.row, { minHeight: 44 }]}>
         <Text style={[s.bodyBold, { color: c.ink, flex: 1, fontSize: 17 }]}>수준 바꾸기</Text>
         <SymbolView name={open ? 'chevron.up' : 'chevron.down'} size={12} tintColor={c.muted} />
@@ -583,7 +583,7 @@ export function ElementCard({
   const stages = drillsFor(el.name, drills);
   const count = stages.reduce((n, x) => n + x.primary.length + x.secondary.length, 0);
   return (
-    <View onLayout={onLayout} style={[st.card, { backgroundColor: c.card, borderColor: open ? c.sky + '66' : c.line }]}>
+    <View onLayout={onLayout} style={[st.card, { backgroundColor: c.card, boxShadow: c.float, borderColor: open ? c.sky + '66' : c.line }]}>
       <Pressable onPress={onToggle} accessibilityRole="button" accessibilityState={{ expanded: open }} style={st.cardHead}>
         <View style={[st.bigNum, { backgroundColor: c.sky + '1a', width: 28, height: 28 }]}>
           <Text style={[s.smallBold, { color: c.sky }]}>{el.order}</Text>
@@ -657,12 +657,15 @@ function DrillRow({ drill, secondary, c }: { drill: MechanicsDrillView; secondar
   const tools =
     drill.variants.length > 1 ? drill.variants.map((v) => v.tool) : variant.equipment.length > 0 ? variant.equipment : [variant.tool];
   const favorite = fav[variant.id] ?? variant.favorite;
+  const [favError, setFavError] = useState<string | null>(null);
   const toggleFav = async () => {
     if (favBusy) return;
     setFavBusy(true);
+    setFavError(null);
     const res = await act<{ favorite: boolean }>('favorite.toggleDrillFavorite', variant.id);
     setFavBusy(false);
-    if (!('error' in res)) {
+    if ('error' in res) setFavError(res.error);
+    else {
       void Haptics.selectionAsync();
       setFav((f) => ({ ...f, [variant.id]: res.favorite }));
     }
@@ -714,7 +717,7 @@ function DrillRow({ drill, secondary, c }: { drill: MechanicsDrillView; secondar
             thumbUrl={variant.thumbUrl}
             aspectRatio={variant.aspectRatio}
           />
-          <Description key={`d-${variant.id}`} guideId={variant.id} c={c} />
+          <Description key={`d-${variant.id}`} guideId={variant.id} inline c={c} />
           <Pressable
             onPress={() => void toggleFav()}
             disabled={favBusy}
@@ -723,8 +726,10 @@ function DrillRow({ drill, secondary, c }: { drill: MechanicsDrillView; secondar
             style={[s.smallPill, { backgroundColor: favorite ? c.sky + '1a' : c.chip, alignSelf: 'flex-start', opacity: favBusy ? 0.6 : 1 }]}
           >
             <SymbolView name={favorite ? 'star.fill' : 'star'} size={13} tintColor={favorite ? c.sky : c.muted} />
-            <Text style={[s.smallBold, { color: favorite ? c.sky : c.ink }]}>{favorite ? '즐겨찾기 됨' : '즐겨찾기'}</Text>
+            {/* 웹 FavoriteButton(full)과 같은 글 · 실패하면 밑에 한 줄 */}
+            <Text style={[s.smallBold, { color: favorite ? c.sky : c.ink }]}>{favorite ? '즐겨찾기 해제' : '즐겨찾기에 담기'}</Text>
           </Pressable>
+          {favError ? <Text style={[s.small, { color: c.danger }]}>{favError}</Text> : null}
         </View>
       ) : null}
     </View>

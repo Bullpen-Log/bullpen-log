@@ -255,10 +255,13 @@ export function PlanForm({
   if (!checkedIn) {
     return (
       <div className="space-y-2 rounded-xl border border-line bg-surface-2 px-4 py-3">
-        <p className="text-sm font-bold text-ink">오늘 체크인을 먼저 남겨주세요</p>
-        <p className="text-footnote leading-relaxed text-muted">
-          오늘 몸 상태를 보고 짜요. 30초면 돼요.
-        </p>
+        <p className="text-sm font-bold text-ink">오늘 체크인을 먼저 남겨 주세요</p>
+        {/* 체크인 단추를 넘긴 곳(트레이닝 화면)은 그 부품이 제 안내 한 줄('20초면 돼요 …')을 단다 — 두 줄이 겹쳐 30초 · 20초로 엇갈렸다 */}
+        {!checkinAction && (
+          <p className="text-footnote leading-relaxed text-muted">
+            오늘 몸 상태를 보고 짜요. 30초면 돼요.
+          </p>
+        )}
         {/*
           체크인할 길.
 
@@ -389,7 +392,7 @@ export function PlanForm({
                   onChange={(e) => setClashKept(e.currentTarget.checked)}
                   className="mt-0.5 h-4 w-4 shrink-0 rounded border-warn-line accent-sky"
                 />
-                알겠어요. 그래도 {clash.kind} 운동으로 만들어주세요
+                알겠어요. 그래도 {clash.kind} 운동으로 만들어 주세요
               </label>
             </div>
           )}
@@ -472,7 +475,7 @@ export function PlanForm({
                   value="on"
                   className="mt-0.5 h-4 w-4 shrink-0 rounded border-warn-line accent-sky"
                 />
-                그래도 고른 대로 만들어주세요
+                그래도 고른 대로 만들어 주세요
               </label>
             </div>
           )}

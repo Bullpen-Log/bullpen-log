@@ -21,7 +21,7 @@ import {
  * 새 아이폰 앱(Expo, native/)의 앱 탭 막대와 잇는다 — 앱이 아래 탭을 그리고(투구 탭은 앱 화면), 이 웹 화면은 홈 · 트레이닝 · 영양을 맡는다.
  *   웹 → 앱: { t: 'tabs', items }(탭 이름 · 주소 · 잠김) · { t: 'path', path, search }(주소가 바뀔 때 — 앱이 지금 탭을 칠한다) ·
  *            { t: 'tabbar', on }(이 틀이 붙고 떨어질 때 — 탭이 없는 화면에서는 앱 막대도 숨긴다)
- *            { t: 'menu', groups, nickname }(더보기 목록 — 앱이 제 더보기 화면에 그린다, 앱 화면 위에서 웹 메뉴를 열면 밑에 깔려 안 보여서)
+ *            { t: 'menu', groups, nickname, avatarUrl, isAdmin }(더보기 목록 — 사진 · 관리자는 폴더 밑 내 정보 줄 — 앱이 제 더보기 화면에 그린다, 앱 화면 위에서 웹 메뉴를 열면 밑에 깔려 안 보여서)
  *            { t: 'webfront', on: false }(설정 창을 닫았다 — 앱이 덮었던 앱 화면을 다시 보인다)
  *   앱 → 웹: window.__bpTab(href) — 판 넘기기(slideToTab)로 옮기고, 못 하면(하위 화면) 이동. 더보기는 메뉴를 연다.
  *            window.__bpOpen('settings' | 'profile') — 설정 · 내 정보 창(웹 틀의 창이라 주소가 없다 — /profile 은 홈으로 간다)
@@ -37,6 +37,8 @@ export function ExpoTabBridge({
   onMenu,
   groups,
   nickname,
+  avatarUrl,
+  isAdmin,
   settingsOpen,
   onSettings,
   onProfile,
@@ -45,6 +47,8 @@ export function ExpoTabBridge({
   onMenu: () => void;
   groups: NavGroup[];
   nickname: string;
+  avatarUrl: string | null;
+  isAdmin: boolean;
   /** 앱이 연 웹 창(설정 · 내 정보)이 열려 있나 — 닫히면 앱에 알린다 */
   settingsOpen: boolean;
   onSettings: () => void;
@@ -88,13 +92,15 @@ export function ExpoTabBridge({
       JSON.stringify({
         t: 'menu',
         nickname,
+        avatarUrl,
+        isAdmin,
         groups: groups.map((g) => ({
           title: g.title ?? null,
           items: g.items.map((i) => ({ href: i.href, label: i.label, icon: i.icon, locked: !!i.locked })),
         })),
       })
     );
-  }, [groups, nickname]);
+  }, [groups, nickname, avatarUrl, isAdmin]);
 
   useEffect(() => {
     if (!isExpo()) return;

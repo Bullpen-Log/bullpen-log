@@ -132,7 +132,7 @@ export default async function CommunityPage({
           description={
             page > 1
               ? '앞 장으로 돌아가 보세요.'
-              : '훈련 이야기, 궁금한 것, 오늘의 기록 — 무엇이든 첫 글을 남겨 보세요.'
+              : '훈련 이야기, 궁금한 것, 오늘의 기록. 무엇이든 첫 글을 남겨 보세요.'
           }
           action={
             page > 1 ? (

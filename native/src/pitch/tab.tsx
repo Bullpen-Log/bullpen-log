@@ -1,205 +1,176 @@
 import { type Href, router } from 'expo-router';
-import { useState } from 'react';
-import {
-  Pressable,
-  RefreshControl,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { Pressable, ScrollView, type ScrollViewInstance, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { isRestSession } from '@/lib/session-type';
-import { effortText } from '@/lib/pitch-effort';
-import { formatSpeed } from '@/lib/units';
-import { usePrefs } from '~/lib/prefs';
-import { EMPTY_FIND, filterLogs, isFindActive, type FindQuery } from '@/lib/pitch-find';
-import { usePalette } from '~/lib/ui';
-import { dateKeyOf } from './api';
+import { PRESSED, SPACE, usePalette, withAlpha } from '~/lib/ui';
+import { Icon } from '~/shell/icon';
+import { AnalysisPill, PageHead, Segmented, ToolCircle } from '~/shell/heading';
+import { ComparePickBar, LogList } from './log-list';
 import { MonthGrid } from './month-grid';
-import { FindBar } from './find-bar';
+import { PitchDayPanel } from './day-panel';
 import { PitchTodayCard } from './today-card';
-import { monthOf, useAllLogs, useMonth } from './store';
+import { monthOf, reloadFeatured, reloadNoteDays, useAllLogs, useDayThumbs, useMonth, useNoteDays } from './store';
 
 import { READABLE_WIDE, TwoColumns } from '~/lib/layout';
-
-/** 강도 글 1~10(웹 effortText — 옛 기록은 intensity 로) */
-const effortOf = (l: { intensity: number | null; effortPct: number | null }) =>
-  effortText({ intensity: l.intensity ?? 0, effortPct: l.effortPct });
+import { useOnTabActive, useRetapTop } from '~/shell/tab-pager';
+import { useTabIntent } from '~/shell/tab-intent';
+import { useMenu } from '~/shell/menu-store';
 
 /**
  * 투구 탭(앱 화면) — 찾기 · 달력(그날 공 수 · 영상 점) + 그달 기록 목록 · 지난 영상 가져오기. 날짜를 누르면 그날 화면(/pitch/[date]).
  * 웹 투구 탭(app/(app)/videos)과 같은 규칙.
  */
 export function PitchTab({ today, bottom, onWeb }: { today: string; bottom: number; onWeb: (href: string) => void }) {
+  void onWeb;
   const c = usePalette();
-  const speed = usePrefs().speed;
   const inset = useSafeAreaInsets();
+  /* [캘린더 | 목록] — 웹 투구 탭 고르개(pitch-log-heading.tsx PITCH_VIEW_OPTIONS). 찾기는 목록에만(웹 video-gallery 와 같다) */
+  const [view, setView] = useState<'calendar' | 'list'>('calendar');
+  const isAdmin = useMenu().isAdmin === true;
   const [month, setMonth] = useState(monthOf(today));
-  const { logs, loading, error, reload } = useMonth(month);
-  /* 찾기 — 조건이 켜지면 모든 기록에서 거른다(달 대신) */
-  const [q, setQ] = useState<FindQuery>(EMPTY_FIND);
-  const finding = isFindActive(q);
-  const all = useAllLogs(finding);
-
-  const list = finding
-    ? filterLogs([...(all.logs ?? [])].reverse(), q)
-    : [...(logs ?? [])].reverse();
-  const thisYear = today.slice(0, 4);
+  const [monthSettled, setMonthSettled] = useState(false);
+  /* 고른 날 — 밑에 그날 칸(웹 video-calendar). 펴지면 320ms 뒤 화면 밖이면 굴려 보인다 */
+  const [selected, setSelected] = useState<string | null>(null);
+  const panelY = useRef(0);
+  const viewH = useRef(0);
+  const scrollY = useRef(0);
+  const { logs, error, reload } = useMonth(month);
+  const thumbs = useDayThumbs(logs);
+  /* 탭을 옮겼다 돌아오면 새로 받는다(판은 붙어 있다) */
+  useOnTabActive(() => void Promise.all([reload(), reloadFeatured(), reloadNoteDays()]));
+  const notes = useNoteDays();
+  /* 홈 그날 칸의 '투구 탭에서 보기' — 달력이 그날을 연 채로(웹 /videos?date=) */
+  useTabIntent('pitch', (d) => {
+    setView('calendar');
+    setMonthSettled(true);
+    setMonth(monthOf(d));
+    setSelected(d);
+  });
+  /* 처음 펼 달 — 이번 달에 기록이 없으면 가장 최근에 기록을 남긴 달(웹 video-calendar). 한 번 정했거나 달을 직접 옮겼으면 안 건드린다 */
+  const needLatest = !monthSettled && logs?.length === 0;
+  const all = useAllLogs(view === 'list' || needLatest);
+  if (!monthSettled && logs?.length) setMonthSettled(true);
+  if (needLatest && all.logs) {
+    setMonthSettled(true);
+    const latest = all.logs.reduce((m, l) => (l.date > m ? l.date : m), '');
+    if (latest && monthOf(latest.slice(0, 10)) !== month) setMonth(monthOf(latest.slice(0, 10)));
+  }
+  /* 지금 탭(투구)을 다시 누르면 맨 위로 */
+  const scrollRef = useRef<ScrollViewInstance>(null);
+  useRetapTop(() => scrollRef.current?.scrollTo({ y: 0, animated: true }));
+  useEffect(() => {
+    if (!selected) return;
+    const t = setTimeout(() => {
+      /* 칸 위치는 오른쪽 열 기준이라 대략 — 밑으로 잘리면 그 칸 머리가 화면 위쪽에 오게 */
+      const top = panelY.current;
+      if (top + 160 > scrollY.current + viewH.current) scrollRef.current?.scrollTo({ y: Math.max(0, top - 80), animated: true });
+    }, 320);
+    return () => clearTimeout(t);
+  }, [selected]);
 
   return (
+    <View style={{ flex: 1 }}>
     <ScrollView
+      ref={scrollRef}
+      onLayout={(e) => (viewH.current = e.nativeEvent.layout.height)}
+      onScroll={(e) => (scrollY.current = e.nativeEvent.contentOffset.y)}
+      scrollEventThrottle={32}
       style={{ flex: 1, backgroundColor: c.page }}
-      contentContainerStyle={[{
-        paddingTop: inset.top + 12,
-        paddingBottom: bottom + 24,
-        paddingHorizontal: 16,
-        gap: 16,
-      }, READABLE_WIDE]}
-      refreshControl={
-        <RefreshControl refreshing={loading && logs != null} onRefresh={reload} />
-      }
+      contentContainerStyle={[
+        { paddingTop: inset.top + SPACE.section, paddingBottom: bottom + 24, paddingHorizontal: SPACE.side, gap: SPACE.gap },
+        READABLE_WIDE,
+      ]}
     >
-      <View style={styles.head}>
-        <Text style={[styles.title, { color: c.ink }]}>투구 기록</Text>
-        <Pressable
-          accessibilityRole="button"
-          onPress={() => router.push('/velocity')}
-          style={[styles.add, { backgroundColor: c.chip }]}
-        >
-          <Text style={[styles.addText, { color: c.ink }]}>구속 측정</Text>
-        </Pressable>
-        <Pressable
-          accessibilityRole="button"
-          onPress={() =>
-            router.push({
-              pathname: '/pitch/edit' as Href as never,
-              params: { date: today },
-            })
-          }
-          style={[styles.add, { backgroundColor: c.sky }]}
-        >
-          <Text style={styles.addText}>오늘 기록</Text>
-        </Pressable>
-      </View>
+      <PageHead title="투구">
+        <ToolCircle icon="radar" label="구속 측정" onPress={() => router.push('/velocity')} />
+        <ToolCircle icon="rotate3d" label="3D 동작 분석" onPress={() => router.push('/lab' as Href)} />
+        <AnalysisPill view="pitch" />
+      </PageHead>
+      {/* 관리자는 셋째 칸 '구속 측정 관리자'(웹 videos-client VELOCITY_ADMIN_OPTION) — 누르면 그 화면으로 가고 고른 보기는 그대로 */}
+      <Segmented<'calendar' | 'list' | 'velocity'>
+        label="기록 보기 방식"
+        options={[
+          { value: 'calendar', label: '캘린더' },
+          { value: 'list', label: '목록' },
+          ...(isAdmin ? [{ value: 'velocity' as const, label: '구속 측정 관리자' }] : []),
+        ]}
+        value={view}
+        onChange={(v) => (v === 'velocity' ? router.push('/admin/velocity?from=pitch' as Href) : setView(v))}
+      />
 
-      {/* 아이패드 가로(~/lib/layout TwoColumns) — 왼쪽 오늘 · 찾기 · 달력, 오른쪽 그달 기록 목록. 좁으면 위아래 그대로 */}
-      <TwoColumns ratio={[1, 1]} gap={16}
+      {/* 아이패드 가로(~/lib/layout TwoColumns) — 왼쪽 오늘 카드 · 가져오기, 오른쪽 캘린더나 목록. 좁으면 위아래 그대로 */}
+      <TwoColumns
+        ratio={[1, 1]}
+        gap={16}
         left={
           <>
-            {!finding ? <PitchTodayCard today={today} /> : null}
-
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
-              {(
-                [
-                  ['2분할 비교', () => router.push('/pitch/compare' as Href)],
-                  ['투구 분석', () => router.push('/analysis?view=pitch' as Href)],
-                  ['3D 동작 분석', () => router.push('/lab' as Href)],
-                ] as const
-              ).map(([label, go]) => (
-                <Pressable key={label} accessibilityRole="button" onPress={go} style={[styles.link, { backgroundColor: c.card }]}>
-                  <Text style={[styles.linkText, { color: c.ink }]}>{label}</Text>
-                </Pressable>
-              ))}
-            </ScrollView>
-
-            <FindBar q={q} onChange={setQ} />
-
-            {finding ? (
-              <Text style={{ color: c.muted, fontSize: 13 }}>
-                {all.logs ? `맞는 기록 ${list.length}건` : '모든 기록을 불러오는 중…'}
-              </Text>
-            ) : (
-              <MonthGrid
-                month={month}
-                today={today}
-                logs={logs}
-                onMonth={setMonth}
-                onDay={(day) => router.push(`/pitch/${day}` as Href)}
-              />
-            )}
+            <PitchTodayCard today={today} />
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => router.push('/pitch/import' as Href)}
+              style={({ pressed }) => [styles.importBtn, { backgroundColor: withAlpha(c.ink, 0.06) }, pressed && PRESSED]}
+            >
+              <Icon name="film" size={16} color={c.ink} />
+              <Text style={{ color: c.ink, fontSize: 15, fontWeight: '500' }}>지난 영상 가져오기</Text>
+            </Pressable>
           </>
         }
         right={
-          <>
-            {error && !logs ? (
-              <Text style={{ color: c.danger, fontSize: 15 }}>{error}</Text>
-            ) : null}
-
-            <View style={{ gap: 8 }}>
-              {list.map((l) => (
-                <Pressable
-                  key={l.id}
-                  onPress={() => router.push(`/pitch/${dateKeyOf(l.date)}` as Href)}
-                  style={[styles.row, { backgroundColor: c.card }]}
-                >
-                  <Text style={[styles.rowDate, { color: c.muted }]}>
-                    {l.date.slice(0, 4) !== thisYear ? `${l.date.slice(2, 4)}.` : ''}
-                    {Number(l.date.slice(5, 7))}/{Number(l.date.slice(8, 10))}
-                  </Text>
-                  <Text style={[styles.rowMain, { color: c.ink }]} numberOfLines={1}>
-                    {l.sessionType}
-                    {isRestSession(l.sessionType) ? '' : ` · ${l.pitchCount}구`}
-                    {effortOf(l) ? ` · 강도 ${effortOf(l)}` : ''}
-                    {l.maxVelocity ? ` · ${formatSpeed(l.maxVelocity, speed)}` : ''}
-                  </Text>
-                  {l.videoPaths.length ? (
-                    <Text style={{ color: c.sky, fontSize: 13 }}>
-                      영상 {l.videoPaths.length}
-                    </Text>
-                  ) : null}
-                  <Text style={{ color: c.muted, fontSize: 17 }}>›</Text>
-                </Pressable>
-              ))}
-              {!finding ? (
-                <Pressable
-                  accessibilityRole="button"
-                  onPress={() => router.push('/pitch/import' as Href)}
-                  style={[styles.row, { backgroundColor: c.card }]}
-                >
-                  <Text style={[styles.rowMain, { color: c.sky }]}>지난 영상 가져오기</Text>
-                  <Text style={{ color: c.muted, fontSize: 17 }}>›</Text>
-                </Pressable>
+          view === 'calendar' ? (
+            <>
+              {error && !logs ? <Text style={{ color: c.danger, fontSize: 15 }}>{error}</Text> : null}
+              <MonthGrid
+                video
+                thumbs={thumbs}
+                notes={notes}
+                month={month}
+                today={today}
+                logs={logs}
+                selected={selected}
+                onMonth={(m) => {
+                  setMonthSettled(true);
+                  setMonth(m);
+                  setSelected(null);
+                }}
+                onDay={(day) => setSelected((cur) => (cur === day ? null : day))}
+              />
+              {/* 날을 누르면 밑에 그날 칸이 펴진다(웹 video-calendar DayPanel) — 같은 날을 다시 누르면 닫힘 */}
+              {selected ? (
+                <View onLayout={(e) => (panelY.current = e.nativeEvent.layout.y)}>
+                  <PitchDayPanel key={selected} date={selected} logs={(logs ?? []).filter((l) => l.date.slice(0, 10) === selected)} />
+                </View>
               ) : null}
-              {(finding ? all.logs : logs) && list.length === 0 ? (
-                <Text
-                  style={{
-                    color: c.muted,
-                    fontSize: 15,
-                    textAlign: 'center',
-                    paddingVertical: 24,
-                  }}
-                >
-                  {finding ? '맞는 기록이 없어요.' : '이 달은 기록이 없어요.'}
-                </Text>
-              ) : null}
-            </View>
-          </>
+            </>
+          ) : (
+            <LogList
+              logs={all.logs}
+              today={today}
+              onReveal={(y) => scrollRef.current?.scrollTo({ y: Math.max(0, scrollY.current + y - inset.top - 72), animated: true })}
+            />
+          )
         }
       />
     </ScrollView>
+    {/* 2분할 비교 고르는 중 — 하단 탭 위에 뜬 막대(웹 video-gallery) */}
+    {view === 'list' ? <ComparePickBar bottom={Math.max(inset.bottom - 13, 12) + 62 + 12} /> : null}
+    </View>
   );
 }
 
+/* 한 주 일곱 칸 — 100/7% 로 두면 소수점 반올림이 쌓여 일곱째 칸(토)이 다음 줄로 넘어갔다(날짜와 요일이 어긋남) */
+const SEVENTH = '14.28%';
 const styles = StyleSheet.create({
-  head: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  title: { flex: 1, fontSize: 34, fontWeight: '700' },
-  add: {
-    height: 40,
-    borderRadius: 20,
-    paddingHorizontal: 16,
-    justifyContent: 'center',
-  },
-  addText: { color: '#fff', fontSize: 15, fontWeight: '600' },
   link: { height: 36, borderRadius: 18, paddingHorizontal: 14, justifyContent: 'center' },
   linkText: { fontSize: 14, fontWeight: '600' },
-  week: { width: `${100 / 7}%`, textAlign: 'center', fontSize: 12, paddingBottom: 4 },
+  week: { width: SEVENTH, textAlign: 'center', fontSize: 12, paddingBottom: 4 },
   cell: {
-    width: `${100 / 7}%`,
+    width: SEVENTH,
     alignItems: 'center',
     paddingVertical: 4,
     minHeight: 58,
   },
+  /* 웹 import-sheet ImportEntry — 회색 알약, 가운데 필름 그림 + 글 */
+  importBtn: { minHeight: 40, borderRadius: 20, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingHorizontal: 16 },
   row: {
     flexDirection: 'row',
     alignItems: 'center',

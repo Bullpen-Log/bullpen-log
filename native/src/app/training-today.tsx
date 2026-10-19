@@ -1,5 +1,4 @@
 import * as Haptics from 'expo-haptics';
-import { SymbolView } from 'expo-symbols';
 import { type Href, router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -10,13 +9,16 @@ import { leave } from '~/mechanics/parts';
 import { rpc, RpcError } from '~/lib/rpc';
 import { REST_DAY } from '~/training/rest-day';
 import { cacheEpoch, cacheGet, cacheSet } from '~/lib/store';
-import { usePalette, type Palette } from '~/lib/ui';
-import { useWebNav } from '~/shell/web-nav';
-import { BigButton, s, WebRows, type TodayActions } from '~/training/today/parts';
+import { usePalette } from '~/lib/ui';
+import { useWebNav, openCheckin } from '~/shell/web-nav';
+import { BigButton, s, type TodayActions } from '~/training/today/parts';
 import { DoneView, HaltedCard, MakeCard, NoticeBand, OutingRow, PlanBody, PrefsCard, ProgramDayRow } from '~/training/today/plan';
 import { ProgramCardView, ProgramDoneView } from '~/training/today/program';
 import { ProgramStartView } from '~/training/today/program-start';
 import { READABLE } from '~/lib/layout';
+import { Icon } from '~/shell/icon';
+import { PageHead } from '~/shell/heading';
+import { useRememberPart } from '~/training/remember';
 
 /**
  * 트레이닝 '운동' 앱 화면 — 웹 /training(기본 칸, app/(app)/training/training-page.tsx)을 옮겼다. 앱 트레이닝 탭(native/src/training/tab.tsx)의 운동
@@ -25,7 +27,7 @@ import { READABLE } from '~/lib/layout';
  * 웹과 같은 차례: 근력 프로그램 카드 → 프로그램 결과 → 상태 바뀜 띠 → 완료 카드 · [운동 시작] → 프로그램 고르기 → 다음 등판 → 일정 자리(멈춤 ·
  * 프로그램 날 한 줄 · 만들기 · 남은 것 없음 · 일정 카드와 체크 목록 · 오늘 운동 메모). 체크 · 별 · 빼기 · 메모 · 일정 만들기(자동 맞춤 · 직접 고르기 ·
  * 조건 바꿔 다시 만들기) · 운동 추가 · 오늘 하고 싶은 운동 · 프로그램 고르기 · 시작 · 건너뛰기 · 그만두기 · 고정 운동 바꾸기는 웹과 같은 서버 동작을
- * 부른다(시트). 지난 날 기록은 앱 화면(/training/day/<날짜>), 트레이닝 설정 · 가진 장비는 웹(화면을 닫고 웹을 그 주소로).
+ * 부른다(시트). 지난 날 기록은 앱 화면(/training/day/<날짜>), 트레이닝 설정 · 가진 장비는 앱 화면(/training/settings — 머리 톱니 · 맨 밑 줄).
  *
  * [운동 시작]은 트레이닝 탭과 같은 길(판을 열면 서버가 운동 화면으로 보낸다 → 앱 운동 화면). 운동을 마치면 운동 화면이 웹을 축하 화면으로 보내고
  * 닫는데, 그 화면이 이 화면 밑에 깔리지 않게 이 화면도 같이 닫는다(useWebNav).
@@ -37,14 +39,8 @@ const KEY = 'training-today';
 let memory: { epoch: number; data: TrainingToday } | null = null;
 const remembered = () => (memory?.epoch === cacheEpoch() ? memory.data : null);
 
-const WEEKDAY = '일월화수목금토';
-/** 날짜 키의 월 · 일 · 요일 — 폰의 시간대와 상관없이 그 날로 */
-const dayOf = (key: string) => {
-  const [y, m, d] = key.split('-').map(Number);
-  return { month: m, day: d, week: WEEKDAY[new Date(Date.UTC(y, m - 1, d)).getUTCDay()] };
-};
-
 export default function TrainingTodayScreen() {
+  useRememberPart('today');
   const c = usePalette();
   const inset = useSafeAreaInsets();
   const params = useLocalSearchParams<{ today?: string }>();
@@ -151,21 +147,33 @@ export default function TrainingTodayScreen() {
     reload: load,
     start: (program) => void start(program),
     starting,
-    checkin: () => router.push({ pathname: '/checkin' as Href as never, params: { date: data?.today ?? today } }),
+    checkin: () => openCheckin('/training?view=home'),
     generate,
     web: leave,
   };
 
+  /* 웹 휴대폰 위 막대의 '‹ 트레이닝'(back-link) — 제목은 본문 큰 제목(PageHeading)이 맡는다 */
   const header = (
-    <View style={[s.header, { paddingTop: inset.top + 4, backgroundColor: c.page, borderBottomColor: c.line }]}>
-      <Pressable onPress={() => router.back()} accessibilityRole="button" accessibilityLabel="뒤로" style={s.iconBtn}>
-        <SymbolView name="chevron.left" size={20} weight="semibold" tintColor={c.sky} />
+    <View style={[st.bar, { paddingTop: inset.top + 4, backgroundColor: c.page }]}>
+      <Pressable onPress={() => router.back()} accessibilityRole="button" accessibilityLabel="트레이닝으로 돌아가기" style={({ pressed }) => [st.back, pressed && { opacity: 0.6 }]}>
+        <Icon name="chevron-left" size={24} color={c.sky} />
+        <Text style={{ color: c.sky, fontSize: 17 }}>트레이닝</Text>
       </Pressable>
-      <Text accessibilityRole="header" numberOfLines={1} style={[s.headTitle, { color: c.ink }]}>
-        오늘 운동
-      </Text>
-      <View style={s.iconBtn} />
     </View>
+  );
+  /* 큰 제목 '트레이닝' + 오른쪽 '설정' 알약(웹 training-page PageHeading · TrainingSettingsButton pill) */
+  const heading = (
+    <PageHead title="트레이닝">
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="트레이닝 설정"
+        onPress={() => router.push('/training/settings' as Href)}
+        style={({ pressed }) => [st.pill, { backgroundColor: c.chip }, pressed && { opacity: 0.6 }]}
+      >
+        <Icon name="settings2" size={16} color={c.sky} />
+        <Text style={{ color: c.ink, fontSize: 15, fontWeight: '600' }}>설정</Text>
+      </Pressable>
+    </PageHead>
   );
 
   if (!data) {
@@ -213,7 +221,7 @@ export default function TrainingTodayScreen() {
           />
         }
       >
-        <Strip data={data} c={c} />
+        {heading}
         {failed ? <Text style={[s.small, { color: c.danger }]}>{failed}</Text> : null}
 
         {data.programCard ? <ProgramCardView p={data.programCard} c={c} a={actions} /> : null}
@@ -262,48 +270,16 @@ export default function TrainingTodayScreen() {
           <PlanBody plan={b.plan} make={b.make} data={data} c={c} a={actions} />
         ) : null}
 
-        <WebRows c={c} rows={[{ label: '트레이닝 설정 · 장비', href: '/training/settings', onPress: (href) => router.push(href as Href) }]} />
       </ScrollView>
     </View>
   );
 }
 
-/** 최근 7일 — 칸 밑 점은 그날 한 것(운동 · 암케어 · 메커니즘, 웹 날짜 띠와 같은 셋). 지난날을 누르면 그날 기록(앱 화면 /training/day/<날짜>) */
-function Strip({ data, c }: { data: TrainingToday; c: Palette }) {
-  const d = dayOf(data.today);
-  return (
-    <View style={{ gap: 8 }}>
-      <Text style={[s.cardTitle, { color: c.ink }]}>
-        {d.month}월 {d.day}일 {d.week}요일
-      </Text>
-      <View style={st.strip}>
-        {data.strip.map((day) => {
-          const on = day.date === data.today;
-          const date = dayOf(day.date);
-          const dots = [day.workout, day.armcare, day.drill];
-          return (
-            <Pressable
-              key={day.date}
-              accessibilityRole="button"
-              accessibilityLabel={`${date.month}월 ${date.day}일`}
-              disabled={on}
-              onPress={() => router.push(`/training/day/${day.date}` as Href)}
-              style={[st.day, { backgroundColor: on ? c.sky : c.card }]}
-            >
-              <Text style={[s.tiny, { color: on ? '#fff' : c.muted }]}>{date.week}</Text>
-              <Text style={[s.bodyBold, s.num, { color: on ? '#fff' : c.ink }]}>{date.day}</Text>
-              <View style={st.dots}>
-                {dots.map((x, i) => (x ? <View key={i} style={[st.dot, { backgroundColor: on ? '#fff' : c.sky }]} /> : null))}
-              </View>
-            </Pressable>
-          );
-        })}
-      </View>
-    </View>
-  );
-}
 
 const st = StyleSheet.create({
+  bar: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, minHeight: 44 },
+  back: { flexDirection: 'row', alignItems: 'center', minHeight: 44 },
+  pill: { height: 44, borderRadius: 22, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', gap: 6 },
   strip: { flexDirection: 'row', gap: 6 },
   day: { flex: 1, minHeight: 64, borderRadius: 14, alignItems: 'center', justifyContent: 'center', gap: 2 },
   dots: { flexDirection: 'row', gap: 2, height: 5 },

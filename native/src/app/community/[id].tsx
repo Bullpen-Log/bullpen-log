@@ -168,7 +168,7 @@ export default function CommunityPostScreen() {
         {post.comments.length === 0 ? (
           <Text style={{ color: c.muted, fontSize: 15, textAlign: 'center', paddingVertical: 16 }}>아직 댓글이 없어요. 첫 댓글을 남겨 보세요.</Text>
         ) : (
-          <View style={[s.group, { backgroundColor: c.card }]}>
+          <View style={[s.group, { backgroundColor: c.card, boxShadow: c.float }]}>
             {post.comments.map((m, i) => (
               <View
                 key={m.id}
@@ -283,7 +283,7 @@ function ReportSheet({ target, c, onClose, onDone }: { target: Target; c: Palett
             multiline
             placeholder="더 알려 줄 것이 있으면 적어 주세요."
             placeholderTextColor={c.muted}
-            style={[s.area, { minHeight: 96, backgroundColor: c.card, color: c.ink }]}
+            style={[s.area, { minHeight: 96, backgroundColor: c.card, boxShadow: c.float, color: c.ink }]}
           />
           {send.error ? <Text style={{ color: c.danger, fontSize: 15 }}>{send.error}</Text> : null}
         </ScrollView>

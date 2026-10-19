@@ -1,6 +1,5 @@
-import * as Haptics from 'expo-haptics';
 import { SymbolView } from 'expo-symbols';
-import { router, useFocusEffect } from 'expo-router';
+import { type Href, router, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
 import {
   ActivityIndicator,
@@ -20,6 +19,8 @@ import { rpc, RpcError } from '~/lib/rpc';
 import { cacheEpoch, cacheGet, cacheSet } from '~/lib/store';
 import { usePalette, type Palette } from '~/lib/ui';
 import { READABLE } from '~/lib/layout';
+import { Icon } from '~/shell/icon';
+import { PageHead, Segmented } from '~/shell/heading';
 
 /**
  * 암케어 · 메커니즘 전체 화면(native/src/app/training-armcare.tsx · training-mechanics.tsx)의 같은 틀 — 머리(‹ · 제목) · 두 칸 고르개 ·
@@ -128,6 +129,7 @@ export function Screen<K extends string>({
   onTab,
   state,
   scrollRef,
+  settings = false,
   children,
 }: {
   title: string;
@@ -136,20 +138,20 @@ export function Screen<K extends string>({
   onTab: (t: K) => void;
   state: { data: unknown; failed: string | null; refreshing: boolean; load: () => void; refresh: () => void };
   scrollRef?: RefObject<ScrollViewInstance | null>;
+  /** 머리 오른쪽 트레이닝 설정 — 웹처럼 암케어만(메커니즘은 장비 · 목표 설정을 읽지 않아 웹에도 없다) */
+  settings?: boolean;
   children: ReactNode;
 }) {
   const c = usePalette();
   const inset = useSafeAreaInsets();
   return (
     <View style={[s.fill, { backgroundColor: c.page }]}>
-      <View style={[s.header, { paddingTop: inset.top + 4, backgroundColor: c.page, borderBottomColor: c.line }]}>
-        <Pressable onPress={() => router.back()} accessibilityRole="button" accessibilityLabel="트레이닝으로" style={s.iconBtn}>
-          <SymbolView name="chevron.left" size={20} weight="semibold" tintColor={c.sky} />
+      {/* 웹 휴대폰 위 막대의 '‹ 트레이닝'(back-link) — 제목은 본문 큰 제목이 맡는다 */}
+      <View style={[st.bar, { paddingTop: inset.top + 4, backgroundColor: c.page }]}>
+        <Pressable onPress={() => router.back()} accessibilityRole="button" accessibilityLabel="트레이닝으로 돌아가기" style={({ pressed }) => [st.back, pressed && { opacity: 0.6 }]}>
+          <Icon name="chevron-left" size={24} color={c.sky} />
+          <Text style={{ color: c.sky, fontSize: 17 }}>트레이닝</Text>
         </Pressable>
-        <Text accessibilityRole="header" numberOfLines={1} style={[s.headTitle, { color: c.ink }]}>
-          {title}
-        </Text>
-        <View style={s.iconBtn} />
       </View>
       <ScrollView
         ref={scrollRef}
@@ -157,26 +159,22 @@ export function Screen<K extends string>({
         contentContainerStyle={[s.content, { paddingBottom: Math.max(24, inset.bottom + 16) }, READABLE]}
         refreshControl={<RefreshControl refreshing={state.refreshing} onRefresh={state.refresh} />}
       >
-        <View accessibilityRole="tablist" style={[s.segment, { backgroundColor: c.chip }]}>
-          {tabs.map((t) => {
-            const on = t.value === tab;
-            return (
-              <Pressable
-                key={t.value}
-                onPress={() => {
-                  if (on) return;
-                  void Haptics.selectionAsync();
-                  onTab(t.value);
-                }}
-                accessibilityRole="tab"
-                accessibilityState={{ selected: on }}
-                style={[s.segItem, on && { backgroundColor: c.card }]}
-              >
-                <Text style={[s.bodyBold, { color: c.ink, fontWeight: on ? '700' : '500' }]}>{t.label}</Text>
-              </Pressable>
-            );
-          })}
-        </View>
+        {/* 큰 제목 + 오른쪽 '설정' 알약(웹 training-page PageHeading · TrainingSettingsButton pill — 암케어만) */}
+        <PageHead title={title}>
+          {settings ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="트레이닝 설정"
+              onPress={() => router.push('/training/settings' as Href)}
+              style={({ pressed }) => [st.pill, { backgroundColor: c.chip }, pressed && { opacity: 0.6 }]}
+            >
+              <Icon name="settings2" size={16} color={c.sky} />
+              <Text style={{ color: c.ink, fontSize: 15, fontWeight: '600' }}>설정</Text>
+            </Pressable>
+          ) : null}
+        </PageHead>
+        {/* 웹 Segmented(흰 칸이 미끄러짐) — 다른 탭 고르개와 같은 부품 */}
+        <Segmented label={title} size="md" value={tab} onChange={onTab} options={tabs} />
         {state.failed ? (
           <View style={[s.notice, { backgroundColor: c.danger + '14' }]}>
             <Text style={[s.small, { color: c.danger, flex: 1 }]}>{state.failed}</Text>
@@ -228,7 +226,7 @@ export function useJump(scroll: RefObject<ScrollViewInstance | null>, initial: s
 /** 웹으로 가는 줄 — 앱에 아직 없는 것(만들기 · 시험 · 3D 지도 등). 누르면 화면을 닫고 웹이 그 주소로 */
 export function WebRow({ label, href, c }: { label: string; href: string; c: Palette }) {
   return (
-    <Pressable onPress={() => leave(href)} accessibilityRole="link" style={[s.webRow, { backgroundColor: c.card }]}>
+    <Pressable onPress={() => leave(href)} accessibilityRole="link" style={[s.webRow, { backgroundColor: c.card, boxShadow: c.float }]}>
       <Text style={[s.body, { color: c.ink, flex: 1 }]}>{label}</Text>
       <SymbolView name="arrow.up.right" size={13} weight="semibold" tintColor={c.muted} />
     </Pressable>
@@ -295,4 +293,10 @@ export const s = StyleSheet.create({
   body: { fontSize: 15, lineHeight: 21 },
   bodyBold: { fontSize: 15, fontWeight: '600', lineHeight: 21 },
   center: { textAlign: 'center' },
+});
+
+const st = StyleSheet.create({
+  bar: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, minHeight: 44 },
+  back: { flexDirection: 'row', alignItems: 'center', minHeight: 44 },
+  pill: { height: 44, borderRadius: 22, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', gap: 6 },
 });

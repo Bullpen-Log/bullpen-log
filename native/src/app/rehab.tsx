@@ -11,7 +11,7 @@ import type { AppArmcareGuideTab, AppArmcareTodayTab, AppRehabSummary, AppRehabT
 import { Bar } from '~/community/parts';
 import { act } from '~/mechanics/parts';
 import { usePalette, type Palette } from '~/lib/ui';
-import { openPlay } from '~/training/armcare-parts';
+import { RehabLine, openPlay } from '~/training/armcare-parts';
 import { s, useScreenData } from '~/training/screen';
 import { READABLE } from '~/lib/layout';
 
@@ -104,11 +104,7 @@ function Detail({ rehab, dateKey, reload, c }: { rehab: AppRehabSummary; dateKey
         <Text style={{ color: c.ink, fontSize: 22, fontWeight: '700', lineHeight: 29 }}>{rehab.title}</Text>
         <Text style={[s.small, { color: c.muted }]}>{rehab.progress}</Text>
       </View>
-      {rehab.line ? (
-        <Text style={[s.body, s.box, rehab.line.kind === 'refer' ? { color: c.warn, backgroundColor: c.warnBg } : { color: c.ink, backgroundColor: c.card }]}>
-          {rehab.line.text}
-        </Text>
-      ) : null}
+      {rehab.line ? <RehabLine line={rehab.line} bg={c.card} c={c} /> : null}
       {!rehab.rest || rehab.today ? (
         <Pressable onPress={() => openPlay('rehab', `d=${dateKey}`)} accessibilityRole="button" style={[s.smallPill, { backgroundColor: c.sky, alignSelf: 'flex-start', minHeight: 44, paddingHorizontal: 18 }]}>
           <SymbolView name={rehab.today ? 'arrow.counterclockwise' : 'play.fill'} size={13} tintColor="#fff" />
@@ -196,7 +192,7 @@ function Detail({ rehab, dateKey, reload, c }: { rehab: AppRehabSummary; dateKey
       <Text style={[s.small, { color: c.muted }]}>담당 의사 · 치료사의 지시가 먼저예요.</Text>
 
       {pick ? (
-        <View style={{ gap: 10, padding: 14, borderRadius: 14, backgroundColor: c.card }}>
+        <View style={{ gap: 10, padding: 14, borderRadius: 14, backgroundColor: c.card, boxShadow: c.float }}>
           <Text style={[s.bodyBold, { color: c.ink }]}>{pick.kind === 'diagnosis' ? '진단 받았어요' : `단계 직접 바꾸기 · 지금 ${d.stage}단계`}</Text>
           {choices.map((o) => {
             const on = pick.value === o.value;
@@ -325,7 +321,7 @@ function ThrowingProgram({ t, reload, c }: { t: AppRehabThrowing; reload: () => 
 
 function Part({ title, children, c }: { title: string; children: React.ReactNode; c: Palette }) {
   return (
-    <View style={{ gap: 8, padding: 14, borderRadius: 14, backgroundColor: c.card }}>
+    <View style={{ gap: 8, padding: 14, borderRadius: 14, backgroundColor: c.card, boxShadow: c.float }}>
       <Text style={[s.smallBold, { color: c.sky }]}>{title}</Text>
       {children}
     </View>

@@ -271,7 +271,7 @@ function Player({ backHref, items, startAt, label, sessionNumber, partial, painL
         {!partial && advice?.to ? <LevelOffer kind={advice.kind} to={advice.to} c={c} /> : null}
 
         {!partial && filmPrompt(sessionNumber) === 'compare' ? (
-          <View style={[s.block, { backgroundColor: c.card }]}>
+          <View style={[s.block, { backgroundColor: c.card, boxShadow: c.float }]}>
             <Text style={[s.blockTitle, { color: c.ink }]}>세션 {sessionNumber}번 · 찍어서 견줘 볼 때예요</Text>
             <Text style={[s.body, { color: c.muted }]}>
               같은 자리에서 다시 찍어 처음 영상과 2분할로 견줘 보세요. 구속도 재 두면 효과를 알 수 있어요.

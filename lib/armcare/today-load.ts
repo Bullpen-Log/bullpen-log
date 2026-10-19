@@ -59,7 +59,7 @@ export type AppArmcareItem = {
   note: string | null;
 };
 
-/** 오늘 재활 겉 세 줄(웹 rehab-card.tsx 의 접힌 모습) — 자세히 · 시험 · 매주 확인 · 투구 복귀표는 웹에서 */
+/** 오늘 재활 겉 세 줄(웹 rehab-card.tsx 의 접힌 모습) — 자세히 · 단계 시험 · 매주 확인 · 투구 복귀표는 앱 화면(native/src/app/rehab*.tsx, detail 칸) */
 export type AppRehabSummary = {
   title: string;
   day: number;
@@ -148,6 +148,11 @@ export type AppArmcareTodayTab = {
    * (웹 armcare-section.tsx 의 RehabStartLine 과 같은 값). 옛 앱은 참 · 거짓으로만 본다.
    */
   rehabStart: { age: number | null; area: ArmcareAreaKey | null; level: 1 | 2 | 3 | null } | null;
+  /**
+   * 팔 통증 안내 시트(웹 arm-pain-guide.tsx 의 ArmPainView)에 넣을 오늘 아픈 자리 · 정도 · 나이 — '통증 안내 보기'가 앱 시트로 연다.
+   * 오늘 아픈 팔이 없으면 null. 옛 앱은 이 칸을 모르고 custom.pain(참 · 거짓)만 본다.
+   */
+  painView?: { spots: ArmcareAreaKey[]; level: number | null; age: number | null } | null;
   routines: AppMyRoutine[];
   routineMax: number;
   painToday: boolean;
@@ -161,6 +166,10 @@ export type AppArmcareGuideTab = {
   /** 내 팔 지도의 글 몫 — 3D 그림은 웹 */
   coverage: { gaps: { key: ArmcareAreaKey; label: string }[]; allCovered: boolean; total: number; pain: ArmPainLine | null };
   untagged: number;
+  /**
+   * '내 루틴에 담기' 창의 루틴 목록(웹 armcare-section.tsx 의 routines 와 같은 값) — 부위 카드의 운동 줄 [담기]. 옛 앱은 안 읽는다.
+   */
+  routines?: { id: string; name: string; exerciseIds: string[] }[];
 };
 
 const RESULT_LABEL: Record<RehabResult, string> = { green: '초록', yellow: '노랑', red: '빨강', refer: '진료' };
@@ -175,7 +184,11 @@ export async function loadAppArmcareTab(
     const library = await visibleExercises();
     const armcareLib = library.filter((ex) => ex.category === ARMCARE_CATEGORY);
     const dateKey = toDateKey(today);
-    const [exercises, map] = await Promise.all([toArmcareViews(armcareLib), loadArmcareCoverage(user.id, dateKey, library)]);
+    const [exercises, map, mine] = await Promise.all([
+      toArmcareViews(armcareLib),
+      loadArmcareCoverage(user.id, dateKey, library),
+      loadMyRoutines(user.id),
+    ]);
     return {
       tab: 'guide',
       dateKey,
@@ -187,6 +200,7 @@ export async function loadAppArmcareTab(
         pain: map.pain,
       },
       untagged: exercises.filter((ex) => ex.targetMuscles.length === 0).length,
+      routines: mine.map((r) => ({ id: r.id, name: r.name, exerciseIds: r.items.map((it) => it.exerciseId) })),
     };
   }
 
@@ -276,6 +290,7 @@ export async function loadAppArmcareTab(
     tab: 'today',
     dateKey: data.todayKey,
     custom,
+    painView: data.armPain ? { spots: [...data.armPain.spots], level: data.armPain.level ?? null, age: data.facts.profile.age } : null,
     rehabStart:
       REHAB_ENABLED && !data.rehab
         ? {

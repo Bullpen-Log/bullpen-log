@@ -925,7 +925,7 @@ export const SLOT_LABELS: Record<SlotKey, { label: string; hint: string }> = {
    * 적는다 — '숨이 찰 만큼'만 적으면 큰 경기 다음 날 회복날에도 그렇게 읽힌다.
    */
   cardio: { label: '유산소', hint: '회복날은 가볍게, 컨디셔닝 날은 숨이 찰 만큼' },
-  mobility: { label: '가동성', hint: '천천히 관절을 열어주세요' },
+  mobility: { label: '가동성', hint: '천천히 관절을 열어 주세요' },
   main: { label: '본운동', hint: '오늘 주로 할 운동이에요' },
   core: { label: '코어', hint: '몸통을 단단하게' },
   /*

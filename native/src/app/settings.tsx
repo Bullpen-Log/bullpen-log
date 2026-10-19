@@ -30,10 +30,10 @@ export default function SettingsScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: c.page }}>
-      <Bar back="더보기" title="설정" c={c} />
+      <Bar modal back="더보기" title="설정" c={c} />
       <ScrollView contentContainerStyle={[{ padding: 16, gap: 24, paddingBottom: inset.bottom + 32 }, READABLE]}>
         <Section icon="circle.lefthalf.filled" title="화면" desc="밝게 볼지 어둡게 볼지 골라요. 자동은 기기 설정을 따라요. 이 기기에만 적용돼요." c={c}>
-          <Segmented options={THEME_OPTIONS} value={prefs.theme} onChange={(v) => pick('theme', v)} c={c} />
+          <Segmented options={THEME_OPTIONS} icons={THEME_ICONS} value={prefs.theme} onChange={(v) => pick('theme', v)} c={c} />
         </Section>
 
         <Section icon="ruler" title="단위" desc="보여주는 방식만 바뀌어요. 저장은 늘 cm · kg 이라 지난 기록도 그대로예요." c={c}>
@@ -43,7 +43,7 @@ export default function SettingsScreen() {
         </Section>
 
         <Section icon="info.circle" title="정보" desc="약관 · 출처 · 문의는 여기에 있어요." c={c}>
-          <View style={[st.group, { backgroundColor: c.card }]}>
+          <View style={[st.group, { backgroundColor: c.card, boxShadow: c.float }]}>
             <Row label="이용약관" onPress={() => open('/terms')} c={c} />
             <Row label="개인정보 처리방침" onPress={() => open('/privacy')} c={c} />
             <Row label="3D 모델 출처" onPress={() => setCredit((v) => !v)} open={credit} c={c} />
@@ -95,14 +95,24 @@ function Section({ icon, title, desc, children, c }: { icon: SFSymbol; title: st
   );
 }
 
+/** 테마마다 붙는 그림 — 웹 components/theme-toggle.tsx THEME_ICONS(Sun · Moon · MoonStar · SunMoon)와 같은 뜻 */
+const THEME_ICONS: Record<Prefs['theme'], SFSymbol> = {
+  light: 'sun.max',
+  dark: 'moon',
+  navy: 'moon.stars',
+  system: 'circle.lefthalf.filled',
+};
+
 /** 고르개 — 회색 바탕 위 흰 칸(웹 Segmented 와 같은 모양) */
 function Segmented<V extends string>({
   options,
+  icons,
   value,
   onChange,
   c,
 }: {
   options: readonly { value: V; label: string }[];
+  icons?: Record<V, SFSymbol>;
   value: V;
   onChange: (v: V) => void;
   c: Palette;
@@ -117,8 +127,9 @@ function Segmented<V extends string>({
             accessibilityRole="radio"
             accessibilityState={{ selected: on }}
             onPress={() => onChange(o.value)}
-            style={[st.segItem, on && { backgroundColor: c.raised }]}
+            style={[st.segItem, icons && { flexDirection: 'row', gap: 4 }, on && { backgroundColor: c.raised }]}
           >
+            {icons ? <SymbolView name={icons[o.value]} size={14} tintColor={c.ink} /> : null}
             <Text style={{ color: c.ink, fontSize: 14, fontWeight: on ? '700' : '500' }}>{o.label}</Text>
           </Pressable>
         );

@@ -47,6 +47,8 @@ export type PitchEntry = {
 };
 
 export class ApiError extends Error {}
+/** 서버에 닿지 못함(신호 끊김) — 폼이 적은 것을 폰에 남겨 둘 때 가른다 */
+export class OfflineError extends ApiError {}
 
 export async function call<T>(path: string, init: { method: string; body?: unknown }): Promise<T> {
   await syncSession();
@@ -59,7 +61,7 @@ export async function call<T>(path: string, init: { method: string; body?: unkno
       ...(init.body !== undefined ? { body: JSON.stringify(init.body) } : {}),
     });
   } catch {
-    throw new ApiError('신호가 약해 서버에 닿지 못했어요.');
+    throw new OfflineError('신호가 약해 서버에 닿지 못했어요.');
   }
   const body = (await res.json().catch(() => null)) as (T & { error?: string }) | null;
   if (!res.ok) throw new ApiError(body?.error ?? '서버에서 처리하지 못했어요.');
@@ -114,6 +116,23 @@ export async function serverVideoUrls(paths: string[]): Promise<Record<string, s
       body: { paths: remote.slice(i, i + 10) },
     });
     Object.assign(out, r.urls);
+  }
+  return out;
+}
+
+/**
+ * 서버 영상의 장면 그림(썸네일) 주소 — 웹 영상 달력과 같은 /api/pitch-log/thumb-url(한 번에 40개). 그림이 아직 없는 영상은 빠진다.
+ * 폰 영상은 서버에 그림이 없어 묻지 않는다(묻으면 403).
+ */
+export async function serverThumbUrls(paths: string[]): Promise<Record<string, string>> {
+  const remote = [...new Set(paths.filter((p) => !isPhoneVideoPath(p)))];
+  const out: Record<string, string> = {};
+  for (let i = 0; i < remote.length; i += 40) {
+    const r = await call<{ thumbs?: Record<string, string> }>('/api/pitch-log/thumb-url', {
+      method: 'POST',
+      body: { paths: remote.slice(i, i + 40) },
+    });
+    Object.assign(out, r.thumbs ?? {});
   }
   return out;
 }

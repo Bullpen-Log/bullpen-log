@@ -6,12 +6,20 @@
  * 시각을 역산한다(앱은 그 순간까지 기다리다 5초 상한에 돌려준다). Swift 에 now 를 넣으면 이 꾀는 필요 없다(2.7 계획).
  */
 
-/** 앱이 잘라 준 클립의 카메라 시계 구간 — eventSec = max(0, at − 조각 시작) 이라 at 이 조각 안이면 시작이 바로 나온다 */
+/**
+ * 앱이 잘라 준 클립의 카메라 시계 구간 — eventSec = max(0, at − 조각 시작) 이라 at 이 조각 안이면 시작이 바로 나온다.
+ * at 이 앱이 쥔 영상보다 앞이면 eventSec 이 0 으로 잘려 시작을 모른다 — 청한 끝(toSec)을 알면 끝에서 길이만큼 되짚어 어림한다
+ * (2026-10-19: 세션 녹화가 뒤처진 뒤 시작을 at 으로 잘못 잡아 다음 조각이 같은 구간을 다시 청했다).
+ */
 export function clipSpanOf(
   atSec: number,
-  clip: { eventSec: number; durationSec: number }
+  clip: { eventSec: number; durationSec: number },
+  toSec?: number
 ): { start: number; end: number } {
-  const start = atSec - clip.eventSec;
+  const start =
+    clip.eventSec <= 0 && toSec != null
+      ? Math.max(atSec, toSec - clip.durationSec)
+      : atSec - clip.eventSec;
   return { start, end: start + clip.durationSec };
 }
 
@@ -52,7 +60,42 @@ export function coveredBy(t: number, spans: { start: number; end: number }[]): b
   return spans.some((s) => t >= s.start && t <= s.end);
 }
 
-/** 세션 녹화 조각 길이(초) — 14Mbps 면 10MB 남짓(저장소 한 파일 50MB 안) */
-export const RECORD_SEGMENT_SEC = 6;
-/** 올리기가 이만큼 밀리면 그 조각은 건너뛴다(메모리) */
-export const RECORD_MAX_PENDING = 3;
+/**
+ * 세션 녹화 조각 길이(초) — 앱 모듈이 한 번에 잘라 주는 상한(DualCameraModule.swift clip 의 afterSec ≤ 4)과 같게. 6 이었을 때는 청한 6초 중
+ * 4초만 와서 매번 1.6초씩 뒤처지다 셋째 조각부터 앱이 쥔 8초 밖으로 밀려 '그 순간의 영상이 없어요' → 녹화가 멎었다(2026-10-19 금윤호 녹화 다섯,
+ * 189초 중 7초). 14Mbps 면 7MB 남짓.
+ */
+export const RECORD_SEGMENT_SEC = 4;
+/** 앱 모듈이 한 번에 잘라 주는 가장 긴 길이(초) — DualCameraModule.swift `after = max(0.3, min(4, …))` */
+export const CLIP_MAX_SEC = 4;
+/** 앱이 쥐고 있는 영상 길이(초) — DualCameraCore.swift SegmentRecorder.keepSec */
+export const CAMERA_KEEP_SEC = 8;
+/**
+ * 올리기가 이만큼 밀리면 그 조각은 폰에 두고(새 앱 · 옛 앱 모두 LocalVideo) 끝낸 뒤 올린다 — 폰에 둘 수 없으면 버린다. 조각 7MB × 6 = 42MB 가
+ * 메모리 상한. 3 이었을 때는 와이파이가 느리면(10-19 현장 약 6.5Mbps — 필요한 건 14) 둘에 하나를 버렸다.
+ */
+export const RECORD_MAX_PENDING = 6;
+/** 마지막 조각이 아직 안 닫혔을 수 있다 — 지금에서 이만큼 띄운다 */
+export const RECORD_LAG_SEC = 0.4;
+
+/**
+ * 세션 녹화가 다음에 자를 구간 — 지난 끝(lastEnd)부터 지금 − 여유까지, 한 번에 CLIP_MAX_SEC 까지만(모듈 상한). 앱이 쥔 길이(8초) 밖으로
+ * 뒤처졌으면 그만큼 건너뛰고 버퍼 안(지금 − 4초)부터 — 없는 영상을 청하면 모듈이 실패하고, 실패를 그대로 두면 다음에도 같은 자리를 청해
+ * 영영 멎는다. skippedSec 은 그렇게 버린 길이. 너무 짧으면(끝낼 때 0.5 · 평소 2초 미만) null.
+ */
+export function nextRecordCut(
+  lastEnd: number,
+  cameraNow: number,
+  final = false
+): { from: number; to: number; skippedSec: number } | null {
+  const to = cameraNow - RECORD_LAG_SEC;
+  let from = lastEnd;
+  let skippedSec = 0;
+  if (to - from > CAMERA_KEEP_SEC - 1) {
+    from = to - CLIP_MAX_SEC;
+    skippedSec = from - lastEnd;
+  }
+  const span = Math.min(CLIP_MAX_SEC, to - from);
+  if (span < (final ? 0.5 : 2)) return null;
+  return { from, to: from + span, skippedSec };
+}

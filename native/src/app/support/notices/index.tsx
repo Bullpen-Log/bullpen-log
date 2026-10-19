@@ -34,7 +34,7 @@ export default function NoticesScreen() {
               <Text style={{ color: c.muted, fontSize: 15, textAlign: 'center' }}>점검 · 새 기능 · 바뀐 점이 있으면 여기에 올라와요.</Text>
             </View>
           ) : (
-            <View style={[s.group, { backgroundColor: c.card }]}>
+            <View style={[s.group, { backgroundColor: c.card, boxShadow: c.float }]}>
               <NoticeRows rows={data.notices} c={c} />
             </View>
           )}

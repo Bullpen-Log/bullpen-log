@@ -124,7 +124,7 @@ export function ChoiceChips({
 /** 요약 줄 — 이름 · 값 */
 export function SummaryRows({ rows, c }: { rows: { label: string; value: string }[]; c: Palette }) {
   return (
-    <View style={{ backgroundColor: c.card, borderRadius: 16, paddingHorizontal: 16 }}>
+    <View style={{ backgroundColor: c.card, boxShadow: c.float, borderRadius: 16, paddingHorizontal: 16 }}>
       {rows.map((r, i) => (
         <View key={r.label} style={[st.sumRow, i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.line }]}>
           <Text style={{ color: c.muted, fontSize: 15 }}>{r.label}</Text>

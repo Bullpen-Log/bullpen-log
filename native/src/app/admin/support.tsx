@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { RefreshControl, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { loadAppAdminSupport } from '@/app/actions/app-admin';
-import { Badge, Bar, BarButton, Chip, LoadState, Row, s, useLoad } from '~/community/parts';
+import { Badge, Bar, BarButton, Chip, InquiryMeta, LoadState, Row, s, useLoad } from '~/community/parts';
 import { usePalette } from '~/lib/ui';
 import { READABLE } from '~/lib/layout';
 
@@ -41,7 +41,7 @@ export default function AdminSupportScreen() {
                 {data.filter === 'OPEN' ? '답을 기다리는 문의가 없어요.' : '이 상태의 문의가 없어요.'}
               </Text>
             ) : (
-              <View style={[s.group, { backgroundColor: c.card }]}>
+              <View style={[s.group, { backgroundColor: c.card, boxShadow: c.float }]}>
                 {data.inquiries.map((q, i) => (
                   <Row key={q.id} onPress={() => router.push(`/support/inquiries/${q.id}` as Href)} last={i === data.inquiries.length - 1} c={c}>
                     <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 8 }}>
@@ -50,7 +50,12 @@ export default function AdminSupportScreen() {
                       </Text>
                       <Badge text={q.status} color={q.open ? c.sky : undefined} c={c} />
                     </View>
-                    <Text style={[s.meta, { color: c.muted }]}>{[q.nickname, q.date, q.replies > 0 ? `답글 ${q.replies}` : null].filter(Boolean).join(' · ')}</Text>
+                    {/* 옛 서버(종류 칸 없음)면 '기타' 배지 대신 예전 글 줄 */}
+                    {q.category ? (
+                      <InquiryMeta category={q.category} nickname={q.nickname} date={q.date} replies={q.replies} c={c} />
+                    ) : (
+                      <Text style={[s.meta, { color: c.muted }]}>{[q.nickname, q.date, q.replies > 0 ? `답글 ${q.replies}` : null].filter(Boolean).join(' · ')}</Text>
+                    )}
                   </Row>
                 ))}
               </View>
@@ -63,7 +68,7 @@ export default function AdminSupportScreen() {
             {data.notices.length === 0 ? (
               <Text style={{ color: c.muted, fontSize: 15, textAlign: 'center', padding: 20 }}>아직 올린 공지가 없어요.</Text>
             ) : (
-              <View style={[s.group, { backgroundColor: c.card }]}>
+              <View style={[s.group, { backgroundColor: c.card, boxShadow: c.float }]}>
                 {data.notices.map((n, i) => (
                   <Row key={n.id} onPress={() => router.push(`/support/notices/${n.id}` as Href)} last={i === data.notices.length - 1} c={c}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
@@ -79,7 +84,7 @@ export default function AdminSupportScreen() {
             )}
           </View>
 
-          <View style={[s.group, { backgroundColor: c.card }]}>
+          <View style={[s.group, { backgroundColor: c.card, boxShadow: c.float }]}>
             <Row onPress={() => router.push('/admin/community' as Href)} last c={c}>
               <Text style={{ color: c.ink, fontSize: 16, fontWeight: '600' }}>커뮤니티 신고 처리</Text>
               <Text style={[s.meta, { color: c.muted }]}>신고된 글 · 댓글을 보고 가리거나 풀어요.</Text>

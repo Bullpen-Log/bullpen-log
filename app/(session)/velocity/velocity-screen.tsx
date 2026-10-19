@@ -86,6 +86,7 @@ import {
   type RecorderState,
 } from '@/lib/velocity-recorder';
 import { DualSessionRecorder } from '@/lib/velocity-dual-recorder';
+import { loadPhoneAssetBlob, localVideoAvailable, removePhoneAssets, saveBlobToPhone } from '@/lib/local-video';
 import { VELOCITY_ENGINE_VERSION } from '@/lib/velocity-engine/version';
 import { reject } from '@/lib/velocity-engine/validate';
 import { uploadAttemptClip, uploadClip } from '@/lib/velocity-clip-upload';
@@ -1513,7 +1514,7 @@ export function VelocityScreen({
   };
   /*
    * 세션 통째 녹화(엔진 2.7 1단계, lib/velocity-dual-recorder.ts) — 관리자가 '세션 녹화' 단추를 켠 채 앱 카메라로 잴 때, 앱이 쥔
-   * 최근 영상을 6초마다 잘라 서버 녹화(엔진 개발용 녹화와 같은 표 · 편집기)로 올린다. 알림이 침묵해 놓친 공의 영상이 남는다.
+   * 최근 영상을 4초마다 잘라 서버 녹화(엔진 개발용 녹화와 같은 표 · 편집기)로 올린다. 알림이 침묵해 놓친 공의 영상이 남는다.
    */
   const startSessionRecording = async (capture: DualCapture | LiveCapture) => {
     if (!isAdmin || !sessionRecWanted || sessionRecRef.current) return;
@@ -1521,11 +1522,20 @@ export function VelocityScreen({
       setToast('세션 녹화는 앱 카메라에서만 돼요');
       return;
     }
+    /* 올리기가 밀린 조각은 폰에 두고 끝낸 뒤 올린다(앱의 LocalVideo 가 있을 때 — 두 앱 모두) */
+    const canSpill = localVideoAvailable();
     const recorder = new DualSessionRecorder(
       {
         cameraNow: () => capture.cameraNow(),
         anchorClock: () => capture.anchorClock(),
         cutRange: (from, to) => capture.cutRange(from, to),
+        ...(canSpill
+          ? {
+              spill: (blob: Blob) => saveBlobToPhone(blob),
+              unspill: (id: string) => loadPhoneAssetBlob(id),
+              dropSpill: (ids: string[]) => removePhoneAssets(ids),
+            }
+          : {}),
       },
       (s) => setRec({ ...s })
     );
@@ -1567,7 +1577,11 @@ export function VelocityScreen({
       setRec(null);
       return;
     }
-    setToast('세션 녹화를 시작했어요');
+    setToast(
+      recorder.state.error
+        ? '세션 녹화 준비 — 첫 알림이 오면 찍기 시작해요'
+        : '세션 녹화를 시작했어요'
+    );
   };
   const stopSessionRecording = async () => {
     const recorder = sessionRecRef.current;
@@ -3574,7 +3588,10 @@ export function VelocityScreen({
                     rec && (
                       <span className="inline-flex h-8 items-center gap-1.5 rounded-full bg-red-500/85 px-3 text-xs font-medium tabular-nums text-white">
                         <span aria-hidden className="h-2 w-2 rounded-full bg-white motion-safe:animate-pulse" />
-                        녹화 중 · 올림 {rec.uploaded}/{rec.parts}
+                        {/* 폰 = 올리기가 밀려 폰에 둔 조각(끝낸 뒤 올림) · 실패 = 버린 조각. 시계를 못 잡았으면 그 글 */}
+                        {rec.parts === 0 && rec.error
+                          ? '녹화 준비 · 첫 알림을 기다려요'
+                          : `녹화 중 · 올림 ${rec.uploaded}/${rec.parts}${rec.spilled ? ` · 폰 ${rec.spilled}` : ''}${rec.failed ? ` · 실패 ${rec.failed}` : ''}`}
                       </span>
                     )
                   )}

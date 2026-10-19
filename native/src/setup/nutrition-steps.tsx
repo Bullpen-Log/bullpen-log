@@ -22,11 +22,11 @@ import { fromWeight, round1, toWeight, type WeightUnit } from '@/lib/units';
 import { floorNote } from '@/lib/nutrition/targets';
 import type { Palette } from '~/lib/ui';
 import { ChoiceChips } from '~/setup/frame';
+import { WeightForecast } from '~/shell/weight-forecast';
 
 /**
  * 영양 질문 화면들(앱) — 웹 components/onboarding/nutrition-steps.tsx · plan-stats.tsx · macro-editor.tsx · building-steps.tsx 를 옮겼다.
  * 답의 모양 · 차례 · 검사 · 미리보기는 웹과 같은 순수 함수(lib/nutrition/onboarding-answers.ts). 화면은 상태를 들지 않는다.
- * ponytail: 예상 체중 선(그림)은 글 한 줄로 — 그래프 부품을 옮기지 않았다. 볼 사람이 생기면 nutrition/stats/charts 의 선을 쓴다.
  */
 export type StepCtx = {
   a: NutritionAnswers;
@@ -391,7 +391,7 @@ function MacroPresetStep({ ctx }: { ctx: StepCtx }) {
         invalid={invalid('macroPreset')}
         c={c}
       />
-      <View style={{ backgroundColor: c.card, borderRadius: 16, padding: 14, gap: 8 }}>
+      <View style={{ backgroundColor: c.card, boxShadow: c.float, borderRadius: 16, padding: 14, gap: 8 }}>
         <Text style={{ color: c.muted, fontSize: 13 }}>이렇게 나눠요 · 하루 {kcalText(t.base)}kcal(운동 없는 날)</Text>
         <MacroBar carbs={t.carbs} protein={t.protein} fat={t.fat} c={c} />
       </View>
@@ -545,7 +545,7 @@ function Stat({ label, value, sub, strong, c }: { label: string; value: number; 
   );
 }
 
-/** 추천 계획 — 세 숫자 · 하루 목표 직접 정하기 · 탄단지 · 예상(글) · 계산에 쓴 몸(웹 PlanStats 와 같은 숫자) */
+/** 추천 계획 — 세 숫자 · 하루 목표 직접 정하기 · 탄단지 · 예상 체중 선 · 계산에 쓴 몸(웹 PlanStats 와 같은 숫자) */
 function PlanStep({ ctx }: { ctx: StepCtx }) {
   const { a, set, p, body, today, unit, invalid, c } = ctx;
   const t = p.targets;
@@ -562,7 +562,7 @@ function PlanStep({ ctx }: { ctx: StepCtx }) {
       </View>
       {floorNote(t) ? <Text style={{ color: c.muted, fontSize: 13 }}>{floorNote(t)}</Text> : null}
       {open ? (
-        <View style={{ backgroundColor: c.card, borderRadius: 16, padding: 14, gap: 8 }}>
+        <View style={{ backgroundColor: c.card, boxShadow: c.float, borderRadius: 16, padding: 14, gap: 8 }}>
           <Text style={{ color: c.muted, fontSize: 13, fontWeight: '600' }}>하루 목표(운동 전)</Text>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
             <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', borderRadius: 12, borderWidth: 1, borderColor: invalid('kcalTarget') ? c.danger : c.line, paddingHorizontal: 12 }}>
@@ -609,10 +609,13 @@ function PlanStep({ ctx }: { ctx: StepCtx }) {
         </Text>
       </View>
       {p.etaWeeks !== null && a.targetWeightKg !== null ? (
-        <Text style={{ color: c.ink, fontSize: 15, lineHeight: 22, backgroundColor: c.card, borderRadius: 14, padding: 14, overflow: 'hidden' }}>
-          계획대로면 약 <Text style={{ fontWeight: '700' }}>{p.etaWeeks}주</Text>, {dateText(periodDate(today, p.etaWeeks))}쯤 {kgText(a.targetWeightKg, unit)}
-          {p.targets.paceKg ? ` · ${paceText(p.targets.paceKg, unit)}씩` : ''}
-        </Text>
+        <View style={{ backgroundColor: c.card, boxShadow: c.float, borderRadius: 14, padding: 12, gap: 4 }}>
+          {p.forecast.length > 1 ? <WeightForecast points={p.forecast} c={c} /> : null}
+          <Text style={{ color: c.muted, fontSize: 13, lineHeight: 19, textAlign: 'center' }}>
+            계획대로면 약 <Text style={{ color: c.ink, fontWeight: '600' }}>{p.etaWeeks}주</Text>, {dateText(periodDate(today, p.etaWeeks))}쯤 {kgText(a.targetWeightKg, unit)}
+            {p.targets.paceKg ? ` · ${paceText(p.targets.paceKg, unit)}씩` : ''}
+          </Text>
+        </View>
       ) : null}
       <Text style={{ color: c.muted, fontSize: 12, lineHeight: 17 }}>
         계산에 쓴 몸: {body.weightKg !== null ? kgText(body.weightKg, unit) : `${kgText(t.weightKg, unit)}(짐작)`}
@@ -630,7 +633,7 @@ function MacroEditStep({ ctx }: { ctx: StepCtx }) {
   const t = p.targets;
   return (
     <View style={{ gap: 16 }}>
-      <View style={{ backgroundColor: c.card, borderRadius: 16, padding: 14, gap: 8 }}>
+      <View style={{ backgroundColor: c.card, boxShadow: c.float, borderRadius: 16, padding: 14, gap: 8 }}>
         <Text style={{ color: c.muted, fontSize: 13 }}>
           하루 <Text style={{ color: c.ink, fontWeight: '700' }}>{kcalText(t.base)}kcal</Text>
           {t.manual ? ' · 직접 정함' : ''}

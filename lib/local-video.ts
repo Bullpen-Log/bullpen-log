@@ -91,6 +91,11 @@ export async function saveAppFileToPhone(path: string): Promise<string> {
 
 /** 앱이 load · libraryLoad 로 내준 파일을 조각으로 읽어 재생 주소(blob:)로 */
 async function readToBlobUrl(file: string, onProgress: (p: number) => void): Promise<string> {
+  return URL.createObjectURL(await readToBlob(file, onProgress));
+}
+
+/** 앱이 내준 파일을 조각으로 읽어 Blob 으로 — 읽은 뒤 앱의 임시 파일은 지운다 */
+async function readToBlob(file: string, onProgress: (p: number) => void): Promise<Blob> {
   const parts: Uint8Array<ArrayBuffer>[] = [];
   let offset = 0;
   try {
@@ -110,7 +115,22 @@ async function readToBlobUrl(file: string, onProgress: (p: number) => void): Pro
     await call('discard', { paths: [file] }).catch(() => undefined);
   }
   const type = file.toLowerCase().endsWith('.mov') ? 'video/quicktime' : 'video/mp4';
-  return URL.createObjectURL(new Blob(parts, { type }));
+  return new Blob(parts, { type });
+}
+
+/**
+ * 폰에 둔 영상 번호(saveBlobToPhone 이 돌려준 것)를 Blob 으로 — 세션 녹화가 올리기 밀린 조각을 폰에 두었다가 끝낸 뒤 올릴 때(2026-10-19).
+ * 기록의 영상 경로가 아니라 번호 그대로(폰 안에서만 쓴다).
+ */
+export async function loadPhoneAssetBlob(id: string): Promise<Blob> {
+  const res = await call<{ path: string; size: number }>('load', { id });
+  return readToBlob(res.path, () => {});
+}
+
+/** 폰에 둔 영상 번호들을 지운다 — 올린 뒤 · 버릴 때. 앱이 아니면 아무것도 안 한다 */
+export async function removePhoneAssets(ids: string[]): Promise<void> {
+  if (!ids.length || !localVideoAvailable()) return;
+  await call('remove', { ids }).catch(() => undefined);
 }
 
 /* 한 번 꺼낸 영상은 화면이 살아 있는 동안 다시 쓴다 */

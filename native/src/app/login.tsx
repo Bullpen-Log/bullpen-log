@@ -80,7 +80,7 @@ export default function LoginScreen() {
           <Text style={{ color: c.muted, fontSize: 16 }}>기록을 이어서 보려면 로그인해 주세요.</Text>
         </View>
 
-        <View style={[st.group, { backgroundColor: c.card }]}>
+        <View style={[st.group, { backgroundColor: c.card, boxShadow: c.float }]}>
           <TextInput
             value={email}
             onChangeText={setEmail}
@@ -112,7 +112,7 @@ export default function LoginScreen() {
           />
         </View>
 
-        <View style={[st.group, { backgroundColor: c.card }]}>
+        <View style={[st.group, { backgroundColor: c.card, boxShadow: c.float }]}>
           <ToggleRow
             label="자동 로그인"
             value={stay}

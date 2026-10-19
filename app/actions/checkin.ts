@@ -104,7 +104,7 @@ async function trySaveCheckin(formData: FormData): Promise<CheckinState> {
       sleepQuality <= SLEEP_QUALITY_LEVELS.length
     )
   ) {
-    return { error: '수면의 질을 골라주세요.' };
+    return { error: '수면의 질을 골라 주세요.' };
   }
 
   /* 팔 통증 자리 · 정도 — 어깨 · 팔꿈치가 '통증'이 아니면 [] · null 이라 지난 값이 남지 않는다(lib/checkin.ts parseArmPain) */

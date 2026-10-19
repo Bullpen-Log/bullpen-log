@@ -38,11 +38,14 @@ export function MobileVelocityAdmin({
   path,
   day,
   recordings,
+  sessionRecordings,
 }: {
   data: AdminOverview;
   path: ExplorerPath;
   day: AdminDay | null;
   recordings: number;
+  /** 세션 녹화 수 — 측정된 공과 따로 보는 단추 */
+  sessionRecordings: number;
 }) {
   if (path.level === 'day' && day) return <MobileDay day={day} />;
   const { totals, overall } = data;
@@ -50,14 +53,22 @@ export function MobileVelocityAdmin({
   return (
     <div className="stack-block">
       <MobileUploadButton />
+      <ButtonLink
+        href="/admin/velocity/recordings?kind=session"
+        variant="secondary"
+        className="h-12 w-full px-3 text-sm"
+      >
+        <Film aria-hidden className="h-4 w-4" />
+        세션 녹화{sessionRecordings > 0 ? ` ${sessionRecordings}` : ''}
+      </ButtonLink>
       <div className="grid grid-cols-2 gap-2">
         <ButtonLink
-          href="/admin/velocity/recordings"
+          href="/admin/velocity/recordings?kind=dev"
           variant="secondary"
           className="h-12 w-full px-3 text-sm"
         >
           <Clapperboard aria-hidden className="h-4 w-4" />
-          녹화{recordings > 0 ? ` ${recordings}` : ''}
+          개발용 녹화{recordings > 0 ? ` ${recordings}` : ''}
         </ButtonLink>
         <ButtonLink
           href="/velocity"

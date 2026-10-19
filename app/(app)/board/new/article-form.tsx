@@ -50,7 +50,7 @@ export function ArticleForm() {
         />
       </Field>
 
-      <Field label="자료 링크 (선택)" hint="원문이나 참고 페이지 주소를 넣어주세요.">
+      <Field label="자료 링크 (선택)" hint="원문이나 참고 페이지 주소를 넣어 주세요.">
         <Input
           name="attachmentUrl"
           type="url"
@@ -64,7 +64,7 @@ export function ArticleForm() {
           name="content"
           rows={14}
           defaultValue={kept(before, 'content')}
-          placeholder="자료의 핵심 내용과 느낀 점을 정리해보세요."
+          placeholder="자료의 핵심 내용과 느낀 점을 정리해 보세요."
           required
         />
       </Field>

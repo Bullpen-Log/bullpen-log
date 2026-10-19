@@ -38,6 +38,10 @@
 
 ### 1단계 — 세션 녹화(`lib/velocity-dual-recorder.ts` DualSessionRecorder)
 
+> 2026-10-19 고침(금윤호): 조각 6초 → 4초(앱 모듈 `clip` 의 `afterSec` 상한 4 — 6초를 청하면 4초만 와 매번 뒤처지다 8초 버퍼 밖으로 밀려 멎었다, 189초 중 7초),
+> 구간은 `sweep.ts nextRecordCut`(밀리면 건너뛰기 · 실패해도 자리 옮김), 시계를 못 잡고 시작해도 첫 알림에 찍기 시작, 올리기 밀림은 폰에 두고 끝낼 때 올림(LocalVideo),
+> 자르기 · 올리기 시간 제한. 시험 `velocity:engine2-test` 사고 재현 포함.
+
 - `DualCapture.cutRange(from, to)` — 앱에 그 구간을 잘라 달라 해 Blob 으로(과거 구간이라 바로 온다).
 - 6초마다 `[지난 끝, 지금 − 0.4초]` 를 잘라 조각으로 올린다(SegmentedRecorder 와 같은 서버 API · 같은 표 — 관리자 녹화 편집기가 그대로 연다).
   조각 하나 약 10MB(14Mbps). 올리기가 3개 넘게 밀리면 그 조각은 건너뛴다(메모리).
@@ -166,3 +170,58 @@
 - **남은 것**: ① 다음 현장 뒤 엔진이 못 잰 클립 · 세션 녹화에 찍기(사용자 몫, 컷당 2~3분) ② 1판 + 2판 합쳐 학습 · 1판과 같은 표로 평가 ③ 라벨 사이 보간 대신
   장면 전부 찍기를 강제할지는 써 보고.
 
+
+## 인계 — 2026-10-19, 금윤호가 이어서 (김민 · 구속측정 엔진 세션이 정리)
+
+사용자(김민): "지금까지 진행상황이랑 앞으로의 계획 금윤호한테 메인으로 전달해줘. 금윤호가 이어서 할거야."
+
+### 지금 상태(2026-10-19, main 74460fc5 기준)
+
+| 조각 | 상태 | 어디 |
+|---|---|---|
+| 2.6.0 공 크기를 세션 거리로 다시 판정 · 덩어리 배율 1.163 | 끝 · 배포 | `analyze-distance.ts` rejudgeSize · `accuracy-2026-10-16.md`(2배 줌 50구 110+ 11/14 · MAE 2.2) |
+| 2.7.0 조용할 때 훑기(웹 · Capacitor 앱 카메라 길) | 끝 · 배포 | `dual-capture.ts` sweep · `sweep.ts` · `analyze-video.ts` locateThrow |
+| 2.7.0 세션 통째 녹화 — 웹 | 끝 · 배포. 10-17 부터 관리자 칩 '세션 녹화 끔/켬'으로만 켬 | `lib/velocity-dual-recorder.ts` · `velocity-screen.tsx` recChip |
+| 세션 통째 녹화 — 새 Expo 앱 | 끝(김민 10-19, 4초 조각 · DualCamera.now) | `native/src/velocity/session-recorder.ts` |
+| 4단계 공 크기 깊이를 궤적에 | **안 만듦**(짝 21구: 오차 2.69 → 3.01%) | 위 4단계 절 |
+| 5단계 1판 공 감지 모델 | 끝(시험 재현율 90% · 헛 알림 2.9%) | `services/velocity-detector/` · Modal 볼륨 `bullpen-ball-detector-data` /out/v1 |
+| 2.7.1 훑기가 모델로 공 찾기(웹) | 끝 · 배포(클립 43: 모델 43/43 · 알림 안 24/24) | `ball-net.ts` · `public/velocity-detector/ball-v1.onnx` |
+| 2판 라벨 도구(사람이 공 자리 찍기) | 끝 · 배포. **찍은 라벨은 시험용 1개뿐** | `app/(app)/admin/velocity/ball-labeler.tsx` · `pull-labels.mjs` · 표 VelocityBallLabel |
+| 셔터 모양(운동 촬영 단추와 같게) | 끝(aa8b2541) | `velocity-screen.tsx` Shutter |
+| ABS 스트라이크 판정(금윤호 10-18) | 금윤호 것 — 엔진엔 궤적 스냅샷 한 칸 | `analysis.abs` |
+
+DB(10-16 밤 뒤, 읽기만): 시도 기록 공 10 · 공 후보 51 · 움직임 8 · **훑기 1** · 2.7.1 로 잰 공 11. 세션 녹화 7개 · 조각 22(새 앱 5개) — **공 표시(컷) 0**.
+실제 폰에서 훑기 · 모델 속도는 아직 제대로 본 적이 없다(웹 길 훑기가 1구 잡은 기록만).
+
+### 가장 큰 빈칸 — 새 Expo 앱에는 훑기 · 학습 모델이 없다
+
+10-18 부터 새 앱에서 구속 측정을 누르면 앱 화면(`native/src/app/velocity.tsx`)으로 가고, 던짐 알아채기는 앱 카메라 알림(`DualCameraCore.swift` MotionTrigger)뿐이다.
+`native/src/velocity/capture.ts` 머리말: "조용할 때 훑기(sweep, 사이트 2.7)는 아직 옮기지 않았다". 즉 2.7.0 · 2.7.1 의 '놓치는 공 줄이기'가 새 앱 사용자에겐 안 닿는다.
+
+### 다음 순서(금윤호)
+
+1. **새 앱에 조용할 때 훑기 옮기기(반나절).** `capture.ts` 에 웹 `DualCapture.sweep()` 과 같은 고리: 재는 중이 없으면 5초마다 `DualCamera.clip` 으로 지난 6초를 잘라
+   숨은 웹뷰 엔진(`app/velocity-engine/engine-client.tsx`)에 `locateThrow` 를 부르고, 공을 믿으면 그 시각으로 'motion' 과 같은 길(넓은 클립)로 잰다(kind 'sweep', 결과에 '뒤늦게 찾은 공').
+   새 앱은 `DualCamera.now()` 가 있어 웹의 1e9 시계 역산이 필요 없다. 웹뷰가 ORT(jsDelivr)와 모델(`/velocity-detector/ball-v1.onnx`)을 받으니 앱 첫 실행에 14MB.
+   웹 `sweep.ts` 의 순수 셈(nextSweepWindow · coveredBy)을 그대로 가져다 쓰면 된다.
+2. **현장 한 번 — 폰에서 확인(1시간).** 2배 줌 · 삼각대 · 줄자 · 스피드건, 30~35구(110~120 15구 이상), 관리자 '세션 녹화' 켬. 볼 것: 훑기가 잡은 공 수(시도 표 '훑기') ·
+   훑기 한 번 걸린 시간(2.5초 넘으면 하나씩 건너뜀) · 헛 알림. 웹 콘솔은 `[velo] sweep … (net)` / `(coarse)`(coarse 면 모델을 못 받음).
+3. **2판 자료 · 재학습(라벨 30분 + Modal 15분).** 10-19 세션 녹화 7개(조각 22)와 엔진이 못 잰 옛 클립 16개에 관리자 › 엔진 개발용 녹화 › 편집기에서 공 표시(컷) → [공 자리 찍기]
+   (컷마다 10~15장면, 공 없는 장면은 N). 그다음 `services/velocity-detector/README.md` '2판 자료' 명령 그대로: `pull-labels.mjs` → `modal volume put` →
+   `modal run train.py --dataset detector-v2 --tag v2` → `train.py::export_onnx` → `public/velocity-detector/ball-v1.onnx` 덮기(이름을 v2 로 바꾸면 `ball-net.ts` BALL_NET_URL 도).
+   1판 · 2판을 합쳐 배우는 게 낫다(README 마지막 줄).
+4. **폰 알림을 모델로(맥 · 하루).** ONNX → CoreML(coremltools) → `native/modules/dual-camera/ios/DualCameraCore.swift` MotionTrigger 의 공 알림을 모델 봉우리로.
+   먼저 폰에서 한 장면 추론 시간(8ms 안이어야 60fps 유지)을 잰다. 이게 되면 '뒤늦게'가 아니라 던지는 순간 모델이 공을 본다 — 경쟁 앱과의 마지막 차이.
+5. **셔터 1/2000 · 가속도 3축 · 고도(맥 · 반나절, 4와 한 빌드).** 지금 셔터 상한 1/500(`DualCameraCore.swift` 572줄 근처). 빠른 공 번짐을 1/4 로 — 140+ 정확도의 핵심.
+6. **140km/h+ 짝 10~15구(5 다음).** 피칭머신(흰 야구공) 또는 빠른 투수, 같은 조건 + 세션 녹화. 지금 엔진이 사실로 아는 최고는 132.
+   그 영상은 3번처럼 라벨에 넣어 재학습(빠른 공은 줄처럼 보여 모델이 따로 배워야).
+7. **손 감지(6단계)는 필요할 때만** — 릴리스 시각 흔들림이 숫자로 보일 때.
+
+### 그 밖에 알아 둘 것
+
+- 세션 요약(→ 세션 저장하기)은 **잰 공이 0개면 안 뜬다**(`velocity-screen.tsx` endSession `pitches.length > 0`). 사용자가 "저장 버튼이 안 보인다"고 했다 — 빈 요약
+  ("잰 공이 없어요 · 녹화는 남았어요")을 띄우자는 제안만 했고 안 고쳤다. 요약 부품(`session-summary.tsx`)엔 빈 화면이 이미 있다.
+- 실험 도구(이 PC 스크래치에만 있던 것 — 필요하면 다시 만들 것): 오차표(`run-table` · `summarize`) · 훑기 비교(`net-sweep-check`) · ORT 속도(`ort-speed`).
+  모두 `scripts/velocity-lab/cdp.mjs` 위에서 엔진을 blob 모듈로 올려 도는 것이라 저장소 `scripts/velocity-lab/run.mjs` 를 본뜨면 된다.
+- Modal CLI 를 윈도 git bash 에서 쓸 때는 `PYTHONUTF8=1 PYTHONIOENCODING=utf-8 MSYS_NO_PATHCONV=1`(안 하면 `/경로`가 `C:/Program Files/Git/…` 로 바뀌고 ✓ 글자에서 cp949 오류). 맥은 상관없다.
+- 1배 줌 영상은 엔진 개선에 쓰지 않는다(김민 규칙 — 모두 2배 줌 기준).

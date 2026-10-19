@@ -1,7 +1,8 @@
 import * as Haptics from 'expo-haptics';
 import { SymbolView } from 'expo-symbols';
 import { type Href, router } from 'expo-router';
-import { useState, useSyncExternalStore } from 'react';
+import { AddToRoutine } from '~/armcare/add-to-routine';
+import { useState, useSyncExternalStore, type ReactNode } from 'react';
 import { Image, Pressable, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
 import { ARMCARE_AREAS, ARMCARE_MUSCLES, areaOfMuscle, type ArmcareArea, type ArmcareAreaKey } from '@/lib/armcare/anatomy';
 import type { ArmcareExerciseView } from '@/app/(app)/training/armcare-media';
@@ -13,6 +14,8 @@ import { act, leave } from '~/mechanics/parts';
 import type { Palette } from '~/lib/ui';
 import { Fold, s } from './screen';
 import { fromApp } from '~/shell/web-nav';
+import { Muscle3D, MuscleChips } from '~/armcare/muscle-info';
+import { AREA_DETAILS } from '@/lib/armcare/details';
 
 /**
  * 암케어 전체 화면(native/src/app/training-armcare.tsx)의 조각 — 웹 armcare-today.tsx(체크 목록 · 이번 주) · my-routines.tsx · rehab-card.tsx(겉) ·
@@ -62,10 +65,10 @@ function ExerciseRow({
           </Text>
           {ex.prescription ? <Text style={[s.smallBold, { color: c.muted }]}>{ex.prescription}</Text> : null}
           {warning ? <Text style={[s.small, { color: c.warn }]}>{warning}</Text> : null}
-          {ex.targetMuscles.length ? (
-            <Text style={[s.small, { color: c.sky }]}>{ex.targetMuscles.slice(0, 2).join(' · ')}</Text>
-          ) : null}
+          {ex.targetMuscles.length ? <MuscleChips muscles={ex.targetMuscles} max={2} c={c} /> : null}
           <Text style={[s.tiny, { color: c.muted }]}>{meta}</Text>
+          {/* 부위별 보강에서만(루틴 목록을 넘긴 곳) — 웹 AddToRoutine 처럼 운동 줄 안 [담기] */}
+          <AddToRoutine exerciseId={ex.id} title={ex.title} c={c} />
         </View>
         {ex.thumbUrl ? <Image source={{ uri: ex.thumbUrl }} style={st.thumb} /> : null}
       </View>
@@ -82,7 +85,7 @@ function ExerciseRow({
       {open ? (
         <View style={{ gap: 10, paddingHorizontal: 12, paddingBottom: 12 }}>
           <ExerciseMedia path={ex.videoPath} referenceVideoId={ex.referenceVideoId} thumbUrl={ex.thumbUrl} aspectRatio={ex.aspectRatio} />
-          <HowTo exerciseId={ex.id} method={ex.method} c={c} />
+          <HowTo exerciseId={ex.id} method={ex.method} inline c={c} />
         </View>
       ) : null}
     </View>
@@ -159,7 +162,7 @@ export function Checklist({
 
   return (
     <View style={{ gap: 10 }}>
-      <View style={[s.card, { backgroundColor: c.card, gap: 10 }]}>
+      <View style={[s.card, { backgroundColor: c.card, boxShadow: c.float, gap: 10 }]}>
         <View style={s.between}>
           <Text style={[s.bodyBold, { color: c.ink }]}>
             {doneCount}
@@ -199,7 +202,7 @@ const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'];
 export function WeekDots({ week, c }: { week: { key: string; done: boolean }[]; c: Palette }) {
   const days = week.filter((d) => d.done).length;
   return (
-    <View style={[s.card, { backgroundColor: c.card }]} accessibilityLabel={`이번 주 암케어 최근 7일 중 ${days}일`}>
+    <View style={[s.card, { backgroundColor: c.card, boxShadow: c.float }]} accessibilityLabel={`이번 주 암케어 최근 7일 중 ${days}일`}>
       <View style={s.between}>
         <Text style={[s.bodyBold, { color: c.ink }]}>이번 주 암케어</Text>
         <Text style={[s.small, { color: c.muted }]}>
@@ -250,7 +253,7 @@ export function RoutineCard({ routine: r, dateKey, fresh, open, onToggle, onChan
   /* 폰에 담긴 체크도 한 것으로(체크 목록과 같은 셈) — 목록에서 누른 것은 화면이 다시 받으면(onChanged) 따라온다 */
   const done = r.items.filter((it) => it.done || pending.some((p) => p.exerciseId === it.exercise.id && p.dateKey === dateKey)).length;
   return (
-    <View style={[st.routine, { backgroundColor: c.card, borderColor: open ? c.sky + '66' : c.line }]}>
+    <View style={[st.routine, { backgroundColor: c.card, boxShadow: c.float, borderColor: open ? c.sky + '66' : c.line }]}>
       <View style={s.row}>
         <Pressable onPress={onToggle} accessibilityRole="button" accessibilityState={{ expanded: open }} style={st.routineHead}>
           <View style={{ flex: 1, gap: 2 }}>
@@ -302,19 +305,34 @@ export function RoutineCard({ routine: r, dateKey, fresh, open, onToggle, onChan
 }
 
 /** 오늘 재활 겉 모습(웹 rehab-card.tsx 접힌 카드) — 시작은 앱 따라 하기(/armcare/rehab), 자세히는 앱 화면(/rehab — 시험 · 매주 확인은 거기서 웹으로) */
-export function RehabCard({ rehab, dateKey, c }: { rehab: AppRehabSummary; dateKey: string; c: Palette }) {
-  const refer = rehab.line?.kind === 'refer';
+/**
+ * 재활 카드 위 한 줄(진료 > 쉬는 날 > 낮추기 > 단계 시험 > 매주 확인 > 정도 낮아짐) — 웹 rehab-card.tsx 의 TopLine 처럼 단계 시험 · 매주 확인 줄에는
+ * 오른쪽 [시험하기] · [확인하기](앱 화면 rehab-test · rehab-weekly). 진료 줄은 경고색.
+ */
+export function RehabLine({ line, bg, c }: { line: NonNullable<AppRehabSummary['line']>; bg: string; c: Palette }) {
+  if (line.kind === 'refer') return <Text style={[s.body, s.box, { color: c.warn, backgroundColor: c.warnBg }]}>{line.text}</Text>;
+  const action =
+    line.kind === 'stage-test' ? { label: '시험하기', href: '/rehab-test' } : line.kind === 'weekly' ? { label: '확인하기', href: '/rehab-weekly' } : null;
   return (
-    <View style={[s.card, { backgroundColor: c.card, borderWidth: 1, borderColor: c.sky + '40' }]}>
+    <View style={[s.box, { backgroundColor: bg, flexDirection: 'row', alignItems: 'center', gap: 8 }]}>
+      <Text style={[s.body, { color: c.ink, flex: 1 }]}>{line.text}</Text>
+      {action ? (
+        <Pressable onPress={() => router.push(action.href as Href)} accessibilityRole="button" style={[s.textBtn, { minHeight: 44, justifyContent: 'center' }]}>
+          <Text style={[s.smallBold, { color: c.sky }]}>{action.label}</Text>
+        </Pressable>
+      ) : null}
+    </View>
+  );
+}
+
+export function RehabCard({ rehab, dateKey, c }: { rehab: AppRehabSummary; dateKey: string; c: Palette }) {
+  return (
+    <View style={[s.card, { backgroundColor: c.card, boxShadow: c.float, borderWidth: 1, borderColor: c.sky + '40' }]}>
       <View style={{ gap: 2 }}>
         <Text style={[s.smallBold, { color: c.muted }]}>재활 프로그램 · {rehab.day}일째</Text>
         <Text style={[s.title, { color: c.ink }]}>{rehab.title}</Text>
       </View>
-      {rehab.line ? (
-        <Text style={[s.body, s.box, refer ? { color: c.warn, backgroundColor: c.warnBg } : { color: c.ink, backgroundColor: c.page }]}>
-          {rehab.line.text}
-        </Text>
-      ) : null}
+      {rehab.line ? <RehabLine line={rehab.line} bg={c.page} c={c} /> : null}
       {rehab.today ? (
         <View style={[st.todayBox, { backgroundColor: rehab.today.warn ? c.warnBg : c.sky + '14' }]}>
           <View style={{ flex: 1, gap: 2 }}>
@@ -394,7 +412,7 @@ export function GapCard({
   }
   const decel = gaps.some((g) => g.key === 'shoulder-back' || g.key === 'elbow-inner');
   return (
-    <View style={[s.card, { backgroundColor: c.card }]}>
+    <View style={[s.card, { backgroundColor: c.card, boxShadow: c.float }]}>
       <View style={{ gap: 2 }}>
         <Text style={[s.bodyBold, { color: c.ink, fontSize: 17 }]}>{total === 0 ? '최근 2주 암케어 기록이 없어요' : '2주째 비어 있어요'}</Text>
         <Text style={[s.body, { color: c.muted }]}>
@@ -449,7 +467,7 @@ export function AreaCard({
   return (
     <View
       onLayout={onLayout}
-      style={[st.routine, { backgroundColor: c.card, borderColor: open ? c.sky + '66' : c.line }]}
+      style={[st.routine, { backgroundColor: c.card, boxShadow: c.float, borderColor: open ? c.sky + '66' : c.line }]}
     >
       <Pressable onPress={onToggle} accessibilityRole="button" accessibilityState={{ expanded: open }} style={st.routineHead}>
         <Text style={[s.bodyBold, { color: c.ink, flex: 1 }]}>
@@ -466,29 +484,60 @@ export function AreaCard({
               </Text>
             ))}
           </View>
-          <View style={s.wrap}>
-            {muscles.map((m) => (
-              <Text key={m.name} style={[s.smallBold, s.tag, { color: c.sky, backgroundColor: c.sky + '1a' }]}>
-                {m.name}
-              </Text>
-            ))}
-          </View>
-          <Fold label={`${area.label} 자세히`} c={c}>
-            {area.injuries.map((i) => (
-              <Text key={i.name} style={[s.small, { color: c.ink }]}>
-                <Text style={{ fontWeight: '700' }}>{i.name}</Text> {i.desc}
-              </Text>
-            ))}
-            {area.notes.map((n) => (
-              <Text key={n} style={[s.small, { color: c.muted }]}>
-                {n}
-              </Text>
-            ))}
-            {muscles.map((m) => (
-              <Text key={m.name} style={[s.small, { color: c.ink }]}>
-                <Text style={{ fontWeight: '700', color: c.sky }}>{m.name}</Text> {m.does}
-              </Text>
-            ))}
+          {/* 근육 — 누르면 그 근육 설명(웹 InfoButton muscle) */}
+          <MuscleChips muscles={muscles.map((m) => m.name)} highlight={muscles.map((m) => m.name)} c={c} />
+          {/* 부위 자세히 — 웹 armcare-info-body AreaInfo 의 차례 · 글(lib/armcare/details AREA_DETAILS) */}
+          <Fold label={`${area.label} 자세히 보기`} c={c}>
+            <Muscle3D area={area.key} c={c} />
+            {AREA_DETAILS[area.key] ? (
+              <>
+                <AreaSection title="던질 때 하는 일" c={c}>
+                  <Text style={[st.areaBody, { color: c.ink }]}>{AREA_DETAILS[area.key].role}</Text>
+                </AreaSection>
+                <AreaSection title="왜 챙겨야 하나요" c={c}>
+                  <Text style={[st.areaBody, { color: c.ink }]}>{AREA_DETAILS[area.key].why}</Text>
+                </AreaSection>
+              </>
+            ) : null}
+            <AreaSection title="흔한 부상" c={c}>
+              {area.injuries.map((i) => (
+                <View key={i.name} style={{ gap: 2 }}>
+                  <Text style={[s.smallBold, { color: c.warn }]}>{i.name}</Text>
+                  <Text style={[s.small, { color: c.ink, opacity: 0.75 }]}>{i.desc}</Text>
+                </View>
+              ))}
+            </AreaSection>
+            <AreaSection title="이 부위의 근육" c={c}>
+              {muscles.map((m) => (
+                <Text key={m.name} style={[s.small, { color: c.ink }]}>
+                  <Text style={{ fontWeight: '700', color: c.sky }}>{m.name}</Text> {m.does}
+                </Text>
+              ))}
+            </AreaSection>
+            {area.notes.length ? (
+              <AreaSection title="알아 두기" c={c}>
+                {area.notes.map((n) => (
+                  <Text key={n} style={[s.small, { color: c.ink }]}>
+                    · {n}
+                  </Text>
+                ))}
+              </AreaSection>
+            ) : null}
+            {AREA_DETAILS[area.key] ? (
+              <>
+                <AreaSection title="이런 신호가 있으면 더 챙기세요" c={c}>
+                  {AREA_DETAILS[area.key].signs.map((sign) => (
+                    <Text key={sign} style={[s.small, { color: c.ink }]}>
+                      · {sign}
+                    </Text>
+                  ))}
+                </AreaSection>
+                <AreaSection title="이렇게 키워요" c={c}>
+                  <Text style={[st.areaBody, { color: c.ink }]}>{AREA_DETAILS[area.key].train}</Text>
+                </AreaSection>
+              </>
+            ) : null}
+            <Text style={[s.tiny, { color: c.muted }]}>운동이 부상을 막아 준다는 보장은 없어요. 통증이 이어지면 쉬고 진료를 받으세요.</Text>
           </Fold>
           <Text style={[s.smallBold, { color: c.muted }]}>운동</Text>
           {count === 0 ? (
@@ -504,6 +553,15 @@ export function AreaCard({
   );
 }
 
+function AreaSection({ title, children, c }: { title: string; children: ReactNode; c: Palette }) {
+  return (
+    <View style={{ gap: 6 }}>
+      <Text style={[s.smallBold, { color: c.ink }]}>{title}</Text>
+      {children}
+    </View>
+  );
+}
+
 /** 어깨 · 팔꿈치 차례의 부위들 */
 export const AREAS_BY_JOINT = (['어깨', '팔꿈치'] as const).map((joint) => ({
   joint,
@@ -511,6 +569,7 @@ export const AREAS_BY_JOINT = (['어깨', '팔꿈치'] as const).map((joint) => 
 }));
 
 const st = StyleSheet.create({
+  areaBody: { fontSize: 14, lineHeight: 21 },
   row: { borderRadius: 16, borderWidth: 1, overflow: 'hidden' },
   rowHead: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, paddingHorizontal: 12, paddingVertical: 12 },
   checkHit: { width: 32, height: 44, marginTop: -8, marginLeft: -4, alignItems: 'center', justifyContent: 'center' },

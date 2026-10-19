@@ -230,10 +230,10 @@ function explain(e: unknown) {
       message
     )
   ) {
-    return '앱이 새로 바뀌었어요. 새로고침(F5)한 뒤 다시 골라주세요.';
+    return '앱이 새로 바뀌었어요. 새로고침(F5)한 뒤 다시 골라 주세요.';
   }
   if (/Failed to fetch|NetworkError|Load failed/i.test(message)) {
-    return '인터넷 연결을 확인한 뒤 다시 골라주세요.';
+    return '인터넷 연결을 확인한 뒤 다시 골라 주세요.';
   }
   return message || '사진을 바꾸지 못했어요.';
 }

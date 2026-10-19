@@ -1,0 +1,350 @@
+# 새 아이폰 앱(Expo) 굽기 — GitHub 의 맥에서 native/ 를 아이폰 앱으로 만들고, 켜 두었을 때만 TestFlight 에 올린다.
+#
+# 옛 앱(mobile/)의 ios.yml 을 본떴다. 다른 점 셋:
+#
+# ■ 손으로만 돈다(workflow_dispatch) — push 로는 절대 돌지 않는다
+#
+# 새 앱은 옛 앱과 번들 ID(com.bullpenlog.app)가 같아서, TestFlight 에 올리는 순간 테스터 모두의 앱이 새 앱으로
+# 바뀐다. 언제 낼지는 김민이 정한다(2026-10-19). 그래서 GitHub → Actions → '새 앱(Expo) 굽기' → Run workflow 로만
+# 돌고, 올리기(upload)는 그 화면의 스위치를 켠 실행에서만 한다. 기본은 꺼짐 — 굽기 · 검사까지만 돌고 끝난다.
+#
+# ■ ios/ 폴더는 저장소에 없다 — 매번 expo prebuild 로 만든다
+#
+# Expo 는 ios/ · android/ 를 app.json 에서 만들어 낸다(native/.gitignore 가 둘을 뺀다). 그래서 굽기 전에
+# `expo prebuild -p ios` → `pod install` 을 먼저 돈다. Xcode 워크스페이스는 ios/BullpenLog.xcworkspace, 스킴은 BullpenLog.
+#
+# ■ 빌드 번호는 Info.plist 에 직접 쓴다
+#
+# prebuild 가 만든 Info.plist 는 CFBundleVersion 을 글자 그대로 '1' 로 둔다(빌드 설정을 참조하지 않는다). 그래서
+# xcodebuild 의 CURRENT_PROJECT_VERSION 만으로는 안 바뀌고, PlistBuddy 로 Info.plist 도 같이 고친다. 번호는 옛 앱과
+# 같은 모양(시각, 20261019.123045)이라 옛 앱 판(20261016.xxxxx)보다 늘 크다 — 같은 번들 ID 라 작으면 애플이 거절한다.
+#
+# ■ 서명은 굽는 단계가 아니라 내보내는(export) 단계에서만 한다 — 까닭은 ios.yml 머리 주석
+#
+# ■ 열쇠 — ios.yml 과 같은 넷(ASC_KEY_ID · ASC_ISSUER_ID · ASC_KEY_P8 · APPLE_TEAM_ID), 설정 순서는 mobile/APPLE-SETUP.md
+#
+# ■ 아직 안 넣은 것: 운동 · 드릴 영상을 앱 안에 넣기(옛 앱의 '운동 영상 넣기' 단계, LIBRARY_BUNDLE_TOKEN).
+#   새 앱의 LocalVideo 부품은 앱 안 LibraryVideos/ 폴더를 찾지만 Xcode 프로젝트에 그 폴더를 넣는 길을 아직 안 정했다
+#   (김민 · 금윤호가 같이 정하기로, 2026-10-19). 없어도 앱은 영상을 볼 때 받아 폰에 둔다.
+#
+# 결과는 주석(annotation)으로 남긴다 — 공개 저장소의 주석은 로그인 없이 읽힌다(Checks API).
+name: 새 앱(Expo) 굽기
+
+on:
+  workflow_dispatch:
+    inputs:
+      upload:
+        description: 'TestFlight 에 올리기 (끄면 굽기 · 검사만)'
+        type: boolean
+        default: false
+      simulator_check:
+        description: '시뮬레이터에서 켜 보기 (참고용, 실패해도 멈추지 않음)'
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-native-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: 굽기${{ inputs.upload && ' · TestFlight 올리기' || '' }}
+    # Expo SDK 58 · React Native 0.88 은 Xcode 26 이상 — macos-26 의 기본 Xcode 가 26.x 다
+    runs-on: macos-26
+    # RN · Hermes 까지 처음부터 컴파일해서 옛 앱보다 오래 걸린다(윤호 맥북 M 시리즈에서 12분, GitHub 맥은 더)
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: native
+    env:
+      NO_COLOR: '1'
+      CI: '1'
+      EXPO_NO_TELEMETRY: '1'
+      LANG: en_US.UTF-8
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: native/package-lock.json
+
+      - name: 앱 패키지 설치
+        id: npm
+        run: |
+          set -o pipefail
+          npm ci --no-audit --no-fund 2>&1 | tee "$RUNNER_TEMP/npm.log"
+
+      # app.json → ios/ (Xcode 프로젝트 · Info.plist · Podfile). --no-install 로 pod install 은 다음 단계에서 따로 —
+      # 어디서 막혔는지 로그가 갈리게.
+      - name: iOS 프로젝트 만들기 (expo prebuild)
+        id: prebuild
+        run: |
+          set -o pipefail
+          npx expo prebuild -p ios --no-install 2>&1 | tee "$RUNNER_TEMP/prebuild.log"
+          test -d ios/BullpenLog.xcodeproj
+
+      - name: CocoaPods 설치
+        id: pods
+        run: |
+          set -o pipefail
+          pod --version
+          (cd ios && pod install 2>&1) | tee "$RUNNER_TEMP/pods.log"
+          test -d ios/BullpenLog.xcworkspace
+
+      # 빌드 번호는 올릴 때마다 커져야 한다(같거나 작으면 애플이 거절한다). 시각으로 만든다 — 20261019.123045(UTC).
+      # 옛 앱(ios.yml)과 같은 모양이라 두 워크플로가 번갈아 올려도 겹치지 않는다.
+      - name: 빌드 번호 정하기
+        id: version
+        run: |
+          NOW=$(date -u +%Y%m%d%H%M%S)
+          BUILD="${NOW:0:8}.$((10#${NOW:8:6}))"
+          echo "build=$BUILD" >> "$GITHUB_OUTPUT"
+          /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BUILD" ios/BullpenLog/Info.plist
+          echo "빌드 번호 $BUILD · 판 $(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' ios/BullpenLog/Info.plist)"
+
+      - name: 앱 굽기 — 서명 없이 아카이브
+        id: xcodebuild
+        env:
+          BUILD: ${{ steps.version.outputs.build }}
+        run: |
+          set -o pipefail
+          xcodebuild -version
+          xcodebuild archive \
+            -workspace ios/BullpenLog.xcworkspace \
+            -scheme BullpenLog \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath "$RUNNER_TEMP/BullpenLog.xcarchive" \
+            CODE_SIGNING_ALLOWED=NO \
+            CURRENT_PROJECT_VERSION="$BUILD" \
+            2>&1 | tee "$RUNNER_TEMP/xcodebuild.log"
+
+      - name: 만들어진 앱 확인
+        id: check
+        env:
+          BUILD: ${{ steps.version.outputs.build }}
+        run: |
+          APP="$RUNNER_TEMP/BullpenLog.xcarchive/Products/Applications/BullpenLog.app"
+          plist() { /usr/libexec/PlistBuddy -c "Print :$1" "$APP/Info.plist"; }
+          test -f "$APP/Assets.car"                          # 아이콘 · 시작 화면
+          test -f "$APP/main.jsbundle"                       # Release 는 화면 코드(JS)를 앱 안에 넣는다 — 없으면 켜자마자 빈 화면
+          plist NSCameraUsageDescription > /dev/null
+          test "$(plist CFBundleIdentifier)" = "com.bullpenlog.app"
+          test "$(plist CFBundleVersion)" = "$BUILD"
+          MSG="앱이 만들어졌다 — $(plist CFBundleDisplayName) $(plist CFBundleShortVersionString) ($BUILD) · $(plist CFBundleIdentifier) · 최소 iOS $(plist MinimumOSVersion) · $(lipo -archs "$APP/BullpenLog") · $(du -sh "$APP" | cut -f1)"
+          echo "::notice title=굽기 성공::$MSG"
+          echo "### $MSG" >> "$GITHUB_STEP_SUMMARY"
+
+      # 켜자마자 꺼지는 흔한 까닭 — 실행 파일(과 각 프레임워크)이 찾는 @rpath 부품이 앱 안 Frameworks 폴더에 없는 것.
+      - name: 앱 안 부품 확인
+        id: frameworks
+        run: |
+          APP="$RUNNER_TEMP/BullpenLog.xcarchive/Products/Applications/BullpenLog.app"
+          FW=$(ls "$APP/Frameworks" 2>/dev/null | tr '\n' ' ')
+          NEED=""
+          for bin in "$APP/BullpenLog" "$APP"/Frameworks/*.framework/*; do
+            [ -f "$bin" ] && file "$bin" | grep -q 'Mach-O' || continue
+            NEED="$NEED $(otool -L "$bin" | awk 'NR>1{print $1}' | grep '^@rpath/' | sed 's#^@rpath/##' | tr '\n' ' ')"
+          done
+          NEED=$(echo $NEED | tr ' ' '\n' | sort -u | tr '\n' ' ')
+          echo "::notice title=앱 안 부품::Frameworks 폴더: ${FW:-없음} / 실행 파일이 찾는 것: ${NEED:-없음}"
+          MISSING=""
+          for n in $NEED; do [ -e "$APP/Frameworks/$n" ] || MISSING="$MISSING $n"; done
+          if [ -n "$MISSING" ]; then
+            echo "::error title=앱 안 부품이 빠졌다::폰에서 켜는 순간 이것을 못 찾아 꺼진다:$MISSING"
+            exit 1
+          fi
+
+      # 시뮬레이터용으로 한 번 더 굽고(Release — 화면 코드가 앱 안에 든 채) 실제로 켜서 25초 안에 꺼지는지 본다.
+      # 참고용 — 올리기를 막지 않는다(continue-on-error). GitHub 맥의 가상 아이폰이 들쭉날쭉해서 막으면 정상 앱도 못 올린다.
+      # 옛 앱의 시작 연출 찍어 보기는 안 넣었다(새 앱의 시작 화면은 Expo 의 정지 그림이라 잴 것이 없다).
+      - name: 시뮬레이터에서 켜 보기
+        id: simlaunch
+        if: inputs.simulator_check
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          trap 'echo "::warning title=시뮬레이터 단계가 멈춘 곳::줄 $LINENO: $(echo "$BASH_COMMAND" | cut -c1-300)"' ERR
+          step() { echo "::notice title=시뮬레이터::$1"; }
+          if ! xcodebuild build -workspace ios/BullpenLog.xcworkspace -scheme BullpenLog -configuration Release \
+               -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' \
+               -derivedDataPath "$RUNNER_TEMP/sim" CODE_SIGNING_ALLOWED=NO > "$RUNNER_TEMP/sim-build.log" 2>&1; then
+            { grep -E 'error:' "$RUNNER_TEMP/sim-build.log" | awk '!seen[$0]++' | head -n 8 || true; tail -n 3 "$RUNNER_TEMP/sim-build.log"; } \
+              | cut -c1-900 | sed 's/%/%25/g; s/^/::warning title=시뮬레이터용 굽기 실패::/'
+            exit 1
+          fi
+          SIMAPP="$RUNNER_TEMP/sim/Build/Products/Release-iphonesimulator/BullpenLog.app"
+          step "굽기 끝 ($(du -sh "$SIMAPP" | cut -f1))"
+          UDID=$(xcrun simctl list devices available -j | python3 -c '
+          import json, sys
+          d = json.load(sys.stdin)["devices"]
+          ios = sorted((k for k in d if "iOS" in k), reverse=True)
+          print(next(x["udid"] for k in ios for x in d[k] if x["name"].startswith("iPhone")))
+          ')
+          step "기기: $(xcrun simctl list devices | grep "$UDID" | head -n 1 | sed 's/^ *//')"
+          xcrun simctl boot "$UDID" 2>/dev/null || true
+          xcrun simctl bootstatus "$UDID" -b > /dev/null
+          xcrun simctl install "$UDID" "$SIMAPP"
+          step "설치 끝, 켜 본다"
+          xcrun simctl launch --console "$UDID" com.bullpenlog.app > "$RUNNER_TEMP/sim-console.log" 2>&1 &
+          CONSOLE_PID=$!
+          sleep 25
+          APP_PID=$(grep -Eo 'com\.bullpenlog\.app: [0-9]+' "$RUNNER_TEMP/sim-console.log" | head -n 1 | awk '{print $2}' || true)
+          ALIVE=""
+          if [ -n "$APP_PID" ] && kill -0 "$APP_PID" 2>/dev/null; then ALIVE="pid $APP_PID"; fi
+          if [ -z "$ALIVE" ] && xcrun simctl spawn "$UDID" launchctl list 2>/dev/null | grep -q 'com\.bullpenlog\.app'; then ALIVE="launchctl"; fi
+          if [ -n "$ALIVE" ]; then
+            kill "$CONSOLE_PID" 2>/dev/null || true
+            echo "::notice title=시뮬레이터에서 켜짐::25초 동안 꺼지지 않았다 ($ALIVE)"
+            exit 0
+          fi
+          # 꺼졌다(또는 켜지지 않았다) — 멈추지 말고 까닭을 모은다
+          trap - ERR
+          set +e +o pipefail
+          sleep 5
+          REPORT=$(ls -t ~/Library/Logs/DiagnosticReports/BullpenLog-*.ips ~/Library/Logs/DiagnosticReports/*/BullpenLog-*.ips 2>/dev/null | head -n 1)
+          xcrun simctl spawn "$UDID" log show --style compact --last 3m \
+            --predicate 'process == "BullpenLog" AND (messageType == error OR messageType == fault)' > "$RUNNER_TEMP/sim-log.txt" 2>&1
+          {
+            echo "켜진 pid: ${APP_PID:-못 찾음} / 충돌 기록: ${REPORT:-없음}"
+            [ -n "$REPORT" ] && python3 -c '
+          import json, sys
+          b = json.loads(open(sys.argv[1], encoding="utf-8", errors="replace").read().partition("\n")[2])
+          ex = b.get("exception") or {}
+          print("예외:", ex.get("type"), ex.get("signal"), ex.get("subtype") or "")
+          t = b.get("termination") or {}
+          r = t.get("reasons") or []
+          print("종료:", t.get("namespace"), t.get("indicator") or "", " / ".join([r] if isinstance(r, str) else r)[:600])
+          ' "$REPORT"
+            tail -n 4 "$RUNNER_TEMP/sim-console.log"
+            grep -v '^Timestamp' "$RUNNER_TEMP/sim-log.txt" | tail -n 3
+          } | tr -d '\r' | head -n 10 | cut -c1-900 | sed 's/%/%25/g; s/^/::warning title=시뮬레이터에서 꺼짐::/'
+          exit 1
+
+      # 여기부터는 Run workflow 에서 '올리기' 스위치를 켠 실행만. 열쇠 넷이 다 있는지 · 모양이 맞는지 본다(ios.yml 과 같다).
+      - name: 애플 열쇠 확인
+        id: signing
+        if: inputs.upload
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          missing=""
+          [ -n "$ASC_KEY_ID" ] || missing="$missing ASC_KEY_ID"
+          [ -n "$ASC_ISSUER_ID" ] || missing="$missing ASC_ISSUER_ID"
+          [ -n "$ASC_KEY_P8" ] || missing="$missing ASC_KEY_P8"
+          [ -n "$APPLE_TEAM_ID" ] || missing="$missing APPLE_TEAM_ID"
+          if [ -n "$missing" ]; then
+            echo "::error title=애플 열쇠가 빠졌다::올리기를 켰는데 GitHub Secrets 에 없는 것:$missing — mobile/APPLE-SETUP.md 5번"
+            exit 1
+          fi
+          KEY_ID=$(printf '%s' "$ASC_KEY_ID" | tr -d '[:space:]')
+          ISSUER=$(printf '%s' "$ASC_ISSUER_ID" | tr -d '[:space:]')
+          TEAM=$(printf '%s' "$APPLE_TEAM_ID" | tr -d '[:space:]')
+          ok=1
+          printf '%s' "$KEY_ID" | grep -Eq '^[A-Z0-9]{10}$' \
+            || { echo "::error title=ASC_KEY_ID 모양이 틀렸다::키 ID 는 영문 대문자 · 숫자 10자다(발급자 ID 와 바꿔 넣지 않았는지 본다)"; ok=0; }
+          printf '%s' "$ISSUER" | grep -Eiq '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' \
+            || { echo "::error title=ASC_ISSUER_ID 모양이 틀렸다::발급자 ID 는 8-4-4-4-12 모양이다"; ok=0; }
+          printf '%s' "$TEAM" | grep -Eq '^[A-Z0-9]{10}$' \
+            || { echo "::error title=APPLE_TEAM_ID 모양이 틀렸다::팀 ID 는 영문 대문자 · 숫자 10자다"; ok=0; }
+          KEY_DIR="$RUNNER_TEMP/private_keys"
+          mkdir -p "$KEY_DIR"
+          printf '%s\n' "$ASC_KEY_P8" | tr -d '\r' > "$KEY_DIR/AuthKey.p8"
+          if ! grep -q 'BEGIN PRIVATE KEY' "$KEY_DIR/AuthKey.p8" || ! openssl pkey -in "$KEY_DIR/AuthKey.p8" -noout 2>/dev/null; then
+            echo "::error title=ASC_KEY_P8 내용이 틀렸다::.p8 파일을 메모장으로 열어 -----BEGIN PRIVATE KEY----- 부터 -----END PRIVATE KEY----- 까지 전부 붙여 넣는다"
+            ok=0
+          fi
+          [ "$ok" = 1 ] || exit 1
+          echo "ready=true" >> "$GITHUB_OUTPUT"
+
+      - name: 배포 도장을 찍어 TestFlight 에 올리기
+        id: upload
+        if: inputs.upload && steps.signing.outputs.ready == 'true'
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          BUILD: ${{ steps.version.outputs.build }}
+        run: |
+          set -o pipefail
+          KEY_ID=$(printf '%s' "$ASC_KEY_ID" | tr -d '[:space:]')
+          ISSUER=$(printf '%s' "$ASC_ISSUER_ID" | tr -d '[:space:]')
+          TEAM=$(printf '%s' "$APPLE_TEAM_ID" | tr -d '[:space:]')
+          cat > "$RUNNER_TEMP/ExportOptions.plist" <<PLIST
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key>
+            <string>app-store-connect</string>
+            <key>destination</key>
+            <string>upload</string>
+            <key>signingStyle</key>
+            <string>automatic</string>
+            <key>teamID</key>
+            <string>$TEAM</string>
+            <key>manageAppVersionAndBuildNumber</key>
+            <false/>
+            <key>uploadSymbols</key>
+            <false/>
+          </dict>
+          </plist>
+          PLIST
+          xcodebuild -exportArchive \
+            -archivePath "$RUNNER_TEMP/BullpenLog.xcarchive" \
+            -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" \
+            -exportPath "$RUNNER_TEMP/export" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$RUNNER_TEMP/private_keys/AuthKey.p8" \
+            -authenticationKeyID "$KEY_ID" \
+            -authenticationKeyIssuerID "$ISSUER" \
+            2>&1 | tee "$RUNNER_TEMP/export.log"
+          MSG="TestFlight 에 올렸다 — 새 앱 Bullpen Log ($BUILD). 애플 처리(보통 5~30분)가 끝나면 TestFlight 앱에 뜬다 — 테스터 모두의 앱이 새 앱으로 바뀐다"
+          echo "::notice title=TestFlight 올리기 성공::$MSG"
+          echo "### $MSG" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: 올리기 건너뜀 알림
+        if: ${{ !inputs.upload }}
+        run: echo "::notice title=TestFlight 건너뜀::굽기 · 검사만 했다. 올리려면 Run workflow 에서 'TestFlight 에 올리기'를 켠다(김민이 정한 뒤)"
+
+      - name: 열쇠 파일 지우기
+        if: always()
+        run: rm -rf "$RUNNER_TEMP/private_keys" "$RUNNER_TEMP/ExportOptions.plist"
+
+      - name: 실패 이유를 주석으로 남기기
+        if: failure()
+        env:
+          NPM: ${{ steps.npm.outcome }}
+          PREBUILD: ${{ steps.prebuild.outcome }}
+          PODS: ${{ steps.pods.outcome }}
+          XCB: ${{ steps.xcodebuild.outcome }}
+          CHECK: ${{ steps.check.outcome }}
+          UPLOAD: ${{ steps.upload.outcome }}
+        run: |
+          OUT="$RUNNER_TEMP/errors.txt"
+          {
+            if [ "$NPM" = failure ]; then tail -n 10 "$RUNNER_TEMP/npm.log"; fi
+            if [ "$PREBUILD" = failure ]; then tail -n 10 "$RUNNER_TEMP/prebuild.log"; fi
+            if [ "$PODS" = failure ]; then grep -Ei 'error|\[!\]' "$RUNNER_TEMP/pods.log" | head -n 8; tail -n 5 "$RUNNER_TEMP/pods.log"; fi
+            if [ "$XCB" = failure ]; then
+              LOG="$RUNNER_TEMP/xcodebuild.log"
+              grep -E 'error:|\*\* (ARCHIVE|BUILD) FAILED' "$LOG" | awk '!seen[$0]++' | head -n 10
+              grep -q 'error:' "$LOG" || tail -n 10 "$LOG"
+            fi
+            if [ "$CHECK" = failure ]; then echo "만들어진 앱에 빠진 것이 있다 — '만들어진 앱 확인' 단계의 test 줄을 본다"; fi
+            if [ "$UPLOAD" = failure ]; then
+              LOG="$RUNNER_TEMP/export.log"
+              grep -Ei 'error|failed|permission|agreement' "$LOG" | awk '!seen[$0]++' | head -n 10
+              grep -Eqi 'error|failed' "$LOG" || tail -n 10 "$LOG"
+            fi
+          } 2>/dev/null | tr -d '\r' > "$OUT" || true
+          head -n 10 "$OUT" | cut -c1-900 | sed 's/%/%25/g; s/^/::error title=실패::/'
+          { echo '### 실패 — 오류 줄'; echo '```'; cat "$OUT"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"

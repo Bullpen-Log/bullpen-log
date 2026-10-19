@@ -1,6 +1,6 @@
 import * as Haptics from 'expo-haptics';
 import { SymbolView } from 'expo-symbols';
-import { router, useLocalSearchParams } from 'expo-router';
+import { type Href, router, useLocalSearchParams } from 'expo-router';
 import { useRef, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View, type ScrollViewInstance } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -130,7 +130,7 @@ function DayBody({ day, c }: { day: AppTrainingDay; c: Palette }) {
 
       {/* 그날 어땠는지 먼저 — 목록보다 이쪽을 다시 읽으러 온다 */}
       {detail.intensity != null ? (
-        <View style={[s.card, { backgroundColor: c.card, borderWidth: 1, borderColor: c.sky + '40', gap: 6 }]}>
+        <View style={[s.card, { backgroundColor: c.card, boxShadow: c.float, borderWidth: 1, borderColor: c.sky + '40', gap: 6 }]}>
           <Text style={[s.bodyBold, { color: c.ink }]}>운동 강도 {detail.intensity}/10</Text>
           <Text selectable style={[s.body, { color: detail.memo ? c.ink : c.muted }]}>
             {detail.memo || '남긴 메모가 없어요.'}
@@ -140,7 +140,17 @@ function DayBody({ day, c }: { day: AppTrainingDay; c: Palette }) {
 
       {empty ? (
         <Text style={[s.body, s.center, st.empty, { color: c.muted, backgroundColor: c.card }]}>
-          이 날은 운동 기록이 없어요.{detail.date === today ? '\n트레이닝에서 남길 수 있어요.' : ''}
+          이 날은 운동 기록이 없어요.
+          {detail.date === today ? (
+            <>
+              {'\n'}
+              {/* 웹처럼 '트레이닝'을 누르면 오늘 운동 화면으로 */}
+              <Text accessibilityRole="link" onPress={() => router.push('/training-today' as Href)} style={{ color: c.sky, fontWeight: '600' }}>
+                트레이닝
+              </Text>
+              에서 남길 수 있어요.
+            </>
+          ) : null}
         </Text>
       ) : (
         <View style={{ gap: 8 }}>
@@ -252,7 +262,8 @@ function Strip({ days, date, today, c }: { days: AppTrainingDay['strip']; date: 
             accessibilityLabel={`${d.month}월 ${d.day}일 ${done || '기록 없음'}`}
             style={[st.day, { backgroundColor: on ? c.sky : c.card }]}
           >
-            <Text style={[s.tiny, { color: on ? '#fff' : c.muted }]}>{day.date === today ? '오늘' : d.week}</Text>
+            {/* 1일 칸은 요일 대신 'N월'(웹 date-scroll-strip 과 같다) */}
+            <Text style={[s.tiny, { color: on ? '#fff' : c.muted }]}>{day.date === today ? '오늘' : d.day === 1 ? `${d.month}월` : d.week}</Text>
             <Text style={[s.bodyBold, { color: on ? '#fff' : c.ink }]}>{d.day}</Text>
             <View style={st.dots}>{dots.map((x, i) => (x ? <View key={i} style={[st.dot, { backgroundColor: on ? '#fff' : c.sky }]} /> : null))}</View>
           </Pressable>

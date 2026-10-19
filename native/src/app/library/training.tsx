@@ -3,11 +3,11 @@ import { useMemo, useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, RefreshControl, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { TRAINING_CATEGORIES } from '@/lib/categories';
-import { BODY_PARTS } from '@/lib/exercise-meta';
+import { BODY_PARTS, EXERCISE_EQUIPMENT, INTENSITY_NAMES } from '@/lib/exercise-meta';
 import { matchesSearch } from '@/lib/korean';
 import type { WarmupFolder } from '@/app/(app)/library/training/training-client';
 import { Bar } from '~/community/parts';
-import { ChipRow, EXERCISE_LIST, FoldHead, ItemRow, SearchField, recall, remember, type Exercise } from '~/library/parts';
+import { ChipRow, EXERCISE_LIST, FilterSheet, filterChips, filterCount, matchesFilter, FoldHead, ItemRow, SearchField, recall, remember, type Exercise, LibraryTabs } from '~/library/parts';
 import { usePalette } from '~/lib/ui';
 import { useScreenData } from '~/training/screen';
 import { READABLE } from '~/lib/layout';
@@ -18,8 +18,14 @@ import { READABLE } from '~/lib/layout';
  *
  * 웹과 같은 차례: 이름 찾기 → [즐겨찾기 · 부위] 거르기 → 거르는 동안은 맞는 운동만, 아니면 분류마다 접힌 칸(워밍업은 루틴 폴더). 줄을 누르면
  * 상세(영상 · 설명 · 별 · 내 기록). 관리자의 등록 · 수정 · 숨기기는 웹에서 한다.
- * ponytail: 거르기는 즐겨찾기 · 부위만 — 웹의 강도 · 장비 거르기는 쓰는 사람이 적어 뺐다. 찾는 사람이 생기면 칩 줄에 더한다.
+ * 거르기는 웹 MetaFilter 와 같다 — [★ 즐겨찾기] 옆 [필터]를 누르면 시트에서 목표 부위 · 강도 · 장비(묶음 안은 하나라도, 묶음끼리는 모두).
  */
+const FILTER_GROUPS = [
+  { key: 'bodyParts', label: '목표 부위', options: BODY_PARTS },
+  { key: 'intensity', label: '강도', options: INTENSITY_NAMES },
+  { key: 'equipment', label: '장비', options: EXERCISE_EQUIPMENT },
+] as const;
+const EMPTY_FILTER: Record<string, string[]> = { bodyParts: [], intensity: [], equipment: [] };
 type Data = { exercises: Exercise[]; warmupFolders: WarmupFolder[] };
 
 const subOf = (ex: Exercise) => [ex.bodyParts.slice(0, 3).join(' · '), ex.intensity].filter(Boolean).join(' · ');
@@ -30,7 +36,9 @@ export default function ExerciseLibraryScreen() {
   const state = useScreenData<Data>(EXERCISE_LIST, '', 'library:exercises');
   const [query, setQuery] = useState('');
   const [onlyFav, setOnlyFav] = useState(false);
-  const [parts, setParts] = useState<string[]>([]);
+  const [filter, setFilter] = useState(EMPTY_FILTER);
+  const [sheet, setSheet] = useState(false);
+  const chosen = filterCount(filter);
   const [open, setOpen] = useState<ReadonlySet<string>>(new Set());
 
   const data = state.data;
@@ -41,16 +49,16 @@ export default function ExerciseLibraryScreen() {
     return data.exercises.map((ex) => recall<Exercise>(ex.id) ?? ex);
   }, [data]);
   const favCount = exercises.filter((ex) => ex.favorite).length;
-  const filtering = query.trim() !== '' || onlyFav || parts.length > 0;
+  const filtering = query.trim() !== '' || onlyFav || chosen > 0;
   const matched = useMemo(
     () =>
       exercises.filter(
         (ex) =>
           (!onlyFav || ex.favorite) &&
-          (parts.length === 0 || parts.some((p) => ex.bodyParts.includes(p))) &&
+          matchesFilter(filter, { bodyParts: ex.bodyParts, intensity: [ex.intensity], equipment: ex.equipment }) &&
           (matchesSearch(ex.title, query) || matchesSearch(ex.category, query))
       ),
-    [exercises, onlyFav, parts, query]
+    [exercises, onlyFav, filter, query]
   );
   const byCategory = useMemo(() => {
     const m = new Map<string, Exercise[]>();
@@ -84,12 +92,8 @@ export default function ExerciseLibraryScreen() {
 
   const chips = [
     ...(favCount > 0 ? [{ key: 'fav', label: `★ 즐겨찾기 ${favCount}`, on: onlyFav, onPress: () => setOnlyFav((v) => !v) }] : []),
-    ...BODY_PARTS.map((p) => ({
-      key: p,
-      label: p,
-      on: parts.includes(p),
-      onPress: () => setParts((prev) => (prev.includes(p) ? prev.filter((x) => x !== p) : [...prev, p])),
-    })),
+    /* [필터 n] + 고른 조건 칩(누르면 그 조건만 끔, 웹 MetaFilter) */
+    ...filterChips(FILTER_GROUPS, filter, (f) => setFilter(f as typeof filter), () => setSheet(true)),
   ];
 
   return (
@@ -99,6 +103,7 @@ export default function ExerciseLibraryScreen() {
         <SearchField value={query} onChange={setQuery} placeholder="운동 이름으로 찾기" c={c} />
         <ChipRow chips={chips} c={c} />
       </View>
+      <FilterSheet open={sheet} onClose={() => setSheet(false)} groups={FILTER_GROUPS} value={filter} onChange={(f) => setFilter(f as typeof filter)} resultCount={filtering ? matched.length : null} c={c} />
       {!data ? (
         state.failed ? (
           <View style={{ padding: 24, gap: 16, alignItems: 'center' }}>
@@ -126,7 +131,7 @@ export default function ExerciseLibraryScreen() {
                 onPress={() => {
                   setQuery('');
                   setOnlyFav(false);
-                  setParts([]);
+                  setFilter(EMPTY_FILTER);
                 }}
                 hitSlop={8}
               >
@@ -153,6 +158,7 @@ export default function ExerciseLibraryScreen() {
           contentContainerStyle={[{ paddingHorizontal: 16, gap: 10, paddingBottom: inset.bottom + 32 }, READABLE]}
           refreshControl={<RefreshControl refreshing={state.refreshing} onRefresh={() => void state.refresh()} />}
         >
+          <LibraryTabs active="training" c={c} />
           {TRAINING_CATEGORIES.map(({ name }) => {
             const list = byCategory.get(name) ?? [];
             if (name === '워밍업' && data.warmupFolders.length > 0) {
@@ -194,3 +200,4 @@ export default function ExerciseLibraryScreen() {
     </View>
   );
 }
+

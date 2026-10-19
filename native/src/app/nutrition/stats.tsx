@@ -1,26 +1,27 @@
 import * as Haptics from 'expo-haptics';
 import { type Href, router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { loadAppNutritionStats } from '@/app/actions/app-nutrition';
 import { ageRule } from '@/lib/nutrition/age';
 import { SEASON_PHASES } from '@/lib/nutrition/diet-prefs';
 import { ACTIVITIES, GOAL_KINDS, MACRO_PRESETS, kcalText } from '@/lib/nutrition/meta';
-import { macroSplit } from '@/lib/nutrition/onboarding';
 import { answersOfProfile, periodDate, previewOfProfile, type OnboardingBody } from '@/lib/nutrition/onboarding-answers';
 import { dateText } from '@/lib/nutrition/period';
 import { computeTargets } from '@/lib/nutrition/targets';
 import { STEP_KCAL, goalCopy, planOnSave } from '@/lib/nutrition/weight-goal';
-import type { WeightUnit } from '@/lib/units';
+import { fromWeight, round1, toWeight, type WeightUnit } from '@/lib/units';
 import { Bar, BarButton, LoadState, call, useLoad } from '~/community/parts';
 import { refreshNutritionDays } from '~/nutrition/api';
 import { WeekChart, WeightTrend } from '~/nutrition/stats/charts';
 import { GoalSheet, kgText, paceText } from '~/nutrition/stats/goal-sheet';
 import { cacheGet, cacheSet } from '~/lib/store';
-import { usePalette, type Palette } from '~/lib/ui';
+import { usePalette, withAlpha, type Palette } from '~/lib/ui';
 import { useWeightUnit } from '~/lib/weight-unit';
 import { READABLE } from '~/lib/layout';
+import { WeightForecast } from '~/shell/weight-forecast';
+import { MacroBar } from '~/setup/nutrition-steps';
 
 /**
  * 영양 목표 · 통계(앱 화면) — 웹 영양 탭의 통계 열(app/(app)/nutrition/nutrition-view.tsx: 체중 카드 → 최근 7일 → 내 계획)과 목표 창을 옮겼다.
@@ -46,10 +47,11 @@ const STEP_LABEL = {
 export default function NutritionStatsScreen() {
   const c = usePalette();
   const inset = useSafeAreaInsets();
-  const params = useLocalSearchParams<{ date?: string }>();
+  /* goal=1 — 영양 탭 머리의 목표 단추로 왔으면 목표 창부터(웹 머리 단추 = 목표 창) */
+  const params = useLocalSearchParams<{ date?: string; goal?: string; tab?: string }>();
   const { data, error, reload } = useLoad<Load>('app-nutrition.loadAppNutritionStats', typeof params.date === 'string' ? params.date : null);
   const unit = useWeightUnit();
-  const [goalOpen, setGoalOpen] = useState(false);
+  const [goalOpen, setGoalOpen] = useState(params.goal === '1');
   const [pulling, setPulling] = useState(false);
 
   /* 목표가 바뀌었다 — 이 화면과 영양 탭(받아 둔 날마다 목표가 들어 있다)을 다시 받는다 */
@@ -95,7 +97,7 @@ export default function NutritionStatsScreen() {
 
           <WeightCard day={data} unit={unit} onOpenGoal={() => setGoalOpen(true)} onChanged={changed} c={c} />
 
-          <View style={[st.card, { backgroundColor: c.card }]}>
+          <View style={[st.card, { backgroundColor: c.card, boxShadow: c.float }]}>
             <View style={st.cardHead}>
               <Text style={[st.cardTitle, { color: c.ink }]}>최근 7일</Text>
               <Text style={{ color: c.muted, fontSize: 12 }}>막대 = 먹은 칼로리 · 선 = 그날 목표</Text>
@@ -117,6 +119,7 @@ export default function NutritionStatsScreen() {
           unit={unit}
           onSaved={changed}
           onClose={() => setGoalOpen(false)}
+          initialTab={params.tab === 'diet' ? 'diet' : 'goal'}
           c={c}
         />
       ) : null}
@@ -203,14 +206,59 @@ function WeightCard({
   const hasStatus = copy.label !== null || copy.sentence !== null;
   const latest = day.weightKg ?? day.weights.at(-1)?.kg ?? null;
 
+  /* 체중 적기 — 웹 WeightCard 처럼 이 카드 맨 위(설정 단위로 적고 저장은 kg). 저장된 값과 같으면 [저장]을 숨긴다 */
+  const shown = (kg: number | null) => (kg === null ? '' : String(round1(toWeight(kg, unit))));
+  const [text, setText] = useState(shown(day.weightKg));
+  const [base, setBase] = useState({ saved: day.weightKg, unit });
+  if (base.saved !== day.weightKg || base.unit !== unit) {
+    setBase({ saved: day.weightKg, unit });
+    setText(shown(day.weightKg));
+  }
+  const parsed = text.trim() === '' ? null : Number(text);
+  const valid = parsed === null || (Number.isFinite(parsed) && parsed > 0);
+  const nextKg = parsed === null ? null : Math.round(fromWeight(parsed, unit) * 10) / 10;
+  const changed = valid && shown(nextKg) !== shown(day.weightKg);
+  async function saveWeightNow() {
+    if (!changed || busy) return;
+    setError(null);
+    setBusy(true);
+    const res = await call<Result>('nutrition.setWeight', day.date, nextKg);
+    setBusy(false);
+    if (!res.ok) return setError(res.error);
+    void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    refreshNutritionDays(day.date);
+    onChanged();
+  }
+
   return (
-    <View style={[st.card, { backgroundColor: c.card }]}>
+    <View style={[st.card, { backgroundColor: c.card, boxShadow: c.float }]}>
       <View style={st.cardHead}>
         <Text style={[st.cardTitle, { color: c.ink }]}>체중</Text>
         <Text style={{ color: c.muted, fontSize: 13 }}>
           {latest !== null ? `${day.weightKg === null ? '최근' : day.date === day.today ? '오늘' : '이날'} ${kgText(latest, unit)}` : ''}
           {day.weightFrom === 'checkin' ? ' · 체크인에 적은 값' : ''}
         </Text>
+      </View>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+        <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', borderRadius: 12, borderWidth: 1, borderColor: c.line, backgroundColor: withAlpha(c.ink, 0.03), paddingHorizontal: 14 }}>
+          <TextInput
+            value={text}
+            onChangeText={(v) => setText(v.replace(/,/g, '.').replace(/[^\d.]/g, ''))}
+            keyboardType="decimal-pad"
+            accessibilityLabel={`체중(${unit})`}
+            placeholder={t.weightKg ? shown(t.weightKg) : '예) 78.5'}
+            placeholderTextColor={withAlpha(c.muted, 0.6)}
+            returnKeyType="done"
+            onSubmitEditing={() => void saveWeightNow()}
+            style={{ flex: 1, height: 44, fontSize: 15, color: c.ink, fontVariant: ['tabular-nums'] }}
+          />
+          <Text style={{ color: c.muted, fontSize: 15 }}>{unit}</Text>
+        </View>
+        {changed ? (
+          <Pressable accessibilityRole="button" onPress={() => void saveWeightNow()} disabled={busy} style={[st.weightSave, { backgroundColor: c.sky }, busy && { opacity: 0.5 }]}>
+            <Text style={{ color: '#fff', fontSize: 15, fontWeight: '600' }}>{busy ? '저장 중' : '저장'}</Text>
+          </Pressable>
+        ) : null}
       </View>
 
       {hasStatus ? (
@@ -296,12 +344,11 @@ function PlanCard({ day, unit, onOpenGoal, c }: { day: Stats; unit: WeightUnit; 
     t.paceKg ? paceText(t.paceKg, unit) : null,
     a.goalEndDate ? `${dateText(a.goalEndDate)}까지` : null,
   ].filter(Boolean);
-  const split = macroSplit(t.carbs, t.protein, t.fat);
   const sign = t.delta > 0 ? '+' : t.delta < 0 ? '−' : '';
   const rule = ageRule(p.age);
 
   return (
-    <View style={[st.card, { backgroundColor: c.card }]}>
+    <View style={[st.card, { backgroundColor: c.card, boxShadow: c.float }]}>
       <View style={st.row}>
         <View style={{ flex: 1, gap: 2 }}>
           <Text style={[st.cardTitle, { color: c.ink }]}>
@@ -337,17 +384,19 @@ function PlanCard({ day, unit, onOpenGoal, c }: { day: Stats; unit: WeightUnit; 
               c={c}
             />
           </View>
-          <Text style={{ color: c.ink, fontSize: 14, fontVariant: ['tabular-nums'] }}>
-            탄수화물 {t.carbs}g {split.c}% · 단백질 {t.protein}g {split.p}% · 지방 {t.fat}g {split.f}%
-          </Text>
+          {/* 탄 · 단 · 지 막대(웹 PlanStats MacroBar) */}
+          <MacroBar carbs={t.carbs} protein={t.protein} fat={t.fat} c={c} />
           <Text style={[st.small, { color: c.muted }]}>
             단백질은 체중 1kg 당 {t.proteinPerKg}g · 지방은 {Math.round(t.fatShare * 100)}% · 탄수화물은 나머지. 운동 · 투구를 적은 날은 쓴 만큼 더해요.
           </Text>
           {p.forecast.length > 1 && p.etaWeeks !== null && a.targetWeightKg !== null ? (
-            <Text style={[st.small, { color: c.muted }]}>
-              계획대로면 약 {p.etaWeeks}주, {dateText(periodDate(day.today, p.etaWeeks))}쯤 {kgText(a.targetWeightKg, unit)}
-              {t.paceKg ? ` · ${paceText(t.paceKg, unit)}씩` : ''}
-            </Text>
+            <View style={{ backgroundColor: c.page, borderRadius: 14, padding: 10, gap: 4 }}>
+              <WeightForecast points={p.forecast} c={c} />
+              <Text style={[st.small, { color: c.muted, textAlign: 'center' }]}>
+                계획대로면 약 <Text style={{ color: c.ink, fontWeight: '600' }}>{p.etaWeeks}주</Text>, {dateText(periodDate(day.today, p.etaWeeks))}쯤 {kgText(a.targetWeightKg, unit)}
+                {t.paceKg ? ` · ${paceText(t.paceKg, unit)}씩` : ''}
+              </Text>
+            </View>
           ) : null}
           <Text style={[st.small, { color: c.muted }]}>
             계산에 쓴 몸: {body.weightKg !== null ? kgText(body.weightKg, unit) : `${kgText(t.weightKg, unit)}(짐작)`}
@@ -379,6 +428,7 @@ function PlanStat({ label, value, sub, strong, c }: { label: string; value: numb
 }
 
 const st = StyleSheet.create({
+  weightSave: { height: 44, borderRadius: 22, paddingHorizontal: 18, alignItems: 'center', justifyContent: 'center' },
   card: { borderRadius: 20, padding: 16, gap: 10 },
   cardHead: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 },
   cardTitle: { fontSize: 17, fontWeight: '700' },

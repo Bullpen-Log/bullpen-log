@@ -248,7 +248,7 @@ export function DayClient({
         <p className="rounded-xl empty-well px-4 py-8 text-center text-sm leading-relaxed text-muted">
           앞으로 올 날짜에는 기록할 수 없어요.
           <br />
-          던지고 나서 그날 또는 그 뒤에 남겨주세요.
+          던지고 나서 그날 또는 그 뒤에 남겨 주세요.
         </p>
       )}
 

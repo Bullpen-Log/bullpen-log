@@ -161,7 +161,7 @@ export function validateCheckin(
     condition > MAX_CONDITION
   ) {
     return {
-      error: `컨디션은 ${MIN_CONDITION}~${MAX_CONDITION} 중에서 골라주세요.`,
+      error: `컨디션은 ${MIN_CONDITION}~${MAX_CONDITION} 중에서 골라 주세요.`,
     };
   }
 

@@ -355,7 +355,7 @@ console.log('\n[12] 앱 입구 — 아이폰 앱(native/)이 부르는 /api/rpc 
   check(`서버 액션 파일 ${actionFiles.length}개가 모두 허용 목록에 있다`, actionFiles.length > 20 && missing.length === 0, missing.join(', '));
   check(
     '약속 번호가 낮거나 머리가 없으면 액션을 부르기 전에 426(옛 판 앱 · 남의 사이트에서 쿠키로 부르기 막기)',
-    route.indexOf('MIN_APP_API') > -1 && route.indexOf('status: 426') > -1 && route.indexOf('status: 426') < route.indexOf('await fn(')
+    route.indexOf('MIN_APP_API') > -1 && route.indexOf('status: 426') > -1 && route.indexOf('status: 426') < route.indexOf('fn(...args)')
   );
   check(
     '이름 고르기는 모듈 자신의 export 만, 모듈 이름도 허용 목록 자신의 것만(프로토타입 이름 제외)',

@@ -1,7 +1,11 @@
 import { useCallback, useEffect, useSyncExternalStore } from 'react';
-import type { Food, MealEntryView, MealKey } from '@/lib/nutrition/meta';
+import type { EntryEdit, Food, MealEntryView, MealKey, RankedFood } from '@/lib/nutrition/meta';
+import type { ComboItem, MealComboView } from '@/lib/nutrition/combos';
+import type { FoodCategory } from '@/lib/nutrition/foods';
 import type { PlanContext, PlanItem } from '@/lib/nutrition/meal-plan';
 import type { Place } from '@/lib/nutrition/meal-templates';
+import type { AgeBand } from '@/lib/nutrition/age';
+import type { AvoidKey } from '@/lib/nutrition/diet-prefs';
 import { rpc } from '~/lib/rpc';
 import { cacheEpoch, cacheGet, cacheSet } from '~/lib/store';
 import { call } from '~/pitch/api';
@@ -20,7 +24,28 @@ export type NutritionDay = {
   mine: Food[];
   mfds: boolean;
   mealPlan: { items: PlanItem[]; context: PlanContext } | null;
+  /** 끼니 단백질 목표용 — 이 칸을 모르는 옛 서버 · 폰에 남은 옛 자료는 없다 */
+  ageBand?: AgeBand;
+  avoid?: AvoidKey[];
+  checkinAnswers?: NutritionAnswer | null;
+  yesterday?: MealEntryView[];
+  /** 제목 밑 날짜 띠(최근 6주) — 옛 서버 · 폰에 남은 옛 자료는 없다 */
+  strip?: { date: string; kcal: number; target: number }[];
+  calendar?: Record<string, number>;
+  adjust?: number;
+  assumed?: string[];
+  hasProfile?: boolean;
+  advice?: { headline: string | null; score: number | null; highlight: boolean } | null;
+  guide?: { badge: string; title: string; lines: string[]; notes: string[]; hint: string | null } | null;
+  /** 음식 담기 — 자주 먹는 조합 · 분류 둘러보기의 세부 칸 수 · 인기(웹 food-sheet). 옛 서버 · 폰에 남은 옛 자료는 없다 */
+  combos?: MealComboView[];
+  browseSubs?: Record<string, Record<string, number>>;
+  popular?: RankedFood[];
+  favorites?: string[];
+  /** 식단 짜기 카드의 오늘 상태 · 취향 한 줄(웹 PlanCard state) */
+  planState?: string[];
 };
+export type NutritionAnswer = { appetite: number | null; mealAmount: string | null; skippedMeals: string[] };
 type Result = { ok: true } | { ok: false; error: string };
 
 class NutritionError extends Error {
@@ -132,8 +157,25 @@ export const addFoods = (date: string, meal: MealKey, items: { food: Food; amoun
     meal,
     items.map((it) => ({ food: toFoodInput(it.food), amount: it.amount }))
   );
-export const setAmount = (date: string, id: string, amount: number) => act(date, 'nutrition.updateMealAmount', id, amount);
-export const removeEntry = (date: string, id: string) => act(date, 'nutrition.deleteMealEntry', id);
+/** 끼니 편집의 '완료' — 고친 줄만 한 번에(웹과 같은 서버 동작) */
+export const editEntries = (date: string, edits: EntryEdit[]) => act(date, 'nutrition.editMealEntries', edits);
+/** 바꾸기 — 먹은 줄 · 식단 줄을 다른 음식으로(끼니 · 날짜 · 줄 이름은 그대로, 웹과 같은 서버 동작) */
+export const replaceEntry = (date: string, id: string, food: Food, amount: number) =>
+  act(date, 'nutrition.replaceMealEntry', id, toFoodInput(food), amount);
+/** 직접 입력한 음식을 내 음식으로(웹 addCustom 의 saveMine — 바코드가 아니면 출처 'mine') */
+export const saveMyFood = async (food: Food): Promise<string | null> => {
+  try {
+    const res = await rpc<Result>('nutrition.saveUserFood', toFoodInput({ ...food, source: 'mine' }));
+    return res.ok ? null : res.error;
+  } catch (e) {
+    return e instanceof Error ? e.message : '저장하지 못했어요.';
+  }
+};
+/** '오늘 식욕 · 끼니는요?' 카드 저장(웹과 같은 서버 동작 — DailyNutrition, 조언 · 가이드 · 식단 짜기가 읽는다) */
+export const saveNutritionAnswer = (date: string, a: NutritionAnswer) =>
+  act(date, 'day-cards.saveNutritionCheckin', { date, appetite: a.appetite, mealAmount: a.mealAmount, skippedMeals: a.skippedMeals });
+export const replacePlan = (date: string, key: string, food: Food, amount: number) =>
+  act(date, 'nutrition.replacePlanItem', date, key, toFoodInput(food), amount);
 export const saveWeight = (date: string, kg: number | null) => act(date, 'nutrition.setWeight', date, kg);
 /* 식단 짜기(오늘만) — 웹과 같은 서버 셈(lib/nutrition/meal-plan.ts). variant 를 올리면 다른 식단 */
 export const makePlan = (date: string, place: Place, hot: boolean, variant: number) =>
@@ -141,6 +183,20 @@ export const makePlan = (date: string, place: Place, hot: boolean, variant: numb
 /** 계획 줄을 먹은 기록으로 — 같은 줄을 두 번 눌러도 한 번 */
 export const eatPlan = (date: string, keys: string[]) => act(date, 'nutrition.eatPlanItems', date, keys);
 export const clearPlan = (date: string) => act(date, 'nutrition.clearMealPlan', date);
+
+/** ★ 내 음식에 두기 · 풀기(웹 toggleFavorite — 같은 서버 동작) · 내 음식 지우기(웹 removeMine) */
+export const favoriteFood = (date: string, food: Food) => act(date, 'nutrition.saveUserFood', toFoodInput(food));
+export const unfavoriteFood = (date: string, food: Food) => act(date, 'nutrition.unfavoriteFood', food.source, food.id);
+export const deleteMyFood = (date: string, id: string) => act(date, 'nutrition.deleteUserFood', id);
+/** 조합 — 저장 · 지우기 · 담은 횟수(웹과 같은 서버 동작 nutrition.saveMealCombo · deleteMealCombo · markComboUsed) */
+export const saveCombo = (date: string, name: string, meal: MealKey, items: ComboItem[]) => act(date, 'nutrition.saveMealCombo', { name, meal, items });
+export const deleteCombo = (date: string, id: string) => act(date, 'nutrition.deleteMealCombo', id);
+export const markComboUsed = (id: string) => rpc('nutrition.markComboUsed', id).catch(() => undefined);
+
+/** 식약처 품목대표 둘러보기 — 웹 음식 창 [전체 음식]과 같은 /api/nutrition/browse(40줄씩, 분류 · 세부 칸) */
+export type BrowsePage = { items: { food: Food; category: FoodCategory }[]; total: number; next: number | null };
+export const browseMfds = (cat: FoodCategory | 'all', offset: number, sub: string | null) =>
+  call<BrowsePage>(`/api/nutrition/browse?cat=${encodeURIComponent(cat)}&offset=${offset}${sub ? `&sub=${encodeURIComponent(sub)}` : ''}`, { method: 'GET' });
 
 /** 식약처 — 품목대표(바로) 먼저, 상품까지는 뒤에(1~13초) */
 export const searchMfdsReps = (q: string) =>

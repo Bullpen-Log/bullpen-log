@@ -78,7 +78,17 @@ export type RecordingListItem = {
   /** 스피드건 값을 적은 공 */
   gunCuts: number;
   memo: string | null;
+  /** 측정하는 동안 통째로 찍은 세션 녹화(meta.sessionRecording) — 아니면 엔진 개발용으로 따로 찍은 녹화 */
+  session: boolean;
+  /** 실제로 올라간 조각 길이 합(초) — 녹화 길이보다 짧으면 그만큼 영상이 빠졌다 */
+  uploadedSec: number;
 };
+
+/** 녹화 meta 의 세션 녹화 표시 — 앱 · 웹 측정 화면의 세션 녹화가 남긴다 */
+export const isSessionRecording = (meta: unknown) =>
+  meta != null &&
+  typeof meta === 'object' &&
+  (meta as Record<string, unknown>).sessionRecording === true;
 
 export async function loadVelocityRecordings(): Promise<RecordingListItem[]> {
   const rows = await prisma.velocityRecording.findMany({
@@ -92,7 +102,8 @@ export async function loadVelocityRecordings(): Promise<RecordingListItem[]> {
       status: true,
       durationSec: true,
       memo: true,
-      parts: { select: { bytes: true } },
+      meta: true,
+      parts: { select: { bytes: true, durationSec: true } },
       cuts: { select: { gunKmh: true } },
     },
   });
@@ -113,6 +124,8 @@ export async function loadVelocityRecordings(): Promise<RecordingListItem[]> {
     cuts: r.cuts.length,
     gunCuts: r.cuts.filter((c) => c.gunKmh != null).length,
     memo: r.memo,
+    session: isSessionRecording(r.meta),
+    uploadedSec: r.parts.reduce((t, p) => t + (p.durationSec ?? 0), 0),
   }));
 }
 
@@ -159,6 +172,8 @@ export type RecordingDetail = {
   memo: string | null;
   userName: string | null;
   meta: RecordingMeta;
+  /** 세션 녹화인가(목록의 칸과 같은 판정) */
+  session: boolean;
   parts: RecordingPartRow[];
   cuts: RecordingCutRow[];
 };
@@ -185,7 +200,11 @@ export async function loadVelocityRecording(
   ]);
   const labels: Record<string, BallLabel> = {};
   for (const l of labelRows) {
-    const parsed = parseBallLabel({ sourceW: l.sourceW, sourceH: l.sourceH, frames: l.frames });
+    const parsed = parseBallLabel({
+      sourceW: l.sourceW,
+      sourceH: l.sourceH,
+      frames: l.frames,
+    });
     if (parsed) labels[l.target.slice('cut:'.length)] = parsed;
   }
   const partIndex = new Map(r.parts.map((p) => [p.id, p.index]));
@@ -198,6 +217,7 @@ export async function loadVelocityRecording(
     memo: r.memo,
     userName: user?.nickname ?? null,
     meta: toRecordingMeta(r.meta),
+    session: isSessionRecording(r.meta),
     labels,
     parts: r.parts.map((p) => ({
       id: p.id,
@@ -241,4 +261,11 @@ export async function loadVelocityRecording(
 /** 녹화 수 — 구속 측정 관리자(휴대폰)의 단추에 */
 export async function countVelocityRecordings(): Promise<number> {
   return prisma.velocityRecording.count();
+}
+
+/** 세션 녹화 수(측정하는 동안 통째로 찍은 것) — 관리자 화면의 '세션 녹화' 단추에 */
+export async function countSessionRecordings(): Promise<number> {
+  return prisma.velocityRecording.count({
+    where: { meta: { path: ['sessionRecording'], equals: true } },
+  });
 }

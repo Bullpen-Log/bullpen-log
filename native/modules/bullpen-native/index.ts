@@ -8,6 +8,8 @@ export const BullpenNative = requireNativeModule<{
   mirror(host: string): Promise<number>;
   /** 두 저장소의 로그인 쿠키 지우기 — 로그인 화면에 왔을 때 */
   clearSession(host: string): Promise<void>;
+  /** 앱 테마를 기억 — 다음 시작 화면(라이트 · 다크)이 이 테마로 뜬다 */
+  setLaunchStyle?(pick: string): void;
   keepAwake(on: boolean): Promise<void>;
   scheduleAlarm(id: string, at: number, title: string, body: string): Promise<{ scheduled: boolean; denied?: boolean }>;
   cancelAlarm(id: string): Promise<void>;

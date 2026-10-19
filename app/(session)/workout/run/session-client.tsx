@@ -801,18 +801,18 @@ export function SessionClient({
     const c = noInput ? plannedAmount(ex) : count === '' ? null : Number(count);
 
     if (!noInput && ex.needsWeight && (w == null || w <= 0)) {
-      setError('무게를 적어주세요.');
+      setError('무게를 적어 주세요.');
       setField('weight');
       return;
     }
     if (c == null || c <= 0) {
-      setError(ex.isHold ? `${timeLabel}을 적어주세요.` : '횟수를 적어주세요.');
+      setError(ex.isHold ? `${timeLabel}을 적어 주세요.` : '횟수를 적어 주세요.');
       setField('count');
       return;
     }
     /*
      * 서버가 받는 한도(AMOUNT_LIMITS)를 여기서 먼저 본다 — 넘는 값은 폰에 담긴 뒤 서버가 거절하고, 대기열에서 빠져 그 세트가
-     * 사라졌다('버틴 시간을 적어주세요'처럼 엉뚱한 말과 함께 — 40분 유산소를 2400초로 보낸 경우).
+     * 사라졌다('버틴 시간을 적어 주세요'처럼 엉뚱한 말과 함께 — 40분 유산소를 2400초로 보낸 경우).
      */
     const countLimit = ex.isHold
       ? ex.inMinutes

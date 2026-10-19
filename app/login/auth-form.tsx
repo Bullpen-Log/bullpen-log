@@ -140,7 +140,7 @@ function CheckLine({
 }
 
 const STAY_HINT =
-  '브라우저를 닫아도 30일 동안 로그인이 유지돼요. 공용 컴퓨터에서는 꺼주세요.';
+  '브라우저를 닫아도 30일 동안 로그인이 유지돼요. 공용 컴퓨터에서는 꺼 주세요.';
 const REMEMBER_HINT = '다음에 올 때 이메일 칸을 채워 둬요. 비밀번호는 저장하지 않아요.';
 
 function LoginForm({

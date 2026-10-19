@@ -48,19 +48,30 @@ const SHOWN = 8;
 const TREND_POINTS = 12;
 
 /** 지난 기록 — 내 메모 · 최고 기록 셋 · 볼륨 흐름(막대를 누르면 그날 값) · 최근 날짜별 기록. 열 때 받는다 */
-export function HistoryPanel({ exerciseId, unit, c }: { exerciseId: string; unit: WeightUnit; c: Palette }) {
+export function HistoryPanel({
+  exerciseId,
+  excludeSessionId,
+  unit,
+  c,
+}: {
+  exerciseId: string;
+  /** 운동 화면에서 열었으면 지금 하는 판 — 그 판의 세트는 '지난 기록'이 아니라 뺀다(웹 ExerciseHistoryPanel 과 같다) */
+  excludeSessionId?: string;
+  unit: WeightUnit;
+  c: Palette;
+}) {
   const [got, setGot] = useState<{ history: ExerciseHistory; note: string | null } | { error: string } | null>(null);
   const [more, setMore] = useState(false);
   const [hover, setHover] = useState<number | null>(null);
   useEffect(() => {
     let alive = true;
-    void act<{ history: ExerciseHistory; note: string | null }>('exercise-history.exerciseHistory', { exerciseId }).then((r) => {
+    void act<{ history: ExerciseHistory; note: string | null }>('exercise-history.exerciseHistory', { exerciseId, excludeSessionId }).then((r) => {
       if (alive) setGot(r);
     });
     return () => {
       alive = false;
     };
-  }, [exerciseId]);
+  }, [exerciseId, excludeSessionId]);
 
   if (!got) return <Text style={[s.small, s.center, { color: c.muted, paddingVertical: 24 }]}>기록을 불러오는 중…</Text>;
   if ('error' in got) return <Text style={[s.small, s.center, st.empty, { color: c.muted, backgroundColor: c.card }]}>{got.error}</Text>;
@@ -68,7 +79,7 @@ export function HistoryPanel({ exerciseId, unit, c }: { exerciseId: string; unit
   const { history, note } = got;
   const { kind, days } = history;
   const noteBox = note ? (
-    <View style={[s.box, { backgroundColor: c.card, gap: 4 }]}>
+    <View style={[s.box, { backgroundColor: c.card, boxShadow: c.float, gap: 4 }]}>
       <Text style={[s.smallBold, { color: c.muted }]}>내 메모</Text>
       <Text selectable style={[s.body, { color: c.ink }]}>
         {note}
@@ -110,9 +121,10 @@ export function HistoryPanel({ exerciseId, unit, c }: { exerciseId: string; unit
   return (
     <View style={{ gap: 16 }}>
       {noteBox}
-      <View style={s.row}>
+      {/* 세 칸 높이를 같게(셋째 칸은 밑 줄이 없을 때가 많다 — 가운데로 떠 보였다) */}
+      <View style={[s.row, { alignItems: 'stretch' }]}>
         {[first, second, third].map((x) => (
-          <View key={x.label} style={[st.stat, { backgroundColor: c.card }]}>
+          <View key={x.label} style={[st.stat, { backgroundColor: c.card, boxShadow: c.float }]}>
             <Text style={[s.tiny, { color: c.muted }]}>{x.label}</Text>
             <Text numberOfLines={1} style={[s.bodyBold, { color: c.ink }]}>
               {x.value}
@@ -169,7 +181,7 @@ export function HistoryPanel({ exerciseId, unit, c }: { exerciseId: string; unit
 
       <View style={{ gap: 6 }}>
         <Text style={[s.smallBold, { color: c.muted }]}>최근 기록</Text>
-        <View style={[st.list, { backgroundColor: c.card }]}>
+        <View style={[st.list, { backgroundColor: c.card, boxShadow: c.float }]}>
           {shown.map((x, i) => (
             <View key={x.date} style={[st.listRow, i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.line }]}>
               <View style={s.between}>

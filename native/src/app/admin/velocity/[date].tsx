@@ -26,7 +26,7 @@ export default function VelocityDayScreen() {
   const day = data?.day;
   return (
     <View style={{ flex: 1, backgroundColor: c.page }}>
-      <Bar back="구속 측정 관리자" title={date ?? ''} c={c} />
+      <Bar back="구속 측정" title={date ?? ''} c={c} />
       {!data ? (
         <LoadState error={error} onRetry={() => void reload()} c={c} />
       ) : !day ? (
@@ -52,7 +52,7 @@ export default function VelocityDayScreen() {
 
 function PitchRow({ p, open, onToggle, c }: { p: Day['rows'][number]; open: boolean; onToggle: () => void; c: Palette }) {
   return (
-    <View style={{ borderRadius: 14, overflow: 'hidden', backgroundColor: c.card }}>
+    <View style={{ borderRadius: 14, overflow: 'hidden', backgroundColor: c.card, boxShadow: c.float }}>
       <Pressable accessibilityRole="button" accessibilityState={{ expanded: open }} onPress={onToggle} style={({ pressed }) => [{ flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 56, paddingHorizontal: 14, paddingVertical: 10, opacity: pressed ? 0.6 : 1 }]}>
         <View style={{ width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: p.clipUrl ? c.chip : c.page }}>
           <SymbolView name={p.clipUrl ? 'play.fill' : 'film'} size={15} tintColor={p.clipUrl ? c.sky : c.muted} />

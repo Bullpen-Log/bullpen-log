@@ -79,7 +79,7 @@ export function LinkRow({ c, label, onPress, danger = false }: { c: Palette; lab
 export function WebRows({ c, rows }: { c: Palette; rows: { label: string; href: string; onPress: (href: string) => void }[] }) {
   if (rows.length === 0) return null;
   return (
-    <View style={[s.card, { backgroundColor: c.card, paddingVertical: 4, gap: 0 }]}>
+    <View style={[s.card, { backgroundColor: c.card, boxShadow: c.float, paddingVertical: 4, gap: 0 }]}>
       {rows.map((r, i) => (
         <View key={r.label} style={i > 0 ? { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.line } : null}>
           <LinkRow c={c} label={r.label} onPress={() => r.onPress(r.href)} />

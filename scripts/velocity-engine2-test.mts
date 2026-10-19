@@ -13,7 +13,16 @@ import {
   SPEED_DISTANCE_EXPONENT,
 } from '../lib/velocity-engine/analyze-distance.ts';
 import { DRAG_K } from '../lib/velocity-engine/trajectory-fit.ts';
-import { cameraNowOf, clipSpanOf, coveredBy, nextSweepWindow } from '../lib/velocity-engine/sweep.ts';
+import {
+  CAMERA_KEEP_SEC,
+  CLIP_MAX_SEC,
+  RECORD_SEGMENT_SEC,
+  cameraNowOf,
+  clipSpanOf,
+  coveredBy,
+  nextRecordCut,
+  nextSweepWindow,
+} from '../lib/velocity-engine/sweep.ts';
 import { findThrowRun, netInputSize } from '../lib/velocity-engine/ball-net.ts';
 import { alignTrail, type TrailPoint } from '../lib/velocity-tracer.ts';
 import {
@@ -567,6 +576,67 @@ if (!only || 'sweep'.includes(only)) {
   check(
     coveredBy(5, [{ start: 4.4, end: 6.6 }]) && !coveredBy(7, [{ start: 4.4, end: 6.6 }]),
     '찾은 공이 재는 중 · 최근 창 안이면 겹침'
+  );
+
+  /* ── 세션 녹화 구간(2026-10-19 — 189초 녹화가 7초만 올라간 사고) ── */
+  check(RECORD_SEGMENT_SEC <= CLIP_MAX_SEC, `조각 길이 ${RECORD_SEGMENT_SEC}초는 앱 모듈이 한 번에 잘라 주는 ${CLIP_MAX_SEC}초를 넘지 않는다`);
+  const cut1 = nextRecordCut(100, 106);
+  check(
+    cut1 != null && cut1.from === 100 && Math.abs(cut1.to - 104) < 1e-9 && cut1.skippedSec === 0,
+    `평소 — 지난 끝부터 모듈 상한 4초까지(${cut1?.from} ~ ${cut1?.to})`
+  );
+  check(nextRecordCut(100, 101.9) == null, '2초가 안 모였으면 안 자른다');
+  const fin = nextRecordCut(100, 101.2, true);
+  check(fin != null && Math.abs(fin.to - 100.8) < 1e-9, '끝낼 때는 0.5초만 있어도 자른다');
+  const behind = nextRecordCut(100, 120);
+  check(
+    behind != null && Math.abs(behind.from - 115.6) < 1e-9 && Math.abs(behind.skippedSec - 15.6) < 1e-9,
+    `앱이 쥔 ${CAMERA_KEEP_SEC}초 밖으로 밀렸으면 버퍼 안(지금 − 4초)부터 · 건너뛴 ${behind?.skippedSec.toFixed(1)}초`
+  );
+  /* 시작을 모르는 조각(eventSec 0) — 청한 끝에서 길이만큼 되짚는다 */
+  const tail = clipSpanOf(100, { eventSec: 0, durationSec: 2.5 }, 104);
+  check(Math.abs(tail.start - 101.5) < 1e-9 && Math.abs(tail.end - 104) < 1e-9, '시작을 모르는 조각은 끝에서 되짚어 어림');
+
+  /*
+   * 사고 재현 — 앱 모듈 흉내: 한 번에 4초까지, 최근 8초만 쥠, 없는 구간은 실패. 60초 동안 4초마다 자른다.
+   * 옛 셈(6초 청함 · 실패해도 자리 안 옮김)은 셋째 조각 뒤 멎고, 새 셈은 끝까지 이어진다.
+   */
+  const simulate = (segmentSec: number, useNew: boolean) => {
+    let lastEnd = 0;
+    let covered = 0;
+    let fails = 0;
+    for (let now = segmentSec; now <= 60; now += segmentSec) {
+      let from: number;
+      let to: number;
+      if (useNew) {
+        const n = nextRecordCut(lastEnd, now);
+        if (!n) continue;
+        from = n.from;
+        to = n.to;
+      } else {
+        to = now - 0.4;
+        if (to - lastEnd < segmentSec * 0.8) continue;
+        from = lastEnd;
+      }
+      const bufferStart = now - CAMERA_KEEP_SEC;
+      const until = Math.min(to, from + CLIP_MAX_SEC);
+      const start = Math.max(from, bufferStart);
+      if (until <= start) {
+        fails++;
+        if (useNew) lastEnd = to;
+        continue;
+      }
+      covered += until - start;
+      lastEnd = until;
+    }
+    return { covered, fails };
+  };
+  const old = simulate(6, false);
+  const now6 = simulate(RECORD_SEGMENT_SEC, true);
+  check(old.covered < 15 && old.fails > 5, `옛 셈은 멎는다 — 60초 중 ${old.covered.toFixed(1)}초, 실패 ${old.fails}`);
+  check(
+    now6.covered >= 52 && now6.fails === 0,
+    `새 셈은 이어진다 — 60초 중 ${now6.covered.toFixed(1)}초, 실패 ${now6.fails}`
   );
 }
 

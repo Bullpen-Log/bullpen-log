@@ -68,7 +68,7 @@ export default function NewInquiryScreen() {
           multiline
           placeholder="예) 투구 기록을 저장하면 화면이 멈춰요. 아이폰 앱이고, 어제부터 그래요."
           placeholderTextColor={c.muted}
-          style={[s.area, { backgroundColor: c.card, color: c.ink }]}
+          style={[s.area, { backgroundColor: c.card, boxShadow: c.float, color: c.ink }]}
         />
         <Text style={{ color: c.muted, fontSize: 13, lineHeight: 18 }}>
           무슨 화면에서 무엇을 했을 때 어땠는지 적어 주시면 더 빨리 도울 수 있어요. {INQUIRY_BODY_MAX}자까지.

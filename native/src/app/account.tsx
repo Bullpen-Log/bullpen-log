@@ -1,4 +1,5 @@
 import * as Haptics from 'expo-haptics';
+import { SymbolView, type SFSymbol } from 'expo-symbols';
 import { useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -39,10 +40,10 @@ export default function AccountScreen() {
     <View style={{ flex: 1, backgroundColor: c.page }}>
       <Bar back="내 정보" title="계정" c={c} />
       <ScrollView contentContainerStyle={[{ padding: 16, gap: 22, paddingBottom: inset.bottom + 32 }, READABLE]} keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets>
-        <View style={[st.group, { backgroundColor: c.card }]}>
-          <ActionRow label={leaving ? '로그아웃하는 중…' : '로그아웃'} onPress={() => void logout()} disabled={leaving} c={c} />
-          <ActionRow label="비밀번호 바꾸기" onPress={() => setOpen(open === 'pw' ? null : 'pw')} expanded={open === 'pw'} c={c} />
-          <ActionRow label="회원 탈퇴" danger onPress={() => setOpen(open === 'leave' ? null : 'leave')} expanded={open === 'leave'} last c={c} />
+        <View style={[st.group, { backgroundColor: c.card, boxShadow: c.float }]}>
+          <ActionRow symbol="rectangle.portrait.and.arrow.right" label={leaving ? '로그아웃하는 중…' : '로그아웃'} onPress={() => void logout()} disabled={leaving} c={c} />
+          <ActionRow symbol="key.fill" label="비밀번호 바꾸기" onPress={() => setOpen(open === 'pw' ? null : 'pw')} expanded={open === 'pw'} c={c} />
+          <ActionRow symbol="person.fill.badge.minus" label="회원 탈퇴" danger onPress={() => setOpen(open === 'leave' ? null : 'leave')} expanded={open === 'leave'} last c={c} />
         </View>
         {msg ? <Text accessibilityRole="alert" style={{ color: c.danger, fontSize: 15, fontWeight: '600', paddingHorizontal: 4 }}>{msg}</Text> : null}
         {open === 'pw' ? <PasswordForm onDone={() => setOpen(null)} c={c} /> : null}
@@ -52,7 +53,8 @@ export default function AccountScreen() {
   );
 }
 
-function ActionRow({ label, onPress, danger, expanded, disabled, last, c }: { label: string; onPress: () => void; danger?: boolean; expanded?: boolean; disabled?: boolean; last?: boolean; c: Palette }) {
+/** 계정 줄 — 웹 account-actions ActionRow 처럼 왼쪽 색 원 + 흰 그림(IconCircle — 하늘, 탈퇴는 빨강) */
+function ActionRow({ symbol, label, onPress, danger, expanded, disabled, last, c }: { symbol: SFSymbol; label: string; onPress: () => void; danger?: boolean; expanded?: boolean; disabled?: boolean; last?: boolean; c: Palette }) {
   return (
     <Pressable
       accessibilityRole="button"
@@ -61,6 +63,9 @@ function ActionRow({ label, onPress, danger, expanded, disabled, last, c }: { la
       disabled={disabled}
       style={({ pressed }) => [st.row, { opacity: disabled ? 0.6 : pressed ? 0.6 : 1 }, !last && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: c.line }]}
     >
+      <View style={[st.circle, { backgroundColor: danger ? c.danger : c.sky }]}>
+        <SymbolView name={symbol} size={15} tintColor="#fff" />
+      </View>
       <Text style={{ color: danger ? c.danger : c.ink, fontSize: 16, flex: 1 }}>{label}</Text>
       <Text style={{ color: c.muted, fontSize: 18 }}>{expanded ? '⌄' : '›'}</Text>
     </Pressable>
@@ -131,17 +136,17 @@ function LeaveForm({ c }: { c: Palette }) {
   };
 
   const ask = () =>
-    Alert.alert('정말 탈퇴할까요?', '투구 기록 · 영상 · 체크인 · 운동 기록이 모두 지워지고 되돌릴 수 없어요.', [
+    Alert.alert('정말 탈퇴할까요?', '되돌릴 수 없어요. 같은 이메일로 다시 가입해도 예전 기록은 돌아오지 않아요.', [
       { text: '취소', style: 'cancel' },
       { text: '탈퇴', style: 'destructive', onPress: () => void leave() },
     ]);
 
   return (
-    <Section title="회원 탈퇴" footer="지금까지 남긴 것이 전부 사라져요. 확인란에 탈퇴 두 글자를 그대로 적어 주세요." c={c}>
+    <Section title="회원 탈퇴" footer="되돌릴 수 없어요. 투구 기록과 올려둔 영상, 컨디션 체크인, 운동 기록, 남긴 글이 모두 지워져요. 같은 이메일로 다시 가입해도 예전 기록은 돌아오지 않아요. 확인 칸에 탈퇴 두 글자를 그대로 적어 주세요." c={c}>
       <Field value={password} onChange={setPassword} placeholder="비밀번호" kind="current" c={c} />
       <Field value={word} onChange={setWord} placeholder="탈퇴" kind="text" c={c} />
       <Result msg={msg} c={c} />
-      <Button label={busy ? '탈퇴하는 중…' : '탈퇴하기'} onPress={ask} disabled={busy || word.trim() !== '탈퇴' || !password} danger c={c} />
+      <Button label={busy ? '처리 중…' : '탈퇴하고 모든 기록 지우기'} onPress={ask} disabled={busy || word.trim() !== '탈퇴' || !password} danger c={c} />
     </Section>
   );
 }
@@ -197,6 +202,7 @@ function Button({ label, onPress, disabled, danger, c }: { label: string; onPres
 }
 
 const st = StyleSheet.create({
+  circle: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
   group: { borderRadius: 14, overflow: 'hidden' },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, minHeight: 50 },
   input: { fontSize: 17, paddingHorizontal: 16, minHeight: 50, borderRadius: 12 },

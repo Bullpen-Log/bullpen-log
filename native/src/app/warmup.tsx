@@ -2,7 +2,7 @@ import * as Haptics from 'expo-haptics';
 import { SymbolView } from 'expo-symbols';
 import { type Href, router } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { WarmupCard } from '@/app/(session)/workout/warmup/warmup-client';
 import { BullpenNative } from '../../modules/bullpen-native';
@@ -133,49 +133,62 @@ export default function WarmupScreen() {
             <View style={{ gap: 2 }}>
               <View style={[s.row, { gap: 8 }]}>
                 <Text style={[s.section, { color: c.ink }]}>{card.name}</Text>
-                {card.forToday ? <Text style={[s.tag, { color: c.sky, backgroundColor: c.sky + '1a', fontSize: 12, fontWeight: '700' }]}>오늘</Text> : null}
+                {card.forToday ? (
+                  <Text style={[s.tag, { color: c.sky, backgroundColor: c.sky + '1a', fontSize: 12, fontWeight: '700' }]}>오늘 맞춤</Text>
+                ) : (
+                  <Text style={{ color: c.muted, fontSize: 12, fontWeight: '500' }}>공통</Text>
+                )}
               </View>
               {card.description ? <Text style={[s.small, { color: c.muted }]}>{card.description}</Text> : null}
             </View>
-            <View style={{ backgroundColor: c.card, borderRadius: 16, overflow: 'hidden' }}>
-              {card.items.map((ex, i) => {
+            {/* 웹 warmup-client 와 같은 꼴 — 운동마다 카드 한 장, 줄 전체가 체크 단추(엄지 하나로), 오른쪽 미리보기, 밑에 '자세·영상 보기' 한 줄 */}
+            <View style={{ gap: 8 }}>
+              {card.items.map((ex) => {
                 const on = done.has(ex.id);
                 const showing = open === ex.id;
                 const hasMore = Boolean(ex.videoPath || ex.referenceVideoId || ex.description);
                 return (
-                  <View key={ex.id} style={i > 0 ? { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.line } : null}>
-                    <View style={st.row}>
-                      <Pressable
-                        accessibilityRole="checkbox"
-                        accessibilityState={{ checked: on }}
-                        accessibilityLabel={`${ex.title} 했어요`}
-                        onPress={() => toggle(ex.id)}
-                        hitSlop={8}
-                        style={[st.check, { borderColor: on ? c.sky : c.line, backgroundColor: on ? c.sky : 'transparent' }]}
-                      >
-                        {on ? <SymbolView name="checkmark" size={13} weight="bold" tintColor="#fff" /> : null}
-                      </Pressable>
-                      <Pressable
-                        accessibilityRole={hasMore ? 'button' : 'text'}
-                        accessibilityState={hasMore ? { expanded: showing } : undefined}
-                        disabled={!hasMore}
-                        onPress={() => setOpen(showing ? null : ex.id)}
-                        style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 44 }}
-                      >
-                        <View style={{ flex: 1, gap: 2 }}>
-                          <Text style={[s.bodyBold, { color: on ? c.muted : c.ink, textDecorationLine: on ? 'line-through' : 'none' }]}>{ex.title}</Text>
-                          {ex.note ? <Text style={[s.small, { color: c.muted }]}>{ex.note}</Text> : null}
-                        </View>
-                        {hasMore ? <SymbolView name={showing ? 'chevron.up' : 'info.circle'} size={16} tintColor={c.muted} /> : null}
-                      </Pressable>
-                    </View>
-                    {showing ? (
-                      <View style={{ gap: 12, paddingHorizontal: 14, paddingBottom: 14 }}>
-                        <ExerciseMedia key={ex.id} path={ex.videoPath} referenceVideoId={ex.referenceVideoId} thumbUrl={ex.thumbUrl} aspectRatio={ex.aspectRatio} />
-                        {ex.description ? (
-                          <Text selectable style={[s.body, { color: c.ink }]}>
-                            {ex.description}
-                          </Text>
+                  <View
+                    key={ex.id}
+                    style={[st.item, { borderColor: on ? c.sky : c.line, backgroundColor: on ? c.sky + '14' : c.card }]}
+                  >
+                    <Pressable
+                      accessibilityRole="checkbox"
+                      accessibilityState={{ checked: on }}
+                      accessibilityLabel={`${ex.title} 했어요`}
+                      onPress={() => toggle(ex.id)}
+                      style={st.row}
+                    >
+                      <View style={[st.check, { borderColor: on ? c.sky : c.line, backgroundColor: on ? c.sky : 'transparent' }]}>
+                        {on ? <SymbolView name="checkmark" size={14} weight="bold" tintColor="#fff" /> : null}
+                      </View>
+                      <View style={{ flex: 1, gap: 2 }}>
+                        <Text style={[s.bodyBold, { color: on ? c.sky : c.ink }]}>{ex.title}</Text>
+                        {ex.note ? <Text style={[s.small, { color: on ? c.sky : c.muted }]}>{ex.note}</Text> : null}
+                      </View>
+                      {ex.thumbUrl ? <Image source={{ uri: ex.thumbUrl }} style={[st.thumb, { borderColor: c.line }]} resizeMode="cover" /> : null}
+                    </Pressable>
+                    {hasMore ? (
+                      <View style={{ borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.line }}>
+                        <Pressable
+                          accessibilityRole="button"
+                          accessibilityState={{ expanded: showing }}
+                          onPress={() => setOpen(showing ? null : ex.id)}
+                          style={st.disclose}
+                        >
+                          <SymbolView name="info.circle" size={14} tintColor={showing ? c.sky : c.muted} />
+                          <Text style={[s.smallBold, { flex: 1, color: showing ? c.sky : c.muted }]}>자세·영상 보기</Text>
+                          <SymbolView name={showing ? 'chevron.up' : 'chevron.down'} size={12} tintColor={c.muted} />
+                        </Pressable>
+                        {showing ? (
+                          <View style={{ gap: 12, paddingHorizontal: 14, paddingBottom: 14 }}>
+                            <ExerciseMedia key={ex.id} path={ex.videoPath} referenceVideoId={ex.referenceVideoId} thumbUrl={ex.thumbUrl} aspectRatio={ex.aspectRatio} />
+                            {ex.description ? (
+                              <Text selectable style={[s.body, { color: c.ink }]}>
+                                {ex.description}
+                              </Text>
+                            ) : null}
+                          </View>
                         ) : null}
                       </View>
                     ) : null}
@@ -205,8 +218,11 @@ export default function WarmupScreen() {
 }
 
 const st = StyleSheet.create({
-  row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, paddingVertical: 8 },
-  check: { width: 26, height: 26, borderRadius: 13, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
+  item: { borderRadius: 16, borderWidth: 1, overflow: 'hidden' },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, paddingVertical: 12, minHeight: 56 },
+  check: { width: 28, height: 28, borderRadius: 14, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
+  thumb: { width: 72, height: 48, borderRadius: 8, borderWidth: StyleSheet.hairlineWidth },
+  disclose: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, minHeight: 40 },
   foot: { borderTopWidth: 2, paddingHorizontal: 12, paddingTop: 12, gap: 4 },
   main: { height: 64, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
 });
