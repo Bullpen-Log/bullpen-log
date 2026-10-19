@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { ScrollLockScope } from '~/shell/scroll-lock';
 import { KeyboardAvoidingView, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SymbolView, type SFSymbol } from 'expo-symbols';
@@ -46,9 +47,13 @@ export function Sheet({
             <SymbolView name="xmark.circle.fill" size={28} tintColor={c.muted} />
           </Pressable>
         </View>
-        <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={[st.scroll, READABLE]}>
+        <ScrollLockScope>
+          {(scrollEnabled) => (
+        <ScrollView scrollEnabled={scrollEnabled} keyboardShouldPersistTaps="handled" contentContainerStyle={[st.scroll, READABLE]}>
           {children}
         </ScrollView>
+          )}
+        </ScrollLockScope>
         {footer ? <View style={[st.footer, { paddingBottom: Math.max(16, inset.bottom), borderTopColor: c.line }]}>{footer}</View> : null}
       </KeyboardAvoidingView>
     </Modal>

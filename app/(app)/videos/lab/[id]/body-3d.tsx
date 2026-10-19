@@ -184,7 +184,8 @@ export const Body3D = forwardRef<
       renderer.domElement.style.display = 'block';
       renderer.domElement.style.width = '100%';
       renderer.domElement.style.height = '100%';
-      renderer.domElement.style.touchAction = 'pan-y';
+      /* 3D 위 손가락은 모두 돌리기로(components/three-stage.ts 와 같은 까닭, 2026-10-20) */
+      renderer.domElement.style.touchAction = 'none';
       host.prepend(renderer.domElement);
       /* 이름표 다섯(HTML, 캔버스 위에 겹침) — 글은 장면이 바뀔 때만, 자리는 그릴 때마다(placeLabelsDom) */
       /* 이름표를 누르면 다시 그리기 — dirty 는 아래에서 생기므로 나중에 잇는다 */

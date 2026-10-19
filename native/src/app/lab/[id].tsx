@@ -1,4 +1,5 @@
 import * as Haptics from 'expo-haptics';
+import { ScrollLockScope } from '~/shell/scroll-lock';
 import { SymbolView } from 'expo-symbols';
 import { type Href, router, useLocalSearchParams } from 'expo-router';
 import { useVideoPlayer, VideoView, type VideoPlayer } from 'expo-video';
@@ -153,7 +154,9 @@ export default function LabScreen() {
   return (
     <View style={[s.fill, { backgroundColor: c.page }]}>
       {header}
-      <ScrollView ref={scroll} contentContainerStyle={[{ padding: 16, paddingBottom: inset.bottom + 32, gap: 20 }, READABLE_WIDE]}>
+      <ScrollLockScope>
+        {(scrollEnabled) => (
+      <ScrollView ref={scroll} scrollEnabled={scrollEnabled} contentContainerStyle={[{ padding: 16, paddingBottom: inset.bottom + 32, gap: 20 }, READABLE_WIDE]}>
         <View style={{ gap: 6 }}>
           <View style={s.row}>
             <Text style={[s.title, { color: c.ink }]}>{data.title}</Text>
@@ -252,6 +255,8 @@ export default function LabScreen() {
           }
         />
       </ScrollView>
+        )}
+      </ScrollLockScope>
     </View>
   );
 }

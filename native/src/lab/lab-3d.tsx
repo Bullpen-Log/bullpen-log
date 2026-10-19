@@ -1,5 +1,6 @@
 import { forwardRef, useImperativeHandle, useRef, useState, type ComponentType, type Ref } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useGrabProps } from '~/shell/scroll-lock';
 import { WebView, type WebViewMessageEvent, type WebViewProps } from 'react-native-webview';
 import { APP_UA, SITE_URL } from '~/lib/site';
 
@@ -43,6 +44,7 @@ export const Lab3D = forwardRef<
   }
 >(function Lab3D({ id, width, bg, onTransport }, ref) {
   const web = useRef<WebViewHandle>(null);
+  const grab = useGrabProps();
   const [height, setHeight] = useState(() => Math.round(width * 1.25) + 132);
   const [ready, setReady] = useState(false);
   const [failed, setFailed] = useState(false);
@@ -71,7 +73,8 @@ export const Lab3D = forwardRef<
   };
 
   return (
-    <View style={{ height, borderRadius: 16, overflow: 'hidden', backgroundColor: bg }}>
+    /* 손가락이 3D 에 닿은 동안 둘레 스크롤을 멈춘다(shell/scroll-lock) */
+    <View {...grab} style={{ height, borderRadius: 16, overflow: 'hidden', backgroundColor: bg }}>
       <RefWebView
         ref={web}
         source={{ uri: url }}

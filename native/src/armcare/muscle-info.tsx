@@ -8,6 +8,7 @@ import { MUSCLE_DETAILS } from '@/lib/armcare/details';
 import { APP_UA, SITE_URL } from '~/lib/site';
 import type { Palette } from '~/lib/ui';
 import { Sheet } from '~/workout/sheets';
+import { useGrabProps } from '~/shell/scroll-lock';
 
 /**
  * 근육 칩 — 웹 components/muscle-chips.tsx: 맨 앞(가장 크게 쓰는 근육, 또는 highlight)만 진하게, max 넘으면 '+N'(누르면 다 펼침).
@@ -114,6 +115,8 @@ type FromWeb = { t: 'muscle'; kind: 'status'; status: string } | { t: 'muscle'; 
  */
 export function Muscle3D({ name, area, onPick, c }: { name?: string; area?: string; onPick?: (muscle: string) => void; c: Palette }) {
   const web = useRef<WebViewHandle>(null);
+  /* 손가락이 3D 에 닿은 동안 둘레 스크롤을 멈춘다(shell/scroll-lock) */
+  const grab = useGrabProps();
   const [first] = useState(name);
   const [ready, setReady] = useState(false);
   /* 웹 쪽이 뜨면 제 '불러오는 중'을 그리므로 앱 돌개는 페이지가 뜨기 전까지만 */
@@ -143,7 +146,7 @@ export function Muscle3D({ name, area, onPick, c }: { name?: string; area?: stri
     }
   };
   return (
-    <View style={[st.map, { backgroundColor: c.card, boxShadow: c.float }]}>
+    <View {...grab} style={[st.map, { backgroundColor: c.card, boxShadow: c.float }]}>
       <RefWebView
         ref={web}
         source={{ uri: url }}
