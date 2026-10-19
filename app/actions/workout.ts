@@ -734,7 +734,7 @@ export type SwapChoices = {
   halted: string | null;
   /** 비슷한 운동 — 오늘 장비·경력·몸 상태를 모두 통과한 것만, 이유 한 줄과 함께 */
   similar: { id: string; reason: string }[];
-  /** 오늘 몸 상태로는 넣을 수 없는 운동 (찾기·즐겨찾기·최근에서 막아 둔다) */
+  /** 오늘 몸 상태에는 권하지 않는 운동 (막지 않고 주의만 보인다) */
   blockedIds: string[];
   favoriteIds: string[];
   /** 최근에 한 운동, 가장 최근 것부터 */
@@ -876,9 +876,7 @@ export async function changeSessionExercise(input: {
     library: [to],
   });
   if (safety.halted) return { error: HALTED_MESSAGE };
-  if (safety.candidates.length === 0) {
-    return { error: '오늘 몸 상태에는 권하지 않는 운동이라 넣지 않았어요.' };
-  }
+  /* 오늘 몸 상태에 맞지 않는 운동도 막지 않는다 — 창이 주의를 보이고 본인이 고른다(2026-10-19 사용자 결정) */
 
   const hasSets = await prisma.userExerciseSet.findFirst({
     where: { sessionId: session.id, exerciseId: from.id },

@@ -412,7 +412,7 @@ export function SwapSheet({
   const row = (p: SwapPick, sub: string) => {
     const already = inPlan.has(p.id);
     const unsafe = blocked.has(p.id);
-    const off = already || unsafe || halted != null || busyId != null;
+    const off = already || halted != null || busyId != null;
     return (
       <View key={p.id} style={[st.pick, { backgroundColor: c.card, borderColor: c.line }]}>
         <View style={{ flex: 1, gap: 2 }}>
@@ -422,15 +422,15 @@ export function SwapSheet({
           </Text>
           <Text style={[st.tiny, { color: c.muted }]}>{sub}</Text>
           {p.prescription ? <Text style={[st.tiny, { color: c.muted }]}>{p.prescription}</Text> : null}
-          {unsafe && !halted ? <Text style={[st.tiny, { color: c.danger }]}>오늘 몸 상태로는 넣을 수 없는 운동이에요</Text> : null}
+          {unsafe && !halted ? <Text style={[st.tiny, { color: c.warn }]}>오늘 몸 상태에는 권하지 않는 운동이에요</Text> : null}
         </View>
         <Pressable
           onPress={() => void pick(p.id)}
           disabled={off}
           accessibilityRole="button"
-          style={[st.pickBtn, { backgroundColor: already || unsafe || halted ? c.chip : c.sky, opacity: off && !already && !unsafe ? 0.6 : 1 }]}
+          style={[st.pickBtn, { backgroundColor: already || halted ? c.chip : c.sky, opacity: off && !already ? 0.6 : 1 }]}
         >
-          <Text style={[st.smallBold, { color: already || unsafe || halted ? c.muted : '#fff' }]}>
+          <Text style={[st.smallBold, { color: already || halted ? c.muted : '#fff' }]}>
             {busyId === p.id ? '넣는 중…' : already ? '목록에 있음' : mode === 'replace' ? '바꾸기' : '더하기'}
           </Text>
         </Pressable>

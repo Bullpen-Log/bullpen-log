@@ -221,7 +221,7 @@ export function SwapSheetView({
   const row = (p: SwapPick, sub: string) => {
     const already = inPlan.has(p.id);
     const unsafe = blocked.has(p.id);
-    const off = already || unsafe || halted != null;
+    const off = already || halted != null;
     return (
       <li
         key={p.id}
@@ -249,7 +249,7 @@ export function SwapSheetView({
           {unsafe && !halted && (
             <p className="mt-1 flex items-start gap-1 text-caption leading-relaxed text-warn">
               <AlertTriangle aria-hidden className="mt-0.5 h-3 w-3 shrink-0" />
-              오늘 몸 상태로는 넣을 수 없는 운동이에요
+              오늘 몸 상태에는 권하지 않는 운동이에요
             </p>
           )}
         </div>
