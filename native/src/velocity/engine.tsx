@@ -72,6 +72,8 @@ const CHUNK = 1024 * 1024;
 const TIMEOUT_MS = 30_000;
 /** 훑기는 더 짧게 — 2.5초 넘으면 다음 하나를 건너뛰는 규칙(capture.ts)이라 오래 붙들 까닭이 없다 */
 const LOCATE_TIMEOUT_MS = 15_000;
+/** 계산기 웹뷰가 뜨기를 기다리는 시한 — 넘기면 그 공은 못 잰 것으로 */
+const READY_TIMEOUT_MS = 20_000;
 
 type Waiter = {
   /** 'result' 를 기다리는 재기, 'located' 를 기다리는 훑기 */
@@ -117,7 +119,9 @@ export const VelocityEngine = forwardRef<EngineHandle>(function VelocityEngine(_
    */
   const ask = useCallback(
     async (first: { t: 'opts'; opts: MeasureOpts } | { t: 'locate'; opts: LocateOpts }, clip: Clip, onBall?: () => void) => {
-      await ready.current;
+      /* 계산기(웹뷰)가 못 뜨면(오프라인 · 사이트 오류) 영영 기다리던 것 — 시한을 두고 실패로 돌린다 */
+      const up = await Promise.race([(ready.current ?? Promise.resolve()).then(() => true), new Promise<boolean>((r) => setTimeout(() => r(false), READY_TIMEOUT_MS))]);
+      if (!up) throw new Error('계산기를 불러오지 못했어요. 신호를 확인해 주세요.');
       const id = ++nextId.current;
       const kind = first.t === 'opts' ? 'measure' : 'locate';
       const done = new Promise<{ result?: EngineResult; found?: ThrowLocation | null; ms: number }>((resolve, reject) => {
@@ -133,9 +137,18 @@ export const VelocityEngine = forwardRef<EngineHandle>(function VelocityEngine(_
       const post = (m: unknown) => web.current?.postMessage(JSON.stringify(m));
       post({ ...first, id });
       const parts = Math.max(1, Math.ceil(clip.bytes / CHUNK));
-      for (let part = 0; part < parts; part++) {
-        const { data } = await DualCamera.read({ path: clip.path, offset: part * CHUNK, length: CHUNK });
-        post({ t: 'clip', id, part, parts, data });
+      try {
+        for (let part = 0; part < parts; part++) {
+          const { data } = await DualCamera.read({ path: clip.path, offset: part * CHUNK, length: CHUNK });
+          post({ t: 'clip', id, part, parts, data });
+        }
+      } catch (e) {
+        /* 클립 파일을 못 읽음(iOS 가 tmp 를 비움 등) — 기다리는 자리 · 웹 쪽 반쯤 온 조각을 치운다 */
+        const w = waiters.current.get(id);
+        if (w) clearTimeout(w.timer);
+        waiters.current.delete(id);
+        post({ t: 'abort', id });
+        throw e;
       }
       return done;
     },
@@ -164,6 +177,15 @@ export const VelocityEngine = forwardRef<EngineHandle>(function VelocityEngine(_
       /* 화면에 안 보이게 — 다만 0 크기 · 완전 투명이면 WebKit 이 일을 늦출 수 있어 1pt · 거의 투명으로 둔다 */
       style={styles.hidden}
       pointerEvents="none"
+      onError={() => {
+        /* 사이트에 못 닿음 — 기다리던 공은 실패로. 다음 공은 다시 뜬 웹뷰가 받는다 */
+        for (const [id, w] of waiters.current) {
+          clearTimeout(w.timer);
+          w.reject(new Error('계산기를 불러오지 못했어요. 신호를 확인해 주세요.'));
+          waiters.current.delete(id);
+        }
+        setGen((n) => n + 1);
+      }}
       onContentProcessDidTerminate={() => {
         ready.current = new Promise((r) => (markReady.current = r));
         for (const [id, w] of waiters.current) {

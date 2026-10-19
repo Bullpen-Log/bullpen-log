@@ -198,10 +198,13 @@ function Player({ backHref, items, startAt, label, sessionNumber, partial, painL
   const record = (feel: DrillFeel) =>
     run(async () => {
       tick();
-      const res = await act<{ ok: true }>('mechanics.recordMechanicsDrill', { guideId: view.guideId, element: item.element, feel });
-      if ('error' in res) {
-        setError(res.error);
-        return;
+      /* 마치기 저장만 실패한 뒤 느낌을 다시 누르면 같은 드릴이 두 번 기록됐다 — 이미 기록한 드릴은 건너뛰고 마치기만 */
+      if (!done[index]) {
+        const res = await act<{ ok: true }>('mechanics.recordMechanicsDrill', { guideId: view.guideId, element: item.element, feel });
+        if ('error' in res) {
+          setError(res.error);
+          return;
+        }
       }
       setDone((d) => d.map((v, i) => (i === index ? true : v)));
       if (index + 1 < items.length) next();

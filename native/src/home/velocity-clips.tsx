@@ -7,7 +7,7 @@ import { usePalette, withAlpha } from '~/lib/ui';
 import { Icon } from '~/shell/icon';
 import { Press } from '~/shell/press';
 import { isPhoneVideoPath } from '~/pitch/api';
-import { useVelocityDay } from '~/pitch/velocity-day';
+import { useVelocityDayState } from '~/pitch/velocity-day';
 import { PitchVideo, UrlVideo } from '~/pitch/video';
 
 /**
@@ -19,11 +19,11 @@ export function VelocityClips({ date }: { date: string }) {
   const c = usePalette();
   const speed = usePrefs().speed;
   const [reload, setReload] = useState(0);
-  const data = useVelocityDay(date, reload);
+  const { data, failed } = useVelocityDayState(date, reload);
   const [pickedId, setPicked] = useState<string | null>(null);
   const [played, setPlayed] = useState(false);
   const items = (data?.sessions ?? []).flatMap((s) => s.pitches.filter((p) => p.clip?.url).map((p) => ({ p, clip: p.clip! })));
-  if (!data) return <Text style={{ color: c.muted, fontSize: 12 }}>영상을 불러오는 중…</Text>;
+  if (!data && !failed) return <Text style={{ color: c.muted, fontSize: 12 }}>영상을 불러오는 중…</Text>;
   const picked = items.find((it) => it.p.id === pickedId) ?? items[0];
   if (!picked)
     return (

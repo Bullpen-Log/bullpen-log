@@ -41,6 +41,12 @@ export function NutritionTab({ today, bottom, onWebNutrition }: { today: string;
   const [editing, setEditing] = useState<MealKey | null>(null);
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
   const [date, setDateRaw] = useState(today);
+  /* 자정을 넘겨 껍데기가 새 오늘을 내려주면, 옛 오늘을 보고 있던 화면도 따라간다(안 그러면 어제에 머물러 식단 · 체크인 카드가 숨었다) */
+  const [seenToday, setSeenToday] = useState(today);
+  if (seenToday !== today) {
+    setSeenToday(today);
+    if (date === seenToday) setDateRaw(today);
+  }
   /* 날을 바꾸면 펴 둔 편집은 버린다 — 다른 날에 저장되지 않게 */
   const setDate = (d: string) => {
     setDateRaw(d);
@@ -83,12 +89,13 @@ export function NutritionTab({ today, bottom, onWebNutrition }: { today: string;
   const oldest = shiftDateKey(today, -BACK_DAYS);
   const [, m, d] = date.split('-').map(Number);
 
-  const run = async (job: () => Promise<string | null>) => {
-    if (busy) return;
+  const run = async (job: () => Promise<string | null>): Promise<boolean> => {
+    if (busy) return false;
     setBusy(true);
     const err = await job();
     setBusy(false);
     if (err) Alert.alert('저장하지 못했어요', err);
+    return true;
   };
 
   const startEdit = (meal: MealKey) => {
@@ -110,9 +117,19 @@ export function NutritionTab({ today, bottom, onWebNutrition }: { today: string;
       else if (d.amount !== e.amount || d.meal !== e.meal)
         edits.push({ id: e.id, ...(d.amount !== e.amount ? { amount: d.amount } : {}), ...(d.meal !== e.meal ? { meal: d.meal } : {}) });
     }
+    if (!edits.length) {
+      setEditing(null);
+      setDrafts({});
+      return;
+    }
+    /* 다른 저장이 도는 중이면 초안을 버리지 않고 편집을 그대로 둔다(예전엔 말없이 사라졌다) */
+    if (busy) {
+      Alert.alert('잠깐만요', '다른 저장이 끝나면 다시 완료를 눌러 주세요.');
+      return;
+    }
     setEditing(null);
     setDrafts({});
-    if (edits.length) void run(() => editEntries(date, edits));
+    void run(() => editEntries(date, edits));
   };
 
   const strip = day?.strip ?? [];
@@ -503,7 +520,7 @@ function PlanCard({
   ageBand?: string;
   plan: { items: PlanItem[]; context: { place: Place; hot: boolean; variant: number; reasons: string[]; target?: { kcal: number; protein: number } } } | null;
   busy: boolean;
-  run: (job: () => Promise<string | null>) => Promise<void>;
+  run: (job: () => Promise<string | null>) => Promise<boolean>;
 }) {
   const c = usePalette();
   const [place, setPlace] = useState<Place>(plan?.context.place ?? 'home');

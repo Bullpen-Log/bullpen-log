@@ -199,7 +199,11 @@ export default function VelocityScreen() {
             setSessionDate(d.date);
             void loadJson(setupKeyOf('speed')).then((raw) => {
               const s = parseSetup(raw);
-              if (s && alive) setZone(s.zone);
+              if (!s || !alive) return;
+              setZone(s.zone);
+              /* 줄자 거리도 되살린다 — 안 그러면 이어 잰 공에 세션 거리 보정이 다시 걸려 값이 달라졌다 */
+              setDistTape(s.distTape);
+              setTargetDistM(s.targetDistM);
             });
             draftReady.current = true;
             setStep('measure');
@@ -258,7 +262,11 @@ export default function VelocityScreen() {
     captureRef.current = capture;
     const subs = [
       DualCamera.addListener('throw', (e) => capture.onThrow(e)),
-      DualCamera.addListener('fps', (e) => setFps({ fps: Math.round(e.fps), dropped: e.dropped })),
+      DualCamera.addListener('fps', (e) => {
+        setFps({ fps: Math.round(e.fps), dropped: e.dropped });
+        /* 장면이 다시 흐른다 = 카메라가 산다 — 전화 · 컨트롤센터로 잠깐 끊겼을 때 온 'error' 를 걷는다(안 걷으면 설정 카드가 오류 카드에 가려 못 갔다) */
+        setError((prev) => (prev ? null : prev));
+      }),
       DualCamera.addListener('error', (e) => setError(e.message)),
       DualCamera.addListener('level', (g) => {
         const t = tiltOf([g.x, g.y, g.z]);
@@ -336,8 +344,9 @@ export default function VelocityScreen() {
     void saveLastMode(next);
     const inSetup = step === 'camera' || step === 'level' || step === 'zone' || step === 'abs';
     if (from === 'strip' && (inSetup || step === 'measure')) {
-      /* ABS 설정 단계에서 구속으로 바꾸면 그 단계는 없으니 존으로 되돌아간다 */
+      /* ABS 설정 단계에서 구속으로 바꾸면 그 단계는 없으니 존으로, 측정 전에 ABS 로 바꾸면 플레이트 단계로(안 가면 보정이 없어 판정이 늘 비었다) */
       if (step === 'abs' && next === 'speed') setStep('zone');
+      else if (step === 'measure' && !live && next === 'abs') setStep('abs');
       return;
     }
     void loadJson(setupKeyOf(next)).then((raw) => {

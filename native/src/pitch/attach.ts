@@ -29,7 +29,13 @@ async function uploadUrl(body: unknown): Promise<{ path: string; signedUrl?: str
 export async function attach(asset: ImagePicker.ImagePickerAsset, admin: boolean): Promise<string> {
   if (!admin) {
     const { id } = await LocalVideo.saveFile({ path: asset.uri });
-    return (await uploadUrl({ localId: id })).path;
+    try {
+      return (await uploadUrl({ localId: id })).path;
+    } catch (e) {
+      /* 경로를 못 받으면 폰에 넣은 파일은 아무도 모른다 — 바로 지운다(안 지우면 영영 남았다) */
+      void LocalVideo.remove({ ids: [id] }).catch(() => undefined);
+      throw e;
+    }
   }
   const type = asset.mimeType ?? 'video/quicktime';
   const target = await uploadUrl({ fileName: asset.fileName ?? 'pitch.mov', fileSize: asset.fileSize ?? 1, fileType: type });

@@ -85,8 +85,9 @@ export default function NutritionAddScreen() {
     latest.current = text;
     if (!text || !day?.mfds) return;
     const t = setTimeout(() => {
+      /* 상품까지(full) 답이 먼저 왔으면 품목대표 답으로 덮지 않는다(순서가 뒤집히면 결과가 줄고 '더 찾는 중'이 안 끝났다) */
       void searchMfdsReps(text)
-        .then((foods) => latest.current === text && setMfds({ q: text, foods, full: false }))
+        .then((foods) => latest.current === text && setMfds((prev) => (prev?.q === text && prev.full ? prev : { q: text, foods, full: false })))
         .catch(() => undefined);
       void searchMfds(text)
         .then((foods) => latest.current === text && setMfds({ q: text, foods, full: true }))
@@ -367,7 +368,7 @@ export default function NutritionAddScreen() {
             />
           </View>
           {error ? <Text style={{ color: c.danger, fontSize: 14, paddingHorizontal: 20, paddingBottom: 6 }}>{error}</Text> : null}
-          <ScrollView contentContainerStyle={[{ padding: 16, paddingTop: 0, gap: 6, paddingBottom: inset.bottom + 24 }, READABLE]} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
+          <ScrollView contentContainerStyle={[{ padding: 16, paddingTop: 0, gap: 6, paddingBottom: inset.bottom + 24 }, READABLE]} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" automaticallyAdjustKeyboardInsets>
             {q.trim() ? (
               <>
                 {local.map((f, i) => row(f, `l${i}`))}

@@ -43,7 +43,9 @@ export type LocateOpts = {
 type Inbound =
   | { t: 'opts'; id: number; opts: MeasureOpts }
   | { t: 'locate'; id: number; opts: LocateOpts }
-  | { t: 'clip'; id: number; part: number; parts: number; data: string };
+  | { t: 'clip'; id: number; part: number; parts: number; data: string }
+  /** 앱이 클립을 끝까지 못 넘김 — 반쯤 온 조각을 버린다 */
+  | { t: 'abort'; id: number };
 
 /** 받은 조각은 칸 번호로 센다 — 배열 길이만 늘려 두면 빈 칸을 every 가 건너뛰어 덜 온 클립을 쟀다 */
 type Pending = { opts?: MeasureOpts; locate?: LocateOpts; total: number; parts: Map<number, string> };
@@ -123,6 +125,7 @@ export function EngineClient() {
       } catch {
         return;
       }
+      if (msg.t === 'abort') return void pending.delete(msg.id);
       const p = pending.get(msg.id) ?? { total: 0, parts: new Map<number, string>() };
       pending.set(msg.id, p);
       if (msg.t === 'opts') p.opts = msg.opts;

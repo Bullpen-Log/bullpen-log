@@ -144,7 +144,8 @@ export async function drainOutbox<R>(
       } catch (e) {
         /* 신호 없음 · 다시 로그인 · 앱 업데이트는 나중에 다시. 그 밖(서버가 처리 못 함 — 500 · 모르는 동작 · 틀린 값)만 센다 */
         const code = (e as { code?: unknown })?.code;
-        if (code === 'offline' || code === 'redirect' || code === 'update' || code == null) return 'offline';
+        /* 서버가 잠깐 멈춘 것(500 — 'server') · 문 앞에서 막힌 것('http')도 남긴다(암케어 대기열과 같게, 2026-10-18 김민) — 2분 오류에 세트가 지워졌다 */
+        if (code === 'offline' || code === 'redirect' || code === 'update' || code === 'server' || code === 'http' || code == null) return 'offline';
         const n = (serverFails.get(keyText(next)) ?? 0) + 1;
         serverFails.set(keyText(next), n);
         if (n < SERVER_FAIL_LIMIT) return 'offline';

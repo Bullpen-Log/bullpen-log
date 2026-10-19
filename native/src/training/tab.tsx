@@ -31,6 +31,7 @@ type Loaded = { today: string; cards: TrainingCard[]; strip?: TrainingStripDay[]
 let cached: Loaded | null = null;
 export const resetTrainingCache = () => {
   cached = null;
+  markedDays = null;
 };
 
 const APP: Record<TrainingPart, { name: string; glyph: IconName }> = {
@@ -186,7 +187,7 @@ export function TrainingTab({ today, bottom, onWeb }: { today: string; bottom: n
         />
       ) : null}
 
-      {error && !data ? <Text style={{ color: c.danger, fontSize: 15 }}>{error}</Text> : null}
+      {error ? <Text style={{ color: c.danger, fontSize: 15 }}>{error}</Text> : null}
       {!data && !error ? <ActivityIndicator style={{ paddingVertical: 24 }} /> : null}
 
       {data?.cards.map((card) => (
@@ -276,8 +277,8 @@ function Card({
 let markedDays: Set<string> | null = null;
 function TrainingDateNav({ today }: { today: string }) {
   const [, bump] = useState(0);
+  /* 탭을 열 때마다 다시 받는다(받아 둔 건 그동안 보임) — 한 번만 받으면 운동을 마치고 와도 점이 안 늘고 로그아웃 뒤 남의 점이 남았다 */
   useEffect(() => {
-    if (markedDays) return;
     void rpc<string[]>('training-days.trainingMarkedDays').then(
       (days) => {
         markedDays = new Set(days);

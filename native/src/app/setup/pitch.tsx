@@ -7,7 +7,7 @@ import { effortScaleText, scaleToEffortPct } from '@/lib/pitch-effort';
 import { checkPitchStep, pitchStepOfField, toPitchFormFields, visiblePitchSteps, type PitchSetupAnswers, type PitchStepKey } from '@/lib/pitching/setup-answers';
 import { rpc, RpcError } from '~/lib/rpc';
 import { usePalette } from '~/lib/ui';
-import { leaveTo } from '~/shell/web-nav';
+import { leaveTo, openWebAfter } from '~/shell/web-nav';
 import { BigNumber, ChoiceChips, StepFrame, SummaryRows } from '~/setup/frame';
 import { PitchCapInsert } from '~/setup/inserts';
 
@@ -99,6 +99,8 @@ function Wizard({ name, age, done, initial }: Extract<Loaded, { ok: true }>) {
       const r = await rpc<{ ok: true } | { ok: false; error: string; field?: string }>('pitch-setup.finishPitchSetup', toPitchFormFields(a));
       if (r.ok) {
         void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        /* 웹 틀이 탭 잠금을 다시 읽게(안 하면 앱을 껐다 켤 때까지 탭이 잠긴 채였다 — 영양 첫 설정과 같게) */
+        openWebAfter('#refresh');
         return leaveTo('/videos');
       }
       goTo(r.field ? pitchStepOfField(r.field) : null);

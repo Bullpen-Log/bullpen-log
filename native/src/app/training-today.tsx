@@ -208,7 +208,7 @@ export default function TrainingTodayScreen() {
   return (
     <View style={[s.fill, { backgroundColor: c.page }]}>
       {header}
-      <ScrollView
+      <ScrollView automaticallyAdjustKeyboardInsets
         style={s.fill}
         contentContainerStyle={[s.content, { paddingBottom: Math.max(24, inset.bottom + 16) }, READABLE]}
         refreshControl={
