@@ -198,7 +198,8 @@ export function VideosClient({
       {/* 오늘 — 계획 한 줄 · 던지는 일정(접힌 알약) · 기록 남기기 */}
       <TodayCard today={todayKey} data={todayCard} throwCard={throwCard} />
       {/* 과거 영상 가져오기 — 아이폰 앱(폰 저장 가능)에서만 보인다(import-sheet.tsx) */}
-      <ImportEntry />
+      {/* 관리자(velocityHref 는 관리자만 있다)는 가져온 영상도 서버에 — 폰에만 두면 앱을 지울 때 사라진다 */}
+      <ImportEntry isAdmin={velocityHref != null} />
 
       {/* 두 방식을 오갈 때 살짝 떠오르며 바뀐다 */}
       <div key={view} className="motion-safe:animate-fade-in">

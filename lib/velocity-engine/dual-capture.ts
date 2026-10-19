@@ -11,6 +11,7 @@ import { analyzeVideo, locateThrow, warmDecoder, type VideoAnalyzeResult } from 
 import { loadBallNet } from './ball-net';
 import type { DistanceReport } from './analyze-distance';
 import {
+  CLIP_MAX_SEC,
   cameraNowOf,
   clipSpanOf,
   coveredBy,
@@ -777,7 +778,7 @@ export class DualCapture {
       void this.anchorClock();
       return;
     }
-    const win = nextSweepWindow(this.sweptUntil, now);
+    const win = nextSweepWindow(this.sweptUntil, now, CLIP_MAX_SEC);
     if (!win) return;
     const gen = this.gen;
     this.sweeping = true;

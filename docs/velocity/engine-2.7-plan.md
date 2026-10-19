@@ -210,6 +210,10 @@ DB(10-16 밤 뒤, 읽기만): 시도 기록 공 10 · 공 후보 51 · 움직임
 
 ### 다음 순서(금윤호)
 
+> 2026-10-19 밤(금윤호 데스크톱): ①은 윤호 맥북 세션이 올렸다(4c8bd1a5 · 70044bed · 02c96403 — 5초마다 지난 6초, 모듈 자르기 상한 4 → 6초, '뒤늦게 찾은 공' 표시).
+> 데스크톱 세션이 같은 걸 동시에 만들다 그쪽을 받았다. 덧붙인 것: 웹 훑기(옛 앱, 상한 4)는 `nextSweepWindow(…, CLIP_MAX_SEC)` 로 창을 상한에 맞춤(6초를 청하면 4초만 와
+> 뒤 2초가 늘 비었다) · 잰 공 0개의 빈 요약(알아 둘 것 첫 줄) 고침. **폰에서 확인(②)은 아직** — 앱을 새로 구워야 들어간다(GitHub `ios-native.yml`).
+
 1. **새 앱에 조용할 때 훑기 옮기기(반나절).** `capture.ts` 에 웹 `DualCapture.sweep()` 과 같은 고리: 재는 중이 없으면 5초마다 `DualCamera.clip` 으로 지난 6초를 잘라
    숨은 웹뷰 엔진(`app/velocity-engine/engine-client.tsx`)에 `locateThrow` 를 부르고, 공을 믿으면 그 시각으로 'motion' 과 같은 길(넓은 클립)로 잰다(kind 'sweep', 결과에 '뒤늦게 찾은 공').
    새 앱은 `DualCamera.now()` 가 있어 웹의 1e9 시계 역산이 필요 없다. 웹뷰가 ORT(jsDelivr)와 모델(`/velocity-detector/ball-v1.onnx`)을 받으니 앱 첫 실행에 14MB.
