@@ -69,7 +69,11 @@ export default function RootLayout() {
         {/* 그날 화면 — 웹 휴대폰처럼 아래에서 올라오는 창(끌어내려 닫기) */}
         <Stack.Screen name="pitch/[date]" options={{ presentation: 'modal' }} />
         <Stack.Screen name="pitch/edit" options={{ presentation: 'modal' }} />
-        <Stack.Screen name="pitch/import" options={{ presentation: 'modal' }} />
+        {/* 지난 영상 가져오기 — 내용만큼만 올라오는 아래 시트(2026-10-20 김민: 큰 창에 영상 고르기 단추 하나만 떠 있었다). 묶음이 늘면 같이 자란다 */}
+        <Stack.Screen
+          name="pitch/import"
+          options={{ presentation: 'formSheet', sheetAllowedDetents: 'fitToContents', sheetGrabberVisible: true, sheetCornerRadius: 28 }}
+        />
         <Stack.Screen name="nutrition/add" options={{ presentation: 'modal' }} />
         {/* 설정 · 내 정보 — 웹처럼 창으로(더보기 폴더 위에 뜨고 닫으면 폴더가 그대로) */}
         <Stack.Screen name="settings" options={{ presentation: 'modal' }} />
