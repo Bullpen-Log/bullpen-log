@@ -42,7 +42,6 @@ export function ThrowPlanCard({
       title="오늘 던지는 일정은요?"
       hint="등판 · 불펜 날은 운동 일정 · 끼니 · 암케어가 거기에 맞춰요."
       answer={data.plan}
-      laterLabel="모름"
       folded={folded}
     >
       {(close) => <PlanForm day={day} data={data} onDone={close} />}

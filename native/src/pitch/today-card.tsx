@@ -126,8 +126,10 @@ export function PitchTodayCard({ today }: { today: string }) {
               <Text style={{ color: c.ink, fontSize: 17, fontWeight: '700' }}>오늘 던지는 일정은요?</Text>
               <Text style={{ color: c.muted, fontSize: 12 }}>등판 · 불펜 날은 운동 일정 · 끼니 · 암케어가 거기에 맞춰요.</Text>
             </View>
-            <Press accessibilityRole="button" onPress={() => setOpen(false)} style={styles.later}>
-              <Text style={{ color: c.muted, fontSize: 12, fontWeight: '500' }}>{answer == null ? '모름' : '닫기'}</Text>
+            {/* 늘 접기(2026-10-20 김민: 펼치면 접는 기능이 없다 — '모름'이 접기로 안 읽혔다). 웹 DayCard 와 같은 글 */}
+            <Press accessibilityRole="button" accessibilityLabel="접기" onPress={() => setOpen(false)} style={styles.later}>
+              <Text style={{ color: c.muted, fontSize: 12, fontWeight: '500' }}>접기</Text>
+              <Icon name="chevron-up" size={14} color={c.muted} />
             </Press>
           </View>
           <View style={styles.grid}>
@@ -201,7 +203,7 @@ const styles = StyleSheet.create({
   dot: { width: 8, height: 8, borderRadius: 4 },
   pill: { alignSelf: 'flex-start', maxWidth: '100%', flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 40, borderRadius: 20, paddingHorizontal: 14 },
   planBox: { borderRadius: 20, borderWidth: 1, padding: 20, gap: 12 },
-  later: { minHeight: 40, marginVertical: -8, paddingHorizontal: 12, borderRadius: 20, justifyContent: 'center' },
+  later: { minHeight: 40, marginVertical: -8, paddingHorizontal: 12, borderRadius: 20, flexDirection: 'row', alignItems: 'center', gap: 2 },
   /* 웹 chip-grid data-cols=3 — 같은 폭 세 칸 */
   grid: { flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: -4, rowGap: 8 },
   gridCell: { width: '33.333%', paddingHorizontal: 4 },
