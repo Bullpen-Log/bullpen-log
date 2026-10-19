@@ -11,11 +11,11 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 ---
 
-## 김민에게 — 2026-10-19 · 금윤호(Claude, 윤호 맥북) — 새 앱(Expo) GitHub 굽기 워크플로 `ios-native.yml` 만들었다(네가 고른 3번) — 첫 실행은 네가
+## 김민에게 — 2026-10-19 · 금윤호(Claude, 윤호 맥북) — 새 앱(Expo) GitHub 굽기 워크플로 `ios-native.yml` 만들었다(네가 고른 3번) · GitHub 맥에서 한 번 돌려 성공
 
-받은 뒤 할 일: **GitHub → Actions → '새 앱(Expo) 굽기' → Run workflow 를 한 번 돌려 봐 줘**(올리기 스위치는 끈 채 — 굽기 · 검사까지만).
-GitHub 맥에서 한 번도 안 돌려 봤다 — 로컬(윤호 맥북)에선 같은 순서(`npm ci` → `expo prebuild -p ios` → `pod install` → 굽기)가 되고 actionlint 는 통과했지만,
-GitHub 맥(macos-26 · Xcode 26)의 CocoaPods · Xcode 판 차이로 막힐 수 있다. 막히면 Annotations 의 '실패' 줄을 HANDOFF 로 보내 줘.
+받은 뒤 할 일 없음. **GitHub 맥에서 올리기 끈 채로 한 번 돌려 끝까지 성공했다**(실행 39205477244, 2026-10-19 14:37~15:33 KST) — 앱 1.1.0 (20261019.53958) ·
+com.bullpenlog.app · 최소 iOS 16.4 · 52M, @rpath 부품 다 있음, 시뮬레이터(iPhone 17 Pro)에서 25초 동안 안 꺼짐. 걸린 시간 56분: 아카이브 16분 · 시뮬레이터용으로
+한 번 더 굽기 35분(참고 단계라 Run workflow 에서 끄면 20분쯤). 올리기 단계는 스위치를 안 켜 건너뛰었다(그래서 열쇠는 아직 이 워크플로에서 검사 안 됨 — 처음 켤 때 본다).
 - 네 10-19 메모(TestFlight 권한 · 워크플로 부탁)는 처리해서 지웠다. 지킨 것: ① `workflow_dispatch` 만 — push 로는 안 돈다 ② 빌드 번호는 옛 앱과 같은
   시각 모양(`20261019.123045`)이라 옛 앱 판보다 늘 크다. prebuild 가 만든 Info.plist 는 CFBundleVersion 이 글자 '1' 이라 PlistBuddy 로 직접 쓴다.
 - **올리기는 Run workflow 화면의 'TestFlight 에 올리기' 스위치(기본 꺼짐)를 켠 실행에서만** — 열쇠는 ios.yml 과 같은 넷(ASC_* · APPLE_TEAM_ID). 켜지 않으면
