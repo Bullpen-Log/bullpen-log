@@ -5,7 +5,8 @@ import { judgePitch, type AbsAnalysis, type FitSnapshot } from '@/lib/abs/analys
 import { calibFromPlate, zonePolygonPx, type Calib, type CalibInput, type Pixel } from '@/lib/abs/calib';
 import { findPlateFront, type PlateFind } from '@/lib/abs/plate-detect';
 import { RULES, type RuleSetId } from '@/lib/abs/rules';
-import { heightCmOf, loadAbsSetup, saveAbsSetup, type AbsSetup } from '@/lib/abs/setup';
+import { ABS_SETUP_KEY, DEFAULT_ABS_SETUP, heightCmOf, type AbsSetup } from '@/lib/abs/setup';
+import { DEFAULT_RULE } from '@/lib/abs/rules';
 import { bandsFor, driftInit, driftUpdate, type DriftState } from '@/lib/abs/stability';
 import { zoneWorld } from '@/lib/abs/zone';
 import { DEFAULT_BANDS } from '@/lib/abs/rules';
@@ -209,3 +210,31 @@ export function useAbsSession(p: AbsSessionParams) {
 }
 
 export type AbsSession = ReturnType<typeof useAbsSession>;
+
+/** 이 브라우저에 둔 ABS 설정(lib/abs/setup.ts 에서 옮김 — 앱과 같이 쓰는 파일에 localStorage 를 두지 않으려고) */
+function loadAbsSetup(): AbsSetup {
+  if (typeof window === 'undefined') return { ...DEFAULT_ABS_SETUP, savedAt: '' };
+  try {
+    const raw = window.localStorage.getItem(ABS_SETUP_KEY);
+    if (!raw) return { ...DEFAULT_ABS_SETUP, savedAt: '' };
+    const p = JSON.parse(raw) as Partial<AbsSetup>;
+    return {
+      on: p.on === true,
+      rule: p.rule === 'mlb-2026' ? 'mlb-2026' : DEFAULT_RULE,
+      height: p.height === 'average' ? 'average' : typeof p.height === 'number' && Number.isFinite(p.height) ? heightCmOf(p.height) : 'average',
+      savedAt: typeof p.savedAt === 'string' ? p.savedAt : '',
+    };
+  } catch {
+    return { ...DEFAULT_ABS_SETUP, savedAt: '' };
+  }
+}
+
+function saveAbsSetup(s: Omit<AbsSetup, 'savedAt'>): AbsSetup {
+  const out: AbsSetup = { ...s, savedAt: new Date().toISOString() };
+  try {
+    window.localStorage.setItem(ABS_SETUP_KEY, JSON.stringify(out));
+  } catch {
+    /* 저장 못 해도 이번 세션은 돈다 */
+  }
+  return out;
+}
