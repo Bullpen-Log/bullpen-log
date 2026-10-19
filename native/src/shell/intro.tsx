@@ -135,8 +135,10 @@ export function Intro() {
     const dx = slot.x + slot.width / 2 - width / 2;
     const dy = slot.y + slot.height / 2 - height / 2;
     const s = slotH / bigH;
-    return { transform: [{ translateX: e * dx }, { translateY: e * dy }, { scale: 1 + (s - 1) * e }] };
+    /* 다 옮겨지면 감추고 칸 자리의 '제 크기 B'로 바꾼다 — 150pt 그림을 0.27배로 줄여 둔 채면 장면이 바뀔 때 계단처럼 깨져 보였다 */
+    return { opacity: p >= 1 ? 0 : 1, transform: [{ translateX: e * dx }, { translateY: e * dy }, { scale: 1 + (s - 1) * e }] };
   });
+  const crisp = useAnimatedStyle(() => ({ opacity: slot && t.get() >= MOVE_AT + MOVE_MS ? 1 : 0 }));
 
   if (gone) return null;
   return (
@@ -161,6 +163,12 @@ export function Intro() {
       <Animated.View style={[{ position: 'absolute', left: width / 2 - bigW / 2, top: height / 2 - bigH / 2 }, mark]}>
         <BullpenMark height={bigH} />
       </Animated.View>
+      {/* 칸 자리의 제 크기 B — 옮기기가 끝난 뒤(정지 모양은 안 보임) */}
+      {slot ? (
+        <Animated.View style={[{ position: 'absolute', left: slot.x, top: slot.y, opacity: 0 }, crisp]}>
+          <BullpenMark height={slotH} />
+        </Animated.View>
+      ) : null}
     </Animated.View>
   );
 }

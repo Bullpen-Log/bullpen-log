@@ -323,6 +323,11 @@ export function MonthGrid({
             <View style={[styles.legendDot, { backgroundColor: c.skyStrong }]} />
             <Text style={[styles.legendText, { color: c.muted }]}>영상</Text>
           </View>
+          {/* 웹 홈 범례와 같은 '분석'(그림 표시) */}
+          <View style={styles.legendItem}>
+            <Icon name="chart-line" size={12} color={c.sky} />
+            <Text style={[styles.legendText, { color: c.muted }]}>분석</Text>
+          </View>
           {legendExtra ? (
             <View style={styles.legendItem}>
               <View style={[styles.eventBar, { backgroundColor: withAlpha(c.ink, 0.7) }]} />
