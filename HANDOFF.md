@@ -11,6 +11,21 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 ---
 
+## 김민에게 — 2026-10-19 · 금윤호(Claude, 윤호 맥북) — 새 앱 카메라 한 화면 · 두 모드(구속 측정 · ABS 판정) — 네 영역 `native/src/velocity/*` · `app/velocity.tsx` 크게 고침 · 새 앱 구워야 들어감
+
+받은 뒤 할 일 없음(DB · 패키지 · Swift 그대로 — JS 만이라 Metro 로 바로 돈다, TestFlight 는 다음 굽기에). 사용자: "홈에서 오른쪽으로 쓸면 바로 카메라 · 팝업으로 ABS 냐
+구속 측정이냐 고르게 · 아이폰 카메라의 동영상 ↔ 슬로모션 전환 느낌". 설계 `docs/designs/camera-modes.md`(결정 넷 · 단계표 2~5 끝, 7 웹은 2차). 커밋 047f2411 ~ 02fb6741.
+- **틀**(`velocity/mode.ts` · `mode-sheet.tsx` · `mode-strip.tsx`, `app/velocity.tsx`): Step 에 'mode'(처음 — 미리보기 위 모드 고르기 시트, 지난 모드가 먼저 골라짐) ·
+  'abs'(존 다음, ABS 만). 셔터 위 아이폰식 모드 띠 '구속 | ABS'(측정 중 잠금, 설정 단계는 그 자리에서 이어감). 설정은 모드마다 따로(`setupKeyOf`). 홈 쓸기 자리표시가 '카메라'.
+  **ABS 는 관리자만**(일반 사용자는 시트에서 '준비 중', 띠에는 안 보임).
+- **ABS**(`velocity/abs/`): `use-abs.ts` 가 웹 `components/abs/use-abs-session.ts` 의 앱판 — 플레이트 찾기는 `DualCamera.snapshot`(짧은 변 720) 밝기로 0.6초마다,
+  측정 중 5초마다 삼각대 감시, 순수 계산은 웹과 같은 `lib/abs`. 설정은 앱 저장소 'bullpen-abs-setup'. `plate-overlay.tsx`(svg, 직접 맞추기 손잡이) ·
+  `abs-setup-card.tsx` · `batter-chip.tsx` · `verdict-card.tsx` · `abs-summary.tsx`. `session.ts decide` 에 선택 인자 `judgeAbs` — 판정이 `analysis.abs` · 코스는 판정 칸 ·
+  저장 result 'strike' | 'ball'(웹과 같은 모양이라 서버 · 그날 화면은 그대로 읽는다).
+- `camera-ui.tsx` 에 `Segmented` 를 내보냄(velocity.tsx 에서 옮김), `shell/icon.tsx` 에 `user-round`.
+- **시뮬레이터(카메라 없음)로 흐름 · 모양만 봤다.** 폰에서 볼 것: 홈 쓸기 → 모드 시트 · 띠 전환 · ABS 5/5 단계에서 흰 홈플레이트 자동 찾기(안 되면 '직접 맞추기') ·
+  공을 던져 판정 카드(S/B) · 저장 창 요약 · 저장 뒤 그날 화면의 S/B. 3D 둘러보기는 앱에 아직 없다.
+
 ## 김민에게 — 2026-10-19 · 금윤호(Claude, 윤호 맥북) — 네 인계 ① 새 앱에 조용할 때 훑기 옮김 · 앱 모듈 자르기 상한 4 → 6초 — 새 앱 구워야 들어감
 
 받은 뒤 할 일 없음(DB · 패키지 그대로). 네 영역(`native/modules/dual-camera/ios/DualCameraModule.swift` 한 줄 · `native/src/velocity/*` · 사이트 `app/velocity-engine/engine-client.tsx`)을 고쳤다.
