@@ -190,6 +190,27 @@ export function TabBar({ tabs, active, onPress }: { tabs: ShellTab[]; active: st
     ],
   }));
 
+  /* 칸 하나의 그림 + 이름 — 아이콘 줄과 유리 렌즈 안(확대돼 보이는 한 벌)이 같이 쓴다 */
+  const face = (t: ShellTab, on: boolean) => {
+    const color = on ? col.on : col.off;
+    return (
+      <>
+        <View>
+          {t.icon === 'menu' ? <SpinSquares color={color} spin={spin} /> : <Icon name={GLYPH[t.icon] ?? 'house'} size={26} color={color} />}
+          {/* 잠긴 탭 — 그림 오른쪽 아래 12px 자물쇠(웹 glyphs NavGlyph) */}
+          {t.locked ? (
+            <View style={[styles.lockBadge, { backgroundColor: col.lens }]}>
+              <Icon name="lock" size={9} color={color} strokeWidth={3} />
+            </View>
+          ) : null}
+        </View>
+        <Text style={[styles.label, { color, fontWeight: on ? '600' : '500' }]}>{t.label}</Text>
+      </>
+    );
+  };
+  /* 렌즈 안의 아이콘 한 벌 — 렌즈가 옮긴 만큼 거꾸로 밀어 밑의 줄과 겹치게, 렌즈가 부풀면 같이 커져 확대돼 보인다 */
+  const lensFacesStyle = useAnimatedStyle(() => ({ transform: [{ translateX: -pos.value * cell }] }));
+
   const body = (
     <>
       {cell > 0 ? (
@@ -197,7 +218,6 @@ export function TabBar({ tabs, active, onPress }: { tabs: ShellTab[]; active: st
       ) : null}
       {tabs.map((t) => {
         const on = active === t.href;
-        const color = on ? col.on : col.off;
         return (
           <Pressable
             key={t.href}
@@ -222,23 +242,14 @@ export function TabBar({ tabs, active, onPress }: { tabs: ShellTab[]; active: st
             }}
             style={({ pressed }) => [styles.item, t.locked && { opacity: 0.55 }, pressed && { transform: [{ scale: 0.94 }] }]}
           >
-            <View>
-              {t.icon === 'menu' ? <SpinSquares color={color} spin={spin} /> : <Icon name={GLYPH[t.icon] ?? 'house'} size={26} color={color} />}
-              {/* 잠긴 탭 — 그림 오른쪽 아래 12px 자물쇠(웹 glyphs NavGlyph) */}
-              {t.locked ? (
-                <View style={[styles.lockBadge, { backgroundColor: col.lens }]}>
-                  <Icon name="lock" size={9} color={color} strokeWidth={3} />
-                </View>
-              ) : null}
-            </View>
-            <Text style={[styles.label, { color, fontWeight: on ? '600' : '500' }]}>{t.label}</Text>
+            {face(t, on)}
           </Pressable>
         );
       })}
     </>
   );
 
-  /* 손동작은 유리 판 안쪽 줄에 — 유리(GlassView) 바깥에 걸면 손가락이 안 온다 */
+  /* 손동작은 아이콘 줄에 — 유리 판 · 렌즈보다 위층이라 손가락이 먼저 온다 */
   const row = (
     <GestureDetector gesture={drag}>
       <View collapsable={false} style={styles.row}>{body}</View>
@@ -257,29 +268,43 @@ export function TabBar({ tabs, active, onPress }: { tabs: ShellTab[]; active: st
         ]}
         onLayout={(e) => setWidth(e.nativeEvent.layout.width)}
       >
+        {/*
+         * 층 차례(밑에서 위로): 유리 판 → 가장자리 빛 → 유리 렌즈 → 아이콘 줄. 렌즈가 아이콘 위에 오면 아이콘이 굴절돼 일그러졌다
+         * (2026-10-19 김민 화면 녹화) — iOS 26 탭 막대처럼 렌즈는 아이콘 밑에 깔리고 아이콘은 또렷하게 위에.
+         */}
         {glass ? (
-          /* iOS 26 진짜 유리 — 누르면 유리가 손가락에 반응(isInteractive), 테마 색을 살짝 얹는다 */
-          <GlassView glassEffectStyle="clear" isInteractive tintColor={col.tint} colorScheme={theme === 'light' ? 'light' : 'dark'} style={styles.pill}>
-            {row}
-          </GlassView>
+          /* iOS 26 진짜 유리 — 테마 색을 살짝 얹는다 */
+          <GlassView glassEffectStyle="clear" tintColor={col.tint} colorScheme={theme === 'light' ? 'light' : 'dark'} style={[StyleSheet.absoluteFill, { borderRadius: 999 }]} />
         ) : (
-          <View style={[styles.pill, { backgroundColor: col.base, borderColor: col.edge, borderWidth: 1 }]}>{row}</View>
+          <View style={[StyleSheet.absoluteFill, { borderRadius: 999, backgroundColor: col.base, borderColor: col.edge, borderWidth: 1 }]} />
         )}
-        {/* 유리 렌즈 — 알약 밖(잘리지 않게)에서 고른 칸 위에 */}
+        {/* 유리 가장자리 빛 — 위 테두리가 밝게 빛나 두께가 보인다 */}
+        <View pointerEvents="none" style={[StyleSheet.absoluteFill, { borderRadius: 999, boxShadow: col.rim }]} />
+        {/* 유리 렌즈 — 고른 칸 밑에서 막대 밖으로 부푼다(누르기는 그대로 지나간다) */}
         {glass && cell > 0 ? (
           <Animated.View
             pointerEvents="none"
-            style={[styles.glassLens, { width: cell }, lensGlass && { boxShadow: col.glassRim }, glassLensStyle]}
+            style={[styles.glassLens, { width: cell, zIndex: 1 }, lensGlass && { boxShadow: col.glassRim }, glassLensStyle]}
           >
             <GlassView
               glassEffectStyle={{ style: lensGlass ? 'clear' : 'none', animate: true, animationDuration: 0.22 }}
               colorScheme={theme === 'light' ? 'light' : 'dark'}
-              style={[StyleSheet.absoluteFill, { borderRadius: 999 }]}
-            />
+              style={[StyleSheet.absoluteFill, { borderRadius: 999, overflow: 'hidden' }]}
+            >
+              {/* iOS 유리는 형제 층보다 위에 그려져 밑의 아이콘이 뭉개진다 — 유리 안에 아이콘을 한 벌 그려 또렷하게(확대) */}
+              {lensGlass ? (
+                <Animated.View style={[styles.lensFaces, { width: cell * tabs.length }, lensFacesStyle]}>
+                  {tabs.map((t) => (
+                    <View key={t.href} style={[styles.item, { width: cell, flex: 0 }]}>
+                      {face(t, active === t.href)}
+                    </View>
+                  ))}
+                </Animated.View>
+              ) : null}
+            </GlassView>
           </Animated.View>
         ) : null}
-        {/* 유리 가장자리 빛 — 위 테두리가 밝게 빛나 두께가 보인다(누르기는 그대로 지나간다) */}
-        <View pointerEvents="none" style={[StyleSheet.absoluteFill, { borderRadius: 999, boxShadow: col.rim }]} />
+        <View style={[styles.pill, { zIndex: 2 }]}>{row}</View>
       </View>
     </View>
   );
@@ -294,9 +319,10 @@ const styles = StyleSheet.create({
     maxWidth: 448,
     borderRadius: 999,
   },
-  pill: { flexDirection: 'row', padding: PAD, borderRadius: 999, overflow: 'hidden' },
+  pill: { flexDirection: 'row', padding: PAD, borderRadius: 999 },
   row: { flex: 1, flexDirection: 'row' },
   lens: { position: 'absolute', top: 0, left: 0, height: ITEM_H, borderRadius: 999 },
+  lensFaces: { position: 'absolute', top: 0, left: 0, height: ITEM_H, flexDirection: 'row' },
   glassLens: { position: 'absolute', top: PAD, left: PAD, height: ITEM_H, borderRadius: 999 },
   item: { flex: 1, height: ITEM_H, alignItems: 'center', justifyContent: 'center', gap: 2, paddingTop: 2, borderRadius: 999 },
   label: { fontSize: 10 },
