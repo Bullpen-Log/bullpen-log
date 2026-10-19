@@ -11,26 +11,28 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 ---
 
-## 금윤호에게(윤호 맥북) — 2026-10-19 · 김민(Claude, 맥북) — TestFlight 권한: 팀에 넣을 수 없음 · 새 앱도 GitHub 이 굽고 올리게 만들어 줘
+## 김민에게 — 2026-10-19 · 금윤호(Claude, 윤호 맥북) — 새 앱(Expo) GitHub 굽기 워크플로 `ios-native.yml` 만들었다(네가 고른 3번) — 첫 실행은 네가
 
-받은 뒤 할 일: **새 앱(`native/`)용 GitHub 굽기 워크플로를 만들어 줘**(윤호 맥북에서 — 거기서 새 앱 시뮬레이터 굽기가 되니). 김민이 고른 길(셋 중 3번).
-- 까닭: 김민의 애플 개발자 계정은 **개인(Individual, 팀 `43TDMV2J7V`)** 이라 다른 사람을 개발자 팀에 넣을 수 없다 — 네 Xcode 로는 서명 · 업로드가 안 된다.
-  옛 앱(`mobile/`)처럼 GitHub 이 App Store Connect API 키로 굽고 올리면 권한 없이 된다.
-- 만들 것: `.github/workflows/ios-native.yml` — 옛 `.github/workflows/ios.yml` 을 본떠서. 비밀은 이미 있다(`APPLE_TEAM_ID` · `ASC_ISSUER_ID` · `ASC_KEY_ID` ·
-  `ASC_KEY_P8` 쯤 — 이름은 ios.yml 그대로 쓰고, 값은 GitHub 설정에 있음). 순서: `cd native && npm ci` → `npx expo prebuild -p ios`(ios/ 는 git 밖) → `pod install` →
-  서명 없이 아카이브 → 배포 도장 → 업로드. 운동 영상 넣기(`LIBRARY_BUNDLE_TOKEN`)는 옛 앱과 같게 할지 같이 보자.
-- **꼭 지킬 것**:
-  ① **시작은 손으로만(`workflow_dispatch`)** — push 로 저절로 돌지 않게. 새 앱은 지금 김민 폰에만 두기로 했다(옛 앱과 번들 ID `com.bullpenlog.app` 이 같아서,
-     올리면 테스터 모두의 앱이 새 앱으로 바뀐다). 언제 전체에 낼지는 김민이 정한다 — 그 전엔 굽기 · 검사까지만 돌려 보고 업로드 단계는 꺼 둬도 좋다.
-  ② 빌드 번호는 옛 앱 판(지금 `20261016.xxxxx` 꼴)보다 늘 크게 — 같은 번들 ID 라 작으면 업로드가 거절된다.
-- 덤(선택): App Store Connect 사용자로 너를 '앱 관리자'로 초대하는 건 김민이 할 수 있다(TestFlight 테스터 · 빌드 보기용). 서명 · 업로드는 이걸로도 안 된다.
+받은 뒤 할 일: **GitHub → Actions → '새 앱(Expo) 굽기' → Run workflow 를 한 번 돌려 봐 줘**(올리기 스위치는 끈 채 — 굽기 · 검사까지만).
+GitHub 맥에서 한 번도 안 돌려 봤다 — 로컬(윤호 맥북)에선 같은 순서(`npm ci` → `expo prebuild -p ios` → `pod install` → 굽기)가 되고 actionlint 는 통과했지만,
+GitHub 맥(macos-26 · Xcode 26)의 CocoaPods · Xcode 판 차이로 막힐 수 있다. 막히면 Annotations 의 '실패' 줄을 HANDOFF 로 보내 줘.
+- 네 10-19 메모(TestFlight 권한 · 워크플로 부탁)는 처리해서 지웠다. 지킨 것: ① `workflow_dispatch` 만 — push 로는 안 돈다 ② 빌드 번호는 옛 앱과 같은
+  시각 모양(`20261019.123045`)이라 옛 앱 판보다 늘 크다. prebuild 가 만든 Info.plist 는 CFBundleVersion 이 글자 '1' 이라 PlistBuddy 로 직접 쓴다.
+- **올리기는 Run workflow 화면의 'TestFlight 에 올리기' 스위치(기본 꺼짐)를 켠 실행에서만** — 열쇠는 ios.yml 과 같은 넷(ASC_* · APPLE_TEAM_ID). 켜지 않으면
+  '애플 열쇠 확인' · '올리기' 단계를 건너뛰고 "TestFlight 건너뜀" 알림만 남긴다. 테스터 모두의 앱이 바뀌는 날은 네가 정하고, 그때 스위치를 켠다.
+- 단계: 패키지 → prebuild → pod install → 빌드 번호 → 서명 없이 아카이브(`ios/BullpenLog.xcworkspace` · 스킴 BullpenLog) → 만들어진 앱 확인(아이콘 · `main.jsbundle` ·
+  번들 ID · 빌드 번호) → @rpath 부품 확인 → 시뮬레이터에서 켜 보기(참고용, 스위치로 끌 수 있음) → (켰을 때만) 열쇠 확인 · 올리기 → 실패 주석.
+- **안 넣은 것 — 같이 정하자**: 운동 · 드릴 영상을 앱 안에 넣기(옛 앱의 `fetch-library-videos.mjs` · `LIBRARY_BUNDLE_TOKEN`). 새 앱 `LocalVideoModule` 은 앱 안
+  `LibraryVideos/` 를 찾는데 Expo 프로젝트에 그 폴더를 싣는 길(prebuild 뒤 Xcode 리소스로 넣는 config plugin 또는 스크립트)이 아직 없다. 없어도 앱은 볼 때 받아 폰에 둔다.
+  `expo-updates`(N3)도 그대로.
+- 덤: App Store Connect '앱 관리자' 초대는 TestFlight 빌드 · 테스터 보기용으로 받으면 좋겠다(서명 · 업로드와는 무관한 걸 안다).
 
 ## 김민에게 — 2026-10-19 · 금윤호(Claude, 윤호 맥북) — 새 앱 시뮬레이터 굽기 결과 · 윤호 맥북 세팅 끝
 
 받은 뒤 할 일 없음(코드 변경 없음 — HANDOFF · `docs/claude/geum-yunho.md` 만). 금윤호에게 새 맥북이 생겨 웹 · 앱 둘 다 돌게 세팅했다.
 - `native/` 에서 `npm ci` → `npx tsc --noEmit` 통과 · `npx expo lint` 통과 · `npx expo run:ios`(iPhone 18 Pro 시뮬레이터, iOS 27.1, Xcode 27.1) **Build Succeeded, 오류 0 · 경고 4**
   (경고는 외부 Pods 것). 네가 맥 없이 고친 Swift 둘(`shoot-camera` H.264 · 아이패드 회전)이 그대로 컴파일됐다. 앱은 시뮬레이터에서 로그인 화면까지 뜬다.
-- **못 한 것**: ① TestFlight 올리기 — 애플 개발자 팀 권한이 금윤호에게 없다(네가 넣어 주거나 네 맥북에서) ② 카메라 기능(촬영 H.264 · 아이패드 회전 · 구속 측정) · 폰에서 봐 달라던
+- **못 한 것**: ① TestFlight 올리기 — 애플 개발자 팀 권한이 금윤호에게 없다(→ 같은 날 네 답대로 GitHub 워크플로로, 위 메모) ② 카메라 기능(촬영 H.264 · 아이패드 회전 · 구속 측정) · 폰에서 봐 달라던
   것들 — 시뮬레이터에 카메라가 없어 실기기가 있어야 한다 ③ `expo-updates`(N3)는 손 안 댐.
 - 처리한 메모 정리: `__bpRefresh` · '투구 폼 다섯 고침'의 타입 검사 부탁은 끝으로 고쳐 적었고(폰 확인은 남김), 10-16 '홈 요약 칸 kcal × 양' 메모는 이미 고쳐져 있어
   (`app/(app)/today/history.ts` 108줄이 `m.kcal * m.amount`) 지웠다.
