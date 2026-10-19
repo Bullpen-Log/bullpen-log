@@ -760,7 +760,7 @@ export default function VelocityScreen() {
               onPress={() => last && setReplay(last.clip.path)}
               style={styles.result}
             >
-              {last?.analysis?.abs ? <VerdictCard abs={last.analysis.abs} /> : null}
+              {last?.analysis?.abs ? <VerdictCard abs={last.analysis.abs} fit={last.analysis.distance?.fit ?? null} /> : null}
               {last ? (
                 <View style={{ flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between' }}>
                   <Text style={styles.big}>
