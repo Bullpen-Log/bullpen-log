@@ -11,14 +11,16 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 ---
 
-## 김민에게 — 2026-10-19 · 금윤호(Claude, 윤호 맥북) — 네 요청 ⑧ · ⑨ 끝: 세션 거리 보정을 깨끗한 공 1개부터 · 거리 고르기 글 '18~22m' — 새 앱은 다음 굽기에
+## 김민에게 — 2026-10-19 밤 · 금윤호(Claude) — 네 요청 ⑧ · ⑨ 끝: 세션 거리 보정은 깨끗한 공 1개부터 · 거리 고르기는 '18~22m' · '줄자로 쟀어요' 둘뿐
 
-받은 뒤 할 일 없음(DB · 패키지 그대로, 웹은 배포만). 네 영역(구속 측정 · `lib/velocity-session-distance.ts`)을 고쳤다.
-- ⑧ `SESSION_DIST_MIN` 3 → 1, 새 `MEMORY_UNTIL` 3(공 1~2개면 지난 세션 기억을 섞고 그 뒤는 이번 세션 가운데 값). `sessionCorrection` 도 하나부터.
-  시험 `velocity:engine2-test` 86 통과(기대값 셋 뒤집음 · 공 하나 · 없음 둘 더함). 웹 · 새 앱이 같은 lib 라 둘 다 바뀐다. 오차표(2배 줌 50구) 다시 재기는 안 했다 — 다음 현장 뒤에.
-- ⑨ 글은 `lib/velocity-setup.ts` 한 곳(`STANDARD_DIST_LABEL` '18~22m' · `STANDARD_DIST_HINT` · `standardDistMismatchNote`) — 웹 설정 시트 TAPE_MODES · 카메라 단계 거리 칸 · size-mismatch 알림,
-  새 앱 거리 Segmented · 안내 · 알림(`session.ts`, 줄자 세션은 옛 글 그대로). 계산은 그대로 20m + 세션 보정.
-- 같은 푸시에 앱 버그 21곳 고침(커밋 ad4e5fb3 — 네 영역 `native/src/velocity/*` · `app/index.tsx` 포함: 계산기 웹뷰 시한 · 끊긴 카메라 error 걷기 · 세션 녹화 stop · 훑기 겹침 · 첫 설정 뒤 탭 잠금 · 1.2초 재렌더 등. 자세한 것은 그 커밋 본문).
+받은 뒤 할 일 없음(DB · 패키지 그대로). 웹은 배포로 바로, 새 앱은 다음 굽기에 들어간다.
+- **⑧** `lib/velocity-session-distance.ts` `SESSION_DIST_MIN` 3 → 1, 새 `SESSION_DIST_FULL` 3(그 전까지는 지난 세션 기억 6% 안이면 공 2개 몫으로 섞음 · 폰에 기억을 남기는 것도
+  3개부터 그대로). `sessionDistOf` · `sessionCorrection` 둘 다 1개부터 — 웹 · 새 앱이 `lib/velocity-session.ts` 로 같이 쓰니 한 곳. 엔진 2.7.2(작은 자리 — 첫 1~2구 값만 바뀜,
+  보정 짝 묶음 2.7. 그대로). 시험 `velocity:engine2-test` 87(1개 · 2개 보정, 3개부터 기억 무시, 빈 목록).
+- **⑨** 글은 `lib/velocity-setup.ts` 한 곳: `TAPE_MODES`(옛 `velocity-settings.tsx` 것을 옮기고 거기서 다시 내보냄) '18~22m' · '줄자로 쟀어요', `STANDARD_DIST_HINT`
+  "폰에서 미트까지 18~22m 면 이대로, 아니면 줄자로 재서 넣어요.", `OUT_OF_RANGE_FIX` "18~22m 밖 같아요. 줄자로 재서 넣어 주세요."(`lowConfidenceFix` 가 엔진 `why`
+  'size-mismatch' 면 이것 — 줄자 세션이면 `TAPE_MISMATCH_FIX`). 웹 측정 화면 · 설정 시트 · 새 앱 `velocity.tsx` · `session.ts` 모두 이것을 쓴다. 계산은 그대로.
+- 네 인계 글의 ⑧ · ⑨ 줄은 처리했으니 지웠다(계획 문서 인계 절 8 · 9 에 '끝' 표시).
 
 ## 김민에게 — 2026-10-19 · 금윤호(Claude, 윤호 맥북) — 새 앱 카메라 한 화면 · 두 모드(구속 측정 · ABS 판정) — 네 영역 `native/src/velocity/*` · `app/velocity.tsx` 크게 고침 · 새 앱 구워야 들어감
 
@@ -107,9 +109,6 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 - **다음 순서(네 몫)**: ① 새 앱에 훑기 옮기기(웹 `DualCapture.sweep` · `sweep.ts` 그대로, 시계는 `DualCamera.now()`, 반나절) ② 현장 한 번(30~35구 · 110~120 15구+ · 세션 녹화 켬)
   ③ 10-19 세션 녹화 7개(조각 22, 공 표시 0)와 못 잰 옛 클립 16개에 공 자리 찍기 → 2판 재학습(README 명령, Modal 15분) → ONNX 교체 ④ 맥: CoreML 로 MotionTrigger 를 모델로
   ⑤ 같은 빌드에 셔터 1/2000 · 가속도 · 고도 ⑥ 140+ 짝 10~15구(피칭머신 · 빠른 투수) ⑦ 손 감지는 필요할 때만.
-  ⑧ · ⑨ 는 10-19 금윤호가 함(공 1개부터 세션 보정 · '18~22m' 글 — 아래 '⑧ · ⑨ 끝' 메모).
-- 숫자(10-16 밤 뒤 DB, 읽기만): 시도 공 10 · 후보 51 · 움직임 8 · **훑기 1** · 2.7.1 로 잰 공 11 · 사람이 찍은 라벨 1(시험용). 실제 폰에서 훑기 · 모델 속도는 아직 제대로 못 봤다.
-- 고치지 않은 것 하나: 잰 공이 0개면 세션 요약(저장 단추)이 안 뜬다 — 김민이 "저장 버튼이 안 보인다"고 했다. 빈 요약을 띄우자는 제안만 했다.
 
 ## 김민에게 — 2026-10-19 · 금윤호(Claude, 윤호 맥북) — 새 앱(Expo) GitHub 굽기 워크플로 `ios-native.yml` 만들었다(네가 고른 3번) · GitHub 맥에서 한 번 돌려 성공
 

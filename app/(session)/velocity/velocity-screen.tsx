@@ -76,7 +76,7 @@ import {
 } from '@/lib/velocity-analysis';
 import { type DistanceReport } from '@/lib/velocity-engine/analyze-distance';
 import {
-  SESSION_DIST_MIN,
+  SESSION_DIST_FULL,
   medianOf,
   TAPE_WARN,
 } from '@/lib/velocity-session-distance';
@@ -143,9 +143,8 @@ import {
   zoneOfPoint,
   type VelocitySetup,
   type ZoneRect,
-  STANDARD_DIST_HINT,
   STANDARD_TARGET_DIST_M,
-  standardDistMismatchNote,
+  STANDARD_DIST_HINT,
 } from '@/lib/velocity-setup';
 import { useDeviceLevel } from '@/lib/use-device-level';
 import { SESSION_TYPES, isRestSession } from '@/lib/session-type';
@@ -978,7 +977,7 @@ export function VelocityScreen({
         measure: {
           ok: false,
           ...reject('LOW_CONFIDENCE'),
-          fix: lowConfidenceFix(result, source, approach === 'approaching'),
+          fix: lowConfidenceFix(result, source, approach === 'approaching', distTape),
         },
       });
       dropAttempt(meta?.id, 'low-confidence');
@@ -1015,9 +1014,7 @@ export function VelocityScreen({
       );
     else if (mismatch)
       distNotes.push(
-        !distTape && source === 'camera'
-          ? standardDistMismatchNote(mismatch.size)
-          : `공을 미트까지 따라가지 못한 것 같아요(${bySession ? '세션 거리' : '넣은 거리'} ${mismatch.input}m · 공 크기로 본 거리 ${mismatch.size}m). 값이 틀릴 수 있어 최고 · 평균에서 뺐어요.`
+        `공을 미트까지 따라가지 못한 것 같아요(${bySession ? '세션 거리' : '넣은 거리'} ${mismatch.input}m · 공 크기로 본 거리 ${mismatch.size}m). 값이 틀릴 수 있어 최고 · 평균에서 뺐어요.`
       );
     /* 세션 거리로 다시 판정한 공은 그 거리와 견준다 — 세션 거리 알림이 이미 거리를 말했다 */
     else if (
@@ -1906,12 +1903,12 @@ export function VelocityScreen({
 
   const patch = (id: number, edit: Partial<PitchEdit>) =>
     setPitches((prev) => prev.map((p) => (p.id === id ? { ...p, ...edit } : p)));
-  /* 이번 세션(카메라)의 깨끗한 공이 3개를 넘기면 그 중앙값을 지난 세션 거리로 남긴다 — 다음 세션 첫 공부터 쓴다 */
+  /* 이번 세션(카메라)의 깨끗한 공이 3개(SESSION_DIST_FULL)를 넘기면 그 중앙값을 지난 세션 거리로 남긴다 — 다음 세션 첫 공부터 섞어 쓴다 */
   useEffect(() => {
     const ds = pitches
       .filter((p) => p.auto?.clean && p.source === 'camera')
       .map((p) => p.auto!.distM);
-    if (ds.length >= SESSION_DIST_MIN)
+    if (ds.length >= SESSION_DIST_FULL)
       saveDistMemory({
         distM: Math.round(medianOf(ds) * 100) / 100,
         n: ds.length,
@@ -2961,7 +2958,9 @@ export function VelocityScreen({
                         size="md"
                       />
                       {!distTape && (
-                        <p className="px-0.5 text-footnote leading-snug text-muted">{STANDARD_DIST_HINT}</p>
+                        <p className="px-0.5 text-footnote leading-snug text-muted">
+                          {STANDARD_DIST_HINT}
+                        </p>
                       )}
                       {distTape && (
                         <DistanceField

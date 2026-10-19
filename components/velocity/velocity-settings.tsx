@@ -18,7 +18,7 @@ import {
   approachOf,
   RELEASE_DIST_MIN,
   RELEASE_DIST_MAX,
-  STANDARD_DIST_LABEL,
+  TAPE_MODES,
 } from '@/lib/velocity-setup';
 import {
   LENS_CHANGE_EVENT,
@@ -58,10 +58,8 @@ export const DIST_MODES = [
   { value: 'auto', label: '자동' },
   { value: 'manual', label: '직접 넣기' },
 ] as const;
-export const TAPE_MODES = [
-  { value: 'standard', label: STANDARD_DIST_LABEL },
-  { value: 'tape', label: '줄자로 쟀어요' },
-] as const;
+/* 거리 고르기 글은 lib/velocity-setup.ts 한 곳(새 앱도 같이 쓴다) — 여기서 쓰던 이름을 그대로 내보낸다 */
+export { TAPE_MODES };
 
 export function VelocitySettingsFields({
   values,
