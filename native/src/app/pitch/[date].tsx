@@ -19,7 +19,8 @@ import { VelocityDay } from '~/pitch/velocity-day';
 import { READABLE_WIDE, TwoColumns } from '~/lib/layout';
 import { withAlpha } from '~/lib/ui';
 import { toDateKey } from '@/lib/pitch-stats';
-import { cachedArmStatus } from '~/pitch/today-card';
+import { usePitchToday } from '~/pitch/today-card';
+import { leaveTo } from '~/shell/web-nav';
 import { EntryForm } from './edit';
 
 /** 그날 화면(앱) — 그날 기록들(종류 · 공 수 · 강도 · 구속 · 메모 · 영상) · 고치기 · 지우기 · 새 기록. 웹 app/(app)/pitch-log/[date] 의 첫 판 */
@@ -35,7 +36,9 @@ export default function PitchDayScreen() {
   const at = new Date(`${date}T00:00:00.000Z`);
   const today = toDateKey(new Date());
   const future = date > today;
-  const arm = date === today ? cachedArmStatus(today) : null;
+  /* 오늘이면 팔 상태 · 회복식 한 줄 — 그날 기록이 바뀌면(저장 · 지우기) 다시 받는다 */
+  const now = usePitchToday(today, date === today, day.map((l) => `${l.id}:${l.pitchCount}:${l.sessionType}`).join());
+  const arm = now?.status ?? null;
   /* 웹 day-client: 기록이 없는 날은 폼을 펴 둔 채로('이날 기록하기'), 있으면 '+ 이 날짜에 기록 추가' 를 눌러 편다. 고치기도 그 자리에서 */
   const [formOpen, setFormOpen] = useState<boolean | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -100,6 +103,7 @@ export default function PitchDayScreen() {
           </Text>
         ) : null}
         {arm ? <ArmChip c={c} status={arm} /> : null}
+        {now?.nutritionLine ? <NutritionNote c={c} line={now.nutritionLine} /> : null}
         {/* 아이패드 가로(~/lib/layout TwoColumns) — 왼쪽 그날 기록 · 새 기록, 오른쪽 구속 측정. 좁으면 위아래 그대로 */}
         <TwoColumns ratio={[1, 1]} gap={12}
           left={
@@ -236,6 +240,7 @@ export default function PitchDayScreen() {
 }
 
 const styles = StyleSheet.create({
+  nudge: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, borderRadius: 12, borderWidth: StyleSheet.hairlineWidth, paddingHorizontal: 16, paddingVertical: 12 },
   grabber: { alignSelf: 'center', width: 36, height: 5, borderRadius: 3, marginTop: 6 },
   bar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 8, minHeight: 52 },
   side: { width: 52 },
@@ -263,6 +268,26 @@ function Badge({ c, strong, children }: { c: Palette; strong?: boolean; children
     <View style={{ backgroundColor: strong ? c.skyTint : withAlpha(c.ink, 0.06), borderRadius: 999, paddingHorizontal: 12, paddingVertical: 4 }}>
       <Text style={text}>{children}</Text>
     </View>
+  );
+}
+
+/** 던진 뒤 회복식 한 줄 — 웹 components/nutrition-line-note.tsx: 수저 그림 · 머리 · 굵은 한 줄 · 음식 보기 · 자세히(영양 탭의 오늘) */
+function NutritionNote({ c, line }: { c: Palette; line: { title: string; text: string; example: string | null; href: string } }) {
+  return (
+    <Press
+      accessibilityRole="link"
+      accessibilityLabel={`${line.title}. ${line.text}. 자세히`}
+      onPress={() => leaveTo(line.href)}
+      style={[styles.nudge, { backgroundColor: withAlpha(c.chip, 0.5), borderColor: c.line }]}
+    >
+      <Icon name="utensils" size={16} color={c.sky} />
+      <View style={{ flex: 1, gap: 2 }}>
+        <Text style={{ color: c.muted, fontSize: 12 }}>{line.title}</Text>
+        <Text style={{ color: c.ink, fontSize: 15, fontWeight: '600' }}>{line.text}</Text>
+        {line.example ? <Text style={{ color: c.muted, fontSize: 12, lineHeight: 18 }}>{line.example}</Text> : null}
+      </View>
+      <Text style={{ color: c.sky, fontSize: 12, fontWeight: '600' }}>자세히 ›</Text>
+    </Press>
   );
 }
 

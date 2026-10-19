@@ -1,5 +1,5 @@
 import { type Href, router, useFocusEffect } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import * as Haptics from 'expo-haptics';
 import { StyleSheet, Text, View } from 'react-native';
 import Animated, { LinearTransition } from 'react-native-reanimated';
@@ -24,13 +24,41 @@ type Today = {
   logged: { pitches: number } | null;
   unloggedVelocity: number | null;
   throwCard: { plan: string | null; hasCheckin: boolean; hint: string | null };
+  /** 던진 뒤 회복식 한 줄(그날 화면 — 웹 NutritionLineNote). 오늘 불펜 · 라이브 · 경기를 남겼을 때만 */
+  nutritionLine: { title: string; text: string; example: string | null; href: string } | null;
 };
 let cached: Today | null = null;
 export const resetPitchTodayCache = () => {
   cached = null;
 };
-/** 받아 둔 오늘 팔 상태(그날 화면 머리 한 줄 — 웹 ArmStatusNote compact). 투구 탭이 받은 뒤에만 있다 */
-export const cachedArmStatus = (today: string) => (cached?.today === today ? cached.status : null);
+/** 오늘 값을 새로 받는다 — 받으면 옆 칸(cached)에 둔다. 그새 로그아웃 등으로 캐시를 비웠으면 버린다 */
+function fetchToday(): Promise<Today | null> {
+  const e = cacheEpoch();
+  return rpc<({ ok: true } & Today) | { ok: false; error: string }>('app.loadAppPitchToday').then(
+    (r) => {
+      if (!r.ok || e !== cacheEpoch()) return null;
+      cached = r;
+      return r;
+    },
+    () => null
+  );
+}
+/**
+ * 그날 화면(오늘)의 팔 상태 한 줄 · 회복식 한 줄 — 받아 둔 것을 먼저 보이고, 그날 기록이 바뀔 때마다(key) 새로 받는다
+ * (웹은 저장 뒤 quietRefresh 로 곧바로 뜬다 — 방금 남긴 불펜이 팔 상태 · 회복식에 든다).
+ */
+export function usePitchToday(today: string, enabled: boolean, key: string): Today | null {
+  const [data, setData] = useState<Today | null>(() => (cached?.today === today ? cached : null));
+  useEffect(() => {
+    if (!enabled) return;
+    let alive = true;
+    void fetchToday().then((r) => alive && r && setData(r));
+    return () => {
+      alive = false;
+    };
+  }, [enabled, key]);
+  return enabled && data?.today === today ? data : null;
+}
 const LEVEL = { danger: '위험', caution: '주의', safe: '안전' } as const;
 
 export function PitchTodayCard({ today }: { today: string }) {
@@ -39,15 +67,7 @@ export function PitchTodayCard({ today }: { today: string }) {
   const [saving, setSaving] = useState(false);
 
   const load = useCallback(() => {
-    const e = cacheEpoch();
-    void rpc<({ ok: true } & Today) | { ok: false; error: string }>('app.loadAppPitchToday').then(
-      (r) => {
-        if (!r.ok || e !== cacheEpoch()) return;
-        cached = r;
-        setData(r);
-      },
-      () => undefined
-    );
+    void fetchToday().then((r) => r && setData(r));
   }, []);
   /* 탭을 옮겼다 돌아와도(판은 붙어 있다) */
   useOnTabActive(() => load());

@@ -27,6 +27,7 @@ import { shiftDateKey, toDateKey } from '@/lib/pitch-stats';
 import { loadHomeFeed, loadHomeRings, type HomeRing } from '@/lib/report/home-today';
 import { loadTodayCoreCached } from '@/lib/report/today-data';
 import { armStatusOf, type ArmStatus } from '@/lib/report/arm-status';
+import { pitchNutritionLine, type NutritionLine } from '@/lib/nutrition/nudge';
 import type { FeedItem } from '@/lib/report/feed-items';
 import {
   armcareCardData,
@@ -420,6 +421,8 @@ export async function loadAppPitchToday(): Promise<
       logged: { pitches: number } | null;
       unloggedVelocity: number | null;
       throwCard: { plan: string | null; hasCheckin: boolean; hint: string | null };
+      /** 던진 뒤 회복식 한 줄 — 오늘 불펜 · 라이브 · 경기 기록이 있을 때만(웹 그날 화면 NutritionLineNote, lib/nutrition/nudge.ts) */
+      nutritionLine: NutritionLine | null;
     }
   | { ok: false; error: string }
 > {
@@ -428,7 +431,7 @@ export async function loadAppPitchToday(): Promise<
   const now = appNow();
   const todayKey = toDateKey(now);
   const todayAt = dbDate(todayKey);
-  const [gathered, todayLogs, velocityToday, checkinToday, calendarRows] = await Promise.all([
+  const [gathered, todayLogs, velocityToday, checkinToday, calendarRows, nutritionLine] = await Promise.all([
     gatherFactsAndPlan(user, now),
     prisma.pitchLog.findMany({ where: { userId: user.id, date: todayAt }, select: { pitchCount: true, createdAt: true } }),
     prisma.velocitySession.findMany({
@@ -443,6 +446,7 @@ export async function loadAppPitchToday(): Promise<
       where: { userId: user.id, date: { gte: todayAt, lte: dbDate(shiftDateKey(todayKey, 1)) } },
       select: { date: true, title: true },
     }),
+    pitchNutritionLine(user, todayKey, todayKey),
   ]);
   const outingOn = (day: string) => calendarRows.some((e) => keyOfDbDate(e.date) === day && isOutingTitle(e.title));
   return {
@@ -460,5 +464,6 @@ export async function loadAppPitchToday(): Promise<
       hasCheckin: checkinToday != null,
       hint: outingOn(todayKey) ? '오늘 등판' : outingOn(shiftDateKey(todayKey, 1)) ? '내일 등판' : null,
     },
+    nutritionLine,
   };
 }
