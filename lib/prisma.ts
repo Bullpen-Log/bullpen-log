@@ -7,7 +7,11 @@ import { PrismaPg } from '@prisma/adapter-pg';
  * 트랜잭션 모드)라 연결 하나가 DB 연결을 붙잡지 않는다 — 풀러의 손님 연결 한도(작은 요금제도 수백)에 비해 넉넉히 작다.
  * 'too many clients' 같은 오류가 보이면 이 숫자부터 내린다.
  */
-const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL, max: 20 });
+/*
+ * 2026-10-19 김민: 배포가 몇 번 이어지자 풀러 손님 연결 200 이 꽉 차(EMAXCONN) 모든 화면이 '화면을 불러오지 못했어요'. 서버 함수 인스턴스마다 20개까지
+ * 쥐고, 쉬는(얼어 있는) 인스턴스는 쥔 연결을 못 놓아 옛 배포 몫까지 쌓였다 → 인스턴스당 8개 · 2초 쉬면 바로 놓는다.
+ */
+const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL, max: 8, idleTimeoutMillis: 2_000 });
 
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
 
