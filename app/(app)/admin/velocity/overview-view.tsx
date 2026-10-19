@@ -13,6 +13,7 @@ import {
 import { BiasChart } from './overview-client';
 import { FileMeasureButton } from './file-measure-button';
 import { VelocityExplorer } from './explorer';
+import type { RecordingListItem } from '@/lib/velocity-recording-load';
 import { MobileVelocityAdmin } from './mobile-admin';
 import { explorerHref, type ExplorerPath } from './explorer-path';
 import type { FolderStat } from './explorer-panels';
@@ -37,6 +38,7 @@ export function VelocityAdminView({
   pick,
   recordings = 0,
   sessionRecordings = 0,
+  sessionList = [],
 }: {
   data: AdminOverview;
   path: ExplorerPath;
@@ -49,6 +51,8 @@ export function VelocityAdminView({
   recordings?: number;
   /** 세션 녹화 수(측정하는 동안 통째로) — 따로 단추 */
   sessionRecordings?: number;
+  /** 세션 녹화 목록 — 탐색기의 [세션 녹화] 폴더 */
+  sessionList?: RecordingListItem[];
 }) {
   const { totals, overall, fit } = data;
 
@@ -158,6 +162,7 @@ export function VelocityAdminView({
         day={day}
         run={run}
         initialPick={pick}
+        recordings={sessionList}
       />
 
       <section className="space-y-3">
