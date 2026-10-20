@@ -4,7 +4,7 @@ import { GlassView, isLiquidGlassAvailable } from 'expo-glass-effect';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
-import Animated, { Easing, runOnJS, useAnimatedStyle, useReducedMotion, useSharedValue, withDelay, withSequence, withSpring, withTiming, type SharedValue } from 'react-native-reanimated';
+import Animated, { Easing, Extrapolation, interpolate, runOnJS, useAnimatedStyle, useReducedMotion, useSharedValue, withDelay, withSequence, withSpring, withTiming, type SharedValue } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { usePalette, useTheme, withAlpha } from '~/lib/ui';
 import { Icon, type IconName } from '~/shell/icon';
@@ -35,6 +35,11 @@ const GLYPH: Record<string, IconName> = {
   utensils: 'utensils',
   community: 'messages-square',
   menu: 'squares',
+  /* 커뮤니티 하단바(app/community/index.tsx) */
+  community: 'messages-square',
+  flame: 'flame',
+  book: 'book-open',
+  pencil: 'pencil',
 };
 
 /**
@@ -50,6 +55,13 @@ const POS_SPRING = { stiffness: 290, damping: 25.5, mass: 1 };
 const LIFT_SPRING = { stiffness: 420, damping: 34, mass: 1 };
 const LIFT_SX = 0.22;
 const LIFT_SY = 0.28;
+/*
+ * 딴 하단바로 갈아타기 — 토스뱅크 '증권'(2026-10-20 김민 화면 녹화)처럼 들어오는 순간 옛 막대 자리를 덮은 알약에 고른 탭 하나만 남고,
+ * 가운데로 오므라들었다가 왼쪽의 동그란 ← 와 새 탭들로 펴진다(약 0.38초). ← 를 누르면 거꾸로 오므라들며 앞 화면으로.
+ */
+const MORPH_EASE = Easing.bezier(0.32, 0.72, 0, 1);
+const BACK = ITEM_H + PAD * 2;
+const BACK_GAP = 8;
 
 /** 테마마다 알약 · 렌즈 · 글자 색 — globals.css [data-tab-bar] 의 --tab-base · --tab-edge · --lens-ink · --tab-on · --tab-off */
 function tabColors(theme: 'light' | 'dark' | 'navy', sky: string, muted: string) {
@@ -76,7 +88,21 @@ function tabColors(theme: 'light' | 'dark' | 'navy', sky: string, muted: string)
   };
 }
 
-export function TabBar({ tabs, active, onPress }: { tabs: ShellTab[]; active: string | null; onPress: (t: ShellTab) => void }) {
+export function TabBar({
+  tabs,
+  active,
+  onPress,
+  back,
+  enter = false,
+}: {
+  tabs: ShellTab[];
+  active: string | null;
+  onPress: (t: ShellTab) => void;
+  /** 왼쪽에 따로 떨어진 동그란 ← (딴 하단바에서 앞 화면으로) */
+  back?: () => void;
+  /** 처음 붙을 때 옛 막대에서 오므렸다 펴지며 들어온다 */
+  enter?: boolean;
+}) {
   const c = usePalette();
   const theme = useTheme();
   const inset = useSafeAreaInsets();
@@ -89,6 +115,21 @@ export function TabBar({ tabs, active, onPress }: { tabs: ShellTab[]; active: st
   const [width, setWidth] = useState(0);
   const [spin, setSpin] = useState(0);
   const cell = width > 0 ? (width - PAD * 2) / Math.max(1, tabs.length) : 0;
+  const reduce = useReducedMotion();
+  /* 갈아타기 진행(0 = 옛 막대 자리를 덮은 알약에 고른 탭 하나, 1 = 다 펴짐) */
+  const open = useSharedValue(enter && !reduce ? 0 : 1);
+  useEffect(() => {
+    if (enter && !reduce) open.set(withTiming(1, { duration: 380, easing: MORPH_EASE }));
+  }, [enter, reduce, open]);
+  /* 알약 좌표에서 막대 줄(← 자리까지)의 가운데 — 오므라든 알약 · 고른 탭이 여기 모인다 */
+  const side = back ? BACK + BACK_GAP : 0;
+  const mid = (width - side) / 2;
+  const leave = () => {
+    if (!back) return;
+    void Haptics.selectionAsync();
+    if (!reduce) open.set(withTiming(0, { duration: 220, easing: MORPH_EASE }));
+    back();
+  };
 
   const pos = useSharedValue(index);
   const lift = useSharedValue(0);
@@ -173,8 +214,8 @@ export function TabBar({ tabs, active, onPress }: { tabs: ShellTab[]; active: st
     ],
   }));
   const lensStyle = useAnimatedStyle(() => ({
-    /* 유리 렌즈가 뜨는 동안 회색 캡슐은 옅어진다 */
-    opacity: shown.value * (glass ? 1 - 0.85 * lift.value : 1),
+    /* 유리 렌즈가 뜨는 동안 회색 캡슐은 옅어진다 · 갈아타는 동안은 다 펴진 뒤에 */
+    opacity: shown.value * (glass ? 1 - 0.85 * lift.value : 1) * interpolate(open.value, [0.7, 1], [0, 1], Extrapolation.CLAMP),
     transform: [
       { translateX: pos.value * cell },
       { scaleX: 1 + LIFT_SX * lift.value },
@@ -200,6 +241,36 @@ export function TabBar({ tabs, active, onPress }: { tabs: ShellTab[]; active: st
       </>
     );
   };
+  /* 갈아타기 — 알약 판은 옛 막대 자리(← 자리까지) → 가운데로 오므라듦 → 제자리, ← 는 펴질 때 옆에서 나온다 */
+  const bgStyle = useAnimatedStyle(() => {
+    const half = Math.max(ITEM_H, width * 0.25);
+    return {
+      left: interpolate(open.value, [0, 0.5, 1], [-side, mid - half, 0]),
+      right: interpolate(open.value, [0, 0.5, 1], [0, width - mid - half, 0]),
+    };
+  });
+  const backStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(open.value, [0.45, 0.85], [0, 1], Extrapolation.CLAMP),
+    transform: [
+      { translateX: interpolate(open.value, [0.45, 1], [side / 2, 0], Extrapolation.CLAMP) },
+      { scale: interpolate(open.value, [0.45, 1], [0.7, 1], Extrapolation.CLAMP) },
+    ],
+  }));
+  const shadowCss = `0 1px 2px ${withAlpha(col.shadow, col.drop * 0.4)}, 0 8px 22px -4px ${withAlpha(col.shadow, col.drop * 0.8)}, 0 22px 48px -14px ${withAlpha(col.shadow, col.drop)}`;
+  /* 유리 판(진짜 유리 또는 반투명 색) + 가장자리 빛 — 알약 · ← 동그라미가 같이 쓴다 */
+  const glassFace = (
+    <>
+      {glass ? (
+        /* iOS 26 진짜 유리 — 테마 색을 살짝 얹는다 */
+        <GlassView glassEffectStyle="clear" tintColor={col.tint} colorScheme={theme === 'light' ? 'light' : 'dark'} style={[StyleSheet.absoluteFill, { borderRadius: 999 }]} />
+      ) : (
+        <View style={[StyleSheet.absoluteFill, { borderRadius: 999, backgroundColor: col.base, borderColor: col.edge, borderWidth: 1 }]} />
+      )}
+      {/* 유리 가장자리 빛 — 위 테두리가 밝게 빛나 두께가 보인다 */}
+      <View pointerEvents="none" style={[StyleSheet.absoluteFill, { borderRadius: 999, boxShadow: col.rim }]} />
+    </>
+  );
+
   /* 렌즈 안의 아이콘 한 벌 — 렌즈가 옮긴 만큼 거꾸로 밀어 밑의 줄과 겹치게, 렌즈가 부풀면 같이 커져 확대돼 보인다. 렌즈 속은 늘 고른 색(파랑) */
   const lensFacesStyle = useAnimatedStyle(() => ({ transform: [{ translateX: -pos.value * cell }] }));
 
@@ -232,9 +303,11 @@ export function TabBar({ tabs, active, onPress }: { tabs: ShellTab[]; active: st
             }}
             style={({ pressed }) => [styles.item, t.locked && { opacity: 0.55 }, pressed && { transform: [{ scale: 0.94 }] }]}
           >
-            <UnderLens i={k} pos={pos} lift={lift} active={glass && lensGlass}>
-              {face(t, on)}
-            </UnderLens>
+            <Morph open={open} on={on} shift={mid - (PAD + cell * (k + 0.5))}>
+              <UnderLens i={k} pos={pos} lift={lift} active={glass && lensGlass}>
+                {face(t, on)}
+              </UnderLens>
+            </Morph>
           </Pressable>
         );
       })}
@@ -250,53 +323,60 @@ export function TabBar({ tabs, active, onPress }: { tabs: ShellTab[]; active: st
 
   return (
     <View pointerEvents="box-none" style={[styles.wrap, { paddingBottom: gap, paddingLeft: Math.max(20, inset.left), paddingRight: Math.max(20, inset.right) }]}>
-      {/* 떠 있는 겹 그림자(접촉 · 가까운 · 먼 그림자) — 바닥에서 떠 보이게 */}
-      <View
-        style={[
-          styles.shadow,
-          {
-            boxShadow: `0 1px 2px ${withAlpha(col.shadow, col.drop * 0.4)}, 0 8px 22px -4px ${withAlpha(col.shadow, col.drop * 0.8)}, 0 22px 48px -14px ${withAlpha(col.shadow, col.drop)}`,
-          },
-        ]}
-        onLayout={(e) => setWidth(e.nativeEvent.layout.width)}
-      >
-        {/*
-         * 층 차례(밑에서 위로): 유리 판 → 가장자리 빛 → 유리 렌즈 → 아이콘 줄. 렌즈가 아이콘 위에 오면 아이콘이 굴절돼 일그러졌다
-         * (2026-10-19 김민 화면 녹화) — iOS 26 탭 막대처럼 렌즈는 아이콘 밑에 깔리고 아이콘은 또렷하게 위에.
-         */}
-        {glass ? (
-          /* iOS 26 진짜 유리 — 테마 색을 살짝 얹는다 */
-          <GlassView glassEffectStyle="clear" tintColor={col.tint} colorScheme={theme === 'light' ? 'light' : 'dark'} style={[StyleSheet.absoluteFill, { borderRadius: 999 }]} />
-        ) : (
-          <View style={[StyleSheet.absoluteFill, { borderRadius: 999, backgroundColor: col.base, borderColor: col.edge, borderWidth: 1 }]} />
-        )}
-        {/* 유리 가장자리 빛 — 위 테두리가 밝게 빛나 두께가 보인다 */}
-        <View pointerEvents="none" style={[StyleSheet.absoluteFill, { borderRadius: 999, boxShadow: col.rim }]} />
-        {/* 유리 렌즈 — 고른 칸 밑에서 막대 밖으로 부푼다(누르기는 그대로 지나간다) */}
-        {glass && cell > 0 ? (
-          <Animated.View
-            pointerEvents="none"
-            style={[styles.glassLens, { width: cell, zIndex: 1 }, lensGlass && { boxShadow: col.glassRim }, glassLensStyle]}
-          >
-            <GlassView
-              glassEffectStyle={{ style: lensGlass ? 'clear' : 'none', animate: true, animationDuration: 0.22 }}
-              colorScheme={theme === 'light' ? 'light' : 'dark'}
-              style={[StyleSheet.absoluteFill, { borderRadius: 999, overflow: 'hidden' }]}
+      {/* 갈아탈 때는 폭을 잰 뒤에 보인다 — 재기 전 한 장면은 오므라든 자리를 셀 수 없다 */}
+      <View pointerEvents="box-none" style={[styles.line, enter && width === 0 && { opacity: 0 }]}>
+        {back ? (
+          <Animated.View style={[styles.back, { boxShadow: shadowCss }, backStyle]}>
+            {glassFace}
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="돌아가기"
+              onPress={leave}
+              hitSlop={6}
+              style={({ pressed }) => [styles.backHit, pressed && { transform: [{ scale: 0.92 }] }]}
             >
-              {/* iOS 유리는 형제 층보다 위에 그려져 밑의 아이콘이 뭉개진다 — 유리 안에 아이콘을 한 벌 그려 또렷하게(확대) */}
-              {lensGlass ? (
-                <Animated.View style={[styles.lensFaces, { width: cell * tabs.length }, lensFacesStyle]}>
-                  {tabs.map((t) => (
-                    <View key={t.href} style={[styles.item, { width: cell, flex: 0 }]}>
-                      {face(t, true)}
-                    </View>
-                  ))}
-                </Animated.View>
-              ) : null}
-            </GlassView>
+              {/* ← (그림 모음에 왼쪽 화살표가 없어 오른쪽 화살표를 돌림) */}
+              <View style={{ transform: [{ rotate: '180deg' }] }}>
+                <Icon name="arrow-right" size={24} color={c.ink} />
+              </View>
+            </Pressable>
           </Animated.View>
         ) : null}
-        <View style={[styles.pill, { zIndex: 2 }]}>{row}</View>
+        <View style={styles.shadow} onLayout={(e) => setWidth(e.nativeEvent.layout.width)}>
+          {/*
+           * 층 차례(밑에서 위로): 유리 판 → 가장자리 빛 → 유리 렌즈 → 아이콘 줄. 렌즈가 아이콘 위에 오면 아이콘이 굴절돼 일그러졌다
+           * (2026-10-19 김민 화면 녹화) — iOS 26 탭 막대처럼 렌즈는 아이콘 밑에 깔리고 아이콘은 또렷하게 위에.
+           * 떠 있는 겹 그림자(접촉 · 가까운 · 먼 그림자)는 판에 — 갈아탈 때 판과 같이 오므라든다.
+           */}
+          <Animated.View pointerEvents="none" style={[styles.bg, { boxShadow: shadowCss }, bgStyle]}>
+            {glassFace}
+          </Animated.View>
+          {/* 유리 렌즈 — 고른 칸 밑에서 막대 밖으로 부푼다(누르기는 그대로 지나간다) */}
+          {glass && cell > 0 ? (
+            <Animated.View
+              pointerEvents="none"
+              style={[styles.glassLens, { width: cell, zIndex: 1 }, lensGlass && { boxShadow: col.glassRim }, glassLensStyle]}
+            >
+              <GlassView
+                glassEffectStyle={{ style: lensGlass ? 'clear' : 'none', animate: true, animationDuration: 0.22 }}
+                colorScheme={theme === 'light' ? 'light' : 'dark'}
+                style={[StyleSheet.absoluteFill, { borderRadius: 999, overflow: 'hidden' }]}
+              >
+                {/* iOS 유리는 형제 층보다 위에 그려져 밑의 아이콘이 뭉개진다 — 유리 안에 아이콘을 한 벌 그려 또렷하게(확대) */}
+                {lensGlass ? (
+                  <Animated.View style={[styles.lensFaces, { width: cell * tabs.length }, lensFacesStyle]}>
+                    {tabs.map((t) => (
+                      <View key={t.href} style={[styles.item, { width: cell, flex: 0 }]}>
+                        {face(t, true)}
+                      </View>
+                    ))}
+                  </Animated.View>
+                ) : null}
+              </GlassView>
+            </Animated.View>
+          ) : null}
+          <View style={[styles.pill, { zIndex: 2 }]}>{row}</View>
+        </View>
       </View>
     </View>
   );
@@ -306,11 +386,11 @@ const styles = StyleSheet.create({
   lockBadge: { position: 'absolute', right: -4, bottom: -3, width: 13, height: 13, borderRadius: 7, alignItems: 'center', justifyContent: 'center' },
   wrap: { position: 'absolute', left: 0, right: 0, bottom: 0, alignItems: 'center' },
   /* 그림자는 boxShadow — 바탕 없는 칸의 shadow* 는 iOS 가 장면마다 속 그림의 모양을 다시 셈했다(유리 알약 뒤라 바탕을 못 깐다) */
-  shadow: {
-    width: '100%',
-    maxWidth: 448,
-    borderRadius: 999,
-  },
+  line: { flexDirection: 'row', width: '100%', maxWidth: 448, gap: BACK_GAP },
+  shadow: { flex: 1, borderRadius: 999 },
+  bg: { position: 'absolute', top: 0, bottom: 0, borderRadius: 999 },
+  back: { width: BACK, height: BACK, borderRadius: 999 },
+  backHit: { flex: 1, alignItems: 'center', justifyContent: 'center', borderRadius: 999 },
   pill: { flexDirection: 'row', padding: PAD, borderRadius: 999 },
   row: { flex: 1, flexDirection: 'row' },
   lens: { position: 'absolute', top: 0, left: 0, height: ITEM_H, borderRadius: 999 },
@@ -361,4 +441,14 @@ function UnderLens({ i, pos, lift, active, children }: { i: number; pos: SharedV
     return { opacity: 1 - near * Math.min(1, lift.value * 1.5) };
   });
   return <Animated.View style={[{ alignItems: 'center', gap: 2 }, style]}>{children}</Animated.View>;
+}
+
+/** 갈아타기 중 칸 하나 — 고른 탭은 가운데에 모였다가 제자리로, 나머지는 펴질 때 나타난다 */
+function Morph({ open, on, shift, children }: { open: SharedValue<number>; on: boolean; shift: number; children: ReactNode }) {
+  const style = useAnimatedStyle(() =>
+    on
+      ? { opacity: 1, transform: [{ translateX: interpolate(open.value, [0, 0.5, 1], [shift, shift, 0]) }] }
+      : { opacity: interpolate(open.value, [0.5, 0.9], [0, 1], Extrapolation.CLAMP), transform: [{ translateX: 0 }] }
+  );
+  return <Animated.View style={style}>{children}</Animated.View>;
 }

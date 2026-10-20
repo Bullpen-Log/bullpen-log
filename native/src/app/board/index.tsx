@@ -17,6 +17,11 @@ type List = Awaited<ReturnType<typeof loadAppBoard>>;
 type Article = Extract<List, { ok: true }>['articles'][number];
 
 export default function BoardScreen() {
+  return <BoardList back="뒤로" />;
+}
+
+/** 자료실 목록 — 이 화면과 커뮤니티 하단바의 '자료실' 칸(app/community/index.tsx)이 같이 쓴다. bottom = 밑에 깔린 하단바 높이 */
+export function BoardList({ back, bottom = 0 }: { back?: string; bottom?: number }) {
   const c = usePalette();
   const inset = useSafeAreaInsets();
   const { data, error, reload } = useLoad<List>('board.loadAppBoard');
@@ -55,7 +60,7 @@ export default function BoardScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: c.page }}>
       <Bar
-        back="뒤로"
+        back={back}
         title="자료실"
         right={data?.canWrite ? <BarButton label="글쓰기" onPress={() => router.push('/board/new' as Href)} c={c} /> : null}
         c={c}
@@ -67,7 +72,7 @@ export default function BoardScreen() {
           data={data.articles}
           keyExtractor={(a) => a.id}
           renderItem={row}
-          contentContainerStyle={[{ padding: 16, paddingBottom: inset.bottom + 32 }, READABLE]}
+          contentContainerStyle={[{ padding: 16, paddingBottom: inset.bottom + bottom + 32 }, READABLE]}
           refreshControl={
             <RefreshControl
               refreshing={pulling}
