@@ -145,13 +145,16 @@
 
 ## 10. 1단계 일 목록(Claude 기준)
 
-- [ ] **T1** DB 더하기(`User.position` · `battingHand` · `hitSetupAt`, 새 표 `HittingLog`) — 백업 → 금윤호에게 먼저 알림 → migrate diff → deploy → generate. 1시간
-- [ ] **T2** 타격 첫 설정 · 잠금('타격 시작하기', `lib/feature-locks.ts` 에 hitting). 1~2시간
-- [ ] **T3** 종목 바(웹) — `lib/nav.ts` 표 · `MobileTabs` 주소로 바 바꾸기 · 판 셋째 `@hitting`. 3~4시간
-- [ ] **T4** 트레이닝 `?sport=` — 종목 바 · 타자면 투구 전용 카드 숨김(CEO WARNING). 2~3시간
-- [ ] **T5** 타격 일지 + 캘린더(`/hitting`, 투구 기록 폼 꼴 · 2분 중복 막기 · 신호 끊김). 5~7시간
-- [ ] **T6** 새 앱 하단바 · 종목 바(`native/src/shell/tab-bar.tsx`) — 금윤호 영역, 앱 굽기. 3~4시간
-- [ ] **T7** 확인 — tsc · 시험(training:test 에 'sport=hit 도 같은 판') · 휴대폰 375 · 앱 실기기.
+- [x] **T1** DB 더하기(`User.position` · `battingHand` · `hitSetupAt`, 새 표 `HittingLog`) — 백업 → 금윤호에게 먼저 알림 → migrate diff → deploy → generate. 1시간
+- [x] **T2** 타격 첫 설정 · 잠금('타격 시작하기', `lib/feature-locks.ts` 에 hitting). 1~2시간
+- [x] **T3** 종목 바(웹) — `lib/nav.ts` 표 · `MobileTabs` 주소로 바 바꾸기 · 판 셋째 `@hitting`. 3~4시간
+- [x] **T4** 트레이닝 `?sport=` — 종목 바 · 타자면 투구 전용 카드 숨김(CEO WARNING). 2~3시간
+- [x] **T5** 타격 일지 + 캘린더(`/hitting`, 투구 기록 폼 꼴 · 2분 중복 막기 · 신호 끊김). 5~7시간
+- [x] **T6** 새 앱 하단바 · 종목 바(`native/src/shell/tab-bar.tsx`) — 금윤호 영역, 앱 굽기. 3~4시간
+- [~] **T7** 확인 — tsc · 시험(training:test 에 'sport=hit 도 같은 판') · 휴대폰 375 · 앱 실기기.
+  - 2026-10-20 한 것: 웹 tsc · eslint · `npm run hitting:test` 18 · `integration:test` 33 통과(실패 [13] 카메라 Swift 둘은 이 일과 무관).
+    안 한 것: 휴대폰 375 브라우저 확인(이 PC 에서 다른 세션 개발 서버가 돌아 못 켬) · 새 앱 tsc(이 PC 에 native node_modules 없음) · 앱 실기기 · training:test 의 'sport=hit' 시험.
+  - 1단계에서 아직 안 만든 것: 타격 일지의 영상 · 만족도 칸(DB 칸은 있음) · 종목 바 ‹ 는 늘 홈(/today)으로.
 
 ## GSTACK REVIEW REPORT
 

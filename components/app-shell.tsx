@@ -1340,6 +1340,8 @@ export function AppNav({
       <Suspense fallback={null}>
         <ExpoTabBridge
           tabs={tabs}
+          sportBars={sportBars}
+          defaultSport={defaultSport}
           onMenu={() => go('sheet')}
           groups={groups}
           nickname={nickname}
