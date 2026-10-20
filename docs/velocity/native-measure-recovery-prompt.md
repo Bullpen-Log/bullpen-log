@@ -1,0 +1,204 @@
+# 새 앱(Expo) 구속 측정 · 세션 녹화 복구 — 분석과 작업 프롬프트(영어)
+
+2026-10-20 13:22~13:30 KST, 금윤호가 새 앱(Expo)으로 실내에서 잰 세션: 구속이 거의 안 잡혔고(완료된 시도 11 중 2만 성공, 나머지는 30초 시한 초과),
+세션 녹화는 조각이 띄엄띄엄 올라갔다. 같은 자리 · 같은 조건에서 옛 앱(웹 포장)은 잘 쟀다. 아이폰 화면 녹화 셋(1:33 · 0:51 · 0:25)과
+DB(시도 기록 · 녹화 표)를 읽어 원인을 좁혔다. 아래는 그 분석을 바탕으로 **다음 세션(또는 다른 Claude)이 그대로 따라 할 수 있는 작업 프롬프트**다.
+사용자 규칙(2026-10-14): 프롬프트는 영어로.
+
+---
+
+# PROMPT — Recover velocity measurement and session recording in the new Expo app
+
+## 0. Role and ground rules
+
+You are the velocity-engine engineer for Bullpen Log. Repo: `/Users/yuno/Developer/bullpen-log`. The new iPhone app lives in `native/` (Expo SDK 58,
+Expo Router, path alias `~/` = `native/src`, `@/` = repo root). The old app is `mobile/` (Capacitor, web wrapped). Read `AGENTS.md` and `HANDOFF.md`
+first (two developers share one production DB — never run `prisma migrate dev`/`db push`, push only when the user says "올려줘", commit messages and
+UI text in Korean, HANDOFF memo to 김민 for anything touching `native/src/velocity/*`, `native/modules/dual-camera/*`, `app/velocity-engine/*`).
+
+Do NOT change the pure engine (`lib/velocity-engine/*`, `lib/abs/*`) — its numbers are validated by tests and speed-gun pairs. The problem is in
+the **app-side data path and runtime load**, not in the engine math.
+
+Work in phases below. After each phase: `cd native && npx tsc --noEmit && npx expo lint`, root `npx tsc --noEmit`, `npm run velocity:engine2-test`,
+commit, and ask the user before moving on (Korean rule: 단계마다 커밋하고 다음을 물어봐). Phone verification is the user's job — give them a
+concrete checklist each time.
+
+## 1. What happened (evidence, do not re-derive)
+
+Session 2026-10-20 13:22–13:30 KST, user `cdeb1a…`, new Expo app, indoor tunnel, phone on tripod behind the pitcher, 2× zoom, LTE.
+Three iPhone screen recordings (`~/Downloads/ScreenRecording_10-20-2026 13-2{5,7,9}-*.MP4`) show:
+
+1. The camera status pill (top-right, `InfoPill` in `native/src/app/velocity.tsx`, fed by the `fps` event of `native/modules/dual-camera`) read
+   **`1080p · 16~41fps · 2배 · 버림 19~55`** for the whole session — including after the session ended and nothing else was running
+   (`1080p · 31fps · 2배 · 버림 29` at 13:29:45). `fps` = frames delivered to `captureOutput(didOutput:)`, `버림` = frames discarded by
+   `alwaysDiscardsLateVideoFrames` (`DualCameraCore.swift:937–953`). So the capture delegate (`mainQueue`) kept up with only ~half of the 60 fps
+   stream. **Dropped frames never reach `SegmentRecorder.append`, so every clip the engine received had ~20–30 real frames per second with
+   irregular gaps while being labelled 60 fps.**
+2. Result notices cycled between `계산이 밀려 공 하나를 건너뛰었어요` (`AppCapture` queue full, `capture.ts:149`) and
+   `계산이 너무 오래 걸려 이번 공은 재지 못했어요` (engine `TIMEOUT_MS` 30 s, `native/src/velocity/engine.tsx:72`).
+3. Session-recording chip went `녹화 중 · 올림 0/2` → … → `올림 6/9 · 실패 14` (recording 1) and `올림 9/9 · 실패 16` (recording 2).
+
+DB (read-only, `VelocityAttempt` / `VelocityRecording` for 2026-10-20):
+
+- 11 attempts **completed** (timeouts are not recorded — see §4.1): 2 ok (`sweep` 75.8 km/h high, `motion` 58.8 km/h low), 9 failed —
+  7× `NOT_ENOUGH_FRAMES` (`trackFrames 0`, why `no-ball`/`no-flight`), 2× `UNSTABLE_TRACK`, 1× `LOW_CONFIDENCE` (110.3 km/h, 34 frames).
+  Yesterday with the old web-wrapped app the same user had 12 ok attempts (8 `ball`, 3 `seed`, 1 `motion`).
+- Two recordings exist and are `done`: #1 40.7 s with 7 parts (0–28 s contiguous), #2 145.8 s with **9 parts covering only ~40 s**
+  (offsets 0, 3.6, 7.6, 15.6, 39.6, 47.6, 59.6, 71.6, 83.6 — gaps of 4–20 s). Each part is 7–10 MB for 4.5 s (= 14 Mbps). So the files are
+  there (admin → 구속 측정 → 세션 녹화 `?kind=session`), but with holes. The user believed nothing was saved.
+- One session was saved with 1 pitch (engine 2.7.2).
+
+## 2. Root-cause analysis (ranked; confirm in Phase A before fixing)
+
+**R1 — The capture pipeline is starved: half the frames are dropped before they are recorded.** This alone explains `NOT_ENOUGH_FRAMES`,
+`trackFrames 0`, and `LOW_CONFIDENCE`. The engine's flight detection needs ≥20 consecutive frames at the nominal fps; a 60 fps clip that really
+holds 25 fps with gaps looks like a ball that keeps vanishing. Candidate causes, most likely first:
+
+- **R1a — Debug (unoptimized Swift) build on the phone.** `scripts/velocity-lab/README.md:65` already documents this exact symptom from
+  2026-10-08: "개발용(Debug)은 최적화 없이 구워져 공 찾기가 장면마다 수십 ms 걸리고 … 초당 20장으로 찍혔다 (최적화하니 60장 · 장면당 2ms)".
+  `MotionTrigger.feed` runs synchronously on the capture queue per frame (`DualCameraCore.swift:698–760`). In addition the `#if DEBUG`
+  `LabRecorder` (`lab.append`, 30 Mbps one-minute files, `DualCameraCore.swift:706, 1254`) writes every frame to disk. The GitHub workflow
+  (`.github/workflows/ios-native.yml`) builds `-configuration Release`, but on 2026-10-19/20 김민 was building to phones from Xcode after
+  `expo prebuild` + `pod install` (HANDOFF 10-20) — `npx expo run:ios --device` defaults to **Debug**. The old app the user compared against
+  came from TestFlight (Release). Nothing in the recordings tells us which build was installed.
+- **R1b — CPU contention from the new app's JS data path** (only matters if R1a is excluded). Every clip crosses two string bridges:
+  `DualCamera.read` → base64 (1 MB chunks) → Hermes → `JSON.stringify` → `WebView.postMessage` → escaped into JS source →
+  WebKit parses a ~1.3 MB string literal → `atob` → bytes (`native/src/velocity/engine.tsx:139–147`, `app/velocity-engine/engine-client.tsx:120–139`).
+  The sweep (`capture.ts sweep()`, every 5 s, 6 s window ≈ 10 MB at 14 Mbps → 13 MB of base64 every 5 s) runs the whole time the shutter is
+  armed, on top of ball/motion clips (1.7–3.1 s ≈ 3–5 MB) and session-recording cuts (4 s ≈ 8 MB every 4 s, native upload). The old app had
+  one hop (Capacitor plugin → the same WKWebView). The Hermes JS thread also re-renders the 968-line screen at 10 Hz from `level` events
+  (`DualCameraModule.swift:167 deviceMotionUpdateInterval = 0.1` → `setTilt` → whole `VelocityScreen` + `useAbs` memo chain).
+- **R1c — iOS screen recording** (ReplayKit encoder) was on during the test; it adds load but did not exist in the old-app comparison either, so it is
+  a multiplier, not the cause.
+
+**R2 — The hidden engine WebView can take >30 s per clip under load.** Timeouts are consistent with R1b plus WebKit giving a 1 pt, 0.01-opacity
+`WKWebView` low priority. Note `ask()` only records an attempt when a result comes back (`capture.ts:230–248`), so every timeout is invisible in
+the DB — we cannot tell how many balls were lost to timeouts vs. to frame drops. Fix the telemetry first (Phase A).
+
+**R3 — Session recording: uploads cannot keep up on LTE, and backlog is dropped instead of spooled.** 4 s cuts at 14 Mbps = 8 MB every 4 s
+= 16 Mbps upstream; LTE gives 5–15. `native/src/velocity/session-recorder.ts` keeps `MAX_PENDING = 3` and **skips** the segment when the queue
+is full (`'올리기가 밀려 조각 하나를 건너뛰었어요'`, line 83) and also skips when the cut falls behind the 8 s buffer (`'카메라가 밀려 몇 초를
+건너뛰었어요'`, line 73). The web recorder (`lib/velocity-dual-recorder.ts`) was already fixed on 2026-10-19 for the same problem:
+`RECORD_MAX_PENDING` 3 → 6 and spill-to-phone (`saveBlobToPhone` → upload after stop → delete). The app recorder was not ported. The same
+backlog also happens when frames are dropped (R1) because `DualCamera.clip` fails more often.
+
+## 3. Phase A — Diagnose before touching behaviour (≈2 h)
+
+Goal: make the next field test self-explaining. All of this is additive and safe to ship.
+
+A1. **Build identity in the UI.** In `native/src/app/velocity.tsx` show build configuration in the camera-info pill tooltip / admin
+    diagnostics: `__DEV__`, `Constants.expoConfig?.version`, `Application.nativeBuildVersion`, and from Swift a new `StartInfo.debugBuild: Bool`
+    (`#if DEBUG true #else false`) plus `optimized: Bool` (compile-time: `#if swift(>=5) && !DEBUG`… simplest is `debugBuild`). Also expose
+    `ProcessInfo.thermalState` in the `fps` event (`thermal: Int`). Pill text when degraded: `1080p · 24fps · 버림 36 · DEBUG` so the user sees it.
+
+A2. **Per-stage timing in the app console and in the attempt record.** In `native/src/velocity/capture.ts measure()` and `engine.tsx ask()`
+    measure: `clipMs` (DualCamera.clip), `readMs` (all chunks), `bridgeBytes`, `engineMs` (`ms` already returned by the engine page),
+    `decodeMs/analyzeMs` (engine-client already has `timing` from `analyzeVideo` — forward it), `queueWaitMs`. Log one `[velo] …` line per job.
+    Add optional JSON columns is NOT allowed without 김민 (DB rule) — instead put the numbers into the existing `VelocityAttempt.why`-adjacent
+    field? No: keep DB shape; send them as `memo`-free console logs and, for admins, show the last 5 lines in the admin diagnostics sheet.
+
+A3. **Record timeouts as attempts.** In `capture.ts enqueue()`'s `.catch`, call `onAttempt` with `ok:false, code:'TIMEOUT'` (or `'ENGINE'` for
+    non-timeout errors), `why: err.message`, `trackFrames: null`. Server `velocity.recordVelocityAttempt` accepts arbitrary code strings — verify in
+    `app/actions/velocity.ts`. This makes the DB show lost balls.
+
+A4. **Frame-drop guard on the clip itself.** When `DualCamera.clip` returns, Swift knows the real frame count of the cut (count sample buffers
+    appended between `start` and `end`). Return `frames` and `fpsActual` in `Clip`; pass `fpsActual` to `MeasureOpts.fps` only if the engine is
+    happy with variable fps — otherwise pass nominal fps but add a note `프레임 N% 빠짐` to `offStandard` (`session.ts offStandardOf`) so the saved
+    analysis says why. If `fpsActual < 0.8 × nominal`, show the notice `카메라가 장면을 버리고 있어요(초당 N장)` once per 10 s.
+
+A5. **Field checklist for the user (print it in the final report):** open the camera screen, wait 5 s idle, read the pill. Healthy Release build:
+    `1080p · 60fps · 2배` with no `버림`. If `버림` > 5 at idle → R1a/R1 confirmed, stop and rebuild Release (or `SWIFT_OPTIMIZATION_LEVEL=-O`).
+
+## 4. Phase B — Fix session recording (≈2 h, independent of Phase A results)
+
+Port the web recorder's 2026-10-19 behaviour to `native/src/velocity/session-recorder.ts`:
+
+B1. `MAX_PENDING` 3 → 6; above that **spool instead of skip**: keep the cut file in the app's tmp dir (it already is — `main.path` from
+    `DualCamera.clip`), push `{index, path, bytes, offsetSec, durationSec}` to a `spooled[]` list, and after `stop()` upload them in order
+    (reuse `upload()`), then `DualCamera.discard`. Cap the spool by free disk (`DualCameraCore.swift minFreeBytes` already guards the recorder;
+    mirror a 1 GB cap here) — beyond the cap, drop oldest and count `failed`.
+B2. `stop()` must wait for the in-flight cut (`cutJob`, already done 2026-10-19), then the final tick, then spooled uploads, then `finish`.
+    Time-box: cut 15 s, each RPC 20 s, each upload 90 s (same as web), so `stop` always returns.
+B3. The "behind the 8 s buffer" skip is correct, but count how often it happens and surface `실패` reasons separately in the chip:
+    `올림 6/9 · 밀림 3 · 대기 2`. Add `spooled` to `RecState`.
+B4. Admin list (`app/(app)/admin/velocity/recordings`) already shows `영상 0:07만 올라감`; make sure a recording whose parts have gaps shows the
+    covered seconds (sum of part durations) vs `durationSec` — it does via `uploadedSec`; verify it reads the app's `offsetSec` correctly
+    (parts above show offsets like 39.6 s → should render as a gap, not as 9×4.5 s contiguous).
+B5. Tell the user where the files are: 관리자 → 구속 측정 → 세션 녹화(`?kind=session`) → today's two rows.
+
+## 5. Phase C — Remove the frame drops (≈3 h, after Phase A confirms R1)
+
+C1. If R1a: ship a **Release** build (GitHub `ios-native.yml` already is Release). For local device installs document in `native/README.md`:
+    `npx expo run:ios --device --configuration Release` (and keep `SWIFT_OPTIMIZATION_LEVEL=-O` for Debug lab builds as in
+    `scripts/velocity-lab/README.md`). Guard the `#if DEBUG` `LabRecorder` behind an explicit launch flag (`-labRecord YES`) so a Debug build
+    does not write 30 Mbps to disk by default.
+C2. Regardless of R1a, move per-frame work off the capture callback where it can be:
+    - `MotionTrigger.feed` must stay synchronous (it decides the throw time), but measure its cost in Release (`feedMs` is DEBUG-only — add a
+      lightweight EMA exposed in the `fps` event as `feedMs`). Target < 4 ms/frame at 60 fps.
+    - `serveSnapshots` (ABS plate detection) copies a full luma plane on the capture queue every 0.6 s; move the 2×2 downscale to `clipQueue`
+      via a `CVPixelBuffer` retain (it is only active in ABS mode, not today — low priority).
+C3. If frames still drop in Release at idle on the user's phone model, raise `mainQueue` QoS to `.userInteractive` and lower the `wideRecorder`
+    (unused when `wide:false`) — confirm `wideOutput` is not even added when `wide` is false.
+
+## 6. Phase D — Shrink the bridge data path (≈1 day; do after C, only if R1b/R2 remain)
+
+Pick D1 first; D2 is the structural fix if D1 is not enough.
+
+D1. **Cut bytes.** (a) Sweep: lower `SWEEP_MAX_SEC` for the app from 6 to 4 and only sweep when `jobs.length === 0` for ≥ 2 s (already gated) —
+    halves the 5-second base64 load; (b) `BALL_CLIP` for ball events is `[0.6, 1.6]` but the web measures `BALL_RANGE` `[0.25, 1.45]` — cut the
+    app clip to the measured range (saves ~25 %); (c) do not send the clip to the engine when the recorder reports `frames < 0.8 × nominal`
+    (Phase A4) — it will fail anyway; (d) keep 14 Mbps (engine edge measurement depends on it).
+D2. **Stop passing bytes through JavaScript.** Give the engine page direct file access instead of base64 over two bridges. Two options, choose
+    after a 1-hour spike:
+    - *Custom URL scheme served by our own module*: create an Expo module `engine-webview` that hosts a `WKWebView` with a
+      `WKURLSchemeHandler` for `bpclip://<name>` serving files from the DualCamera tmp dir with `Access-Control-Allow-Origin: *` and Range
+      support; the page (still loaded from `${SITE_URL}/velocity-engine`) does `fetch('bpclip://…')`. Messages back via `WKScriptMessageHandler`.
+      Removes RN WebView from the path entirely.
+    - *Local file origin*: bundle a static export of `/velocity-engine` in the app, load it with `source={{uri:'file://…'}}` +
+      `allowingReadAccessToURL` = the clip directory, and `fetch('file://…/clip.mp4')`. Keeps `react-native-webview` but ties the engine version to
+      the app build (loses "deploy the site = update the engine", which 김민 relies on).
+    Measure with Phase A2 telemetry: target `readMs + bridge` < 300 ms for a 3 MB clip, engine round trip < 4 s (web app baseline 3–4 s).
+D3. **JS-thread hygiene.** Throttle `level` to 4 Hz in Swift (`deviceMotionUpdateInterval 0.25`) and keep `tilt` in a ref for the engine,
+    re-rendering only the `LevelBubble` (`React.memo` + separate state) — the whole screen re-rendering at 10 Hz is unnecessary.
+
+## 7. Acceptance criteria (field test, same tunnel, 20 throws)
+
+- Pill at idle: `60fps`, `버림` ≤ 2. During measurement: `fps` ≥ 55.
+- ≥ 16 of 20 throws measured (`ok`), none lost to `TIMEOUT`; `VelocityAttempt` rows exist for every throw (including timeouts).
+- Session recording: parts cover ≥ 95 % of `durationSec` on LTE; chip never shows `실패` from `올리기가 밀려`; spooled parts finish uploading
+  within 2 minutes after `세션 종료` and the admin row shows no gaps.
+- Engine numbers unchanged: `npm run velocity:engine2-test` and `velocity:accuracy` identical before/after.
+
+## 8. Deliverables and handoff
+
+- Commits per phase (Korean messages, numbers before/after). HANDOFF memo to 김민 listing: new `fps` event fields (`thermal`, `feedMs`),
+  new `Clip.frames/fpsActual`, attempt code `TIMEOUT`, recorder spool, and the build-configuration finding (Debug = 20 fps) so it never recurs.
+- Update `docs/velocity/engine-2.7-plan.md` 인계 절 with a short "앱 측정 복구" entry pointing here.
+- Do not bump `VELOCITY_ENGINE_VERSION` — the engine did not change.
+
+---
+
+## 부록 — 2026-10-20 자료 요약(한국어)
+
+| 항목 | 값 |
+| --- | --- |
+| 화면 녹화 | 13:25:42(93초) · 13:27:35(51초) · 13:29:21(25초), 1126×2436 |
+| 카메라 알약 | 1080p · **16~41fps · 버림 19~55** — 세션 끝난 뒤(13:29:45)도 31fps · 버림 29 |
+| 화면 알림 | '계산이 밀려 공 하나를 건너뛰었어요' ↔ '계산이 너무 오래 걸려 이번 공은 재지 못했어요'(30초 시한) |
+| 시도 기록 | 완료 11: ok 2(훑기 75.8 높음 · 움직임 58.8 낮음), 실패 9(NOT_ENOUGH_FRAMES 7 · 장면 0 / UNSTABLE 2 / LOW_CONF 1) — 시한 초과는 기록 안 됨 |
+| 세션 녹화 | #1 40.7초 조각 7(0~28초 연속) · #2 145.8초 조각 9(0 · 3.6 · 7.6 · 15.6 · 39.6 · 47.6 · 59.6 · 71.6 · 83.6초 — 구멍) · 조각 7~10MB/4.5초 |
+| 저장 세션 | 1(공 1개, 2.7.2) |
+| 전날(옛 앱) | ok 12(공 8 · 후보 3 · 움직임 1) |
+
+---
+
+## 진행
+
+- **Phase A 끝(2026-10-20, 윤호 맥북 — 앱을 다시 구워야 들어간다)**: ① Swift `start` 답에 `debugBuild · appVersion · appBuild`, 'fps' 알림에 `thermal`(0~3) ·
+  `feedMs`(장면당 공 찾기 시간, Release 에서도 잼) — 카메라 알약이 `… · 버림 N · DEBUG · 뜨거움` 을 보이고(Debug · 버림 5 넘으면 주황), 관리자는 알약을 눌러
+  진단(빌드 · 카메라 · 최근 작업 6줄). ② 작업마다 단계별 시간(`capture.ts JobTiming` — 큐 · 자르기 · 읽기(MB · 실제 fps) · 계산(장면 · 분석) · 합)을 콘솔 `[velo] …` 한 줄 +
+  진단에. ③ 시한 초과 · 계산기 죽음 · 클립 없음도 시도 기록에 남는다(`engine.tsx EngineError` → rejectCode `TIMEOUT · ENGINE_DOWN · ENGINE_GONE · ENGINE_FAIL`, 카메라 모듈은
+  `NO_CLIP · CAMERA_OFF · CLIP_…`, why 는 소문자). ④ 클립마다 실제 담긴 장면 수(`Clip.frames · fpsActual`, `SegmentRecorder` 가 넣은 장면 시각을 셈) — 20% 넘게 빠지면
+  10초에 한 번 '카메라가 장면을 버리고 있어요(초당 N장)', 잰 공의 `analysis.offStandard` · 메모에 '장면 N% 빠짐'(`clip-health.ts`). 엔진 · DB 모양은 그대로.
+- **폰에서 볼 것(A5)**: 카메라 화면을 열고 5초 쉰 뒤 알약 — Release 면 `1080p · 60fps · 2배`(버림 없음 · DEBUG 없음). `DEBUG` 가 보이거나 쉬는 중에도 `버림` 이 5를 넘으면
+  R1a 확정 → Release 로 다시 굽는다. 관리자 진단의 '공 찾기 ms/장' 이 Release 에서도 8 을 넘으면 Phase C2 로.

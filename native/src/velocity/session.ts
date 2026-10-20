@@ -20,6 +20,7 @@ import { OUT_OF_RANGE_FIX, STANDARD_TARGET_DIST_M, TAPE_MISMATCH_FIX, zoneOfPoin
 import { DualCamera, type Clip, type StartInfo } from '../../modules/dual-camera';
 import { rpc } from '~/lib/rpc';
 import type { Verdict } from './capture';
+import { frameLossNote } from './clip-health';
 import type { EngineResult } from './engine';
 import type { AbsJudgeSource } from './abs/use-abs';
 
@@ -103,7 +104,9 @@ export function decide(
     tail && result.analyzeSize.width && result.analyzeSize.height
       ? zoneOfPoint(tail.x / result.analyzeSize.width, tail.y / result.analyzeSize.height, ctx.zone, ctx.cameraPos)
       : null;
-  const offStandard = offStandardOf(ctx.info);
+  /* 세션 조건 + 이 클립의 장면 빠짐(캡처가 늦은 장면을 버린 것 — 2026-10-20, clip-health.ts) */
+  const lossNote = frameLossNote(meta.clip);
+  const offStandard = [...offStandardOf(ctx.info), ...(lossNote ? [lossNote] : [])];
   const dist = result.distance;
   const absJudged =
     judgeAbs && dist

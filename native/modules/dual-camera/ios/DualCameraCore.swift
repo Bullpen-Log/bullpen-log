@@ -40,12 +40,15 @@ struct DualClip {
     /// 화각을 어디서 얻었나 — intrinsics(렌즈 값) · format(보정 없음) · estimate(보정이 자른 몫을 짐작)
     let fovSource: String
     let stabilized: Bool
+    /// 클립에 실제로 담긴 장면 수 — 약속한 fps × 길이보다 적으면 캡처가 늦은 장면을 버린 것(2026-10-20: Debug 빌드에서 반을 버렸다)
+    let frames: Int
 
     var json: [String: Any] {
         [
             "path": path, "eventSec": eventSec, "durationSec": durationSec, "bytes": bytes,
             "fps": Int(fps), "width": width, "height": height, "fovDeg": fovDeg,
             "fovSource": fovSource, "stabilized": stabilized,
+            "frames": frames, "fpsActual": durationSec > 0 ? Double(frames) / durationSec : 0,
         ]
     }
 }
@@ -84,11 +87,13 @@ final class DualCameraController: NSObject, AVCaptureVideoDataOutputSampleBuffer
     var onThrow: ((Double, Double, String, Int) -> Void)?
     var onError: ((String) -> Void)?
     /// 실제로 받은 초당 장면 수 · 그 사이 버린 장면 수 — 1초마다. 약속한 60 과 달리 처리가 밀리면 장면을 버린다(구형 폰 · 개발용 빌드)
-    /// 1초마다 — 받은 장면 수 · 버린 수 · 지금 셔터(초) · ISO(엔진 2.4 B1: 세션에 남긴다)
-    var onFps: ((Double, Int, Double, Double) -> Void)?
+    /// 1초마다 — 받은 장면 수 · 버린 수 · 지금 셔터(초) · ISO(엔진 2.4 B1: 세션에 남긴다) · 폰 열 상태(0~3) · 장면당 공 찾기 시간(ms)
+    var onFps: ((Double, Int, Double, Double, Int, Double) -> Void)?
     private var fpsCount = 0
     private var fpsDropped = 0
     private var fpsSince = -1.0
+    /// 이번 1초 동안 trigger.feed 에 든 시간 합(ms) — Release 에서도 잰다(2026-10-20: 캡처가 밀리는 까닭이 공 찾기인지 가리려고)
+    private var feedAcc = 0.0
 
     private let sessionQueue = DispatchQueue(label: "bullpen.dualcam.session")
     private let mainQueue = DispatchQueue(label: "bullpen.dualcam.main", qos: .userInitiated)
@@ -437,6 +442,13 @@ final class DualCameraController: NSObject, AVCaptureVideoDataOutputSampleBuffer
             "mainFovDeg": stabilized ? DualCameraController.narrow(mainFov, by: DualCameraController.stabCrop.factor) : mainFov,
             "wideFovDeg": wideFov,
             "hardwareCost": Double(multi?.hardwareCost ?? 0),
+            /*
+             * 어떤 빌드인가(2026-10-20) — Debug(최적화 없는 Swift, `expo run:ios` 기본값)는 공 찾기가 장면마다 수십 ms 라 캡처가 장면을
+             * 반이나 버려 측정이 안 됐다. 화면 알약 'DEBUG' · 관리자 진단이 보인다. Release 아카이브(GitHub ios-native.yml)는 false
+             */
+            "debugBuild": DualCameraController.debugBuild,
+            "appVersion": (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String) ?? "",
+            "appBuild": (Bundle.main.infoDictionary?["CFBundleVersion"] as? String) ?? "",
             "stabilization": stabilized ? "standard" : "off",
             /*
              * 기준 조건(모든 사용자 같게 — 2026-10-08 사용자: "폰 기종에 상관없이 일관성 있게") — 1080p · 60fps · 2배가 진짜 줌 · 손떨림
@@ -449,6 +461,15 @@ final class DualCameraController: NSObject, AVCaptureVideoDataOutputSampleBuffer
                 "stabilization": stabilized,
             ],
         ]
+    }
+
+    /// Debug(최적화 없는 Swift) 빌드인가 — `expo run:ios --device` 기본값. Release 아카이브는 false
+    static var debugBuild: Bool {
+        #if DEBUG
+        return true
+        #else
+        return false
+        #endif
     }
 
     /// 이 줌에서 화면을 늘리지 않나(진짜 해상도) — 늘리기 시작 배율이 그보다 크거나(3% 안), 진짜 줌 목록에 있으면
@@ -714,12 +735,12 @@ final class DualCameraController: NSObject, AVCaptureVideoDataOutputSampleBuffer
                 /* 렌즈가 움직이는 동안은 화면 전체가 바뀐다 */
                 trigger.quiet(until: CMSampleBufferGetPresentationTimeStamp(sampleBuffer).seconds + 0.3)
             }
-            #if DEBUG
             let feedStart = CACurrentMediaTime()
             let hitNow = trigger.feed(sampleBuffer)
-            feedMs += (CACurrentMediaTime() - feedStart) * 1000
-            #else
-            let hitNow = trigger.feed(sampleBuffer)
+            let feedTook = (CACurrentMediaTime() - feedStart) * 1000
+            feedAcc += feedTook
+            #if DEBUG
+            feedMs += feedTook
             #endif
             #if DEBUG
             fakeThrow(CMSampleBufferGetPresentationTimeStamp(sampleBuffer).seconds)
@@ -940,11 +961,13 @@ final class DualCameraController: NSObject, AVCaptureVideoDataOutputSampleBuffer
         guard t - fpsSince >= 1 else { return }
         onFps?(
             Double(fpsCount - 1) / (t - fpsSince), fpsDropped,
-            mainDevice?.exposureDuration.seconds ?? 0, Double(mainDevice?.iso ?? 0)
+            mainDevice?.exposureDuration.seconds ?? 0, Double(mainDevice?.iso ?? 0),
+            ProcessInfo.processInfo.thermalState.rawValue, feedAcc / Double(max(1, fpsCount - 1))
         )
         fpsSince = t
         fpsCount = 1
         fpsDropped = 0
+        feedAcc = 0
     }
 
     /// 늦어서 버린 장면(alwaysDiscardsLateVideoFrames) — 처리가 밀렸다
@@ -1094,7 +1117,8 @@ final class DualCameraController: NSObject, AVCaptureVideoDataOutputSampleBuffer
             height: picked.width,
             fovDeg: fov,
             fovSource: fovSource,
-            stabilized: stabilized
+            stabilized: stabilized,
+            frames: cut.frames
         )
     }
 }
@@ -1117,6 +1141,8 @@ final class SegmentRecorder: NSObject, AVAssetWriterDelegate {
     private var input: AVAssetWriterInput?
     private var initData: Data?
     private var segments: [Segment] = []
+    /// 인코더에 넣은 장면의 시각(초) — 쥐고 있는 조각 범위만. 클립이 실제로 담은 장면 수를 세는 데(frames)
+    private var pts: [Double] = []
     private var failed = false
 
     init(bitrate: Int) {
@@ -1130,6 +1156,7 @@ final class SegmentRecorder: NSObject, AVAssetWriterDelegate {
         input = nil
         initData = nil
         segments = []
+        pts = []
         failed = false
         lock.unlock()
     }
@@ -1148,8 +1175,12 @@ final class SegmentRecorder: NSObject, AVAssetWriterDelegate {
         lock.unlock()
         guard let settings, !failed else { return }
         if writer == nil { start(at: CMSampleBufferGetPresentationTimeStamp(sampleBuffer), settings) }
-        guard let writer, let input, writer.status == .writing else { return }
-        if input.isReadyForMoreMediaData, !input.append(sampleBuffer) {
+        guard let writer, let input, writer.status == .writing, input.isReadyForMoreMediaData else { return }
+        if input.append(sampleBuffer) {
+            lock.lock()
+            pts.append(CMSampleBufferGetPresentationTimeStamp(sampleBuffer).seconds)
+            lock.unlock()
+        } else {
             lock.lock()
             self.failed = true
             lock.unlock()
@@ -1225,21 +1256,23 @@ final class SegmentRecorder: NSObject, AVAssetWriterDelegate {
             segments.append(Segment(start: start, end: end, data: segmentData))
             let keepFrom = end - keepSec
             segments.removeAll { $0.end < keepFrom }
+            pts.removeAll { $0 < keepFrom }
         @unknown default:
             break
         }
     }
 
-    /// [from, to] 에 걸친 조각들을 한 파일로 — 시작 시각을 0 으로 옮긴다
-    func clip(from: Double, to: Double) -> (data: Data, start: Double, end: Double)? {
+    /// [from, to] 에 걸친 조각들을 한 파일로 — 시작 시각을 0 으로 옮긴다. frames = 그 범위에 실제로 넣은 장면 수
+    func clip(from: Double, to: Double) -> (data: Data, start: Double, end: Double, frames: Int)? {
         lock.lock()
         let initData = self.initData
         let picked = segments.filter { $0.end > from && $0.start < to }
+        let frames = picked.isEmpty ? 0 : pts.filter { $0 >= picked[0].start && $0 < picked[picked.count - 1].end }.count
         lock.unlock()
         guard let initData, let first = picked.first, let last = picked.last else { return nil }
         var out = initData
         for part in FMP4.rebase(picked.map(\.data)) { out.append(part) }
-        return (out, first.start, last.end)
+        return (out, first.start, last.end, frames)
     }
 }
 
