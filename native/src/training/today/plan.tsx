@@ -18,6 +18,7 @@ import { trainingEffortLevel } from '@/lib/training-effort';
 import { SwipeRow } from '~/shell/swipe-row';
 import { AddSheet, PlanForm } from './forms';
 import { BigButton, Card, Chip, LinkRow, s, useWeightUnit, type TodayActions } from './parts';
+import { Press } from '~/shell/press';
 
 /**
  * 트레이닝 '운동' 화면의 일정 쪽 조각 — 웹 app/(app)/training/ 의 state-notice-band · done-card · exercise-list · training-note ·
@@ -128,9 +129,9 @@ export function DoneView({ done, intensity, canResume, c, a }: {
         <Text style={[s.small, { color: c.muted, textAlign: 'center' }]}>남긴 세트 없이 마쳤어요.</Text>
       )}
       {canResume ? (
-        <Pressable accessibilityRole="button" disabled={a.starting} onPress={() => a.start(false)} style={[s.pill, a.starting && { opacity: 0.6 }]}>
+        <Press accessibilityRole="button" disabled={a.starting} onPress={() => a.start(false)} style={[s.pill, a.starting && { opacity: 0.6 }]}>
           <Text style={[s.bodyBold, { color: c.sky }]}>운동 더 하기</Text>
-        </Pressable>
+        </Press>
       ) : null}
     </Card>
   );
@@ -148,9 +149,9 @@ export function OutingRow({ line, c, a }: { line: OutingLineText; c: Palette; a:
         {line.guess ? <Text style={[s.tiny, { color: c.muted }]}>{line.guess}</Text> : null}
       </View>
       {line.guess ? (
-        <Pressable accessibilityRole="button" onPress={a.checkin} style={st.lineBtn}>
+        <Press accessibilityRole="button" onPress={a.checkin} style={st.lineBtn}>
           <Text style={[s.bodyBold, { color: c.sky }]}>바꾸기</Text>
-        </Pressable>
+        </Press>
       ) : null}
     </View>
   );
@@ -223,9 +224,9 @@ export function PrefsCard({ prefs, today, c, a }: { prefs: NonNullable<TrainingT
           <Text style={[s.bodyBold, { color: c.ink }]}>오늘 하고 싶은 운동이 있나요?</Text>
           <Text style={[s.tiny, { color: c.muted }]}>고르면 그쪽으로 일정을 짜요. 아픈 날은 고른 것과 상관없이 회복으로 가요.</Text>
         </View>
-        <Pressable accessibilityRole="button" onPress={() => setOpen(false)} style={st.prefsFold}>
+        <Press accessibilityRole="button" onPress={() => setOpen(false)} style={st.prefsFold}>
           <Text style={[s.tiny, { color: c.muted, fontWeight: '500' }]}>접기</Text>
-        </Pressable>
+        </Press>
       </View>
       <View style={{ gap: 10 }}>
         <View style={s.chips}>
@@ -479,11 +480,11 @@ export function PlanBody({
       {/* 마친 날은 목록을 접는다 — 위 완료 카드가 오늘 한 것을 숫자까지 말한다(웹 DoneFold) */}
       {data.done ? (
         <View style={[s.card, { backgroundColor: c.card, boxShadow: c.float, paddingVertical: 4 }]}>
-          <Pressable accessibilityRole="button" accessibilityState={{ expanded: listOpen }} onPress={() => setListOpen((v) => !v)} style={s.linkRow}>
+          <Press accessibilityRole="button" accessibilityState={{ expanded: listOpen }} onPress={() => setListOpen((v) => !v)} style={s.linkRow}>
             <SymbolView name={listOpen ? 'chevron.up' : 'chevron.down'} size={12} tintColor={c.muted} />
             <Text style={[s.bodyBold, { flex: 1, color: c.ink }]}>오늘 목록 보기</Text>
             <Text style={[s.tiny, { color: c.muted }]}>{all.length}개</Text>
-          </Pressable>
+          </Press>
           {listOpen ? <View style={{ paddingBottom: 12 }}>{list}</View> : null}
         </View>
       ) : (
@@ -534,7 +535,7 @@ function ExerciseRow({
         <View style={{ backgroundColor: c.card, borderRadius: 16 }}>
         <View style={[st.ex, { backgroundColor: r.done ? `${c.sky}14` : c.card, borderColor: r.done ? c.sky : c.card }]}>
           <View style={s.row}>
-            <Pressable
+            <Press
               accessibilityRole="checkbox"
               accessibilityState={{ checked: r.done }}
               accessibilityLabel={r.title}
@@ -561,7 +562,7 @@ function ExerciseRow({
               </View>
               {/* 사진은 오른쪽(웹 check-row 와 같다) */}
               {r.thumbUrl ? <Image source={{ uri: r.thumbUrl }} style={[st.thumb, { backgroundColor: c.line }]} /> : null}
-            </Pressable>
+            </Press>
           </View>
           {last || hasVideo ? (
             <View style={[s.between, s.divider, { borderTopColor: c.line, minHeight: 40 }]}>
@@ -573,9 +574,9 @@ function ExerciseRow({
                 ) : null}
               </Text>
               {hasVideo ? (
-                <Pressable accessibilityRole="button" accessibilityState={{ expanded: open }} onPress={() => setOpen((v) => !v)} style={st.lineBtn}>
+                <Press accessibilityRole="button" accessibilityState={{ expanded: open }} onPress={() => setOpen((v) => !v)} style={st.lineBtn}>
                   <Text style={[s.smallBold, { color: c.sky }]}>{open ? '접기' : '영상'}</Text>
-                </Pressable>
+                </Press>
               ) : null}
             </View>
           ) : null}
@@ -625,9 +626,9 @@ function NoteView({ note, anyDone, today, c, a }: { note: TrainingToday['note'];
       <Card c={c}>
         <View style={s.between}>
           <Text style={[s.bodyBold, { color: c.sky }]}>✓ 오늘 운동 강도 {cur.intensity}/10</Text>
-          <Pressable accessibilityRole="button" onPress={() => setEditing(true)} style={st.lineBtn}>
+          <Press accessibilityRole="button" onPress={() => setEditing(true)} style={st.lineBtn}>
             <Text style={[s.smallBold, { color: c.sky }]}>고치기</Text>
-          </Pressable>
+          </Press>
         </View>
         {cur.memo ? <Text style={[s.body, { color: c.ink }]}>{cur.memo}</Text> : null}
       </Card>
@@ -656,7 +657,7 @@ function NoteView({ note, anyDone, today, c, a }: { note: TrainingToday['note'];
       <Text style={[s.smallBold, { color: c.ink }]}>운동 강도 · {value == null ? '아직 안 골랐어요' : `${value} / 10`}</Text>
       <View style={[s.row, { gap: 6 }]}>
         {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
-          <Pressable
+          <Press
             key={n}
             accessibilityRole="button"
             accessibilityLabel={`강도 ${n}`}
@@ -668,7 +669,7 @@ function NoteView({ note, anyDone, today, c, a }: { note: TrainingToday['note'];
             style={[st.level, { backgroundColor: value === n ? c.sky : c.chip }]}
           >
             <Text style={[s.smallBold, s.num, { color: value === n ? '#fff' : c.ink }]}>{n}</Text>
-          </Pressable>
+          </Press>
         ))}
       </View>
       <View style={s.between}>

@@ -2,13 +2,14 @@ import * as Haptics from 'expo-haptics';
 import { SymbolView } from 'expo-symbols';
 import { type Href, router } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { josa } from '@/lib/korean';
 import { mechanicsLevel } from '@/lib/mechanics/levels';
 import { DRILL_THROW_TEXT, FILM_VERDICTS, type DrillThrowNote, type FilmNote, type FilmVerdict } from '@/lib/mechanics/program';
 import { rpc, RpcError } from '~/lib/rpc';
 import type { Palette } from '~/lib/ui';
 import { leaveTo } from '~/shell/web-nav';
+import { Press } from '~/shell/press';
 
 /** 메커니즘 따라 하기(native/src/app/mechanics.tsx)의 작은 조각 — 웹 mechanics-player.tsx · drill-throw-note.tsx · film-verdict.tsx 를 옮겼다 */
 
@@ -61,11 +62,11 @@ export function Description({ guideId, inline = false, c }: { guideId: string; i
     return loading ? (
       <ActivityIndicator />
     ) : failed ? (
-      <Pressable onPress={load} accessibilityRole="button" style={s.textBtn}>
+      <Press onPress={load} accessibilityRole="button" style={s.textBtn}>
         <Text style={[s.small, { color: c.muted }]}>
           설명을 불러오지 못했어요. <Text style={{ color: c.sky, fontWeight: '700' }}>다시 받기</Text>
         </Text>
-      </Pressable>
+      </Press>
     ) : got?.text ? (
       <Text selectable style={[s.body, { color: c.ink }]}>
         {got.text}
@@ -73,7 +74,7 @@ export function Description({ guideId, inline = false, c }: { guideId: string; i
     ) : null;
   return (
     <View style={[s.card, { backgroundColor: c.card, boxShadow: c.float }]}>
-      <Pressable
+      <Press
         onPress={() => {
           setOpen((v) => !v);
           if (!open && (got == null || failed)) load();
@@ -85,17 +86,17 @@ export function Description({ guideId, inline = false, c }: { guideId: string; i
         <SymbolView name="info.circle" size={14} tintColor={c.muted} />
         <Text style={[s.bodyBold, { color: c.ink, flex: 1 }]}>자세 설명</Text>
         <SymbolView name={open ? 'chevron.up' : 'chevron.down'} size={12} tintColor={c.muted} />
-      </Pressable>
+      </Press>
       {open ? (
         <View style={{ paddingBottom: 14 }}>
           {loading ? (
             <ActivityIndicator />
           ) : failed ? (
-            <Pressable onPress={load} accessibilityRole="button" style={s.textBtn}>
+            <Press onPress={load} accessibilityRole="button" style={s.textBtn}>
               <Text style={[s.small, { color: c.muted }]}>
                 설명을 불러오지 못했어요. <Text style={{ color: c.sky, fontWeight: '700' }}>다시 받기</Text>
               </Text>
-            </Pressable>
+            </Press>
           ) : got ? (
             <Text selectable style={[s.body, { color: c.ink }]}>
               {got.text}
@@ -136,7 +137,7 @@ export function ThrowNoteCard({ note, c }: { note: DrillThrowNote; c: Palette })
     <View style={[s.note, { backgroundColor: c.card, boxShadow: c.float }]}>
       <Text style={[s.bodyBold, { color: c.ink }]}>{DRILL_THROW_TEXT.line(note.throws)}</Text>
       <View style={s.row}>
-        <Pressable
+        <Press
           onPress={() => {
             /* 남기러 가면 닫는다 — 끝 화면이 밑에 남아, 저장하고 돌아와 또 누르면 같은 공으로 기록이 하나 더 생겼다 */
             setClosed(true);
@@ -145,11 +146,11 @@ export function ThrowNoteCard({ note, c }: { note: DrillThrowNote; c: Palette })
           accessibilityRole="link" style={[s.chip, { backgroundColor: c.sky + '1a' }]}>
           <Text style={[s.smallBold, { color: c.sky }]}>{DRILL_THROW_TEXT.record}</Text>
           <SymbolView name="chevron.right" size={11} weight="semibold" tintColor={c.sky} />
-        </Pressable>
+        </Press>
         {[DRILL_THROW_TEXT.done, DRILL_THROW_TEXT.skip].map((t) => (
-          <Pressable key={t} onPress={() => void close()} disabled={pending} accessibilityRole="button" style={[s.textBtn, { opacity: pending ? 0.5 : 1 }]}>
+          <Press key={t} onPress={() => void close()} disabled={pending} accessibilityRole="button" style={[s.textBtn, { opacity: pending ? 0.5 : 1 }]}>
             <Text style={[s.small, { color: c.muted }]}>{t}</Text>
-          </Pressable>
+          </Press>
         ))}
       </View>
       {error ? <Text style={[s.small, { color: c.danger }]}>{error}</Text> : null}
@@ -181,7 +182,9 @@ export function FilmVerdictButtons({ session, current = null, c }: { session: nu
         {FILM_VERDICTS.map((v) => {
           const on = saved === v.value;
           return (
-            <Pressable
+            <Press
+              select
+              selected={on}
               key={v.value}
               onPress={() => void pick(v.value)}
               disabled={pending}
@@ -193,7 +196,7 @@ export function FilmVerdictButtons({ session, current = null, c }: { session: nu
                 {on ? '✓ ' : ''}
                 {v.label}
               </Text>
-            </Pressable>
+            </Press>
           );
         })}
       </View>
@@ -262,17 +265,17 @@ export function LevelOffer({
           <Text style={[s.blockTitle, { color: c.ink }]}>{title}</Text>
           <Text style={[s.body, { color: c.muted }]}>{detail}</Text>
           <View style={s.grid}>
-            <Pressable
+            <Press
               onPress={() => void start()}
               disabled={pending}
               accessibilityRole="button"
               style={[s.cell, { backgroundColor: c.sky, opacity: pending ? 0.6 : 1 }]}
             >
               <Text style={[s.bodyBold, { color: '#fff' }]}>{pending ? '바꾸는 중…' : `${level.name} 시작`}</Text>
-            </Pressable>
-            <Pressable onPress={() => setState('keep')} disabled={pending} accessibilityRole="button" style={[s.cell, { backgroundColor: c.chip }]}>
+            </Press>
+            <Press onPress={() => setState('keep')} disabled={pending} accessibilityRole="button" style={[s.cell, { backgroundColor: c.chip }]}>
               <Text style={[s.bodyBold, { color: c.ink }]}>{keepLabel}</Text>
-            </Pressable>
+            </Press>
           </View>
           {error ? <Text style={[s.small, { color: c.danger }]}>{error}</Text> : null}
         </>

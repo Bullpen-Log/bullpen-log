@@ -1,7 +1,7 @@
 import * as Haptics from 'expo-haptics';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, Text, TextInput, View } from 'react-native';
+import { Text, TextInput, View } from 'react-native';
 import type { ArmcareAreaKey } from '@/lib/armcare/anatomy';
 import { RED_FLAGS, RED_FLAGS_LINE } from '@/lib/armcare/pain-guide';
 import {
@@ -30,6 +30,7 @@ import { rpc, RpcError } from '~/lib/rpc';
 import { usePalette, type Palette } from '~/lib/ui';
 import { ChoiceChips, StepFrame } from '~/setup/frame';
 import { leaveTo } from '~/shell/web-nav';
+import { Press } from '~/shell/press';
 
 /**
  * 재활 프로그램 시작(앱 화면) — 웹 app/(app)/training/rehab-start.tsx 의 시작 시트를 옮겼다. 어디가 아파요? → 얼마나(언제 아파요 +
@@ -197,7 +198,7 @@ export default function RehabStartScreen() {
             {activityOptions.map((label) => {
               const on = activities.includes(label);
               return (
-                <Pressable
+                <Press
                   key={label}
                   accessibilityRole="checkbox"
                   accessibilityState={{ checked: on }}
@@ -205,7 +206,7 @@ export default function RehabStartScreen() {
                   style={{ minHeight: 44, paddingHorizontal: 16, borderRadius: 22, borderWidth: 1, justifyContent: 'center', backgroundColor: on ? c.sky : c.card, borderColor: on ? c.sky : c.line }}
                 >
                   <Text style={{ color: on ? '#fff' : c.ink, fontSize: 16, fontWeight: '600' }}>{label}</Text>
-                </Pressable>
+                </Press>
               );
             })}
           </View>
@@ -221,7 +222,7 @@ export default function RehabStartScreen() {
               returnKeyType="done"
               style={{ flex: 1, minHeight: 48, borderRadius: 12, borderWidth: 1, borderColor: c.line, backgroundColor: c.card, color: c.ink, paddingHorizontal: 14, fontSize: 16 }}
             />
-            <Pressable
+            <Press
               accessibilityRole="button"
               accessibilityLabel="내 활동 더하기"
               onPress={addCustom}
@@ -229,7 +230,7 @@ export default function RehabStartScreen() {
               style={{ height: 48, paddingHorizontal: 16, borderRadius: 24, justifyContent: 'center', backgroundColor: c.chip, opacity: custom.trim() ? 1 : 0.4 }}
             >
               <Text style={{ color: c.ink, fontSize: 15, fontWeight: '700' }}>더하기</Text>
-            </Pressable>
+            </Press>
           </View>
           <Text style={{ color: c.muted, fontSize: 13 }}>{activities.length}/2개 골랐어요</Text>
         </View>

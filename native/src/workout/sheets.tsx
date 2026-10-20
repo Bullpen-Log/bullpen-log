@@ -14,6 +14,7 @@ import { rpc } from '~/lib/rpc';
 import type { Palette } from '~/lib/ui';
 import type { ShownSet } from './outbox';
 import { READABLE } from '~/lib/layout';
+import { Press } from '~/shell/press';
 
 /**
  * 운동 진행 화면의 아래 시트 셋 — 오늘 목록(웹 exercise-sheet.tsx) · 마치기(finish-sheet.tsx) · 교체(swap-sheet.tsx). Sheet 는 트레이닝 운동 화면의 시트도 쓴다.
@@ -67,9 +68,9 @@ export function Sheet({
         <Text style={[st.title, { color: c.ink }]}>{title}</Text>
         {description ? <Text style={[st.desc, { color: c.muted }]}>{description}</Text> : null}
       </View>
-      <Pressable onPress={close} accessibilityRole="button" accessibilityLabel="닫기" style={st.close}>
+      <Press onPress={close} accessibilityRole="button" accessibilityLabel="닫기" style={st.close}>
         <SymbolView name="xmark.circle.fill" size={28} tintColor={c.muted} />
-      </Pressable>
+      </Press>
     </View>
   );
   if (fit)
@@ -164,7 +165,7 @@ export function ListSheet({
         const here = i === at;
         return (
           <View key={ex.id} style={[st.listRow, { borderColor: here ? c.sky : c.line, backgroundColor: c.card }]}>
-            <Pressable onPress={() => onJump(i)} accessibilityRole="button" style={st.listMain}>
+            <Press onPress={() => onJump(i)} accessibilityRole="button" style={st.listMain}>
               <Text style={[st.listNo, { color: here ? c.sky : c.muted }]}>{i + 1}</Text>
               <View style={{ flex: 1 }}>
                 <Text numberOfLines={1} style={[st.listTitle, { color: here ? c.sky : c.ink, fontWeight: here ? '700' : '500' }]}>
@@ -174,7 +175,7 @@ export function ListSheet({
                   {done > 0 ? `${done}세트 남김 · 기록이 있어 못 빼요` : (ex.prescription ?? '아직')}
                 </Text>
               </View>
-            </Pressable>
+            </Press>
             <IconButton icon="chevron.up" a11y={`${ex.title} 위로`} disabled={busy || i === 0} onPress={() => move(i, -1)} c={c} />
             <IconButton
               icon="chevron.down"
@@ -284,9 +285,9 @@ export function FinishSheet({
       >
         <Text style={st.bigText}>{busy ? '정리 중' : '✓ 운동 마치기'}</Text>
       </Pressable>
-      <Pressable onPress={onClose} disabled={busy} accessibilityRole="button" style={st.textBtn}>
+      <Press onPress={onClose} disabled={busy} accessibilityRole="button" style={st.textBtn}>
         <Text style={[st.bodyBold, { color: c.sky }]}>더 하기</Text>
-      </Pressable>
+      </Press>
     </View>
   );
 
@@ -319,7 +320,9 @@ export function FinishSheet({
       {/* 밀대가 아니라 열 칸 — 손을 대는 순간 어딘가가 골라지면 '안 고름'을 남길 수 없다 */}
       <View style={st.levels}>
         {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
-          <Pressable
+          <Press
+            select
+            selected={intensity === n}
             key={n}
             onPress={() => setIntensity(n)}
             accessibilityRole="button"
@@ -327,7 +330,7 @@ export function FinishSheet({
             style={[st.level, { backgroundColor: intensity === n ? c.sky : c.chip }]}
           >
             <Text style={[st.levelText, { color: intensity === n ? '#fff' : c.ink }]}>{n}</Text>
-          </Pressable>
+          </Press>
         ))}
       </View>
       <View style={st.levelEnds}>
@@ -361,7 +364,7 @@ export function EffortGuide({ c }: { c: Palette }) {
   const [open, setOpen] = useState(false);
   return (
     <View style={[st.guide, { borderColor: c.line }]}>
-      <Pressable
+      <Press
         onPress={() => setOpen((v) => !v)}
         accessibilityRole="button"
         accessibilityState={{ expanded: open }}
@@ -370,7 +373,7 @@ export function EffortGuide({ c }: { c: Palette }) {
         <SymbolView name="info.circle" size={14} tintColor={c.sky} />
         <Text style={[st.small, { flex: 1, color: c.muted }]}>{TRAINING_EFFORT_ASK}</Text>
         <SymbolView name={open ? 'chevron.up' : 'chevron.down'} size={12} tintColor={c.muted} />
-      </Pressable>
+      </Press>
       {open ? (
         <View style={[st.guideBody, { borderTopColor: c.line }]}>
           {TRAINING_EFFORT_LEVELS.map((l) => (
@@ -516,7 +519,7 @@ export function SwapSheet({
           {p.prescription ? <Text style={[st.tiny, { color: c.muted }]}>{p.prescription}</Text> : null}
           {unsafe && !halted ? <Text style={[st.tiny, { color: c.warn }]}>오늘 몸 상태에는 권하지 않는 운동이에요</Text> : null}
         </View>
-        <Pressable
+        <Press
           onPress={() => void pick(p.id)}
           disabled={off}
           accessibilityRole="button"
@@ -525,7 +528,7 @@ export function SwapSheet({
           <Text style={[st.smallBold, { color: already || halted ? c.muted : '#fff' }]}>
             {busyId === p.id ? '넣는 중…' : already ? '목록에 있음' : mode === 'replace' ? '바꾸기' : '더하기'}
           </Text>
-        </Pressable>
+        </Press>
       </View>
     );
   };
@@ -548,7 +551,9 @@ export function SwapSheet({
     >
       <View style={[st.tabs, { backgroundColor: c.chip }]} accessibilityRole="tablist">
         {TABS.map((t) => (
-          <Pressable
+          <Press
+            select
+            selected={tab === t.value}
             key={t.value}
             onPress={() => setTab(t.value)}
             accessibilityRole="tab"
@@ -556,7 +561,7 @@ export function SwapSheet({
             style={[st.tab, tab === t.value ? { backgroundColor: c.card } : null]}
           >
             <Text style={[st.small, { color: c.ink, fontWeight: tab === t.value ? '700' : '500' }]}>{t.label}</Text>
-          </Pressable>
+          </Press>
         ))}
       </View>
       {tab === 'search' ? (
@@ -608,9 +613,9 @@ export function SwapSheet({
         <>
           {matched.slice(0, limit).map((p) => row(p, kind(p)))}
           {matched.length > limit ? (
-            <Pressable onPress={() => setLimit((n) => n + PAGE)} accessibilityRole="button" style={st.textBtn}>
+            <Press onPress={() => setLimit((n) => n + PAGE)} accessibilityRole="button" style={st.textBtn}>
               <Text style={[st.bodyBold, { color: c.sky }]}>{matched.length - limit}개 더 보기</Text>
-            </Pressable>
+            </Press>
           ) : null}
         </>
       )}

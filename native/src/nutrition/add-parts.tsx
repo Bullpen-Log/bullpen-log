@@ -10,6 +10,7 @@ import { withAlpha, type Palette } from '~/lib/ui';
 import { Icon } from '~/shell/icon';
 import { fadeIn } from '~/shell/motion';
 import { browseMfds, type BrowsePage } from './api';
+import { Press } from '~/shell/press';
 
 /**
  * 음식 담기 화면(app/nutrition/add.tsx)의 조합 · 전체 음식 조각 — 웹 app/(app)/nutrition/food-sheet.tsx 의 ComboButton · ComboRow ·
@@ -52,7 +53,7 @@ export function ComboRow({ combo, busy, onAdd, onRemove, c }: { combo: MealCombo
   const [confirm, setConfirm] = useState(false);
   return (
     <View style={[st.row, { backgroundColor: c.card, boxShadow: c.float }]}>
-      <Pressable accessibilityRole="button" onPress={onAdd} style={{ flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+      <Press accessibilityRole="button" onPress={onAdd} style={{ flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
         <Icon name="layers" size={16} color={c.sky} />
         <View style={{ flex: 1, minWidth: 0 }}>
           <Text style={{ color: c.ink, fontSize: 15, fontWeight: '600' }} numberOfLines={1}>
@@ -64,19 +65,19 @@ export function ComboRow({ combo, busy, onAdd, onRemove, c }: { combo: MealCombo
           </Text>
           <Text style={{ color: c.muted, fontSize: 12, fontVariant: ['tabular-nums'] }}>{totals}</Text>
         </View>
-      </Pressable>
+      </Press>
       {confirm ? (
-        <Pressable accessibilityRole="button" onPress={onRemove} style={[st.del, { backgroundColor: withAlpha(c.danger, 0.12) }]}>
+        <Press accessibilityRole="button" onPress={onRemove} style={[st.del, { backgroundColor: withAlpha(c.danger, 0.12) }]}>
           <Text style={{ color: c.danger, fontSize: 13, fontWeight: '700' }}>지우기</Text>
-        </Pressable>
+        </Press>
       ) : (
-        <Pressable accessibilityRole="button" accessibilityLabel={`${combo.name} 조합 지우기`} hitSlop={4} onPress={() => setConfirm(true)} style={st.icon}>
+        <Press accessibilityRole="button" accessibilityLabel={`${combo.name} 조합 지우기`} hitSlop={4} onPress={() => setConfirm(true)} style={st.icon}>
           <Icon name="trash2" size={16} color={c.muted} />
-        </Pressable>
+        </Press>
       )}
-      <Pressable accessibilityRole="button" accessibilityLabel={`${combo.name} 한 번에 담기`} onPress={onAdd} disabled={busy} style={st.icon}>
+      <Press accessibilityRole="button" accessibilityLabel={`${combo.name} 한 번에 담기`} onPress={onAdd} disabled={busy} style={st.icon}>
         {busy ? <ActivityIndicator /> : <Text style={{ color: c.sky, fontSize: 24 }}>+</Text>}
-      </Pressable>
+      </Press>
     </View>
   );
 }
@@ -100,11 +101,11 @@ export function SaveCombo({ label, items, onSave, c }: { label: string; items: C
   };
   return (
     <View style={[st.saveBox, { borderColor: open ? c.sky : c.line }]}>
-      <Pressable accessibilityRole="button" accessibilityState={{ expanded: open }} onPress={() => setOpen((o) => !o)} style={st.saveHead}>
+      <Press accessibilityRole="button" accessibilityState={{ expanded: open }} onPress={() => setOpen((o) => !o)} style={st.saveHead}>
         <Icon name="layers" size={16} color={c.sky} />
         <Text style={{ flex: 1, color: c.ink, fontSize: 15, fontWeight: '600' }}>이 {label}을 조합으로 저장</Text>
         <Text style={{ color: c.muted, fontSize: 13 }}>{items.length}가지</Text>
-      </Pressable>
+      </Press>
       {open ? (
         <Animated.View entering={fadeIn} style={{ flexDirection: 'row', gap: 8, paddingHorizontal: 12, paddingBottom: 12 }}>
           <TextInput
@@ -115,9 +116,9 @@ export function SaveCombo({ label, items, onSave, c }: { label: string; items: C
             onSubmitEditing={() => void submit()}
             style={[st.nameInput, { backgroundColor: c.page, color: c.ink }]}
           />
-          <Pressable accessibilityRole="button" onPress={() => void submit()} disabled={pending || !name.trim()} style={[st.saveBtn, { backgroundColor: c.sky }, (pending || !name.trim()) && { opacity: 0.5 }]}>
+          <Press accessibilityRole="button" onPress={() => void submit()} disabled={pending || !name.trim()} style={[st.saveBtn, { backgroundColor: c.sky }, (pending || !name.trim()) && { opacity: 0.5 }]}>
             <Text style={{ color: '#fff', fontSize: 15, fontWeight: '600' }}>{pending ? '저장 중' : '저장'}</Text>
-          </Pressable>
+          </Press>
         </Animated.View>
       ) : null}
     </View>
@@ -156,7 +157,7 @@ export function BrowseAll({
     : [];
   const shown = category === 'popular' ? [] : category === 'all' ? FOOD_CATEGORIES : [category];
   const chip = (key: string, label: string, on: boolean, onPress: () => void, small = false, count?: number) => (
-    <Pressable
+    <Press
       key={key}
       accessibilityRole="tab"
       accessibilityState={{ selected: on }}
@@ -176,7 +177,7 @@ export function BrowseAll({
         {label}
         {count != null ? <Text style={{ opacity: 0.6, fontVariant: ['tabular-nums'] }}> {count.toLocaleString('ko-KR')}</Text> : null}
       </Text>
-    </Pressable>
+    </Press>
   );
   return (
     <View style={{ gap: 10 }}>
@@ -268,13 +269,13 @@ function MfdsBrowse({ category, sub, row, c }: { category: FoodCategory | 'all';
       ))}
       {loading ? <ActivityIndicator style={{ padding: 8 }} /> : null}
       {error ? (
-        <Pressable accessibilityRole="button" onPress={() => load(next ?? 0)} style={st.more}>
+        <Press accessibilityRole="button" onPress={() => load(next ?? 0)} style={st.more}>
           <Text style={{ color: c.sky, fontSize: 15, fontWeight: '600' }}>못 불러왔어요 · 다시 불러오기</Text>
-        </Pressable>
+        </Press>
       ) : !loading && next != null ? (
-        <Pressable accessibilityRole="button" onPress={() => load(next)} style={[st.more, { backgroundColor: withAlpha(c.ink, 0.06) }]}>
+        <Press accessibilityRole="button" onPress={() => load(next)} style={[st.more, { backgroundColor: withAlpha(c.ink, 0.06) }]}>
           <Text style={{ color: c.ink, fontSize: 15, fontWeight: '600' }}>더 보기</Text>
-        </Pressable>
+        </Press>
       ) : null}
     </View>
   );
@@ -369,7 +370,7 @@ export function PickPanel({
           {food.note ? ` · ${food.note}` : ''}
         </Text>
         {favorite !== null ? (
-          <Pressable
+          <Press
             accessibilityRole="button"
             accessibilityState={{ selected: favorite }}
             onPress={() => {
@@ -380,18 +381,18 @@ export function PickPanel({
           >
             <Icon name="star" size={16} color={favorite ? c.warn : c.muted} fill={favorite ? c.warn : 'none'} />
             <Text style={{ color: favorite ? c.warn : c.muted, fontSize: 13, fontWeight: '600' }}>{favorite ? '내 음식' : '내 음식에 두기'}</Text>
-          </Pressable>
+          </Press>
         ) : null}
       </View>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
         <View style={[st.stepper, { borderColor: c.line, backgroundColor: c.page }]}>
-          <Pressable accessibilityRole="button" accessibilityLabel="줄이기" onPress={() => setBoth(stepAmount(amount, -1))} style={st.stepBtn}>
+          <Press accessibilityRole="button" accessibilityLabel="줄이기" onPress={() => setBoth(stepAmount(amount, -1))} style={st.stepBtn}>
             <Icon name="minus" size={16} color={c.muted} />
-          </Pressable>
+          </Press>
           <Text style={{ minWidth: 72, textAlign: 'center', color: c.ink, fontSize: 17, fontWeight: '700', fontVariant: ['tabular-nums'] }}>{amountText(amount)}</Text>
-          <Pressable accessibilityRole="button" accessibilityLabel="늘리기" onPress={() => setBoth(stepAmount(amount, 1))} style={st.stepBtn}>
+          <Press accessibilityRole="button" accessibilityLabel="늘리기" onPress={() => setBoth(stepAmount(amount, 1))} style={st.stepBtn}>
             <Icon name="plus" size={16} color={c.muted} />
-          </Pressable>
+          </Press>
         </View>
         {food.servingGrams !== null ? (
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
@@ -408,7 +409,9 @@ export function PickPanel({
       </View>
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
         {QUICK_AMOUNTS.map((a) => (
-          <Pressable
+          <Press
+            select
+            selected={amount === a}
             key={a}
             accessibilityRole="radio"
             accessibilityState={{ selected: amount === a }}
@@ -416,7 +419,7 @@ export function PickPanel({
             style={[st.quick, { backgroundColor: amount === a ? c.skyTint : c.page }]}
           >
             <Text style={{ color: amount === a ? c.sky : c.muted, fontSize: 13, fontWeight: '600' }}>{amountText(a)}</Text>
-          </Pressable>
+          </Press>
         ))}
       </View>
       <View style={[st.macros, { backgroundColor: c.page }]}>
@@ -427,12 +430,12 @@ export function PickPanel({
       </View>
       {error ? <Text style={{ color: c.danger, fontSize: 14 }}>{error}</Text> : null}
       <View style={{ flexDirection: 'row', gap: 8 }}>
-        <Pressable accessibilityRole="button" onPress={onCancel} style={[st.half, { backgroundColor: c.chip }]}>
+        <Press accessibilityRole="button" onPress={onCancel} style={[st.half, { backgroundColor: c.chip }]}>
           <Text style={{ color: c.ink, fontSize: 16, fontWeight: '600' }}>다른 음식</Text>
-        </Pressable>
-        <Pressable accessibilityRole="button" onPress={onSave} disabled={saving} style={[st.half, { backgroundColor: c.sky }, saving && { opacity: 0.5 }]}>
+        </Press>
+        <Press accessibilityRole="button" onPress={onSave} disabled={saving} style={[st.half, { backgroundColor: c.sky }, saving && { opacity: 0.5 }]}>
           <Text style={{ color: '#fff', fontSize: 17, fontWeight: '600' }}>{saving ? (replacing ? '바꾸는 중' : '담는 중') : replacing ? '바꾸기' : '담기'}</Text>
-        </Pressable>
+        </Press>
       </View>
     </View>
   );

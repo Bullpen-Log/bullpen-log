@@ -2,7 +2,7 @@ import * as Haptics from 'expo-haptics';
 import { SymbolView } from 'expo-symbols';
 import { type Href, router } from 'expo-router';
 import { useState } from 'react';
-import { Alert, Image, Pressable, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
+import { Alert, Image, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
 import { josa } from '@/lib/korean';
 import { DRILL_STAGES } from '@/lib/exercise-meta';
 import { MECHANICS_ELEMENTS, MECHANICS_OVERVIEW, MECHANICS_SOURCE_NOTE, MECHANICS_SYMPTOMS, sideText, type MechanicsElement } from '@/lib/mechanics/elements';
@@ -27,6 +27,7 @@ import type { Palette } from '~/lib/ui';
 import { Fold, s } from './screen';
 import { Star } from './fav-button';
 import { fromApp } from '~/shell/web-nav';
+import { Press } from '~/shell/press';
 
 /**
  * 메커니즘 전체 화면(native/src/app/training-mechanics.tsx)의 조각 — 웹 mechanics-program.tsx(오늘의 세션 · 수준 고르기 · 12칸 · 영상으로 확인)와
@@ -58,14 +59,14 @@ function useStartLevel(reload: Reload) {
 /** 큰 단추 — 하늘색(주) · 회색(다음) */
 function Btn({ label, onPress, disabled, primary = true, c }: { label: string; onPress: () => void; disabled?: boolean; primary?: boolean; c: Palette }) {
   return (
-    <Pressable
+    <Press
       onPress={onPress}
       disabled={disabled}
       accessibilityRole="button"
       style={[s.pill, { backgroundColor: primary ? c.sky : c.chip, opacity: disabled ? 0.6 : 1 }]}
     >
       <Text style={[s.bodyBold, { color: primary ? '#fff' : c.ink }]}>{label}</Text>
-    </Pressable>
+    </Press>
   );
 }
 
@@ -233,9 +234,9 @@ export function SessionCard({
         ) : (
           <View style={[st.foldBar, { backgroundColor: c.warnBg }]}>
             <Text style={[s.bodyBold, { color: c.warn, flex: 1 }]}>{MECHANICS_FOLD_TEXT.anyway(painFold.label)}</Text>
-            <Pressable onPress={() => setUnfolded(false)} accessibilityRole="button" style={s.textBtn}>
+            <Press onPress={() => setUnfolded(false)} accessibilityRole="button" style={s.textBtn}>
               <Text style={[s.smallBold, { color: c.warn }]}>{MECHANICS_FOLD_BUTTONS.refold}</Text>
-            </Pressable>
+            </Press>
           </View>
         )
       ) : null}
@@ -267,9 +268,9 @@ export function SessionCard({
             <Text style={[s.small, { color: c.muted }]}>{folded.map((f) => f.title).join(' · ')}</Text>
           </View>
           {painFold?.canUnfold ? (
-            <Pressable onPress={() => setUnfolded(true)} accessibilityRole="button" style={[s.chip, { backgroundColor: c.chip }]}>
+            <Press onPress={() => setUnfolded(true)} accessibilityRole="button" style={[s.chip, { backgroundColor: c.chip }]}>
               <Text style={[s.smallBold, { color: c.ink }]}>{MECHANICS_FOLD_BUTTONS.unfold} ▾</Text>
-            </Pressable>
+            </Press>
           ) : null}
         </View>
       ) : null}
@@ -299,10 +300,10 @@ export function SessionCard({
 
 function Start({ label, onPress, c }: { label: string; onPress: () => void; c: Palette }) {
   return (
-    <Pressable onPress={onPress} accessibilityRole="button" style={[s.pill, { backgroundColor: c.sky }]}>
+    <Press onPress={onPress} accessibilityRole="button" style={[s.pill, { backgroundColor: c.sky }]}>
       <SymbolView name="play.fill" size={13} tintColor="#fff" />
       <Text style={[s.bodyBold, { color: '#fff', fontSize: 16 }]}>{label}</Text>
-    </Pressable>
+    </Press>
   );
 }
 
@@ -463,16 +464,16 @@ export function LevelSettings({ current, index, reload, c }: { current: LevelKey
     ]);
   return (
     <View style={[s.card, { backgroundColor: c.card, boxShadow: c.float }]}>
-      <Pressable onPress={() => setOpen((v) => !v)} accessibilityRole="button" accessibilityState={{ expanded: open }} style={[s.row, { minHeight: 44 }]}>
+      <Press onPress={() => setOpen((v) => !v)} accessibilityRole="button" accessibilityState={{ expanded: open }} style={[s.row, { minHeight: 44 }]}>
         <Text style={[s.bodyBold, { color: c.ink, flex: 1, fontSize: 17 }]}>수준 바꾸기</Text>
         <SymbolView name={open ? 'chevron.up' : 'chevron.down'} size={12} tintColor={c.muted} />
-      </Pressable>
+      </Press>
       {open ? <LevelPicker current={current} index={index} reload={reload} c={c} /> : null}
       {error ? <Text style={[s.small, { color: c.danger }]}>{error}</Text> : null}
-      <Pressable onPress={reset} disabled={pending} accessibilityRole="button" style={[s.row, { minHeight: 44, gap: 6, opacity: pending ? 0.5 : 1 }]}>
+      <Press onPress={reset} disabled={pending} accessibilityRole="button" style={[s.row, { minHeight: 44, gap: 6, opacity: pending ? 0.5 : 1 }]}>
         <SymbolView name="arrow.counterclockwise" size={13} tintColor={c.muted} />
         <Text style={[s.smallBold, { color: c.muted }]}>{pending ? '되돌리는 중…' : '처음부터 다시 하기'}</Text>
-      </Pressable>
+      </Press>
     </View>
   );
 }
@@ -494,7 +495,9 @@ export function ElementChain({ current, onPick, c }: { current: string | null; o
       {MECHANICS_ELEMENTS.map((el) => {
         const on = current === el.name;
         return (
-          <Pressable
+          <Press
+            select
+            selected={on}
             key={el.key}
             onPress={() => onPick(el.name)}
             accessibilityRole="button"
@@ -505,7 +508,7 @@ export function ElementChain({ current, onPick, c }: { current: string | null; o
               <Text style={[s.smallBold, { color: on ? '#fff' : c.sky }]}>{el.order}</Text>
             </View>
             <Text style={[s.bodyBold, { color: on ? '#fff' : c.ink, flexShrink: 1 }]}>{el.name}</Text>
-          </Pressable>
+          </Press>
         );
       })}
     </View>
@@ -516,9 +519,9 @@ export function SymptomChips({ onPick, c }: { onPick: (symptom: (typeof MECHANIC
   return (
     <View style={s.wrap}>
       {MECHANICS_SYMPTOMS.map((sym) => (
-        <Pressable key={sym.text} onPress={() => onPick(sym)} accessibilityRole="button" style={[s.chip, { backgroundColor: c.card }]}>
+        <Press key={sym.text} onPress={() => onPick(sym)} accessibilityRole="button" style={[s.chip, { backgroundColor: c.card }]}>
           <Text style={[s.smallBold, { color: c.ink }]}>{sym.text}</Text>
-        </Pressable>
+        </Press>
       ))}
     </View>
   );
@@ -585,7 +588,7 @@ export function ElementCard({
   const count = stages.reduce((n, x) => n + x.primary.length + x.secondary.length, 0);
   return (
     <View onLayout={onLayout} style={[st.card, { backgroundColor: c.card, boxShadow: c.float, borderColor: open ? c.sky + '66' : c.line }]}>
-      <Pressable onPress={onToggle} accessibilityRole="button" accessibilityState={{ expanded: open }} style={st.cardHead}>
+      <Press onPress={onToggle} accessibilityRole="button" accessibilityState={{ expanded: open }} style={st.cardHead}>
         <View style={[st.bigNum, { backgroundColor: c.sky + '1a', width: 28, height: 28 }]}>
           <Text style={[s.smallBold, { color: c.sky }]}>{el.order}</Text>
         </View>
@@ -596,7 +599,7 @@ export function ElementCard({
           <Text style={[s.small, { color: c.muted }]}>{el.line}</Text>
         </View>
         <SymbolView name={open ? 'chevron.up' : 'chevron.down'} size={12} tintColor={c.muted} />
-      </Pressable>
+      </Press>
       {open ? (
         <View style={{ gap: 12, paddingBottom: 14 }}>
           {via && via.also.length > 0 ? (
@@ -670,7 +673,7 @@ export function DrillRow({ drill, secondary, start = 0, c }: { drill: MechanicsD
         {/* 즐겨찾기 — 고른 도구의 드릴에(웹 FavoriteButton 과 같은 서버 동작). 펼치지 않아도 보이게 줄 머리에 둔다(2026-10-20 김민) */}
         <Star key={variant.id} kind="drill" id={variant.id} initial={variant.favorite} title={drill.title} c={c} />
       </View>
-      <Pressable
+      <Press
         onPress={() => setOpen((v) => !v)}
         accessibilityRole="button"
         accessibilityState={{ expanded: open }}
@@ -680,13 +683,15 @@ export function DrillRow({ drill, secondary, start = 0, c }: { drill: MechanicsD
         <SymbolView name="info.circle" size={13} tintColor={c.muted} />
         <Text style={[s.smallBold, { color: c.muted, flex: 1 }]}>자세 · 영상 보기</Text>
         <SymbolView name={open ? 'chevron.up' : 'chevron.down'} size={11} tintColor={c.muted} />
-      </Pressable>
+      </Press>
       {open ? (
         <View style={{ gap: 10, paddingHorizontal: 12, paddingBottom: 12 }}>
           {drill.variants.length > 1 ? (
             <View accessibilityRole="radiogroup" accessibilityLabel="도구" style={s.wrap}>
               {drill.variants.map((v, i) => (
-                <Pressable
+                <Press
+                  select
+                  selected={i === pick}
                   key={v.id}
                   onPress={() => setPick(i)}
                   accessibilityRole="radio"
@@ -694,7 +699,7 @@ export function DrillRow({ drill, secondary, start = 0, c }: { drill: MechanicsD
                   style={[s.chip, { backgroundColor: i === pick ? c.sky : c.chip }]}
                 >
                   <Text style={[s.smallBold, { color: i === pick ? '#fff' : c.muted }]}>{v.tool}</Text>
-                </Pressable>
+                </Press>
               ))}
             </View>
           ) : null}

@@ -1,7 +1,7 @@
 import { SymbolView } from 'expo-symbols';
 import { type Href, router, useFocusEffect } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
-import { Alert, Pressable, RefreshControl, ScrollView, type ScrollViewInstance, StyleSheet, Text, View } from 'react-native';
+import { Alert, RefreshControl, ScrollView, type ScrollViewInstance, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MEALS, amountText, entryMacros, gapNames, macroGaps, mealLabel, missingMacros, missingText, stepAmount, type EntryEdit, type MealEntryView, type MealKey } from '@/lib/nutrition/meta';
 import { mealProtein } from '@/lib/nutrition/meal-protein';
@@ -79,9 +79,9 @@ export function NutritionTab({ today, bottom, onWebNutrition }: { today: string;
     return (
       <View style={[styles.center, { backgroundColor: c.page, paddingBottom: bottom }]}>
         <Text style={{ color: c.ink, fontSize: 17, textAlign: 'center' }}>{error}</Text>
-        <Pressable accessibilityRole="button" onPress={onWebNutrition} style={[styles.primary, { backgroundColor: c.sky }]}>
+        <Press accessibilityRole="button" onPress={onWebNutrition} style={[styles.primary, { backgroundColor: c.sky }]}>
           <Text style={styles.primaryText}>영양 설정하기</Text>
-        </Pressable>
+        </Press>
       </View>
     );
 
@@ -205,13 +205,13 @@ export function NutritionTab({ today, bottom, onWebNutrition }: { today: string;
           />
         ) : (
           <View style={styles.dateRow}>
-            <Pressable accessibilityLabel="전날" disabled={date <= oldest} onPress={() => setDate(shiftDateKey(date, -1))} style={[styles.arrow, date <= oldest && { opacity: 0.3 }]}>
+            <Press accessibilityLabel="전날" disabled={date <= oldest} onPress={() => setDate(shiftDateKey(date, -1))} style={[styles.arrow, date <= oldest && { opacity: 0.3 }]}>
               <Text style={[styles.arrowText, { color: c.sky }]}>‹</Text>
-            </Pressable>
+            </Press>
             <Text style={[styles.date, { color: c.ink }]}>{isToday ? '오늘' : `${m}월 ${d}일`}</Text>
-            <Pressable accessibilityLabel="다음날" disabled={date >= today} onPress={() => setDate(shiftDateKey(date, 1))} style={[styles.arrow, date >= today && { opacity: 0.3 }]}>
+            <Press accessibilityLabel="다음날" disabled={date >= today} onPress={() => setDate(shiftDateKey(date, 1))} style={[styles.arrow, date >= today && { opacity: 0.3 }]}>
               <Text style={[styles.arrowText, { color: c.sky }]}>›</Text>
-            </Pressable>
+            </Press>
           </View>
         )}
       </View>
@@ -298,13 +298,13 @@ export function NutritionTab({ today, bottom, onWebNutrition }: { today: string;
           {nudge ? (
             <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', columnGap: 8 }}>
               <Text style={{ color: c.muted, fontSize: 12 }}>체중 흐름을 보고 목표를 조금 바꿔 볼까요?</Text>
-              <Pressable
+              <Press
                 accessibilityRole="button"
                 onPress={() => router.push({ pathname: '/nutrition/stats' as Href as never, params: { date } })}
                 style={{ minHeight: 40, justifyContent: 'center', paddingHorizontal: 4 }}
               >
                 <Text style={{ color: c.skyStrong, fontSize: 12, fontWeight: '600' }}>보기</Text>
-              </Pressable>
+              </Press>
             </View>
           ) : null}
           {day?.hasProfile && day.assumed?.length ? (
@@ -749,7 +749,7 @@ function PlanRows({
     <View style={{ gap: 2 }}>
       {items.map((p) => (
         <View key={p.key} style={[styles.entry, { opacity: 0.75 }]}>
-          <Pressable
+          <Press
             accessibilityRole="button"
             accessibilityLabel={`${p.name} 먹었어요`}
             disabled={busy}
@@ -757,11 +757,11 @@ function PlanRows({
             hitSlop={8}
             style={[styles.eat, { borderColor: c.sky }]}
           />
-          <Pressable accessibilityRole="button" accessibilityLabel={`${p.name} 다른 음식으로 바꾸기`} onPress={() => onReplace(p)} style={{ flex: 1 }}>
+          <Press accessibilityRole="button" accessibilityLabel={`${p.name} 다른 음식으로 바꾸기`} onPress={() => onReplace(p)} style={{ flex: 1 }}>
             <Text style={{ color: c.ink, fontSize: 15 }} numberOfLines={1}>
               식단 · {p.name}
             </Text>
-          </Pressable>
+          </Press>
           <Text style={{ color: c.muted, fontSize: 14 }}>
             {p.amount !== 1 ? `${amountText(p.amount)} · ` : ''}
             {kcalText(p.kcal * p.amount)}
@@ -769,9 +769,9 @@ function PlanRows({
         </View>
       ))}
       {items.length > 1 ? (
-        <Pressable accessibilityRole="button" disabled={busy} onPress={() => onEat(items.map((p) => p.key))} style={{ minHeight: 36, justifyContent: 'center' }}>
+        <Press accessibilityRole="button" disabled={busy} onPress={() => onEat(items.map((p) => p.key))} style={{ minHeight: 36, justifyContent: 'center' }}>
           <Text style={{ color: c.sky, fontSize: 14, fontWeight: '600' }}>모두 먹었어요</Text>
-        </Pressable>
+        </Press>
       ) : null}
     </View>
   );
@@ -786,7 +786,7 @@ function EntryRow({ entry, onPress }: { entry: MealEntryView; onPress: () => voi
   const missing = missingMacros(entry);
   const saving = entry.id.startsWith('tmp-');
   return (
-    <Pressable accessibilityRole="button" accessibilityHint="끼니 편집" disabled={saving} onPress={onPress} style={styles.entry}>
+    <Press accessibilityRole="button" accessibilityHint="끼니 편집" disabled={saving} onPress={onPress} style={styles.entry}>
       <Text style={{ flex: 1, color: c.ink, fontSize: 15 }} numberOfLines={1}>
         {entry.name}
         {/* 빠진 영양소는 양 바로 뒤에 — 줄이 좁으면 뒤쪽부터 잘려서, 끝에 두면 안 보인다(웹과 같다) */}
@@ -801,7 +801,7 @@ function EntryRow({ entry, onPress }: { entry: MealEntryView; onPress: () => voi
         {round(m.kcal).toLocaleString('ko-KR')}
         <Text style={{ color: c.muted, fontSize: 12 }}> kcal</Text>
       </Text>
-    </Pressable>
+    </Press>
   );
 }
 
@@ -834,7 +834,7 @@ function EditRow({
     );
   return (
     <View style={styles.entry}>
-      <Pressable
+      <Press
         accessibilityRole="button"
         accessibilityLabel={`${entry.name} 다른 음식으로 바꾸기`}
         disabled={draft.remove}
@@ -849,30 +849,30 @@ function EditRow({
           {moved && !draft.remove ? <Text style={{ color: c.sky, fontWeight: '600' }}> · {mealLabel(draft.meal)}으로 옮김</Text> : null}
           {!draft.remove ? <Text style={{ color: c.sky }}> · 바꾸기</Text> : null}
         </Text>
-      </Pressable>
+      </Press>
       {draft.remove ? (
-        <Pressable accessibilityRole="button" onPress={() => onChange({ ...draft, remove: false })} style={styles.textBtn}>
+        <Press accessibilityRole="button" onPress={() => onChange({ ...draft, remove: false })} style={styles.textBtn}>
           <Text style={{ color: c.sky, fontSize: 14, fontWeight: '600' }}>되살리기</Text>
-        </Pressable>
+        </Press>
       ) : (
         <>
           <View style={[styles.stepper, { backgroundColor: c.chip }]}>
-            <Pressable accessibilityLabel={`${entry.name} 줄이기`} onPress={() => onChange({ ...draft, amount: stepAmount(draft.amount, -1) })} style={styles.step}>
+            <Press accessibilityLabel={`${entry.name} 줄이기`} onPress={() => onChange({ ...draft, amount: stepAmount(draft.amount, -1) })} style={styles.step}>
               <Text style={[styles.stepText, { color: c.ink }]}>−</Text>
-            </Pressable>
+            </Press>
             <Text style={{ color: c.ink, fontSize: 13, fontWeight: '600', minWidth: 44, textAlign: 'center', fontVariant: ['tabular-nums'] }}>
               {amountText(draft.amount)}
             </Text>
-            <Pressable accessibilityLabel={`${entry.name} 늘리기`} onPress={() => onChange({ ...draft, amount: stepAmount(draft.amount, 1) })} style={styles.step}>
+            <Press accessibilityLabel={`${entry.name} 늘리기`} onPress={() => onChange({ ...draft, amount: stepAmount(draft.amount, 1) })} style={styles.step}>
               <Text style={[styles.stepText, { color: c.ink }]}>+</Text>
-            </Pressable>
+            </Press>
           </View>
-          <Pressable accessibilityRole="button" accessibilityLabel={`${entry.name} 다른 끼니로 옮기기`} onPress={move} style={styles.icon}>
+          <Press accessibilityRole="button" accessibilityLabel={`${entry.name} 다른 끼니로 옮기기`} onPress={move} style={styles.icon}>
             <SymbolView name="arrow.left.arrow.right" size={17} tintColor={moved ? c.sky : c.muted} />
-          </Pressable>
-          <Pressable accessibilityRole="button" accessibilityLabel={`${entry.name} 지우기`} onPress={() => onChange({ ...draft, remove: true })} style={styles.icon}>
+          </Press>
+          <Press accessibilityRole="button" accessibilityLabel={`${entry.name} 지우기`} onPress={() => onChange({ ...draft, remove: true })} style={styles.icon}>
             <SymbolView name="trash" size={17} tintColor={c.muted} />
-          </Pressable>
+          </Press>
         </>
       )}
     </View>

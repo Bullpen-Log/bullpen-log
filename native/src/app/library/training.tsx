@@ -1,6 +1,6 @@
 import { type Href, router } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { ActivityIndicator, FlatList, Pressable, RefreshControl, ScrollView, Text, View } from 'react-native';
+import { ActivityIndicator, FlatList, RefreshControl, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { TRAINING_CATEGORIES } from '@/lib/categories';
 import { BODY_PARTS, EXERCISE_EQUIPMENT, INTENSITY_NAMES } from '@/lib/exercise-meta';
@@ -11,6 +11,7 @@ import { ChipRow, EXERCISE_LIST, FilterSheet, filterChips, filterCount, matchesF
 import { usePalette } from '~/lib/ui';
 import { useScreenData } from '~/training/screen';
 import { READABLE } from '~/lib/layout';
+import { Press } from '~/shell/press';
 
 /**
  * 운동 영상 라이브러리(앱 화면) — 웹 /library/training(training-client.tsx)을 옮겼다. 사이트의 그 주소가 앱(BullpenNative/7 부터)이면 이 화면을
@@ -108,9 +109,9 @@ export default function ExerciseLibraryScreen() {
         state.failed ? (
           <View style={{ padding: 24, gap: 16, alignItems: 'center' }}>
             <Text style={{ color: c.ink, fontSize: 15 }}>{state.failed}</Text>
-            <Pressable accessibilityRole="button" onPress={() => void state.load()} hitSlop={8}>
+            <Press accessibilityRole="button" onPress={() => void state.load()} hitSlop={8}>
               <Text style={{ color: c.sky, fontSize: 15, fontWeight: '700' }}>다시 불러오기</Text>
-            </Pressable>
+            </Press>
           </View>
         ) : (
           <ActivityIndicator style={{ marginTop: 40 }} />
@@ -126,7 +127,7 @@ export default function ExerciseLibraryScreen() {
           ListEmptyComponent={
             <View style={{ alignItems: 'center', gap: 12, paddingTop: 32 }}>
               <Text style={{ color: c.muted, fontSize: 15 }}>조건에 맞는 운동이 없어요</Text>
-              <Pressable
+              <Press
                 accessibilityRole="button"
                 onPress={() => {
                   setQuery('');
@@ -136,7 +137,7 @@ export default function ExerciseLibraryScreen() {
                 hitSlop={8}
               >
                 <Text style={{ color: c.sky, fontSize: 15, fontWeight: '700' }}>조건 모두 지우기</Text>
-              </Pressable>
+              </Press>
             </View>
           }
           renderItem={({ item, index }) => (

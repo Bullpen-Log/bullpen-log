@@ -15,6 +15,7 @@ import { Icon } from '~/shell/icon';
 import { CustomFood } from '~/nutrition/custom-food';
 import { takeScanned, type Scanned } from '~/nutrition/scanned';
 import { READABLE } from '~/lib/layout';
+import { Press } from '~/shell/press';
 
 /**
  * 음식 담기(앱) — 웹 영양 탭 음식 창의 첫 판: 찾기(기본 음식 · 내 음식 → 식약처 품목대표 → 식약처 상품, 웹과 같은 순서) · 최근 먹은 것 ·
@@ -250,7 +251,7 @@ export default function NutritionAddScreen() {
 
   const custom = (
     <View style={{ gap: 8, paddingTop: 8 }}>
-      <Pressable
+      <Press
         accessibilityRole="button"
         accessibilityState={{ expanded: customOpen }}
         onPress={() => setCustomOpen((o) => !o)}
@@ -259,7 +260,7 @@ export default function NutritionAddScreen() {
         <Text style={{ color: customOpen ? c.sky : c.muted, fontSize: 15 }}>
           ✎ {q.trim() ? `‘${q.trim()}’ 직접 입력` : '목록에 없으면 직접 입력'}
         </Text>
-      </Pressable>
+      </Press>
       {customOpen ? (
         <CustomFood
           key={q.trim()}
@@ -294,7 +295,7 @@ export default function NutritionAddScreen() {
           {missingMacros(f).length > 0 ? ` · ${missingText(missingMacros(f))}` : ''}
         </Text>
       </View>
-      <Pressable
+      <Press
         accessibilityRole="button"
         accessibilityLabel={replacing ? `${f.name}(으)로 바꾸기` : `${f.name} 1인분 담기`}
         onPress={() => void quickAdd(f, key)}
@@ -308,22 +309,22 @@ export default function NutritionAddScreen() {
         ) : (
           <Text style={{ color: c.sky, fontSize: 24 }}>+</Text>
         )}
-      </Pressable>
+      </Press>
     </Pressable>
   );
 
   return (
     <View style={{ flex: 1, backgroundColor: c.page }}>
       <View style={styles.bar}>
-        <Pressable accessibilityRole="button" onPress={() => router.back()} hitSlop={10}>
+        <Press accessibilityRole="button" onPress={() => router.back()} hitSlop={10}>
           <Text style={[styles.barAction, { color: c.sky }]}>{added.length ? '다 했어요' : '닫기'}</Text>
-        </Pressable>
+        </Press>
         <Text style={[styles.barTitle, { color: c.ink, flexShrink: 1 }]} numberOfLines={1}>
           {replacing ? `‘${replacing.name}’ 바꾸기` : `${mealLabel(mealKey)}에 담기`}
         </Text>
-        <Pressable accessibilityRole="button" onPress={() => router.push('/nutrition/barcode' as Href)} hitSlop={10}>
+        <Press accessibilityRole="button" onPress={() => router.push('/nutrition/barcode' as Href)} hitSlop={10}>
           <Text style={[styles.barAction, { color: c.sky }]}>바코드</Text>
-        </Pressable>
+        </Press>
       </View>
 
       {chosen ? (
@@ -484,13 +485,13 @@ export default function NutritionAddScreen() {
                           <View style={{ flex: 1 }}>{row(f, `yr${i}`)}</View>
                           {f.id ? (
                             confirmMine === f.id ? (
-                              <Pressable accessibilityRole="button" onPress={() => void removeMine(f)} style={[styles.del, { backgroundColor: withAlpha(c.danger, 0.12) }]}>
+                              <Press accessibilityRole="button" onPress={() => void removeMine(f)} style={[styles.del, { backgroundColor: withAlpha(c.danger, 0.12) }]}>
                                 <Text style={{ color: c.danger, fontSize: 13, fontWeight: '700' }}>지우기</Text>
-                              </Pressable>
+                              </Press>
                             ) : (
-                              <Pressable accessibilityRole="button" accessibilityLabel={`${f.name} 내 음식에서 빼기`} onPress={() => setConfirmMine(f.id)} style={styles.delIcon}>
+                              <Press accessibilityRole="button" accessibilityLabel={`${f.name} 내 음식에서 빼기`} onPress={() => setConfirmMine(f.id)} style={styles.delIcon}>
                                 <Icon name="trash2" size={16} color={c.muted} />
-                              </Pressable>
+                              </Press>
                             )
                           ) : null}
                         </View>
@@ -511,9 +512,9 @@ export default function NutritionAddScreen() {
           <Text style={{ flex: 1, color: c.ink, fontSize: 15 }} numberOfLines={1}>
             {added.length === 1 ? `${added[0]} 담았어요` : `${added.length}번 담았어요 · ${added.at(-1)}`}
           </Text>
-          <Pressable accessibilityRole="button" onPress={() => router.back()} style={[styles.done, { backgroundColor: c.sky }]}>
+          <Press accessibilityRole="button" onPress={() => router.back()} style={[styles.done, { backgroundColor: c.sky }]}>
             <Text style={{ color: '#fff', fontSize: 15, fontWeight: '600' }}>다 했어요</Text>
-          </Pressable>
+          </Press>
         </View>
       ) : null}
     </View>

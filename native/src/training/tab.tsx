@@ -21,6 +21,7 @@ import { DateNavButton } from '~/shell/mini-calendar';
 import { shiftDateKey } from '@/lib/pitch-stats';
 import { AnalysisPill, PageHead } from '~/shell/heading';
 import { Icon, type IconName } from '~/shell/icon';
+import { Press } from '~/shell/press';
 
 /**
  * 트레이닝 탭 첫 화면(앱 화면) — 웹 트레이닝 홈(app/(app)/training/training-home.tsx)과 같은 앱 카드 셋(오늘 운동 · 암케어 · 메커니즘,
@@ -219,7 +220,7 @@ function Card({
     card.action?.kind === 'workout' ? (card.action.resume ? '이어서' : '시작') : card.action ? card.action.label : null;
   return (
     <View style={[styles.card, { backgroundColor: c.card, boxShadow: c.float }]}>
-      <Pressable accessibilityRole="button" accessibilityLabel={`${a.name}. ${card.status}`} onPress={onOpen} style={styles.row}>
+      <Press accessibilityRole="button" accessibilityLabel={`${a.name}. ${card.status}`} onPress={onOpen} style={styles.row}>
         <View style={[styles.icon, { backgroundColor: c.sky }]}>
           <Icon name={a.glyph} size={24} color="#fff" />
         </View>
@@ -243,7 +244,7 @@ function Card({
         ) : (
           <Text style={{ color: c.muted, fontSize: 20 }}>›</Text>
         )}
-      </Pressable>
+      </Press>
       {card.bars ? (
         <View style={styles.bars} accessibilityLabel={card.bars.label}>
           {Array.from({ length: card.bars.total }, (_, i) => (
@@ -255,7 +256,7 @@ function Card({
         </View>
       ) : null}
       {card.gap ? (
-        <Pressable
+        <Press
           accessibilityRole="button"
           onPress={() =>
             /* 암케어 빈 곳 줄(/training?view=armcare&tab=guide)은 앱 암케어 화면의 부위별 보강 칸으로 */
@@ -266,7 +267,7 @@ function Card({
           style={styles.line}
         >
           <Text style={{ color: c.sky, fontSize: 13, fontWeight: '600' }}>{card.gap.text} ›</Text>
-        </Pressable>
+        </Press>
       ) : null}
       {/* 웹 트레이닝 홈의 드릴 공 줄과 같은 부품(DRILL_THROW_TEXT 문구 · '이미 넣었어요' · '안 적을래요' 닫기 — mechanics.closeDrillThrowNote) */}
       {card.throwNote ? <ThrowNoteCard note={card.throwNote} c={c} /> : null}

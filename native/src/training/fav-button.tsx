@@ -2,6 +2,7 @@ import { SymbolView } from 'expo-symbols';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useFav } from './favorites';
 import type { Palette } from '~/lib/ui';
+import { Press } from '~/shell/press';
 
 /** 큰 제목 오른쪽 '즐겨찾기' 알약 — 암케어 · 메커니즘의 즐겨찾기 모음 창을 연다(2026-10-20 김민) */
 export function FavButton({ onPress, c }: { onPress: () => void; c: Palette }) {
@@ -23,7 +24,7 @@ export function Star({ kind, id, initial, title, c }: { kind: 'exercise' | 'dril
   const f = useFav(kind, id, initial);
   return (
     <View style={{ alignItems: 'flex-end' }}>
-      <Pressable
+      <Press
         onPress={() => void f.toggle()}
         disabled={f.busy}
         hitSlop={6}
@@ -33,7 +34,7 @@ export function Star({ kind, id, initial, title, c }: { kind: 'exercise' | 'dril
         style={st.star}
       >
         <SymbolView name={f.on ? 'star.fill' : 'star'} size={20} tintColor={f.on ? '#ff9500' : c.muted} />
-      </Pressable>
+      </Press>
       {f.error ? <Text style={[st.error, { color: c.danger }]}>{f.error}</Text> : null}
     </View>
   );

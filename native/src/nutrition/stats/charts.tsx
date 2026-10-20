@@ -1,12 +1,13 @@
 import * as Haptics from 'expo-haptics';
 import { useEffect, useRef, useState } from 'react';
-import { type GestureResponderEvent, Pressable, StyleSheet, Text, View } from 'react-native';
+import { type GestureResponderEvent, StyleSheet, Text, View } from 'react-native';
 import Svg, { Circle, Line, Path, Polygon, Polyline, Text as SvgText } from 'react-native-svg';
 import type { DaySummary, WeightPoint } from '@/lib/nutrition/load';
 import { kcalText } from '@/lib/nutrition/meta';
 import { fmtRate, type Trend } from '@/lib/nutrition/weight-goal';
 import { toWeight, type WeightUnit } from '@/lib/units';
 import type { Palette } from '~/lib/ui';
+import { Press } from '~/shell/press';
 
 /**
  * 목표 · 통계 화면의 그래프 둘 — 웹 app/(app)/nutrition/charts.tsx 의 WeekChart(7일 칼로리) · WeightTrend(8주 체중)를 옮겼다.
@@ -30,7 +31,7 @@ export function WeekChart({ week, selected, c }: { week: DaySummary[]; selected:
         {week.map((d) => {
           const on = d.date === (pick ?? selected);
           return (
-            <Pressable
+            <Press
               key={d.date}
               accessibilityRole="button"
               accessibilityLabel={`${md(d.date)}, ${kcalText(d.kcal)}kcal 먹음, 목표 ${kcalText(d.target)}kcal`}
@@ -49,7 +50,7 @@ export function WeekChart({ week, selected, c }: { week: DaySummary[]; selected:
                 }}
               />
               <View style={[st.target, { bottom: `${(d.target / max) * 100}%`, backgroundColor: c.ink + '59' }]} />
-            </Pressable>
+            </Press>
           );
         })}
       </View>

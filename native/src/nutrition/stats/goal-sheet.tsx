@@ -1,7 +1,7 @@
 import * as Haptics from 'expo-haptics';
 import { SymbolView } from 'expo-symbols';
 import { useState, type ReactNode } from 'react';
-import { KeyboardAvoidingView, Modal, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
+import { KeyboardAvoidingView, Modal, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ageRule, effectiveGoal, effectiveProtein, effectiveRate, paceChoices, paceDelta } from '@/lib/nutrition/age';
 import {
@@ -37,6 +37,7 @@ import { fromWeight, round1, toWeight, type WeightUnit } from '@/lib/units';
 import { call } from '~/community/parts';
 import type { Palette } from '~/lib/ui';
 import { READABLE } from '~/lib/layout';
+import { Press } from '~/shell/press';
 
 /**
  * 영양 목표(앱) — 웹 목표 창(app/(app)/nutrition/goal-sheet.tsx)을 옮겼다. 고르는 즉시 아래 '이렇게 먹어요' 숫자가 바뀐다(같은 computeTargets ·
@@ -327,9 +328,9 @@ export function GoalSheet({
             <Text style={[st.title, { color: c.ink }]}>영양 목표</Text>
             <Text style={[st.small, { color: c.muted }]}>고르면 바로 아래 숫자가 바뀌어요. 운동한 날은 쓴 만큼 더해져요.</Text>
           </View>
-          <Pressable onPress={onClose} accessibilityRole="button" accessibilityLabel="닫기" hitSlop={8}>
+          <Press onPress={onClose} accessibilityRole="button" accessibilityLabel="닫기" hitSlop={8}>
             <SymbolView name="xmark.circle.fill" size={28} tintColor={c.muted} />
-          </Pressable>
+          </Press>
         </View>
         <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={[{ padding: 16, gap: 20, paddingBottom: 24 }, READABLE]}>
           <Choices
@@ -360,7 +361,7 @@ export function GoalSheet({
                   {goalCards.map((key) => {
                     const on = goalKind === key;
                     return (
-                      <Pressable
+                      <Press
                         key={key}
                         accessibilityRole="radio"
                         accessibilityState={{ selected: on }}
@@ -378,7 +379,7 @@ export function GoalSheet({
                           {GOAL_KINDS.find((g) => g.key === key)?.label ?? key}
                         </Text>
                         <Text style={[st.small, { color: c.muted }]}>{goalKindHint(key, body.age)}</Text>
-                      </Pressable>
+                      </Press>
                     );
                   })}
                 </View>
@@ -547,21 +548,21 @@ export function GoalSheet({
                 {preview.adjust !== 0 ? (
                   <View style={st.inputRow}>
                     <Text style={[st.small, { color: c.muted }]}>체중 흐름 조정 {signed(preview.adjust)}kcal 포함</Text>
-                    <Pressable accessibilityRole="button" onPress={() => setCleared(true)} hitSlop={8} style={{ minHeight: 40, justifyContent: 'center' }}>
+                    <Press accessibilityRole="button" onPress={() => setCleared(true)} hitSlop={8} style={{ minHeight: 40, justifyContent: 'center' }}>
                       <Text style={{ color: c.sky, fontSize: 13, fontWeight: '600' }}>조정 지우기</Text>
-                    </Pressable>
+                    </Press>
                   </View>
                 ) : savedAdjust !== 0 ? (
                   <Text style={[st.small, { color: c.muted }]}>저장하면 체중 흐름 조정 {signed(savedAdjust)}kcal은 0으로 돌아가요.</Text>
                 ) : null}
-                <Pressable
+                <Press
                   accessibilityRole="button"
                   accessibilityState={{ expanded: foldOpen }}
                   onPress={() => setFoldOpen((o) => !o)}
                   style={{ minHeight: 40, justifyContent: 'center' }}
                 >
                   <Text style={{ color: c.muted, fontSize: 13, fontWeight: '600' }}>{foldOpen ? '계산 내역 접기' : '계산 내역 보기'}</Text>
-                </Pressable>
+                </Press>
                 {foldOpen ? (
                   <Text style={[st.small, { color: c.muted, lineHeight: 19 }]}>
                     {showPlan && body.age !== null && !manual ? '숫자는 처음엔 어림잡은 값이에요. 체중 흐름을 보고 맞춰 가요.\n' : ''}
@@ -587,14 +588,14 @@ export function GoalSheet({
           ) : null}
         </ScrollView>
         <View style={[st.footer, { paddingBottom: Math.max(16, inset.bottom), borderTopColor: c.line }]}>
-          <Pressable
+          <Press
             accessibilityRole="button"
             onPress={() => void save()}
             disabled={pending}
             style={[st.primary, { backgroundColor: c.sky }, pending && { opacity: 0.5 }]}
           >
             <Text style={st.primaryText}>{pending ? '저장 중' : '저장'}</Text>
-          </Pressable>
+          </Press>
         </View>
       </KeyboardAvoidingView>
     </Modal>
@@ -685,7 +686,7 @@ function Choices({
   return (
     <View accessibilityRole={multiple ? undefined : 'radiogroup'} accessibilityLabel={label} style={st.chips}>
       {options.map((o) => (
-        <Pressable
+        <Press
           key={o.value}
           accessibilityRole={multiple ? 'checkbox' : 'radio'}
           accessibilityState={multiple ? { checked: on(o.value) } : { selected: on(o.value) }}
@@ -696,7 +697,7 @@ function Choices({
           style={[st.chip, { backgroundColor: on(o.value) ? c.sky : c.chip }]}
         >
           <Text style={{ color: on(o.value) ? '#fff' : c.ink, fontSize: 15, fontWeight: '600' }}>{o.label}</Text>
-        </Pressable>
+        </Press>
       ))}
     </View>
   );

@@ -2,12 +2,13 @@ import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
 import { useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { TRAINING_LEVELS } from '@/lib/report/personalize';
 import { Bar, LoadState, call, useLoad } from '~/community/parts';
 import { usePalette } from '~/lib/ui';
 import { READABLE } from '~/lib/layout';
+import { Press } from '~/shell/press';
 
 /**
  * 트레이닝 설정(앱 화면) — 웹 설정 창의 트레이닝 칸(components/training-forms.tsx TrainingSettingsForm)과 같은 웨이트 경력(고르면 바로 저장,
@@ -55,7 +56,7 @@ function Body({ initial }: { initial: Extract<Loaded, { ok: true }> }) {
         {TRAINING_LEVELS.map((l, i) => {
           const on = level === l.name;
           return (
-            <Pressable
+            <Press
               key={l.name}
               accessibilityRole="radio"
               accessibilityState={{ selected: on, disabled: levelBusy }}
@@ -67,15 +68,15 @@ function Body({ initial }: { initial: Extract<Loaded, { ok: true }> }) {
                 <Text style={[st.hint, { color: c.muted }]}>{l.desc}</Text>
               </View>
               {on ? levelBusy ? <ActivityIndicator /> : <SymbolView name="checkmark" size={17} weight="semibold" tintColor={c.sky} /> : null}
-            </Pressable>
+            </Press>
           );
         })}
       </View>
       {levelNote ? <Text style={[st.hint, { color: levelNote.endsWith('저장했어요') ? c.muted : c.danger }]}>{levelNote}</Text> : null}
 
-      <Pressable accessibilityRole="button" onPress={() => router.back()} style={{ alignSelf: 'center', padding: 12 }}>
+      <Press accessibilityRole="button" onPress={() => router.back()} style={{ alignSelf: 'center', padding: 12 }}>
         <Text style={{ color: c.sky, fontSize: 15, fontWeight: '600' }}>닫기</Text>
-      </Pressable>
+      </Press>
     </ScrollView>
   );
 }

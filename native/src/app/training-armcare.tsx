@@ -18,6 +18,7 @@ import { FavButton } from '~/training/fav-button';
 import { Fold, Screen, SectionHead, s, useJump, useScreenData } from '~/training/screen';
 import { Sheet } from '~/workout/sheets';
 import { useRememberPart } from '~/training/remember';
+import { Press } from '~/shell/press';
 
 /**
  * 암케어(앱 화면) — 웹 /training?view=armcare(&tab=guide)(app/(app)/training/training-page.tsx 의 armcare 칸 · armcare-section.tsx)를 옮겼다.
@@ -157,13 +158,13 @@ function TodayTab({ data, fresh, reload, c }: { data: AppArmcareTodayTab; fresh:
           <View style={[s.card, { backgroundColor: c.card, boxShadow: c.float }]}>
             <Text style={[s.bodyBold, { color: c.ink, fontSize: 17 }]}>오늘 체크인을 먼저 남겨 주세요</Text>
             <Text style={[s.body, { color: c.muted }]}>30초면 돼요. 몸 상태를 보고 루틴을 짜요.</Text>
-            <Pressable
+            <Press
               onPress={() => openCheckin('/training?view=home')}
               accessibilityRole="button"
               style={[s.pill, { backgroundColor: c.sky }]}
             >
               <Text style={[s.bodyBold, { color: '#fff' }]}>체크인하기 ›</Text>
-            </Pressable>
+            </Press>
           </View>
         ) : custom.kind === 'rest' ? (
           <View style={[s.card, { backgroundColor: c.warnBg }]}>
@@ -173,18 +174,18 @@ function TodayTab({ data, fresh, reload, c }: { data: AppArmcareTodayTab; fresh:
               data.painView ? (
                 <PainGuideButton pain={data.painView} tone="warn" c={c} />
               ) : (
-                <Pressable onPress={() => leave('/training?view=armcare')} accessibilityRole="link" style={[s.chip, { backgroundColor: c.card, alignSelf: 'flex-start' }]}>
+                <Press onPress={() => leave('/training?view=armcare')} accessibilityRole="link" style={[s.chip, { backgroundColor: c.card, alignSelf: 'flex-start' }]}>
                   <Text style={[s.smallBold, { color: c.warn }]}>통증 안내 보기 ›</Text>
-                </Pressable>
+                </Press>
               )
             ) : null}
-            <Pressable
+            <Press
               onPress={() => openCheckin('/training?view=home')}
               accessibilityRole="button"
               style={s.textBtn}
             >
               <Text style={[s.smallBold, { color: c.sky }]}>통증이 아니면 체크인 고치기</Text>
-            </Pressable>
+            </Press>
           </View>
         ) : (
           <CustomRoutine custom={custom} painView={data.painView ?? null} dateKey={data.dateKey} fresh={fresh} reload={reload} c={c} />
@@ -217,10 +218,10 @@ function TodayTab({ data, fresh, reload, c }: { data: AppArmcareTodayTab; fresh:
           ))
         )}
         {data.routines.length < data.routineMax ? (
-          <Pressable onPress={() => router.push('/training/routine/new' as Href)} accessibilityRole="button" style={[s.webRow, { backgroundColor: c.card, boxShadow: c.float }]}>
+          <Press onPress={() => router.push('/training/routine/new' as Href)} accessibilityRole="button" style={[s.webRow, { backgroundColor: c.card, boxShadow: c.float }]}>
             <Text style={[s.body, { color: c.ink, flex: 1 }]}>새 루틴 만들기</Text>
             <SymbolView name="chevron.right" size={13} weight="semibold" tintColor={c.muted} />
-          </Pressable>
+          </Press>
         ) : (
           <Text style={[s.tiny, { color: c.muted, paddingHorizontal: 4 }]}>루틴은 {data.routineMax}개까지 둘 수 있어요.</Text>
         )}
@@ -267,9 +268,9 @@ function CustomRoutine({
         painView ? (
           <PainGuideButton pain={painView} tone="sky" c={c} />
         ) : (
-          <Pressable onPress={() => leave('/training?view=armcare')} accessibilityRole="link" style={[s.chip, { backgroundColor: c.sky + '1a', alignSelf: 'flex-start' }]}>
+          <Press onPress={() => leave('/training?view=armcare')} accessibilityRole="link" style={[s.chip, { backgroundColor: c.sky + '1a', alignSelf: 'flex-start' }]}>
             <Text style={[s.smallBold, { color: c.sky }]}>통증 안내 보기 ›</Text>
-          </Pressable>
+          </Press>
         )
       ) : null}
     </>
@@ -282,14 +283,14 @@ function CustomRoutine({
         <Text style={[s.title, { color: c.ink }]}>오늘은 {decision.label}을 권해요</Text>
         <Text style={[s.bodyBold, { color: c.sky }]}>{decision.reason}</Text>
         {extra}
-        <Pressable
+        <Press
           onPress={() => void make()}
           disabled={making || !fresh}
           accessibilityRole="button"
           style={[s.pill, { backgroundColor: c.sky, opacity: making || !fresh ? 0.6 : 1 }]}
         >
           <Text style={[s.bodyBold, { color: '#fff' }]}>{making ? '만드는 중…' : '맞춤 루틴 만들기'}</Text>
-        </Pressable>
+        </Press>
         {errorLine}
       </View>
     );
@@ -324,11 +325,11 @@ function CustomRoutine({
           </Text>
         ) : null}
         <View style={[s.row, { borderTopWidth: 1, borderTopColor: c.line, paddingTop: 12, flexWrap: 'wrap' }]}>
-          <Pressable onPress={() => openPlay('today', `d=${dateKey}`)} accessibilityRole="button" style={[s.smallPill, { backgroundColor: c.sky }]}>
+          <Press onPress={() => openPlay('today', `d=${dateKey}`)} accessibilityRole="button" style={[s.smallPill, { backgroundColor: c.sky }]}>
             <SymbolView name="play.fill" size={12} tintColor="#fff" />
             <Text style={[s.bodyBold, { color: '#fff' }]}>따라하기</Text>
-          </Pressable>
-          <Pressable
+          </Press>
+          <Press
             onPress={() => void make()}
             disabled={making || !fresh}
             accessibilityRole="button"
@@ -336,7 +337,7 @@ function CustomRoutine({
           >
             <SymbolView name="arrow.clockwise" size={12} tintColor={c.ink} />
             <Text style={[s.smallBold, { color: c.ink }]}>{making ? '만드는 중…' : '다시 만들기'}</Text>
-          </Pressable>
+          </Press>
         </View>
         {errorLine}
       </View>
@@ -408,11 +409,11 @@ function RehabStartRow({ start, c }: { start: NonNullable<AppArmcareTodayTab['re
   if (start.area) q.set('area', start.area);
   if (start.level) q.set('level', String(start.level));
   return (
-    <Pressable onPress={() => router.push(`/rehab-start?${q}` as Href)} accessibilityRole="button" style={[s.webRow, { backgroundColor: c.card, boxShadow: c.float }]}>
+    <Press onPress={() => router.push(`/rehab-start?${q}` as Href)} accessibilityRole="button" style={[s.webRow, { backgroundColor: c.card, boxShadow: c.float }]}>
       <Text style={[s.body, { color: c.ink, flex: 1 }]}>
         팔이 아프면 · <Text style={{ color: c.sky, fontWeight: '600' }}>재활 프로그램</Text>
       </Text>
       <SymbolView name="chevron.right" size={13} weight="semibold" tintColor={c.muted} />
-    </Pressable>
+    </Press>
   );
 }

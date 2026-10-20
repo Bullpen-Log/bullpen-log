@@ -1,6 +1,6 @@
 import { SymbolView } from 'expo-symbols';
 import { useLocalSearchParams } from 'expo-router';
-import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
+import { ActivityIndicator, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { usePalette, type Palette } from '~/lib/ui';
 import { ExerciseMedia } from '~/armcare/parts';
@@ -8,6 +8,7 @@ import { Bar } from '~/community/parts';
 import { DRILL_LIST, Tags, recall, useStar, type Drill } from '~/library/parts';
 import { s, useScreenData } from '~/training/screen';
 import { READABLE } from '~/lib/layout';
+import { Press } from '~/shell/press';
 
 /**
  * 드릴 하나(앱 화면) — 웹 투구 드릴 라이브러리에서 카드를 펼친 것(mechanics-client.tsx GuideDetail)을 옮겼다. 영상 · 이름 · 요소(맨 앞이 주 요소) ·
@@ -47,7 +48,7 @@ function Body({ item, c }: { item: Drill; c: Palette }) {
           </Text>
           <Text style={[s.small, { color: c.muted }]}>{item.category}</Text>
         </View>
-        <Pressable
+        <Press
           accessibilityRole="button"
           accessibilityLabel={star.on ? '즐겨찾기에서 빼기' : '즐겨찾기에 담기'}
           accessibilityState={{ selected: star.on }}
@@ -56,7 +57,7 @@ function Body({ item, c }: { item: Drill; c: Palette }) {
           style={s.iconBtn}
         >
           <SymbolView name={star.on ? 'star.fill' : 'star'} size={24} tintColor={star.on ? '#ff9500' : c.muted} />
-        </Pressable>
+        </Press>
       </View>
       {star.note ? <Text style={[s.small, { color: c.danger }]}>{star.note}</Text> : null}
       {main ? (

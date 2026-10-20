@@ -1,6 +1,6 @@
 import * as Haptics from 'expo-haptics';
 import { useEffect, useRef, useState, type ComponentType, type Ref } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { WebView, type WebViewMessageEvent, type WebViewProps } from 'react-native-webview';
 import { areaOfMuscle, muscleInfo, type ArmcareMuscle } from '@/lib/armcare/anatomy';
 import { visibleChips } from '@/lib/armcare/chips';
@@ -9,6 +9,7 @@ import { APP_UA, SITE_URL } from '~/lib/site';
 import type { Palette } from '~/lib/ui';
 import { Sheet } from '~/workout/sheets';
 import { useGrabProps } from '~/shell/scroll-lock';
+import { Press } from '~/shell/press';
 
 /**
  * 근육 칩 — 웹 components/muscle-chips.tsx: 맨 앞(가장 크게 쓰는 근육, 또는 highlight)만 진하게, max 넘으면 '+N'(누르면 다 펼침).
@@ -28,7 +29,7 @@ export function MuscleChips({ muscles, highlight, max, c }: { muscles: string[];
         const strong = highlight ? highlight.includes(m) : m === muscles[0];
         const known = !!MUSCLE_DETAILS[m as ArmcareMuscle];
         return (
-          <Pressable
+          <Press
             key={m}
             accessibilityRole={known ? 'button' : 'text'}
             accessibilityLabel={known ? `${m}, 위치와 설명 보기` : m}
@@ -44,13 +45,13 @@ export function MuscleChips({ muscles, highlight, max, c }: { muscles: string[];
               {m}
               {known ? <Text style={{ opacity: 0.6 }}> ›</Text> : null}
             </Text>
-          </Pressable>
+          </Press>
         );
       })}
       {hidden > 0 ? (
-        <Pressable accessibilityRole="button" accessibilityLabel={`근육 ${hidden}개 더 보기`} onPress={() => setAll(true)} style={[st.chip, { backgroundColor: c.chip }]}>
+        <Press accessibilityRole="button" accessibilityLabel={`근육 ${hidden}개 더 보기`} onPress={() => setAll(true)} style={[st.chip, { backgroundColor: c.chip }]}>
           <Text style={{ color: c.muted, fontSize: 12, fontWeight: '500' }}>+{hidden}</Text>
-        </Pressable>
+        </Press>
       ) : null}
       <MuscleSheet name={open} muscles={muscles} onPick={setOpen} onClose={() => setOpen(null)} c={c} />
     </View>
@@ -69,9 +70,9 @@ function MuscleSheet({ name, muscles, onPick, onClose, c }: { name: string | nul
           {known.map((m) => {
             const on = m === name;
             return (
-              <Pressable key={m} accessibilityRole="tab" accessibilityState={{ selected: on }} onPress={() => onPick(m)} style={[st.tab, { backgroundColor: on ? c.sky : c.chip }]}>
+              <Press select selected={on} key={m} accessibilityRole="tab" accessibilityState={{ selected: on }} onPress={() => onPick(m)} style={[st.tab, { backgroundColor: on ? c.sky : c.chip }]}>
                 <Text style={{ color: on ? '#fff' : c.ink, fontSize: 13, fontWeight: '600' }}>{m}</Text>
-              </Pressable>
+              </Press>
             );
           })}
         </View>

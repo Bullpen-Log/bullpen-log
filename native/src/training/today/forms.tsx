@@ -1,7 +1,7 @@
 import * as Haptics from 'expo-haptics';
 import { SymbolView } from 'expo-symbols';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { StyleSheet, Text, TextInput, View } from 'react-native';
 import { BODY_PARTS, EXERCISE_EQUIPMENT, INTENSITY_LEVELS } from '@/lib/exercise-meta';
 import { matchesSearch, withJosa } from '@/lib/korean';
 import type { TodayMake, TodayPickItem } from '@/lib/report/training-today-data';
@@ -9,6 +9,7 @@ import { act, leave } from '~/mechanics/parts';
 import type { Palette } from '~/lib/ui';
 import { Sheet } from '~/workout/sheets';
 import { BigButton, Chip, LinkRow, s, type TodayActions } from './parts';
+import { Press } from '~/shell/press';
 
 /**
  * 트레이닝 '운동' 화면의 일정 고치기 — 웹 components/training-forms.tsx 의 PlanForm(자동 맞춤)과 app/(app)/training/add-exercise.tsx
@@ -302,7 +303,7 @@ export function AddSheet({ inPlanIds, onClose, c, a }: {
                     </View>
                   ) : null}
                 </View>
-                <Pressable
+                <Press
                   accessibilityRole="button"
                   accessibilityLabel={already ? `${ex.title} 넣음` : `${ex.title} 넣기`}
                   disabled={already}
@@ -310,14 +311,14 @@ export function AddSheet({ inPlanIds, onClose, c, a }: {
                   style={[st.pickBtn, { backgroundColor: already ? c.chip : c.sky }]}
                 >
                   <Text style={[s.smallBold, { color: already ? c.muted : '#fff' }]}>{already ? '넣음' : '넣기'}</Text>
-                </Pressable>
+                </Press>
               </View>
             );
           })}
           {matched.length > limit ? (
-            <Pressable onPress={() => setLimit((n) => n + PAGE)} accessibilityRole="button" style={[s.pill, { alignSelf: 'center' }]}>
+            <Press onPress={() => setLimit((n) => n + PAGE)} accessibilityRole="button" style={[s.pill, { alignSelf: 'center' }]}>
               <Text style={[s.bodyBold, { color: c.sky }]}>{matched.length - limit}개 더 보기</Text>
-            </Pressable>
+            </Press>
           ) : null}
         </>
       )}

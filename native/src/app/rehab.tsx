@@ -2,7 +2,7 @@ import * as Haptics from 'expo-haptics';
 import { SymbolView } from 'expo-symbols';
 import { type Href, router } from 'expo-router';
 import { useState } from 'react';
-import { Alert, Pressable, RefreshControl, ScrollView, Text, View } from 'react-native';
+import { Alert, RefreshControl, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { RED_FLAGS, RED_FLAGS_LINE } from '@/lib/armcare/pain-guide';
 import { HALF_EFFORT_NOTE, REHAB_STAGES, THROWING_PAIN_RULES, THROWING_STEPS, throwingFrequency, type RehabStage, type ThrowPain } from '@/lib/armcare/rehab';
@@ -14,6 +14,7 @@ import { usePalette, type Palette } from '~/lib/ui';
 import { Checklist, RehabLine, openPlay } from '~/training/armcare-parts';
 import { s, useScreenData } from '~/training/screen';
 import { READABLE } from '~/lib/layout';
+import { Press } from '~/shell/press';
 
 /**
  * 재활 자세히(앱 화면) — 웹 rehab-card.tsx 의 [자세히]: 이 단계의 목표 · 오늘 운동 · 피할 것 · 위험 신호 · 다음 단계로 가는 조건 ·
@@ -106,10 +107,10 @@ function Detail({ rehab, dateKey, fresh, reload, c }: { rehab: AppRehabSummary; 
       </View>
       {rehab.line ? <RehabLine line={rehab.line} bg={c.card} c={c} /> : null}
       {!rehab.rest || rehab.today ? (
-        <Pressable onPress={() => openPlay('rehab', `d=${dateKey}`)} accessibilityRole="button" style={[s.smallPill, { backgroundColor: c.sky, alignSelf: 'flex-start', minHeight: 44, paddingHorizontal: 18 }]}>
+        <Press onPress={() => openPlay('rehab', `d=${dateKey}`)} accessibilityRole="button" style={[s.smallPill, { backgroundColor: c.sky, alignSelf: 'flex-start', minHeight: 44, paddingHorizontal: 18 }]}>
           <SymbolView name={rehab.today ? 'arrow.counterclockwise' : 'play.fill'} size={13} tintColor="#fff" />
           <Text style={[s.bodyBold, { color: '#fff' }]}>{rehab.today ? '다시 답하기' : `오늘 재활 시작 · 약 ${rehab.estimatedMinutes}분`}</Text>
-        </Pressable>
+        </Press>
       ) : null}
 
       <Part title="이 단계의 목표" c={c}>
@@ -190,7 +191,9 @@ function Detail({ rehab, dateKey, fresh, reload, c }: { rehab: AppRehabSummary; 
           {choices.map((o) => {
             const on = pick.value === o.value;
             return (
-              <Pressable
+              <Press
+                select
+                selected={on}
                 key={o.value}
                 accessibilityRole="radio"
                 accessibilityState={{ selected: on }}
@@ -198,7 +201,7 @@ function Detail({ rehab, dateKey, fresh, reload, c }: { rehab: AppRehabSummary; 
                 style={{ minHeight: 44, borderRadius: 12, paddingHorizontal: 14, justifyContent: 'center', borderWidth: 1, borderColor: on ? c.sky : c.line, backgroundColor: on ? c.sky + '14' : c.page }}
               >
                 <Text style={[s.body, { color: c.ink, fontWeight: on ? '700' : '400' }]}>{o.label}</Text>
-              </Pressable>
+              </Press>
             );
           })}
           <Text style={[s.small, { color: c.muted }]}>
@@ -207,17 +210,17 @@ function Detail({ rehab, dateKey, fresh, reload, c }: { rehab: AppRehabSummary; 
               : '바꾸면 그 단계의 날짜와 세션을 새로 세요. 아프면 낮추고, 시험 없이 올리는 것은 권하지 않아요.'}
           </Text>
           <View style={{ flexDirection: 'row', gap: 10 }}>
-            <Pressable onPress={() => setPick(null)} accessibilityRole="button" style={[s.smallPill, { backgroundColor: c.chip, minHeight: 44, paddingHorizontal: 18 }]}>
+            <Press onPress={() => setPick(null)} accessibilityRole="button" style={[s.smallPill, { backgroundColor: c.chip, minHeight: 44, paddingHorizontal: 18 }]}>
               <Text style={[s.bodyBold, { color: c.ink }]}>취소</Text>
-            </Pressable>
-            <Pressable
+            </Press>
+            <Press
               onPress={() => void submitPick()}
               disabled={!pick.value || busy}
               accessibilityRole="button"
               style={[s.smallPill, { backgroundColor: c.sky, minHeight: 44, paddingHorizontal: 18, opacity: !pick.value || busy ? 0.5 : 1 }]}
             >
               <Text style={[s.bodyBold, { color: '#fff' }]}>{busy ? '저장하는 중…' : '바꾸기'}</Text>
-            </Pressable>
+            </Press>
           </View>
         </View>
       ) : (
@@ -273,14 +276,14 @@ function ThrowingProgram({ t, reload, c }: { t: AppRehabThrowing; reload: () => 
         ))}
       </View>
       {next ? (
-        <Pressable onPress={() => router.push('/rehab-throw-log' as Href)} accessibilityRole="button" style={[s.smallPill, { backgroundColor: c.sky, minHeight: 48, justifyContent: 'center' }]}>
+        <Press onPress={() => router.push('/rehab-throw-log' as Href)} accessibilityRole="button" style={[s.smallPill, { backgroundColor: c.sky, minHeight: 48, justifyContent: 'center' }]}>
           <Text style={[s.bodyBold, { color: '#fff' }]}>오늘 던진 것 남기기</Text>
-        </Pressable>
+        </Press>
       ) : null}
       {next && lastRecent ? (
-        <Pressable onPress={() => void laterPain()} disabled={busy} accessibilityRole="button" style={{ minHeight: 40, alignItems: 'center', justifyContent: 'center' }}>
+        <Press onPress={() => void laterPain()} disabled={busy} accessibilityRole="button" style={{ minHeight: 40, alignItems: 'center', justifyContent: 'center' }}>
           <Text style={[s.smallBold, { color: c.muted }]}>{busy ? '남기는 중…' : '던진 뒤에(1시간 넘게 · 다음 날) 아팠어요'}</Text>
-        </Pressable>
+        </Press>
       ) : null}
       {error ? <Text style={[s.small, { color: c.danger }]}>{error}</Text> : null}
       {[...t.throws]
@@ -332,17 +335,17 @@ function Check({ ok, label, c }: { ok: boolean; label: string; c: Palette }) {
 
 function AppButton({ label, onPress, disabled, c }: { label: string; onPress: () => void; disabled?: boolean; c: Palette }) {
   return (
-    <Pressable onPress={onPress} disabled={disabled} accessibilityRole="button" style={[s.smallPill, { backgroundColor: c.sky + '1a', alignSelf: 'flex-start', minHeight: 44, paddingHorizontal: 16, opacity: disabled ? 0.5 : 1 }]}>
+    <Press onPress={onPress} disabled={disabled} accessibilityRole="button" style={[s.smallPill, { backgroundColor: c.sky + '1a', alignSelf: 'flex-start', minHeight: 44, paddingHorizontal: 16, opacity: disabled ? 0.5 : 1 }]}>
       <Text style={[s.bodyBold, { color: c.sky }]}>{label}</Text>
-    </Pressable>
+    </Press>
   );
 }
 
 function Small({ label, onPress, muted, c }: { label: string; onPress: () => void; muted?: boolean; c: Palette }) {
   return (
-    <Pressable onPress={onPress} accessibilityRole="button" style={[s.smallPill, { backgroundColor: c.chip, minHeight: 44, paddingHorizontal: 16 }]}>
+    <Press onPress={onPress} accessibilityRole="button" style={[s.smallPill, { backgroundColor: c.chip, minHeight: 44, paddingHorizontal: 16 }]}>
       <Text style={[s.bodyBold, { color: muted ? c.muted : c.ink }]}>{label}</Text>
-    </Pressable>
+    </Press>
   );
 }
 

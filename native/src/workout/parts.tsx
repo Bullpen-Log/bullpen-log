@@ -11,6 +11,7 @@ import { SITE_URL } from '~/lib/site';
 import type { Palette } from '~/lib/ui';
 import { call, loadMe } from '~/pitch/api';
 import { LocalVideo } from '../../modules/local-video';
+import { Press } from '~/shell/press';
 
 /** 운동 진행 화면(native/src/app/workout.tsx)의 작은 조각 — 웹 app/(session)/workout/run/session-client.tsx 의 같은 이름 부품을 옮겼다 */
 
@@ -177,9 +178,9 @@ export function RirQuestion({
           </Pressable>
         ))}
       </View>
-      <Pressable onPress={() => onAnswer(null)} accessibilityRole="button" style={s.skip}>
+      <Press onPress={() => onAnswer(null)} accessibilityRole="button" style={s.skip}>
         <Text style={[s.bodyBold, { color: c.muted }]}>건너뛰기</Text>
-      </Pressable>
+      </Press>
     </View>
   );
 }
@@ -239,17 +240,17 @@ export function NoteBox({
       <View style={[s.noteBox, { borderColor: c.sky, backgroundColor: c.card, boxShadow: c.float }]}>
         <View style={s.noteHead}>
           <Text style={[s.smallBold, { color: c.sky, flex: 1 }]}>내 메모</Text>
-          <Pressable onPress={() => setDraft(null)} disabled={saving} style={s.noteBtn} accessibilityRole="button">
+          <Press onPress={() => setDraft(null)} disabled={saving} style={s.noteBtn} accessibilityRole="button">
             <Text style={[s.smallBold, { color: c.muted }]}>취소</Text>
-          </Pressable>
-          <Pressable
+          </Press>
+          <Press
             onPress={() => void save()}
             disabled={saving}
             accessibilityRole="button"
             style={[s.noteBtn, { backgroundColor: c.sky, opacity: saving ? 0.6 : 1 }]}
           >
             <Text style={[s.smallBold, { color: '#fff' }]}>{saving ? '저장 중…' : '저장'}</Text>
-          </Pressable>
+          </Press>
         </View>
         {writing.error ? <Text style={[s.small, { color: c.danger }]}>{writing.error}</Text> : null}
         <TextInput
@@ -272,15 +273,15 @@ export function NoteBox({
   const open = () => setDraft({ exerciseId, text: note ?? '' });
   if (!note)
     return (
-      <Pressable onPress={open} accessibilityRole="button" style={s.noteAdd}>
+      <Press onPress={open} accessibilityRole="button" style={s.noteAdd}>
         <Text style={[s.small, { color: c.muted }]}>✎ 이 운동에 내 메모 남기기</Text>
-      </Pressable>
+      </Press>
     );
   return (
-    <Pressable onPress={open} accessibilityRole="button" style={[s.noteBox, { borderColor: c.line, backgroundColor: c.card, boxShadow: c.float }]}>
+    <Press onPress={open} accessibilityRole="button" style={[s.noteBox, { borderColor: c.line, backgroundColor: c.card, boxShadow: c.float }]}>
       <Text style={[s.tiny, { color: c.muted, fontWeight: '600' }]}>내 메모 · 고치기</Text>
       <Text style={[s.body, { color: c.ink }]}>{note}</Text>
-    </Pressable>
+    </Press>
   );
 }
 
@@ -331,13 +332,13 @@ export function ExerciseVideo({
       </View>
       {/* 관리자만 — 웹 components/library-video.tsx 와 같다(2026-10-04 '앱 안에 머물기': 일반 사용자는 유튜브로 나가지 않게) */}
       {admin ? (
-        <Pressable
+        <Press
           onPress={() => void WebBrowser.openBrowserAsync(referenceWatchUrl(referenceVideoId))}
           accessibilityRole="link"
           style={s.noteAdd}
         >
           <Text style={[s.small, { color: '#0a84d6' }]}>유튜브에서 열기 ↗</Text>
-        </Pressable>
+        </Press>
       ) : null}
     </View>
   );

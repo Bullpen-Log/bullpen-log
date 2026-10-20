@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { Pressable, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
+import { StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import { FOOD_NAME_MAX, KCAL_MAX, MACRO_MAX, type Food } from '@/lib/nutrition/meta';
 import { usePalette } from '~/lib/ui';
+import { Press } from '~/shell/press';
 
 /**
  * 목록에 없으면 직접 입력 — 웹 음식 창 food-sheet.tsx CustomFood 와 같은 칸 · 같은 검사 · 같은 글: 음식 이름 · 먹은 양(선택) · 칼로리(필수) ·
@@ -92,9 +93,9 @@ export function CustomFood({
           {error}
         </Text>
       ) : null}
-      <Pressable accessibilityRole="button" onPress={submit} disabled={busy} style={[styles.primary, { backgroundColor: c.sky }, busy && { opacity: 0.5 }]}>
+      <Press accessibilityRole="button" onPress={submit} disabled={busy} style={[styles.primary, { backgroundColor: c.sky }, busy && { opacity: 0.5 }]}>
         <Text style={styles.primaryText}>{submitLabel}</Text>
-      </Pressable>
+      </Press>
     </View>
   );
 }

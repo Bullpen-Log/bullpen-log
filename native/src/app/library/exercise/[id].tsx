@@ -1,7 +1,7 @@
 import { SymbolView } from 'expo-symbols';
 import { useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
+import { ActivityIndicator, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { formatPrescription } from '@/lib/exercise-meta';
 import { rpc } from '~/lib/rpc';
@@ -14,6 +14,7 @@ import { HistoryPanel } from '~/training/history';
 import { s, useScreenData } from '~/training/screen';
 import { READABLE } from '~/lib/layout';
 import { MuscleChips } from '~/armcare/muscle-info';
+import { Press } from '~/shell/press';
 
 /**
  * 운동 하나(앱 화면) — 웹 운동 영상 라이브러리에서 카드를 펼친 것(training-client.tsx ExerciseDetail)을 옮겼다. 영상(누르면 튼다) · 이름 · 부위 ·
@@ -70,7 +71,7 @@ function Body({ item, c }: { item: Exercise; c: Palette }) {
           </Text>
           <Text style={[s.small, { color: c.muted }]}>{item.category}</Text>
         </View>
-        <Pressable
+        <Press
           accessibilityRole="button"
           accessibilityLabel={star.on ? '즐겨찾기에서 빼기' : '즐겨찾기에 담기'}
           accessibilityState={{ selected: star.on }}
@@ -79,7 +80,7 @@ function Body({ item, c }: { item: Exercise; c: Palette }) {
           style={s.iconBtn}
         >
           <SymbolView name={star.on ? 'star.fill' : 'star'} size={24} tintColor={star.on ? '#ff9500' : c.muted} />
-        </Pressable>
+        </Press>
       </View>
       {star.note ? <Text style={[s.small, { color: c.danger }]}>{star.note}</Text> : null}
       <Tags items={[...item.bodyParts, item.intensity, ...(item.difficulty ? [item.difficulty] : []), ...item.equipment]} c={c} />
@@ -95,11 +96,11 @@ function Body({ item, c }: { item: Exercise; c: Palette }) {
         {!desc ? (
           <ActivityIndicator />
         ) : desc.failed ? (
-          <Pressable accessibilityRole="button" onPress={() => setTries((n) => n + 1)} style={s.textBtn}>
+          <Press accessibilityRole="button" onPress={() => setTries((n) => n + 1)} style={s.textBtn}>
             <Text style={[s.small, { color: c.muted }]}>
               설명을 불러오지 못했어요. <Text style={{ color: c.sky, fontWeight: '700' }}>다시 받기</Text>
             </Text>
-          </Pressable>
+          </Press>
         ) : desc.text ? (
           <Text selectable style={[s.body, { color: c.ink }]}>
             {desc.text}

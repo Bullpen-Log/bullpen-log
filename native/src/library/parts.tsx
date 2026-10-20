@@ -9,6 +9,7 @@ import { act } from '~/mechanics/parts';
 import type { Palette } from '~/lib/ui';
 import { Icon } from '~/shell/icon';
 import { Sheet } from '~/workout/sheets';
+import { Press } from '~/shell/press';
 
 /**
  * 라이브러리 앱 화면(native/src/app/library — 운동 영상 · 투구 드릴 목록과 상세)이 같이 쓰는 조각 — 받은 목록 기억 · 줄 · 찾기 칸 · 칩 · 별.
@@ -146,7 +147,7 @@ export function ChipRow({ chips, c }: { chips: { key: string; label: string; on:
   return (
     <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{ gap: 8, paddingHorizontal: 16 }}>
       {chips.map((x) => (
-        <Pressable
+        <Press
           key={x.key}
           accessibilityRole="button"
           accessibilityState={{ selected: x.on }}
@@ -157,7 +158,7 @@ export function ChipRow({ chips, c }: { chips: { key: string; label: string; on:
           style={[st.chip, { backgroundColor: x.on ? c.sky : c.chip }]}
         >
           <Text style={{ color: x.on ? '#fff' : c.ink, fontSize: 15, fontWeight: '600' }}>{x.label}</Text>
-        </Pressable>
+        </Press>
       ))}
     </ScrollView>
   );
@@ -310,17 +311,17 @@ export function FilterSheet({
       c={c}
       footer={
         <View style={{ flexDirection: 'row', gap: 10 }}>
-          <Pressable
+          <Press
             accessibilityRole="button"
             disabled={n === 0}
             onPress={() => onChange(Object.fromEntries(groups.map((g) => [g.key, []])))}
             style={[st.foot, { backgroundColor: c.chip }, n === 0 && { opacity: 0.4 }]}
           >
             <Text style={{ color: c.ink, fontSize: 17, fontWeight: '600' }}>모두 지우기</Text>
-          </Pressable>
-          <Pressable accessibilityRole="button" onPress={onClose} style={[st.foot, { flex: 1, backgroundColor: c.sky }]}>
+          </Press>
+          <Press accessibilityRole="button" onPress={onClose} style={[st.foot, { flex: 1, backgroundColor: c.sky }]}>
             <Text style={{ color: '#fff', fontSize: 17, fontWeight: '600' }}>{resultCount != null ? `${resultCount}개 보기` : '완료'}</Text>
-          </Pressable>
+          </Press>
         </View>
       }
     >
@@ -331,7 +332,7 @@ export function FilterSheet({
             {g.options.map((v) => {
               const on = (value[g.key] ?? []).includes(v);
               return (
-                <Pressable
+                <Press
                   key={v}
                   accessibilityRole="button"
                   accessibilityState={{ selected: on }}
@@ -339,7 +340,7 @@ export function FilterSheet({
                   style={[st.opt, { backgroundColor: on ? c.sky : c.chip }]}
                 >
                   <Text style={{ color: on ? '#fff' : c.ink, fontSize: 15, fontWeight: '600' }}>{v}</Text>
-                </Pressable>
+                </Press>
               );
             })}
           </View>

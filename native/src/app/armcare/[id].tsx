@@ -18,6 +18,7 @@ import { usePalette, type Palette } from '~/lib/ui';
 import { leaveTo } from '~/shell/web-nav';
 import { SetDots } from '~/workout/parts';
 import { READABLE, useBarSide } from '~/lib/layout';
+import { Press } from '~/shell/press';
 
 /**
  * 암케어 따라 하기(앱 화면) — 웹 app/(session)/armcare/play/[id]/armcare-player.tsx 를 옮겼다. 사이트의 따라 하기가 앱(BullpenNative/3 부터)이면
@@ -65,7 +66,7 @@ export default function ArmcarePlayScreen() {
       {failed ? (
         <>
           <Text style={[s.body, { color: c.ink, textAlign: 'center' }]}>{failed}</Text>
-          <Pressable
+          <Press
             onPress={() => {
               setFailed(null);
               setTries((n) => n + 1);
@@ -74,10 +75,10 @@ export default function ArmcarePlayScreen() {
             style={[s.pill, { backgroundColor: c.sky }]}
           >
             <Text style={[s.bodyBold, { color: '#fff' }]}>다시 불러오기</Text>
-          </Pressable>
-          <Pressable onPress={() => router.back()} accessibilityRole="button" style={s.pill}>
+          </Press>
+          <Press onPress={() => router.back()} accessibilityRole="button" style={s.pill}>
             <Text style={[s.bodyBold, { color: c.muted }]}>닫기</Text>
-          </Pressable>
+          </Press>
         </>
       ) : (
         <ActivityIndicator />
@@ -371,9 +372,9 @@ function Player({ title, backHref, dateKey, notice, items, rehabCheck, inApp, c 
           <Text style={[s.small, { color: c.warn, flex: 1 }]}>
             인터넷이 끊겨 체크 {unsent}개를 아직 못 남겼어요. 폰에 담아 뒀다가 신호가 돌아오면 보내요.
           </Text>
-          <Pressable onPress={() => void flush()} accessibilityRole="button" style={s.textBtn}>
+          <Press onPress={() => void flush()} accessibilityRole="button" style={s.textBtn}>
             <Text style={[s.smallBold, { color: c.sky }]}>다시 보내기</Text>
-          </Pressable>
+          </Press>
         </View>
       ) : null}
       {refusedHere.length > 0 && refused ? (
@@ -387,11 +388,11 @@ function Player({ title, backHref, dateKey, notice, items, rehabCheck, inApp, c 
   const header = (
     <View style={[s.header, { paddingTop: inset.top + 8, backgroundColor: c.card, borderBottomColor: c.line }]}>
       <View style={s.headRow}>
-        <Pressable onPress={close} accessibilityRole="button" accessibilityLabel="따라하기 닫기" style={s.iconBtn}>
+        <Press onPress={close} accessibilityRole="button" accessibilityLabel="따라하기 닫기" style={s.iconBtn}>
           <View style={[s.circle, { backgroundColor: c.chip }]}>
             <SymbolView name="xmark" size={14} weight="semibold" tintColor={c.muted} />
           </View>
-        </Pressable>
+        </Press>
         <Text numberOfLines={1} style={[s.headTitle, { color: c.ink }]}>
           {title}
         </Text>
@@ -453,9 +454,9 @@ function Player({ title, backHref, dateKey, notice, items, rehabCheck, inApp, c 
         {rehabCheck && count > 0 ? (
           <RehabCheck dateKey={dateKey} settled={unsaved.length === 0} initial={rehabCheck.initial} c={c} />
         ) : null}
-        <Pressable onPress={close} accessibilityRole="button" style={[s.pill, { backgroundColor: c.sky }]}>
+        <Press onPress={close} accessibilityRole="button" style={[s.pill, { backgroundColor: c.sky }]}>
           <Text style={[s.bodyBold, { color: '#fff' }]}>암케어로 돌아가기</Text>
-        </Pressable>
+        </Press>
       </ScrollView>
     );
   }
@@ -539,26 +540,26 @@ function Player({ title, backHref, dateKey, notice, items, rehabCheck, inApp, c 
         )}
 
         <View style={s.navRow}>
-          <Pressable
+          <Press
             onPress={() => dispatch({ type: 'go', index: state.index - 1 })}
             disabled={state.index === 0}
             accessibilityRole="button"
             style={[s.nav, { backgroundColor: c.chip, opacity: state.index === 0 ? 0.3 : 1 }]}
           >
             <Text style={[s.smallBold, { color: c.ink }]}>‹ 이전</Text>
-          </Pressable>
+          </Press>
           {state.index < items.length - 1 ? (
-            <Pressable
+            <Press
               onPress={() => dispatch({ type: 'go', index: state.index + 1 })}
               accessibilityRole="button"
               style={[s.nav, { backgroundColor: c.chip }]}
             >
               <Text style={[s.smallBold, { color: c.ink }]}>다음 ›</Text>
-            </Pressable>
+            </Press>
           ) : (
-            <Pressable onPress={() => dispatch({ type: 'finish' })} accessibilityRole="button" style={[s.nav, { backgroundColor: c.chip }]}>
+            <Press onPress={() => dispatch({ type: 'finish' })} accessibilityRole="button" style={[s.nav, { backgroundColor: c.chip }]}>
               <Text style={[s.smallBold, { color: c.ink }]}>끝내기 ✓</Text>
-            </Pressable>
+            </Press>
           )}
         </View>
       </View>

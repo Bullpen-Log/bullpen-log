@@ -1,7 +1,7 @@
 import * as Haptics from 'expo-haptics';
 import { SymbolView } from 'expo-symbols';
 import { useState } from 'react';
-import { Alert, Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, Image, StyleSheet, Text, View } from 'react-native';
 import { withJosa } from '@/lib/korean';
 import type { ProgramCardProps, ProgramResult } from '@/lib/program/load';
 import { sessionTitle } from '@/lib/program/program';
@@ -11,6 +11,7 @@ import type { Palette } from '~/lib/ui';
 import { BigButton, Card, LinkRow, s, type TodayActions } from './parts';
 import { RepinSheet } from './program-start';
 import { Sheet } from '~/workout/sheets';
+import { Press } from '~/shell/press';
 
 /**
  * 근력 · 파워 프로그램 카드(앱 화면) — 웹 app/(app)/training/program-card.tsx 를 옮겼다. 차례도 같다: 오늘 상태 + 일차 → 주의 한 줄 → [운동 시작]
@@ -118,7 +119,7 @@ export function ProgramCardView({ p, c, a }: { p: ProgramCardProps; c: Palette; 
       {p.rows.length > 0 ? (
         <View style={preview ? { opacity: 0.55 } : null}>
           {p.rows.map((r, i) => (
-            <Pressable
+            <Press
               key={r.id}
               accessibilityRole="button"
               accessibilityHint="운동 영상 · 설명 보기"
@@ -144,7 +145,7 @@ export function ProgramCardView({ p, c, a }: { p: ProgramCardProps; c: Palette; 
                 ) : null}
                 <Text style={[s.tiny, { color: c.muted }]}>{r.amount}</Text>
               </View>
-            </Pressable>
+            </Press>
           ))}
           {p.dropped.map((d) => (
             <Text key={`drop-${d.title}`} style={[s.small, { color: c.muted, paddingVertical: 8 }]}>
@@ -155,7 +156,7 @@ export function ProgramCardView({ p, c, a }: { p: ProgramCardProps; c: Palette; 
       ) : null}
 
       {p.kind === 'rest' ? (
-        <Pressable
+        <Press
           accessibilityRole="button"
           disabled={pending != null}
           onPress={() =>
@@ -164,7 +165,7 @@ export function ProgramCardView({ p, c, a }: { p: ProgramCardProps; c: Palette; 
           style={[s.pill, { borderWidth: 1, borderColor: c.line }]}
         >
           <Text style={[s.bodyBold, { color: c.ink }]}>그래도 오늘 할래요</Text>
-        </Pressable>
+        </Press>
       ) : null}
 
       <View style={{ gap: 4 }}>
@@ -268,10 +269,10 @@ export function ProgramCardView({ p, c, a }: { p: ProgramCardProps; c: Palette; 
 
 function Fold({ c, open, onPress, label }: { c: Palette; open: boolean; onPress: () => void; label: string }) {
   return (
-    <Pressable accessibilityRole="button" accessibilityState={{ expanded: open }} onPress={onPress} style={s.linkRow}>
+    <Press accessibilityRole="button" accessibilityState={{ expanded: open }} onPress={onPress} style={s.linkRow}>
       <Text style={[s.bodyBold, { flex: 1, color: c.ink }]}>{label}</Text>
       <SymbolView name={open ? 'chevron.up' : 'chevron.down'} size={12} tintColor={c.muted} />
-    </Pressable>
+    </Press>
   );
 }
 
@@ -286,7 +287,7 @@ function Upcoming({ sessions, c }: { sessions: ProgramCardProps['upcoming']; c: 
         const names = u.items.map((it) => it.title);
         return (
           <View key={u.day} style={{ borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.line }}>
-            <Pressable accessibilityRole="button" accessibilityState={{ expanded: shown }} onPress={() => setOpen(shown ? null : u.day)} style={st.row}>
+            <Press accessibilityRole="button" accessibilityState={{ expanded: shown }} onPress={() => setOpen(shown ? null : u.day)} style={st.row}>
               <View style={{ flex: 1, minWidth: 0 }}>
                 <Text style={[s.bodyBold, { color: c.ink }]}>{u.label}</Text>
                 {!shown ? (
@@ -299,14 +300,14 @@ function Upcoming({ sessions, c }: { sessions: ProgramCardProps['upcoming']; c: 
               <Text style={[s.tiny, { color: c.muted }]}>{u.items.length}개</Text>
               {/* 펼침 화살표(웹 UpcomingSessions 의 ▾) */}
               <SymbolView name={shown ? 'chevron.up' : 'chevron.down'} size={11} tintColor={c.muted} />
-            </Pressable>
+            </Press>
             {shown
               ? u.items.map((it, i) => {
                   const key = `${u.day}-${i}`;
                   /* 처방 한 줄은 운동을 눌러야 보인다(웹과 같다 — 2026-10-15 김민: "남은 세션이 글자로 쫙 써져 무슨 운동인지 알 수가 없다") */
                   const lineShown = line === key;
                   return (
-                    <Pressable
+                    <Press
                       key={key}
                       accessibilityRole="button"
                       accessibilityState={{ expanded: lineShown }}
@@ -332,7 +333,7 @@ function Upcoming({ sessions, c }: { sessions: ProgramCardProps['upcoming']; c: 
                         <Text style={[s.smallBold, s.num, { color: c.ink }]}>{it.amount}</Text>
                       </View>
                       {lineShown ? <Text style={[s.tiny, { color: c.muted, marginTop: 4, marginLeft: 66 }]}>{it.line}</Text> : null}
-                    </Pressable>
+                    </Press>
                   );
                 })
               : null}

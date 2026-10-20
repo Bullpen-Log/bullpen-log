@@ -2,12 +2,13 @@ import * as Haptics from 'expo-haptics';
 import { SymbolView } from 'expo-symbols';
 import { type Href, router } from 'expo-router';
 import { createContext, useContext, useState, type ReactNode } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { MY_ROUTINE_MAX, MY_ROUTINE_MAX_ITEMS } from '@/lib/armcare/my-routines';
 import type { Palette } from '~/lib/ui';
 import { CHECK_CONNECTION } from '@/lib/offline';
 import { OFFLINE_TEXT, act } from '~/mechanics/parts';
 import { Sheet } from '~/workout/sheets';
+import { Press } from '~/shell/press';
 
 /**
  * 부위별 보강의 운동 줄에서 내 루틴에 담는 단추 · 창 — 웹 app/(app)/training/add-to-routine.tsx 를 옮겼다(같은 서버 동작
@@ -46,7 +47,7 @@ export function AddToRoutine({ exerciseId, title, c }: { exerciseId: string; tit
 
   return (
     <>
-      <Pressable
+      <Press
         onPress={() => {
           setMessage(null);
           setOpen(true);
@@ -57,7 +58,7 @@ export function AddToRoutine({ exerciseId, title, c }: { exerciseId: string; tit
       >
         <SymbolView name="plus" size={11} weight="semibold" tintColor={c.muted} />
         <Text style={[st.addText, { color: c.muted }]}>담기</Text>
-      </Pressable>
+      </Press>
       <Sheet open={open} onClose={() => setOpen(false)} title="내 루틴에 담기" description={title} c={c}>
         <View style={{ gap: 12 }}>
           {routines.length === 0 ? (
@@ -67,7 +68,7 @@ export function AddToRoutine({ exerciseId, title, c }: { exerciseId: string; tit
               const inside = contains(r);
               const full = !inside && r.exerciseIds.length >= MY_ROUTINE_MAX_ITEMS;
               return (
-                <Pressable
+                <Press
                   key={r.id}
                   onPress={() => void add(r)}
                   disabled={pending || inside || full}
@@ -84,13 +85,13 @@ export function AddToRoutine({ exerciseId, title, c }: { exerciseId: string; tit
                   ) : (
                     <Text style={[st.small, { color: c.muted }]}>{full ? `${MY_ROUTINE_MAX_ITEMS}개 꽉 참` : `운동 ${r.exerciseIds.length}개`}</Text>
                   )}
-                </Pressable>
+                </Press>
               );
             })
           )}
           {message ? <Text style={[st.body, { color: c.sky }]}>{message}</Text> : null}
           {routines.length < MY_ROUTINE_MAX ? (
-            <Pressable
+            <Press
               onPress={() => {
                 setOpen(false);
                 router.push(`/training/routine/new?add=${exerciseId}` as Href);
@@ -100,7 +101,7 @@ export function AddToRoutine({ exerciseId, title, c }: { exerciseId: string; tit
             >
               <SymbolView name="plus" size={14} weight="semibold" tintColor={c.ink} />
               <Text style={[st.body, { color: c.ink, fontWeight: '600' }]}>이 운동으로 새 루틴 만들기</Text>
-            </Pressable>
+            </Press>
           ) : null}
         </View>
       </Sheet>

@@ -19,6 +19,7 @@ import { READABLE } from '~/lib/layout';
 import { Icon } from '~/shell/icon';
 import { PageHead } from '~/shell/heading';
 import { useRememberPart } from '~/training/remember';
+import { Press } from '~/shell/press';
 
 /**
  * 트레이닝 '운동' 앱 화면 — 웹 /training(기본 칸, app/(app)/training/training-page.tsx)을 옮겼다. 앱 트레이닝 탭(native/src/training/tab.tsx)의 운동
@@ -184,7 +185,7 @@ export default function TrainingTodayScreen() {
           {failed ? (
             <>
               <Text style={[s.body, { color: c.ink, textAlign: 'center' }]}>{failed}</Text>
-              <Pressable
+              <Press
                 onPress={() => {
                   setFailed(null);
                   void load();
@@ -193,7 +194,7 @@ export default function TrainingTodayScreen() {
                 style={[s.pill, { backgroundColor: c.sky }]}
               >
                 <Text style={[s.bodyBold, { color: '#fff' }]}>다시 불러오기</Text>
-              </Pressable>
+              </Press>
             </>
           ) : (
             <ActivityIndicator />

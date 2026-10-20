@@ -1,6 +1,6 @@
 import * as Haptics from 'expo-haptics';
 import { useEffect, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { formatAmount, formatSeconds } from '@/lib/exercise-meta';
 import { formatWeight, type WeightUnit } from '@/lib/units';
 import { volumeIn } from '@/lib/workout/summarize';
@@ -8,6 +8,7 @@ import type { ExerciseHistory, HistoryDay, HistoryKind } from '@/lib/workout/his
 import { act } from '~/mechanics/parts';
 import type { Palette } from '~/lib/ui';
 import { s } from '~/training/screen';
+import { Press } from '~/shell/press';
 
 /**
  * 운동 하나의 지난 기록(웹 components/exercise-history.tsx ExerciseHistoryPanel 과 같은 셈 · exercise-history.exerciseHistory) — 그날 운동 기록
@@ -150,7 +151,7 @@ export function HistoryPanel({
           </View>
           <View style={[st.bars, { borderBottomColor: c.line }]}>
             {trend.map((x, i) => (
-              <Pressable
+              <Press
                 key={x.date}
                 onPress={() => {
                   void Haptics.selectionAsync();
@@ -166,7 +167,7 @@ export function HistoryPanel({
                     { height: `${Math.max(4, (x.volume / max) * 100)}%`, backgroundColor: c.sky, opacity: hover != null && hover !== i ? 0.35 : 1 },
                   ]}
                 />
-              </Pressable>
+              </Press>
             ))}
           </View>
           <View style={s.between}>
@@ -198,9 +199,9 @@ export function HistoryPanel({
           ))}
         </View>
         {!more && days.length > SHOWN ? (
-          <Pressable onPress={() => setMore(true)} accessibilityRole="button" style={[s.textBtn, { alignSelf: 'center' }]}>
+          <Press onPress={() => setMore(true)} accessibilityRole="button" style={[s.textBtn, { alignSelf: 'center' }]}>
             <Text style={[s.smallBold, { color: c.sky }]}>{days.length - SHOWN}번 더 보기</Text>
-          </Pressable>
+          </Press>
         ) : null}
       </View>
     </View>

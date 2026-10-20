@@ -22,6 +22,7 @@ import { usePalette, type Palette } from '~/lib/ui';
 import { READABLE } from '~/lib/layout';
 import { Icon } from '~/shell/icon';
 import { PageHead, Segmented } from '~/shell/heading';
+import { Press } from '~/shell/press';
 
 /**
  * 암케어 · 메커니즘 전체 화면(native/src/app/training-armcare.tsx · training-mechanics.tsx)의 같은 틀 — 머리(‹ · 제목) · 두 칸 고르개 ·
@@ -171,9 +172,9 @@ export function Screen<K extends string>({
         {state.failed ? (
           <View style={[s.notice, { backgroundColor: c.danger + '14' }]}>
             <Text style={[s.small, { color: c.danger, flex: 1 }]}>{state.failed}</Text>
-            <Pressable onPress={state.load} accessibilityRole="button" style={s.textBtn}>
+            <Press onPress={state.load} accessibilityRole="button" style={s.textBtn}>
               <Text style={[s.smallBold, { color: c.sky }]}>다시 불러오기</Text>
-            </Pressable>
+            </Press>
           </View>
         ) : null}
         {state.data ? children : state.failed ? null : <ActivityIndicator style={{ paddingVertical: 32 }} />}
@@ -235,7 +236,7 @@ export function Fold({ label, children, c }: { label: string; children: ReactNod
   const [open, setOpen] = useState(false);
   return (
     <View>
-      <Pressable
+      <Press
         onPress={() => setOpen((v) => !v)}
         accessibilityRole="button"
         accessibilityState={{ expanded: open }}
@@ -243,7 +244,7 @@ export function Fold({ label, children, c }: { label: string; children: ReactNod
       >
         <Text style={[s.smallBold, { color: c.muted }]}>{label}</Text>
         <SymbolView name={open ? 'chevron.up' : 'chevron.down'} size={11} tintColor={c.muted} />
-      </Pressable>
+      </Press>
       {open ? <View style={{ gap: 6, paddingBottom: 4 }}>{children}</View> : null}
     </View>
   );
