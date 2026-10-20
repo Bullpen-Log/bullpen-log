@@ -8,6 +8,7 @@ import {
   ChevronDown,
   ClipboardList,
   House,
+  MapPin,
   LogOut,
   Megaphone,
   Menu,
@@ -60,6 +61,10 @@ export function MasterShell({
         label: org?.kind === 'LESSON' ? '대신 기록' : '경기 투구수',
         icon: ClipboardList,
       },
+      ...(org?.kind === 'LESSON'
+        ? [{ href: '/master/bookings', label: '레슨 요청', icon: ClipboardList }]
+        : []),
+      { href: '/master/venues', label: '장소 · 예약', icon: MapPin },
       { href: '/master/notices', label: '공지', icon: Megaphone },
       { href: '/master/settings', label: '설정 · 초대', icon: Settings },
     ];

@@ -28,6 +28,12 @@ export function DugoutShell({
     { href: '/dugout/chat', label: '채팅', icon: MessagesSquare, badge: unread },
     { href: '/dugout/me', label: '내 것', icon: UserRound },
   ];
+  /* PC 위 막대에만 — 휴대폰 아래 탭은 다섯까지 */
+  const more = [
+    { href: '/dugout/lessons', label: '레슨' },
+    { href: '/dugout/venues', label: '장소' },
+    { href: '/dugout/gear', label: '장비 고르기' },
+  ];
   const active = (href: string, exact?: boolean) =>
     exact ? pathname === href : pathname === href || pathname.startsWith(`${href}/`);
 
@@ -69,6 +75,23 @@ export function DugoutShell({
                   </Link>
                 );
               })}
+            {more.map((t) => {
+              const on = active(t.href);
+              return (
+                <Link
+                  key={t.href}
+                  href={t.href}
+                  aria-current={on ? 'page' : undefined}
+                  className={`flex min-h-10 items-center rounded-xl px-3 text-sm font-semibold transition-colors ${
+                    on
+                      ? 'bg-sky/12 text-sky-strong'
+                      : 'text-muted hover:bg-ink/5 hover:text-ink'
+                  }`}
+                >
+                  {t.label}
+                </Link>
+              );
+            })}
           </nav>
           <div className="ml-auto flex items-center gap-2">
             <Link

@@ -122,30 +122,35 @@ export default async function DugoutHome() {
         {!user && <p className="text-xs text-muted">글 전체와 댓글은 로그인하면 볼 수 있어요.</p>}
       </section>
 
-      {/* 곧 — 레슨 · 장소 */}
-      <section className="grid gap-3 sm:grid-cols-2">
-        <Card className="flex items-start gap-3 opacity-80">
+      {/* 레슨 · 장소 · 장비 고르기 */}
+      <section className="grid gap-3 sm:grid-cols-3">
+        <Link href="/dugout/lessons" className="flex items-start gap-3 rounded-2xl border border-line bg-surface p-4 transition-colors hover:border-sky-soft">
           <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-sky/12 text-sky">
             <Dumbbell className="h-5 w-5" />
           </span>
-          <div className="min-w-0">
-            <p className="flex items-center gap-2 text-sm font-bold text-ink">
-              레슨 예약 <Badge>곧</Badge>
-            </p>
-            <p className="mt-0.5 text-xs leading-relaxed text-muted">코치를 비교하고 원하는 시간에 예약해요. 코치는 내 기록을 보고 레슨해요.</p>
-          </div>
-        </Card>
-        <Card className="flex items-start gap-3 opacity-80">
+          <span className="min-w-0">
+            <span className="block text-sm font-bold text-ink">레슨 예약</span>
+            <span className="mt-0.5 block text-xs leading-relaxed text-muted">코치를 비교하고 원하는 시간에 요청해요. 코치는 내 기록을 보고 레슨해요.</span>
+          </span>
+        </Link>
+        <Link href="/dugout/venues" className="flex items-start gap-3 rounded-2xl border border-line bg-surface p-4 transition-colors hover:border-sky-soft">
           <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-sky/12 text-sky">
             <MapPin className="h-5 w-5" />
           </span>
-          <div className="min-w-0">
-            <p className="flex items-center gap-2 text-sm font-bold text-ink">
-              연습장 · 구장 예약 <Badge>곧</Badge>
-            </p>
-            <p className="mt-0.5 text-xs leading-relaxed text-muted">빈 시간을 보고 전화 없이 바로 잡아요. 실내 연습장부터 열어요.</p>
-          </div>
-        </Card>
+          <span className="min-w-0">
+            <span className="block text-sm font-bold text-ink">연습장 · 구장 예약</span>
+            <span className="mt-0.5 block text-xs leading-relaxed text-muted">빈 시간을 보고 전화 없이 바로 잡아요.</span>
+          </span>
+        </Link>
+        <Link href="/dugout/gear" className="flex items-start gap-3 rounded-2xl border border-line bg-surface p-4 transition-colors hover:border-sky-soft">
+          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-sky/12 text-sky">
+            <Search className="h-5 w-5" />
+          </span>
+          <span className="min-w-0">
+            <span className="block text-sm font-bold text-ink">장비 고르기</span>
+            <span className="mt-0.5 block text-xs leading-relaxed text-muted">처음이라 뭘 사야 할지 모르면 — 나이 · 포지션 · 손으로 골라 드려요.</span>
+          </span>
+        </Link>
       </section>
 
       {/* 불펜로그로 */}

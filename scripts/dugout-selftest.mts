@@ -18,6 +18,23 @@ import {
   specLines,
   specSummary,
 } from '@/lib/market/specs';
+import {
+  averageRating,
+  canConfirm,
+  canReview,
+  parseSlot,
+  slotParts,
+} from '@/lib/market/lessons';
+import {
+  parseHours,
+  readHours,
+  slotValid,
+  slotsOf,
+  timeToMin,
+  upcomingDays,
+  weekdayOf,
+} from '@/lib/market/venues';
+import { recommend } from '@/lib/market/gear';
 
 let pass = 0;
 const fails: string[] = [];
@@ -202,6 +219,102 @@ console.log(
     /getCurrentUser\(/.test(upload) &&
       /IMAGE_TYPES/.test(upload) &&
       /MAX_IMAGE_BYTES/.test(upload)
+  );
+}
+
+console.log('\n[4] 레슨 예약 · 장소 예약 · 장비 고르기 — 순수 규칙');
+{
+  const now = new Date('2026-10-21T03:00:00Z');
+  check(
+    '희망 시간 — 2시간 뒤부터 60일 안(한국 시각)',
+    parseSlot('2026-10-21T15:00', now) != null &&
+      parseSlot('2026-10-21T13:30', now) == null &&
+      parseSlot('2027-01-01T10:00', now) == null &&
+      parseSlot('nope', now) == null
+  );
+  const sp = slotParts(new Date('2026-10-21T10:30:00+09:00'));
+  check(
+    '시간표 칸 — 한국 날짜 · 시각',
+    sp.dateKey === '2026-10-21' && sp.time === '10:30'
+  );
+  check(
+    '확정은 요청 상태 · 안 지난 때만',
+    canConfirm(
+      { status: 'REQUESTED', slot1: new Date('2026-10-22T10:00:00Z'), slot2: null },
+      1,
+      now
+    ) &&
+      !canConfirm(
+        { status: 'REQUESTED', slot1: new Date('2026-10-22T10:00:00Z'), slot2: null },
+        2,
+        now
+      ) &&
+      !canConfirm(
+        { status: 'CONFIRMED', slot1: new Date('2026-10-22T10:00:00Z'), slot2: null },
+        1,
+        now
+      )
+  );
+  check(
+    '후기는 끝난 예약에 한 번',
+    canReview({ status: 'DONE', hasReview: false }) &&
+      !canReview({ status: 'DONE', hasReview: true }) &&
+      !canReview({ status: 'CONFIRMED', hasReview: false })
+  );
+  check('평균 별점', averageRating([5, 4, 4]) === 4.3 && averageRating([]) === null);
+
+  const hours = readHours(
+    (n) =>
+      ({ 'hours-1-open': '10:00', 'hours-1-close': '22:00', 'hours-0-closed': 'on' })[n]
+  );
+  check(
+    '영업시간 읽기 — 월만 열고 나머지 쉼',
+    'hours' in hours &&
+      hours.hours[1]?.open === '10:00' &&
+      hours.hours[0] === null &&
+      hours.hours[2] === null
+  );
+  check(
+    '닫는 시각이 앞이면 막힘',
+    'error' in
+      readHours((n) => ({ 'hours-1-open': '22:00', 'hours-1-close': '10:00' })[n])
+  );
+  check('다 쉬면 막힘', 'error' in readHours(() => ''));
+  const h = parseHours({ 1: { open: '10:00', close: '13:00' } });
+  const slots = slotsOf(h, 1, 60, [{ startMin: 660, endMin: 720 }], 630);
+  check(
+    '칸 — 10 · 11 · 12시, 11시는 잡힘, 10시는 지남',
+    slots.length === 3 &&
+      slots[1].taken &&
+      slots[0].past &&
+      !slots[2].taken &&
+      !slots[2].past
+  );
+  check(
+    '요청 칸 검사 — 경계 · 길이 · 영업시간',
+    slotValid(h, 1, 60, 600, 660) &&
+      !slotValid(h, 1, 60, 630, 690) &&
+      !slotValid(h, 1, 60, 780, 840) &&
+      !slotValid(h, 2, 60, 600, 660)
+  );
+  check(
+    '시각 ↔ 분',
+    timeToMin('09:30') === 570 &&
+      timeToMin('24:00') === 1440 &&
+      timeToMin('9:30') === null
+  );
+  check(
+    '앞으로 14일 · 요일',
+    upcomingDays('2026-10-21').length === 14 &&
+      upcomingDays('2026-10-21')[1] === '2026-10-22' &&
+      weekdayOf('2026-10-21') === 3
+  );
+  const picks = recommend('u13', 'pitcher', 'L');
+  check(
+    '장비 추천 다섯 — 글러브가 포지션 · 손을 품는다',
+    picks.length === 5 &&
+      picks[0].spec.includes('투수용') &&
+      picks[0].spec.includes('좌투')
   );
 }
 

@@ -1434,3 +1434,5 @@
 - **덕아웃 1판(2026-10-20 밤)** — 설계 `docs/designs/baseball-hub.md`('진행' 절). 바깥 공간 `app/(dugout)`(로그인 없이, getCurrentUser + redirect('/login?next=')), 장터 규격표 `lib/market/specs.ts`,
   채팅 `app/actions/chat.ts`(5초 폴링). `/` 는 로그인 안 하면 /dugout. `proxy.ts` 의 휴대폰 차단에서 dugout · intro · report 는 예외. 시험 `npm run dugout:test`.
   마이그레이션 `20261020230000_dugout_market` 은 공유 DB 에 걸었다(사용자 허락 패턴). 다음은 2판 레슨 예약(코치 프로필 공개 스위치 · 예약 표).
+- **덕아웃 2 · 3 · 5판(2026-10-21 새벽)** — 레슨 예약 · 장소 예약 · 장비 고르기. 규칙은 `lib/market/{lessons,venues,gear}.ts`(순수), 읽기 `lesson-load` · `venue-load`, 동작 `app/actions/{lessons,venues}.ts`.
+  코치 쪽은 마스터 화면(`/master/bookings` · `/master/venues` · 설정의 코치 프로필). 결제(4판)는 계약 뒤. 마이그레이션은 공유 DB 에 걸었다.

@@ -27,7 +27,11 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 - 새 것: `app/(dugout)/*`(틀 `components/dugout/dugout-shell.tsx`, 홈 · /dugout/market · 올리기 · 상세 · 고치기 · /dugout/chat · /dugout/me), `lib/market/{specs,load}.ts`(야구 전용 규격표 — 글러브 포지션 · 손 · 인치, 배트 길이 · 무게 · 재질 · 인증 …),
   `app/actions/{market,chat}.ts`(모두 requireUser), `app/api/market/upload-url`(사진은 투구 영상과 같은 비공개 저장소, 사용자 폴더), 관리자 신고 목록(`/admin/community`)에 물건 신고도.
   옛 소개 화면은 `/intro` 로 옮겼다(`app/page.tsx` 는 로그인이면 /today, 아니면 /dugout). 로그인에 `?next=` · `?signup=1`(덕아웃의 '로그인하고 채팅하기' · '시작하기').
-- 채팅은 5초 폴링(quietRefresh). 사용자가 늘면 그때 바꾼다. 시험 `npm run dugout:test`(28) · `integration:test`(34) · `org:test`(63).
+- 채팅은 5초 폴링(quietRefresh). 사용자가 늘면 그때 바꾼다.
+- **2~5판도 이어서(2026-10-21 새벽)**: 레슨 예약(`/dugout/lessons` — 레슨장 설정의 ‘코치 프로필’ 공개 스위치(`Org.publicProfile` 등 새 칸) → 선수가 시간 둘 골라 요청 → 코치가 `/master/bookings` 에서 확정하면
+  OrgMember + ShareConsent 기본값 + OrgEvent(lesson) 생성 · 후기는 끝난 예약만), 장소 예약(`/dugout/venues` — 마스터 계정이 `/master/venues` 에서 등록, 요일별 영업시간 · 칸 · 승인/즉시, 표 Venue · VenueBooking),
+  장비 고르기(`/dugout/gear`, 바깥 검색 링크 — 제휴는 `NEXT_PUBLIC_SHOP_SEARCH`). 마이그레이션 `20261021010000_dugout_lesson_venue` 도 공유 DB 에 걸었다 — **`npx prisma generate` 한 번 더**.
+  결제(4판)는 계약이 필요해 안 만들었다. 시험 `npm run dugout:test`(41) · `integration:test`(34) · `org:test`(63).
 
 ## 금윤호에게 — 2026-10-20 밤 · 김민(Claude, 네이티브1) — 새 앱이 정식 '불펜로그'가 됐다 · main 에 올리면 저절로 TestFlight · 휴대폰 웹은 막음
 

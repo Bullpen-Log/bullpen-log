@@ -33,6 +33,7 @@ import * as exerciseLog from '@/app/actions/exercise-log';
 import * as exerciseNote from '@/app/actions/exercise-note';
 import * as favorite from '@/app/actions/favorite';
 import * as featuredVideo from '@/app/actions/featured-video';
+import * as lessons from '@/app/actions/lessons';
 import * as market from '@/app/actions/market';
 import * as mechanics from '@/app/actions/mechanics';
 import * as nutrition from '@/app/actions/nutrition';
@@ -59,6 +60,7 @@ import * as trainingSetup from '@/app/actions/training-setup';
 import * as velocity from '@/app/actions/velocity';
 import * as velocityAdmin from '@/app/actions/velocity-admin';
 import * as velocityRecording from '@/app/actions/velocity-recording';
+import * as venues from '@/app/actions/venues';
 import * as warmup from '@/app/actions/warmup';
 import * as workout from '@/app/actions/workout';
 
@@ -90,6 +92,7 @@ export const RPC_MODULES: Record<string, Record<string, unknown>> = {
   'exercise-note': exerciseNote,
   favorite: favorite,
   'featured-video': featuredVideo,
+  lessons: lessons,
   market: market,
   mechanics: mechanics,
   nutrition: nutrition,
@@ -117,6 +120,7 @@ export const RPC_MODULES: Record<string, Record<string, unknown>> = {
   velocity: velocity,
   'velocity-admin': velocityAdmin,
   'velocity-recording': velocityRecording,
+  venues: venues,
   warmup: warmup,
   workout: workout,
 };
