@@ -25,8 +25,8 @@ async function uploadUrl(body: unknown): Promise<{ path: string; signedUrl?: str
   return { path: json.path, signedUrl: json.signedUrl };
 }
 
-/** 서버가 서명 주소를 내주는 한도 — 사이트 lib/storage.ts MAX_VIDEO_BYTES(서버 전용 파일이라 값만 같게) */
-const SERVER_MAX_BYTES = 50 * 1024 * 1024;
+/** 관리자에게 서버가 서명 주소를 내주는 한도 — 사이트 lib/storage.ts ADMIN_MAX_VIDEO_BYTES(서버 전용 파일이라 값만 같게, 2026-10-20 500MB) */
+const SERVER_MAX_BYTES = 500 * 1024 * 1024;
 
 /** 파일 크기 — 사진 선택기가 fileSize 를 안 줄 때 파일에서 읽는다(예전엔 1 로 속여 서버를 지나쳐 올리기에서 막혔다) */
 function sizeOf(asset: ImagePicker.ImagePickerAsset): number | null {
@@ -64,7 +64,7 @@ async function saveToPhone(uri: string): Promise<string> {
 
 /**
  * 고른 영상 하나를 붙일 경로로 — 회원은 폰에 넣고 경로만 받고, 관리자는 서버에 올린다.
- * 관리자 자료는 늘 서버에 둔다(2026-10-20 김민) — 서버 한도(50MB)를 넘으면 폰에 넣지 않고 웹과 같은 안내로 막는다
+ * 관리자 자료는 늘 서버에 둔다(2026-10-20 김민) — 서버 한도(관리자 500MB)를 넘으면 폰에 넣지 않고 웹과 같은 안내로 막는다
  * (웹 components/video-upload.tsx). 크기를 모르면 서버가 서명 주소를 줄 때 한 번 더 본다.
  */
 export async function attach(asset: ImagePicker.ImagePickerAsset, admin: boolean): Promise<string> {
@@ -81,7 +81,7 @@ export async function attach(asset: ImagePicker.ImagePickerAsset, admin: boolean
   }
   if (size != null && size > SERVER_MAX_BYTES) {
     throw new ApiError(
-      `50MB 이하만 올릴 수 있어요(고른 영상 ${Math.round(size / 1024 / 1024)}MB). 사진 앱의 '편집'에서 던지는 부분만 남기고 잘라 주세요.`
+      `500MB 이하만 올릴 수 있어요(고른 영상 ${Math.round(size / 1024 / 1024)}MB). 사진 앱의 '편집'에서 던지는 부분만 남기고 잘라 주세요.`
     );
   }
   const type = asset.mimeType?.startsWith('video/') ? asset.mimeType : 'video/quicktime';

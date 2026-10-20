@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/dal';
 import {
-  MAX_VIDEO_BYTES,
   createUploadTarget,
+  videoLimitOf,
   isStorageConfigured,
 } from '@/lib/storage';
 import { phoneVideoPath } from '@/lib/phone-video-path';
@@ -61,8 +61,10 @@ export async function POST(req: Request) {
       );
     }
 
-    if (size > MAX_VIDEO_BYTES) {
-      const mb = Math.round(MAX_VIDEO_BYTES / 1024 / 1024);
+    /* 관리자는 500MB(관리자 자료는 늘 서버), 회원은 50MB */
+    const limit = videoLimitOf(user.role);
+    if (size > limit) {
+      const mb = Math.round(limit / 1024 / 1024);
       return NextResponse.json(
         { error: `영상은 ${mb}MB 이하만 올릴 수 있어요` },
         { status: 400 }

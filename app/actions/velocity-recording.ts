@@ -5,7 +5,7 @@ import { revalidatePath } from 'next/cache';
 import { prisma } from '@/lib/prisma';
 import { getCurrentUser } from '@/lib/dal';
 import {
-  MAX_VIDEO_BYTES,
+  ADMIN_MAX_VIDEO_BYTES,
   createUploadTarget,
   deleteVideos,
   isOwnedBy,
@@ -80,7 +80,7 @@ async function ownRecording(recordingId: string, userId: string) {
   });
 }
 
-/** 조각 하나를 올릴 서명 주소 — 저장소 한 파일 한도(50MB) 안이어야 한다 */
+/** 조각 하나를 올릴 서명 주소 — 관리자 한도(500MB) 안이어야 한다 */
 export async function createRecordingPartUpload(
   recordingId: string,
   mime: string,
@@ -92,10 +92,10 @@ export async function createRecordingPartUpload(
     return { ok: false, error: '영상 저장소가 설정되지 않았어요.' };
   if (!/^video\//.test(String(mime)))
     return { ok: false, error: '영상 파일만 올릴 수 있어요.' };
-  if (!(bytes > 0 && bytes <= MAX_VIDEO_BYTES)) {
+  if (!(bytes > 0 && bytes <= ADMIN_MAX_VIDEO_BYTES)) {
     return {
       ok: false,
-      error: `조각은 ${Math.round(MAX_VIDEO_BYTES / 1024 / 1024)}MB 까지 올릴 수 있어요.`,
+      error: `조각은 ${Math.round(ADMIN_MAX_VIDEO_BYTES / 1024 / 1024)}MB 까지 올릴 수 있어요.`,
     };
   }
   if (!(await ownRecording(recordingId, user.id)))
@@ -132,7 +132,7 @@ export async function attachRecordingPart(
   if (!isOwnedBy(path, user.id) || path.includes('..'))
     return { ok: false, error: '조각 경로가 올바르지 않아요.' };
   const index = num(info.index, 0, 10_000);
-  const bytes = num(info.bytes, 1, MAX_VIDEO_BYTES);
+  const bytes = num(info.bytes, 1, ADMIN_MAX_VIDEO_BYTES);
   const offsetSec = num(info.offsetSec, 0, 24 * 3600);
   if (index == null || bytes == null || offsetSec == null)
     return { ok: false, error: '조각 정보가 올바르지 않아요.' };
