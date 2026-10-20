@@ -29,12 +29,9 @@
 # 로그를 열 수 없는 곳에서도 결과와 실패 이유를 볼 수 있다.
 name: 아이폰 앱 굽기
 
+# 2026-10-20 김민: 정식 '불펜로그'(com.bullpenlog.app)를 새 앱(Expo, native/)으로 바꿨다 — 옛 앱(mobile/)이 main 푸시마다
+# 저절로 TestFlight 에 올라가 새 앱을 덮어쓰지 않게 손으로만 돈다. 새 앱 굽기는 ios-native.yml.
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'mobile/**'
-      - '.github/workflows/ios.yml'
   workflow_dispatch:
 
 permissions:
