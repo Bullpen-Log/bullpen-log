@@ -3,7 +3,7 @@ import { type Href, router } from 'expo-router';
 import { useRef, useState } from 'react';
 import { Alert, Pressable, RefreshControl, ScrollView, type ScrollViewInstance, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { MEALS, amountText, entryMacros, mealLabel, stepAmount, type EntryEdit, type MealEntryView, type MealKey } from '@/lib/nutrition/meta';
+import { MEALS, amountText, entryMacros, mealLabel, missingMacros, missingText, stepAmount, type EntryEdit, type MealEntryView, type MealKey } from '@/lib/nutrition/meta';
 import { mealProtein } from '@/lib/nutrition/meal-protein';
 import { shiftDateKey } from '@/lib/pitch-stats';
 import { usePalette, withAlpha } from '~/lib/ui';
@@ -727,17 +727,27 @@ function PlanRows({
 
 type Draft = { amount: number; meal: MealKey; remove: boolean };
 
+/** 끼니 칸의 음식 한 줄 — 웹 nutrition-view EntryLine 과 같은 글: 이름 · 양 · 빠진 영양소 · 1인분 크기 / kcal. 저장 중인 줄(tmp-)은 흐리게, 못 누름 */
 function EntryRow({ entry, onPress }: { entry: MealEntryView; onPress: () => void }) {
   const c = usePalette();
   const m = entryMacros(entry);
+  const missing = missingMacros(entry);
+  const saving = entry.id.startsWith('tmp-');
   return (
-    <Pressable accessibilityRole="button" accessibilityHint="끼니 편집" onPress={onPress} style={styles.entry}>
+    <Pressable accessibilityRole="button" accessibilityHint="끼니 편집" disabled={saving} onPress={onPress} style={styles.entry}>
       <Text style={{ flex: 1, color: c.ink, fontSize: 15 }} numberOfLines={1}>
         {entry.name}
+        {/* 빠진 영양소는 양 바로 뒤에 — 줄이 좁으면 뒤쪽부터 잘려서, 끝에 두면 안 보인다(웹과 같다) */}
+        <Text style={{ color: c.muted, fontSize: 13 }}>
+          {'  '}
+          {amountText(entry.amount)}
+          {missing.length > 0 ? ` · ${missingText(missing)}` : ''}
+          {entry.servingLabel ? ` · ${entry.servingLabel}` : ''}
+        </Text>
       </Text>
-      <Text style={{ color: c.muted, fontSize: 14 }}>
-        {entry.amount !== 1 ? `${amountText(entry.amount)} · ` : ''}
-        {kcalText(m.kcal)}
+      <Text style={{ color: c.ink, fontSize: 15, fontVariant: ['tabular-nums'], opacity: saving ? 0.5 : 1 }}>
+        {round(m.kcal).toLocaleString('ko-KR')}
+        <Text style={{ color: c.muted, fontSize: 12 }}> kcal</Text>
       </Text>
     </Pressable>
   );

@@ -146,22 +146,88 @@ async function act(date: string, name: string, ...args: unknown[]): Promise<stri
   }
 }
 
+/*
+ * 누르면 먼저 바뀐다(웹 nutrition-view 의 useOptimistic) — 담기 · 편집 · 바꾸기 · 먹었어요 · 식단 지우기는 그날 칸을 곧바로 고쳐 그리고 저장은
+ * 뒤에서 한다. 성공하면 서버 값으로 갈아 끼우고(refreshDay), 실패하면 고치기 전 칸으로 되돌린다(그새 새로 받은 칸이면 그것을 둔다).
+ * 고친 칸은 폰(cacheSet)에 남기지 않는다 — 서버가 받기 전이다.
+ */
+async function actFirst(date: string, patch: (d: NutritionDay) => NutritionDay, name: string, ...args: unknown[]): Promise<string | null> {
+  const before = days.get(date);
+  const patched = before?.day ? patch(before.day) : null;
+  if (before && patched) {
+    days.set(date, { ...before, day: patched });
+    emit();
+  }
+  const err = await act(date, name, ...args);
+  const now = days.get(date);
+  if (err && before?.day && now?.day === patched) {
+    days.set(date, { ...now, day: before.day });
+    emit();
+  }
+  return err;
+}
+
+/* 저장되기 전까지 화면에만 있는 줄의 임시 이름(웹 tempSeq 와 같다) */
+let tempSeq = 0;
+const foodValues = (food: Food) => ({
+  name: food.name,
+  source: food.source,
+  servingLabel: food.servingLabel,
+  servingGrams: food.servingGrams,
+  kcal: food.kcal,
+  carbs: food.carbs,
+  protein: food.protein,
+  fat: food.fat,
+});
+const withEntries = (d: NutritionDay, entries: MealEntryView[]): NutritionDay => ({ ...d, entries });
+const withPlan = (d: NutritionDay, items: PlanItem[] | null): NutritionDay =>
+  d.mealPlan ? { ...d, mealPlan: items == null ? null : { ...d.mealPlan, items } } : d;
+
 /* 서버(cleanFood)는 출처 열쇠를 sourceId 로 읽는다 — 화면 음식(Food)의 id 를 옮겨 준다(웹 nutrition/shared.ts toFoodInput 과 같다).
    빠뜨리면 즐겨찾기 · 인기 순위 · 다시 고르기가 그 음식을 못 알아본다 */
 export const toFoodInput = (food: Food) => ({ ...food, sourceId: food.id });
 export const addFoods = (date: string, meal: MealKey, items: { food: Food; amount: number }[]) =>
-  act(
+  actFirst(
     date,
+    (d) =>
+      withEntries(d, [
+        ...d.entries,
+        ...items.map((it) => ({ ...foodValues(it.food), id: `tmp-${++tempSeq}`, meal, sourceId: it.food.id, amount: it.amount })),
+      ]),
     'nutrition.addMealEntries',
     date,
     meal,
     items.map((it) => ({ food: toFoodInput(it.food), amount: it.amount }))
   );
 /** 끼니 편집의 '완료' — 고친 줄만 한 번에(웹과 같은 서버 동작) */
-export const editEntries = (date: string, edits: EntryEdit[]) => act(date, 'nutrition.editMealEntries', edits);
+export const editEntries = (date: string, edits: EntryEdit[]) => {
+  const by = new Map(edits.map((e) => [e.id, e]));
+  return actFirst(
+    date,
+    (d) =>
+      withEntries(
+        d,
+        d.entries.flatMap((e) => {
+          const edit = by.get(e.id);
+          if (!edit) return [e];
+          if (edit.remove) return [];
+          return [{ ...e, amount: edit.amount ?? e.amount, meal: edit.meal ?? e.meal }];
+        })
+      ),
+    'nutrition.editMealEntries',
+    edits
+  );
+};
 /** 바꾸기 — 먹은 줄 · 식단 줄을 다른 음식으로(끼니 · 날짜 · 줄 이름은 그대로, 웹과 같은 서버 동작) */
 export const replaceEntry = (date: string, id: string, food: Food, amount: number) =>
-  act(date, 'nutrition.replaceMealEntry', id, toFoodInput(food), amount);
+  actFirst(
+    date,
+    (d) => withEntries(d, d.entries.map((e) => (e.id === id ? { ...e, ...foodValues(food), sourceId: food.id, amount } : e))),
+    'nutrition.replaceMealEntry',
+    id,
+    toFoodInput(food),
+    amount
+  );
 /** 직접 입력한 음식을 내 음식으로(웹 addCustom 의 saveMine — 바코드가 아니면 출처 'mine') */
 export const saveMyFood = async (food: Food): Promise<string | null> => {
   try {
@@ -175,14 +241,29 @@ export const saveMyFood = async (food: Food): Promise<string | null> => {
 export const saveNutritionAnswer = (date: string, a: NutritionAnswer) =>
   act(date, 'day-cards.saveNutritionCheckin', { date, appetite: a.appetite, mealAmount: a.mealAmount, skippedMeals: a.skippedMeals });
 export const replacePlan = (date: string, key: string, food: Food, amount: number) =>
-  act(date, 'nutrition.replacePlanItem', date, key, toFoodInput(food), amount);
+  actFirst(
+    date,
+    (d) =>
+      withPlan(
+        d,
+        (d.mealPlan?.items ?? []).map((i) =>
+          i.key === key && !i.done ? { ...i, ...foodValues(food), sourceId: food.id ?? '', servingLabel: food.servingLabel ?? '1인분', amount } : i
+        )
+      ),
+    'nutrition.replacePlanItem',
+    date,
+    key,
+    toFoodInput(food),
+    amount
+  );
 export const saveWeight = (date: string, kg: number | null) => act(date, 'nutrition.setWeight', date, kg);
 /* 식단 짜기(오늘만) — 웹과 같은 서버 셈(lib/nutrition/meal-plan.ts). variant 를 올리면 다른 식단 */
 export const makePlan = (date: string, place: Place, hot: boolean, variant: number) =>
   act(date, 'nutrition.makeMealPlan', date, { place, hot, variant });
 /** 계획 줄을 먹은 기록으로 — 같은 줄을 두 번 눌러도 한 번 */
-export const eatPlan = (date: string, keys: string[]) => act(date, 'nutrition.eatPlanItems', date, keys);
-export const clearPlan = (date: string) => act(date, 'nutrition.clearMealPlan', date);
+export const eatPlan = (date: string, keys: string[]) =>
+  actFirst(date, (d) => withPlan(d, (d.mealPlan?.items ?? []).map((i) => (keys.includes(i.key) ? { ...i, done: true } : i))), 'nutrition.eatPlanItems', date, keys);
+export const clearPlan = (date: string) => actFirst(date, (d) => withPlan(d, null), 'nutrition.clearMealPlan', date);
 
 /** ★ 내 음식에 두기 · 풀기(웹 toggleFavorite — 같은 서버 동작) · 내 음식 지우기(웹 removeMine) */
 export const favoriteFood = (date: string, food: Food) => act(date, 'nutrition.saveUserFood', toFoodInput(food));
