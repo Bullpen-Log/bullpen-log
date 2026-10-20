@@ -5,7 +5,7 @@
  * 숫자처럼 fontFamily 를 따로 준 글(ui-rounded · DIN)은 그쪽이 이긴다. Animated.Text 는 이 길을 안 타 SF 그대로다.
  *
  * 다른 것은 쓰는 순간에 react-native 에서 꺼낸다(게터) — 예전 `export * from 'react-native'` 는 개발(Debug) 묶음에서 모든 이름을 한꺼번에 읽어
- * 안 쓰는 PushNotificationIOS 까지 깨웠고, 그 부품의 바닥 모듈이 없어 '불펜로그 테스트'가 켜자마자 Uncaught Error 로 멈췄다(2026-10-20).
+ * 안 쓰는 PushNotificationIOS 까지 깨웠고, 그 부품의 바닥 모듈이 없어 '불펜로그 테스트'가 켜자마자 Uncaught Error 로 멈췄다(2026-10-20). 게터도 Fast Refresh 가 훑으면 깨어나 안 보이게 둔다.
  * 형(type)은 tsconfig 가 진짜 react-native 를 보므로 이 파일은 JS 로 둔다.
  */
 const React = require('react');
@@ -26,5 +26,7 @@ exports.Text = Text;
 exports.TextInput = TextInput;
 for (const key of Object.keys(RN)) {
   if (key in exports) continue;
-  Object.defineProperty(exports, key, { enumerable: true, get: () => RN[key] });
+  /* 안 보이게(enumerable: false) — 개발 모드의 Fast Refresh 가 src/ 파일의 내보낸 이름을 하나하나 읽어(registerExportsForReactRefresh) 게터를 다 깨웠다.
+   * 이름으로 꺼내 쓰는 것(import { View })은 그대로 된다 */
+  Object.defineProperty(exports, key, { enumerable: false, get: () => RN[key] });
 }
