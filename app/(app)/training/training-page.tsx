@@ -34,6 +34,7 @@ import { AddExercise, type PickableExercise } from './add-exercise';
 import { TrainingNote } from './training-note';
 import { TrainingSettingsButton } from './settings-button';
 import { RememberTrainingApp } from './remember-app';
+import { pitches } from '@/lib/position';
 import { TrainingHome } from './training-home';
 import { ArmcareTabs, type ArmcareTab } from './armcare-tabs';
 import { ArmcareSection } from './armcare-section';
@@ -173,6 +174,11 @@ export default async function TrainingPage({
   const today = now();
 
   const params = await searchParams;
+  /*
+   * 어느 종목 바에서 열었나(2026-10-20 타격 1단계, lib/nav.ts SPORT_BARS ?sport=). 운동 판 · 일정은 종목과 상관없이 하루 하나다(D3) —
+   * 이 값은 투구 전용 줄을 숨기는 데만 쓴다. ?sport= 가 없으면 포지션으로(타자만 하는 사람이면 타격 쪽).
+   */
+  const hitSide = params.sport === 'hit' || (params.sport == null && !pitches(user));
   /* 예전 [기록] 칸의 주소 — 지난 기록은 이제 홈 캘린더에 있다 */
   if (params.view === 'history') redirect('/today');
   /*
@@ -627,8 +633,11 @@ export default async function TrainingPage({
         {/* 오늘 일정을 만든 날에는 프로그램 고르기를 숨긴다(2026-10-12 사용자) — 만들기 전에만 */}
         {programStart && savedPlan == null && <ProgramStart props={programStart} />}
 
-        {/* 다음 등판 한 줄(2판 P4) — 일정 카드 위. 짐작한 등판이면 '바꾸기'가 체크인을 연다(components/outing-line.tsx) */}
-        <OutingLine outing={core.state.outing} />
+        {/*
+          다음 등판 한 줄(2판 P4) — 일정 카드 위. 짐작한 등판이면 '바꾸기'가 체크인을 연다(components/outing-line.tsx).
+          타격 바에서 연 트레이닝 · 타자만 하는 사람은 안 보인다 — 투구 전용 줄이다(2026-10-20 타격 1단계 T4, CEO WARNING).
+        */}
+        {!hitSide && <OutingLine outing={core.state.outing} />}
 
         {picked.halted ? (
           <Card className="space-y-2 border-warn-line bg-warn-bg">
