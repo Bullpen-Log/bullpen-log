@@ -1,6 +1,6 @@
 import * as Haptics from 'expo-haptics';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, Text, View } from 'react-native';
+import { ActivityIndicator, Text, View } from 'react-native';
 import { ADULT_AGE } from '@/lib/report/plan';
 import { BASELINE_MIX, MIX_COUNTS, THROWING_HANDS, mixDailyLoad } from '@/lib/baseline';
 import { effortScaleText, scaleToEffortPct } from '@/lib/pitch-effort';
@@ -10,6 +10,7 @@ import { usePalette } from '~/lib/ui';
 import { leaveTo, openWebAfter } from '~/shell/web-nav';
 import { BigNumber, ChoiceChips, StepFrame, SummaryRows } from '~/setup/frame';
 import { PitchCapInsert } from '~/setup/inserts';
+import { Press } from '~/shell/press';
 
 /**
  * 투구 기록 첫 설정(앱 화면) — 웹 app/(app)/videos/setup/pitch-setup-wizard.tsx 를 옮겼다. 하루 투구 한도(끼움) → 던지는 손 → 평소 투구량
@@ -43,9 +44,9 @@ export default function PitchSetupScreen() {
         {failed ? (
           <>
             <Text style={{ color: c.ink, fontSize: 15 }}>신호가 약해 불러오지 못했어요.</Text>
-            <Pressable accessibilityRole="button" onPress={() => (setFailed(false), setTries((n) => n + 1))} hitSlop={8}>
+            <Press accessibilityRole="button" onPress={() => (setFailed(false), setTries((n) => n + 1))} hitSlop={8}>
               <Text style={{ color: c.sky, fontSize: 15, fontWeight: '700' }}>다시 불러오기</Text>
-            </Pressable>
+            </Press>
           </>
         ) : (
           <ActivityIndicator />

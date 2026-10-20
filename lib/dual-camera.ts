@@ -7,6 +7,7 @@
  */
 import { nativeApi } from '@/lib/native-bridge';
 import { nativeSupports } from '@/lib/native-api';
+import { isExpoUserAgent } from '@/lib/app-env';
 
 export const DUAL_CAMERA_PLUGIN = 'DualCamera';
 
@@ -89,6 +90,8 @@ export const dualStatusNow = () => statusNow;
  */
 export const isOldApp = (s: DualStatus | null) => {
   if (s == null || s.reason === 'web') return false;
+  /* 새 앱(Expo)은 옛 앱이 아니다 — 앱 카메라는 앱 화면이 맡아 다리가 판 0 을 알려도 'TestFlight 로 업데이트' 안내는 틀린 말이었다(2026-10-20 대조 검토) */
+  if (typeof navigator !== 'undefined' && isExpoUserAgent(navigator.userAgent)) return false;
   /* 판을 아는 앱(BullpenNative info, 2026-10-16 부터)은 표로 — 모르면 예전 짐작 */
   const has = nativeSupports('appCamera');
   if (has != null) return !has;

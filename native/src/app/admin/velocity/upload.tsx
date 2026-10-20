@@ -3,7 +3,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { createUploadTask, FileSystemUploadType } from 'expo-file-system/legacy';
 import { router } from 'expo-router';
 import { useRef, useState } from 'react';
-import { KeyboardAvoidingView, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { KeyboardAvoidingView, ScrollView, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { toDateKey } from '@/lib/pitch-stats';
 import { PITCH_TYPES } from '@/lib/velocity-meta';
@@ -12,6 +12,7 @@ import { PICK_ORIGINAL } from '~/pitch/attach';
 import { rpc } from '~/lib/rpc';
 import { usePalette, type Palette } from '~/lib/ui';
 import { READABLE } from '~/lib/layout';
+import { Press } from '~/shell/press';
 
 /**
  * 구속 측정 관리자의 '영상 올리기'(앱) — 웹 app/(app)/admin/velocity/mobile-upload.tsx 를 옮겼다: 사진 앱의 투구 영상 여러 개를 골라 스피드건 값만
@@ -200,15 +201,15 @@ export default function VelocityUploadScreen() {
           />
         ))}
         {!busy ? (
-          <Pressable accessibilityRole="button" onPress={() => void pick()} style={[s.pill, { minHeight: 52, backgroundColor: c.card }]}>
+          <Press accessibilityRole="button" onPress={() => void pick()} style={[s.pill, { minHeight: 52, backgroundColor: c.card }]}>
             <Text style={{ color: c.sky, fontSize: 16, fontWeight: '600' }}>{items.length ? '영상 더 고르기' : '영상 고르기'}</Text>
-          </Pressable>
+          </Press>
         ) : null}
         {error ? <Text style={{ color: c.danger, fontSize: 15, fontWeight: '600' }}>{error}</Text> : null}
         {pending > 0 ? (
-          <Pressable accessibilityRole="button" disabled={busy} onPress={() => void submit()} style={[s.pill, { minHeight: 52, backgroundColor: c.sky, opacity: busy ? 0.6 : 1 }]}>
+          <Press accessibilityRole="button" disabled={busy} onPress={() => void submit()} style={[s.pill, { minHeight: 52, backgroundColor: c.sky, opacity: busy ? 0.6 : 1 }]}>
             <Text style={{ color: '#fff', fontSize: 17, fontWeight: '700' }}>{busy ? '올리는 중…' : `${pending}개 올리기`}</Text>
-          </Pressable>
+          </Press>
         ) : done ? (
           <Text style={{ color: c.ok, fontSize: 15, fontWeight: '600', textAlign: 'center' }}>다 올렸어요.</Text>
         ) : null}
@@ -229,9 +230,9 @@ function ItemCard({ it, disabled, onGun, onType, onRemove, c }: { it: Item; disa
           {it.asset.duration ? ` · ${(it.asset.duration / 1000).toFixed(1)}초` : ''}
         </Text>
         {editable && !disabled ? (
-          <Pressable accessibilityRole="button" accessibilityLabel="빼기" onPress={onRemove} hitSlop={8} style={{ minHeight: 32, justifyContent: 'center' }}>
+          <Press accessibilityRole="button" accessibilityLabel="빼기" onPress={onRemove} hitSlop={8} style={{ minHeight: 32, justifyContent: 'center' }}>
             <Text style={{ color: c.muted, fontSize: 14 }}>빼기</Text>
-          </Pressable>
+          </Press>
         ) : null}
       </View>
       {editable ? (

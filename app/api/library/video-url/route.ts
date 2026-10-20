@@ -1,6 +1,12 @@
 import { NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/dal';
-import { createPlaybackUrls, isLibraryPath, smallLibraryCopies, smallLibraryPath } from '@/lib/storage';
+import {
+  createPlaybackUrls,
+  isLibraryPath,
+  LIBRARY_HEVC_PREFIX,
+  smallLibraryCopies,
+  smallLibraryPath,
+} from '@/lib/storage';
 import { libraryVideoPaths } from '@/lib/library-cache';
 
 /** 한 번에 받아갈 수 있는 영상 수. */
@@ -45,13 +51,20 @@ export async function POST(req: Request) {
 
     /*
      * small: 720p 로 줄인 판이 있으면 그것을(재생 · 아이폰 앱이 받아 둘 때 — 서버 전송량이 1/3). 없거나 목록을 못 읽으면 원본.
+     * small 'hevc'(새 앱): 720p HEVC 판(H.264 판의 절반 남짓) → 없으면 720p H.264 → 원본.
      * 촬영 편집기 · 썸네일 고치기는 small 없이 원본을 받는다.
      */
-    if (small === true) {
-      const copies = await smallLibraryCopies().catch(() => new Set<string>());
+    if (small === true || small === 'hevc') {
+      const [copies, hevcCopies] = await Promise.all([
+        smallLibraryCopies().catch(() => new Set<string>()),
+        small === 'hevc'
+          ? smallLibraryCopies(LIBRARY_HEVC_PREFIX).catch(() => new Set<string>())
+          : Promise.resolve(new Set<string>()),
+      ]);
       const pick = new Map(allowed.map((p) => {
+        const h = smallLibraryPath(p, LIBRARY_HEVC_PREFIX);
         const s = smallLibraryPath(p);
-        return [p, s && copies.has(s) ? s : p] as const;
+        return [p, h && hevcCopies.has(h) ? h : s && copies.has(s) ? s : p] as const;
       }));
       const signed = await createPlaybackUrls([...new Set(pick.values())]);
       const urls: Record<string, string> = {};

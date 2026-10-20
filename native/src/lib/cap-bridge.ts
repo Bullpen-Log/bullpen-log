@@ -8,22 +8,23 @@ import { ShootCamera } from '../../modules/shoot-camera';
 /**
  * 작은 다리(2026-10-17 엔지니어링 검토 D4) — 아직 네이티브로 안 옮긴 웹뷰 화면이 옛 Capacitor 앱처럼 진동 · 화면 켜 두기 · 쉬는 시간 알림 ·
  * 상태 막대 색을 쓰게, 웹뷰에 window.Capacitor 흉내를 심는다. 사이트는 그대로(lib/haptics.ts · lib/native-bridge.ts · lib/native-app.ts 가
- * window.Capacitor.nativePromise 로 부른다). 카메라 · 폰 영상(DualCamera · LocalVideo)은 넣지 않는다(D3 — 그 화면은 네이티브로).
+ * window.Capacitor.nativePromise 로 부른다). 카메라(DualCamera)는 넣지 않는다(D3 — 그 화면은 네이티브로).
+ * 폰 영상(LocalVideo)은 넣는다(2026-10-20 1번 대조 검토) — 앱 안 웹 홈 그날 칸 · 구속 클립 · 투구 갤러리 · 비교가 폰에 둔 회원 영상을 틀어야 해서
+ * (안 이으면 '찍은 폰의 앱에서 볼 수 있어요'라는 틀린 글이 떴다). 라이브러리 영상 기능(library*)은 빼 둔다 — 새 앱엔 앱 안 영상 묶음이 없어
+ * 웹이 그 길을 타면 영상을 통째로 받아 base64 로 넘긴다. 빠지면 웹이 서버 주소로 바로 튼다(lib/local-video.ts libraryVideoFromPhone).
  * 예외 하나: 촬영 모드 카메라(ShootCamera — 관리자 촬영 모드, 웹 lib/shoot-camera.ts)는 옛 앱 부품을 모듈로 옮겨 여기로 잇는다(2026-10-18) —
  * 관리자만 쓰는 큰 화면이라 네이티브로 옮기기 전까지 새 앱에서도 찍게. 화면을 다 옮기면 이 파일을 지운다.
  *
  * 웹 → 앱: { t: 'cap', id, plugin, method, options } · 앱 → 웹: window.__bpCapReply(id, ok, value)
  * 웹 → 앱: { t: 'theme', dark, color } — 테마가 바뀔 때(상태 막대 글자색 · 웹뷰 바탕)
  */
-const PLUGINS = ['Haptics', 'BullpenNative', 'SystemBars', 'SplashScreen', 'ShootCamera'];
+const PLUGINS = ['Haptics', 'BullpenNative', 'SystemBars', 'SplashScreen', 'ShootCamera', 'LocalVideo'];
 
-/**
- * 한 주소에서만 잇는 부품(2026-10-18) — 폰 영상(LocalVideo)은 D3 대로 다른 웹 화면에 잇지 않는다. 다만 옛 앱(Capacitor)이 웹 저장소에
- * 남긴 저장 안 한 구속 세션은 웹 구속 화면(/velocity?resume=1&web=1)만 마무리할 수 있고, 회원 클립은 폰에만 둔다(2026-10-10 결정 —
- * 부품이 없으면 웹이 서버로 올린다). 그래서 그 화면에서만 폰에 넣는 셋(begin · append · finish)과 status 를 잇는다.
- */
-const SCOPED: Record<string, string> = { LocalVideo: '/velocity' };
-const LOCAL_VIDEO_METHODS = new Set(['status', 'begin', 'append', 'finish']);
+/** 한 주소에서만 잇는 부품 — 지금은 없다(2026-10-20 까지 LocalVideo 가 /velocity 에서만이었다) */
+const SCOPED: Record<string, string> = {};
+/** 웹 lib/local-video.ts 가 부르는 폰 영상 기능 — library* 는 뺐다(위 머리말) */
+const LOCAL_VIDEO_METHODS = new Set(['status', 'begin', 'append', 'finish', 'saveFile', 'load', 'read', 'discard', 'exists', 'remove']);
+const strings = (v: unknown) => (Array.isArray(v) ? v.map(String) : []);
 
 /** 웹뷰가 문서를 읽기 전에 심는 글 — injectedJavaScriptBeforeContentLoaded */
 export const CAP_SHIM = `(function () {
@@ -124,7 +125,14 @@ async function run({ plugin, method, options: o }: CapMessage): Promise<unknown>
     if (method === 'status') return LocalVideo.status();
     if (method === 'begin') return LocalVideo.begin({ ext: typeof o.ext === 'string' ? o.ext : undefined });
     if (method === 'append') return LocalVideo.append({ token: String(o.token), data: String(o.data) });
-    return LocalVideo.finish({ token: String(o.token) });
+    if (method === 'finish') return LocalVideo.finish({ token: String(o.token) });
+    if (method === 'saveFile') return LocalVideo.saveFile({ path: String(o.path) });
+    if (method === 'load') return LocalVideo.load({ id: String(o.id) });
+    if (method === 'read')
+      return LocalVideo.read({ path: String(o.path), offset: Number(o.offset) || 0, length: Number(o.length) || undefined });
+    if (method === 'discard') return LocalVideo.discard({ paths: strings(o.paths) });
+    if (method === 'exists') return LocalVideo.exists({ ids: strings(o.ids) });
+    return LocalVideo.remove({ ids: strings(o.ids) });
   }
   throw new Error(`${plugin}.${method} 은 이 앱에 없어요`);
 }

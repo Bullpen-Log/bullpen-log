@@ -10,7 +10,7 @@ import {
   type ComponentType,
   type Ref,
 } from 'react';
-import { Alert, AppState, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, AppState, StyleSheet, Text, View } from 'react-native';
 import {
   WebView,
   type WebViewMessageEvent,
@@ -47,6 +47,7 @@ import { PitchTab } from '~/pitch/tab';
 import { DEFAULT_TABS, TAB_BAR_HEIGHT, TabBar, type ShellTab } from '~/shell/tab-bar';
 import { TabPager } from '~/shell/tab-pager';
 import { ClockVeil } from '~/shell/clock-veil';
+import { Press } from '~/shell/press';
 
 type WebViewHandle = { injectJavaScript(script: string): void };
 /* react-native-webview 14 의 타입은 ref 를 안 받지만 실제 부품은 forwardRef 다(velocity/engine.tsx 와 같다) */
@@ -82,6 +83,7 @@ const NATIVE_ROUTES = [
   /^\/admin(\/(support|community|patch-notes(\/[\w-]+)?|notice(\?id=[\w-]+)?))?$/,
   /^\/admin\/shoot(\/\d+(\?at=[\w%.-]+)?)?$/,
   /^\/admin\/velocity(\/(upload|\d{4}-\d{2}-\d{2}))?$/,
+  /^\/velocity\?mode=(speed|abs)$/,
   /^\/lab(\/guide|\/[0-9a-f-]{36})?(\?[\w=&%.-]*)?$/,
   /^\/login\?native=1$/,
   /^\/(signup|account)$/,
@@ -102,6 +104,8 @@ function nativeOfWeb(href: string): string | null {
   const setup: Record<string, string> = { '/videos/setup': '/setup/pitch', '/training/setup': '/setup/training', '/nutrition/setup': '/setup/nutrition' };
   if (setup[path]) return setup[path];
   if (path === '/workout/warmup') return '/warmup';
+  /* 웹 ABS 판정 → 앱 카메라 화면의 ABS 모드(앱 카메라 · 2배 · 손떨림 보정 — 웹뷰 카메라보다 정확) */
+  if (path === '/abs') return '/velocity?mode=abs';
   const sp = new URLSearchParams(q ?? '');
   const view = path === '/coach' ? sp.get('view') : null;
   /* '그날 분석'(?date=YYYY-MM-DD)은 그 날짜째 — 네이티브3 분석 화면이 받는다 */
@@ -335,7 +339,11 @@ export default function SiteScreen() {
     goWeb(href);
   };
   const goTab = (href: string) => {
-    const t = tabs.find((x) => x.href === href);
+    /*
+     * 쿼리 없는 탭 주소도 그 탭으로 — 트레이닝 탭의 주소는 '/training?view=home' 인데 운동을 마치거나 트레이닝 첫 설정을 끝낸 뒤 '/training' 으로 보내
+     * 짝을 못 찾고 웹 '오늘 운동' 화면이 열렸다(2026-10-20 대조 검토)
+     */
+    const t = tabs.find((x) => x.href === href) ?? (href.includes('?') ? undefined : tabs.find((x) => x.href.split('?')[0] === href));
     if (t) pressTab(t);
     else openWeb(href);
   };
@@ -499,7 +507,7 @@ export default function SiteScreen() {
         <Text style={[styles.body, dark && styles.mutedDark]}>
           연결되면 다시 불러와 주세요.
         </Text>
-        <Pressable
+        <Press
           accessibilityRole="button"
           style={styles.button}
           onPress={() => {
@@ -509,7 +517,7 @@ export default function SiteScreen() {
           }}
         >
           <Text style={styles.buttonText}>다시 불러오기</Text>
-        </Pressable>
+        </Press>
       </View>
     );
   }

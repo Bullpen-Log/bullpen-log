@@ -1,12 +1,13 @@
 import * as Haptics from 'expo-haptics';
 import { type Href, router } from 'expo-router';
 import { useState } from 'react';
-import { KeyboardAvoidingView, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { KeyboardAvoidingView, ScrollView, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { INQUIRY_BODY_MAX, INQUIRY_CATEGORIES, INQUIRY_TITLE_MAX, type InquiryCategory } from '@/lib/support';
 import { Bar, BarButton, call, Chip, s, useBusy } from '~/community/parts';
 import { usePalette } from '~/lib/ui';
 import { READABLE } from '~/lib/layout';
+import { Press } from '~/shell/press';
 
 /**
  * 문의하기(앱 화면) — 웹 components/support/support-inquiry-form.tsx 를 옮겼다. 종류 · 제목 · 내용, 같은 한도 · 같은 서버 검사
@@ -74,14 +75,14 @@ export default function NewInquiryScreen() {
           무슨 화면에서 무엇을 했을 때 어땠는지 적어 주시면 더 빨리 도울 수 있어요. {INQUIRY_BODY_MAX}자까지.
         </Text>
         {send.error ? <Text style={{ color: c.danger, fontSize: 15 }}>{send.error}</Text> : null}
-        <Pressable
+        <Press
           accessibilityRole="button"
           onPress={submit}
           disabled={send.busy}
           style={[s.primary, { backgroundColor: c.sky }, send.busy && { opacity: 0.5 }]}
         >
           <Text style={s.primaryText}>{send.busy ? '보내는 중' : '문의 보내기'}</Text>
-        </Pressable>
+        </Press>
       </ScrollView>
     </KeyboardAvoidingView>
   );

@@ -33,6 +33,7 @@ export function isExpoUserAgent(userAgent: string | null | undefined): boolean {
  * 7 라이브러리(/library/training · /library/mechanics) · 자료실(/board), 8 관리자(/admin) · 3D 동작 분석 결과(/lab/<id>) · 계정(로그인 · /account),
  * 9 3D 동작 분석 목록 · 촬영 안내(/lab · /lab/guide) · 촬영 관리자(/admin/shoot · /admin/shoot/<주>) ·
  *   구속 측정 관리자 휴대폰 화면(/admin/velocity · /<날짜> · /upload).
+ * 10 카메라 모드 주소(/velocity?mode=speed · ?mode=abs — 모드 고르기를 건너뛰고 그 모드로).
  */
 export function expoLevel(userAgent: string | null | undefined): number {
   const m = userAgent ? /BullpenNative\/(\d+)/.exec(userAgent) : null;

@@ -3,6 +3,8 @@
  *
  *   npm run library:bundle            (받기 → 줄이기 → mobile/ios/App/App/LibraryVideos/)
  *   npm run library:bundle -- --dry   (무엇을 할지만)
+ *   npm run library:bundle -- --hevc  (새 앱용 720p HEVC → ~/bullpen-library-bundle/hevc/ · 저장소 library-hevc/ — 2026-10-20 김민,
+ *                                      웹 library-720/(H.264)은 그대로. 굽는 법은 library-bundle/compress.swift 머리)
  *
  * 왜: 운동 영상은 회원이 볼 때마다 서버에서 받아 전송 비용이 가장 컸다(2026-10-13 김민: "영상을 줄여서 앱 안에 넣는 방안").
  * 앱에 든 영상은 서버에서 받지 않고 바로 튼다(LocalVideoPlugin libraryLoad). 앱을 낸 뒤 새로 올리거나 고친 영상은 이름(uuid)이
@@ -20,8 +22,13 @@ import { createClient } from '@supabase/supabase-js';
 import { prisma } from '@/lib/prisma';
 
 const dry = process.argv.includes('--dry');
+const hevc = process.argv.includes('--hevc');
 const root = new URL('..', import.meta.url).pathname;
-const outDir = join(root, 'mobile/ios/App/App/LibraryVideos');
+/* HEVC 판은 새 앱(Expo) 묶음 · 받기용 — 앱에 싣는 길은 네이티브 굽기 쪽이 정한다 */
+const outDir = hevc
+  ? join(homedir(), 'bullpen-library-bundle/hevc')
+  : join(root, 'mobile/ios/App/App/LibraryVideos');
+const PREFIX = hevc ? 'library-hevc' : 'library-720';
 const srcDir = join(homedir(), 'bullpen-library-bundle/src');
 const BUCKET = 'pitch-videos';
 
@@ -71,10 +78,14 @@ for (const p of todo) {
 }
 
 if (list.length) {
-  const listFile = join(srcDir, '../list.tsv');
+  const listFile = join(srcDir, hevc ? '../list-hevc.tsv' : '../list.tsv');
   writeFileSync(listFile, list.join('\n'));
   try {
-    execFileSync('swift', ['-suppress-warnings', join(root, 'scripts/library-bundle/compress.swift'), listFile], { stdio: 'inherit' });
+    execFileSync(
+      'swift',
+      ['-suppress-warnings', join(root, 'scripts/library-bundle/compress.swift'), listFile, ...(hevc ? ['hevc'] : [])],
+      { stdio: 'inherit' }
+    );
   } catch {
     console.log('일부 영상을 줄이지 못했어요 — 위 fail 줄을 보세요(그 영상은 앱이 서버에서 받아요).');
   }
@@ -89,20 +100,20 @@ const files = readdirSync(outDir).filter((f) => f.endsWith('.mp4'));
 if (url && key) {
   const have = new Set<string>();
   for (let offset = 0; ; offset += 1000) {
-    const { data } = await bucket.list('library-720', { limit: 1000, offset });
+    const { data } = await bucket.list(PREFIX, { limit: 1000, offset });
     for (const f of data ?? []) have.add(f.name);
     if (!data || data.length < 1000) break;
   }
   let up = 0;
   for (const f of files.filter((f) => !have.has(f))) {
-    const { error } = await bucket.upload(`library-720/${f}`, readFileSync(join(outDir, f)), {
+    const { error } = await bucket.upload(`${PREFIX}/${f}`, readFileSync(join(outDir, f)), {
       contentType: 'video/mp4',
       upsert: false,
     });
     if (error) console.log(`올리기 실패 ${f}: ${error.message}`);
     else up++;
   }
-  console.log(`저장소 library-720/ 에 새로 올림 ${up}개`);
+  console.log(`저장소 ${PREFIX}/ 에 새로 올림 ${up}개`);
 }
 const before = files.reduce((s, f) => {
   const src = readdirSync(srcDir).find((x) => keyOf(x) === keyOf(f));

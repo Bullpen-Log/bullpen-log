@@ -5,7 +5,8 @@ import { TRAINING_CATEGORIES } from '@/lib/categories';
 import { BODY_PARTS, EXERCISE_EQUIPMENT, INTENSITY_NAMES } from '@/lib/exercise-meta';
 import { matchesSearch } from '@/lib/korean';
 import type { WarmupFolder } from '@/app/(app)/library/training/training-client';
-import { Bar } from '~/community/parts';
+import { Bar, BarButton, leave } from '~/community/parts';
+import { useMenu } from '~/shell/menu-store';
 import { ChipRow, EXERCISE_LIST, FilterSheet, filterChips, filterCount, matchesFilter, FoldHead, GridRow, LibraryGrid, SearchField, gridRows, recall, remember, st, type Exercise, LibraryTabs } from '~/library/parts';
 import { ExerciseDetail } from '~/library/detail';
 import { usePalette } from '~/lib/ui';
@@ -32,6 +33,7 @@ type Data = { exercises: Exercise[]; warmupFolders: WarmupFolder[] };
 
 export default function ExerciseLibraryScreen() {
   const c = usePalette();
+  const { isAdmin } = useMenu();
   const inset = useSafeAreaInsets();
   const state = useScreenData<Data>(EXERCISE_LIST, '', 'library:exercises');
   const [query, setQuery] = useState('');
@@ -87,7 +89,7 @@ export default function ExerciseLibraryScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: c.page }}>
-      <Bar back="뒤로" title="운동 영상" c={c} />
+      <Bar back="뒤로" title="운동 영상" right={isAdmin ? <BarButton label="편집" onPress={() => leave('/library/training?web=1')} c={c} /> : undefined} c={c} />
       <View style={{ gap: 10, paddingTop: 4, paddingBottom: 10 }}>
         <SearchField value={query} onChange={setQuery} placeholder="운동 이름으로 찾기" c={c} />
         <ChipRow chips={chips} c={c} />

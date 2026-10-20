@@ -9,11 +9,12 @@ import { BodyPartsProvider } from '@/components/body-parts';
 import { throwingSide } from '@/lib/armcare/muscle-map';
 import { ArmcareInfoProvider } from '@/app/(app)/training/armcare-info';
 
-export default async function TrainingPage() {
+export default async function TrainingPage({ searchParams }: { searchParams: Promise<{ web?: string }> }) {
   const user = await requireUser();
 
   /* 새 아이폰 앱(Expo)이 라이브러리를 아는 판(BullpenNative/7 부터)이면 앱 화면으로 연다(native/src/app/library/training.tsx) */
-  if (expoLevel((await headers()).get('user-agent')) >= 7) return <OpenNative path="/library/training" cover={false} />;
+  /* ?web=1 — 앱 관리자가 '편집'으로 웹 화면을 연다(운동 · 드릴 고치기는 웹에만 있다, 2026-10-20 대조 검토) */
+  if ((await searchParams).web !== '1' && expoLevel((await headers()).get('user-agent')) >= 7) return <OpenNative path="/library/training" cover={false} />;
 
   const isAdmin = user.role === 'ADMIN';
 

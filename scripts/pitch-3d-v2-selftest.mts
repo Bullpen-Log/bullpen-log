@@ -1070,6 +1070,21 @@ console.log('■ 마운드 · 보기용 다듬기 · 관절 각도 틀(kinematic
             tr.mound != null && tr.mound.x0 < footBack - 0.01,
             tr.mound ? `${tr.mound.x0.toFixed(3)} < ${footBack.toFixed(3)}` : '마운드 없음'
           );
+          /* 평지도 같은 축발 자리 — 예전엔 무대가 '가장 먼저 닿은 발'(우투면 앞발일 수 있음)로 정해 투수판이 축발 앞에 놓였다(2026-10-20 샘플 15) */
+          const fc = flat.contacts.find((c) => c.side === 'R' && c.from <= fp);
+          const flatBack = fc
+            ? Math.min(...[V2J.rAn, V2J.rHe, V2J.rTo].map((j) => flat.frames[fc.from][j][0]))
+            : NaN;
+          check(
+            '보기: 평지 투수판도 축발 뒤(발 너비 안쪽 · 앞발이 아님)',
+            flat.rubber != null && flat.rubber.x0 < flatBack - 0.01 && flat.rubber.x0 > flatBack - 0.15,
+            flat.rubber ? `${flat.rubber.x0.toFixed(3)} vs 축발 ${flatBack.toFixed(3)}` : '투수판 없음'
+          );
+          check(
+            '보기: 마운드 투수판 = 마운드 앞 모서리',
+            tr.rubber != null && tr.mound != null && tr.rubber.x0 === tr.mound.x0 && tr.rubber.z0 === tr.mound.z0,
+            tr.rubber ? `${tr.rubber.x0}` : '투수판 없음'
+          );
         }
 
       }

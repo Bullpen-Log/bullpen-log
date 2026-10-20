@@ -1,7 +1,8 @@
 import { SymbolView } from 'expo-symbols';
-import { useVideoPlayer, VideoView } from 'expo-video';
+import { useEvent } from 'expo';
+import { useVideoPlayer, VideoView, type VideoPlayer } from 'expo-video';
 import * as WebBrowser from 'expo-web-browser';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Animated, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { EXERCISE_NOTE_MAX, cleanExerciseNote } from '@/lib/exercise-meta';
@@ -286,7 +287,7 @@ export function NoteBox({
 }
 
 /**
- * 자세 영상 — 직접 찍은 영상은 앱 안 묶음 · 폰에 받아 둔 것, 없으면 라이브러리 재생 주소(/api/library/video-url small 판)를 한 번 받아 두고 틀고(libraryUri),
+ * 자세 영상 — 직접 찍은 영상은 폰에 받아 둔 720p HEVC 판(LibraryClip)으로 틀고,
  * 유튜브 참고 영상은 공식 삽입 재생기를 작은 웹뷰로(우리 사이트를 주소로 둔다 — 유튜브가 출처 없는 삽입을 막는다).
  */
 /** 관리자인가 — 앱을 켤 때 한 번 받은 나(app.loadAppMe, ~/pitch/api loadMe). 받기 전 · 실패면 아님 */
@@ -344,43 +345,39 @@ export function ExerciseVideo({
   );
 }
 
-/** 'library/<uuid>.mp4' → '<uuid>'(웹 lib/local-video.ts libraryKey · LocalVideoModule validKey 와 같은 규칙) */
+/** 'library/<uuid>.mp4' → '<uuid>' — 폰에 받아 둔 파일 이름(LocalVideo libraryLoad · libraryFetch 와 같은 규칙) */
 const libraryKey = (path: string) => /^library\/([\w-]{1,64})\.\w+$/.exec(path)?.[1] ?? null;
-const fileUri = (p: string) => (p.startsWith('file://') ? p : `file://${p}`);
 
 /**
- * 운동 · 드릴 영상 주소 — 웹 libraryVideoFromPhone 과 같은 차례: 앱 안 묶음(LibraryVideos) · 폰에 받아 둔 것 → 없으면 서버 주소(small 판)로
- * 한 번 받아 폰에 두고(Caches, 1GB 넘으면 모듈이 오래된 것부터 지움) 그것을 튼다 — 다음부터는 서버에서 다시 안 받는다. 받기가 안 되면(옛 앱 ·
- * 실패) 서버 주소 그대로.
+ * 폰에 있으면(앱 안 · 받아 둔 것) 그 파일, 없으면 720p HEVC 판(서버 small 'hevc' — 없으면 H.264 판)을 한 번 받아 폰에 두고 튼다.
+ * 2026-10-20 김민: 서버 전송비 — 예전엔 볼 때마다 서버에서 받았다. 받기에 실패하면 예전처럼 주소로 바로 튼다.
+ * HEVC 는 같은 화질에 H.264 판의 절반 남짓(영상 10개 시험 −56%, scripts/library-bundle/compress.swift 머리).
  */
 async function libraryUri(path: string): Promise<string | null> {
-  let signed: Promise<string | null> | null = null;
-  const remote = () =>
-    (signed ??= call<{ urls: Record<string, string> }>('/api/library/video-url', { method: 'POST', body: { paths: [path], small: true } }).then(
-      (r) => r.urls[path] ?? null,
-      () => null
-    ));
   const key = libraryKey(path);
-  if (!key) return remote();
-  try {
-    return fileUri((await LocalVideo.libraryLoad({ key })).path);
-  } catch {
-    /* 앱 안 · 폰에 없음(또는 이 기능이 없는 옛 앱) — 받아 둔다 */
+  if (key) {
+    const local = await LocalVideo.libraryLoad({ key }).catch(() => null);
+    if (local) return `file://${local.path}`;
   }
-  const url = await remote();
+  const r = await call<{ urls: Record<string, string> }>('/api/library/video-url', {
+    method: 'POST',
+    body: { paths: [path], small: 'hevc' },
+  });
+  const url = r.urls[path];
   if (!url) return null;
-  try {
-    return fileUri((await LocalVideo.libraryFetch({ key, url })).path);
-  } catch {
-    return url;
-  }
+  if (!key) return url;
+  const got = await LocalVideo.libraryFetch({ key, url }).catch(() => null);
+  return got ? `file://${got.path}` : url;
 }
 
 function LibraryClip({ path, aspectRatio }: { path: string; aspectRatio: number | null }) {
   const [state, setState] = useState<{ path: string; uri: string | null; failed: boolean } | null>(null);
   useEffect(() => {
     let alive = true;
-    void libraryUri(path).then((uri) => alive && setState({ path, uri, failed: !uri }));
+    libraryUri(path).then(
+      (uri) => alive && setState({ path, uri, failed: !uri }),
+      () => alive && setState({ path, uri: null, failed: true })
+    );
     return () => {
       alive = false;
     };
@@ -401,16 +398,50 @@ function LibraryClip({ path, aspectRatio }: { path: string; aspectRatio: number 
   return <ClipPlayer uri={state.uri} aspectRatio={aspectRatio} />;
 }
 
+/*
+ * 운동 영상 — 아이폰 기본 재생 단추(가운데 큰 재생 · 10초 건너뛰기)가 영상의 동작을 가려서(2026-10-20 김민) 기본 단추를 끄고,
+ * 화면을 누르면 멈춤 · 재생, 오른쪽 아래 작은 단추 둘(재생 · 멈춤, 크게 보기 — 크게 보기 안에서는 기본 단추가 다시 나온다).
+ */
 function ClipPlayer({ uri, aspectRatio }: { uri: string; aspectRatio: number | null }) {
+  const view = useRef<VideoView>(null);
   const player = useVideoPlayer(uri, (p) => {
     p.muted = true;
     p.loop = true;
     p.play();
   });
-  return <VideoView player={player} style={[s.video, { aspectRatio: aspectRatio ?? 9 / 16 }]} nativeControls contentFit="contain" />;
+  const { isPlaying } = useEvent(player, 'playingChange', { isPlaying: player.playing });
+  const toggle = () => togglePlay(player);
+  return (
+    <View style={[s.video, { aspectRatio: aspectRatio ?? 9 / 16 }]}>
+      <VideoView ref={view} player={player} style={StyleSheet.absoluteFill} nativeControls={false} contentFit="contain" />
+      <Pressable onPress={toggle} accessibilityRole="button" accessibilityLabel={isPlaying ? '영상 멈춤' : '영상 재생'} style={StyleSheet.absoluteFill} />
+      <View style={s.clipTools}>
+        <Press onPress={toggle} hitSlop={6} accessibilityRole="button" accessibilityLabel={isPlaying ? '멈춤' : '재생'} style={s.clipTool}>
+          <SymbolView name={isPlaying ? 'pause.fill' : 'play.fill'} size={13} tintColor="#fff" />
+        </Press>
+        <Press
+          onPress={() => void view.current?.enterFullscreen().catch(() => undefined)}
+          hitSlop={6}
+          accessibilityRole="button"
+          accessibilityLabel="크게 보기"
+          style={s.clipTool}
+        >
+          <SymbolView name="arrow.up.left.and.arrow.down.right" size={13} tintColor="#fff" />
+        </Press>
+      </View>
+    </View>
+  );
+}
+
+/* 재생기 값은 훅 밖 함수에서 바꾼다(컴포넌트 안에서 훅 값을 바꾸면 린트가 막는다 — pitch/video.tsx 와 같다) */
+function togglePlay(p: VideoPlayer) {
+  if (p.playing) p.pause();
+  else p.play();
 }
 
 const s = StyleSheet.create({
+  clipTools: { position: 'absolute', right: 8, bottom: 8, flexDirection: 'row', gap: 6 },
+  clipTool: { width: 32, height: 32, borderRadius: 16, backgroundColor: 'rgba(0,0,0,0.5)', alignItems: 'center', justifyContent: 'center' },
   rest: { alignSelf: 'center', height: 40, borderRadius: 20, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', gap: 8 },
   restClock: { fontSize: 18, fontWeight: '600', fontVariant: ['tabular-nums'] },
   small: { fontSize: 13 },
