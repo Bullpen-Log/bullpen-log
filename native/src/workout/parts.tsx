@@ -10,6 +10,7 @@ import { rpc } from '~/lib/rpc';
 import { SITE_URL } from '~/lib/site';
 import type { Palette } from '~/lib/ui';
 import { call, loadMe } from '~/pitch/api';
+import { LocalVideo } from '../../modules/local-video';
 
 /** 운동 진행 화면(native/src/app/workout.tsx)의 작은 조각 — 웹 app/(session)/workout/run/session-client.tsx 의 같은 이름 부품을 옮겼다 */
 
@@ -284,7 +285,7 @@ export function NoteBox({
 }
 
 /**
- * 자세 영상 — 직접 찍은 영상은 라이브러리 재생 주소(/api/library/video-url, 웹 components/library-video.tsx 와 같은 small 판)로 틀고,
+ * 자세 영상 — 직접 찍은 영상은 앱 안 묶음 · 폰에 받아 둔 것, 없으면 라이브러리 재생 주소(/api/library/video-url small 판)를 한 번 받아 두고 틀고(libraryUri),
  * 유튜브 참고 영상은 공식 삽입 재생기를 작은 웹뷰로(우리 사이트를 주소로 둔다 — 유튜브가 출처 없는 삽입을 막는다).
  */
 /** 관리자인가 — 앱을 켤 때 한 번 받은 나(app.loadAppMe, ~/pitch/api loadMe). 받기 전 · 실패면 아님 */
@@ -342,14 +343,43 @@ export function ExerciseVideo({
   );
 }
 
+/** 'library/<uuid>.mp4' → '<uuid>'(웹 lib/local-video.ts libraryKey · LocalVideoModule validKey 와 같은 규칙) */
+const libraryKey = (path: string) => /^library\/([\w-]{1,64})\.\w+$/.exec(path)?.[1] ?? null;
+const fileUri = (p: string) => (p.startsWith('file://') ? p : `file://${p}`);
+
+/**
+ * 운동 · 드릴 영상 주소 — 웹 libraryVideoFromPhone 과 같은 차례: 앱 안 묶음(LibraryVideos) · 폰에 받아 둔 것 → 없으면 서버 주소(small 판)로
+ * 한 번 받아 폰에 두고(Caches, 1GB 넘으면 모듈이 오래된 것부터 지움) 그것을 튼다 — 다음부터는 서버에서 다시 안 받는다. 받기가 안 되면(옛 앱 ·
+ * 실패) 서버 주소 그대로.
+ */
+async function libraryUri(path: string): Promise<string | null> {
+  let signed: Promise<string | null> | null = null;
+  const remote = () =>
+    (signed ??= call<{ urls: Record<string, string> }>('/api/library/video-url', { method: 'POST', body: { paths: [path], small: true } }).then(
+      (r) => r.urls[path] ?? null,
+      () => null
+    ));
+  const key = libraryKey(path);
+  if (!key) return remote();
+  try {
+    return fileUri((await LocalVideo.libraryLoad({ key })).path);
+  } catch {
+    /* 앱 안 · 폰에 없음(또는 이 기능이 없는 옛 앱) — 받아 둔다 */
+  }
+  const url = await remote();
+  if (!url) return null;
+  try {
+    return fileUri((await LocalVideo.libraryFetch({ key, url })).path);
+  } catch {
+    return url;
+  }
+}
+
 function LibraryClip({ path, aspectRatio }: { path: string; aspectRatio: number | null }) {
   const [state, setState] = useState<{ path: string; uri: string | null; failed: boolean } | null>(null);
   useEffect(() => {
     let alive = true;
-    call<{ urls: Record<string, string> }>('/api/library/video-url', { method: 'POST', body: { paths: [path], small: true } }).then(
-      (r) => alive && setState({ path, uri: r.urls[path] ?? null, failed: !r.urls[path] }),
-      () => alive && setState({ path, uri: null, failed: true })
-    );
+    void libraryUri(path).then((uri) => alive && setState({ path, uri, failed: !uri }));
     return () => {
       alive = false;
     };
