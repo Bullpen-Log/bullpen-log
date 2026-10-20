@@ -62,6 +62,7 @@ import { AbsSummary } from '~/velocity/abs/abs-summary';
 import type { AbsSession } from '~/velocity/abs/use-abs';
 import { focalPxFromFov } from '@/lib/velocity-engine/geometry';
 import { Icon, type IconName } from '~/shell/icon';
+import { Press } from '~/shell/press';
 
 /**
  * 카메라 화면(네이티브) — 모드 둘(구속 측정 · ABS 판정, docs/designs/camera-modes.md)이 같은 카메라 · 같은 틀에서 돈다.
@@ -618,7 +619,7 @@ export default function VelocityScreen() {
           {/* 관리자 세션 녹화 — 측정 전엔 켜기 칩, 측정 중엔 녹화 상태(웹 velocity-screen 의 sessionRecWanted 칩) */}
           {step === 'measure' && start?.isAdmin && canRecordSession() && tipsAt == null ? (
             !live ? (
-              <Pressable
+              <Press select selected={recWanted}
                 accessibilityRole="switch"
                 accessibilityState={{ checked: recWanted }}
                 onPress={() => setRecWanted((v) => !v)}
@@ -626,7 +627,7 @@ export default function VelocityScreen() {
               >
                 <View style={[styles.recDot, { backgroundColor: recWanted ? '#fff' : '#f87171' }]} />
                 <Text style={styles.recText}>{recWanted ? '세션 녹화 켬' : '세션 녹화 끔'}</Text>
-              </Pressable>
+              </Press>
             ) : rec && rec.phase !== 'idle' ? (
               <View style={[styles.recChip, styles.recChipOn]}>
                 <View style={[styles.recDot, { backgroundColor: '#fff' }]} />
@@ -753,7 +754,7 @@ export default function VelocityScreen() {
             </GuideCard>
           ) : last || notice || (error && step === 'measure') ? (
             /* 방금 공 — 누르면 영상 다시 보기 */
-            <Pressable
+            <Press
               accessibilityRole="button"
               accessibilityLabel="방금 공 영상 다시 보기"
               disabled={!last}
@@ -778,7 +779,7 @@ export default function VelocityScreen() {
               {error && step === 'measure' ? <Text style={styles.error}>{error}</Text> : null}
               {notice ? <Text style={styles.line}>{notice}</Text> : null}
               {last ? <Text style={styles.hint}>눌러서 영상 다시 보기</Text> : null}
-            </Pressable>
+            </Press>
           ) : !live ? (
             <InfoPill>빨간 단추를 누르면 {mode === 'abs' ? '판정' : '측정'}을 시작해요</InfoPill>
           ) : null}
@@ -851,7 +852,7 @@ export default function VelocityScreen() {
                 const call = p.analysis?.abs?.verdict?.call;
                 return (
                   <View key={p.id} style={styles.listItem}>
-                    <Pressable
+                    <Press
                       accessibilityRole="button"
                       accessibilityState={{ expanded: openId === p.id }}
                       onPress={() => setOpenId(openId === p.id ? null : p.id)}
@@ -862,7 +863,7 @@ export default function VelocityScreen() {
                         {p.notes.length ? ` · ${p.notes[0]}` : ''}
                       </Text>
                       <Text style={styles.chev}>{openId === p.id ? '⌃' : '⌄'}</Text>
-                    </Pressable>
+                    </Press>
                     {openId === p.id ? (
                       <View style={{ gap: 8, paddingBottom: 8 }}>
                         <Chips
@@ -957,7 +958,7 @@ function Chips({
       {items.map((it) => {
         const on = it === value;
         return (
-          <Pressable
+          <Press select selected={on}
             key={it}
             accessibilityRole="radio"
             accessibilityState={{ selected: on }}
@@ -965,7 +966,7 @@ function Chips({
             style={[styles.chip, light ? styles.chipLight : null, on ? styles.chipOn : null]}
           >
             <Text style={[styles.chipText, light && !on ? { color: '#1d1d1f' } : null]}>{it}</Text>
-          </Pressable>
+          </Press>
         );
       })}
     </View>

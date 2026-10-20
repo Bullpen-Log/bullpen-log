@@ -7,7 +7,6 @@ import {
   ActivityIndicator,
   Alert,
   KeyboardAvoidingView,
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -107,13 +106,13 @@ export default function PitchEditScreen() {
             <Text style={{ color: c.ink, fontSize: 15, textAlign: 'center' }}>{error && !logs ? error : '이 기록을 찾지 못했어요. 지워졌을 수 있어요.'}</Text>
             <View style={{ flexDirection: 'row', gap: 8 }}>
               {error && !logs ? (
-                <Pressable accessibilityRole="button" onPress={() => void reload()} style={{ minHeight: 44, paddingHorizontal: 18, borderRadius: 22, justifyContent: 'center', backgroundColor: c.sky }}>
+                <Press accessibilityRole="button" onPress={() => void reload()} style={{ minHeight: 44, paddingHorizontal: 18, borderRadius: 22, justifyContent: 'center', backgroundColor: c.sky }}>
                   <Text style={{ color: '#fff', fontSize: 15, fontWeight: '600' }}>다시 불러오기</Text>
-                </Pressable>
+                </Press>
               ) : null}
-              <Pressable accessibilityRole="button" onPress={() => router.back()} style={{ minHeight: 44, paddingHorizontal: 18, borderRadius: 22, justifyContent: 'center', backgroundColor: c.chip }}>
+              <Press accessibilityRole="button" onPress={() => router.back()} style={{ minHeight: 44, paddingHorizontal: 18, borderRadius: 22, justifyContent: 'center', backgroundColor: c.chip }}>
                 <Text style={{ color: c.ink, fontSize: 15, fontWeight: '600' }}>닫기</Text>
-              </Pressable>
+              </Press>
             </View>
           </>
         ) : (
@@ -684,9 +683,9 @@ export function EntryForm({
       {/* 저장 · 영상 넣는 중에는 끌어 닫기를 막는다 */}
       <Stack.Screen options={{ gestureEnabled: !busy }} />
       <View style={[styles.bar, { paddingTop: 12 }]}>
-        <Pressable accessibilityRole="button" onPress={cancel} disabled={!!busy} hitSlop={10}>
+        <Press accessibilityRole="button" onPress={cancel} disabled={!!busy} hitSlop={10}>
           <Text style={[styles.barAction, { color: c.sky }]}>취소</Text>
-        </Pressable>
+        </Press>
         <Text style={[styles.barTitle, { color: c.ink }]}>
           {at.getUTCMonth() + 1}월 {at.getUTCDate()}일 {editing ? '기록 수정' : '기록하기'}
         </Text>
