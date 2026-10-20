@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { ScrollLockScope } from '~/shell/scroll-lock';
 import { KeyboardAvoidingView, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import Animated, { Easing, FadeIn, FadeOut, SlideInDown, SlideOutDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SymbolView, type SFSymbol } from 'expo-symbols';
 import { matchesSearch } from '@/lib/korean';
@@ -18,6 +19,9 @@ import { READABLE } from '~/lib/layout';
  * 운동 진행 화면의 아래 시트 셋 — 오늘 목록(웹 exercise-sheet.tsx) · 마치기(finish-sheet.tsx) · 교체(swap-sheet.tsx). Sheet 는 트레이닝 운동 화면의 시트도 쓴다.
  * 아이폰 기본 시트(pageSheet)라 끌어내려 닫기가 저절로 온다.
  */
+/** 내용만큼 올라오는 시트가 내려가며 걷히는 시간 — 그 뒤에 onClose */
+const SHEET_OUT_MS = 200;
+
 export function Sheet({
   open,
   onClose,
@@ -39,36 +43,64 @@ export function Sheet({
   fit?: boolean;
 }) {
   const inset = useSafeAreaInsets();
+  /*
+   * 내용만큼 올라오는 시트는 뒤 어둠이 제자리에서 옅게 깔리고 카드만 밑에서 올라온다(아이폰 시트처럼). 예전엔 Modal 의 slide 가 어둠까지
+   * 통째로 밀어 올려 카드 위로 검은 판이 같이 올라왔다(2026-10-20 김민: "필요한 창만 나오는 게 아니라 창 위로 어두운 그림자도 같이 나와").
+   * 닫을 때도 카드가 내려가고 어둠이 걷힌 뒤에 onClose — 그동안 Modal 은 떠 있어야 해서 leaving 동안 내용만 걷는다(exiting 이 돈다).
+   */
+  const [leaving, setLeaving] = useState(false);
+  /* 닫았다가 다시 열면(open 을 받아 쓰는 곳) 걷어 둔 내용을 되돌린다 */
+  const [wasOpen, setWasOpen] = useState(open);
+  if (wasOpen !== open) {
+    setWasOpen(open);
+    if (open) setLeaving(false);
+  }
+  const close = () => {
+    if (!fit) return onClose();
+    if (leaving) return;
+    setLeaving(true);
+    setTimeout(onClose, SHEET_OUT_MS);
+  };
   const head = (
     <View style={st.head}>
       <View style={{ flex: 1 }}>
         <Text style={[st.title, { color: c.ink }]}>{title}</Text>
         {description ? <Text style={[st.desc, { color: c.muted }]}>{description}</Text> : null}
       </View>
-      <Pressable onPress={onClose} accessibilityRole="button" accessibilityLabel="닫기" style={st.close}>
+      <Pressable onPress={close} accessibilityRole="button" accessibilityLabel="닫기" style={st.close}>
         <SymbolView name="xmark.circle.fill" size={28} tintColor={c.muted} />
       </Pressable>
     </View>
   );
   if (fit)
     return (
-      <Modal visible={open} transparent animationType="slide" onRequestClose={onClose}>
-        <View style={st.fitWrap}>
-          <Pressable style={st.scrim} onPress={onClose} accessibilityLabel="닫기" />
-          <View style={[st.fitCard, { backgroundColor: c.page, paddingBottom: footer ? 0 : Math.max(16, inset.bottom) }]}>
-            <View style={[st.grabber, { backgroundColor: c.line }]} />
-            {head}
-            {/* 운동 창 안의 3D 근육 그림을 돌리는 동안 시트가 같이 굴러가지 않게(shell/scroll-lock) */}
-            <ScrollLockScope>
-              {(scrollEnabled) => (
-                <ScrollView style={st.fitScroll} scrollEnabled={scrollEnabled} keyboardShouldPersistTaps="handled" contentContainerStyle={[st.scroll, READABLE]}>
-                  {children}
-                </ScrollView>
-              )}
-            </ScrollLockScope>
-            {footer ? <View style={[st.footer, { paddingBottom: Math.max(16, inset.bottom), borderTopColor: c.line }]}>{footer}</View> : null}
-          </View>
-        </View>
+      <Modal visible={open} transparent animationType="none" onRequestClose={close}>
+        {!leaving ? (
+          <>
+            <Animated.View entering={FadeIn.duration(220)} exiting={FadeOut.duration(SHEET_OUT_MS)} style={st.scrim}>
+              <Pressable style={StyleSheet.absoluteFill} onPress={close} accessibilityLabel="닫기" />
+            </Animated.View>
+            <View style={st.fitWrap} pointerEvents="box-none">
+              <Animated.View
+                entering={SlideInDown.duration(320).easing(Easing.bezier(0.22, 1, 0.36, 1))}
+                exiting={SlideOutDown.duration(SHEET_OUT_MS).easing(Easing.in(Easing.ease))}
+                style={[st.fitCard, { backgroundColor: c.page, paddingBottom: footer ? 0 : Math.max(16, inset.bottom) }]}
+              >
+                <View style={[st.grabber, { backgroundColor: c.line }]} />
+                {head}
+                {/* 운동 창 안의 3D 근육 그림을 돌리는 동안 시트가 같이 굴러가지 않게(shell/scroll-lock) */}
+                <ScrollLockScope>
+                  {(scrollEnabled) => (
+                    <ScrollView style={st.fitScroll} scrollEnabled={scrollEnabled} keyboardShouldPersistTaps="handled" contentContainerStyle={[st.scroll, READABLE]}>
+                      {children}
+                    </ScrollView>
+                  )}
+                </ScrollLockScope>
+                {footer ? <View style={[st.footer, { paddingBottom: Math.max(16, inset.bottom), borderTopColor: c.line }]}>{footer}</View> : null}
+              </Animated.View>
+            </View>
+          </>
+        ) : null}
       </Modal>
     );
   return (
