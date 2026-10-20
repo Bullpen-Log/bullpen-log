@@ -64,6 +64,8 @@ export type EngineHandle = {
   measure(clip: Clip, opts: MeasureOpts, onBall?: () => void): Promise<{ result: EngineResult } & EngineTiming>;
   /** 클립을 훑어 공 시각만 찾는다(재지 않음) — 영상을 못 열면 null */
   locate(clip: Clip, opts: LocateOpts): Promise<{ found: ThrowLocation | null } & EngineTiming>;
+  /** 계산기가 아직 붙든 일이 있나 — 앱이 시한에 포기한 일도 끝(답 · 건너뜀)이 올 때까지 센다. 훑기는 이때 쉰다 */
+  busy(): boolean;
 };
 
 /**
@@ -85,10 +87,16 @@ type WebViewHandle = { postMessage(message: string): void };
 const RefWebView = WebView as unknown as ComponentType<WebViewProps & { ref?: Ref<WebViewHandle> }>;
 
 const CHUNK = 1024 * 1024;
-/** 계산이 이보다 오래 걸리면 포기한다(폰에서 보통 3~4초) */
+/** 계산이 이보다 오래 걸리면 포기한다(폰에서 보통 3~4초) — 계산기가 그 일을 시작한 때('start')부터 잰다 */
 const TIMEOUT_MS = 30_000;
 /** 훑기는 더 짧게 — 2.5초 넘으면 다음 하나를 건너뛰는 규칙(capture.ts)이라 오래 붙들 까닭이 없다 */
 const LOCATE_TIMEOUT_MS = 15_000;
+/**
+ * 줄에서 기다리는 시한 — 보낸 때부터. 'start' 가 오면 위 시한으로 바꾼다. 옛 사이트(start 를 안 보냄)면 이것 하나로 잰다.
+ * 예전엔 보낸 때부터 30초를 쟀고 포기해도 계산기는 그 일을 끝까지 해, 줄이 끝없이 길어졌다(2026-10-20 금윤호 실내 — 한 번 늦어지자
+ * 그 뒤 모든 공이 시한에 걸려 '인식'이 한 번도 안 떴다). 이제 포기하면 계산기에 버리라고 알리고(abort), 기다린 시간은 따로 잰다.
+ */
+const QUEUE_TIMEOUT_MS = 90_000;
 /** 계산기 웹뷰가 뜨기를 기다리는 시한 — 넘기면 그 공은 못 잰 것으로 */
 const READY_TIMEOUT_MS = 20_000;
 
@@ -97,8 +105,12 @@ type Waiter = {
   kind: 'measure' | 'locate';
   resolve: (v: { result?: EngineResult; found?: ThrowLocation | null; ms: number }) => void;
   reject: (e: Error) => void;
+  /** 시한이 지났다 — 포기하고 계산기에 버리라고 알린다 */
+  expire: () => void;
   onBall?: () => void;
   timer: ReturnType<typeof setTimeout>;
+  /** 시작('start')을 받았나 — 받으면 timer 를 계산 시한으로 다시 건다 */
+  started?: boolean;
 };
 
 export const VelocityEngine = forwardRef<EngineHandle>(function VelocityEngine(_props, ref) {
@@ -109,6 +121,9 @@ export const VelocityEngine = forwardRef<EngineHandle>(function VelocityEngine(_
   const markReady = useRef<() => void>(() => undefined);
   const waiters = useRef(new Map<number, Waiter>());
   const nextId = useRef(0);
+  /** 계산기에 넘겼고 끝(result · located · fail · skipped)이 아직 안 온 일 — 앱이 포기한 일도 포함 */
+  const inEngine = useRef(new Set<number>());
+  const post = useCallback((m: unknown) => web.current?.postMessage(JSON.stringify(m)), []);
 
   if (!ready.current) ready.current = new Promise((r) => (markReady.current = r));
 
@@ -120,9 +135,17 @@ export const VelocityEngine = forwardRef<EngineHandle>(function VelocityEngine(_
       return;
     }
     if (msg.t === 'ready') return markReady.current();
+    if (msg.id != null && (msg.t === 'result' || msg.t === 'located' || msg.t === 'fail' || msg.t === 'skipped')) inEngine.current.delete(msg.id);
     const w = msg.id != null ? waiters.current.get(msg.id) : undefined;
     if (!w) return;
     if (msg.t === 'ball') return w.onBall?.();
+    if (msg.t === 'start') {
+      /* 차례가 왔다 — 시한을 지금부터 다시 잰다 */
+      clearTimeout(w.timer);
+      w.started = true;
+      w.timer = setTimeout(() => w.expire(), w.kind === 'measure' ? TIMEOUT_MS : LOCATE_TIMEOUT_MS);
+      return;
+    }
     clearTimeout(w.timer);
     waiters.current.delete(msg.id!);
     if (msg.t === 'result' && msg.result) w.resolve({ result: msg.result, ms: msg.ms ?? 0 });
@@ -143,17 +166,27 @@ export const VelocityEngine = forwardRef<EngineHandle>(function VelocityEngine(_
       const id = ++nextId.current;
       const kind = first.t === 'opts' ? 'measure' : 'locate';
       const done = new Promise<{ result?: EngineResult; found?: ThrowLocation | null; ms: number }>((resolve, reject) => {
-        const timer = setTimeout(
-          () => {
-            waiters.current.delete(id);
-            reject(new EngineError('TIMEOUT', kind === 'measure' ? '계산이 너무 오래 걸려 이번 공은 재지 못했어요' : '훑기가 너무 오래 걸렸어요'));
-          },
-          kind === 'measure' ? TIMEOUT_MS : LOCATE_TIMEOUT_MS
-        );
-        waiters.current.set(id, { kind, resolve, reject, onBall, timer });
+        const expire = () => {
+          const w = waiters.current.get(id);
+          waiters.current.delete(id);
+          /* 계산기가 아직 붙들고 있으면 버리게 — 줄에 서 있던 일은 건너뛰고 'skipped' 로 끝을 알린다 */
+          post({ t: 'abort', id });
+          const queued = w != null && !w.started;
+          reject(
+            new EngineError(
+              'TIMEOUT',
+              kind === 'measure'
+                ? queued
+                  ? '계산이 밀려 이번 공은 재지 못했어요'
+                  : '계산이 너무 오래 걸려 이번 공은 재지 못했어요'
+                : '훑기가 너무 오래 걸렸어요'
+            )
+          );
+        };
+        waiters.current.set(id, { kind, resolve, reject, expire, onBall, timer: setTimeout(expire, QUEUE_TIMEOUT_MS) });
       });
-      const post = (m: unknown) => web.current?.postMessage(JSON.stringify(m));
-      post({ ...first, id });
+      inEngine.current.add(id);
+      post({ ...first, id, ack: true });
       const parts = Math.max(1, Math.ceil(clip.bytes / CHUNK));
       const r0 = Date.now();
       try {
@@ -166,6 +199,8 @@ export const VelocityEngine = forwardRef<EngineHandle>(function VelocityEngine(_
         const w = waiters.current.get(id);
         if (w) clearTimeout(w.timer);
         waiters.current.delete(id);
+        /* 덜 넘긴 클립은 계산기가 버리기만 하고 답이 없다 — 여기서 끝으로 센다 */
+        inEngine.current.delete(id);
         post({ t: 'abort', id });
         throw e;
       }
@@ -173,7 +208,7 @@ export const VelocityEngine = forwardRef<EngineHandle>(function VelocityEngine(_
       const r = await done;
       return { ...r, readMs, totalMs: Date.now() - t0 };
     },
-    []
+    [post]
   );
 
   useImperativeHandle(ref, () => ({
@@ -186,6 +221,7 @@ export const VelocityEngine = forwardRef<EngineHandle>(function VelocityEngine(_
       const r = await ask({ t: 'locate', opts }, clip);
       return { found: r.found ?? null, ms: r.ms, readMs: r.readMs, totalMs: r.totalMs };
     },
+    busy: () => inEngine.current.size > 0,
   }));
 
   return (
@@ -205,6 +241,7 @@ export const VelocityEngine = forwardRef<EngineHandle>(function VelocityEngine(_
           w.reject(new EngineError('ENGINE_DOWN', '계산기를 불러오지 못했어요. 신호를 확인해 주세요.'));
           waiters.current.delete(id);
         }
+        inEngine.current.clear();
         setGen((n) => n + 1);
       }}
       onContentProcessDidTerminate={() => {
@@ -214,6 +251,7 @@ export const VelocityEngine = forwardRef<EngineHandle>(function VelocityEngine(_
           w.reject(new EngineError('ENGINE_GONE', '계산기가 멈춰 이번 공은 재지 못했어요'));
           waiters.current.delete(id);
         }
+        inEngine.current.clear();
         setGen((n) => n + 1);
       }}
     />

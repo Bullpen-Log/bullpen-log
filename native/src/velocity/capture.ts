@@ -1,4 +1,4 @@
-import { clipSpanOf, coveredBy, nextSweepWindow, SWEEP_EVERY_SEC } from '@/lib/velocity-engine/sweep';
+import { CLIP_MAX_SEC, clipSpanOf, coveredBy, nextSweepWindow, SWEEP_EVERY_SEC } from '@/lib/velocity-engine/sweep';
 import { DualCamera, type Clip, type ThrowEvent } from '../../modules/dual-camera';
 import { FRAME_LOSS_WARN, frameLossNotice, frameLossOf } from './clip-health';
 import { EngineError, type EngineHandle, type EngineResult, type MeasureOpts } from './engine';
@@ -388,8 +388,12 @@ export class AppCapture {
       return;
     }
     const engine = this.engine();
-    if (!engine || !DualCamera.now) return;
-    const win = nextSweepWindow(this.sweptUntil, DualCamera.now());
+    /*
+     * 계산기가 아직 붙든 일이 있으면(앱이 포기한 일 포함) 쉰다 — 예전엔 포기한 일 뒤에 훑기를 계속 쌓아 줄이 끝없이 길어졌다(2026-10-20).
+     * 창은 웹(dual-capture.ts)과 같은 4초 — 6초면 장면 360장을 풀어 폰에서 한 번이 5초 간격보다 길어졌다.
+     */
+    if (!engine || !DualCamera.now || engine.busy()) return;
+    const win = nextSweepWindow(this.sweptUntil, DualCamera.now(), CLIP_MAX_SEC);
     if (!win) return;
     const gen = this.gen;
     this.sweeping = true;
