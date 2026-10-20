@@ -1,16 +1,16 @@
 import { SymbolView } from 'expo-symbols';
-import { type Href, router } from 'expo-router';
-import { useRef, useState } from 'react';
+import { type Href, router, useFocusEffect } from 'expo-router';
+import { useCallback, useRef, useState } from 'react';
 import { Alert, Pressable, RefreshControl, ScrollView, type ScrollViewInstance, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { MEALS, amountText, entryMacros, mealLabel, missingMacros, missingText, stepAmount, type EntryEdit, type MealEntryView, type MealKey } from '@/lib/nutrition/meta';
+import { MEALS, amountText, entryMacros, gapNames, macroGaps, mealLabel, missingMacros, missingText, stepAmount, type EntryEdit, type MealEntryView, type MealKey } from '@/lib/nutrition/meta';
 import { mealProtein } from '@/lib/nutrition/meal-protein';
 import { shiftDateKey } from '@/lib/pitch-stats';
 import { usePalette, withAlpha } from '~/lib/ui';
 import Animated from 'react-native-reanimated';
 import Svg, { Circle } from 'react-native-svg';
 import { Icon } from '~/shell/icon';
-import { fadeIn } from '~/shell/motion';
+import { CountUp, Pulse, fadeIn } from '~/shell/motion';
 import { Press } from '~/shell/press';
 import { Segmented } from '~/shell/heading';
 import { DateStrip, StripBar } from '~/shell/date-strip';
@@ -18,7 +18,8 @@ import { DateNavButton } from '~/shell/mini-calendar';
 import { useTabIntent } from '~/shell/tab-intent';
 import { PLAN_PLACES, type PlanItem } from '@/lib/nutrition/meal-plan';
 import type { Place } from '@/lib/nutrition/meal-templates';
-import { clearPlan, eatPlan, editEntries, makePlan, useNutritionDay } from './api';
+import { SNOOZE_KEY, clearPlan, eatPlan, editEntries, isSnoozed, makePlan, useNutritionDay } from './api';
+import { cacheGet } from '~/lib/store';
 import { READABLE } from '~/lib/layout';
 import { NutritionCheckinCard } from './checkin-card';
 import { useOnTabActive, useRetapTop } from '~/shell/tab-pager';
@@ -66,6 +67,13 @@ export function NutritionTab({ today, bottom, onWebNutrition }: { today: string;
   const [busy, setBusy] = useState(false);
   /* 펴 둔 끼니(휴대폰 웹처럼 한 줄로 접어 두고 누르면 편다) */
   const [openMeals, setOpenMeals] = useState<MealKey[]>([]);
+  /* 체중 권유 '그대로 둘게요'(통계 화면이 폰에 남김) — 통계에서 돌아올 때마다 다시 읽는다 */
+  const [snooze, setSnooze] = useState<string | null>(null);
+  useFocusEffect(
+    useCallback(() => {
+      void cacheGet(SNOOZE_KEY).then((v) => setSnooze(typeof v === 'string' ? v : null));
+    }, [])
+  );
 
   if (to)
     return (
@@ -84,8 +92,12 @@ export function NutritionTab({ today, bottom, onWebNutrition }: { today: string;
     },
     { kcal: 0, carbs: 0, protein: 0, fat: 0 }
   );
+  /* 탄 · 단 · 지 정보가 빠진 음식 수 — 오늘 카드의 '+'(적어도 이만큼)와 밑 한 줄(웹 TodayCard gaps) */
+  const gaps = macroGaps(day?.entries ?? []);
   const t = day?.targets;
   const left = t ? t.kcal - eaten.kcal : 0;
+  /* 체중 흐름을 보고 목표를 바꿔 볼까요 — 던지는 날 가이드와 겹치지 않게(웹 TodayCard nudge) */
+  const nudge = date === today && day?.suggestAdjust != null && !day.guide && !isSnoozed(snooze, today, day.suggestAdjust);
   const oldest = shiftDateKey(today, -BACK_DAYS);
   const [, m, d] = date.split('-').map(Number);
 
@@ -231,7 +243,8 @@ export function NutritionTab({ today, bottom, onWebNutrition }: { today: string;
             <View style={{ flex: 1, minWidth: 0 }}>
               <Text style={{ color: c.muted, fontSize: 12 }}>{!isToday ? '이날 먹은 열량' : over ? '목표보다 더 먹었어요' : '남은 열량'}</Text>
               <Text style={{ color: over && isToday ? c.warn : c.ink, fontSize: 30, fontWeight: '700', fontVariant: ['tabular-nums'], letterSpacing: -0.5 }}>
-                {round(isToday ? Math.abs(left) : eaten.kcal).toLocaleString('ko-KR')}
+                {/* 웹 TodayCard 와 같이 올라가며 나타남(from 0.7) */}
+                <CountUp value={round(isToday ? Math.abs(left) : eaten.kcal)} from={0.7} />
                 <Text style={{ color: c.muted, fontSize: 14, fontWeight: '600' }}> kcal</Text>
               </Text>
               <Text style={{ color: c.muted, fontSize: 12, fontVariant: ['tabular-nums'] }}>
@@ -249,15 +262,22 @@ export function NutritionTab({ today, bottom, onWebNutrition }: { today: string;
           </View>
           <View style={styles.macros}>
             {([
-              ['탄수화물', eaten.carbs, t.carbs],
-              ['단백질', eaten.protein, t.protein],
-              ['지방', eaten.fat, t.fat],
-            ] as const).map(([label, got, goal]) => (
+              ['carbs', '탄수화물', eaten.carbs, t.carbs],
+              ['protein', '단백질', eaten.protein, t.protein],
+              ['fat', '지방', eaten.fat, t.fat],
+            ] as const).map(([key, label, got, goal]) => (
               <View key={label} style={{ flex: 1, gap: 6 }}>
                 <View>
                   <Text style={{ color: c.muted, fontSize: 12 }}>{label}</Text>
                   <Text style={{ color: c.muted, fontSize: 12, fontVariant: ['tabular-nums'] }}>
-                    <Text style={{ color: c.ink, fontSize: 14, fontWeight: '600' }}>{round(got)}</Text> / {round(goal)}g
+                    <Text style={{ color: c.ink, fontSize: 14, fontWeight: '600' }}>{round(got)}</Text>
+                    {/* 정보가 빠진 음식이 있으면 '+' — 적어도 이만큼, 실제로는 더 먹었다(뜻은 카드 밑 한 줄) */}
+                    {gaps[key] > 0 ? (
+                      <Text accessibilityLabel="이상, 정보가 없는 음식이 있어 실제로는 더 먹었어요" style={{ color: c.warn, fontWeight: '600' }}>
+                        +
+                      </Text>
+                    ) : null}{' '}
+                    / {round(goal)}g
                   </Text>
                 </View>
                 <View style={[styles.macroTrack, { backgroundColor: withAlpha(c.ink, 0.06) }]}>
@@ -270,6 +290,23 @@ export function NutritionTab({ today, bottom, onWebNutrition }: { today: string;
             <Text style={[styles.headline, { borderTopColor: c.line, color: day.advice.highlight ? c.skyStrong : c.ink }]}>{day.advice.headline}</Text>
           ) : null}
           {isToday && day?.guide ? <GuideBlock guide={day.guide} /> : null}
+          {gaps.foods > 0 ? (
+            <Text style={{ color: c.muted, fontSize: 12 }}>
+              {gapNames(gaps)} 정보가 없는 음식이 {gaps.foods}개라, <Text style={{ color: c.warn, fontWeight: '600' }}>+</Text> 표시한 양은 실제보다 적게 잡혔어요.
+            </Text>
+          ) : null}
+          {nudge ? (
+            <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', columnGap: 8 }}>
+              <Text style={{ color: c.muted, fontSize: 12 }}>체중 흐름을 보고 목표를 조금 바꿔 볼까요?</Text>
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => router.push({ pathname: '/nutrition/stats' as Href as never, params: { date } })}
+                style={{ minHeight: 40, justifyContent: 'center', paddingHorizontal: 4 }}
+              >
+                <Text style={{ color: c.skyStrong, fontSize: 12, fontWeight: '600' }}>보기</Text>
+              </Pressable>
+            </View>
+          ) : null}
           {day?.hasProfile && day.assumed?.length ? (
             <Text style={{ color: c.muted, fontSize: 12 }}>
               내 정보에 {day.assumed.map((a) => ASSUMED[a] ?? a).join(' · ')}{withObject(day.assumed.map((a) => ASSUMED[a] ?? a).at(-1) ?? '')} 넣으면 목표가 더 정확해져요.
@@ -277,7 +314,22 @@ export function NutritionTab({ today, bottom, onWebNutrition }: { today: string;
           ) : null}
         </Animated.View>
       ) : !error ? (
-        <View style={[styles.card, { backgroundColor: c.card, boxShadow: c.float, height: 180 }]} />
+        /* 불러오는 동안 — 실제 카드와 같은 틀(웹 nutrition/loading.tsx 처럼 회색 덩이가 깜빡임) */
+        <View style={[styles.card, { backgroundColor: c.card, boxShadow: c.float, gap: 14 }]} accessibilityLabel="영양 기록을 불러오는 중이에요">
+          <View style={styles.todayTop}>
+            <Pulse style={{ width: 72, height: 72, borderRadius: 36, backgroundColor: c.line }} />
+            <View style={{ flex: 1, gap: 8 }}>
+              <Pulse style={{ width: 60, height: 12, borderRadius: 6, backgroundColor: c.line }} />
+              <Pulse style={{ width: 140, height: 28, borderRadius: 8, backgroundColor: c.line }} />
+              <Pulse style={{ width: 110, height: 12, borderRadius: 6, backgroundColor: c.line }} />
+            </View>
+          </View>
+          <View style={styles.macros}>
+            {[0, 1, 2].map((i) => (
+              <Pulse key={i} style={{ flex: 1, height: 34, borderRadius: 8, backgroundColor: c.line }} />
+            ))}
+          </View>
+        </View>
       ) : null}
 
       {day && isToday && t ? <PlanCard date={date} plan={day.mealPlan} busy={busy} run={run} kcal={t.kcal} protein={t.protein} state={day.planState ?? null} ageBand={day.ageBand} /> : null}

@@ -1,5 +1,5 @@
-import { useEffect } from 'react';
-import type { StyleProp, ViewStyle } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { Text, type StyleProp, type ViewStyle } from 'react-native';
 import Animated, { Easing, FadeIn, FadeInDown, useAnimatedStyle, useReducedMotion, useSharedValue, withRepeat, withTiming } from 'react-native-reanimated';
 
 /**
@@ -31,4 +31,35 @@ export function Pulse({ style }: { style?: StyleProp<ViewStyle> }) {
   }, [o, reduce]);
   const a = useAnimatedStyle(() => ({ opacity: o.value }));
   return <Animated.View accessibilityLabel="불러오는 중이에요" style={[style, a]} />;
+}
+
+/**
+ * 숫자가 올라가며 나타남 — 웹 components/onboarding/count-up.tsx 와 같은 셈: 처음엔 value × from 에서 0.72초 동안 ease-out 으로 올라가고,
+ * 값이 바뀌면 지금 보이는 숫자에서 새 값으로 이어 간다. 매일 보는 숫자는 from 0.7(첫 장면이 '0 kcal' 이 아니게). 움직임 줄이기면 바로 값.
+ * 읽어 주는 글은 끝값만. 다른 <Text> 안에 넣어 쓴다(글자 모양은 바깥 것을 따른다).
+ */
+export function CountUp({ value, from = 0, duration = 720, format = (n: number) => Math.round(n).toLocaleString('ko-KR') }: { value: number; from?: number; duration?: number; format?: (n: number) => string }) {
+  const reduce = useReducedMotion();
+  const [shown, setShown] = useState(() => value * from);
+  const shownRef = useRef(shown);
+  useEffect(() => {
+    if (reduce) {
+      shownRef.current = value;
+      const raf = requestAnimationFrame(() => setShown(value));
+      return () => cancelAnimationFrame(raf);
+    }
+    const start = Date.now();
+    const begin = shownRef.current;
+    let raf = 0;
+    const tick = () => {
+      const t = Math.min(1, (Date.now() - start) / duration);
+      const n = begin + (value - begin) * (1 - (1 - t) ** 3);
+      shownRef.current = n;
+      setShown(n);
+      if (t < 1) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [value, duration, reduce]);
+  return <Text accessibilityLabel={format(value)}>{format(shown)}</Text>;
 }

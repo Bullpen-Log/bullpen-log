@@ -44,7 +44,19 @@ export type NutritionDay = {
   favorites?: string[];
   /** 식단 짜기 카드의 오늘 상태 · 취향 한 줄(웹 PlanCard state) */
   planState?: string[];
+  /** 체중 흐름 권유가 선 날의 다음 조정값(오늘 카드의 '목표를 조금 바꿔 볼까요?' — 통계 화면 체중 카드와 같은 권유). 옛 서버는 없다 */
+  suggestAdjust?: number | null;
 };
+
+/** 체중 권유 '그대로 둘게요' — 폰에 'YYYY-MM-DD:다음 조정값'으로 14일(통계 화면이 쓰고, 오늘 카드 · 통계가 같이 읽는다) */
+export const SNOOZE_KEY = 'weight-suggest-snooze';
+export const SNOOZE_DAYS = 14;
+export function isSnoozed(stored: string | null, today: string, nextAdjust: number | null | undefined) {
+  if (nextAdjust == null || !stored) return false;
+  const [since, next] = stored.split(':');
+  const days = Math.round((Date.parse(`${today}T00:00:00.000Z`) - Date.parse(`${since}T00:00:00.000Z`)) / 86_400_000);
+  return Number(next) === nextAdjust && days >= 0 && days < SNOOZE_DAYS;
+}
 export type NutritionAnswer = { appetite: number | null; mealAmount: string | null; skippedMeals: string[] };
 type Result = { ok: true } | { ok: false; error: string };
 

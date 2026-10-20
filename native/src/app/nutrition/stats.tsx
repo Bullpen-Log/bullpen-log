@@ -13,7 +13,7 @@ import { computeTargets } from '@/lib/nutrition/targets';
 import { STEP_KCAL, goalCopy, planOnSave } from '@/lib/nutrition/weight-goal';
 import { fromWeight, round1, toWeight, type WeightUnit } from '@/lib/units';
 import { Bar, BarButton, LoadState, call, useLoad } from '~/community/parts';
-import { refreshNutritionDays } from '~/nutrition/api';
+import { SNOOZE_KEY, isSnoozed, refreshNutritionDays } from '~/nutrition/api';
 import { WeekChart, WeightTrend } from '~/nutrition/stats/charts';
 import { GoalSheet, kgText, paceText } from '~/nutrition/stats/goal-sheet';
 import { cacheGet, cacheSet } from '~/lib/store';
@@ -35,8 +35,6 @@ type Result = { ok: true } | { ok: false; error: string };
 
 
 /* '그대로 둘게요' — 웹은 그 브라우저 localStorage 에 14일, 앱은 받아 둔 값 칸에 같은 꼴('오늘:다음 조정')로(로그아웃하면 지워져 다음 사람에게 안 남는다) */
-const SNOOZE_KEY = 'weight-suggest-snooze';
-const SNOOZE_DAYS = 14;
 
 const STEP_LABEL = {
   raise: `하루 +${STEP_KCAL}kcal 올리기`,
@@ -165,12 +163,7 @@ function WeightCard({
     unit,
     isToday: day.date === day.today,
   });
-  const snoozed = (() => {
-    if (!plan.suggestion || !snooze) return false;
-    const [since, next] = snooze.split(':');
-    const days = Math.round((Date.parse(`${day.today}T00:00:00.000Z`) - Date.parse(`${since}T00:00:00.000Z`)) / 86_400_000);
-    return Number(next) === plan.suggestion.nextAdjust && days >= 0 && days < SNOOZE_DAYS;
-  })();
+  const snoozed = isSnoozed(snooze, day.today, plan.suggestion?.nextAdjust);
 
   /* '유지로 바꾸기'를 누르면 하루 목표가 얼마가 되나 — 목표 창과 같은 규칙으로 미리 셈한다(웹과 같다) */
   const keepProfile = { goal: 'maintain' as const, activity: day.profile.activity, weeklyRateKg: null, kcalTarget: day.profile.kcalTarget };

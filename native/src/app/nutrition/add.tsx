@@ -13,7 +13,7 @@ import { BrowseAll, ComboButton, ComboRow, PickPanel, SaveCombo } from '~/nutrit
 import { Segmented } from '~/shell/heading';
 import { Icon } from '~/shell/icon';
 import { CustomFood } from '~/nutrition/custom-food';
-import { takeScanned } from '~/nutrition/scanned';
+import { takeScanned, type Scanned } from '~/nutrition/scanned';
 import { READABLE } from '~/lib/layout';
 
 /**
@@ -50,7 +50,7 @@ export default function NutritionAddScreen() {
   const [savedName, setSavedName] = useState<string | null>(null);
 
   /* 바코드 화면에서 돌아오면 찾은 음식을 고른 것으로 */
-  const [scanned, setScanned] = useState<Food | null>(null);
+  const [scanned, setScanned] = useState<Scanned | null>(null);
   useFocusEffect(
     useCallback(() => {
       const f = takeScanned();
@@ -60,7 +60,7 @@ export default function NutritionAddScreen() {
       }
     }, [])
   );
-  const chosen = scanned ?? picked;
+  const chosen = scanned?.food ?? picked;
 
   const local = useMemo(() => {
     const text = q.trim();
@@ -328,6 +328,12 @@ export default function NutritionAddScreen() {
 
       {chosen ? (
         <ScrollView contentContainerStyle={[{ paddingHorizontal: 16, paddingBottom: inset.bottom + 24 }, READABLE]} keyboardShouldPersistTaps="handled">
+          {/* 바코드로 찾은 음식이면 어디서 찾았는지 한 줄(웹 barcode-panel 과 같은 글) */}
+          {scanned && scanned.food === chosen && scanned.from !== 'new' ? (
+            <Text style={{ color: c.muted, fontSize: 13, paddingHorizontal: 4, paddingBottom: 8 }}>
+              {scanned.from === 'mine' ? '전에 적어 둔 바코드예요.' : '공개 자료(Open Food Facts)에서 찾았어요. 이름 · 값이 포장과 다를 수 있어요.'}
+            </Text>
+          ) : null}
           <PickPanel
             key={`${chosen.source}:${chosen.id ?? chosen.name}`}
             food={chosen}
