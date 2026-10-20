@@ -97,3 +97,11 @@
   카메라(DualCamera · ShootCamera) · 폰 영상 저장(LocalVideo) Expo 모듈, 안드로이드 폰 시험 · Play 스토어. 노력 L(CC 1~2주 + 폰 시험).
   다시 볼 때: iOS Expo 판이 출시된 뒤. 시작점: native/ 의 Expo 모듈 Swift 를 기준으로 Kotlin, 먼저 안드로이드 WebView 가 구속 엔진(숨은 웹뷰 계산기, D5)의
   WebCodecs · onnxruntime-web WASM · 워커를 돌리는지 확인.
+
+
+## 타격(2026-10-20 — docs/designs/hitting-restructure.md 2단계)
+
+- **타자용 운동 엔진 갈래**(D2): 포지션으로 투구 부하 규칙 끄기 · 회전 파워 앞으로. 1단계엔 투구 기록 없는 타자라 제한이 안 걸려 미룸. P2
+- **홈 · 분석에 타격**(D3): 링 · 요약 칸 · 캘린더 · 분석. P2
+- **타격 드릴 칸**(D5): 영상 촬영 뒤 종목 바에 칸 더하기. P3
+- (나중) 타구 속도 측정 · 스윙 분석 · 타격 부하를 엔진에 · 타격 담당 정하기(D5 of 1판). P3

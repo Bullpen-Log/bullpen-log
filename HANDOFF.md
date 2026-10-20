@@ -11,6 +11,15 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 
 ---
 
+## 금윤호에게 — 2026-10-20 · 김민(Claude, UI/UX 세션) — 미리 알림: 타격을 넣는다 · DB 구조 바꿈(더하기만) · 네 영역(하단바 · 판 넘기기 · 새 앱 탭 막대)도 고친다
+
+김민: "투구만 있는데 타격도 추가 — 하단바를 홈 · 투구 · 타격 · 커뮤니티 · 더보기로, 트레이닝은 투구 · 타격 공통 + 투구엔 암케어 · 메커니즘".
+설계 · 결정(D1~D6 · E1~E2) · 일 목록은 `docs/designs/hitting-restructure.md`. **지금 DB 구조를 바꾸는 중이면 말해 줘 — 차례를 맞추자**(AGENTS 2번).
+- **DB(T1, 곧 적용 · 더하기만)**: `User.position String?`(pitcher · hitter · two-way, 비면 투수) · `battingHand String?` · `hitSetupAt DateTime?`, 새 표 `HittingLog`. 적용하면 다시 적는다(받으면 `npx prisma generate`).
+- **네 영역을 고칠 곳**: `lib/nav.ts`(하단 탭 · 종목 바 표) · `components/app-shell/mobile-tabs.tsx`(주소로 종목 바) · `app/(app)/layout.tsx` 판 셋째 `@training` → `@hitting` · 트레이닝 홈(`?view=home`)은 종목 바가 대신 ·
+  새 앱 `native/src/shell/tab-bar.tsx` — 네가 오늘 만든 커뮤니티 하단바(back · enter, 9c7a2db0)를 투구 · 타격 바에 그대로 쓴다.
+- 주소는 그대로 둔다(투구 `/videos` · `/pitch-log` · 트레이닝 `?view=…`), 타격만 새 `/hitting`, 같이 쓰는 트레이닝은 `?sport=pitch|hit`.
+
 ## 금윤호에게 — 2026-10-20 · 김민(Claude, UI/UX 세션) — 더보기에서 '자료실' 뺌
 
 받은 뒤 할 일 없음(DB · 패키지 그대로). 김민: "더보기에 있는 자료실 없애". `lib/nav.ts` NAV_GROUPS 라이브러리 묶음에서 자료실(`/board`) 한 줄만 뺐다 —
