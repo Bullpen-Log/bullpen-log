@@ -3,6 +3,7 @@ import { SETUP_PATH, type FeatureKey } from '@/lib/feature-locks';
 
 const LABEL: Record<FeatureKey, string> = {
   pitch: '투구 기록',
+  hit: '타격 기록',
   training: '트레이닝',
   nutrition: '영양',
 };
@@ -13,6 +14,16 @@ const LABEL: Record<FeatureKey, string> = {
  * 보내지 않고 단추만 둔다. 하단 탭 · 메뉴의 잠긴 항목은 lib/nav.ts applyLocks 가 설정 주소로 바꿔 둔다.
  */
 export function TabLocked({ feature }: { feature: FeatureKey }) {
+  /* 타격은 투수만 하던 사람도 보는 칸이라 '첫 설정'이 아니라 시작하기로 권한다(2026-10-20 김민 D2) */
+  if (feature === 'hit') {
+    return (
+      <div className="flex min-h-[60dvh] flex-col items-center justify-center gap-4 text-center">
+        <p className="text-lg font-semibold text-ink">타격도 기록해 볼까요?</p>
+        <p className="text-sm text-muted">포지션과 치는 손만 고르면 바로 시작해요.</p>
+        <ButtonLink href={SETUP_PATH.hit}>타격 시작하기</ButtonLink>
+      </div>
+    );
+  }
   return (
     <div className="flex min-h-[60dvh] flex-col items-center justify-center gap-4 text-center">
       <p className="text-lg font-semibold text-ink">

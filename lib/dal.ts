@@ -55,6 +55,10 @@ export const getCurrentUser = cache(async () => {
          */
         pitchSetupAt: true,
         trainingSetupAt: true,
+        /* 타격 1단계(2026-10-20) — 타격 잠금 · 포지션(타자면 투구 전용 카드 숨김) · 치는 손 */
+        hitSetupAt: true,
+        position: true,
+        battingHand: true,
         tutorialsDone: true,
         nutritionProfile: { select: { onboardedAt: true } },
         /* 개편 전에 가입한 계정은 영양을 잠그지 않는다(lib/feature-locks.ts NUTRITION_LOCK_SINCE) */
