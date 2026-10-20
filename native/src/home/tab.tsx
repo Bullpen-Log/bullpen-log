@@ -5,7 +5,7 @@ import Animated, { Easing, FadeOut, useAnimatedRef, useAnimatedScrollHandler, us
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { FeedItem } from '@/lib/report/feed-items';
 import { cacheEpoch, cacheGet, cacheSet } from '~/lib/store';
-import { PRESSED, SPACE, usePalette, withAlpha } from '~/lib/ui';
+import { PRESSED, SPACE, TYPE, usePalette, withAlpha } from '~/lib/ui';
 import { Icon } from '~/shell/icon';
 import { REST_SESSION_TYPE } from '@/lib/session-type';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
@@ -220,7 +220,24 @@ export function HomeTab({
         style={{ flex: 1 }}
         contentContainerStyle={[{ paddingTop: inset.top + BAR_H + SPACE.section, paddingBottom: bottom + 24, paddingHorizontal: SPACE.side }, READABLE]}
       >
-        {/* 웹 홈과 같은 차례 · 간격: 링 → 24 → 요약 칸 → 24 → 달력(+ 16 그날 칸 둘) → 24 → 알림 · 첫날 카드 */}
+        {/*
+          차례: 통증 경고 → 링 → 요약 칸 → 달력(+ 그날 칸) → 첫날 · 잘 던진 날 카드. 통증 경고는 맨 위(2026-10-21 — 화면에서 가장 중요한
+          안전 글이 달력 밑에 있어 끝까지 내려야 보였다).
+        */}
+        {home?.painWords || home?.recovering ? (
+          <View style={{ gap: SPACE.gap, marginBottom: SPACE.section }}>
+            {home.painWords ? (
+              <Warn
+                title="지금 통증이 있으신가요?"
+                body="통증이 있으면 던지지 말고 전문의와 상담하세요."
+                why={`최근 투구 일지 메모에 ‘${home.painWords.join(', ')}’ 같은 말이 있었어요. 통증인지 알 수 없어서, 확인될 때까지 투구는 쉬고 운동은 회복 · 가동성만 골랐어요. 체크인을 남기면 바로 평소 계획으로 돌아가요.`}
+                action="오늘 체크인하기"
+                onPress={() => openCheckin()}
+              />
+            ) : null}
+            {home.recovering ? <Warn title="오늘은 회복 운동만 골랐어요" body="최근 체크인에 통증이 있어서 무게 운동은 뺐어요." /> : null}
+          </View>
+        ) : null}
         {home ? (
           <>
             <RingsCard rings={home.rings} onPress={openRing} />
@@ -246,7 +263,7 @@ export function HomeTab({
           {calView === 'list' ? (
             <Animated.View key="list" entering={viewSwap} style={{ gap: 16 }}>
               <View style={styles.listHead}>
-                <Text style={{ color: c.ink, fontSize: 15, fontWeight: '600' }}>최근 기록</Text>
+                <Text accessibilityRole="header" style={[TYPE.section, { color: c.ink }]}>최근 기록</Text>
                 <Press accessibilityRole="button" accessibilityLabel="캘린더로 보기" onPress={() => setCalView('calendar')} style={styles.viewBtn}>
                   <Icon name="calendar-days" size={20} color={c.muted} />
                 </Press>
@@ -292,18 +309,8 @@ export function HomeTab({
         </Animated.View>
 
         {/* 캘린더 밑 — 알림 카드 · 첫날 카드(웹 home-page.tsx TodayBody 와 같은 차례) */}
-        {home?.painWords || home?.recovering || home?.firstDay || home?.goodNote ? (
+        {home?.firstDay || home?.goodNote ? (
           <Animated.View layout={layoutMove} style={{ marginTop: SPACE.section, gap: SPACE.section }}>
-            {home.painWords ? (
-              <Warn
-                title="지금 통증이 있으신가요?"
-                body="통증이 있으면 던지지 말고 전문의와 상담하세요."
-                why={`최근 투구 일지 메모에 ‘${home.painWords.join(', ')}’ 같은 말이 있었어요. 통증인지 알 수 없어서, 확인될 때까지 투구는 쉬고 운동은 회복 · 가동성만 골랐어요. 체크인을 남기면 바로 평소 계획으로 돌아가요.`}
-                action="오늘 체크인하기"
-                onPress={() => openCheckin()}
-              />
-            ) : null}
-            {home.recovering ? <Warn title="오늘은 회복 운동만 골랐어요" body="최근 체크인에 통증이 있어서 무게 운동은 뺐어요." /> : null}
             {home.firstDay ? (
               <FirstDayCard today={today} status={home.firstDay} locked={home.pitchLocked} onTab={onTab} onRested={() => void refresh()} />
             ) : null}
@@ -472,7 +479,7 @@ const styles = StyleSheet.create({
   goodHead: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 48, padding: SPACE.pad },
   listHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 4 },
   viewBtn: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
-  cardTitle: { fontSize: 15, fontWeight: '600' },
+  cardTitle: TYPE.card,
   pill: { minHeight: 44, borderRadius: 22, paddingHorizontal: 16, justifyContent: 'center' },
   pillText: { color: '#fff', fontSize: 15, fontWeight: '600' },
   ghost: { alignSelf: 'flex-start', minHeight: 44, borderRadius: 22, borderWidth: 1, paddingHorizontal: 16, justifyContent: 'center' },

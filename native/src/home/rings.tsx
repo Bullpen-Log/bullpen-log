@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import Animated, { Easing, useAnimatedProps, useAnimatedStyle, useReducedMotion, useSharedValue, withDelay, withSequence, withTiming } from 'react-native-reanimated';
 import Svg, { Circle } from 'react-native-svg';
-import { usePalette, withAlpha } from '~/lib/ui';
+import { TYPE, usePalette, withAlpha } from '~/lib/ui';
 import { Icon, type IconName } from '~/shell/icon';
 import { Press } from '~/shell/press';
 import type { HomeRing } from './api';
@@ -27,14 +27,25 @@ const ACircle = Animated.createAnimatedComponent(Circle);
 
 export function RingsCard({ rings, onPress }: { rings: HomeRing[]; onPress: (ring: HomeRing) => void }) {
   const c = usePalette();
+  const done = rings.filter((r) => r.value >= 1).length;
   return (
     <View style={[styles.card, { backgroundColor: c.card, boxShadow: c.float }]}>
-      {rings.map((it) => (
-        <Press key={it.key} accessibilityRole="button" accessibilityLabel={`${it.label} ${it.caption}`} onPress={() => onPress(it)} style={styles.item}>
-          <Ring value={it.value} icon={ICON[it.key]} />
-          <Text style={[styles.label, { color: c.ink }]}>{it.label}</Text>
-        </Press>
-      ))}
+      {/* 머리 — 오늘 몇 개 했는지가 홈의 주인공(2026-10-21: 링 넷만 있어 무엇을 보라는 건지 안 읽혔다) */}
+      <View style={styles.head} accessibilityRole="summary">
+        <Text style={[TYPE.card, { flex: 1, color: c.ink }]}>오늘</Text>
+        <Text style={[TYPE.num, { fontSize: 22, color: done === rings.length ? c.sky : c.ink }]}>
+          {done}
+          <Text style={{ color: c.muted, fontSize: 17 }}> / {rings.length}</Text>
+        </Text>
+      </View>
+      <View style={styles.row}>
+        {rings.map((it) => (
+          <Press key={it.key} accessibilityRole="button" accessibilityLabel={`${it.label} ${it.caption}`} onPress={() => onPress(it)} style={styles.item}>
+            <Ring value={it.value} icon={ICON[it.key]} />
+            <Text style={[styles.label, { color: c.ink }]}>{it.label}</Text>
+          </Press>
+        ))}
+      </View>
     </View>
   );
 }
@@ -101,7 +112,9 @@ function Ring({ value, icon }: { value: number; icon: IconName }) {
 
 const styles = StyleSheet.create({
   /* 웹 Card px-2 · 위아래 20 · 4칸 사이 4 */
-  card: { flexDirection: 'row', borderRadius: 20, paddingVertical: 20, paddingHorizontal: 8, gap: 4 },
+  card: { borderRadius: 20, paddingVertical: 20, paddingHorizontal: 8, gap: 16 },
+  head: { flexDirection: 'row', alignItems: 'baseline', paddingHorizontal: 12 },
+  row: { flexDirection: 'row', gap: 4 },
   item: { flex: 1, alignItems: 'center', gap: 8, borderRadius: 20, paddingVertical: 4 },
   ring: { width: SIZE, height: SIZE, alignItems: 'center', justifyContent: 'center' },
   /* 가운데 원 — inset 22% */

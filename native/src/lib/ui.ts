@@ -102,6 +102,16 @@ export const TYPE = {
   title: { fontSize: 34, fontWeight: '800', letterSpacing: -1 },
   heading: { fontWeight: '800', letterSpacing: -0.5 },
   num: { fontFamily: 'ui-rounded', fontWeight: '700', fontVariant: ['tabular-nums'], letterSpacing: -0.2 },
+  /*
+   * 글자 단계(2026-10-21 김민 "포인트가 없어 눈에 안 들어온다") — 크기 다섯 · 굵기 셋. 새 글은 이 중 하나를 쓴다.
+   * 화면마다 주인공(hero) 하나 → 구역 제목(section) → 카드 제목(card) → 본문(body) → 보조(sub, 회색 · 보통 굵기).
+   * 강조는 굵기가 아니라 크기 · 색으로. 파랑(sky)은 누르는 주 단추 · 지금 고른 것에만 — 꾸밈 그림은 ink · muted.
+   */
+  hero: { fontSize: 30, fontWeight: '800', letterSpacing: -0.8 },
+  section: { fontSize: 20, fontWeight: '700', letterSpacing: -0.4 },
+  card: { fontSize: 17, fontWeight: '600', letterSpacing: -0.2 },
+  body: { fontSize: 15, fontWeight: '400' },
+  sub: { fontSize: 13, fontWeight: '400', lineHeight: 18 },
 } satisfies Record<string, TextStyle>;
 
 /** 간격 — 사이트 휴대폰 규격: 카드 안 20(--block-pad) · 카드 사이 16 · 큰 덩이 사이 24 · 화면 양옆 16 */

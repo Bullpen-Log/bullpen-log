@@ -22,6 +22,26 @@ export function PageHead({ title, children }: { title: string; children?: ReactN
   );
 }
 
+/**
+ * 구역 제목 — 카드 무리 위의 이름(20 · 700, 2026-10-21). 카드끼리 같은 모양이라 무엇이 무엇에 딸렸는지 안 보이던 것.
+ * 오른쪽에 '전체 보기' 같은 글 단추를 둘 수 있다.
+ */
+export function SectionHead({ title, action, onAction }: { title: string; action?: string; onAction?: () => void }) {
+  const c = usePalette();
+  return (
+    <View style={st.section}>
+      <Text accessibilityRole="header" style={[TYPE.section, { flex: 1, color: c.ink }]} numberOfLines={1}>
+        {title}
+      </Text>
+      {action && onAction ? (
+        <Pressable accessibilityRole="button" onPress={onAction} hitSlop={8} style={({ pressed }) => pressed && { opacity: 0.5 }}>
+          <Text style={[TYPE.body, { color: c.sky }]}>{action}</Text>
+        </Pressable>
+      ) : null}
+    </View>
+  );
+}
+
 /** '분석' 알약 — 44pt · 옅은 면 · 파란 그래프 그림(웹 AnalysisLink) */
 export function AnalysisPill({ view }: { view: 'pitch' | 'training' }) {
   const c = usePalette();
@@ -109,6 +129,7 @@ const PAD = 4;
 const GAP = 4;
 const st = StyleSheet.create({
   head: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 44 },
+  section: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 32, paddingHorizontal: 4 },
   tools: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   pill: { height: 44, borderRadius: 22, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', gap: 6 },
   seg: { flexDirection: 'row', padding: PAD, gap: GAP, borderRadius: 28 },
