@@ -10,7 +10,7 @@ import type { AppArmcareItem, AppMyRoutine, AppRehabSummary } from '@/lib/armcar
 import type { ArmPainLine } from '@/lib/armcare/coverage-load';
 import { checkId, checkOutbox } from '~/armcare/outbox';
 import { ExerciseMedia, HowTo } from '~/armcare/parts';
-import { act, leave } from '~/mechanics/parts';
+import { act, leave, offlineAs } from '~/mechanics/parts';
 import type { Palette } from '~/lib/ui';
 import { Fold, s } from './screen';
 import { fromApp } from '~/shell/web-nav';
@@ -34,6 +34,7 @@ export function ExerciseRow({
   warning,
   check,
   fav,
+  highlight,
   c,
 }: {
   ex: ArmcareExerciseView;
@@ -42,6 +43,8 @@ export function ExerciseRow({
   check?: { done: boolean; disabled: boolean; onToggle: () => void };
   /** 서버가 준 즐겨찾기 값 — 넘기면 미리보기 옆에 별(부위별 보강 · 즐겨찾기 모음) */
   fav?: boolean;
+  /** 부위별 보강 — 그 부위의 근육 칩을 강조(웹 GuideExercise highlight) */
+  highlight?: string[];
   c: Palette;
 }) {
   const [open, setOpen] = useState(false);
@@ -70,7 +73,7 @@ export function ExerciseRow({
           </Text>
           {ex.prescription ? <Text style={[s.smallBold, { color: c.muted }]}>{ex.prescription}</Text> : null}
           {warning ? <Text style={[s.small, { color: c.warn }]}>{warning}</Text> : null}
-          {ex.targetMuscles.length ? <MuscleChips muscles={ex.targetMuscles} max={2} c={c} /> : null}
+          {ex.targetMuscles.length ? <MuscleChips muscles={ex.targetMuscles} max={2} highlight={highlight} c={c} /> : null}
           <Text style={[s.tiny, { color: c.muted }]}>{meta}</Text>
           {/* 부위별 보강에서만(루틴 목록을 넘긴 곳) — 웹 AddToRoutine 처럼 운동 줄 안 [담기] */}
           <AddToRoutine exerciseId={ex.id} title={ex.title} c={c} />
@@ -85,7 +88,7 @@ export function ExerciseRow({
         style={[st.disclose, { borderTopColor: c.line }]}
       >
         <SymbolView name="info.circle" size={13} tintColor={c.muted} />
-        <Text style={[s.smallBold, { color: c.muted, flex: 1 }]}>자세 · 영상 보기</Text>
+        <Text style={[s.smallBold, { color: c.muted, flex: 1 }]}>자세·영상 보기</Text>
         <SymbolView name={open ? 'chevron.up' : 'chevron.down'} size={11} tintColor={c.muted} />
       </Press>
       {open ? (
@@ -150,7 +153,7 @@ export function Checklist({
     const res = await act<{ ok: true }>('exercise-log.setExerciseDone', id, next, dateKey);
     if ('error' in res) {
       flip(!next);
-      setError(res.error);
+      setError(offlineAs(res.error, '저장하지 못했어요.'));
     } else onChanged?.();
   };
 
@@ -517,6 +520,7 @@ export function AreaCard({
                 ex={ex}
                 note={secondary.includes(ex) ? '함께 쓰는 운동' : null}
                 fav={favIds ? favIds.includes(ex.id) : undefined}
+                highlight={muscles.map((m) => m.name)}
                 c={c}
               />
             ))

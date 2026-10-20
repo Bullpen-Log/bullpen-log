@@ -153,7 +153,7 @@ function Detail({ rehab, dateKey, fresh, reload, c }: { rehab: AppRehabSummary; 
             <Check key={g.label} ok={g.ok} label={g.label} c={c} />
           ))}
           <Check ok={false} label="단계 시험 통과" c={c} />
-          {d.hasStageTest ? <AppButton label={d.gate.ready ? '단계 시험 하기' : '조건이 차면 단계 시험'} disabled={!d.gate.ready} onPress={() => router.push('/rehab-test' as Href)} c={c} /> : null}
+          {d.hasStageTest ? <AppButton label="단계 시험 하기" disabled={!d.gate.ready} onPress={() => router.push('/rehab-test' as Href)} c={c} /> : null}
         </Part>
       ) : (
         <Part title={d.throwing.opened ? '투구 복귀표' : '투구 복귀표를 여는 조건'} c={c}>
@@ -187,7 +187,13 @@ function Detail({ rehab, dateKey, fresh, reload, c }: { rehab: AppRehabSummary; 
 
       {pick ? (
         <View style={{ gap: 10, padding: 14, borderRadius: 14, backgroundColor: c.card, boxShadow: c.float }}>
-          <Text style={[s.bodyBold, { color: c.ink }]}>{pick.kind === 'diagnosis' ? '진단 받았어요' : `단계 직접 바꾸기 · 지금 ${d.stage}단계`}</Text>
+          {/* 웹 rehab-sheets 와 같은 제목 · 한 줄 */}
+          <View style={{ gap: 2 }}>
+            <Text style={[s.bodyBold, { color: c.ink }]}>{pick.kind === 'diagnosis' ? '진단 받았어요' : '단계 직접 바꾸기'}</Text>
+            <Text style={[s.small, { color: c.muted }]}>
+              {pick.kind === 'diagnosis' ? '병명에 맞춘 재활로 바꿔요' : `지금 ${d.stage}단계 ${REHAB_STAGES[d.stage].name}`}
+            </Text>
+          </View>
           {choices.map((o) => {
             const on = pick.value === o.value;
             return (
@@ -219,7 +225,7 @@ function Detail({ rehab, dateKey, fresh, reload, c }: { rehab: AppRehabSummary; 
               accessibilityRole="button"
               style={[s.smallPill, { backgroundColor: c.sky, minHeight: 44, paddingHorizontal: 18, opacity: !pick.value || busy ? 0.5 : 1 }]}
             >
-              <Text style={[s.bodyBold, { color: '#fff' }]}>{busy ? '저장하는 중…' : '바꾸기'}</Text>
+              <Text style={[s.bodyBold, { color: '#fff' }]}>{busy ? '저장하는 중…' : pick.kind === 'stage' && pick.value ? `${pick.value}단계로 바꾸기` : '바꾸기'}</Text>
             </Press>
           </View>
         </View>

@@ -1,7 +1,7 @@
 import * as Haptics from 'expo-haptics';
 import { SymbolView } from 'expo-symbols';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, AppState, Image, StyleSheet, Text, View } from 'react-native';
+import { AppState, Image, StyleSheet, Text, View } from 'react-native';
 import { methodByKey, type ArmcareMethodKey } from '@/lib/armcare/methods';
 import { REHAB_FEEL_OPTIONS, REHAB_LEFTOVER_OPTIONS } from '@/lib/armcare/rehab-regions';
 import type { RehabFeel, RehabLeftover, RehabResult } from '@/lib/armcare/rehab-regions';
@@ -141,7 +141,7 @@ export function HowTo({
       {open ? (
         <View style={{ gap: 12, paddingBottom: 12 }}>
           {loading ? (
-            <ActivityIndicator />
+            <Text style={[s.small, { color: c.muted }]}>설명을 불러오는 중…</Text>
           ) : got?.failed ? (
             <Press onPress={load} accessibilityRole="button" style={s.textBtn}>
               <Text style={[s.small, { color: c.muted }]}>

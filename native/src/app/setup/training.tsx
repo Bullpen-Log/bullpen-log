@@ -20,6 +20,7 @@ import { rpc, RpcError } from '~/lib/rpc';
 import { usePalette, type Palette } from '~/lib/ui';
 import { leaveTo, openWebAfter } from '~/shell/web-nav';
 import { ChoiceChips, StepFrame, SummaryRows } from '~/setup/frame';
+import { OFFLINE_TEXT } from '~/mechanics/parts';
 
 /**
  * 트레이닝 첫 설정(앱 화면) — 웹 app/(app)/training/setup/training-setup-wizard.tsx 를 옮겼다. 경력 → 웨이트 횟수 → 하루 운동 시간 →
@@ -111,7 +112,7 @@ function Wizard({ name, age, askHand, hasSetup, basicsDone, initial }: Extract<L
       setProblem({ error: r.error, field: r.field ?? 'summary' });
     } catch (e) {
       if (e instanceof RpcError && e.code === 'redirect') return leaveTo(e.to ?? '/login');
-      setProblem({ error: '신호가 약해 저장하지 못했어요. 신호가 잡히면 다시 눌러 주세요.', field: 'summary' });
+      setProblem({ error: OFFLINE_TEXT, field: 'summary' });
     } finally {
       setSaving(false);
     }

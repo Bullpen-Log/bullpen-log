@@ -1,4 +1,5 @@
 import * as Haptics from 'expo-haptics';
+import { CHECK_CONNECTION } from '@/lib/offline';
 import { SymbolView } from 'expo-symbols';
 import { type Href, router } from 'expo-router';
 import { useEffect, useState } from 'react';
@@ -16,8 +17,10 @@ import { Press } from '~/shell/press';
 /** 화면을 닫고 웹을 그 주소로 — 껍데기(index.tsx)가 웹뷰를 옮긴다(~/shell/web-nav leaveTo) */
 export const leave = leaveTo;
 
-/** act 가 신호 끊김에 돌려주는 글 — 화면이 웹처럼 앞말('담지 못했어요.')을 붙이고 싶을 때 견준다 */
+/** act 가 신호 끊김에 돌려주는 글 — 화면이 웹처럼 앞말('담지 못했어요.')을 붙이고 싶을 때 견준다(웹 lib/action-offline OFFLINE_MESSAGE 와 같은 글) */
 export const OFFLINE_TEXT = '인터넷 연결을 확인한 뒤 다시 해 주세요.';
+/** 신호가 끊겨 못 했으면 웹과 같은 '○○하지 못했어요. 인터넷 연결을 확인하고 다시 눌러 주세요.'(lib/offline CHECK_CONNECTION), 아니면 서버 글 그대로 */
+export const offlineAs = (error: string, what: string) => (error === OFFLINE_TEXT ? `${what} ${CHECK_CONNECTION}` : error);
 
 /**
  * 서버 동작 부르기 — 웹 orOffline 처럼 던지지 않고 { error } 로 돌려준다(신호가 끊겨도 화면이 오류로 사라지지 않게). 로그인이 풀렸으면

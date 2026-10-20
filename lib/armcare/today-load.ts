@@ -334,7 +334,7 @@ async function rehabSummary(
           !t
             ? '던지기 준비'
             : t.openedOn
-              ? '투구 복귀표를 열었어요'
+              ? '투구 복귀표를 열었어요. 자세히에서 봐요'
               : `공 운동 통증 없이 ${Math.min(t.painFreeBallDays, t.needed)}/${t.needed}일`
         }`
       : `깨끗한 세션 ${shown}/${status.gate.cleanNeeded}${

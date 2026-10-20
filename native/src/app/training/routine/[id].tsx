@@ -306,7 +306,7 @@ function PickRow({ e, inside, disabled, onToggle, c }: { e: BuilderExercise; ins
       </View>
       <Press onPress={() => setOpen((v) => !v)} accessibilityRole="button" accessibilityState={{ expanded: open }} style={[st.disclose, { borderTopColor: c.line }]}>
         <SymbolView name="info.circle" size={13} tintColor={c.muted} />
-        <Text style={[s.smallBold, { color: c.muted, flex: 1 }]}>자세 · 영상 보기</Text>
+        <Text style={[s.smallBold, { color: c.muted, flex: 1 }]}>자세·영상 보기</Text>
         <SymbolView name={open ? 'chevron.up' : 'chevron.down'} size={11} tintColor={c.muted} />
       </Press>
       {open ? (

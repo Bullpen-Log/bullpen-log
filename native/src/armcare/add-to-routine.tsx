@@ -5,8 +5,7 @@ import { createContext, useContext, useState, type ReactNode } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { MY_ROUTINE_MAX, MY_ROUTINE_MAX_ITEMS } from '@/lib/armcare/my-routines';
 import type { Palette } from '~/lib/ui';
-import { CHECK_CONNECTION } from '@/lib/offline';
-import { OFFLINE_TEXT, act } from '~/mechanics/parts';
+import { act, offlineAs } from '~/mechanics/parts';
 import { Sheet } from '~/workout/sheets';
 import { Press } from '~/shell/press';
 
@@ -39,7 +38,7 @@ export function AddToRoutine({ exerciseId, title, c }: { exerciseId: string; tit
     const res = await act<{ ok: true; added: boolean }>('armcare.addToMyArmcareRoutine', r.id, exerciseId);
     setPending(false);
     /* 신호가 끊겼으면 웹 add-to-routine 과 같은 글 */
-    if ('error' in res) return setMessage(res.error === OFFLINE_TEXT ? `담지 못했어요. ${CHECK_CONNECTION}` : res.error);
+    if ('error' in res) return setMessage(offlineAs(res.error, '담지 못했어요.'));
     void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setAddedTo((prev) => [...prev, r.id]);
     setMessage(res.added ? `'${r.name}'에 담았어요.` : `'${r.name}'에 이미 있어요.`);

@@ -11,7 +11,7 @@ import type { WeightUnit } from '@/lib/units';
 import { STATE_NOTICE_TEXT, moreText, type StateNotice } from '@/lib/report/state-notice';
 import type { TodayGroup, TodayMake, TodayPlan, TodayRow, TrainingToday } from '@/lib/report/training-today-data';
 import { ExerciseMedia } from '~/armcare/parts';
-import { act } from '~/mechanics/parts';
+import { act, offlineAs } from '~/mechanics/parts';
 import { withAlpha, type Palette } from '~/lib/ui';
 import { EffortGuide, Sheet } from '~/workout/sheets';
 import { trainingEffortLevel } from '@/lib/training-effort';
@@ -354,7 +354,7 @@ export function PlanBody({
     pending.current.delete(r.id);
     if ('error' in res) {
       setLocal((l) => ({ ...l, done: { ...l.done, [r.id]: !next } }));
-      setError(res.error);
+      setError(offlineAs(res.error, '저장하지 못했어요.'));
     }
   };
   const star = async (r: TodayRow) => {
@@ -363,7 +363,7 @@ export function PlanBody({
     const res = await act<{ favorite: boolean }>('favorite.toggleExerciseFavorite', r.id);
     if ('error' in res) {
       setLocal((l) => ({ ...l, fav: { ...l.fav, [r.id]: r.favorite } }));
-      setError(res.error);
+      setError(offlineAs(res.error, '저장하지 못했어요.'));
     } else setLocal((l) => ({ ...l, fav: { ...l.fav, [r.id]: res.favorite } }));
   };
   /* 웹처럼 밀어서 [빼기]를 누르면 바로 뺀다(묻지 않음) — 실패하면 되돌리고 알린다 */
@@ -373,7 +373,7 @@ export function PlanBody({
     const res = await act<{ ok: true }>('plan-edit.removeFromTodayPlan', r.id);
     if ('error' in res) {
       setLocal((l) => ({ ...l, gone: l.gone.filter((x) => x !== r.id) }));
-      return setError(res.error);
+      return setError(offlineAs(res.error, '저장하지 못했어요.'));
     }
     await a.reload();
   };

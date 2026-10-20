@@ -101,6 +101,10 @@ export default function WorkoutScreen() {
       {failed ? (
         <>
           <Text style={[s.body, { color: c.ink, textAlign: 'center' }]}>{failed}</Text>
+          {/* 웹 운동 화면 오류(app/(session)/error.tsx)와 같은 안심 한 줄 — 남긴 세트는 폰 대기열에 있다(~/workout/outbox) */}
+          <Text style={[s.small, { color: c.muted, textAlign: 'center' }]}>
+            남긴 세트는 지워지지 않았어요. 신호가 없을 때 남긴 세트도 폰에 있다가 저절로 보내져요.
+          </Text>
           <Press
             onPress={() => {
               setFailed(null);

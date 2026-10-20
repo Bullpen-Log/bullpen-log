@@ -8,7 +8,7 @@ import { drainChecks, onCheckResult } from '~/armcare/outbox';
 import { PainGuideButton, type PainView } from '~/armcare/pain-guide-sheet';
 import { MyRoutinesProvider } from '~/armcare/add-to-routine';
 import { sendCheck } from '~/armcare/send';
-import { act, leave } from '~/mechanics/parts';
+import { act, leave, offlineAs } from '~/mechanics/parts';
 import { rpc } from '~/lib/rpc';
 import { usePalette, type Palette } from '~/lib/ui';
 import { leaveWhenShown, openCheckin } from '~/shell/web-nav';
@@ -257,7 +257,7 @@ function CustomRoutine({
     setMaking(true);
     setError(null);
     const res = await act<{ ok: true }>('armcare.makeArmcareRoutine');
-    if ('error' in res) setError(res.error);
+    if ('error' in res) setError(offlineAs(res.error, '루틴을 만들지 못했어요.'));
     else await reload();
     setMaking(false);
   };
@@ -359,7 +359,7 @@ function GuideTab({ data, scroll, c }: { data: AppArmcareGuideTab; scroll: RefOb
   return (
     <MyRoutinesProvider routines={data.routines ?? null}>
       <View onLayout={jump.onRoot} style={{ gap: 12 }}>
-        <Text style={[s.small, { color: c.muted }]}>부위를 펼쳐 보세요.</Text>
+        <Text style={[s.small, { color: c.muted }]}>근육을 누르거나 부위를 펼쳐 보세요.</Text>
         {data.coverage.pain ? <PainNote pain={data.coverage.pain} onArea={showArea} c={c} /> : null}
         {/* 3D 근육 지도(웹) — 큰 단추로(2026-10-20 김민). 웹이 지도를 그린 뒤에 이 화면을 걷는다(leaveWhenShown — 트레이닝 첫 화면이 비치지 않게) */}
         <Pressable

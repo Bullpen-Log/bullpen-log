@@ -31,6 +31,7 @@ import { usePalette, type Palette } from '~/lib/ui';
 import { ChoiceChips, StepFrame } from '~/setup/frame';
 import { leaveTo } from '~/shell/web-nav';
 import { Press } from '~/shell/press';
+import { OFFLINE_TEXT } from '~/mechanics/parts';
 
 /**
  * 재활 프로그램 시작(앱 화면) — 웹 app/(app)/training/rehab-start.tsx 의 시작 시트를 옮겼다. 어디가 아파요? → 얼마나(언제 아파요 +
@@ -103,7 +104,7 @@ export default function RehabStartScreen() {
       }
     } catch (e) {
       if (e instanceof RpcError && e.code === 'redirect') return leaveTo(e.to ?? '/login');
-      setError('신호가 약해 시작하지 못했어요. 신호가 잡히면 다시 눌러 주세요.');
+      setError(OFFLINE_TEXT);
     } finally {
       setSaving(false);
     }
