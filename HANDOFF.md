@@ -31,7 +31,8 @@ Claude 로 작업을 시작하면 저절로 읽힌다. 규칙은 `AGENTS.md` 6�
 - **2~5판도 이어서(2026-10-21 새벽)**: 레슨 예약(`/dugout/lessons` — 레슨장 설정의 ‘코치 프로필’ 공개 스위치(`Org.publicProfile` 등 새 칸) → 선수가 시간 둘 골라 요청 → 코치가 `/master/bookings` 에서 확정하면
   OrgMember + ShareConsent 기본값 + OrgEvent(lesson) 생성 · 후기는 끝난 예약만), 장소 예약(`/dugout/venues` — 마스터 계정이 `/master/venues` 에서 등록, 요일별 영업시간 · 칸 · 승인/즉시, 표 Venue · VenueBooking),
   장비 고르기(`/dugout/gear`, 바깥 검색 링크 — 제휴는 `NEXT_PUBLIC_SHOP_SEARCH`). 마이그레이션 `20261021010000_dugout_lesson_venue` 도 공유 DB 에 걸었다 — **`npx prisma generate` 한 번 더**.
-  결제(4판)는 계약이 필요해 안 만들었다. 시험 `npm run dugout:test`(41) · `integration:test`(34) · `org:test`(63).
+  결제(4판)는 **껍데기만**(사용자 지시): `/dugout/pay/{listing,lesson,venue}/[id]` · `/dugout/me/payments` · `/master/payouts`, 틀 `components/dugout/pay-shell.tsx`, 수수료 규칙 `lib/market/pay.ts`(비율은 가정 — 회의 뒤 한 줄). 표 · 동작 없음.
+  시험 `npm run dugout:test`(42) · `integration:test`(34) · `org:test`(63).
 
 ## 금윤호에게 — 2026-10-20 밤 · 김민(Claude, 네이티브1) — 새 앱이 정식 '불펜로그'가 됐다 · main 에 올리면 저절로 TestFlight · 휴대폰 웹은 막음
 

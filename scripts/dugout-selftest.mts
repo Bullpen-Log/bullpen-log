@@ -35,6 +35,7 @@ import {
   weekdayOf,
 } from '@/lib/market/venues';
 import { recommend } from '@/lib/market/gear';
+import { ESCROW_FEE_RATE, escrowFee, payout, platformFee } from '@/lib/market/pay';
 
 let pass = 0;
 const fails: string[] = [];
@@ -308,6 +309,12 @@ console.log('\n[4] 레슨 예약 · 장소 예약 · 장비 고르기 — 순수
     upcomingDays('2026-10-21').length === 14 &&
       upcomingDays('2026-10-21')[1] === '2026-10-22' &&
       weekdayOf('2026-10-21') === 3
+  );
+  check(
+    '수수료 — 안전결제는 100원 올림, 플랫폼은 100원 내림, 몫 = 금액 − 수수료',
+    escrowFee(80000) === Math.ceil((80000 * ESCROW_FEE_RATE) / 100) * 100 &&
+      platformFee(55500, 0.1) === 5500 &&
+      payout(55500, 0.1) === 50000
   );
   const picks = recommend('u13', 'pitcher', 'L');
   check(

@@ -19,7 +19,10 @@
 - **2 · 3 · 5판 끝(2026-10-21 새벽, 로컬 커밋)** — 2판 레슨 예약(`lib/market/lessons.ts` · `lesson-load.ts` · `app/actions/lessons.ts`, 코치 프로필은 레슨장 설정, 요청 처리는 `/master/bookings`,
   확정 → 회원 · 시간표 자동) · 3판 장소 예약(`lib/market/venues.ts` · `venue-load.ts` · `app/actions/venues.ts`, 등록은 `/master/venues`, 공개는 `/dugout/venues`, 요일별 영업시간 → 빈 칸 격자) ·
   5판 장비 고르기(`lib/market/gear.ts` · `/dugout/gear`, 제휴 전엔 바깥 검색). 마이그레이션 `20261021010000_dugout_lesson_venue`(공유 DB 적용).
-- **남은 것**: 4판 결제(토스페이먼츠 · 본인 인증 — 사용자 계약 뒤) · 소통 피드 개편(4-1, 김민과 정리) · 코치 서류 검증 배지 · 노쇼 보증금 · 입점 몰.
+- **4판 결제 — 껍데기(2026-10-21, 사용자: "겉만 만들어 둬, 결제만 안 되고 페이지는 다 보이게")** — 화면은 다 있고 결제 단추만 '준비 중'으로 잠김. 공통 틀 `components/dugout/pay-shell.tsx`(결제 내용 · 수단 · 동의 · 잠긴 단추),
+  규칙 `lib/market/pay.ts`(수수료율 — 안전결제 3.5% 구매자 · 레슨 10% 코치 · 장소 8% 장소, **회의에서 정하면 한 줄만 바꾼다**). 화면: `/dugout/pay/listing/[id]`(물건 상세 '안전결제') · `/dugout/pay/lesson/[id]` · `/dugout/pay/venue/[id]`(내 것의 확정 예약) ·
+  `/dugout/me/payments`(결제 수단 잠김 · 결제 예정) · 마스터 `/master/payouts`(이달 예상 정산 · 정산 계좌 잠김 · 내역). 표 · 동작 없음 — 계약 뒤 결제 연동할 때 PayShell 의 단추 하나와 결제 기록 표만 더한다.
+- **남은 것**: 결제 연동(토스페이먼츠 · 본인 인증 — 사용자 계약 뒤, 껍데기에 붙이기) · 소통 피드 개편(4-1, 김민과 정리) · 코치 서류 검증 배지 · 노쇼 보증금 · 입점 몰.
 
 ## 0. 한 줄 결론
 

@@ -66,6 +66,7 @@ export function MasterShell({
         : []),
       { href: '/master/venues', label: '장소 · 예약', icon: MapPin },
       { href: '/master/notices', label: '공지', icon: Megaphone },
+      { href: '/master/payouts', label: '정산', icon: CalendarDays },
       { href: '/master/settings', label: '설정 · 초대', icon: Settings },
     ];
   if (user.isAdmin)

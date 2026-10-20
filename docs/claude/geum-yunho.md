@@ -1436,3 +1436,5 @@
   마이그레이션 `20261020230000_dugout_market` 은 공유 DB 에 걸었다(사용자 허락 패턴). 다음은 2판 레슨 예약(코치 프로필 공개 스위치 · 예약 표).
 - **덕아웃 2 · 3 · 5판(2026-10-21 새벽)** — 레슨 예약 · 장소 예약 · 장비 고르기. 규칙은 `lib/market/{lessons,venues,gear}.ts`(순수), 읽기 `lesson-load` · `venue-load`, 동작 `app/actions/{lessons,venues}.ts`.
   코치 쪽은 마스터 화면(`/master/bookings` · `/master/venues` · 설정의 코치 프로필). 결제(4판)는 계약 뒤. 마이그레이션은 공유 DB 에 걸었다.
+- **덕아웃 4판 결제는 껍데기(2026-10-21)** — 사용자 지시 "겉만, 결제만 안 되게". `components/dugout/pay-shell.tsx` 하나가 모든 결제 화면의 틀(단추 disabled + '준비 중' 안내), 수수료율은 `lib/market/pay.ts` 상수 셋(가정값).
+  화면 다섯(`/dugout/pay/{listing,lesson,venue}/[id]` · `/dugout/me/payments` · `/master/payouts`). 계약 뒤 연동할 때 표(결제 기록)와 단추 동작만 더한다 — 화면은 안 바꾼다.
