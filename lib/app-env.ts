@@ -22,6 +22,14 @@ export const NATIVE_UA_MARK = 'BullpenLogApp';
  */
 export const EXPO_UA_MARK = 'BullpenNative/';
 
+/**
+ * 휴대폰 브라우저(앱 밖)인가 — 2026-10-20 김민: "데스크탑 · 맥 · PC 에서만 웹으로, 휴대폰은 앱만". proxy.ts 가 휴대폰 브라우저를
+ * '앱으로 써 주세요' 화면(/phone)으로 돌린다. 아이패드 사파리는 맥 이름표를 달고 와서 여기 안 걸린다(태블릿은 막지 않음).
+ */
+export function isPhoneBrowser(userAgent: string | null | undefined): boolean {
+  return !!userAgent && /iPhone|iPod|Android.+Mobile|Windows Phone/i.test(userAgent) && !userAgent.includes(NATIVE_UA_MARK);
+}
+
 export function isExpoUserAgent(userAgent: string | null | undefined): boolean {
   return !!userAgent && userAgent.includes(EXPO_UA_MARK);
 }

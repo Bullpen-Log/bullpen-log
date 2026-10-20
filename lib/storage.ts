@@ -131,6 +131,11 @@ export function videoBucket() {
   return getClient().storage.from(VIDEO_BUCKET);
 }
 
+/** 영상 버킷 밖의 버킷(새 앱 업데이트 app-updates — lib/app-update-store.ts) — 서버에서만 */
+export function storageBucket(name: string) {
+  return getClient().storage.from(name);
+}
+
 /** 스토리지 설정이 되어 있는지 확인한다. */
 export function isStorageConfigured() {
   return Boolean(process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY);
